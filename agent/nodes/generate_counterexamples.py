@@ -1,5 +1,11 @@
-"""generate_counterexamples node — generate JUnit tests targeting potential regressions."""
+"""generate_counterexamples node — generate JUnit tests targeting regressions.
 
+Phase 0: template-based for known patterns, with optional LLM enhancement.
+Phase 1+: full LLM-based test generation.
+"""
+
+import asyncio
+import os
 from pathlib import Path
 
 from agent.state import Phase0State
@@ -58,25 +64,105 @@ public class SpecProofGeneratedTest {{
 }}
 """
 
+_LLM_TEST_PROMPT = """You are a Java test engineer. Given findings from a security/correctness
+analysis, generate a JUnit 5 test class that verifies the regression.
+
+Findings:
+{findings_text}
+
+Generate a complete JUnit 5 test class for a Spring Boot @WebMvcTest.
+Use MockMvc to send HTTP requests. Include:
+- @SpringBootTest and @AutoConfigureMockMvc annotations
+- A test for each finding that verifies the correct behavior (expected status codes)
+- Proper imports
+
+Return ONLY the Java code, no explanation."""
+
+
+def _get_provider():
+    """Create an LLM provider from env vars. Returns None if not configured."""
+    api_key = os.getenv("LLM_API_KEY", "")
+    if not api_key or api_key == "replace_me":
+        return None
+    try:
+        from providers.openai_compatible import OpenAICompatibleProvider
+        return OpenAICompatibleProvider(probe_on_init=False)
+    except Exception:
+        return None
+
+
+async def _llm_generate_test(findings: list[dict]) -> str | None:
+    """Use LLM to generate targeted JUnit test code."""
+    from providers.base import LLMMessage
+
+    findings_text = "\n".join(
+        f"[{f.get('severity')}] {f.get('type')}: {f.get('description')}"
+        for f in findings[:5]
+    )
+    prompt = _LLM_TEST_PROMPT.format(findings_text=findings_text)
+
+    provider = _get_provider()
+    if provider is None:
+        return None
+
+    try:
+        response = await provider.chat(
+            messages=[LLMMessage(role="user", content=prompt)],
+            timeout=60.0,
+        )
+        content = response.content or ""
+        # Basic validation: must contain @Test and class
+        if "@Test" in content and "class" in content:
+            return content
+    except Exception:
+        pass
+
+    return None
+
 
 def generate_counterexamples_node(state: Phase0State) -> dict:
-    """Generate JUnit counterexample tests based on contracts and static findings.
+    """Generate JUnit counterexample tests based on findings.
 
-    Phase 0 generates deterministic tests for known patterns.
-    Phase 1+ will use LLM to generate targeted tests.
+    Phase 0 uses deterministic templates for known patterns.
+    If LLM provider is available, attempts LLM-based generation as enhancement.
     """
     static_findings = state.get("static_findings", [])
     head_workspace = state.get("head_workspace", "")
 
     generated_tests: list[str] = []
 
-    # If auth bypass detected, generate an unauthenticated access test
+    # Check for known patterns first
     has_auth_issue = any(
         f.get("type") in ("annotation_removed", "missing_auth_annotation")
         for f in static_findings
     )
 
-    if has_auth_issue:
+    # Try LLM generation if provider available and findings exist
+    all_findings = (
+        static_findings
+        + state.get("confirmed_findings", [])
+    )
+    llm_test: str | None = None
+    provider = _get_provider()
+    if provider is not None and all_findings:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(
+                        asyncio.run,
+                        _llm_generate_test(all_findings),
+                    )
+                    llm_test = future.result(timeout=30)
+            else:
+                llm_test = asyncio.run(_llm_generate_test(all_findings))
+        except Exception:
+            pass
+
+    if llm_test:
+        generated_tests.append(llm_test)
+    elif has_auth_issue:
         auth_test = _JUNIT_TEST_TEMPLATE.format(
             target="@PreAuthorize removed — verify 401 for unauthenticated",
             contract_id="AUTH-01",
@@ -107,8 +193,11 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
 
     # Write generated test to head workspace
     test_path = ""
-    if head_workspace:
-        test_dir = Path(head_workspace) / "src" / "test" / "java" / "com" / "specproof" / "demo"
+    if head_workspace and generated_tests:
+        test_dir = (
+            Path(head_workspace) / "src" / "test" / "java"
+            / "com" / "specproof" / "demo"
+        )
         test_dir.mkdir(parents=True, exist_ok=True)
         test_file = test_dir / "SpecProofGeneratedTest.java"
         test_file.write_text(generated_tests[0], encoding="utf-8")

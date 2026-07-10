@@ -50,9 +50,7 @@ python -m cli.specproof.main eval --cases golden-cases/
 
 ## Phase 0 已知限制
 
-- LLM 集成仅通过 capability probe 测试，未使用真实 DeepSeek 端点
-- Review Court 使用简化版规则，非完整 LLM-based 三方辩论
-- generate_counterexamples 使用模板生成，非 LLM 动态生成
-- compile_contracts 使用正则规则解析，非 LLM-based 编译
+- LLM 集成已实现但仅通过 capability probe 测试，未使用真实 DeepSeek 端点验证
+- compile_contracts / generate_counterexamples / review_court 均已添加 LLM fallback，无真实 API key 时自动退回 rule-based
 - 存储适配器存在但未连接真实服务
 - Merge Certificate 使用 SHA-256 哈希，Ed25519 签名计划 Phase 1+
