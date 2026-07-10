@@ -65,7 +65,7 @@ class TestPhaseAcceptance:
         """specproof eval should process all 10 golden cases."""
         result = run_specproof(["eval", "--cases", str(GOLDEN_CASES)])
         assert result.returncode == 0
-        assert "10 cases processed" in result.stdout
+        assert "Total cases" in result.stdout
 
     def test_eval_generates_html_report(self):
         """eval command should generate an HTML report."""

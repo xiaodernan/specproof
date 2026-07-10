@@ -131,30 +131,91 @@ def render_verification_report(
 
 
 def render_eval_report(results: list[dict]) -> str:
-    """Render a simple evaluation results HTML page."""
+    """Render evaluation results HTML page with precision/recall."""
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    # Compute summary stats
+    total = len(results)
+    detected = sum(1 for r in results if r.get("verdict") in ("PASS", "PARTIAL"))
+    should = sum(1 for r in results if r.get("should_detect"))
+    fp = sum(1 for r in results if r.get("verdict") == "FALSE_POSITIVE")
+    precision = detected / (detected + fp) * 100 if (detected + fp) > 0 else 100.0
+    recall = detected / should * 100 if should > 0 else 100.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+
+    verdict_color = {
+        "PASS": "#7ee787", "PARTIAL": "#d29922",
+        "MISS": "#ff7b72", "FALSE_POSITIVE": "#ff7b72",
+    }
+
     rows_html = ""
     for r in results:
+        v = r.get("verdict", "")
+        color = verdict_color.get(v, "#c9d1d9")
         rows_html += f"""<tr>
             <td>{r.get('case', '')}</td>
+            <td style="color:{color};font-weight:700">{v}</td>
+            <td>{r.get('expected_contract', '')}</td>
             <td>{r.get('expected_severity', '')}</td>
             <td>{r.get('expected_evidence', '')}</td>
+            <td>{r.get('matched_findings', 0)}</td>
+            <td>{r.get('matched_severities', '')}</td>
+            <td>{r.get('contracts_found', '')}</td>
         </tr>"""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>SpecProof Evaluation Report</title>
 <style>
-    body {{ font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }}
-    table {{ width: 100%; border-collapse: collapse; }}
-    th, td {{ padding: 8px; border: 1px solid #ddd; text-align: left; }}
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           max-width: 1100px; margin: 0 auto; padding: 40px 20px;
+           background: #0d1117; color: #c9d1d9; }}
+    h1 {{ color: #58a6ff; margin-bottom: 10px; }}
+    .meta {{ color: #8b949e; margin-bottom: 24px; }}
+    .stats {{ display: flex; gap: 16px; margin: 20px 0; flex-wrap: wrap; }}
+    .stat {{ background: #161b22; border: 1px solid #30363d;
+             padding: 12px 20px; border-radius: 6px; text-align: center; }}
+    .stat .value {{ font-size: 24px; font-weight: 700; }}
+    .stat .label {{ font-size: 12px; color: #8b949e; }}
+    table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+    th, td {{ padding: 10px 12px; text-align: left; border-bottom: 1px solid #30363d; }}
+    th {{ background: #161b22; color: #8b949e; font-weight: 600; font-size: 13px; }}
+    tr:hover {{ background: #1c2128; }}
 </style></head>
 <body>
     <h1>SpecProof Evaluation Report</h1>
-    <p>Generated: {now}</p>
-    <p>Cases processed: {len(results)}</p>
+    <p class="meta">Generated: {now} | Cases: {total}</p>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="value" style="color:#58a6ff">{precision:.0f}%</div>
+            <div class="label">Precision</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#7ee787">{recall:.0f}%</div>
+            <div class="label">Recall</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#d29922">{f1:.0f}%</div>
+            <div class="label">F1 Score</div>
+        </div>
+        <div class="stat">
+            <div class="value">{detected}/{should}</div>
+            <div class="label">Detected / Should Detect</div>
+        </div>
+        <div class="stat">
+            <div class="value">{fp}</div>
+            <div class="label">False Positives</div>
+        </div>
+    </div>
+
     <table>
-        <thead><tr><th>Case</th><th>Expected Severity</th><th>Expected Evidence</th></tr></thead>
+        <thead><tr>
+            <th>Case</th><th>Verdict</th><th>Expected Contract</th>
+            <th>Expected Severity</th><th>Expected Evidence</th>
+            <th>Matched</th><th>Severities</th><th>Contracts Found</th>
+        </tr></thead>
         <tbody>{rows_html}</tbody>
     </table>
 </body></html>"""
