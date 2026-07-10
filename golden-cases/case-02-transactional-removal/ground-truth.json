@@ -1,0 +1,6 @@
+{
+  "expected_severity": "MAJOR",
+  "expected_evidence_type": "static_analysis",
+  "expected_contract": "TRANSACTION-01",
+  "should_detect": true
+}

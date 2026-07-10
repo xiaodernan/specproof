@@ -1,0 +1,6 @@
+{
+  "expected_severity": "BLOCKER",
+  "expected_evidence_type": "differential_test",
+  "expected_contract": "UNIQUE-01",
+  "should_detect": true
+}

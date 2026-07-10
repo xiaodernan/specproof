@@ -1,0 +1,6 @@
+{
+  "expected_severity": "MAJOR",
+  "expected_evidence_type": "openapi_diff",
+  "expected_contract": "BACKWARD_COMPATIBLE-01",
+  "should_detect": true
+}

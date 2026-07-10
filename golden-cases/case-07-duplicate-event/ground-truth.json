@@ -1,0 +1,6 @@
+{
+  "expected_severity": "MAJOR",
+  "expected_evidence_type": "rabbitmq_check",
+  "expected_contract": "EVENT_ONCE-01",
+  "should_detect": true
+}

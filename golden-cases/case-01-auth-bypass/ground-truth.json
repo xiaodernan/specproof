@@ -1,0 +1,6 @@
+{
+  "expected_severity": "BLOCKER",
+  "expected_evidence_type": "static_analysis",
+  "expected_contract": "AUTH-01",
+  "should_detect": true
+}

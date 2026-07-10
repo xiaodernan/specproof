@@ -1,0 +1,38 @@
+# SpecProof Phase 0 — Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# SpecProof runtime artifacts
+reports/
+capsules/
+worktrees/
+
+# Demo build artifacts
+demo/spring-backend/target/
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Secrets
+.env
+*.pem
+*.key
+credentials.json

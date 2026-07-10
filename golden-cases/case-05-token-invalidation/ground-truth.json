@@ -1,0 +1,6 @@
+{
+  "expected_severity": "MAJOR",
+  "expected_evidence_type": "redis_check",
+  "expected_contract": "TOKEN_INVALIDATION-01",
+  "should_detect": true
+}

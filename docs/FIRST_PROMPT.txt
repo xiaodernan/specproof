@@ -1,0 +1,37 @@
+你现在是 SpecProof 项目的首席架构师和实施负责人。
+
+请先执行只读分析，不要创建、修改或删除任何文件，也不要安装依赖或运行会改变环境的命令。
+
+必须按顺序完成：
+
+1. 完整阅读仓库根目录的 `PROJECT_SPEC.txt` 和 `CLAUDE.md`。
+2. 检查当前仓库目录、Git 状态和已有文件；不要假设这是空仓库。
+3. 用不超过 1000 字复述：
+   - 产品解决什么问题；
+   - 它与普通 AI Code Review 的本质区别；
+   - 阶段 0 的最小可验证闭环；
+   - 为什么高等级 Finding 必须有可重放证据；
+   - 每个数据库、中间件和服务在最终架构中的职责。
+4. 只为“阶段 0：7 天杀手原型”制定可执行计划，不规划实现后续阶段。计划必须包含：
+   - 目录和模块边界；
+   - 技术版本；
+   - DeepSeek/OpenAI-compatible Provider Capability Probe；
+   - ModelProvider 接口；
+   - LangGraph State、节点和退出条件；
+   - Demo Spring Boot 仓库与植入回归；
+   - Base/Head 隔离执行方案；
+   - 生成测试与差分验证；
+   - Requirement-to-Evidence Matrix；
+   - Bug Capsule；
+   - 最小 MySQL、MongoDB、Elasticsearch、Redis、RabbitMQ、MinIO 设计；
+   - 单元测试、集成测试、安全测试和验收命令；
+   - 7 天按天拆分的实施顺序。
+5. 标出所有假设、主要风险和替代方案。
+6. 只列出真正阻塞实施、必须由我决定的问题；其余采用合理默认值。
+7. 明确说明你将如何保证：
+   - 不使用或泄露真实 API Key；
+   - 不把第三方网关当成完全兼容官方 DeepSeek；
+   - 不使用 TODO、pass、假返回或不可运行伪代码冒充完成；
+   - 不在未经批准时开始编码。
+
+输出最后必须以“等待批准，不开始编码”结束。

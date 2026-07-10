@@ -1,0 +1,19 @@
+Requirements for the email change API:
+
+1. Authentication: All API endpoints must require authentication.
+   Unauthenticated requests must return 401 Unauthorized.
+
+2. Uniqueness: Email addresses must be unique across all users.
+   Attempting to change to an already-used email must be rejected.
+
+3. Token Invalidation: When a user changes their email, all existing
+   session tokens for that user must be invalidated in Redis.
+
+4. Backward Compatibility: The API response schema must remain
+   backward-compatible between versions.
+
+5. Exactly-Once Events: The email-changed event must be published
+   to RabbitMQ exactly once per successful change.
+
+6. Transactional Integrity: The email update in MySQL and token
+   invalidation in Redis must happen within the same transaction.

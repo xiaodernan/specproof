@@ -1,0 +1,1298 @@
+SpecProof
+Independent Acceptance Verification for Agent-Generated Backend Changes
+最终 4×9 生产版产品设计
+版本：1.0
+日期：2026-07
+
+======================================================================
+0. 安全前置
+======================================================================
+
+1. 任何已粘贴到聊天、Issue、PR、日志或公开页面中的 API Key 都必须立即轮换。
+2. 本项目绝不在代码、README、Prompt、测试快照或前端中保存真实密钥。
+3. 所有密钥只从环境变量、Docker Secret 或生产 Secret Manager 读取。
+4. DeepSeek、GitHub App、数据库和对象存储密钥相互隔离。
+5. Agent 永远不能读取宿主机环境变量、Docker Socket 或仓库 Secrets。
+6. 示例中仅使用占位符：
+   LLM_API_KEY=replace_me
+
+======================================================================
+1. 三句话说清产品
+======================================================================
+
+1. 用户把需求、验收条件和一个 AI 生成的 GitHub PR 交给 SpecProof。
+2. SpecProof 由独立验证 Agent 把需求编译为可执行 Contract，并在修改前后的两个版本上运行 API、数据库、Redis、RabbitMQ、静态分析、差分测试、属性测试和有限变异测试，主动寻找反例。
+3. 只有每条关键验收条件都有可重放证据时，系统才签发 Merge Certificate；否则返回失败测试、最小反例、影响路径和一键重放的 Bug Capsule。
+
+一句话：
+“实现 Agent 不能给自己签字；SpecProof 用可执行证据证明一个 AI PR 是否真的完成需求。”
+
+产品类别：
+AI Change Acceptance Firewall
+不是普通 Code Review Bot。
+
+======================================================================
+2. 明确目标市场
+======================================================================
+
+首个细分市场：
+- 1～20 人开发团队
+- 大量使用 Claude Code、Codex、Copilot、Cursor、DeepSeek 等 Coding Agent
+- 开发 Spring Boot 后端
+- 使用 MySQL、Redis、RabbitMQ 和 REST API
+- 缺少足够资深 Reviewer
+- 希望私有部署或自带模型 Key
+- 不愿把整个私有仓库交给第三方 SaaS
+
+首个生产支持范围：
+- Java 21
+- Spring Boot 3.x
+- Maven / Gradle
+- JUnit 5
+- MySQL
+- Redis
+- RabbitMQ
+- OpenAPI 3.x
+- Docker Compose / Testcontainers
+- GitHub Pull Requests
+
+第二阶段才支持：
+- FastAPI
+- Node.js / NestJS
+- PostgreSQL
+- Kafka
+- GitLab
+
+不在 v1.0 承诺：
+- 所有语言
+- 所有框架
+- 形式化证明任意业务程序正确
+- 自动合并主分支
+- 无人工确认地修改生产系统
+- 百万仓库规模
+- Kubernetes 多集群运维
+
+======================================================================
+3. 最终四项评分
+======================================================================
+
+设计目标评分：
+
+1. 面试工程含量：9.8 / 10
+   - Agent、RAG、工具调用、状态机、差分测试、变异测试、消息可靠性、
+     多数据库、沙箱、安全、可观测性和评测全部进入真实主链路。
+
+2. 单兵演示效果：9.6 / 10
+   - 一条 CLI 命令或一个 GitHub PR 即可展示。
+   - 不需要真实流量、线上事故或多台服务器。
+   - 现场植入一个鉴权或事务 Bug，即可生成失败测试和证据包。
+
+3. 产品原创性：9.1 / 10
+   - 核心不是“AI 给代码提意见”，而是“需求到证据的独立验收”。
+   - 高等级 Finding 必须有可执行证据。
+   - 输出 Requirement-to-Evidence Matrix、Bug Capsule 和签名证书。
+
+4. 细分市场商业优势：9.0 / 10
+   - 只与“AI 生成的 Spring 后端 PR 验收”这一窄场景比较。
+   - 私有部署、BYOK、后端语义验证和可重放证据是主要优势。
+   - 该分数必须通过第 29 节量化指标后才正式成立。
+
+重要：
+任何架构文档都不能凭空证明商业优势。
+若生产原型未达到第 29 节指标，第四项评分自动下调，不允许自欺欺人。
+
+======================================================================
+4. 与普通 AI Code Review 的本质差异
+======================================================================
+
+普通 AI Review：
+- 输入主要是 Diff 和仓库上下文。
+- 输出主要是评论、风险和修复建议。
+- 很多结论依赖模型判断。
+- 测试常由实现 Agent 自己生成。
+- “测试通过”不等于需求完成。
+
+SpecProof：
+- 输入是 Requirement + Acceptance Criteria + Forbidden Changes + PR。
+- 输出是每一条需求对应的可执行证据。
+- 严重问题必须能够重放。
+- 验证 Agent 与实现 Agent 隔离。
+- 同时运行 Base 与 Head，识别 PR 真正引入的变化。
+- 比较 HTTP、MySQL、Redis、RabbitMQ 和性能语义。
+- 证据绑定 Commit SHA、需求版本、工具版本和运行环境。
+- 通过后签发机器可验证的 Merge Certificate。
+
+产品不回答：
+“这段代码看起来怎么样？”
+
+产品回答：
+“它是否完成了任务、破坏了什么，以及证据在哪里？”
+
+======================================================================
+5. 核心创新护城河
+======================================================================
+
+5.1 Requirement-to-Evidence Matrix
+
+示例：
+
+验收条件：
+- 未登录用户不得修改邮箱。
+- 邮箱必须唯一。
+- 修改邮箱后旧 Token 失效。
+- 原有 API 保持兼容。
+- 事件只投递一次。
+
+系统输出：
+
+| Contract | Changed Symbols | Experiment | Result | Evidence |
+|----------|-----------------|------------|--------|----------|
+| AUTH-01  | Controller      | HTTP auth test | FAIL | Capsule A |
+| USER-07  | Service/DB      | duplicate email test | PASS | Run B |
+| TOKEN-03 | TokenService    | base/head differential | FAIL | Capsule C |
+| API-02   | OpenAPI         | schema diff | PASS | Report D |
+| MQ-04    | Publisher       | redelivery test | PASS | Trace E |
+
+5.2 Independent Verifier
+
+实现代码的 Agent 不参与签发结果。
+SpecProof 只读取：
+- 原始需求
+- 用户批准的 Contract
+- Base SHA
+- Head SHA
+- 可执行环境
+- 工具输出
+
+它不相信：
+- 实现 Agent 的自我评价
+- 实现 Agent 生成的“全部通过”摘要
+- PR 描述中未经验证的声明
+
+5.3 Proof-Carrying Finding
+
+BLOCKER / MAJOR 至少包含一种强证据：
+- Base 通过、Head 失败的测试
+- 可重放最小反例
+- 可达静态数据流
+- Contract 的确定性失败
+- API / Schema / Migration 的确定性破坏
+- Redis / MQ 状态机失败
+- 有效变异体与能杀死它的新测试
+- Verifier 实际重放成功
+
+5.4 Semantic Differential Execution
+
+同一输入分别运行 Base 和 Head，比较：
+- HTTP status / body / headers
+- MySQL 行变化与约束
+- Redis Key / TTL / 失效行为
+- RabbitMQ 消息数量、顺序、Routing Key、Payload 和重复投递
+- 异常类型
+- 外部调用数量
+- SQL 查询数量
+- 延迟和内存
+- OpenAPI Schema
+
+Agent 负责判断差异是：
+- EXPECTED_CHANGE
+- REGRESSION
+- AMBIGUOUS
+- NON_REPRODUCIBLE
+
+5.5 Mutation-Guided Test Synthesis
+
+只对 PR 影响范围做变异测试：
+- 条件边界
+- 返回值
+- 空值检查
+- 权限判断
+- 事务处理
+- 重试和幂等
+- 消息 Ack
+- Redis 失效逻辑
+
+存活变异体不自动视为 Bug。
+Agent 先判断是否可能等价，再生成最小测试。
+只有实际执行成功，才成为 Test Weakness 或 Finding。
+
+5.6 Repository Constitution
+
+从以下来源提取候选 Contract：
+- Issue / Ticket
+- ADR
+- README
+- API 文档
+- 数据库约束
+- 现有测试
+- 相似历史实现
+- 安全规范
+
+候选规则必须经过用户批准。
+批准后尽量编译成：
+- Semgrep
+- AST Query
+- ArchUnit
+- OpenAPI Rule
+- SQL / Migration Check
+- JUnit Test Template
+- Redis / MQ Scenario
+- JSON Schema
+
+5.7 Bug Capsule
+
+每个确认问题生成可移植证据包：
+
+capsule/
+├── manifest.json
+├── requirement.json
+├── contract.json
+├── finding.json
+├── generated-tests/
+├── fixtures/
+├── base-result/
+├── head-result/
+├── tool-reports/
+├── environment/
+├── run.sh
+└── README.md
+
+在另一台机器运行：
+
+    specproof replay capsule.zip
+
+应得到同样结果。
+
+5.8 Signed Merge Certificate
+
+通过后生成：
+
+{
+  "subject": {
+    "repository": "...",
+    "commit_sha": "..."
+  },
+  "requirements_digest": "sha256:...",
+  "contracts_digest": "sha256:...",
+  "result": "VERIFIED",
+  "verified_contracts": 12,
+  "unverified_contracts": 0,
+  "evidence_digests": [],
+  "toolchain": {},
+  "environment_digest": "sha256:...",
+  "issued_at": "...",
+  "issuer": "SpecProof"
+}
+
+证书：
+- 使用 in-toto Statement 风格。
+- 绑定 Commit SHA 和需求版本。
+- 可使用 Ed25519 签名。
+- 可选发布为 GitHub Artifact Attestation。
+- 可作为 GitHub Required Check。
+
+======================================================================
+6. 产品工作流
+======================================================================
+
+6.1 本地模式
+
+    specproof verify \
+      --repo . \
+      --base main \
+      --head feature/change-email \
+      --spec issue.md
+
+输出：
+- 终端实时进度
+- HTML Verification Report
+- Requirement-to-Evidence Matrix
+- Findings
+- 新生成测试
+- SARIF
+- Bug Capsules
+- Merge Certificate 或拒绝原因
+
+6.2 GitHub App 模式
+
+触发：
+- pull_request.opened
+- pull_request.synchronize
+- pull_request.ready_for_review
+- issue_comment
+
+PR 命令：
+- /specproof verify
+- /specproof deep
+- /specproof explain FINDING_ID
+- /specproof replay FINDING_ID
+- /specproof propose-contracts
+- /specproof fix
+- /specproof approve FIX_ID
+
+GitHub 输出：
+- Check Run
+- Summary
+- Requirement Coverage
+- Inline Findings
+- Capsule 链接
+- Certificate
+- 修复 PR
+
+6.3 三档验证
+
+FAST（目标 2～5 分钟）：
+- 需求编译
+- 静态分析
+- API Schema
+- 定向单测
+- 关键 Contract
+- 有限差分测试
+
+DEEP（目标 5～20 分钟）：
+- Stateful API Fuzzing
+- MySQL / Redis / MQ 差分
+- 影响范围变异测试
+- 属性测试
+- Review Court
+
+RELEASE（目标 10～30 分钟）：
+- 全部关键 Contract
+- 扩大测试范围
+- Capsule 重放
+- 证据哈希
+- 签名 Certificate
+- 发布 Required Check
+
+风险调度器根据：
+- 改动规模
+- 涉及权限
+- Migration
+- Redis / MQ
+- 公开 API
+- 历史事故
+- 业务 Contract
+选择验证档位和预算。
+
+======================================================================
+7. 总体架构
+======================================================================
+
+Browser / CLI / GitHub
+        |
+        v
+Java Spring Boot Control Plane
+        |
+        +--> MySQL
+        +--> Redis
+        +--> RabbitMQ
+        +--> MinIO
+        +--> SSE
+        |
+        v
+Python FastAPI Agent Runtime
+        |
+        +--> LangGraph
+        +--> DeepSeek / Compatible Gateway
+        +--> Elasticsearch
+        +--> MongoDB
+        +--> Tool Gateway
+        |
+        v
+Experiment Workers
+        |
+        +--> Base Sandbox
+        +--> Head Sandbox
+        +--> Testcontainers
+        +--> Static Analysis
+        +--> Differential Runner
+        +--> Mutation Runner
+        +--> Stateful API Fuzzer
+        +--> Contract Checkers
+
+全链路：
+OpenTelemetry -> Prometheus -> Grafana
+
+生产 v1.0 不使用 Kubernetes。
+部署目标是一台 16～32 GB 内存的 Linux 服务器或开发电脑。
+后续高并发才评估 Kubernetes。
+
+======================================================================
+8. 所有技术的真实职责
+======================================================================
+
+8.1 Spring Boot
+
+- GitHub App
+- Webhook 验签
+- 用户、租户、仓库和权限
+- Verification Job 状态机
+- Contract 审批
+- Fix 审批
+- 审计
+- Outbox
+- REST / SSE API
+
+8.2 FastAPI + LangGraph
+
+- 需求拆解
+- Contract 候选生成
+- 验证计划
+- 工具调度
+- Review Court
+- 证据聚合
+- 严重度判断
+- 人工中断
+- 修复计划
+- Provider 抽象
+
+8.3 MySQL：业务事实源
+
+表：
+- tenants
+- users
+- github_installations
+- repositories
+- pull_requests
+- requirements
+- requirement_versions
+- contracts
+- contract_versions
+- contract_approvals
+- verification_jobs
+- verification_attempts
+- job_stages
+- findings
+- finding_evidence_refs
+- approvals
+- fix_jobs
+- certificates
+- provider_capabilities
+- model_usage
+- webhook_deliveries
+- audit_logs
+- outbox_events
+- processed_events
+- evaluation_cases
+- evaluation_runs
+- evaluation_results
+
+MySQL 决定最终业务状态。
+
+8.4 MongoDB：复杂可回放工件
+
+Collections：
+- agent_checkpoints
+- evidence_packs
+- differential_runs
+- mutation_campaigns
+- experiment_plans
+- review_court_records
+- tool_execution_records
+- patch_plans
+- replay_snapshots
+- contract_candidate_records
+
+MongoDB 不决定 Job 是否完成。
+它保存结构复杂、频繁演进的分析文档。
+
+8.5 Elasticsearch：仓库和证据检索
+
+Indices：
+- specproof-code-v1
+- specproof-docs-v1
+- specproof-history-v1
+- specproof-contracts-v1
+- specproof-findings-v1
+
+检索：
+- BM25
+- Dense Vector
+- RRF
+- Symbol Exact Match
+- Path Filter
+- Commit / Branch Filter
+- Repository Isolation
+- Rerank
+
+代码按 AST Symbol 切块，不按固定字符切。
+
+8.6 Redis：实时和短期状态
+
+Keys：
+- github:token:{installation}
+- lock:job:{repo}:{pr}:{sha}
+- idempotency:webhook:{delivery}
+- budget:job:{job}
+- rate:user:{user}
+- cache:retrieval:{hash}
+- cache:model:{provider}:{model}:{hash}
+- workspace:lease:{job}
+- capability:{provider}
+- progress:{job} -> Redis Stream
+
+全部设置 TTL。
+Redis 不是业务事实源。
+关键任务不用 Pub/Sub。
+
+8.7 RabbitMQ：可靠任务流水线
+
+Exchanges：
+- specproof.commands
+- specproof.events
+- specproof.dlx
+
+Queues：
+- q.repo.prepare
+- q.repo.index
+- q.static.scan
+- q.contract.compile
+- q.differential.run
+- q.mutation.run
+- q.fuzz.run
+- q.agent.verify
+- q.finding.replay
+- q.proof.publish
+- q.fix.generate
+- q.fix.verify
+- q.evaluation.run
+
+要求：
+- Publisher Confirm
+- Manual Ack
+- Prefetch
+- Retry
+- DLQ
+- 幂等消费者
+- Transactional Outbox
+- at-least-once + effectively-once 业务结果
+
+8.8 MinIO
+
+Buckets：
+- repository-bundles
+- tool-reports
+- test-reports
+- mutation-reports
+- sarif
+- bug-capsules
+- certificates
+- patches
+
+大文件不进入 MySQL 或 MongoDB。
+
+8.9 DeepSeek / OpenAI-Compatible Provider
+
+环境变量：
+
+    LLM_PROVIDER=openai_compatible
+    LLM_BASE_URL=https://provider.example/v1
+    LLM_API_KEY=replace_me
+    LLM_MODEL=deepseek-v4-pro
+    LLM_THINKING_ENABLED=true
+    LLM_TIMEOUT_SECONDS=180
+    LLM_MAX_RETRIES=2
+
+第三方网关必须先做 Capability Probe：
+1. /models
+2. 普通 Chat
+3. Streaming
+4. JSON Output
+5. Tool Calls
+6. Strict Tool Calls
+7. Thinking
+8. Thinking + Tool Calls
+9. Usage
+10. 错误码和限流 Header
+
+不得仅根据官方 DeepSeek 文档假设第三方网关完整兼容。
+
+降级：
+- Tool Calls 不可用：严格 JSON Action Envelope。
+- Thinking + Tool Call 不稳定：规划和 Judge 使用 Thinking，工具循环使用非思考模式。
+- JSON Mode 返回空内容：重试后退回 Schema Parser。
+- 模型暂时不可用：任务进入可恢复状态，不丢失 Job。
+
+8.10 OpenTelemetry / Prometheus / Grafana
+
+Trace：
+Webhook -> MySQL Outbox -> RabbitMQ -> Worker -> LLM -> Tools -> GitHub
+
+Metrics：
+- Job 排队时间
+- 各阶段耗时
+- Finding Precision
+- Capsule Replay 成功率
+- LLM Token 与费用
+- Tool Timeout
+- Queue Depth
+- DLQ
+- ES 延迟
+- Redis 命中
+- Base / Head 沙箱失败
+- Certificate 签发率
+
+======================================================================
+9. Agent 工作流
+======================================================================
+
+LangGraph：
+
+START
+ -> intake
+ -> verify_inputs
+ -> deduplicate
+ -> load_repository_policy
+ -> prepare_base
+ -> prepare_head
+ -> collect_diff
+ -> map_changed_symbols
+ -> compile_requirement_candidates
+ -> human_contract_approval_if_needed
+ -> retrieve_repository_context
+ -> load_approved_contracts
+ -> risk_classification
+ -> build_verification_plan
+ -> parallel_static_checks
+ -> parallel_contract_checks
+ -> generate_candidate_counterexamples
+ -> run_base_head_differential
+ -> run_stateful_api_fuzzing_if_needed
+ -> run_mutation_campaign_if_needed
+ -> review_court
+ -> merge_candidate_findings
+ -> evidence_policy_gate
+ -> verifier_replay
+ -> severity_calibration
+ -> build_requirement_evidence_matrix
+ -> publish_report
+ -> issue_certificate_or_reject
+ -> wait_for_fix_request
+ -> human_fix_approval
+ -> generate_patch
+ -> verify_patch
+ -> publish_fix_pr
+ -> END
+
+限制：
+- max_agent_iterations = 3
+- max_tool_calls = 40
+- max_experiments = 20
+- max_mutants = 80
+- max_generated_tests = 10
+- max_inline_comments = 8
+- 最大 Token 和金额预算
+- 每个工具 Timeout
+- 整体 Deadline
+- Sandbox CPU / RAM / Disk 限制
+
+======================================================================
+10. Review Court
+======================================================================
+
+Prosecutor：
+- 提出潜在违规
+- 指明影响路径
+- 设计所需证据
+
+Defender：
+- 搜索反证
+- 检查不可达路径
+- 查找已有保护
+- 识别预期行为
+- 识别等价变异体
+
+Experiment Designer：
+- 选择静态证明、属性测试、差分测试、状态机测试、变异测试或性能测试
+
+Verifier：
+- 实际执行
+- 检查 Exit Code
+- 确认 Base / Head
+- 校验证据哈希
+- 确认问题由 PR 引入
+- 确认代码行
+- 去重
+
+Judge：
+- 只依据 Evidence Policy
+- 不依据谁的自然语言更像专家
+
+发布门槛：
+
+BLOCKER：
+- 强可执行证据
+- replay 成功
+- confidence >= 0.90
+
+MAJOR：
+- 至少一种强证据
+- confidence >= 0.82
+
+MINOR：
+- 仓库证据 + 逻辑验证
+- confidence >= 0.72
+
+NEEDS_CONFIRMATION：
+- 合理怀疑，但无法稳定验证
+- 不阻止合并
+
+======================================================================
+11. 后端语义验证
+======================================================================
+
+11.1 HTTP / OpenAPI
+
+- Authentication
+- Authorization
+- Status Code
+- Schema
+- Required Fields
+- Backward Compatibility
+- Stateful Request Sequence
+- Error Handling
+- Idempotency Key
+
+11.2 MySQL
+
+- Migration Up
+- Migration Down（可配置）
+- Unique / Null / FK
+- 数据兼容
+- 事务边界
+- 并发更新
+- Lost Update
+- Query Count
+- N+1
+- Lock 风险
+- 回滚后状态
+
+11.3 Redis
+
+- Key 格式
+- TTL
+- 写后失效
+- Cache Aside
+- 缓存穿透保护
+- 序列化兼容
+- 并发更新
+- 旧值残留
+
+11.4 RabbitMQ
+
+- Exchange / Routing Key
+- Payload Schema
+- Publisher Confirm
+- Consumer Ack
+- 重复投递
+- 幂等
+- Retry
+- DLQ
+- 顺序
+- 事务与 Outbox
+
+11.5 性能
+
+- SQL 数量
+- 外部调用数量
+- P95 微基准
+- 内存
+- 阻塞调用
+- 循环 I/O
+
+======================================================================
+12. Sandbox 威胁模型
+======================================================================
+
+PR 代码是不可信输入。
+
+必须：
+- 非 root
+- 默认断网
+- 只读源代码
+- 独立可写 tmp
+- CPU 限制
+- RAM 限制
+- PID 限制
+- 磁盘限制
+- Timeout
+- 不挂 Docker Socket
+- 不传 LLM Key
+- 不传 GitHub App 私钥
+- Secret Redaction
+- 工具输出截断
+- Fork PR 更严格
+
+依赖安装：
+- 优先使用 Lock File 和预构建镜像。
+- 默认禁止任意 install hook。
+- Allowlist 后才能执行脚本。
+
+Prompt Injection：
+- README、源码、Issue 和 PR 文本全部是数据。
+- 它们不能改变系统策略或工具权限。
+- Tool Gateway 独立鉴权。
+
+======================================================================
+13. GitHub App
+======================================================================
+
+最小权限：
+
+读取：
+- Metadata
+- Contents
+- Pull Requests
+
+写入：
+- Checks
+- Pull Request Review Comments
+
+只有开启 Fix 功能才请求：
+- Contents Write
+
+Webhook：
+- installation
+- installation_repositories
+- pull_request
+- issue_comment
+
+安全：
+- X-Hub-Signature-256 验签
+- Delivery ID 唯一
+- Payload 限制
+- 立即 2xx
+- 异步处理
+- 旧 SHA 任务取消或标记过期
+
+输出：
+- Check Run
+- Requirement Coverage
+- Proof Summary
+- Inline Finding
+- Capsule
+- Certificate
+- Fix PR
+
+======================================================================
+14. SLO 与生产质量
+======================================================================
+
+可用性：
+- Control Plane 月可用性目标：99.5%
+- Job 不丢失：Outbox + MQ + 幂等
+- Worker 崩溃后可恢复
+- Job 可取消
+- 结果可重放
+
+性能目标：
+- FAST 小 PR：p50 <= 3 分钟，p95 <= 8 分钟
+- DEEP 小 PR：p50 <= 10 分钟，p95 <= 25 分钟
+- GitHub Webhook 响应：p95 <= 1 秒
+- Dashboard 进度延迟：<= 2 秒
+
+质量目标：
+- BLOCKER / MAJOR Precision >= 90%
+- Capsule Replay >= 95%
+- 无证据严重评论 = 0
+- PR 归因准确率 >= 90%
+
+隐私：
+- 私有代码默认不用于训练
+- 支持保存期限
+- 支持仓库数据删除
+- 模型请求脱敏
+- 支持只发送最小上下文
+
+======================================================================
+15. 产品界面
+======================================================================
+
+1. Dashboard
+   - 仓库
+   - Job
+   - 证书
+   - 失败率
+   - 成本
+
+2. Verification Job
+   - 实时状态图
+   - 阶段耗时
+   - 工具调用
+   - Token
+   - 队列状态
+
+3. Requirement Matrix
+   - Requirement
+   - Contract
+   - 实验
+   - 证据
+   - 通过 / 失败 / 未验证
+
+4. Finding Detail
+   - 影响路径
+   - Base / Head 对比
+   - 失败测试
+   - 重放
+   - 修复建议
+
+5. Contract Center
+   - 候选规则
+   - 来源
+   - 审批
+   - 版本
+   - Checker
+
+6. Capsule Replay
+   - 环境
+   - 命令
+   - 输出
+   - 哈希
+
+7. Evaluation
+   - Precision / Recall
+   - 误报
+   - 成本
+   - 延迟
+   - 模型和 Prompt 版本
+
+======================================================================
+16. 商业产品形态
+======================================================================
+
+Community：
+- CLI
+- 本地验证
+- 单仓库
+- BYOK
+- HTML Report
+- 基础 Capsule
+
+Team Self-Hosted：
+- GitHub App
+- 多仓库
+- Contract Center
+- Dashboard
+- Redis / MQ
+- 审计
+- Certificate
+- 评测
+
+Hosted BYOK：
+- 托管 Control Plane
+- 用户自带模型 Key
+- 临时沙箱
+- 私有数据保留策略
+- 按 Verification Job 收费
+
+商业切入点：
+- 不销售“更多 AI 评论”。
+- 销售“AI 生成变更的独立验收证据”。
+
+======================================================================
+17. 单机生产部署
+======================================================================
+
+Core Profile：
+- web
+- control-plane
+- agent-runtime
+- worker
+- mysql
+- mongodb
+- elasticsearch
+- redis
+- rabbitmq
+- minio
+
+Observability Profile：
+- otel-collector
+- prometheus
+- grafana
+
+建议：
+- Ubuntu LTS
+- 8 核 CPU
+- 16～32 GB RAM
+- 200 GB SSD
+- 不需要 GPU
+- 同时运行 1～2 个 DEEP Job
+- 定时清理 Workspace
+- 对对象存储做备份
+- MySQL 每日备份
+- TLS
+- Reverse Proxy
+- 健康检查
+- 自动重启
+- 日志轮转
+
+真正商业化后：
+- 优先将 MySQL、对象存储和队列切到托管服务。
+- 只有吞吐明确不足时才引入 Kubernetes。
+
+======================================================================
+18. 实施路线
+======================================================================
+
+阶段 0：7 天杀手原型
+
+只做：
+- Spring Boot Demo Repo
+- 一条 Requirement
+- 一个 Base / Head 回归
+- DeepSeek Provider Probe
+- 生成测试
+- 差分执行
+- HTML Matrix
+- Capsule Replay
+
+成功标准：
+- 一条命令发现鉴权或事务回归。
+- 可重放。
+- 无真实 Key 泄露。
+- 10 个 Case 中 >= 8 个检出。
+
+阶段 1：生产内核，2 周
+
+- Monorepo
+- Spring Boot Control Plane
+- FastAPI Agent Runtime
+- MySQL
+- MongoDB
+- Elasticsearch
+- Redis
+- RabbitMQ
+- MinIO
+- Outbox
+- 幂等
+- 状态机
+- SSE
+- OTel
+
+阶段 2：Contract Compiler，2 周
+
+- Requirement Parser
+- Contract Candidate
+- Human Approval
+- Checker Registry
+- OpenAPI / Auth / DB / Redis / MQ Contract
+
+阶段 3：Differential Lab，2 周
+
+- Base / Head Workspace
+- Testcontainers
+- HTTP / MySQL / Redis / RabbitMQ Snapshot
+- Stateful Request
+- Attribution
+
+阶段 4：Mutation + Fuzzing，2 周
+
+- PIT
+- Scope Selection
+- Surviving Mutant Analysis
+- Generated Tests
+- Stateful API Fuzzing
+
+阶段 5：GitHub App + Certificate，2 周
+
+- Webhook
+- Checks
+- Review Comments
+- Capsule
+- Signing
+- Required Check
+- Fix Approval
+
+阶段 6：评测与试点，2～3 周
+
+- 100 Golden Cases
+- Dashboard
+- 安全测试
+- 压测
+- 3 个真实仓库试点
+- 文档
+- 运维手册
+
+全职：约 11～13 周
+业余：约 16～24 周
+
+======================================================================
+19. 100 个 Golden Cases
+======================================================================
+
+Authentication / Authorization：15
+Transaction / Concurrency：15
+Migration / Schema：10
+API Compatibility：10
+Redis Semantics：10
+RabbitMQ / Outbox / Idempotency：10
+Logic / Boundary：10
+Performance / N+1：5
+Weak Tests / Mutation：5
+Prompt Injection / Sandbox：5
+System Reliability / Duplicate Events：5
+
+每个 Case：
+- Requirement
+- Base
+- Head
+- Ground Truth
+- Expected Evidence Type
+- Expected Severity
+- Replay Command
+- Forbidden Action
+
+======================================================================
+20. 生产前 Go / No-Go
+======================================================================
+
+必须全部达到：
+
+1. 已发布 BLOCKER / MAJOR Precision >= 90%
+2. 语义回归 Recall >= 80%
+3. PR 归因准确率 >= 90%
+4. Capsule Replay 成功率 >= 95%
+5. 无证据的严重评论 = 0
+6. FAST 小 PR p95 <= 8 分钟
+7. 重复 Webhook 不产生重复 Job
+8. MQ 重投不产生重复 Finding
+9. Worker Kill 后任务可恢复
+10. Key / Token 泄露测试全部通过
+11. 第三方模型网关故障时 Job 不丢失
+12. 3 个真实仓库连续试点 2 周
+13. 用户对高等级 Finding 接受率 >= 70%
+14. 与“直接让 DeepSeek 看 Diff”基线相比，语义回归发现率提高 >= 25 个百分点
+15. 平均验证成本在用户配置预算内
+
+任何一项失败：
+- 不宣称达到商业优势 9.0。
+- 先修指标，再扩功能。
+
+======================================================================
+21. 仓库结构
+======================================================================
+
+specproof/
+├── apps/web/
+├── services/control-plane/
+├── services/agent-runtime/
+├── services/tool-gateway/
+├── workers/repo-worker/
+├── workers/experiment-worker/
+├── workers/evaluation-worker/
+├── cli/specproof/
+├── packages/contracts/
+├── packages/provider-adapters/
+├── packages/tool-schemas/
+├── packages/finding-schema/
+├── analyzers/java/
+├── experiments/differential/
+├── experiments/mutation/
+├── experiments/fuzzing/
+├── sandbox/images/
+├── demo/spring-backend/
+├── demo/golden-cases/
+├── evals/
+├── infra/compose/
+├── infra/mysql/
+├── infra/mongodb/
+├── infra/elasticsearch/
+├── infra/redis/
+├── infra/rabbitmq/
+├── infra/minio/
+├── infra/otel/
+├── infra/prometheus/
+├── infra/grafana/
+├── docs/architecture/
+├── docs/adr/
+├── docs/security/
+├── docs/operations/
+├── docs/interview/
+├── .env.example
+├── compose.yml
+├── PROJECT_SPEC.txt
+└── README.md
+
+======================================================================
+22. 必须建立的 ADR
+======================================================================
+
+ADR-001：为什么不是普通 Code Review
+ADR-002：为什么先只支持 Spring Backend
+ADR-003：为什么实现 Agent 与验证 Agent 隔离
+ADR-004：为什么高等级 Finding 必须带可执行证据
+ADR-005：为什么同时使用 MySQL 与 MongoDB
+ADR-006：为什么 Redis Stream 不替代 RabbitMQ
+ADR-007：为什么使用 Elasticsearch Hybrid Search
+ADR-008：为什么做 Base / Head 差分
+ADR-009：为什么 Mutation 只跑影响范围
+ADR-010：为什么 Contract 必须人工批准
+ADR-011：为什么 Certificate 绑定需求版本和 Commit
+ADR-012：第三方 OpenAI-Compatible 网关兼容策略
+ADR-013：Sandbox 威胁模型
+ADR-014：为什么自动修复需要审批
+ADR-015：Bug Capsule 可重放格式
+ADR-016：为什么 v1.0 不使用 Kubernetes
+ADR-017：LLM 私有推理不保存
+
+======================================================================
+23. Claude / Codex 第一条任务
+======================================================================
+
+完整阅读 PROJECT_SPEC.txt。
+
+现在不要写完整业务代码，只完成阶段 0 的详细设计。
+
+必须输出：
+1. 产品理解。
+2. 阶段 0 目录。
+3. DeepSeek / OpenAI-Compatible Capability Probe。
+4. ModelProvider 接口。
+5. LangGraph State 和节点。
+6. Demo Spring Boot 仓库与人工植入回归设计。
+7. Base / Head 沙箱方案。
+8. 生成测试与差分执行方案。
+9. HTML Requirement-to-Evidence Matrix Schema。
+10. Bug Capsule Schema。
+11. 最小 MySQL 表。
+12. 最小 MongoDB Collection。
+13. 最小 Elasticsearch Mapping。
+14. Redis Keys。
+15. RabbitMQ 拓扑。
+16. MinIO Bucket。
+17. 测试计划。
+18. 验收命令。
+19. 所有真正阻塞的用户决策。
+
+强制：
+- 不写真实 API Key。
+- 不假设第三方网关完整支持官方 DeepSeek 功能。
+- 不用 TODO、pass 或假返回冒充完成。
+- 等用户确认后才编码。
+
+======================================================================
+24. 最终面试叙事
+======================================================================
+
+“现在 Coding Agent 写代码越来越快，问题不再是缺少第二个会评论代码的模型，
+而是实现者不能给自己签发合格证。
+
+我做的 SpecProof 接收原始需求和 PR，把需求转为经过人工批准的 Contract，
+然后在 Base 与 Head 两个隔离环境中对 HTTP、MySQL、Redis 和 RabbitMQ 行为做差分验证。
+高等级问题必须附带失败测试或可重放反例。
+
+系统使用 LangGraph 控制验证流程；
+MySQL 保存业务事实；
+MongoDB 保存复杂实验工件；
+Elasticsearch 做仓库级混合检索；
+Redis 做锁、缓存和实时进度；
+RabbitMQ 承载可靠长任务；
+MinIO 保存证据包和证书；
+Outbox 与幂等保证任务不丢不重；
+最后用签名 Certificate 绑定需求版本、Commit 和证据。
+
+它不是告诉我代码可能有问题，而是证明这个 AI PR 是否真正完成了任务。”
+
+======================================================================
+文件结束
+======================================================================
