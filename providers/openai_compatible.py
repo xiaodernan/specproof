@@ -65,10 +65,12 @@ class OpenAICompatibleProvider(ModelProvider):
 
     @property
     def probe_result(self) -> ProbeResult:
+        return self._probe_result  # may be None before first probe
+
+    async def _ensure_probed(self) -> ProbeResult:
+        """Lazy probe on first API call. Thread-safe enough for Phase 0."""
         if self._probe_result is None:
-            raise RuntimeError(
-                "Provider not probed. Call run_probe() before get_capabilities()."
-            )
+            self._probe_result = await self.run_probe()
         return self._probe_result
 
     async def run_probe(self) -> ProbeResult:
@@ -92,7 +94,8 @@ class OpenAICompatibleProvider(ModelProvider):
         thinking: bool = False,
         timeout: float = 180.0,
     ) -> LLMResponse:
-        caps = self.get_capabilities()
+        probe = await self._ensure_probed()
+        caps = probe.capabilities
 
         oai_messages = self._to_openai_messages(messages)
         kwargs: dict[str, Any] = {
@@ -126,7 +129,8 @@ class OpenAICompatibleProvider(ModelProvider):
         thinking: bool = False,
         timeout: float = 180.0,
     ) -> AsyncIterator[LLMResponse]:
-        caps = self.get_capabilities()
+        probe = await self._ensure_probed()
+        caps = probe.capabilities
 
         oai_messages = self._to_openai_messages(messages)
         kwargs: dict[str, Any] = {
@@ -188,8 +192,10 @@ class OpenAICompatibleProvider(ModelProvider):
     def _to_llm_response(self, response: Any) -> LLMResponse:
         choice = response.choices[0]
         msg = choice.message
+        reasoning = getattr(msg, "reasoning_content", None)
         return LLMResponse(
             content=msg.content,
+            reasoning_content=reasoning,
             tool_calls=(
                 [
                     {

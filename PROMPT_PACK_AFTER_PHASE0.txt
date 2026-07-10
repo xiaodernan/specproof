@@ -1,0 +1,177 @@
+# SpecProof Prompt Pack — P0.5 到 P7 完整路线
+
+---
+
+## 当前状态评估
+
+项目	当前完成度
+工程骨架与代码质量	90%
+LangGraph 流程串联	80%
+中间件接入演示	70%
+真实 Base/Head 验证	45%
+LLM 独立生成测试	20%
+Bug Capsule 可重放证明	65%
+生产可靠性	25%
+整个 SpecProof 产品	约 35%
+
+---
+
+## P0.5：补完真实性
+
+先把第一周欠下的核心闭环补齐：
+
+### 必须完成项
+1. Maven Wrapper 实际执行（JUnit 在真实 Base/Head 环境运行）
+2. 真实 Base/Head Spring Boot 差分
+3. HTTP 和 MySQL 状态差分
+4. 至少一个真实 LLM 生成 JUnit（DeepSeek 生成 → 结构校验 → 编译 → 自动修复编译错误 → Base/Head 分别执行 → 生成 Evidence）
+5. 干净容器重放 Capsule
+6. Holdout、负样本和对抗样本
+7. 与"直接让 DeepSeek 看 Diff"的基线比较
+
+### DeepSeek 注意事项
+- 第三方网关，思考模式结合 Tool Calls 时不能照搬普通 OpenAI 调用
+- DeepSeek 官方要求涉及工具调用的后续请求完整回传 reasoning_content
+- Provider Adapter 必须专门处理或降级
+
+### 验收标准
+- 一条命令完成完整 Base/Head 测试执行
+- 至少一个 DeepSeek 生成的 JUnit 测试成功编译并运行
+- Capsule 在干净容器中可重放
+- 与 DeepSeek Diff Review 基线的对比数据
+
+### 禁止
+- 没有 Maven/JUnit 实际执行就声称"验证通过"
+- 用静态规则发现替代可执行证明
+- 在此步通过前开始堆后续功能
+
+---
+
+## P1：生产内核
+
+### 中间件可靠性
+- MySQL Job 状态机
+- Transactional Outbox
+- RabbitMQ Publisher Confirm、Manual Ack、Retry、DLQ
+- 幂等消费者
+- Redis Lock、Budget、Stream 和 SSE
+- MongoDB Evidence Pack
+- MinIO 工件
+
+### LangGraph 可靠性
+- LangGraph Checkpoint（恢复和故障容错）
+- Interrupt（暂停等待人工审批后继续执行）
+- 崩溃恢复
+
+### 可观测性
+- OpenTelemetry Trace
+- Context Propagation：跨 HTTP、进程和 MQ 传播上下文
+
+### 注意
+- RabbitMQ 的 Publisher Confirm 和 Consumer Ack 是两个不同方向的可靠性机制，不能只做其中一个
+
+---
+
+## P2：Contract Compiler 与代码 RAG
+
+### 实现
+- 自然语言需求转候选 Contract
+- 人工批准 Contract
+- Spring Security、OpenAPI、Migration、架构 Checker
+- Tree-sitter/AST 代码切块
+- Elasticsearch BM25＋向量＋RRF
+- Commit 和仓库隔离
+- Evidence Pack
+- Prompt Injection 测试
+
+---
+
+## P3：完整差分实验室
+
+### 开始真实比较
+- HTTP
+- MySQL
+- Redis
+- RabbitMQ
+- API Schema
+- 并发与事务
+- 消息重复投递和幂等
+- Base 已有问题还是 Head 新引入
+
+---
+
+## P4：Mutation 与 Fuzzing
+
+### 实现
+- PIT 只修改 PR 影响范围（在编译后的字节码上应用条件边界、返回值等变异操作）
+- 存活变异体分析
+- LLM 生成杀死变异体的测试
+- 属性测试
+- OpenAPI 状态化 Fuzzing
+- 最小失败输入
+
+---
+
+## P5：GitHub App 和签名证书
+
+### GitHub App
+- Webhook
+- GitHub Check Run
+- 行内评论
+- 人工审批
+- 自动修复 PR
+
+### Merge Certificate
+- Ed25519 私钥签名
+- 公钥验证
+- Commit SHA
+- Requirement Digest
+- Evidence Digest
+- Toolchain Digest
+- 签发者身份
+- in-toto 风格证明
+- 离线 Verify
+
+### 注意
+- GitHub Checks API 就是为 GitHub App 对代码变更运行 CI、Lint 或扫描，并把详细结果显示在 Commit/PR 上设计的
+- SHA-256 只能证明内容摘要一致，不能证明是谁签发的
+
+---
+
+## P6：评测、安全与生产部署
+
+### 实现
+- 100 个 Golden Cases
+- DeepSeek Diff Review 基线
+- Precision、Recall、Replay 和成本
+- 沙箱威胁模型
+- OpenTelemetry
+- Prometheus/Grafana
+- 备份恢复
+- 故障演练
+- 单机生产部署
+
+---
+
+## P7：三个真实仓库试点
+
+### 连续运行两周，达到
+- Blocker/Major Precision ≥ 90%
+- Semantic Regression Recall ≥ 80%
+- PR Attribution ≥ 90%
+- Capsule Replay ≥ 95%
+- 无证据严重 Finding = 0
+- 比直接 DeepSeek Review 提升 ≥ 25 个百分点
+
+### 最终 Go/No-Go
+- 达到以上指标才算真正"生产可投入的四个 9"
+
+---
+
+## 下一步单独使用提示词
+
+执行 P0.5：
+1. 先审计 Phase 0 的真实完成情况，不相信现有完成摘要
+2. 只输出审计计划、预计修改文件、验收命令、风险和阻塞问题
+3. 不要修改文件
+4. 等待批准，不开始编码

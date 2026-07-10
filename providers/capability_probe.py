@@ -130,7 +130,7 @@ class CapabilityProbe:
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": "Reply with just: ok"}],
-            "max_tokens": 10,
+            "max_tokens": 200,
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -182,7 +182,7 @@ class CapabilityProbe:
                 }
             ],
             "response_format": {"type": "json_object"},
-            "max_tokens": 50,
+            "max_tokens": 500,
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:

@@ -24,6 +24,7 @@ class LLMResponse:
     usage: dict = field(default_factory=dict)
     finish_reason: str = "stop"
     model: str = ""
+    reasoning_content: str | None = None
 
 
 class ModelProvider(ABC):
