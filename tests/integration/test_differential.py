@@ -111,6 +111,8 @@ class TestStaticAnalysisDetection:
 
     def test_base_has_preauthorize(self):
         """Base version should have @PreAuthorize on changeEmail."""
+        if not (DEMO_REPO / ".git").exists():
+            pytest.skip("demo/spring-backend is plain files (use git bundle for git-level ops)")
         content = subprocess.run(
             ["git", "-C", str(DEMO_REPO), "show", "base:"
              "src/main/java/com/specproof/demo/controller/UserController.java"],
@@ -156,6 +158,9 @@ class TestAgentNodeContracts:
 
     def test_collect_diff_finds_annotation_removal(self):
         """collect_diff should find @PreAuthorize removal."""
+        if not (DEMO_REPO / ".git").exists():
+            pytest.skip("demo/spring-backend is plain files (use git bundle for git-level ops)")
+
         from agent.nodes.collect_diff import collect_diff_node
 
         state = {
