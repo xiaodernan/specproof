@@ -503,7 +503,11 @@ class MySQLStore:
                 "ORDER BY created_at DESC LIMIT %s",
                 (job_id, limit),
             )
-            return list(cur.fetchall())
+            rows = list(cur.fetchall())
+            for row in rows:
+                if row.get("details") and isinstance(row["details"], str):
+                    row["details"] = json.loads(row["details"])
+            return rows
 
     def list_jobs_by_status(self, status: str, limit: int = 100) -> list[dict[str, Any]]:
         with self.connection() as conn:
@@ -674,7 +678,7 @@ class MySQLStore:
         job["trace_id"] = trace_id
 
         event_id = str(uuid.uuid4())
-        occurred_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        occurred_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
         payload = {
             "job_id": job_id,
             "repo_path": job.get("repo_path", ""),
