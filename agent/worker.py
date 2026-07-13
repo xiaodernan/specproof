@@ -41,10 +41,18 @@ from storage.redis import RedisStore
 logger = logging.getLogger(__name__)
 
 _GRAPH_NODES = [
-    "intake", "compile_contracts", "prepare_base", "prepare_head",
-    "collect_diff", "run_static_checks", "generate_counterexamples",
-    "run_differential", "review_court", "build_matrix",
-    "create_capsule", "publish_report",
+    "intake",
+    "compile_contracts",
+    "prepare_base",
+    "prepare_head",
+    "collect_diff",
+    "run_static_checks",
+    "generate_counterexamples",
+    "run_differential",
+    "review_court",
+    "build_matrix",
+    "create_capsule",
+    "publish_report",
 ]
 
 
@@ -83,7 +91,9 @@ class P1Worker:
         self._running = True
         logger.info(
             "P1Worker %s (id=%s) starting, queue=%s",
-            self.consumer_name, self.worker_id, self.QUEUE.name,
+            self.consumer_name,
+            self.worker_id,
+            self.QUEUE.name,
         )
 
         self.rabbitmq.consume_with_dlq(
@@ -113,30 +123,41 @@ class P1Worker:
 
         logger.info(
             "Worker %s received event %s for job %s",
-            self.consumer_name, event_id, job_id,
+            self.consumer_name,
+            event_id,
+            job_id,
         )
 
         # ── Atomic idempotency claim + state transition in one TX ──
         try:
             with self.mysql.connection() as conn:
                 claimed = self.mysql.insert_processed_event_in_tx(
-                    conn, self.consumer_name, event_id,
+                    conn,
+                    self.consumer_name,
+                    event_id,
                 )
                 if not claimed:
                     logger.info(
                         "Event %s already processed by %s, skipping",
-                        event_id, self.consumer_name,
+                        event_id,
+                        self.consumer_name,
                     )
                     return  # TX rolled back on IntegrityError — return, RabbitMQ Acks
 
                 # Transition QUEUED → PREPARING → RUNNING in same TX
                 self.mysql.transition_job_status_in_tx(
-                    conn, job_id, "PREPARING",
-                    worker_id=self.worker_id, trace_id=trace_id,
+                    conn,
+                    job_id,
+                    "PREPARING",
+                    worker_id=self.worker_id,
+                    trace_id=trace_id,
                 )
                 self.mysql.transition_job_status_in_tx(
-                    conn, job_id, "RUNNING",
-                    worker_id=self.worker_id, trace_id=trace_id,
+                    conn,
+                    job_id,
+                    "RUNNING",
+                    worker_id=self.worker_id,
+                    trace_id=trace_id,
                 )
             # TX committed: event claimed + job is RUNNING
         except (JobNotFoundError, pymysql.err.IntegrityError) as e:
@@ -151,7 +172,8 @@ class P1Worker:
             logger.exception("Job %s failed permanently: %s", job_id, e)
             try:
                 self.mysql.transition_job_status(
-                    job_id, "FAILED",
+                    job_id,
+                    "FAILED",
                     worker_id=self.worker_id,
                     error_msg=str(e)[:4000],
                     error_code="WORKER_FATAL",
@@ -163,7 +185,10 @@ class P1Worker:
             raise PermanentFailureError(str(e)[:200]) from e
 
     def _run_job(
-        self, job_id: str, payload: dict[str, Any], trace_id: str,
+        self,
+        job_id: str,
+        payload: dict[str, Any],
+        trace_id: str,
     ) -> None:
         # ── QUEUED→PREPARING→RUNNING already done atomically with
         #     the idempotency claim in _handle_job_created ──
@@ -199,27 +224,42 @@ class P1Worker:
                         raise PermanentFailureError("Budget exceeded")
 
                     idx = node_index.get(node_name, -1)
-                    self._xadd_event(job_id, "node_complete", {
-                        "node": node_name,
-                        "percent": round((idx + 1) / total * 100, 1),
-                    })
+                    self._xadd_event(
+                        job_id,
+                        "node_complete",
+                        {
+                            "node": node_name,
+                            "percent": round((idx + 1) / total * 100, 1),
+                        },
+                    )
                     final_state = node_output
 
             # ── Determine final status ──
             findings = final_state.get("confirmed_findings", [])
-            has_blocker = any(
-                f.get("severity") == "BLOCKER" for f in findings
-            ) if isinstance(findings, list) else False
+            has_blocker = (
+                any(f.get("severity") == "BLOCKER" for f in findings)
+                if isinstance(findings, list)
+                else False
+            )
 
             final_status = "FAILED" if has_blocker else "SUCCEEDED"
-            self._transit(job_id, final_status, trace_id,
-                         worker_id=self.worker_id, msg="Graph execution completed")
+            self._transit(
+                job_id,
+                final_status,
+                trace_id,
+                worker_id=self.worker_id,
+                msg="Graph execution completed",
+            )
 
-            self._xadd_event(job_id, "job_complete", {
-                "status": final_status,
-                "findings_count": len(findings) if isinstance(findings, list) else 0,
-                "percent": 100.0,
-            })
+            self._xadd_event(
+                job_id,
+                "job_complete",
+                {
+                    "status": final_status,
+                    "findings_count": len(findings) if isinstance(findings, list) else 0,
+                    "percent": 100.0,
+                },
+            )
 
         finally:
             self.redis.release_lease(job_id, self.worker_id)
@@ -227,12 +267,18 @@ class P1Worker:
     # ── Helpers ───────────────────────────────────────────────────
 
     def _transit(
-        self, job_id: str, to_status: str, trace_id: str,
-        *, worker_id: str | None = None, msg: str | None = None,
+        self,
+        job_id: str,
+        to_status: str,
+        trace_id: str,
+        *,
+        worker_id: str | None = None,
+        msg: str | None = None,
     ) -> int:
         try:
             return self.mysql.transition_job_status(
-                job_id, to_status,
+                job_id,
+                to_status,
                 worker_id=worker_id or self.worker_id,
                 trace_id=trace_id,
                 error_msg=msg,
@@ -242,12 +288,15 @@ class P1Worker:
 
     def _xadd_event(self, job_id: str, event_type: str, data: dict[str, Any]) -> None:
         try:
-            self.redis.xadd_progress(job_id, {
-                "event": event_type,
-                "worker_id": self.worker_id,
-                "timestamp": time.time(),
-                **data,
-            })
+            self.redis.xadd_progress(
+                job_id,
+                {
+                    "event": event_type,
+                    "worker_id": self.worker_id,
+                    "timestamp": time.time(),
+                    **data,
+                },
+            )
         except Exception:
             logger.warning("Failed to write progress event for job %s", job_id)
 

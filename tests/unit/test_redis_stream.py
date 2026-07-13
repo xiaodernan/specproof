@@ -30,8 +30,10 @@ class TestBudgetSnapshot:
 
     def test_with_values(self) -> None:
         b = BudgetSnapshot(
-            tool_calls=42, llm_tokens=15000,
-            estimated_cost=0.75, experiments=3,
+            tool_calls=42,
+            llm_tokens=15000,
+            estimated_cost=0.75,
+            experiments=3,
             elapsed_seconds=120.5,
         )
         assert b.tool_calls == 42

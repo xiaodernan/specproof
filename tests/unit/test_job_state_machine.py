@@ -14,9 +14,16 @@ from storage.mysql import (
 class TestStateMachineConstants:
     def test_all_10_statuses_exist(self) -> None:
         expected = {
-            "CREATED", "QUEUED", "PREPARING", "RUNNING",
-            "WAITING_FOR_PROVIDER", "WAITING_FOR_APPROVAL",
-            "SUCCEEDED", "FAILED", "CANCELLED", "STALE",
+            "CREATED",
+            "QUEUED",
+            "PREPARING",
+            "RUNNING",
+            "WAITING_FOR_PROVIDER",
+            "WAITING_FOR_APPROVAL",
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED",
+            "STALE",
         }
         assert set(_VALID_TRANSITIONS.keys()) == expected
 
@@ -32,43 +39,49 @@ class TestStateMachineConstants:
 
 
 class TestValidTransitions:
-    @pytest.mark.parametrize("from_s,to_s", [
-        ("CREATED", "QUEUED"),
-        ("CREATED", "CANCELLED"),
-        ("QUEUED", "PREPARING"),
-        ("QUEUED", "STALE"),
-        ("PREPARING", "RUNNING"),
-        ("PREPARING", "FAILED"),
-        ("RUNNING", "WAITING_FOR_PROVIDER"),
-        ("RUNNING", "WAITING_FOR_APPROVAL"),
-        ("RUNNING", "SUCCEEDED"),
-        ("RUNNING", "FAILED"),
-        ("RUNNING", "STALE"),
-        ("WAITING_FOR_PROVIDER", "RUNNING"),
-        ("WAITING_FOR_APPROVAL", "RUNNING"),
-        ("WAITING_FOR_APPROVAL", "SUCCEEDED"),
-        ("QUEUED", "CANCELLED"),
-        ("PREPARING", "CANCELLED"),
-        ("RUNNING", "CANCELLED"),
-        ("WAITING_FOR_PROVIDER", "CANCELLED"),
-        ("WAITING_FOR_APPROVAL", "CANCELLED"),
-    ])
+    @pytest.mark.parametrize(
+        "from_s,to_s",
+        [
+            ("CREATED", "QUEUED"),
+            ("CREATED", "CANCELLED"),
+            ("QUEUED", "PREPARING"),
+            ("QUEUED", "STALE"),
+            ("PREPARING", "RUNNING"),
+            ("PREPARING", "FAILED"),
+            ("RUNNING", "WAITING_FOR_PROVIDER"),
+            ("RUNNING", "WAITING_FOR_APPROVAL"),
+            ("RUNNING", "SUCCEEDED"),
+            ("RUNNING", "FAILED"),
+            ("RUNNING", "STALE"),
+            ("WAITING_FOR_PROVIDER", "RUNNING"),
+            ("WAITING_FOR_APPROVAL", "RUNNING"),
+            ("WAITING_FOR_APPROVAL", "SUCCEEDED"),
+            ("QUEUED", "CANCELLED"),
+            ("PREPARING", "CANCELLED"),
+            ("RUNNING", "CANCELLED"),
+            ("WAITING_FOR_PROVIDER", "CANCELLED"),
+            ("WAITING_FOR_APPROVAL", "CANCELLED"),
+        ],
+    )
     def test_valid_transitions(self, from_s: str, to_s: str) -> None:
         assert MySQLStore.is_valid_transition(from_s, to_s)
 
 
 class TestInvalidTransitions:
-    @pytest.mark.parametrize("from_s,to_s", [
-        ("CREATED", "RUNNING"),           # skip QUEUED
-        ("CREATED", "SUCCEEDED"),         # impossible
-        ("QUEUED", "SUCCEEDED"),          # skip all execution
-        ("SUCCEEDED", "RUNNING"),         # terminal
-        ("CANCELLED", "QUEUED"),          # terminal
-        ("STALE", "RUNNING"),             # terminal
-        ("RUNNING", "CREATED"),           # backward
-        ("PREPARING", "QUEUED"),          # backward
-        ("WAITING_FOR_PROVIDER", "QUEUED"),  # wrong direction
-    ])
+    @pytest.mark.parametrize(
+        "from_s,to_s",
+        [
+            ("CREATED", "RUNNING"),  # skip QUEUED
+            ("CREATED", "SUCCEEDED"),  # impossible
+            ("QUEUED", "SUCCEEDED"),  # skip all execution
+            ("SUCCEEDED", "RUNNING"),  # terminal
+            ("CANCELLED", "QUEUED"),  # terminal
+            ("STALE", "RUNNING"),  # terminal
+            ("RUNNING", "CREATED"),  # backward
+            ("PREPARING", "QUEUED"),  # backward
+            ("WAITING_FOR_PROVIDER", "QUEUED"),  # wrong direction
+        ],
+    )
     def test_invalid_transitions(self, from_s: str, to_s: str) -> None:
         assert not MySQLStore.is_valid_transition(from_s, to_s)
 
@@ -78,10 +91,17 @@ class TestTerminalDetection:
     def test_terminal(self, status: str) -> None:
         assert MySQLStore.is_terminal(status)
 
-    @pytest.mark.parametrize("status", [
-        "CREATED", "QUEUED", "PREPARING", "RUNNING",
-        "WAITING_FOR_PROVIDER", "WAITING_FOR_APPROVAL",
-    ])
+    @pytest.mark.parametrize(
+        "status",
+        [
+            "CREATED",
+            "QUEUED",
+            "PREPARING",
+            "RUNNING",
+            "WAITING_FOR_PROVIDER",
+            "WAITING_FOR_APPROVAL",
+        ],
+    )
     def test_non_terminal(self, status: str) -> None:
         assert not MySQLStore.is_terminal(status)
 

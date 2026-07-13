@@ -47,15 +47,17 @@ class TestJobLifecycle:
 
     def test_full_happy_path(self, store: MySQLStore, job_id: str) -> None:
         # P0.5-compatible API: starts in RUNNING
-        store.insert_job({
-            "id": job_id,
-            "repo_path": "/test/repo",
-            "base_ref": "main",
-            "head_ref": "feature-x",
-            "spec_path": "/test/spec.md",
-            "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
-            "depth": "FAST",
-        })
+        store.insert_job(
+            {
+                "id": job_id,
+                "repo_path": "/test/repo",
+                "base_ref": "main",
+                "head_ref": "feature-x",
+                "spec_path": "/test/spec.md",
+                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
+                "depth": "FAST",
+            }
+        )
 
         job = store.get_job(job_id)
         assert job is not None
@@ -65,12 +67,11 @@ class TestJobLifecycle:
         trace_id = str(uuid.uuid4())
         worker = "integration-test-worker"
 
-        store.transition_job_status(job_id, "WAITING_FOR_PROVIDER",
-                                     worker_id=worker, trace_id=trace_id)
-        store.transition_job_status(job_id, "RUNNING",
-                                     worker_id=worker, trace_id=trace_id)
-        store.transition_job_status(job_id, "SUCCEEDED",
-                                     worker_id=worker, trace_id=trace_id)
+        store.transition_job_status(
+            job_id, "WAITING_FOR_PROVIDER", worker_id=worker, trace_id=trace_id
+        )
+        store.transition_job_status(job_id, "RUNNING", worker_id=worker, trace_id=trace_id)
+        store.transition_job_status(job_id, "SUCCEEDED", worker_id=worker, trace_id=trace_id)
 
         final = store.get_job(job_id)
         assert final is not None
@@ -81,17 +82,21 @@ class TestCasOptimisticLocking:
     """CAS version-check prevents lost updates."""
 
     def test_concurrent_update_version_conflict(
-        self, store: MySQLStore, job_id: str,
+        self,
+        store: MySQLStore,
+        job_id: str,
     ) -> None:
-        store.insert_job({
-            "id": job_id,
-            "repo_path": "/test/repo2",
-            "base_ref": "main",
-            "head_ref": "feature-y",
-            "spec_path": "/test/spec2.md",
-            "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
-            "depth": "FAST",
-        })
+        store.insert_job(
+            {
+                "id": job_id,
+                "repo_path": "/test/repo2",
+                "base_ref": "main",
+                "head_ref": "feature-y",
+                "spec_path": "/test/spec2.md",
+                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
+                "depth": "FAST",
+            }
+        )
 
         trace_id = str(uuid.uuid4())
         # RUNNING → QUEUED is not valid; run a valid transition first
@@ -107,7 +112,8 @@ class TestCasOptimisticLocking:
         # Second transition with stale expected_version must fail
         with pytest.raises(OptimisticLockFailureError):
             store.transition_job_status(
-                job_id, "FAILED",
+                job_id,
+                "FAILED",
                 expected_version=v1,  # stale
                 trace_id=trace_id,
             )
@@ -117,29 +123,33 @@ class TestInvalidTransitions:
     """Illegal transitions must be rejected at DB integration level."""
 
     def test_skip_queued_rejected(self, store: MySQLStore, job_id: str) -> None:
-        store.insert_job({
-            "id": job_id,
-            "repo_path": "/test/repo3",
-            "base_ref": "main",
-            "head_ref": "feature-z",
-            "spec_path": "/test/spec3.md",
-            "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
-            "depth": "FAST",
-        })
+        store.insert_job(
+            {
+                "id": job_id,
+                "repo_path": "/test/repo3",
+                "base_ref": "main",
+                "head_ref": "feature-z",
+                "spec_path": "/test/spec3.md",
+                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
+                "depth": "FAST",
+            }
+        )
         # RUNNING → CREATED is backward/invalid
         with pytest.raises(InvalidStateTransitionError):
             store.transition_job_status(job_id, "CREATED")
 
     def test_terminal_no_exit(self, store: MySQLStore, job_id: str) -> None:
-        store.insert_job({
-            "id": job_id,
-            "repo_path": "/test/repo4",
-            "base_ref": "main",
-            "head_ref": "feature-w",
-            "spec_path": "/test/spec4.md",
-            "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
-            "depth": "FAST",
-        })
+        store.insert_job(
+            {
+                "id": job_id,
+                "repo_path": "/test/repo4",
+                "base_ref": "main",
+                "head_ref": "feature-w",
+                "spec_path": "/test/spec4.md",
+                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
+                "depth": "FAST",
+            }
+        )
         trace_id = str(uuid.uuid4())
         store.transition_job_status(job_id, "SUCCEEDED", trace_id=trace_id)
 
@@ -239,21 +249,25 @@ class TestAuditTrail:
     """State transitions produce audit log entries."""
 
     def test_transition_creates_audit_log(self, store: MySQLStore, job_id: str) -> None:
-        store.insert_job({
-            "id": job_id,
-            "repo_path": "/test/repo-audit",
-            "base_ref": "main",
-            "head_ref": "feature-audit",
-            "spec_path": "/test/spec-audit.md",
-            "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
-            "depth": "FAST",
-        })
+        store.insert_job(
+            {
+                "id": job_id,
+                "repo_path": "/test/repo-audit",
+                "base_ref": "main",
+                "head_ref": "feature-audit",
+                "spec_path": "/test/spec-audit.md",
+                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
+                "depth": "FAST",
+            }
+        )
         trace_id = str(uuid.uuid4())
 
         store.transition_job_status(job_id, "WAITING_FOR_PROVIDER", trace_id=trace_id)
         store.transition_job_status(
-            job_id, "RUNNING",
-            worker_id="audit-worker", trace_id=trace_id,
+            job_id,
+            "RUNNING",
+            worker_id="audit-worker",
+            trace_id=trace_id,
         )
 
         logs = store.get_job_audit_log(job_id)

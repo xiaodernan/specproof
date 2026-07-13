@@ -50,7 +50,8 @@ class OutboxRelay:
         """Claim and publish all pending events. Returns count published."""
         published = 0
         events = self.mysql.claim_pending_events(
-            limit=self.batch_size, claimed_by=self.claimed_by,
+            limit=self.batch_size,
+            claimed_by=self.claimed_by,
         )
         for event in events:
             event_id = event.get("event_id", "")
@@ -95,7 +96,9 @@ class OutboxRelay:
         self._ensure_topology()
         logger.info(
             "OutboxRelay started (interval=%.1fs, batch=%d, claim_by=%s)",
-            self.poll_interval, self.batch_size, self.claimed_by,
+            self.poll_interval,
+            self.batch_size,
+            self.claimed_by,
         )
         while self._running:
             try:

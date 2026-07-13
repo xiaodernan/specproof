@@ -241,7 +241,9 @@ class RedisStore:
         """Read progress entries from a stream starting at from_id."""
         stream_key = f"specproof:stream:job:{job_id}"
         result: Any = self.client.xread(
-            {stream_key: from_id}, count=count, block=block_ms,
+            {stream_key: from_id},
+            count=count,
+            block=block_ms,
         )
         entries: list[dict[str, Any]] = []
         if result:
@@ -268,9 +270,7 @@ class RedisStore:
 
     # ── P1.4: Rate limiter ───────────────────────────────────────
 
-    def check_rate(
-        self, key: str, max_requests: int = 10, window_seconds: int = 60
-    ) -> bool:
+    def check_rate(self, key: str, max_requests: int = 10, window_seconds: int = 60) -> bool:
         """Simple sliding-window rate limiter. Returns True if allowed."""
         rk = f"specproof:rate:{key}"
         now = time.time()

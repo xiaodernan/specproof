@@ -59,20 +59,22 @@ async def get_job(job_id: str) -> JSONResponse:
     job = store.get_job(job_id)
     if not job:
         raise JobNotFoundError(f"Job {job_id} not found")
-    return JSONResponse(content={
-        "job_id": job.get("id"),
-        "status": job.get("status"),
-        "version": job.get("version"),
-        "repo_path": job.get("repo_path"),
-        "base_ref": job.get("base_ref"),
-        "head_ref": job.get("head_ref"),
-        "retry_count": job.get("retry_count"),
-        "last_error": job.get("last_error"),
-        "created_at": str(job.get("created_at", "")),
-        "updated_at": str(job.get("updated_at", "")),
-        "started_at": str(job.get("started_at", "")),
-        "completed_at": str(job.get("completed_at", "")),
-    })
+    return JSONResponse(
+        content={
+            "job_id": job.get("id"),
+            "status": job.get("status"),
+            "version": job.get("version"),
+            "repo_path": job.get("repo_path"),
+            "base_ref": job.get("base_ref"),
+            "head_ref": job.get("head_ref"),
+            "retry_count": job.get("retry_count"),
+            "last_error": job.get("last_error"),
+            "created_at": str(job.get("created_at", "")),
+            "updated_at": str(job.get("updated_at", "")),
+            "started_at": str(job.get("started_at", "")),
+            "completed_at": str(job.get("completed_at", "")),
+        }
+    )
 
 
 @app.get("/api/jobs/{job_id}/events")

@@ -22,12 +22,14 @@ from storage.mysql import MySQLStore
 
 # ── Docker readiness probes ──────────────────────────────────────
 
+
 def _docker_ready() -> bool:
     """Check if Docker and all required services are reachable."""
     try:
         from storage.mysql import MySQLStore
         from storage.rabbitmq import RabbitMQClient
         from storage.redis import RedisStore
+
         mysql_ok = MySQLStore().is_ready()
         rabbit_ok = RabbitMQClient().is_ready()
         redis_ok = RedisStore().is_ready()
@@ -39,6 +41,7 @@ def _docker_ready() -> bool:
 def _mysql_only_ready() -> bool:
     try:
         from storage.mysql import MySQLStore
+
         return MySQLStore().is_ready()
     except Exception:
         return False
@@ -49,6 +52,7 @@ mysql_skip = pytest.mark.skipif(not _mysql_only_ready(), reason="MySQL not avail
 
 
 # ── Helpers ──────────────────────────────────────────────────────
+
 
 def _create_job_via_outbox(store: MySQLStore, routing_key: str = "q.p1.verify.job") -> str:
     """Create a job via the transactional outbox path."""
@@ -73,6 +77,7 @@ def _create_job_via_outbox(store: MySQLStore, routing_key: str = "q.p1.verify.jo
 # Scenario 1: Outbox Relay delivers after API crash
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 @docker_skip
 class TestScenario1OutboxRecovery:
@@ -80,6 +85,7 @@ class TestScenario1OutboxRecovery:
 
     def test_outbox_event_persisted_after_creation(self) -> None:
         from storage.mysql import MySQLStore
+
         store = MySQLStore()
         store.ensure_tables()
 
@@ -99,6 +105,7 @@ class TestScenario1OutboxRecovery:
     def test_relay_claims_and_publishes(self) -> None:
         from storage.mysql import MySQLStore
         from storage.rabbitmq import RabbitMQClient
+
         store = MySQLStore()
         store.ensure_tables()
 
@@ -137,6 +144,7 @@ class TestScenario1OutboxRecovery:
 # Scenario 2: Duplicate outbox event → idempotency
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 @docker_skip
 class TestScenario2DuplicateEvents:
@@ -144,6 +152,7 @@ class TestScenario2DuplicateEvents:
 
     def test_duplicate_event_marked_processed(self) -> None:
         from storage.mysql import MySQLStore
+
         store = MySQLStore()
         store.ensure_tables()
 
@@ -168,6 +177,7 @@ class TestScenario2DuplicateEvents:
 # Scenario 3: Consumer crashes after work, before Ack → idempotency
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 @docker_skip
 class TestScenario3ConsumerCrashBeforeAck:
@@ -175,6 +185,7 @@ class TestScenario3ConsumerCrashBeforeAck:
 
     def test_idempotency_prevents_reprocessing(self) -> None:
         from storage.mysql import MySQLStore
+
         store = MySQLStore()
         store.ensure_tables()
 
@@ -193,6 +204,7 @@ class TestScenario3ConsumerCrashBeforeAck:
 # Scenario 4: RabbitMQ redelivers same message → idempotency
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 @docker_skip
 class TestScenario4Redelivery:
@@ -200,6 +212,7 @@ class TestScenario4Redelivery:
 
     def test_redelivered_event_idempotent(self) -> None:
         from storage.mysql import MySQLStore
+
         store = MySQLStore()
         store.ensure_tables()
 
@@ -218,20 +231,24 @@ class TestScenario4Redelivery:
 # Scenario 5: Provider retry with exponential backoff (mocked)
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 class TestScenario5ProviderRetry:
     """Provider errors trigger retry; permanent errors go to DLQ."""
 
     def test_temporary_failure_triggers_retry(self) -> None:
         from storage.rabbitmq import TemporaryFailureError
+
         assert issubclass(TemporaryFailureError, Exception)
 
     def test_permanent_failure_goes_to_dlq(self) -> None:
         from storage.rabbitmq import PermanentFailureError
+
         assert issubclass(PermanentFailureError, Exception)
 
     def test_temporary_and_permanent_are_distinct(self) -> None:
         from storage.rabbitmq import PermanentFailureError, TemporaryFailureError
+
         te = TemporaryFailureError("timeout")
         pe = PermanentFailureError("bad request")
         assert not isinstance(pe, TemporaryFailureError)
@@ -239,6 +256,7 @@ class TestScenario5ProviderRetry:
 
     def test_exception_chain_preserves_cause(self) -> None:
         from storage.rabbitmq import TemporaryFailureError
+
         try:
             try:
                 raise ConnectionError("Connection refused")
@@ -253,6 +271,7 @@ class TestScenario5ProviderRetry:
 # Scenario 6: Worker mid-graph crash → checkpoint recovery
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 class TestScenario6CheckpointRecovery:
     """P1.6: LangGraph checkpoint after each node, resume on crash."""
@@ -266,6 +285,7 @@ class TestScenario6CheckpointRecovery:
 # Scenario 7: SSE disconnect → Last-Event-ID resumption
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 @docker_skip
 class TestScenario7SseResumption:
@@ -273,6 +293,7 @@ class TestScenario7SseResumption:
 
     def test_stream_progress_read_from_id(self) -> None:
         from storage.redis import RedisStore
+
         redis = RedisStore()
 
         job_id = f"fault-sse-{uuid.uuid4().hex[:8]}"
@@ -294,6 +315,7 @@ class TestScenario7SseResumption:
 
     def test_stream_maxlen_trims_old_entries(self) -> None:
         from storage.redis import RedisStore
+
         redis = RedisStore()
 
         job_id = f"fault-maxlen-{uuid.uuid4().hex[:8]}"
@@ -311,6 +333,7 @@ class TestScenario7SseResumption:
 # Scenario 8: MinIO orphan detection
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 class TestScenario8MinioOrphanDetection:
     """P1.5: MinIO upload succeeds, MongoDB ref write fails → orphan."""
@@ -324,6 +347,7 @@ class TestScenario8MinioOrphanDetection:
 # Scenario 9: New Head SHA → STALE marking
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 @mysql_skip
 class TestScenario9StaleMarking:
@@ -331,6 +355,7 @@ class TestScenario9StaleMarking:
 
     def test_claim_stale_jobs_marks_old_jobs(self) -> None:
         from storage.mysql import MySQLStore
+
         store = MySQLStore()
         store.ensure_tables()
 
@@ -338,15 +363,17 @@ class TestScenario9StaleMarking:
 
         # Create old job
         old_job_id = str(uuid.uuid4())
-        store.insert_job({
-            "id": old_job_id,
-            "repo_path": repo,
-            "base_ref": "main",
-            "head_ref": "old-head",
-            "spec_path": "/test/spec.md",
-            "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
-            "depth": "FAST",
-        })
+        store.insert_job(
+            {
+                "id": old_job_id,
+                "repo_path": repo,
+                "base_ref": "main",
+                "head_ref": "old-head",
+                "spec_path": "/test/spec.md",
+                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
+                "depth": "FAST",
+            }
+        )
 
         # Job starts in RUNNING (P0.5 compat)
         job = store.get_job(old_job_id)
@@ -364,6 +391,7 @@ class TestScenario9StaleMarking:
 
     def test_terminal_jobs_not_marked_stale(self) -> None:
         from storage.mysql import MySQLStore
+
         store = MySQLStore()
         store.ensure_tables()
 
@@ -372,15 +400,17 @@ class TestScenario9StaleMarking:
 
         # Create job and move to terminal state
         job_id = str(uuid.uuid4())
-        store.insert_job({
-            "id": job_id,
-            "repo_path": repo,
-            "base_ref": "main",
-            "head_ref": "head-v1",
-            "spec_path": "/test/spec.md",
-            "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
-            "depth": "FAST",
-        })
+        store.insert_job(
+            {
+                "id": job_id,
+                "repo_path": repo,
+                "base_ref": "main",
+                "head_ref": "head-v1",
+                "spec_path": "/test/spec.md",
+                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
+                "depth": "FAST",
+            }
+        )
         store.transition_job_status(job_id, "SUCCEEDED", trace_id=trace_id)
 
         # New head → SUCCEEDED job should NOT go STALE
@@ -396,6 +426,7 @@ class TestScenario9StaleMarking:
 # Scenario 10: Service restart → recover unfinished jobs
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 @mysql_skip
 class TestScenario10ServiceRestartRecovery:
@@ -403,20 +434,23 @@ class TestScenario10ServiceRestartRecovery:
 
     def test_list_jobs_by_status_finds_running(self) -> None:
         from storage.mysql import MySQLStore
+
         store = MySQLStore()
         store.ensure_tables()
 
         # Create a RUNNING job (simulating pre-restart state)
         job_id = str(uuid.uuid4())
-        store.insert_job({
-            "id": job_id,
-            "repo_path": "/test/repo-restart",
-            "base_ref": "main",
-            "head_ref": "feature-restart",
-            "spec_path": "/test/spec.md",
-            "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
-            "depth": "FAST",
-        })
+        store.insert_job(
+            {
+                "id": job_id,
+                "repo_path": "/test/repo-restart",
+                "base_ref": "main",
+                "head_ref": "feature-restart",
+                "spec_path": "/test/spec.md",
+                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
+                "depth": "FAST",
+            }
+        )
 
         # On restart, monitor finds RUNNING jobs
         running_jobs = store.list_jobs_by_status("RUNNING", limit=10)
@@ -426,26 +460,28 @@ class TestScenario10ServiceRestartRecovery:
     def test_failed_is_terminal_retry_creates_new_job(self) -> None:
         """FAILED is terminal — retry must create a new job with new job_id."""
         from storage.mysql import InvalidStateTransitionError, MySQLStore
+
         store = MySQLStore()
         store.ensure_tables()
 
         job_id = str(uuid.uuid4())
         trace_id = str(uuid.uuid4())
-        store.insert_job({
-            "id": job_id,
-            "repo_path": "/test/repo-retry",
-            "base_ref": "main",
-            "head_ref": "feature-retry",
-            "spec_path": "/test/spec.md",
-            "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
-            "depth": "FAST",
-        })
+        store.insert_job(
+            {
+                "id": job_id,
+                "repo_path": "/test/repo-retry",
+                "base_ref": "main",
+                "head_ref": "feature-retry",
+                "spec_path": "/test/spec.md",
+                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
+                "depth": "FAST",
+            }
+        )
 
         # Move to FAILED
-        store.transition_job_status(job_id, "FAILED",
-                                     error_msg="Worker crash",
-                                     error_code="WORKER_CRASH",
-                                     trace_id=trace_id)
+        store.transition_job_status(
+            job_id, "FAILED", error_msg="Worker crash", error_code="WORKER_CRASH", trace_id=trace_id
+        )
 
         job = store.get_job(job_id)
         assert job is not None
@@ -485,6 +521,7 @@ class TestScenario10ServiceRestartRecovery:
 # Lease expiry (cross-cutting)
 # ═══════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.integration
 @docker_skip
 class TestLeaseExpiry:
@@ -492,6 +529,7 @@ class TestLeaseExpiry:
 
     def test_lease_expires_and_reacquired(self) -> None:
         from storage.redis import RedisStore
+
         redis = RedisStore()
 
         job_id = f"fault-lease-{uuid.uuid4().hex[:8]}"

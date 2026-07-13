@@ -205,11 +205,14 @@ class RabbitMQClient:
             except (UnroutableError, ConnectionClosedByBroker, ChannelClosedByBroker):
                 logger.warning(
                     "Publish attempt %d/%d failed for %s",
-                    attempt, self.config.publisher_retries, routing_key,
+                    attempt,
+                    self.config.publisher_retries,
+                    routing_key,
                 )
                 if attempt == self.config.publisher_retries:
                     raise
                 import time
+
                 time.sleep(self.config.publisher_retry_delay_ms / 1000 * attempt)
                 self._connect()
         return False
@@ -285,7 +288,10 @@ class RabbitMQClient:
                         ]
                         logger.info(
                             "Retry %d/%d for event %s, delay=%dms",
-                            retry_count + 1, queue_spec.max_retries, event_id, delay,
+                            retry_count + 1,
+                            queue_spec.max_retries,
+                            event_id,
+                            delay,
                         )
                         ch.basic_publish(
                             exchange="",
@@ -302,7 +308,8 @@ class RabbitMQClient:
                     else:
                         logger.error(
                             "Max retries (%d) exceeded for event %s, sending to DLQ",
-                            queue_spec.max_retries, event_id,
+                            queue_spec.max_retries,
+                            event_id,
                         )
                         if queue_spec.dlq_name:
                             ch.basic_publish(
@@ -322,7 +329,9 @@ class RabbitMQClient:
                         ch.basic_ack(delivery_tag=delivery_tag)
                 except PermanentFailureError as e:
                     logger.error(
-                        "Permanent failure for event %s: %s, sending to DLQ", event_id, e,
+                        "Permanent failure for event %s: %s, sending to DLQ",
+                        event_id,
+                        e,
                     )
                     if queue_spec.dlq_name:
                         ch.basic_publish(
@@ -345,7 +354,8 @@ class RabbitMQClient:
         assert self._channel is not None
         self._channel.basic_qos(prefetch_count=1)
         self._channel.basic_consume(
-            queue=queue_spec.name, on_message_callback=_on_message,
+            queue=queue_spec.name,
+            on_message_callback=_on_message,
         )
 
     def start_consuming(self) -> None:

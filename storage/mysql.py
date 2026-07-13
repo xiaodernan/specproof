@@ -25,18 +25,24 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════
 
 _VALID_TRANSITIONS: dict[str, set[str]] = {
-    "CREATED":   {"QUEUED", "CANCELLED"},
-    "QUEUED":    {"PREPARING", "STALE", "CANCELLED"},
+    "CREATED": {"QUEUED", "CANCELLED"},
+    "QUEUED": {"PREPARING", "STALE", "CANCELLED"},
     "PREPARING": {"RUNNING", "FAILED", "CANCELLED"},
-    "RUNNING": {"WAITING_FOR_PROVIDER", "WAITING_FOR_APPROVAL",
-                 "SUCCEEDED", "FAILED", "STALE", "CANCELLED"},
+    "RUNNING": {
+        "WAITING_FOR_PROVIDER",
+        "WAITING_FOR_APPROVAL",
+        "SUCCEEDED",
+        "FAILED",
+        "STALE",
+        "CANCELLED",
+    },
     "WAITING_FOR_PROVIDER": {"RUNNING", "FAILED", "CANCELLED"},
     "WAITING_FOR_APPROVAL": {"RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"},
     # Terminal states — no exits. Retries create a new job/attempt.
     "SUCCEEDED": set(),
-    "FAILED":    set(),
+    "FAILED": set(),
     "CANCELLED": set(),
-    "STALE":     set(),
+    "STALE": set(),
 }
 
 TERMINAL_STATUSES: frozenset[str] = frozenset({"SUCCEEDED", "FAILED", "CANCELLED", "STALE"})
@@ -76,6 +82,7 @@ class MySQLConfig:
 @dataclass
 class JobRecord:
     """P1.1 verification job with full lifecycle fields."""
+
     job_id: str
     repo_path: str
     base_ref: str
@@ -357,12 +364,19 @@ class MySQLStore:
                 params,
             )
             self._write_stage(
-                conn, job_id, from_status, to_status,
-                worker_id=worker_id, trace_id=trace_id,
-                msg=error_msg, error_code=error_code,
+                conn,
+                job_id,
+                from_status,
+                to_status,
+                worker_id=worker_id,
+                trace_id=trace_id,
+                msg=error_msg,
+                error_code=error_code,
             )
             self._write_audit(
-                conn, job_id, "status_transition",
+                conn,
+                job_id,
+                "status_transition",
                 {"from": from_status, "to": to_status},
                 trace_id=trace_id,
             )
@@ -435,12 +449,19 @@ class MySQLStore:
             params,
         )
         self._write_stage(
-            conn, job_id, from_status, to_status,
-            worker_id=worker_id, trace_id=trace_id,
-            msg=error_msg, error_code=error_code,
+            conn,
+            job_id,
+            from_status,
+            to_status,
+            worker_id=worker_id,
+            trace_id=trace_id,
+            msg=error_msg,
+            error_code=error_code,
         )
         self._write_audit(
-            conn, job_id, "status_transition",
+            conn,
+            job_id,
+            "status_transition",
             {"from": from_status, "to": to_status},
             trace_id=trace_id,
         )
@@ -459,7 +480,9 @@ class MySQLStore:
             for row in cur.fetchall():
                 try:
                     self.transition_job_status(
-                        row["id"], "STALE", stale_replaced_by=new_head_sha,
+                        row["id"],
+                        "STALE",
+                        stale_replaced_by=new_head_sha,
                     )
                     stale_count += 1
                 except InvalidStateTransitionError:
@@ -507,8 +530,15 @@ class MySQLStore:
             "INSERT INTO job_stages (job_id, from_status, to_status, worker_id, "
             "trace_id, message, error_code) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (job_id, from_status, to_status, worker_id, trace_id,
-             msg[:2000] if msg else None, error_code),
+            (
+                job_id,
+                from_status,
+                to_status,
+                worker_id,
+                trace_id,
+                msg[:2000] if msg else None,
+                error_code,
+            ),
         )
 
     def _write_audit(
@@ -524,15 +554,12 @@ class MySQLStore:
         conn.cursor().execute(
             "INSERT INTO audit_logs (aggregate_id, event_type, actor, details, trace_id) "
             "VALUES (%s, %s, %s, %s, %s)",
-            (aggregate_id, event_type, actor,
-             json.dumps(details) if details else None, trace_id),
+            (aggregate_id, event_type, actor, json.dumps(details) if details else None, trace_id),
         )
 
     # ── P1.3 Atomic idempotency ─────────────────────────────────────
 
-    def try_claim_event(
-        self, consumer_name: str, event_id: str
-    ) -> bool:
+    def try_claim_event(self, consumer_name: str, event_id: str) -> bool:
         """Atomically insert a processed_events row. Returns True if first claim.
 
         Must be called inside the same MySQL transaction as the business writes.
@@ -545,9 +572,7 @@ class MySQLStore:
         except Exception:
             return False
 
-    def insert_processed_event_in_tx(
-        self, conn: Any, consumer_name: str, event_id: str
-    ) -> bool:
+    def insert_processed_event_in_tx(self, conn: Any, consumer_name: str, event_id: str) -> bool:
         """Insert into processed_events within the given transaction.
 
         Returns True if this is the first claim (INSERT succeeded).
@@ -556,8 +581,7 @@ class MySQLStore:
         """
         try:
             conn.cursor().execute(
-                "INSERT INTO processed_events (consumer_name, event_id) "
-                "VALUES (%s, %s)",
+                "INSERT INTO processed_events (consumer_name, event_id) VALUES (%s, %s)",
                 (consumer_name, event_id),
             )
             return True
@@ -674,8 +698,7 @@ class MySQLStore:
                 "(event_id, event_type, aggregate_id, trace_id, occurred_at, "
                 "routing_key, payload, status) "
                 "VALUES (%s, 'JobCreated', %s, %s, %s, %s, %s, 'PENDING')",
-                (event_id, job_id, trace_id, occurred_at, routing_key,
-                 json.dumps(payload)),
+                (event_id, job_id, trace_id, occurred_at, routing_key, json.dumps(payload)),
             )
             self._write_stage(conn, job_id, "CREATED", "QUEUED", trace_id=trace_id)
             # Transition to QUEUED after outbox write
@@ -734,8 +757,7 @@ class MySQLStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT 1 FROM processed_events "
-                "WHERE consumer_name = %s AND event_id = %s",
+                "SELECT 1 FROM processed_events WHERE consumer_name = %s AND event_id = %s",
                 (consumer_name, event_id),
             )
             return cur.fetchone() is not None
@@ -743,8 +765,7 @@ class MySQLStore:
     def mark_event_processed(self, consumer_name: str, event_id: str) -> None:
         with self.connection() as conn:
             conn.cursor().execute(
-                "INSERT IGNORE INTO processed_events (consumer_name, event_id) "
-                "VALUES (%s, %s)",
+                "INSERT IGNORE INTO processed_events (consumer_name, event_id) VALUES (%s, %s)",
                 (consumer_name, event_id),
             )
 
