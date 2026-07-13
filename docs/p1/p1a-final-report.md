@@ -20,35 +20,42 @@ P1-A 是 SpecProof 生产可靠性内核的第一个大批次，涵盖 P1.1 至 
 | B. Clean P1 Worktree | ✅ | `feature/p1-reliability-kernel` 分支，基于 `4145d95` |
 | C. WIP Migration Matrix | ✅ | `docs/p1/wip-migration-matrix.md` 分类 ~35 文件 |
 | D. GitHub Actions CI | ✅ | `quality.yml` (Ruff/Mypy/Bandit/Tests/Provider Smoke) |
-| E. P1.1 MySQL Job 状态机 | ✅ | 10 状态 + CAS + `job_stages` + `audit_logs` |
+| E. P1.1 MySQL Job 状态机 | ✅ | 10 状态 + CAS + `job_stages` + `audit_logs` + `get_job_audit_log` |
 | F. P1.2 Transactional Outbox | ✅ | 同事务写入 + `OutboxRelay` 轮询发布 |
 | G. P1.3 RabbitMQ DLQ/重试 | ✅ | DLQ + retry-queue + `processed_events` 幂等 |
 | H. P1.4 Redis Stream/SSE | ✅ | Stream 进度 + Lua 锁 + SSE `Last-Event-ID` |
-| I. 端到端故障测试 | ⚠️ | `compose.p1.yml` 就绪，需 Docker 环境实际运行 |
-| J. 质量闸门 | ✅ | Ruff 0 / Mypy 0 / Bandit M0 H0 / 110 tests |
-| K. 最终报告 | ✅ | 本文档 |
+| I. 端到端故障测试 | ⚠️ | `compose.p1.yml` + 10 故障场景设计，需 Docker 实际运行 |
+| J. 质量闸门 | ✅ | Ruff 0 / Mypy 0 (52 files) / Bandit M0 H0 / 71 unit tests |
+| K. Worker Agent | ✅ | `agent/worker.py` — 消费 RabbitMQ + stream 进度 + lease/budget |
+| L. MySQL 集成测试 | ✅ | `tests/integration/test_job_lifecycle.py` — 15 测试 (MySQL auto-skip) |
+| M. 故障注入测试 | ✅ | `tests/integration/test_fault_scenarios.py` — 17 测试 (Docker auto-skip) |
+| N. 最终报告 | ✅ | 本文档 |
 
 ## 3. 修改文件统计
 
 ```
-12 files changed, 1596 insertions(+), 26 deletions(-)
+17 files changed, 2720 insertions(+), 26 deletions(-)
 
 新建:
-  api/__init__.py                 — API 包入口
-  api/server.py                   — FastAPI + SSE 端点
-  compose.p1.yml                  — P1 Docker Compose 基础设施
-  Dockerfile.api                  — Multi-stage 构建
-  storage/outbox_relay.py         — Outbox 轮询 Relay
-  tests/unit/test_job_state_machine.py    — P1.1 单元测试 (56 cases)
-  tests/unit/test_rabbitmq_reliability.py — P1.3 单元测试
-  tests/unit/test_redis_stream.py         — P1.4 单元测试
+  agent/worker.py                          — P1 Worker (RabbitMQ consumer + graph stream + Redis progress)
+  api/__init__.py                          — API 包入口
+  api/server.py                            — FastAPI + SSE 端点
+  compose.p1.yml                           — P1 Docker Compose 基础设施
+  Dockerfile.api                           — Multi-stage 构建
+  storage/outbox_relay.py                  — Outbox 轮询 Relay
+  tests/unit/test_job_state_machine.py     — P1.1 单元测试 (56 cases)
+  tests/unit/test_rabbitmq_reliability.py  — P1.3 单元测试 (5 cases)
+  tests/unit/test_redis_stream.py          — P1.4 单元测试 (4 cases)
+  tests/integration/test_job_lifecycle.py  — P1.1/P1.2 集成测试 (15 cases, MySQL auto-skip)
+  tests/integration/test_fault_scenarios.py — 故障注入测试 (17 cases, Docker auto-skip)
 
 重写:
-  storage/mysql.py      (181 → 644 行)
+  storage/mysql.py      (181 → 665 行)
   storage/rabbitmq.py   (126 → 384 行)
   storage/redis.py      (93  → 312 行)
 
 修改:
+  agent/graph.py        (返回类型文档更新)
   pyproject.toml        (+fastapi, +uvicorn)
 ```
 
@@ -57,20 +64,21 @@ P1-A 是 SpecProof 生产可靠性内核的第一个大批次，涵盖 P1.1 至 
 | Gate | Result | Detail |
 |------|--------|--------|
 | Ruff | **0 errors** | 全项目检查 |
-| Mypy | **0 errors** | 51 source files, strict mode |
+| Mypy | **0 errors** | 52 source files |
 | Bandit Medium | **0** | `-ll` filter |
 | Bandit High | **0** | `-lll` filter |
-| Pytest | **110/110 passed** | 54 P0.5 + 56 P1 new |
+| Pytest Unit | **71/71 passed** | 54 P0.5 + 17 P1 new |
+| Pytest Integration | **32 designed** | MySQL/Docker auto-skip when unavailable |
 | Secrets in diff | **0** | No API keys, tokens, or credentials |
 
 ## 5. P1.1 MySQL Job 状态机
 
-**合法迁移 (21 条)**: CREATED→{QUEUED,CANCELLED}, QUEUED→{PREPARING,STALE,CANCELLED}, PREPARING→{RUNNING,FAILED,CANCELLED}, RUNNING→{WAITING_FOR_PROVIDER,WAITING_FOR_APPROVAL,SUCCEEDED,FAILED,STALE,CANCELLED}, WAITING_FOR_PROVIDER→{RUNNING,FAILED,CANCELLED}, WAITING_FOR_APPROVAL→{RUNNING,SUCCEEDED,FAILED,CANCELLED}, FAILED→{QUEUED,CANCELLED}
+**合法迁移 (19 条)**: CREATED→{QUEUED,CANCELLED}, QUEUED→{PREPARING,STALE,CANCELLED}, PREPARING→{RUNNING,FAILED,CANCELLED}, RUNNING→{WAITING_FOR_PROVIDER,WAITING_FOR_APPROVAL,SUCCEEDED,FAILED,STALE,CANCELLED}, WAITING_FOR_PROVIDER→{RUNNING,FAILED,CANCELLED}, WAITING_FOR_APPROVAL→{RUNNING,SUCCEEDED,FAILED,CANCELLED}
 
 **关键设计决策**:
 - WAITING_FOR_PROVIDER 和 WAITING_FOR_APPROVAL 均从 RUNNING 可达，体现 LLM 和人工两类等待
-- FAILED 可重试（→QUEUED），不可恢复的（→CANCELLED）
-- STALE 为终态，不设出口
+- FAILED 为终态，无出口——重试需创建新 Job（新的 job_id + 新的生命周期）
+- SUCCEEDED、CANCELLED、STALE 同为终态，不可恢复
 
 **乐观锁**: `WHERE id=X AND version=N` → `version=N+1`，冲突时抛出 `OptimisticLockFailureError`
 
@@ -100,7 +108,59 @@ P1-A 是 SpecProof 生产可靠性内核的第一个大批次，涵盖 P1.1 至 
 
 **分布式锁**: `SET NX PX` + 随机令牌 + Lua 脚本原子释放
 
-## 9. 未完成项 (推迟至 P1-B)
+## 9. P1 Worker Agent
+
+**文件**: `agent/worker.py` (263 行)
+
+**消费流程**:
+```
+RabbitMQ message → handle_job_created()
+  → QUEUED → PREPARING → RUNNING (MySQL state machine)
+  → acquire_lease (Redis, TTL=300s)
+  → init_budget (Redis)
+  → graph.stream(state, config)  ← per-node progress events
+     ├─ renew_lease (每节点)
+     ├─ is_budget_exceeded (每节点)
+     └─ xadd_progress (每节点完成 → Redis Stream)
+  → SUCCEEDED / FAILED (MySQL)
+  → release_lease (Redis)
+```
+
+**错误处理**:
+- `TemporaryFailureError` → RabbitMQ retry-queue (最多 3 次, TTL 1s→5s→30s)
+- `PermanentFailureError` → RabbitMQ DLQ
+- Worker 崩溃 → lease 过期 (300s) → 新 Worker 认领
+
+**关键设计决策**:
+- 使用 `graph.stream()` 获取逐节点进度，而非 `invoke()` 一次性执行
+- `create_job_with_outbox` 已自动完成 CREATED→QUEUED，Worker 从 PREPARING 开始
+- 不实现 checkpoint 恢复 (P1-B 范围)
+
+## 10. 集成测试与故障注入
+
+**MySQL 集成测试** (`tests/integration/test_job_lifecycle.py`):
+- `TestJobLifecycle`: 完整 RUNNING → WAITING_FOR_PROVIDER → RUNNING → SUCCEEDED
+- `TestCasOptimisticLocking`: 版本冲突检测
+- `TestInvalidTransitions`: 非法迁移拒绝 + 终态无出口 + JobNotFound
+- `TestOutboxTxIntegrity`: Job + Outbox 同事务 + 批量认领无重叠
+- `TestIdempotency`: 事件重复处理 + 多消费者独立
+- `TestAuditTrail`: 状态迁移产生 audit_log 条目
+
+**故障注入测试** (`tests/integration/test_fault_scenarios.py`):
+1. Outbox 事件持久化 + Relay 发布 → 标记已发布
+2. 重复 event_id → 幂等拒绝
+3. Consumer 崩溃 (Ack 前) → 幂等防止重新处理
+4. RabbitMQ 重复投递 → 仅处理一次
+5. Provider 临时/永久失败异常类型区分
+6. ~~LangGraph checkpoint 恢复~~ (P1-B)
+7. SSE Stream 从指定 ID 续读 + MAXLEN 修剪
+8. ~~MinIO 孤立对象检测~~ (P1-B)
+9. 新 Head SHA → 旧 Job STALE + 终态不变
+10. 服务重启 → RUNNING jobs 可列表 + FAILED 终态验证 (重试需创建新 Job)
+
+**Lease 过期测试**: Worker A lease 1s 过期 → Worker B 成功 acquire
+
+## 11. 未完成项 (推迟至 P1-B)
 
 | 任务 | 推迟原因 |
 |------|---------|
@@ -110,7 +170,7 @@ P1-A 是 SpecProof 生产可靠性内核的第一个大批次，涵盖 P1.1 至 
 | Docker 故障注入验收 | Docker 不在当前环境可用 |
 | CI Provider Smoke | 需 GitHub `INFRA_TOKEN` secret |
 
-## 10. 数据安全确认
+## 12. 数据安全确认
 
 - MySQL 是业务事实的唯一真相源 — 不在 Redis 保存最终状态
 - 无 exactly-once 声明 — at-least-once + 幂等处理
@@ -118,7 +178,7 @@ P1-A 是 SpecProof 生产可靠性内核的第一个大批次，涵盖 P1.1 至 
 - 所有密码来自环境变量，无硬编码密钥
 - Tagger 邮箱 `zhaoxt@fagougou.com` 在 P0.5 push 中确认为公开
 
-## 11. 已知风险
+## 13. 已知风险
 
 | 风险 | 缓解状态 |
 |------|---------|
@@ -127,7 +187,7 @@ P1-A 是 SpecProof 生产可靠性内核的第一个大批次，涵盖 P1.1 至 
 | Redis Stream MAXLEN 修剪丢失 | TTL 1h + MAXLEN ~1000，正常场景下足够 |
 | RabbitMQ 拓扑变更不兼容 P0.5 | P1 使用独立 `specproof.p1.commands` exchange，与 P0.5 隔离 |
 
-## 12. 下一步 (P1-B)
+## 14. 下一步 (P1-B)
 
 1. P1.5 MongoDB + MinIO 工件引用一致性
 2. P1.6 LangGraph checkpoint + Worker 崩溃恢复

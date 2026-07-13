@@ -244,20 +244,18 @@ class RabbitMQClient:
         queue_spec: QueueSpec,
         callback: Callable[[dict[str, Any]], None],
         *,
-        idempotency_check: Callable[[str, str], bool] | None = None,
-        idempotency_mark: Callable[[str, str], None] | None = None,
         consumer_name: str = "worker-1",
     ) -> None:
-        """Consume with DLQ routing, retry, and idempotency.
+        """Consume with DLQ routing and retry-queue topology.
 
         Flow:
-        - Check idempotency → duplicate → Ack (discard)
-        - callback success → Ack
-        - callback temporary failure → Nack → retry-queue (TTL delay)
-        - callback permanent failure → Nack → DLQ
+        - callback handles idempotency atomically within its own TX
+        - callback returns normally → Ack
+        - callback raises TemporaryFailureError → Nack → retry-queue (TTL delay)
+        - callback raises PermanentFailureError → Nack → DLQ
 
-        idempotency_check(consumer_name, event_id) → bool
-        idempotency_mark(consumer_name, event_id) → None
+        The callback is responsible for calling MySQL's atomic
+        insert_processed_event_in_tx() inside the same TX as business writes.
         """
         if not self._channel:
             self._connect()
@@ -273,19 +271,12 @@ class RabbitMQClient:
                 payload = json.loads(body)
                 event_id = payload.get("event_id", "")
 
-                if idempotency_check and idempotency_check(consumer_name, event_id):
-                    logger.debug("Duplicate event %s, discarding", event_id)
-                    ch.basic_ack(delivery_tag=delivery_tag)
-                    return
-
                 # Read retry count from headers
                 headers = properties.headers or {}
                 retry_count = headers.get("x-retry-count", 0)
 
                 try:
                     callback(payload)
-                    if idempotency_mark:
-                        idempotency_mark(consumer_name, event_id)
                     ch.basic_ack(delivery_tag=delivery_tag)
                 except TemporaryFailureError:
                     if retry_count < queue_spec.max_retries:

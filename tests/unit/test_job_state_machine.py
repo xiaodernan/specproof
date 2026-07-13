@@ -21,7 +21,7 @@ class TestStateMachineConstants:
         assert set(_VALID_TRANSITIONS.keys()) == expected
 
     def test_terminal_statuses_have_no_exits(self) -> None:
-        for status in ("SUCCEEDED", "CANCELLED", "STALE"):
+        for status in ("SUCCEEDED", "FAILED", "CANCELLED", "STALE"):
             assert _VALID_TRANSITIONS[status] == set()
 
     def test_created_can_only_go_to_queued_or_cancelled(self) -> None:
@@ -47,8 +47,6 @@ class TestValidTransitions:
         ("WAITING_FOR_PROVIDER", "RUNNING"),
         ("WAITING_FOR_APPROVAL", "RUNNING"),
         ("WAITING_FOR_APPROVAL", "SUCCEEDED"),
-        ("FAILED", "QUEUED"),
-        ("FAILED", "CANCELLED"),
         ("QUEUED", "CANCELLED"),
         ("PREPARING", "CANCELLED"),
         ("RUNNING", "CANCELLED"),

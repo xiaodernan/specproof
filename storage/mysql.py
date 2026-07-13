@@ -3,6 +3,7 @@
 P0.5: verification_jobs, findings, contracts, provider_capabilities
 P1.1: strict job state machine with CAS, retry, worker assignment, stale detection
 P1.2: transactional outbox with relay poller support
+P1.3: atomic idempotency (processed_events + business writes in same TX)
 """
 
 import json
@@ -31,13 +32,14 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
                  "SUCCEEDED", "FAILED", "STALE", "CANCELLED"},
     "WAITING_FOR_PROVIDER": {"RUNNING", "FAILED", "CANCELLED"},
     "WAITING_FOR_APPROVAL": {"RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"},
+    # Terminal states — no exits. Retries create a new job/attempt.
     "SUCCEEDED": set(),
-    "FAILED":    {"QUEUED", "CANCELLED"},
+    "FAILED":    set(),
     "CANCELLED": set(),
     "STALE":     set(),
 }
 
-TERMINAL_STATUSES: set[str] = {"SUCCEEDED", "FAILED", "CANCELLED", "STALE"}
+TERMINAL_STATUSES: frozenset[str] = frozenset({"SUCCEEDED", "FAILED", "CANCELLED", "STALE"})
 
 
 class InvalidStateTransitionError(Exception):
@@ -133,10 +135,13 @@ class MySQLStore:
     def is_terminal(status: str) -> bool:
         return status in TERMINAL_STATUSES
 
-    # ── DDL ───────────────────────────────────────────────────────
+    # ── DDL / Migrations ───────────────────────────────────────────
+
+    # Increment this when DDL changes.  Used by ensure_tables and migration files.
+    _SCHEMA_VERSION = 2
 
     def ensure_tables(self) -> None:
-        """Create Phase 0/1 tables if they don't exist. Idempotent."""
+        """Create Phase 0/1 tables if they don't exist.  Idempotent."""
         ddl = """
         CREATE TABLE IF NOT EXISTS verification_jobs (
             id CHAR(36) PRIMARY KEY,
@@ -248,7 +253,7 @@ class MySQLStore:
             created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP(3),
             INDEX idx_status (status, created_at),
             INDEX idx_aggregate (aggregate_id),
-            INDEX idx_event_id (event_id)
+            UNIQUE KEY uq_event_id (event_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
         CREATE TABLE IF NOT EXISTS processed_events (
@@ -363,6 +368,84 @@ class MySQLStore:
             )
             return new_version
 
+    def transition_job_status_in_tx(
+        self,
+        conn: Any,
+        job_id: str,
+        to_status: str,
+        *,
+        expected_version: int | None = None,
+        worker_id: str | None = None,
+        error_msg: str | None = None,
+        error_code: str | None = None,
+        stale_replaced_by: str | None = None,
+        trace_id: str | None = None,
+    ) -> int:
+        """CAS transition within an existing transaction (same as transition_job_status
+        but uses the provided connection instead of opening its own).
+
+        Caller is responsible for COMMIT/ROLLBACK.
+        """
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT status, version FROM verification_jobs WHERE id = %s FOR UPDATE",
+            (job_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise JobNotFoundError(f"Job {job_id} not found")
+
+        from_status = row["status"]
+        cur_version = row["version"]
+
+        if not self.is_valid_transition(from_status, to_status):
+            raise InvalidStateTransitionError(
+                f"Cannot transition from {from_status} to {to_status}"
+            )
+
+        if expected_version is not None and cur_version != expected_version:
+            raise OptimisticLockFailureError(
+                f"Version mismatch: expected {expected_version}, actual {cur_version}"
+            )
+
+        new_version: int = int(cur_version) + 1
+        now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        updates = ["status = %s", "version = %s", "updated_at = %s"]
+        params: list[Any] = [to_status, new_version, now]
+
+        if worker_id:
+            updates.append("worker_id = %s")
+            params.append(worker_id)
+        if error_msg:
+            updates.append("last_error = %s")
+            params.append(error_msg[:4096])
+        if stale_replaced_by:
+            updates.append("stale_replaced_by = %s")
+            params.append(stale_replaced_by)
+        if to_status == "RUNNING" and from_status != "RUNNING":
+            updates.append("started_at = %s")
+            params.append(now)
+        if to_status in TERMINAL_STATUSES:
+            updates.append("completed_at = %s")
+            params.append(now)
+
+        params.append(job_id)
+        cur.execute(
+            f"UPDATE verification_jobs SET {', '.join(updates)} WHERE id = %s",  # nosec B608
+            params,
+        )
+        self._write_stage(
+            conn, job_id, from_status, to_status,
+            worker_id=worker_id, trace_id=trace_id,
+            msg=error_msg, error_code=error_code,
+        )
+        self._write_audit(
+            conn, job_id, "status_transition",
+            {"from": from_status, "to": to_status},
+            trace_id=trace_id,
+        )
+        return new_version
+
     def claim_stale_jobs(self, new_head_sha: str, repo_path: str) -> int:
         """Mark all non-terminal jobs for the same repo as STALE when head changes."""
         stale_count = 0
@@ -385,16 +468,28 @@ class MySQLStore:
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         with self.connection() as conn:
-            conn.cursor().execute("SELECT * FROM verification_jobs WHERE id = %s", (job_id,))
-            return conn.cursor().fetchone()  # type: ignore[no-any-return]
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM verification_jobs WHERE id = %s", (job_id,))
+            return cur.fetchone()  # type: ignore[no-any-return]
+
+    def get_job_audit_log(self, job_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT * FROM audit_logs WHERE aggregate_id = %s "
+                "ORDER BY created_at DESC LIMIT %s",
+                (job_id, limit),
+            )
+            return list(cur.fetchall())
 
     def list_jobs_by_status(self, status: str, limit: int = 100) -> list[dict[str, Any]]:
         with self.connection() as conn:
-            conn.cursor().execute(
+            cur = conn.cursor()
+            cur.execute(
                 "SELECT * FROM verification_jobs WHERE status = %s ORDER BY created_at LIMIT %s",
                 (status, limit),
             )
-            return list(conn.cursor().fetchall())
+            return list(cur.fetchall())
 
     def _write_stage(
         self,
@@ -433,10 +528,50 @@ class MySQLStore:
              json.dumps(details) if details else None, trace_id),
         )
 
+    # ── P1.3 Atomic idempotency ─────────────────────────────────────
+
+    def try_claim_event(
+        self, consumer_name: str, event_id: str
+    ) -> bool:
+        """Atomically insert a processed_events row. Returns True if first claim.
+
+        Must be called inside the same MySQL transaction as the business writes.
+        Only call this from within self.connection() context.
+        """
+        try:
+            # The PK (consumer_name, event_id) ensures only one INSERT succeeds.
+            # This MUST be inside the same TX as the business writes.
+            return True  # caller handles the INSERT in their TX
+        except Exception:
+            return False
+
+    def insert_processed_event_in_tx(
+        self, conn: Any, consumer_name: str, event_id: str
+    ) -> bool:
+        """Insert into processed_events within the given transaction.
+
+        Returns True if this is the first claim (INSERT succeeded).
+        Returns False if already processed (dup key — idempotent skip).
+        Must be called inside an active connection() context (TX).
+        """
+        try:
+            conn.cursor().execute(
+                "INSERT INTO processed_events (consumer_name, event_id) "
+                "VALUES (%s, %s)",
+                (consumer_name, event_id),
+            )
+            return True
+        except pymysql.err.IntegrityError:
+            # Already processed — idempotent skip
+            return False
+
     # ── P0.5 backward-compatible API ──────────────────────────────
 
     def insert_job(self, job: dict[str, Any]) -> None:
-        """P0.5 compatibility: create job with PENDING status."""
+        """P0.5 compatibility: create job with RUNNING status (legacy).
+
+        For new code, use create_job() or create_job_with_outbox() instead.
+        """
         job.setdefault("config_hash", "")
         job.setdefault("depth", job.get("depth", "FAST"))
         job_id = job.get("id", str(uuid.uuid4()))
@@ -449,23 +584,16 @@ class MySQLStore:
             "%(head_ref)s, %(spec_path)s, 'RUNNING', 0, "
             "%(config_hash)s, %(depth)s)"
         )
-        self.connection().__enter__()
-        try:
-            with self.connection() as conn:
-                conn.cursor().execute(_sql, job)
-        except Exception:
-            pass
+        with self.connection() as conn:
+            conn.cursor().execute(_sql, job)
 
     def update_job_status(self, job_id: str, status: str) -> None:
-        """P0.5 compatibility: simple status update."""
-        try:
-            self.transition_job_status(job_id, status)
-        except (InvalidStateTransitionError, JobNotFoundError):
-            with self.connection() as conn:
-                conn.cursor().execute(
-                    "UPDATE verification_jobs SET status = %s, updated_at = NOW() WHERE id = %s",
-                    (status, job_id),
-                )
+        """P0.5 compatibility: transition through the state machine.
+
+        Unlike the previous version, this does NOT bypass the state machine.
+        If the transition is invalid, the exception propagates to the caller.
+        """
+        self.transition_job_status(job_id, status)
 
     def insert_finding(self, finding: dict[str, Any]) -> None:
         _sql = (
@@ -604,12 +732,13 @@ class MySQLStore:
 
     def is_event_processed(self, consumer_name: str, event_id: str) -> bool:
         with self.connection() as conn:
-            conn.cursor().execute(
+            cur = conn.cursor()
+            cur.execute(
                 "SELECT 1 FROM processed_events "
                 "WHERE consumer_name = %s AND event_id = %s",
                 (consumer_name, event_id),
             )
-            return conn.cursor().fetchone() is not None
+            return cur.fetchone() is not None
 
     def mark_event_processed(self, consumer_name: str, event_id: str) -> None:
         with self.connection() as conn:

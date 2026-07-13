@@ -80,6 +80,9 @@ exclude = ["tests/", "artifacts/", "demo/"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
+markers = [
+    "integration: Integration tests that require real infrastructure (MySQL, RabbitMQ, Redis)",
+]
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "venv"]
