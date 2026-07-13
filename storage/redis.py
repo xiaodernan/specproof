@@ -229,7 +229,7 @@ class RedisStore:
         flat: dict[str, Any] = {}
         for k, v in data.items():
             flat[k] = json.dumps(v) if not isinstance(v, str) else v
-        entry_id: Any = self.client.xadd(stream_key, flat, maxlen=maxlen, approximate=True)  # type: ignore[arg-type]
+        entry_id: Any = self.client.xadd(stream_key, flat, maxlen=maxlen, approximate=False)  # type: ignore[arg-type]
         self.client.expire(stream_key, 3600)
         if isinstance(entry_id, bytes):
             entry_id = entry_id.decode()
