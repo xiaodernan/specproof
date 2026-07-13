@@ -1,200 +1,216 @@
-# P1-A 生产可靠性内核 — 最终统一报告
+# P1-A 生产可靠性内核 — 当前状态报告
 
-**日期**: 2026-07-13
+**日期**: 2026-07-13 14:53 CST
 **分支**: `feature/p1-reliability-kernel`
-**基线**: `p0.5-verified-v1` tagged at `4145d95`
-**PR**: https://github.com/xiaodernan/specproof/pull/1
+**基线**: `release/p0.5-verified-v1` tagged at `4145d95`
+**PR**: https://github.com/xiaodernan/specproof/pull/1 (Draft, base 已修正为 `release/p0.5-verified-v1`)
+**最新 commit**: `ae5eb59`
 
 ---
 
-## 1. 批次概述
+## 1. 总体状态
 
-P1-A 是 SpecProof 生产可靠性内核的第一个大批次，涵盖 P1.1 至 P1.4 四个子系统。
-全部代码从 P0.5 验证基线出发重写，而非从旧 WIP 复制。
-
-## 2. 完成清单
-
-| 任务 | 状态 | 关键产出 |
-|------|------|---------|
-| A. GitHub P0.5 Pre-release | ✅ | [Release p0.5-verified-v1](https://github.com/xiaodernan/specproof/releases/tag/p0.5-verified-v1) |
-| B. Clean P1 Worktree | ✅ | `feature/p1-reliability-kernel` 分支，基于 `4145d95` |
-| C. WIP Migration Matrix | ✅ | `docs/p1/wip-migration-matrix.md` 分类 ~35 文件 |
-| D. GitHub Actions CI | ✅ | `quality.yml` (Ruff/Mypy/Bandit/Tests/Provider Smoke) |
-| E. P1.1 MySQL Job 状态机 | ✅ | 10 状态 + CAS + `job_stages` + `audit_logs` + `get_job_audit_log` |
-| F. P1.2 Transactional Outbox | ✅ | 同事务写入 + `OutboxRelay` 轮询发布 |
-| G. P1.3 RabbitMQ DLQ/重试 | ✅ | DLQ + retry-queue + `processed_events` 幂等 |
-| H. P1.4 Redis Stream/SSE | ✅ | Stream 进度 + Lua 锁 + SSE `Last-Event-ID` |
-| I. 端到端故障测试 | ⚠️ | `compose.p1.yml` + 10 故障场景设计，需 Docker 实际运行 |
-| J. 质量闸门 | ✅ | Ruff 0 / Mypy 0 (52 files) / Bandit M0 H0 / 71 unit tests |
-| K. Worker Agent | ✅ | `agent/worker.py` — 消费 RabbitMQ + stream 进度 + lease/budget |
-| L. MySQL 集成测试 | ✅ | `tests/integration/test_job_lifecycle.py` — 15 测试 (MySQL auto-skip) |
-| M. 故障注入测试 | ✅ | `tests/integration/test_fault_scenarios.py` — 17 测试 (Docker auto-skip) |
-| N. 最终报告 | ✅ | 本文档 |
-
-## 3. 修改文件统计
+P1-A **代码实现已完成**。所有 6 个用户指出的代码缺陷已修复。**真实中间件验收（Docker）尚未执行**——这是 P1-A 完成前的最后一道门。
 
 ```
-17 files changed, 2720 insertions(+), 26 deletions(-)
-
-新建:
-  agent/worker.py                          — P1 Worker (RabbitMQ consumer + graph stream + Redis progress)
-  api/__init__.py                          — API 包入口
-  api/server.py                            — FastAPI + SSE 端点
-  compose.p1.yml                           — P1 Docker Compose 基础设施
-  Dockerfile.api                           — Multi-stage 构建
-  storage/outbox_relay.py                  — Outbox 轮询 Relay
-  tests/unit/test_job_state_machine.py     — P1.1 单元测试 (56 cases)
-  tests/unit/test_rabbitmq_reliability.py  — P1.3 单元测试 (5 cases)
-  tests/unit/test_redis_stream.py          — P1.4 单元测试 (4 cases)
-  tests/integration/test_job_lifecycle.py  — P1.1/P1.2 集成测试 (15 cases, MySQL auto-skip)
-  tests/integration/test_fault_scenarios.py — 故障注入测试 (17 cases, Docker auto-skip)
-
-重写:
-  storage/mysql.py      (181 → 665 行)
-  storage/rabbitmq.py   (126 → 384 行)
-  storage/redis.py      (93  → 312 行)
-
-修改:
-  agent/graph.py        (返回类型文档更新)
-  pyproject.toml        (+fastapi, +uvicorn)
+代码实现:  ████████████████████ 100%
+单元验证:  ████████████████████ 100% (69/69)
+集成验证:  ░░░░░░░░░░░░░░░░░░░░   0% (0/32, Docker 不可用)
+故障注入:  ░░░░░░░░░░░░░░░░░░░░   0% (0/18, Docker 不可用)
 ```
 
-## 4. 质量闸门汇总
+---
+
+## 2. 代码缺陷修复清单（全部完成）
+
+| # | 缺陷 | 修复 | 验证方式 |
+|---|------|------|---------|
+| 1 | `cursor()` 与 `cursor()` 是两个独立对象 | `get_job`, `list_jobs_by_status`, `is_event_processed` 改为同一 `cur` | 代码审查 + Ruff |
+| 2 | `self.connection().__enter__()` + `except Exception: pass` | 重写为 `with self.connection() as conn:` | 代码审查 + 单元测试 |
+| 3 | `update_job_status` SQL 直接 UPDATE 绕过状态机 | 删除绕过路径，仅调用 `transition_job_status()` | 代码审查 + 单元测试 |
+| 4 | FAILED 既在 `TERMINAL_STATUSES` 又允许 `FAILED→QUEUED` | FAILED 变为纯终态（`set()`），重试需 `create_job_with_outbox(new_job_id)` | 19 合法迁移动态测试 |
+| 5 | `outbox_events.event_id` 仅有 INDEX，无 UNIQUE | 改为 `UNIQUE KEY uq_event_id (event_id)` | DDL 审查 |
+| 6 | 幂等标记与业务写入不在同一事务 | 新增 `insert_processed_event_in_tx()` + `transition_job_status_in_tx()`，同一 TX 中: INSERT processed_events → QUEUED→RUNNING → COMMIT → 后续 ACK | 代码审查 + 原子性分析 |
+
+### 额外改进
+
+- **`TERMINAL_STATUSES` 改为 `frozenset`** — 不可变，防止运行时意外修改
+- **`_SCHEMA_VERSION = 2`** — 版本化 schema 跟踪
+- **`transition_job_status_in_tx(conn, ...)`** — 支持调用方在已有事务中执行 CAS 迁移
+- **`storage/migrations/001_p1_baseline.sql`** — 正式生产 migration 文件
+- **`storage/migrations/002_failed_terminal.sql`** — FAILED 终态迁移（行为变更记录）
+
+### 原子幂等合约（已实现）
+
+```
+Worker._handle_job_created():
+  with self.mysql.connection() as conn:        # BEGIN
+    insert_processed_event_in_tx(conn, ...)     #   INSERT → dup key? → rollback → return → ACK
+    transition_job_status_in_tx(conn, PREPARING) #  QUEUED→PREPARING
+    transition_job_status_in_tx(conn, RUNNING)   #  PREPARING→RUNNING
+                                                # COMMIT  ← 幂等标记 + 状态迁移 原子完成
+
+  _run_job(...)                                 # 业务执行（不持 DB TX）
+    → redis.acquire_lease                       # 租约防重复执行
+    → graph.stream()                            # 逐节点进度
+    → transition_job_status(SUCCEEDED/FAILED)   # 最终状态
+```
+
+**崩溃窗口分析**:
+- Worker 在 COMMIT 前崩溃 → TX 回滚，processed_events 不存在，消息重新投递 → 重试成功
+- Worker 在 COMMIT 后、ACK 前崩溃 → processed_events 已存在，重新投递时 `insert_processed_event_in_tx` 返回 False → 直接 return → RabbitMQ ACK
+
+---
+
+## 3. 当前质量闸门（已验证）
 
 | Gate | Result | Detail |
 |------|--------|--------|
-| Ruff | **0 errors** | 全项目检查 |
-| Mypy | **0 errors** | 52 source files |
-| Bandit Medium | **0** | `-ll` filter |
-| Bandit High | **0** | `-lll` filter |
-| Pytest Unit | **71/71 passed** | 54 P0.5 + 17 P1 new |
-| Pytest Integration | **32 designed** | MySQL/Docker auto-skip when unavailable |
-| Secrets in diff | **0** | No API keys, tokens, or credentials |
+| Ruff | **0 errors** | 全项目 |
+| Mypy | **0 errors** | 52 source files, strict mode |
+| Bandit M | **0** | `-ll` |
+| Bandit H | **0** | `-lll` |
+| **Unit Tests** | **69/69 passed** | 真实运行，非设计数量 |
+| Secrets in diff | **0** | 无 API keys, tokens, credentials |
 
-## 5. P1.1 MySQL Job 状态机
+### 单元测试明细（全部真实运行）
 
-**合法迁移 (19 条)**: CREATED→{QUEUED,CANCELLED}, QUEUED→{PREPARING,STALE,CANCELLED}, PREPARING→{RUNNING,FAILED,CANCELLED}, RUNNING→{WAITING_FOR_PROVIDER,WAITING_FOR_APPROVAL,SUCCEEDED,FAILED,STALE,CANCELLED}, WAITING_FOR_PROVIDER→{RUNNING,FAILED,CANCELLED}, WAITING_FOR_APPROVAL→{RUNNING,SUCCEEDED,FAILED,CANCELLED}
-
-**关键设计决策**:
-- WAITING_FOR_PROVIDER 和 WAITING_FOR_APPROVAL 均从 RUNNING 可达，体现 LLM 和人工两类等待
-- FAILED 为终态，无出口——重试需创建新 Job（新的 job_id + 新的生命周期）
-- SUCCEEDED、CANCELLED、STALE 同为终态，不可恢复
-
-**乐观锁**: `WHERE id=X AND version=N` → `version=N+1`，冲突时抛出 `OptimisticLockFailureError`
-
-## 6. P1.2 Transactional Outbox
-
-**核心不变式**: Job 创建与 Outbox 事件写入在同一 MySQL 事务中，API 进程崩溃后 Relay 补发
-
-**Relay 机制**:
-- 每 1s 轮询 `outbox_events WHERE status='PENDING'`
-- `SELECT FOR UPDATE SKIP LOCKED` 多 Relay 安全
-- 租约超时 60s 后恢复 CLAIMED → PENDING
-- 发布成功 → PUBLISHED，失败 → FAILED + `last_error`
-
-## 7. P1.3 RabbitMQ 可靠消费
-
-**拓扑**: `specproof.p1.commands` exchange → `q.p1.verify.job` → retry-queue (TTL) → DLQ
-
-**重试策略**: 1s → 5s → 30s，最多 3 次
-
-**幂等保证**: `processed_events(consumer_name, event_id)` 唯一约束 + `fingerprint` 约束
-
-## 8. P1.4 Redis Stream + SSE
-
-**Stream 键**: `specproof:stream:job:{job_id}` (MAXLEN ~1000, TTL 1h)
-
-**SSE 端点**: `GET /api/jobs/{job_id}/events`，响应 `text/event-stream`，支持 `Last-Event-ID` 断线续传
-
-**分布式锁**: `SET NX PX` + 随机令牌 + Lua 脚本原子释放
-
-## 9. P1 Worker Agent
-
-**文件**: `agent/worker.py` (263 行)
-
-**消费流程**:
-```
-RabbitMQ message → handle_job_created()
-  → QUEUED → PREPARING → RUNNING (MySQL state machine)
-  → acquire_lease (Redis, TTL=300s)
-  → init_budget (Redis)
-  → graph.stream(state, config)  ← per-node progress events
-     ├─ renew_lease (每节点)
-     ├─ is_budget_exceeded (每节点)
-     └─ xadd_progress (每节点完成 → Redis Stream)
-  → SUCCEEDED / FAILED (MySQL)
-  → release_lease (Redis)
-```
-
-**错误处理**:
-- `TemporaryFailureError` → RabbitMQ retry-queue (最多 3 次, TTL 1s→5s→30s)
-- `PermanentFailureError` → RabbitMQ DLQ
-- Worker 崩溃 → lease 过期 (300s) → 新 Worker 认领
-
-**关键设计决策**:
-- 使用 `graph.stream()` 获取逐节点进度，而非 `invoke()` 一次性执行
-- `create_job_with_outbox` 已自动完成 CREATED→QUEUED，Worker 从 PREPARING 开始
-- 不实现 checkpoint 恢复 (P1-B 范围)
-
-## 10. 集成测试与故障注入
-
-**MySQL 集成测试** (`tests/integration/test_job_lifecycle.py`):
-- `TestJobLifecycle`: 完整 RUNNING → WAITING_FOR_PROVIDER → RUNNING → SUCCEEDED
-- `TestCasOptimisticLocking`: 版本冲突检测
-- `TestInvalidTransitions`: 非法迁移拒绝 + 终态无出口 + JobNotFound
-- `TestOutboxTxIntegrity`: Job + Outbox 同事务 + 批量认领无重叠
-- `TestIdempotency`: 事件重复处理 + 多消费者独立
-- `TestAuditTrail`: 状态迁移产生 audit_log 条目
-
-**故障注入测试** (`tests/integration/test_fault_scenarios.py`):
-1. Outbox 事件持久化 + Relay 发布 → 标记已发布
-2. 重复 event_id → 幂等拒绝
-3. Consumer 崩溃 (Ack 前) → 幂等防止重新处理
-4. RabbitMQ 重复投递 → 仅处理一次
-5. Provider 临时/永久失败异常类型区分
-6. ~~LangGraph checkpoint 恢复~~ (P1-B)
-7. SSE Stream 从指定 ID 续读 + MAXLEN 修剪
-8. ~~MinIO 孤立对象检测~~ (P1-B)
-9. 新 Head SHA → 旧 Job STALE + 终态不变
-10. 服务重启 → RUNNING jobs 可列表 + FAILED 终态验证 (重试需创建新 Job)
-
-**Lease 过期测试**: Worker A lease 1s 过期 → Worker B 成功 acquire
-
-## 11. 未完成项 (推迟至 P1-B)
-
-| 任务 | 推迟原因 |
-|------|---------|
-| P1.5 MongoDB/MinIO 工件一致性 | P1-A 范围内不包括 P1.5 |
-| P1.6 LangGraph Checkpoint 恢复 | P1-A 范围内不包括 P1.6 |
-| P1.7 OpenTelemetry Trace | P1-A 范围内不包括 P1.7 |
-| Docker 故障注入验收 | Docker 不在当前环境可用 |
-| CI Provider Smoke | 需 GitHub `INFRA_TOKEN` secret |
-
-## 12. 数据安全确认
-
-- MySQL 是业务事实的唯一真相源 — 不在 Redis 保存最终状态
-- 无 exactly-once 声明 — at-least-once + 幂等处理
-- 无 Debezium/CDC — 仅使用轮询式 Relay
-- 所有密码来自环境变量，无硬编码密钥
-- Tagger 邮箱 `zhaoxt@fagougou.com` 在 P0.5 push 中确认为公开
-
-## 13. 已知风险
-
-| 风险 | 缓解状态 |
-|------|---------|
-| Docker 集成未实际运行 | compose.p1.yml 和故障场景已设计，需要 Docker 环境 |
-| Outbox Relay 单实例内存竞态 | MySQL `SKIP LOCKED` 保证了多实例安全 |
-| Redis Stream MAXLEN 修剪丢失 | TTL 1h + MAXLEN ~1000，正常场景下足够 |
-| RabbitMQ 拓扑变更不兼容 P0.5 | P1 使用独立 `specproof.p1.commands` exchange，与 P0.5 隔离 |
-
-## 14. 下一步 (P1-B)
-
-1. P1.5 MongoDB + MinIO 工件引用一致性
-2. P1.6 LangGraph checkpoint + Worker 崩溃恢复
-3. P1.7 OpenTelemetry 端到端追踪
-4. Docker Compose 中运行完整的 10 个故障场景
-5. CI 中配置 Provider Smoke secret
+| 测试类 | 数量 | 状态 |
+|--------|------|------|
+| `test_job_state_machine.py` — 状态机常量 | 4 | ✅ |
+| `test_job_state_machine.py` — 合法迁移 (parametrized) | 19 | ✅ |
+| `test_job_state_machine.py` — 非法迁移 (parametrized) | 9 | ✅ |
+| `test_job_state_machine.py` — 终态检测 (parametrized) | 10 | ✅ |
+| `test_job_state_machine.py` — 异常层级 | 3 | ✅ |
+| `test_rabbitmq_reliability.py` — QueueSpec + 异常 | 5 | ✅ |
+| `test_redis_stream.py` — Config + BudgetSnapshot | 4 | ✅ |
+| `test_providers.py` — Provider 单元 (P0.5 遗留) | 7 | ✅ |
+| `test_storage.py` — Config + 密钥检查 (P0.5 遗留) | 8 | ✅ |
+| **合计** | **69** | **全部通过** |
 
 ---
 
-**P1-A 大批次已完成并创建 Draft PR，等待统一代码审核。**
+## 4. 集成测试与故障注入（已设计，未执行）
+
+以下测试已编写完成，代码通过 Ruff/Mypy 检查，但**需要 Docker 运行 MySQL + RabbitMQ + Redis** 才能执行。当前全部 auto-skip。
+
+### MySQL 集成测试 (`test_job_lifecycle.py`) — 10 tests
+
+| 测试 | 验证内容 | 状态 |
+|------|---------|------|
+| `test_full_happy_path` | RUNNING→WAITING_FOR_PROVIDER→RUNNING→SUCCEEDED | ⏸️ skip |
+| `test_concurrent_update_version_conflict` | CAS 版本冲突检测 | ⏸️ skip |
+| `test_skip_queued_rejected` | 非法迁移 RUNNING→CREATED 被拒绝 | ⏸️ skip |
+| `test_terminal_no_exit` | SUCCEEDED 终态无出口 | ⏸️ skip |
+| `test_job_not_found` | 不存在的 job_id 抛异常 | ⏸️ skip |
+| `test_create_job_with_outbox` | Job + Outbox 同事务，Job 自动 CREATED→QUEUED | ⏸️ skip |
+| `test_outbox_batch_claim_idempotent` | SKIP LOCKED 无重叠认领 | ⏸️ skip |
+| `test_event_processing_dedup` | 幂等去重 | ⏸️ skip |
+| `test_different_consumers_independent` | 多消费者独立幂等 | ⏸️ skip |
+| `test_transition_creates_audit_log` | 状态迁移产生 audit_log | ⏸️ skip |
+
+### 故障注入测试 (`test_fault_scenarios.py`) — 10 scenarios
+
+| # | 场景 | 验证标准 | 状态 |
+|---|------|---------|------|
+| 1 | Outbox 恢复 | Relay 发布 + 标记已发布 | ⏸️ skip |
+| 2 | 重复事件 | 幂等拒绝 | ⏸️ skip |
+| 3 | Consumer Ack 前崩溃 | 幂等防止重新处理 | ⏸️ skip |
+| 4 | RabbitMQ 重复投递 | 仅处理一次 | ⏸️ skip |
+| 5 | Provider 异常类型 | TemporaryFailure vs PermanentFailure 区分 | ⏸️ skip |
+| 6 | SSE 续传 | Last-Event-ID 续读 + MAXLEN 修剪 | ⏸️ skip |
+| 7 | STALE 标记 | 新 Head SHA → 旧 Job STALE + 终态不变 | ⏸️ skip |
+| 8 | 服务重启恢复 | RUNNING jobs 可列表 + FAILED 终态验证 | ⏸️ skip |
+| 9 | FAILED 终态 | FAILED→QUEUED 被拒绝，重试需新 job_id | ⏸️ skip |
+| 10 | Lease 过期 | 1s lease 过期 → Worker B 成功 acquire | ⏸️ skip |
+
+### Docker Compose 全链路 (`compose.p1.yml`)
+
+```
+未执行: docker compose -f compose.p1.yml up -d --build --wait
+未执行: 全链路 E2E 验证
+未执行: 故障注入验收 (kill API/Relay/Worker, restart RabbitMQ/Redis)
+未执行: docker compose -f compose.p1.yml down -v
+```
+
+---
+
+## 5. 修改文件统计
+
+```
+18 files changed (including 6 new files)
+
+新建:
+  agent/worker.py                             — P1 Worker (275 lines)
+  storage/migrations/001_p1_baseline.sql       — 正式 migration
+  storage/migrations/002_failed_terminal.sql   — FAILED 终态行为变更
+  tests/integration/test_job_lifecycle.py      — MySQL 集成测试 (~200 lines)
+  tests/integration/test_fault_scenarios.py    — 故障注入测试 (~490 lines)
+
+重写:
+  storage/mysql.py      (181 → ~780 lines, +transition_job_status_in_tx)
+  storage/rabbitmq.py   (126 → ~380 lines, simplified DLQ consume)
+
+修改:
+  tests/unit/test_job_state_machine.py  — 移除 FAILED→QUEUED
+  docs/p1/p1a-final-report.md           — 当前报告
+  pyproject.toml                        — +integration marker
+```
+
+---
+
+## 6. GitHub Actions CI
+
+| Job | 状态 | 备注 |
+|-----|------|------|
+| `lint-and-type` | ✅ 配置正确 | Ruff + Mypy，每次 push/PR |
+| `security` | ✅ 配置正确 | Bandit + P0.5 archive verifier |
+| `unit-and-integration` | ✅ 配置正确 | 单元测试 + P0.5 集成测试 (不含 Docker) |
+| `provider-smoke` | ⚸ 手动触发 | `workflow_dispatch` only，需 LLM_* secrets |
+
+- 全部使用 `checkout@v4` + `setup-python@v5` (Node 20，无弃用警告)
+- provider-smoke 默认不触发，不会意外调用付费模型
+- Docker 集成/故障测试作为独立 job 待添加
+
+---
+
+## 7. 阻塞项
+
+| 阻塞 | 影响 | 解除条件 |
+|------|------|---------|
+| **Docker daemon 不可用** | Section 四-六完全阻塞 | 启动 Docker Desktop |
+| Docker 集成测试 0/32 运行 | 无法证明 MySQL Outbox 事务完整性 | Docker 启动后运行 pytest |
+| Docker 故障注入 0/10 运行 | 无法证明 Worker 崩溃后消息不重复 | Docker 启动后运行 pytest |
+| Compose 全链路 未执行 | 无法证明端到端正确性 | Docker 启动后 compose up |
+
+---
+
+## 8. 数据安全确认
+
+- 无硬编码密钥 — 所有密码来自环境变量
+- 无 `.env` / credentials 文件在 diff 中
+- MySQL 是业务事实源 — Redis 无最终状态
+- at-least-once + 幂等 — 不声明 exactly-once
+- P1 exchange (`specproof.p1.commands`) 与 P0.5 隔离
+
+---
+
+## 9. P1-A Closure 完成条件
+
+以下条件全部满足后，P1-A 才视为完成：
+
+- [x] PR base 改为 `release/p0.5-verified-v1`
+- [x] 6 个代码缺陷全部修复
+- [x] 原子幂等合约实现
+- [x] 版本化 migration 文件
+- [x] Ruff 0 / Mypy 0 / Bandit M0 H0
+- [x] 单元测试 69/69 通过
+- [ ] Docker Compose up + 全链路 E2E
+- [ ] MySQL 集成测试 10/10 通过 (real DB)
+- [ ] 故障注入 10/10 通过 (real MQ + Redis)
+- [ ] Clean Clone Gate 通过
+- [ ] Draft PR → Ready for Review
+
+---
+
+**当前状态: 代码实现完成，等待 Docker 环境进行真实可靠性验收。**
