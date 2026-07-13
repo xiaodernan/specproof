@@ -7,6 +7,7 @@ Phase 1+: full LLM-based test generation.
 import asyncio
 import os
 from pathlib import Path
+from typing import Any
 
 from agent.state import Phase0State
 
@@ -79,13 +80,14 @@ Use MockMvc to send HTTP requests. Include:
 Return ONLY the Java code, no explanation."""
 
 
-def _get_provider():
+def _get_provider() -> Any:
     """Create an LLM provider from env vars. Returns None if not configured."""
     api_key = os.getenv("LLM_API_KEY", "")
     if not api_key or api_key == "replace_me":
         return None
     try:
         from providers.openai_compatible import OpenAICompatibleProvider
+
         return OpenAICompatibleProvider(probe_on_init=False)
     except Exception:
         return None
@@ -96,8 +98,7 @@ async def _llm_generate_test(findings: list[dict]) -> str | None:
     from providers.base import LLMMessage
 
     findings_text = "\n".join(
-        f"[{f.get('severity')}] {f.get('type')}: {f.get('description')}"
-        for f in findings[:5]
+        f"[{f.get('severity')}] {f.get('type')}: {f.get('description')}" for f in findings[:5]
     )
     prompt = _LLM_TEST_PROMPT.format(findings_text=findings_text)
 
@@ -133,15 +134,11 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
 
     # Check for known patterns first
     has_auth_issue = any(
-        f.get("type") in ("annotation_removed", "missing_auth_annotation")
-        for f in static_findings
+        f.get("type") in ("annotation_removed", "missing_auth_annotation") for f in static_findings
     )
 
     # Try LLM generation if provider available and findings exist
-    all_findings = (
-        static_findings
-        + state.get("confirmed_findings", [])
-    )
+    all_findings = static_findings + state.get("confirmed_findings", [])
     llm_test: str | None = None
     provider = _get_provider()
     if provider is not None and all_findings:
@@ -149,6 +146,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     future = pool.submit(
                         asyncio.run,
@@ -169,9 +167,9 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
             test_method_name="changeEmailWithoutAuthMustReturn401InHead",
             test_body=(
                 'mockMvc.perform(put("/api/users/{id}/email", user.getId())\n'
-                '                .contentType(MediaType.APPLICATION_JSON)\n'
-                '                .content(objectMapper.writeValueAsString(req)))\n'
-                '                .andExpect(status().isUnauthorized());'
+                "                .contentType(MediaType.APPLICATION_JSON)\n"
+                "                .content(objectMapper.writeValueAsString(req)))\n"
+                "                .andExpect(status().isUnauthorized());"
             ),
         )
         generated_tests.append(auth_test)
@@ -184,9 +182,9 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
             test_method_name="changeEmailRegressionTest",
             test_body=(
                 'mockMvc.perform(put("/api/users/{id}/email", user.getId())\n'
-                '                .contentType(MediaType.APPLICATION_JSON)\n'
-                '                .content(objectMapper.writeValueAsString(req)))\n'
-                '                .andExpect(status().isOk());'
+                "                .contentType(MediaType.APPLICATION_JSON)\n"
+                "                .content(objectMapper.writeValueAsString(req)))\n"
+                "                .andExpect(status().isOk());"
             ),
         )
         generated_tests.append(auth_test)
@@ -194,10 +192,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
     # Write generated test to head workspace
     test_path = ""
     if head_workspace and generated_tests:
-        test_dir = (
-            Path(head_workspace) / "src" / "test" / "java"
-            / "com" / "specproof" / "demo"
-        )
+        test_dir = Path(head_workspace) / "src" / "test" / "java" / "com" / "specproof" / "demo"
         test_dir.mkdir(parents=True, exist_ok=True)
         test_file = test_dir / "SpecProofGeneratedTest.java"
         test_file.write_text(generated_tests[0], encoding="utf-8")

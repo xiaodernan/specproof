@@ -38,21 +38,25 @@ def build_evidence_matrix(
             result = "PASS"
             evidence = f"Contract {cid} verified — {contract.get('checker_type', '')} check passed"
 
-        rows.append({
-            "contract_id": cid,
-            "requirement": contract.get("requirement", ""),
-            "checker_type": ctype,
-            "changed_symbols": [
-                s for s in changed_symbols
-                if ctype.upper() in s.upper() or cid_prefix.lower() in s.lower()
-            ],
-            "experiment": (
-                related_findings[0].get("source", "static_analysis")
-                if related_findings else "differential_test"
-            ),
-            "result": result,
-            "evidence": evidence,
-        })
+        rows.append(
+            {
+                "contract_id": cid,
+                "requirement": contract.get("requirement", ""),
+                "checker_type": ctype,
+                "changed_symbols": [
+                    s
+                    for s in changed_symbols
+                    if ctype.upper() in s.upper() or cid_prefix.lower() in s.lower()
+                ],
+                "experiment": (
+                    related_findings[0].get("source", "static_analysis")
+                    if related_findings
+                    else "differential_test"
+                ),
+                "result": result,
+                "evidence": evidence,
+            }
+        )
 
     return {
         "rows": rows,

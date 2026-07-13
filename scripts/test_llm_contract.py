@@ -1,4 +1,5 @@
 """Quick end-to-end test: LLM contract compilation with real DeepSeek."""
+
 import asyncio
 import json
 import os
@@ -11,6 +12,7 @@ sys.path.insert(0, _project_root)
 # Load .env from project root
 try:
     from dotenv import load_dotenv
+
     load_dotenv(os.path.join(_project_root, ".env"))
 except ImportError:
     pass
@@ -55,10 +57,7 @@ async def test_llm_contracts():
         contracts = json.loads(content[start:end])
         print(f"Contracts extracted: {len(contracts)}")
         for c in contracts:
-            print(
-                f"  [{c.get('id')}] {c.get('checker_type')}: "
-                f"{c.get('requirement', '')[:80]}"
-            )
+            print(f"  [{c.get('id')}] {c.get('checker_type')}: {c.get('requirement', '')[:80]}")
     else:
         print("ERROR: Could not extract JSON array")
         print("Full content:", content)

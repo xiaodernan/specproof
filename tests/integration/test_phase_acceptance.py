@@ -25,7 +25,9 @@ REQUIREMENT_FILE = PROJECT_ROOT / "demo" / "requirement.txt"
 def run_specproof(args: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "cli.specproof.main"] + args,
-        capture_output=True, text=True, timeout=120,
+        capture_output=True,
+        text=True,
+        timeout=120,
         cwd=str(PROJECT_ROOT),
     )
 
@@ -36,8 +38,7 @@ class TestPhaseAcceptance:
     def test_all_golden_cases_exist(self):
         """All 10 golden cases should have spec.md and ground-truth.json."""
         case_dirs = sorted(
-            d for d in GOLDEN_CASES.iterdir()
-            if d.is_dir() and d.name.startswith("case-")
+            d for d in GOLDEN_CASES.iterdir() if d.is_dir() and d.name.startswith("case-")
         )
         assert len(case_dirs) == 10, f"Expected 10 cases, got {len(case_dirs)}"
 
@@ -70,10 +71,15 @@ class TestPhaseAcceptance:
     def test_eval_generates_html_report(self):
         """eval command should generate an HTML report."""
         output_path = PROJECT_ROOT / "eval-report.html"
-        result = run_specproof([
-            "eval", "--cases", str(GOLDEN_CASES),
-            "--output", str(output_path),
-        ])
+        result = run_specproof(
+            [
+                "eval",
+                "--cases",
+                str(GOLDEN_CASES),
+                "--output",
+                str(output_path),
+            ]
+        )
         assert result.returncode == 0
         assert output_path.exists()
         content = output_path.read_text(encoding="utf-8")
@@ -86,7 +92,8 @@ class TestPhaseAcceptance:
         capsules_dir = PROJECT_ROOT / "capsules"
         capsule_zips = sorted(
             capsules_dir.glob("capsule-*.zip"),
-            key=lambda p: p.stat().st_mtime, reverse=True,
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
         )
         if not capsule_zips:
             pytest.skip("No capsule zips available for replay test")
@@ -124,7 +131,8 @@ class TestPhaseAcceptance:
         reports_dir = PROJECT_ROOT / "reports"
         reports = sorted(
             reports_dir.glob("verification-report-*.html"),
-            key=lambda p: p.stat().st_mtime, reverse=True,
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
         )
         if not reports:
             pytest.skip("No reports available")

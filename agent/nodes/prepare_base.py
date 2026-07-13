@@ -1,6 +1,8 @@
 """prepare_base node — checkout the base ref into an isolated workspace."""
 
 import os
+import subprocess
+import tempfile
 import uuid
 
 from agent.state import Phase0State
@@ -18,28 +20,36 @@ def prepare_base_node(state: Phase0State) -> dict:
 
     workspace_id = str(uuid.uuid4())[:8]
     base_workspace = os.path.join(
-        os.environ.get("TEMP", "/tmp"),
+        tempfile.gettempdir(),
         f"specproof-base-{workspace_id}",
     )
 
     try:
-        # Use git worktree if possible
-        result = os.system(
-            f'git -C "{repo_path}" worktree add "{base_workspace}" {base_ref} '
-            f'2>nul'
+        # Use git worktree if possible (subprocess avoids shell injection)
+        result = subprocess.run(
+            ["git", "-C", repo_path, "worktree", "add", base_workspace, base_ref],
+            capture_output=True,
+            timeout=30,
         )
-        if result != 0:
-            # Fallback: use git archive or clone branch
+        if result.returncode != 0:
+            # Fallback: checkout branch directly
             os.makedirs(base_workspace, exist_ok=True)
-            result2 = os.system(
-                f'git -C "{repo_path}" --work-tree="{base_workspace}" '
-                f'checkout {base_ref} -- . 2>nul'
+            result2 = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    repo_path,
+                    f"--work-tree={base_workspace}",
+                    "checkout",
+                    base_ref,
+                    "--",
+                    ".",
+                ],
+                capture_output=True,
+                timeout=30,
             )
-            if result2 != 0:
-                errors.append(
-                    f"Failed to checkout base ref '{base_ref}' "
-                    f"from {repo_path}"
-                )
+            if result2.returncode != 0:
+                errors.append(f"Failed to checkout base ref '{base_ref}' from {repo_path}")
                 return {
                     "base_workspace": "",
                     "errors": state.get("errors", []) + errors,

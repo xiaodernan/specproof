@@ -19,27 +19,28 @@ def collect_diff_node(state: Phase0State) -> dict:
     try:
         # Get list of changed files
         import subprocess
+
         result = subprocess.run(
             ["git", "-C", repo_path, "diff", "--name-only", base_ref, head_ref],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
-        changed_files = [
-            f.strip() for f in result.stdout.splitlines() if f.strip()
-        ]
+        changed_files = [f.strip() for f in result.stdout.splitlines() if f.strip()]
 
         # Get detailed diff for Java files
         java_files = [f for f in changed_files if f.endswith(".java")]
         for jf in java_files:
             diff_result = subprocess.run(
                 ["git", "-C", repo_path, "diff", base_ref, head_ref, "--", jf],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             diff_text = diff_result.stdout
 
             # Extract changed symbols from diff
-            sym_re = re.compile(
-                r'[-+]\s*(@\w+.*|public\s+\w+\s+\w+\(|private\s+\w+\s+\w+\()'
-            )
+            sym_re = re.compile(r"[-+]\s*(@\w+.*|public\s+\w+\s+\w+\(|private\s+\w+\s+\w+\()")
             removed = sym_re.findall(
                 "\n".join(line for line in diff_text.splitlines() if line.startswith("-"))
             )
@@ -54,7 +55,7 @@ def collect_diff_node(state: Phase0State) -> dict:
 
             # Also detect annotation removal
             annotations_removed = re.findall(
-                r'-\s*(@PreAuthorize|@Transactional|@Secured|@RolesAllowed)\([^)]*\)',
+                r"-\s*(@PreAuthorize|@Transactional|@Secured|@RolesAllowed)\([^)]*\)",
                 diff_text,
             )
             for ann in annotations_removed:

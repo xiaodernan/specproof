@@ -7,6 +7,7 @@ Phase 1+: full LLM-based review court.
 import asyncio
 import json
 import os
+from typing import Any
 
 from agent.state import Phase0State
 
@@ -66,13 +67,14 @@ Evidence policy:
 Return a JSON array. No other text."""
 
 
-def _get_provider():
+def _get_provider() -> Any:
     """Create an LLM provider from env vars. Returns None if not configured."""
     api_key = os.getenv("LLM_API_KEY", "")
     if not api_key or api_key == "replace_me":
         return None
     try:
         from providers.openai_compatible import OpenAICompatibleProvider
+
         return OpenAICompatibleProvider(probe_on_init=False)
     except Exception:
         return None
@@ -88,41 +90,48 @@ async def _llm_review_court(candidates: list[dict]) -> tuple[list[dict], list[di
 
     candidates_json = json.dumps(
         [{k: v for k, v in c.items() if k != "source"} for c in candidates],
-        indent=2, ensure_ascii=False,
+        indent=2,
+        ensure_ascii=False,
     )
 
     # Phase 1: Prosecutor
     prosecutor_response = await provider.chat(
-        messages=[LLMMessage(
-            role="user",
-            content=_LLM_PROSECUTOR_PROMPT.format(candidates_json=candidates_json),
-        )],
+        messages=[
+            LLMMessage(
+                role="user",
+                content=_LLM_PROSECUTOR_PROMPT.format(candidates_json=candidates_json),
+            )
+        ],
         timeout=60.0,
     )
     prosecutor_args = _extract_json_array(prosecutor_response.content or "")
 
     # Phase 2: Defender
     defender_response = await provider.chat(
-        messages=[LLMMessage(
-            role="user",
-            content=_LLM_DEFENDER_PROMPT.format(
-                candidates_json=candidates_json,
-                prosecutor_arguments=json.dumps(prosecutor_args, indent=2),
-            ),
-        )],
+        messages=[
+            LLMMessage(
+                role="user",
+                content=_LLM_DEFENDER_PROMPT.format(
+                    candidates_json=candidates_json,
+                    prosecutor_arguments=json.dumps(prosecutor_args, indent=2),
+                ),
+            )
+        ],
         timeout=60.0,
     )
     defender_args = _extract_json_array(defender_response.content or "")
 
     # Phase 3: Judge
     judge_response = await provider.chat(
-        messages=[LLMMessage(
-            role="user",
-            content=_LLM_JUDGE_PROMPT.format(
-                prosecutor_arguments=json.dumps(prosecutor_args, indent=2),
-                defender_arguments=json.dumps(defender_args, indent=2),
-            ),
-        )],
+        messages=[
+            LLMMessage(
+                role="user",
+                content=_LLM_JUDGE_PROMPT.format(
+                    prosecutor_arguments=json.dumps(prosecutor_args, indent=2),
+                    defender_arguments=json.dumps(defender_args, indent=2),
+                ),
+            )
+        ],
         timeout=60.0,
     )
     judge_rulings = _extract_json_array(judge_response.content or "")
@@ -149,9 +158,7 @@ def _apply_judge_rulings(
     judge_rulings: list[dict],
 ) -> list[dict]:
     """Apply judge rulings to candidate findings, producing confirmed findings."""
-    rulings_by_id = {
-        r.get("id", "").upper(): r for r in judge_rulings
-    }
+    rulings_by_id = {r.get("id", "").upper(): r for r in judge_rulings}
     confirmed: list[dict] = []
 
     for cf in candidates:
@@ -165,14 +172,16 @@ def _apply_judge_rulings(
         severity = ruling.get("severity") or cf.get("severity", "MAJOR")
         confidence = ruling.get("confidence", cf.get("confidence", 0.8))
 
-        confirmed.append({
-            **cf,
-            "status": "confirmed",
-            "severity": severity,
-            "confidence": confidence,
-            "judge_reasoning": ruling.get("reasoning", ""),
-            "court_source": "llm_three_party",
-        })
+        confirmed.append(
+            {
+                **cf,
+                "status": "confirmed",
+                "severity": severity,
+                "confidence": confidence,
+                "judge_reasoning": ruling.get("reasoning", ""),
+                "court_source": "llm_three_party",
+            }
+        )
 
     return confirmed
 
@@ -186,26 +195,30 @@ def _rule_based_court(state: Phase0State) -> dict:
 
     # ── Prosecutor: gather all potential issues ──
     for sf in static_findings:
-        candidate_findings.append({
-            **sf,
-            "source": "static_analysis",
-            "status": "candidate",
-        })
+        candidate_findings.append(
+            {
+                **sf,
+                "source": "static_analysis",
+                "status": "candidate",
+            }
+        )
 
     for dr in diff_results:
         if dr.get("verdict") in ("REGRESSION", "AMBIGUOUS"):
-            candidate_findings.append({
-                "id": f"COURT-{dr.get('contract_id', 'UNKNOWN')}",
-                "contract_id": dr.get("contract_id", ""),
-                "severity": "MAJOR",
-                "type": "differential_regression",
-                "description": dr.get("detail", "Differential test regression"),
-                "evidence_type": "base_pass_head_fail",
-                "confidence": 0.85 if dr.get("verdict") == "REGRESSION" else 0.65,
-                "source": "differential",
-                "status": "candidate",
-                "diff_verdict": dr.get("verdict"),
-            })
+            candidate_findings.append(
+                {
+                    "id": f"COURT-{dr.get('contract_id', 'UNKNOWN')}",
+                    "contract_id": dr.get("contract_id", ""),
+                    "severity": "MAJOR",
+                    "type": "differential_regression",
+                    "description": dr.get("detail", "Differential test regression"),
+                    "evidence_type": "base_pass_head_fail",
+                    "confidence": 0.85 if dr.get("verdict") == "REGRESSION" else 0.65,
+                    "source": "differential",
+                    "status": "candidate",
+                    "diff_verdict": dr.get("verdict"),
+                }
+            )
 
     # ── Defender: filter out false positives ──
     for cf in candidate_findings:
@@ -255,18 +268,20 @@ def review_court_node(state: Phase0State) -> dict:
         candidates.append({**sf, "source": "static_analysis", "status": "candidate"})
     for dr in diff_results:
         if dr.get("verdict") in ("REGRESSION", "AMBIGUOUS"):
-            candidates.append({
-                "id": f"COURT-{dr.get('contract_id', 'UNKNOWN')}",
-                "contract_id": dr.get("contract_id", ""),
-                "severity": "MAJOR",
-                "type": "differential_regression",
-                "description": dr.get("detail", "Differential test regression"),
-                "evidence_type": "base_pass_head_fail",
-                "confidence": 0.85 if dr.get("verdict") == "REGRESSION" else 0.65,
-                "source": "differential",
-                "status": "candidate",
-                "diff_verdict": dr.get("verdict"),
-            })
+            candidates.append(
+                {
+                    "id": f"COURT-{dr.get('contract_id', 'UNKNOWN')}",
+                    "contract_id": dr.get("contract_id", ""),
+                    "severity": "MAJOR",
+                    "type": "differential_regression",
+                    "description": dr.get("detail", "Differential test regression"),
+                    "evidence_type": "base_pass_head_fail",
+                    "confidence": 0.85 if dr.get("verdict") == "REGRESSION" else 0.65,
+                    "source": "differential",
+                    "status": "candidate",
+                    "diff_verdict": dr.get("verdict"),
+                }
+            )
 
     if not candidates:
         return {
@@ -284,15 +299,12 @@ def review_court_node(state: Phase0State) -> dict:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(
-                        asyncio.run, _llm_review_court(candidates)
-                    )
+                    future = pool.submit(asyncio.run, _llm_review_court(candidates))
                     _pros, _def, judge_rulings = future.result(timeout=180)
             else:
-                _pros, _def, judge_rulings = asyncio.run(
-                    _llm_review_court(candidates)
-                )
+                _pros, _def, judge_rulings = asyncio.run(_llm_review_court(candidates))
             if judge_rulings:
                 confirmed_findings = _apply_judge_rulings(candidates, judge_rulings)
                 court_source = "llm_three_party"

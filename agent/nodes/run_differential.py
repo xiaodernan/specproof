@@ -19,11 +19,13 @@ def run_differential_node(state: Phase0State) -> dict:
 
     if not base_workspace or not head_workspace:
         return {
-            "diff_results": [{
-                "contract_id": "DIFF-ERR",
-                "verdict": "NON_REPRODUCIBLE",
-                "detail": "Workspace not prepared — cannot run differential",
-            }],
+            "diff_results": [
+                {
+                    "contract_id": "DIFF-ERR",
+                    "verdict": "NON_REPRODUCIBLE",
+                    "detail": "Workspace not prepared — cannot run differential",
+                }
+            ],
         }
 
     # Run the generated test in head workspace
@@ -33,19 +35,20 @@ def run_differential_node(state: Phase0State) -> dict:
     # Check for infrastructure errors
     if head_result.get("error") or base_result.get("error"):
         err_detail = (
-            f"head: {head_result.get('error') or 'ok'}, "
-            f"base: {base_result.get('error') or 'ok'}"
+            f"head: {head_result.get('error') or 'ok'}, base: {base_result.get('error') or 'ok'}"
         )
-        diff_results.append({
-            "contract_id": "DIFF-01",
-            "verdict": "NON_REPRODUCIBLE",
-            "detail": f"Maven execution error: {err_detail}",
-            "base_exit_code": base_result.get("exit_code"),
-            "head_exit_code": head_result.get("exit_code"),
-            "base_output": base_result.get("stderr", "")[:2000],
-            "head_output": head_result.get("stderr", "")[:2000],
-            "changed_symbols": changed_symbols,
-        })
+        diff_results.append(
+            {
+                "contract_id": "DIFF-01",
+                "verdict": "NON_REPRODUCIBLE",
+                "detail": f"Maven execution error: {err_detail}",
+                "base_exit_code": base_result.get("exit_code"),
+                "head_exit_code": head_result.get("exit_code"),
+                "base_output": base_result.get("stderr", "")[:2000],
+                "head_output": head_result.get("stderr", "")[:2000],
+                "changed_symbols": changed_symbols,
+            }
+        )
         return {"diff_results": diff_results}
 
     # Compare test results
@@ -66,25 +69,29 @@ def run_differential_node(state: Phase0State) -> dict:
         verdict = "COMPLIANT"
         detail = "Test passes in both Base and Head"
 
-    diff_results.append({
-        "contract_id": "DIFF-01",
-        "verdict": verdict,
-        "detail": detail,
-        "base_exit_code": base_result.get("exit_code"),
-        "head_exit_code": head_result.get("exit_code"),
-        "base_output": base_result.get("stdout", "")[:2000],
-        "head_output": head_result.get("stdout", "")[:2000],
-        "changed_symbols": changed_symbols,
-    })
+    diff_results.append(
+        {
+            "contract_id": "DIFF-01",
+            "verdict": verdict,
+            "detail": detail,
+            "base_exit_code": base_result.get("exit_code"),
+            "head_exit_code": head_result.get("exit_code"),
+            "base_output": base_result.get("stdout", "")[:2000],
+            "head_output": head_result.get("stdout", "")[:2000],
+            "changed_symbols": changed_symbols,
+        }
+    )
 
     # Differential HTTP check
     http_diffs = _check_http_diff(base_workspace, head_workspace)
     if http_diffs:
-        diff_results.append({
-            "contract_id": "DIFF-HTTP",
-            "verdict": http_diffs.get("verdict", "AMBIGUOUS"),
-            "detail": http_diffs.get("detail", ""),
-        })
+        diff_results.append(
+            {
+                "contract_id": "DIFF-HTTP",
+                "verdict": http_diffs.get("verdict", "AMBIGUOUS"),
+                "detail": http_diffs.get("detail", ""),
+            }
+        )
 
     return {"diff_results": diff_results}
 
@@ -152,8 +159,7 @@ def _check_http_diff(base_ws: str, head_ws: str) -> dict | None:
         return {
             "verdict": "REGRESSION",
             "detail": (
-                f"Security annotation present in base but missing in head: "
-                f"{head_file.name}"
+                f"Security annotation present in base but missing in head: {head_file.name}"
             ),
         }
 

@@ -8,6 +8,7 @@ import asyncio
 import json
 import os
 import re
+from typing import Any
 
 from agent.state import Phase0State
 
@@ -94,33 +95,38 @@ def _parse_requirements(text: str) -> list[dict]:
     for contract_type, regexes in patterns.items():
         for regex in regexes:
             if re.search(regex, text_lower):
-                contracts.append({
-                    "id": f"{contract_type.upper()}-01",
-                    "requirement": text.strip().split("\n")[0][:120],
-                    "checker_type": _CONTRACT_TEMPLATES[contract_type]["checker_type"],
-                    "expected_behavior": _CONTRACT_TEMPLATES[contract_type]["expected_behavior"],
-                    "result": "UNVERIFIED",
-                    "evidence_ref": None,
-                })
+                contracts.append(
+                    {
+                        "id": f"{contract_type.upper()}-01",
+                        "requirement": text.strip().split("\n")[0][:120],
+                        "checker_type": _CONTRACT_TEMPLATES[contract_type]["checker_type"],
+                        "expected_behavior": _CONTRACT_TEMPLATES[contract_type][
+                            "expected_behavior"
+                        ],
+                        "result": "UNVERIFIED",
+                        "evidence_ref": None,
+                    }
+                )
                 break
 
     return contracts
 
 
-def _get_provider():
+def _get_provider() -> Any:
     """Create an LLM provider from env vars. Returns None if not configured."""
     api_key = os.getenv("LLM_API_KEY", "")
     if not api_key or api_key == "replace_me":
         return None
     try:
         from providers.openai_compatible import OpenAICompatibleProvider
+
         provider = OpenAICompatibleProvider(probe_on_init=False)
         return provider
     except Exception:
         return None
 
 
-async def _llm_compile_contracts(text: str, provider) -> list[dict]:
+async def _llm_compile_contracts(text: str, provider: Any) -> list[dict[str, Any]]:
     """Use LLM to compile contracts from requirement text."""
     from providers.base import LLMMessage
 
@@ -167,28 +173,27 @@ def compile_contracts_node(state: Phase0State) -> dict:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(
-                        asyncio.run, _llm_compile_contracts(text, provider)
-                    )
+                    future = pool.submit(asyncio.run, _llm_compile_contracts(text, provider))
                     llm_contracts = future.result(timeout=30)
             else:
-                llm_contracts = asyncio.run(
-                    _llm_compile_contracts(text, provider)
-                )
+                llm_contracts = asyncio.run(_llm_compile_contracts(text, provider))
             if llm_contracts:
                 contracts = llm_contracts
         except Exception:
             pass
 
     if not contracts:
-        contracts = [{
-            "id": "GENERIC-01",
-            "requirement": text.strip()[:200] if text else "No requirement text provided",
-            "checker_type": "http",
-            "expected_behavior": "API must behave correctly per requirement",
-            "result": "UNVERIFIED",
-            "evidence_ref": None,
-        }]
+        contracts = [
+            {
+                "id": "GENERIC-01",
+                "requirement": text.strip()[:200] if text else "No requirement text provided",
+                "checker_type": "http",
+                "expected_behavior": "API must behave correctly per requirement",
+                "result": "UNVERIFIED",
+                "evidence_ref": None,
+            }
+        ]
 
     return {"contracts": contracts}

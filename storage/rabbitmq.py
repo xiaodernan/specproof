@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import pika
-from pika.adapters.blocking_connection import BlockingChannel
+from pika.adapters.blocking_connection import (
+    BlockingChannel,
+)
 
 
 @dataclass
@@ -63,6 +65,7 @@ class RabbitMQClient:
         if not self._channel:
             self._connect()
         ch = self._channel
+        assert ch is not None
         ch.exchange_declare(exchange=self.EXCHANGE, exchange_type="direct", durable=True)
         for queue in self.QUEUES:
             ch.queue_declare(queue=queue, durable=True)
@@ -71,6 +74,7 @@ class RabbitMQClient:
     def publish(self, routing_key: str, payload: dict[str, Any]) -> None:
         if not self._channel:
             self._connect()
+        assert self._channel is not None
         self._channel.basic_publish(
             exchange=self.EXCHANGE,
             routing_key=routing_key,
@@ -85,7 +89,12 @@ class RabbitMQClient:
         if not self._channel:
             self._connect()
 
-        def _on_message(ch, method, properties, body):
+        def _on_message(
+            ch: BlockingChannel,
+            method: Any,
+            properties: Any,
+            body: bytes,
+        ) -> None:
             try:
                 payload = json.loads(body)
                 callback(payload)
@@ -93,6 +102,7 @@ class RabbitMQClient:
             except Exception:
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
+        assert self._channel is not None
         self._channel.basic_qos(prefetch_count=1)
         self._channel.basic_consume(queue=queue, on_message_callback=_on_message)
 

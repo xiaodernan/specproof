@@ -15,7 +15,7 @@ CANARY_SECRET = "SPECPROOF_CANARY_a7f3b2c9d1e4_SECRET_DO_NOT_COMMIT"
 
 # Patterns that would match real API keys
 _KEY_PATTERNS = [
-    (r'sk-[a-zA-Z0-9]{32,}', "OpenAI/LLM API Key (sk-...)"),
+    (r"sk-[a-zA-Z0-9]{32,}", "OpenAI/LLM API Key (sk-...)"),
     (r'api[f_]?key\s*[:=]\s*["\']sk-', "Hardcoded API Key assignment"),
     (r'Authorization\s*[:=]\s*["\']?Bearer\s+sk-', "Hardcoded Bearer token"),
 ]
@@ -24,7 +24,11 @@ _KEY_PATTERNS = [
 def _is_source_file(path: str) -> bool:
     """Check if a file should be scanned for secrets."""
     excludes = {
-        ".git", "__pycache__", "target", "node_modules", ".mvn",
+        ".git",
+        "__pycache__",
+        "target",
+        "node_modules",
+        ".mvn",
         "artifacts/legacy-invalid",
     }
     skip_exts = {".jar", ".zip", ".class", ".jpg", ".png", ".woff", ".gz", ".tar"}
@@ -34,9 +38,7 @@ def _is_source_file(path: str) -> bool:
     ext = os.path.splitext(normalized)[1].lower()
     if ext in skip_exts:
         return False
-    if "maven-wrapper.jar" in normalized:
-        return False
-    return True
+    return "maven-wrapper.jar" not in normalized
 
 
 class TestNoHardcodedKeys:
@@ -73,9 +75,8 @@ class TestNoHardcodedKeys:
                             continue
                         violations.append(f"{rel}:{lineno} — {name}: {matched[:6]}***")
 
-        assert violations == [], (
-            f"Found {len(violations)} hardcoded API key(s):\n"
-            + "\n".join(violations)
+        assert violations == [], f"Found {len(violations)} hardcoded API key(s):\n" + "\n".join(
+            violations
         )
 
     def test_no_api_key_in_java_source(self):
@@ -94,14 +95,23 @@ class TestNoHardcodedKeys:
                     violations.append(f"{rel}:{lineno}")
 
         assert violations == [], (
-            f"Found {len(violations)} potential API keys in Java source:\n"
-            + "\n".join(violations)
+            f"Found {len(violations)} potential API keys in Java source:\n" + "\n".join(violations)
         )
 
     def test_no_api_key_in_config_files(self):
         """YAML, JSON, TOML, .properties, .xml files must be free of `sk-***` keys."""
         violations = []
-        for pattern in ("*.yml", "*.yaml", "*.json", "*.toml", "*.properties", "*.xml", "*.cfg", "*.ini"):
+        config_patterns = (
+            "*.yml",
+            "*.yaml",
+            "*.json",
+            "*.toml",
+            "*.properties",
+            "*.xml",
+            "*.cfg",
+            "*.ini",
+        )
+        for pattern in config_patterns:
             for filepath in PROJECT_ROOT.rglob(pattern):
                 rel = str(filepath.relative_to(PROJECT_ROOT)).replace("\\", "/")
                 if not _is_source_file(rel):
@@ -123,8 +133,7 @@ class TestNoHardcodedKeys:
                             violations.append(f"{rel}:{lineno} — {name}")
 
         assert violations == [], (
-            f"Found {len(violations)} potential API keys in config files:\n"
-            + "\n".join(violations)
+            f"Found {len(violations)} potential API keys in config files:\n" + "\n".join(violations)
         )
 
     def test_closed_loop_script_reads_from_env(self):
@@ -134,7 +143,7 @@ class TestNoHardcodedKeys:
             pytest.skip("p0_5_closed_loop.py not found")
         content = script.read_text(encoding="utf-8")
         assert "os.getenv(" in content, "Must read key from env var"
-        assert 'sk-Twrx' not in content, "Old hardcoded key must be removed"
+        assert "sk-Twrx" not in content, "Old hardcoded key must be removed"
 
     def test_env_example_uses_placeholder(self):
         """.env.example must use 'replace_me' placeholder, not a real key."""
@@ -174,7 +183,7 @@ class TestCanaryDetection:
         test_file.write_text(f"KEY={test_key}\n", encoding="utf-8")
         try:
             content = test_file.read_text(encoding="utf-8")
-            matches = re.findall(r'sk-[a-zA-Z0-9]{32,}', content)
+            matches = re.findall(r"sk-[a-zA-Z0-9]{32,}", content)
             assert len(matches) >= 1, "Scanner regex should detect sk-*** pattern"
         finally:
             test_file.unlink()
@@ -184,6 +193,7 @@ class TestCanaryDetection:
         sys.path.insert(0, str(PROJECT_ROOT))
         try:
             from agent.security_scanner import _CANARY_SECRET, scan_canary
+
             assert _CANARY_SECRET == CANARY_SECRET, "Canary constant mismatch"
             # Run canary self-test
             result = scan_canary(str(PROJECT_ROOT))
@@ -217,9 +227,7 @@ class TestCapsuleAndArtifactSafety:
                 for pat, name in _KEY_PATTERNS:
                     if re.search(pat, line):
                         rel = str(fpath.relative_to(archive))
-                        raise AssertionError(
-                            f"Archive file {rel}:{lineno} contains {name}"
-                        )
+                        raise AssertionError(f"Archive file {rel}:{lineno} contains {name}")
 
     def test_legacy_invalid_archive_no_api_key_hardcoded(self):
         """Legacy-invalid archive files should not contain actual production keys.
@@ -245,6 +253,4 @@ class TestCapsuleAndArtifactSafety:
                     # Allow human_fixture with demo patterns
                     if "human_fixture" in rel or "README" in rel:
                         continue
-                    raise AssertionError(
-                        f"Legacy archive {rel}:{lineno} contains 'sk-' pattern"
-                    )
+                    raise AssertionError(f"Legacy archive {rel}:{lineno} contains 'sk-' pattern")

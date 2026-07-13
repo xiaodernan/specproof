@@ -11,6 +11,7 @@ alone for status, so DB check always executes even when status fails.
 Usage: python scripts/p0_5_closed_loop.py
 """
 
+import contextlib
 import hashlib
 import json
 import os
@@ -26,6 +27,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 # ═══════════════════════════════════════════════════════════════════
 # CONFIGURATION
@@ -46,7 +48,7 @@ LLM_BASE_URL = "https://llm-api.fagougou.com/v1"
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 if not LLM_API_KEY:
     print("FATAL: LLM_API_KEY environment variable is not set.", file=sys.stderr)
-    print("Set it via: $env:LLM_API_KEY = \"your-api-key\"", file=sys.stderr)
+    print('Set it via: $env:LLM_API_KEY = "your-api-key"', file=sys.stderr)
     print("Offline operations (Capsule Replay) do not require a key.", file=sys.stderr)
     sys.exit(1)
 LLM_MODEL = "deepseek-v4-pro"
@@ -58,17 +60,19 @@ CANARY_SECRET = "SPECPROOF_CANARY_a7f3b2c9d1e4_SECRET_DO_NOT_COMMIT"
 # UTILITY
 # ═══════════════════════════════════════════════════════════════════
 
+
 def run(cmd, cwd=None, timeout=180, extra_env=None):
     env = os.environ.copy()
     env["JAVA_HOME"] = JAVA_HOME
     env["PATH"] = f"{JAVA_HOME}\\bin;" + env.get("PATH", "")
     if extra_env:
         env.update(extra_env)
-    return subprocess.run(cmd, capture_output=True, text=True,
-                          env=env, cwd=cwd, timeout=timeout)
+    return subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=cwd, timeout=timeout)
+
 
 def sha256_str(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
 
 def sha256_file(path) -> str:
     h = hashlib.sha256()
@@ -77,28 +81,33 @@ def sha256_file(path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+
 def ts() -> str:
     return datetime.now(UTC).isoformat()
+
 
 # ═══════════════════════════════════════════════════════════════════
 # STEP 1: LLM TEST GENERATION WITH COMPILE-VALIDATE-RETRY
 # ═══════════════════════════════════════════════════════════════════
 
 DANGEROUS_API_PATTERNS = [
-    (r'System\.getenv', 'System.getenv()'),
-    (r'Runtime\.getRuntime\(\)', 'Runtime.getRuntime()'),
-    (r'ProcessBuilder', 'ProcessBuilder'),
-    (r'new\s+File\s*\(', 'java.io.File'),
-    (r'FileWriter|FileReader|FileOutputStream|FileInputStream', 'File I/O'),
-    (r'java\.net\.', 'java.net.*'),
-    (r'Class\.forName', 'Class.forName (reflection)'),
-    (r'\.getDeclaredMethod|\.getDeclaredField', 'Reflection'),
-    (r'@RunWith|@Suite', 'Non-JUnit5 runner'),
-    (r'import\s+java\.lang\.reflect', 'java.lang.reflect'),
-    (r'System\.exit', 'System.exit()'),
+    (r"System\.getenv", "System.getenv()"),
+    (r"Runtime\.getRuntime\(\)", "Runtime.getRuntime()"),
+    (r"ProcessBuilder", "ProcessBuilder"),
+    (r"new\s+File\s*\(", "java.io.File"),
+    (r"FileWriter|FileReader|FileOutputStream|FileInputStream", "File I/O"),
+    (r"java\.net\.", "java.net.*"),
+    (r"Class\.forName", "Class.forName (reflection)"),
+    (r"\.getDeclaredMethod|\.getDeclaredField", "Reflection"),
+    (r"@RunWith|@Suite", "Non-JUnit5 runner"),
+    (r"import\s+java\.lang\.reflect", "java.lang.reflect"),
+    (r"System\.exit", "System.exit()"),
 ]
 
-REQUIREMENT_TEXT = "所有变更 API 端点必须要求认证。未认证的请求不得修改数据库状态。PUT /api/users/{id}/email 端点必须验证调用者身份。"
+REQUIREMENT_TEXT = (
+    "所有变更 API 端点必须要求认证。未认证的请求不得修改数据库状态。"
+    "PUT /api/users/{id}/email 端点必须验证调用者身份。"
+)
 
 LLM_PROMPT = f"""You are a senior Java quality engineer. Generate ONE JUnit 5 test class.
 
@@ -192,32 +201,40 @@ assertAll(
 
 Generate package com.specproof.demo, class {TEST_CLASS_NAME}.
 
-The test: @BeforeEach creates user + saves initial email. @Test sends unauthenticated PUT, captures MvcResult with andReturn(), then checks BOTH status=401 AND email unchanged.
+The test: @BeforeEach creates user + saves initial email. @Test sends
+unauthenticated PUT, captures MvcResult with andReturn(), then checks
+BOTH status=401 AND email unchanged.
 
 Return ONLY the complete Java source code. No explanations, no markdown fences."""
 
-FIX_PROMPT = """The Java test you generated has COMPILATION ERRORS. Fix them and return the corrected complete file.
-
-## COMPILATION ERRORS:
-{errors}
-
-## RULES:
-1. Use MvcResult + andReturn() pattern (NOT andExpect for status)
-2. Check BOTH HTTP status AND DB state independently
-3. Use EXACT constructors: new User("name", "email"), new ChangeEmailRequest("email")
-4. Import TestMockBeansConfig from com.specproof.demo.config
-
-Return ONLY corrected Java source code. No explanations."""
+FIX_PROMPT = (
+    "The Java test you generated has COMPILATION ERRORS. "
+    "Fix them and return the corrected complete file.\n"
+    "\n"
+    "## COMPILATION ERRORS:\n"
+    "{errors}\n"
+    "\n"
+    "## RULES:\n"
+    "1. Use MvcResult + andReturn() pattern (NOT andExpect for status)\n"
+    "2. Check BOTH HTTP status AND DB state independently\n"
+    '3. Use EXACT constructors: new User("name", "email"), '
+    'new ChangeEmailRequest("email")\n'
+    "4. Import TestMockBeansConfig from com.specproof.demo.config\n"
+    "\n"
+    "Return ONLY corrected Java source code. No explanations."
+)
 
 
 def call_deepseek(prompt: str) -> dict:
     """Call DeepSeek API. Returns full response metadata dict."""
-    body = json.dumps({
-        "model": LLM_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 4096,
-        "temperature": 0.1,
-    }).encode("utf-8")
+    body = json.dumps(
+        {
+            "model": LLM_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 4096,
+            "temperature": 0.1,
+        }
+    ).encode("utf-8")
 
     req = urllib.request.Request(
         f"{LLM_BASE_URL}/chat/completions",
@@ -231,7 +248,7 @@ def call_deepseek(prompt: str) -> dict:
     last_error = None
     for attempt in range(3):
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310
                 raw = resp.read()
                 result = json.loads(raw.decode("utf-8"))
             content = result["choices"][0]["message"]["content"]
@@ -247,14 +264,20 @@ def call_deepseek(prompt: str) -> dict:
             err_body = e.read().decode("utf-8", errors="replace")[:500]
             last_error = f"HTTP {e.code}: {err_body}"
             if attempt < 2:
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
         except Exception as e:
             last_error = str(e)
             if attempt < 2:
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
 
-    return {"model": LLM_MODEL, "raw_response_digest": "", "usage": {},
-            "content_raw": "", "attempt": 3, "error": last_error}
+    return {
+        "model": LLM_MODEL,
+        "raw_response_digest": "",
+        "usage": {},
+        "content_raw": "",
+        "attempt": 3,
+        "error": last_error,
+    }
 
 
 def extract_java(text: str) -> str:
@@ -284,25 +307,27 @@ def validate_test_semantics(code: str) -> list[str]:
     issues = []
 
     # Must NOT use andExpect for status (short-circuits)
-    if re.search(r'\.andExpect\s*\(\s*status\s*\(\s*\)', code):
-        issues.append("SHORT_CIRCUIT: uses andExpect(status()) — DB check will be skipped on failure")
-    if re.search(r'\.andExpect\s*\(\s*status\s*\(\s*\)\s*\.isUnauthorized\s*\(\s*\)\s*\)', code):
+    if re.search(r"\.andExpect\s*\(\s*status\s*\(\s*\)", code):
+        issues.append(
+            "SHORT_CIRCUIT: uses andExpect(status()) — DB check will be skipped on failure"
+        )
+    if re.search(r"\.andExpect\s*\(\s*status\s*\(\s*\)\s*\.isUnauthorized\s*\(\s*\)\s*\)", code):
         issues.append("SHORT_CIRCUIT: uses andExpect(status().isUnauthorized())")
 
     # Must use andReturn() pattern
-    if 'andReturn()' not in code:
+    if "andReturn()" not in code:
         issues.append("MISSING: no andReturn() — status check may short-circuit")
 
     # Must have DB state assertion
-    if 'assertEquals' not in code or 'getEmail' not in code:
+    if "assertEquals" not in code or "getEmail" not in code:
         issues.append("MISSING: no DB state assertion (assertEquals + getEmail)")
 
     # Must check status code
-    if 'getStatus()' not in code and 'status().isUnauthorized' not in code:
+    if "getStatus()" not in code and "status().isUnauthorized" not in code:
         issues.append("MISSING: no HTTP status check")
 
     # Must import MvcResult if using andReturn()
-    if 'andReturn()' in code and 'MvcResult' not in code:
+    if "andReturn()" in code and "MvcResult" not in code:
         issues.append("MISSING: uses andReturn() but no MvcResult import")
 
     return issues
@@ -310,8 +335,7 @@ def validate_test_semantics(code: str) -> list[str]:
 
 def try_compile(code: str, worktree: str) -> tuple[bool, str]:
     """Compile test in worktree. Returns (success, errors_or_empty)."""
-    test_dir = (Path(worktree) / "src" / "test" / "java"
-                / "com" / "specproof" / "demo")
+    test_dir = Path(worktree) / "src" / "test" / "java" / "com" / "specproof" / "demo"
     test_dir.mkdir(parents=True, exist_ok=True)
     (test_dir / f"{TEST_CLASS_NAME}.java").write_text(code, encoding="utf-8")
 
@@ -328,20 +352,32 @@ def try_compile(code: str, worktree: str) -> tuple[bool, str]:
         line = line.strip()
         if not line:
             continue
-        if any(kw in line for kw in ["error:", "ERROR", "cannot find symbol",
-                                      "does not exist", "constructor",
-                                      "incompatible", "cannot", "unexpected",
-                                      "package ", "class "]):
-            if any(n in line for n in ["[INFO]", "[WARNING]", "Downloading",
-                                        "Downloaded", "Progress"]):
+        if any(
+            kw in line
+            for kw in [
+                "error:",
+                "ERROR",
+                "cannot find symbol",
+                "does not exist",
+                "constructor",
+                "incompatible",
+                "cannot",
+                "unexpected",
+                "package ",
+                "class ",
+            ]
+        ):
+            if any(
+                n in line for n in ["[INFO]", "[WARNING]", "Downloading", "Downloaded", "Progress"]
+            ):
                 continue
             error_lines.append(line)
     return False, "\n".join(error_lines[:50])
 
 
-def generate_and_validate_test(compile_worktree: str, report: dict) -> tuple[str, dict]:
+def generate_and_validate_test(compile_worktree: str, report: dict) -> tuple[str, dict[str, Any]]:
     """Generate test via LLM with compile-validate-retry. Returns (code, provenance)."""
-    provenance = {
+    provenance: dict[str, Any] = {
         "provider": LLM_PROVIDER,
         "model": LLM_MODEL,
         "endpoint": LLM_BASE_URL,
@@ -358,13 +394,15 @@ def generate_and_validate_test(compile_worktree: str, report: dict) -> tuple[str
 
     print("  Calling DeepSeek (non-thinking mode)...")
     resp = call_deepseek(LLM_PROMPT)
-    provenance["attempts"].append({
-        "attempt": resp["attempt"],
-        "model_used": resp["model"],
-        "raw_response_digest": resp["raw_response_digest"],
-        "usage": resp["usage"],
-        "error": resp.get("error"),
-    })
+    provenance["attempts"].append(
+        {
+            "attempt": resp["attempt"],
+            "model_used": resp["model"],
+            "raw_response_digest": resp["raw_response_digest"],
+            "usage": resp["usage"],
+            "error": resp.get("error"),
+        }
+    )
     provenance["raw_response_digest"] = resp["raw_response_digest"]
 
     if resp["error"]:
@@ -395,17 +433,24 @@ def generate_and_validate_test(compile_worktree: str, report: dict) -> tuple[str
                     fix_text = "SEMANTIC ISSUES (compile succeeded but test logic is wrong):\n"
                     for i in sem_issues:
                         fix_text += f"- {i}\n"
-                    fix_text += "\nREWRITE the test using andReturn() + manual assertions. Both HTTP status and DB state MUST be checked independently.\n"
+                    fix_text += (
+                        "\nREWRITE the test using andReturn() + manual assertions. "
+                        "Both HTTP status and DB state MUST be checked independently.\n"
+                    )
                     if dangerous:
                         fix_text += f"\nRemove these dangerous APIs: {', '.join(dangerous)}\n"
                     new_resp = call_deepseek(fix_text)
-                    provenance["attempts"].append({
-                        "attempt": new_resp["attempt"],
-                        "model_used": new_resp["model"],
-                        "raw_response_digest": new_resp["raw_response_digest"],
-                        "usage": new_resp["usage"],
-                        "fix_reason": "; ".join(sem_issues + [f"dangerous:{d}" for d in dangerous]),
-                    })
+                    provenance["attempts"].append(
+                        {
+                            "attempt": new_resp["attempt"],
+                            "model_used": new_resp["model"],
+                            "raw_response_digest": new_resp["raw_response_digest"],
+                            "usage": new_resp["usage"],
+                            "fix_reason": "; ".join(
+                                sem_issues + [f"dangerous:{d}" for d in dangerous]
+                            ),
+                        }
+                    )
                     code = extract_java(new_resp["content_raw"])
                     print(f"  LLM returned {len(code)} chars of fixed code")
                     continue
@@ -421,7 +466,10 @@ def generate_and_validate_test(compile_worktree: str, report: dict) -> tuple[str
             provenance["generated_source_digest"] = f"sha256:{digest}"
             provenance["semantic_issues"] = []
             provenance["dangerous_api_violations"] = []
-            print(f"  ALL CHECKS PASS (attempt {attempt_num}): compile OK, semantic OK, no dangerous APIs")
+            print(
+                f"  ALL CHECKS PASS (attempt {attempt_num}): "
+                "compile OK, semantic OK, no dangerous APIs"
+            )
             report["1_llm_call"] = "PASS"
             report["2_provenance"] = "PASS"
             report["3_human_edited"] = "PASS (false)"
@@ -431,13 +479,15 @@ def generate_and_validate_test(compile_worktree: str, report: dict) -> tuple[str
         print("  Compilation FAILED — sending errors to LLM...")
         if retry < 3:
             new_resp = call_deepseek(FIX_PROMPT.format(errors=errors[:2000]))
-            provenance["attempts"].append({
-                "attempt": new_resp["attempt"],
-                "model_used": new_resp["model"],
-                "raw_response_digest": new_resp["raw_response_digest"],
-                "usage": new_resp["usage"],
-                "fix_reason": f"Compilation errors: {errors[:200]}",
-            })
+            provenance["attempts"].append(
+                {
+                    "attempt": new_resp["attempt"],
+                    "model_used": new_resp["model"],
+                    "raw_response_digest": new_resp["raw_response_digest"],
+                    "usage": new_resp["usage"],
+                    "fix_reason": f"Compilation errors: {errors[:200]}",
+                }
+            )
             code = extract_java(new_resp["content_raw"])
             print(f"  LLM returned {len(code)} chars of fixed code")
         else:
@@ -452,13 +502,12 @@ def generate_and_validate_test(compile_worktree: str, report: dict) -> tuple[str
 # WORKTREES & EXECUTION
 # ═══════════════════════════════════════════════════════════════════
 
+
 def create_worktree(commit: str, suffix: str) -> str:
     path = Path(tempfile.mkdtemp(prefix=f"specproof-{suffix}-"))
-    run(["git", "-C", str(DEMO_REPO), "worktree", "add", "--detach",
-         str(path), commit], timeout=60)
+    run(["git", "-C", str(DEMO_REPO), "worktree", "add", "--detach", str(path), commit], timeout=60)
     # Verify
-    actual = run(["git", "-C", str(path), "rev-parse", "HEAD"],
-                 timeout=10).stdout.strip()
+    actual = run(["git", "-C", str(path), "rev-parse", "HEAD"], timeout=10).stdout.strip()
     if not actual.startswith(commit):
         raise RuntimeError(f"Worktree HEAD={actual[:8]}, expected {commit[:8]}")
     # Verify clean
@@ -469,8 +518,7 @@ def create_worktree(commit: str, suffix: str) -> str:
 
 
 def inject_test(worktree: str, code: str) -> str:
-    test_dir = (Path(worktree) / "src" / "test" / "java"
-                / "com" / "specproof" / "demo")
+    test_dir = Path(worktree) / "src" / "test" / "java" / "com" / "specproof" / "demo"
     test_dir.mkdir(parents=True, exist_ok=True)
     test_file = test_dir / f"{TEST_CLASS_NAME}.java"
     test_file.write_text(code, encoding="utf-8")
@@ -488,7 +536,7 @@ def find_surefire_reports(worktree: str) -> list[Path]:
 def parse_surefire_xml(path: Path) -> dict:
     """Parse Surefire XML report."""
     try:
-        tree = ET.parse(str(path))
+        tree = ET.parse(str(path))  # nosec B314
         root = tree.getroot()
         return {
             "name": root.get("name", ""),
@@ -498,12 +546,20 @@ def parse_surefire_xml(path: Path) -> dict:
             "skipped": int(root.get("skipped", 0)),
             "time": float(root.get("time", 0)),
             "testcases": [
-                {"name": tc.get("name", ""), "classname": tc.get("classname", ""),
-                 "time": tc.get("time", ""),
-                 "failure": (tc.find("failure").get("message", "")[:200]
-                             if tc.find("failure") is not None else None),
-                 "error": (tc.find("error").get("message", "")[:200]
-                           if tc.find("error") is not None else None),
+                {
+                    "name": tc.get("name", ""),
+                    "classname": tc.get("classname", ""),
+                    "time": tc.get("time", ""),
+                    "failure": (
+                        tc.find("failure").get("message", "")[:200]  # type: ignore[union-attr]
+                        if tc.find("failure") is not None
+                        else None
+                    ),
+                    "error": (
+                        tc.find("error").get("message", "")[:200]  # type: ignore[union-attr]
+                        if tc.find("error") is not None
+                        else None
+                    ),
                 }
                 for tc in root.findall("testcase")
             ],
@@ -516,8 +572,13 @@ def run_maven_test(worktree: str) -> dict:
     """Run mvnw test. Returns full results including Surefire."""
     mvnw = Path(worktree) / "mvnw.cmd"
     if not mvnw.exists():
-        return {"exit_code": -99, "stdout": "", "stderr": "mvnw.cmd not found",
-                "elapsed": 0, "surefire": []}
+        return {
+            "exit_code": -99,
+            "stdout": "",
+            "stderr": "mvnw.cmd not found",
+            "elapsed": 0,
+            "surefire": [],
+        }
 
     cmd = [str(mvnw), "-B", f"-Dtest={TEST_CLASS_NAME}", "test"]
     start = time.time()
@@ -539,24 +600,35 @@ def run_maven_test(worktree: str) -> dict:
 
 
 def parse_test_counts(output: str) -> dict:
-    m = re.search(r"Tests run:\s*(\d+).*?Failures:\s*(\d+).*?Errors:\s*(\d+).*?Skipped:\s*(\d+)", output)
+    m = re.search(
+        r"Tests run:\s*(\d+).*?Failures:\s*(\d+).*?Errors:\s*(\d+).*?Skipped:\s*(\d+)",
+        output,
+    )
     if m:
-        return {"tests": int(m.group(1)), "failures": int(m.group(2)),
-                "errors": int(m.group(3)), "skipped": int(m.group(4))}
+        return {
+            "tests": int(m.group(1)),
+            "failures": int(m.group(2)),
+            "errors": int(m.group(3)),
+            "skipped": int(m.group(4)),
+        }
     return {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
 
 
-def extract_http_db_from_output(output: str) -> dict:
+def extract_http_db_from_output(output: str) -> dict[str, Any]:
     """Extract HTTP status and DB state from test output."""
-    info = {"http_status_lines": [], "db_state_lines": [], "test_result": "unknown"}
+    info: dict[str, Any] = {"http_status_lines": [], "db_state_lines": [], "test_result": "unknown"}
 
     for line in output.splitlines():
         if "401" in line or "UNAUTHORIZED" in line or "200" in line:
             info["http_status_lines"].append(line.strip()[:200])
         if "DB STATE" in line.upper() or "VIOLATION" in line.upper():
             info["db_state_lines"].append(line.strip()[:200])
-        if "email" in line.lower() and ("before" in line.lower() or "after" in line.lower()
-                                         or "was" in line.lower() or "now" in line.lower()):
+        if "email" in line.lower() and (
+            "before" in line.lower()
+            or "after" in line.lower()
+            or "was" in line.lower()
+            or "now" in line.lower()
+        ):
             info["db_state_lines"].append(line.strip()[:200])
 
     if "Tests run: 1, Failures: 0, Errors: 0" in output:
@@ -575,6 +647,7 @@ def extract_http_db_from_output(output: str) -> dict:
 # EVIDENCE & BLOCKER CHECK
 # ═══════════════════════════════════════════════════════════════════
 
+
 def collect_diff_evidence(base_ws: str, head_ws: str) -> dict:
     base_ctrl = Path(base_ws) / "src/main/java/com/specproof/demo/controller/UserController.java"
     head_ctrl = Path(head_ws) / "src/main/java/com/specproof/demo/controller/UserController.java"
@@ -587,22 +660,28 @@ def collect_diff_evidence(base_ws: str, head_ws: str) -> dict:
         "head_has_preauthorize": head_has,
         "annotation_removed": base_has and not head_has,
         "changed_files": ["UserController.java"],
-        "diff_summary": ("@PreAuthorize removed from UserController.changeEmail()"
-                         if (base_has and not head_has) else "No annotation change"),
+        "diff_summary": (
+            "@PreAuthorize removed from UserController.changeEmail()"
+            if (base_has and not head_has)
+            else "No annotation change"
+        ),
     }
 
 
 def check_10_blocker_conditions(
-    base_result: dict, head_result: dict, diff_evidence: dict,
-    test_code: str, test_hash_b64: str, capsule_path: str,
+    base_result: dict,
+    head_result: dict,
+    diff_evidence: dict,
+    test_code: str,
+    test_hash_b64: str,
+    capsule_path: str,
     provenance: dict,
 ) -> dict:
     base_pass = base_result["exit_code"] == 0
     head_pass = head_result["exit_code"] == 0
 
     stdout = (head_result.get("stdout", "") + head_result.get("stderr", "")).upper()
-    db_evidence = any(kw in stdout for kw in
-                      ["DB STATE", "VIOLATION", "EMAIL", "ASSERTIONERROR"])
+    db_evidence = any(kw in stdout for kw in ["DB STATE", "VIOLATION", "EMAIL", "ASSERTIONERROR"])
 
     return {
         "all_met": True,  # Will be set to False if any fail
@@ -610,33 +689,47 @@ def check_10_blocker_conditions(
         "conditions": {
             "1_approved_contract": {
                 "pass": diff_evidence.get("annotation_removed", False),
-                "detail": "Requirement: 所有变更API端点必须要求认证 → @PreAuthorize removal confirmed",
+                "detail": (
+                    "Requirement: 所有变更API端点必须要求认证 → @PreAuthorize removal confirmed"
+                ),
             },
             "2_test_source_llm": {
                 "pass": provenance.get("test_source") == "llm_generated",
-                "detail": f"test_source={provenance.get('test_source')}, provider={provenance.get('provider')}, model={provenance.get('model')}",
+                "detail": (
+                    f"test_source={provenance.get('test_source')}, "
+                    f"provider={provenance.get('provider')}, "
+                    f"model={provenance.get('model')}"
+                ),
             },
             "3_human_edited_false": {
-                "pass": provenance.get("human_edited") == False,
+                "pass": not provenance.get("human_edited"),
                 "detail": "No human modification to generated test code",
             },
             "4_base_real_execution_pass": {
                 "pass": base_pass,
-                "detail": f"Base exit={base_result['exit_code']}, elapsed={base_result['elapsed']}s",
+                "detail": (
+                    f"Base exit={base_result['exit_code']}, elapsed={base_result['elapsed']}s"
+                ),
             },
             "5_head_real_execution_fail": {
                 "pass": not head_pass,
-                "detail": f"Head exit={head_result['exit_code']}, elapsed={head_result['elapsed']}s",
+                "detail": (
+                    f"Head exit={head_result['exit_code']}, elapsed={head_result['elapsed']}s"
+                ),
             },
             "6_attribution_introduced_by_head": {
                 "pass": base_pass and not head_pass,
-                "detail": "INTRODUCED_BY_HEAD: base PASS, head FAIL" if (base_pass and not head_pass)
-                         else f"base_pass={base_pass}, head_pass={head_pass}",
+                "detail": (
+                    "INTRODUCED_BY_HEAD: base PASS, head FAIL"
+                    if (base_pass and not head_pass)
+                    else f"base_pass={base_pass}, head_pass={head_pass}"
+                ),
             },
             "7_db_state_evidence": {
                 "pass": db_evidence,
-                "detail": "DB state change evidence present in test output" if db_evidence
-                         else "No DB state evidence in output",
+                "detail": "DB state change evidence present in test output"
+                if db_evidence
+                else "No DB state evidence in output",
             },
             "8_capsule_clean_replay": {
                 "pass": False,  # Will be set after replay
@@ -644,7 +737,10 @@ def check_10_blocker_conditions(
             },
             "9_confidence_gte_0_90": {
                 "pass": True,
-                "detail": "Confidence=0.95 (differential execution + DB evidence + static annotation diff)",
+                "detail": (
+                    "Confidence=0.95 (differential execution "
+                    "+ DB evidence + static annotation diff)"
+                ),
             },
             "10_evidence_digest_complete": {
                 "pass": bool(test_hash_b64),
@@ -658,10 +754,17 @@ def check_10_blocker_conditions(
 # CAPSULE
 # ═══════════════════════════════════════════════════════════════════
 
+
 def build_capsule(
-    finding_id: str, base_result: dict, head_result: dict,
-    diff_evidence: dict, blocker_check: dict, test_code: str,
-    provenance: dict, env_info: dict, run_id: str,
+    finding_id: str,
+    base_result: dict,
+    head_result: dict,
+    diff_evidence: dict,
+    blocker_check: dict,
+    test_code: str,
+    provenance: dict,
+    env_info: dict,
+    run_id: str,
 ) -> str:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     capsule_path = ARTIFACTS_DIR / f"capsule-{run_id}.zip"
@@ -697,27 +800,39 @@ def build_capsule(
                 "exit_code": base_result["exit_code"],
                 "elapsed_s": base_result["elapsed"],
                 "test_counts": parse_test_counts(base_result["stdout"] + base_result["stderr"]),
-                "http_db": extract_http_db_from_output(base_result["stdout"] + base_result["stderr"]),
+                "http_db": extract_http_db_from_output(
+                    base_result["stdout"] + base_result["stderr"]
+                ),
             },
             "head": {
                 "commit": HEAD_COMMIT,
                 "exit_code": head_result["exit_code"],
                 "elapsed_s": head_result["elapsed"],
                 "test_counts": parse_test_counts(head_result["stdout"] + head_result["stderr"]),
-                "http_db": extract_http_db_from_output(head_result["stdout"] + head_result["stderr"]),
+                "http_db": extract_http_db_from_output(
+                    head_result["stdout"] + head_result["stderr"]
+                ),
             },
         },
         "diff_evidence": diff_evidence,
         "blocker_check": blocker_check,
         "env_info": env_info,
-        "evidence_digest": f"sha256:{sha256_str(json.dumps({
-            'base_exit': base_result['exit_code'],
-            'head_exit': head_result['exit_code'],
-            'verdict': blocker_check['verdict'],
-            'timestamp': ts(),
-        }, sort_keys=True))}",
+        "evidence_digest": f"sha256:{
+            sha256_str(
+                json.dumps(
+                    {
+                        'base_exit': base_result['exit_code'],
+                        'head_exit': head_result['exit_code'],
+                        'verdict': blocker_check['verdict'],
+                        'timestamp': ts(),
+                    },
+                    sort_keys=True,
+                )
+            )
+        }",
     }
-    manifest["manifest_digest"] = f"sha256:{sha256_str(json.dumps(manifest, sort_keys=True, default=str))}"
+    manifest_digest_raw = sha256_str(json.dumps(manifest, sort_keys=True, default=str))
+    manifest["manifest_digest"] = f"sha256:{manifest_digest_raw}"
 
     replay_ps1 = f"""# P0.5 Capsule Replay — {finding_id}
 $ErrorActionPreference = "Stop"
@@ -735,14 +850,17 @@ New-Item -ItemType Directory -Force $td | Out-Null
 Copy-Item "fixtures\\{TEST_CLASS_NAME}.java" "$td\\"
 Copy-Item "fixtures\\{TEST_CLASS_NAME}.java" "$tmp\\head\\src\\test\\java\\com\\specproof\\demo\\"
 $baseHash = (Get-FileHash "$td\\{TEST_CLASS_NAME}.java" -Algorithm SHA256).Hash
-$headHash = (Get-FileHash "$tmp\\head\\src\\test\\java\\com\\specproof\\demo\\{TEST_CLASS_NAME}.java" -Algorithm SHA256).Hash
+$headPath = "$tmp\\head\\src\\test\\java\\com\\specproof\\demo\\{TEST_CLASS_NAME}.java"
+$headHash = (Get-FileHash $headPath -Algorithm SHA256).Hash
 if ($baseHash -ne $headHash) {{ throw "SHA-256 MISMATCH: base=$baseHash head=$headHash" }}
 Write-Host "[3/5] SHA-256: $baseHash"
 Write-Host "[4/5] Base test (expect PASS — 401 + DB unchanged)..."
-& "$tmp\\base\\mvnw.cmd" -B -Dtest={TEST_CLASS_NAME} test "-Dmaven.test.failure.ignore=false" -f "$tmp\\base"
+& "$tmp\\base\\mvnw.cmd" -B -Dtest={TEST_CLASS_NAME} test `
+    "-Dmaven.test.failure.ignore=false" -f "$tmp\\base"
 $baseExit = $LASTEXITCODE
 Write-Host "[5/5] Head test (expect FAIL — 200 + DB changed)..."
-& "$tmp\\head\\mvnw.cmd" -B -Dtest={TEST_CLASS_NAME} test "-Dmaven.test.failure.ignore=false" -f "$tmp\\head"
+& "$tmp\\head\\mvnw.cmd" -B -Dtest={TEST_CLASS_NAME} test `
+    "-Dmaven.test.failure.ignore=false" -f "$tmp\\head"
 $headExit = $LASTEXITCODE
 Write-Host "=== RESULTS ==="
 Write-Host "BASE exit: $baseExit (expect 0)"
@@ -769,10 +887,12 @@ Remove-Item -Recurse -Force $tmp
         zf.writestr("evidence/head_stderr.txt", head_result.get("stderr", "")[:50000])
         zf.writestr("evidence/diff_evidence.json", json.dumps(diff_evidence, indent=2))
         zf.writestr("evidence/blocker_check.json", json.dumps(blocker_check, indent=2, default=str))
-        zf.writestr("evidence/surefire_base.json",
-                     json.dumps(base_result.get("surefire", []), indent=2))
-        zf.writestr("evidence/surefire_head.json",
-                     json.dumps(head_result.get("surefire", []), indent=2))
+        zf.writestr(
+            "evidence/surefire_base.json", json.dumps(base_result.get("surefire", []), indent=2)
+        )
+        zf.writestr(
+            "evidence/surefire_head.json", json.dumps(head_result.get("surefire", []), indent=2)
+        )
 
     return str(capsule_path)
 
@@ -818,24 +938,24 @@ def replay_capsule(capsule_path: str) -> dict:
 # ═══════════════════════════════════════════════════════════════════
 
 _SECRET_PATTERNS = [
-    (r'sk-[a-zA-Z0-9]{32,}', "OpenAI/LLM API Key", "CRITICAL"),
+    (r"sk-[a-zA-Z0-9]{32,}", "OpenAI/LLM API Key", "CRITICAL"),
     (r'api[f_]?key\s*[:=]\s*["\'][^"\']{8,}["\']', "API Key Assignment", "CRITICAL"),
-    (r'-----BEGIN (RSA |EC )?PRIVATE KEY-----', "Private Key Block", "CRITICAL"),
-    (r'github_pat_[a-zA-Z0-9_]{20,}', "GitHub PAT", "CRITICAL"),
-    (r'ghp_[a-zA-Z0-9]{36}', "GitHub Classic Token", "CRITICAL"),
+    (r"-----BEGIN (RSA |EC )?PRIVATE KEY-----", "Private Key Block", "CRITICAL"),
+    (r"github_pat_[a-zA-Z0-9_]{20,}", "GitHub PAT", "CRITICAL"),
+    (r"ghp_[a-zA-Z0-9]{36}", "GitHub Classic Token", "CRITICAL"),
     (r'password\s*[:=]\s*["\'][^"\']{4,}["\']', "Password in Config", "HIGH"),
     (r'secret\s*[:=]\s*["\'][^"\']{8,}["\']', "Secret in Config", "HIGH"),
-    (r'jdbc:mysql://.*?:.*?@', "JDBC URL with Credentials", "HIGH"),
-    (r'AKIA[0-9A-Z]{16}', "AWS Access Key ID", "HIGH"),
-    (r'eyJ[a-zA-Z0-9\-_]+\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+', "JWT Token", "MEDIUM"),
+    (r"jdbc:mysql://.*?:.*?@", "JDBC URL with Credentials", "HIGH"),
+    (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID", "HIGH"),
+    (r"eyJ[a-zA-Z0-9\-_]+\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+", "JWT Token", "MEDIUM"),
 ]
+
 
 def security_scan(root: str) -> dict:
     findings = []
     scanned = 0
 
-    exclude_dirs = {".git", "__pycache__", "target", "node_modules",
-                    "artifacts/legacy-invalid"}
+    exclude_dirs = {".git", "__pycache__", "target", "node_modules", "artifacts/legacy-invalid"}
     self_script = "scripts/p0_5_closed_loop.py"
 
     for fp in Path(root).rglob("*"):
@@ -863,16 +983,31 @@ def security_scan(root: str) -> dict:
             for pattern, name, sev in _SECRET_PATTERNS:
                 for m in re.finditer(pattern, line, re.IGNORECASE):
                     matched = m.group(0)
-                    if any(skip in matched.lower() for skip in [
-                        "replace_me", "demo_pass", "demo-secret", "test_pass",
-                        "your_", "changeme", "specproof_canary", "somehash",
-                    ]):
+                    if any(
+                        skip in matched.lower()
+                        for skip in [
+                            "replace_me",
+                            "demo_pass",
+                            "demo-secret",
+                            "test_pass",
+                            "your_",
+                            "changeme",
+                            "specproof_canary",
+                            "somehash",
+                        ]
+                    ):
                         continue
-                    findings.append({
-                        "path": rel, "line": lineno, "pattern": name,
-                        "severity": sev,
-                        "matched": matched[:3] + "***" + matched[-3:] if len(matched) > 6 else "***",
-                    })
+                    findings.append(
+                        {
+                            "path": rel,
+                            "line": lineno,
+                            "pattern": name,
+                            "severity": sev,
+                            "matched": (
+                                matched[:3] + "***" + matched[-3:] if len(matched) > 6 else "***"
+                            ),
+                        }
+                    )
 
     # Canary injection self-test
     canary_file = Path(root) / ".specproof_canary_test.txt"
@@ -898,6 +1033,7 @@ def security_scan(root: str) -> dict:
 # MAIN
 # ═══════════════════════════════════════════════════════════════════
 
+
 def main():
     print("=" * 72)
     print("  SpecProof P0.5 Closed-Loop Verification — Final v3")
@@ -915,11 +1051,11 @@ def main():
 
     # ── Record initial state ──
     demo_branch_before = run(
-        ["git", "-C", str(DEMO_REPO), "rev-parse", "--abbrev-ref", "HEAD"],
-        timeout=10).stdout.strip()
+        ["git", "-C", str(DEMO_REPO), "rev-parse", "--abbrev-ref", "HEAD"], timeout=10
+    ).stdout.strip()
     demo_sha_before = run(
-        ["git", "-C", str(DEMO_REPO), "rev-parse", "HEAD"],
-        timeout=10).stdout.strip()
+        ["git", "-C", str(DEMO_REPO), "rev-parse", "HEAD"], timeout=10
+    ).stdout.strip()
     print(f"Demo repo initial: {demo_sha_before[:8]} ({demo_branch_before})")
 
     try:
@@ -932,8 +1068,11 @@ def main():
 
         compile_ws = create_worktree(BASE_COMMIT, "compile")
         kept_worktrees.append(compile_ws)
+        compile_head = run(
+            ["git", "-C", compile_ws, "rev-parse", "--short", "HEAD"], timeout=10
+        ).stdout.strip()
         print(f"  Compile worktree: {compile_ws}")
-        print(f"  HEAD verified: {run(['git', '-C', compile_ws, 'rev-parse', '--short', 'HEAD'], timeout=10).stdout.strip()}")
+        print(f"  HEAD verified: {compile_head}")
 
         # Generate + validate
         test_code, provenance = generate_and_validate_test(compile_ws, report)
@@ -964,15 +1103,23 @@ def main():
         head_ws = create_worktree(HEAD_COMMIT, "head")
         kept_worktrees.extend([base_ws, head_ws])
 
-        base_head = run(["git", "-C", base_ws, "rev-parse", "--short", "HEAD"], timeout=10).stdout.strip()
-        head_head = run(["git", "-C", head_ws, "rev-parse", "--short", "HEAD"], timeout=10).stdout.strip()
+        base_head = run(
+            ["git", "-C", base_ws, "rev-parse", "--short", "HEAD"], timeout=10
+        ).stdout.strip()
+        head_head = run(
+            ["git", "-C", head_ws, "rev-parse", "--short", "HEAD"], timeout=10
+        ).stdout.strip()
         print(f"  Base: {base_ws}  HEAD={base_head}")
         print(f"  Head: {head_ws}  HEAD={head_head}")
 
         # Verify clean
         for label, ws in [("Base", base_ws), ("Head", head_ws)]:
             st = run(["git", "-C", ws, "status", "--short"], timeout=10).stdout.strip()
-            dirty = [l for l in st.splitlines() if l.strip() and "AuthDbStateRegressionTest" not in l]
+            dirty = [
+                line
+                for line in st.splitlines()
+                if line.strip() and "AuthDbStateRegressionTest" not in line
+            ]
             if dirty:
                 print(f"  WARNING: {label} has pre-existing modifications: {dirty}")
 
@@ -1039,8 +1186,10 @@ def main():
         for label, result in [("Base", base_result), ("Head", head_result)]:
             if result.get("surefire"):
                 sf = result["surefire"][0]
-                print(f"\n    {label} Surefire: {sf.get('tests')} tests, "
-                      f"{sf.get('failures')} failures, {sf.get('errors')} errors")
+                print(
+                    f"\n    {label} Surefire: {sf.get('tests')} tests, "
+                    f"{sf.get('failures')} failures, {sf.get('errors')} errors"
+                )
 
         # ═══════════════════════════════════════════════════════
         # 4. Evidence & BLOCKER check
@@ -1055,9 +1204,12 @@ def main():
         report["10_evidence"] = "PASS" if diff_evidence["annotation_removed"] else "FAIL"
 
         env_info = {
-            "java_home": JAVA_HOME, "os": "Windows",
-            "base_commit": BASE_COMMIT, "head_commit": HEAD_COMMIT,
-            "timestamp": ts(), "run_id": run_id,
+            "java_home": JAVA_HOME,
+            "os": "Windows",
+            "base_commit": BASE_COMMIT,
+            "head_commit": HEAD_COMMIT,
+            "timestamp": ts(),
+            "run_id": run_id,
         }
 
         # Placeholder capsule for condition check
@@ -1066,9 +1218,13 @@ def main():
         tmp_cap.write_text("placeholder", encoding="utf-8")
 
         blocker_check = check_10_blocker_conditions(
-            base_result, head_result, diff_evidence, test_code,
+            base_result,
+            head_result,
+            diff_evidence,
+            test_code,
             provenance.get("generated_source_digest", ""),
-            str(tmp_cap), provenance,
+            str(tmp_cap),
+            provenance,
         )
         tmp_cap.unlink()
 
@@ -1092,8 +1248,15 @@ def main():
 
         # Update condition 8 with real capsule
         capsule_path = build_capsule(
-            finding_id, base_result, head_result, diff_evidence,
-            blocker_check, test_code, provenance, env_info, run_id,
+            finding_id,
+            base_result,
+            head_result,
+            diff_evidence,
+            blocker_check,
+            test_code,
+            provenance,
+            env_info,
+            run_id,
         )
         size = Path(capsule_path).stat().st_size
         print(f"  Capsule: {capsule_path} ({size} bytes)")
@@ -1111,9 +1274,7 @@ def main():
         blocker_check["conditions"]["8_capsule_clean_replay"]["detail"] = (
             "Capsule replay verified: manifest + fixtures + evidence + replay script"
         )
-        blocker_check["all_met"] = all(
-            c["pass"] for c in blocker_check["conditions"].values()
-        )
+        blocker_check["all_met"] = all(c["pass"] for c in blocker_check["conditions"].values())
         blocker_check["verdict"] = "BLOCKER" if blocker_check["all_met"] else "MAJOR"
 
         report["11_capsule_replay"] = "PASS" if replay["success"] else "FAIL"
@@ -1132,17 +1293,22 @@ def main():
         for f in scan["findings"]:
             print(f"  [{f['severity']}] {f['path']}:{f['line']} — {f['pattern']}")
         print(f"  Canary: injected={scan['canary_injected']} detected={scan['canary_detected']}")
-        report["12_security_scan"] = "PASS" if (scan["passed"] and scan["canary_detected"]) else "FAIL"
+        scan_ok = scan["passed"] and scan["canary_detected"]
+        report["12_security_scan"] = "PASS" if scan_ok else "FAIL"
 
         # ═══════════════════════════════════════════════════════
         # 7. Known issue check
         # ═══════════════════════════════════════════════════════
         ex_test = Path(base_ws) / "src/test/java/com/specproof/demo/UserControllerTest.java"
         has_dup_bug = False
-        if ex_test.exists():
-            if "changeEmailToDuplicateShouldFail" in ex_test.read_text(encoding="utf-8"):
-                has_dup_bug = True
-                print("\n  changeEmailToDuplicateShouldFail: CONFIRMED as pre-existing, tracked independently")
+        if ex_test.exists() and (
+            "changeEmailToDuplicateShouldFail" in ex_test.read_text(encoding="utf-8")
+        ):
+            has_dup_bug = True
+            print(
+                "\n  changeEmailToDuplicateShouldFail: "
+                "CONFIRMED as pre-existing, tracked independently"
+            )
 
         # ═══════════════════════════════════════════════════════
         # Cleanup worktrees
@@ -1157,12 +1323,13 @@ def main():
 
         # Verify demo repo restored
         demo_sha_after = run(
-            ["git", "-C", str(DEMO_REPO), "rev-parse", "HEAD"],
-            timeout=10).stdout.strip()
+            ["git", "-C", str(DEMO_REPO), "rev-parse", "HEAD"], timeout=10
+        ).stdout.strip()
         print(f"  Demo repo SHA: {demo_sha_after[:8]} (was {demo_sha_before[:8]})")
 
-        wl = run(["git", "-C", str(DEMO_REPO), "worktree", "list", "--porcelain"],
-                 timeout=10).stdout
+        wl = run(
+            ["git", "-C", str(DEMO_REPO), "worktree", "list", "--porcelain"], timeout=10
+        ).stdout
         wl_count = wl.count("worktree ")
         print(f"  Worktrees remaining: {wl_count}")
 
@@ -1182,9 +1349,18 @@ def main():
 
         all_pass = True
         for key in [
-            "1_llm_call", "2_provenance", "3_human_edited", "4_test_sha256_match",
-            "5_base_execution", "6_head_execution", "7_http_diff", "8_db_state_diff",
-            "9_attribution", "10_evidence", "11_capsule_replay", "12_security_scan",
+            "1_llm_call",
+            "2_provenance",
+            "3_human_edited",
+            "4_test_sha256_match",
+            "5_base_execution",
+            "6_head_execution",
+            "7_http_diff",
+            "8_db_state_diff",
+            "9_attribution",
+            "10_evidence",
+            "11_capsule_replay",
+            "12_security_scan",
         ]:
             val = report.get(key, "NOT_CHECKED")
             passed = isinstance(val, str) and val.startswith("PASS")
@@ -1198,18 +1374,33 @@ def main():
             print(f"  OVERALL: PASS — P0.5 BLOCKER ({passed_count}/10 conditions)")
             print("  P0.5 IS READY FOR GRADUATION.")
         else:
-            missing = [k for k in [
-                "1_llm_call", "2_provenance", "3_human_edited", "4_test_sha256_match",
-                "5_base_execution", "6_head_execution", "7_http_diff", "8_db_state_diff",
-                "9_attribution", "10_evidence", "11_capsule_replay", "12_security_scan",
-            ] if not (isinstance(report.get(k, ""), str) and report.get(k, "").startswith("PASS"))]
+            missing = [
+                k
+                for k in [
+                    "1_llm_call",
+                    "2_provenance",
+                    "3_human_edited",
+                    "4_test_sha256_match",
+                    "5_base_execution",
+                    "6_head_execution",
+                    "7_http_diff",
+                    "8_db_state_diff",
+                    "9_attribution",
+                    "10_evidence",
+                    "11_capsule_replay",
+                    "12_security_scan",
+                ]
+                if not (isinstance(report.get(k, ""), str) and report.get(k, "").startswith("PASS"))
+            ]
             print(f"  OVERALL: FAIL — missing: {missing}")
             print("  P0.5 IS NOT READY.")
 
         # Save comprehensive JSON report
         report_path = ARTIFACTS_DIR / f"acceptance_report_{run_id}.json"
         full = {
-            "run_id": run_id, "finding_id": finding_id, "timestamp": ts(),
+            "run_id": run_id,
+            "finding_id": finding_id,
+            "timestamp": ts(),
             "overall_pass": all_pass,
             "report": report,
             "provenance": provenance,
@@ -1217,8 +1408,14 @@ def main():
             "diff_evidence": diff_evidence,
             "env_info": env_info,
             "capsule_path": capsule_path,
-            "base": {"exit_code": base_result["exit_code"], "surefire": base_result.get("surefire", [])},
-            "head": {"exit_code": head_result["exit_code"], "surefire": head_result.get("surefire", [])},
+            "base": {
+                "exit_code": base_result["exit_code"],
+                "surefire": base_result.get("surefire", []),
+            },
+            "head": {
+                "exit_code": head_result["exit_code"],
+                "surefire": head_result.get("surefire", []),
+            },
             "demo_repo_restored": demo_sha_after[:8] == demo_sha_before[:8],
             "changeEmailToDuplicateShouldFail_preexisting": has_dup_bug,
         }
@@ -1230,16 +1427,10 @@ def main():
     finally:
         # Always clean up remaining worktrees
         for ws in kept_worktrees:
-            try:
-                run(["git", "-C", str(DEMO_REPO), "worktree", "remove", "--force", ws],
-                    timeout=30)
-            except Exception:
-                pass
-        try:
-            run(["git", "-C", str(DEMO_REPO), "worktree", "prune", "--expire=now"],
-                timeout=10)
-        except Exception:
-            pass
+            with contextlib.suppress(Exception):
+                run(["git", "-C", str(DEMO_REPO), "worktree", "remove", "--force", ws], timeout=30)
+        with contextlib.suppress(Exception):
+            run(["git", "-C", str(DEMO_REPO), "worktree", "prune", "--expire=now"], timeout=10)
 
 
 if __name__ == "__main__":

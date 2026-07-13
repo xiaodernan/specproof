@@ -47,9 +47,7 @@ class CapabilityProbe:
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
-        self._redacted_key = (
-            api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
-        )
+        self._redacted_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -115,9 +113,7 @@ class CapabilityProbe:
     async def _check_models(self) -> tuple[bool, list[str], str]:
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.get(
-                    f"{self.base_url}/models", headers=self._headers()
-                )
+                resp = await client.get(f"{self.base_url}/models", headers=self._headers())
             if resp.status_code != 200:
                 return False, [], f"HTTP {resp.status_code}"
             data = resp.json()
@@ -209,9 +205,7 @@ class CapabilityProbe:
                     "description": "Get the weather",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "city": {"type": "string"}
-                        },
+                        "properties": {"city": {"type": "string"}},
                         "required": ["city"],
                     },
                 },
@@ -219,9 +213,7 @@ class CapabilityProbe:
         ]
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "user", "content": "What is the weather in Paris?"}
-            ],
+            "messages": [{"role": "user", "content": "What is the weather in Paris?"}],
             "tools": tools,
             "max_tokens": 50,
         }
@@ -320,9 +312,7 @@ class CapabilityProbe:
                     "description": "Calculate an expression",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "expression": {"type": "string"}
-                        },
+                        "properties": {"expression": {"type": "string"}},
                         "required": ["expression"],
                     },
                 },
@@ -421,9 +411,7 @@ class CapabilityProbe:
                     json=payload,
                 )
             rate_limit_headers = {
-                k: v
-                for k, v in resp.headers.items()
-                if k.lower().startswith("x-ratelimit")
+                k: v for k, v in resp.headers.items() if k.lower().startswith("x-ratelimit")
             }
             return len(rate_limit_headers) > 0, f"found {len(rate_limit_headers)} headers"
         except Exception as e:

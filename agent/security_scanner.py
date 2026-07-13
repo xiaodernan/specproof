@@ -15,27 +15,34 @@ from pathlib import Path
 
 _SECRET_PATTERNS: list[tuple[str, str, str]] = [
     # (regex, name, severity)
-    (r'sk-[a-zA-Z0-9]{32,}', "OpenAI/LLM API Key", "CRITICAL"),
+    (r"sk-[a-zA-Z0-9]{32,}", "OpenAI/LLM API Key", "CRITICAL"),
     (r'api[f_]?key\s*[:=]\s*["\'][^"\']{8,}["\']', "API Key Assignment", "CRITICAL"),
-    (r'Authorization\s*[:=]\s*Bearer\s+[a-zA-Z0-9\-_\.]{20,}', "Bearer Token", "CRITICAL"),
+    (r"Authorization\s*[:=]\s*Bearer\s+[a-zA-Z0-9\-_\.]{20,}", "Bearer Token", "CRITICAL"),
     (r'password\s*[:=]\s*["\'][^"\']{4,}["\']', "Password in Config", "HIGH"),
     (r'secret\s*[:=]\s*["\'][^"\']{8,}["\']', "Secret in Config", "HIGH"),
-    (r'jdbc:mysql://.*?:.*?@', "JDBC URL with Credentials", "HIGH"),
-    (r'redis://.*?:.*?@', "Redis URL with Credentials", "HIGH"),
-    (r'amqp://.*?:.*?@', "RabbitMQ URL with Credentials", "HIGH"),
-    (r'eyJ[a-zA-Z0-9\-_]+\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+', "JWT Token", "MEDIUM"),
-    (r'-----BEGIN (RSA |EC )?PRIVATE KEY-----', "Private Key Block", "CRITICAL"),
-    (r'github_pat_[a-zA-Z0-9_]{20,}', "GitHub PAT", "CRITICAL"),
-    (r'ghp_[a-zA-Z0-9]{36}', "GitHub Classic Token", "CRITICAL"),
-    (r'AKIA[0-9A-Z]{16}', "AWS Access Key ID", "HIGH"),
-    (r'llm-api\.fagougou\.com', "Internal Hostname", "LOW"),
-    (r'deepseek-v4-pro', "Internal Model Name", "LOW"),
+    (r"jdbc:mysql://.*?:.*?@", "JDBC URL with Credentials", "HIGH"),
+    (r"redis://.*?:.*?@", "Redis URL with Credentials", "HIGH"),
+    (r"amqp://.*?:.*?@", "RabbitMQ URL with Credentials", "HIGH"),
+    (r"eyJ[a-zA-Z0-9\-_]+\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+", "JWT Token", "MEDIUM"),
+    (r"-----BEGIN (RSA |EC )?PRIVATE KEY-----", "Private Key Block", "CRITICAL"),
+    (r"github_pat_[a-zA-Z0-9_]{20,}", "GitHub PAT", "CRITICAL"),
+    (r"ghp_[a-zA-Z0-9]{36}", "GitHub Classic Token", "CRITICAL"),
+    (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID", "HIGH"),
+    (r"llm-api\.fagougou\.com", "Internal Hostname", "LOW"),
+    (r"deepseek-v4-pro", "Internal Model Name", "LOW"),
 ]
 
 # Files/dirs to exclude from scan
 _EXCLUDE_PATTERNS = [
-    ".git/", "__pycache__/", "*.pyc", "node_modules/", ".mvn/wrapper/maven-wrapper.jar",
-    "target/", "*.class", "*.jar", "*.zip",
+    ".git/",
+    "__pycache__/",
+    "*.pyc",
+    "node_modules/",
+    ".mvn/wrapper/maven-wrapper.jar",
+    "target/",
+    "*.class",
+    "*.jar",
+    "*.zip",
     ".env",  # gitignored, contains real API key by design
     "agent/security_scanner.py",  # self — contains regex patterns, not real secrets
 ]
@@ -129,18 +136,18 @@ def scan_directory(root: str) -> SecurityScanResult:
                     if "your_" in matched.lower() or "changeme" in matched.lower():
                         continue
 
-                    result.findings.append(SecurityFinding(
-                        path=rel_path,
-                        line=line_no,
-                        pattern_name=name,
-                        severity=severity,
-                        matched_text=_redact_match(matched),
-                        context=line.strip()[:120],
-                    ))
+                    result.findings.append(
+                        SecurityFinding(
+                            path=rel_path,
+                            line=line_no,
+                            pattern_name=name,
+                            severity=severity,
+                            matched_text=_redact_match(matched),
+                            context=line.strip()[:120],
+                        )
+                    )
 
-    result.passed = len(
-        [f for f in result.findings if f.severity in ("CRITICAL", "HIGH")]
-    ) == 0
+    result.passed = len([f for f in result.findings if f.severity in ("CRITICAL", "HIGH")]) == 0
     return result
 
 
@@ -219,9 +226,7 @@ def scan_env_file(project_root: str) -> dict:
         "gitignored": env_gitignored,
         "has_real_key": has_real_key,
         "risk": (
-            "high" if (has_real_key and not env_gitignored)
-            else "medium" if has_real_key
-            else "low"
+            "high" if (has_real_key and not env_gitignored) else "medium" if has_real_key else "low"
         ),
         "note": (
             "WARNING: .env contains real API key and is NOT in .gitignore!"
@@ -252,13 +257,14 @@ def format_scan_report(result: SecurityScanResult) -> str:
                 lines.append(f"  [{sev}]: {count}")
 
         lines.append("\nDetailed findings:")
-        for f in sorted(result.findings, key=lambda x: (
-            {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}.get(x.severity, 4),
-            x.path,
-        )):
-            lines.append(
-                f"  [{f.severity}] {f.path}:{f.line} — {f.pattern_name}"
-            )
+        for f in sorted(
+            result.findings,
+            key=lambda x: (
+                {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}.get(x.severity, 4),
+                x.path,
+            ),
+        ):
+            lines.append(f"  [{f.severity}] {f.path}:{f.line} — {f.pattern_name}")
             lines.append(f"    Matched: {f.matched_text}")
             lines.append(f"    Context: {f.context}")
 

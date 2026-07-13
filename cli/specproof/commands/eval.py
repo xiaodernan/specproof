@@ -42,10 +42,7 @@ def eval_cmd(
         click.echo(f"ERROR: Cases directory not found: {cases_path}", err=True)
         raise SystemExit(1)
 
-    case_dirs = sorted(
-        d for d in cases_path.iterdir()
-        if d.is_dir() and d.name.startswith("case-")
-    )
+    case_dirs = sorted(d for d in cases_path.iterdir() if d.is_dir() and d.name.startswith("case-"))
 
     if not case_dirs:
         click.echo(f"No case directories found in {cases_path}")
@@ -80,7 +77,7 @@ def eval_cmd(
                     spec_path=spec_file,
                     depth="FAST",
                 )
-                result = graph.invoke(state)
+                result = graph.invoke(state)  # type: ignore[attr-defined]
                 graph_findings = result.get("confirmed_findings", [])
                 graph_contracts = result.get("contracts", [])
                 click.echo(
@@ -96,10 +93,10 @@ def eval_cmd(
     false_positives = 0
 
     for case_dir in case_dirs:
-        spec_file = case_dir / "spec.md"
+        case_spec = case_dir / "spec.md"
         ground_truth_file = case_dir / "ground-truth.json"
 
-        if not spec_file.exists():
+        if not case_spec.exists():
             click.echo(f"  SKIP {case_dir.name}: no spec.md")
             continue
 
@@ -119,7 +116,7 @@ def eval_cmd(
             total_should_detect += 1
 
         # ── Run contract compilation on case spec ──
-        spec_text = spec_file.read_text(encoding="utf-8")
+        spec_text = case_spec.read_text(encoding="utf-8")
         contracts = _parse_requirements(spec_text)
         contract_types = {c["checker_type"] for c in contracts}
 
@@ -164,8 +161,7 @@ def eval_cmd(
             "expected_evidence": expected_evidence,
             "matched_findings": len(matched_findings),
             "matched_severities": (
-                ", ".join(sorted(matched_severities))
-                if matched_severities else "—"
+                ", ".join(sorted(matched_severities)) if matched_severities else "—"  # type: ignore[arg-type]
             ),
             "contracts_found": ", ".join(sorted(contract_types)),
             "expected_contract": expected_contract or "—",
@@ -182,21 +178,14 @@ def eval_cmd(
     # ── Summary statistics ──
     total_cases = len(results)
     precision = (
-        detected / (detected + false_positives) * 100
-        if (detected + false_positives) > 0 else 100.0
+        detected / (detected + false_positives) * 100 if (detected + false_positives) > 0 else 100.0
     )
-    recall = (
-        detected / total_should_detect * 100
-        if total_should_detect > 0 else 100.0
-    )
-    f1 = (
-        2 * precision * recall / (precision + recall)
-        if (precision + recall) > 0 else 0.0
-    )
+    recall = detected / total_should_detect * 100 if total_should_detect > 0 else 100.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
-    click.echo(f"\n{'='*50}")
+    click.echo(f"\n{'=' * 50}")
     click.echo("Evaluation Results")
-    click.echo(f"{'='*50}")
+    click.echo(f"{'=' * 50}")
     click.echo(f"Total cases:        {total_cases}")
     click.echo(f"Should detect:      {total_should_detect}")
     click.echo(f"Detected:           {detected}")

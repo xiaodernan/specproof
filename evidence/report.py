@@ -24,20 +24,20 @@ def render_verification_report(
         }.get(r.get("result", ""), "")
         symbols = ", ".join(r.get("changed_symbols", [])) or "—"
         rows_html += f"""<tr class="{result_class}">
-            <td>{r.get('contract_id', '')}</td>
-            <td class="req">{r.get('requirement', '')}</td>
+            <td>{r.get("contract_id", "")}</td>
+            <td class="req">{r.get("requirement", "")}</td>
             <td>{symbols}</td>
-            <td>{r.get('experiment', '')}</td>
-            <td class="{result_class}">{r.get('result', '')}</td>
-            <td>{r.get('evidence', '')}</td>
+            <td>{r.get("experiment", "")}</td>
+            <td class="{result_class}">{r.get("result", "")}</td>
+            <td>{r.get("evidence", "")}</td>
         </tr>"""
 
     findings_html = ""
     for f in findings:
-        findings_html += f"""<div class="finding {f.get('severity', '').lower()}">
-            <h3>[{f.get('severity', '')}] {f.get('contract_id', '')}</h3>
-            <p>{f.get('description', '')}</p>
-            <p>Confidence: {f.get('confidence', 0):.0%} | Type: {f.get('evidence_type', '')}</p>
+        findings_html += f"""<div class="finding {f.get("severity", "").lower()}">
+            <h3>[{f.get("severity", "")}] {f.get("contract_id", "")}</h3>
+            <p>{f.get("description", "")}</p>
+            <p>Confidence: {f.get("confidence", 0):.0%} | Type: {f.get("evidence_type", "")}</p>
         </div>"""
 
     passed = matrix.get("passed", 0)
@@ -117,9 +117,11 @@ def render_verification_report(
 
     <section>
         <h2>Findings ({len(findings)})</h2>
-        {findings_html if findings else (
-            '<p style="color: #7ee787;">No findings. All contracts passed.</p>'
-        )}
+        {
+        findings_html
+        if findings
+        else ('<p style="color: #7ee787;">No findings. All contracts passed.</p>')
+    }
     </section>
 
     <footer>
@@ -144,8 +146,10 @@ def render_eval_report(results: list[dict]) -> str:
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
     verdict_color = {
-        "PASS": "#7ee787", "PARTIAL": "#d29922",
-        "MISS": "#ff7b72", "FALSE_POSITIVE": "#ff7b72",
+        "PASS": "#7ee787",
+        "PARTIAL": "#d29922",
+        "MISS": "#ff7b72",
+        "FALSE_POSITIVE": "#ff7b72",
     }
 
     rows_html = ""
@@ -153,14 +157,14 @@ def render_eval_report(results: list[dict]) -> str:
         v = r.get("verdict", "")
         color = verdict_color.get(v, "#c9d1d9")
         rows_html += f"""<tr>
-            <td>{r.get('case', '')}</td>
+            <td>{r.get("case", "")}</td>
             <td style="color:{color};font-weight:700">{v}</td>
-            <td>{r.get('expected_contract', '')}</td>
-            <td>{r.get('expected_severity', '')}</td>
-            <td>{r.get('expected_evidence', '')}</td>
-            <td>{r.get('matched_findings', 0)}</td>
-            <td>{r.get('matched_severities', '')}</td>
-            <td>{r.get('contracts_found', '')}</td>
+            <td>{r.get("expected_contract", "")}</td>
+            <td>{r.get("expected_severity", "")}</td>
+            <td>{r.get("expected_evidence", "")}</td>
+            <td>{r.get("matched_findings", 0)}</td>
+            <td>{r.get("matched_severities", "")}</td>
+            <td>{r.get("contracts_found", "")}</td>
         </tr>"""
 
     return f"""<!DOCTYPE html>

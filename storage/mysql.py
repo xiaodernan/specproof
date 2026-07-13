@@ -46,7 +46,7 @@ class MySQLStore:
         )
 
     @contextmanager
-    def connection(self):
+    def connection(self) -> Any:
         conn = self._connect()
         try:
             yield conn
@@ -130,10 +130,8 @@ class MySQLStore:
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         with self.connection() as conn:
-            conn.cursor().execute(
-                "SELECT * FROM verification_jobs WHERE id = %s", (job_id,)
-            )
-            return conn.cursor().fetchone()
+            conn.cursor().execute("SELECT * FROM verification_jobs WHERE id = %s", (job_id,))
+            return conn.cursor().fetchone()  # type: ignore[no-any-return]
 
     def insert_finding(self, finding: dict[str, Any]) -> None:
         _sql = (

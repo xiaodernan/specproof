@@ -60,7 +60,7 @@ def build_phase0_graph() -> StateGraph:
     builder.add_edge("create_capsule", "publish_report")
     builder.add_edge("publish_report", END)
 
-    return builder.compile()
+    return builder.compile()  # type: ignore[return-value]
 
 
 __all__ = ["build_phase0_graph", "Phase0State", "initial_state"]

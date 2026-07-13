@@ -36,7 +36,7 @@ class OpenAICompatibleProvider(ModelProvider):
         timeout: float = 180.0,
         probe_on_init: bool = False,
     ) -> None:
-        self.base_url = (base_url or os.getenv("LLM_BASE_URL", "")).rstrip("/")
+        self.base_url = (base_url or os.getenv("LLM_BASE_URL") or "").rstrip("/")
         self.api_key = api_key or os.getenv("LLM_API_KEY", "")
         self.model = model or os.getenv("LLM_MODEL", "deepseek-v4-pro")
         self.timeout = timeout
@@ -65,7 +65,7 @@ class OpenAICompatibleProvider(ModelProvider):
 
     @property
     def probe_result(self) -> ProbeResult:
-        return self._probe_result  # may be None before first probe
+        return self._probe_result  # type: ignore[return-value]
 
     async def _ensure_probed(self) -> ProbeResult:
         """Lazy probe on first API call. Thread-safe enough for Phase 0."""
@@ -76,8 +76,8 @@ class OpenAICompatibleProvider(ModelProvider):
     async def run_probe(self) -> ProbeResult:
         probe = CapabilityProbe(
             base_url=self.base_url,
-            api_key=self.api_key,
-            model=self.model,
+            api_key=self.api_key or "",
+            model=self.model or "",
         )
         self._probe_result = await probe.run()
         return self._probe_result
@@ -122,7 +122,7 @@ class OpenAICompatibleProvider(ModelProvider):
         response = await self.client.chat.completions.create(**kwargs)
         return self._to_llm_response(response)
 
-    async def chat_stream(
+    async def chat_stream(  # type: ignore[override, misc]
         self,
         messages: list[LLMMessage],
         tools: list[dict] | None = None,
@@ -170,7 +170,7 @@ class OpenAICompatibleProvider(ModelProvider):
                         if delta.tool_calls
                         else []
                     ),
-                    model=chunk.model or self.model,
+                    model=chunk.model or self.model or "",
                     finish_reason=chunk.choices[0].finish_reason or "",
                 )
 

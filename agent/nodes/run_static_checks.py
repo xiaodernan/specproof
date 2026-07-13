@@ -24,32 +24,34 @@ def run_static_checks_node(state: Phase0State) -> dict:
         if "REMOVED" in sym or "ANNOTATION_REMOVED" in sym
     )
     if auth_removed:
-        static_findings.append({
-            "id": "STATIC-AUTH-01",
-            "contract_id": "AUTH-01",
-            "severity": "BLOCKER",
-            "type": "annotation_removed",
-            "description": "@PreAuthorize removed from controller method",
-            "evidence_type": "static_analysis",
-            "confidence": 0.95,
-        })
+        static_findings.append(
+            {
+                "id": "STATIC-AUTH-01",
+                "contract_id": "AUTH-01",
+                "severity": "BLOCKER",
+                "type": "annotation_removed",
+                "description": "@PreAuthorize removed from controller method",
+                "evidence_type": "static_analysis",
+                "confidence": 0.95,
+            }
+        )
 
     # Check 2: Detect @Transactional removal
     tx_removed = any(
-        "@Transactional" in sym
-        for sym in changed_symbols
-        if "ANNOTATION_REMOVED" in sym
+        "@Transactional" in sym for sym in changed_symbols if "ANNOTATION_REMOVED" in sym
     )
     if tx_removed:
-        static_findings.append({
-            "id": "STATIC-TX-01",
-            "contract_id": "TRANSACTION-01",
-            "severity": "MAJOR",
-            "type": "annotation_removed",
-            "description": "@Transactional removed — potential data inconsistency",
-            "evidence_type": "static_analysis",
-            "confidence": 0.88,
-        })
+        static_findings.append(
+            {
+                "id": "STATIC-TX-01",
+                "contract_id": "TRANSACTION-01",
+                "severity": "MAJOR",
+                "type": "annotation_removed",
+                "description": "@Transactional removed — potential data inconsistency",
+                "evidence_type": "static_analysis",
+                "confidence": 0.88,
+            }
+        )
 
     # Check 3: Scan head workspace controller for missing security annotations
     if head_workspace:
@@ -64,29 +66,27 @@ def run_static_checks_node(state: Phase0State) -> dict:
 
                     # Look for @PutMapping / @PostMapping / @DeleteMapping without @PreAuthorize
                     mutating = re.findall(
-                        r'(@PutMapping|@PostMapping|@DeleteMapping)\([^)]*\)\n\s*public',
+                        r"(@PutMapping|@PostMapping|@DeleteMapping)\([^)]*\)\n\s*public",
                         content,
                     )
                     if mutating:
                         # Check if @PreAuthorize exists before each mutation
                         for m in mutating:
                             idx = content.find(m)
-                            snippet = content[max(0, idx - 80):idx]
+                            snippet = content[max(0, idx - 80) : idx]
                             if "@PreAuthorize" not in snippet and "@Secured" not in snippet:
-                                static_findings.append({
-                                    "id": (
-                                        f"STATIC-MUT-"
-                                        f"{len(static_findings) + 1:02d}"
-                                    ),
-                                    "contract_id": "AUTH-01",
-                                    "severity": "BLOCKER",
-                                    "type": "missing_auth_annotation",
-                                    "description": (
-                                        f"Mutating endpoint without @PreAuthorize "
-                                        f"in {fname}"
-                                    ),
-                                    "evidence_type": "static_analysis",
-                                    "confidence": 0.92,
-                                })
+                                static_findings.append(
+                                    {
+                                        "id": (f"STATIC-MUT-{len(static_findings) + 1:02d}"),
+                                        "contract_id": "AUTH-01",
+                                        "severity": "BLOCKER",
+                                        "type": "missing_auth_annotation",
+                                        "description": (
+                                            f"Mutating endpoint without @PreAuthorize in {fname}"
+                                        ),
+                                        "evidence_type": "static_analysis",
+                                        "confidence": 0.92,
+                                    }
+                                )
 
     return {"static_findings": static_findings}

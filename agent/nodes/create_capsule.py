@@ -42,9 +42,7 @@ def create_capsule_node(state: Phase0State) -> dict:
             "contract_id": finding.get("contract_id"),
             "evidence_type": finding.get("evidence_type"),
         }
-        (capsule_dir / "manifest.json").write_text(
-            json.dumps(manifest, indent=2), encoding="utf-8"
-        )
+        (capsule_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
         # requirement.json
         (capsule_dir / "requirement.json").write_text(
@@ -58,9 +56,7 @@ def create_capsule_node(state: Phase0State) -> dict:
         )
 
         # finding.json
-        (capsule_dir / "finding.json").write_text(
-            json.dumps(finding, indent=2), encoding="utf-8"
-        )
+        (capsule_dir / "finding.json").write_text(json.dumps(finding, indent=2), encoding="utf-8")
 
         # generated-tests/
         tests_dir = capsule_dir / "generated-tests"
@@ -79,9 +75,7 @@ def create_capsule_node(state: Phase0State) -> dict:
         env_dir = capsule_dir / "environment"
         env_dir.mkdir(exist_ok=True)
         (env_dir / ".env.template").write_text(
-            "LLM_API_KEY=replace_me\n"
-            "MYSQL_PASSWORD=replace_me\n"
-            "REDIS_PASSWORD=replace_me\n"
+            "LLM_API_KEY=replace_me\nMYSQL_PASSWORD=replace_me\nREDIS_PASSWORD=replace_me\n"
         )
 
         # run.sh — executable replay script (bash)
@@ -143,19 +137,25 @@ def _build_replay_script(
     evidence_type = finding.get("evidence_type", "unknown")
 
     if is_windows:
-        return _build_ps1_script(fid, severity, contract_id, description,
-                                 evidence_type, capsule_dir_name)
+        return _build_ps1_script(
+            fid, severity, contract_id, description, evidence_type, capsule_dir_name
+        )
     else:
-        return _build_sh_script(fid, severity, contract_id, description,
-                                evidence_type, capsule_dir_name)
+        return _build_sh_script(
+            fid, severity, contract_id, description, evidence_type, capsule_dir_name
+        )
 
 
 def _build_sh_script(
-    fid: str, severity: str, contract_id: str, description: str,
-    evidence_type: str, capsule_dir_name: str,
+    fid: str,
+    severity: str,
+    contract_id: str,
+    description: str,
+    evidence_type: str,
+    capsule_dir_name: str,
 ) -> str:
     """Build a bash replay script."""
-    return f'''#!/bin/bash
+    return f"""#!/bin/bash
 set -euo pipefail
 
 # ============================================================
@@ -291,15 +291,19 @@ echo "============================================================"
 
 # Return to original state
 git checkout "$HEAD_REF" --quiet 2>/dev/null || true
-'''
+"""
 
 
 def _build_ps1_script(
-    fid: str, severity: str, contract_id: str, description: str,
-    evidence_type: str, capsule_dir_name: str,
+    fid: str,
+    severity: str,
+    contract_id: str,
+    description: str,
+    evidence_type: str,
+    capsule_dir_name: str,
 ) -> str:
     """Build a PowerShell replay script for Windows."""
-    return f'''# ============================================================
+    return f"""# ============================================================
 # SpecProof Bug Capsule Replay — {fid}
 # Severity: {severity}
 # Contract: {contract_id}
@@ -444,4 +448,4 @@ if ($BaseExit -eq 0 -and $HeadExit -ne 0) {{
     Write-Host "  Note: runtime test may not catch all regression types."
 }}
 Write-Host "============================================================"
-'''
+"""

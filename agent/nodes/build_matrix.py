@@ -17,10 +17,7 @@ def build_matrix_node(state: Phase0State) -> dict:
         for f in confirmed_findings:
             fid = f.get("contract_id", "")
             # Match by direct prefix, or by finding ID containing contract prefix
-            if fid and (
-                fid.upper().startswith(cid_prefix)
-                or cid_prefix in fid.upper()
-            ):
+            if fid and (fid.upper().startswith(cid_prefix) or cid_prefix in fid.upper()):
                 finding = f
                 break
 
@@ -43,19 +40,18 @@ def build_matrix_node(state: Phase0State) -> dict:
 
     # Add any extra findings not linked to contracts
     for f in confirmed_findings:
-        if not any(
-            r.get("evidence", "") == f.get("id", "")
-            for r in matrix_rows
-        ):
-            matrix_rows.append({
-                "contract_id": f.get("contract_id", "EXTRA"),
-                "requirement": f.get("description", ""),
-                "checker_type": f.get("type", ""),
-                "changed_symbols": [],
-                "experiment": f.get("source", "unknown"),
-                "result": "FAIL",
-                "evidence": f.get("id", ""),
-            })
+        if not any(r.get("evidence", "") == f.get("id", "") for r in matrix_rows):
+            matrix_rows.append(
+                {
+                    "contract_id": f.get("contract_id", "EXTRA"),
+                    "requirement": f.get("description", ""),
+                    "checker_type": f.get("type", ""),
+                    "changed_symbols": [],
+                    "experiment": f.get("source", "unknown"),
+                    "result": "FAIL",
+                    "evidence": f.get("id", ""),
+                }
+            )
 
     matrix = {
         "rows": matrix_rows,
