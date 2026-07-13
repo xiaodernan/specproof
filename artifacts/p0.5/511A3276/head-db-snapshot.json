@@ -1,0 +1,23 @@
+﻿{
+    "test_class":  "com.specproof.demo.SpecProofGeneratedTest",
+    "elapsed_s":  27.7,
+    "email_after":  "newemail@example.com",
+    "surefire":  {
+                     "skipped":  0,
+                     "errors":  0,
+                     "tests":  1,
+                     "failures":  1
+                 },
+    "email_before":  "original@example.com",
+    "method":  "JUnit assertion-based (H2 in-memory, not accessible post-JVM)",
+    "exit_code":  1,
+    "contract_result":  "FAIL",
+    "evidence":  "@PreAuthorize REMOVED from UserController.changeEmail() — unauthenticated request succeeded (200) AND mutated database",
+    "db_changed":  true,
+    "failures":  [
+                     "AssertionFailedError: Expected 401 UNAUTHORIZED but got 200 (HTTP)",
+                     "AssertionFailedError: DB STATE VIOLATION: email was \u0027original@example.com\u0027 before, now \u0027newemail@example.com\u0027 (DB)"
+                 ],
+    "commit":  "4c45832",
+    "http_status":  200
+}

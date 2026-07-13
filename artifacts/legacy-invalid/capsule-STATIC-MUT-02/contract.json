@@ -1,0 +1,8 @@
+{
+  "id": "AUTH-01",
+  "requirement": "Requirements for the email change API:",
+  "checker_type": "http",
+  "expected_behavior": "Unauthenticated requests must receive 401 Unauthorized",
+  "result": "UNVERIFIED",
+  "evidence_ref": null
+}

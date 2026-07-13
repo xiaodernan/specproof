@@ -1,0 +1,19 @@
+[
+  {
+    "name": "com.specproof.demo.SpecProofGeneratedTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "time": 15.176,
+    "testcases": [
+      {
+        "name": "putUpdateEmailWithoutAuthentication_shouldReturn401AndNotModifyDatabase",
+        "classname": "com.specproof.demo.SpecProofGeneratedTest",
+        "time": "1.045",
+        "failure": null,
+        "error": null
+      }
+    ]
+  }
+]

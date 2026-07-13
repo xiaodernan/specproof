@@ -1,0 +1,87 @@
+{
+  "finding_id": "P0_5-5ECF7092",
+  "timestamp": "2026-07-10T10:59:09.855492+00:00",
+  "report": {
+    "1_llm_generation": "PASS",
+    "2_worktrees": "PASS",
+    "3_test_injection": "PASS",
+    "4_base_test": "PASS (exit 0)",
+    "5_head_test": "PASS (regression: exit non-zero)",
+    "6_evidence": "PASS",
+    "7_blocker_conditions": "PASS",
+    "8_capsule": "PASS",
+    "9_replay": "PASS",
+    "10_security_scan": "PASS",
+    "11_canary": "PASS",
+    "12_known_issue": "PASS: pre-existing changeEmailToDuplicateShouldFail confirmed in both base/head, tracked independently, does NOT block P0.5"
+  },
+  "overall_pass": true,
+  "blocker_check": {
+    "all_blocker_conditions_met": true,
+    "conditions": {
+      "1_approved_contract": {
+        "pass": true,
+        "detail": "Security requirement mapped to @PreAuthorize removal"
+      },
+      "2_base_head_real_execution": {
+        "pass": true,
+        "detail": "Base exit=0, Head exit=1"
+      },
+      "3_attribution_to_head": {
+        "pass": true,
+        "detail": "Regression: base PASS (exit 0), head FAIL"
+      },
+      "4_db_or_behavior_evidence": {
+        "pass": true,
+        "detail": "DB state/assertion evidence present in test output"
+      },
+      "5_capsule_replayable": {
+        "pass": true,
+        "detail": "Capsule at D:\\experim\\specproof-phase0\\artifacts\\p0.5\\capsule-P0_5-5ECF7092.zip"
+      },
+      "6_confidence_gte_0_90": {
+        "pass": true,
+        "detail": "Confidence 0.95 (base/head differential + DB evidence)"
+      },
+      "7_llm_generated_test": {
+        "pass": true,
+        "detail": "Test generated via DeepSeek non-thinking API call"
+      },
+      "8_test_sha256_match": {
+        "pass": true,
+        "detail": "Test SHA-256: e15bcbcf18d0b5f1c3ee0384d83405b6..."
+      },
+      "9_no_static_regex_only": {
+        "pass": true,
+        "detail": "Real differential execution, not static regex alone"
+      },
+      "10_db_state_in_test_output": {
+        "pass": true,
+        "detail": "DB state assertion in test output"
+      }
+    },
+    "verdict": "BLOCKER",
+    "passed_count": 10,
+    "total_count": 10
+  },
+  "diff_evidence": {
+    "base_has_preauthorize": true,
+    "head_has_preauthorize": false,
+    "annotation_removed": true,
+    "changed_files": [
+      "UserController.java"
+    ],
+    "diff_summary": "@PreAuthorize removed from UserController.changeEmail()"
+  },
+  "env_info": {
+    "java_home": "C:\\Program Files\\Amazon Corretto\\jdk21.0.11_10",
+    "os": "Windows",
+    "base_commit": "c55be4a",
+    "head_commit": "4c45832",
+    "timestamp": "2026-07-10T10:59:09.002047+00:00"
+  },
+  "capsule_path": "D:\\experim\\specproof-phase0\\artifacts\\p0.5\\capsule-P0_5-5ECF7092.zip",
+  "test_sha256": "e15bcbcf18d0b5f1c3ee0384d83405b667234d20ac41a1737ec6cb7ece649bb4",
+  "base_exit_code": 0,
+  "head_exit_code": 1
+}

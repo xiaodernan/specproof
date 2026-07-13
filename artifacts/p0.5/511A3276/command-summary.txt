@@ -1,0 +1,76 @@
+﻿P0.5 VERIFICATION COMMAND SUMMARY
+=================================
+Run ID: 511A3276
+Finding ID: P0_5-511A3276
+Date: 2026-07-10
+
+ENVIRONMENT
+-----------
+JAVA_HOME: C:\Program Files\Amazon Corretto\jdk21.0.11_10
+JDK Version: openjdk version "21.0.11" 2026-04-21 LTS (Corretto-21.0.11.10.1)
+LLM Provider: openai_compatible
+LLM Model: deepseek-v4-pro (non-thinking mode)
+LLM Endpoint: https://llm-api.fagougou.com/v1
+OS: Windows 11
+
+GIT REFS
+--------
+Demo Repo: D:\experim\specproof-phase0\demo\spring-backend
+Base Commit: c55be4a5936304f09fe7982114e8472438b6c58c (tag: base)
+Head Commit: 4c458327dce3c3c1dd5169e1ceceee3a38a266c2 (tag: head-v1)
+
+Generated Test SHA-256 (file): 8eddec0d2ec752548e64e23233b0f566fd8374fd0a5552bf0fecdd796ea53cb5
+Generated Source Digest (content): sha256:bc761be4e67c7d137b4dd23258865af47ede89e57f5f2be79268436883e6f044
+
+BASE EXECUTION
+--------------
+Command: .\mvnw.cmd -B -Dtest=SpecProofGeneratedTest test
+Worktree: detached at c55be4a
+Exit Code: 0
+Elapsed: 25.4s
+Surefire: 1 test, 0 failures, 0 errors, 0 skipped
+HTTP Status: 401 UNAUTHORIZED
+DB State: UNCHANGED (original@example.com)
+Contract Result: PASS
+
+HEAD EXECUTION
+--------------
+Command: .\mvnw.cmd -B -Dtest=SpecProofGeneratedTest test
+Worktree: detached at 4c45832
+Exit Code: 1
+Elapsed: 27.7s
+Surefire: 1 test, 1 failure, 0 errors, 0 skipped
+Failure 1: Expected 401 UNAUTHORIZED but got 200
+Failure 2: DB STATE VIOLATION: email was 'original@example.com' before, now 'newemail@example.com'
+HTTP Status: 200 OK
+DB State: CHANGED (original@example.com → newemail@example.com)
+Contract Result: FAIL
+
+REGRESSION CONFIRMED
+--------------------
+Finding: BLOCKER
+Attribution: INTRODUCED_BY_HEAD
+Confidence: 0.95
+10/10 BLOCKER conditions met
+
+CAPSULE
+-------
+Path: artifacts/p0.5/511A3276/capsule.zip
+Size: 15,175 bytes
+Replay: PASS
+Manifest Digest: sha256:8bcc8b5e0cd20374ac6919a0c1ff0eff33eff4d020056cfa166d4f0316385a3f
+
+SECURITY SCAN
+-------------
+Files scanned: 246
+CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0
+Canary injected: true
+Canary detected: true
+Canary in output: false (NOT LEAKED)
+.env in output: false
+
+KNOWN ISSUES (INDEPENDENT)
+--------------------------
+changeEmailToDuplicateShouldFail: pre-existing in both base and head
+  - Does NOT block P0.5
+  - Tracked independently

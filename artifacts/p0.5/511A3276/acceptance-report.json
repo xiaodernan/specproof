@@ -1,0 +1,47 @@
+{
+  "changeEmailToDuplicateShouldFail_preexisting": true,
+  "demo_repo_restored": true,
+  "verdict": "P0.5 PASS — READY FOR GRADUATION",
+  "overall_pass": true,
+  "blocker_conditions": {
+    "verdict": "BLOCKER",
+    "passed": "10/10"
+  },
+  "finding_id": "P0_5-511A3276",
+  "timestamp": "2026-07-10T11:05:53.043056+00:00",
+  "twelve_item_report": {
+    "4_test_sha256_match": "PASS",
+    "2_provenance": "PASS",
+    "12_security_scan": "PASS",
+    "1_llm_call": "PASS",
+    "5_base_execution": "PASS (exit 0)",
+    "3_human_edited": "PASS (false)",
+    "9_attribution": "PASS (INTRODUCED_BY_HEAD)",
+    "6_head_execution": "PASS (regression: exit non-zero)",
+    "10_evidence": "PASS",
+    "8_db_state_diff": "PASS (DB evidence captured)",
+    "7_http_diff": "PASS (401 vs 200)",
+    "11_capsule_replay": "PASS"
+  },
+  "run_id": "511A3276",
+  "canonical_acceptance_run_id": "511A3276",
+  "run_id_history": {
+    "original_execution_run_id": "P0_5-5ECF7092",
+    "supersedes": "P0_5-5ECF7092",
+    "supersedes_reason": "Re-archived with corrected evidence chain, consistent digests, and repaired manifest."
+  },
+  "generated_test_source_digest": "sha256:bc761be4e67c7d137b4dd23258865af47ede89e57f5f2be79268436883e6f044",
+  "env_info": {
+    "java_version": "21.0.11",
+    "java_vendor": "Amazon Corretto",
+    "maven_version": "3.9.9",
+    "os_name": "Windows 11",
+    "os_arch": "amd64",
+    "tool_versions": {
+      "python": "3.12",
+      "git": "2.x",
+      "maven_wrapper": "3.9.9"
+    }
+  },
+  "demo_repository_bundle_digest": "sha256:a8085893c3690d05647e23ea89181e8141488ebec722e0997bb6c52e445dca0d"
+}

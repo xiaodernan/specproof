@@ -1,0 +1,159 @@
+{
+  "version": "0.5.0",
+  "created": "2026-07-10",
+  "description": "P0.5 Golden Case Split — Holdout / Negative / Adversarial",
+
+  "splits": {
+    "holdout": {
+      "description": "Final evaluation set. NEVER used during development or tuning. Used only for acceptance gate.",
+      "cases": ["case-01-auth-bypass", "case-05-token-invalidation", "case-09-multi-security"],
+      "success_criteria": {
+        "min_recall": 1.0,
+        "min_precision": 1.0,
+        "min_f1": 1.0,
+        "max_false_positive": 0,
+        "min_blocker_confidence": 0.90
+      }
+    },
+
+    "negative": {
+      "description": "Clean PRs, refactoring, comment changes. Must produce ZERO findings.",
+      "cases": ["case-03-clean-pr", "case-10-comment-only"],
+      "additional_samples": [
+        {
+          "id": "case-11-refactor-rename",
+          "description": "Method renamed, no semantic change. Must produce no findings.",
+          "expected_result": {"should_detect": false, "expected_severity": "NONE"}
+        },
+        {
+          "id": "case-12-add-javadoc",
+          "description": "Only Javadoc comments added, no code change. Must produce no findings.",
+          "expected_result": {"should_detect": false, "expected_severity": "NONE"}
+        }
+      ],
+      "success_criteria": {
+        "max_false_positive": 0,
+        "max_findings": 0
+      }
+    },
+
+    "adversarial": {
+      "description": "Edge cases designed to test verifier robustness against tricks.",
+      "cases": ["case-02-transactional-removal", "case-04-duplicate-email", "case-06-schema-break", "case-07-duplicate-event", "case-08-transaction-split"],
+      "additional_samples": [
+        {
+          "id": "case-13-annotation-aliased",
+          "description": "@PreAuthorize removed but functionally equivalent custom @RequireAuth added. Verifier must NOT flag this as regression.",
+          "expected_result": {"should_detect": false, "expected_severity": "NONE"},
+          "trick": "Equivalent security via custom annotation — false positive trap"
+        },
+        {
+          "id": "case-14-annotation-moved-to-interface",
+          "description": "@PreAuthorize moved from controller class to interface default method. Behavior unchanged, but static regex may miss or misreport.",
+          "expected_result": {"should_detect": false, "expected_severity": "NONE"},
+          "trick": "Annotation moved to interface — static regex blind spot"
+        },
+        {
+          "id": "case-15-whitespace-only-diff",
+          "description": "Indentation changed, @PreAuthorize present but re-indented. Line-level diff shows change but semantics identical.",
+          "expected_result": {"should_detect": false, "expected_severity": "NONE"},
+          "trick": "Whitespace diff generates changed_symbols without semantic change"
+        },
+        {
+          "id": "case-16-preauthorize-role-changed",
+          "description": "@PreAuthorize changed from `isAuthenticated()` to `hasRole('ADMIN')`. More restrictive, not a regression, but naive check may flag.",
+          "expected_result": {"should_detect": false, "expected_severity": "NONE"},
+          "trick": "Annotation changed to MORE restrictive — should NOT be a regression"
+        }
+      ],
+      "success_criteria": {
+        "min_recall": 0.85,
+        "min_precision": 0.80,
+        "max_false_positive": 1,
+        "require_blinded": true
+      }
+    }
+  },
+
+  "case_registry": {
+    "case-01-auth-bypass": {
+      "category": "holdout",
+      "type": "positive",
+      "risk": "@PreAuthorize removed — classic authorization regression",
+      "expected_severity": "BLOCKER",
+      "requires": ["differential_execution", "db_state_verification"]
+    },
+    "case-02-transactional-removal": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "@Transactional removed — can be benign in read-only context",
+      "expected_severity": "MAJOR",
+      "note": "P0.5: static regex capped at MAJOR"
+    },
+    "case-03-clean-pr": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "New endpoint added, no annotation removal",
+      "expected_severity": "NONE"
+    },
+    "case-04-duplicate-email": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "Uniqueness check removed from service layer",
+      "expected_severity": "BLOCKER"
+    },
+    "case-05-token-invalidation": {
+      "category": "holdout",
+      "type": "positive",
+      "risk": "Redis token invalidation removed — security impact",
+      "expected_severity": "MAJOR"
+    },
+    "case-06-schema-break": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "API schema change — may be intentional versioning",
+      "expected_severity": "MAJOR"
+    },
+    "case-07-duplicate-event": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "Event published twice — may be intentional retry logic",
+      "expected_severity": "MAJOR"
+    },
+    "case-08-transaction-split": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "DB operations split across methods",
+      "expected_severity": "MAJOR"
+    },
+    "case-09-multi-security": {
+      "category": "holdout",
+      "type": "positive",
+      "risk": "Multiple security annotations removed simultaneously",
+      "expected_severity": "BLOCKER",
+      "expected_min_findings": 2
+    },
+    "case-10-comment-only": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "Comment-only change — must produce zero findings",
+      "expected_severity": "NONE"
+    }
+  },
+
+  "p0_5_evidence_policy": {
+    "static_regex_cap": "MAJOR",
+    "blocker_requires": [
+      "1. approved_contract",
+      "2. base_head_real_execution",
+      "3. attribution_to_head",
+      "4. db_or_behavior_evidence",
+      "5. capsule_replayable",
+      "6. confidence_gte_0.90"
+    ],
+    "digest_naming": "evidence_digest / manifest_digest (never 'signature')",
+    "test_source_tracking": ["llm_generated", "deterministic_template", "human_fixture"],
+    "db_state_required": true,
+    "mockmvc_naming": "Full-context Spring MVC integration test (not 'real HTTP')"
+  }
+}

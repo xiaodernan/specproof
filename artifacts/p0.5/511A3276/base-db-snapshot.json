@@ -1,0 +1,19 @@
+﻿{
+    "test_class":  "com.specproof.demo.SpecProofGeneratedTest",
+    "db_changed":  false,
+    "evidence":  "@PreAuthorize(\u0027isAuthenticated()\u0027) present on UserController.changeEmail() — unauthenticated request correctly rejected with 401",
+    "method":  "JUnit assertion-based (H2 in-memory, not accessible post-JVM)",
+    "http_status":  401,
+    "surefire":  {
+                     "skipped":  0,
+                     "errors":  0,
+                     "tests":  1,
+                     "failures":  0
+                 },
+    "elapsed_s":  25.4,
+    "exit_code":  0,
+    "commit":  "c55be4a",
+    "email_after":  "original@example.com",
+    "contract_result":  "PASS",
+    "email_before":  "original@example.com"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "COURT-DIFF-HTTP",
+  "contract_id": "DIFF-HTTP",
+  "severity": "MAJOR",
+  "type": "differential_regression",
+  "description": "Security annotation present in base but missing in head: UserController.java",
+  "evidence_type": "base_pass_head_fail",
+  "confidence": 0.85,
+  "source": "differential",
+  "status": "confirmed",
+  "diff_verdict": "REGRESSION",
+  "court_source": "rule_based"
+}

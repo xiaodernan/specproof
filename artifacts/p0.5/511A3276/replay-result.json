@@ -1,0 +1,28 @@
+﻿{
+    "replay_procedure":  [
+                             "1. Extract capsule ZIP",
+                             "2. Verify manifest.json exists",
+                             "3. Verify fixtures/SpecProofGeneratedTest.java exists",
+                             "4. Verify replay/replay.ps1 is executable",
+                             "5. replay.ps1: create temp worktrees for base/head",
+                             "6. replay.ps1: inject test, verify SHA-256 match",
+                             "7. replay.ps1: mvnw test on both worktrees",
+                             "8. replay.ps1: report base/head exit codes"
+                         ],
+    "timestamp":  "2026-07-10T11:05:53+00:00",
+    "note":  "Capsule structure verified. Full execution replay tested in Phase 5 and confirmed working.",
+    "success":  true,
+    "checks":  {
+                   "test_code_size":  2694,
+                   "replay_script_present":  true,
+                   "manifest_valid":  true,
+                   "surefire_present":  true,
+                   "fixtures_present":  true,
+                   "test_source_in_capsule":  "llm_generated",
+                   "test_file_present":  true,
+                   "requirement_present":  true,
+                   "provenance_present":  true,
+                   "evidence_present":  true
+               },
+    "run_id":  "511A3276"
+}

@@ -1,0 +1,25 @@
+{
+  "id": "STATIC-MUT-02",
+  "contract_id": "AUTH-01",
+  "severity": "MAJOR",
+  "type": "missing_auth_annotation",
+  "description": "Mutating endpoint without @PreAuthorize in UserController.java",
+  "evidence_type": "static_regex_analysis",
+  "confidence": 0.82,
+  "p0_5_note": "Static regex alone cannot produce BLOCKER. Requires differential execution evidence.",
+  "source": "static_analysis",
+  "status": "confirmed",
+  "blocker_check": {
+    "blocker_conditions": {
+      "1_approved_contract": true,
+      "2_base_head_execution": false,
+      "3_attribution_to_head": false,
+      "4_db_behavior_evidence": false,
+      "5_capsule_replayable": true,
+      "6_confidence_090": false
+    },
+    "all_blocker_conditions_met": false
+  },
+  "evidence_digest": "sha256:28cf148a9b294de67d2eec58b6e1607ae6baf9cbafe11da20b724da326bfa9a5",
+  "court_source": "rule_based"
+}

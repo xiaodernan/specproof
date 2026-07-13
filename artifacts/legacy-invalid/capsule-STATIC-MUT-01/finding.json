@@ -1,0 +1,11 @@
+{
+  "id": "STATIC-MUT-01",
+  "contract_id": "AUTH-01",
+  "severity": "BLOCKER",
+  "type": "missing_auth_annotation",
+  "description": "Mutating endpoint without @PreAuthorize in UserController.java",
+  "evidence_type": "static_analysis",
+  "confidence": 0.92,
+  "source": "static_analysis",
+  "status": "confirmed"
+}

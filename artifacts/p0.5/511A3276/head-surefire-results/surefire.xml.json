@@ -1,0 +1,19 @@
+[
+  {
+    "name": "com.specproof.demo.SpecProofGeneratedTest",
+    "tests": 1,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0,
+    "time": 14.437,
+    "testcases": [
+      {
+        "name": "putUpdateEmailWithoutAuthentication_shouldReturn401AndNotModifyDatabase",
+        "classname": "com.specproof.demo.SpecProofGeneratedTest",
+        "time": "1.019",
+        "failure": "Multiple Failures (2 failures)\n org.opentest4j.AssertionFailedError: Expected 401 UNAUTHORIZED but got 200 ==> expected: <401> but was: <200>\n org.opentest4j.AssertionFailedError: DB STATE VIOLATION: ",
+        "error": null
+      }
+    ]
+  }
+]

@@ -1,0 +1,80 @@
+{
+  "schema_version": "0.5.0",
+  "security": {
+    "scan_passed": true,
+    "high": 0,
+    "canary_detected": true,
+    "canary_not_leaked": true,
+    "files_scanned": 246,
+    "critical": 0
+  },
+  "provenance": {
+    "human_edited": false,
+    "generated_source_digest": "sha256:bc761be4e67c7d137b4dd23258865af47ede89e57f5f2be79268436883e6f044",
+    "test_source": "llm_generated",
+    "thinking_mode": "disabled",
+    "sha256_match": true,
+    "model": "deepseek-v4-pro",
+    "provider": "openai_compatible",
+    "test_file_sha256_crlf": "8eddec0d2ec752548e64e23233b0f566fd8374fd0a5552bf0fecdd796ea53cb5",
+    "test_file_sha256_crlf_note": "SHA256 of SpecProofGeneratedTest.java after Git CRLF checkout on Windows (core.autocrlf=true). This is NOT the source content digest. The canonical source digest is generated_test_source_digest."
+  },
+  "verdict": {
+    "attribution": "INTRODUCED_BY_HEAD",
+    "confidence": 0.95,
+    "severity": "BLOCKER"
+  },
+  "capsule": {
+    "replay_success": true,
+    "path": "artifacts/p0.5/511A3276/capsule.zip",
+    "evidence_digest": "sha256:1ba958af08828a7b40a9f4e23cb48dd278ee1f269d1a8691058f44e20eb09117",
+    "manifest_digest": "sha256:741db4304ba07fc69b06403e16acec50811d7e339dd90de0916b63767bf978c2",
+    "demo_repository_bundle_digest": "sha256:a8085893c3690d05647e23ea89181e8141488ebec722e0997bb6c52e445dca0d",
+    "bundle_digest": "sha256:a8085893c3690d05647e23ea89181e8141488ebec722e0997bb6c52e445dca0d",
+    "capsule_zip_digest": "sha256:2fdd94b1c48c5faf336493da79e82357bc87c9eafe0ceeab186f05bc07b392ea"
+  },
+  "blocker_conditions": {
+    "all_met": true,
+    "total": 10,
+    "passed": 10
+  },
+  "finding_id": "P0_5-511A3276",
+  "static_evidence": {
+    "changed_files": [
+      "UserController.java"
+    ],
+    "base_has_preauthorize": true,
+    "head_has_preauthorize": false,
+    "annotation_removed": true
+  },
+  "run_id": "511A3276",
+  "contract": {
+    "approved": true,
+    "requirement": "所有变更 API 端点必须要求认证。未认证的请求不得修改数据库状态。PUT /api/users/{id}/email 端点必须验证调用者身份。",
+    "checker_type": "http + db_state"
+  },
+  "differential_evidence": {
+    "db_regression": "email unchanged → email changed",
+    "base_pass": true,
+    "http_regression": "401 → 200",
+    "head_fail": true
+  },
+  "run_id_history": {
+    "canonical_acceptance_run_id": "511A3276",
+    "original_execution_run_id": "P0_5-5ECF7092",
+    "supersedes": "P0_5-5ECF7092",
+    "supersedes_reason": "Re-archived from execution run into frozen artifact directory with corrected evidence chain and consistent manifest."
+  },
+  "env_info": {
+    "java_version": "21.0.11",
+    "java_vendor": "Amazon Corretto",
+    "maven_version": "3.9.9",
+    "os_name": "Windows 11",
+    "os_arch": "amd64",
+    "tool_versions": {
+      "python": "3.12",
+      "git": "2.x",
+      "maven_wrapper": "3.9.9"
+    }
+  }
+}
