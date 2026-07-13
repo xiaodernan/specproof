@@ -1,0 +1,80 @@
+name: P1 Quality Gates
+
+on:
+  push:
+    branches: [feature/p1-*]
+  pull_request:
+    branches: [feature/p1-*, release/*]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-type:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: Ruff check
+        run: python -m ruff check .
+      - name: Ruff format
+        run: python -m ruff format --check .
+      - name: Mypy (formal scope)
+        run: python -m mypy --exclude "tests/|artifacts/|demo/" .
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: P0.5 Archive Verifier
+        run: python scripts/verify_p0_5_archive.py
+      - name: Bandit (High/Medium only)
+        run: python -m bandit -r agent storage api scripts -ll
+
+  unit-and-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: Quick units + security tests
+        run: python -m pytest tests/unit tests/security -v --tb=short
+      - name: Integration tests (no Docker)
+        run: python -m pytest tests/integration/test_differential.py -v --tb=short
+
+  # Manual gate — requires real provider credentials and INFRA_TOKEN secret
+  provider-smoke:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: provider-smoke
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: Provider Smoke (requires secrets)
+        env:
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+        run: python scripts/provider_smoke.py
