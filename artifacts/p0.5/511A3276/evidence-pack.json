@@ -31,7 +31,7 @@
     "manifest_digest": "sha256:741db4304ba07fc69b06403e16acec50811d7e339dd90de0916b63767bf978c2",
     "demo_repository_bundle_digest": "sha256:a8085893c3690d05647e23ea89181e8141488ebec722e0997bb6c52e445dca0d",
     "bundle_digest": "sha256:a8085893c3690d05647e23ea89181e8141488ebec722e0997bb6c52e445dca0d",
-    "capsule_zip_digest": "sha256:2fdd94b1c48c5faf336493da79e82357bc87c9eafe0ceeab186f05bc07b392ea"
+    "capsule_zip_digest": "sha256:ebdd010bfa3c94f1b87c7f483be39935db50e88ad759e95b489b030b7fe53aa5"
   },
   "blocker_conditions": {
     "all_met": true,

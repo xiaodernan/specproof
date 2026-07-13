@@ -61,7 +61,12 @@ CANARY_SECRET = "SPECPROOF_CANARY_a7f3b2c9d1e4_SECRET_DO_NOT_COMMIT"
 # ═══════════════════════════════════════════════════════════════════
 
 
-def run(cmd, cwd=None, timeout=180, extra_env=None):
+def run(
+    cmd: list[str],
+    cwd: str | None = None,
+    timeout: int = 180,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["JAVA_HOME"] = JAVA_HOME
     env["PATH"] = f"{JAVA_HOME}\\bin;" + env.get("PATH", "")
@@ -74,7 +79,7 @@ def sha256_str(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-def sha256_file(path) -> str:
+def sha256_file(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
@@ -1034,7 +1039,7 @@ def security_scan(root: str) -> dict:
 # ═══════════════════════════════════════════════════════════════════
 
 
-def main():
+def main() -> int:
     print("=" * 72)
     print("  SpecProof P0.5 Closed-Loop Verification — Final v3")
     print(f"  Started: {ts()}")

@@ -6,7 +6,7 @@ Date: 2026-07-10
 
 ENVIRONMENT
 -----------
-JAVA_HOME: C:\Program Files\Amazon Corretto\jdk21.0.11_10
+JAVA_HOME: (sanitized, see JDK Version below)
 JDK Version: openjdk version "21.0.11" 2026-04-21 LTS (Corretto-21.0.11.10.1)
 LLM Provider: openai_compatible
 LLM Model: deepseek-v4-pro (non-thinking mode)
@@ -15,7 +15,7 @@ OS: Windows 11
 
 GIT REFS
 --------
-Demo Repo: D:\experim\specproof-phase0\demo\spring-backend
+Demo Repo: (bundled as demo-spring-backend.bundle)
 Base Commit: c55be4a5936304f09fe7982114e8472438b6c58c (tag: base)
 Head Commit: 4c458327dce3c3c1dd5169e1ceceee3a38a266c2 (tag: head-v1)
 
@@ -25,7 +25,7 @@ Generated Source Digest (content): sha256:bc761be4e67c7d137b4dd23258865af47ede89
 BASE EXECUTION
 --------------
 Command: .\mvnw.cmd -B -Dtest=SpecProofGeneratedTest test
-Worktree: detached at c55be4a
+Checkout: base tag (c55be4a)
 Exit Code: 0
 Elapsed: 25.4s
 Surefire: 1 test, 0 failures, 0 errors, 0 skipped
@@ -36,7 +36,7 @@ Contract Result: PASS
 HEAD EXECUTION
 --------------
 Command: .\mvnw.cmd -B -Dtest=SpecProofGeneratedTest test
-Worktree: detached at 4c45832
+Checkout: head-v1 tag (4c45832)
 Exit Code: 1
 Elapsed: 27.7s
 Surefire: 1 test, 1 failure, 0 errors, 0 skipped

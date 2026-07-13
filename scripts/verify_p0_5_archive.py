@@ -26,6 +26,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ARCHIVE = PROJECT_ROOT / "artifacts" / "p0.5" / "511A3276"
@@ -53,7 +54,7 @@ def record_result(label: str, ok: bool, detail: str = "") -> bool:
     return ok
 
 
-def sha256_file(path) -> str:
+def sha256_file(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
@@ -65,7 +66,7 @@ def sha256_str(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-def read_json(path):
+def read_json(path: str | Path) -> Any:
     """Read JSON file, handling UTF-8 BOM."""
     raw = Path(path).read_bytes()
     if raw.startswith(b"\xef\xbb\xbf"):
@@ -73,7 +74,7 @@ def read_json(path):
     return json.loads(raw.decode("utf-8"))
 
 
-def check_abs_paths(obj, path=""):
+def check_abs_paths(obj: Any, path: str = "") -> list[str]:
     """Return list of absolute path strings found in obj."""
     issues = []
     if isinstance(obj, dict):
@@ -97,7 +98,7 @@ def check_abs_paths(obj, path=""):
     return issues
 
 
-def check_secrets(obj, path=""):
+def check_secrets(obj: Any, path: str = "") -> list[str]:
     """Return list of secret-like patterns found in obj."""
     issues = []
     if isinstance(obj, dict):
@@ -113,7 +114,7 @@ def check_secrets(obj, path=""):
     return issues
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Verify P0.5 frozen archive")
     parser.add_argument("--archive-dir", default=str(DEFAULT_ARCHIVE))
     args = parser.parse_args()

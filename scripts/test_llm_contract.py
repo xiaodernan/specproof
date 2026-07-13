@@ -34,7 +34,7 @@ Requirement specification:
 Contracts (JSON array):"""
 
 
-async def test_llm_contracts():
+async def test_llm_contracts() -> int:
     req_path = os.path.join(_project_root, "demo", "requirement.txt")
     with open(req_path, encoding="utf-8") as f:
         spec_text = f.read()
