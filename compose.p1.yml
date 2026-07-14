@@ -1,0 +1,189 @@
+# SpecProof P1 — Reliability Kernel Infrastructure
+# Extends Phase 0 with API, Worker, and Outbox Relay services.
+# Start: docker compose -f compose.p1.yml up -d
+# Fault tests: docker compose -f compose.p1.yml -f compose.p1.fault.yml up -d
+
+name: specproof-p1
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: sp1-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-specproof_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
+      MYSQL_USER: ${MYSQL_USER:-specproof}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-specproof_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: sp1-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-specproof_pass} --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-specproof_pass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  rabbitmq:
+    image: rabbitmq:4.0-management-alpine
+    container_name: sp1-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-specproof}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-specproof_pass}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: sp1-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-specproof}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-specproof_pass}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_USER:-specproof}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  outbox-relay:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: sp1-outbox-relay
+    restart: unless-stopped
+    command: python -m storage.outbox_relay
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep 'outbox_relay' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-specproof}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_USER:-specproof}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 128M
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: sp1-worker
+    restart: unless-stopped
+    command: python -m agent.worker
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep 'agent.worker' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-specproof}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-specproof_pass}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_USER:-specproof}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+
+volumes:
+  mysql-data:
+  redis-data:
+  rabbitmq-data:

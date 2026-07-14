@@ -32,6 +32,8 @@ dependencies = [
     "rich>=13.9.0",
     "python-dotenv>=1.0.1",
     "tenacity>=9.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
 ]
 
 [project.optional-dependencies]
@@ -78,6 +80,9 @@ exclude = ["tests/", "artifacts/", "demo/"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
+markers = [
+    "integration: Integration tests that require real infrastructure (MySQL, RabbitMQ, Redis)",
+]
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "venv"]
