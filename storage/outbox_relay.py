@@ -112,3 +112,19 @@ class OutboxRelay:
 
     def stop(self) -> None:
         self._running = False
+
+
+if __name__ == "__main__":
+    import os
+    import uuid as _uuid
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+    relay = OutboxRelay(
+        poll_interval_seconds=float(os.getenv("OUTBOX_POLL_INTERVAL", "1.0")),
+        batch_size=int(os.getenv("OUTBOX_BATCH_SIZE", "10")),
+        claimed_by=os.getenv("OUTBOX_CLAIMED_BY", f"relay-{_uuid.uuid4().hex[:6]}"),
+    )
+    relay.run_forever()

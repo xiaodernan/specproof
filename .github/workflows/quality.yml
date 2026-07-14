@@ -56,6 +56,55 @@ jobs:
       - run: pip install -e ".[dev]"
       - name: Unit tests
         run: python -m pytest tests/unit -v --tb=short
+      - name: Init demo git repo (base + head-v1 tags)
+        run: |
+          cd demo/spring-backend
+          git init
+          git config user.email "ci@specproof.local"
+          git config user.name "SpecProof CI"
+          git add -A
+          git commit -m "head-v1: initial demo (no @PreAuthorize)"
+          git tag head-v1
+          # Add @PreAuthorize for base commit
+          cat > src/main/java/com/specproof/demo/controller/UserController.java << 'JAVAEOF'
+          package com.specproof.demo.controller;
+
+          import com.specproof.demo.dto.ChangeEmailRequest;
+          import com.specproof.demo.dto.UserResponse;
+          import com.specproof.demo.service.UserService;
+          import jakarta.validation.Valid;
+          import org.springframework.http.ResponseEntity;
+          import org.springframework.security.access.prepost.PreAuthorize;
+          import org.springframework.web.bind.annotation.*;
+
+          @RestController
+          @RequestMapping("/api/users")
+          public class UserController {
+
+              private final UserService userService;
+
+              public UserController(UserService userService) {
+                  this.userService = userService;
+              }
+
+              @GetMapping("/{id}")
+              public ResponseEntity<UserResponse> getUser(@PathVariable Long id) {
+                  return ResponseEntity.ok(userService.getUser(id));
+              }
+
+              @PutMapping("/{id}/email")
+              @PreAuthorize("isAuthenticated()")
+              public ResponseEntity<UserResponse> changeEmail(
+                      @PathVariable Long id,
+                      @Valid @RequestBody ChangeEmailRequest request) {
+                  return ResponseEntity.ok(userService.changeEmail(id, request));
+              }
+          }
+          JAVAEOF
+          git add -A
+          git commit -m "base: add @PreAuthorize security annotation"
+          git tag base
+          git checkout head-v1
       - name: Integration tests (no Docker)
         run: python -m pytest tests/integration/test_differential.py -v --tb=short
 
