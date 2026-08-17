@@ -134,6 +134,26 @@ def apply_case(
     restore_base()
 
 
+def apply_case_detached(
+    case: str,
+    commit_msg: str,
+    mutations: list[tuple[str, str, str]],
+    added_files: list[tuple[str, str]] | None = None,
+) -> None:
+    """Build a case tag whose PARENT is the honest base tag.
+
+    New cases must be isolated commits directly on base — never on the
+    modern branch tip — so that git diff base..case-XX-head contains ONLY
+    this case's mutation (the eval pipeline diffs those two refs).
+    """
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    git("checkout", "-q", "--detach", "base")
+    try:
+        apply_case(case, commit_msg, mutations, added_files)
+    finally:
+        git("checkout", "-q", branch)
+
+
 REQUIRE_AUTH_SRC = """package com.specproof.demo.security;
 
 import java.lang.annotation.ElementType;
@@ -300,7 +320,7 @@ def main() -> None:
     # 4. Adversarial negatives (false-positive traps) + execution-only
     #    positives (invisible to static diff-readers).
     if wanted(only, "case-13"):
-        apply_case(
+        apply_case_detached(
             "case-13",
             "equivalent composed @RequireAuth replaces @PreAuthorize",
             [
@@ -315,7 +335,7 @@ def main() -> None:
             ],
         )
     if wanted(only, "case-14"):
-        apply_case(
+        apply_case_detached(
             "case-14",
             "method security moved to the implemented interface",
             [
@@ -337,13 +357,13 @@ def main() -> None:
             ],
         )
     if wanted(only, "case-15"):
-        apply_case(
+        apply_case_detached(
             "case-15",
             "whitespace-only re-indent of the protected method",
             [(CONTROLLER, CONTROLLER_METHOD_BLOCK, CONTROLLER_METHOD_REINDENTED)],
         )
     if wanted(only, "case-16"):
-        apply_case(
+        apply_case_detached(
             "case-16",
             "role tightened: isAuthenticated -> hasRole(ADMIN)",
             [
@@ -353,7 +373,7 @@ def main() -> None:
             ],
         )
     if wanted(only, "case-17"):
-        apply_case(
+        apply_case_detached(
             "case-17",
             "logic inversion: uniqueness guard negated (execution-only)",
             [
