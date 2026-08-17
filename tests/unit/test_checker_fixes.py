@@ -9,6 +9,7 @@ These tests lock in the behaviours that were broken:
 """
 
 from agent.checkers.java_source import (
+    _implemented_interface_names,
     _split_with_annotations,
     check_token_invalidation,
     run_contract_checks,
@@ -54,6 +55,57 @@ def test_auth_removal_detected_with_nested_paren_annotation():
     assert len(auth) == 1
     assert auth[0]["type"] == "annotation_removed"
     assert auth[0]["severity"] == "MAJOR"
+
+
+def test_composed_custom_annotation_counts_as_protection():
+    """case-13: @RequireAuth (composed custom security annotation) replaces
+    @PreAuthorize — equivalent protection, must NOT be a finding."""
+    rel = "com/specproof/demo/controller/UserController.java"
+    head = BASE_CONTROLLER.replace(
+        '    @PreAuthorize("isAuthenticated()")\n',
+        "    @RequireAuth\n",
+    )
+    findings = run_contract_checks({rel: BASE_CONTROLLER}, {rel: head})
+    auth = [f for f in findings if f["contract_id"] == "AUTH-01"]
+    assert auth == []
+
+
+def test_interface_default_method_annotation_counts_as_protection():
+    """case-14: @PreAuthorize moved to an implemented interface's default
+    method — Spring resolves interface-level method security, so the
+    endpoint stays protected and no finding may be emitted."""
+    rel = "com/specproof/demo/controller/UserController.java"
+    iface_rel = "com/specproof/demo/controller/UserApi.java"
+    head_controller = BASE_CONTROLLER.replace(
+        '    @PreAuthorize("isAuthenticated()")\n', "",
+    ).replace(
+        "public class UserController {",
+        "public class UserController implements UserApi {",
+    )
+    head_interface = """package com.specproof.demo.controller;
+
+public interface UserApi {
+
+    @PreAuthorize("isAuthenticated()")
+    default void changeEmail() {}
+}
+"""
+    findings = run_contract_checks(
+        {rel: BASE_CONTROLLER},
+        {rel: head_controller, iface_rel: head_interface},
+    )
+    auth = [f for f in findings if f["contract_id"] == "AUTH-01"]
+    assert auth == []
+
+
+def test_implements_clause_parsing():
+    assert _implemented_interface_names(
+        "public class UserController implements UserApi {"
+    ) == ["UserApi"]
+    assert _implemented_interface_names(
+        "public class X implements A, B {"
+    ) == ["A", "B"]
+    assert _implemented_interface_names("public class X {") == []
 
 
 BASE_SERVICE = """@Service

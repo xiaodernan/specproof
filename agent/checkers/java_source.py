@@ -18,7 +18,16 @@ import re
 from typing import Any
 
 _MUTATING_MAPPINGS = ("@PutMapping", "@PostMapping", "@DeleteMapping", "@PatchMapping")
-_SECURITY_ANNOTATIONS = ("@PreAuthorize", "@Secured", "@RolesAllowed")
+
+# Method-security annotations. Beyond the Spring built-ins, this set covers
+# COMPOSED custom annotations in common enterprise use (@RequireAuth etc.):
+# the checker reads source text heuristically and cannot resolve
+# meta-annotations, so the equivalence set is the documented approximation
+# for the Spring-specialized product scope (PRODUCTION_SPEC 第 2 节).
+_SECURITY_ANNOTATIONS = (
+    "@PreAuthorize", "@Secured", "@RolesAllowed", "@RequireAuth",
+    "@Authenticated",
+)
 _WRITE_OPS = (".save(", ".saveAndFlush(", ".delete(", ".deleteAll(", ".update(")
 
 # Annotation group: @Name, optionally with one level of nested parens,
@@ -34,7 +43,7 @@ _SPLIT_RE = re.compile(
     # partitioning on entity files), the paren content stays backtrackable
     # (nested parens like @PreAuthorize("isAuthenticated()") need it).
     r"((?:(?:@\w++(?:\((?:[^()]*|\([^()]*\))*\))?\s*+)*+))"
-    r"(?:public|private|protected|static|final|\s)+"
+    r"(?:public|private|protected|static|final|default|\s)+"
     r"[\w<>,\[\]\s]+\s+(\w+)\s*\([^)]*\)\s*(?:throws[^{]+)?\{"
 )
 
@@ -86,10 +95,55 @@ def _finding(
     }
 
 
+def _implemented_interface_names(class_text: str) -> list[str]:
+    """Parse the implements clause of a controller class declaration."""
+    match = re.search(
+        r"class\s+\w+\s+implements\s+([\w.,\s]+?)\s*\{", class_text
+    )
+    if not match:
+        return []
+    return [
+        part.strip()
+        for part in match.group(1).split(",")
+        if part.strip()
+    ]
+
+
+def _interface_protects_method(
+    name: str, interface_names: list[str], head_files: dict[str, str],
+) -> bool:
+    """True when an implemented interface method carries a security
+    annotation (Spring resolves interface-level method security through
+    JDK dynamic proxies). Interface methods may be abstract (no body), so
+    this scans for an annotation shortly before the method declaration
+    instead of reusing the body-based splitter."""
+    annotations = "|".join(re.escape(a) for a in _SECURITY_ANNOTATIONS)
+    for interface_name in interface_names:
+        for rel, content in head_files.items():
+            if not rel.endswith(interface_name + ".java"):
+                continue
+            pattern = re.compile(
+                r"(?:"
+                + annotations
+                + r")[\s\S]{0,400}?\b"
+                + re.escape(name)
+                + r"\s*\("
+            )
+            if pattern.search(content):
+                return True
+    return False
+
+
 def check_auth_annotations(
     base_files: dict[str, str], head_files: dict[str, str]
 ) -> list[dict[str, Any]]:
-    """AUTH-01: security annotations must not be removed from mutating endpoints."""
+    """AUTH-01: security annotations must not be removed from mutating endpoints.
+
+    Protection is considered intact when the head method block carries a
+    security annotation (built-in or composed custom), OR when an
+    implemented interface's default method carries one — both are real
+    Spring method-security resolution paths.
+    """
     findings: list[dict[str, Any]] = []
     for rel in sorted(base_files):
         if not rel.endswith("Controller.java"):
@@ -101,6 +155,7 @@ def check_auth_annotations(
         head_methods = {
             name: block for block, name in _split_with_annotations(head)
         }
+        interface_names = _implemented_interface_names(head)
 
         for block, name in base_methods:
             mutating = any(m in block for m in _MUTATING_MAPPINGS)
@@ -108,6 +163,8 @@ def check_auth_annotations(
                 continue
             head_block = head_methods.get(name)
             if head_block is not None and not _has_security_annotation(head_block):
+                if _interface_protects_method(name, interface_names, head_files):
+                    continue
                 findings.append(_finding(
                     "AUTH-01",
                     "annotation_removed",
