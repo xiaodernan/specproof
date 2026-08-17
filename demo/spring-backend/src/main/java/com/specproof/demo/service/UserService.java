@@ -38,6 +38,7 @@ public class UserService {
         return new UserResponse(user.getId(), user.getUsername(), user.getEmail());
     }
 
+    @Transactional
     public UserResponse changeEmail(Long userId, ChangeEmailRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
