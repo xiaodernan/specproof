@@ -165,7 +165,7 @@ def compile_contracts_node(state: Phase0State) -> dict:
     contracts = _parse_requirements(text)
 
     # LLM enrichment when the rule-based parser found few contracts.
-    provider = _get_provider()
+    provider = _get_provider() if state.get("use_llm", True) else None
     if provider is not None and len(contracts) < 2:
         try:
             loop = asyncio.get_event_loop()

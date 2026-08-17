@@ -454,7 +454,7 @@ def review_court_node(state: Phase0State) -> dict:
     if not state.get("static_findings") and not diff_results:
         return {"candidate_findings": [], "confirmed_findings": []}
 
-    provider = _get_provider()
+    provider = _get_provider() if state.get("use_llm", True) else None
     if provider is not None:
         try:
             # Build the same candidate set the rule-based court uses.

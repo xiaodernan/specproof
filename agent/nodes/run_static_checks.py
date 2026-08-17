@@ -1,109 +1,60 @@
-"""run_static_checks node — deterministic regex checks on changed code.
+"""run_static_checks node — deterministic contract checkers on Base/Head sources.
 
-P0.5 Evidence Policy:
-- Static regex findings are capped at severity MAJOR (never BLOCKER).
-- evidence_type is explicitly "static_regex_analysis" to distinguish from
-  executable evidence (base_pass_head_fail, db_state_mutation).
-- Only executable differential evidence + DB state verification can produce
-  BLOCKER findings with confidence >= 0.90.
+v2: replaced the ad-hoc regex scans with the contract checker registry
+(agent/checkers). Every finding carries "java_source_diff" evidence and is
+capped at MAJOR by the Review Court. The node also emits per-contract
+results: FAIL when a checker found a violation, PASS when the checked
+construct is intact in Head, UNVERIFIED otherwise.
 """
 
-import os
-import re
 from pathlib import Path
 
+from agent.checkers.java_source import contract_results_for, run_contract_checks
 from agent.state import Phase0State
 
-# P0.5: Static analysis confidence ceiling — regex alone cannot prove
-# a real runtime regression, so confidence never exceeds 0.85.
 _STATIC_CONFIDENCE_CEILING = 0.85
 
 
+def _read_java_files(workspace: str) -> dict[str, str]:
+    """Read src/main Java files keyed by posix relative path."""
+    root = Path(workspace) / "src" / "main" / "java"
+    files: dict[str, str] = {}
+    if not root.exists():
+        return files
+    for p in root.rglob("*.java"):
+        try:
+            files[p.relative_to(root).as_posix()] = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+    return files
+
+
 def run_static_checks_node(state: Phase0State) -> dict:
-    """Run static regex-based analysis on the head workspace.
-
-    P0.5: All static findings are capped at MAJOR severity.
-    evidence_type is "static_regex_analysis" — cannot produce BLOCKER.
-    """
-    changed_symbols = state.get("changed_symbols", [])
+    """Run deterministic contract checkers against Base and Head sources."""
+    base_workspace = state.get("base_workspace", "")
     head_workspace = state.get("head_workspace", "")
-    static_findings: list[dict] = []
+    contracts = state.get("contracts", [])
 
-    # Check 1: Detect @PreAuthorize removal → MAJOR (not BLOCKER)
-    auth_removed = any(
-        "@PreAuthorize" in sym or "PreAuthorize" in sym
-        for sym in changed_symbols
-        if "REMOVED" in sym or "ANNOTATION_REMOVED" in sym
-    )
-    if auth_removed:
-        static_findings.append({
-            "id": "STATIC-AUTH-01",
-            "contract_id": "AUTH-01",
-            "severity": "MAJOR",  # P0.5: capped at MAJOR for static regex
-            "type": "annotation_removed",
-            "description": "@PreAuthorize removed from controller method — "
-                           "requires differential execution to confirm regression",
-            "evidence_type": "static_regex_analysis",
-            "confidence": min(0.85, _STATIC_CONFIDENCE_CEILING),
-            "p0_5_note": "Static regex alone cannot produce BLOCKER. "
-                         "Requires base_pass_head_fail + db_state_mutation evidence.",
-        })
+    if not base_workspace or not head_workspace:
+        return {"static_findings": [], "contract_results": []}
 
-    # Check 2: Detect @Transactional removal → MINOR
-    tx_removed = any(
-        "@Transactional" in sym
-        for sym in changed_symbols
-        if "ANNOTATION_REMOVED" in sym
-    )
-    if tx_removed:
-        static_findings.append({
-            "id": "STATIC-TX-01",
-            "contract_id": "TRANSACTION-01",
-            "severity": "MINOR",
-            "type": "annotation_removed",
-            "description": "@Transactional removed — potential data inconsistency",
-            "evidence_type": "static_regex_analysis",
-            "confidence": 0.80,
-            "p0_5_note": "Static regex alone cannot produce BLOCKER.",
-        })
+    base_files = _read_java_files(base_workspace)
+    head_files = _read_java_files(head_workspace)
 
-    # Check 3: Scan head workspace controller for missing security annotations
-    if head_workspace:
-        for root, _dirs, files in os.walk(head_workspace):
-            for fname in files:
-                if not fname.endswith("Controller.java") or "test" in root.lower():
-                    continue
-                fpath = os.path.join(root, fname)
-                try:
-                    content = Path(fpath).read_text(encoding="utf-8")
-                except Exception:
-                    continue
+    findings = run_contract_checks(base_files, head_files)
 
-                # Find @PutMapping/@PostMapping/@DeleteMapping without @PreAuthorize
-                mutating = re.findall(
-                    r'(@PutMapping|@PostMapping|@DeleteMapping)\([^)]*\)\s*\n\s*public',
-                    content,
-                )
-                if mutating:
-                    for m in mutating:
-                        idx = content.find(m)
-                        snippet = content[max(0, idx - 80):idx]
-                        if "@PreAuthorize" not in snippet and "@Secured" not in snippet:
-                            static_findings.append({
-                                "id": f"STATIC-MUT-{len(static_findings) + 1:02d}",
-                                "contract_id": "AUTH-01",
-                                "severity": "MAJOR",  # P0.5: capped at MAJOR
-                                "type": "missing_auth_annotation",
-                                "description": (
-                                    f"Mutating endpoint without @PreAuthorize "
-                                    f"in {fname}"
-                                ),
-                                "evidence_type": "static_regex_analysis",
-                                "confidence": 0.82,
-                                "p0_5_note": (
-                                    "Static regex alone cannot produce BLOCKER. "
-                                    "Requires differential execution evidence."
-                                ),
-                            })
+    # Static analysis can never reach BLOCKER confidence.
+    for f in findings:
+        f["severity"] = "MAJOR" if f.get("severity") == "BLOCKER" else f.get("severity", "MAJOR")
+        f["confidence"] = min(f.get("confidence", 0.85), _STATIC_CONFIDENCE_CEILING)
+        f["p0_5_note"] = (
+            "Static source-diff analysis cannot produce BLOCKER. "
+            "Requires base_pass_head_fail + db_state_mutation evidence."
+        )
 
-    return {"static_findings": static_findings}
+    contract_results = contract_results_for(contracts, findings, base_files)
+
+    return {
+        "static_findings": findings,
+        "contract_results": contract_results,
+    }

@@ -18,6 +18,7 @@ class Phase0State(MessagesState):
     spec_path: str
     depth: str  # "FAST" only in Phase 0
     output_dir: str  # where the verification report is written
+    use_llm: bool  # False = fully deterministic run (eval, CI)
 
     # ── Intermediate ──
     requirement_text: str
@@ -63,6 +64,7 @@ def initial_state(
         "spec_path": spec_path,
         "depth": depth,
         "output_dir": "reports",
+        "use_llm": True,
         "requirement_text": "",
         "contracts": [],
         "changed_symbols": [],

@@ -371,7 +371,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
     test_file = test_dir / "SpecProofGeneratedTest.java"
 
     # ── Phase 1: Attempt LLM generation ──
-    provider = _get_provider()
+    provider = _get_provider() if state.get("use_llm", True) else None
     if provider is not None:
         try:
             loop = asyncio.get_event_loop()
