@@ -1,5 +1,6 @@
 """SpecProof Phase 0 Agent — LangGraph state definition."""
 
+
 from langgraph.graph import MessagesState
 
 

@@ -1,8 +1,6 @@
 """prepare_head node — checkout the head ref into an isolated workspace."""
 
 import os
-import subprocess
-import tempfile
 import uuid
 
 from agent.state import Phase0State
@@ -16,34 +14,26 @@ def prepare_head_node(state: Phase0State) -> dict:
 
     workspace_id = str(uuid.uuid4())[:8]
     head_workspace = os.path.join(
-        tempfile.gettempdir(),
+        os.environ.get("TEMP", "/tmp"),
         f"specproof-head-{workspace_id}",
     )
 
     try:
-        result = subprocess.run(
-            ["git", "-C", repo_path, "worktree", "add", head_workspace, head_ref],
-            capture_output=True,
-            timeout=30,
+        result = os.system(
+            f'git -C "{repo_path}" worktree add "{head_workspace}" {head_ref} '
+            f'2>nul'
         )
-        if result.returncode != 0:
+        if result != 0:
             os.makedirs(head_workspace, exist_ok=True)
-            result2 = subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    repo_path,
-                    f"--work-tree={head_workspace}",
-                    "checkout",
-                    head_ref,
-                    "--",
-                    ".",
-                ],
-                capture_output=True,
-                timeout=30,
+            result2 = os.system(
+                f'git -C "{repo_path}" --work-tree="{head_workspace}" '
+                f'checkout {head_ref} -- . 2>nul'
             )
-            if result2.returncode != 0:
-                errors.append(f"Failed to checkout head ref '{head_ref}' from {repo_path}")
+            if result2 != 0:
+                errors.append(
+                    f"Failed to checkout head ref '{head_ref}' "
+                    f"from {repo_path}"
+                )
                 return {
                     "head_workspace": "",
                     "errors": state.get("errors", []) + errors,

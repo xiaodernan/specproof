@@ -1,10 +1,13 @@
-"""LangGraph verification graph for SpecProof Phase 0.
+"""LangGraph verification graph for SpecProof Phase 0 / Phase 1.
 
 Builds a StateGraph with the Phase 0 verification pipeline:
   intake → compile_contracts → prepare_base → prepare_head
   → collect_diff → run_static_checks → generate_counterexamples
   → run_differential → review_court → build_matrix
   → create_capsule → publish_report → END
+
+P1.6: build_phase0_graph now accepts an optional checkpointer for
+fault recovery. Without one, behaviour is identical to P0.5.
 """
 
 from langgraph.graph import END, StateGraph
@@ -24,10 +27,16 @@ from agent.nodes.run_static_checks import run_static_checks_node
 from agent.state import Phase0State, initial_state
 
 
-def build_phase0_graph() -> StateGraph:
+def build_phase0_graph(checkpointer=None) -> StateGraph:
     """Build and compile the Phase 0 verification graph.
 
-    Returns a compiled graph ready for invoke().
+    Args:
+        checkpointer: Optional BaseCheckpointSaver. When provided, the graph
+                      persists state after every node, enabling crash recovery
+                      via thread_id-based resume.
+
+    Returns:
+        A compiled graph ready for invoke() / ainvoke().
     """
     builder = StateGraph(Phase0State)
 
@@ -60,7 +69,7 @@ def build_phase0_graph() -> StateGraph:
     builder.add_edge("create_capsule", "publish_report")
     builder.add_edge("publish_report", END)
 
-    return builder.compile()  # type: ignore[return-value]
+    return builder.compile(checkpointer=checkpointer)
 
 
 __all__ = ["build_phase0_graph", "Phase0State", "initial_state"]

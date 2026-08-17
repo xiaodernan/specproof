@@ -46,6 +46,16 @@ dev = [
     "bandit>=1.8.0",
     "responses>=0.25.0",
 ]
+otel = [
+    "opentelemetry-api>=1.28.0",
+    "opentelemetry-sdk>=1.28.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.28.0",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "opentelemetry-instrumentation-pika>=0.49b0",
+    "opentelemetry-instrumentation-pymongo>=0.49b0",
+    "opentelemetry-instrumentation-redis>=0.49b0",
+    "opentelemetry-instrumentation-pymysql>=0.49b0",
+]
 
 [project.scripts]
 specproof = "cli.specproof.main:cli"
@@ -62,6 +72,7 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
 
 [tool.mypy]
 python_version = "3.12"
+strict = true
 ignore_missing_imports = true
 warn_unused_configs = true
 warn_unused_ignores = true

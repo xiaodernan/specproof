@@ -42,49 +42,47 @@ def run_preflight(workspace_path: str | None = None) -> PreflightResult:
 
     _check_docker(result)
 
+    # Determine overall pass/fail
     result.passed = len(result.errors) == 0
     return result
-
-
-def _add_check(result: PreflightResult, check: str, status: str, detail: str) -> None:
-    """Append a check dict to the result."""
-    result.checks.append({"check": check, "status": status, "detail": detail})
 
 
 def _check_java(result: PreflightResult) -> None:
     """Check java -version works."""
     java_home = os.environ.get("JAVA_HOME", "")
     java_bin = os.path.join(java_home, "bin", "java.exe") if java_home else "java"
-    java_cmd = java_bin if (sys.platform == "win32" and java_home) else "java"
+    if sys.platform == "win32" and java_home:
+        java_cmd = java_bin
+    else:
+        java_cmd = "java"
 
     try:
         proc = subprocess.run(
             [java_cmd, "-version"],
-            capture_output=True,
-            text=True,
-            timeout=15,
+            capture_output=True, text=True, timeout=15,
         )
         output = proc.stdout + proc.stderr
-        first_line = output.splitlines()[0] if output.splitlines() else "ok"
         if "21." in output or "21.0" in output:
-            _add_check(result, "java", "PASS", first_line)
+            result.checks.append({
+                "check": "java",
+                "status": "PASS",
+                "detail": output.splitlines()[0] if output.splitlines() else "ok",
+            })
         else:
-            found_ver = output.splitlines()[0] if output.splitlines() else "unknown"
             result.errors.append(
-                f"JDK 21 required. Found: {found_ver}. "
+                f"JDK 21 required. Found: {output.splitlines()[0] if output.splitlines() else 'unknown'}. "
                 "Install Eclipse Temurin JDK 21: https://adoptium.net/"
             )
-            _add_check(result, "java", "FAIL", "Wrong version")
+            result.checks.append({"check": "java", "status": "FAIL", "detail": "Wrong version"})
     except FileNotFoundError:
         result.errors.append(
-            "Java not found. Install Eclipse Temurin JDK 21 "
-            "from https://adoptium.net/ "
+            "Java not found. Install Eclipse Temurin JDK 21 from https://adoptium.net/ "
             "and set JAVA_HOME environment variable."
         )
-        _add_check(result, "java", "FAIL", "Not found")
+        result.checks.append({"check": "java", "status": "FAIL", "detail": "Not found"})
     except Exception as exc:
         result.errors.append(f"Java check failed: {exc}")
-        _add_check(result, "java", "FAIL", str(exc))
+        result.checks.append({"check": "java", "status": "FAIL", "detail": str(exc)})
 
 
 def _check_javac(result: PreflightResult) -> None:
@@ -92,29 +90,35 @@ def _check_javac(result: PreflightResult) -> None:
     java_home = os.environ.get("JAVA_HOME", "")
     java_home_bin = os.path.join(java_home, "bin")
     javac_bin = os.path.join(java_home_bin, "javac.exe") if java_home else "javac"
-    javac_cmd = javac_bin if (sys.platform == "win32" and java_home) else "javac"
+    if sys.platform == "win32" and java_home:
+        javac_cmd = javac_bin
+    else:
+        javac_cmd = "javac"
 
     try:
         proc = subprocess.run(
             [javac_cmd, "-version"],
-            capture_output=True,
-            text=True,
-            timeout=15,
+            capture_output=True, text=True, timeout=15,
         )
         output = proc.stdout + proc.stderr
         if "21" in output:
-            _add_check(result, "javac", "PASS", output.strip())
+            result.checks.append({
+                "check": "javac",
+                "status": "PASS",
+                "detail": output.strip(),
+            })
         else:
             result.errors.append(
-                f"JDK 21 javac required. Found: {output.strip()}. Install Eclipse Temurin JDK 21."
+                f"JDK 21 javac required. Found: {output.strip()}. "
+                "Install Eclipse Temurin JDK 21."
             )
-            _add_check(result, "javac", "FAIL", "Wrong version")
+            result.checks.append({"check": "javac", "status": "FAIL", "detail": "Wrong version"})
     except FileNotFoundError:
         result.errors.append("javac not found. Install JDK 21 and set JAVA_HOME.")
-        _add_check(result, "javac", "FAIL", "Not found")
+        result.checks.append({"check": "javac", "status": "FAIL", "detail": "Not found"})
     except Exception as exc:
         result.errors.append(f"javac check failed: {exc}")
-        _add_check(result, "javac", "FAIL", str(exc))
+        result.checks.append({"check": "javac", "status": "FAIL", "detail": str(exc)})
 
 
 def _check_java_home(result: PreflightResult) -> None:
@@ -123,9 +127,9 @@ def _check_java_home(result: PreflightResult) -> None:
     if not java_home:
         result.errors.append(
             "JAVA_HOME is not set. Set it to your JDK 21 installation directory, e.g.:\n"
-            r'  $env:JAVA_HOME = "C:\path\to\jdk-21"'
+            r'  $env:JAVA_HOME = "C:\Users\HUAWEI\apps\jdk-21.0.11+10"'
         )
-        _add_check(result, "JAVA_HOME", "FAIL", "Not set")
+        result.checks.append({"check": "JAVA_HOME", "status": "FAIL", "detail": "Not set"})
         return
 
     java_exe = os.path.join(java_home, "bin", "java.exe")
@@ -133,37 +137,44 @@ def _check_java_home(result: PreflightResult) -> None:
         java_exe = os.path.join(java_home, "bin", "java")
 
     if os.path.isfile(java_exe):
-        _add_check(result, "JAVA_HOME", "PASS", java_home)
+        result.checks.append({
+            "check": "JAVA_HOME",
+            "status": "PASS",
+            "detail": java_home,
+        })
     else:
         result.errors.append(
-            f"JAVA_HOME={java_home} but {java_exe} not found. Verify the JDK installation path."
+            f"JAVA_HOME={java_home} but {java_exe} not found. "
+            "Verify the JDK installation path."
         )
-        _add_check(result, "JAVA_HOME", "FAIL", "Invalid path")
+        result.checks.append({"check": "JAVA_HOME", "status": "FAIL", "detail": "Invalid path"})
 
 
 def _check_disk_space(result: PreflightResult) -> None:
     """Check available disk space on the working drive."""
     try:
         cwd = os.getcwd()
-        drive = os.path.splitdrive(cwd)[0] or "C:" if sys.platform == "win32" else "/"
+        if sys.platform == "win32":
+            drive = os.path.splitdrive(cwd)[0] or "C:"
+        else:
+            drive = "/"
 
         usage = shutil.disk_usage(drive)
-        free_gb = usage.free / (1024**3)
-        gb_str = f"{free_gb:.1f} GB"
+        free_gb = usage.free / (1024 ** 3)
         if free_gb < 1.0:
             result.errors.append(
-                f"Low disk space: {gb_str} free on {drive}. "
+                f"Low disk space: {free_gb:.1f} GB free on {drive}. "
                 "At least 1 GB required for Maven dependencies and build artifacts."
             )
-            _add_check(result, "disk_space", "FAIL", gb_str)
+            result.checks.append({"check": "disk_space", "status": "FAIL", "detail": f"{free_gb:.1f} GB"})
         elif free_gb < 5.0:
-            result.warnings.append(f"Disk space low: {gb_str} free on {drive}.")
-            _add_check(result, "disk_space", "WARN", gb_str)
+            result.warnings.append(f"Disk space low: {free_gb:.1f} GB free on {drive}.")
+            result.checks.append({"check": "disk_space", "status": "WARN", "detail": f"{free_gb:.1f} GB"})
         else:
-            _add_check(result, "disk_space", "PASS", gb_str)
+            result.checks.append({"check": "disk_space", "status": "PASS", "detail": f"{free_gb:.1f} GB"})
     except Exception as exc:
         result.warnings.append(f"Could not check disk space: {exc}")
-        _add_check(result, "disk_space", "WARN", str(exc))
+        result.checks.append({"check": "disk_space", "status": "WARN", "detail": str(exc)})
 
 
 def _check_maven_wrapper(result: PreflightResult, workspace_path: str) -> None:
@@ -177,14 +188,12 @@ def _check_maven_wrapper(result: PreflightResult, workspace_path: str) -> None:
             f"No Maven Wrapper found in {workspace_path}. "
             "Run 'mvn -N wrapper:wrapper' or commit mvnw/mvnw.cmd files."
         )
-        _add_check(result, "maven_wrapper", "FAIL", "Not found")
+        result.checks.append({"check": "maven_wrapper", "status": "FAIL", "detail": "Not found"})
         return
 
     if not os.path.isfile(props):
-        result.errors.append(
-            f"maven-wrapper.properties not found in {workspace_path}/.mvn/wrapper/"
-        )
-        _add_check(result, "maven_wrapper", "FAIL", "No properties")
+        result.errors.append(f"maven-wrapper.properties not found in {workspace_path}/.mvn/wrapper/")
+        result.checks.append({"check": "maven_wrapper", "status": "FAIL", "detail": "No properties"})
         return
 
     # Verify distributionUrl
@@ -193,23 +202,21 @@ def _check_maven_wrapper(result: PreflightResult, workspace_path: str) -> None:
             content = f.read()
         if "repo.maven.apache.org" not in content:
             result.errors.append(
-                "maven-wrapper.properties does not use official "
-                "Apache Maven repository. distributionUrl must "
-                "point to repo.maven.apache.org."
+                "maven-wrapper.properties does not use official Apache Maven repository. "
+                "distributionUrl must point to repo.maven.apache.org."
             )
-            _add_check(result, "maven_wrapper", "FAIL", "Bad distributionUrl")
+            result.checks.append({"check": "maven_wrapper", "status": "FAIL", "detail": "Bad distributionUrl"})
         elif "distributionSha256Sum" not in content:
             result.warnings.append(
                 "maven-wrapper.properties missing distributionSha256Sum. "
-                "Maven distribution integrity will not be verified "
-                "on download."
+                "Maven distribution integrity will not be verified on download."
             )
-            _add_check(result, "maven_wrapper", "WARN", "No SHA-256 checksum")
+            result.checks.append({"check": "maven_wrapper", "status": "WARN", "detail": "No SHA-256 checksum"})
         else:
-            _add_check(result, "maven_wrapper", "PASS", "OK")
+            result.checks.append({"check": "maven_wrapper", "status": "PASS", "detail": "OK"})
     except Exception as exc:
         result.warnings.append(f"Could not verify maven-wrapper.properties: {exc}")
-        _add_check(result, "maven_wrapper", "WARN", str(exc))
+        result.checks.append({"check": "maven_wrapper", "status": "WARN", "detail": str(exc)})
 
 
 def _check_docker(result: PreflightResult) -> None:
@@ -217,26 +224,26 @@ def _check_docker(result: PreflightResult) -> None:
     try:
         proc = subprocess.run(
             ["docker", "version", "--format", "{{.Server.Version}}"],
-            capture_output=True,
-            text=True,
-            timeout=15,
+            capture_output=True, text=True, timeout=15,
         )
         if proc.returncode == 0:
-            _add_check(result, "docker", "PASS", proc.stdout.strip())
+            result.checks.append({
+                "check": "docker",
+                "status": "PASS",
+                "detail": proc.stdout.strip(),
+            })
         else:
             result.warnings.append(
-                "Docker not available. Phase 0 can run without "
-                "Docker, but Testcontainers-based tests will be skipped."
+                "Docker not available. Phase 0 can run without Docker, "
+                "but Testcontainers-based tests will be skipped."
             )
-            _add_check(result, "docker", "WARN", "Not available")
+            result.checks.append({"check": "docker", "status": "WARN", "detail": "Not available"})
     except FileNotFoundError:
-        result.warnings.append(
-            "Docker not found. Phase 0 can proceed, Testcontainers tests will not run."
-        )
-        _add_check(result, "docker", "WARN", "Not installed")
+        result.warnings.append("Docker not found. Phase 0 can proceed, Testcontainers tests will not run.")
+        result.checks.append({"check": "docker", "status": "WARN", "detail": "Not installed"})
     except Exception as exc:
         result.warnings.append(f"Docker check failed: {exc}")
-        _add_check(result, "docker", "WARN", str(exc))
+        result.checks.append({"check": "docker", "status": "WARN", "detail": str(exc)})
 
 
 def format_preflight_report(result: PreflightResult) -> str:
@@ -261,6 +268,6 @@ def format_preflight_report(result: PreflightResult) -> str:
             lines.append(f"  X {e}")
         lines.append(f"\nPreflight: FAILED — {len(result.errors)} error(s)")
     else:
-        lines.append("\nPreflight: PASSED")
+        lines.append(f"\nPreflight: PASSED")
 
     return "\n".join(lines)
