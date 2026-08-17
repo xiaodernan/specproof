@@ -4,14 +4,14 @@ public class UserResponse {
 
     private Long id;
     private String username;
-    private String emailAddress;
+    private String email;
 
     public UserResponse() {}
 
     public UserResponse(Long id, String username, String email) {
         this.id = id;
         this.username = username;
-        this.emailAddress = email;
+        this.email = email;
     }
 
     public Long getId() { return id; }
@@ -20,6 +20,6 @@ public class UserResponse {
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
 
-    public String getEmailAddress() { return emailAddress; }
-    public void setEmailAddress(String emailAddress) { this.emailAddress = emailAddress; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 }
