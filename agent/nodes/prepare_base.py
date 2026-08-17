@@ -1,54 +1,38 @@
-"""prepare_base node — checkout the base ref into an isolated workspace."""
+"""prepare_base node — checkout the base ref into an isolated workspace.
 
-import os
-import uuid
+Uses subprocess with argument lists (no shell interpolation), so repo paths
+and refs coming from untrusted job payloads cannot inject commands.
+"""
+
+import subprocess
+import tempfile
+from pathlib import Path
 
 from agent.state import Phase0State
 
 
 def prepare_base_node(state: Phase0State) -> dict:
-    """Prepare the base workspace using git worktree or clone.
-
-    For Phase 0 on Windows, uses a lightweight approach:
-    create a temp directory and copy/checkout the base ref.
-    """
+    """Prepare the base workspace using git worktree."""
     repo_path = state.get("repo_path", "")
     base_ref = state.get("base_ref", "base")
-    errors: list[str] = []
+    errors: list[str] = list(state.get("errors", []))
 
-    workspace_id = str(uuid.uuid4())[:8]
-    base_workspace = os.path.join(
-        os.environ.get("TEMP", "/tmp"),
-        f"specproof-base-{workspace_id}",
-    )
+    workspace = Path(tempfile.mkdtemp(prefix="specproof-base-"))
 
     try:
-        # Use git worktree if possible
-        result = os.system(
-            f'git -C "{repo_path}" worktree add "{base_workspace}" {base_ref} '
-            f'2>nul'
+        proc = subprocess.run(
+            ["git", "-C", repo_path, "worktree", "add", "--detach",
+             str(workspace), base_ref],
+            capture_output=True, text=True, timeout=120,
         )
-        if result != 0:
-            # Fallback: use git archive or clone branch
-            os.makedirs(base_workspace, exist_ok=True)
-            result2 = os.system(
-                f'git -C "{repo_path}" --work-tree="{base_workspace}" '
-                f'checkout {base_ref} -- . 2>nul'
+        if proc.returncode != 0:
+            errors.append(
+                f"Failed to checkout base ref '{base_ref}' from {repo_path}: "
+                f"{proc.stderr.strip()[:300]}"
             )
-            if result2 != 0:
-                errors.append(
-                    f"Failed to checkout base ref '{base_ref}' "
-                    f"from {repo_path}"
-                )
-                return {
-                    "base_workspace": "",
-                    "errors": state.get("errors", []) + errors,
-                }
-    except Exception as e:
+            return {"base_workspace": "", "errors": errors}
+    except Exception as e:  # noqa: BLE001
         errors.append(f"Error preparing base workspace: {e}")
-        return {
-            "base_workspace": "",
-            "errors": state.get("errors", []) + errors,
-        }
+        return {"base_workspace": "", "errors": errors}
 
-    return {"base_workspace": base_workspace}
+    return {"base_workspace": str(workspace)}

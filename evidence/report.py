@@ -10,6 +10,7 @@ def render_verification_report(
     head_ref: str,
     matrix: dict[str, Any],
     findings: list[dict],
+    errors: list[str] | None = None,
 ) -> str:
     """Render the full HTML Verification Report."""
     rows = matrix.get("rows", [])
@@ -42,8 +43,32 @@ def render_verification_report(
 
     passed = matrix.get("passed", 0)
     failed = matrix.get("failed", 0)
+    unverified = matrix.get("unverified", 0)
     total = matrix.get("total_rows", len(rows))
-    verdict = "VERIFIED" if failed == 0 else "BLOCKED"
+    error_list = errors or []
+    if error_list:
+        verdict = "FAILED"
+    elif failed > 0:
+        verdict = "BLOCKED"
+    elif unverified > 0:
+        verdict = "NEEDS REVIEW"
+    else:
+        verdict = "VERIFIED"
+
+    verdict_class = {
+        "FAILED": "blocked",
+        "BLOCKED": "blocked",
+        "NEEDS REVIEW": "blocked",
+        "VERIFIED": "verified",
+    }[verdict]
+
+    errors_html = ""
+    if error_list:
+        items = "".join(f"<li>{e}</li>" for e in error_list)
+        errors_html = (
+            f'<section><h2 style="color:#ff7b72;">Pipeline Errors ({len(error_list)})</h2>'
+            f"<ul>{items}</ul></section>"
+        )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -90,13 +115,16 @@ def render_verification_report(
             <div>Head: {head_ref}</div>
             <div>Generated: {now}</div>
         </div>
-        <div class="verdict {verdict.lower()}">{verdict}</div>
+        <div class="verdict {verdict_class}">{verdict}</div>
         <div class="summary" style="margin-top: 12px;">
             <div>Contracts: {total}</div>
             <div style="color: #7ee787;">Passed: {passed}</div>
             <div style="color: #ff7b72;">Failed: {failed}</div>
+            <div style="color: #8b949e;">Unverified: {unverified}</div>
         </div>
     </header>
+
+    {errors_html}
 
     <section>
         <h2>Requirement-to-Evidence Matrix</h2>
@@ -120,12 +148,13 @@ def render_verification_report(
         {
         findings_html
         if findings
-        else ('<p style="color: #7ee787;">No findings. All contracts passed.</p>')
+        else ('<p style="color: #8b949e;">No findings confirmed by the Review Court. '
+              'See the matrix above for per-contract results.</p>')
     }
     </section>
 
     <footer>
-        SpecProof v0.1.0 | Evidence hashes not available offline |
+        SpecProof v0.1.0 | SHA-256 evidence digests included where available |
         No API keys stored in this report
     </footer>
 </body>

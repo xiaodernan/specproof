@@ -1,12 +1,16 @@
 """LangGraph verification graph for SpecProof Phase 0 / Phase 1.
 
-Builds a StateGraph with the Phase 0 verification pipeline:
+Pipeline:
   intake → compile_contracts → prepare_base → prepare_head
-  → collect_diff → run_static_checks → generate_counterexamples
-  → run_differential → review_court → build_matrix
-  → create_capsule → publish_report → END
+  → guard_errors (conditional) → collect_diff → run_static_checks
+  → generate_counterexamples → run_differential → review_court
+  → build_matrix → create_capsule → publish_report → END
 
-P1.6: build_phase0_graph now accepts an optional checkpointer for
+If any node recorded an error in state["errors"], guard_errors routes
+straight to publish_report so the pipeline can never fabricate a
+verification result on top of failed inputs.
+
+P1.6: build_phase0_graph accepts an optional checkpointer for
 fault recovery. Without one, behaviour is identical to P0.5.
 """
 
@@ -25,6 +29,13 @@ from agent.nodes.review_court import review_court_node
 from agent.nodes.run_differential import run_differential_node
 from agent.nodes.run_static_checks import run_static_checks_node
 from agent.state import Phase0State, initial_state
+
+
+def _abort_on_errors(state: Phase0State) -> str:
+    """Route to publish_report when earlier nodes recorded errors."""
+    if state.get("errors"):
+        return "publish_report"
+    return "collect_diff"
 
 
 def build_phase0_graph(checkpointer=None) -> StateGraph:
@@ -59,7 +70,14 @@ def build_phase0_graph(checkpointer=None) -> StateGraph:
     builder.add_edge("intake", "compile_contracts")
     builder.add_edge("compile_contracts", "prepare_base")
     builder.add_edge("prepare_base", "prepare_head")
-    builder.add_edge("prepare_head", "collect_diff")
+
+    # Error guard: any error short-circuits to the report node.
+    builder.add_conditional_edges(
+        "prepare_head",
+        _abort_on_errors,
+        {"publish_report": "publish_report", "collect_diff": "collect_diff"},
+    )
+
     builder.add_edge("collect_diff", "run_static_checks")
     builder.add_edge("run_static_checks", "generate_counterexamples")
     builder.add_edge("generate_counterexamples", "run_differential")

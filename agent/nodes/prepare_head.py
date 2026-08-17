@@ -1,48 +1,38 @@
-"""prepare_head node — checkout the head ref into an isolated workspace."""
+"""prepare_head node — checkout the head ref into an isolated workspace.
 
-import os
-import uuid
+Uses subprocess with argument lists (no shell interpolation), so repo paths
+and refs coming from untrusted job payloads cannot inject commands.
+"""
+
+import subprocess
+import tempfile
+from pathlib import Path
 
 from agent.state import Phase0State
 
 
 def prepare_head_node(state: Phase0State) -> dict:
-    """Prepare the head workspace using git worktree or clone."""
+    """Prepare the head workspace using git worktree."""
     repo_path = state.get("repo_path", "")
     head_ref = state.get("head_ref", "head-v1")
-    errors: list[str] = []
+    errors: list[str] = list(state.get("errors", []))
 
-    workspace_id = str(uuid.uuid4())[:8]
-    head_workspace = os.path.join(
-        os.environ.get("TEMP", "/tmp"),
-        f"specproof-head-{workspace_id}",
-    )
+    workspace = Path(tempfile.mkdtemp(prefix="specproof-head-"))
 
     try:
-        result = os.system(
-            f'git -C "{repo_path}" worktree add "{head_workspace}" {head_ref} '
-            f'2>nul'
+        proc = subprocess.run(
+            ["git", "-C", repo_path, "worktree", "add", "--detach",
+             str(workspace), head_ref],
+            capture_output=True, text=True, timeout=120,
         )
-        if result != 0:
-            os.makedirs(head_workspace, exist_ok=True)
-            result2 = os.system(
-                f'git -C "{repo_path}" --work-tree="{head_workspace}" '
-                f'checkout {head_ref} -- . 2>nul'
+        if proc.returncode != 0:
+            errors.append(
+                f"Failed to checkout head ref '{head_ref}' from {repo_path}: "
+                f"{proc.stderr.strip()[:300]}"
             )
-            if result2 != 0:
-                errors.append(
-                    f"Failed to checkout head ref '{head_ref}' "
-                    f"from {repo_path}"
-                )
-                return {
-                    "head_workspace": "",
-                    "errors": state.get("errors", []) + errors,
-                }
-    except Exception as e:
+            return {"head_workspace": "", "errors": errors}
+    except Exception as e:  # noqa: BLE001
         errors.append(f"Error preparing head workspace: {e}")
-        return {
-            "head_workspace": "",
-            "errors": state.get("errors", []) + errors,
-        }
+        return {"head_workspace": "", "errors": errors}
 
-    return {"head_workspace": head_workspace}
+    return {"head_workspace": str(workspace)}

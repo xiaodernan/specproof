@@ -17,6 +17,7 @@ class Phase0State(MessagesState):
     head_ref: str
     spec_path: str
     depth: str  # "FAST" only in Phase 0
+    output_dir: str  # where the verification report is written
 
     # ── Intermediate ──
     requirement_text: str
@@ -29,6 +30,8 @@ class Phase0State(MessagesState):
     static_findings: list[dict]
     diff_results: list[dict]
     generated_tests_path: str
+    # Per-contract experiment results (only real experiments may set PASS/FAIL).
+    contract_results: list[dict]
 
     # ── Review Court ──
     candidate_findings: list[dict]
@@ -59,6 +62,7 @@ def initial_state(
         "head_ref": head_ref,
         "spec_path": spec_path,
         "depth": depth,
+        "output_dir": "reports",
         "requirement_text": "",
         "contracts": [],
         "changed_symbols": [],
@@ -67,6 +71,7 @@ def initial_state(
         "static_findings": [],
         "diff_results": [],
         "generated_tests_path": "",
+        "contract_results": [],
         "candidate_findings": [],
         "confirmed_findings": [],
         "matrix": {},

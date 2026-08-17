@@ -1,16 +1,18 @@
 """review_court node — Prosecutor / Defender / Judge evaluation.
 
-P0.5 Evidence Policy (strict enforcement):
+P0.5 Evidence Policy (strict enforcement, v2):
   BLOCKER requires ALL 6 conditions:
     1. Approved contract (contract_id in state.contracts)
-    2. Base/Head real execution evidence (not static regex alone)
-    3. Attribution to Head (diff between base and head)
-    4. DB/behavior evidence (db_state_mutation or equivalent)
-    5. Capsule replayable (reproducible with clean checkout)
+    2. Real Base/Head execution evidence recorded by run_differential
+       (base_pass_head_fail with actual exit codes — never static diff)
+    3. Attribution to Head (location present in changed files)
+    4. Real DB evidence (db_state_verdict == DB_MUTATED_ON_UNAUTH from H2 dump)
+    5. Replay constructible (executable evidence + generated test file exists)
     6. Confidence >= 0.90
 
-  Static regex findings capped at MAJOR (never BLOCKER).
-  SHA-256 hash named "evidence_digest" or "manifest_digest", never "signature".
+  Static/source-diff findings are capped at MAJOR (never BLOCKER).
+  Digests are named "evidence_digest", never "signature".
+  Duplicate candidates for the same (contract, type) are merged.
 """
 
 import asyncio
@@ -20,17 +22,15 @@ import os
 
 from agent.state import Phase0State
 
-# P0.5: BLOCKER requirements
 _BLOCKER_REQUIRED_EVIDENCE_TYPES = frozenset({
     "base_pass_head_fail",
-    "db_state_mutation",
     "differential_execution",
 })
 
-# Evidence types that CANNOT produce BLOCKER on their own
 _NON_BLOCKER_EVIDENCE_TYPES = frozenset({
     "static_regex_analysis",
     "static_analysis",
+    "java_source_diff",
     "heuristic",
 })
 
@@ -46,9 +46,9 @@ For each finding, produce a JSON object with:
 - recommended_severity: BLOCKER / MAJOR / MINOR
 - confidence: 0.0 to 1.0
 
-IMPORTANT: Static regex analysis alone cannot justify BLOCKER severity.
-Only findings with executable evidence (base_pass_head_fail, differential execution,
-DB state mutation) can be recommended as BLOCKER.
+IMPORTANT: Static analysis alone cannot justify BLOCKER severity.
+Only findings with executable evidence (base_pass_head_fail, differential
+execution, real DB state mutation) can be recommended as BLOCKER.
 
 Return a JSON array. No other text."""
 
@@ -87,12 +87,12 @@ For each finding, produce a JSON object with:
 EVIDENCE POLICY (strict):
 - BLOCKER requires ALL of:
   1) approved contract exists
-  2) base/head real execution evidence (not static regex)
+  2) base/head real execution evidence (not static diff)
   3) attribution to Head (diff between versions)
   4) DB or behavioral evidence
   5) reproducible in clean capsule
   6) confidence >= 0.90
-- Static regex findings can NEVER be BLOCKER (max MAJOR).
+- Static findings can NEVER be BLOCKER (max MAJOR).
 - MAJOR: at least one strong evidence source, confidence >= 0.82
 - MINOR: evidence + logic, confidence >= 0.72
 - Below 0.72: DISMISSED
@@ -175,16 +175,29 @@ def _extract_json_array(content: str) -> list[dict]:
     return []
 
 
+def _has_real_execution_evidence(diff_results: list[dict]) -> bool:
+    """Real execution evidence = a recorded base/head run with exit codes."""
+    for dr in diff_results:
+        if dr.get("evidence_type") == "base_pass_head_fail":
+            return True
+        if (
+            dr.get("evidence_type") == "differential_execution"
+            and dr.get("verdict") == "REGRESSION"
+            and "base_exit_code" in dr
+            and "head_exit_code" in dr
+        ):
+            return True
+    return False
+
+
 def _check_blocker_conditions(
     finding: dict,
     contracts: list[dict],
-    has_diff_evidence: bool,
-    has_db_evidence: bool,
+    diff_results: list[dict],
+    generated_tests_path: str,
+    changed_files: list[str],
 ) -> dict:
-    """Check all 6 BLOCKER conditions for P0.5 evidence policy.
-
-    Returns a dict with condition_results and whether all are met.
-    """
+    """Check all 6 BLOCKER conditions against real recorded evidence."""
     evidence_type = finding.get("evidence_type", "")
     contract_id = finding.get("contract_id", "")
 
@@ -197,36 +210,34 @@ def _check_blocker_conditions(
         "6_confidence_090": False,
     }
 
-    # Condition 1: Approved contract exists
     conditions["1_approved_contract"] = any(
         c.get("id") == contract_id for c in contracts
     ) if contract_id else False
 
-    # Condition 2: Base/Head real execution (not static regex)
     conditions["2_base_head_execution"] = (
-        evidence_type not in _NON_BLOCKER_EVIDENCE_TYPES
-        and evidence_type in _BLOCKER_REQUIRED_EVIDENCE_TYPES
-    ) or has_diff_evidence
-
-    # Condition 3: Attribution to Head
-    conditions["3_attribution_to_head"] = (
-        finding.get("diff_verdict") == "REGRESSION"
-        or evidence_type in ("base_pass_head_fail", "differential_execution")
-        or has_diff_evidence
+        evidence_type in _BLOCKER_REQUIRED_EVIDENCE_TYPES
+        and _has_real_execution_evidence(diff_results)
     )
 
-    # Condition 4: DB/behavior evidence
+    location = finding.get("location", "")
+    conditions["3_attribution_to_head"] = bool(
+        location
+        and any(location in cf for cf in changed_files)
+    ) or evidence_type == "base_pass_head_fail"
+
     conditions["4_db_behavior_evidence"] = (
-        has_db_evidence
-        or evidence_type == "db_state_mutation"
-        or finding.get("db_state_verdict") == "DB_MUTATED_ON_UNAUTH"
+        finding.get("db_state_verdict") == "DB_MUTATED_ON_UNAUTH"
+        or any(
+            dr.get("db_state_verdict") == "DB_MUTATED_ON_UNAUTH"
+            for dr in diff_results
+        )
     )
 
-    # Condition 5: Capsule replayable (REGRESSION findings produce capsules)
-    severity = finding.get("severity", "")
-    conditions["5_capsule_replayable"] = severity in ("BLOCKER", "MAJOR")
+    conditions["5_capsule_replayable"] = (
+        evidence_type in _BLOCKER_REQUIRED_EVIDENCE_TYPES
+        and bool(generated_tests_path)
+    )
 
-    # Condition 6: Confidence >= 0.90
     conditions["6_confidence_090"] = finding.get("confidence", 0) >= 0.90
 
     all_met = all(conditions.values())
@@ -236,33 +247,57 @@ def _check_blocker_conditions(
     }
 
 
+def _dedup_candidates(candidates: list[dict]) -> list[dict]:
+    """Merge candidates that report the same (contract, type) keeping the strongest."""
+    merged: dict[tuple[str, str], dict] = {}
+    for c in candidates:
+        key = (c.get("contract_id", ""), c.get("type", ""))
+        existing = merged.get(key)
+        if existing is None:
+            merged[key] = dict(c)
+            continue
+        if c.get("confidence", 0) > existing.get("confidence", 0):
+            merged[key] = dict(c)
+        # Merge evidence notes from the weaker duplicate.
+        desc = existing.get("description", "")
+        if c.get("description") and c.get("description") not in desc:
+            existing["description"] = desc + " | " + c["description"]
+    return list(merged.values())
+
+
 def _apply_judge_rulings(
     candidates: list[dict],
     judge_rulings: list[dict],
     contracts: list[dict],
     diff_results: list[dict],
+    generated_tests_path: str,
+    changed_files: list[str],
 ) -> list[dict]:
     """Apply judge rulings with P0.5 evidence policy enforcement.
 
-    Static regex findings can NEVER be BLOCKER regardless of judge ruling.
+    A missing or unmatched ruling defaults to NEEDS_CONFIRMATION (never
+    silently CONFIRMED).
     """
     rulings_by_id = {r.get("id", "").upper(): r for r in judge_rulings}
     confirmed: list[dict] = []
 
-    # Check for diff evidence presence
-    has_diff_evidence = any(
-        dr.get("verdict") == "REGRESSION" for dr in diff_results
-    )
-    has_db_evidence = any(
-        dr.get("db_state_verdict") == "DB_MUTATED_ON_UNAUTH"
-        for dr in diff_results
-    )
-
     for cf in candidates:
         cid = cf.get("id", "").upper()
-        ruling = rulings_by_id.get(cid, {})
+        ruling = rulings_by_id.get(cid)
 
-        verdict = ruling.get("verdict", "CONFIRMED")
+        if ruling is None:
+            # Judge never evaluated this finding — do not confirm it.
+            confirmed.append({
+                **cf,
+                "status": "needs_confirmation",
+                "severity": "MAJOR" if cf.get("severity") == "BLOCKER" else cf.get("severity", "MINOR"),
+                "confidence": min(cf.get("confidence", 0.8), 0.8),
+                "judge_reasoning": "No judge ruling returned for this finding",
+                "court_source": "llm_three_party",
+            })
+            continue
+
+        verdict = ruling.get("verdict", "")
         if verdict == "DISMISSED":
             continue
 
@@ -270,19 +305,16 @@ def _apply_judge_rulings(
         severity = ruling.get("severity") or cf.get("severity", "MAJOR")
         confidence = ruling.get("confidence", cf.get("confidence", 0.8))
 
-        # P0.5: Static regex can NEVER be BLOCKER
         if evidence_type in _NON_BLOCKER_EVIDENCE_TYPES and severity == "BLOCKER":
             severity = "MAJOR"
             confidence = min(confidence, 0.85)
 
-        # P0.5: Check all 6 BLOCKER conditions
         blocker_check = _check_blocker_conditions(
-            cf, contracts, has_diff_evidence, has_db_evidence
+            cf, contracts, diff_results, generated_tests_path, changed_files
         )
         if severity == "BLOCKER" and not blocker_check["all_blocker_conditions_met"]:
             severity = "MAJOR"
 
-        # Compute evidence digest
         evidence_json = json.dumps({
             "id": cid,
             "evidence_type": evidence_type,
@@ -303,198 +335,155 @@ def _apply_judge_rulings(
             "blocker_check": blocker_check,
         })
 
-    return confirmed
+    return _dedup_candidates(confirmed)
 
 
 def _rule_based_court(state: Phase0State) -> dict:
-    """Rule-based Review Court with P0.5 evidence policy.
-
-    Static regex findings → max MAJOR.
-    BLOCKER requires approved contract + real execution + DB evidence.
-    """
+    """Rule-based Review Court with P0.5 evidence policy."""
     static_findings = state.get("static_findings", [])
     diff_results = state.get("diff_results", [])
     contracts = state.get("contracts", [])
-    candidate_findings: list[dict] = []
-    confirmed_findings: list[dict] = []
+    generated_tests_path = state.get("generated_tests_path", "")
+    changed_files = _changed_files(state)
 
-    has_diff_evidence = any(
-        dr.get("verdict") == "REGRESSION" for dr in diff_results
-    )
-    has_db_evidence = any(
-        dr.get("db_state_verdict") == "DB_MUTATED_ON_UNAUTH"
-        for dr in diff_results
-    )
+    candidates: list[dict] = []
 
-    # Gather candidates from static findings → evidence_type checked
     for sf in static_findings:
         evidence_type = sf.get("evidence_type", "static_analysis")
-        candidate = {
-            **sf,
-            "source": "static_analysis",
-            "status": "candidate",
-        }
-        # P0.5: Static regex findings can only be MAJOR at most
+        candidate = {**sf, "source": "static_analysis", "status": "candidate"}
         if evidence_type in _NON_BLOCKER_EVIDENCE_TYPES:
             candidate["severity"] = (
                 "MAJOR" if sf.get("severity") == "BLOCKER"
                 else sf.get("severity", "MAJOR")
             )
-            candidate["confidence"] = min(
-                sf.get("confidence", 0.8), 0.85
-            )
-        candidate_findings.append(candidate)
+            candidate["confidence"] = min(sf.get("confidence", 0.8), 0.85)
+        candidates.append(candidate)
 
-    # Gather candidates from differential results
     for dr in diff_results:
-        if dr.get("verdict") in ("REGRESSION", "AMBIGUOUS"):
-            is_regression = dr.get("verdict") == "REGRESSION"
-            evidence_type = dr.get("evidence_type", "differential_execution")
-            db_verdict = dr.get("db_state_verdict", "")
-
-            # P0.5: BLOCKER only if both HTTP and DB evidence confirm
-            if is_regression and db_verdict == "DB_MUTATED_ON_UNAUTH":
-                severity = "BLOCKER"
-                confidence = 0.95
-            elif is_regression:
-                severity = "MAJOR"
-                confidence = 0.85
-            else:
-                severity = "MINOR"
-                confidence = 0.65
-
-            candidate = {
-                "id": f"COURT-{dr.get('contract_id', 'UNKNOWN')}",
-                "contract_id": dr.get("contract_id", ""),
-                "severity": severity,
-                "type": "differential_regression",
-                "description": dr.get("detail", "Differential test regression"),
-                "evidence_type": evidence_type,
-                "confidence": confidence,
-                "source": "differential",
-                "status": "candidate",
-                "diff_verdict": dr.get("verdict"),
-                "db_state_verdict": db_verdict,
-            }
-            candidate_findings.append(candidate)
-
-    # Defender: filter false positives
-    for cf in candidate_findings:
-        is_false_positive = False
-        if cf.get("diff_verdict") == "NON_REPRODUCIBLE":
-            is_false_positive = True
-        if not is_false_positive:
-            confirmed_findings.append({**cf, "status": "confirmed"})
-
-    # Judge: apply evidence policy
-    for f in confirmed_findings:
-        evidence_type = f.get("evidence_type", "")
-        db_verdict = f.get("db_state_verdict", "")
-
-        # P0.5: Static regex → max MAJOR
+        if dr.get("verdict") not in ("REGRESSION", "AMBIGUOUS"):
+            continue
+        evidence_type = dr.get("evidence_type", "differential_execution")
+        severity = dr.get("severity")
         if evidence_type in _NON_BLOCKER_EVIDENCE_TYPES:
-            f["severity"] = (
-                "MAJOR" if f.get("severity") == "BLOCKER"
-                else f.get("severity", "MAJOR")
-            )
+            severity = "MAJOR" if severity == "BLOCKER" else (severity or "MAJOR")
+        elif severity is None:
+            severity = "MAJOR" if dr.get("verdict") == "REGRESSION" else "MINOR"
+        confidence = dr.get("confidence")
+        if confidence is None:
+            confidence = 0.88 if dr.get("verdict") == "REGRESSION" else 0.65
 
-        # P0.5: BLOCKER requires all 6 conditions
-        blocker_check = _check_blocker_conditions(
-            f, contracts, has_diff_evidence, has_db_evidence
-        )
-        f["blocker_check"] = blocker_check
-
-        if f.get("severity") == "BLOCKER":
-            if not blocker_check["all_blocker_conditions_met"]:
-                f["severity"] = "MAJOR"
-
-        # Compute evidence digest (never called "signature")
-        evidence_json = json.dumps({
-            "id": f.get("id", ""),
+        candidates.append({
+            "id": f"COURT-{dr.get('contract_id', 'UNKNOWN')}",
+            "contract_id": dr.get("contract_id", ""),
+            "severity": severity,
+            "type": "differential_regression",
+            "description": dr.get("detail", "Differential test regression"),
             "evidence_type": evidence_type,
-            "severity": f.get("severity"),
-            "confidence": f.get("confidence"),
+            "confidence": confidence,
+            "source": "differential",
+            "status": "candidate",
+            "diff_verdict": dr.get("verdict"),
+            "db_state_verdict": dr.get("db_state_verdict", ""),
+            "location": dr.get("location", ""),
+            "evidence_digest": dr.get("evidence_digest", ""),
+        })
+
+    candidates = _dedup_candidates(candidates)
+
+    confirmed: list[dict] = []
+    for cf in candidates:
+        if cf.get("diff_verdict") == "NON_REPRODUCIBLE":
+            continue
+
+        evidence_type = cf.get("evidence_type", "")
+        if evidence_type in _NON_BLOCKER_EVIDENCE_TYPES:
+            cf["severity"] = (
+                "MAJOR" if cf.get("severity") == "BLOCKER"
+                else cf.get("severity", "MAJOR")
+            )
+            cf["confidence"] = min(cf.get("confidence", 0.8), 0.85)
+
+        blocker_check = _check_blocker_conditions(
+            cf, contracts, diff_results, generated_tests_path, changed_files
+        )
+        cf["blocker_check"] = blocker_check
+        if cf.get("severity") == "BLOCKER" and not blocker_check["all_blocker_conditions_met"]:
+            cf["severity"] = "MAJOR"
+            cf["confidence"] = min(cf.get("confidence", 0.88), 0.88)
+
+        evidence_json = json.dumps({
+            "id": cf.get("id", ""),
+            "evidence_type": evidence_type,
+            "severity": cf.get("severity"),
+            "confidence": cf.get("confidence"),
         }, sort_keys=True)
-        f["evidence_digest"] = (
+        cf["evidence_digest"] = (
             "sha256:" + hashlib.sha256(evidence_json.encode()).hexdigest()
         )
-        f.setdefault("court_source", "rule_based")
+        cf.setdefault("court_source", "rule_based")
+        confirmed.append({**cf, "status": "confirmed"})
 
     return {
-        "candidate_findings": candidate_findings,
-        "confirmed_findings": confirmed_findings,
+        "candidate_findings": candidates,
+        "confirmed_findings": confirmed,
     }
 
 
+def _changed_files(state: Phase0State) -> list[str]:
+    import subprocess
+    repo_path = state.get("repo_path", "")
+    base_ref = state.get("base_ref", "base")
+    head_ref = state.get("head_ref", "head-v1")
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_path, "diff", "--name-only", base_ref, head_ref],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0:
+            return [f.strip() for f in result.stdout.splitlines() if f.strip()]
+    except Exception:
+        pass
+    return []
+
+
 def review_court_node(state: Phase0State) -> dict:
-    """Evaluate candidate findings through P0.5 Review Court.
-
-    Enforces evidence policy:
-    - Static regex alone cannot produce BLOCKER
-    - BLOCKER requires 6 conditions
-    - SHA-256 named evidence_digest, never "signature"
-    """
-    static_findings = state.get("static_findings", [])
-    diff_results = state.get("diff_results", [])
+    """Evaluate candidate findings through the P0.5 Review Court."""
     contracts = state.get("contracts", [])
+    diff_results = state.get("diff_results", [])
 
-    candidates: list[dict] = []
-    for sf in static_findings:
-        candidates.append({**sf, "source": "static_analysis", "status": "candidate"})
-    for dr in diff_results:
-        if dr.get("verdict") in ("REGRESSION", "AMBIGUOUS"):
-            candidates.append({
-                "id": f"COURT-{dr.get('contract_id', 'UNKNOWN')}",
-                "contract_id": dr.get("contract_id", ""),
-                "severity": "MAJOR",
-                "type": "differential_regression",
-                "description": dr.get("detail", "Differential test regression"),
-                "evidence_type": dr.get("evidence_type", "differential_execution"),
-                "confidence": 0.85 if dr.get("verdict") == "REGRESSION" else 0.65,
-                "source": "differential",
-                "status": "candidate",
-                "diff_verdict": dr.get("verdict"),
-                "db_state_verdict": dr.get("db_state_verdict", ""),
-            })
-
-    if not candidates:
+    if not state.get("static_findings") and not diff_results:
         return {"candidate_findings": [], "confirmed_findings": []}
-
-    confirmed_findings: list[dict] = []
-    court_source = "rule_based"
 
     provider = _get_provider()
     if provider is not None:
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(
-                        asyncio.run, _llm_review_court(candidates)
+            # Build the same candidate set the rule-based court uses.
+            rule_candidates = _rule_based_court(state)["candidate_findings"]
+            if rule_candidates:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        future = pool.submit(
+                            asyncio.run, _llm_review_court(rule_candidates)
+                        )
+                        _pros, _def, judge_rulings = future.result(timeout=180)
+                else:
+                    _pros, _def, judge_rulings = asyncio.run(
+                        _llm_review_court(rule_candidates)
                     )
-                    _pros, _def, judge_rulings = future.result(timeout=180)
-            else:
-                _pros, _def, judge_rulings = asyncio.run(
-                    _llm_review_court(candidates)
-                )
-            if judge_rulings:
-                confirmed_findings = _apply_judge_rulings(
-                    candidates, judge_rulings, contracts, diff_results
-                )
-                court_source = "llm_three_party"
+                if judge_rulings:
+                    confirmed_findings = _apply_judge_rulings(
+                        rule_candidates, judge_rulings, contracts, diff_results,
+                        state.get("generated_tests_path", ""),
+                        _changed_files(state),
+                    )
+                    return {
+                        "candidate_findings": rule_candidates,
+                        "confirmed_findings": confirmed_findings,
+                    }
         except Exception:
+            # LLM court unavailable — fall through to the deterministic court.
             pass
 
-    if court_source == "rule_based" or not confirmed_findings:
-        rule_result = _rule_based_court(state)
-        confirmed_findings = rule_result["confirmed_findings"]
-        court_source = "rule_based"
-
-    for f in confirmed_findings:
-        f.setdefault("court_source", court_source)
-
-    return {
-        "candidate_findings": candidates,
-        "confirmed_findings": confirmed_findings,
-    }
+    return _rule_based_court(state)

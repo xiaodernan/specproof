@@ -1,13 +1,20 @@
-"""generate_counterexamples node — LLM-generated JUnit tests targeting regressions.
+"""generate_counterexamples node — generate a JUnit counterexample test.
 
-P0.5: Real LLM generation with non-thinking mode, compile verification,
-3-retry loop, test source tracking, and DB state verification.
+v2 honesty fixes:
+- The generated test is a SINGLE test method: unauthenticated PUT must
+  return 401 AND leave the DB row unchanged (andReturn + assertAll —
+  no short-circuit).
+- run_differential injects the same test into BOTH workspaces before
+  running it, so base_pass_head_fail means what it says.
+- The deterministic fallback template supports only the demo repository
+  (com.specproof). For any other repo it fails honestly instead of
+  pretending to work.
+- LLM failures are recorded in the generation record, never swallowed.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import re
 import subprocess
@@ -31,28 +38,23 @@ _TEST_SCHEMA_REQUIRED = [
 # ── LLM prompt for JUnit generation (non-thinking mode) ───────────
 
 _JUNIT_GENERATION_PROMPT = """You are a Java security test engineer. Generate a JUnit 5 test class
-for a Spring Boot application that verifies security regression.
+for a Spring Boot application that verifies a security regression.
 
 CONTEXT:
-The PR removed @PreAuthorize("isAuthenticated()") from a PUT /api/users/{id}/email endpoint.
-This means unauthenticated requests can now change user emails — a security regression.
+A PR removed an authorization guard (e.g. @PreAuthorize) from a mutating
+endpoint. Unauthenticated requests must be rejected with 401 and must not
+modify database state.
 
 REQUIREMENTS:
 1. Use @SpringBootTest + @AutoConfigureMockMvc + @ActiveProfiles("test")
 2. Import TestMockBeansConfig with @Import
 3. Inject MockMvc and UserRepository
 4. In @BeforeEach, clean DB and create a test user
-5. Write a test that sends an UNAUTHENTICATED PUT request to /api/users/{id}/email
-6. Verify the HTTP status is 401/403 (UNAUTHORIZED/FORBIDDEN)
-7. ALSO verify database state: the user's email was NOT changed
-8. Include a second test with @WithMockUser that verifies authenticated requests work (200 OK)
-
-IMPORTANT:
-- Use MockMvc.perform() with status().isUnauthorized() for unauthenticated
-- Use MockMvc.perform() with status().isOk() for authenticated
-- Check DB state: userRepository.findById(id).getEmail() before and after
-- Full package: com.specproof.demo
-- Class name: SpecProofSecurityRegressionTest
+5. Write ONE test that sends an UNAUTHENTICATED PUT to the endpoint
+6. Use andReturn() and assertAll(): status must be 401/403 AND the DB row
+   must be unchanged afterwards (no short-circuit — both assertions run)
+7. Full package: com.specproof.demo
+8. Class name: SpecProofGeneratedTest
 
 Return ONLY the Java source code. No markdown fences, no explanation."""
 
@@ -92,10 +94,7 @@ def _get_provider():
 
 
 def _validate_test_schema(code: str) -> list[str]:
-    """Validate generated test code against required schema elements.
-
-    Returns a list of missing required elements (empty = valid).
-    """
+    """Validate generated test code against required schema elements."""
     missing = []
     for required in _TEST_SCHEMA_REQUIRED:
         if required not in code:
@@ -112,27 +111,30 @@ def _compile_test(workspace: str, test_file: str) -> tuple[int, str]:
     import platform
     mvnw_cmd = "mvnw.cmd" if platform.system() == "Windows" else "./mvnw"
 
-    try:
-        proc = subprocess.run(
-            [mvnw_cmd, "test-compile", "-q"],
-            cwd=workspace,
-            capture_output=True, text=True, timeout=180,
-        )
-        return proc.returncode, proc.stderr
-    except FileNotFoundError:
+    for cmd in (mvnw_cmd, "mvn"):
         try:
             proc = subprocess.run(
-                ["mvn", "test-compile", "-q"],
+                [cmd, "test-compile", "-q"],
                 cwd=workspace,
-                capture_output=True, text=True, timeout=180,
+                capture_output=True, text=True, timeout=300,
             )
             return proc.returncode, proc.stderr
         except FileNotFoundError:
-            return -1, "Maven not found"
-        except Exception as e:
+            continue
+        except Exception as e:  # noqa: BLE001
             return -1, str(e)
-    except Exception as e:
-        return -1, str(e)
+    return -1, "Maven not found"
+
+
+def _is_demo_repo(workspace: str) -> bool:
+    """The deterministic template only supports the demo repository."""
+    pom = Path(workspace) / "pom.xml"
+    if not pom.exists():
+        return False
+    try:
+        return "com.specproof" in pom.read_text(encoding="utf-8")
+    except OSError:
+        return False
 
 
 async def _llm_generate_junit(
@@ -147,14 +149,13 @@ async def _llm_generate_junit(
     if provider is None:
         raise RuntimeError("No LLM provider available")
 
-    # Build context from findings and contracts
     findings_desc = "\n".join(
         f"- [{f.get('severity', 'UNKNOWN')}] {f.get('type')}: {f.get('description', '')}"
         for f in findings[:10]
     ) if findings else "No findings available"
 
     contracts_desc = "\n".join(
-        f"- {c.get('id', '?')}: {c.get('description', c.get('name', ''))}"
+        f"- {c.get('id', '?')}: {c.get('expected_behavior', c.get('description', ''))}"
         for c in contracts[:10]
     ) if contracts else "No contracts available"
 
@@ -171,33 +172,27 @@ async def _llm_generate_junit(
 
     content = response.content or ""
 
-    # Strip markdown code fences if present
     code = content
     if "```java" in code:
-        m = re.search(r'```java\s*\n(.*?)```', code, re.DOTALL)
+        m = re.search(r"```java\s*\n(.*?)```", code, re.DOTALL)
         if m:
             code = m.group(1).strip()
     elif "```" in code:
-        m = re.search(r'```\s*\n(.*?)```', code, re.DOTALL)
+        m = re.search(r"```\s*\n(.*?)```", code, re.DOTALL)
         if m:
             code = m.group(1).strip()
 
     return code
 
 
-def _build_deterministic_test(
-    findings: list[dict],
-    state: Phase0State,
-) -> str:
-    """Build a deterministic template-based test as fallback.
+def _build_deterministic_test() -> str:
+    """Deterministic template for the demo repository.
 
-    P0.5: deterministic_template source cannot produce BLOCKER findings on its own.
+    Single test: unauthenticated PUT → 401 AND DB row unchanged.
+    Uses andReturn() + assertAll() so both assertions always run.
     """
-    return textwrap.dedent(f"""\
+    return textwrap.dedent("""\
     package com.specproof.demo;
-
-    import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-    import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
     import com.fasterxml.jackson.databind.ObjectMapper;
     import com.specproof.demo.config.TestMockBeansConfig;
@@ -211,15 +206,19 @@ def _build_deterministic_test(
     import org.springframework.boot.test.context.SpringBootTest;
     import org.springframework.context.annotation.Import;
     import org.springframework.http.MediaType;
-    import org.springframework.security.test.context.support.WithMockUser;
     import org.springframework.test.context.ActiveProfiles;
     import org.springframework.test.web.servlet.MockMvc;
+    import org.springframework.test.web.servlet.MvcResult;
+
+    import static org.junit.jupiter.api.Assertions.assertAll;
+    import static org.junit.jupiter.api.Assertions.assertEquals;
+    import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
     @SpringBootTest
     @AutoConfigureMockMvc
     @ActiveProfiles("test")
     @Import(TestMockBeansConfig.class)
-    public class SpecProofGeneratedTest {{
+    public class SpecProofGeneratedTest {
 
         @Autowired
         private MockMvc mockMvc;
@@ -231,48 +230,38 @@ def _build_deterministic_test(
         private ObjectMapper objectMapper;
 
         @BeforeEach
-        void setUp() {{
+        void setUp() {
             userRepository.deleteAll();
             User user = new User("specproof", "specproof@example.com");
             user.setPasswordHash("hash");
             userRepository.save(user);
-        }}
+        }
 
         @Test
-        void changeEmailWithoutAuthShouldReturn401() throws Exception {{
+        void unauthenticatedEmailChangeMustBeRejected() throws Exception {
             User user = userRepository.findAll().get(0);
             String emailBefore = user.getEmail();
             ChangeEmailRequest req = new ChangeEmailRequest("attacker@evil.com");
 
-            mockMvc.perform(put("/api/users/{{id}}/email", user.getId())
+            MvcResult result = mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)))
-                    .andExpect(status().isUnauthorized());
+                    .andReturn();
 
-            // DB state: email must NOT have changed
+            int status = result.getResponse().getStatus();
             String emailAfter = userRepository.findById(user.getId())
                     .map(User::getEmail).orElse("NOT_FOUND");
-            if (!emailBefore.equals(emailAfter)) {{
-                throw new AssertionError(
-                    "DB STATE CHANGED: email was '" + emailBefore
-                    + "', now '" + emailAfter + "'. "
-                    + "Unauthenticated request must not modify data.");
-            }}
-        }}
 
-        @Test
-        @WithMockUser
-        void changeEmailWhenAuthenticatedShouldSucceed() throws Exception {{
-            User user = userRepository.findAll().get(0);
-            ChangeEmailRequest req = new ChangeEmailRequest("new@example.com");
-
-            mockMvc.perform(put("/api/users/{{id}}/email", user.getId())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(req)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.email").value("new@example.com"));
-        }}
-    }}
+            assertAll(
+                () -> assertEquals(401, status,
+                    "Expected 401 UNAUTHORIZED but got " + status),
+                () -> assertEquals(emailBefore, emailAfter,
+                    "DB STATE VIOLATION: email was '" + emailBefore
+                    + "' before request, now '" + emailAfter
+                    + "'. Unauthenticated requests must not modify data.")
+            );
+        }
+    }
     """)
 
 
@@ -301,36 +290,26 @@ async def _generate_with_compile_loop(
             attempt=0,
         )
 
+    last_code = ""
+    last_stderr = ""
+    last_exit = -1
     for attempt in range(1, max_retries + 1):
         try:
             code = await _llm_generate_junit(findings, contracts, requirement_text)
-        except Exception as exc:
-            if attempt < max_retries:
-                continue
-            return GenerationResult(
-                source="llm_generated",
-                code="",
-                compile_exit_code=-1,
-                compile_stderr=f"LLM call failed after {max_retries} attempts: {exc}",
-                attempt=attempt,
-            )
+            last_code = code
+        except Exception as exc:  # noqa: BLE001
+            last_stderr = f"LLM call failed (attempt {attempt}): {exc}"
+            continue
 
-        # Schema validation
         missing = _validate_test_schema(code)
         if missing:
-            if attempt < max_retries:
-                continue
-            return GenerationResult(
-                source="llm_generated",
-                code=code,
-                compile_exit_code=-1,
-                compile_stderr=f"Schema validation failed: missing {missing}",
-                attempt=attempt,
-            )
+            last_stderr = f"Schema validation failed: missing {missing}"
+            continue
 
-        # Write and compile
         test_file.write_text(code, encoding="utf-8")
         exit_code, stderr = _compile_test(head_workspace, str(test_file))
+        last_exit = exit_code
+        last_stderr = stderr
 
         if exit_code == 0:
             return GenerationResult(
@@ -341,36 +320,27 @@ async def _generate_with_compile_loop(
                 attempt=attempt,
             )
 
-        # Compile failed — retry with fix prompt
-        if attempt < max_retries:
-            findings.append({
-                "severity": "ERROR",
-                "type": "compile_error",
-                "description": f"Compilation failed (attempt {attempt}): {stderr[:500]}",
-            })
+        findings.append({
+            "severity": "ERROR",
+            "type": "compile_error",
+            "description": f"Compilation failed (attempt {attempt}): {stderr[:500]}",
+        })
 
-    # All retries exhausted
     return GenerationResult(
         source="llm_generated",
-        code=code if 'code' in dir() else "",
-        compile_exit_code=exit_code if 'exit_code' in dir() else -1,
-        compile_stderr=stderr if 'stderr' in dir() else "All retries exhausted",
+        code=last_code,
+        compile_exit_code=last_exit,
+        compile_stderr=last_stderr or "All retries exhausted",
         attempt=max_retries,
     )
 
 
 def generate_counterexamples_node(state: Phase0State) -> dict:
-    """Generate JUnit counterexample tests based on findings.
-
-    P0.5 behavior:
-    1. Try LLM generation with non-thinking mode (up to 3 retries)
-    2. Validate schema (required imports, annotations, class structure)
-    3. Compile with mvnw test-compile
-    4. On failure, fall back to deterministic template
-    5. Track test_source: llm_generated | deterministic_template | human_fixture
+    """Generate a JUnit counterexample test based on findings.
 
     Returns state updates including test_source, generation_record,
-    and generated_tests_path.
+    and generated_tests_path. The test is injected into BOTH workspaces
+    later, by run_differential.
     """
     static_findings = state.get("static_findings", [])
     confirmed_findings = state.get("confirmed_findings", [])
@@ -423,7 +393,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
                         contracts, requirement_text,
                     )
                 )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             gen_result = GenerationResult(
                 source="deterministic_template",
                 compile_exit_code=-1,
@@ -445,30 +415,40 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
         record.final_code = gen_result.code
         record.compile_passed = True
         record.attempts = gen_result.attempt
-        # File already written by _generate_with_compile_loop
     else:
-        # Use deterministic template fallback
         record.source = "deterministic_template"
         record.attempts = gen_result.attempt
         if gen_result.compile_stderr:
-            record.errors.append(f"LLM generation failed: {gen_result.compile_stderr}")
+            record.errors.append(
+                f"LLM generation failed: {gen_result.compile_stderr}"
+            )
 
-        fallback_code = _build_deterministic_test(all_findings, state)
+        if not _is_demo_repo(head_workspace):
+            record.errors.append(
+                "Deterministic template only supports the demo repository "
+                "(com.specproof); LLM generation also failed. "
+                "No counterexample test produced."
+            )
+            return {
+                "generated_tests_path": "",
+                "generation_record": {
+                    "source": record.source,
+                    "attempts": record.attempts,
+                    "compile_passed": False,
+                    "test_path": "",
+                    "errors": record.errors,
+                    "llm_code_len": len(record.llm_code),
+                },
+            }
+
+        fallback_code = _build_deterministic_test()
         record.final_code = fallback_code
         test_file.write_text(fallback_code, encoding="utf-8")
 
-        # Verify the fallback compiles
         exit_code, stderr = _compile_test(head_workspace, str(test_file))
-        record.compile_passed = (exit_code == 0)
+        record.compile_passed = exit_code == 0
         if not record.compile_passed:
             record.errors.append(f"Fallback template compile failed: {stderr[:500]}")
-
-    # ── Phase 3: Check for human_fixture tests ──
-    # These are manually written tests committed in the repo
-    human_fixtures = list(test_dir.glob("*DbState*.java")) + list(
-        test_dir.glob("*Regression*.java")
-    )
-    human_fixture_paths = [str(p) for p in human_fixtures if p.name != "SpecProofGeneratedTest.java"]
 
     record.test_path = str(test_file)
 
@@ -479,7 +459,6 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
             "attempts": record.attempts,
             "compile_passed": record.compile_passed,
             "test_path": record.test_path,
-            "human_fixtures": human_fixture_paths,
             "errors": record.errors,
             "llm_code_len": len(record.llm_code),
         },

@@ -151,16 +151,20 @@ async def _llm_compile_contracts(text: str, provider) -> list[dict]:
 def compile_contracts_node(state: Phase0State) -> dict:
     """Compile requirements into a list of Contract dicts.
 
-    Tries LLM-based compilation if a provider is available,
-    falls back to rule-based parsing.
+    Deterministic rule-based parsing runs first; when the LLM is configured
+    it may enrich a sparse result. An empty contract list is honest — the
+    pipeline reports UNVERIFIED rather than inventing a generic contract.
+    LLM failures are recorded in state["errors"], never silently swallowed.
     """
     text = state.get("requirement_text", "")
+    errors: list[str] = list(state.get("errors", []))
+
     if not text:
         return {"contracts": []}
 
     contracts = _parse_requirements(text)
 
-    # Try LLM enhancement if provider available and rule-based got < 2 matches
+    # LLM enrichment when the rule-based parser found few contracts.
     provider = _get_provider()
     if provider is not None and len(contracts) < 2:
         try:
@@ -177,18 +181,37 @@ def compile_contracts_node(state: Phase0State) -> dict:
                     _llm_compile_contracts(text, provider)
                 )
             if llm_contracts:
-                contracts = llm_contracts
-        except Exception:
-            pass
+                normalized = _normalize_llm_contracts(llm_contracts)
+                if normalized:
+                    contracts = normalized
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"LLM contract compilation failed: {exc}")
 
-    if not contracts:
-        contracts = [{
-            "id": "GENERIC-01",
-            "requirement": text.strip()[:200] if text else "No requirement text provided",
-            "checker_type": "http",
-            "expected_behavior": "API must behave correctly per requirement",
-            "result": "UNVERIFIED",
-            "evidence_ref": None,
-        }]
+    # Every contract starts UNVERIFIED; only real experiments set PASS/FAIL.
+    for c in contracts:
+        c.setdefault("result", "UNVERIFIED")
+        c.setdefault("evidence_ref", None)
 
-    return {"contracts": contracts}
+    return {"contracts": contracts, "errors": errors}
+
+
+def _normalize_llm_contracts(contracts: list[dict]) -> list[dict]:
+    """Fill in checker_type defaults for LLM-produced contracts."""
+    type_by_prefix = {
+        "AUTH": "http",
+        "UNIQUE": "sql",
+        "TOKEN_INVALIDATION": "redis",
+        "BACKWARD_COMPATIBLE": "openapi",
+        "EVENT_ONCE": "rabbitmq",
+        "TRANSACTION": "sql",
+    }
+    for c in contracts:
+        cid = str(c.get("id", ""))
+        if not c.get("checker_type"):
+            for prefix, ctype in type_by_prefix.items():
+                if cid.upper().startswith(prefix):
+                    c["checker_type"] = ctype
+                    break
+        c.setdefault("result", "UNVERIFIED")
+        c.setdefault("evidence_ref", None)
+    return contracts
