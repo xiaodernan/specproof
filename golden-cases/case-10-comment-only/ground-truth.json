@@ -1,6 +1,6 @@
 {
   "expected_severity": "NONE",
-  "expected_evidence_type": "none",
   "expected_contract": null,
+  "expected_evidence_type": "none",
   "should_detect": false
 }

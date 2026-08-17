@@ -176,15 +176,19 @@ def _extract_json_array(content: str) -> list[dict]:
 
 
 def _has_real_execution_evidence(diff_results: list[dict]) -> bool:
-    """Real execution evidence = a recorded base/head run with exit codes."""
+    """Real execution evidence = a recorded base/head run with exit codes.
+
+    A bare evidence-type string is not evidence; the run must carry the
+    recorded exit codes that prove both sides actually executed.
+    """
     for dr in diff_results:
-        if dr.get("evidence_type") == "base_pass_head_fail":
+        has_exits = "base_exit_code" in dr and "head_exit_code" in dr
+        if dr.get("evidence_type") == "base_pass_head_fail" and has_exits:
             return True
         if (
             dr.get("evidence_type") == "differential_execution"
             and dr.get("verdict") == "REGRESSION"
-            and "base_exit_code" in dr
-            and "head_exit_code" in dr
+            and has_exits
         ):
             return True
     return False

@@ -56,6 +56,7 @@ def run_differential_node(state: Phase0State) -> dict:
     """Run the generated counterexample test on Base and Head workspaces."""
     base_workspace = state.get("base_workspace", "")
     head_workspace = state.get("head_workspace", "")
+    app_dir = state.get("app_dir", "")
     changed_symbols = state.get("changed_symbols", [])
     generation_record = state.get("generation_record", {})
     contracts = state.get("contracts", [])
@@ -72,6 +73,9 @@ def run_differential_node(state: Phase0State) -> dict:
     if not base_workspace or not head_workspace:
         return empty_result
 
+    base_app = str(Path(base_workspace) / app_dir) if app_dir else base_workspace
+    head_app = str(Path(head_workspace) / app_dir) if app_dir else head_workspace
+
     test_class = _test_class_from_path(generated_tests_path)
     if not test_class:
         empty_result["diff_results"][0]["detail"] = (
@@ -80,7 +84,7 @@ def run_differential_node(state: Phase0State) -> dict:
         return empty_result
 
     # ── Inject the generated test into BOTH workspaces ──
-    injected = _inject_test_into_workspaces(generated_tests_path, base_workspace, head_workspace)
+    injected = _inject_test_into_workspaces(generated_tests_path, base_app, head_app)
     if not injected:
         empty_result["diff_results"][0]["detail"] = (
             "Could not inject generated test into both workspaces"
@@ -88,8 +92,8 @@ def run_differential_node(state: Phase0State) -> dict:
         return empty_result
 
     # ── Run the SAME generated test on Base and Head ──
-    base_result = _run_generated_test(base_workspace, test_class)
-    head_result = _run_generated_test(head_workspace, test_class)
+    base_result = _run_generated_test(base_app, test_class)
+    head_result = _run_generated_test(head_app, test_class)
 
     if base_result.get("error") or head_result.get("error"):
         err_detail = (
@@ -112,8 +116,8 @@ def run_differential_node(state: Phase0State) -> dict:
     head_pass = head_result.get("exit_code") == 0
 
     # ── Real DB state capture (file-based H2 dump) ──
-    base_snapshot = _capture_db_snapshot(base_workspace)
-    head_snapshot = _capture_db_snapshot(head_workspace)
+    base_snapshot = _capture_db_snapshot(base_app)
+    head_snapshot = _capture_db_snapshot(head_app)
 
     # ── HTTP-level verdict ──
     if base_pass and not head_pass:
@@ -203,7 +207,7 @@ def run_differential_node(state: Phase0State) -> dict:
     }]
 
     # ── Source-level annotation diff (deterministic, MAJOR-capped) ──
-    http_diffs = _check_http_diff(base_workspace, head_workspace)
+    http_diffs = _check_http_diff(base_app, head_app)
     for hd in http_diffs:
         diff_results.append({
             "contract_id": "DIFF-HTTP",

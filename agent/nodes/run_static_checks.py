@@ -33,13 +33,16 @@ def run_static_checks_node(state: Phase0State) -> dict:
     """Run deterministic contract checkers against Base and Head sources."""
     base_workspace = state.get("base_workspace", "")
     head_workspace = state.get("head_workspace", "")
+    app_dir = state.get("app_dir", "")
     contracts = state.get("contracts", [])
 
     if not base_workspace or not head_workspace:
         return {"static_findings": [], "contract_results": []}
 
-    base_files = _read_java_files(base_workspace)
-    head_files = _read_java_files(head_workspace)
+    base_app = str(Path(base_workspace) / app_dir) if app_dir else base_workspace
+    head_app = str(Path(head_workspace) / app_dir) if app_dir else head_workspace
+    base_files = _read_java_files(base_app)
+    head_files = _read_java_files(head_app)
 
     findings = run_contract_checks(base_files, head_files)
 

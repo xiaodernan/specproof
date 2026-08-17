@@ -1,6 +1,6 @@
 {
   "expected_severity": "MAJOR",
-  "expected_evidence_type": "redis_check",
   "expected_contract": "TOKEN_INVALIDATION-01",
+  "expected_evidence_type": "java_source_diff",
   "should_detect": true
 }

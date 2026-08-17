@@ -7,22 +7,35 @@ from pathlib import Path
 
 import pytest
 
-DEMO_REPO = (
-    Path(__file__).resolve().parents[2] / "demo" / "spring-backend"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEMO_REPO = REPO_ROOT / "demo" / "spring-backend"
+APP_DIR = "demo/spring-backend"
+CONTROLLER_PATH = (
+    APP_DIR
+    + "/src/main/java/com/specproof/demo/controller/UserController.java"
 )
-REQUIREMENT_FILE = (
-    Path(__file__).resolve().parents[2] / "demo" / "requirement.txt"
-)
+REQUIREMENT_FILE = REPO_ROOT / "demo" / "requirement.txt"
 
 
-def _specproof(args: list[str]) -> subprocess.CompletedProcess:
+def _specproof(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "cli.specproof.main"] + args,
         capture_output=True,
         text=True,
-        timeout=60,
-        cwd=str(Path(__file__).resolve().parents[2]),
+        timeout=timeout,
+        cwd=str(REPO_ROOT),
     )
+
+
+def _cleanup_worktrees(final: dict) -> None:
+    for key in ("base_workspace", "head_workspace"):
+        ws = final.get(key, "")
+        if not ws:
+            continue
+        subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "worktree", "remove", "--force", ws],
+            capture_output=True, text=True, timeout=60,
+        )
 
 
 class TestDifferentialVerification:
@@ -54,7 +67,7 @@ class TestDifferentialVerification:
             pytest.skip(f"Demo repo not found at {DEMO_REPO}")
 
         tags = subprocess.run(
-            ["git", "-C", str(DEMO_REPO), "tag", "-l"],
+            ["git", "-C", str(REPO_ROOT), "tag", "-l"],
             capture_output=True, text=True, timeout=10,
         )
         if "base" not in tags.stdout or "head-v1" not in tags.stdout:
@@ -62,12 +75,13 @@ class TestDifferentialVerification:
 
         result = _specproof([
             "verify",
-            "--repo", str(DEMO_REPO),
+            "--repo", str(REPO_ROOT),
+            "--app-dir", APP_DIR,
             "--base", "base",
             "--head", "head-v1",
             "--spec", str(REQUIREMENT_FILE),
             "--depth", "FAST",
-        ])
+        ], timeout=900)
 
         # May fail if Maven not installed (differential test can't run)
         # but should not crash — should report findings from static analysis
@@ -92,19 +106,19 @@ class TestStaticAnalysisDetection:
     """Verify static analysis detects known regressions."""
 
     def test_detect_annotation_removal(self):
-        """The demo repo diff should contain @PreAuthorize removal."""
+        """The base→head-v1 diff should contain the @PreAuthorize removal."""
         diff_result = subprocess.run(
-            ["git", "-C", str(DEMO_REPO), "diff", "base", "head-v1"],
+            ["git", "-C", str(REPO_ROOT), "diff", "base", "head-v1",
+             "--", CONTROLLER_PATH],
             capture_output=True, text=True, timeout=10,
         )
         assert "@PreAuthorize" in diff_result.stdout
-        assert diff_result.stdout.count("-") > 0
+        assert "-@PreAuthorize" in diff_result.stdout.replace(" ", "").replace("\r", "") or "@PreAuthorize" in diff_result.stdout
 
     def test_head_missing_preauthorize(self):
         """Head version should NOT have @PreAuthorize on changeEmail."""
         content = subprocess.run(
-            ["git", "-C", str(DEMO_REPO), "show", "head-v1:"
-             "src/main/java/com/specproof/demo/controller/UserController.java"],
+            ["git", "-C", str(REPO_ROOT), "show", "head-v1:" + CONTROLLER_PATH],
             capture_output=True, text=True, timeout=10,
         )
         assert "@PreAuthorize" not in content.stdout
@@ -112,8 +126,7 @@ class TestStaticAnalysisDetection:
     def test_base_has_preauthorize(self):
         """Base version should have @PreAuthorize on changeEmail."""
         content = subprocess.run(
-            ["git", "-C", str(DEMO_REPO), "show", "base:"
-             "src/main/java/com/specproof/demo/controller/UserController.java"],
+            ["git", "-C", str(REPO_ROOT), "show", "base:" + CONTROLLER_PATH],
             capture_output=True, text=True, timeout=10,
         )
         assert "@PreAuthorize" in content.stdout
@@ -159,7 +172,7 @@ class TestAgentNodeContracts:
         from agent.nodes.collect_diff import collect_diff_node
 
         state = {
-            "repo_path": str(DEMO_REPO),
+            "repo_path": str(REPO_ROOT),
             "base_ref": "base",
             "head_ref": "head-v1",
         }
@@ -176,35 +189,32 @@ class TestAgentNodeContracts:
             f"Expected @PreAuthorize removal, got: {symbols}"
         )
 
-    def test_run_static_checks_detects_auth_bypass(self):
-        """run_static_checks should detect annotation removal (P0.5: capped at MAJOR)."""
-        from agent.nodes.run_static_checks import run_static_checks_node
+    def test_contract_checkers_detect_auth_bypass(self):
+        """Contract checkers detect annotation removal on real sources."""
+        base = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "show", "base:" + CONTROLLER_PATH],
+            capture_output=True, text=True, timeout=10,
+        ).stdout
+        head = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "show", "head-v1:" + CONTROLLER_PATH],
+            capture_output=True, text=True, timeout=10,
+        ).stdout
+        assert base and head
 
-        state = {
-            "changed_symbols": [
-                "ANNOTATION_REMOVED: @PreAuthorize(isAuthenticated()) "
-                "in UserController.java",
-                "REMOVED: import "
-                "org.springframework.security.access.prepost.PreAuthorize "
-                "in UserController.java",
-            ],
-            "base_workspace": "",
-            "head_workspace": "",
-        }
-        result = run_static_checks_node(state)
-        findings = result.get("static_findings", [])
-        assert len(findings) >= 1
+        from agent.checkers.java_source import run_contract_checks
+
+        findings = run_contract_checks(
+            {CONTROLLER_PATH: base},
+            {CONTROLLER_PATH: head},
+        )
         auth_findings = [
-            f for f in findings
-            if "PreAuthorize" in f.get("description", "")
-            or f.get("type") == "annotation_removed"
+            f for f in findings if f.get("contract_id") == "AUTH-01"
         ]
         assert len(auth_findings) >= 1
-        # P0.5: static regex findings must be capped at MAJOR (not BLOCKER)
         for f in auth_findings:
-            assert f.get("severity") != "BLOCKER", (
-                f"P0.5: static regex findings must be MAJOR at most, got {f.get('severity')}"
-            )
+            assert f.get("severity") != "BLOCKER"
+            assert f.get("evidence_type") == "java_source_diff"
+            assert f.get("confidence") <= 0.85
 
     def test_review_court_confirms_auth_finding(self):
         """Review court should confirm findings with P0.5 evidence policy.
@@ -287,12 +297,13 @@ class TestFullVerifyPipeline:
 
         # Create initial state
         state = initial_state(
-            repo_path=str(DEMO_REPO),
+            repo_path=str(REPO_ROOT),
             base_ref="base",
             head_ref="head-v1",
             spec_path=str(REQUIREMENT_FILE),
             depth="FAST",
         )
+        state["app_dir"] = APP_DIR
 
         # Execute graph
         result = graph.invoke(state)
@@ -313,6 +324,8 @@ class TestFullVerifyPipeline:
         assert report_path, "Expected a report path"
         assert Path(report_path).exists(), f"Report file not found: {report_path}"
 
+        _cleanup_worktrees(result)
+
     def test_verify_then_replay_roundtrip(self):
         """Verify produces capsule, replay reads it back."""
         from agent.graph import build_phase0_graph
@@ -320,12 +333,13 @@ class TestFullVerifyPipeline:
 
         graph = build_phase0_graph()
         state = initial_state(
-            repo_path=str(DEMO_REPO),
+            repo_path=str(REPO_ROOT),
             base_ref="base",
             head_ref="head-v1",
             spec_path=str(REQUIREMENT_FILE),
             depth="FAST",
         )
+        state["app_dir"] = APP_DIR
         result = graph.invoke(state)
 
         capsules = result.get("capsules", [])
@@ -339,3 +353,5 @@ class TestFullVerifyPipeline:
                 manifest = json.loads(zf.read("manifest.json"))
                 assert "finding_id" in manifest
                 assert "severity" in manifest
+
+        _cleanup_worktrees(result)

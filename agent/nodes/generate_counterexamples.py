@@ -347,6 +347,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
     contracts = state.get("contracts", [])
     requirement_text = state.get("requirement_text", "")
     head_workspace = state.get("head_workspace", "")
+    app_dir = state.get("app_dir", "")
     all_findings = static_findings + confirmed_findings
 
     record = TestGenerationRecord()
@@ -363,8 +364,11 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
             },
         }
 
+    app_workspace = (
+        str(Path(head_workspace) / app_dir) if app_dir else head_workspace
+    )
     test_dir = (
-        Path(head_workspace) / "src" / "test" / "java"
+        Path(app_workspace) / "src" / "test" / "java"
         / "com" / "specproof" / "demo"
     )
     test_dir.mkdir(parents=True, exist_ok=True)
@@ -389,7 +393,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
             else:
                 gen_result = asyncio.run(
                     _generate_with_compile_loop(
-                        head_workspace, all_findings or static_findings,
+                        app_workspace, all_findings or static_findings,
                         contracts, requirement_text,
                     )
                 )
@@ -423,7 +427,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
                 f"LLM generation failed: {gen_result.compile_stderr}"
             )
 
-        if not _is_demo_repo(head_workspace):
+        if not _is_demo_repo(app_workspace):
             record.errors.append(
                 "Deterministic template only supports the demo repository "
                 "(com.specproof); LLM generation also failed. "
@@ -445,7 +449,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict:
         record.final_code = fallback_code
         test_file.write_text(fallback_code, encoding="utf-8")
 
-        exit_code, stderr = _compile_test(head_workspace, str(test_file))
+        exit_code, stderr = _compile_test(app_workspace, str(test_file))
         record.compile_passed = exit_code == 0
         if not record.compile_passed:
             record.errors.append(f"Fallback template compile failed: {stderr[:500]}")

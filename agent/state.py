@@ -19,6 +19,7 @@ class Phase0State(MessagesState):
     depth: str  # "FAST" only in Phase 0
     output_dir: str  # where the verification report is written
     use_llm: bool  # False = fully deterministic run (eval, CI)
+    app_dir: str  # subdirectory inside the repo that holds pom.xml ("" = repo root)
 
     # ── Intermediate ──
     requirement_text: str
@@ -65,6 +66,7 @@ def initial_state(
         "depth": depth,
         "output_dir": "reports",
         "use_llm": True,
+        "app_dir": "",
         "requirement_text": "",
         "contracts": [],
         "changed_symbols": [],

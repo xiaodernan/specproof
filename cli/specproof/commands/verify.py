@@ -34,6 +34,10 @@ import click
 @click.option(
     "--output-dir", default="./reports", help="Output directory for reports"
 )
+@click.option(
+    "--app-dir", "app_dir", default="",
+    help="Subdirectory inside the repo that holds pom.xml (empty = repo root)"
+)
 def verify(
     repo: str,
     base_ref: str,
@@ -41,6 +45,7 @@ def verify(
     spec_path: str,
     depth: str,
     output_dir: str,
+    app_dir: str,
 ) -> None:
     """Run a verification job on a PR / branch pair.
 
@@ -83,6 +88,7 @@ def verify(
         depth=depth,
     )
     state["output_dir"] = str(output_path)
+    state["app_dir"] = app_dir
 
     click.echo("\nRunning verification pipeline...")
     final_state = graph.invoke(state)

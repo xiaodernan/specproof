@@ -1,11 +1,32 @@
-"""specproof eval — Run evaluation across golden cases."""
+"""specproof eval — Run evaluation across golden cases (v2).
+
+Each case runs the FULL verification pipeline against its own scenario refs
+(scenario.json), with the LLM disabled by default so numbers are
+reproducible. Findings are matched against ground truth by contract id.
+Worktrees created by the pipeline are cleaned up after each case.
+"""
 
 import json
+import subprocess
 from pathlib import Path
 
 import click
 
 from evidence.report import render_eval_report
+
+
+def _cleanup_worktrees(repo: str, final: dict) -> None:
+    for key in ("base_workspace", "head_workspace"):
+        ws = final.get(key, "")
+        if not ws:
+            continue
+        try:
+            subprocess.run(
+                ["git", "-C", repo, "worktree", "remove", "--force", ws],
+                capture_output=True, text=True, timeout=60,
+            )
+        except Exception:
+            pass
 
 
 @click.command("eval")
@@ -19,95 +40,78 @@ from evidence.report import render_eval_report
     "--repo",
     "repo_path",
     default=None,
-    help="Path to demo repo (for full pipeline cases)",
+    help="Path to demo repo (full-pipeline cases need it)",
 )
-@click.option("--base", "base_ref", default="base", help="Base git ref")
-@click.option("--head", "head_ref", default="head-v1", help="Head git ref")
-@click.option("--output", default="eval-report.html", help="Output report path")
+@click.option("--output", default="docs/eval/eval-report.html", help="Output report path")
+@click.option(
+    "--llm/--no-llm",
+    "use_llm",
+    default=False,
+    help="Enable LLM-assisted nodes (default: deterministic only)",
+)
 def eval_cmd(
     cases_dir: str,
     repo_path: str | None,
-    base_ref: str,
-    head_ref: str,
     output: str,
+    use_llm: bool,
 ) -> None:
     """Evaluate SpecProof against golden cases.
 
-    Runs contract compilation on each case's spec, and optionally
-    the full verification pipeline for repo-based cases.
-    Compares results against expected ground truth.
+    Runs the full verification pipeline per case using that case's
+    scenario.json refs, then compares confirmed findings with the
+    ground truth (contract-id matching).
     """
     cases_path = Path(cases_dir)
     if not cases_path.exists():
         click.echo(f"ERROR: Cases directory not found: {cases_path}", err=True)
         raise SystemExit(1)
 
-    case_dirs = sorted(d for d in cases_path.iterdir() if d.is_dir() and d.name.startswith("case-"))
+    if not repo_path:
+        click.echo("ERROR: --repo is required for pipeline evaluation", err=True)
+        raise SystemExit(1)
+    repo_resolved = str(Path(repo_path).resolve())
+
+    case_dirs = sorted(
+        d for d in cases_path.iterdir()
+        if d.is_dir() and d.name.startswith("case-")
+    )
 
     if not case_dirs:
         click.echo(f"No case directories found in {cases_path}")
         return
 
-    click.echo(f"Running evaluation across {len(case_dirs)} golden cases...\n")
+    click.echo(f"Running evaluation across {len(case_dirs)} golden cases "
+               f"(LLM: {'on' if use_llm else 'off'})...\n")
 
-    from agent.nodes.compile_contracts import _parse_requirements
+    from agent.graph import build_phase0_graph
+    from agent.state import initial_state
 
-    # Run full pipeline on the demo repo if provided
-    graph_findings: list[dict] = []
-    graph_contracts: list[dict] = []
-    if repo_path:
-        click.echo(f"  Running full verification on {repo_path}...")
-        try:
-            from agent.graph import build_phase0_graph
-            from agent.state import initial_state
+    graph = build_phase0_graph()
 
-            graph = build_phase0_graph()
-            spec_file = None
-            for case_dir in case_dirs:
-                sf = case_dir / "spec.md"
-                if sf.exists():
-                    spec_file = str(sf)
-                    break
-
-            if spec_file:
-                state = initial_state(
-                    repo_path=repo_path,
-                    base_ref=base_ref,
-                    head_ref=head_ref,
-                    spec_path=spec_file,
-                    depth="FAST",
-                )
-                result = graph.invoke(state)  # type: ignore[attr-defined]
-                graph_findings = result.get("confirmed_findings", [])
-                graph_contracts = result.get("contracts", [])
-                click.echo(
-                    f"  Pipeline complete: {len(graph_findings)} findings, "
-                    f"{len(graph_contracts)} contracts"
-                )
-        except Exception as exc:
-            click.echo(f"  WARNING: Full pipeline failed: {exc}")
-
-    results = []
+    results: list[dict] = []
     detected = 0
     total_should_detect = 0
     false_positives = 0
 
     for case_dir in case_dirs:
-        case_spec = case_dir / "spec.md"
-        ground_truth_file = case_dir / "ground-truth.json"
+        spec_file = case_dir / "spec.md"
+        gt_file = case_dir / "ground-truth.json"
+        sc_file = case_dir / "scenario.json"
 
-        if not case_spec.exists():
+        if not spec_file.exists():
             click.echo(f"  SKIP {case_dir.name}: no spec.md")
             continue
 
-        # Parse ground truth
         gt: dict = {}
-        if ground_truth_file.exists():
-            gt = json.loads(ground_truth_file.read_text(encoding="utf-8"))
+        if gt_file.exists():
+            gt = json.loads(gt_file.read_text(encoding="utf-8"))
+        scenario: dict = {}
+        if sc_file.exists():
+            scenario = json.loads(sc_file.read_text(encoding="utf-8"))
 
-        case_name = case_dir.name
+        base_ref = scenario.get("base_ref", "base")
+        head_ref = scenario.get("head_ref", "head-v1")
         should_detect = gt.get("should_detect", False)
-        expected_severity = gt.get("expected_severity", "UNKNOWN")
         expected_contract = gt.get("expected_contract")
         expected_evidence = gt.get("expected_evidence_type", "UNKNOWN")
         min_findings = gt.get("expected_min_findings", 1)
@@ -115,78 +119,103 @@ def eval_cmd(
         if should_detect:
             total_should_detect += 1
 
-        # ── Run contract compilation on case spec ──
-        spec_text = case_spec.read_text(encoding="utf-8")
-        contracts = _parse_requirements(spec_text)
-        contract_types = {c["checker_type"] for c in contracts}
-
-        # ── Cross-check against graph findings ──
-        matched_findings = []
-        for f in graph_findings:
-            fid = f.get("contract_id", "")
-            ftype = f.get("type", "")
-
-            # Match by contract ID or evidence type
-            matches_contract = expected_contract and fid == expected_contract
-            matches_type = expected_evidence and expected_evidence in ftype
-            matches_fid = expected_evidence and expected_evidence in fid.lower()
-            if matches_contract or matches_type or matches_fid:
-                matched_findings.append(f)
-
-        # ── Determine evaluation result ──
-        case_detected = len(matched_findings) >= min_findings if should_detect else False
-        found_any = len(matched_findings) > 0
-
-        if should_detect and case_detected:
-            detected += 1
-            verdict_icon = "PASS"
-        elif should_detect and found_any:
-            detected += 1
-            verdict_icon = "PARTIAL"
-        elif should_detect and not found_any:
-            verdict_icon = "MISS"
-        elif not should_detect and found_any:
-            false_positives += 1
-            verdict_icon = "FALSE_POSITIVE"
-        else:
-            verdict_icon = "PASS"
-
-        matched_severities = {f.get("severity") for f in matched_findings}
-
-        result = {
-            "case": case_name,
-            "verdict": verdict_icon,
-            "should_detect": should_detect,
-            "expected_severity": expected_severity,
-            "expected_evidence": expected_evidence,
-            "matched_findings": len(matched_findings),
-            "matched_severities": (
-                ", ".join(sorted(matched_severities)) if matched_severities else "—"  # type: ignore[arg-type]
-            ),
-            "contracts_found": ", ".join(sorted(contract_types)),
-            "expected_contract": expected_contract or "—",
-        }
-        results.append(result)
-
-        icon = {"PASS": "+", "PARTIAL": "~", "MISS": "!!", "FALSE_POSITIVE": "FP"}[verdict_icon]
         click.echo(
-            f"  [{icon}] {case_name}: {verdict_icon} "
-            f"(matched {len(matched_findings)} findings, "
-            f"contracts: {contract_types})"
+            f"\n=== {case_dir.name} (base={base_ref}, head={head_ref}) ==="
         )
 
+        state = initial_state(
+            repo_path=repo_resolved,
+            base_ref=base_ref,
+            head_ref=head_ref,
+            spec_path=str(spec_file),
+            depth="FAST",
+        )
+        state["use_llm"] = use_llm
+        state["output_dir"] = str(Path("reports").resolve())
+        state["app_dir"] = "demo/spring-backend"
+
+        final: dict = {}
+        try:
+            final = graph.invoke(state)
+        except Exception as exc:  # noqa: BLE001
+            click.echo(f"  WARNING: pipeline failed for {case_dir.name}: {exc}")
+
+        findings = final.get("confirmed_findings", [])
+
+        matched: list[dict] = []
+        seen_ids: set[str] = set()
+        for f in findings:
+            fid = f.get("contract_id", "")
+            if expected_contract and fid == expected_contract:
+                matched.append(f)
+            elif expected_evidence and (
+                expected_evidence in f.get("evidence_type", "")
+                or expected_evidence in fid.lower()
+            ):
+                matched.append(f)
+        deduped = []
+        for f in matched:
+            fid = f.get("id", "")
+            if fid not in seen_ids:
+                seen_ids.add(fid)
+                deduped.append(f)
+        matched = deduped
+
+        if should_detect:
+            if len(matched) >= min_findings:
+                detected += 1
+                verdict = "PASS"
+            elif matched:
+                detected += 1
+                verdict = "PARTIAL"
+            else:
+                verdict = "MISS"
+        else:
+            if matched:
+                false_positives += 1
+                verdict = "FALSE_POSITIVE"
+            else:
+                verdict = "PASS"
+
+        matched_severities = sorted({f.get("severity") for f in matched})
+        contracts_found = sorted({f.get("contract_id") for f in findings})
+
+        results.append({
+            "case": case_dir.name,
+            "verdict": verdict,
+            "should_detect": should_detect,
+            "expected_severity": gt.get("expected_severity"),
+            "expected_evidence": expected_evidence,
+            "matched_findings": len(matched),
+            "matched_severities": ", ".join(matched_severities) or "—",
+            "contracts_found": ", ".join(contracts_found),
+            "expected_contract": expected_contract or "—",
+        })
+        click.echo(
+            f"  [{verdict}] matched {len(matched)} finding(s), "
+            f"contracts found: {contracts_found}"
+        )
+
+        _cleanup_worktrees(repo_resolved, final)
+
     # ── Summary statistics ──
-    total_cases = len(results)
     precision = (
-        detected / (detected + false_positives) * 100 if (detected + false_positives) > 0 else 100.0
+        detected / (detected + false_positives) * 100
+        if (detected + false_positives) > 0 else 100.0
     )
-    recall = detected / total_should_detect * 100 if total_should_detect > 0 else 100.0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    recall = (
+        detected / total_should_detect * 100
+        if total_should_detect > 0 else 100.0
+    )
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if (precision + recall) > 0 else 0.0
+    )
 
     click.echo(f"\n{'=' * 50}")
     click.echo("Evaluation Results")
     click.echo(f"{'=' * 50}")
-    click.echo(f"Total cases:        {total_cases}")
+    click.echo(f"Total cases:        {len(results)}")
     click.echo(f"Should detect:      {total_should_detect}")
     click.echo(f"Detected:           {detected}")
     click.echo(f"False positives:    {false_positives}")
@@ -194,7 +223,8 @@ def eval_cmd(
     click.echo(f"Recall:             {recall:.1f}%")
     click.echo(f"F1 Score:           {f1:.1f}%")
 
-    # Write HTML report
     html = render_eval_report(results)
-    Path(output).write_text(html, encoding="utf-8")
-    click.echo(f"\nHTML report written to {output}")
+    out = Path(output)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html, encoding="utf-8")
+    click.echo(f"\nHTML report written to {out}")
