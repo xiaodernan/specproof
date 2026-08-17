@@ -108,104 +108,258 @@ def restore_base() -> None:
         "demo/spring-backend/src/main/java/")
 
 
-def apply_case(case: str, commit_msg: str, mutations: list[tuple[str, str, str]]) -> None:
-    """mutations: list of (rel_file, old, new)."""
+def apply_case(
+    case: str,
+    commit_msg: str,
+    mutations: list[tuple[str, str, str]],
+    added_files: list[tuple[str, str]] | None = None,
+) -> None:
+    """mutations: list of (rel_file, old, new); added_files: (rel, content)."""
     for rel, old, new in mutations:
         replace_exact(rel, old, new)
+    for rel, content in added_files or []:
+        path = REPO_ROOT / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        git("add", rel)
     commit_and_tag("Golden case " + case + ": " + commit_msg, case + "-head")
     restore_base()
 
 
+REQUIRE_AUTH_SRC = """package com.specproof.demo.security;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import org.springframework.security.access.prepost.PreAuthorize;
+
+/**
+ * Composed method-security annotation: equivalent protection to
+ * @PreAuthorize("isAuthenticated()"). Spring Security honors the
+ * meta-annotation on the proxied bean (method-security meta-annotations).
+ */
+@Target({ElementType.METHOD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@PreAuthorize("isAuthenticated()")
+public @interface RequireAuth {
+}
+"""
+
+USER_API_SRC = """package com.specproof.demo.controller;
+
+import com.specproof.demo.dto.ChangeEmailRequest;
+import com.specproof.demo.dto.UserResponse;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+
+/** Controller API contract: method security lives on the interface. */
+public interface UserApi {
+
+    @PreAuthorize("isAuthenticated()")
+    ResponseEntity<UserResponse> changeEmail(Long id, ChangeEmailRequest request);
+}
+"""
+
+CONTROLLER_METHOD_BLOCK = """    @PutMapping("/{id}/email")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserResponse> changeEmail(
+            @PathVariable Long id,
+            @Valid @RequestBody ChangeEmailRequest request) {
+        return ResponseEntity.ok(userService.changeEmail(id, request));
+    }
+"""
+
+CONTROLLER_METHOD_REINDENTED = """        @PutMapping("/{id}/email")
+        @PreAuthorize("isAuthenticated()")
+        public ResponseEntity<UserResponse> changeEmail(
+                @PathVariable Long id,
+                @Valid @RequestBody ChangeEmailRequest request) {
+            return ResponseEntity.ok(userService.changeEmail(id, request));
+        }
+"""
+
+
+def _only_filter() -> set[str] | None:
+    if "--only" not in sys.argv:
+        return None
+    idx = sys.argv.index("--only")
+    raw = sys.argv[idx + 1]
+    return {part.strip() for part in raw.split(",") if part.strip()}
+
+
+def wanted(only: set[str] | None, case: str) -> bool:
+    return only is None or case in only
+
+
 def main() -> None:
     require_clean()
+    only = _only_filter()
 
-    # 1. Honest head = current demo state (permitAll, no @PreAuthorize).
-    head_commit = git("rev-parse", "HEAD")
-    git("tag", "-f", "head-v1", head_commit)
-    print("head-v1 ->", head_commit)
+    if only is None:
+        # 1. Honest head = current demo state (permitAll, no @PreAuthorize).
+        head_commit = git("rev-parse", "HEAD")
+        git("tag", "-f", "head-v1", head_commit)
+        print("head-v1 ->", head_commit)
 
-    # 2. Honest base = old base demo files (authenticated + @PreAuthorize)
-    #    with the HTTP filter chain opened, so method security is the only
-    #    auth control and the @PreAuthorize removal is a real regression.
-    git("restore", "--source=base", "--", "demo/spring-backend/src/main/java/")
-    replace_exact(
-        SECURITY,
-        "                .anyRequest().authenticated()",
-        "                .anyRequest().permitAll()",
-    )
-    commit_and_tag(
-        "Golden scenarios: honest base — permitAll filter chain, "
-        "@PreAuthorize is the only auth control",
-        "base",
-    )
-    print("base ->", git("rev-parse", "HEAD"))
+        # 2. Honest base = old base demo files (authenticated + @PreAuthorize)
+        #    with the HTTP filter chain opened, so method security is the only
+        #    auth control and the @PreAuthorize removal is a real regression.
+        git("restore", "--source=base", "--", "demo/spring-backend/src/main/java/")
+        replace_exact(
+            SECURITY,
+            "                .anyRequest().authenticated()",
+            "                .anyRequest().permitAll()",
+        )
+        commit_and_tag(
+            "Golden scenarios: honest base — permitAll filter chain, "
+            "@PreAuthorize is the only auth control",
+            "base",
+        )
+        print("base ->", git("rev-parse", "HEAD"))
 
     # 3. Per-case bug injections (each on top of honest base).
-    apply_case(
-        "case-02",
-        "remove @Transactional from changeEmail (transactional removal)",
-        [(SERVICE, TX_ANNOTATION, "")],
-    )
-    apply_case(
-        "case-03",
-        "clean PR: add a new read-only endpoint",
-        [(CONTROLLER, '    @GetMapping("/{id}")', CLEAN_ENDPOINT_ADD + '    @GetMapping("/{id}")')],
-    )
-    apply_case(
-        "case-04",
-        "remove the duplicate-email guard",
-        [(SERVICE, DUPLICATE_GUARD, "")],
-    )
-    apply_case(
-        "case-05",
-        "remove token invalidation after email change",
-        [(SERVICE, INVALIDATE_CALL, "")],
-    )
-    apply_case(
-        "case-06",
-        "rename UserResponse.email to emailAddress (schema break)",
-        [
-            (DTO, "    private String email;", "    private String emailAddress;"),
-            (DTO, "        this.email = email;", "        this.emailAddress = email;"),
-            (DTO, "    public String getEmail() { return email; }",
-             "    public String getEmailAddress() { return emailAddress; }"),
-            (DTO, "    public void setEmail(String email) { this.email = email; }",
-             "    public void setEmailAddress(String emailAddress) { "
-             "this.emailAddress = emailAddress; }"),
-        ],
-    )
-    apply_case(
-        "case-07",
-        "publish the email.changed event twice",
-        [(SERVICE, EVENT_BLOCK, EVENT_BLOCK + EVENT_BLOCK)],
-    )
-    apply_case(
-        "case-08",
-        "transaction split: drop @Transactional and add a second write op",
-        [
-            (SERVICE, TX_ANNOTATION, ""),
-            (SERVICE, SAVE_CALL, SAVE_CALL + "\n        userRepository.saveAndFlush(user);"),
-        ],
-    )
-    _remove_controller_annotation()
-    apply_case(
-        "case-09",
-        "multi-security: remove @PreAuthorize AND @Transactional",
-        [
-            (SERVICE, TX_ANNOTATION, ""),
-        ],
-    )
-    apply_case(
-        "case-10",
-        "comment-only change",
-        [(CONTROLLER, "@RestController", COMMENT_ADD + "@RestController")],
-    )
+    if wanted(only, "case-02"):
+        apply_case(
+            "case-02",
+            "remove @Transactional from changeEmail (transactional removal)",
+            [(SERVICE, TX_ANNOTATION, "")],
+        )
+    if wanted(only, "case-03"):
+        apply_case(
+            "case-03",
+            "clean PR: add a new read-only endpoint",
+            [(CONTROLLER, '    @GetMapping("/{id}")',
+              CLEAN_ENDPOINT_ADD + '    @GetMapping("/{id}")')],
+        )
+    if wanted(only, "case-04"):
+        apply_case(
+            "case-04",
+            "remove the duplicate-email guard",
+            [(SERVICE, DUPLICATE_GUARD, "")],
+        )
+    if wanted(only, "case-05"):
+        apply_case(
+            "case-05",
+            "remove token invalidation after email change",
+            [(SERVICE, INVALIDATE_CALL, "")],
+        )
+    if wanted(only, "case-06"):
+        apply_case(
+            "case-06",
+            "rename UserResponse.email to emailAddress (schema break)",
+            [
+                (DTO, "    private String email;", "    private String emailAddress;"),
+                (DTO, "        this.email = email;", "        this.emailAddress = email;"),
+                (DTO, "    public String getEmail() { return email; }",
+                 "    public String getEmailAddress() { return emailAddress; }"),
+                (DTO, "    public void setEmail(String email) { this.email = email; }",
+                 "    public void setEmailAddress(String emailAddress) { "
+                 "this.emailAddress = emailAddress; }"),
+            ],
+        )
+    if wanted(only, "case-07"):
+        apply_case(
+            "case-07",
+            "publish the email.changed event twice",
+            [(SERVICE, EVENT_BLOCK, EVENT_BLOCK + EVENT_BLOCK)],
+        )
+    if wanted(only, "case-08"):
+        apply_case(
+            "case-08",
+            "transaction split: drop @Transactional and add a second write op",
+            [
+                (SERVICE, TX_ANNOTATION, ""),
+                (SERVICE, SAVE_CALL, SAVE_CALL + "\n        userRepository.saveAndFlush(user);"),
+            ],
+        )
+    if wanted(only, "case-09"):
+        _remove_controller_annotation()
+        apply_case(
+            "case-09",
+            "multi-security: remove @PreAuthorize AND @Transactional",
+            [
+                (SERVICE, TX_ANNOTATION, ""),
+            ],
+        )
+    if wanted(only, "case-10"):
+        apply_case(
+            "case-10",
+            "comment-only change",
+            [(CONTROLLER, "@RestController", COMMENT_ADD + "@RestController")],
+        )
 
-    # 4. Leave the working tree at honest base (all demo tests green).
+    # 4. Adversarial negatives (false-positive traps) + execution-only
+    #    positives (invisible to static diff-readers).
+    if wanted(only, "case-13"):
+        apply_case(
+            "case-13",
+            "equivalent composed @RequireAuth replaces @PreAuthorize",
+            [
+                (CONTROLLER,
+                 "import org.springframework.security.access.prepost.PreAuthorize;\n",
+                 "import com.specproof.demo.security.RequireAuth;\n"),
+                (CONTROLLER, AUTH_ANNOTATION, "    @RequireAuth\n"),
+            ],
+            added_files=[
+                ("demo/spring-backend/src/main/java/com/specproof/demo/"
+                 "security/RequireAuth.java", REQUIRE_AUTH_SRC),
+            ],
+        )
+    if wanted(only, "case-14"):
+        apply_case(
+            "case-14",
+            "method security moved to the implemented interface",
+            [
+                (CONTROLLER,
+                 "import org.springframework.security.access.prepost.PreAuthorize;\n",
+                 ""),
+                (CONTROLLER,
+                 "public class UserController {",
+                 "public class UserController implements UserApi {"),
+                (CONTROLLER,
+                 '    @PutMapping("/{id}/email")\n'
+                 '    @PreAuthorize("isAuthenticated()")\n',
+                 '    @Override\n'
+                 '    @PutMapping("/{id}/email")\n'),
+            ],
+            added_files=[
+                ("demo/spring-backend/src/main/java/com/specproof/demo/"
+                 "controller/UserApi.java", USER_API_SRC),
+            ],
+        )
+    if wanted(only, "case-15"):
+        apply_case(
+            "case-15",
+            "whitespace-only re-indent of the protected method",
+            [(CONTROLLER, CONTROLLER_METHOD_BLOCK, CONTROLLER_METHOD_REINDENTED)],
+        )
+    if wanted(only, "case-16"):
+        apply_case(
+            "case-16",
+            "role tightened: isAuthenticated -> hasRole(ADMIN)",
+            [
+                (CONTROLLER,
+                 '    @PreAuthorize("isAuthenticated()")\n',
+                 '    @PreAuthorize("hasRole(\'ADMIN\')")\n'),
+            ],
+        )
+    if wanted(only, "case-17"):
+        apply_case(
+            "case-17",
+            "logic inversion: uniqueness guard negated (execution-only)",
+            [
+                (SERVICE,
+                 "        if (userRepository.existsByEmail(newEmail)) {",
+                 "        if (!userRepository.existsByEmail(newEmail)) {"),
+            ],
+        )
+
+    # 5. Leave the working tree at honest base (all demo tests green).
     restore_base()
     if git("status", "--porcelain"):
         raise RuntimeError("Post-condition failed: working tree not clean")
-    print("All golden scenario tags built:")
+    print("Golden scenario tags built:")
     print(git("tag", "-l"))
 
 
