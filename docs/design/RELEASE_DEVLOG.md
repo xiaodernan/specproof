@@ -93,7 +93,8 @@ Control Plane 事实源扩展。
   outbox wire-contract + GitHub Checks 三件套 + release checks);
 - CP mvnw test: 9 tests, 0 failures;
 - eval 12 案例: Recall/Precision/F1 全 100%, 0 误报;
-- 全量 pytest 终验见本轮收尾记录; 全部改动已提交 (W3 commit)。
+- 全量 pytest 终验: **350 passed, 0 failed** (含两个完整 eval 验收测试,
+  27:56); 全部改动已提交 (W3 commits)。
 
 ---
 
