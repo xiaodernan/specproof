@@ -17,6 +17,7 @@ _project_root = Path(__file__).resolve().parents[2]
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
+from cli.specproof.commands.baseline import baseline_cmd  # noqa: E402
 from cli.specproof.commands.contract import contract_cmd  # noqa: E402
 from cli.specproof.commands.eval import eval_cmd  # noqa: E402
 from cli.specproof.commands.probe import probe  # noqa: E402
@@ -35,6 +36,7 @@ cli.add_command(verify)
 cli.add_command(replay)
 cli.add_command(eval_cmd)
 cli.add_command(contract_cmd)
+cli.add_command(baseline_cmd)
 
 
 if __name__ == "__main__":
