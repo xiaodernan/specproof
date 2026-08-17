@@ -1,13 +1,8 @@
 """P1.5 Unit tests: MinIO digest, MongoDB evidence packs, artifact chain logic."""
 
-import json
-import uuid
 
-import pytest
 
-from storage.minio import MinIOClient, MinIOConfig
-from storage.mongodb import MongoDBStore, MongoDBConfig
-
+from storage.mongodb import MongoDBConfig
 
 # ═══════════════════════════════════════════════════════════════
 # MinIO digest logic (pure logic, no server needed)
@@ -16,7 +11,12 @@ from storage.mongodb import MongoDBStore, MongoDBConfig
 class TestMinIODigest:
     def test_put_object_with_digest_returns_structure(self):
         sha256_hex = "a" * 64
-        result = {"bucket": "test-bucket", "object_name": "a/b/c.zip", "sha256": sha256_hex, "size_bytes": 4096}
+        result = {
+            "bucket": "test-bucket",
+            "object_name": "a/b/c.zip",
+            "sha256": sha256_hex,
+            "size_bytes": 4096,
+        }
         assert set(result.keys()) == {"bucket", "object_name", "sha256", "size_bytes"}
         assert isinstance(result["sha256"], str)
         assert len(result["sha256"]) == 64
@@ -158,7 +158,7 @@ class TestArtifactChainVerification:
         ]
 
         def batch_check(bucket, names):
-            return {n: True for n in names}
+            return dict.fromkeys(names, True)
 
         missing: list[str] = []
         for pack in packs:
@@ -195,16 +195,14 @@ class TestArtifactChainVerification:
         packs: list = []
         missing: list[str] = []
         for pack in packs:
-            for obj in pack.get("minio_objects", []):
-                pass
+            missing.extend(obj for obj in pack.get("minio_objects", []))
         assert missing == []
 
     def test_pack_without_minio_objects(self):
         packs = [{"contract_id": "DIFF-01"}]  # no minio_objects key
         missing: list[str] = []
         for pack in packs:
-            for obj in pack.get("minio_objects", []):
-                pass
+            missing.extend(obj for obj in pack.get("minio_objects", []))
         assert missing == []
 
     def test_invalid_object_ref_detected(self):

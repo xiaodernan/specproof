@@ -3,7 +3,6 @@
 P1.5: Added put_object_with_digest (sha256 + size), batch_check_exist,
 and put_object_if_absent for idempotent artifact uploads.
 """
-
 import hashlib
 import os
 from dataclasses import dataclass
@@ -158,7 +157,10 @@ class MinIOClient:
         """Return sha256 from object metadata, or None if missing."""
         try:
             stat = self.client.stat_object(bucket_name=bucket, object_name=object_name)
-            return stat.metadata.get("X-Amz-Meta-Sha256", None) or None
+            meta = stat.metadata
+            if not meta:
+                return None
+            return meta.get("X-Amz-Meta-Sha256", None) or None
         except Exception:
             return None
 

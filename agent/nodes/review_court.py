@@ -1,3 +1,4 @@
+
 """review_court node — Prosecutor / Defender / Judge evaluation.
 
 P0.5 Evidence Policy (strict enforcement, v2):
@@ -14,11 +15,11 @@ P0.5 Evidence Policy (strict enforcement, v2):
   Digests are named "evidence_digest", never "signature".
   Duplicate candidates for the same (contract, type) are merged.
 """
-
 import asyncio
 import hashlib
 import json
 import os
+from typing import Any
 
 from agent.state import Phase0State
 
@@ -100,7 +101,7 @@ EVIDENCE POLICY (strict):
 Return a JSON array. No other text."""
 
 
-def _get_provider():
+def _get_provider() -> Any:
     api_key = os.getenv("LLM_API_KEY", "")
     if not api_key or api_key == "replace_me":
         return None
@@ -111,7 +112,9 @@ def _get_provider():
         return None
 
 
-async def _llm_review_court(candidates: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+async def _llm_review_court(
+    candidates: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     from providers.base import LLMMessage
 
     provider = _get_provider()
@@ -162,7 +165,7 @@ async def _llm_review_court(candidates: list[dict]) -> tuple[list[dict], list[di
     return prosecutor_args, defender_args, judge_rulings
 
 
-def _extract_json_array(content: str) -> list[dict]:
+def _extract_json_array(content: str) -> list[dict[str, Any]]:
     start = content.find("[")
     end = content.rfind("]") + 1
     if start >= 0 and end > start:
@@ -175,7 +178,7 @@ def _extract_json_array(content: str) -> list[dict]:
     return []
 
 
-def _has_real_execution_evidence(diff_results: list[dict]) -> bool:
+def _has_real_execution_evidence(diff_results: list[dict[str, Any]]) -> bool:
     """Real execution evidence = a recorded base/head run with exit codes.
 
     A bare evidence-type string is not evidence; the run must carry the
@@ -195,12 +198,12 @@ def _has_real_execution_evidence(diff_results: list[dict]) -> bool:
 
 
 def _check_blocker_conditions(
-    finding: dict,
-    contracts: list[dict],
-    diff_results: list[dict],
+    finding: dict[str, Any],
+    contracts: list[dict[str, Any]],
+    diff_results: list[dict[str, Any]],
     generated_tests_path: str,
     changed_files: list[str],
-) -> dict:
+) -> dict[str, Any]:
     """Check all 6 BLOCKER conditions against real recorded evidence."""
     evidence_type = finding.get("evidence_type", "")
     contract_id = finding.get("contract_id", "")
@@ -214,9 +217,13 @@ def _check_blocker_conditions(
         "6_confidence_090": False,
     }
 
-    conditions["1_approved_contract"] = any(
-        c.get("id") == contract_id for c in contracts
-    ) if contract_id else False
+    conditions["1_approved_contract"] = (
+        any(
+            c.get("id") == contract_id and c.get("approved", True)
+            for c in contracts
+        )
+        if contract_id else False
+    )
 
     conditions["2_base_head_execution"] = (
         evidence_type in _BLOCKER_REQUIRED_EVIDENCE_TYPES
@@ -251,9 +258,9 @@ def _check_blocker_conditions(
     }
 
 
-def _dedup_candidates(candidates: list[dict]) -> list[dict]:
+def _dedup_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Merge candidates that report the same (contract, type) keeping the strongest."""
-    merged: dict[tuple[str, str], dict] = {}
+    merged: dict[tuple[str, str], dict[str, Any]] = {}
     for c in candidates:
         key = (c.get("contract_id", ""), c.get("type", ""))
         existing = merged.get(key)
@@ -270,20 +277,20 @@ def _dedup_candidates(candidates: list[dict]) -> list[dict]:
 
 
 def _apply_judge_rulings(
-    candidates: list[dict],
-    judge_rulings: list[dict],
-    contracts: list[dict],
-    diff_results: list[dict],
+    candidates: list[dict[str, Any]],
+    judge_rulings: list[dict[str, Any]],
+    contracts: list[dict[str, Any]],
+    diff_results: list[dict[str, Any]],
     generated_tests_path: str,
     changed_files: list[str],
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Apply judge rulings with P0.5 evidence policy enforcement.
 
     A missing or unmatched ruling defaults to NEEDS_CONFIRMATION (never
     silently CONFIRMED).
     """
     rulings_by_id = {r.get("id", "").upper(): r for r in judge_rulings}
-    confirmed: list[dict] = []
+    confirmed: list[dict[str, Any]] = []
 
     for cf in candidates:
         cid = cf.get("id", "").upper()
@@ -294,7 +301,10 @@ def _apply_judge_rulings(
             confirmed.append({
                 **cf,
                 "status": "needs_confirmation",
-                "severity": "MAJOR" if cf.get("severity") == "BLOCKER" else cf.get("severity", "MINOR"),
+                "severity": (
+                    "MAJOR" if cf.get("severity") == "BLOCKER"
+                    else cf.get("severity", "MINOR")
+                ),
                 "confidence": min(cf.get("confidence", 0.8), 0.8),
                 "judge_reasoning": "No judge ruling returned for this finding",
                 "court_source": "llm_three_party",
@@ -342,7 +352,7 @@ def _apply_judge_rulings(
     return _dedup_candidates(confirmed)
 
 
-def _rule_based_court(state: Phase0State) -> dict:
+def _rule_based_court(state: Phase0State) -> dict[str, Any]:
     """Rule-based Review Court with P0.5 evidence policy."""
     static_findings = state.get("static_findings", [])
     diff_results = state.get("diff_results", [])
@@ -350,7 +360,7 @@ def _rule_based_court(state: Phase0State) -> dict:
     generated_tests_path = state.get("generated_tests_path", "")
     changed_files = _changed_files(state)
 
-    candidates: list[dict] = []
+    candidates: list[dict[str, Any]] = []
 
     for sf in static_findings:
         evidence_type = sf.get("evidence_type", "static_analysis")
@@ -394,7 +404,7 @@ def _rule_based_court(state: Phase0State) -> dict:
 
     candidates = _dedup_candidates(candidates)
 
-    confirmed: list[dict] = []
+    confirmed: list[dict[str, Any]] = []
     for cf in candidates:
         if cf.get("diff_verdict") == "NON_REPRODUCIBLE":
             continue
@@ -450,7 +460,7 @@ def _changed_files(state: Phase0State) -> list[str]:
     return []
 
 
-def review_court_node(state: Phase0State) -> dict:
+def review_court_node(state: Phase0State) -> dict[str, Any]:
     """Evaluate candidate findings through the P0.5 Review Court."""
     contracts = state.get("contracts", [])
     diff_results = state.get("diff_results", [])

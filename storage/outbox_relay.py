@@ -4,6 +4,7 @@ Runs as a background thread or standalone process. Uses SELECT FOR UPDATE
 SKIP LOCKED so multiple relay instances are safe.
 """
 
+import contextlib
 import logging
 import signal
 import time
@@ -51,14 +52,7 @@ class OutboxRelay:
             try:
                 self.rabbitmq.publish(
                     routing_key=row["routing_key"],
-                    payload={
-                        "event_id": f"outbox-{row['id']}",
-                        "outbox_id": row["id"],
-                        "job_id": row["aggregate_id"],
-                        "event_type": row["event_type"],
-                        "payload": row["payload"],
-                        "created_at": None,  # filled by consumer
-                    },
+                    payload=self._flatten_envelope(row),
                 )
                 self.mysql.mark_outbox_published(row["id"])
                 published += 1
@@ -76,11 +70,40 @@ class OutboxRelay:
             self._backoff = 0  # all published successfully
         return published
 
+    def _flatten_envelope(self, row: dict[str, Any]) -> dict[str, Any]:
+        """Build the wire message for one outbox row.
+
+        The consumer contract is a FLAT payload: envelope fields (event_id,
+        outbox_id, job_id, event_type, created_at) merged with the inner job
+        fields (repo_path, base_ref, head_ref, spec_path, depth). The old
+        nested-string form never reached the worker's flat reader, so the
+        envelope is flattened HERE, at the single producer boundary.
+        """
+        import json as _json
+
+        envelope: dict[str, Any] = {
+            "event_id": f"outbox-{row['id']}",
+            "outbox_id": row["id"],
+            "job_id": row["aggregate_id"],
+            "event_type": row["event_type"],
+            "created_at": None,  # filled by the consumer
+        }
+        try:
+            inner = _json.loads(row["payload"])
+        except (TypeError, ValueError):
+            inner = {}
+        if isinstance(inner, dict):
+            envelope.update(inner)
+        return envelope
+
     def run_forever(self) -> None:
         """Run the relay loop until stopped by signal."""
         self._running = True
         self.rabbitmq.ensure_topology()
-        logger.info("OutboxRelay started (poll=%.1fs, batch=%d)", self.poll_interval, self.batch_size)
+        logger.info(
+            "OutboxRelay started (poll=%.1fs, batch=%d)",
+            self.poll_interval, self.batch_size,
+        )
 
         while self._running:
             try:
@@ -91,6 +114,10 @@ class OutboxRelay:
                 logger.exception("OutboxRelay drain cycle error")
 
             sleep_time = max(self.poll_interval, self._backoff)
+            with contextlib.suppress(Exception):
+                from observability.metrics import set_gauge
+
+                set_gauge("outbox_pending", float(self.mysql.count_pending_outbox()))
             time.sleep(sleep_time)
 
         logger.info("OutboxRelay stopped")

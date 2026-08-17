@@ -22,10 +22,12 @@ DEMO_REPO = PROJECT_ROOT / "demo" / "spring-backend"
 REQUIREMENT_FILE = PROJECT_ROOT / "demo" / "requirement.txt"
 
 
-def run_specproof(args: list[str]) -> subprocess.CompletedProcess:
+def run_specproof(
+    args: list[str], timeout: int = 120,
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "cli.specproof.main"] + args,
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=timeout,
         cwd=str(PROJECT_ROOT),
     )
 
@@ -34,12 +36,16 @@ class TestPhaseAcceptance:
     """Phase 0 acceptance criteria."""
 
     def test_all_golden_cases_exist(self):
-        """All 10 golden cases should have spec.md and ground-truth.json."""
+        """All 12 golden cases should have spec.md and ground-truth.json.
+
+        case-11 (refactor rename) and case-12 (javadoc only) joined the
+        negative split in the enterprise-hardening round.
+        """
         case_dirs = sorted(
             d for d in GOLDEN_CASES.iterdir()
             if d.is_dir() and d.name.startswith("case-")
         )
-        assert len(case_dirs) == 10, f"Expected 10 cases, got {len(case_dirs)}"
+        assert len(case_dirs) == 12, f"Expected 12 cases, got {len(case_dirs)}"
 
         for case_dir in case_dirs:
             assert (case_dir / "spec.md").exists(), f"{case_dir.name}: missing spec.md"
@@ -63,17 +69,28 @@ class TestPhaseAcceptance:
 
     def test_specproof_eval_runs_all_cases(self):
         """specproof eval should process all 10 golden cases."""
-        result = run_specproof(["eval", "--cases", str(GOLDEN_CASES)])
+        # The eval runs the full pipeline per case (Maven included).
+        result = run_specproof(
+            [
+                "eval", "--cases", str(GOLDEN_CASES),
+                "--repo", str(PROJECT_ROOT),
+            ],
+            timeout=1200,
+        )
         assert result.returncode == 0
         assert "Total cases" in result.stdout
 
     def test_eval_generates_html_report(self):
         """eval command should generate an HTML report."""
         output_path = PROJECT_ROOT / "eval-report.html"
-        result = run_specproof([
-            "eval", "--cases", str(GOLDEN_CASES),
-            "--output", str(output_path),
-        ])
+        result = run_specproof(
+            [
+                "eval", "--cases", str(GOLDEN_CASES),
+                "--repo", str(PROJECT_ROOT),
+                "--output", str(output_path),
+            ],
+            timeout=1200,
+        )
         assert result.returncode == 0
         assert output_path.exists()
         content = output_path.read_text(encoding="utf-8")

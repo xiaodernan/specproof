@@ -3,11 +3,9 @@
 P1.3: Added DLQ, retry-queue with TTL backoff, Publisher Confirm retries,
 and Redis-based message idempotency.
 """
-
 import json
 import logging
 import os
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -24,11 +22,11 @@ from pika.exceptions import (
 logger = logging.getLogger(__name__)
 
 
-class PublisherConfirmTimeout(Exception):
+class PublisherConfirmTimeout(Exception):  # noqa: N818 — domain term, public API
     """Raised when Publisher Confirm is not received within the timeout."""
 
 
-class PermanentFailure(Exception):
+class PermanentFailure(Exception):  # noqa: N818 — domain term, public API
     """Raised when a message should be sent to DLQ (non-retryable)."""
 
 
@@ -201,21 +199,19 @@ class RabbitMQClient:
         if policy is None:
             policy = QueuePolicy()
         ch = self.channel
-        dlq = queue + policy.dlq_suffix
         retry_q = queue + policy.retry_suffix
 
-        def _on_message(ch, method, properties, body):
+        def _on_message(ch: Any, method: Any, properties: Any, body: Any) -> None:
             delivery_tag = method.delivery_tag
             try:
                 payload = json.loads(body)
                 event_id = payload.get("event_id", "")
 
                 # Idempotency check
-                if idempotency_fn and event_id:
-                    if idempotency_fn(event_id):
-                        logger.debug("Duplicate message %s, acking", event_id)
-                        ch.basic_ack(delivery_tag=delivery_tag)
-                        return
+                if idempotency_fn and event_id and idempotency_fn(event_id):
+                    logger.debug("Duplicate message %s, acking", event_id)
+                    ch.basic_ack(delivery_tag=delivery_tag)
+                    return
 
                 # Process the message
                 callback(payload)
@@ -229,7 +225,9 @@ class RabbitMQClient:
                 # Determine retry count from death header
                 death_count = _get_death_count(properties)
                 if death_count < policy.max_retries:
-                    delay = policy.retry_delays_ms[min(death_count, len(policy.retry_delays_ms) - 1)]
+                    delay = policy.retry_delays_ms[
+                        min(death_count, len(policy.retry_delays_ms) - 1)
+                    ]
                     logger.info(
                         "Temporary failure, retry %d/%d in %dms",
                         death_count + 1, policy.max_retries, delay,
@@ -257,7 +255,7 @@ class RabbitMQClient:
         """Basic consume (backward-compatible, no DLQ/retry)."""
         ch = self.channel
 
-        def _on_message(ch, method, properties, body):
+        def _on_message(ch: Any, method: Any, properties: Any, body: Any) -> None:
             try:
                 payload = json.loads(body)
                 callback(payload)

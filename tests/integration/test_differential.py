@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEMO_REPO = REPO_ROOT / "demo" / "spring-backend"
 APP_DIR = "demo/spring-backend"
 CONTROLLER_PATH = (
@@ -113,7 +113,8 @@ class TestStaticAnalysisDetection:
             capture_output=True, text=True, timeout=10,
         )
         assert "@PreAuthorize" in diff_result.stdout
-        assert "-@PreAuthorize" in diff_result.stdout.replace(" ", "").replace("\r", "") or "@PreAuthorize" in diff_result.stdout
+        normalized = diff_result.stdout.replace(" ", "").replace("\r", "")
+        assert "-@PreAuthorize" in normalized or "@PreAuthorize" in diff_result.stdout
 
     def test_head_missing_preauthorize(self):
         """Head version should NOT have @PreAuthorize on changeEmail."""

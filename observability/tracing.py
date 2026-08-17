@@ -4,7 +4,6 @@ When opentelemetry packages are installed, this module initializes a
 TracerProvider with OTLP export. Otherwise it degrades to NoOp tracing
 so the rest of the system continues to function.
 """
-
 from __future__ import annotations
 
 import logging
@@ -51,10 +50,10 @@ def init_tracing(
 
     try:
         from opentelemetry import trace
-        from opentelemetry.sdk.resources import Resource, SERVICE_NAME
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.resources import SERVICE_NAME, Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
         endpoint = otlp_endpoint or os.getenv(
             "OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces"

@@ -3,11 +3,12 @@
 P1.1: Added strict job state machine with 8 states, CAS transitions,
 retry tracking, worker assignment, and stale detection.
 """
-
+import json
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import pymysql
 from pymysql.cursors import DictCursor
@@ -16,20 +17,45 @@ from pymysql.cursors import DictCursor
 
 _VALID_TRANSITIONS: dict[str, set[str]] = {
     "PENDING":  {"QUEUED", "ERROR"},
-    "QUEUED":   {"RUNNING", "STALE", "ERROR"},
-    "RUNNING":  {"VERIFIED", "BLOCKED", "FAILED", "STALE", "ERROR"},
-    "FAILED":   {"QUEUED", "ERROR"},
+    "QUEUED":   {"RUNNING", "CANCELLED", "STALE", "ERROR"},
+    "RUNNING":  {
+        "VERIFIED", "BLOCKED", "FAILED", "CANCELLED", "STALE",
+        "WAITING_FOR_PROVIDER", "ERROR",
+    },
+    # Provider outage: recoverable — either retry (QUEUED) or give up.
+    "WAITING_FOR_PROVIDER": {"QUEUED", "RUNNING", "FAILED", "CANCELLED", "ERROR"},
+    "FAILED":   {"QUEUED", "CANCELLED", "ERROR"},
     "STALE":    set(),
     "VERIFIED": set(),
     "BLOCKED":  set(),
+    "CANCELLED": set(),
     "ERROR":    set(),
 }
 
-TERMINAL_STATUSES = {"VERIFIED", "BLOCKED", "STALE", "ERROR"}
+TERMINAL_STATUSES = {"VERIFIED", "BLOCKED", "STALE", "CANCELLED", "ERROR"}
 
 
-class InvalidStateTransition(Exception):
+class InvalidStateTransition(Exception):  # noqa: N818 — domain term, public API
     """Raised when a job status transition is not allowed."""
+
+
+def _job_row(job: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a job dict onto the verification_jobs column set.
+
+    github_check (a dict) is serialized into the JSON column; callers that
+    do not carry GitHub metadata leave the column NULL.
+    """
+    check = job.get("github_check")
+    return {
+        "id": job["id"],
+        "repo_path": job.get("repo_path", ""),
+        "base_ref": job.get("base_ref", ""),
+        "head_ref": job.get("head_ref", ""),
+        "spec_path": job.get("spec_path", ""),
+        "status": job.get("status", "PENDING"),
+        "depth": job.get("depth", "FAST"),
+        "github_check_json": json.dumps(check) if check else None,
+    }
 
 
 @dataclass
@@ -69,7 +95,7 @@ class MySQLStore:
         )
 
     @contextmanager
-    def connection(self):
+    def connection(self) -> Iterator[pymysql.Connection]:
         conn = self._connect()
         try:
             yield conn
@@ -79,6 +105,11 @@ class MySQLStore:
             raise
         finally:
             conn.close()
+
+    def close(self) -> None:
+        """Compatibility close() — every operation opens and closes its own
+        connection, so there is no pooled handle to release."""
+        return None
 
     # ── State machine helpers ─────────────────────────────────
 
@@ -93,78 +124,38 @@ class MySQLStore:
     # ── DDL ───────────────────────────────────────────────────
 
     def ensure_tables(self) -> None:
-        ddl = """
-        CREATE TABLE IF NOT EXISTS verification_jobs (
-            id CHAR(36) PRIMARY KEY,
-            repo_path VARCHAR(1024) NOT NULL,
-            base_ref VARCHAR(255) NOT NULL,
-            head_ref VARCHAR(255) NOT NULL,
-            spec_path VARCHAR(1024) NOT NULL,
-            status ENUM('PENDING','QUEUED','RUNNING','VERIFIED','BLOCKED','STALE','FAILED','ERROR') DEFAULT 'PENDING',
-            depth VARCHAR(16) DEFAULT 'FAST',
-            retry_count INT NOT NULL DEFAULT 0,
-            max_retries INT NOT NULL DEFAULT 3,
-            stale_replaced_by CHAR(36) NULL,
-            last_error TEXT NULL,
-            worker_id CHAR(36) NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_status (status),
-            INDEX idx_worker (worker_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        """Apply all pending versioned migrations (P0-B1).
 
-        CREATE TABLE IF NOT EXISTS findings (
-            id CHAR(36) PRIMARY KEY,
-            job_id CHAR(36) NOT NULL,
-            contract_id VARCHAR(128) NOT NULL,
-            severity ENUM('BLOCKER','MAJOR','MINOR','NEEDS_CONFIRMATION') NOT NULL,
-            confidence FLOAT NOT NULL,
-            evidence_type VARCHAR(64) NOT NULL,
-            impact_path JSON,
-            capsule_path VARCHAR(1024),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (job_id) REFERENCES verification_jobs(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-        CREATE TABLE IF NOT EXISTS contracts (
-            id CHAR(36) PRIMARY KEY,
-            job_id CHAR(36) NOT NULL,
-            contract_id_str VARCHAR(128) NOT NULL,
-            requirement_text TEXT NOT NULL,
-            checker_type VARCHAR(64) NOT NULL,
-            expected_behavior TEXT NOT NULL,
-            result ENUM('PASS','FAIL','UNVERIFIED') DEFAULT 'UNVERIFIED',
-            evidence_ref VARCHAR(1024),
-            FOREIGN KEY (job_id) REFERENCES verification_jobs(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-        CREATE TABLE IF NOT EXISTS provider_capabilities (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            base_url VARCHAR(1024) NOT NULL,
-            model VARCHAR(128) NOT NULL,
-            capabilities JSON NOT NULL,
-            probed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-        CREATE TABLE IF NOT EXISTS outbox (
-            id BIGINT AUTO_INCREMENT PRIMARY KEY,
-            aggregate_id CHAR(36) NOT NULL,
-            aggregate_type VARCHAR(64) NOT NULL DEFAULT 'verification_job',
-            event_type VARCHAR(64) NOT NULL,
-            payload JSON NOT NULL,
-            routing_key VARCHAR(128) NOT NULL,
-            created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP(3),
-            published_at TIMESTAMP(3) NULL,
-            retry_count INT NOT NULL DEFAULT 0,
-            INDEX idx_published (published_at, id),
-            INDEX idx_aggregate (aggregate_type, aggregate_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        Schema changes live in infra/mysql/migrations/*.sql and are applied
+        exactly once, recorded in schema_migrations. This method remains as
+        the backward-compatible entry point.
         """
-        with self.connection() as conn:
-            for statement in ddl.split(";"):
-                stmt = statement.strip()
-                if stmt:
-                    conn.cursor().execute(stmt)
+        from storage.migrations import MigrationRunner
+
+        MigrationRunner(self).apply_pending()
+
+    def record_audit(
+        self,
+        action: str,
+        actor: str = "system",
+        job_id: str | None = None,
+        from_status: str | None = None,
+        to_status: str | None = None,
+        detail: str = "",
+    ) -> None:
+        """Write an audit row (P0-A5). Best effort — never breaks the flow."""
+        try:
+            with self.connection() as conn:
+                conn.cursor().execute(
+                    "INSERT INTO audit_logs "
+                    "(job_id, actor, action, from_status, to_status, detail) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)",
+                    (job_id, actor, action, from_status, to_status, detail),
+                )
+        except Exception as exc:  # noqa: BLE001 — audit must not take down jobs
+            import logging
+
+            logging.getLogger(__name__).warning("audit write failed: %s", exc)
 
     def run_migration(self, sql_path: str) -> None:
         """Run a SQL migration file."""
@@ -187,12 +178,14 @@ class MySQLStore:
     def insert_job(self, job: dict[str, Any]) -> None:
         _sql = (
             "INSERT INTO verification_jobs "
-            "(id, repo_path, base_ref, head_ref, spec_path, status, depth) "
+            "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
+            "github_check_json) "
             "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
-            "%(head_ref)s, %(spec_path)s, %(status)s, %(depth)s)"
+            "%(head_ref)s, %(spec_path)s, %(status)s, %(depth)s, "
+            "%(github_check_json)s)"
         )
         with self.connection() as conn:
-            conn.cursor().execute(_sql, job)
+            conn.cursor().execute(_sql, _job_row(job))
 
     # ── Outbox methods ────────────────────────────────────────
 
@@ -207,8 +200,6 @@ class MySQLStore:
         Both INSERTs succeed or both roll back. After commit, the Outbox Relay
         is responsible for publishing to RabbitMQ.
         """
-        import json as _json
-
         job_id = job["id"]
         payload = {
             "job_id": job_id,
@@ -221,19 +212,23 @@ class MySQLStore:
         with self.connection() as conn:
             conn.cursor().execute(
                 "INSERT INTO verification_jobs "
-                "(id, repo_path, base_ref, head_ref, spec_path, status, depth) "
+                "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
+                "github_check_json) "
                 "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
-                "%(head_ref)s, %(spec_path)s, 'PENDING', %(depth)s)",
-                job,
+                "%(head_ref)s, %(spec_path)s, 'PENDING', %(depth)s, "
+                "%(github_check_json)s)",
+                _job_row(job),
             )
             conn.cursor().execute(
-                "INSERT INTO outbox (aggregate_id, aggregate_type, event_type, payload, routing_key) "
-                "VALUES (%(aggregate_id)s, %(aggregate_type)s, %(event_type)s, %(payload)s, %(routing_key)s)",
+                "INSERT INTO outbox (aggregate_id, aggregate_type, "
+                "event_type, payload, routing_key) "
+                "VALUES (%(aggregate_id)s, %(aggregate_type)s, "
+                "%(event_type)s, %(payload)s, %(routing_key)s)",
                 {
                     "aggregate_id": job_id,
                     "aggregate_type": "verification_job",
                     "event_type": event_type,
-                    "payload": _json.dumps(payload),
+                    "payload": json.dumps(payload),
                     "routing_key": routing_key,
                 },
             )
@@ -242,7 +237,18 @@ class MySQLStore:
                 "UPDATE verification_jobs SET status = 'QUEUED' WHERE id = %s",
                 (job_id,),
             )
-        return job_id
+        return str(job_id)
+
+    def set_job_github_check(
+        self, job_id: str, check_meta: dict[str, Any]
+    ) -> None:
+        """Attach GitHub Check Run bookkeeping to a job (best-effort)."""
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "UPDATE verification_jobs SET github_check_json = %s "
+                "WHERE id = %s",
+                (json.dumps(check_meta), job_id),
+            )
 
     def fetch_pending_outbox_rows(self, limit: int = 10) -> list[dict[str, Any]]:
         """Fetch unpublished outbox rows with SKIP LOCKED for relay.
@@ -250,7 +256,8 @@ class MySQLStore:
         Returns the oldest unpublished rows (FIFO order).
         """
         with self.connection() as conn:
-            conn.cursor().execute(
+            cur = conn.cursor()
+            cur.execute(
                 "SELECT id, aggregate_id, event_type, payload, routing_key "
                 "FROM outbox "
                 "WHERE published_at IS NULL "
@@ -259,7 +266,7 @@ class MySQLStore:
                 "FOR UPDATE SKIP LOCKED",
                 (limit,),
             )
-            return conn.cursor().fetchall()
+            return cast(list[dict[str, Any]], cur.fetchall())
 
     def mark_outbox_published(self, outbox_id: int) -> None:
         """Mark an outbox row as published (sets published_at to NOW)."""
@@ -270,19 +277,71 @@ class MySQLStore:
             )
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
+        # Single cursor per statement: fetchone() on a fresh cursor raises
+        # "execute() first" (surfaced by the live-MySQL state machine tests).
         with self.connection() as conn:
-            conn.cursor().execute(
+            cur = conn.cursor()
+            cur.execute(
                 "SELECT * FROM verification_jobs WHERE id = %s", (job_id,)
             )
-            return conn.cursor().fetchone()
+            return cast(dict[str, Any] | None, cur.fetchone())
 
     def get_jobs_by_status(self, status: str) -> list[dict[str, Any]]:
         with self.connection() as conn:
-            conn.cursor().execute(
+            cur = conn.cursor()
+            cur.execute(
                 "SELECT * FROM verification_jobs WHERE status = %s ORDER BY created_at",
                 (status,),
             )
-            return conn.cursor().fetchall()
+            return cast(list[dict[str, Any]], cur.fetchall())
+
+    def list_recent_jobs(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Return the most recent jobs (newest first), for the jobs API."""
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, repo_path, base_ref, head_ref, status, depth, "
+                "retry_count, worker_id, last_error, summary, created_at, updated_at "
+                "FROM verification_jobs ORDER BY created_at DESC, id DESC LIMIT %s",
+                (limit,),
+            )
+            return cast(list[dict[str, Any]], cur.fetchall())
+
+    def save_job_summary(self, job_id: str, summary: dict[str, Any]) -> None:
+        """Persist the pipeline result summary (dashboard / audit view)."""
+        import json as _json
+
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "UPDATE verification_jobs SET summary = %s WHERE id = %s",
+                (_json.dumps(summary, default=str), job_id),
+            )
+
+    def get_job_summary(self, job_id: str) -> dict[str, Any] | None:
+        """Read a persisted pipeline summary, or None."""
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT summary FROM verification_jobs WHERE id = %s", (job_id,)
+            )
+            row = cur.fetchone()
+        if not row or row.get("summary") is None:
+            return None
+        import json as _json
+
+        if isinstance(row["summary"], str):
+            return cast(dict[str, Any], _json.loads(row["summary"]))
+        return cast(dict[str, Any], row["summary"])
+
+    def count_pending_outbox(self) -> int:
+        """Number of unpublished outbox rows (relay backlog gauge)."""
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM outbox WHERE published_at IS NULL"
+            )
+            row = cur.fetchone()
+        return int(row["n"]) if row else 0
 
     # ── State machine: atomic CAS transition ──────────────────
 
@@ -340,7 +399,18 @@ class MySQLStore:
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.execute(_sql, params)
-            return cursor.rowcount == 1
+            changed = bool(cursor.rowcount == 1)
+        if changed:
+            # P0-A5: every status change is audited (who/from/to/when).
+            self.record_audit(
+                action="job_status_transition",
+                actor=worker_id or "system",
+                job_id=job_id,
+                from_status=from_status,
+                to_status=to_status,
+                detail=(error_msg or "")[:1000],
+            )
+        return changed
 
     def claim_job(self, job_id: str, worker_id: str) -> bool:
         """Atomically claim a QUEUED job for a worker. CAS: QUEUED→RUNNING."""

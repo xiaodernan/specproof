@@ -3,8 +3,8 @@
 P1.5: Added evidence_packs collection with artifact chain verification
 (MinIO sha256 cross-check) and agent checkpoints support.
 """
-
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -37,10 +37,10 @@ class MongoDBStore:
 
     def __init__(self, config: MongoDBConfig | None = None) -> None:
         self.config = config or MongoDBConfig.from_env()
-        self._client: MongoClient | None = None
+        self._client: MongoClient[Any] | None = None
 
     @property
-    def client(self) -> MongoClient:
+    def client(self) -> MongoClient[Any]:
         if self._client is None:
             uri = (
                 f"mongodb://{self.config.user}:{self.config.password}"
@@ -50,7 +50,7 @@ class MongoDBStore:
         return self._client
 
     @property
-    def db(self) -> Database:
+    def db(self) -> Database[Any]:
         return self.client[self.config.database]
 
     def ensure_collections(self) -> None:
@@ -89,7 +89,9 @@ class MongoDBStore:
         result = self.db.evidence_packs.replace_one(key, pack, upsert=True)
         return str(result.upserted_id) if result.upserted_id else "updated"
 
-    def get_evidence_pack(self, job_id: str, contract_id: str | None = None) -> dict[str, Any] | None:
+    def get_evidence_pack(
+        self, job_id: str, contract_id: str | None = None
+    ) -> dict[str, Any] | None:
         filt: dict[str, Any] = {"job_id": job_id}
         if contract_id:
             filt["contract_id"] = contract_id
@@ -99,7 +101,7 @@ class MongoDBStore:
         return list(self.db.evidence_packs.find({"job_id": job_id}).sort("created_at", 1))
 
     def verify_artifact_chain(
-        self, job_id: str, minio_batch_check: "callable | None" = None
+        self, job_id: str, minio_batch_check: Callable[..., Any] | None = None
     ) -> list[str]:
         """Verify every MinIO object referenced by this job's evidence packs exists.
 

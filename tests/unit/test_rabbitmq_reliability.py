@@ -2,13 +2,8 @@
 
 import json
 
-import pytest
-
 from storage.rabbitmq import (
-    PermanentFailure,
-    PublisherConfirmTimeout,
     QueuePolicy,
-    RabbitMQClient,
     RabbitMQConfig,
     _get_death_count,
     make_idempotency_check,

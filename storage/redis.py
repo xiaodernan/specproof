@@ -3,13 +3,11 @@
 P1.4: Added Redis Streams for progress, worker lease, and LLM token budget.
 All keys carry TTL — no permanent business state in Redis.
 """
-
 import json
 import os
-import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import redis
 
@@ -81,10 +79,12 @@ class RedisStore:
             "message": message,
         }
         key = self.stream_key(job_id)
-        entry_id = self.client.xadd(key, data, maxlen=self.STREAM_MAXLEN)
+        entry_id = self.client.xadd(
+            key, cast(Any, data), maxlen=self.STREAM_MAXLEN
+        )
         # Set TTL on the stream key (24h)
         self.client.expire(key, 86400)
-        return entry_id
+        return str(entry_id)
 
     def xread_progress(
         self, job_id: str, from_id: str = "0", count: int = 100,
@@ -95,19 +95,19 @@ class RedisStore:
         """
         key = self.stream_key(job_id)
         try:
-            result = self.client.xread({key: from_id}, count=count)
+            result = cast(Any, self.client.xread({key: from_id}, count=count))
             if not result:
                 return []
-            entries = []
-            for stream_name, messages in result:
+            entries: list[dict[str, Any]] = []
+            for _stream_name, messages in result:
                 for msg_id, fields in messages:
                     entries.append({
-                        "id": msg_id,
-                        "node": fields.get("node", ""),
-                        "status": fields.get("status", ""),
-                        "at": fields.get("at", ""),
+                        "id": str(msg_id),
+                        "node": str(fields.get("node", "")),
+                        "status": str(fields.get("status", "")),
+                        "at": str(fields.get("at", "")),
                         "percent": float(fields.get("percent", 0)),
-                        "message": fields.get("message", ""),
+                        "message": str(fields.get("message", "")),
                     })
             return entries
         except redis.ResponseError:
@@ -153,7 +153,8 @@ class RedisStore:
 
     def get_lease_owner(self, job_id: str) -> str | None:
         """Return the worker_id that holds the lease, or None."""
-        return self.client.get(self.lease_key(job_id))
+        val = self.client.get(self.lease_key(job_id))
+        return str(val) if val is not None else None
 
     # ── LLM Token budget ──────────────────────────────────────
 

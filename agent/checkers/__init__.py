@@ -6,6 +6,6 @@ capped at MAJOR by the Review Court (static analysis can never produce
 BLOCKER on its own — only real execution can).
 """
 
-from agent.checkers.java_source import run_contract_checks, contract_results_for
+from agent.checkers.java_source import contract_results_for, run_contract_checks
 
 __all__ = ["run_contract_checks", "contract_results_for"]

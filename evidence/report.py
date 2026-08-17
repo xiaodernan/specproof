@@ -1,5 +1,4 @@
 """HTML report renderer for SpecProof Phase 0."""
-
 from datetime import UTC, datetime
 from typing import Any
 
@@ -9,7 +8,7 @@ def render_verification_report(
     base_ref: str,
     head_ref: str,
     matrix: dict[str, Any],
-    findings: list[dict],
+    findings: list[dict[str, Any]],
     errors: list[str] | None = None,
 ) -> str:
     """Render the full HTML Verification Report."""
@@ -161,7 +160,7 @@ def render_verification_report(
 </html>"""
 
 
-def render_eval_report(results: list[dict]) -> str:
+def render_eval_report(results: list[dict[str, Any]]) -> str:
     """Render evaluation results HTML page with precision/recall."""
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 

@@ -1,0 +1,59 @@
+# SpecProof production compose — app services on top of the infra stack.
+# Usage: docker compose -f compose.phase0.yml -f compose.production.yml up -d
+# The API requires SPECPROOF_API_KEY (fail-closed authentication) and the
+# worker executes untrusted repo code ONLY inside the sandbox image.
+
+name: specproof-app
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      SPECPROOF_API_KEY: ${SPECPROOF_API_KEY:?set SPECPROOF_API_KEY}
+      SPECPROOF_CORS_ORIGINS: ${SPECPROOF_CORS_ORIGINS:-http://localhost:3000}
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      MONGODB_HOST: mongodb
+      ES_HOST: http://elasticsearch:9200
+      RABBITMQ_HOST: rabbitmq
+      MINIO_HOST: minio
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-specproof_pass}
+      ES_PASSWORD: ${ES_PASSWORD:-specproof_pass}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    restart: unless-stopped
+    environment:
+      SPECPROOF_SANDBOX: docker
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      MONGODB_HOST: mongodb
+      RABBITMQ_HOST: rabbitmq
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-specproof_pass}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy

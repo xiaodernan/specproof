@@ -1,16 +1,17 @@
+
 """collect_diff node — analyze git diff between base and head.
 
 Errors are recorded in state["errors"] (which the graph's error guard
 routes on) instead of being disguised as changed-symbol data.
 """
-
 import re
 import subprocess
+from typing import Any
 
 from agent.state import Phase0State
 
 
-def collect_diff_node(state: Phase0State) -> dict:
+def collect_diff_node(state: Phase0State) -> dict[str, Any]:
     """Collect and analyze the git diff between base and head."""
     repo_path = state.get("repo_path", "")
     base_ref = state.get("base_ref", "base")

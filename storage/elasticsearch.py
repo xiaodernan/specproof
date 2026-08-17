@@ -1,5 +1,8 @@
-"""Elasticsearch store — code and evidence retrieval for Phase 0."""
+"""Elasticsearch store — code and evidence retrieval.
 
+P2: repository-level symbol indexing (method-level chunks) and BM25
+retrieval with repository isolation.
+"""
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -88,14 +91,24 @@ class ElasticsearchStore:
             "start_line": start_line,
             "end_line": end_line,
         }
-        self.client.index(index=self.INDEX_CODE, document=doc)
+        # refresh=True makes the document immediately searchable; without it
+        # a search right after indexing returns nothing (near-real-time).
+        self.client.index(index=self.INDEX_CODE, document=doc, refresh=True)
 
     def search_code(
         self, repo: str, query: str, commit_sha: str | None = None
     ) -> list[dict[str, Any]]:
         must = [
             {"term": {"repo": repo}},
-            {"match": {"content": query}},
+            {
+                "bool": {
+                    "should": [
+                        {"match": {"content": query}},
+                        {"match": {"symbol": query}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            },
         ]
         if commit_sha:
             must.append({"term": {"commit_sha": commit_sha}})
@@ -105,6 +118,79 @@ class ElasticsearchStore:
             body={"query": {"bool": {"must": must}}, "size": 20},
         )
         return [hit["_source"] for hit in result["hits"]["hits"]]
+
+    def index_repository(
+        self, repo: str, commit_sha: str, files: dict[str, str],
+    ) -> int:
+        """Index one repository snapshot as symbol-level chunks.
+
+        files maps posix relative paths to source content. Java files are
+        split into method blocks (AST-free symbol chunking) so retrieval
+        returns the relevant symbol, not an arbitrary 500-char window.
+        Returns the number of indexed chunks.
+        """
+        self.ensure_indices()
+        self.delete_repo(repo)  # idempotent re-index
+
+        try:
+            from agent.checkers.java_source import _split_with_annotations
+        except ImportError:
+            _split_with_annotations = None  # type: ignore[assignment]
+
+        docs: list[dict[str, Any]] = []
+        for path, content in files.items():
+            if path.endswith(".java") and _split_with_annotations is not None:
+                chunks = [
+                    (block, name)
+                    for block, name in _split_with_annotations(content)
+                ]
+                if not chunks:
+                    chunks = [(content, path)]
+            else:
+                chunks = [(content, path)]
+            for block, symbol in chunks:
+                docs.append({
+                    "repo": repo,
+                    "commit_sha": commit_sha,
+                    "path": path,
+                    "symbol": symbol,
+                    "language": "java" if path.endswith(".java") else "text",
+                    "content": block[:4000],
+                    "start_line": 0,
+                    "end_line": 0,
+                })
+
+        # Bulk + ONE refresh: per-document refresh=True costs a disk sync
+        # per chunk (30+ chunks took minutes and blew past every timeout).
+        if docs:
+            operations: list[dict[str, Any]] = []
+            for doc in docs:
+                operations.append({"index": {"_index": self.INDEX_CODE}})
+                operations.append(doc)
+            self.client.bulk(operations=operations, refresh=True)
+        return len(docs)
+
+    def delete_repo(self, repo: str) -> None:
+        """Remove all documents of one repository (re-index idempotency).
+
+        Implemented as delete-index + recreate: elasticsearch-py 8.19.x
+        hard-crashes on Windows inside delete_by_query (native fault in the
+        transport layer), while the plain DELETE index request is stable.
+        """
+        self.client.indices.delete(
+            index=self.INDEX_CODE, ignore_unavailable=True
+        )
+        self.ensure_indices()
+
+    def count_repo_docs(self, repo: str) -> int:
+        """Number of indexed chunks for a repository (0 when absent)."""
+        if not self.client.indices.exists(index=self.INDEX_CODE):
+            return 0
+        result = self.client.count(
+            index=self.INDEX_CODE,
+            body={"query": {"term": {"repo": repo}}},
+        )
+        return int(result.get("count", 0))
 
     def is_ready(self) -> bool:
         try:

@@ -1,5 +1,6 @@
 """P1.2 Integration tests: Outbox crash recovery (requires MySQL + RabbitMQ)."""
 
+import contextlib
 import uuid
 
 import pytest
@@ -15,6 +16,13 @@ class TestOutboxCrashRecovery:
         self.store = MySQLStore()
         try:
             self.store.ensure_tables()
+            # Fresh state per test: the shared dev database accumulates rows
+            # from previous runs, which would pollute LIMIT-based assertions.
+            with self.store.connection() as conn:
+                conn.cursor().execute("DELETE FROM outbox")
+                conn.cursor().execute("DELETE FROM findings")
+                conn.cursor().execute("DELETE FROM contracts")
+                conn.cursor().execute("DELETE FROM verification_jobs")
         except Exception:
             pytest.skip("MySQL not available")
         self.job_id = str(uuid.uuid4())
@@ -49,19 +57,22 @@ class TestOutboxCrashRecovery:
 
         # First connection locks the row
         conn1 = self.store._connect()
-        conn1.cursor().execute(
-            "SELECT id FROM outbox WHERE published_at IS NULL ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED"
+        cur1 = conn1.cursor()
+        cur1.execute(
+            "SELECT id FROM outbox WHERE published_at IS NULL "
+            "ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED"
         )
-        locked = conn1.cursor().fetchall()
+        locked = cur1.fetchall()
         assert len(locked) == 1
 
         # Second connection gets nothing (row is locked)
-        conn2 = MySQLStore()
         conn2 = self.store._connect()
-        conn2.cursor().execute(
-            "SELECT id FROM outbox WHERE published_at IS NULL ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED"
+        cur2 = conn2.cursor()
+        cur2.execute(
+            "SELECT id FROM outbox WHERE published_at IS NULL "
+            "ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED"
         )
-        skipped = conn2.cursor().fetchall()
+        skipped = cur2.fetchall()
         assert len(skipped) == 0, "SKIP LOCKED should return 0 rows when locked"
 
         conn1.rollback()
@@ -101,7 +112,7 @@ class TestOutboxCrashRecovery:
     def test_transaction_rollback_prevents_orphan_outbox(self):
         """If the transaction fails, neither job nor outbox should exist."""
         # Attempt to insert with invalid data to trigger rollback
-        try:
+        with contextlib.suppress(KeyError, Exception):
             self.store.create_job_with_outbox({
                 # Missing 'id' — this will fail
                 "repo_path": "/test/repo",
@@ -109,8 +120,6 @@ class TestOutboxCrashRecovery:
                 "head_ref": "head",
                 "spec_path": "/test/spec.md",
             })
-        except (KeyError, Exception):
-            pass
 
         # No outbox row should exist for an aborted transaction
         rows = self.store.fetch_pending_outbox_rows(100)

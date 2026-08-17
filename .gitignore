@@ -37,3 +37,9 @@ Desktop.ini
 *.key
 credentials.json
 eval-report.html
+
+# Local task ledger + transient artifacts
+.jspace/
+es_err.txt
+eval-report.results.json
+services/control-plane/target/

@@ -34,9 +34,7 @@ def _is_source_file(path: str) -> bool:
     ext = os.path.splitext(normalized)[1].lower()
     if ext in skip_exts:
         return False
-    if "maven-wrapper.jar" in normalized:
-        return False
-    return True
+    return "maven-wrapper.jar" not in normalized
 
 
 class TestNoHardcodedKeys:
@@ -50,6 +48,10 @@ class TestNoHardcodedKeys:
             if not _is_source_file(rel):
                 continue
             if rel.endswith(".env") or "security_scanner" in rel:
+                continue
+            # Modules that DEFINE secret patterns or contain synthetic test
+            # secrets by design (not leaks).
+            if "redaction" in rel or "test_redaction" in rel:
                 continue
             try:
                 content = filepath.read_text(encoding="utf-8")
@@ -101,7 +103,11 @@ class TestNoHardcodedKeys:
     def test_no_api_key_in_config_files(self):
         """YAML, JSON, TOML, .properties, .xml files must be free of `sk-***` keys."""
         violations = []
-        for pattern in ("*.yml", "*.yaml", "*.json", "*.toml", "*.properties", "*.xml", "*.cfg", "*.ini"):
+        config_globs = (
+            "*.yml", "*.yaml", "*.json", "*.toml",
+            "*.properties", "*.xml", "*.cfg", "*.ini",
+        )
+        for pattern in config_globs:
             for filepath in PROJECT_ROOT.rglob(pattern):
                 rel = str(filepath.relative_to(PROJECT_ROOT)).replace("\\", "/")
                 if not _is_source_file(rel):
@@ -145,7 +151,7 @@ class TestNoHardcodedKeys:
         for line in content.splitlines():
             if "LLM_API_KEY" in line and "=" in line and not line.strip().startswith("#"):
                 val = line.split("=", 1)[-1].strip().strip('"').strip("'")
-                if len(val) > 8 and not "replace" in val.lower():
+                if len(val) > 8 and "replace" not in val.lower():
                     raise AssertionError(
                         f".env.example contains a non-placeholder value: {val[:10]}***"
                     )

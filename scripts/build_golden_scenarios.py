@@ -170,7 +170,8 @@ def main() -> None:
             (DTO, "    public String getEmail() { return email; }",
              "    public String getEmailAddress() { return emailAddress; }"),
             (DTO, "    public void setEmail(String email) { this.email = email; }",
-             "    public void setEmailAddress(String emailAddress) { this.emailAddress = emailAddress; }"),
+             "    public void setEmailAddress(String emailAddress) { "
+             "this.emailAddress = emailAddress; }"),
         ],
     )
     apply_case(

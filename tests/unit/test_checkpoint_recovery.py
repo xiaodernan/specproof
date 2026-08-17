@@ -1,9 +1,6 @@
 """P1.6 Unit tests: checkpoint save/load, recovery logic, state serialization."""
 
 import json
-import uuid
-
-import pytest
 
 
 class TestCheckpointDocumentModel:
@@ -109,7 +106,11 @@ class TestRecoveryLogic:
         thread_id = "job-1"
 
         # Original worker saved checkpoint
-        saved = {"thread_id": thread_id, "worker": original_worker, "last_node": "run_static_checks"}
+        saved = {
+            "thread_id": thread_id,
+            "worker": original_worker,
+            "last_node": "run_static_checks",
+        }
 
         # Recovery worker loads same checkpoint
         loaded = saved  # same data from MongoDB

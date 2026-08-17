@@ -1,0 +1,6 @@
+{
+  "version": "2.0",
+  "base_ref": "base",
+  "head_ref": "case-12-head",
+  "note": "Built reproducibly (javadoc only)"
+}

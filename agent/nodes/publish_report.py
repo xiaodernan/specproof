@@ -1,12 +1,13 @@
-"""publish_report node — generate the HTML verification report."""
 
+"""publish_report node — generate the HTML verification report."""
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from agent.state import Phase0State
 
 
-def publish_report_node(state: Phase0State) -> dict:
+def publish_report_node(state: Phase0State) -> dict[str, Any]:
     """Generate the HTML Verification Report into state["output_dir"].
 
     Renders pipeline errors and UNVERIFIED contracts honestly — the report

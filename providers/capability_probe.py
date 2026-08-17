@@ -1,7 +1,9 @@
 """Capability Probe — validates an OpenAI-compatible gateway before use.
 
-Runs 10 atomic checks. Results written to MySQL provider_capabilities
-and cached in Redis (TTL 86400s).
+Runs 10 atomic checks over raw HTTP. The result is returned to the caller
+(the CLI prints it; a Phase 1 control plane may persist it to MySQL
+provider_capabilities / Redis cache — that persistence is the caller's
+responsibility and is not done here).
 
 Usage:
     probe = CapabilityProbe(base_url="https://provider.example/v1",
@@ -9,7 +11,6 @@ Usage:
     result = await probe.run()
     print(result.summary())
 """
-
 from __future__ import annotations
 
 import json
@@ -281,9 +282,12 @@ class CapabilityProbe:
             ],
             "max_tokens": 200,
         }
+        # Raw HTTP probe: the thinking control must go INSIDE the JSON body
+        # (extra_body is an OpenAI-SDK-only concept and would be sent as a
+        # meaningless body field here).
         payload_with_thinking = {
             **payload,
-            "extra_body": {"thinking": {"type": "enabled"}},
+            "thinking": {"type": "enabled"},
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -328,7 +332,7 @@ class CapabilityProbe:
             ],
             "tools": tools,
             "max_tokens": 200,
-            "extra_body": {"thinking": {"type": "enabled"}},
+            "thinking": {"type": "enabled"},
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:

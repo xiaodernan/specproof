@@ -4,7 +4,6 @@ This is the primary LLM provider for Phase 0.
 It uses the openai SDK with a custom base_url.
 Capabilities are probed before first use.
 """
-
 from __future__ import annotations
 
 import json
@@ -82,15 +81,15 @@ class OpenAICompatibleProvider(ModelProvider):
         self._probe_result = await probe.run()
         return self._probe_result
 
-    def get_capabilities(self) -> dict:
+    def get_capabilities(self) -> dict[str, Any]:
         return self.probe_result.capabilities
 
     async def chat(
         self,
         messages: list[LLMMessage],
-        tools: list[dict] | None = None,
+        tools: list[dict[str, Any]] | None = None,
         tool_choice: str | None = None,
-        response_format: dict | None = None,
+        response_format: dict[str, Any] | None = None,
         thinking: bool = False,
         timeout: float = 180.0,
     ) -> LLMResponse:
@@ -125,7 +124,7 @@ class OpenAICompatibleProvider(ModelProvider):
     async def chat_stream(  # type: ignore[override, misc]
         self,
         messages: list[LLMMessage],
-        tools: list[dict] | None = None,
+        tools: list[dict[str, Any]] | None = None,
         thinking: bool = False,
         timeout: float = 180.0,
     ) -> AsyncIterator[LLMResponse]:
@@ -221,7 +220,7 @@ class OpenAICompatibleProvider(ModelProvider):
         )
 
     def _inject_tool_prompt(
-        self, messages: list[dict[str, Any]], tools: list[dict]
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         """Degrade: inject tool definitions as system prompt."""
         tool_desc = json.dumps(tools, indent=2)

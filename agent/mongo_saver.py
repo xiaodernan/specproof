@@ -4,18 +4,19 @@ Implements BaseCheckpointSaver so the compiled graph persists state
 after every node execution. Worker crash recovery reads the latest
 checkpoint and resumes from the interrupted node.
 """
-
 from __future__ import annotations
 
 import logging
-from typing import Any, Iterator
+from collections.abc import Iterator, Sequence
+from typing import Any, cast
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
     BaseCheckpointSaver,
+    ChannelVersions,
     Checkpoint,
     CheckpointMetadata,
     CheckpointTuple,
-    ChannelVersions,
 )
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
@@ -24,7 +25,7 @@ from storage.mongodb import MongoDBStore
 logger = logging.getLogger(__name__)
 
 
-class MongoDBSaver(BaseCheckpointSaver):
+class MongoDBSaver(BaseCheckpointSaver[Any]):
     """Persist LangGraph checkpoints to MongoDB.
 
     Each checkpoint is stored as a document in the `agent_checkpoints` collection.
@@ -37,12 +38,12 @@ class MongoDBSaver(BaseCheckpointSaver):
         self._store.ensure_collections()
 
     @property
-    def collection(self):
+    def collection(self) -> Any:
         return self._store.db.agent_checkpoints
 
     # ── Core interface ──────────────────────────────────────────
 
-    def get_tuple(self, config: dict[str, Any]) -> CheckpointTuple | None:
+    def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         """Get the latest checkpoint for a thread_id (job_id)."""
         thread_id = self._thread_id(config)
         if not thread_id:
@@ -57,13 +58,23 @@ class MongoDBSaver(BaseCheckpointSaver):
 
         checkpoint = self._doc_to_checkpoint(doc)
         metadata = self._doc_to_metadata(doc)
-        parent_config = (
-            {"configurable": {"thread_id": thread_id, "checkpoint_id": doc["parent_checkpoint_id"]}}
+        parent_config: Any = (
+            {
+                "configurable": {
+                    "thread_id": thread_id,
+                    "checkpoint_id": doc["parent_checkpoint_id"],
+                }
+            }
             if doc.get("parent_checkpoint_id")
             else None
         )
         return CheckpointTuple(
-            config={"configurable": {"thread_id": thread_id, "checkpoint_id": doc["checkpoint_id"]}},
+            config={
+                "configurable": {
+                    "thread_id": thread_id,
+                    "checkpoint_id": doc["checkpoint_id"],
+                }
+            },
             checkpoint=checkpoint,
             metadata=metadata,
             parent_config=parent_config,
@@ -71,11 +82,11 @@ class MongoDBSaver(BaseCheckpointSaver):
 
     def put(
         self,
-        config: dict[str, Any],
+        config: RunnableConfig,
         checkpoint: Checkpoint,
         metadata: CheckpointMetadata,
         new_versions: ChannelVersions,
-    ) -> dict[str, Any]:
+    ) -> RunnableConfig:
         """Save a checkpoint. Upserts by (thread_id, checkpoint_id)."""
         thread_id = self._thread_id(config)
         checkpoint_id = checkpoint["id"]
@@ -120,9 +131,10 @@ class MongoDBSaver(BaseCheckpointSaver):
 
     def put_writes(
         self,
-        config: dict[str, Any],
-        writes: list[tuple[str, Any]],
+        config: RunnableConfig,
+        writes: Sequence[tuple[str, Any]],
         task_id: str,
+        task_path: str = "",
     ) -> None:
         """Store pending writes (node outputs not yet committed)."""
         thread_id = self._thread_id(config)
@@ -142,10 +154,10 @@ class MongoDBSaver(BaseCheckpointSaver):
 
     def list(
         self,
-        config: dict[str, Any] | None,
+        config: RunnableConfig | None,
         *,
         filter: dict[str, Any] | None = None,
-        before: dict[str, Any] | None = None,
+        before: RunnableConfig | None = None,
         limit: int | None = None,
     ) -> Iterator[CheckpointTuple]:
         """List checkpoints for a thread, ordered newest first."""
@@ -166,13 +178,23 @@ class MongoDBSaver(BaseCheckpointSaver):
         for doc in cursor:
             checkpoint = self._doc_to_checkpoint(doc)
             metadata = self._doc_to_metadata(doc)
-            parent_config = (
-                {"configurable": {"thread_id": thread_id, "checkpoint_id": doc["parent_checkpoint_id"]}}
+            parent_config: Any = (
+                {
+                    "configurable": {
+                        "thread_id": thread_id,
+                        "checkpoint_id": doc["parent_checkpoint_id"],
+                    }
+                }
                 if doc.get("parent_checkpoint_id")
                 else None
             )
             yield CheckpointTuple(
-                config={"configurable": {"thread_id": thread_id, "checkpoint_id": doc["checkpoint_id"]}},
+                config={
+                    "configurable": {
+                        "thread_id": thread_id,
+                        "checkpoint_id": doc["checkpoint_id"],
+                    }
+                },
                 checkpoint=checkpoint,
                 metadata=metadata,
                 parent_config=parent_config,
@@ -180,30 +202,33 @@ class MongoDBSaver(BaseCheckpointSaver):
 
     # ── Helpers ──────────────────────────────────────────────────
 
-    def _thread_id(self, config: dict[str, Any]) -> str:
+    def _thread_id(self, config: RunnableConfig) -> str:
         if not config:
             return ""
-        return config.get("configurable", {}).get("thread_id", "")
+        return str(config.get("configurable", {}).get("thread_id", ""))
 
-    def _doc_to_checkpoint(self, doc: dict[str, Any]) -> Checkpoint:
+    # Upstream Checkpoint TypedDict shape drifts between langgraph releases;
+    # we rebuild it from a stored document, so the reconstructed dict is Any.
+    def _doc_to_checkpoint(self, doc: dict[str, Any]) -> Any:
         cp = doc.get("checkpoint", doc)
-        return Checkpoint(
-            v=cp.get("v", 1),
-            id=cp.get("id", doc.get("checkpoint_id", "")),
-            ts=cp.get("ts", ""),
-            channel_values=cp.get("channel_values", {}),
-            channel_versions=cp.get("channel_versions", {}),
-            versions_seen=cp.get("versions_seen", {}),
-        )
+        return cast(Any, {
+            "v": cp.get("v", 1),
+            "id": cp.get("id", doc.get("checkpoint_id", "")),
+            "ts": cp.get("ts", ""),
+            "channel_values": cp.get("channel_values", {}),
+            "channel_versions": cp.get("channel_versions", {}),
+            "versions_seen": cp.get("versions_seen", {}),
+        })
 
-    def _doc_to_metadata(self, doc: dict[str, Any]) -> CheckpointMetadata:
+    # CheckpointMetadata keys also drift upstream (e.g. "writes").
+    def _doc_to_metadata(self, doc: dict[str, Any]) -> Any:
         md = doc.get("metadata", {})
-        return CheckpointMetadata(
-            source=md.get("source", "loop"),
-            step=md.get("step", -1),
-            writes=md.get("writes", None),
-            parents=md.get("parents", {}),
-        )
+        return cast(Any, {
+            "source": md.get("source", "loop"),
+            "step": md.get("step", -1),
+            "writes": md.get("writes", None),
+            "parents": md.get("parents", {}),
+        })
 
     def _serialize_channels(self, channel_values: dict[str, Any]) -> dict[str, Any]:
         """Convert channel values to MongoDB-safe dicts.
@@ -227,8 +252,8 @@ class MongoDBSaver(BaseCheckpointSaver):
                 result[key] = value
         return result
 
-    def _serialize_writes(self, writes: list[tuple[str, Any]]) -> list[dict[str, Any]]:
-        result: list[dict[str, Any]] = []
+    def _serialize_writes(self, writes: Sequence[tuple[str, Any]]) -> Any:
+        result: list[Any] = []
         for channel, value in (writes or []):
             if hasattr(value, "model_dump"):
                 result.append([channel, value.model_dump()])
@@ -243,7 +268,9 @@ class MongoDBSaver(BaseCheckpointSaver):
     def delete_thread(self, thread_id: str) -> None:
         self.collection.delete_many({"thread_id": thread_id})
 
-    def get_next_version(self, current: str | None, channel: str) -> str | None:
+    def get_next_version(
+        self, current: str | None, channel: None = None
+    ) -> str | None:
         """Generate next version for a channel. Simple counter."""
         if current is None:
             return "1"

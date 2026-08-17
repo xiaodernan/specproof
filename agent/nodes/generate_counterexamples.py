@@ -11,16 +11,15 @@ v2 honesty fixes:
   pretending to work.
 - LLM failures are recorded in the generation record, never swallowed.
 """
-
 from __future__ import annotations
 
 import asyncio
 import os
 import re
-import subprocess
 import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from agent.state import Phase0State
 
@@ -81,7 +80,7 @@ class TestGenerationRecord:
     errors: list[str] = field(default_factory=list)
 
 
-def _get_provider():
+def _get_provider() -> Any:
     """Create an LLM provider from env vars. Returns None if not configured."""
     api_key = os.getenv("LLM_API_KEY", "")
     if not api_key or api_key == "replace_me":
@@ -103,27 +102,36 @@ def _validate_test_schema(code: str) -> list[str]:
 
 
 def _compile_test(workspace: str, test_file: str) -> tuple[int, str]:
-    """Compile the test class with mvnw test-compile. Returns (exit_code, stderr)."""
+    """Compile the test class with mvnw test-compile. Returns (exit_code, stderr).
+
+    P0-A1: the compile runs inside the execution SANDBOX (sandbox/runner.py) —
+    a malicious pom.xml/build plugin must never execute on the host.
+    """
+    del test_file  # path validated by the caller; compilation covers the tree
     pom = Path(workspace) / "pom.xml"
     if not pom.exists():
         return -1, "No pom.xml found"
 
     import platform
-    mvnw_cmd = "mvnw.cmd" if platform.system() == "Windows" else "./mvnw"
 
-    for cmd in (mvnw_cmd, "mvn"):
-        try:
-            proc = subprocess.run(
-                [cmd, "test-compile", "-q"],
-                cwd=workspace,
-                capture_output=True, text=True, timeout=300,
-            )
-            return proc.returncode, proc.stderr
-        except FileNotFoundError:
-            continue
-        except Exception as e:  # noqa: BLE001
-            return -1, str(e)
-    return -1, "Maven not found"
+    from sandbox.runner import run_sandboxed
+
+    # Sandbox runs the image's mvn; the local fallback uses the wrapper
+    # (absolute path — CreateProcessW resolves relative names against the
+    # parent cwd, not cwd=).
+    if platform.system() == "Windows":
+        local_cmd = [os.path.join(workspace, "mvnw.cmd"), "test-compile", "-q"]
+    else:
+        local_cmd = [os.path.join(workspace, "mvnw"), "test-compile", "-q"]
+    result = run_sandboxed(
+        ["mvn", "test-compile", "-q", "-f", "/work/pom.xml"],
+        workspace=workspace,
+        timeout=600,
+        local_command=local_cmd,
+    )
+    if result.error:
+        return -1, "Sandbox execution failed: " + result.error
+    return result.exit_code, result.stderr
 
 
 def _is_demo_repo(workspace: str) -> bool:
@@ -138,8 +146,8 @@ def _is_demo_repo(workspace: str) -> bool:
 
 
 async def _llm_generate_junit(
-    findings: list[dict],
-    contracts: list[dict],
+    findings: list[dict[str, Any]],
+    contracts: list[dict[str, Any]],
     requirement_text: str = "",
 ) -> str:
     """Call LLM with non-thinking mode to generate JUnit test code."""
@@ -267,8 +275,8 @@ def _build_deterministic_test() -> str:
 
 async def _generate_with_compile_loop(
     head_workspace: str,
-    findings: list[dict],
-    contracts: list[dict],
+    findings: list[dict[str, Any]],
+    contracts: list[dict[str, Any]],
     requirement_text: str,
 ) -> GenerationResult:
     """LLM generate → validate schema → compile, retry up to 3 times."""
@@ -335,7 +343,7 @@ async def _generate_with_compile_loop(
     )
 
 
-def generate_counterexamples_node(state: Phase0State) -> dict:
+def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
     """Generate a JUnit counterexample test based on findings.
 
     Returns state updates including test_source, generation_record,

@@ -11,19 +11,19 @@ v2 honesty fixes:
   exercised (the HTTP/auth contract family). Everything else stays
   UNVERIFIED and is judged by other experiment nodes.
 """
-
 from __future__ import annotations
 
 import hashlib
 import json
 import os
-import platform
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any, cast
 
+from agent.contract_results import merge_contract_results
 from agent.state import Phase0State
 
 # Java source for the post-mortem DB dump helper. It opens the file-based
@@ -52,17 +52,19 @@ public class SpecProofDbCheck {
 """
 
 
-def run_differential_node(state: Phase0State) -> dict:
+def run_differential_node(state: Phase0State) -> dict[str, Any]:
     """Run the generated counterexample test on Base and Head workspaces."""
     base_workspace = state.get("base_workspace", "")
     head_workspace = state.get("head_workspace", "")
     app_dir = state.get("app_dir", "")
     changed_symbols = state.get("changed_symbols", [])
-    generation_record = state.get("generation_record", {})
+    generation_record = cast(
+        dict[str, Any], state.get("generation_record", {})
+    )
     contracts = state.get("contracts", [])
     generated_tests_path = state.get("generated_tests_path", "")
 
-    empty_result: dict = {
+    empty_result: dict[str, Any] = {
         "diff_results": [{
             "contract_id": "DIFF-01",
             "verdict": "NON_REPRODUCIBLE",
@@ -76,20 +78,51 @@ def run_differential_node(state: Phase0State) -> dict:
     base_app = str(Path(base_workspace) / app_dir) if app_dir else base_workspace
     head_app = str(Path(head_workspace) / app_dir) if app_dir else head_workspace
 
+    # ── Source-level annotation diff (deterministic, MAJOR-capped) ──
+    # Runs unconditionally: it depends only on the two source trees, so a
+    # test-generation or Maven failure can never erase this evidence.
+    source_diff_results: list[dict[str, Any]] = []
+    for hd in _check_http_diff(base_app, head_app):
+        source_diff_results.append({
+            # Security-annotation removal is the AUTH contract family; using
+            # AUTH-01 here lets the Review Court deduplicate it against the
+            # static checker's finding for the same construct.
+            "contract_id": "AUTH-01",
+            "verdict": hd.get("verdict", "AMBIGUOUS"),
+            "detail": hd.get("detail", ""),
+            "evidence_type": "java_source_diff",
+            "location": hd.get("location", ""),
+            "severity": "MAJOR",
+            "confidence": 0.85,
+            "evidence_digest": (
+                "sha256:"
+                + hashlib.sha256(
+                    json.dumps(hd, sort_keys=True).encode()
+                ).hexdigest()
+            ),
+        })
+
     test_class = _test_class_from_path(generated_tests_path)
     if not test_class:
         empty_result["diff_results"][0]["detail"] = (
-            "No generated counterexample test available — nothing to run"
+            "No generated counterexample test available — nothing to run; "
+            "source-diff evidence recorded separately"
         )
-        return empty_result
+        # Do NOT touch contract_results: this experiment produced none.
+        return {
+            "diff_results": source_diff_results + empty_result["diff_results"],
+        }
 
     # ── Inject the generated test into BOTH workspaces ──
     injected = _inject_test_into_workspaces(generated_tests_path, base_app, head_app)
     if not injected:
         empty_result["diff_results"][0]["detail"] = (
-            "Could not inject generated test into both workspaces"
+            "Could not inject generated test into both workspaces; "
+            "source-diff evidence recorded separately"
         )
-        return empty_result
+        return {
+            "diff_results": source_diff_results + empty_result["diff_results"],
+        }
 
     # ── Run the SAME generated test on Base and Head ──
     base_result = _run_generated_test(base_app, test_class)
@@ -101,7 +134,7 @@ def run_differential_node(state: Phase0State) -> dict:
             f"base: {base_result.get('error') or 'ok'}"
         )
         return {
-            "diff_results": [{
+            "diff_results": source_diff_results + [{
                 "contract_id": "DIFF-01",
                 "verdict": "NON_REPRODUCIBLE",
                 "detail": f"Maven execution error: {err_detail}",
@@ -109,7 +142,6 @@ def run_differential_node(state: Phase0State) -> dict:
                 "head_exit_code": head_result.get("exit_code"),
                 "changed_symbols": changed_symbols,
             }],
-            "contract_results": [],
         }
 
     base_pass = base_result.get("exit_code") == 0
@@ -180,8 +212,13 @@ def run_differential_node(state: Phase0State) -> dict:
     }, sort_keys=True)
     evidence_digest = hashlib.sha256(evidence_payload.encode()).hexdigest()
 
-    diff_results: list[dict] = [{
-        "contract_id": "DIFF-01",
+    diff_results: list[dict[str, Any]] = [{
+        # The experiment id is DIFF-01; the CONTRACT it verified is AUTH-01
+        # (unauthenticated write rejection). The Review Court requires an
+        # approved contract for BLOCKER, so contract_id must match the
+        # compiled AUTH-01 contract, not the experiment label.
+        "contract_id": "AUTH-01",
+        "experiment_id": "DIFF-01",
         "verdict": combined_verdict,
         "detail": combined_detail,
         "severity": combined_severity,
@@ -206,27 +243,12 @@ def run_differential_node(state: Phase0State) -> dict:
         "generation_source": generation_record.get("source", "unknown"),
     }]
 
-    # ── Source-level annotation diff (deterministic, MAJOR-capped) ──
-    http_diffs = _check_http_diff(base_app, head_app)
-    for hd in http_diffs:
-        diff_results.append({
-            "contract_id": "DIFF-HTTP",
-            "verdict": hd.get("verdict", "AMBIGUOUS"),
-            "detail": hd.get("detail", ""),
-            "evidence_type": "java_source_diff",
-            "location": hd.get("location", ""),
-            "severity": "MAJOR",
-            "confidence": 0.85,
-            "evidence_digest": (
-                "sha256:"
-                + hashlib.sha256(
-                    json.dumps(hd, sort_keys=True).encode()
-                ).hexdigest()
-            ),
-        })
+    # Source-diff findings computed earlier are prepended; the generated-test
+    # verdict is the primary experiment for DIFF-01.
+    diff_results = source_diff_results + diff_results
 
     # ── Contract results: only what this experiment exercised ──
-    contract_results: list[dict] = []
+    contract_results: list[dict[str, Any]] = []
     for c in contracts:
         cid = c.get("id", "")
         if c.get("checker_type") == "http" and cid.upper().startswith("AUTH"):
@@ -243,7 +265,15 @@ def run_differential_node(state: Phase0State) -> dict:
                 "evidence_ref": f"sha256:{evidence_digest}",
             })
 
-    return {"diff_results": diff_results, "contract_results": contract_results}
+    # Merge into the shared channel so static-check results for OTHER
+    # contracts survive (channel values are replaced, not merged, by LangGraph).
+    merged_contract_results = merge_contract_results(
+        state.get("contract_results", []), contract_results
+    )
+    return {
+        "diff_results": diff_results,
+        "contract_results": merged_contract_results,
+    }
 
 
 def _test_class_from_path(test_path: str) -> str:
@@ -265,20 +295,26 @@ def _inject_test_into_workspaces(test_path: str, base_ws: str, head_ws: str) -> 
         return False
     ok = True
     for ws in (base_ws, head_ws):
-        dest_dir = (
+        dest = (
             Path(ws) / "src" / "test" / "java" / "com" / "specproof" / "demo"
+            / src.name
         )
         try:
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(str(src), str(dest_dir / src.name))
+            # Copying a file onto itself raises SameFileError (an OSError):
+            # the head workspace already CONTAINS the generated test, so skip
+            # it there instead of failing the whole injection.
+            if dest.resolve() == src.resolve():
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(src), str(dest))
         except OSError:
             ok = False
     return ok
 
 
-def _run_generated_test(workspace: str, test_class: str) -> dict:
+def _run_generated_test(workspace: str, test_class: str) -> dict[str, Any]:
     """Run only the generated test class via Maven Surefire."""
-    result: dict = {
+    result: dict[str, Any] = {
         "exit_code": -1, "stdout": "", "stderr": "", "error": "",
         "test_counts": {},
     }
@@ -287,39 +323,48 @@ def _run_generated_test(workspace: str, test_class: str) -> dict:
         result["error"] = "No pom.xml found"
         return result
 
-    is_windows = platform.system() == "Windows"
-    mvnw_cmd = "mvnw.cmd" if is_windows else "./mvnw"
-    candidates = [mvnw_cmd, "mvn"]
+    # P0-A1: the differential test runs inside the execution SANDBOX.
+    # Untrusted test code must never execute with host privileges.
+    import platform
 
-    for cmd in candidates:
-        try:
-            proc = subprocess.run(
-                [cmd, "test", "-q",
-                 f"-Dtest={test_class}",
-                 "-DfailIfNoTests=false"],
-                cwd=workspace,
-                capture_output=True, text=True, timeout=600,
-            )
-            result["exit_code"] = proc.returncode
-            result["stdout"] = proc.stdout
-            result["stderr"] = proc.stderr
-            result["test_counts"] = _parse_test_counts(proc.stdout + proc.stderr)
-            result["error"] = ""
-            return result
-        except FileNotFoundError:
-            continue
-        except subprocess.TimeoutExpired:
-            result["error"] = f"Maven test timed out (cmd: {cmd})"
-            return result
-        except Exception as e:  # noqa: BLE001
-            result["error"] = str(e)
-            return result
+    from sandbox.runner import run_sandboxed
 
-    result["error"] = "Neither mvnw nor mvn found"
+    if platform.system() == "Windows":
+        local_cmd = [
+            os.path.join(workspace, "mvnw.cmd"), "test", "-q",
+            f"-Dtest={test_class}", "-DfailIfNoTests=false",
+        ]
+    else:
+        local_cmd = [
+            os.path.join(workspace, "mvnw"), "test", "-q",
+            f"-Dtest={test_class}", "-DfailIfNoTests=false",
+        ]
+    sandbox_result = run_sandboxed(
+        [
+            "mvn", "test", "-q",
+            f"-Dtest={test_class}",
+            "-DfailIfNoTests=false",
+            "-f", "/work/pom.xml",
+        ],
+        workspace=workspace,
+        timeout=900,
+        local_command=local_cmd,
+    )
+    result["sandbox_mode"] = sandbox_result.mode
+    if sandbox_result.error:
+        result["error"] = "Sandbox execution failed: " + sandbox_result.error
+        return result
+    result["exit_code"] = sandbox_result.exit_code
+    result["stdout"] = sandbox_result.stdout
+    result["stderr"] = sandbox_result.stderr
+    result["test_counts"] = _parse_test_counts(
+        sandbox_result.stdout + sandbox_result.stderr
+    )
+    result["error"] = ""
     return result
 
 
-def _parse_test_counts(output: str) -> dict:
+def _parse_test_counts(output: str) -> dict[str, Any]:
     m = re.search(
         r"Tests run:\s*(\d+).*?Failures:\s*(\d+).*?Errors:\s*(\d+).*?Skipped:\s*(\d+)",
         output,
@@ -357,7 +402,7 @@ def _find_h2_jar() -> Path | None:
     return jars[0] if jars else None
 
 
-def _capture_db_snapshot(workspace: str) -> dict:
+def _capture_db_snapshot(workspace: str) -> dict[str, Any]:
     """Capture the real database state left behind by the test run."""
     db_file = _h2_db_file(workspace)
     if db_file is None:
@@ -414,7 +459,9 @@ def _capture_db_snapshot(workspace: str) -> dict:
             return {"method": "none", "rows": {}, "note": str(e)}
 
 
-def _compare_db_state(base_snapshot: dict, head_snapshot: dict) -> tuple[str, str]:
+def _compare_db_state(
+    base_snapshot: dict[str, Any], head_snapshot: dict[str, Any]
+) -> tuple[str, str]:
     """Compare the real DB dumps from Base and Head.
 
     Returns (verdict, detail):
@@ -446,7 +493,7 @@ def _compare_db_state(base_snapshot: dict, head_snapshot: dict) -> tuple[str, st
     return "DB_DIFFERENT", f"Rows differ: base={base_rows}, head={head_rows}"
 
 
-def _check_http_diff(base_ws: str, head_ws: str) -> list[dict]:
+def _check_http_diff(base_ws: str, head_ws: str) -> list[dict[str, Any]]:
     """Compare every controller file between Base and Head."""
     base_controllers = {
         p.relative_to(base_ws).as_posix(): p.read_text(encoding="utf-8")
@@ -459,7 +506,7 @@ def _check_http_diff(base_ws: str, head_ws: str) -> list[dict]:
         if "test" not in p.parts
     }
 
-    findings: list[dict] = []
+    findings: list[dict[str, Any]] = []
     for rel in sorted(set(base_controllers) & set(head_controllers)):
         base_content = base_controllers[rel]
         head_content = head_controllers[rel]

@@ -1,10 +1,7 @@
 """P1.4 Integration tests: SSE reconnection with Last-Event-ID."""
 
 import json
-import time
 import uuid
-
-import pytest
 
 
 def make_test_job_id():
@@ -17,7 +14,10 @@ class TestSSEReconnectLogic:
 
     def test_event_format_parseable(self):
         """Verify SSE event format is valid and parseable by a client."""
-        sample_line = 'data: {"node": "compile", "status": "running", "percent": 42.0, "message": "ok"}'
+        sample_line = (
+            'data: {"node": "compile", "status": "running", '
+            '"percent": 42.0, "message": "ok"}'
+        )
         assert sample_line.startswith("data: ")
         payload = json.loads(sample_line[6:])
         assert payload["node"] == "compile"

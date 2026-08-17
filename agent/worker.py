@@ -8,21 +8,21 @@ The Worker:
 5. Streams progress events to Redis for SSE.
 6. On completion/error, releases the lease and transitions MySQL status.
 """
-
 from __future__ import annotations
 
+import contextlib
+import json
 import logging
 import os
 import signal
 import sys
 import time
-from datetime import UTC, datetime
 from typing import Any
 
 from agent.graph import build_phase0_graph
 from agent.mongo_saver import MongoDBSaver
 from agent.state import initial_state
-from storage.mysql import MySQLStore, InvalidStateTransition
+from storage.mysql import InvalidStateTransition, MySQLStore
 from storage.rabbitmq import RabbitMQClient
 from storage.redis import RedisStore
 
@@ -43,10 +43,10 @@ class Worker:
         self.redis = RedisStore()
         self.rabbitmq = RabbitMQClient()
         self._running = False
-        self._compiled_graph = None
+        self._compiled_graph: Any = None
 
     @property
-    def compiled_graph(self):
+    def compiled_graph(self) -> Any:
         if self._compiled_graph is None:
             saver = MongoDBSaver()
             self._compiled_graph = build_phase0_graph(checkpointer=saver)
@@ -86,8 +86,18 @@ class Worker:
     def _handle_job(self, payload: dict[str, Any]) -> None:
         """RabbitMQ callback: process one JobCreated event."""
         job_id = payload.get("job_id", "unknown")
-        event_id = payload.get("event_id", "")
 
+        # Structured-logging context: every line inside this handler carries
+        # the job_id, correlating worker logs with the job timeline.
+        from observability.logging import job_id_var
+
+        token = job_id_var.set(job_id)
+        try:
+            self._handle_job_impl(job_id, payload)
+        finally:
+            job_id_var.reset(token)
+
+    def _handle_job_impl(self, job_id: str, payload: dict[str, Any]) -> None:
         if not self._running:
             return
 
@@ -96,17 +106,32 @@ class Worker:
             logger.info("Job %s already leased, skipping", job_id)
             return
 
+        started = time.time()
         try:
             # Transition to RUNNING
             self.mysql.transition_job_status(job_id, "RUNNING", worker_id=self.worker_id)
 
             # Execute graph with checkpoint
-            self._run_graph(job_id, payload)
+            final_state = self._run_graph(job_id, payload)
 
-            # Transition to terminal state
-            self.mysql.transition_job_status(job_id, "VERIFIED")
+            # Terminal status must reflect what the pipeline ACTUALLY found —
+            # never an unconditional VERIFIED (a job with BLOCKER findings or
+            # pipeline errors is not verified).
+            verdict = _terminal_status_from_state(final_state)
+            self.mysql.transition_job_status(job_id, verdict)
+            summary: dict[str, Any] = {}
+            with contextlib.suppress(Exception):
+                summary = _state_summary(final_state, verdict)
+                self.mysql.save_job_summary(job_id, summary)
+                # Observability: completion counter + processing duration.
+                from observability.metrics import incr, set_gauge
+
+                incr("jobs_completed_total")
+                incr("jobs_" + verdict.lower() + "_total")
+                set_gauge("jobs_processing_seconds", float(time.time() - started))
+            self._maybe_publish_github_check(job_id, verdict, summary)
             self.redis.xadd_progress(job_id, "publish_report", "completed",
-                                     message="Job completed", percent=100.0)
+                                     message=f"Job completed: {verdict}", percent=100.0)
 
         except InvalidStateTransition:
             logger.warning("Job %s state transition failed, may be stale", job_id)
@@ -114,12 +139,20 @@ class Worker:
             logger.error("Job %s failed: %s", job_id, exc)
             self.redis.xadd_progress(job_id, job_id, "failed",
                                      message=str(exc), percent=0.0)
-            try:
+            with contextlib.suppress(InvalidStateTransition):
                 self.mysql.transition_job_status(
                     job_id, "FAILED", error_msg=str(exc)[:1024]
                 )
-            except InvalidStateTransition:
-                pass
+            # GitHub-sourced jobs must not stay in_progress forever.
+            self._maybe_publish_github_check(
+                job_id, "FAILED",
+                {
+                    "verdict": "FAILED",
+                    "contracts_total": 0,
+                    "findings": [],
+                    "errors": [str(exc)[:200]],
+                },
+            )
         finally:
             self.redis.release_lease(job_id, self.worker_id)
 
@@ -140,61 +173,131 @@ class Worker:
 
         config = {"configurable": {"thread_id": job_id}}
 
-        # Stream progress through a callback on each node transition
-        last_node = ["start"]
-
-        def _progress_callback(node_name: str):
-            last_node[0] = node_name
-            try:
-                self.redis.xadd_progress(
-                    job_id, node_name, "running",
-                    message=f"Executing {node_name}", percent=0.0,
-                )
-            except Exception:
-                pass
-
-        # Build the graph for this invocation (fresh checkpointer each time)
+        # Build the graph for this invocation (fresh checkpointer each time).
+        # Stream mode yields the state after every node; the final chunk is
+        # the complete state after publish_report.
         saver = MongoDBSaver()
         graph = build_phase0_graph(checkpointer=saver)
 
+        final_state: dict[str, Any] = {}
+        for chunk in graph.stream(state, config, stream_mode="values"):
+            final_state = chunk
+
+        with contextlib.suppress(Exception):
+            self.redis.xadd_progress(
+                job_id, "publish_report", "completed",
+                message="Graph finished", percent=100.0,
+            )
+
+        return final_state
+
+    def _maybe_publish_github_check(
+        self, job_id: str, verdict: str, summary: dict[str, Any]
+    ) -> None:
+        """Best-effort Check Run completion for GitHub-sourced jobs.
+
+        Never raises: an optional GitHub integration must not flip a job
+        that already reached its honest terminal state.
+        """
         try:
-            # We use stream mode to get per-node progress
-            final_state = None
-            for chunk in graph.stream(state, config, stream_mode="values"):
-                final_state = chunk
+            job = self.mysql.get_job(job_id)
+            meta_raw = (job or {}).get("github_check_json")
+            if not meta_raw:
+                return
+            meta = (
+                json.loads(meta_raw)
+                if isinstance(meta_raw, str)
+                else meta_raw
+            )
+            from integrations.github_checks import (
+                GitHubAppConfigError,
+                check_summary_text,
+                conclusion_for_verdict,
+                github_app_client_from_env,
+            )
 
-            if final_state:
-                # Save final progress
-                for node_name in [
-                    "intake", "compile_contracts", "prepare_base", "prepare_head",
-                    "collect_diff", "run_static_checks", "generate_counterexamples",
-                    "run_differential", "review_court", "build_matrix",
-                    "create_capsule", "publish_report",
-                ]:
-                    self.redis.xadd_progress(
-                        job_id, node_name, "completed",
-                        message="Done", percent=100.0,
-                    )
-                    break  # Only record the last node as completed for brevity
+            try:
+                client = github_app_client_from_env()
+            except GitHubAppConfigError as exc:
+                logger.warning("GitHub App misconfigured: %s", exc)
+                return
+            if client is None:
+                logger.info(
+                    "GitHub App not configured; check run not updated"
+                )
+                return
+            with client:
+                client.update_check_run(
+                    check_run_id=int(meta["check_run_id"]),
+                    owner=str(meta["owner"]),
+                    repo=str(meta["repo"]),
+                    conclusion=conclusion_for_verdict(verdict),
+                    title="SpecProof: " + verdict,
+                    summary=check_summary_text(verdict, summary),
+                )
+        except Exception as exc:  # noqa: BLE001 — best effort
+            logger.warning(
+                "GitHub check run update failed for %s: %s", job_id, exc
+            )
 
-            return dict(final_state) if final_state else {}
 
-        except Exception:
-            # Crash during graph execution: checkpoint was already saved by
-            # the checkpointer after each completed node. A subsequent
-            # invocation with the same thread_id will resume.
-            raise
+def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
+    """Compact pipeline summary persisted for the dashboard/audit view."""
+    matrix = state.get("matrix", {})
+    findings = state.get("confirmed_findings", [])
+    return {
+        "verdict": verdict,
+        "contracts_total": len(state.get("contracts", [])),
+        "matrix_passed": matrix.get("passed", 0),
+        "matrix_failed": matrix.get("failed", 0),
+        "matrix_unverified": matrix.get("unverified", 0),
+        "findings": [
+            {
+                "id": f.get("id"),
+                "severity": f.get("severity"),
+                "contract_id": f.get("contract_id"),
+                "confidence": f.get("confidence"),
+                "evidence_type": f.get("evidence_type"),
+                "description": (f.get("description") or "")[:400],
+            }
+            for f in findings[:20]
+        ],
+        "capsules": [str(c) for c in state.get("capsules", [])[:10]],
+        "report_path": state.get("report_path", ""),
+        "retrieval_note": state.get("retrieval_note", ""),
+        "errors": list(state.get("errors", []))[:10],
+    }
 
 
-def main():
+def _terminal_status_from_state(state: dict[str, Any]) -> str:
+    """Map the pipeline's honest result onto the MySQL job state machine.
+
+    - FAILED   pipeline recorded errors (bad refs, missing spec, Maven errors)
+    - BLOCKED  any confirmed finding, or contracts left UNVERIFIED: a human
+               must look before merge — VERIFIED must never be fabricated
+    - VERIFIED every contract passed with evidence and zero findings
+    """
+    if state.get("errors"):
+        return "FAILED"
+    findings = state.get("confirmed_findings", [])
+    if findings:
+        return "BLOCKED"
+    matrix = state.get("matrix", {})
+    if matrix.get("unverified", 0) > 0:
+        return "BLOCKED"
+    return "VERIFIED"
+
+
+def main() -> None:
     """CLI entry point for the Worker."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
+    from observability.logging import configure_logging
+    from observability.tracing import init_tracing
+
+    configure_logging()
+    init_tracing(service_name="specproof-worker")
     worker = Worker()
 
-    def _shutdown(signum, frame):
+    def _shutdown(signum: int, frame: Any) -> None:
         logger.info("Received signal %d, shutting down", signum)
         worker.stop()
         sys.exit(0)

@@ -7,8 +7,6 @@ is unavailable.
 
 import uuid
 
-import pytest
-
 
 def make_job_id():
     return f"test-worker-{uuid.uuid4().hex[:12]}"
@@ -117,8 +115,6 @@ class TestWorkerRecoveryStateMachine:
 
     def test_running_job_lease_renewal(self):
         """Long-running job should renew its lease periodically."""
-        import time
-        lease_ttl = 30
         renew_interval = 10  # renew every 10s for a 30s TTL
 
         # Simulate a 60-second job execution
@@ -168,8 +164,9 @@ class TestMongoDBSaverInterface:
 
     def test_get_tuple_returns_checkpoint(self, monkeypatch):
         """get_tuple should return a CheckpointTuple when checkpoint exists."""
-        from agent.mongo_saver import MongoDBSaver
         from langgraph.checkpoint.base import CheckpointTuple
+
+        from agent.mongo_saver import MongoDBSaver
 
         doc = {
             "thread_id": "job-1",
@@ -203,8 +200,9 @@ class TestMongoDBSaverInterface:
 
     def test_put_upserts_checkpoint(self, monkeypatch):
         """put should upsert the checkpoint document."""
-        from agent.mongo_saver import MongoDBSaver
         from langgraph.checkpoint.base import Checkpoint, CheckpointMetadata
+
+        from agent.mongo_saver import MongoDBSaver
 
         last_doc = {}
 

@@ -18,7 +18,7 @@
 
     "negative": {
       "description": "Clean PRs, refactoring, comment changes. Must produce ZERO findings.",
-      "cases": ["case-03-clean-pr", "case-10-comment-only"],
+      "cases": ["case-03-clean-pr", "case-10-comment-only", "case-11-refactor-rename", "case-12-add-javadoc"],
       "additional_samples": [
         {
           "id": "case-11-refactor-rename",

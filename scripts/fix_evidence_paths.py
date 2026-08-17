@@ -60,7 +60,7 @@ def main():
     }
 
     # 1. Fix evidence-pack.json
-    with open(EP_PATH, "r", encoding="utf-8") as f:
+    with open(EP_PATH, encoding="utf-8") as f:
         ep = json.load(f)
     ep["env_info"] = portable_env
     ep["capsule"]["demo_repository_bundle_digest"] = bundle_digest
@@ -70,7 +70,7 @@ def main():
     print("evidence-pack.json: FIXED")
 
     # 2. Fix acceptance-report.json
-    with open(AR_PATH, "r", encoding="utf-8") as f:
+    with open(AR_PATH, encoding="utf-8") as f:
         ar = json.load(f)
     ar["env_info"] = portable_env
     ar["demo_repository_bundle_digest"] = bundle_digest
@@ -84,7 +84,7 @@ def main():
         zf.extractall(tmp_dir)
 
     manifest_path = os.path.join(tmp_dir, "manifest.json")
-    with open(manifest_path, "r", encoding="utf-8") as f:
+    with open(manifest_path, encoding="utf-8") as f:
         mf = json.load(f)
 
     mf["env_info"] = portable_env
@@ -101,7 +101,7 @@ def main():
     # Rebuild capsule
     new_capsule = CAPSULE_PATH + ".tmp"
     with zipfile.ZipFile(new_capsule, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(tmp_dir):
+        for root, _dirs, files in os.walk(tmp_dir):
             for fn in files:
                 fp = os.path.join(root, fn)
                 arc = os.path.relpath(fp, tmp_dir).replace("\\", "/")
@@ -115,7 +115,7 @@ def main():
     with open(EP_PATH, "w", encoding="utf-8") as f:
         json.dump(ep, f, indent=2, ensure_ascii=False)
 
-    print(f"capsule.zip: REBUILT")
+    print("capsule.zip: REBUILT")
     print(f"  new capsule_zip_digest: sha256:{new_hash}")
     print(f"  manifest_digest: {mf['manifest_digest']}")
 
@@ -123,9 +123,9 @@ def main():
     shutil.rmtree(tmp_dir)
 
     # Verify no absolute paths
-    with open(EP_PATH, "r", encoding="utf-8") as f:
+    with open(EP_PATH, encoding="utf-8") as f:
         ep2 = json.load(f)
-    with open(AR_PATH, "r", encoding="utf-8") as f:
+    with open(AR_PATH, encoding="utf-8") as f:
         ar2 = json.load(f)
 
     all_ok = True

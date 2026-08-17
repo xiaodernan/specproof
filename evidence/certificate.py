@@ -8,7 +8,6 @@ Honesty contract (v2):
 - Phase 0/1 signs nothing: digests are SHA-256 over the recorded evidence.
   Ed25519 signing is a Phase 2 item (tracked in docs/ROADMAP.md).
 """
-
 from __future__ import annotations
 
 import hashlib
@@ -108,7 +107,7 @@ def issue_certificate(
     repository: str,
     commit_sha: str,
     requirements_text: str,
-    contracts: list[dict],
+    contracts: list[dict[str, Any]],
     evidence_digests: list[str] | None = None,
 ) -> MergeCertificate | None:
     """Issue a Merge Certificate only when every contract passed with evidence.
@@ -136,7 +135,7 @@ def build_rejection_notice(
     repository: str,
     commit_sha: str,
     requirements_text: str,
-    contracts: list[dict],
+    contracts: list[dict[str, Any]],
     reasons: list[str],
 ) -> RejectionNotice:
     """Build the rejection notice written instead of a certificate."""

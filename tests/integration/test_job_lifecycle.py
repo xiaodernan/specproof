@@ -1,6 +1,6 @@
 """P1.1 Integration tests: Job lifecycle with real MySQL."""
 
-import time
+import contextlib
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -97,9 +97,13 @@ class TestJobLifecycle:
         jid = self._create_job("RUNNING")
 
         for attempt in range(3):
-            self.store.transition_job_status(jid, "FAILED", error_msg=f"Attempt {attempt+1} failed")
+            self.store.transition_job_status(
+                jid, "FAILED",
+                error_msg=f"Attempt {attempt+1} failed",
+                increment_retry=True,
+            )
             if attempt < 2:
-                self.store.transition_job_status(jid, "QUEUED", increment_retry=True)
+                self.store.transition_job_status(jid, "QUEUED")
                 self.store.claim_job(jid, f"worker-{attempt+1}")
 
         # Final failure
@@ -115,10 +119,8 @@ class TestJobLifecycle:
         jid = self._create_job("PENDING")
 
         # Attempt illegal transition
-        try:
+        with contextlib.suppress(InvalidStateTransition):
             self.store.transition_job_status(jid, "BLOCKED")
-        except InvalidStateTransition:
-            pass
 
         job = self.store.get_job(jid)
         assert job["status"] == "PENDING", "Status should be unchanged after failed transition"

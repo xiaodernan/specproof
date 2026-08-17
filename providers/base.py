@@ -1,12 +1,13 @@
+
 """ModelProvider abstract base class.
 
 All agent nodes use this interface exclusively.
 No node imports openai directly.
 """
-
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -14,14 +15,14 @@ class LLMMessage:
     role: str  # "system" | "user" | "assistant" | "tool"
     content: str | None = None
     tool_call_id: str | None = None
-    tool_calls: list[dict] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
 
 
 @dataclass
 class LLMResponse:
     content: str | None = None
-    tool_calls: list[dict] = field(default_factory=list)
-    usage: dict = field(default_factory=dict)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    usage: dict[str, Any] = field(default_factory=dict)
     finish_reason: str = "stop"
     model: str = ""
     reasoning_content: str | None = None
@@ -38,9 +39,9 @@ class ModelProvider(ABC):
     async def chat(
         self,
         messages: list[LLMMessage],
-        tools: list[dict] | None = None,
+        tools: list[dict[str, Any]] | None = None,
         tool_choice: str | None = None,
-        response_format: dict | None = None,
+        response_format: dict[str, Any] | None = None,
         thinking: bool = False,
         timeout: float = 180.0,
     ) -> LLMResponse:
@@ -50,14 +51,14 @@ class ModelProvider(ABC):
     async def chat_stream(
         self,
         messages: list[LLMMessage],
-        tools: list[dict] | None = None,
+        tools: list[dict[str, Any]] | None = None,
         thinking: bool = False,
         timeout: float = 180.0,
     ) -> AsyncIterator[LLMResponse]:
         """Send a streaming chat completion request."""
 
     @abstractmethod
-    def get_capabilities(self) -> dict:
+    def get_capabilities(self) -> dict[str, Any]:
         """Return probed capabilities dict.
 
         Keys: chat, streaming, json_output, tool_calls,

@@ -1,3 +1,4 @@
+
 """specproof eval — Run evaluation across golden cases (v2).
 
 Each case runs the FULL verification pipeline against its own scenario refs
@@ -5,28 +6,28 @@ Each case runs the FULL verification pipeline against its own scenario refs
 reproducible. Findings are matched against ground truth by contract id.
 Worktrees created by the pipeline are cleaned up after each case.
 """
-
 import json
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import click
 
 from evidence.report import render_eval_report
 
 
-def _cleanup_worktrees(repo: str, final: dict) -> None:
+def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
+    from contextlib import suppress
+
     for key in ("base_workspace", "head_workspace"):
         ws = final.get(key, "")
         if not ws:
             continue
-        try:
+        with suppress(Exception):
             subprocess.run(
                 ["git", "-C", repo, "worktree", "remove", "--force", ws],
                 capture_output=True, text=True, timeout=60,
             )
-        except Exception:
-            pass
 
 
 @click.command("eval")
@@ -88,7 +89,7 @@ def eval_cmd(
 
     graph = build_phase0_graph()
 
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
     detected = 0
     total_should_detect = 0
     false_positives = 0
@@ -102,10 +103,10 @@ def eval_cmd(
             click.echo(f"  SKIP {case_dir.name}: no spec.md")
             continue
 
-        gt: dict = {}
+        gt: dict[str, Any] = {}
         if gt_file.exists():
             gt = json.loads(gt_file.read_text(encoding="utf-8"))
-        scenario: dict = {}
+        scenario: dict[str, Any] = {}
         if sc_file.exists():
             scenario = json.loads(sc_file.read_text(encoding="utf-8"))
 
@@ -134,7 +135,7 @@ def eval_cmd(
         state["output_dir"] = str(Path("reports").resolve())
         state["app_dir"] = "demo/spring-backend"
 
-        final: dict = {}
+        final: dict[str, Any] = {}
         try:
             final = graph.invoke(state)
         except Exception as exc:  # noqa: BLE001
@@ -142,13 +143,11 @@ def eval_cmd(
 
         findings = final.get("confirmed_findings", [])
 
-        matched: list[dict] = []
+        matched: list[dict[str, Any]] = []
         seen_ids: set[str] = set()
         for f in findings:
             fid = f.get("contract_id", "")
-            if expected_contract and fid == expected_contract:
-                matched.append(f)
-            elif expected_evidence and (
+            if expected_contract and fid == expected_contract or expected_evidence and (
                 expected_evidence in f.get("evidence_type", "")
                 or expected_evidence in fid.lower()
             ):
@@ -171,14 +170,21 @@ def eval_cmd(
             else:
                 verdict = "MISS"
         else:
-            if matched:
+            # Negative cases must produce ZERO confirmed findings of any
+            # kind — not just zero matches against the expected contract
+            # (split.json: max_findings = 0).
+            if findings:
                 false_positives += 1
                 verdict = "FALSE_POSITIVE"
             else:
                 verdict = "PASS"
 
-        matched_severities = sorted({f.get("severity") for f in matched})
-        contracts_found = sorted({f.get("contract_id") for f in findings})
+        matched_severities = sorted(
+            {str(f.get("severity") or "") for f in matched}
+        )
+        contracts_found = sorted(
+            {str(f.get("contract_id") or "") for f in findings}
+        )
 
         results.append({
             "case": case_dir.name,
@@ -228,3 +234,24 @@ def eval_cmd(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
     click.echo(f"\nHTML report written to {out}")
+
+    # Machine-readable sidecar consumed by the specproof baseline command
+    # (P6: "model reads the diff" comparison) and CI gates.
+    sidecar = out.with_suffix(".results.json")
+    sidecar.write_text(
+        json.dumps(
+            {
+                "total_cases": len(results),
+                "should_detect": total_should_detect,
+                "detected": detected,
+                "false_positives": false_positives,
+                "precision": precision,
+                "recall": recall,
+                "f1": f1,
+                "cases": results,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    click.echo(f"Results JSON written to {sidecar}")

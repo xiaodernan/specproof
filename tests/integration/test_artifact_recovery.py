@@ -2,8 +2,6 @@
 
 import uuid
 
-import pytest
-
 
 def make_job_id():
     return f"test-artifact-{uuid.uuid4().hex[:12]}"
@@ -53,7 +51,7 @@ class TestArtifactRecoveryScenarios:
     def test_recovery_after_crash_between_minio_and_mongo(self):
         """Simulate: MinIO upload succeeds, MongoDB insert fails (crash)."""
         minio_objects = ["jobs/j-1/report.html"]  # uploaded before crash
-        mongo_evidence = []  # never written due to crash
+        # mongo evidence was never written due to the crash (rebuilt below)
 
         # On restart: rebuild mongo references by scanning MinIO
         # (simplified: just verify the object exists and re-index)

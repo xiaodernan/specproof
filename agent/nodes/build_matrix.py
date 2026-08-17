@@ -1,3 +1,4 @@
+
 """build_matrix node — build the Requirement-to-Evidence Matrix.
 
 Honesty contract (v2):
@@ -6,24 +7,25 @@ Honesty contract (v2):
 - Contracts without an experiment result are UNVERIFIED — never fabricated,
   never implicitly "passed".
 """
+from typing import Any
 
 from agent.state import Phase0State
 
 
-def build_matrix_node(state: Phase0State) -> dict:
+def build_matrix_node(state: Phase0State) -> dict[str, Any]:
     """Build the Requirement-to-Evidence Matrix from real contract results."""
     contracts = state.get("contracts", [])
     contract_results = state.get("contract_results", [])
     confirmed_findings = state.get("confirmed_findings", [])
     changed_symbols = state.get("changed_symbols", [])
 
-    results_by_contract: dict[str, dict] = {}
+    results_by_contract: dict[str, dict[str, Any]] = {}
     for r in contract_results:
         cid = r.get("contract_id", "")
         if cid:
             results_by_contract[cid] = r
 
-    matrix_rows: list[dict] = []
+    matrix_rows: list[dict[str, Any]] = []
 
     for contract in contracts:
         cid = contract.get("id", "")

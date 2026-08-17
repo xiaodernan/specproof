@@ -1,7 +1,8 @@
-"""ProbeResult — immutable capability snapshot from a provider probe."""
 
+"""ProbeResult — immutable capability snapshot from a provider probe."""
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -9,8 +10,8 @@ class ProbeResult:
     provider: str  # "openai_compatible"
     base_url: str
     model: str
-    capabilities: dict = field(default_factory=dict)
-    limits: dict = field(default_factory=dict)
+    capabilities: dict[str, Any] = field(default_factory=dict)
+    limits: dict[str, Any] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
     probed_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 

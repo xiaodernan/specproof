@@ -1,0 +1,27 @@
+# SpecProof Agent Runtime API (FastAPI + dashboard + jobs API)
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+COPY agent ./agent
+COPY api ./api
+COPY providers ./providers
+COPY storage ./storage
+COPY evidence ./evidence
+COPY observability ./observability
+COPY sandbox ./sandbox
+COPY cli ./cli
+COPY infra ./infra
+
+RUN pip install --no-cache-dir .
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+CMD ["python", "-m", "api.server"]

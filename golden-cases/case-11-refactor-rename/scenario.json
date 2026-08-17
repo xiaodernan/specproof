@@ -1,0 +1,6 @@
+{
+  "version": "2.0",
+  "base_ref": "base",
+  "head_ref": "case-11-head",
+  "note": "Built reproducibly (method rename refactor)"
+}

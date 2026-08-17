@@ -5,8 +5,8 @@ import uuid
 import pytest
 
 from storage.mysql import (
-    TERMINAL_STATUSES,
     _VALID_TRANSITIONS,
+    TERMINAL_STATUSES,
     InvalidStateTransition,
     MySQLStore,
 )
@@ -17,9 +17,14 @@ class TestStateMachineStatic:
 
     ALL_STATUSES = list(_VALID_TRANSITIONS.keys())
 
-    def test_all_eight_statuses_defined(self):
-        assert len(_VALID_TRANSITIONS) == 8
-        for s in ["PENDING", "QUEUED", "RUNNING", "VERIFIED", "BLOCKED", "STALE", "FAILED", "ERROR"]:
+    def test_all_ten_statuses_defined(self):
+        assert len(_VALID_TRANSITIONS) == 10
+        all_statuses = [
+            "PENDING", "QUEUED", "RUNNING", "WAITING_FOR_PROVIDER",
+            "VERIFIED", "BLOCKED", "STALE", "FAILED", "CANCELLED",
+            "ERROR",
+        ]
+        for s in all_statuses:
             assert s in _VALID_TRANSITIONS, f"Missing status: {s}"
 
     def test_terminal_statuses_have_no_exits(self):
@@ -27,20 +32,26 @@ class TestStateMachineStatic:
             assert _VALID_TRANSITIONS[s] == set(), f"Terminal {s} should have no exits"
 
     def test_valid_transitions_are_recognized(self):
-        """24 legitimate transitions must all return True."""
+        """Legitimate transitions must all return True."""
         legitimate = [
             ("PENDING", "QUEUED"),
             ("PENDING", "ERROR"),
             ("QUEUED", "RUNNING"),
             ("QUEUED", "STALE"),
             ("QUEUED", "ERROR"),
+            ("QUEUED", "CANCELLED"),
             ("RUNNING", "VERIFIED"),
             ("RUNNING", "BLOCKED"),
             ("RUNNING", "FAILED"),
             ("RUNNING", "STALE"),
             ("RUNNING", "ERROR"),
+            ("RUNNING", "CANCELLED"),
+            ("RUNNING", "WAITING_FOR_PROVIDER"),
+            ("WAITING_FOR_PROVIDER", "QUEUED"),
+            ("WAITING_FOR_PROVIDER", "FAILED"),
             ("FAILED", "QUEUED"),
             ("FAILED", "ERROR"),
+            ("FAILED", "CANCELLED"),
         ]
         for from_s, to_s in legitimate:
             assert MySQLStore.is_valid_transition(from_s, to_s), (
@@ -86,7 +97,7 @@ class TestStateMachineStatic:
     def test_is_terminal(self):
         for s in TERMINAL_STATUSES:
             assert MySQLStore.is_terminal(s)
-        for s in ["PENDING", "QUEUED", "RUNNING", "FAILED"]:
+        for s in ["PENDING", "QUEUED", "RUNNING", "WAITING_FOR_PROVIDER", "FAILED"]:
             assert not MySQLStore.is_terminal(s)
 
 

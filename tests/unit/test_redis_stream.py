@@ -1,6 +1,5 @@
 """P1.4 Unit tests: Redis Stream, lease, budget (logic tests)."""
 
-import pytest
 
 from storage.redis import RedisConfig, RedisStore
 

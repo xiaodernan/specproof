@@ -1,5 +1,6 @@
-"""SpecProof Phase 0 Agent — LangGraph state definition."""
 
+"""SpecProof Phase 0 Agent — LangGraph state definition."""
+from typing import Any
 
 from langgraph.graph import MessagesState
 
@@ -23,26 +24,38 @@ class Phase0State(MessagesState):
 
     # ── Intermediate ──
     requirement_text: str
-    contracts: list[dict]
+    contracts: list[dict[str, Any]]
     changed_symbols: list[str]
     base_workspace: str
     head_workspace: str
+    # P2: repository context retrieved from Elasticsearch (symbol chunks)
+    repo_context: list[dict[str, Any]]
+    retrieval_note: str
+    # P2: registry-approved contracts (empty = implicit spec compilation)
+    approved_contracts: list[dict[str, Any]]
+    require_approved_contracts: bool
+    # P3/P4: DEEP tier experiment results (mutation + full-stack deltas)
+    deep_results: dict[str, Any]
+    deep_note: str
+    # P5: RELEASE tier gates (reproducibility + capsule integrity)
+    release_results: dict[str, Any]
+    release_note: str
 
     # ── Tool outputs ──
-    static_findings: list[dict]
-    diff_results: list[dict]
+    static_findings: list[dict[str, Any]]
+    diff_results: list[dict[str, Any]]
     generated_tests_path: str
     # Per-contract experiment results (only real experiments may set PASS/FAIL).
-    contract_results: list[dict]
+    contract_results: list[dict[str, Any]]
 
     # ── Review Court ──
-    candidate_findings: list[dict]
-    confirmed_findings: list[dict]
+    candidate_findings: list[dict[str, Any]]
+    confirmed_findings: list[dict[str, Any]]
 
     # ── Output ──
-    matrix: dict
+    matrix: dict[str, Any]
     capsules: list[str]
-    certificate: dict | None
+    certificate: dict[str, Any] | None
     report_path: str
 
     # ── Control ──
@@ -72,6 +85,14 @@ def initial_state(
         "changed_symbols": [],
         "base_workspace": "",
         "head_workspace": "",
+        "repo_context": [],
+        "retrieval_note": "",
+        "approved_contracts": [],
+        "require_approved_contracts": False,
+        "deep_results": {},
+        "deep_note": "",
+        "release_results": {},
+        "release_note": "",
         "static_findings": [],
         "diff_results": [],
         "generated_tests_path": "",

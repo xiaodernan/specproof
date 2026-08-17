@@ -12,17 +12,28 @@ results: FAIL when a violation is found, PASS when the checker ran and found
 the guarded construct intact, UNVERIFIED when the construct was absent in
 both versions (nothing to check).
 """
-
 from __future__ import annotations
 
 import re
+from typing import Any
 
 _MUTATING_MAPPINGS = ("@PutMapping", "@PostMapping", "@DeleteMapping", "@PatchMapping")
 _SECURITY_ANNOTATIONS = ("@PreAuthorize", "@Secured", "@RolesAllowed")
 _WRITE_OPS = (".save(", ".saveAndFlush(", ".delete(", ".deleteAll(", ".update(")
 
+# Annotation group: @Name, optionally with one level of nested parens,
+# e.g. @PreAuthorize("isAuthenticated()"). The old form ([^)]*) silently
+# dropped such annotations from the method block, which made the AUTH-01
+# checker blind to the flagship regression.
+#
+# All quantifiers are POSSESSIVE (*+, ++, ?+): the original backtrackable
+# form degenerated into exponential backtracking on entity files full of
+# @Column annotations (minutes per file → the splitter appeared to hang).
 _SPLIT_RE = re.compile(
-    r"((?:@\w+(?:\([^)]*\))?\s*)*)"
+    # Outer annotation repetition is possessive (prevents exponential
+    # partitioning on entity files), the paren content stays backtrackable
+    # (nested parens like @PreAuthorize("isAuthenticated()") need it).
+    r"((?:(?:@\w++(?:\((?:[^()]*|\([^()]*\))*\))?\s*+)*+))"
     r"(?:public|private|protected|static|final|\s)+"
     r"[\w<>,\[\]\s]+\s+(\w+)\s*\([^)]*\)\s*(?:throws[^{]+)?\{"
 )
@@ -61,7 +72,7 @@ def _finding(
     location: str,
     severity: str = "MAJOR",
     confidence: float = 0.85,
-) -> dict:
+) -> dict[str, Any]:
     return {
         "id": "SRC-" + contract_id.split("-")[0] + "-" + ftype[:4].upper(),
         "contract_id": contract_id,
@@ -77,9 +88,9 @@ def _finding(
 
 def check_auth_annotations(
     base_files: dict[str, str], head_files: dict[str, str]
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """AUTH-01: security annotations must not be removed from mutating endpoints."""
-    findings: list[dict] = []
+    findings: list[dict[str, Any]] = []
     for rel in sorted(base_files):
         if not rel.endswith("Controller.java"):
             continue
@@ -87,9 +98,9 @@ def check_auth_annotations(
         if head is None:
             continue
         base_methods = _split_with_annotations(base_files[rel])
-        head_methods = dict(
-            (name, block) for block, name in _split_with_annotations(head)
-        )
+        head_methods = {
+            name: block for block, name in _split_with_annotations(head)
+        }
 
         for block, name in base_methods:
             mutating = any(m in block for m in _MUTATING_MAPPINGS)
@@ -109,10 +120,10 @@ def check_auth_annotations(
 
 def check_transactional(
     base_files: dict[str, str], head_files: dict[str, str]
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """TRANSACTION-01: write methods must not lose @Transactional, and write
     operations must not move outside a transaction boundary."""
-    findings: list[dict] = []
+    findings: list[dict[str, Any]] = []
     for rel in sorted(base_files):
         if not rel.endswith("Service.java"):
             continue
@@ -120,9 +131,9 @@ def check_transactional(
         if head is None:
             continue
         base_methods = _split_with_annotations(base_files[rel])
-        head_methods = dict(
-            (name, block) for block, name in _split_with_annotations(head)
-        )
+        head_methods = {
+            name: block for block, name in _split_with_annotations(head)
+        }
 
         for block, name in base_methods:
             writes = any(op in block for op in _WRITE_OPS)
@@ -156,9 +167,9 @@ def check_transactional(
 
 def check_unique_email(
     base_files: dict[str, str], head_files: dict[str, str]
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """UNIQUE-01: the duplicate-email guard must not be removed."""
-    findings: list[dict] = []
+    findings: list[dict[str, Any]] = []
     for rel in sorted(base_files):
         base = base_files[rel]
         head = head_files.get(rel)
@@ -174,34 +185,74 @@ def check_unique_email(
     return findings
 
 
+_TOKEN_INVALIDATION_CALLS = (
+    "invalidateOldTokens(",
+    "redisTemplate.delete(",
+    "invalidateTokens(",
+)
+
+
 def check_token_invalidation(
     base_files: dict[str, str], head_files: dict[str, str]
-) -> list[dict]:
-    """TOKEN_INVALIDATION-01: old token invalidation must not be removed."""
-    findings: list[dict] = []
+) -> list[dict[str, Any]]:
+    """TOKEN_INVALIDATION-01: old token invalidation must not be removed.
+
+    Compares token-invalidation CALL SITES per method, not whole-file string
+    presence. Removing the call while keeping the (now dead) private method —
+    the case-05 golden regression — is still detected.
+    """
+    findings: list[dict[str, Any]] = []
     for rel in sorted(base_files):
         base = base_files[rel]
         head = head_files.get(rel)
         if head is None:
             continue
-        if "invalidateOldTokens" not in base and "redisTemplate.delete" not in base:
+
+        base_has_call = any(c in base for c in _TOKEN_INVALIDATION_CALLS)
+        if not base_has_call:
             continue
-        if "invalidateOldTokens" not in head and "redisTemplate.delete" not in head:
+        head_has_call = any(c in head for c in _TOKEN_INVALIDATION_CALLS)
+
+        if not head_has_call:
             findings.append(_finding(
                 "TOKEN_INVALIDATION-01",
                 "guard_removed",
-                "Token invalidation logic removed in " + rel
+                "Token invalidation logic removed from " + rel
                 + " — old tokens stay valid after email change",
                 rel,
             ))
+            continue
+
+        # Call still exists somewhere: check per-method removal.
+        base_methods = {
+            name: block for block, name in _split_with_annotations(base)
+        }
+        head_methods = {
+            name: block for block, name in _split_with_annotations(head)
+        }
+        for name, block in base_methods.items():
+            if not any(c in block for c in _TOKEN_INVALIDATION_CALLS):
+                continue
+            head_block = head_methods.get(name)
+            if head_block is not None and not any(
+                c in head_block for c in _TOKEN_INVALIDATION_CALLS
+            ):
+                findings.append(_finding(
+                    "TOKEN_INVALIDATION-01",
+                    "guard_removed",
+                    "Token invalidation call removed from method "
+                    + name + "() in " + rel
+                    + " — old tokens stay valid after email change",
+                    rel,
+                ))
     return findings
 
 
 def check_event_once(
     base_files: dict[str, str], head_files: dict[str, str]
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """EVENT_ONCE-01: an event must not be published more often than in Base."""
-    findings: list[dict] = []
+    findings: list[dict[str, Any]] = []
     for rel in sorted(base_files):
         base = base_files[rel]
         head = head_files.get(rel)
@@ -220,11 +271,65 @@ def check_event_once(
     return findings
 
 
+def check_endpoint_changes(
+    base_files: dict[str, str], head_files: dict[str, str]
+) -> list[dict[str, Any]]:
+    """OPENAPI-01: the public endpoint surface must not shrink or change.
+
+    Compares (HTTP verb, path) pairs per controller between Base and Head.
+    Removing or renaming an endpoint, or changing its verb, is a backward
+    compatibility break for API consumers.
+    """
+    findings: list[dict[str, Any]] = []
+    mapping_re = re.compile(r'@\w*Mapping\("([^"]+)"\)')
+
+    def _surface(source: str) -> set[tuple[str, str]]:
+        # The PUBLIC surface is (verb, path) ONLY. The Java method name is
+        # an internal detail: renaming getUser() to fetchUser() must not
+        # be flagged as an endpoint removal (refactor precision).
+        out: set[tuple[str, str]] = set()
+        for block, _name in _split_with_annotations(source):
+            m = mapping_re.search(block)
+            if not m:
+                continue
+            path = m.group(1)
+            if "GetMapping" in block:
+                verb = "GET"
+            else:
+                verb = next(
+                    (
+                        vm[1:].replace("Mapping", "").upper()
+                        for vm in _MUTATING_MAPPINGS if vm in block
+                    ),
+                    "UNKNOWN",
+                )
+            out.add((verb, path))
+        return out
+
+    for rel in sorted(base_files):
+        if not rel.endswith("Controller.java"):
+            continue
+        head = head_files.get(rel)
+        if head is None:
+            continue
+        removed = _surface(base_files[rel]) - _surface(head)
+        for verb, path in sorted(removed):
+            findings.append(_finding(
+                "OPENAPI-01",
+                "endpoint_removed",
+                "Endpoint " + verb + " " + path + " "
+                "present in Base but missing or changed in Head "
+                "— API surface break",
+                rel,
+            ))
+    return findings
+
+
 def check_schema_compat(
     base_files: dict[str, str], head_files: dict[str, str]
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """BACKWARD_COMPATIBLE-01: API DTO fields must not be removed or renamed."""
-    findings: list[dict] = []
+    findings: list[dict[str, Any]] = []
     for rel in sorted(base_files):
         base = base_files[rel]
         head = head_files.get(rel)
@@ -254,18 +359,19 @@ _ALL_CHECKERS = [
     check_token_invalidation,
     check_event_once,
     check_schema_compat,
+    check_endpoint_changes,
 ]
 
 
 def run_contract_checks(
     base_files: dict[str, str], head_files: dict[str, str]
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Run all checkers and return deduplicated findings."""
-    findings: list[dict] = []
+    findings: list[dict[str, Any]] = []
     for checker in _ALL_CHECKERS:
         findings.extend(checker(base_files, head_files))
 
-    deduped: dict[tuple[str, str], dict] = {}
+    deduped: dict[tuple[str, str], dict[str, Any]] = {}
     for f in findings:
         key = (f["contract_id"], f["type"])
         existing = deduped.get(key)
@@ -282,17 +388,17 @@ def run_contract_checks(
 
 
 def contract_results_for(
-    contracts: list[dict],
-    findings: list[dict],
+    contracts: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
     base_files: dict[str, str],
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Map checker findings onto per-contract results.
 
     FAIL       a checker found a violation of this contract
     PASS       a checker ran against a guarded construct and found it intact
     UNVERIFIED no checker could observe this contract's construct at all
     """
-    findings_by_contract: dict[str, list[dict]] = {}
+    findings_by_contract: dict[str, list[dict[str, Any]]] = {}
     for f in findings:
         findings_by_contract.setdefault(f["contract_id"], []).append(f)
 
@@ -316,9 +422,13 @@ def contract_results_for(
             ("/dto/" in rel) or rel.endswith("Request.java") or rel.endswith("Response.java")
             for rel in base_files
         ),
+        "OPENAPI-01": any(
+            any(m in c for m in _MUTATING_MAPPINGS) or "GetMapping" in c
+            for rel, c in base_files.items() if rel.endswith("Controller.java")
+        ),
     }
 
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
     for contract in contracts:
         cid = contract.get("id", "")
         hits = findings_by_contract.get(cid, [])
@@ -347,4 +457,3 @@ def contract_results_for(
                 "details": "No observable construct for this contract in Base",
             })
     return results
-

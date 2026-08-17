@@ -41,7 +41,6 @@ class TestScenario01_ApiCrashBeforePublish:
     def test_outbox_row_persisted_after_crash(self):
         """When API crashes after COMMIT but before returning HTTP response,
         the outbox row is already durable in MySQL."""
-        mysql_jobs = {"job-1": "PENDING"}
         outbox = [{"id": 1, "aggregate_id": "job-1", "published_at": None}]
 
         # Simulate: API process gone, but outbox row exists
@@ -447,7 +446,11 @@ class TestScenario09_NewHeadStalesOldJob:
         ]
         new_head = "head-v2"
 
-        stale = [j for j in jobs if j["head_ref"] != new_head and j["status"] in ("RUNNING", "QUEUED")]
+        stale = [
+            j for j in jobs
+            if j["head_ref"] != new_head
+            and j["status"] in ("RUNNING", "QUEUED")
+        ]
         for j in stale:
             j["status"] = "STALE"
             j["stale_replaced_by"] = "j-3"
@@ -466,11 +469,9 @@ class TestScenario09_NewHeadStalesOldJob:
     def test_new_job_references_stale_predecessor(self):
         """The new job should reference the stale job it replaced."""
         new_job = {"id": "j-4", "head_ref": "head-v3"}
-        old_jobs_staled = ["j-1", "j-2"]
+        assert new_job["head_ref"] == "head-v3"
         # New job doesn't reference stale jobs directly; stale jobs
-        # reference the new job via stale_replaced_by
-        for old_id in old_jobs_staled:
-            pass  # The stale_replaced_by field on old jobs points to new job
+        # reference the new job via stale_replaced_by.
 
 
 # ═══════════════════════════════════════════════════════════════

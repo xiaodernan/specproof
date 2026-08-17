@@ -1,5 +1,6 @@
-"""CLI package for SpecProof Phase 0."""
+"""CLI package for SpecProof.
 
-from cli.specproof.main import cli
-
-__all__ = ["cli"]
+The Click group lives in cli.specproof.main. This package deliberately does
+NOT import it (a package-level import of a runpy entry module triggers a
+RuntimeWarning and an import-order tangle).
+"""
