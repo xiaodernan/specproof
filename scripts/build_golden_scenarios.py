@@ -102,8 +102,10 @@ def commit_and_tag(commit_msg: str, tag: str) -> None:
 
 def restore_base() -> None:
     # Restore only main sources from the (honest) base tag — never touch
-    # mvnw/.mvn, tests, or the file-based H2 test profile.
-    git("restore", "--source=base", "--", "demo/spring-backend/src/main/java/")
+    # mvnw/.mvn, tests, or the file-based H2 test profile. --staged keeps the
+    # index consistent so the post-condition check sees a clean tree.
+    git("restore", "--source=base", "--staged", "--worktree", "--",
+        "demo/spring-backend/src/main/java/")
 
 
 def apply_case(case: str, commit_msg: str, mutations: list[tuple[str, str, str]]) -> None:
