@@ -55,7 +55,6 @@ public class UserService {
 
         user.setEmail(newEmail);
         userRepository.save(user);
-        userRepository.saveAndFlush(user);
 
         invalidateOldTokens(userId);
 
