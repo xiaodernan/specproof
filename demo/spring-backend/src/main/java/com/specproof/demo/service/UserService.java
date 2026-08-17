@@ -38,7 +38,6 @@ public class UserService {
         return new UserResponse(user.getId(), user.getUsername(), user.getEmail());
     }
 
-    @Transactional
     public UserResponse changeEmail(Long userId, ChangeEmailRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
@@ -56,14 +55,11 @@ public class UserService {
 
         user.setEmail(newEmail);
         userRepository.save(user);
+        userRepository.saveAndFlush(user);
 
         invalidateOldTokens(userId);
 
         EmailChangedEvent event = new EmailChangedEvent(userId, oldEmail, newEmail);
-        rabbitTemplate.convertAndSend(
-                "specproof.demo.events",
-                "email.changed",
-                event);
         rabbitTemplate.convertAndSend(
                 "specproof.demo.events",
                 "email.changed",
