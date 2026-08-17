@@ -94,8 +94,13 @@ def remove_line_containing(rel: str, needle: str) -> None:
     write_demo(rel, "".join(lines))
 
 
-def commit_and_tag(commit_msg: str, tag: str) -> None:
-    git("add", "demo/")
+def commit_and_tag(
+    commit_msg: str, tag: str, paths: list[str] | None = None,
+) -> None:
+    # Stage ONLY the files this case touches: a previous case's added file
+    # (deleted from the working tree by restore_base) must never leak into
+    # the next case's commit.
+    git("add", *(paths or ["demo/"]))
     git("commit", "-m", commit_msg)
     git("tag", "-f", tag, "HEAD")
 
@@ -115,14 +120,17 @@ def apply_case(
     added_files: list[tuple[str, str]] | None = None,
 ) -> None:
     """mutations: list of (rel_file, old, new); added_files: (rel, content)."""
+    paths: list[str] = [rel for rel, _old, _new in mutations]
     for rel, old, new in mutations:
         replace_exact(rel, old, new)
     for rel, content in added_files or []:
         path = REPO_ROOT / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-        git("add", rel)
-    commit_and_tag("Golden case " + case + ": " + commit_msg, case + "-head")
+        paths.append(rel)
+    commit_and_tag(
+        "Golden case " + case + ": " + commit_msg, case + "-head", paths,
+    )
     restore_base()
 
 
