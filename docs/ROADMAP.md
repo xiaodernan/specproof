@@ -54,15 +54,19 @@
   事务性建单 → CP outbox 中继 (publisher confirm) → RabbitMQ → Python
   worker → CP 只读回读; mvnw test 9/9 绿
 - [x] 运维手册: docs/operations/RUNBOOK.md
+- [x] specproof baseline 命令: "只看 Diff" 基线对照 (Go/No-Go #14),
+  确定性 diff-reader + LLM 模式, 同口径判定, delta/门槛报告
+- [x] 金案例 12 → 17: adversarial 负样本 ×4 (等价组合注解/接口级安全/
+  纯重缩进/收紧角色) + execution-only 正样本 ×1 (守卫取反),
+  标签以 honest base 为父隔离构建, head 编译实测通过
+- [x] 检测器等价性加固: 自定义安全注解等价集 + 接口级方法安全回退
 
 ## 下一步 (按顺序)
 
-- [x] Required Check 上线文档: docs/operations/GITHUB_APP_SETUP.md
-  (App 权限/安装/环境变量/分支保护步骤)
 - [ ] P5 GitHub App 余项: Inline Finding 评论、Fix 审批流
-- [ ] P6 评测与试点: 100 金案例 + 直接看 Diff 基线对照
-  (eval 已产出 eval-results.json sidecar 供基线命令消费)、
-  Dashboard 压测、3 个真实仓库试点 (runbook 已就绪)
+- [ ] P6 评测与试点: 金案例继续扩充 (100 案例路线, execution-only
+  正样本优先拉大基线差距)、Dashboard 压测、3 个真实仓库试点
+  (runbook 已就绪); 100 案例时复核 +25pp 门槛
 
 ## 关键指标 (Go/No-Go)
 

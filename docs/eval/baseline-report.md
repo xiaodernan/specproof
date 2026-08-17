@@ -1,7 +1,7 @@
 # SpecProof vs 只看 Diff 基线 (Go/No-Go #14)
 
 - 基线模式: deterministic diff-reader
-- 案例数: 12
+- 案例数: 17
 
 | Case | Ground truth | Baseline verdict | Baseline contracts |
 |---|---|---|---|
@@ -17,12 +17,17 @@
 | case-10-comment-only | negative | PASS | — |
 | case-11-refactor-rename | negative | PASS | — |
 | case-12-add-javadoc | negative | PASS | — |
+| case-13-annotation-aliased | negative | PASS | — |
+| case-14-annotation-moved-to-interface | negative | PASS | — |
+| case-15-whitespace-only-diff | negative | PASS | — |
+| case-16-preauthorize-role-changed | negative | FALSE_POSITIVE | AUTH-01 |
+| case-17-logic-inversion | should-detect | MISS | — |
 
 ## 对比 (同一 case 集合)
 
 | Metric | SpecProof | Baseline | Delta |
 |---|---|---|---|
-| Recall | 100.0% | 87.5% | +12.5pp |
-| Precision | 100.0% | 100.0% | +0.0pp |
+| Recall | 100.0% | 77.8% | +22.2pp |
+| Precision | 100.0% | 87.5% | +12.5pp |
 
-Go/No-Go #14 (+25pp recall): **FAIL** (+12.5pp)
+Go/No-Go #14 (+25pp recall): **FAIL** (+22.2pp)

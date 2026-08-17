@@ -39,33 +39,7 @@
 
     "adversarial": {
       "description": "Edge cases designed to test verifier robustness against tricks.",
-      "cases": ["case-02-transactional-removal", "case-04-duplicate-email", "case-06-schema-break", "case-07-duplicate-event", "case-08-transaction-split"],
-      "additional_samples": [
-        {
-          "id": "case-13-annotation-aliased",
-          "description": "@PreAuthorize removed but functionally equivalent custom @RequireAuth added. Verifier must NOT flag this as regression.",
-          "expected_result": {"should_detect": false, "expected_severity": "NONE"},
-          "trick": "Equivalent security via custom annotation — false positive trap"
-        },
-        {
-          "id": "case-14-annotation-moved-to-interface",
-          "description": "@PreAuthorize moved from controller class to interface default method. Behavior unchanged, but static regex may miss or misreport.",
-          "expected_result": {"should_detect": false, "expected_severity": "NONE"},
-          "trick": "Annotation moved to interface — static regex blind spot"
-        },
-        {
-          "id": "case-15-whitespace-only-diff",
-          "description": "Indentation changed, @PreAuthorize present but re-indented. Line-level diff shows change but semantics identical.",
-          "expected_result": {"should_detect": false, "expected_severity": "NONE"},
-          "trick": "Whitespace diff generates changed_symbols without semantic change"
-        },
-        {
-          "id": "case-16-preauthorize-role-changed",
-          "description": "@PreAuthorize changed from `isAuthenticated()` to `hasRole('ADMIN')`. More restrictive, not a regression, but naive check may flag.",
-          "expected_result": {"should_detect": false, "expected_severity": "NONE"},
-          "trick": "Annotation changed to MORE restrictive — should NOT be a regression"
-        }
-      ],
+      "cases": ["case-02-transactional-removal", "case-04-duplicate-email", "case-06-schema-break", "case-07-duplicate-event", "case-08-transaction-split", "case-13-annotation-aliased", "case-14-annotation-moved-to-interface", "case-15-whitespace-only-diff", "case-16-preauthorize-role-changed", "case-17-logic-inversion"],
       "success_criteria": {
         "min_recall": 0.85,
         "min_precision": 0.80,
@@ -138,6 +112,41 @@
       "type": "negative",
       "risk": "Comment-only change — must produce zero findings",
       "expected_severity": "NONE"
+    },
+    "case-13-annotation-aliased": {
+      "category": "adversarial",
+      "type": "negative",
+      "risk": "Custom composed @RequireAuth replaces @PreAuthorize — equivalent protection, false-positive trap",
+      "expected_severity": "NONE",
+      "trick": "Equivalent security via custom annotation"
+    },
+    "case-14-annotation-moved-to-interface": {
+      "category": "adversarial",
+      "type": "negative",
+      "risk": "@PreAuthorize moved to the implemented interface — JDK proxy resolves it, false-positive trap",
+      "expected_severity": "NONE",
+      "trick": "Interface-level method security"
+    },
+    "case-15-whitespace-only-diff": {
+      "category": "adversarial",
+      "type": "negative",
+      "risk": "Pure re-indentation — diff noise, zero semantic change",
+      "expected_severity": "NONE",
+      "trick": "Whitespace diff generates changed symbols without semantic change"
+    },
+    "case-16-preauthorize-role-changed": {
+      "category": "adversarial",
+      "type": "negative",
+      "risk": "isAuthenticated -> hasRole(ADMIN): MORE restrictive, never a regression",
+      "expected_severity": "NONE",
+      "trick": "Tightened authorization must not be flagged"
+    },
+    "case-17-logic-inversion": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "Uniqueness guard inverted (one char) — execution-only regression, invisible to static diff readers",
+      "expected_severity": "BLOCKER",
+      "requires": ["differential_execution", "db_state_verification"]
     }
   },
 

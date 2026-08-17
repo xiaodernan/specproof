@@ -36,16 +36,17 @@ class TestPhaseAcceptance:
     """Phase 0 acceptance criteria."""
 
     def test_all_golden_cases_exist(self):
-        """All 12 golden cases should have spec.md and ground-truth.json.
+        """All 17 golden cases should have spec.md and ground-truth.json.
 
-        case-11 (refactor rename) and case-12 (javadoc only) joined the
-        negative split in the enterprise-hardening round.
+        case-11..12 (negative precision) and case-13..16 (adversarial
+        false-positive traps) + case-17 (execution-only positive) joined
+        in the enterprise-hardening rounds.
         """
         case_dirs = sorted(
             d for d in GOLDEN_CASES.iterdir()
             if d.is_dir() and d.name.startswith("case-")
         )
-        assert len(case_dirs) == 12, f"Expected 12 cases, got {len(case_dirs)}"
+        assert len(case_dirs) == 17, f"Expected 17 cases, got {len(case_dirs)}"
 
         for case_dir in case_dirs:
             assert (case_dir / "spec.md").exists(), f"{case_dir.name}: missing spec.md"

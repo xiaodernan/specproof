@@ -1,11 +1,11 @@
 {
   "summary": {
-    "total_cases": 12,
-    "should_detect": 8,
+    "total_cases": 17,
+    "should_detect": 9,
     "detected": 7,
-    "false_positives": 0,
-    "precision": 100.0,
-    "recall": 87.5
+    "false_positives": 1,
+    "precision": 87.5,
+    "recall": 77.8
   },
   "cases": [
     {
@@ -192,6 +192,65 @@
       "case": "case-12-add-javadoc",
       "verdict": "PASS",
       "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-13-annotation-aliased",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-14-annotation-moved-to-interface",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-15-whitespace-only-diff",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-16-preauthorize-role-changed",
+      "verdict": "FALSE_POSITIVE",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": true,
+      "matched_findings": 0,
+      "contracts_found": [
+        "AUTH-01"
+      ],
+      "findings": [
+        {
+          "contract_id": "AUTH-01",
+          "severity": "BLOCKER",
+          "description": "static diff-reader: removed line '@PreAuthorize(\"isAuthenticated()\")'",
+          "evidence_type": "java_source_diff"
+        }
+      ]
+    },
+    {
+      "case": "case-17-logic-inversion",
+      "verdict": "MISS",
+      "should_detect": true,
       "detected": false,
       "false_positive": false,
       "matched_findings": 0,
