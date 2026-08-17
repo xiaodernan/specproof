@@ -88,9 +88,12 @@ Control Plane 事实源扩展。
 
 ## 实测
 - 迁移 0004 已对真实 MySQL 应用 (apply_pending: github_checks.sql);
-- ruff 全绿 / mypy 82 源文件全绿 / bandit 出厂包 0 Medium+ / 上述 25+
-  新单测全过;
-- 全量 pytest 与 eval 12 案例见本轮最终验证记录。
+- ruff 全绿 / mypy 82 源文件全绿 / bandit 出厂包 0 Medium+;
+- 集成+新代码子集实测: 140 passed (integration 全量 + 状态机/迁移/
+  outbox wire-contract + GitHub Checks 三件套 + release checks);
+- CP mvnw test: 9 tests, 0 failures;
+- eval 12 案例: Recall/Precision/F1 全 100%, 0 误报;
+- 全量 pytest 终验见本轮收尾记录; 全部改动已提交 (W3 commit)。
 
 ---
 
