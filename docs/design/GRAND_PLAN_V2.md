@@ -785,7 +785,82 @@ ruff/mypy/bandit 门禁全绿; 实测见 21.4。
 - 查询改写: 需求句 → LLM 转符号名候选 → 查表 (1.3ms 档位);
 - 黄金集持续扩至 100 条 (随语料增长 50+50)。
 
+## 卷 XXXII. SpecCraft 核心工程底座: Schema·工具注册表·规则摄取·stale 保护 (W33 已交付)
+
+> 状态: ✅ 已交付 (commit 6ffaa4e, R 车道)。这是"完整商业化代码开发 Agent"
+> 的核心工程: 让 SpecCraft 的每一层 — 任务建模、工具调用、仓库规则、文件编辑 —
+> 都变成可版本、可审计、可门禁的协议, 而不是散落的直连调用。
+
+### 32.1 统一 Schema (craft/schemas.py, 403 行)
+- AgentTask (task_id/text/repo/base_sha/execution_mode/budget/desired_checks/
+  network_policy/model_policy/idempotency_key) + ToolCall {tool, version,
+  call_id, arguments, budget_cost, requires_approval} + ToolResult + Approval
+  + Artifact (sha256 digest 校验) + ChangeBundle (含 specproof_result);
+- 全模型 schema_version=1 强制版本门 — 上游格式漂移在入口即被拒绝;
+- PlanSchema/StepSchema 与 planner dataclass 双向适配 (plan_to_schema/
+  plan_from_schema), 复用 planner DAG 校验: 唯一 id / 依赖次序 / ≤12 步。
+
+### 32.2 工具注册表与版本化信封 (craft/tools.py, 917 行)
+- 13 工具 v1, 风险四级: readonly 7 (read_file/tree/glob/grep/symbol_search/
+  git_status/git_diff, 默认免审批) | low_write 2 (apply_patch/create_file,
+  owned_paths 越界拒绝) | controlled_exec 4 (run_test/build/lint/typecheck,
+  executor 白名单) | high 0 内建 (shell/network/git_push 预留, 默认需审批);
+- dispatch 门链顺序: 未知工具 → 版本 → 参数 (类型/长度/范围) → 审批 →
+  路径 → 执行 — 参数非法实测不执行;
+- 12 稳定错误码 ([CODE] 前缀, 机器可 grep): UNKNOWN_TOOL /
+  TOOL_VERSION_MISMATCH / INVALID_ARGUMENTS / PATH_ESCAPE / PATH_OUT_OF_RANGE
+  / APPROVAL_REQUIRED / FILE_NOT_FOUND / NOT_A_GIT_REPO / COMMAND_NOT_ALLOWED
+  / STALE_CONTEXT / EDIT_REJECTED / EXECUTION_FAILED;
+- 结果截断 + 秘密脱敏 (sk- / Bearer / 私钥头) + untrusted 标签; envelope
+  版本化且结果零泄漏; 审批判定 = risk 默认或 approval_policy (只能更严,
+  故障 fail-closed); grant/revoke 内存态 (持久化归任务 3/8)。
+
+### 32.3 仓库规则摄取 (craft/rules.py, 382 行)
+- RepositoryRules.load(repo): AGENTS.md / CLAUDE.md / README / CONTRIBUTING
+  / SECURITY.md / .github CI workflows + 子目录规则 (限深 4 / ≤30 文件,
+  node_modules 等跳过, 单文件 200KB / 总量 1MB 有界读取 + 截断诚实标注);
+- 7 级优先级 RulePriority(IntEnum): SECURITY(0) > ORGANIZATION(1) >
+  REPOSITORY(2) > DIRECTORY(3) > TASK(4) > DEFAULT(5) > MODEL_SUGGESTION(6);
+  内置平台安全策略封顶, SECURITY.md 归 security 层;
+- 冲突检测: 中英文"忽略/跳过/不要安全"6 组正则 → RepoRule.conflict +
+  conflicts() 列表 + security 层强制降级为 repository (实测 SECURITY.md
+  含"忽略安全"不进 security 层 — 提示注入无法提升自己的优先级);
+- 注入防御: prompt_block() 全部包进 craft.llm.wrap_data_section 数据段
+  (实测注入文本只出现在分隔符之间, 模型不会把它当指令)。
+
+### 32.4 editor stale 保护 (craft/editor.py)
+- sha256 digest (raw bytes): read_file_meta / FileRead / file_digest;
+- write_file/apply_edit 新增 keyword-only expected_digest → 不匹配抛
+  StaleContextError(STALE_CONTEXT) 拒绝写入: 实测文件字节不变、不产生备份、
+  审计记录拒绝 + 实际 digest; 新文件 expected_digest="" 允许, 非空 → stale;
+  不传 digest → 旧行为 (positional 兼容, 134 既有测试全绿);
+- 审计 AuditEntry 带 before_digest/after_digest (audit.jsonl 全字段);
+- classify_workspace_changes(git status --porcelain) → {user_changes,
+  agent_changes, unknown}: " M" 用户改动 / agent_paths 归 agent / 未跟踪、
+  冲突对 (DD/AU/UD/UA/DU/AA/UU)、重命名归 unknown。
+
+### 32.5 loop 接线 (向后兼容)
+- 诊断提示的工具面改走注册表 envelope (wrap_data_section 数据段);
+  LLM 编辑提案经 registry.dispatch (apply_patch/create_file);
+- 共享单一 editor → 审计链 / report.diff_stat / 自校验 Base 快照三者一致;
+  report.tool_registry 上账; from_checkpoint 透传;
+- 无注册表时保留旧 _EDITOR_API_BLOCK (兼容实测)。
+
+### 32.6 交付证据 (真实运行)
+- 102 新测试 (schemas 27 / tools 36 / rules 17 / editor_stale 22);
+- craft 全套回归 236/236 (队长复跑 2:33); 全量 unit 877 (R 口径);
+- ruff ✅ / mypy 13 文件 strict ✅ / bandit exit 0 ✅;
+- 偏差清单 7 条诚实记录: high 层无内建工具、审批内存态、结构化 Diff 待
+  M4、provider tools 参数未接 (网关 strict_tool_calls=400 已降级 envelope)、
+  [CODE] 前缀承载稳定码而非新增字段等。
+
+### 32.7 演进
+- M4: AST 编辑 + 结构化 Diff + 跨文件重构;
+- M5: ChangeBundle → SpecProof accept 闭环 (任务 7 门禁组合, W34 在途);
+- 组织策略注入接口 (org 层无标准文件名, 预留);
+- provider tools 原生支持 (视网关能力演进)。
+
 ## 卷 XXIX. 本计划书进度
 
-当前 ~2.9 万字 (31 卷)。扩写路线: 每轮 +2-3k 字, 优先补
+当前 ~3.2 万字 (32 卷)。扩写路线: 每轮 +2-3k 字, 优先补
 卷 IV/VI/VII/X/XII/XVIII 的实现细节与实测记录, 目标 20 轮内达 5 万字。
