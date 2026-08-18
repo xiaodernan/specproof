@@ -403,3 +403,82 @@ D. 面试演示脚本 (一条命令出代码+证书: craft run --accept → veri
 ADR/新卷追加; 五万字目标按轮次持续扩写 (当前 ~1.2 万字, 每轮 +2-5k 字),
 直至覆盖全部 17 卷的细节 (每个里程碑的验收命令、每个模块的接口契约、
 每个指标的测量方法)。
+## 卷 XVIII. 突破性/新颖功能设计 (行业首创候选, 按可实现性排序)
+
+本卷回答"能给行业带来什么突破" — 每个功能都给出: 一句话主张 / 为什么没人做 /
+设计要点 / 实现路径 / 验收标准。全部在本项目架构内可实现, 不画饼。
+
+### 18.1 契约血缘证据链 (Contract Lineage — 密码学级可追溯验收)
+主张: 世界上第一份"可密码学追溯"的 AI 变更验收 — 从需求到证书的每一步
+(certificate 里的每个数字) 都能沿哈希链回溯到原始实验产物。
+为什么是突破: 现有 CI/评审工具给你一个"通过"结论, 但不给你"为什么通过"的
+可验证因果链; 我们已有 in-toto 风格签名, 缺的是把全链哈希化。
+设计:
+- 证据 DAG: 节点 = requirement(spec_digest) / contract_version / checker /
+  experiment / artifact(sha256) / capsule(manifest_digest) / finding /
+  certificate; 边 = produced_by / verifies / derived_from。
+- 每条边带 sha256(node_a + node_b + 边类型), 根哈希写入证书 extension 字段。
+- verify_lineage(certificate, dag) 重算全部哈希 → 任一产物被篡改即证伪。
+- 前端: Finding 详情页可视化血缘图 (SVG)。
+实现路径: evidence/lineage.py (build/verify/serialize) + publish_report/
+certificate 节点接线 + 前端面板 + 篡改检测测试。
+验收: 篡改任一 capsule/报告后 lineage 校验失败 (单测); 旗舰案例证书含
+完整血缘根哈希 (实测)。
+
+### 18.2 变异驱动的测试强化闭环 (Mutation-Guided Test Hardening)
+主张: 让"活下来的变异体"自动变成"新测试" — SpecCraft 与 SpecProof 的闭环
+里最锋利的一环: 变异分析发现的测试弱点, 由开发 Agent 自动补测试杀死,
+再验收, 形成 变异→补测→再变异 的自强化循环。
+为什么是突破: 行业里 PIT/变异工具止步于"报告存活体"; 我们把它变成
+开发 Agent 的任务源 (闭环首次打通)。
+设计: surviving mutants → (等价性判定后) → craft 任务 "为 <方法> 补一个
+能区分该变异体的测试" → 新测试跑在 Base(绿) 与变异体(红) → 双绿判定 →
+合约升级 (TEST_STRENGTH 记录)。
+实现路径: M12-M13 (craft 微基准任务 6 已有雏形; 与 mutation runner 接线)。
+验收: 微基准任务"补测试杀变异"机器判定通过率 ≥ 80%; 100 案例中 mutation
+案例的存活体数量下降可测。
+
+### 18.3 注入免疫认证 (Prompt-Injection Immunity Certificate)
+主张: 证书新增安全维度 — "本 PR 在 N 类注入攻击下验证, 验证结论 0 受影响"
+(已实测: 裸模型被注入影响报假问题, 我们的管线 0 影响 — 把这个事实变成
+可签发的、可复现的认证)。
+为什么是突破: 供应链时代"代码是否安全"之外,"验证过程是否被操纵"同样致命,
+目前无人认证后者。
+设计: verify 阶段强制注入对抗套件 (15 类注入样本注入 diff/README/spec/
+branch/commit 等), 每次验证结论记录 injection_matrix_results; 证书扩展
+injection_immunity: {cases: N, influenced: 0}; 重放可复现 (套件哈希入血缘)。
+实现路径: 注入矩阵 (K 车道扩) + evidence_policy_gate 前置硬门 + 证书字段。
+验收: 200 案例中注入类全过; 证书字段实测存在且重放一致。
+
+### 18.4 跨 Agent 中立验收 (Agent-Agnostic Attestation)
+主张: SpecProof 不为任何厂商站台 — 任何 Agent (Claude Code/Codex/Cursor/
+DeepSeek/自家 SpecCraft) 的产物都接受, 同一套契约与证据标准验收并签发 —
+成为"AI 代码的独立裁判"这一中立基础设施。
+为什么是突破: 当前各家 Agent 自带评审, 球员兼裁判; 行业缺一个中立的、
+跨工具的验收层 (类似 CA 之于 HTTPS)。
+设计: 输入适配层 (各 Agent 的 PR/补丁/会话产物 → 统一 ChangeBundle) +
+MCP 入口 (J 车道) + GitHub App 通用触发; 证书不含 Agent 品牌 (仅记录
+toolchain 元数据)。
+实现路径: MCP (在途) + ChangeBundle schema + 适配器 (cursor/claude/codex
+各一个, 从 PR 格式切入) + 文档。
+验收: 用两个不同 Agent 产物跑同一案例, 证书字段一致 (除 toolchain)。
+
+### 18.5 可证伪验收协议 (Falsifiable Acceptance — 评审法庭升级)
+主张: 每条 BLOCKER/MAJOR 都附带"什么证据能推翻它" — Defender 的反证实验
+是签发的必要输入; 证书记录证伪条件。把验收从"模型断言"升级为
+"可被任何人设计实验推翻的结论" (波普尔式质量)。
+为什么是突破: 行业评审只给结论不给证伪路径; 可证伪性是可审计 AI 的关键
+性质, 目前无人产品化。
+设计: review_court Defender 输出 falsification_plan (一个能证伪该 finding
+的实验设计); verifier 试跑 (预算内) — 若证伪实验通过 → finding 降级/撤销
+(记录); 证书记录每个高等级 finding 的 falsification 状态。
+实现路径: review_court 节点扩展 + 实验调度预算 + 证书字段。
+验收: 构造一个"假阳性"案例, Defender 证伪路径能自动撤销 finding (实测)。
+
+## 卷 XIX. 五万字扩写路线 (本卷之后每轮追加)
+
+- 每轮执行后: 更新对应卷状态行 + 追加"实测记录"小节 (每轮 +1-3k 字);
+- 待扩写至细节级的卷: IV (RAG 实现细节) / VI (契约 schema 全表) /
+  VII (端点规格) / X (SOP 全文) / XII (每里程碑验收命令) / XVIII (实现进展);
+- 五万字 = 17+2 卷 × 平均 2.6k 字, 目标按轮次在 20 轮内达成;
+- 每次追加随里程碑提交 (git + 镜像 + bundle)。
