@@ -294,19 +294,24 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
 
 def _failing_test_name(app_dir: str) -> str:
     """Return the first failing/erroring generated test method ('' when
-    unavailable), parsed from the surefire XML left by the Maven run."""
-    import xml.etree.ElementTree as ET
+    unavailable), parsed from the surefire XML left by the Maven run.
+
+    The report lives inside the HEAD WORKSPACE — PR content is untrusted
+    under the sandbox threat model, so parsing goes through defusedxml
+    (entity-expansion/XXE hardened), never raw ElementTree.
+    """
+    import defusedxml.ElementTree as ElementTreeDefused
 
     report = Path(app_dir) / "target" / "surefire-reports" / (
         "TEST-com.specproof.demo.SpecProofGeneratedTest.xml"
     )
     try:
-        root = ET.parse(report).getroot()
-    except (OSError, ET.ParseError):
+        root = ElementTreeDefused.parse(report).getroot()
+    except (OSError, ElementTreeDefused.ParseError):
         return ""
     for case in root.findall("testcase"):
         if case.find("failure") is not None or case.find("error") is not None:
-            return case.get("name", "")
+            return str(case.get("name", ""))
     return ""
 
 

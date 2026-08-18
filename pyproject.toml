@@ -36,6 +36,9 @@ dependencies = [
     "tenacity>=9.0.0",
     # Ed25519 signing for Merge Certificates (P5).
     "cryptography>=42.0.0",
+    # Safe XML parsing of Maven surefire reports (workspace content is
+    # untrusted PR material under the sandbox threat model).
+    "defusedxml>=0.7.1",
 ]
 
 [project.optional-dependencies]
