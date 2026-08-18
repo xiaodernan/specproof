@@ -382,6 +382,11 @@ def _rule_based_court(state: Phase0State) -> dict[str, Any]:
             severity = "MAJOR" if severity == "BLOCKER" else (severity or "MAJOR")
         elif severity is None:
             severity = "MAJOR" if dr.get("verdict") == "REGRESSION" else "MINOR"
+        # Severity-NONE entries (contracts the failing test did NOT exercise)
+        # are bookkeeping, not findings — they must never surface as
+        # confirmed findings or false positives.
+        if severity == "NONE":
+            continue
         confidence = dr.get("confidence")
         if confidence is None:
             confidence = 0.88 if dr.get("verdict") == "REGRESSION" else 0.65

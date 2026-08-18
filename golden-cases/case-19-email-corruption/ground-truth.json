@@ -1,0 +1,6 @@
+{
+  "expected_severity": "MAJOR",
+  "expected_contract": "UNIQUE-01",
+  "expected_evidence_type": "differential_test",
+  "should_detect": true
+}

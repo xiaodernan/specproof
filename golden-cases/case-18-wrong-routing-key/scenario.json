@@ -1,0 +1,6 @@
+{
+  "version": "2.0",
+  "base_ref": "base",
+  "head_ref": "case-18-head",
+  "note": "Built reproducibly by scripts/build_golden_scenarios.py --only"
+}

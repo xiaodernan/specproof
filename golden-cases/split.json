@@ -39,7 +39,7 @@
 
     "adversarial": {
       "description": "Edge cases designed to test verifier robustness against tricks.",
-      "cases": ["case-02-transactional-removal", "case-04-duplicate-email", "case-06-schema-break", "case-07-duplicate-event", "case-08-transaction-split", "case-13-annotation-aliased", "case-14-annotation-moved-to-interface", "case-15-whitespace-only-diff", "case-16-preauthorize-role-changed", "case-17-logic-inversion"],
+      "cases": ["case-02-transactional-removal", "case-04-duplicate-email", "case-06-schema-break", "case-07-duplicate-event", "case-08-transaction-split", "case-13-annotation-aliased", "case-14-annotation-moved-to-interface", "case-15-whitespace-only-diff", "case-16-preauthorize-role-changed", "case-17-logic-inversion", "case-18-wrong-routing-key", "case-19-email-corruption", "case-20-validation-removed"],
       "success_criteria": {
         "min_recall": 0.85,
         "min_precision": 0.80,
@@ -147,6 +147,27 @@
       "risk": "Uniqueness guard inverted (one char) — execution-only regression, invisible to static diff readers",
       "expected_severity": "BLOCKER",
       "requires": ["differential_execution", "db_state_verification"]
+    },
+    "case-18-wrong-routing-key": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "Event published to a wrong routing key — string-constant diff, only execution reveals it",
+      "expected_severity": "MAJOR",
+      "requires": ["differential_execution"]
+    },
+    "case-19-email-corruption": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "Stored email silently corrupted (trailing space) — innocuous diff, only execution reveals it",
+      "expected_severity": "MAJOR",
+      "requires": ["differential_execution", "db_state_verification"]
+    },
+    "case-20-validation-removed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "@NotBlank removed — blank emails accepted, only execution proves the regression",
+      "expected_severity": "MAJOR",
+      "requires": ["differential_execution"]
     }
   },
 

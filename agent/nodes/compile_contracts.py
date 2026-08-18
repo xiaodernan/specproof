@@ -89,6 +89,9 @@ def _parse_requirements(text: str) -> list[dict[str, Any]]:
         "event_once": [
             r"exactly once|idempotent|duplicate.*event|event.*once",
             r"rabbitmq|message.*queue|publish.*once",
+            # Execution-only delivery regressions (wrong routing keys) are
+            # declared as "publish to the documented routing key" prose.
+            r"publish|routing",
         ],
         "transaction": [
             r"transaction|atomic|rollback|@Transactional",

@@ -290,8 +290,15 @@ _FRESH_TEST_TEMPLATE = """    @Test
         mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value("fresh@example.com"));
+                .andExpect(status().isOk());
+
+        // The response echoes the REQUEST value, so silent corruption
+        // (case-19) is only observable in the STORED row.
+        String stored = userRepository.findById(user.getId())
+                .map(User::getEmail).orElse("NOT_FOUND");
+        assertEquals("fresh@example.com", stored,
+            "DB STATE VIOLATION: stored email does not equal the requested "
+            + "value");
     }
 
 """
@@ -395,10 +402,20 @@ def _build_deterministic_test(contracts: list[dict[str, Any]]) -> str:
     """
     body = _AUTH_TEST_TEMPLATE
     if _has_unique_contract(contracts):
-        # The duplicate-rejection test catches guard REMOVALS; the
-        # fresh-email test catches guard INVERSIONS (case-17): an inverted
-        # guard rejects unused emails, which only execution can reveal.
-        body += _UNIQUE_TEST_TEMPLATE + _FRESH_TEST_TEMPLATE
+        # Duplicate-rejection catches guard REMOVALS; fresh-email-success
+        # (with exact-email assertion) catches guard INVERSIONS (case-17)
+        # and silent data corruption (case-19); blank-rejection catches
+        # validation relaxation (case-20). Static sight cannot judge any
+        # of them — only execution can.
+        body += (
+            _UNIQUE_TEST_TEMPLATE + _FRESH_TEST_TEMPLATE
+            + _BLANK_TEST_TEMPLATE
+        )
+    if _has_event_contract(contracts):
+        # The mock-RabbitTemplate invocation check catches wrong routing
+        # keys (case-18) and duplicate publishes (case-07) at execution
+        # time — a string-constant diff cannot prove delivery semantics.
+        body += _EVENT_TEST_TEMPLATE
     return textwrap.dedent(_GENERATED_TEST_HEADER + body + "}\n")
 
 
