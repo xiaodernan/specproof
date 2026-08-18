@@ -21,6 +21,7 @@ import uuid
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from api.errors import PAYLOAD_TOO_LARGE, api_error_response
 from observability.logging import request_id_var
 
 logger = logging.getLogger(__name__)
@@ -150,13 +151,18 @@ class PayloadLimitMiddleware:
         await self.app(scope, replay_receive, send)
 
     async def _send_413(self, send: Send, limit: int) -> None:
-        detail = {
-            "detail": (
-                f"Request body exceeds the JSON payload limit of "
-                f"{limit} bytes (SPECPROOF_MAX_JSON_BYTES)"
-            )
-        }
-        payload = json.dumps(detail).encode("utf-8")
+        # §8.1: the 413 body is the stable error envelope (PAYLOAD_TOO_LARGE)
+        # with the legacy detail string preserved; the request_id comes from
+        # the RequestIDMiddleware context (this middleware sends directly, so
+        # the global exception handler in api/server.py never sees it).
+        detail = (
+            f"Request body exceeds the JSON payload limit of "
+            f"{limit} bytes (SPECPROOF_MAX_JSON_BYTES)"
+        )
+        body = api_error_response(
+            413, PAYLOAD_TOO_LARGE, detail, request_id_var.get() or None
+        )
+        payload = json.dumps(body).encode("utf-8")
         await send({
             "type": "http.response.start",
             "status": 413,

@@ -27,10 +27,19 @@ if str(_project_root) not in sys.path:
 from typing import Any  # noqa: E402
 
 from fastapi import FastAPI, HTTPException, Request  # noqa: E402
+from fastapi.encoders import jsonable_encoder  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from fastapi.responses import FileResponse, RedirectResponse  # noqa: E402
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
+from api.errors import (  # noqa: E402
+    DEFAULT_CODE_BY_STATUS,
+    INTERNAL,
+    VALIDATION_FAILED,
+    ApiError,
+    api_error_response,
+)
 from api.middleware import (  # noqa: E402
     PayloadLimitMiddleware,
     RequestIDMiddleware,
@@ -63,6 +72,57 @@ app.add_middleware(
 app.include_router(jobs_router)
 app.include_router(webhooks_router)
 app.include_router(web_router)
+
+
+# ── §8.1 stable error envelope ──────────────────────────────────────────────
+# Every HTTPException (routes, auth dependencies, rate limiter) is rendered as
+# {"detail": <original, unchanged>, "error": {"code", "message", "request_id"},
+#  "schema_version": 1}. ApiError carries the explicit code; plain
+# HTTPExceptions are mapped by status via DEFAULT_CODE_BY_STATUS. The legacy
+# `detail` key keeps its original value so existing clients/tests keep working.
+
+
+def _request_id(request: Request) -> str | None:
+    """Best-effort request id for error envelopes.
+
+    RequestIDMiddleware (outermost) sets both the context variable and
+    request.state; the context variable is the primary source and the state
+    is the fallback for callers that bypass the middleware.
+    """
+    from observability.logging import request_id_var
+
+    rid: str | None = request_id_var.get() or None
+    if rid:
+        return rid
+    state_id = getattr(request.state, "request_id", None)
+    return state_id if isinstance(state_id, str) else None
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_envelope_handler(
+    request: Request, exc: HTTPException,
+) -> JSONResponse:
+    """Render HTTP errors through the stable error envelope."""
+    if isinstance(exc, ApiError):
+        code = exc.error_code
+    elif exc.status_code >= 500:
+        code = DEFAULT_CODE_BY_STATUS.get(exc.status_code, INTERNAL)
+    else:
+        code = DEFAULT_CODE_BY_STATUS.get(exc.status_code, VALIDATION_FAILED)
+    body = api_error_response(exc.status_code, code, exc.detail, _request_id(request))
+    return JSONResponse(
+        status_code=exc.status_code, content=body, headers=exc.headers,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_envelope_handler(
+    request: Request, exc: RequestValidationError,
+) -> JSONResponse:
+    """422 with VALIDATION_FAILED; the legacy detail list is preserved."""
+    errors = jsonable_encoder(exc.errors())
+    body = api_error_response(422, VALIDATION_FAILED, errors, _request_id(request))
+    return JSONResponse(status_code=422, content=body)
 
 # P0-A4: refuse to start in production with default credentials.
 from storage.config_guard import enforce_production_config  # noqa: E402

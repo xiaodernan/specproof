@@ -5,12 +5,15 @@ SKIP LOCKED so multiple relay instances are safe.
 """
 
 import contextlib
+import json
 import logging
 import os
 import signal
 import time
 from typing import Any
 
+from contracts.events import build_envelope
+from observability.logging import trace_id_var
 from storage.mysql import MySQLStore
 from storage.rabbitmq import RabbitMQClient
 
@@ -72,30 +75,57 @@ class OutboxRelay:
         return published
 
     def _flatten_envelope(self, row: dict[str, Any]) -> dict[str, Any]:
-        """Build the wire message for one outbox row.
+        """Build the wire message for one outbox row via the §3.4 envelope.
 
-        The consumer contract is a FLAT payload: envelope fields (event_id,
-        outbox_id, job_id, event_type, created_at) merged with the inner job
-        fields (repo_path, base_ref, head_ref, spec_path, depth). The old
-        nested-string form never reached the worker's flat reader, so the
-        envelope is flattened HERE, at the single producer boundary.
+        The consumer contract is a FLAT payload: the canonical envelope
+        fields (event_id, event_type, occurred_at, tenant_id, actor_id,
+        trace_id, aggregate_type, aggregate_id, schema_version,
+        idempotency_key, payload_digest) are merged with the inner job
+        fields (repo_path, base_ref, head_ref, spec_path, depth). The
+        nested `payload` key is flattened away — the old nested-string form
+        never reached the worker's flat reader, and legacy consumers keep
+        reading the same flat keys while ignoring the new envelope fields.
+
+        Backward compatibility: event_id keeps the legacy deterministic
+        ``outbox-{id}`` format and created_at stays a None placeholder for
+        the consumer. Envelope metadata is written AFTER the payload spread,
+        so payload content can never spoof event_id/schema_version/digest.
         """
-        import json as _json
-
-        envelope: dict[str, Any] = {
-            "event_id": f"outbox-{row['id']}",
-            "outbox_id": row["id"],
-            "job_id": row["aggregate_id"],
-            "event_type": row["event_type"],
-            "created_at": None,  # filled by the consumer
-        }
         try:
-            inner = _json.loads(row["payload"])
+            inner = json.loads(row["payload"])
         except (TypeError, ValueError):
             inner = {}
-        if isinstance(inner, dict):
-            envelope.update(inner)
-        return envelope
+        inner = inner if isinstance(inner, dict) else {}
+
+        envelope = build_envelope(
+            event_type=row["event_type"],
+            aggregate_id=row["aggregate_id"],
+            payload=inner,
+            # Legacy deterministic id kept for wire compatibility with
+            # existing consumers/tests; new producers default to uuid4 hex.
+            event_id=f"outbox-{row['id']}",
+            trace_id=trace_id_var.get(),
+            idempotency_key=f"outbox:{row['id']}",
+        )
+        flat: dict[str, Any] = {}
+        flat.update(envelope["payload"])  # inner job fields (secret-redacted)
+        flat.update({
+            "event_id": envelope["event_id"],
+            "outbox_id": row["id"],
+            "job_id": row["aggregate_id"],
+            "event_type": envelope["event_type"],
+            "created_at": None,  # legacy field; filled by the consumer
+            "occurred_at": envelope["occurred_at"],
+            "tenant_id": envelope["tenant_id"],
+            "actor_id": envelope["actor_id"],
+            "trace_id": envelope["trace_id"],
+            "aggregate_type": envelope["aggregate_type"],
+            "aggregate_id": envelope["aggregate_id"],
+            "schema_version": envelope["schema_version"],
+            "idempotency_key": envelope["idempotency_key"],
+            "payload_digest": envelope["payload_digest"],
+        })
+        return flat
 
     def run_forever(self) -> None:
         """Run the relay loop until stopped by signal."""

@@ -19,8 +19,9 @@ import os
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 
+from api.errors import AUTH_REQUIRED, PROVIDER_UNAVAILABLE, VALIDATION_FAILED, ApiError
 from storage.mysql import MySQLStore
 
 logger = logging.getLogger(__name__)
@@ -107,9 +108,13 @@ async def github_webhook(request: Request) -> dict[str, Any]:
     try:
         valid = verify_signature(body, request.headers.get("X-Hub-Signature-256"))
     except Exception as exc:  # noqa: BLE001 — config errors fail closed
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise ApiError(
+            status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
+        ) from exc
     if not valid:
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+        raise ApiError(
+            status_code=401, code=AUTH_REQUIRED, detail="Invalid webhook signature",
+        )
 
     if event not in ("pull_request",):
         return {"accepted": True, "action": "ignored", "event": event}
@@ -118,7 +123,9 @@ async def github_webhook(request: Request) -> dict[str, Any]:
         payload = json.loads(body)
         action = payload.get("action", "")
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+        raise ApiError(
+            status_code=400, code=VALIDATION_FAILED, detail="Invalid JSON payload",
+        ) from exc
 
     if action not in ("opened", "synchronize", "ready_for_review"):
         return {"accepted": True, "action": "ignored", "event": event, "action_seen": action}
@@ -149,8 +156,10 @@ async def github_webhook(request: Request) -> dict[str, Any]:
         store = MySQLStore()
         store.create_job_with_outbox(job)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(
-            status_code=503, detail="Job NOT accepted — persistence failed"
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail="Job NOT accepted — persistence failed",
         ) from exc
 
     _maybe_publish_initial_check(

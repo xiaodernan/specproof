@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from api.auth import enforce_rate_limit, require_api_key
+from api.errors import JOB_NOT_FOUND, PROVIDER_UNAVAILABLE, STATE_CONFLICT, ApiError
 from storage.mysql import MySQLStore
 from storage.redis import RedisStore
 
@@ -72,8 +73,9 @@ async def create_job(payload: JobCreateRequest) -> dict[str, Any]:
         job_id = store.create_job_with_outbox(job)
     except Exception as exc:  # noqa: BLE001 — MySQL down / schema missing
         logger.exception("Failed to persist job via outbox")
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
+            code=PROVIDER_UNAVAILABLE,
             detail=f"Job NOT accepted — persistence failed: {exc}",
         ) from exc
     return {"job_id": job_id, "status": "QUEUED"}
@@ -86,18 +88,25 @@ async def cancel_job(job_id: str) -> dict[str, Any]:
         store = MySQLStore()
         job = store.get_job(job_id)
         if job is None:
-            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+            raise ApiError(
+                status_code=404, code=JOB_NOT_FOUND, detail=f"Job {job_id} not found",
+            )
         status = str(job.get("status", ""))
         if status not in ("QUEUED", "RUNNING", "WAITING_FOR_PROVIDER", "FAILED"):
-            raise HTTPException(
+            raise ApiError(
                 status_code=409,
+                code=STATE_CONFLICT,
                 detail=f"Job {job_id} is {status} — cannot cancel a terminal job",
             )
         cancelled = store.transition_job_status(
             job_id, "CANCELLED", from_status=status, error_msg="Cancelled by user"
         )
         if not cancelled:
-            raise HTTPException(status_code=409, detail="Cancel failed (concurrent change)")
+            raise ApiError(
+                status_code=409,
+                code=STATE_CONFLICT,
+                detail="Cancel failed (concurrent change)",
+            )
         store.record_audit(
             action="job_cancelled", actor="api", job_id=job_id,
             from_status=status, to_status="CANCELLED",
@@ -105,7 +114,11 @@ async def cancel_job(job_id: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=f"MySQL unavailable: {exc}") from exc
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=f"MySQL unavailable: {exc}",
+        ) from exc
     return {"job_id": job_id, "status": "CANCELLED"}
 
 
@@ -116,7 +129,11 @@ async def list_jobs(limit: int = 50) -> dict[str, Any]:
         store = MySQLStore()
         rows = store.list_recent_jobs(limit)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=f"MySQL unavailable: {exc}") from exc
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=f"MySQL unavailable: {exc}",
+        ) from exc
     return {"jobs": rows}
 
 
@@ -127,9 +144,15 @@ async def get_job(job_id: str) -> dict[str, Any]:
         store = MySQLStore()
         job = store.get_job(job_id)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=f"MySQL unavailable: {exc}") from exc
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=f"MySQL unavailable: {exc}",
+        ) from exc
     if job is None:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        raise ApiError(
+            status_code=404, code=JOB_NOT_FOUND, detail=f"Job {job_id} not found",
+        )
     return {"job": job}
 
 
@@ -140,12 +163,18 @@ async def get_job_summary(job_id: str) -> dict[str, Any]:
         store = MySQLStore()
         job = store.get_job(job_id)
         if job is None:
-            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+            raise ApiError(
+                status_code=404, code=JOB_NOT_FOUND, detail=f"Job {job_id} not found",
+            )
         summary = store.get_job_summary(job_id)
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=f"MySQL unavailable: {exc}") from exc
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=f"MySQL unavailable: {exc}",
+        ) from exc
     return {"job_id": job_id, "summary": summary or {}}
 
 

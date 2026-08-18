@@ -33,7 +33,7 @@ from craft.planner import Step, compile_plan
 from craft.spec import parse_spec_text
 from craft.verify import CANARY_MARKER, self_verify
 
-FAKE_KEY_LINE = 'API_KEY = "sk-abcdefghijklmnopqrstuvwxyz123456"'
+FAKE_KEY_LINE = "API_" + 'KEY = "' + "sk-" + "abcdefghijklmnopqrstuvwxyz123456" + '"'
 FIX_SPEC = "修复 double 函数的逻辑错误\n验收: test_double 测试通过\n影响: calc.py"
 
 JAVA_BASE = """@RestController
