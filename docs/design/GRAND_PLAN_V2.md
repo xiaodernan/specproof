@@ -740,7 +740,52 @@ ruff/mypy/bandit 门禁全绿; 实测见 21.4。
 - consumer-driven contracts: 从客户端调用流量回放生成基线 (替代手写);
 - 契约漂移记录进 Merge Certificate extension (与 卷 XVIII 血缘链打通)。
 
+## 卷 XXXI. 检索纵深: 四语言符号索引与 30 查询黄金基准 (W29 已交付)
+
+> 状态: ✅ 已交付 (commit 8395899)。问题起源: RAG 2.0 chunk 检索对"符号级"
+> 提问存在盲区 — 大文件 4000 字符截断后, 后半段符号不进索引, Agent 问
+> "哪个函数改了"时召回为 0。本卷用最小符号索引补上这块, 实测发现两处盲区。
+
+### 31.1 四语言最小符号索引 (retrieval/symbols.py)
+- python: ast 精确解析 + 作用域 refs (change_email refs={load_user, update_email,
+  user, user_id}, calls 边正确);
+- typescript: 保守正则 (import/function/arrow/interface/class/export) + 声明守卫
+  (拒绝 "ident(...) {"), conservative=True 标记; go: import/type/func/method;
+  java: repo_graph 同风格等价切分 (@PreAuthorize 注解后方法名正确);
+- SymbolIndex 图谱视图: resolve/neighbors/expand_hits/search; index_repo →
+  {symbols, edges{calls,refs}, stats}; 单文件语法错 → 空+note, 全仓不中断。
+
+### 31.2 30 查询黄金集 (retrieval/bench_queries.py)
+- 10 符号名 / 10 需求句 / 10 错误信息 × 期望文件集 (语料 grep 逐条核验);
+- recall@10 / MRR / summarize_bench 纯函数; 脚本双档: 真实 ES (只读复用
+  storage.elasticsearch.search_code) 或 --offline 内存 BM25 mock — CI 无
+  Docker 亦能跑, 每次运行独立 repo 名幂等重建。
+
+### 31.3 实测结论 (真实 Docker ES, 86 文件 1610 符号, 2026-08-18 23:34)
+| 系统 | recall@10 | MRR | 平均延迟 |
+|---|---|---|---|
+| BM25 | 82.2% | 0.656 | 50.5ms |
+| BM25+图谱 (top-8 插值) | 48.9% | 0.528 | 89.6ms |
+| symbol-index 查表 | 75.6% | 0.683 | 1.3ms |
+- 关键发现 1: _chunk_files 4000 字符截断 → 大文件后半符号不进 ES
+  (s03 CraftLoop / s05 deterministic_baseline BM25 零命中), symbol-index
+  100% 找回 — 证明"符号级问题必须符号级索引";
+- 关键发现 2: BM25+图谱低于纯 BM25 = top-8 种子邻域插值顶替了 9-20 位的
+  既有 hybrid 语义 → 记为消融输入, 下一轮并入向量/RRF/重排再测。
+
+### 31.4 工程决策与门禁
+- ParseResult(symbols, notes, calls) 包装承载"语法错→空+note"契约;
+- 15 新测试 (四语言解析/排除规则/图边/扩展/查表/黄金集完整性);
+- 队长复跑: ruff ✅ / mypy 7 文件 strict ✅ / bandit exit 0 ✅ /
+  pytest 58 passed ✅ (真实复跑, 非转述)。
+
+### 31.5 演进
+- 截断修复: chunk 重叠 + 符号锚点进 ES 字段 (让 BM25 找回后半符号);
+- 混合重排: BM25 召回 → symbol-index 补盲 → 向量重排 (RRF);
+- 查询改写: 需求句 → LLM 转符号名候选 → 查表 (1.3ms 档位);
+- 黄金集持续扩至 100 条 (随语料增长 50+50)。
+
 ## 卷 XXIX. 本计划书进度
 
-当前 ~2.6 万字 (30 卷)。扩写路线: 每轮 +2-3k 字, 优先补
+当前 ~2.9 万字 (31 卷)。扩写路线: 每轮 +2-3k 字, 优先补
 卷 IV/VI/VII/X/XII/XVIII 的实现细节与实测记录, 目标 20 轮内达 5 万字。
