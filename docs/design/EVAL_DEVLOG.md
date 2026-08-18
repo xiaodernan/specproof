@@ -73,6 +73,35 @@ Go/No-Go #14 (基线对照 +25pp)。
 
 ---
 
+## 续 (第十一轮): 金案例 17 → 20, Go/No-Go #14 门槛通过
+
+### 新增 execution-only 正样本 ×3
+- case-18-wrong-routing-key: 事件发布到错误路由键 (字符串常量级 diff);
+- case-19-email-corruption: 存储邮箱被加尾随空格 (无害拼接的 diff);
+- case-20-validation-removed: DTO 去掉 @NotBlank, 空邮箱被接受。
+- 三者静态 diff-reader 全部 MISS (基线), SpecProof 全部检出 — 差距只能
+  来自执行级验证。
+
+### 检测升级 (让 execution-only 可被证明)
+- 生成器契约驱动新增两类差分测试:
+  - EVENT 家族: 断言 mock RabbitTemplate 的 convertAndSend 调用参数
+    (交换器+路由键+事件类型) — 错误路由键 (case-18) 与重复发布
+    (case-07 强化) 都只能在执行时证明;
+  - UNIQUE 家族追加 blank-rejection 测试 + fresh-success 测试改为断言
+    **存储行**而非响应体 (响应回显请求值, 只有 DB 行能暴露 case-19)。
+- 管线契约编译表补 "publish|routing" 词条 (旧表与 P2 编译器不一致 —
+  execution-only 场景的真实缺口)。
+- Review Court 过滤 severity=NONE 的候选 (未参与失败测试的契约是
+  簿记, 不是 finding) — 消除 case-07 的 AUTH NONE 噪音。
+
+### 实测
+- **20 案例 eval: Recall/Precision/F1 全 100%, 0 误报**;
+- **Go/No-Go #14 PASS: SpecProof recall 100% vs 基线 58.3%,
+  delta +41.7pp (门槛 +25pp); precision delta +12.5pp**;
+- 全量 pytest / ruff / mypy / bandit 见本轮收尾记录。
+
+---
+
 ## 补充: 对抗性样本暴露并修复的三个真问题 (本轮的"审计→修复"闭环)
 
 1. **差分层与静态层双份 AUTH 判断, 且语义不一致** — run_differential 的

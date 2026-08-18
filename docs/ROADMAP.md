@@ -63,8 +63,11 @@
 - [x] 检测器等价性加固: 自定义安全注解等价集 + 接口级方法安全回退
 - [x] 执行级检测升级: 契约驱动的差分测试 (UNIQUE duplicate/fresh),
   surefire 失败方法 → 契约归属; 差分层委托共享 AUTH checker
-- [x] 基线对照实测: +22.2pp recall / +12.5pp precision
-  (baseline-report.md, 门槛 FAIL 如实记录, 100 案例路线继续)
+- [x] 基线对照实测: 20 案例 +41.7pp recall / +12.5pp precision —
+  **Go/No-Go #14 门槛通过** (baseline-report.md)
+- [x] execution-only 正样本 ×3 (错误路由键/静默损坏/校验放宽) +
+  EVENT 差分测试 (mock RabbitTemplate 调用断言) + 存储行断言 +
+  Review Court NONE 过滤; eval 20 案例 100/100/100
 
 ## 下一步 (按顺序)
 

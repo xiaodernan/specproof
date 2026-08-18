@@ -1,11 +1,11 @@
 {
   "summary": {
-    "total_cases": 17,
-    "should_detect": 9,
+    "total_cases": 20,
+    "should_detect": 12,
     "detected": 7,
     "false_positives": 1,
     "precision": 87.5,
-    "recall": 77.8
+    "recall": 58.3
   },
   "cases": [
     {
@@ -249,6 +249,36 @@
     },
     {
       "case": "case-17-logic-inversion",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-18-wrong-routing-key",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-19-email-corruption",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-20-validation-removed",
       "verdict": "MISS",
       "should_detect": true,
       "detected": false,
