@@ -19,6 +19,7 @@ from typing import cast
 import pytest
 
 from storage.agent_jobs import (
+    AcceptAttachError,
     AgentJobStore,
     InMemoryAgentJobStore,
     InvalidJobTransitionError,
@@ -90,6 +91,7 @@ class TestCreateAndGet:
         assert job.started_at is None
         assert job.finished_at is None
         assert job.result_json is None
+        assert job.accept_json is None
         assert job.error is None
 
         fetched = sqlite_store.get("job-1")
@@ -567,6 +569,135 @@ class TestBackendParity:
             any_store.update_status("job-1", "running")
 
 
+
+
+class TestAttachAcceptResult:
+    """W35.1 post-hoc accept projection — the only write a terminal job accepts.
+
+    Succeeded/failed targets attach (first write wins, repeats are
+    idempotent no-ops); pending/running/cancelled targets reject with
+    AcceptAttachError so the closed projection stays closed.
+    """
+
+    def test_attach_on_succeeded_writes_and_round_trips(
+        self, sqlite_store: SqliteAgentJobStore, clock: FakeClock
+    ) -> None:
+        sqlite_store.create("job-1", SPEC_TEXT)
+        sqlite_store.update_status("job-1", "succeeded", result_json={"report": "ok"})
+        clock.advance(1.0)
+        payload = {
+            "accept_verdict": "VERIFIED",
+            "certificate_path": "c.json",
+            "gates_report": {"overall": "passed"},
+        }
+        job = sqlite_store.attach_accept_result("job-1", payload)
+        assert json.loads(job.accept_json or "null") == payload
+        assert json.loads(job.result_json or "null") == {"report": "ok"}  # loop report untouched
+        assert job.updated_at == pytest.approx(clock.now)
+        assert sqlite_store.get("job-1") == job
+
+    def test_attach_on_failed_terminal_writes(self, any_store: AgentJobStore) -> None:
+        any_store.create("job-1", SPEC_TEXT)
+        any_store.update_status("job-1", "failed", error="boom")
+        job = any_store.attach_accept_result("job-1", {"accept_verdict": "BLOCKED"})
+        assert json.loads(job.accept_json or "null") == {"accept_verdict": "BLOCKED"}
+        assert job.error == "boom"  # the loop error stays intact
+
+    def test_attach_rejected_for_non_terminal_jobs(
+        self, any_store: AgentJobStore
+    ) -> None:
+        any_store.create("job-1", SPEC_TEXT)
+        with pytest.raises(AcceptAttachError):
+            any_store.attach_accept_result("job-1", {"accept_verdict": "VERIFIED"})
+        any_store.lease("job-1", "worker-a", 60.0)  # now running, still leased
+        with pytest.raises(AcceptAttachError):
+            any_store.attach_accept_result("job-1", {"accept_verdict": "VERIFIED"})
+        job = any_store.get("job-1")
+        assert job is not None and job.accept_json is None
+
+    def test_attach_rejected_for_cancelled_jobs(
+        self, any_store: AgentJobStore
+    ) -> None:
+        any_store.create("job-1", SPEC_TEXT)
+        any_store.cancel("job-1", "operator")
+        with pytest.raises(AcceptAttachError):
+            any_store.attach_accept_result("job-1", {"accept_verdict": "VERIFIED"})
+        job = any_store.get("job-1")
+        assert job is not None and job.accept_json is None
+        assert job.error == "operator"  # cancel wins over a late accept
+
+    def test_attach_is_idempotent_and_first_write_wins(
+        self, any_store: AgentJobStore, clock: FakeClock
+    ) -> None:
+        any_store.create("job-1", SPEC_TEXT)
+        any_store.update_status("job-1", "succeeded")
+        first = any_store.attach_accept_result(
+            "job-1", {"accept_verdict": "BLOCKED", "n": 1}
+        )
+        clock.advance(1.0)
+        second = any_store.attach_accept_result(
+            "job-1", {"accept_verdict": "VERIFIED", "n": 2}
+        )
+        # terminal immutability: the first attach is the record
+        assert json.loads(first.accept_json or "null") == {
+            "accept_verdict": "BLOCKED",
+            "n": 1,
+        }
+        assert second.accept_json == first.accept_json
+        assert second.updated_at == pytest.approx(clock.now)
+
+    def test_attach_unknown_job_raises(self, any_store: AgentJobStore) -> None:
+        with pytest.raises(JobNotFoundError):
+            any_store.attach_accept_result("nope", {"accept_verdict": "VERIFIED"})
+
+    def test_attach_persists_across_reopen(self, tmp_path: Path) -> None:
+        path = tmp_path / "attach.db"
+        first = SqliteAgentJobStore(path)
+        first.create("job-1", SPEC_TEXT)
+        first.update_status("job-1", "succeeded")
+        first.attach_accept_result(
+            "job-1", {"accept_verdict": "VERIFIED", "certificate_path": "c.json"}
+        )
+        first.close()
+        second = SqliteAgentJobStore(path)
+        try:
+            restored = second.get("job-1")
+            assert restored is not None
+            assert json.loads(restored.accept_json or "null") == {
+                "accept_verdict": "VERIFIED",
+                "certificate_path": "c.json",
+            }
+        finally:
+            second.close()
+
+    def test_pre_w351_database_gets_accept_column(self, tmp_path: Path) -> None:
+        """ensure_schema upgrades an old table (CREATE IF NOT EXISTS won't)."""
+        import sqlite3 as driver
+
+        path = tmp_path / "old.db"
+        conn = driver.connect(str(path))
+        conn.execute(
+            "CREATE TABLE agent_jobs ("
+            "id VARCHAR(255) PRIMARY KEY, status VARCHAR(16) NOT NULL, "
+            "spec_text TEXT NOT NULL, spec_digest CHAR(64) NOT NULL, "
+            "plan_json TEXT, current_step VARCHAR(255), progress_json TEXT, "
+            "lease_owner VARCHAR(255), lease_expires_at DOUBLE, started_at DOUBLE, "
+            "finished_at DOUBLE, result_json TEXT, error TEXT, "
+            "created_at DOUBLE NOT NULL, updated_at DOUBLE NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO agent_jobs (id, status, spec_text, spec_digest, created_at, updated_at) "
+            "VALUES ('job-1', 'succeeded', 'old spec', '0' * 64, 1.0, 1.0)"
+        )
+        conn.commit()
+        conn.close()
+        store = SqliteAgentJobStore(path)
+        try:
+            job = store.attach_accept_result("job-1", {"accept_verdict": "BLOCKED"})
+            assert json.loads(job.accept_json or "null") == {"accept_verdict": "BLOCKED"}
+        finally:
+            store.close()
+
 class TestSharedSqlConsistency:
     """White-box guards: the shared SQL is fully static (bandit B608), so the
     terminal-status literals inside it must match the canonical status tuple
@@ -597,4 +728,14 @@ class TestSharedSqlConsistency:
 
         assert columns(module._SELECT_BY_ID_SQL) == columns(module._LIST_SQL)
         assert columns(module._LIST_BY_STATUS_SQL) == columns(module._LIST_SQL)
+
+    def test_attach_sql_targets_the_canonical_terminal_pair(self) -> None:
+        """W35.1: the attach UPDATE is static; its IN-list must stay in
+        sync with the (succeeded, failed) terminal pair it documents."""
+        import storage.agent_jobs as module
+
+        match = re.search(r"IN \(([^)]*)\)", module._ATTACH_ACCEPT_SQL)
+        assert match is not None, module._ATTACH_ACCEPT_SQL
+        found = re.findall(r"'([a-z]+)'", match.group(1))
+        assert sorted(found) == ["failed", "succeeded"]
 

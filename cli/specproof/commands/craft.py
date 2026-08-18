@@ -18,7 +18,6 @@ Honesty notes:
 
 from __future__ import annotations
 
-import contextlib
 import importlib
 import importlib.util
 import json
@@ -29,7 +28,7 @@ from typing import Any
 
 import click
 
-from craft.accept import craft_accept, requirement_text_from_job_spec
+from craft.accept import craft_accept, persist_accept_result, requirement_text_from_job_spec
 from craft.budget import Budget, BudgetError
 from craft.llm import LLMClient, LLMUnavailableError
 from craft.loop import CraftLoop, CraftLoopError, FixFunction
@@ -617,11 +616,16 @@ def craft_accept_cmd(job_id: str, base_sha: str, repo: Path, db_path: str | None
         bundle, spec_text, repo_resolved, base_sha, head_sha, job_id=job_id
     )
 
-    # Best-effort projection: a terminal job keeps its closed projection
-    # (update_status with the same status is an idempotent no-op); the
-    # certificate on disk and this stdout verdict are the authoritative record.
-    with contextlib.suppress(AgentJobStoreError):
-        store.update_status(job.id, job.status, result_json={"accept": result.to_dict()})
+    # W35.1 post-hoc projection: attach_accept_result is the single
+    # deliberate write a terminal (succeeded/failed) job accepts — first
+    # attach wins, repeats are idempotent. Non-terminal targets are
+    # swallowed here: the certificate on disk and this stdout verdict
+    # remain the authoritative record.
+    attached = persist_accept_result(store, job.id, result)
+    if attached:
+        click.echo("accept_result 已写入作业投影 (accept_json)")
+    else:
+        click.echo("accept_result 未写入作业投影 (作业非 succeeded/failed 终态)")
 
     gates = result.gates_report or {}
     click.echo("gates_overall=" + str(gates.get("overall")))

@@ -3,6 +3,7 @@ REAL SpecProof verification pipeline, on a tiny python fixture repo.
 Bounded: if the real pipeline needs maven/docker it will fail closed and we
 document the result honestly.
 """
+import json
 import os
 import subprocess
 import sys
@@ -14,7 +15,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from craft.accept import craft_accept, requirement_text_from_job_spec  # noqa: E402
+from craft.accept import (  # noqa: E402
+    craft_accept,
+    persist_accept_result,
+    requirement_text_from_job_spec,
+)
 from craft.editor import Editor  # noqa: E402
 from craft.loop import CraftLoop  # noqa: E402
 from craft.planner import Step, compile_plan  # noqa: E402
@@ -101,6 +106,16 @@ def main():
         print("  -", f.get("kind"), "|", str(f.get("description"))[:160])
     print("GATES_OVERALL:", (result.gates_report or {}).get("overall"))
     print("NOTE:", result.note)
+
+    # W35.1: post-hoc accept projection into the durable job store
+    # (attach_accept_result — succeeded/failed only, first attach wins).
+    persisted = persist_accept_result(store, "smoke-1", result)
+    print("ACCEPT_PERSISTED:", persisted)
+    fresh = store.get("smoke-1")
+    if fresh and fresh.accept_json:
+        stored = json.loads(fresh.accept_json)
+        print("STORED_ACCEPT_VERDICT:", stored.get("verdict"))
+        print("STORED_CERTIFICATE_PATH:", stored.get("certificate_path"))
 
 if __name__ == "__main__":
     main()

@@ -20,7 +20,13 @@ the canonical status tuple by a consistency test.
 Job record fields: id, status (pending/running/succeeded/failed/cancelled),
 spec_text, spec_digest (sha256 hex), plan_json, current_step, progress_json,
 lease_owner, lease_expires_at (epoch seconds), started_at, finished_at,
-result_json, error, created_at, updated_at.
+result_json, accept_json, error, created_at, updated_at.
+
+W35.1: 'attach_accept_result' is the post-hoc accept projection — the ONLY
+write allowed on a terminal job. It targets succeeded/failed exclusively
+(cancelled keeps its closed projection), the first attach wins (terminal
+immutability; repeats are idempotent no-ops returning the same projection)
+and every statement stays fully static (values through placeholders).
 
 Wiring into craft/loop.py is out of scope here (that lane is owned by another
 agent): see the "Integration note" comment block at the end of this file for
@@ -37,7 +43,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
@@ -87,6 +93,14 @@ class InvalidJobTransitionError(AgentJobStoreError):
     """The requested status transition is not allowed (terminal is final)."""
 
 
+class AcceptAttachError(AgentJobStoreError):
+    """accept_json may only attach to a terminal (succeeded/failed) job.
+
+    A cancelled job keeps its closed projection: the supervisor's cancel
+    wins over a late accept, exactly like it wins over late projections.
+    """
+
+
 @dataclass(frozen=True)
 class AgentJob:
     """Durable projection of one SpecCraft agent job."""
@@ -105,6 +119,7 @@ class AgentJob:
     started_at: float | None = None
     finished_at: float | None = None
     result_json: str | None = None
+    accept_json: str | None = None
     error: str | None = None
 
 
@@ -114,7 +129,9 @@ class AgentJobStore(Protocol):
     Statuses: pending -> running -> succeeded | failed | cancelled. Terminal
     statuses are final for 'update_status', 'lease', 'set_plan' and
     'set_progress'; 'cancel' is the only unconditional override and wins
-    even while the job is leased by someone else.
+    even while the job is leased by someone else. 'attach_accept_result'
+    is the single deliberate exception: it attaches the post-hoc accept
+    projection to a succeeded/failed job only, first write wins.
     """
 
     def create(self, job_id: str, spec_text: str) -> AgentJob:
@@ -220,6 +237,22 @@ class AgentJobStore(Protocol):
         """
         ...
 
+    def attach_accept_result(
+        self, job_id: str, accept_json: Mapping[str, Any]
+    ) -> AgentJob:
+        """Attach the post-hoc SpecCraft accept result (W35.1 / M5 closure).
+
+        Allowed ONLY for terminal 'succeeded'/'failed' jobs — a
+        pending/running job is rejected with AcceptAttachError, and so is
+        'cancelled' (cancel wins over a late accept, its projection stays
+        closed). The payload is JSON-serialized into 'accept_json'. The
+        FIRST attach wins: terminal data is immutable, so a repeat attach
+        (same or different payload) is an idempotent no-op returning the
+        current projection. Raises JobNotFoundError for unknown ids and
+        AcceptAttachError for non-terminal targets.
+        """
+        ...
+
     def ensure_schema(self) -> None:
         """Create the backing table (idempotent; SQLite also runs it at init)."""
         ...
@@ -245,9 +278,19 @@ _SCHEMA_SQL: str = (
     "started_at DOUBLE, "
     "finished_at DOUBLE, "
     "result_json TEXT, "
+    "accept_json TEXT, "
     "error TEXT, "
     "created_at DOUBLE NOT NULL, "
     "updated_at DOUBLE NOT NULL)"
+)
+
+# Upgrade path for pre-W35.1 databases: CREATE TABLE IF NOT EXISTS never
+# adds columns to an existing table, so ensure_schema() runs this ALTER
+# best-effort and swallows the duplicate-column error. The statement is
+# fully static (no values travel through it) and portable across SQLite
+# and MySQL.
+_ADD_ACCEPT_JSON_COLUMN_SQL: str = (
+    "ALTER TABLE agent_jobs ADD COLUMN accept_json TEXT"
 )
 
 _INSERT_SQL: str = (
@@ -259,20 +302,21 @@ _INSERT_SQL: str = (
 _SELECT_BY_ID_SQL: str = (
     "SELECT id, status, spec_text, spec_digest, plan_json, current_step, "
     "progress_json, lease_owner, lease_expires_at, started_at, finished_at, "
-    "result_json, error, created_at, updated_at FROM agent_jobs WHERE id = ?"
+    "result_json, accept_json, error, created_at, updated_at "
+    "FROM agent_jobs WHERE id = ?"
 )
 
 _LIST_SQL: str = (
     "SELECT id, status, spec_text, spec_digest, plan_json, current_step, "
     "progress_json, lease_owner, lease_expires_at, started_at, finished_at, "
-    "result_json, error, created_at, updated_at FROM agent_jobs "
+    "result_json, accept_json, error, created_at, updated_at FROM agent_jobs "
     "ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?"
 )
 
 _LIST_BY_STATUS_SQL: str = (
     "SELECT id, status, spec_text, spec_digest, plan_json, current_step, "
     "progress_json, lease_owner, lease_expires_at, started_at, finished_at, "
-    "result_json, error, created_at, updated_at FROM agent_jobs "
+    "result_json, accept_json, error, created_at, updated_at FROM agent_jobs "
     "WHERE status = ? ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?"
 )
 
@@ -300,6 +344,16 @@ _CANCEL_SQL: str = (
     "UPDATE agent_jobs SET status = 'cancelled', error = ?, lease_owner = NULL, "
     "lease_expires_at = NULL, finished_at = COALESCE(finished_at, ?), updated_at = ? "
     "WHERE id = ?"
+)
+
+# W35.1 post-hoc accept projection: only succeeded/failed rows match; the
+# COALESCE makes the FIRST attach win (terminal immutability) so a repeat
+# attach is an idempotent no-op on every backend. All values travel through
+# placeholders — the status literals below are the canonical terminal pair
+# enforced by TestSharedSqlConsistency.
+_ATTACH_ACCEPT_SQL: str = (
+    "UPDATE agent_jobs SET accept_json = COALESCE(accept_json, ?), updated_at = ? "
+    "WHERE id = ? AND status IN ('succeeded', 'failed')"
 )
 
 _SET_PLAN_SQL: str = (
@@ -378,6 +432,7 @@ def _row_to_job(row: Any) -> AgentJob:
         started_at=_opt_float(row["started_at"]),
         finished_at=_opt_float(row["finished_at"]),
         result_json=_opt_str(row["result_json"]),
+        accept_json=_opt_str(row["accept_json"]),
         error=_opt_str(row["error"]),
         created_at=float(row["created_at"]),
         updated_at=float(row["updated_at"]),
@@ -449,6 +504,25 @@ def _projection_after_write(store: AgentJobStore, job_id: str, affected: int) ->
     job = store.get(job_id)
     if job is None:
         raise JobNotFoundError(f"agent job {job_id!r} not found")
+    return job
+
+
+def _attach_result(store: AgentJobStore, job_id: str) -> AgentJob:
+    """Post-attach projection read: distinguishes missing vs non-terminal.
+
+    Backend-agnostic: MySQL reports *changed* rows while SQLite reports
+    *matched* rows, so the COALESCE-based first-write-wins UPDATE cannot
+    rely on rowcount to tell an idempotent repeat apart from a rejection —
+    the re-read decides, identically on every backend.
+    """
+    job = store.get(job_id)
+    if job is None:
+        raise JobNotFoundError(f"agent job {job_id!r} not found")
+    if job.status not in ("succeeded", "failed"):
+        raise AcceptAttachError(
+            "accept result attaches only to terminal jobs (succeeded|failed); "
+            f"{job_id!r} is {job.status!r}"
+        )
     return job
 
 
@@ -656,6 +730,29 @@ class InMemoryAgentJobStore:
             self._jobs[job_id] = updated
             return updated
 
+    def attach_accept_result(
+        self, job_id: str, accept_json: Mapping[str, Any]
+    ) -> AgentJob:
+        now = self._now_fn()
+        payload = json.dumps(dict(accept_json))
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                raise JobNotFoundError(f"agent job {job_id!r} not found")
+            if job.status not in ("succeeded", "failed"):
+                raise AcceptAttachError(
+                    "accept result attaches only to terminal jobs "
+                    f"(succeeded|failed); {job_id!r} is {job.status!r}"
+                )
+            # first attach wins (terminal immutability); repeats are no-ops
+            updated = replace(
+                job,
+                accept_json=job.accept_json if job.accept_json is not None else payload,
+                updated_at=now,
+            )
+            self._jobs[job_id] = updated
+            return updated
+
 
 # ── SQLite backend ────────────────────────────────────────────────────────────
 
@@ -680,6 +777,19 @@ class SqliteAgentJobStore:
     def ensure_schema(self) -> None:
         with self._lock, self._conn:
             self._conn.execute(_SCHEMA_SQL)
+            self._ensure_accept_json_column()
+
+    def _ensure_accept_json_column(self) -> None:
+        """Upgrade path for pre-W35.1 databases (best effort).
+
+        CREATE TABLE IF NOT EXISTS never adds columns to an existing table,
+        so the static ALTER brings old files up to date; the only realistic
+        failure is the duplicate-column error from a schema that already
+        carries accept_json.
+        """
+        # duplicate column: the table already carries accept_json
+        with suppress(sqlite3.OperationalError):
+            self._conn.execute(_ADD_ACCEPT_JSON_COLUMN_SQL)
 
     def close(self) -> None:
         with self._lock:
@@ -812,6 +922,15 @@ class SqliteAgentJobStore:
             raise JobNotFoundError(f"agent job {job_id!r} not found")
         return job
 
+    def attach_accept_result(
+        self, job_id: str, accept_json: Mapping[str, Any]
+    ) -> AgentJob:
+        now = self._now_fn()
+        payload = json.dumps(dict(accept_json))
+        with self._lock, self._conn:
+            self._conn.execute(_ATTACH_ACCEPT_SQL, (payload, now, job_id))
+        return _attach_result(self, job_id)
+
 
 # ── MySQL backend ─────────────────────────────────────────────────────────────
 
@@ -878,6 +997,9 @@ class MySqlAgentJobStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(_SCHEMA_SQL)
+            # pre-W35.1 upgrade: static ALTER, duplicate column (1060) only
+            with suppress(pymysql.err.OperationalError):
+                cur.execute(_to_mysql(_ADD_ACCEPT_JSON_COLUMN_SQL))
 
     def create(self, job_id: str, spec_text: str) -> AgentJob:
         now = self._now_fn()
@@ -1026,6 +1148,16 @@ class MySqlAgentJobStore:
             raise JobNotFoundError(f"agent job {job_id!r} not found")
         return job
 
+    def attach_accept_result(
+        self, job_id: str, accept_json: Mapping[str, Any]
+    ) -> AgentJob:
+        now = self._now_fn()
+        payload = json.dumps(dict(accept_json))
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(_to_mysql(_ATTACH_ACCEPT_SQL), (payload, now, job_id))
+        return _attach_result(self, job_id)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Integration note (Agent-Plan task 3) — where CraftLoop would wire this store.
@@ -1071,4 +1203,13 @@ class MySqlAgentJobStore:
 #
 # 6. Recovery — CraftLoop.from_checkpoint rebuilds the in-memory loop; re-run
 #    (2) to re-acquire the lease and resume after the last green step.
+#
+# 7. Post-hoc accept (W35.1) — after craft_accept produced an AcceptResult for
+#    a finished job (the `craft accept` CLI), attach it to the closed
+#    projection (succeeded/failed ONLY; the first attach wins and repeats are
+#    idempotent no-ops):
+#        store.attach_accept_result(job_id, result.to_dict())
+#    pending/running/cancelled targets raise AcceptAttachError — callers treat
+#    the projection as best-effort: the certificate on disk and the printed
+#    verdict are the authoritative record when the projection is closed.
 # ──────────────────────────────────────────────────────────────────────────────

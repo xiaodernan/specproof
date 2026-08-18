@@ -38,6 +38,7 @@ from typing import Any, Literal
 from evidence.certificate import build_rejection_notice, issue_certificate
 from evidence.lineage import build_lineage
 from evidence.signing import SigningError, sign_json_document
+from storage.agent_jobs import AgentJobStore, AgentJobStoreError
 
 from .editor import classify_workspace_changes
 from .gates import ExecRunner, GatePipeline, SecurityScanFn, SelfVerifyFn
@@ -106,6 +107,25 @@ def bundle_digest(bundle: ChangeBundle) -> str:
     }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return sha256_hex(canonical)
+
+
+def persist_accept_result(
+    store: AgentJobStore, job_id: str, result: AcceptResult
+) -> bool:
+    """Post-hoc accept projection into the durable job store (W35.1).
+
+    Calls storage.agent_jobs.attach_accept_result — the ONLY write a
+    terminal job accepts: succeeded/failed only, first attach wins, repeat
+    attaches are idempotent no-ops. Returns True iff the projection was
+    attached; any AgentJobStoreError (non-terminal target, unknown job) is
+    swallowed so the accept verdict itself is never changed by a
+    projection failure — the certificate on disk and the printed verdict
+    remain the authoritative record.
+    """
+    with suppress(AgentJobStoreError):
+        store.attach_accept_result(job_id, result.to_dict())
+        return True
+    return False
 
 
 def requirement_text_from_job_spec(spec_text: str) -> str:
@@ -770,6 +790,7 @@ __all__ = [
     "VerifyFn",
     "bundle_digest",
     "craft_accept",
+    "persist_accept_result",
     "requirement_text_from_job_spec",
     "run_specproof_verification",
 ]

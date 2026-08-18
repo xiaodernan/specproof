@@ -38,11 +38,13 @@ from craft.accept import (
     AcceptResult,
     bundle_digest,
     craft_accept,
+    persist_accept_result,
     requirement_text_from_job_spec,
 )
 from craft.executor import ExecResult
 from craft.schemas import ChangeBundle
 from evidence.signing import SigningError, verify_statement
+from storage.agent_jobs import InMemoryAgentJobStore
 
 SPEC_TEXT = "修复 double 函数的逻辑错误\n验收: test_double 测试通过\n影响: calc.py"
 
@@ -507,4 +509,56 @@ def test_untracked_unknown_changes_reject_without_rollback(tmp_path: Path) -> No
     assert result.rolled_back is False
     assert (repo / "mystery.py").read_text(encoding="utf-8") == "??"
     assert any(f["kind"] == "unknown_changes" for f in result.findings)
+
+# -- W35.1 post-hoc accept projection into the durable job store ---------------
+
+
+def test_accept_result_attaches_to_terminal_job(tmp_path: Path) -> None:
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    signer = FakeSigner()
+    result = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=verify_ok)
+    assert result.verdict == "VERIFIED"
+
+    store = InMemoryAgentJobStore()
+    store.create("task-1", SPEC_TEXT)
+    store.update_status("task-1", "succeeded", result_json={"report": "ok"})
+    assert persist_accept_result(store, "task-1", result) is True
+    job = store.get("task-1")
+    assert job is not None
+    payload = json.loads(job.accept_json or "null")
+    assert payload["verdict"] == "VERIFIED"
+    assert payload["certificate_path"] == result.certificate_path
+    assert payload["gates_report"]["overall"] == "passed"
+    assert json.loads(job.result_json or "null") == {"report": "ok"}  # loop report untouched
+
+    # 幂等: 重复 attach 返回既有投影 (first attach wins), 不抛错
+    assert persist_accept_result(store, "task-1", result) is True
+    again = store.get("task-1")
+    assert again is not None and again.accept_json == job.accept_json
+
+
+def test_accept_result_attach_rejected_for_non_terminal_job(tmp_path: Path) -> None:
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    store = InMemoryAgentJobStore()
+    store.create("task-1", SPEC_TEXT)  # pending: 投影未关闭
+    result = run_accept(repo, base_sha, head_sha, signer=FakeSigner(), verify_fn=verify_ok)
+    assert result.verdict == "VERIFIED"
+
+    # 非终态被拒 (AcceptAttachError 被吞掉, 判定本身不变)
+    assert persist_accept_result(store, "task-1", result) is False
+    job = store.get("task-1")
+    assert job is not None and job.accept_json is None
+
+
+def test_accept_result_attach_rejected_for_cancelled_job(tmp_path: Path) -> None:
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    store = InMemoryAgentJobStore()
+    store.create("task-1", SPEC_TEXT)
+    store.cancel("task-1", "supervisor")  # cancel 优先于事后 accept
+    result = run_accept(repo, base_sha, head_sha, signer=FakeSigner(), verify_fn=verify_ok)
+    assert persist_accept_result(store, "task-1", result) is False
+    job = store.get("task-1")
+    assert job is not None and job.accept_json is None
+    assert job.error == "supervisor"
+
 

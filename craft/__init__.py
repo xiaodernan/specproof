@@ -16,6 +16,7 @@ from .accept import (
     VerifyFn,
     bundle_digest,
     craft_accept,
+    persist_accept_result,
     requirement_text_from_job_spec,
     run_specproof_verification,
 )
@@ -223,6 +224,7 @@ __all__ = [
     "parse_spec_file",
     "parse_spec_json",
     "parse_spec_text",
+    "persist_accept_result",
     "plan_from_schema",
     "plan_to_schema",
     "redact_text",
