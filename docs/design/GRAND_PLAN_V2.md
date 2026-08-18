@@ -590,3 +590,62 @@ toolchain 元数据)。
 
 N 车道 (Agent 记忆 + 流式): craft/memory.py 任务记忆 + craft run --stream +
 中断落 checkpoint + 测试; 完成后更新本卷状态。
+## 卷 XXVI. RAG 3.0 深化设计 (图谱融合 + 检索评测落地)
+
+### 26.1 三图融合 (代码图 + 文档图 + 契约图)
+- 代码图 (现状): 类/方法/调用点, expand_hits 邻域扩展。
+- 文档图 (新增): README/ADR/issue 段落 → 符号锚点 (路径/类名/方法名), 边
+  documents/explains; 检索命中文档时反向拉取被解释的符号。
+- 契约图 (新增): contract_id ↔ checker ↔ 历史案例 ↔ 修复模式, 边 verifies/
+  detected_in; 命中契约时注入"该契约历史上怎么被违反过"的案例摘要
+  (来自 golden-cases 元数据, 非证据链路, 可缓存)。
+- 融合检索: 三图统一邻域扩展 (预算内), 结果带来源标注 (code/doc/contract)。
+
+### 26.2 检索评测落地 (30 查询红线, L 遗留)
+- 黄金集: 30 查询 (函数名/需求句/契约 id/错误信息) → 期望文件集;
+- 指标: recall@10 / MRR / 单查询延迟;
+- 运行器: scripts/bench_retrieval.py (mock ES + 真实图谱) + 每轮 RAG 改动必跑;
+- 基线固化: 当前 BM25+图谱数字先存档, 向量/RRF/重排逐项消融报告。
+
+### 26.3 向量库迁移契约
+- retrieval/hybrid 的 search() 接口为唯一检索入口 (L 已留); 迁移 Qdrant/Milvus
+  只实现该接口; ES 保持默认 (零新组件)。
+
+## 卷 XXVII. 突破性功能第二波实现规格 (卷 XVIII 深化)
+
+### 27.1 变异驱动测试强化闭环 (18.2 规格)
+- 输入: surviving mutants 清单 (id/算子/位置/存活原因/等价性判定);
+- 转换: craft 任务 "为 <方法> 写一个能杀死 <变异描述> 的测试" (模板 + 上下文);
+- 判定: 新测试在 Base 绿 + 在变异体红 (机器双跑); 通过 → 测试入库 + 契约
+  TEST_STRENGTH 记录; 失败 → 变异体标记 equivalent (可证伪记录);
+- 预算: 每变异体 ≤ 2 次尝试; 每轮 ≤ 5 变异体 (经济性)。
+
+### 27.2 跨 Agent ChangeBundle schema (18.4 规格)
+- ChangeBundle = {source_agent, base_sha, head_sha, diff, spec, context_files,
+  tool_traces(可选)}; 适配器: claude_code (PR diff + CLAUDE.md)、codex、
+  cursor、generic (git diff 直读); 校验器: 字段完整性 + sha 一致性;
+- 验收: 同一案例经两个适配器 → 证书除 toolchain 外逐字节一致。
+
+### 27.3 注入免疫认证证书字段 (18.3 规格)
+- extension.injection_immunity = {suite_version, cases, influenced};
+- 生成: evidence_policy_gate 前强制注入套件 (15 类 × 正反), 记录每类影响数;
+- 重放: 套件哈希入血缘 (18.1 已就绪), replay 复现同结论。
+
+### 27.4 可证伪验收协议 (18.5 规格)
+- Defender 输出 falsification_plan = {hypothesis, experiment, falsifies};
+- verifier 预算内试跑 (≤1 次/高等级 finding); 通过 → 撤销/降级并记录;
+- 证书 extension.falsification = {finding_id: {attempted, outcome}}。
+
+## 卷 XXVIII. 评测自动化与 CI 编排深化
+
+- nightly 矩阵: 100 案例全量 eval + LLM 基线双口径 + 微基准双档 (确定性/LLM)
+  + 检索评测 + MCP 一致性 + 安全/故障全量 — 单 job 串行, 产出
+  docs/eval/nightly-report.md + 历史归档;
+- 回归红线: 任一项较上次倒退 → job 失败 + 告警;
+- 成本核算: 每次 LLM 评测记录 tokens/费用 (预算账本), 月报汇总;
+- 本地一键: scripts/run_all_evals.ps1 (队长/开发者入口)。
+
+## 卷 XXIX. 本计划书进度
+
+当前 ~2.1 万字 (17+2+6+2+2 卷)。扩写路线: 每轮 +2-3k 字, 优先补
+卷 IV/VI/VII/X/XII/XVIII 的实现细节与实测记录, 目标 20 轮内达 5 万字。
