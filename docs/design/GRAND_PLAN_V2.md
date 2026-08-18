@@ -120,7 +120,7 @@ DONE | FAILED | STUCK | CANCELLED | EXPIRED; 每个转换写审计行;
   要求显式确认或直接拒绝。
 - 差异审阅: 交付前展示 diff 摘要 + 自校验结论, 用户可逐文件接受/拒绝。
 
-## 卷 IV. RAG 2.0 详细设计 (本轮开工, 车道 L)
+## 卷 IV. RAG 2.0 详细设计 (已实现 + 实测, 车道 L, 2026-08-18)
 
 ### 4.1 索引层
 - chunk: 方法级符号块 (现状, AST-free 正则切分) 保持; 增加文档块
@@ -149,6 +149,38 @@ query → BM25 (content+symbol) → 向量 top-k (如有) → RRF 融合 → rep
 ### 4.5 与 LLM 上下文工程的联动
 检索结果按"稳定前缀 + 任务模板 + 变量数据"组装 (缓存友好); 检索结果本身
 进入变量段, 不进稳定前缀。
+
+### 4.6 实现与实测状态 (L 车道交付, 2026-08-18)
+已实现文件: retrieval/embeddings.py (EmbeddingClient: LLM_EMBEDDING_* →
+LLM_* 回退, 批量 ≤64, 429 退避复用 providers 语义, 不可用返回 None+原因,
+绝不伪造向量); retrieval/rerank.py (交叉编码器 → LLM 列表重排 → 保序,
+三档诚实标注); retrieval/hybrid.py (BM25+向量 RRF k=60 → 图谱 2 跳 →
+重排 → 预算截断, 元数据 bm25_hits/vector_hits/rerank_mode/embedding_used
+随结果返回); storage/elasticsearch.py (dense_vector 启用: dims 默认 1536
+可配 ES_VECTOR_DIMS, HNSW m=16, 新增 index_with_embeddings / vector_search,
+既有 BM25 路径不变); agent/nodes/retrieve_repository_context.py (有嵌入走
+hybrid, 无嵌入走现状 BM25+图谱, 模式日志+retrieval_note 标注);
+tests/unit/test_retrieval_hybrid.py (全 mock)。
+
+实测降级矩阵 (mock 验证 + 真实 ES 通道冒烟 — 本机无可用嵌入端点, 用确定性
+伪向量实测了 dense_vector/HNSW/knn/RRF 真实 ES 链路: 索引 3 块 embedded=3,
+mapping dense_vector dims=1536 index=true hnsw m=16, hybrid 模式
+bm25_hits=1/vector_hits=3, 融合首位 bm25+vector rrf=2/60; 真实嵌入端点
+冒烟待接入):
+
+| 场景 | 实测行为 | 标注 |
+|---|---|---|
+| 嵌入未配置 | BM25+图谱现状路径, rerank 保序 | mode=bm25, rerank=off |
+| 嵌入端点不可用 | 索引/检索自动回退 BM25, 不报错 | embedding_error=原因 |
+| 向量字段无数据 | vector_hits=0, 自动回退 BM25 | mode=bm25 |
+| 重排模型缺失 | 原序返回 | rerank_mode=off + reason |
+| ES 不可用 | retrieval_note=unavailable, 契约编译退回仅需求文本 | 现状不变 |
+
+偏差说明: (1) 4.4 检索评测 30 查询红线为后续车道任务, 本轮未含评测集;
+(2) 交叉编码器依赖 sentence-transformers 为可选依赖 (未进 pyproject,
+缺失时诚实降级); (3) LLM 重排的 token 预算以输入截断实现
+(ModelProvider.chat 无 max_tokens 通道); (4) hybrid 路径按 4.2 用 2 跳
+图谱扩展, 现状 BM25 路径保持 1 跳不动 (向后兼容)。
 ## 卷 V. LLM 工具调用与工程深化 (大模型工程)
 
 ### 5.1 工具调用分层 (基于真实网关 8/11 探测)
@@ -482,3 +514,79 @@ toolchain 元数据)。
   VII (端点规格) / X (SOP 全文) / XII (每里程碑验收命令) / XVIII (实现进展);
 - 五万字 = 17+2 卷 × 平均 2.6k 字, 目标按轮次在 20 轮内达成;
 - 每次追加随里程碑提交 (git + 镜像 + bundle)。
+## 卷 XX. LLM 工具调用深化设计 (新增)
+
+### 20.1 并行工具调用
+- 现状: 单次 chat 单工具 (envelope) 或原生 tool_calls (网关支持, 但 thinking+工具
+  不共存已实测)。
+- 设计: 规划/诊断请求允许模型一次提出多个独立工具调用 (原生 tool_calls 并行数组);
+  envelope 模式保持单对象 (协议限制); 工具执行层并发执行独立调用 (asyncio.gather,
+  每工具独立超时), 结果按 tool_call_id 回填; 总工具调用预算不变 (max_tool_calls)。
+
+### 20.2 工具结果结构化回喂 (注入防线)
+- 每条工具结果包 envelope: {status: ok|error, output_head, output_tail, error?,
+  truncated, bytes}; 只回喂截断内容; 工具输出一律进"数据段", 禁止出现在系统指令
+  位; 结果中的 "IGNORE ALL..." 文本保持原样但已被分段防御 (实测 0 影响)。
+
+### 20.3 工具 schema 版本化
+- 每个工具定义带 version; provider 探测结果记录支持的 schema 版本; 降级时按版本
+  矩阵选择 envelope/原生; 工具变更必须走版本号 + 兼容测试 (MCP 侧同规则)。
+
+### 20.4 工具超时与预算联动
+- 每工具 timeout (默认 120s), 超时 → 诚实 error 回喂模型 (模型可改路径);
+  工具层超时计入时间预算; 连续 3 个同类工具超时 → 任务 EXPIRED (不空转)。
+
+## 卷 XXI. Agent 记忆与长期上下文 (新增)
+
+### 21.1 记忆分层
+1. 会话记忆 (进程内): 当前任务步骤的决策/产物引用 (现状: checkpoint 已有)。
+2. 任务记忆 (新增, craft/memory.py): 任务级事实库 — 已读文件/已改文件/错误签名/
+   关键决策/预算消耗, 序列化 memory.json; resume 时注入规划/诊断上下文 (数据段,
+   预算截断 ≤ 2k tokens)。
+3. 仓库记忆 (M8 排期): AGENTS.md/CLAUDE.md 策略摄取 + 检索历史 (RAG 2.0 已就绪)。
+4. 跨任务记忆 (M18 排期): 契约/修复模式库 (非证据链路可缓存, ADR-020)。
+
+### 21.2 压缩 (compaction)
+- 上下文超预算 → 触发压缩: 旧步骤摘要 (LLM summarize, 预算内) 替换原始消息;
+  checkpoint 记录压缩点与摘要哈希; resume 可从摘要重建上下文; 压缩只作用于
+  规划/诊断上下文, 不动证据链路。
+
+### 21.3 流式交互 (新增, 本轮 N 车道)
+- craft run --stream: 规划与诊断的 token 级流式输出 (provider chat_stream);
+  支持 Ctrl-C 优雅中断 (当前步骤落 checkpoint 后退出); 非流式环境自动回退。
+- CLI 进度: 步骤状态条 (s1..sn 状态/迭代/耗时) + 流式模型输出窗口。
+
+## 卷 XXII. 提示词工程系统化 (新增)
+
+- 模板注册表: providers/prompt_templates 已是单一来源; 增加版本号 + 变更日志;
+- A/B 与回放: 提示词变更必须跑微基准 (10 任务) + LLM 基线 (100 案例) 前后对比,
+  报告 delta; 提示词回放 (同一输入重放历史提示词版本);
+- few-shot 注入: 按任务类型挂示例 (稳定前缀外、变量段内), 示例库版本化;
+- 未审提示词不上线 (人工审批 + 评测证据)。
+
+## 卷 XXIII. 技术栈候选追加评估
+
+- uv (包管理): 评估替换 pip+venv (锁文件/速度) — 低风险, M19 与依赖锁定一起做。
+- PydanticAI: 设计参考 (类型化 agent 循环), 不引入依赖; 我们已有的
+  LLMResponse/Plan/Step Pydantic 体系等价覆盖。
+- smolagents: 借鉴 CodeAgent 的"代码即行动"思路评估 (可选 M5 实验); 不替代
+  craft 循环 (我们的审计/证据要求更硬)。
+- LangGraph 迁移预案: 若未来弃用, 自研 DAG 执行器接口契约 = 节点函数签名不变 +
+  状态 dict 不变 (迁移成本 ≤ 2 天, ADR-018 记录)。
+- 向量库: ES 默认 (已落地); Qdrant/Milvus 迁移口 = retrieval/hybrid 的
+  search 接口抽象 (L 已留)。
+
+## 卷 XXIV. 突破性功能实现进展 (卷 XVIII 对应)
+
+| 功能 | 状态 |
+|---|---|
+| 18.1 契约血缘 | ✅ 已实现 (W13, 19 测试, 篡改定位实测) |
+| 18.2 变异驱动测试强化 | 排期 M12-M13 (微基准 task-06 已具雏形) |
+| 18.3 注入免疫认证 | 矩阵 24 测试已建; 证书字段待 M12 |
+| 18.4 跨 Agent 中立验收 | MCP 入口已建 (W14); ChangeBundle schema 待 M11 |
+| 18.5 可证伪验收 | review_court falsification_plan 设计定稿, 实现待 M12 |
+
+## 卷 XXV. 本轮新增实施车道
+
+N 车道 (Agent 记忆 + 流式): craft/memory.py 任务记忆 + craft run --stream +
+中断落 checkpoint + 测试; 完成后更新本卷状态。
