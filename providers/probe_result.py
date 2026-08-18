@@ -23,6 +23,7 @@ class ProbeResult:
         "strict_tool_calls",
         "thinking",
         "thinking_with_tools",
+        "reasoning_content",
         "usage_reporting",
         "error_codes",
         "rate_limit_headers",

@@ -123,12 +123,16 @@ class Worker:
             with contextlib.suppress(Exception):
                 summary = _state_summary(final_state, verdict)
                 self.mysql.save_job_summary(job_id, summary)
-                # Observability: completion counter + processing duration.
-                from observability.metrics import incr, set_gauge
+                # Observability: completion counter + processing duration
+                # (gauge = last job; histogram = p50/p95 SLO per §14).
+                from observability.metrics import incr, observe_duration, set_gauge
 
                 incr("jobs_completed_total")
                 incr("jobs_" + verdict.lower() + "_total")
                 set_gauge("jobs_processing_seconds", float(time.time() - started))
+                observe_duration(
+                    "jobs_duration_seconds", float(time.time() - started)
+                )
             self._maybe_publish_github_check(
                 job_id, verdict, summary, final_state
             )
@@ -351,6 +355,13 @@ def main() -> None:
 
     configure_logging()
     init_tracing(service_name="specproof-worker")
+
+    # P6: worker 进程内 /metrics (Prometheus 抓取目标 worker:9100)。
+    # 纯 stdlib 守护线程; 端口可用 WORKER_METRICS_PORT 覆盖。
+    from observability.metrics_http import serve_metrics_in_thread
+
+    serve_metrics_in_thread(port=int(os.getenv("WORKER_METRICS_PORT", "9100")))
+
     worker = Worker()
 
     def _shutdown(signum: int, frame: Any) -> None:

@@ -7,6 +7,10 @@ Provides:
   - GET  /jobs/{job_id}/summary      persisted pipeline summary (dashboard)
   - GET  /jobs/{job_id}/progress     SSE with Last-Event-ID
   - GET  /dashboard                  web dashboard (static, API-key protected)
+  - GET  /                           React SPA (apps/web/dist) or dashboard redirect
+  - GET  /api/v1/*                   read-only web UI APIs (dashboard/stages/
+                                      findings/certificate/capsule/contracts/
+                                      eval/health; all key-protected)
   - GET  /metrics                    Prometheus metrics
   - GET  /health                     readiness probe
 """
@@ -22,12 +26,13 @@ if str(_project_root) not in sys.path:
 
 from typing import Any  # noqa: E402
 
-from fastapi import FastAPI, Request  # noqa: E402  (after sys.path bootstrap)
+from fastapi import FastAPI, HTTPException, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from fastapi.responses import RedirectResponse  # noqa: E402
+from fastapi.responses import FileResponse, RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from api.routes.jobs import router as jobs_router  # noqa: E402
+from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -53,6 +58,7 @@ app.add_middleware(
 
 app.include_router(jobs_router)
 app.include_router(webhooks_router)
+app.include_router(web_router)
 
 # P0-A4: refuse to start in production with default credentials.
 from storage.config_guard import enforce_production_config  # noqa: E402
@@ -113,6 +119,47 @@ async def health() -> dict[str, str | bool]:
         "status": "ok" if redis_ok else "degraded",
         "redis": redis_ok,
     }
+
+
+# ── React SPA (apps/web/dist preferred; static dashboard as fallback) ──
+# The SPA is served without a key (its JSON APIs are key-protected, same as
+# the legacy static dashboard). When apps/web/dist does not exist (no npm
+# build yet), the legacy /dashboard static page remains the only UI.
+# This block is registered LAST so the catch-all never shadows real routes.
+_web_dist = Path(__file__).resolve().parents[1] / "apps" / "web" / "dist"
+_SPA_RESERVED_PREFIXES = (
+    "api/",
+    "jobs",
+    "metrics",
+    "health",
+    "webhooks",
+    "dashboard",
+    "docs",
+    "redoc",
+    "openapi.json",
+)
+
+if _web_dist.is_dir() and (_web_dist / "index.html").is_file():
+    if (_web_dist / "assets").is_dir():
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(_web_dist / "assets")),
+            name="spa-assets",
+        )
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str) -> FileResponse:
+        """SPA deep-link fallback: unknown non-API paths serve index.html."""
+        if full_path.startswith(_SPA_RESERVED_PREFIXES):
+            raise HTTPException(status_code=404, detail="Not found")
+        candidate = (_web_dist / full_path).resolve()
+        if (
+            full_path
+            and candidate.is_file()
+            and candidate.is_relative_to(_web_dist.resolve())
+        ):
+            return FileResponse(str(candidate))
+        return FileResponse(str(_web_dist / "index.html"))
 
 
 def main() -> None:

@@ -43,6 +43,15 @@ def require_api_key(request: Request) -> None:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             supplied = auth_header[len("Bearer "):]
+    if not supplied:
+        # EventSource (SSE) cannot set headers; the legacy dashboard passes
+        # the key as a query parameter for progress streams. Same
+        # constant-time comparison; this app never logs query strings.
+        supplied = (
+            request.query_params.get("api_key")
+            or request.query_params.get("key")
+            or ""
+        )
     if not supplied or not hmac.compare_digest(supplied.encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 

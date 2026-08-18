@@ -24,6 +24,9 @@ reports/
 capsules/
 worktrees/
 
+# SpecCraft runtime artifacts (M1)
+.specraft/
+
 # Demo build artifacts
 demo/spring-backend/target/
 

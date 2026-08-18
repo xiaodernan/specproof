@@ -1,4 +1,9 @@
 # SpecProof Worker (RabbitMQ consumer + LangGraph executor)
+# The worker talks to the dedicated DooD daemon (compose `sandbox` service)
+# over DOCKER_HOST=tcp://sandbox:2375 — it needs the docker CLI only, never
+# a host docker.sock mount (§12).
+FROM docker:27-cli AS docker-cli
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -11,9 +16,14 @@ COPY agent ./agent
 COPY providers ./providers
 COPY storage ./storage
 COPY evidence ./evidence
+COPY observability ./observability
 COPY sandbox ./sandbox
 COPY cli ./cli
 
 RUN pip install --no-cache-dir .
+
+# Docker CLI for the sandbox runner; DOCKER_HOST points it at the sandbox
+# daemon, so no socket is ever mounted into this container.
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 
 CMD ["python", "-m", "agent.worker"]

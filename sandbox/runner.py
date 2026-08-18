@@ -5,12 +5,22 @@ Running Maven directly on the host lets a malicious PR execute arbitrary
 code with the host's privileges and read its secrets (LLM_API_KEY, tokens).
 
 The sandbox executes experiment commands inside a Docker container:
+  - --user 1000:1000        §12: the workload never runs as root
+  - --pids-limit 256        process-table DoS cap (SPECPROOF_SANDBOX_PIDS)
   - --network none          no exfiltration
   - --cap-drop ALL          no privilege escalation
   - --security-opt no-new-privileges
   - --memory / --cpus       resource limits
-  - workspace mounted as the workdir (throwaway worktree copy, not the repo)
-  - writable ~/.m2 volume   Maven dependency cache
+  - workspace mounted read-only at /work (a throwaway worktree copy, not
+    the repo itself); only /work/target is a writable sub-mount so Maven
+    can produce build output while the source tree stays immutable
+  - writable ~/.m2 volume   Maven dependency cache at /home/maven/.m2
+    (pinned via MAVEN_USER_HOME + MAVEN_OPTS=-Duser.home, see below; the
+    maven image has no dedicated user, so the cache volume must be seeded
+    with uid 1000 ownership — see scripts/seed_sandbox_cache.ps1 and
+    docs/operations/RUNBOOK.md §5). Volume name defaults to the non-root
+    specproof-maven-cache-1000; SPECPROOF_SANDBOX_M2_VOLUME can select the
+    legacy root-layout volume specproof-maven-cache explicitly.
   - --tmpfs /tmp            no persistence between runs
   - no docker.sock, no host env vars passed
 
@@ -27,6 +37,47 @@ import subprocess
 from dataclasses import dataclass
 
 DEFAULT_IMAGE = "maven:3.9-eclipse-temurin-21"
+
+# §12 sandbox hardening (P6): workloads run as uid/gid 1000, never root.
+# The maven image ships no dedicated user, but docker auto-creates the
+# /home/maven/.m2 volume mountpoint at container start.
+SANDBOX_USER = "1000:1000"
+
+# Maven user home inside the container. Verified against
+# maven:3.9-eclipse-temurin-21 (Maven 3.9.9, Temurin JDK 21):
+#   - MavenWrapperMain 3.3.2 honors the MAVEN_USER_HOME env var and treats
+#     its value as the ~/.m2 directory itself: the wrapper distribution
+#     lands at <MAVEN_USER_HOME>/wrapper/dists. With the value /home/maven
+#     it tried /home/maven/wrapper instead — not on the cache volume and
+#     not writable by uid 1000 (verified: AccessDeniedException). So the
+#     env value must be /home/maven/.m2.
+#   - mvn itself ignores MAVEN_USER_HOME, and the JDK derives user.home
+#     from /etc/passwd (uid 1000 -> /home/ubuntu), not from $HOME. So
+#     MAVEN_OPTS=-Duser.home=/home/maven is what actually pins the local
+#     repository and user settings to the cache volume.
+# Together the dependency cache AND the wrapper dist live on the seeded
+# cache volume below, which is required for offline (-o) builds under
+# --network none.
+MAVEN_HOME = "/home/maven"
+MAVEN_USER_HOME_ENV = f"{MAVEN_HOME}/.m2"
+
+# Process-table cap inside the sandbox; a fork bomb in PR code must not
+# exhaust the host pids controller. SPECPROOF_SANDBOX_PIDS overrides.
+DEFAULT_PIDS_LIMIT = "256"
+
+# Maven cache volume name. The non-root layout needs a volume seeded
+# with uid-1000 ownership (specproof-maven-cache-1000, see
+# scripts/seed_sandbox_cache.ps1) — that is the DEFAULT. The legacy
+# root-layout volume specproof-maven-cache (kept mounted at /root/.m2
+# by long-running full evaluations) is only used when explicitly selected
+# via SPECPROOF_SANDBOX_M2_VOLUME; never prune or rebuild it.
+DEFAULT_M2_VOLUME = "specproof-maven-cache-1000"
+
+
+def _m2_volume() -> str:
+    """Cache volume name: SPECPROOF_SANDBOX_M2_VOLUME overrides the non-root default."""
+    value = os.getenv("SPECPROOF_SANDBOX_M2_VOLUME", "").strip()
+    return value or DEFAULT_M2_VOLUME
 
 # Pull attempts are process-global: a registry outage must cost ONE failed
 # pull (a few seconds), not a hanging 900s pull per Maven invocation.
@@ -69,6 +120,23 @@ def _image_ready(image: str) -> bool:
         return False
 
 
+def _ensure_writable_target(workspace: str) -> str:
+    """Pre-create the workspace target/ dir the writable sub-mount needs.
+
+    Returns "" on success, an error otherwise. Under DooD (docker:dind) the
+    daemon would otherwise create target/ as root, and the non-root Maven
+    could not write into it; on local Docker Desktop the nested mount source
+    must exist before `docker run` resolves it. Idempotent — the pipeline
+    always starts from a fresh worktree, and re-runs find an existing
+    container-owned target/.
+    """
+    try:
+        os.makedirs(os.path.join(workspace, "target"), exist_ok=True)
+        return ""
+    except OSError as exc:
+        return f"cannot create workspace target dir: {exc}"[:300]
+
+
 def _pull_image(image: str) -> str:
     """Pull the sandbox image ONCE per process.
 
@@ -104,8 +172,17 @@ def _run_docker(command: list[str], workspace: str, timeout: int) -> SandboxResu
                 exit_code=-1, stdout="", stderr="",
                 error=f"sandbox image unavailable: {err}", mode="docker",
             )
+    target_err = _ensure_writable_target(workspace)
+    if target_err:
+        return SandboxResult(
+            exit_code=-1, stdout="", stderr="",
+            error=target_err, mode="docker",
+        )
     docker_cmd = [
         "docker", "run", "--rm",
+        # §12: never root, with a pids-controller cap against fork bombs.
+        "--user", SANDBOX_USER,
+        "--pids-limit", os.getenv("SPECPROOF_SANDBOX_PIDS", DEFAULT_PIDS_LIMIT),
         "--network", "none",
         "--cap-drop", "ALL",
         "--security-opt", "no-new-privileges",
@@ -115,8 +192,19 @@ def _run_docker(command: list[str], workspace: str, timeout: int) -> SandboxResu
         # container, not the host's temp directory. The path is assembled
         # from parts so no bare /tmp literal trips static scanners.
         "--tmpfs", f"{os.path.join('/', 'tmp')}:rw,noexec,nosuid,size=512m",
-        "-v", f"{workspace}:/work",
-        "-v", "specproof-maven-cache:/root/.m2",
+        # Maven must resolve dependencies and the wrapper distribution from
+        # the seeded cache volume even with --network none. See MAVEN_USER_HOME
+        # above for why both variables are required.
+        "-e", f"MAVEN_USER_HOME={MAVEN_USER_HOME_ENV}",
+        "-e", f"MAVEN_OPTS=-Duser.home={MAVEN_HOME}",
+        # Read-only workspace + a writable target sub-mount: the source
+        # tree stays immutable while Maven produces target/ (classes,
+        # surefire reports, H2 state) that the pipeline reads back for
+        # evidence. The workspace is a disposable worktree copy, not the
+        # repository itself.
+        "-v", f"{workspace}:/work:ro",
+        "-v", f"{workspace}/target:/work/target",
+        "-v", f"{_m2_volume()}:{MAVEN_USER_HOME_ENV}",
         "-w", "/work",
         image,
         *command,

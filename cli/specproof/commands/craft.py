@@ -1,0 +1,327 @@
+"""specproof craft — SpecCraft M1 deterministic skeleton (design doc 附录 A).
+
+M1 subcommands: plan / run / resume / explain. `accept` is M7 and is NOT
+implemented here (no placeholder endpoint).
+
+Honesty notes for M1:
+- LLM is not wired (M2 scope): --no-llm is the only real mode; running
+  without it degrades per §9 to the rule-based planner and everything is
+  labelled mode=deterministic.
+- Fix rules are EXPLICITLY injected via --fix-module (a Python module
+  exporting FIXES: dict[str, Callable]) — that is the design §4.4 "显式注入
+  fix 函数". Without one, failing steps report FAILED honestly.
+- The self-verify layer is M3: --no-self-verify is accepted and M1 always
+  skips it, marking report.self_verify.status = not_implemented.
+"""
+
+from __future__ import annotations
+
+import importlib
+import importlib.util
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+import click
+
+from craft.budget import Budget, BudgetError
+from craft.loop import CraftLoop, CraftLoopError, FixFunction
+from craft.planner import CraftModeError, CraftPlanError, Plan, compile_plan
+from craft.spec import SpecParseError, parse_spec
+
+
+def _llm_note(no_llm: bool) -> str:
+    if no_llm:
+        return "确定性规则模式 (--no-llm)"
+    return "M1: LLM 规划未接线 (M2 范围), 已按 §9 降级为确定性规则模式 (mode=deterministic)"
+
+
+def _load_fix_registry(
+    module_spec: str | None, base_dir: Path | None = None
+) -> dict[str, FixFunction]:
+    """Load explicitly injected fix rules (module name or .py file path).
+
+    Relative file paths are resolved against base_dir (the --repo root).
+    """
+    if not module_spec:
+        return {}
+    candidate = Path(module_spec)
+    if not candidate.is_absolute() and base_dir is not None:
+        candidate = base_dir / candidate
+    if candidate.suffix == ".py" or candidate.is_file():
+        if not candidate.is_file():
+            raise click.ClickException("fix 模块文件不存在: " + module_spec)
+        module_name = "specproof_craft_fixes_" + candidate.stem
+        spec = importlib.util.spec_from_file_location(module_name, candidate)
+        if spec is None or spec.loader is None:
+            raise click.ClickException("无法加载 fix 模块文件: " + module_spec)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    else:
+        try:
+            module = importlib.import_module(module_spec)
+        except ImportError as exc:
+            raise click.ClickException(
+                "fix 模块导入失败: " + module_spec + " (" + str(exc) + ")"
+            ) from exc
+    fixes = getattr(module, "FIXES", None)
+    if not isinstance(fixes, dict):
+        raise click.ClickException("fix 模块 " + module_spec + " 未导出 FIXES: dict[str, Callable]")
+    registry: dict[str, FixFunction] = {}
+    for key, fix in fixes.items():
+        if not isinstance(key, str) or not callable(fix):
+            raise click.ClickException(
+                "FIXES 的键必须为 str、值为可调用对象 (发现 " + repr(key) + ")"
+            )
+        registry[key] = fix
+    return registry
+
+
+def _compact(value: object, limit: int = 200) -> object:
+    if isinstance(value, str) and len(value) > limit:
+        return value[:limit] + "..."
+    return value
+
+
+def _echo_plan(plan: Plan, plan_path: Path | None, note: str) -> None:
+    click.echo("SpecCraft 计划 — " + plan.task_title)
+    click.echo("mode=" + plan.mode + "  (" + note + ")")
+    for step in plan.steps:
+        criteria = step.success_criteria
+        targets = ",".join(step.target_files) or "-"
+        suffix = "(" + criteria.value + ")" if criteria.value else ""
+        click.echo(
+            "  " + step.id + " [" + step.kind + "] " + step.intent
+            + " | target=" + targets + " | criteria=" + criteria.type + suffix
+        )
+    click.echo("risk=" + str(plan.risk_classification))
+    click.echo("budget_alloc=" + str(plan.budget_alloc))
+    if plan_path is not None:
+        click.echo("plan.json → " + str(plan_path))
+
+
+def _echo_report(report: dict[str, Any], artifact_dir: Path) -> None:
+    click.echo(
+        "job_id=" + str(report["job_id"]) + "  mode=" + str(report["mode"])
+        + "  result=" + str(report["result"])
+    )
+    for step in report["steps"]:
+        evidence = {key: _compact(value) for key, value in step["evidence"].items()}
+        click.echo(
+            "  " + str(step["id"]) + " [" + str(step["kind"]) + "] " + str(step["status"])
+            + " (iterations=" + str(step["iterations"]) + ") evidence=" + str(evidence)
+        )
+    click.echo("diff_stat=" + str(report["diff_stat"]))
+    click.echo("self_verify=" + str(report["self_verify"]))
+    click.echo("budget_used=" + str(report["budget_used"]))
+    click.echo("产物目录: " + str(artifact_dir))
+    click.echo("续跑: specproof craft resume --job " + str(report["job_id"]) + " --repo <repo>")
+
+
+@click.group(name="craft")
+def craft_cmd() -> None:
+    """SpecCraft — 自主开发 Agent (M1: 确定性骨架, LLM 为 M2 范围)."""
+
+
+@craft_cmd.command("plan")
+@click.argument("spec", metavar="SPEC")
+@click.option(
+    "--repo",
+    default=".",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="仓库路径 (计划输出与工作目录)",
+)
+@click.option("--no-llm", is_flag=True, default=False, help="M1: 确定性规则模式 (当前唯一实现)")
+@click.option(
+    "--output",
+    default=None,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="plan.json 输出目录 (默认 <repo>/.specraft)",
+)
+def craft_plan(spec: str, repo: Path, no_llm: bool, output: Path | None) -> None:
+    """生成确定性计划并写出 plan.json。SPEC 可为纯文本 / JSON / spec 文件路径。"""
+    try:
+        task = parse_spec(spec, cwd=repo)
+        budget = Budget.from_env()
+        plan = compile_plan(task, budget=budget)
+    except (SpecParseError, BudgetError, CraftModeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    out_dir = output if output is not None else repo / ".specraft"
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        plan.save(out_dir / "plan.json")
+    except (OSError, CraftPlanError) as exc:
+        raise click.ClickException("无法写出计划: " + str(exc)) from exc
+    _echo_plan(plan, out_dir / "plan.json", _llm_note(no_llm))
+
+
+@craft_cmd.command("run")
+@click.argument("spec", metavar="SPEC")
+@click.option(
+    "--repo",
+    default=".",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="仓库路径 (工作目录与产物根)",
+)
+@click.option(
+    "--max-iterations",
+    type=int,
+    default=None,
+    help="迭代上限 (覆盖 CRAFT_MAX_ITERATIONS)",
+)
+@click.option(
+    "--budget-tokens",
+    type=int,
+    default=None,
+    help="token 预算 (M1 无 LLM, 实际消耗恒为 0; 覆盖 CRAFT_TOKEN_BUDGET)",
+)
+@click.option(
+    "--timeout",
+    type=int,
+    default=None,
+    metavar="MIN",
+    help="任务时间预算, 分钟 (覆盖 CRAFT_TIMEOUT_MINUTES)",
+)
+@click.option("--no-llm", is_flag=True, default=False, help="M1: 确定性规则模式 (当前唯一实现)")
+@click.option(
+    "--no-self-verify",
+    is_flag=True,
+    default=False,
+    help="M1: 自校验层为 M3 范围, 默认跳过并在 report 标注 not_implemented",
+)
+@click.option("--dry-run", is_flag=True, default=False, help="只输出计划, 不执行、不落产物")
+@click.option(
+    "--fix-module",
+    default=None,
+    metavar="MODULE",
+    help="注入确定性 fix 规则的 Python 模块 (需导出 FIXES: dict[str, Callable])",
+)
+def craft_run(
+    spec: str,
+    repo: Path,
+    max_iterations: int | None,
+    budget_tokens: int | None,
+    timeout: int | None,
+    no_llm: bool,
+    no_self_verify: bool,
+    dry_run: bool,
+    fix_module: str | None,
+) -> None:
+    """执行 SpecCraft 计划 (plan → execute → verify 循环)。"""
+    try:
+        task = parse_spec(spec, cwd=repo)
+        budget = Budget.from_env().with_overrides(
+            max_iterations=max_iterations,
+            token_budget=budget_tokens,
+            timeout_minutes=timeout,
+        )
+        plan = compile_plan(task, budget=budget)
+    except (SpecParseError, BudgetError, CraftModeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    if dry_run:
+        click.echo("--dry-run: 仅生成计划, 不执行")
+        _echo_plan(plan, None, _llm_note(no_llm))
+        return
+    click.echo(_llm_note(no_llm))
+    if not no_self_verify:
+        click.echo(
+            "M1: 自校验层为 M3 范围, 本次运行跳过自校验 "
+            "(report.self_verify.status=not_implemented)"
+        )
+    fix_registry = _load_fix_registry(fix_module, base_dir=repo)
+    loop = CraftLoop(task, plan, repo, budget=budget, fix_registry=fix_registry)
+    report = loop.run()
+    _echo_report(report, loop.artifact_dir)
+    if report["result"] != "DONE":
+        sys.exit(1)
+
+
+@craft_cmd.command("resume")
+@click.option("--job", "job_id", required=True, metavar="JOB_ID", help="要续跑的作业 id")
+@click.option(
+    "--repo",
+    default=".",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="仓库路径 (读取 <repo>/.specraft/jobs/JOB_ID)",
+)
+@click.option("--max-iterations", type=int, default=None, help="续跑轮次的迭代上限")
+@click.option(
+    "--fix-module",
+    default=None,
+    metavar="MODULE",
+    help="注入确定性 fix 规则的 Python 模块",
+)
+def craft_resume(
+    job_id: str, repo: Path, max_iterations: int | None, fix_module: str | None
+) -> None:
+    """从 .specraft/jobs/JOB_ID/checkpoint.json 续跑 (最后一个绿步骤之后)。"""
+    artifact_dir = repo / ".specraft" / "jobs" / job_id
+    if not (artifact_dir / "checkpoint.json").is_file():
+        raise click.ClickException(
+            "未找到可恢复的作业产物: " + str(artifact_dir) + " (checkpoint.json 不存在)"
+        )
+    budget = Budget.from_env()
+    if max_iterations is not None:
+        budget = budget.with_overrides(max_iterations=max_iterations)
+    try:
+        loop = CraftLoop.from_checkpoint(
+            artifact_dir,
+            fix_registry=_load_fix_registry(fix_module, base_dir=repo),
+            budget=budget,
+        )
+    except (CraftLoopError, CraftPlanError, BudgetError) as exc:
+        raise click.ClickException("恢复失败: " + str(exc)) from exc
+    report = loop.run()
+    _echo_report(report, loop.artifact_dir)
+    if report["result"] != "DONE":
+        sys.exit(1)
+
+
+@craft_cmd.command("explain")
+@click.argument("step_id", metavar="STEP_ID")
+@click.option("--job", "job_id", required=True, metavar="JOB_ID", help="作业 id")
+@click.option(
+    "--repo",
+    default=".",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="仓库路径 (读取 <repo>/.specraft/jobs/JOB_ID)",
+)
+def craft_explain(step_id: str, job_id: str, repo: Path) -> None:
+    """解释某一步骤的决策依据 (计划 + 该步骤的 checkpoint 记录, 审计可读)。"""
+    artifact_dir = repo / ".specraft" / "jobs" / job_id
+    report_path = artifact_dir / "report.json"
+    checkpoint_path = artifact_dir / "checkpoint.json"
+    if not report_path.is_file():
+        raise click.ClickException("该作业尚无终态报告: " + str(report_path))
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        checkpoint = (
+            json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            if checkpoint_path.is_file()
+            else {}
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise click.ClickException("读取作业产物失败: " + str(exc)) from exc
+    steps = report.get("steps", []) if isinstance(report, dict) else []
+    found = next((s for s in steps if isinstance(s, dict) and s.get("id") == step_id), None)
+    if found is None:
+        raise click.ClickException("步骤 " + step_id + " 不存在于作业 " + job_id + " 的 report")
+    entries: list[object] = []
+    if isinstance(checkpoint, dict):
+        raw = checkpoint.get("entries", [])
+        entries = [
+            entry for entry in raw if isinstance(entry, dict) and entry.get("step_id") == step_id
+        ]
+    click.echo(
+        json.dumps(
+            {"job_id": job_id, "step": found, "checkpoint_entries": entries},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )

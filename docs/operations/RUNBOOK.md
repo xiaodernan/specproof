@@ -23,8 +23,10 @@
     # 基础设施 (六容器, 健康检查等待)
     docker compose -f compose.phase0.yml up -d --wait
 
-    # 应用服务 (api + worker; SPECPROOF_API_KEY 必填否则 fail-closed)
+    # 应用服务 (api + worker + outbox-relay + sandbox DooD 守护进程; SPECPROOF_API_KEY 必填否则 fail-closed)
     export SPECPROOF_API_KEY='<强随机值>'
+    # 首次启动前必须先预置沙箱卷 (scripts/seed_sandbox_cache.ps1, §5),
+    # 并把 maven 沙箱镜像预拉进 DooD 守护进程 (§5)。
     docker compose -f compose.phase0.yml -f compose.production.yml up -d
 
     # Control Plane (另开, 共享同一 MySQL)
@@ -65,16 +67,65 @@
 - 沙箱镜像: 预拉 maven:3.9-eclipse-temurin-21; 拉取失败有进程级缓存
   (一次只付一次超时代价)。Docker Hub 不可达时置
   SPECPROOF_SANDBOX=local 并确认 JDK21 在宿主机可用。
-- **沙箱 Maven 缓存卷必须预置 (关键)**。沙箱容器一律 --network none,
-  任何依赖都只能来自命名卷 specproof-maven-cache。空卷会让差分执行
-  以 "Unknown host repo.maven.apache.org" 静默失败 (Base/Head 双 1 ->
-  AMBIGUOUS -> 执行级案例全部漏检)。预置方法:
-  宿主机先完整跑过一次 mvnw (缓存齐全) 后执行
-  `scripts/seed_sandbox_cache.ps1` (或 Linux 等价命令: 把
-  ~/.m2/repository 拷入该卷 /root/.m2/repository), 并用
-  `docker run --rm --network none -v specproof-maven-cache:/root/.m2
-  -v <demo>:/work -w /work maven:3.9-eclipse-temurin-21 mvn -q -o test-compile`
-  冒烟确认。依赖变更后需重新预置。
+- **沙箱 Maven 缓存卷必须预置 (关键)**。沙箱容器一律 --network none
+  且以非 root (--user 1000:1000) 运行, 任何依赖都只能来自命名卷
+  specproof-maven-cache-1000 (容器内挂 /home/maven/.m2, 也是 runner 的
+  默认缓存卷)。卷名由 SPECPROOF_SANDBOX_M2_VOLUME 控制; 旧卷名
+  specproof-maven-cache (root 布局, 供长时全量评测等旧部署继续使用,
+  需显式设置该变量才会挂载) — 不要删除或 prune 旧卷。空卷会让差分
+  执行以 "Unknown host repo.maven.apache.org"
+  静默失败 (Base/Head 双 1 -> AMBIGUOUS -> 执行级案例全部漏检)。预置
+  方法: 宿主机先完整跑过一次 mvnw (缓存齐全) 后执行
+  `scripts/seed_sandbox_cache.ps1` (该脚本只动 -1000 卷)。脚本:
+  (a) 把 ~/.m2/repository 拷入卷内 /home/maven/.m2/repository 并 chown
+  1000:1000; (b) 联网跑一次 demo 的 mvnw 把 Wrapper 发行版
+  (apache-maven-3.9.9) 拉入卷内 /home/maven/.m2/wrapper/dists;
+  (c) 在 base tag 的干净 worktree 上冒烟确认离线编译:
+  `docker run --rm --network none --user 1000:1000 -e
+  MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven"
+  -v specproof-maven-cache-1000:/home/maven/.m2 -v <副本>:/work:ro
+  -v <副本>/target:/work/target -w /work
+  maven:3.9-eclipse-temurin-21 mvn -q -o test-compile`。
+  依赖变更或 Wrapper 版本变更后需重新预置。
+
+- **沙箱容器非 root / 只读源码**。sandbox/runner.py 固定
+  `--user 1000:1000`、`--pids-limit 256` (SPECPROOF_SANDBOX_PIDS 可调)。
+  workspace 以 `:ro` 挂载 /work, 仅 /work/target 是可写子挂载 (Maven
+  输出)。注: workspace 是每次运行新建的可丢弃 worktree 副本, 非仓库
+  本体。maven 镜像内没有 maven 用户, MAVEN_USER_HOME 需指向
+  /home/maven/.m2 (Wrapper 把该值当 ~/.m2 本身用), Maven 本地仓库则靠
+  MAVEN_OPTS=-Duser.home=/home/maven 钉住 (mvn 3.9.9 忽略
+  MAVEN_USER_HOME 环境变量, JDK21 的 user.home 来自 /etc/passwd, 均已
+  实测)。
+
+- **DooD: 生产不挂宿主机 docker.sock (§12)**。compose.production.yml
+  的 worker 通过 DOCKER_HOST=tcp://sandbox:2375 使用专用
+  docker:dind 守护进程 (sandbox 服务, privileged, TLS 关闭, 端口
+  2375 为实测值: TLS 关闭时 dind 绑 2375, 2376 是 TLS 端口)。这是
+  Docker-in-Docker 而非 socket 透传, 与 §12 不冲突; 但 TCP 无认证仅限
+  compose 内网使用, 不要向宿主机发布该端口。rootless 变体
+  (docker:27-dind-rootless) 已实测不可用 (dockerd 启动即失败:
+  "error setting up default driver: chmod /home/rootless/.local/
+  share/docker/volumes: operation not permitted", 且 rootless 的
+  subordinate-uid 重映射会破坏共享卷上的文件属主), 故采用 docker:dind。
+  运维要点: (a) 卷桥接 — specproof-maven-cache-1000 挂在 dind 的卷存储路径
+  /var/lib/docker/volumes/specproof-maven-cache-1000/_data, 使沙箱容器内的
+  `-v specproof-maven-cache-1000:/home/maven/.m2` 命中预置缓存 (worker 侧
+  已通过 SPECPROOF_SANDBOX_M2_VOLUME=specproof-maven-cache-1000 指定);
+  (b) specproof-workspaces 卷由 worker(uid 1000)与 sandbox 共享,
+  worker 的 TMPDIR=/workspaces 让 worktree 路径在 dind 侧同名可见;
+  (c) 首次起 sandbox 后把沙箱镜像预拉进 dind:
+  `docker compose -f compose.phase0.yml -f compose.production.yml exec
+  sandbox docker pull maven:3.9-eclipse-temurin-21`;
+  (d) dind 首跑会 chown 卷存储目录, 之后重跑 seed 脚本可恢复 1000 属主。
+
+- **Outbox Relay 是生产必需组件**。compose.production.yml 的
+  outbox-relay 服务 (复用 worker 镜像, `python -m storage.outbox_relay`)
+  把 MySQL outbox 表行中继到 RabbitMQ — 没有它 webhook 建单会一直
+  QUEUED。它暴露 :9101 (OUTBOX_RELAY_METRICS_PORT, Prometheus 抓取
+  outbox-relay:9101/metrics)。api/worker 的 OTEL 链路经
+  OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 汇入观测栈
+  (compose.observability.yml)。
 
 ## 6. 故障手册
 
@@ -91,6 +142,10 @@
 
 ## 7. 安全与密钥轮换
 
+- 沙箱加固 (§12): 沙箱容器以 --user 1000:1000 非 root 运行, 带
+  --pids-limit/--network none/--cap-drop ALL/no-new-privileges;
+  源码只读挂载, 仅 target 可写; worker 与 sandbox 之间没有任何
+  /var/run/docker.sock 挂载 (DooD 走 tcp://sandbox:2375, 见 §5)。
 - 密钥只从环境变量 / Docker Secret 读取; 仓库中只有 .env.example 占位符。
 - 轮换 GITHUB_WEBHOOK_SECRET: 改 secret -> 重启 api 与 CP -> GitHub App
   端同步更新 (期间 webhook 401, 不丢事件 — GitHub 会重投, 幂等兜底)。
@@ -111,4 +166,5 @@
 2. POST /jobs 创建一个 FAST job -> 观察 QUEUED->RUNNING->终态。
 3. 带 --publish-check 跑一次 RELEASE -> 日志显示 Check Run 发布或明确跳过原因。
 4. 重复投递同一 webhook delivery -> duplicate_delivery, 不产生第二个 job。
-5. 用 docker 沙箱跑一个验证, 确认 --network none 生效 (报告 environment 段)。
+5. 用 docker 沙箱跑一个验证, 确认 --network none 生效 (报告 environment 段),
+   并确认容器非 root 运行 (`docker inspect` 的 .Config.User 为 "1000:1000")。

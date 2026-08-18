@@ -42,17 +42,26 @@ class ModelProvider(ABC):
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str | None = None,
         response_format: dict[str, Any] | None = None,
-        thinking: bool = False,
+        thinking: bool | dict[str, Any] = False,
+        opts: dict[str, Any] | None = None,
         timeout: float = 180.0,
     ) -> LLMResponse:
-        """Send a chat completion request. Non-streaming."""
+        """Send a chat completion request. Non-streaming.
+
+        thinking: False/None → no thinking control (legacy behavior);
+                  True → {"type": "enabled"} when the gateway supports it;
+                  dict → raw thinking payload passed through verbatim.
+        opts: raw extra-body fields merged last (they win conflicts) —
+              the escape hatch for gateway-specific knobs.
+        """
 
     @abstractmethod
     async def chat_stream(
         self,
         messages: list[LLMMessage],
         tools: list[dict[str, Any]] | None = None,
-        thinking: bool = False,
+        thinking: bool | dict[str, Any] = False,
+        opts: dict[str, Any] | None = None,
         timeout: float = 180.0,
     ) -> AsyncIterator[LLMResponse]:
         """Send a streaming chat completion request."""
@@ -63,5 +72,6 @@ class ModelProvider(ABC):
 
         Keys: chat, streaming, json_output, tool_calls,
               strict_tool_calls, thinking, thinking_with_tools,
-              usage_reporting, error_codes, rate_limit_headers
+              reasoning_content, usage_reporting, error_codes,
+              rate_limit_headers
         """

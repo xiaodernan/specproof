@@ -9,6 +9,8 @@ jobs:
   nightly-eval:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,12 +26,27 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Seed sandbox Maven cache (sandbox runs --network none)
+      - name: Seed sandbox Maven cache (non-root, --network none)
         run: |
-          docker volume create specproof-maven-cache
-          docker run --rm -v specproof-maven-cache:/root/.m2 \
-            -v $PWD/demo/spring-backend:/work -w /work \
+          docker volume create specproof-maven-cache-1000
+          # volume root must be uid-1000-owned for the non-root sandbox
+          docker run --rm -v specproof-maven-cache-1000:/m2 \
+            maven:3.9-eclipse-temurin-21 sh -c "chown -R 1000:1000 /m2"
+          # dependencies land in the cache volume (network available here)
+          docker run --rm --user 1000:1000 \
+            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
+            -v specproof-maven-cache-1000:/home/maven/.m2 \
+            -v $PWD/demo/spring-backend:/work:ro -w /work \
             maven:3.9-eclipse-temurin-21 mvn -q -DskipTests dependency:go-offline
+          # wrapper jar is git-ignored (*.jar); fetch it so mvnw can place
+          # the wrapper distribution in the cache volume
+          curl -fsSL -o demo/spring-backend/.mvn/wrapper/maven-wrapper.jar \
+            https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar
+          docker run --rm --user 1000:1000 \
+            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
+            -v specproof-maven-cache-1000:/home/maven/.m2 \
+            -v $PWD/demo/spring-backend:/work:ro -w /work \
+            maven:3.9-eclipse-temurin-21 ./mvnw -q -v
       - name: Nightly golden-case evaluation
         run: |
           python -m cli.specproof.main eval \

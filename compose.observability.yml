@@ -1,0 +1,64 @@
+# SpecProof Observability Profile (PRODUCTION_SPEC §17): otel-collector + prometheus + grafana
+#
+# 多文件组合用法 (本文件不设置顶层 name, 项目名/网络随最后一个设置 name 的文件):
+#   仅观测栈 (与已 up 的 phase0 栈并存, 共用 specproof-phase0 网络):
+#     docker compose -f compose.phase0.yml -f compose.observability.yml up -d otel-collector prometheus grafana
+#   生产三文件组合 (api/worker/观测栈同项目同网络, api:8000 与 worker:9100 服务名直达):
+#     docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observability.yml up -d
+#   校验:
+#     docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observability.yml config
+#
+# 依赖关系: 不强依赖 worker/outbox-relay (未起时对应目标 down, 属正常);
+# api/metrics 可达即可 — 通过服务名 DNS 抓取, 因此无 depends_on 应用栈服务。
+#
+# 端口: 4317(OTLP gRPC) / 4318(OTLP HTTP) / 8889(collector prom exporter) /
+#       9090(prometheus) / 3000(grafana), 均可经环境变量覆盖 (冲突时改左边值)。
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.123.0
+    command: ["--config=/etc/otel-collector/otel-collector.yaml"]
+    volumes:
+      - ./infra/otel/otel-collector.yaml:/etc/otel-collector/otel-collector.yaml:ro
+    ports:
+      - "${OTEL_OTLP_GRPC_PORT:-4317}:4317"
+      - "${OTEL_OTLP_HTTP_PORT:-4318}:4318"
+      - "${OTEL_PROM_EXPORTER_PORT:-8889}:8889"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.3.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/alerts-slo.yml:/etc/prometheus/alerts-slo.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.6.1
+    environment:
+      # 首次登录 admin / ${GRAFANA_ADMIN_PASSWORD:-specproof_admin} — 生产必须更换!
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-specproof_admin}
+      GF_SECURITY_ADMIN_USER: admin
+      # 匿名只读 (Viewer), 便于看板免登录展示; 生产若需强制登录可改为 false。
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./infra/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -2,6 +2,7 @@
 
 Commands:
     specproof probe      Run LLM provider capability probe
+    specproof craft      SpecCraft autonomous coding agent (M1 deterministic)
     specproof verify     Run a verification job
     specproof replay     Replay a bug capsule
     specproof eval       Run evaluation across golden cases
@@ -19,6 +20,7 @@ if str(_project_root) not in sys.path:
 
 from cli.specproof.commands.baseline import baseline_cmd  # noqa: E402
 from cli.specproof.commands.contract import contract_cmd  # noqa: E402
+from cli.specproof.commands.craft import craft_cmd  # noqa: E402
 from cli.specproof.commands.eval import eval_cmd  # noqa: E402
 from cli.specproof.commands.fix import approve_cmd, fix_cmd  # noqa: E402
 from cli.specproof.commands.probe import probe  # noqa: E402
@@ -37,6 +39,7 @@ cli.add_command(verify)
 cli.add_command(replay)
 cli.add_command(eval_cmd)
 cli.add_command(contract_cmd)
+cli.add_command(craft_cmd)
 cli.add_command(baseline_cmd)
 cli.add_command(fix_cmd)
 cli.add_command(approve_cmd)

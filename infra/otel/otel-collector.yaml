@@ -1,0 +1,48 @@
+# SpecProof OpenTelemetry Collector (PRODUCTION_SPEC §8.10 / §17 Observability Profile)
+#
+# 自托管、零外部 SaaS:
+#   - 接收: OTLP gRPC (4317) + OTLP HTTP (4318), 与 observability/tracing.py 的
+#     OTLPSpanExporter 配套 (api 默认端点 http://localhost:4318/v1/traces)。
+#   - 导出: 指标 → 内嵌 prometheus exporter (0.0.0.0:8889), 由 Prometheus 抓取;
+#           Trace → debug exporter (开发/排障用)。Trace 后端 (Tempo/Jaeger) 部署后,
+#           在 service.pipelines.traces.exporters 中追加 otlphttp 转发即可。
+#
+# 批处理参数: batch 处理器 5s 超时 / 1024~2048 span 批, memory_limiter 防 OOM。
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: otelcol
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+  telemetry:
+    logs:
+      level: info

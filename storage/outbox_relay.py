@@ -6,6 +6,7 @@ SKIP LOCKED so multiple relay instances are safe.
 
 import contextlib
 import logging
+import os
 import signal
 import time
 from typing import Any
@@ -100,6 +101,14 @@ class OutboxRelay:
         """Run the relay loop until stopped by signal."""
         self._running = True
         self.rabbitmq.ensure_topology()
+
+        # P6: 进程内 /metrics (Prometheus 抓取目标 outbox-relay:9101),
+        # 暴露 specproof_outbox_pending 积压 gauge。
+        from observability.metrics_http import serve_metrics_in_thread
+
+        serve_metrics_in_thread(
+            port=int(os.getenv("OUTBOX_RELAY_METRICS_PORT", "9101"))
+        )
         logger.info(
             "OutboxRelay started (poll=%.1fs, batch=%d)",
             self.poll_interval, self.batch_size,

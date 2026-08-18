@@ -1,0 +1,103 @@
+# SpecProof SLO 告警规则 (PRODUCTION_SPEC §14 可自动化部分)
+#
+# 阈值变量化说明: Prometheus 规则文件不支持模板变量, 所有阈值集中在本文件
+# 顶部的 THRESHOLDS 表中, 调整只需改对应规则的 expr/for (单一修改点)。
+#
+# THRESHOLDS (出处: docs/PRODUCTION_SPEC.txt §14 "SLO 与生产质量")
+#   OUTBOX_PENDING_THRESHOLD = 50     ← §14 可用性 "Job 不丢失: Outbox + MQ + 幂等"
+#                                        积压 50 条 = 丢失/延迟前兆, for 5m
+#   API_5XX_RATE_THRESHOLD   = 0.05   ← §14 可用性 "Control Plane 月可用性 99.5%"
+#                                        5 分钟窗口内 5xx 占比 > 5% 即告警
+#   WORKER_FAIL_RATE_THRESHOLD = 0.30 ← §14 质量目标 (BLOCKER/MAJOR Precision >= 90%,
+#                                        Capsule Replay >= 95% 的前置条件)
+#                                        15 分钟窗口内失败率 > 30% 触发排查
+#   JOB_P95_FAST_SECONDS     = 480    ← §14 性能 "FAST 小 PR p95 <= 8 分钟"
+#   JOB_P95_DEEP_SECONDS     = 1500   ← §14 性能 "DEEP 小 PR p95 <= 25 分钟"
+#                                        (当前 jobs_duration_seconds 无 depth 标签,
+#                                        暂用 FAST 阈值 480s 作统一上界; 标签化后
+#                                        再按 FAST/DEEP 分别告警)
+
+groups:
+  - name: specproof-slo
+    rules:
+      # ── 目标 down (§14 可用性) ──────────────────────────────────────
+      - alert: SpecproofApiDown
+        expr: up{job="api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SpecProof API 抓取目标 down"
+          description: "{{ $labels.instance }} 已 {{ $value }} 超过 1 分钟 (§14: Control Plane 月可用性 99.5%)。"
+
+      - alert: SpecproofWorkerDown
+        expr: up{job="worker"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof worker 抓取目标 down"
+          description: "{{ $labels.instance }} 超过 5 分钟不可抓取 (§14: Job 不丢失依赖 worker 消费)。"
+
+      - alert: SpecproofOutboxRelayDown
+        expr: up{job="outbox-relay"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof outbox relay 抓取目标 down"
+          description: "{{ $labels.instance }} 超过 5 分钟不可抓取 (§14: Job 不丢失依赖 Outbox 投递)。"
+
+      # ── Outbox 积压 (§14 可用性: Job 不丢失) ────────────────────────
+      - alert: SpecproofOutboxBacklogHigh
+        expr: specproof_outbox_pending > 50
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SpecProof outbox 积压超过阈值 (OUTBOX_PENDING_THRESHOLD=50)"
+          description: "outbox 未投递事件 {{ $value }} 条, 持续 5 分钟 (§14: Job 不丢失 — 积压是丢失/重复风险前兆)。"
+
+      # ── API 5xx 率 (§14 可用性 99.5%) ──────────────────────────────
+      - alert: SpecproofApiHigh5xxRate
+        expr: >
+          (
+            sum(rate(specproof_http_responses_5xx_total[5m]))
+            /
+            clamp_min(sum(rate(specproof_http_requests_total[5m])), 1e-9)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof API 5xx 率超过阈值 (API_5XX_RATE_THRESHOLD=0.05)"
+          description: "5 分钟窗口 5xx 占比 {{ $value | humanizePercentage }} (§14: Control Plane 月可用性 99.5%)。"
+
+      # ── worker 失败率 (§14 质量目标) ────────────────────────────────
+      - alert: SpecproofWorkerFailureRateHigh
+        expr: >
+          (
+            sum(increase(specproof_jobs_failed_total[15m]))
+            /
+            clamp_min(sum(increase(specproof_jobs_completed_total[15m])), 1)
+          ) > 0.30
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof job 失败率超过阈值 (WORKER_FAIL_RATE_THRESHOLD=0.30)"
+          description: "15 分钟窗口内失败/完成比 {{ $value | humanizePercentage }} (§14 质量目标 Precision/Replay 的前置健康条件)。"
+
+      # ── Job 时长 p95 (§14 性能目标) ─────────────────────────────────
+      - alert: SpecproofJobDurationP95High
+        expr: >
+          histogram_quantile(
+            0.95,
+            sum(rate(specproof_jobs_duration_seconds_bucket[30m])) by (le)
+          ) > 480
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof job 时长 p95 超过阈值 (JOB_P95_FAST_SECONDS=480)"
+          description: "30 分钟窗口 p95 = {{ $value }}s (§14: FAST 小 PR p95 <= 8 分钟; 指标无 depth 标签, 暂以 FAST 阈值为统一上界)。"
