@@ -115,6 +115,7 @@ public class UserService {
         invalidateOldTokens(userId);
 
         EmailChangedEvent event = new EmailChangedEvent(userId, oldEmail, newEmail);
+        event.setTimestamp(null);
         rabbitTemplate.convertAndSend(
                 "specproof.demo.events",
                 "email.changed",
