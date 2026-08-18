@@ -64,10 +64,17 @@ from providers.prompt_templates import SYSTEM_BLOCK, TOOL_SCHEMA_BLOCK, assemble
 from .budget import Budget
 from .editor import EditError, Editor
 from .executor import ExecResult, Executor, extract_pytest_failed_tests
-from .llm import LLMClient, LLMUnavailableError, extract_json_object, resolve_craft_thinking
+from .llm import (
+    LLMClient,
+    LLMUnavailableError,
+    extract_json_object,
+    resolve_craft_thinking,
+    wrap_data_section,
+)
 from .memory import MemoryError, TaskMemory
 from .planner import CraftPlanError, Plan, Step, classify_task, write_json_atomic
 from .spec import TaskSpec
+from .tools import ToolRegistry
 from .verify import self_verify
 
 FixFunction = Callable[[Editor, Step, str], list[str]]
@@ -220,6 +227,7 @@ class CraftLoop:
         client: LLMClient | None = None,
         memory: TaskMemory | None = None,
         skip_self_verify: bool = False,
+        tool_registry: ToolRegistry | None = None,
     ) -> None:
         if plan.mode not in ("deterministic", "llm"):
             raise CraftLoopError(
@@ -246,11 +254,19 @@ class CraftLoop:
         self.now_fn = now_fn or time.time
         self.started_at = started_at if started_at is not None else self.now_fn()
         self.deadline = self.started_at + self.budget.timeout_minutes * 60.0
-        self.editor = Editor(
-            self.workspace,
-            backup_dir=self.artifact_dir / "backup",
-            audit_path=self.artifact_dir / "audit.jsonl",
-        )
+        self.tool_registry = tool_registry
+        if tool_registry is not None:
+            # One editor for the whole job: registry dispatches and the
+            # loop's grep reads share the audit trail, so report.diff_stat,
+            # the M3 base snapshots and memory.json stay coherent. Callers
+            # should bind the registry's editor to the job artifact dir.
+            self.editor = tool_registry.editor
+        else:
+            self.editor = Editor(
+                self.workspace,
+                backup_dir=self.artifact_dir / "backup",
+                audit_path=self.artifact_dir / "audit.jsonl",
+            )
         self.executor = Executor(self.workspace, mode=exec_mode, timeout=exec_timeout)
         self.states = states or [StepState(step=step) for step in plan.steps]
         if len(self.states) != len(plan.steps):
@@ -635,17 +651,36 @@ class CraftLoop:
                 old_value = op.get("old")
                 if not isinstance(old_value, str) or not isinstance(new_value, str):
                     raise _LLMFixError(f"apply_edit 需要字符串 old/new: {op!r}")
-                try:
-                    self.editor.apply_edit(path, old_value, new_value)
-                except EditError as exc:
-                    raise _LLMFixError(f"apply_edit 被拒 ({path}): {exc}") from exc
+                if self.tool_registry is not None:
+                    tool_result = self.tool_registry.dispatch(
+                        self.tool_registry.build_tool_call(
+                            "apply_patch",
+                            {"path": path, "old": old_value, "new": new_value},
+                        )
+                    )
+                    if tool_result.status != "ok":
+                        raise _LLMFixError(f"apply_patch 被拒 ({path}): {tool_result.summary}")
+                else:
+                    try:
+                        self.editor.apply_edit(path, old_value, new_value)
+                    except EditError as exc:
+                        raise _LLMFixError(f"apply_edit 被拒 ({path}): {exc}") from exc
             elif action == "write_file":
                 if not isinstance(new_value, str):
                     raise _LLMFixError(f"write_file 需要字符串 new: {op!r}")
-                try:
-                    self.editor.write_file(path, new_value)
-                except EditError as exc:
-                    raise _LLMFixError(f"write_file 被拒 ({path}): {exc}") from exc
+                if self.tool_registry is not None:
+                    tool_result = self.tool_registry.dispatch(
+                        self.tool_registry.build_tool_call(
+                            "create_file", {"path": path, "content": new_value}
+                        )
+                    )
+                    if tool_result.status != "ok":
+                        raise _LLMFixError(f"create_file 被拒 ({path}): {tool_result.summary}")
+                else:
+                    try:
+                        self.editor.write_file(path, new_value)
+                    except EditError as exc:
+                        raise _LLMFixError(f"write_file 被拒 ({path}): {exc}") from exc
             else:
                 raise _LLMFixError(f"未知编辑动作 {action!r} (仅支持 apply_edit|write_file)")
             if path not in edited:
@@ -671,6 +706,10 @@ class CraftLoop:
             if len(text) > 12_000:
                 text = text[:12_000] + "\n... (截断)"
             snippets.append(f"--- {target} ---\n{text}")
+        if self.tool_registry is not None:
+            tool_surface = wrap_data_section(self.tool_registry.envelope_block())
+        else:
+            tool_surface = _EDITOR_API_BLOCK
         return {
             "step": json.dumps(step.to_dict(), ensure_ascii=False, indent=2),
             "failure_diagnosis": diagnosis,
@@ -678,7 +717,7 @@ class CraftLoop:
             "forbidden_changes": "\n".join(self.spec.forbidden_changes) or "(无)",
             "target_files": "\n\n".join(snippets) or "(无目标文件)",
             "task_memory": self.memory.summarize_for_prompt() or "(无任务记忆)",
-            "editor_api": _EDITOR_API_BLOCK,
+            "editor_api": tool_surface,
             "output_schema": _EDIT_OPS_SCHEMA,
         }
 
@@ -874,6 +913,12 @@ class CraftLoop:
         }
         if self.client is not None:
             report["llm_usage"] = self.client.stats_report()
+        if self.tool_registry is not None:
+            report["tool_registry"] = {
+                "present": True,
+                "tools": self.tool_registry.tool_names(),
+                "dispatches": self.tool_registry.dispatch_count,
+            }
         if self.plan.llm_fallback_reason:
             report["llm_fallback_reason"] = self.plan.llm_fallback_reason
         self.memory.add(
@@ -903,6 +948,7 @@ class CraftLoop:
         exec_mode: str | None = None,
         exec_timeout: int = 600,
         client: LLMClient | None = None,
+        tool_registry: ToolRegistry | None = None,
     ) -> CraftLoop:
         """In-memory resume interface: rebuild the loop from .specraft
         artifacts and continue after the last green step (M1: no MySQL)."""
@@ -962,6 +1008,7 @@ class CraftLoop:
             task_key=task_key,
             client=client,
             memory=memory,
+            tool_registry=tool_registry,
         )
         loop.last_green_step = str(last_green)
         return loop

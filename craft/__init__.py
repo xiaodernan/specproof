@@ -17,7 +17,16 @@ from .budget import (
     Budget,
     BudgetError,
 )
-from .editor import MAX_READ_LINES, AuditEntry, EditError, Editor
+from .editor import (
+    MAX_READ_LINES,
+    AuditEntry,
+    EditError,
+    Editor,
+    FileRead,
+    StaleContextError,
+    classify_workspace_changes,
+    sha256_digest,
+)
 from .executor import (
     ALLOWED_COMMANDS,
     CommandNotAllowedError,
@@ -33,6 +42,7 @@ from .llm import (
     LLMUnavailableError,
     extract_json_object,
     resolve_craft_thinking,
+    wrap_data_section,
 )
 from .loop import CraftLoop, CraftLoopError, FixFunction, StepState, default_job_id
 from .planner import (
@@ -48,6 +58,31 @@ from .planner import (
     compile_plan_llm,
     ensure_step_cap,
 )
+from .rules import (
+    PRIORITY_NAMES,
+    RepoRule,
+    RepositoryRules,
+    RuleConflict,
+    RulePriority,
+    RulesError,
+)
+from .schemas import (
+    SCHEMA_VERSION,
+    AgentTask,
+    Approval,
+    Artifact,
+    ChangeBundle,
+    PlanSchema,
+    StepSchema,
+    SuccessCriteriaSchema,
+    TestResult,
+    ToolCall,
+    ToolResult,
+    plan_from_schema,
+    plan_to_schema,
+    step_from_schema,
+    step_to_schema,
+)
 from .spec import (
     SpecParseError,
     TaskSpec,
@@ -56,12 +91,17 @@ from .spec import (
     parse_spec_json,
     parse_spec_text,
 )
+from .tools import ToolRegistry, ToolSpec, redact_text
 
 __all__ = [
     "ALLOWED_COMMANDS",
+    "AgentTask",
+    "Approval",
+    "Artifact",
     "AuditEntry",
     "Budget",
     "BudgetError",
+    "ChangeBundle",
     "CommandNotAllowedError",
     "CraftLoop",
     "CraftLoopError",
@@ -78,20 +118,38 @@ __all__ = [
     "ExecResult",
     "Executor",
     "FailedTest",
+    "FileRead",
     "FixFunction",
     "LLMClient",
     "LLMUnavailableError",
     "MAX_PLAN_STEPS",
     "MAX_READ_LINES",
+    "PRIORITY_NAMES",
     "Plan",
+    "PlanSchema",
     "PlanTooComplexError",
+    "RepoRule",
+    "RepositoryRules",
+    "RuleConflict",
+    "RulePriority",
+    "RulesError",
+    "SCHEMA_VERSION",
     "SpecParseError",
+    "StaleContextError",
     "Step",
+    "StepSchema",
     "StepState",
     "SuccessCriteria",
+    "SuccessCriteriaSchema",
     "TaskSpec",
     "TestReport",
+    "TestResult",
+    "ToolCall",
+    "ToolRegistry",
+    "ToolResult",
+    "ToolSpec",
     "classify_task",
+    "classify_workspace_changes",
     "compile_plan",
     "compile_plan_llm",
     "default_job_id",
@@ -102,5 +160,12 @@ __all__ = [
     "parse_spec_file",
     "parse_spec_json",
     "parse_spec_text",
+    "plan_from_schema",
+    "plan_to_schema",
+    "redact_text",
     "resolve_craft_thinking",
+    "sha256_digest",
+    "step_from_schema",
+    "step_to_schema",
+    "wrap_data_section",
 ]

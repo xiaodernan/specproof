@@ -7,12 +7,12 @@
 
 | # | 任务 | 现状 | 行动 |
 |---|---|---|---|
-| 1 | AgentTask/Plan/Step/ToolCall/Approval/Artifact/ChangeBundle Schema | 部分: TaskSpec/Plan/Step 已有 (craft/spec+planner), ToolCall/Approval/Artifact/ChangeBundle 缺 | R 车道: craft/schemas.py 全量 Schema (O 完成后) |
-| 2 | 工具注册表+版本化 Envelope (read/search/diff/patch/test/build/git_status) | 部分: editor/executor 直连, 无注册表/版本化信封 | R 车道: craft/tools.py |
+| 1 | AgentTask/Plan/Step/ToolCall/Approval/Artifact/ChangeBundle Schema | ✅ 已完成 (R 车道 2026-08-18): craft/schemas.py 全量 Schema — AgentTask (task_id/text/repo/base_sha/execution_mode/budget/desired_checks/network_policy/model_policy/idempotency_key) + ToolCall {tool,version,call_id,arguments,budget_cost,requires_approval} + ToolResult + Approval + Artifact (sha256 digest 校验) + ChangeBundle (含 specproof_result); PlanSchema/StepSchema 与 planner dataclass 双向适配 (plan_to_schema/plan_from_schema 复用 DAG 校验: 唯一 id/依赖次序/≤12 步); 全模型 schema_version=1 强制版本门; tests/unit/test_craft_schemas.py 27 测试 | 完成; 后续: M5 ChangeBundle->accept 接线 (O 车道) |
+| 2 | 工具注册表+版本化 Envelope (read/search/diff/patch/test/build/git_status) | ✅ 已完成 (R 车道 2026-08-18): craft/tools.py ToolRegistry — 13 工具 v1 (read_file/tree/glob/grep/symbol_search[接 repo_graph 只读]/git_status/git_diff[GitPython 只读]/apply_patch/create_file/run_test/run_build/run_lint/run_typecheck[executor 白名单]); 每工具 {version, param schema(类型/长度/范围), risk readonly|low_write|controlled_exec|high, requires_approval 判定, budget_cost}; dispatch 门链: 未知工具→版本→参数→审批→路径(owned_paths 越界拒绝)→执行; 12 稳定错误码 ([CODE] 前缀); 结果截断+秘密脱敏 (sk-/Bearer/私钥头)+untrusted 标签; envelope_block() 版本化且结果零泄漏; 参数非法实测不执行; tests/unit/test_craft_tools.py 36 测试 (含 loop 诊断路径经注册表 dispatch 接线回归: 共享审计链, report.tool_registry 上账) | 完成; 后续: provider tools 参数原生支持 (网关 strict_tool_calls=400 已降级 envelope) + M4 批准服务持久化 |
 | 3 | 持久化 Job 投影/取消/租约/恢复 | 部分: 本地 checkpoint+resume (M1/M2); 无 MySQL agent_jobs | R 车道 + 阶段 3 (需 craft/ 空闲) |
-| 4 | 仓库规则摄取 (AGENTS.md/CLAUDE.md/README/CI) | ✗ | R 车道: craft/rules.py + 优先级 (安全>组织>仓库>目录>任务>默认>模型建议) |
+| 4 | 仓库规则摄取 (AGENTS.md/CLAUDE.md/README/CI) | ✅ 已完成 (R 车道 2026-08-18): craft/rules.py RepositoryRules.load(repo) — AGENTS.md/CLAUDE.md/README/CONTRIBUTING/SECURITY.md/.github CI workflows + 子目录 AGENTS.md/CLAUDE.md (限深 4/≤30, node_modules 等跳过, 单文件 200KB/总量 1MB 截断诚实标注); 每条 {source,digest(sha256),text,section,priority}; 优先级 7 级实现 security>organization>repository>directory>task>default>model_suggestion (内置平台安全策略封顶, SECURITY.md 归 security 层); 冲突检测: 含"忽略(所有)安全"字样 → conflict 标记 + 冲突列表 + security 层降级 (绝不视为高优先级); prompt_block() 全量数据段包裹 (craft.llm.wrap_data_section, 注入防御: 规则文本只进数据段); tests/unit/test_craft_rules.py 17 测试 | 完成; 后续: 组织策略注入接口 (org 层无标准文件名, 预留) |
 | 5 | 4 语言最小符号索引 + 30 条检索基准 | ✅ 已完成+实测 (S 车道 2026-08-18): retrieval/symbols.py 四语言索引 (py=ast / ts+go=保守正则 / java=repo_graph 同风格), 30 查询黄金集 (retrieval/bench_queries.py), scripts/bench_retrieval.py 真实 ES 实测: BM25 recall@10=82.2% MRR=0.656; BM25+图谱=48.9%/0.528 (top-8 种子插值语义, 详因见报告); symbol-index 查表=75.6%/0.683 (找回 4000 字符截断丢失的符号); 门禁 ruff/mypy/bandit 全绿; 详情 docs/eval/retrieval-bench.md | 已完成; 后续消融: 向量/RRF/重排 (L 车道 retrieval/hybrid.py 已有, 未并入本轮数字) |
-| 6 | editor stale digest + 用户改动分类 + 结构化 Diff | 部分: 唯一匹配+原子写+备份+审计 (F); digest/stale 分类缺 | R 车道: editor 扩展 |
+| 6 | editor stale digest + 用户改动分类 + 结构化 Diff | ✅ 部分完成 (R 车道 2026-08-18): craft/editor.py — sha256 digest (raw bytes): read_file_meta/FileRead/file_digest; write_file/apply_edit 可选 expected_digest → 不匹配 StaleContextError(STALE_CONTEXT) 拒绝写入 (实测文件不被覆盖/不备份), 旧调用零行为变化 (134 既有测试全绿); 审计条目带 before_digest/after_digest (audit.jsonl 含全字段); classify_workspace_changes(git status --porcelain) → {user_changes, agent_changes, unknown} (冲突对 DD/AU/UD/UA/DU/AA/UU、未跟踪、重命名归 unknown); tests/unit/test_craft_editor_stale.py 22 测试 | 结构化 Diff 仍缺 (待 M4: AST 编辑+跨文件重构, 与任务 9 并行) |
 | 7 | 测试/构建/类型/安全/SpecProof 自校验门禁 | 部分: O 在做 M3 自校验 (checker+密钥); 分层门禁缺 | O (在途) + R 车道组合 |
 | 8 | Web 任务向导/计划审阅/实时工具流/审批/Diff | ✗ (9 页验证控制台, 无 Agent 工作台) | U 车道 (后端 Task API 先行) |
 | 9 | 只读 Explorer/Test/Security 并行 (不共写同文件) | ✗ | R/U 之后: craft/agents.py |
@@ -24,11 +24,11 @@
 
 | 里程碑 | 现状 | 差距 |
 |---|---|---|
-| M0 现状冻结 | ✅ 大部分 (craft 基线/10 任务基准/边界文档) | 统一 Schema 缺 (任务1) |
-| M1 工具协议执行器 | 部分 (editor/executor 白名单) | 注册表+信封+批准服务 (任务2) |
-| M2 仓库理解 | 部分 (BM25+向量+图谱; 规则摄取缺) | S+R 车道 |
+| M0 现状冻结 | ✅ 大部分 (craft 基线/10 任务基准/边界文档) | 统一 Schema ✅ (任务1, craft/schemas.py) |
+| M1 工具协议执行器 | 部分 (editor/executor 白名单) | 注册表+信封 ✅ (任务2); 批准服务持久化待 M4 |
+| M2 仓库理解 | 部分 (BM25+向量+图谱) | 规则摄取 ✅ (任务4, craft/rules.py); 检索消融 S/L 车道在途 |
 | M3 稳定计划循环 | ✅ 大部分 (DAG/checkpoint/预算/STUCK/暂停恢复) | MySQL 投影 (任务3) |
-| M4 代码编辑跨语言 | 部分 (唯一匹配编辑; Q 在做执行适配器) | AST 编辑/stale 保护 (任务6) |
+| M4 代码编辑跨语言 | 部分 (唯一匹配编辑; Q 在做执行适配器) | stale 保护 ✅ (任务6, digest+STALE_CONTEXT+改动分类); AST 编辑/结构化 Diff 待 |
 | M5 SpecProof 闭环 | 部分 (O 做自校验; accept 接线待) | ChangeBundle+accept (任务1/7) |
 | M6 Web+IDE | 部分 (验证控制台 9 页) | Agent 工作台 20 路由 (任务8) |
 | M7 并行子代理 | ✗ | 任务9 |
@@ -50,6 +50,7 @@
 1. 本审计文档落盘并提交。
 2. S 车道: 4 语言最小符号索引 + 30 条检索基准 (任务5) — ✅ 已完成, 实测数字见上表与 docs/eval/retrieval-bench.md。
 3. V 车道: 评测集扩展 50+20+10+10 (任务10, bench 数据面)。
-4. R 车道 (O 完成后立即): craft/schemas.py + tools.py 注册表 + rules.py 摄取 +
-   editor stale-digest (任务 1/2/4/6) — 这是"完整商业化代码开发 Agent"的核心工程。
+4. R 车道: craft/schemas.py + tools.py 注册表 + rules.py 摄取 + editor stale-digest
+   (任务 1/2/4/6) — ✅ 已完成: 4 个新模块 + editor/loop/llm 接线, 新增 102 测试全绿,
+   既有 craft 134 测试回归全绿, ruff/mypy/bandit 全绿 (详见上表 1/2/4/6 行证据)。
 5. 其余 (8/9/11/12) 按依赖顺序推进, 每轮更新本表。
