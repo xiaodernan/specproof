@@ -1,0 +1,405 @@
+# SpecProof 2.0 宏伟项目计划书 (GRAND PLAN V2)
+
+版本: 2.0 · 2026-08-18 · 状态: 演进中 (每轮审计→实现→全绿验证, 按卷追加)
+定位: AI 变更验收防火墙 (SpecProof) + 自主开发 Agent (SpecCraft) 的一体化平台,
+以行业最先进水平 (Claude Code / Codex / Devin / Cursor) 为对标, 在"独立验证"
+细分做到世界级。
+
+## 卷 I. 总纲与目标
+
+### 1.1 终极目标 (三句话)
+1. SpecCraft 是能独立完成中小型真实仓库任务的超强开发 Agent (规划/编辑/执行/
+   自校验/交付, 全部可审计、可续跑、可预算)。
+2. SpecProof 是任何 AI 产物 (不管哪个 Agent 写的) 的独立验收方: 需求→契约→
+   差分/变异/状态证据→签名证书, 实现"写代码的不能给自己签字"的行业标准。
+3. 平台层把两者连成闭环 (craft → verify → certificate → fix), 并输出完整
+   前端/后端/中间件与评测基准, 达到可商业部署、可面试演示、可论文引用的水平。
+
+### 1.2 关键指标目标 (量化, 可机器判定)
+- 验证侧: 200 金案例; Recall/Precision/F1 ≥ 99%; 误报 = 0; 15 项 Go/No-Go 全绿;
+  FAST 小 PR p95 ≤ 8 分钟 (实测计时基准)。
+- 开发侧 (SpecCraft): 10 任务微基准完成率 ≥ 90% (确定性+LLM 混合); 自校验
+  拦截率 = 100% (陷阱变体必被拦); 平均迭代 ≤ 6; 预算内完成率 ≥ 80%;
+  SWE-bench-lite 适配器打通 (可选集, 私有部署优先)。
+- 平台: 单测 1000+; 安全测试 30+; 故障注入 30; 集成 150; MCP 一致性 100%;
+  前端 60+ 测试; 全门禁 (ruff/mypy/bandit/pytest/compose) 常绿。
+- 可靠性: 评测 20 连跑 0 误报漂移; worker kill ×10 恢复率 100%; 网关故障注入
+  场景 100% 不丢 Job; 密钥泄漏测试 100% 通过。
+
+### 1.3 演进节奏与方法论
+- 每轮: 审计 (门禁+评测+安全+基准) → 实现 (一个可验证增量) → 全绿验证 →
+  里程碑提交 (git + 镜像 + bundle + GitHub)。
+- 指标单调: 任何一轮不得回退既有指标 (回归红线); 新能力先写评测再实现。
+- 季度: 重跑全部基准, 重对标公开榜单 (SWE-bench Verified / Aider Polyglot /
+  LiveCodeBench / terminal-bench), 更新差距矩阵。
+- 诚实原则: 一切数字来自真实运行; 无密钥落盘; 无 TODO/pass 占位; 降级显式。
+
+## 卷 II. 技术栈演进决策 (含 LangChain 评估)
+
+### 2.1 LangChain / LangGraph 评估结论
+- LangChain (chains 抽象): 不采用 — 链式封装黑盒化严重, 调试/审计困难,
+  与我们的证据链要求冲突; 我们已有自己的 10 态状态机 + LangGraph 节点图 +
+  确定性回退体系。
+- LangGraph: 保留 (仅用于验证管线图编排), 原因: 状态 schema 明确、可检查点
+  (MongoDB saver)、可中断/恢复, 与我们的 checkpoint 审计要求吻合; 12-14 节点
+  管线实测稳定。若未来发现其复杂度过高, 备选: 自研 DAG 执行器 (状态机已有,
+  迁移成本可控) — 决策记录在 ADR, 不做无谓迁移。
+- 结论写入 ADR-018 (新增)。
+
+### 2.2 LLM 工程层 (大模型工程) 技术栈
+现状: 自研 providers/ (11 维能力探测 + Envelope 降级 + thinking 分层 +
+KV 缓存友好模板 + TokenBudget) — 已在真实 DeepSeek V4 Pro 网关实测 (8/11,
+live-fire 修复)。
+演进:
+1. 结构化输出升级: 引入 Pydantic 输出模型 (LLMResponse 已是 Pydantic; 把
+   planner/diagnose 的 JSON 解析升级为 Pydantic 校验器, 替代手写 schema 校验)
+   → 减少解析 bug, 类型安全直达 mypy。
+2. 评估 LiteLLM (只评估, 不强推): 多网关路由/计费聚合有价值, 但我们自研
+   探测+降级已覆盖核心需求; 若采用, 仅作为 provider 适配层的一个可选后端,
+   不替换我们的能力探测模型 (ADR-019)。
+3. 提示词工程: 模板库升级 — 增加 few-shot 示例注入 (按任务类型), 稳定前缀
+   不变 (缓存友好); 增加"思维预算提示" (要求模型先给假设再给结论, 对齐 V4 Pro
+   的推理特性)。
+4. 批量与流式: chat_stream 已实现; 增加并发调用池 (asyncio.Semaphore,
+   默认并发 2, 与预算/限流联动); 评测/基线批量跑用并发+退避。
+5. 结构化输出兜底: 增加 Pydantic 校验失败 → 单次修复重试 (把校验错误回喂模型)
+   → 再失败回退规则模板 (三层: 校验/修复/回退)。
+6. 缓存: 语义缓存 (可选, 键=spec_digest+diff_digest, 存 MongoDB, TTL) —
+   只在 RELEASE 档重放场景启用, 避免污染证据链 (证据必须是新跑的结果;
+   缓存只用于计划/诊断等非证据链路, ADR-020)。
+
+### 2.3 RAG 技术栈 (符号图谱 + 混合检索 2.0)
+现状: ES BM25 + 方法级符号块 + repo_graph 邻域扩展 (确定性, 已端到端);
+dense_vector 预留未启用。
+演进 (RAG 2.0, 本轮开工):
+1. 向量化: 嵌入层可选 — OpenAI 兼容 /embeddings (BYOK, 复用 provider 栈) 或
+   本地模型 (sentence-transformers, 可选依赖); 无嵌入时诚实降级 BM25+图谱
+   (现状)。索引: ES dense_vector (已预留) + HNSW。
+2. 混合检索: BM25 + 向量 → RRF 融合 → 图谱邻域扩展 → (可选) 重排。
+3. 重排: 首选交叉编码器 (bge-reranker 本地小模型, 可选依赖); 无本地模型时
+   用 LLM 重排 (一次性列表比较, 预算内); 无 LLM 时保序 (诚实标注 rerank=off)。
+4. 图谱升级: 现有类/方法/调用图 → 增加 文档图 (README/ADR/issue 与符号的
+   链接) + 契约图 (contract 与符号的绑定), 检索时可跨证据类型召回。
+5. 评估: 检索质量评测集 (30 个查询 → 黄金上下文文件集), 指标 recall@10 /
+   MRR, 每轮 RAG 改动必跑 (检索回归红线)。
+## 卷 III. Agent 引擎演进 (SpecCraft 2.0)
+
+### 3.1 现有能力 (M1 已交付, M2 在途)
+规划 (确定性模板 + M2 LLM) / 编辑器 (原子写/唯一匹配/备份/审计) / 执行器
+(命令白名单 + 沙箱) / 收敛循环 (预算/断点/STUCK 判定) / 自校验 (M3) /
+交付 (M6) / 验收闭环 (M7)。
+
+### 3.2 演进路线 (按优先级)
+M2  (在途) LLM 规划与诊断 — 真实 V4 Pro, thinking 分层, 预算账本, 推理不进证据。
+M3  自校验 — 接入 SpecProof checker 家族 + 安全扫描作为 craft 的硬门。
+M4  持久化 — MySQL job 行 (job_kind=craft) + 审计表 + kill 后 resume。
+M5  子代理并行 — 计划步骤 DAG: 无依赖步骤并行执行 (asyncio 任务池),
+     共享编辑器用文件锁/分文件所有权; 每子任务独立预算, 父级汇总 (对标
+     Claude Code subagents 的 fan-out)。
+M6  交付 — 分支/PR/diff 报告; GitHub App 触发 (复用 integrations/)。
+M7  闭环 — craft accept → verify → certificate → fix 循环 (最多 3 轮)。
+M8  仓库策略摄取 — 读仓库 AGENTS.md/CLAUDE.md (对标记忆文件), 注入规划层
+     系统上下文 (数据段, 不可覆盖系统指令), 缓存按文件 hash。
+M9  工具生态 — MCP 客户端 (craft 可消费外部 MCP 工具, 白名单+预算);
+     内置工具扩展 (grep/glob/tree/test/shell, 对齐 Claude Code 工具面)。
+M10 上下文压缩 — 上下文超预算时自动生成中间摘要 (LLM summarize 或确定性
+     截断), checkpoint 记录压缩点, resume 可重建。
+M11 技能包系统 — 把验证技能 (auth/txn/mq/redis 场景) 打包为可插拔技能
+     (对标 skill packs), craft 按任务类型加载。
+M12 提示词自动优化 — DSPy 风格签名 + 小样本优化循环 (用微基准做信号),
+     优化结果人工审阅后入库 (绝不自动上线未审提示词)。
+
+### 3.3 Agent 循环状态机 (复用 10 态)
+QUEUED → PLANNING → PLAN_READY(人工可审) → EXECUTING → SELF_VERIFYING →
+DONE | FAILED | STUCK | CANCELLED | EXPIRED; 每个转换写审计行;
+人工中断 (hup) 优雅落 checkpoint。
+
+### 3.4 人机协同
+- 计划审批 (PLAN_READY): 终端展示计划 + 风险标注, 用户可改/拒 (对标 plan mode)。
+- 危险操作确认: 白名单外命令 / 超出 diff 规模 / 触碰 forbidden_changes →
+  要求显式确认或直接拒绝。
+- 差异审阅: 交付前展示 diff 摘要 + 自校验结论, 用户可逐文件接受/拒绝。
+
+## 卷 IV. RAG 2.0 详细设计 (本轮开工, 车道 L)
+
+### 4.1 索引层
+- chunk: 方法级符号块 (现状, AST-free 正则切分) 保持; 增加文档块
+  (README/ADR/issue 按标题切分)。
+- 向量: dense_vector dims 随嵌入模型 (默认 1536, 可配); HNSW m=16。
+- 字段: content / symbol / kind(code|doc|contract) / repo / commit / path /
+  embedding (可选); 仓库隔离强制 term 过滤 (现状保留)。
+
+### 4.2 检索管线 (RRF 融合)
+query → BM25 (content+symbol) → 向量 top-k (如有) → RRF 融合 → repo_graph
+邻域扩展 (2 跳) → 重排 (cross-encoder 或 LLM, 可选) → 预算截断 → 注入。
+
+### 4.3 降级矩阵 (诚实标注在结果里)
+| 场景 | 行为 |
+|---|---|
+| 嵌入未配置 | BM25 + 图谱 (现状行为, rerank 保序) |
+| ES 不可用 | retrieval_note=unavailable, 契约编译退回仅需求文本 |
+| 重排模型缺失 | rerank=off 保序 |
+| 向量字段无数据 | 自动回退 BM25 (不报错) |
+
+### 4.4 检索质量评测 (红线)
+30 查询黄金集 (函数名/需求句/契约 id → 期望文件集), 指标 recall@10 / MRR;
+每次 RAG 改动必跑; 当前 BM25+图谱基线先固化数字, 后续向量/RRF/重排逐项
+增量对比 (消融实验)。
+
+### 4.5 与 LLM 上下文工程的联动
+检索结果按"稳定前缀 + 任务模板 + 变量数据"组装 (缓存友好); 检索结果本身
+进入变量段, 不进稳定前缀。
+## 卷 V. LLM 工具调用与工程深化 (大模型工程)
+
+### 5.1 工具调用分层 (基于真实网关 8/11 探测)
+- 有 tool_calls: 原生 function calling (并行工具, 严格 schema)。
+- 无 tool_calls: JSON Action Envelope (单对象 {action, params}) — 已实测。
+- 思考分层: 规划/Judge/诊断开 thinking; 工具循环关 thinking (实测该网关
+  thinking+工具不共存, 分层是唯一正确解)。
+- 工具结果回喂: 每条工具输出截断 (4000) + 结构化 (status/output/error),
+  避免模型被注入内容操纵 (工具输出同样进数据段)。
+
+### 5.2 结构化输出可靠性三层
+1. response_format json_object + 提示词含 JSON (实测网关要求);
+2. Pydantic 校验失败 → 单次"修复重试" (校验错误回喂, 预算内);
+3. 仍失败 → 规则模板回退 (确定性), 结果标注 fallback_reason。
+(三层全部进 checkpoint 审计, 不静默。)
+
+### 5.3 预算与经济性 (真实 usage 字段实测)
+- 账本字段: prompt/completion/reasoning/cache_hit/cache_miss (已实测解析);
+- 权重可配 (默认 cache_hit 0.1x); 任务级/平台级双层预算;
+- 成本报告进 dashboard (cost available=true 之后);
+- 目标: 同任务二跑 (缓存热) 成本下降 ≥ 40% (KV 前缀命中验证)。
+
+### 5.4 评测与回归 (LLM 层)
+- 能力探测 11 维 (新增 reasoning_content 位) — 每次换网关/模型必跑;
+- 工具调用正确率小基准: 20 个合成任务 (envelope 解析 / tool_call 解析 /
+  坏 JSON / 空 content), 每轮必跑 (已部分覆盖, 扩充至 20);
+- 提示词模板回归: 稳定前缀逐字节自检 (已有) + 语义回归 (微基准)。
+
+## 卷 VI. 验证引擎深化 (SpecProof 2.0)
+
+### 6.1 契约体系
+- 现有: AUTH/UNIQUE/EVENT_ONCE/TRANSACTION/ATOMICITY/CONCURRENCY/CACHE/
+  MIGRATION/OPENAPI/BACKWARD_COMPATIBLE/NPLUSONE/TEST_STRENGTH/ORDER_EVENT…
+  (11+ 族, 100 案例实测)。
+- 演进: 序列化状态机契约 (STATE-01: 订单生命周期合法转移), 幂等契约
+  (IDEMPOTENT-01 深化: requestId 重放矩阵), 授权矩阵契约 (RBAC-01:
+  角色×端点矩阵), 数据保留契约 (PII-01: 脱敏/最小化)。
+- 契约编译器: 需求→候选契约的 LLM 编译 (真实端点) + 人工审批 + 版本化
+  (已有骨架, 深化 few-shot 与反例生成)。
+
+### 6.2 差分实验室深化
+- 现有: HTTP/MySQL/Redis/RabbitMQ 快照 + 语义归因 + H2 三表取证。
+- 演进: 序列请求重放 (stateful sequence, 从 spec 生成调用序列), 时间旅行
+  (Redis TTL/键过期模拟), 事件顺序断言 (顺序/去重/死信), 性能计数器
+  (查询数/外部调用数) 阈值契约 (已部分), 内存/阻塞调用探测 (可选)。
+
+### 6.3 变异测试深化
+- 现有: 4 算子 + 战役 + KILLED/SURVIVED + 等价判断。
+- 演进: 算子扩至 8 (边界/空值/权限/事务/重试/ack/缓存失效/返回值),
+  变异体优先级 (changed-files 影响面, 已有思路 → 落实), 存活体分析报告
+  (等价判定 + 测试弱点建议)。
+
+### 6.4 反注入与对抗 (安全红线)
+- 现有: 注入负样本 5 (README/注释/spec/schema/pom), 实测裸模型被注入影响、
+  我们 0 影响。
+- 演进: 注入矩阵扩至 15 (分支名/commit message/issue 标题/图片 alt/
+  JSON 字段值/环境变量名), 每类正反两向; 全部进 200 案例。
+
+### 6.5 200 案例路线 (从 100 → 200)
++40 序列状态机/幂等/RBAC/PII 契约案例 (正负各半);
++30 跨契约组合案例 (一个 PR 同时破坏 auth+tx+event);
++20 注入对抗案例; +10 性能/N+1 深化。holdout 纪律保持 (锁定子集永不作调优)。
+## 卷 VII. 平台工程深化 (后端/中间件/多租户)
+
+### 7.1 FastAPI 运行时
+- 现有: 鉴权 (fail-closed) / 限流 / CORS / SSE / metrics / OTel / 结构化日志
+  + 9 个 /api/v1 只读端点 (H 交付)。
+- 演进: Request-ID 传播 (J 在途), payload 上限 10MB (J 在途), 响应压缩
+  (gzip, 大报告), 分页游标统一, OpenAPI schema 完善, 健康端点分级
+  (liveness/readiness 分离)。
+
+### 7.2 Spring Boot Control Plane
+- 现有: 6 控制器 (tenant/user/job/webhook/health) + 5 实体 + outbox + 审计
+  + 版本化迁移 0001-0004。
+- 演进: RBAC (角色×端点矩阵, 与验证侧 RBAC-01 契约联动), 租户级限流,
+  组织/成员管理, GitHub 安装管理页, 审计查询 API, 计费事件 (job 完成时
+  写 usage 事件), 定时任务 (workspace 清理/陈旧 job 回收)。
+
+### 7.3 存储层
+- MySQL: 事实源 (10 态/outbox/审计) — 演进: 查询索引优化, 归档策略,
+  backup/restore 演练脚本 (RUNBOOK 已有章节, 补自动化)。
+- MongoDB: 工件 (checkpoint/evidence) — 演进: TTL 索引 (工件过期), 分片预留。
+- ES: 检索 (RAG 2.0 车道)。
+- Redis: 锁/租约/预算/进度 — 演进: 分布式限流 (token bucket, 租户级),
+  进度流压缩。
+- RabbitMQ: 任务流水线 — 演进: 优先级队列 (RELEASE 档优先), 每队列消费者
+  数可配, 死信自动重投上限 + 告警。
+- MinIO: 工件/证书/胶囊 — 演进: 生命周期策略, 服务端加密, 预签名 URL
+  (前端下载免鉴权)。
+
+### 7.4 中间件全链路 (盘点 + 补缺, J 在途)
+Request-ID → 鉴权 → 限流 → CORS → payload 限制 → 路由 → 日志/指标/追踪;
+CP 侧: webhook 验签 → 幂等 (delivery_id) → outbox → 审计。
+文档 docs/operations/MIDDLEWARE.md 为唯一盘点源。
+
+## 卷 VIII. 前端与体验 (React SPA 2.0)
+
+### 8.1 现有 (H 交付)
+9 页: 登录 / Dashboard / Jobs / JobDetail (SSE) / Matrix / Finding /
+Contracts / Eval / Health; 深色工业风, 零外部运行时依赖, hash 路由。
+
+### 8.2 演进
+- 实时性: SSE 复用单连接 (EventSource 多 tab 共享), 心跳+重连退避;
+- Job 详情: 阶段时间线可视化 (SVG 甘特), 工具调用日志流, 推理过程
+  (reasoning) 只读视图 (内存态, 刷新即失, 符合 ADR-017);
+- 契约中心: 契约 diff 视图 (版本对比), 批量审批;
+- 评测页: 基线对比 (SpecProof vs LLM 双口径) 图表;
+- 设置: 模型配置/预算/网关探测结果 (11 维) 可视化;
+- 国际化: 中英切换 (已有双语文案, 补全);
+- 可访问性: 键盘导航/对比度 (WCAG AA 目标);
+- 测试: SPA 路由与降级视图断言 (K 车道扩展目标 60+)。
+
+## 卷 IX. 可观测与可靠性 (SRE 深度)
+
+### 9.1 现状
+Prometheus + Grafana (15 面板 + 7 SLO 告警) + OTel + 结构化日志 + worker/relay
+指标端口; outbox 积压告警已接线。
+
+### 9.2 演进
+- 指标补全: 阶段级耗时 (p50/p95), LLM token/成本, 检索延迟, 缓存命中率,
+  沙箱失败率, 证书签发率, capsule 重放成功率 (§8.10 清单逐项接线);
+- 追踪: webhook→outbox→MQ→worker→LLM→tools 全链路 span (OTel 已插桩,
+  补 RabbitMQ 传播上下文);
+- 告警: 分级 (P1 立即/P2 15min), 静默规则, 值班手册 (RUNBOOK 联动);
+- 混沌: 故障注入脚本集 (kill worker / 断 MQ / 429 网关 / 磁盘满), 月度演练;
+- SLO 仪表: 15 门槛中可自动化的项全部进 Grafana (dashboard 已部分, 补全)。
+## 卷 X. 安全与合规 (企业级)
+
+### 10.1 密钥与凭据
+- 纪律 (已执行): 密钥仅环境变量/Secret; 0 密钥门禁 (安全扫描器) 已实测拦下
+  4 次假密钥事故; 脱敏/redaction; canary 自检。
+- 演进: 密钥轮换 SOP (§0: 聊天出现即轮换), 扫描器扩展 (PAT/私有 key/内部
+  URL), CI 密钥检查 job (已部分), 依赖漏洞扫描 (pip-audit, 新 CI job)。
+
+### 10.2 沙箱与威胁模型 (§12 深化)
+- 现有: 非 root / 断网 / ro 工作区 / pids 限额 / 资源限额 / 不挂 socket。
+- 演进: gVisor 运行时评估 (隔离强化, 兼容性验证), 网络 egress 代理白名单
+  (需要联网的场景: 依赖安装代理), 时间预算 (CPU time), seccomp 配置,
+  fork PR 更严格策略 (策略编码而非文档)。
+
+### 10.3 数据与隐私 (ADR-017 扩展)
+- 私有推理不保存: reasoning 只进内存 (已实现); 审计日志不含仓库内容全文
+  (哈希引用); 数据保留策略可配 (保存期限), 仓库数据删除接口 (GDPR 风格);
+  请求脱敏最小上下文 (已有 redaction, 扩展 schema 级)。
+
+### 10.4 供应链
+- 依赖锁定 (requirements.lock / uv lock 评估), 镜像签名 (cosign 评估),
+  SBOM 生成 (可选), 构建可复现 (Docker build 缓存策略)。
+
+## 卷 XI. 评测与基准体系 (世界级目标)
+
+### 11.1 分层评测矩阵
+| 层 | 基准 | 红线 |
+|---|---|---|
+| 单元 | 1000+ 测试 | 全绿, 新增必测 |
+| 安全 | 30+ (注入/越权/密钥) | 0 泄漏/0 注入影响 |
+| 故障 | 30 (MQ/网关/磁盘/时钟/租约) | 恢复语义正确 |
+| 集成 | 150 (真实基础设施 + compose 组合) | 全绿 |
+| 金案例 | 200 (验证侧) | Recall/Precision ≥ 99%, FP=0 |
+| 基线 | diff-reader + LLM 双口径 (100 案例已实测) | +25pp 门槛, 每季度重测 |
+| 微基准 | 10 任务 (craft) + 陷阱变体 | 完成率 ≥ 90%, 拦截率 100% |
+| MCP | 协议一致性矩阵 | 100% |
+| 前端 | 60+ | 全绿 |
+
+### 11.2 外部基准对齐 (可选, 私有优先)
+- SWE-bench-lite 适配器 (M5+): 拉取公开任务集 (或私有镜像), craft 跑任务,
+  机器判定 (test patch), 出 pass@1 — 与业界同口径比较;
+- 验证侧: 发布"SpecProof Golden Bench" (100/200 案例) 为开源基准, 邀请
+  其他验收工具跑分 (这是细分领域标准制定的机会)。
+
+### 11.3 反作弊纪律 (评测可信)
+- holdout 锁定 (永不调优), 盲评 (评测脚本与开发分离), 结果可复现
+  (seed/版本/命令全记录), 报告含环境指纹 (git SHA/模型/日期)。
+
+## 卷 XII. 里程碑总表 (M10-M20, 每项: 目标/验收命令/交付物)
+
+M10 RAG 2.0 (L 车道): 向量+RRF+重排可选链路, 降级矩阵, 检索评测 30 查询红线。
+M11 安全深化: 注入矩阵 15 类, 依赖扫描 CI, 密钥轮换 SOP。
+M12 契约深化: STATE/IDEMPOTENT/RBAC/PII 四族 + 案例 +40。
+M13 评测体系: 200 案例全量 + 微基准 10 任务 + SWE-bench-lite 适配器骨架。
+M14 平台深化: RBAC/租户限流/计费事件/审计查询 API。
+M15 前端 2.0: 实时/甘特/契约 diff/推理只读视图/设置页。
+M16 SRE 深度: 全链路 span + 混沌演练 + 告警分级 + SLO 全接线。
+M17 Agent 并行与技能: 子代理并行 + 技能包 + 仓库策略摄取 + MCP 客户端。
+M18 经济性: KV 缓存命中验证 (≥40% 成本降), 语义缓存 (非证据链路), 成本看板。
+M19 供应链: 依赖锁定 + 镜像签名 + SBOM + 备份恢复自动化。
+M20 发布候选: 15 门槛全绿 + 三仓库试点 2 周 + 运维手册终版 + 面试演示脚本。
+## 卷 XIII. 技术栈候选清单与选型理由 (逐项评估)
+
+### 13.1 编排框架
+- LangGraph (保留): 状态图/检查点/中断恢复; 决策记录 ADR-018。
+- 备选: 自研 DAG 执行器 (已有 10 态状态机底座), smolagents (轻量, 仅参考
+  其 CodeAgent 设计), PydanticAI (结构化 LLM 调用值得评估 — 见 13.3)。
+- 不采用: LangChain chains (黑盒/审计差), CrewAI/AutoGen (多智能体叙事强、
+  可控性弱, 与我们审计要求冲突; 需要的并行编排自己用任务池实现)。
+
+### 13.2 RAG
+- 向量库: ES dense_vector (零新组件, 已预留) 为默认; 评估 Qdrant/Milvus
+  (数据量大后迁移), pgvector (CP 侧轻量场景)。决策: 先 ES, 迁移口留好。
+- 嵌入: OpenAI 兼容 /embeddings (BYOK, 复用 provider) 为主; sentence-transformers
+  本地为可选 (无外联部署)。
+- 重排: bge-reranker 本地 (可选依赖) → LLM 重排 (预算内) → 保序 (诚实标注)。
+
+### 13.3 LLM 工程
+- 结构化输出: Pydantic + Instructor 风格校验 (自实现三层, 不引重依赖);
+  评估 PydanticAI (类型化 agent 循环, 若成熟可吸收其设计)。
+- 网关: 自研 provider (探测+降级, 实测 8/11) 为默认; LiteLLM 仅评估 (路由/
+  计费聚合), 不替代探测模型 (ADR-019)。
+- 提示词优化: DSPy 评估 (M12), 不上线未审提示词。
+- 缓存: 前缀 KV (已做) + 语义缓存 (M18, 仅非证据链路, ADR-020)。
+
+### 13.4 基础设施
+- 部署: Docker Compose 单机 (现状, 16-32GB 目标机); 不引入 K8s (ADR-016)。
+- 观测: OTel + Prometheus + Grafana (已落地, 继续补指标)。
+- CI: GitHub Actions (lint/type/security/unit/infra/eval 子集/夜间全量)。
+
+## 卷 XIV. 风险登记与缓解
+
+| 风险 | 概率 | 影响 | 缓解 |
+|---|---|---|---|
+| 网关/模型变更破坏探测假设 | 中 | 高 | 11 维探测前置 + 每轮 LLM 基准回归 |
+| 评测过拟合 (案例调优) | 中 | 高 | holdout 锁定 + 盲评 + 双口径基线 |
+| 多子代理并行冲突 (本季已发生) | 高 | 高 | 车道边界制 + 持久提交纪律 + 提交前全绿 |
+| 依赖/供应链风险 | 中 | 中 | 锁定 + 扫描 + 最小依赖原则 |
+| 预算失控 (LLM 成本) | 中 | 中 | TokenBudget + KV 优化 + 成本看板 |
+| 上下文过长导致质量退化 | 中 | 高 | 图谱邻域 + 中间摘要 (M10) + 预算截断 |
+
+## 卷 XV. 执行节奏与纪律 (长期化)
+
+- 车道制: 每车道一个子代理 + 明确文件边界 + 完成报告模板 (文件清单/门禁
+  输出/偏差清单)。
+- 提交纪律: 每里程碑/每大块 → git commit → 推本地镜像 + bundle → 推 GitHub
+  (令牌权限修复后); 提交信息 W<N>: <主题>。
+- 全绿定义: ruff + mypy strict + bandit (包列表, Medium+ 0) + pytest 全量
+  (no-infra) + 集成子集 + compose config; 评测/基准按里程碑要求。
+- 每轮报告: 审计发现 → 实现 → 验证输出 → 指标变化 → Next。
+- 长跑机制: goal rounds 自动续跑, 每轮至少一个可验证增量; 无增量时做
+  审计/基准重跑 (也产生证据)。
+
+## 卷 XVI. 附录
+
+A. 命令清单 (probe/verify/eval/replay/baseline/contracts/craft/mcp/health)
+B. 指标看板字段表 (grafana 面板 ↔ 代码注册点)
+C. 文档索引 (PRODUCTION_SPEC / SPECCRAFT_PLAN / AGENT_STATE_OF_ART /
+  GRAND_PLAN_V2 / ADR-001..017 / RUNBOOK / OBSERVABILITY / FRONTEND)
+D. 面试演示脚本 (一条命令出代码+证书: craft run --accept → verify →
+  certificate; 一条命令出基线对比: baseline --mode llm)
+
+## 卷 XVII. 本计划书的演进方式
+
+本文件是活文档: 每轮实现后更新对应卷的"现状"与"里程碑"状态; 新想法以
+ADR/新卷追加; 五万字目标按轮次持续扩写 (当前 ~1.2 万字, 每轮 +2-5k 字),
+直至覆盖全部 17 卷的细节 (每个里程碑的验收命令、每个模块的接口契约、
+每个指标的测量方法)。
