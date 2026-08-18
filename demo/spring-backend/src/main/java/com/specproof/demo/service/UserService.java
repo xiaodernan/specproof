@@ -109,7 +109,6 @@ public class UserService {
 
         user.setEmail(newEmail);
         userRepository.save(user);
-        userRepository.saveAndFlush(user);
 
         evictUserCache(userId);
         invalidateOldTokens(userId);
