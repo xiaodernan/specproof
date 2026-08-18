@@ -29,17 +29,17 @@
 |---|---|---|
 | 0 基线冻结 | 部分 (门禁全绿/文档多) | 依赖锁定 (uv/requirements lock), 事件清单, 数据字典 |
 | 1 身份多租户 | 部分 (CP tenant/user 实体+REST) | OIDC/SAML, RBAC 权限矩阵, Python 侧 tenant scope, 邀请/Token 管理 |
-| 2 完整工作流前端 | 部分 (9 页) | 向导/批量操作/通知中心/移动端/错误边界 |
+| 2 完整工作流前端 | 部分 (9 页验证控制台) | Agent 工作台 ~20 路由 (W31 车道在途: 任务向导/计划审阅/SSE 工具流/审批/结构化 Diff); 其余: 向导/批量/通知中心/移动端/错误边界 |
 | 3 集成与策略 | 部分 (GitHub App webhook/checks/评论/fix) | GitLab/Gerrit, Policy DSL, 豁免流, 分支保护建议 |
 | 4 验证深度生态 | 部分 (mvn+沙箱+变异+状态快照) | Gradle/Node/Python/Go 适配器, 状态机测试, 反例最小化, +100 案例 |
 | 5 证书合规私有化 | 部分 (Ed25519+血缘+密钥策略) | KMS/HSM, 撤销, 对象加密, 私有 Provider/镜像, 恢复演练 |
 | 6 计费运营 | ✗ (成本账本仅内存) | Plan/Subscription/Ledger/Invoice 全套 |
-| 7 SpecCraft 生产闭环 | 部分 (M1+M2+记忆+流式+O 的 M3 在途) | AGENTS.md 摄取, 并行子任务, 变更预览/人工批准, craft→verify 强制闭环 (accept), 微基准已建 |
+| 7 SpecCraft 生产闭环 | 大幅推进: Schema+工具注册表+规则摄取+stale 保护 ✅ (W33, R 车道 102 测试+236 回归); 门禁组合+并行只读子代理 (W34 在途); 变更预览/人工批准 (W31 在途); Job 持久化/租约 (W30 在途) | craft→verify 强制闭环 (accept) — 等 W34 门禁组合完成后接线; 账单化 (阶段6) |
 | 8 平台生态 | 部分 (MCP 服务端) | 插件市场, MCP 客户端, 通知连接器, 行业规则包 |
 
 ## C. §15 发布验收清单映射
 
-代码构建: ✅ 大部分 (ruff/mypy/bandit/frontend build 全绿; 依赖锁定未做; 迁移前向/回滚测试未做; OpenAPI diff 未做)。
+代码构建: ✅ 大部分 (ruff/mypy/bandit/frontend build 全绿; OpenAPI diff 门禁 ✅ W28 实测: 基线生成 0 → 无变更 0 → 篡改 1 → --allow 豁免 0; 依赖锁定未做; 迁移前向/回滚测试未做)。
 功能证据: ✅ 大部分 (契约审批/Job 全态/Finding 反查/Capsule 重放/证书验证; UNVERIFIED 政策已固化)。
 安全治理: ✅ 大部分 (fail-closed/验签/限流/路径校验/脱敏/沙箱 12 项/审计)。
 运营商业: 部分 (SLO 面板+告警; 套餐/账本/恢复演练未做)。
@@ -54,3 +54,12 @@
 4. Q 车道 (任务 10) ✅ 完成: ExecutionAdapter 协议 + Java/Maven 适配器 + 兼容矩阵
    (experiments/adapters.py + docs/architecture/EXECUTION_COMPATIBILITY.md; 两个节点已接线,
    tests/unit/test_adapters.py 27 例全绿)。
+5. P 车道 (任务 2/4) ✅ 完成 (W28): 稳定错误码表 + OpenAPI diff 门禁 + 事件信封
+   (api/errors.py + scripts/openapi_diff.py + contracts/events.py; 27 新测试, unit+contract
+   655 passed; 假密钥字面量拼接纪律 → 安全门禁 31/31)。
+6. S 车道 ✅ 完成 (W29): 四语言符号索引 + 30 查询检索基准 (retrieval/symbols.py 等;
+   15 新测试; ES 实测 BM25 82.2% / symbol-index 75.6% @1.3ms, 见 docs/eval/retrieval-bench.md)。
+7. R 车道 (任务 1/2/4/6) ✅ 完成 (W33): craft 核心工程底座 (schemas/tools/rules/stale);
+   102 新测试, craft 全套 236 绿, ruff/mypy/bandit 全绿。
+8. 在途车道: W30 Job 持久化/租约 (storage/agent_jobs.py) · W31 Agent 工作台 20 路由 ·
+   W32 评测集 50+20+10+10 · W34 门禁组合+并行只读子代理 — 完成后回填本表。
