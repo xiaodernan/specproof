@@ -1826,6 +1826,27 @@ def main() -> None:
             "comment-only change",
             [(CONTROLLER, "@RestController", COMMENT_ADD + "@RestController")],
         )
+    if wanted(only, "case-11"):
+        apply_case_detached(
+            "case-11",
+            "rename controller method getUser to fetchUser (pure refactor, "
+            "service untouched)",
+            [
+                (CONTROLLER,
+                 "    public ResponseEntity<UserResponse> getUser(@PathVariable Long id) {",
+                 "    public ResponseEntity<UserResponse> fetchUser(@PathVariable Long id) {"),
+            ],
+        )
+    if wanted(only, "case-12"):
+        apply_case_detached(
+            "case-12",
+            "add javadoc only",
+            [
+                (CONTROLLER,
+                 '@RestController\n@RequestMapping("/api/users")',
+                 CASE12_JAVADOC + '@RestController\n@RequestMapping("/api/users")'),
+            ],
+        )
 
     # 4. Adversarial negatives (false-positive traps) + execution-only
     #    positives (invisible to static diff-readers).
@@ -2021,6 +2042,12 @@ CLEAN_ENDPOINT_ADD = """    @GetMapping("/{id}/email")
 COMMENT_ADD = """/**
  * Demo controller for SpecProof golden scenarios.
  * This comment documents nothing behavioural and must not trigger findings.
+ */
+"""
+
+CASE12_JAVADOC = """/**
+ * Demo controller for SpecProof golden scenarios.
+ * Documentation only - no behavioural change.
  */
 """
 
