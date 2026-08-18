@@ -3,15 +3,15 @@
 M1 subcommands: plan / run / resume / explain. `accept` is M7 and is NOT
 implemented here (no placeholder endpoint).
 
-Honesty notes for M1:
-- LLM is not wired (M2 scope): --no-llm is the only real mode; running
-  without it degrades per §9 to the rule-based planner and everything is
-  labelled mode=deterministic.
+Honesty notes:
+- LLM planning/diagnosis degrades per §9 to the rule-based planner when no
+  usable key exists; everything is then labelled mode=deterministic.
 - Fix rules are EXPLICITLY injected via --fix-module (a Python module
   exporting FIXES: dict[str, Callable]) — that is the design §4.4 "显式注入
   fix 函数". Without one, failing steps report FAILED honestly.
-- The self-verify layer is M3: --no-self-verify is accepted and M1 always
-  skips it, marking report.self_verify.status = not_implemented.
+- The M3 self-verify hard gate (craft/verify.py) runs by default before
+  delivery: secret/canary scan + Java contract checkers. --no-self-verify
+  skips it and marks report.self_verify.status = skipped.
 """
 
 from __future__ import annotations
@@ -190,6 +190,12 @@ def _echo_report(report: dict[str, Any], artifact_dir: Path) -> None:
         )
     click.echo("diff_stat=" + str(report["diff_stat"]))
     click.echo("self_verify=" + str(report["self_verify"]))
+    self_verify = report.get("self_verify")
+    if isinstance(self_verify, dict):
+        click.echo(
+            "self_verify.status=" + str(self_verify.get("status"))
+            + "  findings=" + str(len(self_verify.get("findings") or []))
+        )
     click.echo("budget_used=" + str(report["budget_used"]))
     usage = report.get("llm_usage")
     if isinstance(usage, dict):
@@ -297,10 +303,11 @@ def craft_plan(spec: str, repo: Path, use_llm: bool | None, output: Path | None)
     help="LLM 规划与诊断 (默认: 有 LLM_API_KEY 则开启, 否则确定性)",
 )
 @click.option(
-    "--no-self-verify",
-    is_flag=True,
-    default=False,
-    help="自校验层为 M3 范围, 默认跳过并在 report 标注 not_implemented",
+    "--self-verify/--no-self-verify",
+    "self_verify_enabled",
+    default=True,
+    help="交付前自校验硬门 (M3): 密钥/canary 扫描 + Java 契约检查器, "
+    "默认开启; --no-self-verify 跳过并在 report.self_verify 标注 skipped",
 )
 @click.option("--dry-run", is_flag=True, default=False, help="只输出计划, 不执行、不落产物")
 @click.option(
@@ -323,7 +330,7 @@ def craft_run(
     budget_tokens: int | None,
     timeout: int | None,
     use_llm: bool | None,
-    no_self_verify: bool,
+    self_verify_enabled: bool,
     dry_run: bool,
     fix_module: str | None,
     stream: bool,
@@ -350,14 +357,19 @@ def craft_run(
     click.echo(note)
     if plan.llm_fallback_reason:
         click.echo("LLM 计划失败, 已退回确定性: " + plan.llm_fallback_reason)
-    if not no_self_verify:
+    if not self_verify_enabled:
         click.echo(
-            "自校验层为 M3 范围, 本次运行跳过自校验 "
-            "(report.self_verify.status=not_implemented)"
+            "自校验已跳过 (--no-self-verify): report.self_verify.status=skipped"
         )
     fix_registry = _load_fix_registry(fix_module, base_dir=repo)
     loop = CraftLoop(
-        task, plan, repo, budget=budget, fix_registry=fix_registry, client=client
+        task,
+        plan,
+        repo,
+        budget=budget,
+        fix_registry=fix_registry,
+        client=client,
+        skip_self_verify=not self_verify_enabled,
     )
     sink = None
     if stream:

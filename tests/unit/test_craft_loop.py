@@ -83,7 +83,7 @@ def test_loop_converges_done_with_injected_fix(tmp_path: Path) -> None:
     loop, report = run_loop(tmp_path, {"test": fix_double})
     assert report["result"] == "DONE"
     assert report["mode"] == "deterministic"
-    assert report["self_verify"]["status"] == "not_implemented"
+    assert report["self_verify"]["status"] == "passed"  # M3 gate ran for real
     assert report["budget_used"]["tokens"] == 0
     assert report["budget_used"]["iterations"] <= loop.budget.max_iterations
     assert "return x * 2" in (tmp_path / "calc.py").read_text(encoding="utf-8")

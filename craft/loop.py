@@ -36,6 +36,13 @@ Ctrl-C support (卷 XXI §21.3): interrupt_checkpoint() flushes the in-flight
 step as an 'interrupted' checkpoint entry + memory.json; report.json stays
 untouched until the task actually finishes. All artifacts
 (checkpoint/report/memory) carry no reasoning text (ADR-017).
+
+M3 self-verify (SPECCRAFT_PLAN §4.5): _finish runs craft.verify.self_verify
+over the changed files before writing report.json (secret/canary scan +
+Java contract checkers, both read-only). A failed gate overrides a DONE
+verdict to FAILED with the findings on record; edits are NOT rolled back —
+the report says so honestly. --no-self-verify (skip_self_verify=True)
+skips the gate and marks report.self_verify.status=skipped.
 """
 
 from __future__ import annotations
@@ -61,6 +68,7 @@ from .llm import LLMClient, LLMUnavailableError, extract_json_object, resolve_cr
 from .memory import MemoryError, TaskMemory
 from .planner import CraftPlanError, Plan, Step, classify_task, write_json_atomic
 from .spec import TaskSpec
+from .verify import self_verify
 
 FixFunction = Callable[[Editor, Step, str], list[str]]
 
@@ -211,6 +219,7 @@ class CraftLoop:
         task_key: str | None = None,
         client: LLMClient | None = None,
         memory: TaskMemory | None = None,
+        skip_self_verify: bool = False,
     ) -> None:
         if plan.mode not in ("deterministic", "llm"):
             raise CraftLoopError(
@@ -252,6 +261,9 @@ class CraftLoop:
         self.last_green_step = ""
         self.client = client
         self.llm_calls = 0
+        # M3 self-verify hard gate: default ON; --no-self-verify skips it
+        # and _finish marks report.self_verify.status=skipped honestly.
+        self.skip_self_verify = skip_self_verify
         # Task-level fact memory (卷 XXI §21.1): file reads/writes, error
         # signatures, decisions and budget snapshots — deterministic facts
         # only, never reasoning text (ADR-017). Persisted to memory.json.
@@ -795,6 +807,55 @@ class CraftLoop:
                 if entry.action in ("write", "edit", "move", "delete")
             }
         )
+        # Base snapshots for the Java contract checkers: the first Editor
+        # backup per path is the original pre-craft content (audit order:
+        # backup entry precedes its write/edit entry).
+        base_files: dict[str, str] = {}
+        for entry in self.editor.audit:
+            if entry.action != "backup" or entry.path in base_files:
+                continue
+            backup_name = entry.detail.removeprefix("→ ").strip()
+            backup_path = self.artifact_dir / "backup" / backup_name
+            try:
+                base_files[entry.path] = backup_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+        if self.skip_self_verify:
+            self_verify_report: dict[str, Any] = {
+                "status": "skipped",
+                "findings": [],
+                "note": "--no-self-verify: 自校验被显式跳过 (report 诚实标注 skipped)",
+            }
+        else:
+            try:
+                self_verify_report = self_verify(
+                    changed_files, self.workspace, base_files=base_files
+                )
+            except Exception as exc:
+                # The gate must never lose the report: honest degradation.
+                self_verify_report = {
+                    "status": "skipped",
+                    "findings": [],
+                    "note": f"自校验执行异常, 诚实降级为 skipped: {exc!r}",
+                }
+        if self_verify_report["status"] == "failed":
+            if result == "DONE":
+                result = "FAILED"
+                self_verify_report["note"] = (
+                    str(self_verify_report.get("note"))
+                    + "; 自校验硬门未通过: 终态 DONE 覆盖为 FAILED "
+                    "(编辑不回滚, 现场保留供人工处置)"
+                )
+            else:
+                self_verify_report["note"] = (
+                    str(self_verify_report.get("note"))
+                    + f"; 自校验硬门未通过, 但任务终态原为 {result} (非 DONE), 不改变终态"
+                )
+        self.memory.add(
+            "decision",
+            f"自校验: {self_verify_report['status']} "
+            f"(findings={len(self_verify_report.get('findings') or [])})",
+        )
         elapsed = self.now_fn() - self.started_at
         tokens_used = self.client.budget.used if self.client is not None else 0.0
         report: dict[str, Any] = {
@@ -803,11 +864,7 @@ class CraftLoop:
             "result": result,
             "steps": [state.to_dict() for state in self.states],
             "diff_stat": {"files_changed": len(changed_files), "files": changed_files},
-            "self_verify": {
-                "status": "not_implemented",
-                "note": "自校验层 (craft/verify.py) 为 M3 范围, M1 未接线 "
-                "(--no-self-verify 为当前默认)",
-            },
+            "self_verify": self_verify_report,
             "budget_used": {
                 "tokens": round(tokens_used, 1),
                 "iterations": self.total_iterations,
