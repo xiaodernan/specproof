@@ -43,15 +43,29 @@ Java contract checkers, both read-only). A failed gate overrides a DONE
 verdict to FAILED with the findings on record; edits are NOT rolled back —
 the report says so honestly. --no-self-verify (skip_self_verify=True)
 skips the gate and marks report.self_verify.status=skipped.
+
+W35 gate composition + durable job projection: when the M3 self-verify gate
+runs at finish, the full GatePipeline (craft/gates.py, five layered gates)
+runs too and its summary is embedded as report.gates — informational only,
+the loop does NOT block on it here (craft/accept.py owns the hard closure).
+An optional AgentJobStore (storage/agent_jobs.py, W30) turns the loop into
+a durable, leaseable job: create/lease on start, renew + set_progress per
+step, update_status(result_json=report) at finish, supervisor cancel wins
+over a leased worker (CANCELLED terminal is flushed honestly), and
+from_checkpoint re-leases per the W30 Integration note. store=None keeps
+the original in-memory behavior untouched.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import secrets
+import socket
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -60,10 +74,17 @@ from typing import Any
 from providers.base import LLMMessage
 from providers.budget import BudgetExceeded
 from providers.prompt_templates import SYSTEM_BLOCK, TOOL_SCHEMA_BLOCK, assemble
+from storage.agent_jobs import (
+    AgentJobStore,
+    InvalidJobTransitionError,
+    JobAlreadyExistsError,
+    JobStatus,
+)
 
 from .budget import Budget
 from .editor import EditError, Editor
 from .executor import ExecResult, Executor, extract_pytest_failed_tests
+from .gates import GatePipeline
 from .llm import (
     LLMClient,
     LLMUnavailableError,
@@ -73,6 +94,7 @@ from .llm import (
 )
 from .memory import MemoryError, TaskMemory
 from .planner import CraftPlanError, Plan, Step, classify_task, write_json_atomic
+from .schemas import ChangeBundle
 from .spec import TaskSpec
 from .tools import ToolRegistry
 from .verify import self_verify
@@ -228,6 +250,8 @@ class CraftLoop:
         memory: TaskMemory | None = None,
         skip_self_verify: bool = False,
         tool_registry: ToolRegistry | None = None,
+        store: AgentJobStore | None = None,
+        lease_ttl_seconds: float = 900,
     ) -> None:
         if plan.mode not in ("deterministic", "llm"):
             raise CraftLoopError(
@@ -287,6 +311,12 @@ class CraftLoop:
         # In-flight step for the Ctrl-C flush (卷 XXI §21.3).
         self._current_step: Step | None = None
         self._current_state: StepState | None = None
+        # W35 durable job projection (W30 AgentJobStore). store=None keeps the
+        # original in-memory behavior; the lease owner is computed at run()
+        # time (host:pid:job_id) and must not change within one run.
+        self.store = store
+        self.lease_ttl_seconds = lease_ttl_seconds
+        self._lease_owner = ""
 
     @property
     def tool_calls_used(self) -> int:
@@ -317,10 +347,19 @@ class CraftLoop:
     def run(self) -> dict[str, Any]:
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         self.plan.save(self.artifact_dir / "plan.json")
+        self._store_prepare()
+        self._store_lease()
+        if self.store is not None:
+            # supervisor cancel wins over late projections
+            with suppress(InvalidJobTransitionError):
+                self.store.set_plan(self.job_id, self.plan.to_dict())
         for index, step in enumerate(self.plan.steps):
             state = self.states[index]
             if state.status == "green":
                 continue
+            if self._store_cancelled(step):
+                return self._finish("CANCELLED")
+            self._store_renew()
             try:
                 self._time_gate(state)
             except _GateError as gate:
@@ -330,6 +369,71 @@ class CraftLoop:
             if outcome != "green":
                 return self._finish(outcome)
         return self._finish("DONE")
+
+    # -- durable job projection (W35 / W30 Integration note) -----------------
+
+    def _store_prepare(self) -> None:
+        """Job intake: probe-then-create (create raises on duplicates)."""
+        if self.store is None:
+            return
+        if self.store.get(self.job_id) is None:
+            # another worker raced us in; the lease below arbitrates
+            with suppress(JobAlreadyExistsError):
+                self.store.create(self.job_id, json.dumps(self.spec.to_dict()))
+
+    def _store_lease(self) -> None:
+        """Acquire the job lease; refusing to run without it is fail-closed."""
+        if self.store is None:
+            return
+        self._lease_owner = f"{socket.gethostname()}:{os.getpid()}:{self.job_id}"
+        if not self.store.lease(self.job_id, self._lease_owner, self.lease_ttl_seconds):
+            raise CraftLoopError(
+                f"作业 {self.job_id} 租约未获取 (被另一 worker 持有或已是终态); 不重复执行"
+            )
+
+    def _store_renew(self) -> None:
+        """Renew the lease once per step; losing it to another worker aborts."""
+        if self.store is None or not self._lease_owner:
+            return
+        if self.store.renew(self.job_id, self._lease_owner, self.lease_ttl_seconds):
+            return
+        job = self.store.get(self.job_id)
+        if job is not None and job.status == "cancelled":
+            return  # the step-loop cancel check flushes the honest exit
+        raise CraftLoopError(
+            f"作业 {self.job_id} 租约失效 (另一 worker 接管或租约过期); 中止"
+        )
+
+    def _store_cancelled(self, step: Step) -> bool:
+        """Supervisor cancel check: cancel wins even over a leased worker."""
+        if self.store is None:
+            return False
+        job = self.store.get(self.job_id)
+        if job is not None and job.status == "cancelled":
+            self._checkpoint(
+                step_id=step.id,
+                iteration=0,
+                diagnosis="supervisor 取消作业 (cancel 优先于租约), 本步骤未执行",
+                edits_applied=[],
+                build_result={"exit_code": -1, "failed_tests": [], "log_tail": ""},
+                verdict="cancelled",
+            )
+            return True
+        return False
+
+    def _store_set_progress(self, step_id: str, iteration: int) -> None:
+        """Project the current step into the durable store (per checkpoint)."""
+        if self.store is None:
+            return
+        state = self._current_state
+        progress: dict[str, Any] = {
+            "status": state.status if state is not None else "pending",
+            "iterations": state.iterations if state is not None else iteration,
+            "evidence": dict(state.evidence) if state is not None else {},
+        }
+        # supervisor cancel wins over late projections
+        with suppress(InvalidJobTransitionError):
+            self.store.set_progress(self.job_id, current_step=step_id, progress=progress)
 
     def _run_step(self, step: Step, state: StepState) -> str:
         self._current_step = step
@@ -783,6 +887,7 @@ class CraftLoop:
             raise CraftLoopError(f"checkpoint 写入失败: {exc}") from exc
         except MemoryError as exc:
             raise CraftLoopError(f"memory 写入失败: {exc}") from exc
+        self._store_set_progress(step_id, iteration)
 
     def _record_file_writes_from_audit(self, step_id: str) -> None:
         """file_written facts come from the editor audit (卷 XXI §21.1):
@@ -890,6 +995,16 @@ class CraftLoop:
                     str(self_verify_report.get("note"))
                     + f"; 自校验硬门未通过, 但任务终态原为 {result} (非 DONE), 不改变终态"
                 )
+        # W35 gate composition: whenever the M3 self-verify gate actually ran,
+        # run the full five-gate pipeline too and embed its summary. This is
+        # informational here — the loop does NOT block on it beyond the
+        # existing self-verify hard gate; craft/accept.py owns the full
+        # closure (gates + SpecProof verification + certificate).
+        gates_report: dict[str, Any] | None = None
+        if not self.skip_self_verify:
+            gates_report = self._run_gate_pipeline(
+                changed_files, base_files, self_verify_report
+            )
         self.memory.add(
             "decision",
             f"自校验: {self_verify_report['status']} "
@@ -911,6 +1026,8 @@ class CraftLoop:
             },
             "audit_trail": [entry.to_dict() for entry in self.editor.audit],
         }
+        if gates_report is not None:
+            report["gates"] = gates_report
         if self.client is not None:
             report["llm_usage"] = self.client.stats_report()
         if self.tool_registry is not None:
@@ -936,7 +1053,58 @@ class CraftLoop:
             raise CraftLoopError(f"report 写入失败: {exc}") from exc
         except MemoryError as exc:
             raise CraftLoopError(f"memory 写入失败: {exc}") from exc
+        # W35 terminal write: entering a terminal status releases the lease
+        # automatically; a supervisor cancel that raced us wins (its
+        # projection is final and is never overwritten).
+        if self.store is not None:
+            if result == "CANCELLED":
+                report["job_store_note"] = (
+                    "作业已被 supervisor 取消 (cancel 优先于租约), 不写终态投影"
+                )
+            else:
+                mapped: JobStatus = "succeeded" if result == "DONE" else "failed"
+                try:
+                    self.store.update_status(self.job_id, mapped, result_json=report)
+                except InvalidJobTransitionError:
+                    report["job_store_note"] = (
+                        "终态投影被 supervisor 覆盖 (cancel 优先), result_json 未更新"
+                    )
         return report
+
+    def _run_gate_pipeline(
+        self,
+        changed_files: list[str],
+        base_files: dict[str, str],
+        self_verify_report: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Run the five-gate pipeline at finish; gate 5 reuses the M3 report
+        computed above (never re-scans), and any pipeline crash degrades to
+        an honest error summary instead of losing the report."""
+        def passthrough(
+            changed: list[str],
+            workspace: Path,
+            base_files: Mapping[str, str] | None = None,
+        ) -> dict[str, Any]:
+            return self_verify_report
+
+        try:
+            pipeline = GatePipeline(
+                self.workspace, executor=self.executor, self_verify_fn=passthrough
+            )
+            bundle = ChangeBundle(task_id=self.job_id, changed_files=list(changed_files))
+            return pipeline.run(bundle, base_files=base_files).to_dict()
+        except Exception as exc:
+            return {
+                "task_id": self.job_id,
+                "overall": "error",
+                "overall_note": f"门禁组合执行异常, 诚实降级 (不伪造结果): {exc!r}",
+                "duration_ms": 0,
+                "gates": [],
+                "summary": (
+                    f"GATES: task={self.job_id} overall=error duration_ms=0 "
+                    f"(组合执行异常: {exc!r})"
+                ),
+            }
 
     @classmethod
     def from_checkpoint(
@@ -949,6 +1117,8 @@ class CraftLoop:
         exec_timeout: int = 600,
         client: LLMClient | None = None,
         tool_registry: ToolRegistry | None = None,
+        store: AgentJobStore | None = None,
+        lease_ttl_seconds: float = 900,
     ) -> CraftLoop:
         """In-memory resume interface: rebuild the loop from .specraft
         artifacts and continue after the last green step (M1: no MySQL)."""
@@ -1009,6 +1179,8 @@ class CraftLoop:
             client=client,
             memory=memory,
             tool_registry=tool_registry,
+            store=store,
+            lease_ttl_seconds=lease_ttl_seconds,
         )
         loop.last_green_step = str(last_green)
         return loop

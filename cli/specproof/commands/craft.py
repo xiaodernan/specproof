@@ -1,7 +1,9 @@
 """specproof craft — SpecCraft M1 deterministic skeleton (design doc 附录 A).
 
-M1 subcommands: plan / run / resume / explain. `accept` is M7 and is NOT
-implemented here (no placeholder endpoint).
+Subcommands: plan / run / resume / explain / accept. `accept` (M5/W35)
+re-runs the SpecCraft → SpecProof closure from a durable agent job
+(craft/accept.py): internal gates → real SpecProof verification →
+Merge Certificate (or rollback + rejection notice).
 
 Honesty notes:
 - LLM planning/diagnosis degrades per §9 to the rule-based planner when no
@@ -16,19 +18,23 @@ Honesty notes:
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import click
 
+from craft.accept import craft_accept, requirement_text_from_job_spec
 from craft.budget import Budget, BudgetError
 from craft.llm import LLMClient, LLMUnavailableError
 from craft.loop import CraftLoop, CraftLoopError, FixFunction
 from craft.planner import CraftModeError, CraftPlanError, Plan, compile_plan
+from craft.schemas import ChangeBundle, TestResult
 from craft.spec import SpecParseError, parse_spec
 
 
@@ -189,6 +195,9 @@ def _echo_report(report: dict[str, Any], artifact_dir: Path) -> None:
             + " (iterations=" + str(step["iterations"]) + ") evidence=" + str(evidence)
         )
     click.echo("diff_stat=" + str(report["diff_stat"]))
+    gates = report.get("gates")
+    if isinstance(gates, dict):
+        click.echo("gates=" + str(gates.get("summary", "")))
     click.echo("self_verify=" + str(report["self_verify"]))
     self_verify = report.get("self_verify")
     if isinstance(self_verify, dict):
@@ -487,3 +496,144 @@ def craft_explain(step_id: str, job_id: str, repo: Path) -> None:
             indent=2,
         )
     )
+
+
+def _bundle_from_job_report(job_id: str, report: dict[str, Any]) -> ChangeBundle:
+    """Rebuild the ChangeBundle projection from a stored loop report.
+
+    diff_stat.files is the authoritative changed-file list; test_green /
+    compile step evidence projects into TestResult entries verbatim (the
+    exit codes are the recorded facts, never re-derived).
+    """
+    diff_stat = report.get("diff_stat")
+    files = [
+        str(path) for path in (diff_stat.get("files") or []) if isinstance(path, str)
+    ]
+    test_results: list[TestResult] = []
+    steps = report.get("steps") or []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        evidence = step.get("evidence")
+        if not isinstance(evidence, dict):
+            continue
+        check = evidence.get("check")
+        exit_code = evidence.get("exit_code")
+        if not isinstance(exit_code, int):
+            continue
+        if check == "test_green":
+            test_results.append(
+                TestResult(
+                    command="python -m pytest -q",
+                    exit_code=exit_code,
+                    summary=str(evidence.get("output_tail", ""))[:500],
+                    passed=exit_code == 0,
+                )
+            )
+        elif check == "compile":
+            test_results.append(
+                TestResult(
+                    command="python -m compileall -q",
+                    exit_code=exit_code,
+                    summary=str(evidence.get("output_tail", ""))[:500],
+                    passed=exit_code == 0,
+                )
+            )
+    return ChangeBundle(task_id=job_id, changed_files=files, test_results=test_results)
+
+
+@craft_cmd.command("accept")
+@click.option("--job", "job_id", required=True, metavar="JOB_ID", help="要验收的作业 id")
+@click.option(
+    "--base", "base_sha", required=True, metavar="SHA", help="验收基线 (base_sha, 回滚目标)"
+)
+@click.option(
+    "--repo",
+    default=".",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="仓库路径 (验收对象与证书输出根)",
+)
+@click.option(
+    "--db",
+    "db_path",
+    default=None,
+    metavar="PATH",
+    help="AgentJobStore sqlite 文件路径; 缺省使用内存 store (程序化测试用)",
+)
+def craft_accept_cmd(job_id: str, base_sha: str, repo: Path, db_path: str | None) -> None:
+    """重新运行 SpecCraft → SpecProof 验收闭环 (M5, craft/accept.py)。
+
+    从 AgentJobStore 载入作业 (spec_text + report), 重建 ChangeBundle 后
+    走完整闭环: 内部门禁 → SpecProof 独立验证 → Merge Certificate (或回滚 +
+    拒绝通知)。退出码: 0 VERIFIED / 1 BLOCKED / 2 ERROR。
+    """
+    from storage.agent_jobs import (
+        AgentJobStoreError,
+        InMemoryAgentJobStore,
+        SqliteAgentJobStore,
+    )
+
+    store = SqliteAgentJobStore(db_path) if db_path else InMemoryAgentJobStore()
+    try:
+        job = store.get(job_id)
+    except AgentJobStoreError as exc:
+        click.echo("ERROR: 作业读取失败: " + str(exc), err=True)
+        sys.exit(2)
+    if job is None:
+        click.echo("ERROR: 作业不存在: " + job_id, err=True)
+        sys.exit(2)
+
+    repo_resolved = repo.resolve()
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_resolved), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        head_sha = proc.stdout.strip()
+    except Exception:  # noqa: BLE001 — resolution failure is an ERROR exit
+        head_sha = ""
+    if not head_sha:
+        click.echo("ERROR: 无法解析仓库 HEAD: " + str(repo_resolved), err=True)
+        sys.exit(2)
+
+    report: dict[str, Any] = {}
+    if job.result_json:
+        try:
+            parsed = json.loads(job.result_json)
+            if isinstance(parsed, dict):
+                report = parsed
+        except json.JSONDecodeError:
+            report = {}
+    bundle = _bundle_from_job_report(job_id, report)
+    spec_text = requirement_text_from_job_spec(job.spec_text)
+
+    click.echo(
+        "SpecCraft accept 闭环 — job=" + job_id + " base=" + base_sha + " head=" + head_sha
+    )
+    result = craft_accept(
+        bundle, spec_text, repo_resolved, base_sha, head_sha, job_id=job_id
+    )
+
+    # Best-effort projection: a terminal job keeps its closed projection
+    # (update_status with the same status is an idempotent no-op); the
+    # certificate on disk and this stdout verdict are the authoritative record.
+    with contextlib.suppress(AgentJobStoreError):
+        store.update_status(job.id, job.status, result_json={"accept": result.to_dict()})
+
+    gates = result.gates_report or {}
+    click.echo("gates_overall=" + str(gates.get("overall")))
+    click.echo("findings=" + str(len(result.findings)))
+    click.echo("rolled_back=" + str(result.rolled_back))
+    click.echo("VERDICT: " + result.verdict)
+    if result.certificate_path:
+        click.echo("certificate: " + result.certificate_path)
+    if result.rejection_notice_path:
+        click.echo("rejection notice: " + result.rejection_notice_path)
+    if result.verdict == "VERIFIED":
+        sys.exit(0)
+    if result.verdict == "BLOCKED":
+        sys.exit(1)
+    sys.exit(2)

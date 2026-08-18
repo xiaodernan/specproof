@@ -8,6 +8,17 @@ report artifacts under .specraft/. LLM planning/diagnosis (M2), self-verify
 absent or fail loudly / degrade honestly, never pretending to be implemented.
 """
 
+from .accept import (
+    AcceptError,
+    AcceptResult,
+    AcceptVerdict,
+    SignerFn,
+    VerifyFn,
+    bundle_digest,
+    craft_accept,
+    requirement_text_from_job_spec,
+    run_specproof_verification,
+)
 from .agents import (
     AGENT_ROLES,
     AgentContext,
@@ -123,6 +134,9 @@ from .tools import ToolRegistry, ToolSpec, redact_text
 __all__ = [
     "ALLOWED_COMMANDS",
     "AGENT_ROLES",
+    "AcceptError",
+    "AcceptResult",
+    "AcceptVerdict",
     "AgentContext",
     "AgentExecutorFn",
     "AgentRunResult",
@@ -176,6 +190,7 @@ __all__ = [
     "ReadonlyToolSurface",
     "ReadonlyViolationError",
     "SCHEMA_VERSION",
+    "SignerFn",
     "SpecParseError",
     "StaleContextError",
     "Step",
@@ -191,11 +206,14 @@ __all__ = [
     "ToolRegistry",
     "ToolResult",
     "ToolSpec",
+    "VerifyFn",
+    "bundle_digest",
     "classify_task",
     "classify_workspace_changes",
     "compile_plan",
     "compile_plan_llm",
     "compose_verdict",
+    "craft_accept",
     "default_job_id",
     "detect_test_suite",
     "ensure_step_cap",
@@ -208,8 +226,10 @@ __all__ = [
     "plan_from_schema",
     "plan_to_schema",
     "redact_text",
+    "requirement_text_from_job_spec",
     "resolve_craft_thinking",
     "run_build_gate",
+    "run_specproof_verification",
     "run_test_gate",
     "run_typecheck_gate",
     "security_gate",
