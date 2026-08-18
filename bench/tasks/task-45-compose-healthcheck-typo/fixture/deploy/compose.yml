@@ -1,0 +1,8 @@
+services:
+  api:
+    image: api:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
