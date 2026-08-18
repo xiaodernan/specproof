@@ -60,5 +60,35 @@ Go/No-Go #14 (基线对照 +25pp)。
 - delta 实测见 baseline-report.md; 100 案例时复核 +25pp 门槛。
 
 ## 实测
-- baseline 13 单测 + checker 4 单测全过; ruff/mypy 全绿;
-- 5 个新 case head 编译通过; 17 案例 eval 见本轮最终验证记录。
+- baseline 13 单测 + checker 4 单测全过; ruff 全绿 / mypy 83 源文件全绿;
+- 5 个新 case head 编译通过 (worktree 逐个 mvnw compile EXIT=0);
+- **17 案例 eval 终验: Recall 100% / Precision 100% / F1 100%, 0 误报**
+  (adversarial 负样本 ×4 全归零, execution-only 正样本检出);
+- 基线对照终测 (确定性 diff-reader, 同口径判定):
+  SpecProof 100% recall / 100% precision vs 基线 77.8% recall (漏
+  schema-break 与守卫取反) / 87.5% precision (case-16 收紧角色误报) —
+  delta +22.2pp recall / +12.5pp precision, Go/No-Go #14 门槛 FAIL
+  (如实记录; 按 100 案例路线继续拉大差距, 见 baseline-report.md);
+- 全量 pytest 见本轮收尾记录。
+
+---
+
+## 补充: 对抗性样本暴露并修复的三个真问题 (本轮的"审计→修复"闭环)
+
+1. **差分层与静态层双份 AUTH 判断, 且语义不一致** — run_differential 的
+   _check_http_diff 只看裸 @PreAuthorize/@Secured 存在性, 不认识组合
+   自定义注解与接口级方法安全 → case-13/14 误报 (eval 实证 2 FP)。
+   修复: 差分层委托共享 checker (同一套等价集 + 接口回退), 单一事实源。
+2. **检测深度 = 静态深度** — 反例生成器永远只产出未认证 401 测试,
+   与契约无关; 静态 checker 说"守卫完整"就不再执行 → case-17 守卫取反
+   (单字符 !) MISS。修复: 生成器契约驱动 — UNIQUE 契约存在时追加
+   duplicate-rejection 与 fresh-email-success 两个差分测试 (执行是唯一
+   能发现取反守卫的途径); 差分层按 surefire XML 中失败方法归属契约
+   (unauth→AUTH-01, duplicate/fresh→UNIQUE-01), 不再一律 AUTH-01。
+3. **生成测试的 MockMvc 异常语义** — 未处理控制器异常会从 perform()
+   重新抛出 (demo 无全局异常处理器), 用 andReturn 断言状态会 ERROR;
+   且同一事务内 save 不 flush 时 derived exists 查询看不到重复行。
+   修复: 显式 saveAndFlush + 捕获 ServletException 断言拒绝原因。
+
+修复后实证: case-13/14 归零, case-17 输出 UNIQUE-01 MAJOR
+(REGRESSION, base_pass_head_fail), case-01 保持 BLOCKER 差分证据。

@@ -58,8 +58,13 @@
   确定性 diff-reader + LLM 模式, 同口径判定, delta/门槛报告
 - [x] 金案例 12 → 17: adversarial 负样本 ×4 (等价组合注解/接口级安全/
   纯重缩进/收紧角色) + execution-only 正样本 ×1 (守卫取反),
-  标签以 honest base 为父隔离构建, head 编译实测通过
+  标签以 honest base 为父隔离构建, head 编译实测通过;
+  eval 17 案例 100/100/100, 0 误报
 - [x] 检测器等价性加固: 自定义安全注解等价集 + 接口级方法安全回退
+- [x] 执行级检测升级: 契约驱动的差分测试 (UNIQUE duplicate/fresh),
+  surefire 失败方法 → 契约归属; 差分层委托共享 AUTH checker
+- [x] 基线对照实测: +22.2pp recall / +12.5pp precision
+  (baseline-report.md, 门槛 FAIL 如实记录, 100 案例路线继续)
 
 ## 下一步 (按顺序)
 
