@@ -305,3 +305,225 @@ export interface HealthData {
   degraded: boolean;
   checks: Record<string, HealthCheck>;
 }
+
+// ── SpecCraft Agent console (mirror api/routes/agent_console.py) ──
+
+export interface AgentJobSummary {
+  id: string;
+  task_name: string;
+  repo_path: string;
+  status: string;
+  plan_steps: number;
+  events_count: number;
+  approvals_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentProgress {
+  percent: number;
+  current_step: number;
+  message: string;
+  updated_at: string;
+}
+
+export interface AgentPlanStep {
+  index: number;
+  title: string;
+  summary: string;
+  status: string;
+  approval?: { decision: string; note: string | null; at: string } | null;
+}
+
+export interface AgentPlan {
+  version: number;
+  steps: AgentPlanStep[];
+  created_at?: string;
+}
+
+export interface AgentJobResult {
+  verdict: string;
+  reason: string | null;
+}
+
+export interface AgentJob {
+  id: string;
+  task_name: string;
+  repo_path: string;
+  spec_text: string;
+  status: string;
+  plan: AgentPlan | null;
+  progress: AgentProgress;
+  result: AgentJobResult | null;
+  worker_id: string | null;
+  created_at: string;
+  updated_at: string;
+  events_count: number;
+  approvals_count: number;
+}
+
+export interface AgentApproval {
+  id: string;
+  job_id: string;
+  target: "plan" | "step" | "gate";
+  step_index: number | null;
+  decision: "approve" | "reject";
+  note: string | null;
+  actor: string;
+  created_at: string;
+}
+
+export interface AgentEvent {
+  seq: number;
+  type: "plan" | "tool_call" | "tool_result" | "edit" | "gate" | "progress";
+  at: string;
+  data: Record<string, unknown>;
+}
+
+export interface AgentDiffLine {
+  type: "add" | "del" | "context";
+  old_no: number | null;
+  new_no: number | null;
+  text: string;
+}
+
+export interface AgentDiffHunk {
+  old_start: number;
+  old_count: number;
+  new_start: number;
+  new_count: number;
+  lines: AgentDiffLine[];
+}
+
+export interface AgentDiffFile {
+  path: string;
+  status: string;
+  hunks: AgentDiffHunk[];
+  insertions: number;
+  deletions: number;
+}
+
+export interface AgentDiff {
+  job_id: string;
+  mode: "unified" | "split";
+  stats: { files_changed: number; insertions: number; deletions: number };
+  files: AgentDiffFile[];
+  generated_at: string;
+}
+
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const h = headers();
+  h["Content-Type"] = "application/json";
+  const resp = await fetch(apiBase() + path, {
+    method: "POST",
+    headers: h,
+    body: JSON.stringify(body),
+  });
+  return handleResponse<T>(resp);
+}
+
+// EventSource cannot set headers; the key rides the query string like the
+// job progress stream. The stream closes itself with a "done" event once
+// the job is terminal.
+export function openAgentEventStream(
+  jobId: string,
+  onEvent: (ev: AgentEvent) => void,
+  onStatus: (state: "connecting" | "open" | "closed" | "error") => void,
+  onDone?: () => void
+): () => void {
+  const key = getApiKey();
+  const url =
+    apiBase() +
+    "/agent/jobs/" +
+    encodeURIComponent(jobId) +
+    "/events?key=" +
+    encodeURIComponent(key);
+  const es = new EventSource(url);
+  onStatus("connecting");
+  es.onopen = () => onStatus("open");
+  es.onmessage = (ev: MessageEvent) => {
+    try {
+      onEvent(JSON.parse(ev.data) as AgentEvent);
+    } catch {
+      // ignore malformed frames
+    }
+  };
+  es.addEventListener("done", () => {
+    onStatus("closed");
+    if (onDone) onDone();
+    es.close();
+  });
+  es.onerror = () => onStatus("error");
+  return () => {
+    es.close();
+    onStatus("closed");
+  };
+}
+
+export function listAgentJobs(
+  status?: string
+): Promise<{ jobs: AgentJobSummary[]; count: number; filter: { status: string | null } }> {
+  const q = status && status !== "ALL" ? "?status=" + encodeURIComponent(status) : "";
+  return apiGet<{
+    jobs: AgentJobSummary[];
+    count: number;
+    filter: { status: string | null };
+  }>("/agent/jobs" + q);
+}
+
+export function getAgentJob(jobId: string): Promise<{ job: AgentJob }> {
+  return apiGet<{ job: AgentJob }>("/agent/jobs/" + encodeURIComponent(jobId));
+}
+
+export function createAgentJob(
+  repoPath: string,
+  specText: string,
+  taskName: string
+): Promise<{ job_id: string; status: string }> {
+  return apiPost<{ job_id: string; status: string }>("/agent/jobs", {
+    repo_path: repoPath,
+    spec_text: specText,
+    task_name: taskName || null,
+  });
+}
+
+export function cancelAgentJob(jobId: string): Promise<{ job_id: string; status: string }> {
+  return apiPost<{ job_id: string; status: string }>(
+    "/agent/jobs/" + encodeURIComponent(jobId) + "/cancel",
+    {}
+  );
+}
+
+export function approveAgentJob(
+  jobId: string,
+  decision: "approve" | "reject",
+  target: "plan" | "step" | "gate",
+  note: string,
+  stepIndex: number | null
+): Promise<{ approval: AgentApproval; job: { id: string; status: string } }> {
+  const body: Record<string, unknown> = {
+    decision,
+    target,
+    note: note || null,
+  };
+  if (stepIndex !== null) body.step_index = stepIndex;
+  return apiPost<{
+    approval: AgentApproval;
+    job: { id: string; status: string };
+  }>("/agent/jobs/" + encodeURIComponent(jobId) + "/approve", body);
+}
+
+export function listAgentApprovals(
+  jobId: string
+): Promise<{ job_id: string; approvals: AgentApproval[]; count: number }> {
+  return apiGet<{ job_id: string; approvals: AgentApproval[]; count: number }>(
+    "/agent/jobs/" + encodeURIComponent(jobId) + "/approvals"
+  );
+}
+
+export function getAgentDiff(jobId: string, mode: "unified" | "split"): Promise<AgentDiff> {
+  return apiGet<AgentDiff>(
+    "/agent/jobs/" + encodeURIComponent(jobId) + "/diff?mode=" + mode
+  );
+}
+

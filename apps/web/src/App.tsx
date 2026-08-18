@@ -9,6 +9,7 @@ import FindingDetail from "./pages/FindingDetail";
 import Contracts from "./pages/Contracts";
 import Eval from "./pages/Eval";
 import Health from "./pages/Health";
+import AgentApp from "./agent/AgentApp";
 
 // Minimal hash router: keeps deep links working behind the FastAPI SPA
 // fallback without any routing dependency.
@@ -36,6 +37,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { path: "#/dashboard", label: "总览", en: "Dashboard" },
   { path: "#/jobs", label: "任务", en: "Jobs" },
+  { path: "#/agent", label: "Agent", en: "SpecCraft" },
   { path: "#/matrix", label: "需求矩阵", en: "Matrix" },
   { path: "#/contracts", label: "契约中心", en: "Contracts" },
   { path: "#/eval", label: "评测", en: "Eval" },
@@ -47,6 +49,7 @@ function renderRoute(route: string): JSX.Element {
   const seg = path.split("/").filter(Boolean);
   if (seg.length === 0 || seg[0] === "dashboard") return <Dashboard />;
   if (seg[0] === "login") return <Login />;
+  if (seg[0] === "agent") return <AgentApp seg={seg} />;
   if (seg[0] === "jobs") {
     if (seg.length >= 2) return <JobDetail jobId={decodeURIComponent(seg[1])} />;
     return <Jobs />;

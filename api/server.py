@@ -44,6 +44,7 @@ from api.middleware import (  # noqa: E402
     PayloadLimitMiddleware,
     RequestIDMiddleware,
 )
+from api.routes.agent_console import router as agent_console_router  # noqa: E402
 from api.routes.jobs import router as jobs_router  # noqa: E402
 from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
@@ -72,6 +73,7 @@ app.add_middleware(
 app.include_router(jobs_router)
 app.include_router(webhooks_router)
 app.include_router(web_router)
+app.include_router(agent_console_router)
 
 
 # ── §8.1 stable error envelope ──────────────────────────────────────────────
@@ -201,6 +203,7 @@ async def health() -> dict[str, str | bool]:
 _web_dist = Path(__file__).resolve().parents[1] / "apps" / "web" / "dist"
 _SPA_RESERVED_PREFIXES = (
     "api/",
+    "agent",
     "jobs",
     "metrics",
     "health",
