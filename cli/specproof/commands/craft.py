@@ -104,6 +104,60 @@ def _compact(value: object, limit: int = 200) -> object:
     return value
 
 
+class _StreamEcho:
+    """Terminal sink for LLM content deltas (卷 XXI §21.3).
+
+    TTY: every chunk is echoed immediately (no newline) and flushed so
+    tokens appear as they arrive. Non-TTY (pipes / CI logs): chunks are
+    buffered and echoed line by line so logs stay readable.
+    """
+
+    def __init__(self) -> None:
+        self._tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+        self._buffer = ""
+        self._started = False
+
+    def write(self, piece: str) -> None:
+        if not piece:
+            return
+        if not self._started:
+            click.echo("[LLM 流式] ", nl=False)
+            self._started = True
+        if self._tty:
+            click.echo(piece, nl=False)
+            sys.stdout.flush()
+            return
+        self._buffer += piece
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            click.echo(line)
+            self._buffer = self._buffer.lstrip("\r")
+
+    def flush(self) -> None:
+        if self._buffer:
+            click.echo(self._buffer)
+            self._buffer = ""
+        if self._started:
+            click.echo("")
+
+
+def _echo_stream_modes(report: dict[str, Any]) -> None:
+    """Honest per-call stream annotation from the usage ledger."""
+    usage = report.get("llm_usage")
+    if not isinstance(usage, dict):
+        return
+    detail = usage.get("calls_detail")
+    if not isinstance(detail, list):
+        return
+    modes = [
+        f"{entry.get('label')}={entry.get('stream_mode', 'off')}"
+        for entry in detail
+        if isinstance(entry, dict)
+    ]
+    if modes:
+        click.echo("stream_modes: " + ", ".join(modes))
+
+
 def _echo_plan(plan: Plan, plan_path: Path | None, note: str) -> None:
     click.echo("SpecCraft 计划 — " + plan.task_title)
     click.echo("mode=" + plan.mode + "  (" + note + ")")
@@ -255,6 +309,13 @@ def craft_plan(spec: str, repo: Path, use_llm: bool | None, output: Path | None)
     metavar="MODULE",
     help="注入确定性 fix 规则的 Python 模块 (需导出 FIXES: dict[str, Callable])",
 )
+@click.option(
+    "--stream/--no-stream",
+    "stream",
+    default=False,
+    help="规划与诊断的 token 级流式输出到终端 (无 TTY 自动逐行; "
+    "Ctrl-C 落 checkpoint 后退出码 130); 默认 --no-stream 保持现状",
+)
 def craft_run(
     spec: str,
     repo: Path,
@@ -265,6 +326,7 @@ def craft_run(
     no_self_verify: bool,
     dry_run: bool,
     fix_module: str | None,
+    stream: bool,
 ) -> None:
     """执行 SpecCraft 计划 (plan → execute → verify 循环)。"""
     llm_active, note = _llm_desired(use_llm)
@@ -297,7 +359,26 @@ def craft_run(
     loop = CraftLoop(
         task, plan, repo, budget=budget, fix_registry=fix_registry, client=client
     )
-    report = loop.run()
+    sink = None
+    if stream:
+        if client is None:
+            click.echo("--stream: 无可用 LLM (无 key), 无流式输出, 按确定性模式执行")
+        else:
+            sink = _StreamEcho()
+            client.stream_hook = sink.write
+    try:
+        report = loop.run()
+    except KeyboardInterrupt:
+        loop.interrupt_checkpoint()
+        if sink is not None:
+            sink.flush()
+        click.echo("")
+        click.echo("已中断 (Ctrl-C): 当前状态已写入 checkpoint, memory.json 已落盘")
+        click.echo(f"续跑: specproof craft resume --job {loop.job_id} --repo {repo}")
+        sys.exit(130)
+    if sink is not None:
+        sink.flush()
+        _echo_stream_modes(report)
     _echo_report(report, loop.artifact_dir)
     if report["result"] != "DONE":
         sys.exit(1)
@@ -339,7 +420,13 @@ def craft_resume(
         )
     except (CraftLoopError, CraftPlanError, BudgetError) as exc:
         raise click.ClickException("恢复失败: " + str(exc)) from exc
-    report = loop.run()
+    try:
+        report = loop.run()
+    except KeyboardInterrupt:
+        loop.interrupt_checkpoint()
+        click.echo("已中断 (Ctrl-C): 当前状态已写入 checkpoint, memory.json 已落盘")
+        click.echo(f"续跑: specproof craft resume --job {loop.job_id} --repo {repo}")
+        sys.exit(130)
     _echo_report(report, loop.artifact_dir)
     if report["result"] != "DONE":
         sys.exit(1)

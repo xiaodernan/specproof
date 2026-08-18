@@ -25,6 +25,17 @@ stays in memory only — it never reaches checkpoint.json / report.json.
 checkpoint.json gains one entry per iteration (atomically rewritten);
 report.json is the terminal artifact (schema per 附录 B); resume continues
 after the last green step recorded in checkpoint.json.
+
+Task memory (卷 XXI §21.1): the loop keeps a TaskMemory of deterministic
+facts — file reads (grep criteria), file writes (edited paths), error
+signatures (failed iterations, merged by count), decisions (green/stuck/
+terminal verdicts) and budget snapshots. It is written to memory.json
+alongside every checkpoint, restored by from_checkpoint, and injected into
+the diagnose prompt's variable_data section only (never the stable prefix).
+Ctrl-C support (卷 XXI §21.3): interrupt_checkpoint() flushes the in-flight
+step as an 'interrupted' checkpoint entry + memory.json; report.json stays
+untouched until the task actually finishes. All artifacts
+(checkpoint/report/memory) carry no reasoning text (ADR-017).
 """
 
 from __future__ import annotations
@@ -47,6 +58,7 @@ from .budget import Budget
 from .editor import EditError, Editor
 from .executor import ExecResult, Executor, extract_pytest_failed_tests
 from .llm import LLMClient, LLMUnavailableError, extract_json_object, resolve_craft_thinking
+from .memory import MemoryError, TaskMemory
 from .planner import CraftPlanError, Plan, Step, classify_task, write_json_atomic
 from .spec import TaskSpec
 
@@ -198,6 +210,7 @@ class CraftLoop:
         exec_calls: int = 0,
         task_key: str | None = None,
         client: LLMClient | None = None,
+        memory: TaskMemory | None = None,
     ) -> None:
         if plan.mode not in ("deterministic", "llm"):
             raise CraftLoopError(
@@ -239,6 +252,13 @@ class CraftLoop:
         self.last_green_step = ""
         self.client = client
         self.llm_calls = 0
+        # Task-level fact memory (卷 XXI §21.1): file reads/writes, error
+        # signatures, decisions and budget snapshots — deterministic facts
+        # only, never reasoning text (ADR-017). Persisted to memory.json.
+        self.memory = memory or TaskMemory()
+        # In-flight step for the Ctrl-C flush (卷 XXI §21.3).
+        self._current_step: Step | None = None
+        self._current_state: StepState | None = None
 
     @property
     def tool_calls_used(self) -> int:
@@ -284,6 +304,8 @@ class CraftLoop:
         return self._finish("DONE")
 
     def _run_step(self, step: Step, state: StepState) -> str:
+        self._current_step = step
+        self._current_state = state
         try:
             ok, evidence, result = self._check_criteria(step, state)
         except _GateError as gate:
@@ -293,6 +315,7 @@ class CraftLoop:
             state.status = "green"
             state.evidence = evidence
             self.last_green_step = step.id
+            self.memory.add("decision", f"步骤 {step.id} 首次检查即 green", step_id=step.id)
             self._checkpoint(
                 step_id=step.id,
                 iteration=0,
@@ -413,6 +436,10 @@ class CraftLoop:
                 state.evidence = evidence
                 state.iterations = attempts
                 self.last_green_step = step.id
+                self.memory.add(
+                    "decision", f"步骤 {step.id} 修复后 green (迭代 {attempts})",
+                    step_id=step.id,
+                )
                 self._checkpoint(
                     step_id=step.id,
                     iteration=attempts,
@@ -423,6 +450,7 @@ class CraftLoop:
                 )
                 return "green"
             signature = self._error_signature(step, result)
+            self.memory.add("error_signature", signature, step_id=step.id)
             if signature == last_signature:
                 consecutive += 1
             else:
@@ -434,6 +462,11 @@ class CraftLoop:
                 state.iterations = attempts
                 state.evidence["reason"] = (
                     f"同类错误连续 {consecutive} 次, 判定 stuck (签名: {signature[:160]})"
+                )
+                self.memory.add(
+                    "decision",
+                    f"步骤 {step.id} stuck: 同类错误签名连续 {consecutive} 次",
+                    step_id=step.id,
                 )
                 self._checkpoint(
                     step_id=step.id,
@@ -503,6 +536,7 @@ class CraftLoop:
                     None,
                 )
             contents[target] = "\n".join(line for _, line in lines)
+            self.memory.add("file_read", target, step_id=step.id)
         if not criteria.value:
             return (
                 True,
@@ -631,6 +665,7 @@ class CraftLoop:
             "failure_output": (result.output_tail if result is not None else "") or "(无)",
             "forbidden_changes": "\n".join(self.spec.forbidden_changes) or "(无)",
             "target_files": "\n\n".join(snippets) or "(无目标文件)",
+            "task_memory": self.memory.summarize_for_prompt() or "(无任务记忆)",
             "editor_api": _EDITOR_API_BLOCK,
             "output_schema": _EDIT_OPS_SCHEMA,
         }
@@ -685,8 +720,72 @@ class CraftLoop:
         }
         try:
             write_json_atomic(self.artifact_dir / "checkpoint.json", payload)
+            self._record_file_writes_from_audit(step_id)
+            self.memory.add(
+                "budget",
+                f"tokens={round(self.client.budget.used if self.client else 0.0, 1)} "
+                f"iterations={self.total_iterations} tool_calls={self.tool_calls_used}",
+                step_id=step_id,
+            )
+            self.memory.save(self.artifact_dir)
         except CraftPlanError as exc:
             raise CraftLoopError(f"checkpoint 写入失败: {exc}") from exc
+        except MemoryError as exc:
+            raise CraftLoopError(f"memory 写入失败: {exc}") from exc
+
+    def _record_file_writes_from_audit(self, step_id: str) -> None:
+        """file_written facts come from the editor audit (卷 XXI §21.1):
+        write/edit/move/delete actions — the authoritative trail, not the
+        fix functions' return values."""
+        for entry in self.editor.audit:
+            if entry.action in ("write", "edit"):
+                self.memory.add("file_written", entry.path, step_id=step_id)
+            elif entry.action == "delete":
+                self.memory.add(
+                    "file_written", f"deleted: {entry.path}", step_id=step_id
+                )
+            elif entry.action == "move":
+                destination = entry.detail.removeprefix("→ ").strip()
+                self.memory.add(
+                    "file_written", f"{entry.path} -> {destination}", step_id=step_id
+                )
+
+    def interrupt_checkpoint(self) -> None:
+        """Ctrl-C flush (卷 XXI §21.3): persist the in-flight step as an
+        'interrupted' checkpoint entry plus memory.json, so craft resume
+        continues after the last green step. Never writes report.json —
+        that is a terminal artifact."""
+        self.artifact_dir.mkdir(parents=True, exist_ok=True)
+        step_id = (
+            self._current_step.id
+            if self._current_step is not None
+            else (self.last_green_step or "")
+        )
+        entry = {
+            "job_id": self.job_id,
+            "step_id": step_id,
+            "iteration": 0,
+            "diagnosis": "用户中断 (Ctrl-C), 当前步骤未完成",
+            "edits_applied": [],
+            "build_result": {"exit_code": -1, "failed_tests": [], "log_tail": ""},
+            "verdict": "interrupted",
+            "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+        self.checkpoint_entries.append(entry)
+        payload = {
+            "job_id": self.job_id,
+            "workspace": str(self.workspace),
+            "task_key": self.task_key,
+            "last_green_step": self.last_green_step,
+            "entries": self.checkpoint_entries,
+        }
+        try:
+            write_json_atomic(self.artifact_dir / "checkpoint.json", payload)
+            self.memory.save(self.artifact_dir)
+        except CraftPlanError as exc:
+            raise CraftLoopError(f"中断落盘失败 (checkpoint): {exc}") from exc
+        except MemoryError as exc:
+            raise CraftLoopError(f"中断落盘失败 (memory): {exc}") from exc
 
     def _finish(self, result: str) -> dict[str, Any]:
         changed_files = sorted(
@@ -720,10 +819,21 @@ class CraftLoop:
             report["llm_usage"] = self.client.stats_report()
         if self.plan.llm_fallback_reason:
             report["llm_fallback_reason"] = self.plan.llm_fallback_reason
+        self.memory.add(
+            "decision", f"任务终态: {result} (迭代 {self.total_iterations})"
+        )
+        self.memory.add(
+            "budget",
+            f"tokens={round(tokens_used, 1)} iterations={self.total_iterations} "
+            f"tool_calls={self.tool_calls_used} seconds={round(elapsed, 1)}",
+        )
         try:
             write_json_atomic(self.artifact_dir / "report.json", report)
+            self.memory.save(self.artifact_dir)
         except CraftPlanError as exc:
             raise CraftLoopError(f"report 写入失败: {exc}") from exc
+        except MemoryError as exc:
+            raise CraftLoopError(f"memory 写入失败: {exc}") from exc
         return report
 
     @classmethod
@@ -774,6 +884,10 @@ class CraftLoop:
                 "note": "从 checkpoint 恢复: 该步骤上一轮已绿, 不重跑",
             }
         total_iterations = sum(int(entry.get("iteration", 0)) for entry in entries)
+        try:
+            memory = TaskMemory.load(directory)
+        except MemoryError as exc:
+            raise CraftLoopError(f"memory.json 损坏, 无法恢复 ({directory}): {exc}") from exc
         spec = TaskSpec(title=plan.task_title, description="")
         loop = cls(
             spec,
@@ -790,6 +904,7 @@ class CraftLoop:
             total_iterations=total_iterations,
             task_key=task_key,
             client=client,
+            memory=memory,
         )
         loop.last_green_step = str(last_green)
         return loop

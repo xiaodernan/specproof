@@ -540,9 +540,17 @@ toolchain 元数据)。
 
 ### 21.1 记忆分层
 1. 会话记忆 (进程内): 当前任务步骤的决策/产物引用 (现状: checkpoint 已有)。
-2. 任务记忆 (新增, craft/memory.py): 任务级事实库 — 已读文件/已改文件/错误签名/
-   关键决策/预算消耗, 序列化 memory.json; resume 时注入规划/诊断上下文 (数据段,
-   预算截断 ≤ 2k tokens)。
+2. 任务记忆 (✅ N 车道已实现, craft/memory.py): 任务级事实库 — 已读文件/已改文件/
+   错误签名/关键决策/预算消耗, 序列化 memory.json; resume 时恢复并注入诊断上下文
+   (数据段, 预算截断 ≤ 2k tokens)。实现要点: 条目 {kind, detail, step_id, ts,
+   count}; 确定性去重 (error_signature 同类合并计数, file_read/file_written 按
+   (kind, detail) 合并取最新, budget 仅留最新快照, decision 逐条追加);
+   summarize_for_prompt() 按优先级 file_written > error_signature > decision >
+   file_read > budget 整条截断, 每条一行紧凑文本; save/load 原子写 memory.json,
+   缺失文件视为空记忆 (旧作业可续跑), 损坏文件响亮报错; file_written 来自 editor
+   审计, error_signature 来自规则诊断; 注入路径仅经 prompt_templates.assemble()
+   的 variable_data (task_memory 键), 绝不进稳定前缀 (AD 系列约束);
+   所有产物 (checkpoint/report/memory.json) 无 reasoning 文本 (ADR-017)。
 3. 仓库记忆 (M8 排期): AGENTS.md/CLAUDE.md 策略摄取 + 检索历史 (RAG 2.0 已就绪)。
 4. 跨任务记忆 (M18 排期): 契约/修复模式库 (非证据链路可缓存, ADR-020)。
 
@@ -551,10 +559,44 @@ toolchain 元数据)。
   checkpoint 记录压缩点与摘要哈希; resume 可从摘要重建上下文; 压缩只作用于
   规划/诊断上下文, 不动证据链路。
 
-### 21.3 流式交互 (新增, 本轮 N 车道)
-- craft run --stream: 规划与诊断的 token 级流式输出 (provider chat_stream);
-  支持 Ctrl-C 优雅中断 (当前步骤落 checkpoint 后退出); 非流式环境自动回退。
-- CLI 进度: 步骤状态条 (s1..sn 状态/迭代/耗时) + 流式模型输出窗口。
+### 21.3 流式交互 (✅ N 车道已实现)
+- craft run --stream/--no-stream (默认 --no-stream 保持现状): 规划与诊断的
+  token 级流式输出经 provider.chat_stream (LLMClient.stream_chat_sync 生成器 +
+  stream_hook 驱动 chat()); 非流式环境 (无 key / 探测无 streaming) 诚实回退
+  chat 路径并 yield 最终 content 一次, 每次调用以 stream_mode=native|fallback
+  标注在 stats 调用条目上 (无伪造增量); 无 TTY 自动逐行缓冲输出。
+- Ctrl-C 优雅中断: KeyboardInterrupt → 当前步骤以 verdict=interrupted 落
+  checkpoint + memory.json 落盘, 退出码 130, 打印 resume 命令提示;
+  report.json 仅在任务真正终态时写出。
+- 已知取舍: 原生 chat_stream 在 provider 契约中无 response_format 槽位,
+  --stream 下 JSON 契约由模板 OUTPUT CONTRACT + 容错解析兜底 (解析失败走既有
+  诚实降级); usage 聚合来自 chunk 携带字段 (网关按能力回传)。
+- CLI 进度: 步骤状态条 (s1..sn 状态/迭代/耗时) + 流式模型输出窗口 (排期 M 车道,
+  本轮仅 token 流 + stream_modes 标注)。
+
+### 21.4 实测记录 (N 车道)
+
+**本地 mock 流式 (scripts/n-lane-stream-demo.py, 无网络)**
+- native: MockProvider 逐 chunk 产出 ["hello", " ", "world"], 终端按序打印
+  "hello world"; last_stream_mode=native; usage 聚合 prompt=21/completion=11/
+  reasoning=4, budget.used=36.0 (加权和), 记账一次。
+- fallback: get_capabilities() 无 streaming → chat() 路径执行一次, yield 最终
+  content 一次; last_stream_mode=fallback; usage 正常入账。
+
+**CLI --stream 无 key 回退 (speccraft-demo, SPECPROOF_SANDBOX=local)**
+- specproof craft run task.spec --repo speccraft-demo --fix-module fixes.py
+  --stream → 输出 "LLM unavailable: LLM_API_KEY 未设置 — falling back to
+  deterministic" + "--stream: 无可用 LLM (无 key), 无流式输出, 按确定性模式执行";
+  4 步全绿 DONE (s3 经注入 fix 修复, iterations=1); memory.json 落盘
+  (file_read / file_written 来自 editor 审计 / decision / budget, 无 reasoning
+  文本); exit 0。
+- 同一 job 执行 craft resume → 4 步 resumed 证据, DONE, memory.json 完整加载。
+
+**门禁**
+- ruff / mypy / bandit 对 craft/memory.py + craft/llm.py + craft/loop.py +
+  cli/specproof/commands/craft.py 全绿; craft 全套 116 tests 全绿 (含新增
+  test_craft_memory.py 17 + test_craft_stream.py 13); tests/unit 全量 626
+  passed (基线 2026-08-18)。
 
 ## 卷 XXII. 提示词工程系统化 (新增)
 
@@ -588,8 +630,11 @@ toolchain 元数据)。
 
 ## 卷 XXV. 本轮新增实施车道
 
-N 车道 (Agent 记忆 + 流式): craft/memory.py 任务记忆 + craft run --stream +
-中断落 checkpoint + 测试; 完成后更新本卷状态。
+N 车道 (Agent 记忆 + 流式): ✅ 完成 — craft/memory.py 任务记忆 (去重/优先级
+截断/save-load/注入数据段) + LLMClient.stream_chat_sync + stream_hook +
+craft run --stream/--no-stream + Ctrl-C 中断落 checkpoint (退出码 130) +
+tests/unit/test_craft_memory.py (16) + test_craft_stream.py (13) 全绿;
+ruff/mypy/bandit 门禁全绿; 实测见 21.4。
 ## 卷 XXVI. RAG 3.0 深化设计 (图谱融合 + 检索评测落地)
 
 ### 26.1 三图融合 (代码图 + 文档图 + 契约图)

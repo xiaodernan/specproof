@@ -28,7 +28,7 @@
 
 | 能力 | 对标 | 我们 | 动作 |
 |---|---|---|---|
-| MCP 服务端 (工具被外部 agent 调用) | ✓ MCP server | ✗ | 【本轮启动 J】mcp/ 包: 把 verify/contracts/eval/replay/craft/health 暴露为 MCP tools (stdio JSON-RPC, mcp 1.28.0 SDK 可用) |
+| MCP 服务端 (工具被外部 agent 调用) | ✓ MCP server | ✓ (J 完成, 2026-08-18) | mcp/ 包: stdio JSON-RPC (MCP 2024-11-05), 6 工具 (verify/contracts/eval/craft_plan/health/replay_info), isError 错误契约 + 诚实降级, 协议矩阵 31 单测; 手写最小实现 (项目同名 mcp/ 包会遮蔽 SDK, 故不用 SDK; SDK 1.28.0 已装, 保留为迁移选项) |
 | MCP 客户端 (调用外部工具) | ✓ | ✗ | 后续: craft 可消费外部 MCP 工具 (M5) |
 | Web 检索 | ✓ web search | ✗ (BYOK 定位, 默认不开) | 记录为有意不提供 |
 | GitHub 集成 | ✓ GitHub bot | ✓ GitHub App (webhook/checks/评论/fix PR) | 平级 |
@@ -56,15 +56,17 @@
 ## 6. 中间件完整性 (用户点名要求)
 
 FastAPI: auth (fail-closed) ✓ / rate limit ✓ / CORS ✓ / SSE ✓ / 结构化日志 ✓ /
-metrics ✓ / OTel ✓。补齐项: Request-ID 传播、请求体大小限制 (§13 payload 限制)、
-响应缓存策略文档。CP (Spring Boot): webhook 验签 ✓ / 审计 ✓ / outbox ✓。
-动作: 本轮 J 顺带做 Request-ID + payload 限制 + docs/operations/MIDDLEWARE.md 盘点。
+metrics ✓ / OTel ✓ / Request-ID ✓ (J 完成: 透传+生成+响应头回显+日志字段) /
+payload 限制 ✓ (J 完成: 默认 10MB, 超限 413 先于 auth, 不挡 SSE)。
+响应缓存策略: 有意不缓存 (实时证据 + 诚实降级契约, 见 MIDDLEWARE.md §5)。
+CP (Spring Boot): webhook 验签 ✓ / 审计 ✓ / outbox ✓。
+盘点文档: docs/operations/MIDDLEWARE.md (J 完成: 全链路职责+配置+验证方式)。
 
 ## 7. 结论
 
 对标结论 (诚实): 在 agent 循环/上下文/安全治理上与 Claude Code / Codex 同级或
 更严; 在验证深度 (契约/差分/变异/证据/证书) 上系统性超出 (这是产品定位差异);
-主要缺口 = 生态互操作 (MCP 双向) + 子代理并行 + 仓库策略摄取 — 均已排期。
+主要缺口 = 生态互操作 (MCP 服务端 J 已完成, 客户端方向 M5 待做) + 子代理并行 + 仓库策略摄取 — 均已排期。
 
 ## 8. 行业竞争基准与我们的评测战略 (2026-08-18 增补)
 
@@ -95,7 +97,7 @@ metrics ✓ / OTel ✓。补齐项: Request-ID 传播、请求体大小限制 (�
 | 集成测试 | 112 (真基础设施) | 150 | 三服务 compose 组合、CP×Runtime E2E 矩阵 |
 | 金案例 | 100 (63正/37负) | 200 | 序列化状态机案例、更多注入负样本、跨契约组合案例 |
 | 前端测试 | 33 (web_api) | 60+ | SPA 路由/降级视图断言 |
-| MCP 一致性 | J 进行中 | 完整 | 协议消息矩阵 (initialize/tools/call/错误路径) |
+| MCP 一致性 | ✓ J 完成 (46 单测: 31 协议/工具 + 15 中间件) | 完整 | 协议消息矩阵 (initialize/tools/list/tools/call/错误路径/降级) 已落地; MCP 客户端方向 (M5) 待做 |
 | 微基准 | 附录 E 设计 | 10 任务落地 | K 本轮起 (见下) |
 
 ## 10. 持续演进机制 (长过程的方法论)
