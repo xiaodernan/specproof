@@ -860,7 +860,60 @@ ruff/mypy/bandit 门禁全绿; 实测见 21.4。
 - 组织策略注入接口 (org 层无标准文件名, 预留);
 - provider tools 原生支持 (视网关能力演进)。
 
+## 卷 XXXIII. 验收门禁组合与并行只读子代理 (W34 已交付)
+
+> 状态: ✅ 已交付 (commit 8cb27bc + 审计 126c1c8)。这是 M5 强制闭环的上游工程:
+> ChangeBundle 在进入 SpecProof 之前先过五道内部门禁; 同时把"只读侦察子代理"
+> 并行化, 补齐对标 Claude Code/Codex 差距矩阵的并行能力项。
+
+### 33.1 GatePipeline 五道门 (craft/gates.py, 544 行)
+- GATE_ORDER = run_test → run_build → run_typecheck → security → self_verify;
+- 每门统一结果契约 GateResult {gate, status: passed|failed|skipped|error,
+  note, findings[], duration_ms}; 组合语义 FAIL > SKIPPED > PASS (镜像仓库
+  FAIL>PASS>UNVERIFIED 惯例), 任一 error = 最差等级且诚实注记;
+- GateReport 附可 grep 汇总行: GATES: task=... overall=... <gate>=<status>...
+  duration_ms=... — CI/日志一条命令定位哪道门挂;
+- 诚实 skipped 纪律 (绝不伪造通过): 无测试套件→skip+note; run_build 按生态
+  (mvn -DskipTests compile / gradle compileJava / python compileall); run_typecheck
+  = mypy 变更 .py, Java 诚实跳过 (由 build+契约检查覆盖); security = scanner
+  过滤变更文件 + CANARY_MARKER (CRITICAL/HIGH 阻断, MEDIUM/LOW 记录);
+  self_verify 原样复用 craft/verify.py (W26, verify.py 零改动);
+- 可注入 executor/security_scan/self_verify_fn — 测试与生产共用同一组合逻辑。
+
+### 33.2 ParallelRunner 并行只读子代理 (craft/agents.py, 304 行)
+- asyncio.gather 真并发 (max_agents=8); SubAgentSpec {name, role, task,
+  tool_allowlist, budget}; roles: explorer/tester/security;
+- 派发层只读强制: ReadonlyToolSurface.call 拒绝任何注册 risk≠readonly 工具
+  (apply_patch/create_file/run_* 结构性不可能) + 每代理 allowlist;
+- validate() 启动前 fail-closed 拒绝: 非只读/未知工具、重名、N>上限、
+  空集合、写集合重叠 (路径归一化) — 与任务 9"不共写同文件"铁律一一对应;
+- 每代理 wall-clock 超时 (asyncio.wait_for → timed_out) + 预算经
+  AgentContext.budget 透传 (超额记录) + 单代理崩溃隔离 (error outcome,
+  其余继续);
+- 单测实证 (真实计时): 双 0.2s 慢代理墙钟 <0.35s 且启动间隔 <0.15s —
+  真重叠, 小于串行和 0.4s; LLM 执行器为注入式 callable, 零硬编码。
+
+### 33.3 与总计划的呼应
+- M5 闭环上游: W35 accept 车道直接消费 GatePipeline (设计
+  docs/architecture/CRAFT_ACCEPT_DESIGN.md, 在途);
+- 差距矩阵 (卷 XVIII): "子代理并行" 项由 D 级升 B+ 级 (只读受限并行 +
+  写集冲突 fail-closed 比通用并行更安全, 但通用写并行仍待);
+- 与 agent_jobs (W30) 组合后可实现"租约内只读侦察→门禁→accept"的完整
+  恢复语义 (中断恢复后侦察结果复用)。
+
+### 33.4 交付证据 (真实运行)
+- 62 新测试 (gates 41 + agents 21); 目标套件 80 全绿 (含 verify 18);
+- -k craft 全扫 338 passed 0 failed; ruff / mypy strict (2 文件) /
+  bandit (--skip B101) 全绿 — 队长逐项复跑确认;
+- 提交 8cb27bc 严格基于新头 a014078 (车道自查 + 队长核验), 无历史改写。
+
+### 33.5 演进
+- ParallelRunner × GatePipeline 组合工作流: 并行侦察结果直接喂门禁输入;
+- LLM 执行器接线 (DeepSeek V4 Pro 网关, 注入式已留);
+- 只读代理接入 symbol_search (S 车道索引) 提升侦察召回;
+- 通用 (可写) 并行子代理: 需 write-set 事务化 + 逐文件锁, 列入 M7+。
+
 ## 卷 XXIX. 本计划书进度
 
-当前 ~3.2 万字 (32 卷)。扩写路线: 每轮 +2-3k 字, 优先补
+当前 ~3.5 万字 (33 卷)。扩写路线: 每轮 +2-3k 字, 优先补
 卷 IV/VI/VII/X/XII/XVIII 的实现细节与实测记录, 目标 20 轮内达 5 万字。
