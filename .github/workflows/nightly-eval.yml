@@ -8,7 +8,7 @@ on:
 jobs:
   nightly-eval:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 360
     env:
       SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
     steps:
@@ -47,7 +47,7 @@ jobs:
             -v specproof-maven-cache-1000:/home/maven/.m2 \
             -v $PWD/demo/spring-backend:/work:ro -w /work \
             maven:3.9-eclipse-temurin-21 ./mvnw -q -v
-      - name: Nightly golden-case evaluation
+      - name: Nightly 100 golden-case evaluation (multi-hour)
         run: |
           python -m cli.specproof.main eval \
             --cases golden-cases --repo . --no-llm \

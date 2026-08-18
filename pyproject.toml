@@ -105,7 +105,7 @@ asyncio_mode = "auto"
 addopts = "-v --tb=short"
 markers = [
     "integration: requires live infrastructure (MySQL/Redis/RabbitMQ/ES)",
-    "slow_eval: full 20-case pipeline evaluation (multi-hour); CI runs it as a dedicated job",
+    "slow_eval: full 100-case pipeline evaluation (multi-hour); nightly runs it as a dedicated job",
 ]
 
 [tool.bandit]
