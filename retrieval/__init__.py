@@ -10,21 +10,51 @@ Note: the "rerank" attribute of this package is the SUBMODULE
 is also exported here as "rerank_candidates" so the submodule name is
 never shadowed (introspection/monkeypatching stays unambiguous).
 """
-from . import embeddings, hybrid, rerank
+from . import bench_queries, embeddings, hybrid, rerank, symbols
+from .bench_queries import (
+    QUERIES,
+    RetrievalQuery,
+    mrr,
+    recall_at_k,
+    summarize_bench,
+)
 from .embeddings import EmbeddingClient
 from .hybrid import RRF_K, HybridOutcome, hybrid_search, rrf_fuse
 from .rerank import RerankResult
 from .rerank import rerank as rerank_candidates
+from .symbols import (
+    IndexStats,
+    ParseResult,
+    RepoIndex,
+    Symbol,
+    SymbolIndex,
+    SymbolIndexer,
+    index_repo,
+)
 
 __all__ = [
     "EmbeddingClient",
     "HybridOutcome",
+    "IndexStats",
+    "ParseResult",
+    "QUERIES",
     "RRF_K",
+    "RepoIndex",
     "RerankResult",
+    "RetrievalQuery",
+    "Symbol",
+    "SymbolIndex",
+    "SymbolIndexer",
+    "bench_queries",
     "embeddings",
     "hybrid",
     "hybrid_search",
+    "index_repo",
+    "mrr",
+    "recall_at_k",
     "rerank",
     "rerank_candidates",
     "rrf_fuse",
+    "summarize_bench",
+    "symbols",
 ]

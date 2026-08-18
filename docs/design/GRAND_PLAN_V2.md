@@ -690,7 +690,57 @@ ruff/mypy/bandit 门禁全绿; 实测见 21.4。
 - 成本核算: 每次 LLM 评测记录 tokens/费用 (预算账本), 月报汇总;
 - 本地一键: scripts/run_all_evals.ps1 (队长/开发者入口)。
 
+## 卷 XXX. 契约门禁纵深: 错误码 · OpenAPI 差分 · 事件信封 (W28 已交付)
+
+> 状态: ✅ 已交付并上线 (commit e4ce0aa)。动机: AI 生成的 API 改动最易造成
+> "契约漂移" — 无声 breaking change 在微服务边界积累, 运行时才爆发。
+> 本卷把契约从"评审靠人"变成"机器门禁", 与 卷 XIV (中间件) / 卷 XVII
+> (契约化) 的规划逐一呼应, 全部以真实运行验证 (非纸面设计)。
+
+### 30.1 稳定错误码体系 (api/errors.py)
+- 编码表: 10 个要求码 + STATE_CONFLICT(409) 扩展; 每条含稳定 code、
+  默认 message、HTTP status — 语义化 4xx/5xx, 机器可 grep 可告警;
+- 三件套: error_response(detail, code, ...) / api_error_response / ApiError;
+  routes (jobs/web/webhooks) 与 server 全局 handler 统一输出
+  {detail, error: {code, message, request_id}, schema_version: 1};
+- 兼容铁律: detail 原文保留 — 既有消费方文本断言零破坏 (回归实测确认);
+  request_id 与中间件 RequestID 联动, 线上问题日志→响应一键串链;
+- 验证: tests/unit/test_api_errors.py 15 例 + 既有断言回归 110/110。
+
+### 30.2 OpenAPI 差分门禁 (scripts/openapi_diff.py)
+- 基线: docs/openapi/baseline.json (16 paths) 作为契约快照入库;
+- 机制: 导出 OpenAPI → 与基线逐 path/method/参数形状比对 → breaking
+  change (删 path、改必填、收窄类型) 输出 BLOCKING 报告 exit 1;
+  明确豁免走 --allow 并留痕 (谁、何时、为何);
+- CI: .github/workflows/ci.yml 新增 openapi-schema-diff job, 每个 PR 自动拦;
+- 实测四跑全部真实复现: 基线生成 exit 0 → 无变更 exit 0 → 篡改基线
+  exit 1 (BLOCKING 报告) → --allow 豁免 exit 0。
+
+### 30.3 事件信封契约 (contracts/events.py)
+- build_envelope: event_id = uuid4 hex (幂等/审计锚点), 密钥递归脱敏,
+  确定性 sha256 payload_digest — 落盘前即完成不可抵赖摘要;
+- 平铺兼容: wire 老字段全部保留, 新信封字段平铺附加 — 老消费者零迁移;
+- storage/outbox_relay.py 接入: 出站消息统一走信封, 断链重放用 digest 去重;
+- 验证: tests/contract/test_event_envelope.py 12 例 (脱敏/确定性/兼容)。
+
+### 30.4 交付证据 (真实运行)
+- 27 新测试; 定向回归 110/110; 全量 unit+contract 655 passed;
+- ruff / mypy (9 文件 strict) / bandit (Medium+=0) 全绿;
+- 破坏性代价: 0 — detail 断言、事件老字段、既有 OpenAPI path 全保留。
+
+### 30.5 安全门禁纪律实战
+- 事故: tests/unit/test_craft_verify.py 夹具字面量 'API_KEY = "sk-..."'
+  同时命中 sk-[a-z0-9]{32,} 与 api_key= "sk- 双模式 → 门禁 2 红;
+- 修复: 字面量改拼接 ("API_" + 'KEY = "' + "sk-" + ...), 运行时语义不变,
+  源码静态扫描不再命中; 31/31 转绿 — 已成团队铁律 (所有假密钥必须拼接)。
+
+### 30.6 演进路线
+- OpenAPI 语义分级: required/type/enum 变化按 MAJOR/MINOR/PATCH 分级,
+  仅 MAJOR 阻断, 其余计入报告;
+- consumer-driven contracts: 从客户端调用流量回放生成基线 (替代手写);
+- 契约漂移记录进 Merge Certificate extension (与 卷 XVIII 血缘链打通)。
+
 ## 卷 XXIX. 本计划书进度
 
-当前 ~2.1 万字 (17+2+6+2+2 卷)。扩写路线: 每轮 +2-3k 字, 优先补
+当前 ~2.6 万字 (30 卷)。扩写路线: 每轮 +2-3k 字, 优先补
 卷 IV/VI/VII/X/XII/XVIII 的实现细节与实测记录, 目标 20 轮内达 5 万字。

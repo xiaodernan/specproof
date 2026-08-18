@@ -11,7 +11,7 @@
 | 2 | 工具注册表+版本化 Envelope (read/search/diff/patch/test/build/git_status) | 部分: editor/executor 直连, 无注册表/版本化信封 | R 车道: craft/tools.py |
 | 3 | 持久化 Job 投影/取消/租约/恢复 | 部分: 本地 checkpoint+resume (M1/M2); 无 MySQL agent_jobs | R 车道 + 阶段 3 (需 craft/ 空闲) |
 | 4 | 仓库规则摄取 (AGENTS.md/CLAUDE.md/README/CI) | ✗ | R 车道: craft/rules.py + 优先级 (安全>组织>仓库>目录>任务>默认>模型建议) |
-| 5 | 4 语言最小符号索引 + 30 条检索基准 | 部分: repo_graph (Java 风格) + RAG 2.0 (L); 无 TS/Py/Go 索引, 无检索基准 | S 车道 (本轮): retrieval/symbols.py + scripts/bench_retrieval.py |
+| 5 | 4 语言最小符号索引 + 30 条检索基准 | ✅ 已完成+实测 (S 车道 2026-08-18): retrieval/symbols.py 四语言索引 (py=ast / ts+go=保守正则 / java=repo_graph 同风格), 30 查询黄金集 (retrieval/bench_queries.py), scripts/bench_retrieval.py 真实 ES 实测: BM25 recall@10=82.2% MRR=0.656; BM25+图谱=48.9%/0.528 (top-8 种子插值语义, 详因见报告); symbol-index 查表=75.6%/0.683 (找回 4000 字符截断丢失的符号); 门禁 ruff/mypy/bandit 全绿; 详情 docs/eval/retrieval-bench.md | 已完成; 后续消融: 向量/RRF/重排 (L 车道 retrieval/hybrid.py 已有, 未并入本轮数字) |
 | 6 | editor stale digest + 用户改动分类 + 结构化 Diff | 部分: 唯一匹配+原子写+备份+审计 (F); digest/stale 分类缺 | R 车道: editor 扩展 |
 | 7 | 测试/构建/类型/安全/SpecProof 自校验门禁 | 部分: O 在做 M3 自校验 (checker+密钥); 分层门禁缺 | O (在途) + R 车道组合 |
 | 8 | Web 任务向导/计划审阅/实时工具流/审批/Diff | ✗ (9 页验证控制台, 无 Agent 工作台) | U 车道 (后端 Task API 先行) |
@@ -48,7 +48,7 @@
 ## D. 本轮执行
 
 1. 本审计文档落盘并提交。
-2. S 车道: 4 语言最小符号索引 + 30 条检索基准 (任务5)。
+2. S 车道: 4 语言最小符号索引 + 30 条检索基准 (任务5) — ✅ 已完成, 实测数字见上表与 docs/eval/retrieval-bench.md。
 3. V 车道: 评测集扩展 50+20+10+10 (任务10, bench 数据面)。
 4. R 车道 (O 完成后立即): craft/schemas.py + tools.py 注册表 + rules.py 摄取 +
    editor stale-digest (任务 1/2/4/6) — 这是"完整商业化代码开发 Agent"的核心工程。
