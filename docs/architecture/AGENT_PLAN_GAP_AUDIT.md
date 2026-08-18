@@ -13,9 +13,9 @@
 | 4 | 仓库规则摄取 (AGENTS.md/CLAUDE.md/README/CI) | ✅ 已完成 (R 车道 2026-08-18): craft/rules.py RepositoryRules.load(repo) — AGENTS.md/CLAUDE.md/README/CONTRIBUTING/SECURITY.md/.github CI workflows + 子目录 AGENTS.md/CLAUDE.md (限深 4/≤30, node_modules 等跳过, 单文件 200KB/总量 1MB 截断诚实标注); 每条 {source,digest(sha256),text,section,priority}; 优先级 7 级实现 security>organization>repository>directory>task>default>model_suggestion (内置平台安全策略封顶, SECURITY.md 归 security 层); 冲突检测: 含"忽略(所有)安全"字样 → conflict 标记 + 冲突列表 + security 层降级 (绝不视为高优先级); prompt_block() 全量数据段包裹 (craft.llm.wrap_data_section, 注入防御: 规则文本只进数据段); tests/unit/test_craft_rules.py 17 测试 | 完成; 后续: 组织策略注入接口 (org 层无标准文件名, 预留) |
 | 5 | 4 语言最小符号索引 + 30 条检索基准 | ✅ 已完成+实测 (S 车道 2026-08-18): retrieval/symbols.py 四语言索引 (py=ast / ts+go=保守正则 / java=repo_graph 同风格), 30 查询黄金集 (retrieval/bench_queries.py), scripts/bench_retrieval.py 真实 ES 实测: BM25 recall@10=82.2% MRR=0.656; BM25+图谱=48.9%/0.528 (top-8 种子插值语义, 详因见报告); symbol-index 查表=75.6%/0.683 (找回 4000 字符截断丢失的符号); 门禁 ruff/mypy/bandit 全绿; 详情 docs/eval/retrieval-bench.md | 已完成; 后续消融: 向量/RRF/重排 (L 车道 retrieval/hybrid.py 已有, 未并入本轮数字) |
 | 6 | editor stale digest + 用户改动分类 + 结构化 Diff | ✅ 部分完成 (R 车道 2026-08-18): craft/editor.py — sha256 digest (raw bytes): read_file_meta/FileRead/file_digest; write_file/apply_edit 可选 expected_digest → 不匹配 StaleContextError(STALE_CONTEXT) 拒绝写入 (实测文件不被覆盖/不备份), 旧调用零行为变化 (134 既有测试全绿); 审计条目带 before_digest/after_digest (audit.jsonl 含全字段); classify_workspace_changes(git status --porcelain) → {user_changes, agent_changes, unknown} (冲突对 DD/AU/UD/UA/DU/AA/UU、未跟踪、重命名归 unknown); tests/unit/test_craft_editor_stale.py 22 测试 | 结构化 Diff 仍缺 (待 M4: AST 编辑+跨文件重构, 与任务 9 并行) |
-| 7 | 测试/构建/类型/安全/SpecProof 自校验门禁 | 部分: O 在做 M3 自校验 (checker+密钥); 分层门禁缺 | O (在途) + R 车道组合 |
+| 7 | 测试/构建/类型/安全/SpecProof 自校验门禁 | ✅ 已完成 (W34 车道 2026-08-19): craft/gates.py GatePipeline 五道门 GATE_ORDER = run_test→run_build→run_typecheck→security→self_verify; 每门统一结果契约 {gate,status:passed|failed|skipped|error,note,findings,duration_ms}; 组合语义 FAIL>SKIPPED>PASS (镜像仓库 FAIL>PASS>UNVERIFIED), error 为最差且诚实注记; 可 grep 汇总行 GATES: task=... overall=... <gate>=<status>... duration_ms=...; 无测试/无构建配置/无类型对象诚实 skipped 绝不伪造通过 (run_test 无检测→skip+note; run_build 按生态 mvn/gradle/compileall; run_typecheck=mypy 变更 .py, Java 诚实跳过; security=scanner 过滤变更文件+CANARY_MARKER, CRITICAL/HIGH 阻断 MEDIUM/LOW 记录; self_verify 原样复用 craft/verify.py); tests/unit/test_craft_gates.py 41 测试 | 完成; 接线: CraftLoop._finish/CLI 调 pipeline.run(bundle) (留给 M5 accept 车道, 设计 docs/architecture/CRAFT_ACCEPT_DESIGN.md) |
 | 8 | Web 任务向导/计划审阅/实时工具流/审批/Diff | ✗ (9 页验证控制台, 无 Agent 工作台) | U 车道 (后端 Task API 先行) |
-| 9 | 只读 Explorer/Test/Security 并行 (不共写同文件) | ✗ | R/U 之后: craft/agents.py |
+| 9 | 只读 Explorer/Test/Security 并行 (不共写同文件) | ✅ 已完成 (W34 车道 2026-08-19): craft/agents.py ParallelRunner (asyncio.gather 真并发, max_agents=8); 派发层只读强制 — ReadonlyToolSurface.call 拒绝任何注册 risk≠readonly 工具 (apply_patch/create_file/run_* 结构性不可能) + 每代理 allowlist; validate() 启动前 fail-closed 拒绝: 非只读/未知工具、重名、N>上限、空集合、写集合重叠 (路径归一化); 每代理 wall-clock 超时 (asyncio.wait_for→timed_out) + 预算经 AgentContext.budget 透传 + 单代理崩溃隔离 (error outcome, 其余继续); 单测实证: 双 0.2s 慢代理墙钟 <0.35s (真重叠 < 串行和 0.4s) / 非只读工具 allowlist 启动前拒 / 重叠写集拒·不相交收 / 崩溃隔离 / 超时隔离+预算透传+超额记录; tests/unit/test_craft_agents.py 21 测试 | 完成; 后续: 与 GatePipeline 组合成并行侦察→门禁工作流; LLM 执行器接线 (注入式 callable, 已留) |
 | 10 | 50 代码任务+20 对抗+10 恢复+10 审批 评测集 | 部分: 10 微基准 (含 1 陷阱); 对抗/恢复/审批集缺 | V 车道 (本轮): bench/ 扩展 |
 | 11 | OIDC/租户/RBAC/审计/配额 | 部分: CP tenant/user 实体; 其余缺 | 工业化指南阶段 1 (T 车道) |
 | 12 | GitHub/GitLab PR 自动化, IDE, MCP 客户端, 计费, 私有化 | 部分: GitHub App+fix PR, MCP 服务端; 其余缺 | 后续阶段 (M10/M8/M9 对应) |
@@ -29,9 +29,9 @@
 | M2 仓库理解 | 部分 (BM25+向量+图谱) | 规则摄取 ✅ (任务4, craft/rules.py); 检索消融 S/L 车道在途 |
 | M3 稳定计划循环 | ✅ 大部分 (DAG/checkpoint/预算/STUCK/暂停恢复) | MySQL 投影 ✅ (任务3, storage/agent_jobs.py, 55 测试) |
 | M4 代码编辑跨语言 | 部分 (唯一匹配编辑; Q 在做执行适配器) | stale 保护 ✅ (任务6, digest+STALE_CONTEXT+改动分类); AST 编辑/结构化 Diff 待 |
-| M5 SpecProof 闭环 | 部分 (O 做自校验; accept 接线待) | ChangeBundle+accept (任务1/7) |
+| M5 SpecProof 闭环 | 门禁组合 ✅ (任务7, craft/gates.py 五道门); self_verify ✅ (O/W26) | ChangeBundle→SpecProof accept 强制闭环 (设计定稿 docs/architecture/CRAFT_ACCEPT_DESIGN.md, 下一车道接线) |
 | M6 Web+IDE | 部分 (验证控制台 9 页) | Agent 工作台 20 路由 (任务8) |
-| M7 并行子代理 | ✗ | 任务9 |
+| M7 并行子代理 | ✅ (任务9, craft/agents.py ParallelRunner 只读并行+写集重叠 fail-closed+真并发实证) | LLM 执行器接线; 与门禁组合工作流 |
 | M8-M11 企业/模型/生态/评测 | 部分 (provider 治理 W13, 微基准) | 工业化指南阶段 1/6/7 对齐 |
 
 ## C. §3.3 目标指标当前值
@@ -57,3 +57,7 @@
 6. W30 任务3: 持久化 agent_jobs 投影/取消/租约 — ✅ 已完成: storage/agent_jobs.py
    (协议+三后端, 原子租约, cancel 胜出租约) + tests/unit/test_agent_jobs.py 55 用例全绿 +
    MySQL 集成测试 MYSQL_URL 门控; 门禁 ruff/mypy strict/bandit/pytest 全绿 (证据见上表第 3 行与 M3 行)。
+7. W34 任务 7+9: 分层验收门禁组合 + 并行只读子代理 — ✅ 已完成: craft/gates.py
+   (五道门, FAIL>SKIPPED>PASS, 诚实 skipped) + craft/agents.py (只读并行, 写集重叠
+   fail-closed, 真并发实证); 新增 62 测试 (41+21), 目标套件 80 全绿, -k craft 338 passed;
+   ruff/mypy strict/bandit 全绿 (队长复跑确认; 证据见上表 7/9 行与 M5/M7 行)。
