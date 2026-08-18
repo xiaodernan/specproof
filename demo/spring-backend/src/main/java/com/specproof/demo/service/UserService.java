@@ -100,9 +100,6 @@ public class UserService {
         String oldEmail = user.getEmail();
         String newEmail = request.getNewEmail();
 
-        if (oldEmail.equals(newEmail)) {
-            return new UserResponse(user.getId(), user.getUsername(), user.getEmail());
-        }
 
         if (userRepository.existsByEmail(newEmail)) {
             throw new RuntimeException("Email already in use: " + newEmail);
