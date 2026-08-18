@@ -29,7 +29,7 @@
 | M2 仓库理解 | 部分 (BM25+向量+图谱) | 规则摄取 ✅ (任务4, craft/rules.py); 检索消融 S/L 车道在途 |
 | M3 稳定计划循环 | ✅ 大部分 (DAG/checkpoint/预算/STUCK/暂停恢复) | MySQL 投影 ✅ (任务3, storage/agent_jobs.py, 55 测试) |
 | M4 代码编辑跨语言 | 部分 (唯一匹配编辑; Q 在做执行适配器) | stale 保护 ✅ (任务6, digest+STALE_CONTEXT+改动分类); AST 编辑/结构化 Diff 待 |
-| M5 SpecProof 闭环 | ✅ accept 强制闭环已实现 (W35, craft/accept.py 775 行: 工作区守卫→五道门禁 FAIL⇒STOP+回滚→真实 agent-graph 验证→VERIFIED⇒Merge Certificate+lineage+Ed25519 (fail-closed)→其余回滚+拒绝; 幂等键; loop 接线 report.gates; CLI craft accept exit 0/1/2; 15+7 新测试, craft 扫 360 绿, 队长复跑全绿; E2E 真实跑: 门禁 5/5 过→真实 graph 判定→BLOCKED+回滚+拒绝 实测; VERIFIED 路径需 Java demo+maven 手动步骤已留) | VERIFIED 路径真实 E2E (Spring demo); 终态 accept 结果投影 attach_accept_result (W35.1 在途) |
+| M5 SpecProof 闭环 | ✅ accept 强制闭环已实现 (W35, craft/accept.py 775 行: 工作区守卫→五道门禁 FAIL⇒STOP+回滚→真实 agent-graph 验证→VERIFIED⇒Merge Certificate+lineage+Ed25519 (fail-closed)→其余回滚+拒绝; 幂等键; loop 接线 report.gates; CLI craft accept exit 0/1/2; 15+7 新测试, craft 扫 360 绿, 队长复跑全绿; E2E 真实跑: 门禁 5/5 过→真实 graph 判定→BLOCKED+回滚+拒绝 实测; VERIFIED 路径需 Java demo+maven 手动步骤已留) | VERIFIED 路径真实 E2E (Spring demo, 手动步骤已文档化); 终态投影 ✅ (W35.1 attach_accept_result: 终态限定+首写胜出幂等+三后端一致+旧库自动补列; 11 新测试, 104 定向绿, 队长复跑; CLI 实测 BLOCKED 投影落库) |
 | M6 Web+IDE | ✅ Agent 工作台 20 路由 (任务8, W31: 8 端点 + 20 前端路由 + 27 API 测试 + vitest 26; npm build/typecheck/test 全绿, 队长复跑后端 107 全绿) | IDE 插件 (VSCode/JetBrains); 真实 Worker 事件接线 (craft loop ↔ _ConsoleState, 属 W35 车道) |
 | M7 并行子代理 | ✅ (任务9, craft/agents.py ParallelRunner 只读并行+写集重叠 fail-closed+真并发实证) | LLM 执行器接线; 与门禁组合工作流 |
 | M8-M11 企业/模型/生态/评测 | 部分 (provider 治理 W13, 微基准) | 工业化指南阶段 1/6/7 对齐 |
