@@ -43,6 +43,13 @@ from api.errors import (  # noqa: E402
 from api.middleware import (  # noqa: E402
     PayloadLimitMiddleware,
     RequestIDMiddleware,
+    TenantAuthMiddleware,
+)
+from api.routes.admin import (  # noqa: E402
+    admin_router as tenant_admin_router,
+)
+from api.routes.admin import (  # noqa: E402
+    router as auth_router,
 )
 from api.routes.agent_console import router as agent_console_router  # noqa: E402
 from api.routes.jobs import router as jobs_router  # noqa: E402
@@ -74,6 +81,11 @@ app.include_router(jobs_router)
 app.include_router(webhooks_router)
 app.include_router(web_router)
 app.include_router(agent_console_router)
+# Multi-tenant identity (industrialization phase 1): /auth/* and the
+# /api/v1/admin/* RBAC-governed surface. In single-tenant mode every
+# handler answers 503, so legacy deployments never see a behavior change.
+app.include_router(auth_router)
+app.include_router(tenant_admin_router)
 
 
 # ── §8.1 stable error envelope ──────────────────────────────────────────────
@@ -162,6 +174,9 @@ async def request_metrics(request: Request, call_next: Any) -> Any:
 # dependencies, and both wrap the pre-existing metrics/tracing/CORS stack.
 app.add_middleware(PayloadLimitMiddleware)
 app.add_middleware(RequestIDMiddleware)
+# Tenant auth runs inside RequestID (its envelopes carry the request id) and
+# outside PayloadLimit (credentials are checked before any body buffering).
+app.add_middleware(TenantAuthMiddleware)
 
 
 # ── Web dashboard (static; the JSON APIs it calls are key-protected) ──

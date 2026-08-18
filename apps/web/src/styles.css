@@ -263,3 +263,17 @@ label.field { margin-top: 10px; }
 .diff-cell.add { background: #0a2b12; color: var(--green); }
 .diff-cell.del { background: #2b0a0a; color: var(--red); }
 
+/* Multi-tenant identity (industrialization phase 1) */
+.login-modes { display: flex; gap: 8px; margin-bottom: 14px; }
+.login-modes .btn { width: auto; }
+.btn-active { border-color: var(--blue); color: var(--blue); }
+.login-or { text-align: center; color: var(--muted); margin: 10px 0; font-family: var(--mono); font-size: 11px; letter-spacing: 1px; }
+.tenant-switcher { margin-bottom: 10px; text-align: left; }
+.tenant-roles { display: flex; gap: 4px; margin: 6px 0; }
+.tenant-select { width: 100%; margin-bottom: 6px; font-family: var(--mono); font-size: 11px; }
+.tenant-saved { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.tenant-saved-row { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.tenant-remove { padding: 0 6px; }
+.cleartext { font-family: var(--mono); background: var(--panel2); padding: 10px; word-break: break-all; color: var(--blue); }
+.mono { font-family: var(--mono); }
+

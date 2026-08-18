@@ -2,6 +2,10 @@
 // The API key lives in sessionStorage and is sent as X-API-Key (the SSE
 // progress stream additionally passes it as a query parameter because
 // EventSource cannot set headers).
+//
+// Multi-tenant mode (industrialization phase 1): a Bearer token (local
+// sp_* or an OIDC id_token) may be stored instead; when present it is sent
+// as Authorization and takes precedence over the legacy X-API-Key.
 
 export class ApiError extends Error {
   status: number;
@@ -15,6 +19,85 @@ export class ApiError extends Error {
 
 const KEY_STORAGE = "specproof_api_key";
 const BASE_STORAGE = "specproof_api_base";
+const BEARER_STORAGE = "specproof_bearer_token";
+const SAVED_TOKENS_STORAGE = "specproof_saved_tokens";
+
+export function getBearerToken(): string {
+  try {
+    return window.sessionStorage.getItem(BEARER_STORAGE) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setBearerToken(token: string): void {
+  try {
+    window.sessionStorage.setItem(BEARER_STORAGE, token);
+  } catch {
+    // storage unavailable; token lives only in memory
+  }
+}
+
+export function clearBearerToken(): void {
+  try {
+    window.sessionStorage.removeItem(BEARER_STORAGE);
+  } catch {
+    // ignore
+  }
+}
+
+export interface SavedToken {
+  name: string;
+  token: string;
+}
+
+// Saved tokens let one browser hold credentials for several tenants; the
+// tenant switcher activates one of them. Cleartext lives in localStorage
+// (same trust model as the sessionStorage API key).
+export function listSavedTokens(): SavedToken[] {
+  try {
+    const raw = window.localStorage.getItem(SAVED_TOKENS_STORAGE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SavedToken[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveToken(name: string, token: string): void {
+  try {
+    const rest = listSavedTokens().filter((t) => t.token !== token);
+    rest.unshift({ name: name || "token-" + (rest.length + 1), token });
+    window.localStorage.setItem(SAVED_TOKENS_STORAGE, JSON.stringify(rest));
+  } catch {
+    // ignore
+  }
+}
+
+export function removeSavedToken(token: string): void {
+  try {
+    const rest = listSavedTokens().filter((t) => t.token !== token);
+    window.localStorage.setItem(SAVED_TOKENS_STORAGE, JSON.stringify(rest));
+  } catch {
+    // ignore
+  }
+}
+
+export function consumeOidcCallback(): boolean {
+  // The OIDC callback lands on /#oidc_token=...; stash the id_token and
+  // drop the fragment so it never leaks into history or logs.
+  try {
+    const hash = window.location.hash || "";
+    const match = hash.match(/oidc_token=([^&]+)/);
+    if (!match) return false;
+    setBearerToken(decodeURIComponent(match[1]));
+    window.location.hash = "#/dashboard";
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function apiBase(): string {
   try {
@@ -58,8 +141,13 @@ export function clearApiKey(): void {
 
 function headers(): Record<string, string> {
   const h: Record<string, string> = { Accept: "application/json" };
-  const key = getApiKey();
-  if (key) h["X-API-Key"] = key;
+  const bearer = getBearerToken();
+  if (bearer) {
+    h["Authorization"] = "Bearer " + bearer;
+  } else {
+    const key = getApiKey();
+    if (key) h["X-API-Key"] = key;
+  }
   return h;
 }
 
@@ -411,6 +499,11 @@ export interface AgentDiff {
   generated_at: string;
 }
 
+export async function apiDelete<T>(path: string): Promise<T> {
+  const resp = await fetch(apiBase() + path, { method: "DELETE", headers: headers() });
+  return handleResponse<T>(resp);
+}
+
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const h = headers();
   h["Content-Type"] = "application/json";
@@ -524,6 +617,114 @@ export function listAgentApprovals(
 export function getAgentDiff(jobId: string, mode: "unified" | "split"): Promise<AgentDiff> {
   return apiGet<AgentDiff>(
     "/agent/jobs/" + encodeURIComponent(jobId) + "/diff?mode=" + mode
+  );
+}
+
+// ── Multi-tenant identity (mirror api/routes/admin.py) ──
+
+export interface AuthConfig {
+  auth_mode: string;
+  oidc: { enabled: boolean; issuer: string; client_id: string };
+}
+
+export interface PrincipalInfo {
+  user_id: string;
+  tenant_id: string;
+  roles: string[];
+  scopes: string[];
+  email?: string;
+}
+
+export interface TenantRow {
+  id: string;
+  name: string;
+  plan_id: string;
+  status: string;
+  created_at: number;
+}
+
+export interface UserRow {
+  id: string;
+  tenant_id: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: number;
+}
+
+export interface TokenRow {
+  id: string;
+  user_id: string;
+  user_email: string;
+  name: string;
+  scopes: string;
+  expires_at: number | null;
+  last_used_at: number | null;
+  created_at: number;
+}
+
+export function getAuthConfig(): Promise<AuthConfig> {
+  return apiGet<AuthConfig>("/auth/config");
+}
+
+export function getAuthMe(): Promise<{ principal: PrincipalInfo }> {
+  return apiGet<{ principal: PrincipalInfo }>("/auth/me");
+}
+
+export function listTenants(): Promise<{ tenants: TenantRow[]; count: number }> {
+  return apiGet<{ tenants: TenantRow[]; count: number }>("/api/v1/admin/tenants");
+}
+
+export function createTenant(
+  name: string,
+  planId: string
+): Promise<{ tenant: TenantRow }> {
+  return apiPost<{ tenant: TenantRow }>("/api/v1/admin/tenants", {
+    name,
+    plan_id: planId || "free",
+  });
+}
+
+export function listUsers(tenantId?: string): Promise<{ users: UserRow[]; count: number }> {
+  const q = tenantId ? "?tenant_id=" + encodeURIComponent(tenantId) : "";
+  return apiGet<{ users: UserRow[]; count: number }>("/api/v1/admin/users" + q);
+}
+
+export function createUser(email: string, role: string): Promise<{ user: UserRow }> {
+  return apiPost<{ user: UserRow }>("/api/v1/admin/users", { email, role });
+}
+
+export function setUserRole(userId: string, role: string): Promise<{ user: UserRow }> {
+  return apiPost<{ user: UserRow }>(
+    "/api/v1/admin/users/" + encodeURIComponent(userId) + "/role",
+    { role }
+  );
+}
+
+export function setUserStatus(userId: string, status: string): Promise<{ user: UserRow }> {
+  return apiPost<{ user: UserRow }>(
+    "/api/v1/admin/users/" + encodeURIComponent(userId) + "/status",
+    { status }
+  );
+}
+
+export function listTokens(): Promise<{ tokens: TokenRow[]; count: number }> {
+  return apiGet<{ tokens: TokenRow[]; count: number }>("/api/v1/admin/tokens");
+}
+
+export function createToken(
+  name: string,
+  scopes: string,
+  userId?: string
+): Promise<{ token: TokenRow; cleartext: string }> {
+  const body: Record<string, unknown> = { name, scopes };
+  if (userId) body.user_id = userId;
+  return apiPost<{ token: TokenRow; cleartext: string }>("/api/v1/admin/tokens", body);
+}
+
+export function revokeToken(tokenId: string): Promise<{ revoked: boolean; token_id: string }> {
+  return apiDelete<{ revoked: boolean; token_id: string }>(
+    "/api/v1/admin/tokens/" + encodeURIComponent(tokenId)
   );
 }
 

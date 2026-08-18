@@ -50,6 +50,11 @@ INTERNAL = "INTERNAL"
 #: state change). Added on top of the guide named codes so the 409 path
 #: carries a stable code instead of a semantic mismatch.
 STATE_CONFLICT = "STATE_CONFLICT"
+#: HTTP 404 for identity-admin resources (users/tokens). Cross-tenant job
+#: reads keep JOB_NOT_FOUND — the two 404s must stay indistinguishable on
+#: the wire (no existence leak), but admin endpoints may name the missing
+#: resource for their own authenticated callers.
+USER_NOT_FOUND = "USER_NOT_FOUND"
 
 #: Stable code → canonical HTTP status.
 ERROR_CODES: dict[str, int] = {
@@ -64,6 +69,7 @@ ERROR_CODES: dict[str, int] = {
     VALIDATION_FAILED: 422,
     INTERNAL: 500,
     STATE_CONFLICT: 409,
+    USER_NOT_FOUND: 404,
 }
 
 #: Default stable code per HTTP status for plain HTTPException instances

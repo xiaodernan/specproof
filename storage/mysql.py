@@ -13,6 +13,30 @@ from typing import Any, cast
 import pymysql
 from pymysql.cursors import DictCursor
 
+from storage.tenant_scope import current_scope
+
+# ── Tenant-aware job SQL (industrialization phase 1) ─────────────
+# When a tenant scope is active (multi-tenant auth mode) every job read
+# carries a tenant predicate and every job insert stamps tenant_id from the
+# principal — repository-layer parameterization per
+# docs/architecture/MULTI_TENANT_DESIGN.md §2/§4. Without a scope the SQL is
+# byte-identical to the pre-tenant implementation (single-tenant compat).
+
+_JOB_INSERT_TENANT_SQL = (
+    "INSERT INTO verification_jobs "
+    "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
+    "github_check_json, tenant_id) "
+    "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
+    "%(head_ref)s, %(spec_path)s, 'PENDING', %(depth)s, "
+    "%(github_check_json)s, %(tenant_id)s)"
+)
+
+_AUDIT_INSERT_TENANT_SQL = (
+    "INSERT INTO audit_logs "
+    "(job_id, actor, action, from_status, to_status, detail, attempted_tenant) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+)
+
 # ── State machine ──────────────────────────────────────────────
 
 _VALID_TRANSITIONS: dict[str, set[str]] = {
@@ -55,6 +79,9 @@ def _job_row(job: dict[str, Any]) -> dict[str, Any]:
         "status": job.get("status", "PENDING"),
         "depth": job.get("depth", "FAST"),
         "github_check_json": json.dumps(check) if check else None,
+        # Multi-tenant: stamped from the request-scoped tenant context by the
+        # insert paths below; NULL for single-tenant / webhook-created jobs.
+        "tenant_id": job.get("tenant_id"),
     }
 
 
@@ -142,16 +169,31 @@ class MySQLStore:
         from_status: str | None = None,
         to_status: str | None = None,
         detail: str = "",
+        attempted_tenant: str | None = None,
     ) -> None:
-        """Write an audit row (P0-A5). Best effort — never breaks the flow."""
+        """Write an audit row (P0-A5). Best effort — never breaks the flow.
+
+        attempted_tenant (phase 1) records the tenant a caller tried to reach
+        when a cross-tenant access was refused — the column only participates
+        when the value is set, so pre-migration schemas keep working.
+        """
         try:
             with self.connection() as conn:
-                conn.cursor().execute(
-                    "INSERT INTO audit_logs "
-                    "(job_id, actor, action, from_status, to_status, detail) "
-                    "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (job_id, actor, action, from_status, to_status, detail),
-                )
+                if attempted_tenant is not None:
+                    conn.cursor().execute(
+                        _AUDIT_INSERT_TENANT_SQL,
+                        (
+                            job_id, actor, action, from_status, to_status,
+                            detail, attempted_tenant,
+                        ),
+                    )
+                else:
+                    conn.cursor().execute(
+                        "INSERT INTO audit_logs "
+                        "(job_id, actor, action, from_status, to_status, detail) "
+                        "VALUES (%s, %s, %s, %s, %s, %s)",
+                        (job_id, actor, action, from_status, to_status, detail),
+                    )
         except Exception as exc:  # noqa: BLE001 — audit must not take down jobs
             import logging
 
@@ -184,8 +226,20 @@ class MySQLStore:
             "%(head_ref)s, %(spec_path)s, %(status)s, %(depth)s, "
             "%(github_check_json)s)"
         )
+        row = _job_row(job)
+        scope = current_scope()
+        if scope is not None:
+            row["tenant_id"] = scope.tenant_id
+            _sql = (
+                "INSERT INTO verification_jobs "
+                "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
+                "github_check_json, tenant_id) "
+                "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
+                "%(head_ref)s, %(spec_path)s, %(status)s, %(depth)s, "
+                "%(github_check_json)s, %(tenant_id)s)"
+            )
         with self.connection() as conn:
-            conn.cursor().execute(_sql, _job_row(job))
+            conn.cursor().execute(_sql, row)
 
     # ── Outbox methods ────────────────────────────────────────
 
@@ -209,16 +263,24 @@ class MySQLStore:
             "spec_path": job.get("spec_path", ""),
             "depth": job.get("depth", "FAST"),
         }
-        with self.connection() as conn:
-            conn.cursor().execute(
+        row = _job_row(job)
+        scope = current_scope()
+        if scope is not None:
+            row["tenant_id"] = scope.tenant_id
+        insert_sql = (
+            _JOB_INSERT_TENANT_SQL
+            if scope is not None
+            else (
                 "INSERT INTO verification_jobs "
                 "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
                 "github_check_json) "
                 "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
                 "%(head_ref)s, %(spec_path)s, 'PENDING', %(depth)s, "
-                "%(github_check_json)s)",
-                _job_row(job),
+                "%(github_check_json)s)"
             )
+        )
+        with self.connection() as conn:
+            conn.cursor().execute(insert_sql, row)
             conn.cursor().execute(
                 "INSERT INTO outbox (aggregate_id, aggregate_type, "
                 "event_type, payload, routing_key) "
@@ -279,6 +341,42 @@ class MySQLStore:
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         # Single cursor per statement: fetchone() on a fresh cursor raises
         # "execute() first" (surfaced by the live-MySQL state machine tests).
+        scope = current_scope()
+        if scope is None or scope.is_auditor():
+            return self._get_job_unscoped(job_id)
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT * FROM verification_jobs WHERE id = %s "
+                "AND (tenant_id = %s OR tenant_id IS NULL)",
+                (job_id, scope.tenant_id),
+            )
+            row = cast(dict[str, Any] | None, cur.fetchone())
+            if row is not None:
+                return row
+            # The id exists but belongs to another tenant: answer with the
+            # same None a missing row produces (no existence leak, §2) and
+            # record the refused attempt with attempted_tenant.
+            cur2 = conn.cursor()
+            cur2.execute(
+                "SELECT tenant_id FROM verification_jobs WHERE id = %s",
+                (job_id,),
+            )
+            other = cast(dict[str, Any] | None, cur2.fetchone())
+        if other is not None and other.get("tenant_id") is not None:
+            self.record_audit(
+                action="tenant_isolation_blocked",
+                actor=scope.user_id or "anonymous",
+                job_id=job_id,
+                detail=(
+                    f"tenant {scope.tenant_id} attempted to read job "
+                    f"{job_id} owned by tenant {other.get('tenant_id')}"
+                ),
+                attempted_tenant=str(other.get("tenant_id")),
+            )
+        return None
+
+    def _get_job_unscoped(self, job_id: str) -> dict[str, Any] | None:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
@@ -296,7 +394,25 @@ class MySQLStore:
             return cast(list[dict[str, Any]], cur.fetchall())
 
     def list_recent_jobs(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Return the most recent jobs (newest first), for the jobs API."""
+        """Return the most recent jobs (newest first), for the jobs API.
+
+        Tenant mode: rows of the caller's tenant (plus legacy NULL-tenant
+        rows) only; auditors keep the cross-tenant view (§2).
+        """
+        scope = current_scope()
+        if scope is not None and not scope.is_auditor():
+            with self.connection() as conn:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT id, repo_path, base_ref, head_ref, status, depth, "
+                    "retry_count, worker_id, last_error, summary, created_at, "
+                    "updated_at "
+                    "FROM verification_jobs "
+                    "WHERE (tenant_id = %s OR tenant_id IS NULL) "
+                    "ORDER BY created_at DESC, id DESC LIMIT %s",
+                    (scope.tenant_id, limit),
+                )
+                return cast(list[dict[str, Any]], cur.fetchall())
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
@@ -332,6 +448,46 @@ class MySQLStore:
         if isinstance(row["summary"], str):
             return cast(dict[str, Any], _json.loads(row["summary"]))
         return cast(dict[str, Any], row["summary"])
+
+    def get_job_tenant(self, job_id: str) -> str | None:
+        """The tenant owning a verification job, or None when unknown.
+
+        Best-effort probe for the tenant auth middleware's cross-tenant 404
+        check. A schema without the tenant_id column (migration not yet
+        applied) yields None so a partial upgrade never blocks requests;
+        the repository-layer scoping remains the primary enforcement.
+        """
+        try:
+            with self.connection() as conn:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT tenant_id FROM verification_jobs WHERE id = %s",
+                    (job_id,),
+                )
+                row = cast(dict[str, Any] | None, cur.fetchone())
+        except Exception as exc:  # noqa: BLE001 — isolation probe is advisory
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "tenant probe for job %s failed: %s", job_id, exc
+            )
+            return None
+        if row is None:
+            return None
+        tenant = row.get("tenant_id")
+        return str(tenant) if tenant else None
+
+    def list_audit_logs(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Most recent audit rows (tenant auth attempts / auditor view)."""
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, job_id, actor, action, from_status, to_status, "
+                "detail, attempted_tenant, created_at "
+                "FROM audit_logs ORDER BY id DESC LIMIT %s",
+                (limit,),
+            )
+            return cast(list[dict[str, Any]], cur.fetchall())
 
     def count_pending_outbox(self) -> int:
         """Number of unpublished outbox rows (relay backlog gauge)."""

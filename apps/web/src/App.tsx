@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { clearApiKey, getApiKey } from "./api";
+import {
+  clearApiKey,
+  clearBearerToken,
+  consumeOidcCallback,
+  getApiKey,
+  getBearerToken,
+} from "./api";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
@@ -10,6 +16,8 @@ import Contracts from "./pages/Contracts";
 import Eval from "./pages/Eval";
 import Health from "./pages/Health";
 import AgentApp from "./agent/AgentApp";
+import IdentityApp from "./identity/IdentityApp";
+import TenantSwitcher from "./identity/TenantSwitcher";
 
 // Minimal hash router: keeps deep links working behind the FastAPI SPA
 // fallback without any routing dependency.
@@ -40,6 +48,7 @@ const NAV: NavItem[] = [
   { path: "#/agent", label: "Agent", en: "SpecCraft" },
   { path: "#/matrix", label: "需求矩阵", en: "Matrix" },
   { path: "#/contracts", label: "契约中心", en: "Contracts" },
+  { path: "#/identity", label: "身份", en: "Identity" },
   { path: "#/eval", label: "评测", en: "Eval" },
   { path: "#/health", label: "健康", en: "Health" },
 ];
@@ -50,6 +59,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg.length === 0 || seg[0] === "dashboard") return <Dashboard />;
   if (seg[0] === "login") return <Login />;
   if (seg[0] === "agent") return <AgentApp seg={seg} />;
+  if (seg[0] === "identity") return <IdentityApp seg={seg} />;
   if (seg[0] === "jobs") {
     if (seg.length >= 2) return <JobDetail jobId={decodeURIComponent(seg[1])} />;
     return <Jobs />;
@@ -71,7 +81,15 @@ function renderRoute(route: string): JSX.Element {
 
 export default function App() {
   const route = useHashRoute();
-  const [hasKey, setHasKey] = useState<boolean>(() => getApiKey() !== "");
+  const [hasKey, setHasKey] = useState<boolean>(
+    () => getApiKey() !== "" || getBearerToken() !== ""
+  );
+
+  // OIDC login returns via /#oidc_token=...: stash the id_token, drop the
+  // fragment, and enter the shell.
+  useEffect(() => {
+    if (consumeOidcCallback()) setHasKey(true);
+  }, []);
 
   if (!hasKey) {
     return <Login onConnected={() => setHasKey(true)} />;
@@ -107,10 +125,12 @@ export default function App() {
         </nav>
         <div className="sidebar-foot">
           <div className="foot-line">FAIL-CLOSED AUTH</div>
+          <TenantSwitcher />
           <button
             className="btn btn-ghost"
             onClick={() => {
               clearApiKey();
+              clearBearerToken();
               setHasKey(false);
               navigate("#/login");
             }}
