@@ -23,6 +23,7 @@ from cli.specproof.commands.contract import contract_cmd  # noqa: E402
 from cli.specproof.commands.craft import craft_cmd  # noqa: E402
 from cli.specproof.commands.eval import eval_cmd  # noqa: E402
 from cli.specproof.commands.fix import approve_cmd, fix_cmd  # noqa: E402
+from cli.specproof.commands.mcp import mcp_cmd  # noqa: E402
 from cli.specproof.commands.probe import probe  # noqa: E402
 from cli.specproof.commands.replay import replay  # noqa: E402
 from cli.specproof.commands.verify import verify  # noqa: E402
@@ -43,6 +44,7 @@ cli.add_command(craft_cmd)
 cli.add_command(baseline_cmd)
 cli.add_command(fix_cmd)
 cli.add_command(approve_cmd)
+cli.add_command(mcp_cmd)
 
 
 if __name__ == "__main__":

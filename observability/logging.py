@@ -15,6 +15,7 @@ import time
 
 job_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("job_id", default="")
 trace_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_id", default="")
+request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="")
 
 
 class JsonFormatter(logging.Formatter):
@@ -30,10 +31,13 @@ class JsonFormatter(logging.Formatter):
         }
         job_id = job_id_var.get()
         trace_id = trace_id_var.get()
+        request_id = request_id_var.get()
         if job_id:
             payload["job_id"] = job_id
         if trace_id:
             payload["trace_id"] = trace_id
+        if request_id:
+            payload["request_id"] = request_id
         if record.exc_info:
             payload["exc"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=False, default=str)

@@ -96,8 +96,10 @@ warn_return_any = true
 disallow_any_unimported = false
 warn_redundant_casts = true
 # tests/artifacts/demo are fixtures or generated; scripts/ are ad-hoc dev
-# tools (closed-loop smoke runs, evidence migrations) not shipped as the product.
-exclude = ["tests/", "artifacts/", "demo/", "scripts/"]
+# tools (closed-loop smoke runs, evidence migrations) not shipped as the product;
+# bench/ holds the SpecCraft micro-benchmark task fixtures (isolated mini-repos
+# executed as data, like demo/).
+exclude = ["tests/", "artifacts/", "demo/", "scripts/", "bench/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -31,6 +31,10 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import FileResponse, RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
+from api.middleware import (  # noqa: E402
+    PayloadLimitMiddleware,
+    RequestIDMiddleware,
+)
 from api.routes.jobs import router as jobs_router  # noqa: E402
 from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
@@ -88,6 +92,14 @@ async def request_metrics(request: Request, call_next: Any) -> Any:
     if response.status_code >= 500:
         incr("http_responses_5xx_total")
     return response
+
+
+# J round middleware completions. add_middleware prepends, so registration
+# order is reversed execution order: RequestID runs FIRST (outermost, sees
+# every response), PayloadLimit runs before the auth/rate-limit route
+# dependencies, and both wrap the pre-existing metrics/tracing/CORS stack.
+app.add_middleware(PayloadLimitMiddleware)
+app.add_middleware(RequestIDMiddleware)
 
 
 # ── Web dashboard (static; the JSON APIs it calls are key-protected) ──
