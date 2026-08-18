@@ -35,6 +35,9 @@ public class UserControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+
     @BeforeEach
     void setUp() {
         userRepository.deleteAll();
@@ -68,6 +71,28 @@ public class UserControllerTest {
     }
 
     @Test
+    void getUserShouldUseCacheAside() throws Exception {
+        User user = userRepository.findAll().get(0);
+        String cacheKey = "user:cache:" + user.getId();
+        String cachedJson = "{\"id\":" + user.getId()
+                + ",\"username\":\"testuser\",\"email\":\"test@example.com\",\"orderCount\":0}";
+        var valueOps = redisTemplate.opsForValue();
+        org.mockito.Mockito.when(valueOps.get(cacheKey)).thenReturn(null, cachedJson);
+
+        mockMvc.perform(get("/api/users/{id}", user.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("test@example.com"));
+        mockMvc.perform(get("/api/users/{id}", user.getId()))
+                .andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(valueOps, org.mockito.Mockito.times(1))
+                .set(org.mockito.ArgumentMatchers.eq(cacheKey),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.any(java.util.concurrent.TimeUnit.class));
+    }
+
+    @Test
     @WithMockUser
     void changeEmailToDuplicateShouldFail() throws Exception {
         User alice = new User("alice", "alice@example.com");
@@ -77,14 +102,26 @@ public class UserControllerTest {
         User bob = userRepository.findByEmail("test@example.com").orElseThrow();
         ChangeEmailRequest req = new ChangeEmailRequest("alice@example.com");
 
-        mockMvc.perform(put("/api/users/{id}/email", bob.getId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(result -> {
-                    Exception ex = result.getResolvedException();
-                    assert ex != null : "Expected an exception for duplicate email";
-                    assert ex instanceof RuntimeException
-                        : "Expected RuntimeException, got " + ex.getClass().getSimpleName();
-                });
+        // MockMvc RETHROWS unhandled controller exceptions out of
+        // perform() (the demo app has no global exception handler) — the
+        // duplicate rejection surfaces exactly this way.
+        final boolean[] rejected = {false};
+        try {
+            mockMvc.perform(put("/api/users/{id}/email", bob.getId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)));
+        } catch (jakarta.servlet.ServletException e) {
+            rejected[0] = e.getCause() instanceof RuntimeException;
+        }
+
+        String emailAfter = userRepository.findById(bob.getId())
+                .map(User::getEmail).orElse("NOT_FOUND");
+        org.junit.jupiter.api.Assertions.assertAll(
+            () -> org.junit.jupiter.api.Assertions.assertTrue(rejected[0],
+                    "Duplicate email was ACCEPTED: no rejection exception was raised"),
+            () -> org.junit.jupiter.api.Assertions.assertEquals(
+                    "test@example.com", emailAfter,
+                    "DB STATE VIOLATION: duplicate email change was persisted")
+        );
     }
 }

@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 @TestConfiguration
 public class TestMockBeansConfig {
@@ -26,6 +27,9 @@ public class TestMockBeansConfig {
     @Bean
     @Primary
     public StringRedisTemplate mockStringRedisTemplate() {
-        return Mockito.mock(StringRedisTemplate.class);
+        StringRedisTemplate template = Mockito.mock(StringRedisTemplate.class);
+        ValueOperations<String, String> ops = Mockito.mock(ValueOperations.class);
+        Mockito.when(template.opsForValue()).thenReturn(ops);
+        return template;
     }
 }
