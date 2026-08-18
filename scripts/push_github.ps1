@@ -1,6 +1,8 @@
 # push_github.ps1 — push the current branch to the GitHub remote.
 # Usage (token via process env, never stored in any file):
 #   $env:GIT_TOKEN = "<your github_pat_...>"
+#   # when direct github.com:443 is blocked, route through the local proxy:
+#   $env:HTTPS_PROXY = "http://127.0.0.1:7897"; $env:HTTP_PROXY = $env:HTTPS_PROXY
 #   pwsh scripts/push_github.ps1
 # The token needs Contents: Read and write on the target repo
 # (fine-grained PAT) or the repo scope (classic PAT).
