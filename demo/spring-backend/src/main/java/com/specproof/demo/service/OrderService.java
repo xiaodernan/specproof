@@ -87,7 +87,11 @@ public class OrderService {
 
         OrderCreatedEvent event = new OrderCreatedEvent(
                 order.getId(), product.getId(), request.getQuantity(), request.getRequestId());
-        rabbitTemplate.convertAndSend(ORDER_EXCHANGE, ORDER_ROUTING_KEY, event);
+        try {
+            rabbitTemplate.convertAndSend(ORDER_EXCHANGE, ORDER_ROUTING_KEY, event);
+        } catch (RuntimeException firstFailure) {
+            rabbitTemplate.convertAndSend(ORDER_EXCHANGE, ORDER_ROUTING_KEY, event);
+        }
         log.info("Order {} placed for product {} (qty {})",
                 order.getId(), product.getId(), request.getQuantity());
 
