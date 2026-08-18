@@ -30,7 +30,7 @@
 | M3 稳定计划循环 | ✅ 大部分 (DAG/checkpoint/预算/STUCK/暂停恢复) | MySQL 投影 ✅ (任务3, storage/agent_jobs.py, 55 测试) |
 | M4 代码编辑跨语言 | 部分 (唯一匹配编辑; Q 在做执行适配器) | stale 保护 ✅ (任务6, digest+STALE_CONTEXT+改动分类); AST 编辑/结构化 Diff 待 |
 | M5 SpecProof 闭环 | 门禁组合 ✅ (任务7, craft/gates.py 五道门); self_verify ✅ (O/W26) | ChangeBundle→SpecProof accept 强制闭环 (设计定稿 docs/architecture/CRAFT_ACCEPT_DESIGN.md, 下一车道接线) |
-| M6 Web+IDE | 部分 (验证控制台 9 页) | Agent 工作台 20 路由 (任务8) |
+| M6 Web+IDE | ✅ Agent 工作台 20 路由 (任务8, W31: 8 端点 + 20 前端路由 + 27 API 测试 + vitest 26; npm build/typecheck/test 全绿, 队长复跑后端 107 全绿) | IDE 插件 (VSCode/JetBrains); 真实 Worker 事件接线 (craft loop ↔ _ConsoleState, 属 W35 车道) |
 | M7 并行子代理 | ✅ (任务9, craft/agents.py ParallelRunner 只读并行+写集重叠 fail-closed+真并发实证) | LLM 执行器接线; 与门禁组合工作流 |
 | M8-M11 企业/模型/生态/评测 | 部分 (provider 治理 W13, 微基准) | 工业化指南阶段 1/6/7 对齐 |
 

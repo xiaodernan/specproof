@@ -29,7 +29,7 @@
 |---|---|---|
 | 0 基线冻结 | 部分 (门禁全绿/文档多) | 依赖锁定 (uv/requirements lock), 事件清单, 数据字典 |
 | 1 身份多租户 | 部分 (CP tenant/user 实体+REST) | OIDC/SAML, RBAC 权限矩阵, Python 侧 tenant scope, 邀请/Token 管理 |
-| 2 完整工作流前端 | 部分 (9 页验证控制台) | Agent 工作台 ~20 路由 (W31 车道在途: 任务向导/计划审阅/SSE 工具流/审批/结构化 Diff); 其余: 向导/批量/通知中心/移动端/错误边界 |
+| 2 完整工作流前端 | ✅ Agent 工作台 20 路由 (W31 已交付: 任务向导/计划与步骤审阅/SSE 实时工具流/事件/编辑/门禁/统一+分栏 Diff/审批收件箱/设置; 8 API 端点走 agent_jobs 投影) | 批量操作/通知中心/移动端/错误边界/Playwright e2e (任务 5, 阶段2 出口) |
 | 3 集成与策略 | 部分 (GitHub App webhook/checks/评论/fix) | GitLab/Gerrit, Policy DSL, 豁免流, 分支保护建议 |
 | 4 验证深度生态 | 部分 (mvn+沙箱+变异+状态快照) | Gradle/Node/Python/Go 适配器, 状态机测试, 反例最小化, +100 案例 |
 | 5 证书合规私有化 | 部分 (Ed25519+血缘+密钥策略) | KMS/HSM, 撤销, 对象加密, 私有 Provider/镜像, 恢复演练 |
