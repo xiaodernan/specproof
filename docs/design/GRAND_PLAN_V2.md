@@ -913,7 +913,80 @@ ruff/mypy/bandit 门禁全绿; 实测见 21.4。
 - 只读代理接入 symbol_search (S 车道索引) 提升侦察召回;
 - 通用 (可写) 并行子代理: 需 write-set 事务化 + 逐文件锁, 列入 M7+。
 
+## 卷 XXXIV. 评测工业化: 90 任务套件与表驱动生成 (W32 已交付)
+
+> 状态: ✅ 已交付 (commit bd203a6)。任务: 把"10 个微基准"升级为可审计的
+> 90 任务评测工厂 — 50 代码 + 20 对抗 + 10 断点恢复 + 10 危险动作审批,
+> 全部由紧凑数据表幂等生成, 数字全部来自真实运行。
+
+### 34.1 表驱动生成器 (scripts/bench_gen_tasks.py + _data.py)
+- 每任务一行数据 (元数据 + fixture 文件 + 编辑序列 + judge 内容), 生成真实
+  目录; 生成器输出统一有序幂等 fixes.py (每次只应用第一个尚未生效的编辑,
+  多阶段收敛跨循环迭代), 宽度感知折行 + import 归一化保证 ruff 全绿;
+- --check 逐字节校验零漂移 (已测); 生成时经 craft.spec/Plan/compile 校验;
+- 与手工 legacy 10 任务共存, 默认运行输出与旧版逐字节兼容。
+
+### 34.2 四类任务与实测 (确定性档, --sandbox local, 90 任务, exit 0)
+| 类别 | 数量 | 结果 |
+|---|---|---|
+| 代码 (10 单文件 bug + 10 多文件功能 + 10 重构 + 10 真实工程 + legacy 10) | 50 | 49/50 = 98.0% (trap 任务按口径 INTERCEPTED); 平均迭代 1.23 |
+| 对抗 (误导 Issue/README+注释注入/过时测试/隐藏禁止变更 各 5) | 20 | 20/20 INTERCEPTED (拦截 100%) |
+| 断点恢复 (预置半程 checkpoint/memory/plan + audit 副作用账本) | 10 | 10/10 RECOVERED, 账本恰好 1 行 (无重复副作用, judge 幂等) |
+| 危险动作审批 (git commit/push/force-push/tag/删分支/网络/制品/销毁) | 10 | 10/10 APPROVAL_REFUSED, 违规 0 (执行器白名单拒绝 + refusal.json 在案) |
+- craft_failed=0, judge_error=0; legacy 单独复跑与旧报告一致 (90.0%/1.1/100%)。
+
+### 34.3 工程决策与偏差 (诚实记录)
+- 审批口径: 当前无审批服务且白名单不含 git/网络 → 期望口径 = APPROVAL_REFUSED
+  (危险动作零执行), 文档标注审批服务上线后的升级路径 (真实审批门两分支,
+  APPROVAL_BREACH 继续硬失败);
+- LLM 档未跑: 无 key 诚实拒绝伪造, 报告标注待测 (与"绝不伪造"纪律一致);
+- task-28 退避计时改 monkeypatch 确定性断言 (wall-clock 高负载 flaky, 已修正
+  并全量复跑);
+- 高负载并行车道环境完成全套, 数据为时间戳快照。
+
+### 34.4 证据与门禁
+- 37 新测试 (分类/判定/生成幂等/落盘无漂移/checkpoint 改写);
+- 全量 tests/unit 990 passed (队长复跑 5:15); ruff/mypy strict/bandit 全绿;
+- 报告: docs/eval/agent-task-suite.md + results.json (全量明细)。
+
+## 卷 XXXV. M5 强制闭环: SpecCraft→SpecProof Accept (W35 已交付)
+
+> 状态: ✅ 已交付 (commit 06a8207)。这是整个产品的"王冠接缝": 开发 Agent
+> 的产出必须被验收防火墙独立判定后才能接受 — 任何一方单独放行无效。
+
+### 35.1 craft_accept 五阶段 (craft/accept.py, 775 行)
+1. 工作区守卫: classify user/unknown 改动 → 拒绝且绝不 reset;
+2. 内部门禁: GatePipeline 任一 FAIL/error → STOP (不调 SpecProof),
+   git reset --hard base, 无证书;
+3. 独立验收: 默认 verify_fn 原样复用 agent graph (build_phase0_graph +
+   initial_state + invoke, 与 cli verify 同款, 工作树自动清理);
+4. VERIFIED → Merge Certificate + lineage 扩展 (contracts→findings→
+   ChangeBundle 摘要血缘) + Ed25519 签名 (evidence/signing.py, 缺钥 → ERROR,
+   绝不静默无签名 accept);
+5. 其余判定 → 回滚 + 拒绝通知; 幂等键 (job_id, head_sha, bundle_digest)
+   重复 accept 返回既有证书。
+
+### 35.2 接线与 CLI
+- CraftLoop 完成态 → report.gates (五道门摘要) + AgentJobStore 全周期接线
+  (create/lease/renew/progress/update_status/cancel, 按 W30 Integration note);
+- CLI: craft accept --job <id> --base <sha> --repo <path> --db <sqlite>,
+  退出码 0 VERIFIED / 1 BLOCKED / 2 ERROR。
+
+### 35.3 实证 (真实运行)
+- 22 新测试 (accept 15 + loop_jobs 7), craft 扫 360 绿 (队长复跑 5:03);
+- E2E 冒烟 (无 Docker): loop DONE → 门禁 5/5 passed (真实 pytest/compileall/
+  mypy/security/self-verify) → 真实 agent graph 判定 → fail-closed BLOCKED +
+  git 回滚 + 拒绝通知; Docker 沙箱路径验证门禁 FAIL ⇒ STOP 不调 SpecProof;
+- 已知限制 (诚实记录): 终态 job 的 result_json 投影关闭 → 事后 CLI accept 结果
+  打印+尽力持久化; W35.1 扩展 attach_accept_result (终态专用投影, 在途);
+- VERIFIED 路径需 Spring demo + maven 手动步骤 (命令已文档化)。
+
+### 35.4 演进
+- 补跑 VERIFIED 路径 E2E (Java demo) 形成闭环全路径证据;
+- accept 结果进 Web 工作台 (W31) 状态徽标 (attach_accept_result 落库后);
+- KMS/HSM 上线后 signer 切换 (接口不变); accept 次数与 token 计入阶段 6 账本。
+
 ## 卷 XXIX. 本计划书进度
 
-当前 ~3.5 万字 (33 卷)。扩写路线: 每轮 +2-3k 字, 优先补
+当前 ~3.9 万字 (35 卷)。扩写路线: 每轮 +2-3k 字, 优先补
 卷 IV/VI/VII/X/XII/XVIII 的实现细节与实测记录, 目标 20 轮内达 5 万字。
