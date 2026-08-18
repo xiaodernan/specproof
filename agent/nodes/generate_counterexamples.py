@@ -116,28 +116,30 @@ def _compile_test(workspace: str, test_file: str) -> tuple[int, str]:
     if not pom.exists():
         return -1, "No pom.xml found"
 
-    import platform
-
-    from sandbox.runner import run_sandboxed
-
-    # Sandbox runs the image's mvn; the local fallback uses the wrapper
-    # (absolute path - CreateProcessW resolves relative names against the
-    # parent cwd, not cwd=).
-    if platform.system() == "Windows":
-        local_cmd = [os.path.join(workspace, "mvnw.cmd"), "test-compile", "-q"]
-    else:
-        local_cmd = [os.path.join(workspace, "mvnw"), "test-compile", "-q"]
-    result = run_sandboxed(
-        # -o: the sandbox has --network none by design; every artifact
-        # must resolve from the seeded Maven cache volume.
-        ["mvn", "-o", "test-compile", "-q", "-f", "/work/pom.xml"],
-        workspace=workspace,
-        timeout=600,
-        local_command=local_cmd,
+    # Q lane (guide §4.5 task 10): compilation runs through the
+    # ExecutionAdapter protocol (detect → prepare → run). JavaMavenAdapter
+    # delegates to the sandbox (sandbox/runner.py) — a malicious pom.xml or
+    # build plugin must never execute on the host. Command shape unchanged
+    # from the pre-adapter pipeline (offline -o inside the sandbox, wrapper
+    # absolute path for the local fallback).
+    from experiments.adapters import (
+        AdapterNotImplemented,
+        ExecutionRequest,
+        RepositorySnapshot,
+        registry,
     )
+
+    try:
+        adapter = registry.get(RepositorySnapshot(path=workspace))
+    except AdapterNotImplemented as exc:
+        return -1, str(exc)
+    prepared = adapter.prepare(
+        ExecutionRequest(workspace=workspace, goal="test_compile", timeout=600)
+    )
+    result = adapter.run(prepared)
     if result.error:
         return -1, "Sandbox execution failed: " + result.error
-    return result.exit_code, result.stderr
+    return result.exit_code, result.stderr_tail
 
 
 def _is_demo_repo(workspace: str) -> bool:

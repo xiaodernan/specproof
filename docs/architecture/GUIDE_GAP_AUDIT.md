@@ -8,15 +8,15 @@
 | # | 任务 | 现状 | 差距/行动 |
 |---|---|---|---|
 | 1 | domain-model.md 冻结领域对象 | ✗ 无 | 本轮建 docs/architecture/domain-model.md |
-| 2 | 统一 request_id/trace_id/错误码/审计 Envelope | 部分: request_id (J/W14), trace_id (observability), 错误码=HTTP 状态+英文 detail | 缺稳定错误码表 (AUTH_REQUIRED 等) → P 车道: api/errors.py 稳定码 + 响应 schema_version |
+| 2 | 统一 request_id/trace_id/错误码/审计 Envelope | ✅ 完成 (P 车道): request_id (J/W14) + trace_id (observability) + api/errors.py 稳定错误码表 (AUTH_REQUIRED/TENANT_FORBIDDEN/QUOTA_EXCEEDED/JOB_NOT_FOUND/PROVIDER_UNAVAILABLE/EVIDENCE_UNVERIFIED/RATE_LIMITED/PAYLOAD_TOO_LARGE/VALIDATION_FAILED/INTERNAL + STATE_CONFLICT(409)); 全部错误响应 = {detail(原文保留), error:{code,message,request_id}, schema_version:1} (api/server.py 全局 exception handler; middleware 413 直发 envelope) | 已完成+证据: tests/unit/test_api_errors.py 14 用例全绿 + test_api_jobs/test_web_api/test_webhook_endpoint/test_middleware/test_dashboard_api 83 用例全绿 (detail 兼容) + ruff/mypy/bandit 全绿 |
 | 3 | 全部 API tenant scope 设计 | 部分: CP 有 tenant (TenantController/JobView 租户过滤), Python API 单租户默认 | 需 tenant_id 注入设计文档 + 迁移 (阶段1) |
-| 4 | OpenAPI schema diff 门禁 + 事件 Envelope 合同测试 | ✗ (CI 无) | P 车道: scripts/openapi_diff.py + CI job + tests/contract/test_event_envelope.py |
+| 4 | OpenAPI schema diff 门禁 + 事件 Envelope 合同测试 | ✅ 完成 (P 车道): scripts/openapi_diff.py (added/removed/changed 端点+响应码, --allow/--update) + CI job openapi-schema-diff + docs/openapi/baseline.json (16 paths, OpenAPI 3.1.0, 已入库待提交); contracts/events.py build_envelope/payload_digest (§3.4 12 字段, uuid4hex event_id, 密钥脱敏, 确定性 sha256 digest) + storage/outbox_relay.py 平铺兼容 (老字段不变, 新增 schema_version/payload_digest/idempotency_key 等) | 已完成+证据: openapi_diff 实测 (基线生成 exit 0 → 无变更 exit 0 → 篡改基线 exit 1 且 --allow 豁免 exit 0) + tests/contract/test_event_envelope.py 12 用例全绿 + tests/unit/test_outbox.py 全绿 (wire 兼容) |
 | 5 | Playwright 前端场景 (向导/详情/权限/降级) | ✗ (无 e2e) | 阶段2 (R 车道, 需 node playwright) |
 | 6 | Contract immutable version/approval/checker version/lineage | 部分: registry 有审批/版本/spec_digest; lineage (W13) 已有 DAG | 补 checker_version 字段 + 不可变版本语义 (阶段2) |
 | 7 | 证书/Capsule/Replay 走对象元数据查询而非路径推断 | 部分: capsule 用 basename 防穿越 + PK 校验; 证书读 reports 目录 | 对象元数据表 + 查询 (阶段2) |
 | 8 | Worker 取消检查/租约指标/阶段耗时/异常分类 | 部分: 取消有 (job 状态机 + cancel), 阶段耗时指标 (C/W14 直方图) | 取消检查点补 Maven 前后/LLM 前 (阶段4); 租约指标 (阶段0) |
 | 9 | Provider 每租户预算/模型路由/调用摘要/成本账本 | 部分: TokenBudget (全局, W13), 调用摘要 (llm_usage), KV 缓存字段 | 租户级预算 + usage_ledger 表 (阶段1/6) |
-| 10 | 执行适配器接口 (ExecutionAdapter) + 兼容矩阵 | 部分: sandbox/runner + mvn 专用; 无适配器协议 | Q 车道: experiments/adapters.py 协议 + Java/Maven 适配器 + 矩阵文档 |
+| 10 | 执行适配器接口 (ExecutionAdapter) + 兼容矩阵 | ✅ Q 车道已落地: experiments/adapters.py (Protocol 五方法 + registry + JavaMavenAdapter 声明镜像 digest/工具链/离线策略/已知限制), run_differential/generate_counterexamples 已改经适配器执行 (行为逐参数保持), 矩阵 docs/architecture/EXECUTION_COMPATIBILITY.md; Gradle/Node/Python/Go = 规划 (detect 抛 AdapterNotImplemented) | 保持: 每季度重跑兼容矩阵; 阶段4 逐步实现其余适配器并实测后改"已支持" |
 | 11 | 跨租户/路径穿越/Webhook 重放/注入/沙箱边界安全测试 | 部分: 路径穿越 (capsule/replay), 注入 (24 矩阵), 沙箱 (15), webhook 验签有 | 补跨租户+重放测试 (阶段1 出口) |
 | 12 | 金案例扩展计划拆成案例表 (expected evidence 先行) | 部分: 100 案例 (P6_CASES 数据表 + ground-truth 含 evidence) | 200 案例路线表 (阶段4) |
 | 13 | httpx/Starlette TestClient 弃用警告处理 | ✗ (1 警告仍在) | 本轮: 处理并记录 (见 §D) |
@@ -51,4 +51,6 @@
    filterwarnings 记录并注明"上游弃用, 待 fastapi 版本升级后移除", 或在 dev 依赖换 httpx2
    (若可用) — 实测决定, 不静默吞掉其他警告。
 3. P 车道派发: 稳定错误码表 + OpenAPI diff 门禁 + 事件 Envelope 合同测试 (任务 2/4)。
-4. Q 车道派发: ExecutionAdapter 协议 + Java/Maven 适配器 + 兼容矩阵 (任务 10)。
+4. Q 车道 (任务 10) ✅ 完成: ExecutionAdapter 协议 + Java/Maven 适配器 + 兼容矩阵
+   (experiments/adapters.py + docs/architecture/EXECUTION_COMPATIBILITY.md; 两个节点已接线,
+   tests/unit/test_adapters.py 27 例全绿)。

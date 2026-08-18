@@ -16,7 +16,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -523,63 +522,54 @@ def _run_generated_test(
         result["error"] = "No pom.xml found"
         return result
 
-    # P0-A1: the differential test runs inside the execution SANDBOX.
-    # Untrusted test code must never execute with host privileges.
-    import platform
-
-    from sandbox.runner import run_sandboxed
-
-    if platform.system() == "Windows":
-        local_cmd = [
-            os.path.join(workspace, "mvnw.cmd"), "test", "-q",
-            f"-Dtest={test_class}", "-DfailIfNoTests=false",
-        ] + (["-Dmaven.main.skip=true"] if skip_main else [])
-    else:
-        local_cmd = [
-            os.path.join(workspace, "mvnw"), "test", "-q",
-            f"-Dtest={test_class}", "-DfailIfNoTests=false",
-        ] + (["-Dmaven.main.skip=true"] if skip_main else [])
-    sandbox_result = run_sandboxed(
-        [
-            # -o: the sandbox has --network none by design; every
-            # artifact must resolve from the seeded Maven cache volume.
-            "mvn", "-o", "test", "-q",
-            f"-Dtest={test_class}",
-            "-DfailIfNoTests=false",
-            "-f", "/work/pom.xml",
-        ] + (["-Dmaven.main.skip=true"] if skip_main else []),
-        workspace=workspace,
-        timeout=900,
-        local_command=local_cmd,
+    # Q lane (guide §4.5 task 10): the differential test runs through the
+    # ExecutionAdapter protocol — detect → prepare → run. JavaMavenAdapter
+    # delegates to the execution SANDBOX (sandbox/runner.py), so untrusted
+    # test code never executes with host privileges. Command shape is
+    # unchanged from the pre-adapter pipeline (offline -o, -Dtest= injection,
+    # -Dmaven.main.skip reuse flag).
+    from experiments.adapters import (
+        AdapterNotImplemented,
+        ExecutionRequest,
+        RepositorySnapshot,
+        registry,
     )
-    result["sandbox_mode"] = sandbox_result.mode
-    if sandbox_result.error:
-        result["error"] = "Sandbox execution failed: " + sandbox_result.error
+
+    try:
+        adapter = registry.get(RepositorySnapshot(path=workspace))
+    except AdapterNotImplemented as exc:
+        result["error"] = str(exc)
         return result
-    result["exit_code"] = sandbox_result.exit_code
-    result["stdout"] = sandbox_result.stdout
-    result["stderr"] = sandbox_result.stderr
+    prepared = adapter.prepare(
+        ExecutionRequest(
+            workspace=workspace,
+            goal="run_test",
+            test_class=test_class,
+            skip_main=skip_main,
+            timeout=900,
+        )
+    )
+    exec_result = adapter.run(prepared)
+    result["sandbox_mode"] = exec_result.mode
+    if exec_result.error:
+        result["error"] = "Sandbox execution failed: " + exec_result.error
+        return result
+    result["exit_code"] = exec_result.exit_code
+    result["stdout"] = exec_result.stdout_tail
+    result["stderr"] = exec_result.stderr_tail
     result["test_counts"] = _parse_test_counts(
-        sandbox_result.stdout + sandbox_result.stderr
+        exec_result.stdout_tail + exec_result.stderr_tail
     )
     result["error"] = ""
     return result
 
 
 def _parse_test_counts(output: str) -> dict[str, Any]:
-    m = re.search(
-        r"Tests run:\s*(\d+).*?Failures:\s*(\d+).*?Errors:\s*(\d+).*?Skipped:\s*(\d+)",
-        output,
-        re.DOTALL,
-    )
-    if m:
-        return {
-            "tests": int(m.group(1)),
-            "failures": int(m.group(2)),
-            "errors": int(m.group(3)),
-            "skipped": int(m.group(4)),
-        }
-    return {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+    from experiments.adapters import parse_surefire_summary
+
+    # Single source of truth for the surefire summary regex lives in
+    # experiments/adapters.py; this wrapper keeps the historical name.
+    return parse_surefire_summary(output)
 
 
 def _h2_db_file(workspace: str) -> Path | None:
