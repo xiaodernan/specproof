@@ -471,6 +471,16 @@ def verify(
         if f.get("evidence_digest")
     ]
 
+    # Contract lineage (GRAND_PLAN_V2 §18.1): attach the evidence-chain
+    # root hash to the certificate when publish_report produced one.
+    lineage_extension = None
+    if final_state.get("lineage_root"):
+        lineage_extension = {
+            "lineage_root": str(final_state.get("lineage_root")),
+            "lineage_nodes": int(final_state.get("lineage_nodes", 0)),
+            "lineage_edges": int(final_state.get("lineage_edges", 0)),
+        }
+
     if verdict == "VERIFIED":
         certificate = issue_certificate(
             repository=str(repo_path),
@@ -478,6 +488,7 @@ def verify(
             requirements_text=requirement_text,
             contracts=merged_contracts,
             evidence_digests=evidence_digests,
+            extension=lineage_extension,
         )
         if certificate is not None:
             cert_path = output_path / f"merge-certificate-{job_id[:8]}.json"

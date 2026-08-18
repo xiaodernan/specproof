@@ -29,7 +29,11 @@ class MergeCertificate:
         verified_contracts: int,
         evidence_digests: list[str],
         toolchain: dict[str, str],
+        extension: dict[str, Any] | None = None,
     ) -> None:
+        # §18.1: the optional extension carries {"lineage_root",
+        # "lineage_nodes", "lineage_edges"}. Old certificates without it stay
+        # verifiable — the key is simply absent from to_dict() when unset.
         self.subject = {
             "repository": repository,
             "commit_sha": commit_sha,
@@ -38,12 +42,13 @@ class MergeCertificate:
         self.verified_contracts = verified_contracts
         self.evidence_digests = evidence_digests
         self.toolchain = toolchain
+        self.extension = dict(extension or {})
         self.issued_at = datetime.now(UTC).isoformat()
         self.issuer = "SpecProof"
         self.version = "0.1.0"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        document = {
             "subject": self.subject,
             "requirements_digest": self.requirements_digest,
             "result": "VERIFIED",
@@ -55,6 +60,9 @@ class MergeCertificate:
             "issuer": self.issuer,
             "version": self.version,
         }
+        if self.extension:
+            document["extension"] = dict(self.extension)
+        return document
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2)
@@ -72,6 +80,7 @@ class RejectionNotice:
         unverified_contracts: int,
         failed_contracts: int,
         reasons: list[str],
+        extension: dict[str, Any] | None = None,
     ) -> None:
         self.subject = {"repository": repository, "commit_sha": commit_sha}
         self.requirements_digest = requirements_digest
@@ -79,12 +88,13 @@ class RejectionNotice:
         self.unverified_contracts = unverified_contracts
         self.failed_contracts = failed_contracts
         self.reasons = reasons
+        self.extension = dict(extension or {})
         self.issued_at = datetime.now(UTC).isoformat()
         self.issuer = "SpecProof"
         self.version = "0.1.0"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        document = {
             "subject": self.subject,
             "requirements_digest": self.requirements_digest,
             "result": "REJECTED",
@@ -96,6 +106,9 @@ class RejectionNotice:
             "issuer": self.issuer,
             "version": self.version,
         }
+        if self.extension:
+            document["extension"] = dict(self.extension)
+        return document
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2)
@@ -111,6 +124,7 @@ def issue_certificate(
     requirements_text: str,
     contracts: list[dict[str, Any]],
     evidence_digests: list[str] | None = None,
+    extension: dict[str, Any] | None = None,
 ) -> MergeCertificate | None:
     """Issue a Merge Certificate only when every contract passed with evidence.
 
@@ -130,6 +144,7 @@ def issue_certificate(
             "specproof_version": "0.1.0",
             "python": "3.12",
         },
+        extension=extension,
     )
 
 
@@ -139,6 +154,7 @@ def build_rejection_notice(
     requirements_text: str,
     contracts: list[dict[str, Any]],
     reasons: list[str],
+    extension: dict[str, Any] | None = None,
 ) -> RejectionNotice:
     """Build the rejection notice written instead of a certificate."""
     return RejectionNotice(
@@ -149,4 +165,5 @@ def build_rejection_notice(
         unverified_contracts=sum(1 for c in contracts if c.get("result") not in ("PASS", "FAIL")),
         failed_contracts=sum(1 for c in contracts if c.get("result") == "FAIL"),
         reasons=reasons,
+        extension=extension,
     )

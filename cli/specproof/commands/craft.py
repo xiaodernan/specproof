@@ -26,15 +26,34 @@ from typing import Any
 import click
 
 from craft.budget import Budget, BudgetError
+from craft.llm import LLMClient, LLMUnavailableError
 from craft.loop import CraftLoop, CraftLoopError, FixFunction
 from craft.planner import CraftModeError, CraftPlanError, Plan, compile_plan
 from craft.spec import SpecParseError, parse_spec
 
 
-def _llm_note(no_llm: bool) -> str:
-    if no_llm:
-        return "确定性规则模式 (--no-llm)"
-    return "M1: LLM 规划未接线 (M2 范围), 已按 §9 降级为确定性规则模式 (mode=deterministic)"
+def _llm_desired(use_llm: bool | None) -> tuple[bool, str]:
+    """Tristate --llm/--no-llm -> (llm_active, note).
+
+    None (default): LLM when a usable key exists, else deterministic with an
+    honest 'LLM unavailable ... falling back to deterministic' note.
+    False: deterministic only. True: LLM requested — still degrades with the
+    same honest note when no usable key exists (never a fake LLM run).
+    """
+    if use_llm is False:
+        return False, "确定性规则模式 (--no-llm)"
+    try:
+        client = LLMClient()
+    except LLMUnavailableError as exc:
+        return False, f"LLM unavailable: {exc} — falling back to deterministic"
+    if client.available:
+        return True, "LLM 模式 (providers/openai_compatible, 网关 deepseek-v4-pro)"
+    return (
+        False,
+        "LLM unavailable: "
+        + client.unavailable_reason()
+        + " — falling back to deterministic",
+    )
 
 
 def _load_fix_registry(
@@ -88,6 +107,8 @@ def _compact(value: object, limit: int = 200) -> object:
 def _echo_plan(plan: Plan, plan_path: Path | None, note: str) -> None:
     click.echo("SpecCraft 计划 — " + plan.task_title)
     click.echo("mode=" + plan.mode + "  (" + note + ")")
+    if plan.llm_fallback_reason:
+        click.echo("llm_fallback_reason=" + plan.llm_fallback_reason)
     for step in plan.steps:
         criteria = step.success_criteria
         targets = ",".join(step.target_files) or "-"
@@ -116,13 +137,31 @@ def _echo_report(report: dict[str, Any], artifact_dir: Path) -> None:
     click.echo("diff_stat=" + str(report["diff_stat"]))
     click.echo("self_verify=" + str(report["self_verify"]))
     click.echo("budget_used=" + str(report["budget_used"]))
+    usage = report.get("llm_usage")
+    if isinstance(usage, dict):
+        click.echo(
+            "llm_usage="
+            + str(
+                {
+                    "calls": usage.get("calls"),
+                    "prompt_tokens": usage.get("prompt_tokens"),
+                    "completion_tokens": usage.get("completion_tokens"),
+                    "reasoning_tokens": usage.get("reasoning_tokens"),
+                    "cache_hit_tokens": usage.get("prompt_cache_hit_tokens"),
+                    "cache_miss_tokens": usage.get("prompt_cache_miss_tokens"),
+                    "budget": usage.get("budget"),
+                }
+            )
+        )
+    if report.get("llm_fallback_reason"):
+        click.echo("llm_fallback_reason=" + str(report["llm_fallback_reason"]))
     click.echo("产物目录: " + str(artifact_dir))
     click.echo("续跑: specproof craft resume --job " + str(report["job_id"]) + " --repo <repo>")
 
 
 @click.group(name="craft")
 def craft_cmd() -> None:
-    """SpecCraft — 自主开发 Agent (M1: 确定性骨架, LLM 为 M2 范围)."""
+    """SpecCraft — 自主开发 Agent (plan/run 支持 LLM 规划与诊断, 无 key 自动降级确定性)."""
 
 
 @craft_cmd.command("plan")
@@ -134,28 +173,39 @@ def craft_cmd() -> None:
     type=click.Path(file_okay=False, path_type=Path),
     help="仓库路径 (计划输出与工作目录)",
 )
-@click.option("--no-llm", is_flag=True, default=False, help="M1: 确定性规则模式 (当前唯一实现)")
+@click.option(
+    "--llm/--no-llm",
+    "use_llm",
+    default=None,
+    help="LLM 规划 (默认: 有 LLM_API_KEY 则开启, 否则确定性)",
+)
 @click.option(
     "--output",
     default=None,
     type=click.Path(file_okay=False, path_type=Path),
     help="plan.json 输出目录 (默认 <repo>/.specraft)",
 )
-def craft_plan(spec: str, repo: Path, no_llm: bool, output: Path | None) -> None:
-    """生成确定性计划并写出 plan.json。SPEC 可为纯文本 / JSON / spec 文件路径。"""
+def craft_plan(spec: str, repo: Path, use_llm: bool | None, output: Path | None) -> None:
+    """生成计划并写出 plan.json。SPEC 可为纯文本 / JSON / spec 文件路径。"""
+    llm_active, note = _llm_desired(use_llm)
     try:
         task = parse_spec(spec, cwd=repo)
         budget = Budget.from_env()
-        plan = compile_plan(task, budget=budget)
+        client = LLMClient() if llm_active else None
+        plan = compile_plan(
+            task, mode="llm" if llm_active else "deterministic", budget=budget, client=client
+        )
     except (SpecParseError, BudgetError, CraftModeError) as exc:
         raise click.ClickException(str(exc)) from exc
+    if plan.llm_fallback_reason:
+        note = "LLM 计划失败, 已退回确定性: " + plan.llm_fallback_reason
     out_dir = output if output is not None else repo / ".specraft"
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
         plan.save(out_dir / "plan.json")
     except (OSError, CraftPlanError) as exc:
         raise click.ClickException("无法写出计划: " + str(exc)) from exc
-    _echo_plan(plan, out_dir / "plan.json", _llm_note(no_llm))
+    _echo_plan(plan, out_dir / "plan.json", note)
 
 
 @craft_cmd.command("run")
@@ -177,7 +227,7 @@ def craft_plan(spec: str, repo: Path, no_llm: bool, output: Path | None) -> None
     "--budget-tokens",
     type=int,
     default=None,
-    help="token 预算 (M1 无 LLM, 实际消耗恒为 0; 覆盖 CRAFT_TOKEN_BUDGET)",
+    help="token 预算 (LLM 调用闸门, 覆盖 CRAFT_TOKEN_BUDGET, 默认 500000)",
 )
 @click.option(
     "--timeout",
@@ -186,12 +236,17 @@ def craft_plan(spec: str, repo: Path, no_llm: bool, output: Path | None) -> None
     metavar="MIN",
     help="任务时间预算, 分钟 (覆盖 CRAFT_TIMEOUT_MINUTES)",
 )
-@click.option("--no-llm", is_flag=True, default=False, help="M1: 确定性规则模式 (当前唯一实现)")
+@click.option(
+    "--llm/--no-llm",
+    "use_llm",
+    default=None,
+    help="LLM 规划与诊断 (默认: 有 LLM_API_KEY 则开启, 否则确定性)",
+)
 @click.option(
     "--no-self-verify",
     is_flag=True,
     default=False,
-    help="M1: 自校验层为 M3 范围, 默认跳过并在 report 标注 not_implemented",
+    help="自校验层为 M3 范围, 默认跳过并在 report 标注 not_implemented",
 )
 @click.option("--dry-run", is_flag=True, default=False, help="只输出计划, 不执行、不落产物")
 @click.option(
@@ -206,12 +261,13 @@ def craft_run(
     max_iterations: int | None,
     budget_tokens: int | None,
     timeout: int | None,
-    no_llm: bool,
+    use_llm: bool | None,
     no_self_verify: bool,
     dry_run: bool,
     fix_module: str | None,
 ) -> None:
     """执行 SpecCraft 计划 (plan → execute → verify 循环)。"""
+    llm_active, note = _llm_desired(use_llm)
     try:
         task = parse_spec(spec, cwd=repo)
         budget = Budget.from_env().with_overrides(
@@ -219,21 +275,28 @@ def craft_run(
             token_budget=budget_tokens,
             timeout_minutes=timeout,
         )
-        plan = compile_plan(task, budget=budget)
+        client = LLMClient(token_budget=budget_tokens) if llm_active else None
+        plan = compile_plan(
+            task, mode="llm" if llm_active else "deterministic", budget=budget, client=client
+        )
     except (SpecParseError, BudgetError, CraftModeError) as exc:
         raise click.ClickException(str(exc)) from exc
     if dry_run:
         click.echo("--dry-run: 仅生成计划, 不执行")
-        _echo_plan(plan, None, _llm_note(no_llm))
+        _echo_plan(plan, None, note)
         return
-    click.echo(_llm_note(no_llm))
+    click.echo(note)
+    if plan.llm_fallback_reason:
+        click.echo("LLM 计划失败, 已退回确定性: " + plan.llm_fallback_reason)
     if not no_self_verify:
         click.echo(
-            "M1: 自校验层为 M3 范围, 本次运行跳过自校验 "
+            "自校验层为 M3 范围, 本次运行跳过自校验 "
             "(report.self_verify.status=not_implemented)"
         )
     fix_registry = _load_fix_registry(fix_module, base_dir=repo)
-    loop = CraftLoop(task, plan, repo, budget=budget, fix_registry=fix_registry)
+    loop = CraftLoop(
+        task, plan, repo, budget=budget, fix_registry=fix_registry, client=client
+    )
     report = loop.run()
     _echo_report(report, loop.artifact_dir)
     if report["result"] != "DONE":

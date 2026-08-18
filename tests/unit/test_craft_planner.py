@@ -51,14 +51,22 @@ def test_plan_mode_is_deterministic() -> None:
     assert compile_plan(make_spec()).mode == "deterministic"
 
 
-def test_llm_mode_degrades_to_rule_plan_with_honest_label() -> None:
+def test_llm_mode_without_key_degrades_to_rule_plan_with_honest_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
     plan = compile_plan(make_spec(), mode="llm")
     assert plan.mode == "deterministic"  # §9 降级, 不假装调模型
+    assert "LLM unavailable" in plan.llm_fallback_reason
 
 
-def test_compile_plan_llm_interface_refuses_loudly() -> None:
-    with pytest.raises(CraftModeError, match="M2"):
-        compile_plan_llm(make_spec())
+def test_compile_plan_llm_without_key_degrades_to_rule_plan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    plan = compile_plan_llm(make_spec())
+    assert plan.mode == "deterministic"
+    assert "LLM unavailable" in plan.llm_fallback_reason
 
 
 def test_unknown_mode_raises() -> None:

@@ -162,13 +162,22 @@ def test_loop_resume_from_checkpoint_continues(tmp_path: Path) -> None:
     assert "return x * 2" in (tmp_path / "calc.py").read_text(encoding="utf-8")
 
 
-def test_loop_rejects_non_deterministic_plan(tmp_path: Path) -> None:
+def test_loop_rejects_unknown_plan_mode(tmp_path: Path) -> None:
+    write_fixture_repo(tmp_path)
+    spec = parse_spec_text(FIX_SPEC)
+    plan = compile_plan(spec)
+    bogus_plan = dataclasses.replace(plan, mode="magic")
+    with pytest.raises(CraftLoopError, match="deterministic|llm"):
+        CraftLoop(spec, bogus_plan, tmp_path, exec_mode="local")
+
+
+def test_loop_accepts_llm_plan(tmp_path: Path) -> None:
     write_fixture_repo(tmp_path)
     spec = parse_spec_text(FIX_SPEC)
     plan = compile_plan(spec)
     llm_plan = dataclasses.replace(plan, mode="llm")
-    with pytest.raises(CraftLoopError, match="deterministic"):
-        CraftLoop(spec, llm_plan, tmp_path, exec_mode="local")
+    loop = CraftLoop(spec, llm_plan, tmp_path, exec_mode="local")
+    assert loop.plan.mode == "llm"
 
 
 # -- executor -----------------------------------------------------------

@@ -27,6 +27,13 @@ from .executor import (
     TestReport,
     extract_pytest_failed_tests,
 )
+from .llm import (
+    DEFAULT_LLM_TOKEN_BUDGET,
+    LLMClient,
+    LLMUnavailableError,
+    extract_json_object,
+    resolve_craft_thinking,
+)
 from .loop import CraftLoop, CraftLoopError, FixFunction, StepState, default_job_id
 from .planner import (
     MAX_PLAN_STEPS,
@@ -60,6 +67,7 @@ __all__ = [
     "CraftLoopError",
     "CraftModeError",
     "CraftPlanError",
+    "DEFAULT_LLM_TOKEN_BUDGET",
     "DEFAULT_MAX_ITERATIONS",
     "DEFAULT_MAX_STEPS",
     "DEFAULT_MAX_TOOL_CALLS",
@@ -71,6 +79,8 @@ __all__ = [
     "Executor",
     "FailedTest",
     "FixFunction",
+    "LLMClient",
+    "LLMUnavailableError",
     "MAX_PLAN_STEPS",
     "MAX_READ_LINES",
     "Plan",
@@ -86,9 +96,11 @@ __all__ = [
     "compile_plan_llm",
     "default_job_id",
     "ensure_step_cap",
+    "extract_json_object",
     "extract_pytest_failed_tests",
     "parse_spec",
     "parse_spec_file",
     "parse_spec_json",
     "parse_spec_text",
+    "resolve_craft_thinking",
 ]

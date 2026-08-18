@@ -1,13 +1,18 @@
-"""M1 plan generation (design doc §4.2): deterministic rule engine.
+"""M1 rule engine + M2 LLM planning (design doc §4.2).
 
-Task keywords -> step template (understand -> modify/add -> test -> verify),
-each step carrying kind / target_files / intent / mechanically decidable
-success_criteria (compile | test_green | grep). Step count capped at 12.
+Deterministic path: task keywords -> step template (understand ->
+modify/add -> test -> verify), each step carrying kind / target_files /
+intent / mechanically decidable success_criteria (compile | test_green |
+grep). Step count capped at 12.
 
-LLM enrichment is M2: the interface signature exists, but M1 either degrades
-to the rule plan (mode="llm" request, per §9) or raises an explicit error
-(compile_plan_llm) — it never pretends a model was called. Plans carry
-mode="deterministic".
+LLM path (M2): compile_plan(mode="llm") / compile_plan_llm() call the
+model through craft.llm.LLMClient with the cache-friendly
+prompt_templates.assemble() prefix and a JSON output contract. Success ->
+Plan(mode="llm"). ANY failure (no key, probe failure, budget overrun,
+unparseable or schema-invalid output, step cap or dependency-cycle
+violation) degrades to the deterministic rule plan with the reason on
+llm_fallback_reason — it never raises and never pretends a model was
+called when it was not.
 """
 
 from __future__ import annotations
@@ -16,11 +21,16 @@ import json
 import os
 import re
 from contextlib import suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
 
+from providers.base import LLMMessage, ModelProvider
+from providers.budget import BudgetExceeded
+from providers.prompt_templates import SYSTEM_BLOCK, TOOL_SCHEMA_BLOCK, assemble
+
 from .budget import Budget
+from .llm import LLMClient, LLMUnavailableError, extract_json_object, resolve_craft_thinking
 from .spec import TaskSpec
 
 CRITERIA_TYPES: tuple[str, ...] = ("compile", "test_green", "grep")
@@ -237,6 +247,9 @@ class Plan:
     steps: list[Step]
     risk_classification: dict[str, bool]
     budget_alloc: dict[str, int]
+    # M2: set when an llm-mode request degraded to the rule plan. It is the
+    # honest on-record reason (e.g. "LLM unavailable", "LLM 计划解析失败").
+    llm_fallback_reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -245,6 +258,7 @@ class Plan:
             "steps": [step.to_dict() for step in self.steps],
             "risk_classification": dict(self.risk_classification),
             "budget_alloc": dict(self.budget_alloc),
+            "llm_fallback_reason": self.llm_fallback_reason,
         }
 
     def save(self, path: str | Path) -> None:
@@ -272,12 +286,16 @@ class Plan:
             isinstance(k, str) and isinstance(v, int) for k, v in budget.items()
         ):
             raise CraftPlanError("plan.budget_alloc 应为 {str: int}")
+        fallback = data.get("llm_fallback_reason", "")
+        if not isinstance(fallback, str):
+            raise CraftPlanError("plan.llm_fallback_reason 类型错误: 应为字符串")
         return cls(
             task_title=title,
             mode=mode,
             steps=steps,
             risk_classification={str(k): v for k, v in risk.items()},
             budget_alloc={str(k): v for k, v in budget.items()},
+            llm_fallback_reason=fallback,
         )
 
 
@@ -301,13 +319,58 @@ def _tmp_suffix() -> str:
     return secrets.token_hex(6)
 
 
+_PLAN_OUTPUT_SCHEMA: str = """\
+OUTPUT CONTRACT — respond with exactly one JSON object. No markdown fences,
+no prose around the JSON. The JSON must match this schema:
+
+{
+  "steps": [
+    {
+      "id": "s1",
+      "kind": "understand | modify | add | test | verify",
+      "target_files": ["calc.py"],
+      "intent": "one sentence: what this step does and why",
+      "success_criteria": {"type": "compile | test_green | grep", "value": ""},
+      "deps": []
+    }
+  ],
+  "risk_classification": {"auth": false, "migration": false, "mq": false, "public_api": false}
+}
+
+Hard constraints (violating any of them invalidates the whole plan):
+- at most 12 steps; step ids must be unique;
+- deps may only reference strictly earlier step ids — no cycles;
+- every success_criteria.type must be one of compile | test_green | grep
+  (mechanically decidable); value stays "" for compile/test_green, and for
+  grep it is the literal that must appear in every target_file;
+- target_files are repo-relative paths; list only files this step really
+  needs to read or change; never invent code contents.
+"""
+
+
 def compile_plan(
-    spec: TaskSpec, *, mode: str = "deterministic", budget: Budget | None = None
+    spec: TaskSpec,
+    *,
+    mode: str = "deterministic",
+    budget: Budget | None = None,
+    client: LLMClient | None = None,
 ) -> Plan:
-    """Deterministic rule-engine plan. mode="llm" degrades to the rule plan
-    and is honestly labelled mode="deterministic" (§9) — no model is called."""
+    """Plan entry: deterministic rule engine (M1) or real LLM planning (M2).
+
+    mode="llm" calls the model through LLMClient; any failure (no key,
+    probe failure, budget overrun, unparseable/invalid output) degrades to
+    the rule plan with the reason on llm_fallback_reason — never an
+    exception, never a fabricated model plan.
+    """
     if mode not in ("deterministic", "llm"):
-        raise CraftModeError(f"不支持的计划模式: {mode!r} (M1: deterministic)")
+        raise CraftModeError(f"不支持的计划模式: {mode!r} (deterministic | llm)")
+    if mode == "llm":
+        return compile_plan_llm(spec, budget=budget, client=client)
+    return _build_deterministic(spec, budget)
+
+
+def _build_deterministic(spec: TaskSpec, budget: Budget | None) -> Plan:
+    """M1 rule engine: template steps -> risk flags -> budget allocation."""
     active_budget = budget or Budget.from_env()
     template = _TEMPLATES[classify_task(spec)]
     target_files = _derive_target_files(spec.affected_area_hint)
@@ -323,17 +386,11 @@ def compile_plan(
             )
         )
     ensure_step_cap(steps)
-    text = " ".join([spec.title, spec.description, *spec.acceptance_criteria]).lower()
-    risk = {
-        flag: flag in template.risk_flags
-        or any(keyword in text for keyword in _RISK_KEYWORDS[flag])
-        for flag in _RISK_FLAG_NAMES
-    }
     return Plan(
         task_title=spec.title,
         mode="deterministic",
         steps=steps,
-        risk_classification=risk,
+        risk_classification=_risk_flags_for(spec),
         budget_alloc={
             "iterations": active_budget.max_iterations,
             "tokens": active_budget.token_budget,
@@ -341,9 +398,121 @@ def compile_plan(
     )
 
 
-def compile_plan_llm(spec: TaskSpec, *, provider: object | None = None) -> Plan:
-    """LLM-enriched planning entry — M2 scope. M1 keeps the signature but
-    refuses loudly instead of pretending a model call happened."""
-    raise CraftModeError(
-        "LLM 规划尚未接线 (M2 范围): M1 请使用 compile_plan (deterministic) / --no-llm"
+def _risk_flags_for(spec: TaskSpec) -> dict[str, bool]:
+    template = _TEMPLATES[classify_task(spec)]
+    text = " ".join([spec.title, spec.description, *spec.acceptance_criteria]).lower()
+    return {
+        flag: flag in template.risk_flags
+        or any(keyword in text for keyword in _RISK_KEYWORDS[flag])
+        for flag in _RISK_FLAG_NAMES
+    }
+
+
+def compile_plan_llm(
+    spec: TaskSpec,
+    *,
+    provider: ModelProvider | None = None,
+    client: LLMClient | None = None,
+    budget: Budget | None = None,
+) -> Plan:
+    """M2: real LLM planning with honest degradation.
+
+    Success -> Plan(mode="llm"). Any failure (no key, probe failure,
+    budget overrun, unparseable or schema-invalid output, step cap or
+    dependency-cycle violation) -> the deterministic rule plan carrying
+    the reason on llm_fallback_reason. No exception escapes; nothing is
+    faked.
+    """
+    active_budget = budget or Budget.from_env()
+    llm = client or LLMClient(provider=provider)
+    if not llm.available:
+        return _llm_fallback(
+            spec, active_budget, "LLM unavailable: " + llm.unavailable_reason()
+        )
+    try:
+        built = assemble(
+            SYSTEM_BLOCK + "\n\n" + TOOL_SCHEMA_BLOCK,
+            "plan",
+            {
+                "task_spec": json.dumps(spec.to_dict(), ensure_ascii=False, indent=2),
+                "output_schema": _PLAN_OUTPUT_SCHEMA,
+            },
+        )
+        response = llm.chat_sync(
+            [LLMMessage(role="user", content=built.text)],
+            label="plan",
+            step_id="plan",
+            thinking=resolve_craft_thinking("plan"),
+            response_format={"type": "json_object"},
+            estimated_prompt_tokens=max(1, len(built.text) // 4),
+        )
+        data = extract_json_object(response.content or "")
+        return _llm_plan_from_data(spec, data, active_budget)
+    except BudgetExceeded as exc:
+        return _llm_fallback(spec, active_budget, f"LLM 规划超 token 预算: {exc}")
+    except LLMUnavailableError as exc:
+        return _llm_fallback(spec, active_budget, "LLM unavailable: " + str(exc))
+    except (CraftPlanError, json.JSONDecodeError, TypeError, KeyError, ValueError) as exc:
+        return _llm_fallback(spec, active_budget, f"LLM 计划解析/校验失败: {exc}")
+    except Exception as exc:
+        return _llm_fallback(
+            spec, active_budget, f"LLM 规划调用失败: {type(exc).__name__}: {exc}"
+        )
+
+
+def _llm_plan_from_data(spec: TaskSpec, data: object, budget: Budget) -> Plan:
+    """Validate model output through the M1 Plan/Step schema + M2 DAG rules."""
+    if not isinstance(data, dict):
+        raise CraftPlanError("LLM 计划输出顶层必须是 JSON 对象")
+    raw_steps = data.get("steps")
+    if not isinstance(raw_steps, list) or not all(isinstance(s, dict) for s in raw_steps):
+        raise CraftPlanError("LLM 计划缺少 steps 数组 (每个元素为对象)")
+    steps = [Step.from_dict(s) for s in raw_steps]
+    ensure_step_cap(steps)
+    _validate_step_dag(steps)
+    risk = _risk_flags_for(spec)
+    raw_risk = data.get("risk_classification")
+    if isinstance(raw_risk, dict) and all(
+        isinstance(key, str) and isinstance(value, bool) for key, value in raw_risk.items()
+    ):
+        risk = {str(key): value for key, value in raw_risk.items()}
+    budget_alloc = {
+        "iterations": budget.max_iterations,
+        "tokens": budget.token_budget,
+    }
+    raw_alloc = data.get("budget_alloc")
+    if isinstance(raw_alloc, dict) and all(
+        isinstance(key, str) and isinstance(value, int) for key, value in raw_alloc.items()
+    ):
+        budget_alloc = {str(key): value for key, value in raw_alloc.items()}
+    return Plan(
+        task_title=spec.title,
+        mode="llm",
+        steps=steps,
+        risk_classification=risk,
+        budget_alloc=budget_alloc,
     )
+
+
+def _validate_step_dag(steps: list[Step]) -> list[Step]:
+    """M2 hard constraint (design §4.2): unique ids, deps reference
+    strictly earlier steps, no cycles."""
+    ids = [step.id for step in steps]
+    if len(set(ids)) != len(ids):
+        raise CraftPlanError("LLM 计划存在重复 step.id")
+    order = {step_id: index for index, step_id in enumerate(ids)}
+    for step in steps:
+        for dep in step.deps:
+            if dep not in order:
+                raise CraftPlanError(f"step {step.id} 的依赖 {dep!r} 不存在")
+            if order[dep] >= order[step.id]:
+                raise CraftPlanError(
+                    f"step {step.id} 的依赖 {dep!r} 次序非法 (必须引用更早步骤, 无循环)"
+                )
+    return steps
+
+
+def _llm_fallback(spec: TaskSpec, budget: Budget, reason: str) -> Plan:
+    """Degrade to the M1 rule plan with the honest reason on record."""
+    plan = _build_deterministic(spec, budget)
+    return replace(plan, llm_fallback_reason=reason)

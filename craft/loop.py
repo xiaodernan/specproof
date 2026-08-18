@@ -1,4 +1,4 @@
-"""M1 execution loop (design doc §4.4 + 附录 B): plan -> execute -> verify.
+"""Execution loop (design doc §4.4 + 附录 B): plan -> execute -> verify.
 
 For each plan step the success_criteria is evaluated mechanically:
   compile    -> python -m compileall -q on the target files, exit code 0
@@ -6,13 +6,21 @@ For each plan step the success_criteria is evaluated mechanically:
   grep       -> value="" = readability check over target_files; a non-empty
                 value must occur in every target file
 
-A failing step enters the diagnose-fix iteration: a deterministic
-"expected/actual" rule template extracts the comparison from the failure
-output, then an EXPLICITLY INJECTED fix rule (registry / --fix-module) is
-applied. M1 has no LLM: a failing step without an injected fix fails
-honestly, it never invents one. The same error signature three times in a
-row marks the step stuck and the task STUCK. Iteration / tool-call / time
-budgets stop the loop as FAILED / EXPIRED with the reason on record.
+A failing step enters the diagnose-fix iteration:
+- M1: a deterministic "expected/actual" rule template extracts the
+  comparison from the failure output, then an EXPLICITLY INJECTED fix rule
+  (registry / --fix-module) is applied. Without an injected fix the step
+  fails honestly — it never invents one.
+- M2: with an LLMClient, the diagnose template asks the model for a JSON
+  edit proposal (apply_edit / write_file); every operation still goes
+  through Editor (uniqueness / atomic write / backup / audit). An illegal
+  or unparseable proposal fails the step with M1 semantics — never faked.
+  A token-budget overrun (BudgetExceeded) becomes an honest FAILED.
+
+The same error signature three times in a row marks the step stuck and the
+task STUCK. Iteration / tool-call / time / token budgets stop the loop as
+FAILED / EXPIRED with the reason on record. reasoning_content (ADR-017)
+stays in memory only — it never reaches checkpoint.json / report.json.
 
 checkpoint.json gains one entry per iteration (atomically rewritten);
 report.json is the terminal artifact (schema per 附录 B); resume continues
@@ -31,9 +39,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from providers.base import LLMMessage
+from providers.budget import BudgetExceeded
+from providers.prompt_templates import SYSTEM_BLOCK, TOOL_SCHEMA_BLOCK, assemble
+
 from .budget import Budget
 from .editor import EditError, Editor
 from .executor import ExecResult, Executor, extract_pytest_failed_tests
+from .llm import LLMClient, LLMUnavailableError, extract_json_object, resolve_craft_thinking
 from .planner import CraftPlanError, Plan, Step, classify_task, write_json_atomic
 from .spec import TaskSpec
 
@@ -56,6 +69,39 @@ class _GateError(Exception):
         super().__init__(reason)
         self.outcome = outcome
         self.reason = reason
+
+
+class _LLMFixError(RuntimeError):
+    """The model's edit proposal was illegal or was refused by the Editor."""
+
+
+_EDITOR_API_BLOCK: str = """\
+可用编辑工具 (所有路径相对仓库根; 绝对路径与 .. 逃逸会被拒绝):
+- read_file(path) -> 带行号内容 (目标文件内容已随本提示提供, 通常无需再读);
+- write_file(path, content): 整文件原子写 (temp + replace), 已有文件先备份到 .specraft/backup/;
+- apply_edit(path, old, new): 精确子串替换; old 必须在文件中恰好出现一次, 否则拒绝且不落盘;
+每次编辑都会写入审计日志 (谁/何时/动了什么)。禁止修改测试文件与 spec 明令禁止的文件。
+"""
+
+_EDIT_OPS_SCHEMA: str = """\
+OUTPUT CONTRACT — respond with exactly one JSON object (no markdown fences,
+no prose around the JSON):
+
+{
+  "diagnosis": "one sentence: the root cause you identified from the evidence",
+  "edits": [
+    {"action": "apply_edit", "path": "calc.py", "old": "return x / 2", "new": "return x * 2"},
+    {"action": "write_file", "path": "new.py", "new": "full file content"}
+  ]
+}
+
+Hard rules:
+- action is exactly "apply_edit" or "write_file";
+- apply_edit requires old/new strings and old must match EXACTLY once in the
+  current file content shown above, otherwise the edit is rejected;
+- propose only edits the evidence justifies; never touch test files or
+  forbidden files; never invent evidence.
+"""
 
 
 @dataclass
@@ -106,6 +152,29 @@ def diagnose_failure(step: Step, result: ExecResult | None, note: str = "") -> s
     return f"[规则模板] 无命令输出 (读取/grep 类检查失败): {note}"
 
 
+def _parse_edit_ops(data: object) -> tuple[str, list[dict[str, Any]]]:
+    """Parse the model's edit proposal: {"diagnosis": str, "edits": [...]}
+    or a bare [...] array. Illegal shapes raise _LLMFixError — the step
+    then fails with M1 semantics instead of pretending.
+    """
+    explanation = ""
+    if isinstance(data, list):
+        ops = data
+    elif isinstance(data, dict):
+        raw_ops = data.get("edits")
+        if not isinstance(raw_ops, list):
+            raise _LLMFixError("模型输出缺少 edits 数组")
+        ops = raw_ops
+        raw_explanation = data.get("diagnosis", data.get("explanation", ""))
+        if isinstance(raw_explanation, str):
+            explanation = raw_explanation.strip()
+    else:
+        raise _LLMFixError("模型输出顶层必须是 JSON 对象或数组")
+    if not all(isinstance(op, dict) for op in ops):
+        raise _LLMFixError("编辑操作数组的元素必须是 JSON 对象")
+    return explanation, ops
+
+
 class CraftLoop:
     """In-memory M1 loop over a deterministic plan (no MySQL — that is M4)."""
 
@@ -128,9 +197,12 @@ class CraftLoop:
         total_iterations: int = 0,
         exec_calls: int = 0,
         task_key: str | None = None,
+        client: LLMClient | None = None,
     ) -> None:
-        if plan.mode != "deterministic":
-            raise CraftLoopError(f"M1 循环只支持 deterministic 计划 (plan.mode={plan.mode!r})")
+        if plan.mode not in ("deterministic", "llm"):
+            raise CraftLoopError(
+                f"循环只支持 deterministic|llm 计划 (plan.mode={plan.mode!r})"
+            )
         self.spec = spec
         self.plan = plan
         self.workspace = Path(workspace)
@@ -165,10 +237,12 @@ class CraftLoop:
         self.total_iterations = total_iterations
         self.exec_calls = exec_calls
         self.last_green_step = ""
+        self.client = client
+        self.llm_calls = 0
 
     @property
     def tool_calls_used(self) -> int:
-        return self.exec_calls + len(self.editor.audit)
+        return self.exec_calls + len(self.editor.audit) + self.llm_calls
 
     # -- gates -----------------------------------------------------------
 
@@ -255,30 +329,79 @@ class CraftLoop:
             diagnosis = diagnose_failure(step, result, note=evidence.get("reason", ""))
             fix = self._lookup_fix(step)
             if fix is None:
-                state.status = "failed"
-                reason = (
-                    f"M1 确定性模式未注入步骤 {step.id} 的 fix 规则 (--fix-module), "
-                    "无法自动修复; 不假装智能"
-                )
-                state.evidence["reason"] = reason
-                self._checkpoint(
-                    step_id=step.id,
-                    iteration=attempts,
-                    diagnosis=diagnosis,
-                    edits_applied=[],
-                    build_result=self._result_dict(result),
-                    verdict="progress",
-                )
-                return "FAILED"
-            try:
-                edited: list[str] = fix(self.editor, step, diagnosis)
-            except EditError as exc:
-                edited = []
-                diagnosis = f"[规则模板] fix 函数抛错 (编辑被拒): {exc}"
-            if not isinstance(edited, list) or not all(isinstance(p, str) for p in edited):
-                state.status = "failed"
-                state.evidence["reason"] = "fix 函数返回类型错误: 应为 list[str]"
-                return "FAILED"
+                if self.client is None:
+                    state.status = "failed"
+                    if self.plan.mode == "llm":
+                        reason = (
+                            f"步骤 {step.id} 失败且无注入 fix 规则, 但未提供 LLM 客户端 "
+                            "(llm 计划需 --llm 或注入 --fix-module); 不假装智能"
+                        )
+                    else:
+                        reason = (
+                            f"M1 确定性模式未注入步骤 {step.id} 的 fix 规则 (--fix-module), "
+                            "无法自动修复; 不假装智能"
+                        )
+                    state.evidence["reason"] = reason
+                    self._checkpoint(
+                        step_id=step.id,
+                        iteration=attempts,
+                        diagnosis=diagnosis,
+                        edits_applied=[],
+                        build_result=self._result_dict(result),
+                        verdict="progress",
+                    )
+                    return "FAILED"
+                try:
+                    diagnosis, edited = self._llm_fix(step, result, diagnosis)
+                except BudgetExceeded as exc:
+                    state.status = "failed"
+                    reason = f"LLM token 预算超限: {exc}"
+                    state.evidence["reason"] = reason
+                    self._checkpoint(
+                        step_id=step.id,
+                        iteration=attempts,
+                        diagnosis=diagnosis,
+                        edits_applied=[],
+                        build_result=self._result_dict(result),
+                        verdict="progress",
+                    )
+                    return "FAILED"
+                except LLMUnavailableError as exc:
+                    state.status = "failed"
+                    reason = "LLM unavailable: " + str(exc)
+                    state.evidence["reason"] = reason
+                    self._checkpoint(
+                        step_id=step.id,
+                        iteration=attempts,
+                        diagnosis=diagnosis,
+                        edits_applied=[],
+                        build_result=self._result_dict(result),
+                        verdict="progress",
+                    )
+                    return "FAILED"
+                except _LLMFixError as exc:
+                    state.status = "failed"
+                    reason = f"LLM 编辑提案非法, 按 M1 语义 FAILED: {exc}"
+                    state.evidence["reason"] = reason
+                    self._checkpoint(
+                        step_id=step.id,
+                        iteration=attempts,
+                        diagnosis=diagnosis,
+                        edits_applied=[],
+                        build_result=self._result_dict(result),
+                        verdict="progress",
+                    )
+                    return "FAILED"
+            else:
+                try:
+                    edited = fix(self.editor, step, diagnosis)
+                except EditError as exc:
+                    edited = []
+                    diagnosis = f"[规则模板] fix 函数抛错 (编辑被拒): {exc}"
+                if not isinstance(edited, list) or not all(isinstance(p, str) for p in edited):
+                    state.status = "failed"
+                    state.evidence["reason"] = "fix 函数返回类型错误: 应为 list[str]"
+                    return "FAILED"
             try:
                 self._tool_gate(state)
                 ok, evidence, result = self._check_criteria(step, state)
@@ -420,6 +543,98 @@ class CraftLoop:
                 return candidate
         return None
 
+    def _llm_fix(
+        self, step: Step, result: ExecResult | None, diagnosis: str
+    ) -> tuple[str, list[str]]:
+        """M2 diagnose-fix: the model proposes JSON edit operations and the
+        Editor enforces uniqueness / atomic write / backup / audit exactly as
+        in M1. Returns (diagnosis_text, edited_paths).
+
+        Raises _LLMFixError for illegal output, BudgetExceeded for token
+        overruns and LLMUnavailableError when no route exists — the caller
+        converts each into an honest FAILED.
+        """
+        client = self.client
+        if client is None:
+            raise LLMUnavailableError("LLM 客户端未提供 (诊断-修复需要 --llm)")
+        built = assemble(
+            SYSTEM_BLOCK + "\n\n" + TOOL_SCHEMA_BLOCK,
+            "diagnose",
+            self._diagnose_context(step, result, diagnosis),
+            include_envelope=True,
+        )
+        response = client.chat_sync(
+            [LLMMessage(role="user", content=built.text)],
+            label=f"diagnose:{step.id}",
+            job_id=self.job_id,
+            step_id=step.id,
+            thinking=resolve_craft_thinking("diagnose"),
+            response_format={"type": "json_object"},
+            estimated_prompt_tokens=max(1, len(built.text) // 4),
+        )
+        self.llm_calls += 1
+        try:
+            data = extract_json_object(response.content or "")
+            explanation, ops = _parse_edit_ops(data)
+        except (json.JSONDecodeError, TypeError, ValueError, _LLMFixError) as exc:
+            raise _LLMFixError(f"模型输出无法解析为 JSON 编辑提案: {exc}") from exc
+        edited: list[str] = []
+        for op in ops:
+            action = op.get("action")
+            path = op.get("path")
+            new_value = op.get("new")
+            if not isinstance(path, str) or not path.strip():
+                raise _LLMFixError(f"编辑操作缺少合法 path: {op!r}")
+            if action == "apply_edit":
+                old_value = op.get("old")
+                if not isinstance(old_value, str) or not isinstance(new_value, str):
+                    raise _LLMFixError(f"apply_edit 需要字符串 old/new: {op!r}")
+                try:
+                    self.editor.apply_edit(path, old_value, new_value)
+                except EditError as exc:
+                    raise _LLMFixError(f"apply_edit 被拒 ({path}): {exc}") from exc
+            elif action == "write_file":
+                if not isinstance(new_value, str):
+                    raise _LLMFixError(f"write_file 需要字符串 new: {op!r}")
+                try:
+                    self.editor.write_file(path, new_value)
+                except EditError as exc:
+                    raise _LLMFixError(f"write_file 被拒 ({path}): {exc}") from exc
+            else:
+                raise _LLMFixError(f"未知编辑动作 {action!r} (仅支持 apply_edit|write_file)")
+            if path not in edited:
+                edited.append(path)
+        if explanation:
+            return f"[LLM 诊断] {explanation}", edited
+        return diagnosis, edited
+
+    def _diagnose_context(
+        self, step: Step, result: ExecResult | None, diagnosis: str
+    ) -> dict[str, str]:
+        """Failure context for the diagnose prompt: step schema, deterministic
+        diagnosis, failure output tail, target file contents (capped), the
+        editor API contract and the JSON output contract."""
+        snippets: list[str] = []
+        for target in step.target_files[:8]:
+            try:
+                lines = self.editor.read_file(target, limit=200)
+            except EditError:
+                snippets.append(f"--- {target} ---\n<不可读>")
+                continue
+            text = "\n".join(f"{number}: {line}" for number, line in lines)
+            if len(text) > 12_000:
+                text = text[:12_000] + "\n... (截断)"
+            snippets.append(f"--- {target} ---\n{text}")
+        return {
+            "step": json.dumps(step.to_dict(), ensure_ascii=False, indent=2),
+            "failure_diagnosis": diagnosis,
+            "failure_output": (result.output_tail if result is not None else "") or "(无)",
+            "forbidden_changes": "\n".join(self.spec.forbidden_changes) or "(无)",
+            "target_files": "\n\n".join(snippets) or "(无目标文件)",
+            "editor_api": _EDITOR_API_BLOCK,
+            "output_schema": _EDIT_OPS_SCHEMA,
+        }
+
     @staticmethod
     def _error_signature(step: Step, result: ExecResult | None) -> str:
         if result is None:
@@ -482,9 +697,10 @@ class CraftLoop:
             }
         )
         elapsed = self.now_fn() - self.started_at
+        tokens_used = self.client.budget.used if self.client is not None else 0.0
         report: dict[str, Any] = {
             "job_id": self.job_id,
-            "mode": "deterministic",
+            "mode": self.plan.mode,
             "result": result,
             "steps": [state.to_dict() for state in self.states],
             "diff_stat": {"files_changed": len(changed_files), "files": changed_files},
@@ -494,12 +710,16 @@ class CraftLoop:
                 "(--no-self-verify 为当前默认)",
             },
             "budget_used": {
-                "tokens": 0,
+                "tokens": round(tokens_used, 1),
                 "iterations": self.total_iterations,
                 "seconds": round(elapsed, 1),
             },
             "audit_trail": [entry.to_dict() for entry in self.editor.audit],
         }
+        if self.client is not None:
+            report["llm_usage"] = self.client.stats_report()
+        if self.plan.llm_fallback_reason:
+            report["llm_fallback_reason"] = self.plan.llm_fallback_reason
         try:
             write_json_atomic(self.artifact_dir / "report.json", report)
         except CraftPlanError as exc:
@@ -515,6 +735,7 @@ class CraftLoop:
         budget: Budget | None = None,
         exec_mode: str | None = None,
         exec_timeout: int = 600,
+        client: LLMClient | None = None,
     ) -> CraftLoop:
         """In-memory resume interface: rebuild the loop from .specraft
         artifacts and continue after the last green step (M1: no MySQL)."""
@@ -568,6 +789,7 @@ class CraftLoop:
             checkpoint_entries=entries,
             total_iterations=total_iterations,
             task_key=task_key,
+            client=client,
         )
         loop.last_green_step = str(last_green)
         return loop

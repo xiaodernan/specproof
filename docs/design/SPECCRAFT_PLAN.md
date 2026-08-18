@@ -165,6 +165,19 @@ CLI (craft plan/run) + 单元测试; 验收: 单测全绿 + fixture 仓库演示
 "改一个方法让失败测试转绿" 的确定性收敛 (无 LLM)。
 M2 LLM 接线: planner/诊断走 provider (Envelope 降级); 无 key 诚实降级为规则模式;
 验收: mock provider 单测 + 真实端点冒烟 (若有可用端点)。
+✅ M2 状态 (2026-08-19): 已接线 — craft/llm.py (LLMClient: TokenBudget 闸门 500000
+默认/CRAFT_TOKEN_BUDGET/--budget-tokens, reasoning 只进内存 journal, ADR-017);
+planner.compile_plan_llm 真实现 (assemble 稳定前缀 + JSON 输出契约 + Plan/Step schema
+校验 + 步骤上限 12 + 无循环依赖, 任何失败退回确定性并记 llm_fallback_reason);
+loop 诊断-修复 (diagnose 模板 + JSON 编辑提案 apply_edit/write_file 经 Editor 落盘,
+非法输出按 M1 语义 FAILED); CLI craft plan/run --llm/--no-llm (默认有 key 则 llm,
+无 key 打印 "LLM unavailable ... falling back to deterministic"); 单元测试
+tests/unit/test_craft_llm.py; 真实端点冒烟已通过 (2026-08-18, speccraft-demo):
+真实 V4 Pro 计划 mode=llm 4 步 (grep "def double" → compile → test_green →
+test_green); run 由模型诊断并 apply_edit 修复 calc 后 1 次迭代收敛 DONE;
+usage 2 calls / prompt 1620 / completion 7090 / reasoning 6574 / cache-hit 512
+(plan 调用命中稳定前缀 KV 缓存) / 计费 16443.2 / 上限 500000; 产物零
+reasoning 泄漏 (ADR-017 扫描通过)。
 M3 自校验: 接入 checkers + 安全扫描; 验收: 植入回归的 fixture 被自校验拦下 (0 交付)。
 M4 持久化: MySQL job 行 + checkpoint resume + 审计表; 验收: kill 后 resume 续跑通过。
 M5 检索注入: repo_graph 邻域注入 + ES 检索 (可选); 验收: 上下文命中率指标。
@@ -195,9 +208,9 @@ Merge Certificate; 全量门禁 (ruff/mypy/bandit/pytest) 全绿; SpecProof 15 �
 100 金案例评测不回归; 使用/架构/运维文档齐全。
 
 ## 附录 A. CLI 参数全表 (M1 交付)
-craft plan SPEC_TEXT | SPEC_FILE   --repo PATH [--no-llm] [--output DIR]
+craft plan SPEC_TEXT | SPEC_FILE   --repo PATH [--llm|--no-llm] [--output DIR]
 craft run  SPEC_TEXT | SPEC_FILE   --repo PATH [--max-iterations N] [--budget-tokens N]
-                                   [--timeout MIN] [--no-llm] [--no-self-verify] [--dry-run]
+                                   [--timeout MIN] [--llm|--no-llm] [--no-self-verify] [--dry-run]
 craft resume --job JOB_ID          [--max-iterations N]
 craft explain STEP_ID --job JOB_ID
 craft accept JOB_ID                [--depth FAST|DEEP|RELEASE]   (M7)
