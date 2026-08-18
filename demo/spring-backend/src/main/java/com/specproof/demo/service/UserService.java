@@ -104,10 +104,6 @@ public class UserService {
             return new UserResponse(user.getId(), user.getUsername(), user.getEmail());
         }
 
-        if (userRepository.existsByEmail(newEmail)) {
-            throw new RuntimeException("Email already in use: " + newEmail);
-        }
-
         user.setEmail(newEmail);
         userRepository.save(user);
 
