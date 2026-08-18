@@ -21,7 +21,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from agent.contract_results import merge_contract_results
 from agent.state import Phase0State
@@ -58,9 +58,7 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     head_workspace = state.get("head_workspace", "")
     app_dir = state.get("app_dir", "")
     changed_symbols = state.get("changed_symbols", [])
-    generation_record = cast(
-        dict[str, Any], state.get("generation_record", {})
-    )
+    generation_record = state.get("generation_record", {})
     contracts = state.get("contracts", [])
     generated_tests_path = state.get("generated_tests_path", "")
 
@@ -391,7 +389,9 @@ def _run_generated_test(workspace: str, test_class: str) -> dict[str, Any]:
         ]
     sandbox_result = run_sandboxed(
         [
-            "mvn", "test", "-q",
+            # -o: the sandbox has --network none by design; every
+            # artifact must resolve from the seeded Maven cache volume.
+            "mvn", "-o", "test", "-q",
             f"-Dtest={test_class}",
             "-DfailIfNoTests=false",
             "-f", "/work/pom.xml",

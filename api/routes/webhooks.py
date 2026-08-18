@@ -80,6 +80,7 @@ def _maybe_publish_initial_check(
                 "owner": owner,
                 "repo": repo_name,
                 "head_sha": job["head_ref"],
+                "pull_number": repo.get("pull_number"),
             },
         )
     except Exception as exc:  # noqa: BLE001 — optional integration
@@ -152,7 +153,9 @@ async def github_webhook(request: Request) -> dict[str, Any]:
             status_code=503, detail="Job NOT accepted — persistence failed"
         ) from exc
 
-    _maybe_publish_initial_check(store, job, repo)
+    _maybe_publish_initial_check(
+        store, job, {**repo, "pull_number": pr.get("number")}
+    )
     _PROCESSED_EVENTS[dedupe_key] = True
     return {
         "accepted": True,

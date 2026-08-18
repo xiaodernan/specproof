@@ -45,6 +45,15 @@ class Phase0State(MessagesState):
     static_findings: list[dict[str, Any]]
     diff_results: list[dict[str, Any]]
     generated_tests_path: str
+    # Full record of test generation (source: llm_generated |
+    # deterministic_template, attempts, compile result). Channel, not a
+    # transient: run_differential reads it to label evidence honestly.
+    generation_record: dict[str, Any]
+    # Per-file unified diffs (path -> diff text) collected from Base/Head;
+    # the worker consumes it to anchor GitHub Inline Findings. Channel,
+    # not a transient: without it the graph silently drops the node output
+    # and the worker's inline-finding path can never see real diffs.
+    diff_by_file: dict[str, str]
     # Per-contract experiment results (only real experiments may set PASS/FAIL).
     contract_results: list[dict[str, Any]]
 
@@ -96,6 +105,8 @@ def initial_state(
         "static_findings": [],
         "diff_results": [],
         "generated_tests_path": "",
+        "generation_record": {},
+        "diff_by_file": {},
         "contract_results": [],
         "candidate_findings": [],
         "confirmed_findings": [],

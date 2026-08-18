@@ -297,6 +297,59 @@ class GitHubAppClient:
         self._raise_for_status(resp)
         return dict(resp.json())
 
+    def publish_inline_findings(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+        commit_id: str,
+        comments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Publish Inline Findings as one COMMENT review on the PR.
+
+        comments are the payloads built by
+        integrations.inline_comments.build_review_comments (path, line,
+        side, body). The review references commit_id so GitHub attaches the
+        comments to that head commit. Raises GitHubApiError on failure —
+        publishing is fail-closed at this layer and best-effort at callers.
+        """
+        if not comments:
+            return {"comments": [], "submitted_empty": True}
+        resp = self._http.post(
+            f"/repos/{owner}/{repo}/pulls/{pull_number}/reviews",
+            json={
+                "commit_id": commit_id,
+                "event": "COMMENT",
+                "comments": comments,
+            },
+            headers=self._api_headers(),
+        )
+        self._raise_for_status(resp)
+        return dict(resp.json())
+
+    def create_fix_pr(
+        self,
+        owner: str,
+        repo: str,
+        base_branch: str,
+        head_branch: str,
+        title: str,
+        body: str,
+    ) -> dict[str, Any]:
+        """Open the fix PR from head_branch against base_branch."""
+        resp = self._http.post(
+            f"/repos/{owner}/{repo}/pulls",
+            json={
+                "title": title,
+                "head": head_branch,
+                "base": base_branch,
+                "body": body,
+            },
+            headers=self._api_headers(),
+        )
+        self._raise_for_status(resp)
+        return dict(resp.json())
+
 
 def github_app_client_from_env() -> GitHubAppClient | None:
     """Construct a client when GitHub App credentials are configured.

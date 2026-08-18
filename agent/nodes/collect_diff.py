@@ -20,6 +20,7 @@ def collect_diff_node(state: Phase0State) -> dict[str, Any]:
 
     changed_symbols: list[str] = []
     changed_files: list[str] = []
+    diff_by_file: dict[str, str] = {}
 
     result = subprocess.run(
         ["git", "-C", repo_path, "diff", "--name-only", base_ref, head_ref],
@@ -47,6 +48,7 @@ def collect_diff_node(state: Phase0State) -> dict[str, Any]:
             )
             continue
         diff_text = diff_result.stdout
+        diff_by_file[jf] = diff_text
 
         sym_re = re.compile(
             r"[-+]\s*(@\w+.*|public\s+\w+\s+\w+\(|private\s+\w+\s+\w+\()"
@@ -73,4 +75,7 @@ def collect_diff_node(state: Phase0State) -> dict[str, Any]:
     if not changed_symbols and not changed_files:
         changed_symbols = ["No changes detected between base and head"]
 
-    return {"changed_symbols": changed_symbols}
+    return {
+        "changed_symbols": changed_symbols,
+        "diff_by_file": diff_by_file,
+    }

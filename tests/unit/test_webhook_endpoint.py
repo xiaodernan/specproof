@@ -67,6 +67,7 @@ def _pr_event_body():
     return {
         "action": "opened",
         "pull_request": {
+            "number": 42,
             "base": {"ref": "main", "sha": "base-sha"},
             "head": {"ref": "feature/x", "sha": "head-sha"},
         },
@@ -171,6 +172,7 @@ def test_check_run_created_when_app_configured(fake_mysql, monkeypatch):
                 "owner": "acme",
                 "repo": "repo",
                 "head_sha": "head-sha",
+                "pull_number": 42,
             },
         )
     ]

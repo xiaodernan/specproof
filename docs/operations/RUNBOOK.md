@@ -65,6 +65,16 @@
 - 沙箱镜像: 预拉 maven:3.9-eclipse-temurin-21; 拉取失败有进程级缓存
   (一次只付一次超时代价)。Docker Hub 不可达时置
   SPECPROOF_SANDBOX=local 并确认 JDK21 在宿主机可用。
+- **沙箱 Maven 缓存卷必须预置 (关键)**。沙箱容器一律 --network none,
+  任何依赖都只能来自命名卷 specproof-maven-cache。空卷会让差分执行
+  以 "Unknown host repo.maven.apache.org" 静默失败 (Base/Head 双 1 ->
+  AMBIGUOUS -> 执行级案例全部漏检)。预置方法:
+  宿主机先完整跑过一次 mvnw (缓存齐全) 后执行
+  `scripts/seed_sandbox_cache.ps1` (或 Linux 等价命令: 把
+  ~/.m2/repository 拷入该卷 /root/.m2/repository), 并用
+  `docker run --rm --network none -v specproof-maven-cache:/root/.m2
+  -v <demo>:/work -w /work maven:3.9-eclipse-temurin-21 mvn -q -o test-compile`
+  冒烟确认。依赖变更后需重新预置。
 
 ## 6. 故障手册
 

@@ -11,6 +11,7 @@ Validates that SpecProof Phase 0 meets all acceptance criteria:
 import json
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -68,35 +69,61 @@ class TestPhaseAcceptance:
                 f"{case_dir.name}: should_detect must be boolean"
             )
 
+    @pytest.mark.slow_eval
     def test_specproof_eval_runs_all_cases(self):
-        """specproof eval should process all 10 golden cases."""
-        # The eval runs the full pipeline per case (Maven included).
+        """specproof eval should process all 20 golden cases.
+
+        The full run executes REAL sandboxed Maven builds on Base and Head
+        per case (~1.5-2 min/case) — a multi-hour-scale gate. Marked
+        slow_eval so fast suites can deselect it; CI's eval-golden-cases
+        job runs the same command as its dedicated gate.
+        """
         result = run_specproof(
             [
                 "eval", "--cases", str(GOLDEN_CASES),
                 "--repo", str(PROJECT_ROOT),
             ],
-            timeout=1200,
+            timeout=3600,
         )
         assert result.returncode == 0
         assert "Total cases" in result.stdout
 
     def test_eval_generates_html_report(self):
-        """eval command should generate an HTML report."""
-        output_path = PROJECT_ROOT / "eval-report.html"
-        result = run_specproof(
-            [
-                "eval", "--cases", str(GOLDEN_CASES),
-                "--repo", str(PROJECT_ROOT),
-                "--output", str(output_path),
-            ],
-            timeout=1200,
-        )
-        assert result.returncode == 0
-        assert output_path.exists()
-        content = output_path.read_text(encoding="utf-8")
-        assert "<html" in content.lower()
-        assert "SpecProof" in content
+        """eval command should generate an HTML report.
+
+        Runs a small representative subset (one static positive, one
+        negative, one execution-only positive) so the report path is
+        exercised without repeating the full 20-case run — that belongs
+        to test_specproof_eval_runs_all_cases (slow_eval) and CI's eval job.
+        """
+        import shutil
+
+        subset = Path(tempfile.mkdtemp(prefix="specproof-eval-subset-"))
+        try:
+            for case_name in (
+                "case-01-auth-bypass",
+                "case-03-clean-pr",
+                "case-18-wrong-routing-key",
+            ):
+                shutil.copytree(
+                    GOLDEN_CASES / case_name, subset / case_name
+                )
+            output_path = PROJECT_ROOT / "eval-report.html"
+            result = run_specproof(
+                [
+                    "eval", "--cases", str(subset),
+                    "--repo", str(PROJECT_ROOT),
+                    "--output", str(output_path),
+                ],
+                timeout=1200,
+            )
+            assert result.returncode == 0
+            assert output_path.exists()
+            content = output_path.read_text(encoding="utf-8")
+            assert "<html" in content.lower()
+            assert "SpecProof" in content
+        finally:
+            shutil.rmtree(subset, ignore_errors=True)
 
     def test_capsule_replay_roundtrip(self):
         """Replay should extract and read a real capsule zip."""

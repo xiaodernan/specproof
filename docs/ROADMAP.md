@@ -68,13 +68,24 @@
 - [x] execution-only 正样本 ×3 (错误路由键/静默损坏/校验放宽) +
   EVENT 差分测试 (mock RabbitTemplate 调用断言) + 存储行断言 +
   Review Court NONE 过滤; eval 20 案例 100/100/100
+- [x] P5 GitHub App 余项: Inline Finding 评论 (integrations/inline_comments,
+  hunk 锚点/去重/上限) + Fix 审批流 (agent/fixes + specproof fix/approve,
+  drift guard + 编译验证门)
+- [x] 第十轮全量审计 (2026-08-18): 拆穿"20 案例 100%"自欺 — 修复后
+  真实重跑 12/12; 沙箱 Maven 缓存卷预置 (断网沙箱依赖解析根因) +
+  -o 离线模式 + CI 预置; 状态通道 diff_by_file/generation_record 入
+  schema (worker 行内评论与证据溯源从死路变通路); ruff/mypy 全绿;
+  测试经济学 (slow_eval marker + 子集 HTML 验收)
 
 ## 下一步 (按顺序)
 
-- [ ] P5 GitHub App 余项: Inline Finding 评论、Fix 审批流
 - [ ] P6 评测与试点: 金案例继续扩充 (100 案例路线, execution-only
   正样本优先拉大基线差距)、Dashboard 压测、3 个真实仓库试点
   (runbook 已就绪); 100 案例时复核 +25pp 门槛
+- [ ] P6 安全项: worker DooD (/var/run/docker.sock) 与 §12 冲突,
+  改隔离 runner / rootless dind; 沙箱非 root 运行 (Linux)
+- [ ] P6 可观测/SLO: Grafana dashboard 化、SLO 看板与告警、备份恢复演练
+- [ ] P5 增补: LLM 基线 ("直接让 DeepSeek 看 Diff") 实测补测
 
 ## 关键指标 (Go/No-Go)
 

@@ -65,6 +65,12 @@ jobs:
           pip install -e ".[dev]"
       - name: Start infrastructure
         run: docker compose -f compose.phase0.yml up -d --wait
+      - name: Seed sandbox Maven cache (sandbox runs --network none)
+        run: |
+          docker volume create specproof-maven-cache
+          docker run --rm -v specproof-maven-cache:/root/.m2 \
+            -v $PWD/demo/spring-backend:/work -w /work \
+            maven:3.9-eclipse-temurin-21 mvn -q -DskipTests dependency:go-offline
       - name: Kernel integration tests (real MySQL/Redis/RabbitMQ/Mongo)
         run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py -q
       - name: Stop infrastructure
@@ -89,7 +95,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Evaluate 10 golden cases (deterministic)
+      - name: Seed sandbox Maven cache (sandbox runs --network none)
+        run: |
+          docker volume create specproof-maven-cache
+          docker run --rm -v specproof-maven-cache:/root/.m2 \
+            -v $PWD/demo/spring-backend:/work -w /work \
+            maven:3.9-eclipse-temurin-21 mvn -q -DskipTests dependency:go-offline
+      - name: Evaluate 20 golden cases (deterministic)
         run: |
           python -m cli.specproof.main eval \
             --cases golden-cases --repo . --no-llm \

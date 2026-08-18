@@ -24,6 +24,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+      - name: Seed sandbox Maven cache (sandbox runs --network none)
+        run: |
+          docker volume create specproof-maven-cache
+          docker run --rm -v specproof-maven-cache:/root/.m2 \
+            -v $PWD/demo/spring-backend:/work -w /work \
+            maven:3.9-eclipse-temurin-21 mvn -q -DskipTests dependency:go-offline
       - name: Nightly golden-case evaluation
         run: |
           python -m cli.specproof.main eval \

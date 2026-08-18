@@ -5,8 +5,10 @@ Honesty contract (v2):
   (unverified == 0 and failed == 0).
 - Otherwise the pipeline writes a Rejection Notice instead — the absence of
   a certificate is meaningful and is never papered over.
-- Phase 0/1 signs nothing: digests are SHA-256 over the recorded evidence.
-  Ed25519 signing is a Phase 2 item (tracked in docs/ROADMAP.md).
+- The unsigned statement carries SHA-256 digests over the recorded
+  evidence; Ed25519 signing of the canonical statement is layered on top
+  by evidence/signing.py (P5 core, in-toto style) when a signing key is
+  configured. SHA-256 alone is never called a signature.
 """
 from __future__ import annotations
 

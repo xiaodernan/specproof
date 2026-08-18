@@ -255,3 +255,73 @@ def test_check_summary_text_includes_findings():
     assert "Contracts: 5 total" in text
     assert "[BLOCKER] AUTH-01: auth bypass" in text
     assert "**Capsules:** 1" in text
+
+
+# ── P5 Inline Findings + Fix PR (spec 6.2) ─────────────────────
+
+
+def test_publish_inline_findings_payload(rsa_key):
+    _, pem = rsa_key
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path.endswith("/access_tokens"):
+            return httpx.Response(201, json={"token": "tok"})
+        return httpx.Response(200, json={"id": 9, "state": "COMMENTED"})
+
+    client = GitHubAppClient(_config(pem), transport=httpx.MockTransport(handler))
+    comments = [
+        {"path": "src/A.java", "line": 12, "side": "RIGHT", "body": "b1"}
+    ]
+    review = client.publish_inline_findings(
+        "acme", "repo", 42, "head-sha", comments
+    )
+    assert review["id"] == 9
+    req = seen[-1]
+    assert req.method == "POST"
+    assert req.url.path == "/repos/acme/repo/pulls/42/reviews"
+    body = json.loads(req.content)
+    assert body["commit_id"] == "head-sha"
+    assert body["event"] == "COMMENT"
+    assert body["comments"] == comments
+    client.close()
+
+
+def test_publish_inline_findings_empty_is_noop(rsa_key):
+    _, pem = rsa_key
+    client = GitHubAppClient(_config(pem), transport=httpx.MockTransport(
+        lambda request: httpx.Response(500)
+    ))
+    result = client.publish_inline_findings("a", "b", 1, "sha", [])
+    assert result["submitted_empty"] is True
+    client.close()
+
+
+def test_create_fix_pr_payload(rsa_key):
+    _, pem = rsa_key
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path.endswith("/access_tokens"):
+            return httpx.Response(201, json={"token": "tok"})
+        return httpx.Response(
+            201, json={"number": 77, "html_url": "https://github.com/a/b/pull/77"}
+        )
+
+    client = GitHubAppClient(_config(pem), transport=httpx.MockTransport(handler))
+    pr = client.create_fix_pr(
+        "acme", "repo", "main", "specproof-fix/x", "Fix title", "Fix body"
+    )
+    assert pr["number"] == 77
+    req = seen[-1]
+    assert req.url.path == "/repos/acme/repo/pulls"
+    body = json.loads(req.content)
+    assert body == {
+        "title": "Fix title",
+        "head": "specproof-fix/x",
+        "base": "main",
+        "body": "Fix body",
+    }
+    client.close()

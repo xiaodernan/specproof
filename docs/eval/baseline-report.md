@@ -33,4 +33,11 @@
 | Recall | 100.0% | 58.3% | +41.7pp |
 | Precision | 100.0% | 87.5% | +12.5pp |
 
+SpecProof 20 案例数字为 2026-08-18 第十轮审计后全量 eval 实测
+(12/12 detected, 0 误报; 侧车 docs/eval/eval-report.results.json)。
+基线为 deterministic diff-reader 同口径判定。
+
 Go/No-Go #14 (+25pp recall): **PASS** (+41.7pp)
+
+> 待办: 规格要求的"直接让 DeepSeek 看 Diff"LLM 基线, 需可用模型端点后
+> 用 `specproof baseline --llm` 补测 (当前环境无 Key, 不作假)。

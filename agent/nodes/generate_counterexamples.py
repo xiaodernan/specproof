@@ -124,7 +124,9 @@ def _compile_test(workspace: str, test_file: str) -> tuple[int, str]:
     else:
         local_cmd = [os.path.join(workspace, "mvnw"), "test-compile", "-q"]
     result = run_sandboxed(
-        ["mvn", "test-compile", "-q", "-f", "/work/pom.xml"],
+        # -o: the sandbox has --network none by design; every artifact
+        # must resolve from the seeded Maven cache volume.
+        ["mvn", "-o", "test-compile", "-q", "-f", "/work/pom.xml"],
         workspace=workspace,
         timeout=600,
         local_command=local_cmd,

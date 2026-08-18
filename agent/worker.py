@@ -129,7 +129,9 @@ class Worker:
                 incr("jobs_completed_total")
                 incr("jobs_" + verdict.lower() + "_total")
                 set_gauge("jobs_processing_seconds", float(time.time() - started))
-            self._maybe_publish_github_check(job_id, verdict, summary)
+            self._maybe_publish_github_check(
+                job_id, verdict, summary, final_state
+            )
             self.redis.xadd_progress(job_id, "publish_report", "completed",
                                      message=f"Job completed: {verdict}", percent=100.0)
 
@@ -192,12 +194,21 @@ class Worker:
         return final_state
 
     def _maybe_publish_github_check(
-        self, job_id: str, verdict: str, summary: dict[str, Any]
+        self,
+        job_id: str,
+        verdict: str,
+        summary: dict[str, Any],
+        final_state: dict[str, Any] | None = None,
     ) -> None:
         """Best-effort Check Run completion for GitHub-sourced jobs.
 
         Never raises: an optional GitHub integration must not flip a job
         that already reached its honest terminal state.
+
+        For BLOCKED jobs sourced from a pull_request webhook, the terminal
+        update is followed by Inline Finding review comments (spec 6.2
+        "Inline Findings", capped at INLINE_MAX) anchored to real head-file
+        lines via integrations.inline_comments.
         """
         try:
             job = self.mysql.get_job(job_id)
@@ -235,10 +246,53 @@ class Worker:
                     title="SpecProof: " + verdict,
                     summary=check_summary_text(verdict, summary),
                 )
+                self._maybe_publish_inline_findings(
+                    job_id, client, meta, verdict, summary, final_state
+                )
         except Exception as exc:  # noqa: BLE001 — best effort
             logger.warning(
                 "GitHub check run update failed for %s: %s", job_id, exc
             )
+
+    def _maybe_publish_inline_findings(
+        self,
+        job_id: str,
+        client: Any,
+        meta: dict[str, Any],
+        verdict: str,
+        summary: dict[str, Any],
+        final_state: dict[str, Any] | None,
+    ) -> None:
+        """Best-effort Inline Finding review comments on a BLOCKED PR job.
+
+        Runs inside the same best-effort envelope as the Check Run update:
+        any failure is logged, never raised.
+        """
+        if verdict != "BLOCKED" or final_state is None:
+            return
+        pull_number = meta.get("pull_number")
+        if not pull_number:
+            return
+        from integrations.inline_comments import build_review_comments
+
+        diff_by_file = final_state.get("diff_by_file") or {}
+        if not diff_by_file:
+            return
+        comments = build_review_comments(
+            summary.get("findings", []), diff_by_file
+        )
+        if not comments:
+            return
+        client.publish_inline_findings(
+            owner=str(meta["owner"]),
+            repo=str(meta["repo"]),
+            pull_number=int(pull_number),
+            commit_id=str(meta["head_sha"]),
+            comments=comments,
+        )
+        logger.info(
+            "Published %d inline findings for %s", len(comments), job_id
+        )
 
 
 def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
@@ -258,6 +312,8 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
                 "contract_id": f.get("contract_id"),
                 "confidence": f.get("confidence"),
                 "evidence_type": f.get("evidence_type"),
+                "type": f.get("type", ""),
+                "location": f.get("location", ""),
                 "description": (f.get("description") or "")[:400],
             }
             for f in findings[:20]

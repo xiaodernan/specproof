@@ -140,7 +140,9 @@ def _run_test_via_sandbox(app: str, generated_tests_path: str) -> dict[str, Any]
         ]
     result = run_sandboxed(
         [
-            "mvn", "test", "-q",
+            # -o: the sandbox has --network none by design; every
+            # artifact must resolve from the seeded Maven cache volume.
+            "mvn", "-o", "test", "-q",
             f"-Dtest={test_class}",
             "-DfailIfNoTests=false",
             "-f", "/work/pom.xml",

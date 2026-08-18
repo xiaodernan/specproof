@@ -17,6 +17,7 @@ SUMMARY = {
 
 class FakeCheckClient:
     updated: list[dict] = []
+    reviews: list[dict] = []
 
     def update_check_run(
         self, check_run_id, owner, repo, conclusion, title, summary,
@@ -33,6 +34,20 @@ class FakeCheckClient:
             }
         )
         return {"id": check_run_id}
+
+    def publish_inline_findings(
+        self, owner, repo, pull_number, commit_id, comments
+    ):
+        FakeCheckClient.reviews.append(
+            {
+                "owner": owner,
+                "repo": repo,
+                "pull_number": pull_number,
+                "commit_id": commit_id,
+                "comments": comments,
+            }
+        )
+        return {"id": 9}
 
     def __enter__(self):
         return self
@@ -139,3 +154,97 @@ def test_malformed_meta_never_raises(monkeypatch):
     _fake_client_factory(monkeypatch)
     worker = _make_worker({"check_run_id": "not-an-int"})
     worker._maybe_publish_github_check("job-1", "VERIFIED", SUMMARY)
+
+
+BLOCKED_SUMMARY = {
+    "verdict": "BLOCKED",
+    "contracts_total": 4,
+    "matrix_passed": 3,
+    "matrix_failed": 1,
+    "matrix_unverified": 0,
+    "findings": [
+        {
+            "id": "SRC-AUTH-ANNO",
+            "severity": "MAJOR",
+            "contract_id": "AUTH-01",
+            "confidence": 0.85,
+            "evidence_type": "java_source_diff",
+            "type": "annotation_removed",
+            "location": "src/UserController.java",
+            "description": "Security annotation removed from method changeEmail()",
+        }
+    ],
+    "capsules": [],
+}
+
+DIFF_STATE = {
+    "diff_by_file": {
+        "src/UserController.java": "\n".join([
+            "diff --git a/src/UserController.java b/src/UserController.java",
+            "index 111..222 100644",
+            "--- a/src/UserController.java",
+            "+++ b/src/UserController.java",
+            "@@ -10,6 +10,5 @@ public class UserController {",
+            "     private final UserService service;",
+            " ",
+            "     @PostMapping(\"/change-email\")",
+            "-    @PreAuthorize(\"isAuthenticated()\")",
+            "     public void changeEmail() {",
+            "         service.changeEmail();",
+            "     }",
+            "",
+        ])
+    }
+}
+
+
+def test_blocked_with_pull_number_publishes_inline_review(monkeypatch):
+    _fake_client_factory(monkeypatch)
+    FakeCheckClient.reviews = []
+    worker = _make_worker({**META, "pull_number": 42})
+    worker._maybe_publish_github_check(
+        "job-1", "BLOCKED", BLOCKED_SUMMARY, DIFF_STATE
+    )
+    assert len(FakeCheckClient.reviews) == 1
+    review = FakeCheckClient.reviews[0]
+    assert review["pull_number"] == 42
+    assert review["commit_id"] == "head-sha"
+    assert review["comments"][0]["path"] == "src/UserController.java"
+    assert "AUTH-01" in review["comments"][0]["body"]
+
+
+def test_blocked_without_pull_number_skips_review(monkeypatch):
+    _fake_client_factory(monkeypatch)
+    FakeCheckClient.reviews = []
+    worker = _make_worker(META)  # no pull_number in META
+    worker._maybe_publish_github_check(
+        "job-1", "BLOCKED", BLOCKED_SUMMARY, DIFF_STATE
+    )
+    assert FakeCheckClient.reviews == []
+
+
+def test_blocked_verified_verdict_skips_review(monkeypatch):
+    _fake_client_factory(monkeypatch)
+    FakeCheckClient.reviews = []
+    worker = _make_worker({**META, "pull_number": 42})
+    worker._maybe_publish_github_check(
+        "job-1", "VERIFIED", BLOCKED_SUMMARY, DIFF_STATE
+    )
+    assert FakeCheckClient.reviews == []
+
+
+def test_inline_review_failure_never_raises(monkeypatch):
+    import integrations.github_checks as checks_module
+
+    class FailingReviewClient(FakeCheckClient):
+        def publish_inline_findings(self, **kwargs):
+            raise RuntimeError("reviews api down")
+
+    monkeypatch.setattr(
+        checks_module, "github_app_client_from_env",
+        lambda: FailingReviewClient(),
+    )
+    worker = _make_worker({**META, "pull_number": 42})
+    worker._maybe_publish_github_check(
+        "job-1", "BLOCKED", BLOCKED_SUMMARY, DIFF_STATE
+    )
