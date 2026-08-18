@@ -38,7 +38,7 @@ python -m pytest tests/ -v
 python -m cli.specproof.main probe --base-url <url> --api-key <key>
 python -m cli.specproof.main verify --repo <path> --base <ref> --head <ref> --spec <file>
 python -m cli.specproof.main replay <capsule.zip>
-python -m cli.specproof.main eval --cases golden-cases/
+python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm
 ```
 
 ## 关键约束
@@ -52,10 +52,29 @@ python -m cli.specproof.main eval --cases golden-cases/
 
 - LLM 集成已通过真实 DeepSeek 端点验证（lazy probe → 7/10 capabilities，chat/JSON output/streaming 均可用）
 - compile_contracts / generate_counterexamples / review_court 均已添加 LLM fallback，LLM 不可用时自动退回 rule-based
-- 存储适配器存在但未连接真实服务
 - Merge Certificate 使用 SHA-256 哈希，Ed25519 签名计划 Phase 1+
 - DeepSeek gateway 始终返回 reasoning_content（always-on thinking），需额外 token 预算
 - strict_tool_calls 在 gateway 上返回 HTTP 400，已通过 JSON Action Envelope 降级处理
+
+## 内核加固 (2026-08-17, 见 docs/design/DESIGN_REVIEW.md 与 REDESIGN_PLAN.md)
+
+- 检测核心修复: 注解切分支持嵌套括号 (@PreAuthorize("isAuthenticated()")),
+  token 失效检查升级为方法级调用点比对, contract_results 跨节点合并
+  (FAIL>PASS>UNVERIFIED), 源码差分证据与测试生成解耦
+- Windows 差分执行修复: mvnw 绝对路径 (CreateProcessW 解析规则),
+  测试注入跳过自拷贝 (SameFileError)
+- 差分实验的 contract_id 映射到 AUTH-01, BLOCKER 六条件可真实满足
+- 旗舰案例实测: base→head-v1 输出 1 BLOCKER (base_pass_head_fail +
+  H2 DB 状态取证 row 1: specproof@example.com -> attacker@evil.com) + 1 MAJOR,
+  判定 BLOCKED
+- eval 10 case: Recall 100% (holdout 3/3), Precision 100%, 负样本 0 误报
+- MySQL 存储修复: 单游标 execute/fetch (原实现 fetch 在新游标上必抛
+  "execute() first"), 已由真实 MySQL 状态机/Outbox 测试验证
+- P1 内核闭环: API POST /jobs + GET /jobs + GET /jobs/{id} + SSE 进度;
+  worker 终态按真实结果映射 (VERIFIED/BLOCKED/FAILED)
+- ruff 全绿 + mypy strict 通过; 安全扫描 canary 自检 + capsule zip 扫描
+- 基础设施: compose.phase0.yml (MySQL/MongoDB/ES/Redis/RabbitMQ/MinIO)
+  实测可起, 内核集成测试全部通过
 
 ## P0.5 改进 (2026-07-10)
 

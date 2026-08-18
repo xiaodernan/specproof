@@ -1,0 +1,8 @@
+# P0.5 frozen artifacts — must preserve LF line endings for digest consistency
+artifacts/**/*.json text eol=lf
+artifacts/**/*.java text eol=lf
+artifacts/**/*.txt text eol=lf
+artifacts/**/*.md text eol=lf
+artifacts/**/*.template text eol=lf
+artifacts/**/*.sh text eol=lf
+artifacts/**/*.ps1 text eol=lf

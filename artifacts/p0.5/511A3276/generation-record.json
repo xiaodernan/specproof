@@ -1,0 +1,32 @@
+﻿{
+    "semantic_validation":  {
+                                "dangerous_api_check":  "PASS — no System.getenv, Runtime, File, ProcessBuilder, Reflection, Network",
+                                "http_status_check":  "PASS — assertEquals(401, status, ...)",
+                                "db_state_check":  "PASS — assertEquals on email before/after",
+                                "import_check":  "PASS — all imports resolve to project packages",
+                                "non_short_circuit":  "PASS — uses MvcResult.andReturn() + assertAll()"
+                            },
+    "human_edited":  false,
+    "final_attempt":  1,
+    "total_attempts":  1,
+    "generated_source_digest":  "sha256:bc761be4e67c7d137b4dd23258865af47ede89e57f5f2be79268436883e6f044",
+    "test_source":  "llm_generated",
+    "thinking_mode":  "disabled",
+    "model":  "deepseek-v4-pro",
+    "attempts":  [
+                     {
+                         "attempt":  1,
+                         "error":  null,
+                         "model_used":  "deepseek-v4-pro",
+                         "usage":  {
+                                       "total_tokens":  2613,
+                                       "reasoning_tokens":  1083,
+                                       "prompt_tokens":  971,
+                                       "completion_tokens":  1642
+                                   },
+                         "raw_response_digest":  "sha256:236d460cb6a84c669ee33e72e761b8ce618d5ede2de09d3ddb61156cb11e53cc"
+                     }
+                 ],
+    "provider":  "openai_compatible",
+    "endpoint":  "https://llm-api.fagougou.com/v1"
+}

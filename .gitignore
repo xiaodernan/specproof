@@ -24,6 +24,9 @@ reports/
 capsules/
 worktrees/
 
+# SpecCraft runtime artifacts (M1)
+.specraft/
+
 # Demo build artifacts
 demo/spring-backend/target/
 
@@ -37,3 +40,14 @@ Desktop.ini
 *.key
 credentials.json
 eval-report.html
+
+# Local task ledger + transient artifacts
+.jspace/
+es_err.txt
+eval-report.results.json
+services/control-plane/target/
+
+# Local test-run logs (evidence lives in reports/ artifacts)
+.pytest-*.log
+.probe-*.log
+.probe-*.json

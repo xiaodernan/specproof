@@ -1,12 +1,17 @@
 spring:
+  sql:
+    init:
+      mode: never
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    # File-based H2 so the database state persists on disk after the Maven
+    # JVM exits — SpecProof then dumps the rows as real differential evidence.
+    url: jdbc:h2:file:./target/h2/specproof-test;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     database-platform: org.hibernate.dialect.H2Dialect
   data:
     redis:

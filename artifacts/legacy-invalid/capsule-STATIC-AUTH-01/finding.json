@@ -1,0 +1,25 @@
+{
+  "id": "STATIC-AUTH-01",
+  "contract_id": "AUTH-01",
+  "severity": "MAJOR",
+  "type": "annotation_removed",
+  "description": "@PreAuthorize removed from controller method \u2014 requires differential execution to confirm regression",
+  "evidence_type": "static_regex_analysis",
+  "confidence": 0.85,
+  "p0_5_note": "Static regex alone cannot produce BLOCKER. Requires base_pass_head_fail + db_state_mutation evidence.",
+  "source": "static_analysis",
+  "status": "confirmed",
+  "blocker_check": {
+    "blocker_conditions": {
+      "1_approved_contract": true,
+      "2_base_head_execution": false,
+      "3_attribution_to_head": false,
+      "4_db_behavior_evidence": false,
+      "5_capsule_replayable": true,
+      "6_confidence_090": false
+    },
+    "all_blocker_conditions_met": false
+  },
+  "evidence_digest": "sha256:1d6f1dac01dcfc1dc330bc7d21648863614e493358a85d77f5f6a3771910d824",
+  "court_source": "rule_based"
+}

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpecProof Dashboard</title>
+<style>
+:root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e;
+        --green:#7ee787; --red:#ff7b72; --yellow:#d29922; --blue:#58a6ff; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--fg); font-family:-apple-system,'Segoe UI',sans-serif; }
+header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; }
+header h1 { font-size:18px; color:var(--blue); }
+header .keybox { margin-left:auto; display:flex; gap:8px; }
+header input { background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:6px 10px; border-radius:6px; width:220px; }
+button { background:var(--blue); border:none; color:#fff; padding:6px 12px; border-radius:6px; cursor:pointer; }
+main { display:flex; height:calc(100vh - 62px); }
+#jobs { width:340px; border-right:1px solid var(--border); overflow-y:auto; padding:12px; }
+#jobs .job { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:10px; cursor:pointer; }
+#jobs .job:hover { border-color:var(--blue); }
+#jobs .job .s { font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; }
+.s-QUEUED,.s-PENDING { background:#1c2a3a; color:var(--blue); }
+.s-RUNNING { background:#3a2a1c; color:var(--yellow); }
+.s-VERIFIED { background:#04260f; color:var(--green); }
+.s-BLOCKED,.s-FAILED,.s-ERROR { background:#490202; color:var(--red); }
+.s-CANCELLED,.s-STALE { background:#30363d; color:var(--muted); }
+#detail { flex:1; overflow-y:auto; padding:20px; }
+.panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+.panel h2 { font-size:14px; color:var(--muted); margin-bottom:12px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
+th { color:var(--muted); }
+.sev-BLOCKER { color:var(--red); font-weight:700; }
+.sev-MAJOR { color:var(--yellow); }
+.sev-MINOR { color:var(--blue); }
+#progress { font-family:monospace; font-size:12px; white-space:pre-wrap; max-height:240px; overflow-y:auto; color:var(--muted); }
+.stats { display:flex; gap:14px; }
+.stat { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 16px; text-align:center; }
+.stat .v { font-size:22px; font-weight:700; }
+#empty { color:var(--muted); padding:40px; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SpecProof Dashboard</h1>
+  <div class="keybox">
+    <input id="apikey" type="password" placeholder="X-API-Key">
+    <button onclick="saveKey()">Connect</button>
+  </div>
+</header>
+<main>
+  <aside id="jobs"><div id="empty">输入 API Key 后自动加载任务…</div></aside>
+  <section id="detail"><div id="empty">选择左侧任务查看详情与实时进度</div></section>
+</main>
+<script>
+let API = localStorage.getItem('specproof_api_base') || '';
+let KEY = localStorage.getItem('specproof_api_key') || '';
+const keyInput = document.getElementById('apikey');
+keyInput.value = KEY;
+
+function saveKey() {
+  KEY = keyInput.value.trim();
+  localStorage.setItem('specproof_api_key', KEY);
+  loadJobs();
+}
+
+function headers() { return { 'X-API-Key': KEY }; }
+
+async function loadJobs() {
+  if (!KEY) return;
+  const resp = await fetch(API + '/jobs', { headers: headers() });
+  const data = await resp.json();
+  const box = document.getElementById('jobs');
+  box.innerHTML = '';
+  for (const job of (data.jobs || [])) {
+    const el = document.createElement('div');
+    el.className = 'job';
+    el.onclick = () => openJob(job.id);
+    const s = (job.status || '').toUpperCase();
+    el.innerHTML = '<span class="s s-' + s + '">' + s + '</span> ' +
+      '<div style="margin-top:6px;font-size:13px">' + (job.base_ref || '') + ' → ' + (job.head_ref || '') + '</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + (job.id || '').slice(0, 8) + '</div>';
+    box.appendChild(el);
+  }
+  if (!(data.jobs || []).length) box.innerHTML = '<div id="empty">暂无任务</div>';
+}
+
+let sse = null;
+async function openJob(jobId) {
+  const d = document.getElementById('detail');
+  const resp = await fetch(API + '/jobs/' + jobId + '/summary', { headers: headers() });
+  const data = await resp.json();
+  const s = data.summary || {};
+  const f = (s.findings || []).map(x =>
+    '<tr><td class="sev-' + (x.severity || '') + '">' + (x.severity || '') + '</td>' +
+    '<td>' + (x.contract_id || '') + '</td><td>' +
+    ((x.description || '') + '<div style="color:var(--muted);font-size:11px">' +
+     (x.evidence_type || '') + ' · conf ' + Math.round((x.confidence || 0) * 100) + '%</div>') +
+    '</td></tr>').join('');
+  d.innerHTML =
+    '<div class="panel"><h2>任务 ' + jobId + '</h2>' +
+    '<div class="stats">' +
+    '<div class="stat"><div class="v" style="color:var(--blue)">' + (s.contracts_total || 0) + '</div><div>合约</div></div>' +
+    '<div class="stat"><div class="v" style="color:var(--green)">' + (s.matrix_passed || 0) + '</div><div>PASS</div></div>' +
+    '<div class="stat"><div class="v" style="color:var(--red)">' + (s.matrix_failed || 0) + '</div><div>FAIL</div></div>' +
+    '<div class="stat"><div class="v" style="color:var(--muted)">' + (s.matrix_unverified || 0) + '</div><div>UNVERIFIED</div></div>' +
+    '<div class="stat"><div class="v">' + (s.verdict || '—') + '</div><div>判定</div></div>' +
+    '</div></div>' +
+    '<div class="panel"><h2>Findings (' + (s.findings || []).length + ')</h2><table><thead><tr>' +
+    '<th>Severity</th><th>Contract</th><th>Description</th></tr></thead><tbody>' +
+    (f || '<tr><td colspan="3" style="color:var(--muted)">无</td></tr>') +
+    '</tbody></table></div>' +
+    '<div class="panel"><h2>证据与检索</h2>' +
+    '<div>Retrieval: ' + (s.retrieval_note || '—') + '</div>' +
+    '<div style="margin-top:8px">Capsules: ' + ((s.capsules || []).join('<br>') || '—') + '</div>' +
+    '<div style="margin-top:8px">Report: ' + (s.report_path || '—') + '</div>' +
+    '<div style="margin-top:8px">Errors: ' + ((s.errors || []).join('<br>') || '—') + '</div></div>' +
+    '<div class="panel"><h2>实时进度 (SSE)</h2><div id="progress">连接中…</div></div>';
+  if (sse) sse.close();
+  sse = new EventSource(API + '/jobs/' + jobId + '/progress?key=' + encodeURIComponent(KEY));
+  const prog = document.getElementById('progress');
+  sse.onmessage = (ev) => {
+    try { const p = JSON.parse(ev.data); prog.textContent += '[' + p.node + '] ' + p.status + ' ' + (p.percent || 0) + '%\n'; }
+    catch (e) {}
+  };
+  sse.onerror = () => { prog.textContent += '[SSE 断开, 重连中…]\n'; };
+}
+
+loadJobs();
+setInterval(loadJobs, 5000);
+</script>
+</body>
+</html>

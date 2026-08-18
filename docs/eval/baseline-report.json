@@ -1,0 +1,291 @@
+{
+  "summary": {
+    "total_cases": 20,
+    "should_detect": 12,
+    "detected": 7,
+    "false_positives": 1,
+    "precision": 87.5,
+    "recall": 58.3
+  },
+  "cases": [
+    {
+      "case": "case-01-auth-bypass",
+      "verdict": "PASS",
+      "should_detect": true,
+      "detected": true,
+      "false_positive": false,
+      "matched_findings": 1,
+      "contracts_found": [
+        "AUTH-01"
+      ],
+      "findings": [
+        {
+          "contract_id": "AUTH-01",
+          "severity": "BLOCKER",
+          "description": "static diff-reader: removed line '@PreAuthorize(\"isAuthenticated()\")'",
+          "evidence_type": "java_source_diff"
+        }
+      ]
+    },
+    {
+      "case": "case-02-transactional-removal",
+      "verdict": "PASS",
+      "should_detect": true,
+      "detected": true,
+      "false_positive": false,
+      "matched_findings": 1,
+      "contracts_found": [
+        "TRANSACTION-01"
+      ],
+      "findings": [
+        {
+          "contract_id": "TRANSACTION-01",
+          "severity": "MAJOR",
+          "description": "static diff-reader: removed line '@Transactional'",
+          "evidence_type": "java_source_diff"
+        }
+      ]
+    },
+    {
+      "case": "case-03-clean-pr",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-04-duplicate-email",
+      "verdict": "PASS",
+      "should_detect": true,
+      "detected": true,
+      "false_positive": false,
+      "matched_findings": 1,
+      "contracts_found": [
+        "UNIQUE-01"
+      ],
+      "findings": [
+        {
+          "contract_id": "UNIQUE-01",
+          "severity": "MAJOR",
+          "description": "static diff-reader: removed line 'if (userRepository.existsByEmail(newEmail)) {'",
+          "evidence_type": "java_source_diff"
+        }
+      ]
+    },
+    {
+      "case": "case-05-token-invalidation",
+      "verdict": "PASS",
+      "should_detect": true,
+      "detected": true,
+      "false_positive": false,
+      "matched_findings": 1,
+      "contracts_found": [
+        "TOKEN_INVALIDATION-01"
+      ],
+      "findings": [
+        {
+          "contract_id": "TOKEN_INVALIDATION-01",
+          "severity": "MAJOR",
+          "description": "static diff-reader: removed line 'invalidateOldTokens(userId);'",
+          "evidence_type": "java_source_diff"
+        }
+      ]
+    },
+    {
+      "case": "case-06-schema-break",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-07-duplicate-event",
+      "verdict": "PASS",
+      "should_detect": true,
+      "detected": true,
+      "false_positive": false,
+      "matched_findings": 1,
+      "contracts_found": [
+        "EVENT_ONCE-01"
+      ],
+      "findings": [
+        {
+          "contract_id": "EVENT_ONCE-01",
+          "severity": "MAJOR",
+          "description": "static diff-reader: added publish call 'rabbitTemplate.convertAndSend('",
+          "evidence_type": "java_source_diff"
+        }
+      ]
+    },
+    {
+      "case": "case-08-transaction-split",
+      "verdict": "PASS",
+      "should_detect": true,
+      "detected": true,
+      "false_positive": false,
+      "matched_findings": 1,
+      "contracts_found": [
+        "TRANSACTION-01"
+      ],
+      "findings": [
+        {
+          "contract_id": "TRANSACTION-01",
+          "severity": "MAJOR",
+          "description": "static diff-reader: removed line '@Transactional'",
+          "evidence_type": "java_source_diff"
+        }
+      ]
+    },
+    {
+      "case": "case-09-multi-security",
+      "verdict": "PARTIAL",
+      "should_detect": true,
+      "detected": true,
+      "false_positive": false,
+      "matched_findings": 1,
+      "contracts_found": [
+        "AUTH-01",
+        "TRANSACTION-01"
+      ],
+      "findings": [
+        {
+          "contract_id": "AUTH-01",
+          "severity": "BLOCKER",
+          "description": "static diff-reader: removed line '@PreAuthorize(\"isAuthenticated()\")'",
+          "evidence_type": "java_source_diff"
+        },
+        {
+          "contract_id": "TRANSACTION-01",
+          "severity": "MAJOR",
+          "description": "static diff-reader: removed line '@Transactional'",
+          "evidence_type": "java_source_diff"
+        }
+      ]
+    },
+    {
+      "case": "case-10-comment-only",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-11-refactor-rename",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-12-add-javadoc",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-13-annotation-aliased",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-14-annotation-moved-to-interface",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-15-whitespace-only-diff",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-16-preauthorize-role-changed",
+      "verdict": "FALSE_POSITIVE",
+      "should_detect": false,
+      "detected": false,
+      "false_positive": true,
+      "matched_findings": 0,
+      "contracts_found": [
+        "AUTH-01"
+      ],
+      "findings": [
+        {
+          "contract_id": "AUTH-01",
+          "severity": "BLOCKER",
+          "description": "static diff-reader: removed line '@PreAuthorize(\"isAuthenticated()\")'",
+          "evidence_type": "java_source_diff"
+        }
+      ]
+    },
+    {
+      "case": "case-17-logic-inversion",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-18-wrong-routing-key",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-19-email-corruption",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    },
+    {
+      "case": "case-20-validation-removed",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": []
+    }
+  ]
+}

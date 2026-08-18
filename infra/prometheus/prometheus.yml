@@ -1,0 +1,47 @@
+# SpecProof Prometheus (PRODUCTION_SPEC §17 Observability Profile)
+#
+# 抓取目标 (全部为服务名 DNS, 依赖与 api/worker 同 compose 网络; 见 compose.observability.yml 注释):
+#   api:8000/metrics            ← FastAPI /metrics (api/metrics.py → observability/metrics.py)
+#   worker:9100/metrics         ← worker 进程内 /metrics (observability/metrics_http.py, WORKER_METRICS_PORT)
+#   outbox-relay:9101/metrics   ← outbox relay 进程内 /metrics (OUTBOX_RELAY_METRICS_PORT; 应用栈部署 relay 服务后生效)
+#   otel-collector:8889/metrics ← OTel Collector 内嵌 prometheus exporter
+#   localhost:9090/metrics      ← Prometheus 自身
+#
+# api 未起时目标显示 down 属正常; api 起来后同网络 DNS 解析即自动转 up。
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  # 环境标签: 单机自托管默认 local; 换环境时改这一个值即可。
+  external_labels:
+    environment: local
+
+rule_files:
+  - /etc/prometheus/alerts-slo.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  - job_name: api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+
+  # worker 为可选项: 未随应用栈启动时本目标 down, 不影响其他抓取。
+  - job_name: worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["worker:9100"]
+
+  # outbox relay 服务尚未进入 compose.production.yml (应用栈侧待办);
+  # 部署后本目标自动转 up, specproof_outbox_pending 随之可采集。
+  - job_name: outbox-relay
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["outbox-relay:9101"]

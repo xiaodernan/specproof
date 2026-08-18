@@ -1,12 +1,13 @@
+
 """ModelProvider abstract base class.
 
 All agent nodes use this interface exclusively.
 No node imports openai directly.
 """
-
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -14,14 +15,14 @@ class LLMMessage:
     role: str  # "system" | "user" | "assistant" | "tool"
     content: str | None = None
     tool_call_id: str | None = None
-    tool_calls: list[dict] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
 
 
 @dataclass
 class LLMResponse:
     content: str | None = None
-    tool_calls: list[dict] = field(default_factory=list)
-    usage: dict = field(default_factory=dict)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    usage: dict[str, Any] = field(default_factory=dict)
     finish_reason: str = "stop"
     model: str = ""
     reasoning_content: str | None = None
@@ -38,29 +39,39 @@ class ModelProvider(ABC):
     async def chat(
         self,
         messages: list[LLMMessage],
-        tools: list[dict] | None = None,
+        tools: list[dict[str, Any]] | None = None,
         tool_choice: str | None = None,
-        response_format: dict | None = None,
-        thinking: bool = False,
+        response_format: dict[str, Any] | None = None,
+        thinking: bool | dict[str, Any] = False,
+        opts: dict[str, Any] | None = None,
         timeout: float = 180.0,
     ) -> LLMResponse:
-        """Send a chat completion request. Non-streaming."""
+        """Send a chat completion request. Non-streaming.
+
+        thinking: False/None → no thinking control (legacy behavior);
+                  True → {"type": "enabled"} when the gateway supports it;
+                  dict → raw thinking payload passed through verbatim.
+        opts: raw extra-body fields merged last (they win conflicts) —
+              the escape hatch for gateway-specific knobs.
+        """
 
     @abstractmethod
     async def chat_stream(
         self,
         messages: list[LLMMessage],
-        tools: list[dict] | None = None,
-        thinking: bool = False,
+        tools: list[dict[str, Any]] | None = None,
+        thinking: bool | dict[str, Any] = False,
+        opts: dict[str, Any] | None = None,
         timeout: float = 180.0,
     ) -> AsyncIterator[LLMResponse]:
         """Send a streaming chat completion request."""
 
     @abstractmethod
-    def get_capabilities(self) -> dict:
+    def get_capabilities(self) -> dict[str, Any]:
         """Return probed capabilities dict.
 
         Keys: chat, streaming, json_output, tool_calls,
               strict_tool_calls, thinking, thinking_with_tools,
-              usage_reporting, error_codes, rate_limit_headers
+              reasoning_content, usage_reporting, error_codes,
+              rate_limit_headers
         """

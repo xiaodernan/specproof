@@ -1,0 +1,22 @@
+{
+  "finding_id": "STATIC-AUTH-01",
+  "severity": "MAJOR",
+  "confidence": 0.85,
+  "created_at": "2026-07-10T10:13:33.350003+00:00",
+  "contract_id": "AUTH-01",
+  "evidence_type": "static_regex_analysis",
+  "evidence_digest": "sha256:1d6f1dac01dcfc1dc330bc7d21648863614e493358a85d77f5f6a3771910d824",
+  "db_state_verdict": "",
+  "blocker_check": {
+    "blocker_conditions": {
+      "1_approved_contract": true,
+      "2_base_head_execution": false,
+      "3_attribution_to_head": false,
+      "4_db_behavior_evidence": false,
+      "5_capsule_replayable": true,
+      "6_confidence_090": false
+    },
+    "all_blocker_conditions_met": false
+  },
+  "manifest_digest": "sha256:ac57aec3166dafe9f1e270f03a88dc5ac1e2c8e602e6abaffda3614bb89c58e2"
+}

@@ -36,9 +36,7 @@ def probe(base_url: str, api_key: str, model: str, timeout: float, json_out: boo
     Results are printed to stdout. Use --json-output for machine-readable output.
     """
     if api_key == "replace_me":
-        click.echo(
-            "ERROR: LLM_API_KEY is 'replace_me'. Set a real API key.", err=True
-        )
+        click.echo("ERROR: LLM_API_KEY is 'replace_me'. Set a real API key.", err=True)
         sys.exit(1)
 
     click.echo(f"Probing {base_url} with model {model}...")
@@ -54,18 +52,20 @@ def probe(base_url: str, api_key: str, model: str, timeout: float, json_out: boo
     result = asyncio.run(probe_obj.run())
 
     if json_out:
-        click.echo(json.dumps(
-            {
-                "provider": result.provider,
-                "base_url": result.base_url,
-                "model": result.model,
-                "capabilities": result.capabilities,
-                "limits": result.limits,
-                "errors": result.errors,
-                "probed_at": result.probed_at,
-            },
-            indent=2,
-        ))
+        click.echo(
+            json.dumps(
+                {
+                    "provider": result.provider,
+                    "base_url": result.base_url,
+                    "model": result.model,
+                    "capabilities": result.capabilities,
+                    "limits": result.limits,
+                    "errors": result.errors,
+                    "probed_at": result.probed_at,
+                },
+                indent=2,
+            )
+        )
     else:
         click.echo(result.summary())
 

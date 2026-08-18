@@ -1,0 +1,14 @@
+# Grafana datasource provisioning: Prometheus (服务名 DNS, 同 compose 网络)
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    # 固定 uid, 供 SLO 看板 (specproof-slo) 以模板变量确定性引用
+    uid: specproof-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s

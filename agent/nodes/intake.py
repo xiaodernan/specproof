@@ -1,11 +1,12 @@
-"""intake node — read requirement spec and validate inputs."""
 
+"""intake node — read requirement spec and validate inputs."""
 from pathlib import Path
+from typing import Any
 
 from agent.state import Phase0State
 
 
-def intake_node(state: Phase0State) -> dict:
+def intake_node(state: Phase0State) -> dict[str, Any]:
     """Read the requirement spec file and validate git repository."""
     errors: list[str] = []
     requirement_text = ""

@@ -1,0 +1,31 @@
+﻿{
+    "timestamp":  "2026-07-10T11:04:26+00:00",
+    "capabilities":  {
+                         "strict_tool_calls":  "HTTP 400 — degraded via JSON Action Envelope",
+                         "max_tokens":  "65536",
+                         "chat":  "available",
+                         "streaming":  "available",
+                         "thinking":  {
+                                          "default":  "always-on",
+                                          "note":  "Non-thinking mode used for JUnit generation to avoid creative variations",
+                                          "disabled_for_p0_5":  true
+                                      },
+                         "json_output":  "available"
+                     },
+    "provider":  "openai_compatible",
+    "p0_5_usage":  {
+                       "max_tokens":  4096,
+                       "retries":  3,
+                       "mode":  "non-thinking",
+                       "temperature":  0.1
+                   },
+    "model":  "deepseek-v4-pro",
+    "actual_completion":  {
+                              "total_tokens":  2613,
+                              "reasoning_tokens":  1083,
+                              "note":  "reasoning_tokens present despite thinking=disabled (gateway always-on thinking)",
+                              "prompt_tokens":  971,
+                              "completion_tokens":  1642
+                          },
+    "endpoint":  "https://llm-api.fagougou.com/v1"
+}

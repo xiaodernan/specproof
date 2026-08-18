@@ -1,0 +1,8 @@
+{
+  "finding_id": "STATIC-MUT-01",
+  "severity": "BLOCKER",
+  "confidence": 0.92,
+  "created_at": "2026-07-10T08:40:48.394378+00:00",
+  "contract_id": "AUTH-01",
+  "evidence_type": "static_analysis"
+}

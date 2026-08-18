@@ -1,7 +1,9 @@
 """Capability Probe — validates an OpenAI-compatible gateway before use.
 
-Runs 10 atomic checks. Results written to MySQL provider_capabilities
-and cached in Redis (TTL 86400s).
+Runs 11 atomic checks over raw HTTP. The result is returned to the caller
+(the CLI prints it; a Phase 1 control plane may persist it to MySQL
+provider_capabilities / Redis cache — that persistence is the caller's
+responsibility and is not done here).
 
 Usage:
     probe = CapabilityProbe(base_url="https://provider.example/v1",
@@ -9,7 +11,6 @@ Usage:
     result = await probe.run()
     print(result.summary())
 """
-
 from __future__ import annotations
 
 import json
@@ -23,7 +24,7 @@ from .probe_result import ProbeResult
 class CapabilityProbe:
     """Validates an OpenAI-compatible gateway endpoint.
 
-    Probe items (10 total):
+    Probe items (11 total):
     1. GET /models          — endpoint reachable, model list non-empty
     2. Chat                 — single-turn completion returns content
     3. Streaming            — stream=True delivers chunk stream
@@ -32,8 +33,10 @@ class CapabilityProbe:
     6. Strict Tool Calls    — tool_choice="required" enforced
     7. Thinking             — extra_body thinking enabled → reasoning_content
     8. Thinking + Tool      — thinking enabled + tools coexist
-    9. Usage                — usage.prompt_tokens/completion_tokens non-zero
-    10. Error + Rate Limit  — bad request → HTTP error + x-ratelimit-* headers
+    9. Reasoning Content    — plain chat (no thinking request) still returns
+                              reasoning_content (always-on thinking detected)
+    10. Usage               — usage.prompt_tokens/completion_tokens non-zero
+    11. Error + Rate Limit  — bad request → HTTP error + x-ratelimit-* headers
     """
 
     def __init__(
@@ -47,9 +50,7 @@ class CapabilityProbe:
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
-        self._redacted_key = (
-            api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
-        )
+        self._redacted_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -70,6 +71,7 @@ class CapabilityProbe:
             ("strict_tool_calls", self._check_strict_tool_calls),
             ("thinking", self._check_thinking),
             ("thinking_with_tools", self._check_thinking_with_tools),
+            ("reasoning_content", self._check_reasoning_content),
             ("usage_reporting", self._check_usage),
             ("error_codes", self._check_error_codes),
             ("rate_limit_headers", self._check_rate_limit_headers),
@@ -115,9 +117,7 @@ class CapabilityProbe:
     async def _check_models(self) -> tuple[bool, list[str], str]:
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.get(
-                    f"{self.base_url}/models", headers=self._headers()
-                )
+                resp = await client.get(f"{self.base_url}/models", headers=self._headers())
             if resp.status_code != 200:
                 return False, [], f"HTTP {resp.status_code}"
             data = resp.json()
@@ -209,9 +209,7 @@ class CapabilityProbe:
                     "description": "Get the weather",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "city": {"type": "string"}
-                        },
+                        "properties": {"city": {"type": "string"}},
                         "required": ["city"],
                     },
                 },
@@ -219,9 +217,7 @@ class CapabilityProbe:
         ]
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "user", "content": "What is the weather in Paris?"}
-            ],
+            "messages": [{"role": "user", "content": "What is the weather in Paris?"}],
             "tools": tools,
             "max_tokens": 50,
         }
@@ -289,9 +285,12 @@ class CapabilityProbe:
             ],
             "max_tokens": 200,
         }
+        # Raw HTTP probe: the thinking control must go INSIDE the JSON body
+        # (extra_body is an OpenAI-SDK-only concept and would be sent as a
+        # meaningless body field here).
         payload_with_thinking = {
             **payload,
-            "extra_body": {"thinking": {"type": "enabled"}},
+            "thinking": {"type": "enabled"},
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -320,9 +319,7 @@ class CapabilityProbe:
                     "description": "Calculate an expression",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "expression": {"type": "string"}
-                        },
+                        "properties": {"expression": {"type": "string"}},
                         "required": ["expression"],
                     },
                 },
@@ -338,7 +335,7 @@ class CapabilityProbe:
             ],
             "tools": tools,
             "max_tokens": 200,
-            "extra_body": {"thinking": {"type": "enabled"}},
+            "thinking": {"type": "enabled"},
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -358,6 +355,34 @@ class CapabilityProbe:
             return (
                 bool(reasoning) and len(tool_calls) > 0
             ), f"reasoning={bool(reasoning)}, tool_calls={len(tool_calls)}"
+        except Exception as e:
+            return False, str(e)
+
+    async def _check_reasoning_content(self) -> tuple[bool, str]:
+        """Detect always-on thinking: a plain chat request (no thinking
+        field) still returns reasoning_content."""
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": "Reply with just: ok"}],
+            "max_tokens": 100,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=self._headers(),
+                    json=payload,
+                )
+            if resp.status_code != 200:
+                return False, f"HTTP {resp.status_code}"
+            data = resp.json()
+            msg = data["choices"][0]["message"]
+            reasoning = msg.get("reasoning_content") or data["choices"][0].get(
+                "reasoning_content", ""
+            )
+            if reasoning:
+                return True, "always-on reasoning_content detected"
+            return False, "no reasoning_content without an explicit thinking request"
         except Exception as e:
             return False, str(e)
 
@@ -421,9 +446,7 @@ class CapabilityProbe:
                     json=payload,
                 )
             rate_limit_headers = {
-                k: v
-                for k, v in resp.headers.items()
-                if k.lower().startswith("x-ratelimit")
+                k: v for k, v in resp.headers.items() if k.lower().startswith("x-ratelimit")
             }
             return len(rate_limit_headers) > 0, f"found {len(rate_limit_headers)} headers"
         except Exception as e:

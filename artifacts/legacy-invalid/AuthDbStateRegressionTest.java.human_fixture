@@ -1,0 +1,81 @@
+package com.specproof.demo;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.specproof.demo.config.TestMockBeansConfig;
+import com.specproof.demo.dto.ChangeEmailRequest;
+import com.specproof.demo.entity.User;
+import com.specproof.demo.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+/**
+ * P0.5: 数据库状态验证回归测试。
+ *
+ * 安全基线：未认证的 PUT /api/users/{id}/email 必须返回 401 且不得修改数据库。
+ * - Base (有 @PreAuthorize): 401 + DB 不变 → PASS
+ * - Head (无 @PreAuthorize): 200 + DB 已变 → FAIL = REGRESSION CONFIRMED
+ *
+ * 此测试始终断言安全基线（401 + DB 不变），若返回 200 则测试失败，
+ * 从而在差分执行中被检测为回归。
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Import(TestMockBeansConfig.class)
+public class AuthDbStateRegressionTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void setUp() {
+        userRepository.deleteAll();
+        User user = new User("secuser", "sec-original@example.com");
+        user.setPasswordHash("$2a$10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        userRepository.save(user);
+    }
+
+    @Test
+    void unauthenticatedEmailChangeMustBeRejectedWith401() throws Exception {
+        User user = userRepository.findAll().get(0);
+        Long userId = user.getId();
+        String emailBefore = user.getEmail();
+
+        ChangeEmailRequest req = new ChangeEmailRequest("sec-changed@example.com");
+
+        // 安全基线：未认证请求必须返回 401 UNAUTHORIZED
+        mockMvc.perform(put("/api/users/{id}/email", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isUnauthorized());
+
+        // DB 状态验证：邮箱不得被修改
+        String emailAfter = userRepository.findById(userId)
+                .map(User::getEmail)
+                .orElse("NOT_FOUND");
+        if (!emailBefore.equals(emailAfter)) {
+            throw new AssertionError(
+                "DB STATE VIOLATION: email was '" + emailBefore
+                + "' before unauthenticated request, "
+                + "now '" + emailAfter + "'. "
+                + "Unauthenticated request MUST NOT modify data. "
+                + "This confirms a security regression in the PR.");
+        }
+    }
+}

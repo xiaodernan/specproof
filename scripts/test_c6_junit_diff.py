@@ -4,6 +4,7 @@ DeepSeek generates a JUnit 5 + Spring Boot integration test that verifies the
 authentication requirement. The test is written to the demo project, compiled
 with mvnw, and executed in both Base and Head git worktrees.
 """
+
 import asyncio
 import os
 import re
@@ -16,6 +17,7 @@ os.chdir(_project_root)
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(os.path.join(_project_root, ".env"))
 except ImportError:
     pass
@@ -153,12 +155,17 @@ def run_mvnw(args: list[str], cwd: str = DEMO_DIR) -> tuple[int, str, str]:
     """Run mvnw and return (exit_code, stdout, stderr)."""
     is_win = sys.platform == "win32"
     cmd = ["mvnw.cmd" if is_win else "./mvnw"] + args
+    java_home = os.environ.get("JAVA_HOME", "")
+    if not java_home:
+        raise RuntimeError("JAVA_HOME must be set to a JDK 21 installation")
     env = os.environ.copy()
-    env["JAVA_HOME"] = os.environ.get(
-        "JAVA_HOME", r"C:\Users\HUAWEI\apps\jdk-21.0.11+10"
-    )
     proc = subprocess.run(
-        cmd, cwd=cwd, capture_output=True, text=True, timeout=300, env=env,
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        env=env,
     )
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -227,14 +234,16 @@ async def main() -> int:
     print("  Checking out base tag...")
     subprocess.run(
         ["git", "checkout", "base", "--quiet"],
-        cwd=DEMO_DIR, capture_output=True,
+        cwd=DEMO_DIR,
+        capture_output=True,
     )
     exit_base, out_base, err_base = run_mvnw(["-Dtest=AuthRegressionTest", "test", "-q"])
 
     print("  Checking out head-v1 tag...")
     subprocess.run(
         ["git", "checkout", "head-v1", "--quiet"],
-        cwd=DEMO_DIR, capture_output=True,
+        cwd=DEMO_DIR,
+        capture_output=True,
     )
     exit_head, out_head, err_head = run_mvnw(["-Dtest=AuthRegressionTest", "test", "-q"])
 
@@ -268,7 +277,8 @@ async def main() -> int:
     # Return to original branch
     subprocess.run(
         ["git", "checkout", "head-v1", "--quiet"],
-        cwd=DEMO_DIR, capture_output=True,
+        cwd=DEMO_DIR,
+        capture_output=True,
     )
 
     return 0 if exit_base != 0 and exit_head == 0 else (0 if exit_base == 0 else 1)

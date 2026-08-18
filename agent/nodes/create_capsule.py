@@ -1,16 +1,18 @@
-"""create_capsule node — package Bug Capsules for BLOCKER/MAJOR findings."""
 
+"""create_capsule node — package Bug Capsules for BLOCKER/MAJOR findings."""
+import hashlib
 import json
 import os
 import uuid
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from agent.state import Phase0State
 
 
-def create_capsule_node(state: Phase0State) -> dict:
+def create_capsule_node(state: Phase0State) -> dict[str, Any]:
     """Create Bug Capsule zip files for each confirmed finding.
 
     Each capsule contains manifest, requirement, contract, finding,
@@ -33,7 +35,7 @@ def create_capsule_node(state: Phase0State) -> dict:
         capsule_dir = output_dir / f"capsule-{fid}"
         capsule_dir.mkdir(parents=True, exist_ok=True)
 
-        # manifest.json
+        # manifest.json (P0.5: evidence_digest, never "signature")
         manifest = {
             "finding_id": fid,
             "severity": finding.get("severity"),
@@ -41,7 +43,16 @@ def create_capsule_node(state: Phase0State) -> dict:
             "created_at": datetime.now(UTC).isoformat(),
             "contract_id": finding.get("contract_id"),
             "evidence_type": finding.get("evidence_type"),
+            "evidence_digest": finding.get("evidence_digest", ""),
+            "db_state_verdict": finding.get("db_state_verdict", ""),
+            "blocker_check": finding.get("blocker_check", {}),
         }
+        # The digest is computed over the CANONICAL serialization of the
+        # manifest WITHOUT the digest field (sorted keys, no whitespace) —
+        # verifiable by re-serializing any stored copy the same way.
+        canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+        manifest_digest = hashlib.sha256(canonical.encode()).hexdigest()
+        manifest["manifest_digest"] = f"sha256:{manifest_digest}"
         (capsule_dir / "manifest.json").write_text(
             json.dumps(manifest, indent=2), encoding="utf-8"
         )
@@ -128,7 +139,7 @@ def create_capsule_node(state: Phase0State) -> dict:
 
 def _build_replay_script(
     fid: str,
-    finding: dict,
+    finding: dict[str, Any],
     capsule_dir_name: str,
     is_windows: bool = False,
 ) -> str:

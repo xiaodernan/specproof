@@ -11,6 +11,7 @@ Validates that SpecProof Phase 0 meets all acceptance criteria:
 import json
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -22,10 +23,12 @@ DEMO_REPO = PROJECT_ROOT / "demo" / "spring-backend"
 REQUIREMENT_FILE = PROJECT_ROOT / "demo" / "requirement.txt"
 
 
-def run_specproof(args: list[str]) -> subprocess.CompletedProcess:
+def run_specproof(
+    args: list[str], timeout: int = 120,
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "cli.specproof.main"] + args,
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=timeout,
         cwd=str(PROJECT_ROOT),
     )
 
@@ -34,12 +37,21 @@ class TestPhaseAcceptance:
     """Phase 0 acceptance criteria."""
 
     def test_all_golden_cases_exist(self):
-        """All 10 golden cases should have spec.md and ground-truth.json."""
+        """All 100 golden cases should have spec.md and ground-truth.json.
+
+        case-01..20 are the P0.5 enterprise-hardening set (holdout,
+        negative precision, adversarial traps, execution-only positives).
+        case-21..100 are the P6 expansion: Auth 7, Tx/Concurrency 12,
+        Migration/Schema 9, API 7, Redis 10, MQ/Outbox 7, Logic/Boundary 9,
+        Perf/N+1 5, Weak-tests 5, Prompt-injection/Sandbox 5,
+        Reliability/dup-events 4 - defined as a data table in
+        scripts/build_golden_scenarios.py (P6_CASES).
+        """
         case_dirs = sorted(
             d for d in GOLDEN_CASES.iterdir()
             if d.is_dir() and d.name.startswith("case-")
         )
-        assert len(case_dirs) == 10, f"Expected 10 cases, got {len(case_dirs)}"
+        assert len(case_dirs) == 100, f"Expected 100 cases, got {len(case_dirs)}"
 
         for case_dir in case_dirs:
             assert (case_dir / "spec.md").exists(), f"{case_dir.name}: missing spec.md"
@@ -61,24 +73,79 @@ class TestPhaseAcceptance:
                 f"{case_dir.name}: should_detect must be boolean"
             )
 
+    @pytest.mark.slow_eval
     def test_specproof_eval_runs_all_cases(self):
-        """specproof eval should process all 10 golden cases."""
-        result = run_specproof(["eval", "--cases", str(GOLDEN_CASES)])
+        """specproof eval should process all 100 golden cases.
+
+        The full run executes REAL sandboxed Maven builds on Base and Head
+        per case. Measured basis for the timeout:
+        - pre-reuse data point (round 10, 20 cases): 75-90 min wall ~
+          3.75-4.5 min/case, 3600s timed out before finishing - 100-case
+          extrapolation 6.3-7.5h.
+        - P6 reuse economics: 3 Maven invocations/case -> 2 (the head-side
+          full test now runs inside generate_counterexamples and
+          run_differential reuses the recorded head_run), after the first
+          case the base side restores cached classes + freezes sources +
+          -Dmaven.main.skip=true (only the injected generated test
+          compiles), and the head side is seeded for incremental compile;
+          local-mode measured 53-65s/case (3-case sample), sandbox mode
+          adds ~15-30s startup overhead per invocation -> ~2-2.5 min/case
+          -> 100 cases ~3.3-4.2h.
+        - timeout 18000s (5h) leaves ~20% margin; until the sandbox
+          MAVEN_USER_HOME defect is fixed, docker mode degrades to
+          local_fallback (correctness unaffected, see
+          docs/eval/p6-100-case-eval.md).
+        Marked slow_eval so fast suites can deselect it; CI's
+        eval-golden-cases job runs the same command as its dedicated gate.
+        """
+        result = run_specproof(
+            [
+                "eval", "--cases", str(GOLDEN_CASES),
+                "--repo", str(PROJECT_ROOT),
+            ],
+            timeout=18000,
+        )
         assert result.returncode == 0
         assert "Total cases" in result.stdout
 
     def test_eval_generates_html_report(self):
-        """eval command should generate an HTML report."""
-        output_path = PROJECT_ROOT / "eval-report.html"
-        result = run_specproof([
-            "eval", "--cases", str(GOLDEN_CASES),
-            "--output", str(output_path),
-        ])
-        assert result.returncode == 0
-        assert output_path.exists()
-        content = output_path.read_text(encoding="utf-8")
-        assert "<html" in content.lower()
-        assert "SpecProof" in content
+        """eval command should generate an HTML report.
+
+        Runs a small representative subset (one static+execution positive,
+        one negative, one execution-only positive, one Redis execution
+        positive) so the report path is exercised without repeating the
+        full 100-case run - that belongs to test_specproof_eval_runs_all_cases
+        (slow_eval) and CI's eval job.
+        """
+        import shutil
+
+        subset = Path(tempfile.mkdtemp(prefix="specproof-eval-subset-"))
+        try:
+            for case_name in (
+                "case-01-auth-bypass",
+                "case-10-comment-only",
+                "case-17-logic-inversion",
+                "case-56-redis-cache-eviction-removed",
+            ):
+                shutil.copytree(
+                    GOLDEN_CASES / case_name, subset / case_name
+                )
+            output_path = PROJECT_ROOT / "eval-report.html"
+            result = run_specproof(
+                [
+                    "eval", "--cases", str(subset),
+                    "--repo", str(PROJECT_ROOT),
+                    "--output", str(output_path),
+                ],
+                timeout=1200,
+            )
+            assert result.returncode == 0
+            assert output_path.exists()
+            content = output_path.read_text(encoding="utf-8")
+            assert "<html" in content.lower()
+            assert "SpecProof" in content
+        finally:
+            shutil.rmtree(subset, ignore_errors=True)
 
     def test_capsule_replay_roundtrip(self):
         """Replay should extract and read a real capsule zip."""

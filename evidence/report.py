@@ -1,5 +1,4 @@
 """HTML report renderer for SpecProof Phase 0."""
-
 from datetime import UTC, datetime
 from typing import Any
 
@@ -9,7 +8,8 @@ def render_verification_report(
     base_ref: str,
     head_ref: str,
     matrix: dict[str, Any],
-    findings: list[dict],
+    findings: list[dict[str, Any]],
+    errors: list[str] | None = None,
 ) -> str:
     """Render the full HTML Verification Report."""
     rows = matrix.get("rows", [])
@@ -24,26 +24,50 @@ def render_verification_report(
         }.get(r.get("result", ""), "")
         symbols = ", ".join(r.get("changed_symbols", [])) or "—"
         rows_html += f"""<tr class="{result_class}">
-            <td>{r.get('contract_id', '')}</td>
-            <td class="req">{r.get('requirement', '')}</td>
+            <td>{r.get("contract_id", "")}</td>
+            <td class="req">{r.get("requirement", "")}</td>
             <td>{symbols}</td>
-            <td>{r.get('experiment', '')}</td>
-            <td class="{result_class}">{r.get('result', '')}</td>
-            <td>{r.get('evidence', '')}</td>
+            <td>{r.get("experiment", "")}</td>
+            <td class="{result_class}">{r.get("result", "")}</td>
+            <td>{r.get("evidence", "")}</td>
         </tr>"""
 
     findings_html = ""
     for f in findings:
-        findings_html += f"""<div class="finding {f.get('severity', '').lower()}">
-            <h3>[{f.get('severity', '')}] {f.get('contract_id', '')}</h3>
-            <p>{f.get('description', '')}</p>
-            <p>Confidence: {f.get('confidence', 0):.0%} | Type: {f.get('evidence_type', '')}</p>
+        findings_html += f"""<div class="finding {f.get("severity", "").lower()}">
+            <h3>[{f.get("severity", "")}] {f.get("contract_id", "")}</h3>
+            <p>{f.get("description", "")}</p>
+            <p>Confidence: {f.get("confidence", 0):.0%} | Type: {f.get("evidence_type", "")}</p>
         </div>"""
 
     passed = matrix.get("passed", 0)
     failed = matrix.get("failed", 0)
+    unverified = matrix.get("unverified", 0)
     total = matrix.get("total_rows", len(rows))
-    verdict = "VERIFIED" if failed == 0 else "BLOCKED"
+    error_list = errors or []
+    if error_list:
+        verdict = "FAILED"
+    elif failed > 0:
+        verdict = "BLOCKED"
+    elif unverified > 0:
+        verdict = "NEEDS REVIEW"
+    else:
+        verdict = "VERIFIED"
+
+    verdict_class = {
+        "FAILED": "blocked",
+        "BLOCKED": "blocked",
+        "NEEDS REVIEW": "blocked",
+        "VERIFIED": "verified",
+    }[verdict]
+
+    errors_html = ""
+    if error_list:
+        items = "".join(f"<li>{e}</li>" for e in error_list)
+        errors_html = (
+            f'<section><h2 style="color:#ff7b72;">Pipeline Errors ({len(error_list)})</h2>'
+            f"<ul>{items}</ul></section>"
+        )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -90,13 +114,16 @@ def render_verification_report(
             <div>Head: {head_ref}</div>
             <div>Generated: {now}</div>
         </div>
-        <div class="verdict {verdict.lower()}">{verdict}</div>
+        <div class="verdict {verdict_class}">{verdict}</div>
         <div class="summary" style="margin-top: 12px;">
             <div>Contracts: {total}</div>
             <div style="color: #7ee787;">Passed: {passed}</div>
             <div style="color: #ff7b72;">Failed: {failed}</div>
+            <div style="color: #8b949e;">Unverified: {unverified}</div>
         </div>
     </header>
+
+    {errors_html}
 
     <section>
         <h2>Requirement-to-Evidence Matrix</h2>
@@ -117,20 +144,23 @@ def render_verification_report(
 
     <section>
         <h2>Findings ({len(findings)})</h2>
-        {findings_html if findings else (
-            '<p style="color: #7ee787;">No findings. All contracts passed.</p>'
-        )}
+        {
+        findings_html
+        if findings
+        else ('<p style="color: #8b949e;">No findings confirmed by the Review Court. '
+              'See the matrix above for per-contract results.</p>')
+    }
     </section>
 
     <footer>
-        SpecProof v0.1.0 | Evidence hashes not available offline |
+        SpecProof v0.1.0 | SHA-256 evidence digests included where available |
         No API keys stored in this report
     </footer>
 </body>
 </html>"""
 
 
-def render_eval_report(results: list[dict]) -> str:
+def render_eval_report(results: list[dict[str, Any]]) -> str:
     """Render evaluation results HTML page with precision/recall."""
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -144,8 +174,10 @@ def render_eval_report(results: list[dict]) -> str:
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
     verdict_color = {
-        "PASS": "#7ee787", "PARTIAL": "#d29922",
-        "MISS": "#ff7b72", "FALSE_POSITIVE": "#ff7b72",
+        "PASS": "#7ee787",
+        "PARTIAL": "#d29922",
+        "MISS": "#ff7b72",
+        "FALSE_POSITIVE": "#ff7b72",
     }
 
     rows_html = ""
@@ -153,14 +185,14 @@ def render_eval_report(results: list[dict]) -> str:
         v = r.get("verdict", "")
         color = verdict_color.get(v, "#c9d1d9")
         rows_html += f"""<tr>
-            <td>{r.get('case', '')}</td>
+            <td>{r.get("case", "")}</td>
             <td style="color:{color};font-weight:700">{v}</td>
-            <td>{r.get('expected_contract', '')}</td>
-            <td>{r.get('expected_severity', '')}</td>
-            <td>{r.get('expected_evidence', '')}</td>
-            <td>{r.get('matched_findings', 0)}</td>
-            <td>{r.get('matched_severities', '')}</td>
-            <td>{r.get('contracts_found', '')}</td>
+            <td>{r.get("expected_contract", "")}</td>
+            <td>{r.get("expected_severity", "")}</td>
+            <td>{r.get("expected_evidence", "")}</td>
+            <td>{r.get("matched_findings", 0)}</td>
+            <td>{r.get("matched_severities", "")}</td>
+            <td>{r.get("contracts_found", "")}</td>
         </tr>"""
 
     return f"""<!DOCTYPE html>

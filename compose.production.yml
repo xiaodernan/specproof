@@ -1,0 +1,144 @@
+# SpecProof production compose — app services on top of the infra stack.
+# Usage: docker compose -f compose.phase0.yml -f compose.production.yml up -d
+# The API requires SPECPROOF_API_KEY (fail-closed authentication) and the
+# worker executes untrusted repo code ONLY inside the sandbox image.
+#
+# §12 / DooD: the worker does NOT mount the host docker socket. It talks to
+# a dedicated Docker-in-Docker daemon (the `sandbox` service) over plain TCP
+# inside the compose network. That daemon is the only component that can
+# start containers, and every sandbox container it starts runs --network none
+# as uid 1000 (see sandbox/runner.py).
+
+name: specproof-app
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      SPECPROOF_API_KEY: ${SPECPROOF_API_KEY:?set SPECPROOF_API_KEY}
+      SPECPROOF_CORS_ORIGINS: ${SPECPROOF_CORS_ORIGINS:-http://localhost:3000}
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      MONGODB_HOST: mongodb
+      ES_HOST: http://elasticsearch:9200
+      RABBITMQ_HOST: rabbitmq
+      MINIO_HOST: minio
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-specproof_pass}
+      ES_PASSWORD: ${ES_PASSWORD:-specproof_pass}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+      # Observability profile: ship OTel to the collector (compose.observability.yml).
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      SPECPROOF_SANDBOX: docker
+      # Non-root cache volume (uid-1000 layout); the runner defaults to
+      # the legacy root-layout volume unless this is set.
+      SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
+      # Docker CLI target: the dedicated DooD daemon (no host socket).
+      # Port verified live: with DOCKER_TLS_CERTDIR="" the dind dockerd
+      # binds plain TCP on 2375 (2376 is the TLS port).
+      DOCKER_HOST: tcp://sandbox:2375
+      # Worktrees live on a volume shared with the sandbox daemon, so the
+      # paths the worker passes to `docker run -v` exist inside the daemon.
+      TMPDIR: /workspaces
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      MONGODB_HOST: mongodb
+      RABBITMQ_HOST: rabbitmq
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-specproof_pass}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+    volumes:
+      - specproof-workspaces:/workspaces
+    depends_on:
+      sandbox:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # Outbox relay: moves MySQL outbox rows onto RabbitMQ (publisher
+  # confirm, SELECT FOR UPDATE SKIP LOCKED). The production stack must
+  # run it for webhook-triggered jobs to reach the worker; it also
+  # exposes specproof_outbox_pending on :9101 for Prometheus
+  # (compose.observability.yml scrapes outbox-relay:9101/metrics).
+  outbox-relay:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    command: ["python", "-m", "storage.outbox_relay"]
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: mysql
+      RABBITMQ_HOST: rabbitmq
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+      OUTBOX_RELAY_METRICS_PORT: "9101"
+    expose:
+      - "9101"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # DooD sandbox daemon (§12: no /var/run/docker.sock anywhere).
+  # docker:dind (privileged) — this is Docker-in-Docker, NOT host-socket
+  # passthrough: the worker has no access to the host daemon, and the
+  # containers this daemon starts still run --network none as uid 1000.
+  # Rootless variant (docker:27-dind-rootless) was tested on this host and
+  # cannot work with these shared volumes: dockerd aborts with
+  #   failed to start daemon: error setting up default driver:
+  #   chmod /home/rootless/.local/share/docker/volumes: operation not
+  #   permitted
+  # (named-volume mountpoints are host-root-owned and rootless dockerd
+  # cannot chown them); rootless sub-uid remapping would also make
+  # inner-container files wrong-owned on the shared workspace volume.
+  # See docs/operations/RUNBOOK.md for the trade-offs.
+  sandbox:
+    image: docker:27-dind
+    restart: unless-stopped
+    privileged: true
+    environment:
+      DOCKER_HOST: tcp://0.0.0.0:2375
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - sandbox-docker-data:/var/lib/docker
+      # The named volume the sandbox containers mount must exist INSIDE
+      # this daemon; bind the seeded host volume onto the daemon's own
+      # volume-store path so `-v specproof-maven-cache-1000:/home/maven/.m2`
+      # resolves to the pre-seeded non-root cache.
+      - specproof-maven-cache-1000:/var/lib/docker/volumes/specproof-maven-cache-1000/_data
+      - specproof-workspaces:/workspaces
+
+volumes:
+  # External volumes are created/owned-1000 by scripts/seed_sandbox_cache.ps1
+  # before the first `docker compose up` (see docs/operations/RUNBOOK.md).
+  specproof-workspaces:
+    external: true
+  sandbox-docker-data:
+  specproof-maven-cache-1000:
+    external: true

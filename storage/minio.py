@@ -1,8 +1,13 @@
-"""MinIO client — object storage for Phase 0."""
+"""MinIO client — object storage for Phase 0 / Phase 1.
 
+P1.5: Added put_object_with_digest (sha256 + size), batch_check_exist,
+and put_object_if_absent for idempotent artifact uploads.
+"""
+import hashlib
 import os
 from dataclasses import dataclass
 from io import BytesIO
+from typing import Any
 
 from minio import Minio
 
@@ -86,6 +91,78 @@ class MinIOClient:
             length=len(data),
             content_type=content_type,
         )
+
+    # ── P1.5: digest-bearing upload + batch existence ──────────
+
+    def put_object_with_digest(
+        self,
+        bucket: str,
+        object_name: str,
+        data: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> dict[str, Any]:
+        """Upload data and return {bucket, object_name, sha256, size_bytes}.
+
+        The sha256 is computed from the data, not from MinIO's ETag.
+        """
+        sha256 = hashlib.sha256(data).hexdigest()
+        size_bytes = len(data)
+        self.client.put_object(
+            bucket_name=bucket,
+            object_name=object_name,
+            data=BytesIO(data),
+            length=size_bytes,
+            content_type=content_type,
+        )
+        return {
+            "bucket": bucket,
+            "object_name": object_name,
+            "sha256": sha256,
+            "size_bytes": size_bytes,
+        }
+
+    def put_object_if_absent(
+        self,
+        bucket: str,
+        object_name: str,
+        data: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> dict[str, Any]:
+        """Idempotent upload: skip if object already exists, upload otherwise.
+
+        Always returns the digest dict (re-computed for existing objects via stat).
+        """
+        try:
+            stat = self.client.stat_object(bucket_name=bucket, object_name=object_name)
+            sha256 = hashlib.sha256(data).hexdigest()
+            return {
+                "bucket": bucket,
+                "object_name": object_name,
+                "sha256": sha256,
+                "size_bytes": stat.size,
+            }
+        except Exception:
+            return self.put_object_with_digest(bucket, object_name, data, content_type)
+
+    def batch_check_exist(
+        self, bucket: str, objects: list[str]
+    ) -> dict[str, bool]:
+        """Batch check whether objects exist. Returns {object_name: exists}."""
+        result: dict[str, bool] = {}
+        for name in objects:
+            result[name] = self.object_exists(bucket, name)
+        return result
+
+    def object_digest(self, bucket: str, object_name: str) -> str | None:
+        """Return sha256 from object metadata, or None if missing."""
+        try:
+            stat = self.client.stat_object(bucket_name=bucket, object_name=object_name)
+            meta = stat.metadata
+            if not meta:
+                return None
+            return meta.get("X-Amz-Meta-Sha256", None) or None
+        except Exception:
+            return None
 
     def download_string(self, bucket: str, object_name: str) -> str:
         response = self.client.get_object(bucket_name=bucket, object_name=object_name)

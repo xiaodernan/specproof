@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: specproof-control-plane
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:specproof_phase0}?useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:specproof}
+    password: ${MYSQL_PASSWORD:specproof_pass}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:specproof}
+    password: ${RABBITMQ_PASSWORD:specproof_pass}
+    publisher-confirm-type: correlated
+
+server:
+  port: ${CONTROL_PLANE_PORT:8081}
+
+specproof:
+  github:
+    # Fail-closed: webhooks are refused (503) while this is empty.
+    webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+  outbox:
+    relay-enabled: ${SPECPROOF_CP_OUTBOX_RELAY:true}
+    relay-interval-ms: ${SPECPROOF_CP_OUTBOX_RELAY_INTERVAL_MS:1000}
+    exchange: specproof.p1.commands
+    batch-size: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

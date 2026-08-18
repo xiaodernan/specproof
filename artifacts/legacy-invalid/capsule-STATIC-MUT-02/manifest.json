@@ -1,0 +1,22 @@
+{
+  "finding_id": "STATIC-MUT-02",
+  "severity": "MAJOR",
+  "confidence": 0.82,
+  "created_at": "2026-07-10T10:13:33.385723+00:00",
+  "contract_id": "AUTH-01",
+  "evidence_type": "static_regex_analysis",
+  "evidence_digest": "sha256:28cf148a9b294de67d2eec58b6e1607ae6baf9cbafe11da20b724da326bfa9a5",
+  "db_state_verdict": "",
+  "blocker_check": {
+    "blocker_conditions": {
+      "1_approved_contract": true,
+      "2_base_head_execution": false,
+      "3_attribution_to_head": false,
+      "4_db_behavior_evidence": false,
+      "5_capsule_replayable": true,
+      "6_confidence_090": false
+    },
+    "all_blocker_conditions_met": false
+  },
+  "manifest_digest": "sha256:020bc1b85338b0732846e615e6045e79df6145a96abfffe149eb4e5f11acc254"
+}

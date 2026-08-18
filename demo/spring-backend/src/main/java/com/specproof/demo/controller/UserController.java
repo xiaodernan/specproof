@@ -5,6 +5,7 @@ import com.specproof.demo.dto.UserResponse;
 import com.specproof.demo.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -22,12 +23,18 @@ public class UserController {
         this.userService = userService;
     }
 
+    @GetMapping
+    public ResponseEntity<java.util.List<UserResponse>> listUsers() {
+        return ResponseEntity.ok(userService.getUsers());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getUser(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUser(id));
     }
 
     @PutMapping("/{id}/email")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserResponse> changeEmail(
             @PathVariable Long id,
             @Valid @RequestBody ChangeEmailRequest request) {

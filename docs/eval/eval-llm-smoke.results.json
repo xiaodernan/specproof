@@ -1,0 +1,22 @@
+{
+  "total_cases": 1,
+  "should_detect": 1,
+  "detected": 1,
+  "false_positives": 0,
+  "precision": 100.0,
+  "recall": 100.0,
+  "f1": 100.0,
+  "cases": [
+    {
+      "case": "case-01-auth-bypass",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "differential_test",
+      "matched_findings": 2,
+      "matched_severities": "BLOCKER, MAJOR",
+      "contracts_found": "AUTH-01",
+      "expected_contract": "AUTH-01"
+    }
+  ]
+}

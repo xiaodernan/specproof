@@ -1,0 +1,241 @@
+{
+  "summary": {
+    "total_cases": 12,
+    "should_detect": 10,
+    "detected": 0,
+    "detected_any": 9,
+    "false_positives": 0,
+    "precision": 100.0,
+    "recall": 0.0,
+    "recall_any": 90.0,
+    "f1": 0.0,
+    "parse_failures": 0
+  },
+  "cases": [
+    {
+      "case": "case-01-auth-bypass",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": true,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [
+        "UserController.changeEmail"
+      ],
+      "findings": [
+        {
+          "contract_id": "UserController.changeEmail",
+          "severity": "BLOCKER",
+          "confidence": 0.99,
+          "evidence": "The @PreAuthorize(\"isAuthenticated()\") annotation was removed from the changeEmail endpoint in UserController.java, and the corresponding PreAuthorize import was also removed. This removes authentication enforcement, allowing unauthenticated access to the PUT /{id}/email endpoint (previously 401, now 200)."
+        }
+      ],
+      "llm_note": ""
+    },
+    {
+      "case": "case-02-transactional-removal",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": true,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [
+        "com.specproof.demo.service.UserService.changeEmail"
+      ],
+      "findings": [
+        {
+          "contract_id": "com.specproof.demo.service.UserService.changeEmail",
+          "severity": "MAJOR",
+          "confidence": 0.95,
+          "evidence": "Removed @Transactional annotation from UserService.changeEmail method in demo/spring-backend/src/main/java/com/specproof/demo/service/UserService.java"
+        }
+      ],
+      "llm_note": ""
+    },
+    {
+      "case": "case-03-clean-pr",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "detected_any": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": [],
+      "llm_note": ""
+    },
+    {
+      "case": "case-04-duplicate-email",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": true,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [
+        "UserService"
+      ],
+      "findings": [
+        {
+          "contract_id": "UserService",
+          "severity": "BLOCKER",
+          "confidence": 0.95,
+          "evidence": "Diff removes the `if (userRepository.existsByEmail(newEmail))` uniqueness check in UserService before setting and saving the user's email, allowing duplicate emails to be inserted without error."
+        }
+      ],
+      "llm_note": ""
+    },
+    {
+      "case": "case-05-token-invalidation",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": true,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [
+        "Case 05: Token Invalidation Broken"
+      ],
+      "findings": [
+        {
+          "contract_id": "Case 05: Token Invalidation Broken",
+          "severity": "MAJOR",
+          "confidence": 0.95,
+          "evidence": "Diff removes `invalidateOldTokens(userId);` from UserService after `userRepository.save(user);` and `evictUserCache(userId);` during email change, meaning Redis token invalidation no longer runs and old tokens remain valid."
+        }
+      ],
+      "llm_note": ""
+    },
+    {
+      "case": "case-06-schema-break",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": true,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [
+        "com.specproof.demo.dto.UserResponse"
+      ],
+      "findings": [
+        {
+          "contract_id": "com.specproof.demo.dto.UserResponse",
+          "severity": "MAJOR",
+          "confidence": 0.9,
+          "evidence": "UserResponse DTO renames field email to emailAddress and getter getEmail() to getEmailAddress(), changing the serialized JSON response field name from 'email' to 'emailAddress', which breaks backward compatibility for existing API consumers."
+        }
+      ],
+      "llm_note": ""
+    },
+    {
+      "case": "case-07-duplicate-event",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": true,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [
+        "UserService"
+      ],
+      "findings": [
+        {
+          "contract_id": "UserService",
+          "severity": "MAJOR",
+          "confidence": 0.95,
+          "evidence": "The diff adds a new rabbitTemplate.convertAndSend(\"specproof.demo.events\", \"email.changed\", event) call immediately before the existing identical publish call in UserService, causing the email-changed event to be published twice per change."
+        }
+      ],
+      "llm_note": ""
+    },
+    {
+      "case": "case-08-transaction-split",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": true,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [
+        "UserService.changeEmail"
+      ],
+      "findings": [
+        {
+          "contract_id": "UserService.changeEmail",
+          "severity": "MAJOR",
+          "confidence": 0.95,
+          "evidence": "Diff removes @Transactional from changeEmail, splitting userRepository.save and newly added saveAndFlush (plus cache/token operations) across separate non-transactional calls."
+        }
+      ],
+      "llm_note": ""
+    },
+    {
+      "case": "case-09-multi-security",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": [],
+      "llm_note": ""
+    },
+    {
+      "case": "case-10-comment-only",
+      "verdict": "PASS",
+      "should_detect": false,
+      "detected": false,
+      "detected_any": false,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [],
+      "findings": [],
+      "llm_note": ""
+    },
+    {
+      "case": "case-17-logic-inversion",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": true,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [
+        "UserService.updateEmail"
+      ],
+      "findings": [
+        {
+          "contract_id": "UserService.updateEmail",
+          "severity": "BLOCKER",
+          "confidence": 0.99,
+          "evidence": "Diff changes `if (userRepository.existsByEmail(newEmail))` to `if (!userRepository.existsByEmail(newEmail))` before throwing RuntimeException(\"Email already in use\"). This inverts the uniqueness guard: the throw now happens when the email does NOT exist, so unused emails are rejected and duplicate emails are accepted."
+        }
+      ],
+      "llm_note": ""
+    },
+    {
+      "case": "case-18-wrong-routing-key",
+      "verdict": "MISS",
+      "should_detect": true,
+      "detected": false,
+      "detected_any": true,
+      "false_positive": false,
+      "matched_findings": 0,
+      "contracts_found": [
+        "change-email"
+      ],
+      "findings": [
+        {
+          "contract_id": "change-email",
+          "severity": "MAJOR",
+          "confidence": 0.95,
+          "evidence": "Diff changes routing key from \"email.changed\" to \"email.changed.typo\" in UserService.convertAndSend, violating the documented email.changed routing key."
+        }
+      ],
+      "llm_note": ""
+    }
+  ]
+}

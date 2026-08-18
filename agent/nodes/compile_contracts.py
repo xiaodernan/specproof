@@ -1,13 +1,14 @@
+
 """compile_contracts node — convert requirements into verifiable contracts.
 
 Phase 0: rule-based parser with optional LLM fallback.
 Phase 1+: full LLM-based compilation.
 """
-
 import asyncio
 import json
 import os
 import re
+from typing import Any
 
 from agent.state import Phase0State
 
@@ -39,6 +40,59 @@ _CONTRACT_TEMPLATES = {
         "checker_type": "sql",
         "expected_behavior": "Email update and token invalidation must be in same transaction",
     },
+    # ── P6 100-case families (case-21..100) ─────────────────────────
+    "cache": {
+        "checker_type": "redis",
+        "expected_behavior": "User reads follow cache-aside semantics and email change "
+        "evicts the user cache with a bounded TTL",
+    },
+    "concurrency": {
+        "checker_type": "sql",
+        "expected_behavior": "Stock updates must be guarded by optimistic locking — "
+        "stale writes must be rejected, never silently overwritten",
+    },
+    "nplusone": {
+        "checker_type": "sql",
+        "expected_behavior": "List endpoints must serve users with a bounded number of "
+        "SQL queries (no per-user query loops)",
+    },
+    "idempotent": {
+        "checker_type": "rabbitmq",
+        "expected_behavior": "Replaying the same order request must return the existing "
+        "order without a second stock decrement",
+    },
+    "atomicity": {
+        "checker_type": "sql",
+        "expected_behavior": "Failed order placements must roll back stock decrements; "
+        "cancelling an order must restock the product",
+    },
+    "order_event": {
+        "checker_type": "rabbitmq",
+        "expected_behavior": "order.created must be published to the documented "
+        "exchange and routing key",
+    },
+    "email_format": {
+        "checker_type": "http",
+        "expected_behavior": "Malformed email values must be rejected with 4xx",
+    },
+    "boundary": {
+        "checker_type": "sql",
+        "expected_behavior": "Ordering exactly the available stock must succeed",
+    },
+    "order_amount": {
+        "checker_type": "sql",
+        "expected_behavior": "The order amount must equal unit price times quantity",
+    },
+    "test_strength": {
+        "checker_type": "tests",
+        "expected_behavior": "The repository's own test suite must keep its test "
+        "methods and assertions (tests must not be weakened or disabled)",
+    },
+    "migration": {
+        "checker_type": "sql",
+        "expected_behavior": "Schema migrations must not drop or shrink existing "
+        "columns, tables or constraints",
+    },
 }
 
 _LLM_CONTRACT_PROMPT = """You are a requirements analyst. Given a requirement specification,
@@ -55,10 +109,14 @@ Return a JSON array of contract objects. No other text.
 Requirement specification:
 {spec_text}
 
+Repository context (retrieved symbol chunks relevant to this requirement —
+use it to ground the contracts in real code, NEVER invent symbols):
+{repo_context}
+
 Contracts (JSON array):"""
 
 
-def _parse_requirements(text: str) -> list[dict]:
+def _parse_requirements(text: str) -> list[dict[str, Any]]:
     """Parse requirement text into contract candidates using regex rules."""
     contracts = []
     text_lower = text.lower()
@@ -84,10 +142,48 @@ def _parse_requirements(text: str) -> list[dict]:
         "event_once": [
             r"exactly once|idempotent|duplicate.*event|event.*once",
             r"rabbitmq|message.*queue|publish.*once",
+            # Execution-only delivery regressions (wrong routing keys) are
+            # declared as "publish to the documented routing key" prose.
+            r"publish|routing",
         ],
         "transaction": [
             r"transaction|atomic|rollback|@Transactional",
             r"all.or.nothing|consistency",
+        ],
+        "cache": [
+            r"cache|ttl|evict|cached",
+        ],
+        "concurrency": [
+            r"optimistic|concurr|lost update|stale write|@Version|version.*(check|guard)",
+        ],
+        "nplusone": [
+            r"n\+1|query count|batch(ed)? query|aggregate query|single query",
+        ],
+        "idempotent": [
+            r"idempoten|dedup|duplicate order|replay",
+        ],
+        "atomicity": [
+            r"rollback|roll back|restock|compensat",
+        ],
+        "order_event": [
+            r"order\.created|order.*(event|publish)|event.*order",
+        ],
+        "email_format": [
+            r"email (must|is|be) valid|valid email|@Email|malformed",
+        ],
+        "boundary": [
+            r"boundary (value|case|behavior)|exactly.*stock|full stock|entire stock",
+        ],
+        "order_amount": [
+            r"amount|total price|price.*quantit",
+        ],
+        "test_strength": [
+            r"assertion|@Disabled|test.*(weaken|disable|remove|delet)",
+        ],
+        "migration": [
+            r"migration|ddl|schema\.sql|alter table",
+            r"\b(column|table|constraint)\b.*(drop|remov|shrink|reduc)",
+            r"(drop|remov|shrink|reduc).*\b(column|table|constraint)\b",
         ],
     }
 
@@ -107,7 +203,7 @@ def _parse_requirements(text: str) -> list[dict]:
     return contracts
 
 
-def _get_provider():
+def _get_provider() -> Any:
     """Create an LLM provider from env vars. Returns None if not configured."""
     api_key = os.getenv("LLM_API_KEY", "")
     if not api_key or api_key == "replace_me":
@@ -120,11 +216,23 @@ def _get_provider():
         return None
 
 
-async def _llm_compile_contracts(text: str, provider) -> list[dict]:
-    """Use LLM to compile contracts from requirement text."""
+async def _llm_compile_contracts(
+    text: str, provider: Any, repo_context: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Use LLM to compile contracts from requirement text + retrieved context."""
     from providers.base import LLMMessage
+    from providers.redaction import redact_text
 
-    prompt = _LLM_CONTRACT_PROMPT.format(spec_text=text[:4000])
+    # P0-A3: scrub the untrusted spec before it leaves the host.
+    safe_text, _scrubbed = redact_text(text[:4000])
+    context_block = "\n".join(
+        "[" + c.get("symbol", "?") + " @ " + c.get("path", "") + "]\n"
+        + (c.get("content") or "")[:600]
+        for c in (repo_context or [])[:8]
+    ) or "(no repository context retrieved)"
+    prompt = _LLM_CONTRACT_PROMPT.format(
+        spec_text=safe_text, repo_context=context_block,
+    )
 
     try:
         response = await provider.chat(
@@ -148,20 +256,37 @@ async def _llm_compile_contracts(text: str, provider) -> list[dict]:
     return []
 
 
-def compile_contracts_node(state: Phase0State) -> dict:
+def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
     """Compile requirements into a list of Contract dicts.
 
-    Tries LLM-based compilation if a provider is available,
-    falls back to rule-based parsing.
+    Deterministic rule-based parsing runs first; when the LLM is configured
+    it may enrich a sparse result. An empty contract list is honest — the
+    pipeline reports UNVERIFIED rather than inventing a generic contract.
+    LLM failures are recorded in state["errors"], never silently swallowed.
     """
     text = state.get("requirement_text", "")
+    errors: list[str] = list(state.get("errors", []))
+
     if not text:
         return {"contracts": []}
 
+    # P2: registry-approved contracts take precedence over implicit
+    # compilation (they were explicitly approved by a human).
+    approved_loaded = state.get("approved_contracts", [])
+    if approved_loaded:
+        for c in approved_loaded:
+            c.setdefault("result", "UNVERIFIED")
+            c.setdefault("evidence_ref", None)
+            c.setdefault("approved", True)
+        return {"contracts": approved_loaded, "errors": errors}
+
     contracts = _parse_requirements(text)
 
-    # Try LLM enhancement if provider available and rule-based got < 2 matches
-    provider = _get_provider()
+    # LLM enrichment when the rule-based parser found few contracts.
+    # The retrieved repository context (P2 RAG) rides along so contracts
+    # are grounded in the actual code, not just the spec prose.
+    repo_context = state.get("repo_context", [])
+    provider = _get_provider() if state.get("use_llm", True) else None
     if provider is not None and len(contracts) < 2:
         try:
             loop = asyncio.get_event_loop()
@@ -169,26 +294,108 @@ def compile_contracts_node(state: Phase0State) -> dict:
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     future = pool.submit(
-                        asyncio.run, _llm_compile_contracts(text, provider)
+                        asyncio.run,
+                        _llm_compile_contracts(text, provider, repo_context),
                     )
                     llm_contracts = future.result(timeout=30)
             else:
                 llm_contracts = asyncio.run(
-                    _llm_compile_contracts(text, provider)
+                    _llm_compile_contracts(text, provider, repo_context)
                 )
             if llm_contracts:
-                contracts = llm_contracts
-        except Exception:
-            pass
+                normalized = _normalize_llm_contracts(llm_contracts)
+                if normalized:
+                    contracts = normalized
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"LLM contract compilation failed: {exc}")
 
-    if not contracts:
-        contracts = [{
-            "id": "GENERIC-01",
-            "requirement": text.strip()[:200] if text else "No requirement text provided",
-            "checker_type": "http",
-            "expected_behavior": "API must behave correctly per requirement",
-            "result": "UNVERIFIED",
-            "evidence_ref": None,
-        }]
+    # Every contract starts UNVERIFIED; only real experiments set PASS/FAIL.
+    # P2: contracts compiled directly from the spec the user explicitly
+    # passed to verify carry IMPLICIT approval (approved=True). Contracts
+    # loaded from the registry carry explicit approvals; the Review Court
+    # checks this flag for BLOCKER condition 1.
+    forbidden_by_id = _forbidden_changes_by_family(text)
+    # Implicit approval only when the user did NOT demand registry approval:
+    # with --use-approved-contracts and an empty registry, contracts stay
+    # unapproved and the Review Court refuses BLOCKER on them.
+    require_approval = state.get("require_approved_contracts", False)
+    for c in contracts:
+        c.setdefault("result", "UNVERIFIED")
+        c.setdefault("evidence_ref", None)
+        c.setdefault("approved", not require_approval)
+        cid = c.get("id", "")
+        if cid in forbidden_by_id:
+            c["forbidden_changes"] = forbidden_by_id[cid]
 
-    return {"contracts": contracts}
+    return {"contracts": contracts, "errors": errors}
+
+
+def _forbidden_changes_by_family(text: str) -> dict[str, list[str]]:
+    """Extract 'must not / never' clauses per canonical contract family.
+
+    Uses the P2 structured parser; the result rides the contract dicts so
+    the (future) constitution checker can verify them.
+    """
+    from agent.contracts.compiler import family_id_for
+    from agent.contracts.parser import parse_requirements
+
+    result: dict[str, list[str]] = {}
+    parsed = parse_requirements(text)
+    for req in parsed.requirements:
+        for clause in req.forbidden_changes:
+            for ctype in ("http", "sql", "redis", "openapi", "rabbitmq"):
+                lowered = clause.lower()
+                if (
+                    (ctype == "http" and "auth" in lowered)
+                    or (ctype == "sql" and (
+                        "transaction" in lowered or "unique" in lowered
+                        or "constraint" in lowered
+                    ))
+                    or (ctype == "redis" and (
+                        "token" in lowered or "cache" in lowered
+                        or "redis" in lowered
+                    ))
+                    or (ctype == "openapi" and (
+                        "api" in lowered or "schema" in lowered
+                    ))
+                    or (ctype == "rabbitmq" and (
+                        "event" in lowered or "message" in lowered
+                    ))
+                ):
+                    family = family_id_for(ctype, clause)
+                    result.setdefault(family, []).append(clause)
+                    break
+    return result
+
+
+def _normalize_llm_contracts(contracts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Fill in checker_type defaults for LLM-produced contracts."""
+    type_by_prefix = {
+        "AUTH": "http",
+        "UNIQUE": "sql",
+        "TOKEN_INVALIDATION": "redis",
+        "BACKWARD_COMPATIBLE": "openapi",
+        "EVENT_ONCE": "rabbitmq",
+        "TRANSACTION": "sql",
+        "CACHE": "redis",
+        "CONCURRENCY": "sql",
+        "NPLUSONE": "sql",
+        "IDEMPOTENT": "rabbitmq",
+        "ATOMICITY": "sql",
+        "ORDER_EVENT": "rabbitmq",
+        "EMAIL_FORMAT": "http",
+        "BOUNDARY": "sql",
+        "ORDER_AMOUNT": "sql",
+        "TEST_STRENGTH": "tests",
+        "MIGRATION": "sql",
+    }
+    for c in contracts:
+        cid = str(c.get("id", ""))
+        if not c.get("checker_type"):
+            for prefix, ctype in type_by_prefix.items():
+                if cid.upper().startswith(prefix):
+                    c["checker_type"] = ctype
+                    break
+        c.setdefault("result", "UNVERIFIED")
+        c.setdefault("evidence_ref", None)
+    return contracts

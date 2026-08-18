@@ -22,8 +22,7 @@ def replay(capsule_path: str, output_dir: str | None) -> None:
         raise SystemExit(1)
 
     work_dir = (
-        Path(output_dir) if output_dir
-        else Path(tempfile.mkdtemp(prefix="specproof-replay-"))
+        Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="specproof-replay-"))
     )
     work_dir.mkdir(parents=True, exist_ok=True)
 

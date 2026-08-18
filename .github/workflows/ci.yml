@@ -1,0 +1,161 @@
+name: specproof-ci
+
+on:
+  push:
+    branches: [main, master, "feature/**"]
+  pull_request:
+
+jobs:
+  lint-type:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Ruff
+        run: python -m ruff check .
+      - name: Mypy (strict)
+        run: python -m mypy .
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Bandit scan (shipped packages, medium severity and above = zero)
+        run: |
+          python -m bandit -r agent api cli storage providers evidence \
+            observability sandbox experiments integrations -ll -q --skip B101
+
+  tests-no-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Unit + security + fault tests
+        run: python -m pytest tests/unit tests/security tests/fault -q
+
+  tests-with-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Start infrastructure
+        run: docker compose -f compose.phase0.yml up -d --wait
+      - name: Seed sandbox Maven cache (non-root, --network none)
+        run: |
+          docker volume create specproof-maven-cache-1000
+          # volume root must be uid-1000-owned for the non-root sandbox
+          docker run --rm -v specproof-maven-cache-1000:/m2 \
+            maven:3.9-eclipse-temurin-21 sh -c "chown -R 1000:1000 /m2"
+          # dependencies land in the cache volume (network available here)
+          docker run --rm --user 1000:1000 \
+            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
+            -v specproof-maven-cache-1000:/home/maven/.m2 \
+            -v $PWD/demo/spring-backend:/work:ro -w /work \
+            maven:3.9-eclipse-temurin-21 mvn -q -DskipTests dependency:go-offline
+          # wrapper jar is git-ignored (*.jar); fetch it so mvnw can place
+          # the wrapper distribution in the cache volume
+          curl -fsSL -o demo/spring-backend/.mvn/wrapper/maven-wrapper.jar \
+            https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar
+          docker run --rm --user 1000:1000 \
+            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
+            -v specproof-maven-cache-1000:/home/maven/.m2 \
+            -v $PWD/demo/spring-backend:/work:ro -w /work \
+            maven:3.9-eclipse-temurin-21 ./mvnw -q -v
+      - name: Kernel integration tests (real MySQL/Redis/RabbitMQ/Mongo)
+        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py -q
+      - name: Stop infrastructure
+        if: always()
+        run: docker compose -f compose.phase0.yml down -v
+
+  eval-golden-cases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Seed sandbox Maven cache (non-root, --network none)
+        run: |
+          docker volume create specproof-maven-cache-1000
+          # volume root must be uid-1000-owned for the non-root sandbox
+          docker run --rm -v specproof-maven-cache-1000:/m2 \
+            maven:3.9-eclipse-temurin-21 sh -c "chown -R 1000:1000 /m2"
+          # dependencies land in the cache volume (network available here)
+          docker run --rm --user 1000:1000 \
+            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
+            -v specproof-maven-cache-1000:/home/maven/.m2 \
+            -v $PWD/demo/spring-backend:/work:ro -w /work \
+            maven:3.9-eclipse-temurin-21 mvn -q -DskipTests dependency:go-offline
+          # wrapper jar is git-ignored (*.jar); fetch it so mvnw can place
+          # the wrapper distribution in the cache volume
+          curl -fsSL -o demo/spring-backend/.mvn/wrapper/maven-wrapper.jar \
+            https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar
+          docker run --rm --user 1000:1000 \
+            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
+            -v specproof-maven-cache-1000:/home/maven/.m2 \
+            -v $PWD/demo/spring-backend:/work:ro -w /work \
+            maven:3.9-eclipse-temurin-21 ./mvnw -q -v
+      - name: Evaluate representative golden-case subset (deterministic)
+        run: |
+          # The full 100-case eval is a multi-hour gate (local slow_eval /
+          # nightly job). CI runs a representative subset: static positive,
+          # negative, execution-only positive, new-category execution case.
+          mkdir -p eval-subset
+          cp -r golden-cases/case-01-auth-bypass eval-subset/
+          cp -r golden-cases/case-10-comment-only eval-subset/
+          cp -r golden-cases/case-17-logic-inversion eval-subset/
+          cp -r golden-cases/case-56-redis-cache-eviction-removed eval-subset/
+          python -m cli.specproof.main eval \
+            --cases eval-subset --repo . --no-llm \
+            --output docs/eval/eval-report.html | tee eval-run.log
+      - name: Gate: recall must be 100%
+        run: |
+          grep -q "Recall:             100.0%" eval-run.log \
+            || (echo "Recall gate FAILED" && exit 1)
+      - name: Gate: zero false positives
+        run: |
+          grep -q "False positives:    0" eval-run.log \
+            || (echo "False-positive gate FAILED" && exit 1)
+      - name: Upload eval report
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: docs/eval/eval-report.html
