@@ -38,9 +38,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Mapping
+from typing import Any
 
 LINEAGE_SCHEMA_VERSION = 1
 
@@ -494,7 +495,7 @@ def verify_lineage(
         if node_id in nodes:
             diffs.append({"kind": "duplicate_node", "node": node_id})
         if kind not in NODE_KINDS:
-            diffs.append({"kind": "unknown_node_kind", "node": node_id, "kind": kind})
+            diffs.append({"kind": "unknown_node_kind", "node": node_id, "value": kind})
         nodes[node_id] = {"id": node_id, "kind": kind, "digest": digest}
 
     for edge in raw_edges:

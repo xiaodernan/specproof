@@ -27,7 +27,6 @@ from evidence.lineage import (
     deserialize_lineage,
     edge_hash,
     lineage_to_json,
-    serialize_lineage,
     verify_lineage,
 )
 
