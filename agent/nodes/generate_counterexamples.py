@@ -193,84 +193,168 @@ async def _llm_generate_junit(
     return code
 
 
-def _build_deterministic_test() -> str:
-    """Deterministic template for the demo repository.
+_GENERATED_TEST_HEADER = """\
+package com.specproof.demo;
 
-    Single test: unauthenticated PUT → 401 AND DB row unchanged.
-    Uses andReturn() + assertAll() so both assertions always run.
-    """
-    return textwrap.dedent("""\
-    package com.specproof.demo;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.specproof.demo.config.TestMockBeansConfig;
+import com.specproof.demo.dto.ChangeEmailRequest;
+import com.specproof.demo.entity.User;
+import com.specproof.demo.repository.UserRepository;
+import jakarta.servlet.ServletException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
-    import com.fasterxml.jackson.databind.ObjectMapper;
-    import com.specproof.demo.config.TestMockBeansConfig;
-    import com.specproof.demo.dto.ChangeEmailRequest;
-    import com.specproof.demo.entity.User;
-    import com.specproof.demo.repository.UserRepository;
-    import org.junit.jupiter.api.BeforeEach;
-    import org.junit.jupiter.api.Test;
-    import org.springframework.beans.factory.annotation.Autowired;
-    import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-    import org.springframework.boot.test.context.SpringBootTest;
-    import org.springframework.context.annotation.Import;
-    import org.springframework.http.MediaType;
-    import org.springframework.test.context.ActiveProfiles;
-    import org.springframework.test.web.servlet.MockMvc;
-    import org.springframework.test.web.servlet.MvcResult;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-    import static org.junit.jupiter.api.Assertions.assertAll;
-    import static org.junit.jupiter.api.Assertions.assertEquals;
-    import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Import(TestMockBeansConfig.class)
+public class SpecProofGeneratedTest {
 
-    @SpringBootTest
-    @AutoConfigureMockMvc
-    @ActiveProfiles("test")
-    @Import(TestMockBeansConfig.class)
-    public class SpecProofGeneratedTest {
+    @Autowired
+    private MockMvc mockMvc;
 
-        @Autowired
-        private MockMvc mockMvc;
+    @Autowired
+    private UserRepository userRepository;
 
-        @Autowired
-        private UserRepository userRepository;
+    @Autowired
+    private ObjectMapper objectMapper;
 
-        @Autowired
-        private ObjectMapper objectMapper;
-
-        @BeforeEach
-        void setUp() {
-            userRepository.deleteAll();
-            User user = new User("specproof", "specproof@example.com");
-            user.setPasswordHash("hash");
-            userRepository.save(user);
-        }
-
-        @Test
-        void unauthenticatedEmailChangeMustBeRejected() throws Exception {
-            User user = userRepository.findAll().get(0);
-            String emailBefore = user.getEmail();
-            ChangeEmailRequest req = new ChangeEmailRequest("attacker@evil.com");
-
-            MvcResult result = mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(req)))
-                    .andReturn();
-
-            int status = result.getResponse().getStatus();
-            String emailAfter = userRepository.findById(user.getId())
-                    .map(User::getEmail).orElse("NOT_FOUND");
-
-            assertAll(
-                () -> assertEquals(401, status,
-                    "Expected 401 UNAUTHORIZED but got " + status),
-                () -> assertEquals(emailBefore, emailAfter,
-                    "DB STATE VIOLATION: email was '" + emailBefore
-                    + "' before request, now '" + emailAfter
-                    + "'. Unauthenticated requests must not modify data.")
-            );
-        }
+    @BeforeEach
+    void setUp() {
+        userRepository.deleteAll();
+        User user = new User("specproof", "specproof@example.com");
+        user.setPasswordHash("hash");
+        userRepository.save(user);
     }
-    """)
+
+"""
+
+_AUTH_TEST_TEMPLATE = """    @Test
+    void unauthenticatedEmailChangeMustBeRejected() throws Exception {
+        User user = userRepository.findAll().get(0);
+        String emailBefore = user.getEmail();
+        ChangeEmailRequest req = new ChangeEmailRequest("attacker@evil.com");
+
+        MvcResult result = mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andReturn();
+
+        int status = result.getResponse().getStatus();
+        String emailAfter = userRepository.findById(user.getId())
+                .map(User::getEmail).orElse("NOT_FOUND");
+
+        assertAll(
+            () -> assertEquals(401, status,
+                "Expected 401 UNAUTHORIZED but got " + status),
+            () -> assertEquals(emailBefore, emailAfter,
+                "DB STATE VIOLATION: email was '" + emailBefore
+                + "' before request, now '" + emailAfter
+                + "'. Unauthenticated requests must not modify data.")
+        );
+    }
+
+"""
+
+_FRESH_TEST_TEMPLATE = """    @Test
+    @WithMockUser
+    void freshEmailChangeMustSucceed() throws Exception {
+        User user = userRepository.findAll().get(0);
+        ChangeEmailRequest req = new ChangeEmailRequest("fresh@example.com");
+
+        mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+    }
+
+"""
+
+_UNIQUE_TEST_TEMPLATE = """    @Test
+    @WithMockUser
+    void duplicateEmailChangeMustBeRejected() throws Exception {
+        User alice = new User("alice", "alice@example.com");
+        alice.setPasswordHash("hash");
+        // Explicit flush: the duplicate must be visible to the derived
+        // existsByEmail query even when the test-managed transaction has
+        // not committed yet.
+        userRepository.saveAndFlush(alice);
+
+        User bob = userRepository.findAll().stream()
+                .filter(u -> "specproof@example.com".equals(u.getEmail()))
+                .findFirst().orElseThrow();
+        ChangeEmailRequest req = new ChangeEmailRequest("alice@example.com");
+
+        // MockMvc RETHROWS unhandled controller exceptions out of
+        // perform() (the demo app has no global exception handler) — the
+        // duplicate rejection surfaces exactly this way.
+        final boolean[] rejected = {false};
+        try {
+            mockMvc.perform(put("/api/users/" + "{id}" + "/email", bob.getId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)));
+        } catch (ServletException e) {
+            rejected[0] = e.getCause() instanceof RuntimeException;
+        }
+
+        String emailAfter = userRepository.findById(bob.getId())
+                .map(User::getEmail).orElse("NOT_FOUND");
+        assertAll(
+            () -> assertTrue(rejected[0],
+                "Duplicate email was ACCEPTED: no rejection exception "
+                + "was raised"),
+            () -> assertEquals("specproof@example.com", emailAfter,
+                "DB STATE VIOLATION: duplicate email change was accepted "
+                + "and persisted")
+        );
+    }
+
+"""
+
+
+def _build_deterministic_test(contracts: list[dict[str, Any]]) -> str:
+    """Deterministic differential tests for the demo repository.
+
+    Always: unauthenticated PUT -> 401 AND DB row unchanged (AUTH family).
+    When a UNIQUE contract is compiled: the duplicate-email rejection
+    test — the static tier can only see REMOVED guards, so inverted-guard
+    regressions (case-17) are only catchable by EXECUTING the behaviour.
+    """
+    body = _AUTH_TEST_TEMPLATE
+    if _has_unique_contract(contracts):
+        # The duplicate-rejection test catches guard REMOVALS; the
+        # fresh-email test catches guard INVERSIONS (case-17): an inverted
+        # guard rejects unused emails, which only execution can reveal.
+        body += _UNIQUE_TEST_TEMPLATE + _FRESH_TEST_TEMPLATE
+    return textwrap.dedent(_GENERATED_TEST_HEADER + body + "}\n")
+
+
+def _has_unique_contract(contracts: list[dict[str, Any]]) -> bool:
+    """True when any compiled contract guards email uniqueness."""
+    for contract in contracts:
+        if contract.get("id") == "UNIQUE-01":
+            return True
+        behavior = str(contract.get("expected_behavior", "")).lower()
+        requirement = str(contract.get("requirement", "")).lower()
+        if "unique" in behavior or "duplicate" in requirement:
+            return True
+    return False
 
 
 async def _generate_with_compile_loop(
@@ -453,7 +537,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
                 },
             }
 
-        fallback_code = _build_deterministic_test()
+        fallback_code = _build_deterministic_test(contracts)
         record.final_code = fallback_code
         test_file.write_text(fallback_code, encoding="utf-8")
 

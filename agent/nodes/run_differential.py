@@ -212,12 +212,26 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     }, sort_keys=True)
     evidence_digest = hashlib.sha256(evidence_payload.encode()).hexdigest()
 
+    # Attribute the regression to the contract family the FAILING
+    # generated test actually exercises (the generated class now carries
+    # AUTH and UNIQUE tests; a one-size AUTH-01 label would misattribute
+    # the case-17 inversion to the auth contract).
+    attributed_contract = "AUTH-01"
+    if base_pass and not head_pass:
+        attributed_contract = _contract_for_test_method(
+            _failing_test_name(head_app)
+        )
+    elif not base_pass and head_pass:
+        attributed_contract = _contract_for_test_method(
+            _failing_test_name(base_app)
+        )
+
     diff_results: list[dict[str, Any]] = [{
-        # The experiment id is DIFF-01; the CONTRACT it verified is AUTH-01
-        # (unauthenticated write rejection). The Review Court requires an
-        # approved contract for BLOCKER, so contract_id must match the
-        # compiled AUTH-01 contract, not the experiment label.
-        "contract_id": "AUTH-01",
+        # The experiment id is DIFF-01; the CONTRACT it verified is the one
+        # the failing test exercises. The Review Court requires an approved
+        # contract for BLOCKER, so contract_id must match a compiled
+        # contract, not the experiment label.
+        "contract_id": attributed_contract,
         "experiment_id": "DIFF-01",
         "verdict": combined_verdict,
         "detail": combined_detail,
@@ -251,10 +265,12 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     contract_results: list[dict[str, Any]] = []
     for c in contracts:
         cid = c.get("id", "")
-        if c.get("checker_type") == "http" and cid.upper().startswith("AUTH"):
+        is_auth = c.get("checker_type") == "http" and cid.upper().startswith("AUTH")
+        is_unique = cid == "UNIQUE-01"
+        if is_auth or is_unique:
             if http_verdict == "COMPLIANT":
                 result = "PASS"
-            elif http_verdict == "REGRESSION":
+            elif http_verdict == "REGRESSION" and attributed_contract == cid:
                 result = "FAIL"
             else:
                 result = "UNVERIFIED"
@@ -274,6 +290,33 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         "diff_results": diff_results,
         "contract_results": merged_contract_results,
     }
+
+
+def _failing_test_name(app_dir: str) -> str:
+    """Return the first failing/erroring generated test method ('' when
+    unavailable), parsed from the surefire XML left by the Maven run."""
+    import xml.etree.ElementTree as ET
+
+    report = Path(app_dir) / "target" / "surefire-reports" / (
+        "TEST-com.specproof.demo.SpecProofGeneratedTest.xml"
+    )
+    try:
+        root = ET.parse(report).getroot()
+    except (OSError, ET.ParseError):
+        return ""
+    for case in root.findall("testcase"):
+        if case.find("failure") is not None or case.find("error") is not None:
+            return case.get("name", "")
+    return ""
+
+
+def _contract_for_test_method(method_name: str) -> str:
+    """Map a generated test method to the contract family it exercises."""
+    if "unauthenticated" in method_name:
+        return "AUTH-01"
+    if "duplicate" in method_name or "fresh" in method_name:
+        return "UNIQUE-01"
+    return "AUTH-01"
 
 
 def _test_class_from_path(test_path: str) -> str:
@@ -494,36 +537,35 @@ def _compare_db_state(
 
 
 def _check_http_diff(base_ws: str, head_ws: str) -> list[dict[str, Any]]:
-    """Compare every controller file between Base and Head."""
-    base_controllers = {
+    """Compare security protection between Base and Head.
+
+    Delegates to the SHARED AUTH checker (agent/checkers/java_source.py)
+    so the equivalence rules live in exactly one place: composed custom
+    annotations (@RequireAuth etc.) and interface-level method security
+    are honored here exactly like in the static tier. A file-level
+    "@PreAuthorize present/absent" comparison cannot see either, and
+    produced false positives on the adversarial cases (13/14).
+    """
+    from agent.checkers.java_source import check_auth_annotations
+
+    base_files = {
         p.relative_to(base_ws).as_posix(): p.read_text(encoding="utf-8")
-        for p in Path(base_ws).rglob("*Controller.java")
+        for p in Path(base_ws).rglob("*.java")
         if "test" not in p.parts
     }
-    head_controllers = {
+    head_files = {
         p.relative_to(head_ws).as_posix(): p.read_text(encoding="utf-8")
-        for p in Path(head_ws).rglob("*Controller.java")
+        for p in Path(head_ws).rglob("*.java")
         if "test" not in p.parts
     }
 
     findings: list[dict[str, Any]] = []
-    for rel in sorted(set(base_controllers) & set(head_controllers)):
-        base_content = base_controllers[rel]
-        head_content = head_controllers[rel]
-
-        base_auth = "@PreAuthorize" in base_content or "@Secured" in base_content
-        head_auth = "@PreAuthorize" in head_content or "@Secured" in head_content
-
-        if base_auth and not head_auth:
-            findings.append({
-                "verdict": "REGRESSION",
-                "detail": (
-                    f"Security annotation present in Base ({rel}) "
-                    f"but missing in Head"
-                ),
-                "location": rel,
-            })
-
+    for auth_finding in check_auth_annotations(base_files, head_files):
+        findings.append({
+            "verdict": "REGRESSION",
+            "detail": auth_finding["description"],
+            "location": auth_finding["location"],
+        })
     return findings
 
 
