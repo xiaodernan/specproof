@@ -40,6 +40,59 @@ _CONTRACT_TEMPLATES = {
         "checker_type": "sql",
         "expected_behavior": "Email update and token invalidation must be in same transaction",
     },
+    # ── P6 100-case families (case-21..100) ─────────────────────────
+    "cache": {
+        "checker_type": "redis",
+        "expected_behavior": "User reads follow cache-aside semantics and email change "
+        "evicts the user cache with a bounded TTL",
+    },
+    "concurrency": {
+        "checker_type": "sql",
+        "expected_behavior": "Stock updates must be guarded by optimistic locking — "
+        "stale writes must be rejected, never silently overwritten",
+    },
+    "nplusone": {
+        "checker_type": "sql",
+        "expected_behavior": "List endpoints must serve users with a bounded number of "
+        "SQL queries (no per-user query loops)",
+    },
+    "idempotent": {
+        "checker_type": "rabbitmq",
+        "expected_behavior": "Replaying the same order request must return the existing "
+        "order without a second stock decrement",
+    },
+    "atomicity": {
+        "checker_type": "sql",
+        "expected_behavior": "Failed order placements must roll back stock decrements; "
+        "cancelling an order must restock the product",
+    },
+    "order_event": {
+        "checker_type": "rabbitmq",
+        "expected_behavior": "order.created must be published to the documented "
+        "exchange and routing key",
+    },
+    "email_format": {
+        "checker_type": "http",
+        "expected_behavior": "Malformed email values must be rejected with 4xx",
+    },
+    "boundary": {
+        "checker_type": "sql",
+        "expected_behavior": "Ordering exactly the available stock must succeed",
+    },
+    "order_amount": {
+        "checker_type": "sql",
+        "expected_behavior": "The order amount must equal unit price times quantity",
+    },
+    "test_strength": {
+        "checker_type": "tests",
+        "expected_behavior": "The repository's own test suite must keep its test "
+        "methods and assertions (tests must not be weakened or disabled)",
+    },
+    "migration": {
+        "checker_type": "sql",
+        "expected_behavior": "Schema migrations must not drop or shrink existing "
+        "columns, tables or constraints",
+    },
 }
 
 _LLM_CONTRACT_PROMPT = """You are a requirements analyst. Given a requirement specification,
@@ -96,6 +149,41 @@ def _parse_requirements(text: str) -> list[dict[str, Any]]:
         "transaction": [
             r"transaction|atomic|rollback|@Transactional",
             r"all.or.nothing|consistency",
+        ],
+        "cache": [
+            r"cache|ttl|evict|cached",
+        ],
+        "concurrency": [
+            r"optimistic|concurr|lost update|stale write|@Version|version.*(check|guard)",
+        ],
+        "nplusone": [
+            r"n\+1|query count|batch(ed)? query|aggregate query|single query",
+        ],
+        "idempotent": [
+            r"idempoten|dedup|duplicate order|replay",
+        ],
+        "atomicity": [
+            r"rollback|roll back|restock|compensat",
+        ],
+        "order_event": [
+            r"order\.created|order.*(event|publish)|event.*order",
+        ],
+        "email_format": [
+            r"email (must|is|be) valid|valid email|@Email|malformed",
+        ],
+        "boundary": [
+            r"boundary (value|case|behavior)|exactly.*stock|full stock|entire stock",
+        ],
+        "order_amount": [
+            r"amount|total price|price.*quantit",
+        ],
+        "test_strength": [
+            r"assertion|@Disabled|test.*(weaken|disable|remove|delet)",
+        ],
+        "migration": [
+            r"migration|ddl|schema\.sql|alter table",
+            r"\b(column|table|constraint)\b.*(drop|remov|shrink|reduc)",
+            r"(drop|remov|shrink|reduc).*\b(column|table|constraint)\b",
         ],
     }
 
@@ -289,6 +377,17 @@ def _normalize_llm_contracts(contracts: list[dict[str, Any]]) -> list[dict[str, 
         "BACKWARD_COMPATIBLE": "openapi",
         "EVENT_ONCE": "rabbitmq",
         "TRANSACTION": "sql",
+        "CACHE": "redis",
+        "CONCURRENCY": "sql",
+        "NPLUSONE": "sql",
+        "IDEMPOTENT": "rabbitmq",
+        "ATOMICITY": "sql",
+        "ORDER_EVENT": "rabbitmq",
+        "EMAIL_FORMAT": "http",
+        "BOUNDARY": "sql",
+        "ORDER_AMOUNT": "sql",
+        "TEST_STRENGTH": "tests",
+        "MIGRATION": "sql",
     }
     for c in contracts:
         cid = str(c.get("id", ""))

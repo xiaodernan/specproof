@@ -31,6 +31,29 @@ def _read_java_files(workspace: str) -> dict[str, str]:
     return files
 
 
+def _read_test_files(workspace: str) -> dict[str, str]:
+    """Read src/test Java files keyed by posix relative path."""
+    root = Path(workspace) / "src" / "test" / "java"
+    files: dict[str, str] = {}
+    if not root.exists():
+        return files
+    for p in root.rglob("*.java"):
+        try:
+            files[p.relative_to(root).as_posix()] = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+    return files
+
+
+def _read_text(workspace: str, rel: str) -> str:
+    """Read a text resource ('' when absent)."""
+    path = Path(workspace) / rel
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
 def run_static_checks_node(state: Phase0State) -> dict[str, Any]:
     """Run deterministic contract checkers against Base and Head sources."""
     base_workspace = state.get("base_workspace", "")
@@ -47,6 +70,20 @@ def run_static_checks_node(state: Phase0State) -> dict[str, Any]:
     head_files = _read_java_files(head_app)
 
     findings = run_contract_checks(base_files, head_files)
+
+    # P6: schema/DDL and test-strength checkers operate on inputs the
+    # java-source registry does not see (schema.sql + test sources).
+    from agent.checkers.schema_and_tests import check_schema_sql, check_test_weakening
+
+    findings.extend(check_schema_sql(
+        _read_text(base_app, "src/main/resources/schema.sql"),
+        _read_text(head_app, "src/main/resources/schema.sql"),
+        base_files,
+        head_files,
+    ))
+    findings.extend(check_test_weakening(
+        _read_test_files(base_app), _read_test_files(head_app),
+    ))
 
     # P2-b: constitution checks — "forbidden changes" clauses from the
     # requirement run as deterministic diff rules under their own contract.
@@ -70,7 +107,13 @@ def run_static_checks_node(state: Phase0State) -> dict[str, Any]:
             "Requires base_pass_head_fail + db_state_mutation evidence."
         )
 
-    new_contract_results = contract_results_for(contracts, findings, base_files)
+    new_contract_results = contract_results_for(
+        contracts,
+        findings,
+        base_files,
+        base_schema_present=bool(_read_text(base_app, "src/main/resources/schema.sql")),
+        base_test_present=bool(_read_test_files(base_app)),
+    )
 
     # Merge with results already recorded by other experiment nodes.
     # A node must never REPLACE the whole channel: that would wipe evidence

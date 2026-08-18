@@ -40,7 +40,7 @@
 - [x] 指标下沉 observability: worker 完成计数/时长 + outbox 积压 gauge
 - [x] RELEASE 档收口: capsule manifest_digest canonical 校验语义统一
   (producer/verifier/测试三处一致, 存储格式与完整性校验解耦)
-- [x] 负样本扩展: case-11 重构重命名 / case-12 纯注释 — 端点表面降为
+- [x] 负样本扩展: case-11 重构重命名 / case-12 纯注释 - 端点表面降为
   (verb, path); eval 12 案例 Recall/Precision/F1 全 100%, 0 误报
 - [x] 安全扫描门禁: bandit Medium+ 归零 (B608/B104/B108 修复),
   CI 新增 security job
@@ -49,7 +49,7 @@
 - [x] GitHub App Check Runs 端到端: RS256 JWT 双步认证 + create/update
   接线 (webhook 建单 → worker 终态 → CLI --publish-check), 迁移 0004
 - [x] Outbox 信封契约修复: relay 拍平 wire 消息 (嵌套 payload 字符串
-  从未被 worker 扁平读端消费 — 真 MQ 路径的潜在洞) + wire-contract 测试
+  从未被 worker 扁平读端消费 - 真 MQ 路径的潜在洞) + wire-contract 测试
 - [x] Control Plane × Runtime 端到端: GitHub webhook → CP 验签/去重/
   事务性建单 → CP outbox 中继 (publisher confirm) → RabbitMQ → Python
   worker → CP 只读回读; mvnw test 9/9 绿
@@ -63,7 +63,7 @@
 - [x] 检测器等价性加固: 自定义安全注解等价集 + 接口级方法安全回退
 - [x] 执行级检测升级: 契约驱动的差分测试 (UNIQUE duplicate/fresh),
   surefire 失败方法 → 契约归属; 差分层委托共享 AUTH checker
-- [x] 基线对照实测: 20 案例 +41.7pp recall / +12.5pp precision —
+- [x] 基线对照实测: 20 案例 +41.7pp recall / +12.5pp precision -
   **Go/No-Go #14 门槛通过** (baseline-report.md)
 - [x] execution-only 正样本 ×3 (错误路由键/静默损坏/校验放宽) +
   EVENT 差分测试 (mock RabbitTemplate 调用断言) + 存储行断言 +
@@ -71,17 +71,29 @@
 - [x] P5 GitHub App 余项: Inline Finding 评论 (integrations/inline_comments,
   hunk 锚点/去重/上限) + Fix 审批流 (agent/fixes + specproof fix/approve,
   drift guard + 编译验证门)
-- [x] 第十轮全量审计 (2026-08-18): 拆穿"20 案例 100%"自欺 — 修复后
+- [x] 第十轮全量审计 (2026-08-18): 拆穿"20 案例 100%"自欺 - 修复后
   真实重跑 12/12; 沙箱 Maven 缓存卷预置 (断网沙箱依赖解析根因) +
   -o 离线模式 + CI 预置; 状态通道 diff_by_file/generation_record 入
   schema (worker 行内评论与证据溯源从死路变通路); ruff/mypy 全绿;
   测试经济学 (slow_eval marker + 子集 HTML 验收)
+- [x] P6 阶段一 (金案例 20 -> 100, 文件与管线就绪): demo 基座扩展
+  (cache-aside 用户读/TTL/邮箱变更驱逐 + orders/products 域含 @Version
+  乐观锁与 requestId 幂等 + SqlQueryCounter 查询计数面 + schema.sql);
+  构建器 v3 数据表驱动 80 案例 (case-21..100) + base 重指向改造 +
+  require_clean 收窄 demo/; 11 个新契约族 + 17 个差分模板 +
+  MIGRATION-01/TEST_STRENGTH-01 静态检查器 + H2 三表取证 +
+  Base 构建产物复用 (Maven 调用 3->2, head_run 复用 + base 源码冻结
+  skipMain + head 增量播种; 3 案例小样本实测 53-65s/case 本地模式);
+  100 案例目录/split.json 就绪; 验收测试 100 目录断言 + 新代表子集 +
+  slow_eval 实测依据注释; docs/eval/p6-100-case-eval.md
+- [ ] P6 阶段二 (进行中): 队长已提交 demo/ 基座 (eeeb9e2) 并运行
+  builder (101 tags, case-21..100-head 均挂新基座); 待全量 100 案例
+  隔离评测 -> 复核 +25pp 门槛
 
 ## 下一步 (按顺序)
 
-- [ ] P6 评测与试点: 金案例继续扩充 (100 案例路线, execution-only
-  正样本优先拉大基线差距)、Dashboard 压测、3 个真实仓库试点
-  (runbook 已就绪); 100 案例时复核 +25pp 门槛
+- [ ] P6 评测与试点 (阶段二): 100 案例全量隔离评测 (标签已重建)、
+  Dashboard 压测、3 个真实仓库试点 (runbook 已就绪)
 - [ ] P6 安全项: worker DooD (/var/run/docker.sock) 与 §12 冲突,
   改隔离 runner / rootless dind; 沙箱非 root 运行 (Linux)
 - [ ] P6 可观测/SLO: Grafana dashboard 化、SLO 看板与告警、备份恢复演练

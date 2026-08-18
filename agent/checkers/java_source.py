@@ -448,12 +448,17 @@ def contract_results_for(
     contracts: list[dict[str, Any]],
     findings: list[dict[str, Any]],
     base_files: dict[str, str],
+    base_schema_present: bool = False,
+    base_test_present: bool = False,
 ) -> list[dict[str, Any]]:
     """Map checker findings onto per-contract results.
 
     FAIL       a checker found a violation of this contract
     PASS       a checker ran against a guarded construct and found it intact
     UNVERIFIED no checker could observe this contract's construct at all
+
+    P6: MIGRATION-01 / TEST_STRENGTH-01 observability comes from schema.sql
+    and the test sources, passed in by run_static_checks.
     """
     findings_by_contract: dict[str, list[dict[str, Any]]] = {}
     for f in findings:
@@ -483,6 +488,8 @@ def contract_results_for(
             any(m in c for m in _MUTATING_MAPPINGS) or "GetMapping" in c
             for rel, c in base_files.items() if rel.endswith("Controller.java")
         ),
+        "MIGRATION-01": base_schema_present,
+        "TEST_STRENGTH-01": base_test_present,
     }
 
     results: list[dict[str, Any]] = []

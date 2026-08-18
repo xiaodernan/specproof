@@ -20,10 +20,19 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
 from agent.contract_results import merge_contract_results
+from agent.nodes.build_cache import (
+    base_build_cache_dir,
+    freeze_unchanged_sources,
+    head_changed_paths,
+    restore_base_build,
+    save_base_build,
+    seed_head_build,
+)
 from agent.state import Phase0State
 
 # Java source for the post-mortem DB dump helper. It opens the file-based
@@ -39,13 +48,54 @@ public class SpecProofDbCheck {
             System.out.println("USAGE: SpecProofDbCheck <jdbc-url>");
             System.exit(2);
         }
-        try (Connection conn = DriverManager.getConnection(args[0], "sa", "");
-             Statement stmt = conn.createStatement()) {
+        try (Connection conn = DriverManager.getConnection(args[0], "sa", "")) {
+            dumpUsers(conn);
+            dumpProducts(conn);
+            dumpOrders(conn);
+        }
+    }
+
+    // P6: the orders/products domains joined the base, so real state
+    // evidence now covers every table the differential tests exercise.
+    // Each dump is independently tolerant: a missing table on old refs
+    // must never erase the users-table evidence those cases rely on.
+    private static void dumpUsers(Connection conn) {
+        try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery(
                 "SELECT id, email FROM users ORDER BY id");
             while (rs.next()) {
-                System.out.println(rs.getLong("id") + "=" + rs.getString("email"));
+                System.out.println(
+                    "users:" + rs.getLong("id") + "=" + rs.getString("email"));
             }
+        } catch (Exception e) {
+            System.out.println("TABLE_ERROR users: " + e.getMessage());
+        }
+    }
+
+    private static void dumpProducts(Connection conn) {
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(
+                "SELECT id, stock, version FROM products ORDER BY id");
+            while (rs.next()) {
+                System.out.println("products:" + rs.getLong("id") + "="
+                    + rs.getInt("stock") + ":" + rs.getLong("version"));
+            }
+        } catch (Exception e) {
+            System.out.println("TABLE_ERROR products: " + e.getMessage());
+        }
+    }
+
+    private static void dumpOrders(Connection conn) {
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(
+                "SELECT id, user_id, request_id, amount FROM orders ORDER BY id");
+            while (rs.next()) {
+                System.out.println("orders:" + rs.getLong("id") + "="
+                    + rs.getLong("user_id") + ":" + rs.getString("request_id")
+                    + ":" + rs.getBigDecimal("amount"));
+            }
+        } catch (Exception e) {
+            System.out.println("TABLE_ERROR orders: " + e.getMessage());
         }
     }
 }
@@ -122,9 +172,66 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             "diff_results": source_diff_results + empty_result["diff_results"],
         }
 
+    # ── P6 base build reuse ──
+    # Every case shares the same base_ref, so the first case's compile
+    # output is cached under <output_dir>/.base-build-cache/<sha>; later
+    # cases seed the fresh base worktree with it, freeze every source
+    # (base sources never change between cases) and skip the main compile
+    # (-Dmaven.main.skip=true) — only the injected generated test, written
+    # after the freeze with a fresh mtime, is compiled. Head worktrees are
+    # seeded in generate_counterexamples; if that run never happened and
+    # left no target, seed here too (changed files stay newer than the
+    # cached classes, so Maven's staleness check still recompiles them —
+    # correct either way).
+    cache_dir = base_build_cache_dir(state)
+    base_cache_hit = False
+    if cache_dir is not None:
+        base_cache_hit = restore_base_build(cache_dir, base_app)
+        if base_cache_hit:
+            freeze_unchanged_sources(base_app, [])
+        if not (Path(head_app) / "target" / "classes").is_dir():
+            seed_head_build(cache_dir, head_app, head_changed_paths(state))
+
+    # ── P6 head-run reuse ──
+    # The deterministic generator already ran the FULL head test (compile +
+    # surefire in one sandbox invocation) and recorded it. When the
+    # recorded test file matches the current one, reuse that run — one
+    # fewer Maven invocation per case. A recorded compile error is treated
+    # exactly like a fresh compile failure (NON_REPRODUCIBLE below).
+    recorded_run = state.get("generation_record", {}).get("head_run") or {}
+    recorded_sha = state.get("generation_record", {}).get("test_file_sha256", "")
+    current_sha = _sha256_file(Path(generated_tests_path)) if generated_tests_path else ""
+    head_reused = bool(
+        recorded_run
+        and current_sha
+        and recorded_sha == current_sha
+        and recorded_run.get("exit_code") is not None
+    )
+
     # ── Run the SAME generated test on Base and Head ──
-    base_result = _run_generated_test(base_app, test_class)
-    head_result = _run_generated_test(head_app, test_class)
+    base_start = time.monotonic()
+    base_result = _run_generated_test(base_app, test_class, skip_main=base_cache_hit)
+    base_seconds = round(time.monotonic() - base_start, 1)
+    if cache_dir is not None and base_result.get("exit_code") == 0:
+        save_base_build(cache_dir, base_app)
+    if head_reused:
+        head_result = {
+            "exit_code": recorded_run.get("exit_code"),
+            "stdout": recorded_run.get("stdout", ""),
+            "stderr": recorded_run.get("stderr", ""),
+            "test_counts": recorded_run.get("test_counts", {}),
+            "error": "",
+        }
+        if recorded_run.get("compile_error"):
+            head_result["error"] = (
+                "Generated test failed to compile on Head: "
+                + (head_result["stdout"] + head_result["stderr"])[-400:]
+            )
+        head_seconds = 0.0
+    else:
+        head_start = time.monotonic()
+        head_result = _run_generated_test(head_app, test_class)
+        head_seconds = round(time.monotonic() - head_start, 1)
 
     if base_result.get("error") or head_result.get("error"):
         err_detail = (
@@ -173,12 +280,14 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     db_verdict, db_detail = _compare_db_state(base_snapshot, head_snapshot)
 
     # ── Combined verdict ──
-    if http_verdict == "REGRESSION" and db_verdict == "DB_MUTATED_ON_UNAUTH":
+    if http_verdict == "REGRESSION" and db_verdict in (
+        "DB_MUTATED_ON_UNAUTH", "DB_MUTATED",
+    ):
         combined_verdict = "REGRESSION"
         combined_detail = (
             f"{http_detail}. {db_detail}. "
-            "Base blocked the unauthenticated write and kept the row intact; "
-            "Head accepted it and mutated the row."
+            "Base and Head executed the same test but left different DB "
+            "state — the regression mutated persisted data."
         )
         combined_confidence = 0.95
         combined_severity = "BLOCKER"
@@ -249,6 +358,10 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         "head_db_snapshot": head_snapshot,
         "db_state_verdict": db_verdict,
         "db_state_detail": db_detail,
+        "base_run_seconds": base_seconds,
+        "head_run_seconds": head_seconds,
+        "base_cache_hit": base_cache_hit,
+        "head_run_reused": head_reused,
         "evidence_digest": f"sha256:{evidence_digest}",
         "test_file_sha256": test_sha,
         "changed_symbols": changed_symbols,
@@ -260,12 +373,16 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     diff_results = source_diff_results + diff_results
 
     # ── Contract results: only what this experiment exercised ──
+    # P6: the attributed contract family is marked FAIL exactly like the
+    # AUTH/UNIQUE families always were — a failing generated test only
+    # proves the contract its failing method exercises.
     contract_results: list[dict[str, Any]] = []
     for c in contracts:
         cid = c.get("id", "")
         is_auth = c.get("checker_type") == "http" and cid.upper().startswith("AUTH")
         is_unique = cid == "UNIQUE-01"
-        if is_auth or is_unique:
+        is_attributed = cid == attributed_contract
+        if is_auth or is_unique or is_attributed:
             if http_verdict == "COMPLIANT":
                 result = "PASS"
             elif http_verdict == "REGRESSION" and attributed_contract == cid:
@@ -314,7 +431,35 @@ def _failing_test_name(app_dir: str) -> str:
 
 
 def _contract_for_test_method(method_name: str) -> str:
-    """Map a generated test method to the contract family it exercises."""
+    """Map a generated test method to the contract family it exercises.
+
+    P6 families come first: several of their method names contain
+    "duplicate"/"fresh" (the IDEMPOTENT method starts with
+    "duplicateOrderRequest..."), so the generic UNIQUE-01 rule must never
+    swallow them.
+    """
+    if "listUsersMustNotUseNPlusOneQueries" in method_name:
+        return "NPLUSONE-01"
+    if "getUserMustUseCacheAside" in method_name or "emailChangeMustEvictUserCache" in method_name:
+        return "CACHE-01"
+    if "staleStockWriteMustBeRejected" in method_name:
+        return "CONCURRENCY-01"
+    if "duplicateOrderRequestMustBeDeduped" in method_name:
+        return "IDEMPOTENT-01"
+    if ("orderPlacementFailureMustNotLoseStock" in method_name
+            or "cancelOrderMustRestock" in method_name):
+        return "ATOMICITY-01"
+    if "fullStockOrderMustBeAllowed" in method_name:
+        return "BOUNDARY-01"
+    if "orderAmountMustEqualUnitPriceTimesQuantity" in method_name:
+        return "ORDER_AMOUNT-01"
+    if "orderCreatedEvent" in method_name or "orderRetry" in method_name:
+        return "ORDER_EVENT-01"
+    if "invalidEmailChangeMustBeRejected" in method_name:
+        return "EMAIL_FORMAT-01"
+    if ("emailChangeMustNotPublishSpuriousEvent" in method_name
+            or "emailChangeEventPayloadMustBeIntact" in method_name):
+        return "EVENT_ONCE-01"
     if "unauthenticated" in method_name:
         return "AUTH-01"
     if "RoutingKey" in method_name or "emailChangeEvent" in method_name:
@@ -360,8 +505,15 @@ def _inject_test_into_workspaces(test_path: str, base_ws: str, head_ws: str) -> 
     return ok
 
 
-def _run_generated_test(workspace: str, test_class: str) -> dict[str, Any]:
-    """Run only the generated test class via Maven Surefire."""
+def _run_generated_test(
+    workspace: str, test_class: str, skip_main: bool = False,
+) -> dict[str, Any]:
+    """Run only the generated test class via Maven Surefire.
+
+    skip_main (P6 base build reuse): the cached base target/classes are
+    already the exact compile output of this ref, so the main compile is
+    skipped; only the injected test is compiled and surefire runs.
+    """
     result: dict[str, Any] = {
         "exit_code": -1, "stdout": "", "stderr": "", "error": "",
         "test_counts": {},
@@ -381,12 +533,12 @@ def _run_generated_test(workspace: str, test_class: str) -> dict[str, Any]:
         local_cmd = [
             os.path.join(workspace, "mvnw.cmd"), "test", "-q",
             f"-Dtest={test_class}", "-DfailIfNoTests=false",
-        ]
+        ] + (["-Dmaven.main.skip=true"] if skip_main else [])
     else:
         local_cmd = [
             os.path.join(workspace, "mvnw"), "test", "-q",
             f"-Dtest={test_class}", "-DfailIfNoTests=false",
-        ]
+        ] + (["-Dmaven.main.skip=true"] if skip_main else [])
     sandbox_result = run_sandboxed(
         [
             # -o: the sandbox has --network none by design; every
@@ -395,7 +547,7 @@ def _run_generated_test(workspace: str, test_class: str) -> dict[str, Any]:
             f"-Dtest={test_class}",
             "-DfailIfNoTests=false",
             "-f", "/work/pom.xml",
-        ],
+        ] + (["-Dmaven.main.skip=true"] if skip_main else []),
         workspace=workspace,
         timeout=900,
         local_command=local_cmd,
@@ -512,13 +664,15 @@ def _capture_db_snapshot(workspace: str) -> dict[str, Any]:
 def _compare_db_state(
     base_snapshot: dict[str, Any], head_snapshot: dict[str, Any]
 ) -> tuple[str, str]:
-    """Compare the real DB dumps from Base and Head.
+    """Compare the real DB dumps from Base and Head, table by table.
 
     Returns (verdict, detail):
-    - DB_MUTATED_ON_UNAUTH: same row changed between Base and Head.
-    - DB_CONSISTENT: identical rows.
+    - DB_MUTATED_ON_UNAUTH: the users table differs (the P0.5 flagship
+      evidence path; its verdict name is part of the evidence policy).
+    - DB_MUTATED: any other dumped table (products/orders) differs — the
+      same "the regression mutated persisted data" evidence, P6.
+    - DB_CONSISTENT: every dumped table is identical.
     - DB_NO_EVIDENCE: no dump available.
-    - DB_DIFFERENT: rows differ in an unexpected way.
     """
     base_method = base_snapshot.get("method")
     head_method = head_snapshot.get("method")
@@ -528,19 +682,30 @@ def _compare_db_state(
 
     base_rows = base_snapshot.get("rows", {})
     head_rows = head_snapshot.get("rows", {})
-    if base_rows == head_rows:
-        return "DB_CONSISTENT", "Base and Head DB dumps are identical"
 
-    changed: list[str] = []
-    for key in base_rows:
-        if key in head_rows and base_rows[key] != head_rows[key]:
-            changed.append(f"row {key}: '{base_rows[key]}' -> '{head_rows[key]}'")
-    if changed:
-        return (
-            "DB_MUTATED_ON_UNAUTH",
-            "Real H2 dump comparison — " + "; ".join(changed),
-        )
-    return "DB_DIFFERENT", f"Rows differ: base={base_rows}, head={head_rows}"
+    def _table(table: str) -> tuple[dict[str, str], dict[str, str]]:
+        prefix = table + ":"
+        base_table = {k: v for k, v in base_rows.items() if k.startswith(prefix)}
+        head_table = {k: v for k, v in head_rows.items() if k.startswith(prefix)}
+        return base_table, head_table
+
+    for table in ("users", "products", "orders"):
+        base_table, head_table = _table(table)
+        if base_table == head_table:
+            continue
+        if not base_table and not head_table:
+            continue
+        changed = [
+            f"row {key}: '{base_table[key]}' -> '{head_table[key]}'"
+            for key in base_table
+            if key in head_table and base_table[key] != head_table[key]
+        ] or [f"{table} row set differs: base={base_table}, head={head_table}"]
+        detail = "Real H2 dump comparison — " + "; ".join(changed[:6])
+        if table == "users":
+            return "DB_MUTATED_ON_UNAUTH", detail
+        return "DB_MUTATED", detail
+
+    return "DB_CONSISTENT", "Base and Head DB dumps are identical"
 
 
 def _check_http_diff(base_ws: str, head_ws: str) -> list[dict[str, Any]]:

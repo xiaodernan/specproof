@@ -237,9 +237,9 @@ def _check_blocker_conditions(
     ) or evidence_type == "base_pass_head_fail"
 
     conditions["4_db_behavior_evidence"] = (
-        finding.get("db_state_verdict") == "DB_MUTATED_ON_UNAUTH"
+        finding.get("db_state_verdict") in ("DB_MUTATED_ON_UNAUTH", "DB_MUTATED")
         or any(
-            dr.get("db_state_verdict") == "DB_MUTATED_ON_UNAUTH"
+            dr.get("db_state_verdict") in ("DB_MUTATED_ON_UNAUTH", "DB_MUTATED")
             for dr in diff_results
         )
     )

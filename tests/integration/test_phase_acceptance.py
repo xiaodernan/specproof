@@ -37,17 +37,21 @@ class TestPhaseAcceptance:
     """Phase 0 acceptance criteria."""
 
     def test_all_golden_cases_exist(self):
-        """All 20 golden cases should have spec.md and ground-truth.json.
+        """All 100 golden cases should have spec.md and ground-truth.json.
 
-        case-11..12 (negative precision), case-13..16 (adversarial
-        false-positive traps) and case-17..20 (execution-only positives)
-        joined in the enterprise-hardening rounds.
+        case-01..20 are the P0.5 enterprise-hardening set (holdout,
+        negative precision, adversarial traps, execution-only positives).
+        case-21..100 are the P6 expansion: Auth 7, Tx/Concurrency 12,
+        Migration/Schema 9, API 7, Redis 10, MQ/Outbox 7, Logic/Boundary 9,
+        Perf/N+1 5, Weak-tests 5, Prompt-injection/Sandbox 5,
+        Reliability/dup-events 4 - defined as a data table in
+        scripts/build_golden_scenarios.py (P6_CASES).
         """
         case_dirs = sorted(
             d for d in GOLDEN_CASES.iterdir()
             if d.is_dir() and d.name.startswith("case-")
         )
-        assert len(case_dirs) == 20, f"Expected 20 cases, got {len(case_dirs)}"
+        assert len(case_dirs) == 100, f"Expected 100 cases, got {len(case_dirs)}"
 
         for case_dir in case_dirs:
             assert (case_dir / "spec.md").exists(), f"{case_dir.name}: missing spec.md"
@@ -71,19 +75,35 @@ class TestPhaseAcceptance:
 
     @pytest.mark.slow_eval
     def test_specproof_eval_runs_all_cases(self):
-        """specproof eval should process all 20 golden cases.
+        """specproof eval should process all 100 golden cases.
 
         The full run executes REAL sandboxed Maven builds on Base and Head
-        per case (~1.5-2 min/case) — a multi-hour-scale gate. Marked
-        slow_eval so fast suites can deselect it; CI's eval-golden-cases
-        job runs the same command as its dedicated gate.
+        per case. Measured basis for the timeout:
+        - pre-reuse data point (round 10, 20 cases): 75-90 min wall ~
+          3.75-4.5 min/case, 3600s timed out before finishing - 100-case
+          extrapolation 6.3-7.5h.
+        - P6 reuse economics: 3 Maven invocations/case -> 2 (the head-side
+          full test now runs inside generate_counterexamples and
+          run_differential reuses the recorded head_run), after the first
+          case the base side restores cached classes + freezes sources +
+          -Dmaven.main.skip=true (only the injected generated test
+          compiles), and the head side is seeded for incremental compile;
+          local-mode measured 53-65s/case (3-case sample), sandbox mode
+          adds ~15-30s startup overhead per invocation -> ~2-2.5 min/case
+          -> 100 cases ~3.3-4.2h.
+        - timeout 18000s (5h) leaves ~20% margin; until the sandbox
+          MAVEN_USER_HOME defect is fixed, docker mode degrades to
+          local_fallback (correctness unaffected, see
+          docs/eval/p6-100-case-eval.md).
+        Marked slow_eval so fast suites can deselect it; CI's
+        eval-golden-cases job runs the same command as its dedicated gate.
         """
         result = run_specproof(
             [
                 "eval", "--cases", str(GOLDEN_CASES),
                 "--repo", str(PROJECT_ROOT),
             ],
-            timeout=3600,
+            timeout=18000,
         )
         assert result.returncode == 0
         assert "Total cases" in result.stdout
@@ -91,10 +111,11 @@ class TestPhaseAcceptance:
     def test_eval_generates_html_report(self):
         """eval command should generate an HTML report.
 
-        Runs a small representative subset (one static positive, one
-        negative, one execution-only positive) so the report path is
-        exercised without repeating the full 20-case run — that belongs
-        to test_specproof_eval_runs_all_cases (slow_eval) and CI's eval job.
+        Runs a small representative subset (one static+execution positive,
+        one negative, one execution-only positive, one Redis execution
+        positive) so the report path is exercised without repeating the
+        full 100-case run - that belongs to test_specproof_eval_runs_all_cases
+        (slow_eval) and CI's eval job.
         """
         import shutil
 
@@ -102,8 +123,9 @@ class TestPhaseAcceptance:
         try:
             for case_name in (
                 "case-01-auth-bypass",
-                "case-03-clean-pr",
-                "case-18-wrong-routing-key",
+                "case-10-comment-only",
+                "case-17-logic-inversion",
+                "case-56-redis-cache-eviction-removed",
             ):
                 shutil.copytree(
                     GOLDEN_CASES / case_name, subset / case_name

@@ -1,0 +1,6 @@
+{
+  "expected_severity": "BLOCKER",
+  "expected_contract": "ATOMICITY-01",
+  "expected_evidence_type": "base_pass_head_fail",
+  "should_detect": true
+}

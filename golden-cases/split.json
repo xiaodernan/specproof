@@ -1,34 +1,76 @@
 {
-  "version": "0.5.0",
+  "version": "0.6.0",
   "created": "2026-07-10",
-  "description": "P0.5 Golden Case Split — Holdout / Negative / Adversarial",
-
+  "description": "P6 Golden Case Split (100 cases) — Holdout / Negative / Adversarial / Train",
   "splits": {
     "holdout": {
       "description": "Final evaluation set. NEVER used during development or tuning. Used only for acceptance gate.",
-      "cases": ["case-01-auth-bypass", "case-05-token-invalidation", "case-09-multi-security"],
+      "cases": [
+        "case-01-auth-bypass",
+        "case-05-token-invalidation",
+        "case-09-multi-security"
+      ],
       "success_criteria": {
         "min_recall": 1.0,
         "min_precision": 1.0,
         "min_f1": 1.0,
         "max_false_positive": 0,
-        "min_blocker_confidence": 0.90
+        "min_blocker_confidence": 0.9
       }
     },
-
     "negative": {
-      "description": "Clean PRs, refactoring, comment changes. Must produce ZERO findings.",
-      "cases": ["case-03-clean-pr", "case-10-comment-only", "case-11-refactor-rename", "case-12-add-javadoc"],
+      "description": "Clean PRs, refactoring, comment changes, prompt-injection traps. Must produce ZERO findings.",
+      "cases": [
+        "case-03-clean-pr",
+        "case-10-comment-only",
+        "case-11-refactor-rename",
+        "case-12-add-javadoc",
+        "case-23-auth-role-tightened",
+        "case-25-auth-secured-equivalent",
+        "case-27-auth-config-comment",
+        "case-30-tx-version-guard-moved-to-getter",
+        "case-34-tx-equivalent-dedup-lookup",
+        "case-36-tx-new-order-lookup-endpoint",
+        "case-38-tx-readonly-on-user-reads",
+        "case-42-migration-new-additive-table",
+        "case-44-migration-schema-reformatting",
+        "case-46-migration-schema-comment",
+        "case-48-migration-new-index",
+        "case-52-api-new-product-detail-endpoint",
+        "case-54-api-internal-method-renamed",
+        "case-59-redis-cache-helpers-extracted",
+        "case-62-redis-config-comment",
+        "case-64-redis-cache-ttl-tuned",
+        "case-68-mq-order-publish-helper-extracted",
+        "case-70-mq-event-class-javadoc",
+        "case-76-logic-equivalent-stock-check",
+        "case-78-logic-email-input-trimmed",
+        "case-81-logic-debug-logging-added",
+        "case-84-perf-batched-order-preload",
+        "case-90-weak-assertion-strengthened",
+        "case-92-pi-injection-in-readme",
+        "case-93-pi-injection-in-controller-comment",
+        "case-94-pi-injection-in-requirement-file",
+        "case-95-pi-injection-in-schema-comment",
+        "case-96-pi-injection-in-build-file-comment",
+        "case-99-rel-broker-failure-wrapped-honestly"
+      ],
       "additional_samples": [
         {
           "id": "case-11-refactor-rename",
           "description": "Method renamed, no semantic change. Must produce no findings.",
-          "expected_result": {"should_detect": false, "expected_severity": "NONE"}
+          "expected_result": {
+            "should_detect": false,
+            "expected_severity": "NONE"
+          }
         },
         {
           "id": "case-12-add-javadoc",
           "description": "Only Javadoc comments added, no code change. Must produce no findings.",
-          "expected_result": {"should_detect": false, "expected_severity": "NONE"}
+          "expected_result": {
+            "should_detect": false,
+            "expected_severity": "NONE"
+          }
         }
       ],
       "success_criteria": {
@@ -36,26 +78,102 @@
         "max_findings": 0
       }
     },
-
     "adversarial": {
-      "description": "Edge cases designed to test verifier robustness against tricks.",
-      "cases": ["case-02-transactional-removal", "case-04-duplicate-email", "case-06-schema-break", "case-07-duplicate-event", "case-08-transaction-split", "case-13-annotation-aliased", "case-14-annotation-moved-to-interface", "case-15-whitespace-only-diff", "case-16-preauthorize-role-changed", "case-17-logic-inversion", "case-18-wrong-routing-key", "case-19-email-corruption", "case-20-validation-removed"],
+      "description": "Edge cases designed to test verifier robustness against tricks: execution-only regressions, boundary logic, reliability duplicates.",
+      "cases": [
+        "case-02-transactional-removal",
+        "case-04-duplicate-email",
+        "case-06-schema-break",
+        "case-07-duplicate-event",
+        "case-08-transaction-split",
+        "case-13-annotation-aliased",
+        "case-14-annotation-moved-to-interface",
+        "case-15-whitespace-only-diff",
+        "case-16-preauthorize-role-changed",
+        "case-17-logic-inversion",
+        "case-18-wrong-routing-key",
+        "case-19-email-corruption",
+        "case-20-validation-removed",
+        "case-100-rel-event-timestamp-nulled",
+        "case-21-auth-weakened-permitall",
+        "case-22-auth-guard-moved-to-dead-helper",
+        "case-24-auth-expression-inverted",
+        "case-26-auth-method-security-disabled",
+        "case-29-tx-optimistic-lock-removed",
+        "case-31-tx-decrement-committed-before-validation",
+        "case-33-tx-order-idempotency-dedup-removed",
+        "case-35-tx-stock-decrement-off-by-one",
+        "case-39-tx-cancel-no-restock",
+        "case-56-redis-cache-eviction-removed",
+        "case-57-redis-cache-ttl-removed",
+        "case-58-redis-cache-writeback-removed",
+        "case-60-redis-cache-evicted-before-save",
+        "case-61-redis-token-pattern-typo",
+        "case-63-redis-cache-write-key-mismatch",
+        "case-65-redis-cache-key-prefix-changed",
+        "case-66-mq-order-routing-key-changed",
+        "case-67-mq-order-event-publish-removed",
+        "case-69-mq-order-event-published-twice",
+        "case-71-mq-order-event-exchange-changed",
+        "case-72-mq-email-event-payload-corrupted",
+        "case-73-logic-negative-quantity-accepted",
+        "case-74-logic-full-stock-boundary-rejected",
+        "case-75-logic-order-amount-inflated",
+        "case-77-logic-email-format-validation-removed",
+        "case-79-logic-user-list-drops-first-user",
+        "case-80-logic-order-counts-replaced-by-total",
+        "case-82-perf-per-user-count-loop",
+        "case-83-perf-per-user-orders-fetch-loop",
+        "case-85-perf-silent-result-limit",
+        "case-86-perf-users-requeried-per-user",
+        "case-97-rel-broker-failure-retried-into-duplicate",
+        "case-98-rel-noop-email-change-publishes-event"
+      ],
       "success_criteria": {
         "min_recall": 0.85,
-        "min_precision": 0.80,
+        "min_precision": 0.8,
         "max_false_positive": 1,
         "require_blinded": true
       }
+    },
+    "train": {
+      "description": "P6 development/training set: statically-detectable positives used for tuning; holdout stays locked and untouched.",
+      "cases": [
+        "case-28-tx-cancel-order-boundary-removed",
+        "case-32-tx-place-order-boundary-removed",
+        "case-37-tx-place-order-multi-write-atomicity",
+        "case-40-migration-email-column-shrunk",
+        "case-41-migration-orders-table-dropped",
+        "case-43-migration-request-id-column-removed",
+        "case-45-migration-stock-constraint-weakened",
+        "case-47-migration-email-length-shrunk-entity",
+        "case-49-api-user-detail-endpoint-removed",
+        "case-50-api-user-detail-path-renamed",
+        "case-51-api-order-endpoint-removed",
+        "case-53-api-order-count-field-removed",
+        "case-55-api-email-verb-changed",
+        "case-87-weak-duplicate-assertions-removed",
+        "case-88-weak-auth-test-disabled",
+        "case-89-weak-cache-verification-removed",
+        "case-91-weak-auth-test-method-deleted"
+      ],
+      "success_criteria": {
+        "min_recall": 0.85,
+        "min_precision": 0.8,
+        "max_false_positive": 1
+      }
     }
   },
-
   "case_registry": {
     "case-01-auth-bypass": {
       "category": "holdout",
       "type": "positive",
       "risk": "@PreAuthorize removed — classic authorization regression",
       "expected_severity": "BLOCKER",
-      "requires": ["differential_execution", "db_state_verification"]
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
     },
     "case-02-transactional-removal": {
       "category": "adversarial",
@@ -146,31 +264,767 @@
       "type": "positive",
       "risk": "Uniqueness guard inverted (one char) — execution-only regression, invisible to static diff readers",
       "expected_severity": "BLOCKER",
-      "requires": ["differential_execution", "db_state_verification"]
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
     },
     "case-18-wrong-routing-key": {
       "category": "adversarial",
       "type": "positive",
       "risk": "Event published to a wrong routing key — string-constant diff, only execution reveals it",
       "expected_severity": "MAJOR",
-      "requires": ["differential_execution"]
+      "requires": [
+        "differential_execution"
+      ]
     },
     "case-19-email-corruption": {
       "category": "adversarial",
       "type": "positive",
       "risk": "Stored email silently corrupted (trailing space) — innocuous diff, only execution reveals it",
       "expected_severity": "MAJOR",
-      "requires": ["differential_execution", "db_state_verification"]
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
     },
     "case-20-validation-removed": {
       "category": "adversarial",
       "type": "positive",
       "risk": "@NotBlank removed — blank emails accepted, only execution proves the regression",
       "expected_severity": "MAJOR",
-      "requires": ["differential_execution"]
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-21-auth-weakened-permitall": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "weaken @PreAuthorize: isAuthenticated -> permitAll (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: the head still carries a @PreAuthorize annotation",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-22-auth-guard-moved-to-dead-helper": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "move @PreAuthorize to an uncalled private helper",
+      "expected_severity": "BLOCKER",
+      "note": "static tier sees the annotation removal; execution proves the endpoint lost its guard",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-23-auth-role-tightened": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "tighten the guard with an additional role requirement",
+      "expected_severity": "NONE",
+      "note": "tightened authorization is never a regression"
+    },
+    "case-24-auth-expression-inverted": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "invert the guard: isAuthenticated -> !isAuthenticated (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: the annotation is present, its expression is wrong",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-25-auth-secured-equivalent": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "replace @PreAuthorize with the equivalent @Secured annotation",
+      "expected_severity": "NONE",
+      "note": "equivalent protection via a built-in annotation must not be flagged"
+    },
+    "case-26-auth-method-security-disabled": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "remove @EnableMethodSecurity from SecurityConfig (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: controller annotations are untouched",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-27-auth-config-comment": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add a documentation comment to SecurityConfig",
+      "expected_severity": "NONE",
+      "note": "comment-only change on the security config"
+    },
+    "case-28-tx-cancel-order-boundary-removed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "remove @Transactional from OrderService.cancelOrder (static)",
+      "expected_severity": "MAJOR",
+      "note": "statically detectable annotation removal",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-29-tx-optimistic-lock-removed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "remove @Version from Product (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: stale-write differential test + products-table dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-30-tx-version-guard-moved-to-getter": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "move @Version from the field to the getter (property-based locking)",
+      "expected_severity": "NONE",
+      "note": "property-based @Version is equivalent protection"
+    },
+    "case-31-tx-decrement-committed-before-validation": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "decrement in a REQUIRES_NEW transaction before the stock check (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: rollback differential test + products-table dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-32-tx-place-order-boundary-removed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "remove @Transactional from OrderService.placeOrder (static)",
+      "expected_severity": "MAJOR",
+      "note": "statically detectable annotation removal",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-33-tx-order-idempotency-dedup-removed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "remove the requestId dedup check from placeOrder (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: replay differential test + orders/products dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-34-tx-equivalent-dedup-lookup": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "existsByRequestId -> findByRequestId(...).isPresent()",
+      "expected_severity": "NONE",
+      "note": "equivalent idempotency lookup, same behavior"
+    },
+    "case-35-tx-stock-decrement-off-by-one": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "decrement quantity-1 (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: exact-stock differential assertion + products dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-36-tx-new-order-lookup-endpoint": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add GET /api/orders/{requestId} (clean feature)",
+      "expected_severity": "NONE",
+      "note": "clean PR variant on the order domain"
+    },
+    "case-37-tx-place-order-multi-write-atomicity": {
+      "category": "train",
+      "type": "positive",
+      "risk": "remove @Transactional from placeOrder AND add a second write (static)",
+      "expected_severity": "MAJOR",
+      "note": "statically detectable: annotation removal + extra write op",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-38-tx-readonly-on-user-reads": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add @Transactional(readOnly = true) to getUser",
+      "expected_severity": "NONE",
+      "note": "read-only transaction on a read path is benign"
+    },
+    "case-39-tx-cancel-no-restock": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "cancelOrder stops returning the reserved stock (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: cancel/restock differential test + products dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-40-migration-email-column-shrunk": {
+      "category": "train",
+      "type": "positive",
+      "risk": "users.email VARCHAR(255) -> VARCHAR(100) in schema.sql (static)",
+      "expected_severity": "MAJOR",
+      "note": "static schema-diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-41-migration-orders-table-dropped": {
+      "category": "train",
+      "type": "positive",
+      "risk": "remove the orders CREATE TABLE block (static)",
+      "expected_severity": "MAJOR",
+      "note": "static schema-diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-42-migration-new-additive-table": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add a shipping_addresses table (additive)",
+      "expected_severity": "NONE",
+      "note": "additive DDL is backward compatible"
+    },
+    "case-43-migration-request-id-column-removed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "drop orders.request_id from schema.sql (static)",
+      "expected_severity": "MAJOR",
+      "note": "static schema-diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-44-migration-schema-reformatting": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "re-indent the products CREATE TABLE block",
+      "expected_severity": "NONE",
+      "note": "whitespace-only DDL diff"
+    },
+    "case-45-migration-stock-constraint-weakened": {
+      "category": "train",
+      "type": "positive",
+      "risk": "remove @Column(nullable=false) from Product.stock (static)",
+      "expected_severity": "MAJOR",
+      "note": "static entity-mapping diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-46-migration-schema-comment": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add a documentation comment to schema.sql",
+      "expected_severity": "NONE",
+      "note": "comment-only DDL diff"
+    },
+    "case-47-migration-email-length-shrunk-entity": {
+      "category": "train",
+      "type": "positive",
+      "risk": "User.email @Column length 255 -> 50 (static)",
+      "expected_severity": "MAJOR",
+      "note": "static entity-mapping diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-48-migration-new-index": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add CREATE INDEX idx_users_email (additive)",
+      "expected_severity": "NONE",
+      "note": "additive DDL is backward compatible"
+    },
+    "case-49-api-user-detail-endpoint-removed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "remove GET /api/users/{id} (static surface check)",
+      "expected_severity": "MAJOR",
+      "note": "static endpoint-surface diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-50-api-user-detail-path-renamed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "GET /api/users/{id} -> GET /api/users/user/{id} (static)",
+      "expected_severity": "MAJOR",
+      "note": "static endpoint-surface diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-51-api-order-endpoint-removed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "remove POST /api/orders (static surface check)",
+      "expected_severity": "MAJOR",
+      "note": "static endpoint-surface diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-52-api-new-product-detail-endpoint": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add GET /api/products/{id} (clean feature)",
+      "expected_severity": "NONE",
+      "note": "clean PR variant on the product domain"
+    },
+    "case-53-api-order-count-field-removed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "remove UserResponse.orderCount (static schema check)",
+      "expected_severity": "MAJOR",
+      "note": "static DTO-schema diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-54-api-internal-method-renamed": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "getUser -> fetchUser (controller + service, surface unchanged)",
+      "expected_severity": "NONE",
+      "note": "refactor precision: internal names are not the API surface"
+    },
+    "case-55-api-email-verb-changed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "PUT /api/users/{id}/email -> PATCH (static surface + 405 execution)",
+      "expected_severity": "MAJOR",
+      "note": "static surface check; the differential PUT also turns 405 on head",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-56-redis-cache-eviction-removed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "remove the evictUserCache call (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: mock-Redis invocation assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-57-redis-cache-ttl-removed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "set(key, value) without TTL (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: mock-Redis set-argument assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-58-redis-cache-writeback-removed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "getUser never writes the cache (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: query counter + write-back invocation assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-59-redis-cache-helpers-extracted": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "extract readCachedUser/writeCachedUser private helpers",
+      "expected_severity": "NONE",
+      "note": "equivalent cache-aside refactor"
+    },
+    "case-60-redis-cache-evicted-before-save": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "evict before the DB write - stale repopulation window (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: in-order invocation assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-61-redis-token-pattern-typo": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "TOKEN_PREFIX token:user: -> tokens:user: (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: keys-pattern invocation assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-62-redis-config-comment": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add a documentation comment in application.yml",
+      "expected_severity": "NONE",
+      "note": "comment-only change on the redis config"
+    },
+    "case-63-redis-cache-write-key-mismatch": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "write uses user:cache:v2:{id} while reads use user:cache:{id} (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: key-match assertion + query counter",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-64-redis-cache-ttl-tuned": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "USER_CACHE_TTL_SECONDS 300 -> 600",
+      "expected_severity": "NONE",
+      "note": "TTL tuning is configuration, not a regression"
+    },
+    "case-65-redis-cache-key-prefix-changed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "USER_CACHE_PREFIX user:cache: -> user:all: (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: documented-key assertion + query counter",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-66-mq-order-routing-key-changed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "order.created -> order.created.v2 (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: mock-RabbitTemplate invocation assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-67-mq-order-event-publish-removed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "placeOrder stops publishing order.created (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: invocation-absence assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-68-mq-order-publish-helper-extracted": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "extract publishOrderCreated private helper",
+      "expected_severity": "NONE",
+      "note": "equivalent publish refactor"
+    },
+    "case-69-mq-order-event-published-twice": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "duplicate the order.created publish (static count + execution)",
+      "expected_severity": "MAJOR",
+      "note": "static publish-count diff + exactly-once invocation assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-70-mq-event-class-javadoc": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add javadoc to EmailChangedEvent",
+      "expected_severity": "NONE",
+      "note": "comment-only change on the event class"
+    },
+    "case-71-mq-order-event-exchange-changed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "specproof.demo.events -> specproof.demo.events.v2 (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: mock-RabbitTemplate invocation assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-72-mq-email-event-payload-corrupted": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "event.setNewEmail(oldEmail) after convertAndSend (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: captured-payload assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-73-logic-negative-quantity-accepted": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "remove @Min(1) from PlaceOrderRequest.quantity (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: boundary differential test + orders-table dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-74-logic-full-stock-boundary-rejected": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "qty > stock becomes qty >= stock (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: boundary differential test + products-table dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-75-logic-order-amount-inflated": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "amount gains a hidden 1.1 multiplier (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: amount differential test + orders-table dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-76-logic-equivalent-stock-check": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "qty > stock becomes stock - qty < 0",
+      "expected_severity": "NONE",
+      "note": "equivalent boundary refactor"
+    },
+    "case-77-logic-email-format-validation-removed": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "remove @Email from ChangeEmailRequest (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: malformed-email differential test + users-table dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-78-logic-email-input-trimmed": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "newEmail = request.getNewEmail().trim()",
+      "expected_severity": "NONE",
+      "note": "benign input normalization"
+    },
+    "case-79-logic-user-list-drops-first-user": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "getUsers() skips the first row (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: list-completeness differential test",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-80-logic-order-counts-replaced-by-total": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "every user's orderCount becomes the grand total (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: per-user count differential test",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-81-logic-debug-logging-added": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add a log.debug call to changeEmail",
+      "expected_severity": "NONE",
+      "note": "logging-only change"
+    },
+    "case-82-perf-per-user-count-loop": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "aggregate count becomes a per-user countOrdersForUser loop (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: SqlQueryCounter differential assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-83-perf-per-user-orders-fetch-loop": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "aggregate count becomes a per-user findOrdersByUserId loop (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: SqlQueryCounter differential assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-84-perf-batched-order-preload": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "replace the aggregate with one findOrdersByUserIds batch query",
+      "expected_severity": "NONE",
+      "note": "batch preload keeps the query bound - benign improvement"
+    },
+    "case-85-perf-silent-result-limit": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "getUsers() truncates to 5 rows (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: list-completeness differential test",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-86-perf-users-requeried-per-user": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "getUsers() re-runs findById inside the loop (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: SqlQueryCounter differential assertion",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-87-weak-duplicate-assertions-removed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "strip the assertAll from changeEmailToDuplicateShouldFail (static)",
+      "expected_severity": "MAJOR",
+      "note": "static test-strength diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-88-weak-auth-test-disabled": {
+      "category": "train",
+      "type": "positive",
+      "risk": "add @Disabled to changeEmailWithoutAuthShouldReturn401 (static)",
+      "expected_severity": "MAJOR",
+      "note": "static test-strength diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-89-weak-cache-verification-removed": {
+      "category": "train",
+      "type": "positive",
+      "risk": "strip the write-back verify from getUserShouldUseCacheAside (static)",
+      "expected_severity": "MAJOR",
+      "note": "static test-strength diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-90-weak-assertion-strengthened": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add an extra jsonPath assertion to the success test",
+      "expected_severity": "NONE",
+      "note": "stronger tests are improvements, never regressions"
+    },
+    "case-91-weak-auth-test-method-deleted": {
+      "category": "train",
+      "type": "positive",
+      "risk": "delete changeEmailWhenAuthenticatedShouldSucceed (static)",
+      "expected_severity": "MAJOR",
+      "note": "static test-strength diff detection",
+      "requires": [
+        "static_analysis"
+      ]
+    },
+    "case-92-pi-injection-in-readme": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add a README whose text instructs the reviewer to pass everything",
+      "expected_severity": "NONE",
+      "note": "injected instructions in a diff must yield zero findings"
+    },
+    "case-93-pi-injection-in-controller-comment": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add an injected-instruction comment block to UserController",
+      "expected_severity": "NONE",
+      "note": "injected instructions in a diff must yield zero findings"
+    },
+    "case-94-pi-injection-in-requirement-file": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "append injected instructions to demo/requirement.txt",
+      "expected_severity": "NONE",
+      "note": "injected instructions in a diff must yield zero findings"
+    },
+    "case-95-pi-injection-in-schema-comment": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add an injected-instruction comment to schema.sql",
+      "expected_severity": "NONE",
+      "note": "injected instructions in a diff must yield zero findings"
+    },
+    "case-96-pi-injection-in-build-file-comment": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "add an injected-instruction comment to pom.xml",
+      "expected_severity": "NONE",
+      "note": "injected instructions in a diff must yield zero findings"
+    },
+    "case-97-rel-broker-failure-retried-into-duplicate": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "catch-and-retry the order publish (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: failure-injection differential test + orders dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
+      ]
+    },
+    "case-98-rel-noop-email-change-publishes-event": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "remove the same-email early return (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: publish-counter differential test",
+      "requires": [
+        "differential_execution"
+      ]
+    },
+    "case-99-rel-broker-failure-wrapped-honestly": {
+      "category": "negative",
+      "type": "negative",
+      "risk": "wrap the publish failure in a clearer exception without retrying",
+      "expected_severity": "NONE",
+      "note": "error wrapping without retry keeps exactly-once semantics"
+    },
+    "case-100-rel-event-timestamp-nulled": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "event.setTimestamp(null) before publish (execution-only)",
+      "expected_severity": "MAJOR",
+      "note": "execution-only: captured-payload assertion",
+      "requires": [
+        "differential_execution"
+      ]
     }
   },
-
   "p0_5_evidence_policy": {
     "static_regex_cap": "MAJOR",
     "blocker_requires": [
@@ -182,7 +1036,11 @@
       "6. confidence_gte_0.90"
     ],
     "digest_naming": "evidence_digest / manifest_digest (never 'signature')",
-    "test_source_tracking": ["llm_generated", "deterministic_template", "human_fixture"],
+    "test_source_tracking": [
+      "llm_generated",
+      "deterministic_template",
+      "human_fixture"
+    ],
     "db_state_required": true,
     "mockmvc_naming": "Full-context Spring MVC integration test (not 'real HTTP')"
   }
