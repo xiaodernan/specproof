@@ -200,10 +200,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.specproof.demo.config.TestMockBeansConfig;
 import com.specproof.demo.dto.ChangeEmailRequest;
 import com.specproof.demo.entity.User;
+import com.specproof.demo.event.EmailChangedEvent;
 import com.specproof.demo.repository.UserRepository;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -218,6 +220,10 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -234,6 +240,9 @@ public class SpecProofGeneratedTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     @BeforeEach
     void setUp() {
@@ -281,7 +290,55 @@ _FRESH_TEST_TEMPLATE = """    @Test
         mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("fresh@example.com"));
+    }
+
+"""
+
+_BLANK_TEST_TEMPLATE = """    @Test
+    @WithMockUser
+    void blankEmailChangeMustBeRejected() throws Exception {
+        User user = userRepository.findAll().get(0);
+        ChangeEmailRequest req = new ChangeEmailRequest("");
+
+        // Validation failures are HANDLED by Spring MVC (400), unlike the
+        // unhandled RuntimeException, so the raw status is asserted here.
+        MvcResult result = mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andReturn();
+
+        int status = result.getResponse().getStatus();
+        String emailAfter = userRepository.findById(user.getId())
+                .map(User::getEmail).orElse("NOT_FOUND");
+        assertAll(
+            () -> assertTrue(status >= 400,
+                "Blank email was ACCEPTED: got " + status),
+            () -> assertEquals("specproof@example.com", emailAfter,
+                "DB STATE VIOLATION: blank email change was accepted "
+                + "and persisted")
+        );
+    }
+
+"""
+
+_EVENT_TEST_TEMPLATE = """    @Test
+    @WithMockUser
+    void emailChangeEventMustGoToExpectedRoutingKey() throws Exception {
+        User user = userRepository.findAll().get(0);
+        ChangeEmailRequest req = new ChangeEmailRequest("fresh@example.com");
+
+        mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
+
+        // The test profile wires a MOCK RabbitTemplate (@Primary): the
+        // only way to verify delivery semantics is the invocation itself.
+        verify(rabbitTemplate).convertAndSend(
+                eq("specproof.demo.events"), eq("email.changed"),
+                any(EmailChangedEvent.class));
     }
 
 """
@@ -343,6 +400,19 @@ def _build_deterministic_test(contracts: list[dict[str, Any]]) -> str:
         # guard rejects unused emails, which only execution can reveal.
         body += _UNIQUE_TEST_TEMPLATE + _FRESH_TEST_TEMPLATE
     return textwrap.dedent(_GENERATED_TEST_HEADER + body + "}\n")
+
+
+def _has_event_contract(contracts: list[dict[str, Any]]) -> bool:
+    """True when any compiled contract guards event delivery semantics."""
+    for contract in contracts:
+        if contract.get("id") == "EVENT_ONCE-01":
+            return True
+        behavior = str(contract.get("expected_behavior", "")).lower()
+        requirement = str(contract.get("requirement", "")).lower()
+        if any(k in behavior + " " + requirement
+               for k in ("event", "publish", "routing", "delivery")):
+            return True
+    return False
 
 
 def _has_unique_contract(contracts: list[dict[str, Any]]) -> bool:

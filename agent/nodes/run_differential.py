@@ -319,7 +319,9 @@ def _contract_for_test_method(method_name: str) -> str:
     """Map a generated test method to the contract family it exercises."""
     if "unauthenticated" in method_name:
         return "AUTH-01"
-    if "duplicate" in method_name or "fresh" in method_name:
+    if "RoutingKey" in method_name or "emailChangeEvent" in method_name:
+        return "EVENT_ONCE-01"
+    if "duplicate" in method_name or "fresh" in method_name or "blank" in method_name:
         return "UNIQUE-01"
     return "AUTH-01"
 

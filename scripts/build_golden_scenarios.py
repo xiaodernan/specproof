@@ -24,6 +24,7 @@ DEMO = "demo/spring-backend/src/main/java/com/specproof/demo"
 CONTROLLER = DEMO + "/controller/UserController.java"
 SERVICE = DEMO + "/service/UserService.java"
 DTO = DEMO + "/dto/UserResponse.java"
+DTO_REQUEST = DEMO + "/dto/ChangeEmailRequest.java"
 SECURITY = DEMO + "/config/SecurityConfig.java"
 
 AUTH_IMPORT = "import org.springframework.security.access.prepost.PreAuthorize;\n"
@@ -380,6 +381,39 @@ def main() -> None:
                 (SERVICE,
                  "        if (userRepository.existsByEmail(newEmail)) {",
                  "        if (!userRepository.existsByEmail(newEmail)) {"),
+            ],
+        )
+    if wanted(only, "case-18"):
+        apply_case_detached(
+            "case-18",
+            "wrong routing key: email.changed -> email.changed.typo "
+            "(execution-only)",
+            [
+                (SERVICE,
+                 '                "email.changed",\n',
+                 '                "email.changed.typo",\n'),
+            ],
+        )
+    if wanted(only, "case-19"):
+        apply_case_detached(
+            "case-19",
+            "silent data corruption: trailing space appended to the stored "
+            "email (execution-only)",
+            [
+                (SERVICE,
+                 "        user.setEmail(newEmail);",
+                 '        user.setEmail(newEmail + " ");'),
+            ],
+        )
+    if wanted(only, "case-20"):
+        apply_case_detached(
+            "case-20",
+            "validation relaxed: @NotBlank removed from ChangeEmailRequest "
+            "(execution-only)",
+            [
+                (DTO_REQUEST,
+                 "    @NotBlank\n",
+                 ""),
             ],
         )
 
