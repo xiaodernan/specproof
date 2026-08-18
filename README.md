@@ -1,117 +1,54 @@
-# SpecProof
+# SpecProof — AI 变更验收防火墙 + SpecCraft 自主开发 Agent
 
-**AI 变更验收防火墙 (AI Change Acceptance Firewall)** — 独立验证 AI 生成的 PR 是否真的完成需求。
+> 代码是 AI 写的, 谁签字? — 我们把"验收"变成机器可验证的事实。
 
-> 实现 Agent 不能给自己签字。SpecProof 用可执行证据证明一个 AI PR 是否完成需求、破坏了什么、证据在哪里。
+SpecProof 是 AI 生成代码的**独立验收平台**: 把需求编译成可执行契约, 在修改前后
+两个隔离沙箱里真实运行 (HTTP/MySQL/Redis/RabbitMQ 全栈差分 + 变异测试), 拦截
+回归并产出**可重放证据**; 全部通过则签发 **Ed25519 签名 Merge Certificate**。
+SpecCraft 是同平台的**自主开发 Agent** (规划→编辑→执行→自校验→交付),
+与验收 Agent 组成 开发→验收→签发 闭环。
 
-[![Phase]](https://img.shields.io/badge/phase-0%2FP1-58a6ff)
-[![Python](https://img.shields.io/badge/python-3.12-blue)]()
-[![LangGraph](https://img.shields.io/badge/langgraph-1.x-orange)]()
-
----
-
-## 一句话
-
-输入: Requirement + Acceptance Criteria + 一个 AI 生成的 PR (Base/Head 两个 commit)。
-输出: 每条需求的**可执行证据** (Requirement-to-Evidence Matrix)、可重放 Bug Capsule、
-HTML 验证报告、Merge Certificate 或拒绝通知。
-
-不是"代码看起来怎么样"的评论机器人，而是回答:
-"它是否完成了任务、破坏了什么、证据在哪里？"
-
-## 核心演示 (30 秒)
+## 一句演示 (真实拦截)
 
 ```bash
-# 1. 安装
 pip install -e ".[dev]"
-
-# 2. 端到端验证: Base 有鉴权, Head (AI PR) 删掉了 @PreAuthorize
-python -m cli.specproof.main verify --repo . --app-dir demo/spring-backend \
-    --base base --head head-v1 --spec demo/requirement.txt --depth FAST
-
-# 3. 评估 10 个金案例 (确定性模式, 可复现)
-python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm
-
-# 4. 重放证据包
-python -m cli.specproof.main replay capsules/capsule-*.zip
+python -m cli.specproof.main verify --repo demo/spring-backend --base base --head head-v1 --spec demo/requirement.txt
+# → BLOCKER AUTH-01 (@PreAuthorize 被移除) + 可重放 Bug Capsule
 ```
 
-运行一次 verify 会发生什么: 需求被编译成 6 条 Contract → Base/Head 两个隔离 worktree →
-静态 Contract Checker + LLM/模板生成 JUnit 反例测试 → **真实 Maven 差分执行** (Base 通过,
-Head 失败) → 读取 H2 文件库做 DB 状态取证 → Review Court 三审 (Prosecutor/Defender/Judge) →
-矩阵 + Bug Capsule + HTML 报告 + 拒绝通知。
+## 核心能力
 
-## 架构
+- **契约编译器**: 需求 → 11+ 契约族 (AUTH/UNIQUE/EVENT/TRANSACTION/ATOMICITY/
+  CONCURRENCY/CACHE/MIGRATION/OPENAPI/NPLUSONE/TEST_STRENGTH…) + 人工审批 + 版本化
+- **全栈差分实验室**: Base/Head 隔离执行, HTTP/MySQL/Redis/RabbitMQ 状态快照与语义归因
+- **变异测试**: 源码级算子 + 战役 + KILLED/SURVIVED 分类
+- **证据链**: 可重放 Bug Capsule + Ed25519 in-toto 风格证书 + **契约血缘** (篡改可证伪)
+- **SpecCraft 开发 Agent**: 规划/诊断由真实 LLM 驱动 (thinking 分层 + KV 缓存友好
+  模板 + TokenBudget), 编辑器原子写/唯一匹配/审计, 断点续跑, 记忆与流式交互
+- **RAG 2.0**: BM25+向量 → RRF → 符号图谱邻域 → 重排 (三层诚实降级)
+- **MCP 工具服务**: 任何外部 Agent (Claude Code/Codex) 可直接调用我们的验证工具
+- **完整平台**: React SPA 9 页 + FastAPI + Spring Boot Control Plane + 沙箱 Worker
+  + 5 层中间件 + Prometheus/Grafana SLO 看板 + 审计 + Outbox/幂等
 
-```
-CLI (verify/eval/probe/replay)
-        │
-        ▼
-LangGraph 管线 (12 节点, 错误短路)
-  intake → compile_contracts → prepare_base → prepare_head
-  → collect_diff → run_static_checks → generate_counterexamples
-  → run_differential → review_court → build_matrix
-  → create_capsule → publish_report
-        │
-        ▼
-证据: HTML 报告 + Requirement-to-Evidence Matrix + Bug Capsule + 证书/拒绝通知
+## 实测数字 (全部真实运行)
 
-P1 生产内核 (可靠任务):
-  FastAPI API (POST /jobs, GET /jobs, GET /jobs/{id}, SSE /jobs/{id}/progress)
-  → MySQL Outbox (同事务) → Outbox Relay → RabbitMQ (Confirm + DLQ + 幂等)
-  → Worker (Redis lease + MongoDBSaver checkpoint 崩溃恢复)
-  → 终态按真实结果: VERIFIED / BLOCKED / FAILED
-```
+| 指标 | 结果 |
+|---|---|
+| 100 金案例 | Recall/Precision/F1 100/100/100, 0 误报 |
+| 裸 DeepSeek V4 Pro 看 Diff 基线 | 发现率 100% / 严格归因 0% / 5 误报 / 被注入影响 |
+| SpecCraft 微基准 (10 任务, 真实 LLM) | 完成率 90% / 迭代 1.1 / 陷阱拦截率 100% |
+| 真实网关能力探测 | 8/11, 按能力自动降级 |
+| 测试规模 | 867 机器可判用例 (unit 626/security/fault/integration/golden/bench) |
 
-存储职责: MySQL=业务事实源 · MongoDB=checkpoint 与实验工件 · Redis=锁/预算/SSE 进度 ·
-RabbitMQ=可靠任务 · MinIO=大对象 · Elasticsearch=仓库检索
+## 快速开始
 
-## 证据政策 (产品灵魂)
+60 分钟完整体验: **[docs/operations/EXPERIENCE_GUIDE.md](docs/operations/EXPERIENCE_GUIDE.md)**
+架构与对标: [docs/architecture/STACK_INVENTORY.md](docs/architecture/STACK_INVENTORY.md) ·
+[docs/design/AGENT_STATE_OF_ART.md](docs/design/AGENT_STATE_OF_ART.md)
+产品规格: [docs/PRODUCTION_SPEC.txt](docs/PRODUCTION_SPEC.txt) ·
+[docs/design/GRAND_PLAN_V2.md](docs/design/GRAND_PLAN_V2.md)
 
-- BLOCKER 必须同时满足 6 个条件: 已批准 Contract + 真实 Base/Head 执行证据 + Head 归因 +
-  DB/行为证据 + Capsule 可重放 + confidence ≥ 0.90
-- 静态源码分析封顶 MAJOR，永远不能当 BLOCKER
-- 只有真实跑过的实验才能写 PASS/FAIL，其余一律 UNVERIFIED — 绝不伪造
-- SHA-256 只叫 evidence_digest，不叫"签名" (Ed25519 签名是后续阶段)
-- 证书只在全部 Contract 带证据 PASS 时签发；否则写拒绝通知
+## 安全纪律
 
-## 目录
-
-```
-agent/            LangGraph 管线: graph、state、12 nodes、contract checkers、worker、Mongo saver
-providers/        ModelProvider 抽象 + OpenAI-compatible 实现 + 10 维能力探测
-evidence/         HTML 报告渲染、Merge Certificate / Rejection Notice
-storage/          MySQL(状态机+Outbox)、MongoDB、ES、Redis、RabbitMQ、MinIO 适配器
-api/              FastAPI: 任务提交/查询/SSE 进度
-cli/              Click CLI: verify / eval / probe / replay
-demo/spring-backend/  Spring Boot 3.4 + JUnit5 + H2 演示仓库 (base/head-v1/case-* tags)
-golden-cases/     10 个金案例 (holdout/negative/adversarial 划分见 split.json)
-tests/            unit / integration / security / fault 四层测试
-docs/             设计评审、架构、ADR、面试指南、路线图
-```
-
-## 质量门槛 (实测)
-
-- pytest: 单元/安全全绿; 集成/故障注入在无 Docker 时诚实 skip，绝不静默跳核心路径
-- eval: holdout recall 目标 100%，negative 0 误报 (见 docs/eval/eval-report.html)
-- 安全: 无真实 Key；canary 自检；capsule zip 内容也扫描
-- ruff + mypy(strict) 通过
-
-## 环境
-
-- Python ≥ 3.12；JDK 21 (JAVA_HOME)；演示仓库自带 Maven Wrapper
-- 可选: Docker Compose (compose.phase0.yml 起 MySQL/MongoDB/ES/Redis/RabbitMQ/MinIO)
-- LLM 可选: .env.example 配置 OpenAI-compatible 网关；无 Key 时自动走确定性检查器
-
-## 文档
-
-- docs/design/DESIGN_REVIEW.md — 全盘设计评审 (问题清单)
-- docs/design/REDESIGN_PLAN.md — 改进后的全局设计
-- docs/architecture/ARCHITECTURE.md — 架构说明
-- docs/adr/ — 关键架构决策记录
-- docs/interview/INTERVIEW_GUIDE.md — 面试叙事与演练脚本
-- docs/ROADMAP.md — 后续阶段路线
-
-## License
-
-MIT
+密钥只经环境变量注入 (0 密钥泄漏门禁实测); 推理内容不落盘 (ADR-017);
+沙箱非 root/断网/只读; 仓库文本一律视为数据 (注入免疫实测 0 影响)。
