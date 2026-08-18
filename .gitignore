@@ -51,3 +51,5 @@ services/control-plane/target/
 .pytest-*.log
 .probe-*.log
 .probe-*.json
+golden-cases-first/
+golden-cases-rem/
