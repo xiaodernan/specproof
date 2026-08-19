@@ -36,6 +36,7 @@ from providers.base import LLMResponse
 
 EXPECTED_TOOLS = [
     "apply_patch",
+    "ast_edit",
     "create_file",
     "git_diff",
     "git_status",
@@ -72,7 +73,7 @@ def test_risk_grading_matches_ladder(tmp_path: Path) -> None:
     specs = make_registry(tmp_path).specs()
     for name in ("read_file", "tree", "glob", "grep", "symbol_search", "git_status", "git_diff"):
         assert specs[name].risk == "readonly"
-    for name in ("apply_patch", "create_file"):
+    for name in ("apply_patch", "ast_edit", "create_file"):
         assert specs[name].risk == "low_write"
     for name in ("run_test", "run_build", "run_lint", "run_typecheck"):
         assert specs[name].risk == "controlled_exec"

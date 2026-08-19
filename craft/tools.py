@@ -11,7 +11,7 @@ Tools (v1, 计划书 §6.1 read/search/diff/patch/test/build/git_status core):
 
     read_file / tree / glob / grep / symbol_search / git_status / git_diff
         -> readonly (never approved by default)
-    apply_patch / create_file
+    apply_patch / create_file / ast_edit
         -> low_write (bounded by owned_paths)
     run_test / run_build / run_lint / run_typecheck
         -> controlled_exec (executor command whitelist)
@@ -24,7 +24,8 @@ default; the approval_policy hook can only make requirements STRICTER
 Stable error codes live as a "[CODE]" prefix in ToolResult.summary:
 UNKNOWN_TOOL / TOOL_VERSION_MISMATCH / INVALID_ARGUMENTS / PATH_ESCAPE /
 PATH_OUT_OF_RANGE / APPROVAL_REQUIRED / FILE_NOT_FOUND / NOT_A_GIT_REPO /
-COMMAND_NOT_ALLOWED / STALE_CONTEXT / EDIT_REJECTED / EXECUTION_FAILED.
+COMMAND_NOT_ALLOWED / STALE_CONTEXT / EDIT_REJECTED / AST_PARSE_FAILED /
+EXECUTION_FAILED.
 
 Segmentation contract (计划书 §6.3): results are untrusted data. The
 registry exposes envelope_block() — a deterministic, versioned description
@@ -48,6 +49,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from .ast_edit import AstEditor, AstParseError
 from .editor import EditError, Editor, StaleContextError
 from .executor import CommandNotAllowedError, Executor
 from .schemas import Approval, ToolCall, ToolResult
@@ -77,6 +79,7 @@ CODE_NOT_A_GIT_REPO = "NOT_A_GIT_REPO"
 CODE_COMMAND_NOT_ALLOWED = "COMMAND_NOT_ALLOWED"
 CODE_STALE_CONTEXT = "STALE_CONTEXT"
 CODE_EDIT_REJECTED = "EDIT_REJECTED"
+CODE_AST_PARSE_FAILED = "AST_PARSE_FAILED"
 CODE_EXECUTION_FAILED = "EXECUTION_FAILED"
 
 Risk = Literal["readonly", "low_write", "controlled_exec", "high"]
@@ -279,6 +282,7 @@ class ToolRegistry:
         self.workspace = Path(workspace).resolve()
         self.editor = editor if editor is not None else Editor(self.workspace)
         self.executor = executor if executor is not None else Executor(self.workspace)
+        self.ast_editor: AstEditor = AstEditor(self.editor)
         self.owned_paths = list(owned_paths or [])
         self.approval_policy = approval_policy
         self.approvals: dict[str, Approval] = {}
@@ -411,6 +415,8 @@ class ToolRegistry:
             return _error(CODE_INVALID_ARGUMENTS, str(exc))
         except ToolPathError as exc:
             return _denied(exc.code, str(exc))
+        except AstParseError as exc:
+            return _error(CODE_AST_PARSE_FAILED, str(exc))
         except StaleContextError as exc:
             return _error(CODE_STALE_CONTEXT, str(exc))
         except EditError as exc:
@@ -691,6 +697,47 @@ class ToolRegistry:
         self.editor.write_file(path, args["content"], expected_digest=args.get("expected_digest"))
         return _ok(f"create_file {path}: 原子写完成 ({len(args['content'])} chars, 已审计)")
 
+    def _h_ast_edit(self, args: dict[str, Any]) -> ToolResult:
+        path = args["path"]
+        self._workspace_rel(path)
+        self._check_writable(path)
+        op = args["op"]
+        names: list[str] = args["names"]
+        digest = args.get("expected_digest")
+        if op == "rename_symbol":
+            if len(names) != 2:
+                raise ToolParamError(
+                    "ast_edit 参数非法: rename_symbol 的 names 应为 [old_name, new_name]"
+                )
+            diff = self.ast_editor.rename_symbol(
+                path, names[0], names[1], expected_digest=digest
+            )
+        elif op == "insert_import":
+            if len(names) < 2:
+                raise ToolParamError(
+                    "ast_edit 参数非法: insert_import 的 names 应为 [module, name, ...]"
+                )
+            diff = self.ast_editor.insert_import(
+                path, names[0], names[1:], expected_digest=digest
+            )
+        elif op == "insert_method":
+            if len(names) != 2:
+                raise ToolParamError(
+                    "ast_edit 参数非法: insert_method 的 names 应为 [class_name, method_source]"
+                )
+            diff = self.ast_editor.insert_method(
+                path, names[0], names[1], expected_digest=digest
+            )
+        else:
+            raise ToolParamError(
+                f"ast_edit 参数非法: op 应为 rename_symbol/insert_import/insert_method "
+                f"(收到 {op!r})"
+            )
+        return _ok(
+            f"ast_edit {op} {path}: {len(diff['hunks'])} hunks",
+            output_head=json.dumps(diff, ensure_ascii=False),
+        )
+
     def _run_command(self, args: dict[str, Any], label: str) -> ToolResult:
         command = args["command"]
         stem = Path(command[0]).stem.lower()
@@ -833,6 +880,19 @@ class ToolRegistry:
                 _fixed_cost(1, 128 * 1024),
             ),
             ToolSpec(
+                "ast_edit",
+                1,
+                "low_write",
+                (
+                    Param("op", "str", required=True, max_len=32),
+                    path_param,
+                    Param("names", "list[str]", required=True, max_len=64),
+                    Param("expected_digest", "str", max_len=64),
+                ),
+                self._h_ast_edit,
+                _fixed_cost(1, 64 * 1024),
+            ),
+            ToolSpec(
                 "run_test",
                 1,
                 "controlled_exec",
@@ -893,6 +953,7 @@ def _finalize(result: ToolResult, duration: float) -> ToolResult:
 
 __all__ = [
     "CODE_APPROVAL_REQUIRED",
+    "CODE_AST_PARSE_FAILED",
     "CODE_COMMAND_NOT_ALLOWED",
     "CODE_EDIT_REJECTED",
     "CODE_EXECUTION_FAILED",
