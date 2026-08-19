@@ -78,14 +78,14 @@
 |---|---|---|
 | Hermes 类 Agent 模型 (工具调用强/不拒绝) | 13 工具注册表 + JSON Envelope + 确定性档 | 我们多了"裁判层": 模型必须被独立验证 (fail-closed) |
 | MCP | 已有服务端 6 工具; [待补: 客户端] | 生态互操作 |
-| SWE-bench | [待补: SWE-bench-Lite 接入计划] | 90 任务自研评测集已量化 |
+| SWE-bench | harness 已落地 (W45: 真实 craft 管道+honest unresolved 契约, 内置样本实测 resolved 1/2=50%, HF 数据获取真实下载) | 官方全量数字 = 文档化手动步骤 (需 per-instance 仓库+docker 镜像) |
 | OpenHands/Devin 多智能体 | ParallelRunner 只读并行 + 写集冲突 fail-closed | 防覆盖是硬约束不是建议 |
 | Mem0 记忆 | TaskMemory + checkpoint 恢复 10/10 | 副作用幂等有账本证明 |
 | 变异测试 | 变异杀死率测量已落地 (W47) | 离线样本实测杀死率 83.3% (5/6; 1 幸存为规格外行为, 诚实记录); 真实仓库模式走 experiments.mutation+契约检查+沙箱 |
 
 ## 4. 待补数字清单 (冲刺项)
 1. 100 案例总表 (段1 c1-c4 + 段2 复跑 → 全量 Recall/Precision/F1)
-2. SWE-bench-Lite 解决率
+2. SWE-bench-Lite 解决率 ◐ harness 就绪 (W45), 样本 50% (1/2, 全证据); 官方全量数字待手动仓库+docker 步骤
 3. 变异杀死率 ✅ 83.3% (离线样本, W47; 真实仓库数字待补跑)
 4. 双模型路由成本对比 (本地小模型 vs 远程强模型, 每作业 token 成本)
 5. p50/p95 验证延迟
