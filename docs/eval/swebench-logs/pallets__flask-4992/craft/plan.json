@@ -8,7 +8,7 @@
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Inspect the base version of Config.from_file to understand current signature and file opening behavior.",
+      "intent": "Read the current Config.from_file implementation to capture the baseline signature, open mode, and docstring before applying the change.",
       "success_criteria": {
         "type": "grep",
         "value": "def from_file"
@@ -19,14 +19,17 @@
       "id": "s2",
       "kind": "understand",
       "target_files": [
+        "src/flask/config.py",
         "tests/test_config.py"
       ],
-      "intent": "Inspect existing tests for from_file to know the regression surface.",
+      "intent": "Inspect the git diff for these files to identify the added mode parameter and any new binary-mode tests that must pass.",
       "success_criteria": {
         "type": "grep",
         "value": "from_file"
       },
-      "deps": []
+      "deps": [
+        "s1"
+      ]
     },
     {
       "id": "s3",
@@ -34,13 +37,13 @@
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Verify the diff introduces a mode parameter in from_file signature and open call; grep for 'mode' in the changed file.",
+      "intent": "Confirm Config.from_file now contains a mode parameter and that the parameter is used when opening the file.",
       "success_criteria": {
         "type": "grep",
         "value": "mode"
       },
       "deps": [
-        "s1"
+        "s2"
       ]
     },
     {
@@ -49,10 +52,10 @@
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Compile the changed config.py to ensure the mode parameter edit did not introduce syntax errors.",
+      "intent": "Confirm the default mode remains text mode so existing callers are unaffected, by grepping for the default mode assignment near the signature.",
       "success_criteria": {
-        "type": "compile",
-        "value": ""
+        "type": "grep",
+        "value": "mode"
       },
       "deps": [
         "s3"
@@ -62,25 +65,24 @@
       "id": "s5",
       "kind": "verify",
       "target_files": [
-        "tests/test_config.py"
+        "src/flask/config.py"
       ],
-      "intent": "Verify a new test exercises TOML loading via from_file with binary mode by checking for tomllib usage.",
+      "intent": "Compile the modified config module to ensure there are no syntax errors introduced by the change.",
       "success_criteria": {
-        "type": "grep",
-        "value": "tomllib"
+        "type": "compile",
+        "value": ""
       },
       "deps": [
-        "s2"
+        "s4"
       ]
     },
     {
       "id": "s6",
       "kind": "test",
       "target_files": [
-        "src/flask/config.py",
         "tests/test_config.py"
       ],
-      "intent": "Run the specific new/changed tests for from_file with binary mode to confirm FAIL_TO_PASS tests pass.",
+      "intent": "Run the targeted FAIL_TO_PASS tests that exercise from_file with a binary-mode loader such as tomllib.load.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
@@ -95,7 +97,7 @@
       "target_files": [
         "tests/test_config.py"
       ],
-      "intent": "Run the entire test_config.py file to catch regressions in existing from_file or Config behavior (PASS_TO_PASS).",
+      "intent": "Run the existing PASS_TO_PASS config tests to ensure the new mode parameter does not regress current behavior.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
@@ -106,9 +108,11 @@
     },
     {
       "id": "s8",
-      "kind": "test",
-      "target_files": [],
-      "intent": "Run the full test suite and finalize verdict: BLOCK if any prior step failed, any forbidden changes are present, or public API compatibility is broken; otherwise PASS.",
+      "kind": "verify",
+      "target_files": [
+        "tests/test_config.py"
+      ],
+      "intent": "Run the full Config test module once more as the final gate; the change is BLOCKED if any compile, grep, FAIL_TO_PASS, or PASS_TO_PASS check fails.",
       "success_criteria": {
         "type": "test_green",
         "value": ""

@@ -1,6 +1,6 @@
 # Aider polyglot benchmark — SpecCraft llm harness 结果
 
-- 生成时间: 2026-08-19T13:22:15+00:00
+- 生成时间: 2026-08-19T18:52:51+00:00
 - 基准: Aider-AI/polyglot-benchmark (source: offline-sample)
 - LLM: fake-model @ http://127.0.0.1:9 (key 不记录)
 - 判定: resolved 仅当 craft 产生编辑 + 任务测试/配置文件未被修改 + 按语言执行的测试全部通过 (见 docs/eval/AIDER_PLAN.md)

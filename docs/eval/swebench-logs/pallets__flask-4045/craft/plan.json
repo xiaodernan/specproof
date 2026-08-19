@@ -6,25 +6,26 @@
       "id": "s1",
       "kind": "understand",
       "target_files": [
-        "src/flask/blueprints.py"
+        "flask/blueprints.py",
+        "tests/test_blueprints.py"
       ],
-      "intent": "Confirm the source change introduces a guard against dots in blueprint names.",
+      "intent": "Read the Blueprint implementation and its test module to locate the name validation path and existing coverage.",
       "success_criteria": {
-        "type": "grep",
-        "value": "dot"
+        "type": "compile",
+        "value": ""
       },
       "deps": []
     },
     {
       "id": "s2",
-      "kind": "understand",
+      "kind": "verify",
       "target_files": [
         "tests/test_blueprints.py"
       ],
-      "intent": "Confirm the tests cover the rejection of blueprint names containing a dot.",
+      "intent": "Confirm the test module contains a regression test that exercises a dotted blueprint name.",
       "success_criteria": {
         "type": "grep",
-        "value": "dot"
+        "value": "."
       },
       "deps": [
         "s1"
@@ -34,24 +35,39 @@
       "id": "s3",
       "kind": "verify",
       "target_files": [
-        "src/flask/blueprints.py"
+        "tests/test_blueprints.py"
       ],
-      "intent": "Compile the modified source file to catch any syntax errors.",
+      "intent": "Run the focused regression test(s) for dotted blueprint names and require them to pass.",
       "success_criteria": {
-        "type": "compile",
+        "type": "test_green",
         "value": ""
+      },
+      "deps": [
+        "s2"
+      ]
+    },
+    {
+      "id": "s4",
+      "kind": "verify",
+      "target_files": [
+        "flask/blueprints.py"
+      ],
+      "intent": "Confirm the implementation raises ValueError when a dot is present in the blueprint name.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "ValueError"
       },
       "deps": [
         "s1"
       ]
     },
     {
-      "id": "s4",
-      "kind": "test",
+      "id": "s5",
+      "kind": "verify",
       "target_files": [
         "tests/test_blueprints.py"
       ],
-      "intent": "Run the targeted blueprint tests (both fail-to-pass and existing pass-to-pass) in isolation.",
+      "intent": "Run the full blueprint test module to ensure no existing blueprint behavior regresses.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
@@ -61,34 +77,18 @@
       ]
     },
     {
-      "id": "s5",
-      "kind": "test",
+      "id": "s6",
+      "kind": "verify",
       "target_files": [
-        "tests/test_blueprints.py",
-        "src/flask/blueprints.py"
+        "tests/test_blueprints.py"
       ],
-      "intent": "Run the full test suite to ensure the change does not introduce regressions.",
+      "intent": "Run the broader relevant test suite or the specified PASS_TO_PASS subset to detect regressions outside blueprints.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
       },
       "deps": [
-        "s4"
-      ]
-    },
-    {
-      "id": "s6",
-      "kind": "verify",
-      "target_files": [
-        "src/flask/blueprints.py"
-      ],
-      "intent": "Verify the source explicitly raises a ValueError for invalid blueprint names.",
-      "success_criteria": {
-        "type": "grep",
-        "value": "raise ValueError"
-      },
-      "deps": [
-        "s1"
+        "s5"
       ]
     }
   ],
