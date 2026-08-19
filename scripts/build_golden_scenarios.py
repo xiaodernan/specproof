@@ -566,7 +566,7 @@ P6_CASES: list[dict[str, Any]] = [
              "@EnableMethodSecurity(securedEnabled = true)\n"),
             (CONTROLLER,
              "import org.springframework.security.access.prepost.PreAuthorize;\n",
-             "import org.springframework.security.annotation.Secured;\n"),
+             "import org.springframework.security.access.annotation.Secured;\n"),
             (CONTROLLER, AUTH_ANNOTATION,
              '    @Secured("IS_AUTHENTICATED_FULLY")\n'),
         ],
@@ -578,7 +578,10 @@ P6_CASES: list[dict[str, Any]] = [
         note="equivalent protection via a built-in annotation must not be "
              "flagged; Spring Security 6.4 defaults securedEnabled=false, "
              "so the head must enable @Secured processing explicitly or "
-             "the swap silently drops the guard"),
+             "the swap silently drops the guard - and the import must be "
+             "org.springframework.security.access.annotation.Secured (the "
+             "annotation's real 6.4 package), otherwise the head does not "
+             "compile"),
     _case("26", "auth-method-security-disabled", True, "Auth", "adversarial",
         "Method Security Disabled Globally",
         "remove @EnableMethodSecurity from SecurityConfig (execution-only)",

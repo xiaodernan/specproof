@@ -85,14 +85,21 @@ commits before validation throws, and the rollback differential test fails
 on head only — a real, detectable ATOMICITY-01 regression.
 
 ### case-25 — c2 FALSE_POSITIVE (AUTH-01)
-Root cause: Spring Security 6.4 (demo: Spring Boot 3.4.3, spring-security
-6.4.3) changed the @EnableMethodSecurity defaults — securedEnabled defaults
-to FALSE (verified against the jar's annotation defaults). The head swapped
-@PreAuthorize for @Secured under a bare @EnableMethodSecurity, so @Secured
-was silently inert: the unauthenticated PUT returned 200 and MUTATED the
-users row (capsule evidence). That is a real regression — the differential
-tier was CORRECT to flag it; the negative case was built wrong.
-Fix (principled case correction): the case-25 head also sets
+Root cause (two defects in the case construction):
+1. The head imported @Secured from a NON-EXISTENT package
+   (org.springframework.security.annotation.Secured). In Spring Security
+   6.4.3 the annotation lives in org.springframework.security.access
+   .annotation.Secured (verified against spring-security-core-6.4.3.jar) —
+   a head with the wrong import does not compile, and the differential
+   flags the broken head as a regression.
+2. Spring Security 6.4 also changed the @EnableMethodSecurity defaults:
+   securedEnabled defaults to FALSE (verified against the jar's annotation
+   defaults). Even with the right import, a bare @EnableMethodSecurity
+   leaves @Secured inert — the unauthenticated PUT returns 200 and mutates
+   the users row, a REAL regression the differential tier was CORRECT to
+   flag.
+Fix (principled case correction): the case-25 head now imports the real
+package (org.springframework.security.access.annotation.Secured) AND sets
 @EnableMethodSecurity(securedEnabled = true), so the @Secured swap is a
 genuinely equivalent replacement (unauthenticated -> 401 via the
 authentication entry point, DB untouched).
@@ -146,12 +153,16 @@ then re-run the segment evals. case-29 and case-44 need no tag rebuild
 
 | Case | Before | After | Mechanism |
 |---|---|---|---|
-| case-09 | MISS (AUTH-01 expected) | TBD | case files + builder data-driven |
-| case-25 | FALSE_POSITIVE | TBD | builder: securedEnabled=true |
-| case-29 | PASS | TBD | already fixed (no change) |
-| case-30 | FALSE_POSITIVE | TBD | builder: @Access(PROPERTY) |
-| case-31 | MISS | TBD | builder: separate REQUIRES_NEW bean |
-| case-44 | FALSE_POSITIVE | TBD | checker: SQL type normalization |
+| case-09 | MISS (AUTH-01 expected) | PASS (2 findings: AUTH-01 + TRANSACTION-01) | case files + builder data-driven |
+| case-25 | FALSE_POSITIVE | PASS (0 findings) | builder: real @Secured import + securedEnabled=true |
+| case-29 | PASS | PASS (BLOCKER CONCURRENCY-01) | already fixed (no change) |
+| case-30 | FALSE_POSITIVE | PASS (0 findings) | builder: @Access(PROPERTY) |
+| case-31 | MISS | PASS (BLOCKER ATOMICITY-01) | builder: separate REQUIRES_NEW bean |
+| case-44 | FALSE_POSITIVE | PASS (0 findings) | checker: SQL type normalization |
+
+Segment totals (6-case subset): detected 1/3 -> 3/3, false_positives 3 -> 0,
+precision 25.0% -> 100.0%, recall 33.3% -> 100.0%, F1 28.6% -> 100.0%
+(after-sidecar: golden-cases-fix/eval-seg1.results.json).
 
 ## 6. Honest limitations
 
@@ -170,8 +181,13 @@ then re-run the segment evals. case-29 and case-44 need no tag rebuild
 
 ## 7. Gates
 
-- ruff: clean on all changed files.
-- mypy --strict: clean on agent/checkers/schema_and_tests.py.
-- pytest: affected checker tests (schema_and_tests, builder_cases,
-  contract_versions, endpoint_checker, checker_fixes, constitution_checker)
-  + tests/security/test_no_key_leak.py — all green.
+- ruff: clean on scripts/build_golden_scenarios.py,
+  agent/checkers/schema_and_tests.py, tests/unit/test_builder_cases.py,
+  tests/unit/test_schema_and_tests_checker.py.
+- mypy --strict: clean on agent/checkers/schema_and_tests.py AND
+  scripts/build_golden_scenarios.py.
+- pytest -q: tests/unit/test_schema_and_tests_checker.py (19),
+  tests/unit/test_builder_cases.py (4), tests/unit/test_contract_versions.py,
+  tests/unit/test_endpoint_checker.py, tests/unit/test_checker_fixes.py,
+  tests/unit/test_constitution_checker.py (60 total across the checker set),
+  tests/security/test_no_key_leak.py (10) — all green.

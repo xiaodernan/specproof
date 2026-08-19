@@ -89,6 +89,15 @@ def test_case25_enables_secured_processing_in_head() -> None:
     assert annotation_hits, (
         'case-25 must swap the guard to @Secured("IS_AUTHENTICATED_FULLY")'
     )
+    import_hits = [
+        new
+        for rel, _old, new in _mutations(module, "case-25")
+        if rel == module.CONTROLLER and "access.annotation.Secured" in new
+    ]
+    assert import_hits, (
+        "case-25 must import the real Spring Security 6 package: "
+        "org.springframework.security.access.annotation.Secured"
+    )
 
 
 def test_case30_version_getter_uses_property_access_override() -> None:
