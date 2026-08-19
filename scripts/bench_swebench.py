@@ -50,6 +50,7 @@ CLI: --tasks N (default 10) --dataset <path|hf-id>
 from __future__ import annotations
 
 import argparse
+import http.client
 import importlib.util
 import json
 import os
@@ -220,15 +221,33 @@ def _fetch_hf_rows(dataset_id: str, limit: int) -> list[dict[str, Any]]:
         if length <= 0:
             break
         url = _hf_rows_url(dataset_id, offset, length)
-        try:
-            with urllib.request.urlopen(url, timeout=60) as response:
-                payload: Any = json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        payload: Any = None
+        truncations: list[str] = []
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(url, timeout=60) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                break
+            except http.client.IncompleteRead as exc:
+                # The proxy intermittently truncates large rows responses
+                # (observed live: 1.70MB of 1.74MB). Retry with backoff; only
+                # after 3 truncations does the run fail with the offline
+                # fallback spelled out.
+                truncations.append(f"attempt{attempt + 1}: {exc}")
+                time.sleep(1.0 * (attempt + 1))
+            except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+                raise HarnessError(
+                    f"HF 数据集 {dataset_id!r} 拉取失败: {exc} — 离线方案: "
+                    "先 scripts/fetch_swebench_lite.ps1 生成本地 JSON 再 "
+                    "--dataset <文件>, 或 --offline 用捆绑样例"
+                ) from exc
+        if payload is None:
             raise HarnessError(
-                f"HF 数据集 {dataset_id!r} 拉取失败: {exc} — 离线方案: "
-                "先 scripts/fetch_swebench_lite.ps1 生成本地 JSON 再 "
+                f"HF 数据集 {dataset_id!r} 拉取失败 (连续 3 次响应截断: "
+                f"{'; '.join(truncations)}) — 离线方案: 先 "
+                "scripts/fetch_swebench_lite.ps1 生成本地 JSON 再 "
                 "--dataset <文件>, 或 --offline 用捆绑样例"
-            ) from exc
+            )
         if not isinstance(payload, dict):
             raise HarnessError(f"HF rows 响应顶层不是对象 ({url})")
         raw_total = payload.get("num_rows_total")

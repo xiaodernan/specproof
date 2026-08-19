@@ -494,3 +494,64 @@ def test_run_one_test_spawn_failure_is_explicit_error(
     assert record["outcome"] == "error"
     assert "could not start pytest" in record["output_tail"]
     assert "interpreter vanished" in record["output_tail"]
+
+
+def test_fetch_hf_rows_retries_truncated_response_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proxy-truncated rows response (live-observed IncompleteRead) must
+    retry instead of crashing the whole run; success within 3 attempts."""
+    import http.client
+
+    module = _load_harness()
+
+    class FakeResponse:
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self._payload = payload
+
+        def read(self) -> bytes:
+            return json.dumps(self._payload).encode("utf-8")
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *exc_info: object) -> None:
+            del exc_info
+            return None
+
+    attempts: list[object] = []
+
+    def fake_urlopen(url: str, timeout: int) -> FakeResponse:
+        del url, timeout
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise http.client.IncompleteRead(b"partial" * 10, 200)
+        return FakeResponse({"rows": [{"row": {"instance_id": "a__b-1"}}]})
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: None)
+    rows = module._fetch_hf_rows("owner/name", limit=1)
+    assert len(attempts) == 3
+    assert [str(row["instance_id"]) for row in rows] == ["a__b-1"]
+
+
+def test_fetch_hf_rows_gives_up_after_three_truncations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Three consecutive truncations surface as HarnessError with the
+    offline fallback spelled out — never an unhandled traceback."""
+    import http.client
+
+    module = _load_harness()
+
+    def always_truncated(url: str, timeout: int) -> Any:
+        del url, timeout
+        raise http.client.IncompleteRead(b"partial", 42)
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", always_truncated)
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: None)
+    with pytest.raises(module.HarnessError) as excinfo:
+        module._fetch_hf_rows("owner/name", limit=1)
+    message = str(excinfo.value)
+    assert "3 次响应截断" in message
+    assert "--offline" in message
