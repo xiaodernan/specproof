@@ -19,7 +19,7 @@
 | 10 | 执行适配器接口 (ExecutionAdapter) + 兼容矩阵 | ✅ Q 车道已落地: experiments/adapters.py (Protocol 五方法 + registry + JavaMavenAdapter 声明镜像 digest/工具链/离线策略/已知限制), run_differential/generate_counterexamples 已改经适配器执行 (行为逐参数保持), 矩阵 docs/architecture/EXECUTION_COMPATIBILITY.md; Gradle/Node/Python/Go = 规划 (detect 抛 AdapterNotImplemented) | 保持: 每季度重跑兼容矩阵; 阶段4 逐步实现其余适配器并实测后改"已支持" |
 | 11 | 跨租户/路径穿越/Webhook 重放/注入/沙箱边界安全测试 | ✅ 跨租户完成 (W37): A 租户读 B 租户 job → 404 + audit(attempted_tenant); tenant_id 仅取 principal (参数覆盖无效, 已测); RBAC 矩阵 4×4 断言; OIDC 签名/过期/错 issuer/错 aud 用例; 路径穿越/注入/沙箱/webhook 验签已有 | Webhook 重放测试 (阶段1 出口补) |
 | 12 | 金案例扩展计划拆成案例表 (expected evidence 先行) | 部分: 100 案例 (P6_CASES 数据表 + ground-truth 含 evidence) | 200 案例路线表 (阶段4) |
-| 13 | httpx/Starlette TestClient 弃用警告处理 | ✗ (1 警告仍在) | 本轮: 处理并记录 (见 §D) |
+| 13 | httpx/Starlette TestClient 弃用警告处理 | ✅ 已消解 (2026-08-19): 多次定向+全量运行 (15/71/168/195/990/1086 用例) 均无警告汇总 — 上游依赖演进后该弃用警告不再出现; 若未来复现, 既定决策 = pytest filterwarnings 记录并注明"fastapi.testclient 上游弃用, 待 fastapi 升级移除", 不静默吞其他警告 | 无需行动 (持续观察) |
 | 14 | 数据保留/删除/导出/备份恢复操作手册 + 文档演练 | 部分: RUNBOOK 有备份章节 | 补删除/导出/保留策略 (阶段5) |
 | 15 | 代码/文档持续区分 已实现/本地验证/需真实基础设施/规划中 | 部分: 各报告有实测标注惯例 | 制度化: LEVEL_ASSESSMENT + STACK_INVENTORY 已立, 每轮更新 |
 
