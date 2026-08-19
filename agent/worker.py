@@ -16,12 +16,24 @@ import logging
 import os
 import signal
 import sys
+import tempfile
 import time
+from pathlib import Path
 from typing import Any
 
 from agent.graph import build_phase0_graph
+from agent.job_control import (
+    CANCELLED_AT_CHECKPOINT,
+    LEASE_LOST,
+    JobCancelledError,
+    LeaseLostError,
+    classify_job_error,
+    is_cancelled,
+)
 from agent.mongo_saver import MongoDBSaver
 from agent.state import initial_state
+from agent.worktree_reclaimer import reclaim_orphans
+from observability.metrics import incr, observe_duration, set_gauge
 from storage.mysql import InvalidStateTransition, MySQLStore
 from storage.rabbitmq import RabbitMQClient, make_idempotency_check
 from storage.redis import RedisStore
@@ -146,8 +158,6 @@ class Worker:
                 self.mysql.save_job_summary(job_id, summary)
                 # Observability: completion counter + processing duration
                 # (gauge = last job; histogram = p50/p95 SLO per §14).
-                from observability.metrics import incr, observe_duration, set_gauge
-
                 incr("jobs_completed_total")
                 incr("jobs_" + verdict.lower() + "_total")
                 set_gauge("jobs_processing_seconds", float(time.time() - started))
@@ -176,13 +186,41 @@ class Worker:
 
         except InvalidStateTransition:
             logger.warning("Job %s state transition failed, may be stale", job_id)
+        except JobCancelledError as exc:
+            # §14 任务 8: cancellation checkpoint honored — mark CANCELLED
+            # with reason 'cancelled_at_checkpoint' and stop. No summary,
+            # no billing end, no GitHub check: no further side effects.
+            logger.info(
+                "Job %s cancelled at checkpoint %s — no further side effects",
+                job_id, exc.stage,
+            )
+            self._mark_cancelled_at_checkpoint(job_id)
+            incr("worker_cancelled_at_checkpoint_total")
+        except LeaseLostError:
+            # §14 任务 8: the worker no longer owns the lease — fail fast
+            # with reason 'lease_lost' and stop writing business results.
+            logger.error(
+                "Job %s lost lease (worker %s) — stopping", job_id, self.worker_id
+            )
+            self._mark_lease_lost(job_id)
+            incr("worker_lease_lost_total")
         except Exception as exc:
-            logger.error("Job %s failed: %s", job_id, exc)
+            # §14 任务 8: unified error classification written into the
+            # terminal reason (last_error) and the progress events.
+            classification = classify_job_error(exc)
+            logger.error(
+                "Job %s failed: [%s/%s] %s", job_id,
+                classification.cls, classification.code, exc,
+            )
+            reason = json.dumps(
+                {**classification.as_dict(), "error": str(exc)[:800]},
+                ensure_ascii=False,
+            )[:1024]
             self.redis.xadd_progress(job_id, job_id, "failed",
-                                     message=str(exc), percent=0.0)
+                                     message=reason, percent=0.0)
             with contextlib.suppress(InvalidStateTransition):
                 self.mysql.transition_job_status(
-                    job_id, "FAILED", error_msg=str(exc)[:1024]
+                    job_id, "FAILED", error_msg=reason
                 )
             # GitHub-sourced jobs must not stay in_progress forever.
             self._maybe_publish_github_check(
@@ -203,6 +241,12 @@ class Worker:
         The same thread_id is used for both initial runs and crash recovery.
         LangGraph's checkpointer automatically skips completed nodes when
         the graph is re-invoked with the same thread_id.
+
+        §14 任务 8: the stream runs in dual mode — "updates" chunks name the
+        stage that just finished (per-stage duration metrics, cancellation
+        checkpoint and lease renewal at the stage boundary); "values" chunks
+        are the cumulative state snapshots, so the final chunk is the same
+        complete state a single-mode values stream would produce.
         """
         state = initial_state(
             repo_path=payload.get("repo_path", ""),
@@ -218,14 +262,43 @@ class Worker:
         config = {"configurable": {"thread_id": job_id}}
 
         # Build the graph for this invocation (fresh checkpointer each time).
-        # Stream mode yields the state after every node; the final chunk is
-        # the complete state after publish_report.
         saver = MongoDBSaver()
+
+        # §14.1 crash reclaimer: a fresh job reclaims orphan worktrees left
+        # by a crashed earlier run of the same job.  Resume paths skip this
+        # — their worktrees are live checkpoint state, not orphans.
+        self._reclaim_orphan_worktrees(saver, job_id)
+
         graph = build_phase0_graph(checkpointer=saver)
 
+        # Cancellation checkpoint before the first stage: a cancel that
+        # landed between lease acquisition and graph start must not execute
+        # a single node. The lease was just acquired, so no renewal here.
+        self._check_stage_boundary(job_id, renew_lease=False)
+
         final_state: dict[str, Any] = {}
-        for chunk in graph.stream(state, config, stream_mode="values"):
-            final_state = chunk
+        stage_started = time.monotonic()
+        for item in graph.stream(
+            state, config, stream_mode=["updates", "values"],
+        ):
+            mode, chunk = item
+            if mode == "updates":
+                stage = next(iter(chunk), "unknown") if chunk else "unknown"
+                now = time.monotonic()
+                observe_duration(
+                    "worker_stage_duration_seconds_" + str(stage),
+                    now - stage_started,
+                )
+                stage_started = now
+                # Stage boundary: cancel checkpoint first (a cancelled job
+                # must not keep renewing its lease), then lease renewal.
+                self._check_stage_boundary(job_id, renew_lease=True)
+            elif mode == "values":
+                final_state = chunk
+
+        # Final boundary (after publish_report): a cancel that landed during
+        # the last stage must stop the terminal business writes.
+        self._check_stage_boundary(job_id, renew_lease=True)
 
         with contextlib.suppress(Exception):
             self.redis.xadd_progress(
@@ -234,6 +307,105 @@ class Worker:
             )
 
         return final_state
+
+    def _reclaim_orphan_worktrees(self, saver: Any, job_id: str) -> None:
+        """Reclaim orphan worktrees left by a crashed run of this job.
+
+        Only a fresh start may reclaim: when a checkpoint already exists the
+        graph resumes and reuses the worktrees recorded in state, so removing
+        them would destroy live work.  When the checkpoint cannot be read the
+        reclaim is skipped entirely (fail-safe against destroying data), and
+        any reclamation failure never blocks the job.
+        """
+        try:
+            existing = saver.get_tuple({"configurable": {"thread_id": job_id}})
+        except Exception as exc:  # noqa: BLE001 — skip on uncertainty
+            logger.warning(
+                "Job %s: could not read checkpoint to decide worktree "
+                "reclamation; skipping: %s", job_id, exc,
+            )
+            return
+        if existing is not None:
+            return
+        try:
+            result = reclaim_orphans(Path(tempfile.gettempdir()), job_id)
+        except Exception as exc:  # noqa: BLE001 — never blocks the job
+            logger.warning(
+                "Job %s: orphan worktree reclamation failed: %s", job_id, exc,
+            )
+            return
+        if (
+            result.reclaimed
+            or result.left_foreign
+            or result.failures
+            or result.warnings
+        ):
+            logger.info(
+                "Job %s: orphan worktree reclaim: reclaimed=%d "
+                "left_foreign=%d failures=%d warnings=%d",
+                job_id, result.reclaimed, result.left_foreign,
+                len(result.failures), len(result.warnings),
+            )
+
+    def _check_stage_boundary(self, job_id: str, *, renew_lease: bool) -> None:
+        """Stage-boundary control: cancellation checkpoint + lease renewal.
+
+        Cancel first: a cancelled job must not keep renewing its lease.
+        Lease renewal (§14 任务 8): renew count and duration are exported
+        through observability.metrics; a False renewal means another worker
+        owns the lease (expired or taken over) — fail fast with reason
+        'lease_lost' and stop writing business results.
+        """
+        if is_cancelled(job_id, self.mysql):
+            raise JobCancelledError(job_id, "stage_boundary")
+        if not renew_lease:
+            return
+        renew_started = time.monotonic()
+        renewed = self.redis.renew_lease(job_id, self.worker_id, self.lease_ttl)
+        incr("worker_lease_renews_total")
+        observe_duration(
+            "worker_lease_renew_seconds", time.monotonic() - renew_started
+        )
+        if not renewed:
+            raise LeaseLostError(job_id, self.worker_id)
+
+    def _mark_cancelled_at_checkpoint(self, job_id: str) -> None:
+        """Mark the job CANCELLED with reason 'cancelled_at_checkpoint'.
+
+        The API's cancel CAS usually owns the CANCELLED row already; this
+        CAS is the worker's best-effort race-winner (row still RUNNING) and
+        the audit row + progress event carry the checkpoint reason either
+        way. Nothing else is written — a cancelled job gets no further side
+        effects.
+        """
+        with contextlib.suppress(Exception):
+            self.mysql.transition_job_status(
+                job_id, "CANCELLED", from_status="RUNNING",
+                worker_id=self.worker_id, error_msg=CANCELLED_AT_CHECKPOINT,
+            )
+            self.mysql.record_audit(
+                action="job_cancelled_at_checkpoint", actor=self.worker_id,
+                job_id=job_id, from_status="RUNNING", to_status="CANCELLED",
+                detail=CANCELLED_AT_CHECKPOINT,
+            )
+        self.redis.xadd_progress(
+            job_id, "cancel_checkpoint", "failed",
+            message=CANCELLED_AT_CHECKPOINT, percent=0.0,
+        )
+
+    def _mark_lease_lost(self, job_id: str) -> None:
+        """Fail fast on lease loss: FAILED with reason 'lease_lost'.
+
+        No summary, billing end or GitHub check — the worker no longer owns
+        the job, so it must stop writing business results.
+        """
+        with contextlib.suppress(Exception):
+            self.mysql.transition_job_status(
+                job_id, "FAILED", from_status="RUNNING", error_msg=LEASE_LOST,
+            )
+        self.redis.xadd_progress(
+            job_id, "lease", "failed", message=LEASE_LOST, percent=0.0,
+        )
 
     def _maybe_publish_github_check(
         self,
