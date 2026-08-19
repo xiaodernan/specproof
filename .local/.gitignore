@@ -1,0 +1,4 @@
+# Local runtime state for start_local.ps1/stop_local.ps1 (W43).
+# Logs, PID files and the SQLite fallback store are per-machine runtime
+# state — nothing in this directory is ever committed.
+*
