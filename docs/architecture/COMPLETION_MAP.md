@@ -25,7 +25,7 @@
 | §6.5 AI 修复闭环 | ✅ | W35 craft_accept 强制闭环 |
 | §6.2-6.4,6.6-6.10 复杂能力 | ⏳ | 自适应编排/状态机/策略即代码/法庭/私有化/效能/插件市场 → 阶段3-8 |
 | §7.1 核心关系表 | ◐ | MySQL 迁移 0001-0005 (job/outbox/identity 等); 全量数据字典 ⏳ |
-| §7.2 用量账本 | 🚧 | W40 billing (BILLING_DESIGN 已定稿) |
+| §7.2 用量账本 | ✅ | W40: usage_ledger 三后端+event_id 幂等+LLM 四类计量+配额预检+发票对账 (195 测试) |
 | §8.1 API 兼容 | ✅ | OpenAPI diff 门禁 (CI job) |
 | §8.2 MCP | ◐ | 服务端 6 工具 stdio JSON-RPC ✅; MCP 客户端 ⏳ |
 | §8.3 GitHub/GitLab | ◐ | GitHub App/webhook/checks/fix ✅; GitLab ⏳ 阶段3 |
@@ -54,7 +54,7 @@
 | 十一 前端需求 | ✅ | 9 页+20 路由+权限体验 (W31+W37); e2e 🚧 W39 |
 | 十二 后端需求 | ◐ | 任务 API ✅; 事件/SSE ✅; 数据安全 ✅; 配额成本 🚧 W40 |
 | 十三 安全信任 | ◐ | 沙箱/注入/凭据 ✅; 供应链 SBOM ⏳ |
-| 十四 商业化收费 | 🚧 | 设计定稿 BILLING_DESIGN; 实现 W40 在途 |
+| 十四 商业化收费 | ◐ | 后端 ✅ W40 (账本/配额/发票/RBAC); 计费 UI+月账单 cron+签发流 ⏳ |
 | 十五 M0-M11 | ◐ | M0-M8 核心 ✅; M9 (模型路由) ⏳; M10 (生态) ⏳; M11 持续 |
 | 十六 每周模板 | ✅ | 每轮审计→实现→全绿验证 (本表+ledger) |
 | 十七 门禁 | ✅ | 质量门 (test/build/typecheck)/正确性门/安全门 全机检 |

@@ -15,7 +15,7 @@
 | 6 | Contract immutable version/approval/checker version/lineage | 部分: registry 有审批/版本/spec_digest; lineage (W13) 已有 DAG | 补 checker_version 字段 + 不可变版本语义 (阶段2) |
 | 7 | 证书/Capsule/Replay 走对象元数据查询而非路径推断 | 部分: capsule 用 basename 防穿越 + PK 校验; 证书读 reports 目录 | 对象元数据表 + 查询 (阶段2) |
 | 8 | Worker 取消检查/租约指标/阶段耗时/异常分类 | 部分: 取消有 (job 状态机 + cancel), 阶段耗时指标 (C/W14 直方图) | 取消检查点补 Maven 前后/LLM 前 (阶段4); 租约指标 (阶段0) |
-| 9 | Provider 每租户预算/模型路由/调用摘要/成本账本 | 部分: TokenBudget (全局, W13), 调用摘要 (llm_usage), KV 缓存字段 | 租户级预算 + usage_ledger 表 (阶段1/6) |
+| 9 | Provider 每租户预算/模型路由/调用摘要/成本账本 | ✅ 大部分 (W40): 租户级配额预检 (hard-stop/soft-overage/80% 软限额通知) + usage_ledger (event_id 幂等, LLM 四类 token 计量) + invoices 对账; TokenBudget 全局预算与调用摘要已有 | 模型路由 (M9); LLM 中途配额强制 (预检覆盖作业级, LLM 超额计入发票) |
 | 10 | 执行适配器接口 (ExecutionAdapter) + 兼容矩阵 | ✅ Q 车道已落地: experiments/adapters.py (Protocol 五方法 + registry + JavaMavenAdapter 声明镜像 digest/工具链/离线策略/已知限制), run_differential/generate_counterexamples 已改经适配器执行 (行为逐参数保持), 矩阵 docs/architecture/EXECUTION_COMPATIBILITY.md; Gradle/Node/Python/Go = 规划 (detect 抛 AdapterNotImplemented) | 保持: 每季度重跑兼容矩阵; 阶段4 逐步实现其余适配器并实测后改"已支持" |
 | 11 | 跨租户/路径穿越/Webhook 重放/注入/沙箱边界安全测试 | ✅ 跨租户完成 (W37): A 租户读 B 租户 job → 404 + audit(attempted_tenant); tenant_id 仅取 principal (参数覆盖无效, 已测); RBAC 矩阵 4×4 断言; OIDC 签名/过期/错 issuer/错 aud 用例; 路径穿越/注入/沙箱/webhook 验签已有 | Webhook 重放测试 (阶段1 出口补) |
 | 12 | 金案例扩展计划拆成案例表 (expected evidence 先行) | 部分: 100 案例 (P6_CASES 数据表 + ground-truth 含 evidence) | 200 案例路线表 (阶段4) |
@@ -33,7 +33,7 @@
 | 3 集成与策略 | 部分 (GitHub App webhook/checks/评论/fix) | GitLab/Gerrit, Policy DSL, 豁免流, 分支保护建议 |
 | 4 验证深度生态 | 部分 (mvn+沙箱+变异+状态快照) | Gradle/Node/Python/Go 适配器, 状态机测试, 反例最小化, +100 案例 |
 | 5 证书合规私有化 | 部分 (Ed25519+血缘+密钥策略) | KMS/HSM, 撤销, 对象加密, 私有 Provider/镜像, 恢复演练 |
-| 6 计费运营 | ✗ (成本账本仅内存) | Plan/Subscription/Ledger/Invoice 全套 |
+| 6 计费运营 | ✅ 后端完成 (W40): plans/subscriptions/usage_ledger/invoices 三后端 (0007 迁移+down 对); event_id 幂等账本; 计量钩子 (验证作业/Agent 作业/LLM 四类 token, 默认关零行为变化); 作业创建配额预检→QUOTA_EXCEEDED(429)+80% 软限额通知; /api/v1/billing RBAC+跨租户隔离; 发票 total=Σline_items 对账; 195 测试 (兼容 168+新增 27) 队长复跑全绿 | 计费 UI+每作业成本视图 (W31 工作台扩展); 月账单 cron; 发票签发流; LLM 中途配额强制 |
 | 7 SpecCraft 生产闭环 | 大幅推进: Schema+工具注册表+规则摄取+stale 保护 ✅ (W33, R 车道 102 测试+236 回归); Job 持久化/租约/取消 ✅ (W30, 三后端 55 单元+65 安全, 队长复跑全绿); 门禁组合+并行只读子代理 (W34 在途); 变更预览/人工批准 (W31 在途) | craft→verify 强制闭环 (accept) — 设计定稿 (CRAFT_ACCEPT_DESIGN.md), 等 W34 门禁组合完成后接线; 账单化 (阶段6, 设计定稿 BILLING_DESIGN.md) |
 | 8 平台生态 | 部分 (MCP 服务端) | 插件市场, MCP 客户端, 通知连接器, 行业规则包 |
 
