@@ -16,9 +16,11 @@ Guide §4.5 contract:
         def cleanup(self, prepared: PreparedExecution) -> None: ...
 
 First adapter batch (guide §14 task 10): Java/Maven is IMPLEMENTED (the
-existing capability, re-homed behind the protocol); Java/Gradle, Node,
-Python and Go exist as planned matrix rows whose detect functions raise
-AdapterNotImplemented — we do NOT claim to support arbitrary projects.
+existing capability, re-homed behind the protocol); Python/pytest is
+IMPLEMENTED local-first (工业化指南 阶段 4 / W57 — a project .venv on the
+host, no container). Java/Gradle, Node and Go remain planned matrix rows
+whose detect functions raise AdapterNotImplemented — we do NOT claim to
+support arbitrary projects.
 """
 
 from __future__ import annotations
@@ -27,6 +29,9 @@ import json
 import os
 import platform
 import re
+import shutil
+import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -202,6 +207,30 @@ def _tail(text: str, limit: int = OUTPUT_TAIL_CHARS) -> str:
     if len(text) <= limit:
         return text
     return text[-limit:]
+
+
+_PYTEST_PASSED = re.compile(r"(\d+)\s+passed")
+_PYTEST_FAILED = re.compile(r"(\d+)\s+failed")
+_PYTEST_SKIPPED = re.compile(r"(\d+)\s+skipped")
+
+
+def parse_pytest_summary(text: str) -> dict[str, int]:
+    """Parse the pytest short summary ("N passed[, M failed][, K skipped]")
+    out of `pytest -q` output. Absent counters parse to 0 (no evidence);
+    pytest folds errors into "failed", so errors is always 0 here."""
+    def _count(pattern: re.Pattern[str]) -> int:
+        match = pattern.search(text)
+        return int(match.group(1)) if match else 0
+
+    passed = _count(_PYTEST_PASSED)
+    failed = _count(_PYTEST_FAILED)
+    return {
+        "tests": passed + failed,
+        "passed": passed,
+        "failed": failed,
+        "skipped": _count(_PYTEST_SKIPPED),
+        "errors": 0,
+    }
 
 
 def _maven_wrapper(workspace: str) -> str:
@@ -436,6 +465,241 @@ class JavaMavenAdapter:
         return None
 
 
+# ── Python/pytest adapter (local-first, 工业化指南 阶段 4 / W57) ─────
+
+
+@dataclass(frozen=True)
+class LocalRunResult:
+    """One host-side subprocess run (Python adapter local-first execution).
+
+    error is non-empty only when the process could not be run to completion
+    (launch failure or timeout); exit_code is -1 in those cases.
+    """
+
+    exit_code: int
+    stdout: str
+    stderr: str
+    error: str = ""
+
+
+def _run_local(command: list[str], cwd: str, timeout: int) -> LocalRunResult:
+    """Run a command on the host without a shell; never raise on child
+    failure — failures surface as exit_code/error so the adapter can
+    classify them honestly (venv_create / pip_install / run timeout)."""
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=cwd,
+            timeout=timeout,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except subprocess.TimeoutExpired:
+        return LocalRunResult(
+            exit_code=-1,
+            stdout="",
+            stderr="",
+            error=f"command timed out after {timeout}s: {' '.join(command)[:200]}",
+        )
+    except OSError as exc:
+        return LocalRunResult(exit_code=-1, stdout="", stderr="", error=str(exc))
+    return LocalRunResult(
+        exit_code=proc.returncode,
+        stdout=proc.stdout,
+        stderr=proc.stderr,
+    )
+
+
+def _venv_python(venv_dir: Path) -> Path:
+    """Interpreter path inside a venv (Scripts/python.exe on Windows)."""
+    if platform.system() == "Windows":
+        return venv_dir / "Scripts" / "python.exe"
+    return venv_dir / "bin" / "python"
+
+
+class PythonEnvironmentError(Exception):
+    """Honest environment failure while provisioning a Python project.
+
+    stage classifies the failing step: "venv_create" or "pip_install".
+    Callers must surface this error — it is never retried silently and
+    never faked as a successful setup.
+    """
+
+    def __init__(self, stage: str, message: str) -> None:
+        self.stage = stage
+        super().__init__(f"python environment {stage} failed: {message}")
+
+
+class PythonAdapter:
+    """Python/pytest via a project-local virtualenv (local-first adapter).
+
+    Declarations (host-executed; no container):
+      image          —  (local-first: pytest runs against the host)
+      toolchain      CPython <host version> / `python -m venv` + pip / pytest
+      offline policy reuse the project .venv when present; otherwise create
+                      it with `python -m venv` (offline-safe) and
+                      pip-install requirements.txt — the install itself may
+                      need network on first provision, and a pip failure is
+                      reported honestly as PythonEnvironmentError.
+    """
+
+    VENV_DIR = ".venv"
+    ENV_SETUP_TIMEOUT = 600
+    TOOLCHAIN = f"CPython {platform.python_version()} (host) / venv + pip / pytest"
+    OFFLINE_POLICY = (
+        "local-first: reuse the project .venv when present; otherwise "
+        "`python -m venv .venv` (offline-safe) + `pip install -r "
+        "requirements.txt` — first-time dependency install may require "
+        "network and fails honestly (PythonEnvironmentError) on pip errors"
+    )
+    KNOWN_LIMITS: tuple[str, ...] = (
+        "local-first 执行 (无容器沙箱): 宿主 CPython + 项目 .venv",
+        "首次 pip install -r requirements.txt 可能需要网络; 失败如实报错 "
+        "(PythonEnvironmentError, stage=venv_create/pip_install)",
+        "复用已存在的 .venv 时跳过依赖安装 (信任既有环境)",
+        "仅支持 pytest (goal=run_test); 其他 goal 抛 AdapterNotImplemented",
+        "detect 规则: pyproject.toml | requirements.txt | pytest.ini; "
+        "exotic Python 项目抛 AdapterNotImplemented",
+        "输出按尾部 256000 字符截断 (§4.5 输出长度限制)",
+        "SPECPROOF_KEEP_VENV 设置时 cleanup 保留 .venv, 否则移除",
+    )
+
+    def detect(self, repo: RepositorySnapshot) -> RuntimeProfile:
+        if (
+            repo.has("pyproject.toml")
+            or repo.has("requirements.txt")
+            or repo.has("pytest.ini")
+        ):
+            return RuntimeProfile(
+                language="python",
+                build_tool="pip",
+                test_runner="pytest",
+                known_limits=self.KNOWN_LIMITS,
+            )
+        raise AdapterNotImplemented(
+            "Python detect rule (pyproject.toml | requirements.txt | "
+            "pytest.ini) does not match"
+        )
+
+    def prepare(self, request: ExecutionRequest) -> PreparedExecution:
+        if request.goal != "run_test":
+            raise AdapterNotImplemented(
+                f"unsupported Python goal: {request.goal} "
+                "(PythonAdapter supports run_test only)"
+            )
+        workspace = Path(request.workspace)
+        venv_dir = workspace / self.VENV_DIR
+        python = _venv_python(venv_dir)
+        if not python.is_file():
+            self._create_venv(venv_dir)
+            requirements = workspace / "requirements.txt"
+            if requirements.is_file():
+                self._pip_install(python, requirements)
+        command = [str(python), "-m", "pytest", "-q"]
+        if request.test_class:
+            command += ["-k", request.test_class]
+        return PreparedExecution(
+            workdir=str(workspace),
+            command=command,
+            local_command=list(command),
+            image="—",
+            image_digest="—",
+            offline_policy=self.OFFLINE_POLICY,
+            timeout=request.timeout,
+            sandbox_mode=request.sandbox_mode,
+        )
+
+    def _create_venv(self, venv_dir: Path) -> None:
+        result = _run_local(
+            [sys.executable, "-m", "venv", str(venv_dir)],
+            cwd=str(venv_dir.parent),
+            timeout=self.ENV_SETUP_TIMEOUT,
+        )
+        if result.exit_code != 0:
+            raise PythonEnvironmentError(
+                "venv_create",
+                f"python -m venv exited {result.exit_code}: "
+                + _tail(result.stderr, 2000),
+            )
+
+    def _pip_install(self, python: Path, requirements: Path) -> None:
+        result = _run_local(
+            [
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "-r",
+                str(requirements),
+            ],
+            cwd=str(requirements.parent),
+            timeout=self.ENV_SETUP_TIMEOUT,
+        )
+        if result.exit_code != 0:
+            raise PythonEnvironmentError(
+                "pip_install",
+                f"pip install -r {requirements.name} exited {result.exit_code}: "
+                + _tail(result.stdout + result.stderr, 2000),
+            )
+
+    def run(self, prepared: PreparedExecution) -> ExecutionResult:
+        result = _run_local(
+            prepared.command,
+            cwd=prepared.workdir,
+            timeout=prepared.timeout,
+        )
+        prepared.result = ExecutionResult(
+            exit_code=result.exit_code,
+            stdout_tail=_tail(result.stdout),
+            stderr_tail=_tail(result.stderr),
+            mode="local",
+            sandbox_resources={
+                "sandbox": "none (local-first execution on the host)",
+                "network": "host (first-time pip install may require it)",
+                "workspace": "read-write (project .venv lives inside)",
+            },
+            error=result.error,
+        )
+        return prepared.result
+
+    def collect(self, prepared: PreparedExecution) -> EvidenceFragment:
+        result = prepared.result
+        if result is None:
+            return EvidenceFragment(
+                test_report_refs=(),
+                exit_evidence={"exit_code": None, "collected": False},
+            )
+        combined = result.stdout_tail + result.stderr_tail
+        return EvidenceFragment(
+            test_report_refs=(),
+            exit_evidence={
+                "exit_code": result.exit_code,
+                "mode": result.mode,
+                "sandbox_resources": dict(result.sandbox_resources),
+                "test_counts": parse_pytest_summary(combined),
+            },
+        )
+
+    def cleanup(self, prepared: PreparedExecution) -> None:
+        """venv cleanup boundary (local-first mirror of guide §4.5 cleanup).
+
+        Removes the project .venv unless SPECPROOF_KEEP_VENV is set (any
+        non-empty value). Windows interpreter locks are tolerated via
+        rmtree(ignore_errors=True) — a leftover directory is a workspace
+        disposal concern, never fabricated success. The workspace itself
+        and every other file in it are pipeline-owned and never touched.
+        """
+        if os.getenv("SPECPROOF_KEEP_VENV", "").strip():
+            return None
+        venv_dir = Path(prepared.workdir) / self.VENV_DIR
+        if venv_dir.is_dir():
+            shutil.rmtree(venv_dir, ignore_errors=True)
+        return None
+
+
 # ── Planned adapters (matrix only; detect raises, per guide §14 task 10) ──
 
 
@@ -449,13 +713,6 @@ def detect_java_gradle(repo: RepositorySnapshot) -> RuntimeProfile:
 def detect_node(repo: RepositorySnapshot) -> RuntimeProfile:
     raise AdapterNotImplemented(
         "Node adapter is planned (compatibility matrix status=planned); "
-        "no executor is wired"
-    )
-
-
-def detect_python(repo: RepositorySnapshot) -> RuntimeProfile:
-    raise AdapterNotImplemented(
-        "Python adapter is planned (compatibility matrix status=planned); "
         "no executor is wired"
     )
 
@@ -542,14 +799,14 @@ COMPATIBILITY_MATRIX: tuple[MatrixRow, ...] = (
     ),
     MatrixRow(
         language="Python",
-        build_tool="pip/uv",
+        build_tool="pip",
         test_runner="pytest",
-        status="规划 (planned)",
+        status="已支持 (local-first)",
         image="—",
         image_digest="—",
-        toolchain="待定 (随实现声明)",
-        offline_policy="待定 (离线缓存策略随实现声明)",
-        known_limits=("detect 抛 AdapterNotImplemented; 无执行器",),
+        toolchain=PythonAdapter.TOOLCHAIN,
+        offline_policy=PythonAdapter.OFFLINE_POLICY,
+        known_limits=PythonAdapter.KNOWN_LIMITS,
     ),
     MatrixRow(
         language="Go",
@@ -576,7 +833,7 @@ class ExecutionAdapterRegistry:
             JavaMavenAdapter(),
             _PlannedAdapter("Java/Gradle", detect_java_gradle),
             _PlannedAdapter("Node", detect_node),
-            _PlannedAdapter("Python", detect_python),
+            PythonAdapter(),
             _PlannedAdapter("Go", detect_go),
         ]
 
