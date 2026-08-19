@@ -20,7 +20,7 @@
 - 变异杀死率 **83.3%**; LLM 基线对比 **+100pp**
 - 质量门禁: 单元 1300+ 全绿 (唯一红为在途车道瞬时); ruff/mypy strict/bandit Medium+=0; 密钥泄漏 **0**
 - 前端: vitest 90+, Playwright e2e 9/9; 设计系统 21 组件
-- SWE-bench-Lite: harness+LLM 模式就绪, 真实首跑 0% 已定位两缺口 (W99 修复重跑中)
+- SWE-bench-Lite: harness+LLM 模式就绪; 真实跑两轮: 首跑 0% 定位两缺口 (信封/venv) 已修复 (W99), 复跑 v2 编辑提案已流通、以真实签名诚实 STUCK (模型改测试文件补断言), W112 测试文件守卫在途
 
 ## 三、三大文档逐条状态 (浓缩版, 全量见三份审计)
 
