@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0",
+  "harness": "scripts/bench_swebench.py",
+  "generated_at": "2026-08-19T05:33:07+00:00",
+  "mode": "deterministic",
+  "dataset": {
+    "kind": "offline-sample",
+    "total_loaded": 2,
+    "note": "--tasks N 取数据集顺序前 N 个实例 (不是官方 SWE-bench-Lite 300 例的选取口径; 见 SWEBENCH_PLAN.md)",
+    "path": "D:\\experim\\specproof-clean-clone-gate\\scripts\\swebench_sample\\instances.json"
+  },
+  "run": {
+    "exec_timeout": 300,
+    "max_iterations": 12,
+    "work_root": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-kyacz196",
+    "repo_dir": "D:\\UserData\\HUAWEI\\Temp\\specproof-swebench-repos",
+    "logs_dir": "docs\\eval\\swebench-logs",
+    "fix_rules_available": [
+      "specproof__toycalc-double-1"
+    ]
+  },
+  "instances": [
+    {
+      "instance_id": "specproof__toycalc-double-1",
+      "status": "resolved",
+      "resolved": true,
+      "reason": "",
+      "stage": "tests",
+      "repo": "D:\\experim\\specproof-clean-clone-gate\\scripts\\swebench_sample\\repos\\toycalc-double",
+      "base_commit": "sample-v1",
+      "problem_statement_head": "The double() function in calc.py returns half of its input instead of twice its input. Fix double() so it returns x * 2. Keep greeting() unchanged.",
+      "checkout": {
+        "method": "copy",
+        "source": "D:\\experim\\specproof-clean-clone-gate\\scripts\\swebench_sample\\repos\\toycalc-double",
+        "base_commit": "sample-v1",
+        "detail": "非 git 目录直接拷贝 (捆绑样例无 git 历史; base_commit 为标注值)"
+      },
+      "craft": {
+        "result": "DONE",
+        "mode": "deterministic",
+        "edits": [
+          "calc.py"
+        ],
+        "iterations": 1,
+        "seconds": 17.1,
+        "report_path": "docs\\eval\\swebench-logs\\specproof__toycalc-double-1\\craft\\report.json"
+      },
+      "test_patch": {
+        "applied": true,
+        "error": ""
+      },
+      "fail_to_pass": [
+        {
+          "test": "test_calc.py::test_double",
+          "outcome": "passed",
+          "output_tail": ".                                                                        [100%]\n1 passed in 0.02s",
+          "seconds": 3.4
+        },
+        {
+          "test": "test_hidden.py::test_double_negative",
+          "outcome": "passed",
+          "output_tail": ".                                                                        [100%]\n1 passed in 0.01s",
+          "seconds": 3.0
+        }
+      ],
+      "pass_to_pass": [
+        {
+          "test": "test_calc.py::test_greeting",
+          "outcome": "passed",
+          "output_tail": ".                                                                        [100%]\n1 passed in 0.01s",
+          "seconds": 2.5
+        }
+      ],
+      "note": "",
+      "logs": {
+        "tests_log": "docs\\eval\\swebench-logs\\specproof__toycalc-double-1\\tests.log"
+      }
+    },
+    {
+      "instance_id": "specproof__toycalc-multiply-1",
+      "status": "unresolved",
+      "resolved": false,
+      "reason": "no fix produced: 没有为 specproof__toycalc-multiply-1 注入确定性 fix 规则 (fix_registry 为空 → craft 管道 SKIPPED); 未运行测试, 未声称 resolved",
+      "stage": "craft",
+      "repo": "D:\\experim\\specproof-clean-clone-gate\\scripts\\swebench_sample\\repos\\toycalc-multiply",
+      "base_commit": "sample-v1",
+      "problem_statement_head": "The multiply() function in calc.py returns the sum of its inputs instead of their product. Fix multiply() so it returns a * b. Keep greeting() unchanged.",
+      "checkout": {
+        "method": "copy",
+        "source": "D:\\experim\\specproof-clean-clone-gate\\scripts\\swebench_sample\\repos\\toycalc-multiply",
+        "base_commit": "sample-v1",
+        "detail": "非 git 目录直接拷贝 (捆绑样例无 git 历史; base_commit 为标注值)"
+      },
+      "craft": null,
+      "test_patch": {
+        "applied": false,
+        "error": ""
+      },
+      "fail_to_pass": [],
+      "pass_to_pass": [],
+      "note": "fix_registry 为空: craft 管道 SKIPPED (确定性模式绝不虚构修复)",
+      "logs": {
+        "tests_log": "docs\\eval\\swebench-logs\\specproof__toycalc-multiply-1\\tests.log"
+      }
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "resolved": 1,
+    "unresolved": 1,
+    "resolved_rate_pct": 50.0,
+    "note": "确定性模式只有显式注入 fix 规则的实例才可能 resolved; 其余全部 unresolved 且 reason 非空 — resolved_rate 天然诚实, 不代表 LLM agent 能力 (见 SWEBENCH_PLAN.md)"
+  }
+}

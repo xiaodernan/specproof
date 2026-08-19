@@ -1,0 +1,30 @@
+[
+  {
+    "instance_id": "specproof__toycalc-double-1",
+    "repo": "repos/toycalc-double",
+    "base_commit": "sample-v1",
+    "problem_statement": "The double() function in calc.py returns half of its input instead of twice its input. Fix double() so it returns x * 2. Keep greeting() unchanged.",
+    "test_patch": "diff --git a/test_hidden.py b/test_hidden.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_hidden.py\n@@ -0,0 +1,5 @@\n+from calc import double\n+\n+\n+def test_double_negative():\n+    assert double(-3) == -6\n",
+    "FAIL_TO_PASS": [
+      "test_calc.py::test_double",
+      "test_hidden.py::test_double_negative"
+    ],
+    "PASS_TO_PASS": [
+      "test_calc.py::test_greeting"
+    ]
+  },
+  {
+    "instance_id": "specproof__toycalc-multiply-1",
+    "repo": "repos/toycalc-multiply",
+    "base_commit": "sample-v1",
+    "problem_statement": "The multiply() function in calc.py returns the sum of its inputs instead of their product. Fix multiply() so it returns a * b. Keep greeting() unchanged.",
+    "test_patch": "diff --git a/test_hidden.py b/test_hidden.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_hidden.py\n@@ -0,0 +1,5 @@\n+from calc import multiply\n+\n+\n+def test_multiply_negative():\n+    assert multiply(-2, 3) == -6\n",
+    "FAIL_TO_PASS": [
+      "test_calc.py::test_multiply",
+      "test_hidden.py::test_multiply_negative"
+    ],
+    "PASS_TO_PASS": [
+      "test_calc.py::test_greeting"
+    ]
+  }
+]
