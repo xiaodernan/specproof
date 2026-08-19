@@ -83,3 +83,25 @@
 14. ⏳ GitHub PR 创建 (需 PAT 增加 Pull requests 权限或用户手动点击)
 
 原则: 每完成一项, 本表+两份审计文档同步回填; 数字只写真实运行结果。
+
+## D. 本地体验最终态 (Local-First, 用户 2026-08-19 指令)
+
+战略调整: 不部署公网; 一切以本机流畅体验为第一优先级, 交付一个用户可以真实点完的最终态, 体验后按用户反馈迭代。
+
+验收目标 (用户可直接体验):
+1. 一键启动: scripts/start_local.ps1 (Docker infra → 种子数据 → FastAPI → Vite → 浏览器);
+2. 首次打开即有内容: 预置 2-3 个已完成验证作业 (矩阵/证书) + 1 个进行中 Agent 作业;
+3. 验证流闭环可点: 新建验证 → 进度 SSE → 判定矩阵 → 证书下载/验签;
+4. Agent 流闭环可点: 新建任务 → 计划审阅 → 实时工具流 (SSE) → 门禁五道 → accept 判定 (确定性档, 无需 LLM 无 key);
+5. 视觉顶级: W41 设计系统全页面铺开 (暗/亮双主题, 对标 Linear/Vercel);
+6. 权限体验: 登录 → 租户切换 → viewer/admin 差异可见 (W37);
+7. 体验文档: docs/operations/LOCAL_EXPERIENCE.md (用户视角步骤+预期画面+已知限制);
+8. e2e 冒烟: W39 Playwright 四场景全绿 (向导/详情/权限/降级)。
+
+新增工作 (本地态专用, 置顶优先级):
+- W42: Agent 运行时接线 (api/agent_runtime.py: 后台线程跑真实 CraftLoop 确定性档 → _ConsoleState 事件 → SSE; agent_jobs 投影; 取消/租约) — 让工作台活起来;
+- W43: 一键启动脚本 + 演示种子数据 (start_local.ps1 + seed 脚本, 幂等);
+- W41 阶段2: 设计系统全页面铺开 (等 W39 落盘后派);
+- 队长: LOCAL_EXPERIENCE.md 体验指南 + 本地态验收自测。
+
+降级 (不再阻塞本地态): 公网部署/K8s、SOC2 路线、插件市场、MCP 客户端、阶段5 KMS、GitLab/Policy DSL — 保留在远期队列, 本地态交付后再议。
