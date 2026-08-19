@@ -1,0 +1,76 @@
+Running evaluation across 20 golden cases (LLM: off)...
+
+
+=== case-41-migration-orders-table-dropped (base=base, head=case-41-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['MIGRATION-01'] (132391 ms)
+
+=== case-42-migration-new-additive-table (base=base, head=case-42-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (124370 ms)
+
+=== case-43-migration-request-id-column-removed (base=base, head=case-43-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['MIGRATION-01'] (123480 ms)
+
+=== case-44-migration-schema-reformatting (base=base, head=case-44-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (138428 ms)
+
+=== case-45-migration-stock-constraint-weakened (base=base, head=case-45-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['MIGRATION-01'] (147626 ms)
+
+=== case-46-migration-schema-comment (base=base, head=case-46-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (152933 ms)
+
+=== case-47-migration-email-length-shrunk-entity (base=base, head=case-47-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['MIGRATION-01'] (135063 ms)
+
+=== case-48-migration-new-index (base=base, head=case-48-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (127768 ms)
+
+=== case-49-api-user-detail-endpoint-removed (base=base, head=case-49-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['OPENAPI-01'] (139687 ms)
+
+=== case-50-api-user-detail-path-renamed (base=base, head=case-50-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['OPENAPI-01'] (145137 ms)
+
+=== case-51-api-order-endpoint-removed (base=base, head=case-51-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['OPENAPI-01'] (122315 ms)
+
+=== case-52-api-new-product-detail-endpoint (base=base, head=case-52-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (124498 ms)
+
+=== case-53-api-order-count-field-removed (base=base, head=case-53-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['BACKWARD_COMPATIBLE-01'] (130229 ms)
+
+=== case-54-api-internal-method-renamed (base=base, head=case-54-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (123116 ms)
+
+=== case-55-api-email-verb-changed (base=base, head=case-55-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['AUTH-01', 'OPENAPI-01'] (123813 ms)
+
+=== case-56-redis-cache-eviction-removed (base=base, head=case-56-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['CACHE-01'] (133228 ms)
+
+=== case-57-redis-cache-ttl-removed (base=base, head=case-57-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['CACHE-01'] (132108 ms)
+
+=== case-58-redis-cache-writeback-removed (base=base, head=case-58-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['CACHE-01'] (149652 ms)
+
+=== case-59-redis-cache-helpers-extracted (base=base, head=case-59-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (146656 ms)
+
+=== case-60-redis-cache-evicted-before-save (base=base, head=case-60-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['CACHE-01'] (127781 ms)
+
+==================================================
+Evaluation Results
+==================================================
+Total cases:        20
+Should detect:      13
+Detected:           13
+False positives:    0
+Precision:          100.0%
+Recall:             100.0%
+F1 Score:           100.0%
+
+HTML report written to docs\eval\eval-c3-rerun.html
+Results JSON written to docs\eval\eval-c3-rerun.results.json
