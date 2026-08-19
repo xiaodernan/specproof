@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { AgentApproval, AgentEvent, AgentJob, getAgentJob } from "../api";
-import { fmtTime, shortId } from "../components";
+import { fmtTime, shortId } from "../ui";
 import { agentStatusMeta, eventKindLabel } from "./util";
 
 export function useAgentJob(jobId: string) {

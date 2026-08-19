@@ -104,6 +104,7 @@
 /* ── Dark theme (default) ── */
 :root {
   --color-bg: #0a0a0c;
+  --color-sidebar: #0b0b0e;
   --color-surface: #101013;
   --color-surface-2: #16161a;
   --color-surface-3: #1c1c21;
@@ -149,6 +150,7 @@
 
 :root[data-theme="light"] {
   --color-bg: #f7f7f8;
+  --color-sidebar: #fbfbfc;
   --color-surface: #ffffff;
   --color-surface-2: #f4f4f5;
   --color-surface-3: #ececee;
@@ -192,8 +194,14 @@
   --elev-4: 0 16px 48px rgba(9, 9, 11, 0.16), 0 0 0 1px rgba(9, 9, 11, 0.05);
 }
 
-/* The design-system canvas opts into the active color scheme; the legacy
-   dark control-room chrome keeps the page-level dark scheme until phase 2. */
+/* Phase 2: the whole SPA is theme-aware — native controls and scrollbars
+   follow the active theme. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
 :root[data-theme="light"] .ui-kit,
 :root[data-theme="light"] .ui-input,
 :root[data-theme="light"] .ui-select,

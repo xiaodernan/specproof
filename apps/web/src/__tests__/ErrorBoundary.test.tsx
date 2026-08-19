@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ErrorBoundary } from "../components";
+import { ErrorBoundary } from "../ui";
 
 function Boom(): ReactNode {
   throw new Error("kaboom-fixture");

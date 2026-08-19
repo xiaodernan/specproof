@@ -8,7 +8,7 @@ import {
   getBearerToken,
 } from "./api";
 import type { PrincipalInfo } from "./api";
-import { ErrorBoundary } from "./components";
+import { ErrorBoundary } from "./ui";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
@@ -22,7 +22,7 @@ import AgentApp from "./agent/AgentApp";
 import IdentityApp from "./identity/IdentityApp";
 import TenantSwitcher from "./identity/TenantSwitcher";
 import { ThemeProvider } from "./theme/ThemeProvider";
-import { CommandPalette, ToastProvider } from "./ui";
+import { Button, CommandPalette, Kbd, ToastProvider } from "./ui";
 import UiKit from "./ui-kit/UiKit";
 
 // Minimal hash router: keeps deep links working behind the FastAPI SPA
@@ -139,19 +139,22 @@ export default function App() {
       <div className="shell">
         <aside className="sidebar">
           <div className="brand">
-            <div className="brand-mark">SP</div>
+            <div className="brand-mark" aria-hidden="true">
+              SP
+            </div>
             <div>
               <div className="brand-name">SpecProof</div>
               <div className="brand-sub">CONTROL ROOM</div>
             </div>
           </div>
-          <nav>
+          <nav aria-label="主导航 Primary navigation">
             {NAV.filter(
               (item) => item.path !== "#/identity" || canManageIdentity(principal)
             ).map((item) => (
               <a
                 key={item.path}
                 href={item.path}
+                aria-current={item.path === "#/" + active ? "page" : undefined}
                 className={
                   "nav-item" +
                   ((item.path === "#/" + active ? true : false) ? " nav-active" : "")
@@ -165,17 +168,26 @@ export default function App() {
           <div className="sidebar-foot">
             <div className="foot-line">FAIL-CLOSED AUTH</div>
             <TenantSwitcher />
-            <button
-              className="btn btn-ghost"
-              onClick={() => {
-                clearApiKey();
-                clearBearerToken();
-                setHasKey(false);
-                navigate("#/login");
-              }}
-            >
-              断开 Disconnect
-            </button>
+            <div style={{ marginTop: 10 }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                fullWidth
+                onClick={() => {
+                  clearApiKey();
+                  clearBearerToken();
+                  setHasKey(false);
+                  navigate("#/login");
+                }}
+              >
+                断开 Disconnect
+              </Button>
+            </div>
+            <div className="shell-hint">
+              <Kbd>Ctrl</Kbd>
+              <Kbd>K</Kbd>
+              <span>命令面板</span>
+            </div>
           </div>
         </aside>
         <main className="content">{renderRoute(route)}</main>
