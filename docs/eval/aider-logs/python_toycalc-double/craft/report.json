@@ -1,0 +1,137 @@
+{
+  "job_id": "aider-python_toycalc-double",
+  "mode": "deterministic",
+  "result": "FAILED",
+  "steps": [
+    {
+      "id": "s1",
+      "kind": "understand",
+      "status": "green",
+      "iterations": 0,
+      "evidence": {
+        "check": "grep",
+        "note": "可读性检查通过: [] (M1 不注入上下文)"
+      }
+    },
+    {
+      "id": "s2",
+      "kind": "modify",
+      "status": "green",
+      "iterations": 0,
+      "evidence": {
+        "check": "compile",
+        "note": "无目标文件, 跳过编译 (M1 确定性骨架)"
+      }
+    },
+    {
+      "id": "s3",
+      "kind": "test",
+      "status": "failed",
+      "iterations": 0,
+      "evidence": {
+        "reason": "LLM unavailable: LLM 调用失败: InternalServerError: Error code: 502"
+      }
+    },
+    {
+      "id": "s4",
+      "kind": "verify",
+      "status": "pending",
+      "iterations": 0,
+      "evidence": {}
+    }
+  ],
+  "diff_stat": {
+    "files_changed": 0,
+    "files": []
+  },
+  "self_verify": {
+    "status": "skipped",
+    "findings": [],
+    "note": "无改动文件 (无编辑审计记录), 自校验无对象, 按 skipped 处理"
+  },
+  "budget_used": {
+    "tokens": 0.0,
+    "iterations": 1,
+    "seconds": 15.2
+  },
+  "audit_trail": [],
+  "gates": {
+    "task_id": "aider-python_toycalc-double",
+    "overall": "failed",
+    "overall_note": "存在失败门禁 (FAIL > SKIPPED > PASS): run_test",
+    "duration_ms": 2408,
+    "gates": [
+      {
+        "gate": "run_test",
+        "status": "failed",
+        "note": "检测到 1 个测试文件; python -m pytest -q: 失败 (exit 1, mode=local)",
+        "findings": [
+          {
+            "file": "",
+            "line": null,
+            "kind": "run_test",
+            "severity": "HIGH",
+            "pattern": "command_exit_nonzero",
+            "description": "python -m pytest -q: exit 1 — F.                                                                       [100%]\n================================== FAILURES ===================================\n_________________________________ test_double _________________________________\n\n    def test_double():\n>       assert double(2) == 4\nE       assert 1.0 == 4\nE        +  where 1.0 = double(2)\n\ntoycalc_test.py:5: AssertionError\n=========================== short test summary info ===========================\nFAILED toycalc_test.py::test_double - assert 1.0 == 4\n1 failed, 1 passed in 0.19s"
+          }
+        ],
+        "duration_ms": 2402
+      },
+      {
+        "gate": "run_build",
+        "status": "skipped",
+        "note": "未检测到构建配置 (pom.xml / build.gradle / pyproject.toml / setup.py), run_build 无对象, 按 skipped 处理 (不伪造通过)",
+        "findings": [],
+        "duration_ms": 0
+      },
+      {
+        "gate": "run_typecheck",
+        "status": "skipped",
+        "note": "改动无 .py 文件且未检测到类型检查配置, run_typecheck 无对象, 按 skipped 处理 (不伪造通过)",
+        "findings": [],
+        "duration_ms": 0
+      },
+      {
+        "gate": "security",
+        "status": "skipped",
+        "note": "无改动文件, 安全扫描无对象, 按 skipped 处理 (不伪造通过)",
+        "findings": [],
+        "duration_ms": 0
+      },
+      {
+        "gate": "self_verify",
+        "status": "skipped",
+        "note": "无改动文件 (无编辑审计记录), 自校验无对象, 按 skipped 处理",
+        "findings": [],
+        "duration_ms": 0
+      }
+    ],
+    "summary": "GATES: task=aider-python_toycalc-double overall=failed run_test=failed run_build=skipped run_typecheck=skipped security=skipped self_verify=skipped duration_ms=2408"
+  },
+  "llm_usage": {
+    "available": true,
+    "calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "reasoning_tokens": 0,
+    "prompt_cache_hit_tokens": 0,
+    "prompt_cache_miss_tokens": 0,
+    "reasoning_journal_entries": 0,
+    "budget": {
+      "limit_tokens": 500000.0,
+      "used": 0.0,
+      "remaining": 500000.0
+    },
+    "calls_detail": []
+  },
+  "gains": {
+    "tool_call_attempts": 0,
+    "tool_call_valid": 0,
+    "tool_call_retried": 0,
+    "tool_call_success_rate": 0.0,
+    "router_fallback_count": 0,
+    "cache_hits": 0,
+    "judge_persona_applied": 0
+  },
+  "llm_fallback_reason": "LLM unavailable: LLM 调用失败: InternalServerError: Error code: 502"
+}
