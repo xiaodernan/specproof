@@ -17,6 +17,7 @@ import re
 from pydantic import BaseModel, Field
 
 from agent.contracts.parser import Requirement
+from agent.contracts.records import checker_version_for
 
 
 class ContractCandidate(BaseModel):
@@ -31,6 +32,11 @@ class ContractCandidate(BaseModel):
     result: str = "UNVERIFIED"
     evidence_ref: str | None = None
     approved: bool = False
+    # §A task 6: registry version (1 = first stored version; edits append
+    # new versions, they never mutate this one) and the implementation
+    # version of the checker that compiled this contract.
+    version: int = 1
+    checker_version: str = ""
 
 
 _TYPE_RULES: list[tuple[str, re.Pattern[str], str]] = [
@@ -109,6 +115,7 @@ def compile_candidates(requirements: list[Requirement]) -> list[ContractCandidat
                 forbidden_changes=req.forbidden_changes,
                 source="spec",
                 evidence="; ".join(matching_criteria[:3]),
+                checker_version=checker_version_for(checker_type),
             ))
     return candidates
 
@@ -147,6 +154,7 @@ def candidates_from_constitution(
                         expected_behavior=rule[:300],
                         source="constitution",
                         evidence=rule[:200],
+                        checker_version=checker_version_for(checker_type),
                     ))
                     break
     return candidates

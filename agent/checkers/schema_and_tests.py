@@ -16,6 +16,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
+#: Implementation version of the schema/test-strength checkers — stamped
+#: onto compiled contracts as checker_version (§A task 6).
+CHECKER_VERSION = "1.0.0"
+
 _TABLE_RE = re.compile(
     r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\((.*?)\)\s*;",
     re.DOTALL | re.IGNORECASE,

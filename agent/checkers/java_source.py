@@ -17,6 +17,12 @@ from __future__ import annotations
 import re
 from typing import Any
 
+#: Implementation version of this checker module — stamped onto every
+#: compiled contract as checker_version (industrialization §A task 6).
+#: Bump whenever checker rules change; stored contracts keep the version
+#: they were compiled with (version semantics are immutable/append-only).
+CHECKER_VERSION = "2.0.0"
+
 _MUTATING_MAPPINGS = ("@PutMapping", "@PostMapping", "@DeleteMapping", "@PatchMapping")
 
 # Method-security annotations. Beyond the Spring built-ins, this set covers

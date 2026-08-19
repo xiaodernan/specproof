@@ -134,7 +134,38 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
 
         capsules.append(str(zip_path.resolve()))
 
+        # §A task 7: the capsule becomes locatable through the object
+        # metadata store (query by job_id / kind / digest / contract_id)
+        # instead of path inference. Recording is best-effort: a capsule
+        # that cannot be recorded stays a legacy path-based artifact.
+        _record_capsule_metadata(
+            zip_path=zip_path,
+            job_id=str(state.get("job_id") or ""),
+            contract_id=str(finding.get("contract_id") or ""),
+        )
+
     return {"capsules": capsules}
+
+
+def _record_capsule_metadata(
+    zip_path: Path, job_id: str, contract_id: str,
+) -> None:
+    """Record capsule object metadata (best effort, never breaks the node)."""
+    try:
+        from storage.object_metadata import record_file_object_best_effort
+
+        record_file_object_best_effort(
+            "capsule",
+            zip_path,
+            job_id=job_id,
+            contract_ids=(contract_id,) if contract_id else (),
+        )
+    except Exception:  # noqa: BLE001 — artifact writing must never break
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "capsule metadata record failed for %s", zip_path
+        )
 
 
 def _build_replay_script(

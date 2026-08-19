@@ -10,6 +10,7 @@ import os
 import re
 from typing import Any
 
+from agent.contracts.records import checker_version_for
 from agent.state import Phase0State
 
 _CONTRACT_TEMPLATES = {
@@ -278,6 +279,12 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
             c.setdefault("result", "UNVERIFIED")
             c.setdefault("evidence_ref", None)
             c.setdefault("approved", True)
+            # §A task 6: registry-approved contracts carry their stored
+            # version + checker implementation version; backfill defaults
+            # for legacy rows so every contract in state is versioned.
+            c.setdefault("version", 1)
+            if not c.get("checker_version"):
+                c["checker_version"] = checker_version_for(c.get("checker_type", ""))
         return {"contracts": approved_loaded, "errors": errors}
 
     contracts = _parse_requirements(text)
@@ -323,6 +330,12 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
         c.setdefault("result", "UNVERIFIED")
         c.setdefault("evidence_ref", None)
         c.setdefault("approved", not require_approval)
+        # §A task 6: every compiled contract carries an exact version
+        # (implicit compilation starts at 1) and the checker
+        # implementation version that produced it.
+        c.setdefault("version", 1)
+        if not c.get("checker_version"):
+            c["checker_version"] = checker_version_for(c.get("checker_type", ""))
         cid = c.get("id", "")
         if cid in forbidden_by_id:
             c["forbidden_changes"] = forbidden_by_id[cid]

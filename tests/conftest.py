@@ -27,9 +27,17 @@ def clean_env() -> Generator[None, None, None]:
     saved = {}
     for key in sensitive:
         saved[key] = os.environ.pop(key, None)
+    # §A task 7: keep the object metadata store hermetic in tests — the
+    # default backend must never touch ~/.specproof/*.sqlite3 here.
+    saved["SPECPROOF_OBJECT_METADATA_BACKEND"] = os.environ.pop(
+        "SPECPROOF_OBJECT_METADATA_BACKEND", None
+    )
+    os.environ["SPECPROOF_OBJECT_METADATA_BACKEND"] = "memory"
 
     yield
 
     for key, val in saved.items():
         if val is not None:
             os.environ[key] = val
+        else:
+            os.environ.pop(key, None)

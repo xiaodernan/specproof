@@ -48,9 +48,11 @@ def list_contracts(repo: str, status: str | None) -> None:
         return
     click.echo(f"Contracts for {repo_path} ({len(rows)}):")
     for r in rows:
+        checker_version = r.get("checker_version") or ""
+        checker_note = f" checker={checker_version}" if checker_version else ""
         click.echo(
             f"  [{r['status']}] {r['id']} v{r['version']} "
-            f"({r['checker_type']}) spec={r['spec_digest'][:8]}"
+            f"({r['checker_type']}) spec={r['spec_digest'][:8]}{checker_note}"
         )
         click.echo(f"       {str(r['expected_behavior'])[:160]}")
 
@@ -99,15 +101,33 @@ def propose(repo: str, spec_path: str, constitution: tuple[str, ...]) -> None:
 @click.option("--id", "contract_id", required=True, help="Contract id to approve")
 @click.option("--by", "approved_by", required=True, help="Approver name (audit trail)")
 @click.option("--reason", default="", help="Approval note")
-def approve(repo: str, contract_id: str, approved_by: str, reason: str) -> None:
-    """Approve a proposed contract (recorded in the audit trail)."""
+@click.option(
+    "--version",
+    "version",
+    type=int,
+    default=None,
+    help="Exact contract version to approve (default: newest stored version)",
+)
+def approve(
+    repo: str,
+    contract_id: str,
+    approved_by: str,
+    reason: str,
+    version: int | None,
+) -> None:
+    """Approve an exact contract version (recorded in the audit trail)."""
     del repo  # registry is keyed by contract id; repo kept for CLI symmetry
     registry = ContractRegistry()
-    ok = registry.approve(contract_id, approved_by, reason)
+    ok = registry.approve(contract_id, approved_by, reason, version)
     if ok:
-        click.echo(f"APPROVED {contract_id} by {approved_by}")
+        target = f"v{version}" if version is not None else "(latest)"
+        click.echo(f"APPROVED {contract_id} {target} by {approved_by}")
     else:
-        click.echo(f"ERROR: cannot approve {contract_id} (not found or wrong status)", err=True)
+        click.echo(
+            f"ERROR: cannot approve {contract_id} (not found, wrong status, "
+            "or wrong version)",
+            err=True,
+        )
         raise SystemExit(1)
 
 
@@ -116,13 +136,31 @@ def approve(repo: str, contract_id: str, approved_by: str, reason: str) -> None:
 @click.option("--id", "contract_id", required=True, help="Contract id to reject")
 @click.option("--by", "approved_by", required=True, help="Rejecter name (audit trail)")
 @click.option("--reason", default="", help="Rejection reason")
-def reject(repo: str, contract_id: str, approved_by: str, reason: str) -> None:
-    """Reject a proposed contract (stays in the audit trail)."""
+@click.option(
+    "--version",
+    "version",
+    type=int,
+    default=None,
+    help="Exact contract version to reject (default: newest stored version)",
+)
+def reject(
+    repo: str,
+    contract_id: str,
+    approved_by: str,
+    reason: str,
+    version: int | None,
+) -> None:
+    """Reject an exact proposed version (stays in the audit trail)."""
     del repo  # registry is keyed by contract id; repo kept for CLI symmetry
     registry = ContractRegistry()
-    ok = registry.reject(contract_id, approved_by, reason)
+    ok = registry.reject(contract_id, approved_by, reason, version)
     if ok:
-        click.echo(f"REJECTED {contract_id} by {approved_by}")
+        target = f"v{version}" if version is not None else "(latest)"
+        click.echo(f"REJECTED {contract_id} {target} by {approved_by}")
     else:
-        click.echo(f"ERROR: cannot reject {contract_id} (not found or wrong status)", err=True)
+        click.echo(
+            f"ERROR: cannot reject {contract_id} (not found, wrong status, "
+            "or wrong version)",
+            err=True,
+        )
         raise SystemExit(1)

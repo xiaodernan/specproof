@@ -27,6 +27,10 @@ from agent.checkers.java_source import (
     _split_with_annotations,
 )
 
+#: Implementation version of the constitution checker — stamped onto every
+#: compiled constitution contract as checker_version (§A task 6).
+CHECKER_VERSION = "1.0.0"
+
 _ANNOTATION_RE = re.compile(
     r"@preauthorize|@secured|@transactional|@rolesallowed"
     r"|authenticat|authoriz|permission|\bguard\b|role|transaction",

@@ -19,6 +19,7 @@ class Phase0State(MessagesState):
     spec_path: str
     depth: str  # "FAST" only in Phase 0
     output_dir: str  # where the verification report is written
+    job_id: str  # owning job (object metadata store records it per artifact)
     use_llm: bool  # False = fully deterministic run (eval, CI)
     app_dir: str  # subdirectory inside the repo that holds pom.xml ("" = repo root)
 
@@ -87,6 +88,7 @@ def initial_state(
         "spec_path": spec_path,
         "depth": depth,
         "output_dir": "reports",
+        "job_id": "",
         "use_llm": True,
         "app_dir": "",
         "requirement_text": "",
