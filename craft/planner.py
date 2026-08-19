@@ -22,6 +22,7 @@ import os
 import re
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -30,6 +31,7 @@ from providers.budget import BudgetExceeded
 from providers.prompt_templates import SYSTEM_BLOCK, TOOL_SCHEMA_BLOCK, assemble
 
 from .budget import Budget
+from .editor import sha256_digest
 from .llm import LLMClient, LLMUnavailableError, extract_json_object, resolve_craft_thinking
 from .spec import TaskSpec
 
@@ -516,3 +518,203 @@ def _llm_fallback(spec: TaskSpec, budget: Budget, reason: str) -> Plan:
     """Degrade to the M1 rule plan with the honest reason on record."""
     plan = _build_deterministic(spec, budget)
     return replace(plan, llm_fallback_reason=reason)
+
+# -- plan versioning (计划书 §5.3) --------------------------------------------
+#
+# Plan revisions must be versioned: when the model changes a plan mid-run, the
+# system records the old plan, the new plan, the reason, who approved and the
+# budget delta — a model must never be able to rewrite its own plan to bypass
+# the original approval. This section is purely additive: the execution loop's
+# plan handling is untouched; the loop wiring persists PlanVersion records and
+# consults plan_change_requires_approval before accepting a revision.
+
+_SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+@dataclass(frozen=True)
+class PlanVersion:
+    """One recorded plan revision (计划书 §5.3: 计划变更必须版本化).
+
+    base_plan_digest is the sha256 of the canonical serialization
+    (plan_digest) of the plan this revision replaces; version numbers are
+    assigned by the caller, which owns the per-plan counter and the
+    persisted revision history.
+    """
+
+    plan_id: str
+    version: int
+    base_plan_digest: str
+    reason: str
+    approved_by: str
+    budget_delta: dict[str, int] = field(default_factory=dict)
+    created_at: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.plan_id.strip():
+            raise CraftPlanError("PlanVersion.plan_id 不能为空")
+        if self.version < 1:
+            raise CraftPlanError(f"PlanVersion.version 必须 >= 1 (收到 {self.version})")
+        if not _SHA256_HEX_RE.fullmatch(self.base_plan_digest):
+            raise CraftPlanError(
+                f"PlanVersion.base_plan_digest 必须是 64 位 sha256 hex "
+                f"(收到 {self.base_plan_digest!r})"
+            )
+        if not all(isinstance(value, int) for value in self.budget_delta.values()):
+            raise CraftPlanError("PlanVersion.budget_delta 应为 {str: int}")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "plan_id": self.plan_id,
+            "version": self.version,
+            "base_plan_digest": self.base_plan_digest,
+            "reason": self.reason,
+            "approved_by": self.approved_by,
+            "budget_delta": dict(self.budget_delta),
+            "created_at": self.created_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> PlanVersion:
+        plan_id = data.get("plan_id")
+        version = data.get("version")
+        digest = data.get("base_plan_digest")
+        reason = data.get("reason")
+        approved_by = data.get("approved_by")
+        delta = data.get("budget_delta", {})
+        created_at = data.get("created_at", "")
+        if not isinstance(plan_id, str) or not plan_id.strip():
+            raise CraftPlanError("PlanVersion.plan_id 缺失或为空")
+        if not isinstance(version, int) or isinstance(version, bool):
+            raise CraftPlanError("PlanVersion.version 类型错误: 应为整数")
+        if not isinstance(digest, str):
+            raise CraftPlanError("PlanVersion.base_plan_digest 类型错误: 应为字符串")
+        if not isinstance(reason, str) or not isinstance(approved_by, str):
+            raise CraftPlanError("PlanVersion.reason/approved_by 类型错误: 应为字符串")
+        if not isinstance(created_at, str):
+            raise CraftPlanError("PlanVersion.created_at 类型错误: 应为字符串")
+        if not isinstance(delta, dict) or not all(
+            isinstance(key, str) and isinstance(value, int) for key, value in delta.items()
+        ):
+            raise CraftPlanError("PlanVersion.budget_delta 应为 {str: int}")
+        return cls(
+            plan_id=plan_id,
+            version=version,
+            base_plan_digest=digest,
+            reason=reason,
+            approved_by=approved_by,
+            budget_delta={str(key): value for key, value in delta.items()},
+            created_at=created_at,
+        )
+
+
+def plan_digest(plan: Plan) -> str:
+    """sha256 hex of the canonical plan serialization (计划书 §5.3).
+
+    Canonical form: Plan.to_dict() -> json.dumps(sort_keys=True,
+    ensure_ascii=False, compact separators) -> UTF-8 bytes -> sha256. Equal
+    content always digests equal regardless of dict key order; any content
+    change — a reordered step list included — changes the digest. Reuses
+    craft.editor.sha256_digest, the project-wide digest convention
+    (craft/schemas.py's helper is unavailable here: schemas imports planner).
+    """
+    canonical = json.dumps(
+        plan.to_dict(), sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
+    return sha256_digest(canonical.encode("utf-8"))
+
+
+def record_plan_change(
+    old_plan: Plan,
+    new_plan: Plan,
+    reason: str,
+    budget_delta: dict[str, int] | None = None,
+    *,
+    plan_id: str | None = None,
+    version: int = 1,
+    approved_by: str = "",
+    created_at: str | None = None,
+) -> PlanVersion:
+    """Record one plan revision with the same hard gates the loop enforces.
+
+    The new plan must satisfy step cap + DAG validity (unique ids, deps
+    reference strictly earlier steps, no cycles) — a violation raises
+    CraftPlanError and nothing is recorded. base_plan_digest freezes the
+    exact old plan this revision replaces.
+
+    plan_id defaults to f"{old_plan.mode}:{old_plan.task_title}" (the plan
+    lineage of the revised task); callers with a job/task id may override
+    it. version is caller-assigned (the wiring owns the counter and the
+    persisted history). budget_delta=None derives per-key
+    new_plan.budget_alloc - old_plan.budget_alloc, keeping only non-zero
+    entries. created_at=None stamps the current UTC time.
+    """
+    ensure_step_cap(new_plan.steps)
+    _validate_step_dag(new_plan.steps)
+    delta = budget_delta
+    if delta is None:
+        keys = sorted(set(old_plan.budget_alloc) | set(new_plan.budget_alloc))
+        derived = {
+            key: new_plan.budget_alloc.get(key, 0) - old_plan.budget_alloc.get(key, 0)
+            for key in keys
+        }
+        delta = {key: value for key, value in derived.items() if value != 0}
+    elif not all(isinstance(value, int) for value in delta.values()):
+        raise CraftPlanError("budget_delta 应为 {str: int}")
+    return PlanVersion(
+        plan_id=plan_id or f"{old_plan.mode}:{old_plan.task_title}",
+        version=version,
+        base_plan_digest=plan_digest(old_plan),
+        reason=reason,
+        approved_by=approved_by,
+        budget_delta=dict(delta),
+        created_at=created_at or datetime.now(UTC).isoformat(timespec="seconds"),
+    )
+
+
+def plan_change_requires_approval(old_plan: Plan, new_plan: Plan) -> bool:
+    """True when a plan revision is material enough to need approval (计划书 §5.3).
+
+    Approval is required when the new plan
+      - adds steps (any step id absent from the old plan);
+      - extends scope to paths outside the old plan's owned paths (any
+        target_files entry the old plan did not own — M1's owned-path
+        contract, enforced at craft/tools.py);
+      - changes its risk/approval flags in EITHER direction
+        (risk_classification is the plan's approval indicator: adding a flag
+        raises risk, removing one would dodge the original approval — the
+        anti-bypass rule of §5.3);
+      - raises the budget (any budget_alloc key with a larger value).
+    Cosmetic revisions — step reorder, intent/annotation text, narrowing
+    paths, lowering budget — need no approval.
+    """
+    if _added_step_ids(old_plan, new_plan):
+        return True
+    if _new_target_paths(old_plan, new_plan):
+        return True
+    if old_plan.risk_classification != new_plan.risk_classification:
+        return True
+    return _budget_raised(old_plan, new_plan)
+
+
+def _added_step_ids(old_plan: Plan, new_plan: Plan) -> bool:
+    """Any new step id not present in the old plan counts as adding a step."""
+    return bool(
+        {step.id for step in new_plan.steps} - {step.id for step in old_plan.steps}
+    )
+
+
+def _new_target_paths(old_plan: Plan, new_plan: Plan) -> bool:
+    """Any path the new plan targets that the old plan did not own."""
+    old_paths = {path for step in old_plan.steps for path in step.target_files}
+    new_paths = {path for step in new_plan.steps for path in step.target_files}
+    return bool(new_paths - old_paths)
+
+
+def _budget_raised(old_plan: Plan, new_plan: Plan) -> bool:
+    """Any budget_alloc key whose value grew from old to new."""
+    keys = set(old_plan.budget_alloc) | set(new_plan.budget_alloc)
+    return any(
+        new_plan.budget_alloc.get(key, 0) > old_plan.budget_alloc.get(key, 0)
+        for key in keys
+    )
+
