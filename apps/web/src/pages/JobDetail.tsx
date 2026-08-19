@@ -5,7 +5,7 @@ import {
 } from "../api";
 import {
   Button, Degraded, Empty, ErrorBox, Panel, Spinner, StatCard, StatusPill,
-  fmtPct, fmtTime, kv, shortId, verdictTone,
+  fmtPct, fmtTime, kv, shortId, severityPill, verdictTone,
 } from "../ui";
 import { recordRecentJob } from "../ui/recentJobs";
 
@@ -240,9 +240,11 @@ export default function JobDetail(props: { jobId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {findings.findings.map((f, i) => (
+                {findings.findings.map((f, i) => {
+                  const sev = severityPill(f.severity);
+                  return (
                   <tr key={f.id || String(i)}>
-                    <td><span className={"pill pill-" + ((f.severity === "BLOCKER" ? "fail" : f.severity === "MAJOR" ? "unverified" : "pass"))}>{f.severity || "—"}</span></td>
+                    <td><span className={"pill " + sev.cls}>{sev.label}</span></td>
                     <td className="mono">{f.contract_id || "—"}</td>
                     <td className="mono">{f.evidence_type || "—"}</td>
                     <td className="mono">{fmtPct(f.confidence)}</td>
@@ -261,7 +263,8 @@ export default function JobDetail(props: { jobId: string }) {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}

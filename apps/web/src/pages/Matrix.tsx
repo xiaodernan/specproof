@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiGet, Job, MatrixData } from "../api";
-import { Degraded, Empty, ErrorBox, Panel, Spinner, shortId } from "../ui";
+import { Degraded, Empty, ErrorBox, Panel, Spinner, resultPill, shortId } from "../ui";
 
 export default function Matrix() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -89,20 +89,23 @@ export default function Matrix() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.rows.map((r, i) => (
+                  {data.rows.map((r, i) => {
+                    const res = resultPill(r.result);
+                    return (
                     <tr key={r.contract_id_str + String(i)}>
                       <td className="mono">{r.contract_id_str}</td>
                       <td>{r.requirement_text}</td>
                       <td className="mono">{r.checker_type}</td>
                       <td className="muted">{r.expected_behavior}</td>
                       <td>
-                        <span className={"pill pill-" + (r.result === "PASS" ? "pass" : r.result === "FAIL" ? "fail" : "unverified")}>
-                          {r.result}
-                        </span>
+                        <span className={"pill " + res.cls}>{res.label}</span>
                       </td>
-                      <td className="mono muted">{r.evidence_ref || "—"}</td>
+                      <td className="mono muted">
+                        {r.evidence_ref ? r.evidence_ref : "未知"}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             )}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiGet, downloadCapsule, FindingsData } from "../api";
-import { Button, Degraded, Empty, ErrorBox, Panel, Spinner, fmtPct, kv } from "../ui";
+import { Button, Degraded, Empty, ErrorBox, Panel, Spinner, fmtPct, kv, severityPill } from "../ui";
 
 export default function FindingDetail(props: { jobId: string; findingId: string }) {
   const { jobId, findingId } = props;
@@ -38,13 +38,14 @@ export default function FindingDetail(props: { jobId: string; findingId: string 
     );
   }
 
+  const sev = severityPill(f.severity);
   const impact = f.impact_path ? JSON.stringify(f.impact_path, null, 2) : null;
 
   return (
     <div>
       <div className="page-head">
         <h1 className="mono">
-          Finding {f.id} <span className={"pill pill-" + ((f.severity === "BLOCKER" ? "fail" : f.severity === "MAJOR" ? "unverified" : "pass"))}>{f.severity}</span>
+          Finding {f.id} <span className={"pill " + sev.cls}>{sev.label}</span>
         </h1>
         <div className="page-sub">
           任务 {jobId} · 契约 {f.contract_id || "—"}
@@ -55,7 +56,7 @@ export default function FindingDetail(props: { jobId: string; findingId: string 
 
       <div className="page-grid">
         <Panel title="元数据 Metadata">
-          {kv("Severity", f.severity || "—")}
+          {kv("Severity", sev.label)}
           {kv("Contract", f.contract_id || "—")}
           {kv("Evidence Type", f.evidence_type || "—")}
           {kv("Confidence", fmtPct(f.confidence))}

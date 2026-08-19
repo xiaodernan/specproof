@@ -1383,7 +1383,12 @@ table.data td.mono { font-family: var(--font-mono); font-size: var(--fs-12); }
 .pill-ok, .pill-pass { background: var(--success-tint); color: var(--success-fg); }
 .pill-bad, .pill-fail { background: var(--danger-tint); color: var(--danger-fg); }
 .pill-run { background: var(--warning-tint); color: var(--warning-fg); }
-.pill-mute, .pill-unverified { background: var(--color-control); color: var(--color-text-2); border: 1px solid var(--color-border); padding: 1px 7px; }
+.pill-mute { background: var(--color-control); color: var(--color-text-2); border: 1px solid var(--color-border); padding: 1px 7px; }
+/* Severity tone map — MAJOR orange / MINOR yellow (Aurora severity ramp). */
+.pill-major { background: var(--severity-major-tint); color: var(--severity-major-fg); }
+.pill-minor { background: var(--severity-minor-tint); color: var(--severity-minor-fg); }
+/* Result/evidence status — UNVERIFIED is amber, never green. */
+.pill-unverified { background: var(--warning-tint); color: var(--warning-fg); }
 
 /* ── Buttons & inputs ── */
 .btn {
@@ -1580,4 +1585,21 @@ pre.json {
 .tenant-remove { padding: 0 6px; }
 .cleartext { font-family: var(--font-mono); background: var(--color-surface-2); padding: var(--sp-2); word-break: break-all; color: var(--accent-text); border-radius: var(--radius-md); border: 1px solid var(--color-border); }
 .mono { font-family: var(--font-mono); }
+
+/* ── §14.4 honest surfaces: five-category health + permission hints ── */
+.health-category { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) 0; border-bottom: 1px solid var(--color-border); }
+.health-category:last-child { border-bottom: none; }
+.health-category-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.health-category-label { font-weight: var(--fw-600); font-size: var(--fs-13); color: var(--color-text); }
+.health-category-detail { font-size: var(--fs-12); color: var(--color-text-2); }
+
+.permission-hint {
+  border: 1px solid var(--accent-ring);
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-4);
+  margin-top: var(--sp-3);
+  font-size: var(--fs-13);
+}
 

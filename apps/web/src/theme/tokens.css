@@ -137,6 +137,13 @@
   --danger-fg: #fca5a5;
   --danger-tint: rgba(248, 113, 113, 0.14);
   --danger-fg-on: #450a0a;
+  /* Severity ramp: MAJOR orange, MINOR yellow (result status uses --warning amber). */
+  --severity-major: #fb923c;
+  --severity-major-fg: #fdba74;
+  --severity-major-tint: rgba(251, 146, 60, 0.14);
+  --severity-minor: #facc15;
+  --severity-minor-fg: #fde047;
+  --severity-minor-tint: rgba(250, 204, 21, 0.14);
   --info: #38bdf8;
   --info-fg: #7dd3fc;
   --info-tint: rgba(56, 189, 248, 0.14);
@@ -183,6 +190,13 @@
   --danger-fg: #b91c1c;
   --danger-tint: rgba(220, 38, 38, 0.08);
   --danger-fg-on: #ffffff;
+  /* Severity ramp: MAJOR orange, MINOR yellow. */
+  --severity-major: #ea580c;
+  --severity-major-fg: #c2410c;
+  --severity-major-tint: rgba(234, 88, 12, 0.12);
+  --severity-minor: #ca8a04;
+  --severity-minor-fg: #a16207;
+  --severity-minor-tint: rgba(202, 138, 4, 0.12);
   --info: #0284c7;
   --info-fg: #0369a1;
   --info-tint: rgba(2, 132, 199, 0.1);
