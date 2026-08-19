@@ -1,0 +1,47 @@
+{
+  "target_module": "module/pricing.py",
+  "mutants": [
+    {
+      "id": "M01",
+      "operator": "operand_swap",
+      "description": "bulk discount: multiplication by (1 - rate) becomes addition of (1 - rate)",
+      "old": "return round(subtotal * (1.0 - BULK_DISCOUNT_RATE), 2)",
+      "new": "return round(subtotal + (1.0 - BULK_DISCOUNT_RATE), 2)"
+    },
+    {
+      "id": "M02",
+      "operator": "boundary_change",
+      "description": "bulk discount: >= 500.0 threshold becomes > 500.0",
+      "old": "if subtotal >= 500.0:",
+      "new": "if subtotal > 500.0:"
+    },
+    {
+      "id": "M03",
+      "operator": "return_inversion",
+      "description": "free shipping: >= comparison becomes <=",
+      "old": "return subtotal >= FREE_SHIPPING_THRESHOLD",
+      "new": "return subtotal <= FREE_SHIPPING_THRESHOLD"
+    },
+    {
+      "id": "M04",
+      "operator": "constant_change",
+      "description": "free-shipping threshold constant 100.0 becomes 101.0",
+      "old": "FREE_SHIPPING_THRESHOLD = 100.0",
+      "new": "FREE_SHIPPING_THRESHOLD = 101.0"
+    },
+    {
+      "id": "M05",
+      "operator": "constant_change",
+      "description": "tax rate constant 0.08 becomes 0.18",
+      "old": "TAX_RATE = 0.08",
+      "new": "TAX_RATE = 0.18"
+    },
+    {
+      "id": "M06",
+      "operator": "constant_change",
+      "description": "suggested tip rate constant 0.15 becomes 0.18 (out of spec scope)",
+      "old": "SUGGESTED_TIP_RATE = 0.15",
+      "new": "SUGGESTED_TIP_RATE = 0.18"
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "run_info": {
+    "started_utc": "2026-08-19T05:26:48+00:00",
+    "python_version": "3.12.10",
+    "mode": "offline_sample",
+    "target": "D:\\experim\\specproof-clean-clone-gate\\scripts\\mutation_sample",
+    "mutants_requested": 10
+  },
+  "summary": {
+    "mutants_total": 6,
+    "evaluated": 6,
+    "killed": 5,
+    "survived": 1,
+    "skipped": 0,
+    "kill_rate": 0.833,
+    "kill_rate_pct": 83.3,
+    "channels": {
+      "test_runner": "available",
+      "spec_verdict": "available"
+    },
+    "baseline_ok": true,
+    "baseline_note": ""
+  },
+  "records": [
+    {
+      "mutant_id": "M01",
+      "operator": "operand_swap",
+      "description": "bulk discount: multiplication by (1 - rate) becomes addition of (1 - rate)",
+      "status": "killed",
+      "killed_by": [
+        "test_failure",
+        "spec_verdict"
+      ],
+      "test_exit_code": 1,
+      "spec_violations": [
+        "bulk discount at exact threshold (C1): expected 450.0, got 500.9",
+        "bulk discount above threshold (C1): expected 540.0, got 600.9"
+      ],
+      "note": "test output tail: F...                                                                     [100%] | ================================== FAILURES =================================== | ___________________ test_bulk_discount_applies_at_threshold ___________________ | def test_bulk_discount_applies_at_threshold() -> None: | # Kills M02 (boundary change >= -> >): the exact threshold must discount. | >       assert apply_"
+    },
+    {
+      "mutant_id": "M02",
+      "operator": "boundary_change",
+      "description": "bulk discount: >= 500.0 threshold becomes > 500.0",
+      "status": "killed",
+      "killed_by": [
+        "test_failure",
+        "spec_verdict"
+      ],
+      "test_exit_code": 1,
+      "spec_violations": [
+        "bulk discount at exact threshold (C1): expected 450.0, got 500.0"
+      ],
+      "note": "test output tail: F...                                                                     [100%] | ================================== FAILURES =================================== | ___________________ test_bulk_discount_applies_at_threshold ___________________ | def test_bulk_discount_applies_at_threshold() -> None: | # Kills M02 (boundary change >= -> >): the exact threshold must discount. | >       assert apply_"
+    },
+    {
+      "mutant_id": "M03",
+      "operator": "return_inversion",
+      "description": "free shipping: >= comparison becomes <=",
+      "status": "killed",
+      "killed_by": [
+        "test_failure",
+        "spec_verdict"
+      ],
+      "test_exit_code": 1,
+      "spec_violations": [
+        "free shipping below threshold (C2): expected False, got True"
+      ],
+      "note": "test output tail: ..F.                                                                     [100%] | ================================== FAILURES =================================== | ____________________ test_free_shipping_away_from_boundary ____________________ | def test_free_shipping_away_from_boundary() -> None: | # Kills M03 (return inversion >= -> <=): above ships free, below does not. | >       assert is_free"
+    },
+    {
+      "mutant_id": "M04",
+      "operator": "constant_change",
+      "description": "free-shipping threshold constant 100.0 becomes 101.0",
+      "status": "killed",
+      "killed_by": [
+        "spec_verdict"
+      ],
+      "test_exit_code": 0,
+      "spec_violations": [
+        "free shipping at exact threshold (C2): expected True, got False"
+      ],
+      "note": ""
+    },
+    {
+      "mutant_id": "M05",
+      "operator": "constant_change",
+      "description": "tax rate constant 0.08 becomes 0.18",
+      "status": "killed",
+      "killed_by": [
+        "test_failure",
+        "spec_verdict"
+      ],
+      "test_exit_code": 1,
+      "spec_violations": [
+        "tax rate is 8% (C3): expected 108.0, got 118.0"
+      ],
+      "note": "test output tail: ...F                                                                     [100%] | ================================== FAILURES =================================== | _____________________ test_tax_applied_as_multiplication ______________________ | def test_tax_applied_as_multiplication() -> None: | # Kills M05 (constant change 0.08 -> 0.18). | >       assert with_tax(100.0) == 108.0 | E       assert"
+    },
+    {
+      "mutant_id": "M06",
+      "operator": "constant_change",
+      "description": "suggested tip rate constant 0.15 becomes 0.18 (out of spec scope)",
+      "status": "survived",
+      "killed_by": [],
+      "test_exit_code": 0,
+      "spec_violations": [],
+      "note": ""
+    }
+  ]
+}
