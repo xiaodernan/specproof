@@ -30,16 +30,19 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final CustomerOrderRepository orderRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final StockDeductionService stockDeductionService;
 
     public OrderService(
             UserRepository userRepository,
             ProductRepository productRepository,
             CustomerOrderRepository orderRepository,
-            RabbitTemplate rabbitTemplate) {
+            RabbitTemplate rabbitTemplate,
+            StockDeductionService stockDeductionService) {
         this.userRepository = userRepository;
         this.productRepository = productRepository;
         this.orderRepository = orderRepository;
         this.rabbitTemplate = rabbitTemplate;
+        this.stockDeductionService = stockDeductionService;
     }
 
     /**
@@ -66,13 +69,13 @@ public class OrderService {
                 .orElseThrow(() -> new RuntimeException(
                         "Product not found: " + request.getProductId()));
 
-        if (request.getQuantity() > product.getStock()) {
+        int availableStock = product.getStock();
+        stockDeductionService.decrement(product.getId(), request.getQuantity());
+
+        if (request.getQuantity() > availableStock) {
             throw new RuntimeException(
                     "Insufficient stock for product " + product.getId());
         }
-
-        product.setStock(product.getStock() - request.getQuantity());
-        productRepository.saveAndFlush(product);
 
         BigDecimal amount = product.getPrice()
                 .multiply(BigDecimal.valueOf(request.getQuantity()));
