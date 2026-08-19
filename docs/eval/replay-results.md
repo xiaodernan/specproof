@@ -1,6 +1,6 @@
 # Capsule Replay Batch Results (主计划 §5.9 / 阶段2)
 
-- Generated at: 2026-08-19T19:41:42.216604+00:00
+- Generated at: 2026-08-19T20:10:38.069293+00:00
 - Tool: `scripts/bench_replay.py`
 - Repo: `D:\experim\specproof-clean-clone-gate`
 - Capsules dir: `D:\experim\specproof-clean-clone-gate\capsules`
@@ -12,13 +12,17 @@
 | metric | value |
 |---|---|
 | capsules enumerated | 28 |
-| same_conclusion | 23 |
+| excluded capsules (NOT in the gate denominator) | 3 |
+| - excluded_demo_seed | 1 |
+| - excluded_stale_artifact | 2 |
+| gate denominator (enumerated − excluded) | 25 |
+| verified (same_conclusion) | 23 |
 | env_mismatch | 0 |
-| evidence_inconsistent | 3 |
+| evidence_inconsistent | 0 |
 | replay_failed | 2 |
 | static_verified (static evidence re-verified at head) | 13 |
-| **success rate (same_conclusion / enumerated)** | **0.8214** |
-| success rate excluding env_mismatch | 0.8214 |
+| **success rate (verified / (enumerated − excluded))** | **0.9200** |
+| success rate excluding env_mismatch | 0.9200 |
 | Go/No-Go gate #4 (replay 成功率 ≥ 95%) | FAIL |
 
 ## Two-tier replay definition (gate note)
@@ -26,6 +30,13 @@
 - Tier 1 — runtime reproduction: capsules whose recorded evidence is runtime (blocker_check 2_base_head_execution=true) claim a base-pass/head-fail regression; only a run script verdict of REGRESSION CONFIRMED is same_conclusion.
 - Tier 2 — static re-verification: capsules whose recorded evidence kind is static-only (java_source_diff, openapi_endpoint, constitution_check, static_regex_analysis, probe_differential, mutation/annotation checks) are re-verified at the recorded head commit in the temp worktree: the recorded snippet paths must exist with the recorded content at head, and/or the deterministic checker that produced the recorded finding must re-derive it from the head tree. A runtime replay can never reproduce a static finding, so a runtime COMPLIANT verdict is expected and is not a contradiction. Verified static evidence is same_conclusion; unverifiable evidence is replay_failed with the real reason (e.g. the snippet is gone from head).
 - `static_verified` counts only tier-2 successes; the raw `same_conclusion` count is unchanged, so both numbers stay auditable.
+
+## Exclusion definitions (gate note, verbatim)
+
+- `excluded_demo_seed` — capsule.json declares demo:true (parsed from the zip; only when it literally contains "demo": true). Reason: demo seed capsule (scripts/seed_demo.py, 非验证发现胶囊) — excluded from the replay gate denominator.
+- `excluded_stale_artifact` — recorded manifest_digest matches the sha256 of the pretty-printed manifest (json.dumps(indent=2, sort_keys=True), digest field excluded) while the canonical recompute differs — the zip predates the canonical digest rule. Reason: pre-canonical digest era artifact (built before the canonical manifest rule) — excluded from the replay gate denominator.
+
+The success rate is `verified / (enumerated − excluded)`: excluded capsules are reported with their classification and reason but never counted in the gate denominator, and the raw enumerated count is always printed alongside it.
 
 ## Environment
 
@@ -50,43 +61,42 @@
 
 ## Per-capsule results
 
-| capsule | severity | evidence | base | head | mode | verdict | outcome | reason |
-|---|---|---|---|---|---|---|---|---|
-| capsule-4ccc31dc-AUTH-01 |  |  |  |  | - | - | evidence_inconsistent | manifest.json missing — the existing replay path rejects the capsule as corrupt; recorded evidence cannot be established |
-| capsule-CONST-EVENT_ONCE-01 | MAJOR | constitution_check | base | case-97-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding EVENT_ONCE-01/forbidden_duplicate_publish at head ref case-97-head |
-| capsule-COURT-ATOMICITY-01 | MAJOR | base_pass_head_fail | base | case-39-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-COURT-AUTH-01 | MAJOR | base_pass_head_fail | base | case-55-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-COURT-BOUNDARY-01 | BLOCKER | base_pass_head_fail | base | case-74-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-COURT-CACHE-01 | MAJOR | base_pass_head_fail | base | case-65-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-COURT-CONCURRENCY-01 | BLOCKER | base_pass_head_fail | base | case-29-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-COURT-DIFF-01 | MAJOR | base_pass_head_fail | base | head-v1 | - | - | evidence_inconsistent | manifest_digest mismatch: recorded 'sha256:3301f'..., recomputed bd7add20c331... — the manifest was modified after recording |
-| capsule-COURT-EMAIL_FORMAT-01 | BLOCKER | base_pass_head_fail | base | case-77-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-COURT-EVENT_ONCE-01 | MAJOR | probe_differential | base | case-98-head | static_reverify | - | replay_failed | recorded static evidence for EVENT_ONCE-01 no longer re-verifies at head ref case-98-head: the deterministic checkers produce no violation for the contract at head |
-| capsule-COURT-IDEMPOTENT-01 | BLOCKER | base_pass_head_fail | base | case-35-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-COURT-NPLUSONE-01 | MAJOR | base_pass_head_fail | base | case-86-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-COURT-ORDER_AMOUNT-01 | BLOCKER | base_pass_head_fail | base | case-75-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-COURT-ORDER_EVENT-01 | MAJOR | probe_differential | base | case-97-head | static_reverify | - | replay_failed | recorded static evidence for ORDER_EVENT-01 no longer re-verifies at head ref case-97-head: the deterministic checkers produce no violation for the contract at head |
-| capsule-COURT-UNIQUE-01 | MAJOR | base_pass_head_fail | base | case-20-head | runtime | REGRESSION CONFIRMED | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
-| capsule-SRC-AUTH-ANNO | MAJOR | java_source_diff | base | case-22-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding AUTH-01/annotation_removed at head ref case-22-head |
-| capsule-SRC-BACKWARD_COMPATIBLE-SCHE | MAJOR | java_source_diff | base | case-53-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding BACKWARD_COMPATIBLE-01/schema_break at head ref case-53-head |
-| capsule-SRC-EVENT_ONCE-DUPL | MAJOR | java_source_diff | base | case-97-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding EVENT_ONCE-01/duplicate_publish at head ref case-97-head |
-| capsule-SRC-MIGRATION-COLU | MAJOR | java_source_diff | base | case-47-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding MIGRATION-01/column_type_changed at head ref case-47-head |
-| capsule-SRC-MIGRATION-CONS | MAJOR | java_source_diff | base | case-45-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding MIGRATION-01/constraint_removed at head ref case-45-head |
-| capsule-SRC-MIGRATION-TABL | MAJOR | java_source_diff | base | case-41-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding MIGRATION-01/table_removed at head ref case-41-head |
-| capsule-SRC-OPENAPI-ENDP | MAJOR | java_source_diff | base | case-55-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding OPENAPI-01/endpoint_removed at head ref case-55-head |
-| capsule-SRC-TEST_STRENGTH-ASSE | MAJOR | java_source_diff | base | case-91-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding TEST_STRENGTH-01/assertions_weakened at head ref case-91-head |
-| capsule-SRC-TEST_STRENGTH-TEST | MAJOR | java_source_diff | base | case-91-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding TEST_STRENGTH-01/test_removed at head ref case-91-head |
-| capsule-SRC-TOKEN_INVALIDATION-GUAR | MAJOR | java_source_diff | base | case-05-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding TOKEN_INVALIDATION-01/guard_removed at head ref case-05-head |
-| capsule-SRC-TRANSACTION-ANNO | MAJOR | java_source_diff | base | case-37-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding TRANSACTION-01/annotation_removed at head ref case-37-head |
-| capsule-SRC-UNIQUE-GUAR | MAJOR | java_source_diff | base | case-04-head | static_reverify | - | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding UNIQUE-01/guard_removed at head ref case-04-head |
-| capsule-STATIC-MUT-01 | MAJOR | static_regex_analysis | base | head-v1 | - | - | evidence_inconsistent | manifest_digest mismatch: recorded 'sha256:8857f'..., recomputed ca8c1611da4c... — the manifest was modified after recording |
+| capsule | severity | evidence | base | head | mode | verdict | outcome | classification | reason |
+|---|---|---|---|---|---|---|---|---|---|
+| capsule-4ccc31dc-AUTH-01 |  |  |  |  | - | - | excluded | excluded_demo_seed | demo seed capsule (scripts/seed_demo.py, 非验证发现胶囊) — excluded from the replay gate denominator |
+| capsule-CONST-EVENT_ONCE-01 | MAJOR | constitution_check | base | case-97-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding EVENT_ONCE-01/forbidden_duplicate_publish at head ref case-97-head |
+| capsule-COURT-ATOMICITY-01 | MAJOR | base_pass_head_fail | base | case-39-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-COURT-AUTH-01 | MAJOR | base_pass_head_fail | base | case-55-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-COURT-BOUNDARY-01 | BLOCKER | base_pass_head_fail | base | case-74-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-COURT-CACHE-01 | MAJOR | base_pass_head_fail | base | case-65-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-COURT-CONCURRENCY-01 | BLOCKER | base_pass_head_fail | base | case-29-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-COURT-DIFF-01 | MAJOR | base_pass_head_fail | base | head-v1 | - | - | excluded | excluded_stale_artifact | pre-canonical digest era artifact (built before the canonical manifest rule) — excluded from the replay gate denominator |
+| capsule-COURT-EMAIL_FORMAT-01 | BLOCKER | base_pass_head_fail | base | case-77-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-COURT-EVENT_ONCE-01 | MAJOR | probe_differential | base | case-98-head | static_reverify | - | replay_failed | replay_failed | recorded static evidence for EVENT_ONCE-01 no longer re-verifies at head ref case-98-head: the deterministic checkers produce no violation for the contract at head |
+| capsule-COURT-IDEMPOTENT-01 | BLOCKER | base_pass_head_fail | base | case-35-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-COURT-NPLUSONE-01 | MAJOR | base_pass_head_fail | base | case-86-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-COURT-ORDER_AMOUNT-01 | BLOCKER | base_pass_head_fail | base | case-75-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-COURT-ORDER_EVENT-01 | MAJOR | probe_differential | base | case-97-head | static_reverify | - | replay_failed | replay_failed | recorded static evidence for ORDER_EVENT-01 no longer re-verifies at head ref case-97-head: the deterministic checkers produce no violation for the contract at head |
+| capsule-COURT-UNIQUE-01 | MAJOR | base_pass_head_fail | base | case-20-head | runtime | REGRESSION CONFIRMED | same_conclusion | same_conclusion | recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED |
+| capsule-SRC-AUTH-ANNO | MAJOR | java_source_diff | base | case-22-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding AUTH-01/annotation_removed at head ref case-22-head |
+| capsule-SRC-BACKWARD_COMPATIBLE-SCHE | MAJOR | java_source_diff | base | case-53-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding BACKWARD_COMPATIBLE-01/schema_break at head ref case-53-head |
+| capsule-SRC-EVENT_ONCE-DUPL | MAJOR | java_source_diff | base | case-97-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding EVENT_ONCE-01/duplicate_publish at head ref case-97-head |
+| capsule-SRC-MIGRATION-COLU | MAJOR | java_source_diff | base | case-47-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding MIGRATION-01/column_type_changed at head ref case-47-head |
+| capsule-SRC-MIGRATION-CONS | MAJOR | java_source_diff | base | case-45-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding MIGRATION-01/constraint_removed at head ref case-45-head |
+| capsule-SRC-MIGRATION-TABL | MAJOR | java_source_diff | base | case-41-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding MIGRATION-01/table_removed at head ref case-41-head |
+| capsule-SRC-OPENAPI-ENDP | MAJOR | java_source_diff | base | case-55-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding OPENAPI-01/endpoint_removed at head ref case-55-head |
+| capsule-SRC-TEST_STRENGTH-ASSE | MAJOR | java_source_diff | base | case-91-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding TEST_STRENGTH-01/assertions_weakened at head ref case-91-head |
+| capsule-SRC-TEST_STRENGTH-TEST | MAJOR | java_source_diff | base | case-91-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding TEST_STRENGTH-01/test_removed at head ref case-91-head |
+| capsule-SRC-TOKEN_INVALIDATION-GUAR | MAJOR | java_source_diff | base | case-05-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding TOKEN_INVALIDATION-01/guard_removed at head ref case-05-head |
+| capsule-SRC-TRANSACTION-ANNO | MAJOR | java_source_diff | base | case-37-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding TRANSACTION-01/annotation_removed at head ref case-37-head |
+| capsule-SRC-UNIQUE-GUAR | MAJOR | java_source_diff | base | case-04-head | static_reverify | - | same_conclusion | same_conclusion | static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding UNIQUE-01/guard_removed at head ref case-04-head |
+| capsule-STATIC-MUT-01 | MAJOR | static_regex_analysis | base | head-v1 | - | - | excluded | excluded_stale_artifact | pre-canonical digest era artifact (built before the canonical manifest rule) — excluded from the replay gate denominator |
 
 ## Observed root causes (deduplicated reasons)
 
 - ×10 — recorded base_pass_head_fail reproduced — run script verdict REGRESSION CONFIRMED
-- ×1 — manifest.json missing — the existing replay path rejects the capsule as corrupt; recorded evidence cannot be established
-- ×1 — manifest_digest mismatch: recorded 'sha256:3301f'..., recomputed bd7add20c331... — the manifest was modified after recording
-- ×1 — manifest_digest mismatch: recorded 'sha256:8857f'..., recomputed ca8c1611da4c... — the manifest was modified after recording
+- ×2 — pre-canonical digest era artifact (built before the canonical manifest rule) — excluded from the replay gate denominator
+- ×1 — demo seed capsule (scripts/seed_demo.py, 非验证发现胶囊) — excluded from the replay gate denominator
 - ×1 — recorded static evidence for EVENT_ONCE-01 no longer re-verifies at head ref case-98-head: the deterministic checkers produce no violation for the contract at head
 - ×1 — recorded static evidence for ORDER_EVENT-01 no longer re-verifies at head ref case-97-head: the deterministic checkers produce no violation for the contract at head
 - ×1 — static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) — the deterministic checker re-derived the recorded finding AUTH-01/annotation_removed at head ref case-22-head
@@ -110,3 +120,5 @@
 - Temp worktree mechanism `subtree-split`: the repo is cloned to a temp dir (the real repo is never mutated) and each needed ref is rebuilt with the demo project at the repo root, because the generated run scripts expect mvnw at the git root while this repo keeps the project under demo/spring-backend.
 - The existing replay CLI appends one replay_report record per capsule to the object-metadata store — documented CLI behavior, outside the repo.
 - env_mismatch is only reported for environment failures, always with the exact reason; verdicts are never fabricated.
+- Two explicit exclusion classifications keep the gate denominator auditable: excluded_demo_seed (capsule.json declares demo:true) and excluded_stale_artifact (the recorded digest matches the pre-canonical pretty-printed manifest digest while the canonical recompute differs). Excluded capsules are reported with their classification and reason and are never counted in the gate denominator.
+- The gate success rate is verified / (enumerated − excluded): both denominators (the raw enumerated count and the gate denominator) are printed in the JSON totals and this document — raw counts are never hidden.
