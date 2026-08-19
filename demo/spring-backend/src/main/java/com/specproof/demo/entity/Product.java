@@ -1,5 +1,7 @@
 package com.specproof.demo.entity;
 
+import jakarta.persistence.Access;
+import jakarta.persistence.AccessType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -33,7 +35,6 @@ public class Product {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
-    @Version
     @Column(nullable = false)
     private Long version;
 
@@ -57,6 +58,8 @@ public class Product {
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal price) { this.price = price; }
 
+    @Access(AccessType.PROPERTY)
+    @Version
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
 }
