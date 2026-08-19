@@ -91,9 +91,9 @@
 架构定性 (用户确认): LLM 推理走远程 API (DeepSeek 网关, 已实测适配), 其余全部本地 — 后端/前端/基础设施/Agent 运行时/评测全部在本机 Docker+进程内运行; 产品本身不部署公网。LLM 凭据仅经环境变量注入 (LLM_BASE_URL/LLM_API_KEY/LLM_MODEL), 绝不落盘; 未配置时自动降级确定性档 (无 LLM 也能点完全流程)。
 
 验收目标 (用户可直接体验):
-1. 一键启动: ✅ W43 scripts/start_local.ps1 (compose 6 容器健康等待 → API → 幂等种子 3 验证+1 Agent → Vite → 入口 URL; stop 保留数据卷; 实测×4 全过) + 🚧 W43.1 worker/outbox 并入 (让新建验证任务过 QUEUED);
+1. 一键启动: ✅ W43 + ✅ W43.1 (1f34f44 已在链): worker/outbox 随 start/stop 启停 — 实测新建验证 QUEUED→BLOCKED 确定性档零 LLM (relay 发布→worker 消费→6 分钟终态, findings AUTH-01 静态拦截); 后续: agent/worker.py 上游回归本体修复 (车道在改);
 2. 首次打开即有内容: 预置 2-3 个已完成验证作业 (矩阵/证书) + 1 个进行中 Agent 作业;
-3. 验证流闭环可点: 新建验证 → 进度 SSE → 判定矩阵 → 证书下载/验签;
+3. 验证流闭环可点: ✅ 新建验证 → QUEUED→终态 (W43.1 worker/outbox 实测) → 判定矩阵/Findings; 证书页对 Worker 产出的作业诚实 404 (已知限制, 证书由 CLI/CP 落盘);
 4. Agent 流闭环可点: 新建任务 → 计划审阅 → 实时工具流 (SSE) → 门禁五道 → accept 判定 (确定性档, 无需 LLM 无 key);
 5. 视觉顶级: ✅ W41 全部完成 (W41.2 壳层+样式采纳 + W41.3 全页面铺开: verify 9 页+agent 15 页+identity 2 页 全 Aurora 化, legacy components.tsx/styles.css 退役 0 悬空引用, ⌘K 命令面板+深浅双主题全站可用; 队长复跑 typecheck/55 测试/build/Playwright 9-9 全绿) — 美轮美奂达成;
 6. 权限体验: 登录 → 租户切换 → viewer/admin 差异可见 (W37);
