@@ -35,6 +35,7 @@ from agent.review_court.policy import (
     policy_recalculate,
 )
 from agent.state import Phase0State
+from providers.judge_persona import build_judge_prompt
 
 DefenseProducer = Callable[
     [list[dict[str, Any]], Any],
@@ -98,17 +99,26 @@ def _as_bool(value: Any) -> bool | None:
 async def _llm_defense_materials(
     provider: Any, candidates: list[dict[str, Any]]
 ) -> ModelDefenseOutput:
-    """Ask the model for defense material only; parse failures are flagged."""
+    """Ask the model for defense material only; parse failures are flagged.
+
+    The no-fake-pass judge persona is APPENDED after the base defense prompt
+    via build_judge_prompt, so the stable base-prompt prefix stays
+    byte-identical at the front (KV-cache-friendly ordering). This only
+    happens on the LLM path — the default deterministic court builds no
+    prompt at all.
+    """
     from providers.base import LLMMessage
 
     candidates_json = json.dumps(
         [{k: v for k, v in c.items() if k != "source"} for c in candidates],
         indent=2, ensure_ascii=False,
     )
+    base_prompt = _LLM_DEFENSE_PROMPT.format(candidates_json=candidates_json)
+    judge_prompt = build_judge_prompt(base_prompt)
     response = await provider.chat(
         messages=[LLMMessage(
             role="user",
-            content=_LLM_DEFENSE_PROMPT.format(candidates_json=candidates_json),
+            content=judge_prompt,
         )],
         thinking=True,
         timeout=90.0,
