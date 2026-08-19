@@ -9,25 +9,27 @@
 pwsh scripts\start_local.ps1
 ```
 
-它会按顺序完成五件事 (全程幂等, 可反复执行):
+它会按顺序完成六件事 (全程幂等, 可反复执行):
 
 1. **基础设施** — `docker compose -f compose.phase0.yml up -d` 并等待健康检查
    (MySQL / MongoDB / Elasticsearch / Redis / RabbitMQ / MinIO; MySQL 必须就绪, 其余降级放行);
-2. **后端** — 启动 FastAPI (`python -m uvicorn api.server:app`, `127.0.0.1:8000`,
-   后台运行, 日志 `.local\api.log`); 已运行时跳过;
-3. **演示数据** — `python scripts\seed_demo.py` 幂等播种 (详见 §6 播种设计);
-4. **验证管道 (W43.1)** — 启动 Outbox Relay (`python -m storage.outbox_relay`) 与验证 Worker
-   (`python scripts\run_worker.py`, 日志 `.local\relay.log` / `.local\worker.log`),
+2. **验证管道 (W43.1)** — 启动验证 Worker (`python scripts\run_worker.py`) 与 Outbox Relay
+   (`python -m storage.outbox_relay`, 日志 `.local\worker.log` / `.local\outbox.log`),
    使"新建验证"任务真正走完 QUEUED → RUNNING → 终态; 已运行时跳过;
+   启动失败只警告不阻断 (体验优先, 原因写日志);
+3. **后端** — 启动 FastAPI (`python -m uvicorn api.server:app`, `127.0.0.1:8000`,
+   后台运行, 日志 `.local\api.log`); 已运行时跳过;
+4. **演示数据** — `python scripts\seed_demo.py` 幂等播种 (详见 §6 播种设计);
 5. **前端** — `npm run dev` (Vite, `localhost:5173`, 日志 `.local\web.log`; 首次自动执行 `npm install`);
    已运行时跳过;
 6. **打印入口** — Web URL、API 文档 URL、演示登录密钥、停止命令与"先点什么"。
 
-> 顺序说明: 任务书里播种在 API 之前, 实际执行时我们把 **API 先拉起来再播种** ——
-> 因为【演示】Agent 任务的标题与事件只存在于 API 进程里, 必须走真实的
-> `POST /agent/jobs` 才能让演示任务带上标题; 这是有意为之, 已在代码注释与 §6 中记录。
+> 顺序说明: 按 W43.1 要点, 验证管道 (worker → outbox) 在 API 之前启动; 种子则保持在
+> **API 之后** —— 因为【演示】Agent 任务的标题与事件只存在于 API 进程里, 必须走真实的
+> `POST /agent/jobs` 才能让演示任务带上标题 (种子先于 API 会让标题永远退化为 uuid);
+> 这是有意为之, 已在代码注释与 §6 中记录。
 
-停止: `pwsh scripts\stop_local.ps1` (停前后端进程树 + `compose down`, **数据卷保留**)。
+停止: `pwsh scripts\stop_local.ps1` (停前端/后端/Worker/Outbox 进程树 + `compose down`, **数据卷保留**)。
 
 ## 1. 前提条件
 
@@ -75,16 +77,16 @@ pwsh scripts\start_local.ps1
 ==> 配置 API 环境变量 (演示密钥, 仅本机演示用)
     [ok] Agent 任务存储: MySQL (与 API 相同)
     [ok] 确定性档 (默认): 不依赖任何 LLM 环境变量, 演示数据完整体验无需密钥
+==> 启动验证管道 (Worker + Outbox Relay — 新建验证任务从 QUEUED 走到终态)
+    [..] Worker 启动中 (日志: .local\worker.log) ...
+    [ok] Worker 就绪 (metrics 端口 9100)
+    [..] Outbox Relay 启动中 (日志: .local\outbox.log) ...
 ==> 启动 FastAPI (uvicorn api.server:app -> http://127.0.0.1:8000)
     [..] API 启动中 (日志: .local\api.log) ...
     [ok] API 就绪: http://127.0.0.1:8000/health
 ==> 播种演示数据 (幂等, 可重复执行)
 [seed] 验证任务(演示历史): 新建 3, 已存在 0 (存储: MySQL — 与 API 相同)
 [seed] Agent 任务: <uuid> 【演示】修复 double 函数 — created via POST /agent/jobs — 状态: AWAITING_APPROVAL
-==> 启动验证管道 (Outbox Relay + Worker — 新建验证任务可直接跑通)
-    [..] Outbox Relay 启动中 (日志: .local\relay.log) ...
-    [..] Worker 启动中 (日志: .local\worker.log) ...
-    [ok] Worker 就绪 (metrics 端口 9100)
 ==> 启动前端 (Vite dev server -> http://localhost:5173)
     [..] Vite 启动中 (日志: .local\web.log) ...
 ==> 全部就绪
@@ -93,7 +95,7 @@ pwsh scripts\start_local.ps1
   Web 前端   : http://localhost:5173           <- 从这里开始
   API 文档   : http://127.0.0.1:8000/docs
   登录密钥   : specproof-local-demo-key   (登录页选择 X-API-Key)
-  日志       : .local\api.log / .local\web.log
+  日志       : .local\api.log / .local\web.log / .local\worker.log / .local\outbox.log
   停止       : pwsh scripts\stop_local.ps1
 ````
 
@@ -248,9 +250,11 @@ Agent 任务存储回退到 SQLite `.local\specproof_agent_jobs.db`。种子数�
 
 ## 7. 已知限制 (诚实的边界)
 
-1. **验证管道已并入一键启动 (W43.1)**: Outbox Relay + Worker 随 `start_local.ps1` 一起启动,
-   新建验证任务真实跑通 (实测 QUEUED → BLOCKED, 见 §4.1)。Worker 由 `scripts/run_worker.py`
-   启动 —— 该启动器兜底了两处上游回归并已报告给对应车道: ① `python -m agent.worker` 的 main()
+1. **worker/outbox 已随一键启动拉起 (W43.1)**: `start_local.ps1` 在 API 之前依次启动验证 Worker
+   与 Outbox Relay (顺序: infra → worker → outbox → API → seed → Vite; 启动失败只警告不阻断,
+   原因写入 `.local\worker.log` / `.local\outbox.log`), 新建验证任务不再停在 QUEUED ——
+   实测 QUEUED → BLOCKED 真实闭环 (见 §4.1)。Worker 由 `scripts/run_worker.py` 启动,
+   该启动器兜底了两处上游回归并已报告给对应车道: ① `python -m agent.worker` 的 main()
    注册消费者后从不泵送连接 (进程随即退出, 消息永远停在 ready, 实测复现); ② Worker.start() 传入的
    幂等检查布尔语义与消费者契约相反 (True 应为"重复")。启动器不改动任何现有源码。
    遗留: Worker 只写 summary/findings, 不落盘证书文件, 所以真实任务的"证书"页是诚实的 404
@@ -286,7 +290,7 @@ Agent 任务存储回退到 SQLite `.local\specproof_agent_jobs.db`。种子数�
 | 前端打开但数据 401 | 登录页密钥不对; 重新粘贴 `specproof-local-demo-key` (或浏览器 devtools 看 `X-API-Key` 头) |
 | `-WithLlm` 提示变量不完整并回退确定性档 | 在同一 PowerShell 会话先设置 `$env:LLM_BASE_URL` / `$env:LLM_API_KEY` 再重跑; 凭据只进环境变量, 别写文件 |
 | 种子警告 MySQL 未就绪 | `docker ps` 查 `specproof-mysql` 健康; 数据卷损坏时 `down -v` 重置 |
-| 新建验证任务停在 QUEUED | 看 `.local\relay.log` / `.local\worker.log`; 确认 `specproof-rabbitmq` 健康且 9100 端口在监听; 重跑 `start_local.ps1` 会自动补起 Relay/Worker |
+| 新建验证任务停在 QUEUED | 看 `.local\outbox.err` (Relay 投递日志) / `.local\worker.log`; 确认 `specproof-rabbitmq` 健康且 9100 端口在监听; 重跑 `start_local.ps1` 会自动补起 Outbox Relay/Worker |
 | 想彻底清空演示数据 | `docker compose -f compose.phase0.yml down -v` + 删除 `.local\specproof_agent_jobs.db` 与 `reports/merge-certificate-*.json`、`capsules/capsule-*.zip` |
 
 ## 9. 交付物清单

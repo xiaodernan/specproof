@@ -1,6 +1,6 @@
-<#
+﻿<#
 .SYNOPSIS
-  SpecProof 本地体验停止脚本 (W43): 停前端/后端进程 + compose down (数据卷保留)。
+  SpecProof 本地体验停止脚本 (W43/W43.1): 停前端/后端/Worker/Outbox 进程树 + compose down (数据卷保留)。
 .DESCRIPTION
   只停止由 start_local.ps1 记录在 .local\*.pid 的进程树;
   不会杀掉未知的端口占用进程。容器执行 compose down
@@ -33,7 +33,7 @@ Write-Host "==> 停止本地体验 (数据卷保留)" -ForegroundColor Cyan
 Stop-Tracked (Join-Path $LocalDir "web.pid") "前端 Vite"
 Stop-Tracked (Join-Path $LocalDir "api.pid") "后端 FastAPI"
 Stop-Tracked (Join-Path $LocalDir "worker.pid") "验证 Worker"
-Stop-Tracked (Join-Path $LocalDir "relay.pid") "Outbox Relay"
+Stop-Tracked (Join-Path $LocalDir "outbox.pid") "Outbox Relay"
 
 Write-Host "==> 停止基础设施容器" -ForegroundColor Cyan
 try {
