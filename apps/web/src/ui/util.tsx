@@ -25,12 +25,6 @@ export function verdictTone(v: string | undefined): StatTone {
   return "mute";
 }
 
-export function severityTone(s: string | undefined): "bad" | "warn" | "info" {
-  if (s === "BLOCKER") return "bad";
-  if (s === "MAJOR") return "warn";
-  return "info";
-}
-
 export function kv(label: string, value: ReactNode): ReactNode {
   return (
     <div className="kv">
