@@ -16,12 +16,12 @@ import pytest
 
 from agent.repo_safety import (
     ALLOWED_ROOT_ENV,
-    CHECK_NAMES,
     CHECK_EXECUTION_MODE_SIGNAL,
+    CHECK_NAMES,
     CHECK_NO_FORBIDDEN_FILES,
     CHECK_NO_SYMLINK_ESCAPE,
-    CHECK_REPO_UNDER_ALLOWED_ROOT,
     CHECK_REPO_SIZE_WITHIN_LIMIT,
+    CHECK_REPO_UNDER_ALLOWED_ROOT,
     MAX_REPO_BYTES_ENV,
     SafetyCheck,
     SafetyReport,
@@ -294,7 +294,9 @@ class TestRepoSize:
         assert check.passed is False
         assert "exceeds limit" in check.detail
 
-    def test_env_limit_overrides_default(self, repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_env_limit_overrides_default(
+        self, repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv(MAX_REPO_BYTES_ENV, "1")
         report = _check(repo, tmp_path)
         assert _get(report, CHECK_REPO_SIZE_WITHIN_LIMIT).passed is False
