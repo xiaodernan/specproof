@@ -1,0 +1,76 @@
+Running evaluation across 20 golden cases (LLM: off)...
+
+
+=== case-21-auth-weakened-permitall (base=base, head=case-21-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['AUTH-01'] (125097 ms)
+
+=== case-22-auth-guard-moved-to-dead-helper (base=base, head=case-22-head) ===
+  [PASS] matched 2 finding(s), contracts found: ['AUTH-01'] (126446 ms)
+
+=== case-23-auth-role-tightened (base=base, head=case-23-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (131813 ms)
+
+=== case-24-auth-expression-inverted (base=base, head=case-24-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['AUTH-01'] (131843 ms)
+
+=== case-25-auth-secured-equivalent (base=base, head=case-25-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (131693 ms)
+
+=== case-26-auth-method-security-disabled (base=base, head=case-26-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['AUTH-01'] (129892 ms)
+
+=== case-27-auth-config-comment (base=base, head=case-27-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (121429 ms)
+
+=== case-28-tx-cancel-order-boundary-removed (base=base, head=case-28-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['TRANSACTION-01'] (122717 ms)
+
+=== case-29-tx-optimistic-lock-removed (base=base, head=case-29-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['CONCURRENCY-01'] (121099 ms)
+
+=== case-30-tx-version-guard-moved-to-getter (base=base, head=case-30-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (122471 ms)
+
+=== case-31-tx-decrement-committed-before-validation (base=base, head=case-31-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['ATOMICITY-01'] (123895 ms)
+
+=== case-32-tx-place-order-boundary-removed (base=base, head=case-32-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['TRANSACTION-01'] (127179 ms)
+
+=== case-33-tx-order-idempotency-dedup-removed (base=base, head=case-33-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['IDEMPOTENT-01'] (135269 ms)
+
+=== case-34-tx-equivalent-dedup-lookup (base=base, head=case-34-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (129029 ms)
+
+=== case-35-tx-stock-decrement-off-by-one (base=base, head=case-35-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['IDEMPOTENT-01'] (123155 ms)
+
+=== case-36-tx-new-order-lookup-endpoint (base=base, head=case-36-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (124581 ms)
+
+=== case-37-tx-place-order-multi-write-atomicity (base=base, head=case-37-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['TRANSACTION-01'] (123827 ms)
+
+=== case-38-tx-readonly-on-user-reads (base=base, head=case-38-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (123863 ms)
+
+=== case-39-tx-cancel-no-restock (base=base, head=case-39-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['ATOMICITY-01'] (129291 ms)
+
+=== case-40-migration-email-column-shrunk (base=base, head=case-40-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['MIGRATION-01'] (133613 ms)
+
+==================================================
+Evaluation Results
+==================================================
+Total cases:        20
+Should detect:      13
+Detected:           13
+False positives:    0
+Precision:          100.0%
+Recall:             100.0%
+F1 Score:           100.0%
+
+HTML report written to docs\eval\eval-c2-rerun.html
+Results JSON written to docs\eval\eval-c2-rerun.results.json
