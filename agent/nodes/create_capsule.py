@@ -259,10 +259,13 @@ TEST_SRC="$CAPSULE_DIR/generated-tests"
 if [ -d "$TEST_SRC" ] && [ "$(ls -A "$TEST_SRC" 2>/dev/null)" ]; then
     echo "  Found generated test files:"
     ls -la "$TEST_SRC/"
-    # Copy test files to the repo's test directory
-    if [ -d "$REPO_DIR/src/test" ]; then
-        cp -r "$TEST_SRC"/* "$REPO_DIR/src/test/" 2>/dev/null || true
-        echo "  Tests copied to $REPO_DIR/src/test/"
+    # Copy test files into the repo's Maven test source root
+    # (src/test/java) so Maven actually compiles and runs them.
+    TEST_DEST="$REPO_DIR/src/test/java"
+    mkdir -p "$TEST_DEST" 2>/dev/null || true
+    if [ -d "$TEST_DEST" ]; then
+        cp -r "$TEST_SRC"/* "$TEST_DEST/" 2>/dev/null || true
+        echo "  Tests copied to $TEST_DEST"
     fi
 else
     echo "  No generated test files in capsule — using existing tests"
@@ -407,7 +410,10 @@ $TestSrc = "$CapsuleDir\\generated-tests"
 if ((Test-Path $TestSrc) -and (Get-ChildItem $TestSrc -ErrorAction SilentlyContinue)) {{
     Write-Host "  Found generated test files:"
     Get-ChildItem $TestSrc | ForEach-Object {{ Write-Host "    $($_.Name)" }}
-    $destDir = "$RepoDir\\src\\test"
+    $destDir = "$RepoDir\\src\\test\\java"
+    if (-not (Test-Path $destDir)) {{
+        New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+    }}
     if (Test-Path $destDir) {{
         Copy-Item -Recurse -Force "$TestSrc\\*" "$destDir\\"
         Write-Host "  Tests copied to $destDir"
