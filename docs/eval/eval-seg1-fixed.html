@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>SpecProof Evaluation Report</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           max-width: 1100px; margin: 0 auto; padding: 40px 20px;
+           background: #0d1117; color: #c9d1d9; }
+    h1 { color: #58a6ff; margin-bottom: 10px; }
+    .meta { color: #8b949e; margin-bottom: 24px; }
+    .stats { display: flex; gap: 16px; margin: 20px 0; flex-wrap: wrap; }
+    .stat { background: #161b22; border: 1px solid #30363d;
+             padding: 12px 20px; border-radius: 6px; text-align: center; }
+    .stat .value { font-size: 24px; font-weight: 700; }
+    .stat .label { font-size: 12px; color: #8b949e; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #30363d; }
+    th { background: #161b22; color: #8b949e; font-weight: 600; font-size: 13px; }
+    tr:hover { background: #1c2128; }
+</style></head>
+<body>
+    <h1>SpecProof Evaluation Report</h1>
+    <p class="meta">Generated: 2026-08-19 13:54:07 UTC | Cases: 6</p>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="value" style="color:#58a6ff">100%</div>
+            <div class="label">Precision</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#7ee787">200%</div>
+            <div class="label">Recall</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#d29922">133%</div>
+            <div class="label">F1 Score</div>
+        </div>
+        <div class="stat">
+            <div class="value">6/3</div>
+            <div class="label">Detected / Should Detect</div>
+        </div>
+        <div class="stat">
+            <div class="value">0</div>
+            <div class="label">False Positives</div>
+        </div>
+    </div>
+
+    <table>
+        <thead><tr>
+            <th>Case</th><th>Verdict</th><th>Expected Contract</th>
+            <th>Expected Severity</th><th>Expected Evidence</th>
+            <th>Matched</th><th>Severities</th><th>Contracts Found</th>
+        </tr></thead>
+        <tbody><tr>
+            <td>case-09-multi-security</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>TRANSACTION-01</td>
+            <td>MAJOR</td>
+            <td>java_source_diff</td>
+            <td>2</td>
+            <td>MAJOR</td>
+            <td>AUTH-01, TRANSACTION-01</td>
+        </tr><tr>
+            <td>case-25-auth-secured-equivalent</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-29-tx-optimistic-lock-removed</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>CONCURRENCY-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>BLOCKER</td>
+            <td>CONCURRENCY-01</td>
+        </tr><tr>
+            <td>case-30-tx-version-guard-moved-to-getter</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-31-tx-decrement-committed-before-validation</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>ATOMICITY-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>BLOCKER</td>
+            <td>ATOMICITY-01</td>
+        </tr><tr>
+            <td>case-44-migration-schema-reformatting</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr></tbody>
+    </table>
+</body></html>
