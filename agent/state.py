@@ -61,6 +61,11 @@ class Phase0State(MessagesState):
     # ── Review Court ──
     candidate_findings: list[dict[str, Any]]
     confirmed_findings: list[dict[str, Any]]
+    # §14.1: full audit of every candidate the policy layer saw — including
+    # model-ignored candidates, parse-failure outcomes (never auto-confirmed)
+    # and preexisting-defect downgrades (Base also fails → NOT_ATTRIBUTED /
+    # INFORMATIONAL with the Base/Head comparison recorded).
+    court_audit: list[dict[str, Any]]
 
     # ── Output ──
     matrix: dict[str, Any]
@@ -112,6 +117,7 @@ def initial_state(
         "contract_results": [],
         "candidate_findings": [],
         "confirmed_findings": [],
+        "court_audit": [],
         "matrix": {},
         "capsules": [],
         "certificate": None,
