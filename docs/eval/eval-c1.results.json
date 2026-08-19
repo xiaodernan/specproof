@@ -1,0 +1,231 @@
+{
+  "total_cases": 20,
+  "should_detect": 12,
+  "detected": 11,
+  "false_positives": 0,
+  "precision": 100.0,
+  "recall": 91.66666666666666,
+  "f1": 95.65217391304347,
+  "cases": [
+    {
+      "case": "case-01-auth-bypass",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "differential_test",
+      "matched_findings": 2,
+      "matched_severities": "BLOCKER, MAJOR",
+      "contracts_found": "AUTH-01",
+      "expected_contract": "AUTH-01"
+    },
+    {
+      "case": "case-02-transactional-removal",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "TRANSACTION-01",
+      "expected_contract": "TRANSACTION-01"
+    },
+    {
+      "case": "case-03-clean-pr",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-04-duplicate-email",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "UNIQUE-01",
+      "expected_contract": "UNIQUE-01"
+    },
+    {
+      "case": "case-05-token-invalidation",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "TOKEN_INVALIDATION-01",
+      "expected_contract": "TOKEN_INVALIDATION-01"
+    },
+    {
+      "case": "case-06-schema-break",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "BACKWARD_COMPATIBLE-01",
+      "expected_contract": "BACKWARD_COMPATIBLE-01"
+    },
+    {
+      "case": "case-07-duplicate-event",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "EVENT_ONCE-01",
+      "expected_contract": "EVENT_ONCE-01"
+    },
+    {
+      "case": "case-08-transaction-split",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "TRANSACTION-01",
+      "expected_contract": "TRANSACTION-01"
+    },
+    {
+      "case": "case-09-multi-security",
+      "verdict": "MISS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "differential_test",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "TRANSACTION-01",
+      "expected_contract": "AUTH-01"
+    },
+    {
+      "case": "case-10-comment-only",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-11-refactor-rename",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "NONE",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-12-add-javadoc",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "NONE",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-13-annotation-aliased",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "NONE",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-14-annotation-moved-to-interface",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "NONE",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-15-whitespace-only-diff",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "NONE",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-16-preauthorize-role-changed",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "NONE",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-17-logic-inversion",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "differential_test",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "UNIQUE-01",
+      "expected_contract": "UNIQUE-01"
+    },
+    {
+      "case": "case-18-wrong-routing-key",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "differential_test",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "EVENT_ONCE-01",
+      "expected_contract": "EVENT_ONCE-01"
+    },
+    {
+      "case": "case-19-email-corruption",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "differential_test",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "UNIQUE-01",
+      "expected_contract": "UNIQUE-01"
+    },
+    {
+      "case": "case-20-validation-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "differential_test",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "UNIQUE-01",
+      "expected_contract": "UNIQUE-01"
+    }
+  ]
+}
