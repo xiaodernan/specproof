@@ -23,30 +23,13 @@ Per-call lifecycle: each handler invocation opens a fresh stdio session
 may switch to a long-lived shared client inside the injection helper if
 call latency matters.
 
-Wiring note (captain, after the craft lane lands):
-
-    from craft.schemas import ToolResult
-    from craft.tools import Param, ToolRegistry, ToolSpec
-
-    for spec in build_external_tool_specs(server_config):
-        raw_handler = spec["handler"]
-        registry.register(ToolSpec(
-            name=spec["name"], version=spec["version"], risk=spec["risk"],
-            params=tuple(Param(**param) for param in spec["params"]),
-            handler=lambda args, h=raw_handler: ToolResult(**h(args)),
-            budget_cost=lambda _args, cost=spec["budget_cost"]: dict(cost),
-        ))
-
-Registry-injection helper signature (documented, NOT wired):
-
-    def inject_external_tools(
-        registry: ToolRegistry,
-        server_config: ServerConfig | Sequence[ServerConfig] | None,
-        *,
-        timeout: float = DEFAULT_MCP_TIMEOUT,
-        max_output_bytes: int = DEFAULT_MAX_OUTPUT_BYTES,
-    ) -> list[str]:
-        '''Register every spec from build_external_tool_specs; return names.'''
+Wiring (W59, landed): craft/mcp_wiring.register_external_tools(registry,
+server_config) performs this injection on the craft side - this module
+stays standalone and never imports craft.*. The helper converts every spec
+into a real ToolSpec (version 1, risk "readonly", Param(**param) params, a
+handler wrapping the bridge handler's ToolResult-shaped dict, budget_cost)
+and registers it, returning the registered names. Unconfigured
+configuration registers nothing.
 
 Schema mapping caveat: JSON properties of type "object"/"null" have no
 craft Param kind and map to "str" as a passthrough advisory - the external
