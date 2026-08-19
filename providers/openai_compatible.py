@@ -16,7 +16,12 @@ DeepSeek V4 Pro adaptation (see docs/design/DEEPSEEK_V4_PRO_ADAPTATION.md):
   extra-body passthrough); legacy callers that pass neither keep the
   exact previous request shape;
 - reasoning_content is carried on LLMResponse and never enters content or
-  the tool-call/JSON parsing path (ADR-017: in-memory only, never stored).
+  the tool-call/JSON parsing path (ADR-017: in-memory only, never stored);
+- ClientPolicy gate (W44/W60 wiring): when SPECPROOF_PROVIDER_POLICY=1, a
+  chat() call tagged with kind= flows through providers/client_policy.py
+  (two-tier router + classify_retry retry matrix + semantic cache for
+  draft/diagnose); when the gate is unset, the exact legacy path runs —
+  the policy layer is never even constructed.
 """
 from __future__ import annotations
 
@@ -42,6 +47,7 @@ from tenacity import (
 
 from .base import LLMMessage, LLMResponse, ModelProvider
 from .capability_probe import CapabilityProbe
+from .client_policy import ClientPolicy, client_policy_enabled
 from .probe_result import ProbeResult
 from .prompt_templates import JSON_ACTION_ENVELOPE_BLOCK
 
@@ -159,6 +165,7 @@ class OpenAICompatibleProvider(ModelProvider):
         timeout: float = 180.0,
         probe_on_init: bool = False,
         max_retries: int | None = None,
+        policy: ClientPolicy | None = None,
     ) -> None:
         self.base_url = (base_url or os.getenv("LLM_BASE_URL") or "").rstrip("/")
         self.api_key = api_key or os.getenv("LLM_API_KEY", "")
@@ -171,6 +178,24 @@ class OpenAICompatibleProvider(ModelProvider):
         else:
             self._max_retries = _env_int("LLM_MAX_RETRIES", default=2)
 
+        # W44/W60 wiring — the ClientPolicy gate. Default off: when the env
+        # switch is unset the provider never constructs a policy and every
+        # call runs the exact legacy path (byte-identical behavior).
+        self._policy: ClientPolicy | None
+        if policy is not None:
+            # Explicit programmatic opt-in (tests / embedders); the env gate
+            # below is the production switch.
+            self._policy = policy
+        elif client_policy_enabled():
+            # max_attempts mirrors the tenacity budget: LLM_MAX_RETRIES
+            # retries means max_retries + 1 attempts on the policy path too.
+            self._policy = ClientPolicy(max_attempts=max(1, self._max_retries + 1))
+        else:
+            self._policy = None
+        # One SDK client per routed tier base_url (policy calls only; the
+        # legacy strong client remains self._client). Empty when policy off.
+        self._policy_clients: dict[str, AsyncOpenAI] = {}
+
         if not self.api_key or self.api_key == "replace_me":
             raise ValueError(
                 "LLM_API_KEY is not set or is placeholder 'replace_me'. "
@@ -180,19 +205,23 @@ class OpenAICompatibleProvider(ModelProvider):
     @property
     def client(self) -> AsyncOpenAI:
         if self._client is None:
-            base_url_value = self.base_url
-            if not base_url_value.endswith("/v1"):
-                base_url_value += "/v1"
-            # max_retries=0: the tenacity layer in _create_chat_completion is
-            # the single retry owner (LLM_MAX_RETRIES semantics + Retry-After
-            # handling). Leaving the SDK default on would double-count 429s.
-            self._client = AsyncOpenAI(
-                base_url=base_url_value,
-                api_key=self.api_key,
-                timeout=self.timeout,
-                max_retries=0,
-            )
+            self._client = self._make_client(self.base_url)
         return self._client
+
+    def _make_client(self, base_url: str) -> AsyncOpenAI:
+        """Build one AsyncOpenAI client for a base_url (adds the /v1 suffix)."""
+        base_url_value = base_url
+        if not base_url_value.endswith("/v1"):
+            base_url_value += "/v1"
+        # max_retries=0: the tenacity layer in _create_chat_completion is
+        # the single retry owner (LLM_MAX_RETRIES semantics + Retry-After
+        # handling). Leaving the SDK default on would double-count 429s.
+        return AsyncOpenAI(
+            base_url=base_url_value,
+            api_key=self.api_key,
+            timeout=self.timeout,
+            max_retries=0,
+        )
 
     @property
     def probe_result(self) -> ProbeResult:
@@ -238,6 +267,45 @@ class OpenAICompatibleProvider(ModelProvider):
 
         return await retryer(_attempt)
 
+    @staticmethod
+    async def _raw_create(client: AsyncOpenAI, kwargs: dict[str, Any]) -> Any:
+        """One raw SDK completion call on an injected client (policy path)."""
+        return await client.chat.completions.create(**kwargs)
+
+    def _client_for_base_url(self, base_url: str) -> AsyncOpenAI:
+        """Resolve a routed base_url to an SDK client (policy path).
+
+        An empty base_url — or one that resolves to this provider's own
+        endpoint — reuses the legacy client, so a strong route with no
+        explicit config is identical to today. Any other base_url gets a
+        dedicated cached client built with the same construction parameters
+        (max_retries=0 — the policy retry layer is the single retry owner).
+        """
+        if not base_url or base_url.rstrip("/") == self.base_url:
+            return self.client
+        client = self._policy_clients.get(base_url)
+        if client is None:
+            client = self._make_client(base_url)
+            self._policy_clients[base_url] = client
+        return client
+
+    async def _policy_chat(
+        self, policy: ClientPolicy, kind: str, kwargs: dict[str, Any]
+    ) -> Any:
+        """One policy-governed call: ClientPolicy routes, caches and retries.
+
+        The policy decides WHICH client each attempt rides (cheap vs strong
+        tier) and whether the semantic cache can short-circuit; this method
+        supplies the client factory and the raw SDK call so the policy never
+        touches SDK construction, response parsing or client lifecycle.
+        """
+        return await policy.execute(
+            kind,
+            kwargs,
+            create=self._raw_create,
+            make_client=self._client_for_base_url,
+        )
+
     async def chat(
         self,
         messages: list[LLMMessage],
@@ -247,6 +315,7 @@ class OpenAICompatibleProvider(ModelProvider):
         thinking: bool | dict[str, Any] = False,
         opts: dict[str, Any] | None = None,
         timeout: float = 180.0,
+        kind: str | None = None,
     ) -> LLMResponse:
         probe = await self._ensure_probed()
         caps = probe.capabilities
@@ -278,7 +347,14 @@ class OpenAICompatibleProvider(ModelProvider):
         if extra_body:
             kwargs["extra_body"] = extra_body
 
-        response = await self._create_chat_completion(kwargs)
+        policy = self._policy
+        if policy is not None and kind is not None:
+            # W44/W60: policy-governed call (route + classify_retry matrix +
+            # semantic cache). Only kind-tagged calls under an enabled policy
+            # leave the legacy path; everything else stays byte-identical.
+            response = await self._policy_chat(policy, kind, kwargs)
+        else:
+            response = await self._create_chat_completion(kwargs)
         return self._to_llm_response(response)
 
     async def chat_stream(  # type: ignore[override, misc]
@@ -405,6 +481,9 @@ class OpenAICompatibleProvider(ModelProvider):
         return [system_msg] + messages
 
     async def close(self) -> None:
+        for client in self._policy_clients.values():
+            await client.close()
+        self._policy_clients.clear()
         if self._client:
             await self._client.close()
             self._client = None
