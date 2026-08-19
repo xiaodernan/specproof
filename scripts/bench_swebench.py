@@ -1,29 +1,43 @@
-"""Honest SWE-bench-Lite harness for SpecCraft's deterministic pipeline.
+"""Honest SWE-bench-Lite harness for SpecCraft (deterministic + LLM modes).
 
 What this measures (and what it does not) — see docs/eval/SWEBENCH_PLAN.md.
-Short version: the harness runs the REAL deterministic craft loop
-(plan -> execute -> verify) against SWE-bench-Lite style instances, applies
-each instance's test_patch, replays its FAIL_TO_PASS / PASS_TO_PASS tests
-and records `resolved: true` ONLY when craft converged AND every test
-passed. Every other outcome is `status=unresolved` with a non-empty
-`reason` — the harness never fabricates a resolution.
+Short version: the harness runs the REAL craft loop (plan -> execute ->
+verify) against SWE-bench-Lite style instances, applies each instance's
+test_patch, replays its FAIL_TO_PASS / PASS_TO_PASS tests and records
+`resolved: true` ONLY when craft converged AND every test passed. Every
+other outcome is `status=unresolved` with a non-empty `reason` — the
+harness never fabricates a resolution.
 
-Deterministic-mode honesty (design contract):
+Deterministic mode (default):
 - craft's M1 loop only fixes through EXPLICITLY INJECTED fix rules
   (fix_registry / --fix-module). The bundled sample ships exactly one
   hardcoded rule for `specproof__toycalc-double-1`; real SWE-bench
   instance ids have no rules, so they are recorded unresolved with
   "no fix produced" (craft stage SKIPPED) instead of pretending.
-- checkout / patch / test-run failures each become unresolved records with
-  the real error on record.
+
+LLM mode (--mode llm):
+- the LLMClient is built from LLM_API_KEY / LLM_BASE_URL / LLM_MODEL via
+  craft.llm (lazy provider, real network calls); missing env vars are an
+  honest exit BEFORE any instance work;
+- the craft loop runs WITHOUT fix_registry: planning, diagnosis and edits
+  all go through the real client (plan/diagnose/edit), and every stage
+  failure (checkout / craft / test_patch / deps / tests) becomes an
+  unresolved record with the real reason;
+- FAIL_TO_PASS / PASS_TO_PASS are replayed with plain pytest in a shared
+  per-run venv (created + pytest installed automatically; trivial
+  per-instance dependency install from the repo's install config; any
+  failure there is an honest unresolved "deps unavailable");
+- --no-venv skips the venv/deps stage (offline sample / tests).
 
 Offline by default: `python scripts/bench_swebench.py --offline` runs the
 bundled toy sample (scripts/swebench_sample/) with no network and no
 Docker. Real runs need the dataset JSON (scripts/fetch_swebench_lite.ps1)
-plus per-instance git checkouts — see the plan doc for the manual steps.
+or a HuggingFace dataset id, plus network git access for per-instance
+checkouts — see the plan doc for the manual steps.
 
 CLI: --tasks N (default 10) --dataset <path|hf-id>
-     --output docs/eval/swebench-results.json --mode deterministic
+     --output docs/eval/swebench-results.json
+     --mode deterministic|llm --instances-file <json> [--no-venv]
 """
 
 from __future__ import annotations
@@ -31,6 +45,8 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -39,6 +55,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -49,6 +66,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from craft.budget import Budget  # noqa: E402
 from craft.editor import Editor  # noqa: E402
+from craft.llm import LLMClient  # noqa: E402
 from craft.loop import CraftLoop, FixFunction  # noqa: E402
 from craft.planner import Step, compile_plan, write_json_atomic  # noqa: E402
 from craft.spec import TaskSpec  # noqa: E402
@@ -58,6 +76,9 @@ SAMPLE_INSTANCES = SAMPLE_DIR / "instances.json"
 DEFAULT_OUTPUT = REPO_ROOT / "docs" / "eval" / "swebench-results.json"
 SCHEMA_VERSION = "1.0"
 _ROWS_API = "https://datasets-server.huggingface.co/rows"
+_LLM_ENV_VARS = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
+_INSTANCE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+__[A-Za-z0-9_.-]+-\d+$")
+_INSTALL_MARKERS = ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt")
 
 
 def _fix_toycalc_double(editor: Editor, step: Step, diagnosis: str) -> list[str]:
@@ -100,8 +121,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="bench_swebench",
         description=(
-            "诚实的 SWE-bench-Lite 评测 harness: 用 SpecCraft 确定性管道跑实例, "
-            "应用 test_patch, 重放 FAIL_TO_PASS / PASS_TO_PASS, 只记录真实结果"
+            "诚实的 SWE-bench-Lite 评测 harness: 用 SpecCraft 管道 (确定性或 LLM 模式) "
+            "跑实例, 应用 test_patch, 重放 FAIL_TO_PASS / PASS_TO_PASS, 只记录真实结果"
         ),
     )
     parser.add_argument(
@@ -116,12 +137,34 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"结果 JSON 路径 (默认 {DEFAULT_OUTPUT})",
     )
     parser.add_argument(
-        "--mode", choices=("deterministic",), default="deterministic",
-        help="运行模式 (当前仅 deterministic; LLM agent 模式未实现, 传入其它值即拒绝)",
+        "--mode", choices=("deterministic", "llm"), default="deterministic",
+        help=(
+            "deterministic=仅注入 fix 规则驱动; llm=从 LLM_API_KEY/LLM_BASE_URL/"
+            "LLM_MODEL 构建真实客户端, 无 fix_registry 地跑 plan/diagnose/edit "
+            "(缺少环境变量时诚实退出)"
+        ),
     )
     parser.add_argument(
         "--offline", action="store_true",
         help="使用捆绑离线样例 (scripts/swebench_sample/), 无需网络/Docker",
+    )
+    parser.add_argument(
+        "--instances-file", type=Path, default=None,
+        help=(
+            "精选子集 JSON (instance_id 数组, 如 scripts/swebench_subset/"
+            "python_subset.json): 只评测列出的实例; 与 --dataset 联用"
+        ),
+    )
+    parser.add_argument(
+        "--no-venv", action="store_true",
+        help=(
+            "llm 模式: 跳过共享 venv 创建与依赖安装, 直接以当前解释器跑 pytest "
+            "(离线样例/单元测试路径; 真实实例默认建 venv)"
+        ),
+    )
+    parser.add_argument(
+        "--deps-timeout", type=int, default=600,
+        help="llm 模式 venv 创建/pip 安装超时 (秒, 默认 600)",
     )
     parser.add_argument(
         "--repo-dir", type=Path, default=None,
@@ -226,11 +269,14 @@ def _read_dataset_file(path: Path) -> list[dict[str, Any]]:
 
 
 def _load_instances(
-    dataset: str | None, offline: bool, tasks: int
-) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    dataset: str | None,
+    offline: bool,
+    tasks: int,
+    instances_file: Path | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if offline:
         path = SAMPLE_INSTANCES
-        source: dict[str, str] = {"kind": "offline-sample", "path": str(path)}
+        source: dict[str, Any] = {"kind": "offline-sample", "path": str(path)}
         if not path.is_file():
             raise HarnessError(f"捆绑样例缺失: {path}")
         instances = _read_dataset_file(path)
@@ -246,12 +292,28 @@ def _load_instances(
             instances = _read_dataset_file(candidate)
         elif "/" in dataset:
             source = {"kind": "hf-rows-api", "dataset": dataset}
-            instances = _fetch_hf_rows(dataset, limit=tasks)
+            # With a subset file the wanted ids may live anywhere in the
+            # split, so fetch the full split (limit=0) before filtering.
+            fetch_limit = 0 if instances_file is not None else tasks
+            instances = _fetch_hf_rows(dataset, limit=fetch_limit)
         else:
             raise HarnessError(
                 f"--dataset {dataset!r} 既不是已存在的文件也不是 hf 数据集 id "
                 "(owner/name 形式); 离线可 --offline"
             )
+    if instances_file is not None:
+        wanted = _load_subset_file(instances_file)
+        instances, missing = _filter_by_subset(instances, wanted)
+        if missing:
+            raise HarnessError(
+                f"instances-file 中的 {len(missing)} 个 id 不在数据集里: {missing} — "
+                "请核对子集与 --dataset 是否对应同一 split"
+            )
+        source["subset"] = {
+            "path": str(instances_file),
+            "requested": len(wanted),
+            "matched": len(instances),
+        }
     if tasks > 0:
         instances = instances[:tasks]
     source_path = source.get("path")
@@ -309,6 +371,180 @@ def _validate_instance(entry: object, index: int) -> tuple[dict[str, Any] | None
     if not str(entry["instance_id"]).strip():
         return None, f"instance[{index}].instance_id 为空"
     return cast(dict[str, Any], entry), ""
+
+
+# -- llm mode: env / client / subset / venv --------------------------------
+
+def _validate_llm_env() -> list[str]:
+    """Check the three LLM_* env vars; return the list of problems.
+
+    Empty list = usable configuration. The check is deliberately BEFORE any
+    dataset/network work: a missing key is an honest usage exit, never a
+    half-run. The key value itself is never printed or recorded.
+    """
+    problems: list[str] = []
+    for name in _LLM_ENV_VARS:
+        if not os.getenv(name, "").strip():
+            problems.append(name)
+    if os.getenv("LLM_API_KEY", "").strip() == "replace_me":
+        problems.append("LLM_API_KEY (占位符 'replace_me')")
+    return problems
+
+
+def _build_llm_client(job_id: str = "") -> LLMClient:
+    """Build the M2 client from the LLM_* env vars via craft.llm.
+
+    The provider is constructed lazily inside LLMClient (probe_on_init=False),
+    so this call performs no network I/O. Unit tests monkeypatch this factory
+    to inject a deterministic fake client (no LLM, no network).
+    """
+    return LLMClient(job_id=job_id)
+
+
+def _redact_base_url() -> str:
+    """De-credentialed LLM_BASE_URL summary: scheme + host + port ONLY.
+
+    Never records path/query/userinfo — base URLs can embed credentials, and
+    the results JSON must stay key-free (tests/security/test_no_key_leak.py).
+    """
+    raw = os.getenv("LLM_BASE_URL", "").strip()
+    if not raw:
+        return "(unset)"
+    try:
+        parts = urllib.parse.urlsplit(raw)
+    except ValueError:
+        return "(unparseable)"
+    host = parts.hostname or raw
+    port = f":{parts.port}" if parts.port else ""
+    return f"{parts.scheme or 'http'}://{host}{port}"
+
+
+def _load_subset_file(path: Path) -> list[str]:
+    """Load a curated subset file: a JSON array of SWE-bench instance ids.
+
+    Strict schema: top-level array, non-empty, unique, every entry a
+    non-empty string matching owner__name-N. Anything else is a HarnessError
+    (the subset is a usage contract, not an instance verdict).
+    """
+    try:
+        payload: Any = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HarnessError(f"instances-file 无法读取/解析 ({path}): {exc}") from exc
+    if not isinstance(payload, list):
+        raise HarnessError(
+            f"instances-file 顶层必须是 instance_id 字符串数组 ({path})"
+        )
+    ids: list[str] = []
+    for index, entry in enumerate(payload):
+        if not isinstance(entry, str) or not entry.strip():
+            raise HarnessError(f"instances-file[{index}] 应为非空 instance_id 字符串")
+        instance_id = entry.strip()
+        if not _INSTANCE_ID_RE.fullmatch(instance_id):
+            raise HarnessError(
+                f"instances-file[{index}] {instance_id!r} 不是 SWE-bench instance_id "
+                "(应为 owner__name-N 形式)"
+            )
+        ids.append(instance_id)
+    if not ids:
+        raise HarnessError(f"instances-file 为空数组 ({path})")
+    if len(set(ids)) != len(ids):
+        raise HarnessError(f"instances-file 存在重复 instance_id ({path})")
+    return ids
+
+
+def _filter_by_subset(
+    instances: list[dict[str, Any]], wanted_ids: list[str]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Keep dataset rows whose instance_id is in the subset, preserving the
+    subset's order. Ids absent from the dataset are reported honestly."""
+    by_id = {str(instance.get("instance_id", "")): instance for instance in instances}
+    missing = [instance_id for instance_id in wanted_ids if instance_id not in by_id]
+    filtered = [by_id[instance_id] for instance_id in wanted_ids if instance_id in by_id]
+    return filtered, missing
+
+
+def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, str]:
+    """One shared venv per run (llm mode) with pytest installed.
+
+    --no-venv disables it (offline sample / unit tests): the harness
+    interpreter runs pytest directly and no pip installs happen. Every
+    failure returns python="" + the real error — callers turn that into an
+    honest per-instance "deps unavailable", never a crash.
+    """
+    if not enabled:
+        return {
+            "python": sys.executable,
+            "error": "",
+            "note": "--no-venv: 直接使用当前解释器, 跳过依赖安装 (样例/测试路径)",
+        }
+    venv_dir = work_root / "venv"
+    python = (
+        str(venv_dir / "Scripts" / "python.exe")
+        if os.name == "nt"
+        else str(venv_dir / "bin" / "python")
+    )
+    if Path(python).is_file():
+        return {"python": python, "error": "", "note": "复用已存在的共享 venv"}
+    try:
+        create = subprocess.run(
+            [sys.executable, "-m", "venv", str(venv_dir)],
+            capture_output=True, text=True, timeout=timeout, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"python": "", "error": f"venv 创建失败: {exc}", "note": ""}
+    if create.returncode != 0:
+        tail = f"{create.stdout}\n{create.stderr}".strip()
+        return {"python": "", "error": f"venv 创建失败: {tail[-800:]}", "note": ""}
+    try:
+        pip = subprocess.run(
+            [python, "-m", "pip", "install", "--no-input",
+             "--disable-pip-version-check", "pytest"],
+            capture_output=True, text=True, timeout=timeout, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"python": python, "error": f"venv pytest 安装失败: {exc}", "note": ""}
+    if pip.returncode != 0:
+        tail = f"{pip.stdout}\n{pip.stderr}".strip()
+        return {"python": python, "error": f"venv pytest 安装失败: {tail[-800:]}", "note": ""}
+    return {"python": python, "error": "", "note": "共享 venv + pytest 已就绪"}
+
+
+def _first_install_marker(workdir: Path) -> str | None:
+    """The repo's install config, in pip-install priority order.
+
+    pyproject/setup.py/setup.cfg mean `pip install .` (package + pinned deps);
+    requirements.txt is the fallback (`pip install -r`). None = no trivial
+    install config — the deps stage is skipped, not an error.
+    """
+    for marker in _INSTALL_MARKERS:
+        if (workdir / marker).is_file():
+            return marker
+    return None
+
+
+def _install_instance_deps(
+    python: str, workdir: Path, marker: str, timeout: int
+) -> dict[str, Any]:
+    """Trivial dependency install into the shared venv. Failure is returned
+    (honest "deps unavailable"), never raised — heavy/compiled dependencies
+    simply time out or fail on record."""
+    if marker == "requirements.txt":
+        command = [python, "-m", "pip", "install", "--no-input",
+                   "--disable-pip-version-check", "-r", marker]
+    else:
+        command = [python, "-m", "pip", "install", "--no-input",
+                   "--disable-pip-version-check", "."]
+    try:
+        proc = subprocess.run(
+            command, cwd=workdir, capture_output=True, text=True,
+            timeout=timeout, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"installed": False, "error": f"pip install 执行失败 ({marker}): {exc}"}
+    tail = f"{proc.stdout}\n{proc.stderr}".strip()
+    if proc.returncode != 0:
+        return {"installed": False, "error": f"pip install 失败 ({marker}): {tail[-800:]}"}
+    return {"installed": True, "error": ""}
 
 
 # -- fix registry ----------------------------------------------------------
@@ -381,26 +617,33 @@ def _checkout_instance(
             source = cached
     if source is None:
         if repo_spec.startswith(("http://", "https://", "git://", "git@", "ssh://")):
-            cached = repo_dir / slug
-            try:
-                cached.parent.mkdir(parents=True, exist_ok=True)
-                subprocess.run(
-                    ["git", "clone", repo_spec, str(cached)],
-                    capture_output=True, text=True, timeout=3600, check=True,
-                )
-            except subprocess.CalledProcessError as exc:
-                tail = (exc.stderr or exc.stdout or "").strip()
-                raise InstanceError(f"repo clone failed: {tail[-800:]}") from exc
-            except subprocess.TimeoutExpired as exc:
-                raise InstanceError("repo clone failed: 超时 (3600s)") from exc
-            except OSError as exc:
-                raise InstanceError(f"repo clone failed to start: {exc}") from exc
-            source = cached
+            clone_url = repo_spec
+        elif "/" in repo_spec and repo_spec.count("/") == 1:
+            # SWE-bench `repo` fields are owner/name; clone from GitHub via
+            # the standard proxy environment (HTTPS_PROXY/HTTP_PROXY).
+            clone_url = f"https://github.com/{repo_spec}.git"
         else:
             raise InstanceError(
                 f"repo source unavailable: {repo_spec!r} 不是本地路径也不是可克隆 URL; "
                 "本地 checkout 请放到 --repo-dir 下 (目录名=slug) 或使用可克隆 URL"
             )
+        cached = repo_dir / slug
+        try:
+            cached.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(
+                ["git", "clone", clone_url, str(cached)],
+                capture_output=True, text=True, timeout=3600, check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            tail = (exc.stderr or exc.stdout or "").strip()
+            raise InstanceError(
+                f"repo clone failed ({clone_url}): {tail[-800:]}"
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise InstanceError(f"repo clone failed ({clone_url}): 超时 (3600s)") from exc
+        except OSError as exc:
+            raise InstanceError(f"repo clone failed to start ({clone_url}): {exc}") from exc
+        source = cached
     target = work_root / _safe_dirname(instance_id)
     if _is_git_dir(source):
         try:
@@ -484,10 +727,14 @@ def _append_log(log_path: Path, text: str) -> None:
 
 
 def _run_one_test(
-    workdir: Path, node_id: str, timeout: int, log_path: Path
+    workdir: Path,
+    node_id: str,
+    timeout: int,
+    log_path: Path,
+    python: str | None = None,
 ) -> dict[str, Any]:
     command = [
-        sys.executable, "-m", "pytest", "-q", "--no-header",
+        python or sys.executable, "-m", "pytest", "-q", "--no-header",
         "-p", "no:cacheprovider", node_id,
     ]
     started = time.monotonic()
@@ -551,12 +798,21 @@ def _craft_failure_reason(report: dict[str, Any]) -> str:
 def _run_craft(
     instance: dict[str, Any],
     workdir: Path,
-    fix_rules: dict[str, FixFunction],
+    fix_rules: dict[str, FixFunction] | None,
     artifact_dir: Path,
     exec_timeout: int,
     max_iterations: int,
+    *,
+    mode: str = "deterministic",
+    client: LLMClient | None = None,
 ) -> dict[str, Any]:
-    """Run the real deterministic craft loop in-memory (exec_mode=local)."""
+    """Run the real craft loop in-memory (exec_mode=local).
+
+    deterministic: M1 rule plan + injected fix rules only.
+    llm: LLM planning (degrading honestly to the rule plan on failure) and
+    the M2 diagnose/edit path through the client; fix_rules must be empty
+    (the LLM mode never consults the fix registry).
+    """
     spec = TaskSpec(
         title=f"[{instance['instance_id']}] 修复缺陷 (SWE-bench)",
         description=str(instance["problem_statement"]),
@@ -564,7 +820,11 @@ def _run_craft(
         forbidden_changes=[],
         affected_area_hint="",
     )
-    plan = compile_plan(spec)
+    budget = Budget(max_iterations=max_iterations)
+    if mode == "llm":
+        plan = compile_plan(spec, mode="llm", budget=budget, client=client)
+    else:
+        plan = compile_plan(spec, budget=budget)
     loop = CraftLoop(
         spec,
         plan,
@@ -574,7 +834,8 @@ def _run_craft(
         fix_registry=fix_rules,
         exec_mode="local",
         exec_timeout=exec_timeout,
-        budget=Budget(max_iterations=max_iterations),
+        budget=budget,
+        client=client,
     )
     return loop.run()
 
@@ -623,6 +884,10 @@ def run_instance(
     fix_registry: dict[str, dict[str, FixFunction]],
     exec_timeout: int,
     max_iterations: int,
+    mode: str = "deterministic",
+    llm_client_factory: Callable[[str], LLMClient] | None = None,
+    venv: dict[str, str] | None = None,
+    deps_timeout: int = 600,
 ) -> dict[str, Any]:
     instance_id = str(instance["instance_id"])
     instance_logs = logs_dir / _safe_dirname(instance_id)
@@ -632,6 +897,14 @@ def run_instance(
     record["base_commit"] = str(instance["base_commit"])
     record["problem_statement_head"] = str(instance["problem_statement"])[:300]
     record["logs"] = {"tests_log": str(tests_log)}
+    llm_mode = mode == "llm"
+    if llm_mode:
+        record["llm"] = {
+            "client": "craft.llm.LLMClient",
+            "model": os.getenv("LLM_MODEL", ""),
+            "base_url": _redact_base_url(),
+            "key_recorded": False,
+        }
 
     def fail(stage: str, reason: str) -> dict[str, Any]:
         record["stage"] = stage
@@ -646,18 +919,36 @@ def run_instance(
         except InstanceError as exc:
             return fail("setup", str(exc))
         record["checkout"] = checkout_info
-        fix_rules = fix_registry.get(instance_id)
-        if fix_rules is None:
-            record["note"] = "fix_registry 为空: craft 管道 SKIPPED (确定性模式绝不虚构修复)"
-            return fail(
-                "craft",
-                f"no fix produced: 没有为 {instance_id} 注入确定性 fix 规则 "
-                "(fix_registry 为空 → craft 管道 SKIPPED); 未运行测试, 未声称 resolved",
-            )
+        fix_rules: dict[str, FixFunction] | None
+        if llm_mode:
+            fix_rules = {}
+            if llm_client_factory is None:
+                return fail(
+                    "craft",
+                    "llm 模式缺少客户端工厂 (程序错误): 未声称 resolved",
+                )
+            client = llm_client_factory(f"swebench-{instance_id}")
+        else:
+            client = None
+            fix_rules = fix_registry.get(instance_id)
+            if fix_rules is None:
+                record["note"] = "fix_registry 为空: craft 管道 SKIPPED (确定性模式绝不虚构修复)"
+                return fail(
+                    "craft",
+                    f"no fix produced: 没有为 {instance_id} 注入确定性 fix 规则 "
+                    "(fix_registry 为空 → craft 管道 SKIPPED); 未运行测试, 未声称 resolved",
+                )
         craft_artifact_dir = instance_logs / "craft"
         try:
             report = _run_craft(
-                instance, workdir, fix_rules, craft_artifact_dir, exec_timeout, max_iterations
+                instance,
+                workdir,
+                fix_rules,
+                craft_artifact_dir,
+                exec_timeout,
+                max_iterations,
+                mode=mode,
+                client=client,
             )
         except Exception as exc:
             record["craft"] = {
@@ -674,7 +965,7 @@ def run_instance(
             else []
         )
         budget_used = report.get("budget_used")
-        record["craft"] = {
+        craft_record: dict[str, Any] = {
             "result": craft_result,
             "mode": report.get("mode"),
             "edits": edits,
@@ -682,21 +973,60 @@ def run_instance(
             "seconds": budget_used.get("seconds") if isinstance(budget_used, dict) else None,
             "report_path": str(craft_artifact_dir / "report.json"),
         }
+        if report.get("llm_fallback_reason"):
+            craft_record["llm_fallback_reason"] = str(report["llm_fallback_reason"])
+        llm_usage = report.get("llm_usage")
+        if isinstance(llm_usage, dict):
+            craft_record["llm_usage"] = llm_usage
+        record["craft"] = craft_record
         if craft_result != "DONE":
             return fail("craft", f"craft 未收敛 ({craft_result}): {_craft_failure_reason(report)}")
         patch_info = _apply_test_patch(workdir, str(instance["test_patch"]))
         record["test_patch"] = patch_info
         if not patch_info["applied"]:
             return fail("test_patch", str(patch_info["error"]))
+        test_python = sys.executable
+        if llm_mode:
+            venv_info = venv if venv is not None else {"python": "", "error": "", "note": ""}
+            deps_record: dict[str, Any] = {
+                "python": venv_info.get("python", "") or sys.executable,
+                "venv_error": venv_info.get("error", ""),
+                "note": venv_info.get("note", ""),
+                "install_marker": None,
+                "installed": False,
+                "install_error": "",
+            }
+            record["deps"] = deps_record
+            venv_python = venv_info.get("python", "")
+            if venv_python:
+                test_python = venv_python
+                marker = _first_install_marker(workdir)
+                deps_record["install_marker"] = marker
+                if marker is not None:
+                    install_result = _install_instance_deps(
+                        venv_python, workdir, marker, deps_timeout
+                    )
+                    deps_record["installed"] = bool(install_result["installed"])
+                    deps_record["install_error"] = str(install_result["error"])
+                    if not install_result["installed"]:
+                        return fail("deps", f"deps unavailable: {install_result['error']}")
+            elif not venv_info.get("error"):
+                deps_record["note"] = (
+                    str(deps_record["note"]) + " — 未安装实例依赖, 直接运行 pytest"
+                )
+            else:
+                return fail("deps", f"deps unavailable: venv 不可用: {venv_info['error']}")
         fail_to_pass = [str(node) for node in instance["FAIL_TO_PASS"]]
         pass_to_pass = [str(node) for node in instance["PASS_TO_PASS"]]
         if not fail_to_pass:
             return fail("tests", "FAIL_TO_PASS 为空: 没有可判定的目标测试")
         record["fail_to_pass"] = [
-            _run_one_test(workdir, node, exec_timeout, tests_log) for node in fail_to_pass
+            _run_one_test(workdir, node, exec_timeout, tests_log, python=test_python)
+            for node in fail_to_pass
         ]
         record["pass_to_pass"] = [
-            _run_one_test(workdir, node, exec_timeout, tests_log) for node in pass_to_pass
+            _run_one_test(workdir, node, exec_timeout, tests_log, python=test_python)
+            for node in pass_to_pass
         ]
         record["stage"] = "tests"
         failed_f2p = [r["test"] for r in record["fail_to_pass"] if r["outcome"] != "passed"]
@@ -731,9 +1061,30 @@ def _write_results(payload: dict[str, Any], output_path: Path) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    llm_mode = args.mode == "llm"
+    if llm_mode:
+        env_problems = _validate_llm_env()
+        if env_problems:
+            print(
+                "LLM mode requires LLM_API_KEY/LLM_BASE_URL/LLM_MODEL env vars",
+                file=sys.stderr,
+            )
+            print(f"缺失/无效: {', '.join(env_problems)}", file=sys.stderr)
+            return 2
     try:
-        instances, source = _load_instances(args.dataset, args.offline, args.tasks)
-        registry = _build_fix_registry(args.fix_module)
+        instances, source = _load_instances(
+            args.dataset, args.offline, args.tasks, args.instances_file
+        )
+        if llm_mode:
+            registry: dict[str, dict[str, FixFunction]] = {}
+            if args.fix_module is not None:
+                print(
+                    "警告: --fix-module 在 llm 模式被忽略 "
+                    "(llm 循环不使用注入 fix 规则)",
+                    file=sys.stderr,
+                )
+        else:
+            registry = _build_fix_registry(args.fix_module)
     except HarnessError as exc:
         print(f"bench_swebench: 错误: {exc}", file=sys.stderr)
         print("提示: 离线验证可用 --offline (捆绑样例, 无需网络/Docker)", file=sys.stderr)
@@ -748,6 +1099,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     logs_dir = args.output.parent / "swebench-logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
+    venv_info: dict[str, str]
+    if llm_mode:
+        venv_info = _prepare_venv(
+            work_root, enabled=not args.no_venv, timeout=args.deps_timeout
+        )
+        if venv_info["error"]:
+            print(f"bench_swebench: venv 准备失败: {venv_info['error']}", file=sys.stderr)
+            print(
+                "(相关实例将以 unresolved reason='deps unavailable' 诚实记录)",
+                file=sys.stderr,
+            )
+    else:
+        venv_info = {"python": sys.executable, "error": "", "note": "deterministic 模式不建 venv"}
+    client_factory: Callable[[str], LLMClient] | None = _build_llm_client if llm_mode else None
 
     records: list[dict[str, Any]] = []
     total = len(instances)
@@ -765,6 +1130,10 @@ def main(argv: list[str] | None = None) -> int:
                     fix_registry=registry,
                     exec_timeout=args.exec_timeout,
                     max_iterations=args.max_iterations,
+                    mode=args.mode,
+                    llm_client_factory=client_factory,
+                    venv=venv_info,
+                    deps_timeout=args.deps_timeout,
                 )
             except Exception as exc:
                 record = _crash_record(str(instance.get("instance_id")), exc)
@@ -794,7 +1163,23 @@ def main(argv: list[str] | None = None) -> int:
         dataset_info["path"] = source["path"]
     if "dataset" in source:
         dataset_info["dataset"] = source["dataset"]
-    payload = {
+    subset_info = source.get("subset")
+    if isinstance(subset_info, dict):
+        dataset_info["subset"] = subset_info
+    if llm_mode:
+        summary_note = (
+            "LLM 模式: 真实客户端 (plan/diagnose/edit), 无 fix_registry; "
+            "resolved 仅当 craft DONE + test_patch 应用成功 + FAIL_TO_PASS/"
+            "PASS_TO_PASS 全部通过 — harness 口径, 非官方 Docker 口径 "
+            "(见 SWEBENCH_PLAN.md)"
+        )
+    else:
+        summary_note = (
+            "确定性模式只有显式注入 fix 规则的实例才可能 resolved; "
+            "其余全部 unresolved 且 reason 非空 — resolved_rate 天然诚实, "
+            "不代表 LLM agent 能力 (见 SWEBENCH_PLAN.md)"
+        )
+    payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "harness": "scripts/bench_swebench.py",
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -807,6 +1192,7 @@ def main(argv: list[str] | None = None) -> int:
             "repo_dir": str(repo_dir),
             "logs_dir": str(logs_dir),
             "fix_rules_available": sorted(registry),
+            "venv": venv_info,
         },
         "instances": records,
         "summary": {
@@ -816,13 +1202,16 @@ def main(argv: list[str] | None = None) -> int:
             "resolved_rate_pct": (
                 round(100.0 * resolved_count / len(records), 1) if records else 0.0
             ),
-            "note": (
-                "确定性模式只有显式注入 fix 规则的实例才可能 resolved; "
-                "其余全部 unresolved 且 reason 非空 — resolved_rate 天然诚实, "
-                "不代表 LLM agent 能力 (见 SWEBENCH_PLAN.md)"
-            ),
+            "note": summary_note,
         },
     }
+    if llm_mode:
+        payload["llm"] = {
+            "client": "craft.llm.LLMClient",
+            "model": os.getenv("LLM_MODEL", ""),
+            "base_url": _redact_base_url(),
+            "key_recorded": False,
+        }
     try:
         _write_results(payload, args.output)
     except Exception as exc:

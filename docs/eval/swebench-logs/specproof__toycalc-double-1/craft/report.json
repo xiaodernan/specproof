@@ -33,7 +33,7 @@
         "exit_code": 0,
         "failed_tests": [],
         "mode": "local",
-        "output_tail": "..                                                                       [100%]\n2 passed in 0.02s"
+        "output_tail": "..                                                                       [100%]\n2 passed in 0.01s"
       }
     },
     {
@@ -64,19 +64,19 @@
   "budget_used": {
     "tokens": 0.0,
     "iterations": 1,
-    "seconds": 17.1
+    "seconds": 12.1
   },
   "audit_trail": [
     {
-      "timestamp": "2026-08-19T05:32:44+00:00",
+      "timestamp": "2026-08-19T08:04:25+00:00",
       "action": "backup",
       "path": "calc.py",
-      "detail": "→ calc.py.20260819T053244Z0000.76da7f",
+      "detail": "→ calc.py.20260819T080425Z0000.2ce240",
       "before_digest": "1200973191e2453626e461e49cb03415ac6655063713e3f7b0e546cec1010047",
       "after_digest": ""
     },
     {
-      "timestamp": "2026-08-19T05:32:44+00:00",
+      "timestamp": "2026-08-19T08:04:25+00:00",
       "action": "edit",
       "path": "calc.py",
       "detail": "替换 1 处 (12→12 chars)",
@@ -88,14 +88,14 @@
     "task_id": "swebench-specproof__toycalc-double-1",
     "overall": "skipped",
     "overall_note": "无失败但有跳过门禁 (SKIPPED > PASS, 不认证为通过): run_build",
-    "duration_ms": 6621,
+    "duration_ms": 4341,
     "gates": [
       {
         "gate": "run_test",
         "status": "passed",
         "note": "检测到 1 个测试文件; python -m pytest -q: 通过 (exit 0, mode=local)",
         "findings": [],
-        "duration_ms": 4195
+        "duration_ms": 2280
       },
       {
         "gate": "run_build",
@@ -109,14 +109,14 @@
         "status": "passed",
         "note": "python -m mypy calc.py: 通过 (exit 0, mode=local)",
         "findings": [],
-        "duration_ms": 2358
+        "duration_ms": 1996
       },
       {
         "gate": "security",
         "status": "passed",
         "note": "改动文件 1 个无密钥/canary finding",
         "findings": [],
-        "duration_ms": 59
+        "duration_ms": 58
       },
       {
         "gate": "self_verify",
@@ -126,6 +126,6 @@
         "duration_ms": 0
       }
     ],
-    "summary": "GATES: task=swebench-specproof__toycalc-double-1 overall=skipped run_test=passed run_build=skipped run_typecheck=passed security=passed self_verify=passed duration_ms=6621"
+    "summary": "GATES: task=swebench-specproof__toycalc-double-1 overall=skipped run_test=passed run_build=skipped run_typecheck=passed security=passed self_verify=passed duration_ms=4341"
   }
 }

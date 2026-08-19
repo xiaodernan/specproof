@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "harness": "scripts/bench_swebench.py",
-  "generated_at": "2026-08-19T05:33:07+00:00",
+  "generated_at": "2026-08-19T08:04:42+00:00",
   "mode": "deterministic",
   "dataset": {
     "kind": "offline-sample",
@@ -12,12 +12,17 @@
   "run": {
     "exec_timeout": 300,
     "max_iterations": 12,
-    "work_root": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-kyacz196",
+    "work_root": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-j58_1xkj",
     "repo_dir": "D:\\UserData\\HUAWEI\\Temp\\specproof-swebench-repos",
     "logs_dir": "docs\\eval\\swebench-logs",
     "fix_rules_available": [
       "specproof__toycalc-double-1"
-    ]
+    ],
+    "venv": {
+      "python": "C:\\Users\\HUAWEI\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "error": "",
+      "note": "deterministic 模式不建 venv"
+    }
   },
   "instances": [
     {
@@ -42,7 +47,7 @@
           "calc.py"
         ],
         "iterations": 1,
-        "seconds": 17.1,
+        "seconds": 12.1,
         "report_path": "docs\\eval\\swebench-logs\\specproof__toycalc-double-1\\craft\\report.json"
       },
       "test_patch": {
@@ -54,13 +59,13 @@
           "test": "test_calc.py::test_double",
           "outcome": "passed",
           "output_tail": ".                                                                        [100%]\n1 passed in 0.02s",
-          "seconds": 3.4
+          "seconds": 2.3
         },
         {
           "test": "test_hidden.py::test_double_negative",
           "outcome": "passed",
           "output_tail": ".                                                                        [100%]\n1 passed in 0.01s",
-          "seconds": 3.0
+          "seconds": 2.5
         }
       ],
       "pass_to_pass": [
