@@ -149,20 +149,6 @@ def replace_exact(rel: str, old: str, new: str) -> None:
     write_demo(rel, content.replace(old, new))
 
 
-def remove_line_containing(rel: str, needle: str) -> None:
-    """Remove the single full line containing needle (imports etc.)."""
-    content = read_demo(rel)
-    lines = content.splitlines(keepends=True)
-    matches = [i for i, ln in enumerate(lines) if needle in ln]
-    if len(matches) != 1:
-        raise RuntimeError(
-            "Expected exactly 1 line containing " + needle + " in " + rel
-            + ", found " + str(len(matches))
-        )
-    del lines[matches[0]]
-    write_demo(rel, "".join(lines))
-
-
 def commit_and_tag(
     commit_msg: str, tag: str, paths: list[str] | None = None,
 ) -> None:
@@ -453,6 +439,46 @@ _PRODUCTS_REFORMATTED = """CREATE TABLE IF NOT EXISTS products
 );
 """
 
+# Case 31's regression needs a REAL REQUIRES_NEW boundary. A helper method
+# on OrderService itself would be reached via self-invocation, which
+# bypasses the Spring transactional proxy and silently joins the caller's
+# transaction - the decrement would roll back with the failed order and
+# the case would detect nothing. A separate injected bean goes through
+# the proxy, so REQUIRES_NEW really commits the decrement before the
+# stock check throws.
+STOCK_DEDUCTION_SERVICE_SRC = """package com.specproof.demo.service;
+
+import com.specproof.demo.entity.Product;
+import com.specproof.demo.repository.ProductRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Isolated stock-deduction boundary: each decrement runs in its own
+ * REQUIRES_NEW transaction, so a caller's rollback cannot undo an
+ * already-committed decrement.
+ */
+@Service
+public class StockDeductionService {
+
+    private final ProductRepository productRepository;
+
+    public StockDeductionService(ProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void decrement(Long productId, Integer quantity) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Product not found: " + productId));
+        product.setStock(product.getStock() - quantity);
+        productRepository.saveAndFlush(product);
+    }
+}
+"""
+
 _SCHEMA_COMMENT = """-- users: demo accounts seeded for the specproof playground.
 """
 
@@ -533,8 +559,11 @@ P6_CASES: list[dict[str, Any]] = [
         note="execution-only: the annotation is present, its expression is wrong"),
     _case("25", "auth-secured-equivalent", False, "Auth", "negative",
         "Equivalent @Secured Protection",
-        "replace @PreAuthorize with the equivalent @Secured annotation",
+        "replace @PreAuthorize with the equivalent @Secured annotation "
+        "(enabling secured processing)",
         [
+            (SECURITY, "@EnableMethodSecurity\n",
+             "@EnableMethodSecurity(securedEnabled = true)\n"),
             (CONTROLLER,
              "import org.springframework.security.access.prepost.PreAuthorize;\n",
              "import org.springframework.security.annotation.Secured;\n"),
@@ -546,7 +575,10 @@ P6_CASES: list[dict[str, Any]] = [
             "unauthenticated requests must receive 401.",
             ["Unauthenticated requests must be rejected with 401."]),
         "", "NONE", "none",
-        note="equivalent protection via a built-in annotation must not be flagged"),
+        note="equivalent protection via a built-in annotation must not be "
+             "flagged; Spring Security 6.4 defaults securedEnabled=false, "
+             "so the head must enable @Secured processing explicitly or "
+             "the swap silently drops the guard"),
     _case("26", "auth-method-security-disabled", True, "Auth", "adversarial",
         "Method Security Disabled Globally",
         "remove @EnableMethodSecurity from SecurityConfig (execution-only)",
@@ -597,22 +629,62 @@ P6_CASES: list[dict[str, Any]] = [
         note="execution-only: stale-write differential test + products-table dump"),
     _case("30", "tx-version-guard-moved-to-getter", False, "Tx/Concurrency", "negative",
         "Version Guard Moved To Getter (Equivalent)",
-        "move @Version from the field to the getter (property-based locking)",
+        "move @Version from the field to the getter (property-based locking "
+        "with an explicit @Access override)",
         [
+            (PRODUCT_ENTITY,
+             "import jakarta.persistence.Column;\n",
+             "import jakarta.persistence.Access;\n"
+             "import jakarta.persistence.AccessType;\n"
+             "import jakarta.persistence.Column;\n"),
             (PRODUCT_ENTITY, "    @Version\n", ""),
             (PRODUCT_ENTITY, "    public Long getVersion() { return version; }",
-             "    @Version\n    public Long getVersion() { return version; }"),
+             "    @Access(AccessType.PROPERTY)\n"
+             "    @Version\n"
+             "    public Long getVersion() { return version; }"),
         ],
         _spec("Case 30: Version Guard Moved To Getter (Equivalent)",
             "Product stock updates must use optimistic concurrency control: "
             "a stale write must be rejected.",
             ["A stale write must be rejected exactly as before the refactor."]),
         "", "NONE", "none",
-        note="property-based @Version is equivalent protection"),
+        note="getter-level @Version carries an explicit "
+             "@Access(AccessType.PROPERTY) override: under Hibernate's "
+             "field access (the @Id sits on a field) a bare getter-level "
+             "@Version would be ignored and the refactor would silently "
+             "disable optimistic locking"),
     _case("31", "tx-decrement-committed-before-validation", True, "Tx/Concurrency", "adversarial",
         "Stock Decrement Committed Before Validation",
-        "decrement in a REQUIRES_NEW transaction before the stock check (execution-only)",
+        "decrement in a separate REQUIRES_NEW bean before the stock check "
+        "(execution-only)",
         [
+            (ORDER_SERVICE,
+             "    private final RabbitTemplate rabbitTemplate;\n",
+             "    private final RabbitTemplate rabbitTemplate;\n"
+             "    private final StockDeductionService stockDeductionService;\n"),
+            (ORDER_SERVICE,
+             """    public OrderService(
+            UserRepository userRepository,
+            ProductRepository productRepository,
+            CustomerOrderRepository orderRepository,
+            RabbitTemplate rabbitTemplate) {
+        this.userRepository = userRepository;
+        this.productRepository = productRepository;
+        this.orderRepository = orderRepository;
+        this.rabbitTemplate = rabbitTemplate;
+    }""",
+             """    public OrderService(
+            UserRepository userRepository,
+            ProductRepository productRepository,
+            CustomerOrderRepository orderRepository,
+            RabbitTemplate rabbitTemplate,
+            StockDeductionService stockDeductionService) {
+        this.userRepository = userRepository;
+        this.productRepository = productRepository;
+        this.orderRepository = orderRepository;
+        this.rabbitTemplate = rabbitTemplate;
+        this.stockDeductionService = stockDeductionService;
+    }"""),
             (ORDER_SERVICE,
              """        if (request.getQuantity() > product.getStock()) {
             throw new RuntimeException(
@@ -623,29 +695,13 @@ P6_CASES: list[dict[str, Any]] = [
         productRepository.saveAndFlush(product);
 """,
              """        int availableStock = product.getStock();
-        decrementStockInNewTransaction(product.getId(), request.getQuantity());
+        stockDeductionService.decrement(product.getId(), request.getQuantity());
 
         if (request.getQuantity() > availableStock) {
             throw new RuntimeException(
                     "Insufficient stock for product " + product.getId());
         }
 """),
-            (ORDER_SERVICE,
-             "import org.springframework.transaction.annotation.Transactional;",
-             "import org.springframework.transaction.annotation.Propagation;\n"
-             "import org.springframework.transaction.annotation.Transactional;"),
-            (ORDER_SERVICE,
-             "    /**\n     * Cancel a created order: the reserved stock is returned to the",
-             """    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void decrementStockInNewTransaction(Long productId, Integer quantity) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
-        product.setStock(product.getStock() - quantity);
-        productRepository.saveAndFlush(product);
-    }
-
-    /**
-     * Cancel a created order: the reserved stock is returned to the"""),
         ],
         _spec("Case 31: Stock Decrement Committed Before Validation",
             "A failed order placement must roll back every stock change: when "
@@ -654,7 +710,15 @@ P6_CASES: list[dict[str, Any]] = [
             ["An oversized order must be rejected AND leave the stock exactly "
              "as it was."]),
         "ATOMICITY-01", "BLOCKER", "base_pass_head_fail",
-        note="execution-only: rollback differential test + products-table dump"),
+        [
+            ("demo/spring-backend/src/main/java/com/specproof/demo/"
+             "service/StockDeductionService.java",
+             STOCK_DEDUCTION_SERVICE_SRC),
+        ],
+        note="execution-only: rollback differential test + products-table "
+             "dump; the REQUIRES_NEW decrement lives in a separate bean "
+             "because a self-invoked helper would bypass the transactional "
+             "proxy and roll back with the failed order"),
     _case("32", "tx-place-order-boundary-removed", True, "Tx/Concurrency", "train",
         "Place Order Transaction Boundary Removed",
         "remove @Transactional from OrderService.placeOrder (static)",
@@ -1938,13 +2002,10 @@ def main() -> None:
             ],
         )
     if wanted(only, "case-09"):
-        _remove_controller_annotation()
-        apply_case(
+        apply_case_detached(
             "case-09",
             "multi-security: remove @PreAuthorize AND @Transactional",
-            [
-                (SERVICE, TX_ANNOTATION, ""),
-            ],
+            CASE_09_MUTATIONS,
         )
     if wanted(only, "case-10"):
         apply_case(
@@ -2103,12 +2164,51 @@ def main() -> None:
     print(git("tag", "-l"))
 
 
+def remove_line_containing(rel: str, needle: str) -> None:
+    """Remove the single full line containing needle (imports etc.)."""
+    content = read_demo(rel)
+    lines = content.splitlines(keepends=True)
+    matches = [i for i, ln in enumerate(lines) if needle in ln]
+    if len(matches) != 1:
+        raise RuntimeError(
+            "Expected exactly 1 line containing " + needle + " in " + rel
+            + ", found " + str(len(matches))
+        )
+    del lines[matches[0]]
+    write_demo(rel, "".join(lines))
+
+
 def _remove_controller_annotation() -> None:
-    """Remove the @PreAuthorize import + annotation from the controller."""
+    """Remove the @PreAuthorize import + annotation from the controller.
+
+    Still used by the head-v1 (flagship) build, whose commit_and_tag()
+    stages the WHOLE demo/ subtree, so this working-tree edit lands in
+    the tag there. Case 09 must NOT use this helper: its apply_case()
+    staged only the service file, silently discarding the controller edit
+    from the committed tag (the observed AUTH-01 miss) - case 09 is now
+    data-driven via CASE_09_MUTATIONS below.
+    """
     remove_line_containing(
         CONTROLLER, "import org.springframework.security.access.prepost.PreAuthorize;"
     )
     replace_exact(CONTROLLER, AUTH_ANNOTATION, "")
+
+
+# Case 09 removes TWO protections in one PR (multi-security): the auth
+# guard on the change-email endpoint AND the transaction boundary around
+# the email update. Defined as a plain data table like every P6 case —
+# the pre-P6 imperative helper edited the MAIN working tree and then let
+# apply_case stage only the service file, so the controller edit was
+# silently discarded and the committed case-09-head tag under-delivered
+# (only the @Transactional removal landed). Data-driven application via
+# apply_case_detached makes the tag contain exactly these mutations.
+CASE_09_MUTATIONS = [
+    (CONTROLLER,
+     "import org.springframework.security.access.prepost.PreAuthorize;\n",
+     ""),
+    (CONTROLLER, AUTH_ANNOTATION, ""),
+    (SERVICE, TX_ANNOTATION, ""),
+]
 
 
 REQUIRE_AUTH_SRC = """package com.specproof.demo.security;

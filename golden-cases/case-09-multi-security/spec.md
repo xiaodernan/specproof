@@ -1,9 +1,12 @@
-# Case 09: Multiple Security Issues
+# Case 09: Multiple Security Annotations Removed
 
-Multiple security annotations are removed simultaneously:
-@PreAuthorize and @Secured are both removed from different endpoints.
+Two unrelated protections are removed in a single PR: the authentication
+guard on the change-email endpoint (@PreAuthorize) and the transaction
+boundary around the email update (@Transactional on
+UserService.changeEmail).
 
-## Expected Finding
-- Severity: BLOCKER (multiple)
-- Type: multiple annotation_removed
-- Evidence: Multiple static analysis findings
+## Acceptance Criteria
+1. Unauthenticated PUT /api/users/{id}/email must be rejected with 401 and
+   must not modify the stored email.
+2. The email update must run inside a transaction so a mid-update failure
+   cannot leave partial writes.

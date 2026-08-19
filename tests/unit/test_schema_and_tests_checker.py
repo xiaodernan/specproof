@@ -165,6 +165,43 @@ def test_parse_schema_normalizes_whitespace():
     assert _parse_schema(tidy) == _parse_schema(spaced)
 
 
+def test_check_schema_sql_ignores_intra_type_whitespace():
+    """Reformatting whitespace INSIDE a type argument (DECIMAL(10, 2) vs
+    DECIMAL(10,2)) is the same schema - no column_type_changed finding."""
+    base_schema = (
+        "CREATE TABLE IF NOT EXISTS products (\n"
+        "    id BIGINT AUTO_INCREMENT PRIMARY KEY,\n"
+        "    price DECIMAL(10,2) NOT NULL\n"
+        ");\n"
+    )
+    head_schema = (
+        "CREATE TABLE IF NOT EXISTS products\n"
+        "(\n"
+        "    id      BIGINT AUTO_INCREMENT PRIMARY KEY,\n"
+        "    price   DECIMAL(10, 2) NOT NULL\n"
+        ");\n"
+    )
+    assert check_schema_sql(base_schema, head_schema, {}, {}) == []
+
+
+def test_check_schema_sql_still_detects_type_change_with_spacing():
+    base_schema = (
+        "CREATE TABLE IF NOT EXISTS users (\n"
+        "    email VARCHAR(255) NOT NULL\n"
+        ");\n"
+    )
+    head_schema = (
+        "CREATE TABLE IF NOT EXISTS users (\n"
+        "    email VARCHAR( 50 ) NOT NULL\n"
+        ");\n"
+    )
+    findings = check_schema_sql(base_schema, head_schema, {}, {})
+    assert any(
+        f["type"] == "column_type_changed" and "users.email" in f["description"]
+        for f in findings
+    )
+
+
 # ── check_test_weakening ────────────────────────────────────────
 
 def test_check_test_weakening_detects_disabled_and_removed():
