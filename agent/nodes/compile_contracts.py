@@ -4,14 +4,30 @@
 Phase 0: rule-based parser with optional LLM fallback.
 Phase 1+: full LLM-based compilation.
 """
+
 import asyncio
 import json
 import os
 import re
+import time
+from dataclasses import replace
 from typing import Any
 
+from agent.contracts.compile_report import (
+    CompileReport,
+    RejectedCandidate,
+    merge_reports,
+    requirement_digest,
+)
 from agent.contracts.records import checker_version_for
 from agent.state import Phase0State
+from providers.judge_persona import build_judge_prompt
+
+#: Semantic version of the deterministic rule parser + contract templates
+#: in this module. Bump whenever a pattern or template changes what the
+#: rule-based pass produces; every compile report stamps this version so a
+#: small candidate set can be traced to a parser change, not just the spec.
+PARSER_RULE_VERSION = "1.0.0"
 
 _CONTRACT_TEMPLATES = {
     "auth": {
@@ -219,8 +235,18 @@ def _get_provider() -> Any:
 
 async def _llm_compile_contracts(
     text: str, provider: Any, repo_context: list[dict[str, Any]] | None = None,
-) -> list[dict[str, Any]]:
-    """Use LLM to compile contracts from requirement text + retrieved context."""
+) -> tuple[list[Any], list[str]]:
+    """Use LLM to compile contracts from requirement text + retrieved context.
+
+    Returns ``(raw_candidates, problems)``. ``problems`` explains why the
+    LLM response produced nothing usable (call failure, missing or non-JSON
+    array); per-candidate schema validation happens in the caller. This
+    helper never raises — degradation is reported, never swallowed.
+
+    The no-fake-pass judge persona is APPENDED after the base contract
+    validation prompt via build_judge_prompt, keeping the stable base-prompt
+    prefix byte-identical at the front (KV-cache-friendly ordering).
+    """
     from providers.base import LLMMessage
     from providers.redaction import redact_text
 
@@ -231,45 +257,192 @@ async def _llm_compile_contracts(
         + (c.get("content") or "")[:600]
         for c in (repo_context or [])[:8]
     ) or "(no repository context retrieved)"
-    prompt = _LLM_CONTRACT_PROMPT.format(
+    base_prompt = _LLM_CONTRACT_PROMPT.format(
         spec_text=safe_text, repo_context=context_block,
     )
+    judge_prompt = build_judge_prompt(base_prompt)
 
     try:
         response = await provider.chat(
-            messages=[LLMMessage(role="user", content=prompt)],
+            messages=[LLMMessage(role="user", content=judge_prompt)],
             timeout=60.0,
         )
-        content = response.content or ""
-        # Extract JSON array from response
-        start = content.find("[")
-        end = content.rfind("]") + 1
-        if start >= 0 and end > start:
-            contracts = json.loads(content[start:end])
-            if isinstance(contracts, list):
-                for c in contracts:
-                    c.setdefault("result", "UNVERIFIED")
-                    c.setdefault("evidence_ref", None)
-                return contracts
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001
+        return [], [f"LLM call failed: {exc}"]
 
-    return []
+    content = response.content or ""
+    # Extract JSON array from response
+    start = content.find("[")
+    end = content.rfind("]") + 1
+    if start < 0 or end <= start:
+        return [], ["LLM response contained no JSON array"]
+    try:
+        parsed = json.loads(content[start:end])
+    except Exception as exc:  # noqa: BLE001
+        return [], [f"LLM response JSON parse failed: {exc}"]
+    if not isinstance(parsed, list):
+        return [], ["LLM response was not a JSON array"]
+    for c in parsed:
+        if isinstance(c, dict):
+            c.setdefault("result", "UNVERIFIED")
+            c.setdefault("evidence_ref", None)
+    return parsed, []
+
+
+def _elapsed_ms(started: float) -> int:
+    """Milliseconds since *started* (perf_counter), clamped at 0."""
+    return max(0, int((time.perf_counter() - started) * 1000))
+
+
+def _running_loop() -> Any | None:
+    """The running event loop, or None when outside async context.
+
+    get_event_loop() is deprecated in 3.12 and raises under the
+    pytest-asyncio policy, so probe get_running_loop() instead.
+    """
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+
+
+def _candidate_summary(candidate: dict[str, Any]) -> str:
+    """Stable one-line candidate summary for the compile report."""
+    cid = str(candidate.get("id") or "?")
+    ctype = str(candidate.get("checker_type") or "?")
+    requirement = str(candidate.get("requirement") or "")
+    return f"{cid} [{ctype}]: {requirement[:80]}"
+
+
+def _schema_problems_for(candidate: dict[str, Any]) -> list[str]:
+    """Schema violations of one normalized candidate ([] = valid).
+
+    Runs AFTER checker_type backfill, so only structural gaps remain: a
+    contract must identify itself, name its checker family, and state both
+    the requirement and the expected behavior it checks.
+    """
+    problems: list[str] = []
+    cid = candidate.get("id")
+    if not isinstance(cid, str) or not cid.strip():
+        problems.append("missing or invalid id")
+    ctype = candidate.get("checker_type")
+    if not isinstance(ctype, str) or not ctype.strip():
+        problems.append("missing or invalid checker_type")
+    requirement = candidate.get("requirement")
+    if not isinstance(requirement, str) or not requirement.strip():
+        problems.append("missing or invalid requirement")
+    behavior = candidate.get("expected_behavior")
+    if not isinstance(behavior, str) or not behavior.strip():
+        problems.append("missing or invalid expected_behavior")
+    return problems
+
+
+def _run_llm_pass(
+    text: str,
+    provider: Any,
+    repo_context: list[dict[str, Any]],
+    errors: list[str],
+    digest: str,
+) -> tuple[CompileReport, list[dict[str, Any]]]:
+    """One LLM compilation pass, with per-pass reporting.
+
+    Accepted candidates replace the deterministic list; schema-invalid
+    candidates become rejected entries with their problems recorded in
+    schema_errors; call/parse failures become degrade_reasons. The
+    deterministic result is NEVER discarded because the LLM failed.
+    """
+    raw: list[Any] = []
+    problems: list[str] = []
+    try:
+        if _running_loop() is not None:
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(
+                    asyncio.run,
+                    _llm_compile_contracts(text, provider, repo_context),
+                )
+                raw, problems = future.result(timeout=30)
+        else:
+            raw, problems = asyncio.run(
+                _llm_compile_contracts(text, provider, repo_context)
+            )
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"LLM contract compilation failed: {exc}")
+        problems = [f"LLM contract compilation failed: {exc}"]
+
+    degrade = list(problems)
+    rejected: list[RejectedCandidate] = []
+    schema_errors: list[str] = []
+    accepted: list[dict[str, Any]] = []
+    for c in raw:
+        if not isinstance(c, dict):
+            rejected.append(RejectedCandidate(
+                reason="not_an_object",
+                candidate_summary=f"<non-object>: {str(c)[:160]}",
+            ))
+            schema_errors.append(f"candidate is not an object: {str(c)[:160]}")
+    normalized = _normalize_llm_contracts(
+        [c for c in raw if isinstance(c, dict)]
+    )
+    for c in normalized:
+        problems_for = _schema_problems_for(c)
+        if problems_for:
+            rejected.append(RejectedCandidate(
+                reason="schema_invalid",
+                candidate_summary=_candidate_summary(c),
+            ))
+            schema_errors.extend(
+                f"{_candidate_summary(c)}: {p}" for p in problems_for
+            )
+        else:
+            accepted.append(c)
+    if raw and not accepted:
+        degrade.append("LLM compilation produced no schema-valid contracts")
+    elif not raw and not degrade:
+        degrade.append("LLM compilation returned no contracts")
+
+    report = CompileReport(
+        parser_rule_version=PARSER_RULE_VERSION,
+        llm_used=bool(accepted),
+        candidate_count=len(raw),
+        accepted_count=len(accepted),
+        rejected=rejected,
+        schema_errors=schema_errors,
+        degrade_reasons=degrade,
+        requirement_digest=digest,
+        duration_ms=0,
+    )
+    return report, accepted
 
 
 def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
-    """Compile requirements into a list of Contract dicts.
+    """Compile requirements into a list of Contract dicts + a compile report.
 
     Deterministic rule-based parsing runs first; when the LLM is configured
     it may enrich a sparse result. An empty contract list is honest — the
     pipeline reports UNVERIFIED rather than inventing a generic contract.
-    LLM failures are recorded in state["errors"], never silently swallowed.
+    LLM failures are recorded in state["errors"] and explained in the §14.1
+    compile report (state["compile_report"]), never silently swallowed.
     """
     text = state.get("requirement_text", "")
     errors: list[str] = list(state.get("errors", []))
+    started = time.perf_counter()
+    digest = requirement_digest(text)
 
     if not text:
-        return {"contracts": []}
+        report = CompileReport(
+            parser_rule_version=PARSER_RULE_VERSION,
+            llm_used=False,
+            candidate_count=0,
+            accepted_count=0,
+            rejected=[],
+            schema_errors=[],
+            degrade_reasons=[],
+            requirement_digest=digest,
+            duration_ms=_elapsed_ms(started),
+        )
+        return {"contracts": [], "compile_report": report.to_dict()}
 
     # P2: registry-approved contracts take precedence over implicit
     # compilation (they were explicitly approved by a human).
@@ -285,36 +458,77 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
             c.setdefault("version", 1)
             if not c.get("checker_version"):
                 c["checker_version"] = checker_version_for(c.get("checker_type", ""))
-        return {"contracts": approved_loaded, "errors": errors}
+        report = CompileReport(
+            parser_rule_version=PARSER_RULE_VERSION,
+            llm_used=False,
+            candidate_count=len(approved_loaded),
+            accepted_count=len(approved_loaded),
+            rejected=[],
+            schema_errors=[],
+            degrade_reasons=[],
+            requirement_digest=digest,
+            duration_ms=_elapsed_ms(started),
+        )
+        return {
+            "contracts": approved_loaded,
+            "errors": errors,
+            "compile_report": report.to_dict(),
+        }
 
-    contracts = _parse_requirements(text)
+    rule_contracts = _parse_requirements(text)
+    rule_report = CompileReport(
+        parser_rule_version=PARSER_RULE_VERSION,
+        llm_used=False,
+        candidate_count=len(rule_contracts),
+        accepted_count=len(rule_contracts),
+        rejected=[],
+        schema_errors=[],
+        degrade_reasons=[],
+        requirement_digest=digest,
+        duration_ms=0,
+    )
+    llm_report: CompileReport | None = None
 
     # LLM enrichment when the rule-based parser found few contracts.
     # The retrieved repository context (P2 RAG) rides along so contracts
     # are grounded in the actual code, not just the spec prose.
     repo_context = state.get("repo_context", [])
-    provider = _get_provider() if state.get("use_llm", True) else None
-    if provider is not None and len(contracts) < 2:
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(
-                        asyncio.run,
-                        _llm_compile_contracts(text, provider, repo_context),
+    use_llm = state.get("use_llm", True)
+    provider = _get_provider() if use_llm else None
+    if provider is not None and len(rule_contracts) < 2:
+        llm_report, llm_contracts = _run_llm_pass(
+            text, provider, repo_context, errors, digest
+        )
+        if llm_contracts:
+            contracts = llm_contracts
+            rule_report = replace(
+                rule_report,
+                accepted_count=0,
+                rejected=[
+                    RejectedCandidate(
+                        reason="replaced_by_llm",
+                        candidate_summary=_candidate_summary(c),
                     )
-                    llm_contracts = future.result(timeout=30)
-            else:
-                llm_contracts = asyncio.run(
-                    _llm_compile_contracts(text, provider, repo_context)
-                )
-            if llm_contracts:
-                normalized = _normalize_llm_contracts(llm_contracts)
-                if normalized:
-                    contracts = normalized
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"LLM contract compilation failed: {exc}")
+                    for c in rule_contracts
+                ],
+            )
+        else:
+            contracts = rule_contracts
+    elif provider is None and use_llm and len(rule_contracts) < 2:
+        llm_report = CompileReport(
+            parser_rule_version=PARSER_RULE_VERSION,
+            llm_used=False,
+            candidate_count=0,
+            accepted_count=0,
+            rejected=[],
+            schema_errors=[],
+            degrade_reasons=["LLM unavailable: LLM_API_KEY not configured"],
+            requirement_digest=digest,
+            duration_ms=0,
+        )
+        contracts = rule_contracts
+    else:
+        contracts = rule_contracts
 
     # Every contract starts UNVERIFIED; only real experiments set PASS/FAIL.
     # P2: contracts compiled directly from the spec the user explicitly
@@ -340,7 +554,15 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
         if cid in forbidden_by_id:
             c["forbidden_changes"] = forbidden_by_id[cid]
 
-    return {"contracts": contracts, "errors": errors}
+    report = merge_reports(
+        [rule_report, llm_report] if llm_report is not None else [rule_report]
+    )
+    report = replace(report, duration_ms=_elapsed_ms(started))
+    return {
+        "contracts": contracts,
+        "errors": errors,
+        "compile_report": report.to_dict(),
+    }
 
 
 def _forbidden_changes_by_family(text: str) -> dict[str, list[str]]:
