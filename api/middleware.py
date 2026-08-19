@@ -70,6 +70,12 @@ _TENANT_EXEMPT_PREFIXES = ("/webhooks",)
 #: like the legacy X-API-Key SSE pattern in apps/web/src/api.ts.
 _SSE_SUFFIXES = ("/progress", "/events")
 
+#: tenant_id is a DECLARED field of the /api/v1/admin/* API
+#: (api/routes/admin.py — admin-only tenant targeting; non-admin overrides
+#: are ignored by the route layer), so the body strip must not remove it
+#: there. Everywhere else a client-supplied tenant_id is dropped.
+_TENANT_BODY_STRIP_SKIP_PREFIXES = ("/api/v1/admin/",)
+
 _JOB_ID_RE = re.compile(r"^/(?:api/v1/)?jobs/([^/]+)")
 
 #: POST paths that create a billable job → the subscription quota metric the
@@ -88,6 +94,41 @@ _JSON_METHODS = frozenset({"POST", "PUT", "PATCH"})
 # Only the JSON API surface is limited; SSE (GET streams), static files and
 # the SPA are never touched.
 _JSON_PATH_PREFIXES = ("/api/", "/jobs", "/webhooks")
+
+
+def _current_json_limit(default: int) -> int:
+    """The active JSON body limit (SPECPROOF_MAX_JSON_BYTES, default fallback)."""
+    raw = os.getenv("SPECPROOF_MAX_JSON_BYTES", "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning(
+            "SPECPROOF_MAX_JSON_BYTES=%r is not an integer; using default %d",
+            raw,
+            default,
+        )
+        return default
+
+
+def _strip_tenant_id_from_json(payload: bytes) -> bytes:
+    """Drop a client-supplied tenant_id key from a JSON object body.
+
+    tenant_id is derived from the authenticated principal only
+    (MULTI_TENANT_DESIGN.md §6); dropping the field before routing makes
+    request-parameter overrides structurally ineffective even when a route
+    model has no explicit allowlist. Non-object JSON, invalid JSON and
+    bodies without the key come back byte-identical (no re-serialization).
+    """
+    try:
+        document = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return payload
+    if not isinstance(document, dict) or "tenant_id" not in document:
+        return payload
+    stripped = {key: value for key, value in document.items() if key != "tenant_id"}
+    return json.dumps(stripped, ensure_ascii=False).encode("utf-8")
 
 
 class RequestIDMiddleware:
@@ -138,7 +179,9 @@ class TenantAuthMiddleware:
       3. refuses cross-tenant job reads with 404 JOB_NOT_FOUND (never 403 —
          no existence leak) and records the attempt with attempted_tenant;
       4. injects request.state.principal and the repository-layer tenant
-         scope contextvar for tenant-filtered queries.
+         scope contextvar for tenant-filtered queries;
+      5. strips a client-supplied tenant_id from JSON write bodies before
+         routing (tenant_id comes from the principal only, §6).
 
     SSE endpoints may carry the token as ?key=/?api_key= (EventSource
     cannot set headers) — the same convention as the legacy API key.
@@ -235,6 +278,15 @@ class TenantAuthMiddleware:
                         )
                         return
 
+        # §6: tenant_id comes from the principal only — buffer JSON write
+        # bodies and drop any client-supplied tenant_id before routing, so
+        # request-parameter overrides are structurally ineffective even
+        # against strict (allowlist) route models. GET/HEAD/DELETE streams
+        # are never buffered; incompatible paths pass through byte-identical.
+        receive_for_app = await self._strip_body_tenant_id(scope, receive)
+        if receive_for_app is None:
+            return  # client disconnected mid-buffer; nothing to answer
+
         state = scope.setdefault("state", {})
         state["principal"] = principal
         tenant_scope = TenantScope(
@@ -244,7 +296,7 @@ class TenantAuthMiddleware:
         )
         token = TENANT_SCOPE_VAR.set(tenant_scope)
         try:
-            await self.app(scope, receive, send)
+            await self.app(scope, receive_for_app, send)
         finally:
             TENANT_SCOPE_VAR.reset(token)
 
@@ -259,6 +311,68 @@ class TenantAuthMiddleware:
             return (parsed.get("key") or parsed.get("api_key") or [""])[0]
         except ValueError:
             return ""
+
+    async def _strip_body_tenant_id(
+        self, scope: Scope, receive: Receive,
+    ) -> Receive | None:
+        """Buffer and strip tenant_id from tenant-mode JSON write bodies.
+
+        Only POST/PUT/PATCH with an application/json content-type are
+        touched; every other method and content-type passes through with
+        zero buffering. The read reuses the PayloadLimitMiddleware
+        buffering discipline — bounded by SPECPROOF_MAX_JSON_BYTES, and an
+        oversized body is replayed unmodified so the payload-limit
+        middleware (downstream) still rejects it with its own 413. Returns
+        the replay receive, or None when the client disconnected.
+        """
+        method = scope.get("method", "GET")
+        if method not in _JSON_METHODS:
+            return receive
+        path = scope.get("path", "")
+        if path.startswith(_TENANT_BODY_STRIP_SKIP_PREFIXES):
+            return receive
+        headers = Headers(scope=scope)
+        content_type = headers.get("content-type", "")
+        if "application/json" not in content_type.lower():
+            return receive
+        limit = _current_json_limit(DEFAULT_MAX_JSON_BYTES)
+        buffered = bytearray()
+        total = 0
+        more_body = True
+        while more_body:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return None
+            chunk = message.get("body", b"")
+            total += len(chunk)
+            buffered.extend(chunk)
+            if total > limit:
+                return self._replay_receive(
+                    bytes(buffered), receive, more_expected=True,
+                )
+            more_body = bool(message.get("more_body", False))
+        stripped = _strip_tenant_id_from_json(bytes(buffered))
+        return self._replay_receive(stripped, receive, more_expected=False)
+
+    @staticmethod
+    def _replay_receive(
+        body: bytes, receive: Receive, *, more_expected: bool,
+    ) -> Receive:
+        """Replay a buffered body once, then delegate to the live receive."""
+        delivered = False
+
+        async def replay() -> Message:
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {
+                    "type": "http.request",
+                    "body": body,
+                    "more_body": more_expected,
+                }
+            return await receive()
+
+        return replay
 
     def _cross_tenant_allowed(self, principal: Principal, path: str) -> bool:
         """True unless the path reads a job owned by another tenant.
@@ -333,18 +447,7 @@ class PayloadLimitMiddleware:
         self.default_max_bytes = max_bytes if max_bytes is not None else DEFAULT_MAX_JSON_BYTES
 
     def _current_limit(self) -> int:
-        raw = os.getenv("SPECPROOF_MAX_JSON_BYTES", "").strip()
-        if not raw:
-            return self.default_max_bytes
-        try:
-            return int(raw)
-        except ValueError:
-            logger.warning(
-                "SPECPROOF_MAX_JSON_BYTES=%r is not an integer; using default %d",
-                raw,
-                self.default_max_bytes,
-            )
-            return self.default_max_bytes
+        return _current_json_limit(self.default_max_bytes)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":

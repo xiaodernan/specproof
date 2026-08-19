@@ -18,6 +18,7 @@ the no-key-leak scanner can never match them.
 from __future__ import annotations
 
 import base64
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -323,6 +324,12 @@ class FakeRedisStore:
     def is_ready(self) -> bool:
         return True
 
+    def xread_progress(
+        self, job_id: str, from_id: str = "0", count: int = 50,
+    ) -> list[dict[str, Any]]:
+        del job_id, from_id, count
+        return []
+
 
 @pytest.fixture()
 def fakes(monkeypatch: pytest.MonkeyPatch) -> FakeJobStore:
@@ -454,6 +461,58 @@ def test_tenant_id_from_principal_not_request_param(
     assert resp.status_code == 202
     created = fakes.jobs[resp.json()["job_id"]]
     assert created["tenant_id"] == seeded["tenant_a"]
+
+
+def test_strip_tenant_id_from_json_helpers() -> None:
+    """/jobs body tenant_id is dropped before routing (middleware unit)."""
+    from api.middleware import _strip_tenant_id_from_json
+
+    stripped = _strip_tenant_id_from_json(
+        json.dumps({"repo_path": "r", "tenant_id": "tenant-b"}).encode("utf-8")
+    )
+    assert json.loads(stripped) == {"repo_path": "r"}
+    # No tenant_id → byte-identical (no re-serialization).
+    original = b'{"repo_path": "r"}'
+    assert _strip_tenant_id_from_json(original) == original
+    # Non-object JSON untouched.
+    assert _strip_tenant_id_from_json(b"[1, 2]") == b"[1, 2]"
+    # Invalid JSON untouched (routing rejects it as before).
+    assert _strip_tenant_id_from_json(b"not json") == b"not json"
+
+
+def test_body_tenant_id_stripped_before_routing(
+    tenant_env: None, fakes: FakeJobStore, seeded: dict[str, Any],
+) -> None:
+    """Exit criterion §6 (body only): the strict job model never sees a
+    client-supplied tenant_id; the stored tenant is the principal's."""
+    client = TestClient(app)
+    payload = _payload()
+    payload["tenant_id"] = seeded["tenant_b"]
+    resp = client.post(
+        "/jobs", json=payload, headers=bearer(seeded["tokens"]["admin"]),
+    )
+    assert resp.status_code == 202
+    created = fakes.jobs[resp.json()["job_id"]]
+    assert created["tenant_id"] == seeded["tenant_a"]
+
+
+def test_admin_tenant_field_not_stripped(
+    tenant_env: None, fakes: FakeJobStore, seeded: dict[str, Any],
+) -> None:
+    """/api/v1/admin/* DECLARES tenant_id (admin row of the §2 matrix):
+    the middleware leaves it so admins can target a tenant explicitly."""
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/admin/users",
+        json={
+            "email": "cross@b.example.com",
+            "role": "viewer",
+            "tenant_id": seeded["tenant_b"],
+        },
+        headers=bearer(seeded["tokens"]["admin"]),
+    )
+    assert resp.status_code == 201
+    assert resp.json()["user"]["tenant_id"] == seeded["tenant_b"]
 
 
 def test_sse_accepts_token_query_param(
