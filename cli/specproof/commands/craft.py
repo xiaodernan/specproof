@@ -21,6 +21,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import json
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -59,6 +60,33 @@ def _llm_desired(use_llm: bool | None) -> tuple[bool, str]:
         + client.unavailable_reason()
         + " — falling back to deterministic",
     )
+
+
+def _meter_craft_terminal(job_id: str, report: dict[str, Any]) -> None:
+    """Best-effort billing event for a craft job's terminal state.
+
+    Industrialization phase 6 (BILLING_DESIGN.md §2): one job_craft unit
+    per job once the loop reaches a terminal state; the LLM token classes
+    are metered separately through the TokenBudget usage listener
+    (providers/budget.py). Tenant attribution comes from the
+    request-scoped tenant context when the command runs inside the
+    multi-tenant API process; standalone CLI runs have no tenant scope and
+    emit nothing (billing is opt-in anyway — with no
+    SPECPROOF_BILLING_URL every hook is a no-op).
+    """
+    try:
+        from storage.billing import meter_craft_job_terminal
+        from storage.tenant_scope import current_scope
+
+        scope = current_scope()
+        if scope is None or not scope.tenant_id:
+            return
+        status = "succeeded" if report.get("result") == "DONE" else "failed"
+        meter_craft_job_terminal(scope.tenant_id, job_id, status)
+    except Exception:  # noqa: BLE001 — billing must never break craft
+        logging.getLogger(__name__).warning(
+            "billing craft event dropped", exc_info=True,
+        )
 
 
 def _load_fix_registry(
@@ -396,6 +424,7 @@ def craft_run(
         click.echo("已中断 (Ctrl-C): 当前状态已写入 checkpoint, memory.json 已落盘")
         click.echo(f"续跑: specproof craft resume --job {loop.job_id} --repo {repo}")
         sys.exit(130)
+    _meter_craft_terminal(loop.job_id, report)
     if sink is not None:
         sink.flush()
         _echo_stream_modes(report)
@@ -447,6 +476,7 @@ def craft_resume(
         click.echo("已中断 (Ctrl-C): 当前状态已写入 checkpoint, memory.json 已落盘")
         click.echo(f"续跑: specproof craft resume --job {loop.job_id} --repo {repo}")
         sys.exit(130)
+    _meter_craft_terminal(loop.job_id, report)
     _echo_report(report, loop.artifact_dir)
     if report["result"] != "DONE":
         sys.exit(1)

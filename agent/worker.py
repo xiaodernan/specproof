@@ -111,6 +111,19 @@ class Worker:
             # Transition to RUNNING
             self.mysql.transition_job_status(job_id, "RUNNING", worker_id=self.worker_id)
 
+            # Billing metering (industrialization phase 6, BILLING_DESIGN.md
+            # §2): one job_verify unit when the pipeline actually starts.
+            # Best-effort and opt-in — no SPECPROOF_BILLING_URL means the
+            # writer is None and this block is a byte-identical no-op; the
+            # tenant id comes from the job row (the outbox payload has none).
+            with contextlib.suppress(Exception):
+                from storage.billing import meter_verify_job_start
+
+                started_row = self.mysql.get_job(job_id)
+                started_tenant = str((started_row or {}).get("tenant_id") or "")
+                if started_tenant:
+                    meter_verify_job_start(started_tenant, job_id)
+
             # Execute graph with checkpoint
             final_state = self._run_graph(job_id, payload)
 
@@ -133,6 +146,20 @@ class Worker:
                 observe_duration(
                     "jobs_duration_seconds", float(time.time() - started)
                 )
+            # Billing metering: gate_findings units = confirmed findings at
+            # the terminal transition (idempotent event_id — a crash-recovery
+            # replay of the same job cannot double-count). Same opt-in
+            # best-effort envelope as the start hook.
+            with contextlib.suppress(Exception):
+                from storage.billing import meter_verify_job_end
+
+                ended_row = self.mysql.get_job(job_id)
+                ended_tenant = str((ended_row or {}).get("tenant_id") or "")
+                ended_findings = len(summary.get("findings", []))
+                if ended_tenant and ended_findings > 0:
+                    meter_verify_job_end(
+                        ended_tenant, job_id, ended_findings, verdict,
+                    )
             self._maybe_publish_github_check(
                 job_id, verdict, summary, final_state
             )
@@ -176,6 +203,9 @@ class Worker:
             spec_path=payload.get("spec_path", ""),
             depth=payload.get("depth", "FAST"),
         )
+        # §A task 7: artifacts written by the pipeline record this job id
+        # in the object metadata store (query by job_id later).
+        state["job_id"] = job_id
 
         config = {"configurable": {"thread_id": job_id}}
 

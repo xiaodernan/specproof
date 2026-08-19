@@ -36,6 +36,7 @@ from api.errors import (
     AUTH_REQUIRED,
     JOB_NOT_FOUND,
     PAYLOAD_TOO_LARGE,
+    QUOTA_EXCEEDED,
     TENANT_FORBIDDEN,
     api_error_response,
 )
@@ -70,6 +71,15 @@ _TENANT_EXEMPT_PREFIXES = ("/webhooks",)
 _SSE_SUFFIXES = ("/progress", "/events")
 
 _JOB_ID_RE = re.compile(r"^/(?:api/v1/)?jobs/([^/]+)")
+
+#: POST paths that create a billable job → the subscription quota metric the
+#: billing pre-flight must check (BILLING_DESIGN.md §3). Billing is opt-in:
+#: with no SPECPROOF_BILLING_URL the writer is None and this map is never
+#: consulted, so single-tenant deployments stay byte-identical.
+_QUOTA_METRIC_BY_POST_PATH: dict[str, str] = {
+    "/jobs": "job_verify",
+    "/agent/jobs": "job_craft",
+}
 
 if TYPE_CHECKING:
     from api.identity.principal import Principal
@@ -203,6 +213,27 @@ class TenantAuthMiddleware:
                 send, scope, 404, JOB_NOT_FOUND, "Job not found",
             )
             return
+
+        # Billing quota pre-flight (industrialization phase 6,
+        # BILLING_DESIGN.md §3): job creation is refused with the stable
+        # 429 QUOTA_EXCEEDED when the tenant's subscription quota is
+        # exhausted (hard-stop). The check runs before routing, so the
+        # protected routes layer stays untouched; with billing unconfigured
+        # the writer is None and this block is a no-op.
+        if method == "POST":
+            quota_metric = _QUOTA_METRIC_BY_POST_PATH.get(path)
+            if quota_metric is not None:
+                from storage.billing import QuotaExceededError, get_billing_writer
+
+                writer = get_billing_writer()
+                if writer is not None:
+                    try:
+                        writer.check_quota(principal.tenant_id, quota_metric, 1.0)
+                    except QuotaExceededError as exc:
+                        await self._send_error(
+                            send, scope, 429, QUOTA_EXCEEDED, str(exc),
+                        )
+                        return
 
         state = scope.setdefault("state", {})
         state["principal"] = principal

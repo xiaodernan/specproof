@@ -15,6 +15,8 @@ endpoint is known.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -25,6 +27,42 @@ DEFAULT_COST_WEIGHTS: dict[str, float] = {
     "cache_hit": 0.1,  # KV-cache hit discount — gateway-specific; override from price card
     "cache_miss": 1.0,
 }
+
+#: Optional cross-cutting usage listener (industrialization phase 6
+#: billing): when a billing writer is configured (SPECPROOF_BILLING_URL),
+#: storage/billing.py registers itself here so every recorded LLM usage is
+#: projected onto the tenant usage ledger. None (the default) keeps
+#: TokenBudget byte-identical to the pre-billing build.
+_usage_listener: Callable[[dict[str, Any]], None] | None = None
+
+
+def set_usage_listener(listener: Callable[[dict[str, Any]], None]) -> None:
+    """Register the global usage listener (billing writer; default off)."""
+    global _usage_listener
+    _usage_listener = listener
+
+
+def clear_usage_listener() -> None:
+    """Unregister the listener — billing disabled, zero behavior change."""
+    global _usage_listener
+    _usage_listener = None
+
+
+def _emit_usage(entry: dict[str, Any]) -> None:
+    """Best-effort projection of one usage record to the configured listener.
+
+    A billing fault must never break an in-flight LLM call or its evidence
+    chain, so listener exceptions are logged and the entry is dropped.
+    """
+    listener = _usage_listener
+    if listener is None:
+        return
+    try:
+        listener(entry)
+    except Exception:  # noqa: BLE001 — metering is best-effort by design
+        logging.getLogger(__name__).warning(
+            "usage listener failed; billing event dropped", exc_info=True,
+        )
 
 
 class BudgetExceeded(Exception):  # noqa: N818 — task-mandated name, kept catchable & explicit
@@ -134,6 +172,7 @@ class TokenBudget:
             "remaining_after": round(self.remaining, 4),
         }
         self.entries.append(entry)
+        _emit_usage(entry)
         if self._used > self.limit_tokens:
             raise BudgetExceeded(
                 limit=self.limit_tokens, used=self._used, charge=charge, label=label

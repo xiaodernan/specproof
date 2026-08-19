@@ -52,6 +52,7 @@ from api.routes.admin import (  # noqa: E402
     router as auth_router,
 )
 from api.routes.agent_console import router as agent_console_router  # noqa: E402
+from api.routes.billing import router as billing_router  # noqa: E402
 from api.routes.jobs import router as jobs_router  # noqa: E402
 from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
@@ -86,6 +87,9 @@ app.include_router(agent_console_router)
 # handler answers 503, so legacy deployments never see a behavior change.
 app.include_router(auth_router)
 app.include_router(tenant_admin_router)
+# Billing & usage ledger (industrialization phase 6): the /api/v1/billing/*
+# RBAC-governed read surface. Metering stays opt-in via SPECPROOF_BILLING_URL.
+app.include_router(billing_router)
 
 
 # ── §8.1 stable error envelope ──────────────────────────────────────────────
