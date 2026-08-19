@@ -9,6 +9,7 @@ import {
 } from "./api";
 import type { PrincipalInfo } from "./api";
 import { ErrorBoundary } from "./ui";
+import Billing from "./pages/Billing";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
@@ -82,6 +83,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "contracts") return <Contracts />;
   if (seg[0] === "eval") return <Eval />;
   if (seg[0] === "health") return <Health />;
+  if (seg[0] === "billing") return <Billing />;
   if (seg[0] === "ui-kit") return <UiKit />;
   return <Dashboard />;
 }

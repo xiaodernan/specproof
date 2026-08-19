@@ -69,3 +69,47 @@ describe("AgentWizard", () => {
     expect(screen.getByText(/SPECPROOF WIZARD CONSTRAINTS/)).toBeTruthy();
   });
 });
+
+describe("AgentWizard step 1 info (§14.4)", () => {
+  it("shows repo/base/head/spec summary/duration/mode/permission hint", () => {
+    render(<AgentWizard step="repo" />);
+    expect(screen.getByTestId("wizard-repo")).toBeTruthy();
+    expect(screen.getByTestId("wizard-base")).toBeTruthy();
+    expect(screen.getByTestId("wizard-head")).toBeTruthy();
+    expect(screen.getByTestId("wizard-spec-summary").textContent).toContain("未填写");
+    expect(screen.getByTestId("wizard-duration-hint").textContent).toContain("未知");
+    expect(screen.getByTestId("wizard-mode")).toBeTruthy();
+    expect(screen.getByTestId("wizard-permission-hint").textContent).toContain(
+      "fail-closed"
+    );
+  });
+
+  it("never fabricates a duration number (honest text only)", () => {
+    render(<AgentWizard step="repo" />);
+    const hint = screen.getByTestId("wizard-duration-hint");
+    expect(hint.textContent).not.toMatch(/\d/);
+    expect(hint.textContent).toContain("无伪造数字");
+  });
+
+  it("defaults to the deterministic execution mode and keeps base/head edits", () => {
+    render(<AgentWizard step="repo" />);
+    const mode = screen.getByTestId("wizard-mode") as HTMLSelectElement;
+    expect(mode.value).toBe("deterministic");
+    fireEvent.change(screen.getByTestId("wizard-base"), {
+      target: { value: "main" },
+    });
+    fireEvent.change(screen.getByTestId("wizard-head"), {
+      target: { value: "feat/x" },
+    });
+    expect((screen.getByTestId("wizard-base") as HTMLInputElement).value).toBe(
+      "main"
+    );
+    expect((screen.getByTestId("wizard-head") as HTMLInputElement).value).toBe(
+      "feat/x"
+    );
+    fireEvent.change(mode, { target: { value: "llm" } });
+    expect((screen.getByTestId("wizard-mode") as HTMLSelectElement).value).toBe(
+      "llm"
+    );
+  });
+});

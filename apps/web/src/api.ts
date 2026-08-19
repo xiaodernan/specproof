@@ -175,12 +175,23 @@ async function handleResponse<T>(resp: Response): Promise<T> {
 }
 
 // ── SSE progress stream (reconnecting via EventSource) ──
-
+// §14.3 payload per api/routes/jobs.py _progress_payload:
+// { seq, job, type, stage, status, percentage, summary, ts }.
+// The legacy worker fields (node/percent/message) stay accepted as
+// fallback when the new payload is absent (older backends).
 export interface ProgressEvent {
-  node: string;
-  status: string;
-  percent: number;
-  message: string;
+  seq?: number;
+  job?: string;
+  type?: string;
+  stage?: string;
+  status?: string;
+  percentage?: number;
+  summary?: string;
+  ts?: string;
+  // legacy fallback fields
+  node?: string;
+  percent?: number;
+  message?: string;
 }
 
 export function openProgressStream(
@@ -382,16 +393,21 @@ export interface EvalData {
   };
 }
 
+// Health payload fields are optional by contract: the API answers with
+// what it measured and the UI must render missing fields as 未知 instead of
+// inventing a status (§14.4 honest five-category health).
 export interface HealthCheck {
-  ok: boolean;
-  latency_ms: number;
-  error: string | null;
+  ok?: boolean;
+  latency_ms?: number;
+  error?: string | null;
 }
 
 export interface HealthData {
-  status: string;
-  degraded: boolean;
-  checks: Record<string, HealthCheck>;
+  status?: string;
+  degraded?: boolean;
+  degraded_reasons?: string[];
+  capabilities?: unknown[] | Record<string, unknown>;
+  checks?: Record<string, HealthCheck>;
 }
 
 // ── SpecCraft Agent console (mirror api/routes/agent_console.py) ──

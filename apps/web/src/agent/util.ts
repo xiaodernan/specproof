@@ -29,10 +29,15 @@ export interface WizardGates {
   require_gate: boolean;
 }
 
+export type WizardExecutionMode = "deterministic" | "llm";
+
 export interface WizardDraft {
   repo_path: string;
+  base_ref: string;
+  head_ref: string;
   task_name: string;
   spec_text: string;
+  execution_mode: WizardExecutionMode;
   gates: WizardGates;
   budget_minutes: number;
   max_steps: number;
@@ -40,8 +45,11 @@ export interface WizardDraft {
 
 export const EMPTY_WIZARD_DRAFT: WizardDraft = {
   repo_path: "",
+  base_ref: "",
+  head_ref: "",
   task_name: "",
   spec_text: "",
+  execution_mode: "deterministic",
   gates: { run_tests: true, run_lint: true, run_typecheck: true, require_gate: true },
   budget_minutes: 60,
   max_steps: 12,
@@ -101,6 +109,9 @@ export function buildSpecText(draft: WizardDraft): string {
   ].filter((x): x is string => x !== null);
   const appendix =
     "\n\n--- SPECPROOF WIZARD CONSTRAINTS ---\n" +
+    "base_ref: " + (draft.base_ref.trim() || "(unset)") + "\n" +
+    "head_ref: " + (draft.head_ref.trim() || "(unset)") + "\n" +
+    "execution_mode: " + draft.execution_mode + "\n" +
     "budget_minutes: " + draft.budget_minutes + "\n" +
     "max_steps: " + draft.max_steps + "\n" +
     "gates: " + (gates.length > 0 ? gates.join(",") : "none") + "\n";

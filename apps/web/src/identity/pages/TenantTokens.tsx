@@ -7,6 +7,7 @@ import {
   saveToken,
 } from "../../api";
 import { Button, Empty, ErrorBox, Panel } from "../../ui";
+import { PermissionDenied } from "../PermissionDenied";
 import { useIdentityAccess } from "../useIdentityAccess";
 
 // Token management (RBAC: admin/operator). Minted tokens are show-once: the
@@ -45,9 +46,7 @@ export default function TenantTokens() {
           <h1>Token 管理 Tokens</h1>
           <div className="page-sub">IDENTITY — sp_* 本地凭证, show-once (RBAC: admin/operator)</div>
         </div>
-        <div className="errorbox" data-testid="identity-forbidden" role="alert">
-          无权限 NO ACCESS — Token 管理仅对 admin/operator 开放 (RBAC fail-closed)
-        </div>
+        <PermissionDenied action="Token 管理仅对 admin/operator 开放 (RBAC fail-closed)" />
       </div>
     );
   }

@@ -210,3 +210,60 @@ describe("TenantTokens", () => {
     });
   });
 });
+
+describe("permission explanation (§14.4)", () => {
+  function viewerFetch(adminPath: string, emptyBody: unknown) {
+    return vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/me")) {
+        return Promise.resolve(
+          jsonResponse({
+            principal: {
+              user_id: "u-9",
+              tenant_id: "t-1",
+              roles: ["viewer"],
+              scopes: [],
+            },
+          })
+        );
+      }
+      if (url.endsWith(adminPath)) {
+        return Promise.resolve(jsonResponse(emptyBody));
+      }
+      return Promise.resolve(jsonResponse({}, 404));
+    });
+  }
+
+  it("TenantUsers forbidden view explains tenant/role/source/expiry with a contact-admin hint", async () => {
+    vi.stubGlobal("fetch", viewerFetch("/api/v1/admin/users", { users: [], count: 0 }));
+    render(<TenantUsers />);
+    expect(await screen.findByTestId("identity-forbidden")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "无权限 NO ACCESS — 用户管理仅对 admin/operator 开放 (RBAC fail-closed)"
+      )
+    ).toBeTruthy();
+    expect(screen.getByText(/租户 Tenant/)).toBeTruthy();
+    expect(screen.getByText(/角色 Role/)).toBeTruthy();
+    expect(screen.getByText(/来源 Source/)).toBeTruthy();
+    expect(screen.getByText(/失效 Expiry/)).toBeTruthy();
+    expect(screen.getByTestId("contact-admin-hint").textContent).toContain(
+      "请联系租户管理员"
+    );
+    expect(screen.queryByPlaceholderText("user@example.com")).toBeNull();
+  });
+
+  it("TenantTokens forbidden view keeps the same identity-forbidden contract", async () => {
+    vi.stubGlobal("fetch", viewerFetch("/api/v1/admin/tokens", { tokens: [], count: 0 }));
+    render(<TenantTokens />);
+    expect(await screen.findByTestId("identity-forbidden")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "无权限 NO ACCESS — Token 管理仅对 admin/operator 开放 (RBAC fail-closed)"
+      )
+    ).toBeTruthy();
+    expect(screen.getByText(/租户 Tenant/)).toBeTruthy();
+    expect(screen.getByText(/失效 Expiry/)).toBeTruthy();
+    expect(screen.getByTestId("contact-admin-hint")).toBeTruthy();
+  });
+});

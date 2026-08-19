@@ -216,7 +216,14 @@ export default function JobDetail(props: { jobId: string }) {
             <div className="console">
               {live.length === 0
                 ? "[等待进度事件…]\n"
-                : live.map((ev) => "[" + ev.node + "] " + ev.status + " " + ev.percent + "% " + ev.message).join("\n")}
+                : live
+                    .map((ev) => {
+                      const stage = ev.stage || ev.node || "";
+                      const pct = ev.percentage ?? ev.percent ?? 0;
+                      const msg = ev.summary || ev.message || "";
+                      return "[" + stage + "] " + (ev.status || "") + " " + pct + "% " + msg;
+                    })
+                    .join("\n")}
             </div>
           </div>
         </Panel>

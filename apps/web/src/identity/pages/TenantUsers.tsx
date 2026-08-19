@@ -7,6 +7,7 @@ import {
   setUserStatus,
 } from "../../api";
 import { Button, Empty, ErrorBox, Panel } from "../../ui";
+import { PermissionDenied } from "../PermissionDenied";
 import { useIdentityAccess } from "../useIdentityAccess";
 
 // User management (RBAC: admin/operator). Operators always act on their own
@@ -43,9 +44,7 @@ export default function TenantUsers() {
           <h1>用户管理 Users</h1>
           <div className="page-sub">IDENTITY — 当前租户用户 (RBAC: admin/operator)</div>
         </div>
-        <div className="errorbox" data-testid="identity-forbidden" role="alert">
-          无权限 NO ACCESS — 用户管理仅对 admin/operator 开放 (RBAC fail-closed)
-        </div>
+        <PermissionDenied action="用户管理仅对 admin/operator 开放 (RBAC fail-closed)" />
       </div>
     );
   }

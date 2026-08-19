@@ -91,6 +91,59 @@ export default function AgentWizard(props: { step: WizardStep }) {
             placeholder="为服务端增加分页"
             onChange={(e) => set({ task_name: e.target.value })}
           />
+          <label className="field">基线 Base ref (可选)</label>
+          <input
+            type="text"
+            data-testid="wizard-base"
+            value={draft.base_ref}
+            placeholder="main"
+            onChange={(e) => set({ base_ref: e.target.value })}
+          />
+          <label className="field">目标 Head ref (可选)</label>
+          <input
+            type="text"
+            data-testid="wizard-head"
+            value={draft.head_ref}
+            placeholder="feature/branch"
+            onChange={(e) => set({ head_ref: e.target.value })}
+          />
+          <div className="kv" data-testid="wizard-spec-summary">
+            <span className="kv-label">需求规格 Spec</span>
+            <span className="kv-value muted">
+              {draft.spec_text.trim()
+                ? "已填写 (第 2 步可修改): " +
+                  draft.spec_text.trim().slice(0, 80) +
+                  (draft.spec_text.trim().length > 80 ? "…" : "")
+                : "未填写 — 在第 2 步填写"}
+            </span>
+          </div>
+          <div className="kv" data-testid="wizard-duration-hint">
+            <span className="kv-label">预计耗时 Duration</span>
+            <span className="kv-value muted">
+              未知 Unknown — 不提供虚构估算 (honest: 无伪造数字)。耗时取决于仓库规模、门禁选择与执行档位, 提交前不显示预估, 以任务实际执行为唯一依据。
+            </span>
+          </div>
+          <label className="field">执行模式 Execution mode</label>
+          <select
+            data-testid="wizard-mode"
+            value={draft.execution_mode}
+            onChange={(e) =>
+              set({
+                execution_mode:
+                  e.target.value === "llm" ? "llm" : "deterministic",
+              })
+            }
+          >
+            <option value="deterministic">
+              确定性档 deterministic — 零 LLM 凭据, 本地规则管线 (默认)
+            </option>
+            <option value="llm">
+              LLM 增强档 llm — 需环境注入 LLM 凭据, 缺失时自动回退确定性档
+            </option>
+          </select>
+          <div className="permission-hint" data-testid="wizard-permission-hint">
+            权限提示 Permission — 服务端需可读取所填仓库; RBAC 全程 fail-closed: 凭据无权限时任务将失败 (401/403) 而非静默跳过。
+          </div>
           {validateRepoStep(draft) ? (
             <div className="errorbox">{validateRepoStep(draft)}</div>
           ) : null}
@@ -193,6 +246,22 @@ export default function AgentWizard(props: { step: WizardStep }) {
           <div className="kv">
             <span className="kv-label">Task</span>
             <span className="kv-value mono">{draft.task_name || "—"}</span>
+          </div>
+          <div className="kv">
+            <span className="kv-label">Base</span>
+            <span className="kv-value mono">{draft.base_ref || "—"}</span>
+          </div>
+          <div className="kv">
+            <span className="kv-label">Head</span>
+            <span className="kv-value mono">{draft.head_ref || "—"}</span>
+          </div>
+          <div className="kv">
+            <span className="kv-label">执行模式</span>
+            <span className="kv-value mono">
+              {draft.execution_mode === "llm"
+                ? "LLM 增强档 llm"
+                : "确定性档 deterministic"}
+            </span>
           </div>
           <div className="kv-label" style={{ margin: "10px 0 4px" }}>
             将提交的 spec (含门禁约束)
