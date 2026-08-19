@@ -26,6 +26,11 @@ class Phase0State(MessagesState):
     # ── Intermediate ──
     requirement_text: str
     contracts: list[dict[str, Any]]
+    # §14.1: full audit of the compile_contracts run — parser rule version,
+    # LLM participation, rejected candidates, schema errors, degrade
+    # reasons, requirement digest, duration. Channel, not a transient:
+    # downstream reporting reads it to explain a small candidate set.
+    compile_report: dict[str, Any]
     changed_symbols: list[str]
     base_workspace: str
     head_workspace: str
@@ -98,6 +103,7 @@ def initial_state(
         "app_dir": "",
         "requirement_text": "",
         "contracts": [],
+        "compile_report": {},
         "changed_symbols": [],
         "base_workspace": "",
         "head_workspace": "",
