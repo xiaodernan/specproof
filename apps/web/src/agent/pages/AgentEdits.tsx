@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AgentEvent } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner } from "../../components";
+import { Empty, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
 
 // Edits arrive as "edit" events on the SSE stream; this page reuses the

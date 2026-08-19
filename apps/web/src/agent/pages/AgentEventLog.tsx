@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AgentEvent } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner } from "../../components";
+import { Empty, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
 
 // The full event log is replayed over SSE from seq 0; the stream closes

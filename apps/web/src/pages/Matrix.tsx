@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiGet, Job, MatrixData } from "../api";
-import { Degraded, Empty, ErrorBox, Panel, Spinner, shortId } from "../components";
+import { Degraded, Empty, ErrorBox, Panel, Spinner, shortId } from "../ui";
 
 export default function Matrix() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -69,9 +69,9 @@ export default function Matrix() {
           {data.degraded ? <Degraded reasons={[data.degraded_reason || "degraded"]} /> : null}
           <div className="stat-grid" style={{ marginBottom: 16 }}>
             <div className="stat"><div className="stat-value">{data.counts.total}</div><div className="stat-label">合约总数</div></div>
-            <div className="stat"><div className="stat-value" style={{ color: "var(--green)" }}>{data.counts.passed}</div><div className="stat-label">PASS</div></div>
-            <div className="stat"><div className="stat-value" style={{ color: "var(--red)" }}>{data.counts.failed}</div><div className="stat-label">FAIL</div></div>
-            <div className="stat"><div className="stat-value" style={{ color: "var(--yellow)" }}>{data.counts.unverified}</div><div className="stat-label">UNVERIFIED</div></div>
+            <div className="stat"><div className="stat-value" style={{ color: "var(--success)" }}>{data.counts.passed}</div><div className="stat-label">PASS</div></div>
+            <div className="stat"><div className="stat-value" style={{ color: "var(--danger)" }}>{data.counts.failed}</div><div className="stat-label">FAIL</div></div>
+            <div className="stat"><div className="stat-value" style={{ color: "var(--warning)" }}>{data.counts.unverified}</div><div className="stat-label">UNVERIFIED</div></div>
           </div>
           <Panel title={"矩阵行 (" + data.rows.length + ")"}>
             {data.rows.length === 0 ? (

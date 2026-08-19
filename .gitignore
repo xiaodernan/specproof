@@ -54,3 +54,7 @@ services/control-plane/target/
 golden-cases-first/
 golden-cases-rem/
 golden-cases-rel/
+golden-cases-c1/
+golden-cases-c2/
+golden-cases-c3/
+golden-cases-c4/

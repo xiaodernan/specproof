@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { approveAgentJob } from "../../api";
-import { ErrorBox, Panel, Spinner } from "../../components";
+import { Button, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
 import { stepStatusLabel } from "../util";
 
@@ -87,12 +87,12 @@ export default function AgentPlanStep(props: { jobId: string; stepIndex: number 
           <label className="field">审批备注 Note (可选)</label>
           <input type="text" value={note} onChange={(e) => setNote(e.target.value)} />
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button className="btn" disabled={busy} onClick={() => void decide("approve")}>
+            <Button disabled={busy} onClick={() => void decide("approve")}>
               批准本步 Approve step
-            </button>
-            <button className="btn btn-danger" disabled={busy} onClick={() => void decide("reject")}>
+            </Button>
+            <Button variant="danger" disabled={busy} onClick={() => void decide("reject")}>
               拒绝本步 Reject step
-            </button>
+            </Button>
             <a className="btn btn-ghost" href={"#/agent/jobs/" + jobId + "/plan"}>
               返回 Back
             </a>

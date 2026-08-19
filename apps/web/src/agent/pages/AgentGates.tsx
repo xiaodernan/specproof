@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { approveAgentJob, listAgentApprovals } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner } from "../../components";
+import { Button, Empty, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, ApprovalCard, useAgentJob } from "../components";
 
 function useGateData(jobId: string) {
@@ -69,12 +69,12 @@ export default function AgentGates(props: { jobId: string }) {
           <label className="field">门禁备注 Gate note (可选)</label>
           <input type="text" value={note} onChange={(e) => setNote(e.target.value)} />
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button className="btn" disabled={busy} onClick={() => void decide("approve")}>
+            <Button disabled={busy} onClick={() => void decide("approve")}>
               通过门禁 Approve gate
-            </button>
-            <button className="btn btn-danger" disabled={busy} onClick={() => void decide("reject")}>
+            </Button>
+            <Button variant="danger" disabled={busy} onClick={() => void decide("reject")}>
               拒绝门禁 Reject gate
-            </button>
+            </Button>
           </div>
           <div className="muted" style={{ marginTop: 8 }}>
             通过 → COMPLETED; 拒绝 → FAILED。

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { approveAgentJob } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner } from "../../components";
+import { Button, Empty, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
 import { stepStatusLabel } from "../util";
 
@@ -90,15 +90,11 @@ export default function AgentPlanReview(props: { jobId: string }) {
           </Panel>
           <Panel title="整计划决策 Whole-plan decision">
             <div style={{ display: "flex", gap: 8 }}>
-              <button
-                className="btn"
-                disabled={busy}
-                onClick={() => void decide("approve", "")}
-              >
+              <Button disabled={busy} onClick={() => void decide("approve", "")}>
                 批准整个计划 Approve plan
-              </button>
-              <button
-                className="btn btn-danger"
+              </Button>
+              <Button
+                variant="danger"
                 disabled={busy}
                 onClick={() => {
                   const note = window.prompt("拒绝原因 Rejection note (可选):") || "";
@@ -106,7 +102,7 @@ export default function AgentPlanReview(props: { jobId: string }) {
                 }}
               >
                 拒绝计划 Reject plan
-              </button>
+              </Button>
             </div>
             <div className="muted" style={{ marginTop: 8 }}>
               批准 → EXECUTING; 拒绝 → FAILED (原因随审批记录保存)

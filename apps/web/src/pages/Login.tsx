@@ -7,7 +7,7 @@ import {
   setApiKey,
   setBearerToken,
 } from "../api";
-import { ErrorBox } from "../components";
+import { ErrorBox } from "../ui";
 
 // Login supports three credential modes, mirroring api/routes/admin.py:
 //   1. legacy X-API-Key (single-tenant deployments);

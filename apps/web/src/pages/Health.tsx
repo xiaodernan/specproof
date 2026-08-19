@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiGet, HealthData } from "../api";
-import { ErrorBox, Panel, Spinner, StatCard } from "../components";
+import { ErrorBox, Panel, Spinner, StatCard } from "../ui";
 
 const DEP_NAMES: Record<string, string> = {
   mysql: "MySQL",

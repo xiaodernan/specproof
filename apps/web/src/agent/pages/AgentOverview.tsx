@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AgentJobSummary, listAgentJobs } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner, fmtTime, shortId } from "../../components";
+import { Empty, ErrorBox, Panel, Spinner, fmtTime, shortId } from "../../ui";
 import { agentStatusMeta } from "../util";
 
 export default function AgentOverview() {

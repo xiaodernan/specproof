@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AgentDiff, getAgentDiff } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner } from "../../components";
+import { Empty, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
 
 function useDiff(jobId: string, mode: "unified" | "split") {

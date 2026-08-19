@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiBase } from "../../api";
-import { ErrorBox, Panel } from "../../components";
+import { Button, ErrorBox, Panel } from "../../ui";
 
 const SETTINGS_KEY = "specproof_agent_settings";
 
@@ -102,11 +102,9 @@ export default function AgentSettings() {
           onChange={(e) => setState({ ...state, maxEventsBuffer: Number(e.target.value) || 300 })}
         />
         <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
-          <button className="btn" onClick={persist}>
-            保存 Save
-          </button>
-          <button
-            className="btn btn-ghost"
+          <Button onClick={persist}>保存 Save</Button>
+          <Button
+            variant="ghost"
             onClick={() => {
               saveSettings(DEFAULTS);
               setState({ ...DEFAULTS });
@@ -114,7 +112,7 @@ export default function AgentSettings() {
             }}
           >
             重置 Reset
-          </button>
+          </Button>
         </div>
         {saved ? <div className="degraded" style={{ marginTop: 10 }}>{saved}</div> : null}
         <ErrorBox error={error} />

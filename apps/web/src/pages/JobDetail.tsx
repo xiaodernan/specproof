@@ -4,9 +4,10 @@ import {
   ProgressEvent, StagesData,
 } from "../api";
 import {
-  Degraded, Empty, ErrorBox, Panel, Spinner, StatCard, StatusPill,
-  fmtPct, fmtTime, kv, verdictTone,
-} from "../components";
+  Button, Degraded, Empty, ErrorBox, Panel, Spinner, StatCard, StatusPill,
+  fmtPct, fmtTime, kv, shortId, verdictTone,
+} from "../ui";
+import { recordRecentJob } from "../ui/recentJobs";
 
 interface Summary {
   verdict?: string;
@@ -50,6 +51,10 @@ export default function JobDetail(props: { jobId: string }) {
       setSummary(s.summary || null);
       setStages(st);
       setFindings(f);
+      recordRecentJob(
+        window.location.hash,
+        (j.job.repo_path ? j.job.repo_path + " · " + shortId(j.job.id) : "任务 " + shortId(j.job.id))
+      );
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -248,9 +253,9 @@ export default function JobDetail(props: { jobId: string }) {
                     </td>
                     <td>
                       {f.capsule_path ? (
-                        <button className="btn btn-ghost btn-sm" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
+                        <Button variant="ghost" size="sm" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
                           ↓ zip
-                        </button>
+                        </Button>
                       ) : (
                         <span className="muted">—</span>
                       )}
@@ -290,9 +295,9 @@ export default function JobDetail(props: { jobId: string }) {
       {caps.length > 0 ? (
         <Panel title="Capsule 下载">
           {caps.map((c) => (
-            <button key={c} className="btn btn-ghost btn-sm" style={{ marginRight: 8 }} onClick={() => downloadCapsule(jobId, c.split("/").pop())}>
+            <Button key={c} variant="ghost" size="sm" style={{ marginRight: 8 }} onClick={() => downloadCapsule(jobId, c.split("/").pop())}>
               ↓ {c.split("/").pop()}
-            </button>
+            </Button>
           ))}
         </Panel>
       ) : null}

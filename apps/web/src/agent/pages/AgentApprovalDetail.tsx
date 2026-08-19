@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AgentApproval, listAgentApprovals, listAgentJobs } from "../../api";
-import { ErrorBox, Panel, Spinner } from "../../components";
+import { ErrorBox, Panel, Spinner } from "../../ui";
 import { ApprovalCard } from "../components";
 import { aggregateApprovals } from "../util";
 

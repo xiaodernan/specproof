@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AgentApproval, AgentJobSummary, listAgentApprovals, listAgentJobs } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner, fmtTime, shortId } from "../../components";
+import { Empty, ErrorBox, Panel, Spinner, fmtTime, shortId } from "../../ui";
 import { ApprovalCard } from "../components";
 import { aggregateApprovals } from "../util";
 

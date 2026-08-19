@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiGet, DashboardData, Job } from "../api";
-import { Degraded, Empty, ErrorBox, Panel, Spinner, StatCard, StatusPill, fmtPct, fmtTime, shortId } from "../components";
+import { Degraded, Empty, ErrorBox, Panel, Spinner, StatCard, StatusPill, fmtPct, fmtTime, shortId } from "../ui";
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);

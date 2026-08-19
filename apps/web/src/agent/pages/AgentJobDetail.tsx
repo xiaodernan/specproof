@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { cancelAgentJob } from "../../api";
-import { ErrorBox, Panel, Spinner, StatCard, kv } from "../../components";
+import { Button, ErrorBox, Panel, Spinner, StatCard, kv, shortId } from "../../ui";
+import { recordRecentJob } from "../../ui/recentJobs";
 import { AgentJobShell, ProgressBar, useAgentJob } from "../components";
 import { agentStatusMeta } from "../util";
 
@@ -57,6 +58,15 @@ export default function AgentJobDetail(props: { jobId: string }) {
   const [actionError, setActionError] = useState<Error | string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
+  // Record the opened job for the command palette (Aurora recent-jobs).
+  useEffect(() => {
+    if (!job) return;
+    const label = job.task_name || job.repo_path
+      ? (job.task_name || job.repo_path) + " · " + shortId(job.id)
+      : "任务 " + shortId(job.id);
+    recordRecentJob("#/agent/jobs/" + jobId, label);
+  }, [job, jobId]);
+
   if (loading) return <Spinner />;
   if (!job) {
     return (
@@ -86,9 +96,9 @@ export default function AgentJobDetail(props: { jobId: string }) {
       job={job}
       active="overview"
       right={
-        <button className="btn btn-ghost btn-sm" onClick={() => void cancel()}>
+        <Button variant="ghost" size="sm" onClick={() => void cancel()}>
           取消 Cancel
-        </button>
+        </Button>
       }
     >
       <ErrorBox error={actionError} />

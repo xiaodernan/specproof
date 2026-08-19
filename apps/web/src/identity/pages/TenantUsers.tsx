@@ -6,7 +6,7 @@ import {
   setUserRole,
   setUserStatus,
 } from "../../api";
-import { Empty, ErrorBox, Panel } from "../../components";
+import { Button, Empty, ErrorBox, Panel } from "../../ui";
 import { useIdentityAccess } from "../useIdentityAccess";
 
 // User management (RBAC: admin/operator). Operators always act on their own
@@ -94,9 +94,9 @@ export default function TenantUsers() {
             <option value="auditor">auditor</option>
             <option value="admin">admin</option>
           </select>
-          <button className="btn" onClick={create}>
+          <Button variant="primary" onClick={create}>
             创建 Create
-          </button>
+          </Button>
         </div>
         <div className="muted" style={{ marginTop: 8 }}>
           operator 只能授予 viewer/operator; admin 角色仅 admin 可授予 (后端强制)。
@@ -136,9 +136,9 @@ export default function TenantUsers() {
                       <option value="auditor">auditor</option>
                       <option value="admin">admin</option>
                     </select>
-                    <button className="btn btn-ghost" onClick={() => toggleStatus(u)}>
+                    <Button variant="ghost" size="sm" onClick={() => toggleStatus(u)}>
                       {u.status === "active" ? "停用 Disable" : "启用 Enable"}
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}

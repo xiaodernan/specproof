@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listAgentApprovals } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner } from "../../components";
+import { Empty, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, ApprovalCard, useAgentJob } from "../components";
 
 export default function AgentJobApprovals(props: { jobId: string }) {

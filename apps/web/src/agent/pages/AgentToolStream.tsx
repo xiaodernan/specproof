@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AgentEvent, getAgentJob, openAgentEventStream } from "../../api";
-import { ErrorBox, Panel, Spinner } from "../../components";
+import { ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, EventRow, useAgentJob } from "../components";
 import { eventKindLabel } from "../util";
 

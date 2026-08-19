@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiGet, downloadCapsule, FindingsData } from "../api";
-import { Degraded, Empty, ErrorBox, Panel, Spinner, fmtPct, kv } from "../components";
+import { Button, Degraded, Empty, ErrorBox, Panel, Spinner, fmtPct, kv } from "../ui";
 
 export default function FindingDetail(props: { jobId: string; findingId: string }) {
   const { jobId, findingId } = props;
@@ -85,9 +85,9 @@ export default function FindingDetail(props: { jobId: string; findingId: string 
       <div style={{ display: "flex", gap: 10 }}>
         <a className="btn btn-ghost" href={"#/jobs/" + jobId}>← 返回任务</a>
         {f.capsule_path ? (
-          <button className="btn" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
+          <Button variant="secondary" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
             下载 Bug Capsule ↓
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>

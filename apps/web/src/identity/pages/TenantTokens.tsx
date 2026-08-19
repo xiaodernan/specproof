@@ -6,7 +6,7 @@ import {
   revokeToken,
   saveToken,
 } from "../../api";
-import { Empty, ErrorBox, Panel } from "../../components";
+import { Button, Empty, ErrorBox, Panel } from "../../ui";
 import { useIdentityAccess } from "../useIdentityAccess";
 
 // Token management (RBAC: admin/operator). Minted tokens are show-once: the
@@ -92,9 +92,9 @@ export default function TenantTokens() {
             placeholder="scopes (如 jobs:read, 留空=角色矩阵决定)"
             onChange={(e) => setScopes(e.target.value)}
           />
-          <button className="btn" onClick={mint}>
+          <Button variant="primary" onClick={mint}>
             签发 Mint
-          </button>
+          </Button>
         </div>
       </Panel>
       {cleartext ? (
@@ -103,18 +103,18 @@ export default function TenantTokens() {
             {cleartext}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button
-              className="btn"
+            <Button
+              variant="secondary"
               onClick={() => {
                 saveToken(cleartextName, cleartext);
                 setCleartext(null);
               }}
             >
               保存到租户切换器 Save
-            </button>
-            <button className="btn btn-ghost" onClick={() => setCleartext(null)}>
+            </Button>
+            <Button variant="ghost" onClick={() => setCleartext(null)}>
               我已复制 Done
-            </button>
+            </Button>
           </div>
           <div className="muted" style={{ marginTop: 8 }}>
             服务端只存 HMAC-SHA256(token) 与 bcrypt(secret); 此明文永不落库、无法找回。
@@ -148,9 +148,9 @@ export default function TenantTokens() {
                   <td>{t.expires_at ? new Date(t.expires_at * 1000).toISOString() : "—"}</td>
                   <td>{t.last_used_at ? new Date(t.last_used_at * 1000).toISOString() : "—"}</td>
                   <td>
-                    <button className="btn btn-ghost" onClick={() => revoke(t)}>
+                    <Button variant="ghost" size="sm" onClick={() => revoke(t)}>
                       吊销 Revoke
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}

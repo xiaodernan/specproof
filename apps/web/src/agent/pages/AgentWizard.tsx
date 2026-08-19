@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createAgentJob } from "../../api";
-import { ErrorBox, Panel } from "../../components";
+import { Button, ErrorBox, Panel } from "../../ui";
 import {
   WizardDraft,
   buildSpecText,
@@ -202,14 +202,13 @@ export default function AgentWizard(props: { step: WizardStep }) {
             <a className="btn btn-ghost" href="#/agent/new/gates">
               上一步 Back
             </a>
-            <button
-              className="btn"
+            <Button
               data-testid="wizard-submit"
               disabled={submitting}
               onClick={() => void submit()}
             >
               {submitting ? "提交中 SUBMITTING…" : "创建任务 Create job"}
-            </button>
+            </Button>
           </div>
         </Panel>
       ) : null}
