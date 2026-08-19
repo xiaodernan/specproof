@@ -32,6 +32,15 @@ Error responses use the §8.1 envelope via ApiError (codes from api/errors.py,
 never new codes): JOB_NOT_FOUND / STATE_CONFLICT / VALIDATION_FAILED /
 EVIDENCE_UNVERIFIED / PROVIDER_UNAVAILABLE. Nothing is fabricated: missing
 plans/bundles are honest errors.
+
+Run-time execution (W42): a create request with auto_start=true hands the
+job to api/agent_runtime.py, which runs a real deterministic CraftLoop (no
+LLM / network / Docker) in a daemon thread — the caller's repo+spec when
+both are given, the bundled api/_agent_demo task otherwise. Live
+plan/tool/gate/progress events enter the SSE log through emit_event; the
+loop's own store wiring projects plan/progress/result and the post-hoc
+accept gate summary (attach_accept_result, W35.1). auto_start defaults to
+False, keeping the passive W31 projection and approval workflow untouched.
 """
 
 from __future__ import annotations
@@ -45,13 +54,15 @@ import os
 import threading
 import uuid
 from collections.abc import AsyncGenerator
+from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Any, Literal, Protocol, cast
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, cast
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from api._agent_demo import DEMO_SPEC_TEXT
 from api.auth import enforce_rate_limit, require_api_key
 from api.errors import (
     EVIDENCE_UNVERIFIED,
@@ -254,13 +265,73 @@ def get_state() -> _ConsoleState:
     return _state
 
 
+def emit_event(job_id: str, etype: str, data: dict[str, Any]) -> dict[str, Any]:
+    """Append a live event to the console SSE log (public runtime entry).
+
+    Additive convenience for external writers such as api/agent_runtime.py;
+    _ConsoleState.record_event remains the single implementation, so every
+    existing consumer keeps its exact behavior.
+    """
+    return get_state().record_event(job_id, etype, data)
+
+
+if TYPE_CHECKING:
+    from api.agent_runtime import AgentRuntime
+
+_runtime: AgentRuntime | None = None
+_runtime_lock = threading.Lock()
+
+
+def get_runtime() -> AgentRuntime:
+    """Process-wide AgentRuntime singleton (W42, lazy import avoids a cycle).
+
+    The runtime resolves store/state through get_store()/get_state() at
+    call time, so tests that monkeypatch the module globals are honored.
+    """
+    global _runtime
+    runtime = _runtime
+    if runtime is None:
+        from api.agent_runtime import AgentRuntime
+
+        with _runtime_lock:
+            runtime = _runtime
+            if runtime is None:
+                runtime = _runtime = AgentRuntime()
+    assert runtime is not None
+    return runtime
+
+
 # ── Request models ──────────────────────────────────────────────────────────
 
 
 class AgentJobCreateRequest(BaseModel):
-    repo_path: str = Field(min_length=1, max_length=1024)
-    spec_text: str = Field(min_length=1, max_length=200_000)
+    repo_path: str | None = Field(default=None, min_length=1, max_length=1024)
+    spec_text: str | None = Field(default=None, min_length=1, max_length=200_000)
     task_name: str | None = Field(default=None, min_length=1, max_length=255)
+    auto_start: bool = Field(
+        default=False,
+        description=(
+            "start a real deterministic CraftLoop immediately (no LLM / network / "
+            "Docker); uses repo_path+spec_text when both are given, otherwise the "
+            "bundled calc.py demo task"
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _check_run_shape(self) -> Self:
+        """auto_start wants repo+spec together, or neither (bundled demo)."""
+        if self.auto_start:
+            if (self.repo_path is None) != (self.spec_text is None):
+                raise ValueError(
+                    "auto_start 需要同时提供 repo_path+spec_text, "
+                    "或两者都不提供 (使用内置 demo)"
+                )
+            return self
+        if self.repo_path is None or self.spec_text is None:
+            raise ValueError(
+                "repo_path 与 spec_text 必填 (或开启 auto_start 使用内置 demo)"
+            )
+        return self
 
 
 class ApprovalRequest(BaseModel):
@@ -471,6 +542,28 @@ def _require_cancellable(job: AgentJob) -> None:
         )
 
 
+def _start_runtime_job(
+    job_id: str, repo_path: str, spec_text: str, task_name: str | None
+) -> None:
+    """Kick off the deterministic runtime thread (best effort).
+
+    The runtime thread owns every honest failure projection (store terminal
+    write + SSE event); a start() exception here degrades to a FAILED
+    projection instead of breaking the 202 response shape.
+    """
+    try:
+        get_runtime().start(job_id, repo_path, spec_text, task_name=task_name)
+    except Exception as exc:  # noqa: BLE001 — a broken runtime must not fail the 202
+        logger.exception("agent runtime failed to start")
+        reason = f"agent runtime failed to start: {exc}"
+        get_state().record_event(job_id, "progress", {"status": "FAILED", "message": reason})
+        with suppress(Exception):
+            _transition(
+                job_id, "failed", error=reason,
+                result_json={"verdict": "FAILED", "reason": reason},
+            )
+
+
 # ── Routes ──────────────────────────────────────────────────────────────────
 
 
@@ -481,10 +574,19 @@ async def create_agent_job(payload: AgentJobCreateRequest) -> dict[str, Any]:
     The durable projection is created in storage/agent_jobs.py; the job
     starts pending (console status PLANNING). Accepted only once the store
     holds the row, mirroring the /jobs honesty rule.
+
+    auto_start=True hands the job to AgentRuntime (api/agent_runtime.py),
+    which runs a real deterministic CraftLoop in a daemon thread: the
+    request's repo+spec when both are given, otherwise the bundled demo
+    task. The response shape is unchanged either way.
     """
     job_id = str(uuid.uuid4())
+    repo_path = payload.repo_path or ""
+    spec_text = payload.spec_text or ""
+    if payload.auto_start and not spec_text:
+        spec_text = DEMO_SPEC_TEXT
     try:
-        job = get_store().create(job_id, payload.spec_text)
+        job = get_store().create(job_id, spec_text)
     except Exception as exc:  # noqa: BLE001 — backend down must reject honestly
         logger.exception("Failed to persist agent job")
         raise ApiError(
@@ -492,8 +594,10 @@ async def create_agent_job(payload: AgentJobCreateRequest) -> dict[str, Any]:
             code=PROVIDER_UNAVAILABLE,
             detail=f"Job NOT accepted — persistence failed: {exc}",
         ) from exc
-    get_state().set_meta(job_id, payload.repo_path, payload.task_name)
+    get_state().set_meta(job_id, repo_path, payload.task_name)
     get_state().record_event(job_id, "progress", {"status": "PLANNING", "message": "Job created"})
+    if payload.auto_start:
+        _start_runtime_job(job_id, repo_path, spec_text, payload.task_name)
     return {"job_id": job_id, "status": _console_status(job)}
 
 
@@ -532,11 +636,16 @@ async def get_agent_job(job_id: str) -> dict[str, Any]:
 
 @router.post("/jobs/{job_id}/cancel", status_code=202)
 async def cancel_agent_job(job_id: str) -> dict[str, Any]:
-    """Cancel a non-terminal agent job (terminal jobs are immutable here)."""
+    """Cancel a non-terminal agent job (terminal jobs are immutable here).
+
+    The runtime is signalled first (cooperative cancel flag), then the
+    durable override lands through the same AgentJobStore.cancel the
+    passive projection always used — cancel wins even over a leased worker.
+    """
     job = _job_or_404(job_id)
     _require_cancellable(job)
     try:
-        get_store().cancel(job_id, "Cancelled by user")
+        get_runtime().cancel(job_id)
     except AgentJobStoreError as exc:
         raise ApiError(
             status_code=503,
