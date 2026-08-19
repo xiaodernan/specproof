@@ -6,8 +6,11 @@
 - write_file: whole-file atomic write (temp file + os.replace), existing
   content backed up to .specraft/backup/ first, line-ending convention
   preserved (LF stays LF, CRLF stays CRLF);
-- apply_edit: precise substring replace — old must match exactly once,
-  otherwise an error is raised and nothing touches the disk (drift guard);
+- apply_edit: precise substring replace — old must match exactly once; when
+  the exact match misses, a whitespace-normalized line match (tabs collapsed
+  to spaces, trailing spaces stripped) is tried as a fallback and, if unique,
+  is applied against the REAL file text; zero or ambiguous normalized matches
+  keep the explicit rejection and nothing touches the disk (drift guard);
 - write_file / apply_edit accept an optional expected_digest: when the
   current file digest differs, a StaleContextError (STALE_CONTEXT) refuses
   the write — the user's concurrent edits are never overwritten;
@@ -101,6 +104,61 @@ class AuditEntry:
 
 def _default_clock() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _normalize_ws_line(line: str) -> str:
+    """Whitespace-normalized line for the relaxed apply_edit anchor (W113):
+    every tab collapses to a single space, then trailing spaces are stripped.
+
+    The normalization only decides WHERE the replacement lands — the edit is
+    always applied against the real (un-normalized) file text.
+    """
+    return line.replace("\t", " ").rstrip(" ")
+
+
+def _relaxed_ws_anchor(text: str, old: str) -> tuple[int, int, int] | None:
+    """Relaxed anchor fallback for apply_edit (W113).
+
+    When the exact substring match fails, the old-string may have drifted
+    only in whitespace (trailing spaces / tabs), so the file text and old
+    are compared line-by-line after _normalize_ws_line. Returns
+    (start, end, occurrences): the real-text offsets of the single relaxed
+    match plus how many normalized matches exist (an exact match never
+    reaches this helper). None means no normalized match at all — the
+    caller keeps the original explicit rejection.
+    """
+    file_text = text.replace("\r\n", "\n")
+    file_lines = file_text.split("\n")
+    old_text = old.replace("\r\n", "\n")
+    old_lines = old_text.split("\n")
+    if old_lines and old_lines[-1] == "":
+        # A trailing newline in old anchors line CONTENT; the file's own
+        # line terminator stays in place after the splice.
+        old_lines.pop()
+    if not old_lines:
+        return None
+    needle = [_normalize_ws_line(line) for line in old_lines]
+    width = len(needle)
+    occurrences = 0
+    first_start = 0
+    for start_index in range(len(file_lines) - width + 1):
+        window = file_lines[start_index : start_index + width]
+        if [_normalize_ws_line(line) for line in window] != needle:
+            continue
+        if occurrences == 0:
+            first_start = start_index
+        occurrences += 1
+    if occurrences == 0:
+        return None
+    start_offset = len("\n".join(file_lines[:first_start]))
+    if first_start > 0:
+        start_offset += 1
+    end_index = first_start + width
+    # The span covers the matched lines' CONTENT only — each line's own
+    # terminator stays in the file, exactly like the exact-match path
+    # (old without a trailing newline never consumes the line's newline).
+    end_offset = len("\n".join(file_lines[:end_index]))
+    return start_offset, end_offset, occurrences
 
 
 class Editor:
@@ -276,6 +334,39 @@ class Editor:
             raise StaleContextError(path, expected_digest, actual)
         return actual
 
+    def _apply_span(
+        self,
+        target: Path,
+        path: str,
+        before: str,
+        text: str,
+        start: int,
+        end: int,
+        new: str,
+        *,
+        detail: str,
+    ) -> None:
+        """Back up and atomically write text[:start] + new + text[end:].
+
+        Shared by the exact and the whitespace-normalized apply_edit paths;
+        the file's own line-ending style is preserved and one audit line is
+        appended with the caller-supplied detail.
+        """
+        style = self._detect_newline(target)
+        self._backup(target)
+        replaced = text[:start] + new + text[end:]
+        self._atomic_write(target, replaced, style)
+        normalized = replaced.replace("\r\n", "\n")
+        if style == "CRLF":
+            normalized = normalized.replace("\n", "\r\n")
+        self._audit(
+            "edit",
+            path,
+            detail,
+            before_digest=before,
+            after_digest=sha256_digest(normalized.encode("utf-8")),
+        )
+
     def write_file(
         self, path: str, content: str, *, expected_digest: str | None = None
     ) -> None:
@@ -311,6 +402,11 @@ class Editor:
     ) -> None:
         """Precise edit: old must match exactly once or nothing is written.
 
+        Relaxed fallback (W113): when the exact match misses, a
+        whitespace-normalized line match (tabs collapsed, trailing spaces
+        stripped) anchors the same replacement against the REAL file text;
+        ambiguous normalized matches are rejected with the real reason.
+
         expected_digest (optional): freshness gate evaluated before the
         uniqueness check — a stale context refuses the write (§8.2).
         """
@@ -323,6 +419,31 @@ class Editor:
         text = target.read_text(encoding="utf-8")
         count = text.count(old)
         if count == 0:
+            relaxed = _relaxed_ws_anchor(text, old)
+            if relaxed is not None:
+                start, end, relaxed_count = relaxed
+                if relaxed_count != 1:
+                    self._audit(
+                        "edit",
+                        path,
+                        f"拒绝: old 空白归一化后命中 {relaxed_count} 处, 不唯一",
+                        before_digest=before,
+                    )
+                    raise EditError(
+                        f"apply_edit 拒绝: old 空白归一化后命中 {relaxed_count} 处不唯一, "
+                        f"未落盘 ({path})"
+                    )
+                self._apply_span(
+                    target,
+                    path,
+                    before,
+                    text,
+                    start,
+                    end,
+                    new,
+                    detail=f"替换 1 处 (空白归一化匹配, {len(old)}→{len(new)} chars)",
+                )
+                return
             self._audit("edit", path, "拒绝: old 未命中任何位置", before_digest=before)
             raise EditError(f"apply_edit 拒绝: old 未命中 ({path})")
         if count > 1:
@@ -330,19 +451,16 @@ class Editor:
                 "edit", path, f"拒绝: old 命中 {count} 处, 不唯一", before_digest=before
             )
             raise EditError(f"apply_edit 拒绝: old 命中 {count} 处不唯一, 未落盘 ({path})")
-        style = self._detect_newline(target)
-        self._backup(target)
-        replaced = text.replace(old, new, 1)
-        self._atomic_write(target, replaced, style)
-        normalized = replaced.replace("\r\n", "\n")
-        if style == "CRLF":
-            normalized = normalized.replace("\n", "\r\n")
-        self._audit(
-            "edit",
+        anchor = text.index(old)
+        self._apply_span(
+            target,
             path,
-            f"替换 1 处 ({len(old)}→{len(new)} chars)",
-            before_digest=before,
-            after_digest=sha256_digest(normalized.encode("utf-8")),
+            before,
+            text,
+            anchor,
+            anchor + len(old),
+            new,
+            detail=f"替换 1 处 ({len(old)}→{len(new)} chars)",
         )
 
     def move(self, src: str, dst: str) -> None:

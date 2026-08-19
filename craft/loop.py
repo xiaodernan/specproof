@@ -44,6 +44,16 @@ verdict to FAILED with the findings on record; edits are NOT rolled back —
 the report says so honestly. --no-self-verify (skip_self_verify=True)
 skips the gate and marks report.self_verify.status=skipped.
 
+W113 hardening (real eval evidence docs/eval/swebench-llm-results-v3.json):
+- edit anchor (flask-4045): the diagnose/edit-proposal prompt ships the
+  current real content of each candidate source file (first 400 lines,
+  raw) and instructs the model to quote old strings EXACTLY from it;
+  Editor.apply_edit additionally retries a whitespace-normalized line
+  match (tabs collapsed, trailing spaces stripped) before rejecting.
+- verify target (flask-4992): "assertion appears" grep criteria search
+  SOURCE files only — the harness applies hidden tests AFTER craft, so a
+  grep against tests/** can never pass; test-only targets FAIL honestly.
+
 W35 gate composition + durable job projection: when the M3 self-verify gate
 runs at finish, the full GatePipeline (craft/gates.py, five layered gates)
 runs too and its summary is embedded as report.gates — informational only,
@@ -100,6 +110,7 @@ from providers.toolcheck import (
     EditProposalSelfCheck,
     ProposalParseFailure,
     ToolCallSelfCheck,
+    is_test_file_path,
 )
 from storage.agent_jobs import (
     AgentJobStore,
@@ -205,8 +216,11 @@ keys: "diagnosis" (string, one sentence naming the root cause) and "edits"
 Hard rules:
 - each edit object has "action" (exactly "apply_edit" or "write_file") and
   a repo-relative "path";
-- apply_edit requires string "old"/"new"; old must match EXACTLY once in
-  the current file content shown below, otherwise the edit is rejected;
+- apply_edit requires string "old"/"new"; quote old strings EXACTLY from
+  the file content above — copy the real lines byte-for-byte (indentation
+  and inline whitespace included), never reconstruct code from memory; old
+  must match EXACTLY once in the current file content, otherwise the edit
+  is rejected;
 - write_file requires string "new" (the full file content);
 - fix only production/source code, never create or modify test files —
   hidden tests are applied by the harness itself;
@@ -747,7 +761,19 @@ class CraftLoop:
                 evidence["error"] = result.error
             return (result.exit_code == 0, evidence, result)
         contents: dict[str, str] = {}
-        for target in step.target_files:
+        # 诚实不变量 (W113): 断言值类 grep 校验 ("assertion appears") 只搜索
+        # 源文件, 永不搜索测试文件 — 隐藏测试由评测框架在 craft 结束之后才
+        # 应用到仓库, craft 阶段根本看不见它们, 因此对 tests/** 的断言值
+        # 校验永远无法通过 (真实证据: pallets__flask-4992 在
+        # tests/test_config.py 上 grep "tomllib" 3 轮后 STUCK)。目标只有
+        # 测试文件时诚实 FAILED, 绝不伪造通过。value="" 的可读性检查不
+        # 过滤 (不涉及断言值), 保持原语义。
+        targets = step.target_files
+        excluded_tests: list[str] = []
+        if criteria.value:
+            excluded_tests = [t for t in step.target_files if is_test_file_path(t)]
+            targets = [t for t in step.target_files if not is_test_file_path(t)]
+        for target in targets:
             try:
                 lines = self.editor.read_file(target)
             except EditError as exc:
@@ -767,21 +793,29 @@ class CraftLoop:
                 },
                 None,
             )
-        missing = [t for t in step.target_files if criteria.value not in contents[t]]
-        if missing:
-            return (
-                False,
-                {"check": "grep", "reason": f"断言值 {criteria.value!r} 未出现在: {missing}"},
-                None,
+        if not targets and step.target_files:
+            reason = (
+                f"断言值 {criteria.value!r} 无源文件可搜索: 目标 "
+                f"{sorted(step.target_files)} 均为测试文件 — 隐藏测试由评测框架在 "
+                "craft 后施加, craft 阶段不可见; 请只修复源文件使隐藏测试通过"
             )
-        return (
-            True,
-            {
-                "check": "grep",
-                "note": f"断言值 {criteria.value!r} 命中全部目标文件 {sorted(contents)}",
-            },
-            None,
-        )
+            return (False, {"check": "grep", "reason": reason}, None)
+        missing = [t for t in targets if criteria.value not in contents[t]]
+        if missing:
+            reason = f"断言值 {criteria.value!r} 未出现在源文件: {missing}"
+            if excluded_tests:
+                reason += (
+                    f"; 已排除测试文件 {sorted(excluded_tests)} "
+                    "(隐藏测试由评测框架在 craft 后施加, 不做断言校验)"
+                )
+            return (False, {"check": "grep", "reason": reason}, None)
+        note = f"断言值 {criteria.value!r} 命中全部目标源文件 {sorted(contents)}"
+        if excluded_tests:
+            note += (
+                f"; 已排除测试文件 {sorted(excluded_tests)} "
+                "(隐藏测试由评测框架在 craft 后施加, 不做断言校验)"
+            )
+        return (True, {"check": "grep", "note": note}, None)
 
     def _exec(self, command: list[str], state: StepState) -> ExecResult:
         self._time_gate(state)
@@ -1082,21 +1116,57 @@ class CraftLoop:
         envelope_mode: bool = False,
     ) -> dict[str, str]:
         """Failure context for the diagnose prompt: step schema, deterministic
-        diagnosis, failure output tail, target file contents (capped), the
-        editor API contract and the JSON output contract. envelope_mode
+        diagnosis, failure output tail, the current real content of each
+        candidate source file as the edit anchor (first 400 lines, capped),
+        the editor API contract and the JSON output contract. envelope_mode
         (W44 self-check) swaps the edit-proposal schema for the JSON Action
         Envelope contract."""
+        # W113 anchor fix: the prompt must carry the CURRENT real content
+        # of every candidate SOURCE file (bounded to the first 400 lines,
+        # raw lines, no numbering) so the model quotes old strings from the
+        # real text instead of reconstructing code from memory
+        # (pallets__flask-4045: apply_edit 拒绝 old 未命中 src/flask/helpers.py).
+        # Test files are excluded — editing them is forbidden and the hidden
+        # tests are applied by the harness after craft.
         snippets: list[str] = []
+        excluded_test_targets: list[str] = []
         for target in step.target_files[:8]:
+            if is_test_file_path(target):
+                excluded_test_targets.append(target)
+                continue
             try:
-                lines = self.editor.read_file(target, limit=200)
+                lines = self.editor.read_file(target, limit=401)
             except EditError:
                 snippets.append(f"--- {target} ---\n<不可读>")
                 continue
-            text = "\n".join(f"{number}: {line}" for number, line in lines)
+            over_line_limit = len(lines) > 400
+            shown = lines[:400]
+            text = "\n".join(line for _, line in shown)
             if len(text) > 12_000:
-                text = text[:12_000] + "\n... (截断)"
+                cut = text.rfind("\n", 0, 12_000)
+                if cut < 0:
+                    cut = 12_000
+                text = text[:cut] + "\n... (截断)"
+            elif over_line_limit:
+                text += "\n... (仅显示前 400 行)"
             snippets.append(f"--- {target} ---\n{text}")
+        anchor_header = (
+            "FILE CONTENT ANCHOR — quote old strings EXACTLY from the file content "
+            "above: each candidate SOURCE file's current real text follows (at most "
+            "the first 400 lines); every apply_edit \"old\" must be copied "
+            "byte-for-byte from a real line above (indentation and inline whitespace "
+            "included). Never reconstruct code from memory. Test files are excluded "
+            "— hidden tests are applied by the harness itself after craft."
+        )
+        if excluded_test_targets:
+            anchor_header += (
+                f" Excluded test files: {sorted(excluded_test_targets)}."
+            )
+        target_section = (
+            f"{anchor_header}\n\n" + "\n\n".join(snippets)
+            if snippets
+            else f"{anchor_header}\n\n(无候选源文件)"
+        )
         if self.tool_registry is not None:
             tool_surface = wrap_data_section(self.tool_registry.envelope_block())
         else:
@@ -1106,7 +1176,7 @@ class CraftLoop:
             "failure_diagnosis": diagnosis,
             "failure_output": (result.output_tail if result is not None else "") or "(无)",
             "forbidden_changes": "\n".join(self.spec.forbidden_changes) or "(无)",
-            "target_files": "\n\n".join(snippets) or "(无目标文件)",
+            "target_files": target_section,
             "task_memory": self.memory.summarize_for_prompt() or "(无任务记忆)",
             "editor_api": tool_surface,
             "output_schema": (
