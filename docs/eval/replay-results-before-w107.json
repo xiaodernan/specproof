@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-19T16:52:10.371187+00:00",
+  "generated_at": "2026-08-19T13:30:30.819414+00:00",
   "tool": "scripts/bench_replay.py",
   "repo_root": "D:\\experim\\specproof-clean-clone-gate",
   "capsules_dir": "D:\\experim\\specproof-clean-clone-gate\\capsules",
@@ -19,20 +19,20 @@
     "maven_dist_cache": "C:\\Users\\HUAWEI\\.m2\\wrapper\\dists"
   },
   "store": {
-    "capsule_records_total": 162,
-    "this_repo_paths": 150,
-    "other_repo_paths": 12,
+    "capsule_records_total": 94,
+    "this_repo_paths": 90,
+    "other_repo_paths": 4,
     "orphan_paths": 0,
-    "joined_to_zip_digests": 25
+    "joined_to_zip_digests": 23
   },
   "totals": {
     "enumerated": 28,
-    "same_conclusion": 10,
+    "same_conclusion": 8,
     "env_mismatch": 0,
     "evidence_inconsistent": 3,
-    "replay_failed": 15,
-    "success_rate": 0.3571,
-    "success_rate_excluding_env_mismatch": 0.3571,
+    "replay_failed": 17,
+    "success_rate": 0.2857,
+    "success_rate_excluding_env_mismatch": 0.2857,
     "gate_replay_success_rate_095": false
   },
   "capsules": [
@@ -91,13 +91,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-CONST-EVENT_ONCE-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-CONST-EVENT_ONCE-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-CONST-EVENT_ONCE-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-CONST-EVENT_ONCE-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-CONST-EVENT_ONCE-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-CONST-EVENT_ONCE-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-CONST-EVENT_ONCE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-CONST-EVENT_ONCE-01"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -122,7 +122,7 @@
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 60.05
+      "duration_s": 315.52
     },
     {
       "unit": "capsule-COURT-ATOMICITY-01",
@@ -133,7 +133,7 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-ATOMICITY-01.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-ATOMICITY-01",
-      "payload_sha256": "9e86905d3335d5484687b6e7b02d08fb5a0981ffd4dddc2923ac2ee5c5ed1765",
+      "payload_sha256": "186428a35b2c48b6eb65a186a2d85baab89b7a37ab3e2ac83911aa162d5e3fc3",
       "base_ref": "base",
       "head_ref": "case-39-head",
       "finding_id": "COURT-ATOMICITY-01",
@@ -148,13 +148,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ATOMICITY-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ATOMICITY-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ATOMICITY-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ATOMICITY-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ATOMICITY-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ATOMICITY-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ATOMICITY-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ATOMICITY-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
@@ -171,7 +171,7 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "same_conclusion",
@@ -179,7 +179,7 @@
       "verdict": "REGRESSION CONFIRMED",
       "base_exit": 0,
       "head_exit": 1,
-      "duration_s": 53.84
+      "duration_s": 141.7
     },
     {
       "unit": "capsule-COURT-AUTH-01",
@@ -190,45 +190,45 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-AUTH-01.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-AUTH-01",
-      "payload_sha256": "820d54c8c93fb916d78868f99c963965d9e8927284f9821155687b740a03cc7f",
+      "payload_sha256": "eac461701d34bde087ae35cda0cbaa32d421c4b2aed58ab9bef4dd92ed534b3f",
       "base_ref": "base",
-      "head_ref": "case-55-head",
+      "head_ref": "head-v1",
       "finding_id": "COURT-AUTH-01",
-      "severity": "MAJOR",
+      "severity": "BLOCKER",
       "evidence_type": "base_pass_head_fail",
-      "db_state_verdict": "DB_CONSISTENT",
+      "db_state_verdict": "DB_MUTATED_ON_UNAUTH",
       "recorded": {
         "2_base_head_execution": true,
-        "4_db_behavior_evidence": false,
+        "4_db_behavior_evidence": true,
         "5_capsule_replayable": true
       },
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-AUTH-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-AUTH-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-AUTH-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-AUTH-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-AUTH-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-AUTH-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-AUTH-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-AUTH-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
       "run_exit_code": 0,
       "timed_out": false,
       "run_output_tail": [
-        "  Head (case-55-head):  exit=1",
+        "  Head (case-25-head):  exit=1",
         "",
         "  >> REGRESSION CONFIRMED <<",
         "  Test passes in Base but fails in Head.",
         "  The PR introduced a breaking change.",
         "",
-        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). DB evidence: Base and Head DB dumps are identical. HTTP regression confirmed; DB mutation not directly captured.",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). DB evidence: No H2 dump available: No file-based H2 database found after test run. Switch the test profile to file-based H2 to capture DB state.. HTTP regression confirmed; DB mutation not directly captured.",
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "same_conclusion",
@@ -236,7 +236,7 @@
       "verdict": "REGRESSION CONFIRMED",
       "base_exit": 0,
       "head_exit": 1,
-      "duration_s": 55.0
+      "duration_s": 45.91
     },
     {
       "unit": "capsule-COURT-BOUNDARY-01",
@@ -262,13 +262,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-BOUNDARY-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-BOUNDARY-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-BOUNDARY-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-BOUNDARY-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-BOUNDARY-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-BOUNDARY-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-BOUNDARY-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-BOUNDARY-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
@@ -285,15 +285,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0)",
+      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0) \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 59.2
+      "duration_s": 104.23
     },
     {
       "unit": "capsule-COURT-CACHE-01",
@@ -304,9 +304,9 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-CACHE-01.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-CACHE-01",
-      "payload_sha256": "c201d7818b55103b74a88011d70027682f4bf6534ceebe54c472a0369182a813",
+      "payload_sha256": "646b93053e7a941d4c9a84b38d3742db1afc1b7c167d2d3e9cd06dc3b061db08",
       "base_ref": "base",
-      "head_ref": "case-60-head",
+      "head_ref": "case-65-head",
       "finding_id": "COURT-CACHE-01",
       "severity": "MAJOR",
       "evidence_type": "base_pass_head_fail",
@@ -319,20 +319,20 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-CACHE-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-CACHE-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-CACHE-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-CACHE-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-CACHE-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-CACHE-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-CACHE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-CACHE-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
       "run_exit_code": 0,
       "timed_out": false,
       "run_output_tail": [
-        "  Head (case-60-head):  exit=1",
+        "  Head (case-65-head):  exit=1",
         "",
         "  >> REGRESSION CONFIRMED <<",
         "  Test passes in Base but fails in Head.",
@@ -342,7 +342,7 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "same_conclusion",
@@ -350,7 +350,7 @@
       "verdict": "REGRESSION CONFIRMED",
       "base_exit": 0,
       "head_exit": 1,
-      "duration_s": 52.95
+      "duration_s": 108.48
     },
     {
       "unit": "capsule-COURT-CONCURRENCY-01",
@@ -361,9 +361,9 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-CONCURRENCY-01.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-CONCURRENCY-01",
-      "payload_sha256": "8f8603c5358932f8f1a49f95ccc7431b0dbd7e65722d8193a6ebc1735c52fe1b",
+      "payload_sha256": "071f40a3eb980eb69af64ffac2f11bff806ea6cc60af8a7b7673d83798c68ed1",
       "base_ref": "base",
-      "head_ref": "case-29-head",
+      "head_ref": "case-30-head",
       "finding_id": "COURT-CONCURRENCY-01",
       "severity": "BLOCKER",
       "evidence_type": "base_pass_head_fail",
@@ -376,13 +376,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-CONCURRENCY-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-CONCURRENCY-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-CONCURRENCY-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-CONCURRENCY-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-CONCURRENCY-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-CONCURRENCY-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-CONCURRENCY-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-CONCURRENCY-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
@@ -399,7 +399,7 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "same_conclusion",
@@ -407,7 +407,7 @@
       "verdict": "REGRESSION CONFIRMED",
       "base_exit": 0,
       "head_exit": 1,
-      "duration_s": 49.36
+      "duration_s": 54.5
     },
     {
       "unit": "capsule-COURT-DIFF-01",
@@ -464,13 +464,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-EMAIL_FORMAT-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-EMAIL_FORMAT-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-EMAIL_FORMAT-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-EMAIL_FORMAT-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-EMAIL_FORMAT-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-EMAIL_FORMAT-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-EMAIL_FORMAT-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-EMAIL_FORMAT-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
@@ -487,15 +487,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0)",
+      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0) \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 48.45
+      "duration_s": 102.97
     },
     {
       "unit": "capsule-COURT-EVENT_ONCE-01",
@@ -506,9 +506,9 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-EVENT_ONCE-01.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-EVENT_ONCE-01",
-      "payload_sha256": "c50ad74f4a598564399f47fa1a018c4e95dd510d0cc7f9638b5bea83ff52eaba",
+      "payload_sha256": "005bcdb1e2e6ea0d2207224772f611d1d8ef12acd8c761f8ecff67b79ed7e73e",
       "base_ref": "base",
-      "head_ref": "case-18-head",
+      "head_ref": "case-72-head",
       "finding_id": "COURT-EVENT_ONCE-01",
       "severity": "MAJOR",
       "evidence_type": "base_pass_head_fail",
@@ -521,38 +521,38 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-EVENT_ONCE-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-EVENT_ONCE-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-EVENT_ONCE-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-EVENT_ONCE-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-EVENT_ONCE-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-EVENT_ONCE-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-EVENT_ONCE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-EVENT_ONCE-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
       "run_exit_code": 0,
       "timed_out": false,
       "run_output_tail": [
-        "  Head (case-18-head):  exit=1",
-        "",
-        "  >> REGRESSION CONFIRMED <<",
-        "  Test passes in Base but fails in Head.",
-        "  The PR introduced a breaking change.",
-        "",
-        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). DB evidence: Base and Head DB dumps are identical. HTTP regression confirmed; DB mutation not directly captured.",
+        "[5/5] VERDICT",
+        "============================================================",
+        "  Base (base):  exit=0",
+        "  Head (case-72-head):  exit=0",
+        "  >> COMPLIANT <<",
+        "  Test passes in both Base and Head.",
+        "  Note: runtime test may not catch all regression types.",
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
-      "outcome": "same_conclusion",
-      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
-      "verdict": "REGRESSION CONFIRMED",
+      "outcome": "replay_failed",
+      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0) \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
+      "verdict": "COMPLIANT",
       "base_exit": 0,
-      "head_exit": 1,
-      "duration_s": 51.09
+      "head_exit": 0,
+      "duration_s": 120.88
     },
     {
       "unit": "capsule-COURT-IDEMPOTENT-01",
@@ -563,7 +563,7 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-IDEMPOTENT-01.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-IDEMPOTENT-01",
-      "payload_sha256": "c16b8890b8025501c4f2998b8fbddd639146d94d3c455d31edc521c0ee63aa53",
+      "payload_sha256": "6d290fe41dc3157f72841f610bb0fa62db7fac331f4639aa775c3cf47047126e",
       "base_ref": "base",
       "head_ref": "case-35-head",
       "finding_id": "COURT-IDEMPOTENT-01",
@@ -578,13 +578,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-IDEMPOTENT-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-IDEMPOTENT-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-IDEMPOTENT-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-IDEMPOTENT-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-IDEMPOTENT-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-IDEMPOTENT-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-IDEMPOTENT-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-IDEMPOTENT-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
@@ -601,7 +601,7 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "same_conclusion",
@@ -609,7 +609,7 @@
       "verdict": "REGRESSION CONFIRMED",
       "base_exit": 0,
       "head_exit": 1,
-      "duration_s": 56.02
+      "duration_s": 99.62
     },
     {
       "unit": "capsule-COURT-NPLUSONE-01",
@@ -635,13 +635,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-NPLUSONE-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-NPLUSONE-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-NPLUSONE-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-NPLUSONE-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-NPLUSONE-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-NPLUSONE-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-NPLUSONE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-NPLUSONE-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
@@ -658,7 +658,7 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "same_conclusion",
@@ -666,7 +666,7 @@
       "verdict": "REGRESSION CONFIRMED",
       "base_exit": 0,
       "head_exit": 1,
-      "duration_s": 58.06
+      "duration_s": 91.42
     },
     {
       "unit": "capsule-COURT-ORDER_AMOUNT-01",
@@ -692,13 +692,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ORDER_AMOUNT-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ORDER_AMOUNT-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ORDER_AMOUNT-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ORDER_AMOUNT-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ORDER_AMOUNT-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ORDER_AMOUNT-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ORDER_AMOUNT-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ORDER_AMOUNT-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
@@ -715,15 +715,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0)",
+      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0) \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 56.0
+      "duration_s": 101.92
     },
     {
       "unit": "capsule-COURT-ORDER_EVENT-01",
@@ -749,13 +749,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ORDER_EVENT-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ORDER_EVENT-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ORDER_EVENT-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ORDER_EVENT-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ORDER_EVENT-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-ORDER_EVENT-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ORDER_EVENT-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-ORDER_EVENT-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
@@ -772,15 +772,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0)",
+      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0) \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 54.39
+      "duration_s": 111.05
     },
     {
       "unit": "capsule-COURT-UNIQUE-01",
@@ -791,7 +791,7 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-UNIQUE-01.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-UNIQUE-01",
-      "payload_sha256": "a3100b12d618b5a286d6e63181aab46070642fc9a58a360ce0361bcd7053f6c6",
+      "payload_sha256": "7db30fd1ae59a8449523fd7b5e02d5d0eb845f02f1e3c69f556d7d3c061f6a33",
       "base_ref": "base",
       "head_ref": "case-20-head",
       "finding_id": "COURT-UNIQUE-01",
@@ -806,38 +806,38 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-UNIQUE-01\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-UNIQUE-01\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-UNIQUE-01\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-UNIQUE-01\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-UNIQUE-01\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-COURT-UNIQUE-01"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-UNIQUE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-COURT-UNIQUE-01"
         ]
       },
       "expected_verdict": "REGRESSION CONFIRMED",
       "run_exit_code": 0,
       "timed_out": false,
       "run_output_tail": [
-        "  Head (case-20-head):  exit=1",
-        "",
-        "  >> REGRESSION CONFIRMED <<",
-        "  Test passes in Base but fails in Head.",
-        "  The PR introduced a breaking change.",
-        "",
-        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). DB evidence: Base and Head DB dumps are identical. HTTP regression confirmed; DB mutation not directly captured.",
+        "[5/5] VERDICT",
+        "============================================================",
+        "  Base (base):  exit=0",
+        "  Head (case-20-head):  exit=0",
+        "  >> COMPLIANT <<",
+        "  Test passes in both Base and Head.",
+        "  Note: runtime test may not catch all regression types.",
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
-      "outcome": "same_conclusion",
-      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
-      "verdict": "REGRESSION CONFIRMED",
+      "outcome": "replay_failed",
+      "reason": "recorded base_pass_head_fail NOT reproduced \u2014 run script verdict COMPLIANT (base_exit=0, head_exit=0) \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
+      "verdict": "COMPLIANT",
       "base_exit": 0,
-      "head_exit": 1,
-      "duration_s": 47.64
+      "head_exit": 0,
+      "duration_s": 123.08
     },
     {
       "unit": "capsule-SRC-AUTH-ANNO",
@@ -848,9 +848,9 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-AUTH-ANNO.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-AUTH-ANNO",
-      "payload_sha256": "f2a0da687e6cde258f35755c60269bb999a4b1a0edb18adb836601b1a816cdd7",
+      "payload_sha256": "4fc26cc11469c6e521bd6f3aaf34fba4601d6dbc546ae131cedb87a249f5be91",
       "base_ref": "base",
-      "head_ref": "case-22-head",
+      "head_ref": "head-v1",
       "finding_id": "SRC-AUTH-ANNO",
       "severity": "MAJOR",
       "evidence_type": "java_source_diff",
@@ -863,30 +863,30 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-AUTH-ANNO\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-AUTH-ANNO\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-AUTH-ANNO\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-AUTH-ANNO\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-AUTH-ANNO\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-AUTH-ANNO"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-AUTH-ANNO\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-AUTH-ANNO"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
       "run_exit_code": 0,
       "timed_out": false,
       "run_output_tail": [
-        "  Head (case-22-head):  exit=1",
+        "  Head (head-v1):  exit=1",
         "",
         "  >> REGRESSION CONFIRMED <<",
         "  Test passes in Base but fails in Head.",
         "  The PR introduced a breaking change.",
         "",
-        "  Finding: Security annotation removed from mutating endpoint method changeEmail() in com/specproof/demo/controller/UserController.java",
+        "  Finding: Security annotation removed from mutating endpoint method changeEmail() in com/example/UserController.java",
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "same_conclusion",
@@ -894,7 +894,7 @@
       "verdict": "REGRESSION CONFIRMED",
       "base_exit": 0,
       "head_exit": 1,
-      "duration_s": 46.84
+      "duration_s": 109.52
     },
     {
       "unit": "capsule-SRC-BACKWARD_COMPATIBLE-SCHE",
@@ -905,7 +905,7 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE",
-      "payload_sha256": "abfeba89047908747c1eedf3f9f9b36eb10afcf6eecb1fea9a0b14f33078688c",
+      "payload_sha256": "2928e4c679cfaf2395452403b222b538169d1be22164bc81454e63a52b0cfb55",
       "base_ref": "base",
       "head_ref": "case-53-head",
       "finding_id": "SRC-BACKWARD_COMPATIBLE-SCHE",
@@ -920,13 +920,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -943,15 +943,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 46.23
+      "duration_s": 115.33
     },
     {
       "unit": "capsule-SRC-EVENT_ONCE-DUPL",
@@ -962,9 +962,9 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-EVENT_ONCE-DUPL.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-EVENT_ONCE-DUPL",
-      "payload_sha256": "23fab1128bc739b809999088bdd1429462116cab4a2ceb4e07c110a9f85cb194",
+      "payload_sha256": "850628840c8da0e97773d53014e3640b510eb0c511eaf6522ea13f53380c45fa",
       "base_ref": "base",
-      "head_ref": "case-07-head",
+      "head_ref": "case-69-head",
       "finding_id": "SRC-EVENT_ONCE-DUPL",
       "severity": "MAJOR",
       "evidence_type": "java_source_diff",
@@ -977,13 +977,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-EVENT_ONCE-DUPL\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-EVENT_ONCE-DUPL\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-EVENT_ONCE-DUPL\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-EVENT_ONCE-DUPL\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-EVENT_ONCE-DUPL\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-EVENT_ONCE-DUPL"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-EVENT_ONCE-DUPL\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-EVENT_ONCE-DUPL"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -993,22 +993,22 @@
         "[5/5] VERDICT",
         "============================================================",
         "  Base (base):  exit=0",
-        "  Head (case-07-head):  exit=0",
+        "  Head (case-69-head):  exit=0",
         "  >> COMPLIANT <<",
         "  Test passes in both Base and Head.",
         "  Note: runtime test may not catch all regression types.",
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 46.91
+      "duration_s": 98.61
     },
     {
       "unit": "capsule-SRC-MIGRATION-COLU",
@@ -1019,9 +1019,9 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-COLU.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-COLU",
-      "payload_sha256": "3ace004b7701f6f5681132ee400c3548e8f830865ac9c2b385475c624afd0723",
+      "payload_sha256": "92266107dbc338dd41b1c60b3b9b5cc77069362310263381dca5bc3acb1f7ee6",
       "base_ref": "base",
-      "head_ref": "case-47-head",
+      "head_ref": "case-44-head",
       "finding_id": "SRC-MIGRATION-COLU",
       "severity": "MAJOR",
       "evidence_type": "java_source_diff",
@@ -1034,13 +1034,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-COLU\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-COLU\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-COLU\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-COLU\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-COLU\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-COLU"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-COLU\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-COLU"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -1050,22 +1050,22 @@
         "[5/5] VERDICT",
         "============================================================",
         "  Base (base):  exit=0",
-        "  Head (case-47-head):  exit=0",
+        "  Head (case-44-head):  exit=0",
         "  >> COMPLIANT <<",
         "  Test passes in both Base and Head.",
         "  Note: runtime test may not catch all regression types.",
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 46.73
+      "duration_s": 84.05
     },
     {
       "unit": "capsule-SRC-MIGRATION-CONS",
@@ -1076,7 +1076,7 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-CONS.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-CONS",
-      "payload_sha256": "2961247ac97728b075eb0bec13238a86c6f9e6de54e7f62cc6b97305e7379395",
+      "payload_sha256": "4319e586f76c533777087edc1b96298dec2b0c7fadc30107363c513ad178a789",
       "base_ref": "base",
       "head_ref": "case-45-head",
       "finding_id": "SRC-MIGRATION-CONS",
@@ -1091,13 +1091,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-CONS\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-CONS\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-CONS\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-CONS\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-CONS\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-CONS"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-CONS\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-CONS"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -1114,15 +1114,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 46.53
+      "duration_s": 113.81
     },
     {
       "unit": "capsule-SRC-MIGRATION-TABL",
@@ -1133,7 +1133,7 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-TABL.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-TABL",
-      "payload_sha256": "00963426904daf57de024bd86ba1f8d3aabee13be512a01538742c838c46679e",
+      "payload_sha256": "0b97b9d0f34c8bcbd97d3ac3e948429d51f551045d84b66d3ec304624d7b3ff9",
       "base_ref": "base",
       "head_ref": "case-41-head",
       "finding_id": "SRC-MIGRATION-TABL",
@@ -1148,13 +1148,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-TABL\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-TABL\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-TABL\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-TABL\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-TABL\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-MIGRATION-TABL"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-TABL\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-MIGRATION-TABL"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -1171,15 +1171,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 45.2
+      "duration_s": 117.22
     },
     {
       "unit": "capsule-SRC-OPENAPI-ENDP",
@@ -1190,7 +1190,7 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-OPENAPI-ENDP.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-OPENAPI-ENDP",
-      "payload_sha256": "853ad58df8364977b82df5e43e6f34fa7050c52b449ae0ea156fc6dba08e6916",
+      "payload_sha256": "b6b083613b6f457fae881afceae37a4e73c5ed67721e61417b010989165d8f67",
       "base_ref": "base",
       "head_ref": "case-55-head",
       "finding_id": "SRC-OPENAPI-ENDP",
@@ -1205,13 +1205,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-OPENAPI-ENDP\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-OPENAPI-ENDP\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-OPENAPI-ENDP\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-OPENAPI-ENDP\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-OPENAPI-ENDP\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-OPENAPI-ENDP"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-OPENAPI-ENDP\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-OPENAPI-ENDP"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -1228,7 +1228,7 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "same_conclusion",
@@ -1236,7 +1236,7 @@
       "verdict": "REGRESSION CONFIRMED",
       "base_exit": 0,
       "head_exit": 1,
-      "duration_s": 46.41
+      "duration_s": 94.64
     },
     {
       "unit": "capsule-SRC-TEST_STRENGTH-ASSE",
@@ -1262,13 +1262,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -1285,15 +1285,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 47.45
+      "duration_s": 92.38
     },
     {
       "unit": "capsule-SRC-TEST_STRENGTH-TEST",
@@ -1319,13 +1319,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TEST_STRENGTH-TEST\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TEST_STRENGTH-TEST\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TEST_STRENGTH-TEST\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TEST_STRENGTH-TEST\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TEST_STRENGTH-TEST\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TEST_STRENGTH-TEST"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TEST_STRENGTH-TEST\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TEST_STRENGTH-TEST"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -1342,26 +1342,26 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 45.67
+      "duration_s": 113.75
     },
     {
       "unit": "capsule-SRC-TOKEN_INVALIDATION-GUAR",
       "sources": {
         "zip": true,
         "dir": true,
-        "store_records": 1
+        "store_records": 0
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TOKEN_INVALIDATION-GUAR.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TOKEN_INVALIDATION-GUAR",
-      "payload_sha256": "7a140f57584694ad5b5d94157cb6345f79a5708a06474ba11c07a02ce3e9e5ba",
+      "payload_sha256": "8742aa8c357230ecb9612a8f95bee708a0e87c32320ec36a563547dfa4f2ac63",
       "base_ref": "base",
       "head_ref": "case-05-head",
       "finding_id": "SRC-TOKEN_INVALIDATION-GUAR",
@@ -1376,13 +1376,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -1399,15 +1399,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 47.17
+      "duration_s": 129.92
     },
     {
       "unit": "capsule-SRC-TRANSACTION-ANNO",
@@ -1418,9 +1418,9 @@
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TRANSACTION-ANNO.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TRANSACTION-ANNO",
-      "payload_sha256": "a10311aab26e852051d6b8c6250f131352a535202508221910786536a8536d88",
+      "payload_sha256": "63a510588f64985078ab188a339fcd71d017ab7a65e3ffaa19fdf2ee30972aa7",
       "base_ref": "base",
-      "head_ref": "case-37-head",
+      "head_ref": "case-09-head",
       "finding_id": "SRC-TRANSACTION-ANNO",
       "severity": "MAJOR",
       "evidence_type": "java_source_diff",
@@ -1433,13 +1433,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TRANSACTION-ANNO\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TRANSACTION-ANNO\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TRANSACTION-ANNO\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TRANSACTION-ANNO\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TRANSACTION-ANNO\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-TRANSACTION-ANNO"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TRANSACTION-ANNO\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-TRANSACTION-ANNO"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -1449,33 +1449,33 @@
         "[5/5] VERDICT",
         "============================================================",
         "  Base (base):  exit=0",
-        "  Head (case-37-head):  exit=0",
+        "  Head (case-09-head):  exit=0",
         "  >> COMPLIANT <<",
         "  Test passes in both Base and Head.",
         "  Note: runtime test may not catch all regression types.",
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 48.09
+      "duration_s": 104.19
     },
     {
       "unit": "capsule-SRC-UNIQUE-GUAR",
       "sources": {
         "zip": true,
         "dir": true,
-        "store_records": 1
+        "store_records": 0
       },
       "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-UNIQUE-GUAR.zip",
       "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-UNIQUE-GUAR",
-      "payload_sha256": "2ddbcc4fbc506666fb977eb34337938ec9217f6ac3f1b92bff90f1b1238448eb",
+      "payload_sha256": "eb8687b451b6a8fd1c5ee9aef51eaf6a4d83e606fa9025f236195a0908246f7c",
       "base_ref": "base",
       "head_ref": "case-04-head",
       "finding_id": "SRC-UNIQUE-GUAR",
@@ -1490,13 +1490,13 @@
       "evidence_problems": [],
       "replay_cli": {
         "ok": true,
-        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-UNIQUE-GUAR\\replay-report.json",
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-UNIQUE-GUAR\\replay-report.json",
         "output_tail": [
-          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-UNIQUE-GUAR\\replay-report.json",
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-UNIQUE-GUAR\\replay-report.json",
           "",
           "Capsule extracted successfully.",
-          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-UNIQUE-GUAR\\run.sh",
-          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-ly60vdbo\\extracted\\capsule-SRC-UNIQUE-GUAR"
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-UNIQUE-GUAR\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-v3dnd8u1\\extracted\\capsule-SRC-UNIQUE-GUAR"
         ]
       },
       "expected_verdict": "NO_RUNTIME_CLAIM",
@@ -1513,15 +1513,15 @@
         "============================================================"
       ],
       "generated_test": {
-        "in_test_java": true,
+        "in_test_java": false,
         "in_test_root": true
       },
       "outcome": "replay_failed",
-      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding",
+      "reason": "static-only recorded evidence; runtime verdict COMPLIANT does not reproduce the finding \u2014 root cause: the capsule's generated test was injected into src/test/ (outside Maven's test source root src/test/java/) and was never compiled",
       "verdict": "COMPLIANT",
       "base_exit": 0,
       "head_exit": 0,
-      "duration_s": 46.56
+      "duration_s": 104.64
     },
     {
       "unit": "capsule-STATIC-MUT-01",

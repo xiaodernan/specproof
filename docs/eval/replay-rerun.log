@@ -1,0 +1,31 @@
+[1/28] capsule-4ccc31dc-AUTH-01 -> evidence_inconsistent
+[2/28] capsule-CONST-EVENT_ONCE-01 -> replay_failed (COMPLIANT)
+[3/28] capsule-COURT-ATOMICITY-01 -> same_conclusion (REGRESSION CONFIRMED)
+[4/28] capsule-COURT-AUTH-01 -> same_conclusion (REGRESSION CONFIRMED)
+[5/28] capsule-COURT-BOUNDARY-01 -> replay_failed (COMPLIANT)
+[6/28] capsule-COURT-CACHE-01 -> same_conclusion (REGRESSION CONFIRMED)
+[7/28] capsule-COURT-CONCURRENCY-01 -> same_conclusion (REGRESSION CONFIRMED)
+[8/28] capsule-COURT-DIFF-01 -> evidence_inconsistent
+[9/28] capsule-COURT-EMAIL_FORMAT-01 -> replay_failed (COMPLIANT)
+[10/28] capsule-COURT-EVENT_ONCE-01 -> same_conclusion (REGRESSION CONFIRMED)
+[11/28] capsule-COURT-IDEMPOTENT-01 -> same_conclusion (REGRESSION CONFIRMED)
+[12/28] capsule-COURT-NPLUSONE-01 -> same_conclusion (REGRESSION CONFIRMED)
+[13/28] capsule-COURT-ORDER_AMOUNT-01 -> replay_failed (COMPLIANT)
+[14/28] capsule-COURT-ORDER_EVENT-01 -> replay_failed (COMPLIANT)
+[15/28] capsule-COURT-UNIQUE-01 -> same_conclusion (REGRESSION CONFIRMED)
+[16/28] capsule-SRC-AUTH-ANNO -> same_conclusion (REGRESSION CONFIRMED)
+[17/28] capsule-SRC-BACKWARD_COMPATIBLE-SCHE -> replay_failed (COMPLIANT)
+[18/28] capsule-SRC-EVENT_ONCE-DUPL -> replay_failed (COMPLIANT)
+[19/28] capsule-SRC-MIGRATION-COLU -> replay_failed (COMPLIANT)
+[20/28] capsule-SRC-MIGRATION-CONS -> replay_failed (COMPLIANT)
+[21/28] capsule-SRC-MIGRATION-TABL -> replay_failed (COMPLIANT)
+[22/28] capsule-SRC-OPENAPI-ENDP -> same_conclusion (REGRESSION CONFIRMED)
+[23/28] capsule-SRC-TEST_STRENGTH-ASSE -> replay_failed (COMPLIANT)
+[24/28] capsule-SRC-TEST_STRENGTH-TEST -> replay_failed (COMPLIANT)
+[25/28] capsule-SRC-TOKEN_INVALIDATION-GUAR -> replay_failed (COMPLIANT)
+[26/28] capsule-SRC-TRANSACTION-ANNO -> replay_failed (COMPLIANT)
+[27/28] capsule-SRC-UNIQUE-GUAR -> replay_failed (COMPLIANT)
+[28/28] capsule-STATIC-MUT-01 -> evidence_inconsistent
+
+replay success rate: 10/28 = 0.3571 (gate >= 0.95: FAIL)
+results: scripts/bench_replay.py -> docs/eval/replay-results.json + .md
