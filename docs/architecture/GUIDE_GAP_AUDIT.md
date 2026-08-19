@@ -9,7 +9,7 @@
 |---|---|---|---|
 | 1 | domain-model.md 冻结领域对象 | ✗ 无 | 本轮建 docs/architecture/domain-model.md |
 | 2 | 统一 request_id/trace_id/错误码/审计 Envelope | ✅ 完成 (P 车道): request_id (J/W14) + trace_id (observability) + api/errors.py 稳定错误码表 (AUTH_REQUIRED/TENANT_FORBIDDEN/QUOTA_EXCEEDED/JOB_NOT_FOUND/PROVIDER_UNAVAILABLE/EVIDENCE_UNVERIFIED/RATE_LIMITED/PAYLOAD_TOO_LARGE/VALIDATION_FAILED/INTERNAL + STATE_CONFLICT(409)); 全部错误响应 = {detail(原文保留), error:{code,message,request_id}, schema_version:1} (api/server.py 全局 exception handler; middleware 413 直发 envelope) | 已完成+证据: tests/unit/test_api_errors.py 15 用例全绿 + test_api_jobs/test_web_api/test_webhook_endpoint/test_middleware/test_dashboard_api 83 用例全绿 (detail 兼容) + ruff/mypy/bandit 全绿 |
-| 3 | 全部 API tenant scope 设计 | 部分: CP 有 tenant (TenantController/JobView 租户过滤), Python API 单租户默认 | 需 tenant_id 注入设计文档 + 迁移 (阶段1) |
+| 3 | 全部 API tenant scope 设计 | ✅ 完成 (W37): docs/architecture/MULTI_TENANT_DESIGN.md 定稿 + api/identity (principal/oidc/tokens/rbac) + repository 层 scoped SQL + 迁移 0005 (成对); 跨租户 404+审计 实测; 无 auth 配置时保持旧单租户行为 (兼容 124 测试全绿) | 配额与用量账本 (阶段6); /agent/* 无 tenant 列仅 RBAC 治理 (已注明) |
 | 4 | OpenAPI schema diff 门禁 + 事件 Envelope 合同测试 | ✅ 完成 (P 车道): scripts/openapi_diff.py (added/removed/changed 端点+响应码, --allow/--update) + CI job openapi-schema-diff + docs/openapi/baseline.json (16 paths, OpenAPI 3.1.0, 已入库待提交); contracts/events.py build_envelope/payload_digest (§3.4 12 字段, uuid4hex event_id, 密钥脱敏, 确定性 sha256 digest) + storage/outbox_relay.py 平铺兼容 (老字段不变, 新增 schema_version/payload_digest/idempotency_key 等) | 已完成+证据: openapi_diff 实测 (基线生成 exit 0 → 无变更 exit 0 → 篡改基线 exit 1 且 --allow 豁免 exit 0) + tests/contract/test_event_envelope.py 12 用例全绿 + tests/unit/test_outbox.py 全绿 (wire 兼容) |
 | 5 | Playwright 前端场景 (向导/详情/权限/降级) | ✗ (无 e2e) | 阶段2 (R 车道, 需 node playwright) |
 | 6 | Contract immutable version/approval/checker version/lineage | 部分: registry 有审批/版本/spec_digest; lineage (W13) 已有 DAG | 补 checker_version 字段 + 不可变版本语义 (阶段2) |
@@ -17,7 +17,7 @@
 | 8 | Worker 取消检查/租约指标/阶段耗时/异常分类 | 部分: 取消有 (job 状态机 + cancel), 阶段耗时指标 (C/W14 直方图) | 取消检查点补 Maven 前后/LLM 前 (阶段4); 租约指标 (阶段0) |
 | 9 | Provider 每租户预算/模型路由/调用摘要/成本账本 | 部分: TokenBudget (全局, W13), 调用摘要 (llm_usage), KV 缓存字段 | 租户级预算 + usage_ledger 表 (阶段1/6) |
 | 10 | 执行适配器接口 (ExecutionAdapter) + 兼容矩阵 | ✅ Q 车道已落地: experiments/adapters.py (Protocol 五方法 + registry + JavaMavenAdapter 声明镜像 digest/工具链/离线策略/已知限制), run_differential/generate_counterexamples 已改经适配器执行 (行为逐参数保持), 矩阵 docs/architecture/EXECUTION_COMPATIBILITY.md; Gradle/Node/Python/Go = 规划 (detect 抛 AdapterNotImplemented) | 保持: 每季度重跑兼容矩阵; 阶段4 逐步实现其余适配器并实测后改"已支持" |
-| 11 | 跨租户/路径穿越/Webhook 重放/注入/沙箱边界安全测试 | 部分: 路径穿越 (capsule/replay), 注入 (24 矩阵), 沙箱 (15), webhook 验签有 | 补跨租户+重放测试 (阶段1 出口) |
+| 11 | 跨租户/路径穿越/Webhook 重放/注入/沙箱边界安全测试 | ✅ 跨租户完成 (W37): A 租户读 B 租户 job → 404 + audit(attempted_tenant); tenant_id 仅取 principal (参数覆盖无效, 已测); RBAC 矩阵 4×4 断言; OIDC 签名/过期/错 issuer/错 aud 用例; 路径穿越/注入/沙箱/webhook 验签已有 | Webhook 重放测试 (阶段1 出口补) |
 | 12 | 金案例扩展计划拆成案例表 (expected evidence 先行) | 部分: 100 案例 (P6_CASES 数据表 + ground-truth 含 evidence) | 200 案例路线表 (阶段4) |
 | 13 | httpx/Starlette TestClient 弃用警告处理 | ✗ (1 警告仍在) | 本轮: 处理并记录 (见 §D) |
 | 14 | 数据保留/删除/导出/备份恢复操作手册 + 文档演练 | 部分: RUNBOOK 有备份章节 | 补删除/导出/保留策略 (阶段5) |
@@ -28,7 +28,7 @@
 | 阶段 | 现状 | 差距 |
 |---|---|---|
 | 0 基线冻结 | 部分 (门禁全绿/文档多) | 依赖锁定 (uv/requirements lock), 事件清单, 数据字典 |
-| 1 身份多租户 | 部分 (CP tenant/user 实体+REST) | OIDC/SAML, RBAC 权限矩阵, Python 侧 tenant scope, 邀请/Token 管理 |
+| 1 身份多租户 | ✅ 核心完成 (W37): OIDC JWKS RS256 + sp_* 本地 Token; RBAC 4×4 矩阵; Python 侧 tenant scope (repository scoped SQL); 前端登录/租户切换/用户与 Token 管理; 迁移 0005 | SAML (阶段2+); 邀请流; live-MySQL 迁移 up/down 实测 |
 | 2 完整工作流前端 | ✅ Agent 工作台 20 路由 (W31 已交付: 任务向导/计划与步骤审阅/SSE 实时工具流/事件/编辑/门禁/统一+分栏 Diff/审批收件箱/设置; 8 API 端点走 agent_jobs 投影) | 批量操作/通知中心/移动端/错误边界/Playwright e2e (任务 5, 阶段2 出口) |
 | 3 集成与策略 | 部分 (GitHub App webhook/checks/评论/fix) | GitLab/Gerrit, Policy DSL, 豁免流, 分支保护建议 |
 | 4 验证深度生态 | 部分 (mvn+沙箱+变异+状态快照) | Gradle/Node/Python/Go 适配器, 状态机测试, 反例最小化, +100 案例 |
