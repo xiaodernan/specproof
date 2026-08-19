@@ -331,3 +331,24 @@ monkeypatch, 无网络、无 Docker、无真实 LLM):
 门禁: ruff (改动文件) + mypy --strict (改动模块) + pytest 上述四个测试文件
 + craft sweep 全绿。诚实性不变式不变: reason 非空当且仅当 unresolved,
 resolved 只来自 craft DONE + test_patch + FAIL_TO_PASS/PASS_TO_PASS 全过。
+
+### 8.5 复跑实录 v2 (2026-08-19): 编辑提案已流通, 新缺口=测试文件误改
+
+修复落地后真实复跑 (docs/eval/swebench-llm-results-v2.json, 同 2 实例、
+同网关): 编辑提案 JSON 信封修复生效 — 模型输出的提案已能被解析并进入
+apply/verify 循环; 但两个实例都在 verify 步以真实签名诚实 STUCK:
+
+| instance | 终态 | 真实签名 (v2) |
+|---|---|---|
+| pallets__flask-4045 | STUCK | s3: 断言值 'pytest.raises(ValueError)' 未出现在 tests/test_blueprints.py |
+| pallets__flask-4992 | STUCK | s4: 断言值 'tomllib' 未出现在 tests/test_config.py |
+
+解读 (诚实): 模型学会了"补断言"策略 — 但它改的是测试文件, 而隐藏
+FAIL_TO_PASS 测试由 harness 的 test_patch 应用, craft 的职责是只改源码
+让隐藏测试通过。签名从 <no-exec-output> 升级为真实断言值/文件清单,
+可定位性大幅提升, resolved 率仍为诚实的 0%。
+
+下一修复 (W112): craft 编辑路径加测试文件守卫 — 任何指向 tests/**、
+test_*.py、*_test.py 的提案条目按 CODE_TEST_FILE_FORBIDDEN 拒绝并携
+"只改源码、绝不新建/修改测试文件"的修复指令重试一次; diagnose 提示词
+加一行同义约束。修完再复跑同 2 实例。
