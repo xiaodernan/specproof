@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   SpecProof 本地体验停止脚本 (W43): 停前端/后端进程 + compose down (数据卷保留)。
 .DESCRIPTION
@@ -32,6 +32,8 @@ function Stop-Tracked([string]$PidFile, [string]$Label) {
 Write-Host "==> 停止本地体验 (数据卷保留)" -ForegroundColor Cyan
 Stop-Tracked (Join-Path $LocalDir "web.pid") "前端 Vite"
 Stop-Tracked (Join-Path $LocalDir "api.pid") "后端 FastAPI"
+Stop-Tracked (Join-Path $LocalDir "worker.pid") "验证 Worker"
+Stop-Tracked (Join-Path $LocalDir "relay.pid") "Outbox Relay"
 
 Write-Host "==> 停止基础设施容器" -ForegroundColor Cyan
 try {

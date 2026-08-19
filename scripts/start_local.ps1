@@ -130,6 +130,7 @@ if ($missing.Count -gt 0) {
     exit 1
 }
 Write-Ok "docker / python / node / npm 均可用"
+$pythonPath = (Get-Command python).Source
 
 Write-Step "检查 Docker Desktop"
 try {
@@ -223,7 +224,6 @@ if (Test-TrackedProcess $apiPidFile) {
     $needApiStart = $true
 }
 if ($needApiStart) {
-    $pythonPath = (Get-Command python).Source
     $null = Start-TrackedProcess `
         -PidFile $apiPidFile `
         -OutLog (Join-Path $LocalDir "api.log") `
@@ -244,6 +244,69 @@ Write-Step "播种演示数据 (幂等, 可重复执行)"
 & python $SeedScript --api-base $ApiUrl --api-key $DemoApiKey
 if ($LASTEXITCODE -ne 0) {
     Write-WarnMsg "seed 脚本退出码 $LASTEXITCODE — 继续启动前端 (请查看上方输出)"
+}
+
+# ── 验证管道 (W43.1: Outbox Relay + Worker 并入一键启动) ──
+Write-Step "启动验证管道 (Outbox Relay + Worker — 新建验证任务可直接跑通)"
+$relayPidFile = Join-Path $LocalDir "relay.pid"
+$needRelayStart = $false
+if (Test-TrackedProcess $relayPidFile) {
+    Write-Ok "Outbox Relay 已在运行 (跳过启动)"
+} elseif (Test-PortListening 9101) {
+    Write-WarnMsg "端口 9101 已被其他进程占用 — 跳过 Relay 启动 (可能已是其他实例)"
+} else {
+    $needRelayStart = $true
+}
+if ($needRelayStart) {
+    $null = Start-TrackedProcess `
+        -PidFile $relayPidFile `
+        -OutLog (Join-Path $LocalDir "relay.log") `
+        -ErrLog (Join-Path $LocalDir "relay.err") `
+        -FilePath $pythonPath `
+        -Arguments @("-m", "storage.outbox_relay") `
+        -WorkDir $RepoRoot
+    Write-Info "Outbox Relay 启动中 (日志: .local\relay.log) ..."
+}
+$workerPidFile = Join-Path $LocalDir "worker.pid"
+$needWorkerStart = $false
+if (Test-TrackedProcess $workerPidFile) {
+    if ($WithLlm -and $LlmConfigured) {
+        Write-Info "Worker 已在运行 — 按 LLM 增强档重启 Worker (与后端一致)"
+        $procId = Get-TrackedPid $workerPidFile
+        if ($null -ne $procId) { & taskkill /PID $procId /T /F 2>$null | Out-Null }
+        Remove-Item $workerPidFile -Force -ErrorAction SilentlyContinue
+        $deadline = (Get-Date).AddSeconds(20)
+        while ((Test-PortListening 9100) -and ((Get-Date) -lt $deadline)) {
+            Start-Sleep -Seconds 2
+        }
+        $needWorkerStart = $true
+    } else {
+        Write-Ok "Worker 已在运行 (跳过启动)"
+    }
+} elseif (Test-PortListening 9100) {
+    Write-WarnMsg "端口 9100 已被其他进程占用 — 跳过 Worker 启动 (可能已是其他实例)"
+} else {
+    $needWorkerStart = $true
+}
+if ($needWorkerStart) {
+    $null = Start-TrackedProcess `
+        -PidFile $workerPidFile `
+        -OutLog (Join-Path $LocalDir "worker.log") `
+        -ErrLog (Join-Path $LocalDir "worker.err") `
+        -FilePath $pythonPath `
+        -Arguments @((Join-Path $RepoRoot "scripts\run_worker.py")) `
+        -WorkDir $RepoRoot
+    Write-Info "Worker 启动中 (日志: .local\worker.log) ..."
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-PortListening 9100) { break }
+        Start-Sleep -Seconds 2
+    }
+    if (Test-PortListening 9100) {
+        Write-Ok "Worker 就绪 (metrics 端口 9100)"
+    } else {
+        Write-WarnMsg "Worker 在 60 秒内未监听 9100 — 查看 .local\worker.log"
+    }
 }
 
 # ── 前端 ──
@@ -290,7 +353,7 @@ if ($LlmConfigured) {
 Write-Host "  Web 前端   : $WebUrl           <- 从这里开始"
 Write-Host "  API 文档   : $ApiUrl/docs"
 Write-Host "  登录密钥   : $DemoApiKey   (登录页选择 X-API-Key)"
-Write-Host "  日志       : .local\api.log / .local\web.log"
+Write-Host "  日志       : .local\api.log / .local\web.log / .local\relay.log / .local\worker.log"
 Write-Host "  停止       : pwsh scripts\stop_local.ps1"
 Write-Host ""
 Write-Host "  第一步: 打开 $WebUrl -> 粘贴密钥 -> 总览看到 3 条【演示】验证任务"
