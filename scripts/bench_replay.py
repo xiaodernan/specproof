@@ -20,6 +20,23 @@ git worktree, and classifies the outcome into exactly one of four buckets:
                          static evidence that could not be re-verified at
                          the recorded head commit
 
+Two explicit exclusion classifications preempt the four buckets so the
+gate denominator stays auditable:
+
+  excluded_demo_seed      capsule.json declares demo:true (parsed from the
+                          zip; only when it literally contains "demo": true)
+                          — seed demo data, not a verification finding
+  excluded_stale_artifact the recorded manifest_digest equals the sha256 of
+                          the pretty-printed manifest (json.dumps(indent=2,
+                          sort_keys=True), digest field excluded) while the
+                          canonical recompute differs — the zip predates
+                          the canonical digest rule
+
+Excluded capsules are reported with their classification and reason but
+never counted in the gate denominator: success rate = verified /
+(enumerated - excluded), and both denominators are printed in the JSON
+totals and the markdown summary — the raw counts are never hidden.
+
 Verdict semantics (two-tier replay). The capsule records its own claim in
 the blocker_check blocker conditions. When 2_base_head_execution is true the
 capsule claims a differential regression (base side green, head side red),
@@ -92,6 +109,41 @@ OUTCOME_ENV = "env_mismatch"
 OUTCOME_EVIDENCE = "evidence_inconsistent"
 OUTCOME_FAILED = "replay_failed"
 OUTCOMES: tuple[str, ...] = (OUTCOME_SAME, OUTCOME_ENV, OUTCOME_EVIDENCE, OUTCOME_FAILED)
+
+#: The outcome recorded for capsules excluded from the gate denominator.
+OUTCOME_EXCLUDED = "excluded"
+
+#: Explicit exclusion classifications: capsule units that are provably not
+#: verification findings, so they are excluded from the gate denominator
+#: with their real reason instead of inflating evidence_inconsistent.
+EXCLUDED_DEMO_SEED = "excluded_demo_seed"
+EXCLUDED_STALE_ARTIFACT = "excluded_stale_artifact"
+
+#: The verbatim reason text recorded for each exclusion classification.
+EXCLUDED_REASONS: dict[str, str] = {
+    EXCLUDED_DEMO_SEED: (
+        "demo seed capsule (scripts/seed_demo.py, 非验证发现胶囊) "
+        "— excluded from the replay gate denominator"
+    ),
+    EXCLUDED_STALE_ARTIFACT: (
+        "pre-canonical digest era artifact (built before the canonical manifest rule) "
+        "— excluded from the replay gate denominator"
+    ),
+}
+
+#: The trigger condition of each exclusion, stated for the gate note.
+EXCLUDED_CONDITIONS: dict[str, str] = {
+    EXCLUDED_DEMO_SEED: (
+        'capsule.json declares demo:true (parsed from the zip; only when it '
+        'literally contains "demo": true)'
+    ),
+    EXCLUDED_STALE_ARTIFACT: (
+        "recorded manifest_digest matches the sha256 of the pretty-printed "
+        "manifest (json.dumps(indent=2, sort_keys=True), digest field "
+        "excluded) while the canonical recompute differs — the zip predates "
+        "the canonical digest rule"
+    ),
+}
 
 VERDICT_CONFIRMED = "REGRESSION CONFIRMED"
 VERDICT_FIX = "UNEXPECTED FIX"
@@ -230,6 +282,20 @@ def canonical_manifest_digest(manifest: dict[str, Any]) -> str:
     without_digest = {k: v for k, v in manifest.items() if k != "manifest_digest"}
     canonical = json.dumps(without_digest, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def pretty_manifest_digest(manifest: dict[str, Any]) -> str:
+    """Recompute manifest_digest with the pre-canonical pretty-printed rule.
+
+    Before the canonical rule (sorted keys, compact separators, digest
+    excluded) became the definition, capsules recorded the sha256 of the
+    manifest serialized with json.dumps(indent=2, sort_keys=True) and the
+    digest field excluded. Recomputing it here proves, from the recorded
+    digest value alone, that a capsule predates the canonical rule.
+    """
+    without_digest = {k: v for k, v in manifest.items() if k != "manifest_digest"}
+    pretty = json.dumps(without_digest, indent=2, sort_keys=True)
+    return hashlib.sha256(pretty.encode()).hexdigest()
 
 
 def read_zip_json(zip_path: Path, member: str) -> dict[str, Any] | None:
@@ -436,6 +502,38 @@ def verify_evidence(unit: CapsuleUnit) -> EvidenceReport:
                 "— the capsule was modified after it was recorded"
             )
     return EvidenceReport(tuple(problems))
+
+
+def classify_exclusion(unit: CapsuleUnit) -> tuple[str, str] | None:
+    """The explicit exclusion classification for a capsule, or None.
+
+    Returns (classification name, verbatim reason) when the capsule is
+    excluded from the replay gate denominator:
+
+    - excluded_demo_seed: its capsule.json declares demo:true — seed demo
+      data written by scripts/seed_demo.py, not a verification finding;
+    - excluded_stale_artifact: its recorded manifest_digest equals the
+      sha256 of the pretty-printed manifest (the pre-canonical rule) while
+      the canonical recompute differs — the zip predates the canonical
+      digest rule.
+
+    Both are artifact reasons that re-running the pipeline cannot fix, so
+    they are excluded from the denominator instead of counting as
+    evidence_inconsistent.
+    """
+    if unit.zip_path is None:
+        return None
+    capsule_json = read_zip_json(unit.zip_path, "capsule.json")
+    if isinstance(capsule_json, dict) and capsule_json.get("demo") is True:
+        return EXCLUDED_DEMO_SEED, EXCLUDED_REASONS[EXCLUDED_DEMO_SEED]
+    manifest = read_zip_json(unit.zip_path, "manifest.json")
+    if manifest is not None:
+        recorded = normalize_payload_digest(str(manifest.get("manifest_digest") or ""))
+        canonical = canonical_manifest_digest(manifest)
+        pretty = pretty_manifest_digest(manifest)
+        if recorded == pretty and recorded != canonical:
+            return EXCLUDED_STALE_ARTIFACT, EXCLUDED_REASONS[EXCLUDED_STALE_ARTIFACT]
+    return None
 
 
 def recorded_claim(manifest: dict[str, Any]) -> dict[str, Any]:
@@ -1186,12 +1284,16 @@ def run_bench(args: argparse.Namespace) -> dict[str, Any]:
     if args.limit is not None:
         units = units[: max(0, args.limit)]
 
-    # Evidence gate first: only consistent capsules proceed to execution.
+    # Exclusion classification first (excluded units never enter the
+    # evidence gate or the replay), then the evidence gate: only consistent,
+    # non-excluded capsules proceed to execution.
     evidence_by_unit: dict[str, EvidenceReport] = {}
+    exclusion_by_unit: dict[str, tuple[str, str] | None] = {}
     manifest_by_unit: dict[str, dict[str, Any] | None] = {}
     finding_by_unit: dict[str, dict[str, Any] | None] = {}
     contract_by_unit: dict[str, dict[str, Any] | None] = {}
     for unit in units:
+        exclusion_by_unit[unit.name] = classify_exclusion(unit)
         manifest = read_zip_json(unit.zip_path, "manifest.json") if unit.zip_path else None
         manifest_by_unit[unit.name] = manifest
         finding_by_unit[unit.name] = (
@@ -1200,11 +1302,14 @@ def run_bench(args: argparse.Namespace) -> dict[str, Any]:
         contract_by_unit[unit.name] = (
             read_zip_json(unit.zip_path, "contract.json") if unit.zip_path else None
         )
-        evidence_by_unit[unit.name] = verify_evidence(unit)
+        if exclusion_by_unit[unit.name] is None:
+            evidence_by_unit[unit.name] = verify_evidence(unit)
 
     runnable = [
         unit for unit in units
-        if not evidence_by_unit[unit.name].inconsistent and unit.zip_path is not None
+        if exclusion_by_unit[unit.name] is None
+        and not evidence_by_unit[unit.name].inconsistent
+        and unit.zip_path is not None
     ]
     refs = frozenset(
         ref for unit in runnable
@@ -1231,10 +1336,16 @@ def run_bench(args: argparse.Namespace) -> dict[str, Any]:
     repo_dir: Path | None = worktree["repo"]
     for index, unit in enumerate(units, start=1):
         entry = build_unit_entry(unit, manifest_by_unit[unit.name])
-        evidence = evidence_by_unit[unit.name]
-        entry["evidence_problems"] = list(evidence.problems)
+        entry["evidence_problems"] = []
         duration_s = 0.0
-        if evidence.inconsistent:
+        exclusion = exclusion_by_unit[unit.name]
+        # Non-excluded units always carry an evidence report (computed in
+        # the classification loop above); excluded units never enter the
+        # evidence gate and are reported with their classification instead.
+        evidence = evidence_by_unit.get(unit.name)
+        if exclusion is not None:
+            outcome = ReplayOutcome(OUTCOME_EXCLUDED, exclusion[1], None, None, None)
+        elif evidence is not None and evidence.inconsistent:
             outcome = ReplayOutcome(
                 OUTCOME_EVIDENCE, "; ".join(evidence.problems), None, None, None,
             )
@@ -1328,27 +1439,43 @@ def run_bench(args: argparse.Namespace) -> dict[str, Any]:
                             )
         entry["outcome"] = outcome.outcome
         entry["reason"] = outcome.reason
+        entry["classification"] = (
+            exclusion[0] if exclusion is not None else outcome.outcome
+        )
         entry["verdict"] = outcome.verdict
         entry["base_exit"] = outcome.base_exit
         entry["head_exit"] = outcome.head_exit
         entry["duration_s"] = round(duration_s, 2)
         entries.append(entry)
+        label = entry["classification"] if exclusion is not None else outcome.outcome
         print(
-            f"[{index}/{len(units)}] {unit.name} -> {outcome.outcome}"
+            f"[{index}/{len(units)}] {unit.name} -> {label}"
             f"{' (' + outcome.verdict + ')' if outcome.verdict else ''}",
             flush=True,
         )
 
     totals = dict.fromkeys(OUTCOMES, 0)
     static_verified = 0
+    excluded = 0
+    excluded_counts = {EXCLUDED_DEMO_SEED: 0, EXCLUDED_STALE_ARTIFACT: 0}
     for entry in entries:
+        classification = entry["classification"]
+        if classification in excluded_counts:
+            excluded += 1
+            excluded_counts[classification] += 1
+            continue
         totals[entry["outcome"]] += 1
         if entry.get("static_verified"):
             static_verified += 1
     enumerated = len(entries)
-    rate = totals[OUTCOME_SAME] / enumerated if enumerated else 0.0
-    executed = enumerated - totals[OUTCOME_ENV]
-    rate_excluding_env = totals[OUTCOME_SAME] / executed if executed else 0.0
+    gate_denominator = enumerated - excluded
+    verified = totals[OUTCOME_SAME]
+    rate = verified / gate_denominator if gate_denominator else 0.0
+    rate_excluding_env = (
+        verified / (gate_denominator - totals[OUTCOME_ENV])
+        if gate_denominator - totals[OUTCOME_ENV]
+        else 0.0
+    )
     kept = args.keep_worktree
     if not kept:
         shutil.rmtree(work_root, ignore_errors=True)
@@ -1365,10 +1492,22 @@ def run_bench(args: argparse.Namespace) -> dict[str, Any]:
         },
         "environment": environment,
         "store": inventory,
+        "exclusions": {
+            name: {
+                "condition": EXCLUDED_CONDITIONS[name],
+                "reason": EXCLUDED_REASONS[name],
+            }
+            for name in (EXCLUDED_DEMO_SEED, EXCLUDED_STALE_ARTIFACT)
+        },
         "totals": {
             "enumerated": enumerated,
+            "excluded": excluded,
+            "excluded_demo_seed": excluded_counts[EXCLUDED_DEMO_SEED],
+            "excluded_stale_artifact": excluded_counts[EXCLUDED_STALE_ARTIFACT],
             **totals,
             "static_verified": static_verified,
+            "verified": verified,
+            "gate_denominator": gate_denominator,
             "success_rate": round(rate, 4),
             "success_rate_excluding_env_mismatch": round(rate_excluding_env, 4),
             "gate_replay_success_rate_095": rate >= GATE_REPLAY_SUCCESS_RATE,
@@ -1402,13 +1541,17 @@ def render_markdown(results: dict[str, Any]) -> str:
         "| metric | value |",
         "|---|---|",
         f"| capsules enumerated | {totals['enumerated']} |",
-        f"| same_conclusion | {totals['same_conclusion']} |",
+        f"| excluded capsules (NOT in the gate denominator) | {totals['excluded']} |",
+        f"| - excluded_demo_seed | {totals['excluded_demo_seed']} |",
+        f"| - excluded_stale_artifact | {totals['excluded_stale_artifact']} |",
+        f"| gate denominator (enumerated − excluded) | {totals['gate_denominator']} |",
+        f"| verified (same_conclusion) | {totals['verified']} |",
         f"| env_mismatch | {totals['env_mismatch']} |",
         f"| evidence_inconsistent | {totals['evidence_inconsistent']} |",
         f"| replay_failed | {totals['replay_failed']} |",
         "| static_verified (static evidence re-verified at head) | "
         f"{totals.get('static_verified', 0)} |",
-        "| **success rate (same_conclusion / enumerated)** | "
+        "| **success rate (verified / (enumerated − excluded))** | "
         f"**{totals['success_rate']:.4f}** |",
         "| success rate excluding env_mismatch | "
         f"{totals['success_rate_excluding_env_mismatch']:.4f} |",
@@ -1435,6 +1578,21 @@ def render_markdown(results: dict[str, Any]) -> str:
         "- `static_verified` counts only tier-2 successes; the raw "
         "`same_conclusion` count is unchanged, so both numbers stay auditable.",
         "",
+        "## Exclusion definitions (gate note, verbatim)",
+        "",
+    ]
+    for name in (EXCLUDED_DEMO_SEED, EXCLUDED_STALE_ARTIFACT):
+        definition = results["exclusions"][name]
+        lines.append(
+            f"- `{name}` — {definition['condition']}. Reason: {definition['reason']}."
+        )
+    lines += [
+        "",
+        "The success rate is `verified / (enumerated − excluded)`: excluded "
+        "capsules are reported with their classification and reason but never "
+        "counted in the gate denominator, and the raw enumerated count is "
+        "always printed alongside it.",
+        "",
         "## Environment",
         "",
         "| tool | status |",
@@ -1458,15 +1616,17 @@ def render_markdown(results: dict[str, Any]) -> str:
         "",
         "## Per-capsule results",
         "",
-        "| capsule | severity | evidence | base | head | mode | verdict | outcome | reason |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| capsule | severity | evidence | base | head | mode | verdict | outcome "
+        "| classification | reason |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for entry in results["capsules"]:
         reason = entry["reason"].replace("|", "\\|")
         lines.append(
             f"| {entry['unit']} | {entry['severity']} | {entry['evidence_type']} "
             f"| {entry['base_ref']} | {entry['head_ref']} | {entry.get('replay_mode', '-')} "
-            f"| {entry['verdict'] or '-'} | {entry['outcome']} | {reason} |"
+            f"| {entry['verdict'] or '-'} | {entry['outcome']} | {entry['classification']} "
+            f"| {reason} |"
         )
     reason_counts: dict[str, int] = {}
     for entry in results["capsules"]:
@@ -1499,6 +1659,15 @@ def render_markdown(results: dict[str, Any]) -> str:
         "object-metadata store — documented CLI behavior, outside the repo.",
         "- env_mismatch is only reported for environment failures, always with the exact "
         "reason; verdicts are never fabricated.",
+        "- Two explicit exclusion classifications keep the gate denominator "
+        "auditable: excluded_demo_seed (capsule.json declares demo:true) and "
+        "excluded_stale_artifact (the recorded digest matches the pre-canonical "
+        "pretty-printed manifest digest while the canonical recompute differs). "
+        "Excluded capsules are reported with their classification and reason "
+        "and are never counted in the gate denominator.",
+        "- The gate success rate is verified / (enumerated − excluded): both "
+        "denominators (the raw enumerated count and the gate denominator) are "
+        "printed in the JSON totals and this document — raw counts are never hidden.",
     ]
     return "\n".join(lines) + "\n"
 
@@ -1552,8 +1721,10 @@ def main(argv: list[str] | None = None) -> int:
     results = run_bench(args)
     totals = results["totals"]
     print(
-        f"\nreplay success rate: {totals['same_conclusion']}/{totals['enumerated']} "
-        f"= {totals['success_rate']:.4f} (gate >= 0.95: "
+        f"\nreplay success rate: {totals['verified']}/{totals['gate_denominator']} "
+        f"= {totals['success_rate']:.4f} "
+        f"(enumerated {totals['enumerated']}, excluded {totals['excluded']}; "
+        f"gate >= {GATE_REPLAY_SUCCESS_RATE}: "
         f"{'PASS' if totals['gate_replay_success_rate_095'] else 'FAIL'})",
         flush=True,
     )
