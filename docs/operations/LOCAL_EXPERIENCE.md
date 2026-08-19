@@ -34,6 +34,7 @@ pwsh scripts\start_local.ps1
 | Node.js + npm | Node ≥ 18 (推荐 20/22), npm ≥ 9 | `node --version` |
 | Python | **3.12** (`pyproject.toml` 要求 `>=3.12`) | `python --version` |
 | Python 依赖 | `python -m pip install -e ".[dev]"` (一次性) | 脚本会自检并提示 |
+| LLM 网关 (可选) | OpenAI 兼容网关, 仅 LLM 增强档需要; 确定性档完全不需要 | 见 §2.1 |
 
 前端依赖不用手装: `start_local.ps1` 检测到 `apps/web/node_modules` 不存在时会自动 `npm install`。
 
@@ -70,25 +71,57 @@ pwsh scripts\start_local.ps1
     [ok] MinIO (specproof-minio) 已就绪
 ==> 配置 API 环境变量 (演示密钥, 仅本机演示用)
     [ok] Agent 任务存储: MySQL (与 API 相同)
+    [ok] 确定性档 (默认): 不依赖任何 LLM 环境变量, 演示数据完整体验无需密钥
 ==> 启动 FastAPI (uvicorn api.server:app -> http://127.0.0.1:8000)
-    [..] API 启动中 (日志: .localapi.log) ...
+    [..] API 启动中 (日志: .local\api.log) ...
     [ok] API 就绪: http://127.0.0.1:8000/health
 ==> 播种演示数据 (幂等, 可重复执行)
 [seed] 验证任务(演示历史): 新建 3, 已存在 0 (存储: MySQL — 与 API 相同)
 [seed] Agent 任务: <uuid> 【演示】修复 double 函数 — created via POST /agent/jobs — 状态: AWAITING_APPROVAL
 ==> 启动前端 (Vite dev server -> http://localhost:5173)
-    [..] Vite 启动中 (日志: .localweb.log) ...
+    [..] Vite 启动中 (日志: .local\web.log) ...
 ==> 全部就绪
 
+  档位       : 确定性档 (未注入 LLM 凭据, 演示数据浏览与审批流完整可用)
   Web 前端   : http://localhost:5173           <- 从这里开始
   API 文档   : http://127.0.0.1:8000/docs
   登录密钥   : specproof-local-demo-key   (登录页选择 X-API-Key)
-  日志       : .localapi.log / .localweb.log
-  停止       : pwsh scriptsstop_local.ps1
+  日志       : .local\api.log / .local\web.log
+  停止       : pwsh scripts\stop_local.ps1
 ````
 
 再次执行 `start_local.ps1` 时: 容器/进程均"已在运行 → 跳过",
 种子输出变为 `新建 0, 已存在 3`, Agent 任务显示 `already exists` —— 不会产生任何重复数据。
+
+### 2.1 两档启动: 确定性档 (默认) vs LLM 增强档
+
+架构定性已确认: **LLM 推理走远程 API, 其余全部本地**。因此启动分两档:
+
+**确定性档 (默认, 无需任何密钥)** —— `pwsh scripts\start_local.ps1`
+
+不设置任何 LLM 环境变量即可完整体验: 预置演示数据的矩阵 / Findings / 证书 / 阶段时间线 /
+胶囊下载、Agent 计划的审批状态机 (PLANNING → AWAITING_APPROVAL → EXECUTING → COMPLETED)
+全部可点。这是演示/面试推荐的档位 —— 零凭据、零外网依赖。
+
+**LLM 增强档 (可选)** —— 在 PowerShell 会话内用环境变量注入远程网关凭据, 并让后端重启后生效:
+
+```powershell
+$env:LLM_BASE_URL = "https://your-gateway.example.com/v1"
+$env:LLM_API_KEY  = "<你的网关密钥>"     # 仅本会话内存, 绝不写入任何文件
+$env:LLM_MODEL    = "deepseek-v4-pro"    # 可选, 缺省 deepseek-v4-pro
+pwsh scripts\start_local.ps1 -WithLlm
+```
+
+- `-WithLlm` 读取会话里的 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`, 并**重启**由本脚本启动的
+  后端 (环境变量变更后必须重启才生效; 若 8000 端口被非本脚本管理的进程占用, 脚本会提示并跳过,
+  绝不误杀);
+- 变量不完整时自动**回退确定性档**并给出提示, 不会报错中断;
+- 增强档的作用范围: 需要真实模型推理的路径 (例如配合 worker 跑新任务管道、craft 规划);
+  浏览预置演示数据本身不需要它。
+
+**凭据安全 (硬规则)**: 凭据只进会话环境变量 —— 脚本与种子程序都不落盘任何 LLM 变量,
+日志不打印密钥; 不要把密钥写进 `.env` 或任何仓库文件 (`.env.example` 只有 `replace_me` 占位);
+演示结束后建议清除会话变量 (`$env:LLM_API_KEY = $null`) 并在网关侧**轮换该密钥**。
 
 ## 3. 打开什么
 
@@ -207,7 +240,8 @@ Agent 任务存储回退到 SQLite `.local\specproof_agent_jobs.db`。种子数�
 
 1. **一键启动不含 worker 与 outbox relay**。这是任务书明确的进程范围 (API + 前端)。
    后果: 新建的验证任务会停在 QUEUED, 不会进入真实管道; 要跑真实验证请用 CLI
-   (`python -m cli.specproof.main verify ...`) 或另行启动 `python -m agent.worker` + relay。
+   (`python -m cli.specproof.main verify ...`) 或另行启动 `python -m agent.worker` + relay ——
+   真实管道推理需要 §2.1 的 LLM 增强档 (远程网关凭据), 确定性档本身不需要。
 2. **Agent 任务没有执行 worker**: 计划由种子提供; 用户新建的 Agent 任务停在 PLANNING,
    工具流为空。审批→执行→门禁的状态机流转是真实的 (真实 API 端点), 执行动作本身没有
    worker 去做 —— 这是产品当前的车道边界, 不是演示造假。
@@ -221,6 +255,8 @@ Agent 任务存储回退到 SQLite `.local\specproof_agent_jobs.db`。种子数�
 7. **演示密钥是脚本内置的本机演示值**, 不是生产安全边界; 生产必须自配 `SPECPROOF_API_KEY`。
 8. **端口变化**: compose 的端口可用环境变量 (如 `MYSQL_PORT`) 覆盖, 但 storage 的默认值
    对齐 compose 默认端口; 改动后需同步设置 `MYSQL_*`/`REDIS_*` 等环境变量。
+9. **确定性档不配置任何 LLM 环境变量 (默认)**: 预置数据的浏览、矩阵/Findings/证书/阶段时间线、
+   Agent 审批状态机全部完整可用; 只有需要真实模型推理的路径才需要 §2.1 的 LLM 增强档。
 
 ## 8. 故障排查
 
@@ -234,6 +270,7 @@ Agent 任务存储回退到 SQLite `.local\specproof_agent_jobs.db`。种子数�
 | `缺少 docker/python/node/npm` | 装好后加入 PATH, 重跑 |
 | `npm install 失败` | 网络/代理问题; 删除 `apps/web/node_modules` 后重跑 |
 | 前端打开但数据 401 | 登录页密钥不对; 重新粘贴 `specproof-local-demo-key` (或浏览器 devtools 看 `X-API-Key` 头) |
+| `-WithLlm` 提示变量不完整并回退确定性档 | 在同一 PowerShell 会话先设置 `$env:LLM_BASE_URL` / `$env:LLM_API_KEY` 再重跑; 凭据只进环境变量, 别写文件 |
 | 种子警告 MySQL 未就绪 | `docker ps` 查 `specproof-mysql` 健康; 数据卷损坏时 `down -v` 重置 |
 | 想彻底清空演示数据 | `docker compose -f compose.phase0.yml down -v` + 删除 `.local\specproof_agent_jobs.db` 与 `reports/merge-certificate-*.json`、`capsules/capsule-*.zip` |
 

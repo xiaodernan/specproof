@@ -8,7 +8,12 @@
   数据卷在 stop_local.ps1 中保留; 彻底重置请执行 docker compose -f compose.phase0.yml down -v。
 #>
 [CmdletBinding()]
-param()
+param(
+    # 可选 LLM 增强档: 读取会话环境变量 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL,
+    # 注入到后端进程并重启已运行的 API。变量缺失时自动回退确定性档。
+    # 凭据只进环境变量, 本脚本绝不落盘任何 LLM 凭据。
+    [switch]$WithLlm
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -42,6 +47,13 @@ function Test-Command([string]$Name) {
 function Test-PortListening([int]$Port) {
     $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
     return ($null -ne $listener)
+}
+
+function Get-TrackedPid([string]$PidFile) {
+    if (-not (Test-Path $PidFile)) { return $null }
+    $raw = (Get-Content $PidFile -Raw).Trim()
+    if (-not $raw) { return $null }
+    return [int]$raw
 }
 
 function Test-TrackedProcess([string]$PidFile) {
@@ -162,14 +174,55 @@ if (Test-ContainerHealthy "specproof-mysql") {
     Write-WarnMsg "Agent 任务存储回退: SQLite (.local\specproof_agent_jobs.db)"
 }
 
+# ── LLM 档位 (架构定性: 推理走远程 API, 其余全本地) ──
+$LlmConfigured = $false
+$llmModel = ""
+if ($WithLlm) {
+    $llmBase = [string]$env:LLM_BASE_URL
+    $llmKey  = [string]$env:LLM_API_KEY
+    $llmModel = [string]$env:LLM_MODEL
+    if ($llmBase -and $llmKey) {
+        Write-Ok "LLM 增强档: 使用本会话环境变量中的远程网关凭据 (仅内存, 不写入任何文件)"
+        $LlmConfigured = $true
+    } else {
+        Write-WarnMsg "-WithLlm 已指定, 但 LLM_BASE_URL / LLM_API_KEY 环境变量不完整 — 回退确定性档 (浏览演示数据无需 LLM)"
+    }
+} else {
+    Write-Ok "确定性档 (默认): 不依赖任何 LLM 环境变量, 演示数据完整体验无需密钥"
+}
+
 # ── API ──
 Write-Step "启动 FastAPI (uvicorn api.server:app -> $ApiUrl)"
 $apiPidFile = Join-Path $LocalDir "api.pid"
+$needApiStart = $false
 if (Test-TrackedProcess $apiPidFile) {
-    Write-Ok "API 已在运行 (跳过启动)"
+    if ($WithLlm -and $LlmConfigured) {
+        Write-Info "API 已在运行 — 按 LLM 增强档重启后端 (环境变量变更后必须重启才生效)"
+        $procId = Get-TrackedPid $apiPidFile
+        if ($null -ne $procId) { & taskkill /PID $procId /T /F 2>$null | Out-Null }
+        Remove-Item $apiPidFile -Force -ErrorAction SilentlyContinue
+        $deadline = (Get-Date).AddSeconds(20)
+        while ((Test-PortListening 8000) -and ((Get-Date) -lt $deadline)) {
+            Start-Sleep -Seconds 2
+        }
+        if (Test-PortListening 8000) {
+            Write-Host "端口 8000 未及时释放 — 无法重启后端。" -ForegroundColor Red
+            exit 1
+        }
+        $needApiStart = $true
+    } else {
+        Write-Ok "API 已在运行 (跳过启动)"
+    }
 } elseif (Test-PortListening 8000) {
-    Write-WarnMsg "端口 8000 已被其他进程占用 — 跳过 API 启动 (若密钥不匹配, 种子会自动走存储回退)"
+    if ($WithLlm -and $LlmConfigured) {
+        Write-WarnMsg "端口 8000 被非本脚本管理的进程占用 — 无法安全重启, 跳过 (请先处理该进程或运行 stop_local.ps1)"
+    } else {
+        Write-WarnMsg "端口 8000 已被其他进程占用 — 跳过 API 启动 (若密钥不匹配, 种子会自动走存储回退)"
+    }
 } else {
+    $needApiStart = $true
+}
+if ($needApiStart) {
     $pythonPath = (Get-Command python).Source
     $null = Start-TrackedProcess `
         -PidFile $apiPidFile `
@@ -229,6 +282,11 @@ if (Test-TrackedProcess $webPidFile) {
 # ── 总结 ──
 Write-Step "全部就绪"
 Write-Host ""
+if ($LlmConfigured) {
+    Write-Host "  档位       : LLM 增强档 (模型: $llmModel; 凭据仅存在于本会话环境变量, 未写入任何文件)"
+} else {
+    Write-Host "  档位       : 确定性档 (未注入 LLM 凭据, 演示数据浏览与审批流完整可用)"
+}
 Write-Host "  Web 前端   : $WebUrl           <- 从这里开始"
 Write-Host "  API 文档   : $ApiUrl/docs"
 Write-Host "  登录密钥   : $DemoApiKey   (登录页选择 X-API-Key)"
