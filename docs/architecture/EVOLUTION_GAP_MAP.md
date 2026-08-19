@@ -66,18 +66,24 @@ apps/web: 向导第一步全信息 ⏳ · 健康页五类状态 ⏳ · 权限页
 providers/retrieval/craft: 统一网络客户端+日志脱敏 ◐ · 检索结果带提交/行号 ◐ · Craft 工具可取消点/成本函数 ◐
 
 ## C. 本轮在途车道
-- W48 (1233964a): 段1 缺口修复 — case-09/29/31 MISS + c2 两误报 (根因→修复→复跑证明)
-- W49 (668a62ba): Review Court 模型/政策分层 + 预存缺陷规则 + 审计保留
-- 后台: pwsh-22 段1 c3/c4
+- W48 (1233964a): 段1 缺口修复 — case-09/29/31 MISS + c2 两误报
+- W49 (668a62ba): Review Court 模型/政策分层 + 预存缺陷规则
+- W50 (b87257e5): SWE-bench LLM 模式 + 纯Python子集
+- W51 (839d6d6d): 检索 RRF 融合 (目标超 BM25 82.2%)
+- W52 (ebfc3954): compile_contracts 编译报告 (14.1)
+- W53 (768328aa): prepare_base/head 仓库安全检查抽取+崩溃回收器 (14.1)
+- W54 (7109530d): 健康页五类状态+向导第一步信息+权限页来源/失效 (14.4)
+- 阶段0 治理: D:\experim 三个副本已写 EXPERIMENT.md 标注 (主线唯一化第一步)
+- 后台: pwsh-22 段1 c4
 
 ## D. 待派队列 (按优先级)
-1. compile_contracts 编译报告 (透明化, 面试可讲)
-2. prepare_base/head 仓库安全检查抽取
-3. run_static_checks 检查器注册表+兼容矩阵
-4. build_matrix 完整行字段+纯函数
-5. 健康页五类状态 + 向导第一步信息
-6. Capsule 全量重放演练 (回放率数字)
-7. 归因准确率测量 (修复后 c1/c2 重跑)
-8. 恢复演练 + 安全响应演练
-9. 跨语言案例样本 (TS/Go/Py)
-10. 恶意构建脚本/输出洪水/缓存投毒测试
+1. run_static_checks 检查器注册表+兼容矩阵 (等 W48 释放 agent/checkers)
+2. build_matrix 完整行字段+纯函数
+3. Capsule 全量重放演练 (回放率数字)
+4. 归因准确率测量 (W48/W49 落地后 c1/c2 重跑)
+5. 恢复演练 + 安全响应演练
+6. 跨语言案例样本 (TS/Go/Py)
+7. 恶意构建脚本/输出洪水/缓存投毒测试
+8. Job 创建白名单 (禁任意命令/env/docker)
+9. 错误 Envelope retryable 字段 + SSE 序列号/保留策略
+10. Outbox 死信+指标 / MinIO 命名与生命周期 / ES 删除清理
