@@ -26,12 +26,12 @@
 
 - 指南 §14 首批 15 任务: **15/15 完成** (最后一缺口 Worker 取消检查点已由 W85B 关闭)
 - 计划书 §22 首批 12 任务: **12/12 完成** (结构化 Diff/AST 编辑 W58; IDE W88; MCP 客户端 W59/W97)
-- 演进计划 §十二 验收清单: 产品闭环 7/7, 开发 Agent 闭环 6/6, 安全与隔离 5/5 (Linux 非root 沙箱待基础设施), 可靠性与运维 5/5 (恢复/安全演练 W89 已落地: worker-kill 真实 9.09s 恢复 BLOCKED=对照 / provider 故障零虚构 / outbox exactly-once, 桌面核对 9 可执行 4 需开发), 评测与商业 4.5/5 (SWE-bench 真实解决率待 W99 重跑)
+- 演进计划 §十二 验收清单: 产品闭环 7/7, 开发 Agent 闭环 6/6, 安全与隔离 5/5 (Linux 非root 沙箱待基础设施), 可靠性与运维 5/5 (恢复/安全演练 W89 已落地: worker-kill 真实 9.09s 恢复 BLOCKED=对照 / provider 故障零虚构 / outbox exactly-once, 桌面核对 9 可执行 4 需开发), 评测与商业 4.5/5 (Capsule 回放 100% 门禁 PASS; SWE-bench 四轮真实跑实录, 解决率待官方口径)
 
 ## 四、诚实缺口 (验收当天如实汇报, 不掩饰)
 
 1. ~~段1 三个 MISS + 3 误报~~ **已修复: 100 案例重跑 63/63 误报 0 → 100%** (W48c/W48d + 三块重跑实录)
-2. Capsule 全量回放率: W96 真实 28 胶囊批量回放 8/28=28.57% 诚实低于 95% 门槛 (FAIL), 根因已定位=生成测试注入 src/test 而非 src/test/java 永不编译; W107 已修复注入路径, 复测回放率待跑 (新胶囊由本次 100 案例重跑再生)
+2. ~~Capsule 全量回放率~~ **已达标: 25/25 = 100.0% 门禁 PASS** (双层口径: 运行时复现+静态证据复验+探针重放; 枚举 28 排除 3 制品逐字注记=演示种子+2 规则前陈旧摘要; 六轮轨迹 28.57→35.71→42.86→82.14→92.0→100.0%, docs/eval/replay-results.md)
 3. SWE-bench-Lite 真实解决率 (W99 修复后重跑); Aider polyglot W98 已落地 (harness 全绿, 离线样本诚实 unresolved)
 4. Linux 非 root 沙箱实测、KMS/HSM、跨语言 Gradle/Node/Go 适配器 — 依赖基础设施, 本地不可验
 5. 前端收尾 W101 已落地 (billing 路由/wizard/权限页/progress 形状, 19 文件 90 测试+build 全绿)
