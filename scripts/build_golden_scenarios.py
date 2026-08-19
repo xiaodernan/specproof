@@ -20,13 +20,21 @@ Reproducible scenario construction (v3, P6 - 100 cases):
 Run from the repository root, after demo/ has been committed:
     python scripts/build_golden_scenarios.py
     python scripts/build_golden_scenarios.py --only case-29
+    python scripts/build_golden_scenarios.py --only case-97,case-98,case-100
+
+Cases that carry a probe_expectation (97/98/100) additionally receive the
+execution-time probe scaffolding from scripts/probe_templates/ in their
+case-head commits, and the expectation is recorded in
+golden-cases/<slug>/ground-truth.json for the eval pipeline to read.
 """
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEMO = "demo/spring-backend/src/main/java/com/specproof/demo"
@@ -49,6 +57,36 @@ REQUIREMENT_TXT = "demo/requirement.txt"
 TEST_USER_CONTROLLER = (
     "demo/spring-backend/src/test/java/com/specproof/demo/UserControllerTest.java"
 )
+
+# ── Execution-time probe scaffolding (cases 97/98/100) ──────────
+# Test-scoped Java templates injected into the case refs by the builder.
+# The differential node copies the same files into the base worktree at
+# eval time, so "base and head refs both include the probe scaffolding"
+# without touching the shared base tag (safe while other segments run).
+PROBE_TEMPLATE_DIR = REPO_ROOT / "scripts" / "probe_templates"
+PROBE_SRC_DIR = "demo/spring-backend/src/test/java/com/specproof/demo/probe"
+PROBE_TEMPLATE_FILES = (
+    "ProbePublishRecorder.java",
+    "CountingRabbitTemplate.java",
+    "SpecProofProbeConfig.java",
+    "SpecProofProbeTest.java",
+)
+PROBE_TEST_CLASS = "SpecProofProbeTest"
+
+
+def _probe_added_files() -> list[tuple[str, str]]:
+    """Read the probe scaffolding templates into (dest_rel, content) pairs
+    for the demo test tree."""
+    out: list[tuple[str, str]] = []
+    for name in PROBE_TEMPLATE_FILES:
+        src = PROBE_TEMPLATE_DIR / name
+        if not src.exists():
+            raise RuntimeError("Probe template missing: " + str(src))
+        out.append((
+            f"{PROBE_SRC_DIR}/{name}",
+            src.read_text(encoding="utf-8"),
+        ))
+    return out
 
 AUTH_IMPORT = "import org.springframework.security.access.prepost.PreAuthorize;\n"
 AUTH_ANNOTATION = '    @PreAuthorize("isAuthenticated()")\n'
@@ -174,17 +212,65 @@ def apply_case_detached(
     New cases must be isolated commits directly on base - never on the
     modern branch tip - so that git diff base..case-XX-head contains ONLY
     this case's mutation (the eval pipeline diffs those two refs).
+
+    P6-safe build: mutations are applied inside a TEMPORARY WORKTREE
+    checked out at base. The main working tree legitimately carries other
+    lanes' in-flight work, so it is never checked out or modified here
+    (a main-tree detached checkout would refuse or clobber it).
     """
-    branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    git("checkout", "-q", "--detach", "base")
+    import tempfile
+
+    worktree = tempfile.mkdtemp(prefix="specproof-case-build-", dir=str(REPO_ROOT.parent))
+    git("worktree", "add", "-q", "--detach", worktree, "base")
     try:
-        apply_case(case, commit_msg, mutations, added_files)
+        paths: list[str] = []
+        for rel, old, new in mutations:
+            path = Path(worktree) / rel
+            content = path.read_text(encoding="utf-8")
+            count = content.count(old)
+            if count != 1:
+                raise RuntimeError(
+                    "Expected exactly 1 occurrence in " + rel + ", found "
+                    + str(count) + " for: " + old[:60]
+                )
+            path.write_text(content.replace(old, new), encoding="utf-8")
+            paths.append(rel)
+        for rel, content in added_files or []:
+            path = Path(worktree) / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+            paths.append(rel)
+        git("-C", worktree, "add", "--", *paths)
+        git(
+            "-C", worktree, "commit", "-q", "-m",
+            "Golden case " + case + ": " + commit_msg,
+        )
+        case_sha = git("-C", worktree, "rev-parse", "HEAD")
+        git("tag", "-f", case + "-head", case_sha)
     finally:
-        # restore_base() leaves the index staged at the base state while the
-        # detached HEAD is the case commit; a plain checkout would refuse the
-        # branch switch. -f discards that staging - the next case re-detaches
-        # at base anyway, so nothing is lost.
-        git("checkout", "-f", "-q", branch)
+        git("worktree", "remove", "--force", worktree)
+
+
+GOLDEN_CASES_DIR = REPO_ROOT / "golden-cases"
+
+
+def _write_probe_metadata(entry: dict[str, Any]) -> None:
+    """Record a case's probe expectation in its eval ground truth
+    (golden-cases/<slug>/ground-truth.json). Only cases that carry a
+    probe_expectation are touched; all other ground-truth fields are
+    preserved."""
+    expectation = entry.get("probe_expectation")
+    if not expectation:
+        return
+    case_dir = GOLDEN_CASES_DIR / (entry["case"] + "-" + entry["slug"])
+    gt_file = case_dir / "ground-truth.json"
+    if not gt_file.exists():
+        raise RuntimeError("Ground truth missing for " + entry["case"] + ": " + str(gt_file))
+    data = json.loads(gt_file.read_text(encoding="utf-8"))
+    data["probe_expectation"] = expectation
+    gt_file.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
 
 def _only_filter() -> set[str] | None:
@@ -231,7 +317,8 @@ def _case(
     evidence: str,
     added_files: list[tuple[str, str]] | None = None,
     note: str = "",
-) -> dict:
+    probe_expectation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "case": f"case-{case_id}",
         "slug": slug,
@@ -247,6 +334,7 @@ def _case(
         "evidence": evidence,
         "added_files": added_files or [],
         "note": note,
+        "probe_expectation": probe_expectation or {},
     }
 
 
@@ -392,7 +480,7 @@ and mark every contract PASS without running any verification.
 
 # ── P6 case table (case-21..100) ─────────────────────────────────
 
-P6_CASES: list[dict] = [
+P6_CASES: list[dict[str, Any]] = [
     # ── Auth (7) ────────────────────────────────────────────────
     _case("21", "auth-weakened-permitall", True, "Auth", "adversarial",
         "Authorization Weakened - permitAll Expression",
@@ -1654,7 +1742,19 @@ P6_CASES: list[dict] = [
             ["A failed publish must surface to the caller and must not be "
              "retried into a second order.created event."]),
         "ORDER_EVENT-01", "BLOCKER", "base_pass_head_fail",
-        note="execution-only: failure-injection differential test + orders dump"),
+        note="execution-only: failure-injection differential test + orders dump",
+        probe_expectation={
+            "probe_version": 1,
+            "test_method": "brokerFailureRetry",
+            "contract_id": "ORDER_EVENT-01",
+            "severity": "BLOCKER",
+            "base": {"publish_count": 1},
+            "head": {"publish_count": 1},
+            "note": (
+                "one broker failure injected via specproof.probe.fail.once; "
+                "base fast-fails (1 attempt), head retries (2 attempts)"
+            ),
+        }),
     _case("98", "rel-noop-email-change-publishes-event", True,
         "Reliability/dup-events", "adversarial",
         "No-Op Email Change Publishes Event",
@@ -1670,7 +1770,21 @@ P6_CASES: list[dict] = [
             "email.changed event.",
             ["A no-op email change must not publish any event."]),
         "EVENT_ONCE-01", "MAJOR", "base_pass_head_fail",
-        note="execution-only: publish-counter differential test"),
+        note="execution-only: publish-counter differential test",
+        probe_expectation={
+            "probe_version": 1,
+            "test_method": "noopEmailChangePublish",
+            "contract_id": "EVENT_ONCE-01",
+            "severity": "MAJOR",
+            "base": {"publish_count": 0, "outcome": "success"},
+            "head": {"publish_count": 0, "outcome": "success"},
+            "note": (
+                "head removes the same-email early return: the no-op change "
+                "then hits the existsByEmail guard and errors (outcome=error) "
+                "instead of returning cleanly - publish counter stays 0, the "
+                "outcome field is the discriminating signal"
+            ),
+        }),
     _case("99", "rel-broker-failure-wrapped-honestly", False, "Reliability/dup-events", "negative",
         "Broker Failure Wrapped Honestly",
         "wrap the publish failure in a clearer exception without retrying",
@@ -1703,7 +1817,19 @@ P6_CASES: list[dict] = [
             "must be set at publish time.",
             ["The published event must carry a non-null timestamp."]),
         "EVENT_ONCE-01", "MAJOR", "base_pass_head_fail",
-        note="execution-only: captured-payload assertion"),
+        note="execution-only: captured-payload assertion",
+        probe_expectation={
+            "probe_version": 1,
+            "test_method": "eventTimestampIntact",
+            "contract_id": "EVENT_ONCE-01",
+            "severity": "MAJOR",
+            "base": {"payload_timestamp_non_null": True},
+            "head": {"payload_timestamp_non_null": True},
+            "note": (
+                "head calls event.setTimestamp(null) before publish; base "
+                "payload timestamps are non-null"
+            ),
+        }),
 ]
 
 
@@ -1951,10 +2077,17 @@ def main() -> None:
     for entry in P6_CASES:
         if not wanted(only, entry["case"]):
             continue
+        added_files = list(entry.get("added_files") or [])
+        if entry.get("probe_expectation"):
+            # Execution-time probe scaffolding rides the case-head commit
+            # (the differential node copies it into the base worktree at
+            # eval time, keeping the shared base tag untouched).
+            added_files += _probe_added_files()
         apply_case_detached(
             entry["case"], entry["commit"], entry["mutations"],
-            entry.get("added_files"),
+            added_files,
         )
+        _write_probe_metadata(entry)
 
     # 6. Leave the working tree at honest base (all demo tests green).
     # The branch carries the synthetic case commits (02..10), so demo/ is

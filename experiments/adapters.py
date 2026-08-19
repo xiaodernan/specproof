@@ -23,6 +23,7 @@ AdapterNotImplemented — we do NOT claim to support arbitrary projects.
 
 from __future__ import annotations
 
+import json
 import os
 import platform
 import re
@@ -211,6 +212,61 @@ def _maven_wrapper(workspace: str) -> str:
     return os.path.join(workspace, script)
 
 
+# ── Execution-time probe artifacts (fault-injection roadmap, 阶段4) ─────
+#
+# The demo's test-scoped probe scaffolding (injected into the case refs by
+# scripts/build_golden_scenarios.py) writes a machine-readable JSON artifact
+# after each probe test method:
+#
+#   {
+#     "probe_version": 1,
+#     "publish_count": 1,
+#     "outcome": "success" | "error",
+#     "payloads": [ { "exchange", "routingKey", "type",
+#                     "timestamp": str | null, "failed": bool } ]
+#   }
+#
+# The differential node reads one artifact per ref and compares them against
+# the case's probe_expectation (ground-truth.json). Invalid or absent
+# artifacts parse to None — an invalid artifact is "no evidence", never
+# fabricated evidence.
+
+PROBE_ARTIFACT_REL = "target/specproof-probe.json"
+
+_PROBE_PAYLOAD_KEYS = ("exchange", "routingKey", "type", "timestamp", "failed")
+
+
+def parse_probe_artifact(text: str) -> dict[str, Any] | None:
+    """Parse + schema-validate a probe artifact. None on any violation."""
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if not isinstance(data.get("probe_version"), int):
+        return None
+    if not isinstance(data.get("publish_count"), int):
+        return None
+    payloads = data.get("payloads")
+    if not isinstance(payloads, list):
+        return None
+    if len(payloads) != data["publish_count"]:
+        return None
+    for payload in payloads:
+        if not isinstance(payload, dict):
+            return None
+        if not all(key in payload for key in _PROBE_PAYLOAD_KEYS):
+            return None
+        if payload.get("timestamp") is not None and not isinstance(
+            payload["timestamp"], str
+        ):
+            return None
+        if not isinstance(payload.get("failed"), bool):
+            return None
+    return data
+
+
 # ── Java/Maven adapter (implemented) ────────────────────────────────────
 
 
@@ -257,6 +313,31 @@ class JavaMavenAdapter:
         raise AdapterNotImplemented(
             "Java/Maven detect rule (pom.xml + src/main/java) does not match"
         )
+
+    # ── Probe hooks (fault-injection roadmap, 阶段4) ──
+    # The probe test is a normal surefire run through prepare()/run() with
+    # test_class "SpecProofProbeTest#<method>"; these hooks expose the
+    # artifact the probe test left behind.
+
+    def probe_test_class(self, method: str = "") -> str:
+        """Surefire selector for the probe test (whole class or one method)."""
+        if method:
+            return "SpecProofProbeTest#" + method
+        return "SpecProofProbeTest"
+
+    def read_probe_artifact(self, workspace: str) -> dict[str, Any] | None:
+        """Read + validate target/specproof-probe.json from a workspace.
+
+        Returns the parsed artifact, or None when the file is absent or
+        invalid (an invalid artifact is "no evidence", never fabricated
+        evidence).
+        """
+        artifact = Path(workspace) / PROBE_ARTIFACT_REL
+        try:
+            text = artifact.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        return parse_probe_artifact(text)
 
     def prepare(self, request: ExecutionRequest) -> PreparedExecution:
         workspace = request.workspace

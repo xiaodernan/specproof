@@ -2,5 +2,18 @@
   "expected_severity": "MAJOR",
   "expected_contract": "EVENT_ONCE-01",
   "expected_evidence_type": "base_pass_head_fail",
-  "should_detect": true
+  "should_detect": true,
+  "probe_expectation": {
+    "probe_version": 1,
+    "test_method": "eventTimestampIntact",
+    "contract_id": "EVENT_ONCE-01",
+    "severity": "MAJOR",
+    "base": {
+      "payload_timestamp_non_null": true
+    },
+    "head": {
+      "payload_timestamp_non_null": true
+    },
+    "note": "head calls event.setTimestamp(null) before publish; base payload timestamps are non-null"
+  }
 }

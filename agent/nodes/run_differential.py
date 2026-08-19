@@ -10,6 +10,11 @@ v2 honesty fixes:
 - A contract is marked PASS/FAIL only for what this experiment actually
   exercised (the HTTP/auth contract family). Everything else stays
   UNVERIFIED and is judged by other experiment nodes.
+- Execution-time reliability probes (阶段4): cases whose ground truth
+  declares a probe_expectation (97/98/100) get the probe scaffolding copied
+  into the base workspace, one probe test method run per side, and the
+  resulting target/specproof-probe.json artifacts compared against the
+  expectation (experiment PROBE-01).
 """
 from __future__ import annotations
 
@@ -232,6 +237,11 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         head_result = _run_generated_test(head_app, test_class)
         head_seconds = round(time.monotonic() - head_start, 1)
 
+    # ── Execution-time reliability probes (阶段4, cases 97/98/100) ──
+    # Independent of the generated-test verdict: the probe scaffolding rides
+    # the case-head ref and gets copied into the base workspace here.
+    probe_results = _run_probe_experiment(state, base_app, head_app, base_cache_hit)
+
     if base_result.get("error") or head_result.get("error"):
         err_detail = (
             f"head: {head_result.get('error') or 'ok'}, "
@@ -245,7 +255,7 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 "base_exit_code": base_result.get("exit_code"),
                 "head_exit_code": head_result.get("exit_code"),
                 "changed_symbols": changed_symbols,
-            }],
+            }] + probe_results,
         }
 
     base_pass = base_result.get("exit_code") == 0
@@ -368,8 +378,9 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     }]
 
     # Source-diff findings computed earlier are prepended; the generated-test
-    # verdict is the primary experiment for DIFF-01.
-    diff_results = source_diff_results + diff_results
+    # verdict is the primary experiment for DIFF-01; probe results (when the
+    # case declares a probe_expectation) ride along as PROBE-01.
+    diff_results = source_diff_results + diff_results + probe_results
 
     # ── Contract results: only what this experiment exercised ──
     # P6: the attributed contract family is marked FAIL exactly like the
@@ -393,6 +404,18 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 "result": result,
                 "experiment": "generated_test_differential",
                 "evidence_ref": f"sha256:{evidence_digest}",
+            })
+
+    # Probe experiment contract result (only what the probe actually judged).
+    if probe_results:
+        probe_verdict = probe_results[0].get("verdict")
+        probe_contract = probe_results[0].get("contract_id", "")
+        if probe_verdict in ("REGRESSION", "COMPLIANT") and probe_contract:
+            contract_results.append({
+                "contract_id": probe_contract,
+                "result": "FAIL" if probe_verdict == "REGRESSION" else "PASS",
+                "experiment": "probe_differential",
+                "evidence_ref": probe_results[0].get("evidence_digest", ""),
             })
 
     # Merge into the shared channel so static-check results for OTHER
@@ -736,3 +759,279 @@ def _sha256_file(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return ""
+
+
+# ── Execution-time reliability probes (fault-injection roadmap, 阶段4) ──
+#
+# Cases 97/98/100 carry a probe_expectation in their ground-truth.json and
+# the probe scaffolding in their case-head refs (injected by
+# scripts/build_golden_scenarios.py). This experiment:
+#   1. copies the probe scaffolding from the head workspace into the base
+#      workspace (the shared base tag is never re-tagged),
+#   2. runs ONE probe test method on each side (surefire Class#method
+#      selector through the ExecutionAdapter sandbox path),
+#   3. reads target/specproof-probe.json per side (adapter probe hooks),
+#   4. compares the artifacts against the expectation and emits a
+#      REGRESSION finding when the head violates its expected profile.
+
+_PROBE_SRC_REL = "src/test/java/com/specproof/demo/probe"
+_PROBE_TEST_CLASS = "SpecProofProbeTest"
+_PROBE_KNOWN_FIELDS = ("publish_count", "outcome", "payload_timestamp_non_null")
+
+
+def _load_probe_expectation(state: Phase0State) -> dict[str, Any] | None:
+    """Read the case's probe_expectation from its eval ground truth
+    (golden-cases/<case>/ground-truth.json, located next to spec.md)."""
+    spec_path = state.get("spec_path", "")
+    if not spec_path:
+        return None
+    gt_file = Path(spec_path).parent / "ground-truth.json"
+    try:
+        ground_truth = json.loads(gt_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    expectation = ground_truth.get("probe_expectation")
+    return expectation if isinstance(expectation, dict) else None
+
+
+def _copy_probe_files(head_app: str, base_app: str) -> bool:
+    """Copy the probe scaffolding from the head workspace into the base
+    workspace so both refs run the same probe test."""
+    head_dir = Path(head_app) / _PROBE_SRC_REL
+    if not head_dir.is_dir():
+        return False
+    sources = sorted(head_dir.glob("*.java"))
+    if not sources:
+        return False
+    ok = True
+    for src in sources:
+        dest = Path(base_app) / _PROBE_SRC_REL / src.name
+        try:
+            if dest.resolve() == src.resolve():
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(src), str(dest))
+        except OSError:
+            ok = False
+    return ok
+
+
+def _probe_field_ok(expectation: object, artifact: dict[str, Any] | None, field: str) -> bool:
+    """Check one expectation field against an artifact side."""
+    if artifact is None:
+        return False
+    if field == "publish_count":
+        return (
+            isinstance(expectation, int)
+            and artifact.get("publish_count") == expectation
+        )
+    if field == "outcome":
+        return isinstance(expectation, str) and artifact.get("outcome") == expectation
+    if field == "payload_timestamp_non_null":
+        payloads = artifact.get("payloads") or []
+        actual = bool(payloads) and all(
+            isinstance(p, dict) and p.get("timestamp") is not None
+            for p in payloads
+        )
+        return isinstance(expectation, bool) and actual == expectation
+    return False
+
+
+def evaluate_probe_expectation(
+    expectation: dict[str, Any],
+    base_artifact: dict[str, Any] | None,
+    head_artifact: dict[str, Any] | None,
+) -> tuple[str, str, list[str]]:
+    """Compare probe artifacts against the case's probe_expectation.
+
+    Returns (verdict, detail, violations):
+      REGRESSION        the head artifact violates its expected profile
+      COMPLIANT         both sides meet their expected profiles
+      NON_REPRODUCIBLE  base violated its profile / unknown fields / no
+                        artifacts - the probe cannot judge the head
+
+    Pure function: no I/O, unit-tested directly.
+    """
+    base_expectation = expectation.get("base")
+    head_expectation = expectation.get("head")
+    if not isinstance(base_expectation, dict) or not isinstance(head_expectation, dict):
+        return (
+            "NON_REPRODUCIBLE",
+            "probe_expectation lacks base/head profiles",
+            [],
+        )
+
+    unknown = [
+        field for field in list(base_expectation) + list(head_expectation)
+        if field not in _PROBE_KNOWN_FIELDS
+    ]
+    if unknown:
+        return (
+            "NON_REPRODUCIBLE",
+            "probe_expectation uses unknown fields: " + ", ".join(sorted(set(unknown))),
+            [],
+        )
+
+    if base_artifact is None or head_artifact is None:
+        missing = "base" if base_artifact is None else "head"
+        if base_artifact is None and head_artifact is None:
+            missing = "base and head"
+        return (
+            "NON_REPRODUCIBLE",
+            f"No probe artifact available for {missing}",
+            [],
+        )
+
+    base_violations = [
+        field for field, expected in base_expectation.items()
+        if not _probe_field_ok(expected, base_artifact, field)
+    ]
+    if base_violations:
+        return (
+            "NON_REPRODUCIBLE",
+            "base artifact does not meet its expected probe profile: "
+            + ", ".join(sorted(base_violations)),
+            base_violations,
+        )
+
+    head_violations = [
+        field for field, expected in head_expectation.items()
+        if not _probe_field_ok(expected, head_artifact, field)
+    ]
+    if head_violations:
+        return (
+            "REGRESSION",
+            "probe artifact comparison: head violates "
+            + ", ".join(sorted(head_violations))
+            + " (base profile met)",
+            head_violations,
+        )
+    return "COMPLIANT", "probe artifacts meet the expected profiles on both sides", []
+
+
+def _probe_digest_payload(
+    verdict: str, base_artifact: dict[str, Any] | None,
+    head_artifact: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Deterministic digest input (no raw timestamps: flags only)."""
+
+    def _side(artifact: dict[str, Any] | None) -> dict[str, Any] | None:
+        if artifact is None:
+            return None
+        payloads = artifact.get("payloads") or []
+        return {
+            "publish_count": artifact.get("publish_count"),
+            "outcome": artifact.get("outcome"),
+            "payload_count": len(payloads),
+            "all_timestamps_non_null": bool(payloads) and all(
+                isinstance(p, dict) and p.get("timestamp") is not None
+                for p in payloads
+            ),
+        }
+
+    return {
+        "verdict": verdict,
+        "base": _side(base_artifact),
+        "head": _side(head_artifact),
+    }
+
+
+def _run_probe_experiment(
+    state: Phase0State, base_app: str, head_app: str, base_cache_hit: bool,
+) -> list[dict[str, Any]]:
+    """Run the execution-time probe experiment for cases that declare one."""
+    expectation = _load_probe_expectation(state)
+    if expectation is None:
+        return []
+
+    method = expectation.get("test_method", "")
+    if not isinstance(method, str) or not method:
+        return []
+
+    if not _copy_probe_files(head_app, base_app):
+        return [{
+            "contract_id": expectation.get("contract_id", ""),
+            "experiment_id": "PROBE-01",
+            "verdict": "NON_REPRODUCIBLE",
+            "detail": "Probe scaffolding missing from the head workspace",
+            "evidence_type": "probe_differential",
+        }]
+
+    test_class = f"{_PROBE_TEST_CLASS}#{method}"
+    base_start = time.monotonic()
+    base_run = _run_generated_test(base_app, test_class, skip_main=base_cache_hit)
+    base_seconds = round(time.monotonic() - base_start, 1)
+    head_start = time.monotonic()
+    head_run = _run_generated_test(head_app, test_class)
+    head_seconds = round(time.monotonic() - head_start, 1)
+
+    from experiments.adapters import (
+        AdapterNotImplemented,
+        JavaMavenAdapter,
+        RepositorySnapshot,
+    )
+
+    base_artifact: dict[str, Any] | None = None
+    head_artifact: dict[str, Any] | None = None
+    adapter_note = ""
+    try:
+        JavaMavenAdapter().detect(RepositorySnapshot(path=head_app))
+        adapter = JavaMavenAdapter()
+    except AdapterNotImplemented as exc:
+        adapter = None
+        adapter_note = str(exc)
+    if adapter is not None:
+        base_artifact = adapter.read_probe_artifact(base_app)
+        head_artifact = adapter.read_probe_artifact(head_app)
+
+    if base_run.get("error") or head_run.get("error"):
+        return [{
+            "contract_id": expectation.get("contract_id", ""),
+            "experiment_id": "PROBE-01",
+            "verdict": "NON_REPRODUCIBLE",
+            "detail": (
+                "Probe Maven execution error - base: "
+                + (base_run.get("error") or "ok")
+                + ", head: " + (head_run.get("error") or "ok")
+            ),
+            "evidence_type": "probe_differential",
+            "base_exit_code": base_run.get("exit_code"),
+            "head_exit_code": head_run.get("exit_code"),
+            "base_run_seconds": base_seconds,
+            "head_run_seconds": head_seconds,
+        }]
+
+    verdict, detail, violations = evaluate_probe_expectation(
+        expectation, base_artifact, head_artifact,
+    )
+    if adapter_note:
+        detail += f" (adapter note: {adapter_note})"
+
+    severity = expectation.get("severity", "MAJOR")
+    if severity not in ("BLOCKER", "MAJOR", "MINOR"):
+        severity = "MAJOR"
+
+    digest = "sha256:" + hashlib.sha256(
+        json.dumps(
+            _probe_digest_payload(verdict, base_artifact, head_artifact),
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+
+    return [{
+        "contract_id": expectation.get("contract_id", ""),
+        "experiment_id": "PROBE-01",
+        "verdict": verdict,
+        "detail": detail,
+        "severity": severity if verdict == "REGRESSION" else "NONE",
+        "confidence": 0.95 if verdict == "REGRESSION" else 0.80,
+        "evidence_type": "probe_differential",
+        "base_exit_code": base_run.get("exit_code"),
+        "head_exit_code": head_run.get("exit_code"),
+        "base_probe": base_artifact,
+        "head_probe": head_artifact,
+        "probe_test_method": method,
+        "base_run_seconds": base_seconds,
+        "head_run_seconds": head_seconds,
+        "evidence_digest": digest,
+    }]

@@ -2,5 +2,18 @@
   "expected_severity": "BLOCKER",
   "expected_contract": "ORDER_EVENT-01",
   "expected_evidence_type": "base_pass_head_fail",
-  "should_detect": true
+  "should_detect": true,
+  "probe_expectation": {
+    "probe_version": 1,
+    "test_method": "brokerFailureRetry",
+    "contract_id": "ORDER_EVENT-01",
+    "severity": "BLOCKER",
+    "base": {
+      "publish_count": 1
+    },
+    "head": {
+      "publish_count": 1
+    },
+    "note": "one broker failure injected via specproof.probe.fail.once; base fast-fails (1 attempt), head retries (2 attempts)"
+  }
 }
