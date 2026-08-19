@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "note": "Retroactive partial isolation (honest caveat): this candidate set was declared AFTER earlier evaluation rounds already ran against these cases (W-series eval reports and the 10-case Recall/Precision runs recorded in CLAUDE.md). Holdout metrics computed on them must therefore be labelled 'retroactive holdout candidates' — they do not constitute a clean prospective holdout. A clean split requires case ids that no earlier round ever saw. Status transitions: candidate -> active (frozen for future eval only) or released (returned to the training pool).",
+  "integration_note": "eval.py integration deferred: at commit time cli/specproof/commands/eval.py was already modified by another lane (git status: M cli/specproof/commands/eval.py), so the --exclude-holdout flag was deliberately NOT added in this lane to avoid a write conflict. Wiring when that lane clears: in eval_cmd, after case_dirs is computed, load agent.holdout.HoldoutRegistry (default manifest docs/eval/holdout-manifest.json) and drop every directory whose name satisfies registry.is_holdout(name) unless an --include-holdout flag is passed, then print the skipped-case count in the run summary header.",
+  "cases": [
+    {
+      "case_id": "case-01-auth-bypass",
+      "family": "authnz",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-02-transactional-removal",
+      "family": "transaction",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-03-clean-pr",
+      "family": "negative-control",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-04-duplicate-email",
+      "family": "uniqueness",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-05-token-invalidation",
+      "family": "token-cache",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-06-schema-break",
+      "family": "schema-compat",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-07-duplicate-event",
+      "family": "event-consistency",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-08-transaction-split",
+      "family": "transaction",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-09-multi-security",
+      "family": "authnz",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-10-comment-only",
+      "family": "negative-control",
+      "added_at": "2026-08-19",
+      "status": "candidate"
+    }
+  ]
+}
