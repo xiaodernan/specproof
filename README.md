@@ -49,7 +49,7 @@ powershell -ExecutionPolicy Bypass -File scripts/start_local.ps1
 
 | 能力 | 实测数字 | 出处 |
 |---|---|---|
-| 100 金案例 (正 63/负 37) | 检出 60/63, 误报 3, **Recall/Precision/F1 = 95.2%**; 段2 (case-78..100, 探针全开) 13/13 误报 0 = 100%; 段2 三个 MISS 经 W36 执行探针修复后 3/3 = 100% | `docs/eval/eval-100-segments.md` |
+| 100 金案例 (正 63/负 37) | 检出 63/63, 误报 0, **Recall/Precision/F1 = 100.0%** (五块全部修复后重跑: c1/c2/c3/c4/rem3 实录); 历史首跑 95.2% 对照保留在总表 | `docs/eval/eval-100-segments.md` |
 | SpecCraft 90 任务评测集 | 代码完成率 **98.0%** (49/50); 陷阱拦截/对抗/断点恢复/危险动作审批 **100%/100%/100%/100%**, 审批违规 0 | `docs/eval/agent-task-suite.md` |
 | SpecCraft 微基准 (10 任务) | 完成率 **90.0%**, 平均迭代 **1.1**, 预算内 100%, 陷阱自校验拦截率 **100%** | `docs/eval/craft-microbench.md` |
 | 检索 (30 查询黄金集) | BM25+RRF recall@10 **87.2%** / MRR **0.760** (vs BM25 72.2%/0.561, +15.0pp); symbol-index 75.6% @ 2.3ms | `docs/eval/retrieval-bench.md` |
@@ -141,16 +141,14 @@ docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observ
 
 ## 诚实边界 (验收当天如实汇报, 不掩饰)
 
-1. **100 案例 = 95.2%**, 非 100%: 段1 三个 MISS + 3 误报修复在途 (W48b), 修复后重跑冲 100% (`docs/eval/eval-100-segments.md`)。
-2. **Go/No-Go 15 门槛仅 6/15 PASS**; 任一未达 PASS 前不宣称商业优势 9.0 (`docs/eval/go-nogo.md` 结论)。
-3. **在途评测**: Capsule 全量回放首跑 0% (W96 在途, `docs/eval/replay-results.md`);
-   Aider polyglot harness 首跑 0/3 (W98 在途, `docs/eval/aider-results.md`);
-   SWE-bench-Lite 真实首跑 0% 已定位两缺口 (W99 重跑中)。
+1. **100 案例已冲 100.0%**: 63/63 误报 0 (五块修复后重跑实录, `docs/eval/eval-100-segments.md`; 历史首跑 95.2% 对照保留)。
+2. **Go/No-Go 15 门槛 6/15 PASS**; 其中 Capsule 回放门禁 (#4) 已由六轮修复冲至 **25/25 = 100.0% PASS** (`docs/eval/replay-results.md` 六轮轨迹全录); 任一门槛未达 PASS 前不宣称商业优势 9.0。
+3. **诚实未达标项**: Aider polyglot 离线样本 1/3=33.3% (harness 全绿, 跨语言编辑器未支持诚实标注); SWE-bench-Lite 真实跑五轮 (v1-v5) 每轮消掉一类失败 (信封→venv→测试文件误改→锚点→判据→依赖漂移), resolved 率仍为诚实 0%, 官方口径数字待 Docker 环境; Go/No-Go 整体评级见 `docs/eval/go-nogo.md`。
 4. **依赖基础设施未实测**: Linux 非 root 沙箱、KMS/HSM、跨语言 Gradle/Node/Go 适配器 — 本地不可验。
 5. **依赖锁定缺口**: Python 无 lock/freeze 快照, 完整锁定审计需干净 venv (`docs/architecture/DEPENDENCY_LOCK.md` §0/§1.3)。
 6. **状态机差异**: Verify/Craft 当前实现与演进计划 §4.3/§4.4 冻结定义的逐项差异已诚实列明 (`docs/architecture/STATE_MACHINES.md`)。
 7. **LLM 档**依赖外部可用端点与 Key; 无 Key 时诚实降级为确定性档并明确标注, 绝不伪造 LLM 结果。
-8. 计费路由与前端收尾 (W101) 在途。
+8. ~~计费路由与前端收尾 (W101)~~ 已落地 (billing 路由/wizard/权限页/progress 形状, 19 文件 90 测试+build 全绿)。
 
 ## 文档导航
 
