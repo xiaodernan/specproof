@@ -1,0 +1,5 @@
+[1/2] pallets__flask-4045 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s2 (verify): 同类错误连续 3 次, 判定 stuck (签名: s2|断言值 '.' 无源文件可搜索: 目标 ['tests/test_blueprints.py'] 均为测试文件 — 隐藏测试由评测框架在 craft 后施加, craft 阶段不可见; 请只修
+[2/2] pallets__flask-4992 -> unresolved (craft): craft 未收敛 (FAILED): 步骤 s6 (test): LLM 编辑提案非法, 按 M1 语义 FAILED: apply_edit 被拒 (src/flask/helpers.py): apply_edit 拒绝: old 未命中 (src/flask/helpers.py)
+汇总: total=2 resolved=0 unresolved=2 rate=0.0%
+结果 JSON: docs\eval\swebench-llm-results-v4.json
+日志目录: docs\eval\swebench-logs
