@@ -14,7 +14,7 @@
 ### 1.1 检测能力 (金案例评测)
 | 指标 | 数字 | 证据 |
 |---|---|---|
-| 100 金案例段2 (78-100) 初测 | Precision 100%, Recall 76.9%, F1 87.0%, 0 误报 | docs/eval/eval-report-rem.results.json |
+| 100 金案例段2 (78-100) 最终 | **Precision 100%, Recall 100%, F1 100%, 0 误报** (探针全开复跑, 13/13) | docs/eval/eval-report-rem3.results.json |
 | 3 个 rel 类 MISS 修复 (执行探针: 故障注入/发布计数/载荷捕获) | 修复后 3/3 = **Precision/Recall/F1 100%** | docs/eval/eval-report-rel.results.json (Docker DooD 实测) |
 | 段2 全量复跑 / 段1 分块跑 | [待补 — pwsh-37 / pwsh-22 完成后回填 100 案例总表] | |
 | LLM 基线对比 | 通用 LLM strict-id 召回 0% → SpecProof 检测 100% (**+100pp**) | docs/eval/llm-baseline-100-live.md |
