@@ -78,6 +78,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
           <label className="field">仓库路径 Repo path</label>
           <input
             type="text"
+            data-testid="wizard-repo"
             value={draft.repo_path}
             placeholder="D:\repos\my-service"
             onChange={(e) => set({ repo_path: e.target.value })}
@@ -85,6 +86,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
           <label className="field">任务名称 Task name (可选)</label>
           <input
             type="text"
+            data-testid="wizard-task"
             value={draft.task_name}
             placeholder="为服务端增加分页"
             onChange={(e) => set({ task_name: e.target.value })}
@@ -108,6 +110,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
           <label className="field">需求规格 Spec text</label>
           <textarea
             rows={12}
+            data-testid="wizard-spec"
             value={draft.spec_text}
             placeholder={"为 /users 列表接口增加分页参数 (page, page_size)，默认 page_size=20，" +
               "上限 100；补充分页相关的单元测试。"}
@@ -199,7 +202,12 @@ export default function AgentWizard(props: { step: WizardStep }) {
             <a className="btn btn-ghost" href="#/agent/new/gates">
               上一步 Back
             </a>
-            <button className="btn" disabled={submitting} onClick={() => void submit()}>
+            <button
+              className="btn"
+              data-testid="wizard-submit"
+              disabled={submitting}
+              onClick={() => void submit()}
+            >
               {submitting ? "提交中 SUBMITTING…" : "创建任务 Create job"}
             </button>
           </div>

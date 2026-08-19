@@ -7,11 +7,13 @@ import {
   setUserStatus,
 } from "../../api";
 import { Empty, ErrorBox, Panel } from "../../components";
+import { useIdentityAccess } from "../useIdentityAccess";
 
 // User management (RBAC: admin/operator). Operators always act on their own
 // tenant — a request-side tenant override is ignored by the backend, and
 // cross-tenant user ids answer 404, which renders as the ApiError text.
 export default function TenantUsers() {
+  const { canManage } = useIdentityAccess();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("viewer");
@@ -30,7 +32,23 @@ export default function TenantUsers() {
       });
   }
 
-  useEffect(reload, []);
+  useEffect(() => {
+    if (canManage) reload();
+  }, [canManage]);
+
+  if (!canManage) {
+    return (
+      <div>
+        <div className="page-head">
+          <h1>用户管理 Users</h1>
+          <div className="page-sub">IDENTITY — 当前租户用户 (RBAC: admin/operator)</div>
+        </div>
+        <div className="errorbox" data-testid="identity-forbidden" role="alert">
+          无权限 NO ACCESS — 用户管理仅对 admin/operator 开放 (RBAC fail-closed)
+        </div>
+      </div>
+    );
+  }
 
   function create() {
     setError(null);

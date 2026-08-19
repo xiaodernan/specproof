@@ -7,11 +7,13 @@ import {
   saveToken,
 } from "../../api";
 import { Empty, ErrorBox, Panel } from "../../components";
+import { useIdentityAccess } from "../useIdentityAccess";
 
 // Token management (RBAC: admin/operator). Minted tokens are show-once: the
 // cleartext appears exactly once and is then discarded from component state;
 // saving hands it to the tenant switcher's local store (localStorage).
 export default function TenantTokens() {
+  const { canManage } = useIdentityAccess();
   const [tokens, setTokens] = useState<TokenRow[]>([]);
   const [name, setName] = useState("");
   const [scopes, setScopes] = useState("");
@@ -32,7 +34,23 @@ export default function TenantTokens() {
       });
   }
 
-  useEffect(reload, []);
+  useEffect(() => {
+    if (canManage) reload();
+  }, [canManage]);
+
+  if (!canManage) {
+    return (
+      <div>
+        <div className="page-head">
+          <h1>Token 管理 Tokens</h1>
+          <div className="page-sub">IDENTITY — sp_* 本地凭证, show-once (RBAC: admin/operator)</div>
+        </div>
+        <div className="errorbox" data-testid="identity-forbidden" role="alert">
+          无权限 NO ACCESS — Token 管理仅对 admin/operator 开放 (RBAC fail-closed)
+        </div>
+      </div>
+    );
+  }
 
   function mint() {
     setError(null);
