@@ -219,10 +219,19 @@ def _run_docker(command: list[str], workspace: str, timeout: int) -> SandboxResu
             stderr=proc.stderr,
             mode="docker",
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
+        # Preserve whatever the workload already emitted before the kill —
+        # the honest partial output beats a silent empty result.
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        return SandboxResult(
+            exit_code=-1, stdout=stdout, stderr=stderr,
+            error=f"sandbox execution timed out after {timeout}s", mode="docker",
+        )
+    except OSError as exc:
         return SandboxResult(
             exit_code=-1, stdout="", stderr="",
-            error="sandbox execution timed out", mode="docker",
+            error=f"could not start command {command[0]!r}: {exc}", mode="docker",
         )
     except Exception as exc:
         return SandboxResult(
@@ -274,6 +283,22 @@ def _run_local(
         return SandboxResult(
             exit_code=proc.returncode, stdout=proc.stdout, stderr=proc.stderr,
             mode=mode,
+        )
+    except subprocess.TimeoutExpired as exc:
+        # Preserve whatever the workload already emitted before the kill —
+        # the honest partial output beats a silent empty result.
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        return SandboxResult(
+            exit_code=-1, stdout=stdout, stderr=stderr,
+            error=f"execution timed out after {timeout}s", mode=mode,
+        )
+    except OSError as exc:
+        # e.g. the configured python/venv binary does not exist — the
+        # failure must surface as an explicit error, never an empty result.
+        return SandboxResult(
+            exit_code=-1, stdout="", stderr="",
+            error=f"could not start command {command[0]!r}: {exc}", mode=mode,
         )
     except Exception as exc:
         return SandboxResult(

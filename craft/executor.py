@@ -88,7 +88,13 @@ def extract_pytest_failed_tests(output: str) -> list[str]:
 
 
 class Executor:
-    """Whitelisted command execution via the sandbox runner."""
+    """Whitelisted command execution via the sandbox runner.
+
+    python (optional): an absolute interpreter path used in place of the
+    bare "python"/"pytest" command stems — e.g. a per-run venv interpreter
+    in the SWE-bench LLM harness. None keeps the legacy behavior (the
+    interpreter resolved from PATH), byte-identical for deterministic runs.
+    """
 
     def __init__(
         self,
@@ -96,33 +102,47 @@ class Executor:
         *,
         mode: str | None = None,
         timeout: int = DEFAULT_TIMEOUT,
+        python: str | None = None,
     ) -> None:
         self.workspace = Path(workspace)
         self.mode = mode
         self.timeout = timeout
+        self.python = python
 
     def allowed_commands(self) -> set[str]:
         extra = os.getenv("CRAFT_EXTRA_COMMANDS", "")
         return set(ALLOWED_COMMANDS) | {t.strip().lower() for t in extra.split(",") if t.strip()}
 
+    def _resolve_command(self, command: list[str]) -> list[str]:
+        """Substitute the configured interpreter for the bare python/pytest
+        stems; every other command passes through untouched."""
+        if self.python and command and command[0] in ("python", "pytest"):
+            return [self.python, *command[1:]]
+        return command
+
     def run(self, command: list[str], *, timeout: int | None = None) -> ExecResult:
         if not command:
             raise CommandNotAllowedError("命令为空")
-        stem = Path(command[0]).stem.lower()
+        resolved = self._resolve_command(command)
+        stem = Path(resolved[0]).stem.lower()
         if stem not in self.allowed_commands():
             raise CommandNotAllowedError(
-                f"命令 '{command[0]}' 不在白名单 {sorted(self.allowed_commands())} "
+                f"命令 '{resolved[0]}' 不在白名单 {sorted(self.allowed_commands())} "
                 "(M1 默认拒绝其余命令)"
             )
         result: SandboxResult = run_sandboxed(
-            command=command,
+            command=resolved,
             workspace=str(self.workspace),
             timeout=timeout if timeout is not None else self.timeout,
             mode=self.mode,
         )
         combined = f"{result.stdout}\n{result.stderr}".rstrip()
+        if not combined and result.error:
+            # Sandbox-level failures (spawn errors, timeouts) must never
+            # surface as silent empty output: the real error rides the tail.
+            combined = f"[sandbox error] {result.error}".rstrip()
         return ExecResult(
-            command=list(command),
+            command=list(resolved),
             exit_code=result.exit_code,
             stdout=result.stdout,
             stderr=result.stderr,
@@ -133,7 +153,7 @@ class Executor:
         )
 
     def run_pytest(self, extra_args: list[str] | None = None) -> ExecResult:
-        return self.run(["python", "-m", "pytest", "-q", *(extra_args or [])])
+        return self.run([self.python or "python", "-m", "pytest", "-q", *(extra_args or [])])
 
     def parse_test_results(self) -> TestReport:
         """Parse surefire/JUnit XML with defusedxml; honest empty + note when

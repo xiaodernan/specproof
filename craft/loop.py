@@ -54,10 +54,23 @@ step, update_status(result_json=report) at finish, supervisor cancel wins
 over a leased worker (CANCELLED terminal is flushed honestly), and
 from_checkpoint re-leases per the W30 Integration note. store=None keeps
 the original in-memory behavior untouched.
+
+W44 metrics wiring (additive, all OFF by default): an optional
+ToolCallSelfCheck validates the M2 JSON Action Envelope through
+check_with_retry with the model round-trip injected as the producer
+callable (an invalid envelope is never executed; a second invalid one
+gives up with the stable registry code); an optional ModelRouter routes
+the diagnose path via route("diagnose") with one strong fallback on a
+cheap-tier failure; an optional SemanticCache serves cacheable diagnose
+prompts; judge_persona=True appends the no-fake-pass persona to the
+diagnose system block. All counters land in report.gains (tool-call
+attempts/valid/retried/success rate, router fallbacks, cache hits,
+judge-persona flag) — zero-filled when nothing is configured.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -71,9 +84,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from providers.base import LLMMessage
+from providers.base import LLMMessage, LLMResponse
 from providers.budget import BudgetExceeded
-from providers.prompt_templates import SYSTEM_BLOCK, TOOL_SCHEMA_BLOCK, assemble
+from providers.judge_persona import build_judge_prompt
+from providers.prompt_templates import (
+    JSON_ACTION_ENVELOPE_BLOCK,
+    SYSTEM_BLOCK,
+    TOOL_SCHEMA_BLOCK,
+    assemble,
+)
+from providers.router import ModelRouter, ProviderRoute
+from providers.semantic_cache import SemanticCache, cache_key, cacheable
+from providers.toolcheck import (
+    CODE_PROPOSAL_INVALID,
+    EditProposalSelfCheck,
+    ProposalParseFailure,
+    ToolCallSelfCheck,
+)
 from storage.agent_jobs import (
     AgentJobStore,
     InvalidJobTransitionError,
@@ -100,6 +127,11 @@ from .tools import ToolRegistry
 from .verify import self_verify
 
 FixFunction = Callable[[Editor, Step, str], list[str]]
+
+
+def _prompt_digest(text: str) -> str:
+    """sha256 digest of a built prompt (semantic-cache key material)."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def default_job_id() -> str:
@@ -151,6 +183,35 @@ Hard rules:
 - propose only edits the evidence justifies; never touch test files or
   forbidden files; never invent evidence.
 """
+
+# System-prefix output contract for the diagnose-fix call (首跑缺口修复).
+# The gateway only honors response_format=json_object when the prompt
+# itself names JSON (docs/design/GRAND_PLAN_V2.md), and the previous prompt
+# carried a CONFLICTING JSON Action Envelope tail — the model then answered
+# with {"action": ...} envelopes that lacked the "edits" array. This block
+# is the single authoritative contract in the stable prefix, with a compact
+# inline example; the action envelope is NOT appended to this call anymore.
+_EDIT_PROPOSAL_OUTPUT_BLOCK: str = (
+    """\
+EDIT PROPOSAL OUTPUT CONTRACT — your ENTIRE reply must be ONE JSON object
+(no markdown fences, no prose around the JSON) with exactly two top-level
+keys: "diagnosis" (string, one sentence naming the root cause) and "edits"
+(array of edit operations). Compact example:
+"""
+    + '{"diagnosis": "double() divides instead of multiplying", "edits": '
+    '[{"action": "apply_edit", "path": "src/calc.py", '
+    '"old": "return x / 2", "new": "return x * 2"}]}\n'
+    + """\
+Hard rules:
+- each edit object has "action" (exactly "apply_edit" or "write_file") and
+  a repo-relative "path";
+- apply_edit requires string "old"/"new"; old must match EXACTLY once in
+  the current file content shown below, otherwise the edit is rejected;
+- write_file requires string "new" (the full file content);
+- propose only edits the evidence justifies; never touch test files or
+  forbidden files; never invent evidence.
+"""
+)
 
 
 @dataclass
@@ -239,6 +300,7 @@ class CraftLoop:
         fix_registry: dict[str, FixFunction] | None = None,
         exec_mode: str | None = None,
         exec_timeout: int = 600,
+        python: str | None = None,
         started_at: float | None = None,
         now_fn: Callable[[], float] | None = None,
         states: list[StepState] | None = None,
@@ -250,6 +312,12 @@ class CraftLoop:
         memory: TaskMemory | None = None,
         skip_self_verify: bool = False,
         tool_registry: ToolRegistry | None = None,
+        # W44 metrics wiring — all off by default; passing a self-check /
+        # router / cache in is the only way to change behavior.
+        tool_call_self_check: ToolCallSelfCheck | None = None,
+        router: ModelRouter | None = None,
+        semantic_cache: SemanticCache | None = None,
+        judge_persona: bool = False,
         store: AgentJobStore | None = None,
         lease_ttl_seconds: float = 900,
     ) -> None:
@@ -279,6 +347,16 @@ class CraftLoop:
         self.started_at = started_at if started_at is not None else self.now_fn()
         self.deadline = self.started_at + self.budget.timeout_minutes * 60.0
         self.tool_registry = tool_registry
+        if tool_call_self_check is not None and tool_registry is None:
+            raise CraftLoopError(
+                "tool_call_self_check 需要 tool_registry: "
+                "自检通过的信封必须经注册表执行, 不能直接调用编辑器"
+            )
+        self.tool_call_self_check = tool_call_self_check
+        self.router = router
+        self.semantic_cache = semantic_cache
+        self.judge_persona = judge_persona
+        self._judge_persona_applied = 0
         if tool_registry is not None:
             # One editor for the whole job: registry dispatches and the
             # loop's grep reads share the audit trail, so report.diff_stat,
@@ -291,7 +369,9 @@ class CraftLoop:
                 backup_dir=self.artifact_dir / "backup",
                 audit_path=self.artifact_dir / "audit.jsonl",
             )
-        self.executor = Executor(self.workspace, mode=exec_mode, timeout=exec_timeout)
+        self.executor = Executor(
+            self.workspace, mode=exec_mode, timeout=exec_timeout, python=python
+        )
         self.states = states or [StepState(step=step) for step in plan.steps]
         if len(self.states) != len(plan.steps):
             raise CraftLoopError("states 数量与计划步骤数不一致")
@@ -581,7 +661,9 @@ class CraftLoop:
                     verdict="green",
                 )
                 return "green"
-            signature = self._error_signature(step, result)
+            signature = self._error_signature(
+                step, result, note=str(evidence.get("reason", ""))
+            )
             self.memory.add("error_signature", signature, step_id=step.id)
             if signature == last_signature:
                 consecutive += 1
@@ -632,31 +714,36 @@ class CraftLoop:
                     None,
                 )
             result = self._exec(["python", "-m", "compileall", "-q", *step.target_files], state)
-            return (
-                result.exit_code == 0,
-                {
-                    "check": "compile",
-                    "exit_code": result.exit_code,
-                    "mode": result.mode,
-                    "output_tail": result.output_tail,
-                },
-                result,
-            )
+            evidence: dict[str, Any] = {
+                "check": "compile",
+                "exit_code": result.exit_code,
+                "mode": result.mode,
+                "output_tail": result.output_tail,
+            }
+            if result.stderr.strip():
+                evidence["stderr_tail"] = result.stderr[-1000:]
+            if result.error:
+                evidence["error"] = result.error
+            return (result.exit_code == 0, evidence, result)
         if criteria.type == "test_green":
             result = self._exec(["python", "-m", "pytest", "-q"], state)
-            return (
-                result.exit_code == 0,
-                {
-                    "check": "test_green",
-                    "exit_code": result.exit_code,
-                    "failed_tests": extract_pytest_failed_tests(
-                        f"{result.stdout}\n{result.stderr}"
-                    ),
-                    "mode": result.mode,
-                    "output_tail": result.output_tail,
-                },
-                result,
-            )
+            # 首跑缺口修复: the real stderr tail and the sandbox-level error
+            # (spawn failure / venv python missing / timeout) ride the
+            # evidence — a failing run_test must never surface as empty.
+            evidence = {
+                "check": "test_green",
+                "exit_code": result.exit_code,
+                "failed_tests": extract_pytest_failed_tests(
+                    f"{result.stdout}\n{result.stderr}"
+                ),
+                "mode": result.mode,
+                "output_tail": result.output_tail,
+            }
+            if result.stderr.strip():
+                evidence["stderr_tail"] = result.stderr[-1000:]
+            if result.error:
+                evidence["error"] = result.error
+            return (result.exit_code == 0, evidence, result)
         contents: dict[str, str] = {}
         for target in step.target_files:
             try:
@@ -712,9 +799,24 @@ class CraftLoop:
     def _llm_fix(
         self, step: Step, result: ExecResult | None, diagnosis: str
     ) -> tuple[str, list[str]]:
-        """M2 diagnose-fix: the model proposes JSON edit operations and the
-        Editor enforces uniqueness / atomic write / backup / audit exactly as
-        in M1. Returns (diagnosis_text, edited_paths).
+        """M2 diagnose-fix: the model proposes JSON edit operations — or,
+        with a ToolCallSelfCheck configured, one validated JSON Action
+        Envelope — and the Editor enforces uniqueness / atomic write /
+        backup / audit exactly as in M1. Returns (diagnosis_text,
+        edited_paths).
+
+        W44 wiring, all OFF by default (an unconfigured loop behaves
+        identically to the pre-W44 one):
+        - judge_persona=True appends the no-fake-pass judge persona to the
+          diagnose system block;
+        - a router routes the diagnosis path via router.route("diagnose")
+          and a cheap-tier failure falls back to one strong retry (the
+          router counts it);
+        - a semantic cache serves cacheable diagnose prompts and skips the
+          LLM round-trip on a hit;
+        - a ToolCallSelfCheck forces the envelope output contract and runs
+          the model round-trip through check_with_retry with the producer
+          callable injected — an invalid envelope is never executed.
 
         Raises _LLMFixError for illegal output, BudgetExceeded for token
         overruns and LLMUnavailableError when no route exists — the caller
@@ -723,27 +825,94 @@ class CraftLoop:
         client = self.client
         if client is None:
             raise LLMUnavailableError("LLM 客户端未提供 (诊断-修复需要 --llm)")
-        built = assemble(
-            SYSTEM_BLOCK + "\n\n" + TOOL_SCHEMA_BLOCK,
-            "diagnose",
-            self._diagnose_context(step, result, diagnosis),
-            include_envelope=True,
+        envelope_mode = self.tool_call_self_check is not None
+        # The edit-proposal contract is the ONLY output contract of the
+        # non-envelope diagnose call: the JSON Action Envelope tail is not
+        # appended here anymore (it previously competed with the edits
+        # schema and the model answered with {"action": ...} envelopes that
+        # lacked the "edits" array — 首跑缺口 pallets__flask-4045).
+        base = (
+            SYSTEM_BLOCK + "\n\n" + TOOL_SCHEMA_BLOCK
+            if envelope_mode
+            else SYSTEM_BLOCK + "\n\n" + _EDIT_PROPOSAL_OUTPUT_BLOCK
         )
-        response = client.chat_sync(
-            [LLMMessage(role="user", content=built.text)],
-            label=f"diagnose:{step.id}",
-            job_id=self.job_id,
-            step_id=step.id,
-            thinking=resolve_craft_thinking("diagnose"),
-            response_format={"type": "json_object"},
-            estimated_prompt_tokens=max(1, len(built.text) // 4),
+        if self.judge_persona:
+            base = build_judge_prompt(base)
+            self._judge_persona_applied += 1
+        context = self._diagnose_context(
+            step, result, diagnosis, envelope_mode=envelope_mode
         )
-        self.llm_calls += 1
-        try:
-            data = extract_json_object(response.content or "")
-            explanation, ops = _parse_edit_ops(data)
-        except (json.JSONDecodeError, TypeError, ValueError, _LLMFixError) as exc:
-            raise _LLMFixError(f"模型输出无法解析为 JSON 编辑提案: {exc}") from exc
+        if envelope_mode:
+            return self._llm_fix_envelope(client, base, context, step, diagnosis)
+        built = assemble(base, "diagnose", context, include_envelope=False)
+        route = self.router.route("diagnose") if self.router is not None else None
+        cached: dict[str, Any] | None = None
+        cache_key_value = ""
+        if self.semantic_cache is not None and cacheable("diagnose"):
+            model = route.model if route is not None else ""
+            cache_key_value = cache_key(
+                _prompt_digest(built.text),
+                model,
+                {"step_id": step.id, "envelope": False},
+            )
+            hit = self.semantic_cache.get(cache_key_value)
+            if isinstance(hit, dict) and isinstance(hit.get("ops"), list):
+                cached = hit
+        if cached is None:
+            # EditProposalSelfCheck (ToolCallSelfCheck pattern): an invalid
+            # or unparseable proposal arms exactly ONE deterministic repair
+            # instruction; a second invalid proposal gives up carrying the
+            # stable code LLM_PROPOSAL_INVALID.
+            checker = EditProposalSelfCheck()
+
+            def produce(instruction: str | None) -> object:
+                text = (
+                    built.text
+                    if instruction is None
+                    else f"{built.text}\n\n{instruction}"
+                )
+                response = self._diagnose_call(
+                    client,
+                    [LLMMessage(role="user", content=text)],
+                    step,
+                    text,
+                    route,
+                )
+                content = response.content or ""
+                try:
+                    return extract_json_object(content)
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    snippet = content.strip() or "(空输出)"
+                    return ProposalParseFailure(snippet[-240:])
+
+            outcome = checker.check_with_retry(produce)
+            if outcome.status != "valid":
+                raise _LLMFixError(
+                    f"[{outcome.code}] LLM 编辑提案校验失败 "
+                    f"(修复指令一次后仍失败): {outcome.message}"
+                )
+            data = checker.last_data
+            if data is None:
+                raise _LLMFixError(
+                    f"[{CODE_PROPOSAL_INVALID}] 编辑提案校验通过但数据丢失 (程序错误)"
+                )
+            try:
+                explanation, ops = _parse_edit_ops(data)
+            except _LLMFixError as exc:
+                raise _LLMFixError(
+                    f"[{CODE_PROPOSAL_INVALID}] 编辑提案解析失败: {exc}"
+                ) from exc
+            if self.semantic_cache is not None and cache_key_value:
+                self.semantic_cache.put(
+                    cache_key_value,
+                    {"explanation": explanation, "ops": ops},
+                    kind="diagnose",
+                )
+        else:
+            raw_explanation = cached.get("explanation")
+            explanation = raw_explanation if isinstance(raw_explanation, str) else ""
+            raw_ops = cached.get("ops")
+            ops = raw_ops if isinstance(raw_ops, list) else []
         edited: list[str] = []
         for op in ops:
             action = op.get("action")
@@ -793,12 +962,128 @@ class CraftLoop:
             return f"[LLM 诊断] {explanation}", edited
         return diagnosis, edited
 
+    def _diagnose_call(
+        self,
+        client: LLMClient,
+        messages: list[LLMMessage],
+        step: Step,
+        prompt_text: str,
+        route: ProviderRoute | None,
+    ) -> LLMResponse:
+        """One diagnose chat round-trip; a cheap-tier failure falls back to
+        exactly one strong retry, counted by the router (on_failure)."""
+
+        def once() -> LLMResponse:
+            response = client.chat_sync(
+                messages,
+                label=f"diagnose:{step.id}",
+                kind="diagnose",
+                job_id=self.job_id,
+                step_id=step.id,
+                thinking=resolve_craft_thinking("diagnose"),
+                response_format={"type": "json_object"},
+                estimated_prompt_tokens=max(1, len(prompt_text) // 4),
+            )
+            self.llm_calls += 1
+            return response
+
+        if route is None or route.tier != "cheap" or self.router is None:
+            return once()
+        try:
+            return once()
+        except LLMUnavailableError:
+            self.router.on_failure(route)
+            return once()
+
+    def _llm_fix_envelope(
+        self,
+        client: LLMClient,
+        base: str,
+        context: dict[str, str],
+        step: Step,
+        diagnosis: str,
+    ) -> tuple[str, list[str]]:
+        """W44 self-checked envelope path: the model must answer with one
+        JSON Action Envelope, validated through ToolCallSelfCheck
+        .check_with_retry with the model round-trip injected as the
+        producer callable. One retry is armed on an invalid envelope; a
+        second invalid envelope gives up with the stable registry error
+        code and the step fails with honest M1 semantics."""
+        checker = self.tool_call_self_check
+        registry = self.tool_registry
+        if checker is None or registry is None:
+            # Constructor validation makes this unreachable; kept for types.
+            raise _LLMFixError("信封自检路径缺少 checker/registry (构造期应已拦截)")
+        route = self.router.route("diagnose") if self.router is not None else None
+        produced: list[object] = []
+
+        def produce(instruction: str | None) -> object:
+            sections = dict(context)
+            if instruction:
+                sections["self_check_repair"] = instruction
+            built = assemble(base, "diagnose", sections, include_envelope=True)
+            response = self._diagnose_call(
+                client,
+                [LLMMessage(role="user", content=built.text)],
+                step,
+                built.text,
+                route,
+            )
+            try:
+                payload = extract_json_object(response.content or "")
+            except (json.JSONDecodeError, TypeError, ValueError):
+                # The checker reports "not a JSON object" and arms its retry.
+                payload = response.content
+            produced.append(payload)
+            return payload
+
+        outcome = checker.check_with_retry(produce)
+        if outcome.status != "valid":
+            raise _LLMFixError(
+                f"工具调用信封自检未通过 ({outcome.status}, code={outcome.code}): "
+                f"{outcome.message}"
+            )
+        envelope = produced[-1]
+        if not isinstance(envelope, dict):
+            raise _LLMFixError("信封自检通过但载荷不是 JSON 对象 (内部不一致)")
+        action = envelope.get("action")
+        params = envelope.get("params")
+        raw_version = envelope.get("version")
+        if not isinstance(action, str) or not isinstance(params, dict):
+            raise _LLMFixError("信封自检通过但 action/params 类型非法 (内部不一致)")
+        if action not in ("apply_patch", "create_file"):
+            raise _LLMFixError(
+                f"信封自检通过但工具 {action!r} 不是编辑工具 "
+                "(仅支持 apply_patch|create_file)"
+            )
+        version = (
+            raw_version
+            if isinstance(raw_version, int) and not isinstance(raw_version, bool)
+            else None
+        )
+        tool_result = registry.dispatch(
+            registry.build_tool_call(action, params, version=version)
+        )
+        if tool_result.status != "ok":
+            raise _LLMFixError(f"{action} 被拒: {tool_result.summary}")
+        path = params.get("path")
+        if not isinstance(path, str) or not path.strip():
+            raise _LLMFixError("信封缺少合法 path")
+        return diagnosis, [path]
+
     def _diagnose_context(
-        self, step: Step, result: ExecResult | None, diagnosis: str
+        self,
+        step: Step,
+        result: ExecResult | None,
+        diagnosis: str,
+        *,
+        envelope_mode: bool = False,
     ) -> dict[str, str]:
         """Failure context for the diagnose prompt: step schema, deterministic
         diagnosis, failure output tail, target file contents (capped), the
-        editor API contract and the JSON output contract."""
+        editor API contract and the JSON output contract. envelope_mode
+        (W44 self-check) swaps the edit-proposal schema for the JSON Action
+        Envelope contract."""
         snippets: list[str] = []
         for target in step.target_files[:8]:
             try:
@@ -822,13 +1107,20 @@ class CraftLoop:
             "target_files": "\n\n".join(snippets) or "(无目标文件)",
             "task_memory": self.memory.summarize_for_prompt() or "(无任务记忆)",
             "editor_api": tool_surface,
-            "output_schema": _EDIT_OPS_SCHEMA,
+            "output_schema": (
+                JSON_ACTION_ENVELOPE_BLOCK if envelope_mode else _EDIT_OPS_SCHEMA
+            ),
         }
 
     @staticmethod
-    def _error_signature(step: Step, result: ExecResult | None) -> str:
+    def _error_signature(step: Step, result: ExecResult | None, note: str = "") -> str:
         if result is None:
-            return f"{step.id}|<no-exec-output>"
+            # 首跑缺口修复 (pallets__flask-4992): grep/read-only criteria run
+            # no command at all, so there is no exec output to quote — the
+            # real failure reason rides the note instead of a misleading
+            # "<no-exec-output>" placeholder.
+            core = note.strip()[:160] if note.strip() else "<no-exec-output>"
+            return f"{step.id}|{core}"
         match = _ASSERT_EQ_RE.search(result.output_tail)
         core = match.group(0).strip() if match else result.output_tail[-160:].strip()
         return f"{step.id}|{core}"
@@ -1036,6 +1328,29 @@ class CraftLoop:
                 "tools": self.tool_registry.tool_names(),
                 "dispatches": self.tool_registry.dispatch_count,
             }
+        # W44 gains: tool-call self-check counters (success rate included),
+        # router fallbacks, cache hits and the judge-persona flag. Zeros
+        # when nothing is configured — the report shape is stable.
+        self_check_metrics: dict[str, Any] = (
+            self.tool_call_self_check.metrics()
+            if self.tool_call_self_check is not None
+            else {}
+        )
+        report["gains"] = {
+            "tool_call_attempts": int(self_check_metrics.get("attempts") or 0),
+            "tool_call_valid": int(self_check_metrics.get("valid") or 0),
+            "tool_call_retried": int(self_check_metrics.get("retried") or 0),
+            "tool_call_success_rate": float(
+                self_check_metrics.get("tool_call_success_rate") or 0.0
+            ),
+            "router_fallback_count": (
+                int(self.router.fallback_count) if self.router is not None else 0
+            ),
+            "cache_hits": (
+                int(self.semantic_cache.hits) if self.semantic_cache is not None else 0
+            ),
+            "judge_persona_applied": int(self._judge_persona_applied),
+        }
         if self.plan.llm_fallback_reason:
             report["llm_fallback_reason"] = self.plan.llm_fallback_reason
         self.memory.add(
@@ -1115,8 +1430,13 @@ class CraftLoop:
         budget: Budget | None = None,
         exec_mode: str | None = None,
         exec_timeout: int = 600,
+        python: str | None = None,
         client: LLMClient | None = None,
         tool_registry: ToolRegistry | None = None,
+        tool_call_self_check: ToolCallSelfCheck | None = None,
+        router: ModelRouter | None = None,
+        semantic_cache: SemanticCache | None = None,
+        judge_persona: bool = False,
         store: AgentJobStore | None = None,
         lease_ttl_seconds: float = 900,
     ) -> CraftLoop:
@@ -1172,6 +1492,7 @@ class CraftLoop:
             fix_registry=fix_registry,
             exec_mode=exec_mode,
             exec_timeout=exec_timeout,
+            python=python,
             states=states,
             checkpoint_entries=entries,
             total_iterations=total_iterations,
@@ -1179,6 +1500,10 @@ class CraftLoop:
             client=client,
             memory=memory,
             tool_registry=tool_registry,
+            tool_call_self_check=tool_call_self_check,
+            router=router,
+            semantic_cache=semantic_cache,
+            judge_persona=judge_persona,
             store=store,
             lease_ttl_seconds=lease_ttl_seconds,
         )

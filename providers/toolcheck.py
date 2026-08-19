@@ -26,6 +26,20 @@ Envelope contract (JSON Action Envelope):
 "version" is optional: absent means "stamp the registered version"
 (mirroring ToolRegistry.build_tool_call(version=None)). Unknown top-level
 keys are ignored (same forward-compatibility policy as craft/schemas.py).
+
+Edit-proposal contract (SpecCraft M2 diagnose-fix, 首跑缺口修复):
+
+    {"diagnosis": "<one sentence>",
+     "edits": [{"action": "apply_edit", "path": ...,
+               "old": ..., "new": ...}, ...]}
+
+A bare [...] array is also accepted (diagnosis empty). EditProposalSelfCheck
+applies the same ONE-retry-then-give-up state machine to the edit proposal:
+an invalid proposal is never executed, exactly one deterministic repair
+instruction (edit_retry_instruction) is handed back to the injected model
+round-trip, and a second invalid proposal gives up carrying the stable code
+LLM_PROPOSAL_INVALID. Unparseable model text is carried as a
+ProposalParseFailure with a bounded snippet of the raw output.
 """
 
 from __future__ import annotations
@@ -41,6 +55,21 @@ from typing import Any, Literal
 CODE_UNKNOWN_TOOL = "UNKNOWN_TOOL"
 CODE_VERSION_MISMATCH = "TOOL_VERSION_MISMATCH"
 CODE_INVALID_ARGUMENTS = "INVALID_ARGUMENTS"
+#: Stable code for an edit proposal that failed validation after its ONE
+#: repair retry (M2 diagnose-fix path; the loop fails the step with M1
+#: semantics carrying this code).
+CODE_PROPOSAL_INVALID = "LLM_PROPOSAL_INVALID"
+
+
+@dataclass(frozen=True)
+class ProposalParseFailure:
+    """Raw model reply that could not be parsed as JSON at all.
+
+    Carries a bounded tail of the raw text so the repair instruction can
+    show the model exactly what went wrong — never the full reply.
+    """
+
+    snippet: str
 
 ParamKind = Literal["str", "int", "bool", "list[str]"]
 
@@ -317,6 +346,166 @@ class ToolCallSelfCheck:
             "success": self.valid,
             "give_ups": self.give_ups,
             "tool_call_success_rate": (
+                round(self.valid / total, 4) if total else 0.0
+            ),
+        }
+
+
+# -- edit-proposal self-check (SpecCraft M2 diagnose-fix) ---------------------
+
+
+def validate_edit_proposal(data: object) -> CheckOutcome:
+    """Pure edit-proposal validation: top level, edits array, per-op schema.
+
+    Accepts the documented envelope {"diagnosis": str, "edits": [...]} or a
+    bare [...] array; every edit op must carry a non-empty repo-relative
+    path and an action of exactly "apply_edit" (string old/new) or
+    "write_file" (string new). Anything else — including unparseable raw
+    text wrapped in a ProposalParseFailure — returns a "retry" outcome with
+    the stable code; the stateful EditProposalSelfCheck turns a second
+    consecutive retry into "give_up".
+    """
+    if isinstance(data, ProposalParseFailure):
+        return _retry(
+            CODE_PROPOSAL_INVALID,
+            f"模型输出无法解析为 JSON (尾部: {data.snippet})",
+            "",
+            0,
+        )
+    if isinstance(data, list):
+        ops: Any = data
+    elif isinstance(data, dict):
+        raw_ops = data.get("edits")
+        if not isinstance(raw_ops, list):
+            keys = sorted(str(key) for key in data if isinstance(key, str))[:8]
+            detail = ", ".join(keys) if keys else "(空对象)"
+            return _retry(
+                CODE_PROPOSAL_INVALID,
+                f"模型输出缺少 edits 数组 (顶层键: {detail})",
+                "",
+                0,
+            )
+        ops = raw_ops
+    else:
+        return _retry(
+            CODE_PROPOSAL_INVALID,
+            f"模型输出顶层必须是 JSON 对象或数组 (收到 {type(data).__name__})",
+            "",
+            0,
+        )
+    for index, op in enumerate(ops):
+        if not isinstance(op, dict):
+            return _retry(CODE_PROPOSAL_INVALID, f"edits[{index}] 必须是 JSON 对象", "", 0)
+        action = op.get("action")
+        path = op.get("path")
+        if not isinstance(path, str) or not path.strip():
+            return _retry(CODE_PROPOSAL_INVALID, f"edits[{index}] 缺少合法 path", "", 0)
+        if action == "apply_edit":
+            if not isinstance(op.get("old"), str) or not isinstance(op.get("new"), str):
+                return _retry(
+                    CODE_PROPOSAL_INVALID,
+                    f"edits[{index}] apply_edit 需要字符串 old/new",
+                    "",
+                    0,
+                )
+        elif action == "write_file":
+            if not isinstance(op.get("new"), str):
+                return _retry(
+                    CODE_PROPOSAL_INVALID,
+                    f"edits[{index}] write_file 需要字符串 new",
+                    "",
+                    0,
+                )
+        else:
+            return _retry(
+                CODE_PROPOSAL_INVALID,
+                f"edits[{index}] 未知动作 {action!r} (仅支持 apply_edit|write_file)",
+                "",
+                0,
+            )
+    return CheckOutcome(status="valid", code="", message="", tool="", version=0)
+
+
+def edit_retry_instruction(outcome: CheckOutcome) -> str:
+    """ONE deterministic repair instruction for a rejected edit proposal."""
+    return (
+        "EDIT PROPOSAL SELF-CHECK — your previous reply was REJECTED and NOT executed.\n"
+        f"error code: [{outcome.code}] {outcome.message}\n"
+        "Repair rule: respond with exactly ONE corrected JSON object whose top-level keys "
+        'are "diagnosis" (string, one sentence) and "edits" (array of edit operations), e.g. '
+        '{"diagnosis": "the bug is ...", "edits": [{"action": "apply_edit", "path": "calc.py", '
+        '"old": "return x / 2", "new": "return x * 2"}]}. '
+        'Every edit needs "action" ("apply_edit" with old/new, or "write_file" with new) and a '
+        'repo-relative "path". No markdown fences, no prose — only the JSON object.'
+    )
+
+
+class EditProposalSelfCheck:
+    """Stateful checker for the M2 edit proposal: validates the parsed data,
+    arms exactly ONE repair call, then gives up carrying the stable error
+    code (same state machine as ToolCallSelfCheck, no live LLM — the model
+    round-trip is injected as the producer callable)."""
+
+    def __init__(self) -> None:
+        self.attempts = 0
+        self.valid = 0
+        self.retried = 0
+        self.give_ups = 0
+        self.last_outcome: CheckOutcome | None = None
+        self.last_data: object | None = None
+        self._awaiting_retry = False
+
+    def check(self, data: object) -> CheckOutcome:
+        """Validate one parsed proposal and update the retry state machine.
+
+        The retry arms exactly one repair: the NEXT invalid proposal becomes
+        a "give_up" carrying the same stable error code; a valid proposal
+        always resets the state. last_data records the most recent parsed
+        payload so callers can consume the validated object.
+        """
+        self.attempts += 1
+        self.last_data = data
+        outcome = validate_edit_proposal(data)
+        self.last_outcome = outcome
+        if outcome.status == "valid":
+            self.valid += 1
+            self._awaiting_retry = False
+            return outcome
+        if self._awaiting_retry:
+            self._awaiting_retry = False
+            self.give_ups += 1
+            return CheckOutcome(
+                status="give_up",
+                code=outcome.code,
+                message=outcome.message,
+                tool=outcome.tool,
+                version=outcome.version,
+            )
+        self._awaiting_retry = True
+        self.retried += 1
+        return outcome
+
+    def check_with_retry(self, produce: Callable[[str | None], object]) -> CheckOutcome:
+        """Full self-check loop with the injected model callable.
+
+        produce(instruction_or_None) -> parsed proposal data. The repair
+        instruction is passed on the second call only; a second invalid
+        proposal gives up with the stable error code.
+        """
+        outcome = self.check(produce(None))
+        if outcome.status != "retry":
+            return outcome
+        return self.check(produce(edit_retry_instruction(outcome)))
+
+    def metrics(self) -> dict[str, Any]:
+        """Serializable counters incl. the proposal success rate."""
+        total = self.attempts
+        return {
+            "attempts": self.attempts,
+            "valid": self.valid,
+            "retried": self.retried,
+            "give_ups": self.give_ups,
+            "proposal_success_rate": (
                 round(self.valid / total, 4) if total else 0.0
             ),
         }

@@ -110,6 +110,7 @@ class _FakeLLMClient(LLMClient):
         messages: list[LLMMessage],
         *,
         label: str,
+        kind: str | None = None,
         job_id: str = "",
         step_id: str = "",
         thinking: bool = False,
@@ -117,7 +118,7 @@ class _FakeLLMClient(LLMClient):
         estimated_prompt_tokens: int = 0,
         timeout: float | None = None,
     ) -> LLMResponse:
-        del messages, thinking, response_format, estimated_prompt_tokens, timeout
+        del messages, kind, thinking, response_format, estimated_prompt_tokens, timeout
         if label == "plan":
             self.plan_calls += 1
             content = json.dumps(_FAKE_LLM_PLAN)

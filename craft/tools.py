@@ -748,6 +748,15 @@ class ToolRegistry:
             )
         result = self.executor.run(command, timeout=args.get("timeout"))
         combined = f"{result.stdout}\n{result.stderr}".rstrip()
+        if result.error:
+            # Sandbox-level failures (spawn errors, timeouts) must surface
+            # as explicit text in the tool result — never a silent empty one.
+            marker = "[exec error] "
+            combined = (
+                f"{combined}\n{marker}{result.error}".rstrip()
+                if combined
+                else f"{marker}{result.error}"
+            )
         head, tail, split = _split_output(combined)
         return _ok(
             f"{label}: exit code {result.exit_code} (mode={result.mode})",

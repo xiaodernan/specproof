@@ -38,7 +38,9 @@ resolved — 这条不变量由 `tests/unit/test_swebench_harness.py` 与
 | `scripts/swebench_subset/python_subset.json` | 精选 10 例纯 Python 子集 (instance_id 数组, 选取标准见 §3.3 与同目录 README) |
 | `tests/unit/test_swebench_harness.py` | 离线端到端测试: 1 resolved + 1 诚实 unresolved + schema 断言 |
 | `tests/unit/test_swebench_llm.py` | LLM 模式离线测试 (假客户端): resolved / 诚实 unresolved / env 缺失诚实退出 / 子集 schema 校验 — 无网络无 LLM |
+| `tests/unit/test_swebench_llm_fixes.py` | 首跑缺口回归 (§8): 编辑提案 JSON 信封修复/自检/稳定错误码、run_test 非静默输出、venv 显式错误与 --no-venv 回退 — 全离线假客户端 |
 | `docs/eval/swebench-results.json` | 实测结果产物 (样例运行) |
+| `docs/eval/swebench-llm-results.json` | 首次真实 LLM 运行实测产物 (honest 0%, 缺口见 §8) |
 
 ## 3. 怎么跑
 
@@ -222,8 +224,110 @@ craft/structured_diff.py 在 HEAD 上已有 13 个历史 strict 错误, 不属�
 样例端到端测试与 LLM 模式测试 (假客户端) 均无网络、无 Docker、无真实 LLM,
 可在任何装有 git + pytest 的环境复现。
 
+
 ## 7. 后续路线 (不在本次交付范围)
 
 - 官方 docker 环境: 逐实例镜像 + install + 官方 log-parser;
 - 官方 300 例 (test split) 全量运行 + resolved-rate 表 (LLM 模式已在 harness
   内, 但官方口径仍是文档化的人工步骤)。
+
+## 8. 首跑缺口与修复 (2026-08-19)
+
+### 8.1 首跑成绩: 诚实的 0%
+
+第一次真实 LLM 运行 (`docs/eval/swebench-llm-results.json`, 2 实例,
+deepseek-v4-pro 经 fagougou 网关) 结果为 **resolved_rate 0.0%**:
+
+| instance | 终态 | 失败点 |
+|---|---|---|
+| pallets__flask-4045 | FAILED | s4 (test): `LLM 编辑提案非法 … 模型输出缺少 edits 数组` — 模型回复无法解析为预期的 JSON 编辑提案 |
+| pallets__flask-4992 | STUCK | s5 (verify): `同类错误连续 3 次 (签名: s5|<no-exec-output>)` — grep 类判据本就不跑命令, 签名用误导性的占位符; 同时 pytest 步骤因 venv 未就位死于 `No module named 'flask'` |
+
+这是 harness 诚实的原始记录, 不修饰、不回填。两个缺口都在 craft/harness 层,
+而不是"模型不够聪明":
+
+### 8.2 缺口 1 — 编辑提案 JSON 信封 (pallets__flask-4045)
+
+根因有三层:
+
+1. **互相打架的输出契约**: diagnose 提示词在系统前缀里带着 JSON Action
+   Envelope (`{"action": ..., "params": ...}`) 作为尾块, 而真正的输出契约
+   (`{"diagnosis", "edits"}`) 埋在数据段 — 模型按信封回答, 解析器自然报
+   "缺少 edits 数组" 并立即 FAILED, 没有任何修复机会;
+2. **json_object 模式没有被提示词支撑**: 网关只有提示词含 "json" 字样才
+   兑现 `response_format=json_object` (docs/design/GRAND_PLAN_V2.md), 而
+   契约块在数据段, 系统前缀里没有权威的 JSON 契约;
+3. **无修复回合**: 解析失败一步致死, 没有 "再给我一次, 按这个格式" 的
+   确定性修复指令。
+
+修复 (craft/loop.py + providers/toolcheck.py + craft/llm.py):
+
+- 新的系统前缀契约块 `_EDIT_PROPOSAL_OUTPUT_BLOCK`: 整个回复必须是**一个
+  JSON 对象**, 明确点名 `diagnosis` + `edits` 两个顶层键, 内联紧凑示例;
+  diagnose 调用不再追加 JSON Action Envelope 尾块 (`include_envelope=False`);
+- `EditProposalSelfCheck` (ToolCallSelfCheck 同款状态机): 非法/无法解析的
+  提案**只触发一次**确定性修复指令 (带错误码 + 格式示例, 附模型原输出尾部
+  片段); 第二次仍非法则携带稳定错误码 `[LLM_PROPOSAL_INVALID]` 按 M1 语义
+  FAILED — 绝不执行非法提案, 也绝不静默吞掉;
+- `extract_json_object` 容错强化: 剥离围栏 (前后), 提取文本中
+  **第一个平衡的 JSON 值** (对象或数组), 字符串内的花括号不干扰扫描;
+- json_object 模式: diagnose 调用始终请求 `response_format={"type":
+  "json_object"}` (provider 按能力探测 `json_output` 决定是否真发 — 探测
+  通过时网关会兑现, 提示词现在也满足 "含 json" 的前置条件)。
+
+### 8.3 缺口 2 — verify 无输出 / venv 静默 (pallets__flask-4992)
+
+根因:
+
+1. **`<no-exec-output>` 是误导性签名**: grep/read 类判据本来就不执行命令,
+   失败签名用占位符 `<no-exec-output>` 而不是真实失败原因 (断言值未命中);
+2. **执行层把错误吞成空结果**: `sandbox/runner._run_local` 在启动失败/超时
+   时返回空 stdout/stderr, 只把错误放进 `error` 字段, 而下游 (Executor →
+   tools.run_test → loop 证据) 全部丢弃该字段 → 工具结果、checkpoint
+   `log_tail`、诊断提示词全是空的;
+3. **venv 与 craft 循环脱节**: craft 循环的 pytest 用系统 python
+   (`exec_mode=local`), 共享 venv (含 pytest) 只给最后的 FAIL_TO_PASS 重放
+   用; 实例依赖要到 craft DONE 之后才装 → flask 实例的 craft 测试步骤必然
+   死于 `No module named 'flask'`; venv 创建失败则整批实例直接
+   "deps unavailable", 没有回退。
+
+修复 (sandbox/runner.py + craft/executor.py + craft/tools.py +
+craft/loop.py + scripts/bench_swebench.py):
+
+- **永不静默空输出**: 超时保留已产出部分输出; 启动失败 (OSError) 生成
+  `could not start command …` 显式错误; Executor 与 tools.run_test 在输出
+  为空时把 sandbox 错误注入 `output_tail`/`[exec error]`; loop 的
+  test_green/compile 证据增加 `stderr_tail` 与 `error` 字段 (非空才加,
+  确定性路径字节不变);
+- **真实失败签名**: `_error_signature` 在无命令输出的步骤上用证据里的真实
+  原因 (如 `断言值 'tomllib' 未出现在 …`) 代替 `<no-exec-output>` 占位符;
+- **venv 显式校验**: `_prepare_venv` 创建/复用后都跑 `pytest --version`
+  验证; pytest 缺失/损坏 → 显式错误而不是"已就绪"的假象;
+- **自动 --no-venv 回退**: venv 创建/校验失败时 main() 自动回退到当前解释
+  器直接跑 pytest (不安装依赖), 原始失败原因保留在 `run.venv.error` 与
+  每实例 `deps.venv_error`/note 字段 — 绝不静默, 绝不崩溃出局;
+- **venv 前置 + 接线**: 实例依赖在 craft **之前**装进共享 venv,
+  `Executor`/`CraftLoop` 新增可选 `python` 解释器覆盖 (llm 模式传入 venv
+  python), craft 循环自己的 compile/pytest 步骤与 FAIL_TO_PASS 重放共用
+  同一解释器; 依赖安装失败记为 `deps.install_error` 并**不阻断** craft —
+  测试步骤会把真实 stderr/退出码摊在报告里。确定性模式不传 python,
+  行为与之前逐字节一致。
+
+### 8.4 回归测试与门禁
+
+新回归文件 `tests/unit/test_swebench_llm_fixes.py` (全部离线假客户端/
+monkeypatch, 无网络、无 Docker、无真实 LLM):
+
+- (a) 代码围栏 JSON → 解析并应用; 首 JSON 值提取;
+- (b) 非 JSON → 恰好一次修复指令; 第二次失败携带 `[LLM_PROPOSAL_INVALID]`;
+  `edits` 缺失 → 修复后收敛; 自检状态机/修复指令纯函数;
+- (c) diagnose 请求 json_object + 提示词含 JSON/edits 且无 Action Envelope;
+  provider 仅在能力 `json_output` 时发送 response_format (录制式假 SDK);
+- (d) run_test 携带 stderr + exit code; 启动失败非静默; Executor 错误注入;
+  venv python 覆盖;
+- (e) venv 创建失败显式报错; `--no-venv` 回退保留原因; pytest 缺失显式报错;
+  重放启动失败为逐测试显式 error。
+
+门禁: ruff (改动文件) + mypy --strict (改动模块) + pytest 上述四个测试文件
++ craft sweep 全绿。诚实性不变式不变: reason 非空当且仅当 unresolved,
+resolved 只来自 craft DONE + test_patch + FAIL_TO_PASS/PASS_TO_PASS 全过。

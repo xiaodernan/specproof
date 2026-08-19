@@ -23,11 +23,18 @@ LLM mode (--mode llm):
   all go through the real client (plan/diagnose/edit), and every stage
   failure (checkout / craft / test_patch / deps / tests) becomes an
   unresolved record with the real reason;
-- FAIL_TO_PASS / PASS_TO_PASS are replayed with plain pytest in a shared
-  per-run venv (created + pytest installed automatically; trivial
-  per-instance dependency install from the repo's install config; any
-  failure there is an honest unresolved "deps unavailable");
-- --no-venv skips the venv/deps stage (offline sample / tests).
+- a shared per-run venv is created with pytest installed and VERIFIED
+  (pytest --version); the instance deps are installed INTO it BEFORE the
+  craft loop runs, and the loop's own compile/pytest steps use that venv
+  interpreter (craft.Executor python override) — so test steps import the
+  repo instead of dying on a bare system python. FAIL_TO_PASS / PASS_TO_PASS
+  replay with the same interpreter. A deps install failure is recorded
+  (deps.install_error) and craft proceeds honestly — its pytest steps
+  surface the real stderr/exit code, never silence;
+- a venv creation / pytest-verify failure automatically falls back to
+  --no-venv (current interpreter, no pip installs) with the reason recorded
+  in run.venv and per-instance deps; --no-venv skips the venv/deps stage
+  explicitly (offline sample / tests).
 
 Offline by default: `python scripts/bench_swebench.py --offline` runs the
 bundled toy sample (scripts/swebench_sample/) with no network and no
@@ -463,17 +470,38 @@ def _filter_by_subset(
     return filtered, missing
 
 
-def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, str]:
-    """One shared venv per run (llm mode) with pytest installed.
+def _venv_pytest_available(python: str, timeout: int) -> tuple[bool, str]:
+    """Verify the venv interpreter can actually run pytest.
 
-    --no-venv disables it (offline sample / unit tests): the harness
-    interpreter runs pytest directly and no pip installs happen. Every
-    failure returns python="" + the real error — callers turn that into an
-    honest per-instance "deps unavailable", never a crash.
+    A venv whose pytest install failed must surface as an explicit error
+    (never a silently broken environment): the probe command's own output
+    rides the returned message.
+    """
+    try:
+        probe = subprocess.run(
+            [python, "-m", "pytest", "--version"],
+            capture_output=True, text=True, timeout=timeout, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"venv pytest 可用性检查失败: {exc}"
+    if probe.returncode != 0:
+        tail = f"{probe.stdout}\n{probe.stderr}".strip()
+        return False, f"venv 已创建但 pytest 不可用: {tail[-800:]}"
+    return True, ""
+
+
+def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, str]:
+    """One shared venv per run (llm mode) with pytest installed and VERIFIED.
+
+    --no-venv disables it (offline sample / unit tests): python="" means
+    "use the current interpreter" and no pip installs happen. Every failure
+    returns python="" + the real error — main() turns that into an
+    automatic --no-venv fallback with the reason recorded, never a crash
+    and never a silently empty environment.
     """
     if not enabled:
         return {
-            "python": sys.executable,
+            "python": "",
             "error": "",
             "note": "--no-venv: 直接使用当前解释器, 跳过依赖安装 (样例/测试路径)",
         }
@@ -484,7 +512,14 @@ def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, 
         else str(venv_dir / "bin" / "python")
     )
     if Path(python).is_file():
-        return {"python": python, "error": "", "note": "复用已存在的共享 venv"}
+        ok, reason = _venv_pytest_available(python, timeout)
+        if ok:
+            return {
+                "python": python,
+                "error": "",
+                "note": "复用已存在的共享 venv (pytest --version 验证通过)",
+            }
+        return {"python": "", "error": reason, "note": ""}
     try:
         create = subprocess.run(
             [sys.executable, "-m", "venv", str(venv_dir)],
@@ -502,11 +537,38 @@ def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, 
             capture_output=True, text=True, timeout=timeout, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"python": python, "error": f"venv pytest 安装失败: {exc}", "note": ""}
+        return {"python": "", "error": f"venv pytest 安装失败: {exc}", "note": ""}
     if pip.returncode != 0:
         tail = f"{pip.stdout}\n{pip.stderr}".strip()
-        return {"python": python, "error": f"venv pytest 安装失败: {tail[-800:]}", "note": ""}
-    return {"python": python, "error": "", "note": "共享 venv + pytest 已就绪"}
+        return {"python": "", "error": f"venv pytest 安装失败: {tail[-800:]}", "note": ""}
+    ok, reason = _venv_pytest_available(python, timeout)
+    if not ok:
+        return {"python": "", "error": reason, "note": ""}
+    return {
+        "python": python,
+        "error": "",
+        "note": "共享 venv + pytest 已就绪 (pytest --version 验证通过)",
+    }
+
+
+def _fallback_no_venv(venv_info: dict[str, str]) -> dict[str, str]:
+    """venv preparation failed -> automatic --no-venv fallback.
+
+    The failure reason stays on record (error field) and the note states
+    the fallback explicitly: the current interpreter runs pytest directly
+    and no pip installs happen. Instances never crash out — they either
+    run with the fallback interpreter or fail later with real test output.
+    """
+    reason = venv_info.get("error", "").strip() or "venv 准备失败 (原因未记录)"
+    return {
+        "python": "",
+        "error": reason,
+        "note": (
+            "--no-venv 回退: venv 准备失败, 以当前解释器直接运行 pytest, "
+            "跳过依赖安装 (原因已记录)"
+        ),
+        "fallback_no_venv": "true",
+    }
 
 
 def _first_install_marker(workdir: Path) -> str | None:
@@ -743,8 +805,23 @@ def _run_one_test(
             command, cwd=workdir, capture_output=True, text=True,
             timeout=timeout, check=False,
         )
-    except subprocess.TimeoutExpired:
-        tail = f"<timeout after {timeout}s>"
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        partial = f"{stdout}\n{stderr}".strip()
+        tail = (partial or f"<timeout after {timeout}s>")[-500:]
+        _append_log(log_path, f"$ {' '.join(command)}\n{tail}")
+        return {
+            "test": node_id,
+            "outcome": "error",
+            "output_tail": tail,
+            "seconds": round(time.monotonic() - started, 1),
+        }
+    except OSError as exc:
+        # A missing/broken interpreter (e.g. a venv python that vanished)
+        # must surface as an explicit per-test error — never a crash, never
+        # a silently empty record.
+        tail = f"<could not start pytest: {exc}>"
         _append_log(log_path, f"$ {' '.join(command)}\n{tail}")
         return {
             "test": node_id,
@@ -805,13 +882,19 @@ def _run_craft(
     *,
     mode: str = "deterministic",
     client: LLMClient | None = None,
+    python: str | None = None,
 ) -> dict[str, Any]:
     """Run the real craft loop in-memory (exec_mode=local).
 
-    deterministic: M1 rule plan + injected fix rules only.
+    deterministic: M1 rule plan + injected fix rules only (python=None:
+    the loop executor resolves "python" from PATH exactly as before).
     llm: LLM planning (degrading honestly to the rule plan on failure) and
     the M2 diagnose/edit path through the client; fix_rules must be empty
-    (the LLM mode never consults the fix registry).
+    (the LLM mode never consults the fix registry). python (llm mode) is
+    the per-run venv interpreter — the loop's compile/pytest steps then run
+    against the venv that actually has pytest (+ instance deps installed
+    BEFORE craft), instead of a system python that lacks them (首跑缺口:
+    pallets__flask-* test steps died on "No module named 'flask'").
     """
     spec = TaskSpec(
         title=f"[{instance['instance_id']}] 修复缺陷 (SWE-bench)",
@@ -836,6 +919,7 @@ def _run_craft(
         exec_timeout=exec_timeout,
         budget=budget,
         client=client,
+        python=python,
     )
     return loop.run()
 
@@ -938,6 +1022,62 @@ def run_instance(
                     f"no fix produced: 没有为 {instance_id} 注入确定性 fix 规则 "
                     "(fix_registry 为空 → craft 管道 SKIPPED); 未运行测试, 未声称 resolved",
                 )
+        # llm mode deps run BEFORE craft (首跑缺口修复): the loop's own
+        # compile/pytest steps must run against an interpreter that can
+        # import the repo — the shared venv, with the instance deps already
+        # installed. A deps failure is recorded, never fatal here: craft
+        # then fails or succeeds honestly on real pytest output (the loop's
+        # executor surfaces the stderr tail + exit code, never silence).
+        test_python = sys.executable
+        deps_record: dict[str, Any] = {
+            "python": sys.executable,
+            "venv_error": "",
+            "note": "",
+            "install_marker": None,
+            "installed": False,
+            "install_error": "",
+        }
+        craft_python: str | None = None
+        if llm_mode:
+            venv_info = venv if venv is not None else {"python": "", "error": "", "note": ""}
+            deps_record = {
+                "python": venv_info.get("python", "") or sys.executable,
+                "venv_error": venv_info.get("error", ""),
+                "note": venv_info.get("note", ""),
+                "install_marker": None,
+                "installed": False,
+                "install_error": "",
+            }
+            record["deps"] = deps_record
+            venv_python = venv_info.get("python", "")
+            if venv_python:
+                test_python = venv_python
+                craft_python = venv_python
+                marker = _first_install_marker(workdir)
+                deps_record["install_marker"] = marker
+                if marker is not None:
+                    install_result = _install_instance_deps(
+                        venv_python, workdir, marker, deps_timeout
+                    )
+                    deps_record["installed"] = bool(install_result["installed"])
+                    deps_record["install_error"] = str(install_result["error"])
+                    if not install_result["installed"]:
+                        deps_record["note"] = (
+                            str(deps_record["note"])
+                            + " — 实例依赖安装失败 (记录, 不阻止 craft): "
+                            + str(install_result["error"])
+                        )
+            elif venv_info.get("fallback_no_venv"):
+                deps_record["note"] = (
+                    str(deps_record["note"])
+                    + f" — venv 失败已回退 --no-venv (原因: {venv_info['error']})"
+                )
+            elif not venv_info.get("error"):
+                deps_record["note"] = (
+                    str(deps_record["note"]) + " — 未安装实例依赖, 直接运行 pytest"
+                )
+            else:
+                return fail("deps", f"deps unavailable: venv 不可用: {venv_info['error']}")
         craft_artifact_dir = instance_logs / "craft"
         try:
             report = _run_craft(
@@ -949,6 +1089,7 @@ def run_instance(
                 max_iterations,
                 mode=mode,
                 client=client,
+                python=craft_python,
             )
         except Exception as exc:
             record["craft"] = {
@@ -985,37 +1126,9 @@ def run_instance(
         record["test_patch"] = patch_info
         if not patch_info["applied"]:
             return fail("test_patch", str(patch_info["error"]))
-        test_python = sys.executable
-        if llm_mode:
-            venv_info = venv if venv is not None else {"python": "", "error": "", "note": ""}
-            deps_record: dict[str, Any] = {
-                "python": venv_info.get("python", "") or sys.executable,
-                "venv_error": venv_info.get("error", ""),
-                "note": venv_info.get("note", ""),
-                "install_marker": None,
-                "installed": False,
-                "install_error": "",
-            }
-            record["deps"] = deps_record
-            venv_python = venv_info.get("python", "")
-            if venv_python:
-                test_python = venv_python
-                marker = _first_install_marker(workdir)
-                deps_record["install_marker"] = marker
-                if marker is not None:
-                    install_result = _install_instance_deps(
-                        venv_python, workdir, marker, deps_timeout
-                    )
-                    deps_record["installed"] = bool(install_result["installed"])
-                    deps_record["install_error"] = str(install_result["error"])
-                    if not install_result["installed"]:
-                        return fail("deps", f"deps unavailable: {install_result['error']}")
-            elif not venv_info.get("error"):
-                deps_record["note"] = (
-                    str(deps_record["note"]) + " — 未安装实例依赖, 直接运行 pytest"
-                )
-            else:
-                return fail("deps", f"deps unavailable: venv 不可用: {venv_info['error']}")
+        # deps/venv state is already resolved BEFORE craft above; the replay
+        # just reuses the same interpreter (venv python, or the current one
+        # under --no-venv / fallback).
         fail_to_pass = [str(node) for node in instance["FAIL_TO_PASS"]]
         pass_to_pass = [str(node) for node in instance["PASS_TO_PASS"]]
         if not fail_to_pass:
@@ -1107,9 +1220,11 @@ def main(argv: list[str] | None = None) -> int:
         if venv_info["error"]:
             print(f"bench_swebench: venv 准备失败: {venv_info['error']}", file=sys.stderr)
             print(
-                "(相关实例将以 unresolved reason='deps unavailable' 诚实记录)",
+                "(自动回退 --no-venv: 以当前解释器直接运行 pytest, 不安装依赖; "
+                "原因已记录在结果 JSON 的 run.venv 与实例 deps 字段)",
                 file=sys.stderr,
             )
+            venv_info = _fallback_no_venv(venv_info)
     else:
         venv_info = {"python": sys.executable, "error": "", "note": "deterministic 模式不建 venv"}
     client_factory: Callable[[str], LLMClient] | None = _build_llm_client if llm_mode else None

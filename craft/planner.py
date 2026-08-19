@@ -443,6 +443,7 @@ def compile_plan_llm(
         response = llm.chat_sync(
             [LLMMessage(role="user", content=built.text)],
             label="plan",
+            kind="draft",
             step_id="plan",
             thinking=resolve_craft_thinking("plan"),
             response_format={"type": "json_object"},
