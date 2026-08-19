@@ -6,6 +6,11 @@ Baseline systems measured per query:
   2. BM25+graph    — top-8 BM25 hits expanded 1 hop through the
                      four-language SymbolIndex (repo_graph-equivalent)
   3. symbol-index  — deterministic name/ref lookup (bonus column)
+  4. BM25+RRF      — retrieval.fusion.rrf_fuse over [BM25, symbol,
+                     vector-when-available]; no graph stage
+  5. BM25+RRF+graph — the fused list plus GraphBoost additive
+                     graph neighbors appended last (never displaces
+                     the fused semantic ranks — the 48.9% bug fix)
 
 Metrics: recall@10, MRR, per-query latency. The report is written to
 docs/eval/retrieval-bench.md (overwritten on every run).
@@ -35,6 +40,8 @@ from retrieval.bench_queries import (  # noqa: E402
     evaluate_query,
     summarize_bench,
 )
+from retrieval.embeddings import EmbeddingClient  # noqa: E402
+from retrieval.fusion import RRF_K, graph_boost, rrf_fuse  # noqa: E402
 from retrieval.symbols import RepoIndex, SymbolIndex, SymbolIndexer  # noqa: E402
 
 REPO_NAME = "specproof-retrieval-bench"
@@ -43,6 +50,9 @@ BM25_SIZE = 20
 EXPAND_TOP = 8
 HOPS = 1
 TOP_K = 10
+VECTOR_K = 10
+BOOST_MAX = 10
+RRF_LABELS = ("hybrid_semantic", "symbol", "vector")
 CORPUS_DIRS = ("cli", "agent", "craft", "demo")
 PY_SUFFIXES = (".py",)
 JAVA_SUFFIXES = (".java",)
@@ -159,8 +169,25 @@ def run_bench(
     symbol_index: SymbolIndex,
     *,
     expand: bool,
+    embedder: EmbeddingClient | None = None,
 ) -> dict[str, Any]:
-    """Run all 30 queries through the three systems; return raw rows."""
+    """Run all 30 queries through the five systems; return raw rows.
+
+    The three legacy systems (BM25 / BM25+graph / symbol-index) keep their
+    exact code paths and latency accounting. The two fusion systems are
+    additive-only (retrieval.fusion): RRF over [BM25, symbol, vector] and
+    the same list with graph neighbors appended last. Vector results are
+    used only when an embedding gateway is configured and the ES index
+    answers kNN — otherwise the RRF degrades to two lists and the reason
+    is recorded honestly in fusion_meta (卷IV 4.3).
+    """
+    vector_enabled = embedder is not None and embedder.configured
+    vector_blocked = False
+    vector_error: str | None = None
+    vector_used_queries = 0
+    if embedder is not None and not embedder.configured:
+        vector_error = "embeddings unconfigured: " + embedder.config_reason
+
     rows: list[dict[str, Any]] = []
     for query in QUERIES:
         t0 = time.perf_counter()
@@ -182,6 +209,49 @@ def run_bench(
         t5 = time.perf_counter()
         symbol_paths = _unique_paths(symbol_hits)
 
+        # --- additive RRF fusion (never reorders the legacy systems) --------
+        vector_hits: list[dict[str, Any]] = []
+        vector_latency_ms = 0.0
+        if vector_enabled and not vector_blocked:
+            assert embedder is not None
+            try:
+                tvec0 = time.perf_counter()
+                vectors, reason = embedder.embed([query.text])
+                if vectors is None:
+                    vector_blocked = True
+                    vector_error = vector_error or reason
+                else:
+                    vector_hits = store.vector_search(
+                        REPO_NAME, vectors[0], k=VECTOR_K, commit_sha=COMMIT_SHA
+                    )
+                    vector_latency_ms = (time.perf_counter() - tvec0) * 1000.0
+                    vector_used_queries += 1
+            except Exception as exc:  # noqa: BLE001 — vector channel optional
+                vector_blocked = True
+                vector_error = vector_error or (
+                    "vector channel unavailable: " + str(exc)[:120]
+                )
+
+        t6 = time.perf_counter()
+        fused_hits = rrf_fuse(
+            [raw_hits, symbol_hits, vector_hits], k=RRF_K, labels=RRF_LABELS
+        )
+        t7 = time.perf_counter()
+        rrf_paths = _unique_paths(fused_hits)
+        rrf_latency_ms = (
+            (t1 - t0) * 1000.0
+            + (t5 - t4) * 1000.0
+            + (t7 - t6) * 1000.0
+            + vector_latency_ms
+        )
+
+        t8 = time.perf_counter()
+        neighbors = symbol_index.expand_hits(fused_hits[:EXPAND_TOP], hops=HOPS)
+        boosted_hits = graph_boost(fused_hits, neighbors, max_boost=BOOST_MAX)
+        t9 = time.perf_counter()
+        boosted_paths = _unique_paths(boosted_hits)
+        boosted_latency_ms = rrf_latency_ms + (t9 - t8) * 1000.0
+
         rows.append({
             "query": query,
             "bm25": evaluate_query(query, bm25_paths, (t1 - t0) * 1000.0),
@@ -189,11 +259,26 @@ def run_bench(
                 query, graph_paths, (t1 - t0) * 1000.0 + (t3 - t2) * 1000.0
             ),
             "symbol_index": evaluate_query(query, symbol_paths, (t5 - t4) * 1000.0),
+            "bm25_rrf": evaluate_query(query, rrf_paths, rrf_latency_ms),
+            "bm25_rrf_graph": evaluate_query(query, boosted_paths, boosted_latency_ms),
         })
     return {
         "bm25": summarize_bench([r["bm25"] for r in rows], mode="bm25"),
         "bm25_graph": summarize_bench([r["bm25_graph"] for r in rows], mode="bm25+graph"),
         "symbol_index": summarize_bench([r["symbol_index"] for r in rows], mode="symbol-index"),
+        "bm25_rrf": summarize_bench([r["bm25_rrf"] for r in rows], mode="bm25+rrf"),
+        "bm25_rrf_graph": summarize_bench(
+            [r["bm25_rrf_graph"] for r in rows], mode="bm25+rrf+graph"
+        ),
+        "fusion_meta": {
+            "vector_channel": "used" if vector_used_queries else "absent",
+            "vector_used_queries": vector_used_queries,
+            "vector_error": vector_error,
+            "rrf_k": RRF_K,
+            "expand_top": EXPAND_TOP,
+            "hops": HOPS,
+            "boost_max": BOOST_MAX,
+        },
         "rows": rows,
     }
 
@@ -319,10 +404,16 @@ def render_report(
     add(_summary_row("BM25", bench["bm25"]))
     add(_summary_row("BM25+graph", bench["bm25_graph"]))
     add(_summary_row("symbol-index", bench["symbol_index"]))
+    add(_summary_row("BM25+RRF", bench["bm25_rrf"]))
+    add(_summary_row("BM25+RRF+graph", bench["bm25_rrf_graph"]))
     add("")
     add("### 按查询类型 (BM25+graph)")
     add("")
     add("\n".join(_by_type_table(bench["bm25_graph"])))
+    add("")
+    add("### 按查询类型 (BM25+RRF+graph)")
+    add("")
+    add("\n".join(_by_type_table(bench["bm25_rrf_graph"])))
     add("")
     add("## 每查询明细")
     add("")
@@ -331,6 +422,8 @@ def render_report(
         bm25_res = row["bm25"]
         graph_res = row["bm25_graph"]
         sym_res = row["symbol_index"]
+        rrf_res = row["bm25_rrf"]
+        rrf_graph_res = row["bm25_rrf_graph"]
         expected = set(query.expected)
         add(f"### {query.query_id} · {query.qtype} · {query.language}")
         add("")
@@ -351,15 +444,82 @@ def render_report(
             f"- symbol-index : recall@10={_pct(sym_res.recall_at_10)}  "
             f"MRR={sym_res.mrr:.3f}  延迟={_ms(sym_res.latency_ms)} ms"
         )
+        add(
+            f"- BM25+RRF     : recall@10={_pct(rrf_res.recall_at_10)}  "
+            f"MRR={rrf_res.mrr:.3f}  延迟={_ms(rrf_res.latency_ms)} ms"
+        )
+        add(
+            f"- BM25+RRF+graph: recall@10={_pct(rrf_graph_res.recall_at_10)}  "
+            f"MRR={rrf_graph_res.mrr:.3f}  延迟={_ms(rrf_graph_res.latency_ms)} ms"
+        )
         add(f"- BM25 top-10: {_hits_md(bm25_res.hits, expected)}")
         if expand:
             add(f"- +graph top-10: {_hits_md(graph_res.hits, expected)}")
+        add(f"- RRF top-10: {_hits_md(rrf_res.hits, expected)}")
+        add(f"- RRF+graph top-10: {_hits_md(rrf_graph_res.hits, expected)}")
         add("")
+    add("## RRF 融合实测 — 加性融合 (additive-only)")
+    add("")
+    add(f"- 实测时间: {_now_iso()}")
+    add(
+        f"- 方法: RRF(k={RRF_K}) 对 [hybrid_semantic(BM25), symbol, vector] 三列表求和融合; "
+        "图谱邻域经 retrieval.fusion.GraphBoost 加性策略处理 — 融合排序永不被重排/替换, "
+        f"邻域仅在未命中融合列表时追加末尾 (最多 {BOOST_MAX} 条, "
+        f"种子=融合前 {EXPAND_TOP} 条 × {HOPS} 跳)。"
+    )
+    fusion_meta = bench["fusion_meta"]
+    if fusion_meta["vector_channel"] == "used":
+        add(
+            f"- 向量通道: 使用 (共 {fusion_meta['vector_used_queries']} 条查询产生向量命中)。"
+        )
+    else:
+        add(f"- 向量通道: absent — {fusion_meta['vector_error']}。")
+    add("")
+    add("| 系统 | recall@10 | MRR | 平均延迟 | 全命中查询数 |")
+    add("|---|---:|---:|---:|---:|")
+    add(_summary_row("BM25", bench["bm25"]))
+    add(_summary_row("BM25+RRF (无图谱)", bench["bm25_rrf"]))
+    add(_summary_row("BM25+RRF+graph", bench["bm25_rrf_graph"]))
+    add("")
+    add("### 每查询对比 (BM25 vs BM25+RRF vs BM25+RRF+graph)")
+    add("")
+    add(
+        "| 查询 | BM25 r@10 | BM25 MRR | RRF r@10 | RRF MRR | "
+        "RRF+graph r@10 | RRF+graph MRR |"
+    )
+    add("|---|---:|---:|---:|---:|---:|---:|")
+    for row in bench["rows"]:
+        query = row["query"]
+        bm25_row = row["bm25"]
+        rrf_row = row["bm25_rrf"]
+        rrf_graph_row = row["bm25_rrf_graph"]
+        add(
+            f"| {query.query_id} | {_pct(bm25_row.recall_at_10)} | {bm25_row.mrr:.3f} | "
+            f"{_pct(rrf_row.recall_at_10)} | {rrf_row.mrr:.3f} | "
+            f"{_pct(rrf_graph_row.recall_at_10)} | {rrf_graph_row.mrr:.3f} |"
+        )
+    add("")
+    add("## 历史基线 (2026-08-18, 图谱消融)")
+    add("")
+    add("| 系统 | recall@10 | MRR | 平均延迟 | 全命中查询数 |")
+    add("|---|---:|---:|---:|---:|")
+    add("| BM25 | 82.2% | 0.656 | 50.5 ms | 21/30 |")
+    add("| BM25+graph | 48.9% | 0.528 | 89.6 ms | 11/30 |")
+    add("| symbol-index | 75.6% | 0.683 | 1.3 ms | 20/30 |")
+    add("")
+    add(
+        "- 48.9% 消融根因: top-8 种子做 1 跳邻域展开后, 邻域列表整体【替换】了语义排序 "
+        "(旧 BM25+graph 列直接以展开结果作为最终排序; retrieval/hybrid.py 同样以 "
+        "`merged = list(expanded)` 替换融合结果), 而非把邻域作为补充候选追加 — "
+        "期望文件因此被邻居噪音淹没。本报告 BM25+RRF+graph 使用 retrieval/fusion.py "
+        "的 GraphBoost 加性策略修正此缺陷。"
+    )
+    add("")
     add("## 诚实性说明")
     add("")
     add(
-        "1. 本基线的数字只覆盖 BM25 与图谱扩展; 向量/RRF 融合/重排 (卷IV 4.2, "
-        "retrieval/hybrid.py 已实现) 留作后续消融, 不并入本次汇总。"
+        "1. 融合数字来自 retrieval/fusion.py (N 列表 RRF + 加性图谱增强); "
+        "BM25 / BM25+graph / symbol-index 三列为原有实现, 代码路径未改动。"
     )
     add(
         "2. ES standard 分析器不做中文分词: 中文需求/错误查询依赖内嵌技术 token "
@@ -438,7 +598,14 @@ def main() -> int:
     stored = store.index_repository(REPO_NAME, COMMIT_SHA, files)
     print(f"indexed {stored} docs into repo {REPO_NAME!r}")
 
-    bench = run_bench(store, SymbolIndex(index), expand=not args.no_expand)
+    embedder = EmbeddingClient.from_env()
+    if embedder.configured:
+        print(f"vector channel: embeddings configured ({embedder.model})")
+    else:
+        print("vector channel: absent — " + embedder.config_reason)
+    bench = run_bench(
+        store, SymbolIndex(index), expand=not args.no_expand, embedder=embedder
+    )
 
     out_path = Path(args.out)
     if not out_path.is_absolute():
@@ -450,7 +617,7 @@ def main() -> int:
     out_path.write_text(report, encoding="utf-8")
     print(f"report -> {out_path}")
 
-    for mode in ("bm25", "bm25_graph", "symbol_index"):
+    for mode in ("bm25", "bm25_graph", "symbol_index", "bm25_rrf", "bm25_rrf_graph"):
         summary = bench[mode]["overall"]
         print(
             f"{mode:12s} recall@10={summary['recall_at_10'] * 100:.1f}%  "
