@@ -2,6 +2,10 @@
 
 P1.1: Added strict job state machine with 8 states, CAS transitions,
 retry tracking, worker assignment, and stale detection.
+
+P6 §14.2: outbox governance — tenant/digest stamping on insert,
+per-attempt publish/retry counters, last_error/next_retry_at deferral,
+dead-letter state, and a single-query stats snapshot for relay metrics.
 """
 import json
 import os
@@ -13,6 +17,7 @@ from typing import Any, cast
 import pymysql
 from pymysql.cursors import DictCursor
 
+from contracts.events import payload_digest
 from storage.tenant_scope import current_scope
 
 # ── Tenant-aware job SQL (industrialization phase 1) ─────────────
@@ -252,7 +257,8 @@ class MySQLStore:
         """Insert a new job and its outbox event in a single transaction.
 
         Both INSERTs succeed or both roll back. After commit, the Outbox Relay
-        is responsible for publishing to RabbitMQ.
+        is responsible for publishing to RabbitMQ. The outbox row carries the
+        payload digest and (in tenant mode) the tenant id (§14.2).
         """
         job_id = job["id"]
         payload = {
@@ -279,21 +285,31 @@ class MySQLStore:
                 "%(github_check_json)s)"
             )
         )
+        outbox_row = {
+            "aggregate_id": job_id,
+            "aggregate_type": "verification_job",
+            "event_type": event_type,
+            "payload": json.dumps(payload),
+            "routing_key": routing_key,
+            "payload_digest": payload_digest(payload),
+        }
+        outbox_insert_sql = (
+            "INSERT INTO outbox (aggregate_id, aggregate_type, event_type, "
+            "payload, routing_key, payload_digest) "
+            "VALUES (%(aggregate_id)s, %(aggregate_type)s, %(event_type)s, "
+            "%(payload)s, %(routing_key)s, %(payload_digest)s)"
+        )
+        if scope is not None:
+            outbox_row["tenant_id"] = scope.tenant_id
+            outbox_insert_sql = (
+                "INSERT INTO outbox (aggregate_id, aggregate_type, event_type, "
+                "payload, routing_key, payload_digest, tenant_id) "
+                "VALUES (%(aggregate_id)s, %(aggregate_type)s, %(event_type)s, "
+                "%(payload)s, %(routing_key)s, %(payload_digest)s, %(tenant_id)s)"
+            )
         with self.connection() as conn:
             conn.cursor().execute(insert_sql, row)
-            conn.cursor().execute(
-                "INSERT INTO outbox (aggregate_id, aggregate_type, "
-                "event_type, payload, routing_key) "
-                "VALUES (%(aggregate_id)s, %(aggregate_type)s, "
-                "%(event_type)s, %(payload)s, %(routing_key)s)",
-                {
-                    "aggregate_id": job_id,
-                    "aggregate_type": "verification_job",
-                    "event_type": event_type,
-                    "payload": json.dumps(payload),
-                    "routing_key": routing_key,
-                },
-            )
+            conn.cursor().execute(outbox_insert_sql, outbox_row)
             # Transition to QUEUED after outbox is safely persisted
             conn.cursor().execute(
                 "UPDATE verification_jobs SET status = 'QUEUED' WHERE id = %s",
@@ -313,16 +329,22 @@ class MySQLStore:
             )
 
     def fetch_pending_outbox_rows(self, limit: int = 10) -> list[dict[str, Any]]:
-        """Fetch unpublished outbox rows with SKIP LOCKED for relay.
+        """Fetch due, unpublished outbox rows with SKIP LOCKED for relay.
 
-        Returns the oldest unpublished rows (FIFO order).
+        Returns the oldest due rows (FIFO order). Governance (§14.2):
+        rows are due only when next_retry_at is NULL or in the past, and
+        dead-lettered rows are excluded — they wait for operator replay,
+        not automatic retry.
         """
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT id, aggregate_id, event_type, payload, routing_key "
+                "SELECT id, aggregate_id, event_type, payload, routing_key, "
+                "retry_count "
                 "FROM outbox "
                 "WHERE published_at IS NULL "
+                "AND dead_lettered_at IS NULL "
+                "AND (next_retry_at IS NULL OR next_retry_at <= NOW(3)) "
                 "ORDER BY id "
                 "LIMIT %s "
                 "FOR UPDATE SKIP LOCKED",
@@ -331,12 +353,91 @@ class MySQLStore:
             return cast(list[dict[str, Any]], cur.fetchall())
 
     def mark_outbox_published(self, outbox_id: int) -> None:
-        """Mark an outbox row as published (sets published_at to NOW)."""
+        """Mark an outbox row as published (sets published_at to NOW).
+
+        Clears the per-row retry state and counts the attempt in
+        publish_count so governance metrics see real publish attempts.
+        """
         with self.connection() as conn:
             conn.cursor().execute(
-                "UPDATE outbox SET published_at = NOW(3) WHERE id = %s",
+                "UPDATE outbox SET published_at = NOW(3), "
+                "publish_count = publish_count + 1, "
+                "next_retry_at = NULL, last_error = NULL "
+                "WHERE id = %s",
                 (outbox_id,),
             )
+
+    def mark_outbox_failed(
+        self, outbox_id: int, error: str, retry_after_seconds: float
+    ) -> None:
+        """Record a failed publish attempt (§14.2).
+
+        Bumps retry_count/publish_count, stores the (truncated) last
+        error and defers the next attempt to NOW + retry_after_seconds —
+        the relay stops polling the row until the deferral expires.
+        """
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "UPDATE outbox SET retry_count = retry_count + 1, "
+                "publish_count = publish_count + 1, last_error = %s, "
+                "next_retry_at = NOW(3) + INTERVAL %s SECOND "
+                "WHERE id = %s",
+                (error[:1000], retry_after_seconds, outbox_id),
+            )
+
+    def dead_letter_outbox_row(self, outbox_id: int, error: str) -> None:
+        """Dead-letter an outbox row (DLQ state, §14.2).
+
+        The row keeps its payload and error context for operator replay
+        but is excluded from relay polling; automatic retries stop here.
+        """
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "UPDATE outbox SET dead_lettered_at = NOW(3), "
+                "last_error = %s, next_retry_at = NULL "
+                "WHERE id = %s",
+                (error[:1000], outbox_id),
+            )
+
+    def outbox_stats(self) -> dict[str, Any]:
+        """Governance snapshot of the outbox table (§14.2 relay metrics).
+
+        pending/dead_letters/retries are counted in SQL (no Python-side
+        table scan); oldest_created_at covers only rows the relay will
+        still pick up, last_success is the most recent published_at.
+        """
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT "
+                "COALESCE(SUM(published_at IS NULL AND dead_lettered_at "
+                "IS NULL), 0) AS pending, "
+                "COALESCE(SUM(dead_lettered_at IS NOT NULL), 0) "
+                "AS dead_letters, "
+                "COALESCE(SUM(CASE WHEN published_at IS NULL AND "
+                "dead_lettered_at IS NULL THEN retry_count ELSE 0 END), 0) "
+                "AS retries, "
+                "MIN(CASE WHEN published_at IS NULL AND dead_lettered_at "
+                "IS NULL THEN created_at END) AS oldest_created_at, "
+                "MAX(published_at) AS last_success "
+                "FROM outbox"
+            )
+            row = cast(dict[str, Any] | None, cur.fetchone())
+        if row is None:
+            return {
+                "pending": 0,
+                "dead_letters": 0,
+                "retries": 0,
+                "oldest_created_at": None,
+                "last_success": None,
+            }
+        return {
+            "pending": int(row["pending"] or 0),
+            "dead_letters": int(row["dead_letters"] or 0),
+            "retries": int(row["retries"] or 0),
+            "oldest_created_at": row.get("oldest_created_at"),
+            "last_success": row.get("last_success"),
+        }
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         # Single cursor per statement: fetchone() on a fresh cursor raises
@@ -490,11 +591,16 @@ class MySQLStore:
             return cast(list[dict[str, Any]], cur.fetchall())
 
     def count_pending_outbox(self) -> int:
-        """Number of unpublished outbox rows (relay backlog gauge)."""
+        """Number of unpublished, non-dead outbox rows (relay backlog gauge).
+
+        Dead-lettered rows are excluded: they are no longer relay backlog
+        (§14.2) — they wait for operator replay, not automatic retry.
+        """
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT COUNT(*) AS n FROM outbox WHERE published_at IS NULL"
+                "SELECT COUNT(*) AS n FROM outbox "
+                "WHERE published_at IS NULL AND dead_lettered_at IS NULL"
             )
             row = cur.fetchone()
         return int(row["n"]) if row else 0
