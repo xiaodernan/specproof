@@ -40,6 +40,11 @@ instruction (edit_retry_instruction) is handed back to the injected model
 round-trip, and a second invalid proposal gives up carrying the stable code
 LLM_PROPOSAL_INVALID. Unparseable model text is carried as a
 ProposalParseFailure with a bounded snippet of the raw output.
+
+Test-file guard (W112): the harness applies each SWE-bench instance's test
+patch itself, so any edit op whose repo-relative path matches tests/** or
+test_*.py / *_test.py is rejected with CODE_TEST_FILE_FORBIDDEN and the
+repair instruction steers the model to a source-only fix.
 """
 
 from __future__ import annotations
@@ -59,6 +64,11 @@ CODE_INVALID_ARGUMENTS = "INVALID_ARGUMENTS"
 #: repair retry (M2 diagnose-fix path; the loop fails the step with M1
 #: semantics carrying this code).
 CODE_PROPOSAL_INVALID = "LLM_PROPOSAL_INVALID"
+#: Stable code for an edit op targeting a test file (W112): the harness
+#: applies each instance's test patch itself, so craft must never create
+#: or modify test files — the repair instruction steers the model to a
+#: source-only fix instead.
+CODE_TEST_FILE_FORBIDDEN = "TEST_FILE_FORBIDDEN"
 
 
 @dataclass(frozen=True)
@@ -354,6 +364,22 @@ class ToolCallSelfCheck:
 # -- edit-proposal self-check (SpecCraft M2 diagnose-fix) ---------------------
 
 
+def is_test_file_path(path: str) -> bool:
+    """True when a repo-relative path matches a test-file pattern (W112).
+
+    Patterns: anything under "tests/" at any depth (tests/**), or a
+    basename matching "test_*.py" / "*_test.py". Backslashes and leading
+    "./" are normalized so Windows-style paths match too.
+    """
+    normalized = path.strip().replace("\\", "/").lstrip("./")
+    if normalized == "tests" or normalized.startswith("tests/"):
+        return True
+    filename = normalized.rsplit("/", 1)[-1]
+    if not filename.endswith(".py"):
+        return False
+    return filename.startswith("test_") or filename.endswith("_test.py")
+
+
 def validate_edit_proposal(data: object) -> CheckOutcome:
     """Pure edit-proposal validation: top level, edits array, per-op schema.
 
@@ -400,6 +426,14 @@ def validate_edit_proposal(data: object) -> CheckOutcome:
         path = op.get("path")
         if not isinstance(path, str) or not path.strip():
             return _retry(CODE_PROPOSAL_INVALID, f"edits[{index}] 缺少合法 path", "", 0)
+        if is_test_file_path(path):
+            return _retry(
+                CODE_TEST_FILE_FORBIDDEN,
+                f"edits[{index}] 目标 {path.strip()!r} 是测试文件, 禁止创建或修改测试文件 — "
+                "隐藏测试由评测框架应用, 请只修复生产/源代码使隐藏测试通过",
+                "",
+                0,
+            )
         if action == "apply_edit":
             if not isinstance(op.get("old"), str) or not isinstance(op.get("new"), str):
                 return _retry(
@@ -427,7 +461,27 @@ def validate_edit_proposal(data: object) -> CheckOutcome:
 
 
 def edit_retry_instruction(outcome: CheckOutcome) -> str:
-    """ONE deterministic repair instruction for a rejected edit proposal."""
+    """ONE deterministic repair instruction for a rejected edit proposal.
+
+    A test-file rejection (CODE_TEST_FILE_FORBIDDEN) gets a dedicated
+    source-only instruction: hidden tests are applied by the harness, so
+    the model must re-propose edits to production/source code only.
+    """
+    if outcome.code == CODE_TEST_FILE_FORBIDDEN:
+        return (
+            "EDIT PROPOSAL SELF-CHECK — your previous reply was REJECTED and NOT executed.\n"
+            f"error code: [{outcome.code}] {outcome.message}\n"
+            "Repair rule: test files must never be created or modified — the hidden "
+            "FAIL_TO_PASS tests are applied by the harness itself. Respond with exactly "
+            'ONE corrected JSON object whose top-level keys are "diagnosis" (string, one '
+            'sentence) and "edits" (array of edit operations). Every edit must be a '
+            "source-only fix: target production/source code so the hidden tests pass, "
+            'e.g. {"diagnosis": "the bug is ...", "edits": [{"action": "apply_edit", '
+            '"path": "src/calc.py", "old": "return x / 2", "new": "return x * 2"}]}. '
+            'Every edit needs "action" ("apply_edit" with old/new, or "write_file" with '
+            'new) and a repo-relative "path" pointing at source code, never a test file. '
+            "No markdown fences, no prose — only the JSON object."
+        )
     return (
         "EDIT PROPOSAL SELF-CHECK — your previous reply was REJECTED and NOT executed.\n"
         f"error code: [{outcome.code}] {outcome.message}\n"

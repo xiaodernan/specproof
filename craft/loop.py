@@ -208,6 +208,8 @@ Hard rules:
 - apply_edit requires string "old"/"new"; old must match EXACTLY once in
   the current file content shown below, otherwise the edit is rejected;
 - write_file requires string "new" (the full file content);
+- fix only production/source code, never create or modify test files —
+  hidden tests are applied by the harness itself;
 - propose only edits the evidence justifies; never touch test files or
   forbidden files; never invent evidence.
 """
