@@ -1,0 +1,44 @@
+{
+  "total_cases": 3,
+  "should_detect": 3,
+  "detected": 3,
+  "false_positives": 0,
+  "precision": 100.0,
+  "recall": 100.0,
+  "f1": 100.0,
+  "cases": [
+    {
+      "case": "case-100-rel-event-timestamp-nulled",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "EVENT_ONCE-01",
+      "expected_contract": "EVENT_ONCE-01"
+    },
+    {
+      "case": "case-97-rel-broker-failure-retried-into-duplicate",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "EVENT_ONCE-01, ORDER_EVENT-01",
+      "expected_contract": "ORDER_EVENT-01"
+    },
+    {
+      "case": "case-98-rel-noop-email-change-publishes-event",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "EVENT_ONCE-01",
+      "expected_contract": "EVENT_ONCE-01"
+    }
+  ]
+}
