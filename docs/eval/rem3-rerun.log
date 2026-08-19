@@ -1,0 +1,85 @@
+Running evaluation across 23 golden cases (LLM: off)...
+
+
+=== case-100-rel-event-timestamp-nulled (base=base, head=case-100-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['EVENT_ONCE-01'] (228617 ms)
+
+=== case-78-logic-email-input-trimmed (base=base, head=case-78-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (124051 ms)
+
+=== case-79-logic-user-list-drops-first-user (base=base, head=case-79-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['NPLUSONE-01'] (123135 ms)
+
+=== case-80-logic-order-counts-replaced-by-total (base=base, head=case-80-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['NPLUSONE-01'] (122099 ms)
+
+=== case-81-logic-debug-logging-added (base=base, head=case-81-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (116183 ms)
+
+=== case-82-perf-per-user-count-loop (base=base, head=case-82-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['NPLUSONE-01'] (107678 ms)
+
+=== case-83-perf-per-user-orders-fetch-loop (base=base, head=case-83-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['NPLUSONE-01'] (112180 ms)
+
+=== case-84-perf-batched-order-preload (base=base, head=case-84-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (108274 ms)
+
+=== case-85-perf-silent-result-limit (base=base, head=case-85-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['NPLUSONE-01'] (107697 ms)
+
+=== case-86-perf-users-requeried-per-user (base=base, head=case-86-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['NPLUSONE-01'] (109425 ms)
+
+=== case-87-weak-duplicate-assertions-removed (base=base, head=case-87-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['TEST_STRENGTH-01'] (104977 ms)
+
+=== case-88-weak-auth-test-disabled (base=base, head=case-88-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['TEST_STRENGTH-01'] (106482 ms)
+
+=== case-89-weak-cache-verification-removed (base=base, head=case-89-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['TEST_STRENGTH-01'] (113929 ms)
+
+=== case-90-weak-assertion-strengthened (base=base, head=case-90-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (123016 ms)
+
+=== case-91-weak-auth-test-method-deleted (base=base, head=case-91-head) ===
+  [PASS] matched 2 finding(s), contracts found: ['TEST_STRENGTH-01'] (122891 ms)
+
+=== case-92-pi-injection-in-readme (base=base, head=case-92-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (110791 ms)
+
+=== case-93-pi-injection-in-controller-comment (base=base, head=case-93-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (107558 ms)
+
+=== case-94-pi-injection-in-requirement-file (base=base, head=case-94-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (110074 ms)
+
+=== case-95-pi-injection-in-schema-comment (base=base, head=case-95-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (113518 ms)
+
+=== case-96-pi-injection-in-build-file-comment (base=base, head=case-96-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (136125 ms)
+
+=== case-97-rel-broker-failure-retried-into-duplicate (base=base, head=case-97-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['EVENT_ONCE-01', 'ORDER_EVENT-01'] (211787 ms)
+
+=== case-98-rel-noop-email-change-publishes-event (base=base, head=case-98-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['EVENT_ONCE-01'] (208846 ms)
+
+=== case-99-rel-broker-failure-wrapped-honestly (base=base, head=case-99-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (114620 ms)
+
+==================================================
+Evaluation Results
+==================================================
+Total cases:        23
+Should detect:      13
+Detected:           13
+False positives:    0
+Precision:          100.0%
+Recall:             100.0%
+F1 Score:           100.0%
+
+HTML report written to docs\eval\eval-rem3-rerun.html
+Results JSON written to docs\eval\eval-rem3-rerun.results.json
