@@ -1,0 +1,106 @@
+{
+  "task_title": "[pallets__flask-4045] 修复缺陷 (SWE-bench)",
+  "mode": "llm",
+  "steps": [
+    {
+      "id": "s1",
+      "kind": "understand",
+      "target_files": [
+        "src/flask/blueprints.py"
+      ],
+      "intent": "Confirm the source change introduces a guard against dots in blueprint names.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "dot"
+      },
+      "deps": []
+    },
+    {
+      "id": "s2",
+      "kind": "understand",
+      "target_files": [
+        "tests/test_blueprints.py"
+      ],
+      "intent": "Confirm the tests cover the rejection of blueprint names containing a dot.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "dot"
+      },
+      "deps": [
+        "s1"
+      ]
+    },
+    {
+      "id": "s3",
+      "kind": "verify",
+      "target_files": [
+        "src/flask/blueprints.py"
+      ],
+      "intent": "Compile the modified source file to catch any syntax errors.",
+      "success_criteria": {
+        "type": "compile",
+        "value": ""
+      },
+      "deps": [
+        "s1"
+      ]
+    },
+    {
+      "id": "s4",
+      "kind": "test",
+      "target_files": [
+        "tests/test_blueprints.py"
+      ],
+      "intent": "Run the targeted blueprint tests (both fail-to-pass and existing pass-to-pass) in isolation.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s3"
+      ]
+    },
+    {
+      "id": "s5",
+      "kind": "test",
+      "target_files": [
+        "tests/test_blueprints.py",
+        "src/flask/blueprints.py"
+      ],
+      "intent": "Run the full test suite to ensure the change does not introduce regressions.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s4"
+      ]
+    },
+    {
+      "id": "s6",
+      "kind": "verify",
+      "target_files": [
+        "src/flask/blueprints.py"
+      ],
+      "intent": "Verify the source explicitly raises a ValueError for invalid blueprint names.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "raise ValueError"
+      },
+      "deps": [
+        "s1"
+      ]
+    }
+  ],
+  "risk_classification": {
+    "auth": false,
+    "migration": false,
+    "mq": false,
+    "public_api": true
+  },
+  "budget_alloc": {
+    "iterations": 12,
+    "tokens": 200000
+  },
+  "llm_fallback_reason": ""
+}
