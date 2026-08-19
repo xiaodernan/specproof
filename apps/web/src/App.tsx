@@ -4,8 +4,11 @@ import {
   clearBearerToken,
   consumeOidcCallback,
   getApiKey,
+  getAuthMe,
   getBearerToken,
 } from "./api";
+import type { PrincipalInfo } from "./api";
+import { ErrorBoundary } from "./components";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
@@ -18,6 +21,9 @@ import Health from "./pages/Health";
 import AgentApp from "./agent/AgentApp";
 import IdentityApp from "./identity/IdentityApp";
 import TenantSwitcher from "./identity/TenantSwitcher";
+import { ThemeProvider } from "./theme/ThemeProvider";
+import { CommandPalette, ToastProvider } from "./ui";
+import UiKit from "./ui-kit/UiKit";
 
 // Minimal hash router: keeps deep links working behind the FastAPI SPA
 // fallback without any routing dependency.
@@ -76,7 +82,17 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "contracts") return <Contracts />;
   if (seg[0] === "eval") return <Eval />;
   if (seg[0] === "health") return <Health />;
+  if (seg[0] === "ui-kit") return <UiKit />;
   return <Dashboard />;
+}
+
+// The identity console is RBAC-managed (admin/operator). The nav entry is
+// hidden only when the bearer principal is KNOWN and lacks those roles;
+// unknown identity (legacy X-API-Key mode, /auth/me unreachable) keeps the
+// legacy nav. Enforcement always stays server-side (fail-closed).
+function canManageIdentity(principal: PrincipalInfo | null): boolean {
+  if (principal == null || !Array.isArray(principal.roles)) return true;
+  return principal.roles.includes("admin") || principal.roles.includes("operator");
 }
 
 export default function App() {
@@ -84,6 +100,7 @@ export default function App() {
   const [hasKey, setHasKey] = useState<boolean>(
     () => getApiKey() !== "" || getBearerToken() !== ""
   );
+  const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
 
   // OIDC login returns via /#oidc_token=...: stash the id_token, drop the
   // fragment, and enter the shell.
@@ -91,55 +108,87 @@ export default function App() {
     if (consumeOidcCallback()) setHasKey(true);
   }, []);
 
-  if (!hasKey) {
-    return <Login onConnected={() => setHasKey(true)} />;
-  }
+  // Resolve the bearer principal once a credential exists (tenant mode).
+  useEffect(() => {
+    if (!hasKey || getBearerToken() === "") return;
+    let alive = true;
+    getAuthMe()
+      .then((me) => {
+        if (alive && me && me.principal) setPrincipal(me.principal);
+      })
+      .catch(() => {
+        // unknown identity keeps the legacy behavior
+      });
+    return () => {
+      alive = false;
+    };
+  }, [hasKey]);
 
   const path = route.startsWith("#") ? route.slice(1) : route;
-  const active = path.split("/").filter(Boolean)[0] || "dashboard";
+  const seg = path.split("/").filter(Boolean);
+  const active = seg[0] || "dashboard";
+
+  let body: JSX.Element;
+  if (seg[0] === "ui-kit") {
+    // Design-system style guide: standalone and reviewable without an API key.
+    body = <UiKit />;
+  } else if (!hasKey) {
+    body = <Login onConnected={() => setHasKey(true)} />;
+  } else {
+    body = (
+      <div className="shell">
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="brand-mark">SP</div>
+            <div>
+              <div className="brand-name">SpecProof</div>
+              <div className="brand-sub">CONTROL ROOM</div>
+            </div>
+          </div>
+          <nav>
+            {NAV.filter(
+              (item) => item.path !== "#/identity" || canManageIdentity(principal)
+            ).map((item) => (
+              <a
+                key={item.path}
+                href={item.path}
+                className={
+                  "nav-item" +
+                  ((item.path === "#/" + active ? true : false) ? " nav-active" : "")
+                }
+              >
+                <span className="nav-label">{item.label}</span>
+                <span className="nav-en">{item.en}</span>
+              </a>
+            ))}
+          </nav>
+          <div className="sidebar-foot">
+            <div className="foot-line">FAIL-CLOSED AUTH</div>
+            <TenantSwitcher />
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                clearApiKey();
+                clearBearerToken();
+                setHasKey(false);
+                navigate("#/login");
+              }}
+            >
+              断开 Disconnect
+            </button>
+          </div>
+        </aside>
+        <main className="content">{renderRoute(route)}</main>
+      </div>
+    );
+  }
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">SP</div>
-          <div>
-            <div className="brand-name">SpecProof</div>
-            <div className="brand-sub">CONTROL ROOM</div>
-          </div>
-        </div>
-        <nav>
-          {NAV.map((item) => (
-            <a
-              key={item.path}
-              href={item.path}
-              className={
-                "nav-item" +
-                ((item.path === "#/" + active ? true : false) ? " nav-active" : "")
-              }
-            >
-              <span className="nav-label">{item.label}</span>
-              <span className="nav-en">{item.en}</span>
-            </a>
-          ))}
-        </nav>
-        <div className="sidebar-foot">
-          <div className="foot-line">FAIL-CLOSED AUTH</div>
-          <TenantSwitcher />
-          <button
-            className="btn btn-ghost"
-            onClick={() => {
-              clearApiKey();
-              clearBearerToken();
-              setHasKey(false);
-              navigate("#/login");
-            }}
-          >
-            断开 Disconnect
-          </button>
-        </div>
-      </aside>
-      <main className="content">{renderRoute(route)}</main>
-    </div>
+    <ThemeProvider>
+      <ToastProvider>
+        <ErrorBoundary>{body}</ErrorBoundary>
+        <CommandPalette />
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

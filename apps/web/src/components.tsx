@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { Component, ReactNode } from "react";
 
 // Shared presentational components - dark industrial theme, no external UI lib.
 
@@ -60,7 +60,49 @@ export function Degraded(props: { reasons: string[] }) {
 export function ErrorBox(props: { error: Error | string | null }) {
   if (!props.error) return null;
   const text = typeof props.error === "string" ? props.error : props.error.message;
-  return <div className="errorbox">{"错误 ERROR — " + text}</div>;
+  return (
+    <div className="errorbox" data-testid="errorbox">
+      {"错误 ERROR — " + text}
+    </div>
+  );
+}
+
+// Render-crash fallback (guide §A row 32: 错误边界): when a route throws
+// during render, the shell survives and shows this notice instead of a
+// white screen. Errors are also forwarded to the console for forensics.
+export class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error };
+  }
+
+  componentDidCatch(error: Error): void {
+    console.error("SpecProof render boundary caught:", error);
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <div className="errorbox" data-testid="error-boundary" role="alert">
+          {"错误 ERROR — 页面渲染异常, 已降级 (error boundary): " +
+            (this.state.error.message || String(this.state.error))}
+          <div style={{ marginTop: 8 }}>
+            <a className="btn btn-ghost btn-sm" href="#/dashboard">
+              ← 返回总览
+            </a>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export function Empty(props: { text: string }) {
