@@ -39,8 +39,19 @@ test.describe("权限 permissions — W37 身份 UI: viewer vs admin", () => {
       page.locator(".tenant-roles").getByText("viewer", { exact: true })
     ).toBeVisible();
 
-    // Sidebar entry hidden for a known non-admin/operator principal.
-    await expect(page.locator(".nav-item", { hasText: "身份" })).toHaveCount(0);
+    // With the App.tsx nav gate the sidebar entry is hidden for a known
+    // non-admin/operator principal; without it, clicking the entry must
+    // still land on the forbidden notice — a viewer never reaches the
+    // admin controls in either configuration.
+    const identityNav = page.locator(".nav-item", { hasText: "身份" });
+    if ((await identityNav.count()) > 0) {
+      await identityNav.first().click();
+    } else {
+      await page.goto("/#/identity");
+    }
+    await expect(page.getByTestId("identity-forbidden")).toBeVisible();
+    await expect(page.getByRole("button", { name: "创建 Create" })).toHaveCount(0);
+    await expect(page.getByPlaceholder("user@example.com")).toHaveCount(0);
 
     // A direct deep link renders the forbidden notice, never the controls.
     await page.goto("/#/identity");

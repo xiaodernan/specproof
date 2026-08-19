@@ -95,10 +95,10 @@
 2. 首次打开即有内容: 预置 2-3 个已完成验证作业 (矩阵/证书) + 1 个进行中 Agent 作业;
 3. 验证流闭环可点: 新建验证 → 进度 SSE → 判定矩阵 → 证书下载/验签;
 4. Agent 流闭环可点: 新建任务 → 计划审阅 → 实时工具流 (SSE) → 门禁五道 → accept 判定 (确定性档, 无需 LLM 无 key);
-5. 视觉顶级: W41 设计系统 ✅ 阶段1 地基 (Aurora 紫青渐变 tokens/暗亮双主题/21 组件/⌘K 命令面板//ui-kit 活样式指南, 55 前端测试全绿, 已推) + 阶段2 全页面铺开 (待 W39 e2e 落盘后派);
+5. 视觉顶级: W41 设计系统 ✅ 阶段1 地基 (Aurora 紫青渐变/暗亮双主题/21 组件/⌘K//ui-kit, 55 测试全绿已推) + 🚧 阶段2 全页面铺开 (已派: 壳层→verify 9 页→agent 14 页→identity 页, 保 testid/ErrorBoundary/e2e 全绿);
 6. 权限体验: 登录 → 租户切换 → viewer/admin 差异可见 (W37);
 7. 体验文档: docs/operations/LOCAL_EXPERIENCE.md (用户视角步骤+预期画面+已知限制);
-8. e2e 冒烟: W39 Playwright 四场景全绿 (向导/详情/权限/降级)。
+8. e2e 冒烟: ✅ W39 Playwright 9 用例全绿 (向导/详情/权限/降级 四场景, 真实 Vite+API fixture, 无 DOM mock) — 已合流 1adfa98。
 
 新增工作 (本地态专用, 置顶优先级):
 - W42: Agent 运行时接线 (api/agent_runtime.py: 后台线程跑真实 CraftLoop 确定性档 → _ConsoleState 事件 → SSE; agent_jobs 投影; 取消/租约) — 让工作台活起来;

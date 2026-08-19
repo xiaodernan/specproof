@@ -20,8 +20,8 @@ test.describe("降级 degradation — 后端不可达时的优雅降级", () => 
     // The shell itself survives; the dashboard reports the failure.
     await expect(page.locator(".shell")).toBeVisible();
     await expect(page.locator(".brand-name")).toHaveText("SpecProof");
-    await expect(page.getByTestId("errorbox").first()).toBeVisible();
-    await expect(page.getByTestId("errorbox").first()).toContainText("错误 ERROR");
+    await expect(page.locator(".errorbox").first()).toBeVisible();
+    await expect(page.locator(".errorbox").first()).toContainText("错误 ERROR");
     await expect(page.locator("#root")).not.toBeEmpty();
   });
 
@@ -32,8 +32,8 @@ test.describe("降级 degradation — 后端不可达时的优雅降级", () => 
     await expect(page.locator(".shell")).toBeVisible();
 
     await page.goto("/#/jobs");
-    await expect(page.getByTestId("errorbox")).toBeVisible();
-    await expect(page.getByTestId("errorbox")).toContainText("错误 ERROR");
+    await expect(page.locator(".errorbox")).toBeVisible();
+    await expect(page.locator(".errorbox")).toContainText("错误 ERROR");
     await expect(page.locator(".content")).not.toBeEmpty();
   });
 
