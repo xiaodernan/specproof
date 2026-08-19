@@ -1,0 +1,91 @@
+[
+  {
+    "name": "bash-only",
+    "results": [
+      {
+        "agent": "Distractor Agent",
+        "name": "Distractor Agent + Distractor Model",
+        "model_display": "Distractor Model",
+        "resolved": 99.9,
+        "cost": 1.0,
+        "date": "2025-12-31",
+        "checked": true
+      }
+    ]
+  },
+  {
+    "name": "Multilingual",
+    "results": [
+      {
+        "agent": "Polyglot Agent",
+        "name": "Polyglot Agent + Polyglot Model",
+        "resolved": 80.0,
+        "cost": 5.0,
+        "date": "2025-11-01",
+        "checked": true
+      }
+    ]
+  },
+  {
+    "name": "Test",
+    "results": [
+      {
+        "agent": "Fixture Agent",
+        "name": "Fixture Agent + Fixture Model",
+        "resolved": 100.0,
+        "cost": 0.5,
+        "date": "2025-01-02",
+        "checked": true
+      }
+    ]
+  },
+  {
+    "name": "Verified",
+    "results": [
+      {"agent": "Alpha Agent", "name": "Alpha Agent + Model A", "model_display": "Model A", "resolved": 74.4, "cost": 12.34, "date": "2025-09-01", "checked": true},
+      {"agent": "Beta Agent", "name": "Beta Agent + Model B", "resolved": 79.2, "cost": null, "date": "2025-11-02", "checked": true},
+      {"agent": "Gamma Agent", "name": "Gamma Agent + Model G", "model_display": "Model G", "resolved": 76.8, "cost": 0.0, "date": "2025-08-15", "checked": true},
+      {"agent": "Delta Agent", "name": "Delta Agent + Model D", "model_display": "Model D", "resolved": 79.2, "cost": 8.0, "date": "2025-12-01", "checked": true},
+      {"agent": "Epsilon Agent", "name": "Epsilon Agent + Model E", "model_display": "Model E", "resolved": 78.8, "cost": 200.5, "date": "2025-10-10", "checked": true},
+      {"agent": "Zeta Agent", "name": "Zeta Agent + Model Z", "model_display": "Model Z", "resolved": 77.4, "cost": 55.55, "date": "2025-10-11", "checked": true},
+      {"agent": "Eta Agent", "name": "Eta Agent + Model Eta", "model_display": "Model Eta", "resolved": 76.4, "cost": null, "date": "2025-07-20", "checked": true},
+      {"agent": "Theta Agent", "name": "Theta Agent + Model Th", "model_display": "Model Th", "resolved": 75.8, "cost": 3.14159, "date": "2025-06-30", "checked": true},
+      {"agent": "Iota Agent", "name": "Iota Agent + Model I", "model_display": "Model I", "resolved": 75.6, "cost": 1000.0, "date": "2025-05-05", "checked": true},
+      {"agent": "Kappa Agent", "name": "Kappa Agent + Model K", "model_display": "Model K", "resolved": 75.2, "cost": null, "date": "2025-04-04", "checked": true},
+      {"agent": "Lambda Agent", "name": "Lambda Agent + Model L", "model_display": "Model L", "resolved": 74.8, "cost": 0.01, "date": "2025-03-03", "checked": true},
+      {"agent": "Mu Agent", "name": "Mu Agent + Model M", "model_display": "Model M", "resolved": 74.6, "cost": 42.0, "date": "2025-02-02", "checked": true},
+      {"agent": "Nu Agent", "name": "Nu Agent + Model N", "model_display": "Model N", "resolved": 74.4, "cost": null, "date": "2025-01-01", "checked": true},
+      {"agent": "Xi Agent", "name": "Xi Agent + Model Xi", "model_display": "Model Xi", "resolved": 73.9, "cost": 7.77, "date": null, "checked": true},
+      {"agent": "Omicron Agent", "name": "Omicron Agent + Model O", "model_display": "Model O", "resolved": 73.5, "cost": null, "date": "2024-11-14", "checked": true},
+      {"agent": "Pi Agent", "name": "Pi Agent + Model P", "model_display": "Model P", "resolved": 73.1, "cost": 2.5, "date": "2024-10-13", "checked": true},
+      {"agent": "Rho Agent", "name": "Rho Agent + Model R", "model_display": "Model R", "resolved": null, "cost": 1.0, "date": "2024-09-12", "checked": false},
+      {"agent": "Sigma Agent", "name": "Sigma Agent + Model S", "model_display": "Model S", "resolved": 73.1, "cost": 0.0, "date": "2024-10-13", "checked": true}
+    ]
+  },
+  {
+    "name": "Lite",
+    "results": [
+      {
+        "agent": "Lite Agent",
+        "name": "Lite Agent + Lite Model",
+        "resolved": 60.0,
+        "cost": 2.0,
+        "date": "2025-06-01",
+        "checked": true
+      }
+    ]
+  },
+  {
+    "name": "Multimodal",
+    "results": [
+      {
+        "agent": "Visual Agent",
+        "name": "Visual Agent + Visual Model",
+        "resolved": 55.0,
+        "cost": 9.0,
+        "date": "2025-05-01",
+        "checked": false
+      }
+    ]
+  }
+]
