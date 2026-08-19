@@ -46,13 +46,28 @@ skips the gate and marks report.self_verify.status=skipped.
 
 W113 hardening (real eval evidence docs/eval/swebench-llm-results-v3.json):
 - edit anchor (flask-4045): the diagnose/edit-proposal prompt ships the
-  current real content of each candidate source file (first 400 lines,
+  current real content of each candidate source file (up to 2000 lines,
   raw) and instructs the model to quote old strings EXACTLY from it;
   Editor.apply_edit additionally retries a whitespace-normalized line
   match (tabs collapsed, trailing spaces stripped) before rejecting.
 - verify target (flask-4992): "assertion appears" grep criteria search
   SOURCE files only — the harness applies hidden tests AFTER craft, so a
   grep against tests/** can never pass; test-only targets FAIL honestly.
+
+W114 hardening (real eval evidence docs/eval/swebench-llm-results-v4.json):
+- verify criterion rebuild (flask-4045 STUCK at verify): a degenerate grep
+  assertion value (length < 3 or punctuation-only, e.g. '.'/'..'/'x') is
+  dropped and the criterion is rebuilt from problem-statement keywords
+  (identifier nouns like url_prefix/prefix/route); the rebuilt criterion
+  searches SOURCE files only, and when no usable criterion can be built
+  the verify step fails honestly with an 'unverifiable' reason WITHOUT
+  entering the diagnose loop — it never counts as a repeated identical
+  failure, so the 3x stuck rule stays reserved for real failures.
+- anchor cap + anchor repair (flask-4992): the FILE CONTENT ANCHOR ships
+  up to 2000 lines of each candidate source file, and an apply_edit
+  anchor rejection arms exactly ONE repair round-trip whose instruction
+  carries up to 3 real candidate anchor lines (with line numbers) from
+  the target file so the retry can quote them exactly.
 
 W35 gate composition + durable job projection: when the M3 self-verify gate
 runs at finish, the full GatePipeline (craft/gates.py, five layered gates)
@@ -120,7 +135,7 @@ from storage.agent_jobs import (
 )
 
 from .budget import Budget
-from .editor import EditError, Editor
+from .editor import MAX_READ_LINES, EditError, Editor
 from .executor import ExecResult, Executor, extract_pytest_failed_tests
 from .gates import GatePipeline
 from .llm import (
@@ -165,6 +180,21 @@ class _GateError(Exception):
 
 class _LLMFixError(RuntimeError):
     """The model's edit proposal was illegal or was refused by the Editor."""
+
+
+class _AnchorRejectError(Exception):
+    """An apply_edit/apply_patch op whose old-string anchor was rejected.
+
+    Carries the op path, the rejected old string and the exact rejection
+    message so the caller can arm exactly ONE repair round-trip whose
+    instruction quotes real candidate anchor lines (W114).
+    """
+
+    def __init__(self, path: str, old: str, message: str) -> None:
+        super().__init__(message)
+        self.path = path
+        self.old = old
+        self.message = message
 
 
 _EDITOR_API_BLOCK: str = """\
@@ -248,6 +278,171 @@ class StepState:
 
 
 _ASSERT_EQ_RE = re.compile(r"^\s*E\s+assert\s+(.+?)\s*==\s*(.+?)\s*$", re.MULTILINE)
+
+#: Non-alphanumeric characters that make a grep assertion value degenerate
+#: when they are all it contains (W114): grepping for "." / "==" / "->"
+#: can never attest a fix, so such values are dropped and rebuilt.
+_PUNCTUATION: frozenset[str] = frozenset(
+    ".,;:()[]{}'\"!?-_=/\\<>|+*&^%$#@~`。，、；：！？…—（）【】《》"
+)
+
+#: Common connective/boilerplate tokens that are never fix-relevant nouns
+#: (W114 keyword rebuild); any token containing "test" is dropped too.
+_VERIFY_CRITERION_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "about",
+        "above",
+        "add",
+        "after",
+        "again",
+        "against",
+        "all",
+        "also",
+        "and",
+        "are",
+        "because",
+        "been",
+        "before",
+        "below",
+        "between",
+        "both",
+        "call",
+        "calls",
+        "can",
+        "case",
+        "cases",
+        "change",
+        "changes",
+        "code",
+        "could",
+        "currently",
+        "does",
+        "doing",
+        "during",
+        "each",
+        "ensure",
+        "ensures",
+        "error",
+        "errors",
+        "every",
+        "example",
+        "expected",
+        "fail",
+        "fails",
+        "file",
+        "files",
+        "fix",
+        "for",
+        "from",
+        "function",
+        "functions",
+        "get",
+        "gets",
+        "given",
+        "has",
+        "have",
+        "hidden",
+        "how",
+        "instead",
+        "into",
+        "issue",
+        "issues",
+        "like",
+        "make",
+        "makes",
+        "may",
+        "might",
+        "must",
+        "need",
+        "needs",
+        "not",
+        "only",
+        "pass",
+        "passes",
+        "return",
+        "returns",
+        "set",
+        "sets",
+        "shall",
+        "should",
+        "such",
+        "than",
+        "that",
+        "the",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "those",
+        "true",
+        "use",
+        "used",
+        "using",
+        "value",
+        "values",
+        "via",
+        "want",
+        "wants",
+        "was",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "while",
+        "who",
+        "will",
+        "with",
+        "would",
+    }
+)
+
+#: Anchor-content budget for the diagnose prompt (W114): up to 2000 lines
+#: per candidate source file, or 60k chars, whichever binds first.
+_ANCHOR_CHAR_CAP = 60_000
+
+#: How many real candidate anchor lines an anchor repair instruction shows.
+_MAX_ANCHOR_CANDIDATES = 3
+
+#: Bounded deterministic workspace scan for the rebuilt verify criterion.
+_SOURCE_SCAN_CAP = 50
+_SOURCE_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".specraft",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+        "node_modules",
+        "site-packages",
+        "target",
+        "venv",
+    }
+)
+
+
+def _is_degenerate_assertion_value(value: str) -> bool:
+    """True when a grep assertion value cannot meaningfully verify anything.
+
+    Degenerate values (shorter than 3 chars after stripping, or made of
+    punctuation only — '.', '..', 'x', '==' ...) are the product of the
+    planner extracting a stray token from the problem statement; grepping
+    for them can never attest the fix, so the verify criterion must be
+    rebuilt from real problem-statement keywords (W114).
+    """
+    stripped = value.strip()
+    if len(stripped) < 3:
+        return True
+    return all(ch in _PUNCTUATION or ch.isspace() for ch in stripped)
 
 
 def diagnose_failure(step: Step, result: ExecResult | None, note: str = "") -> str:
@@ -338,9 +533,7 @@ class CraftLoop:
         lease_ttl_seconds: float = 900,
     ) -> None:
         if plan.mode not in ("deterministic", "llm"):
-            raise CraftLoopError(
-                f"循环只支持 deterministic|llm 计划 (plan.mode={plan.mode!r})"
-            )
+            raise CraftLoopError(f"循环只支持 deterministic|llm 计划 (plan.mode={plan.mode!r})")
         self.spec = spec
         self.plan = plan
         self.workspace = Path(workspace)
@@ -496,9 +689,7 @@ class CraftLoop:
         job = self.store.get(self.job_id)
         if job is not None and job.status == "cancelled":
             return  # the step-loop cancel check flushes the honest exit
-        raise CraftLoopError(
-            f"作业 {self.job_id} 租约失效 (另一 worker 接管或租约过期); 中止"
-        )
+        raise CraftLoopError(f"作业 {self.job_id} 租约失效 (另一 worker 接管或租约过期); 中止")
 
     def _store_cancelled(self, step: Step) -> bool:
         """Supervisor cancel check: cancel wins even over a leased worker."""
@@ -553,6 +744,11 @@ class CraftLoop:
                 verdict="green",
             )
             return "green"
+        if evidence.get("unverifiable"):
+            # W114: an unbuildable verify criterion fails honestly right
+            # away — no diagnose loop, so it can never count as a repeated
+            # identical failure (the 3x stuck rule stays for real failures).
+            return self._fail_unverifiable(step, state, evidence, 0, result)
         attempts = 0
         last_signature = ""
         consecutive = 0
@@ -665,7 +861,8 @@ class CraftLoop:
                 state.iterations = attempts
                 self.last_green_step = step.id
                 self.memory.add(
-                    "decision", f"步骤 {step.id} 修复后 green (迭代 {attempts})",
+                    "decision",
+                    f"步骤 {step.id} 修复后 green (迭代 {attempts})",
                     step_id=step.id,
                 )
                 self._checkpoint(
@@ -677,9 +874,9 @@ class CraftLoop:
                     verdict="green",
                 )
                 return "green"
-            signature = self._error_signature(
-                step, result, note=str(evidence.get("reason", ""))
-            )
+            if evidence.get("unverifiable"):
+                return self._fail_unverifiable(step, state, evidence, attempts, result)
+            signature = self._error_signature(step, result, note=str(evidence.get("reason", "")))
             self.memory.add("error_signature", signature, step_id=step.id)
             if signature == last_signature:
                 consecutive += 1
@@ -716,6 +913,40 @@ class CraftLoop:
                 verdict="progress",
             )
 
+    def _fail_unverifiable(
+        self,
+        step: Step,
+        state: StepState,
+        evidence: dict[str, Any],
+        iteration: int,
+        result: ExecResult | None,
+    ) -> str:
+        """Honest terminal for an unbuildable verify criterion (W114).
+
+        The step fails immediately with the 'unverifiable' reason on
+        record: it never enters the diagnose-fix loop, so the failure can
+        never count as a repeated identical error signature (3x stuck
+        applies to real failures only).
+        """
+        reason = str(evidence.get("reason") or "unverifiable")
+        state.status = "failed"
+        state.iterations = iteration
+        state.evidence = dict(evidence)
+        self.memory.add(
+            "decision",
+            f"步骤 {step.id} unverifiable: {reason} (不进入修复循环)",
+            step_id=step.id,
+        )
+        self._checkpoint(
+            step_id=step.id,
+            iteration=iteration,
+            diagnosis=reason,
+            edits_applied=[],
+            build_result=self._result_dict(result),
+            verdict="progress",
+        )
+        return "FAILED"
+
     # -- criteria --------------------------------------------------------
 
     def _check_criteria(
@@ -749,9 +980,7 @@ class CraftLoop:
             evidence = {
                 "check": "test_green",
                 "exit_code": result.exit_code,
-                "failed_tests": extract_pytest_failed_tests(
-                    f"{result.stdout}\n{result.stderr}"
-                ),
+                "failed_tests": extract_pytest_failed_tests(f"{result.stdout}\n{result.stderr}"),
                 "mode": result.mode,
                 "output_tail": result.output_tail,
             }
@@ -768,11 +997,31 @@ class CraftLoop:
         # tests/test_config.py 上 grep "tomllib" 3 轮后 STUCK)。目标只有
         # 测试文件时诚实 FAILED, 绝不伪造通过。value="" 的可读性检查不
         # 过滤 (不涉及断言值), 保持原语义。
+        # W114 验证标准重建 (pallets__flask-4045 STUCK at verify): 退化的
+        # 断言值 (长度 < 3 或纯标点, 如 '.'/'..'/'x') 直接丢弃, 改为从
+        # 问题陈述提取关键词并在源文件上 grep; 重建不出可用标准时诚实
+        # 报告 unverifiable 且不进入修复循环 (不计入连续同类失败)。
+        value = criteria.value
         targets = step.target_files
         excluded_tests: list[str] = []
-        if criteria.value:
+        rebuilt_from: str | None = None
+        if value:
             excluded_tests = [t for t in step.target_files if is_test_file_path(t)]
             targets = [t for t in step.target_files if not is_test_file_path(t)]
+            if _is_degenerate_assertion_value(value):
+                rebuilt = self._rebuild_grep_criterion()
+                if rebuilt is None:
+                    return (
+                        False,
+                        {
+                            "check": "grep",
+                            "unverifiable": True,
+                            "reason": self._unverifiable_reason(value),
+                        },
+                        None,
+                    )
+                rebuilt_from = value
+                value, targets = rebuilt
         for target in targets:
             try:
                 lines = self.editor.read_file(target)
@@ -784,7 +1033,7 @@ class CraftLoop:
                 )
             contents[target] = "\n".join(line for _, line in lines)
             self.memory.add("file_read", target, step_id=step.id)
-        if not criteria.value:
+        if not value:
             return (
                 True,
                 {
@@ -795,27 +1044,160 @@ class CraftLoop:
             )
         if not targets and step.target_files:
             reason = (
-                f"断言值 {criteria.value!r} 无源文件可搜索: 目标 "
+                f"断言值 {value!r} 无源文件可搜索: 目标 "
                 f"{sorted(step.target_files)} 均为测试文件 — 隐藏测试由评测框架在 "
                 "craft 后施加, craft 阶段不可见; 请只修复源文件使隐藏测试通过"
             )
             return (False, {"check": "grep", "reason": reason}, None)
-        missing = [t for t in targets if criteria.value not in contents[t]]
+        if rebuilt_from is not None:
+            hits = [t for t in targets if value in contents[t]]
+            if not hits:
+                reason = (
+                    f"断言值 {rebuilt_from!r} 退化, 已按问题陈述重建关键词 {value!r}; "
+                    f"该关键词未出现在任何候选源文件: {sorted(targets)}"
+                )
+                if excluded_tests:
+                    reason += (
+                        f"; 已排除测试文件 {sorted(excluded_tests)} "
+                        "(隐藏测试由评测框架在 craft 后施加, 不做断言校验)"
+                    )
+                return (False, {"check": "grep", "reason": reason}, None)
+            note = (
+                f"断言值 {rebuilt_from!r} 退化, 已按问题陈述重建关键词 {value!r}; "
+                f"命中源文件 {sorted(hits)}"
+            )
+            if excluded_tests:
+                note += (
+                    f"; 已排除测试文件 {sorted(excluded_tests)} "
+                    "(隐藏测试由评测框架在 craft 后施加, 不做断言校验)"
+                )
+            return (True, {"check": "grep", "note": note}, None)
+        missing = [t for t in targets if value not in contents[t]]
         if missing:
-            reason = f"断言值 {criteria.value!r} 未出现在源文件: {missing}"
+            reason = f"断言值 {value!r} 未出现在源文件: {missing}"
             if excluded_tests:
                 reason += (
                     f"; 已排除测试文件 {sorted(excluded_tests)} "
                     "(隐藏测试由评测框架在 craft 后施加, 不做断言校验)"
                 )
             return (False, {"check": "grep", "reason": reason}, None)
-        note = f"断言值 {criteria.value!r} 命中全部目标源文件 {sorted(contents)}"
+        note = f"断言值 {value!r} 命中全部目标源文件 {sorted(contents)}"
         if excluded_tests:
             note += (
                 f"; 已排除测试文件 {sorted(excluded_tests)} "
                 "(隐藏测试由评测框架在 craft 后施加, 不做断言校验)"
             )
         return (True, {"check": "grep", "note": note}, None)
+
+    # -- verify criterion rebuild (W114) ------------------------------------
+
+    def _problem_statement_keywords(self) -> list[str]:
+        """Deterministic keyword extraction from the problem statement.
+
+        Title + description + acceptance criteria are joined, then
+        identifier tokens ([A-Za-z_][A-Za-z0-9_]*) are collected and
+        lowercased. Each token is emitted compound-first and then split on
+        '_' and inner camelCase boundaries, so url_prefix (or urlPrefix)
+        yields url_prefix/url/prefix. Tokens shorter than 3 chars,
+        stopwords and anything containing "test" are dropped; first-seen
+        order is preserved and de-duplicated.
+        """
+        text = " ".join([self.spec.title, self.spec.description, *self.spec.acceptance_criteria])
+        keywords: list[str] = []
+        seen: set[str] = set()
+        for raw in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", text):
+            candidates: list[str] = [raw.lower()]
+            snake_parts = [part for part in raw.split("_") if part]
+            candidates.extend(part.lower() for part in snake_parts)
+            for part in snake_parts:
+                candidates.extend(
+                    piece.lower() for piece in re.findall(r"[A-Z]?[a-z]+|[0-9]+", part)
+                )
+            for token in candidates:
+                if len(token) < 3 or token in seen:
+                    continue
+                if token in _VERIFY_CRITERION_STOPWORDS or "test" in token:
+                    continue
+                seen.add(token)
+                keywords.append(token)
+        return keywords
+
+    def _candidate_source_files(self) -> list[str]:
+        """Source files the rebuilt verify criterion may grep.
+
+        The union of every plan step's non-test target files (the files
+        craft is actually allowed to edit); when the plan carries no
+        source target at all, falls back to a bounded deterministic scan
+        of the workspace's non-test .py files.
+        """
+        candidates: set[str] = set()
+        for plan_step in self.plan.steps:
+            for target in plan_step.target_files:
+                if not is_test_file_path(target):
+                    candidates.add(target)
+        if candidates:
+            return sorted(candidates)
+        return self._scan_source_files()
+
+    def _scan_source_files(self) -> list[str]:
+        """Bounded deterministic scan for non-test .py files in the workspace."""
+        found: list[str] = []
+        for path in self.workspace.rglob("*.py"):
+            relative = path.relative_to(self.workspace)
+            if any(part in _SOURCE_SCAN_SKIP_DIRS for part in relative.parts):
+                continue
+            normalized = relative.as_posix()
+            if is_test_file_path(normalized):
+                continue
+            found.append(normalized)
+        return sorted(found)[:_SOURCE_SCAN_CAP]
+
+    def _rebuild_grep_criterion(self) -> tuple[str, list[str]] | None:
+        """Rebuild a degenerate grep criterion from the problem statement.
+
+        Returns (keyword, source_targets) when a usable criterion can be
+        built — the first keyword (in extraction order) that occurs in at
+        least one candidate source file, else the first keyword — or None
+        when no keyword can be extracted or no source file exists to
+        search (the honest 'unverifiable' case).
+        """
+        keywords = self._problem_statement_keywords()
+        if not keywords:
+            return None
+        targets = self._candidate_source_files()
+        if not targets:
+            return None
+        choice = keywords[0]
+        found = False
+        for keyword in keywords:
+            for target in targets:
+                try:
+                    lines = self.editor.read_file(target)
+                except EditError:
+                    continue
+                if any(keyword in line for _, line in lines):
+                    choice = keyword
+                    found = True
+                    break
+            if found:
+                break
+        return choice, targets
+
+    def _unverifiable_reason(self, value: str) -> str:
+        """Honest reason for a verify criterion that cannot be rebuilt (W114)."""
+        keywords = self._problem_statement_keywords()
+        sources = self._candidate_source_files()
+        if not keywords:
+            return (
+                f"unverifiable: 断言值 {value!r} 退化 (长度<3 或纯标点), "
+                "且无法从问题陈述提取可用关键词 — 验证标准无法重建, "
+                "不进入修复循环, 不计入连续同类失败"
+            )
+        return (
+            f"unverifiable: 断言值 {value!r} 退化, 已提取关键词 {keywords[:5]}, "
+            f"但工作区无任何可搜索的源文件 ({len(sources)} 个候选) — "
+            "验证标准无法重建, 不进入修复循环, 不计入连续同类失败"
+        )
 
     def _exec(self, command: list[str], state: StepState) -> ExecResult:
         self._time_gate(state)
@@ -875,9 +1257,7 @@ class CraftLoop:
         if self.judge_persona:
             base = build_judge_prompt(base)
             self._judge_persona_applied += 1
-        context = self._diagnose_context(
-            step, result, diagnosis, envelope_mode=envelope_mode
-        )
+        context = self._diagnose_context(step, result, diagnosis, envelope_mode=envelope_mode)
         if envelope_mode:
             return self._llm_fix_envelope(client, base, context, step, diagnosis)
         built = assemble(base, "diagnose", context, include_envelope=False)
@@ -902,11 +1282,7 @@ class CraftLoop:
             checker = EditProposalSelfCheck()
 
             def produce(instruction: str | None) -> object:
-                text = (
-                    built.text
-                    if instruction is None
-                    else f"{built.text}\n\n{instruction}"
-                )
+                text = built.text if instruction is None else f"{built.text}\n\n{instruction}"
                 response = self._diagnose_call(
                     client,
                     [LLMMessage(role="user", content=text)],
@@ -935,20 +1311,71 @@ class CraftLoop:
             try:
                 explanation, ops = _parse_edit_ops(data)
             except _LLMFixError as exc:
-                raise _LLMFixError(
-                    f"[{CODE_PROPOSAL_INVALID}] 编辑提案解析失败: {exc}"
-                ) from exc
+                raise _LLMFixError(f"[{CODE_PROPOSAL_INVALID}] 编辑提案解析失败: {exc}") from exc
             if self.semantic_cache is not None and cache_key_value:
                 self.semantic_cache.put(
                     cache_key_value,
                     {"explanation": explanation, "ops": ops},
                     kind="diagnose",
                 )
+            # W114 anchor repair: an apply_edit/apply_patch whose old-string
+            # anchor was rejected arms exactly ONE more model round-trip
+            # whose instruction carries up to 3 real candidate anchor lines
+            # (with line numbers) read from the target file, so the retry
+            # can quote an old string that really exists. A second anchor
+            # rejection fails honestly with the original message.
+            anchor_retried = False
+            while True:
+                try:
+                    edited = self._execute_edit_ops(ops)
+                    break
+                except _AnchorRejectError as reject:
+                    if anchor_retried:
+                        raise _LLMFixError(reject.message) from None
+                    anchor_retried = True
+                    instruction = self._anchor_repair_instruction(
+                        reject.path, reject.old, reject.message
+                    )
+                    repaired = produce(instruction)
+                    outcome = checker.check(repaired)
+                    if outcome.status != "valid":
+                        raise _LLMFixError(
+                            f"[{outcome.code}] 锚点修复重试后编辑提案仍无效: {outcome.message}"
+                        ) from None
+                    data = checker.last_data
+                    if data is None:
+                        raise _LLMFixError(
+                            f"[{CODE_PROPOSAL_INVALID}] 锚点修复重试后数据丢失 (程序错误)"
+                        ) from None
+                    try:
+                        explanation, ops = _parse_edit_ops(data)
+                    except _LLMFixError as exc:
+                        raise _LLMFixError(
+                            f"[{CODE_PROPOSAL_INVALID}] 锚点修复重试解析失败: {exc}"
+                        ) from exc
         else:
             raw_explanation = cached.get("explanation")
             explanation = raw_explanation if isinstance(raw_explanation, str) else ""
             raw_ops = cached.get("ops")
             ops = raw_ops if isinstance(raw_ops, list) else []
+            try:
+                edited = self._execute_edit_ops(ops)
+            except _AnchorRejectError as reject:
+                # a cached proposal has no producer to repair through
+                raise _LLMFixError(reject.message) from None
+        if explanation:
+            return f"[LLM 诊断] {explanation}", edited
+        return diagnosis, edited
+
+    def _execute_edit_ops(self, ops: list[dict[str, Any]]) -> list[str]:
+        """Execute validated edit ops through the Editor (or registry).
+
+        Every op has already passed EditProposalSelfCheck; an
+        apply_edit/apply_patch anchor rejection surfaces as _AnchorRejectError
+        carrying path/old/message so the caller can arm exactly one
+        anchor repair; every other rejection raises _LLMFixError (M1
+        semantics — never faked).
+        """
         edited: list[str] = []
         for op in ops:
             action = op.get("action")
@@ -968,12 +1395,18 @@ class CraftLoop:
                         )
                     )
                     if tool_result.status != "ok":
-                        raise _LLMFixError(f"apply_patch 被拒 ({path}): {tool_result.summary}")
+                        raise _AnchorRejectError(
+                            path,
+                            old_value,
+                            f"apply_patch 被拒 ({path}): {tool_result.summary}",
+                        )
                 else:
                     try:
                         self.editor.apply_edit(path, old_value, new_value)
                     except EditError as exc:
-                        raise _LLMFixError(f"apply_edit 被拒 ({path}): {exc}") from exc
+                        raise _AnchorRejectError(
+                            path, old_value, f"apply_edit 被拒 ({path}): {exc}"
+                        ) from exc
             elif action == "write_file":
                 if not isinstance(new_value, str):
                     raise _LLMFixError(f"write_file 需要字符串 new: {op!r}")
@@ -994,9 +1427,48 @@ class CraftLoop:
                 raise _LLMFixError(f"未知编辑动作 {action!r} (仅支持 apply_edit|write_file)")
             if path not in edited:
                 edited.append(path)
-        if explanation:
-            return f"[LLM 诊断] {explanation}", edited
-        return diagnosis, edited
+        return edited
+
+    def _anchor_candidates(self, path: str, old: str) -> list[tuple[int, str]]:
+        """Up to 3 real candidate anchor lines (numbered) from the target file.
+
+        Prefers lines containing the longest identifier token of the
+        rejected old string; falls back to the first non-blank lines.
+        """
+        try:
+            lines = self.editor.read_file(path)
+        except EditError:
+            return []
+        tokens = re.findall(r"[A-Za-z0-9_]{3,}", old)
+        probe = max(tokens, key=len) if tokens else ""
+        hits = [(number, text) for number, text in lines if probe and probe in text]
+        if not hits:
+            hits = [(number, text) for number, text in lines if text.strip()]
+        return hits[:_MAX_ANCHOR_CANDIDATES]
+
+    def _anchor_repair_instruction(self, path: str, old: str, rejection: str) -> str:
+        """ONE deterministic repair instruction for an anchor rejection (W114).
+
+        Carries up to 3 REAL candidate anchor lines with line numbers from
+        the target file so the retry can quote an old string that exists.
+        """
+        candidates = self._anchor_candidates(path, old)
+        if candidates:
+            block = "\n".join(f"line {number}: {text}" for number, text in candidates)
+        else:
+            block = "(目标文件不可读或无内容 — 请改用 write_file)"
+        return (
+            "EDIT PROPOSAL SELF-CHECK — your apply_edit was REJECTED and NOT executed.\n"
+            f"error: {rejection}\n"
+            f"Real anchor candidates from the CURRENT content of {path} (numbered) — "
+            "copy ONE of these lines EXACTLY (byte-for-byte, indentation and inline "
+            'whitespace included) as the "old" string of your corrected apply_edit '
+            f"(up to {_MAX_ANCHOR_CANDIDATES} candidates shown):\n"
+            f"{block}\n"
+            "Respond with exactly ONE corrected JSON object with top-level keys "
+            '"diagnosis" (string, one sentence) and "edits" (array of edit '
+            "operations) — no markdown fences, no prose."
+        )
 
     def _diagnose_call(
         self,
@@ -1076,8 +1548,7 @@ class CraftLoop:
         outcome = checker.check_with_retry(produce)
         if outcome.status != "valid":
             raise _LLMFixError(
-                f"工具调用信封自检未通过 ({outcome.status}, code={outcome.code}): "
-                f"{outcome.message}"
+                f"工具调用信封自检未通过 ({outcome.status}, code={outcome.code}): {outcome.message}"
             )
         envelope = produced[-1]
         if not isinstance(envelope, dict):
@@ -1089,17 +1560,14 @@ class CraftLoop:
             raise _LLMFixError("信封自检通过但 action/params 类型非法 (内部不一致)")
         if action not in ("apply_patch", "create_file"):
             raise _LLMFixError(
-                f"信封自检通过但工具 {action!r} 不是编辑工具 "
-                "(仅支持 apply_patch|create_file)"
+                f"信封自检通过但工具 {action!r} 不是编辑工具 (仅支持 apply_patch|create_file)"
             )
         version = (
             raw_version
             if isinstance(raw_version, int) and not isinstance(raw_version, bool)
             else None
         )
-        tool_result = registry.dispatch(
-            registry.build_tool_call(action, params, version=version)
-        )
+        tool_result = registry.dispatch(registry.build_tool_call(action, params, version=version))
         if tool_result.status != "ok":
             raise _LLMFixError(f"{action} 被拒: {tool_result.summary}")
         path = params.get("path")
@@ -1117,13 +1585,14 @@ class CraftLoop:
     ) -> dict[str, str]:
         """Failure context for the diagnose prompt: step schema, deterministic
         diagnosis, failure output tail, the current real content of each
-        candidate source file as the edit anchor (first 400 lines, capped),
+        candidate source file as the edit anchor (up to 2000 lines, capped),
         the editor API contract and the JSON output contract. envelope_mode
         (W44 self-check) swaps the edit-proposal schema for the JSON Action
         Envelope contract."""
-        # W113 anchor fix: the prompt must carry the CURRENT real content
-        # of every candidate SOURCE file (bounded to the first 400 lines,
-        # raw lines, no numbering) so the model quotes old strings from the
+        # W113/W114 anchor fix: the prompt must carry the CURRENT real
+        # content of every candidate SOURCE file (bounded to the first
+        # MAX_READ_LINES lines — 2000 since W114, previously 400 — raw
+        # lines, no numbering) so the model quotes old strings from the
         # real text instead of reconstructing code from memory
         # (pallets__flask-4045: apply_edit 拒绝 old 未命中 src/flask/helpers.py).
         # Test files are excluded — editing them is forbidden and the hidden
@@ -1135,33 +1604,34 @@ class CraftLoop:
                 excluded_test_targets.append(target)
                 continue
             try:
-                lines = self.editor.read_file(target, limit=401)
+                lines = self.editor.read_file(target, limit=MAX_READ_LINES)
             except EditError:
                 snippets.append(f"--- {target} ---\n<不可读>")
                 continue
-            over_line_limit = len(lines) > 400
-            shown = lines[:400]
+            over_line_limit = len(lines) >= MAX_READ_LINES and bool(
+                self.editor.read_file(target, offset=MAX_READ_LINES + 1, limit=1)
+            )
+            shown = lines[:MAX_READ_LINES]
             text = "\n".join(line for _, line in shown)
-            if len(text) > 12_000:
-                cut = text.rfind("\n", 0, 12_000)
+            if len(text) > _ANCHOR_CHAR_CAP:
+                cut = text.rfind("\n", 0, _ANCHOR_CHAR_CAP)
                 if cut < 0:
-                    cut = 12_000
+                    cut = _ANCHOR_CHAR_CAP
                 text = text[:cut] + "\n... (截断)"
             elif over_line_limit:
-                text += "\n... (仅显示前 400 行)"
+                text += f"\n... (仅显示前 {MAX_READ_LINES} 行)"
             snippets.append(f"--- {target} ---\n{text}")
         anchor_header = (
             "FILE CONTENT ANCHOR — quote old strings EXACTLY from the file content "
             "above: each candidate SOURCE file's current real text follows (at most "
-            "the first 400 lines); every apply_edit \"old\" must be copied "
-            "byte-for-byte from a real line above (indentation and inline whitespace "
-            "included). Never reconstruct code from memory. Test files are excluded "
-            "— hidden tests are applied by the harness itself after craft."
+            f'the first {MAX_READ_LINES} lines); every apply_edit "old" must be '
+            "copied byte-for-byte from a real line above (indentation and inline "
+            "whitespace included). Never reconstruct code from memory. Test files "
+            "are excluded — hidden tests are applied by the harness itself after "
+            "craft."
         )
         if excluded_test_targets:
-            anchor_header += (
-                f" Excluded test files: {sorted(excluded_test_targets)}."
-            )
+            anchor_header += f" Excluded test files: {sorted(excluded_test_targets)}."
         target_section = (
             f"{anchor_header}\n\n" + "\n\n".join(snippets)
             if snippets
@@ -1179,9 +1649,7 @@ class CraftLoop:
             "target_files": target_section,
             "task_memory": self.memory.summarize_for_prompt() or "(无任务记忆)",
             "editor_api": tool_surface,
-            "output_schema": (
-                JSON_ACTION_ENVELOPE_BLOCK if envelope_mode else _EDIT_OPS_SCHEMA
-            ),
+            "output_schema": (JSON_ACTION_ENVELOPE_BLOCK if envelope_mode else _EDIT_OPS_SCHEMA),
         }
 
     @staticmethod
@@ -1261,14 +1729,10 @@ class CraftLoop:
             if entry.action in ("write", "edit"):
                 self.memory.add("file_written", entry.path, step_id=step_id)
             elif entry.action == "delete":
-                self.memory.add(
-                    "file_written", f"deleted: {entry.path}", step_id=step_id
-                )
+                self.memory.add("file_written", f"deleted: {entry.path}", step_id=step_id)
             elif entry.action == "move":
                 destination = entry.detail.removeprefix("→ ").strip()
-                self.memory.add(
-                    "file_written", f"{entry.path} -> {destination}", step_id=step_id
-                )
+                self.memory.add("file_written", f"{entry.path} -> {destination}", step_id=step_id)
 
     def interrupt_checkpoint(self) -> None:
         """Ctrl-C flush (卷 XXI §21.3): persist the in-flight step as an
@@ -1366,9 +1830,7 @@ class CraftLoop:
         # closure (gates + SpecProof verification + certificate).
         gates_report: dict[str, Any] | None = None
         if not self.skip_self_verify:
-            gates_report = self._run_gate_pipeline(
-                changed_files, base_files, self_verify_report
-            )
+            gates_report = self._run_gate_pipeline(changed_files, base_files, self_verify_report)
         self.memory.add(
             "decision",
             f"自校验: {self_verify_report['status']} "
@@ -1404,9 +1866,7 @@ class CraftLoop:
         # router fallbacks, cache hits and the judge-persona flag. Zeros
         # when nothing is configured — the report shape is stable.
         self_check_metrics: dict[str, Any] = (
-            self.tool_call_self_check.metrics()
-            if self.tool_call_self_check is not None
-            else {}
+            self.tool_call_self_check.metrics() if self.tool_call_self_check is not None else {}
         )
         report["gains"] = {
             "tool_call_attempts": int(self_check_metrics.get("attempts") or 0),
@@ -1418,16 +1878,12 @@ class CraftLoop:
             "router_fallback_count": (
                 int(self.router.fallback_count) if self.router is not None else 0
             ),
-            "cache_hits": (
-                int(self.semantic_cache.hits) if self.semantic_cache is not None else 0
-            ),
+            "cache_hits": (int(self.semantic_cache.hits) if self.semantic_cache is not None else 0),
             "judge_persona_applied": int(self._judge_persona_applied),
         }
         if self.plan.llm_fallback_reason:
             report["llm_fallback_reason"] = self.plan.llm_fallback_reason
-        self.memory.add(
-            "decision", f"任务终态: {result} (迭代 {self.total_iterations})"
-        )
+        self.memory.add("decision", f"任务终态: {result} (迭代 {self.total_iterations})")
         self.memory.add(
             "budget",
             f"tokens={round(tokens_used, 1)} iterations={self.total_iterations} "
@@ -1467,6 +1923,7 @@ class CraftLoop:
         """Run the five-gate pipeline at finish; gate 5 reuses the M3 report
         computed above (never re-scans), and any pipeline crash degrades to
         an honest error summary instead of losing the report."""
+
         def passthrough(
             changed: list[str],
             workspace: Path,
@@ -1488,8 +1945,7 @@ class CraftLoop:
                 "duration_ms": 0,
                 "gates": [],
                 "summary": (
-                    f"GATES: task={self.job_id} overall=error duration_ms=0 "
-                    f"(组合执行异常: {exc!r})"
+                    f"GATES: task={self.job_id} overall=error duration_ms=0 (组合执行异常: {exc!r})"
                 ),
             }
 
