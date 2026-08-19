@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.contract_results import merge_contract_results
+from agent.job_control import run_with_cancel_checks
 from agent.nodes.build_cache import (
     base_build_cache_dir,
     freeze_unchanged_sources,
@@ -115,6 +116,7 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     generation_record = state.get("generation_record", {})
     contracts = state.get("contracts", [])
     generated_tests_path = state.get("generated_tests_path", "")
+    job_id = state.get("job_id")
 
     empty_result: dict[str, Any] = {
         "diff_results": [{
@@ -213,8 +215,14 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     )
 
     # ── Run the SAME generated test on Base and Head ──
+    # §14 任务 8: cancellation checkpoints before+after each differential
+    # execution — a cancelled job neither starts the run nor receives its
+    # result (no business results get written).
     base_start = time.monotonic()
-    base_result = _run_generated_test(base_app, test_class, skip_main=base_cache_hit)
+    base_result = run_with_cancel_checks(
+        job_id, "maven_base", _run_generated_test,
+        base_app, test_class, skip_main=base_cache_hit,
+    )
     base_seconds = round(time.monotonic() - base_start, 1)
     if cache_dir is not None and base_result.get("exit_code") == 0:
         save_base_build(cache_dir, base_app)
@@ -234,13 +242,18 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         head_seconds = 0.0
     else:
         head_start = time.monotonic()
-        head_result = _run_generated_test(head_app, test_class)
+        head_result = run_with_cancel_checks(
+            job_id, "maven_head", _run_generated_test, head_app, test_class,
+        )
         head_seconds = round(time.monotonic() - head_start, 1)
 
     # ── Execution-time reliability probes (阶段4, cases 97/98/100) ──
     # Independent of the generated-test verdict: the probe scaffolding rides
     # the case-head ref and gets copied into the base workspace here.
-    probe_results = _run_probe_experiment(state, base_app, head_app, base_cache_hit)
+    probe_results = run_with_cancel_checks(
+        job_id, "maven_probe", _run_probe_experiment,
+        state, base_app, head_app, base_cache_hit,
+    )
 
     if base_result.get("error") or head_result.get("error"):
         err_detail = (

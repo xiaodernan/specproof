@@ -22,6 +22,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from agent.job_control import run_with_cancel_checks
 from agent.state import Phase0State
 
 
@@ -32,6 +33,7 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
     head_workspace = state.get("head_workspace", "")
     app_dir = state.get("app_dir", "")
     generated_tests_path = state.get("generated_tests_path", "")
+    job_id = state.get("job_id")
     if not head_workspace or not generated_tests_path:
         return {
             "deep_results": {},
@@ -53,7 +55,7 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
         report = run_mutation_campaign(
             rel_path,
             content,
-            _make_test_runner(app, rel_path, generated_tests_path),
+            _make_test_runner(app, rel_path, generated_tests_path, job_id),
             max_mutants=10,
         )
         mutation_reports.append(report.to_dict())
@@ -73,7 +75,9 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
         mysql_tables=["verification_jobs", "findings"],
         rabbit_queues=["q.p1.verify.job"],
     )
-    head_run = _run_test_via_sandbox(app, generated_tests_path)
+    head_run = run_with_cancel_checks(
+        job_id, "deep_head_run", _run_test_via_sandbox, app, generated_tests_path,
+    )
     after = capture_full_stack(
         mysql, redis, rabbitmq,
         mysql_tables=["verification_jobs", "findings"],
@@ -104,9 +108,15 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
 
 def _make_test_runner(
     app: str, rel_path: str, generated_tests_path: str,
+    job_id: str | None = None,
 ) -> Callable[[str], tuple[int, str]]:
     """Runner that swaps a mutated source into the workspace and runs the
-    generated test via the sandbox. Returns (exit_code, error)."""
+    generated test via the sandbox. Returns (exit_code, error).
+
+    §14 任务 8: each mutant's Maven run carries before+after cancellation
+    checkpoints; the finally-block still restores the original source even
+    when a checkpoint raises (workspace cleanup is not a business result).
+    """
 
     target = Path(app) / "src" / "main" / "java" / rel_path
 
@@ -114,7 +124,10 @@ def _make_test_runner(
         original = target.read_text(encoding="utf-8")
         try:
             target.write_text(mutated_content, encoding="utf-8")
-            run = _run_test_via_sandbox(app, generated_tests_path)
+            run = run_with_cancel_checks(
+                job_id, "deep_mutation_run",
+                _run_test_via_sandbox, app, generated_tests_path,
+            )
             return run["exit_code"], run["error"]
         finally:
             target.write_text(original, encoding="utf-8")

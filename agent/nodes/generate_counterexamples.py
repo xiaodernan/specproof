@@ -21,6 +21,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from agent.job_control import (
+    JobCancelledError,
+    check_cancelled,
+    run_with_cancel_checks,
+)
 from agent.state import Phase0State
 
 # ── Test source tracking ──────────────────────────────────────────
@@ -1060,8 +1065,14 @@ async def _generate_with_compile_loop(
     findings: list[dict[str, Any]],
     contracts: list[dict[str, Any]],
     requirement_text: str,
+    job_id: str | None = None,
 ) -> GenerationResult:
-    """LLM generate → validate schema → compile, retry up to 3 times."""
+    """LLM generate → validate schema → compile, retry up to 3 times.
+
+    §14 任务 8: cancellation checkpoint before every LLM retry iteration and
+    around the Maven compile — a cancelled job stops before the next LLM
+    call and never receives the compile result.
+    """
     max_retries = 3
     test_dir = (
         Path(head_workspace) / "src" / "test" / "java"
@@ -1084,6 +1095,7 @@ async def _generate_with_compile_loop(
     last_stderr = ""
     last_exit = -1
     for attempt in range(1, max_retries + 1):
+        check_cancelled(job_id, "llm_generate_attempt")
         try:
             code = await _llm_generate_junit(findings, contracts, requirement_text)
             last_code = code
@@ -1097,7 +1109,9 @@ async def _generate_with_compile_loop(
             continue
 
         test_file.write_text(code, encoding="utf-8")
-        exit_code, stderr = _compile_test(head_workspace, str(test_file))
+        exit_code, stderr = run_with_cancel_checks(
+            job_id, "maven_compile", _compile_test, head_workspace, str(test_file)
+        )
         last_exit = exit_code
         last_stderr = stderr
 
@@ -1138,6 +1152,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
     requirement_text = state.get("requirement_text", "")
     head_workspace = state.get("head_workspace", "")
     app_dir = state.get("app_dir", "")
+    job_id = state.get("job_id")
     all_findings = static_findings + confirmed_findings
 
     record = TestGenerationRecord()
@@ -1186,7 +1201,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
                         asyncio.run,
                         _generate_with_compile_loop(
                             head_workspace, all_findings or static_findings,
-                            contracts, requirement_text,
+                            contracts, requirement_text, job_id=job_id,
                         ),
                     )
                     gen_result = future.result(timeout=300)
@@ -1194,9 +1209,13 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
                 gen_result = asyncio.run(
                     _generate_with_compile_loop(
                         app_workspace, all_findings or static_findings,
-                        contracts, requirement_text,
+                        contracts, requirement_text, job_id=job_id,
                     )
                 )
+        except JobCancelledError:
+            # §14 任务 8: a cancellation checkpoint fired inside the
+            # generation loop — propagate, never fall back to more work.
+            raise
         except Exception as exc:  # noqa: BLE001
             gen_result = GenerationResult(
                 source="deterministic_template",
@@ -1257,7 +1276,10 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
         # semantics stay identical to the old separate compile step.
         from agent.nodes.run_differential import _run_generated_test
 
-        head_run = _run_generated_test(app_workspace, "SpecProofGeneratedTest")
+        head_run = run_with_cancel_checks(
+            job_id, "maven_deterministic_head",
+            _run_generated_test, app_workspace, "SpecProofGeneratedTest",
+        )
         output_tail = (
             head_run.get("stdout", "") + head_run.get("stderr", "")
         )[-500:]
