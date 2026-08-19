@@ -327,9 +327,14 @@ class TestCompatibilityMatrixContent:
         assert rows[0].build_tool == "Maven"
         assert rows[0].status == "已支持 (实测)"
         assert rows[0].image_digest.startswith("sha256:")
-        assert all(row.status == "规划 (planned)" for row in rows[1:])
-        planned_build_tools = {row.build_tool for row in rows[1:]}
-        assert planned_build_tools == {"Gradle", "npm", "pip/uv", "go build"}
+        planned_rows = [row for row in rows[1:] if row.language != "Python"]
+        assert all(row.status == "规划 (planned)" for row in planned_rows)
+        planned_build_tools = {row.build_tool for row in planned_rows}
+        assert planned_build_tools == {"Gradle", "npm", "go build"}
+        python_row = next(row for row in rows if row.language == "Python")
+        assert python_row.build_tool == "pip"
+        assert python_row.test_runner == "pytest"
+        assert python_row.status == "已支持 (local-first)"
 
     def test_matrix_document_declares_everything(self) -> None:
         text = MATRIX_DOC.read_text(encoding="utf-8")
@@ -360,7 +365,7 @@ def test_detect_functions_exist_for_planned_adapters() -> None:
 
     for fn in (
         adapters.detect_java_gradle, adapters.detect_node,
-        adapters.detect_python, adapters.detect_go,
+        adapters.detect_go,
     ):
         with pytest.raises(AdapterNotImplemented, match="planned"):
             fn(RepositorySnapshot(path="."))

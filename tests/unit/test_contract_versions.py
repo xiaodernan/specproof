@@ -65,7 +65,7 @@ def registry() -> ContractRegistry:
 def test_checker_modules_declare_stable_checker_version():
     assert java_module.CHECKER_VERSION == "2.0.0"
     assert constitution_module.CHECKER_VERSION == "1.0.0"
-    assert schema_module.CHECKER_VERSION == "1.0.0"
+    assert schema_module.CHECKER_VERSION == "1.1.0"
 
 
 def test_checker_version_resolution_is_stable():
