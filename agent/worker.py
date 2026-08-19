@@ -23,7 +23,7 @@ from agent.graph import build_phase0_graph
 from agent.mongo_saver import MongoDBSaver
 from agent.state import initial_state
 from storage.mysql import InvalidStateTransition, MySQLStore
-from storage.rabbitmq import RabbitMQClient
+from storage.rabbitmq import RabbitMQClient, make_idempotency_check
 from storage.redis import RedisStore
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,15 @@ class Worker:
     # ── Public API ───────────────────────────────────────────────
 
     def start(self) -> None:
-        """Start consuming jobs. Blocks until stop() is called."""
+        """Register the job consumer on q.p1.verify.job.
+
+        main() pumps the blocking connection with start_consuming() right
+        after this call; deliveries are not processed until then. The
+        idempotency check follows the consumer contract (True = duplicate)
+        via storage.rabbitmq.make_idempotency_check — passing
+        RedisStore.set_idempotent directly would invert the boolean and
+        silently drop every message as a "duplicate".
+        """
         self._running = True
         self.rabbitmq.ensure_topology()
 
@@ -64,7 +72,7 @@ class Worker:
             queue="q.p1.verify.job",
             callback=self._handle_job,
             policy=None,
-            idempotency_fn=self.redis.set_idempotent,
+            idempotency_fn=make_idempotency_check(self.redis),
         )
 
     def stop(self) -> None:
@@ -403,6 +411,14 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _shutdown)
 
     worker.start()
+    # Pump deliveries: the blocking connection only dispatches consumer
+    # callbacks while start_consuming() runs. It returns when the
+    # connection is lost (logged by RabbitMQClient), after which the
+    # process exits non-zero so the launcher/supervisor can restart it.
+    worker.rabbitmq.start_consuming()
+    worker.stop()
+    logger.error("RabbitMQ consumption loop ended — worker exiting")
+    sys.exit(1)
 
 
 if __name__ == "__main__":

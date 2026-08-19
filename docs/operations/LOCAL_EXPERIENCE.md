@@ -13,7 +13,7 @@ pwsh scripts\start_local.ps1
 
 1. **基础设施** — `docker compose -f compose.phase0.yml up -d` 并等待健康检查
    (MySQL / MongoDB / Elasticsearch / Redis / RabbitMQ / MinIO; MySQL 必须就绪, 其余降级放行);
-2. **验证管道 (W43.1)** — 启动验证 Worker (`python scripts\run_worker.py`) 与 Outbox Relay
+2. **验证管道 (W43.1)** — 启动验证 Worker (`python -m agent.worker`) 与 Outbox Relay
    (`python -m storage.outbox_relay`, 日志 `.local\worker.log` / `.local\outbox.log`),
    使"新建验证"任务真正走完 QUEUED → RUNNING → 终态; 已运行时跳过;
    启动失败只警告不阻断 (体验优先, 原因写日志);
@@ -253,10 +253,11 @@ Agent 任务存储回退到 SQLite `.local\specproof_agent_jobs.db`。种子数�
 1. **worker/outbox 已随一键启动拉起 (W43.1)**: `start_local.ps1` 在 API 之前依次启动验证 Worker
    与 Outbox Relay (顺序: infra → worker → outbox → API → seed → Vite; 启动失败只警告不阻断,
    原因写入 `.local\worker.log` / `.local\outbox.log`), 新建验证任务不再停在 QUEUED ——
-   实测 QUEUED → BLOCKED 真实闭环 (见 §4.1)。Worker 由 `scripts/run_worker.py` 启动,
-   该启动器兜底了两处上游回归并已报告给对应车道: ① `python -m agent.worker` 的 main()
-   注册消费者后从不泵送连接 (进程随即退出, 消息永远停在 ready, 实测复现); ② Worker.start() 传入的
-   幂等检查布尔语义与消费者契约相反 (True 应为"重复")。启动器不改动任何现有源码。
+   实测 QUEUED → BLOCKED 真实闭环 (见 §4.1)。Worker 原生入口 `python -m agent.worker`
+   已随 W43.1 修复两处回归并配回归测试 (tests/unit/test_worker_consume_pump.py): ① main()
+   现在在注册消费者后调用 start_consuming() 泵送投递 (此前进程退出、消息永远停在 ready);
+   ② Worker.start() 改用 storage.rabbitmq.make_idempotency_check 适配器 (True=重复),
+   此前直接传 set_idempotent 布尔反转会丢弃每条消息。
    遗留: Worker 只写 summary/findings, 不落盘证书文件, 所以真实任务的"证书"页是诚实的 404
    (证书由 CLI verify 流落盘); 确定性档的规则编译契约多为 UNVERIFIED (诚实的降级,
    LLM 增强档的契约编译/反例生成更完整)。
@@ -300,7 +301,7 @@ Agent 任务存储回退到 SQLite `.local\specproof_agent_jobs.db`。种子数�
 | `scripts/start_local.ps1` | 一键启动 (幂等), 日志 `.local/api.log` / `.local/web.log` |
 | `scripts/stop_local.ps1` | 停前后端进程树 + `compose down` (数据卷保留) |
 | `scripts/seed_demo.py` | 幂等演示播种 (3 验证任务 + 1 Agent 任务; MySQL 优先 / SQLite 回退; ruff + mypy --strict 全绿) |
-| `scripts/run_worker.py` | W43.1 验证 Worker 启动器 (泵送消费循环 + 修正幂等适配器, 见 §7.1; ruff + mypy --strict 全绿) |
+| `tests/unit/test_worker_consume_pump.py` | W43.1 验证 Worker 消费接线回归测试 (泵送循环 + 幂等适配器语义, 2 用例) |
 | `tests/unit/test_seed_demo.py` | 播种幂等性 (SQLite 回退跑两遍 → 相同数量、零重复) + 无密钥断言 |
 | `docs/operations/LOCAL_EXPERIENCE.md` | 本文档 |
 | `.local/.gitignore` | 运行时目录 (日志/PID/回退库) 永不入库 |

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   SpecProof 一键本地启动 (W43/W43.1): infra -> Worker/Outbox -> API -> seed -> Vite。
 .DESCRIPTION
@@ -26,7 +26,6 @@ $LocalDir     = Join-Path $RepoRoot ".local"
 $Compose      = Join-Path $RepoRoot "compose.phase0.yml"
 $WebDir       = Join-Path $RepoRoot "apps\web"
 $SeedScript   = Join-Path $RepoRoot "scripts\seed_demo.py"
-$WorkerScript = Join-Path $RepoRoot "scripts\run_worker.py"
 
 $ApiUrl     = "http://127.0.0.1:8000"
 $WebUrl     = "http://localhost:5173"
@@ -227,7 +226,7 @@ if ($needWorkerStart) {
             -OutLog (Join-Path $LocalDir "worker.log") `
             -ErrLog (Join-Path $LocalDir "worker.err") `
             -FilePath $pythonPath `
-            -Arguments @($WorkerScript) `
+            -Arguments @("-m", "agent.worker") `
             -WorkDir $RepoRoot
         Write-Info "Worker 启动中 (日志: .local\worker.log) ..."
         $deadline = (Get-Date).AddSeconds(60)
