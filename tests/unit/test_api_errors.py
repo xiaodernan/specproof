@@ -75,7 +75,7 @@ class FakeMySQLStore:
         if FakeMySQLStore.fail_next:
             raise ConnectionError("mysql down")
         FakeMySQLStore.rows[job["id"]] = {**job, "status": "QUEUED"}
-        return job["id"]
+        return str(job["id"])
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         return FakeMySQLStore.rows.get(job_id)
@@ -166,10 +166,11 @@ def test_code_table_canonical_statuses() -> None:
 def test_error_response_shape() -> None:
     body = error_response(404, JOB_NOT_FOUND, "Job nope not found", "abc123def4567890")
     assert set(body) == {"error", "schema_version"}
-    assert set(body["error"]) == {"code", "message", "request_id"}
+    assert set(body["error"]) == {"code", "message", "request_id", "retryable"}
     assert body["error"]["code"] == JOB_NOT_FOUND
     assert body["error"]["message"] == "Job nope not found"
     assert body["error"]["request_id"] == "abc123def4567890"
+    assert body["error"]["retryable"] is False  # not-found class is permanent
     assert body["schema_version"] == SCHEMA_VERSION == 1
 
 

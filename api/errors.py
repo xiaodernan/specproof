@@ -12,7 +12,8 @@ Wire shape of an error response (backward compatible with FastAPI clients
         "error": {
             "code": "JOB_NOT_FOUND",
             "message": "<same text as detail when detail is a string>",
-            "request_id": "3fa0c2e19b4d4a1f"
+            "request_id": "3fa0c2e19b4d4a1f",
+            "retryable": false
         },
         "schema_version": 1
     }
@@ -87,6 +88,38 @@ DEFAULT_CODE_BY_STATUS: dict[int, str] = {
     503: PROVIDER_UNAVAILABLE,
 }
 
+#: Error code → failure class (§14.3). Clients derive retryable from the
+#: class, never from the HTTP status or English text: client/permission/
+#: not-found/conflict failures are permanent for the same request, while
+#: degrade/execution-failure/rate-limit/internal failures may succeed on a
+#: later attempt.
+ERROR_CLASS_BY_CODE: dict[str, str] = {
+    AUTH_REQUIRED: "client",
+    TENANT_FORBIDDEN: "permission",
+    QUOTA_EXCEEDED: "rate-limit",
+    JOB_NOT_FOUND: "not-found",
+    PROVIDER_UNAVAILABLE: "degrade",
+    EVIDENCE_UNVERIFIED: "execution-failure",
+    RATE_LIMITED: "rate-limit",
+    PAYLOAD_TOO_LARGE: "client",
+    VALIDATION_FAILED: "client",
+    INTERNAL: "internal",
+    STATE_CONFLICT: "conflict",
+    USER_NOT_FOUND: "not-found",
+}
+
+#: §14.3 failure classes that may succeed on a later attempt.
+RETRYABLE_CLASSES = frozenset({"degrade", "execution-failure", "rate-limit", "internal"})
+
+
+def is_retryable(code: str) -> bool:
+    """True when the code's failure class is retryable (§14.3).
+
+    Unknown codes fail closed to False: a client must not retry a request
+    whose failure class the server did not name.
+    """
+    return ERROR_CLASS_BY_CODE.get(code, "client") in RETRYABLE_CLASSES
+
 
 def error_response(
     status: int, code: str, detail: object, request_id: str | None = None,
@@ -97,7 +130,10 @@ def error_response(
     exactly one HTTP status) and reserved for callers that log or relay the
     envelope; it is not duplicated inside the JSON because the transport
     already carries it. When request_id is omitted a fresh 16-hex id is
-    generated so the field is never missing on the wire.
+    generated so the field is never missing on the wire. retryable is
+    derived from the code's failure class (§14.3): client/permission/
+    not-found/conflict → False, degrade/execution-failure/rate-limit/
+    internal → True.
     """
     rid = request_id if request_id is not None else uuid.uuid4().hex[:16]
     if isinstance(detail, str):
@@ -105,7 +141,12 @@ def error_response(
     else:
         message = json.dumps(detail, ensure_ascii=False, default=str)
     return {
-        "error": {"code": code, "message": message, "request_id": rid},
+        "error": {
+            "code": code,
+            "message": message,
+            "request_id": rid,
+            "retryable": is_retryable(code),
+        },
         "schema_version": SCHEMA_VERSION,
     }
 
@@ -117,8 +158,8 @@ def api_error_response(
 
     Old FastAPI clients keep reading detail exactly as before (string for
     route errors, list for validation errors); new clients read
-    error.code / error.message / schema_version instead of parsing
-    English text.
+    error.code / error.message / error.retryable / schema_version instead
+    of parsing English text.
     """
     return {"detail": detail, **error_response(status, code, detail, request_id)}
 
