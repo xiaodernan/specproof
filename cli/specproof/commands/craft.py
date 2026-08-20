@@ -534,7 +534,7 @@ def _bundle_from_job_report(job_id: str, report: dict[str, Any]) -> ChangeBundle
     compile step evidence projects into TestResult entries verbatim (the
     exit codes are the recorded facts, never re-derived).
     """
-    diff_stat = report.get("diff_stat")
+    diff_stat = report.get("diff_stat") or {}
     files = [
         str(path) for path in (diff_stat.get("files") or []) if isinstance(path, str)
     ]
