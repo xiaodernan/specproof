@@ -30,7 +30,10 @@ LLM mode (--mode llm):
   repo instead of dying on a bare system python. FAIL_TO_PASS / PASS_TO_PASS
   replay with the same interpreter. A deps install failure is recorded
   (deps.install_error) and craft proceeds honestly — its pytest steps
-  surface the real stderr/exit code, never silence;
+  surface the real stderr/exit code, never silence; era-compatible
+  transitive pins (_REPO_DEP_PINS, flask -> werkzeug<3.1) are appended
+  to the pip command for matching repo slugs and recorded per instance
+  as deps.pins — nothing else is ever pinned;
 - a venv creation / pytest-verify failure automatically falls back to
   --no-venv (current interpreter, no pip installs) with the reason recorded
   in run.venv and per-instance deps; --no-venv skips the venv/deps stage
@@ -87,6 +90,26 @@ _ROWS_API = "https://datasets-server.huggingface.co/rows"
 _LLM_ENV_VARS = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
 _INSTANCE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+__[A-Za-z0-9_.-]+-\d+$")
 _INSTALL_MARKERS = ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt")
+
+#: Era-compatible transitive dependency pins, keyed by repo slug (the last
+#: path segment of the instance `repo` field). The shared SWE-bench venv
+#: resolves latest deps by default, which broke pallets__flask-4045 with
+#: "ImportError: cannot import name url_quote from werkzeug.urls" — pip
+#: installed werkzeug 3.x for a flask 2.3-era instance whose url_quote was
+#: removed in werkzeug 3.1 (docs/eval/swebench-llm-results-v5.json). Pins
+#: apply ONLY to the slugs listed here; everything else keeps current
+#: behavior (a deps failure is still recorded and never fatal).
+_REPO_DEP_PINS: dict[str, list[str]] = {
+    "flask": ["werkzeug<3.1"],
+}
+
+
+def _pins_for_repo(repo: str) -> list[str]:
+    """Era pins for a repo (slug = last path segment); [] when unpinned."""
+    slug = repo.rstrip("/").rsplit("/", 1)[-1].lower()
+    if slug.endswith(".git"):
+        slug = slug[:-4]
+    return list(_REPO_DEP_PINS.get(slug, []))
 
 
 def _fix_toycalc_double(editor: Editor, step: Step, diagnosis: str) -> list[str]:
@@ -604,28 +627,46 @@ def _first_install_marker(workdir: Path) -> str | None:
 
 
 def _install_instance_deps(
-    python: str, workdir: Path, marker: str, timeout: int
+    python: str, workdir: Path, marker: str, timeout: int, repo: str = ""
 ) -> dict[str, Any]:
     """Trivial dependency install into the shared venv. Failure is returned
     (honest "deps unavailable"), never raised — heavy/compiled dependencies
-    simply time out or fail on record."""
+    simply time out or fail on record.
+
+    The instance repo's era pins (_REPO_DEP_PINS) are appended to the pip
+    command so era-mismatched transitive deps cannot break the shared venv
+    (flask -> werkzeug<3.1, real evidence pallets__flask-4045). The pins
+    actually used ride every result as `pins` for the per-instance deps
+    record. Only repos listed in the pin map are affected — everything
+    else keeps the current command and failure semantics (recorded,
+    never fatal).
+    """
+    pins = _pins_for_repo(repo)
     if marker == "requirements.txt":
         command = [python, "-m", "pip", "install", "--no-input",
-                   "--disable-pip-version-check", "-r", marker]
+                   "--disable-pip-version-check", "-r", marker, *pins]
     else:
         command = [python, "-m", "pip", "install", "--no-input",
-                   "--disable-pip-version-check", "."]
+                   "--disable-pip-version-check", ".", *pins]
     try:
         proc = subprocess.run(
             command, cwd=workdir, capture_output=True, text=True,
             timeout=timeout, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"installed": False, "error": f"pip install 执行失败 ({marker}): {exc}"}
+        return {
+            "installed": False,
+            "error": f"pip install 执行失败 ({marker}): {exc}",
+            "pins": pins,
+        }
     tail = f"{proc.stdout}\n{proc.stderr}".strip()
     if proc.returncode != 0:
-        return {"installed": False, "error": f"pip install 失败 ({marker}): {tail[-800:]}"}
-    return {"installed": True, "error": ""}
+        return {
+            "installed": False,
+            "error": f"pip install 失败 ({marker}): {tail[-800:]}",
+            "pins": pins,
+        }
+    return {"installed": True, "error": "", "pins": pins}
 
 
 # -- fix registry ----------------------------------------------------------
@@ -1055,6 +1096,7 @@ def run_instance(
             "install_marker": None,
             "installed": False,
             "install_error": "",
+            "pins": [],
         }
         craft_python: str | None = None
         if llm_mode:
@@ -1066,6 +1108,7 @@ def run_instance(
                 "install_marker": None,
                 "installed": False,
                 "install_error": "",
+                "pins": [],
             }
             record["deps"] = deps_record
             venv_python = venv_info.get("python", "")
@@ -1076,10 +1119,12 @@ def run_instance(
                 deps_record["install_marker"] = marker
                 if marker is not None:
                     install_result = _install_instance_deps(
-                        venv_python, workdir, marker, deps_timeout
+                        venv_python, workdir, marker, deps_timeout,
+                        str(instance["repo"]),
                     )
                     deps_record["installed"] = bool(install_result["installed"])
                     deps_record["install_error"] = str(install_result["error"])
+                    deps_record["pins"] = list(install_result.get("pins", []))
                     if not install_result["installed"]:
                         deps_record["note"] = (
                             str(deps_record["note"])

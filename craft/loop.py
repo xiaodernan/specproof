@@ -600,6 +600,11 @@ class CraftLoop:
         # In-flight step for the Ctrl-C flush (卷 XXI §21.3).
         self._current_step: Step | None = None
         self._current_state: StepState | None = None
+        # Latest diagnosis text (deterministic template or LLM diagnose
+        # reply) — the W114 v5 candidate-file union reads path references
+        # from it so the rebuilt verify criterion can reach files the plan
+        # missed (pallets__flask-4992: src/flask/config.py).
+        self._last_diagnosis = ""
         # W35 durable job projection (W30 AgentJobStore). store=None keeps the
         # original in-memory behavior; the lease owner is computed at run()
         # time (host:pid:job_id) and must not change within one run.
@@ -774,6 +779,7 @@ class CraftLoop:
             attempts += 1
             self.total_iterations += 1
             diagnosis = diagnose_failure(step, result, note=evidence.get("reason", ""))
+            self._last_diagnosis = diagnosis
             fix = self._lookup_fix(step)
             if fix is None:
                 if self.client is None:
@@ -800,6 +806,7 @@ class CraftLoop:
                     return "FAILED"
                 try:
                     diagnosis, edited = self._llm_fix(step, result, diagnosis)
+                    self._last_diagnosis = diagnosis
                 except BudgetExceeded as exc:
                     state.status = "failed"
                     reason = f"LLM token 预算超限: {exc}"
@@ -1122,25 +1129,8 @@ class CraftLoop:
                 keywords.append(token)
         return keywords
 
-    def _candidate_source_files(self) -> list[str]:
-        """Source files the rebuilt verify criterion may grep.
-
-        The union of every plan step's non-test target files (the files
-        craft is actually allowed to edit); when the plan carries no
-        source target at all, falls back to a bounded deterministic scan
-        of the workspace's non-test .py files.
-        """
-        candidates: set[str] = set()
-        for plan_step in self.plan.steps:
-            for target in plan_step.target_files:
-                if not is_test_file_path(target):
-                    candidates.add(target)
-        if candidates:
-            return sorted(candidates)
-        return self._scan_source_files()
-
-    def _scan_source_files(self) -> list[str]:
-        """Bounded deterministic scan for non-test .py files in the workspace."""
+    def _workspace_source_files(self) -> list[str]:
+        """Every non-test .py file in the workspace (uncapped, scan skips)."""
         found: list[str] = []
         for path in self.workspace.rglob("*.py"):
             relative = path.relative_to(self.workspace)
@@ -1150,7 +1140,73 @@ class CraftLoop:
             if is_test_file_path(normalized):
                 continue
             found.append(normalized)
-        return sorted(found)[:_SOURCE_SCAN_CAP]
+        return sorted(found)
+
+    def _scan_source_files(self) -> list[str]:
+        """Bounded deterministic scan for non-test .py files in the workspace."""
+        return self._workspace_source_files()[:_SOURCE_SCAN_CAP]
+
+    def _resolve_source_reference(self, reference: str, files: list[str]) -> list[str]:
+        """Real non-test workspace files matching a path reference.
+
+        The reference may be a full workspace-relative path
+        ('src/flask/config.py') or a suffix ('flask/config.py'); it is
+        matched only against files that actually exist in the workspace,
+        so the candidate union can never fabricate a source file (W114
+        no-fake-pass invariant) and never names a test file.
+        """
+        cleaned = (
+            reference.strip()
+            .strip('`"\'()[],<>;:')
+            .replace("\\", "/")
+            .lstrip("./")
+        )
+        if not cleaned:
+            return []
+        return [
+            item for item in files
+            if item == cleaned or item.endswith("/" + cleaned)
+        ]
+
+    def _candidate_references(self) -> list[str]:
+        """Path references for the candidate union, in deterministic order.
+
+        The SPEC's affected_area_hint tokens first (comma/whitespace
+        separated, exactly as the planner splits them), then every .py
+        path mentioned in the latest diagnosis text (the diagnose reply).
+        """
+        references: list[str] = []
+        hint = self.spec.affected_area_hint.strip()
+        if hint:
+            references.extend(token for token in re.split(r"[,\s，、]+", hint) if token)
+        if self._last_diagnosis:
+            references.extend(re.findall(r"[\w./\\-]+\.py\b", self._last_diagnosis))
+        return references
+
+    def _candidate_source_files(self) -> list[str]:
+        """Source files the rebuilt verify criterion may grep.
+
+        The union of every plan step's non-test target files (the files
+        craft is actually allowed to edit), the SPEC's affected_area_hint
+        files and the files referenced in the latest diagnosis text — the
+        latter two resolved to real non-test workspace files (W114 v5:
+        pallets__flask-4992's src/flask/config.py was absent from the
+        union at verify time, so the rebuilt 'tomllib' keyword scan had no
+        source file to reach). When the union carries no source file at
+        all, falls back to a bounded deterministic scan of the workspace's
+        non-test .py files.
+        """
+        candidates: set[str] = set()
+        for plan_step in self.plan.steps:
+            for target in plan_step.target_files:
+                if not is_test_file_path(target):
+                    candidates.add(target)
+        files = self._workspace_source_files()
+        for reference in self._candidate_references():
+            candidates.update(self._resolve_source_reference(reference, files))
+        if candidates:
+            return sorted(candidates)
+        return self._scan_source_files()
 
     def _rebuild_grep_criterion(self) -> tuple[str, list[str]] | None:
         """Rebuild a degenerate grep criterion from the problem statement.
