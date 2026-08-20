@@ -5,8 +5,8 @@ Real SWE-bench LLM run evidence (docs/eval/swebench-llm-results-v5.json):
 
 - pallets__flask-4045 STUCK with "ImportError: cannot import name url_quote
   from werkzeug.urls": the shared venv resolved werkzeug 3.x for a flask
-  2.3-era instance (url_quote was removed in werkzeug 3.1). The deps
-  install now appends era pins (_REPO_DEP_PINS, flask -> werkzeug<3.1)
+  2.3-era instance (url_quote was removed in werkzeug 3.0). The deps
+  install now appends era pins (_REPO_DEP_PINS, flask -> werkzeug<3.0)
   for matching repo slugs ONLY and records them as deps.pins — everything
   else keeps current behavior (deps failure still recorded, never fatal).
 - pallets__flask-4992: the W114 rebuilt verify criterion kept the keyword
@@ -16,7 +16,7 @@ Real SWE-bench LLM run evidence (docs/eval/swebench-llm-results-v5.json):
   and the files referenced in the diagnose reply.
 
 Covers:
-  (a) a flask repo install appends the werkzeug<3.1 pin and returns it in
+  (a) a flask repo install appends the werkzeug<3.0 pin and returns it in
       the install result (stubbed pip runner; the harness call site copies
       this list verbatim into deps.pins);
   (b) a non-flask repo install pins nothing (command and result unchanged);
@@ -134,7 +134,7 @@ def test_flask_repo_install_appends_werkzeug_pin_and_records_pins(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     harness = _load_harness()
-    assert harness._REPO_DEP_PINS == {"flask": ["werkzeug<3.1"]}
+    assert harness._REPO_DEP_PINS == {"flask": ["werkzeug<3.0"]}
     stub = _StubSubprocess()
     monkeypatch.setattr(harness, "subprocess", stub)
     (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
@@ -143,21 +143,21 @@ def test_flask_repo_install_appends_werkzeug_pin_and_records_pins(
         sys.executable, tmp_path, "pyproject.toml", 300, "pallets/flask"
     )
     assert result["installed"] is True
-    assert result["pins"] == ["werkzeug<3.1"]
+    assert result["pins"] == ["werkzeug<3.0"]
     assert len(stub.commands) == 1
-    assert stub.commands[0][-2:] == [".", "werkzeug<3.1"]
+    assert stub.commands[0][-2:] == [".", "werkzeug<3.0"]
 
     # slug normalization: a .git URL repo resolves to the same pin
     assert harness._pins_for_repo("https://github.com/pallets/flask.git") == [
-        "werkzeug<3.1"
+        "werkzeug<3.0"
     ]
     # the requirements.txt marker shape keeps -r and appends the pin
     (tmp_path / "requirements.txt").write_text("", encoding="utf-8")
     req = harness._install_instance_deps(
         sys.executable, tmp_path, "requirements.txt", 300, "pallets/flask"
     )
-    assert req["pins"] == ["werkzeug<3.1"]
-    assert stub.commands[1][-3:] == ["-r", "requirements.txt", "werkzeug<3.1"]
+    assert req["pins"] == ["werkzeug<3.0"]
+    assert stub.commands[1][-3:] == ["-r", "requirements.txt", "werkzeug<3.0"]
 
     # a FAILED install still records the pins that were attempted
     stub.returncode = 1
@@ -165,7 +165,7 @@ def test_flask_repo_install_appends_werkzeug_pin_and_records_pins(
         sys.executable, tmp_path, "pyproject.toml", 300, "pallets/flask"
     )
     assert failed["installed"] is False
-    assert failed["pins"] == ["werkzeug<3.1"]
+    assert failed["pins"] == ["werkzeug<3.0"]
     assert failed["error"]
 
 
@@ -187,7 +187,7 @@ def test_non_flask_repo_install_pins_nothing(
     assert result["pins"] == []
     assert len(stub.commands) == 1
     assert stub.commands[0][-1] == "."
-    assert "werkzeug<3.1" not in stub.commands[0]
+    assert "werkzeug<3.0" not in stub.commands[0]
 
 
 # -- (c) criterion candidates include diagnose-reply files --------------------

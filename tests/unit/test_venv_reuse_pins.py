@@ -2,7 +2,7 @@
 venv (no network, no Docker, no real LLM).
 
 Real SWE-bench LLM run evidence (docs/eval/swebench-llm-results-v7.json):
-after the W140 flask pin (_REPO_DEP_PINS = {'flask': ['werkzeug<3.1']}),
+after the W140 flask pin (_REPO_DEP_PINS = {'flask': ['werkzeug<3.0']}),
 both pallets__flask instances cleared understand+verify but STUCK in the
 TEST step with "ImportError: cannot import name url_quote from
 werkzeug.urls". The pin only took effect when the instance deps were
@@ -80,7 +80,7 @@ def _flask_instance() -> dict[str, Any]:
         "instance_id": "pallets__flask-4045",
         "repo": "pallets/flask",
         "base_commit": "0123456789abcdef",
-        "problem_statement": "修复 werkzeug 3.1 的 url_quote 导入",
+        "problem_statement": "修复 werkzeug 3.0 的 url_quote 导入",
         "test_patch": "",
         "FAIL_TO_PASS": ["tests/test_import.py::test_url_quote"],
         "PASS_TO_PASS": [],
@@ -179,16 +179,16 @@ def test_reused_venv_flask_pins_applied_before_deps_install(
     )
     pin_cmd = [
         venv_python, "-m", "pip", "install", "--no-input",
-        "--disable-pip-version-check", "werkzeug<3.1",
+        "--disable-pip-version-check", "werkzeug<3.0",
     ]
     assert stub.commands[0] == pin_cmd
     # the ordinary deps install follows and still appends the pin
     assert len(stub.commands) == 2
     assert stub.commands[1][:2] == [venv_python, "-m"]
-    assert stub.commands[1][-2:] == [".", "werkzeug<3.1"]
+    assert stub.commands[1][-2:] == [".", "werkzeug<3.0"]
     deps = record["deps"]
-    assert deps["pins_applied"] == ["werkzeug<3.1"]
-    assert deps["pins"] == ["werkzeug<3.1"]
+    assert deps["pins_applied"] == ["werkzeug<3.0"]
+    assert deps["pins"] == ["werkzeug<3.0"]
     assert deps["installed"] is True
     assert deps["install_error"] == ""
     # the deps stage never blocked craft
@@ -228,7 +228,7 @@ def test_pin_apply_failure_recorded_and_never_fatal(
     def fail_only_pin(command: list[str]) -> bool:
         # the pin-application command carries the pin spec but no "."
         # argument; the ordinary deps install (".", *pins) still succeeds.
-        return command[-1] == "werkzeug<3.1" and command[-2] != "."
+        return command[-1] == "werkzeug<3.0" and command[-2] != "."
 
     stub.fail_rule = fail_only_pin
     record, venv_python = _run_reused_venv_instance(
@@ -236,13 +236,13 @@ def test_pin_apply_failure_recorded_and_never_fatal(
     )
     # the pin application was attempted with the venv python, then failed
     assert stub.commands[0][0] == venv_python
-    assert stub.commands[0][-1] == "werkzeug<3.1"
+    assert stub.commands[0][-1] == "werkzeug<3.0"
     assert len(stub.commands) == 2
     deps = record["deps"]
     assert deps["pins_applied"] == []
     assert "era pin 应用失败" in deps["install_error"]
     assert deps["installed"] is True
-    assert deps["pins"] == ["werkzeug<3.1"]
+    assert deps["pins"] == ["werkzeug<3.0"]
     # never fatal: craft still ran; the record failed at the craft stage
     assert record["stage"] == "craft"
     assert "craft 未收敛" in record["reason"]

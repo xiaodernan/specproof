@@ -31,7 +31,7 @@ LLM mode (--mode llm):
   replay with the same interpreter. A deps install failure is recorded
   (deps.install_error) and craft proceeds honestly — its pytest steps
   surface the real stderr/exit code, never silence; era-compatible
-  transitive pins (_REPO_DEP_PINS, flask -> werkzeug<3.1) are appended
+  transitive pins (_REPO_DEP_PINS, flask -> werkzeug<3.0) are appended
   to the pip command for matching repo slugs and recorded per instance
   as deps.pins — nothing else is ever pinned; when the shared venv is
   REUSED from an earlier run, the repo's era pins are applied to that
@@ -108,11 +108,13 @@ _VENV_REUSED_NOTE = "复用已存在的共享 venv"
 #: resolves latest deps by default, which broke pallets__flask-4045 with
 #: "ImportError: cannot import name url_quote from werkzeug.urls" — pip
 #: installed werkzeug 3.x for a flask 2.3-era instance whose url_quote was
-#: removed in werkzeug 3.1 (docs/eval/swebench-llm-results-v5.json). Pins
+#: removed in werkzeug 3.0 (docs/eval/swebench-llm-results-v5.json). Pins
 #: apply ONLY to the slugs listed here; everything else keeps current
 #: behavior (a deps failure is still recorded and never fatal).
+#: flask 2.3-era needs url_quote, removed in werkzeug 3.0 (probed live:
+#: werkzeug 3.0.6 lacks it, 2.3.8 has it) — so the era pin is <3.0, not <3.1.
 _REPO_DEP_PINS: dict[str, list[str]] = {
-    "flask": ["werkzeug<3.1"],
+    "flask": ["werkzeug<3.0"],
 }
 
 
@@ -647,7 +649,7 @@ def _install_instance_deps(
 
     The instance repo's era pins (_REPO_DEP_PINS) are appended to the pip
     command so era-mismatched transitive deps cannot break the shared venv
-    (flask -> werkzeug<3.1, real evidence pallets__flask-4045). The pins
+    (flask -> werkzeug<3.0, real evidence pallets__flask-4045). The pins
     actually used ride every result as `pins` for the per-instance deps
     record. Only repos listed in the pin map are affected — everything
     else keeps the current command and failure semantics (recorded,
@@ -690,7 +692,7 @@ def _apply_pins_to_venv(
     to the instance deps install is enough. A REUSED venv keeps whatever
     earlier runs installed — pip resolves latest by default, which is how
     werkzeug 3.x broke pallets__flask-4045 (url_quote was removed in
-    werkzeug 3.1) — so the pins must be installed explicitly here; pip
+    werkzeug 3.0) — so the pins must be installed explicitly here; pip
     downgrades in place, making this idempotent. Failure is returned
     (recorded, never fatal): craft proceeds and surfaces real test output.
     """
