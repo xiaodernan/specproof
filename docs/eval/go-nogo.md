@@ -20,7 +20,7 @@
 | 12 | 3 个真实仓库连续试点 2 周 | PENDING | — (无试点记录) | 无 | 需要: 选定 3 个真实 Spring Boot 仓库 + GitHub App 安装 + 连续 2 周运行, 记录 Job/Webhook/Check Run 日志; 完全未开始 |
 | 13 | 用户对高等级 Finding 接受率 ≥ 70% | PENDING | — (无用户数据) | 无 | 需要: 试点仓库用户对每个 BLOCKER/MAJOR 做 accept/reject 反馈并统计; 依赖 #12 先启动 |
 | 14 | 语义回归发现率比"直接让 DeepSeek 看 Diff"基线高 ≥ 25pp | PASS | docs/eval/baseline-report.md (deterministic diff-reader 基线 Recall 58.3% vs SpecProof 100.0%, +41.7pp); **docs/eval/llm-baseline-100-live.md (100 案例真实 LLM 基线实测: DeepSeek 直接看 Diff strict-id 召回 0% vs SpecProof 100%, +100.0pp ≥ 25pp)**; tests/unit/test_baseline.py (31 例全绿) | python -m cli.specproof.main baseline --cases golden-cases --repo . --mode llm (需 LLM_API_KEY) | 已实测达标; 生产口径随 #12 试点复核 |
-| 15 | 平均验证成本在用户配置预算内 | PENDING | storage/redis.py (LLM token budget consume/超支拒绝, 逻辑级); tests/unit/test_redis_stream.py (budget 逻辑测试) | python -m pytest tests/unit/test_redis_stream.py -q (逻辑级) | 无端到端成本测量: 需按 Job 统计 token 用量 + 沙箱/DB 资源成本, 与用户预算参数对比; 现仅预算机制存在, 未经真实账单验证 |
+| 15 | 平均验证成本在用户配置预算内 | PENDING | storage/redis.py (LLM token budget consume/超支拒绝, 逻辑级); tests/unit/test_redis_stream.py (budget 逻辑测试); **W171 scripts/bench_cost.py (按真实 craft report 四类 token 折算 USD; docs/eval/cost-results.json v12 终态: 3 作业 total $0.1115, mean $0.0372/job, token 预算内 2/2, $1.00/job 示例货币预算 3/3; tests/unit/test_bench_cost.py 15 例)** | python -m pytest tests/unit/test_redis_stream.py tests/unit/test_bench_cost.py -q (逻辑级) + python scripts/bench_cost.py --per-job-budget-usd 1.0 (真实用量口径) | token 成本口径已实测 (真实用量 × 示例价表, 非真实账单); 仍缺: 真实网关账单对账 + 沙箱/DB 资源成本 + 用户预算参数对比 — 门槛保持 PENDING 直至真实账单验证 |
 
 ## 结论
 

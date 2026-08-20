@@ -715,6 +715,70 @@ class MySQLStore:
         with self.connection() as conn:
             conn.cursor().execute(_sql, finding)
 
+    def insert_feedback(self, feedback: dict[str, Any]) -> None:
+        """Record one accept/reject verdict (Go/No-Go #13 mechanism)."""
+        _sql = (
+            "INSERT INTO finding_feedback "
+            "(id, job_id, tenant_id, finding_id, contract_id, severity, "
+            "verdict, reason, created_by) "
+            "VALUES (%(id)s, %(job_id)s, %(tenant_id)s, %(finding_id)s, "
+            "%(contract_id)s, %(severity)s, %(verdict)s, %(reason)s, "
+            "%(created_by)s)"
+        )
+        with self.connection() as conn:
+            conn.cursor().execute(_sql, feedback)
+
+    def list_feedback(self, job_id: str) -> list[dict[str, Any]]:
+        """All feedback rows for one job, newest first."""
+        _sql = (
+            "SELECT id, job_id, tenant_id, finding_id, contract_id, "
+            "severity, verdict, reason, created_by, created_at "
+            "FROM finding_feedback WHERE job_id = %s "
+            "ORDER BY created_at DESC, id"
+        )
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(_sql, (job_id,))
+            return [
+                {
+                    "id": row[0], "job_id": row[1], "tenant_id": row[2],
+                    "finding_id": row[3], "contract_id": row[4],
+                    "severity": row[5], "verdict": row[6], "reason": row[7],
+                    "created_by": row[8],
+                    "created_at": (
+                        row[9].isoformat() if row[9] is not None else None
+                    ),
+                }
+                for row in cursor.fetchall()
+            ]
+
+    def feedback_stats(self, job_id: str) -> dict[str, Any]:
+        """acceptance_rate for one job (accepted / (accepted + rejected)).
+
+        Findings without feedback are NOT counted — silence is never
+        treated as acceptance (go-nogo #13 measurement contract).
+        """
+        _sql = (
+            "SELECT verdict, COUNT(*) FROM finding_feedback "
+            "WHERE job_id = %s GROUP BY verdict"
+        )
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(_sql, (job_id,))
+            counts = {str(row[0]): int(row[1]) for row in cursor.fetchall()}
+        accepted = counts.get("accept", 0)
+        rejected = counts.get("reject", 0)
+        total = accepted + rejected
+        return {
+            "job_id": job_id,
+            "accepted": accepted,
+            "rejected": rejected,
+            "no_feedback_not_counted": True,
+            "acceptance_rate_pct": (
+                round(100.0 * accepted / total, 1) if total else None
+            ),
+        }
+
     def insert_contract(self, contract: dict[str, Any]) -> None:
         _sql = (
             "INSERT INTO contracts "
