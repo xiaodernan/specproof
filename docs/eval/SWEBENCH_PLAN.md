@@ -352,3 +352,17 @@ FAIL_TO_PASS 测试由 harness 的 test_patch 应用, craft 的职责是只改�
 test_*.py、*_test.py 的提案条目按 CODE_TEST_FILE_FORBIDDEN 拒绝并携
 "只改源码、绝不新建/修改测试文件"的修复指令重试一次; diagnose 提示词
 加一行同义约束。修完再复跑同 2 实例。
+
+### 8.6 后续复跑实录 v3-v9 (逐轮消障, 全部诚实 0%)
+
+| 轮 | 实例终态 | 该轮清除的障碍 / 暴露的新层 |
+|---|---|---|
+| v3 | 4045 apply_edit 锚点未命中; 4992 verify 目标=测试文件 | 守卫生效 (测试文件误改消失) |
+| v4 | 4045 判据退化 ('.'); 4992 锚点仍未命中 | verify 目标守卫生效 |
+| v5 | 4045 依赖漂移 (werkzeug 3.x 移除 url_quote); 4992 判据重建生效 | 判据重建 (W114) |
+| v6 | 4045 目标路径后缀 (flask/blueprints.py vs src/...); 4992 understand 判据 | 钉版本 (W140) + understand 重建 |
+| v7 | 两实例直达 TEST 步, werkzeug ImportError 复现 | 后缀解析 (W143) + 钉版本生效证明 |
+| v8 | 同 v7 (ImportError) | venv 复用钉应用 (W147) |
+| v9 | 4045 craft 测试步收集整库 (test_cli.py 收集错误, 旧提交需特定 pytest); 4992 预算 12 次诚实超限 | 实探修正钉 werkzeug<3.0 (3.0.6 已移除 url_quote, 2.3.8 存在); ImportError 消失 |
+
+九轮每轮清一类障碍 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集), resolved 率始终诚实 0%; 官方 Docker 口径数字待 §3.4 手工步骤。下一层 (v10 方向): craft 测试步按问题陈述定位目标测试节点而非整库收集 + 旧提交 pytest 版本适配 + 预算收敛策略。
