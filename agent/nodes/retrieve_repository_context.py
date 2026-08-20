@@ -185,6 +185,11 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
                     "source": h.get("source", "hybrid"),
                     "rank": h.get("rank"),
                     "rrf_score": h.get("rrf_score"),
+                    # §14 provenance: commit + line range of the indexed
+                    # chunk (falls back to the indexed head_sha honestly).
+                    "commit_sha": h.get("commit_sha", head_sha),
+                    "start_line": h.get("start_line"),
+                    "end_line": h.get("end_line"),
                 }
                 for h in outcome.results
             ]
@@ -219,10 +224,10 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
         # Symbol-graph augmentation (deterministic RAG): expand keyword hits
         # into their call neighborhood (callees/callers/siblings) so the
         # contract compiler sees the surrounding verification context.
-        expanded = graph.expand_hits(
-            [{k: h.get(k, "") for k in ("path", "symbol", "content")} for h in hits[:8]],
-            hops=1,
-        )
+        # Raw hit docs are passed through so commit/line provenance survives
+        # on the original hits; graph-expanded neighbors carry
+        # source="symbol_graph" without provenance (honest None fallback).
+        expanded = graph.expand_hits(hits[:8], hops=1)
         merged = list(expanded) or [
             {k: h.get(k, "") for k in ("path", "symbol", "content")} for h in hits[:8]
         ]
@@ -232,6 +237,10 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
                 "symbol": h.get("symbol", ""),
                 "content": (h.get("content") or "")[:800],
                 "source": h.get("source", "bm25"),
+                # §14 provenance: commit + line range of the indexed chunk.
+                "commit_sha": h.get("commit_sha", head_sha),
+                "start_line": h.get("start_line"),
+                "end_line": h.get("end_line"),
             }
             for h in merged[:16]
         ]
