@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import httpx
+from providers.net import make_async_client, redact_for_log
 
 from .probe_result import ProbeResult
 
@@ -98,10 +98,10 @@ class CapabilityProbe:
                 passed, detail = await check_fn()
                 capabilities[name] = passed
                 if not passed:
-                    errors.append(f"{name}: {detail}")
+                    errors.append(f"{name}: {redact_for_log(detail)}")
             except Exception as exc:
                 capabilities[name] = False
-                errors.append(f"{name}: {exc}")
+                errors.append(f"{name}: {redact_for_log(exc)}")
 
         return ProbeResult(
             provider="openai_compatible",
@@ -116,7 +116,7 @@ class CapabilityProbe:
 
     async def _check_models(self) -> tuple[bool, list[str], str]:
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.get(f"{self.base_url}/models", headers=self._headers())
             if resp.status_code != 200:
                 return False, [], f"HTTP {resp.status_code}"
@@ -133,7 +133,7 @@ class CapabilityProbe:
             "max_tokens": 200,
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
@@ -155,7 +155,7 @@ class CapabilityProbe:
             "max_tokens": 10,
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 chunks = 0
                 async with client.stream(
                     "POST",
@@ -185,7 +185,7 @@ class CapabilityProbe:
             "max_tokens": 500,
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
@@ -222,7 +222,7 @@ class CapabilityProbe:
             "max_tokens": 50,
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
@@ -259,7 +259,7 @@ class CapabilityProbe:
             "max_tokens": 50,
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
@@ -293,7 +293,7 @@ class CapabilityProbe:
             "thinking": {"type": "enabled"},
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
@@ -338,7 +338,7 @@ class CapabilityProbe:
             "thinking": {"type": "enabled"},
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
@@ -367,7 +367,7 @@ class CapabilityProbe:
             "max_tokens": 100,
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
@@ -393,7 +393,7 @@ class CapabilityProbe:
             "max_tokens": 10,
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
@@ -418,7 +418,7 @@ class CapabilityProbe:
             "messages": [{"role": "user", "content": "test"}],
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
@@ -439,7 +439,7 @@ class CapabilityProbe:
             "max_tokens": 5,
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with make_async_client(self.timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=self._headers(),
