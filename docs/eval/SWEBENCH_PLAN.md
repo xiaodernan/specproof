@@ -364,5 +364,6 @@ test_*.py、*_test.py 的提案条目按 CODE_TEST_FILE_FORBIDDEN 拒绝并携
 | v7 | 两实例直达 TEST 步, werkzeug ImportError 复现 | 后缀解析 (W143) + 钉版本生效证明 |
 | v8 | 同 v7 (ImportError) | venv 复用钉应用 (W147) |
 | v9 | 4045 craft 测试步收集整库 (test_cli.py 收集错误, 旧提交需特定 pytest); 4992 预算 12 次诚实超限 | 实探修正钉 werkzeug<3.0 (3.0.6 已移除 url_quote, 2.3.8 存在); ImportError 消失 |
+| v10 | 4045 通过整库收集障碍直达 s5 (APITimeoutError 网关瞬时超时); 4992 [LLM_PROPOSAL_REPEATED] 第 2 迭代同提案即终止 | --continue-on-collection-errors + spec/diagnosis 测试文件限定 + 重复提案守卫 (W156) |
 
-九轮每轮清一类障碍 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集), resolved 率始终诚实 0%; 官方 Docker 口径数字待 §3.4 手工步骤。下一层 (v10 方向): craft 测试步按问题陈述定位目标测试节点而非整库收集 + 旧提交 pytest 版本适配 + 预算收敛策略。
+十轮每轮清一类障碍 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案), resolved 率始终诚实 0%; 官方 Docker 口径数字待 §3.4 手工步骤。v10 后剩余障碍是模型层 (4992 重复提案) 与网关瞬时超时 (4045), 下一层 (v11 方向): 提案多样化提示 (重复时附上前几次提案并要求不同路径) + LLM 调用瞬时超时重试。
