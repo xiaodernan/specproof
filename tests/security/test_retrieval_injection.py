@@ -224,6 +224,10 @@ def test_node_returns_payload_only_as_scored_content(
         "source",
         "rank",
         "rrf_score",
+        # W196 provenance fields: commit + line range of the indexed chunk.
+        "commit_sha",
+        "start_line",
+        "end_line",
     }
     assert first["content"] == content
     for key, value in first.items():

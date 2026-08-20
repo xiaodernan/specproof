@@ -150,7 +150,10 @@ class FakeLeases:
         self.get_calls = 0
         self.release_after = release_after
 
-    def acquire_lease(self, job_id: str, worker_id: str, ttl: int = 30) -> bool:
+    def acquire_lease(
+        self, job_id: str, worker_id: str, ttl: int = 30,
+        max_hold_seconds: int | None = None,
+    ) -> bool:
         if self.owner.get(job_id) is not None:
             return False
         self.owner[job_id] = worker_id
