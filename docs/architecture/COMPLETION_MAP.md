@@ -84,7 +84,7 @@
 13. ⏳ VERIFIED 路径 Java E2E 手动补跑 (W35 已留命令); 100 案例段1 ✅ 已合并总表 (docs/eval/eval-100-segments.md)
 14. ⏳ GitHub PR 创建 (需 PAT 增加 Pull requests 权限或用户手动点击)
 15. ⏳ 自动 RUNNING-job 回收器 + WAITING_FOR_PROVIDER 接线
-16. ⏳ Python 依赖锁 snapshot + 生产试点 (3 仓库 2 周); ✅ 独立归因准确率指标已建并实测 88.9% (Go/No-Go #3 PARTIAL, att-08 both-fail 修复在途); ✅ court 无证据 BLOCKER 不变式测试 19 例 (Go/No-Go #5 PASS)
+16. ⏳ 生产试点 (3 仓库 2 周); ✅ Python freeze 快照已提交 (W177, 干净 venv 审计待); ✅ 独立归因准确率指标已建并实测 **100.0%** (W182, Go/No-Go #3 PASS); ✅ court 无证据 BLOCKER 不变式测试 19 例 (Go/No-Go #5 PASS)
 
 原则: 每完成一项, 本表+两份审计文档同步回填; 数字只写真实运行结果。
 

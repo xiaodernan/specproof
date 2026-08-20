@@ -18,7 +18,7 @@
 - 90 任务评测集: 代码完成率 **98.0%**, 陷阱/对抗/恢复/审批 **100%/100%/100%/100%** (违规 0)
 - 检索: BM25+RRF recall@10 **87.2%** MRR 0.760 (+15pp); symbol-index 75.6%@1.3ms
 - 变异杀死率 **83.3%**; LLM 基线对比 **+100pp**
-- Go/No-Go 15 门槛: **PASS 11/15 · PARTIAL 1/15 (#3 归因 88.9%) · PENDING 3/15 (#12 试点/#13 用户/#15 成本)** — #4 Capsule 回放 25/25=100% 门禁 PASS / #5 无证据 BLOCKER 不变式测试 19 例 / #6 FAST p95 161.1s / #14 LLM 基线 +100pp (docs/eval/go-nogo.md)
+- Go/No-Go 15 门槛: **PASS 12/15 · PENDING 3/15 (#12 试点/#13 用户/#15 成本)** — #3 归因 100.0% (att-08 both-fail 拆分+签名差异化归因, 7/7 正确 0 漏归因) / #4 Capsule 回放 25/25=100% 门禁 PASS / #5 无证据 BLOCKER 不变式测试 19 例 / #6 FAST p95 161.1s / #14 LLM 基线 +100pp (docs/eval/go-nogo.md)
 - 质量门禁: 单元 **2069 passed + 1 skipped** 全绿; ruff/mypy strict/bandit Medium+=0; 密钥泄漏 **0**
 - 前端: vitest 90+, Playwright e2e 9/9; 设计系统 21 组件
 - SWE-bench-Lite: harness+LLM 模式就绪; 真实跑十二轮 (v1-v12) 每轮消掉一类失败 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案→瞬时超时), resolved 率始终诚实 0% — harness 层障碍已清完, 剩余模型能力层 (v12 实测: 网关仅 v4-flash/v4-pro 两档无更强, 最强档重测仍模型层重复提案 STUCK; v13 = 官方 Docker 口径/网关外更强模型)

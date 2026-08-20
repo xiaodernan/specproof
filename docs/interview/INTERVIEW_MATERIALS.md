@@ -43,7 +43,7 @@
 - 密钥泄漏门禁: 全仓库 **0 真实 key** (扫描器拦截 + 假密钥拼接纪律)
 - 前端: vitest **90/90** (19 文件), Playwright e2e **9/9** (向导/详情/权限/降级, 真实应用非 mock)
 - 设计系统: 21 组件 Aurora 语言, 暗/亮双主题, ⌘K 命令面板; bundle JS 269KB (gzip 83KB)
-- Go/No-Go 15 门槛: **11/15 PASS · 1 PARTIAL (#3 归因 88.9%) · 3 PENDING** — #4 回放 25/25=100% / #5 无证据 BLOCKER 不变式 19 例 / #6 p95 161.1s / #9+#11 真实演练 / #14 LLM 基线 +100pp (docs/eval/go-nogo.md)
+- Go/No-Go 15 门槛: **12/15 PASS · 0 PARTIAL · 3 PENDING** — #3 归因 100.0% (att-08 both-fail 拆分+签名差异化归因) / #4 回放 25/25=100% / #5 无证据 BLOCKER 不变式 19 例 / #6 p95 161.1s / #9+#11 真实演练 / #14 LLM 基线 +100pp (docs/eval/go-nogo.md)
 
 ### 1.5 架构与安全
 - DeepSeek V4 Pro 网关实测适配: 8/11 能力 (chat/流式/JSON/工具调用/thinking/用量);

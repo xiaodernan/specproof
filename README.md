@@ -55,7 +55,7 @@ powershell -ExecutionPolicy Bypass -File scripts/start_local.ps1
 | 检索 (30 查询黄金集) | BM25+RRF recall@10 **87.2%** / MRR **0.760** (vs BM25 72.2%/0.561, +15.0pp); symbol-index 75.6% @ 2.3ms | `docs/eval/retrieval-bench.md` |
 | 变异测试 | 杀死率 **83.3%** (5/6, 存活体为规范外行为 — 数字不凑 100%) | `docs/eval/mutation-results.md` |
 | 基线对比 (Go/No-Go #14) | 确定性 diff-reader 基线: Recall **+41.7pp**; LLM 看 Diff 基线: Recall **+100.0pp** (SpecProof 100% vs 基线 0%) | `docs/eval/baseline-report.md` / `docs/eval/llm-baseline-live.md` |
-| Go/No-Go 15 门槛 | **PASS 11/15 · PARTIAL 1/15 · PENDING 3/15** (未实测一律 PENDING, 不编造; #4 回放 100% / #5 无证据评论 0 / #6 p95 161s / #9+#11 真实演练 / #14 LLM 基线 +100pp; PARTIAL #3 归因 88.9%) | `docs/eval/go-nogo.md` |
+| Go/No-Go 15 门槛 | **PASS 12/15 · PENDING 3/15** (未实测一律 PENDING, 不编造; #3 归因 100.0% / #4 回放 100% / #5 无证据评论 0 / #6 p95 161s / #9+#11 真实演练 / #14 LLM 基线 +100pp; PARTIAL 已清零) | `docs/eval/go-nogo.md` |
 | 质量门禁 | 单元 **2069 passed + 1 skipped** 全绿; ruff / mypy strict / bandit Medium+=0; **密钥泄漏 0** | `docs/operations/ACCEPTANCE_CHECKLIST.md` §二 |
 | 前端 | vitest 90+, Playwright e2e 9/9, 设计系统 21 组件 | `docs/operations/ACCEPTANCE_CHECKLIST.md` §二 |
 
@@ -142,7 +142,7 @@ docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observ
 ## 诚实边界 (验收当天如实汇报, 不掩饰)
 
 1. **100 案例已冲 100.0%**: 63/63 误报 0 (五块修复后重跑实录, `docs/eval/eval-100-segments.md`; 历史首跑 95.2% 对照保留)。
-2. **Go/No-Go 15 门槛 11/15 PASS** (#4 回放 25/25=100% / #5 无证据 BLOCKER 不变式测试 19 例 / #6 FAST p95 161.1s / #9+#11 真实故障演练 / #14 LLM 基线 +100pp); PARTIAL 1 (#3 归因 88.9%, att-08 both-fail 修复在途), PENDING 3 (#12 试点 / #13 用户 / #15 成本, 仓库外依赖); 任一门槛未达 PASS 前不宣称商业优势 9.0。
+2. **Go/No-Go 15 门槛 12/15 PASS** (#3 归因 100.0% (att-08 both-fail 拆分+失败签名差异化归因) / #4 回放 25/25=100% / #5 无证据 BLOCKER 不变式测试 19 例 / #6 FAST p95 161.1s / #9+#11 真实故障演练 / #14 LLM 基线 +100pp); PARTIAL 已清零, PENDING 3 (#12 试点 / #13 用户 / #15 成本, 仓库外依赖; 机制与手册已备); 任一门槛未达 PASS 前不宣称商业优势 9.0。
 3. **诚实未达标项**: Aider polyglot 离线样本 1/3=33.3% (harness 全绿, 跨语言编辑器未支持诚实标注); SWE-bench-Lite 真实跑十二轮 (v1-v12) 每轮消掉一类失败 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案→瞬时超时), resolved 率始终诚实 0% — harness 层障碍已清完, 剩余模型能力层 (v12 实测: 网关 /v1/models 仅 deepseek-v4-flash/v4-pro 两档无更强档, 最强档重测两实例仍 [LLM_PROPOSAL_REPEATED] STUCK; v13 方向 = 官方 Docker 口径/网关外更强模型); Go/No-Go 整体评级见 `docs/eval/go-nogo.md`。
 4. **依赖基础设施未实测**: Linux 非 root 沙箱、KMS/HSM、跨语言 Gradle/Node/Go 适配器 — 本地不可验。
 5. **依赖锁定缺口**: Python freeze 快照已提交 (172 行, 2026-08-20, 开发环境口径) 但干净 venv 完整锁定审计未执行 (`docs/architecture/DEPENDENCY_LOCK.md` §0/§1.3)。
