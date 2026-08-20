@@ -87,6 +87,9 @@ class TestGenerationRecord:
     # (compile + surefire in one sandbox invocation); run_differential
     # reuses this recorded run instead of invoking Maven on Head again.
     head_run: dict[str, Any] = field(default_factory=dict)
+    # §14.1 review stage: deterministic rules over the final source
+    # (package/class name/test count/assertion short-circuits/imports).
+    review: dict[str, Any] = field(default_factory=dict)
 
 
 def _get_provider() -> Any:
@@ -1299,6 +1302,11 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
 
     record.test_path = str(test_file)
 
+    # ── Review stage (§14.1): deterministic rules over the final source ──
+    from agent.testgen_review import review_generated_test
+
+    record.review = review_generated_test(record.final_code, app_workspace)
+
     return {
         "generated_tests_path": record.test_path,
         "generation_record": {
@@ -1309,6 +1317,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
             "errors": record.errors,
             "llm_code_len": len(record.llm_code),
             "head_run": record.head_run,
+            "review": record.review,
             "test_file_sha256": _sha256_of(test_file),
         },
     }

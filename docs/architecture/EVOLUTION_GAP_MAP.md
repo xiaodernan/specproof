@@ -56,7 +56,7 @@
 | prepare_base/head 仓库安全检查抽取+崩溃回收器 | ✅ | W77: repo_safety 五项检查 (路径根约束/提交存在性/符号链接越界/仓库大小/禁止文件) + worktree_reclaimer 标记文件回收器接入 prepare 节点与 worker |
 | collect_diff 文件/符号/语义三级范围 | ✅ | W186: changed_files (审计) + changed_symbols (检索/检查器) + semantic_candidates (动态实验/变异预算, 4 类语义提示计数) + unresolved_changes (二进制/未支持语言显式保留, 绝不静默丢弃); 4 新测试 |
 | run_static_checks 检查器注册表+兼容矩阵+CHECKER_FAILED+路径规范化 | ✅ | W185: agent/checkers/registry.py (7 检查器元数据: 语言/框架/契约族/版本/证据等级/已知误报/耗时/可阻断 + 兼容矩阵 NOT_IMPLEMENTED fail-closed + 崩溃→CHECKER_FAILED 证据 + normalize_location 统一规范化; 15 新测试) |
-| generate_counterexamples 四阶段拆分 | ◐ | 部分; 反例最小化 ✅ (W105 experiments/minimize.py ddmin); 审查阶段 ⏳ |
+| generate_counterexamples 四阶段拆分 | ◐ | 部分; 反例最小化 ✅ (W105 experiments/minimize.py ddmin); 审查阶段 ✅ (W188: agent/testgen_review.py 包名/类名冲突/测试数/断言短路/不可用依赖五规则 + generation_record.review; 7 新测试) |
 | run_differential 采集器/稳定判定 | ◐ | 探针采集器 ✅ (W36); 稳定/偶发判定 ✅ (W187: agent/verdict_stability.py stable/flaky/contaminated 三分类, 单次诚实 single_run; DEEP 层重复运行+环境污染检测接线, SPECPROOF_DEEP_REPEATS 有界 1-10; 8 新测试) |
 | review_court 模型/政策分层+预存缺陷+审计 | ◐ | 分层落地 (W49); 无证据 BLOCKER 不变式测试 ✅ (W157, 19 例专用不变式测试) |
 | build_matrix 纯函数+竞争写测试+完整行字段 | ✅ | W180: 行补 11 字段+confirmed_findings 不丢弃+确定性合并; 16 新测试 |
