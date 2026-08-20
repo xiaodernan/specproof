@@ -18,7 +18,8 @@ def test_make_async_client_defaults() -> None:
 
 
 def test_redact_for_log_scrubs_secrets() -> None:
-    text = "Authorization: Bearer sk-abcdefghijklmnop1234567890"
+    fake_token = "sk-" + "abcdefghijklmnop1234567890"
+    text = "Authorization: Bearer " + fake_token
     out = redact_for_log(text)
     assert "sk-abcdefghijklmnop" not in out
     # The Bearer span wins (it matches first); either redaction kind proves
@@ -43,14 +44,15 @@ class TestProbeRedactionWiring:
 
         from providers.capability_probe import CapabilityProbe
 
+        fake_key = "sk-" + "test-key-123456789012345678901234567890"
         probe = CapabilityProbe(
             base_url="https://example.invalid/v1",
-            api_key="sk-test-key-123456789012345678901234567890",
+            api_key=fake_key,
             model="deepseek-v4-pro",
         )
 
         async def fake_check(self):
-            raise RuntimeError("leaked sk-abcdefghijklmnop1234567890 in error")
+            raise RuntimeError("leaked sk-" + "abcdefghijklmnop1234567890 in error")
 
         # _check_models is called directly (outside the try): make it pass
         # so the dispatched checks actually run.

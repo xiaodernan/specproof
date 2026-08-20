@@ -123,7 +123,10 @@ class _FakeRedis:
         self.events: list[tuple[str, str, str]] = []
         self.released: list[str] = []
 
-    def acquire_lease(self, job_id: str, worker_id: str, ttl: int) -> bool:
+    def acquire_lease(
+        self, job_id: str, worker_id: str, ttl: int,
+        max_hold_seconds: int | None = None,
+    ) -> bool:
         return True
 
     def renew_lease(self, job_id: str, worker_id: str, ttl: int) -> bool:
