@@ -14,10 +14,23 @@ reason, next action). This node only adapts state channels into policy
 entries and re-attaches the legacy row keys (requirement / checker_type /
 experiment / evidence) that existing consumers render, so the matrix shape
 seen by the HTML report, the worker summary and the CLI stays compatible.
+
+Backlog #2: every row now also carries the complete review-court field set
+(severity / confidence / evidence_type / verdict / detail / status / source /
+type / location / evidence_digest / finding_id — COMPLETE_ROW_FIELDS).
+Confirmed findings feed those fields for known and unknown contracts alike;
+for a known contract the court metadata is attached WITHOUT a result, so it
+can never fabricate or downgrade a verdict (verdicts still come only from
+real experiment results). The build is a pure function of the state dict:
+no clock, no randomness, no module-level mutable state.
 """
 from typing import Any
 
-from agent.matrix_policy import merge_contract_results
+from agent.matrix_policy import (
+    CANONICAL_FIELDS,
+    confidence_or_zero,
+    merge_contract_results,
+)
 from agent.state import Phase0State
 
 #: diff_results verdict -> row attribution (Review Court vocabulary).
@@ -27,6 +40,24 @@ _ATTRIBUTION_BY_VERDICT: dict[str, str] = {
     "AMBIGUOUS": "not_attributed",
     "COMPLIANT": "none",
 }
+
+#: Row keys the HTML report and the worker/CLI counts have always read.
+LEGACY_ROW_FIELDS: tuple[str, ...] = (
+    "requirement",
+    "checker_type",
+    "experiment",
+    "evidence",
+)
+
+#: The complete matrix row field set (backlog #2): the canonical §14.1
+#: fields (including the review-court row fields) + the derived "result" +
+#: the legacy renderer keys. Every row returned by build_matrix_node
+#: carries all of these.
+COMPLETE_ROW_FIELDS: tuple[str, ...] = (
+    *CANONICAL_FIELDS,
+    "result",
+    *LEGACY_ROW_FIELDS,
+)
 
 
 def _exit_verdict(value: object) -> str | None:
@@ -40,6 +71,28 @@ def _exit_verdict(value: object) -> str | None:
     except ValueError:
         return None
     return "PASS" if code == 0 else "FAIL"
+
+
+def _court_fields_of_finding(finding: dict[str, Any]) -> dict[str, Any]:
+    """Map one confirmed finding onto the review-court row fields.
+
+    Names follow the matrix row contract (backlog #2): "verdict" is the
+    court's diff_verdict value, "detail" the finding description and
+    "finding_id" the finding id. Missing values stay neutral ("", 0.0).
+    """
+    return {
+        "severity": str(finding.get("severity") or "").strip(),
+        "confidence": confidence_or_zero(finding.get("confidence")),
+        "evidence_type": str(finding.get("evidence_type") or "").strip(),
+        "verdict": str(finding.get("diff_verdict") or "").strip(),
+        "detail": str(finding.get("description") or "").strip(),
+        "status": str(finding.get("status") or "").strip(),
+        "source": str(finding.get("source") or "").strip(),
+        "type": str(finding.get("type") or "").strip(),
+        "location": str(finding.get("location") or "").strip(),
+        "evidence_digest": str(finding.get("evidence_digest") or "").strip(),
+        "finding_id": str(finding.get("id") or "").strip(),
+    }
 
 
 def build_matrix_node(state: Phase0State) -> dict[str, Any]:
@@ -110,9 +163,15 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
 
     # Findings whose contract has no compiled contract become FAIL rows
     # (one row per contract after the merge; legacy shape kept for EXTRA).
+    # Every finding — known and unknown contracts alike — contributes its
+    # review-court row fields. For a known contract the court metadata
+    # rides along WITHOUT a result, so it can never fabricate or downgrade
+    # a verdict: the row verdict still comes only from real experiments.
     for finding in confirmed_findings:
         fcid = finding.get("contract_id", "")
+        court_fields = _court_fields_of_finding(finding)
         if fcid and fcid in known_ids:
+            entries.append({"contract_id": fcid, **court_fields})
             continue
         cid = fcid or "EXTRA"
         if cid not in checker_types:
@@ -129,6 +188,7 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
                 or finding.get("status") == "not_attributed"
                 else "head"
             ),
+            **court_fields,
         })
 
     # ── Pure merge (§14.1) ────────────────────────────────────────────

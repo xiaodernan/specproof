@@ -13,12 +13,17 @@ won the race. This module is that merge, as a pure function:
 
 Every row carries the §14.1 evidence fields: result source, experiment ids,
 base/head verdicts, attribution, evidence refs, minimum evidence level, the
-unverified reason and the next action. The merged verdict is also exposed as
-"result" so legacy consumers (HTML report, worker counts, CLI summary) keep
-reading one field without re-deriving the priority rule.
+unverified reason and the next action, plus the review-court row fields
+(severity / confidence / evidence_type / verdict / detail / status / source /
+type / location / evidence_digest / finding_id). The court fields are filled
+deterministically from the entries that carry them (confirmed findings in the
+node wiring) and stay neutral ("", 0.0) otherwise. The merged verdict is also
+exposed as "result" so legacy consumers (HTML report, worker counts, CLI
+summary) keep reading one field without re-deriving the priority rule.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 #: Verdict priority: FAIL(3) > PASS(2) > UNVERIFIED(1); anything else ranks 0
@@ -31,6 +36,24 @@ _RUNTIME_LEVEL = "runtime"
 _STATIC_LEVEL = "static"
 _NONE_LEVEL = "none"
 _LEVEL_PRIORITY: dict[str, int] = {_RUNTIME_LEVEL: 2, _STATIC_LEVEL: 1, _NONE_LEVEL: 0}
+
+#: Review-court-aligned row fields (backlog #2). "verdict" carries the
+#: court's diff_verdict value, "detail" the finding description and
+#: "finding_id" the finding id, so every matrix row can be joined against
+#: confirmed_findings without renaming.
+COURT_ROW_FIELDS: tuple[str, ...] = (
+    "severity",
+    "confidence",
+    "evidence_type",
+    "verdict",
+    "detail",
+    "status",
+    "source",
+    "type",
+    "location",
+    "evidence_digest",
+    "finding_id",
+)
 
 #: The §14.1 canonical row fields. merge_contract_results guarantees every
 #: one of these keys on every returned row (plus the derived "result").
@@ -47,6 +70,7 @@ CANONICAL_FIELDS: tuple[str, ...] = (
     "min_evidence_level",
     "unverified_reason",
     "next_action",
+    *COURT_ROW_FIELDS,
 )
 
 #: Stable reason strings — asserted by tests/unit/test_matrix_policy.py.
@@ -59,6 +83,95 @@ UNVERIFIED_INCONCLUSIVE_REASON = (
 NEXT_ACTION_FAIL = "阻断合并: 依据证据修复 Head 并重跑差分实验, 复审通过前不得合并"
 NEXT_ACTION_PASS = "维持证据链可回放; 合并前复核实验覆盖范围"
 NEXT_ACTION_UNVERIFIED = "补齐证据: 安排 DEEP 实验或人工审阅, 不得把 UNVERIFIED 当作通过"
+
+
+#: Severity rank for the deterministic "strongest finding" pick among
+#: court-carrying entries (review_court vocabulary; unknown values rank 0,
+#: an empty severity ranks -1).
+_SEVERITY_RANK: dict[str, int] = {
+    "BLOCKER": 4,
+    "MAJOR": 3,
+    "MINOR": 2,
+    "INFORMATIONAL": 1,
+    "NONE": 0,
+}
+
+
+def confidence_or_zero(value: object) -> float:
+    """Sanitize one confidence value: numeric values are clamped to [0, 1];
+    bools, strings and non-finite floats collapse to 0.0."""
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        confidence = min(max(float(value), 0.0), 1.0)
+        if math.isfinite(confidence):
+            return confidence
+    return 0.0
+
+
+def _severity_rank(severity: str) -> int:
+    """Rank one severity string; "" ranks below every real severity."""
+    if not severity:
+        return -1
+    return _SEVERITY_RANK.get(severity, 0)
+
+
+def _court_fields_of(entry: dict[str, Any]) -> dict[str, Any] | None:
+    """Extract the review-court row fields one entry carries.
+
+    Accepts both the row-level spellings (verdict / detail / finding_id) and
+    the review-court names (diff_verdict / description / id) so court-shaped
+    dicts merge without translation. Returns None when the entry carries no
+    court metadata at all, so verdict-free metadata entries can never
+    disturb the verdict / experiment / evidence merge.
+    """
+    severity = str(entry.get("severity") or "").strip()
+    confidence = confidence_or_zero(entry.get("confidence"))
+    evidence_type = str(entry.get("evidence_type") or "").strip()
+    verdict = str(entry.get("verdict") or entry.get("diff_verdict") or "").strip()
+    detail = str(entry.get("detail") or entry.get("description") or "").strip()
+    status = str(entry.get("status") or "").strip()
+    source = str(entry.get("source") or "").strip()
+    entry_type = str(entry.get("type") or "").strip()
+    location = str(entry.get("location") or "").strip()
+    evidence_digest = str(entry.get("evidence_digest") or "").strip()
+    finding_id = str(entry.get("finding_id") or entry.get("id") or "").strip()
+
+    if not any((
+        severity,
+        confidence,
+        evidence_type,
+        verdict,
+        detail,
+        status,
+        source,
+        entry_type,
+        location,
+        evidence_digest,
+        finding_id,
+    )):
+        return None
+    return {
+        "severity": severity,
+        "confidence": confidence,
+        "evidence_type": evidence_type,
+        "verdict": verdict,
+        "detail": detail,
+        "status": status,
+        "source": source,
+        "type": entry_type,
+        "location": location,
+        "evidence_digest": evidence_digest,
+        "finding_id": finding_id,
+    }
+
+
+def _court_sort_key(court: dict[str, Any]) -> tuple[int, float, str]:
+    """Deterministic "strongest finding" order: severity rank desc, then
+    confidence desc, then finding id asc — never the entry order."""
+    return (
+        -_severity_rank(str(court.get("severity", ""))),
+        -confidence_or_zero(court.get("confidence")),
+        str(court.get("finding_id", "")),
+    )
 
 
 def _priority(result: object) -> int:
@@ -249,6 +362,22 @@ def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any
         unverified_reason = ""
         next_action = NEXT_ACTION_PASS
 
+    # ── Review-court row fields (backlog #2) ────────────────────
+    # Filled from the entries that carry court metadata (confirmed
+    # findings in the node wiring); the deterministic winner is the
+    # strongest severity / confidence / finding-id entry. Court metadata
+    # never participates in the verdict / experiment / evidence merge.
+    court_candidates: list[dict[str, Any]] = []
+    for entry in group:
+        court = _court_fields_of(entry)
+        if court is not None:
+            court_candidates.append(court)
+    if court_candidates:
+        court_fields = min(court_candidates, key=_court_sort_key)
+    else:
+        court_fields = dict.fromkeys(COURT_ROW_FIELDS, "")
+        court_fields["confidence"] = 0.0
+
     row: dict[str, Any] = {
         "contract_id": contract_id,
         "contract_version": contract_version,
@@ -266,6 +395,7 @@ def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any
         # one merged verdict field; keep it derived from the same priority
         # rule so counts and rows can never disagree.
         "result": verdict,
+        **court_fields,
     }
     return row
 

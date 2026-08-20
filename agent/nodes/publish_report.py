@@ -35,6 +35,10 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
 
     from evidence.report import render_verification_report
 
+    # The clock is read once here, at the I/O boundary; the renderer itself
+    # stays a pure function of its arguments (timestamp passed in by the
+    # caller, never read inside — backlog #2).
+    now = datetime.now(UTC)
     html = render_verification_report(
         repo=repo_path,
         base_ref=base_ref,
@@ -42,11 +46,11 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
         matrix=matrix,
         findings=confirmed_findings,
         errors=errors,
+        generated_at=now.strftime("%Y-%m-%d %H:%M:%S UTC"),
     )
 
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(UTC)
     timestamp = now.strftime("%Y%m%d-%H%M%S")
     report_path = out / f"verification-report-{timestamp}.html"
     report_path.write_text(html, encoding="utf-8")

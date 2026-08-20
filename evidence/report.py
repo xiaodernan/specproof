@@ -10,10 +10,22 @@ def render_verification_report(
     matrix: dict[str, Any],
     findings: list[dict[str, Any]],
     errors: list[str] | None = None,
+    generated_at: str | None = None,
 ) -> str:
-    """Render the full HTML Verification Report."""
+    """Render the full HTML Verification Report.
+
+    generated_at is the caller-supplied report timestamp; when it is passed
+    the render is a pure function of its arguments (same inputs ->
+    byte-identical HTML), which keeps report rendering deterministic for
+    tests and replay. When omitted the legacy behavior is preserved: the
+    renderer stamps the current UTC time itself.
+    """
     rows = matrix.get("rows", [])
-    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    now = (
+        generated_at
+        if generated_at is not None
+        else datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    )
 
     rows_html = ""
     for r in rows:
