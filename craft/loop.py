@@ -1663,7 +1663,11 @@ class CraftLoop:
                 # W156: remember every validated proposal (canonical form);
                 # an exact repeat of an earlier iteration's proposal fails
                 # the step here, before execution or any further LLM call.
-                self._record_proposal(ops)
+                # The anchor-repair retry inside this same invocation is
+                # EXEMPT (W161): its second rejection stays the pinned M1
+                # FAILED (被拒) semantics — never a repeat error.
+                if not anchor_retried:
+                    self._record_proposal(ops)
                 try:
                     edited = self._execute_edit_ops(ops)
                     break
