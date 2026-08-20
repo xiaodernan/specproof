@@ -89,6 +89,39 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
         "diff": diff_states(before, after),
     }
 
+    # ── 3) Verdict stability (P4, §14.1) ────────────────────────────
+    # The FAST differential records ONE observation per experiment. DEEP
+    # re-runs the generated test on HEAD a bounded number of times and
+    # classifies the verdict sequence: stable / flaky / contaminated.
+    # Environmental contamination = the H2 state at the start of a repeat
+    # differs from the first run's start state (leftover state polluting
+    # the re-run). A single run is never called stable.
+    from agent.verdict_stability import summarize
+
+    repeats = _env_int("SPECPROOF_DEEP_REPEATS", 2)
+    repeat_runs: list[dict[str, Any]] = []
+    contaminated = False
+    baseline_snapshot: dict[str, Any] | None = None
+    for index in range(repeats):
+        from agent.nodes.run_differential import _capture_db_snapshot
+
+        start_snapshot = _capture_db_snapshot(app)
+        if index == 0:
+            baseline_snapshot = start_snapshot
+        elif baseline_snapshot is not None and (
+            start_snapshot.get("rows") != baseline_snapshot.get("rows")
+        ):
+            contaminated = True
+        repeat_run = run_with_cancel_checks(
+            job_id, "deep_stability_run",
+            _run_test_via_sandbox, app, generated_tests_path,
+        )
+        repeat_runs.append({
+            "exit_code": repeat_run["exit_code"],
+            "error": repeat_run["error"],
+        })
+    results["verdict_stability"] = summarize(repeat_runs, contaminated)
+
     # ── Persist the deep report next to the HTML report ──────────
     out_dir = Path(state.get("output_dir", "reports"))
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -133,6 +166,18 @@ def _make_test_runner(
             target.write_text(original, encoding="utf-8")
 
     return runner
+
+
+def _env_int(name: str, default: int) -> int:
+    """Bounded positive integer from env; falls back to default honestly."""
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(1, min(value, 10))
 
 
 def _run_test_via_sandbox(app: str, generated_tests_path: str) -> dict[str, Any]:
