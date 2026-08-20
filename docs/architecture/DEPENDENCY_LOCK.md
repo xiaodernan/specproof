@@ -7,8 +7,10 @@
 
 ## 0. 诚实总声明 (先读这一段)
 
-- **Python 侧没有提交任何 lock 文件或 pip freeze 快照**。`pyproject.toml` 用
-  `>=` 下限锁定直接依赖 (见 §1), 传递依赖与解析结果未被冻结。
+- **Python 侧已有 freeze 快照** (`requirements-frozen-20260820.txt`, 172 行,
+  2026-08-20 采集): 这是**开发环境解析结果快照** (记录用), 仍不是干净环境
+  审计输出 — 干净 venv 安装审计尚未执行 (§1.3), 快照不能证明可复现。
+  `pyproject.toml` 用 `>=` 下限锁定直接依赖 (见 §1)。
 - 因此**完整锁定审计**必须在干净虚拟环境中执行一遍安装并导出快照 (§1.3 命令),
   本文档记录的是“仓库里实际写死的版本”, 不是“审计后证明可复现的版本”。
 - Node 侧有 `package-lock.json` (lockfileVersion 3), `npm ci` 可按锁文件精确安装 —
@@ -61,10 +63,16 @@
 - otel (6 项, 全部 >=1.28.0 或 >=0.49b0): opentelemetry-api / sdk / exporter-otlp-proto-http +
   instrumentation-fastapi / pika / pymongo / redis / pymysql。
 
-### 1.3 锁定快照与干净环境审计命令 (本文档记录的诚实缺口)
+### 1.3 锁定快照与干净环境审计命令 (快照已提交, 干净审计仍为缺口)
 
-仓库当前**没有** `requirements*.txt` / `constraints*.txt` / `poetry.lock` / `uv.lock`。
-要生成快照或做完整锁定审计:
+仓库已有快照: `docs/architecture/requirements-frozen-20260820.txt` (172 行,
+2026-08-20 采集)。采集命令是 `python -m pip list --format=freeze` —
+`pip freeze` 在本机会因跨盘 editable 安装元数据 (specproof 以 -e 装自 D:,
+其 git 元数据指向 C:) 触发 pip 内部 relpath 崩溃 (ValueError: path is on
+mount 'c:'), 因此用 pip list 的 freeze 格式替代 (二者版本解析同源)。
+快照为记录用, **不替代锁文件**, 也不能证明干净环境可复现。
+
+要复现快照或做完整锁定审计:
 
 ```bash
 # 1) 生成当前环境快照 (记录用, 不替代锁文件)
@@ -76,8 +84,9 @@ python -m venv .venv-audit
 .venv-audit\Scripts\pip freeze --all > freeze-audit.txt
 ```
 
-审计结论只有从第 2 步的干净安装输出才能得出 — 本仓库尚未提交该输出, 因此
-“全量依赖可复现性” 目前是**未验证**状态, 不在任何验收数字内。
+审计结论只有从第 2 步的干净安装输出才能得出 — 本仓库已提交的是第 1 步
+口径的开发环境快照 (172 行), 尚未提交干净安装输出, 因此
+“全量依赖可复现性” 目前仍是**未验证**状态, 不在任何验收数字内。
 
 ---
 
@@ -170,7 +179,7 @@ python -m venv .venv-audit
 
 | 生态 | 直接依赖锁定方式 | 传递依赖 | 判定 |
 |---|---|---|---|
-| Python | `>=` 下限 (pyproject) | 未锁定, 无 freeze 快照 | ⚠️ 部分锁定 — 完整审计需 §1.3 干净 venv |
+| Python | `>=` 下限 (pyproject) | freeze 快照已提交 (172 行, 2026-08-20, 开发环境口径) | ⚠️ 部分锁定 — 完整审计需 §1.3 干净 venv |
 | Node (apps/web, ide/vscode) | `^` 范围 + package-lock.json | 锁文件精确锁定 (npm ci) | ✅ 锁定 |
 | JDK | 21 (pom) | — | ✅ 写死 |
 | Maven | 3.9.9 + zip sha256 (wrapper) | 依赖由 Spring Boot 3.4.3 BOM 管理 (非逐条钉版) | ✅ 工具链锁定; ⚠️ 依赖集随 BOM |
@@ -178,7 +187,7 @@ python -m venv .venv-audit
 
 ## 6. 已知缺口 (诚实记录, 不掩饰)
 
-1. Python 无 lock/freeze 快照 — 完整锁定审计 (干净 venv + freeze) 未执行, 见 §1.3。
+1. Python 已有 freeze 快照 (开发环境口径, 172 行) 但完整锁定审计 (干净 venv + freeze) 未执行 — 见 §1.3。
 2. `pyproject.toml` 的 `>=` 下限不阻止未来破坏性主版本 (除 elasticsearch 的 <9 外无上限)。
 3. Maven 依赖 (mysql-connector-j 等) 由 Spring Boot BOM 3.4.3 管理, 未逐条钉版。
 4. Compose 镜像内部 (操作系统/运行时) 未做内容级审计; `docker:27-dind` 为 privileged (DooD 隔离在 compose 层说明, 见 `compose.production.yml` 注释与 `docs/operations/RUNBOOK.md`)。

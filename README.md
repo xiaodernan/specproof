@@ -145,7 +145,7 @@ docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observ
 2. **Go/No-Go 15 门槛 11/15 PASS** (#4 回放 25/25=100% / #5 无证据 BLOCKER 不变式测试 19 例 / #6 FAST p95 161.1s / #9+#11 真实故障演练 / #14 LLM 基线 +100pp); PARTIAL 1 (#3 归因 88.9%, att-08 both-fail 修复在途), PENDING 3 (#12 试点 / #13 用户 / #15 成本, 仓库外依赖); 任一门槛未达 PASS 前不宣称商业优势 9.0。
 3. **诚实未达标项**: Aider polyglot 离线样本 1/3=33.3% (harness 全绿, 跨语言编辑器未支持诚实标注); SWE-bench-Lite 真实跑十二轮 (v1-v12) 每轮消掉一类失败 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案→瞬时超时), resolved 率始终诚实 0% — harness 层障碍已清完, 剩余模型能力层 (v12 实测: 网关 /v1/models 仅 deepseek-v4-flash/v4-pro 两档无更强档, 最强档重测两实例仍 [LLM_PROPOSAL_REPEATED] STUCK; v13 方向 = 官方 Docker 口径/网关外更强模型); Go/No-Go 整体评级见 `docs/eval/go-nogo.md`。
 4. **依赖基础设施未实测**: Linux 非 root 沙箱、KMS/HSM、跨语言 Gradle/Node/Go 适配器 — 本地不可验。
-5. **依赖锁定缺口**: Python 无 lock/freeze 快照, 完整锁定审计需干净 venv (`docs/architecture/DEPENDENCY_LOCK.md` §0/§1.3)。
+5. **依赖锁定缺口**: Python freeze 快照已提交 (172 行, 2026-08-20, 开发环境口径) 但干净 venv 完整锁定审计未执行 (`docs/architecture/DEPENDENCY_LOCK.md` §0/§1.3)。
 6. **状态机差异**: Verify/Craft 当前实现与演进计划 §4.3/§4.4 冻结定义的逐项差异已诚实列明 (`docs/architecture/STATE_MACHINES.md`)。
 7. **LLM 档**依赖外部可用端点与 Key; 无 Key 时诚实降级为确定性档并明确标注, 绝不伪造 LLM 结果。
 8. ~~计费路由与前端收尾 (W101)~~ 已落地 (billing 路由/wizard/权限页/progress 形状, 19 文件 90 测试+build 全绿)。
