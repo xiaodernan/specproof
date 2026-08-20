@@ -1,0 +1,108 @@
+{
+  "total_cases": 8,
+  "should_detect": 7,
+  "detected": 6,
+  "false_positives": 0,
+  "precision": 100.0,
+  "recall": 85.71428571428571,
+  "f1": 92.30769230769229,
+  "timing_note": "Per-case duration_ms is whole-pipeline wall clock measured around the graph invocation; the Phase 0 graph exposes no per-stage timestamps, so stage-level timings are not available.",
+  "cases": [
+    {
+      "case": "case-att-01-head-auth",
+      "verdict": "PASS",
+      "should_detect": true,
+      "duration_ms": 171585,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 2,
+      "matched_severities": "BLOCKER, MAJOR",
+      "contracts_found": "AUTH-01",
+      "expected_contract": "AUTH-01"
+    },
+    {
+      "case": "case-att-02-head-unique-inversion",
+      "verdict": "PASS",
+      "should_detect": true,
+      "duration_ms": 143700,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "UNIQUE-01",
+      "expected_contract": "UNIQUE-01"
+    },
+    {
+      "case": "case-att-03-head-routing-key",
+      "verdict": "PASS",
+      "should_detect": true,
+      "duration_ms": 140790,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "EVENT_ONCE-01",
+      "expected_contract": "EVENT_ONCE-01"
+    },
+    {
+      "case": "case-att-04-head-cache-eviction",
+      "verdict": "PASS",
+      "should_detect": true,
+      "duration_ms": 153724,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "CACHE-01",
+      "expected_contract": "CACHE-01"
+    },
+    {
+      "case": "case-att-05-head-optimistic-lock",
+      "verdict": "PASS",
+      "should_detect": true,
+      "duration_ms": 184448,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "CONCURRENCY-01",
+      "expected_contract": "CONCURRENCY-01"
+    },
+    {
+      "case": "case-att-06-head-transaction-boundary",
+      "verdict": "PASS",
+      "should_detect": true,
+      "duration_ms": 171331,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "TRANSACTION-01",
+      "expected_contract": "TRANSACTION-01"
+    },
+    {
+      "case": "case-att-07-base-unique-preexisting",
+      "verdict": "PASS",
+      "should_detect": false,
+      "duration_ms": 173802,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "UNIQUE-01"
+    },
+    {
+      "case": "case-att-08-base-and-head-both-fail",
+      "verdict": "MISS",
+      "should_detect": true,
+      "duration_ms": 168118,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "EVENT_ONCE-01"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "expected_severity": "BLOCKER",
+  "expected_contract": "CONCURRENCY-01",
+  "expected_evidence_type": "base_pass_head_fail",
+  "should_detect": true,
+  "attribution": {
+    "head_defects": [
+      {
+        "contract_id": "CONCURRENCY-01",
+        "kind": "regression",
+        "description": "@Version optimistic lock removed by case-29-head"
+      }
+    ],
+    "base_defects": []
+  }
+}

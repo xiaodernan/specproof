@@ -1,0 +1,6 @@
+{
+  "version": "2.0",
+  "base_ref": "base",
+  "head_ref": "case-17-head",
+  "note": "Attribution case set (W164, go-nogo gate #3): existing demo tags only, built by scripts/attribution_cases.py"
+}

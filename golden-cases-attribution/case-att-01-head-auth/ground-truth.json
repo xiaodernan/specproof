@@ -1,0 +1,16 @@
+{
+  "expected_severity": "BLOCKER",
+  "expected_contract": "AUTH-01",
+  "expected_evidence_type": "base_pass_head_fail",
+  "should_detect": true,
+  "attribution": {
+    "head_defects": [
+      {
+        "contract_id": "AUTH-01",
+        "kind": "regression",
+        "description": "@PreAuthorize guard removed by head-v1"
+      }
+    ],
+    "base_defects": []
+  }
+}

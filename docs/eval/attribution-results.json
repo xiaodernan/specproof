@@ -1,0 +1,263 @@
+{
+  "generated_by": "scripts/attribution_cases.py run",
+  "gate": "go-nogo #3 PR \u5f52\u56e0\u51c6\u786e\u7387 >= 90%",
+  "cases": 8,
+  "head_defects": 7,
+  "base_defects": 2,
+  "correctly_attributed": 6,
+  "missed_attribution": 1,
+  "misattributed_to_head": 0,
+  "correctly_not_attributed": 2,
+  "attribution_accuracy_pct": 88.9,
+  "formula": "attribution_accuracy_pct = 100 * (correctly_attributed + correctly_not_attributed) / (head_defects + base_defects)",
+  "rows": [
+    {
+      "case": "case-att-01-head-auth",
+      "scenario": {
+        "base_ref": "base",
+        "head_ref": "head-v1"
+      },
+      "head_defects": [
+        "AUTH-01"
+      ],
+      "base_defects": [],
+      "correctly_attributed": 1,
+      "missed_attribution": 0,
+      "missed_detail": [],
+      "misattributed_to_head": 0,
+      "misattributed_contracts": [],
+      "correctly_not_attributed": 0,
+      "confirmed_contracts": [
+        "AUTH-01"
+      ],
+      "not_attributed_contracts": [],
+      "diff_results": [
+        {
+          "contract_id": "AUTH-01",
+          "verdict": "REGRESSION",
+          "base_exit_code": 0,
+          "head_exit_code": 1
+        }
+      ],
+      "duration_ms": 196959,
+      "pipeline_error": ""
+    },
+    {
+      "case": "case-att-02-head-unique-inversion",
+      "scenario": {
+        "base_ref": "base",
+        "head_ref": "case-17-head"
+      },
+      "head_defects": [
+        "UNIQUE-01"
+      ],
+      "base_defects": [],
+      "correctly_attributed": 1,
+      "missed_attribution": 0,
+      "missed_detail": [],
+      "misattributed_to_head": 0,
+      "misattributed_contracts": [],
+      "correctly_not_attributed": 0,
+      "confirmed_contracts": [
+        "UNIQUE-01"
+      ],
+      "not_attributed_contracts": [],
+      "diff_results": [
+        {
+          "contract_id": "UNIQUE-01",
+          "verdict": "REGRESSION",
+          "base_exit_code": 0,
+          "head_exit_code": 1
+        }
+      ],
+      "duration_ms": 184486,
+      "pipeline_error": ""
+    },
+    {
+      "case": "case-att-03-head-routing-key",
+      "scenario": {
+        "base_ref": "base",
+        "head_ref": "case-18-head"
+      },
+      "head_defects": [
+        "EVENT_ONCE-01"
+      ],
+      "base_defects": [],
+      "correctly_attributed": 1,
+      "missed_attribution": 0,
+      "missed_detail": [],
+      "misattributed_to_head": 0,
+      "misattributed_contracts": [],
+      "correctly_not_attributed": 0,
+      "confirmed_contracts": [
+        "EVENT_ONCE-01"
+      ],
+      "not_attributed_contracts": [],
+      "diff_results": [
+        {
+          "contract_id": "EVENT_ONCE-01",
+          "verdict": "REGRESSION",
+          "base_exit_code": 0,
+          "head_exit_code": 1
+        }
+      ],
+      "duration_ms": 180948,
+      "pipeline_error": ""
+    },
+    {
+      "case": "case-att-04-head-cache-eviction",
+      "scenario": {
+        "base_ref": "base",
+        "head_ref": "case-56-head"
+      },
+      "head_defects": [
+        "CACHE-01"
+      ],
+      "base_defects": [],
+      "correctly_attributed": 1,
+      "missed_attribution": 0,
+      "missed_detail": [],
+      "misattributed_to_head": 0,
+      "misattributed_contracts": [],
+      "correctly_not_attributed": 0,
+      "confirmed_contracts": [
+        "CACHE-01"
+      ],
+      "not_attributed_contracts": [],
+      "diff_results": [
+        {
+          "contract_id": "CACHE-01",
+          "verdict": "REGRESSION",
+          "base_exit_code": 0,
+          "head_exit_code": 1
+        }
+      ],
+      "duration_ms": 179277,
+      "pipeline_error": ""
+    },
+    {
+      "case": "case-att-05-head-optimistic-lock",
+      "scenario": {
+        "base_ref": "base",
+        "head_ref": "case-29-head"
+      },
+      "head_defects": [
+        "CONCURRENCY-01"
+      ],
+      "base_defects": [],
+      "correctly_attributed": 1,
+      "missed_attribution": 0,
+      "missed_detail": [],
+      "misattributed_to_head": 0,
+      "misattributed_contracts": [],
+      "correctly_not_attributed": 0,
+      "confirmed_contracts": [
+        "CONCURRENCY-01"
+      ],
+      "not_attributed_contracts": [],
+      "diff_results": [
+        {
+          "contract_id": "CONCURRENCY-01",
+          "verdict": "REGRESSION",
+          "base_exit_code": 0,
+          "head_exit_code": 1
+        }
+      ],
+      "duration_ms": 166802,
+      "pipeline_error": ""
+    },
+    {
+      "case": "case-att-06-head-transaction-boundary",
+      "scenario": {
+        "base_ref": "base",
+        "head_ref": "case-28-head"
+      },
+      "head_defects": [
+        "TRANSACTION-01"
+      ],
+      "base_defects": [],
+      "correctly_attributed": 1,
+      "missed_attribution": 0,
+      "missed_detail": [],
+      "misattributed_to_head": 0,
+      "misattributed_contracts": [],
+      "correctly_not_attributed": 0,
+      "confirmed_contracts": [
+        "TRANSACTION-01"
+      ],
+      "not_attributed_contracts": [],
+      "diff_results": [
+        {
+          "contract_id": "AUTH-01",
+          "verdict": "COMPLIANT",
+          "base_exit_code": 0,
+          "head_exit_code": 0
+        }
+      ],
+      "duration_ms": 349678,
+      "pipeline_error": ""
+    },
+    {
+      "case": "case-att-07-base-unique-preexisting",
+      "scenario": {
+        "base_ref": "case-17-head",
+        "head_ref": "case-18-head"
+      },
+      "head_defects": [],
+      "base_defects": [
+        "UNIQUE-01"
+      ],
+      "correctly_attributed": 0,
+      "missed_attribution": 0,
+      "missed_detail": [],
+      "misattributed_to_head": 0,
+      "misattributed_contracts": [],
+      "correctly_not_attributed": 1,
+      "confirmed_contracts": [],
+      "not_attributed_contracts": [],
+      "diff_results": [
+        {
+          "contract_id": "UNIQUE-01",
+          "verdict": "UNEXPECTED_FIX",
+          "base_exit_code": 1,
+          "head_exit_code": 0
+        }
+      ],
+      "duration_ms": 214391,
+      "pipeline_error": ""
+    },
+    {
+      "case": "case-att-08-base-and-head-both-fail",
+      "scenario": {
+        "base_ref": "case-17-head",
+        "head_ref": "case-18-head"
+      },
+      "head_defects": [
+        "EVENT_ONCE-01"
+      ],
+      "base_defects": [
+        "UNIQUE-01"
+      ],
+      "correctly_attributed": 0,
+      "missed_attribution": 1,
+      "missed_detail": [
+        "EVENT_ONCE-01: no finding produced"
+      ],
+      "misattributed_to_head": 0,
+      "misattributed_contracts": [],
+      "correctly_not_attributed": 1,
+      "confirmed_contracts": [],
+      "not_attributed_contracts": [],
+      "diff_results": [
+        {
+          "contract_id": "AUTH-01",
+          "verdict": "AMBIGUOUS",
+          "base_exit_code": 1,
+          "head_exit_code": 1
+        }
+      ],
+      "duration_ms": 191118,
+      "pipeline_error": ""
+    }
+  ]
+}

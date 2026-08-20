@@ -1,0 +1,16 @@
+{
+  "expected_severity": "MAJOR",
+  "expected_contract": "EVENT_ONCE-01",
+  "expected_evidence_type": "base_pass_head_fail",
+  "should_detect": true,
+  "attribution": {
+    "head_defects": [
+      {
+        "contract_id": "EVENT_ONCE-01",
+        "kind": "regression",
+        "description": "email.changed routing key broken by case-18-head"
+      }
+    ],
+    "base_defects": []
+  }
+}

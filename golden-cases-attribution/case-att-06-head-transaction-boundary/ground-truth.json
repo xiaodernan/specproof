@@ -1,0 +1,16 @@
+{
+  "expected_severity": "MAJOR",
+  "expected_contract": "TRANSACTION-01",
+  "expected_evidence_type": "java_source_diff",
+  "should_detect": true,
+  "attribution": {
+    "head_defects": [
+      {
+        "contract_id": "TRANSACTION-01",
+        "kind": "regression",
+        "description": "@Transactional removed by case-28-head (static evidence)"
+      }
+    ],
+    "base_defects": []
+  }
+}
