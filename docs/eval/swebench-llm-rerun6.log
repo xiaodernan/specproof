@@ -1,0 +1,5 @@
+[1/2] pallets__flask-4045 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s1 (understand): 同类错误连续 3 次, 判定 stuck (签名: s1|目标文件不可读: flask/blueprints.py (文件不存在: flask/blueprints.py))
+[2/2] pallets__flask-4992 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s2 (understand): 同类错误连续 3 次, 判定 stuck (签名: s2|断言值 'from_file' 无源文件可搜索: 目标 ['tests/test_config.py'] 均为测试文件 — 隐藏测试由评测框架在 craft 后施加, craft 阶段
+汇总: total=2 resolved=0 unresolved=2 rate=0.0%
+结果 JSON: docs\eval\swebench-llm-results-v6.json
+日志目录: docs\eval\swebench-logs
