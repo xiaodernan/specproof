@@ -4,8 +4,10 @@
 > (演进计划, 产品目标态); “当前实现” = 本仓库 `storage/mysql.py` / `storage/agent_jobs.py` /
 > `craft/loop.py` / `api/routes/jobs.py` / `api/routes/agent_console.py` /
 > `api/agent_runtime.py` / `agent/worker.py` / `agent/job_control.py` 的实际代码,
-> 经逐文件核对 (2026-08-19, 分支 feature/interview-hardening)。每张实现表都标注
-> “白名单允许” 与 “生产代码实际发出” 两个口径 — 两者不一致处即诚实边界, 不粉饰。
+> 经逐文件核对 (2026-08-19, 分支 feature/interview-hardening)。§2.2 / §2.5 / §3 于
+> 2026-08-20 更新 (backlog #5: stale-RUNNING 回收器 + WAITING_FOR_PROVIDER 接线)。
+> 每张实现表都标注“白名单允许” 与 “生产代码实际发出” 两个口径 —
+> 两者不一致处即诚实边界, 不粉饰。
 
 ---
 
@@ -59,9 +61,10 @@ rowcount==1 才算成功; 静态非法转移抛 `InvalidStateTransition`; 成功
 | RUNNING → VERIFIED / BLOCKED / FAILED | ✅ | `agent/worker.py` 终态 (见 §2.4 映射表) | 终态 = 管线**真实结果**, 绝不无条件 VERIFIED |
 | RUNNING → CANCELLED | ✅ | API cancel CAS; worker 在阶段边界感知后以 `cancelled_at_checkpoint` 落审计 | worker 不再产生任何副作用 (§14 任务 8) |
 | RUNNING → STALE | ✅ | **无生产调用点** | 白名单预留 |
-| RUNNING → WAITING_FOR_PROVIDER | ✅ | **无生产调用点** | Provider 故障现行走 `classify_job_error` → FAILED (reason 带 class/code/retryable) |
+| RUNNING → WAITING_FOR_PROVIDER | ✅ | `agent/worker.py` 异常路径 → `MySQLStore.enter_provider_wait` (2026-08-20 backlog #5) | 可重试 provider 故障 (429/5xx, class=provider+retryable) 且 retry_count<max_retries 时停放; 审计 `job_provider_wait_entered`; 不可重试/预算耗尽仍走 classify_job_error → FAILED |
 | RUNNING → ERROR | ✅ | **无生产调用点** (仅测试/演练脚本) | 白名单预留 |
-| WAITING_FOR_PROVIDER → QUEUED / RUNNING / FAILED / CANCELLED / ERROR | ✅ | **无生产调用点** (整个状态仅 API cancel 判定与测试引用) | 状态存在但无生产写入方 |
+| RUNNING → QUEUED | ❌ (白名单外) | `MySQLStore.reclaim_stale_running` + `agent/worker.py reclaim_stale_running_jobs` (2026-08-20 backlog #5) | 回收器专用 CAS: `status='RUNNING' AND updated_at < NOW(3) - INTERVAL ttl SECOND` + Redis 租约心跳探测 (lease key 存在=存活); 审计 `job_reclaimed_stale_running`; 幂等 (重复调用不产生重复转移); worker_id 清空、retry_count+1 |
+| WAITING_FOR_PROVIDER → QUEUED / FAILED | ✅ | `MySQLStore.recover_provider_wait` + `agent/worker.py recover_waiting_for_provider_jobs` (2026-08-20 backlog #5) | 预算内 (retry_count<max_retries) → QUEUED (retry_count+1, 重投递新 event_id); 超限 → FAILED (`provider_wait_retries_exhausted`)。RUNNING / CANCELLED / ERROR 分支仍无生产调用点 |
 | FAILED → QUEUED | ✅ | **无生产调用点** (无 retry 端点; retry_count/max_retries 列预留) | 白名单预留 |
 | FAILED → CANCELLED | ✅ | `api/routes/jobs.py` POST /jobs/{id}/cancel | FAILED 非终态 (见下) |
 | FAILED → ERROR | ✅ | **无生产调用点** | 白名单预留 |
@@ -83,6 +86,9 @@ rowcount==1 才算成功; 静态非法转移抛 `InvalidStateTransition`; 成功
 
 异常路径: 未捕获异常经 `agent/job_control.py classify_job_error` 统一分类
 ({class: system|repo|provider|policy|unknown, code, retryable, note} JSON 写进 last_error) → FAILED;
+例外 (2026-08-20 backlog #5): class=provider 且 retryable (429/5xx) 且 retry_count<max_retries
+时 → WAITING_FOR_PROVIDER (`enter_provider_wait`, 审计 `job_provider_wait_entered`),
+由 `recover_provider_wait` 恢复 (预算内 → QUEUED, 超限 → FAILED);
 取消检查点 (每个执行前后 + LLM 重试前 + 图阶段边界) 命中 → CANCELLED (`cancelled_at_checkpoint`);
 租约丢失 → FAILED (`lease_lost`), 停止一切业务写入。
 
@@ -92,6 +98,9 @@ rowcount==1 才算成功; 静态非法转移抛 `InvalidStateTransition`; 成功
 |---|---|---|
 | 状态转换审计 | `transition_job_status` 成功后写 `audit_logs` (job_status_transition) | ✅ 已实现 |
 | 取消审计 | job_cancelled (API) / job_cancelled_at_checkpoint (worker) | ✅ 已实现 |
+| 回收审计 (RUNNING→QUEUED) | `record_audit(action=job_reclaimed_stale_running)` (backlog #5) | ✅ 已实现 |
+| Provider 等待进入审计 | transition 审计 + `record_audit(action=job_provider_wait_entered)` (backlog #5) | ✅ 已实现 |
+| 回收转移走白名单 | 回收器专用 CAS UPDATE (同 `mark_stale_for_head` 直写型, 附时间谓词) | ⚠️ 差异 |
 | PENDING→QUEUED | 事务内直接 UPDATE, 无审计行 | ⚠️ 差异 |
 | mark_stale_for_head | 直接 UPDATE, 无审计行、不走 CAS | ⚠️ 差异 (且无生产调用点) |
 | 每转换写事件 | 仅 JobCreated 入 Outbox; 状态转换不产事件 | ⚠️ 差异 (冻结要求每次转换写事件) |
@@ -107,7 +116,7 @@ rowcount==1 才算成功; 静态非法转移抛 `InvalidStateTransition`; 成功
 | NEEDS_REVIEW | 证据不足 → 人工判断 | 未实现 (unverified>0 现行归 BLOCKED) | ⚠️ 语义差异 |
 | EXPIRED | 超保留/执行期限 | 未实现 (列不存在) | ❌ 缺 |
 | PREPARING/CONTRACT_REVIEW/REVIEWING | 独立状态 | 未实现 | ❌ 缺 |
-| WAITING_FOR_PROVIDER | (冻结无) | 有枚举+白名单, 无生产写入方 | ⚠️ 预留 |
+| WAITING_FOR_PROVIDER | (冻结无) | 有枚举+白名单; 2026-08-20 已接线: worker 将可重试 provider 故障停放此状态 (enter_provider_wait), recover 路径回 QUEUED (预算内) / FAILED (超限) | ⚠️ 预留 → 已接线 |
 | ERROR | (冻结无) | 终态, 无生产写入方 (基础设施错误实际记入 FAILED) | ⚠️ 预留 |
 | FAILED 语义 | 系统无法完成验证, ≠ 代码有问题; 冻结下 FAILED 为终态 | FAILED=管线错误终态, **可重试 (→QUEUED)/可取消**, 与 BLOCKED 区分正确 | ✅ 语义主体一致; ⚠️ 终态性不同 |
 | CANCELLED 语义 | 仅用户/管理员触发 | 仅 API cancel (worker 检查点只是配合落审计) | ✅ 一致 |

@@ -9,7 +9,7 @@ dead-letter state, and a single-query stats snapshot for relay metrics.
 """
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, cast
@@ -62,6 +62,11 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
 }
 
 TERMINAL_STATUSES = {"VERIFIED", "BLOCKED", "STALE", "CANCELLED", "ERROR"}
+
+#: Audit action written when the stale-RUNNING reclaimer returns a job to QUEUED.
+RECLAIM_STALE_RUNNING_ACTION = "job_reclaimed_stale_running"
+#: last_error reason when a WAITING_FOR_PROVIDER job has spent its retry budget.
+PROVIDER_WAIT_EXHAUSTED_REASON = "provider_wait_retries_exhausted"
 
 
 class InvalidStateTransition(Exception):  # noqa: N818 — domain term, public API
@@ -682,6 +687,176 @@ class MySQLStore:
             from_status="QUEUED",
             worker_id=worker_id,
         )
+
+    # ── Stale-RUNNING reclaimer (§14.1 crash recovery) ────────
+
+    def reclaim_stale_running(
+        self,
+        lease_ttl_seconds: int,
+        *,
+        lease_alive: Callable[[str], bool],
+    ) -> list[dict[str, Any]]:
+        """Atomically return lease-expired, heartbeat-less RUNNING jobs to QUEUED.
+
+        Staleness is decided in two steps, mirroring the worker lease
+        contract (§14 任务 8):
+
+        1. Candidate rows — ``status='RUNNING' AND updated_at < NOW(3) -
+           INTERVAL lease_ttl_seconds SECOND``: the row has not been touched
+           for a full lease TTL.
+        2. Heartbeat probe — a candidate is skipped when ``lease_alive(
+           job_id)`` returns True. The Redis lease key
+           (``specproof:lease:job:{id}``) is refreshed by
+           ``RedisStore.renew_lease`` at every stage boundary, so a live
+           lease means a live worker; an absent/expired key means the
+           worker died or stalled without a heartbeat.
+
+        Each surviving candidate is reclaimed by a single-statement CAS::
+
+            UPDATE verification_jobs
+               SET status='QUEUED', worker_id=NULL,
+                   retry_count=retry_count+1, last_error=%s
+             WHERE id=%s AND status='RUNNING'
+               AND updated_at < (NOW(3) - INTERVAL %s SECOND)
+
+        Exactly one changed row counts as a successful reclaim; a row that
+        lost the race (already QUEUED, or re-claimed with a fresh
+        updated_at) is left alone. Every reclaim writes an audit row
+        (action ``job_reclaimed_stale_running``) and a JSON reason
+        envelope into last_error. Re-running the reclaimer finds no stale
+        RUNNING rows and returns [], so repeated calls never produce
+        duplicate transitions.
+        """
+        if lease_ttl_seconds < 1:
+            raise ValueError("lease_ttl_seconds must be >= 1")
+        candidates = self._stale_running_candidates(lease_ttl_seconds)
+        reclaimed: list[dict[str, Any]] = []
+        for row in candidates:
+            job_id = str(row["id"])
+            if lease_alive(job_id):
+                continue
+            reason = json.dumps(
+                {
+                    "reason": "stale_running_reclaimed",
+                    "lease_ttl_seconds": lease_ttl_seconds,
+                    "previous_worker": row.get("worker_id") or None,
+                },
+                ensure_ascii=False,
+            )
+            with self.connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE verification_jobs SET status = 'QUEUED', "
+                    "worker_id = NULL, retry_count = retry_count + 1, "
+                    "last_error = %s "
+                    "WHERE id = %s AND status = 'RUNNING' AND "
+                    "updated_at < (NOW(3) - INTERVAL %s SECOND)",
+                    (reason, job_id, lease_ttl_seconds),
+                )
+                changed = bool(cursor.rowcount == 1)
+            if not changed:
+                continue
+            self.record_audit(
+                action=RECLAIM_STALE_RUNNING_ACTION,
+                actor="reclaimer",
+                job_id=job_id,
+                from_status="RUNNING",
+                to_status="QUEUED",
+                detail=reason,
+            )
+            row["status"] = "QUEUED"
+            row["worker_id"] = None
+            row["retry_count"] = int(row.get("retry_count") or 0) + 1
+            row["last_error"] = reason
+            reclaimed.append(row)
+        return reclaimed
+
+    def _stale_running_candidates(
+        self, lease_ttl_seconds: int,
+    ) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, repo_path, base_ref, head_ref, spec_path, depth, "
+                "retry_count, max_retries, worker_id, status, updated_at "
+                "FROM verification_jobs "
+                "WHERE status = 'RUNNING' AND "
+                "updated_at < (NOW(3) - INTERVAL %s SECOND) "
+                "ORDER BY updated_at, id",
+                (lease_ttl_seconds,),
+            )
+            return cast(list[dict[str, Any]], cur.fetchall())
+
+    # ── WAITING_FOR_PROVIDER wiring (provider outage retry) ────
+
+    def enter_provider_wait(
+        self,
+        job_id: str,
+        *,
+        worker_id: str | None = None,
+        error_msg: str | None = None,
+    ) -> bool:
+        """CAS RUNNING → WAITING_FOR_PROVIDER (provider outage checkpoint).
+
+        The transition itself is whitelisted and audited by
+        transition_job_status (action ``job_status_transition``); an
+        additional audit row (action ``job_provider_wait_entered``) records
+        the entry event explicitly.
+        """
+        changed = self.transition_job_status(
+            job_id,
+            "WAITING_FOR_PROVIDER",
+            from_status="RUNNING",
+            worker_id=worker_id,
+            error_msg=error_msg,
+        )
+        if changed:
+            self.record_audit(
+                action="job_provider_wait_entered",
+                actor=worker_id or "system",
+                job_id=job_id,
+                from_status="RUNNING",
+                to_status="WAITING_FOR_PROVIDER",
+                detail=(error_msg or "")[:1000],
+            )
+        return changed
+
+    def recover_provider_wait(
+        self,
+        job_id: str,
+        *,
+        error_msg: str | None = None,
+    ) -> tuple[bool, str | None]:
+        """Recover one WAITING_FOR_PROVIDER job: QUEUED (retry) or FAILED.
+
+        Retry budget: ``retry_count < max_retries`` → CAS
+        WAITING_FOR_PROVIDER → QUEUED with ``retry_count = retry_count + 1``
+        (audited by transition_job_status); budget exhausted → CAS
+        WAITING_FOR_PROVIDER → FAILED, the job's own max_retries column
+        being the cap. Returns ``(changed, new_status)`` — ``(False, None)``
+        when the row is not in WAITING_FOR_PROVIDER or the CAS lost a race.
+        """
+        job = self.get_job(job_id)
+        if job is None or str(job.get("status", "")) != "WAITING_FOR_PROVIDER":
+            return False, None
+        retry_count = int(job.get("retry_count") or 0)
+        max_retries = int(job.get("max_retries") or 0)
+        if retry_count >= max_retries:
+            changed = self.transition_job_status(
+                job_id,
+                "FAILED",
+                from_status="WAITING_FOR_PROVIDER",
+                error_msg=error_msg or PROVIDER_WAIT_EXHAUSTED_REASON,
+            )
+            return changed, ("FAILED" if changed else None)
+        changed = self.transition_job_status(
+            job_id,
+            "QUEUED",
+            from_status="WAITING_FOR_PROVIDER",
+            increment_retry=True,
+            error_msg=error_msg,
+        )
+        return changed, ("QUEUED" if changed else None)
 
     def mark_stale_for_head(self, new_head_ref: str, new_job_id: str) -> list[str]:
         """Mark all QUEUED/RUNNING jobs for the same repo as STALE.

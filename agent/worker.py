@@ -18,6 +18,7 @@ import signal
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,7 @@ from agent.graph import build_phase0_graph
 from agent.job_control import (
     CANCELLED_AT_CHECKPOINT,
     LEASE_LOST,
+    ErrorClassification,
     JobCancelledError,
     LeaseLostError,
     classify_job_error,
@@ -218,20 +220,35 @@ class Worker:
             )[:1024]
             self.redis.xadd_progress(job_id, job_id, "failed",
                                      message=reason, percent=0.0)
+            # Backlog #5: a retryable provider outage parks the job in
+            # WAITING_FOR_PROVIDER (audited) instead of failing it — the
+            # recover path later moves it back to QUEUED, or to FAILED once
+            # the retry budget is spent. Everything else keeps the FAILED
+            # terminal path.
+            provider_wait = self._provider_wait_allowed(job_id, classification)
             with contextlib.suppress(InvalidStateTransition):
-                self.mysql.transition_job_status(
-                    job_id, "FAILED", error_msg=reason
+                if provider_wait:
+                    self.mysql.enter_provider_wait(
+                        job_id, worker_id=self.worker_id, error_msg=reason,
+                    )
+                    incr("worker_provider_wait_total")
+                else:
+                    self.mysql.transition_job_status(
+                        job_id, "FAILED", error_msg=reason
+                    )
+            # GitHub-sourced jobs must not stay in_progress forever. A
+            # parked (provider-wait) job keeps its in-progress Check Run:
+            # the retried run completes it honestly.
+            if not provider_wait:
+                self._maybe_publish_github_check(
+                    job_id, "FAILED",
+                    {
+                        "verdict": "FAILED",
+                        "contracts_total": 0,
+                        "findings": [],
+                        "errors": [str(exc)[:200]],
+                    },
                 )
-            # GitHub-sourced jobs must not stay in_progress forever.
-            self._maybe_publish_github_check(
-                job_id, "FAILED",
-                {
-                    "verdict": "FAILED",
-                    "contracts_total": 0,
-                    "findings": [],
-                    "errors": [str(exc)[:200]],
-                },
-            )
         finally:
             self.redis.release_lease(job_id, self.worker_id)
 
@@ -368,6 +385,24 @@ class Worker:
         )
         if not renewed:
             raise LeaseLostError(job_id, self.worker_id)
+
+    def _provider_wait_allowed(
+        self, job_id: str, classification: ErrorClassification,
+    ) -> bool:
+        """True when a retryable provider outage should park the job.
+
+        Only provider-class, retryable failures qualify (429/5xx per
+        classify_job_error), and only while the job's own retry budget
+        (retry_count < max_retries) still holds — an exhausted budget fails
+        the job instead of parking it.
+        """
+        if classification.cls != "provider" or not classification.retryable:
+            return False
+        row = self.mysql.get_job(job_id) or {}
+        retry_count = int(row.get("retry_count") or 0)
+        max_retries_raw = row.get("max_retries")
+        max_retries = int(max_retries_raw) if max_retries_raw is not None else 3
+        return retry_count < max_retries
 
     def _mark_cancelled_at_checkpoint(self, job_id: str) -> None:
         """Mark the job CANCELLED with reason 'cancelled_at_checkpoint'.
@@ -556,6 +591,121 @@ def _terminal_status_from_state(state: dict[str, Any]) -> str:
     if matrix.get("unverified", 0) > 0:
         return "BLOCKED"
     return "VERIFIED"
+
+
+# ── Standalone reclaimers (backlog #5, §14.1) ───────────────────
+
+#: Queue the worker consumes; redeliveries use the same routing key the
+#: outbox relay publishes JobCreated events with.
+VERIFY_JOB_ROUTING_KEY = "q.p1.verify.job"
+
+
+def _redeliver_job(job: dict[str, Any], attempt: int) -> None:
+    """Re-publish one JobCreated event for a reclaimed/recovered job.
+
+    The event_id embeds the retry attempt so the worker's Redis idempotency
+    gate accepts the redelivery as a NEW event (the original event_id was
+    already consumed). Raises on broker failure — callers decide whether a
+    failed redelivery aborts them (the MySQL transition has already been
+    audited either way).
+    """
+    rabbitmq = RabbitMQClient()
+    try:
+        rabbitmq.publish(
+            VERIFY_JOB_ROUTING_KEY,
+            {
+                "job_id": job["id"],
+                "repo_path": job.get("repo_path", ""),
+                "base_ref": job.get("base_ref", ""),
+                "head_ref": job.get("head_ref", ""),
+                "spec_path": job.get("spec_path", ""),
+                "depth": job.get("depth", "FAST"),
+                "event_id": f"retry-{job['id']}-{attempt}",
+            },
+        )
+    finally:
+        rabbitmq.close()
+
+
+def reclaim_stale_running_jobs(lease_ttl_seconds: int = 30) -> list[dict[str, Any]]:
+    """Standalone RUNNING-job reclaimer: lease-expired, heartbeat-less → QUEUED.
+
+    Wires MySQLStore.reclaim_stale_running (CAS: status=RUNNING AND
+    updated_at < now-ttl, per-job audit) to the Redis lease key as the
+    heartbeat probe — ``RedisStore.get_lease_owner`` returns None exactly
+    when the lease expired or was never renewed. Each reclaimed job is
+    re-delivered to q.p1.verify.job with a fresh event_id (best-effort;
+    the audited QUEUED transition stands even if the broker is down).
+
+    Returns the reclaimed job rows (post-reclaim retry_count), or [] when
+    nothing was stale.
+    """
+    store = MySQLStore()
+    redis = RedisStore()
+    reclaimed = store.reclaim_stale_running(
+        lease_ttl_seconds,
+        lease_alive=lambda job_id: redis.get_lease_owner(job_id) is not None,
+    )
+    for row in reclaimed:
+        attempt = int(row.get("retry_count") or 1)
+        try:
+            _redeliver_job(row, attempt)
+            logger.info(
+                "Job %s reclaimed (stale RUNNING, lease lost) and re-queued",
+                row["id"],
+            )
+        except Exception as exc:  # noqa: BLE001 — MySQL transition stands
+            logger.warning(
+                "Job %s reclaimed but re-delivery failed: %s", row["id"], exc
+            )
+    redis.close()
+    store.close()
+    return reclaimed
+
+
+def recover_waiting_for_provider_jobs(
+    *,
+    provider_ready: Callable[[], bool] | None = None,
+) -> list[tuple[str, str]]:
+    """Recover WAITING_FOR_PROVIDER jobs: QUEUED under budget, FAILED over it.
+
+    For each WAITING_FOR_PROVIDER row, MySQLStore.recover_provider_wait
+    moves it to QUEUED (retry_count+1) while the job's retry budget holds,
+    or to FAILED once retry_count >= max_retries. QUEUED outcomes are
+    re-delivered to q.p1.verify.job with a fresh event_id. When a
+    provider_ready probe is supplied (e.g. a CircuitBreaker state check),
+    jobs stay parked until it reports True.
+
+    Returns [(job_id, new_status), ...] for every recovered job.
+    """
+    if provider_ready is not None and not provider_ready():
+        logger.info("Provider not ready; WAITING_FOR_PROVIDER jobs stay parked")
+        return []
+    store = MySQLStore()
+    results: list[tuple[str, str]] = []
+    for row in store.get_jobs_by_status("WAITING_FOR_PROVIDER"):
+        job_id = str(row["id"])
+        changed, new_status = store.recover_provider_wait(job_id)
+        if not changed or new_status is None:
+            continue
+        results.append((job_id, new_status))
+        if new_status == "QUEUED":
+            attempt = int(row.get("retry_count") or 0) + 1
+            try:
+                _redeliver_job(row, attempt)
+                logger.info(
+                    "Job %s recovered from provider wait and re-queued", job_id
+                )
+            except Exception as exc:  # noqa: BLE001 — MySQL transition stands
+                logger.warning(
+                    "Job %s recovered but re-delivery failed: %s", job_id, exc
+                )
+        else:
+            logger.warning(
+                "Job %s provider-wait retry budget spent -> FAILED", job_id
+            )
+    store.close()
+    return results
 
 
 def main() -> None:
