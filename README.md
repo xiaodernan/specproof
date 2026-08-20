@@ -56,7 +56,7 @@ powershell -ExecutionPolicy Bypass -File scripts/start_local.ps1
 | 变异测试 | 杀死率 **83.3%** (5/6, 存活体为规范外行为 — 数字不凑 100%) | `docs/eval/mutation-results.md` |
 | 基线对比 (Go/No-Go #14) | 确定性 diff-reader 基线: Recall **+41.7pp**; LLM 看 Diff 基线: Recall **+100.0pp** (SpecProof 100% vs 基线 0%) | `docs/eval/baseline-report.md` / `docs/eval/llm-baseline-live.md` |
 | Go/No-Go 15 门槛 | **PASS 12/15 · PENDING 3/15** (未实测一律 PENDING, 不编造; #3 归因 100.0% / #4 回放 100% / #5 无证据评论 0 / #6 p95 161s / #9+#11 真实演练 / #14 LLM 基线 +100pp; PARTIAL 已清零) | `docs/eval/go-nogo.md` |
-| 质量门禁 | 单元 **2069 passed + 1 skipped** 全绿; ruff / mypy strict / bandit Medium+=0; **密钥泄漏 0** | `docs/operations/ACCEPTANCE_CHECKLIST.md` §二 |
+| 质量门禁 | 单元 **2369 passed + 3 skipped** 全绿; ruff / mypy strict / bandit Medium+=0; **密钥泄漏 0** | `docs/operations/ACCEPTANCE_CHECKLIST.md` §二 |
 | 前端 | vitest 90+, Playwright e2e 9/9, 设计系统 21 组件 | `docs/operations/ACCEPTANCE_CHECKLIST.md` §二 |
 
 ## 架构图 (文本)
@@ -118,7 +118,7 @@ CLI · Web SPA · MCP · GitHub App · VS Code 扩展     ← 五种入口, 同�
 python -m ruff check .          # 全绿
 python -m mypy .                # strict (pyproject.toml)
 python -m bandit -r agent api storage craft cli  # Medium+ = 0
-python -m pytest tests/ -v      # 单元 2069+ 全绿; integration 需真实基础设施时显式 skip, 不伪造
+python -m pytest tests/ -v      # 单元 2369+ 全绿; integration 需真实基础设施时显式 skip, 不伪造
 
 # Web
 cd apps/web && npm run typecheck && npm run test && npm run build

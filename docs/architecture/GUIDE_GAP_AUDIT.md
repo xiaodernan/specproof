@@ -41,7 +41,7 @@
 
 ## C. §15 发布验收清单映射
 
-代码构建: ✅ 大部分 (unit 2069 passed/1 skipped, 2026-08-20 实测; ruff 全仓绿/mypy 绿/bandit Medium+=0/密钥泄漏 0; frontend build 全绿; OpenAPI diff 门禁 ✅ W28 实测: 基线生成 0 → 无变更 0 → 篡改 1 → --allow 豁免 0; Python 依赖锁 snapshot 未做; 迁移前向/回滚测试未做)。
+代码构建: ✅ 大部分 (unit 2369 passed/3 skipped, 2026-08-20 实测; ruff 全仓绿/mypy 绿/bandit Medium+=0/密钥泄漏 0; frontend build 全绿; OpenAPI diff 门禁 ✅ W28 实测: 基线生成 0 → 无变更 0 → 篡改 1 → --allow 豁免 0; Python 依赖锁 snapshot 未做; 迁移前向/回滚测试未做)。
 功能证据: ✅ 大部分 (契约审批/Job 全态/Finding 反查/Capsule 重放 25/25=100.0% (Go/No-Go #4 PASS; docs/eval/replay-results.md 六轮 28.57→35.71→42.86→82.14→92.0→100.0%)/证书验证; UNVERIFIED 政策已固化)。
 安全治理: ✅ 大部分 (fail-closed/验签/限流/路径校验/脱敏/沙箱 12 项/审计; 密钥泄漏 0 + bandit Medium+=0)。
 运营商业: 部分 (套餐/账本 ✅ W40 后端 + 计费路由 ✅ W101; 恢复演练 ✅ W89 DRILLS; Grafana/SLO 面板 ⏳; 每作业成本会计 ⏳)。

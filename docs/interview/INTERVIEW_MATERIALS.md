@@ -18,6 +18,7 @@
 | 3 个 rel 类 MISS 修复 (执行探针: 故障注入/发布计数/载荷捕获) | 修复后 3/3 = **Precision/Recall/F1 100%** | docs/eval/eval-report-rel.results.json (Docker DooD 实测) |
 | 100 案例全量 (段1 c1-c4 + 段2 探针全开, 修复后最终重跑) | **Recall 100.0% / Precision 100.0% / F1 100.0%, 误报 0** (63/63; 五块重跑 c1/c2/c3/c4/rem3 全 100%, 修复路径逐案例可查) | docs/eval/eval-c1-rerun / eval-c2-rerun / eval-c3-rerun / eval-c4-rerun / eval-rem3 + eval-report-rem3 |
 | LLM 基线对比 | 通用 LLM strict-id 召回 0% → SpecProof 检测 100% (**+100pp**) | docs/eval/llm-baseline-100-live.md |
+| PR 归因准确率 (Go/No-Go #3) | **100.0%** (8 案例归因集: 正确归因 7/7, 错归因 0/2, 漏归因 0/7; att-08 both-fail 拆分+失败签名差异化归因) | docs/eval/attribution-results.json |
 
 ### 1.2 Agent 能力 (90 任务评测集, 确定性档全量实测)
 | 指标 | 数字 |
