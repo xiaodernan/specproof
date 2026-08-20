@@ -1,7 +1,7 @@
 # SpecProof / SpecCraft — 面试答辩材料 (量化成果与叙事)
 
 > 用途: 面试讲项目用。所有数字来自真实运行 (仓库 docs/eval/* 与 git log 可查证),
-> 绝无估计值; 待补项明确标注 [待补]。更新日期: 2026-08-19。
+> 绝无估计值; 待补项明确标注 [待补]。更新日期: 2026-08-20。
 
 ## 0. 一句话
 
@@ -16,7 +16,7 @@
 |---|---|---|
 | 100 金案例段2 (78-100) 最终 | **Precision 100%, Recall 100%, F1 100%, 0 误报** (探针全开复跑, 13/13) | docs/eval/eval-report-rem3.results.json |
 | 3 个 rel 类 MISS 修复 (执行探针: 故障注入/发布计数/载荷捕获) | 修复后 3/3 = **Precision/Recall/F1 100%** | docs/eval/eval-report-rel.results.json (Docker DooD 实测) |
-| 100 案例全量 (段1 c1-c4 + 段2 探针全开, 修复后最终重跑) | **Recall 100.0% / Precision 100.0% / F1 100.0%, 误报 0** (63/63; 段1 c1/c2/c3 重跑全 100%, 修复路径逐案例可查) | docs/eval/eval-c1-rerun / eval-c2-rerun / eval-c3-rerun + eval-c4 + eval-report-rem3 |
+| 100 案例全量 (段1 c1-c4 + 段2 探针全开, 修复后最终重跑) | **Recall 100.0% / Precision 100.0% / F1 100.0%, 误报 0** (63/63; 五块重跑 c1/c2/c3/c4/rem3 全 100%, 修复路径逐案例可查) | docs/eval/eval-c1-rerun / eval-c2-rerun / eval-c3-rerun / eval-c4-rerun / eval-rem3 + eval-report-rem3 |
 | LLM 基线对比 | 通用 LLM strict-id 召回 0% → SpecProof 检测 100% (**+100pp**) | docs/eval/llm-baseline-100-live.md |
 
 ### 1.2 Agent 能力 (90 任务评测集, 确定性档全量实测)
@@ -38,11 +38,12 @@
 | BM25+图谱插值 | 48.9% (消融结论: 待向量/RRF 重排) | 0.528 | 89.6ms |
 
 ### 1.4 工程质量门禁
-- 单元测试: 644 → 990 → 1086 → 1158 → **1981 passed, 1 skipped** (终门禁全绿, 2026-08-20 实测 10:22)
+- 单元测试: 644 → 990 → 1086 → 1158 → 1981 → **2069 passed, 1 skipped** (终门禁全绿, 2026-08-20 实测)
 - ruff / mypy strict (19 文件) / bandit Medium+=0 — 全绿
 - 密钥泄漏门禁: 全仓库 **0 真实 key** (扫描器拦截 + 假密钥拼接纪律)
-- 前端: vitest **55/55**, Playwright e2e **9/9** (向导/详情/权限/降级, 真实应用非 mock)
+- 前端: vitest **90/90** (19 文件), Playwright e2e **9/9** (向导/详情/权限/降级, 真实应用非 mock)
 - 设计系统: 21 组件 Aurora 语言, 暗/亮双主题, ⌘K 命令面板; bundle JS 269KB (gzip 83KB)
+- Go/No-Go 15 门槛: **11/15 PASS · 1 PARTIAL (#3 归因 88.9%) · 3 PENDING** — #4 回放 25/25=100% / #5 无证据 BLOCKER 不变式 19 例 / #6 p95 161.1s / #9+#11 真实演练 / #14 LLM 基线 +100pp (docs/eval/go-nogo.md)
 
 ### 1.5 架构与安全
 - DeepSeek V4 Pro 网关实测适配: 8/11 能力 (chat/流式/JSON/工具调用/thinking/用量);
@@ -78,14 +79,14 @@
 |---|---|---|
 | Hermes 类 Agent 模型 (工具调用强/不拒绝) | 13 工具注册表 + JSON Envelope + 确定性档 | 我们多了"裁判层": 模型必须被独立验证 (fail-closed) |
 | MCP | 已有服务端 6 工具; [待补: 客户端] | 生态互操作 |
-| SWE-bench | harness 已落地 (W45: 真实 craft 管道+honest unresolved 契约, 内置样本实测 resolved 1/2=50%, HF 数据获取真实下载) | 官方全量数字 = 文档化手动步骤 (需 per-instance 仓库+docker 镜像) |
+| SWE-bench | harness 已落地 (W45: 真实 craft 管道+honest unresolved 契约, HF 数据真实下载); 真实跑 v1-v11 十一轮每轮消一类障碍 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案→瞬时超时), resolved 率诚实 0% — harness 层清完, 剩余模型能力层 | v12: 更强模型档位重测 / 官方 Docker 口径 |
 | OpenHands/Devin 多智能体 | ParallelRunner 只读并行 + 写集冲突 fail-closed | 防覆盖是硬约束不是建议 |
 | Mem0 记忆 | TaskMemory + checkpoint 恢复 10/10 | 副作用幂等有账本证明 |
 | 变异测试 | 变异杀死率测量已落地 (W47) | 离线样本实测杀死率 83.3% (5/6; 1 幸存为规格外行为, 诚实记录); 真实仓库模式走 experiments.mutation+契约检查+沙箱 |
 
 ## 4. 待补数字清单 (冲刺项)
 1. ~~100 案例总表~~ ✅ **100.0/100.0/100.0** (63/63, 误报 0; 段1 三块重跑实录, eval-100-segments.md)
-2. SWE-bench-Lite 解决率 ◐ harness 就绪 (W45), 样本 50% (1/2, 全证据); 官方全量数字待手动仓库+docker 步骤
+2. SWE-bench-Lite 解决率 ◐ 真实跑 v1-v11 十一轮全部诚实 0% (harness 障碍逐轮清完, 剩余模型能力层; v12 更强模型档位/官方 Docker 口径在途); 官方全量数字待 Docker 环境
 3. 变异杀死率 ✅ 83.3% (离线样本, W47; 真实仓库数字待补跑)
 4. 双模型路由成本对比 (本地小模型 vs 远程强模型, 每作业 token 成本)
 5. p50/p95 验证延迟
