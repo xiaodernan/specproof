@@ -877,6 +877,35 @@ class MySQLStore:
                 )
             return stale_jobs
 
+    def delete_job_records(self, job_id: str) -> dict[str, Any]:
+        """Delete one job's findings/contracts/job row (FK-safe order).
+
+        Data lifecycle (DATA_LIFECYCLE §3): called only by the explicit
+        deletion path — never automatically on terminal state. Returns the
+        deleted row counts so callers can audit what was removed. Idempotent:
+        a missing job returns zero counts.
+        """
+        counts: dict[str, int] = {
+            "findings": 0,
+            "contracts": 0,
+            "jobs": 0,
+        }
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "DELETE FROM findings WHERE job_id = %s", (job_id,)
+            )
+            counts["findings"] = cur.rowcount if cur.rowcount else 0
+            cur.execute(
+                "DELETE FROM contracts WHERE job_id = %s", (job_id,)
+            )
+            counts["contracts"] = cur.rowcount if cur.rowcount else 0
+            cur.execute(
+                "DELETE FROM verification_jobs WHERE id = %s", (job_id,)
+            )
+            counts["jobs"] = cur.rowcount if cur.rowcount else 0
+        return counts
+
     # ── Finding / Contract CRUD ───────────────────────────────
 
     def insert_finding(self, finding: dict[str, Any]) -> None:

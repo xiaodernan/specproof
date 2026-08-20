@@ -35,7 +35,7 @@
 | 五存储 + 状态机真实故障演练 | ◐ | 恢复演练 ✅ (W89 DRILLS: Drill1/2/4 真实执行); 五存储全量故障演练仍部分 |
 | Worker kill 后 checkpoint 恢复不重复副作用 | ✅ | W89 Drill1 真实 worker kill 6 检查点 → 9.09s resume → BLOCKED=control (docs/operations/DRILLS.md) |
 | SSE 断线重连 | ✅ Last-Event-ID | — |
-| 迁移空库安装/备份恢复/删除导出 | ◐ | 迁移 ✅ (至 0008, W84); 删除导出 ⏳; 主机备份工具 ⏳ (DRILLS 4 需开发) |
+| 迁移空库安装/备份恢复/删除导出 | ◐ | 迁移 ✅ (至 0008, W84); 删除导出 ✅ (W195: ops/data_lifecycle.py export-job/delete-job/backup-probe 三命令, delete 按文档序 ES→Mongo→MySQL, MinIO 只列不删需人工确认, --confirm 强制显式; storage 新增 delete_job_records/delete_job_artifacts; 6 新测试); 主机备份工具 ◐ (backup-probe 能力探测就绪, 实际备份恢复演练 DRILLS 4 仍为文档化手工步骤) |
 | 观测覆盖全链 | ◐ | 指标扩展 ◐ (metrics_http/OTel 已接线); Grafana/SLO 面板 ✅ (infra/grafana specproof-slo.json + compose.observability.yml, C 车道实测起栈) |
 
 ### 评测与商业

@@ -144,6 +144,19 @@ class MongoDBStore:
     def get_evidence_packs_for_job(self, job_id: str) -> list[dict[str, Any]]:
         return list(self.db.evidence_packs.find({"job_id": job_id}).sort("created_at", 1))
 
+    def delete_job_artifacts(self, job_id: str) -> dict[str, Any]:
+        """Delete one job's differential_runs + evidence_packs documents.
+
+        Data lifecycle (DATA_LIFECYCLE §3): explicit deletion path only.
+        Returns deleted counts per collection; idempotent (zero on missing).
+        """
+        runs = self.db.differential_runs.delete_many({"job_id": job_id})
+        packs = self.db.evidence_packs.delete_many({"job_id": job_id})
+        return {
+            "differential_runs": runs.deleted_count,
+            "evidence_packs": packs.deleted_count,
+        }
+
     def verify_schema_versions(self, job_id: str) -> list[dict[str, Any]]:
         """Audit one job's runs + packs against MONGO_SCHEMA_VERSION.
 
