@@ -708,6 +708,41 @@ def recover_waiting_for_provider_jobs(
     return results
 
 
+# ── Standalone projection cleanup (backlog #10, DATA_LIFECYCLE §3.4) ──
+
+
+def cleanup_job_projection(job_id: str) -> int:
+    """Delete one job's Elasticsearch retrieval projection (backlog #10).
+
+    Retrieval projections are audit evidence, so they deliberately survive
+    the job's terminal transition (VERIFIED/BLOCKED/FAILED/CANCELLED/
+    ERROR/STALE) — this entry is NOT wired into the worker terminal path.
+    Call it from the data-lifecycle job deletion (DATA_LIFECYCLE.md §3.4)
+    when the verification_jobs row is removed (or during tenant deletion):
+    it deletes every ES doc stamped with this job_id via
+    ElasticsearchStore.delete_projection.
+
+    Idempotent: a missing index or missing documents return 0, so a
+    second call for the same job is a no-op. Best-effort: an unavailable
+    Elasticsearch is logged and reported as 0, never raised.
+    """
+    if not job_id:
+        logger.warning("cleanup_job_projection called without a job_id — no-op")
+        return 0
+    from storage.elasticsearch import ElasticsearchStore
+
+    store = ElasticsearchStore()
+    try:
+        deleted = store.delete_projection(job_id=job_id)
+        logger.info("Job %s: deleted %d projection docs", job_id, deleted)
+        return deleted
+    except Exception as exc:  # noqa: BLE001 — cleanup is best-effort
+        logger.warning("Job %s: projection cleanup failed: %s", job_id, exc)
+        return 0
+    finally:
+        store.close()
+
+
 def main() -> None:
     """CLI entry point for the Worker."""
     from observability.logging import configure_logging

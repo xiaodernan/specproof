@@ -4,6 +4,7 @@
 > 与 RUNBOOK.md 的关系: 本文把 RUNBOOK §5 (备份)、§6 (故障)、§9 (冒烟) 的数据操作细化为可执行的保留/删除/导出/备份恢复手册; 两文数字如有冲突, 以本文为准并同步修改 RUNBOOK。
 > 审计/演练日期: 2026-08-19 (工作树 feature/interview-hardening)。
 > 2026-08-20 补充 (backlog #10 ES 投影删除清理): storage/elasticsearch.py 新增 delete_projection(tenant_id=/job_id=) 与 count_projection_docs(tenant_id=/job_id=) (逐文档删除, 幂等, 索引/文档不存在返回 0); §1/§2.4/§3.4/§3.6/§7 的 ES 条目同步更新。
+> 2026-08-20 补充 (backlog #10 生产接线): retrieve_repository_context 节点写入侧把 state 的 job_id 显式传给 index_repository / index_with_embeddings (无 job_id 的 CLI/eval 路径不传, 保持默认 None 与既有文档形状); agent/worker.py 新增可独立调用的 cleanup_job_projection(job_id) 清理入口 (内部调 delete_projection, 幂等, 不挂终态自动触发 — 检索投影属审计证据, 仅在数据生命周期删除 job 记录/租户删除时调用)。
 
 状态标注约定 (本仓库任务 15 制度):
 
@@ -137,9 +138,9 @@ mc rm --recursive --force local/specproof-html-reports/<job_id>/
 
 ### 3.4 Elasticsearch (tenant_id / job_id 维度)
 
-ES 文档按 repo 隔离, 并携带 tenant_id 字段 (W84 打标); job_id 为 backlog #10 新增的**可选**打标 — 写入侧 (retrieve_repository_context 节点 / 脚本) 不传参时该字段不存在, 此时按 job_id 清理只会命中 0 条 (幂等, 不报错)。索引全仓库共享。
+ES 文档按 repo 隔离, 并携带 tenant_id 字段 (W84 打标); job_id 为 backlog #10 新增的**可选**打标 — retrieve_repository_context 节点已接线 (state 带 job_id 时写入侧显式传给 index_repository / index_with_embeddings), 无 job_id 的 CLI/eval 路径不传参、该字段不存在, 此时按 job_id 清理只会命中 0 条 (幂等, 不报错)。索引全仓库共享。
 
-代码级清理 (storage/elasticsearch.py, 无需 curl): 对 §3.0 取证的每个 job_id 执行 `delete_projection(job_id=...)` 逐文档删除该 job 的投影; 租户级收尾执行 `delete_projection(tenant_id=...)` (默认租户一并命中无 tenant 打标的遗留文档)。两函数均为"搜索 + 逐文档 bulk delete", 刻意避开 delete_by_query (Windows elasticsearch-py 8.19 原生崩溃的工程事实, 与 delete_repo 注释一致), 且幂等: 索引/文档不存在返回 0, 不报错; 重复调用返回 0。完成后用 `count_projection_docs` 核对 (§3.6)。
+代码级清理 (storage/elasticsearch.py, 无需 curl): 对 §3.0 取证的每个 job_id 执行 `delete_projection(job_id=...)` 逐文档删除该 job 的投影; 租户级收尾执行 `delete_projection(tenant_id=...)` (默认租户一并命中无 tenant 打标的遗留文档)。两函数均为"搜索 + 逐文档 bulk delete", 刻意避开 delete_by_query (Windows elasticsearch-py 8.19 原生崩溃的工程事实, 与 delete_repo 注释一致), 且幂等: 索引/文档不存在返回 0, 不报错; 重复调用返回 0。完成后用 `count_projection_docs` 核对 (§3.6)。已接线调用入口: `agent.worker.cleanup_job_projection(job_id)` (内部即 `delete_projection(job_id=...)`, 幂等 + ES 不可用时 best-effort 记日志不抛错; **不挂终态自动触发**, 在删除 verification_jobs 行 / 租户删除时显式调用)。
 
 ```powershell
 # 备选 (需 ES 可用): 按 repo 条件删除
@@ -241,6 +242,6 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 
 - 无任何保留/清理自动化 (cron 或应用内回收器) — 全部靠手册。
 - 租户删除无 API/脚本封装, 依赖 §3 手工步骤; 跨五库无分布式事务, 靠"校验-停止-重入"纪律。
-- ES 单索引无 ILM; delete_by_query 在 Windows 崩溃 → 清理改走 delete_projection 的逐文档删除 (backlog #10), 但 job 终态/租户删除仍无自动化接线 (需写入侧传 job_id + 调用方接线), 且 index_repository 内部整索引重建在多租户下成本随 repo 数线性增长。
+- ES 单索引无 ILM; delete_by_query 在 Windows 崩溃 → 清理改走 delete_projection 的逐文档删除 (backlog #10)。✅ 已接线: 写入侧 retrieve_repository_context 节点把 state.job_id 传给索引调用; 调用方入口 agent.worker.cleanup_job_projection(job_id) 可独立调用 (幂等)。剩余缺口如实标注: **无自动触发** — 检索投影属审计证据, 终态 (VERIFIED/BLOCKED/FAILED/CANCELLED/ERROR/STALE) 不删除, 仅在数据生命周期删除 job 记录/租户删除时显式调用该入口; 且 index_repository 内部整索引重建在多租户下成本随 repo 数线性增长。
 - audit_logs 无按租户删除路径 (有意取舍, §3.1)。
 - Webhook 重放防护的去重集为进程内存 (重启即失), 签名时间戳窗口为可选加固 (GitHub 原生不发送), 未签名重放的残余风险由 tests/security/test_webhook_replay.py 中 test_unsigned_replay_with_new_delivery_documented_limitation 如实钉住。
