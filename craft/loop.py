@@ -69,6 +69,23 @@ W114 hardening (real eval evidence docs/eval/swebench-llm-results-v4.json):
   carries up to 3 real candidate anchor lines (with line numbers) from
   the target file so the retry can quote them exactly.
 
+W143 hardening (real eval evidence docs/eval/swebench-llm-results-v6.json):
+- mentioned-path suffix resolution (flask-4045 STUCK s1 understand): a
+  mentioned candidate path that does not exist as-is resolves to the ONE
+  real workspace file whose path ends with it (normalized / vs \\, e.g.
+  'flask/blueprints.py' -> 'src/flask/blueprints.py') — applied to the
+  grep-criteria file reads, the diagnose-context anchor reads and the
+  candidate-file union through one shared resolver; zero or multiple
+  suffix candidates keep the honest failure naming the candidates found.
+- understand-stage criterion rebuild (flask-4992 STUCK s2 understand): a
+  grep criterion whose targets are all test files (or whose assertion
+  value is degenerate/short) is rebuilt at the understand stage through
+  the same W114 path as verify — degenerate/short values dropped,
+  problem-statement keywords searched over source-only candidate files
+  (the extended union). An unbuildable criterion stays an honest
+  'unverifiable' failure that never enters the diagnose loop — no stuck
+  increment, never a fake pass.
+
 W35 gate composition + durable job projection: when the M3 self-verify gate
 runs at finish, the full GatePipeline (craft/gates.py, five layered gates)
 runs too and its summary is embedded as report.gates — informational only,
@@ -443,6 +460,47 @@ def _is_degenerate_assertion_value(value: str) -> bool:
     if len(stripped) < 3:
         return True
     return all(ch in _PUNCTUATION or ch.isspace() for ch in stripped)
+
+
+def _normalize_mentioned_path(mentioned: str) -> str:
+    """Normalize a mentioned workspace path for matching (W143).
+
+    Surrounding quotes/brackets/commas, leading './' and Windows
+    backslashes are stripped, so 'flask\\blueprints.py' and
+    './flask/blueprints.py' both normalize to 'flask/blueprints.py'.
+    """
+    return (
+        mentioned.strip()
+        .strip('`"\'()[],<>;:')
+        .replace("\\", "/")
+        .lstrip("./")
+    )
+
+
+def _resolve_mentioned_path(
+    mentioned: str, files: list[str]
+) -> tuple[str | None, list[str]]:
+    """Resolve a mentioned path against a scoped list of real workspace files.
+
+    Returns (resolved, suffix_candidates) (W143):
+    - an as-is match (after normalization) resolves to itself;
+    - otherwise EXACTLY ONE file ending with the mentioned path as a path
+      suffix resolves to that file ('flask/blueprints.py' ->
+      'src/flask/blueprints.py');
+    - zero or multiple suffix matches resolve to None, and the caller keeps
+      the honest failure with suffix_candidates naming every file found.
+    Callers scope `files` (source-only / all workspace files) so the helper
+    can never fabricate a file that does not exist in the workspace.
+    """
+    cleaned = _normalize_mentioned_path(mentioned)
+    if not cleaned:
+        return None, []
+    if cleaned in files:
+        return cleaned, []
+    matches = [item for item in files if item.endswith("/" + cleaned)]
+    if len(matches) == 1:
+        return matches[0], []
+    return None, matches
 
 
 def diagnose_failure(step: Step, result: ExecResult | None, note: str = "") -> str:
@@ -1008,6 +1066,10 @@ class CraftLoop:
         # 断言值 (长度 < 3 或纯标点, 如 '.'/'..'/'x') 直接丢弃, 改为从
         # 问题陈述提取关键词并在源文件上 grep; 重建不出可用标准时诚实
         # 报告 unverifiable 且不进入修复循环 (不计入连续同类失败)。
+        # W143 (pallets__flask-4992 STUCK s2 understand): understand 阶段
+        # 与 verify 走同一重建路径 — 目标全为测试文件的判据 (即使断言值
+        # 非退化, 如 'from_file') 同样触发关键词重建; 重建失败则诚实
+        # unverifiable, 绝不伪造通过, 不计入连续同类失败。
         value = criteria.value
         targets = step.target_files
         excluded_tests: list[str] = []
@@ -1015,31 +1077,59 @@ class CraftLoop:
         if value:
             excluded_tests = [t for t in step.target_files if is_test_file_path(t)]
             targets = [t for t in step.target_files if not is_test_file_path(t)]
-            if _is_degenerate_assertion_value(value):
+            if _is_degenerate_assertion_value(value) or (not targets and step.target_files):
                 rebuilt = self._rebuild_grep_criterion()
                 if rebuilt is None:
+                    if _is_degenerate_assertion_value(value):
+                        reason = self._unverifiable_reason(value)
+                    else:
+                        reason = self._test_only_unverifiable_reason(
+                            value, step.target_files
+                        )
                     return (
                         False,
-                        {
-                            "check": "grep",
-                            "unverifiable": True,
-                            "reason": self._unverifiable_reason(value),
-                        },
+                        {"check": "grep", "unverifiable": True, "reason": reason},
                         None,
                     )
                 rebuilt_from = value
                 value, targets = rebuilt
+        # W143 mentioned-path suffix resolution (flask-4045 s1 understand):
+        # a target that does not exist as-is resolves to the ONE real
+        # workspace file ending with it ('flask/blueprints.py' ->
+        # 'src/flask/blueprints.py'); zero or multiple suffix candidates
+        # keep the honest failure naming the candidates found.
+        search_files = self._workspace_source_files() if value else self._workspace_py_files()
+        resolved_targets: list[str] = []
         for target in targets:
-            try:
-                lines = self.editor.read_file(target)
-            except EditError as exc:
-                return (
-                    False,
-                    {"check": "grep", "reason": f"目标文件不可读: {target} ({exc})"},
-                    None,
-                )
-            contents[target] = "\n".join(line for _, line in lines)
-            self.memory.add("file_read", target, step_id=step.id)
+            resolved, suffix_candidates = _resolve_mentioned_path(target, search_files)
+            if resolved is None:
+                # not an as-is workspace .py file: keep the original honest
+                # read error and add the suffix-candidate facts
+                try:
+                    lines = self.editor.read_file(target)
+                except EditError as exc:
+                    detail = ""
+                    if suffix_candidates:
+                        detail = f"; 后缀匹配不唯一: {sorted(suffix_candidates)}"
+                    return (
+                        False,
+                        {"check": "grep", "reason": f"目标文件不可读: {target} ({exc}){detail}"},
+                        None,
+                    )
+                resolved = target
+            else:
+                try:
+                    lines = self.editor.read_file(resolved)
+                except EditError as exc:
+                    return (
+                        False,
+                        {"check": "grep", "reason": f"目标文件不可读: {resolved} ({exc})"},
+                        None,
+                    )
+            contents[resolved] = "\n".join(line for _, line in lines)
+            if resolved not in resolved_targets:
+                resolved_targets.append(resolved)
+            self.memory.add("file_read", resolved, step_id=step.id)
         if not value:
             return (
                 True,
@@ -1049,19 +1139,17 @@ class CraftLoop:
                 },
                 None,
             )
-        if not targets and step.target_files:
-            reason = (
-                f"断言值 {value!r} 无源文件可搜索: 目标 "
-                f"{sorted(step.target_files)} 均为测试文件 — 隐藏测试由评测框架在 "
-                "craft 后施加, craft 阶段不可见; 请只修复源文件使隐藏测试通过"
-            )
-            return (False, {"check": "grep", "reason": reason}, None)
         if rebuilt_from is not None:
-            hits = [t for t in targets if value in contents[t]]
+            trigger = (
+                "退化"
+                if _is_degenerate_assertion_value(rebuilt_from)
+                else "无源文件可搜索 (目标均为测试文件)"
+            )
+            hits = [t for t in resolved_targets if value in contents[t]]
             if not hits:
                 reason = (
-                    f"断言值 {rebuilt_from!r} 退化, 已按问题陈述重建关键词 {value!r}; "
-                    f"该关键词未出现在任何候选源文件: {sorted(targets)}"
+                    f"断言值 {rebuilt_from!r} {trigger}, 已按问题陈述重建关键词 {value!r}; "
+                    f"该关键词未出现在任何候选源文件: {sorted(resolved_targets)}"
                 )
                 if excluded_tests:
                     reason += (
@@ -1070,7 +1158,7 @@ class CraftLoop:
                     )
                 return (False, {"check": "grep", "reason": reason}, None)
             note = (
-                f"断言值 {rebuilt_from!r} 退化, 已按问题陈述重建关键词 {value!r}; "
+                f"断言值 {rebuilt_from!r} {trigger}, 已按问题陈述重建关键词 {value!r}; "
                 f"命中源文件 {sorted(hits)}"
             )
             if excluded_tests:
@@ -1079,7 +1167,7 @@ class CraftLoop:
                     "(隐藏测试由评测框架在 craft 后施加, 不做断言校验)"
                 )
             return (True, {"check": "grep", "note": note}, None)
-        missing = [t for t in targets if value not in contents[t]]
+        missing = [t for t in resolved_targets if value not in contents[t]]
         if missing:
             reason = f"断言值 {value!r} 未出现在源文件: {missing}"
             if excluded_tests:
@@ -1129,44 +1217,43 @@ class CraftLoop:
                 keywords.append(token)
         return keywords
 
-    def _workspace_source_files(self) -> list[str]:
-        """Every non-test .py file in the workspace (uncapped, scan skips)."""
+    def _workspace_py_files(self) -> list[str]:
+        """Every .py file in the workspace (uncapped, scan skips), tests included.
+
+        The source-only view filters through is_test_file_path; callers that
+        legitimately read test files (value="" readability checks) use this
+        list directly so as-is mentioned paths still resolve.
+        """
         found: list[str] = []
         for path in self.workspace.rglob("*.py"):
             relative = path.relative_to(self.workspace)
             if any(part in _SOURCE_SCAN_SKIP_DIRS for part in relative.parts):
                 continue
-            normalized = relative.as_posix()
-            if is_test_file_path(normalized):
-                continue
-            found.append(normalized)
+            found.append(relative.as_posix())
         return sorted(found)
+
+    def _workspace_source_files(self) -> list[str]:
+        """Every non-test .py file in the workspace (uncapped, scan skips)."""
+        return [item for item in self._workspace_py_files() if not is_test_file_path(item)]
 
     def _scan_source_files(self) -> list[str]:
         """Bounded deterministic scan for non-test .py files in the workspace."""
         return self._workspace_source_files()[:_SOURCE_SCAN_CAP]
 
     def _resolve_source_reference(self, reference: str, files: list[str]) -> list[str]:
-        """Real non-test workspace files matching a path reference.
+        """Real non-test workspace files matching a path reference (W143).
 
         The reference may be a full workspace-relative path
         ('src/flask/config.py') or a suffix ('flask/config.py'); it is
-        matched only against files that actually exist in the workspace,
-        so the candidate union can never fabricate a source file (W114
-        no-fake-pass invariant) and never names a test file.
+        resolved through the shared _resolve_mentioned_path resolver — an
+        as-is match wins, a UNIQUE path-suffix match resolves, and an
+        absent or ambiguous suffix adds nothing. Every returned file is a
+        real file in `files`, so the candidate union can never fabricate
+        or guess a source file (W114 no-fake-pass invariant) and never
+        names a test file.
         """
-        cleaned = (
-            reference.strip()
-            .strip('`"\'()[],<>;:')
-            .replace("\\", "/")
-            .lstrip("./")
-        )
-        if not cleaned:
-            return []
-        return [
-            item for item in files
-            if item == cleaned or item.endswith("/" + cleaned)
-        ]
+        resolved, _ = _resolve_mentioned_path(reference, files)
+        return [resolved] if resolved is not None else []
 
     def _candidate_references(self) -> list[str]:
         """Path references for the candidate union, in deterministic order.
@@ -1253,6 +1340,18 @@ class CraftLoop:
             f"unverifiable: 断言值 {value!r} 退化, 已提取关键词 {keywords[:5]}, "
             f"但工作区无任何可搜索的源文件 ({len(sources)} 个候选) — "
             "验证标准无法重建, 不进入修复循环, 不计入连续同类失败"
+        )
+
+    def _test_only_unverifiable_reason(self, value: str, original_targets: list[str]) -> str:
+        """Honest reason when a criterion whose targets are all test files
+        cannot be rebuilt from the problem statement (W143 flask-4992 s2
+        understand): the step fails unverifiable without entering the
+        diagnose loop, so it never counts as a repeated identical failure.
+        """
+        return (
+            f"unverifiable: 断言值 {value!r} 无源文件可搜索: 目标 "
+            f"{sorted(original_targets)} 均为测试文件, 且按问题陈述重建验证标准失败 — "
+            "不进入修复循环, 不计入连续同类失败"
         )
 
     def _exec(self, command: list[str], state: StepState) -> ExecResult:
@@ -1655,17 +1754,35 @@ class CraftLoop:
         # tests are applied by the harness after craft.
         snippets: list[str] = []
         excluded_test_targets: list[str] = []
+        # W143: mentioned paths resolve through the shared suffix resolver,
+        # so the anchor ships the real file content even when the plan
+        # carries a repo-relative suffix (flask-4045: 'flask/blueprints.py'
+        # -> 'src/flask/blueprints.py'); unresolvable paths keep the honest
+        # <不可读> marker with the candidates found.
+        anchor_files = self._workspace_py_files()
         for target in step.target_files[:8]:
             if is_test_file_path(target):
                 excluded_test_targets.append(target)
                 continue
-            try:
-                lines = self.editor.read_file(target, limit=MAX_READ_LINES)
-            except EditError:
-                snippets.append(f"--- {target} ---\n<不可读>")
-                continue
+            resolved, suffix_candidates = _resolve_mentioned_path(target, anchor_files)
+            if resolved is None:
+                try:
+                    lines = self.editor.read_file(target, limit=MAX_READ_LINES)
+                except EditError:
+                    detail = ""
+                    if suffix_candidates:
+                        detail = f"; 后缀匹配不唯一: {sorted(suffix_candidates)}"
+                    snippets.append(f"--- {target} ---\n<不可读>{detail}")
+                    continue
+                resolved = target
+            else:
+                try:
+                    lines = self.editor.read_file(resolved, limit=MAX_READ_LINES)
+                except EditError:
+                    snippets.append(f"--- {resolved} ---\n<不可读>")
+                    continue
             over_line_limit = len(lines) >= MAX_READ_LINES and bool(
-                self.editor.read_file(target, offset=MAX_READ_LINES + 1, limit=1)
+                self.editor.read_file(resolved, offset=MAX_READ_LINES + 1, limit=1)
             )
             shown = lines[:MAX_READ_LINES]
             text = "\n".join(line for _, line in shown)
@@ -1676,7 +1793,7 @@ class CraftLoop:
                 text = text[:cut] + "\n... (截断)"
             elif over_line_limit:
                 text += f"\n... (仅显示前 {MAX_READ_LINES} 行)"
-            snippets.append(f"--- {target} ---\n{text}")
+            snippets.append(f"--- {resolved} ---\n{text}")
         anchor_header = (
             "FILE CONTENT ANCHOR — quote old strings EXACTLY from the file content "
             "above: each candidate SOURCE file's current real text follows (at most "
