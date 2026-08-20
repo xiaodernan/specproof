@@ -1,0 +1,495 @@
+{
+  "schema_version": "1.0",
+  "harness": "scripts/bench_swebench.py",
+  "generated_at": "2026-08-20T05:47:39+00:00",
+  "mode": "llm",
+  "dataset": {
+    "kind": "hf-rows-api",
+    "total_loaded": 2,
+    "note": "--tasks N 取数据集顺序前 N 个实例 (不是官方 SWE-bench-Lite 300 例的选取口径; 见 SWEBENCH_PLAN.md)",
+    "dataset": "princeton-nlp/SWE-bench_Lite",
+    "subset": {
+      "path": "scripts\\swebench_subset\\python_subset.json",
+      "requested": 10,
+      "matched": 10
+    }
+  },
+  "run": {
+    "exec_timeout": 300,
+    "max_iterations": 12,
+    "work_root": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-0ldyc2v8",
+    "repo_dir": "D:\\UserData\\HUAWEI\\Temp\\specproof-swebench-repos",
+    "logs_dir": "docs\\eval\\swebench-logs",
+    "fix_rules_available": [],
+    "venv": {
+      "python": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-0ldyc2v8\\venv\\Scripts\\python.exe",
+      "error": "",
+      "note": "共享 venv + pytest 已就绪 (pytest --version 验证通过)"
+    }
+  },
+  "instances": [
+    {
+      "instance_id": "pallets__flask-4045",
+      "status": "unresolved",
+      "resolved": false,
+      "reason": "craft 未收敛 (STUCK): 步骤 s3 (test): 同类错误连续 3 次, 判定 stuck (签名: s3|===========================\nERROR tests/test_cli.py\n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n1 skipped, 1 error in 0.3)",
+      "stage": "craft",
+      "repo": "pallets/flask",
+      "base_commit": "d8c37f43724cd9fb0870f77877b7c4c7e38a19e0",
+      "problem_statement_head": "Raise error when blueprint name contains a dot\nThis is required since every dot is now significant since blueprints can be nested. An error was already added for endpoint names in 1.0, but should have been added for this as well.\n",
+      "checkout": {
+        "method": "worktree",
+        "source": "D:\\UserData\\HUAWEI\\Temp\\specproof-swebench-repos\\flask",
+        "base_commit": "d8c37f43724cd9fb0870f77877b7c4c7e38a19e0",
+        "detail": "git worktree add --detach"
+      },
+      "craft": {
+        "result": "STUCK",
+        "mode": "llm",
+        "edits": [
+          "src/flask/blueprints.py"
+        ],
+        "iterations": 10,
+        "seconds": 543.2,
+        "report_path": "docs\\eval\\swebench-logs\\pallets__flask-4045\\craft\\report.json",
+        "llm_usage": {
+          "available": true,
+          "calls": 11,
+          "prompt_tokens": 66427,
+          "completion_tokens": 36949,
+          "reasoning_tokens": 35463,
+          "prompt_cache_hit_tokens": 15744,
+          "prompt_cache_miss_tokens": 50683,
+          "reasoning_journal_entries": 11,
+          "budget": {
+            "limit_tokens": 500000.0,
+            "used": 191096.4,
+            "remaining": 308903.6
+          },
+          "calls_detail": [
+            {
+              "timestamp": "2026-08-20T05:28:19+00:00",
+              "label": "plan",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "plan",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 718,
+              "completion_tokens": 6050,
+              "reasoning_tokens": 5384,
+              "prompt_cache_hit_tokens": 640,
+              "prompt_cache_miss_tokens": 78,
+              "charge": 12294.0
+            },
+            {
+              "timestamp": "2026-08-20T05:28:44+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6320,
+              "completion_tokens": 1575,
+              "reasoning_tokens": 1436,
+              "prompt_cache_hit_tokens": 640,
+              "prompt_cache_miss_tokens": 5680,
+              "charge": 15075.0
+            },
+            {
+              "timestamp": "2026-08-20T05:29:13+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6404,
+              "completion_tokens": 1533,
+              "reasoning_tokens": 1467,
+              "prompt_cache_hit_tokens": 640,
+              "prompt_cache_miss_tokens": 5764,
+              "charge": 15232.0
+            },
+            {
+              "timestamp": "2026-08-20T05:29:28+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6454,
+              "completion_tokens": 881,
+              "reasoning_tokens": 822,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 5430,
+              "charge": 13689.4
+            },
+            {
+              "timestamp": "2026-08-20T05:29:54+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6504,
+              "completion_tokens": 1490,
+              "reasoning_tokens": 1435,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 5480,
+              "charge": 15011.4
+            },
+            {
+              "timestamp": "2026-08-20T05:30:23+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6554,
+              "completion_tokens": 1621,
+              "reasoning_tokens": 1569,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 5530,
+              "charge": 15376.4
+            },
+            {
+              "timestamp": "2026-08-20T05:32:25+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6604,
+              "completion_tokens": 6809,
+              "reasoning_tokens": 6749,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 5580,
+              "charge": 25844.4
+            },
+            {
+              "timestamp": "2026-08-20T05:32:51+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6654,
+              "completion_tokens": 1450,
+              "reasoning_tokens": 1379,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 5630,
+              "charge": 15215.4
+            },
+            {
+              "timestamp": "2026-08-20T05:33:20+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6704,
+              "completion_tokens": 1607,
+              "reasoning_tokens": 1543,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 5680,
+              "charge": 15636.4
+            },
+            {
+              "timestamp": "2026-08-20T05:34:20+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6754,
+              "completion_tokens": 3301,
+              "reasoning_tokens": 3230,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 5730,
+              "charge": 19117.4
+            },
+            {
+              "timestamp": "2026-08-20T05:37:16+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 6757,
+              "completion_tokens": 10632,
+              "reasoning_tokens": 10449,
+              "prompt_cache_hit_tokens": 6656,
+              "prompt_cache_miss_tokens": 101,
+              "charge": 28604.6
+            }
+          ]
+        }
+      },
+      "test_patch": {
+        "applied": false,
+        "error": ""
+      },
+      "fail_to_pass": [],
+      "pass_to_pass": [],
+      "note": "",
+      "logs": {
+        "tests_log": "docs\\eval\\swebench-logs\\pallets__flask-4045\\tests.log"
+      },
+      "llm": {
+        "client": "craft.llm.LLMClient",
+        "model": "deepseek-v4-pro",
+        "base_url": "https://llm-api.fagougou.com",
+        "key_recorded": false
+      },
+      "deps": {
+        "python": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-0ldyc2v8\\venv\\Scripts\\python.exe",
+        "venv_error": "",
+        "note": "共享 venv + pytest 已就绪 (pytest --version 验证通过)",
+        "install_marker": "setup.py",
+        "installed": true,
+        "install_error": "",
+        "pins": [
+          "werkzeug<3.0"
+        ]
+      }
+    },
+    {
+      "instance_id": "pallets__flask-4992",
+      "status": "unresolved",
+      "resolved": false,
+      "reason": "craft 未收敛 (FAILED): 步骤 s6 (test): 迭代预算超限 (max_iterations=12)",
+      "stage": "craft",
+      "repo": "pallets/flask",
+      "base_commit": "4c288bc97ea371817199908d0d9b12de9dae327e",
+      "problem_statement_head": "Add a file mode parameter to flask.Config.from_file()\nPython 3.11 introduced native TOML support with the `tomllib` package. This could work nicely with the `flask.Config.from_file()` method as an easy way to load TOML config files:\r\n\r\n```python\r\napp.config.from_file(\"config.toml\", tomllib.load)\r\n``",
+      "checkout": {
+        "method": "worktree",
+        "source": "D:\\UserData\\HUAWEI\\Temp\\specproof-swebench-repos\\flask",
+        "base_commit": "4c288bc97ea371817199908d0d9b12de9dae327e",
+        "detail": "git worktree add --detach"
+      },
+      "craft": {
+        "result": "FAILED",
+        "mode": "llm",
+        "edits": [],
+        "iterations": 12,
+        "seconds": 504.9,
+        "report_path": "docs\\eval\\swebench-logs\\pallets__flask-4992\\craft\\report.json",
+        "llm_usage": {
+          "available": true,
+          "calls": 13,
+          "prompt_tokens": 22652,
+          "completion_tokens": 30867,
+          "reasoning_tokens": 29541,
+          "prompt_cache_hit_tokens": 12544,
+          "prompt_cache_miss_tokens": 10108,
+          "reasoning_journal_entries": 13,
+          "budget": {
+            "limit_tokens": 500000.0,
+            "used": 94422.4,
+            "remaining": 405577.6
+          },
+          "calls_detail": [
+            {
+              "timestamp": "2026-08-20T05:39:14+00:00",
+              "label": "plan",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "plan",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1006,
+              "completion_tokens": 4732,
+              "reasoning_tokens": 4146,
+              "prompt_cache_hit_tokens": 896,
+              "prompt_cache_miss_tokens": 110,
+              "charge": 10083.6
+            },
+            {
+              "timestamp": "2026-08-20T05:39:42+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1580,
+              "completion_tokens": 1363,
+              "reasoning_tokens": 1296,
+              "prompt_cache_hit_tokens": 640,
+              "prompt_cache_miss_tokens": 940,
+              "charge": 5243.0
+            },
+            {
+              "timestamp": "2026-08-20T05:40:07+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1630,
+              "completion_tokens": 1240,
+              "reasoning_tokens": 1183,
+              "prompt_cache_hit_tokens": 768,
+              "prompt_cache_miss_tokens": 862,
+              "charge": 4991.8
+            },
+            {
+              "timestamp": "2026-08-20T05:40:57+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1680,
+              "completion_tokens": 2656,
+              "reasoning_tokens": 2602,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 656,
+              "charge": 7696.4
+            },
+            {
+              "timestamp": "2026-08-20T05:42:07+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1730,
+              "completion_tokens": 3859,
+              "reasoning_tokens": 3786,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 706,
+              "charge": 10183.4
+            },
+            {
+              "timestamp": "2026-08-20T05:42:32+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1780,
+              "completion_tokens": 1275,
+              "reasoning_tokens": 1214,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 756,
+              "charge": 5127.4
+            },
+            {
+              "timestamp": "2026-08-20T05:43:14+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1830,
+              "completion_tokens": 2223,
+              "reasoning_tokens": 2164,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 806,
+              "charge": 7125.4
+            },
+            {
+              "timestamp": "2026-08-20T05:43:55+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1880,
+              "completion_tokens": 1967,
+              "reasoning_tokens": 1909,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 856,
+              "charge": 6714.4
+            },
+            {
+              "timestamp": "2026-08-20T05:44:16+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1883,
+              "completion_tokens": 1017,
+              "reasoning_tokens": 969,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 859,
+              "charge": 4830.4
+            },
+            {
+              "timestamp": "2026-08-20T05:46:04+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1886,
+              "completion_tokens": 6089,
+              "reasoning_tokens": 6025,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 862,
+              "charge": 14964.4
+            },
+            {
+              "timestamp": "2026-08-20T05:46:32+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1889,
+              "completion_tokens": 1315,
+              "reasoning_tokens": 1246,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 865,
+              "charge": 5417.4
+            },
+            {
+              "timestamp": "2026-08-20T05:47:21+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1939,
+              "completion_tokens": 2422,
+              "reasoning_tokens": 2353,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 915,
+              "charge": 7731.4
+            },
+            {
+              "timestamp": "2026-08-20T05:47:37+00:00",
+              "label": "diagnose:s6",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s6",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1939,
+              "completion_tokens": 709,
+              "reasoning_tokens": 648,
+              "prompt_cache_hit_tokens": 1024,
+              "prompt_cache_miss_tokens": 915,
+              "charge": 4313.4
+            }
+          ]
+        }
+      },
+      "test_patch": {
+        "applied": false,
+        "error": ""
+      },
+      "fail_to_pass": [],
+      "pass_to_pass": [],
+      "note": "",
+      "logs": {
+        "tests_log": "docs\\eval\\swebench-logs\\pallets__flask-4992\\tests.log"
+      },
+      "llm": {
+        "client": "craft.llm.LLMClient",
+        "model": "deepseek-v4-pro",
+        "base_url": "https://llm-api.fagougou.com",
+        "key_recorded": false
+      },
+      "deps": {
+        "python": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-0ldyc2v8\\venv\\Scripts\\python.exe",
+        "venv_error": "",
+        "note": "共享 venv + pytest 已就绪 (pytest --version 验证通过)",
+        "install_marker": "pyproject.toml",
+        "installed": true,
+        "install_error": "",
+        "pins": [
+          "werkzeug<3.0"
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "resolved": 0,
+    "unresolved": 2,
+    "resolved_rate_pct": 0.0,
+    "note": "LLM 模式: 真实客户端 (plan/diagnose/edit), 无 fix_registry; resolved 仅当 craft DONE + test_patch 应用成功 + FAIL_TO_PASS/PASS_TO_PASS 全部通过 — harness 口径, 非官方 Docker 口径 (见 SWEBENCH_PLAN.md)"
+  },
+  "llm": {
+    "client": "craft.llm.LLMClient",
+    "model": "deepseek-v4-pro",
+    "base_url": "https://llm-api.fagougou.com",
+    "key_recorded": false
+  }
+}
