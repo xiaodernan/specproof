@@ -65,7 +65,7 @@
 storage: Outbox 死信+指标 ✅ (W84 DLQ+metrics) · RabbitMQ 可观测事件 ✅ (W190: 事件 sink 协议 + published/publish_confirm_timeout/consumed/duplicate_acked/retry_scheduled/dead_lettered 六事件, 默认 no-op 字节兼容 + RabbitMQEventLog; 7 新测试) · Redis 租约最大持有+心跳 ◐ (W179 心跳探测; 最大持有待) · Mongo checkpoint schema 版本 ✅ (W189: MONGO_SCHEMA_VERSION 写入盖章 + schema_mismatches 审计 + verify_schema_versions, 旧/新文档如实列出; 7 新测试) · MinIO 命名/生命周期 ✅ (W84 对象路径治理) · ES 租户过滤 ✅ (W84) / ES 投影删除清理 ✅ (W185b: delete_projection 分页幂等删除+孤儿核对, 22 测试)
 api: Job 创建白名单 ✅ (W178 双路径 fail-closed) · SSE 序列号/保留策略/终态幂等 ✅ (W83 Last-Event-ID + W186b 绝对 sequence INCR 计数器与保留策略常量) · 错误 retryable 字段 ✅ (W83 12 码分类 fail-closed)
 apps/web: 向导第一步全信息 ✅ (W101) · 健康页五类状态 ⏳ · 权限页来源/失效 ✅ (W101)
-providers/retrieval/craft: 统一网络客户端+日志脱敏 ✅ (W191: providers/net.py 统一 httpx 构造点 + redact_for_log; capability_probe 12 处 ad-hoc client 归一 + 错误串脱敏; redaction.py 10 模式已有) · 检索结果带提交/行号 ◐ · Craft 工具可取消点 ◐ (node 级取消检查点 ✅ W106) · 成本函数 ◐ (每作业成本会计 ✅ W171; craft 内成本函数待)
+providers/retrieval/craft: 统一网络客户端+日志脱敏 ✅ (W191) · 检索结果带提交/行号 ◐ (车道在途) · Craft 工具可取消点 ◐ (node 级取消检查点 ✅ W106) · 成本函数 ✅ (W192: craft/cost.py token 四分类→USD 示例价表 + loop report cost_usd, 确定性运行不加键; 每作业成本会计 W171)
 
 ## C. 车道落地状态 (2026-08-20 最终复核)
 - ✅ W48 (1233964a): 段1 缺口修复 — 100 金案例 Recall/Precision/F1 = 100.0% (63/63, FP 0); 五 chunk 修复后全重跑 (docs/eval/eval-c1-rerun.results.json / eval-c2-rerun / eval-c3-rerun / eval-c4-rerun / eval-rem3-rerun); 段1 六案例 25/33/29 → 100/100/100 (docs/eval/eval-seg1-fixed.results.json)

@@ -2360,6 +2360,10 @@ class CraftLoop:
             report["gates"] = gates_report
         if self.client is not None:
             report["llm_usage"] = self.client.stats_report()
+            # §14 成本函数: token 四分类 → USD (示例价表, 真实账单才是唯一事实源).
+            from craft.cost import attach_cost
+
+            attach_cost(report)
             # W163 transient-timeout retry audit: a stable int counter next
             # to llm_usage (duck-typed clients default to 0). Only present
             # when a client exists, so deterministic reports keep their
