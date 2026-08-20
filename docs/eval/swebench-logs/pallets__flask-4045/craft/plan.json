@@ -6,10 +6,9 @@
       "id": "s1",
       "kind": "understand",
       "target_files": [
-        "src/flask/blueprints.py",
-        "tests/test_blueprints.py"
+        "src/flask/blueprints.py"
       ],
-      "intent": "Read the blueprint implementation and its tests to locate where blueprint names are validated and existing coverage.",
+      "intent": "Locate where blueprint names are validated in the implementation and confirm the existing endpoint-name dot check pattern.",
       "success_criteria": {
         "type": "grep",
         "value": "Blueprint"
@@ -18,14 +17,14 @@
     },
     {
       "id": "s2",
-      "kind": "verify",
+      "kind": "understand",
       "target_files": [
-        "src/flask/blueprints.py"
+        "tests/test_blueprints.py"
       ],
-      "intent": "Run Python bytecode compilation on the modified source to catch syntax errors.",
+      "intent": "Identify the failing blueprint name test that must pass after the fix.",
       "success_criteria": {
-        "type": "compile",
-        "value": ""
+        "type": "grep",
+        "value": "blueprint"
       },
       "deps": [
         "s1"
@@ -35,9 +34,9 @@
       "id": "s3",
       "kind": "test",
       "target_files": [
-        "src/flask/blueprints.py"
+        "tests/test_blueprints.py"
       ],
-      "intent": "Execute an isolated runtime assertion that constructing a Blueprint with a dot in its name raises ValueError.",
+      "intent": "Execute the FAIL_TO_PASS test set against the changed code and confirm all tests pass.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
@@ -52,61 +51,14 @@
       "target_files": [
         "tests/test_blueprints.py"
       ],
-      "intent": "Run the targeted regression test(s) that fail before the change and pass after it, covering blueprint names with dots.",
-      "success_criteria": {
-        "type": "test_green",
-        "value": ""
-      },
-      "deps": [
-        "s3"
-      ]
-    },
-    {
-      "id": "s5",
-      "kind": "test",
-      "target_files": [
-        "tests/test_blueprints.py"
-      ],
-      "intent": "Run the entire blueprint test module to detect regressions in related blueprint functionality.",
-      "success_criteria": {
-        "type": "test_green",
-        "value": ""
-      },
-      "deps": [
-        "s4"
-      ]
-    },
-    {
-      "id": "s6",
-      "kind": "test",
-      "target_files": [],
-      "intent": "Run the full PASS_TO_PASS test suite to confirm no unrelated regressions anywhere in the project.",
-      "success_criteria": {
-        "type": "test_green",
-        "value": ""
-      },
-      "deps": [
-        "s5"
-      ]
-    },
-    {
-      "id": "s7",
-      "kind": "verify",
-      "target_files": [
-        "src/flask/blueprints.py",
-        "tests/test_blueprints.py"
-      ],
-      "intent": "Aggregate all prior evidence and apply the verdict: BLOCKED if any compile/test step fails or if the diff touches files outside the blueprint source and test files.",
+      "intent": "Execute the PASS_TO_PASS test set to ensure no existing blueprint behavior regressed; block the change if any test fails.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
       },
       "deps": [
         "s2",
-        "s3",
-        "s4",
-        "s5",
-        "s6"
+        "s3"
       ]
     }
   ],

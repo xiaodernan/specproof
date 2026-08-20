@@ -8,10 +8,10 @@
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Locate the current from_file implementation to understand how the file is opened.",
+      "intent": "Inspect the current Config.from_file implementation and diff to locate the method that must gain a mode parameter.",
       "success_criteria": {
         "type": "grep",
-        "value": "def from_file("
+        "value": "def from_file"
       },
       "deps": []
     },
@@ -21,14 +21,12 @@
       "target_files": [
         "tests/test_config.py"
       ],
-      "intent": "Locate existing from_file tests to understand covered behavior.",
+      "intent": "Inspect existing tests for from_file to establish coverage and identify the new FAIL_TO_PASS regression test.",
       "success_criteria": {
         "type": "grep",
         "value": "from_file"
       },
-      "deps": [
-        "s1"
-      ]
+      "deps": []
     },
     {
       "id": "s3",
@@ -36,10 +34,10 @@
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Verify the implementation accepts a mode parameter in from_file.",
+      "intent": "Compile the changed Flask config module to detect any Python syntax errors before running tests.",
       "success_criteria": {
-        "type": "grep",
-        "value": "mode"
+        "type": "compile",
+        "value": ""
       },
       "deps": [
         "s1"
@@ -49,9 +47,42 @@
       "id": "s4",
       "kind": "verify",
       "target_files": [
+        "src/flask/config.py"
+      ],
+      "intent": "Confirm the implementation passes the mode argument to open by checking for the literal 'mode' in the changed file.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "mode"
+      },
+      "deps": [
+        "s1"
+      ]
+    },
+    {
+      "id": "s5",
+      "kind": "test",
+      "target_files": [
+        "src/flask/config.py",
         "tests/test_config.py"
       ],
-      "intent": "Verify tests exercise the new mode parameter.",
+      "intent": "Run focused from_file test cases, including the new binary-mode TOML test, to verify FAIL_TO_PASS tests pass.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s2",
+        "s3",
+        "s4"
+      ]
+    },
+    {
+      "id": "s6",
+      "kind": "verify",
+      "target_files": [
+        "tests/test_config.py"
+      ],
+      "intent": "Check the test diff includes a regression test that calls from_file with tomllib.load and a binary mode such as mode='b'.",
       "success_criteria": {
         "type": "grep",
         "value": "mode"
@@ -61,50 +92,33 @@
       ]
     },
     {
-      "id": "s5",
-      "kind": "verify",
-      "target_files": [
-        "src/flask/config.py"
-      ],
-      "intent": "Compile the modified config module to catch syntax errors.",
-      "success_criteria": {
-        "type": "compile",
-        "value": ""
-      },
-      "deps": [
-        "s3"
-      ]
-    },
-    {
-      "id": "s6",
-      "kind": "test",
-      "target_files": [
-        "tests/test_config.py"
-      ],
-      "intent": "Run config module tests to confirm FAIL_TO_PASS and existing tests pass.",
-      "success_criteria": {
-        "type": "test_green",
-        "value": ""
-      },
-      "deps": [
-        "s3",
-        "s4",
-        "s5"
-      ]
-    },
-    {
       "id": "s7",
       "kind": "test",
       "target_files": [
-        "tests"
+        "src/flask/config.py",
+        "tests/test_config.py"
       ],
-      "intent": "Run the full test suite to confirm PASS_TO_PASS tests remain green.",
+      "intent": "Run the entire config test module to ensure existing PASS_TO_PASS tests still pass.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
       },
       "deps": [
+        "s5",
         "s6"
+      ]
+    },
+    {
+      "id": "s8",
+      "kind": "verify",
+      "target_files": [],
+      "intent": "Apply final verdict criteria: BLOCKED if any targeted or full config test fails, if the signature or open call lacks the mode parameter, or if the public API change is not backward-compatible; otherwise PASS.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s7"
       ]
     }
   ],
