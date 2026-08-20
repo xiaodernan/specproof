@@ -1,0 +1,10 @@
+{
+  "name": "specproof-crosslang-ts-auth",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline golden-case sample: auth check removed in Head. No dependencies, no network, no API key.",
+  "scripts": {
+    "test": "node --test test/auth.test.ts"
+  }
+}
