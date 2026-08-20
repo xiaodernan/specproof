@@ -42,7 +42,7 @@
 | 项 | 状态 | 缺口 |
 |---|---|---|
 | Golden/holdout/负样本/跨语言/攻击样本分层 | ◐ | golden 100 ✅ = 100.0% (63/63, FP 0; docs/eval/eval-100-segments.md)/负样本 ✅/攻击 20 ✅/holdout ✅; 跨语言 ⏳ (aider polyglot 1/3=33.3% 已立 W98; 样本扩展待) |
-| Recall/Precision/归因/回放/成本/延迟/恢复率原始结果 | ◐ | 回放率 ✅ 100.0% (25/25); 归因准确率 ⏳ (独立归因准确率指标未建, Go/No-Go #3 PARTIAL); 成本 ⏳ (每作业成本会计未建) |
+| Recall/Precision/归因/回放/成本/延迟/恢复率原始结果 | ◐ | 回放率 ✅ 100.0% (25/25); 归因准确率 ◐ 88.9% (8 案例集实测, Go/No-Go #3 PARTIAL, att-08 修复在途); 成本 ⏳ (每作业成本会计未建) |
 | 用量账本可重建/配额可解释 | ✅ W40 | — |
 | 恢复演练 + 安全响应演练 | ✅ | W89 DRILLS 已执行: Drill1 真实 kill/Drill2 provider outage 真实 (3× APITimeoutError, breaker open, degrade_reasons)/Drill4 outbox 崩溃→exactly-once/Drill3 安全桌面推演 9 可执行 4 需开发 (docs/operations/DRILLS.md) |
 | 对外材料只用证实数字 | ✅ | — |
@@ -70,7 +70,7 @@ providers/retrieval/craft: 统一网络客户端+日志脱敏 ◐ · 检索结�
 ## C. 车道落地状态 (2026-08-20 最终复核)
 - ✅ W48 (1233964a): 段1 缺口修复 — 100 金案例 Recall/Precision/F1 = 100.0% (63/63, FP 0); 五 chunk 修复后全重跑 (docs/eval/eval-c1-rerun.results.json / eval-c2-rerun / eval-c3-rerun / eval-c4-rerun / eval-rem3-rerun); 段1 六案例 25/33/29 → 100/100/100 (docs/eval/eval-seg1-fixed.results.json)
 - ◐ W49 (668a62ba): Review Court 模型/政策分层 + 预存缺陷规则 — 剩余: 无证据 BLOCKER 不变式测试 ⏳
-- ✅ W50 (b87257e5): SWE-bench LLM 五轮 v1-v5 诚实实录 (docs/eval/swebench-llm-results-v1..v5.json); 每轮消一类失败 (envelope/venv → test-file edits (W112) → edit anchors+verify target (W113) → 判据重建 (W114) → 依赖漂移 werkzeug url_quote); resolved 0% 诚实记录; official-docker 范围 (docs/eval/SWEBENCH_PLAN.md §8.5)
+- ✅ W50 (b87257e5): SWE-bench LLM 十一轮 v1-v11 诚实实录 (docs/eval/swebench-llm-results-v1..v11.json); 每轮消一类失败 (envelope/venv → test-file edits (W112) → edit anchors+verify target (W113) → 判据重建 (W114) → 依赖漂移 werkzeug url_quote → venv 复用 (W147) → 后缀路径 (W143) → 测试收集 (W156) → 重复提案 (W161) → 瞬时超时 (W165)); resolved 0% 诚实记录, harness 层障碍清完剩模型能力层; official-docker 范围 (docs/eval/SWEBENCH_PLAN.md §8.6)
 - ⏳ W51 (839d6d6d): 检索 RRF 融合 (目标超 BM25 82.2%) — 本轮事实清单未确认落地
 - ⏳ W52 (ebfc3954): compile_contracts 编译报告 (14.1) — 本轮事实清单未确认落地
 - ⏳ W53 (768328aa): prepare_base/head 仓库安全检查抽取+崩溃回收器 (14.1) — 本轮事实清单未确认落地
@@ -82,7 +82,7 @@ providers/retrieval/craft: 统一网络客户端+日志脱敏 ◐ · 检索结�
 ## D. 待派队列 (按优先级, 2026-08-20 复核)
 1. run_static_checks 检查器注册表+兼容矩阵
 2. build_matrix 完整行字段+纯函数
-3. 独立归因准确率指标测量 (Go/No-Go #3 PARTIAL)
+3. ✅ 独立归因准确率指标已建并实测 88.9% (Go/No-Go #3 PARTIAL; att-08 both-fail 归因修复在途)
 4. 生产试点 (3 仓库 2 周)
 5. 自动 RUNNING-job 回收器 + WAITING_FOR_PROVIDER 接线
 6. 跨语言案例样本 (TS/Go; Python ✅ W78/W105)
