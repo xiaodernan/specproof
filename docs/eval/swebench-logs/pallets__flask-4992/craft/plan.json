@@ -8,10 +8,10 @@
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Confirm the current Config.from_file method exists and inspect its file-open text mode handling.",
+      "intent": "Locate the current from_file implementation to understand how the file is opened.",
       "success_criteria": {
         "type": "grep",
-        "value": "def from_file"
+        "value": "def from_file("
       },
       "deps": []
     },
@@ -21,23 +21,25 @@
       "target_files": [
         "tests/test_config.py"
       ],
-      "intent": "Locate existing tests for from_file to understand required PASS_TO_PASS coverage.",
+      "intent": "Locate existing from_file tests to understand covered behavior.",
       "success_criteria": {
         "type": "grep",
         "value": "from_file"
       },
-      "deps": []
+      "deps": [
+        "s1"
+      ]
     },
     {
       "id": "s3",
-      "kind": "modify",
+      "kind": "verify",
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Implement the file mode parameter so from_file opens files with the caller-provided mode while preserving default text mode.",
+      "intent": "Verify the implementation accepts a mode parameter in from_file.",
       "success_criteria": {
-        "type": "compile",
-        "value": ""
+        "type": "grep",
+        "value": "mode"
       },
       "deps": [
         "s1"
@@ -45,33 +47,32 @@
     },
     {
       "id": "s4",
-      "kind": "add",
+      "kind": "verify",
       "target_files": [
         "tests/test_config.py"
       ],
-      "intent": "Add a test that loads a TOML file in binary mode through from_file, proving the mode parameter is honored.",
+      "intent": "Verify tests exercise the new mode parameter.",
       "success_criteria": {
-        "type": "test_green",
-        "value": ""
+        "type": "grep",
+        "value": "mode"
       },
       "deps": [
-        "s2",
-        "s3"
+        "s2"
       ]
     },
     {
       "id": "s5",
-      "kind": "test",
+      "kind": "verify",
       "target_files": [
-        "tests/test_config.py"
+        "src/flask/config.py"
       ],
-      "intent": "Execute the new test in isolation to confirm FAIL_TO_PASS behavior is fixed.",
+      "intent": "Compile the modified config module to catch syntax errors.",
       "success_criteria": {
-        "type": "test_green",
+        "type": "compile",
         "value": ""
       },
       "deps": [
-        "s4"
+        "s3"
       ]
     },
     {
@@ -80,44 +81,29 @@
       "target_files": [
         "tests/test_config.py"
       ],
-      "intent": "Execute the already-present from_file tests as PASS_TO_PASS guards against regressions.",
+      "intent": "Run config module tests to confirm FAIL_TO_PASS and existing tests pass.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
       },
       "deps": [
         "s3",
-        "s4"
+        "s4",
+        "s5"
       ]
     },
     {
       "id": "s7",
-      "kind": "verify",
+      "kind": "test",
       "target_files": [
-        "src/flask/config.py"
+        "tests"
       ],
-      "intent": "Confirm the new mode parameter is present in the implementation by checking that a mode token exists.",
-      "success_criteria": {
-        "type": "grep",
-        "value": "mode"
-      },
-      "deps": [
-        "s3"
-      ]
-    },
-    {
-      "id": "s8",
-      "kind": "verify",
-      "target_files": [
-        "tests/test_config.py"
-      ],
-      "intent": "Run the full config test module to ensure all affected tests pass together.",
+      "intent": "Run the full test suite to confirm PASS_TO_PASS tests remain green.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
       },
       "deps": [
-        "s5",
         "s6"
       ]
     }

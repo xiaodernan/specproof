@@ -6,64 +6,68 @@
       "id": "s1",
       "kind": "understand",
       "target_files": [
-        "flask/blueprints.py"
+        "src/flask/blueprints.py",
+        "tests/test_blueprints.py"
       ],
-      "intent": "Read the current Blueprint class to locate the existing name/endpoint dot validation and determine where the blueprint name check must be added.",
+      "intent": "Read the blueprint implementation and its tests to locate where blueprint names are validated and existing coverage.",
       "success_criteria": {
         "type": "grep",
-        "value": "class Blueprint"
+        "value": "Blueprint"
       },
       "deps": []
     },
     {
       "id": "s2",
-      "kind": "understand",
+      "kind": "verify",
       "target_files": [
-        "tests/test_blueprints.py"
+        "src/flask/blueprints.py"
       ],
-      "intent": "Inspect existing blueprint tests to identify the test style and where to add a new test for blueprint names with dots.",
+      "intent": "Run Python bytecode compilation on the modified source to catch syntax errors.",
       "success_criteria": {
-        "type": "grep",
-        "value": "def test_"
-      },
-      "deps": []
-    },
-    {
-      "id": "s3",
-      "kind": "modify",
-      "target_files": [
-        "flask/blueprints.py"
-      ],
-      "intent": "Add a check in Blueprint.__init__ that raises ValueError when the blueprint name contains a dot, mirroring the endpoint validation.",
-      "success_criteria": {
-        "type": "grep",
-        "value": "Blueprint names may not contain dots"
+        "type": "compile",
+        "value": ""
       },
       "deps": [
         "s1"
       ]
     },
     {
+      "id": "s3",
+      "kind": "test",
+      "target_files": [
+        "src/flask/blueprints.py"
+      ],
+      "intent": "Execute an isolated runtime assertion that constructing a Blueprint with a dot in its name raises ValueError.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s2"
+      ]
+    },
+    {
       "id": "s4",
-      "kind": "add",
+      "kind": "test",
       "target_files": [
         "tests/test_blueprints.py"
       ],
-      "intent": "Add a test that constructing a Blueprint with a dot in its name raises ValueError, using a name like foo.bar.",
+      "intent": "Run the targeted regression test(s) that fail before the change and pass after it, covering blueprint names with dots.",
       "success_criteria": {
-        "type": "grep",
-        "value": "foo.bar"
+        "type": "test_green",
+        "value": ""
       },
       "deps": [
-        "s2",
         "s3"
       ]
     },
     {
       "id": "s5",
       "kind": "test",
-      "target_files": [],
-      "intent": "Run the targeted blueprint tests to confirm the new dot-name validation test passes and no existing blueprint tests regress.",
+      "target_files": [
+        "tests/test_blueprints.py"
+      ],
+      "intent": "Run the entire blueprint test module to detect regressions in related blueprint functionality.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
@@ -76,7 +80,7 @@
       "id": "s6",
       "kind": "test",
       "target_files": [],
-      "intent": "Run the full Flask test suite to verify PASS_TO_PASS tests still pass after the change.",
+      "intent": "Run the full PASS_TO_PASS test suite to confirm no unrelated regressions anywhere in the project.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
@@ -84,13 +88,33 @@
       "deps": [
         "s5"
       ]
+    },
+    {
+      "id": "s7",
+      "kind": "verify",
+      "target_files": [
+        "src/flask/blueprints.py",
+        "tests/test_blueprints.py"
+      ],
+      "intent": "Aggregate all prior evidence and apply the verdict: BLOCKED if any compile/test step fails or if the diff touches files outside the blueprint source and test files.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s2",
+        "s3",
+        "s4",
+        "s5",
+        "s6"
+      ]
     }
   ],
   "risk_classification": {
     "auth": false,
     "migration": false,
     "mq": false,
-    "public_api": true
+    "public_api": false
   },
   "budget_alloc": {
     "iterations": 12,
