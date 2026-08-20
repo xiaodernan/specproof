@@ -1,6 +1,6 @@
 # Go/No-Go 15 门槛测量 (PRODUCTION_SPEC §20)
 
-总览: **PASS 10/15 · PARTIAL 2/15 · PENDING 3/15** (2026-08-20 最终复核, 基于现有仓库实测证据; 未实测的门槛一律标 PENDING, 不编造数字; 本轮 PASS 6→10: #4 回放六轮修复达标 / #6 延迟实测 p95 161s / #9 真实 kill 演练 / #11 真实 provider 故障演练 / #14 LLM 基线实测 +100pp)
+总览: **PASS 11/15 · PARTIAL 1/15 · PENDING 3/15** (2026-08-20 最终复核, 基于现有仓库实测证据; 未实测的门槛一律标 PENDING, 不编造数字; 本轮 PASS 10→11: #5 补齐"无执行证据不得发布 BLOCKER"专用不变式测试; 此前 PASS 6→10: #4 回放六轮修复达标 / #6 延迟实测 p95 161s / #9 真实 kill 演练 / #11 真实 provider 故障演练 / #14 LLM 基线实测 +100pp)
 
 状态约定: PASS = 有真实测量/测试证据且达标; PARTIAL = 有部分或间接证据, 未达可宣称达标的程度; PENDING = 无测量, 需按"缺口与下一步"补齐后才能判定。
 
@@ -10,7 +10,7 @@
 | 2 | 语义回归 Recall ≥ 80% | PASS | docs/eval/eval-report.results.json (recall=100.0, detected=12/12); docs/eval/baseline-report.md | 同上 (eval 全量, 2026-08-18 第十轮审计后实测) | 同上, 生产口径需试点 |
 | 3 | PR 归因准确率 ≥ 90% | PARTIAL | agent/nodes/review_court.py (六条件之 3_attribution_to_head, attributed_contract 归因); agent/nodes/run_differential.py (REGRESSION 归因 + DB 状态取证); docs/eval/eval-report.results.json (负样本 0 误报, 仅间接证据) | python -m pytest tests/unit -q --tb=short | 无独立归因准确率指标: 需构造"Base 与 Head 各自都有失败"的用例集, 量化错归因/漏归因比例, 目标 ≥ 90% |
 | 4 | Capsule Replay 成功率 ≥ 95% | PASS | scripts/bench_replay.py (批量回放基准, 六轮实测轨迹 28.57→35.71→42.86→82.14→92.0→100.0%); docs/eval/replay-results.md (最终 25/25=100.0%, 枚举 28 排除 3 制品逐字注记); 双层定义 (运行时复现+静态复验) + 探针重放 (H2 真实重跑) | python scripts/bench_replay.py | 3 个排除为制品类 (演示种子 1 + 规范前陈旧摘要 2), 定义单源可审计; 生产口径随 #12 试点复核 |
-| 5 | 无证据的严重评论 = 0 | PARTIAL | agent/nodes/review_court.py (BLOCKER 六条件 + _has_real_execution_evidence 要求真实 base/head exit code); agent/nodes/run_static_checks.py (_STATIC_CONFIDENCE_CEILING=0.85, 静态封顶 MAJOR); capsules/capsule-COURT-AUTH-01/finding.json (blocker_check 6/6 逐条记录); docs/eval/eval-report.results.json (0 误报) | python -m pytest tests/unit tests/security -q --tb=short | 机制在代码中强制, 但缺少专门测试断言"任何无执行证据的 Finding 都不可能以 BLOCKER 发布"; 需补一条 court 单元测试锁定该不变式 |
+| 5 | 无证据的严重评论 = 0 | PASS | tests/unit/test_court_no_evidence_blocker.py (专用不变式测试 19 例: 无 exit code 记录/静态证据 → court 降级 MAJOR 永不 BLOCKER; 六条件之 2_base_head_execution 必须经 _has_real_execution_evidence 拿到真实 base/head exit code; 正向对照真实 base_pass_head_fail(0/1) 可达 BLOCKER; _STATIC_CONFIDENCE_CEILING=0.85 于 policy + run_static_checks 节点两级封顶); agent/nodes/review_court.py (BLOCKER 六条件 + _has_real_execution_evidence 要求真实 base/head exit code); agent/nodes/run_static_checks.py (_STATIC_CONFIDENCE_CEILING=0.85, 静态封顶 MAJOR); capsules/capsule-COURT-AUTH-01/finding.json (blocker_check 6/6 逐条记录); docs/eval/eval-report.results.json (0 误报) | python -m pytest tests/unit/test_court_no_evidence_blocker.py -q --tb=short | 机制 + 专用不变式测试齐备: 任何无执行证据的 Finding 都被 court 降级为 MAJOR (severity/confidence 封顶), 不可能以 BLOCKER 发布; 生产 PR 流量口径随 #12 试点复核 |
 | 6 | FAST 小 PR p95 ≤ 8 分钟 | PASS | 100 案例五块重跑逐案例 duration_ms (docs/eval/eval-c1/c2/c3/c4/rem3-rerun.results.json, N=100 真实全管线 FAST 深度): p50=126.1s, **p95=161.1s**, max=228.6s, 超 8 分钟 0 例 | python -c 统计五个 rerun results 的 duration_ms 分位 | 口径=金案例全管线本机墙钟 (含 Maven 编译/测试), 生产 PR 流量口径随 #12 试点复核 |
 | 7 | 重复 Webhook 不产生重复 Job | PASS | tests/unit/test_webhook_endpoint.py::test_duplicate_delivery_idempotent (same-delivery 二次投递 → duplicate_delivery, 仅 1 个 Job); tests/unit/test_github_webhook.py (签名 fail-closed) | python -m pytest tests/unit/test_webhook_endpoint.py tests/unit/test_github_webhook.py -q | 无 (单元层已证; 生产层 X-GitHub-Delivery 去重随 #12 试点复核) |
 | 8 | MQ 重投不产生重复 Finding | PASS | tests/unit/test_rabbitmq_reliability.py (make_idempotency_check / QueuePolicy DLQ 退避); tests/unit/test_concurrency_ha.py (N 次投递恰好处理一次); storage/rabbitmq.py (_get_death_count 重投识别); **Drill 4 真实演练** (docs/operations/DRILLS.md: outbox 崩溃窗口重建→relay 重放→Redis 幂等键丢弃第二次投递, 前后计数一致, exactly-once) | python -m pytest tests/unit/test_rabbitmq_reliability.py tests/unit/test_concurrency_ha.py -q | 集成层在真实 broker 上已由 Drill 4 演练覆盖; 生产层随 #12 试点复核 |
@@ -24,7 +24,7 @@
 
 ## 结论
 
-- 10 条 PASS 全部来自可复现的仓库证据 (评测/基准/演练/单元安全测试), 无编造数字; 本轮新增 4 条 (#4 回放六轮修复 / #6 延迟实测 / #9+#11 真实故障演练 / #14 LLM 基线实测)。
-- 2 条 PARTIAL (#3/#5) 有机制或间接证据, 但缺独立量化指标。
+- 11 条 PASS 全部来自可复现的仓库证据 (评测/基准/演练/单元安全测试), 无编造数字; 新增 5 条 (#4 回放六轮修复 / #5 无证据 BLOCKER 不变式测试 / #6 延迟实测 / #9+#11 真实故障演练 / #14 LLM 基线实测)。
+- 1 条 PARTIAL (#3) 有机制或间接证据, 但缺独立量化指标。
 - 3 条 PENDING (#12/#13/#15) 依赖真实试点仓库、真实用户与真实账单, 无法在仓库内完成。
 - 任一门槛未达 PASS 前, 不宣称 PRODUCTION_SPEC §3 的商业优势评分成立 (§20: "任何一项失败: 不宣称达到商业优势 9.0")。
