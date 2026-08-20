@@ -6,83 +6,77 @@
       "id": "s1",
       "kind": "understand",
       "target_files": [
-        "flask/blueprints.py",
-        "tests/test_blueprints.py"
+        "flask/blueprints.py"
       ],
-      "intent": "Read the Blueprint implementation and its test module to locate the name validation path and existing coverage.",
+      "intent": "Read the current Blueprint class to locate the existing name/endpoint dot validation and determine where the blueprint name check must be added.",
       "success_criteria": {
-        "type": "compile",
-        "value": ""
+        "type": "grep",
+        "value": "class Blueprint"
       },
       "deps": []
     },
     {
       "id": "s2",
-      "kind": "verify",
+      "kind": "understand",
       "target_files": [
         "tests/test_blueprints.py"
       ],
-      "intent": "Confirm the test module contains a regression test that exercises a dotted blueprint name.",
+      "intent": "Inspect existing blueprint tests to identify the test style and where to add a new test for blueprint names with dots.",
       "success_criteria": {
         "type": "grep",
-        "value": "."
+        "value": "def test_"
       },
-      "deps": [
-        "s1"
-      ]
+      "deps": []
     },
     {
       "id": "s3",
-      "kind": "verify",
+      "kind": "modify",
       "target_files": [
-        "tests/test_blueprints.py"
+        "flask/blueprints.py"
       ],
-      "intent": "Run the focused regression test(s) for dotted blueprint names and require them to pass.",
+      "intent": "Add a check in Blueprint.__init__ that raises ValueError when the blueprint name contains a dot, mirroring the endpoint validation.",
       "success_criteria": {
-        "type": "test_green",
-        "value": ""
+        "type": "grep",
+        "value": "Blueprint names may not contain dots"
       },
       "deps": [
-        "s2"
+        "s1"
       ]
     },
     {
       "id": "s4",
-      "kind": "verify",
+      "kind": "add",
       "target_files": [
-        "flask/blueprints.py"
+        "tests/test_blueprints.py"
       ],
-      "intent": "Confirm the implementation raises ValueError when a dot is present in the blueprint name.",
+      "intent": "Add a test that constructing a Blueprint with a dot in its name raises ValueError, using a name like foo.bar.",
       "success_criteria": {
         "type": "grep",
-        "value": "ValueError"
+        "value": "foo.bar"
       },
       "deps": [
-        "s1"
+        "s2",
+        "s3"
       ]
     },
     {
       "id": "s5",
-      "kind": "verify",
-      "target_files": [
-        "tests/test_blueprints.py"
-      ],
-      "intent": "Run the full blueprint test module to ensure no existing blueprint behavior regresses.",
+      "kind": "test",
+      "target_files": [],
+      "intent": "Run the targeted blueprint tests to confirm the new dot-name validation test passes and no existing blueprint tests regress.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
       },
       "deps": [
-        "s3"
+        "s4"
       ]
     },
     {
       "id": "s6",
-      "kind": "verify",
-      "target_files": [
-        "tests/test_blueprints.py"
-      ],
-      "intent": "Run the broader relevant test suite or the specified PASS_TO_PASS subset to detect regressions outside blueprints.",
+      "kind": "test",
+      "target_files": [],
+      "intent": "Run the full Flask test suite to verify PASS_TO_PASS tests still pass after the change.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
