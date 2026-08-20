@@ -70,7 +70,7 @@ providers/retrieval/craft: 统一网络客户端+日志脱敏 ◐ · 检索结�
 ## C. 车道落地状态 (2026-08-20 最终复核)
 - ✅ W48 (1233964a): 段1 缺口修复 — 100 金案例 Recall/Precision/F1 = 100.0% (63/63, FP 0); 五 chunk 修复后全重跑 (docs/eval/eval-c1-rerun.results.json / eval-c2-rerun / eval-c3-rerun / eval-c4-rerun / eval-rem3-rerun); 段1 六案例 25/33/29 → 100/100/100 (docs/eval/eval-seg1-fixed.results.json)
 - ◐ W49 (668a62ba): Review Court 模型/政策分层 + 预存缺陷规则 — 剩余: 无证据 BLOCKER 不变式测试 ⏳
-- ✅ W50 (b87257e5): SWE-bench LLM 十一轮 v1-v11 诚实实录 (docs/eval/swebench-llm-results-v1..v11.json); 每轮消一类失败 (envelope/venv → test-file edits (W112) → edit anchors+verify target (W113) → 判据重建 (W114) → 依赖漂移 werkzeug url_quote → venv 复用 (W147) → 后缀路径 (W143) → 测试收集 (W156) → 重复提案 (W161) → 瞬时超时 (W165)); resolved 0% 诚实记录, harness 层障碍清完剩模型能力层; official-docker 范围 (docs/eval/SWEBENCH_PLAN.md §8.6)
+- ✅ W50 (b87257e5): SWE-bench LLM 十二轮 v1-v12 诚实实录 (docs/eval/swebench-llm-results-v1..v12.json); 每轮消一类失败 (envelope/venv → test-file edits (W112) → edit anchors+verify target (W113) → 判据重建 (W114) → 依赖漂移 werkzeug url_quote → venv 复用 (W147) → 后缀路径 (W143) → 测试收集 (W156) → 重复提案 (W161) → 瞬时超时 (W165)); v12 以网关最强档重测仍模型层重复提案 (网关仅 v4-flash/v4-pro 两档); resolved 0% 诚实记录, harness 层障碍清完剩模型能力层; official-docker 范围 (docs/eval/SWEBENCH_PLAN.md §8.6, v13 方向)
 - ⏳ W51 (839d6d6d): 检索 RRF 融合 (目标超 BM25 82.2%) — 本轮事实清单未确认落地
 - ⏳ W52 (ebfc3954): compile_contracts 编译报告 (14.1) — 本轮事实清单未确认落地
 - ⏳ W53 (768328aa): prepare_base/head 仓库安全检查抽取+崩溃回收器 (14.1) — 本轮事实清单未确认落地

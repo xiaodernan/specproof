@@ -21,7 +21,7 @@
 - Go/No-Go 15 门槛: **PASS 11/15 · PARTIAL 1/15 (#3 归因 88.9%) · PENDING 3/15 (#12 试点/#13 用户/#15 成本)** — #4 Capsule 回放 25/25=100% 门禁 PASS / #5 无证据 BLOCKER 不变式测试 19 例 / #6 FAST p95 161.1s / #14 LLM 基线 +100pp (docs/eval/go-nogo.md)
 - 质量门禁: 单元 **2069 passed + 1 skipped** 全绿; ruff/mypy strict/bandit Medium+=0; 密钥泄漏 **0**
 - 前端: vitest 90+, Playwright e2e 9/9; 设计系统 21 组件
-- SWE-bench-Lite: harness+LLM 模式就绪; 真实跑十一轮 (v1-v11) 每轮消掉一类失败 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案→瞬时超时), resolved 率始终诚实 0% — harness 层障碍已清完, 剩余模型能力层 (v12: 更强模型档位/官方 Docker 口径)
+- SWE-bench-Lite: harness+LLM 模式就绪; 真实跑十二轮 (v1-v12) 每轮消掉一类失败 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案→瞬时超时), resolved 率始终诚实 0% — harness 层障碍已清完, 剩余模型能力层 (v12 实测: 网关仅 v4-flash/v4-pro 两档无更强, 最强档重测仍模型层重复提案 STUCK; v13 = 官方 Docker 口径/网关外更强模型)
 
 ## 三、三大文档逐条状态 (浓缩版, 全量见三份审计)
 
@@ -33,6 +33,6 @@
 
 1. ~~段1 三个 MISS + 3 误报~~ **已修复: 100 案例重跑 63/63 误报 0 → 100%** (W48c/W48d + 三块重跑实录)
 2. ~~Capsule 全量回放率~~ **已达标: 25/25 = 100.0% 门禁 PASS** (双层口径: 运行时复现+静态证据复验+探针重放; 枚举 28 排除 3 制品逐字注记=演示种子+2 规则前陈旧摘要; 六轮轨迹 28.57→35.71→42.86→82.14→92.0→100.0%, docs/eval/replay-results.md)
-3. SWE-bench-Lite 真实解决率: v1-v11 十一轮真实跑诚实 0% (harness 障碍逐轮清完, 剩余模型能力层; v12 更强模型档位/官方 Docker 口径在途); Aider polyglot W98 已落地 (harness 全绿, 离线样本诚实 unresolved)
+3. SWE-bench-Lite 真实解决率: v1-v12 十二轮真实跑诚实 0% (harness 障碍逐轮清完; v12 实测网关仅 v4-flash/v4-pro 两档无更强档, 最强档重测仍模型层重复提案; v13 = 官方 Docker 口径/网关外更强模型在途); Aider polyglot W98 已落地 (harness 全绿, 离线样本诚实 unresolved)
 4. Linux 非 root 沙箱实测、KMS/HSM、跨语言 Gradle/Node/Go 适配器 — 依赖基础设施, 本地不可验
 5. 前端收尾 W101 已落地 (billing 路由/wizard/权限页/progress 形状, 19 文件 90 测试+build 全绿)

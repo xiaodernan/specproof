@@ -6,9 +6,9 @@
       "id": "s1",
       "kind": "understand",
       "target_files": [
-        "src/flask/blueprints.py"
+        "flask/blueprints.py"
       ],
-      "intent": "Locate where blueprint names are validated in the implementation and confirm the existing endpoint-name dot check pattern.",
+      "intent": "Locate the Blueprint class constructor and current name validation to know where the dot guard must be inserted.",
       "success_criteria": {
         "type": "grep",
         "value": "Blueprint"
@@ -19,16 +19,14 @@
       "id": "s2",
       "kind": "understand",
       "target_files": [
-        "tests/test_blueprints.py"
+        "flask/app.py"
       ],
-      "intent": "Identify the failing blueprint name test that must pass after the fix.",
+      "intent": "Inspect the existing endpoint name dot validation so the blueprint fix matches the established pattern.",
       "success_criteria": {
         "type": "grep",
-        "value": "blueprint"
+        "value": "endpoint"
       },
-      "deps": [
-        "s1"
-      ]
+      "deps": []
     },
     {
       "id": "s3",
@@ -36,29 +34,59 @@
       "target_files": [
         "tests/test_blueprints.py"
       ],
-      "intent": "Execute the FAIL_TO_PASS test set against the changed code and confirm all tests pass.",
+      "intent": "Run the existing blueprint test file on the base revision to establish a green baseline before the change.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
       },
       "deps": [
-        "s2"
+        "s1"
       ]
     },
     {
       "id": "s4",
+      "kind": "verify",
+      "target_files": [
+        "flask/blueprints.py"
+      ],
+      "intent": "Confirm the head change adds a dot-in-name check in the Blueprint constructor by grepping for the guard expression.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "\".\" in name"
+      },
+      "deps": [
+        "s1",
+        "s2"
+      ]
+    },
+    {
+      "id": "s5",
+      "kind": "verify",
+      "target_files": [
+        "tests/test_blueprints.py"
+      ],
+      "intent": "Check that the test suite contains a regression test for a dotted blueprint name.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "dot"
+      },
+      "deps": [
+        "s4"
+      ]
+    },
+    {
+      "id": "s6",
       "kind": "test",
       "target_files": [
         "tests/test_blueprints.py"
       ],
-      "intent": "Execute the PASS_TO_PASS test set to ensure no existing blueprint behavior regressed; block the change if any test fails.",
+      "intent": "Run the blueprint test file on the head revision to execute the new dotted-name regression test and existing blueprint tests.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
       },
       "deps": [
-        "s2",
-        "s3"
+        "s5"
       ]
     }
   ],

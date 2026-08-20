@@ -79,14 +79,14 @@
 |---|---|---|
 | Hermes 类 Agent 模型 (工具调用强/不拒绝) | 13 工具注册表 + JSON Envelope + 确定性档 | 我们多了"裁判层": 模型必须被独立验证 (fail-closed) |
 | MCP | 已有服务端 6 工具; [待补: 客户端] | 生态互操作 |
-| SWE-bench | harness 已落地 (W45: 真实 craft 管道+honest unresolved 契约, HF 数据真实下载); 真实跑 v1-v11 十一轮每轮消一类障碍 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案→瞬时超时), resolved 率诚实 0% — harness 层清完, 剩余模型能力层 | v12: 更强模型档位重测 / 官方 Docker 口径 |
+| SWE-bench | harness 已落地 (W45: 真实 craft 管道+honest unresolved 契约, HF 数据真实下载); 真实跑 v1-v12 十二轮每轮消一类障碍 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案→瞬时超时), resolved 率诚实 0% — harness 层清完, 剩余模型能力层 (v12 实测网关仅 v4-flash/v4-pro 两档, 无更强档) | v13: 官方 Docker 口径 / 网关外更强模型 |
 | OpenHands/Devin 多智能体 | ParallelRunner 只读并行 + 写集冲突 fail-closed | 防覆盖是硬约束不是建议 |
 | Mem0 记忆 | TaskMemory + checkpoint 恢复 10/10 | 副作用幂等有账本证明 |
 | 变异测试 | 变异杀死率测量已落地 (W47) | 离线样本实测杀死率 83.3% (5/6; 1 幸存为规格外行为, 诚实记录); 真实仓库模式走 experiments.mutation+契约检查+沙箱 |
 
 ## 4. 待补数字清单 (冲刺项)
 1. ~~100 案例总表~~ ✅ **100.0/100.0/100.0** (63/63, 误报 0; 段1 三块重跑实录, eval-100-segments.md)
-2. SWE-bench-Lite 解决率 ◐ 真实跑 v1-v11 十一轮全部诚实 0% (harness 障碍逐轮清完, 剩余模型能力层; v12 更强模型档位/官方 Docker 口径在途); 官方全量数字待 Docker 环境
+2. SWE-bench-Lite 解决率 ◐ 真实跑 v1-v12 十二轮全部诚实 0% (harness 障碍逐轮清完; v12 实测网关仅 v4-flash/v4-pro 两档无更强档; v13 = 官方 Docker 口径/网关外更强模型在途); 官方全量数字待 Docker 环境
 3. 变异杀死率 ✅ 83.3% (离线样本, W47; 真实仓库数字待补跑)
 4. 双模型路由成本对比 (本地小模型 vs 远程强模型, 每作业 token 成本)
 5. p50/p95 验证延迟

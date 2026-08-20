@@ -8,7 +8,7 @@
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Inspect the current Config.from_file implementation and diff to locate the method that must gain a mode parameter.",
+      "intent": "Read the current Config.from_file implementation to establish the pre-change signature and file opening behavior.",
       "success_criteria": {
         "type": "grep",
         "value": "def from_file"
@@ -21,7 +21,7 @@
       "target_files": [
         "tests/test_config.py"
       ],
-      "intent": "Inspect existing tests for from_file to establish coverage and identify the new FAIL_TO_PASS regression test.",
+      "intent": "Read the config tests to identify existing from_file tests and any new tests for TOML/binary mode behavior.",
       "success_criteria": {
         "type": "grep",
         "value": "from_file"
@@ -34,10 +34,10 @@
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Compile the changed Flask config module to detect any Python syntax errors before running tests.",
+      "intent": "Mechanically confirm the changed file contains a mode parameter for Config.from_file by grepping for the literal mode.",
       "success_criteria": {
-        "type": "compile",
-        "value": ""
+        "type": "grep",
+        "value": "mode"
       },
       "deps": [
         "s1"
@@ -49,23 +49,39 @@
       "target_files": [
         "src/flask/config.py"
       ],
-      "intent": "Confirm the implementation passes the mode argument to open by checking for the literal 'mode' in the changed file.",
+      "intent": "Mechanically confirm an open call exists in the modified from_file; together with s3 this indicates mode is wired into file opening.",
       "success_criteria": {
         "type": "grep",
-        "value": "mode"
+        "value": "open("
       },
       "deps": [
-        "s1"
+        "s3"
       ]
     },
     {
       "id": "s5",
-      "kind": "test",
+      "kind": "verify",
       "target_files": [
         "src/flask/config.py",
         "tests/test_config.py"
       ],
-      "intent": "Run focused from_file test cases, including the new binary-mode TOML test, to verify FAIL_TO_PASS tests pass.",
+      "intent": "Compile the changed Python files to catch syntax errors before running tests.",
+      "success_criteria": {
+        "type": "compile",
+        "value": ""
+      },
+      "deps": [
+        "s1",
+        "s2"
+      ]
+    },
+    {
+      "id": "s6",
+      "kind": "test",
+      "target_files": [
+        "tests/test_config.py"
+      ],
+      "intent": "Run the targeted from_file tests, especially any TOML/binary-mode test, on the changed tree to verify the fail-to-pass requirement.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
@@ -73,52 +89,23 @@
       "deps": [
         "s2",
         "s3",
-        "s4"
-      ]
-    },
-    {
-      "id": "s6",
-      "kind": "verify",
-      "target_files": [
-        "tests/test_config.py"
-      ],
-      "intent": "Check the test diff includes a regression test that calls from_file with tomllib.load and a binary mode such as mode='b'.",
-      "success_criteria": {
-        "type": "grep",
-        "value": "mode"
-      },
-      "deps": [
-        "s2"
+        "s4",
+        "s5"
       ]
     },
     {
       "id": "s7",
       "kind": "test",
       "target_files": [
-        "src/flask/config.py",
         "tests/test_config.py"
       ],
-      "intent": "Run the entire config test module to ensure existing PASS_TO_PASS tests still pass.",
+      "intent": "Run the full config test module on the changed tree to verify existing pass-to-pass tests remain green.",
       "success_criteria": {
         "type": "test_green",
         "value": ""
       },
       "deps": [
-        "s5",
         "s6"
-      ]
-    },
-    {
-      "id": "s8",
-      "kind": "verify",
-      "target_files": [],
-      "intent": "Apply final verdict criteria: BLOCKED if any targeted or full config test fails, if the signature or open call lacks the mode parameter, or if the public API change is not backward-compatible; otherwise PASS.",
-      "success_criteria": {
-        "type": "test_green",
-        "value": ""
-      },
-      "deps": [
-        "s7"
       ]
     }
   ],
