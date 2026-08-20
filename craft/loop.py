@@ -738,6 +738,11 @@ class CraftLoop:
         # the whole iteration budget on the same proposal (real evidence:
         # pallets__flask-4992 FAILED s6 迭代预算超限).
         self._attempted_proposals: dict[ProposalKey, int] = {}
+        # W158 alignment with M1 semantics: consecutive repeats per step are
+        # counted like any other identical failure — the 3rd consecutive
+        # repeat trips the documented 同类错误连续 3 次 → STUCK rule (with
+        # the [LLM_PROPOSAL_REPEATED] signature), never an early FAILED.
+        self._repeat_counts: dict[str, int] = {}
         # W35 durable job projection (W30 AgentJobStore). store=None keeps the
         # original in-memory behavior; the lease owner is computed at run()
         # time (host:pid:job_id) and must not change within one run.
@@ -980,9 +985,39 @@ class CraftLoop:
                     )
                     return "FAILED"
                 except _ProposalRepeatError as exc:
-                    state.status = "failed"
+                    # W158 alignment with M1: a repeated proposal counts
+                    # like any other identical failure — repeats 1-2
+                    # checkpoint progress and retry (the repeat itself is
+                    # never executed); the 3rd consecutive repeat trips the
+                    # documented 同类错误连续 3 次 → STUCK rule with the
+                    # [LLM_PROPOSAL_REPEATED] signature, never an early
+                    # FAILED (real evidence: pallets__flask-4992 v9 burned
+                    # 12 iterations on the same proposal).
+                    repeats = self._repeat_counts.get(step.id, 0) + 1
+                    self._repeat_counts[step.id] = repeats
                     reason = str(exc)
                     state.evidence["reason"] = reason
+                    if repeats >= 3:
+                        state.status = "stuck"
+                        state.iterations = attempts
+                        state.evidence["reason"] = (
+                            f"同类错误连续 {repeats} 次, 判定 stuck "
+                            f"(签名: {reason[:160]})"
+                        )
+                        self.memory.add(
+                            "decision",
+                            f"步骤 {step.id} stuck: 编辑提案重复 {repeats} 次",
+                            step_id=step.id,
+                        )
+                        self._checkpoint(
+                            step_id=step.id,
+                            iteration=attempts,
+                            diagnosis=diagnosis,
+                            edits_applied=[],
+                            build_result=self._result_dict(result),
+                            verdict="stuck",
+                        )
+                        return "STUCK"
                     self._checkpoint(
                         step_id=step.id,
                         iteration=attempts,
@@ -991,7 +1026,7 @@ class CraftLoop:
                         build_result=self._result_dict(result),
                         verdict="progress",
                     )
-                    return "FAILED"
+                    continue
             else:
                 try:
                     edited = fix(self.editor, step, diagnosis)

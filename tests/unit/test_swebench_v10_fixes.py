@@ -237,22 +237,26 @@ def test_scoped_test_step_skips_unrelated_collection_errors(tmp_path: Path) -> N
 
 
 def test_repeated_identical_proposal_fails_with_stable_code(tmp_path: Path) -> None:
-    """(c) An exact repeat of an already-attempted proposal fails the step
-    with [LLM_PROPOSAL_REPEATED] naming the first iteration, executes
-    nothing and makes no further LLM call — the budget is preserved."""
+    """(c) An exact repeat of an already-attempted proposal counts like any
+    other identical failure (W158 alignment): repeats 1-2 checkpoint
+    progress without re-executing the edit, and the 3rd consecutive repeat
+    trips the documented M1 同类错误连续 3 次 → STUCK rule with the
+    [LLM_PROPOSAL_REPEATED] signature — the repeat is never executed and
+    the iteration budget is never burned to exhaustion."""
     _write_fixture_repo(tmp_path)
     client = _ScriptedClient([BAD_PROPOSAL, BAD_PROPOSAL, BAD_PROPOSAL])
     loop = _make_loop(tmp_path, FIX_SPEC_NO_REF, client=client, job_id="job-c")
     report = loop.run()
     steps = {step["id"]: step for step in report["steps"]}
-    assert report["result"] == "FAILED"
-    assert steps["s3"]["status"] == "failed"
+    assert report["result"] == "STUCK"
+    assert steps["s3"]["status"] == "stuck"
     reason = steps["s3"]["evidence"]["reason"]
     assert "[LLM_PROPOSAL_REPEATED]" in reason
     assert "第 1 次迭代" in reason
+    assert "同类错误连续 3 次" in reason
     assert "迭代预算超限" not in reason
-    assert client.call_count == 2
-    assert report["budget_used"]["iterations"] == 2
+    assert client.call_count == 4  # initial attempt + 3 consecutive repeats
+    assert report["budget_used"]["iterations"] == 4
     assert "return x / 3" in (tmp_path / "calc.py").read_text(encoding="utf-8")
 
 
