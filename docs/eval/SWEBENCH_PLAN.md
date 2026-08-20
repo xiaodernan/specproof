@@ -369,3 +369,10 @@ test_*.py、*_test.py 的提案条目按 CODE_TEST_FILE_FORBIDDEN 拒绝并携
 | v12 | 4045 同 v11: s3 [LLM_PROPOSAL_REPEATED], craft 0 次编辑应用 (4 迭代); 4992 推进到 s6 仍 [LLM_PROPOSAL_REPEATED] (提案与第 1 迭代即全同), craft 0 次编辑应用 (4 迭代) | 网关 /v1/models 仅 deepseek-v4-flash + deepseek-v4-pro 两档 (无更强档), 以最强档 deepseek-v4-pro 重测; craft/providers 全库无 temperature/seed 采样旋钮 (0 命中), 未改代码; 提案多样性未改善, 剩余确认为模型能力层 |
 
 十二轮每轮清一类障碍 (信封→venv→测试文件误改→编辑锚点→判据退化→依赖漂移→venv 复用→后缀路径→测试收集→重复提案→瞬时超时), resolved 率始终诚实 0%; 官方 Docker 口径数字待 §3.4 手工步骤。v12 实测: 网关 /v1/models 只暴露 deepseek-v4-flash 与 deepseek-v4-pro, 不存在比 v11 所用 deepseek-v4-pro 更强的档位, 故 v12 以最强档重测同 2 实例; craft/llm.py 与 providers/ 全库无 temperature/seed/top_p 采样旋钮 (0 命中), 唯一生成侧 env 旋钮 LLM_THINKING_MODE 只是思考开关而非采样多样性、且网关恒返 reasoning_content, 加采样旋钮需改动允许清单之外的 craft/llm.py 或 providers/, 故未改任何代码 (scripts/bench_swebench.py 未动, 无需跑门禁)。结果: 4045 与 v11 同为 s3 [LLM_PROPOSAL_REPEATED]; 4992 从 v11 的 s5 推进到 s6 但签名不变、且重复提案与第 1 次迭代即全同 (v11 为第 2 次); 两实例 craft 均 0 次编辑应用 (v11 各至少 1 次), 全程 0 次瞬时超时 — 多样化指令 (W163) 未带来提案多样性, resolved 率诚实 0%, 剩余障碍确认为模型能力层。v13 方向: 换官方 Docker 口径 (§3.4 手工步骤) 或引入网关外的更强模型档位 (当前网关无 gpt-tier/deepseek-reasoner)。
+### 8.8 v12.1 harness 改进 (模型档位显式覆盖)
+
+v12 实录的档位切换只能靠临时设置 LLM_MODEL 环境变量。为让复跑口径可审计,
+scripts/bench_swebench.py 增加 --model CLI 覆盖: 只改内存环境 (结果 JSON
+的 run.model_override 如实记录), 密钥纪律不变 (key 永不落盘, 仍由
+tests/security/test_no_key_leak.py 兜底)。官方 Docker 口径仍是 §3.4 的
+文档化手工步骤, harness 不伪造任何官方数字。

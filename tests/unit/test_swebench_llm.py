@@ -305,6 +305,18 @@ def test_llm_mode_placeholder_key_honest_exit(
     assert not output.exists()
 
 
+def test_model_override_satisfies_env_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--model 覆盖可满足 LLM_MODEL 校验; 未覆盖时 LLM_MODEL 仍必需。"""
+    module = _load_harness()
+    monkeypatch.setenv("LLM_API_KEY", "sk-test-key-12345678901234567890123456789012")
+    monkeypatch.setenv("LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    assert "LLM_MODEL" in module._validate_llm_env(model_override=None)
+    assert module._validate_llm_env(model_override="deepseek-v4-pro") == []
+
+
 def test_subset_file_loader_valid() -> None:
     """捆绑子集可加载且内容与提交一致。"""
     module = _load_harness()

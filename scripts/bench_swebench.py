@@ -182,6 +182,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"结果 JSON 路径 (默认 {DEFAULT_OUTPUT})",
     )
     parser.add_argument(
+        "--model", default=None,
+        help=(
+            "llm 模式: 覆盖 LLM_MODEL 模型档位 (v12 更强档位复跑用; "
+            "只改内存环境, 结果 JSON 如实记录 model_override)"
+        ),
+    )
+    parser.add_argument(
         "--mode", choices=("deterministic", "llm"), default="deterministic",
         help=(
             "deterministic=仅注入 fix 规则驱动; llm=从 LLM_API_KEY/LLM_BASE_URL/"
@@ -438,15 +445,18 @@ def _validate_instance(entry: object, index: int) -> tuple[dict[str, Any] | None
 
 # -- llm mode: env / client / subset / venv --------------------------------
 
-def _validate_llm_env() -> list[str]:
+def _validate_llm_env(model_override: str | None = None) -> list[str]:
     """Check the three LLM_* env vars; return the list of problems.
 
     Empty list = usable configuration. The check is deliberately BEFORE any
     dataset/network work: a missing key is an honest usage exit, never a
     half-run. The key value itself is never printed or recorded.
+    A non-empty model_override (--model) satisfies the LLM_MODEL check.
     """
     problems: list[str] = []
     for name in _LLM_ENV_VARS:
+        if name == "LLM_MODEL" and model_override:
+            continue
         if not os.getenv(name, "").strip():
             problems.append(name)
     if os.getenv("LLM_API_KEY", "").strip() == "replace_me":
@@ -1310,7 +1320,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     llm_mode = args.mode == "llm"
     if llm_mode:
-        env_problems = _validate_llm_env()
+        if args.model:
+            # Harness-only in-memory override; the results JSON records it
+            # verbatim in run.model_override, and the key is never touched.
+            os.environ["LLM_MODEL"] = args.model
+        env_problems = _validate_llm_env(model_override=args.model)
         if env_problems:
             print(
                 "LLM mode requires LLM_API_KEY/LLM_BASE_URL/LLM_MODEL env vars",
@@ -1442,6 +1456,7 @@ def main(argv: list[str] | None = None) -> int:
             "logs_dir": str(logs_dir),
             "fix_rules_available": sorted(registry),
             "venv": venv_info,
+            "model_override": args.model or "",
         },
         "instances": records,
         "summary": {
