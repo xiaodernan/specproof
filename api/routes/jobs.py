@@ -1,12 +1,13 @@
 """Job lifecycle API: create/query/cancel and the §14.3 progress SSE stream.
 
 GET /jobs/{job_id}/progress → text/event-stream. Every progress event
-carries a stable sequence number, event type, job id, stage, status,
-percentage, summary and timestamp; Last-Event-ID reconnection resumes
-after exactly the last received entry and replays the terminal event
-idempotently. POST /jobs accepts only the documented allowlist fields —
-arbitrary command/env/docker/output-path parameters are refused with
-422 VALIDATION_FAILED.
+carries the absolute per-job `sequence` (monotonic across MAXLEN trims;
+the retained-window rank stays available as `seq` for legacy clients),
+event type, job id, stage, status, percentage, summary and timestamp;
+Last-Event-ID reconnection resumes after exactly the last received entry
+and replays the terminal event idempotently. POST /jobs accepts only the
+documented allowlist fields — arbitrary command/env/docker/output-path
+parameters are refused with 422 VALIDATION_FAILED.
 """
 import asyncio
 import json
@@ -234,13 +235,20 @@ class _ProgressReader(Protocol):
 def _progress_payload(job_id: str, seq: int, ev: dict[str, Any]) -> dict[str, Any]:
     """Shape one stream entry into the §14.3 progress event payload.
 
-    seq is the entry's stable rank in the job's stream (monotonic across
-    reconnections); stage/status/percentage/summary/ts mirror the worker's
-    node/status/percent/message/at fields. Replays keep every field
-    identical, so repeated consumption of the terminal event is idempotent.
+    seq is the entry's rank in the retained replay window (the legacy
+    field, unchanged). sequence is the entry's absolute per-job sequence
+    number written by RedisStore.xadd_progress — strictly monotonic across
+    reconnections AND MAXLEN trims — falling back to the rank for entries
+    written before the counter existed. stage/status/percentage/summary/ts
+    mirror the worker's node/status/percent/message/at fields. Replays keep
+    every field identical, so repeated consumption of the terminal event is
+    idempotent.
     """
+    stored_sequence = ev.get("sequence")
+    absolute_seq = int(stored_sequence) if stored_sequence else seq
     return {
         "seq": seq,
+        "sequence": absolute_seq,
         "job": job_id,
         "type": _SSE_EVENT_TYPE,
         "stage": str(ev.get("node") or ""),
@@ -263,8 +271,14 @@ async def _progress_stream(
 
         id: <stream-entry-id>
         event: progress
-        data: {"seq": N, "job": "...", "type": "progress", "stage": "...",
-               "status": "...", "percentage": F, "summary": "...", "ts": "..."}
+        data: {"seq": N, "sequence": M, "job": "...", "type": "progress",
+               "stage": "...", "status": "...", "percentage": F,
+               "summary": "...", "ts": "..."}
+
+    seq (N) is the entry's rank in the retained replay window — the
+    legacy field, unchanged. sequence (M) is the absolute per-job counter
+    stored with the entry, so clients that reconnect after the MAXLEN
+    window trimmed can still dedupe and re-order by sequence.
 
     Every connection replays the retained history once so seq is the
     entry's stable rank in the stream rather than a per-connection counter.

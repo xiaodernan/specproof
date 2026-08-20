@@ -71,8 +71,8 @@
 6. 跨语言案例样本 TS/Go (⬜; Python ✅ W78/W105)
 7. 恶意构建脚本/输出洪水/缓存投毒测试 (✅ W181: 45 例+三真实缺陷修复, 176+2 测试)
 8. Job 创建白名单 (禁任意命令/env/docker) (✅ W178: /jobs 已 fail-closed 审计确认; /agent/jobs 补白名单 422 点名字段, 44 新测试)
-9. Envelope retryable 字段 + SSE 序列号/保留策略 (⬜)
-10. ES 投影删除清理 (⬜)
+9. Envelope retryable 字段 + SSE 序列号/保留策略 (✅ W186: retryable 已存在 (W83) 审计确认; SSE 补绝对 sequence 计数器+保留策略常量/env 配置, 34+79 测试)
+10. ES 投影删除清理 (✅ W185 库层 + 🔨 lane 0c607774 生产接线在途)
 11. Grafana/SLO 面板 · Python 依赖锁 · 每作业成本会计 (✅ W171) · court 无证据 BLOCKER 不变式测试 (✅ W157)
 
 ## 5. 诚实边界

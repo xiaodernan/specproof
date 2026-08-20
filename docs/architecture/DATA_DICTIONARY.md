@@ -425,7 +425,8 @@ epoch 秒 DOUBLE/REAL (与 `storage/identity.py` / `storage/billing.py` 的可�
 | 键族 | 类型/操作 | TTL | 写入方 | 用途 |
 |---|---|---|---|---|
 | specproof:progress:{job_id} | string (SETEX, JSON) | 600 s | `storage/redis.py` `set_progress` | 进度 (P0.5 兼容, 已弃用) |
-| specproof:stream:job:{job_id} | stream (XADD MAXLEN ~1000) | 键 TTL 86400 s | `storage/redis.py` `xadd_progress` (worker 各阶段) | SSE 进度流 (`api/routes/jobs.py` GET /jobs/{id}/progress, Last-Event-ID 续传) |
+| specproof:stream:job:{job_id} | stream (XADD MAXLEN ~1000; `REDIS_STREAM_MAXLEN`/`REDIS_STREAM_TTL_SECONDS` 可配置) | 键 TTL 86400 s | `storage/redis.py` `xadd_progress` (worker 各阶段) | SSE 进度流 (`api/routes/jobs.py` GET /jobs/{id}/progress, Last-Event-ID 续传; 事件载荷带绝对 `sequence` 与保留窗口秩 `seq`) |
+| specproof:stream:job:{job_id}:seq | string (INCR, 每事件 +1) | 键 TTL 86400 s (与流同写同过期) | `storage/redis.py` `xadd_progress` | 每作业 SSE 单调序列号计数器 (MAXLEN trim 后仍单调; 供事件载荷 `sequence` 字段) |
 | specproof:lease:job:{job_id} | string SET NX EX 30 | 30 s (每阶段续租) | worker acquire/renew; Lua 保证仅持有者可 release | Worker 租约 (防重复处理/失租快速失败) |
 | specproof:budget:job:{job_id} | string (DECRBY 消费, 超支回滚) | 7200 s | `storage/redis.py` `init/consume_budget` | LLM token 预算 |
 | specproof:lock:job:{job_id} | string SET NX EX 300 | 300 s | `storage/redis.py` `acquire_lock` | 互斥锁 |
