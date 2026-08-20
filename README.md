@@ -55,7 +55,7 @@ powershell -ExecutionPolicy Bypass -File scripts/start_local.ps1
 | 检索 (30 查询黄金集) | BM25+RRF recall@10 **87.2%** / MRR **0.760** (vs BM25 72.2%/0.561, +15.0pp); symbol-index 75.6% @ 2.3ms | `docs/eval/retrieval-bench.md` |
 | 变异测试 | 杀死率 **83.3%** (5/6, 存活体为规范外行为 — 数字不凑 100%) | `docs/eval/mutation-results.md` |
 | 基线对比 (Go/No-Go #14) | 确定性 diff-reader 基线: Recall **+41.7pp**; LLM 看 Diff 基线: Recall **+100.0pp** (SpecProof 100% vs 基线 0%) | `docs/eval/baseline-report.md` / `docs/eval/llm-baseline-live.md` |
-| Go/No-Go 15 门槛 | **PASS 6/15 · PARTIAL 3/15 · PENDING 6/15** (未实测一律 PENDING, 不编造) | `docs/eval/go-nogo.md` |
+| Go/No-Go 15 门槛 | **PASS 10/15 · PARTIAL 2/15 · PENDING 3/15** (未实测一律 PENDING, 不编造; #4 回放 100% / #6 p95 161s / #9+#11 真实演练 / #14 LLM 基线 +100pp) | `docs/eval/go-nogo.md` |
 | 质量门禁 | 单元 1300+ 全绿; ruff / mypy strict / bandit Medium+=0; **密钥泄漏 0** | `docs/operations/ACCEPTANCE_CHECKLIST.md` §二 |
 | 前端 | vitest 90+, Playwright e2e 9/9, 设计系统 21 组件 | `docs/operations/ACCEPTANCE_CHECKLIST.md` §二 |
 
@@ -142,7 +142,7 @@ docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observ
 ## 诚实边界 (验收当天如实汇报, 不掩饰)
 
 1. **100 案例已冲 100.0%**: 63/63 误报 0 (五块修复后重跑实录, `docs/eval/eval-100-segments.md`; 历史首跑 95.2% 对照保留)。
-2. **Go/No-Go 15 门槛 6/15 PASS**; 其中 Capsule 回放门禁 (#4) 已由六轮修复冲至 **25/25 = 100.0% PASS** (`docs/eval/replay-results.md` 六轮轨迹全录); 任一门槛未达 PASS 前不宣称商业优势 9.0。
+2. **Go/No-Go 15 门槛 10/15 PASS** (本轮 +4: #4 回放 25/25=100% / #6 FAST p95 161.1s / #9+#11 真实故障演练 / #14 LLM 基线 +100pp); PARTIAL 2 (#3 归因 / #5 无证据评论), PENDING 3 (#12 试点 / #13 用户 / #15 成本, 仓库外依赖); 任一门槛未达 PASS 前不宣称商业优势 9.0。
 3. **诚实未达标项**: Aider polyglot 离线样本 1/3=33.3% (harness 全绿, 跨语言编辑器未支持诚实标注); SWE-bench-Lite 真实跑五轮 (v1-v5) 每轮消掉一类失败 (信封→venv→测试文件误改→锚点→判据→依赖漂移), resolved 率仍为诚实 0%, 官方口径数字待 Docker 环境; Go/No-Go 整体评级见 `docs/eval/go-nogo.md`。
 4. **依赖基础设施未实测**: Linux 非 root 沙箱、KMS/HSM、跨语言 Gradle/Node/Go 适配器 — 本地不可验。
 5. **依赖锁定缺口**: Python 无 lock/freeze 快照, 完整锁定审计需干净 venv (`docs/architecture/DEPENDENCY_LOCK.md` §0/§1.3)。
