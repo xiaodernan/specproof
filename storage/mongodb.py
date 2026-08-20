@@ -2,6 +2,11 @@
 
 P1.5: Added evidence_packs collection with artifact chain verification
 (MinIO sha256 cross-check) and agent checkpoints support.
+
+Schema versioning (§14.2): every document this module writes is stamped
+with MONGO_SCHEMA_VERSION; schema_mismatches audits a batch against the
+current version so legacy (unstamped) or newer documents are surfaced
+honestly instead of being silently projected.
 """
 import os
 from collections.abc import Callable
@@ -11,6 +16,43 @@ from typing import Any
 
 from pymongo import MongoClient
 from pymongo.database import Database
+
+#: Schema version stamped onto every differential_runs / evidence_packs
+#: document written by this module. Bump when the document shape changes;
+#: old documents keep their version and are surfaced by schema_mismatches.
+MONGO_SCHEMA_VERSION = "1.0.0"
+
+
+def stamp_schema_version(doc: dict[str, Any]) -> dict[str, Any]:
+    """Stamp the current schema version; an existing stamp is preserved."""
+    doc.setdefault("schema_version", MONGO_SCHEMA_VERSION)
+    return doc
+
+
+def schema_mismatches(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Documents whose schema_version is absent (legacy) or differs.
+
+    Never mutates; _id is reported verbatim when present. An empty list
+    means every document matches the current version.
+    """
+    mismatches: list[dict[str, Any]] = []
+    for doc in docs:
+        version = doc.get("schema_version")
+        if version is None:
+            mismatches.append({
+                "_id": doc.get("_id"),
+                "found": None,
+                "expected": MONGO_SCHEMA_VERSION,
+                "note": "legacy document without schema_version",
+            })
+        elif version != MONGO_SCHEMA_VERSION:
+            mismatches.append({
+                "_id": doc.get("_id"),
+                "found": version,
+                "expected": MONGO_SCHEMA_VERSION,
+                "note": "document written by a different schema version",
+            })
+    return mismatches
 
 
 @dataclass
@@ -74,6 +116,7 @@ class MongoDBStore:
 
     def save_differential_run(self, run: dict[str, Any]) -> str:
         run.setdefault("created_at", datetime.now(UTC))
+        stamp_schema_version(run)
         result = self.db.differential_runs.insert_one(run)
         return str(result.inserted_id)
 
@@ -85,6 +128,7 @@ class MongoDBStore:
     def save_evidence_pack(self, pack: dict[str, Any]) -> str:
         """Insert or update an evidence pack (upsert by job_id + contract_id)."""
         pack.setdefault("created_at", datetime.now(UTC))
+        stamp_schema_version(pack)
         key = {"job_id": pack["job_id"], "contract_id": pack["contract_id"]}
         result = self.db.evidence_packs.replace_one(key, pack, upsert=True)
         return str(result.upserted_id) if result.upserted_id else "updated"
@@ -99,6 +143,16 @@ class MongoDBStore:
 
     def get_evidence_packs_for_job(self, job_id: str) -> list[dict[str, Any]]:
         return list(self.db.evidence_packs.find({"job_id": job_id}).sort("created_at", 1))
+
+    def verify_schema_versions(self, job_id: str) -> list[dict[str, Any]]:
+        """Audit one job's runs + packs against MONGO_SCHEMA_VERSION.
+
+        Legacy (unstamped) or newer documents are listed with their _id and
+        the found/expected versions — surfaced, never silently projected.
+        """
+        docs = list(self.db.differential_runs.find({"job_id": job_id}))
+        docs.extend(self.get_evidence_packs_for_job(job_id))
+        return schema_mismatches(docs)
 
     def verify_artifact_chain(
         self, job_id: str, minio_batch_check: Callable[..., Any] | None = None
