@@ -36,7 +36,7 @@
 | Worker kill 后 checkpoint 恢复不重复副作用 | ✅ | W89 Drill1 真实 worker kill 6 检查点 → 9.09s resume → BLOCKED=control (docs/operations/DRILLS.md) |
 | SSE 断线重连 | ✅ Last-Event-ID | — |
 | 迁移空库安装/备份恢复/删除导出 | ◐ | 迁移 ✅ (至 0008, W84); 删除导出 ⏳; 主机备份工具 ⏳ (DRILLS 4 需开发) |
-| 观测覆盖全链 | ◐ | 指标扩展 ⏳; Grafana/SLO 面板 ⏳ (真实缺口) |
+| 观测覆盖全链 | ◐ | 指标扩展 ◐ (metrics_http/OTel 已接线); Grafana/SLO 面板 ✅ (infra/grafana specproof-slo.json + compose.observability.yml, C 车道实测起栈) |
 
 ### 评测与商业
 | 项 | 状态 | 缺口 |
