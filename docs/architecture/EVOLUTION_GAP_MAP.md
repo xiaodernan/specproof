@@ -52,9 +52,9 @@
 ### agent/ 验证内核
 | 任务 | 状态 | 车道 |
 |---|---|---|
-| compile_contracts 编译报告 | ⏳ | 待派 |
-| prepare_base/head 仓库安全检查抽取+崩溃回收器 | ⏳ | 待派 |
-| collect_diff 文件/符号/语义三级范围 | ◐ | 符号级有 (W29); 语义候选 ⏳ |
+| compile_contracts 编译报告 | ✅ | W85A: CompileReport (规则版本/LLM 参与/被拒候选/schema 错/降级原因/需求摘要) 落库+节点接线; 16 测试 |
+| prepare_base/head 仓库安全检查抽取+崩溃回收器 | ✅ | W77: repo_safety 五项检查 (路径根约束/提交存在性/符号链接越界/仓库大小/禁止文件) + worktree_reclaimer 标记文件回收器接入 prepare 节点与 worker |
+| collect_diff 文件/符号/语义三级范围 | ✅ | W186: changed_files (审计) + changed_symbols (检索/检查器) + semantic_candidates (动态实验/变异预算, 4 类语义提示计数) + unresolved_changes (二进制/未支持语言显式保留, 绝不静默丢弃); 4 新测试 |
 | run_static_checks 检查器注册表+兼容矩阵+CHECKER_FAILED+路径规范化 | ✅ | W185: agent/checkers/registry.py (7 检查器元数据: 语言/框架/契约族/版本/证据等级/已知误报/耗时/可阻断 + 兼容矩阵 NOT_IMPLEMENTED fail-closed + 崩溃→CHECKER_FAILED 证据 + normalize_location 统一规范化; 15 新测试) |
 | generate_counterexamples 四阶段拆分 | ◐ | 部分; 反例最小化 ✅ (W105 experiments/minimize.py ddmin); 审查阶段 ⏳ |
 | run_differential 采集器/稳定判定 | ◐ | 探针采集器 ✅ (W36); 稳定/偶发判定 ⏳ |
@@ -88,6 +88,6 @@ providers/retrieval/craft: 统一网络客户端+日志脱敏 ◐ · 检索结�
 6. 跨语言案例样本 (TS/Go; Python ✅ W78/W105)
 7. ✅ 恶意构建脚本/输出洪水/缓存投毒测试 (W181)
 8. ✅ Job 创建白名单 (禁任意命令/env/docker) (W178)
-9. 错误 Envelope retryable 字段 + SSE 序列号/保留策略
+9. ✅ 错误 Envelope retryable 字段 + SSE 序列号/保留策略 (W83: 12 码分类 fail-closed + Last-Event-ID 恢复/终态幂等; 台账滞后已同步)
 10. ES 投影删除清理 ⏳ (Outbox DLQ+指标/MinIO 治理/ES 租户过滤 ✅ W84, 迁移 0008)
 11. Grafana/SLO 面板 · ✅ Python 依赖锁 snapshot (W177) · ✅ 每作业成本会计 (W171) · ✅ court 无证据 BLOCKER 不变式测试 (W157)
