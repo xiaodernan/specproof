@@ -2,13 +2,19 @@
 
 P1.3: Added DLQ, retry-queue with TTL backoff, Publisher Confirm retries,
 and Redis-based message idempotency.
+
+Observable events (§14.2): with an event sink installed, every publish,
+consume, duplicate-ack, retry-schedule and dead-letter step emits one
+structured event. The default sink is a no-op, so legacy callers keep
+byte-identical behavior; observability wiring (OTel/metrics) consumes
+RabbitMQEventLog or a caller-provided sink.
 """
 import json
 import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
@@ -28,6 +34,35 @@ class PublisherConfirmTimeout(Exception):  # noqa: N818 — domain term, public 
 
 class PermanentFailure(Exception):  # noqa: N818 — domain term, public API
     """Raised when a message should be sent to DLQ (non-retryable)."""
+
+
+# ── Observable events (§14.2) ─────────────────────────────────
+
+
+class RabbitMQEventSink(Protocol):
+    """Receives one structured event dict per pipeline step."""
+
+    def __call__(self, event: dict[str, Any]) -> None: ...
+
+
+class RabbitMQEventLog:
+    """Default sink: emits JSON lines through the module logger.
+
+    Events are data-only (event name, queue/routing keys, counts, sizes);
+    no message body and no credentials are ever logged.
+    """
+
+    def __init__(self, logger_: logging.Logger | None = None) -> None:
+        self._logger = logger_ or logger
+
+    def __call__(self, event: dict[str, Any]) -> None:
+        self._logger.info("rabbitmq_event " + json.dumps(
+            event, ensure_ascii=False, sort_keys=True,
+        ))
+
+
+def _noop_sink(event: dict[str, Any]) -> None:
+    """Default sink: no observability — behavior identical to pre-event code."""
 
 
 # ── Configuration ──────────────────────────────────────────────
@@ -73,10 +108,18 @@ class RabbitMQClient:
     # Primary queue with its DLQ and retry-queue
     QUEUE_VERIFY_JOB = "q.p1.verify.job"
 
-    def __init__(self, config: RabbitMQConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: RabbitMQConfig | None = None,
+        events: RabbitMQEventSink | None = None,
+    ) -> None:
         self.config = config or RabbitMQConfig.from_env()
         self._connection: pika.BlockingConnection | None = None
         self._channel: BlockingChannel | None = None
+        self._events: RabbitMQEventSink = events if events is not None else _noop_sink
+
+    def _emit(self, event: dict[str, Any]) -> None:
+        self._events(event)
 
     def _connect(self) -> None:
         credentials = pika.PlainCredentials(self.config.user, self.config.password)
@@ -158,18 +201,32 @@ class RabbitMQClient:
         if exchange is None:
             exchange = self.EXCHANGE_P1
         ch = self.channel
+        body_bytes = json.dumps(payload)
         try:
             ch.basic_publish(
                 exchange=exchange,
                 routing_key=routing_key,
-                body=json.dumps(payload),
+                body=body_bytes,
                 properties=pika.BasicProperties(
                     delivery_mode=2,
                     content_type="application/json",
                 ),
             )
+            self._emit({
+                "event": "published",
+                "routing_key": routing_key,
+                "exchange": exchange,
+                "delivery_mode": 2,
+                "body_bytes": len(body_bytes),
+            })
             return True
         except (NackError, UnroutableError) as e:
+            self._emit({
+                "event": "publish_confirm_timeout",
+                "routing_key": routing_key,
+                "exchange": exchange,
+                "error": type(e).__name__,
+            })
             raise PublisherConfirmTimeout(
                 f"Publisher confirm failed for {routing_key}: {e}"
             ) from e
@@ -210,15 +267,31 @@ class RabbitMQClient:
                 # Idempotency check
                 if idempotency_fn and event_id and idempotency_fn(event_id):
                     logger.debug("Duplicate message %s, acking", event_id)
+                    self._emit({
+                        "event": "duplicate_acked",
+                        "queue": queue,
+                        "event_id": event_id,
+                    })
                     ch.basic_ack(delivery_tag=delivery_tag)
                     return
 
                 # Process the message
                 callback(payload)
                 ch.basic_ack(delivery_tag=delivery_tag)
+                self._emit({
+                    "event": "consumed",
+                    "queue": queue,
+                    "event_id": event_id,
+                    "delivery_tag": delivery_tag,
+                })
 
             except PermanentFailure:
                 logger.warning("Permanent failure for %s, sending to DLQ", delivery_tag)
+                self._emit({
+                    "event": "dead_lettered",
+                    "queue": queue,
+                    "reason": "permanent_failure",
+                })
                 ch.basic_reject(delivery_tag=delivery_tag, requeue=False)
 
             except Exception:
@@ -244,8 +317,21 @@ class RabbitMQClient:
                         ),
                     )
                     ch.basic_ack(delivery_tag=delivery_tag)
+                    self._emit({
+                        "event": "retry_scheduled",
+                        "queue": queue,
+                        "retry_queue": retry_q,
+                        "retry_count": death_count + 1,
+                        "delay_ms": delay,
+                    })
                 else:
                     logger.error("Max retries (%d) exceeded, sending to DLQ", policy.max_retries)
+                    self._emit({
+                        "event": "dead_lettered",
+                        "queue": queue,
+                        "reason": "max_retries_exceeded",
+                        "retry_count": death_count,
+                    })
                     ch.basic_reject(delivery_tag=delivery_tag, requeue=False)
 
         ch.basic_qos(prefetch_count=1)
