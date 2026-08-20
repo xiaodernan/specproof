@@ -3,6 +3,7 @@
 > 依据: 工业化商业化终极开发指南 §14 任务 14 (数据保留/删除/导出/备份恢复 + 一次不依赖 Docker 的文档演练) · §15.3 (数据删除、备份恢复有可执行手册) · §15.4 (发布前恢复演练)。
 > 与 RUNBOOK.md 的关系: 本文把 RUNBOOK §5 (备份)、§6 (故障)、§9 (冒烟) 的数据操作细化为可执行的保留/删除/导出/备份恢复手册; 两文数字如有冲突, 以本文为准并同步修改 RUNBOOK。
 > 审计/演练日期: 2026-08-19 (工作树 feature/interview-hardening)。
+> 2026-08-20 补充 (backlog #10 ES 投影删除清理): storage/elasticsearch.py 新增 delete_projection(tenant_id=/job_id=) 与 count_projection_docs(tenant_id=/job_id=) (逐文档删除, 幂等, 索引/文档不存在返回 0); §1/§2.4/§3.4/§3.6/§7 的 ES 条目同步更新。
 
 状态标注约定 (本仓库任务 15 制度):
 
@@ -17,7 +18,7 @@
 | MySQL specproof-mysql (3306, 库 specproof_phase0) | 验证任务、Outbox、审计、Finding、Contract、能力探测、租户/用户/Token、Agent 任务、对象元数据、计费 | 表: verification_jobs / outbox / audit_logs / findings / contracts / provider_capabilities / tenants / users / api_tokens / agent_jobs / object_metadata / object_contracts / billing_plans / billing_subscriptions / usage_ledger / invoices / schema_migrations | verification_jobs.tenant_id, users.tenant_id, billing_subscriptions/usage_ledger/invoices.tenant_id, audit_logs.attempted_tenant; contracts/findings 经 job 关联 | storage/mysql.py, storage/identity.py, storage/agent_jobs.py, storage/object_metadata.py, storage/billing.py, infra/mysql/migrations 0001-0007 |
 | MongoDB specproof-mongodb (27017, 库 specproof_phase0) | Agent 断点、差分运行产物、证据包 | 集合: agent_checkpoints / differential_runs / evidence_packs (job_id 索引) | job_id 关联 | storage/mongodb.py |
 | MinIO specproof-minio (9000/9001) | 工具报告、Bug 胶囊、HTML 报告 | Bucket: specproof-tool-reports / specproof-bug-capsules / specproof-html-reports (对象按 job 组织) | job_id 路径前缀 | storage/minio.py |
-| Elasticsearch specproof-elasticsearch (9200) | 仓库符号/代码检索索引 (BM25+向量) | 单索引 specproof-code-phase0 (按 repo 字段隔离) | repo (非租户字段) | storage/elasticsearch.py |
+| Elasticsearch specproof-elasticsearch (9200) | 仓库符号/代码检索索引 (BM25+向量) | 单索引 specproof-code-phase0 (按 repo 字段隔离) | repo (主隔离键) + tenant_id 打标 (W84); job_id 为可选打标 (backlog #10, 写入侧传参才存在) | storage/elasticsearch.py |
 | Redis specproof-redis (6379) | 进度/流/租约/预算/锁/缓存/幂等键 — 全部带 TTL, 无永久业务状态 | 键前缀见 §2.5 | job_id 键内嵌 (无 tenant 列) | storage/redis.py |
 | RabbitMQ specproof-rabbitmq (5672) | 任务管道 | 队列 q.p1.verify.job (+ .dlq/.retry 后缀) + 4 条 phase0 兼容队列 (q.phase0.contract.compile / static.scan / differential.run / finding.replay) | 无 (队列无租户维度) | storage/rabbitmq.py |
 
@@ -56,7 +57,7 @@
 
 | 索引 | 保留策略 | 清理手段 | 状态 |
 |---|---|---|---|
-| specproof-code-phase0 (单索引, 全仓库共享) | 可重建数据 (从仓库符号重索引); 保留最新快照即可 | 现有 delete_repo = 整索引删除+重建 (delete_by_query 在 Windows elasticsearch-py 8.19 上原生崩溃, 代码已注明); 无 ILM/无 snapshot | ✅ 已实现 (delete_repo); ⏳ 待基础设施 (ILM/snapshot/滚动) |
+| specproof-code-phase0 (单索引, 全仓库共享) | 可重建数据 (从仓库符号重索引); 保留最新快照即可 | delete_repo = 整索引删除+重建; 代码级清理 delete_projection(tenant_id=/job_id=) = 搜索+逐文档 bulk delete (避开 delete_by_query 的 Windows 原生崩溃), 幂等; count_projection_docs 供核对; 无 ILM/无 snapshot | ✅ 已实现 (delete_repo / delete_projection / count_projection_docs); ⏳ 待基础设施 (ILM/snapshot/滚动) |
 
 ### 2.5 Redis (全 TTL, 无永久业务状态; maxmemory 256mb + allkeys-lru 兜底, compose 事实)
 
@@ -134,14 +135,18 @@ mc rm --recursive --force local/specproof-html-reports/<job_id>/
 # 逐个 job_id 重复; 完成后 bucket 级计数核对 (见 3.6)
 ```
 
-### 3.4 Elasticsearch (repo 维度)
+### 3.4 Elasticsearch (tenant_id / job_id 维度)
 
-ES 文档按 repo 隔离、无租户字段, 索引全仓库共享。现有 delete_repo 实现为"整索引删除+重建" (Windows delete_by_query 原生崩溃的工程取舍, 代码注明), 因此多租户下正确动作是: 重建索引时排除该租户的 repo 快照 (等于对所有租户的 repo 重索引一遍), 或在基础设施到位后改用 delete_by_query by repo。**当前按整索引重建执行, 并如实标注为效率低但正确。**
+ES 文档按 repo 隔离, 并携带 tenant_id 字段 (W84 打标); job_id 为 backlog #10 新增的**可选**打标 — 写入侧 (retrieve_repository_context 节点 / 脚本) 不传参时该字段不存在, 此时按 job_id 清理只会命中 0 条 (幂等, 不报错)。索引全仓库共享。
+
+代码级清理 (storage/elasticsearch.py, 无需 curl): 对 §3.0 取证的每个 job_id 执行 `delete_projection(job_id=...)` 逐文档删除该 job 的投影; 租户级收尾执行 `delete_projection(tenant_id=...)` (默认租户一并命中无 tenant 打标的遗留文档)。两函数均为"搜索 + 逐文档 bulk delete", 刻意避开 delete_by_query (Windows elasticsearch-py 8.19 原生崩溃的工程事实, 与 delete_repo 注释一致), 且幂等: 索引/文档不存在返回 0, 不报错; 重复调用返回 0。完成后用 `count_projection_docs` 核对 (§3.6)。
 
 ```powershell
 # 备选 (需 ES 可用): 按 repo 条件删除
 curl.exe -u elastic:<密码> -X POST "http://localhost:9200/specproof-code-phase0/_delete_by_query?refresh=true" -H "Content-Type: application/json" -d '{"query":{"term":{"repo":"<repo>"}}}'
 ```
+
+注意 (如实标注): index_repository / index_with_embeddings 内部仍调用 delete_repo = 整索引删除+重建 (重索引幂等性), 该路径在多租户下会连带清掉其他租户的文档 — 本车道 (backlog #10) 未改写入侧, 属既有行为, 仍记录在此。
 
 ### 3.5 Redis (显式清理 + TTL 兜底)
 
@@ -158,7 +163,7 @@ redis-cli -a <密码> --scan --pattern "specproof:*<job_id>*" | ForEach-Object {
 | MySQL | SELECT COUNT(*) FROM verification_jobs WHERE tenant_id='<id>'; users/usage_ledger/invoices/object_metadata/agent_jobs 同类计数 | 全 0 |
 | MongoDB | 三集合 countDocuments 按 job_id 清单计数 | 全 0 |
 | MinIO | mc ls --recursive 三 bucket | 无该租户 job 前缀对象 |
-| ES | count (repo term) 或重建后 repo 列表 | 无该租户 repo 文档 |
+| ES | count_projection_docs(tenant_id=/job_id=) (或 count (repo term)) | 计数全 0 |
 | Redis | SCAN specproof:* 对照 §2.5 键族 | 无该租户 job 键 |
 
 扫描结果 (每项计数) 写入 audit 记录, 与 3.0 取证清单一起归档 — 这是"删除可证明"的唯一依据。
@@ -236,6 +241,6 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 
 - 无任何保留/清理自动化 (cron 或应用内回收器) — 全部靠手册。
 - 租户删除无 API/脚本封装, 依赖 §3 手工步骤; 跨五库无分布式事务, 靠"校验-停止-重入"纪律。
-- ES 单索引无 ILM; delete_by_query 在 Windows 崩溃 → 整索引重建, 多租户下成本随 repo 数线性增长。
+- ES 单索引无 ILM; delete_by_query 在 Windows 崩溃 → 清理改走 delete_projection 的逐文档删除 (backlog #10), 但 job 终态/租户删除仍无自动化接线 (需写入侧传 job_id + 调用方接线), 且 index_repository 内部整索引重建在多租户下成本随 repo 数线性增长。
 - audit_logs 无按租户删除路径 (有意取舍, §3.1)。
 - Webhook 重放防护的去重集为进程内存 (重启即失), 签名时间戳窗口为可选加固 (GitHub 原生不发送), 未签名重放的残余风险由 tests/security/test_webhook_replay.py 中 test_unsigned_replay_with_new_delivery_documented_limitation 如实钉住。
