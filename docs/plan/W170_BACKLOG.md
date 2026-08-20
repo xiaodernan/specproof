@@ -63,12 +63,12 @@
 
 ## 4. 待派队列 (EVOLUTION_GAP_MAP §D, 优先级序)
 
-1. run_static_checks 检查器注册表+兼容矩阵 (⬜)
+1. run_static_checks 检查器注册表+兼容矩阵 (✅ W189: 10 检查器全条目+元数据+矩阵 10×8+fail-closed 查询, 15+70 测试)
 2. build_matrix 完整行字段+纯函数 (✅ W180: 11 court 字段补齐+渲染时间戳纯函数化, 16+72+47 测试)
 3. att-08 both-fail 归因修复 (✅ W182, 见 1.1)
 4. 生产试点 3 仓库 2 周 (⛔ 见 1.3)
 5. RUNNING-job 回收器 + WAITING_FOR_PROVIDER 接线 (✅ W179: CAS 回收+provider 停放, 23+70 测试)
-6. 跨语言案例样本 TS/Go (⬜; Python ✅ W78/W105)
+6. 跨语言案例样本 TS/Go (✅ W188: TS node --test 真实运行 + Go 无工具链如实标注, 管线 unsupported 诚实记录; 跨语言执行器属 P6 基础设施)
 7. 恶意构建脚本/输出洪水/缓存投毒测试 (✅ W181: 45 例+三真实缺陷修复, 176+2 测试)
 8. Job 创建白名单 (禁任意命令/env/docker) (✅ W178: /jobs 已 fail-closed 审计确认; /agent/jobs 补白名单 422 点名字段, 44 新测试)
 9. Envelope retryable 字段 + SSE 序列号/保留策略 (✅ W186: retryable 已存在 (W83) 审计确认; SSE 补绝对 sequence 计数器+保留策略常量/env 配置, 34+79 测试)

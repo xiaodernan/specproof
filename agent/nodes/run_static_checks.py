@@ -6,11 +6,17 @@ v2: replaced the ad-hoc regex scans with the contract checker registry
 capped at MAJOR by the Review Court. The node also emits per-contract
 results: FAIL when a checker found a violation, PASS when the checked
 construct is intact in Head, UNVERIFIED otherwise.
+
+All ten checkers are dispatched through the registry: the seven uniform
+java-source checkers via run_registered_checks, and the three
+heterogeneous ones (schema.sql / test-strength / forbidden changes) via
+dispatch_checker by name — unknown checker names fail closed.
 """
 from pathlib import Path
 from typing import Any
 
 from agent.checkers.java_source import contract_results_for, run_contract_checks
+from agent.checkers.registry import dispatch_checker
 from agent.contract_results import merge_contract_results
 from agent.state import Phase0State
 
@@ -72,29 +78,34 @@ def run_static_checks_node(state: Phase0State) -> dict[str, Any]:
     findings = run_contract_checks(base_files, head_files)
 
     # P6: schema/DDL and test-strength checkers operate on inputs the
-    # java-source registry does not see (schema.sql + test sources).
-    from agent.checkers.schema_and_tests import check_schema_sql, check_test_weakening
-
-    findings.extend(check_schema_sql(
-        _read_text(base_app, "src/main/resources/schema.sql"),
-        _read_text(head_app, "src/main/resources/schema.sql"),
-        base_files,
-        head_files,
+    # uniform java-source registry does not see (schema.sql + test
+    # sources). They are dispatched through the registry by name: an
+    # unknown checker name fails closed instead of running zero checks.
+    findings.extend(dispatch_checker(
+        "check_schema_sql",
+        base_schema=_read_text(base_app, "src/main/resources/schema.sql"),
+        head_schema=_read_text(head_app, "src/main/resources/schema.sql"),
+        base_files=base_files,
+        head_files=head_files,
     ))
-    findings.extend(check_test_weakening(
-        _read_test_files(base_app), _read_test_files(head_app),
+    findings.extend(dispatch_checker(
+        "check_test_weakening",
+        base_test_files=_read_test_files(base_app),
+        head_test_files=_read_test_files(head_app),
     ))
 
     # P2-b: constitution checks — "forbidden changes" clauses from the
     # requirement run as deterministic diff rules under their own contract.
-    from agent.checkers.constitution import check_forbidden_changes
-
     for contract in contracts:
         clauses = contract.get("forbidden_changes", [])
         if clauses:
             findings.extend(
-                check_forbidden_changes(
-                    base_files, head_files, clauses, contract.get("id", "CONST")
+                dispatch_checker(
+                    "check_forbidden_changes",
+                    base_files=base_files,
+                    head_files=head_files,
+                    forbidden_clauses=clauses,
+                    contract_id=contract.get("id", "CONST"),
                 )
             )
 
