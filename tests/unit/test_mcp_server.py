@@ -114,7 +114,7 @@ def test_initialize_declares_protocol_and_server_info(server: SpecProofMCPServer
     assert result["capabilities"]["tools"]["listChanged"] is False
 
 
-def test_tools_list_returns_all_six_tools(server: SpecProofMCPServer) -> None:
+def test_tools_list_returns_all_seven_tools(server: SpecProofMCPServer) -> None:
     result = _exchange(server, _rpc("tools/list", {}, 2))["result"]
     names = sorted(tool["name"] for tool in result["tools"])
     assert names == [
@@ -124,8 +124,9 @@ def test_tools_list_returns_all_six_tools(server: SpecProofMCPServer) -> None:
         "specproof_health",
         "specproof_replay_info",
         "specproof_verify",
+        "specproof_verify_job",
     ]
-    assert len(result["tools"]) >= 6
+    assert len(result["tools"]) >= 7
     for tool in result["tools"]:
         assert tool["inputSchema"]["type"] == "object"
         assert tool["description"]
