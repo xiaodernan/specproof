@@ -33,7 +33,12 @@ LLM mode (--mode llm):
   surface the real stderr/exit code, never silence; era-compatible
   transitive pins (_REPO_DEP_PINS, flask -> werkzeug<3.1) are appended
   to the pip command for matching repo slugs and recorded per instance
-  as deps.pins — nothing else is ever pinned;
+  as deps.pins — nothing else is ever pinned; when the shared venv is
+  REUSED from an earlier run, the repo's era pins are applied to that
+  venv up front as well (`<venv python> -m pip install ... <pins>`, an
+  idempotent downgrade — earlier runs may have left era-mismatched deps
+  in it), recorded per instance as deps.pins_applied, and a pin-
+  application failure lands in deps.install_error (never fatal);
 - a venv creation / pytest-verify failure automatically falls back to
   --no-venv (current interpreter, no pip installs) with the reason recorded
   in run.venv and per-instance deps; --no-venv skips the venv/deps stage
@@ -90,6 +95,13 @@ _ROWS_API = "https://datasets-server.huggingface.co/rows"
 _LLM_ENV_VARS = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
 _INSTANCE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+__[A-Za-z0-9_.-]+-\d+$")
 _INSTALL_MARKERS = ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt")
+
+#: venv note prefix _prepare_venv stamps when the shared venv already
+#: existed and passed the pytest check (REUSED, not freshly created).
+#: run_instance keys off this prefix: a reused venv keeps whatever
+#: earlier runs installed (pip resolves latest by default), so the repo's
+#: era pins must be applied to it explicitly (see _apply_pins_to_venv).
+_VENV_REUSED_NOTE = "复用已存在的共享 venv"
 
 #: Era-compatible transitive dependency pins, keyed by repo slug (the last
 #: path segment of the instance `repo` field). The shared SWE-bench venv
@@ -559,7 +571,7 @@ def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, 
             return {
                 "python": python,
                 "error": "",
-                "note": "复用已存在的共享 venv (pytest --version 验证通过)",
+                "note": f"{_VENV_REUSED_NOTE} (pytest --version 验证通过)",
             }
         return {"python": "", "error": reason, "note": ""}
     try:
@@ -667,6 +679,39 @@ def _install_instance_deps(
             "pins": pins,
         }
     return {"installed": True, "error": "", "pins": pins}
+
+
+def _apply_pins_to_venv(
+    python: str, pins: list[str], timeout: int
+) -> dict[str, Any]:
+    """Apply era pins to a REUSED shared venv, before the deps install.
+
+    A fresh venv resolves dependencies from scratch, so appending the pins
+    to the instance deps install is enough. A REUSED venv keeps whatever
+    earlier runs installed — pip resolves latest by default, which is how
+    werkzeug 3.x broke pallets__flask-4045 (url_quote was removed in
+    werkzeug 3.1) — so the pins must be installed explicitly here; pip
+    downgrades in place, making this idempotent. Failure is returned
+    (recorded, never fatal): craft proceeds and surfaces real test output.
+    """
+    command = [
+        python, "-m", "pip", "install", "--no-input",
+        "--disable-pip-version-check", *pins,
+    ]
+    try:
+        proc = subprocess.run(
+            command, capture_output=True, text=True, timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"applied": [], "error": f"era pin 应用失败 (reused venv): {exc}"}
+    tail = f"{proc.stdout}\n{proc.stderr}".strip()
+    if proc.returncode != 0:
+        return {
+            "applied": [],
+            "error": f"era pin 应用失败 (reused venv): {tail[-800:]}",
+        }
+    return {"applied": list(pins), "error": ""}
 
 
 # -- fix registry ----------------------------------------------------------
@@ -1117,13 +1162,33 @@ def run_instance(
                 craft_python = venv_python
                 marker = _first_install_marker(workdir)
                 deps_record["install_marker"] = marker
+                pin_apply_error = ""
+                if venv_info.get("note", "").startswith(_VENV_REUSED_NOTE):
+                    # A REUSED venv keeps whatever earlier runs installed
+                    # (pip resolves latest by default), so the repo's era
+                    # pins are applied to it explicitly BEFORE the deps
+                    # install — an idempotent downgrade. Recorded as
+                    # deps.pins_applied; a pin-application failure is
+                    # recorded like any deps failure and NEVER fatal:
+                    # craft proceeds and surfaces real test output.
+                    deps_record["pins_applied"] = []
+                    repo_pins = _pins_for_repo(str(instance["repo"]))
+                    if repo_pins:
+                        apply_result = _apply_pins_to_venv(
+                            venv_python, repo_pins, deps_timeout
+                        )
+                        deps_record["pins_applied"] = list(
+                            apply_result.get("applied", [])
+                        )
+                        pin_apply_error = str(apply_result.get("error", ""))
+                install_error = ""
                 if marker is not None:
                     install_result = _install_instance_deps(
                         venv_python, workdir, marker, deps_timeout,
                         str(instance["repo"]),
                     )
                     deps_record["installed"] = bool(install_result["installed"])
-                    deps_record["install_error"] = str(install_result["error"])
+                    install_error = str(install_result["error"])
                     deps_record["pins"] = list(install_result.get("pins", []))
                     if not install_result["installed"]:
                         deps_record["note"] = (
@@ -1131,6 +1196,9 @@ def run_instance(
                             + " — 实例依赖安装失败 (记录, 不阻止 craft): "
                             + str(install_result["error"])
                         )
+                deps_record["install_error"] = " | ".join(
+                    part for part in (pin_apply_error, install_error) if part
+                )
             elif venv_info.get("fallback_no_venv"):
                 deps_record["note"] = (
                     str(deps_record["note"])
