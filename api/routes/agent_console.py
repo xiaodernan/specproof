@@ -12,6 +12,12 @@ Endpoints (all key-protected and rate limited like /jobs and /api/v1/*):
                                       edit/gate/progress; closes after terminal)
   GET  /agent/jobs/{job_id}/diff      structured diff of the change bundle
 
+Strict create allowlist (backlog #8): POST /agent/jobs accepts only
+repo_path / spec_text / task_name / auto_start. Any other payload key —
+including tool/command/env/docker-style parameters — is refused with
+422 VALIDATION_FAILED naming the offending field(s), never silently
+dropped.
+
 Persistence: durable job projections live in storage/agent_jobs.py (the W30
 Agent-Plan task 3 module — InMemory/SQLite/MySQL backends behind one
 protocol with create/get/list/update_status/set_plan/set_progress/lease/
@@ -304,7 +310,24 @@ def get_runtime() -> AgentRuntime:
 # ── Request models ──────────────────────────────────────────────────────────
 
 
+#: Documented POST /agent/jobs payload fields (backlog #8 hardening).
+#: Anything else — including any tool/command/env/docker-style parameters —
+#: is refused with 422 VALIDATION_FAILED instead of being silently dropped:
+#: the agent console must never become an execution-directive surface.
+AGENT_JOB_CREATE_ALLOWLIST = frozenset(
+    {"repo_path", "spec_text", "task_name", "auto_start"}
+)
+
+
 class AgentJobCreateRequest(BaseModel):
+    """Agent job submission payload (strict allowlist, backlog #8).
+
+    Only repo_path / spec_text / task_name / auto_start are accepted; any
+    other key — including tool/command/env/docker-style parameters — is
+    rejected with 422 VALIDATION_FAILED naming the offending field(s), so
+    execution directives can never ride along on a create request.
+    """
+
     repo_path: str | None = Field(default=None, min_length=1, max_length=1024)
     spec_text: str | None = Field(default=None, min_length=1, max_length=200_000)
     task_name: str | None = Field(default=None, min_length=1, max_length=255)
@@ -316,6 +339,25 @@ class AgentJobCreateRequest(BaseModel):
             "bundled calc.py demo task"
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_unknown_fields(cls, data: Any) -> Any:
+        """Refuse any payload key outside AGENT_JOB_CREATE_ALLOWLIST.
+
+        Fail-closed (backlog #8): unknown keys are rejected with
+        422 VALIDATION_FAILED and never silently ignored, unlike pydantic's
+        default extra-field handling.
+        """
+        if isinstance(data, dict):
+            unknown = sorted(
+                str(key)
+                for key in data
+                if not isinstance(key, str) or key not in AGENT_JOB_CREATE_ALLOWLIST
+            )
+            if unknown:
+                raise ValueError(f"Unknown field(s): {', '.join(unknown)}")
+        return data
 
     @model_validator(mode="after")
     def _check_run_shape(self) -> Self:
