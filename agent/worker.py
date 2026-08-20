@@ -50,9 +50,14 @@ class Worker:
         self,
         worker_id: str | None = None,
         lease_ttl: int = 30,
+        lease_max_hold: int | None = None,
     ) -> None:
         self.worker_id = worker_id or f"worker-{os.getpid()}-{int(time.time())}"
         self.lease_ttl = lease_ttl
+        # §14.2 Redis 租约最大持有: 0/None = 传统无上限; 正数 = 总持有上限.
+        self.lease_max_hold = (
+            lease_max_hold if lease_max_hold and lease_max_hold > 0 else None
+        )
         self.mysql = MySQLStore()
         self.redis = RedisStore()
         self.rabbitmq = RabbitMQClient()
@@ -124,7 +129,10 @@ class Worker:
             return
 
         # Acquire lease (prevents duplicate processing)
-        if not self.redis.acquire_lease(job_id, self.worker_id, self.lease_ttl):
+        if not self.redis.acquire_lease(
+            job_id, self.worker_id, self.lease_ttl,
+            max_hold_seconds=self.lease_max_hold,
+        ):
             logger.info("Job %s already leased, skipping", job_id)
             return
 

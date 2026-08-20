@@ -62,7 +62,7 @@
 | build_matrix 纯函数+竞争写测试+完整行字段 | ✅ | W180: 行补 11 字段+confirmed_findings 不丢弃+确定性合并; 16 新测试 |
 
 ### 其余目录 (要点)
-storage: Outbox 死信+指标 ✅ (W84 DLQ+metrics) · RabbitMQ 可观测事件 ✅ (W190: 事件 sink 协议 + published/publish_confirm_timeout/consumed/duplicate_acked/retry_scheduled/dead_lettered 六事件, 默认 no-op 字节兼容 + RabbitMQEventLog; 7 新测试) · Redis 租约最大持有+心跳 ◐ (W179 心跳探测; 最大持有待) · Mongo checkpoint schema 版本 ✅ (W189: MONGO_SCHEMA_VERSION 写入盖章 + schema_mismatches 审计 + verify_schema_versions, 旧/新文档如实列出; 7 新测试) · MinIO 命名/生命周期 ✅ (W84 对象路径治理) · ES 租户过滤 ✅ (W84) / ES 投影删除清理 ✅ (W185b: delete_projection 分页幂等删除+孤儿核对, 22 测试)
+storage: Outbox 死信+指标 ✅ (W84 DLQ+metrics) · RabbitMQ 可观测事件 ✅ (W190) · Redis 租约最大持有+心跳 ✅ (W179 心跳探测 + W193: acquire_lease max_hold_seconds 上限 (start 窗口标记 + cap 标志, 窗口耗尽 renew 拒延→租约自然失效), worker 接线 lease_max_hold, release Lua 清理标记键, legacy 无上限行为不变; 5 新测试) · Mongo checkpoint schema 版本 ✅ (W189: MONGO_SCHEMA_VERSION 写入盖章 + schema_mismatches 审计 + verify_schema_versions, 旧/新文档如实列出; 7 新测试) · MinIO 命名/生命周期 ✅ (W84 对象路径治理) · ES 租户过滤 ✅ (W84) / ES 投影删除清理 ✅ (W185b: delete_projection 分页幂等删除+孤儿核对, 22 测试)
 api: Job 创建白名单 ✅ (W178 双路径 fail-closed) · SSE 序列号/保留策略/终态幂等 ✅ (W83 Last-Event-ID + W186b 绝对 sequence INCR 计数器与保留策略常量) · 错误 retryable 字段 ✅ (W83 12 码分类 fail-closed)
 apps/web: 向导第一步全信息 ✅ (W101) · 健康页五类状态 ⏳ · 权限页来源/失效 ✅ (W101)
 providers/retrieval/craft: 统一网络客户端+日志脱敏 ✅ (W191) · 检索结果带提交/行号 ◐ (车道在途) · Craft 工具可取消点 ◐ (node 级取消检查点 ✅ W106) · 成本函数 ✅ (W192: craft/cost.py token 四分类→USD 示例价表 + loop report cost_usd, 确定性运行不加键; 每作业成本会计 W171)

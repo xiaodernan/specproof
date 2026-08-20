@@ -170,32 +170,71 @@ class RedisStore:
     def lease_key(self, job_id: str) -> str:
         return f"specproof:lease:job:{job_id}"
 
-    def acquire_lease(self, job_id: str, worker_id: str, ttl: int = 30) -> bool:
-        """Try to acquire a lease for job_id. Returns True if acquired."""
+    def lease_start_key(self, job_id: str) -> str:
+        """Max-hold window marker: expires max_hold_seconds after acquire."""
+        return f"specproof:lease:job:{job_id}:start"
+
+    def lease_cap_flag_key(self, job_id: str) -> str:
+        """Persistent flag: a max-hold cap was configured for this job's
+        lease. Without it (legacy leases) renewals are unlimited — behavior
+        identical to the pre-cap code."""
+        return f"specproof:lease:job:{job_id}:cap"
+
+    def acquire_lease(
+        self,
+        job_id: str,
+        worker_id: str,
+        ttl: int = 30,
+        max_hold_seconds: int | None = None,
+    ) -> bool:
+        """Try to acquire a lease for job_id. Returns True if acquired.
+
+        max_hold_seconds caps the TOTAL hold: the start marker expires
+        after the cap and renew_lease then refuses, so a wedged worker's
+        lease lapses on its own instead of renewing forever. None keeps
+        the legacy unlimited behavior (no marker, no flag).
+        """
         key = self.lease_key(job_id)
         # SET NX: only succeeds if key doesn't exist
-        return bool(self.client.set(key, worker_id, nx=True, ex=ttl))
+        acquired = bool(self.client.set(key, worker_id, nx=True, ex=ttl))
+        if acquired and max_hold_seconds is not None:
+            self.client.set(self.lease_cap_flag_key(job_id), "1")
+            self.client.set(
+                self.lease_start_key(job_id), worker_id, ex=max_hold_seconds,
+            )
+        return acquired
 
     def renew_lease(self, job_id: str, worker_id: str, ttl: int = 30) -> bool:
-        """Renew an existing lease. Worker must own the lease."""
+        """Renew an existing lease. Worker must own the lease AND the
+        max-hold window (when a cap was configured) must still be open."""
         key = self.lease_key(job_id)
         current = self.client.get(key)
         if current != worker_id:
             return False
+        capped = bool(self.client.exists(self.lease_cap_flag_key(job_id)))
+        if capped and not self.client.exists(self.lease_start_key(job_id)):
+            return False  # max hold exhausted — let the lease lapse
         self.client.expire(key, ttl)
         return True
 
     def release_lease(self, job_id: str, worker_id: str) -> None:
-        """Release a lease. Only releases if owned by worker_id (Lua safety)."""
+        """Release a lease. Only releases if owned by worker_id (Lua safety).
+        Max-hold marker keys are cleaned up with the lease."""
         key = self.lease_key(job_id)
         lua_script = """
         if redis.call("GET", KEYS[1]) == ARGV[1] then
+            redis.call("DEL", KEYS[2])
+            redis.call("DEL", KEYS[3])
             return redis.call("DEL", KEYS[1])
         else
             return 0
         end
         """
-        self.client.eval(lua_script, 1, key, worker_id)
+        self.client.eval(
+            lua_script, 3, key,
+            self.lease_start_key(job_id), self.lease_cap_flag_key(job_id),
+            worker_id,
+        )
 
     def get_lease_owner(self, job_id: str) -> str | None:
         """Return the worker_id that holds the lease, or None."""
