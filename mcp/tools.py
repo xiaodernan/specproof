@@ -31,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 import zipfile
 from collections import Counter
 from collections.abc import Callable
@@ -263,6 +264,82 @@ def _tool_verify(arguments: dict[str, Any]) -> dict[str, Any]:
         )
     summary["output_dir"] = str(output_dir)
     return summary
+
+
+# ── specproof_verify_job ──────────────────────────────────────────────────
+
+_JOB_DEPTH_VALUES = ("FAST",)
+_JOB_FIELD_LIMITS = {
+    "repo_path": 1024,
+    "base_ref": 255,
+    "head_ref": 255,
+    "spec_path": 1024,
+}
+
+
+def _tool_verify_job(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Create a QUEUED verification job through the job system (MySQL outbox).
+
+    Same field allowlist + fail-closed discipline as POST /jobs: only
+    repo_path/base_ref/head_ref/spec_path/depth are accepted; the job and
+    its outbox event are persisted in ONE transaction and the worker
+    executes it asynchronously (progress via SSE / job query endpoints).
+    A MySQL failure degrades the payload — a job is never acknowledged
+    when nothing was persisted.
+    """
+    repo_path = _required_str(arguments, "repo_path")
+    base_ref = _required_str(arguments, "base_ref")
+    head_ref = _required_str(arguments, "head_ref")
+    spec_path = _required_str(arguments, "spec_path")
+    depth = _optional_str(arguments, "depth") or "FAST"
+    if depth not in _JOB_DEPTH_VALUES:
+        raise ToolError(
+            f"depth must be one of {sorted(_JOB_DEPTH_VALUES)}, got {depth!r}"
+        )
+    values = {
+        "repo_path": repo_path,
+        "base_ref": base_ref,
+        "head_ref": head_ref,
+        "spec_path": spec_path,
+    }
+    for field, limit in _JOB_FIELD_LIMITS.items():
+        if len(values[field]) > limit:
+            raise ToolError(
+                f"{field} exceeds the documented {limit}-char limit"
+            )
+    repo = Path(repo_path).expanduser()
+    if not repo.is_dir():
+        raise ToolError(f"repository path does not exist: {repo_path}")
+    spec = Path(spec_path).expanduser()
+    if not spec.is_file():
+        raise ToolError(f"spec file does not exist: {spec_path}")
+    job = {
+        "id": str(uuid.uuid4()),
+        "repo_path": str(repo.resolve()),
+        "base_ref": base_ref,
+        "head_ref": head_ref,
+        "spec_path": str(spec.resolve()),
+        "depth": depth,
+    }
+    try:
+        from storage.mysql import MySQLStore
+
+        store = MySQLStore()
+        store.create_job_with_outbox(job)
+    except Exception as exc:  # noqa: BLE001 - MySQL down; degrade, never fabricate
+        logger.warning("verify job creation failed: %s", exc)
+        return {
+            "degraded": True,
+            "degraded_reason": f"job NOT accepted - persistence failed: {exc}",
+            "job_id": None,
+            "status": None,
+        }
+    return {
+        "degraded": False,
+        "job_id": job["id"],
+        "status": "QUEUED",
+        "depth": depth,
+    }
 
 
 # ── specproof_contracts_list ────────────────────────────────────────────────
@@ -571,6 +648,7 @@ _HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "specproof_craft_plan": _tool_craft_plan,
     "specproof_health": _tool_health,
     "specproof_replay_info": _tool_replay_info,
+    "specproof_verify_job": _tool_verify_job,
 }
 
 TOOLS: list[dict[str, Any]] = [
@@ -601,6 +679,39 @@ TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["repo", "base_ref", "head_ref", "spec_text"],
+        },
+    },
+    {
+        "name": "specproof_verify_job",
+        "description": (
+            "Create a verification JOB through the job system (same fail-closed "
+            "field allowlist as POST /jobs): the job plus its outbox event are "
+            "persisted in one MySQL transaction, the worker executes it "
+            "asynchronously, and progress is queryable via the job/SSE endpoints. "
+            "Returns job_id + status=QUEUED; on persistence failure the result is "
+            "degraded with an explicit reason - a job is never acknowledged when "
+            "nothing was stored."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo_path": {
+                    "type": "string",
+                    "description": "Path to the git repository (must exist locally).",
+                },
+                "base_ref": {"type": "string", "description": "Base ref (branch/tag/commit)."},
+                "head_ref": {"type": "string", "description": "Head ref (branch/tag/commit)."},
+                "spec_path": {
+                    "type": "string",
+                    "description": "Path to the requirement spec file (must exist locally).",
+                },
+                "depth": {
+                    "type": "string",
+                    "enum": ["FAST"],
+                    "description": "Verification depth (only FAST is accepted today).",
+                },
+            },
+            "required": ["repo_path", "base_ref", "head_ref", "spec_path"],
         },
     },
     {

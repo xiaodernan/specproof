@@ -10,7 +10,7 @@
 ### 产品闭环
 | 项 | 状态 | 缺口 |
 |---|---|---|
-| CLI/Web/MCP/GitHub 发起 Verify Job | ◐ | MCP 发起验证作业未实装 (MCP 6 工具为查询类) |
+| CLI/Web/MCP/GitHub 发起 Verify Job | ✅ | W194: MCP specproof_verify_job 走作业系统 (MySQL outbox 同 POST /jobs 白名单 fail-closed, 返回 job_id+QUEUED, 持久化失败 degraded 绝不虚报) — CLI/Web/GitHub 已有, 四入口闭环 |
 | Job 全态可查 | ✅ | — |
 | Contract 批准/拒绝/撤销/版本追踪 | ✅ W38 | — |
 | 每 Contract 见实验/结果/证据/回放入口 | ◐ | 矩阵行字段待补 (最低证据等级/未验证原因/下一步) |
