@@ -28,6 +28,13 @@ stream_hook:
   and forward it to kind-aware providers — OpenAICompatibleProvider tags
   its ClientPolicy route/cache/retry path with it; providers without a
   kind slot drop it, and kind=None keeps the exact legacy call shape.
+- transient-timeout retry (W163): a transient gateway/client timeout —
+  APITimeoutError, the builtin TimeoutError, the httpx/requests timeout
+  family or any message carrying 'Request timed out' — is retried exactly
+  twice with short backoff (2s, 4s by default, configurable via
+  timeout_retry_backoffs) before the call surfaces LLMUnavailableError;
+  every retry is recorded (stats_report().timeout_retries). Non-timeout
+  failures keep the immediate LLMUnavailableError.
 
 The token limit comes from --budget-tokens / CRAFT_TOKEN_BUDGET and
 defaults to 500000 (the M2 LLM gate; the M1 plan-allocation default in
@@ -93,6 +100,38 @@ class LLMUnavailableError(RuntimeError):
     """No usable LLM route: missing key, placeholder key, or provider failure."""
 
 
+#: Exception type names that mark a transient gateway/client timeout worth
+#: retrying (W163): openai.APITimeoutError / APIConnectionTimeoutError, the
+#: builtin TimeoutError and the httpx/requests connect/read family.
+_TRANSIENT_TIMEOUT_TYPE_NAMES: frozenset[str] = frozenset(
+    {
+        "APITimeoutError",
+        "APIConnectionTimeoutError",
+        "ConnectTimeout",
+        "PoolTimeout",
+        "ReadTimeout",
+        "RequestTimeout",
+        "TimeoutError",
+        "WriteTimeout",
+    }
+)
+
+
+def _is_transient_timeout(exc: BaseException) -> bool:
+    """True when exc is a transient timeout (W163).
+
+    Detected by exception type name (openai.APITimeoutError, the builtin
+    TimeoutError and the httpx/requests timeout family) or by message
+    text ('timed out' / 'timeout') so a gateway that only surfaces
+    'Request timed out.' is still classified transient. Everything else
+    keeps the immediate LLMUnavailableError.
+    """
+    if type(exc).__name__ in _TRANSIENT_TIMEOUT_TYPE_NAMES:
+        return True
+    message = str(exc).lower()
+    return "timed out" in message or "timeout" in message
+
+
 def _chat_accepts_kind(provider: ModelProvider) -> bool:
     """Does this provider's chat() take a kind argument (W94 接线)?
 
@@ -132,6 +171,7 @@ class LLMClient:
         cost_weights: dict[str, float] | None = None,
         timeout: float = 180.0,
         max_retries: int | None = None,
+        timeout_retry_backoffs: tuple[float, ...] = (2.0, 4.0),
         job_id: str = "",
         stream_hook: Callable[[str], None] | None = None,
     ) -> None:
@@ -144,6 +184,13 @@ class LLMClient:
         self._provider = provider
         self.timeout = timeout
         self.max_retries = max_retries
+        # W163: a transient gateway timeout is retried exactly
+        # len(timeout_retry_backoffs) times with the given per-retry
+        # delays before the call surfaces LLMUnavailableError.
+        self.timeout_retry_backoffs = timeout_retry_backoffs
+        #: Audited retry counter: surfaces in stats_report().timeout_retries
+        #: and report.llm_timeout_retries.
+        self.timeout_retries = 0
         self.job_id = job_id
         # Optional content-delta sink (卷 XXI §21.3): when set and the
         # provider supports streaming, chat() streams natively and feeds
@@ -247,26 +294,45 @@ class LLMClient:
                 timeout=timeout if timeout is not None else self.timeout,
                 on_chunk=self.stream_hook,
             )
-        try:
-            if kind is not None and _chat_accepts_kind(provider):
-                response: LLMResponse = await cast(Any, provider.chat)(
-                    messages,
-                    kind=kind,
-                    response_format=response_format,
-                    thinking=thinking,
-                    timeout=timeout if timeout is not None else self.timeout,
-                )
-            else:
-                response = await provider.chat(
-                    messages,
-                    response_format=response_format,
-                    thinking=thinking,
-                    timeout=timeout if timeout is not None else self.timeout,
-                )
-        except LLMUnavailableError:
-            raise
-        except Exception as exc:
-            raise LLMUnavailableError(f"LLM 调用失败: {type(exc).__name__}: {exc}") from exc
+        call_timeout = timeout if timeout is not None else self.timeout
+        retries = 0
+        while True:
+            try:
+                if kind is not None and _chat_accepts_kind(provider):
+                    response: LLMResponse = await cast(Any, provider.chat)(
+                        messages,
+                        kind=kind,
+                        response_format=response_format,
+                        thinking=thinking,
+                        timeout=call_timeout,
+                    )
+                else:
+                    response = await provider.chat(
+                        messages,
+                        response_format=response_format,
+                        thinking=thinking,
+                        timeout=call_timeout,
+                    )
+                break
+            except LLMUnavailableError:
+                raise
+            except Exception as exc:
+                if (
+                    retries >= len(self.timeout_retry_backoffs)
+                    or not _is_transient_timeout(exc)
+                ):
+                    raise LLMUnavailableError(
+                        f"LLM 调用失败: {type(exc).__name__}: {exc}"
+                    ) from exc
+                # W163 transient-timeout retry (real eval evidence:
+                # pallets__flask-4045 s5 APITimeoutError): a gateway timeout
+                # must not kill the step on the first hit — retry with short
+                # backoff and record every retry for the audit trail.
+                delay = self.timeout_retry_backoffs[retries]
+                retries += 1
+                self.timeout_retries += 1
+                if delay > 0:
+                    await asyncio.sleep(delay)
         entry = self.budget.record(response.usage, label=label)  # may raise BudgetExceeded
         stream_mode = "fallback" if wants_stream else ""
         self._journal(
@@ -618,6 +684,7 @@ class LLMClient:
         return {
             "available": self.available,
             "calls": len(self.calls),
+            "timeout_retries": self.timeout_retries,
             "prompt_tokens": prompt,
             "completion_tokens": completion,
             "reasoning_tokens": reasoning,

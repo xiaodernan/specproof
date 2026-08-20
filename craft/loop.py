@@ -86,6 +86,22 @@ W143 hardening (real eval evidence docs/eval/swebench-llm-results-v6.json):
   'unverifiable' failure that never enters the diagnose loop — no stuck
   increment, never a fake pass.
 
+W163 hardening (real eval evidence docs/eval/swebench-llm-results-v10.json):
+- transient-timeout retry (flask-4045 FAILED s5, APITimeoutError): the LLM
+  client retries a transient gateway timeout (APITimeoutError /
+  TimeoutError / 'Request timed out' text) exactly twice with short
+  backoff before surfacing LLMUnavailableError; every retry is recorded
+  (report.llm_usage.timeout_retries + report.llm_timeout_retries).
+- diversified repair retry (flask-4992 STUCK re-proposing one edit): the
+  FIRST repeated proposal arms exactly ONE diversified retry — the next
+  diagnose call carries an instruction that lists up to 3 canonical
+  per-edit summaries of earlier proposals and forbids repeating any of
+  them (propose a DIFFERENT fix path). A diversified retry that comes back
+  identical falls back to the W156/W158 repeat counting
+  ([LLM_PROPOSAL_REPEATED] -> 同类错误连续 3 次 -> STUCK); the
+  no-producer paths (cache hit, envelope mode) keep the bare W156
+  rejection.
+
 W156 hardening (real eval evidence docs/eval/swebench-llm-results-v9.json):
 - test-step scoping + collection tolerance (flask-4045 STUCK s3): in the
   LLM path the test_green step runs pytest scoped to the real workspace
@@ -456,6 +472,12 @@ _ANCHOR_CHAR_CAP = 60_000
 #: How many real candidate anchor lines an anchor repair instruction shows.
 _MAX_ANCHOR_CANDIDATES = 3
 
+#: How many earlier proposals the W163 diversified repair instruction lists.
+_MAX_DIVERSIFY_SUMMARIES = 3
+
+#: Per-edit string clip inside a W163 canonical proposal summary.
+_EDIT_SUMMARY_CLIP = 100
+
 #: Bounded deterministic workspace scan for the rebuilt verify criterion.
 _SOURCE_SCAN_CAP = 50
 _SOURCE_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
@@ -743,6 +765,12 @@ class CraftLoop:
         # repeat trips the documented 同类错误连续 3 次 → STUCK rule (with
         # the [LLM_PROPOSAL_REPEATED] signature), never an early FAILED.
         self._repeat_counts: dict[str, int] = {}
+        # W163 diversified repair retry: the FIRST repeated proposal arms
+        # exactly ONE diversified retry — the next diagnose call carries an
+        # instruction that lists earlier proposals (canonical per-edit
+        # summaries) and demands a DIFFERENT fix path. Armed in _run_step
+        # on the first repeat, consumed by _take_diversification().
+        self._diversification_armed: str | None = None
         # W35 durable job projection (W30 AgentJobStore). store=None keeps the
         # original in-memory behavior; the lease owner is computed at run()
         # time (host:pid:job_id) and must not change within one run.
@@ -995,6 +1023,14 @@ class CraftLoop:
                     # 12 iterations on the same proposal).
                     repeats = self._repeat_counts.get(step.id, 0) + 1
                     self._repeat_counts[step.id] = repeats
+                    # W163: the FIRST repeat arms exactly ONE diversified
+                    # retry for the NEXT diagnose call (the instruction is
+                    # consumed by _take_diversification, so no extra LLM
+                    # call and the W158 counting is untouched). The
+                    # no-producer paths (envelope mode) keep the bare
+                    # W156 rejection — W161 semantics intact.
+                    if repeats == 1 and self.tool_call_self_check is None:
+                        self._diversification_armed = step.id
                     reason = str(exc)
                     state.evidence["reason"] = reason
                     if repeats >= 3:
@@ -1614,9 +1650,14 @@ class CraftLoop:
             # instruction; a second invalid proposal gives up carrying the
             # stable code LLM_PROPOSAL_INVALID.
             checker = EditProposalSelfCheck()
+            # W163: the ONE armed diversified retry rides the first call of
+            # this invocation (only when the checker passes no repair
+            # instruction of its own — the checker's repair still wins).
+            diversification = self._take_diversification(step)
 
             def produce(instruction: str | None) -> object:
-                text = built.text if instruction is None else f"{built.text}\n\n{instruction}"
+                effective = instruction if instruction is not None else diversification
+                text = built.text if effective is None else f"{built.text}\n\n{effective}"
                 response = self._diagnose_call(
                     client,
                     [LLMMessage(role="user", content=text)],
@@ -1780,13 +1821,83 @@ class CraftLoop:
         (action, path, old, new)) raises _ProposalRepeatError carrying the
         iteration that first attempted it — the caller fails the step with
         the stable code instead of executing the repeat or calling the
-        model again.
+        model again. W163: in the main diagnose path the first repeat also
+        arms exactly ONE diversified retry for the next diagnose call; the
+        bare rejection here keeps the no-producer paths (cache hit,
+        envelope mode) on the W156 semantics.
         """
         key = _canonical_proposal(ops)
         previous = self._attempted_proposals.get(key)
         if previous is not None:
             raise _ProposalRepeatError(previous)
         self._attempted_proposals[key] = self.total_iterations
+
+    def _take_diversification(self, step: Step) -> str | None:
+        """Consume the ONE armed diversified retry for this step (W163).
+
+        The first repeated proposal arms the flag in _run_step; the next
+        diagnose call consumes it here and carries the diversification
+        instruction exactly once. Returns None when nothing is armed (the
+        common path) or when a different step owns the armed retry.
+        """
+        if self._diversification_armed != step.id:
+            return None
+        self._diversification_armed = None
+        return self._diversification_instruction()
+
+    def _diversification_instruction(self) -> str:
+        """The W163 diversified repair instruction for a repeated proposal.
+
+        Lists up to _MAX_DIVERSIFY_SUMMARIES earlier proposals as canonical
+        per-edit summaries and explicitly forbids repeating any previous
+        edit — the model must propose a DIFFERENT fix path (different
+        file, different edit strategy).
+        """
+        previous = self._previous_proposal_summaries()
+        if previous:
+            block = "\n".join(f"- {item}" for item in previous)
+        else:
+            block = "- (无记录 — 请选择与之前不同的编辑路径)"
+        return (
+            "EDIT PROPOSAL SELF-CHECK — your previous proposals were identical to an "
+            "earlier attempt — propose a DIFFERENT fix path (different file, different "
+            "edit strategy); do NOT repeat any previous edit.\n"
+            f"Previous attempts (canonical per-edit summaries, up to "
+            f"{_MAX_DIVERSIFY_SUMMARIES} shown, newest first):\n"
+            f"{block}\n"
+            "Respond with exactly ONE corrected JSON object with top-level keys "
+            '"diagnosis" (string, one sentence) and "edits" (array of edit '
+            "operations) — no markdown fences, no prose."
+        )
+
+    def _previous_proposal_summaries(self) -> list[str]:
+        """Up to _MAX_DIVERSIFY_SUMMARIES canonical per-edit summaries of
+        the proposals already attempted this run (W163), newest first."""
+        ordered = sorted(
+            self._attempted_proposals.items(), key=lambda pair: pair[1], reverse=True
+        )
+        summaries: list[str] = []
+        for key, iteration in ordered[:_MAX_DIVERSIFY_SUMMARIES]:
+            edits = [
+                self._canonical_edit_summary(action, path, old, new)
+                for action, path, old, new in key
+            ]
+            summaries.append(f"[迭代 {iteration}] " + "; ".join(edits))
+        return summaries
+
+    @staticmethod
+    def _canonical_edit_summary(action: str, path: str, old: str, new: str) -> str:
+        """One canonical per-edit summary line for the diversification
+        instruction (W163): action, path and clipped old/new strings."""
+
+        def clip(text: str) -> str:
+            if len(text) <= _EDIT_SUMMARY_CLIP:
+                return text
+            return text[: _EDIT_SUMMARY_CLIP] + "…"
+
+        if action == "write_file":
+            return f"write_file {path}: new={clip(new)!r}"
+        return f"apply_edit {path}: old={clip(old)!r} new={clip(new)!r}"
 
     def _anchor_candidates(self, path: str, old: str) -> list[tuple[int, str]]:
         """Up to 3 real candidate anchor lines (numbered) from the target file.
@@ -2249,6 +2360,13 @@ class CraftLoop:
             report["gates"] = gates_report
         if self.client is not None:
             report["llm_usage"] = self.client.stats_report()
+            # W163 transient-timeout retry audit: a stable int counter next
+            # to llm_usage (duck-typed clients default to 0). Only present
+            # when a client exists, so deterministic reports keep their
+            # exact key set.
+            report["llm_timeout_retries"] = int(
+                getattr(self.client, "timeout_retries", 0)
+            )
         if self.tool_registry is not None:
             report["tool_registry"] = {
                 "present": True,
