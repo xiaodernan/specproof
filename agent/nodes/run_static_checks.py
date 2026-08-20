@@ -98,8 +98,14 @@ def run_static_checks_node(state: Phase0State) -> dict[str, Any]:
                 )
             )
 
-    # Static analysis can never reach BLOCKER confidence.
+    # Static analysis can never reach BLOCKER confidence. CHECKER_FAILED
+    # evidence is exempt: it is infrastructure evidence, not a source verdict.
+    checker_failures = [
+        f for f in findings if f.get("type") == "checker_failed"
+    ]
     for f in findings:
+        if f.get("type") == "checker_failed":
+            continue
         f["severity"] = "MAJOR" if f.get("severity") == "BLOCKER" else f.get("severity", "MAJOR")
         f["confidence"] = min(f.get("confidence", 0.85), _STATIC_CONFIDENCE_CEILING)
         f["p0_5_note"] = (
@@ -122,7 +128,10 @@ def run_static_checks_node(state: Phase0State) -> dict[str, Any]:
         state.get("contract_results", []), new_contract_results
     )
 
-    return {
+    out: dict[str, Any] = {
         "static_findings": findings,
         "contract_results": contract_results,
     }
+    if checker_failures:
+        out["checker_failures"] = checker_failures
+    return out

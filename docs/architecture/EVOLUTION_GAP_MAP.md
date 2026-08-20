@@ -55,11 +55,11 @@
 | compile_contracts 编译报告 | ⏳ | 待派 |
 | prepare_base/head 仓库安全检查抽取+崩溃回收器 | ⏳ | 待派 |
 | collect_diff 文件/符号/语义三级范围 | ◐ | 符号级有 (W29); 语义候选 ⏳ |
-| run_static_checks 检查器注册表+兼容矩阵+CHECKER_FAILED+路径规范化 | ⏳ | 待派 |
+| run_static_checks 检查器注册表+兼容矩阵+CHECKER_FAILED+路径规范化 | ✅ | W185: agent/checkers/registry.py (7 检查器元数据: 语言/框架/契约族/版本/证据等级/已知误报/耗时/可阻断 + 兼容矩阵 NOT_IMPLEMENTED fail-closed + 崩溃→CHECKER_FAILED 证据 + normalize_location 统一规范化; 15 新测试) |
 | generate_counterexamples 四阶段拆分 | ◐ | 部分; 反例最小化 ✅ (W105 experiments/minimize.py ddmin); 审查阶段 ⏳ |
 | run_differential 采集器/稳定判定 | ◐ | 探针采集器 ✅ (W36); 稳定/偶发判定 ⏳ |
-| review_court 模型/政策分层+预存缺陷+审计 | ◐ | 分层落地 (W49); 无证据 BLOCKER 不变式测试 ⏳ (真实缺口) |
-| build_matrix 纯函数+竞争写测试+完整行字段 | ⏳ | 待派 |
+| review_court 模型/政策分层+预存缺陷+审计 | ◐ | 分层落地 (W49); 无证据 BLOCKER 不变式测试 ✅ (W157, 19 例专用不变式测试) |
+| build_matrix 纯函数+竞争写测试+完整行字段 | ✅ | W180: 行补 11 字段+confirmed_findings 不丢弃+确定性合并; 16 新测试 |
 
 ### 其余目录 (要点)
 storage: Outbox 死信+指标 ✅ (W84 DLQ+metrics) · RabbitMQ 可观测事件 ◐ · Redis 租约最大持有+心跳 ⏳ · Mongo checkpoint schema 版本 ⏳ · MinIO 命名/生命周期 ✅ (W84 对象路径治理) · ES 租户过滤 ✅ (W84) / ES 投影删除清理 ⏳
@@ -80,14 +80,14 @@ providers/retrieval/craft: 统一网络客户端+日志脱敏 ◐ · 检索结�
 - ✅ 其他落地车道: W102 Policy DSL+豁免流 (agent/policy_dsl.py + agent/waiver.py, 42 测试) · W104 SWE-bench 排行榜实时拉取 (docs/eval/SWE_BENCH_LEADERBOARD.md, 180 Verified) · W110 租户中间件修复 · W106 node 级取消检查点 · W107 capsule 注入修复 · W105/W108 收尾 · W125/W128/W133 回放分层 · W89 演练 (docs/operations/DRILLS.md) · W96/W123/W126/W129/W132/W134 回放测量 (25/25=100.0%) · W84 存储治理 (Outbox DLQ+指标/MinIO 治理/ES 租户过滤/迁移 0008) · W78/W105 PythonAdapter local-first + ddmin (experiments/adapters.py + experiments/minimize.py)
 
 ## D. 待派队列 (按优先级, 2026-08-20 复核)
-1. run_static_checks 检查器注册表+兼容矩阵
-2. build_matrix 完整行字段+纯函数
+1. ✅ run_static_checks 检查器注册表+兼容矩阵 (W185)
+2. ✅ build_matrix 完整行字段+纯函数 (W180)
 3. ✅ 独立归因准确率指标已建并实测 **100.0%** (W182 att-08 both-fail 拆分+失败签名差异化归因修复; Go/No-Go #3 PASS)
-4. 生产试点 (3 仓库 2 周)
-5. 自动 RUNNING-job 回收器 + WAITING_FOR_PROVIDER 接线
+4. 生产试点 (3 仓库 2 周) ⛔ 仓库外依赖
+5. ✅ 自动 RUNNING-job 回收器 + WAITING_FOR_PROVIDER 接线 (W179)
 6. 跨语言案例样本 (TS/Go; Python ✅ W78/W105)
-7. 恶意构建脚本/输出洪水/缓存投毒测试
-8. Job 创建白名单 (禁任意命令/env/docker)
+7. ✅ 恶意构建脚本/输出洪水/缓存投毒测试 (W181)
+8. ✅ Job 创建白名单 (禁任意命令/env/docker) (W178)
 9. 错误 Envelope retryable 字段 + SSE 序列号/保留策略
 10. ES 投影删除清理 ⏳ (Outbox DLQ+指标/MinIO 治理/ES 租户过滤 ✅ W84, 迁移 0008)
-11. Grafana/SLO 面板 · Python 依赖锁 snapshot · 每作业成本会计 · court 无证据 BLOCKER 不变式测试
+11. Grafana/SLO 面板 · ✅ Python 依赖锁 snapshot (W177) · ✅ 每作业成本会计 (W171) · ✅ court 无证据 BLOCKER 不变式测试 (W157)

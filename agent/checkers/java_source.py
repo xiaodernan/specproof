@@ -88,6 +88,8 @@ def _finding(
     severity: str = "MAJOR",
     confidence: float = 0.85,
 ) -> dict[str, Any]:
+    from agent.checkers.registry import normalize_location
+
     return {
         "id": "SRC-" + contract_id.split("-")[0] + "-" + ftype[:4].upper(),
         "contract_id": contract_id,
@@ -96,7 +98,7 @@ def _finding(
         "description": description,
         "evidence_type": "java_source_diff",
         "confidence": confidence,
-        "location": location,
+        "location": str(normalize_location(location)["path"]),
         "source": "contract_checker",
     }
 
@@ -429,13 +431,35 @@ _ALL_CHECKERS = [
 def run_contract_checks(
     base_files: dict[str, str], head_files: dict[str, str]
 ) -> list[dict[str, Any]]:
-    """Run all checkers and return deduplicated findings."""
-    findings: list[dict[str, Any]] = []
-    for checker in _ALL_CHECKERS:
-        findings.extend(checker(base_files, head_files))
+    """Run the registered checkers (§14.1 registry) and return deduplicated
+    findings. A crashing checker becomes CHECKER_FAILED evidence — never an
+    empty result that reads as "no problems found"."""
+    from agent.checkers.registry import run_registered_checks
 
+    findings, failures, note = run_registered_checks(base_files, head_files)
+    if note is not None:
+        # Unsupported target: fail closed with an explicit explanation
+        # instead of pretending the sources are clean.
+        return [{
+            "id": "CHECKER-MATRIX-NOT_IMPLEMENTED",
+            "contract_id": "CHECKER_FAILED",
+            "severity": "NONE",
+            "type": "checker_failed",
+            "description": note,
+            "evidence_type": "checker_failed",
+            "confidence": 1.0,
+            "location": "agent/checkers/registry.py",
+            "source": "checker_registry",
+        }]
+    findings.extend(failures)
+
+    failed: list[dict[str, Any]] = [
+        f for f in findings if f.get("type") == "checker_failed"
+    ]
     deduped: dict[tuple[str, str], dict[str, Any]] = {}
     for f in findings:
+        if f.get("type") == "checker_failed":
+            continue  # failures are evidence; never deduped away
         key = (f["contract_id"], f["type"])
         existing = deduped.get(key)
         if existing is None:
@@ -447,7 +471,7 @@ def run_contract_checks(
                 existing["description"] = (
                     existing["description"] + " | " + f["description"]
                 )
-    return list(deduped.values())
+    return list(deduped.values()) + failed
 
 
 def contract_results_for(
@@ -498,6 +522,15 @@ def contract_results_for(
         "TEST_STRENGTH-01": base_test_present,
     }
 
+    # A crashing checker must never let its contract family PASS by silence:
+    # contracts whose family checker failed stay UNVERIFIED with the reason.
+    failed_families: set[str] = {
+        family
+        for f in findings
+        if f.get("type") == "checker_failed"
+        for family in f.get("families", [])
+    }
+
     results: list[dict[str, Any]] = []
     for contract in contracts:
         cid = contract.get("id", "")
@@ -509,6 +542,17 @@ def contract_results_for(
                 "experiment": "java_source_diff",
                 "evidence_ref": hits[0]["id"],
                 "details": "; ".join(h["description"] for h in hits),
+            })
+        elif cid in failed_families:
+            results.append({
+                "contract_id": cid,
+                "result": "UNVERIFIED",
+                "experiment": "java_source_diff",
+                "evidence_ref": "CHECKER_FAILED",
+                "details": (
+                    "checker for this contract family crashed — "
+                    "never PASS by silence"
+                ),
             })
         elif base_observed.get(cid):
             results.append({
