@@ -266,7 +266,10 @@ def test_grep_verify_criterion_with_only_test_targets_fails_honestly(
     assert evidence["check"] == "grep"
     assert "无源文件可搜索" in evidence["reason"]
     assert "tests/test_config.py" in evidence["reason"]
-    assert "隐藏测试" in evidence["reason"]
+    # W143: all-test-file targets now fail honestly as unverifiable
+    # (no repair loop, no stuck increment) — the reason is the
+    # unverifiable contract, not the older in-loop wording.
+    assert "unverifiable" in evidence["reason"]
 
 
 # -- (e) deterministic no-LLM path unchanged ----------------------------------
