@@ -1,6 +1,6 @@
 # Go/No-Go 15 门槛测量 (PRODUCTION_SPEC §20)
 
-总览: **PASS 11/15 · PARTIAL 1/15 · PENDING 3/15** (2026-08-20 最终复核, 基于现有仓库实测证据; 未实测的门槛一律标 PENDING, 不编造数字; 本轮 PASS 10→11: #5 补齐"无执行证据不得发布 BLOCKER"专用不变式测试; 此前 PASS 6→10: #4 回放六轮修复达标 / #6 延迟实测 p95 161s / #9 真实 kill 演练 / #11 真实 provider 故障演练 / #14 LLM 基线实测 +100pp)
+总览: **PASS 12/15 · PENDING 3/15** (2026-08-20 晚间复核, 基于现有仓库实测证据; 未实测的门槛一律标 PENDING, 不编造数字; 本轮 PASS 11→12: #3 归因准确率 100.0% (att-08 both-fail 拆分+失败签名差异化归因修复后实测, 7/7 正确归因 0 漏归因); 此前 PASS 10→11: #5 补齐"无执行证据不得发布 BLOCKER"专用不变式测试; 再前 PASS 6→10: #4 回放六轮修复达标 / #6 延迟实测 p95 161s / #9 真实 kill 演练 / #11 真实 provider 故障演练 / #14 LLM 基线实测 +100pp)
 
 状态约定: PASS = 有真实测量/测试证据且达标; PARTIAL = 有部分或间接证据, 未达可宣称达标的程度; PENDING = 无测量, 需按"缺口与下一步"补齐后才能判定。
 
@@ -8,7 +8,7 @@
 |---|---|---|---|---|---|
 | 1 | 已发布 BLOCKER/MAJOR Precision ≥ 90% | PASS | docs/eval/eval-report.results.json (precision=100.0, false_positives=0/20); docs/eval/eval-report.html; docs/eval/baseline-report.md (20 案例同口径) | python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm | 证据域 = golden-cases 20 例评测集; 生产流量口径的 Precision 需等 #12 试点后重测 |
 | 2 | 语义回归 Recall ≥ 80% | PASS | docs/eval/eval-report.results.json (recall=100.0, detected=12/12); docs/eval/baseline-report.md | 同上 (eval 全量, 2026-08-18 第十轮审计后实测) | 同上, 生产口径需试点 |
-| 3 | PR 归因准确率 ≥ 90% | PARTIAL | 机制: agent/nodes/review_court.py (六条件之 3_attribution_to_head, attributed_contract 归因; 预存缺陷规则 not_attributed 降级) + agent/nodes/run_differential.py (REGRESSION 归因 + DB 状态取证); 实测: docs/eval/attribution-results.json (独立归因用例集 golden-cases-attribution/ 8 例, head_defects=7 / base_defects=2: 正确归因 6/7, 错归因 0/2, 漏归因 1/7 → attribution_accuracy=88.9%); docs/eval/attribution-eval.html/.results.json (eval 8 例 exit 0, Precision 100.0% FP 0, Recall 85.7%) | python scripts/attribution_cases.py run && python -m cli.specproof.main eval --cases golden-cases-attribution --repo . --no-llm --output docs/eval/attribution-eval.html | 已量化 88.9% < 90%: 唯一漏归因 = case-att-08 (Base 与 Head 各自都有失败 → 单实验 AMBIGUOUS 且 severity NONE 不产 finding → head 侧 EVENT_ONCE-01 被掩盖); 需按失败测试名拆分双方失败实验 (或提升 AMBIGUOUS 归因粒度) 后再复核; 生产口径随 #12 试点复核 |
+| 3 | PR 归因准确率 ≥ 90% | **PASS** | 机制: agent/nodes/run_differential.py both-fail 拆分 (surefire FQN 报告 `_surefire_report` 直名+包后缀 glob → `_test_outcomes` 逐方法结果 → head_only/base_only/both 三组; head_only → REGRESSION 归因 head, base_only → UNEXPECTED_FIX 永不归因, both → AMBIGUOUS + 失败签名差异化: base/head 同方法失败但签名不同 → court 归因 head, MINOR/0.65 诚实降置信) + agent/nodes/review_court.py (预存缺陷规则); **实测: docs/eval/attribution-results.json (8 例, head_defects=7 / base_defects=2: 正确归因 7/7, 错归因 0/2, 漏归因 0/7 → attribution_accuracy=100.0%; case-att-08: EVENT_ONCE-01 归因 head, UNIQUE-01 base 预存未归因)**; tests/unit/test_attribution_att08.py (FQN surefire 形状钉死) | python scripts/attribution_cases.py run && python -m cli.specproof.main eval --cases golden-cases-attribution --repo . --no-llm --output docs/eval/attribution-eval.html | 100.0% ≥ 90% 达标; att-08 由 both-fail 拆分+签名差异化归因修复 (BASE 侧 UNIQUE 缺陷遮蔽 EVENT 测试的遮蔽型场景); 生产口径随 #12 试点复核 |
 | 4 | Capsule Replay 成功率 ≥ 95% | PASS | scripts/bench_replay.py (批量回放基准, 六轮实测轨迹 28.57→35.71→42.86→82.14→92.0→100.0%); docs/eval/replay-results.md (最终 25/25=100.0%, 枚举 28 排除 3 制品逐字注记); 双层定义 (运行时复现+静态复验) + 探针重放 (H2 真实重跑) | python scripts/bench_replay.py | 3 个排除为制品类 (演示种子 1 + 规范前陈旧摘要 2), 定义单源可审计; 生产口径随 #12 试点复核 |
 | 5 | 无证据的严重评论 = 0 | PASS | tests/unit/test_court_no_evidence_blocker.py (专用不变式测试 19 例: 无 exit code 记录/静态证据 → court 降级 MAJOR 永不 BLOCKER; 六条件之 2_base_head_execution 必须经 _has_real_execution_evidence 拿到真实 base/head exit code; 正向对照真实 base_pass_head_fail(0/1) 可达 BLOCKER; _STATIC_CONFIDENCE_CEILING=0.85 于 policy + run_static_checks 节点两级封顶); agent/nodes/review_court.py (BLOCKER 六条件 + _has_real_execution_evidence 要求真实 base/head exit code); agent/nodes/run_static_checks.py (_STATIC_CONFIDENCE_CEILING=0.85, 静态封顶 MAJOR); capsules/capsule-COURT-AUTH-01/finding.json (blocker_check 6/6 逐条记录); docs/eval/eval-report.results.json (0 误报) | python -m pytest tests/unit/test_court_no_evidence_blocker.py -q --tb=short | 机制 + 专用不变式测试齐备: 任何无执行证据的 Finding 都被 court 降级为 MAJOR (severity/confidence 封顶), 不可能以 BLOCKER 发布; 生产 PR 流量口径随 #12 试点复核 |
 | 6 | FAST 小 PR p95 ≤ 8 分钟 | PASS | 100 案例五块重跑逐案例 duration_ms (docs/eval/eval-c1/c2/c3/c4/rem3-rerun.results.json, N=100 真实全管线 FAST 深度): p50=126.1s, **p95=161.1s**, max=228.6s, 超 8 分钟 0 例 | python -c 统计五个 rerun results 的 duration_ms 分位 | 口径=金案例全管线本机墙钟 (含 Maven 编译/测试), 生产 PR 流量口径随 #12 试点复核 |
@@ -24,7 +24,7 @@
 
 ## 结论
 
-- 11 条 PASS 全部来自可复现的仓库证据 (评测/基准/演练/单元安全测试), 无编造数字; 新增 5 条 (#4 回放六轮修复 / #5 无证据 BLOCKER 不变式测试 / #6 延迟实测 / #9+#11 真实故障演练 / #14 LLM 基线实测)。
-- 1 条 PARTIAL (#3) 已有独立量化指标 (golden-cases-attribution/ 8 例归因用例集): attribution_accuracy=88.9% (正确归因 6/7, 错归因 0/2, 漏归因 1/7), 未达 90% 阈值; 唯一漏归因 = "Base 与 Head 各自都有失败"时 AMBIGUOUS 实验不产生 finding, head 侧缺陷被掩盖 (case-att-08)。
-- 3 条 PENDING (#12/#13/#15) 依赖真实试点仓库、真实用户与真实账单, 无法在仓库内完成。
+- 12 条 PASS 全部来自可复现的仓库证据 (评测/基准/演练/单元安全测试), 无编造数字; 最新 #3: 归因准确率 100.0% (att-08 both-fail 拆分 + 失败签名差异化归因修复后实测, 正确归因 7/7, 错归因 0/2, 漏归因 0/7)。
+- PARTIAL 已清零: #3 由 88.9% → 100.0% 转 PASS (Base/Head 各自失败时按 surefire 逐方法结果拆分 + 双方同方法失败但签名不同时归因 head, 遮蔽型场景不再漏归因)。
+- 3 条 PENDING (#12/#13/#15) 依赖真实试点仓库、真实用户与真实账单, 无法在仓库内完成 (机制与手册已就绪: W174 反馈机制 + PILOT_RUNBOOK; W171 bench_cost)。
 - 任一门槛未达 PASS 前, 不宣称 PRODUCTION_SPEC §3 的商业优势评分成立 (§20: "任何一项失败: 不宣称达到商业优势 9.0")。

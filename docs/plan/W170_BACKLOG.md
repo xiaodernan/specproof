@@ -9,20 +9,24 @@
 |---|---|---|
 | scripts/bench_cost.py + cost-results.json | ✅ | 已随 W171/W172 提交 (#15 仓库内半程) |
 | SWE-bench v12 (最强档 v4-pro 重测) | ✅ | 已随 W172 提交 (诚实 0%, v13=官方 Docker/网关外) |
-| agent/nodes/run_differential.py P2 both-fail 拆分 | 🔨 | 工作树 +338/-93, 单测 98/98 绿, 待全案例 eval 复核后提交 (W176) |
-| tests/unit/test_attribution_att08.py | 🔨 | 11 例随 W176 提交 |
+| agent/nodes/run_differential.py P2 both-fail 拆分 | ✅ | 修复+实测 100.0% 已随 W182 提交 |
+| tests/unit/test_attribution_att08.py | ✅ | 随 W182 提交 (FQN surefire 形状钉死) |
 
 ## 1. Go/No-Go 缺口
 
-### 1.1 #3 归因准确率 PARTIAL→PASS (att-08 both-fail)
+### 1.1 #3 归因准确率 PARTIAL→PASS ✅ (att-08 both-fail, W182)
 
 - **缺口**: Base/Head 各自失败时整轮折叠为 AMBIGUOUS severity-NONE, 掩盖 head 侧
-  EVENT_ONCE-01 回归 (实测 88.9% < 90%, 唯一漏归因)。
-- **修复 (已在工作树)**: surefire XML 逐方法结果 → head_only/base_only/both 三组拆分;
-  head_only → REGRESSION 归因 head; base_only → UNEXPECTED_FIX 永不归因 head;
-  both → AMBIGUOUS 不变。Review Court 按 method-scoped 出口码走预存缺陷规则。
-- **验收**: scripts/attribution_cases.py run + eval --cases golden-cases-attribution
-  归因准确率 ≥ 90% (预期 100%) → 更新 go-nogo.md #3 → 提交 W176。
+  EVENT_ONCE-01 回归 (首测 88.9% < 90%, 唯一漏归因)。
+- **根因二连**: (1) surefire 报告是 FQN 文件名 (TEST-com.specproof.demo.….xml),
+  旧 `_test_outcomes` 只找 bare 名 → 永远空 → 拆分从未真正生效; (2) 修复后发现
+  att-08 是「遮蔽型」场景: base 侧 UNIQUE 缺陷让 EVENT 测试在 base 同样失败 →
+  同方法 both-fail, 但 base/head 失败签名不同。
+- **修复**: `_surefire_report` 直名+包后缀 glob; both 组增加失败签名差异化归因
+  (签名不同 → court 归因 head, MINOR/0.65 诚实降置信; 签名相同保持 AMBIGUOUS)。
+- **验收 (实测)**: attribution_accuracy = **100.0%** (正确归因 7/7, 错归因 0/2,
+  漏归因 0/7; att-08: EVENT_ONCE-01 归因 head, UNIQUE-01 base 预存未归因) →
+  go-nogo.md #3 PARTIAL→PASS。
 
 ### 1.2 #15 成本 PENDING (仓库内半程)
 
@@ -61,7 +65,7 @@
 
 1. run_static_checks 检查器注册表+兼容矩阵 (⬜)
 2. build_matrix 完整行字段+纯函数 (⬜)
-3. att-08 both-fail 归因修复 (🔨 见 1.1)
+3. att-08 both-fail 归因修复 (✅ W182, 见 1.1)
 4. 生产试点 3 仓库 2 周 (⛔ 见 1.3)
 5. RUNNING-job 回收器 + WAITING_FOR_PROVIDER 接线 (🔨 lane f5a1c1b7 在途)
 6. 跨语言案例样本 TS/Go (⬜; Python ✅ W78/W105)

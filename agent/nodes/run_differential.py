@@ -301,114 +301,274 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # ── DB state comparison ──
     db_verdict, db_detail = _compare_db_state(base_snapshot, head_snapshot)
 
-    # ── Combined verdict ──
-    if http_verdict == "REGRESSION" and db_verdict in (
-        "DB_MUTATED_ON_UNAUTH", "DB_MUTATED",
-    ):
-        combined_verdict = "REGRESSION"
-        combined_detail = (
-            f"{http_detail}. {db_detail}. "
-            "Base and Head executed the same test but left different DB "
-            "state — the regression mutated persisted data."
-        )
-        combined_confidence = 0.95
-        combined_severity = "BLOCKER"
-    elif http_verdict == "REGRESSION":
-        combined_verdict = "REGRESSION"
-        combined_detail = (
-            f"{http_detail}. DB evidence: {db_detail}. "
-            "HTTP regression confirmed; DB mutation not directly captured."
-        )
-        combined_confidence = 0.88
-        combined_severity = "MAJOR"
-    else:
-        combined_verdict = http_verdict
-        combined_detail = http_detail
-        combined_confidence = 0.80
-        combined_severity = "NONE"
-
-    # ── Deterministic evidence digest (no timestamps) ──
     test_sha = _sha256_file(Path(generated_tests_path)) if generated_tests_path else ""
-    evidence_payload = json.dumps({
-        "verdict": combined_verdict,
-        "base_exit": base_result.get("exit_code"),
-        "head_exit": head_result.get("exit_code"),
-        "base_db_rows": base_snapshot.get("rows", {}),
-        "head_db_rows": head_snapshot.get("rows", {}),
-        "base_test_counts": base_result.get("test_counts", {}),
-        "head_test_counts": head_result.get("test_counts", {}),
-        "test_file_sha256": test_sha,
-    }, sort_keys=True)
-    evidence_digest = hashlib.sha256(evidence_payload.encode()).hexdigest()
 
-    # Attribute the regression to the contract family the FAILING
-    # generated test actually exercises (the generated class now carries
-    # AUTH and UNIQUE tests; a one-size AUTH-01 label would misattribute
-    # the case-17 inversion to the auth contract).
-    attributed_contract = "AUTH-01"
-    if base_pass and not head_pass:
-        attributed_contract = _contract_for_test_method(
-            _failing_test_name(head_app)
-        )
-    elif not base_pass and head_pass:
-        attributed_contract = _contract_for_test_method(
-            _failing_test_name(base_app)
-        )
+    # ── P2 both-fail split (go-nogo #3 attribution fix) ──
+    # When Base AND Head each fail, one collapsed whole-run AMBIGUOUS
+    # experiment (severity NONE) masks the head-introduced failure
+    # (case-att-08: Base fails UNIQUE-01 pre-existing, Head fails
+    # EVENT_ONCE-01 introduced). Split the run by failing test method:
+    # a method failing on Head while passing on Base is a head-introduced
+    # REGRESSION for the contract it exercises; a method failing on Base
+    # while passing on Head is a pre-existing UNEXPECTED_FIX (never
+    # attributed to Head); a method failing on both sides stays AMBIGUOUS.
+    # Method-scoped exit codes feed the Review Court's preexisting-defect
+    # rule; the whole-run exits stay recorded for auditability.
+    method_groups: tuple[list[str], list[str], list[str]] | None = None
+    if not base_pass and not head_pass:
+        method_groups = _both_fail_method_groups(base_app, head_app, test_class)
 
-    diff_results: list[dict[str, Any]] = [{
-        # The experiment id is DIFF-01; the CONTRACT it verified is the one
-        # the failing test exercises. The Review Court requires an approved
-        # contract for BLOCKER, so contract_id must match a compiled
-        # contract, not the experiment label.
-        "contract_id": attributed_contract,
-        "experiment_id": "DIFF-01",
-        "verdict": combined_verdict,
-        "detail": combined_detail,
-        "severity": combined_severity,
-        "confidence": combined_confidence,
-        "evidence_type": (
-            "base_pass_head_fail" if combined_verdict == "REGRESSION"
-            else "differential_execution"
-        ),
-        "base_exit_code": base_result.get("exit_code"),
-        "head_exit_code": head_result.get("exit_code"),
-        "base_test_counts": base_result.get("test_counts", {}),
-        "head_test_counts": head_result.get("test_counts", {}),
-        "base_output": (base_result.get("stdout", "") + base_result.get("stderr", ""))[:2000],
-        "head_output": (head_result.get("stdout", "") + head_result.get("stderr", ""))[:2000],
-        "base_db_snapshot": base_snapshot,
-        "head_db_snapshot": head_snapshot,
-        "db_state_verdict": db_verdict,
-        "db_state_detail": db_detail,
-        "base_run_seconds": base_seconds,
-        "head_run_seconds": head_seconds,
-        "base_cache_hit": base_cache_hit,
-        "head_run_reused": head_reused,
-        "evidence_digest": f"sha256:{evidence_digest}",
-        "test_file_sha256": test_sha,
-        "changed_symbols": changed_symbols,
-        "generation_source": generation_record.get("source", "unknown"),
-    }]
+    attributed_contracts: set[str] = set()
+    evidence_by_contract: dict[str, str] = {}
+    evidence_digest = ""
+    primary_entries: list[dict[str, Any]] = []
+
+    if method_groups is not None:
+        head_only, base_only, both = method_groups
+        base_run_exit = base_result.get("exit_code")
+        head_run_exit = head_result.get("exit_code")
+        base_fail_details = _test_failure_details(base_app, test_class)
+        head_fail_details = _test_failure_details(head_app, test_class)
+        whole_run_base_output = (
+            base_result.get("stdout", "") + base_result.get("stderr", "")
+        )[:2000]
+        whole_run_head_output = (
+            head_result.get("stdout", "") + head_result.get("stderr", "")
+        )[:2000]
+        for method in head_only + base_only + both:
+            contract_id = _contract_for_test_method(method)
+            if method in head_only:
+                verdict = "REGRESSION"
+                severity = "MAJOR"
+                confidence = 0.88
+                evidence_type = "base_pass_head_fail"
+                base_exit, head_exit = 0, 1
+                base_status, head_status = "pass", "fail"
+                detail = (
+                    f"Split differential: test method {method} passes on "
+                    f"Base but fails on Head — head-introduced failure for "
+                    f"{contract_id} (whole-run exits: base {base_run_exit}, "
+                    f"head {head_run_exit})"
+                )
+                attributed_contracts.add(contract_id)
+                base_failure = ""
+                head_failure = head_fail_details.get(method, "")
+                base_output = whole_run_base_output
+                head_output = whole_run_head_output
+            elif method in base_only:
+                verdict = "UNEXPECTED_FIX"
+                severity = "NONE"
+                confidence = 0.80
+                evidence_type = "differential_execution"
+                base_exit, head_exit = 1, 0
+                base_status, head_status = "fail", "pass"
+                detail = (
+                    f"Split differential: test method {method} fails on "
+                    f"Base but passes on Head — pre-existing base-side "
+                    f"failure for {contract_id}, not attributed to the "
+                    f"reviewed head (whole-run exits: base {base_run_exit}, "
+                    f"head {head_run_exit})"
+                )
+                base_failure = base_fail_details.get(method, "")
+                head_failure = ""
+                base_output = whole_run_base_output
+                head_output = whole_run_head_output
+            else:
+                # Fails on BOTH sides. One collapsed AMBIGUOUS verdict with
+                # severity NONE would mask a head-introduced failure that
+                # fails for a DIFFERENT reason than the Base failure (att-08:
+                # Base fails the event test because the unique inversion
+                # kills the email-change precondition, Head fails it because
+                # the routing key is broken). Emit the per-method AMBIGUOUS
+                # record WITHOUT a severity and with the per-method failure
+                # snippets as the output tails: the Review Court's
+                # preexisting-defect rule then compares the failure
+                # signatures — identical -> not_attributed (pre-existing),
+                # distinct -> confirmed (head-only behavioral difference).
+                verdict = "AMBIGUOUS"
+                severity = None
+                confidence = 0.65
+                evidence_type = "differential_execution"
+                base_exit, head_exit = 1, 1
+                base_status, head_status = "fail", "fail"
+                detail = (
+                    f"Split differential: test method {method} fails on "
+                    f"both Base and Head — failure signatures compared by "
+                    f"the Review Court for head-only attribution "
+                    f"(whole-run exits: base {base_run_exit}, head "
+                    f"{head_run_exit})"
+                )
+                base_failure = base_fail_details.get(method, "")
+                head_failure = head_fail_details.get(method, "")
+                base_output = base_failure or whole_run_base_output
+                head_output = head_failure or whole_run_head_output
+            digest = _split_entry_digest(
+                verdict=verdict,
+                contract_id=contract_id,
+                method=method,
+                base_status=base_status,
+                head_status=head_status,
+                base_run_exit=base_run_exit,
+                head_run_exit=head_run_exit,
+                base_result=base_result,
+                head_result=head_result,
+                base_snapshot=base_snapshot,
+                head_snapshot=head_snapshot,
+                test_sha=test_sha,
+                base_failure=base_failure,
+                head_failure=head_failure,
+            )
+            evidence_by_contract[contract_id] = digest
+            primary_entries.append({
+                "contract_id": contract_id,
+                "experiment_id": "DIFF-01",
+                "verdict": verdict,
+                "detail": detail,
+                "severity": severity,
+                "confidence": confidence,
+                "evidence_type": evidence_type,
+                "base_exit_code": base_exit,
+                "head_exit_code": head_exit,
+                "method_scoped": True,
+                "failing_test_method": method,
+                "base_method_status": base_status,
+                "head_method_status": head_status,
+                "whole_run_base_exit_code": base_run_exit,
+                "whole_run_head_exit_code": head_run_exit,
+                "base_test_counts": base_result.get("test_counts", {}),
+                "head_test_counts": head_result.get("test_counts", {}),
+                "base_output": base_output,
+                "head_output": head_output,
+                "base_db_snapshot": base_snapshot,
+                "head_db_snapshot": head_snapshot,
+                "db_state_verdict": db_verdict,
+                "db_state_detail": db_detail,
+                "base_run_seconds": base_seconds,
+                "head_run_seconds": head_seconds,
+                "base_cache_hit": base_cache_hit,
+                "head_run_reused": head_reused,
+                "evidence_digest": digest,
+                "test_file_sha256": test_sha,
+                "changed_symbols": changed_symbols,
+                "generation_source": generation_record.get("source", "unknown"),
+            })
+    else:
+        # ── Combined verdict (legacy whole-run path) ──
+        if http_verdict == "REGRESSION" and db_verdict in (
+            "DB_MUTATED_ON_UNAUTH", "DB_MUTATED",
+        ):
+            combined_verdict = "REGRESSION"
+            combined_detail = (
+                f"{http_detail}. {db_detail}. "
+                "Base and Head executed the same test but left different DB "
+                "state — the regression mutated persisted data."
+            )
+            combined_confidence = 0.95
+            combined_severity = "BLOCKER"
+        elif http_verdict == "REGRESSION":
+            combined_verdict = "REGRESSION"
+            combined_detail = (
+                f"{http_detail}. DB evidence: {db_detail}. "
+                "HTTP regression confirmed; DB mutation not directly captured."
+            )
+            combined_confidence = 0.88
+            combined_severity = "MAJOR"
+        else:
+            combined_verdict = http_verdict
+            combined_detail = http_detail
+            combined_confidence = 0.80
+            combined_severity = "NONE"
+
+        # ── Deterministic evidence digest (no timestamps) ──
+        evidence_payload = json.dumps({
+            "verdict": combined_verdict,
+            "base_exit": base_result.get("exit_code"),
+            "head_exit": head_result.get("exit_code"),
+            "base_db_rows": base_snapshot.get("rows", {}),
+            "head_db_rows": head_snapshot.get("rows", {}),
+            "base_test_counts": base_result.get("test_counts", {}),
+            "head_test_counts": head_result.get("test_counts", {}),
+            "test_file_sha256": test_sha,
+        }, sort_keys=True)
+        evidence_digest = hashlib.sha256(evidence_payload.encode()).hexdigest()
+
+        # Attribute the regression to the contract family the FAILING
+        # generated test actually exercises (the generated class now carries
+        # AUTH and UNIQUE tests; a one-size AUTH-01 label would misattribute
+        # the case-17 inversion to the auth contract).
+        attributed_contract = "AUTH-01"
+        if base_pass and not head_pass:
+            attributed_contract = _contract_for_test_method(
+                _failing_test_name(head_app)
+            )
+            attributed_contracts.add(attributed_contract)
+        elif not base_pass and head_pass:
+            attributed_contract = _contract_for_test_method(
+                _failing_test_name(base_app)
+            )
+            attributed_contracts.add(attributed_contract)
+
+        primary_entries = [{
+            # The experiment id is DIFF-01; the CONTRACT it verified is the one
+            # the failing test exercises. The Review Court requires an approved
+            # contract for BLOCKER, so contract_id must match a compiled
+            # contract, not the experiment label.
+            "contract_id": attributed_contract,
+            "experiment_id": "DIFF-01",
+            "verdict": combined_verdict,
+            "detail": combined_detail,
+            "severity": combined_severity,
+            "confidence": combined_confidence,
+            "evidence_type": (
+                "base_pass_head_fail" if combined_verdict == "REGRESSION"
+                else "differential_execution"
+            ),
+            "base_exit_code": base_result.get("exit_code"),
+            "head_exit_code": head_result.get("exit_code"),
+            "base_test_counts": base_result.get("test_counts", {}),
+            "head_test_counts": head_result.get("test_counts", {}),
+            "base_output": (base_result.get("stdout", "") + base_result.get("stderr", ""))[:2000],
+            "head_output": (head_result.get("stdout", "") + head_result.get("stderr", ""))[:2000],
+            "base_db_snapshot": base_snapshot,
+            "head_db_snapshot": head_snapshot,
+            "db_state_verdict": db_verdict,
+            "db_state_detail": db_detail,
+            "base_run_seconds": base_seconds,
+            "head_run_seconds": head_seconds,
+            "base_cache_hit": base_cache_hit,
+            "head_run_reused": head_reused,
+            "evidence_digest": f"sha256:{evidence_digest}",
+            "test_file_sha256": test_sha,
+            "changed_symbols": changed_symbols,
+            "generation_source": generation_record.get("source", "unknown"),
+        }]
 
     # Source-diff findings computed earlier are prepended; the generated-test
-    # verdict is the primary experiment for DIFF-01; probe results (when the
-    # case declares a probe_expectation) ride along as PROBE-01.
-    diff_results = source_diff_results + diff_results + probe_results
+    # verdict is the primary experiment for DIFF-01 (split per failing test
+    # method when both sides fail); probe results (when the case declares a
+    # probe_expectation) ride along as PROBE-01.
+    diff_results: list[dict[str, Any]] = (
+        source_diff_results + primary_entries + probe_results
+    )
 
     # ── Contract results: only what this experiment exercised ──
     # P6: the attributed contract family is marked FAIL exactly like the
     # AUTH/UNIQUE families always were — a failing generated test only
-    # proves the contract its failing method exercises.
+    # proves the contract its failing method exercises. After the P2
+    # both-fail split, the head-only failing methods are the attributed
+    # contracts; base-only failures stay UNVERIFIED (never attributed).
     contract_results: list[dict[str, Any]] = []
     for c in contracts:
         cid = c.get("id", "")
         is_auth = c.get("checker_type") == "http" and cid.upper().startswith("AUTH")
         is_unique = cid == "UNIQUE-01"
-        is_attributed = cid == attributed_contract
+        is_attributed = cid in attributed_contracts
         if is_auth or is_unique or is_attributed:
             if http_verdict == "COMPLIANT":
                 result = "PASS"
-            elif http_verdict == "REGRESSION" and attributed_contract == cid:
+            elif cid in attributed_contracts and (
+                method_groups is not None or http_verdict == "REGRESSION"
+            ):
                 result = "FAIL"
             else:
                 result = "UNVERIFIED"
@@ -416,7 +576,11 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 "contract_id": cid,
                 "result": result,
                 "experiment": "generated_test_differential",
-                "evidence_ref": f"sha256:{evidence_digest}",
+                "evidence_ref": (
+                    evidence_by_contract.get(cid, "")
+                    if method_groups is not None
+                    else f"sha256:{evidence_digest}"
+                ),
             })
 
     # Probe experiment contract result (only what the probe actually judged).
@@ -463,6 +627,177 @@ def _failing_test_name(app_dir: str) -> str:
         if case.find("failure") is not None or case.find("error") is not None:
             return str(case.get("name", ""))
     return ""
+
+
+def _surefire_report(app_dir: str, test_class: str) -> Path | None:
+    """Locate the surefire XML report for the generated test class.
+
+    Surefire names its reports TEST-<fully.qualified.ClassName>.xml
+    (TEST-com.specproof.demo.SpecProofGeneratedTest.xml for the generated
+    test), so a bare-class-name filename lookup misses it. Accept either
+    a fully qualified test_class or a bare name and match the report by
+    exact filename first, then by package suffix. No per-method evidence
+    -> None -> the caller keeps the whole-run verdict (honest fallback).
+    """
+    if not test_class:
+        return None
+    reports_dir = Path(app_dir) / "target" / "surefire-reports"
+    direct = reports_dir / f"TEST-{test_class}.xml"
+    if direct.exists():
+        return direct
+    matches = sorted(reports_dir.glob(f"TEST-*.{test_class}.xml"))
+    return matches[0] if matches else None
+
+
+def _test_outcomes(app_dir: str, test_class: str) -> dict[str, str]:
+    """Parse the generated test's surefire XML into per-method outcomes.
+
+    Returns {method_name: status} with status in ("pass", "fail",
+    "skipped") for every executed testcase of the generated class. An
+    unavailable or unparseable report returns {} — callers must treat
+    that as "no per-method evidence" and keep the whole-run verdict.
+    """
+    import defusedxml.ElementTree as ElementTreeDefused
+
+    report = _surefire_report(app_dir, test_class)
+    if report is None:
+        return {}
+    try:
+        root = ElementTreeDefused.parse(report).getroot()
+    except (OSError, ElementTreeDefused.ParseError):
+        return {}
+    outcomes: dict[str, str] = {}
+    for case in root.findall("testcase"):
+        name = str(case.get("name", "")).strip()
+        if not name:
+            continue
+        if case.find("failure") is not None or case.find("error") is not None:
+            outcomes[name] = "fail"
+        elif case.find("skipped") is not None:
+            outcomes[name] = "skipped"
+        else:
+            outcomes[name] = "pass"
+    return outcomes
+
+
+def _split_both_fail_groups(
+    base_outcomes: dict[str, str], head_outcomes: dict[str, str],
+) -> tuple[list[str], list[str], list[str]]:
+    """Split a both-sides-fail run by test method (pure, deterministic).
+
+    head_only: fails on Head while provably passing on Base — a
+        head-introduced failure, attributable to the reviewed head.
+    base_only: fails on Base while provably passing on Head — a
+        pre-existing failure, never attributed to the head.
+    both:      fails on both sides, or fails on one side without a
+        recorded pass on the other (skipped/missing) — ambiguous.
+    """
+    head_only: list[str] = []
+    base_only: list[str] = []
+    both: list[str] = []
+    for name in sorted(set(base_outcomes) | set(head_outcomes)):
+        base_status = base_outcomes.get(name)
+        head_status = head_outcomes.get(name)
+        if head_status == "fail" and base_status == "pass":
+            head_only.append(name)
+        elif base_status == "fail" and head_status == "pass":
+            base_only.append(name)
+        elif "fail" in (base_status, head_status):
+            both.append(name)
+    return head_only, base_only, both
+
+
+def _test_failure_details(app_dir: str, test_class: str) -> dict[str, str]:
+    """Per-method failure snippets from the generated test's surefire XML.
+
+    Returns {failing_method_name: snippet} where the snippet carries the
+    failure/error message, type and the first lines of the stack — the
+    per-method failure signature the Review Court compares when the SAME
+    method fails on both sides (a method may fail on Base for one reason
+    and on Head for a different one; that distinct head-side failure must
+    not be masked by the Base failure).
+    """
+    import defusedxml.ElementTree as ElementTreeDefused
+
+    report = _surefire_report(app_dir, test_class)
+    if report is None:
+        return {}
+    try:
+        root = ElementTreeDefused.parse(report).getroot()
+    except (OSError, ElementTreeDefused.ParseError):
+        return {}
+    details: dict[str, str] = {}
+    for case in root.findall("testcase"):
+        name = str(case.get("name", "")).strip()
+        if not name:
+            continue
+        failure = case.find("failure") if case.find("failure") is not None else (
+            case.find("error")
+        )
+        if failure is None:
+            continue
+        parts = [
+            f"type={failure.get('type', '')}",
+            f"message={failure.get('message', '')}",
+        ]
+        text = (failure.text or "").strip()
+        if text:
+            parts.append("stack=" + " ".join(text.splitlines()[:4]))
+        details[name] = " | ".join(p for p in parts if not p.endswith("="))
+    return details
+
+
+def _both_fail_method_groups(
+    base_app: str, head_app: str, test_class: str,
+) -> tuple[list[str], list[str], list[str]] | None:
+    """Per-method split evidence for a both-sides-fail run.
+
+    Returns the (head_only, base_only, both) method groups, or None when
+    the surefire reports cannot supply per-method outcomes (the caller
+    falls back to the collapsed whole-run AMBIGUOUS experiment).
+    """
+    base_outcomes = _test_outcomes(base_app, test_class)
+    head_outcomes = _test_outcomes(head_app, test_class)
+    if not base_outcomes or not head_outcomes:
+        return None
+    return _split_both_fail_groups(base_outcomes, head_outcomes)
+
+
+def _split_entry_digest(
+    *,
+    verdict: str,
+    contract_id: str,
+    method: str,
+    base_status: str,
+    head_status: str,
+    base_run_exit: int | None,
+    head_run_exit: int | None,
+    base_result: dict[str, Any],
+    head_result: dict[str, Any],
+    base_snapshot: dict[str, Any],
+    head_snapshot: dict[str, Any],
+    test_sha: str,
+    base_failure: str = "",
+    head_failure: str = "",
+) -> str:
+    """Deterministic digest for one split differential entry (no timestamps)."""
+    payload = json.dumps({
+        "verdict": verdict,
+        "contract_id": contract_id,
+        "failing_test_method": method,
+        "base_method_status": base_status,
+        "head_method_status": head_status,
+        "whole_run_base_exit": base_run_exit,
+        "whole_run_head_exit": head_run_exit,
+        "base_db_rows": base_snapshot.get("rows", {}),
+        "head_db_rows": head_snapshot.get("rows", {}),
+        "base_test_counts": base_result.get("test_counts", {}),
+        "head_test_counts": head_result.get("test_counts", {}),
+        "test_file_sha256": test_sha,
+        "base_failure": base_failure,
+        "head_failure": head_failure,
+    }, sort_keys=True)
+    return "sha256:" + hashlib.sha256(payload.encode()).hexdigest()
 
 
 def _contract_for_test_method(method_name: str) -> str:

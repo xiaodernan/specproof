@@ -4,11 +4,11 @@
   "cases": 8,
   "head_defects": 7,
   "base_defects": 2,
-  "correctly_attributed": 6,
-  "missed_attribution": 1,
+  "correctly_attributed": 7,
+  "missed_attribution": 0,
   "misattributed_to_head": 0,
   "correctly_not_attributed": 2,
-  "attribution_accuracy_pct": 88.9,
+  "attribution_accuracy_pct": 100.0,
   "formula": "attribution_accuracy_pct = 100 * (correctly_attributed + correctly_not_attributed) / (head_defects + base_defects)",
   "rows": [
     {
@@ -39,7 +39,7 @@
           "head_exit_code": 1
         }
       ],
-      "duration_ms": 196959,
+      "duration_ms": 129950,
       "pipeline_error": ""
     },
     {
@@ -70,7 +70,7 @@
           "head_exit_code": 1
         }
       ],
-      "duration_ms": 184486,
+      "duration_ms": 123671,
       "pipeline_error": ""
     },
     {
@@ -101,7 +101,7 @@
           "head_exit_code": 1
         }
       ],
-      "duration_ms": 180948,
+      "duration_ms": 114667,
       "pipeline_error": ""
     },
     {
@@ -132,7 +132,7 @@
           "head_exit_code": 1
         }
       ],
-      "duration_ms": 179277,
+      "duration_ms": 113563,
       "pipeline_error": ""
     },
     {
@@ -163,7 +163,7 @@
           "head_exit_code": 1
         }
       ],
-      "duration_ms": 166802,
+      "duration_ms": 110518,
       "pipeline_error": ""
     },
     {
@@ -194,7 +194,7 @@
           "head_exit_code": 0
         }
       ],
-      "duration_ms": 349678,
+      "duration_ms": 110128,
       "pipeline_error": ""
     },
     {
@@ -223,7 +223,7 @@
           "head_exit_code": 0
         }
       ],
-      "duration_ms": 214391,
+      "duration_ms": 114627,
       "pipeline_error": ""
     },
     {
@@ -238,25 +238,31 @@
       "base_defects": [
         "UNIQUE-01"
       ],
-      "correctly_attributed": 0,
-      "missed_attribution": 1,
-      "missed_detail": [
-        "EVENT_ONCE-01: no finding produced"
-      ],
+      "correctly_attributed": 1,
+      "missed_attribution": 0,
+      "missed_detail": [],
       "misattributed_to_head": 0,
       "misattributed_contracts": [],
       "correctly_not_attributed": 1,
-      "confirmed_contracts": [],
+      "confirmed_contracts": [
+        "EVENT_ONCE-01"
+      ],
       "not_attributed_contracts": [],
       "diff_results": [
         {
-          "contract_id": "AUTH-01",
+          "contract_id": "UNIQUE-01",
+          "verdict": "UNEXPECTED_FIX",
+          "base_exit_code": 1,
+          "head_exit_code": 0
+        },
+        {
+          "contract_id": "EVENT_ONCE-01",
           "verdict": "AMBIGUOUS",
           "base_exit_code": 1,
           "head_exit_code": 1
         }
       ],
-      "duration_ms": 191118,
+      "duration_ms": 111570,
       "pipeline_error": ""
     }
   ]

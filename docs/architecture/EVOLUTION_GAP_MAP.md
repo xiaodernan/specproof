@@ -42,7 +42,7 @@
 | 项 | 状态 | 缺口 |
 |---|---|---|
 | Golden/holdout/负样本/跨语言/攻击样本分层 | ◐ | golden 100 ✅ = 100.0% (63/63, FP 0; docs/eval/eval-100-segments.md)/负样本 ✅/攻击 20 ✅/holdout ✅; 跨语言 ⏳ (aider polyglot 1/3=33.3% 已立 W98; 样本扩展待) |
-| Recall/Precision/归因/回放/成本/延迟/恢复率原始结果 | ◐ | 回放率 ✅ 100.0% (25/25); 归因准确率 ◐ 88.9% (8 案例集实测, Go/No-Go #3 PARTIAL, att-08 修复在途); 成本 ⏳ (每作业成本会计未建) |
+| Recall/Precision/归因/回放/成本/延迟/恢复率原始结果 | ◐ | 回放率 ✅ 100.0% (25/25); **归因准确率 ✅ 100.0% (W182: att-08 both-fail 拆分+失败签名差异化归因修复后实测 7/7, Go/No-Go #3 PASS)**; 成本 ✅ 机制 (W171 bench_cost, 门槛仍 PENDING 待真实账单) |
 | 用量账本可重建/配额可解释 | ✅ W40 | — |
 | 恢复演练 + 安全响应演练 | ✅ | W89 DRILLS 已执行: Drill1 真实 kill/Drill2 provider outage 真实 (3× APITimeoutError, breaker open, degrade_reasons)/Drill4 outbox 崩溃→exactly-once/Drill3 安全桌面推演 9 可执行 4 需开发 (docs/operations/DRILLS.md) |
 | 对外材料只用证实数字 | ✅ | — |
@@ -82,7 +82,7 @@ providers/retrieval/craft: 统一网络客户端+日志脱敏 ◐ · 检索结�
 ## D. 待派队列 (按优先级, 2026-08-20 复核)
 1. run_static_checks 检查器注册表+兼容矩阵
 2. build_matrix 完整行字段+纯函数
-3. ✅ 独立归因准确率指标已建并实测 88.9% (Go/No-Go #3 PARTIAL; att-08 both-fail 归因修复在途)
+3. ✅ 独立归因准确率指标已建并实测 **100.0%** (W182 att-08 both-fail 拆分+失败签名差异化归因修复; Go/No-Go #3 PASS)
 4. 生产试点 (3 仓库 2 周)
 5. 自动 RUNNING-job 回收器 + WAITING_FOR_PROVIDER 接线
 6. 跨语言案例样本 (TS/Go; Python ✅ W78/W105)
