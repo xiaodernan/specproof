@@ -86,6 +86,22 @@ W143 hardening (real eval evidence docs/eval/swebench-llm-results-v6.json):
   'unverifiable' failure that never enters the diagnose loop — no stuck
   increment, never a fake pass.
 
+W156 hardening (real eval evidence docs/eval/swebench-llm-results-v9.json):
+- test-step scoping + collection tolerance (flask-4045 STUCK s3): in the
+  LLM path the test_green step runs pytest scoped to the real workspace
+  test files referenced by the spec (or, failing that, the latest
+  diagnosis) and always with --continue-on-collection-errors, so an
+  unrelated collection error (the old commit's tests/test_cli.py under the
+  modern venv pytest) can no longer abort the whole-suite fallback run.
+  The deterministic path command stays byte-identical.
+- repeated-proposal guard (flask-4992 FAILED s6 迭代预算超限): every
+  validated edit proposal is canonicalized (ops sorted by
+  (action, path, old, new)) and remembered per loop run; an exact repeat
+  fails the step with the stable code [LLM_PROPOSAL_REPEATED] naming the
+  iteration that first attempted it, without executing the repeat or
+  making another LLM call — the budget is preserved for genuinely new
+  attempts.
+
 W35 gate composition + durable job projection: when the M3 self-verify gate
 runs at finish, the full GatePipeline (craft/gates.py, five layered gates)
 runs too and its summary is embedded as report.gates — informational only,
@@ -197,6 +213,22 @@ class _GateError(Exception):
 
 class _LLMFixError(RuntimeError):
     """The model's edit proposal was illegal or was refused by the Editor."""
+
+
+class _ProposalRepeatError(RuntimeError):
+    """A validated edit proposal identical to an earlier one (W156).
+
+    The step fails with the stable code [LLM_PROPOSAL_REPEATED] naming the
+    iteration that first attempted the proposal — the repeat is neither
+    executed again nor sent to the model, so the iteration budget stays
+    available for genuinely new attempts.
+    """
+
+    def __init__(self, first_iteration: int) -> None:
+        super().__init__(
+            f"[LLM_PROPOSAL_REPEATED] 编辑提案与第 {first_iteration} 次迭代的提案完全相同 — "
+            "重复提案不再执行, 也不再发起 LLM 调用 (预算留给真正的新尝试)"
+        )
 
 
 class _AnchorRejectError(Exception):
@@ -462,6 +494,12 @@ def _is_degenerate_assertion_value(value: str) -> bool:
     return all(ch in _PUNCTUATION or ch.isspace() for ch in stripped)
 
 
+#: A repo-path mention naming a test module (test_*.py / *_test.py under any
+#: directory) — W156 uses it to scope the LLM-path pytest run to the test
+#: files the spec / diagnosis actually references.
+_TEST_PATH_MENTION_RE = re.compile(r"[\w./\\-]+(?:test_[\w-]+|[\w-]+_test)\.py")
+
+
 def _normalize_mentioned_path(mentioned: str) -> str:
     """Normalize a mentioned workspace path for matching (W143).
 
@@ -552,6 +590,36 @@ def _parse_edit_ops(data: object) -> tuple[str, list[dict[str, Any]]]:
     if not all(isinstance(op, dict) for op in ops):
         raise _LLMFixError("编辑操作数组的元素必须是 JSON 对象")
     return explanation, ops
+
+
+CanonicalEdit = tuple[str, str, str, str]
+ProposalKey = tuple[CanonicalEdit, ...]
+
+
+def _canonical_proposal(ops: list[dict[str, Any]]) -> ProposalKey:
+    """Canonical form of a validated edit proposal (W156).
+
+    Every op becomes (action, path, old, new) — write_file (or any op
+    missing old/new) contributes an empty string for the absent fields —
+    and the ops are sorted by that 4-tuple, so the same set of edits
+    proposed in a different order compares equal. Only the edit set
+    counts; diagnosis prose is deliberately ignored.
+    """
+    canon: list[CanonicalEdit] = []
+    for op in ops:
+        action = op.get("action")
+        path = op.get("path")
+        old = op.get("old")
+        new = op.get("new")
+        canon.append(
+            (
+                str(action),
+                str(path) if isinstance(path, str) else "",
+                old if isinstance(old, str) else "",
+                new if isinstance(new, str) else "",
+            )
+        )
+    return tuple(sorted(canon))
 
 
 class CraftLoop:
@@ -663,6 +731,13 @@ class CraftLoop:
         # from it so the rebuilt verify criterion can reach files the plan
         # missed (pallets__flask-4992: src/flask/config.py).
         self._last_diagnosis = ""
+        # W156 repeated-proposal guard: canonical form of every validated
+        # edit proposal already attempted this loop run, mapped to the
+        # iteration that first attempted it. An exact repeat fails the step
+        # with the stable code [LLM_PROPOSAL_REPEATED] instead of burning
+        # the whole iteration budget on the same proposal (real evidence:
+        # pallets__flask-4992 FAILED s6 迭代预算超限).
+        self._attempted_proposals: dict[ProposalKey, int] = {}
         # W35 durable job projection (W30 AgentJobStore). store=None keeps the
         # original in-memory behavior; the lease owner is computed at run()
         # time (host:pid:job_id) and must not change within one run.
@@ -904,6 +979,19 @@ class CraftLoop:
                         verdict="progress",
                     )
                     return "FAILED"
+                except _ProposalRepeatError as exc:
+                    state.status = "failed"
+                    reason = str(exc)
+                    state.evidence["reason"] = reason
+                    self._checkpoint(
+                        step_id=step.id,
+                        iteration=attempts,
+                        diagnosis=diagnosis,
+                        edits_applied=[],
+                        build_result=self._result_dict(result),
+                        verdict="progress",
+                    )
+                    return "FAILED"
             else:
                 try:
                     edited = fix(self.editor, step, diagnosis)
@@ -1038,7 +1126,7 @@ class CraftLoop:
                 evidence["error"] = result.error
             return (result.exit_code == 0, evidence, result)
         if criteria.type == "test_green":
-            result = self._exec(["python", "-m", "pytest", "-q"], state)
+            result = self._exec(self._build_test_step_command(), state)
             # 首跑缺口修复: the real stderr tail and the sandbox-level error
             # (spawn failure / venv python missing / timeout) ride the
             # evidence — a failing run_test must never surface as empty.
@@ -1183,6 +1271,62 @@ class CraftLoop:
                 "(隐藏测试由评测框架在 craft 后施加, 不做断言校验)"
             )
         return (True, {"check": "grep", "note": note}, None)
+
+    # -- test-step pytest command (W156) ------------------------------------
+
+    def _build_test_step_command(self) -> list[str]:
+        """The test_green pytest command (W156).
+
+        Deterministic path (no LLM client): byte-identical to the pre-W156
+        command. LLM path: --continue-on-collection-errors always, plus
+        scoping to the real workspace test files referenced by the spec /
+        latest diagnosis when any exist (pallets__flask-4045: the problem
+        statement's tests/test_blueprints.py must run instead of the whole
+        suite, whose old-commit tests/test_cli.py fails collection under
+        the modern venv pytest). No referenced file -> the whole suite
+        still runs, but the flag keeps unrelated collection errors from
+        aborting it.
+        """
+        command = ["python", "-m", "pytest", "-q"]
+        if self.client is None:
+            return command
+        command.append("--continue-on-collection-errors")
+        referenced = self._referenced_test_files()
+        if referenced:
+            command.extend(referenced)
+        return command
+
+    def _referenced_test_files(self) -> list[str]:
+        """Real workspace test files the spec or the latest diagnosis
+        references (W156), resolved through the shared suffix resolver.
+
+        Spec references win (the problem statement names the targeted test
+        path); only when the spec names no resolvable test file are the
+        latest-diagnosis references consulted. Only real workspace files
+        are ever returned — a mention that cannot be resolved adds
+        nothing, and an empty result means "run the whole suite".
+        """
+        files = self._workspace_py_files()
+        spec_text = " ".join(
+            [
+                self.spec.title,
+                self.spec.description,
+                *self.spec.acceptance_criteria,
+                self.spec.affected_area_hint,
+            ]
+        )
+        for text in (spec_text, self._last_diagnosis or ""):
+            found: list[str] = []
+            for mention in _TEST_PATH_MENTION_RE.findall(text):
+                cleaned = _normalize_mentioned_path(mention)
+                if not is_test_file_path(cleaned):
+                    continue
+                resolved, _ = _resolve_mentioned_path(cleaned, files)
+                if resolved is not None and resolved not in found:
+                    found.append(resolved)
+            if found:
+                return sorted(found)
+        return []
 
     # -- verify criterion rebuild (W114) ------------------------------------
 
@@ -1481,6 +1625,10 @@ class CraftLoop:
             # rejection fails honestly with the original message.
             anchor_retried = False
             while True:
+                # W156: remember every validated proposal (canonical form);
+                # an exact repeat of an earlier iteration's proposal fails
+                # the step here, before execution or any further LLM call.
+                self._record_proposal(ops)
                 try:
                     edited = self._execute_edit_ops(ops)
                     break
@@ -1513,6 +1661,7 @@ class CraftLoop:
             explanation = raw_explanation if isinstance(raw_explanation, str) else ""
             raw_ops = cached.get("ops")
             ops = raw_ops if isinstance(raw_ops, list) else []
+            self._record_proposal(ops)
             try:
                 edited = self._execute_edit_ops(ops)
             except _AnchorRejectError as reject:
@@ -1583,6 +1732,22 @@ class CraftLoop:
             if path not in edited:
                 edited.append(path)
         return edited
+
+    def _record_proposal(self, ops: list[dict[str, Any]]) -> None:
+        """Canonicalize a validated proposal and reject an exact repeat (W156).
+
+        Every validated proposal attempted by this loop run is remembered;
+        an exact repeat (same canonical edit set, sorted by
+        (action, path, old, new)) raises _ProposalRepeatError carrying the
+        iteration that first attempted it — the caller fails the step with
+        the stable code instead of executing the repeat or calling the
+        model again.
+        """
+        key = _canonical_proposal(ops)
+        previous = self._attempted_proposals.get(key)
+        if previous is not None:
+            raise _ProposalRepeatError(previous)
+        self._attempted_proposals[key] = self.total_iterations
 
     def _anchor_candidates(self, path: str, old: str) -> list[tuple[int, str]]:
         """Up to 3 real candidate anchor lines (numbered) from the target file.
@@ -1728,6 +1893,22 @@ class CraftLoop:
         path = params.get("path")
         if not isinstance(path, str) or not path.strip():
             raise _LLMFixError("信封缺少合法 path")
+        # W156: canonicalize the validated envelope into the shared edit-op
+        # shape so an exact repeat of this proposal is caught next time.
+        if action == "apply_patch":
+            envelope_ops: list[dict[str, Any]] = [
+                {
+                    "action": "apply_edit",
+                    "path": path,
+                    "old": params.get("old"),
+                    "new": params.get("new"),
+                }
+            ]
+        else:
+            envelope_ops = [
+                {"action": "write_file", "path": path, "new": params.get("content")}
+            ]
+        self._record_proposal(envelope_ops)
         return diagnosis, [path]
 
     def _diagnose_context(
