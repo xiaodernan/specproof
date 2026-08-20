@@ -1,5 +1,7 @@
 # SpecCraft 商业化终极计划书 — 逐条差距审计与执行映射 (AGENT_PLAN_GAP_AUDIT)
 
+> 更新: 2026-08-20 最终复核
+
 审计日期: 2026-08-18 · 依据: docs/代码开发Agent商业化终极计划书.md (1005 行, 已逐条通读)
 原则: 每条要求 → 现状(证据) → 差距 → 行动车道; 数字来自真实运行; 持续更新。
 
@@ -17,8 +19,8 @@
 | 8 | Web 任务向导/计划审阅/实时工具流/审批/Diff | ✅ 已完成 (U 车道 2026-08-18): api/routes/agent_console.py 8 端点 (POST /agent/jobs · GET list/detail · cancel · approve(plan/step/gate) · approvals · events SSE(Last-Event-ID 重放+终态 done 自动关闭) · 结构化 diff(unified/split 行号 hunks); 持久化走 storage/agent_jobs.py (W30 投影/租约/cancel; SPECPROOF_AGENT_JOBS_URL 选后端), 控制台态(元数据/事件/审批/bundle)进程内 _ConsoleState; 状态映射 PLANNING/AWAITING_APPROVAL→pending, EXECUTING→running, COMPLETED→succeeded; apps/web Agent 工作台 20 路由 (4 步任务向导/状态时间线/计划+步骤审阅/实时工具流/事件日志/编辑/门禁/统一+分栏 Diff/任务审批/审批收件箱+详情/设置); tests/unit/test_agent_console_api.py 27 测试 (TestClient 无 Docker); 前端 vitest 26 测试 (6 文件); 门禁 ruff/mypy strict/bandit/pytest + npm build/typecheck/test 全绿 | 完成; 后续: 真 Worker 事件接线 (craft loop 与 _ConsoleState 对接) |
 | 9 | 只读 Explorer/Test/Security 并行 (不共写同文件) | ✅ 已完成 (W34 车道 2026-08-19): craft/agents.py ParallelRunner (asyncio.gather 真并发, max_agents=8); 派发层只读强制 — ReadonlyToolSurface.call 拒绝任何注册 risk≠readonly 工具 (apply_patch/create_file/run_* 结构性不可能) + 每代理 allowlist; validate() 启动前 fail-closed 拒绝: 非只读/未知工具、重名、N>上限、空集合、写集合重叠 (路径归一化); 每代理 wall-clock 超时 (asyncio.wait_for→timed_out) + 预算经 AgentContext.budget 透传 + 单代理崩溃隔离 (error outcome, 其余继续); 单测实证: 双 0.2s 慢代理墙钟 <0.35s (真重叠 < 串行和 0.4s) / 非只读工具 allowlist 启动前拒 / 重叠写集拒·不相交收 / 崩溃隔离 / 超时隔离+预算透传+超额记录; tests/unit/test_craft_agents.py 21 测试 | 完成; 后续: 与 GatePipeline 组合成并行侦察→门禁工作流; LLM 执行器接线 (注入式 callable, 已留) |
 | 10 | 50 代码任务+20 对抗+10 恢复+10 审批 评测集 | ✅ 本轮完成 (V 车道): 90 任务全部落盘 bench/ (50 代码含 legacy 10 + 20 对抗 + 10 断点恢复 + 10 危险动作审批); scripts/bench_gen_tasks.py 数据表驱动生成 (幂等, --check 无漂移, 生成时经 craft spec schema/Plan/compile 校验); 运行器 --category {all,code,adversarial,recovery,approval,legacy} 分栏汇总; 确定性全量实测 docs/eval/agent-task-suite.md: 代码 98.0% (49/50), 陷阱拦截 21/21, 对抗拦截 20/20, 恢复 10/10, 审批拒绝 10/10 违规 0; legacy 输出与旧 craft-microbench.md 兼容 (90.0% 复现) | 后续: 审批服务上线后升级审批口径 (APPROVAL_REFUSED → 真实审批门两分支); LLM 档待测 (--llm 需 LLM_API_KEY, 无 key 诚实拒绝) |
-| 11 | OIDC/租户/RBAC/审计/配额 | ✅ 身份/RBAC/OIDC 完成 (W37): sp_* 本地 Token (bcrypt+HMAC, 展示一次) + OIDC JWKS RS256 统一 principal {user_id,tenant_id,roles,scopes}; 4 角色×4 资源 RBAC 矩阵; repository 层 scoped SQL 租户过滤; 跨租户 404+审计 (attempted_tenant); 迁移 0005 成对 up/down; 前端登录/租户切换/用户+Token 管理页; 168 测试 (兼容 124+新增 44) 队长复跑全绿 + 前端 typecheck/31/build 全绿; 详情 docs/api/auth/README.md + MULTI_TENANT_DESIGN.md | 配额 (usage_ledger) → 阶段 6 (BILLING_DESIGN.md 设计定稿); SAML 阶段2+; live-MySQL 迁移验证 (集成车道) |
-| 12 | GitHub/GitLab PR 自动化, IDE, MCP 客户端, 计费, 私有化 | 计费 ✅ (W40: 账本/配额/发票, 见工业化阶段6); GitHub App+fix PR ✅, MCP 服务端 ✅ | IDE 插件 (M6 残留); MCP 客户端; GitLab; 私有化 (阶段5, 本地态后议) |
+| 11 | OIDC/租户/RBAC/审计/配额 | ✅ 身份/RBAC/OIDC 完成 (W37): sp_* 本地 Token (bcrypt+HMAC, 展示一次) + OIDC JWKS RS256 统一 principal {user_id,tenant_id,roles,scopes}; 4 角色×4 资源 RBAC 矩阵; repository 层 scoped SQL 租户过滤; 跨租户 404+审计 (attempted_tenant); 迁移 0005 成对 up/down; 前端登录/租户切换/用户+Token 管理页; 168 测试 (兼容 124+新增 44) 队长复跑全绿 + 前端 typecheck/31/build 全绿; 详情 docs/api/auth/README.md + MULTI_TENANT_DESIGN.md | 配额 ✅ (W40 账本/配额/发票); SAML 阶段2+; OIDC logout ⏳ (DRILLS 4 需开发); live-MySQL 迁移验证 (集成车道) |
+| 12 | GitHub/GitLab PR 自动化, IDE, MCP 客户端, 计费, 私有化 | 计费 ✅ (W40: 账本/配额/发票, 见工业化阶段6) + 前端计费路由 ✅ (W101); GitHub App+fix PR ✅, MCP 服务端 ✅ | IDE 插件 (M6 残留); MCP 客户端; GitLab; 私有化 (阶段5, 本地态后议); 每作业成本会计 ⏳ |
 
 ## B. M0-M11 里程碑现状映射
 
@@ -26,7 +28,7 @@
 |---|---|---|
 | M0 现状冻结 | ✅ 大部分 (craft 基线/10 任务基准/边界文档) | 统一 Schema ✅ (任务1, craft/schemas.py) |
 | M1 工具协议执行器 | 部分 (editor/executor 白名单) | 注册表+信封 ✅ (任务2); 批准服务持久化待 M4 |
-| M2 仓库理解 | 部分 (BM25+向量+图谱) | 规则摄取 ✅ (任务4, craft/rules.py); 检索消融 S/L 车道在途 |
+| M2 仓库理解 | 部分 (BM25+向量+图谱) | 规则摄取 ✅ (任务4, craft/rules.py); 检索消融 ⏳ (本轮事实清单无落地证据) |
 | M3 稳定计划循环 | ✅ 大部分 (DAG/checkpoint/预算/STUCK/暂停恢复) | MySQL 投影 ✅ (任务3, storage/agent_jobs.py, 55 测试) |
 | M4 代码编辑跨语言 | 部分 (唯一匹配编辑; Q 在做执行适配器) | stale 保护 ✅ (任务6, digest+STALE_CONTEXT+改动分类); AST 编辑/结构化 Diff 待 |
 | M5 SpecProof 闭环 | ✅ accept 强制闭环已实现 (W35, craft/accept.py 775 行: 工作区守卫→五道门禁 FAIL⇒STOP+回滚→真实 agent-graph 验证→VERIFIED⇒Merge Certificate+lineage+Ed25519 (fail-closed)→其余回滚+拒绝; 幂等键; loop 接线 report.gates; CLI craft accept exit 0/1/2; 15+7 新测试, craft 扫 360 绿, 队长复跑全绿; E2E 真实跑: 门禁 5/5 过→真实 graph 判定→BLOCKED+回滚+拒绝 实测; VERIFIED 路径需 Java demo+maven 手动步骤已留) | VERIFIED 路径真实 E2E (Spring demo, 手动步骤已文档化); 终态投影 ✅ (W35.1 attach_accept_result: 终态限定+首写胜出幂等+三后端一致+旧库自动补列; 11 新测试, 104 定向绿, 队长复跑; CLI 实测 BLOCKED 投影落库) |
@@ -45,7 +47,7 @@
 | 断点恢复任务恢复率 | 100% | 100% (10/10 RECOVERED, craft resume 续跑 + judge 幂等检查) ✅ |
 | 危险动作误执行率 | 0 | 0 (10/10 APPROVAL_REFUSED: 危险动作零执行 + 审批门拒绝记录在案, 违规 0) ✅ |
 | 编辑成功率 / stale 覆盖 0 | 98% / 0 | 未量化 (R 车道补) |
-| Worker 恢复率 | ≥99.9% | 未量化 (评测集断点恢复 ≠ 生产 Worker 恢复率) |
+| Worker 恢复率 | ≥99.9% | 真实 kill 演练 ✅ (W89 Drill1: 6 检查点 → 9.09s resume → BLOCKED=control); ≥99.9% 长期统计仍未量化 ⏳ |
 | 预算超限进入终态 | 100% | ✅ (M1 实测 FAILED/EXPIRED/STUCK 语义) |
 
 ## D. 本轮执行
@@ -59,7 +61,7 @@
 4. R 车道: craft/schemas.py + tools.py 注册表 + rules.py 摄取 + editor stale-digest
    (任务 1/2/4/6) — ✅ 已完成: 4 个新模块 + editor/loop/llm 接线, 新增 102 测试全绿,
    既有 craft 134 测试回归全绿, ruff/mypy/bandit 全绿 (详见上表 1/2/4/6 行证据)。
-5. 其余 (8/9/11/12) 按依赖顺序推进, 每轮更新本表。
+5. 其余 (8/9/11/12) ✅ 已落地并回填上表 (8: W31 工作台; 9: W34 并行只读子代理; 11: W37 身份/RBAC/OIDC + W40 配额 + W110 租户中间件修复; 12: W40 计费+GitHub App+MCP 服务端 + W101 计费路由)。
 6. W30 任务3: 持久化 agent_jobs 投影/取消/租约 — ✅ 已完成: storage/agent_jobs.py
    (协议+三后端, 原子租约, cancel 胜出租约) + tests/unit/test_agent_jobs.py 55 用例全绿 +
    MySQL 集成测试 MYSQL_URL 门控; 门禁 ruff/mypy strict/bandit/pytest 全绿 (证据见上表第 3 行与 M3 行)。
