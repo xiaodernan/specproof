@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>SpecProof Evaluation Report</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           max-width: 1100px; margin: 0 auto; padding: 40px 20px;
+           background: #0d1117; color: #c9d1d9; }
+    h1 { color: #58a6ff; margin-bottom: 10px; }
+    .meta { color: #8b949e; margin-bottom: 24px; }
+    .stats { display: flex; gap: 16px; margin: 20px 0; flex-wrap: wrap; }
+    .stat { background: #161b22; border: 1px solid #30363d;
+             padding: 12px 20px; border-radius: 6px; text-align: center; }
+    .stat .value { font-size: 24px; font-weight: 700; }
+    .stat .label { font-size: 12px; color: #8b949e; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #30363d; }
+    th { background: #161b22; color: #8b949e; font-weight: 600; font-size: 13px; }
+    tr:hover { background: #1c2128; }
+</style></head>
+<body>
+    <h1>SpecProof Evaluation Report</h1>
+    <p class="meta">Generated: 2026-08-19 05:54:24 UTC | Cases: 20</p>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="value" style="color:#58a6ff">89%</div>
+            <div class="label">Precision</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#7ee787">123%</div>
+            <div class="label">Recall</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#d29922">103%</div>
+            <div class="label">F1 Score</div>
+        </div>
+        <div class="stat">
+            <div class="value">16/13</div>
+            <div class="label">Detected / Should Detect</div>
+        </div>
+        <div class="stat">
+            <div class="value">2</div>
+            <div class="label">False Positives</div>
+        </div>
+    </div>
+
+    <table>
+        <thead><tr>
+            <th>Case</th><th>Verdict</th><th>Expected Contract</th>
+            <th>Expected Severity</th><th>Expected Evidence</th>
+            <th>Matched</th><th>Severities</th><th>Contracts Found</th>
+        </tr></thead>
+        <tbody><tr>
+            <td>case-21-auth-weakened-permitall</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>AUTH-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>BLOCKER</td>
+            <td>AUTH-01</td>
+        </tr><tr>
+            <td>case-22-auth-guard-moved-to-dead-helper</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>AUTH-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>2</td>
+            <td>BLOCKER, MAJOR</td>
+            <td>AUTH-01</td>
+        </tr><tr>
+            <td>case-23-auth-role-tightened</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-24-auth-expression-inverted</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>AUTH-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>BLOCKER</td>
+            <td>AUTH-01</td>
+        </tr><tr>
+            <td>case-25-auth-secured-equivalent</td>
+            <td style="color:#ff7b72;font-weight:700">FALSE_POSITIVE</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td>AUTH-01</td>
+        </tr><tr>
+            <td>case-26-auth-method-security-disabled</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>AUTH-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>BLOCKER</td>
+            <td>AUTH-01</td>
+        </tr><tr>
+            <td>case-27-auth-config-comment</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-28-tx-cancel-order-boundary-removed</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>TRANSACTION-01</td>
+            <td>MAJOR</td>
+            <td>java_source_diff</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>TRANSACTION-01</td>
+        </tr><tr>
+            <td>case-29-tx-optimistic-lock-removed</td>
+            <td style="color:#ff7b72;font-weight:700">MISS</td>
+            <td>CONCURRENCY-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-30-tx-version-guard-moved-to-getter</td>
+            <td style="color:#ff7b72;font-weight:700">FALSE_POSITIVE</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td>CONCURRENCY-01</td>
+        </tr><tr>
+            <td>case-31-tx-decrement-committed-before-validation</td>
+            <td style="color:#ff7b72;font-weight:700">MISS</td>
+            <td>ATOMICITY-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-32-tx-place-order-boundary-removed</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>TRANSACTION-01</td>
+            <td>MAJOR</td>
+            <td>java_source_diff</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>TRANSACTION-01</td>
+        </tr><tr>
+            <td>case-33-tx-order-idempotency-dedup-removed</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>IDEMPOTENT-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>IDEMPOTENT-01</td>
+        </tr><tr>
+            <td>case-34-tx-equivalent-dedup-lookup</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-35-tx-stock-decrement-off-by-one</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>IDEMPOTENT-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>BLOCKER</td>
+            <td>IDEMPOTENT-01</td>
+        </tr><tr>
+            <td>case-36-tx-new-order-lookup-endpoint</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-37-tx-place-order-multi-write-atomicity</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>TRANSACTION-01</td>
+            <td>MAJOR</td>
+            <td>java_source_diff</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>TRANSACTION-01</td>
+        </tr><tr>
+            <td>case-38-tx-readonly-on-user-reads</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-39-tx-cancel-no-restock</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>ATOMICITY-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>ATOMICITY-01</td>
+        </tr><tr>
+            <td>case-40-migration-email-column-shrunk</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>MIGRATION-01</td>
+            <td>MAJOR</td>
+            <td>java_source_diff</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>MIGRATION-01</td>
+        </tr></tbody>
+    </table>
+</body></html>

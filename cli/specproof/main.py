@@ -21,6 +21,7 @@ if str(_project_root) not in sys.path:
 from cli.specproof.commands.baseline import baseline_cmd  # noqa: E402
 from cli.specproof.commands.contract import contract_cmd  # noqa: E402
 from cli.specproof.commands.craft import craft_cmd  # noqa: E402
+from cli.specproof.commands.devtools import devtools_cmd  # noqa: E402
 from cli.specproof.commands.eval import eval_cmd  # noqa: E402
 from cli.specproof.commands.fix import approve_cmd, fix_cmd  # noqa: E402
 from cli.specproof.commands.mcp import mcp_cmd  # noqa: E402
@@ -45,6 +46,7 @@ cli.add_command(baseline_cmd)
 cli.add_command(fix_cmd)
 cli.add_command(approve_cmd)
 cli.add_command(mcp_cmd)
+cli.add_command(devtools_cmd)
 
 
 if __name__ == "__main__":

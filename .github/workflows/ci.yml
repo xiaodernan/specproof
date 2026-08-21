@@ -22,6 +22,24 @@ jobs:
       - name: Mypy (strict)
         run: python -m mypy .
 
+  # §8.1 / §14-4: OpenAPI schema diff gate. The baseline is committed at
+  # docs/openapi/baseline.json; intentional API changes must update it in
+  # the same PR (scripts/openapi_diff.py --update), everything else fails
+  # the job with the added/removed/changed endpoint report.
+  openapi-schema-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: OpenAPI schema diff gate
+        run: python scripts/openapi_diff.py docs/openapi/baseline.json
+
   security:
     runs-on: ubuntu-latest
     steps:

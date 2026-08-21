@@ -5,9 +5,15 @@ Each case runs the FULL verification pipeline against its own scenario refs
 (scenario.json), with the LLM disabled by default so numbers are
 reproducible. Findings are matched against ground truth by contract id.
 Worktrees created by the pipeline are cleaned up after each case.
+
+Each case record carries duration_ms: whole-pipeline wall clock measured
+around the graph invocation. The Phase 0 graph exposes no per-stage
+timestamps, so timings are honest at the case level only (SLO stats are
+computed by scripts/bench_latency.py).
 """
 import json
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -136,10 +142,15 @@ def eval_cmd(
         state["app_dir"] = "demo/spring-backend"
 
         final: dict[str, Any] = {}
+        # Case-level timing: wall clock around the whole pipeline. The graph
+        # exposes no per-stage timestamps, so duration_ms is honest at the
+        # case level only (see scripts/bench_latency.py).
+        started_at = time.perf_counter()
         try:
             final = graph.invoke(state)
         except Exception as exc:  # noqa: BLE001
             click.echo(f"  WARNING: pipeline failed for {case_dir.name}: {exc}")
+        duration_ms = max(0, round((time.perf_counter() - started_at) * 1000))
 
         findings = final.get("confirmed_findings", [])
 
@@ -190,6 +201,7 @@ def eval_cmd(
             "case": case_dir.name,
             "verdict": verdict,
             "should_detect": should_detect,
+            "duration_ms": duration_ms,
             "expected_severity": gt.get("expected_severity"),
             "expected_evidence": expected_evidence,
             "matched_findings": len(matched),
@@ -199,7 +211,7 @@ def eval_cmd(
         })
         click.echo(
             f"  [{verdict}] matched {len(matched)} finding(s), "
-            f"contracts found: {contracts_found}"
+            f"contracts found: {contracts_found} ({duration_ms} ms)"
         )
 
         _cleanup_worktrees(repo_resolved, final)
@@ -248,6 +260,11 @@ def eval_cmd(
                 "precision": precision,
                 "recall": recall,
                 "f1": f1,
+                "timing_note": (
+                    "Per-case duration_ms is whole-pipeline wall clock measured "
+                    "around the graph invocation; the Phase 0 graph exposes no "
+                    "per-stage timestamps, so stage-level timings are not available."
+                ),
                 "cases": results,
             },
             indent=2,

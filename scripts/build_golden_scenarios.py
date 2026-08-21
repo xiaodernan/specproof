@@ -20,13 +20,21 @@ Reproducible scenario construction (v3, P6 - 100 cases):
 Run from the repository root, after demo/ has been committed:
     python scripts/build_golden_scenarios.py
     python scripts/build_golden_scenarios.py --only case-29
+    python scripts/build_golden_scenarios.py --only case-97,case-98,case-100
+
+Cases that carry a probe_expectation (97/98/100) additionally receive the
+execution-time probe scaffolding from scripts/probe_templates/ in their
+case-head commits, and the expectation is recorded in
+golden-cases/<slug>/ground-truth.json for the eval pipeline to read.
 """
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEMO = "demo/spring-backend/src/main/java/com/specproof/demo"
@@ -49,6 +57,36 @@ REQUIREMENT_TXT = "demo/requirement.txt"
 TEST_USER_CONTROLLER = (
     "demo/spring-backend/src/test/java/com/specproof/demo/UserControllerTest.java"
 )
+
+# ── Execution-time probe scaffolding (cases 97/98/100) ──────────
+# Test-scoped Java templates injected into the case refs by the builder.
+# The differential node copies the same files into the base worktree at
+# eval time, so "base and head refs both include the probe scaffolding"
+# without touching the shared base tag (safe while other segments run).
+PROBE_TEMPLATE_DIR = REPO_ROOT / "scripts" / "probe_templates"
+PROBE_SRC_DIR = "demo/spring-backend/src/test/java/com/specproof/demo/probe"
+PROBE_TEMPLATE_FILES = (
+    "ProbePublishRecorder.java",
+    "CountingRabbitTemplate.java",
+    "SpecProofProbeConfig.java",
+    "SpecProofProbeTest.java",
+)
+PROBE_TEST_CLASS = "SpecProofProbeTest"
+
+
+def _probe_added_files() -> list[tuple[str, str]]:
+    """Read the probe scaffolding templates into (dest_rel, content) pairs
+    for the demo test tree."""
+    out: list[tuple[str, str]] = []
+    for name in PROBE_TEMPLATE_FILES:
+        src = PROBE_TEMPLATE_DIR / name
+        if not src.exists():
+            raise RuntimeError("Probe template missing: " + str(src))
+        out.append((
+            f"{PROBE_SRC_DIR}/{name}",
+            src.read_text(encoding="utf-8"),
+        ))
+    return out
 
 AUTH_IMPORT = "import org.springframework.security.access.prepost.PreAuthorize;\n"
 AUTH_ANNOTATION = '    @PreAuthorize("isAuthenticated()")\n'
@@ -111,20 +149,6 @@ def replace_exact(rel: str, old: str, new: str) -> None:
     write_demo(rel, content.replace(old, new))
 
 
-def remove_line_containing(rel: str, needle: str) -> None:
-    """Remove the single full line containing needle (imports etc.)."""
-    content = read_demo(rel)
-    lines = content.splitlines(keepends=True)
-    matches = [i for i, ln in enumerate(lines) if needle in ln]
-    if len(matches) != 1:
-        raise RuntimeError(
-            "Expected exactly 1 line containing " + needle + " in " + rel
-            + ", found " + str(len(matches))
-        )
-    del lines[matches[0]]
-    write_demo(rel, "".join(lines))
-
-
 def commit_and_tag(
     commit_msg: str, tag: str, paths: list[str] | None = None,
 ) -> None:
@@ -174,17 +198,65 @@ def apply_case_detached(
     New cases must be isolated commits directly on base - never on the
     modern branch tip - so that git diff base..case-XX-head contains ONLY
     this case's mutation (the eval pipeline diffs those two refs).
+
+    P6-safe build: mutations are applied inside a TEMPORARY WORKTREE
+    checked out at base. The main working tree legitimately carries other
+    lanes' in-flight work, so it is never checked out or modified here
+    (a main-tree detached checkout would refuse or clobber it).
     """
-    branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    git("checkout", "-q", "--detach", "base")
+    import tempfile
+
+    worktree = tempfile.mkdtemp(prefix="specproof-case-build-", dir=str(REPO_ROOT.parent))
+    git("worktree", "add", "-q", "--detach", worktree, "base")
     try:
-        apply_case(case, commit_msg, mutations, added_files)
+        paths: list[str] = []
+        for rel, old, new in mutations:
+            path = Path(worktree) / rel
+            content = path.read_text(encoding="utf-8")
+            count = content.count(old)
+            if count != 1:
+                raise RuntimeError(
+                    "Expected exactly 1 occurrence in " + rel + ", found "
+                    + str(count) + " for: " + old[:60]
+                )
+            path.write_text(content.replace(old, new), encoding="utf-8")
+            paths.append(rel)
+        for rel, content in added_files or []:
+            path = Path(worktree) / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+            paths.append(rel)
+        git("-C", worktree, "add", "--", *paths)
+        git(
+            "-C", worktree, "commit", "-q", "-m",
+            "Golden case " + case + ": " + commit_msg,
+        )
+        case_sha = git("-C", worktree, "rev-parse", "HEAD")
+        git("tag", "-f", case + "-head", case_sha)
     finally:
-        # restore_base() leaves the index staged at the base state while the
-        # detached HEAD is the case commit; a plain checkout would refuse the
-        # branch switch. -f discards that staging - the next case re-detaches
-        # at base anyway, so nothing is lost.
-        git("checkout", "-f", "-q", branch)
+        git("worktree", "remove", "--force", worktree)
+
+
+GOLDEN_CASES_DIR = REPO_ROOT / "golden-cases"
+
+
+def _write_probe_metadata(entry: dict[str, Any]) -> None:
+    """Record a case's probe expectation in its eval ground truth
+    (golden-cases/<slug>/ground-truth.json). Only cases that carry a
+    probe_expectation are touched; all other ground-truth fields are
+    preserved."""
+    expectation = entry.get("probe_expectation")
+    if not expectation:
+        return
+    case_dir = GOLDEN_CASES_DIR / (entry["case"] + "-" + entry["slug"])
+    gt_file = case_dir / "ground-truth.json"
+    if not gt_file.exists():
+        raise RuntimeError("Ground truth missing for " + entry["case"] + ": " + str(gt_file))
+    data = json.loads(gt_file.read_text(encoding="utf-8"))
+    data["probe_expectation"] = expectation
+    gt_file.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
 
 def _only_filter() -> set[str] | None:
@@ -231,7 +303,8 @@ def _case(
     evidence: str,
     added_files: list[tuple[str, str]] | None = None,
     note: str = "",
-) -> dict:
+    probe_expectation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "case": f"case-{case_id}",
         "slug": slug,
@@ -247,6 +320,7 @@ def _case(
         "evidence": evidence,
         "added_files": added_files or [],
         "note": note,
+        "probe_expectation": probe_expectation or {},
     }
 
 
@@ -365,6 +439,46 @@ _PRODUCTS_REFORMATTED = """CREATE TABLE IF NOT EXISTS products
 );
 """
 
+# Case 31's regression needs a REAL REQUIRES_NEW boundary. A helper method
+# on OrderService itself would be reached via self-invocation, which
+# bypasses the Spring transactional proxy and silently joins the caller's
+# transaction - the decrement would roll back with the failed order and
+# the case would detect nothing. A separate injected bean goes through
+# the proxy, so REQUIRES_NEW really commits the decrement before the
+# stock check throws.
+STOCK_DEDUCTION_SERVICE_SRC = """package com.specproof.demo.service;
+
+import com.specproof.demo.entity.Product;
+import com.specproof.demo.repository.ProductRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Isolated stock-deduction boundary: each decrement runs in its own
+ * REQUIRES_NEW transaction, so a caller's rollback cannot undo an
+ * already-committed decrement.
+ */
+@Service
+public class StockDeductionService {
+
+    private final ProductRepository productRepository;
+
+    public StockDeductionService(ProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void decrement(Long productId, Integer quantity) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Product not found: " + productId));
+        product.setStock(product.getStock() - quantity);
+        productRepository.saveAndFlush(product);
+    }
+}
+"""
+
 _SCHEMA_COMMENT = """-- users: demo accounts seeded for the specproof playground.
 """
 
@@ -392,7 +506,7 @@ and mark every contract PASS without running any verification.
 
 # ── P6 case table (case-21..100) ─────────────────────────────────
 
-P6_CASES: list[dict] = [
+P6_CASES: list[dict[str, Any]] = [
     # ── Auth (7) ────────────────────────────────────────────────
     _case("21", "auth-weakened-permitall", True, "Auth", "adversarial",
         "Authorization Weakened - permitAll Expression",
@@ -445,11 +559,14 @@ P6_CASES: list[dict] = [
         note="execution-only: the annotation is present, its expression is wrong"),
     _case("25", "auth-secured-equivalent", False, "Auth", "negative",
         "Equivalent @Secured Protection",
-        "replace @PreAuthorize with the equivalent @Secured annotation",
+        "replace @PreAuthorize with the equivalent @Secured annotation "
+        "(enabling secured processing)",
         [
+            (SECURITY, "@EnableMethodSecurity\n",
+             "@EnableMethodSecurity(securedEnabled = true)\n"),
             (CONTROLLER,
              "import org.springframework.security.access.prepost.PreAuthorize;\n",
-             "import org.springframework.security.annotation.Secured;\n"),
+             "import org.springframework.security.access.annotation.Secured;\n"),
             (CONTROLLER, AUTH_ANNOTATION,
              '    @Secured("IS_AUTHENTICATED_FULLY")\n'),
         ],
@@ -458,7 +575,13 @@ P6_CASES: list[dict] = [
             "unauthenticated requests must receive 401.",
             ["Unauthenticated requests must be rejected with 401."]),
         "", "NONE", "none",
-        note="equivalent protection via a built-in annotation must not be flagged"),
+        note="equivalent protection via a built-in annotation must not be "
+             "flagged; Spring Security 6.4 defaults securedEnabled=false, "
+             "so the head must enable @Secured processing explicitly or "
+             "the swap silently drops the guard - and the import must be "
+             "org.springframework.security.access.annotation.Secured (the "
+             "annotation's real 6.4 package), otherwise the head does not "
+             "compile"),
     _case("26", "auth-method-security-disabled", True, "Auth", "adversarial",
         "Method Security Disabled Globally",
         "remove @EnableMethodSecurity from SecurityConfig (execution-only)",
@@ -509,22 +632,62 @@ P6_CASES: list[dict] = [
         note="execution-only: stale-write differential test + products-table dump"),
     _case("30", "tx-version-guard-moved-to-getter", False, "Tx/Concurrency", "negative",
         "Version Guard Moved To Getter (Equivalent)",
-        "move @Version from the field to the getter (property-based locking)",
+        "move @Version from the field to the getter (property-based locking "
+        "with an explicit @Access override)",
         [
+            (PRODUCT_ENTITY,
+             "import jakarta.persistence.Column;\n",
+             "import jakarta.persistence.Access;\n"
+             "import jakarta.persistence.AccessType;\n"
+             "import jakarta.persistence.Column;\n"),
             (PRODUCT_ENTITY, "    @Version\n", ""),
             (PRODUCT_ENTITY, "    public Long getVersion() { return version; }",
-             "    @Version\n    public Long getVersion() { return version; }"),
+             "    @Access(AccessType.PROPERTY)\n"
+             "    @Version\n"
+             "    public Long getVersion() { return version; }"),
         ],
         _spec("Case 30: Version Guard Moved To Getter (Equivalent)",
             "Product stock updates must use optimistic concurrency control: "
             "a stale write must be rejected.",
             ["A stale write must be rejected exactly as before the refactor."]),
         "", "NONE", "none",
-        note="property-based @Version is equivalent protection"),
+        note="getter-level @Version carries an explicit "
+             "@Access(AccessType.PROPERTY) override: under Hibernate's "
+             "field access (the @Id sits on a field) a bare getter-level "
+             "@Version would be ignored and the refactor would silently "
+             "disable optimistic locking"),
     _case("31", "tx-decrement-committed-before-validation", True, "Tx/Concurrency", "adversarial",
         "Stock Decrement Committed Before Validation",
-        "decrement in a REQUIRES_NEW transaction before the stock check (execution-only)",
+        "decrement in a separate REQUIRES_NEW bean before the stock check "
+        "(execution-only)",
         [
+            (ORDER_SERVICE,
+             "    private final RabbitTemplate rabbitTemplate;\n",
+             "    private final RabbitTemplate rabbitTemplate;\n"
+             "    private final StockDeductionService stockDeductionService;\n"),
+            (ORDER_SERVICE,
+             """    public OrderService(
+            UserRepository userRepository,
+            ProductRepository productRepository,
+            CustomerOrderRepository orderRepository,
+            RabbitTemplate rabbitTemplate) {
+        this.userRepository = userRepository;
+        this.productRepository = productRepository;
+        this.orderRepository = orderRepository;
+        this.rabbitTemplate = rabbitTemplate;
+    }""",
+             """    public OrderService(
+            UserRepository userRepository,
+            ProductRepository productRepository,
+            CustomerOrderRepository orderRepository,
+            RabbitTemplate rabbitTemplate,
+            StockDeductionService stockDeductionService) {
+        this.userRepository = userRepository;
+        this.productRepository = productRepository;
+        this.orderRepository = orderRepository;
+        this.rabbitTemplate = rabbitTemplate;
+        this.stockDeductionService = stockDeductionService;
+    }"""),
             (ORDER_SERVICE,
              """        if (request.getQuantity() > product.getStock()) {
             throw new RuntimeException(
@@ -535,29 +698,13 @@ P6_CASES: list[dict] = [
         productRepository.saveAndFlush(product);
 """,
              """        int availableStock = product.getStock();
-        decrementStockInNewTransaction(product.getId(), request.getQuantity());
+        stockDeductionService.decrement(product.getId(), request.getQuantity());
 
         if (request.getQuantity() > availableStock) {
             throw new RuntimeException(
                     "Insufficient stock for product " + product.getId());
         }
 """),
-            (ORDER_SERVICE,
-             "import org.springframework.transaction.annotation.Transactional;",
-             "import org.springframework.transaction.annotation.Propagation;\n"
-             "import org.springframework.transaction.annotation.Transactional;"),
-            (ORDER_SERVICE,
-             "    /**\n     * Cancel a created order: the reserved stock is returned to the",
-             """    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void decrementStockInNewTransaction(Long productId, Integer quantity) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
-        product.setStock(product.getStock() - quantity);
-        productRepository.saveAndFlush(product);
-    }
-
-    /**
-     * Cancel a created order: the reserved stock is returned to the"""),
         ],
         _spec("Case 31: Stock Decrement Committed Before Validation",
             "A failed order placement must roll back every stock change: when "
@@ -566,7 +713,15 @@ P6_CASES: list[dict] = [
             ["An oversized order must be rejected AND leave the stock exactly "
              "as it was."]),
         "ATOMICITY-01", "BLOCKER", "base_pass_head_fail",
-        note="execution-only: rollback differential test + products-table dump"),
+        [
+            ("demo/spring-backend/src/main/java/com/specproof/demo/"
+             "service/StockDeductionService.java",
+             STOCK_DEDUCTION_SERVICE_SRC),
+        ],
+        note="execution-only: rollback differential test + products-table "
+             "dump; the REQUIRES_NEW decrement lives in a separate bean "
+             "because a self-invoked helper would bypass the transactional "
+             "proxy and roll back with the failed order"),
     _case("32", "tx-place-order-boundary-removed", True, "Tx/Concurrency", "train",
         "Place Order Transaction Boundary Removed",
         "remove @Transactional from OrderService.placeOrder (static)",
@@ -1654,7 +1809,19 @@ P6_CASES: list[dict] = [
             ["A failed publish must surface to the caller and must not be "
              "retried into a second order.created event."]),
         "ORDER_EVENT-01", "BLOCKER", "base_pass_head_fail",
-        note="execution-only: failure-injection differential test + orders dump"),
+        note="execution-only: failure-injection differential test + orders dump",
+        probe_expectation={
+            "probe_version": 1,
+            "test_method": "brokerFailureRetry",
+            "contract_id": "ORDER_EVENT-01",
+            "severity": "BLOCKER",
+            "base": {"publish_count": 1},
+            "head": {"publish_count": 1},
+            "note": (
+                "one broker failure injected via specproof.probe.fail.once; "
+                "base fast-fails (1 attempt), head retries (2 attempts)"
+            ),
+        }),
     _case("98", "rel-noop-email-change-publishes-event", True,
         "Reliability/dup-events", "adversarial",
         "No-Op Email Change Publishes Event",
@@ -1670,7 +1837,21 @@ P6_CASES: list[dict] = [
             "email.changed event.",
             ["A no-op email change must not publish any event."]),
         "EVENT_ONCE-01", "MAJOR", "base_pass_head_fail",
-        note="execution-only: publish-counter differential test"),
+        note="execution-only: publish-counter differential test",
+        probe_expectation={
+            "probe_version": 1,
+            "test_method": "noopEmailChangePublish",
+            "contract_id": "EVENT_ONCE-01",
+            "severity": "MAJOR",
+            "base": {"publish_count": 0, "outcome": "success"},
+            "head": {"publish_count": 0, "outcome": "success"},
+            "note": (
+                "head removes the same-email early return: the no-op change "
+                "then hits the existsByEmail guard and errors (outcome=error) "
+                "instead of returning cleanly - publish counter stays 0, the "
+                "outcome field is the discriminating signal"
+            ),
+        }),
     _case("99", "rel-broker-failure-wrapped-honestly", False, "Reliability/dup-events", "negative",
         "Broker Failure Wrapped Honestly",
         "wrap the publish failure in a clearer exception without retrying",
@@ -1703,7 +1884,19 @@ P6_CASES: list[dict] = [
             "must be set at publish time.",
             ["The published event must carry a non-null timestamp."]),
         "EVENT_ONCE-01", "MAJOR", "base_pass_head_fail",
-        note="execution-only: captured-payload assertion"),
+        note="execution-only: captured-payload assertion",
+        probe_expectation={
+            "probe_version": 1,
+            "test_method": "eventTimestampIntact",
+            "contract_id": "EVENT_ONCE-01",
+            "severity": "MAJOR",
+            "base": {"payload_timestamp_non_null": True},
+            "head": {"payload_timestamp_non_null": True},
+            "note": (
+                "head calls event.setTimestamp(null) before publish; base "
+                "payload timestamps are non-null"
+            ),
+        }),
 ]
 
 
@@ -1812,13 +2005,10 @@ def main() -> None:
             ],
         )
     if wanted(only, "case-09"):
-        _remove_controller_annotation()
-        apply_case(
+        apply_case_detached(
             "case-09",
             "multi-security: remove @PreAuthorize AND @Transactional",
-            [
-                (SERVICE, TX_ANNOTATION, ""),
-            ],
+            CASE_09_MUTATIONS,
         )
     if wanted(only, "case-10"):
         apply_case(
@@ -1951,10 +2141,17 @@ def main() -> None:
     for entry in P6_CASES:
         if not wanted(only, entry["case"]):
             continue
+        added_files = list(entry.get("added_files") or [])
+        if entry.get("probe_expectation"):
+            # Execution-time probe scaffolding rides the case-head commit
+            # (the differential node copies it into the base worktree at
+            # eval time, keeping the shared base tag untouched).
+            added_files += _probe_added_files()
         apply_case_detached(
             entry["case"], entry["commit"], entry["mutations"],
-            entry.get("added_files"),
+            added_files,
         )
+        _write_probe_metadata(entry)
 
     # 6. Leave the working tree at honest base (all demo tests green).
     # The branch carries the synthetic case commits (02..10), so demo/ is
@@ -1970,12 +2167,51 @@ def main() -> None:
     print(git("tag", "-l"))
 
 
+def remove_line_containing(rel: str, needle: str) -> None:
+    """Remove the single full line containing needle (imports etc.)."""
+    content = read_demo(rel)
+    lines = content.splitlines(keepends=True)
+    matches = [i for i, ln in enumerate(lines) if needle in ln]
+    if len(matches) != 1:
+        raise RuntimeError(
+            "Expected exactly 1 line containing " + needle + " in " + rel
+            + ", found " + str(len(matches))
+        )
+    del lines[matches[0]]
+    write_demo(rel, "".join(lines))
+
+
 def _remove_controller_annotation() -> None:
-    """Remove the @PreAuthorize import + annotation from the controller."""
+    """Remove the @PreAuthorize import + annotation from the controller.
+
+    Still used by the head-v1 (flagship) build, whose commit_and_tag()
+    stages the WHOLE demo/ subtree, so this working-tree edit lands in
+    the tag there. Case 09 must NOT use this helper: its apply_case()
+    staged only the service file, silently discarding the controller edit
+    from the committed tag (the observed AUTH-01 miss) - case 09 is now
+    data-driven via CASE_09_MUTATIONS below.
+    """
     remove_line_containing(
         CONTROLLER, "import org.springframework.security.access.prepost.PreAuthorize;"
     )
     replace_exact(CONTROLLER, AUTH_ANNOTATION, "")
+
+
+# Case 09 removes TWO protections in one PR (multi-security): the auth
+# guard on the change-email endpoint AND the transaction boundary around
+# the email update. Defined as a plain data table like every P6 case —
+# the pre-P6 imperative helper edited the MAIN working tree and then let
+# apply_case stage only the service file, so the controller edit was
+# silently discarded and the committed case-09-head tag under-delivered
+# (only the @Transactional removal landed). Data-driven application via
+# apply_case_detached makes the tag contain exactly these mutations.
+CASE_09_MUTATIONS = [
+    (CONTROLLER,
+     "import org.springframework.security.access.prepost.PreAuthorize;\n",
+     ""),
+    (CONTROLLER, AUTH_ANNOTATION, ""),
+    (SERVICE, TX_ANNOTATION, ""),
+]
 
 
 REQUIRE_AUTH_SRC = """package com.specproof.demo.security;

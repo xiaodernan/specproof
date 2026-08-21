@@ -1,0 +1,5 @@
+[1/2] pallets__flask-4045 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s3 (verify): 同类错误连续 3 次, 判定 stuck (签名: s3|断言值 'pytest.raises(ValueError)' 未出现在: ['tests/test_blueprints.py'])
+[2/2] pallets__flask-4992 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s4 (verify): 同类错误连续 3 次, 判定 stuck (签名: s4|断言值 'tomllib' 未出现在: ['tests/test_config.py'])
+汇总: total=2 resolved=0 unresolved=2 rate=0.0%
+结果 JSON: docs\eval\swebench-llm-results.json
+日志目录: docs\eval\swebench-logs

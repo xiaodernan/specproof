@@ -1,0 +1,49 @@
+{
+  "manifest_version": "1.0",
+  "id": "com.example.checkers.auth-annotation-audit",
+  "version": "1.2.0",
+  "kind": "checker",
+  "name": "Auth Annotation Audit",
+  "description": "Static checker that reports authentication annotations without a matching session-invalidation path (protocol example only; no runtime behaviour).",
+  "permissions": [
+    "filesystem.read:workspace"
+  ],
+  "input_schema": {
+    "type": "object",
+    "required": ["repository", "base_sha", "head_sha"],
+    "properties": {
+      "repository": {"type": "string"},
+      "base_sha": {"type": "string"},
+      "head_sha": {"type": "string"}
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "required": ["findings"],
+    "properties": {
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["contract_id", "severity", "evidence"],
+          "properties": {
+            "contract_id": {"type": "string"},
+            "severity": {"type": "string", "enum": ["NONE", "MAJOR", "BLOCKER"]},
+            "evidence": {"type": "string"}
+          }
+        }
+      }
+    }
+  },
+  "compatibility": {
+    "specproof": {"min_version": "0.1.0", "max_version": "2.0.0"},
+    "python": {"min_version": "3.12.0"}
+  },
+  "resource_limits": {
+    "memory_mb": 512,
+    "wall_clock_seconds": 300,
+    "max_input_bytes": 1048576,
+    "max_output_bytes": 1048576,
+    "max_file_writes": 0
+  }
+}

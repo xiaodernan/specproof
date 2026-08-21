@@ -529,9 +529,10 @@ class _ProbeReasoningClient:
 
 async def test_probe_reasoning_content_capability_detected(monkeypatch):
     import providers.capability_probe as capability_probe
+    import providers.net as providers_net
 
     monkeypatch.setattr(
-        capability_probe.httpx,
+        providers_net.httpx,
         "AsyncClient",
         lambda *a, **k: _ProbeReasoningClient(with_reasoning=True),
     )
@@ -544,9 +545,10 @@ async def test_probe_reasoning_content_capability_detected(monkeypatch):
 
 async def test_probe_reasoning_content_absent_is_honest_false(monkeypatch):
     import providers.capability_probe as capability_probe
+    import providers.net as providers_net
 
     monkeypatch.setattr(
-        capability_probe.httpx,
+        providers_net.httpx,
         "AsyncClient",
         lambda *a, **k: _ProbeReasoningClient(with_reasoning=False),
     )
@@ -576,8 +578,9 @@ async def test_probe_run_unreachable_gateway_marks_reasoning_false(monkeypatch):
             return httpx.Response(500, request=httpx.Request("POST", url))
 
     import providers.capability_probe as capability_probe
+    import providers.net as providers_net
 
-    monkeypatch.setattr(capability_probe.httpx, "AsyncClient", _UnreachableClient)
+    monkeypatch.setattr(providers_net.httpx, "AsyncClient", _UnreachableClient)
     probe = capability_probe.CapabilityProbe(
         base_url="http://llm.test", api_key=_mock_api_key(), model="deepseek-v4-pro"
     )

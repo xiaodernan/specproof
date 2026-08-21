@@ -19,13 +19,25 @@ class Phase0State(MessagesState):
     spec_path: str
     depth: str  # "FAST" only in Phase 0
     output_dir: str  # where the verification report is written
+    job_id: str  # owning job (object metadata store records it per artifact)
     use_llm: bool  # False = fully deterministic run (eval, CI)
     app_dir: str  # subdirectory inside the repo that holds pom.xml ("" = repo root)
 
     # ── Intermediate ──
     requirement_text: str
     contracts: list[dict[str, Any]]
+    # §14.1: full audit of the compile_contracts run — parser rule version,
+    # LLM participation, rejected candidates, schema errors, degrade
+    # reasons, requirement digest, duration. Channel, not a transient:
+    # downstream reporting reads it to explain a small candidate set.
+    compile_report: dict[str, Any]
     changed_symbols: list[str]
+    # §14.1 collect_diff three scopes: file-level (audit), symbol-level
+    # (retrieval/checkers) and semantic candidates (dynamic experiment +
+    # mutation budget). Unparseable/binary changes stay explicit.
+    changed_files: list[str]
+    semantic_candidates: list[dict[str, Any]]
+    unresolved_changes: list[dict[str, Any]]
     base_workspace: str
     head_workspace: str
     # P2: repository context retrieved from Elasticsearch (symbol chunks)
@@ -60,6 +72,11 @@ class Phase0State(MessagesState):
     # ── Review Court ──
     candidate_findings: list[dict[str, Any]]
     confirmed_findings: list[dict[str, Any]]
+    # §14.1: full audit of every candidate the policy layer saw — including
+    # model-ignored candidates, parse-failure outcomes (never auto-confirmed)
+    # and preexisting-defect downgrades (Base also fails → NOT_ATTRIBUTED /
+    # INFORMATIONAL with the Base/Head comparison recorded).
+    court_audit: list[dict[str, Any]]
 
     # ── Output ──
     matrix: dict[str, Any]
@@ -87,11 +104,16 @@ def initial_state(
         "spec_path": spec_path,
         "depth": depth,
         "output_dir": "reports",
+        "job_id": "",
         "use_llm": True,
         "app_dir": "",
         "requirement_text": "",
         "contracts": [],
+        "compile_report": {},
         "changed_symbols": [],
+        "changed_files": [],
+        "semantic_candidates": [],
+        "unresolved_changes": [],
         "base_workspace": "",
         "head_workspace": "",
         "repo_context": [],
@@ -110,6 +132,7 @@ def initial_state(
         "contract_results": [],
         "candidate_findings": [],
         "confirmed_findings": [],
+        "court_audit": [],
         "matrix": {},
         "capsules": [],
         "certificate": None,

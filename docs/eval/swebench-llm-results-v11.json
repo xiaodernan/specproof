@@ -1,0 +1,369 @@
+{
+  "schema_version": "1.0",
+  "harness": "scripts/bench_swebench.py",
+  "generated_at": "2026-08-20T09:47:37+00:00",
+  "mode": "llm",
+  "dataset": {
+    "kind": "hf-rows-api",
+    "total_loaded": 2,
+    "note": "--tasks N 取数据集顺序前 N 个实例 (不是官方 SWE-bench-Lite 300 例的选取口径; 见 SWEBENCH_PLAN.md)",
+    "dataset": "princeton-nlp/SWE-bench_Lite",
+    "subset": {
+      "path": "scripts\\swebench_subset\\python_subset.json",
+      "requested": 10,
+      "matched": 10
+    }
+  },
+  "run": {
+    "exec_timeout": 300,
+    "max_iterations": 12,
+    "work_root": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-4o5huf_8",
+    "repo_dir": "D:\\UserData\\HUAWEI\\Temp\\specproof-swebench-repos",
+    "logs_dir": "docs\\eval\\swebench-logs",
+    "fix_rules_available": [],
+    "venv": {
+      "python": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-4o5huf_8\\venv\\Scripts\\python.exe",
+      "error": "",
+      "note": "共享 venv + pytest 已就绪 (pytest --version 验证通过)"
+    }
+  },
+  "instances": [
+    {
+      "instance_id": "pallets__flask-4045",
+      "status": "unresolved",
+      "resolved": false,
+      "reason": "craft 未收敛 (STUCK): 步骤 s3 (test): 同类错误连续 3 次, 判定 stuck (签名: [LLM_PROPOSAL_REPEATED] 编辑提案与第 1 次迭代的提案完全相同 — 重复提案不再执行, 也不再发起 LLM 调用 (预算留给真正的新尝试))",
+      "stage": "craft",
+      "repo": "pallets/flask",
+      "base_commit": "d8c37f43724cd9fb0870f77877b7c4c7e38a19e0",
+      "problem_statement_head": "Raise error when blueprint name contains a dot\nThis is required since every dot is now significant since blueprints can be nested. An error was already added for endpoint names in 1.0, but should have been added for this as well.\n",
+      "checkout": {
+        "method": "worktree",
+        "source": "D:\\UserData\\HUAWEI\\Temp\\specproof-swebench-repos\\flask",
+        "base_commit": "d8c37f43724cd9fb0870f77877b7c4c7e38a19e0",
+        "detail": "git worktree add --detach"
+      },
+      "craft": {
+        "result": "STUCK",
+        "mode": "llm",
+        "edits": [
+          "src/flask/blueprints.py"
+        ],
+        "iterations": 5,
+        "seconds": 1412.9,
+        "report_path": "docs\\eval\\swebench-logs\\pallets__flask-4045\\craft\\report.json",
+        "llm_usage": {
+          "available": true,
+          "calls": 7,
+          "timeout_retries": 1,
+          "prompt_tokens": 15067,
+          "completion_tokens": 33442,
+          "reasoning_tokens": 32672,
+          "prompt_cache_hit_tokens": 9856,
+          "prompt_cache_miss_tokens": 5211,
+          "reasoning_journal_entries": 7,
+          "budget": {
+            "limit_tokens": 500000.0,
+            "used": 87377.6,
+            "remaining": 412622.4
+          },
+          "calls_detail": [
+            {
+              "timestamp": "2026-08-20T09:01:35+00:00",
+              "label": "plan",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "plan",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 718,
+              "completion_tokens": 4992,
+              "reasoning_tokens": 4611,
+              "prompt_cache_hit_tokens": 640,
+              "prompt_cache_miss_tokens": 78,
+              "charge": 10463.0
+            },
+            {
+              "timestamp": "2026-08-20T09:02:25+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 2282,
+              "completion_tokens": 2411,
+              "reasoning_tokens": 2344,
+              "prompt_cache_hit_tokens": 640,
+              "prompt_cache_miss_tokens": 1642,
+              "charge": 8743.0
+            },
+            {
+              "timestamp": "2026-08-20T09:03:01+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 2339,
+              "completion_tokens": 1558,
+              "reasoning_tokens": 1516,
+              "prompt_cache_hit_tokens": 640,
+              "prompt_cache_miss_tokens": 1699,
+              "charge": 7176.0
+            },
+            {
+              "timestamp": "2026-08-20T09:08:29+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 2448,
+              "completion_tokens": 8649,
+              "reasoning_tokens": 8583,
+              "prompt_cache_hit_tokens": 2432,
+              "prompt_cache_miss_tokens": 16,
+              "charge": 19939.2
+            },
+            {
+              "timestamp": "2026-08-20T09:10:44+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 2339,
+              "completion_tokens": 8744,
+              "reasoning_tokens": 8601,
+              "prompt_cache_hit_tokens": 2304,
+              "prompt_cache_miss_tokens": 35,
+              "charge": 19949.4
+            },
+            {
+              "timestamp": "2026-08-20T09:24:35+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 2528,
+              "completion_tokens": 6087,
+              "reasoning_tokens": 6059,
+              "prompt_cache_hit_tokens": 2432,
+              "prompt_cache_miss_tokens": 96,
+              "charge": 15013.2
+            },
+            {
+              "timestamp": "2026-08-20T09:25:00+00:00",
+              "label": "diagnose:s3",
+              "job_id": "swebench-pallets__flask-4045",
+              "step_id": "s3",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 2413,
+              "completion_tokens": 1001,
+              "reasoning_tokens": 958,
+              "prompt_cache_hit_tokens": 768,
+              "prompt_cache_miss_tokens": 1645,
+              "charge": 6093.8
+            }
+          ]
+        }
+      },
+      "test_patch": {
+        "applied": false,
+        "error": ""
+      },
+      "fail_to_pass": [],
+      "pass_to_pass": [],
+      "note": "",
+      "logs": {
+        "tests_log": "docs\\eval\\swebench-logs\\pallets__flask-4045\\tests.log"
+      },
+      "llm": {
+        "client": "craft.llm.LLMClient",
+        "model": "deepseek-v4-pro",
+        "base_url": "https://llm-api.fagougou.com",
+        "key_recorded": false
+      },
+      "deps": {
+        "python": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-4o5huf_8\\venv\\Scripts\\python.exe",
+        "venv_error": "",
+        "note": "共享 venv + pytest 已就绪 (pytest --version 验证通过)",
+        "install_marker": "setup.py",
+        "installed": true,
+        "install_error": "",
+        "pins": [
+          "werkzeug<3.0"
+        ]
+      }
+    },
+    {
+      "instance_id": "pallets__flask-4992",
+      "status": "unresolved",
+      "resolved": false,
+      "reason": "craft 未收敛 (STUCK): 步骤 s5 (test): 同类错误连续 3 次, 判定 stuck (签名: [LLM_PROPOSAL_REPEATED] 编辑提案与第 2 次迭代的提案完全相同 — 重复提案不再执行, 也不再发起 LLM 调用 (预算留给真正的新尝试))",
+      "stage": "craft",
+      "repo": "pallets/flask",
+      "base_commit": "4c288bc97ea371817199908d0d9b12de9dae327e",
+      "problem_statement_head": "Add a file mode parameter to flask.Config.from_file()\nPython 3.11 introduced native TOML support with the `tomllib` package. This could work nicely with the `flask.Config.from_file()` method as an easy way to load TOML config files:\r\n\r\n```python\r\napp.config.from_file(\"config.toml\", tomllib.load)\r\n``",
+      "checkout": {
+        "method": "worktree",
+        "source": "D:\\UserData\\HUAWEI\\Temp\\specproof-swebench-repos\\flask",
+        "base_commit": "4c288bc97ea371817199908d0d9b12de9dae327e",
+        "detail": "git worktree add --detach"
+      },
+      "craft": {
+        "result": "STUCK",
+        "mode": "llm",
+        "edits": [
+          "src/flask/config.py"
+        ],
+        "iterations": 6,
+        "seconds": 1198.0,
+        "report_path": "docs\\eval\\swebench-logs\\pallets__flask-4992\\craft\\report.json",
+        "llm_usage": {
+          "available": true,
+          "calls": 7,
+          "timeout_retries": 0,
+          "prompt_tokens": 32800,
+          "completion_tokens": 50977,
+          "reasoning_tokens": 49624,
+          "prompt_cache_hit_tokens": 14336,
+          "prompt_cache_miss_tokens": 18464,
+          "reasoning_journal_entries": 7,
+          "budget": {
+            "limit_tokens": 500000.0,
+            "used": 153298.6,
+            "remaining": 346701.4
+          },
+          "calls_detail": [
+            {
+              "timestamp": "2026-08-20T09:27:12+00:00",
+              "label": "plan",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "plan",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 1006,
+              "completion_tokens": 5083,
+              "reasoning_tokens": 4313,
+              "prompt_cache_hit_tokens": 896,
+              "prompt_cache_miss_tokens": 110,
+              "charge": 10601.6
+            },
+            {
+              "timestamp": "2026-08-20T09:28:02+00:00",
+              "label": "diagnose:s5",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s5",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 5121,
+              "completion_tokens": 1765,
+              "reasoning_tokens": 1663,
+              "prompt_cache_hit_tokens": 640,
+              "prompt_cache_miss_tokens": 4481,
+              "charge": 13094.0
+            },
+            {
+              "timestamp": "2026-08-20T09:30:00+00:00",
+              "label": "diagnose:s5",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s5",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 5193,
+              "completion_tokens": 6508,
+              "reasoning_tokens": 6454,
+              "prompt_cache_hit_tokens": 768,
+              "prompt_cache_miss_tokens": 4425,
+              "charge": 22656.8
+            },
+            {
+              "timestamp": "2026-08-20T09:32:29+00:00",
+              "label": "diagnose:s5",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s5",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 5249,
+              "completion_tokens": 9601,
+              "reasoning_tokens": 9340,
+              "prompt_cache_hit_tokens": 768,
+              "prompt_cache_miss_tokens": 4481,
+              "charge": 28747.8
+            },
+            {
+              "timestamp": "2026-08-20T09:35:30+00:00",
+              "label": "diagnose:s5",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s5",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 5318,
+              "completion_tokens": 11168,
+              "reasoning_tokens": 11115,
+              "prompt_cache_hit_tokens": 768,
+              "prompt_cache_miss_tokens": 4550,
+              "charge": 32227.8
+            },
+            {
+              "timestamp": "2026-08-20T09:37:20+00:00",
+              "label": "diagnose:s5",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s5",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 5595,
+              "completion_tokens": 6585,
+              "reasoning_tokens": 6524,
+              "prompt_cache_hit_tokens": 5248,
+              "prompt_cache_miss_tokens": 347,
+              "charge": 19575.8
+            },
+            {
+              "timestamp": "2026-08-20T09:45:58+00:00",
+              "label": "diagnose:s5",
+              "job_id": "swebench-pallets__flask-4992",
+              "step_id": "s5",
+              "model": "deepseek-v4-pro",
+              "prompt_tokens": 5318,
+              "completion_tokens": 10267,
+              "reasoning_tokens": 10215,
+              "prompt_cache_hit_tokens": 5248,
+              "prompt_cache_miss_tokens": 70,
+              "charge": 26394.8
+            }
+          ]
+        }
+      },
+      "test_patch": {
+        "applied": false,
+        "error": ""
+      },
+      "fail_to_pass": [],
+      "pass_to_pass": [],
+      "note": "",
+      "logs": {
+        "tests_log": "docs\\eval\\swebench-logs\\pallets__flask-4992\\tests.log"
+      },
+      "llm": {
+        "client": "craft.llm.LLMClient",
+        "model": "deepseek-v4-pro",
+        "base_url": "https://llm-api.fagougou.com",
+        "key_recorded": false
+      },
+      "deps": {
+        "python": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-4o5huf_8\\venv\\Scripts\\python.exe",
+        "venv_error": "",
+        "note": "共享 venv + pytest 已就绪 (pytest --version 验证通过)",
+        "install_marker": "pyproject.toml",
+        "installed": true,
+        "install_error": "",
+        "pins": [
+          "werkzeug<3.0"
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "resolved": 0,
+    "unresolved": 2,
+    "resolved_rate_pct": 0.0,
+    "note": "LLM 模式: 真实客户端 (plan/diagnose/edit), 无 fix_registry; resolved 仅当 craft DONE + test_patch 应用成功 + FAIL_TO_PASS/PASS_TO_PASS 全部通过 — harness 口径, 非官方 Docker 口径 (见 SWEBENCH_PLAN.md)"
+  },
+  "llm": {
+    "client": "craft.llm.LLMClient",
+    "model": "deepseek-v4-pro",
+    "base_url": "https://llm-api.fagougou.com",
+    "key_recorded": false
+  }
+}

@@ -1,10 +1,24 @@
 """GitHub webhook ingestion endpoint (P5).
 
-POST /webhooks/github receives GitHub App events. The payload is verified
-(X-Hub-Signature-256, constant-time, fail-closed), then pull_request
-opened/synchronize/ready_for_review events are converted into verification
-jobs through the transactional outbox. Everything else is acknowledged
-(202) without action — idempotent, no duplicate jobs for the same delivery.
+POST /webhooks/github receives GitHub App events. Replay protection, in
+order of application:
+
+1. HMAC verification (X-Hub-Signature-256, constant-time, fail-closed).
+   A sender MAY attach an X-Signature-Timestamp header; its HMAC must
+   then cover b"v0:" + timestamp + b":" + body (see integrations.github)
+   and the timestamp must be within _TIMESTAMP_TOLERANCE_SECONDS of
+   server time, otherwise 401. GitHub itself never sends that header, so
+   GitHub-native deliveries keep the body-only scheme and rely on (2).
+2. Mandatory X-GitHub-Delivery + in-memory dedupe: one business effect
+   per delivery id. Known limitation: the dedupe set is per-process
+   memory and resets on restart; the signed-timestamp window is the
+   durable backstop for senders that sign timestamps.
+3. The business effect is enqueued through the transactional outbox
+   (job + outbox row in one MySQL transaction), so at-least-once
+   redelivery cannot duplicate jobs for the same delivery.
+
+pull_request opened/synchronize/ready_for_review events become
+verification jobs; everything else is acknowledged (202) without action.
 
 NOTE: the endpoint is NOT under the jobs API key. It authenticates via the
 GitHub webhook secret (GITHUB_WEBHOOK_SECRET), a separate credential.
@@ -15,12 +29,15 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
+import time
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 
+from api.errors import AUTH_REQUIRED, PROVIDER_UNAVAILABLE, VALIDATION_FAILED, ApiError
 from storage.mysql import MySQLStore
 
 logger = logging.getLogger(__name__)
@@ -28,6 +45,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 _PROCESSED_EVENTS: dict[str, bool] = {}
+
+#: Replay window for signed timestamps (seconds) — see module docstring.
+_TIMESTAMP_TOLERANCE_SECONDS = 300
 
 
 def _dashboard_job_url(job_id: str) -> str:
@@ -95,21 +115,61 @@ def _delivery_key(delivery_id: str, event: str) -> str:
     return hashlib.sha256((delivery_id + "|" + event).encode()).hexdigest()
 
 
+def _timestamp_outside_tolerance(
+    header_value: str | None, now: float
+) -> str | None:
+    """Return a rejection reason for an out-of-window signed timestamp.
+
+    None means accepted: the header is absent (GitHub never sends it) or
+    the value is within _TIMESTAMP_TOLERANCE_SECONDS of now. Unparseable
+    and non-finite values fail closed.
+    """
+    if header_value is None:
+        return None
+    try:
+        claimed = float(header_value)
+    except ValueError:
+        return "Invalid webhook timestamp"
+    if not math.isfinite(claimed):
+        return "Invalid webhook timestamp"
+    if abs(now - claimed) > _TIMESTAMP_TOLERANCE_SECONDS:
+        return "Webhook timestamp outside tolerance"
+    return None
+
+
 @router.post("/github", status_code=202)
 async def github_webhook(request: Request) -> dict[str, Any]:
     """Verify and ingest a GitHub event (pull_request family)."""
     body = await request.body()
     delivery_id = request.headers.get("X-GitHub-Delivery", "")
     event = request.headers.get("X-GitHub-Event", "")
+    timestamp = request.headers.get("X-Signature-Timestamp")
 
     from integrations.github import verify_signature
 
     try:
-        valid = verify_signature(body, request.headers.get("X-Hub-Signature-256"))
+        valid = verify_signature(
+            body, request.headers.get("X-Hub-Signature-256"), timestamp=timestamp
+        )
     except Exception as exc:  # noqa: BLE001 — config errors fail closed
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise ApiError(
+            status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
+        ) from exc
     if not valid:
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+        raise ApiError(
+            status_code=401, code=AUTH_REQUIRED, detail="Invalid webhook signature",
+        )
+
+    stale = _timestamp_outside_tolerance(timestamp, time.time())
+    if stale is not None:
+        raise ApiError(status_code=401, code=AUTH_REQUIRED, detail=stale)
+
+    if not delivery_id:
+        raise ApiError(
+            status_code=400,
+            code=VALIDATION_FAILED,
+            detail="Missing X-GitHub-Delivery header",
+        )
 
     if event not in ("pull_request",):
         return {"accepted": True, "action": "ignored", "event": event}
@@ -118,14 +178,16 @@ async def github_webhook(request: Request) -> dict[str, Any]:
         payload = json.loads(body)
         action = payload.get("action", "")
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+        raise ApiError(
+            status_code=400, code=VALIDATION_FAILED, detail="Invalid JSON payload",
+        ) from exc
 
     if action not in ("opened", "synchronize", "ready_for_review"):
         return {"accepted": True, "action": "ignored", "event": event, "action_seen": action}
 
     # Delivery idempotency: the same GitHub delivery must never enqueue
     # the same job twice (at-least-once redelivery is expected).
-    dedupe_key = _delivery_key(delivery_id or str(uuid.uuid4()), event)
+    dedupe_key = _delivery_key(delivery_id, event)
     if _PROCESSED_EVENTS.get(dedupe_key):
         return {"accepted": True, "action": "duplicate_delivery"}
 
@@ -149,8 +211,10 @@ async def github_webhook(request: Request) -> dict[str, Any]:
         store = MySQLStore()
         store.create_job_with_outbox(job)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(
-            status_code=503, detail="Job NOT accepted — persistence failed"
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail="Job NOT accepted — persistence failed",
         ) from exc
 
     _maybe_publish_initial_check(

@@ -16,6 +16,12 @@ rides the repo_context channel.
 Honesty contract: when Elasticsearch is unavailable the node records a
 retrieval_note and continues with an empty context — it never fabricates
 retrieved content and never blocks the pipeline on optional infra.
+
+Backlog #10: when the state carries a job_id (worker runs) it is stamped
+on every indexed chunk via the store's optional job_id parameter, so the
+data-lifecycle cleanup (agent.worker.cleanup_job_projection) can delete
+this job's projection with the job record. Runs without a job_id (CLI /
+eval) index unstamped chunks exactly as before.
 """
 
 from __future__ import annotations
@@ -83,11 +89,28 @@ def _query_terms(requirement_text: str) -> str:
     return " ".join(terms[:12]) + " " + _family_augmentation(requirement_text)
 
 
+def _index_job_kwargs(job_id: str | None) -> dict[str, str]:
+    """Keyword args for the ES index calls: job_id only when present.
+
+    Backlog #10: the owning job_id is passed down so the data-lifecycle
+    cleanup (agent.worker.cleanup_job_projection) can delete this job's
+    projection. When there is no job_id (CLI / eval runs) the kwarg is
+    omitted entirely — the store default (None = no stamp, pre-#10
+    document shape) applies and index callers keep their old signature.
+    """
+    return {"job_id": job_id} if job_id else {}
+
+
 def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
     """Index head sources and retrieve requirement-relevant symbols."""
     head_workspace = state.get("head_workspace", "")
     app_dir = state.get("app_dir", "")
     requirement_text = state.get("requirement_text", "")
+    # Backlog #10: stamp indexed chunks with the owning job (worker runs)
+    # so the data-lifecycle cleanup can delete this job's projection. CLI /
+    # eval runs carry an empty or missing job_id and keep the pre-#10
+    # document shape (no stamp, store default None).
+    job_id: str | None = state.get("job_id") or None
 
     if not head_workspace:
         return {
@@ -141,7 +164,8 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
             # RAG 2.0 hybrid path (卷IV 4.2): index with vectors, then
             # BM25 + vector RRF → graph expansion → optional rerank.
             indexed_report = store.index_with_embeddings(
-                repo_key, head_sha, files, embedder
+                repo_key, head_sha, files, embedder,
+                **_index_job_kwargs(job_id),
             )
             outcome = hybrid_search(
                 es=store,
@@ -161,6 +185,11 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
                     "source": h.get("source", "hybrid"),
                     "rank": h.get("rank"),
                     "rrf_score": h.get("rrf_score"),
+                    # §14 provenance: commit + line range of the indexed
+                    # chunk (falls back to the indexed head_sha honestly).
+                    "commit_sha": h.get("commit_sha", head_sha),
+                    "start_line": h.get("start_line"),
+                    "end_line": h.get("end_line"),
                 }
                 for h in outcome.results
             ]
@@ -187,16 +216,18 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
 
         # No embeddings configured: BM25 + symbol graph, exactly the
         # pre-RAG-2.0 behavior (卷IV 4.3 first row, rerank 保序).
-        indexed = store.index_repository(repo_key, head_sha, files)
+        indexed = store.index_repository(
+            repo_key, head_sha, files, **_index_job_kwargs(job_id)
+        )
         hits = store.search_code(repo_key, query)
 
         # Symbol-graph augmentation (deterministic RAG): expand keyword hits
         # into their call neighborhood (callees/callers/siblings) so the
         # contract compiler sees the surrounding verification context.
-        expanded = graph.expand_hits(
-            [{k: h.get(k, "") for k in ("path", "symbol", "content")} for h in hits[:8]],
-            hops=1,
-        )
+        # Raw hit docs are passed through so commit/line provenance survives
+        # on the original hits; graph-expanded neighbors carry
+        # source="symbol_graph" without provenance (honest None fallback).
+        expanded = graph.expand_hits(hits[:8], hops=1)
         merged = list(expanded) or [
             {k: h.get(k, "") for k in ("path", "symbol", "content")} for h in hits[:8]
         ]
@@ -206,6 +237,10 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
                 "symbol": h.get("symbol", ""),
                 "content": (h.get("content") or "")[:800],
                 "source": h.get("source", "bm25"),
+                # §14 provenance: commit + line range of the indexed chunk.
+                "commit_sha": h.get("commit_sha", head_sha),
+                "start_line": h.get("start_line"),
+                "end_line": h.get("end_line"),
             }
             for h in merged[:16]
         ]

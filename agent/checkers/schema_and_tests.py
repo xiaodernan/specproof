@@ -16,6 +16,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
+#: Implementation version of the schema/test-strength checkers — stamped
+#: onto compiled contracts as checker_version (§A task 6).
+CHECKER_VERSION = "1.1.0"
+
 _TABLE_RE = re.compile(
     r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\((.*?)\)\s*;",
     re.DOTALL | re.IGNORECASE,
@@ -53,6 +57,19 @@ def _finding(
     }
 
 
+def _normalize_sql_type(sql_type: str) -> str:
+    """Collapse whitespace inside a parsed SQL type.
+
+    Whitespace inside a type argument is semantically meaningless in SQL:
+    "DECIMAL(10, 2)" and "DECIMAL(10,2)" name the same type. Comparing
+    raw captured strings turns a whitespace-only reformat into a spurious
+    column_type_changed finding (the case-44 regression), so the parsed
+    type is normalized before it is stored or compared. Real type changes
+    (VARCHAR(255) -> VARCHAR(50)) still differ after normalization.
+    """
+    return re.sub(r"\s+", "", sql_type).upper()
+
+
 def _parse_schema(schema_sql: str) -> dict[str, dict[str, str]]:
     """table -> {column: sql type}. Line-level constraints/keys are skipped."""
     tables: dict[str, dict[str, str]] = {}
@@ -69,7 +86,9 @@ def _parse_schema(schema_sql: str) -> dict[str, dict[str, str]]:
                 continue
             column = _COLUMN_RE.match(stripped)
             if column:
-                columns[column.group(1).lower()] = column.group(2).upper()
+                columns[column.group(1).lower()] = _normalize_sql_type(
+                    column.group(2)
+                )
         if columns:
             tables[table] = columns
     return tables

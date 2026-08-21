@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiGet, EvalData } from "../api";
-import { Empty, ErrorBox, Panel, Spinner, StatCard, fmtTime } from "../components";
+import { Empty, ErrorBox, Panel, Spinner, StatCard, fmtTime } from "../ui";
 
 export default function Eval() {
   const [data, setData] = useState<EvalData | null>(null);

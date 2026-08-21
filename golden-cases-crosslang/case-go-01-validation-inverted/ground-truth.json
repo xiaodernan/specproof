@@ -1,0 +1,11 @@
+{
+  "expected_severity": "BLOCKER",
+  "expected_contract": "GO-VALID-01",
+  "expected_evidence_type": "differential_test",
+  "should_detect": true,
+  "expected_finding": "Head inverts the blocklist guard in EmailAllowed(): blocked domains are accepted and ordinary domains rejected (Go mirror of case-17 logic-inversion).",
+  "pipeline_execution_status": "unsupported",
+  "pipeline_execution_reason": "experiments/adapters.py lists Go (go build / go test) as a planned matrix row: registry.get() raises AdapterNotImplemented ('Go adapter is planned ... no executor is wired'). No differential execution or test generation exists for Go; this case is format-ready only and no pipeline detection result is claimed.",
+  "offline_sample": true,
+  "scenario_materialization": "not materialized: base_ref/head_ref are not built in any repository (scripts/build_golden_scenarios.py only builds Java demo cases); the case ships src/base and src/head directories instead."
+}

@@ -1,6 +1,9 @@
 """Redis store — cache, locks, progress streams, lease, budget for Phase 1.
 
 P1.4: Added Redis Streams for progress, worker lease, and LLM token budget.
+Backlog #9: progress entries carry a per-job monotonic sequence number
+(atomic INCR counter key sharing the stream's TTL) and the retention
+policy (XADD MAXLEN + key TTL) is configurable via RedisConfig.
 All keys carry TTL — no permanent business state in Redis.
 """
 import json
@@ -11,6 +14,11 @@ from typing import Any, cast
 
 import redis
 
+#: Default progress-stream retention policy (§14.3): XADD MAXLEN cap per
+#: job stream, and TTL for the stream key plus its sequence-counter key.
+STREAM_DEFAULT_MAXLEN = 1000
+STREAM_DEFAULT_TTL_SECONDS = 86400
+
 
 @dataclass
 class RedisConfig:
@@ -18,6 +26,9 @@ class RedisConfig:
     port: int = 6379
     password: str = "specproof_pass"
     db: int = 0
+    #: Progress-stream retention (§14.3): XADD MAXLEN cap and key TTL.
+    stream_maxlen: int = STREAM_DEFAULT_MAXLEN
+    stream_ttl_seconds: int = STREAM_DEFAULT_TTL_SECONDS
 
     @classmethod
     def from_env(cls) -> "RedisConfig":
@@ -26,14 +37,24 @@ class RedisConfig:
             port=int(os.getenv("REDIS_PORT", "6379")),
             password=os.getenv("REDIS_PASSWORD", "specproof_pass"),
             db=0,
+            stream_maxlen=int(
+                os.getenv("REDIS_STREAM_MAXLEN", str(STREAM_DEFAULT_MAXLEN))
+            ),
+            stream_ttl_seconds=int(
+                os.getenv("REDIS_STREAM_TTL_SECONDS", str(STREAM_DEFAULT_TTL_SECONDS))
+            ),
         )
 
 
 class RedisStore:
     """Cache, locks, progress tracking, leases, and LLM budget. All keys have TTL."""
 
-    # Stream MAXLEN: keep last ~1000 progress events per job
-    STREAM_MAXLEN = 1000
+    #: Retained-history cap per job stream (XADD MAXLEN; default value,
+    #: configurable via RedisConfig.stream_maxlen / REDIS_STREAM_MAXLEN).
+    STREAM_MAXLEN = STREAM_DEFAULT_MAXLEN
+    #: TTL for the stream key and its sequence counter (default value,
+    #: configurable via RedisConfig.stream_ttl_seconds / REDIS_STREAM_TTL_SECONDS).
+    STREAM_TTL_SECONDS = STREAM_DEFAULT_TTL_SECONDS
 
     def __init__(self, config: RedisConfig | None = None) -> None:
         self.config = config or RedisConfig.from_env()
@@ -68,10 +89,32 @@ class RedisStore:
     def stream_key(self, job_id: str) -> str:
         return f"specproof:stream:job:{job_id}"
 
+    def sequence_key(self, job_id: str) -> str:
+        """Per-job monotonic sequence counter key (§14.3 event numbering).
+
+        The counter makes the SSE `sequence` field trim-proof: XADD MAXLEN
+        renumbers the retained window's ranks, while this counter only ever
+        grows for the life of the stream (both keys share the same TTL and
+        are written together, so they expire together).
+        """
+        return f"specproof:stream:job:{job_id}:seq"
+
     def xadd_progress(self, job_id: str, node: str, status: str,
                       message: str = "", percent: float = 0.0) -> str:
-        """Append a progress event to the job's stream. Returns the entry ID."""
+        """Append a progress event to the job's stream. Returns the entry ID.
+
+        Every entry carries the job's next absolute sequence number (`seq`
+        field from an atomic INCR), so clients can dedupe and re-order by
+        sequence even after MAXLEN trimming drops older entries. A failed
+        XADD can leave a gap in the sequence; monotonicity, not contiguity,
+        is the contract.
+        """
+        seq = int(self.client.incr(self.sequence_key(job_id)))
+        self.client.expire(
+            self.sequence_key(job_id), self.config.stream_ttl_seconds
+        )
         data = {
+            "seq": str(seq),
             "node": node,
             "status": status,  # "running", "completed", "failed"
             "at": datetime.now(UTC).isoformat(),
@@ -80,10 +123,10 @@ class RedisStore:
         }
         key = self.stream_key(job_id)
         entry_id = self.client.xadd(
-            key, cast(Any, data), maxlen=self.STREAM_MAXLEN
+            key, cast(Any, data), maxlen=self.config.stream_maxlen
         )
-        # Set TTL on the stream key (24h)
-        self.client.expire(key, 86400)
+        # Set TTL on the stream key (24h by default)
+        self.client.expire(key, self.config.stream_ttl_seconds)
         return str(entry_id)
 
     def xread_progress(
@@ -91,7 +134,9 @@ class RedisStore:
     ) -> list[dict[str, Any]]:
         """Read progress events from the stream starting from from_id.
 
-        Returns list of {id, node, status, at, percent, message} dicts.
+        Returns list of {id, sequence, node, status, at, percent,
+        message} dicts; sequence is the entry's absolute per-job number
+        (0 for entries written before the counter existed).
         """
         key = self.stream_key(job_id)
         try:
@@ -103,6 +148,7 @@ class RedisStore:
                 for msg_id, fields in messages:
                     entries.append({
                         "id": str(msg_id),
+                        "sequence": int(fields.get("seq") or 0),
                         "node": str(fields.get("node", "")),
                         "status": str(fields.get("status", "")),
                         "at": str(fields.get("at", "")),
@@ -124,32 +170,71 @@ class RedisStore:
     def lease_key(self, job_id: str) -> str:
         return f"specproof:lease:job:{job_id}"
 
-    def acquire_lease(self, job_id: str, worker_id: str, ttl: int = 30) -> bool:
-        """Try to acquire a lease for job_id. Returns True if acquired."""
+    def lease_start_key(self, job_id: str) -> str:
+        """Max-hold window marker: expires max_hold_seconds after acquire."""
+        return f"specproof:lease:job:{job_id}:start"
+
+    def lease_cap_flag_key(self, job_id: str) -> str:
+        """Persistent flag: a max-hold cap was configured for this job's
+        lease. Without it (legacy leases) renewals are unlimited — behavior
+        identical to the pre-cap code."""
+        return f"specproof:lease:job:{job_id}:cap"
+
+    def acquire_lease(
+        self,
+        job_id: str,
+        worker_id: str,
+        ttl: int = 30,
+        max_hold_seconds: int | None = None,
+    ) -> bool:
+        """Try to acquire a lease for job_id. Returns True if acquired.
+
+        max_hold_seconds caps the TOTAL hold: the start marker expires
+        after the cap and renew_lease then refuses, so a wedged worker's
+        lease lapses on its own instead of renewing forever. None keeps
+        the legacy unlimited behavior (no marker, no flag).
+        """
         key = self.lease_key(job_id)
         # SET NX: only succeeds if key doesn't exist
-        return bool(self.client.set(key, worker_id, nx=True, ex=ttl))
+        acquired = bool(self.client.set(key, worker_id, nx=True, ex=ttl))
+        if acquired and max_hold_seconds is not None:
+            self.client.set(self.lease_cap_flag_key(job_id), "1")
+            self.client.set(
+                self.lease_start_key(job_id), worker_id, ex=max_hold_seconds,
+            )
+        return acquired
 
     def renew_lease(self, job_id: str, worker_id: str, ttl: int = 30) -> bool:
-        """Renew an existing lease. Worker must own the lease."""
+        """Renew an existing lease. Worker must own the lease AND the
+        max-hold window (when a cap was configured) must still be open."""
         key = self.lease_key(job_id)
         current = self.client.get(key)
         if current != worker_id:
             return False
+        capped = bool(self.client.exists(self.lease_cap_flag_key(job_id)))
+        if capped and not self.client.exists(self.lease_start_key(job_id)):
+            return False  # max hold exhausted — let the lease lapse
         self.client.expire(key, ttl)
         return True
 
     def release_lease(self, job_id: str, worker_id: str) -> None:
-        """Release a lease. Only releases if owned by worker_id (Lua safety)."""
+        """Release a lease. Only releases if owned by worker_id (Lua safety).
+        Max-hold marker keys are cleaned up with the lease."""
         key = self.lease_key(job_id)
         lua_script = """
         if redis.call("GET", KEYS[1]) == ARGV[1] then
+            redis.call("DEL", KEYS[2])
+            redis.call("DEL", KEYS[3])
             return redis.call("DEL", KEYS[1])
         else
             return 0
         end
         """
-        self.client.eval(lua_script, 1, key, worker_id)
+        self.client.eval(
+            lua_script, 3, key,
+            self.lease_start_key(job_id), self.lease_cap_flag_key(job_id),
+            worker_id,
+        )
 
     def get_lease_owner(self, job_id: str) -> str | None:
         """Return the worker_id that holds the lease, or None."""

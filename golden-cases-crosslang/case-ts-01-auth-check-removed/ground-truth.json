@@ -1,0 +1,11 @@
+{
+  "expected_severity": "BLOCKER",
+  "expected_contract": "TS-AUTH-01",
+  "expected_evidence_type": "differential_test",
+  "should_detect": true,
+  "expected_finding": "Head removes the isAuthorized() guard from changeEmail(); unauthenticated callers are accepted instead of rejected (TypeScript mirror of case-01 auth-bypass).",
+  "pipeline_execution_status": "unsupported",
+  "pipeline_execution_reason": "experiments/adapters.py lists JavaScript/TypeScript (npm/Jest) as a planned matrix row: registry.get() raises AdapterNotImplemented ('Node adapter is planned ... no executor is wired'). No differential execution or test generation exists for TypeScript; this case is format-ready only and no pipeline detection result is claimed.",
+  "offline_sample": true,
+  "scenario_materialization": "not materialized: base_ref/head_ref are not built in any repository (scripts/build_golden_scenarios.py only builds Java demo cases); the case ships src/base and src/head directories instead."
+}

@@ -1,0 +1,1409 @@
+{
+  "generated_at": "2026-08-19T21:00:45.839417+00:00",
+  "tool": "scripts/bench_replay.py",
+  "repo_root": "D:\\experim\\specproof-clean-clone-gate",
+  "capsules_dir": "D:\\experim\\specproof-clean-clone-gate\\capsules",
+  "limit": null,
+  "worktree": {
+    "mechanism": "subtree-split",
+    "path": "",
+    "prep_error": ""
+  },
+  "environment": {
+    "python": "C:\\Users\\HUAWEI\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "git": "C:\\Program Files\\Git\\cmd\\git.EXE",
+    "pwsh": "C:\\Users\\HUAWEI\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.EXE",
+    "bash": "C:\\Windows\\system32\\bash.EXE",
+    "java": "C:\\Program Files\\Amazon Corretto\\jdk21.0.11_10\\bin\\java.EXE",
+    "java_version": "openjdk version \"21.0.11\" 2026-04-21 LTS",
+    "maven_dist_cache": "C:\\Users\\HUAWEI\\.m2\\wrapper\\dists"
+  },
+  "store": {
+    "capsule_records_total": 191,
+    "this_repo_paths": 179,
+    "other_repo_paths": 12,
+    "orphan_paths": 0,
+    "joined_to_zip_digests": 25
+  },
+  "exclusions": {
+    "excluded_demo_seed": {
+      "condition": "capsule.json declares demo:true (parsed from the zip; only when it literally contains \"demo\": true)",
+      "reason": "demo seed capsule (scripts/seed_demo.py, \u975e\u9a8c\u8bc1\u53d1\u73b0\u80f6\u56ca) \u2014 excluded from the replay gate denominator"
+    },
+    "excluded_stale_artifact": {
+      "condition": "recorded manifest_digest matches the sha256 of the pretty-printed manifest (json.dumps(indent=2, sort_keys=True), digest field excluded) while the canonical recompute differs \u2014 the zip predates the canonical digest rule",
+      "reason": "pre-canonical digest era artifact (built before the canonical manifest rule) \u2014 excluded from the replay gate denominator"
+    }
+  },
+  "totals": {
+    "enumerated": 28,
+    "excluded": 3,
+    "excluded_demo_seed": 1,
+    "excluded_stale_artifact": 2,
+    "same_conclusion": 25,
+    "env_mismatch": 0,
+    "evidence_inconsistent": 0,
+    "replay_failed": 0,
+    "replay_pending_probe_infra": 0,
+    "static_verified": 13,
+    "verified": 25,
+    "gate_denominator": 25,
+    "success_rate": 1.0,
+    "success_rate_excluding_env_mismatch": 1.0,
+    "gate_replay_success_rate_095": true
+  },
+  "capsules": [
+    {
+      "unit": "capsule-4ccc31dc-AUTH-01",
+      "sources": {
+        "zip": true,
+        "dir": false,
+        "store_records": 0
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-4ccc31dc-AUTH-01.zip",
+      "dir_path": "",
+      "payload_sha256": "cf27865532a040542d8fb99d91fa36ea0a5cfe5818cc9821f988d42857130cc7",
+      "base_ref": "",
+      "head_ref": "",
+      "finding_id": "",
+      "severity": "",
+      "evidence_type": "",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "outcome": "excluded",
+      "reason": "demo seed capsule (scripts/seed_demo.py, \u975e\u9a8c\u8bc1\u53d1\u73b0\u80f6\u56ca) \u2014 excluded from the replay gate denominator",
+      "classification": "excluded_demo_seed",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-CONST-EVENT_ONCE-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-CONST-EVENT_ONCE-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-CONST-EVENT_ONCE-01",
+      "payload_sha256": "2b8bcf92a51749fd067ebc06b7a7820be5f2d96c0201e6c669b43ac1fce76e1f",
+      "base_ref": "base",
+      "head_ref": "case-97-head",
+      "finding_id": "CONST-EVENT_ONCE-01",
+      "severity": "MAJOR",
+      "evidence_type": "constitution_check",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-CONST-EVENT_ONCE-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-CONST-EVENT_ONCE-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-CONST-EVENT_ONCE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-CONST-EVENT_ONCE-01"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding EVENT_ONCE-01/forbidden_duplicate_publish at head ref case-97-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-COURT-ATOMICITY-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-ATOMICITY-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-ATOMICITY-01",
+      "payload_sha256": "9e86905d3335d5484687b6e7b02d08fb5a0981ffd4dddc2923ac2ee5c5ed1765",
+      "base_ref": "base",
+      "head_ref": "case-39-head",
+      "finding_id": "COURT-ATOMICITY-01",
+      "severity": "MAJOR",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_CONSISTENT",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ATOMICITY-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ATOMICITY-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ATOMICITY-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ATOMICITY-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-39-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). DB evidence: Base and Head DB dumps are identical. HTTP regression confirmed; DB mutation not directly captured.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 47.99
+    },
+    {
+      "unit": "capsule-COURT-AUTH-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-AUTH-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-AUTH-01",
+      "payload_sha256": "820d54c8c93fb916d78868f99c963965d9e8927284f9821155687b740a03cc7f",
+      "base_ref": "base",
+      "head_ref": "case-55-head",
+      "finding_id": "COURT-AUTH-01",
+      "severity": "MAJOR",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_CONSISTENT",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-AUTH-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-AUTH-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-AUTH-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-AUTH-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-55-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). DB evidence: Base and Head DB dumps are identical. HTTP regression confirmed; DB mutation not directly captured.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 47.42
+    },
+    {
+      "unit": "capsule-COURT-BOUNDARY-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-BOUNDARY-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-BOUNDARY-01",
+      "payload_sha256": "9e8cf641b158c80459e733544d5e17ec7f7b5ebf7f2247806bddf9bd772e6b5e",
+      "base_ref": "base",
+      "head_ref": "case-74-head",
+      "finding_id": "COURT-BOUNDARY-01",
+      "severity": "BLOCKER",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_MUTATED",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": true,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-BOUNDARY-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-BOUNDARY-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-BOUNDARY-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-BOUNDARY-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-74-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). Real H2 dump comparison \u2014 row products:1: '0:1' -> '10:0'. Base and Head executed the same test but left different DB state \u2014 the regression mutated persisted data.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 47.36
+    },
+    {
+      "unit": "capsule-COURT-CACHE-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-CACHE-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-CACHE-01",
+      "payload_sha256": "54b1da9928d8909073a610762d80743b8385629883702d03ef4d950fa38c7fba",
+      "base_ref": "base",
+      "head_ref": "case-65-head",
+      "finding_id": "COURT-CACHE-01",
+      "severity": "MAJOR",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_CONSISTENT",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-CACHE-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-CACHE-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-CACHE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-CACHE-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-65-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). DB evidence: Base and Head DB dumps are identical. HTTP regression confirmed; DB mutation not directly captured.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 48.33
+    },
+    {
+      "unit": "capsule-COURT-CONCURRENCY-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-CONCURRENCY-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-CONCURRENCY-01",
+      "payload_sha256": "8f8603c5358932f8f1a49f95ccc7431b0dbd7e65722d8193a6ebc1735c52fe1b",
+      "base_ref": "base",
+      "head_ref": "case-29-head",
+      "finding_id": "COURT-CONCURRENCY-01",
+      "severity": "BLOCKER",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_MUTATED",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": true,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-CONCURRENCY-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-CONCURRENCY-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-CONCURRENCY-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-CONCURRENCY-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-29-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). Real H2 dump comparison \u2014 products row set differs: base={'products:1': '7:1'}, head={}. Base and Head executed the same test but left different DB state \u2014 the regression mutated persisted data.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 49.08
+    },
+    {
+      "unit": "capsule-COURT-DIFF-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 0
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-DIFF-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-DIFF-01",
+      "payload_sha256": "96083bbb023c3e61c3c7809b34557857a65e3ac2262a4fd89f344c1f63199d94",
+      "base_ref": "base",
+      "head_ref": "head-v1",
+      "finding_id": "COURT-DIFF-01",
+      "severity": "MAJOR",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_MUTATED_ON_UNAUTH",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": true,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "outcome": "excluded",
+      "reason": "pre-canonical digest era artifact (built before the canonical manifest rule) \u2014 excluded from the replay gate denominator",
+      "classification": "excluded_stale_artifact",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-COURT-EMAIL_FORMAT-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-EMAIL_FORMAT-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-EMAIL_FORMAT-01",
+      "payload_sha256": "e16fdb80d80d08dd043697cc68ffbdccc124a84b1f203cba7779cc159af14b75",
+      "base_ref": "base",
+      "head_ref": "case-77-head",
+      "finding_id": "COURT-EMAIL_FORMAT-01",
+      "severity": "BLOCKER",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_MUTATED_ON_UNAUTH",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": true,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-EMAIL_FORMAT-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-EMAIL_FORMAT-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-EMAIL_FORMAT-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-EMAIL_FORMAT-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-77-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). Real H2 dump comparison \u2014 row users:2: 'specproof@example.com' -> 'not-an-email'. Base and Head executed the same test but left different DB state \u2014 the regression mutated persisted data.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 50.06
+    },
+    {
+      "unit": "capsule-COURT-EVENT_ONCE-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-EVENT_ONCE-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-EVENT_ONCE-01",
+      "payload_sha256": "5c4c29a0b0def12b1cdc97ce86b4eb984115a3d8fd29ecd36fd145640b88ac77",
+      "base_ref": "base",
+      "head_ref": "case-98-head",
+      "finding_id": "COURT-EVENT_ONCE-01",
+      "severity": "MAJOR",
+      "evidence_type": "probe_differential",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-EVENT_ONCE-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-EVENT_ONCE-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-EVENT_ONCE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-EVENT_ONCE-01"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "probe_replay",
+      "static_verified": false,
+      "probe_replayed": true,
+      "outcome": "same_conclusion",
+      "reason": "probe evidence replayed at head (fault-injection probe re-run, H2) \u2014 recorded finding description: head violates outcome (base profile met); replayed base {\"available\": true, \"outcome\": \"success\", \"payload_count\": 0, \"payload_timestamp_non_null\": false, \"publish_count\": 0} vs head {\"available\": true, \"outcome\": \"error\", \"payload_count\": 0, \"payload_timestamp_non_null\": false, \"publish_count\": 0}",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 43.36
+    },
+    {
+      "unit": "capsule-COURT-IDEMPOTENT-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-IDEMPOTENT-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-IDEMPOTENT-01",
+      "payload_sha256": "c16b8890b8025501c4f2998b8fbddd639146d94d3c455d31edc521c0ee63aa53",
+      "base_ref": "base",
+      "head_ref": "case-35-head",
+      "finding_id": "COURT-IDEMPOTENT-01",
+      "severity": "BLOCKER",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_MUTATED",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": true,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-IDEMPOTENT-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-IDEMPOTENT-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-IDEMPOTENT-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-IDEMPOTENT-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-35-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). Real H2 dump comparison \u2014 row products:1: '7:1' -> '8:1'. Base and Head executed the same test but left different DB state \u2014 the regression mutated persisted data.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 48.55
+    },
+    {
+      "unit": "capsule-COURT-NPLUSONE-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-NPLUSONE-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-NPLUSONE-01",
+      "payload_sha256": "dd1fd5d9e18bf3c44246dafb1893d5cff838526cd58cae8e11abeee17165750a",
+      "base_ref": "base",
+      "head_ref": "case-86-head",
+      "finding_id": "COURT-NPLUSONE-01",
+      "severity": "MAJOR",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_CONSISTENT",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-NPLUSONE-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-NPLUSONE-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-NPLUSONE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-NPLUSONE-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-86-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). DB evidence: Base and Head DB dumps are identical. HTTP regression confirmed; DB mutation not directly captured.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 48.58
+    },
+    {
+      "unit": "capsule-COURT-ORDER_AMOUNT-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-ORDER_AMOUNT-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-ORDER_AMOUNT-01",
+      "payload_sha256": "c2afa96595afdae40aaf97858e14668df164b4fc6684b71566c686fc4024a8fd",
+      "base_ref": "base",
+      "head_ref": "case-75-head",
+      "finding_id": "COURT-ORDER_AMOUNT-01",
+      "severity": "BLOCKER",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_MUTATED",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": true,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ORDER_AMOUNT-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ORDER_AMOUNT-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ORDER_AMOUNT-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ORDER_AMOUNT-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-75-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). Real H2 dump comparison \u2014 row orders:1: '2:req-amt-1:30.00' -> '2:req-amt-1:33.00'. Base and Head executed the same test but left different DB state \u2014 the regression mutated persisted data.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 51.41
+    },
+    {
+      "unit": "capsule-COURT-ORDER_EVENT-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-ORDER_EVENT-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-ORDER_EVENT-01",
+      "payload_sha256": "adcbf325c39a1e63f8515a7865b75cca8fa076d98903ab66c220d52c7719373e",
+      "base_ref": "base",
+      "head_ref": "case-97-head",
+      "finding_id": "COURT-ORDER_EVENT-01",
+      "severity": "MAJOR",
+      "evidence_type": "probe_differential",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ORDER_EVENT-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ORDER_EVENT-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ORDER_EVENT-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-ORDER_EVENT-01"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "probe_replay",
+      "static_verified": false,
+      "probe_replayed": true,
+      "outcome": "same_conclusion",
+      "reason": "probe evidence replayed at head (fault-injection probe re-run, H2) \u2014 recorded finding description: head violates publish_count (base profile met); replayed base {\"available\": true, \"outcome\": \"error\", \"payload_count\": 1, \"payload_timestamp_non_null\": true, \"publish_count\": 1} vs head {\"available\": true, \"outcome\": \"success\", \"payload_count\": 2, \"payload_timestamp_non_null\": true, \"publish_count\": 2}",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 43.25
+    },
+    {
+      "unit": "capsule-COURT-UNIQUE-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-UNIQUE-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-COURT-UNIQUE-01",
+      "payload_sha256": "a3100b12d618b5a286d6e63181aab46070642fc9a58a360ce0361bcd7053f6c6",
+      "base_ref": "base",
+      "head_ref": "case-20-head",
+      "finding_id": "COURT-UNIQUE-01",
+      "severity": "MAJOR",
+      "evidence_type": "base_pass_head_fail",
+      "db_state_verdict": "DB_CONSISTENT",
+      "recorded": {
+        "2_base_head_execution": true,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-UNIQUE-01\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-UNIQUE-01\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-UNIQUE-01\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-COURT-UNIQUE-01"
+        ]
+      },
+      "expected_verdict": "REGRESSION CONFIRMED",
+      "replay_mode": "runtime",
+      "static_verified": false,
+      "run_exit_code": 0,
+      "timed_out": false,
+      "run_output_tail": [
+        "  Head (case-20-head):  exit=1",
+        "",
+        "  >> REGRESSION CONFIRMED <<",
+        "  Test passes in Base but fails in Head.",
+        "  The PR introduced a breaking change.",
+        "",
+        "  Finding: Test passes in Base (exit 0) but fails in Head (exit 1). DB evidence: Base and Head DB dumps are identical. HTTP regression confirmed; DB mutation not directly captured.",
+        "============================================================"
+      ],
+      "generated_test": {
+        "in_test_java": true,
+        "in_test_root": true
+      },
+      "outcome": "same_conclusion",
+      "reason": "recorded base_pass_head_fail reproduced \u2014 run script verdict REGRESSION CONFIRMED",
+      "classification": "same_conclusion",
+      "verdict": "REGRESSION CONFIRMED",
+      "base_exit": 0,
+      "head_exit": 1,
+      "duration_s": 47.42
+    },
+    {
+      "unit": "capsule-SRC-AUTH-ANNO",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-AUTH-ANNO.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-AUTH-ANNO",
+      "payload_sha256": "f2a0da687e6cde258f35755c60269bb999a4b1a0edb18adb836601b1a816cdd7",
+      "base_ref": "base",
+      "head_ref": "case-22-head",
+      "finding_id": "SRC-AUTH-ANNO",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": true,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-AUTH-ANNO\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-AUTH-ANNO\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-AUTH-ANNO\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-AUTH-ANNO"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding AUTH-01/annotation_removed at head ref case-22-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-BACKWARD_COMPATIBLE-SCHE",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE",
+      "payload_sha256": "abfeba89047908747c1eedf3f9f9b36eb10afcf6eecb1fea9a0b14f33078688c",
+      "base_ref": "base",
+      "head_ref": "case-53-head",
+      "finding_id": "SRC-BACKWARD_COMPATIBLE-SCHE",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-BACKWARD_COMPATIBLE-SCHE"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding BACKWARD_COMPATIBLE-01/schema_break at head ref case-53-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-EVENT_ONCE-DUPL",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-EVENT_ONCE-DUPL.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-EVENT_ONCE-DUPL",
+      "payload_sha256": "ebfecec91d0e5fef33a1fd2758ddedfb933f3c9944fe1858dd5c3b243a2276cb",
+      "base_ref": "base",
+      "head_ref": "case-97-head",
+      "finding_id": "SRC-EVENT_ONCE-DUPL",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-EVENT_ONCE-DUPL\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-EVENT_ONCE-DUPL\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-EVENT_ONCE-DUPL\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-EVENT_ONCE-DUPL"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding EVENT_ONCE-01/duplicate_publish at head ref case-97-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-MIGRATION-COLU",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-COLU.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-COLU",
+      "payload_sha256": "3ace004b7701f6f5681132ee400c3548e8f830865ac9c2b385475c624afd0723",
+      "base_ref": "base",
+      "head_ref": "case-47-head",
+      "finding_id": "SRC-MIGRATION-COLU",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-COLU\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-COLU\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-COLU\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-COLU"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding MIGRATION-01/column_type_changed at head ref case-47-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-MIGRATION-CONS",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-CONS.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-CONS",
+      "payload_sha256": "2961247ac97728b075eb0bec13238a86c6f9e6de54e7f62cc6b97305e7379395",
+      "base_ref": "base",
+      "head_ref": "case-45-head",
+      "finding_id": "SRC-MIGRATION-CONS",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-CONS\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-CONS\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-CONS\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-CONS"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding MIGRATION-01/constraint_removed at head ref case-45-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-MIGRATION-TABL",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-TABL.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-MIGRATION-TABL",
+      "payload_sha256": "00963426904daf57de024bd86ba1f8d3aabee13be512a01538742c838c46679e",
+      "base_ref": "base",
+      "head_ref": "case-41-head",
+      "finding_id": "SRC-MIGRATION-TABL",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-TABL\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-TABL\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-TABL\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-MIGRATION-TABL"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding MIGRATION-01/table_removed at head ref case-41-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-OPENAPI-ENDP",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-OPENAPI-ENDP.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-OPENAPI-ENDP",
+      "payload_sha256": "853ad58df8364977b82df5e43e6f34fa7050c52b449ae0ea156fc6dba08e6916",
+      "base_ref": "base",
+      "head_ref": "case-55-head",
+      "finding_id": "SRC-OPENAPI-ENDP",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-OPENAPI-ENDP\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-OPENAPI-ENDP\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-OPENAPI-ENDP\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-OPENAPI-ENDP"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding OPENAPI-01/endpoint_removed at head ref case-55-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-TEST_STRENGTH-ASSE",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TEST_STRENGTH-ASSE.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TEST_STRENGTH-ASSE",
+      "payload_sha256": "b81e08e71e77ddbb5ab421048e33f96ca14afa33b81c92169a4b0b771134cab7",
+      "base_ref": "base",
+      "head_ref": "case-91-head",
+      "finding_id": "SRC-TEST_STRENGTH-ASSE",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TEST_STRENGTH-ASSE"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding TEST_STRENGTH-01/assertions_weakened at head ref case-91-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-TEST_STRENGTH-TEST",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TEST_STRENGTH-TEST.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TEST_STRENGTH-TEST",
+      "payload_sha256": "8ca3966fe4d5e0040410e9c0f05bf659d898e234aa3c43c6a820580262119fcf",
+      "base_ref": "base",
+      "head_ref": "case-91-head",
+      "finding_id": "SRC-TEST_STRENGTH-TEST",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TEST_STRENGTH-TEST\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TEST_STRENGTH-TEST\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TEST_STRENGTH-TEST\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TEST_STRENGTH-TEST"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding TEST_STRENGTH-01/test_removed at head ref case-91-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-TOKEN_INVALIDATION-GUAR",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TOKEN_INVALIDATION-GUAR.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TOKEN_INVALIDATION-GUAR",
+      "payload_sha256": "7a140f57584694ad5b5d94157cb6345f79a5708a06474ba11c07a02ce3e9e5ba",
+      "base_ref": "base",
+      "head_ref": "case-05-head",
+      "finding_id": "SRC-TOKEN_INVALIDATION-GUAR",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TOKEN_INVALIDATION-GUAR"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding TOKEN_INVALIDATION-01/guard_removed at head ref case-05-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-TRANSACTION-ANNO",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TRANSACTION-ANNO.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-TRANSACTION-ANNO",
+      "payload_sha256": "a10311aab26e852051d6b8c6250f131352a535202508221910786536a8536d88",
+      "base_ref": "base",
+      "head_ref": "case-37-head",
+      "finding_id": "SRC-TRANSACTION-ANNO",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TRANSACTION-ANNO\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TRANSACTION-ANNO\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TRANSACTION-ANNO\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-TRANSACTION-ANNO"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding TRANSACTION-01/annotation_removed at head ref case-37-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-SRC-UNIQUE-GUAR",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 1
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-UNIQUE-GUAR.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-SRC-UNIQUE-GUAR",
+      "payload_sha256": "2ddbcc4fbc506666fb977eb34337938ec9217f6ac3f1b92bff90f1b1238448eb",
+      "base_ref": "base",
+      "head_ref": "case-04-head",
+      "finding_id": "SRC-UNIQUE-GUAR",
+      "severity": "MAJOR",
+      "evidence_type": "java_source_diff",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": false
+      },
+      "evidence_problems": [],
+      "replay_cli": {
+        "ok": true,
+        "report": "D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-UNIQUE-GUAR\\replay-report.json",
+        "output_tail": [
+          "Replay report: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-UNIQUE-GUAR\\replay-report.json",
+          "",
+          "Capsule extracted successfully.",
+          "To execute replay, run: bash D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-UNIQUE-GUAR\\run.sh",
+          "Work directory: D:\\UserData\\HUAWEI\\Temp\\specproof-bench-replay-nxt2voro\\extracted\\capsule-SRC-UNIQUE-GUAR"
+        ]
+      },
+      "expected_verdict": "NO_RUNTIME_CLAIM",
+      "replay_mode": "static_reverify",
+      "static_verified": true,
+      "outcome": "same_conclusion",
+      "reason": "static evidence re-verified at head (runtime COMPLIANT expected for static-only findings) \u2014 the deterministic checker re-derived the recorded finding UNIQUE-01/guard_removed at head ref case-04-head",
+      "classification": "same_conclusion",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    },
+    {
+      "unit": "capsule-STATIC-MUT-01",
+      "sources": {
+        "zip": true,
+        "dir": true,
+        "store_records": 0
+      },
+      "zip_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-STATIC-MUT-01.zip",
+      "dir_path": "D:\\experim\\specproof-clean-clone-gate\\capsules\\capsule-STATIC-MUT-01",
+      "payload_sha256": "6af8aec658cce87c79b8a57482ad95a6d404b1781610e0d04c43b71382b7d9b2",
+      "base_ref": "base",
+      "head_ref": "head-v1",
+      "finding_id": "STATIC-MUT-01",
+      "severity": "MAJOR",
+      "evidence_type": "static_regex_analysis",
+      "db_state_verdict": "",
+      "recorded": {
+        "2_base_head_execution": false,
+        "4_db_behavior_evidence": false,
+        "5_capsule_replayable": true
+      },
+      "evidence_problems": [],
+      "outcome": "excluded",
+      "reason": "pre-canonical digest era artifact (built before the canonical manifest rule) \u2014 excluded from the replay gate denominator",
+      "classification": "excluded_stale_artifact",
+      "verdict": null,
+      "base_exit": null,
+      "head_exit": null,
+      "duration_s": 0.0
+    }
+  ]
+}

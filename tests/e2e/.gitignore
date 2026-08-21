@@ -1,0 +1,4 @@
+# Playwright e2e transient state (seeded fixture credentials, runs, reports)
+.state/
+test-results/
+playwright-report/

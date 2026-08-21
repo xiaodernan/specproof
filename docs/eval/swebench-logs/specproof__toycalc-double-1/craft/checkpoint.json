@@ -1,0 +1,66 @@
+{
+  "job_id": "swebench-specproof__toycalc-double-1",
+  "workspace": "D:\\UserData\\HUAWEI\\Temp\\swebench-work-j58_1xkj\\specproof__toycalc-double-1",
+  "task_key": "fix_bug",
+  "last_green_step": "s4",
+  "entries": [
+    {
+      "job_id": "swebench-specproof__toycalc-double-1",
+      "step_id": "s1",
+      "iteration": 0,
+      "diagnosis": "",
+      "edits_applied": [],
+      "build_result": {
+        "exit_code": -1,
+        "failed_tests": [],
+        "log_tail": ""
+      },
+      "verdict": "green",
+      "timestamp": "2026-08-19T08:04:22+00:00"
+    },
+    {
+      "job_id": "swebench-specproof__toycalc-double-1",
+      "step_id": "s2",
+      "iteration": 0,
+      "diagnosis": "",
+      "edits_applied": [],
+      "build_result": {
+        "exit_code": -1,
+        "failed_tests": [],
+        "log_tail": ""
+      },
+      "verdict": "green",
+      "timestamp": "2026-08-19T08:04:22+00:00"
+    },
+    {
+      "job_id": "swebench-specproof__toycalc-double-1",
+      "step_id": "s3",
+      "iteration": 1,
+      "diagnosis": "[规则模板] pytest 断言失败 — 预期值 == 实际值: assert 2.0 == 8",
+      "edits_applied": [
+        "calc.py"
+      ],
+      "build_result": {
+        "exit_code": 0,
+        "failed_tests": [],
+        "log_tail": "..                                                                       [100%]\n2 passed in 0.01s"
+      },
+      "verdict": "green",
+      "timestamp": "2026-08-19T08:04:27+00:00"
+    },
+    {
+      "job_id": "swebench-specproof__toycalc-double-1",
+      "step_id": "s4",
+      "iteration": 0,
+      "diagnosis": "",
+      "edits_applied": [],
+      "build_result": {
+        "exit_code": 0,
+        "failed_tests": [],
+        "log_tail": "..                                                                       [100%]\n2 passed in 0.02s"
+      },
+      "verdict": "green",
+      "timestamp": "2026-08-19T08:04:30+00:00"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, Job } from "../api";
-import { Empty, ErrorBox, Panel, Spinner, StatusPill, fmtTime, shortId } from "../components";
+import { Button, Empty, ErrorBox, Panel, Spinner, StatusPill, fmtTime, shortId } from "../ui";
 
 const PAGE_SIZE = 25;
 
@@ -110,15 +110,15 @@ export default function Jobs() {
         )}
         {filtered.length > PAGE_SIZE ? (
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
-            <button className="btn btn-ghost btn-sm" disabled={pageSafe <= 1} onClick={() => setPage(pageSafe - 1)}>
+            <Button variant="ghost" size="sm" disabled={pageSafe <= 1} onClick={() => setPage(pageSafe - 1)}>
               上一页
-            </button>
+            </Button>
             <span className="muted mono">
               {pageSafe} / {pages}
             </span>
-            <button className="btn btn-ghost btn-sm" disabled={pageSafe >= pages} onClick={() => setPage(pageSafe + 1)}>
+            <Button variant="ghost" size="sm" disabled={pageSafe >= pages} onClick={() => setPage(pageSafe + 1)}>
               下一页
-            </button>
+            </Button>
           </div>
         ) : null}
       </Panel>

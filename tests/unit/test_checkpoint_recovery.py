@@ -16,7 +16,7 @@ class TestCheckpointDocumentModel:
                 "v": 1,
                 "id": "1ef9b612-0000-6000-8000-000000000001",
                 "ts": "2026-07-10T12:00:00Z",
-                "channel_values": {"messages": [], "repo_path": "/tmp/repo"},
+                "channel_values": {"messages": [], "repo_path": "/tmp/repo"},  # nosec B108 — synthetic fixture value, not a real temp dir
                 "channel_versions": {},
             },
             "metadata": {

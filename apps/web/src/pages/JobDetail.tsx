@@ -4,9 +4,10 @@ import {
   ProgressEvent, StagesData,
 } from "../api";
 import {
-  Degraded, Empty, ErrorBox, Panel, Spinner, StatCard, StatusPill,
-  fmtPct, fmtTime, kv, verdictTone,
-} from "../components";
+  Button, Degraded, Empty, ErrorBox, Panel, Spinner, StatCard, StatusPill,
+  fmtPct, fmtTime, kv, shortId, severityPill, verdictTone,
+} from "../ui";
+import { recordRecentJob } from "../ui/recentJobs";
 
 interface Summary {
   verdict?: string;
@@ -50,6 +51,10 @@ export default function JobDetail(props: { jobId: string }) {
       setSummary(s.summary || null);
       setStages(st);
       setFindings(f);
+      recordRecentJob(
+        window.location.hash,
+        (j.job.repo_path ? j.job.repo_path + " · " + shortId(j.job.id) : "任务 " + shortId(j.job.id))
+      );
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -211,7 +216,14 @@ export default function JobDetail(props: { jobId: string }) {
             <div className="console">
               {live.length === 0
                 ? "[等待进度事件…]\n"
-                : live.map((ev) => "[" + ev.node + "] " + ev.status + " " + ev.percent + "% " + ev.message).join("\n")}
+                : live
+                    .map((ev) => {
+                      const stage = ev.stage || ev.node || "";
+                      const pct = ev.percentage ?? ev.percent ?? 0;
+                      const msg = ev.summary || ev.message || "";
+                      return "[" + stage + "] " + (ev.status || "") + " " + pct + "% " + msg;
+                    })
+                    .join("\n")}
             </div>
           </div>
         </Panel>
@@ -235,9 +247,11 @@ export default function JobDetail(props: { jobId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {findings.findings.map((f, i) => (
+                {findings.findings.map((f, i) => {
+                  const sev = severityPill(f.severity);
+                  return (
                   <tr key={f.id || String(i)}>
-                    <td><span className={"pill pill-" + ((f.severity === "BLOCKER" ? "fail" : f.severity === "MAJOR" ? "unverified" : "pass"))}>{f.severity || "—"}</span></td>
+                    <td><span className={"pill " + sev.cls}>{sev.label}</span></td>
                     <td className="mono">{f.contract_id || "—"}</td>
                     <td className="mono">{f.evidence_type || "—"}</td>
                     <td className="mono">{fmtPct(f.confidence)}</td>
@@ -248,15 +262,16 @@ export default function JobDetail(props: { jobId: string }) {
                     </td>
                     <td>
                       {f.capsule_path ? (
-                        <button className="btn btn-ghost btn-sm" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
+                        <Button variant="ghost" size="sm" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
                           ↓ zip
-                        </button>
+                        </Button>
                       ) : (
                         <span className="muted">—</span>
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -290,9 +305,9 @@ export default function JobDetail(props: { jobId: string }) {
       {caps.length > 0 ? (
         <Panel title="Capsule 下载">
           {caps.map((c) => (
-            <button key={c} className="btn btn-ghost btn-sm" style={{ marginRight: 8 }} onClick={() => downloadCapsule(jobId, c.split("/").pop())}>
+            <Button key={c} variant="ghost" size="sm" style={{ marginRight: 8 }} onClick={() => downloadCapsule(jobId, c.split("/").pop())}>
               ↓ {c.split("/").pop()}
-            </button>
+            </Button>
           ))}
         </Panel>
       ) : null}

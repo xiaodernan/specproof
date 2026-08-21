@@ -35,6 +35,10 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
 
     from evidence.report import render_verification_report
 
+    # The clock is read once here, at the I/O boundary; the renderer itself
+    # stays a pure function of its arguments (timestamp passed in by the
+    # caller, never read inside — backlog #2).
+    now = datetime.now(UTC)
     html = render_verification_report(
         repo=repo_path,
         base_ref=base_ref,
@@ -42,11 +46,11 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
         matrix=matrix,
         findings=confirmed_findings,
         errors=errors,
+        generated_at=now.strftime("%Y-%m-%d %H:%M:%S UTC"),
     )
 
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(UTC)
     timestamp = now.strftime("%Y%m%d-%H%M%S")
     report_path = out / f"verification-report-{timestamp}.html"
     report_path.write_text(html, encoding="utf-8")
@@ -67,6 +71,17 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
         "lineage_edges": len(dag["edges"]),
     }
 
+    # §A task 7: the replay evidence (lineage document + HTML report)
+    # becomes locatable through the object metadata store by
+    # job_id / kind / digest / contract_id. Best effort — a missing store
+    # leaves the artifacts as legacy path-based objects.
+    _record_replay_report_metadata(
+        lineage_path=lineage_path,
+        report_path=report_path,
+        job_id=str(raw_state.get("job_id") or ""),
+        contracts=list(raw_state.get("contracts") or []),
+    )
+
     # Attach the lineage root to a certificate already present in state
     # (the issuer may then sign the document unchanged).
     existing_certificate = raw_state.get("certificate")
@@ -82,3 +97,35 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
         result["certificate"] = certificate
 
     return result
+
+
+def _record_replay_report_metadata(
+    lineage_path: Path,
+    report_path: Path,
+    job_id: str,
+    contracts: list[Any],
+) -> None:
+    """Record replay_report metadata for the lineage + HTML report.
+
+    Both artifacts share the job's contract ids; each gets its own object
+    record with its own payload digest. Recording failures are logged and
+    swallowed — evidence artifacts must never be lost to metadata plumbing.
+    """
+    import logging
+
+    try:
+        from storage.object_metadata import record_file_object_best_effort
+    except Exception:  # noqa: BLE001 — metadata is best effort
+        logging.getLogger(__name__).warning("object metadata import failed")
+        return
+    contract_ids = [
+        str(c.get("id") or "") for c in contracts if isinstance(c, dict) and c.get("id")
+    ]
+    for path in (lineage_path, report_path):
+        if path.exists():
+            record_file_object_best_effort(
+                "replay_report",
+                path,
+                job_id=job_id,
+                contract_ids=contract_ids,
+            )

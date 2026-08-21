@@ -30,11 +30,18 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 
 from api.auth import enforce_rate_limit, require_api_key
+from api.errors import (
+    EVIDENCE_UNVERIFIED,
+    JOB_NOT_FOUND,
+    PROVIDER_UNAVAILABLE,
+    VALIDATION_FAILED,
+    ApiError,
+)
 from storage.mysql import MySQLStore
 from storage.redis import RedisStore
 
@@ -88,11 +95,15 @@ def _load_job_or_404(store: MySQLStore, job_id: str) -> dict[str, Any]:
         job = store.get_job(job_id)
     except Exception as exc:  # noqa: BLE001 - MySQL down
         logger.exception("MySQL unavailable for job %s", job_id)
-        raise HTTPException(
-            status_code=503, detail=f"MySQL unavailable: {exc}"
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=f"MySQL unavailable: {exc}",
         ) from exc
     if job is None:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        raise ApiError(
+            status_code=404, code=JOB_NOT_FOUND, detail=f"Job {job_id} not found",
+        )
     return job
 
 
@@ -177,8 +188,9 @@ def _certificate_artifacts(job_id: str) -> dict[str, Any] | None:
             doc = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("unreadable certificate artifact %s: %s", path, exc)
-            raise HTTPException(
+            raise ApiError(
                 status_code=503,
+                code=PROVIDER_UNAVAILABLE,
                 detail=f"Certificate artifact exists but is unreadable: {exc}",
             ) from exc
         found = {"path": str(path.resolve()), "document": doc}
@@ -463,8 +475,9 @@ async def job_certificate(job_id: str) -> dict[str, Any]:
     _load_job_or_404(store, job_id)
     artifact = _certificate_artifacts(job_id)
     if artifact is None:
-        raise HTTPException(
+        raise ApiError(
             status_code=404,
+            code=EVIDENCE_UNVERIFIED,
             detail=(
                 f"No merge-certificate or rejection-notice artifact found "
                 f"for job {job_id} (certificates are persisted by the "
@@ -491,8 +504,9 @@ async def job_capsule(
     path: Path | None
     if name:
         if name not in candidates:
-            raise HTTPException(
+            raise ApiError(
                 status_code=404,
+                code=EVIDENCE_UNVERIFIED,
                 detail=f"No capsule {name!r} recorded for job {job_id}",
             )
         path = _resolve_capsule_zip(name)
@@ -505,8 +519,9 @@ async def job_capsule(
                 name = candidate
                 break
     if path is None:
-        raise HTTPException(
+        raise ApiError(
             status_code=404,
+            code=EVIDENCE_UNVERIFIED,
             detail=(
                 f"No capsule zip available for job {job_id} "
                 f"(candidates: {candidates or 'none'})"
@@ -531,8 +546,9 @@ async def list_contracts(
     """Contract registry rows with approval-status filtering."""
     allowed = {"all", "approved", "proposed", "rejected", "revoked"}
     if status not in allowed:
-        raise HTTPException(
+        raise ApiError(
             status_code=422,
+            code=VALIDATION_FAILED,
             detail=f"status must be one of {sorted(allowed)}",
         )
     status_filter = None if status == "all" else status.upper()
@@ -560,8 +576,10 @@ async def list_contracts(
             rows = cast(list[dict[str, Any]], cur.fetchall())
     except Exception as exc:  # noqa: BLE001 - MySQL down
         logger.exception("contract registry read failed")
-        raise HTTPException(
-            status_code=503, detail=f"MySQL unavailable: {exc}"
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=f"MySQL unavailable: {exc}",
         ) from exc
     return {
         "contracts": jsonable_encoder(rows),
@@ -579,8 +597,9 @@ async def eval_latest() -> dict[str, Any]:
     """Latest persisted evaluation report (docs/eval/eval-report.results.json)."""
     path = _eval_report_path()
     if not path.is_file():
-        raise HTTPException(
+        raise ApiError(
             status_code=404,
+            code=EVIDENCE_UNVERIFIED,
             detail=(
                 f"No evaluation report at {path}. Run the evaluation "
                 "pipeline first; the API never fabricates metrics."
@@ -589,8 +608,9 @@ async def eval_latest() -> dict[str, Any]:
     try:
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
+            code=PROVIDER_UNAVAILABLE,
             detail=f"Evaluation report exists but is unreadable: {exc}",
         ) from exc
     modified_at = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).isoformat()

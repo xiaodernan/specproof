@@ -1,0 +1,123 @@
+{
+  "task_title": "[pallets__flask-4992] 修复缺陷 (SWE-bench)",
+  "mode": "llm",
+  "steps": [
+    {
+      "id": "s1",
+      "kind": "understand",
+      "target_files": [
+        "src/flask/config.py"
+      ],
+      "intent": "Read the current Config.from_file implementation to establish the pre-change signature and file opening behavior.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "def from_file"
+      },
+      "deps": []
+    },
+    {
+      "id": "s2",
+      "kind": "understand",
+      "target_files": [
+        "tests/test_config.py"
+      ],
+      "intent": "Read the config tests to identify existing from_file tests and any new tests for TOML/binary mode behavior.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "from_file"
+      },
+      "deps": []
+    },
+    {
+      "id": "s3",
+      "kind": "verify",
+      "target_files": [
+        "src/flask/config.py"
+      ],
+      "intent": "Mechanically confirm the changed file contains a mode parameter for Config.from_file by grepping for the literal mode.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "mode"
+      },
+      "deps": [
+        "s1"
+      ]
+    },
+    {
+      "id": "s4",
+      "kind": "verify",
+      "target_files": [
+        "src/flask/config.py"
+      ],
+      "intent": "Mechanically confirm an open call exists in the modified from_file; together with s3 this indicates mode is wired into file opening.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "open("
+      },
+      "deps": [
+        "s3"
+      ]
+    },
+    {
+      "id": "s5",
+      "kind": "verify",
+      "target_files": [
+        "src/flask/config.py",
+        "tests/test_config.py"
+      ],
+      "intent": "Compile the changed Python files to catch syntax errors before running tests.",
+      "success_criteria": {
+        "type": "compile",
+        "value": ""
+      },
+      "deps": [
+        "s1",
+        "s2"
+      ]
+    },
+    {
+      "id": "s6",
+      "kind": "test",
+      "target_files": [
+        "tests/test_config.py"
+      ],
+      "intent": "Run the targeted from_file tests, especially any TOML/binary-mode test, on the changed tree to verify the fail-to-pass requirement.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s2",
+        "s3",
+        "s4",
+        "s5"
+      ]
+    },
+    {
+      "id": "s7",
+      "kind": "test",
+      "target_files": [
+        "tests/test_config.py"
+      ],
+      "intent": "Run the full config test module on the changed tree to verify existing pass-to-pass tests remain green.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s6"
+      ]
+    }
+  ],
+  "risk_classification": {
+    "auth": false,
+    "migration": false,
+    "mq": false,
+    "public_api": true
+  },
+  "budget_alloc": {
+    "iterations": 12,
+    "tokens": 200000
+  },
+  "llm_fallback_reason": ""
+}

@@ -56,8 +56,16 @@ def _load_approved_contracts(
             "expected_behavior": c.expected_behavior,
             "approved": True,
             "registry_ids": [],
+            # §A task 6: the newest approved version wins; the contract
+            # dicts flowing into the pipeline carry the exact stored
+            # version + checker implementation version.
+            "version": 0,
+            "checker_version": "",
         })
         row["registry_ids"].append(c.id)
+        if c.version > int(row.get("version") or 0):
+            row["version"] = c.version
+            row["checker_version"] = c.checker_version
         if c.expected_behavior not in row["expected_behavior"]:
             row["expected_behavior"] += " AND " + c.expected_behavior
     if merged:
@@ -189,6 +197,74 @@ def _maybe_publish_check_run(
         client.close()
 
 
+def _record_certificate_metadata(
+    cert_path: Path, job_id: str, contract_ids: list[str],
+) -> None:
+    """Record the issued certificate in the object metadata store.
+
+    Best effort (same contract as the job-summary persistence): when the
+    store is unavailable the certificate remains a legacy path-based
+    artifact and nothing fails.
+    """
+    import logging
+
+    try:
+        from storage.object_metadata import record_file_object_best_effort
+
+        record_file_object_best_effort(
+            "certificate",
+            cert_path,
+            job_id=job_id,
+            contract_ids=[cid for cid in contract_ids if cid],
+        )
+    except Exception as exc:  # noqa: BLE001 — metadata is best effort
+        logging.getLogger(__name__).warning(
+            "certificate metadata record failed: %s", exc
+        )
+
+
+def _resolve_capsules_via_metadata(
+    job_id: str, capsule_paths: list[str],
+) -> list[tuple[str, bool | None]]:
+    """Resolve capsules through the metadata store first, then fall back.
+
+    For every capsule path: look the object up in the metadata store (by
+    path hint or by job); when a record exists, verify the payload digest
+    against the recorded value and report (path, digest_ok). When no
+    record exists the artifact predates the store — the legacy path is
+    returned unchanged with digest_ok=None (no check, backward
+    compatible). A store that cannot even be opened counts as "no
+    metadata", never as a failure.
+    """
+    try:
+        from storage.object_metadata import (
+            default_object_metadata_store,
+            normalize_payload_digest,
+            payload_sha256_of_file,
+            resolve_object,
+        )
+
+        store = default_object_metadata_store()
+    except Exception:  # noqa: BLE001 — legacy fallback
+        return [(str(p), None) for p in capsule_paths]
+    resolved: list[tuple[str, bool | None]] = []
+    for cap in capsule_paths:
+        record = resolve_object(store, str(cap))
+        path = str(cap)
+        digest_ok: bool | None = None
+        if record is not None:
+            path = record.path_hint or path
+            try:
+                actual = normalize_payload_digest(payload_sha256_of_file(path))
+                digest_ok = actual == normalize_payload_digest(
+                    record.digests.get("payload_sha256", "")
+                )
+            except OSError:
+                digest_ok = None
+        resolved.append((path, digest_ok))
+    return resolved
+
+
 def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
     """Remove temporary Base/Head worktrees created by the pipeline."""
     from contextlib import suppress
@@ -314,6 +390,9 @@ def verify(
     state["output_dir"] = str(output_path)
     state["app_dir"] = app_dir
     state["use_llm"] = use_llm
+    # §A task 7: every artifact this job writes is recorded under this
+    # job id in the object metadata store.
+    state["job_id"] = job_id
     state["require_approved_contracts"] = use_approved_contracts
     state["approved_contracts"] = (
         _load_approved_contracts(
@@ -415,8 +494,15 @@ def verify(
 
     if capsules:
         click.echo(f"\nBug Capsules: {len(capsules)} generated")
-        for cap in capsules:
-            click.echo(f"  {cap}")
+        # §A task 7: resolve each capsule through the object metadata
+        # store FIRST and verify its recorded payload digest; capsules
+        # without a record (pre-existing artifacts) fall back to the
+        # legacy path and stay fully supported.
+        for cap, digest_ok in _resolve_capsules_via_metadata(job_id, capsules):
+            note = "" if digest_ok is None else (
+                " (digest OK)" if digest_ok else " (WARNING: digest mismatch)"
+            )
+            click.echo(f"  {cap}{note}")
 
     # ── Honest verdict ──
     blocker_count = sum(
@@ -494,6 +580,9 @@ def verify(
             cert_path = output_path / f"merge-certificate-{job_id[:8]}.json"
             cert_path.write_text(certificate.to_json(), encoding="utf-8")
             click.echo(f"Merge Certificate: ISSUED -> {cert_path}")
+            _record_certificate_metadata(
+                cert_path, job_id, [str(c.get("id") or "") for c in merged_contracts],
+            )
             _maybe_sign_document(cert_path, certificate.to_dict(), job_id, output_path)
         else:
             click.echo("Merge Certificate: NOT ISSUED (no fully verified contracts)")

@@ -1,0 +1,76 @@
+Running evaluation across 20 golden cases (LLM: off)...
+
+
+=== case-01-auth-bypass (base=base, head=head-v1) ===
+  [PASS] matched 2 finding(s), contracts found: ['AUTH-01'] (190444 ms)
+
+=== case-02-transactional-removal (base=base, head=case-02-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['TRANSACTION-01'] (161054 ms)
+
+=== case-03-clean-pr (base=base, head=case-03-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (163194 ms)
+
+=== case-04-duplicate-email (base=base, head=case-04-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['UNIQUE-01'] (137116 ms)
+
+=== case-05-token-invalidation (base=base, head=case-05-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['TOKEN_INVALIDATION-01'] (127268 ms)
+
+=== case-06-schema-break (base=base, head=case-06-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['BACKWARD_COMPATIBLE-01'] (127819 ms)
+
+=== case-07-duplicate-event (base=base, head=case-07-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['EVENT_ONCE-01'] (136378 ms)
+
+=== case-08-transaction-split (base=base, head=case-08-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['TRANSACTION-01'] (124981 ms)
+
+=== case-09-multi-security (base=base, head=case-09-head) ===
+  [PASS] matched 2 finding(s), contracts found: ['AUTH-01', 'TRANSACTION-01'] (127139 ms)
+
+=== case-10-comment-only (base=base, head=case-10-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (123911 ms)
+
+=== case-11-refactor-rename (base=base, head=case-11-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (127193 ms)
+
+=== case-12-add-javadoc (base=base, head=case-12-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (124936 ms)
+
+=== case-13-annotation-aliased (base=base, head=case-13-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (125312 ms)
+
+=== case-14-annotation-moved-to-interface (base=base, head=case-14-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (120478 ms)
+
+=== case-15-whitespace-only-diff (base=base, head=case-15-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (121817 ms)
+
+=== case-16-preauthorize-role-changed (base=base, head=case-16-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (122273 ms)
+
+=== case-17-logic-inversion (base=base, head=case-17-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['UNIQUE-01'] (126494 ms)
+
+=== case-18-wrong-routing-key (base=base, head=case-18-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['EVENT_ONCE-01'] (125428 ms)
+
+=== case-19-email-corruption (base=base, head=case-19-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['UNIQUE-01'] (127033 ms)
+
+=== case-20-validation-removed (base=base, head=case-20-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['UNIQUE-01'] (128485 ms)
+
+==================================================
+Evaluation Results
+==================================================
+Total cases:        20
+Should detect:      12
+Detected:           12
+False positives:    0
+Precision:          100.0%
+Recall:             100.0%
+F1 Score:           100.0%
+
+HTML report written to docs\eval\eval-c1-rerun.html
+Results JSON written to docs\eval\eval-c1-rerun.results.json

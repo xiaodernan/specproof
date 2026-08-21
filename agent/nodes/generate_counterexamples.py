@@ -21,6 +21,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from agent.job_control import (
+    JobCancelledError,
+    check_cancelled,
+    run_with_cancel_checks,
+)
 from agent.state import Phase0State
 
 # ── Test source tracking ──────────────────────────────────────────
@@ -82,6 +87,9 @@ class TestGenerationRecord:
     # (compile + surefire in one sandbox invocation); run_differential
     # reuses this recorded run instead of invoking Maven on Head again.
     head_run: dict[str, Any] = field(default_factory=dict)
+    # §14.1 review stage: deterministic rules over the final source
+    # (package/class name/test count/assertion short-circuits/imports).
+    review: dict[str, Any] = field(default_factory=dict)
 
 
 def _get_provider() -> Any:
@@ -116,28 +124,30 @@ def _compile_test(workspace: str, test_file: str) -> tuple[int, str]:
     if not pom.exists():
         return -1, "No pom.xml found"
 
-    import platform
-
-    from sandbox.runner import run_sandboxed
-
-    # Sandbox runs the image's mvn; the local fallback uses the wrapper
-    # (absolute path - CreateProcessW resolves relative names against the
-    # parent cwd, not cwd=).
-    if platform.system() == "Windows":
-        local_cmd = [os.path.join(workspace, "mvnw.cmd"), "test-compile", "-q"]
-    else:
-        local_cmd = [os.path.join(workspace, "mvnw"), "test-compile", "-q"]
-    result = run_sandboxed(
-        # -o: the sandbox has --network none by design; every artifact
-        # must resolve from the seeded Maven cache volume.
-        ["mvn", "-o", "test-compile", "-q", "-f", "/work/pom.xml"],
-        workspace=workspace,
-        timeout=600,
-        local_command=local_cmd,
+    # Q lane (guide §4.5 task 10): compilation runs through the
+    # ExecutionAdapter protocol (detect → prepare → run). JavaMavenAdapter
+    # delegates to the sandbox (sandbox/runner.py) — a malicious pom.xml or
+    # build plugin must never execute on the host. Command shape unchanged
+    # from the pre-adapter pipeline (offline -o inside the sandbox, wrapper
+    # absolute path for the local fallback).
+    from experiments.adapters import (
+        AdapterNotImplemented,
+        ExecutionRequest,
+        RepositorySnapshot,
+        registry,
     )
+
+    try:
+        adapter = registry.get(RepositorySnapshot(path=workspace))
+    except AdapterNotImplemented as exc:
+        return -1, str(exc)
+    prepared = adapter.prepare(
+        ExecutionRequest(workspace=workspace, goal="test_compile", timeout=600)
+    )
+    result = adapter.run(prepared)
     if result.error:
         return -1, "Sandbox execution failed: " + result.error
-    return result.exit_code, result.stderr
+    return result.exit_code, result.stderr_tail
 
 
 def _is_demo_repo(workspace: str) -> bool:
@@ -1058,8 +1068,14 @@ async def _generate_with_compile_loop(
     findings: list[dict[str, Any]],
     contracts: list[dict[str, Any]],
     requirement_text: str,
+    job_id: str | None = None,
 ) -> GenerationResult:
-    """LLM generate → validate schema → compile, retry up to 3 times."""
+    """LLM generate → validate schema → compile, retry up to 3 times.
+
+    §14 任务 8: cancellation checkpoint before every LLM retry iteration and
+    around the Maven compile — a cancelled job stops before the next LLM
+    call and never receives the compile result.
+    """
     max_retries = 3
     test_dir = (
         Path(head_workspace) / "src" / "test" / "java"
@@ -1082,6 +1098,7 @@ async def _generate_with_compile_loop(
     last_stderr = ""
     last_exit = -1
     for attempt in range(1, max_retries + 1):
+        check_cancelled(job_id, "llm_generate_attempt")
         try:
             code = await _llm_generate_junit(findings, contracts, requirement_text)
             last_code = code
@@ -1095,7 +1112,9 @@ async def _generate_with_compile_loop(
             continue
 
         test_file.write_text(code, encoding="utf-8")
-        exit_code, stderr = _compile_test(head_workspace, str(test_file))
+        exit_code, stderr = run_with_cancel_checks(
+            job_id, "maven_compile", _compile_test, head_workspace, str(test_file)
+        )
         last_exit = exit_code
         last_stderr = stderr
 
@@ -1136,6 +1155,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
     requirement_text = state.get("requirement_text", "")
     head_workspace = state.get("head_workspace", "")
     app_dir = state.get("app_dir", "")
+    job_id = state.get("job_id")
     all_findings = static_findings + confirmed_findings
 
     record = TestGenerationRecord()
@@ -1184,7 +1204,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
                         asyncio.run,
                         _generate_with_compile_loop(
                             head_workspace, all_findings or static_findings,
-                            contracts, requirement_text,
+                            contracts, requirement_text, job_id=job_id,
                         ),
                     )
                     gen_result = future.result(timeout=300)
@@ -1192,9 +1212,13 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
                 gen_result = asyncio.run(
                     _generate_with_compile_loop(
                         app_workspace, all_findings or static_findings,
-                        contracts, requirement_text,
+                        contracts, requirement_text, job_id=job_id,
                     )
                 )
+        except JobCancelledError:
+            # §14 任务 8: a cancellation checkpoint fired inside the
+            # generation loop — propagate, never fall back to more work.
+            raise
         except Exception as exc:  # noqa: BLE001
             gen_result = GenerationResult(
                 source="deterministic_template",
@@ -1255,7 +1279,10 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
         # semantics stay identical to the old separate compile step.
         from agent.nodes.run_differential import _run_generated_test
 
-        head_run = _run_generated_test(app_workspace, "SpecProofGeneratedTest")
+        head_run = run_with_cancel_checks(
+            job_id, "maven_deterministic_head",
+            _run_generated_test, app_workspace, "SpecProofGeneratedTest",
+        )
         output_tail = (
             head_run.get("stdout", "") + head_run.get("stderr", "")
         )[-500:]
@@ -1275,6 +1302,11 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
 
     record.test_path = str(test_file)
 
+    # ── Review stage (§14.1): deterministic rules over the final source ──
+    from agent.testgen_review import review_generated_test
+
+    record.review = review_generated_test(record.final_code, app_workspace)
+
     return {
         "generated_tests_path": record.test_path,
         "generation_record": {
@@ -1285,6 +1317,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
             "errors": record.errors,
             "llm_code_len": len(record.llm_code),
             "head_run": record.head_run,
+            "review": record.review,
             "test_file_sha256": _sha256_of(test_file),
         },
     }

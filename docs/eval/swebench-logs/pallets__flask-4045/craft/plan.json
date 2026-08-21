@@ -1,0 +1,104 @@
+{
+  "task_title": "[pallets__flask-4045] 修复缺陷 (SWE-bench)",
+  "mode": "llm",
+  "steps": [
+    {
+      "id": "s1",
+      "kind": "understand",
+      "target_files": [
+        "flask/blueprints.py"
+      ],
+      "intent": "Locate the Blueprint class constructor and current name validation to know where the dot guard must be inserted.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "Blueprint"
+      },
+      "deps": []
+    },
+    {
+      "id": "s2",
+      "kind": "understand",
+      "target_files": [
+        "flask/app.py"
+      ],
+      "intent": "Inspect the existing endpoint name dot validation so the blueprint fix matches the established pattern.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "endpoint"
+      },
+      "deps": []
+    },
+    {
+      "id": "s3",
+      "kind": "test",
+      "target_files": [
+        "tests/test_blueprints.py"
+      ],
+      "intent": "Run the existing blueprint test file on the base revision to establish a green baseline before the change.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s1"
+      ]
+    },
+    {
+      "id": "s4",
+      "kind": "verify",
+      "target_files": [
+        "flask/blueprints.py"
+      ],
+      "intent": "Confirm the head change adds a dot-in-name check in the Blueprint constructor by grepping for the guard expression.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "\".\" in name"
+      },
+      "deps": [
+        "s1",
+        "s2"
+      ]
+    },
+    {
+      "id": "s5",
+      "kind": "verify",
+      "target_files": [
+        "tests/test_blueprints.py"
+      ],
+      "intent": "Check that the test suite contains a regression test for a dotted blueprint name.",
+      "success_criteria": {
+        "type": "grep",
+        "value": "dot"
+      },
+      "deps": [
+        "s4"
+      ]
+    },
+    {
+      "id": "s6",
+      "kind": "test",
+      "target_files": [
+        "tests/test_blueprints.py"
+      ],
+      "intent": "Run the blueprint test file on the head revision to execute the new dotted-name regression test and existing blueprint tests.",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": [
+        "s5"
+      ]
+    }
+  ],
+  "risk_classification": {
+    "auth": false,
+    "migration": false,
+    "mq": false,
+    "public_api": false
+  },
+  "budget_alloc": {
+    "iterations": 12,
+    "tokens": 200000
+  },
+  "llm_fallback_reason": ""
+}

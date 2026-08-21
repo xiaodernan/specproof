@@ -1,0 +1,231 @@
+{
+  "total_cases": 20,
+  "should_detect": 13,
+  "detected": 13,
+  "false_positives": 1,
+  "precision": 92.85714285714286,
+  "recall": 100.0,
+  "f1": 96.2962962962963,
+  "cases": [
+    {
+      "case": "case-41-migration-orders-table-dropped",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "MIGRATION-01",
+      "expected_contract": "MIGRATION-01"
+    },
+    {
+      "case": "case-42-migration-new-additive-table",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-43-migration-request-id-column-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "MIGRATION-01",
+      "expected_contract": "MIGRATION-01"
+    },
+    {
+      "case": "case-44-migration-schema-reformatting",
+      "verdict": "FALSE_POSITIVE",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "MIGRATION-01",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-45-migration-stock-constraint-weakened",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "MIGRATION-01",
+      "expected_contract": "MIGRATION-01"
+    },
+    {
+      "case": "case-46-migration-schema-comment",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-47-migration-email-length-shrunk-entity",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "MIGRATION-01",
+      "expected_contract": "MIGRATION-01"
+    },
+    {
+      "case": "case-48-migration-new-index",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-49-api-user-detail-endpoint-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "OPENAPI-01",
+      "expected_contract": "OPENAPI-01"
+    },
+    {
+      "case": "case-50-api-user-detail-path-renamed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "OPENAPI-01",
+      "expected_contract": "OPENAPI-01"
+    },
+    {
+      "case": "case-51-api-order-endpoint-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "OPENAPI-01",
+      "expected_contract": "OPENAPI-01"
+    },
+    {
+      "case": "case-52-api-new-product-detail-endpoint",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-53-api-order-count-field-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "BACKWARD_COMPATIBLE-01",
+      "expected_contract": "BACKWARD_COMPATIBLE-01"
+    },
+    {
+      "case": "case-54-api-internal-method-renamed",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-55-api-email-verb-changed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "AUTH-01, OPENAPI-01",
+      "expected_contract": "OPENAPI-01"
+    },
+    {
+      "case": "case-56-redis-cache-eviction-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "CACHE-01",
+      "expected_contract": "CACHE-01"
+    },
+    {
+      "case": "case-57-redis-cache-ttl-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "CACHE-01",
+      "expected_contract": "CACHE-01"
+    },
+    {
+      "case": "case-58-redis-cache-writeback-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "CACHE-01",
+      "expected_contract": "CACHE-01"
+    },
+    {
+      "case": "case-59-redis-cache-helpers-extracted",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-60-redis-cache-evicted-before-save",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "CACHE-01",
+      "expected_contract": "CACHE-01"
+    }
+  ]
+}

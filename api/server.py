@@ -27,14 +27,33 @@ if str(_project_root) not in sys.path:
 from typing import Any  # noqa: E402
 
 from fastapi import FastAPI, HTTPException, Request  # noqa: E402
+from fastapi.encoders import jsonable_encoder  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from fastapi.responses import FileResponse, RedirectResponse  # noqa: E402
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
+from api.errors import (  # noqa: E402
+    DEFAULT_CODE_BY_STATUS,
+    INTERNAL,
+    VALIDATION_FAILED,
+    ApiError,
+    api_error_response,
+)
 from api.middleware import (  # noqa: E402
     PayloadLimitMiddleware,
     RequestIDMiddleware,
+    TenantAuthMiddleware,
 )
+from api.routes.admin import (  # noqa: E402
+    admin_router as tenant_admin_router,
+)
+from api.routes.admin import (  # noqa: E402
+    router as auth_router,
+)
+from api.routes.agent_console import router as agent_console_router  # noqa: E402
+from api.routes.billing import router as billing_router  # noqa: E402
+from api.routes.feedback import router as feedback_router  # noqa: E402
 from api.routes.jobs import router as jobs_router  # noqa: E402
 from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
@@ -63,6 +82,67 @@ app.add_middleware(
 app.include_router(jobs_router)
 app.include_router(webhooks_router)
 app.include_router(web_router)
+app.include_router(agent_console_router)
+# Multi-tenant identity (industrialization phase 1): /auth/* and the
+# /api/v1/admin/* RBAC-governed surface. In single-tenant mode every
+# handler answers 503, so legacy deployments never see a behavior change.
+app.include_router(auth_router)
+app.include_router(tenant_admin_router)
+# Billing & usage ledger (industrialization phase 6): the /api/v1/billing/*
+# RBAC-governed read surface. Metering stays opt-in via SPECPROOF_BILLING_URL.
+app.include_router(billing_router)
+app.include_router(feedback_router)
+
+
+# ── §8.1 stable error envelope ──────────────────────────────────────────────
+# Every HTTPException (routes, auth dependencies, rate limiter) is rendered as
+# {"detail": <original, unchanged>, "error": {"code", "message", "request_id"},
+#  "schema_version": 1}. ApiError carries the explicit code; plain
+# HTTPExceptions are mapped by status via DEFAULT_CODE_BY_STATUS. The legacy
+# `detail` key keeps its original value so existing clients/tests keep working.
+
+
+def _request_id(request: Request) -> str | None:
+    """Best-effort request id for error envelopes.
+
+    RequestIDMiddleware (outermost) sets both the context variable and
+    request.state; the context variable is the primary source and the state
+    is the fallback for callers that bypass the middleware.
+    """
+    from observability.logging import request_id_var
+
+    rid: str | None = request_id_var.get() or None
+    if rid:
+        return rid
+    state_id = getattr(request.state, "request_id", None)
+    return state_id if isinstance(state_id, str) else None
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_envelope_handler(
+    request: Request, exc: HTTPException,
+) -> JSONResponse:
+    """Render HTTP errors through the stable error envelope."""
+    if isinstance(exc, ApiError):
+        code = exc.error_code
+    elif exc.status_code >= 500:
+        code = DEFAULT_CODE_BY_STATUS.get(exc.status_code, INTERNAL)
+    else:
+        code = DEFAULT_CODE_BY_STATUS.get(exc.status_code, VALIDATION_FAILED)
+    body = api_error_response(exc.status_code, code, exc.detail, _request_id(request))
+    return JSONResponse(
+        status_code=exc.status_code, content=body, headers=exc.headers,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_envelope_handler(
+    request: Request, exc: RequestValidationError,
+) -> JSONResponse:
+    """422 with VALIDATION_FAILED; the legacy detail list is preserved."""
+    errors = jsonable_encoder(exc.errors())
+    body = api_error_response(422, VALIDATION_FAILED, errors, _request_id(request))
+    return JSONResponse(status_code=422, content=body)
 
 # P0-A4: refuse to start in production with default credentials.
 from storage.config_guard import enforce_production_config  # noqa: E402
@@ -100,6 +180,9 @@ async def request_metrics(request: Request, call_next: Any) -> Any:
 # dependencies, and both wrap the pre-existing metrics/tracing/CORS stack.
 app.add_middleware(PayloadLimitMiddleware)
 app.add_middleware(RequestIDMiddleware)
+# Tenant auth runs inside RequestID (its envelopes carry the request id) and
+# outside PayloadLimit (credentials are checked before any body buffering).
+app.add_middleware(TenantAuthMiddleware)
 
 
 # ── Web dashboard (static; the JSON APIs it calls are key-protected) ──
@@ -141,6 +224,7 @@ async def health() -> dict[str, str | bool]:
 _web_dist = Path(__file__).resolve().parents[1] / "apps" / "web" / "dist"
 _SPA_RESERVED_PREFIXES = (
     "api/",
+    "agent",
     "jobs",
     "metrics",
     "health",

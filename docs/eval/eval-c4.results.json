@@ -1,0 +1,198 @@
+{
+  "total_cases": 17,
+  "should_detect": 12,
+  "detected": 12,
+  "false_positives": 0,
+  "precision": 100.0,
+  "recall": 100.0,
+  "f1": 100.0,
+  "cases": [
+    {
+      "case": "case-61-redis-token-pattern-typo",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "CACHE-01",
+      "expected_contract": "CACHE-01"
+    },
+    {
+      "case": "case-62-redis-config-comment",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-63-redis-cache-write-key-mismatch",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "CACHE-01",
+      "expected_contract": "CACHE-01"
+    },
+    {
+      "case": "case-64-redis-cache-ttl-tuned",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-65-redis-cache-key-prefix-changed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "CACHE-01",
+      "expected_contract": "CACHE-01"
+    },
+    {
+      "case": "case-66-mq-order-routing-key-changed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "ORDER_EVENT-01",
+      "expected_contract": "ORDER_EVENT-01"
+    },
+    {
+      "case": "case-67-mq-order-event-publish-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "ORDER_EVENT-01",
+      "expected_contract": "ORDER_EVENT-01"
+    },
+    {
+      "case": "case-68-mq-order-publish-helper-extracted",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-69-mq-order-event-published-twice",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 2,
+      "matched_severities": "MAJOR",
+      "contracts_found": "EVENT_ONCE-01, ORDER_EVENT-01",
+      "expected_contract": "EVENT_ONCE-01"
+    },
+    {
+      "case": "case-70-mq-event-class-javadoc",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-71-mq-order-event-exchange-changed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "ORDER_EVENT-01",
+      "expected_contract": "ORDER_EVENT-01"
+    },
+    {
+      "case": "case-72-mq-email-event-payload-corrupted",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "EVENT_ONCE-01",
+      "expected_contract": "EVENT_ONCE-01"
+    },
+    {
+      "case": "case-73-logic-negative-quantity-accepted",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "BOUNDARY-01",
+      "expected_contract": "BOUNDARY-01"
+    },
+    {
+      "case": "case-74-logic-full-stock-boundary-rejected",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "BOUNDARY-01",
+      "expected_contract": "BOUNDARY-01"
+    },
+    {
+      "case": "case-75-logic-order-amount-inflated",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "ORDER_AMOUNT-01",
+      "expected_contract": "ORDER_AMOUNT-01"
+    },
+    {
+      "case": "case-76-logic-equivalent-stock-check",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-77-logic-email-format-validation-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "EMAIL_FORMAT-01",
+      "expected_contract": "EMAIL_FORMAT-01"
+    }
+  ]
+}

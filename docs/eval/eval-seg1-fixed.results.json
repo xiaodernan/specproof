@@ -1,0 +1,84 @@
+{
+  "total_cases": 6,
+  "should_detect": 3,
+  "detected": 3,
+  "false_positives": 0,
+  "precision": 100.0,
+  "recall": 100.0,
+  "f1": 100.0,
+  "timing_note": "Per-case duration_ms is whole-pipeline wall clock measured around the graph invocation; the Phase 0 graph exposes no per-stage timestamps, so stage-level timings are not available.",
+  "cases": [
+    {
+      "case": "case-09-multi-security",
+      "verdict": "PASS",
+      "should_detect": true,
+      "duration_ms": 612902,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 2,
+      "matched_severities": "MAJOR",
+      "contracts_found": "AUTH-01, TRANSACTION-01",
+      "expected_contract": "TRANSACTION-01"
+    },
+    {
+      "case": "case-25-auth-secured-equivalent",
+      "verdict": "PASS",
+      "should_detect": false,
+      "duration_ms": 402005,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-29-tx-optimistic-lock-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "duration_ms": 250020,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "CONCURRENCY-01",
+      "expected_contract": "CONCURRENCY-01"
+    },
+    {
+      "case": "case-30-tx-version-guard-moved-to-getter",
+      "verdict": "PASS",
+      "should_detect": false,
+      "duration_ms": 153040,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-31-tx-decrement-committed-before-validation",
+      "verdict": "PASS",
+      "should_detect": true,
+      "duration_ms": 159892,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "ATOMICITY-01",
+      "expected_contract": "ATOMICITY-01"
+    },
+    {
+      "case": "case-44-migration-schema-reformatting",
+      "verdict": "PASS",
+      "should_detect": false,
+      "duration_ms": 149749,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    }
+  ]
+}

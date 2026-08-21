@@ -120,9 +120,30 @@ sandbox.run_sandboxed (非 root / 断网 / 资源限额 / 超时 / 输出截断)
 每轮迭代把 (诊断, 编辑, 结果) 写入 checkpoint, resume 从最后一个绿步骤之后继续。
 
 ### 4.5 自校验 craft/verify.py
-每次迭代后跑三层: ① 构建 + 全量单测 (硬门, 退出码 0); ② 复用 SpecProof checker 家族
-做静态契约检查 (安全注解/事务/事件/唯一约束, 只读调用); ③ 安全扫描 (canary/密钥)。
-自校验不过不交付, 结论写进 report (可重放)。
+每次迭代后跑三层: ① 构建 + 全量单测 (硬门, 退出码 0, 由 loop 的 compile/test_green
+criteria 保证); ② 复用 SpecProof checker 家族做静态契约检查 (安全注解/事务/事件/唯一
+约束, 只读调用); ③ 安全扫描 (canary/密钥)。自校验不过不交付, 结论写进 report (可重放)。
+
+M3 实现 (2026-08-18):
+- 入口 `craft.verify.self_verify(changed_files, workspace, *, base_files=None)`
+  → `{"status": "passed"|"failed"|"skipped", "findings": [...], "note": "..."}`,
+  全部只读; `base_files` 为可选的 Base 快照 (loop 从 Editor 备份目录还原每次改动的
+  原始内容, 供 diff 型 Java 检查器观察回归)。
+- ①安全层: 复用 `agent.security_scanner.scan_directory` (公开函数) 全仓扫描并过滤到
+  改动文件; 另对每个改动文件做 canary 哨兵 (SPECPROOF_CANARY_) 子串检查 (扫描器按
+  设计跳过 canary 命中, 哨兵检查由 verify 显式执行)。CRITICAL/HIGH 密钥或 canary 命中
+  → failed; MEDIUM/LOW 记入 findings 但不拦门 (与扫描器自身 passed 口径一致)。
+- ②契约层: 改动含 Java 文件且 agent/checkers 可用时, 调用 `run_contract_checks`
+  (checker 家族注册表公开入口) 跑 Base→Head 差分; 任一契约 finding → failed。
+  无 Base 快照 / 检查器不可用 / 检查器抛错 → 记 note, 不伪造通过 (skipped+原因)。
+- ③其他语言文件跳过契约检查器, note 标注。
+- loop 接线: `CraftLoop(skip_self_verify=False)` 默认开; `_finish()` 写 report 前跑
+  门, `self_verify.status=failed` 时终态 DONE 覆盖为 FAILED (证据留痕), 编辑不回滚
+  (report 诚实说明); `--no-self-verify` → status=skipped + 原因。
+- CLI: `craft run --self-verify/--no-self-verify` (默认 --self-verify), 终态打印
+  self_verify 结论 (status + findings 数)。
+- 已知限制: 位于扫描器策略排除路径 (tests/ 等) 的改动文件仅做 canary 检查; 契约层
+  无 Base 快照时对新增 Java 文件无可观察对象 (诚实 skipped)。
 
 ### 4.6 上下文与检索 craft/context.py
 只读复用 repo_graph: 改动文件的调用者/被调用者邻域注入 LLM 上下文 (默认 2 跳),
@@ -178,7 +199,15 @@ test_green); run 由模型诊断并 apply_edit 修复 calc 后 1 次迭代收敛
 usage 2 calls / prompt 1620 / completion 7090 / reasoning 6574 / cache-hit 512
 (plan 调用命中稳定前缀 KV 缓存) / 计费 16443.2 / 上限 500000; 产物零
 reasoning 泄漏 (ADR-017 扫描通过)。
-M3 自校验: 接入 checkers + 安全扫描; 验收: 植入回归的 fixture 被自校验拦下 (0 交付)。
+✅ M3 状态 (2026-08-18): 已交付 — craft/verify.py 自校验硬门 (密钥/canary 扫描 +
+Java 契约检查器, 全只读复用 agent/security_scanner 与 agent/checkers 公开入口);
+loop._finish 默认跑门, failed → 终态 FAILED (编辑不回滚, 报告诚实说明);
+CLI craft run --self-verify/--no-self-verify (默认开, 跳过时 report 标注 skipped);
+单元测试 tests/unit/test_craft_verify.py (17 例, 含密钥/canary/契约回归拦截、
+检查器不可用/抛错诚实 skipped、loop 覆盖 FAILED、CLI 两档); 门禁 ruff/mypy/bandit
+全绿; 真实冒烟: speccraft-demo craft run --no-llm --fix-module → DONE 且
+self_verify.status=passed; 植入假密钥 fixture → self_verify failed 拦下
+(result=FAILED, 退出码 1)。验收: 植入回归的 fixture 被自校验拦下 (0 交付)。
 M4 持久化: MySQL job 行 + checkpoint resume + 审计表; 验收: kill 后 resume 续跑通过。
 M5 检索注入: repo_graph 邻域注入 + ES 检索 (可选); 验收: 上下文命中率指标。
 M6 交付: 分支/PR/diff 报告 + GitHub App 触发; 验收: E2E (issue → PR → Check Run)。
@@ -210,7 +239,8 @@ Merge Certificate; 全量门禁 (ruff/mypy/bandit/pytest) 全绿; SpecProof 15 �
 ## 附录 A. CLI 参数全表 (M1 交付)
 craft plan SPEC_TEXT | SPEC_FILE   --repo PATH [--llm|--no-llm] [--output DIR]
 craft run  SPEC_TEXT | SPEC_FILE   --repo PATH [--max-iterations N] [--budget-tokens N]
-                                   [--timeout MIN] [--llm|--no-llm] [--no-self-verify] [--dry-run]
+                                   [--timeout MIN] [--llm|--no-llm]
+                                   [--self-verify|--no-self-verify] [--dry-run]
 craft resume --job JOB_ID          [--max-iterations N]
 craft explain STEP_ID --job JOB_ID
 craft accept JOB_ID                [--depth FAST|DEEP|RELEASE]   (M7)

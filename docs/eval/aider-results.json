@@ -1,0 +1,177 @@
+{
+  "schema_version": "1.0",
+  "harness": "scripts/bench_aider.py",
+  "generated_at": "2026-08-19T11:55:18+00:00",
+  "benchmark": {
+    "name": "Aider-AI/polyglot-benchmark",
+    "url": "https://github.com/Aider-AI/polyglot-benchmark",
+    "source": {
+      "kind": "offline-sample",
+      "path": "D:\\experim\\specproof-clean-clone-gate\\scripts\\aider_sample\\repo",
+      "total_scanned": 3,
+      "language_counts": {
+        "go": 1,
+        "python": 2
+      }
+    },
+    "tasks_selected": 3,
+    "note": "--tasks N 取 runner 支持优先级顺序 (python, javascript, ...) 的前 N 个任务; 这是 harness 子集口径, 非官方 aider 选取口径 (见 AIDER_PLAN.md)"
+  },
+  "run": {
+    "exec_timeout": 300,
+    "max_iterations": 12,
+    "deps_timeout": 600,
+    "work_root": "D:\\UserData\\HUAWEI\\Temp\\aider-work-d3een4fs",
+    "logs_dir": "docs\\eval\\aider-logs",
+    "venv": {
+      "python": "",
+      "error": "",
+      "note": "--no-venv: 直接使用当前解释器, 跳过 venv 创建 (样例/测试路径)"
+    }
+  },
+  "llm": {
+    "client": "craft.llm.LLMClient",
+    "model": "fake-model",
+    "base_url": "http://127.0.0.1:9",
+    "key_recorded": false
+  },
+  "tasks": [
+    {
+      "task_id": "python/toycalc-double",
+      "status": "unresolved",
+      "resolved": false,
+      "reason": "no edit produced: craft 未产生任何编辑 (终态 FAILED); 未运行测试, 未声称 resolved",
+      "stage": "craft",
+      "language": "python",
+      "runner": "pytest",
+      "test_file": "toycalc_test.py",
+      "source_dir": "D:\\experim\\specproof-clean-clone-gate\\scripts\\aider_sample\\repo\\python\\exercises\\practice\\toycalc-double",
+      "description_head": "# 任务: toycalc double\n\n`toycalc.py` 中的 `double()` 目前把输入除以 2, 但应当返回输入的两倍。\n\n修复 `double()`, 使 `double(x)` 返回 `x * 2`。保持 `greeting()` 不变。\n\n验收: `pytest toycalc_test.py` 全部通过\n禁止: 修改 `toycalc_test.py` 或任何测试文件\n",
+      "prompt": {
+        "path": "D:\\UserData\\HUAWEI\\Temp\\aider-work-d3een4fs\\python_toycalc-double\\PROMPT.md"
+      },
+      "craft": {
+        "result": "FAILED",
+        "mode": "deterministic",
+        "edits": [],
+        "iterations": 1,
+        "seconds": 15.2,
+        "report_path": "docs\\eval\\aider-logs\\python_toycalc-double\\craft\\report.json",
+        "llm_fallback_reason": "LLM unavailable: LLM 调用失败: InternalServerError: Error code: 502",
+        "llm_usage": {
+          "available": true,
+          "calls": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "reasoning_tokens": 0,
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 0,
+          "reasoning_journal_entries": 0,
+          "budget": {
+            "limit_tokens": 500000.0,
+            "used": 0.0,
+            "remaining": 500000.0
+          },
+          "calls_detail": []
+        }
+      },
+      "deps": null,
+      "test_run": null,
+      "note": "",
+      "logs": {
+        "tests_log": "docs\\eval\\aider-logs\\python_toycalc-double\\tests.log"
+      },
+      "llm": {
+        "client": "craft.llm.LLMClient",
+        "model": "fake-model",
+        "base_url": "http://127.0.0.1:9",
+        "key_recorded": false
+      }
+    },
+    {
+      "task_id": "python/toycalc-multiply",
+      "status": "unresolved",
+      "resolved": false,
+      "reason": "no edit produced: craft 未产生任何编辑 (终态 FAILED); 未运行测试, 未声称 resolved",
+      "stage": "craft",
+      "language": "python",
+      "runner": "pytest",
+      "test_file": "toycalc_test.py",
+      "source_dir": "D:\\experim\\specproof-clean-clone-gate\\scripts\\aider_sample\\repo\\python\\exercises\\practice\\toycalc-multiply",
+      "description_head": "# 任务: toycalc multiply\n\n`toycalc.py` 中的 `multiply()` 目前返回两数之和, 但应当返回两数之积。\n\n修复 `multiply()`, 使 `multiply(a, b)` 返回 `a * b`。保持 `greeting()` 不变。\n\n验收: `pytest toycalc_test.py` 全部通过\n禁止: 修改 `toycalc_test.py` 或任何测试文件\n",
+      "prompt": {
+        "path": "D:\\UserData\\HUAWEI\\Temp\\aider-work-d3een4fs\\python_toycalc-multiply\\PROMPT.md"
+      },
+      "craft": {
+        "result": "FAILED",
+        "mode": "deterministic",
+        "edits": [],
+        "iterations": 1,
+        "seconds": 18.1,
+        "report_path": "docs\\eval\\aider-logs\\python_toycalc-multiply\\craft\\report.json",
+        "llm_fallback_reason": "LLM unavailable: LLM 调用失败: InternalServerError: Error code: 502",
+        "llm_usage": {
+          "available": true,
+          "calls": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "reasoning_tokens": 0,
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 0,
+          "reasoning_journal_entries": 0,
+          "budget": {
+            "limit_tokens": 500000.0,
+            "used": 0.0,
+            "remaining": 500000.0
+          },
+          "calls_detail": []
+        }
+      },
+      "deps": null,
+      "test_run": null,
+      "note": "",
+      "logs": {
+        "tests_log": "docs\\eval\\aider-logs\\python_toycalc-multiply\\tests.log"
+      },
+      "llm": {
+        "client": "craft.llm.LLMClient",
+        "model": "fake-model",
+        "base_url": "http://127.0.0.1:9",
+        "key_recorded": false
+      }
+    },
+    {
+      "task_id": "go/toycalc-sum",
+      "status": "unresolved",
+      "resolved": false,
+      "reason": "runner 未支持: 语言 go 的测试执行本 harness 未实现 (仅支持 pytest/npm test); 未运行 craft, 未声称 resolved",
+      "stage": "tests",
+      "language": "go",
+      "runner": "unsupported-go",
+      "test_file": "toycalc_test.go",
+      "source_dir": "D:\\experim\\specproof-clean-clone-gate\\scripts\\aider_sample\\repo\\go\\exercises\\practice\\toycalc-sum",
+      "description_head": "# 任务: toycalc sum\n\n实现 `Sum(a, b)`, 返回两整数之和。\n\n验收: `go test ./...` 全部通过\n禁止: 修改 `toycalc_test.go`\n",
+      "prompt": {},
+      "craft": null,
+      "deps": null,
+      "test_run": null,
+      "note": "",
+      "logs": {
+        "tests_log": "docs\\eval\\aider-logs\\go_toycalc-sum\\tests.log"
+      },
+      "llm": {
+        "client": "craft.llm.LLMClient",
+        "model": "fake-model",
+        "base_url": "http://127.0.0.1:9",
+        "key_recorded": false
+      }
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "resolved": 0,
+    "unresolved": 3,
+    "resolved_rate_pct": 0.0,
+    "note": "harness 口径: resolved 仅当 craft 产生编辑 + 任务测试/配置文件未被修改 + 按任务语言执行的测试全部通过; 失败阶段如实记录, 绝不伪造 通过 (见 docs/eval/AIDER_PLAN.md)"
+  }
+}

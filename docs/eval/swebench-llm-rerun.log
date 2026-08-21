@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "D:\experim\specproof-clean-clone-gate\scripts\bench_swebench.py", line 1344, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "D:\experim\specproof-clean-clone-gate\scripts\bench_swebench.py", line 1188, in main
+    instances, source = _load_instances(
+                        ^^^^^^^^^^^^^^^^
+  File "D:\experim\specproof-clean-clone-gate\scripts\bench_swebench.py", line 305, in _load_instances
+    instances = _fetch_hf_rows(dataset, limit=fetch_limit)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\experim\specproof-clean-clone-gate\scripts\bench_swebench.py", line 225, in _fetch_hf_rows
+    payload: Any = json.loads(response.read().decode("utf-8"))
+                              ^^^^^^^^^^^^^^^
+  File "C:\Users\HUAWEI\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 495, in read
+    s = self._safe_read(self.length)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HUAWEI\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 644, in _safe_read
+    raise IncompleteRead(data, amt-len(data))
+http.client.IncompleteRead: IncompleteRead(1700175 bytes read, 39265 more expected)

@@ -1,0 +1,5 @@
+[1/2] pallets__flask-4045 -> unresolved (craft): craft 未收敛 (FAILED): 步骤 s5 (test): LLM unavailable: LLM 调用失败: APITimeoutError: Request timed out.
+[2/2] pallets__flask-4992 -> unresolved (craft): craft 未收敛 (FAILED): 步骤 s4 (test): [LLM_PROPOSAL_REPEATED] 编辑提案与第 2 次迭代的提案完全相同 — 重复提案不再执行, 也不再发起 LLM 调用 (预算留给真正的新尝试)
+汇总: total=2 resolved=0 unresolved=2 rate=0.0%
+结果 JSON: docs\eval\swebench-llm-results-v10.json
+日志目录: docs\eval\swebench-logs

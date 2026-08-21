@@ -27,19 +27,22 @@ class MigrationError(Exception):
 
 
 def _split_statements(sql: str) -> list[str]:
-    """Split on ';' and drop comment LINES from each statement.
+    """Drop comment LINES first, then split on ';'.
 
-    A leading "-- 0002: ..." comment block must not swallow the ALTER that
-    follows it (the old version discarded a whole segment when its first
-    line was a comment — the 0002 enum ALTER was silently dropped).
+    Comment stripping must run BEFORE the ';' split: a comment line that
+    itself contains a semicolon (migration 0008: "--   next_retry_at ...
+    deferral; the relay only claims rows") would otherwise leak its
+    post-semicolon text into a fake statement — observed live when 0008
+    failed to apply on the dev database. A leading "-- 0002: ..." comment
+    block must also not swallow the ALTER that follows it (the old
+    segment-wise version silently dropped the 0002 enum ALTER).
     """
+    code_lines = [
+        ln for ln in sql.splitlines() if not ln.strip().startswith("--")
+    ]
     statements: list[str] = []
-    for raw in sql.split(";"):
-        lines = [
-            ln for ln in raw.splitlines()
-            if not ln.strip().startswith("--")
-        ]
-        stmt = "\n".join(lines).strip()
+    for raw in "\n".join(code_lines).split(";"):
+        stmt = raw.split("-- ", 1)[0].strip()
         if stmt:
             statements.append(stmt)
     return statements

@@ -1,0 +1,16 @@
+{
+  "expected_severity": "MAJOR",
+  "expected_contract": "CACHE-01",
+  "expected_evidence_type": "base_pass_head_fail",
+  "should_detect": true,
+  "attribution": {
+    "head_defects": [
+      {
+        "contract_id": "CACHE-01",
+        "kind": "regression",
+        "description": "user-cache eviction removed by case-56-head"
+      }
+    ],
+    "base_defects": []
+  }
+}

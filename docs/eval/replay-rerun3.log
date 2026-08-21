@@ -1,0 +1,31 @@
+[1/28] capsule-4ccc31dc-AUTH-01 -> evidence_inconsistent
+[2/28] capsule-CONST-EVENT_ONCE-01 -> same_conclusion
+[3/28] capsule-COURT-ATOMICITY-01 -> same_conclusion (REGRESSION CONFIRMED)
+[4/28] capsule-COURT-AUTH-01 -> same_conclusion (REGRESSION CONFIRMED)
+[5/28] capsule-COURT-BOUNDARY-01 -> same_conclusion (REGRESSION CONFIRMED)
+[6/28] capsule-COURT-CACHE-01 -> same_conclusion (REGRESSION CONFIRMED)
+[7/28] capsule-COURT-CONCURRENCY-01 -> same_conclusion (REGRESSION CONFIRMED)
+[8/28] capsule-COURT-DIFF-01 -> evidence_inconsistent
+[9/28] capsule-COURT-EMAIL_FORMAT-01 -> same_conclusion (REGRESSION CONFIRMED)
+[10/28] capsule-COURT-EVENT_ONCE-01 -> replay_failed
+[11/28] capsule-COURT-IDEMPOTENT-01 -> same_conclusion (REGRESSION CONFIRMED)
+[12/28] capsule-COURT-NPLUSONE-01 -> same_conclusion (REGRESSION CONFIRMED)
+[13/28] capsule-COURT-ORDER_AMOUNT-01 -> same_conclusion (REGRESSION CONFIRMED)
+[14/28] capsule-COURT-ORDER_EVENT-01 -> replay_failed
+[15/28] capsule-COURT-UNIQUE-01 -> same_conclusion (REGRESSION CONFIRMED)
+[16/28] capsule-SRC-AUTH-ANNO -> same_conclusion
+[17/28] capsule-SRC-BACKWARD_COMPATIBLE-SCHE -> same_conclusion
+[18/28] capsule-SRC-EVENT_ONCE-DUPL -> same_conclusion
+[19/28] capsule-SRC-MIGRATION-COLU -> same_conclusion
+[20/28] capsule-SRC-MIGRATION-CONS -> same_conclusion
+[21/28] capsule-SRC-MIGRATION-TABL -> same_conclusion
+[22/28] capsule-SRC-OPENAPI-ENDP -> same_conclusion
+[23/28] capsule-SRC-TEST_STRENGTH-ASSE -> same_conclusion
+[24/28] capsule-SRC-TEST_STRENGTH-TEST -> same_conclusion
+[25/28] capsule-SRC-TOKEN_INVALIDATION-GUAR -> same_conclusion
+[26/28] capsule-SRC-TRANSACTION-ANNO -> same_conclusion
+[27/28] capsule-SRC-UNIQUE-GUAR -> same_conclusion
+[28/28] capsule-STATIC-MUT-01 -> evidence_inconsistent
+
+replay success rate: 23/28 = 0.8214 (gate >= 0.95: FAIL)
+results: scripts/bench_replay.py -> docs/eval/replay-results.json + .md

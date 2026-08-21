@@ -12,6 +12,13 @@ def make_job_id():
     return f"test-worker-{uuid.uuid4().hex[:12]}"
 
 
+class _EmptyWritesCursor:
+    """Minimal pymongo-cursor stand-in: no pending writes for the fake."""
+
+    def sort(self, *args: object) -> list[object]:
+        return []
+
+
 class TestCrashRecoveryScenarios:
     """Test recovery scenarios at the logic level."""
 
@@ -155,6 +162,10 @@ class TestMongoDBSaverInterface:
                     @staticmethod
                     def find_one(query, sort=None):
                         return None
+                class checkpoint_writes:
+                    @staticmethod
+                    def find(query):
+                        return _EmptyWritesCursor()
 
         saver = MongoDBSaver.__new__(MongoDBSaver)  # skip __init__
         saver._store = FakeStore()
@@ -188,6 +199,10 @@ class TestMongoDBSaverInterface:
                     @staticmethod
                     def find_one(query, sort=None):
                         return doc
+                class checkpoint_writes:
+                    @staticmethod
+                    def find(query):
+                        return _EmptyWritesCursor()
 
         saver = MongoDBSaver.__new__(MongoDBSaver)
         saver._store = FakeStore()

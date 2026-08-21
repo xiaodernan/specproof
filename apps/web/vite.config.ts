@@ -14,6 +14,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": "http://localhost:8000",
+      "/auth": "http://localhost:8000",
+      "/agent": "http://localhost:8000",
       "/jobs": "http://localhost:8000",
       "/health": "http://localhost:8000",
       "/metrics": "http://localhost:8000",

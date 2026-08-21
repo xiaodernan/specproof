@@ -1,0 +1,131 @@
+{
+  "job_id": "swebench-specproof__toycalc-double-1",
+  "mode": "deterministic",
+  "result": "DONE",
+  "steps": [
+    {
+      "id": "s1",
+      "kind": "understand",
+      "status": "green",
+      "iterations": 0,
+      "evidence": {
+        "check": "grep",
+        "note": "可读性检查通过: [] (M1 不注入上下文)"
+      }
+    },
+    {
+      "id": "s2",
+      "kind": "modify",
+      "status": "green",
+      "iterations": 0,
+      "evidence": {
+        "check": "compile",
+        "note": "无目标文件, 跳过编译 (M1 确定性骨架)"
+      }
+    },
+    {
+      "id": "s3",
+      "kind": "test",
+      "status": "green",
+      "iterations": 1,
+      "evidence": {
+        "check": "test_green",
+        "exit_code": 0,
+        "failed_tests": [],
+        "mode": "local",
+        "output_tail": "..                                                                       [100%]\n2 passed in 0.01s"
+      }
+    },
+    {
+      "id": "s4",
+      "kind": "verify",
+      "status": "green",
+      "iterations": 0,
+      "evidence": {
+        "check": "test_green",
+        "exit_code": 0,
+        "failed_tests": [],
+        "mode": "local",
+        "output_tail": "..                                                                       [100%]\n2 passed in 0.02s"
+      }
+    }
+  ],
+  "diff_stat": {
+    "files_changed": 1,
+    "files": [
+      "calc.py"
+    ]
+  },
+  "self_verify": {
+    "status": "passed",
+    "findings": [],
+    "note": "无 Java 改动文件, 契约检查器不适用; 自校验通过: 密钥/canary 扫描与契约检查未发现硬门 finding (改动文件 1 个)"
+  },
+  "budget_used": {
+    "tokens": 0.0,
+    "iterations": 1,
+    "seconds": 12.1
+  },
+  "audit_trail": [
+    {
+      "timestamp": "2026-08-19T08:04:25+00:00",
+      "action": "backup",
+      "path": "calc.py",
+      "detail": "→ calc.py.20260819T080425Z0000.2ce240",
+      "before_digest": "1200973191e2453626e461e49cb03415ac6655063713e3f7b0e546cec1010047",
+      "after_digest": ""
+    },
+    {
+      "timestamp": "2026-08-19T08:04:25+00:00",
+      "action": "edit",
+      "path": "calc.py",
+      "detail": "替换 1 处 (12→12 chars)",
+      "before_digest": "1200973191e2453626e461e49cb03415ac6655063713e3f7b0e546cec1010047",
+      "after_digest": "867e32ce2c9f6aaa141e24d751101e0506db59d2912e82071941c2525bb8cfd2"
+    }
+  ],
+  "gates": {
+    "task_id": "swebench-specproof__toycalc-double-1",
+    "overall": "skipped",
+    "overall_note": "无失败但有跳过门禁 (SKIPPED > PASS, 不认证为通过): run_build",
+    "duration_ms": 4341,
+    "gates": [
+      {
+        "gate": "run_test",
+        "status": "passed",
+        "note": "检测到 1 个测试文件; python -m pytest -q: 通过 (exit 0, mode=local)",
+        "findings": [],
+        "duration_ms": 2280
+      },
+      {
+        "gate": "run_build",
+        "status": "skipped",
+        "note": "未检测到构建配置 (pom.xml / build.gradle / pyproject.toml / setup.py), run_build 无对象, 按 skipped 处理 (不伪造通过)",
+        "findings": [],
+        "duration_ms": 0
+      },
+      {
+        "gate": "run_typecheck",
+        "status": "passed",
+        "note": "python -m mypy calc.py: 通过 (exit 0, mode=local)",
+        "findings": [],
+        "duration_ms": 1996
+      },
+      {
+        "gate": "security",
+        "status": "passed",
+        "note": "改动文件 1 个无密钥/canary finding",
+        "findings": [],
+        "duration_ms": 58
+      },
+      {
+        "gate": "self_verify",
+        "status": "passed",
+        "note": "无 Java 改动文件, 契约检查器不适用; 自校验通过: 密钥/canary 扫描与契约检查未发现硬门 finding (改动文件 1 个)",
+        "findings": [],
+        "duration_ms": 0
+      }
+    ],
+    "summary": "GATES: task=swebench-specproof__toycalc-double-1 overall=skipped run_test=passed run_build=skipped run_typecheck=passed security=passed self_verify=passed duration_ms=4341"
+  }
+}

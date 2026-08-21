@@ -1,14 +1,23 @@
-"""FastAPI middleware completions (J round): Request-ID + JSON payload limit.
+"""FastAPI middleware completions: Request-ID, tenant auth, JSON payload limit.
 
-Both middlewares are pure ASGI (no BaseHTTPMiddleware) so streaming
-responses - the job progress SSE endpoint - are never buffered or broken,
-and the request body can be bounded BEFORE routing/auth runs.
+Request-ID and PayloadLimit are pure ASGI (no BaseHTTPMiddleware) so
+streaming responses — the job progress SSE endpoint — are never buffered or
+broken, and the request body can be bounded BEFORE routing/auth runs.
+
+TenantAuthMiddleware (industrialization phase 1,
+docs/architecture/MULTI_TENANT_DESIGN.md §4) is the auth dependency
+injection point: it parses Authorization (Bearer sp_* or OIDC JWT) into a
+unified principal on request.state, enforces the §2 RBAC matrix, answers
+cross-tenant job reads with 404 + audit(attempted_tenant), and publishes
+the tenant scope contextvar consumed by the repository layer. It is
+INERT unless auth is explicitly enabled (SPECPROOF_AUTH_ENABLED=true or
+OIDC_ISSUER set) — the single-tenant deployment stays byte-identical.
 
 Ordering contract (see api/server.py): RequestIDMiddleware is the
-outermost middleware (it must see every response, including errors from
-deeper layers); PayloadLimitMiddleware runs before the auth/rate-limit
-route dependencies so oversized bodies are rejected as 413 without ever
-hitting application code.
+outermost middleware; TenantAuthMiddleware runs inside it but before
+PayloadLimitMiddleware, so unauthenticated oversized bodies are rejected
+as 401 before any body is buffered, and its own error envelopes carry the
+request id.
 """
 
 from __future__ import annotations
@@ -16,11 +25,21 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import uuid
+from typing import TYPE_CHECKING
 
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from api.errors import (
+    AUTH_REQUIRED,
+    JOB_NOT_FOUND,
+    PAYLOAD_TOO_LARGE,
+    QUOTA_EXCEEDED,
+    TENANT_FORBIDDEN,
+    api_error_response,
+)
 from observability.logging import request_id_var
 
 logger = logging.getLogger(__name__)
@@ -28,10 +47,88 @@ logger = logging.getLogger(__name__)
 REQUEST_ID_HEADER = "X-Request-ID"
 DEFAULT_MAX_JSON_BYTES = 10 * 1024 * 1024  # 10 MiB
 
+# ── Tenant auth (industrialization phase 1) ────────────────────────────────
+
+#: Paths that never need a bearer credential, even in tenant mode.
+_TENANT_OPEN_PREFIXES = (
+    "/health",
+    "/metrics",
+    "/dashboard",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/assets",
+    "/auth/oidc/",
+    "/auth/config",
+)
+#: Paths under which a bearer credential is REQUIRED in tenant mode.
+_TENANT_PROTECTED_PREFIXES = ("/jobs", "/agent", "/api/", "/auth/")
+#: GitHub webhooks authenticate with their own HMAC secret (§webhooks).
+_TENANT_EXEMPT_PREFIXES = ("/webhooks",)
+
+#: SSE endpoints cannot send headers; the bearer token rides ?key= exactly
+#: like the legacy X-API-Key SSE pattern in apps/web/src/api.ts.
+_SSE_SUFFIXES = ("/progress", "/events")
+
+#: tenant_id is a DECLARED field of the /api/v1/admin/* API
+#: (api/routes/admin.py — admin-only tenant targeting; non-admin overrides
+#: are ignored by the route layer), so the body strip must not remove it
+#: there. Everywhere else a client-supplied tenant_id is dropped.
+_TENANT_BODY_STRIP_SKIP_PREFIXES = ("/api/v1/admin/",)
+
+_JOB_ID_RE = re.compile(r"^/(?:api/v1/)?jobs/([^/]+)")
+
+#: POST paths that create a billable job → the subscription quota metric the
+#: billing pre-flight must check (BILLING_DESIGN.md §3). Billing is opt-in:
+#: with no SPECPROOF_BILLING_URL the writer is None and this map is never
+#: consulted, so single-tenant deployments stay byte-identical.
+_QUOTA_METRIC_BY_POST_PATH: dict[str, str] = {
+    "/jobs": "job_verify",
+    "/agent/jobs": "job_craft",
+}
+
+if TYPE_CHECKING:
+    from api.identity.principal import Principal
+
 _JSON_METHODS = frozenset({"POST", "PUT", "PATCH"})
 # Only the JSON API surface is limited; SSE (GET streams), static files and
 # the SPA are never touched.
 _JSON_PATH_PREFIXES = ("/api/", "/jobs", "/webhooks")
+
+
+def _current_json_limit(default: int) -> int:
+    """The active JSON body limit (SPECPROOF_MAX_JSON_BYTES, default fallback)."""
+    raw = os.getenv("SPECPROOF_MAX_JSON_BYTES", "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning(
+            "SPECPROOF_MAX_JSON_BYTES=%r is not an integer; using default %d",
+            raw,
+            default,
+        )
+        return default
+
+
+def _strip_tenant_id_from_json(payload: bytes) -> bytes:
+    """Drop a client-supplied tenant_id key from a JSON object body.
+
+    tenant_id is derived from the authenticated principal only
+    (MULTI_TENANT_DESIGN.md §6); dropping the field before routing makes
+    request-parameter overrides structurally ineffective even when a route
+    model has no explicit allowlist. Non-object JSON, invalid JSON and
+    bodies without the key come back byte-identical (no re-serialization).
+    """
+    try:
+        document = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return payload
+    if not isinstance(document, dict) or "tenant_id" not in document:
+        return payload
+    stripped = {key: value for key, value in document.items() if key != "tenant_id"}
+    return json.dumps(stripped, ensure_ascii=False).encode("utf-8")
 
 
 class RequestIDMiddleware:
@@ -72,6 +169,270 @@ class RequestIDMiddleware:
             request_id_var.reset(token)
 
 
+class TenantAuthMiddleware:
+    """Multi-tenant auth: Bearer sp_*/OIDC → principal + RBAC + isolation.
+
+    Pure ASGI, inert unless auth is enabled. When enabled it:
+      1. requires a valid Bearer credential on protected API paths
+         (missing/invalid → 401 AUTH_REQUIRED envelope);
+      2. enforces the RBAC matrix (§2) → 403 TENANT_FORBIDDEN envelope;
+      3. refuses cross-tenant job reads with 404 JOB_NOT_FOUND (never 403 —
+         no existence leak) and records the attempt with attempted_tenant;
+      4. injects request.state.principal and the repository-layer tenant
+         scope contextvar for tenant-filtered queries;
+      5. strips a client-supplied tenant_id from JSON write bodies before
+         routing (tenant_id comes from the principal only, §6).
+
+    SSE endpoints may carry the token as ?key=/?api_key= (EventSource
+    cannot set headers) — the same convention as the legacy API key.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        from api.identity.authn import authenticate_bearer
+        from api.identity.config import auth_enabled
+        from api.identity.principal import classify_request, principal_allowed
+        from storage.tenant_scope import TENANT_SCOPE_VAR, TenantScope
+
+        if not auth_enabled():
+            await self.app(scope, receive, send)
+            return
+        path = scope.get("path", "")
+        method = scope.get("method", "GET")
+        if method == "OPTIONS" or path.startswith(_TENANT_EXEMPT_PREFIXES):
+            await self.app(scope, receive, send)
+            return
+        if any(path.startswith(prefix) for prefix in _TENANT_OPEN_PREFIXES):
+            await self.app(scope, receive, send)
+            return
+        if not any(path.startswith(prefix) for prefix in _TENANT_PROTECTED_PREFIXES):
+            await self.app(scope, receive, send)
+            return
+
+        headers = Headers(scope=scope)
+        authorization = headers.get("authorization", "")
+        if not authorization and path.endswith(_SSE_SUFFIXES):
+            # EventSource cannot set headers; token rides the query string.
+            query_bytes = scope.get("query_string", b"")
+            query = (
+                query_bytes.decode("latin-1")
+                if isinstance(query_bytes, bytes)
+                else str(query_bytes)
+            )
+            token_from_query = self._token_from_query(query)
+            if token_from_query:
+                authorization = "Bearer " + token_from_query
+        try:
+            principal = authenticate_bearer(authorization)
+        except Exception:  # noqa: BLE001 — fail closed, never a 500 oracle
+            principal = None
+        if principal is None:
+            await self._send_error(
+                send, scope, 401, AUTH_REQUIRED,
+                "Missing or invalid bearer credentials",
+            )
+            return
+
+        resource_action = classify_request(method, path)
+        if resource_action is not None and not principal_allowed(
+            principal, resource_action.resource, resource_action.action
+        ):
+            await self._send_error(
+                send, scope, 403, TENANT_FORBIDDEN,
+                (
+                    f"role {sorted(principal.roles)} may not "
+                    f"{resource_action.action} on {resource_action.resource}"
+                ),
+            )
+            return
+
+        if not self._cross_tenant_allowed(principal, path):
+            await self._send_error(
+                send, scope, 404, JOB_NOT_FOUND, "Job not found",
+            )
+            return
+
+        # Billing quota pre-flight (industrialization phase 6,
+        # BILLING_DESIGN.md §3): job creation is refused with the stable
+        # 429 QUOTA_EXCEEDED when the tenant's subscription quota is
+        # exhausted (hard-stop). The check runs before routing, so the
+        # protected routes layer stays untouched; with billing unconfigured
+        # the writer is None and this block is a no-op.
+        if method == "POST":
+            quota_metric = _QUOTA_METRIC_BY_POST_PATH.get(path)
+            if quota_metric is not None:
+                from storage.billing import QuotaExceededError, get_billing_writer
+
+                writer = get_billing_writer()
+                if writer is not None:
+                    try:
+                        writer.check_quota(principal.tenant_id, quota_metric, 1.0)
+                    except QuotaExceededError as exc:
+                        await self._send_error(
+                            send, scope, 429, QUOTA_EXCEEDED, str(exc),
+                        )
+                        return
+
+        # §6: tenant_id comes from the principal only — buffer JSON write
+        # bodies and drop any client-supplied tenant_id before routing, so
+        # request-parameter overrides are structurally ineffective even
+        # against strict (allowlist) route models. GET/HEAD/DELETE streams
+        # are never buffered; incompatible paths pass through byte-identical.
+        receive_for_app = await self._strip_body_tenant_id(scope, receive)
+        if receive_for_app is None:
+            return  # client disconnected mid-buffer; nothing to answer
+
+        state = scope.setdefault("state", {})
+        state["principal"] = principal
+        tenant_scope = TenantScope(
+            tenant_id=principal.tenant_id,
+            user_id=principal.user_id,
+            roles=principal.roles,
+        )
+        token = TENANT_SCOPE_VAR.set(tenant_scope)
+        try:
+            await self.app(scope, receive_for_app, send)
+        finally:
+            TENANT_SCOPE_VAR.reset(token)
+
+    @staticmethod
+    def _token_from_query(query_string: str) -> str:
+        if not query_string:
+            return ""
+        try:
+            from urllib.parse import parse_qs
+
+            parsed = parse_qs(query_string)
+            return (parsed.get("key") or parsed.get("api_key") or [""])[0]
+        except ValueError:
+            return ""
+
+    async def _strip_body_tenant_id(
+        self, scope: Scope, receive: Receive,
+    ) -> Receive | None:
+        """Buffer and strip tenant_id from tenant-mode JSON write bodies.
+
+        Only POST/PUT/PATCH with an application/json content-type are
+        touched; every other method and content-type passes through with
+        zero buffering. The read reuses the PayloadLimitMiddleware
+        buffering discipline — bounded by SPECPROOF_MAX_JSON_BYTES, and an
+        oversized body is replayed unmodified so the payload-limit
+        middleware (downstream) still rejects it with its own 413. Returns
+        the replay receive, or None when the client disconnected.
+        """
+        method = scope.get("method", "GET")
+        if method not in _JSON_METHODS:
+            return receive
+        path = scope.get("path", "")
+        if path.startswith(_TENANT_BODY_STRIP_SKIP_PREFIXES):
+            return receive
+        headers = Headers(scope=scope)
+        content_type = headers.get("content-type", "")
+        if "application/json" not in content_type.lower():
+            return receive
+        limit = _current_json_limit(DEFAULT_MAX_JSON_BYTES)
+        buffered = bytearray()
+        total = 0
+        more_body = True
+        while more_body:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return None
+            chunk = message.get("body", b"")
+            total += len(chunk)
+            buffered.extend(chunk)
+            if total > limit:
+                return self._replay_receive(
+                    bytes(buffered), receive, more_expected=True,
+                )
+            more_body = bool(message.get("more_body", False))
+        stripped = _strip_tenant_id_from_json(bytes(buffered))
+        return self._replay_receive(stripped, receive, more_expected=False)
+
+    @staticmethod
+    def _replay_receive(
+        body: bytes, receive: Receive, *, more_expected: bool,
+    ) -> Receive:
+        """Replay a buffered body once, then delegate to the live receive."""
+        delivered = False
+
+        async def replay() -> Message:
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {
+                    "type": "http.request",
+                    "body": body,
+                    "more_body": more_expected,
+                }
+            return await receive()
+
+        return replay
+
+    def _cross_tenant_allowed(self, principal: Principal, path: str) -> bool:
+        """True unless the path reads a job owned by another tenant.
+
+        Only jobs with an explicit tenant_id are isolated; legacy
+        NULL-tenant rows stay shared. Auditors keep the cross-tenant view
+        (§2). The probe is best-effort — the repository-layer scoping in
+        storage/mysql.py remains the primary enforcement.
+        """
+        if "auditor" in principal.roles:
+            return True
+        match = _JOB_ID_RE.match(path)
+        if match is None:
+            return True
+        job_id = match.group(1)
+        try:
+            from storage.mysql import MySQLStore
+
+            owner = MySQLStore().get_job_tenant(job_id)
+        except Exception:  # noqa: BLE001 — probe is advisory
+            return True
+        if owner is None or owner == principal.tenant_id:
+            return True
+        try:
+            from storage.mysql import MySQLStore
+
+            MySQLStore().record_audit(
+                action="tenant_isolation_blocked",
+                actor=principal.user_id,
+                job_id=job_id,
+                detail=(
+                    f"tenant {principal.tenant_id} attempted to read job "
+                    f"{job_id} owned by tenant {owner}"
+                ),
+                attempted_tenant=owner,
+            )
+        except Exception:  # noqa: BLE001 — audit must not break the refusal
+            logger.warning("cross-tenant audit write failed for job %s", job_id)
+        return False
+
+    async def _send_error(
+        self, send: Send, scope: Scope, status: int, code: str, detail: str,
+    ) -> None:
+        # §8.1 stable envelope, mirroring PayloadLimitMiddleware._send_413;
+        # the request_id comes from the outermost RequestIDMiddleware state.
+        state = scope.get("state") or {}
+        request_id = state.get("request_id") or request_id_var.get() or None
+        body = api_error_response(status, code, detail, request_id)
+        payload = json.dumps(body).encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(payload)).encode("ascii")),
+            ],
+        })
+        await send({"type": "http.response.body", "body": payload})
+
+
 class PayloadLimitMiddleware:
     """Reject oversized JSON request bodies with 413 before auth/routing.
 
@@ -86,18 +447,7 @@ class PayloadLimitMiddleware:
         self.default_max_bytes = max_bytes if max_bytes is not None else DEFAULT_MAX_JSON_BYTES
 
     def _current_limit(self) -> int:
-        raw = os.getenv("SPECPROOF_MAX_JSON_BYTES", "").strip()
-        if not raw:
-            return self.default_max_bytes
-        try:
-            return int(raw)
-        except ValueError:
-            logger.warning(
-                "SPECPROOF_MAX_JSON_BYTES=%r is not an integer; using default %d",
-                raw,
-                self.default_max_bytes,
-            )
-            return self.default_max_bytes
+        return _current_json_limit(self.default_max_bytes)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -150,13 +500,18 @@ class PayloadLimitMiddleware:
         await self.app(scope, replay_receive, send)
 
     async def _send_413(self, send: Send, limit: int) -> None:
-        detail = {
-            "detail": (
-                f"Request body exceeds the JSON payload limit of "
-                f"{limit} bytes (SPECPROOF_MAX_JSON_BYTES)"
-            )
-        }
-        payload = json.dumps(detail).encode("utf-8")
+        # §8.1: the 413 body is the stable error envelope (PAYLOAD_TOO_LARGE)
+        # with the legacy detail string preserved; the request_id comes from
+        # the RequestIDMiddleware context (this middleware sends directly, so
+        # the global exception handler in api/server.py never sees it).
+        detail = (
+            f"Request body exceeds the JSON payload limit of "
+            f"{limit} bytes (SPECPROOF_MAX_JSON_BYTES)"
+        )
+        body = api_error_response(
+            413, PAYLOAD_TOO_LARGE, detail, request_id_var.get() or None
+        )
+        payload = json.dumps(body).encode("utf-8")
         await send({
             "type": "http.response.start",
             "status": 413,

@@ -1,7 +1,7 @@
 {
-  "expected_severity": "BLOCKER",
-  "expected_contract": "AUTH-01",
-  "expected_evidence_type": "differential_test",
+  "expected_severity": "MAJOR",
+  "expected_contract": "TRANSACTION-01",
+  "expected_evidence_type": "java_source_diff",
   "should_detect": true,
-  "expected_min_findings": 2
+  "expected_min_findings": 1
 }

@@ -1,0 +1,7 @@
+[1/2] pallets__flask-4045 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s3 (test): 同类错误连续 3 次, 判定 stuck (签名: s3|te
+E   ImportError: cannot import name 'url_quote' from 'werkzeug.urls' (D:\UserData\HUAWEI\Temp\s
+[2/2] pallets__flask-4992 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s4 (test): 同类错误连续 3 次, 判定 stuck (签名: s4|te
+E   ImportError: cannot import name 'url_quote' from 'werkzeug.urls' (D:\UserData\HUAWEI\Temp\s
+汇总: total=2 resolved=0 unresolved=2 rate=0.0%
+结果 JSON: docs\eval\swebench-llm-results-v7.json
+日志目录: docs\eval\swebench-logs

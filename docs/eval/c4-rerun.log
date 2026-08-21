@@ -1,0 +1,67 @@
+Running evaluation across 17 golden cases (LLM: off)...
+
+
+=== case-61-redis-token-pattern-typo (base=base, head=case-61-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['CACHE-01'] (126753 ms)
+
+=== case-62-redis-config-comment (base=base, head=case-62-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (126440 ms)
+
+=== case-63-redis-cache-write-key-mismatch (base=base, head=case-63-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['CACHE-01'] (131656 ms)
+
+=== case-64-redis-cache-ttl-tuned (base=base, head=case-64-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (130004 ms)
+
+=== case-65-redis-cache-key-prefix-changed (base=base, head=case-65-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['CACHE-01'] (130580 ms)
+
+=== case-66-mq-order-routing-key-changed (base=base, head=case-66-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['ORDER_EVENT-01'] (130942 ms)
+
+=== case-67-mq-order-event-publish-removed (base=base, head=case-67-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['ORDER_EVENT-01'] (140754 ms)
+
+=== case-68-mq-order-publish-helper-extracted (base=base, head=case-68-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (143389 ms)
+
+=== case-69-mq-order-event-published-twice (base=base, head=case-69-head) ===
+  [PASS] matched 2 finding(s), contracts found: ['EVENT_ONCE-01', 'ORDER_EVENT-01'] (131842 ms)
+
+=== case-70-mq-event-class-javadoc (base=base, head=case-70-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (125743 ms)
+
+=== case-71-mq-order-event-exchange-changed (base=base, head=case-71-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['ORDER_EVENT-01'] (123216 ms)
+
+=== case-72-mq-email-event-payload-corrupted (base=base, head=case-72-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['EVENT_ONCE-01'] (124063 ms)
+
+=== case-73-logic-negative-quantity-accepted (base=base, head=case-73-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['BOUNDARY-01'] (127910 ms)
+
+=== case-74-logic-full-stock-boundary-rejected (base=base, head=case-74-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['BOUNDARY-01'] (118731 ms)
+
+=== case-75-logic-order-amount-inflated (base=base, head=case-75-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['ORDER_AMOUNT-01'] (124580 ms)
+
+=== case-76-logic-equivalent-stock-check (base=base, head=case-76-head) ===
+  [PASS] matched 0 finding(s), contracts found: [] (121624 ms)
+
+=== case-77-logic-email-format-validation-removed (base=base, head=case-77-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['EMAIL_FORMAT-01'] (125450 ms)
+
+==================================================
+Evaluation Results
+==================================================
+Total cases:        17
+Should detect:      12
+Detected:           12
+False positives:    0
+Precision:          100.0%
+Recall:             100.0%
+F1 Score:           100.0%
+
+HTML report written to docs\eval\eval-c4-rerun.html
+Results JSON written to docs\eval\eval-c4-rerun.results.json

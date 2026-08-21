@@ -10,13 +10,17 @@ v2 honesty fixes:
 - A contract is marked PASS/FAIL only for what this experiment actually
   exercised (the HTTP/auth contract family). Everything else stays
   UNVERIFIED and is judged by other experiment nodes.
+- Execution-time reliability probes (阶段4): cases whose ground truth
+  declares a probe_expectation (97/98/100) get the probe scaffolding copied
+  into the base workspace, one probe test method run per side, and the
+  resulting target/specproof-probe.json artifacts compared against the
+  expectation (experiment PROBE-01).
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -25,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.contract_results import merge_contract_results
+from agent.job_control import run_with_cancel_checks
 from agent.nodes.build_cache import (
     base_build_cache_dir,
     freeze_unchanged_sources,
@@ -111,6 +116,7 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     generation_record = state.get("generation_record", {})
     contracts = state.get("contracts", [])
     generated_tests_path = state.get("generated_tests_path", "")
+    job_id = state.get("job_id")
 
     empty_result: dict[str, Any] = {
         "diff_results": [{
@@ -209,8 +215,14 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     )
 
     # ── Run the SAME generated test on Base and Head ──
+    # §14 任务 8: cancellation checkpoints before+after each differential
+    # execution — a cancelled job neither starts the run nor receives its
+    # result (no business results get written).
     base_start = time.monotonic()
-    base_result = _run_generated_test(base_app, test_class, skip_main=base_cache_hit)
+    base_result = run_with_cancel_checks(
+        job_id, "maven_base", _run_generated_test,
+        base_app, test_class, skip_main=base_cache_hit,
+    )
     base_seconds = round(time.monotonic() - base_start, 1)
     if cache_dir is not None and base_result.get("exit_code") == 0:
         save_base_build(cache_dir, base_app)
@@ -230,8 +242,18 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         head_seconds = 0.0
     else:
         head_start = time.monotonic()
-        head_result = _run_generated_test(head_app, test_class)
+        head_result = run_with_cancel_checks(
+            job_id, "maven_head", _run_generated_test, head_app, test_class,
+        )
         head_seconds = round(time.monotonic() - head_start, 1)
+
+    # ── Execution-time reliability probes (阶段4, cases 97/98/100) ──
+    # Independent of the generated-test verdict: the probe scaffolding rides
+    # the case-head ref and gets copied into the base workspace here.
+    probe_results = run_with_cancel_checks(
+        job_id, "maven_probe", _run_probe_experiment,
+        state, base_app, head_app, base_cache_hit,
+    )
 
     if base_result.get("error") or head_result.get("error"):
         err_detail = (
@@ -246,7 +268,7 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 "base_exit_code": base_result.get("exit_code"),
                 "head_exit_code": head_result.get("exit_code"),
                 "changed_symbols": changed_symbols,
-            }],
+            }] + probe_results,
         }
 
     base_pass = base_result.get("exit_code") == 0
@@ -279,113 +301,274 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # ── DB state comparison ──
     db_verdict, db_detail = _compare_db_state(base_snapshot, head_snapshot)
 
-    # ── Combined verdict ──
-    if http_verdict == "REGRESSION" and db_verdict in (
-        "DB_MUTATED_ON_UNAUTH", "DB_MUTATED",
-    ):
-        combined_verdict = "REGRESSION"
-        combined_detail = (
-            f"{http_detail}. {db_detail}. "
-            "Base and Head executed the same test but left different DB "
-            "state — the regression mutated persisted data."
-        )
-        combined_confidence = 0.95
-        combined_severity = "BLOCKER"
-    elif http_verdict == "REGRESSION":
-        combined_verdict = "REGRESSION"
-        combined_detail = (
-            f"{http_detail}. DB evidence: {db_detail}. "
-            "HTTP regression confirmed; DB mutation not directly captured."
-        )
-        combined_confidence = 0.88
-        combined_severity = "MAJOR"
-    else:
-        combined_verdict = http_verdict
-        combined_detail = http_detail
-        combined_confidence = 0.80
-        combined_severity = "NONE"
-
-    # ── Deterministic evidence digest (no timestamps) ──
     test_sha = _sha256_file(Path(generated_tests_path)) if generated_tests_path else ""
-    evidence_payload = json.dumps({
-        "verdict": combined_verdict,
-        "base_exit": base_result.get("exit_code"),
-        "head_exit": head_result.get("exit_code"),
-        "base_db_rows": base_snapshot.get("rows", {}),
-        "head_db_rows": head_snapshot.get("rows", {}),
-        "base_test_counts": base_result.get("test_counts", {}),
-        "head_test_counts": head_result.get("test_counts", {}),
-        "test_file_sha256": test_sha,
-    }, sort_keys=True)
-    evidence_digest = hashlib.sha256(evidence_payload.encode()).hexdigest()
 
-    # Attribute the regression to the contract family the FAILING
-    # generated test actually exercises (the generated class now carries
-    # AUTH and UNIQUE tests; a one-size AUTH-01 label would misattribute
-    # the case-17 inversion to the auth contract).
-    attributed_contract = "AUTH-01"
-    if base_pass and not head_pass:
-        attributed_contract = _contract_for_test_method(
-            _failing_test_name(head_app)
-        )
-    elif not base_pass and head_pass:
-        attributed_contract = _contract_for_test_method(
-            _failing_test_name(base_app)
-        )
+    # ── P2 both-fail split (go-nogo #3 attribution fix) ──
+    # When Base AND Head each fail, one collapsed whole-run AMBIGUOUS
+    # experiment (severity NONE) masks the head-introduced failure
+    # (case-att-08: Base fails UNIQUE-01 pre-existing, Head fails
+    # EVENT_ONCE-01 introduced). Split the run by failing test method:
+    # a method failing on Head while passing on Base is a head-introduced
+    # REGRESSION for the contract it exercises; a method failing on Base
+    # while passing on Head is a pre-existing UNEXPECTED_FIX (never
+    # attributed to Head); a method failing on both sides stays AMBIGUOUS.
+    # Method-scoped exit codes feed the Review Court's preexisting-defect
+    # rule; the whole-run exits stay recorded for auditability.
+    method_groups: tuple[list[str], list[str], list[str]] | None = None
+    if not base_pass and not head_pass:
+        method_groups = _both_fail_method_groups(base_app, head_app, test_class)
 
-    diff_results: list[dict[str, Any]] = [{
-        # The experiment id is DIFF-01; the CONTRACT it verified is the one
-        # the failing test exercises. The Review Court requires an approved
-        # contract for BLOCKER, so contract_id must match a compiled
-        # contract, not the experiment label.
-        "contract_id": attributed_contract,
-        "experiment_id": "DIFF-01",
-        "verdict": combined_verdict,
-        "detail": combined_detail,
-        "severity": combined_severity,
-        "confidence": combined_confidence,
-        "evidence_type": (
-            "base_pass_head_fail" if combined_verdict == "REGRESSION"
-            else "differential_execution"
-        ),
-        "base_exit_code": base_result.get("exit_code"),
-        "head_exit_code": head_result.get("exit_code"),
-        "base_test_counts": base_result.get("test_counts", {}),
-        "head_test_counts": head_result.get("test_counts", {}),
-        "base_output": (base_result.get("stdout", "") + base_result.get("stderr", ""))[:2000],
-        "head_output": (head_result.get("stdout", "") + head_result.get("stderr", ""))[:2000],
-        "base_db_snapshot": base_snapshot,
-        "head_db_snapshot": head_snapshot,
-        "db_state_verdict": db_verdict,
-        "db_state_detail": db_detail,
-        "base_run_seconds": base_seconds,
-        "head_run_seconds": head_seconds,
-        "base_cache_hit": base_cache_hit,
-        "head_run_reused": head_reused,
-        "evidence_digest": f"sha256:{evidence_digest}",
-        "test_file_sha256": test_sha,
-        "changed_symbols": changed_symbols,
-        "generation_source": generation_record.get("source", "unknown"),
-    }]
+    attributed_contracts: set[str] = set()
+    evidence_by_contract: dict[str, str] = {}
+    evidence_digest = ""
+    primary_entries: list[dict[str, Any]] = []
+
+    if method_groups is not None:
+        head_only, base_only, both = method_groups
+        base_run_exit = base_result.get("exit_code")
+        head_run_exit = head_result.get("exit_code")
+        base_fail_details = _test_failure_details(base_app, test_class)
+        head_fail_details = _test_failure_details(head_app, test_class)
+        whole_run_base_output = (
+            base_result.get("stdout", "") + base_result.get("stderr", "")
+        )[:2000]
+        whole_run_head_output = (
+            head_result.get("stdout", "") + head_result.get("stderr", "")
+        )[:2000]
+        for method in head_only + base_only + both:
+            contract_id = _contract_for_test_method(method)
+            if method in head_only:
+                verdict = "REGRESSION"
+                severity = "MAJOR"
+                confidence = 0.88
+                evidence_type = "base_pass_head_fail"
+                base_exit, head_exit = 0, 1
+                base_status, head_status = "pass", "fail"
+                detail = (
+                    f"Split differential: test method {method} passes on "
+                    f"Base but fails on Head — head-introduced failure for "
+                    f"{contract_id} (whole-run exits: base {base_run_exit}, "
+                    f"head {head_run_exit})"
+                )
+                attributed_contracts.add(contract_id)
+                base_failure = ""
+                head_failure = head_fail_details.get(method, "")
+                base_output = whole_run_base_output
+                head_output = whole_run_head_output
+            elif method in base_only:
+                verdict = "UNEXPECTED_FIX"
+                severity = "NONE"
+                confidence = 0.80
+                evidence_type = "differential_execution"
+                base_exit, head_exit = 1, 0
+                base_status, head_status = "fail", "pass"
+                detail = (
+                    f"Split differential: test method {method} fails on "
+                    f"Base but passes on Head — pre-existing base-side "
+                    f"failure for {contract_id}, not attributed to the "
+                    f"reviewed head (whole-run exits: base {base_run_exit}, "
+                    f"head {head_run_exit})"
+                )
+                base_failure = base_fail_details.get(method, "")
+                head_failure = ""
+                base_output = whole_run_base_output
+                head_output = whole_run_head_output
+            else:
+                # Fails on BOTH sides. One collapsed AMBIGUOUS verdict with
+                # severity NONE would mask a head-introduced failure that
+                # fails for a DIFFERENT reason than the Base failure (att-08:
+                # Base fails the event test because the unique inversion
+                # kills the email-change precondition, Head fails it because
+                # the routing key is broken). Emit the per-method AMBIGUOUS
+                # record WITHOUT a severity and with the per-method failure
+                # snippets as the output tails: the Review Court's
+                # preexisting-defect rule then compares the failure
+                # signatures — identical -> not_attributed (pre-existing),
+                # distinct -> confirmed (head-only behavioral difference).
+                verdict = "AMBIGUOUS"
+                severity = None
+                confidence = 0.65
+                evidence_type = "differential_execution"
+                base_exit, head_exit = 1, 1
+                base_status, head_status = "fail", "fail"
+                detail = (
+                    f"Split differential: test method {method} fails on "
+                    f"both Base and Head — failure signatures compared by "
+                    f"the Review Court for head-only attribution "
+                    f"(whole-run exits: base {base_run_exit}, head "
+                    f"{head_run_exit})"
+                )
+                base_failure = base_fail_details.get(method, "")
+                head_failure = head_fail_details.get(method, "")
+                base_output = base_failure or whole_run_base_output
+                head_output = head_failure or whole_run_head_output
+            digest = _split_entry_digest(
+                verdict=verdict,
+                contract_id=contract_id,
+                method=method,
+                base_status=base_status,
+                head_status=head_status,
+                base_run_exit=base_run_exit,
+                head_run_exit=head_run_exit,
+                base_result=base_result,
+                head_result=head_result,
+                base_snapshot=base_snapshot,
+                head_snapshot=head_snapshot,
+                test_sha=test_sha,
+                base_failure=base_failure,
+                head_failure=head_failure,
+            )
+            evidence_by_contract[contract_id] = digest
+            primary_entries.append({
+                "contract_id": contract_id,
+                "experiment_id": "DIFF-01",
+                "verdict": verdict,
+                "detail": detail,
+                "severity": severity,
+                "confidence": confidence,
+                "evidence_type": evidence_type,
+                "base_exit_code": base_exit,
+                "head_exit_code": head_exit,
+                "method_scoped": True,
+                "failing_test_method": method,
+                "base_method_status": base_status,
+                "head_method_status": head_status,
+                "whole_run_base_exit_code": base_run_exit,
+                "whole_run_head_exit_code": head_run_exit,
+                "base_test_counts": base_result.get("test_counts", {}),
+                "head_test_counts": head_result.get("test_counts", {}),
+                "base_output": base_output,
+                "head_output": head_output,
+                "base_db_snapshot": base_snapshot,
+                "head_db_snapshot": head_snapshot,
+                "db_state_verdict": db_verdict,
+                "db_state_detail": db_detail,
+                "base_run_seconds": base_seconds,
+                "head_run_seconds": head_seconds,
+                "base_cache_hit": base_cache_hit,
+                "head_run_reused": head_reused,
+                "evidence_digest": digest,
+                "test_file_sha256": test_sha,
+                "changed_symbols": changed_symbols,
+                "generation_source": generation_record.get("source", "unknown"),
+            })
+    else:
+        # ── Combined verdict (legacy whole-run path) ──
+        if http_verdict == "REGRESSION" and db_verdict in (
+            "DB_MUTATED_ON_UNAUTH", "DB_MUTATED",
+        ):
+            combined_verdict = "REGRESSION"
+            combined_detail = (
+                f"{http_detail}. {db_detail}. "
+                "Base and Head executed the same test but left different DB "
+                "state — the regression mutated persisted data."
+            )
+            combined_confidence = 0.95
+            combined_severity = "BLOCKER"
+        elif http_verdict == "REGRESSION":
+            combined_verdict = "REGRESSION"
+            combined_detail = (
+                f"{http_detail}. DB evidence: {db_detail}. "
+                "HTTP regression confirmed; DB mutation not directly captured."
+            )
+            combined_confidence = 0.88
+            combined_severity = "MAJOR"
+        else:
+            combined_verdict = http_verdict
+            combined_detail = http_detail
+            combined_confidence = 0.80
+            combined_severity = "NONE"
+
+        # ── Deterministic evidence digest (no timestamps) ──
+        evidence_payload = json.dumps({
+            "verdict": combined_verdict,
+            "base_exit": base_result.get("exit_code"),
+            "head_exit": head_result.get("exit_code"),
+            "base_db_rows": base_snapshot.get("rows", {}),
+            "head_db_rows": head_snapshot.get("rows", {}),
+            "base_test_counts": base_result.get("test_counts", {}),
+            "head_test_counts": head_result.get("test_counts", {}),
+            "test_file_sha256": test_sha,
+        }, sort_keys=True)
+        evidence_digest = hashlib.sha256(evidence_payload.encode()).hexdigest()
+
+        # Attribute the regression to the contract family the FAILING
+        # generated test actually exercises (the generated class now carries
+        # AUTH and UNIQUE tests; a one-size AUTH-01 label would misattribute
+        # the case-17 inversion to the auth contract).
+        attributed_contract = "AUTH-01"
+        if base_pass and not head_pass:
+            attributed_contract = _contract_for_test_method(
+                _failing_test_name(head_app)
+            )
+            attributed_contracts.add(attributed_contract)
+        elif not base_pass and head_pass:
+            attributed_contract = _contract_for_test_method(
+                _failing_test_name(base_app)
+            )
+            attributed_contracts.add(attributed_contract)
+
+        primary_entries = [{
+            # The experiment id is DIFF-01; the CONTRACT it verified is the one
+            # the failing test exercises. The Review Court requires an approved
+            # contract for BLOCKER, so contract_id must match a compiled
+            # contract, not the experiment label.
+            "contract_id": attributed_contract,
+            "experiment_id": "DIFF-01",
+            "verdict": combined_verdict,
+            "detail": combined_detail,
+            "severity": combined_severity,
+            "confidence": combined_confidence,
+            "evidence_type": (
+                "base_pass_head_fail" if combined_verdict == "REGRESSION"
+                else "differential_execution"
+            ),
+            "base_exit_code": base_result.get("exit_code"),
+            "head_exit_code": head_result.get("exit_code"),
+            "base_test_counts": base_result.get("test_counts", {}),
+            "head_test_counts": head_result.get("test_counts", {}),
+            "base_output": (base_result.get("stdout", "") + base_result.get("stderr", ""))[:2000],
+            "head_output": (head_result.get("stdout", "") + head_result.get("stderr", ""))[:2000],
+            "base_db_snapshot": base_snapshot,
+            "head_db_snapshot": head_snapshot,
+            "db_state_verdict": db_verdict,
+            "db_state_detail": db_detail,
+            "base_run_seconds": base_seconds,
+            "head_run_seconds": head_seconds,
+            "base_cache_hit": base_cache_hit,
+            "head_run_reused": head_reused,
+            "evidence_digest": f"sha256:{evidence_digest}",
+            "test_file_sha256": test_sha,
+            "changed_symbols": changed_symbols,
+            "generation_source": generation_record.get("source", "unknown"),
+        }]
 
     # Source-diff findings computed earlier are prepended; the generated-test
-    # verdict is the primary experiment for DIFF-01.
-    diff_results = source_diff_results + diff_results
+    # verdict is the primary experiment for DIFF-01 (split per failing test
+    # method when both sides fail); probe results (when the case declares a
+    # probe_expectation) ride along as PROBE-01.
+    diff_results: list[dict[str, Any]] = (
+        source_diff_results + primary_entries + probe_results
+    )
 
     # ── Contract results: only what this experiment exercised ──
     # P6: the attributed contract family is marked FAIL exactly like the
     # AUTH/UNIQUE families always were — a failing generated test only
-    # proves the contract its failing method exercises.
+    # proves the contract its failing method exercises. After the P2
+    # both-fail split, the head-only failing methods are the attributed
+    # contracts; base-only failures stay UNVERIFIED (never attributed).
     contract_results: list[dict[str, Any]] = []
     for c in contracts:
         cid = c.get("id", "")
         is_auth = c.get("checker_type") == "http" and cid.upper().startswith("AUTH")
         is_unique = cid == "UNIQUE-01"
-        is_attributed = cid == attributed_contract
+        is_attributed = cid in attributed_contracts
         if is_auth or is_unique or is_attributed:
             if http_verdict == "COMPLIANT":
                 result = "PASS"
-            elif http_verdict == "REGRESSION" and attributed_contract == cid:
+            elif cid in attributed_contracts and (
+                method_groups is not None or http_verdict == "REGRESSION"
+            ):
                 result = "FAIL"
             else:
                 result = "UNVERIFIED"
@@ -393,7 +576,23 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 "contract_id": cid,
                 "result": result,
                 "experiment": "generated_test_differential",
-                "evidence_ref": f"sha256:{evidence_digest}",
+                "evidence_ref": (
+                    evidence_by_contract.get(cid, "")
+                    if method_groups is not None
+                    else f"sha256:{evidence_digest}"
+                ),
+            })
+
+    # Probe experiment contract result (only what the probe actually judged).
+    if probe_results:
+        probe_verdict = probe_results[0].get("verdict")
+        probe_contract = probe_results[0].get("contract_id", "")
+        if probe_verdict in ("REGRESSION", "COMPLIANT") and probe_contract:
+            contract_results.append({
+                "contract_id": probe_contract,
+                "result": "FAIL" if probe_verdict == "REGRESSION" else "PASS",
+                "experiment": "probe_differential",
+                "evidence_ref": probe_results[0].get("evidence_digest", ""),
             })
 
     # Merge into the shared channel so static-check results for OTHER
@@ -428,6 +627,177 @@ def _failing_test_name(app_dir: str) -> str:
         if case.find("failure") is not None or case.find("error") is not None:
             return str(case.get("name", ""))
     return ""
+
+
+def _surefire_report(app_dir: str, test_class: str) -> Path | None:
+    """Locate the surefire XML report for the generated test class.
+
+    Surefire names its reports TEST-<fully.qualified.ClassName>.xml
+    (TEST-com.specproof.demo.SpecProofGeneratedTest.xml for the generated
+    test), so a bare-class-name filename lookup misses it. Accept either
+    a fully qualified test_class or a bare name and match the report by
+    exact filename first, then by package suffix. No per-method evidence
+    -> None -> the caller keeps the whole-run verdict (honest fallback).
+    """
+    if not test_class:
+        return None
+    reports_dir = Path(app_dir) / "target" / "surefire-reports"
+    direct = reports_dir / f"TEST-{test_class}.xml"
+    if direct.exists():
+        return direct
+    matches = sorted(reports_dir.glob(f"TEST-*.{test_class}.xml"))
+    return matches[0] if matches else None
+
+
+def _test_outcomes(app_dir: str, test_class: str) -> dict[str, str]:
+    """Parse the generated test's surefire XML into per-method outcomes.
+
+    Returns {method_name: status} with status in ("pass", "fail",
+    "skipped") for every executed testcase of the generated class. An
+    unavailable or unparseable report returns {} — callers must treat
+    that as "no per-method evidence" and keep the whole-run verdict.
+    """
+    import defusedxml.ElementTree as ElementTreeDefused
+
+    report = _surefire_report(app_dir, test_class)
+    if report is None:
+        return {}
+    try:
+        root = ElementTreeDefused.parse(report).getroot()
+    except (OSError, ElementTreeDefused.ParseError):
+        return {}
+    outcomes: dict[str, str] = {}
+    for case in root.findall("testcase"):
+        name = str(case.get("name", "")).strip()
+        if not name:
+            continue
+        if case.find("failure") is not None or case.find("error") is not None:
+            outcomes[name] = "fail"
+        elif case.find("skipped") is not None:
+            outcomes[name] = "skipped"
+        else:
+            outcomes[name] = "pass"
+    return outcomes
+
+
+def _split_both_fail_groups(
+    base_outcomes: dict[str, str], head_outcomes: dict[str, str],
+) -> tuple[list[str], list[str], list[str]]:
+    """Split a both-sides-fail run by test method (pure, deterministic).
+
+    head_only: fails on Head while provably passing on Base — a
+        head-introduced failure, attributable to the reviewed head.
+    base_only: fails on Base while provably passing on Head — a
+        pre-existing failure, never attributed to the head.
+    both:      fails on both sides, or fails on one side without a
+        recorded pass on the other (skipped/missing) — ambiguous.
+    """
+    head_only: list[str] = []
+    base_only: list[str] = []
+    both: list[str] = []
+    for name in sorted(set(base_outcomes) | set(head_outcomes)):
+        base_status = base_outcomes.get(name)
+        head_status = head_outcomes.get(name)
+        if head_status == "fail" and base_status == "pass":
+            head_only.append(name)
+        elif base_status == "fail" and head_status == "pass":
+            base_only.append(name)
+        elif "fail" in (base_status, head_status):
+            both.append(name)
+    return head_only, base_only, both
+
+
+def _test_failure_details(app_dir: str, test_class: str) -> dict[str, str]:
+    """Per-method failure snippets from the generated test's surefire XML.
+
+    Returns {failing_method_name: snippet} where the snippet carries the
+    failure/error message, type and the first lines of the stack — the
+    per-method failure signature the Review Court compares when the SAME
+    method fails on both sides (a method may fail on Base for one reason
+    and on Head for a different one; that distinct head-side failure must
+    not be masked by the Base failure).
+    """
+    import defusedxml.ElementTree as ElementTreeDefused
+
+    report = _surefire_report(app_dir, test_class)
+    if report is None:
+        return {}
+    try:
+        root = ElementTreeDefused.parse(report).getroot()
+    except (OSError, ElementTreeDefused.ParseError):
+        return {}
+    details: dict[str, str] = {}
+    for case in root.findall("testcase"):
+        name = str(case.get("name", "")).strip()
+        if not name:
+            continue
+        failure = case.find("failure") if case.find("failure") is not None else (
+            case.find("error")
+        )
+        if failure is None:
+            continue
+        parts = [
+            f"type={failure.get('type', '')}",
+            f"message={failure.get('message', '')}",
+        ]
+        text = (failure.text or "").strip()
+        if text:
+            parts.append("stack=" + " ".join(text.splitlines()[:4]))
+        details[name] = " | ".join(p for p in parts if not p.endswith("="))
+    return details
+
+
+def _both_fail_method_groups(
+    base_app: str, head_app: str, test_class: str,
+) -> tuple[list[str], list[str], list[str]] | None:
+    """Per-method split evidence for a both-sides-fail run.
+
+    Returns the (head_only, base_only, both) method groups, or None when
+    the surefire reports cannot supply per-method outcomes (the caller
+    falls back to the collapsed whole-run AMBIGUOUS experiment).
+    """
+    base_outcomes = _test_outcomes(base_app, test_class)
+    head_outcomes = _test_outcomes(head_app, test_class)
+    if not base_outcomes or not head_outcomes:
+        return None
+    return _split_both_fail_groups(base_outcomes, head_outcomes)
+
+
+def _split_entry_digest(
+    *,
+    verdict: str,
+    contract_id: str,
+    method: str,
+    base_status: str,
+    head_status: str,
+    base_run_exit: int | None,
+    head_run_exit: int | None,
+    base_result: dict[str, Any],
+    head_result: dict[str, Any],
+    base_snapshot: dict[str, Any],
+    head_snapshot: dict[str, Any],
+    test_sha: str,
+    base_failure: str = "",
+    head_failure: str = "",
+) -> str:
+    """Deterministic digest for one split differential entry (no timestamps)."""
+    payload = json.dumps({
+        "verdict": verdict,
+        "contract_id": contract_id,
+        "failing_test_method": method,
+        "base_method_status": base_status,
+        "head_method_status": head_status,
+        "whole_run_base_exit": base_run_exit,
+        "whole_run_head_exit": head_run_exit,
+        "base_db_rows": base_snapshot.get("rows", {}),
+        "head_db_rows": head_snapshot.get("rows", {}),
+        "base_test_counts": base_result.get("test_counts", {}),
+        "head_test_counts": head_result.get("test_counts", {}),
+        "test_file_sha256": test_sha,
+        "base_failure": base_failure,
+        "head_failure": head_failure,
+    }, sort_keys=True)
+    return "sha256:" + hashlib.sha256(payload.encode()).hexdigest()
 
 
 def _contract_for_test_method(method_name: str) -> str:
@@ -523,63 +893,54 @@ def _run_generated_test(
         result["error"] = "No pom.xml found"
         return result
 
-    # P0-A1: the differential test runs inside the execution SANDBOX.
-    # Untrusted test code must never execute with host privileges.
-    import platform
-
-    from sandbox.runner import run_sandboxed
-
-    if platform.system() == "Windows":
-        local_cmd = [
-            os.path.join(workspace, "mvnw.cmd"), "test", "-q",
-            f"-Dtest={test_class}", "-DfailIfNoTests=false",
-        ] + (["-Dmaven.main.skip=true"] if skip_main else [])
-    else:
-        local_cmd = [
-            os.path.join(workspace, "mvnw"), "test", "-q",
-            f"-Dtest={test_class}", "-DfailIfNoTests=false",
-        ] + (["-Dmaven.main.skip=true"] if skip_main else [])
-    sandbox_result = run_sandboxed(
-        [
-            # -o: the sandbox has --network none by design; every
-            # artifact must resolve from the seeded Maven cache volume.
-            "mvn", "-o", "test", "-q",
-            f"-Dtest={test_class}",
-            "-DfailIfNoTests=false",
-            "-f", "/work/pom.xml",
-        ] + (["-Dmaven.main.skip=true"] if skip_main else []),
-        workspace=workspace,
-        timeout=900,
-        local_command=local_cmd,
+    # Q lane (guide §4.5 task 10): the differential test runs through the
+    # ExecutionAdapter protocol — detect → prepare → run. JavaMavenAdapter
+    # delegates to the execution SANDBOX (sandbox/runner.py), so untrusted
+    # test code never executes with host privileges. Command shape is
+    # unchanged from the pre-adapter pipeline (offline -o, -Dtest= injection,
+    # -Dmaven.main.skip reuse flag).
+    from experiments.adapters import (
+        AdapterNotImplemented,
+        ExecutionRequest,
+        RepositorySnapshot,
+        registry,
     )
-    result["sandbox_mode"] = sandbox_result.mode
-    if sandbox_result.error:
-        result["error"] = "Sandbox execution failed: " + sandbox_result.error
+
+    try:
+        adapter = registry.get(RepositorySnapshot(path=workspace))
+    except AdapterNotImplemented as exc:
+        result["error"] = str(exc)
         return result
-    result["exit_code"] = sandbox_result.exit_code
-    result["stdout"] = sandbox_result.stdout
-    result["stderr"] = sandbox_result.stderr
+    prepared = adapter.prepare(
+        ExecutionRequest(
+            workspace=workspace,
+            goal="run_test",
+            test_class=test_class,
+            skip_main=skip_main,
+            timeout=900,
+        )
+    )
+    exec_result = adapter.run(prepared)
+    result["sandbox_mode"] = exec_result.mode
+    if exec_result.error:
+        result["error"] = "Sandbox execution failed: " + exec_result.error
+        return result
+    result["exit_code"] = exec_result.exit_code
+    result["stdout"] = exec_result.stdout_tail
+    result["stderr"] = exec_result.stderr_tail
     result["test_counts"] = _parse_test_counts(
-        sandbox_result.stdout + sandbox_result.stderr
+        exec_result.stdout_tail + exec_result.stderr_tail
     )
     result["error"] = ""
     return result
 
 
 def _parse_test_counts(output: str) -> dict[str, Any]:
-    m = re.search(
-        r"Tests run:\s*(\d+).*?Failures:\s*(\d+).*?Errors:\s*(\d+).*?Skipped:\s*(\d+)",
-        output,
-        re.DOTALL,
-    )
-    if m:
-        return {
-            "tests": int(m.group(1)),
-            "failures": int(m.group(2)),
-            "errors": int(m.group(3)),
-            "skipped": int(m.group(4)),
-        }
-    return {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+    from experiments.adapters import parse_surefire_summary
+
+    # Single source of truth for the surefire summary regex lives in
+    # experiments/adapters.py; this wrapper keeps the historical name.
+    return parse_surefire_summary(output)
 
 
 def _h2_db_file(workspace: str) -> Path | None:
@@ -746,3 +1107,279 @@ def _sha256_file(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return ""
+
+
+# ── Execution-time reliability probes (fault-injection roadmap, 阶段4) ──
+#
+# Cases 97/98/100 carry a probe_expectation in their ground-truth.json and
+# the probe scaffolding in their case-head refs (injected by
+# scripts/build_golden_scenarios.py). This experiment:
+#   1. copies the probe scaffolding from the head workspace into the base
+#      workspace (the shared base tag is never re-tagged),
+#   2. runs ONE probe test method on each side (surefire Class#method
+#      selector through the ExecutionAdapter sandbox path),
+#   3. reads target/specproof-probe.json per side (adapter probe hooks),
+#   4. compares the artifacts against the expectation and emits a
+#      REGRESSION finding when the head violates its expected profile.
+
+_PROBE_SRC_REL = "src/test/java/com/specproof/demo/probe"
+_PROBE_TEST_CLASS = "SpecProofProbeTest"
+_PROBE_KNOWN_FIELDS = ("publish_count", "outcome", "payload_timestamp_non_null")
+
+
+def _load_probe_expectation(state: Phase0State) -> dict[str, Any] | None:
+    """Read the case's probe_expectation from its eval ground truth
+    (golden-cases/<case>/ground-truth.json, located next to spec.md)."""
+    spec_path = state.get("spec_path", "")
+    if not spec_path:
+        return None
+    gt_file = Path(spec_path).parent / "ground-truth.json"
+    try:
+        ground_truth = json.loads(gt_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    expectation = ground_truth.get("probe_expectation")
+    return expectation if isinstance(expectation, dict) else None
+
+
+def _copy_probe_files(head_app: str, base_app: str) -> bool:
+    """Copy the probe scaffolding from the head workspace into the base
+    workspace so both refs run the same probe test."""
+    head_dir = Path(head_app) / _PROBE_SRC_REL
+    if not head_dir.is_dir():
+        return False
+    sources = sorted(head_dir.glob("*.java"))
+    if not sources:
+        return False
+    ok = True
+    for src in sources:
+        dest = Path(base_app) / _PROBE_SRC_REL / src.name
+        try:
+            if dest.resolve() == src.resolve():
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(src), str(dest))
+        except OSError:
+            ok = False
+    return ok
+
+
+def _probe_field_ok(expectation: object, artifact: dict[str, Any] | None, field: str) -> bool:
+    """Check one expectation field against an artifact side."""
+    if artifact is None:
+        return False
+    if field == "publish_count":
+        return (
+            isinstance(expectation, int)
+            and artifact.get("publish_count") == expectation
+        )
+    if field == "outcome":
+        return isinstance(expectation, str) and artifact.get("outcome") == expectation
+    if field == "payload_timestamp_non_null":
+        payloads = artifact.get("payloads") or []
+        actual = bool(payloads) and all(
+            isinstance(p, dict) and p.get("timestamp") is not None
+            for p in payloads
+        )
+        return isinstance(expectation, bool) and actual == expectation
+    return False
+
+
+def evaluate_probe_expectation(
+    expectation: dict[str, Any],
+    base_artifact: dict[str, Any] | None,
+    head_artifact: dict[str, Any] | None,
+) -> tuple[str, str, list[str]]:
+    """Compare probe artifacts against the case's probe_expectation.
+
+    Returns (verdict, detail, violations):
+      REGRESSION        the head artifact violates its expected profile
+      COMPLIANT         both sides meet their expected profiles
+      NON_REPRODUCIBLE  base violated its profile / unknown fields / no
+                        artifacts - the probe cannot judge the head
+
+    Pure function: no I/O, unit-tested directly.
+    """
+    base_expectation = expectation.get("base")
+    head_expectation = expectation.get("head")
+    if not isinstance(base_expectation, dict) or not isinstance(head_expectation, dict):
+        return (
+            "NON_REPRODUCIBLE",
+            "probe_expectation lacks base/head profiles",
+            [],
+        )
+
+    unknown = [
+        field for field in list(base_expectation) + list(head_expectation)
+        if field not in _PROBE_KNOWN_FIELDS
+    ]
+    if unknown:
+        return (
+            "NON_REPRODUCIBLE",
+            "probe_expectation uses unknown fields: " + ", ".join(sorted(set(unknown))),
+            [],
+        )
+
+    if base_artifact is None or head_artifact is None:
+        missing = "base" if base_artifact is None else "head"
+        if base_artifact is None and head_artifact is None:
+            missing = "base and head"
+        return (
+            "NON_REPRODUCIBLE",
+            f"No probe artifact available for {missing}",
+            [],
+        )
+
+    base_violations = [
+        field for field, expected in base_expectation.items()
+        if not _probe_field_ok(expected, base_artifact, field)
+    ]
+    if base_violations:
+        return (
+            "NON_REPRODUCIBLE",
+            "base artifact does not meet its expected probe profile: "
+            + ", ".join(sorted(base_violations)),
+            base_violations,
+        )
+
+    head_violations = [
+        field for field, expected in head_expectation.items()
+        if not _probe_field_ok(expected, head_artifact, field)
+    ]
+    if head_violations:
+        return (
+            "REGRESSION",
+            "probe artifact comparison: head violates "
+            + ", ".join(sorted(head_violations))
+            + " (base profile met)",
+            head_violations,
+        )
+    return "COMPLIANT", "probe artifacts meet the expected profiles on both sides", []
+
+
+def _probe_digest_payload(
+    verdict: str, base_artifact: dict[str, Any] | None,
+    head_artifact: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Deterministic digest input (no raw timestamps: flags only)."""
+
+    def _side(artifact: dict[str, Any] | None) -> dict[str, Any] | None:
+        if artifact is None:
+            return None
+        payloads = artifact.get("payloads") or []
+        return {
+            "publish_count": artifact.get("publish_count"),
+            "outcome": artifact.get("outcome"),
+            "payload_count": len(payloads),
+            "all_timestamps_non_null": bool(payloads) and all(
+                isinstance(p, dict) and p.get("timestamp") is not None
+                for p in payloads
+            ),
+        }
+
+    return {
+        "verdict": verdict,
+        "base": _side(base_artifact),
+        "head": _side(head_artifact),
+    }
+
+
+def _run_probe_experiment(
+    state: Phase0State, base_app: str, head_app: str, base_cache_hit: bool,
+) -> list[dict[str, Any]]:
+    """Run the execution-time probe experiment for cases that declare one."""
+    expectation = _load_probe_expectation(state)
+    if expectation is None:
+        return []
+
+    method = expectation.get("test_method", "")
+    if not isinstance(method, str) or not method:
+        return []
+
+    if not _copy_probe_files(head_app, base_app):
+        return [{
+            "contract_id": expectation.get("contract_id", ""),
+            "experiment_id": "PROBE-01",
+            "verdict": "NON_REPRODUCIBLE",
+            "detail": "Probe scaffolding missing from the head workspace",
+            "evidence_type": "probe_differential",
+        }]
+
+    test_class = f"{_PROBE_TEST_CLASS}#{method}"
+    base_start = time.monotonic()
+    base_run = _run_generated_test(base_app, test_class, skip_main=base_cache_hit)
+    base_seconds = round(time.monotonic() - base_start, 1)
+    head_start = time.monotonic()
+    head_run = _run_generated_test(head_app, test_class)
+    head_seconds = round(time.monotonic() - head_start, 1)
+
+    from experiments.adapters import (
+        AdapterNotImplemented,
+        JavaMavenAdapter,
+        RepositorySnapshot,
+    )
+
+    base_artifact: dict[str, Any] | None = None
+    head_artifact: dict[str, Any] | None = None
+    adapter_note = ""
+    try:
+        JavaMavenAdapter().detect(RepositorySnapshot(path=head_app))
+        adapter = JavaMavenAdapter()
+    except AdapterNotImplemented as exc:
+        adapter = None
+        adapter_note = str(exc)
+    if adapter is not None:
+        base_artifact = adapter.read_probe_artifact(base_app)
+        head_artifact = adapter.read_probe_artifact(head_app)
+
+    if base_run.get("error") or head_run.get("error"):
+        return [{
+            "contract_id": expectation.get("contract_id", ""),
+            "experiment_id": "PROBE-01",
+            "verdict": "NON_REPRODUCIBLE",
+            "detail": (
+                "Probe Maven execution error - base: "
+                + (base_run.get("error") or "ok")
+                + ", head: " + (head_run.get("error") or "ok")
+            ),
+            "evidence_type": "probe_differential",
+            "base_exit_code": base_run.get("exit_code"),
+            "head_exit_code": head_run.get("exit_code"),
+            "base_run_seconds": base_seconds,
+            "head_run_seconds": head_seconds,
+        }]
+
+    verdict, detail, violations = evaluate_probe_expectation(
+        expectation, base_artifact, head_artifact,
+    )
+    if adapter_note:
+        detail += f" (adapter note: {adapter_note})"
+
+    severity = expectation.get("severity", "MAJOR")
+    if severity not in ("BLOCKER", "MAJOR", "MINOR"):
+        severity = "MAJOR"
+
+    digest = "sha256:" + hashlib.sha256(
+        json.dumps(
+            _probe_digest_payload(verdict, base_artifact, head_artifact),
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+
+    return [{
+        "contract_id": expectation.get("contract_id", ""),
+        "experiment_id": "PROBE-01",
+        "verdict": verdict,
+        "detail": detail,
+        "severity": severity if verdict == "REGRESSION" else "NONE",
+        "confidence": 0.95 if verdict == "REGRESSION" else 0.80,
+        "evidence_type": "probe_differential",
+        "base_exit_code": base_run.get("exit_code"),
+        "head_exit_code": head_run.get("exit_code"),
+        "base_probe": base_artifact,
+        "head_probe": head_artifact,
+        "probe_test_method": method,
+        "base_run_seconds": base_seconds,
+        "head_run_seconds": head_seconds,
+        "evidence_digest": digest,
+    }]

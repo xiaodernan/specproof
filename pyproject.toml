@@ -36,6 +36,10 @@ dependencies = [
     "tenacity>=9.0.0",
     # Ed25519 signing for Merge Certificates (P5).
     "cryptography>=42.0.0",
+    # Multi-tenant identity (industrialization phase 1): bcrypt for local
+    # token secret hashes, PyJWT for OIDC RS256 JWKS validation.
+    "bcrypt>=4.0.0",
+    "PyJWT[crypto]>=2.10.0",
     # Safe XML parsing of Maven surefire reports (workspace content is
     # untrusted PR material under the sandbox threat model).
     "defusedxml>=0.7.1",
@@ -52,6 +56,10 @@ dev = [
     "mypy>=1.13.0",
     "bandit>=1.8.0",
     "responses>=0.25.0",
+    # fastapi.testclient deprecation (starlette>=1.3 prefers httpx2):
+    # the backport silences the StarletteDeprecationWarning with real
+    # httpx2 semantics; drop when fastapi migrates upstream.
+    "httpx2>=0.1.0",
 ]
 otel = [
     "opentelemetry-api>=1.28.0",

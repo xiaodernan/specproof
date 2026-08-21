@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "kind": "file_read",
+      "detail": "src/flask/blueprints.py",
+      "step_id": "s1",
+      "ts": "2026-08-20T10:38:57+00:00",
+      "count": 1
+    },
+    {
+      "kind": "decision",
+      "detail": "步骤 s1 首次检查即 green",
+      "step_id": "s1",
+      "ts": "2026-08-20T10:38:57+00:00",
+      "count": 1
+    },
+    {
+      "kind": "budget",
+      "detail": "tokens=56815.4 iterations=4 tool_calls=8 seconds=256.6",
+      "step_id": "s3",
+      "ts": "2026-08-20T10:43:14+00:00",
+      "count": 1
+    },
+    {
+      "kind": "file_read",
+      "detail": "src/flask/app.py",
+      "step_id": "s2",
+      "ts": "2026-08-20T10:38:57+00:00",
+      "count": 1
+    },
+    {
+      "kind": "decision",
+      "detail": "步骤 s2 首次检查即 green",
+      "step_id": "s2",
+      "ts": "2026-08-20T10:38:57+00:00",
+      "count": 1
+    },
+    {
+      "kind": "error_signature",
+      "detail": "s3|eritance - AttributeError: module...\nERROR tests/test_views.py::test_remove_method_from_parent - AttributeError: m...\n11 skipped, 3 xfailed, 394 errors in 3.51s",
+      "step_id": "s3",
+      "ts": "2026-08-20T10:40:08+00:00",
+      "count": 1
+    },
+    {
+      "kind": "decision",
+      "detail": "步骤 s3 stuck: 编辑提案重复 3 次",
+      "step_id": "s3",
+      "ts": "2026-08-20T10:43:11+00:00",
+      "count": 1
+    },
+    {
+      "kind": "decision",
+      "detail": "自校验: skipped (findings=0)",
+      "step_id": "",
+      "ts": "2026-08-20T10:43:14+00:00",
+      "count": 1
+    },
+    {
+      "kind": "decision",
+      "detail": "任务终态: STUCK (迭代 4)",
+      "step_id": "",
+      "ts": "2026-08-20T10:43:14+00:00",
+      "count": 1
+    }
+  ]
+}

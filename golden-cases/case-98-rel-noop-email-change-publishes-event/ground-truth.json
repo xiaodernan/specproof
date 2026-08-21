@@ -2,5 +2,20 @@
   "expected_severity": "MAJOR",
   "expected_contract": "EVENT_ONCE-01",
   "expected_evidence_type": "base_pass_head_fail",
-  "should_detect": true
+  "should_detect": true,
+  "probe_expectation": {
+    "probe_version": 1,
+    "test_method": "noopEmailChangePublish",
+    "contract_id": "EVENT_ONCE-01",
+    "severity": "MAJOR",
+    "base": {
+      "publish_count": 0,
+      "outcome": "success"
+    },
+    "head": {
+      "publish_count": 0,
+      "outcome": "success"
+    },
+    "note": "head removes the same-email early return: the no-op change then hits the existsByEmail guard and errors (outcome=error) instead of returning cleanly - publish counter stays 0, the outcome field is the discriminating signal"
+  }
 }

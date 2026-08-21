@@ -61,6 +61,8 @@ class TestLeaseLogic:
         class FakeRedis:
             def get(self, key):
                 return "worker-A"  # matches
+            def exists(self, key):
+                return 0  # no max-hold cap configured → legacy unlimited
             def expire(self, key, ttl):
                 return True
         store = RedisStore()
@@ -79,7 +81,7 @@ class TestLeaseLogic:
         released = []
         class FakeRedis:
             def eval(self, script, numkeys, *args):
-                key, owner = args
+                key, _start, _cap, owner = args
                 released.append((key, owner))
                 return 1
         store = RedisStore()

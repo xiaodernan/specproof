@@ -1,102 +1,59 @@
+"""review_court node — two-layer Review Court (master plan §14.1).
 
-"""review_court node — Prosecutor / Defender / Judge evaluation.
+Layer 1 — model defense (optional, injected):
+  model_produce_defense(candidates, state) returns defense material and a
+  candidate confidence per finding. It never decides severity or status.
+  Default is OFF: when no callable is injected, the court is fully
+  deterministic.
 
-P0.5 Evidence Policy (strict enforcement, v2):
-  BLOCKER requires ALL 6 conditions:
-    1. Approved contract (contract_id in state.contracts)
-    2. Real Base/Head execution evidence recorded by run_differential
-       (base_pass_head_fail with actual exit codes — never static diff)
-    3. Attribution to Head (location present in changed files)
-    4. Real DB evidence (db_state_verdict == DB_MUTATED_ON_UNAUTH from H2 dump)
-    5. Replay constructible (executable evidence + generated test file exists)
-    6. Confidence >= 0.90
+Layer 2 — deterministic policy (agent/review_court/policy.py):
+  policy_recalculate recomputes severity and status from evidence kinds,
+  confidence ceilings and the Base/Head runtime comparison. It enforces the
+  P0.5 six-condition BLOCKER policy (byte-compatible with the pre-split
+  rule-based court) plus the preexisting-defect rule: when Base also fails
+  the same assertion/behavior, the finding is downgraded to
+  NOT_ATTRIBUTED / INFORMATIONAL unless a distinct head-only behavior
+  difference exists.
 
-  Static/source-diff findings are capped at MAJOR (never BLOCKER).
-  Digests are named "evidence_digest", never "signature".
-  Duplicate candidates for the same (contract, type) are merged.
+Every candidate — including model-ignored ones, parse failures and
+preexisting-defect downgrades — is recorded in state["court_audit"].
 """
 import asyncio
-import hashlib
+import concurrent.futures
+import inspect
 import json
 import os
+from collections.abc import Awaitable, Callable
 from typing import Any
 
+from agent.review_court.policy import (
+    NON_BLOCKER_EVIDENCE_TYPES,
+    STATIC_CONFIDENCE_CEILING,
+    DefenseMaterial,
+    ModelDefenseOutput,
+    _dedup_candidates,
+    policy_recalculate,
+)
 from agent.state import Phase0State
+from providers.judge_persona import build_judge_prompt
 
-_BLOCKER_REQUIRED_EVIDENCE_TYPES = frozenset({
-    "base_pass_head_fail",
-    "differential_execution",
-})
+DefenseProducer = Callable[
+    [list[dict[str, Any]], Any],
+    ModelDefenseOutput | Awaitable[ModelDefenseOutput],
+]
 
-_NON_BLOCKER_EVIDENCE_TYPES = frozenset({
-    "static_regex_analysis",
-    "static_analysis",
-    "java_source_diff",
-    "heuristic",
-})
-
-_LLM_PROSECUTOR_PROMPT = """You are a PROSECUTOR in a code review court. Your role is to argue
-why each finding is a REAL regression or security issue.
+_LLM_DEFENSE_PROMPT = """You are the DEFENDER in a code review court. Your role is to produce
+defense material for each candidate finding — never the final severity.
 
 Candidate findings:
 {candidates_json}
 
 For each finding, produce a JSON object with:
 - id: the finding's id
-- prosecution_argument: why this is a real issue (1-2 sentences, concrete)
-- recommended_severity: BLOCKER / MAJOR / MINOR
-- confidence: 0.0 to 1.0
-
-IMPORTANT: Static analysis alone cannot justify BLOCKER severity.
-Only findings with executable evidence (base_pass_head_fail, differential
-execution, real DB state mutation) can be recommended as BLOCKER.
-
-Return a JSON array. No other text."""
-
-_LLM_DEFENDER_PROMPT = """You are a DEFENDER in a code review court. Your role is to argue
-against false positives.
-
-Candidate findings:
-{candidates_json}
-
-Prosecutor arguments:
-{prosecutor_arguments}
-
-For each finding, produce a JSON object with:
-- id: the finding's id
-- defense_argument: why this might be a false positive (1-2 sentences)
-- is_false_positive: true or false
-- counter_confidence: 0.0 to 1.0
-
-Return a JSON array. No other text."""
-
-_LLM_JUDGE_PROMPT = """You are a JUDGE in a code review court.
-
-Prosecutor arguments:
-{prosecutor_arguments}
-
-Defender arguments:
-{defender_arguments}
-
-For each finding, produce a JSON object with:
-- id: the finding's id
-- verdict: CONFIRMED or DISMISSED
-- severity: BLOCKER / MAJOR / MINOR
-- confidence: 0.0 to 1.0
-- reasoning: 1 sentence explaining the ruling
-
-EVIDENCE POLICY (strict):
-- BLOCKER requires ALL of:
-  1) approved contract exists
-  2) base/head real execution evidence (not static diff)
-  3) attribution to Head (diff between versions)
-  4) DB or behavioral evidence
-  5) reproducible in clean capsule
-  6) confidence >= 0.90
-- Static findings can NEVER be BLOCKER (max MAJOR).
-- MAJOR: at least one strong evidence source, confidence >= 0.82
-- MINOR: evidence + logic, confidence >= 0.72
-- Below 0.72: DISMISSED
+- defense_argument: why this might be a false positive (1-2 sentences, concrete)
+- is_false_positive: true or false (advisory only; the deterministic policy
+  recomputes severity and status and is not bound by this field)
+- candidate_confidence: 0.0 to 1.0 (your confidence that the finding is real)
 
 Return a JSON array. No other text."""
 
@@ -112,59 +69,6 @@ def _get_provider() -> Any:
         return None
 
 
-async def _llm_review_court(
-    candidates: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    from providers.base import LLMMessage
-
-    provider = _get_provider()
-    if provider is None:
-        raise RuntimeError("No LLM provider available")
-
-    candidates_json = json.dumps(
-        [{k: v for k, v in c.items() if k != "source"} for c in candidates],
-        indent=2, ensure_ascii=False,
-    )
-
-    prosecutor_response = await provider.chat(
-        messages=[LLMMessage(
-            role="user",
-            content=_LLM_PROSECUTOR_PROMPT.format(candidates_json=candidates_json),
-        )],
-        thinking=True,
-        timeout=90.0,
-    )
-    prosecutor_args = _extract_json_array(prosecutor_response.content or "")
-
-    defender_response = await provider.chat(
-        messages=[LLMMessage(
-            role="user",
-            content=_LLM_DEFENDER_PROMPT.format(
-                candidates_json=candidates_json,
-                prosecutor_arguments=json.dumps(prosecutor_args, indent=2),
-            ),
-        )],
-        thinking=True,
-        timeout=90.0,
-    )
-    defender_args = _extract_json_array(defender_response.content or "")
-
-    judge_response = await provider.chat(
-        messages=[LLMMessage(
-            role="user",
-            content=_LLM_JUDGE_PROMPT.format(
-                prosecutor_arguments=json.dumps(prosecutor_args, indent=2),
-                defender_arguments=json.dumps(defender_args, indent=2),
-            ),
-        )],
-        thinking=True,
-        timeout=90.0,
-    )
-    judge_rulings = _extract_json_array(judge_response.content or "")
-
-    return prosecutor_args, defender_args, judge_rulings
-
-
 def _extract_json_array(content: str) -> list[dict[str, Any]]:
     start = content.find("[")
     end = content.rfind("]") + 1
@@ -174,211 +78,118 @@ def _extract_json_array(content: str) -> list[dict[str, Any]]:
             if isinstance(parsed, list):
                 return parsed
         except (json.JSONDecodeError, TypeError):
-            pass
+            return []
     return []
 
 
-def _has_real_execution_evidence(diff_results: list[dict[str, Any]]) -> bool:
-    """Real execution evidence = a recorded base/head run with exit codes.
+def _as_confidence(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return min(max(float(value), 0.0), 1.0)
+    return None
 
-    A bare evidence-type string is not evidence; the run must carry the
-    recorded exit codes that prove both sides actually executed.
+
+def _as_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None
+
+
+async def _llm_defense_materials(
+    provider: Any, candidates: list[dict[str, Any]]
+) -> ModelDefenseOutput:
+    """Ask the model for defense material only; parse failures are flagged.
+
+    The no-fake-pass judge persona is APPENDED after the base defense prompt
+    via build_judge_prompt, so the stable base-prompt prefix stays
+    byte-identical at the front (KV-cache-friendly ordering). This only
+    happens on the LLM path — the default deterministic court builds no
+    prompt at all.
     """
-    for dr in diff_results:
-        has_exits = "base_exit_code" in dr and "head_exit_code" in dr
-        if dr.get("evidence_type") == "base_pass_head_fail" and has_exits:
-            return True
-        if (
-            dr.get("evidence_type") == "differential_execution"
-            and dr.get("verdict") == "REGRESSION"
-            and has_exits
-        ):
-            return True
-    return False
+    from providers.base import LLMMessage
 
-
-def _check_blocker_conditions(
-    finding: dict[str, Any],
-    contracts: list[dict[str, Any]],
-    diff_results: list[dict[str, Any]],
-    generated_tests_path: str,
-    changed_files: list[str],
-) -> dict[str, Any]:
-    """Check all 6 BLOCKER conditions against real recorded evidence."""
-    evidence_type = finding.get("evidence_type", "")
-    contract_id = finding.get("contract_id", "")
-
-    conditions = {
-        "1_approved_contract": False,
-        "2_base_head_execution": False,
-        "3_attribution_to_head": False,
-        "4_db_behavior_evidence": False,
-        "5_capsule_replayable": False,
-        "6_confidence_090": False,
-    }
-
-    conditions["1_approved_contract"] = (
-        any(
-            c.get("id") == contract_id and c.get("approved", True)
-            for c in contracts
-        )
-        if contract_id else False
+    candidates_json = json.dumps(
+        [{k: v for k, v in c.items() if k != "source"} for c in candidates],
+        indent=2, ensure_ascii=False,
     )
-
-    conditions["2_base_head_execution"] = (
-        evidence_type in _BLOCKER_REQUIRED_EVIDENCE_TYPES
-        and _has_real_execution_evidence(diff_results)
+    base_prompt = _LLM_DEFENSE_PROMPT.format(candidates_json=candidates_json)
+    judge_prompt = build_judge_prompt(base_prompt)
+    response = await provider.chat(
+        messages=[LLMMessage(
+            role="user",
+            content=judge_prompt,
+        )],
+        thinking=True,
+        timeout=90.0,
     )
-
-    location = finding.get("location", "")
-    conditions["3_attribution_to_head"] = bool(
-        location
-        and any(location in cf for cf in changed_files)
-    ) or evidence_type == "base_pass_head_fail"
-
-    conditions["4_db_behavior_evidence"] = (
-        finding.get("db_state_verdict") in ("DB_MUTATED_ON_UNAUTH", "DB_MUTATED")
-        or any(
-            dr.get("db_state_verdict") in ("DB_MUTATED_ON_UNAUTH", "DB_MUTATED")
-            for dr in diff_results
-        )
-    )
-
-    conditions["5_capsule_replayable"] = (
-        evidence_type in _BLOCKER_REQUIRED_EVIDENCE_TYPES
-        and bool(generated_tests_path)
-    )
-
-    conditions["6_confidence_090"] = finding.get("confidence", 0) >= 0.90
-
-    all_met = all(conditions.values())
-    return {
-        "blocker_conditions": conditions,
-        "all_blocker_conditions_met": all_met,
-    }
-
-
-def _dedup_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Merge candidates that report the same (contract, type) keeping the strongest."""
-    merged: dict[tuple[str, str], dict[str, Any]] = {}
-    for c in candidates:
-        key = (c.get("contract_id", ""), c.get("type", ""))
-        existing = merged.get(key)
-        if existing is None:
-            merged[key] = dict(c)
+    raw = _extract_json_array(response.content or "")
+    if not raw:
+        return {"defense_materials": [], "parse_failed": True, "error": ""}
+    materials: list[DefenseMaterial] = []
+    for item in raw:
+        if not isinstance(item, dict) or not item.get("id"):
             continue
-        if c.get("confidence", 0) > existing.get("confidence", 0):
-            merged[key] = dict(c)
-        # Merge evidence notes from the weaker duplicate.
-        desc = existing.get("description", "")
-        if c.get("description") and c.get("description") not in desc:
-            existing["description"] = desc + " | " + c["description"]
-    return list(merged.values())
-
-
-def _apply_judge_rulings(
-    candidates: list[dict[str, Any]],
-    judge_rulings: list[dict[str, Any]],
-    contracts: list[dict[str, Any]],
-    diff_results: list[dict[str, Any]],
-    generated_tests_path: str,
-    changed_files: list[str],
-) -> list[dict[str, Any]]:
-    """Apply judge rulings with P0.5 evidence policy enforcement.
-
-    A missing or unmatched ruling defaults to NEEDS_CONFIRMATION (never
-    silently CONFIRMED).
-    """
-    rulings_by_id = {r.get("id", "").upper(): r for r in judge_rulings}
-    confirmed: list[dict[str, Any]] = []
-
-    for cf in candidates:
-        cid = cf.get("id", "").upper()
-        ruling = rulings_by_id.get(cid)
-
-        if ruling is None:
-            # Judge never evaluated this finding — do not confirm it.
-            confirmed.append({
-                **cf,
-                "status": "needs_confirmation",
-                "severity": (
-                    "MAJOR" if cf.get("severity") == "BLOCKER"
-                    else cf.get("severity", "MINOR")
-                ),
-                "confidence": min(cf.get("confidence", 0.8), 0.8),
-                "judge_reasoning": "No judge ruling returned for this finding",
-                "court_source": "llm_three_party",
-            })
-            continue
-
-        verdict = ruling.get("verdict", "")
-        if verdict == "DISMISSED":
-            continue
-
-        evidence_type = cf.get("evidence_type", "")
-        severity = ruling.get("severity") or cf.get("severity", "MAJOR")
-        confidence = ruling.get("confidence", cf.get("confidence", 0.8))
-
-        if evidence_type in _NON_BLOCKER_EVIDENCE_TYPES and severity == "BLOCKER":
-            severity = "MAJOR"
-            confidence = min(confidence, 0.85)
-
-        blocker_check = _check_blocker_conditions(
-            cf, contracts, diff_results, generated_tests_path, changed_files
-        )
-        if severity == "BLOCKER" and not blocker_check["all_blocker_conditions_met"]:
-            severity = "MAJOR"
-
-        evidence_json = json.dumps({
-            "id": cid,
-            "evidence_type": evidence_type,
-            "verdict": verdict,
-            "severity": severity,
-            "confidence": confidence,
-        }, sort_keys=True)
-        evidence_digest = hashlib.sha256(evidence_json.encode()).hexdigest()
-
-        confirmed.append({
-            **cf,
-            "status": "confirmed",
-            "severity": severity,
-            "confidence": confidence,
-            "judge_reasoning": ruling.get("reasoning", ""),
-            "court_source": "llm_three_party",
-            "evidence_digest": f"sha256:{evidence_digest}",
-            "blocker_check": blocker_check,
+        materials.append({
+            "id": str(item.get("id", "")),
+            "defense_argument": str(item.get("defense_argument", "")),
+            "candidate_confidence": _as_confidence(item.get("candidate_confidence")),
+            "is_false_positive": _as_bool(item.get("is_false_positive")),
         })
+    return {
+        "defense_materials": materials,
+        "parse_failed": False,
+        "error": "",
+    }
 
-    return _dedup_candidates(confirmed)
+
+def build_llm_defense_producer(provider: Any) -> DefenseProducer:
+    """Build the built-in LLM defense producer for explicit injection.
+
+    The court node does NOT call the model by default (default off); a caller
+    that wants model defense material passes this producer to
+    run_review_court. The policy layer still recomputes severity/status.
+    """
+
+    async def produce(
+        candidates: list[dict[str, Any]], _state: dict[str, Any]
+    ) -> ModelDefenseOutput:
+        return await _llm_defense_materials(provider, candidates)
+
+    return produce
 
 
-def _rule_based_court(state: Phase0State) -> dict[str, Any]:
-    """Rule-based Review Court with P0.5 evidence policy."""
+def _build_candidates(state: Phase0State) -> list[dict[str, Any]]:
+    """Deterministically assemble every candidate the policy layer sees.
+
+    Byte-compatible with the pre-split rule-based court, plus the runtime
+    evidence copy (exit codes, output tails, DB snapshots, test counts) the
+    preexisting-defect rule compares.
+    """
     static_findings = state.get("static_findings", [])
     diff_results = state.get("diff_results", [])
-    contracts = state.get("contracts", [])
-    generated_tests_path = state.get("generated_tests_path", "")
-    changed_files = _changed_files(state)
 
     candidates: list[dict[str, Any]] = []
 
     for sf in static_findings:
         evidence_type = sf.get("evidence_type", "static_analysis")
         candidate = {**sf, "source": "static_analysis", "status": "candidate"}
-        if evidence_type in _NON_BLOCKER_EVIDENCE_TYPES:
+        if evidence_type in NON_BLOCKER_EVIDENCE_TYPES:
             candidate["severity"] = (
                 "MAJOR" if sf.get("severity") == "BLOCKER"
                 else sf.get("severity", "MAJOR")
             )
-            candidate["confidence"] = min(sf.get("confidence", 0.8), 0.85)
+            candidate["confidence"] = min(
+                sf.get("confidence", 0.8), STATIC_CONFIDENCE_CEILING
+            )
         candidates.append(candidate)
 
-    for dr in diff_results:
+    for index, dr in enumerate(diff_results):
         if dr.get("verdict") not in ("REGRESSION", "AMBIGUOUS"):
             continue
         evidence_type = dr.get("evidence_type", "differential_execution")
         severity = dr.get("severity")
-        if evidence_type in _NON_BLOCKER_EVIDENCE_TYPES:
+        if evidence_type in NON_BLOCKER_EVIDENCE_TYPES:
             severity = "MAJOR" if severity == "BLOCKER" else (severity or "MAJOR")
         elif severity is None:
             severity = "MAJOR" if dr.get("verdict") == "REGRESSION" else "MINOR"
@@ -405,47 +216,20 @@ def _rule_based_court(state: Phase0State) -> dict[str, Any]:
             "db_state_verdict": dr.get("db_state_verdict", ""),
             "location": dr.get("location", ""),
             "evidence_digest": dr.get("evidence_digest", ""),
+            # Runtime evidence copy — the policy layer compares Base/Head
+            # behavior from these fields (preexisting-defect rule).
+            "diff_result_index": index,
+            "base_exit_code": dr.get("base_exit_code"),
+            "head_exit_code": dr.get("head_exit_code"),
+            "base_output": dr.get("base_output", ""),
+            "head_output": dr.get("head_output", ""),
+            "base_db_snapshot": dr.get("base_db_snapshot") or {},
+            "head_db_snapshot": dr.get("head_db_snapshot") or {},
+            "base_test_counts": dr.get("base_test_counts") or {},
+            "head_test_counts": dr.get("head_test_counts") or {},
         })
 
-    candidates = _dedup_candidates(candidates)
-
-    confirmed: list[dict[str, Any]] = []
-    for cf in candidates:
-        if cf.get("diff_verdict") == "NON_REPRODUCIBLE":
-            continue
-
-        evidence_type = cf.get("evidence_type", "")
-        if evidence_type in _NON_BLOCKER_EVIDENCE_TYPES:
-            cf["severity"] = (
-                "MAJOR" if cf.get("severity") == "BLOCKER"
-                else cf.get("severity", "MAJOR")
-            )
-            cf["confidence"] = min(cf.get("confidence", 0.8), 0.85)
-
-        blocker_check = _check_blocker_conditions(
-            cf, contracts, diff_results, generated_tests_path, changed_files
-        )
-        cf["blocker_check"] = blocker_check
-        if cf.get("severity") == "BLOCKER" and not blocker_check["all_blocker_conditions_met"]:
-            cf["severity"] = "MAJOR"
-            cf["confidence"] = min(cf.get("confidence", 0.88), 0.88)
-
-        evidence_json = json.dumps({
-            "id": cf.get("id", ""),
-            "evidence_type": evidence_type,
-            "severity": cf.get("severity"),
-            "confidence": cf.get("confidence"),
-        }, sort_keys=True)
-        cf["evidence_digest"] = (
-            "sha256:" + hashlib.sha256(evidence_json.encode()).hexdigest()
-        )
-        cf.setdefault("court_source", "rule_based")
-        confirmed.append({**cf, "status": "confirmed"})
-
-    return {
-        "candidate_findings": candidates,
-        "confirmed_findings": confirmed,
-    }
+    return _dedup_candidates(candidates)
 
 
 def _changed_files(state: Phase0State) -> list[str]:
@@ -461,48 +245,113 @@ def _changed_files(state: Phase0State) -> list[str]:
         if result.returncode == 0:
             return [f.strip() for f in result.stdout.splitlines() if f.strip()]
     except Exception:
-        pass
+        return []
     return []
 
 
-def review_court_node(state: Phase0State) -> dict[str, Any]:
-    """Evaluate candidate findings through the P0.5 Review Court."""
-    contracts = state.get("contracts", [])
+def _invoke_defense_producer(
+    producer: DefenseProducer,
+    candidates: list[dict[str, Any]],
+    state: Phase0State,
+) -> ModelDefenseOutput | None:
+    """Run the injected model layer; any failure degrades to deterministic.
+
+    Producer exceptions are recorded as model_error so the policy layer can
+    fall back to the fully deterministic path — never to auto-confirmation.
+    """
+    try:
+        result = producer(candidates, state)
+    except Exception as exc:
+        return {"defense_materials": [], "parse_failed": False, "error": str(exc)}
+
+    if inspect.isawaitable(result):
+
+        async def _collect(
+            awaitable: Awaitable[ModelDefenseOutput],
+        ) -> ModelDefenseOutput:
+            return await awaitable
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                return asyncio.run(_collect(result))
+            except Exception as exc:
+                return {
+                    "defense_materials": [],
+                    "parse_failed": False,
+                    "error": str(exc),
+                }
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, _collect(result))
+                return future.result(timeout=180)
+        except Exception as exc:
+            return {
+                "defense_materials": [],
+                "parse_failed": False,
+                "error": str(exc),
+            }
+
+    if isinstance(result, dict):
+        return result
+    return {
+        "defense_materials": [],
+        "parse_failed": False,
+        "error": "invalid defense producer output",
+    }
+
+
+def run_review_court(
+    state: Phase0State,
+    model_produce_defense: DefenseProducer | None = None,
+) -> dict[str, Any]:
+    """Run the two-layer Review Court (§14.1).
+
+    model_produce_defense is an injected callable
+    (candidates, state) -> ModelDefenseOutput, sync or async. It defaults to
+    OFF: when absent the court is fully deterministic. The deterministic
+    policy layer sees ALL candidates regardless of what the model ignored.
+    """
+    static_findings = state.get("static_findings", [])
     diff_results = state.get("diff_results", [])
 
-    if not state.get("static_findings") and not diff_results:
-        return {"candidate_findings": [], "confirmed_findings": []}
+    if not static_findings and not diff_results:
+        return {
+            "candidate_findings": [],
+            "confirmed_findings": [],
+            "court_audit": [],
+        }
 
-    provider = _get_provider() if state.get("use_llm", True) else None
-    if provider is not None:
-        try:
-            # Build the same candidate set the rule-based court uses.
-            rule_candidates = _rule_based_court(state)["candidate_findings"]
-            if rule_candidates:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as pool:
-                        future = pool.submit(
-                            asyncio.run, _llm_review_court(rule_candidates)
-                        )
-                        _pros, _def, judge_rulings = future.result(timeout=180)
-                else:
-                    _pros, _def, judge_rulings = asyncio.run(
-                        _llm_review_court(rule_candidates)
-                    )
-                if judge_rulings:
-                    confirmed_findings = _apply_judge_rulings(
-                        rule_candidates, judge_rulings, contracts, diff_results,
-                        state.get("generated_tests_path", ""),
-                        _changed_files(state),
-                    )
-                    return {
-                        "candidate_findings": rule_candidates,
-                        "confirmed_findings": confirmed_findings,
-                    }
-        except Exception:
-            # LLM court unavailable — fall through to the deterministic court.
-            pass
+    candidates = _build_candidates(state)
+    model_output: ModelDefenseOutput | None = None
+    if model_produce_defense is not None:
+        model_output = _invoke_defense_producer(
+            model_produce_defense, candidates, state
+        )
 
-    return _rule_based_court(state)
+    result = policy_recalculate(
+        candidates=candidates,
+        model_output=model_output,
+        contracts=state.get("contracts", []),
+        diff_results=diff_results,
+        generated_tests_path=state.get("generated_tests_path", ""),
+        changed_files=_changed_files(state),
+    )
+    return {
+        "candidate_findings": result["candidate_findings"],
+        "confirmed_findings": result["confirmed_findings"],
+        "court_audit": result["audit_entries"],
+    }
+
+
+def review_court_node(state: Phase0State) -> dict[str, Any]:
+    """LangGraph node entry — deterministic policy court by default.
+
+    The model defense layer is opt-in: callers that want LLM defense
+    material inject build_llm_defense_producer(provider) via run_review_court.
+    The policy layer recomputes severity/status either way, and every
+    candidate is retained in state["court_audit"].
+    """
+    return run_review_court(state)
+

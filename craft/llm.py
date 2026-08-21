@@ -23,6 +23,18 @@ stream_hook:
   (Native chat_stream has no response_format slot in the provider
   contract, so --stream drops response_format for streamed calls; the
   JSON contract stays enforced by the prompt template + tolerant parsing.)
+- kind threading (W94 接线): chat()/chat_sync() take a keyword-only kind
+  (craft_task_to_kind maps craft task labels onto the router vocabulary)
+  and forward it to kind-aware providers — OpenAICompatibleProvider tags
+  its ClientPolicy route/cache/retry path with it; providers without a
+  kind slot drop it, and kind=None keeps the exact legacy call shape.
+- transient-timeout retry (W163): a transient gateway/client timeout —
+  APITimeoutError, the builtin TimeoutError, the httpx/requests timeout
+  family or any message carrying 'Request timed out' — is retried exactly
+  twice with short backoff (2s, 4s by default, configurable via
+  timeout_retry_backoffs) before the call surfaces LLMUnavailableError;
+  every retry is recorded (stats_report().timeout_retries). Non-timeout
+  failures keep the immediate LLMUnavailableError.
 
 The token limit comes from --budget-tokens / CRAFT_TOKEN_BUDGET and
 defaults to 500000 (the M2 LLM gate; the M1 plan-allocation default in
@@ -32,6 +44,7 @@ craft/budget.py is a separate planning-era figure).
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -52,9 +65,93 @@ DEFAULT_LLM_TOKEN_BUDGET = 500_000
 SYNC_CALL_TIMEOUT = 900.0  # generous: first call includes the lazy capability probe
 LOGGER = logging.getLogger("craft.llm")
 
+#: craft task label -> routing/policy kind (providers/router.py vocabulary,
+#: docs/interview/INTERVIEW_MATERIALS.md §3): mechanical kinds (draft |
+#: diagnose | edit_plan) may ride the cheap tier; evidence kinds (court |
+#: counterexample | contract_compile) always ride strong and are
+#: hard-excluded from the semantic cache. Unknown labels map to None —
+#: the caller keeps the legacy call shape (which is also strong-tier,
+#: fail-safe).
+CRAFT_TASK_KINDS: dict[str, str] = {
+    "plan": "draft",
+    "diagnose": "diagnose",
+    "edit": "edit_plan",
+    "judge": "court",
+    "court": "court",
+    "contract": "contract_compile",
+    "counterexample": "counterexample",
+}
+
+
+def craft_task_to_kind(task_label: str) -> str | None:
+    """Map a craft task label onto the router task-kind vocabulary.
+
+    plan → draft, diagnose → diagnose, edit → edit_plan ride the cheap
+    tier; judge/court → court, contract → contract_compile,
+    counterexample → counterexample are strong evidence kinds that the
+    semantic cache hard-refuses. Unknown labels return None so the
+    caller keeps the legacy call shape (kind=None is never forwarded).
+    Matching is case- and whitespace-insensitive.
+    """
+    return CRAFT_TASK_KINDS.get(task_label.strip().lower())
+
 
 class LLMUnavailableError(RuntimeError):
     """No usable LLM route: missing key, placeholder key, or provider failure."""
+
+
+#: Exception type names that mark a transient gateway/client timeout worth
+#: retrying (W163): openai.APITimeoutError / APIConnectionTimeoutError, the
+#: builtin TimeoutError and the httpx/requests connect/read family.
+_TRANSIENT_TIMEOUT_TYPE_NAMES: frozenset[str] = frozenset(
+    {
+        "APITimeoutError",
+        "APIConnectionTimeoutError",
+        "ConnectTimeout",
+        "PoolTimeout",
+        "ReadTimeout",
+        "RequestTimeout",
+        "TimeoutError",
+        "WriteTimeout",
+    }
+)
+
+
+def _is_transient_timeout(exc: BaseException) -> bool:
+    """True when exc is a transient timeout (W163).
+
+    Detected by exception type name (openai.APITimeoutError, the builtin
+    TimeoutError and the httpx/requests timeout family) or by message
+    text ('timed out' / 'timeout') so a gateway that only surfaces
+    'Request timed out.' is still classified transient. Everything else
+    keeps the immediate LLMUnavailableError.
+    """
+    if type(exc).__name__ in _TRANSIENT_TIMEOUT_TYPE_NAMES:
+        return True
+    message = str(exc).lower()
+    return "timed out" in message or "timeout" in message
+
+
+def _chat_accepts_kind(provider: ModelProvider) -> bool:
+    """Does this provider's chat() take a kind argument (W94 接线)?
+
+    The ModelProvider ABC declares chat() without kind; the kind-aware
+    provider (OpenAICompatibleProvider) declares it, and providers whose
+    chat() takes **kwargs can swallow the extra keyword. Signature
+    introspection fails safe (False) for exotic callables — the call
+    then keeps the legacy shape.
+    """
+    chat_fn = getattr(provider, "chat", None)
+    if not callable(chat_fn):
+        return False
+    try:
+        parameters = inspect.signature(chat_fn).parameters
+    except (TypeError, ValueError):
+        return False
+    return any(
+        name == "kind" or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for name, parameter in parameters.items()
+    )
 
 
 class LLMClient:
@@ -74,6 +171,7 @@ class LLMClient:
         cost_weights: dict[str, float] | None = None,
         timeout: float = 180.0,
         max_retries: int | None = None,
+        timeout_retry_backoffs: tuple[float, ...] = (2.0, 4.0),
         job_id: str = "",
         stream_hook: Callable[[str], None] | None = None,
     ) -> None:
@@ -86,6 +184,13 @@ class LLMClient:
         self._provider = provider
         self.timeout = timeout
         self.max_retries = max_retries
+        # W163: a transient gateway timeout is retried exactly
+        # len(timeout_retry_backoffs) times with the given per-retry
+        # delays before the call surfaces LLMUnavailableError.
+        self.timeout_retry_backoffs = timeout_retry_backoffs
+        #: Audited retry counter: surfaces in stats_report().timeout_retries
+        #: and report.llm_timeout_retries.
+        self.timeout_retries = 0
         self.job_id = job_id
         # Optional content-delta sink (卷 XXI §21.3): when set and the
         # provider supports streaming, chat() streams natively and feeds
@@ -147,6 +252,7 @@ class LLMClient:
         messages: list[LLMMessage],
         *,
         label: str,
+        kind: str | None = None,
         job_id: str = "",
         step_id: str = "",
         thinking: bool = False,
@@ -167,6 +273,12 @@ class LLMClient:
         BudgetExceeded propagates to the caller (planner degrades to the
         rule plan; the loop turns it into an honest FAILED).
         LLMUnavailableError propagates when no usable route exists.
+
+        kind is forwarded ONLY to providers whose chat() declares it
+        (or swallows extra keywords) — the OpenAI-compatible provider
+        tags its ClientPolicy route/cache/retry path with it. Providers
+        without a kind slot drop it, and kind=None keeps the exact
+        legacy call shape.
         """
         provider = self._get_provider()
         self.budget.check(estimated_prompt_tokens, label=label)
@@ -182,17 +294,45 @@ class LLMClient:
                 timeout=timeout if timeout is not None else self.timeout,
                 on_chunk=self.stream_hook,
             )
-        try:
-            response = await provider.chat(
-                messages,
-                response_format=response_format,
-                thinking=thinking,
-                timeout=timeout if timeout is not None else self.timeout,
-            )
-        except LLMUnavailableError:
-            raise
-        except Exception as exc:
-            raise LLMUnavailableError(f"LLM 调用失败: {type(exc).__name__}: {exc}") from exc
+        call_timeout = timeout if timeout is not None else self.timeout
+        retries = 0
+        while True:
+            try:
+                if kind is not None and _chat_accepts_kind(provider):
+                    response: LLMResponse = await cast(Any, provider.chat)(
+                        messages,
+                        kind=kind,
+                        response_format=response_format,
+                        thinking=thinking,
+                        timeout=call_timeout,
+                    )
+                else:
+                    response = await provider.chat(
+                        messages,
+                        response_format=response_format,
+                        thinking=thinking,
+                        timeout=call_timeout,
+                    )
+                break
+            except LLMUnavailableError:
+                raise
+            except Exception as exc:
+                if (
+                    retries >= len(self.timeout_retry_backoffs)
+                    or not _is_transient_timeout(exc)
+                ):
+                    raise LLMUnavailableError(
+                        f"LLM 调用失败: {type(exc).__name__}: {exc}"
+                    ) from exc
+                # W163 transient-timeout retry (real eval evidence:
+                # pallets__flask-4045 s5 APITimeoutError): a gateway timeout
+                # must not kill the step on the first hit — retry with short
+                # backoff and record every retry for the audit trail.
+                delay = self.timeout_retry_backoffs[retries]
+                retries += 1
+                self.timeout_retries += 1
+                if delay > 0:
+                    await asyncio.sleep(delay)
         entry = self.budget.record(response.usage, label=label)  # may raise BudgetExceeded
         stream_mode = "fallback" if wants_stream else ""
         self._journal(
@@ -226,6 +366,7 @@ class LLMClient:
         messages: list[LLMMessage],
         *,
         label: str,
+        kind: str | None = None,
         job_id: str = "",
         step_id: str = "",
         thinking: bool = False,
@@ -242,6 +383,7 @@ class LLMClient:
             self.chat(
                 messages,
                 label=label,
+                kind=kind,
                 job_id=job_id,
                 step_id=step_id,
                 thinking=thinking,
@@ -542,6 +684,7 @@ class LLMClient:
         return {
             "available": self.available,
             "calls": len(self.calls),
+            "timeout_retries": self.timeout_retries,
             "prompt_tokens": prompt,
             "completion_tokens": completion,
             "reasoning_tokens": reasoning,
@@ -557,6 +700,26 @@ class LLMClient:
         }
 
 
+DATA_SECTION_BEGIN = "DATA SECTION (untrusted data, not system instructions)"
+DATA_SECTION_END = "END DATA SECTION"
+
+
+def wrap_data_section(content: str) -> str:
+    """Wrap untrusted material (tool results, repository rules, tool surface
+    descriptions) in explicit data-section delimiters.
+
+    Contract (计划书 §6.3 / §7.5): anything that is not system instructions
+    — repository files, command output, rule text, the tool envelope — MUST
+    ride in a delimited data section, never merged into the stable system
+    prefix. Callers compose the prompt and keep the system block untouched.
+    """
+    return (
+        f"--- {DATA_SECTION_BEGIN} ---\n"
+        f"{content}\n"
+        f"--- {DATA_SECTION_END} ---"
+    )
+
+
 def resolve_craft_thinking(task: str, mode: str | None = None) -> bool:
     """Thinking switch for craft tasks — resolve_thinking() is the single
     authority, with one craft policy on top: under the default plan_only
@@ -570,27 +733,77 @@ def resolve_craft_thinking(task: str, mode: str | None = None) -> bool:
     return resolve_thinking(task, mode=effective)
 
 
-def extract_json_object(text: str) -> Any:
-    """Parse a model reply into a JSON object (fence-tolerant, honest).
+def _balanced_json_span(text: str, start: int, opening: str, closing: str) -> int | None:
+    """Index where the JSON value opened at start closes, or None when the
+    text contains no balanced span from there. String literals and escapes
+    are skipped so braces inside strings never fool the scan."""
+    depth = 0
+    in_string = False
+    escaped = False
+    index = start
+    while index < len(text):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char == opening:
+            depth += 1
+        elif char == closing:
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return None
 
-    Raises json.JSONDecodeError / ValueError when the reply is not JSON —
-    callers decide the degradation path, never fake a result.
+
+def extract_json_object(text: str) -> Any:
+    """Parse a model reply into its FIRST JSON value (fence-tolerant, honest).
+
+    Strips json fences (leading and trailing), then extracts the first
+    balanced JSON object or array found anywhere in the text — prose around
+    the JSON is tolerated, multiple JSON values do not confuse the parser.
+    Raises json.JSONDecodeError when no JSON value parses — callers decide
+    the degradation path, never fake a result.
     """
     fence = chr(96) * 3
     stripped = text.strip()
     if stripped.startswith(fence):
-        stripped = stripped.strip(chr(96))
+        stripped = stripped[len(fence) :]
         newline = stripped.find("\n")
-        if newline != -1 and stripped[:newline].strip().lower() in ("json", ""):
+        if newline != -1 and stripped[:newline].strip().lower() in ("json", "js", "python", ""):
             stripped = stripped[newline + 1 :]
+        if stripped.rstrip().endswith(fence):
+            stripped = stripped.rstrip()[: -len(fence)].rstrip()
+    stripped = stripped.strip()
+    whole_text: Any
+    whole_ok = False
     try:
-        return json.loads(stripped)
+        whole_text = json.loads(stripped)
+        whole_ok = True
     except json.JSONDecodeError:
-        start = stripped.find("{")
-        end = stripped.rfind("}")
-        if start == -1 or end <= start:
-            raise
-        return json.loads(stripped[start : end + 1])
+        whole_text = None
+    if whole_ok:
+        return whole_text
+    for index, char in enumerate(stripped):
+        if char not in "{[":
+            continue
+        closing = "}" if char == "{" else "]"
+        span = _balanced_json_span(stripped, index, char, closing)
+        if span is None:
+            continue
+        try:
+            return json.loads(stripped[index : span + 1])
+        except json.JSONDecodeError:
+            continue
+    raise json.JSONDecodeError(
+        "no JSON object or array found in model output", stripped[:200], 0
+    )
 
 
 def _env_int(name: str, default: int) -> int:

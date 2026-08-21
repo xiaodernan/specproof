@@ -1,0 +1,227 @@
+{
+  "name": "specproof-agent-console",
+  "displayName": "SpecProof Agent Console",
+  "description": "VS Code sidebar for SpecProof agent jobs: task list, plan JSON tree, approve/cancel, change-bundle diff, status bar.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "specproof",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "SpecProof Agent Console",
+      "properties": {
+        "specproofAgent.apiBaseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "markdownDescription": "Base URL of the SpecProof local API server (the `/agent/jobs` console)."
+        },
+        "specproofAgent.apiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Value sent as the `X-API-Key` header. It must match the server's `SPECPROOF_API_KEY`. Use a placeholder such as `replace_me` during development; never commit a real key."
+        },
+        "specproofAgent.pollIntervalSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 300,
+          "description": "Seconds between job-list polls while the Agent Tasks view is visible."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "specproofAgent",
+          "title": "SpecProof Agent",
+          "icon": "media/agent.svg"
+        }
+      ]
+    },
+    "views": {
+      "specproofAgent": [
+        {
+          "id": "specproofAgent.tasks",
+          "name": "Agent Tasks",
+          "icon": "media/tasks.svg"
+        },
+        {
+          "id": "specproofAgent.plan",
+          "name": "Plan (JSON Tree)",
+          "icon": "media/plan.svg"
+        },
+        {
+          "id": "specproofAgent.diff",
+          "name": "Changed Files",
+          "icon": "media/diff.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "specproofAgent.refreshTasks",
+        "title": "Refresh Tasks",
+        "icon": "$(refresh)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.refreshDiff",
+        "title": "Refresh Changed Files",
+        "icon": "$(refresh)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.setCurrentJob",
+        "title": "Set as Current Job",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.createJob",
+        "title": "Create Agent Job...",
+        "icon": "$(add)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.approvePlan",
+        "title": "Approve Plan",
+        "icon": "$(check)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.rejectPlan",
+        "title": "Reject Plan",
+        "icon": "$(close)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.approveStep",
+        "title": "Approve Step",
+        "icon": "$(check)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.rejectStep",
+        "title": "Reject Step",
+        "icon": "$(close)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.approveGate",
+        "title": "Approve Gate",
+        "icon": "$(check)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.rejectGate",
+        "title": "Reject Gate",
+        "icon": "$(close)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.cancelJob",
+        "title": "Cancel Job",
+        "icon": "$(stop)",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.openDiff",
+        "title": "Open Diff",
+        "category": "SpecProof Agent"
+      },
+      {
+        "command": "specproofAgent.showStatus",
+        "title": "Show Current Job",
+        "category": "SpecProof Agent"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "specproofAgent.refreshTasks",
+          "when": "view == specproofAgent.tasks",
+          "group": "navigation"
+        },
+        {
+          "command": "specproofAgent.createJob",
+          "when": "view == specproofAgent.tasks",
+          "group": "navigation"
+        },
+        {
+          "command": "specproofAgent.refreshDiff",
+          "when": "view == specproofAgent.diff",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "specproofAgent.setCurrentJob",
+          "when": "view == specproofAgent.tasks",
+          "group": "inline"
+        },
+        {
+          "command": "specproofAgent.approvePlan",
+          "when": "view == specproofAgent.tasks && viewItem =~ /^(job|currentJob)$/",
+          "group": "1@1"
+        },
+        {
+          "command": "specproofAgent.rejectPlan",
+          "when": "view == specproofAgent.tasks && viewItem =~ /^(job|currentJob)$/",
+          "group": "1@2"
+        },
+        {
+          "command": "specproofAgent.approveGate",
+          "when": "view == specproofAgent.tasks && viewItem =~ /^(job|currentJob)$/",
+          "group": "1@3"
+        },
+        {
+          "command": "specproofAgent.rejectGate",
+          "when": "view == specproofAgent.tasks && viewItem =~ /^(job|currentJob)$/",
+          "group": "1@4"
+        },
+        {
+          "command": "specproofAgent.cancelJob",
+          "when": "view == specproofAgent.tasks && viewItem =~ /^(job|currentJob)$/",
+          "group": "1@5"
+        },
+        {
+          "command": "specproofAgent.openDiff",
+          "when": "view == specproofAgent.diff && viewItem == diffFile",
+          "group": "inline"
+        },
+        {
+          "command": "specproofAgent.approveStep",
+          "when": "view == specproofAgent.plan && viewItem == planStep",
+          "group": "1@1"
+        },
+        {
+          "command": "specproofAgent.rejectStep",
+          "when": "view == specproofAgent.plan && viewItem == planStep",
+          "group": "1@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "typecheck": "tsc --noEmit",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
+  }
+}

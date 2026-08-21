@@ -1,0 +1,231 @@
+{
+  "total_cases": 20,
+  "should_detect": 13,
+  "detected": 11,
+  "false_positives": 2,
+  "precision": 84.61538461538461,
+  "recall": 84.61538461538461,
+  "f1": 84.61538461538461,
+  "cases": [
+    {
+      "case": "case-21-auth-weakened-permitall",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "AUTH-01",
+      "expected_contract": "AUTH-01"
+    },
+    {
+      "case": "case-22-auth-guard-moved-to-dead-helper",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 2,
+      "matched_severities": "BLOCKER, MAJOR",
+      "contracts_found": "AUTH-01",
+      "expected_contract": "AUTH-01"
+    },
+    {
+      "case": "case-23-auth-role-tightened",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-24-auth-expression-inverted",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "AUTH-01",
+      "expected_contract": "AUTH-01"
+    },
+    {
+      "case": "case-25-auth-secured-equivalent",
+      "verdict": "FALSE_POSITIVE",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "AUTH-01",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-26-auth-method-security-disabled",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "AUTH-01",
+      "expected_contract": "AUTH-01"
+    },
+    {
+      "case": "case-27-auth-config-comment",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-28-tx-cancel-order-boundary-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "TRANSACTION-01",
+      "expected_contract": "TRANSACTION-01"
+    },
+    {
+      "case": "case-29-tx-optimistic-lock-removed",
+      "verdict": "MISS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "CONCURRENCY-01"
+    },
+    {
+      "case": "case-30-tx-version-guard-moved-to-getter",
+      "verdict": "FALSE_POSITIVE",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "CONCURRENCY-01",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-31-tx-decrement-committed-before-validation",
+      "verdict": "MISS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "ATOMICITY-01"
+    },
+    {
+      "case": "case-32-tx-place-order-boundary-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "TRANSACTION-01",
+      "expected_contract": "TRANSACTION-01"
+    },
+    {
+      "case": "case-33-tx-order-idempotency-dedup-removed",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "IDEMPOTENT-01",
+      "expected_contract": "IDEMPOTENT-01"
+    },
+    {
+      "case": "case-34-tx-equivalent-dedup-lookup",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-35-tx-stock-decrement-off-by-one",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "BLOCKER",
+      "contracts_found": "IDEMPOTENT-01",
+      "expected_contract": "IDEMPOTENT-01"
+    },
+    {
+      "case": "case-36-tx-new-order-lookup-endpoint",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-37-tx-place-order-multi-write-atomicity",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "TRANSACTION-01",
+      "expected_contract": "TRANSACTION-01"
+    },
+    {
+      "case": "case-38-tx-readonly-on-user-reads",
+      "verdict": "PASS",
+      "should_detect": false,
+      "expected_severity": "NONE",
+      "expected_evidence": "none",
+      "matched_findings": 0,
+      "matched_severities": "\u2014",
+      "contracts_found": "",
+      "expected_contract": "\u2014"
+    },
+    {
+      "case": "case-39-tx-cancel-no-restock",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "BLOCKER",
+      "expected_evidence": "base_pass_head_fail",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "ATOMICITY-01",
+      "expected_contract": "ATOMICITY-01"
+    },
+    {
+      "case": "case-40-migration-email-column-shrunk",
+      "verdict": "PASS",
+      "should_detect": true,
+      "expected_severity": "MAJOR",
+      "expected_evidence": "java_source_diff",
+      "matched_findings": 1,
+      "matched_severities": "MAJOR",
+      "contracts_found": "MIGRATION-01",
+      "expected_contract": "MIGRATION-01"
+    }
+  ]
+}

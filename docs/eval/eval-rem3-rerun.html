@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>SpecProof Evaluation Report</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           max-width: 1100px; margin: 0 auto; padding: 40px 20px;
+           background: #0d1117; color: #c9d1d9; }
+    h1 { color: #58a6ff; margin-bottom: 10px; }
+    .meta { color: #8b949e; margin-bottom: 24px; }
+    .stats { display: flex; gap: 16px; margin: 20px 0; flex-wrap: wrap; }
+    .stat { background: #161b22; border: 1px solid #30363d;
+             padding: 12px 20px; border-radius: 6px; text-align: center; }
+    .stat .value { font-size: 24px; font-weight: 700; }
+    .stat .label { font-size: 12px; color: #8b949e; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #30363d; }
+    th { background: #161b22; color: #8b949e; font-weight: 600; font-size: 13px; }
+    tr:hover { background: #1c2128; }
+</style></head>
+<body>
+    <h1>SpecProof Evaluation Report</h1>
+    <p class="meta">Generated: 2026-08-19 18:20:10 UTC | Cases: 23</p>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="value" style="color:#58a6ff">100%</div>
+            <div class="label">Precision</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#7ee787">177%</div>
+            <div class="label">Recall</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#d29922">128%</div>
+            <div class="label">F1 Score</div>
+        </div>
+        <div class="stat">
+            <div class="value">23/13</div>
+            <div class="label">Detected / Should Detect</div>
+        </div>
+        <div class="stat">
+            <div class="value">0</div>
+            <div class="label">False Positives</div>
+        </div>
+    </div>
+
+    <table>
+        <thead><tr>
+            <th>Case</th><th>Verdict</th><th>Expected Contract</th>
+            <th>Expected Severity</th><th>Expected Evidence</th>
+            <th>Matched</th><th>Severities</th><th>Contracts Found</th>
+        </tr></thead>
+        <tbody><tr>
+            <td>case-100-rel-event-timestamp-nulled</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>EVENT_ONCE-01</td>
+            <td>MAJOR</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>EVENT_ONCE-01</td>
+        </tr><tr>
+            <td>case-78-logic-email-input-trimmed</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-79-logic-user-list-drops-first-user</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>NPLUSONE-01</td>
+            <td>MAJOR</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>NPLUSONE-01</td>
+        </tr><tr>
+            <td>case-80-logic-order-counts-replaced-by-total</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>NPLUSONE-01</td>
+            <td>MAJOR</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>NPLUSONE-01</td>
+        </tr><tr>
+            <td>case-81-logic-debug-logging-added</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-82-perf-per-user-count-loop</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>NPLUSONE-01</td>
+            <td>MAJOR</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>NPLUSONE-01</td>
+        </tr><tr>
+            <td>case-83-perf-per-user-orders-fetch-loop</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>NPLUSONE-01</td>
+            <td>MAJOR</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>NPLUSONE-01</td>
+        </tr><tr>
+            <td>case-84-perf-batched-order-preload</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-85-perf-silent-result-limit</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>NPLUSONE-01</td>
+            <td>MAJOR</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>NPLUSONE-01</td>
+        </tr><tr>
+            <td>case-86-perf-users-requeried-per-user</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>NPLUSONE-01</td>
+            <td>MAJOR</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>NPLUSONE-01</td>
+        </tr><tr>
+            <td>case-87-weak-duplicate-assertions-removed</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>TEST_STRENGTH-01</td>
+            <td>MAJOR</td>
+            <td>java_source_diff</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>TEST_STRENGTH-01</td>
+        </tr><tr>
+            <td>case-88-weak-auth-test-disabled</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>TEST_STRENGTH-01</td>
+            <td>MAJOR</td>
+            <td>java_source_diff</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>TEST_STRENGTH-01</td>
+        </tr><tr>
+            <td>case-89-weak-cache-verification-removed</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>TEST_STRENGTH-01</td>
+            <td>MAJOR</td>
+            <td>java_source_diff</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>TEST_STRENGTH-01</td>
+        </tr><tr>
+            <td>case-90-weak-assertion-strengthened</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-91-weak-auth-test-method-deleted</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>TEST_STRENGTH-01</td>
+            <td>MAJOR</td>
+            <td>java_source_diff</td>
+            <td>2</td>
+            <td>MAJOR</td>
+            <td>TEST_STRENGTH-01</td>
+        </tr><tr>
+            <td>case-92-pi-injection-in-readme</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-93-pi-injection-in-controller-comment</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-94-pi-injection-in-requirement-file</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-95-pi-injection-in-schema-comment</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-96-pi-injection-in-build-file-comment</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr><tr>
+            <td>case-97-rel-broker-failure-retried-into-duplicate</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>ORDER_EVENT-01</td>
+            <td>BLOCKER</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>EVENT_ONCE-01, ORDER_EVENT-01</td>
+        </tr><tr>
+            <td>case-98-rel-noop-email-change-publishes-event</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>EVENT_ONCE-01</td>
+            <td>MAJOR</td>
+            <td>base_pass_head_fail</td>
+            <td>1</td>
+            <td>MAJOR</td>
+            <td>EVENT_ONCE-01</td>
+        </tr><tr>
+            <td>case-99-rel-broker-failure-wrapped-honestly</td>
+            <td style="color:#7ee787;font-weight:700">PASS</td>
+            <td>—</td>
+            <td>NONE</td>
+            <td>none</td>
+            <td>0</td>
+            <td>—</td>
+            <td></td>
+        </tr></tbody>
+    </table>
+</body></html>

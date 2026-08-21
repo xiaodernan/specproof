@@ -41,18 +41,31 @@ class MongoDBSaver(BaseCheckpointSaver[Any]):
     def collection(self) -> Any:
         return self._store.db.agent_checkpoints
 
+    @property
+    def writes_collection(self) -> Any:
+        """Pending-writes collection (auto-created by pymongo on first write)."""
+        return self._store.db.checkpoint_writes
+
     # ── Core interface ──────────────────────────────────────────
 
     def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
-        """Get the latest checkpoint for a thread_id (job_id)."""
+        """Get one checkpoint for a thread_id (job_id).
+
+        Honors an explicit checkpoint_id: LangGraph's resume loop asks for
+        specific checkpoint ids to read their pending writes, and a lookup
+        that always returns the latest document would hide every pending
+        task (observed live: a worker-kill resume replayed the run from the
+        input instead of continuing from the last checkpoint).
+        """
         thread_id = self._thread_id(config)
         if not thread_id:
             return None
 
-        doc = self.collection.find_one(
-            {"thread_id": thread_id},
-            sort=[("checkpoint_id", -1)],
-        )
+        query: dict[str, Any] = {"thread_id": thread_id}
+        checkpoint_id = config.get("configurable", {}).get("checkpoint_id")
+        if checkpoint_id:
+            query["checkpoint_id"] = checkpoint_id
+        doc = self.collection.find_one(query)
         if not doc:
             return None
 
@@ -68,6 +81,11 @@ class MongoDBSaver(BaseCheckpointSaver[Any]):
             if doc.get("parent_checkpoint_id")
             else None
         )
+        pending_writes = self._load_pending_writes(
+            thread_id,
+            str(doc.get("checkpoint_ns") or ""),
+            str(doc.get("checkpoint_id") or ""),
+        )
         return CheckpointTuple(
             config={
                 "configurable": {
@@ -78,6 +96,7 @@ class MongoDBSaver(BaseCheckpointSaver[Any]):
             checkpoint=checkpoint,
             metadata=metadata,
             parent_config=parent_config,
+            pending_writes=pending_writes,
         )
 
     def put(
@@ -136,21 +155,58 @@ class MongoDBSaver(BaseCheckpointSaver[Any]):
         task_id: str,
         task_path: str = "",
     ) -> None:
-        """Store pending writes (node outputs not yet committed)."""
+        """Store pending writes (node outputs not yet committed).
+
+        LangGraph persists the task list BEFORE the superstep executes, so a
+        hard kill mid-superstep leaves these writes behind and resume
+        replays exactly that superstep. They live in their own collection
+        keyed by (thread_id, checkpoint_ns, checkpoint_id, task_id) — the
+        checkpoint document itself must stay immutable once written.
+        """
         thread_id = self._thread_id(config)
         checkpoint_id = config.get("configurable", {}).get("checkpoint_id", "")
+        checkpoint_ns = config.get("configurable", {}).get("checkpoint_ns", "")
 
         doc = {
             "thread_id": thread_id,
+            "checkpoint_ns": checkpoint_ns,
             "checkpoint_id": checkpoint_id,
             "task_id": task_id,
+            "task_path": task_path,
             "writes": self._serialize_writes(writes),
         }
-        self.collection.update_one(
-            {"thread_id": thread_id, "checkpoint_id": checkpoint_id},
-            {"$push": {"pending_writes": doc}},
+        self.writes_collection.replace_one(
+            {
+                "thread_id": thread_id,
+                "checkpoint_ns": checkpoint_ns,
+                "checkpoint_id": checkpoint_id,
+                "task_id": task_id,
+            },
+            doc,
             upsert=True,
         )
+
+    def _load_pending_writes(
+        self, thread_id: str, checkpoint_ns: str, checkpoint_id: str,
+    ) -> list[tuple[str, str, Any]] | None:
+        """Pending task writes for one checkpoint (None when there are none).
+
+        The wire shape LangGraph resumes from is (task_id, channel, value)
+        triples — the same shape MemorySaver produces.
+        """
+        docs = self.writes_collection.find(
+            {
+                "thread_id": thread_id,
+                "checkpoint_ns": checkpoint_ns,
+                "checkpoint_id": checkpoint_id,
+            },
+        ).sort("task_id", 1)
+        writes: list[tuple[str, str, Any]] = []
+        for wdoc in docs:
+            task_id = str(wdoc.get("task_id") or "")
+            for channel, value in wdoc.get("writes") or []:
+                writes.append((task_id, channel, value))
+        return writes or None
 
     def list(
         self,
@@ -267,6 +323,7 @@ class MongoDBSaver(BaseCheckpointSaver[Any]):
 
     def delete_thread(self, thread_id: str) -> None:
         self.collection.delete_many({"thread_id": thread_id})
+        self.writes_collection.delete_many({"thread_id": thread_id})
 
     def get_next_version(
         self, current: str | None, channel: None = None

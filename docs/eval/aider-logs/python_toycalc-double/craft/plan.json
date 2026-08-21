@@ -1,0 +1,61 @@
+{
+  "task_title": "[python/toycalc-double] 完成任务 (Aider polyglot)",
+  "mode": "deterministic",
+  "steps": [
+    {
+      "id": "s1",
+      "kind": "understand",
+      "target_files": [],
+      "intent": "阅读目标代码与既有约定 (M1 仅做可读性检查, 不注入上下文)",
+      "success_criteria": {
+        "type": "grep",
+        "value": ""
+      },
+      "deps": []
+    },
+    {
+      "id": "s2",
+      "kind": "modify",
+      "target_files": [],
+      "intent": "按任务修改实现代码",
+      "success_criteria": {
+        "type": "compile",
+        "value": ""
+      },
+      "deps": []
+    },
+    {
+      "id": "s3",
+      "kind": "test",
+      "target_files": [],
+      "intent": "运行测试套件并保证全绿",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": []
+    },
+    {
+      "id": "s4",
+      "kind": "verify",
+      "target_files": [],
+      "intent": "机械核验变更已落地且测试全绿",
+      "success_criteria": {
+        "type": "test_green",
+        "value": ""
+      },
+      "deps": []
+    }
+  ],
+  "risk_classification": {
+    "auth": false,
+    "migration": false,
+    "mq": false,
+    "public_api": false
+  },
+  "budget_alloc": {
+    "iterations": 12,
+    "tokens": 200000
+  },
+  "llm_fallback_reason": "LLM unavailable: LLM 调用失败: InternalServerError: Error code: 502"
+}

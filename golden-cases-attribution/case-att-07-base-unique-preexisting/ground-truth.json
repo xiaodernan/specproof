@@ -1,0 +1,16 @@
+{
+  "expected_severity": "NONE",
+  "expected_contract": "UNIQUE-01",
+  "expected_evidence_type": "none",
+  "should_detect": false,
+  "attribution": {
+    "head_defects": [],
+    "base_defects": [
+      {
+        "contract_id": "UNIQUE-01",
+        "kind": "pre_existing",
+        "description": "inverted unique guard already present on the base side (case-17-head); the reviewed head (case-18-head) does not carry it - the failure must not be attributed to the head"
+      }
+    ]
+  }
+}

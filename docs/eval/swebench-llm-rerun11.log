@@ -1,0 +1,5 @@
+[1/2] pallets__flask-4045 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s3 (test): 同类错误连续 3 次, 判定 stuck (签名: [LLM_PROPOSAL_REPEATED] 编辑提案与第 1 次迭代的提案完全相同 — 重复提案不再执行, 也不再发起 LLM 调用 (预算留给真正的新尝试))
+[2/2] pallets__flask-4992 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s5 (test): 同类错误连续 3 次, 判定 stuck (签名: [LLM_PROPOSAL_REPEATED] 编辑提案与第 2 次迭代的提案完全相同 — 重复提案不再执行, 也不再发起 LLM 调用 (预算留给真正的新尝试))
+汇总: total=2 resolved=0 unresolved=2 rate=0.0%
+结果 JSON: docs\eval\swebench-llm-results-v11.json
+日志目录: docs\eval\swebench-logs

@@ -1,0 +1,6 @@
+{
+  "version": "2.0",
+  "base_ref": "base",
+  "head_ref": "head",
+  "note": "OFFLINE CROSSLANG SAMPLE, hand-written (not built by scripts/build_golden_scenarios.py). Refs 'base'/'head' are NOT materialized in any repository: the case ships src/base and src/head directories. Do not run `specproof eval --repo .` against the Java demo repo with this case. Intended execution path once a Go adapter lands: differential run of the invariant test on base (pass) vs head (fail)."
+}

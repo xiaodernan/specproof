@@ -2,16 +2,45 @@
 
 P1.1: Added strict job state machine with 8 states, CAS transitions,
 retry tracking, worker assignment, and stale detection.
+
+P6 §14.2: outbox governance — tenant/digest stamping on insert,
+per-attempt publish/retry counters, last_error/next_retry_at deferral,
+dead-letter state, and a single-query stats snapshot for relay metrics.
 """
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, cast
 
 import pymysql
 from pymysql.cursors import DictCursor
+
+from contracts.events import payload_digest
+from storage.tenant_scope import current_scope
+
+# ── Tenant-aware job SQL (industrialization phase 1) ─────────────
+# When a tenant scope is active (multi-tenant auth mode) every job read
+# carries a tenant predicate and every job insert stamps tenant_id from the
+# principal — repository-layer parameterization per
+# docs/architecture/MULTI_TENANT_DESIGN.md §2/§4. Without a scope the SQL is
+# byte-identical to the pre-tenant implementation (single-tenant compat).
+
+_JOB_INSERT_TENANT_SQL = (
+    "INSERT INTO verification_jobs "
+    "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
+    "github_check_json, tenant_id) "
+    "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
+    "%(head_ref)s, %(spec_path)s, 'PENDING', %(depth)s, "
+    "%(github_check_json)s, %(tenant_id)s)"
+)
+
+_AUDIT_INSERT_TENANT_SQL = (
+    "INSERT INTO audit_logs "
+    "(job_id, actor, action, from_status, to_status, detail, attempted_tenant) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+)
 
 # ── State machine ──────────────────────────────────────────────
 
@@ -34,6 +63,11 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
 
 TERMINAL_STATUSES = {"VERIFIED", "BLOCKED", "STALE", "CANCELLED", "ERROR"}
 
+#: Audit action written when the stale-RUNNING reclaimer returns a job to QUEUED.
+RECLAIM_STALE_RUNNING_ACTION = "job_reclaimed_stale_running"
+#: last_error reason when a WAITING_FOR_PROVIDER job has spent its retry budget.
+PROVIDER_WAIT_EXHAUSTED_REASON = "provider_wait_retries_exhausted"
+
 
 class InvalidStateTransition(Exception):  # noqa: N818 — domain term, public API
     """Raised when a job status transition is not allowed."""
@@ -55,6 +89,9 @@ def _job_row(job: dict[str, Any]) -> dict[str, Any]:
         "status": job.get("status", "PENDING"),
         "depth": job.get("depth", "FAST"),
         "github_check_json": json.dumps(check) if check else None,
+        # Multi-tenant: stamped from the request-scoped tenant context by the
+        # insert paths below; NULL for single-tenant / webhook-created jobs.
+        "tenant_id": job.get("tenant_id"),
     }
 
 
@@ -142,16 +179,31 @@ class MySQLStore:
         from_status: str | None = None,
         to_status: str | None = None,
         detail: str = "",
+        attempted_tenant: str | None = None,
     ) -> None:
-        """Write an audit row (P0-A5). Best effort — never breaks the flow."""
+        """Write an audit row (P0-A5). Best effort — never breaks the flow.
+
+        attempted_tenant (phase 1) records the tenant a caller tried to reach
+        when a cross-tenant access was refused — the column only participates
+        when the value is set, so pre-migration schemas keep working.
+        """
         try:
             with self.connection() as conn:
-                conn.cursor().execute(
-                    "INSERT INTO audit_logs "
-                    "(job_id, actor, action, from_status, to_status, detail) "
-                    "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (job_id, actor, action, from_status, to_status, detail),
-                )
+                if attempted_tenant is not None:
+                    conn.cursor().execute(
+                        _AUDIT_INSERT_TENANT_SQL,
+                        (
+                            job_id, actor, action, from_status, to_status,
+                            detail, attempted_tenant,
+                        ),
+                    )
+                else:
+                    conn.cursor().execute(
+                        "INSERT INTO audit_logs "
+                        "(job_id, actor, action, from_status, to_status, detail) "
+                        "VALUES (%s, %s, %s, %s, %s, %s)",
+                        (job_id, actor, action, from_status, to_status, detail),
+                    )
         except Exception as exc:  # noqa: BLE001 — audit must not take down jobs
             import logging
 
@@ -184,8 +236,20 @@ class MySQLStore:
             "%(head_ref)s, %(spec_path)s, %(status)s, %(depth)s, "
             "%(github_check_json)s)"
         )
+        row = _job_row(job)
+        scope = current_scope()
+        if scope is not None:
+            row["tenant_id"] = scope.tenant_id
+            _sql = (
+                "INSERT INTO verification_jobs "
+                "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
+                "github_check_json, tenant_id) "
+                "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
+                "%(head_ref)s, %(spec_path)s, %(status)s, %(depth)s, "
+                "%(github_check_json)s, %(tenant_id)s)"
+            )
         with self.connection() as conn:
-            conn.cursor().execute(_sql, _job_row(job))
+            conn.cursor().execute(_sql, row)
 
     # ── Outbox methods ────────────────────────────────────────
 
@@ -198,7 +262,8 @@ class MySQLStore:
         """Insert a new job and its outbox event in a single transaction.
 
         Both INSERTs succeed or both roll back. After commit, the Outbox Relay
-        is responsible for publishing to RabbitMQ.
+        is responsible for publishing to RabbitMQ. The outbox row carries the
+        payload digest and (in tenant mode) the tenant id (§14.2).
         """
         job_id = job["id"]
         payload = {
@@ -209,29 +274,47 @@ class MySQLStore:
             "spec_path": job.get("spec_path", ""),
             "depth": job.get("depth", "FAST"),
         }
-        with self.connection() as conn:
-            conn.cursor().execute(
+        row = _job_row(job)
+        scope = current_scope()
+        if scope is not None:
+            row["tenant_id"] = scope.tenant_id
+        insert_sql = (
+            _JOB_INSERT_TENANT_SQL
+            if scope is not None
+            else (
                 "INSERT INTO verification_jobs "
                 "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
                 "github_check_json) "
                 "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
                 "%(head_ref)s, %(spec_path)s, 'PENDING', %(depth)s, "
-                "%(github_check_json)s)",
-                _job_row(job),
+                "%(github_check_json)s)"
             )
-            conn.cursor().execute(
-                "INSERT INTO outbox (aggregate_id, aggregate_type, "
-                "event_type, payload, routing_key) "
-                "VALUES (%(aggregate_id)s, %(aggregate_type)s, "
-                "%(event_type)s, %(payload)s, %(routing_key)s)",
-                {
-                    "aggregate_id": job_id,
-                    "aggregate_type": "verification_job",
-                    "event_type": event_type,
-                    "payload": json.dumps(payload),
-                    "routing_key": routing_key,
-                },
+        )
+        outbox_row = {
+            "aggregate_id": job_id,
+            "aggregate_type": "verification_job",
+            "event_type": event_type,
+            "payload": json.dumps(payload),
+            "routing_key": routing_key,
+            "payload_digest": payload_digest(payload),
+        }
+        outbox_insert_sql = (
+            "INSERT INTO outbox (aggregate_id, aggregate_type, event_type, "
+            "payload, routing_key, payload_digest) "
+            "VALUES (%(aggregate_id)s, %(aggregate_type)s, %(event_type)s, "
+            "%(payload)s, %(routing_key)s, %(payload_digest)s)"
+        )
+        if scope is not None:
+            outbox_row["tenant_id"] = scope.tenant_id
+            outbox_insert_sql = (
+                "INSERT INTO outbox (aggregate_id, aggregate_type, event_type, "
+                "payload, routing_key, payload_digest, tenant_id) "
+                "VALUES (%(aggregate_id)s, %(aggregate_type)s, %(event_type)s, "
+                "%(payload)s, %(routing_key)s, %(payload_digest)s, %(tenant_id)s)"
             )
+        with self.connection() as conn:
+            conn.cursor().execute(insert_sql, row)
+            conn.cursor().execute(outbox_insert_sql, outbox_row)
             # Transition to QUEUED after outbox is safely persisted
             conn.cursor().execute(
                 "UPDATE verification_jobs SET status = 'QUEUED' WHERE id = %s",
@@ -251,16 +334,22 @@ class MySQLStore:
             )
 
     def fetch_pending_outbox_rows(self, limit: int = 10) -> list[dict[str, Any]]:
-        """Fetch unpublished outbox rows with SKIP LOCKED for relay.
+        """Fetch due, unpublished outbox rows with SKIP LOCKED for relay.
 
-        Returns the oldest unpublished rows (FIFO order).
+        Returns the oldest due rows (FIFO order). Governance (§14.2):
+        rows are due only when next_retry_at is NULL or in the past, and
+        dead-lettered rows are excluded — they wait for operator replay,
+        not automatic retry.
         """
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT id, aggregate_id, event_type, payload, routing_key "
+                "SELECT id, aggregate_id, event_type, payload, routing_key, "
+                "retry_count "
                 "FROM outbox "
                 "WHERE published_at IS NULL "
+                "AND dead_lettered_at IS NULL "
+                "AND (next_retry_at IS NULL OR next_retry_at <= NOW(3)) "
                 "ORDER BY id "
                 "LIMIT %s "
                 "FOR UPDATE SKIP LOCKED",
@@ -269,16 +358,131 @@ class MySQLStore:
             return cast(list[dict[str, Any]], cur.fetchall())
 
     def mark_outbox_published(self, outbox_id: int) -> None:
-        """Mark an outbox row as published (sets published_at to NOW)."""
+        """Mark an outbox row as published (sets published_at to NOW).
+
+        Clears the per-row retry state and counts the attempt in
+        publish_count so governance metrics see real publish attempts.
+        """
         with self.connection() as conn:
             conn.cursor().execute(
-                "UPDATE outbox SET published_at = NOW(3) WHERE id = %s",
+                "UPDATE outbox SET published_at = NOW(3), "
+                "publish_count = publish_count + 1, "
+                "next_retry_at = NULL, last_error = NULL "
+                "WHERE id = %s",
                 (outbox_id,),
             )
+
+    def mark_outbox_failed(
+        self, outbox_id: int, error: str, retry_after_seconds: float
+    ) -> None:
+        """Record a failed publish attempt (§14.2).
+
+        Bumps retry_count/publish_count, stores the (truncated) last
+        error and defers the next attempt to NOW + retry_after_seconds —
+        the relay stops polling the row until the deferral expires.
+        """
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "UPDATE outbox SET retry_count = retry_count + 1, "
+                "publish_count = publish_count + 1, last_error = %s, "
+                "next_retry_at = NOW(3) + INTERVAL %s SECOND "
+                "WHERE id = %s",
+                (error[:1000], retry_after_seconds, outbox_id),
+            )
+
+    def dead_letter_outbox_row(self, outbox_id: int, error: str) -> None:
+        """Dead-letter an outbox row (DLQ state, §14.2).
+
+        The row keeps its payload and error context for operator replay
+        but is excluded from relay polling; automatic retries stop here.
+        """
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "UPDATE outbox SET dead_lettered_at = NOW(3), "
+                "last_error = %s, next_retry_at = NULL "
+                "WHERE id = %s",
+                (error[:1000], outbox_id),
+            )
+
+    def outbox_stats(self) -> dict[str, Any]:
+        """Governance snapshot of the outbox table (§14.2 relay metrics).
+
+        pending/dead_letters/retries are counted in SQL (no Python-side
+        table scan); oldest_created_at covers only rows the relay will
+        still pick up, last_success is the most recent published_at.
+        """
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT "
+                "COALESCE(SUM(published_at IS NULL AND dead_lettered_at "
+                "IS NULL), 0) AS pending, "
+                "COALESCE(SUM(dead_lettered_at IS NOT NULL), 0) "
+                "AS dead_letters, "
+                "COALESCE(SUM(CASE WHEN published_at IS NULL AND "
+                "dead_lettered_at IS NULL THEN retry_count ELSE 0 END), 0) "
+                "AS retries, "
+                "MIN(CASE WHEN published_at IS NULL AND dead_lettered_at "
+                "IS NULL THEN created_at END) AS oldest_created_at, "
+                "MAX(published_at) AS last_success "
+                "FROM outbox"
+            )
+            row = cast(dict[str, Any] | None, cur.fetchone())
+        if row is None:
+            return {
+                "pending": 0,
+                "dead_letters": 0,
+                "retries": 0,
+                "oldest_created_at": None,
+                "last_success": None,
+            }
+        return {
+            "pending": int(row["pending"] or 0),
+            "dead_letters": int(row["dead_letters"] or 0),
+            "retries": int(row["retries"] or 0),
+            "oldest_created_at": row.get("oldest_created_at"),
+            "last_success": row.get("last_success"),
+        }
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         # Single cursor per statement: fetchone() on a fresh cursor raises
         # "execute() first" (surfaced by the live-MySQL state machine tests).
+        scope = current_scope()
+        if scope is None or scope.is_auditor():
+            return self._get_job_unscoped(job_id)
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT * FROM verification_jobs WHERE id = %s "
+                "AND (tenant_id = %s OR tenant_id IS NULL)",
+                (job_id, scope.tenant_id),
+            )
+            row = cast(dict[str, Any] | None, cur.fetchone())
+            if row is not None:
+                return row
+            # The id exists but belongs to another tenant: answer with the
+            # same None a missing row produces (no existence leak, §2) and
+            # record the refused attempt with attempted_tenant.
+            cur2 = conn.cursor()
+            cur2.execute(
+                "SELECT tenant_id FROM verification_jobs WHERE id = %s",
+                (job_id,),
+            )
+            other = cast(dict[str, Any] | None, cur2.fetchone())
+        if other is not None and other.get("tenant_id") is not None:
+            self.record_audit(
+                action="tenant_isolation_blocked",
+                actor=scope.user_id or "anonymous",
+                job_id=job_id,
+                detail=(
+                    f"tenant {scope.tenant_id} attempted to read job "
+                    f"{job_id} owned by tenant {other.get('tenant_id')}"
+                ),
+                attempted_tenant=str(other.get("tenant_id")),
+            )
+        return None
+
+    def _get_job_unscoped(self, job_id: str) -> dict[str, Any] | None:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
@@ -296,7 +500,25 @@ class MySQLStore:
             return cast(list[dict[str, Any]], cur.fetchall())
 
     def list_recent_jobs(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Return the most recent jobs (newest first), for the jobs API."""
+        """Return the most recent jobs (newest first), for the jobs API.
+
+        Tenant mode: rows of the caller's tenant (plus legacy NULL-tenant
+        rows) only; auditors keep the cross-tenant view (§2).
+        """
+        scope = current_scope()
+        if scope is not None and not scope.is_auditor():
+            with self.connection() as conn:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT id, repo_path, base_ref, head_ref, status, depth, "
+                    "retry_count, worker_id, last_error, summary, created_at, "
+                    "updated_at "
+                    "FROM verification_jobs "
+                    "WHERE (tenant_id = %s OR tenant_id IS NULL) "
+                    "ORDER BY created_at DESC, id DESC LIMIT %s",
+                    (scope.tenant_id, limit),
+                )
+                return cast(list[dict[str, Any]], cur.fetchall())
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
@@ -333,12 +555,57 @@ class MySQLStore:
             return cast(dict[str, Any], _json.loads(row["summary"]))
         return cast(dict[str, Any], row["summary"])
 
-    def count_pending_outbox(self) -> int:
-        """Number of unpublished outbox rows (relay backlog gauge)."""
+    def get_job_tenant(self, job_id: str) -> str | None:
+        """The tenant owning a verification job, or None when unknown.
+
+        Best-effort probe for the tenant auth middleware's cross-tenant 404
+        check. A schema without the tenant_id column (migration not yet
+        applied) yields None so a partial upgrade never blocks requests;
+        the repository-layer scoping remains the primary enforcement.
+        """
+        try:
+            with self.connection() as conn:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT tenant_id FROM verification_jobs WHERE id = %s",
+                    (job_id,),
+                )
+                row = cast(dict[str, Any] | None, cur.fetchone())
+        except Exception as exc:  # noqa: BLE001 — isolation probe is advisory
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "tenant probe for job %s failed: %s", job_id, exc
+            )
+            return None
+        if row is None:
+            return None
+        tenant = row.get("tenant_id")
+        return str(tenant) if tenant else None
+
+    def list_audit_logs(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Most recent audit rows (tenant auth attempts / auditor view)."""
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT COUNT(*) AS n FROM outbox WHERE published_at IS NULL"
+                "SELECT id, job_id, actor, action, from_status, to_status, "
+                "detail, attempted_tenant, created_at "
+                "FROM audit_logs ORDER BY id DESC LIMIT %s",
+                (limit,),
+            )
+            return cast(list[dict[str, Any]], cur.fetchall())
+
+    def count_pending_outbox(self) -> int:
+        """Number of unpublished, non-dead outbox rows (relay backlog gauge).
+
+        Dead-lettered rows are excluded: they are no longer relay backlog
+        (§14.2) — they wait for operator replay, not automatic retry.
+        """
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM outbox "
+                "WHERE published_at IS NULL AND dead_lettered_at IS NULL"
             )
             row = cur.fetchone()
         return int(row["n"]) if row else 0
@@ -421,6 +688,176 @@ class MySQLStore:
             worker_id=worker_id,
         )
 
+    # ── Stale-RUNNING reclaimer (§14.1 crash recovery) ────────
+
+    def reclaim_stale_running(
+        self,
+        lease_ttl_seconds: int,
+        *,
+        lease_alive: Callable[[str], bool],
+    ) -> list[dict[str, Any]]:
+        """Atomically return lease-expired, heartbeat-less RUNNING jobs to QUEUED.
+
+        Staleness is decided in two steps, mirroring the worker lease
+        contract (§14 任务 8):
+
+        1. Candidate rows — ``status='RUNNING' AND updated_at < NOW(3) -
+           INTERVAL lease_ttl_seconds SECOND``: the row has not been touched
+           for a full lease TTL.
+        2. Heartbeat probe — a candidate is skipped when ``lease_alive(
+           job_id)`` returns True. The Redis lease key
+           (``specproof:lease:job:{id}``) is refreshed by
+           ``RedisStore.renew_lease`` at every stage boundary, so a live
+           lease means a live worker; an absent/expired key means the
+           worker died or stalled without a heartbeat.
+
+        Each surviving candidate is reclaimed by a single-statement CAS::
+
+            UPDATE verification_jobs
+               SET status='QUEUED', worker_id=NULL,
+                   retry_count=retry_count+1, last_error=%s
+             WHERE id=%s AND status='RUNNING'
+               AND updated_at < (NOW(3) - INTERVAL %s SECOND)
+
+        Exactly one changed row counts as a successful reclaim; a row that
+        lost the race (already QUEUED, or re-claimed with a fresh
+        updated_at) is left alone. Every reclaim writes an audit row
+        (action ``job_reclaimed_stale_running``) and a JSON reason
+        envelope into last_error. Re-running the reclaimer finds no stale
+        RUNNING rows and returns [], so repeated calls never produce
+        duplicate transitions.
+        """
+        if lease_ttl_seconds < 1:
+            raise ValueError("lease_ttl_seconds must be >= 1")
+        candidates = self._stale_running_candidates(lease_ttl_seconds)
+        reclaimed: list[dict[str, Any]] = []
+        for row in candidates:
+            job_id = str(row["id"])
+            if lease_alive(job_id):
+                continue
+            reason = json.dumps(
+                {
+                    "reason": "stale_running_reclaimed",
+                    "lease_ttl_seconds": lease_ttl_seconds,
+                    "previous_worker": row.get("worker_id") or None,
+                },
+                ensure_ascii=False,
+            )
+            with self.connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE verification_jobs SET status = 'QUEUED', "
+                    "worker_id = NULL, retry_count = retry_count + 1, "
+                    "last_error = %s "
+                    "WHERE id = %s AND status = 'RUNNING' AND "
+                    "updated_at < (NOW(3) - INTERVAL %s SECOND)",
+                    (reason, job_id, lease_ttl_seconds),
+                )
+                changed = bool(cursor.rowcount == 1)
+            if not changed:
+                continue
+            self.record_audit(
+                action=RECLAIM_STALE_RUNNING_ACTION,
+                actor="reclaimer",
+                job_id=job_id,
+                from_status="RUNNING",
+                to_status="QUEUED",
+                detail=reason,
+            )
+            row["status"] = "QUEUED"
+            row["worker_id"] = None
+            row["retry_count"] = int(row.get("retry_count") or 0) + 1
+            row["last_error"] = reason
+            reclaimed.append(row)
+        return reclaimed
+
+    def _stale_running_candidates(
+        self, lease_ttl_seconds: int,
+    ) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, repo_path, base_ref, head_ref, spec_path, depth, "
+                "retry_count, max_retries, worker_id, status, updated_at "
+                "FROM verification_jobs "
+                "WHERE status = 'RUNNING' AND "
+                "updated_at < (NOW(3) - INTERVAL %s SECOND) "
+                "ORDER BY updated_at, id",
+                (lease_ttl_seconds,),
+            )
+            return cast(list[dict[str, Any]], cur.fetchall())
+
+    # ── WAITING_FOR_PROVIDER wiring (provider outage retry) ────
+
+    def enter_provider_wait(
+        self,
+        job_id: str,
+        *,
+        worker_id: str | None = None,
+        error_msg: str | None = None,
+    ) -> bool:
+        """CAS RUNNING → WAITING_FOR_PROVIDER (provider outage checkpoint).
+
+        The transition itself is whitelisted and audited by
+        transition_job_status (action ``job_status_transition``); an
+        additional audit row (action ``job_provider_wait_entered``) records
+        the entry event explicitly.
+        """
+        changed = self.transition_job_status(
+            job_id,
+            "WAITING_FOR_PROVIDER",
+            from_status="RUNNING",
+            worker_id=worker_id,
+            error_msg=error_msg,
+        )
+        if changed:
+            self.record_audit(
+                action="job_provider_wait_entered",
+                actor=worker_id or "system",
+                job_id=job_id,
+                from_status="RUNNING",
+                to_status="WAITING_FOR_PROVIDER",
+                detail=(error_msg or "")[:1000],
+            )
+        return changed
+
+    def recover_provider_wait(
+        self,
+        job_id: str,
+        *,
+        error_msg: str | None = None,
+    ) -> tuple[bool, str | None]:
+        """Recover one WAITING_FOR_PROVIDER job: QUEUED (retry) or FAILED.
+
+        Retry budget: ``retry_count < max_retries`` → CAS
+        WAITING_FOR_PROVIDER → QUEUED with ``retry_count = retry_count + 1``
+        (audited by transition_job_status); budget exhausted → CAS
+        WAITING_FOR_PROVIDER → FAILED, the job's own max_retries column
+        being the cap. Returns ``(changed, new_status)`` — ``(False, None)``
+        when the row is not in WAITING_FOR_PROVIDER or the CAS lost a race.
+        """
+        job = self.get_job(job_id)
+        if job is None or str(job.get("status", "")) != "WAITING_FOR_PROVIDER":
+            return False, None
+        retry_count = int(job.get("retry_count") or 0)
+        max_retries = int(job.get("max_retries") or 0)
+        if retry_count >= max_retries:
+            changed = self.transition_job_status(
+                job_id,
+                "FAILED",
+                from_status="WAITING_FOR_PROVIDER",
+                error_msg=error_msg or PROVIDER_WAIT_EXHAUSTED_REASON,
+            )
+            return changed, ("FAILED" if changed else None)
+        changed = self.transition_job_status(
+            job_id,
+            "QUEUED",
+            from_status="WAITING_FOR_PROVIDER",
+            increment_retry=True,
+            error_msg=error_msg,
+        )
+        return changed, ("QUEUED" if changed else None)
+
     def mark_stale_for_head(self, new_head_ref: str, new_job_id: str) -> list[str]:
         """Mark all QUEUED/RUNNING jobs for the same repo as STALE.
 
@@ -440,6 +877,35 @@ class MySQLStore:
                 )
             return stale_jobs
 
+    def delete_job_records(self, job_id: str) -> dict[str, Any]:
+        """Delete one job's findings/contracts/job row (FK-safe order).
+
+        Data lifecycle (DATA_LIFECYCLE §3): called only by the explicit
+        deletion path — never automatically on terminal state. Returns the
+        deleted row counts so callers can audit what was removed. Idempotent:
+        a missing job returns zero counts.
+        """
+        counts: dict[str, int] = {
+            "findings": 0,
+            "contracts": 0,
+            "jobs": 0,
+        }
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "DELETE FROM findings WHERE job_id = %s", (job_id,)
+            )
+            counts["findings"] = cur.rowcount if cur.rowcount else 0
+            cur.execute(
+                "DELETE FROM contracts WHERE job_id = %s", (job_id,)
+            )
+            counts["contracts"] = cur.rowcount if cur.rowcount else 0
+            cur.execute(
+                "DELETE FROM verification_jobs WHERE id = %s", (job_id,)
+            )
+            counts["jobs"] = cur.rowcount if cur.rowcount else 0
+        return counts
+
     # ── Finding / Contract CRUD ───────────────────────────────
 
     def insert_finding(self, finding: dict[str, Any]) -> None:
@@ -452,6 +918,70 @@ class MySQLStore:
         )
         with self.connection() as conn:
             conn.cursor().execute(_sql, finding)
+
+    def insert_feedback(self, feedback: dict[str, Any]) -> None:
+        """Record one accept/reject verdict (Go/No-Go #13 mechanism)."""
+        _sql = (
+            "INSERT INTO finding_feedback "
+            "(id, job_id, tenant_id, finding_id, contract_id, severity, "
+            "verdict, reason, created_by) "
+            "VALUES (%(id)s, %(job_id)s, %(tenant_id)s, %(finding_id)s, "
+            "%(contract_id)s, %(severity)s, %(verdict)s, %(reason)s, "
+            "%(created_by)s)"
+        )
+        with self.connection() as conn:
+            conn.cursor().execute(_sql, feedback)
+
+    def list_feedback(self, job_id: str) -> list[dict[str, Any]]:
+        """All feedback rows for one job, newest first."""
+        _sql = (
+            "SELECT id, job_id, tenant_id, finding_id, contract_id, "
+            "severity, verdict, reason, created_by, created_at "
+            "FROM finding_feedback WHERE job_id = %s "
+            "ORDER BY created_at DESC, id"
+        )
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(_sql, (job_id,))
+            return [
+                {
+                    "id": row[0], "job_id": row[1], "tenant_id": row[2],
+                    "finding_id": row[3], "contract_id": row[4],
+                    "severity": row[5], "verdict": row[6], "reason": row[7],
+                    "created_by": row[8],
+                    "created_at": (
+                        row[9].isoformat() if row[9] is not None else None
+                    ),
+                }
+                for row in cursor.fetchall()
+            ]
+
+    def feedback_stats(self, job_id: str) -> dict[str, Any]:
+        """acceptance_rate for one job (accepted / (accepted + rejected)).
+
+        Findings without feedback are NOT counted — silence is never
+        treated as acceptance (go-nogo #13 measurement contract).
+        """
+        _sql = (
+            "SELECT verdict, COUNT(*) FROM finding_feedback "
+            "WHERE job_id = %s GROUP BY verdict"
+        )
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(_sql, (job_id,))
+            counts = {str(row[0]): int(row[1]) for row in cursor.fetchall()}
+        accepted = counts.get("accept", 0)
+        rejected = counts.get("reject", 0)
+        total = accepted + rejected
+        return {
+            "job_id": job_id,
+            "accepted": accepted,
+            "rejected": rejected,
+            "no_feedback_not_counted": True,
+            "acceptance_rate_pct": (
+                round(100.0 * accepted / total, 1) if total else None
+            ),
+        }
 
     def insert_contract(self, contract: dict[str, Any]) -> None:
         _sql = (

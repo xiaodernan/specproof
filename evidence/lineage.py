@@ -64,8 +64,17 @@ EMPTY_ROOT_HASH = hashlib.sha256(b"").hexdigest()
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _SHORT_DIGEST_RE = re.compile(r"^[0-9a-f]{16}$")
 
-# Stable fields of a contract_version node's content digest.
-_CONTRACT_FIELDS = ("id", "checker_type", "requirement", "expected_behavior")
+# Stable fields of a contract_version node's content digest. version
+# and checker_version participate only when the contract carries them, so
+# legacy contexts (no version keys) keep their exact historical digests.
+_CONTRACT_FIELDS = (
+    "id",
+    "checker_type",
+    "requirement",
+    "expected_behavior",
+    "version",
+    "checker_version",
+)
 
 # Volatile/derived fields excluded from the certificate node's content digest.
 _CERTIFICATE_VOLATILE_FIELDS = ("issued_at", "signatures", "extension", "_type")
@@ -282,6 +291,11 @@ def build_lineage(
         )
 
     # ── contract_version ──────────────────────────────────────────
+    # §A task 6: a contract node references an EXACT (contract_id, version).
+    # Versioned contracts get node ids "contract:<id>@v<N>"; legacy
+    # contracts without a version key keep the historical "contract:<id>"
+    # ids, so pre-existing lineage documents stay byte-identical.
+    contract_node_by_id: dict[str, str] = {}
     contracts = context.get("contracts") or []
     for contract in contracts:
         if not isinstance(contract, Mapping):
@@ -289,7 +303,12 @@ def build_lineage(
         contract_id = str(contract.get("id") or "")
         if not contract_id:
             continue
-        node_id = f"contract:{contract_id}"
+        version = contract.get("version")
+        if version is not None:
+            node_id = f"contract:{contract_id}@v{version}"
+        else:
+            node_id = f"contract:{contract_id}"
+        contract_node_by_id.setdefault(contract_id, node_id)
         digest = _contract_digest(contract)
         recorded = contract.get("contract_digest") or contract.get("spec_digest")
         meta: dict[str, Any] = {
@@ -297,9 +316,11 @@ def build_lineage(
             "approved": bool(contract.get("approved", False)),
             "digest_source": "recorded" if recorded else "computed",
         }
-        version = contract.get("version")
         if version is not None:
             meta["version"] = version
+        checker_version = contract.get("checker_version")
+        if checker_version:
+            meta["checker_version"] = str(checker_version)
         if add_node(node_id, "contract_version", digest, meta):
             add_edge(node_id, "requirement", "produced_by")
 
@@ -323,7 +344,10 @@ def build_lineage(
         }
         if add_node(node_id, "checker", digest, meta):
             checker_by_contract.setdefault(contract_id, node_id)
-            add_edge(node_id, f"contract:{contract_id}", "verifies")
+            contract_node = contract_node_by_id.get(
+                contract_id, f"contract:{contract_id}"
+            )
+            add_edge(node_id, contract_node, "verifies")
 
     # ── experiment (differential results) ─────────────────────────
     experiment_by_contract: dict[str, str] = {}
@@ -347,7 +371,10 @@ def build_lineage(
         }
         if add_node(node_id, "experiment", digest, meta):
             experiment_by_contract.setdefault(contract_id, node_id)
-            add_edge(node_id, f"contract:{contract_id}", "verifies")
+            contract_node = contract_node_by_id.get(
+                contract_id, f"contract:{contract_id}"
+            )
+            add_edge(node_id, contract_node, "verifies")
 
     # ── artifact (per-contract evidence refs) ─────────────────────
     contract_results = context.get("contract_results") or []
@@ -393,7 +420,10 @@ def build_lineage(
         }
         if not add_node(node_id, "finding", digest, meta):
             continue
-        add_edge(node_id, f"contract:{contract_id}", "verifies")
+        contract_node = contract_node_by_id.get(
+            contract_id, f"contract:{contract_id}"
+        )
+        add_edge(node_id, contract_node, "verifies")
         source = str(finding.get("source") or "")
         if source == "static_analysis":
             origin = checker_by_contract.get(contract_id)

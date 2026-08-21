@@ -391,7 +391,12 @@ def test_preflight_probe_gateway_unreachable_returns_reason(monkeypatch):
 
     import providers.capability_probe as capability_probe
 
-    monkeypatch.setattr(capability_probe.httpx, "AsyncClient", _UnauthorizedAsyncClient)
+    # W191 (§14 统一网络客户端) 后 probe 经 providers.net.make_async_client
+    # 构造 httpx 客户端 — 桩该构造点等效于旧版桩 AsyncClient, 网络永不触达。
+    monkeypatch.setattr(
+        capability_probe, "make_async_client",
+        lambda timeout=None: _UnauthorizedAsyncClient(),
+    )
     provider = OpenAICompatibleProvider(
         base_url="http://llm.test",
         api_key="probe-" + "test-key",

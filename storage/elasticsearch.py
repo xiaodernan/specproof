@@ -4,12 +4,24 @@ P2: repository-level symbol indexing (method-level chunks), BM25
 retrieval with repository isolation, and (RAG 2.0, 卷IV 4.1) the
 dense-vector channel: HNSW-enabled embeddings, index_with_embeddings and
 vector_search. Existing BM25 behavior is unchanged.
+
+P6 §14.2: ES is a projection only — indexed docs carry tenant/repo/commit/
+source_type, and delete_by_tenant_repo()/delete_tenant() clean the
+projection by filter so one tenant's removal never touches another's docs.
+
+Backlog #10 (ES 投影删除清理): docs may additionally carry an optional
+job_id stamp, and delete_projection()/count_projection_docs() delete/count
+them by tenant_id and/or job_id — idempotent (missing index/docs are a
+no-op), using per-document delete instead of delete_by_query (which
+hard-crashes on Windows in elasticsearch-py 8.19.x, see delete_repo).
 """
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from elasticsearch import Elasticsearch
+
+from contracts.events import DEFAULT_TENANT_ID
 
 if TYPE_CHECKING:
     from retrieval.embeddings import EmbeddingClient
@@ -38,9 +50,21 @@ class ElasticsearchConfig:
 
 
 def _chunk_files(
-    repo: str, commit_sha: str, files: dict[str, str],
+    repo: str,
+    commit_sha: str,
+    files: dict[str, str],
+    tenant_id: str = DEFAULT_TENANT_ID,
+    source_type: str = "code",
+    job_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Split a repository snapshot into method-level symbol chunks."""
+    """Split a repository snapshot into method-level symbol chunks.
+
+    Every chunk is stamped with tenant_id and source_type (§14.2) so
+    projection cleanup can filter by tenant without touching other
+    tenants' documents. An optional job_id stamp (backlog #10) lets the
+    same cleanup delete one job's projection; when omitted the field is
+    absent, keeping the pre-#10 document shape unchanged.
+    """
     try:
         from agent.checkers.java_source import _split_with_annotations
     except ImportError:
@@ -58,8 +82,10 @@ def _chunk_files(
         else:
             chunks = [(content, path)]
         for block, symbol in chunks:
-            docs.append({
+            doc: dict[str, Any] = {
                 "repo": repo,
+                "tenant_id": tenant_id,
+                "source_type": source_type,
                 "commit_sha": commit_sha,
                 "path": path,
                 "symbol": symbol,
@@ -67,7 +93,10 @@ def _chunk_files(
                 "content": block[:4000],
                 "start_line": 0,
                 "end_line": 0,
-            })
+            }
+            if job_id is not None:
+                doc["job_id"] = job_id
+            docs.append(doc)
     return docs
 
 
@@ -80,6 +109,54 @@ def _bulk_operations(
         operations.append({"index": {"_index": index}})
         operations.append(doc)
     return operations
+
+
+def build_tenant_repo_filter(
+    tenant_id: str | None = None,
+    repo: str | None = None,
+    *,
+    job_id: str | None = None,
+) -> dict[str, Any]:
+    """Build the §14.2 projection-cleanup filter (tenant/repo/job).
+
+    Returns the ES query fragment that matches exactly one tenant's docs
+    (and, for the default tenant only, legacy docs without a tenant
+    stamp) plus, when repo and/or job_id are given, one repository and/or
+    one job. A non-default tenant filter is a plain term match — it can
+    never select another tenant's documents.
+    """
+    must: list[dict[str, Any]] = []
+    if repo is not None:
+        must.append({"term": {"repo": repo}})
+    if job_id is not None:
+        must.append({"term": {"job_id": job_id}})
+    if tenant_id is not None:
+        if tenant_id == DEFAULT_TENANT_ID:
+            must.append({
+                "bool": {
+                    "should": [
+                        {"term": {"tenant_id": DEFAULT_TENANT_ID}},
+                        {
+                            "bool": {
+                                "must_not": [{"exists": {"field": "tenant_id"}}]
+                            }
+                        },
+                    ],
+                    "minimum_should_match": 1,
+                }
+            })
+        else:
+            must.append({"term": {"tenant_id": tenant_id}})
+    if not must:
+        return {"match_all": {}}
+    if len(must) == 1:
+        return must[0]
+    return {"bool": {"must": must}}
+
+
+#: Page size for the per-document projection-cleanup delete loop
+#: (backlog #10; search + bulk-delete batches, see _delete_matching).
+_DELETE_PAGE_SIZE = 1000
 
 
 class ElasticsearchStore:
@@ -111,6 +188,11 @@ class ElasticsearchStore:
                     "mappings": {
                         "properties": {
                             "repo": {"type": "keyword"},
+                            "tenant_id": {"type": "keyword"},
+                            # Backlog #10: optional per-job stamp so one
+                            # job's projection can be deleted with the job.
+                            "job_id": {"type": "keyword"},
+                            "source_type": {"type": "keyword"},
                             "commit_sha": {"type": "keyword"},
                             "path": {"type": "keyword"},
                             "symbol": {"type": "keyword"},
@@ -145,9 +227,14 @@ class ElasticsearchStore:
         start_line: int = 0,
         end_line: int = 0,
         embedding: list[float] | None = None,
+        tenant_id: str = DEFAULT_TENANT_ID,
+        source_type: str = "code",
+        job_id: str | None = None,
     ) -> None:
-        doc = {
+        doc: dict[str, Any] = {
             "repo": repo,
+            "tenant_id": tenant_id,
+            "source_type": source_type,
             "commit_sha": commit_sha,
             "path": path,
             "symbol": symbol,
@@ -158,6 +245,8 @@ class ElasticsearchStore:
         }
         if embedding is not None:
             doc["embedding"] = embedding
+        if job_id is not None:
+            doc["job_id"] = job_id
         # refresh=True makes the document immediately searchable; without it
         # a search right after indexing returns nothing (near-real-time).
         self.client.index(index=self.INDEX_CODE, document=doc, refresh=True)
@@ -191,19 +280,28 @@ class ElasticsearchStore:
         return [hit["_source"] for hit in result["hits"]["hits"]]
 
     def index_repository(
-        self, repo: str, commit_sha: str, files: dict[str, str],
+        self,
+        repo: str,
+        commit_sha: str,
+        files: dict[str, str],
+        *,
+        tenant_id: str = DEFAULT_TENANT_ID,
+        source_type: str = "code",
+        job_id: str | None = None,
     ) -> int:
         """Index one repository snapshot as symbol-level chunks.
 
         files maps posix relative paths to source content. Java files are
         split into method blocks (AST-free symbol chunking) so retrieval
         returns the relevant symbol, not an arbitrary 500-char window.
+        Every chunk is stamped with tenant_id/source_type (§14.2) and,
+        when job_id is given, with the owning job (backlog #10).
         Returns the number of indexed chunks.
         """
         self.ensure_indices()
         self.delete_repo(repo)  # idempotent re-index
 
-        docs = _chunk_files(repo, commit_sha, files)
+        docs = _chunk_files(repo, commit_sha, files, tenant_id, source_type, job_id)
 
         # Bulk + ONE refresh: per-document refresh=True costs a disk sync
         # per chunk (30+ chunks took minutes and blew past every timeout).
@@ -219,6 +317,10 @@ class ElasticsearchStore:
         commit_sha: str,
         files: dict[str, str],
         embedder: "EmbeddingClient",
+        *,
+        tenant_id: str = DEFAULT_TENANT_ID,
+        source_type: str = "code",
+        job_id: str | None = None,
     ) -> dict[str, Any]:
         """Index chunks with vectors from an EmbeddingClient (RAG 2.0).
 
@@ -229,7 +331,7 @@ class ElasticsearchStore:
         """
         self.ensure_indices()
         self.delete_repo(repo)  # idempotent re-index
-        docs = _chunk_files(repo, commit_sha, files)
+        docs = _chunk_files(repo, commit_sha, files, tenant_id, source_type, job_id)
         embedded = 0
         skipped = 0
         notes: list[str] = []
@@ -307,6 +409,125 @@ class ElasticsearchStore:
             index=self.INDEX_CODE, ignore_unavailable=True
         )
         self.ensure_indices()
+
+    def _delete_by_filter(self, query: dict[str, Any]) -> int:
+        """Run a delete-by-query with the given filter; returns deleted count.
+
+        Projection cleanup (§14.2): the filter selects only the target
+        tenant/repo docs, so a tenant removal never touches another
+        tenant's chunks. Server-side delete_by_query is used here (unlike
+        the whole-index delete_repo shortcut) because a multi-tenant index
+        cannot be dropped per tenant.
+        """
+        response = self.client.delete_by_query(
+            index=self.INDEX_CODE,
+            body={"query": query},
+            refresh=True,
+            wait_for_completion=True,
+        )
+        return int(response.get("deleted", 0))
+
+    def delete_by_tenant_repo(self, tenant_id: str, repo: str) -> int:
+        """Delete one tenant's projection of one repository (§14.2).
+
+        Re-index of a single tenant's repo or repo removal from a tenant
+        scope; other tenants' docs for the same repo are untouched.
+        Returns the number of deleted documents.
+        """
+        return self._delete_by_filter(
+            build_tenant_repo_filter(tenant_id=tenant_id, repo=repo)
+        )
+
+    def delete_tenant(self, tenant_id: str) -> int:
+        """Delete one tenant's entire projection (§14.2).
+
+        Removes every chunk stamped with the tenant (and, for the default
+        tenant, legacy unstamped chunks). Returns the number of deleted
+        documents.
+        """
+        return self._delete_by_filter(build_tenant_repo_filter(tenant_id=tenant_id))
+
+    def delete_projection(
+        self,
+        *,
+        tenant_id: str | None = None,
+        job_id: str | None = None,
+    ) -> int:
+        """Delete projection docs by tenant_id and/or job_id (backlog #10).
+
+        Exactly one of tenant_id/job_id (or both, conjunctively) selects
+        the documents. Idempotent: a missing index or missing documents
+        are a no-op that returns 0 instead of raising. Deletion runs as
+        search + per-document bulk delete — never delete_by_query, which
+        hard-crashes on Windows in elasticsearch-py 8.19.x (the native
+        transport fault delete_repo documents).
+        """
+        if tenant_id is None and job_id is None:
+            raise ValueError("delete_projection needs tenant_id or job_id")
+        return self._delete_matching(
+            build_tenant_repo_filter(tenant_id=tenant_id, job_id=job_id)
+        )
+
+    def count_projection_docs(
+        self,
+        *,
+        tenant_id: str | None = None,
+        job_id: str | None = None,
+    ) -> int:
+        """Count projection docs by tenant_id and/or job_id (backlog #10).
+
+        Returns 0 when the index (or every matching document) is absent,
+        so the DATA_LIFECYCLE orphan scan (§3.6) can verify a cleanup
+        without probing the index first.
+        """
+        if tenant_id is None and job_id is None:
+            raise ValueError("count_projection_docs needs tenant_id or job_id")
+        if not self.client.indices.exists(index=self.INDEX_CODE):
+            return 0
+        result = self.client.count(
+            index=self.INDEX_CODE,
+            body={
+                "query": build_tenant_repo_filter(
+                    tenant_id=tenant_id, job_id=job_id
+                )
+            },
+        )
+        return int(result.get("count", 0))
+
+    def _delete_matching(self, query: dict[str, Any]) -> int:
+        """Delete every doc matching 'query' page by page; returns count.
+
+        delete_by_query is avoided on purpose: elasticsearch-py 8.19.x
+        hard-crashes on Windows inside it (native fault in the transport
+        layer). The plain search + bulk-delete requests used here belong
+        to the stable request family, and they make the operation
+        naturally idempotent — a missing index or missing documents are
+        simply zero matches.
+        """
+        if not self.client.indices.exists(index=self.INDEX_CODE):
+            return 0
+        deleted = 0
+        while True:
+            response = self.client.search(
+                index=self.INDEX_CODE,
+                body={
+                    "query": query,
+                    "size": _DELETE_PAGE_SIZE,
+                    "_source": False,
+                },
+                ignore_unavailable=True,
+            )
+            hits = response["hits"]["hits"]
+            if not hits:
+                return deleted
+            operations = [
+                {"delete": {"_index": self.INDEX_CODE, "_id": hit["_id"]}}
+                for hit in hits
+            ]
+            result = self.client.bulk(operations=operations, refresh=True)
+            for item in result.get("items", []):
+                if item.get("delete", {}).get("status") == 200:
+                    deleted += 1
 
     def count_repo_docs(self, repo: str) -> int:
         """Number of indexed chunks for a repository (0 when absent)."""

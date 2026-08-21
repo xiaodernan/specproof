@@ -5,6 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="dark" />
   <title>SpecProof Control Room</title>
+  <script>
+    // No-flash theme bootstrap: mirrors ThemeProvider's storage key and
+    // resolved-theme logic before the first paint.
+    (function () {
+      try {
+        var stored = localStorage.getItem("specproof_theme");
+        var dark =
+          stored === "light"
+            ? false
+            : stored === "dark"
+              ? true
+              : !window.matchMedia("(prefers-color-scheme: light)").matches;
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+      } catch (e) {
+        /* storage unavailable; ThemeProvider applies the fallback on mount */
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>

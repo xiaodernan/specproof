@@ -28,7 +28,18 @@ def _configured_key() -> str:
 
 
 def require_api_key(request: Request) -> None:
-    """Reject requests without a valid API key (constant-time comparison)."""
+    """Reject requests without a valid API key (constant-time comparison).
+
+    Multi-tenant mode (industrialization phase 1): when the tenant auth
+    middleware has already resolved a valid bearer principal on
+    request.state, the credential requirement is satisfied and the legacy
+    key path is skipped — Bearer sp_*/OIDC replaces X-API-Key. When no
+    principal is present (single-tenant mode) the legacy behavior is
+    byte-identical.
+    """
+    principal = getattr(request.state, "principal", None)
+    if principal is not None:
+        return
     expected = _configured_key()
     if not expected:
         raise HTTPException(
@@ -57,8 +68,17 @@ def require_api_key(request: Request) -> None:
 
 
 def enforce_rate_limit(request: Request) -> None:
-    """Fixed-window rate limit per API key (Redis-backed, fail-open)."""
-    key = request.headers.get("X-API-Key", "") or "anonymous"
+    """Fixed-window rate limit per API key (Redis-backed, fail-open).
+
+    Tenant mode: the bucket key is the authenticated principal's user id,
+    not the caller-controlled header, so rate limits follow identity.
+    """
+    principal = getattr(request.state, "principal", None)
+    key = (
+        getattr(principal, "user_id", None)
+        or request.headers.get("X-API-Key", "")
+        or "anonymous"
+    )
     digest = hashlib.sha256(key.encode()).hexdigest()[:16]
     window = int(time.time()) // 60
     redis_key = f"specproof:rl:{digest}:{window}"

@@ -34,7 +34,10 @@ from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
+
+from sandbox.cache_verify import enforce_cache_integrity
 
 DEFAULT_IMAGE = "maven:3.9-eclipse-temurin-21"
 
@@ -79,6 +82,53 @@ def _m2_volume() -> str:
     value = os.getenv("SPECPROOF_SANDBOX_M2_VOLUME", "").strip()
     return value or DEFAULT_M2_VOLUME
 
+# Output-flood defense (backlog #7): the runner bounds retained output to
+# head + explicit truncation marker + tail so downstream consumers never
+# hold the full flood. Env overrides keep tests and operations tunable.
+OUTPUT_HEAD_CHARS_DEFAULT = 32768
+OUTPUT_TAIL_CHARS_DEFAULT = 32768
+
+
+def _budget(env_name: str, default: int) -> int:
+    raw = os.getenv(env_name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def truncation_marker(dropped_chars: int) -> str:
+    """Explicit marker inserted between head and tail when output is truncated."""
+    return f"\n[... sandbox output truncated: {dropped_chars} chars omitted ...]\n"
+
+
+def bound_output(
+    text: str,
+    head: int | None = None,
+    tail: int | None = None,
+) -> tuple[str, bool, int]:
+    """Bound retained output to head + marker + tail.
+
+    Returns (bounded_text, truncated, dropped_chars). The middle of an
+    oversized stream is discarded; the marker makes the truncation explicit
+    and the dropped count is reported honestly — a silent partial output
+    would be indistinguishable from a small one.
+    """
+    head_chars = head if head is not None else _budget(
+        "SPECPROOF_SANDBOX_OUTPUT_HEAD", OUTPUT_HEAD_CHARS_DEFAULT
+    )
+    tail_chars = tail if tail is not None else _budget(
+        "SPECPROOF_SANDBOX_OUTPUT_TAIL", OUTPUT_TAIL_CHARS_DEFAULT
+    )
+    if len(text) <= head_chars + tail_chars:
+        return text, False, 0
+    dropped = len(text) - head_chars - tail_chars
+    bounded = text[:head_chars] + truncation_marker(dropped) + text[-tail_chars:]
+    return bounded, True, dropped
+
 # Pull attempts are process-global: a registry outage must cost ONE failed
 # pull (a few seconds), not a hanging 900s pull per Maven invocation.
 _PULL_ATTEMPTED = False
@@ -92,6 +142,9 @@ class SandboxResult:
     stderr: str
     error: str = ""          # sandbox-level failure (docker missing, image pull)
     mode: str = "local"      # docker | local_fallback | local
+    truncated: bool = False  # output flood: head+marker+tail retention applied
+    truncated_chars: int = 0  # how many chars were dropped from the middle
+    cache_note: str = ""     # cache-verification note (use/rebuild verdicts)
 
 
 def _mode_from_env() -> str:
@@ -213,16 +266,34 @@ def _run_docker(command: list[str], workspace: str, timeout: int) -> SandboxResu
         proc = subprocess.run(
             docker_cmd, capture_output=True, text=True, timeout=timeout,
         )
+        stdout, out_trunc, out_dropped = bound_output(proc.stdout)
+        stderr, err_trunc, err_dropped = bound_output(proc.stderr)
         return SandboxResult(
             exit_code=proc.returncode,
-            stdout=proc.stdout,
-            stderr=proc.stderr,
+            stdout=stdout,
+            stderr=stderr,
             mode="docker",
+            truncated=out_trunc or err_trunc,
+            truncated_chars=out_dropped + err_dropped,
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
+        # Preserve whatever the workload already emitted before the kill —
+        # the honest partial output beats a silent empty result (bounded,
+        # so a flood interrupted by the kill cannot balloon the worker).
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        stdout, out_trunc, out_dropped = bound_output(stdout)
+        stderr, err_trunc, err_dropped = bound_output(stderr)
+        return SandboxResult(
+            exit_code=-1, stdout=stdout, stderr=stderr,
+            error=f"sandbox execution timed out after {timeout}s", mode="docker",
+            truncated=out_trunc or err_trunc,
+            truncated_chars=out_dropped + err_dropped,
+        )
+    except OSError as exc:
         return SandboxResult(
             exit_code=-1, stdout="", stderr="",
-            error="sandbox execution timed out", mode="docker",
+            error=f"could not start command {command[0]!r}: {exc}", mode="docker",
         )
     except Exception as exc:
         return SandboxResult(
@@ -237,6 +308,10 @@ def run_sandboxed(
     timeout: int = 600,
     mode: str | None = None,
     local_command: list[str] | None = None,
+    *,
+    cache_dir: str | None = None,
+    cache_manifest: str | Mapping[str, str] | None = None,
+    on_poison: str = "fail",
 ) -> SandboxResult:
     """Run a command inside the execution sandbox.
 
@@ -245,23 +320,58 @@ def run_sandboxed(
     configured (development) or as a documented fallback when Docker is
     unavailable and mode=auto — in that case local_command (e.g. the Maven
     wrapper) is used instead of the sandbox-internal command.
+
+    cache_dir + cache_manifest enable the pre-run cache poisoning check
+    (backlog #7): the host-accessible dependency cache is verified against
+    the seed-time digest manifest BEFORE anything executes. on_poison
+    selects the policy on mismatch: "fail" (default, refuse to execute)
+    or "rebuild" (delete poisoned entries and proceed; re-seeding needs
+    the host seed step since the sandbox has --network none).
     """
     mode = (mode or _mode_from_env()).lower()
     local_cmd = local_command or command
+    cache_note = ""
+    if cache_dir and cache_manifest is not None:
+        # Cache poisoning defense (backlog #7): verify the dependency cache
+        # against the seed-time digest manifest BEFORE executing anything.
+        # Poison -> fail closed (no execution) or rebuild per policy —
+        # a poisoned cache is never silently used.
+        try:
+            check = enforce_cache_integrity(cache_dir, cache_manifest, on_poison=on_poison)
+        except ValueError as exc:
+            return SandboxResult(
+                exit_code=-1, stdout="", stderr="",
+                error=f"cache verification failed: {exc}", mode=mode,
+            )
+        if not check.ok:
+            return SandboxResult(
+                exit_code=-1, stdout="", stderr="",
+                error=check.note, mode=mode, cache_note=check.note,
+            )
+        cache_note = check.note
     if mode == "docker":
-        return _run_docker(command, workspace, timeout)
-    if mode == "auto":
+        result = _run_docker(command, workspace, timeout)
+    elif mode == "auto":
         if _docker_available():
             result = _run_docker(command, workspace, timeout)
             if result.error:
                 # Docker exists but the sandbox could not run — fall back
                 # locally ONLY when it is a transient sandbox problem, and
-                # always record the degradation in the result.
-                return _run_local(local_cmd, workspace, timeout, "local_fallback")
-            return result
-        return _run_local(local_cmd, workspace, timeout, "local_fallback")
-    # mode == "local" (explicit development mode)
-    return _run_local(local_cmd, workspace, timeout, "local")
+                # record BOTH the degradation and its reason in the result.
+                docker_error = result.error
+                result = _run_local(local_cmd, workspace, timeout, "local_fallback")
+                if not result.error:
+                    result.error = (
+                        f"docker sandbox degraded to local_fallback: {docker_error}"[:300]
+                    )
+        else:
+            result = _run_local(local_cmd, workspace, timeout, "local_fallback")
+    else:
+        # mode == "local" (explicit development mode)
+        result = _run_local(local_cmd, workspace, timeout, "local")
+    if cache_note:
+        result.cache_note = cache_note
+    return result
 
 
 def _run_local(
@@ -271,9 +381,34 @@ def _run_local(
         proc = subprocess.run(
             command, cwd=workspace, capture_output=True, text=True, timeout=timeout,
         )
+        stdout, out_trunc, out_dropped = bound_output(proc.stdout)
+        stderr, err_trunc, err_dropped = bound_output(proc.stderr)
         return SandboxResult(
-            exit_code=proc.returncode, stdout=proc.stdout, stderr=proc.stderr,
+            exit_code=proc.returncode, stdout=stdout, stderr=stderr,
             mode=mode,
+            truncated=out_trunc or err_trunc,
+            truncated_chars=out_dropped + err_dropped,
+        )
+    except subprocess.TimeoutExpired as exc:
+        # Preserve whatever the workload already emitted before the kill —
+        # the honest partial output beats a silent empty result (bounded,
+        # so a flood interrupted by the kill cannot balloon the worker).
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        stdout, out_trunc, out_dropped = bound_output(stdout)
+        stderr, err_trunc, err_dropped = bound_output(stderr)
+        return SandboxResult(
+            exit_code=-1, stdout=stdout, stderr=stderr,
+            error=f"execution timed out after {timeout}s", mode=mode,
+            truncated=out_trunc or err_trunc,
+            truncated_chars=out_dropped + err_dropped,
+        )
+    except OSError as exc:
+        # e.g. the configured python/venv binary does not exist — the
+        # failure must surface as an explicit error, never an empty result.
+        return SandboxResult(
+            exit_code=-1, stdout="", stderr="",
+            error=f"could not start command {command[0]!r}: {exc}", mode=mode,
         )
     except Exception as exc:
         return SandboxResult(

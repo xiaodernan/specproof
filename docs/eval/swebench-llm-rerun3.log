@@ -1,0 +1,5 @@
+[1/2] pallets__flask-4045 -> unresolved (craft): craft 未收敛 (FAILED): 步骤 s4 (test): LLM 编辑提案非法, 按 M1 语义 FAILED: apply_edit 被拒 (src/flask/helpers.py): apply_edit 拒绝: old 未命中 (src/flask/helpers.py)
+[2/2] pallets__flask-4992 -> unresolved (craft): craft 未收敛 (STUCK): 步骤 s5 (verify): 同类错误连续 3 次, 判定 stuck (签名: s5|断言值 'tomllib' 未出现在: ['tests/test_config.py'])
+汇总: total=2 resolved=0 unresolved=2 rate=0.0%
+结果 JSON: docs\eval\swebench-llm-results-v3.json
+日志目录: docs\eval\swebench-logs

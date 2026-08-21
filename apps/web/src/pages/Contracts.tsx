@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, ContractsData } from "../api";
-import { Degraded, Empty, ErrorBox, Panel, Spinner, fmtTime } from "../components";
+import { Degraded, Empty, ErrorBox, Panel, Spinner, fmtTime } from "../ui";
 
 export default function Contracts() {
   const [data, setData] = useState<ContractsData | null>(null);

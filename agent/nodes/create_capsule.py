@@ -134,7 +134,38 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
 
         capsules.append(str(zip_path.resolve()))
 
+        # §A task 7: the capsule becomes locatable through the object
+        # metadata store (query by job_id / kind / digest / contract_id)
+        # instead of path inference. Recording is best-effort: a capsule
+        # that cannot be recorded stays a legacy path-based artifact.
+        _record_capsule_metadata(
+            zip_path=zip_path,
+            job_id=str(state.get("job_id") or ""),
+            contract_id=str(finding.get("contract_id") or ""),
+        )
+
     return {"capsules": capsules}
+
+
+def _record_capsule_metadata(
+    zip_path: Path, job_id: str, contract_id: str,
+) -> None:
+    """Record capsule object metadata (best effort, never breaks the node)."""
+    try:
+        from storage.object_metadata import record_file_object_best_effort
+
+        record_file_object_best_effort(
+            "capsule",
+            zip_path,
+            job_id=job_id,
+            contract_ids=(contract_id,) if contract_id else (),
+        )
+    except Exception:  # noqa: BLE001 — artifact writing must never break
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "capsule metadata record failed for %s", zip_path
+        )
 
 
 def _build_replay_script(
@@ -228,10 +259,13 @@ TEST_SRC="$CAPSULE_DIR/generated-tests"
 if [ -d "$TEST_SRC" ] && [ "$(ls -A "$TEST_SRC" 2>/dev/null)" ]; then
     echo "  Found generated test files:"
     ls -la "$TEST_SRC/"
-    # Copy test files to the repo's test directory
-    if [ -d "$REPO_DIR/src/test" ]; then
-        cp -r "$TEST_SRC"/* "$REPO_DIR/src/test/" 2>/dev/null || true
-        echo "  Tests copied to $REPO_DIR/src/test/"
+    # Copy test files into the repo's Maven test source root
+    # (src/test/java) so Maven actually compiles and runs them.
+    TEST_DEST="$REPO_DIR/src/test/java"
+    mkdir -p "$TEST_DEST" 2>/dev/null || true
+    if [ -d "$TEST_DEST" ]; then
+        cp -r "$TEST_SRC"/* "$TEST_DEST/" 2>/dev/null || true
+        echo "  Tests copied to $TEST_DEST"
     fi
 else
     echo "  No generated test files in capsule — using existing tests"
@@ -376,7 +410,10 @@ $TestSrc = "$CapsuleDir\\generated-tests"
 if ((Test-Path $TestSrc) -and (Get-ChildItem $TestSrc -ErrorAction SilentlyContinue)) {{
     Write-Host "  Found generated test files:"
     Get-ChildItem $TestSrc | ForEach-Object {{ Write-Host "    $($_.Name)" }}
-    $destDir = "$RepoDir\\src\\test"
+    $destDir = "$RepoDir\\src\\test\\java"
+    if (-not (Test-Path $destDir)) {{
+        New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+    }}
     if (Test-Path $destDir) {{
         Copy-Item -Recurse -Force "$TestSrc\\*" "$destDir\\"
         Write-Host "  Tests copied to $destDir"
