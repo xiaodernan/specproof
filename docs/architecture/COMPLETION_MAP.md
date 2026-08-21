@@ -4,7 +4,7 @@
 
 依据: docs/工业化商业化终极开发指南.md (727 行) + docs/代码开发Agent商业化终极计划书.md (1005 行), 已逐节通读。
 状态图例: ✅ 已完成且有真实证据 · 🚧 车道在途 · ⏳ 已设计/排队 · ◐ 部分完成 (证据注明)。
-证据链: 提交 W13..W183 见 git log; 门禁数字全部来自真实运行 (2026-08-20 最终复核: unit 2369 passed/3 skipped)。
+证据链: 提交 W13..W197 见 git log; 门禁数字全部来自真实运行 (2026-08-20 最终复核: unit 2530 passed/3 skipped)。
 
 ## A. 工业化商业化终极开发指南 (727 行)
 
@@ -31,7 +31,7 @@
 | §8.1 API 兼容 | ✅ | OpenAPI diff 门禁 (CI job) |
 | §8.2 MCP | ◐ | 服务端 6 工具 stdio JSON-RPC ✅; MCP 客户端 ⏳ |
 | §8.3 GitHub/GitLab | ◐ | GitHub App/webhook/checks/fix ✅; GitLab ⏳ 阶段3 |
-| §9 测试评测 | ✅ | unit 2369 passed/3 skipped + security 36/fault 45/contract 27 + golden 100 = 100.0% (63/63, FP 0; docs/eval/eval-100-segments.md); SWE-bench LLM 十二轮 v1-v12 诚实实录 (resolved 0%, harness 障碍逐轮清完剩模型能力层, v12 实测网关仅 v4-flash/v4-pro 无更强档); Capsule 重放 25/25=100.0%; aider polyglot 1/3=33.3% (W98) |
+| §9 测试评测 | ✅ | unit 2530 passed/3 skipped + security 36/fault 45/contract 27 + golden 100 = 100.0% (63/63, FP 0; docs/eval/eval-100-segments.md); SWE-bench LLM 十二轮 v1-v12 诚实实录 (resolved 0%, harness 障碍逐轮清完剩模型能力层, v12 实测网关仅 v4-flash/v4-pro 无更强档); Capsule 重放 25/25=100.0%; aider polyglot 1/3=33.3% (W98) |
 | §10 安全合规 | ◐ | 威胁矩阵/密钥 env-only/注入 24 矩阵 ✅; 密钥泄漏 0 + bandit Medium+=0 ✅; SOC2 路线 ⏳ |
 | §11 可观测运维 | ◐ | 恢复演练 ✅ (W89 DRILLS: Drill1 真实 kill 6 检查点→9.09s resume→BLOCKED=control / Drill2 provider outage 真实 / Drill4 outbox 崩溃→exactly-once / Drill3 桌面 9 可执行 4 需开发); Grafana/SLO 面板 ⏳ (真实缺口) |
 | §12 阶段0-8 | ◐ | 0/1/2/6/7 核心完成 (6 = W40 后端 + W101 计费路由); 3 部分 (Policy DSL+豁免流 ✅ W102; GitLab ⏳); 4 部分 (探针 ✅ W36, 100 案例 ✅ 100.0%, Python 适配器+ddmin ✅ W78/W105; Gradle/Node/Go ⏳); 5 ⏳ (KMS/HSM+证书撤销); 8 部分 |
