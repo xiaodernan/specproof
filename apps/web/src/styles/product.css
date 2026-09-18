@@ -122,6 +122,13 @@ a:hover { text-decoration: none; }
 .quick-action p { font-size: 10px; line-height: 1.85; margin: 7px 0 17px; color: var(--color-text-3); max-width: 250px; }
 .action-link { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--accent-text); font-weight: 550; }
 .metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.quickstart-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 8px; }
+.quickstart-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--color-border); border-radius: 12px; padding: 18px; background: var(--color-surface); text-decoration: none; color: inherit; transition: border-color .15s ease, transform .15s ease; }
+.quickstart-card:hover { border-color: var(--accent-text); transform: translateY(-2px); }
+.quickstart-step { font: 11px var(--font-mono); color: var(--accent-text); letter-spacing: .12em; }
+.quickstart-card strong { font-size: 14px; }
+.quickstart-card p { font-size: 12px; line-height: 1.75; color: var(--color-text-2); margin: 0; flex: 1; }
+.quickstart-cta { font-size: 12px; color: var(--accent-text); font-weight: 600; }
 .metric-card { border: 1px solid var(--color-border); border-radius: 10px; padding: 17px 20px; background: var(--color-surface); }
 .metric-top { display: flex; justify-content: space-between; align-items: center; color: var(--color-text-2); font-size: 11px; }
 .metric-top svg { color: var(--color-text-3); }
@@ -195,6 +202,7 @@ table.data td { padding: 13px 16px; font-size: 11px; }
 }
 @media (max-width: 1000px) {
   .welcome-banner { grid-template-columns: 1fr; }
+  .quickstart-grid { grid-template-columns: 1fr 1fr; }
   .proof-diagram { display: none; }
   .welcome-copy br { display: none; }
   .welcome-copy h2 { font-size: 25px; }

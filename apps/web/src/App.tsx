@@ -39,7 +39,8 @@ const NAV: NavItem[] = [
 ];
 
 function renderRoute(route: string): JSX.Element {
-  const seg = route.replace(/^#/, "").split("/").filter(Boolean);
+  // Query params (e.g. #/jobs/new?repo=...) belong to the page, not routing.
+  const seg = route.replace(/^#/, "").split("?")[0].split("/").filter(Boolean);
   if (!seg.length || seg[0] === "dashboard") return <Dashboard />;
   if (seg[0] === "settings") return <ModelSettings />;
   if (seg[0] === "guide") return <Guide />;

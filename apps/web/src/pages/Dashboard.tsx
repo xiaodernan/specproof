@@ -9,6 +9,14 @@ const ACTIONS: { href: string; icon: ProductIconName; title: string; text: strin
   { href: "#/guide", icon: "guide", title: "先了解它怎么工作", text: "跟着一个权限校验的例子，读懂验收结果和证据。", label: "查看上手指南" },
 ];
 
+// 新手上路清单：把"这个产品能干嘛"翻译成 4 个可点的动作。
+const QUICKSTART: { step: string; title: string; text: string; href: string; cta: string }[] = [
+  { step: "01", title: "看一条演示结果", text: "标有“演示”的任务是预置示例，点开就能看到结论、风险与证据长什么样。", href: "#/jobs", cta: "打开验收列表" },
+  { step: "02", title: "跑一次真实验收", text: "新建验收页可一键填入演示案例（含故意引入的权限回归），提交后观察它如何被拦截。", href: "#/jobs/new", cta: "用演示案例验收" },
+  { step: "03", title: "让 AI 修一个 Bug", text: "AI 开发向导内置示例需求，一键填充后生成计划，你批准前不会改任何代码。", href: "#/agent/new", cta: "试试 AI 开发" },
+  { step: "04", title: "接上你的模型", text: "在模型连接里填入服务商信息并测试连接，之后任务由真实模型驱动。", href: "#/settings", cta: "配置模型" },
+];
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<Error | null>(null);
@@ -38,6 +46,11 @@ export default function Dashboard() {
     <div className="product-page-heading"><div><div className="eyebrow">YOUR DELIVERY WORKSPACE</div><h1>每一次交付，都更有把握<span className="heading-dot">.</span></h1><p>从需求到证据，清楚知道这次代码变更是否符合预期。</p></div><a className="btn btn-primary" href="#/jobs/new"><ProductIcon name="plus" size={17} />新建验收</a></div>
 
     <section className="welcome-banner" aria-label="SpecProof 是什么"><div className="welcome-copy"><span className="welcome-kicker"><span className="tiny-dot" /> 独立验收 · 可追溯证据</span><h2>代码写好了，<br />让结果经得起验证。</h2><p>SpecProof 对比变更前后的代码，检查是否满足你的需求，<br className="desktop-break" />并把发现的问题、覆盖情况和验证证据放在一起。</p><a href="#/guide">了解 SpecProof 如何验收 <ProductIcon name="arrow" size={16} /></a></div><div className="proof-diagram" aria-label="需求经过独立验收，生成结论与证据"><div className="diagram-label">FROM CHANGE TO CONFIDENCE</div><div className="diagram-flow"><div className="diagram-node"><ProductIcon name="contracts" size={25} /><strong>需求与变更</strong><small>你希望实现什么</small></div><span className="diagram-line" /><div className="diagram-core"><ProductIcon name="shield" size={34} /><strong>独立验收</strong></div><span className="diagram-line" /><div className="diagram-node"><ProductIcon name="verify" size={25} /><strong>结论与证据</strong><small>实际验证了什么</small></div></div><div className="diagram-caption"><span>需求检查</span><span>版本对比</span><span>问题定位</span></div></div></section>
+
+    <section className="quickstart" aria-label="5 分钟快速上手">
+      <div className="section-heading"><h2>5 分钟快速上手</h2><span>按顺序体验一遍，就知道 SpecProof 能为你做什么</span></div>
+      <div className="quickstart-grid">{QUICKSTART.map(item => <a className="quickstart-card" href={item.href} key={item.step}><span className="quickstart-step">{item.step}</span><strong>{item.title}</strong><p>{item.text}</p><span className="quickstart-cta">{item.cta} <span aria-hidden="true">→</span></span></a>)}</div>
+    </section>
 
     <div className="section-heading"><h2>开始你的下一次交付</h2><span>选择适合当前阶段的工作方式</span></div>
     <div className="quick-actions">{ACTIONS.map((action, index) => <a className="quick-action" href={action.href} key={action.href}><div className="quick-action-top"><span className={"action-icon action-icon-" + index}><ProductIcon name={action.icon} size={23} /></span><span className="action-number">0{index + 1}</span></div><h3>{action.title}</h3><p>{action.text}</p><span className="action-link">{action.label}<ProductIcon name="arrow" size={16} /></span></a>)}</div>

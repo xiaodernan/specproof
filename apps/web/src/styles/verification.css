@@ -14,6 +14,12 @@
 .verification-section-title h2 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
 .verification-section-title p { color: var(--color-text-2); font-size: 12px; margin: 0; line-height: 1.8; }
 .verification-ref-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.demo-fill-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; margin-bottom: 20px; border-radius: 12px; border: 1px solid var(--accent-text, #4f7cff); background: color-mix(in srgb, var(--accent-text, #4f7cff) 8%, transparent); }
+.demo-fill-banner span { font-size: 13px; line-height: 1.7; }
+.wizard-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.wizard-examples-label { font-size: 12px; color: var(--color-text-2); }
+.wizard-example-chip { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: 999px; padding: 5px 14px; font-size: 12px; cursor: pointer; }
+.wizard-example-chip:hover { border-color: var(--accent-text); color: var(--accent-text); }
 .verification-submit { margin-top: 32px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--color-border); padding-top: 24px; }
 .verification-submit > span { color: var(--color-text-2); font-size: 12px; }
 .verification-guide { padding: 26px 20px; }

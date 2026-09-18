@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "../hooks/navigate";
+import { DEMO_AGENT, DEMO_VERIFY, DEMO_VERIFY_REPO_NOTE } from "../demo";
+import { EMPTY_WIZARD_DRAFT, saveWizardDraft } from "../agent/util";
 import { Button } from "../ui";
 import "./onboarding.css";
 
@@ -6,6 +9,26 @@ const START_COMMAND = "pwsh scripts/start_local.ps1";
 
 export default function Guide() {
   const [copyState, setCopyState] = useState("");
+  const navigate = useNavigate();
+
+  function startDemoVerify() {
+    const query = new URLSearchParams({
+      repo: DEMO_VERIFY.repo_path,
+      spec: DEMO_VERIFY.spec_path,
+      base: DEMO_VERIFY.base_ref,
+      head: DEMO_VERIFY.head_ref,
+    });
+    navigate("/jobs/new?" + query.toString());
+  }
+
+  function startDemoAgent() {
+    saveWizardDraft({
+      ...EMPTY_WIZARD_DRAFT,
+      task_name: DEMO_AGENT.task_name,
+      spec_text: DEMO_AGENT.spec_text,
+    });
+    navigate("/agent/new/spec");
+  }
 
   async function copyCommand() {
     try {
@@ -44,7 +67,8 @@ export default function Guide() {
 
       <section className="guide-section guide-example" aria-labelledby="guide-example">
         <div className="guide-section-head"><span className="guide-section-number">02</span><div><h2 id="guide-example">用一次权限改动理解它</h2><p>仓库自带 Spring 后端示例，可在完成本地启动后填写到新建验证表单。</p></div></div>
-        <div className="guide-example-grid"><dl><div><dt>代码仓库</dt><dd><code>demo/spring-backend</code></dd></div><div><dt>改动前 → 改动后</dt><dd><code>base → head-v1</code></dd></div><div><dt>需求文件</dt><dd><code>demo/requirement.txt</code></dd></div></dl><div className="guide-example-outcome"><span className="guide-kicker">这个案例要回答的问题</span><h3>权限检查被移除后，谁还能修改邮箱？</h3><p>需求要求管理员权限。验证会比较改动前后的行为，并把检查到的风险与对应证据放进结果。以实际执行结果为准；读取演示历史记录不会启动新的检查。</p><a href="#/jobs/new">用示例开始验证 →</a></div></div>
+        <div className="guide-example-grid"><dl><div><dt>代码仓库</dt><dd><code>demo/spring-backend</code></dd></div><div><dt>改动前 → 改动后</dt><dd><code>{DEMO_VERIFY.base_ref} → {DEMO_VERIFY.head_ref}</code></dd></div><div><dt>需求文件</dt><dd><code>demo/requirement.txt</code></dd></div></dl><div className="guide-example-outcome"><span className="guide-kicker">这个案例要回答的问题</span><h3>权限检查被移除后，谁还能修改邮箱？</h3><p>需求要求所有接口都必须认证。演示仓库的 <code>{DEMO_VERIFY.head_ref}</code> 版本移除了邮箱修改接口的权限检查 — 验证预期得到 <code>BLOCKED</code> 结论，并给出风险描述与证据。</p><div className="guide-example-actions"><Button variant="primary" onClick={startDemoVerify}>用它开始一次真实验证 →</Button><span>首次使用先运行 <code>pwsh scripts/prepare_demo_repo.ps1</code> 创建演示仓库的 git 版本；{DEMO_VERIFY_REPO_NOTE.split("; ")[1] || ""}</span></div></div></div>
+        <div className="demo-prefill"><strong>想体验 AI 开发？</strong><p>也可以把预置的「修复 double 函数」示例需求带进开发助手，审阅计划并批准后，让 AI 在你的仓库里完成修复。</p><div className="demo-prefill-row"><Button size="sm" onClick={startDemoAgent}>用示例需求开始 AI 开发 →</Button><span className="demo-prefill-status">会打开向导第 2 步，你仍需填写仓库路径并审阅计划</span></div></div>
       </section>
 
       <section className="guide-section" aria-labelledby="guide-results">

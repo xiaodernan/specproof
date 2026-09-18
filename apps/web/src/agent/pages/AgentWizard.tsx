@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createAgentJob } from "../../api";
+import { DEMO_AGENT } from "../../demo";
 import { Button, ErrorBox, Panel } from "../../ui";
 import {
   WizardDraft,
@@ -12,6 +13,28 @@ import {
 } from "../util";
 
 export type WizardStep = "repo" | "spec" | "gates" | "review";
+
+// 内置示例需求：点击即可填充，新手不用面对空白文本框。
+const EXAMPLE_SPECS: { title: string; text: string }[] = [
+  {
+    title: "修复一个 Bug",
+    text: "任务: 修复 double 函数，使它返回输入的两倍。\n" +
+      "验收: 正数、负数和零的现有测试全部通过。\n" +
+      "禁止: 修改或删除测试文件。",
+  },
+  {
+    title: "给接口加分页",
+    text: "任务: 为 /users 列表接口增加分页参数 (page, page_size)，" +
+      "默认 page_size=20，上限 100。\n" +
+      "验收: page_size 超限时返回 400；补充分页相关的单元测试，全量测试通过。",
+  },
+  {
+    title: "收紧权限",
+    text: "任务: 非管理员修改其他用户邮箱时必须返回 403，管理员可以修改。\n" +
+      "验收: 覆盖越权与正常路径的测试全部通过。\n" +
+      "禁止: 删除现有权限检查。",
+  },
+];
 
 const STEPS: { key: WizardStep; label: string; href: string }[] = [
   { key: "repo", label: "1 仓库 Repo", href: "#/agent/new" },
@@ -163,6 +186,19 @@ export default function AgentWizard(props: { step: WizardStep }) {
 
       {props.step === "spec" ? (
         <Panel title="步骤 2/4 — 需求规格">
+          <div className="wizard-examples" role="group" aria-label="示例需求">
+            <span className="wizard-examples-label">不知道怎么写？从一个示例开始：</span>
+            {EXAMPLE_SPECS.map((example) => (
+              <button
+                key={example.title}
+                type="button"
+                className="wizard-example-chip"
+                onClick={() => set({ spec_text: example.text, task_name: draft.task_name || example.title })}
+              >
+                {example.title}
+              </button>
+            ))}
+          </div>
           <label className="field">需求规格 Spec text</label>
           <textarea
             rows={12}
@@ -172,6 +208,16 @@ export default function AgentWizard(props: { step: WizardStep }) {
               "上限 100；补充分页相关的单元测试。"}
             onChange={(e) => set({ spec_text: e.target.value })}
           />
+          {!draft.spec_text.trim() ? (
+            <div className="wizard-example">
+              <span>不知道怎么写？</span>
+              <Button size="sm" onClick={() => set({
+                task_name: DEMO_AGENT.task_name,
+                spec_text: DEMO_AGENT.spec_text,
+              })}>填入示例需求「{DEMO_AGENT.task_name}」</Button>
+              <small>示例包含任务、验收条件、禁止事项和影响范围 — 这是最容易被验证的写法。</small>
+            </div>
+          ) : null}
           {validateSpecStep(draft) ? (
             <div className="errorbox">{validateSpecStep(draft)}</div>
           ) : null}

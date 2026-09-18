@@ -1,17 +1,66 @@
 import { useState, type FormEvent } from "react";
 import { createVerification, type VerificationRequest } from "../api";
+import { DEMO_VERIFY, DEMO_VERIFY_REPO_NOTE } from "../demo";
 import { Breadcrumbs, Button, ErrorBox, Input } from "../ui";
 import "../styles/verification.css";
+import "./onboarding.css";
 
 const initial: VerificationRequest = {
   repo_path: "", spec_path: "", base_ref: "main", head_ref: "HEAD", depth: "FAST",
 };
 
+// 演示案例：值从环境变量注入，缺省时顶部快捷横幅隐藏；页面底部仍保留
+// 内置相对路径的填充按钮（本地一键体验见 scripts/prepare_demo_repo.ps1）。
+const demoEnv = (import.meta as ImportMeta & {
+  env?: Record<string, string | undefined>;
+}).env ?? {};
+const DEMO = {
+  repo: demoEnv.VITE_DEMO_REPO_PATH,
+  spec: demoEnv.VITE_DEMO_SPEC_PATH,
+  base: demoEnv.VITE_DEMO_BASE_REF,
+  head: demoEnv.VITE_DEMO_HEAD_REF,
+};
+const demoAvailable = Boolean(DEMO.repo && DEMO.spec);
+
+function readPrefill(search: string): VerificationRequest | null {
+  const params = new URLSearchParams(search);
+  const repo = params.get("repo");
+  if (!repo) return null;
+  return {
+    repo_path: repo,
+    spec_path: params.get("spec") ?? "",
+    base_ref: params.get("base") ?? "main",
+    head_ref: params.get("head") ?? "HEAD",
+    depth: "FAST",
+  };
+}
+
 export default function NewVerification() {
-  const [form, setForm] = useState(initial);
+  // The route hash may carry ?repo=&spec=&base=&head= prefill params
+  // (e.g. from the Guide page's demo button). Parsed once on mount.
+  const [prefill] = useState<VerificationRequest | null>(() => {
+    const queryIndex = window.location.hash.indexOf("?");
+    return queryIndex >= 0 ? readPrefill(window.location.hash.slice(queryIndex + 1)) : null;
+  });
+  const [form, setForm] = useState<VerificationRequest>(prefill ?? initial);
   const [errors, setErrors] = useState<Partial<Record<keyof VerificationRequest, string>>>({});
   const [error, setError] = useState<Error | string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [demoFilled, setDemoFilled] = useState(prefill !== null);
+
+  const fillDemo = () => {
+    setForm({
+      repo_path: DEMO_VERIFY.repo_path,
+      spec_path: DEMO_VERIFY.spec_path,
+      base_ref: DEMO_VERIFY.base_ref,
+      head_ref: DEMO_VERIFY.head_ref,
+      depth: "FAST",
+    });
+    setErrors({});
+    setError(null);
+    setDemoFilled(true);
+  };
+
   const update = (field: keyof VerificationRequest, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
@@ -54,6 +103,31 @@ export default function NewVerification() {
       </div>
       <div className="verification-layout">
         <form className="verification-form" onSubmit={submit} noValidate aria-label="新建验证">
+          {demoAvailable && (
+            <div className="demo-fill-banner" role="note">
+              <span>
+                第一次使用？点一下，把内置演示案例（含故意引入的权限回归）填入表单，
+                提交后即可在任务详情里看到真实的验收结论和证据。
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setForm({
+                    repo_path: DEMO.repo || "", spec_path: DEMO.spec || "",
+                    base_ref: DEMO.base || DEMO_VERIFY.base_ref,
+                    head_ref: DEMO.head || DEMO_VERIFY.head_ref,
+                    depth: "FAST",
+                  });
+                  setErrors({});
+                  setError(null);
+                  setDemoFilled(true);
+                }}
+              >
+                用演示案例填充
+              </Button>
+            </div>
+          )}
           <fieldset disabled={submitting}>
             <section className="verification-form-section">
               <div className="verification-section-title"><span>01</span><div><h2>选择项目</h2><p>路径由执行服务读取，请使用服务端可访问的路径。</p></div></div>
@@ -69,7 +143,7 @@ export default function NewVerification() {
             </section>
           </fieldset>
           <ErrorBox error={error} />
-          <div className="verification-submit"><span>使用当前可用的快速验证模式</span><Button type="submit" variant="primary" size="lg" loading={submitting}>{submitting ? "正在创建验证…" : "开始验证 →"}</Button></div>
+          <div className="verification-submit"><Button type="button" variant="ghost" onClick={fillDemo} disabled={submitting}>填入演示案例</Button><span>使用当前可用的快速验证模式</span><Button type="submit" variant="primary" size="lg" loading={submitting}>{submitting ? "正在创建验证…" : "开始验证 →"}</Button></div>
         </form>
         <aside className="verification-guide">
           <span className="verification-eyebrow">WHAT YOU GET</span><h2>从“看起来没问题”<br />到有证据的判断。</h2>
@@ -79,6 +153,15 @@ export default function NewVerification() {
             <li><strong>评审更有依据</strong><p>用验证报告支持代码评审；证据不足会明确标注。</p></li>
           </ol>
           <div className="verification-example"><strong>需求可以这样写</strong><p>未登录用户调用 <code>POST /orders</code> 时应返回 401，且不得创建订单。</p><span>明确条件、预期结果和禁止行为，比“优化订单功能”更容易验证。</span></div>
+          <div className="demo-prefill">
+            <strong>想立刻看到效果？</strong>
+            <p>项目自带一个演示仓库：改动前的版本权限检查完整，改动后的版本移除了邮箱修改接口的权限检查。提交验证后，预期结论为 <code>BLOCKED</code> — 你会看到具体风险、代码位置和证据。</p>
+            <div className="demo-prefill-row">
+              <Button type="button" size="sm" onClick={fillDemo}>填入演示案例</Button>
+              {demoFilled ? <span className="demo-prefill-status" role="status">已填入左侧表单，直接点「开始验证」</span> : null}
+            </div>
+            <code className="demo-prefill-code">{DEMO_VERIFY_REPO_NOTE}</code>
+          </div>
           <p className="verification-note">当前验收主要依赖已有 Java / Spring 检查器；不支持的需求会标记覆盖不足。提交后需由执行服务处理。验证耗时取决于改动范围、模型服务和项目环境。</p>
           <a href="#/guide">查看完整使用指南 ↗</a>
         </aside>
