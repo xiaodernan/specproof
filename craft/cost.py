@@ -34,22 +34,16 @@ def cost_of_usage(
 ) -> dict[str, float]:
     """stats_report()-shaped usage → per-class + total USD (6dp)."""
     table = dict(DEFAULT_PRICES if prices is None else prices)
-    hit = (
-        _as_float(usage.get("prompt_cache_hit_tokens"))
-        / _PER_MILLION * table.get("prompt_cache_hit", 0.0)
-    )
-    miss = (
-        _as_float(usage.get("prompt_cache_miss_tokens"))
-        / _PER_MILLION * table.get("prompt_cache_miss", 0.0)
-    )
+    prompt = max(0.0, _as_float(usage.get("prompt_tokens")))
+    hit_tokens = min(prompt, max(0.0, _as_float(usage.get("prompt_cache_hit_tokens"))))
+    completion_tokens = max(0.0, _as_float(usage.get("completion_tokens")))
+    reasoning_tokens = min(completion_tokens, max(0.0, _as_float(usage.get("reasoning_tokens"))))
+    hit = hit_tokens / _PER_MILLION * table.get("prompt_cache_hit", 0.0)
+    miss = (prompt - hit_tokens) / _PER_MILLION * table.get("prompt_cache_miss", 0.0)
     completion = (
-        _as_float(usage.get("completion_tokens"))
-        / _PER_MILLION * table.get("completion", 0.0)
+        (completion_tokens - reasoning_tokens) / _PER_MILLION * table.get("completion", 0.0)
     )
-    reasoning = (
-        _as_float(usage.get("reasoning_tokens"))
-        / _PER_MILLION * table.get("reasoning", 0.0)
-    )
+    reasoning = reasoning_tokens / _PER_MILLION * table.get("reasoning", 0.0)
     total = hit + miss + completion + reasoning
     return {
         "cache_hit_usd": round(hit, 6),

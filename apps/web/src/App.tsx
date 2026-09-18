@@ -1,208 +1,119 @@
-import { useEffect, useState } from "react";
-import {
-  clearApiKey,
-  clearBearerToken,
-  consumeOidcCallback,
-  getApiKey,
-  getAuthMe,
-  getBearerToken,
-} from "./api";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { clearApiKey, clearBearerToken, consumeOidcCallback, getApiKey, getAuthMe, getBearerToken } from "./api";
 import type { PrincipalInfo } from "./api";
-import { ErrorBoundary } from "./ui";
-import Billing from "./pages/Billing";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Jobs from "./pages/Jobs";
-import JobDetail from "./pages/JobDetail";
-import Matrix from "./pages/Matrix";
-import FindingDetail from "./pages/FindingDetail";
-import Contracts from "./pages/Contracts";
-import Eval from "./pages/Eval";
-import Health from "./pages/Health";
-import AgentApp from "./agent/AgentApp";
-import IdentityApp from "./identity/IdentityApp";
 import TenantSwitcher from "./identity/TenantSwitcher";
-import { ThemeProvider } from "./theme/ThemeProvider";
-import { Button, CommandPalette, Kbd, ToastProvider } from "./ui";
-import UiKit from "./ui-kit/UiKit";
+import { ThemeProvider, useTheme } from "./theme/ThemeProvider";
+import { Button, CommandPalette, ErrorBoundary, Kbd, Spinner, ToastProvider } from "./ui";
+import { MoonIcon, SearchIcon, SunIcon } from "./ui/icons";
+import { ProductIcon, type ProductIconName } from "./ui/ProductIcon";
 
-// Minimal hash router: keeps deep links working behind the FastAPI SPA
-// fallback without any routing dependency.
+const Jobs = lazy(() => import("./pages/Jobs"));
+const NewVerification = lazy(() => import("./pages/NewVerification"));
+const JobDetail = lazy(() => import("./pages/JobDetail"));
+const Matrix = lazy(() => import("./pages/Matrix"));
+const FindingDetail = lazy(() => import("./pages/FindingDetail"));
+const Contracts = lazy(() => import("./pages/Contracts"));
+const Eval = lazy(() => import("./pages/Eval"));
+const Health = lazy(() => import("./pages/Health"));
+const Billing = lazy(() => import("./pages/Billing"));
+const AgentApp = lazy(() => import("./agent/AgentApp"));
+const IdentityApp = lazy(() => import("./identity/IdentityApp"));
+const UiKit = lazy(() => import("./ui-kit/UiKit"));
+const ModelSettings = lazy(() => import("./pages/ModelSettings"));
+const Guide = lazy(() => import("./pages/Guide"));
 
-function useHashRoute(): string {
-  const [route, setRoute] = useState<string>(() => window.location.hash || "#/dashboard");
-  useEffect(() => {
-    const onChange = () => setRoute(window.location.hash || "#/dashboard");
-    window.addEventListener("hashchange", onChange);
-    return () => window.removeEventListener("hashchange", onChange);
-  }, []);
-  return route;
-}
-
-function navigate(path: string): void {
-  window.location.hash = path;
-}
-
-interface NavItem {
-  path: string;
-  label: string;
-  en: string;
-}
-
+type NavItem = { path: string; label: string; icon: ProductIconName; group: string };
 const NAV: NavItem[] = [
-  { path: "#/dashboard", label: "总览", en: "Dashboard" },
-  { path: "#/jobs", label: "任务", en: "Jobs" },
-  { path: "#/agent", label: "Agent", en: "SpecCraft" },
-  { path: "#/matrix", label: "需求矩阵", en: "Matrix" },
-  { path: "#/contracts", label: "契约中心", en: "Contracts" },
-  { path: "#/identity", label: "身份", en: "Identity" },
-  { path: "#/eval", label: "评测", en: "Eval" },
-  { path: "#/health", label: "健康", en: "Health" },
+  { path: "dashboard", label: "工作台", icon: "overview", group: "工作空间" },
+  { path: "jobs", label: "变更验收", icon: "verify", group: "工作空间" },
+  { path: "agent", label: "AI 开发", icon: "agent", group: "工作空间" },
+  { path: "matrix", label: "需求覆盖", icon: "matrix", group: "质量与证据" },
+  { path: "contracts", label: "验收规则", icon: "contracts", group: "质量与证据" },
+  { path: "eval", label: "效果评测", icon: "chart", group: "质量与证据" },
+  { path: "identity", label: "团队与权限", icon: "team", group: "管理" },
+  { path: "billing", label: "用量与账单", icon: "billing", group: "管理" },
+  { path: "settings", label: "模型连接", icon: "agent", group: "管理" },
+  { path: "health", label: "服务状态", icon: "health", group: "管理" },
 ];
 
 function renderRoute(route: string): JSX.Element {
-  const path = route.startsWith("#") ? route.slice(1) : route;
-  const seg = path.split("/").filter(Boolean);
-  if (seg.length === 0 || seg[0] === "dashboard") return <Dashboard />;
+  const seg = route.replace(/^#/, "").split("/").filter(Boolean);
+  if (!seg.length || seg[0] === "dashboard") return <Dashboard />;
+  if (seg[0] === "settings") return <ModelSettings />;
+  if (seg[0] === "guide") return <Guide />;
   if (seg[0] === "login") return <Login />;
   if (seg[0] === "agent") return <AgentApp seg={seg} />;
   if (seg[0] === "identity") return <IdentityApp seg={seg} />;
   if (seg[0] === "jobs") {
-    if (seg.length >= 2) return <JobDetail jobId={decodeURIComponent(seg[1])} />;
-    return <Jobs />;
+    if (seg[1] === "new") return <NewVerification />;
+    return seg[1] ? <JobDetail jobId={decodeURIComponent(seg[1])} /> : <Jobs />;
   }
   if (seg[0] === "matrix") return <Matrix />;
-  if (seg[0] === "findings" && seg.length >= 3) {
-    return (
-      <FindingDetail
-        jobId={decodeURIComponent(seg[1])}
-        findingId={decodeURIComponent(seg[2])}
-      />
-    );
-  }
+  if (seg[0] === "findings" && seg.length >= 3) return <FindingDetail jobId={decodeURIComponent(seg[1])} findingId={decodeURIComponent(seg[2])} />;
   if (seg[0] === "contracts") return <Contracts />;
   if (seg[0] === "eval") return <Eval />;
   if (seg[0] === "health") return <Health />;
   if (seg[0] === "billing") return <Billing />;
-  if (seg[0] === "ui-kit") return <UiKit />;
-  return <Dashboard />;
+  return <div className="product-empty"><ProductIcon name="guide" size={36} /><h1>没有找到这个页面</h1><p>链接可能已更新，你可以回到工作台继续。</p><a className="btn btn-primary" href="#/dashboard">返回工作台</a></div>;
 }
 
-// The identity console is RBAC-managed (admin/operator). The nav entry is
-// hidden only when the bearer principal is KNOWN and lacks those roles;
-// unknown identity (legacy X-API-Key mode, /auth/me unreachable) keeps the
-// legacy nav. Enforcement always stays server-side (fail-closed).
-function canManageIdentity(principal: PrincipalInfo | null): boolean {
-  if (principal == null || !Array.isArray(principal.roles)) return true;
-  return principal.roles.includes("admin") || principal.roles.includes("operator");
+function Workspace() {
+  const [route, setRoute] = useState(() => window.location.hash || "#/dashboard");
+  const [hasKey, setHasKey] = useState(() => getApiKey() !== "" || getBearerToken() !== "");
+  const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const contentRef = useRef<HTMLElement>(null);
+  const { resolved, toggle } = useTheme();
+  useEffect(() => {
+    const onChange = () => { setRoute(window.location.hash || "#/dashboard"); setMenuOpen(false); };
+    window.addEventListener("hashchange", onChange);
+    if (consumeOidcCallback()) setHasKey(true);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+  useEffect(() => {
+    if (!hasKey || !getBearerToken()) return;
+    let alive = true;
+    getAuthMe().then(me => { if (alive && me?.principal) setPrincipal(me.principal); }).catch(() => {});
+    return () => { alive = false; };
+  }, [hasKey]);
+  const active = route.replace(/^#\//, "").split("/")[0] || "dashboard";
+  const label = NAV.find(item => item.path === active)?.label || (active === "guide" ? "上手指南" : "验收详情");
+  useEffect(() => {
+    document.title = label + " · SpecProof";
+    contentRef.current?.scrollTo?.(0, 0);
+  }, [route, label]);
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, []);
+
+  if (active === "ui-kit") return <Suspense fallback={<Spinner />}><UiKit /></Suspense>;
+  if (!hasKey && active !== "guide") return <Login onConnected={() => setHasKey(true)} />;
+  const canManage = principal == null || principal.roles?.some(r => ["admin", "operator"].includes(r));
+  const canBill = principal == null || principal.roles?.some(r => ["admin", "operator", "auditor"].includes(r));
+  const nav = NAV.filter(item => (item.path !== "identity" || canManage) && (item.path !== "billing" || canBill));
+
+  return <div className="shell product-shell">
+    <a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); contentRef.current?.focus(); }}>跳至主要内容</a>
+    {menuOpen && <button className="nav-backdrop" aria-label="关闭导航" onClick={() => setMenuOpen(false)} />}
+    <aside className={"sidebar" + (menuOpen ? " sidebar-open" : "")} id="workspace-navigation">
+      <a className="brand" href="#/dashboard" aria-label="SpecProof 工作台"><span className="brand-mark"><ProductIcon name="shield" size={23} /></span><span><span className="brand-name">SpecProof<span className="brand-dot">.</span></span><span className="brand-sub">让每一次交付，有据可依</span></span></a>
+      <div className="workspace-selector"><span className="workspace-avatar">W</span><span><strong>我的工作空间</strong><small>代码变更验收平台</small></span><ProductIcon name="verify" size={16} /></div>
+      <nav aria-label="主导航 Primary navigation">
+        {["工作空间", "质量与证据", "管理"].map(group => <div className="nav-group" key={group}><div className="nav-group-label">{group}</div>{nav.filter(item => item.group === group).map(item => <a key={item.path} href={"#/" + item.path} aria-current={active === item.path ? "page" : undefined} className={"nav-item" + (active === item.path ? " nav-active" : "")}><ProductIcon name={item.icon} size={18} /><span className="nav-label">{item.label}</span>{item.path === "agent" && <span className="nav-tag">CRAFT</span>}</a>)}</div>)}
+      </nav>
+      <div className="sidebar-guide"><ProductIcon name="guide" /><strong>第一次使用 SpecProof？</strong><p>从一个变更开始，了解完整验收流程。</p><a href="#/guide">阅读上手指南 <span aria-hidden="true">↗</span></a></div>
+      <div className="sidebar-foot"><TenantSwitcher /><div className="account-row"><span className="account-avatar">{hasKey ? "SP" : "?"}</span><span><strong>{hasKey ? "当前会话" : "访客"}</strong><small>{hasKey ? "凭据已配置" : "连接后开始验收"}</small></span><Button variant="ghost" size="sm" onClick={() => { clearApiKey(); clearBearerToken(); setPrincipal(null); setHasKey(false); window.location.hash = "#/login"; }}>{hasKey ? "退出" : "连接"}</Button></div></div>
+    </aside>
+    <div className="workspace-main"><header className="workspace-topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="打开导航" aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><ProductIcon name={menuOpen ? "close" : "menu"} /></button><span className="topbar-workspace">工作空间</span><span className="breadcrumb-separator">/</span><strong>{label}</strong></div><div className="topbar-actions"><button className="command-trigger" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}><SearchIcon /><span>搜索页面与操作</span><Kbd>Ctrl K</Kbd></button><a className="topbar-help" href="#/guide">使用帮助</a><button className="icon-button" aria-label={resolved === "dark" ? "切换浅色主题" : "切换深色主题"} onClick={toggle}>{resolved === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}</button></div></header>
+      <main className="content" id="main-content" tabIndex={-1} ref={contentRef}><ErrorBoundary key={active}><Suspense fallback={<Spinner />}>{renderRoute(route)}</Suspense></ErrorBoundary><footer className="workspace-footer"><span>SpecProof · 为交付提供可核验的证据</span><a href="#/guide">从这里开始 <span aria-hidden="true">↗</span></a></footer></main>
+    </div>
+  </div>;
 }
 
 export default function App() {
-  const route = useHashRoute();
-  const [hasKey, setHasKey] = useState<boolean>(
-    () => getApiKey() !== "" || getBearerToken() !== ""
-  );
-  const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
-
-  // OIDC login returns via /#oidc_token=...: stash the id_token, drop the
-  // fragment, and enter the shell.
-  useEffect(() => {
-    if (consumeOidcCallback()) setHasKey(true);
-  }, []);
-
-  // Resolve the bearer principal once a credential exists (tenant mode).
-  useEffect(() => {
-    if (!hasKey || getBearerToken() === "") return;
-    let alive = true;
-    getAuthMe()
-      .then((me) => {
-        if (alive && me && me.principal) setPrincipal(me.principal);
-      })
-      .catch(() => {
-        // unknown identity keeps the legacy behavior
-      });
-    return () => {
-      alive = false;
-    };
-  }, [hasKey]);
-
-  const path = route.startsWith("#") ? route.slice(1) : route;
-  const seg = path.split("/").filter(Boolean);
-  const active = seg[0] || "dashboard";
-
-  let body: JSX.Element;
-  if (seg[0] === "ui-kit") {
-    // Design-system style guide: standalone and reviewable without an API key.
-    body = <UiKit />;
-  } else if (!hasKey) {
-    body = <Login onConnected={() => setHasKey(true)} />;
-  } else {
-    body = (
-      <div className="shell">
-        <aside className="sidebar">
-          <div className="brand">
-            <div className="brand-mark" aria-hidden="true">
-              SP
-            </div>
-            <div>
-              <div className="brand-name">SpecProof</div>
-              <div className="brand-sub">CONTROL ROOM</div>
-            </div>
-          </div>
-          <nav aria-label="主导航 Primary navigation">
-            {NAV.filter(
-              (item) => item.path !== "#/identity" || canManageIdentity(principal)
-            ).map((item) => (
-              <a
-                key={item.path}
-                href={item.path}
-                aria-current={item.path === "#/" + active ? "page" : undefined}
-                className={
-                  "nav-item" +
-                  ((item.path === "#/" + active ? true : false) ? " nav-active" : "")
-                }
-              >
-                <span className="nav-label">{item.label}</span>
-                <span className="nav-en">{item.en}</span>
-              </a>
-            ))}
-          </nav>
-          <div className="sidebar-foot">
-            <div className="foot-line">FAIL-CLOSED AUTH</div>
-            <TenantSwitcher />
-            <div style={{ marginTop: 10 }}>
-              <Button
-                variant="ghost"
-                size="sm"
-                fullWidth
-                onClick={() => {
-                  clearApiKey();
-                  clearBearerToken();
-                  setHasKey(false);
-                  navigate("#/login");
-                }}
-              >
-                断开 Disconnect
-              </Button>
-            </div>
-            <div className="shell-hint">
-              <Kbd>Ctrl</Kbd>
-              <Kbd>K</Kbd>
-              <span>命令面板</span>
-            </div>
-          </div>
-        </aside>
-        <main className="content">{renderRoute(route)}</main>
-      </div>
-    );
-  }
-
-  return (
-    <ThemeProvider>
-      <ToastProvider>
-        <ErrorBoundary>{body}</ErrorBoundary>
-        <CommandPalette />
-      </ToastProvider>
-    </ThemeProvider>
-  );
+  return <ThemeProvider><ToastProvider><ErrorBoundary><Workspace /></ErrorBoundary><CommandPalette /></ToastProvider></ThemeProvider>;
 }

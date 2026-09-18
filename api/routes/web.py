@@ -53,12 +53,16 @@ router = APIRouter(
     dependencies=[Depends(require_api_key), Depends(enforce_rate_limit)],
 )
 
+# Storage and artifact reads are synchronous: use FastAPI's worker pool
+# (plain ``def`` routes) so a slow dependency cannot stall the event loop.
+
 # ---- Artifact locations (overridable for tests and deployments) ----
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Capsule zip files are honest evidence artifacts produced by the pipeline.
 _ZIP_MAGIC = b"PK"
+_HEALTH_PROBE_TIMEOUT_SECONDS = 3.0
 
 
 def _capsule_dirs() -> list[Path]:
@@ -111,7 +115,9 @@ def _percent_rate(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 4) if denominator else 0.0
 
 
-def _findings_from_table(store: MySQLStore, job_id: str) -> list[dict[str, Any]]:
+def _findings_from_table(
+    store: MySQLStore, job_id: str, errors: list[str] | None = None,
+) -> list[dict[str, Any]]:
     """Read the MySQL findings table rows for a job (best effort)."""
     try:
         with store.connection() as conn:
@@ -125,6 +131,8 @@ def _findings_from_table(store: MySQLStore, job_id: str) -> list[dict[str, Any]]
             return cast(list[dict[str, Any]], cur.fetchall())
     except Exception as exc:  # noqa: BLE001 - table may be absent/unreachable
         logger.warning("findings table read failed for %s: %s", job_id, exc)
+        if errors is not None:
+            errors.append("Findings could not be loaded. Retry when the database is available.")
         return []
 
 
@@ -213,7 +221,7 @@ def _certificate_artifacts(job_id: str) -> dict[str, Any] | None:
 
 
 @router.get("/dashboard")
-async def dashboard() -> dict[str, Any]:
+def dashboard() -> dict[str, Any]:
     """Aggregate job stats, 24h timeline and cost/token availability.
 
     MySQL is the source of truth for jobs. When it is unreachable the
@@ -224,19 +232,10 @@ async def dashboard() -> dict[str, Any]:
     try:
         store = MySQLStore()
         since = datetime.now() - timedelta(hours=24)
-        with store.connection() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT status, COUNT(*) AS n FROM verification_jobs GROUP BY status"
-            )
-            status_rows = cast(list[dict[str, Any]], cur.fetchall())
-            cur.execute(
-                "SELECT created_at, status FROM verification_jobs "
-                "WHERE created_at >= %s",
-                (since,),
-            )
-            timeline_rows = cast(list[dict[str, Any]], cur.fetchall())
-        recent_jobs = store.list_recent_jobs(10)
+        snapshot = store.dashboard_snapshot(since)
+        status_rows = snapshot["statuses"]
+        timeline_rows = snapshot["timeline"]
+        recent_jobs = snapshot["recent_jobs"]
     except Exception as exc:  # noqa: BLE001 - MySQL down
         logger.exception("dashboard aggregation failed")
         return {
@@ -274,19 +273,10 @@ async def dashboard() -> dict[str, Any]:
         total += count
     failed = by_status.get("FAILED", 0) + by_status.get("ERROR", 0)
 
-    timeline: list[dict[str, Any]] = []
-    buckets: dict[str, dict[str, int]] = {}
-    for row in timeline_rows:
-        created = row.get("created_at")
-        if not isinstance(created, datetime):
-            continue
-        key = created.strftime("%Y-%m-%dT%H:00:00")
-        bucket = buckets.setdefault(key, {"count": 0, "failed": 0})
-        bucket["count"] += 1
-        if str(row.get("status")) in ("FAILED", "ERROR"):
-            bucket["failed"] += 1
-    for key in sorted(buckets):
-        timeline.append({"hour": key, **buckets[key]})
+    timeline = [
+        {"hour": row["hour"], "count": int(row["count"]), "failed": int(row["failed"])}
+        for row in timeline_rows
+    ]
 
     return {
         "degraded": False,
@@ -319,7 +309,7 @@ async def dashboard() -> dict[str, Any]:
 
 
 @router.get("/jobs/{job_id}/stages")
-async def job_stages(job_id: str) -> dict[str, Any]:
+def job_stages(job_id: str) -> dict[str, Any]:
     """Pipeline stage timeline for one job (Redis progress stream).
 
     Redis is optional telemetry: when it is down the endpoint still
@@ -362,7 +352,9 @@ async def job_stages(job_id: str) -> dict[str, Any]:
     }
 
 
-def _contracts_from_table(store: MySQLStore, job_id: str) -> list[dict[str, Any]]:
+def _contracts_from_table(
+    store: MySQLStore, job_id: str, errors: list[str] | None = None,
+) -> list[dict[str, Any]]:
     """Read the MySQL contracts table rows for a job (best effort)."""
     try:
         with store.connection() as conn:
@@ -376,11 +368,13 @@ def _contracts_from_table(store: MySQLStore, job_id: str) -> list[dict[str, Any]
             return cast(list[dict[str, Any]], cur.fetchall())
     except Exception as exc:  # noqa: BLE001 - table may be absent/unreachable
         logger.warning("contracts table read failed for %s: %s", job_id, exc)
+        if errors is not None:
+            errors.append("Acceptance checks could not be loaded. Retry when MySQL is available.")
         return []
 
 
 @router.get("/jobs/{job_id}/matrix")
-async def job_matrix(job_id: str) -> dict[str, Any]:
+def job_matrix(job_id: str) -> dict[str, Any]:
     """Requirement-to-evidence matrix rows for one job (contracts table).
 
     The contracts table stores per-contract results (PASS/FAIL/UNVERIFIED)
@@ -389,28 +383,39 @@ async def job_matrix(job_id: str) -> dict[str, Any]:
     """
     store = MySQLStore()
     _load_job_or_404(store, job_id)
-    rows = _contracts_from_table(store, job_id)
+    errors: list[str] = []
+    rows = _contracts_from_table(store, job_id, errors)
     try:
         summary = store.get_job_summary(job_id) or {}
     except Exception as exc:  # noqa: BLE001
         logger.warning("summary read failed for %s: %s", job_id, exc)
+        errors.append("The verification summary could not be loaded.")
         summary = {}
     return {
         "job_id": job_id,
         "rows": jsonable_encoder(rows),
         "counts": {
             "total": len(rows) or int(summary.get("contracts_total") or 0),
-            "passed": int(summary.get("matrix_passed") or 0),
-            "failed": int(summary.get("matrix_failed") or 0),
-            "unverified": int(summary.get("matrix_unverified") or 0),
+            "passed": (
+                sum(row.get("result") == "PASS" for row in rows)
+                if rows else int(summary.get("matrix_passed") or 0)
+            ),
+            "failed": (
+                sum(row.get("result") == "FAIL" for row in rows)
+                if rows else int(summary.get("matrix_failed") or 0)
+            ),
+            "unverified": (
+                sum(row.get("result") not in ("PASS", "FAIL") for row in rows)
+                if rows else int(summary.get("matrix_unverified") or 0)
+            ),
         },
-        "degraded": False,
-        "degraded_reason": None,
+        "degraded": bool(errors),
+        "degraded_reason": " ".join(errors) or None,
     }
 
 
 @router.get("/jobs/{job_id}/findings")
-async def job_findings(job_id: str) -> dict[str, Any]:
+def job_findings(job_id: str) -> dict[str, Any]:
     """Findings for one job (summary JSON merged with the findings table).
 
     The pipeline summary carries descriptions; the findings table adds
@@ -419,13 +424,15 @@ async def job_findings(job_id: str) -> dict[str, Any]:
     """
     store = MySQLStore()
     _load_job_or_404(store, job_id)
+    errors: list[str] = []
     try:
         summary = store.get_job_summary(job_id) or {}
     except Exception as exc:  # noqa: BLE001
         logger.warning("summary read failed for %s: %s", job_id, exc)
+        errors.append("The verification summary could not be loaded.")
         summary = {}
 
-    table_rows = _findings_from_table(store, job_id)
+    table_rows = _findings_from_table(store, job_id, errors)
     by_id: dict[str, dict[str, Any]] = {}
     for row in table_rows:
         fid = str(row.get("id") or "")
@@ -459,13 +466,13 @@ async def job_findings(job_id: str) -> dict[str, Any]:
             "mysql_summary": isinstance(summary, dict) and bool(summary),
             "mysql_findings_table": bool(table_rows),
         },
-        "degraded": False,
-        "degraded_reason": None,
+        "degraded": bool(errors),
+        "degraded_reason": " ".join(errors) or None,
     }
 
 
 @router.get("/jobs/{job_id}/certificate")
-async def job_certificate(job_id: str) -> dict[str, Any]:
+def job_certificate(job_id: str) -> dict[str, Any]:
     """Merge Certificate / Rejection Notice for a job, when persisted.
 
     Certificates are written by the CLI verify flow (reports dir). The
@@ -488,7 +495,7 @@ async def job_certificate(job_id: str) -> dict[str, Any]:
 
 
 @router.get("/jobs/{job_id}/capsule")
-async def job_capsule(
+def job_capsule(
     job_id: str, name: str | None = Query(default=None, max_length=255)
 ) -> FileResponse:
     """Download a Bug Capsule zip for a job (404 when none exists)."""
@@ -539,7 +546,7 @@ async def job_capsule(
 
 
 @router.get("/contracts")
-async def list_contracts(
+def list_contracts(
     status: str = Query(default="all"),
     repo_path: str | None = Query(default=None, max_length=512),
 ) -> dict[str, Any]:
@@ -593,7 +600,7 @@ async def list_contracts(
 
 
 @router.get("/eval/latest")
-async def eval_latest() -> dict[str, Any]:
+def eval_latest() -> dict[str, Any]:
     """Latest persisted evaluation report (docs/eval/eval-report.results.json)."""
     path = _eval_report_path()
     if not path.is_file():
@@ -631,11 +638,22 @@ async def api_health() -> dict[str, Any]:
     def probe(name: str, factory: Any) -> dict[str, Any]:
         start = time.perf_counter()
         error: str | None = None
+        client: Any = None
         try:
-            ok = bool(factory().is_ready())
+            client = factory()
+            ok = bool(client.is_ready())
+            if not ok:
+                error = "Service is unavailable. Check its configuration and connection."
         except Exception as exc:  # noqa: BLE001 - probe failure is the answer
             ok = False
             error = str(exc)[:200]
+        finally:
+            close = getattr(client, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    logger.warning("health probe cleanup failed for %s", name)
         return {
             "ok": ok,
             "latency_ms": round((time.perf_counter() - start) * 1000.0, 2),
@@ -643,7 +661,18 @@ async def api_health() -> dict[str, Any]:
         }
 
     async def run(name: str, factory: Any) -> tuple[str, dict[str, Any]]:
-        return name, await asyncio.to_thread(probe, name, factory)
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(probe, name, factory),
+                timeout=_HEALTH_PROBE_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            result = {
+                "ok": False,
+                "latency_ms": _HEALTH_PROBE_TIMEOUT_SECONDS * 1000,
+                "error": "Health check timed out. Check the service connection.",
+            }
+        return name, result
 
     from storage.elasticsearch import ElasticsearchStore
     from storage.minio import MinIOClient

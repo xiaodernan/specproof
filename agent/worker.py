@@ -17,6 +17,7 @@ import os
 import signal
 import sys
 import tempfile
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -35,6 +36,7 @@ from agent.job_control import (
 from agent.mongo_saver import MongoDBSaver
 from agent.state import initial_state
 from agent.worktree_reclaimer import reclaim_orphans
+from evidence.verdict import evaluate_verification
 from observability.metrics import incr, observe_duration, set_gauge
 from storage.mysql import InvalidStateTransition, MySQLStore
 from storage.rabbitmq import RabbitMQClient, make_idempotency_check
@@ -137,6 +139,13 @@ class Worker:
             return
 
         started = time.time()
+        heartbeat_stop = threading.Event()
+        lease_lost = threading.Event()
+        heartbeat = threading.Thread(
+            target=self._keep_lease, args=(job_id, heartbeat_stop, lease_lost),
+            name=f"verify-lease-{job_id[:8]}", daemon=True,
+        )
+        heartbeat.start()
         try:
             # Transition to RUNNING
             self.mysql.transition_job_status(job_id, "RUNNING", worker_id=self.worker_id)
@@ -156,6 +165,9 @@ class Worker:
 
             # Execute graph with checkpoint
             final_state = self._run_graph(job_id, payload)
+            if lease_lost.is_set():
+                raise LeaseLostError(job_id, self.worker_id)
+            self._check_stage_boundary(job_id, renew_lease=True)
 
             # Terminal status must reflect what the pipeline ACTUALLY found —
             # never an unconditional VERIFIED (a job with BLOCKER findings or
@@ -258,7 +270,25 @@ class Worker:
                     },
                 )
         finally:
+            heartbeat_stop.set()
+            heartbeat.join(timeout=max(1.0, self.lease_ttl / 3))
             self.redis.release_lease(job_id, self.worker_id)
+
+    def _keep_lease(
+        self, job_id: str, stop: threading.Event, lost: threading.Event,
+    ) -> None:
+        """Long model calls must not outlive a lease renewed only between stages."""
+        while not stop.wait(max(0.05, self.lease_ttl / 3)):
+            try:
+                if is_cancelled(job_id, self.mysql):
+                    return
+                if not self.redis.renew_lease(job_id, self.worker_id, self.lease_ttl):
+                    lost.set()
+                    return
+            except Exception:
+                lost.set()
+                logger.warning("Lease heartbeat failed for job %s", job_id)
+                return
 
     def _run_graph(self, job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Execute the LangGraph pipeline with checkpoint recovery.
@@ -556,12 +586,16 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
     """Compact pipeline summary persisted for the dashboard/audit view."""
     matrix = state.get("matrix", {})
     findings = state.get("confirmed_findings", [])
+    decision = evaluate_verification(
+        matrix, contracts=state.get("contracts"), findings=findings,
+        errors=state.get("errors", []),
+    )
     return {
         "verdict": verdict,
         "contracts_total": len(state.get("contracts", [])),
-        "matrix_passed": matrix.get("passed", 0),
-        "matrix_failed": matrix.get("failed", 0),
-        "matrix_unverified": matrix.get("unverified", 0),
+        "matrix_passed": decision.passed,
+        "matrix_failed": decision.failed,
+        "matrix_unverified": decision.unverified,
         "findings": [
             {
                 "id": f.get("id"),
@@ -578,6 +612,7 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
         "capsules": [str(c) for c in state.get("capsules", [])[:10]],
         "report_path": state.get("report_path", ""),
         "retrieval_note": state.get("retrieval_note", ""),
+        "coverage_reason": decision.reason,
         "errors": list(state.get("errors", []))[:10],
     }
 
@@ -590,15 +625,10 @@ def _terminal_status_from_state(state: dict[str, Any]) -> str:
                must look before merge — VERIFIED must never be fabricated
     - VERIFIED every contract passed with evidence and zero findings
     """
-    if state.get("errors"):
-        return "FAILED"
-    findings = state.get("confirmed_findings", [])
-    if findings:
-        return "BLOCKED"
-    matrix = state.get("matrix", {})
-    if matrix.get("unverified", 0) > 0:
-        return "BLOCKED"
-    return "VERIFIED"
+    return evaluate_verification(
+        state.get("matrix"), contracts=state.get("contracts"),
+        findings=state.get("confirmed_findings", []), errors=state.get("errors", []),
+    ).status
 
 
 # ── Standalone reclaimers (backlog #5, §14.1) ───────────────────

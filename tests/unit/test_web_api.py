@@ -13,7 +13,7 @@ import subprocess
 import sys
 import zipfile
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +72,15 @@ class FakeMySQLStore:
         if FakeMySQLStore.mysql_down:
             raise ConnectionError("mysql down")
         return list(FakeMySQLStore.rows.values())[-limit:]
+
+    def dashboard_snapshot(self, since: datetime) -> dict[str, list[dict[str, Any]]]:
+        if FakeMySQLStore.mysql_down:
+            raise ConnectionError("mysql down")
+        return {
+            "statuses": FakeMySQLStore.status_rows,
+            "timeline": FakeMySQLStore.timeline_rows,
+            "recent_jobs": self.list_recent_jobs(10),
+        }
 
     def is_ready(self) -> bool:
         return not FakeMySQLStore.mysql_down
@@ -186,8 +195,8 @@ def test_dashboard_aggregates_happy(fakes: None) -> None:
         {"status": "FAILED", "n": 1},
     ]
     FakeMySQLStore.timeline_rows = [
-        {"created_at": datetime.now() - timedelta(hours=1), "status": "RUNNING"},
-        {"created_at": datetime.now() - timedelta(hours=2), "status": "FAILED"},
+        {"hour": "2026-09-18T09:00:00", "count": 1, "failed": 1},
+        {"hour": "2026-09-18T10:00:00", "count": 1, "failed": 0},
     ]
     FakeMySQLStore.rows["a"] = {"id": "a", "status": "QUEUED"}
     client = TestClient(app)
@@ -365,6 +374,37 @@ def test_matrix_404_unknown_job(fakes: None) -> None:
     client = TestClient(app)
     resp = client.get("/api/v1/jobs/nope/matrix", headers=_headers())
     assert resp.status_code == 404
+
+
+def test_matrix_counts_work_before_summary_is_persisted(fakes: None) -> None:
+    _seed_job()
+    FakeMySQLStore.contracts_rows = [
+        {"contract_id_str": "AUTH-01", "result": "PASS"},
+        {"contract_id_str": "AUTH-02", "result": "FAIL"},
+        {"contract_id_str": "AUTH-03", "result": "UNVERIFIED"},
+    ]
+    response = TestClient(app).get(f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers())
+    assert response.json()["counts"] == {
+        "total": 3, "passed": 1, "failed": 1, "unverified": 1,
+    }
+
+
+@pytest.mark.parametrize("endpoint", ["matrix", "findings"])
+def test_evidence_table_failure_is_not_reported_as_empty_success(
+    fakes: None, monkeypatch: pytest.MonkeyPatch, endpoint: str,
+) -> None:
+    _seed_job()
+
+    @contextmanager
+    def unavailable(self):
+        raise ConnectionError("read timed out")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(FakeMySQLStore, "connection", unavailable)
+    response = TestClient(app).get(f"/api/v1/jobs/{JOB_ID}/{endpoint}", headers=_headers())
+    assert response.status_code == 200
+    assert response.json()["degraded"] is True
+    assert response.json()["degraded_reason"]
 
 
 # ── Certificate ────────────────────────────────────────────────

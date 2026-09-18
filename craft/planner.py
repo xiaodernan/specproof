@@ -28,7 +28,7 @@ from typing import Any, Literal
 
 from providers.base import LLMMessage, ModelProvider
 from providers.budget import BudgetExceeded
-from providers.prompt_templates import SYSTEM_BLOCK, TOOL_SCHEMA_BLOCK, assemble
+from providers.prompt_templates import assemble
 
 from .budget import Budget
 from .editor import sha256_digest
@@ -433,8 +433,8 @@ def compile_plan_llm(
         )
     try:
         built = assemble(
-            SYSTEM_BLOCK + "\n\n" + TOOL_SCHEMA_BLOCK,
-            "plan",
+            "You are SpecCraft, a software development assistant. Plan the requested code change.",
+            "craft_plan",
             {
                 "task_spec": json.dumps(spec.to_dict(), ensure_ascii=False, indent=2),
                 "output_schema": _PLAN_OUTPUT_SCHEMA,

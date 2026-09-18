@@ -43,10 +43,11 @@ export default function AgentOverview() {
         </div>
       </div>
       <ErrorBox error={error} />
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 10 }}>
         <a className="btn" href="#/agent/new" style={{ display: "inline-block" }}>
           + 新建任务 New task
         </a>
+        <a className="btn btn-ghost" href="#/agent/settings">模型连接</a>
       </div>
       <Panel
         title={"Agent 任务 (" + jobs.length + ")"}

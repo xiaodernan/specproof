@@ -22,11 +22,7 @@ def merge_contract_results(
     - UNVERIFIED fills gaps only
     """
     merged: dict[str, dict[str, Any]] = {}
-    for r in existing:
-        cid = r.get("contract_id", "")
-        if cid:
-            merged[cid] = dict(r)
-    for r in incoming:
+    for r in (*existing, *incoming):
         cid = r.get("contract_id", "")
         if not cid:
             continue

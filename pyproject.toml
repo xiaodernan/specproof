@@ -14,9 +14,11 @@ keywords = ["verification", "code-review", "agent", "acceptance-testing"]
 
 dependencies = [
     "click>=8.1.7",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
     "langgraph>=0.4.0",
     "langgraph-checkpoint>=2.0.0",
-    "openai>=1.50.0",
+    "openai>=1.66.0",
     "httpx>=0.28.0",
     "jinja2>=3.1.4",
     "pydantic>=2.10.0",
@@ -77,6 +79,8 @@ specproof = "cli.specproof.main:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["agent*", "api*", "cli*", "contracts*", "craft*", "evidence*", "integrations*", "mcp*", "observability*", "providers*", "retrieval*", "sandbox*", "storage*"]
+exclude = ["tests*", "apps*", "demo*", "bench*", "artifacts*"]
 
 [tool.ruff]
 target-version = "py312"

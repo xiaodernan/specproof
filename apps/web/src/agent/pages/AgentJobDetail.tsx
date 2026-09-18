@@ -1,18 +1,11 @@
 import { useEffect, useState } from "react";
-import { cancelAgentJob } from "../../api";
+import { cancelAgentJob, type AgentJob } from "../../api";
 import { Button, ErrorBox, Panel, Spinner, StatCard, kv, shortId } from "../../ui";
 import { recordRecentJob } from "../../ui/recentJobs";
 import { AgentJobShell, ProgressBar, useAgentJob } from "../components";
 import { agentStatusMeta } from "../util";
 
-function Timeline(props: { jobId: string }) {
-  const { job, error, loading, reload } = useAgentJob(props.jobId);
-  useEffect(() => {
-    const id = window.setInterval(reload, 4000);
-    return () => window.clearInterval(id);
-  }, [reload]);
-  if (loading) return <Spinner />;
-  if (!job) return <ErrorBox error={error || "任务不存在 (404)"} />;
+function Timeline({ job }: { job: AgentJob }) {
 
   const entries: { at: string; text: string; tone: string }[] = [
     { at: job.created_at, text: "任务创建 Job created", tone: "info" },
@@ -20,15 +13,12 @@ function Timeline(props: { jobId: string }) {
   if (job.plan) {
     entries.push({
       at: job.plan.created_at || job.updated_at,
-      text: "计划已生成 (待审批) Plan drafted",
+      text: "计划已生成 Plan drafted",
       tone: "warn",
     });
   }
-  if (["EXECUTING", "COMPLETED", "FAILED"].includes(job.status)) {
-    entries.push({ at: job.updated_at, text: "计划已批准 → 执行 Plan approved", tone: "ok" });
-  }
-  if (["COMPLETED", "FAILED"].includes(job.status)) {
-    entries.push({ at: job.updated_at, text: "门禁已裁决 Gate decided", tone: "warn" });
+  if (job.status === "EXECUTING") {
+    entries.push({ at: job.updated_at, text: "正在执行计划", tone: "info" });
   }
   entries.push({
     at: job.updated_at,
@@ -36,7 +26,7 @@ function Timeline(props: { jobId: string }) {
     tone: agentStatusMeta(job.status).tone,
   });
   return (
-    <div className="timeline">
+    <div className="timeline" aria-label="任务状态时间线">
       {entries.map((e, i) => (
         <div key={i} className="tl-item">
           <span className={"tl-dot tl-" + e.tone} />
@@ -57,6 +47,9 @@ export default function AgentJobDetail(props: { jobId: string }) {
   const { job, error, loading, reload } = useAgentJob(jobId);
   const [actionError, setActionError] = useState<Error | string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => { setActionError(null); setActionMsg(null); setCancelling(false); }, [jobId]);
 
   // Record the opened job for the command palette (Aurora recent-jobs).
   useEffect(() => {
@@ -78,6 +71,8 @@ export default function AgentJobDetail(props: { jobId: string }) {
   }
 
   const cancel = async () => {
+    if (cancelling) return;
+    setCancelling(true);
     setActionError(null);
     setActionMsg(null);
     try {
@@ -86,23 +81,32 @@ export default function AgentJobDetail(props: { jobId: string }) {
       reload();
     } catch (e) {
       setActionError(e as Error);
+    } finally {
+      setCancelling(false);
     }
   };
 
   const progress = job.progress;
+  const terminal = ["COMPLETED", "FAILED", "CANCELLED"].includes(job.status);
+  const failure = job.result?.reason || progress.message;
 
   return (
     <AgentJobShell
       job={job}
       active="overview"
+      reload={reload}
       right={
-        <Button variant="ghost" size="sm" onClick={() => void cancel()}>
-          取消 Cancel
+        <Button variant="ghost" size="sm" disabled={terminal || cancelling} onClick={() => void cancel()}>
+          {cancelling ? "正在取消…" : "取消 Cancel"}
         </Button>
       }
     >
       <ErrorBox error={actionError} />
-      {actionMsg ? <div className="degraded">{actionMsg}</div> : null}
+      <ErrorBox error={error} />
+      {actionMsg ? <div className="degraded" role="status">{actionMsg}</div> : null}
+      {job.status === "AWAITING_APPROVAL" ? <Panel title="计划已就绪，等待你确认"><p>请审阅步骤、目标文件和验收标准。批准后才会开始修改代码。</p><a className="btn btn-primary" href={"#/agent/jobs/" + encodeURIComponent(jobId) + "/plan"}>审阅并批准计划 →</a></Panel> : null}
+      {job.status === "PLANNING" ? <div className="degraded" role="status">正在生成执行计划，尚未修改代码。<a href={"#/agent/jobs/" + encodeURIComponent(jobId) + "/tools"}>查看模型实时输出 →</a></div> : null}
+      {job.status === "FAILED" ? <div className="errorbox" role="alert"><strong>任务未完成</strong><p>{failure || "执行失败，请查看结果和事件记录。"}</p><a href={"#/agent/jobs/" + encodeURIComponent(jobId) + "/result"}>查看失败详情 →</a></div> : null}
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <StatCard label="状态 Status" value={job.status} tone={agentStatusMeta(job.status).tone} />
         <StatCard label="进度 Progress" value={progress.percent + "%"} />
@@ -112,7 +116,7 @@ export default function AgentJobDetail(props: { jobId: string }) {
       </div>
       <div className="page-grid">
         <Panel title="状态时间线 Timeline">
-          <Timeline jobId={jobId} />
+          <Timeline job={job} />
         </Panel>
         <Panel title="任务信息">
           {kv("Repo", job.repo_path)}

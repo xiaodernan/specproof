@@ -1,177 +1,55 @@
 import { useEffect, useState } from "react";
-import { apiGet, DashboardData, Job } from "../api";
-import { Degraded, Empty, ErrorBox, Panel, Spinner, StatCard, StatusPill, fmtPct, fmtTime, shortId } from "../ui";
+import { apiGet, type DashboardData } from "../api";
+import { Button, ErrorBox, Panel, StatusPill, fmtTime, shortId } from "../ui";
+import { ProductIcon, type ProductIconName } from "../ui/ProductIcon";
+
+const ACTIONS: { href: string; icon: ProductIconName; title: string; text: string; label: string }[] = [
+  { href: "#/jobs/new", icon: "verify", title: "验收一次代码变更", text: "已有代码？对照需求检查变更，找出回归与遗漏。", label: "开始验收" },
+  { href: "#/agent/new", icon: "agent", title: "让 AI 协助开发", text: "描述任务，审阅执行计划，再交给 AI 完成开发。", label: "创建开发任务" },
+  { href: "#/guide", icon: "guide", title: "先了解它怎么工作", text: "跟着一个权限校验的例子，读懂验收结果和证据。", label: "查看上手指南" },
+];
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [error, setError] = useState<Error | string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(true);
-
+  const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     let alive = true;
-    async function load() {
-      try {
-        const [d, j] = await Promise.all([
-          apiGet<DashboardData>("/api/v1/dashboard"),
-          apiGet<{ jobs: Job[] }>("/jobs?limit=200"),
-        ]);
-        if (!alive) return;
-        setData(d);
-        setJobs(j.jobs || []);
-      } catch (e) {
-        if (alive) setError(e as Error);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      alive = false;
-    };
-  }, []);
+    setLoading(true);
+    setError(null);
+    apiGet<DashboardData>("/api/v1/dashboard").then(value => { if (alive) setData(value); }).catch(reason => { if (alive) setError(reason as Error); }).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [refresh]);
+  const hasData = data !== null && !data.degraded;
+  const stats = hasData ? data.jobs.by_status : {};
+  const metrics: { label: string; value: number | undefined; hint: string; icon: ProductIconName; tone: string }[] = [
+    { label: "累计验收", value: hasData ? data.jobs.total : undefined, hint: "工作空间内的变更记录", icon: "verify", tone: "neutral" },
+    { label: "验收通过", value: hasData ? stats.VERIFIED || 0 : undefined, hint: "已通过本次执行的检查", icon: "shield", tone: "success" },
+    { label: "发现风险", value: hasData ? stats.BLOCKED || 0 : undefined, hint: "需根据证据修复后再提交", icon: "health", tone: "warning" },
+    { label: "正在处理", value: hasData ? (stats.RUNNING || 0) + (stats.QUEUED || 0) : undefined, hint: "排队或执行中的验收", icon: "chart", tone: "accent" },
+  ];
+  const recent = data?.recent_jobs || [];
+  const timeline = data?.timeline_24h || [];
+  const max = Math.max(1, ...timeline.map(hour => hour.count));
+  const needsAttention = (stats.BLOCKED || 0) + (stats.FAILED || 0) + (stats.ERROR || 0);
 
-  if (loading) return <Spinner />;
+  return <div className="dashboard product-page">
+    <div className="product-page-heading"><div><div className="eyebrow">YOUR DELIVERY WORKSPACE</div><h1>每一次交付，都更有把握<span className="heading-dot">.</span></h1><p>从需求到证据，清楚知道这次代码变更是否符合预期。</p></div><a className="btn btn-primary" href="#/jobs/new"><ProductIcon name="plus" size={17} />新建验收</a></div>
 
-  const d = data;
-  const maxTl = d && d.timeline_24h.length
-    ? Math.max(...d.timeline_24h.map((t) => t.count), 1)
-    : 1;
+    <section className="welcome-banner" aria-label="SpecProof 是什么"><div className="welcome-copy"><span className="welcome-kicker"><span className="tiny-dot" /> 独立验收 · 可追溯证据</span><h2>代码写好了，<br />让结果经得起验证。</h2><p>SpecProof 对比变更前后的代码，检查是否满足你的需求，<br className="desktop-break" />并把发现的问题、覆盖情况和验证证据放在一起。</p><a href="#/guide">了解 SpecProof 如何验收 <ProductIcon name="arrow" size={16} /></a></div><div className="proof-diagram" aria-label="需求经过独立验收，生成结论与证据"><div className="diagram-label">FROM CHANGE TO CONFIDENCE</div><div className="diagram-flow"><div className="diagram-node"><ProductIcon name="contracts" size={25} /><strong>需求与变更</strong><small>你希望实现什么</small></div><span className="diagram-line" /><div className="diagram-core"><ProductIcon name="shield" size={34} /><strong>独立验收</strong></div><span className="diagram-line" /><div className="diagram-node"><ProductIcon name="verify" size={25} /><strong>结论与证据</strong><small>实际验证了什么</small></div></div><div className="diagram-caption"><span>需求检查</span><span>版本对比</span><span>问题定位</span></div></div></section>
 
-  return (
-    <div>
-      <div className="page-head">
-        <h1>总览 Dashboard</h1>
-        <div className="page-sub">JOB AGGREGATES / 24H TIMELINE / COST — MySQL 为事实源</div>
-      </div>
-      <ErrorBox error={error} />
-      {d ? <Degraded reasons={d.degraded_reasons} /> : null}
+    <div className="section-heading"><h2>开始你的下一次交付</h2><span>选择适合当前阶段的工作方式</span></div>
+    <div className="quick-actions">{ACTIONS.map((action, index) => <a className="quick-action" href={action.href} key={action.href}><div className="quick-action-top"><span className={"action-icon action-icon-" + index}><ProductIcon name={action.icon} size={23} /></span><span className="action-number">0{index + 1}</span></div><h3>{action.title}</h3><p>{action.text}</p><span className="action-link">{action.label}<ProductIcon name="arrow" size={16} /></span></a>)}</div>
 
-      {d ? (
-        <>
-          <div className="stat-grid" style={{ marginBottom: 16 }}>
-            <StatCard label="任务总数 JOBS" value={d.jobs.total} tone="info" />
-            <StatCard
-              label="失败率 FAILURE"
-              value={fmtPct(d.jobs.failure_rate)}
-              tone={d.jobs.failure_rate ? (d.jobs.failure_rate > 0 ? "bad" : "ok") : "mute"}
-              sub={((d.jobs.by_status["FAILED"] || 0) + (d.jobs.by_status["ERROR"] || 0)) + " 个"}
-            />
-            <StatCard
-              label="拦截率 BLOCKED"
-              value={fmtPct(d.jobs.blocked_rate)}
-              tone={d.jobs.blocked_rate ? (d.jobs.blocked_rate > 0 ? "warn" : "ok") : "mute"}
-              sub={(d.jobs.by_status["BLOCKED"] || 0) + " 个"}
-            />
-            <StatCard
-              label="已验证 VERIFIED"
-              value={d.jobs.by_status["VERIFIED"] || 0}
-              tone="ok"
-            />
-            <StatCard
-              label="运行中 RUNNING"
-              value={(d.jobs.by_status["RUNNING"] || 0) + (d.jobs.by_status["QUEUED"] || 0)}
-              tone="warn"
-            />
-          </div>
+    <div className="section-heading"><h2>验收概况</h2><Button variant="ghost" size="sm" loading={loading} onClick={() => setRefresh(value => value + 1)}>刷新数据</Button></div>
+    {error && <div className="dashboard-error"><ErrorBox error={error} /><p>暂时无法读取验收数据。可以重试，或到 <a href="#/health">服务状态</a> 查看连接情况。</p></div>}
+    {data?.degraded && <div className="degraded" role="status"><strong>部分数据暂不可用</strong><span> · 已显示能够读取的结果。</span><details><summary>查看原因</summary><ul>{data.degraded_reasons.map(reason => <li key={reason}>{reason}</li>)}</ul></details></div>}
+    <div className="metrics-grid" aria-busy={loading}>{metrics.map(metric => <div className={"metric-card metric-" + metric.tone} key={metric.label}><div className="metric-top"><span>{metric.label}</span><ProductIcon name={metric.icon} size={18} /></div><strong>{loading && !data ? <span className="metric-skeleton" /> : metric.value?.toLocaleString() ?? "—"}</strong><small>{metric.hint}</small></div>)}</div>
 
-          <div className="page-grid">
-            <Panel title="24h 任务时间线 Timeline">
-              {d.timeline_24h.length === 0 ? (
-                <Empty text="近 24 小时无任务记录 (诚实空态, 非伪造)" />
-              ) : (
-                <>
-                  <div className="timeline-chart">
-                    {d.timeline_24h.map((t) => (
-                      <div key={t.hour} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                        <div style={{ height: 80, display: "flex", alignItems: "flex-end", width: "100%" }}>
-                          <div
-                            className={"tl-bar" + (t.failed > 0 ? " tl-failed" : "")}
-                            style={{ height: Math.max(4, (t.count / maxTl) * 80) }}
-                            title={t.hour + " — " + t.count + " 个任务, 失败 " + t.failed}
-                          />
-                        </div>
-                        <div className="tl-label">{t.hour.slice(11, 16)}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="muted" style={{ fontSize: 11 }}>
-                    时区: {d.timeline_timezone} — 红色柱表示该小时含失败任务
-                  </div>
-                </>
-              )}
-            </Panel>
-
-            <Panel title="成本与 Token">
-              <div className="kv">
-                <span className="kv-label">成本 Cost</span>
-                <span className="kv-value">
-                  {d.cost.available ? d.cost.total_usd + " USD" : "不可用 UNAVAILABLE"}
-                </span>
-              </div>
-              <div className="kv">
-                <span className="kv-label">Token</span>
-                <span className="kv-value">{d.tokens.available ? String(d.tokens.total) : "不可用 UNAVAILABLE"}</span>
-              </div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-                {d.cost.reason} / {d.tokens.reason} — 管线未持久化账本时显式呈现, 绝不显示伪造数字。
-              </div>
-            </Panel>
-          </div>
-
-          <Panel
-            title="最近任务 Recent Jobs"
-            right={<a href="#/jobs" className="btn btn-ghost btn-sm">全部任务 →</a>}
-          >
-            {d.recent_jobs.length === 0 ? (
-              <Empty text="暂无任务 — 可通过 POST /jobs 提交验证任务" />
-            ) : (
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Base → Head</th>
-                    <th>状态</th>
-                    <th>创建时间</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.recent_jobs.map((j) => (
-                    <tr key={j.id} style={{ cursor: "pointer" }} onClick={() => (window.location.hash = "#/jobs/" + j.id)}>
-                      <td className="mono">{shortId(j.id)}</td>
-                      <td className="mono">{(j.base_ref || "") + " → " + (j.head_ref || "")}</td>
-                      <td><StatusPill status={j.status || ""} /></td>
-                      <td className="muted">{fmtTime(j.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Panel>
-        </>
-      ) : (
-        <Empty text={error ? "加载失败" : "无数据"} />
-      )}
-
-      <Panel title="全量任务状态分布 (Jobs API)">
-        {jobs.length === 0 ? (
-          <Empty text="暂无任务" />
-        ) : (
-          <div className="stat-grid">
-            {Object.entries(
-              jobs.reduce<Record<string, number>>((acc, j) => {
-                const s = (j.status || "UNKNOWN").toUpperCase();
-                acc[s] = (acc[s] || 0) + 1;
-                return acc;
-              }, {})
-            )
-              .sort((a, b) => b[1] - a[1])
-              .map(([status, n]) => (
-                <StatCard key={status} label={status} value={n} tone={status === "VERIFIED" ? "ok" : status === "BLOCKED" || status === "FAILED" ? "bad" : "mute"} />
-              ))}
-          </div>
-        )}
-      </Panel>
-    </div>
-  );
+    <div className="dashboard-bottom"><div className="recent-panel"><Panel title="最近验收" right={<a href="#/jobs">查看全部 <span aria-hidden="true">↗</span></a>}>
+      {!data && loading ? <div className="product-empty" role="status">正在读取验收记录…</div> : recent.length === 0 ? <div className="product-empty"><span className="empty-illustration"><ProductIcon name="verify" size={32} /></span><h3>{error ? "验收记录暂不可用" : "把第一次变更，交给事实验证"}</h3><p>{error ? "服务恢复后，验收记录会显示在这里。" : "提交代码仓库、前后版本和需求文件，即可开始。"}</p><a className="btn" href={error ? "#/health" : "#/jobs/new"}>{error ? "检查服务状态" : "创建第一条验收"}<ProductIcon name="arrow" size={15} /></a></div> : <div className="table-scroll"><table className="data"><thead><tr><th>仓库 / 版本</th><th>验收结果</th><th>提交时间</th><th><span className="sr-only">查看详情</span></th></tr></thead><tbody>{recent.map(job => <tr key={job.id}><td><a className="job-title" href={"#/jobs/" + encodeURIComponent(job.id)}>{job.repo_path?.replace(/\\/g, "/").split("/").filter(Boolean).pop() || shortId(job.id)}</a>{!!job.is_demo && <span className="demo-label">演示</span>}<div className="job-refs">{job.base_ref || "—"}<span> → </span>{job.head_ref || "—"}</div></td><td><StatusPill status={job.status || "UNKNOWN"} /></td><td className="muted">{fmtTime(job.created_at)}</td><td><a className="icon-button" href={"#/jobs/" + encodeURIComponent(job.id)} aria-label={"查看验收 " + job.id}><ProductIcon name="arrow" size={16} /></a></td></tr>)}</tbody></table></div>}
+    </Panel><div className="delivery-note"><ProductIcon name="shield" size={17} /><span>标有“演示”的记录为示例数据。真实验收通过仅覆盖本次执行的检查。</span></div></div>
+    <aside className="activity-panel"><Panel title="交付动态" right={<span className="muted">近 24 小时</span>}><div className="activity-total"><strong>{hasData ? timeline.reduce((sum, hour) => sum + hour.count, 0) : "—"}</strong><span>次验收提交</span></div>{timeline.some(hour => hour.count > 0) ? <><div className="activity-chart" role="img" aria-label={"近 24 小时验收数量，时区 " + data?.timeline_timezone}>{timeline.map(hour => <div className="activity-chart-track" key={hour.hour} title={hour.hour + " · " + hour.count + " 次，失败 " + hour.failed + " 次"}><span style={{ height: Math.max(3, (hour.count / max) * 76) }} className={hour.failed ? "activity-bar-failed" : ""} /></div>)}</div><div className="chart-axis"><span>{timeline[0]?.hour.slice(11, 16)}</span><span>{data?.timeline_timezone}</span><span>{timeline[timeline.length - 1]?.hour.slice(11, 16)}</span></div></> : <div className="activity-no-data">{hasData ? "近 24 小时暂无验收活动" : "连接服务后查看交付动态"}</div>}<div className="activity-summary"><span className={needsAttention ? "attention-dot" : "tiny-dot"} /><div><strong>{hasData ? (needsAttention ? needsAttention + " 条验收需要关注" : "暂没有待处理的风险") : "等待验收数据"}</strong><p>{needsAttention ? "查看拦截原因，或重试执行失败的任务。" : "新的验收进展会记录在任务详情中。"}</p></div></div><a className="activity-link" href="#/jobs">进入验收列表 <ProductIcon name="arrow" size={16} /></a></Panel></aside></div>
+  </div>;
 }

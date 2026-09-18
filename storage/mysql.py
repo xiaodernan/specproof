@@ -12,6 +12,7 @@ import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, cast
 
 import pymysql
@@ -102,6 +103,9 @@ class MySQLConfig:
     user: str = "specproof"
     password: str = "specproof_pass"
     database: str = "specproof_phase0"
+    connect_timeout: int = 5
+    read_timeout: int = 15
+    write_timeout: int = 15
 
     @classmethod
     def from_env(cls) -> "MySQLConfig":
@@ -111,6 +115,9 @@ class MySQLConfig:
             user=os.getenv("MYSQL_USER", "specproof"),
             password=os.getenv("MYSQL_PASSWORD", "specproof_pass"),
             database=os.getenv("MYSQL_DATABASE", "specproof_phase0"),
+            connect_timeout=int(os.getenv("MYSQL_CONNECT_TIMEOUT", "5")),
+            read_timeout=int(os.getenv("MYSQL_READ_TIMEOUT", "15")),
+            write_timeout=int(os.getenv("MYSQL_WRITE_TIMEOUT", "15")),
         )
 
 
@@ -129,6 +136,9 @@ class MySQLStore:
             database=self.config.database,
             charset="utf8mb4",
             cursorclass=DictCursor,
+            connect_timeout=self.config.connect_timeout,
+            read_timeout=self.config.read_timeout,
+            write_timeout=self.config.write_timeout,
         )
 
     @contextmanager
@@ -528,6 +538,83 @@ class MySQLStore:
                 (limit,),
             )
             return cast(list[dict[str, Any]], cur.fetchall())
+
+    def search_jobs(
+        self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
+    ) -> dict[str, Any]:
+        """Paginate with matching tenant-scoped count; never transfer large summaries."""
+        conditions: list[str] = []
+        params: list[Any] = []
+        scope = current_scope()
+        if scope is not None and not scope.is_auditor():
+            conditions.append("(tenant_id = %s OR tenant_id IS NULL)")
+            params.append(scope.tenant_id)
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+        if query:
+            conditions.append("(LOCATE(%s, id) > 0 OR LOCATE(%s, repo_path) > 0 "
+                              "OR LOCATE(%s, base_ref) > 0 OR LOCATE(%s, head_ref) > 0)")
+            params.extend([query] * 4)
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) AS total FROM verification_jobs" + where, tuple(params))
+            total = int(cur.fetchone()["total"])
+            cur.execute(
+                "SELECT id, repo_path, base_ref, head_ref, status, depth, retry_count, "
+                "worker_id, last_error, created_at, updated_at, "
+                "CASE WHEN JSON_VALID(summary) THEN "
+                "LOCATE('seeded demo', JSON_UNQUOTE("
+                "JSON_EXTRACT(summary, '$.retrieval_note'))) = 1 "
+                "ELSE 0 END AS is_demo FROM verification_jobs" + where
+                + " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s",
+                (*params, limit, offset),
+            )
+            rows = cur.fetchall()
+        return {"jobs": rows, "total": total, "limit": limit, "offset": offset}
+
+    def dashboard_snapshot(self, since: datetime) -> dict[str, list[dict[str, Any]]]:
+        """Aggregate in SQL with the same tenant visibility as the job list.
+
+        Only hourly counts leave the database, so a busy day's dashboard
+        does not transfer and scan every individual job in the API process.
+        All three reads share one connection and transaction.
+        """
+        scope = current_scope()
+        where = ""
+        params: tuple[Any, ...] = ()
+        if scope is not None and not scope.is_auditor():
+            where = " WHERE (tenant_id = %s OR tenant_id IS NULL)"
+            params = (scope.tenant_id,)
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT status, COUNT(*) AS n FROM verification_jobs"
+                + where + " GROUP BY status",
+                params,
+            )
+            statuses = cast(list[dict[str, Any]], cur.fetchall())
+            time_where = where + (" AND" if where else " WHERE") + " created_at >= %s"
+            cur.execute(
+                "SELECT DATE_FORMAT(created_at, '%%Y-%%m-%%dT%%H:00:00') AS hour, "
+                "COUNT(*) AS count, SUM(status IN ('FAILED', 'ERROR')) AS failed "
+                "FROM verification_jobs" + time_where + " GROUP BY hour ORDER BY hour",
+                (*params, since),
+            )
+            timeline = cast(list[dict[str, Any]], cur.fetchall())
+            cur.execute(
+                "SELECT id, repo_path, base_ref, head_ref, status, depth, "
+                "retry_count, worker_id, last_error, created_at, updated_at, "
+                "CASE WHEN JSON_VALID(summary) THEN "
+                "LOCATE('seeded demo', JSON_UNQUOTE("
+                "JSON_EXTRACT(summary, '$.retrieval_note'))) = 1 "
+                "ELSE 0 END AS is_demo FROM verification_jobs" + where
+                + " ORDER BY created_at DESC, id DESC LIMIT %s",
+                (*params, 10),
+            )
+            recent = cast(list[dict[str, Any]], cur.fetchall())
+        return {"statuses": statuses, "timeline": timeline, "recent_jobs": recent}
 
     def save_job_summary(self, job_id: str, summary: dict[str, Any]) -> None:
         """Persist the pipeline result summary (dashboard / audit view)."""

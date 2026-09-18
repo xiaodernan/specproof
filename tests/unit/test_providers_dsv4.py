@@ -424,7 +424,7 @@ def test_budget_overrun_raises_and_is_catchable():
 def test_budget_cache_hit_discount():
     budget = TokenBudget(limit_tokens=1000)
     charge = budget.charge(prompt_tokens=100, cache_hit_tokens=100)
-    assert charge == 110.0  # 100 prompt + 100 cache-hit * 0.1
+    assert charge == 10.0  # All 100 input tokens are cached, not additional tokens.
 
 
 def test_budget_serializable_evidence_chain():
@@ -443,7 +443,7 @@ def test_budget_serializable_evidence_chain():
     loaded = json.loads(json.dumps(report))
     assert loaded["calls"] == 1
     assert loaded["cost_weights"]["cache_hit"] == 0.05
-    assert loaded["remaining"] == 1000 - (100 + 20 + 8 + 40 * 0.05 + 60)
+    assert loaded["remaining"] == 1000 - (40 * 0.05 + 60 + 20)
     assert loaded["entries"][0]["label"] == "judge"
     assert loaded["entries"][0]["reasoning_tokens"] == 8
 

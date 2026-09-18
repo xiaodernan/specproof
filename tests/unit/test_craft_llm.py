@@ -216,7 +216,9 @@ def test_llm_plan_success_parses_and_validates() -> None:
     assert call["thinking"] is True  # plan tier under default plan_only
     assert call["response_format"] == {"type": "json_object"}
     prompt = call["messages"][0].content
-    assert "You are SpecProof" in prompt
+    assert "You are SpecCraft" in prompt
+    assert "Software development planning" in prompt
+    assert "TASK — Verification planning" not in prompt
     assert "JSON" in prompt
 
 

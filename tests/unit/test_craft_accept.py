@@ -481,7 +481,7 @@ def test_idempotent_repeat_returns_same_certificate(tmp_path: Path) -> None:
 
 def test_user_workspace_changes_reject_without_rollback(tmp_path: Path) -> None:
     repo, base_sha, head_sha = make_repo(tmp_path)
-    (repo / "scratch.py").write_text("user work", encoding="utf-8")
+    (repo / "scratch.py").write_text("# user work\n", encoding="utf-8")
     subprocess.run(["git", "add", "scratch.py"], cwd=repo, check=True)
     subprocess.run(
         [
@@ -491,13 +491,13 @@ def test_user_workspace_changes_reject_without_rollback(tmp_path: Path) -> None:
         cwd=repo,
         check=True,
     )
-    (repo / "scratch.py").write_text("user work v2", encoding="utf-8")  # 用户并发改动
+    (repo / "scratch.py").write_text("# user work v2\n", encoding="utf-8")  # 用户并发改动
     recorded_verify = RecordingVerify(verify_ok)
     result = run_accept(repo, base_sha, head_sha, verify_fn=recorded_verify)
     assert result.verdict == "BLOCKED"
     assert result.rolled_back is False  # 用户改动保护: 绝不 reset --hard
     assert recorded_verify.calls == 0
-    assert (repo / "scratch.py").read_text(encoding="utf-8") == "user work v2"
+    assert (repo / "scratch.py").read_text(encoding="utf-8") == "# user work v2\n"
     assert any(f["kind"] == "user_changes" for f in result.findings)
 
 

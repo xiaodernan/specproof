@@ -38,32 +38,11 @@ describe("wizard validation", () => {
 });
 
 describe("buildSpecText", () => {
-  it("appends the gate constraints block", () => {
-    const spec = buildSpecText(
-      draft({
-        spec_text: "add pagination",
-        gates: { run_tests: true, run_lint: false, run_typecheck: true, require_gate: false },
-        budget_minutes: 45,
-        max_steps: 8,
-      })
-    );
-    expect(spec).toContain("add pagination");
-    expect(spec).toContain("SPECPROOF WIZARD CONSTRAINTS");
-    expect(spec).toContain("budget_minutes: 45");
-    expect(spec).toContain("max_steps: 8");
-    expect(spec).toContain("gates: run_tests,run_typecheck");
-  });
-
-  it("renders 'none' when every gate is off", () => {
-    const spec = buildSpecText(
-      draft({
-        gates: { run_tests: false, run_lint: false, run_typecheck: false, require_gate: false },
-      })
-    );
-    expect(spec).toContain("gates: none");
+  it("preserves plain or JSON specs without unsupported constraint appendices", () => {
+    expect(buildSpecText(draft({ spec_text: "  add pagination  " }))).toBe("add pagination");
+    expect(buildSpecText(draft({ spec_text: '{"title":"test"}' }))).toBe('{"title":"test"}');
   });
 });
-
 describe("rowsForFile", () => {
   const file: AgentDiffFile = {
     path: "a.py",

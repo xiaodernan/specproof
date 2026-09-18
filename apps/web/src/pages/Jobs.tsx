@@ -1,126 +1,109 @@
-import { useEffect, useMemo, useState } from "react";
-import { apiGet, Job } from "../api";
-import { Button, Empty, ErrorBox, Panel, Spinner, StatusPill, fmtTime, shortId } from "../ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { apiGet, type Job } from "../api";
+import { Button, ErrorBox, Panel, Spinner, StatusPill, fmtTime, shortId } from "../ui";
+import "../styles/verification.css";
 
 const PAGE_SIZE = 25;
+const ACTIVE = new Set(["QUEUED", "RUNNING", "PENDING", "WAITING_FOR_PROVIDER", "FAILED"]);
+const STATUS_LABELS: Record<string, string> = {
+  QUEUED: "等待执行", RUNNING: "正在验证", VERIFIED: "验证通过", BLOCKED: "发现阻断问题",
+  FAILED: "执行失败", CANCELLED: "已取消", WAITING_FOR_PROVIDER: "等待模型服务", ERROR: "执行出错",
+  UNVERIFIED: "证据不足", INCONCLUSIVE: "尚无明确结论", PENDING: "等待处理",
+};
+interface JobsPage { jobs: Job[]; total?: number; }
 
 export default function Jobs() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState<Error | string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [textFilter, setTextFilter] = useState("");
+  const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [refresh, setRefresh] = useState(0);
+  const activeRef = useRef(false);
+
+  useEffect(() => {
+    if (textFilter.trim() === query) return;
+    const timer = window.setTimeout(() => { setQuery(textFilter.trim()); setPage(1); }, 300);
+    return () => window.clearTimeout(timer);
+  }, [textFilter, query]);
 
   useEffect(() => {
     let alive = true;
-    apiGet<{ jobs: Job[] }>("/jobs?limit=200")
-      .then((d) => {
-        if (alive) setJobs(d.jobs || []);
-      })
-      .catch((e) => {
+    let inFlight = false;
+    const controller = new AbortController();
+    const load = async (silent = false) => {
+      if (inFlight) return;
+      inFlight = true;
+      if (!silent) setRefreshing(true);
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String((page - 1) * PAGE_SIZE) });
+      if (statusFilter !== "ALL") params.set("status", statusFilter);
+      if (query) params.set("q", query);
+      try {
+        const data = await apiGet<JobsPage>("/jobs?" + params.toString(), controller.signal);
+        if (!alive) return;
+        setJobs(data.jobs || []);
+        setTotal(data.total ?? data.jobs?.length ?? 0);
+        activeRef.current = (data.jobs || []).some((job) => ACTIVE.has((job.status || "").toUpperCase()));
+        setError(null);
+      } catch (e) {
         if (alive) setError(e as Error);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const statuses = useMemo(() => {
-    const s = new Set<string>();
-    jobs.forEach((j) => s.add((j.status || "UNKNOWN").toUpperCase()));
-    return ["ALL", ...Array.from(s).sort()];
-  }, [jobs]);
-
-  const filtered = useMemo(() => {
-    return jobs.filter((j) => {
-      if (statusFilter !== "ALL" && (j.status || "UNKNOWN").toUpperCase() !== statusFilter) return false;
-      if (textFilter) {
-        const hay = ((j.id || "") + " " + (j.repo_path || "") + " " + (j.base_ref || "") + " " + (j.head_ref || "")).toLowerCase();
-        if (!hay.includes(textFilter.toLowerCase())) return false;
+      } finally {
+        inFlight = false;
+        if (alive) { setLoading(false); setRefreshing(false); }
       }
-      return true;
-    });
-  }, [jobs, statusFilter, textFilter]);
+    };
+    void load();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && activeRef.current) void load(true);
+    }, 10000);
+    return () => { alive = false; controller.abort(); window.clearInterval(timer); };
+  }, [page, query, statusFilter, refresh]);
 
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageSafe = Math.min(page, pages);
-  const pageItems = filtered.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
-
-  if (loading) return <Spinner />;
+  const summary = useMemo(() => ({
+    active: jobs.filter((j) => ACTIVE.has((j.status || "").toUpperCase())).length,
+    verified: jobs.filter((j) => (j.status || "").toUpperCase() === "VERIFIED").length,
+    attention: jobs.filter((j) => ["FAILED", "BLOCKED", "ERROR"].includes((j.status || "").toUpperCase())).length,
+  }), [jobs]);
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div>
-      <div className="page-head">
-        <h1>任务 Jobs</h1>
-        <div className="page-sub">VERIFICATION JOB QUEUE — 状态筛选 / 分页 / 实时进度</div>
+    <div className="verification-page">
+      <div className="page-head verification-heading">
+        <div><span className="verification-eyebrow">VERIFICATION HISTORY</span><h1>每次变更，都有依据。</h1><p className="verification-description">跟进代码验证，查看需求覆盖与风险证据。执行中的任务会自动更新。</p></div>
+        <Button variant="primary" size="lg" onClick={() => { window.location.hash = "#/jobs/new"; }}>＋ 新建验证</Button>
+      </div>
+      <div className="verification-summary" aria-label="当前页任务概况">
+        <div><strong>{total}</strong><span>符合筛选的验证</span></div>
+        <div><strong>{summary.active}</strong><span>本页进行中</span></div>
+        <div><strong>{summary.verified}</strong><span>本页通过</span></div>
+        <div><strong>{summary.attention}</strong><span>本页需关注</span></div>
       </div>
       <ErrorBox error={error} />
-
-      <Panel
-        title={"任务列表 (" + filtered.length + " / " + jobs.length + ")"}
-        right={
-          <>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
-              {statuses.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="搜索 repo / ref / id"
-              value={textFilter}
-              onChange={(e) => { setTextFilter(e.target.value); setPage(1); }}
-            />
-          </>
-        }
-      >
-        {jobs.length === 0 ? (
-          <Empty text="暂无任务 — POST /jobs 提交验证任务后在此可见" />
-        ) : pageItems.length === 0 ? (
-          <Empty text="筛选无结果 (诚实空态)" />
-        ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Repository</th>
-                <th>Base → Head</th>
-                <th>状态</th>
-                <th>重试</th>
-                <th>更新时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((j) => (
-                <tr key={j.id} style={{ cursor: "pointer" }} onClick={() => (window.location.hash = "#/jobs/" + j.id)}>
-                  <td className="mono">{shortId(j.id)}</td>
-                  <td className="muted">{j.repo_path || "—"}</td>
-                  <td className="mono">{(j.base_ref || "—") + " → " + (j.head_ref || "—")}</td>
-                  <td><StatusPill status={j.status || ""} /></td>
-                  <td className="mono">{j.retry_count ?? 0}</td>
-                  <td className="muted">{fmtTime(j.updated_at || j.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {filtered.length > PAGE_SIZE ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
-            <Button variant="ghost" size="sm" disabled={pageSafe <= 1} onClick={() => setPage(pageSafe - 1)}>
-              上一页
-            </Button>
-            <span className="muted mono">
-              {pageSafe} / {pages}
-            </span>
-            <Button variant="ghost" size="sm" disabled={pageSafe >= pages} onClick={() => setPage(pageSafe + 1)}>
-              下一页
-            </Button>
+      <Panel title="验证记录" right={<div className="verification-toolbar">
+        <input aria-label="搜索验证" type="search" maxLength={256} placeholder="搜索项目、分支或任务编号" value={textFilter} onChange={(e) => setTextFilter(e.target.value)} />
+        <select aria-label="验证状态" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+          <option value="ALL">全部状态</option>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <Button variant="ghost" size="sm" loading={refreshing} onClick={() => setRefresh((value) => value + 1)}>刷新</Button>
+      </div>}>
+        {loading ? <Spinner /> : jobs.length === 0 ? (
+          <div className="verification-empty"><span aria-hidden="true">◎</span><h3>{error ? "暂时无法读取验证记录" : query || statusFilter !== "ALL" ? "没有找到符合条件的验证" : "从第一次验证开始"}</h3>
+            <p>{error ? "请确认服务连接，稍后点击刷新重试。" : query || statusFilter !== "ALL" ? "换个关键词，或清除筛选条件查看全部记录。" : "准备一个 Git 仓库和需求文件，比较两个版本，了解代码改动是否满足预期。"}</p>
+            {query || statusFilter !== "ALL" ? <Button onClick={() => { setTextFilter(""); setQuery(""); setStatusFilter("ALL"); setPage(1); }}>清除筛选</Button> : !error ? <Button variant="primary" onClick={() => { window.location.hash = "#/jobs/new"; }}>创建第一次验证 →</Button> : null}
           </div>
-        ) : null}
+        ) : <div className="verification-table-wrap"><table className="data"><thead><tr><th>项目 / 验证编号</th><th>比较版本</th><th>验证状态</th><th>更新时间</th><th aria-label="操作" /></tr></thead><tbody>
+          {jobs.map((job) => <tr key={job.id}>
+            <td><a className="verification-repo" href={"#/jobs/" + encodeURIComponent(job.id)} title={job.repo_path}>{(job.repo_path || "未命名项目").replace(/[\\/]$/, "").split(/[\\/]/).pop()}</a>{!!job.is_demo && <span className="demo-label">演示</span>}<span className="verification-job-id">{shortId(job.id)}</span></td>
+            <td className="mono">{job.base_ref || "—"} <span className="muted">→</span> {job.head_ref || "—"}</td>
+            <td><StatusPill status={job.status || ""} /><span className="verification-status-label">{STATUS_LABELS[(job.status || "").toUpperCase()] || "状态未知"}</span></td>
+            <td className="muted">{fmtTime(job.updated_at || job.created_at)}</td><td><a href={"#/jobs/" + encodeURIComponent(job.id)} aria-label={"查看验证 " + shortId(job.id)}>查看 →</a></td>
+          </tr>)}
+        </tbody></table></div>}
+        {total > PAGE_SIZE ? <div className="verification-pagination"><span>共 {total} 条验证</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || refreshing} onClick={() => setPage((value) => value - 1)}>上一页</Button><span>{page} / {pages}</span><Button variant="ghost" size="sm" disabled={page >= pages || refreshing} onClick={() => setPage((value) => value + 1)}>下一页</Button></div></div> : null}
       </Panel>
     </div>
   );

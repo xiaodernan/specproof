@@ -237,6 +237,23 @@ class FakeMySQLStore:
         del limit
         return [dict(row) for row in self.rows.values()]
 
+    def search_jobs(
+        self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
+    ) -> dict[str, Any]:
+        rows = [dict(row) for row in self.rows.values()]
+        if status:
+            rows = [row for row in rows if row.get("status") == status]
+        if query:
+            rows = [row for row in rows if query.lower() in " ".join(
+                str(row.get(key, "")) for key in ("id", "repo_path", "base_ref", "head_ref")
+            ).lower()]
+        return {
+            "jobs": rows[offset:offset + limit],
+            "total": len(rows),
+            "limit": limit,
+            "offset": offset,
+        }
+
 
 def _configure_env(port: int) -> Path:
     tmp = Path(tempfile.mkdtemp(prefix="specproof-e2e-"))

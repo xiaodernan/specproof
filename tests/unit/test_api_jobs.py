@@ -171,6 +171,34 @@ def test_list_jobs_returns_all(fake_mysql):
     assert len(resp.json()["jobs"]) == 3
 
 
+@pytest.mark.parametrize("limit", [0, -1, 201, 100000])
+def test_list_jobs_rejects_unbounded_queries(fake_mysql, limit):
+    client = TestClient(app)
+    response = client.get(f"/jobs?limit={limit}", headers=_headers())
+    assert response.status_code == 422
+
+
+def test_submission_trims_copied_paths_and_rejects_blank_values(fake_mysql):
+    client = TestClient(app)
+    payload = {**_payload(), "repo_path": "  D:/my-project  ", "base_ref": " main "}
+    response = client.post("/jobs", json=payload, headers=_headers())
+    assert response.status_code == 202
+    row = FakeMySQLStore.rows[response.json()["job_id"]]
+    assert row["repo_path"] == "D:/my-project"
+    assert row["base_ref"] == "main"
+    for field in ("repo_path", "base_ref", "head_ref", "spec_path"):
+        response = client.post("/jobs", json={**_payload(), field: "   "}, headers=_headers())
+        assert response.status_code == 422
+
+
+def test_submission_rejects_path_longer_than_database_column(fake_mysql):
+    response = TestClient(app).post(
+        "/jobs", json={**_payload(), "repo_path": "a" * 513}, headers=_headers(),
+    )
+    assert response.status_code == 422
+    assert not FakeMySQLStore.rows
+
+
 def test_cancel_queued_job(fake_mysql):
     client = TestClient(app)
     created = client.post(

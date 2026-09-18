@@ -84,6 +84,7 @@ export default function AgentPlanStep(props: { jobId: string; stepIndex: number 
               ) : null}
             </>
           ) : null}
+          {job.execution_mode ? <p>请在完整计划页审阅全部步骤后批准执行。<a href={"#/agent/jobs/" + jobId + "/plan"}>返回计划 →</a></p> : <>
           <label className="field">审批备注 Note (可选)</label>
           <input type="text" value={note} onChange={(e) => setNote(e.target.value)} />
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -99,7 +100,7 @@ export default function AgentPlanStep(props: { jobId: string; stepIndex: number 
           </div>
           <div className="muted" style={{ marginTop: 8 }}>
             全部步骤批准后任务进入 EXECUTING; 任一步骤拒绝则任务 FAILED。
-          </div>
+          </div></>}
         </Panel>
       )}
     </AgentJobShell>

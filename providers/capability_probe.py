@@ -45,11 +45,17 @@ class CapabilityProbe:
         api_key: str,
         model: str,
         timeout: float = 60.0,
+        protocol: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        from .responses_protocol import normalize_base_url
+
+        self.base_url = normalize_base_url(base_url)
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
+        self.protocol = protocol or ("responses" if model.startswith("gpt-6") else "chat")
+        self.reasoning_effort = reasoning_effort
         self._redacted_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
 
     def _headers(self) -> dict[str, str]:
@@ -59,6 +65,20 @@ class CapabilityProbe:
         }
 
     async def run(self) -> ProbeResult:
+        if self.protocol == "responses":
+            # The Responses path measures one real streamed request instead
+            # of testing legacy DeepSeek chat parameters on newer models.
+            from .openai_compatible import OpenAICompatibleProvider
+
+            provider = OpenAICompatibleProvider(
+                base_url=self.base_url, api_key=self.api_key, model=self.model,
+                protocol="responses", reasoning_effort=self.reasoning_effort,
+                timeout=self.timeout, max_retries=0,
+            )
+            try:
+                return await provider.run_probe()
+            finally:
+                await provider.close()
         capabilities: dict[str, bool] = {}
         limits: dict[str, Any] = {}
         errors: list[str] = []

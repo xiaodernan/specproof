@@ -7,9 +7,9 @@ import { Page, expect } from "@playwright/test";
 export async function loginWithToken(page: Page, token: string): Promise<void> {
   await page.goto("/");
   await expect(page.locator(".login-modes")).toBeVisible();
-  await page.getByRole("button", { name: /本地 Token/ }).click();
+  await page.getByRole("button", { name: "访问令牌", exact: true }).click();
   await page.locator("#credential").fill(token);
-  await page.getByRole("button", { name: /验证并进入 Verify/ }).click();
+  await page.getByRole("button", { name: "连接工作区", exact: true }).click();
   await expect(page.locator(".shell")).toBeVisible();
   await expect(page.locator(".tenant-switcher")).not.toContainText("单租户 LEGACY");
 }

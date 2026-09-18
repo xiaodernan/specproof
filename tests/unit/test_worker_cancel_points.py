@@ -147,7 +147,10 @@ def _make_worker(
 
 
 def _final_state() -> dict[str, Any]:
-    return {"errors": [], "confirmed_findings": [], "matrix": {"unverified": 0}}
+    return {"errors": [], "confirmed_findings": [],
+            "matrix": {"unverified": 0, "passed": 1,
+                       "rows": [{"contract_id": "C-1", "result": "PASS",
+                                 "experiment": "test", "evidence": "e-1"}]}}
 
 
 # ── checkpoint helper: fake executor ───────────────────────────────────────

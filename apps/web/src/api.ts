@@ -1,7 +1,6 @@
 // Unified API client: fetch + SSE, explicit errors and degradation states.
-// The API key lives in sessionStorage and is sent as X-API-Key (the SSE
-// progress stream additionally passes it as a query parameter because
-// EventSource cannot set headers).
+// Credentials live in sessionStorage and travel in request headers,
+// including authenticated fetch-based SSE streams.
 //
 // Multi-tenant mode (industrialization phase 1): a Bearer token (local
 // sp_* or an OIDC id_token) may be stored instead; when present it is sent
@@ -10,10 +9,15 @@
 export class ApiError extends Error {
   status: number;
   detail: string;
-  constructor(status: number, detail: string) {
+  code?: string;
+  requestId?: string;
+  constructor(status: number, detail: string, code?: string, requestId?: string) {
     super(detail);
+    this.name = "ApiError";
     this.status = status;
     this.detail = detail;
+    this.code = code;
+    this.requestId = requestId;
   }
 }
 
@@ -151,8 +155,8 @@ function headers(): Record<string, string> {
   return h;
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const resp = await fetch(apiBase() + path, { headers: headers() });
+export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const resp = await fetch(apiBase() + path, { headers: headers(), signal });
   return handleResponse<T>(resp);
 }
 
@@ -164,23 +168,35 @@ async function handleResponse<T>(resp: Response): Promise<T> {
       return {} as T;
     }
   }
-  let detail = resp.statusText;
+  let detail = resp.statusText || "请求失败，请稍后重试";
+  let code: string | undefined;
+  let requestId = resp.headers.get("X-Request-ID") || undefined;
   try {
     const body = await resp.json();
     if (body && typeof body.detail === "string") detail = body.detail;
+    else if (Array.isArray(body?.detail)) {
+      detail = body.detail.map((item: { loc?: string[]; msg?: string }) =>
+        [item.loc?.filter((part) => part !== "body").join("."), item.msg].filter(Boolean).join(": ")
+      ).join("；");
+    } else if (typeof body?.error?.message === "string") detail = body.error.message;
+    if (typeof body?.code === "string") code = body.code;
+    else if (typeof body?.error?.code === "string") code = body.error.code;
+    if (typeof body?.request_id === "string") requestId = body.request_id;
+    else if (typeof body?.error?.request_id === "string") requestId = body.error.request_id;
   } catch {
     // non-JSON error body; keep statusText
   }
-  throw new ApiError(resp.status, detail);
+  throw new ApiError(resp.status, detail, code, requestId);
 }
 
-// ── SSE progress stream (reconnecting via EventSource) ──
+// ── SSE progress stream with authenticated reconnects ──
 // §14.3 payload per api/routes/jobs.py _progress_payload:
 // { seq, job, type, stage, status, percentage, summary, ts }.
 // The legacy worker fields (node/percent/message) stay accepted as
 // fallback when the new payload is absent (older backends).
 export interface ProgressEvent {
   seq?: number;
+  sequence?: number;
   job?: string;
   type?: string;
   stage?: string;
@@ -199,26 +215,101 @@ export function openProgressStream(
   onEvent: (ev: ProgressEvent) => void,
   onStatus: (state: "connecting" | "open" | "closed" | "error") => void
 ): () => void {
-  const key = getApiKey();
-  const url =
-    apiBase() +
-    "/jobs/" +
-    encodeURIComponent(jobId) +
-    "/progress?key=" +
-    encodeURIComponent(key);
-  const es = new EventSource(url);
-  onStatus("connecting");
-  es.onopen = () => onStatus("open");
-  es.onmessage = (ev: MessageEvent) => {
+  return openEventStream("/jobs/" + encodeURIComponent(jobId) + "/progress", (type, data) => {
+    if (type === "message" || type === "progress") onEvent(data as ProgressEvent);
+  }, onStatus);
+}
+
+type StreamState = "connecting" | "open" | "closed" | "error";
+
+// Fetch streams carry the same Authorization headers as every other API
+// request. They also handle named SSE events, which EventSource.onmessage
+// silently misses. Keep the last event id across reconnects for safe replay.
+function openEventStream(
+  path: string,
+  onEvent: (type: string, data: unknown) => void,
+  onStatus: (state: StreamState) => void,
+  onDone?: () => void,
+): () => void {
+  let stopped = false;
+  let lastId = "";
+  let retry = 1000;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let controller: AbortController;
+
+  const connect = async () => {
+    if (stopped) return;
+    controller = new AbortController();
+    onStatus("connecting");
     try {
-      onEvent(JSON.parse(ev.data) as ProgressEvent);
-    } catch {
-      // ignore malformed frames
+      const requestHeaders = { ...headers(), Accept: "text/event-stream" };
+      if (lastId) Object.assign(requestHeaders, { "Last-Event-ID": lastId });
+      const response = await fetch(apiBase() + path, { headers: requestHeaders, signal: controller.signal });
+      if (stopped) { await response.body?.cancel(); return; }
+      if (!response.ok) await handleResponse(response);
+      if (!response.body) throw new Error("实时进度连接不可用");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let eventType = "message";
+      let frameId: string | undefined;
+      let dataLines: string[] = [];
+      onStatus("open");
+      const consumeLine = (line: string) => {
+        if (!line) {
+          if (frameId !== undefined) lastId = frameId;
+          frameId = undefined;
+          if (eventType === "done") {
+            stopped = true;
+            controller.abort();
+            onStatus("closed");
+            onDone?.();
+          } else if (dataLines.length) {
+            let data: unknown;
+            try { data = JSON.parse(dataLines.join("\n")); } catch { dataLines = []; eventType = "message"; return; }
+            retry = 1000;
+            onEvent(eventType, data);
+          }
+          dataLines = [];
+          eventType = "message";
+          return;
+        }
+        const colon = line.indexOf(":");
+        const field = colon === -1 ? line : line.slice(0, colon);
+        const value = colon === -1 ? "" : line.slice(colon + 1).replace(/^ /, "");
+        if (field === "data") dataLines.push(value);
+        if (field === "event") eventType = value;
+        if (field === "id" && !value.includes("\0")) frameId = value;
+      };
+      try {
+        while (!stopped) {
+          const part = await reader.read();
+          if (part.done) break;
+          buffer += decoder.decode(part.value, { stream: true });
+          let end: number;
+          while ((end = buffer.indexOf("\n")) >= 0 && !stopped) {
+            consumeLine(buffer.slice(0, end).replace(/\r$/, ""));
+            buffer = buffer.slice(end + 1);
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      if (!stopped) throw new Error("实时连接已断开");
+    } catch (error) {
+      if (stopped) return;
+      onStatus("error");
+      // A permission failure needs a new login, not an endless retry loop.
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404)) return;
+      timer = setTimeout(connect, retry);
+      retry = Math.min(retry * 2, 15000);
     }
   };
-  es.onerror = () => onStatus("error");
+  void connect();
   return () => {
-    es.close();
+    stopped = true;
+    clearTimeout(timer);
+    controller?.abort();
     onStatus("closed");
   };
 }
@@ -252,6 +343,7 @@ export async function downloadCapsule(jobId: string, name?: string): Promise<voi
 
 export interface Job {
   id: string;
+  is_demo?: boolean | number;
   repo_path?: string;
   base_ref?: string;
   head_ref?: string;
@@ -264,6 +356,18 @@ export interface Job {
   created_at?: string;
   updated_at?: string;
   summary?: unknown;
+}
+
+export interface VerificationRequest {
+  repo_path: string;
+  spec_path: string;
+  base_ref: string;
+  head_ref: string;
+  depth: "FAST";
+}
+
+export function createVerification(payload: VerificationRequest): Promise<{ job_id: string; status: string }> {
+  return apiPost("/jobs", payload);
 }
 
 export interface DashboardData {
@@ -426,7 +530,7 @@ export interface AgentJobSummary {
 
 export interface AgentProgress {
   percent: number;
-  current_step: number;
+  current_step: number | string;
   message: string;
   updated_at: string;
 }
@@ -448,6 +552,10 @@ export interface AgentPlan {
 export interface AgentJobResult {
   verdict: string;
   reason: string | null;
+  diff_stat?: { files_changed: number; files?: string[] };
+  gates?: { overall: string; overall_note?: string; gates?: { gate: string; status: string; note?: string }[] };
+  llm_usage?: { calls?: number; total_tokens?: number; prompt_tokens?: number; completion_tokens?: number; calls_detail?: { model?: string }[] };
+  cost_unavailable_reason?: string;
 }
 
 export interface AgentJob {
@@ -455,6 +563,7 @@ export interface AgentJob {
   task_name: string;
   repo_path: string;
   spec_text: string;
+  execution_mode?: "llm" | "deterministic" | null;
   status: string;
   plan: AgentPlan | null;
   progress: AgentProgress;
@@ -479,7 +588,7 @@ export interface AgentApproval {
 
 export interface AgentEvent {
   seq: number;
-  type: "plan" | "tool_call" | "tool_result" | "edit" | "gate" | "progress";
+  type: "plan" | "tool_call" | "tool_result" | "edit" | "gate" | "progress" | "model_output";
   at: string;
   data: Record<string, unknown>;
 }
@@ -531,42 +640,16 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return handleResponse<T>(resp);
 }
 
-// EventSource cannot set headers; the key rides the query string like the
-// job progress stream. The stream closes itself with a "done" event once
-// the job is terminal.
+// The stream closes itself with a "done" event once the job is terminal.
 export function openAgentEventStream(
   jobId: string,
   onEvent: (ev: AgentEvent) => void,
   onStatus: (state: "connecting" | "open" | "closed" | "error") => void,
   onDone?: () => void
 ): () => void {
-  const key = getApiKey();
-  const url =
-    apiBase() +
-    "/agent/jobs/" +
-    encodeURIComponent(jobId) +
-    "/events?key=" +
-    encodeURIComponent(key);
-  const es = new EventSource(url);
-  onStatus("connecting");
-  es.onopen = () => onStatus("open");
-  es.onmessage = (ev: MessageEvent) => {
-    try {
-      onEvent(JSON.parse(ev.data) as AgentEvent);
-    } catch {
-      // ignore malformed frames
-    }
-  };
-  es.addEventListener("done", () => {
-    onStatus("closed");
-    if (onDone) onDone();
-    es.close();
-  });
-  es.onerror = () => onStatus("error");
-  return () => {
-    es.close();
-    onStatus("closed");
-  };
+  return openEventStream("/agent/jobs/" + encodeURIComponent(jobId) + "/events", (_type, data) => {
+    onEvent(data as AgentEvent);
+  }, onStatus, onDone);
 }
 
 export function listAgentJobs(
@@ -587,12 +670,15 @@ export function getAgentJob(jobId: string): Promise<{ job: AgentJob }> {
 export function createAgentJob(
   repoPath: string,
   specText: string,
-  taskName: string
+  taskName: string,
+  executionMode: "llm" | "deterministic" = "llm"
 ): Promise<{ job_id: string; status: string }> {
   return apiPost<{ job_id: string; status: string }>("/agent/jobs", {
     repo_path: repoPath,
     spec_text: specText,
     task_name: taskName || null,
+    execution_mode: executionMode,
+    plan_first: true,
   });
 }
 

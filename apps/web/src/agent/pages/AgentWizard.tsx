@@ -32,13 +32,16 @@ export default function AgentWizard(props: { step: WizardStep }) {
   };
 
   const submit = async () => {
+    const validation = validateRepoStep(draft) || validateSpecStep(draft);
+    if (validation) { setError(validation); return; }
     setError(null);
     setSubmitting(true);
     try {
       const created = await createAgentJob(
         draft.repo_path.trim(),
         buildSpecText(draft),
-        draft.task_name.trim()
+        draft.task_name.trim(),
+        draft.execution_mode
       );
       clearWizardDraft();
       window.location.hash = "#/agent/jobs/" + created.job_id;
@@ -91,7 +94,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
             placeholder="为服务端增加分页"
             onChange={(e) => set({ task_name: e.target.value })}
           />
-          <label className="field">基线 Base ref (可选)</label>
+          <label className="field">基线 Base ref（仅参考，不切换工作目录）</label>
           <input
             type="text"
             data-testid="wizard-base"
@@ -99,7 +102,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
             placeholder="main"
             onChange={(e) => set({ base_ref: e.target.value })}
           />
-          <label className="field">目标 Head ref (可选)</label>
+          <label className="field">目标 Head ref（仅参考，不切换工作目录）</label>
           <input
             type="text"
             data-testid="wizard-head"
@@ -135,10 +138,10 @@ export default function AgentWizard(props: { step: WizardStep }) {
             }
           >
             <option value="deterministic">
-              确定性档 deterministic — 零 LLM 凭据, 本地规则管线 (默认)
+              规则检查 — 不调用模型，不自动生成代码
             </option>
             <option value="llm">
-              LLM 增强档 llm — 需环境注入 LLM 凭据, 缺失时自动回退确定性档
+              AI 开发 — 使用模型设置中的服务，先生成计划再审批执行
             </option>
           </select>
           <div className="permission-hint" data-testid="wizard-permission-hint">
@@ -188,44 +191,10 @@ export default function AgentWizard(props: { step: WizardStep }) {
 
       {props.step === "gates" ? (
         <Panel title="步骤 3/4 — 执行门禁">
-          {(
-            [
-              ["run_tests", "运行测试 run_tests", "改动后运行项目测试"],
-              ["run_lint", "运行 Lint run_lint", "静态检查"],
-              ["run_typecheck", "运行类型检查 run_typecheck", "类型系统检查"],
-              ["require_gate", "最终门禁需人工审批 require_gate", "完成后等待门禁审批"],
-            ] as [keyof WizardDraft["gates"], string, string][]
-          ).map(([key, label, sub]) => (
-            <label className="check-row" key={key}>
-              <input
-                type="checkbox"
-                checked={draft.gates[key]}
-                onChange={(e) =>
-                  set({ gates: { ...draft.gates, [key]: e.target.checked } })
-                }
-              />
-              <span>
-                <strong>{label}</strong>
-                <span className="muted"> — {sub}</span>
-              </span>
-            </label>
-          ))}
-          <label className="field">预算 Budget (分钟)</label>
-          <input
-            type="number"
-            min={1}
-            max={600}
-            value={draft.budget_minutes}
-            onChange={(e) => set({ budget_minutes: Number(e.target.value) || 60 })}
-          />
-          <label className="field">最大步骤数 Max steps (≤12)</label>
-          <input
-            type="number"
-            min={1}
-            max={12}
-            value={draft.max_steps}
-            onChange={(e) => set({ max_steps: Number(e.target.value) || 12 })}
-          />
+          <div className="degraded"><strong>计划批准后才会修改仓库</strong><p>规划阶段调用已配置的模型，生成步骤和验收标准。请审阅目标文件和检查命令，再批准执行。</p></div>
+          <p>执行器根据项目环境运行适用的检查，并在结果中逐项列出通过、失败或跳过的检查。当前页面不提供自定义测试、类型检查或运行预算开关。</p>
+          <p>AI 开发使用当前工作目录，不会自动切换 Base / Head；版本比较请使用独立验收功能。</p>
+          <a href="#/agent/settings">检查模型连接与推理强度 →</a>
           <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
             <a className="btn btn-ghost" href="#/agent/new/spec">
               上一步 Back
@@ -264,7 +233,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
             </span>
           </div>
           <div className="kv-label" style={{ margin: "10px 0 4px" }}>
-            将提交的 spec (含门禁约束)
+            将提交的需求（不会添加未生效的配置）
           </div>
           <pre className="json">{buildSpecText(draft)}</pre>
           <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
@@ -276,7 +245,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
               disabled={submitting}
               onClick={() => void submit()}
             >
-              {submitting ? "提交中 SUBMITTING…" : "创建任务 Create job"}
+              {submitting ? "正在提交…" : "生成计划，审阅后执行"}
             </Button>
           </div>
         </Panel>

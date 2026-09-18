@@ -51,6 +51,7 @@ import os
 import queue
 import threading
 from collections.abc import AsyncIterator, Callable, Iterator
+from concurrent.futures import Future
 from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -207,6 +208,8 @@ class LLMClient:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._provider_error: str = ""
+        self._pending_lock = threading.Lock()
+        self._pending: set[Future[LLMResponse]] = set()
 
     # -- availability -----------------------------------------------------
 
@@ -214,13 +217,17 @@ class LLMClient:
     def available(self) -> bool:
         if self._provider is not None:
             return True
-        key = os.getenv("LLM_API_KEY", "").strip()
+        from providers.config import load_model_config
+
+        key = load_model_config()["api_key"].strip()
         return bool(key) and key != "replace_me"
 
     def unavailable_reason(self) -> str:
         if self._provider is not None:
             return ""
-        key = os.getenv("LLM_API_KEY", "").strip()
+        from providers.config import load_model_config
+
+        key = load_model_config()["api_key"].strip()
         if not key:
             return "LLM_API_KEY 未设置"
         if key == "replace_me":
@@ -393,11 +400,14 @@ class LLMClient:
             ),
             loop,
         )
+        with self._pending_lock:
+            self._pending.add(future)
         try:
             return future.result(timeout=SYNC_CALL_TIMEOUT)
         except (BudgetExceeded, LLMUnavailableError):
             raise
         except TimeoutError as exc:
+            future.cancel()
             raise LLMUnavailableError(
                 f"LLM 调用超时 ({SYNC_CALL_TIMEOUT:g}s): {exc}"
             ) from exc
@@ -405,6 +415,16 @@ class LLMClient:
             raise LLMUnavailableError(
                 f"LLM 同步桥接失败: {type(exc).__name__}: {exc}"
             ) from exc
+        finally:
+            with self._pending_lock:
+                self._pending.discard(future)
+
+    def cancel(self) -> None:
+        """Cancel in-flight model work without blocking the HTTP cancel handler."""
+        with self._pending_lock:
+            pending = tuple(self._pending)
+        for future in pending:
+            future.cancel()
 
     def stream_chat_sync(
         self,
@@ -510,8 +530,8 @@ class LLMClient:
             caps = provider.get_capabilities()
         except Exception:
             caps = None
-        if isinstance(caps, dict):
-            return bool(caps.get("streaming"))
+        if isinstance(caps, dict) and "streaming" in caps:
+            return bool(caps["streaming"])
         probe_fn = getattr(provider, "run_probe", None)
         if not callable(probe_fn):
             return False
@@ -618,6 +638,7 @@ class LLMClient:
         self._thread.start()
 
     def close(self) -> None:
+        self.cancel()
         if self._loop is None:
             return
         provider = self._provider

@@ -54,11 +54,12 @@ describe("TenantSwitcher", () => {
   it("renders the current tenant and roles from /auth/me", async () => {
     const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(ME_BODY)));
     vi.stubGlobal("fetch", fetchMock);
+    window.sessionStorage.setItem("specproof_bearer_token", "sp_test_token");
     render(<TenantSwitcher />);
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
-    expect(await screen.findByText("当前租户 TENANT — 0f9e0000")).toBeTruthy();
+    expect(await screen.findByText("当前空间 · 0f9e0000")).toBeTruthy();
     expect(screen.getByText("operator")).toBeTruthy();
   });
 
@@ -68,9 +69,8 @@ describe("TenantSwitcher", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     render(<TenantSwitcher />);
-    expect(
-      await screen.findByText("当前租户 TENANT — 单租户 LEGACY")
-    ).toBeTruthy();
+    expect(await screen.findByText("当前空间 · 本地工作区")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

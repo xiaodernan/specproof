@@ -16,7 +16,7 @@ _USAGE = {
 def test_cost_of_usage_math() -> None:
     cost = cost_of_usage(_USAGE)
     assert cost["total_usd"] == round(
-        (6784 * 0.07 + 3402 * 0.27 + 21664 * 1.10 + 20885 * 1.10)
+        (6784 * 0.07 + 3402 * 0.27 + (21664 - 20885) * 1.10 + 20885 * 1.10)
         / 1_000_000,
         6,
     )

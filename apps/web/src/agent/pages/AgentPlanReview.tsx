@@ -40,7 +40,7 @@ export default function AgentPlanReview(props: { jobId: string }) {
       <ErrorBox error={actionError} />
       {!plan || plan.steps.length === 0 ? (
         <Panel title="计划审阅">
-          <Empty text="该任务尚未生成计划 (规划器未运行 — 诚实空态)" />
+          <Empty text={job.status === "FAILED" ? "规划失败，请查看任务结果中的原因。" : "模型正在生成计划，页面会自动更新；当前尚未修改仓库。"} />
         </Panel>
       ) : (
         <>
@@ -90,12 +90,12 @@ export default function AgentPlanReview(props: { jobId: string }) {
           </Panel>
           <Panel title="整计划决策 Whole-plan decision">
             <div style={{ display: "flex", gap: 8 }}>
-              <Button disabled={busy} onClick={() => void decide("approve", "")}>
+              <Button disabled={busy || job.status !== "AWAITING_APPROVAL"} onClick={() => void decide("approve", "")}>
                 批准整个计划 Approve plan
               </Button>
               <Button
                 variant="danger"
-                disabled={busy}
+                disabled={busy || job.status !== "AWAITING_APPROVAL"}
                 onClick={() => {
                   const note = window.prompt("拒绝原因 Rejection note (可选):") || "";
                   void decide("reject", note);

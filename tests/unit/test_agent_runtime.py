@@ -233,6 +233,10 @@ def test_cancel_mid_run_wins_and_marks_cancelled(tmp_path: Path) -> None:
     assert job.status == "cancelled"
     assert job.error == "Cancelled by user"
     assert job.accept_json is None  # cancelled keeps its closed projection
+    # A delayed model/fix response must not edit files after cancellation.
+    workspace = Path(state.meta_for("job-cancel")["repo_path"])
+    assert "return x / 2" in (workspace / "calc.py").read_text(encoding="utf-8")
+    assert "job-cancel" not in runtime._handles
     events = state.events_since("job-cancel", 0)
     assert any(
         event["type"] == "progress" and event["data"].get("status") == "CANCELLED"

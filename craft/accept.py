@@ -239,34 +239,19 @@ def run_specproof_verification(
 
 def _verification_summary(final_state: Mapping[str, Any]) -> dict[str, Any]:
     """Honest verdict mapping of the pipeline final state (mirrors the CLI)."""
+    from evidence.verdict import contracts_with_results, evaluate_verification
+
     findings = [dict(f) for f in (final_state.get("confirmed_findings") or [])]
     contracts = [dict(c) for c in (final_state.get("contracts") or [])]
     contract_results = [dict(r) for r in (final_state.get("contract_results") or [])]
     errors = [str(e) for e in (final_state.get("errors") or [])]
     matrix = final_state.get("matrix") or {}
 
-    results_by_contract = {
-        r.get("contract_id"): r for r in contract_results if isinstance(r, dict)
-    }
-    merged_contracts: list[dict[str, Any]] = []
-    for contract in contracts:
-        merged = dict(contract)
-        result = results_by_contract.get(contract.get("id"), {})
-        merged["result"] = result.get("result", "UNVERIFIED")
-        merged["evidence_ref"] = result.get("evidence_ref")
-        merged_contracts.append(merged)
-
-    blocker_count = sum(1 for f in findings if f.get("severity") == "BLOCKER")
-    if errors:
-        verdict = "FAILED"
-    elif blocker_count > 0:
-        verdict = "BLOCKED"
-    elif findings:
-        verdict = "NEEDS REVIEW"
-    elif matrix.get("unverified", 0) > 0 or not contracts:
-        verdict = "NEEDS REVIEW (verification incomplete)"
-    else:
-        verdict = "VERIFIED"
+    merged_contracts = contracts_with_results(contracts, contract_results)
+    decision = evaluate_verification(
+        matrix, contracts=contracts, findings=findings, errors=errors,
+    )
+    verdict = decision.status
     return {
         "verdict": verdict,
         "findings": findings,
@@ -275,6 +260,7 @@ def _verification_summary(final_state: Mapping[str, Any]) -> dict[str, Any]:
         "capsules": [str(c) for c in (final_state.get("capsules") or [])],
         "errors": errors,
         "matrix": dict(matrix),
+        "coverage_reason": decision.reason,
         "report_path": str(final_state.get("report_path") or ""),
     }
 

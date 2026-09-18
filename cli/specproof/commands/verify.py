@@ -3,8 +3,7 @@
 
 Honesty contract (v2):
 - VERDICT FAILED    when the pipeline recorded errors
-- VERDICT BLOCKED   when BLOCKER findings were confirmed
-- VERDICT NEEDS REVIEW when MAJOR/MINOR findings or unverified contracts remain
+- VERDICT BLOCKED   when findings, failures or incomplete coverage require review
 - VERDICT VERIFIED  only when every contract passed with evidence
 - A Merge Certificate is issued only for VERIFIED; otherwise a Rejection
   Notice JSON is written alongside the HTML report.
@@ -419,16 +418,9 @@ def verify(
     capsules = final_state.get("capsules", [])
     errors = final_state.get("errors", [])
 
-    results_by_contract = {
-        r.get("contract_id"): r for r in contract_results
-    }
-    merged_contracts = []
-    for c in contracts:
-        merged = dict(c)
-        res = results_by_contract.get(c.get("id"), {})
-        merged["result"] = res.get("result", "UNVERIFIED")
-        merged["evidence_ref"] = res.get("evidence_ref")
-        merged_contracts.append(merged)
+    from evidence.verdict import contracts_with_results, evaluate_verification
+
+    merged_contracts = contracts_with_results(contracts, contract_results)
 
     # ── Summary ──
     click.echo(f"\n{'=' * 60}")
@@ -505,22 +497,15 @@ def verify(
             click.echo(f"  {cap}{note}")
 
     # ── Honest verdict ──
-    blocker_count = sum(
-        1 for f in findings if f.get("severity") == "BLOCKER"
+    decision = evaluate_verification(
+        matrix, contracts=contracts, findings=findings, errors=errors,
     )
-    if errors:
-        verdict = "FAILED"
-    elif blocker_count > 0:
-        verdict = "BLOCKED"
-    elif findings:
-        verdict = "NEEDS REVIEW"
-    elif matrix.get("unverified", 0) > 0 or not contracts:
-        verdict = "NEEDS REVIEW (verification incomplete)"
-    else:
-        verdict = "VERIFIED"
+    verdict = decision.status
 
     click.echo(f"\n{'─' * 60}")
     click.echo(f"VERDICT: {verdict}")
+    if decision.reason:
+        click.echo(f"原因: {decision.reason}")
     click.echo(f"{'─' * 60}")
 
     if report_path:

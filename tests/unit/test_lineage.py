@@ -389,7 +389,7 @@ def test_issue_certificate_accepts_extension():
         repository="repo",
         commit_sha="abc123",
         requirements_text=REQUIREMENT_TEXT,
-        contracts=[{"id": "AUTH-01", "result": "PASS"}],
+        contracts=[{"id": "AUTH-01", "result": "PASS", "evidence_ref": "sha256:" + "f" * 64}],
         evidence_digests=["sha256:" + "f" * 64],
         extension=extension,
     )
@@ -399,7 +399,7 @@ def test_issue_certificate_accepts_extension():
         repository="repo",
         commit_sha="abc123",
         requirements_text=REQUIREMENT_TEXT,
-        contracts=[{"id": "AUTH-01", "result": "PASS"}],
+        contracts=[{"id": "AUTH-01", "result": "PASS", "evidence_ref": "check-auth-01"}],
     )
     assert plain is not None
     assert "extension" not in plain.to_dict()

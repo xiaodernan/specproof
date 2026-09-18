@@ -1,6 +1,9 @@
 """HTML report renderer for SpecProof Phase 0."""
 from datetime import UTC, datetime
+from html import escape
 from typing import Any
+
+from evidence.verdict import evaluate_verification
 
 
 def render_verification_report(
@@ -20,7 +23,14 @@ def render_verification_report(
     tests and replay. When omitted the legacy behavior is preserved: the
     renderer stamps the current UTC time itself.
     """
-    rows = matrix.get("rows", [])
+    def safe(value: Any) -> str:
+        return escape(str(value), quote=True)
+
+    raw_rows = matrix.get("rows")
+    rows = (
+        [r for r in raw_rows if isinstance(r, dict)]
+        if isinstance(raw_rows, (list, tuple)) else []
+    )
     now = (
         generated_at
         if generated_at is not None
@@ -36,35 +46,37 @@ def render_verification_report(
         }.get(r.get("result", ""), "")
         symbols = ", ".join(r.get("changed_symbols", [])) or "—"
         rows_html += f"""<tr class="{result_class}">
-            <td>{r.get("contract_id", "")}</td>
-            <td class="req">{r.get("requirement", "")}</td>
-            <td>{symbols}</td>
-            <td>{r.get("experiment", "")}</td>
-            <td class="{result_class}">{r.get("result", "")}</td>
-            <td>{r.get("evidence", "")}</td>
+            <td>{safe(r.get("contract_id", ""))}</td>
+            <td class="req">{safe(r.get("requirement", ""))}</td>
+            <td>{safe(symbols)}</td>
+            <td>{safe(r.get("experiment", ""))}</td>
+            <td class="{result_class}">{safe(r.get("result", ""))}</td>
+            <td>{safe(r.get("evidence", ""))}</td>
         </tr>"""
 
     findings_html = ""
     for f in findings:
-        findings_html += f"""<div class="finding {f.get("severity", "").lower()}">
-            <h3>[{f.get("severity", "")}] {f.get("contract_id", "")}</h3>
-            <p>{f.get("description", "")}</p>
-            <p>Confidence: {f.get("confidence", 0):.0%} | Type: {f.get("evidence_type", "")}</p>
+        findings_html += f"""<div class="finding {safe(f.get("severity", "").lower())}">
+            <h3>[{safe(f.get("severity", ""))}] {safe(f.get("contract_id", ""))}</h3>
+            <p>{safe(f.get("description", ""))}</p>
+            <p>Confidence: {f.get("confidence", 0):.0%} |
+            Type: {safe(f.get("evidence_type", ""))}</p>
         </div>"""
 
-    passed = matrix.get("passed", 0)
-    failed = matrix.get("failed", 0)
-    unverified = matrix.get("unverified", 0)
-    total = matrix.get("total_rows", len(rows))
     error_list = errors or []
-    if error_list:
-        verdict = "FAILED"
-    elif failed > 0:
-        verdict = "BLOCKED"
-    elif unverified > 0:
+    decision = evaluate_verification(matrix, findings=findings, errors=error_list)
+    passed, failed, unverified, total = (
+        decision.passed, decision.failed, decision.unverified, decision.total,
+    )
+    verdict = decision.status
+    if verdict == "BLOCKED" and not findings and not failed:
         verdict = "NEEDS REVIEW"
-    else:
-        verdict = "VERIFIED"
+    coverage_html = (
+        '<section><h2>验收结论说明</h2><ul>'
+        + "".join(f"<li>{safe(reason)}</li>" for reason in decision.reasons)
+        + "</ul></section>"
+        if decision.reasons else ""
+    )
 
     verdict_class = {
         "FAILED": "blocked",
@@ -75,7 +87,7 @@ def render_verification_report(
 
     errors_html = ""
     if error_list:
-        items = "".join(f"<li>{e}</li>" for e in error_list)
+        items = "".join(f"<li>{safe(e)}</li>" for e in error_list)
         errors_html = (
             f'<section><h2 style="color:#ff7b72;">Pipeline Errors ({len(error_list)})</h2>'
             f"<ul>{items}</ul></section>"
@@ -121,10 +133,10 @@ def render_verification_report(
     <header>
         <h1>SpecProof Verification Report</h1>
         <div class="summary">
-            <div>Repository: {repo}</div>
-            <div>Base: {base_ref}</div>
-            <div>Head: {head_ref}</div>
-            <div>Generated: {now}</div>
+            <div>Repository: {safe(repo)}</div>
+            <div>Base: {safe(base_ref)}</div>
+            <div>Head: {safe(head_ref)}</div>
+            <div>Generated: {safe(now)}</div>
         </div>
         <div class="verdict {verdict_class}">{verdict}</div>
         <div class="summary" style="margin-top: 12px;">
@@ -136,6 +148,7 @@ def render_verification_report(
     </header>
 
     {errors_html}
+    {coverage_html}
 
     <section>
         <h2>Requirement-to-Evidence Matrix</h2>

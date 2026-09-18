@@ -1,7 +1,7 @@
 // Shared components + hooks for the SpecCraft agent console pages.
 
-import { ReactNode, useEffect, useState } from "react";
-import { AgentApproval, AgentEvent, AgentJob, getAgentJob } from "../api";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { AgentApproval, AgentEvent, AgentJob, apiGet } from "../api";
 import { fmtTime, shortId } from "../ui";
 import { agentStatusMeta, eventKindLabel } from "./util";
 
@@ -9,27 +9,65 @@ export function useAgentJob(jobId: string) {
   const [job, setJob] = useState<AgentJob | null>(null);
   const [error, setError] = useState<Error | string | null>(null);
   const [loading, setLoading] = useState(true);
+  const refresh = useRef<() => void>(() => undefined);
+  const reload = useCallback(() => refresh.current(), []);
 
-  const reload = () => {
+  useEffect(() => {
     let alive = true;
-    getAgentJob(jobId)
-      .then((d) => {
-        if (alive) setJob(d.job);
-      })
-      .catch((e) => {
-        if (alive) setError(e as Error);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let request: AbortController | null = null;
+    let stopped = false;
+    let refreshQueued = false;
+    const isHidden = () => document.visibilityState === "hidden";
+    setJob(null); setError(null); setLoading(true);
+    const tick = async (manual = false) => {
+      clearTimeout(timer);
+      if (!alive || isHidden() || (stopped && !manual)) return;
+      if (request) { refreshQueued ||= manual; return; }
+      const controller = new AbortController();
+      request = controller;
+      let delay = 2000;
+      if (manual) stopped = false;
+      try {
+        const result = await apiGet<{ job: AgentJob }>(
+          "/agent/jobs/" + encodeURIComponent(jobId), controller.signal,
+        );
+        if (!alive || controller.signal.aborted) return;
+        setJob(result.job); setError(null); setLoading(false);
+        stopped = ["COMPLETED", "FAILED", "CANCELLED"].includes(result.job.status);
+      } catch (reason) {
+        if (!alive || controller.signal.aborted) return;
+        setError(reason as Error); setLoading(false);
+        stopped = [401, 403, 404].includes(Number((reason as { status?: number })?.status));
+        delay = 5000;
+      } finally {
+        request = null;
+        if (alive && !isHidden()) {
+          if (refreshQueued) {
+            refreshQueued = false;
+            void tick(true);
+          } else if (!stopped) timer = setTimeout(() => void tick(), delay);
+        }
+      }
+    };
+    refresh.current = () => { void tick(true); };
+    const visibilityChanged = () => {
+      clearTimeout(timer);
+      if (isHidden()) request?.abort();
+      else if (!stopped) void tick();
+    };
+    document.addEventListener("visibilitychange", visibilityChanged);
+    void tick();
     return () => {
       alive = false;
+      clearTimeout(timer);
+      request?.abort();
+      refresh.current = () => undefined;
+      document.removeEventListener("visibilitychange", visibilityChanged);
     };
-  };
+  }, [jobId]);
 
-  useEffect(() => reload(), [jobId]);
-
-  return { job, error, loading, reload };
+  return { job: job?.id === jobId ? job : null, error, loading, reload };
 }
 
 export function AgentJobShell(props: {
@@ -67,7 +105,7 @@ export function AgentJobShell(props: {
       </div>
       <div className="tabs">
         {tabs.map((t) => (
-          <a key={t.key} href={t.href} className={"tab" + (t.key === props.active ? " tab-active" : "")}>
+          <a key={t.key} href={t.href} aria-current={t.key === props.active ? "page" : undefined} className={"tab" + (t.key === props.active ? " tab-active" : "")}>
             {t.label}
           </a>
         ))}
@@ -89,7 +127,7 @@ export function EventRow(props: { ev: AgentEvent; compact?: boolean }) {
   const { ev } = props;
   const data = ev.data || {};
   const title = String(
-    (data.tool as string) || (data.status as string) || (data.message as string) || ev.type
+    (data.text as string) || (data.tool as string) || (data.status as string) || (data.message as string) || ev.type
   );
   return (
     <div className="event-row">
@@ -126,9 +164,9 @@ export function ApprovalCard(props: { approval: AgentApproval; jobLabel?: string
 }
 
 export function ProgressBar(props: { percent: number }) {
-  const pct = Math.max(0, Math.min(100, props.percent));
+  const pct = Number.isFinite(props.percent) ? Math.max(0, Math.min(100, props.percent)) : 0;
   return (
-    <div className="bar">
+    <div className="bar" role="progressbar" aria-label="任务执行进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
       <div className="bar-fill" style={{ width: pct + "%" }} />
     </div>
   );

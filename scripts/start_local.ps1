@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   SpecProof 一键本地启动 (W43/W43.1): infra -> Worker/Outbox -> API -> seed -> Vite。
 .DESCRIPTION
@@ -16,7 +16,8 @@ param(
     # 可选 LLM 增强档: 读取会话环境变量 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL,
     # 注入后端/Worker 进程并重启已运行实例。变量缺失时回退确定性档。
     # 凭据只进环境变量, 本脚本绝不落盘任何 LLM 凭据。
-    [switch]$WithLlm
+    [switch]$WithLlm,
+    [switch]$Restart
 )
 
 $ErrorActionPreference = "Stop"
@@ -135,6 +136,12 @@ if ($missing.Count -gt 0) {
 }
 Write-Ok "docker / python / node / npm 均可用"
 $pythonPath = (Get-Command python).Source
+$projectPython = Join-Path $RepoRoot ".venv/Scripts/python.exe"
+if (Test-Path -LiteralPath $projectPython) {
+    $pythonPath = $projectPython
+    $env:PATH = (Split-Path -Parent $projectPython) + [IO.Path]::PathSeparator + $env:PATH
+}
+$env:PYTHONUTF8 = "1"
 
 Write-Step "检查 Docker Desktop"
 try {
@@ -182,7 +189,13 @@ if (Test-ContainerHealthy "specproof-mysql") {
 # ── LLM 档位 (架构定性: 推理走远程 API, 其余全本地) ──
 $LlmConfigured = $false
 $llmModel = ""
-if ($WithLlm) {
+$modelConfigPath = Join-Path $LocalDir "llm.json"
+if ((Test-Path -LiteralPath $modelConfigPath) -and -not $env:LLM_API_KEY) {
+    $savedModel = Get-Content -LiteralPath $modelConfigPath -Raw | ConvertFrom-Json
+    $LlmConfigured = [bool]$savedModel.api_key
+    $llmModel = [string]$savedModel.model
+    if ($LlmConfigured) { Write-Ok "已读取本机保存的模型配置: $llmModel (凭据不输出)" }
+} elseif ($WithLlm) {
     $llmBase = [string]$env:LLM_BASE_URL
     $llmKey  = [string]$env:LLM_API_KEY
     $llmModel = [string]$env:LLM_MODEL
@@ -196,13 +209,18 @@ if ($WithLlm) {
     Write-Ok "确定性档 (默认): 不依赖任何 LLM 环境变量, 演示数据完整体验无需密钥"
 }
 
+# Apply schema before consumers begin processing jobs on a fresh installation.
+Write-Step "检查并更新数据库结构"
+& $pythonPath -c "from scripts.seed_demo import ensure_mysql_schema; from storage.mysql import MySQLStore; print(ensure_mysql_schema(MySQLStore()))"
+if ($LASTEXITCODE -ne 0) { throw "数据库结构更新失败，请检查 MySQL 配置。" }
+
 # ── 验证管道 (W43.1): worker -> outbox, 在 API 之前启动 ──
 Write-Step "启动验证管道 (Worker + Outbox Relay — 新建验证任务从 QUEUED 走到终态)"
 $workerPidFile = Join-Path $LocalDir "worker.pid"
 $needWorkerStart = $false
 if (Test-TrackedProcess $workerPidFile) {
-    if ($WithLlm -and $LlmConfigured) {
-        Write-Info "Worker 已在运行 — 按 LLM 增强档重启 Worker"
+    if ($Restart -or ($WithLlm -and $LlmConfigured)) {
+        Write-Info "Worker 已在运行 — 应用当前配置并重启 Worker"
         $procId = Get-TrackedPid $workerPidFile
         if ($null -ne $procId) { & taskkill /PID $procId /T /F 2>$null | Out-Null }
         Remove-Item $workerPidFile -Force -ErrorAction SilentlyContinue
@@ -274,8 +292,8 @@ Write-Step "启动 FastAPI (uvicorn api.server:app -> $ApiUrl)"
 $apiPidFile = Join-Path $LocalDir "api.pid"
 $needApiStart = $false
 if (Test-TrackedProcess $apiPidFile) {
-    if ($WithLlm -and $LlmConfigured) {
-        Write-Info "API 已在运行 — 按 LLM 增强档重启后端 (环境变量变更后必须重启才生效)"
+    if ($Restart -or ($WithLlm -and $LlmConfigured)) {
+        Write-Info "API 已在运行 — 应用当前配置并重启后端"
         $procId = Get-TrackedPid $apiPidFile
         if ($null -ne $procId) { & taskkill /PID $procId /T /F 2>$null | Out-Null }
         Remove-Item $apiPidFile -Force -ErrorAction SilentlyContinue
@@ -292,7 +310,7 @@ if (Test-TrackedProcess $apiPidFile) {
         Write-Ok "API 已在运行 (跳过启动)"
     }
 } elseif (Test-PortListening 8000) {
-    if ($WithLlm -and $LlmConfigured) {
+    if ($Restart -or ($WithLlm -and $LlmConfigured)) {
         Write-WarnMsg "端口 8000 被非本脚本管理的进程占用 — 无法安全重启, 跳过 (请先处理该进程或运行 stop_local.ps1)"
     } else {
         Write-WarnMsg "端口 8000 已被其他进程占用 — 跳过 API 启动 (若密钥不匹配, 种子会自动走存储回退)"
@@ -318,7 +336,7 @@ if ($needApiStart) {
 
 # ── 种子数据 (保持 API 之后: Agent 演示任务需真实 POST 才带【演示】标题) ──
 Write-Step "播种演示数据 (幂等, 可重复执行)"
-& python $SeedScript --api-base $ApiUrl --api-key $DemoApiKey
+& $pythonPath $SeedScript --api-base $ApiUrl --api-key $DemoApiKey
 if ($LASTEXITCODE -ne 0) {
     Write-WarnMsg "seed 脚本退出码 $LASTEXITCODE — 继续启动前端 (请查看上方输出)"
 }
@@ -360,7 +378,7 @@ if (Test-TrackedProcess $webPidFile) {
 Write-Step "全部就绪"
 Write-Host ""
 if ($LlmConfigured) {
-    Write-Host "  档位       : LLM 增强档 (模型: $llmModel; 凭据仅存在于本会话环境变量, 未写入任何文件)"
+    Write-Host "  档位       : LLM 增强档 (模型: $llmModel; 模型凭据由服务端配置管理，不在页面返回)"
 } else {
     Write-Host "  档位       : 确定性档 (未注入 LLM 凭据, 演示数据浏览与审批流完整可用)"
 }

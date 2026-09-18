@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   PrincipalInfo,
   getAuthMe,
+  getBearerToken,
   listSavedTokens,
   removeSavedToken,
   setBearerToken,
@@ -18,6 +19,7 @@ export default function TenantSwitcher(props: { onSwitch?: () => void }) {
 
   useEffect(() => {
     setSaved(listSavedTokens());
+    if (!getBearerToken()) return;
     getAuthMe()
       .then((me) => setPrincipal(me.principal))
       .catch(() => setPrincipal(null));
@@ -32,6 +34,7 @@ export default function TenantSwitcher(props: { onSwitch?: () => void }) {
         setBusy(false);
         if (props.onSwitch) props.onSwitch();
         window.location.hash = "#/dashboard";
+        window.location.reload();
       })
       .catch(() => {
         setBusy(false);
@@ -42,7 +45,7 @@ export default function TenantSwitcher(props: { onSwitch?: () => void }) {
   return (
     <div className="tenant-switcher">
       <div className="foot-line">
-        当前租户 TENANT — {principal ? principal.tenant_id.slice(0, 8) : "单租户 LEGACY"}
+        当前空间 · {principal ? principal.tenant_id.slice(0, 8) : "本地工作区"}
       </div>
       {principal ? (
         <div className="tenant-roles">

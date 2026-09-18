@@ -193,5 +193,7 @@ def test_terminal_status_mapping():
         {"errors": [], "confirmed_findings": [], "matrix": {"unverified": 1, "rows": [{}]}}
     ) == "BLOCKED"
     assert _terminal_status_from_state(
-        {"errors": [], "confirmed_findings": [], "matrix": {"unverified": 0, "rows": [{}]}}
+        {"errors": [], "confirmed_findings": [], "matrix": {"unverified": 0, "passed": 1,
+         "rows": [{"contract_id": "C-1", "result": "PASS", "experiment": "check",
+                   "evidence": "e-1"}]}}
     ) == "VERIFIED"

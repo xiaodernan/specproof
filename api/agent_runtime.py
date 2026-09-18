@@ -1,4 +1,8 @@
-"""Agent runtime: real deterministic CraftLoops behind /agent/jobs (W42).
+"""Agent runtime: approved LLM plans and deterministic CraftLoops.
+
+Explicit execution_mode requests first generate a persisted plan without
+editing files. Approval resumes that exact plan with the requested model
+client. Legacy auto_start demo calls keep their deterministic behavior.
 
 The W31 console stored agent jobs as passive projections; this module makes
 them run. AgentRuntime.start() launches a daemon thread that drives a real
@@ -43,6 +47,7 @@ import threading
 import time
 from collections.abc import Callable
 from contextlib import suppress
+from contextvars import copy_context
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -55,8 +60,9 @@ from api._agent_demo import (
 )
 from craft.accept import AcceptResult, persist_accept_result
 from craft.editor import MAX_READ_LINES, EditError, Editor
+from craft.llm import LLMClient
 from craft.loop import CraftLoop, CraftLoopError, FixFunction
-from craft.planner import CraftModeError, CraftPlanError, compile_plan
+from craft.planner import CraftModeError, CraftPlanError, Plan, compile_plan
 from craft.spec import SpecParseError, parse_spec
 from craft.tools import ToolRegistry
 from storage.agent_jobs import (
@@ -118,6 +124,7 @@ class _JobHandle:
     cancel_event: threading.Event = field(default_factory=threading.Event)
     watcher_stop: threading.Event = field(default_factory=threading.Event)
     thread: threading.Thread | None = None
+    client: LLMClient | None = None
 
 
 class _EventedEditor(Editor):
@@ -137,10 +144,16 @@ class _EventedEditor(Editor):
         backup_dir: str | Path | None,
         audit_path: str | Path | None,
         emit: Callable[[str, dict[str, Any]], None],
+        cancelled: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(workspace, backup_dir=backup_dir, audit_path=audit_path)
         self._emit = emit
         self._call_seq = 0
+        self._cancelled = cancelled or (lambda: False)
+
+    def _check_cancelled(self) -> None:
+        if self._cancelled():
+            raise EditError("任务已取消，停止后续文件修改。")
 
     def _next_call_id(self) -> str:
         self._call_seq += 1
@@ -182,6 +195,7 @@ class _EventedEditor(Editor):
     def apply_edit(
         self, path: str, old: str, new: str, *, expected_digest: str | None = None
     ) -> None:
+        self._check_cancelled()
         call_id = self._next_call_id()
         before_text = self._peek(path)
         self._emit(
@@ -211,6 +225,7 @@ class _EventedEditor(Editor):
     def write_file(
         self, path: str, content: str, *, expected_digest: str | None = None
     ) -> None:
+        self._check_cancelled()
         call_id = self._next_call_id()
         before_text = self._peek(path)
         self._emit(
@@ -292,6 +307,8 @@ class AgentRuntime:
         *,
         task_name: str | None = None,
         fix_registry: dict[str, FixFunction] | None = None,
+        execution_mode: str = "deterministic",
+        plan_only: bool = False,
     ) -> None:
         """Spawn a daemon thread running a real deterministic CraftLoop.
 
@@ -304,27 +321,36 @@ class AgentRuntime:
         store = self._store_for()
         effective_spec = spec_text if spec_text and spec_text.strip() else DEMO_SPEC_TEXT
         effective_repo = repo_path if repo_path and repo_path.strip() else ""
+        previous = self._handles.get(job_id)
+        if (not plan_only and previous and previous.thread and previous.thread.is_alive()
+                and (existing_job := store.get(job_id)) and existing_job.plan_json):
+            # Planner has published the plan but may still be closing its
+            # model client. Join it before handing off to the execution thread.
+            previous.thread.join(timeout=10)
+        # Reserve and start under one lock: concurrent approvals cannot spawn
+        # duplicate editors for the same job.
         with self._lock:
             existing = self._handles.get(job_id)
-            if (
-                existing is not None
-                and existing.thread is not None
-                and existing.thread.is_alive()
-            ):
+            if existing and existing.thread and existing.thread.is_alive():
                 raise AgentRuntimeError(f"agent job {job_id} already running in this runtime")
-        if store.get(job_id) is None:
-            store.create(job_id, effective_spec)
-        handle = _JobHandle(job_id=job_id)
-        thread = threading.Thread(
-            target=self._run_job,
-            args=(handle, effective_repo, effective_spec, task_name, fix_registry),
-            name=f"agent-runtime-{job_id[:8]}",
-            daemon=True,
-        )
-        handle.thread = thread
-        with self._lock:
+            if store.get(job_id) is None:
+                store.create(job_id, effective_spec)
+            handle = _JobHandle(job_id=job_id)
+            context = copy_context()
+            thread = threading.Thread(
+                target=context.run,
+                args=(self._run_job, handle, effective_repo, effective_spec, task_name,
+                      fix_registry, execution_mode, plan_only),
+                name=f"agent-runtime-{job_id[:8]}",
+                daemon=True,
+            )
+            handle.thread = thread
             self._handles[job_id] = handle
-        thread.start()
+            try:
+                thread.start()
+            except Exception:
+                self._handles.pop(job_id, None)
+                raise
 
     def cancel(self, job_id: str, reason: str = "Cancelled by user") -> bool:
         """Cooperative cancel flag + the durable supervisor override.
@@ -344,6 +370,8 @@ class AgentRuntime:
                 handle = _JobHandle(job_id=job_id)
                 self._handles[job_id] = handle
         handle.cancel_event.set()
+        if handle.client is not None:
+            handle.client.cancel()
         store.cancel(job_id, reason)
         return True
 
@@ -381,16 +409,58 @@ class AgentRuntime:
         spec_text: str,
         task_name: str | None,
         fix_registry: dict[str, FixFunction] | None,
+        execution_mode: str,
+        plan_only: bool,
     ) -> None:
         store = self._store_for()
         state = self._state_for()
+        client = None
+        pending_output: list[str] = []
+        output_size = 0
+        last_output = time.monotonic()
+
+        def flush_output() -> None:
+            nonlocal output_size, last_output
+            if pending_output:
+                state.record_event(handle.job_id, "model_output", {"text": "".join(pending_output)})
+                pending_output.clear()
+                output_size = 0
+                last_output = time.monotonic()
+
+        def stream_output(chunk: str) -> None:
+            nonlocal output_size
+            pending_output.append(chunk)
+            output_size += len(chunk)
+            if output_size >= 2048 or time.monotonic() - last_output >= 0.1:
+                flush_output()
+
         try:
-            self._execute(handle, store, state, repo_path, spec_text, task_name, fix_registry)
+            if execution_mode == "llm":
+                client = LLMClient(
+                    job_id=handle.job_id,
+                    stream_hook=stream_output,
+                )
+                handle.client = client
+                if not client.available:
+                    raise AgentRuntimeError("模型未配置，请在模型设置中保存连接并测试后重试。")
+            self._execute(
+                handle, store, state, repo_path, spec_text, task_name, fix_registry,
+                execution_mode, plan_only, client, flush_output,
+            )
         except Exception as exc:  # noqa: BLE001 — a daemon thread never dies silently
             logger.exception("agent runtime thread crashed for %s", handle.job_id)
+            flush_output()
             self._crash_terminal(store, state, handle.job_id, f"runtime crashed: {exc}")
         finally:
             handle.watcher_stop.set()
+            try:
+                flush_output()
+                if client is not None:
+                    client.close()
+            finally:
+                with self._lock:
+                    if self._handles.get(handle.job_id) is handle:
+                        self._handles.pop(handle.job_id, None)
 
     def _execute(
         self,
@@ -401,6 +471,10 @@ class AgentRuntime:
         spec_text: str,
         task_name: str | None,
         fix_registry: dict[str, FixFunction] | None,
+        execution_mode: str,
+        plan_only: bool,
+        client: LLMClient | None,
+        flush_output: Callable[[], None] = lambda: None,
     ) -> None:
         job_id = handle.job_id
         job = store.get(job_id)
@@ -429,21 +503,58 @@ class AgentRuntime:
         label = meta_name or task_name or (DEMO_TASK_NAME if is_demo else None)
         state.set_meta(job_id, str(workspace), label)
 
-        # -- deterministic plan (no LLM client, ever) --
+        # Planning is read-only. Editing begins only with the persisted,
+        # explicitly approved plan; never regenerate it after approval.
         try:
-            spec = parse_spec(spec_text)
-        except SpecParseError as exc:
+            if spec_text.lstrip().startswith("{"):
+                from craft.spec import parse_spec_json
+
+                spec = parse_spec_json(json.loads(spec_text))
+            else:
+                spec = parse_spec(spec_text)
+        except (SpecParseError, json.JSONDecodeError) as exc:
             self._crash_terminal(store, state, job_id, f"spec 解析失败: {exc}")
             return
         try:
-            plan = compile_plan(spec, mode="deterministic")
+            saved = json.loads(job.plan_json) if job.plan_json else None
+            if execution_mode == "llm" and not plan_only and not saved:
+                raise CraftPlanError("AI 开发必须先生成并批准计划。")
+            if saved and not plan_only:
+                options = saved.get("_console", {})
+                if options and not options.get("approved"):
+                    raise CraftPlanError("计划尚未批准，不能开始执行。")
+                plan = Plan.from_dict(saved)
+            else:
+                plan = compile_plan(spec, mode=execution_mode, client=client)
+            if execution_mode == "llm" and (plan.mode != "llm" or plan.llm_fallback_reason):
+                raise CraftPlanError("模型规划失败，未切换到规则模式：" + plan.llm_fallback_reason)
         except (CraftPlanError, CraftModeError) as exc:
+            flush_output()
             self._crash_terminal(store, state, job_id, f"计划编译失败: {exc}")
             return
-        state.record_event(job_id, "plan", {"plan": plan.to_dict(), "mode": "deterministic"})
+        flush_output()
+        if plan_only:
+            fresh = store.get(job_id)
+            if fresh is None or fresh.status in TERMINAL_JOB_STATUSES:
+                return
+            document = plan.to_dict()
+            document["_console"] = {
+                "repo_path": str(workspace), "task_name": label,
+                "execution_mode": execution_mode, "approved": False,
+            }
+            store.set_plan(job_id, document)
+            store.set_progress(job_id, "", {
+                "percent": 0, "message": "计划已生成，请审阅后批准执行。",
+            })
+            state.record_event(job_id, "plan", {"plan": document, "mode": execution_mode})
+            state.record_event(job_id, "progress", {
+                "status": "AWAITING_APPROVAL", "message": "计划已生成，尚未修改仓库。",
+            })
+            return
+        state.record_event(job_id, "plan", {"plan": plan.to_dict(), "mode": plan.mode})
         state.record_event(
             job_id, "progress",
-            {"status": "EXECUTING", "message": "deterministic CraftLoop starting (no LLM)"},
+            {"status": "EXECUTING", "message": f"{plan.mode} CraftLoop starting"},
         )
 
         # -- fix rules: explicit injection only (M1 never invents them) --
@@ -464,6 +575,9 @@ class AgentRuntime:
             backup_dir=artifact_dir / "backup",
             audit_path=artifact_dir / "audit.jsonl",
             emit=publish,
+            cancelled=lambda: handle.cancel_event.is_set() or (
+                (current := store.get(job_id)) is not None and current.status == "cancelled"
+            ),
         )
         loop = CraftLoop(
             spec,
@@ -475,6 +589,7 @@ class AgentRuntime:
             store=store,
             lease_ttl_seconds=self._lease_ttl_seconds,
             tool_registry=ToolRegistry(workspace, editor=editor),
+            client=client,
         )
 
         watcher = threading.Thread(
@@ -487,11 +602,13 @@ class AgentRuntime:
         try:
             report = loop.run()
         except CraftLoopError as exc:
+            flush_output()
             self._crash_terminal(store, state, job_id, f"craft loop aborted: {exc}")
             return
         finally:
             handle.watcher_stop.set()
             watcher.join(timeout=5.0)
+        flush_output()
         self._post_run(handle, store, state, loop, report)
 
     # -- post-run: gates / bundle / terminal / accept projection ----------
@@ -525,6 +642,13 @@ class AgentRuntime:
         bundle = self._bundle_from_editor(loop.editor)
         if bundle:
             state.set_bundle(job_id, bundle)
+            # Keep the exact before/after snapshot reviewable after API restart.
+            from craft.planner import write_json_atomic
+
+            write_json_atomic(
+                loop.editor.workspace / ".specraft" / "jobs" / job_id / "change-bundle.json",
+                {"files": bundle},
+            )
         current = store.get(job_id)
         if current is None:
             self._crash_terminal(store, state, job_id, "job missing after the run")

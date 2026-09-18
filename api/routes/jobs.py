@@ -16,9 +16,9 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any, Protocol
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from api.auth import enforce_rate_limit, require_api_key
 from api.errors import JOB_NOT_FOUND, PROVIDER_UNAVAILABLE, STATE_CONFLICT, ApiError
@@ -34,6 +34,10 @@ router = APIRouter(
     tags=["jobs"],
     dependencies=[Depends(require_api_key), Depends(enforce_rate_limit)],
 )
+
+# These handlers use synchronous database clients. Plain ``def`` lets
+# FastAPI run them in its worker pool without blocking SSE or other requests.
+# The stream itself remains async and offloads its blocking Redis reads.
 
 _redis: RedisStore | None = None
 
@@ -68,7 +72,9 @@ class JobCreateRequest(BaseModel):
     worker.
     """
 
-    repo_path: str = Field(min_length=1, max_length=1024)
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    repo_path: str = Field(min_length=1, max_length=512)
     base_ref: str = Field(min_length=1, max_length=255)
     head_ref: str = Field(min_length=1, max_length=255)
     spec_path: str = Field(min_length=1, max_length=1024)
@@ -90,7 +96,7 @@ class JobCreateRequest(BaseModel):
 
 
 @router.post("", status_code=202)
-async def create_job(payload: JobCreateRequest) -> dict[str, Any]:
+def create_job(payload: JobCreateRequest) -> dict[str, Any]:
     """Create a verification job and its Outbox event in ONE MySQL transaction.
 
     The job row and the outbox row commit together: if the API crashes before
@@ -122,7 +128,7 @@ async def create_job(payload: JobCreateRequest) -> dict[str, Any]:
 
 
 @router.post("/{job_id}/cancel", status_code=202)
-async def cancel_job(job_id: str) -> dict[str, Any]:
+def cancel_job(job_id: str) -> dict[str, Any]:
     """Cancel a QUEUED/RUNNING job (CAS; terminal jobs are immutable)."""
     try:
         store = MySQLStore()
@@ -163,11 +169,25 @@ async def cancel_job(job_id: str) -> dict[str, Any]:
 
 
 @router.get("")
-async def list_jobs(limit: int = 50) -> dict[str, Any]:
+def list_jobs(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int | None = Query(default=None, ge=0, le=1_000_000),
+    status: str | None = Query(default=None, max_length=32),
+    q: str = Query(default="", max_length=256),
+) -> dict[str, Any]:
     """List the most recent verification jobs."""
     try:
         store = MySQLStore()
+        if status is not None and status not in {
+            "QUEUED", "RUNNING", "PENDING", "WAITING_FOR_PROVIDER", "VERIFIED",
+            "BLOCKED", "FAILED", "ERROR", "CANCELLED", "UNVERIFIED", "INCONCLUSIVE",
+        }:
+            raise HTTPException(422, "Unknown job status filter")
+        if offset is not None or status is not None or q:
+            return store.search_jobs(limit, offset or 0, status, q.strip())
         rows = store.list_recent_jobs(limit)
+    except HTTPException:
+        raise
     except Exception as exc:  # noqa: BLE001
         raise ApiError(
             status_code=503,
@@ -178,7 +198,7 @@ async def list_jobs(limit: int = 50) -> dict[str, Any]:
 
 
 @router.get("/{job_id}")
-async def get_job(job_id: str) -> dict[str, Any]:
+def get_job(job_id: str) -> dict[str, Any]:
     """Return one job's status from MySQL (the business source of truth)."""
     try:
         store = MySQLStore()
@@ -197,7 +217,7 @@ async def get_job(job_id: str) -> dict[str, Any]:
 
 
 @router.get("/{job_id}/summary")
-async def get_job_summary(job_id: str) -> dict[str, Any]:
+def get_job_summary(job_id: str) -> dict[str, Any]:
     """Return the persisted pipeline summary (matrix/findings/capsules)."""
     try:
         store = MySQLStore()
@@ -288,7 +308,9 @@ async def _progress_stream(
     idempotent), while a stale/unknown id replays the full retained
     history instead of silently dropping events.
     """
-    history = redis.xread_progress(job_id, from_id="0", count=_SSE_HISTORY_CAP)
+    history = await asyncio.to_thread(
+        redis.xread_progress, job_id, from_id="0", count=_SSE_HISTORY_CAP,
+    )
     seq = 0
     last_emitted_id = "0"
     if last_event_id != "0":
@@ -305,8 +327,8 @@ async def _progress_stream(
         if replaying:
             entries = history
         else:
-            entries = redis.xread_progress(
-                job_id, from_id=last_emitted_id, count=50,
+            entries = await asyncio.to_thread(
+                redis.xread_progress, job_id, from_id=last_emitted_id, count=50,
             )
         for idx, ev in enumerate(entries):
             entry_id = str(ev.get("id"))

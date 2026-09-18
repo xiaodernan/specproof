@@ -58,3 +58,7 @@ golden-cases-c1/
 golden-cases-c2/
 golden-cases-c3/
 golden-cases-c4/
+
+# Browser inspection artifacts
+apps/web/.playwright-cli/
+output/playwright/

@@ -43,14 +43,18 @@ const AGENT_ROUTES: RouteDef[] = [
 ];
 
 const CONSOLE_ROUTES: RouteDef[] = [
-  { path: "#/dashboard", label: "总览", sub: "Dashboard" },
-  { path: "#/jobs", label: "任务列表", sub: "Jobs" },
-  { path: "#/matrix", label: "需求矩阵", sub: "Matrix" },
-  { path: "#/contracts", label: "契约中心", sub: "Contracts" },
-  { path: "#/identity", label: "身份 · 用户", sub: "Identity — users" },
-  { path: "#/identity/tokens", label: "身份 · 令牌", sub: "Identity — tokens" },
-  { path: "#/eval", label: "评测", sub: "Eval" },
-  { path: "#/health", label: "健康", sub: "Health" },
+  { path: "#/dashboard", label: "工作台", sub: "总览与下一步行动 Dashboard" },
+  { path: "#/jobs/new", label: "新建验证", sub: "检查代码变更是否满足需求 Verify" },
+  { path: "#/jobs", label: "变更验收", sub: "验证任务与结果 Jobs" },
+  { path: "#/matrix", label: "需求覆盖", sub: "逐项验收矩阵 Matrix" },
+  { path: "#/contracts", label: "验收规则", sub: "契约与版本 Contracts" },
+  { path: "#/identity", label: "团队与权限", sub: "成员管理 Identity — users" },
+  { path: "#/identity/tokens", label: "访问令牌", sub: "Identity — tokens" },
+  { path: "#/billing", label: "用量与账单", sub: "套餐、订阅和使用量 Billing" },
+  { path: "#/settings", label: "模型连接", sub: "配置模型 API Key、协议与推理强度，测试真实连接" },
+  { path: "#/eval", label: "效果评测", sub: "Eval" },
+  { path: "#/health", label: "服务状态", sub: "环境检查与排障 Health" },
+  { path: "#/guide", label: "上手指南", sub: "SpecProof 是什么、怎么用、如何读结果" },
   { path: "#/ui-kit", label: "UI Kit 设计系统", sub: "Design system style guide" },
 ];
 

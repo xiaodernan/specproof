@@ -26,7 +26,8 @@ SPECPROOF_AGENT_JOBS_URL ("" = in-memory; "sqlite:<path>" = SQLite;
 "mysql://..." = MySQL) and fails closed on an unknown scheme. Console-only
 state that the job store deliberately does not own — repo_path/task_name
 metadata, the SSE event log, approval records and the change bundle — is
-kept in a process-local _ConsoleState beside it.
+kept in a transactional SQL journal beside it, using the same configured backend.
+The recent event window is bounded and SSE reads use keyset pagination.
 
 Console status vocabulary is a stable API surface mapped onto the store's
 statuses: PLANNING/AWAITING_APPROVAL → pending, EXECUTING → running,
@@ -58,13 +59,15 @@ import json
 import logging
 import os
 import threading
+import time
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, cast
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol, Self, cast
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
@@ -77,6 +80,7 @@ from api.errors import (
     STATE_CONFLICT,
     ApiError,
 )
+from storage.agent_console import ConsoleState as _ConsoleState
 from storage.agent_jobs import (
     TERMINAL_JOB_STATUSES,
     AgentJob,
@@ -88,6 +92,7 @@ from storage.agent_jobs import (
     MySqlAgentJobStore,
     SqliteAgentJobStore,
 )
+from storage.tenant_scope import current_scope
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +110,7 @@ _CANCELLABLE_STATUSES = frozenset({"PLANNING", "AWAITING_APPROVAL", "EXECUTING"}
 _TERMINAL_CONSOLE_STATUSES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
 
 #: Event types carried by the SSE stream (plus "progress").
-EVENT_TYPES = ("plan", "tool_call", "tool_result", "edit", "gate", "progress")
+EVENT_TYPES = ("plan", "tool_call", "tool_result", "edit", "gate", "progress", "model_output")
 
 #: Human-readable status labels mirrored by the SPA timeline.
 STATUS_LABELS: dict[str, str] = {
@@ -141,100 +146,6 @@ def _iso(epoch_seconds: float | None) -> str:
 # ── Console-only state (metadata / events / approvals / bundle) ─────────────
 
 
-class _ConsoleState:
-    """Process-local state the job store does not own.
-
-    The durable projection (status/plan/progress/result/lease) lives in
-    storage/agent_jobs.py; this object keeps the console's live-view extras:
-    repo_path/task_name metadata, the SSE event log (monotonic seq per job),
-    approval records and the change bundle rendered by the diff endpoint.
-    """
-
-    def __init__(self) -> None:
-        self._lock = threading.RLock()
-        self._meta: dict[str, dict[str, str]] = {}
-        self._events: dict[str, builtins.list[dict[str, Any]]] = {}
-        self._approvals: dict[str, builtins.list[dict[str, Any]]] = {}
-        self._bundles: dict[str, builtins.list[dict[str, Any]]] = {}
-
-    def set_meta(self, job_id: str, repo_path: str, task_name: str | None) -> None:
-        with self._lock:
-            self._meta[job_id] = {
-                "repo_path": repo_path,
-                "task_name": task_name or f"agent-{job_id[:8]}",
-            }
-
-    def meta_for(self, job_id: str) -> dict[str, str]:
-        with self._lock:
-            return dict(self._meta.get(job_id, {"repo_path": "", "task_name": job_id}))
-
-    def record_event(self, job_id: str, etype: str, data: dict[str, Any]) -> dict[str, Any]:
-        with self._lock:
-            events = self._events.setdefault(job_id, [])
-            event: dict[str, Any] = {
-                "seq": len(events) + 1,
-                "type": etype,
-                "at": _now_iso(),
-                "data": data,
-            }
-            events.append(event)
-            return dict(event)
-
-    def events_since(self, job_id: str, after_seq: int) -> builtins.list[dict[str, Any]]:
-        with self._lock:
-            events = self._events.get(job_id)
-            if events is None:
-                return []
-            return [dict(e) for e in events if e["seq"] > after_seq]
-
-    def events_count(self, job_id: str) -> int:
-        with self._lock:
-            return len(self._events.get(job_id, []))
-
-    def record_approval(
-        self,
-        job_id: str,
-        target: str,
-        decision: str,
-        note: str | None,
-        step_index: int | None,
-        actor: str = "console",
-    ) -> dict[str, Any]:
-        approval: dict[str, Any] = {
-            "id": str(uuid.uuid4()),
-            "job_id": job_id,
-            "target": target,
-            "step_index": step_index,
-            "decision": decision,
-            "note": note,
-            "actor": actor,
-            "created_at": _now_iso(),
-        }
-        with self._lock:
-            self._approvals.setdefault(job_id, []).append(approval)
-        self.record_event(job_id, "gate", {"approval": dict(approval)})
-        return dict(approval)
-
-    def approvals_for(self, job_id: str) -> builtins.list[dict[str, Any]]:
-        with self._lock:
-            return [dict(a) for a in self._approvals.get(job_id, [])]
-
-    def approvals_count(self, job_id: str) -> int:
-        with self._lock:
-            return len(self._approvals.get(job_id, []))
-
-    def set_bundle(self, job_id: str, files: builtins.list[dict[str, Any]]) -> None:
-        with self._lock:
-            self._bundles[job_id] = [dict(f) for f in files]
-        self.record_event(
-            job_id, "edit", {"bundle": {"files_changed": len(files)}}
-        )
-
-    def bundle_for(self, job_id: str) -> builtins.list[dict[str, Any]]:
-        with self._lock:
-            return [dict(f) for f in self._bundles.get(job_id, [])]
-
-
 # ── Backend selection (storage/agent_jobs.py) ───────────────────────────────
 
 
@@ -258,7 +169,11 @@ def _build_backend() -> AgentJobStore:
 
 
 _store: AgentJobStore = _build_backend()
-_state = _ConsoleState()
+# An explicit override supports a separately provisioned journal; otherwise
+# it follows the projection backend and survives the same process restarts.
+_state = _ConsoleState(
+    os.getenv("SPECPROOF_AGENT_CONSOLE_URL", os.getenv("SPECPROOF_AGENT_JOBS_URL", "")).strip()
+)
 
 
 def get_store() -> AgentJobStore:
@@ -267,7 +182,7 @@ def get_store() -> AgentJobStore:
 
 
 def get_state() -> _ConsoleState:
-    """Console-only live state (metadata/events/approvals/bundle)."""
+    """Console journal (metadata/events/approvals/bundle)."""
     return _state
 
 
@@ -285,7 +200,7 @@ if TYPE_CHECKING:
     from api.agent_runtime import AgentRuntime
 
 _runtime: AgentRuntime | None = None
-_runtime_lock = threading.Lock()
+_runtime_lock = threading.RLock()
 
 
 def get_runtime() -> AgentRuntime:
@@ -315,7 +230,7 @@ def get_runtime() -> AgentRuntime:
 #: is refused with 422 VALIDATION_FAILED instead of being silently dropped:
 #: the agent console must never become an execution-directive surface.
 AGENT_JOB_CREATE_ALLOWLIST = frozenset(
-    {"repo_path", "spec_text", "task_name", "auto_start"}
+    {"repo_path", "spec_text", "task_name", "auto_start", "execution_mode", "plan_first"}
 )
 
 
@@ -331,6 +246,8 @@ class AgentJobCreateRequest(BaseModel):
     repo_path: str | None = Field(default=None, min_length=1, max_length=1024)
     spec_text: str | None = Field(default=None, min_length=1, max_length=200_000)
     task_name: str | None = Field(default=None, min_length=1, max_length=255)
+    execution_mode: Literal["llm", "deterministic"] | None = None
+    plan_first: bool = False
     auto_start: bool = Field(
         default=False,
         description=(
@@ -362,6 +279,10 @@ class AgentJobCreateRequest(BaseModel):
     @model_validator(mode="after")
     def _check_run_shape(self) -> Self:
         """auto_start wants repo+spec together, or neither (bundled demo)."""
+        if self.plan_first or self.execution_mode is not None:
+            if not self.repo_path or not self.spec_text:
+                raise ValueError("规划任务需要仓库路径和需求，示例任务请使用 auto_start。")
+            return self
         if self.auto_start:
             if (self.repo_path is None) != (self.spec_text is None):
                 raise ValueError(
@@ -413,6 +334,17 @@ def _job_view(job: AgentJob) -> dict[str, Any]:
     """Merge the durable projection with console state into the API shape."""
     state = get_state()
     plan = json.loads(job.plan_json) if job.plan_json else None
+    if plan and "mode" in plan:
+        # Adapt the real Craft plan to the console presentation contract;
+        # execution continues to read the unchanged durable plan JSON.
+        approved = bool(plan.get("_console", {}).get("approved")) or job.status != "pending"
+        plan = {**plan, "version": 1, "steps": [
+            {**step, "index": index, "title": step.get("intent") or step.get("kind"),
+             "summary": ", ".join(step.get("target_files", [])) + " · "
+                        + str(step.get("success_criteria", {}).get("value", "")),
+             "status": "approved" if approved else "pending"}
+            for index, step in enumerate(plan.get("steps", []))
+        ]}
     progress = json.loads(job.progress_json) if job.progress_json else None
     if progress is None:
         progress = {
@@ -421,14 +353,40 @@ def _job_view(job: AgentJob) -> dict[str, Any]:
             "updated_at": _iso(job.created_at),
         }
     result = json.loads(job.result_json) if job.result_json else None
+    if result and "verdict" not in result:
+        result = {**result, "verdict": result.get("result", "UNKNOWN"),
+                  "reason": result.get("reason") or job.error}
     if result is None and job.status == "cancelled":
         result = {"verdict": "CANCELLED", "reason": job.error or "Cancelled by user"}
+    # Runtime checkpoints store step evidence, while the UI needs a stable
+    # progress shape. Derive it from recorded states instead of emitting NaN.
+    evidence = progress.get("evidence") or {}
+    reason = evidence.get("reason") or job.error
+    if result and not result.get("reason") and reason:
+        result = {**result, "reason": reason}
+    if "percent" not in progress:
+        steps = result.get("steps", []) if result else []
+        completed = sum(step.get("status") == "green" for step in steps)
+        percent = 100 if job.status == "succeeded" else (
+            round(completed / len(steps) * 100) if steps else 0
+        )
+        progress = {**progress, "percent": percent, "message": reason or (
+            "执行已完成，请审阅改动和检查结果。" if job.status == "succeeded"
+            else f"正在执行步骤 {job.current_step}" if job.status == "running"
+            else "执行未完成，请查看结果。"
+        ), "updated_at": _iso(job.updated_at)}
+    progress.setdefault("current_step", job.current_step or "")
     meta = state.meta_for(job.id)
+    options = _runtime_options(job)
+    if options:
+        meta = {**meta, "repo_path": options.get("repo_path", meta["repo_path"]),
+                "task_name": options.get("task_name") or meta["task_name"]}
     return {
         "id": job.id,
         "task_name": meta["task_name"],
         "repo_path": meta["repo_path"],
         "spec_text": job.spec_text,
+        "execution_mode": options.get("execution_mode") if options else None,
         "status": _console_status(job),
         "plan": plan,
         "progress": progress,
@@ -437,27 +395,43 @@ def _job_view(job: AgentJob) -> dict[str, Any]:
         "created_at": _iso(job.created_at),
         "updated_at": _iso(job.updated_at),
         "events_count": state.events_count(job.id),
-        "approvals_count": state.approvals_count(job.id),
+        "approvals_count": max(state.approvals_count(job.id),
+                               int(bool((plan or {}).get("_console", {}).get("approved_at")))),
     }
 
 
-def _summary_view(job: AgentJob) -> dict[str, Any]:
-    view = _job_view(job)
-    plan = view["plan"]
+def _runtime_options(job: AgentJob) -> dict[str, Any]:
+    """Execution choices survive a process restart alongside the durable spec."""
+    try:
+        spec = json.loads(job.spec_text)
+    except (ValueError, TypeError):
+        return {}
+    options = spec.get("_console", {}) if isinstance(spec, dict) else {}
+    return options if isinstance(options, dict) else {}
+
+
+def _summary_view(job: AgentJob, metadata: dict[str, Any]) -> dict[str, Any]:
+    # List pages need neither result JSON nor per-job SQL count requests.
+    plan = json.loads(job.plan_json) if job.plan_json else {}
+    options = _runtime_options(job)
     return {
         "id": job.id,
-        "task_name": view["task_name"],
-        "repo_path": view["repo_path"],
-        "status": view["status"],
-        "plan_steps": len(plan["steps"]) if plan else 0,
-        "events_count": view["events_count"],
-        "approvals_count": view["approvals_count"],
-        "created_at": view["created_at"],
-        "updated_at": view["updated_at"],
+        "task_name": options.get("task_name") or metadata.get("task_name", job.id),
+        "repo_path": options.get("repo_path") or metadata.get("repo_path", ""),
+        "status": _console_status(job),
+        "plan_steps": len(plan.get("steps", [])),
+        "events_count": metadata.get("last_seq", 0),
+        "approvals_count": max(metadata.get("approvals_count", 0),
+                               int(bool(plan.get("_console", {}).get("approved_at")))),
+        "created_at": _iso(job.created_at),
+        "updated_at": _iso(job.updated_at),
     }
 
 
 def _job_or_404(job_id: str) -> AgentJob:
+    # Authorize before reading spec, result, events, approvals or repository files.
+    if not get_state().visible(job_id):
+        raise ApiError(status_code=404, code=JOB_NOT_FOUND, detail="Agent job not found")
     try:
         job = get_store().get(job_id)
     except AgentJobStoreError as exc:
@@ -515,6 +489,29 @@ def _apply_approval(
 ) -> None:
     """Mutate job state per the approval decision (status + plan + result)."""
     job_id = job.id
+    options = _runtime_options(job)
+    if options:
+        if target != "plan":
+            raise ApiError(status_code=409, code=STATE_CONFLICT,
+                           detail="请审批完整计划；执行结果由真实检查决定，不能手动标记完成。")
+        if _console_status(job) != "AWAITING_APPROVAL":
+            raise ApiError(status_code=409, code=STATE_CONFLICT,
+                           detail="计划尚未就绪或已经开始执行，不能重复审批。")
+        if decision == "reject":
+            reason = note or "Plan rejected"
+            _transition(job_id, "failed", error=reason,
+                        result_json={"verdict": "FAILED", "reason": reason})
+            return
+        plan = json.loads(job.plan_json or "{}")
+        plan["_console"] = {**plan.get("_console", {}), "approved": True,
+                            "approved_at": _now_iso(), "approval_note": note}
+        get_store().set_plan(job_id, plan)
+        _transition(job_id, "running")
+        _start_runtime_job(
+            job_id, options["repo_path"], job.spec_text, options.get("task_name"),
+            execution_mode=options["execution_mode"],
+        )
+        return
     if target == "step":
         if step_index is None:
             raise ApiError(
@@ -585,7 +582,8 @@ def _require_cancellable(job: AgentJob) -> None:
 
 
 def _start_runtime_job(
-    job_id: str, repo_path: str, spec_text: str, task_name: str | None
+    job_id: str, repo_path: str, spec_text: str, task_name: str | None,
+    *, execution_mode: str = "deterministic", plan_only: bool = False,
 ) -> None:
     """Kick off the deterministic runtime thread (best effort).
 
@@ -594,7 +592,13 @@ def _start_runtime_job(
     projection instead of breaking the 202 response shape.
     """
     try:
-        get_runtime().start(job_id, repo_path, spec_text, task_name=task_name)
+        if execution_mode == "deterministic" and not plan_only:
+            get_runtime().start(job_id, repo_path, spec_text, task_name=task_name)
+        else:
+            get_runtime().start(
+                job_id, repo_path, spec_text, task_name=task_name,
+                execution_mode=execution_mode, plan_only=plan_only,
+            )
     except Exception as exc:  # noqa: BLE001 — a broken runtime must not fail the 202
         logger.exception("agent runtime failed to start")
         reason = f"agent runtime failed to start: {exc}"
@@ -610,7 +614,7 @@ def _start_runtime_job(
 
 
 @router.post("/jobs", status_code=202)
-async def create_agent_job(payload: AgentJobCreateRequest) -> dict[str, Any]:
+def create_agent_job(payload: AgentJobCreateRequest) -> dict[str, Any]:
     """Create an agent job (repo path + spec text) and return its id.
 
     The durable projection is created in storage/agent_jobs.py; the job
@@ -627,6 +631,21 @@ async def create_agent_job(payload: AgentJobCreateRequest) -> dict[str, Any]:
     spec_text = payload.spec_text or ""
     if payload.auto_start and not spec_text:
         spec_text = DEMO_SPEC_TEXT
+    managed = payload.plan_first or payload.execution_mode is not None
+    if managed:
+        from craft.spec import SpecParseError, parse_spec_json, parse_spec_text
+
+        try:
+            spec = (parse_spec_json(json.loads(spec_text)) if spec_text.lstrip().startswith("{")
+                    else parse_spec_text(spec_text))
+        except (SpecParseError, ValueError) as exc:
+            raise ApiError(status_code=422, code=STATE_CONFLICT, detail=str(exc)) from exc
+        document = spec.to_dict()
+        document["_console"] = {
+            "repo_path": repo_path, "task_name": payload.task_name,
+            "execution_mode": payload.execution_mode or "llm", "requires_approval": True,
+        }
+        spec_text = json.dumps(document, ensure_ascii=False)
     try:
         job = get_store().create(job_id, spec_text)
     except Exception as exc:  # noqa: BLE001 — backend down must reject honestly
@@ -636,15 +655,25 @@ async def create_agent_job(payload: AgentJobCreateRequest) -> dict[str, Any]:
             code=PROVIDER_UNAVAILABLE,
             detail=f"Job NOT accepted — persistence failed: {exc}",
         ) from exc
+    scope = current_scope()
+    get_state().set_owner(job_id, scope.tenant_id if scope else None)
     get_state().set_meta(job_id, repo_path, payload.task_name)
     get_state().record_event(job_id, "progress", {"status": "PLANNING", "message": "Job created"})
-    if payload.auto_start:
-        _start_runtime_job(job_id, repo_path, spec_text, payload.task_name)
+    if managed or payload.auto_start:
+        _start_runtime_job(
+            job_id, repo_path, spec_text, payload.task_name,
+            execution_mode=payload.execution_mode or ("llm" if managed else "deterministic"),
+            plan_only=managed,
+        )
     return {"job_id": job_id, "status": _console_status(job)}
 
 
 @router.get("/jobs")
-async def list_agent_jobs(status: str | None = None, limit: int = 200) -> dict[str, Any]:
+def list_agent_jobs(
+    status: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+    offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
+) -> dict[str, Any]:
     """List agent jobs, optionally filtered by exact console status."""
     if status is not None and status not in STATUS_LABELS:
         raise ApiError(
@@ -654,30 +683,55 @@ async def list_agent_jobs(status: str | None = None, limit: int = 200) -> dict[s
         )
     store_status = _store_status_for_filter(status)
     try:
-        rows = get_store().list(status=store_status, limit=limit)
+        rows = get_store().list(status=store_status, limit=limit + 1, offset=offset)
     except AgentJobStoreError as exc:
         raise ApiError(
             status_code=503,
             code=PROVIDER_UNAVAILABLE,
             detail=f"Agent job store unavailable: {exc}",
         ) from exc
+    metadata = get_state().summaries_for([job.id for job in rows[:limit]])
+    scope = current_scope()
     summaries = [
-        _summary_view(job)
-        for job in rows
+        _summary_view(job, metadata.get(job.id, {}))
+        for job in rows[:limit]
+        if scope is None or scope.is_auditor()
+        or metadata.get(job.id, {}).get("tenant_id") == scope.tenant_id
         if status != "PLANNING" or not job.plan_json
         if status != "AWAITING_APPROVAL" or job.plan_json
     ]
-    return {"jobs": summaries, "count": len(summaries), "filter": {"status": status}}
+    return {"jobs": summaries, "count": len(summaries), "filter": {"status": status},
+            "next_offset": offset + limit if len(rows) > limit else None}
+
+
+@router.get("/jobs/{job_id}/event-history")
+def agent_event_history(
+    job_id: str,
+    after_seq: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+) -> dict[str, Any]:
+    """Bounded event history for inspection without holding a live SSE connection."""
+    _job_or_404(job_id)
+    state = get_state()
+    events = state.events_since(job_id, after_seq, limit + 1)
+    page = events[:limit]
+    return {
+        "job_id": job_id, "events": page,
+        "next_seq": page[-1]["seq"] if page else after_seq,
+        "has_more": len(events) > limit,
+        "latest_seq": state.events_count(job_id),
+        "truncated": bool(page and page[0]["seq"] > after_seq + 1),
+    }
 
 
 @router.get("/jobs/{job_id}")
-async def get_agent_job(job_id: str) -> dict[str, Any]:
+def get_agent_job(job_id: str) -> dict[str, Any]:
     """Return full job detail: status, plan, progress, result, counts."""
     return {"job": _job_view(_job_or_404(job_id))}
 
 
 @router.post("/jobs/{job_id}/cancel", status_code=202)
-async def cancel_agent_job(job_id: str) -> dict[str, Any]:
+def cancel_agent_job(job_id: str) -> dict[str, Any]:
     """Cancel a non-terminal agent job (terminal jobs are immutable here).
 
     The runtime is signalled first (cooperative cancel flag), then the
@@ -701,7 +755,7 @@ async def cancel_agent_job(job_id: str) -> dict[str, Any]:
 
 
 @router.post("/jobs/{job_id}/approve")
-async def approve_agent_job(job_id: str, payload: ApprovalRequest) -> dict[str, Any]:
+def approve_agent_job(job_id: str, payload: ApprovalRequest) -> dict[str, Any]:
     """Record an approval decision and apply it to the job state machine.
 
     target=plan approves/rejects the whole plan (→ EXECUTING / FAILED),
@@ -726,9 +780,13 @@ async def approve_agent_job(job_id: str, payload: ApprovalRequest) -> dict[str, 
             code=STATE_CONFLICT,
             detail="step_index is required when target is 'step'",
         )
-    _apply_approval(job, payload.target, payload.decision, payload.note, payload.step_index)
+    with _runtime_lock:
+        job = _job_or_404(job_id)
+        _apply_approval(job, payload.target, payload.decision, payload.note, payload.step_index)
+    scope = current_scope()
     approval = get_state().record_approval(
         job_id, payload.target, payload.decision, payload.note, payload.step_index,
+        actor=scope.user_id if scope else "console",
     )
     fresh = _job_or_404(job_id)
     return {
@@ -738,10 +796,21 @@ async def approve_agent_job(job_id: str, payload: ApprovalRequest) -> dict[str, 
 
 
 @router.get("/jobs/{job_id}/approvals")
-async def list_agent_approvals(job_id: str) -> dict[str, Any]:
+def list_agent_approvals(job_id: str) -> dict[str, Any]:
     """List every approval decision recorded for a job."""
     _job_or_404(job_id)
     approvals = get_state().approvals_for(job_id)
+    if not approvals:
+        job = _job_or_404(job_id)
+        plan = json.loads(job.plan_json) if job.plan_json else {}
+        decision = plan.get("_console", {})
+        if decision.get("approved") and decision.get("approved_at"):
+            approvals = [{
+                "id": job_id + "-plan", "job_id": job_id, "target": "plan",
+                "step_index": None, "decision": "approve",
+                "note": decision.get("approval_note"), "actor": "console",
+                "created_at": decision["approved_at"],
+            }]
     return {"job_id": job_id, "approvals": approvals, "count": len(approvals)}
 
 
@@ -762,11 +831,15 @@ async def _event_stream(
     fake request whose is_disconnected() flips).
     """
     delivered = 0
-    seen = from_seq
+    seen = max(0, from_seq)
+    heartbeat_at = time.monotonic()
     while True:
         if await request.is_disconnected():
             break
-        events = state.events_since(job_id, seen)
+        events = await asyncio.to_thread(state.events_since, job_id, seen)
+        if events and int(events[0]["seq"]) > seen + 1:
+            gap = json.dumps({"requested_after": seen, "first_available": events[0]["seq"]})
+            yield f"event: replay_gap\ndata: {gap}\n\n"
         for ev in events:
             payload = json.dumps(ev, ensure_ascii=False)
             yield f"id: {ev['seq']}\n"
@@ -776,7 +849,7 @@ async def _event_stream(
             delivered += 1
         if events:
             continue
-        current = store.get(job_id)
+        current = await asyncio.to_thread(store.get, job_id)
         if current is not None and current.status in TERMINAL_JOB_STATUSES:
             done = json.dumps(
                 {"job_id": job_id, "status": current.status,
@@ -787,11 +860,14 @@ async def _event_stream(
             yield "event: done\n"
             yield f"data: {done}\n\n"
             return
+        if time.monotonic() - heartbeat_at >= 15:
+            yield ": heartbeat\n\n"
+            heartbeat_at = time.monotonic()
         await asyncio.sleep(0.25)
 
 
 @router.get("/jobs/{job_id}/events")
-async def stream_agent_events(job_id: str, request: Request) -> StreamingResponse:
+def stream_agent_events(job_id: str, request: Request) -> StreamingResponse:
     """SSE stream of plan / tool_call / tool_result / edit / gate / progress.
 
     Frame format mirrors /jobs/{job_id}/progress:
@@ -908,7 +984,7 @@ def _diff_hunks(old_text: str, new_text: str, context: int = 3) -> builtins.list
 
 
 @router.get("/jobs/{job_id}/diff")
-async def get_agent_diff(
+def get_agent_diff(
     job_id: str, mode: Literal["unified", "split"] = "unified",
 ) -> dict[str, Any]:
     """Structured diff of the current change bundle.
@@ -918,8 +994,19 @@ async def get_agent_diff(
     them as line-numbered hunks (type add/del/context) plus aggregate
     stats. Honest 404 when no bundle exists yet.
     """
-    _job_or_404(job_id)
+    job = _job_or_404(job_id)
     files = get_state().bundle_for(job_id)
+    if not files and _runtime_options(job):
+        options = _runtime_options(job)
+        try:
+            uuid.UUID(job_id)
+            bundle_path = (Path(options["repo_path"]) / ".specraft" / "jobs"
+                           / job_id / "change-bundle.json")
+            loaded = json.loads(bundle_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict) and isinstance(loaded.get("files"), list):
+                files = loaded["files"]
+        except (ValueError, OSError, KeyError):
+            files = []
     if not files:
         raise ApiError(
             status_code=404,

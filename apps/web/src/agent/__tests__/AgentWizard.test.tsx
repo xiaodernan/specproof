@@ -55,18 +55,15 @@ describe("AgentWizard", () => {
     expect(next.getAttribute("href")).toBe("#/agent/new/gates");
   });
 
-  it("renders the gates step with all four gate checkboxes", () => {
+  it("explains approval and does not expose unsupported gate controls", () => {
     render(<AgentWizard step="gates" />);
-    expect(screen.getByText("运行测试 run_tests")).toBeTruthy();
-    expect(screen.getByText("运行 Lint run_lint")).toBeTruthy();
-    expect(screen.getByText("运行类型检查 run_typecheck")).toBeTruthy();
-    expect(screen.getByText("最终门禁需人工审批 require_gate")).toBeTruthy();
+    expect(screen.getByText("计划批准后才会修改仓库")).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
-
   it("renders the review step showing the composed spec", () => {
     render(<AgentWizard step="review" />);
     expect(screen.getByText("步骤 4/4 — 审阅并提交")).toBeTruthy();
-    expect(screen.getByText(/SPECPROOF WIZARD CONSTRAINTS/)).toBeTruthy();
+    expect(screen.getByText("生成计划，审阅后执行")).toBeTruthy();
   });
 });
 
@@ -91,10 +88,10 @@ describe("AgentWizard step 1 info (§14.4)", () => {
     expect(hint.textContent).toContain("无伪造数字");
   });
 
-  it("defaults to the deterministic execution mode and keeps base/head edits", () => {
+  it("defaults to AI execution and keeps base/head reference notes", () => {
     render(<AgentWizard step="repo" />);
     const mode = screen.getByTestId("wizard-mode") as HTMLSelectElement;
-    expect(mode.value).toBe("deterministic");
+    expect(mode.value).toBe("llm");
     fireEvent.change(screen.getByTestId("wizard-base"), {
       target: { value: "main" },
     });

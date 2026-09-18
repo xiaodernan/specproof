@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -92,8 +93,9 @@ class Executor:
 
     python (optional): an absolute interpreter path used in place of the
     bare "python"/"pytest" command stems — e.g. a per-run venv interpreter
-    in the SWE-bench LLM harness. None keeps the legacy behavior (the
-    interpreter resolved from PATH), byte-identical for deterministic runs.
+    in the SWE-bench LLM harness. Local mode defaults to the running interpreter
+    so subprocesses share
+    the installed dependencies; container mode keeps container PATH resolution.
     """
 
     def __init__(
@@ -107,7 +109,8 @@ class Executor:
         self.workspace = Path(workspace)
         self.mode = mode
         self.timeout = timeout
-        self.python = python
+        effective_mode = mode or os.getenv("SPECPROOF_SANDBOX", "auto")
+        self.python = python or (sys.executable if effective_mode == "local" else None)
 
     def allowed_commands(self) -> set[str]:
         extra = os.getenv("CRAFT_EXTRA_COMMANDS", "")
@@ -117,6 +120,8 @@ class Executor:
         """Substitute the configured interpreter for the bare python/pytest
         stems; every other command passes through untouched."""
         if self.python and command and command[0] in ("python", "pytest"):
+            if command[0] == "pytest":
+                return [self.python, "-m", "pytest", *command[1:]]
             return [self.python, *command[1:]]
         return command
 

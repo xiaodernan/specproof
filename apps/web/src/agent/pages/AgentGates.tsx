@@ -58,6 +58,7 @@ export default function AgentGates(props: { jobId: string }) {
   return (
     <AgentJobShell job={job} active="gates">
       <ErrorBox error={actionError} />
+      {job.execution_mode ? <Panel title="实际检查结果"><p>此任务的完成状态由执行器和真实检查决定。</p><a href={"#/agent/jobs/" + jobId + "/result"}>查看执行结果与门禁报告 →</a></Panel> :
       <Panel title={"门禁审批 Gate approvals (" + gate.approvals.length + ")"}>
         {gate.error ? <div className="errorbox">{gate.error}</div> : null}
         {gate.approvals.length === 0 ? (
@@ -80,7 +81,7 @@ export default function AgentGates(props: { jobId: string }) {
             通过 → COMPLETED; 拒绝 → FAILED。
           </div>
         </div>
-      </Panel>
+      </Panel>}
     </AgentJobShell>
   );
 }

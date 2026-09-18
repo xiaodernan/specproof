@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AgentEvent, getAgentJob, openAgentEventStream } from "../../api";
+import { AgentEvent, openAgentEventStream } from "../../api";
 import { ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, EventRow, useAgentJob } from "../components";
 import { eventKindLabel } from "../util";
@@ -12,17 +12,14 @@ function useToolEvents(jobId: string) {
 
   useEffect(() => {
     let alive = true;
-    getAgentJob(jobId)
-      .then((d) => {
-        if (alive) setDone(["COMPLETED", "FAILED", "CANCELLED"].includes(d.job.status));
-      })
-      .catch(() => {
-        // done-state snapshot is best effort; the stream stays the truth
-      });
+    let highestSequence = 0;
+    bufferRef.current = [];
+    setEvents([]); setDone(false); setSseState("connecting");
     const close = openAgentEventStream(
       jobId,
       (ev) => {
-        if (!alive) return;
+        if (!alive || ev.seq <= highestSequence) return;
+        highestSequence = ev.seq;
         bufferRef.current = [...bufferRef.current.slice(-299), ev];
         setEvents(bufferRef.current);
       },
@@ -65,7 +62,7 @@ export default function AgentToolStream(props: { jobId: string }) {
           .map((ev) => {
             const d = ev.data || {};
             const detail =
-              typeof d.tool === "string"
+              ev.type === "model_output" && typeof d.text === "string" ? d.text : typeof d.tool === "string"
                 ? " → " + JSON.stringify(d)
                 : JSON.stringify(d);
             return "#" + ev.seq + " [" + eventKindLabel(ev.type) + "]" + detail;
@@ -74,17 +71,18 @@ export default function AgentToolStream(props: { jobId: string }) {
 
   return (
     <AgentJobShell job={job} active="tools">
+      <ErrorBox error={error} />
       <Panel
         title={
           "实时工具流 Tool stream (" +
           events.length +
           " 帧 · SSE " +
           sseState +
-          (done ? " · 已结束 closed" : "") +
+          (done || ["COMPLETED", "FAILED", "CANCELLED"].includes(job.status) ? " · 已结束 closed" : "") +
           ")"
         }
       >
-        <div className="console" aria-label="agent-tool-stream">
+        <div className="console" role="log" aria-live="polite" aria-relevant="additions text" aria-label="agent-tool-stream">
           {consoleText}
         </div>
         <div style={{ marginTop: 12 }}>

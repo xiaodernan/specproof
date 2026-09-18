@@ -17,6 +17,8 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+from evidence.verdict import evaluate_verification, evidence_references
+
 
 class MergeCertificate:
     """Attestation of a fully verified PR (in-toto Statement style)."""
@@ -130,16 +132,22 @@ def issue_certificate(
 
     Returns None (and callers must write a RejectionNotice) otherwise.
     """
-    passed = [c for c in contracts if c.get("result") == "PASS"]
-    if len(passed) != len(contracts) or not contracts:
+    decision = evaluate_verification(
+        {"rows": contracts}, contracts=contracts, require_experiment=False,
+    )
+    if decision.status != "VERIFIED":
         return None
+
+    recorded_evidence = sorted({
+        ref for contract in contracts for ref in evidence_references(contract)
+    } | set(evidence_digests or []))
 
     return MergeCertificate(
         repository=repository,
         commit_sha=commit_sha,
         requirements_digest=_requirements_digest(requirements_text),
-        verified_contracts=len(passed),
-        evidence_digests=evidence_digests or [],
+        verified_contracts=decision.passed,
+        evidence_digests=recorded_evidence,
         toolchain={
             "specproof_version": "0.1.0",
             "python": "3.12",

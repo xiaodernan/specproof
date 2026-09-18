@@ -812,7 +812,13 @@ class CraftLoop:
         if self.store is not None:
             # supervisor cancel wins over late projections
             with suppress(InvalidJobTransitionError):
-                self.store.set_plan(self.job_id, self.plan.to_dict())
+                document = self.plan.to_dict()
+                current = self.store.get(self.job_id)
+                if current and current.plan_json:
+                    saved = json.loads(current.plan_json)
+                    if isinstance(saved, dict) and "_console" in saved:
+                        document["_console"] = saved["_console"]
+                self.store.set_plan(self.job_id, document)
         for index, step in enumerate(self.plan.steps):
             state = self.states[index]
             if state.status == "green":
@@ -2363,7 +2369,15 @@ class CraftLoop:
             # §14 成本函数: token 四分类 → USD (示例价表, 真实账单才是唯一事实源).
             from craft.cost import attach_cost
 
-            attach_cost(report)
+            models = {
+                entry.get("model", "")
+                for entry in report["llm_usage"].get("calls_detail", [])
+            }
+            if models and all(str(model).startswith("deepseek") for model in models):
+                attach_cost(report)
+                report["cost_estimate_source"] = "example DeepSeek prices; not a gateway bill"
+            else:
+                report["cost_unavailable_reason"] = "当前模型未配置价格表，以服务商账单为准。"
             # W163 transient-timeout retry audit: a stable int counter next
             # to llm_usage (duck-typed clients default to 0). Only present
             # when a client exists, so deterministic reports keep their

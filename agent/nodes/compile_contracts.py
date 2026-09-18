@@ -7,7 +7,6 @@ Phase 1+: full LLM-based compilation.
 
 import asyncio
 import json
-import os
 import re
 import time
 from dataclasses import replace
@@ -222,7 +221,9 @@ def _parse_requirements(text: str) -> list[dict[str, Any]]:
 
 def _get_provider() -> Any:
     """Create an LLM provider from env vars. Returns None if not configured."""
-    api_key = os.getenv("LLM_API_KEY", "")
+    from providers.config import load_model_config
+
+    api_key = load_model_config()["api_key"]
     if not api_key or api_key == "replace_me":
         return None
     try:

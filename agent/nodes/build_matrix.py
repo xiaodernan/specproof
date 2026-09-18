@@ -28,10 +28,12 @@ from typing import Any
 
 from agent.matrix_policy import (
     CANONICAL_FIELDS,
+    NEXT_ACTION_UNVERIFIED,
     confidence_or_zero,
     merge_contract_results,
 )
 from agent.state import Phase0State
+from evidence.verdict import evaluate_verification
 
 #: diff_results verdict -> row attribution (Review Court vocabulary).
 _ATTRIBUTION_BY_VERDICT: dict[str, str] = {
@@ -202,6 +204,12 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
         legacy["checker_type"] = checker_types.get(row["contract_id"], "")
         legacy["experiment"] = row["experiment_ids"][0] if row["experiment_ids"] else "none"
         legacy["evidence"] = row["evidence_refs"][0] if row["evidence_refs"] else "—"
+        if legacy["result"] == "PASS":
+            decision = evaluate_verification({"rows": [legacy]})
+            if decision.status != "VERIFIED":
+                legacy["result"] = "UNVERIFIED"
+                legacy["unverified_reason"] = decision.reason
+                legacy["next_action"] = NEXT_ACTION_UNVERIFIED
         matrix_rows.append(legacy)
 
     # Preserve the pre-policy row order: compiled contracts in order, then
@@ -221,6 +229,7 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
     matrix = {
         "rows": matrix_rows,
         "total_contracts": len(contracts),
+        "contract_ids": [contract.get("id", "") for contract in contracts],
         "total_rows": len(matrix_rows),
         "passed": sum(1 for row in matrix_rows if row["result"] == "PASS"),
         "failed": sum(1 for row in matrix_rows if row["result"] == "FAIL"),

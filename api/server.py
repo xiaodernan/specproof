@@ -55,6 +55,7 @@ from api.routes.agent_console import router as agent_console_router  # noqa: E40
 from api.routes.billing import router as billing_router  # noqa: E402
 from api.routes.feedback import router as feedback_router  # noqa: E402
 from api.routes.jobs import router as jobs_router  # noqa: E402
+from api.routes.model_settings import router as model_settings_router  # noqa: E402
 from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
 
@@ -80,6 +81,7 @@ app.add_middleware(
 )
 
 app.include_router(jobs_router)
+app.include_router(model_settings_router)
 app.include_router(webhooks_router)
 app.include_router(web_router)
 app.include_router(agent_console_router)
@@ -206,7 +208,7 @@ async def metrics() -> Any:
 
 
 @app.get("/health")
-async def health() -> dict[str, str | bool]:
+def health() -> dict[str, str | bool]:
     from storage.redis import RedisStore
     r = RedisStore()
     redis_ok = r.is_ready()

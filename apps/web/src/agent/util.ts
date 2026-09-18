@@ -49,7 +49,7 @@ export const EMPTY_WIZARD_DRAFT: WizardDraft = {
   head_ref: "",
   task_name: "",
   spec_text: "",
-  execution_mode: "deterministic",
+  execution_mode: "llm",
   gates: { run_tests: true, run_lint: true, run_typecheck: true, require_gate: true },
   budget_minutes: 60,
   max_steps: 12,
@@ -96,26 +96,10 @@ export function validateSpecStep(draft: WizardDraft): string | null {
   return null;
 }
 
-// The backend only persists repo_path + spec_text today; the gate options
-// travel as an explicit constraints block appended to the spec so nothing
-// the user configured is silently dropped.
+// Execution mode is an explicit API field. Preserve structured JSON specs;
+// unsupported controls must never be hidden in a prose appendix.
 export function buildSpecText(draft: WizardDraft): string {
-  const g = draft.gates;
-  const gates = [
-    g.run_tests ? "run_tests" : null,
-    g.run_lint ? "run_lint" : null,
-    g.run_typecheck ? "run_typecheck" : null,
-    g.require_gate ? "require_gate_approval" : null,
-  ].filter((x): x is string => x !== null);
-  const appendix =
-    "\n\n--- SPECPROOF WIZARD CONSTRAINTS ---\n" +
-    "base_ref: " + (draft.base_ref.trim() || "(unset)") + "\n" +
-    "head_ref: " + (draft.head_ref.trim() || "(unset)") + "\n" +
-    "execution_mode: " + draft.execution_mode + "\n" +
-    "budget_minutes: " + draft.budget_minutes + "\n" +
-    "max_steps: " + draft.max_steps + "\n" +
-    "gates: " + (gates.length > 0 ? gates.join(",") : "none") + "\n";
-  return draft.spec_text.trimEnd() + appendix;
+  return draft.spec_text.trim();
 }
 
 // ── Diff rendering ──────────────────────────────────────────────────────────
@@ -163,6 +147,7 @@ export function eventKindLabel(type: string): string {
     edit: "编辑 Edit",
     gate: "门禁 Gate",
     progress: "进度 Progress",
+    model_output: "模型实时输出",
   };
   return labels[type] || type;
 }

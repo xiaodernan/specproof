@@ -25,6 +25,7 @@ DeepSeek V4 Pro adaptation (see docs/design/DEEPSEEK_V4_PRO_ADAPTATION.md):
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from collections.abc import AsyncIterator
@@ -50,6 +51,8 @@ from .capability_probe import CapabilityProbe
 from .client_policy import ClientPolicy, client_policy_enabled
 from .probe_result import ProbeResult
 from .prompt_templates import JSON_ACTION_ENVELOPE_BLOCK
+from .responses_protocol import field as response_field
+from .responses_protocol import normalize_base_url, parse_response, request_kwargs, tool_call
 
 
 def _redact_key(key: str) -> str:
@@ -166,10 +169,28 @@ class OpenAICompatibleProvider(ModelProvider):
         probe_on_init: bool = False,
         max_retries: int | None = None,
         policy: ClientPolicy | None = None,
+        protocol: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
-        self.base_url = (base_url or os.getenv("LLM_BASE_URL") or "").rstrip("/")
-        self.api_key = api_key or os.getenv("LLM_API_KEY", "")
-        self.model = model or os.getenv("LLM_MODEL", "deepseek-v4-pro")
+        from .config import load_model_config
+
+        config = load_model_config() if not (base_url and api_key and model) else {}
+        self.base_url = str(base_url or config.get("base_url") or "").rstrip("/")
+        self.api_key = str(api_key or config.get("api_key") or "")
+        self.model = str(model or config.get("model") or "deepseek-v4-pro")
+        # Explicit model selection must not inherit another model's stored protocol.
+        model_from_config = model is None and not os.getenv("LLM_MODEL")
+        self.protocol = protocol or os.getenv("LLM_PROTOCOL") or (
+            str(config.get("protocol") or "") if model_from_config else ""
+        ) or ("responses" if self.model.startswith("gpt-6") else "chat")
+        if self.protocol not in ("responses", "chat", "chat_completions"):
+            raise ValueError("LLM protocol must be responses or chat")
+        self.reasoning_effort = (
+            reasoning_effort if reasoning_effort is not None
+            else os.environ["LLM_REASONING_EFFORT"] if "LLM_REASONING_EFFORT" in os.environ
+            else str(config.get("reasoning_effort", "")) if model_from_config
+            else "max" if self.model.startswith("gpt-6") else None
+        )
         self.timeout = timeout
         self._probe_result: ProbeResult | None = None
         self._client: AsyncOpenAI | None = None
@@ -210,9 +231,7 @@ class OpenAICompatibleProvider(ModelProvider):
 
     def _make_client(self, base_url: str) -> AsyncOpenAI:
         """Build one AsyncOpenAI client for a base_url (adds the /v1 suffix)."""
-        base_url_value = base_url
-        if not base_url_value.endswith("/v1"):
-            base_url_value += "/v1"
+        base_url_value = normalize_base_url(base_url)
         # max_retries=0: the tenacity layer in _create_chat_completion is
         # the single retry owner (LLM_MAX_RETRIES semantics + Retry-After
         # handling). Leaving the SDK default on would double-count 429s.
@@ -234,6 +253,24 @@ class OpenAICompatibleProvider(ModelProvider):
         return self._probe_result
 
     async def run_probe(self) -> ProbeResult:
+        if self.protocol == "responses":
+            # One real streamed response measures reachability + streaming.
+            # Unsupported/unexercised features stay absent, not fabricated.
+            try:
+                async with asyncio.timeout(min(self.timeout, 30.0)):
+                    async for _ in self.chat_stream(
+                        [LLMMessage(role="user", content="Reply with just: OK")],
+                        timeout=min(self.timeout, 30.0),
+                    ):
+                        pass
+            except Exception as exc:
+                self._probe_result = ProbeResult(
+                    provider="openai_compatible", base_url=self.base_url, model=self.model,
+                    capabilities={"chat": False, "streaming": False},
+                    errors=[f"Responses protocol check failed: {type(exc).__name__}"],
+                )
+            assert self._probe_result is not None
+            return self._probe_result
         probe = CapabilityProbe(
             base_url=self.base_url,
             api_key=self.api_key or "",
@@ -243,7 +280,50 @@ class OpenAICompatibleProvider(ModelProvider):
         return self._probe_result
 
     def get_capabilities(self) -> dict[str, Any]:
+        if self._probe_result is None:
+            raise RuntimeError("Provider capabilities have not been measured")
         return self.probe_result.capabilities
+
+    def _record_responses_capabilities(
+        self, result: LLMResponse, *, streaming: bool = False,
+        response_format: dict[str, Any] | None = None, tool_choice: str | None = None,
+    ) -> None:
+        caps = dict(self._probe_result.capabilities) if self._probe_result else {}
+        caps["chat"] = True
+        if streaming:
+            caps["streaming"] = True
+        if result.tool_calls:
+            caps["tool_calls"] = True
+            if tool_choice == "required":
+                caps["strict_tool_calls"] = True
+        if response_format and result.content:
+            try:
+                json.loads(result.content)
+            except (ValueError, TypeError):
+                caps["json_output"] = False
+            else:
+                caps["json_output"] = True
+        if result.usage:
+            caps["usage_reporting"] = True
+        if result.usage.get("reasoning_tokens", 0) > 0:
+            caps["thinking"] = True
+            if result.tool_calls:
+                caps["thinking_with_tools"] = True
+        self._probe_result = ProbeResult(
+            provider="openai_compatible", base_url=self.base_url,
+            model=self.model, capabilities=caps,
+        )
+
+    async def _create_response(self, kwargs: dict[str, Any]) -> Any:
+        retryer = AsyncRetrying(
+            retry=retry_if_exception(_is_retryable), wait=_wait_retry_after_or_exponential,
+            stop=stop_after_attempt(self._max_retries + 1), reraise=True,
+        )
+
+        async def attempt() -> Any:
+            return await self.client.responses.create(**kwargs)
+
+        return await retryer(attempt)
 
     async def _create_chat_completion(self, kwargs: dict[str, Any]) -> Any:
         """One create() call under the tenacity retry policy.
@@ -317,6 +397,17 @@ class OpenAICompatibleProvider(ModelProvider):
         timeout: float = 180.0,
         kind: str | None = None,
     ) -> LLMResponse:
+        if self.protocol == "responses":
+            kwargs = request_kwargs(
+                self.model, messages, effort=self.reasoning_effort, tools=tools,
+                tool_choice=tool_choice, response_format=response_format, opts=opts,
+                timeout=timeout,
+            )
+            result = parse_response(await self._create_response(kwargs))
+            self._record_responses_capabilities(
+                result, response_format=response_format, tool_choice=tool_choice,
+            )
+            return result
         probe = await self._ensure_probed()
         caps = probe.capabilities
 
@@ -365,6 +456,10 @@ class OpenAICompatibleProvider(ModelProvider):
         opts: dict[str, Any] | None = None,
         timeout: float = 180.0,
     ) -> AsyncIterator[LLMResponse]:
+        if self.protocol == "responses":
+            async for result in self._responses_stream(messages, tools, opts, timeout):
+                yield result
+            return
         probe = await self._ensure_probed()
         caps = probe.capabilities
 
@@ -416,6 +511,60 @@ class OpenAICompatibleProvider(ModelProvider):
                 )
 
     # ── Private helpers ────────────────────────────────────────────
+
+    async def _responses_stream(
+        self, messages: list[LLMMessage], tools: list[dict[str, Any]] | None,
+        opts: dict[str, Any] | None, timeout: float,
+    ) -> AsyncIterator[LLMResponse]:
+        kwargs = request_kwargs(
+            self.model, messages, effort=self.reasoning_effort, tools=tools,
+            opts=opts, timeout=timeout,
+        )
+        stream = await self._create_response({**kwargs, "stream": True})
+        completed = False
+        saw_text_delta = False
+        saw_tool_item = False
+        emitted_calls: set[str] = set()
+        try:
+            async for event in stream:
+                kind = response_field(event, "type", "")
+                if kind == "response.output_text.delta":
+                    saw_text_delta = True
+                    yield LLMResponse(
+                        content=response_field(event, "delta", ""),
+                        model=self.model, finish_reason="",
+                    )
+                elif kind == "response.output_item.done":
+                    item = response_field(event, "item")
+                    if response_field(item, "type") == "function_call":
+                        saw_tool_item = True
+                        call = tool_call(item)
+                        emitted_calls.add(str(call["id"]))
+                        yield LLMResponse(tool_calls=[call], model=self.model, finish_reason="")
+                elif kind == "response.completed":
+                    result = parse_response(response_field(event, "response"))
+                    self._record_responses_capabilities(
+                        result, streaming=saw_text_delta or saw_tool_item,
+                    )
+                    completed = True
+                    # Completion contains the whole answer. Do not replay text
+                    # or calls already emitted in earlier stream events.
+                    yield LLMResponse(
+                        content=None if saw_text_delta else result.content,
+                        tool_calls=[
+                            call for call in result.tool_calls
+                            if str(call["id"]) not in emitted_calls
+                        ],
+                        usage=result.usage, finish_reason=result.finish_reason, model=result.model,
+                    )
+                elif kind in ("response.failed", "response.incomplete", "error"):
+                    raise RuntimeError(f"Model stream did not complete ({kind})")
+                elif kind == "response.refusal.delta":
+                    raise RuntimeError("The model declined this request; no result was produced")
+            if not completed:
+                raise RuntimeError("Model stream ended before a completed response")
+        finally:
+            await stream.close()
 
     def _to_openai_messages(self, messages: list[LLMMessage]) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []

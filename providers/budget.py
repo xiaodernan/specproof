@@ -119,12 +119,19 @@ class TokenBudget:
     ) -> float:
         """Weighted charge units for one call."""
         weights = self.cost_weights
+        prompt = max(0, prompt_tokens)
+        completion = max(0, completion_tokens)
+        hit = min(prompt, max(0, cache_hit_tokens))
+        miss = min(prompt - hit, max(0, cache_miss_tokens))
+        reasoning = min(completion, max(0, reasoning_tokens))
+        # Cache and reasoning counts are subsets of input/output totals,
+        # not additional tokens. Apply each weight to disjoint partitions.
         return (
-            prompt_tokens * weights["prompt"]
-            + completion_tokens * weights["completion"]
-            + reasoning_tokens * weights["reasoning"]
-            + cache_hit_tokens * weights["cache_hit"]
-            + cache_miss_tokens * weights["cache_miss"]
+            (prompt - hit - miss) * weights["prompt"]
+            + hit * weights["cache_hit"]
+            + miss * weights["cache_miss"]
+            + (completion - reasoning) * weights["completion"]
+            + reasoning * weights["reasoning"]
         )
 
     def check(
@@ -193,6 +200,6 @@ class TokenBudget:
 
 def _as_int(value: Any) -> int:
     try:
-        return int(value)
+        return max(0, int(value))
     except (TypeError, ValueError):
         return 0
