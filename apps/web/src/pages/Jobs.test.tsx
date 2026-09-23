@@ -21,11 +21,42 @@ describe("verification history", () => {
     await waitFor(() => expect(get.mock.calls[get.mock.calls.length - 1]?.[0]).toBe("/jobs?limit=25&offset=0&status=BLOCKED&q=payments"));
   });
 
+  it("lets the user sort the visible rows by clicking a header", async () => {
+    get.mockResolvedValue({
+      jobs: [
+        { id: "job-b", repo_path: "/workspace/zeta", status: "BLOCKED", updated_at: "2026-09-01T10:00:00Z" },
+        { id: "job-a", repo_path: "/workspace/alpha", status: "VERIFIED", updated_at: "2026-09-02T10:00:00Z" },
+      ],
+      total: 2,
+    });
+    render(<Jobs />);
+    await screen.findByRole("link", { name: "zeta" });
+    const order = () => screen.getAllByRole("link", { name: /alpha|zeta/ }).map((el) => el.textContent);
+    expect(order()[0]).toBe("zeta");
+    fireEvent.click(screen.getByRole("button", { name: /项目 \/ 验证编号/ }));
+    expect(order()[0]).toBe("alpha");
+    // second click reverses the direction
+    fireEvent.click(screen.getByRole("button", { name: /项目 \/ 验证编号/ }));
+    expect(order()[0]).toBe("zeta");
+  });
+
   it("makes the first action available without requiring API knowledge", async () => {
     get.mockResolvedValue({ jobs: [], total: 0 });
     render(<Jobs />);
     await screen.findByText("从第一次验证开始");
     fireEvent.click(screen.getByRole("button", { name: "创建第一次验证 →" }));
     expect(window.location.hash).toBe("#/jobs/new");
+  });
+
+  it("renders one canonical status label per row (no 正在验证/正在验收 drift)", async () => {
+    // Regression: the list once showed a StatusPill ("正在验收") next to a
+    // private STATUS_LABELS copy ("正在验证") for the same status. Both now
+    // come from the shared statusLabel source, and the pill is not duplicated.
+    get.mockResolvedValue({ jobs: [{ id: "j1", repo_path: "/w/svc", status: "RUNNING" }], total: 1 });
+    render(<Jobs />);
+    await screen.findByRole("link", { name: "svc" });
+    // The row's status pill (not the filter dropdown option) shows the label once.
+    expect(screen.getAllByText("正在验收", { selector: ".pill" }).length).toBe(1);
+    expect(screen.queryByText("正在验证")).toBeNull();
   });
 });

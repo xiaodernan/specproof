@@ -40,4 +40,37 @@ describe("new verification", () => {
     fireEvent.click(screen.getByRole("button", { name: "开始验证 →" }));
     await waitFor(() => expect(window.location.hash).toBe("#/jobs/retry-1"));
   });
+
+  it("prefills the repo path from the ?repo= query (dev→verify hand-off)", () => {
+    // The Craft result page links here with ?repo=<absolute path> so the user
+    // does not have to retype it after an AI development run.
+    window.location.hash = "#/jobs/new?repo=" + encodeURIComponent("/srv/repos/orders");
+    render(<NewVerification />);
+    expect((screen.getByLabelText(/Git 仓库路径/) as HTMLInputElement).value).toBe("/srv/repos/orders");
+    // spec/base/head are not known from the craft flow; leave them for the user
+    expect((screen.getByLabelText(/需求文件路径/) as HTMLInputElement).value).toBe("");
+  });
+
+  it("translates a light-mode 503 into actionable Chinese guidance", async () => {
+    const err = Object.assign(new Error("Job NOT accepted — the verification job store is unavailable."), {
+      status: 503, code: "PROVIDER_UNAVAILABLE",
+    });
+    create.mockRejectedValueOnce(err);
+    render(<NewVerification />);
+    fillProject();
+    fireEvent.click(screen.getByRole("button", { name: "开始验证 →" }));
+    await screen.findByText(/免 Docker 的轻量模式/);
+    expect(screen.queryByText(/Job NOT accepted/)).toBeNull();
+  });
+
+  it("turns a raw transport failure (Failed to fetch) into a Chinese hint, not English", async () => {
+    // fetch rejects with a TypeError and no status/code when the backend is
+    // unreachable — the browser's English message must not leak to the user.
+    create.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<NewVerification />);
+    fillProject();
+    fireEvent.click(screen.getByRole("button", { name: "开始验证 →" }));
+    await screen.findByText(/无法连接到验证服务/);
+    expect(screen.queryByText(/Failed to fetch/)).toBeNull();
+  });
 });

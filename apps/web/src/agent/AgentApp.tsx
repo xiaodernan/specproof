@@ -38,7 +38,8 @@ export default function AgentApp(props: { seg: string[] }) {
   if (rest[0] === "new") {
     if (rest.length === 1) return <AgentWizard step="repo" />;
     if (rest[1] === "spec") return <AgentWizard step="spec" />;
-    if (rest[1] === "gates") return <AgentWizard step="gates" />;
+    // 旧的四步向导"门禁"步骤已并入审阅页；保留路由让历史链接与书签不 404。
+    if (rest[1] === "gates") return <AgentWizard step="review" />;
     if (rest[1] === "review") return <AgentWizard step="review" />;
     return <AgentWizard step="repo" />;
   }

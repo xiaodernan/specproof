@@ -27,6 +27,7 @@ export interface TableProps<T> {
   emptyTitle?: string;
   emptyDescription?: string;
   className?: string;
+  onRowClick?: (row: T, index: number) => void;
 }
 
 export function Table<T>(props: TableProps<T>): JSX.Element {
@@ -41,6 +42,7 @@ export function Table<T>(props: TableProps<T>): JSX.Element {
     emptyTitle = "暂无数据",
     emptyDescription,
     className,
+    onRowClick,
   } = props;
 
   const [internalSort, setInternalSort] = useState<SortState>({ key: null, dir: "asc" });
@@ -136,23 +138,42 @@ export function Table<T>(props: TableProps<T>): JSX.Element {
               </td>
             </tr>
           ) : (
-            sorted.map((row, i) => (
-              <tr key={rowKey(row, i)}>
-                {columns.map((col) => {
-                  const raw = (row as Record<string, unknown>)[col.key];
-                  const cell = col.render
-                    ? col.render(row, i)
-                    : typeof raw === "string" || typeof raw === "number"
-                    ? raw
-                    : "";
-                  return (
-                    <td key={col.key} className={alignClass(col.align)}>
-                      {cell}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))
+            sorted.map((row, i) => {
+              const clickable = onRowClick !== undefined;
+              return (
+                <tr
+                  key={rowKey(row, i)}
+                  className={clickable ? " ui-table-row-click" : undefined}
+                  style={clickable ? { cursor: "pointer" } : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  onClick={clickable ? () => onRowClick(row, i) : undefined}
+                  onKeyDown={
+                    clickable
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onRowClick(row, i);
+                          }
+                        }
+                      : undefined
+                  }
+                >
+                  {columns.map((col) => {
+                    const raw = (row as Record<string, unknown>)[col.key];
+                    const cell = col.render
+                      ? col.render(row, i)
+                      : typeof raw === "string" || typeof raw === "number"
+                      ? raw
+                      : "";
+                    return (
+                      <td key={col.key} className={alignClass(col.align)}>
+                        {cell}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>

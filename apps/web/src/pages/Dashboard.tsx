@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiGet, type DashboardData } from "../api";
 import { Button, ErrorBox, Panel, StatusPill, fmtTime, shortId } from "../ui";
+import { describeDegradedReason } from "../ui/errorHints";
 import { ProductIcon, type ProductIconName } from "../ui/ProductIcon";
 
 const ACTIONS: { href: string; icon: ProductIconName; title: string; text: string; label: string }[] = [
@@ -57,7 +58,7 @@ export default function Dashboard() {
 
     <div className="section-heading"><h2>验收概况</h2><Button variant="ghost" size="sm" loading={loading} onClick={() => setRefresh(value => value + 1)}>刷新数据</Button></div>
     {error && <div className="dashboard-error"><ErrorBox error={error} /><p>暂时无法读取验收数据。可以重试，或到 <a href="#/health">服务状态</a> 查看连接情况。</p></div>}
-    {data?.degraded && <div className="degraded" role="status"><strong>部分数据暂不可用</strong><span> · 已显示能够读取的结果。</span><details><summary>查看原因</summary><ul>{data.degraded_reasons.map(reason => <li key={reason}>{reason}</li>)}</ul></details></div>}
+    {data?.degraded && <div className="degraded" role="status"><strong>部分数据暂不可用</strong><span> · 已显示能够读取的结果。</span><details><summary>查看原因</summary><ul>{data.degraded_reasons.map(reason => <li key={reason} title={reason}>{describeDegradedReason(reason)}</li>)}</ul></details></div>}
     <div className="metrics-grid" aria-busy={loading}>{metrics.map(metric => <div className={"metric-card metric-" + metric.tone} key={metric.label}><div className="metric-top"><span>{metric.label}</span><ProductIcon name={metric.icon} size={18} /></div><strong>{loading && !data ? <span className="metric-skeleton" /> : metric.value?.toLocaleString() ?? "—"}</strong><small>{metric.hint}</small></div>)}</div>
 
     <div className="dashboard-bottom"><div className="recent-panel"><Panel title="最近验收" right={<a href="#/jobs">查看全部 <span aria-hidden="true">↗</span></a>}>

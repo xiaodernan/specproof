@@ -20,13 +20,14 @@
 .quality-page .panel { border-radius: 14px; overflow: hidden; }
 .quality-page .panel-head { flex-wrap: wrap; gap: 12px; }
 .quality-page .panel-head h2 { text-transform: none; letter-spacing: 0; font-size: 14px; }
-.quality-table { overflow-x: auto; }
-.quality-table .data { min-width: 700px; }
-.quality-table .data td { padding-top: 18px; padding-bottom: 18px; vertical-align: top; line-height: 1.8; }
-.quality-table .data th { font-size: 11px; white-space: nowrap; }
-.quality-table .data td:first-child { min-width: 190px; max-width: 360px; }
-.quality-table .data td { overflow-wrap: anywhere; }
-.quality-table strong { font-size: 13px; font-weight: 550; }
+/* 设计系统 Table 在 quality 页的密度对齐：单元格改为顶部对齐、行高更松，
+   与旧的手写表格观感一致（见 pages/Matrix.tsx、pages/Contracts.tsx）。
+   .quality-table 直接挂在 ui-table-wrap 上，不再额外套一层容器。 */
+.quality-table .ui-table { min-width: 700px; }
+.quality-table .ui-table td { padding-top: 18px; padding-bottom: 18px; vertical-align: top; line-height: 1.8; overflow-wrap: anywhere; }
+.quality-table .ui-table th { font-size: 11px; }
+.quality-table .ui-table td:first-child { min-width: 190px; max-width: 360px; }
+.quality-table .ui-table strong { font-size: 13px; font-weight: 550; }
 .quality-cell-secondary { display: block; margin-top: 5px; font-size: 11px; color: var(--color-text-3); }
 .quality-cell-copy { max-width: 380px; }
 .quality-result-caption { font-size: 10px; color: var(--color-text-2); margin-top: 5px; white-space: nowrap; }

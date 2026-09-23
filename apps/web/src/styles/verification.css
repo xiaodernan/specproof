@@ -52,6 +52,8 @@
 .verification-detail-banner { border: 1px solid var(--color-border); background: var(--color-surface); padding: 22px 26px; border-radius: 14px; margin: 24px 0; }
 .verification-detail-banner h2 { font-size: 18px; font-weight: 500; margin: 0 0 8px; }
 .verification-detail-banner p { font-size: 13px; color: var(--color-text-2); line-height: 1.8; margin: 0; }
+.verification-detail-banner .next-action { display: flex; align-items: center; gap: 10px; margin-top: 14px; color: var(--color-text); font-size: 14px; font-weight: 500; }
+.severity-hint { font-size: 13px; color: var(--color-text-2); margin: 6px 0 0; }
 .verification-detail-banner .ui-progress-row { max-width: 540px; margin-top: 18px; }
 .verification-page .tab { background: transparent; }
 .verification-page .tab-active { background: var(--color-surface); }

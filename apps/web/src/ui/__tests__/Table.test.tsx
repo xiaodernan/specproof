@@ -73,4 +73,30 @@ describe("Table", () => {
     expect(screen.getByText("没有契约")).toBeTruthy();
     expect(screen.getByText("先创建一个契约")).toBeTruthy();
   });
+
+  it("activates a row by click and by keyboard when onRowClick is set", () => {
+    const clicked: string[] = [];
+    const { container } = render(
+      <Table
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(r) => r.name}
+        onRowClick={(r) => clicked.push(r.name)}
+      />
+    );
+    const row = screen.getByText("山竹").closest("tr") as HTMLElement;
+    expect(row.classList.contains("ui-table-row-click")).toBe(true);
+    fireEvent.click(row);
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(clicked).toEqual(["山竹", "山竹"]);
+    // Rows are only focusable when clickable.
+    expect(container.querySelector('tbody tr[tabindex="0"]')).toBeTruthy();
+  });
+
+  it("leaves rows non-interactive when onRowClick is omitted", () => {
+    render(<Table columns={COLUMNS} rows={ROWS} rowKey={(r) => r.name} />);
+    const row = screen.getByText("山竹").closest("tr") as HTMLElement;
+    expect(row.getAttribute("tabindex")).toBeNull();
+    expect(row.classList.contains("ui-table-row-click")).toBe(false);
+  });
 });

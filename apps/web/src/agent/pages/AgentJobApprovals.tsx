@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listAgentApprovals } from "../../api";
 import { Empty, ErrorBox, Panel, Spinner } from "../../ui";
+import { loadFailed } from "../../ui/errorHints";
 import { AgentJobShell, ApprovalCard, useAgentJob } from "../components";
 
 export default function AgentJobApprovals(props: { jobId: string }) {
@@ -9,7 +10,7 @@ export default function AgentJobApprovals(props: { jobId: string }) {
   const [approvals, setApprovals] = useState<
     import("../../api").AgentApproval[]
   >([]);
-  const [listError, setListError] = useState<string | null>(null);
+  const [listError, setListError] = useState<Error | string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -18,7 +19,7 @@ export default function AgentJobApprovals(props: { jobId: string }) {
         if (alive) setApprovals(d.approvals);
       })
       .catch((e) => {
-        if (alive) setListError(e instanceof Error ? e.message : String(e));
+        if (alive) setListError(e as Error | string);
       });
     return () => {
       alive = false;
@@ -38,8 +39,13 @@ export default function AgentJobApprovals(props: { jobId: string }) {
   return (
     <AgentJobShell job={job} active="approvals">
       <Panel title={"审批记录 Approvals (" + approvals.length + ")"}>
-        {listError ? <div className="errorbox">{listError}</div> : null}
-        {approvals.length === 0 ? (
+        {loadFailed(listError) ? (
+          <div className="errorbox" role="alert" title={typeof listError === "string" ? listError : listError?.message}>
+            审批记录暂时无法加载（请求失败）— 这不代表该任务没有审批，请稍后重试。
+          </div>
+        ) : listError ? (
+          <ErrorBox error={listError} />
+        ) : approvals.length === 0 ? (
           <Empty text="该任务尚无审批记录" />
         ) : (
           approvals.map((a) => <ApprovalCard key={a.id} approval={a} />)

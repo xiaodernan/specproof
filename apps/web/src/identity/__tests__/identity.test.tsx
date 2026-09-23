@@ -60,7 +60,8 @@ describe("TenantSwitcher", () => {
       expect(fetchMock).toHaveBeenCalled();
     });
     expect(await screen.findByText("当前空间 · 0f9e0000")).toBeTruthy();
-    expect(screen.getByText("operator")).toBeTruthy();
+    // role pill is glossed to Chinese but keeps the raw token visible
+    expect(screen.getByText(/操作员 · operator/)).toBeTruthy();
   });
 
   it("shows the legacy label when /auth/me rejects", async () => {
@@ -124,6 +125,32 @@ describe("TenantUsers", () => {
     });
     fireEvent.click(screen.getByText("创建 Create"));
     expect(await screen.findByText("b@example.com")).toBeTruthy();
+  });
+
+  it("glosses RBAC role/status enums while keeping the raw token in the title", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (String(input).endsWith("/api/v1/admin/users")) {
+        return Promise.resolve(
+          jsonResponse({
+            users: [
+              { id: "u-1", tenant_id: "t-1", email: "op@example.com", role: "operator", status: "disabled", created_at: 1 },
+              { id: "u-2", tenant_id: "t-1", email: "own@example.com", role: "owner", status: "pending", created_at: 2 },
+            ],
+            count: 2,
+          })
+        );
+      }
+      return Promise.resolve(jsonResponse({}, 404));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<TenantUsers />);
+
+    const rolePill = await screen.findByText("操作员 · operator");
+    expect(rolePill.getAttribute("title")).toBe("operator");
+    expect(screen.getByText("停用 · disabled").getAttribute("title")).toBe("disabled");
+    // Unknown enums pass through verbatim — no invented gloss.
+    expect(screen.getByText("owner").getAttribute("title")).toBe("owner");
+    expect(screen.getByText("pending").getAttribute("title")).toBe("pending");
   });
 });
 
@@ -208,6 +235,35 @@ describe("TenantTokens", () => {
       );
       expect(deletes.length).toBe(1);
     });
+  });
+
+  it("renders token timestamps in a friendly format with the raw ISO in the title", async () => {
+    const expires = 1700000000;
+    const iso = new Date(expires * 1000).toISOString();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (String(input).endsWith("/api/v1/admin/tokens")) {
+        return Promise.resolve(
+          jsonResponse({
+            tokens: [
+              {
+                id: "tok-1", user_id: "u-1", user_email: "op@a.example.com",
+                name: "ci", scopes: "jobs:read", expires_at: expires,
+                last_used_at: null, created_at: 1,
+              },
+            ],
+            count: 1,
+          })
+        );
+      }
+      return Promise.resolve(jsonResponse({}, 404));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<TenantTokens />);
+    const cell = await screen.findByTitle(iso);
+    expect(cell.textContent).toBeTruthy();
+    // Friendly locale string, not the raw ISO instant.
+    expect(cell.textContent).not.toContain("T");
+    expect(cell.textContent).not.toContain("Z");
   });
 });
 

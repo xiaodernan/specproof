@@ -3,6 +3,7 @@ import { AgentApproval, listAgentApprovals, listAgentJobs } from "../../api";
 import { ErrorBox, Panel, Spinner } from "../../ui";
 import { ApprovalCard } from "../components";
 import { aggregateApprovals } from "../util";
+import { loadFailed } from "../../ui/errorHints";
 
 export default function AgentApprovalDetail(props: { approvalId: string }) {
   const { approvalId } = props;
@@ -46,7 +47,11 @@ export default function AgentApprovalDetail(props: { approvalId: string }) {
       <ErrorBox error={error} />
       <Panel title="记录 Record">
         {!approval ? (
-          <div className="errorbox">审批记录不存在 (可能已被清理 — 诚实 404 空态)</div>
+          loadFailed(error) ? (
+            <div className="errorbox">审批记录暂时无法加载（请求失败）— 无法确认其是否存在，请稍后重试</div>
+          ) : (
+            <div className="errorbox">审批记录不存在 (可能已被清理 — 诚实 404 空态)</div>
+          )
         ) : (
           <>
             <ApprovalCard approval={approval} />

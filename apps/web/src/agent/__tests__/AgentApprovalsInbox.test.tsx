@@ -93,4 +93,48 @@ describe("AgentApprovalsInbox", () => {
     expect(screen.getByText("REJECT 拒绝")).toBeTruthy();
     expect(screen.queryByText("APPROVE 批准")).toBeNull();
   });
+
+  it("does not claim an empty inbox when the jobs list failed to load", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 500,
+        headers: new Headers(),
+        json: async () => ({ detail: "boom" }),
+      })),
+    );
+    render(<AgentApprovalsInbox />);
+    await waitFor(() =>
+      expect(screen.getByText(/审批列表暂时无法加载/)).toBeTruthy(),
+    );
+    expect(screen.queryByText(/尚无审批记录/)).toBeNull();
+  });
+
+  it("flags partial failures instead of asserting there are no approvals", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/agent/jobs")) {
+          return { ok: true, status: 200, json: async () => ({ jobs: [jobs[0]], count: 1 }) };
+        }
+        if (url.includes("/approvals")) {
+          return {
+            ok: false,
+            status: 503,
+            headers: new Headers(),
+            json: async () => ({ detail: "unavailable" }),
+          };
+        }
+        return { ok: false, status: 404, headers: new Headers(), json: async () => ({ detail: "nope" }) };
+      }),
+    );
+    render(<AgentApprovalsInbox />);
+    await waitFor(() =>
+      expect(screen.getByText(/个任务的审批无法读取/)).toBeTruthy(),
+    );
+    // the reassuring empty copy is suppressed while the read is unknown
+    expect(screen.queryByText(/尚无审批记录/)).toBeNull();
+  });
 });

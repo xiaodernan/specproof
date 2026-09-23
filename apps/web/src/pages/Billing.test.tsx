@@ -134,7 +134,8 @@ describe("Billing page", () => {
     expect(plans.getByText("硬上限 Hard stop")).toBeTruthy();
 
     const sub = within(screen.getByTestId("billing-subscription"));
-    expect(sub.getByText("active")).toBeTruthy();
+    // status is glossed into Chinese but the raw enum stays visible (honesty)
+    expect(sub.getByText(/生效中 · active/)).toBeTruthy();
     expect(sub.getByText("Pro")).toBeTruthy();
     expect(sub.getByText("t-1")).toBeTruthy();
 
@@ -146,7 +147,7 @@ describe("Billing page", () => {
     const invoices = within(screen.getByTestId("billing-invoices"));
     expect(invoices.getByText("2024-01")).toBeTruthy();
     expect(invoices.getByText("USD 0.30")).toBeTruthy();
-    expect(invoices.getByText("draft")).toBeTruthy();
+    expect(invoices.getByText(/草稿 · draft/)).toBeTruthy();
   });
 
   it("renders a CSV download link for the selected period", async () => {

@@ -160,3 +160,48 @@ export function stepStatusLabel(status: string): string {
   };
   return labels[status] || status;
 }
+
+export function approvalDecisionLabel(decision: string): string {
+  const labels: Record<string, string> = {
+    approve: "批准 Approve",
+    reject: "拒绝 Reject",
+  };
+  return labels[decision] || decision;
+}
+
+export function approvalTargetLabel(target: string): string {
+  const labels: Record<string, string> = {
+    plan: "计划 Plan",
+    step: "步骤 Step",
+    gate: "门禁 Gate",
+  };
+  return labels[target] || target;
+}
+
+export function sseStateLabel(state: string): string {
+  const labels: Record<string, string> = {
+    connecting: "连接中 connecting",
+    open: "已连接 open",
+    closed: "已断开 closed",
+    error: "连接错误 error",
+  };
+  return labels[state] || state;
+}
+
+export function diffFileStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    added: "新增 Added",
+    modified: "修改 Modified",
+    deleted: "删除 Deleted",
+    renamed: "重命名 Renamed",
+  };
+  return labels[status] || status;
+}
+
+export function diffModeLabel(mode: string): string {
+  const labels: Record<string, string> = {
+    unified: "统一视图 unified",
+    split: "分栏视图 split",
+  };
+  return labels[mode] || mode;
+}

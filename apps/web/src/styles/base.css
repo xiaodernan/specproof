@@ -493,6 +493,42 @@ a {
 .ui-tooltip-wrap:hover .ui-tooltip-side-right,
 .ui-tooltip-wrap:focus-within .ui-tooltip-side-right { transform: translateY(-50%) translateX(0); }
 
+/* ── Term (inline glossary) ───────────────────────────────── */
+/* The base tooltip is a single-line nowrap bubble; a glossary definition is
+   a sentence, so it needs to wrap inside a bounded box. Scoped under
+   .ui-term so other tooltips keep their compact one-liner shape. */
+.ui-term { display: inline-flex; }
+
+.ui-term-text {
+  border-bottom: 1px dashed var(--color-border-strong);
+  cursor: help;
+}
+
+.ui-term-text:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.ui-term .ui-tooltip {
+  white-space: normal;
+  width: max-content;
+  max-width: 300px;
+  text-align: left;
+  line-height: 1.7;
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.ui-term-label { display: block; margin-bottom: 3px; }
+
+.ui-term-en {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+}
+
 /* ── Toast ────────────────────────────────────────────────── */
 .ui-toast-viewport {
   position: fixed;

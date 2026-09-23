@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import {
-  apiGet, CertificateData, downloadCapsule, FindingsData, Job, openProgressStream,
+  apiGet, CertificateData, downloadCapsule, Finding, FindingsData, Job, openProgressStream,
   ProgressEvent, StagesData,
 } from "../api";
 import {
-  Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, Progress, Spinner, StatCard, StatusPill,
-  fmtPct, fmtTime, kv, shortId, severityPill, verdictTone,
+  Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, PreflightCard, Progress, Spinner, StatCard, StatusPill, Table, Term,
+  fmtPct, fmtTime, kv, shortId, severityPill, severityHint, evidenceLabel, stageLabel, verdictTone, verdictLabel,
+  type Column, type PreflightResult,
 } from "../ui";
 import { recordRecentJob } from "../ui/recentJobs";
+import { describePipelineError, loadFailed } from "../ui/errorHints";
 import "../styles/verification.css";
 
 interface Summary {
@@ -22,6 +24,7 @@ interface Summary {
   report_path?: string;
   retrieval_note?: string;
   errors?: string[];
+  preflight?: PreflightResult;
 }
 
 type Tab = "overview" | "stages" | "findings" | "certificate";
@@ -40,6 +43,77 @@ const STATUS_HELP: Record<string, [string, string]> = {
   UNVERIFIED: ["目前证据不足", "部分需求尚无法确认，请查看未验证项，并补充验收条件、测试或执行环境。"],
 };
 
+// Verification depth arrives as an English enum (FAST / STANDARD / DEEP). Gloss
+// known values as "中文 · token"; pass an unexpected value through verbatim so
+// we never assert a depth the backend didn't report.
+const DEPTH_LABELS: Record<string, string> = {
+  FAST: "快速验证",
+  STANDARD: "标准验证",
+  DEEP: "深度验证",
+};
+function depthLabel(depth: string | undefined): string {
+  if (!depth) return "—";
+  const cn = DEPTH_LABELS[depth];
+  return cn ? cn + " · " + depth : depth;
+}
+
+// Severity ordering for the findings table: the canonical enum values are
+// normalized into a rank so sorting puts the most actionable risks first,
+// while unrecognized/absent severities sink to the bottom rather than being
+// silently re-labeled.
+const SEVERITY_RANK: Record<string, number> = {
+  BLOCKER: 0, CRITICAL: 0, MAJOR: 1, HIGH: 1, MINOR: 2, MEDIUM: 2, INFO: 3, LOW: 3, NONE: 4,
+};
+function sevRank(s?: string): number {
+  return s ? SEVERITY_RANK[s.toUpperCase()] ?? 9 : 99;
+}
+
+function findingColumns(jobId: string): Column<Finding>[] {
+  return [
+    {
+      key: "severity",
+      header: "严重程度",
+      sortable: true,
+      sortValue: (f) => sevRank(f.severity),
+      render: (f) => {
+        const sev = severityPill(f.severity);
+        const hint = severityHint(f.severity);
+        return <span className={"pill " + sev.cls} title={hint ? f.severity + " · " + hint : undefined}>{sev.label}</span>;
+      },
+    },
+    { key: "contract_id", header: "验收条件", sortable: true, render: (f) => <span className="mono">{f.contract_id || "—"}</span> },
+    { key: "evidence_type", header: "证据方式", sortable: true, render: (f) => <span className="mono" title={f.evidence_type || ""}>{evidenceLabel(f.evidence_type)}</span> },
+    {
+      key: "confidence",
+      header: "置信度",
+      sortable: true,
+      align: "right",
+      sortValue: (f) => f.confidence ?? -1,
+      render: (f) => <span className="mono">{fmtPct(f.confidence)}</span>,
+    },
+    {
+      key: "description",
+      header: "描述",
+      sortable: true,
+      render: (f, i) => (
+        <a href={"#/findings/" + jobId + "/" + (f.id || i)}>{(f.description || "查看详情").slice(0, 120)}</a>
+      ),
+    },
+    {
+      key: "capsule",
+      header: "复现包",
+      render: (f) =>
+        f.capsule_path ? (
+          <Button variant="ghost" size="sm" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
+            下载
+          </Button>
+        ) : (
+          <span className="muted">—</span>
+        ),
+    },
+  ];
+}
+
 export default function JobDetail(props: { jobId: string }) {
   const { jobId } = props;
   const [tab, setTab] = useState<Tab>("overview");
@@ -51,6 +125,10 @@ export default function JobDetail(props: { jobId: string }) {
   const [certError, setCertError] = useState<string | null>(null);
   const [error, setError] = useState<Error | string | null>(null);
   const [artifactError, setArtifactError] = useState<string | null>(null);
+  // Per-artifact: did the read genuinely FAIL (network/5xx) vs return empty/404?
+  // A failed risk scan must never be rendered as a clean "no findings" scan.
+  const [summaryLoadFailed, setSummaryLoadFailed] = useState(false);
+  const [findingsLoadFailed, setFindingsLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState<ProgressEvent[]>([]);
   const [sseState, setSseState] = useState<string>("closed");
@@ -67,7 +145,7 @@ export default function JobDetail(props: { jobId: string }) {
     const jobPath = "/jobs/" + encodeURIComponent(jobId);
     const artifactPath = "/api/v1" + jobPath;
     setLoading(true); setJob(null); setSummary(null); setStages(null); setFindings(null);
-    setLive([]); setError(null); setArtifactError(null); setCert(null); setCertError(null); setTab("overview");
+    setLive([]); setError(null); setArtifactError(null); setSummaryLoadFailed(false); setFindingsLoadFailed(false); setCert(null); setCertError(null); setTab("overview");
 
     const loadArtifacts = async () => {
       const results = await Promise.allSettled([
@@ -80,6 +158,8 @@ export default function JobDetail(props: { jobId: string }) {
       if (s.status === "fulfilled") setSummary(Object.keys(s.value.summary || {}).length ? s.value.summary : null);
       if (st.status === "fulfilled") setStages(st.value);
       if (f.status === "fulfilled") setFindings(f.value);
+      setSummaryLoadFailed(s.status === "rejected" && loadFailed(s.reason));
+      setFindingsLoadFailed(f.status === "rejected" && loadFailed(f.reason));
       const failed = results.filter((result) => result.status === "rejected");
       setArtifactError(failed.length ? "部分验证结果暂时无法读取，任务状态仍可查看。点击刷新可重试。" : null);
     };
@@ -160,6 +240,17 @@ export default function JobDetail(props: { jobId: string }) {
   const status = (job.status || "").toUpperCase();
   const statusHelp = STATUS_HELP[status] || ["查看本次验证结果", "结合需求覆盖与风险证据判断本次改动，未验证项需要进一步确认。"];
   const latest = live[live.length - 1];
+  const findingCount = findings ? findings.count : 0;
+  // Answer "下一步做什么" with one primary action chosen from the outcome,
+  // instead of a fixed link that ignores whether there are risks to review.
+  const nextAction: { label: string; run: () => void } | null =
+    status === "BLOCKED" && findingCount > 0
+      ? { label: "查看 " + findingCount + " 条风险并处理 →", run: () => setTab("findings") }
+      : status === "VERIFIED"
+      ? { label: "查看验证报告 →", run: () => setTab("certificate") }
+      : status === "UNVERIFIED" || !!s?.coverage_reason
+      ? { label: "了解如何补全验证 →", run: () => { window.location.hash = "#/guide"; } }
+      : null;
   const caps: string[] = [];
   if (findings) {
     findings.findings.forEach((f) => {
@@ -192,6 +283,7 @@ export default function JobDetail(props: { jobId: string }) {
       {summary?.coverage_reason && <div className="degraded" role="status"><strong>验收覆盖不足</strong><p>{summary.coverage_reason}</p><a href="#/guide">了解支持的验收方式 →</a></div>}
       <div className="verification-detail-banner" aria-live="polite"><h2>{summary?.coverage_reason ? "覆盖不足，暂不能确认验收通过" : statusHelp[0]}</h2><p>{summary?.coverage_reason ? "本次没有形成可执行的检查项。请完善验收条件，或接入对应检查器后重新验收。" : statusHelp[1]}</p>
         {ACTIVE.has(status) ? <Progress value={latest?.percentage ?? latest?.percent ?? 0} label={latest?.summary || latest?.message || "等待执行进度"} showValue /> : null}
+        {nextAction ? <div className="next-action" role="group" aria-label="下一步操作"><span>下一步：</span><Button size="sm" variant="primary" onClick={nextAction.run}>{nextAction.label}</Button></div> : null}
         <div style={{ display: "flex", gap: 12, marginTop: 18 }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>刷新结果</Button><a href="#/matrix">查看需求覆盖 →</a></div>
       </div>
 
@@ -207,27 +299,30 @@ export default function JobDetail(props: { jobId: string }) {
           {s ? (
             <>
               <div className="stat-grid" style={{ marginBottom: 16 }}>
-                <StatCard label="验证结论" value={s.verdict || "—"} tone={verdictTone(s.verdict)} />
+                <StatCard label="验证结论" value={verdictLabel(s.verdict)} tone={verdictTone(s.verdict)} />
                 <StatCard label="验收条件" value={s.contracts_total ?? "—"} />
                 <StatCard label="已通过" value={s.matrix_passed ?? "—"} tone="ok" />
                 <StatCard label="未通过" value={s.matrix_failed ?? "—"} tone="bad" />
                 <StatCard label="尚未验证" value={s.matrix_unverified ?? "—"} tone="warn" />
               </div>
               <div>
-                <Panel title="证据与产物 Artifacts">
-                  {kv("Report", s.report_path || "—")}
-                  {kv("Retrieval", s.retrieval_note || "—")}
+                <PreflightCard preflight={s.preflight} />
+                <Panel title="证据与产物">
+                  {kv("报告路径", s.report_path || "—")}
+                  {kv("检索说明", s.retrieval_note || "—")}
                   {s.errors && s.errors.length > 0 ? (
                     <>
-                      <div className="kv-label" style={{ margin: "8px 0 4px" }}>Pipeline Errors</div>
+                      <div className="kv-label" style={{ margin: "8px 0 4px" }}>执行记录</div>
                       {s.errors.map((e, i) => (
-                        <div key={i} className="errorbox" style={{ marginBottom: 6 }}>{String(e)}</div>
+                        <div key={i} className="errorbox" style={{ marginBottom: 6 }} title={String(e)}>{describePipelineError(String(e))}</div>
                       ))}
                     </>
                   ) : null}
                 </Panel>
               </div>
             </>
+          ) : summaryLoadFailed ? (
+            <div className="errorbox" role="alert">验证结果暂时无法读取（请求失败）— 这不代表没有结果，请点击刷新重试。</div>
           ) : (
             <Empty text="验证结果尚未生成。执行完成后，这里会展示结论、需求覆盖与风险证据。" />
           )}
@@ -235,11 +330,12 @@ export default function JobDetail(props: { jobId: string }) {
             {kv("项目路径", job.repo_path || "—")}
             {kv("比较版本", (job.base_ref || "—") + " → " + (job.head_ref || "—"))}
             {kv("需求文件", job.spec_path || "—")}
-            {kv("验证模式", job.depth === "FAST" ? "快速验证" : job.depth || "—")}
+            {kv("验证模式", depthLabel(job.depth))}
             {kv("重试次数", String(job.retry_count ?? 0))}
             {kv("创建时间", fmtTime(job.created_at))}
             {kv("更新时间", fmtTime(job.updated_at))}
-            {job.last_error ? <div role="alert" className="errorbox">{"执行错误：" + job.last_error}</div> : null}
+            {job.last_error ? <div className="kv-label" style={{ margin: "8px 0 4px" }}>最近执行错误</div> : null}
+            {job.last_error ? <div role="alert" className="errorbox" title={job.last_error}>{describePipelineError(String(job.last_error))}</div> : null}
           </Panel>
         </>
       ) : null}
@@ -254,7 +350,7 @@ export default function JobDetail(props: { jobId: string }) {
           ) : (
             stages && stages.stages.map((st) => (
               <div className="stage-row" key={st.node}>
-                <span className="stage-node">{st.node}</span>
+                <span className="stage-node" title={st.node}>{stageLabel(st.node)}</span>
                 <span className="stage-msg">{st.message || st.status}</span>
                 <div className="bar" style={{ width: 120, margin: 0 }}>
                   <div className="bar-fill" style={{ width: Math.min(100, st.percent) + "%" }} />
@@ -274,7 +370,7 @@ export default function JobDetail(props: { jobId: string }) {
                       const stage = ev.stage || ev.node || "";
                       const pct = ev.percentage ?? ev.percent ?? 0;
                       const msg = ev.summary || ev.message || "";
-                      return "[" + stage + "] " + (ev.status || "") + " " + pct + "% " + msg;
+                      return "[" + (stage ? stageLabel(stage) : "") + "] " + (ev.status || "") + " " + pct + "% " + msg;
                     })
                     .join("\n")}
             </div>
@@ -285,70 +381,38 @@ export default function JobDetail(props: { jobId: string }) {
       {tab === "findings" ? (
         <Panel title={"风险发现 (" + (findings ? findings.count : 0) + ")"}>
           {findings && findings.degraded ? <Degraded reasons={[findings.degraded_reason || "degraded"]} /> : null}
-          {!findings || findings.findings.length === 0 ? (
+          {findingsLoadFailed ? (
+            <div className="errorbox" role="alert">风险扫描结果暂时无法读取（请求失败）— 无法确认是否存在风险，请勿据此判定为安全；点击刷新重试。</div>
+          ) : !findings || findings.findings.length === 0 ? (
             <Empty text="暂未发现已确认的问题。请同时检查需求覆盖情况；没有风险记录不代表所有需求均已验证。" />
           ) : (
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Severity</th>
-                  <th>Contract</th>
-                  <th>Evidence</th>
-                  <th>Confidence</th>
-                  <th>描述</th>
-                  <th>Capsule</th>
-                </tr>
-              </thead>
-              <tbody>
-                {findings.findings.map((f, i) => {
-                  const sev = severityPill(f.severity);
-                  return (
-                  <tr key={f.id || String(i)}>
-                    <td><span className={"pill " + sev.cls}>{sev.label}</span></td>
-                    <td className="mono">{f.contract_id || "—"}</td>
-                    <td className="mono">{f.evidence_type || "—"}</td>
-                    <td className="mono">{fmtPct(f.confidence)}</td>
-                    <td>
-                      <a href={"#/findings/" + jobId + "/" + (f.id || i)}>
-                        {(f.description || "查看详情").slice(0, 120)}
-                      </a>
-                    </td>
-                    <td>
-                      {f.capsule_path ? (
-                        <Button variant="ghost" size="sm" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
-                          ↓ zip
-                        </Button>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <Table<Finding>
+              columns={findingColumns(jobId)}
+              rows={findings.findings}
+              rowKey={(f, i) => f.id || String(i)}
+            />
           )}
         </Panel>
       ) : null}
 
       {tab === "certificate" ? (
-        <Panel title="合并证书 / 拒绝通知">
+        <Panel title={<Term id="certificate">合并证书 / 拒绝通知</Term>}>
           {certError ? <div className="errorbox">{certError}</div> : null}
           {cert ? (
             <>
-              {kv("文件 Path", cert.path)}
-              {cert.signed_path ? kv("签名件 Signed", cert.signed_path) : null}
+              {kv("证书文件", cert.path)}
+              {cert.signed_path ? kv("签名文件", cert.signed_path) : null}
               {cert.signed_statement ? (
                 <>
-                  <div className="kv-label" style={{ margin: "10px 0 6px" }}>Signed Statement (in-toto style)</div>
+                  <div className="kv-label" style={{ margin: "10px 0 6px" }}>签名声明（in-toto 风格，供审计核验）</div>
                   <pre className="json">{JSON.stringify(cert.signed_statement, null, 2)}</pre>
                 </>
               ) : (
                 <div className="muted" style={{ margin: "8px 0" }}>
-                  无 Ed25519 签名件 (密钥未配置时保持未签名摘要 — 如实呈现)
+                  暂无 Ed25519 签名文件（未配置签名密钥时，仅提供未签名摘要 —— 如实呈现，不伪造可信签名）。
                 </div>
               )}
-              <div className="kv-label" style={{ margin: "10px 0 6px" }}>Document</div>
+              <div className="kv-label" style={{ margin: "10px 0 6px" }}>证书内容（原始 JSON）</div>
               <pre className="json">{JSON.stringify(cert.document, null, 2)}</pre>
             </>
           ) : null}
@@ -356,7 +420,7 @@ export default function JobDetail(props: { jobId: string }) {
       ) : null}
 
       {caps.length > 0 ? (
-        <Panel title="Capsule 下载">
+        <Panel title={<Term id="capsule">复现包下载</Term>}>
           {caps.map((c) => (
             <Button key={c} variant="ghost" size="sm" style={{ marginRight: 8 }} onClick={() => downloadCapsule(jobId, c.split("/").pop())}>
               ↓ {c.split("/").pop()}

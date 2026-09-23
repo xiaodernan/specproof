@@ -1,16 +1,48 @@
 // Shared components + hooks for the SpecCraft agent console pages.
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { AgentApproval, AgentEvent, AgentJob, apiGet } from "../api";
+import {
+  AgentApproval, AgentEvent, AgentJob, apiGet, openAgentEventStream,
+} from "../api";
 import { fmtTime, shortId } from "../ui";
-import { agentStatusMeta, eventKindLabel } from "./util";
+import { agentStatusMeta, approvalTargetLabel, eventKindLabel } from "./util";
+
+export type AgentStreamState = "connecting" | "open" | "closed" | "error";
+
+/** 终态：SSE 与轮询都以它为准停止。 */
+const TERMINAL_AGENT_STATUSES = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
 export function useAgentJob(jobId: string) {
   const [job, setJob] = useState<AgentJob | null>(null);
   const [error, setError] = useState<Error | string | null>(null);
   const [loading, setLoading] = useState(true);
+  // 实时事件与连接状态（与验证详情页同一套 SSE 能力）。此前开发助手只有
+  // 轮询，进度会滞后数秒且看不到细粒度事件——同一个产品两条链路体验不一致。
+  const [events, setEvents] = useState<AgentEvent[]>([]);
+  const [streamState, setStreamState] = useState<AgentStreamState>("connecting");
   const refresh = useRef<() => void>(() => undefined);
   const reload = useCallback(() => refresh.current(), []);
+
+  // SSE：拿到任何事件都立刻回读一次任务详情，让状态/进度即时刷新，
+  // 而不是等下一次轮询。终态时服务端会发 "done"，这里同时兜底停止。
+  useEffect(() => {
+    setEvents([]);
+    setStreamState("connecting");
+    let alive = true;
+    const close = openAgentEventStream(
+      jobId,
+      (ev) => {
+        if (!alive) return;
+        setEvents((prev) => [...prev, ev]);
+        if (ev.type === "progress" || ev.type === "gate" || ev.type === "plan") {
+          refresh.current();
+        }
+      },
+      (state) => { if (alive) setStreamState(state); },
+      () => { if (alive) { setStreamState("closed"); refresh.current(); } },
+    );
+    return () => { alive = false; close(); };
+  }, [jobId]);
 
   useEffect(() => {
     let alive = true;
@@ -34,7 +66,7 @@ export function useAgentJob(jobId: string) {
         );
         if (!alive || controller.signal.aborted) return;
         setJob(result.job); setError(null); setLoading(false);
-        stopped = ["COMPLETED", "FAILED", "CANCELLED"].includes(result.job.status);
+        stopped = TERMINAL_AGENT_STATUSES.has(result.job.status);
       } catch (reason) {
         if (!alive || controller.signal.aborted) return;
         setError(reason as Error); setLoading(false);
@@ -67,7 +99,11 @@ export function useAgentJob(jobId: string) {
     };
   }, [jobId]);
 
-  return { job: job?.id === jobId ? job : null, error, loading, reload };
+  return {
+    job: job?.id === jobId ? job : null,
+    error, loading, reload,
+    events, streamState,
+  };
 }
 
 export function AgentJobShell(props: {
@@ -86,7 +122,7 @@ export function AgentJobShell(props: {
     { key: "events", label: "事件 Events", href: "#/agent/jobs/" + job.id + "/events" },
     { key: "edits", label: "编辑 Edits", href: "#/agent/jobs/" + job.id + "/edits" },
     { key: "gates", label: "门禁 Gates", href: "#/agent/jobs/" + job.id + "/gates" },
-    { key: "diff", label: "Diff", href: "#/agent/jobs/" + job.id + "/diff" },
+    { key: "diff", label: "差异 Diff", href: "#/agent/jobs/" + job.id + "/diff" },
     { key: "approvals", label: "审批 (" + job.approvals_count + ")", href: "#/agent/jobs/" + job.id + "/approvals" },
     { key: "result", label: "结果 Result", href: "#/agent/jobs/" + job.id + "/result" },
   ];
@@ -95,12 +131,12 @@ export function AgentJobShell(props: {
       <div className="page-head">
         <h1 className="mono">
           {job.task_name} <span className="muted mono">({shortId(job.id)})</span>{" "}
-          <span className={"pill " + (meta.tone === "ok" ? "pill-ok" : meta.tone === "bad" ? "pill-bad" : meta.tone === "warn" ? "pill-run" : "pill-mute")}>
-            {job.status}
+          <span className={"pill " + (meta.tone === "ok" ? "pill-ok" : meta.tone === "bad" ? "pill-bad" : meta.tone === "warn" ? "pill-run" : "pill-mute")} title={job.status || ""}>
+            {meta.label}
           </span>
         </h1>
         <div className="page-sub">
-          {"repo: " + job.repo_path + " · 更新 " + fmtTime(job.updated_at)}
+          {"仓库 repo: " + job.repo_path + " · 更新 " + fmtTime(job.updated_at)}
         </div>
       </div>
       <div className="tabs">
@@ -149,16 +185,16 @@ export function ApprovalCard(props: { approval: AgentApproval; jobLabel?: string
         <span className={"pill " + (a.decision === "approve" ? "pill-ok" : "pill-bad")}>
           {a.decision === "approve" ? "APPROVE 批准" : "REJECT 拒绝"}
         </span>
-        <span className="mono muted">
-          {a.target + (a.step_index !== null ? " #" + a.step_index : "")}
+        <span className="mono muted" title={a.target}>
+          {approvalTargetLabel(a.target) + (a.step_index !== null ? " #" + a.step_index : "")}
         </span>
         <span className="muted mono" style={{ marginLeft: "auto" }}>
           {fmtTime(a.created_at)}
         </span>
       </div>
-      {props.jobLabel ? <div className="mono muted">job: {props.jobLabel}</div> : null}
+      {props.jobLabel ? <div className="mono muted">任务 job: {props.jobLabel}</div> : null}
       {a.note ? <div className="approval-note">{a.note}</div> : null}
-      <div className="mono muted">by {a.actor} · {shortId(a.id)}</div>
+      <div className="mono muted">操作人 by {a.actor} · {shortId(a.id)}</div>
     </div>
   );
 }

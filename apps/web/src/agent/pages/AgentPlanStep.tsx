@@ -2,7 +2,7 @@ import { useState } from "react";
 import { approveAgentJob } from "../../api";
 import { Button, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
-import { stepStatusLabel } from "../util";
+import { approvalDecisionLabel, stepStatusLabel } from "../util";
 
 export default function AgentPlanStep(props: { jobId: string; stepIndex: number }) {
   const { jobId, stepIndex } = props;
@@ -74,7 +74,9 @@ export default function AgentPlanStep(props: { jobId: string; stepIndex: number 
             <>
               <div className="kv">
                 <span className="kv-label">决策 Decision</span>
-                <span className="kv-value mono">{step.approval.decision}</span>
+                <span className="kv-value mono" title={step.approval.decision}>
+                  {approvalDecisionLabel(step.approval.decision)}
+                </span>
               </div>
               {step.approval.note ? (
                 <div className="kv">
@@ -85,8 +87,8 @@ export default function AgentPlanStep(props: { jobId: string; stepIndex: number 
             </>
           ) : null}
           {job.execution_mode ? <p>请在完整计划页审阅全部步骤后批准执行。<a href={"#/agent/jobs/" + jobId + "/plan"}>返回计划 →</a></p> : <>
-          <label className="field">审批备注 Note (可选)</label>
-          <input type="text" value={note} onChange={(e) => setNote(e.target.value)} />
+          <label className="field" htmlFor="plan-step-note">审批备注 Note (可选)</label>
+          <input id="plan-step-note" type="text" value={note} onChange={(e) => setNote(e.target.value)} />
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <Button disabled={busy} onClick={() => void decide("approve")}>
               批准本步 Approve step

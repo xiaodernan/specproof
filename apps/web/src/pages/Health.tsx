@@ -1,7 +1,55 @@
 import { useEffect, useState } from "react";
 import { apiGet, HealthData } from "../api";
-import { ErrorBox, Panel, Spinner, StatCard, type StatTone } from "../ui";
+import { ErrorBox, Panel, Spinner, StatCard, Table, healthStatusLabel, type Column, type StatTone } from "../ui";
 import { buildHealthCategories, HealthCategoryState } from "./healthCategories";
+
+interface DepRow {
+  name: string;
+  ok?: boolean;
+  latency_ms?: number;
+  error?: string | null;
+}
+
+const DEP_COLUMNS: Column<DepRow>[] = [
+  {
+    key: "name",
+    header: "依赖",
+    sortable: true,
+    render: (r) => <span className="mono">{DEP_NAMES[r.name] || r.name}</span>,
+  },
+  {
+    key: "ok",
+    header: "状态",
+    sortable: true,
+    sortValue: (r) => (r.ok === true ? 0 : r.ok === false ? 2 : 1),
+    render: (r) => (
+      <span
+        className={
+          "pill " + (r.ok === true ? "pill-ok" : r.ok === false ? "pill-bad" : "pill-mute")
+        }
+      >
+        {r.ok === true ? "OK" : r.ok === false ? "DOWN" : "未知"}
+      </span>
+    ),
+  },
+  {
+    key: "latency_ms",
+    header: "延迟 Latency",
+    align: "right",
+    sortable: true,
+    sortValue: (r) => r.latency_ms ?? -1,
+    render: (r) => (
+      <span className="mono">
+        {typeof r.latency_ms === "number" ? r.latency_ms + " ms" : "—"}
+      </span>
+    ),
+  },
+  {
+    key: "error",
+    header: "错误",
+    render: (r) => <span className="muted mono">{r.error || "—"}</span>,
+  },
+];
 
 const DEP_NAMES: Record<string, string> = {
   mysql: "MySQL",
@@ -49,6 +97,7 @@ export default function Health() {
   if (loading) return <Spinner />;
 
   const checks = data && data.checks ? data.checks : {};
+  const depRows: DepRow[] = Object.entries(checks).map(([name, c]) => ({ name, ...c }));
   const okCount = Object.values(checks).filter((c) => c.ok === true).length;
   const total = Object.keys(checks).length;
   const overallTone: StatTone =
@@ -66,8 +115,8 @@ export default function Health() {
     <div>
       <div className="page-head">
         <h1>健康 Health</h1>
-        <div className="page-sub">
-          FIVE-CATEGORY HEALTH — 服务可达 / 依赖可达 / 能力完整度 / 当前降级 / 数据可查询; 缺失字段显示 未知, 绝不用一个大绿勾掩盖缺陷
+        <div className="page-sub" title="FIVE-CATEGORY HEALTH">
+          从五个角度看服务健康：服务是否可达、依赖是否可用、能力是否完整、当前是否降级、数据能否查询。缺少的信息会如实显示为「未知」，绝不用一个大绿勾掩盖问题。
         </div>
       </div>
       <ErrorBox error={error} />
@@ -84,7 +133,9 @@ export default function Health() {
               <span className="health-category-label">{c.label}</span>
               <span className={"pill " + STATE_PILL[c.state]}>{c.value}</span>
             </div>
-            <div className="health-category-detail muted">{c.detail}</div>
+            <div className="health-category-detail muted" title={c.detailTitle}>
+              {c.detail}
+            </div>
           </div>
         ))}
       </Panel>
@@ -94,7 +145,11 @@ export default function Health() {
           <div className="stat-grid" style={{ marginBottom: 16 }}>
             <StatCard
               label="整体状态"
-              value={data.status ? data.status.toUpperCase() : "未知"}
+              value={
+                <span title={data.status || "未知"}>
+                  {healthStatusLabel(data.status)}
+                </span>
+              }
               tone={overallTone}
             />
             <StatCard
@@ -104,45 +159,18 @@ export default function Health() {
             />
           </div>
           <Panel title="依赖清单 Dependency Matrix">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>依赖</th>
-                  <th>状态</th>
-                  <th>延迟 Latency</th>
-                  <th>错误</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(checks).map(([name, c]) => (
-                  <tr key={name}>
-                    <td className="mono">{DEP_NAMES[name] || name}</td>
-                    <td>
-                      <span
-                        className={
-                          "pill " +
-                          (c.ok === true
-                            ? "pill-ok"
-                            : c.ok === false
-                            ? "pill-bad"
-                            : "pill-mute")
-                        }
-                      >
-                        {c.ok === true ? "OK" : c.ok === false ? "DOWN" : "未知"}
-                      </span>
-                    </td>
-                    <td className="mono">
-                      {typeof c.latency_ms === "number" ? c.latency_ms + " ms" : "—"}
-                    </td>
-                    <td className="muted mono">{c.error || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Table<DepRow>
+              columns={DEP_COLUMNS}
+              rows={depRows}
+              rowKey={(r) => r.name}
+              emptyTitle="暂无依赖信息"
+              emptyDescription="健康端点未返回任何依赖检查。"
+            />
           </Panel>
           {data.degraded === true ? (
-            <div className="degraded">
-              <strong>degraded</strong> — 部分依赖不可用; 相关数据端点将以空数据 + degraded 字段诚实降级, 绝不伪造。
+            <div className="degraded" title="degraded">
+              <strong>降级中 DEGRADED</strong> —{" "}
+              部分依赖不可用；相关数据会以空结果明确返回并标记为降级，绝不伪造。
             </div>
           ) : null}
         </>

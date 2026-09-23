@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import Health from "./Health";
 import { apiGet, HealthData } from "../api";
 import { buildHealthCategories } from "./healthCategories";
@@ -133,6 +133,23 @@ describe("Health five-category rendering", () => {
       "connect timeout"
     );
   });
+
+  it("keeps raw payload field names in a title tooltip, not the visible prose", async () => {
+    apiGetMock.mockResolvedValueOnce({ status: "ok" } as HealthData);
+    render(<Health />);
+    await screen.findByTestId("health-category-deps");
+
+    const detail = (key: string) =>
+      screen
+        .getByTestId("health-category-" + key)
+        .querySelector(".health-category-detail");
+
+    // Friendly wording is visible; the raw field name stays inspectable via title.
+    expect(detail("deps")?.textContent).not.toContain("checks");
+    expect(detail("deps")?.getAttribute("title")).toContain("checks");
+    expect(detail("capabilities")?.textContent).not.toContain("字段");
+    expect(detail("degraded")?.getAttribute("title")).toContain("degraded");
+  });
 });
 
 describe("buildHealthCategories", () => {
@@ -158,5 +175,32 @@ describe("buildHealthCategories", () => {
     const rows = buildHealthCategories({ status: "ok", checks: {} }, null);
     expect(rows[1].state).toBe("unknown");
     expect(rows[4].state).toBe("unknown");
+  });
+});
+
+describe("Health dependency matrix (design-system Table)", () => {
+  const depNames = () =>
+    Array.from(
+      document.querySelectorAll(".ui-table tbody tr td:first-child")
+    ).map((td) => td.textContent);
+
+  it("renders sortable headers and sorts the matrix by 状态", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      status: "degraded",
+      degraded: true,
+      checks: {
+        redis: { ok: false, latency_ms: 2.0, error: "refused" },
+        mysql: { ok: true, latency_ms: 1.1, error: null },
+      },
+    } as HealthData);
+    render(<Health />);
+    await screen.findByTestId("health-category-service");
+
+    // Design-system Table: the 状态 / 延迟 headers are sortable buttons, and
+    // insertion order is Redis, MySQL.
+    expect(depNames()).toEqual(["Redis", "MySQL"]);
+    fireEvent.click(screen.getByRole("button", { name: /状态/ }));
+    // ok sorts OK(0) before DOWN(2) → MySQL first.
+    expect(depNames()).toEqual(["MySQL", "Redis"]);
   });
 });

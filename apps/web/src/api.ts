@@ -155,8 +155,25 @@ function headers(): Record<string, string> {
   return h;
 }
 
+// A rejected fetch means the request never reached the API: backend down,
+// wrong base URL, offline, or blocked by CORS. The browser's raw "Failed to
+// fetch" must not leak to a Chinese UI, so translate it into an actionable
+// message. AbortError is rethrown untouched so caller-driven cancellations
+// (AbortSignal) are never mistaken for a connectivity failure.
+export const NETWORK_UNREACHABLE =
+  "无法连接到服务，请确认后端已启动、API 地址填写正确（见「模型连接 / 设置」），并在网络可用后重试。";
+
+async function doFetch(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw new ApiError(0, NETWORK_UNREACHABLE);
+  }
+}
+
 export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const resp = await fetch(apiBase() + path, { headers: headers(), signal });
+  const resp = await doFetch(apiBase() + path, { headers: headers(), signal });
   return handleResponse<T>(resp);
 }
 
@@ -317,7 +334,7 @@ function openEventStream(
 export async function downloadCapsule(jobId: string, name?: string): Promise<void> {
   let path = "/api/v1/jobs/" + encodeURIComponent(jobId) + "/capsule";
   if (name) path += "?name=" + encodeURIComponent(name);
-  const resp = await fetch(apiBase() + path, { headers: headers() });
+  const resp = await doFetch(apiBase() + path, { headers: headers() });
   if (!resp.ok) {
     let detail = resp.statusText;
     try {
@@ -625,14 +642,14 @@ export interface AgentDiff {
 }
 
 export async function apiDelete<T>(path: string): Promise<T> {
-  const resp = await fetch(apiBase() + path, { method: "DELETE", headers: headers() });
+  const resp = await doFetch(apiBase() + path, { method: "DELETE", headers: headers() });
   return handleResponse<T>(resp);
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const h = headers();
   h["Content-Type"] = "application/json";
-  const resp = await fetch(apiBase() + path, {
+  const resp = await doFetch(apiBase() + path, {
     method: "POST",
     headers: h,
     body: JSON.stringify(body),

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "../hooks/navigate";
-import { DEMO_AGENT, DEMO_VERIFY, DEMO_VERIFY_REPO_NOTE } from "../demo";
+import { DEMO_AGENT, DEMO_VERIFY, DEMO_VERIFY_ABS_PATH_NOTE } from "../demo";
 import { EMPTY_WIZARD_DRAFT, saveWizardDraft } from "../agent/util";
-import { Button } from "../ui";
+import { Button, GLOSSARY } from "../ui";
 import "./onboarding.css";
 
 const START_COMMAND = "pwsh scripts/start_local.ps1";
@@ -67,7 +67,7 @@ export default function Guide() {
 
       <section className="guide-section guide-example" aria-labelledby="guide-example">
         <div className="guide-section-head"><span className="guide-section-number">02</span><div><h2 id="guide-example">用一次权限改动理解它</h2><p>仓库自带 Spring 后端示例，可在完成本地启动后填写到新建验证表单。</p></div></div>
-        <div className="guide-example-grid"><dl><div><dt>代码仓库</dt><dd><code>demo/spring-backend</code></dd></div><div><dt>改动前 → 改动后</dt><dd><code>{DEMO_VERIFY.base_ref} → {DEMO_VERIFY.head_ref}</code></dd></div><div><dt>需求文件</dt><dd><code>demo/requirement.txt</code></dd></div></dl><div className="guide-example-outcome"><span className="guide-kicker">这个案例要回答的问题</span><h3>权限检查被移除后，谁还能修改邮箱？</h3><p>需求要求所有接口都必须认证。演示仓库的 <code>{DEMO_VERIFY.head_ref}</code> 版本移除了邮箱修改接口的权限检查 — 验证预期得到 <code>BLOCKED</code> 结论，并给出风险描述与证据。</p><div className="guide-example-actions"><Button variant="primary" onClick={startDemoVerify}>用它开始一次真实验证 →</Button><span>首次使用先运行 <code>pwsh scripts/prepare_demo_repo.ps1</code> 创建演示仓库的 git 版本；{DEMO_VERIFY_REPO_NOTE.split("; ")[1] || ""}</span></div></div></div>
+        <div className="guide-example-grid"><dl><div><dt>代码仓库</dt><dd><code>demo/spring-backend</code></dd></div><div><dt>改动前 → 改动后</dt><dd><code>{DEMO_VERIFY.base_ref} → {DEMO_VERIFY.head_ref}</code></dd></div><div><dt>需求文件</dt><dd><code>demo/requirement.txt</code></dd></div></dl><div className="guide-example-outcome"><span className="guide-kicker">这个案例要回答的问题</span><h3>权限检查被移除后，谁还能修改邮箱？</h3><p>需求要求所有接口都必须认证。演示仓库的 <code>{DEMO_VERIFY.head_ref}</code> 版本移除了邮箱修改接口的权限检查 — 验证预期得到 <code>BLOCKED</code> 结论，并给出风险描述与证据。</p><div className="guide-example-actions"><Button variant="primary" onClick={startDemoVerify}>用它开始一次真实验证 →</Button><span>首次使用先运行 <code>pwsh scripts/prepare_demo_repo.ps1</code> 创建演示仓库的 git 版本；{DEMO_VERIFY_ABS_PATH_NOTE}</span></div></div></div>
         <div className="demo-prefill"><strong>想体验 AI 开发？</strong><p>也可以把预置的「修复 double 函数」示例需求带进开发助手，审阅计划并批准后，让 AI 在你的仓库里完成修复。</p><div className="demo-prefill-row"><Button size="sm" onClick={startDemoAgent}>用示例需求开始 AI 开发 →</Button><span className="demo-prefill-status">会打开向导第 2 步，你仍需填写仓库路径并审阅计划</span></div></div>
       </section>
 
@@ -83,7 +83,7 @@ export default function Guide() {
 
       <section className="guide-section" aria-labelledby="guide-glossary">
         <div className="guide-section-head"><span className="guide-section-number">04</span><div><h2 id="guide-glossary">不用记住术语，也能读懂结果</h2></div></div>
-        <dl className="guide-glossary"><div><dt>需求矩阵</dt><dd>逐条列出“要求是什么、如何检查、结果如何、证据在哪里”的验收清单。</dd></div><div><dt>契约</dt><dd>从需求整理出来的具体检查规则。你可以在验收规则页面查看审批状态和版本。</dd></div><div><dt>风险发现</dt><dd>一次检查发现的具体问题，包括影响、严重程度、代码位置与证据。</dd></div><div><dt>证据包（Bug Capsule）</dt><dd>供下载、排查或重放问题的材料。以任务实际生成的文件为准。</dd></div><div><dt>合并证书</dt><dd>关联验证结果的签名记录，用于交付追溯。它只覆盖本次已验证的范围。</dd></div><div><dt>开发助手（SpecCraft）</dt><dd>帮助规划和实现代码的 Agent。开发完成后，仍需要独立验证来支持交付判断。</dd></div></dl>
+        <dl className="guide-glossary">{GLOSSARY.map((entry) => <div key={entry.id}><dt>{entry.label}</dt><dd>{entry.definition}</dd></div>)}</dl>
       </section>
 
       <section className="guide-startup" aria-labelledby="guide-local"><div><h2 id="guide-local">在自己的电脑上体验</h2><p>先安装 Python 3.12、Node.js 18+、Docker Desktop，并在项目根目录安装 Python 依赖。完整步骤见项目文档 <code>docs/operations/LOCAL_EXPERIENCE.md</code>。</p><code className="guide-command">python -m pip install -e ".[dev]"<br />{START_COMMAND}</code><span role="status" className="guide-copy-status">{copyState}</span></div><Button onClick={() => { void copyCommand(); }}>复制启动命令</Button></section>

@@ -7,6 +7,7 @@ import {
   removeSavedToken,
   setBearerToken,
 } from "../api";
+import { roleLabel } from "./labels";
 
 // Tenant switcher: the active credential IS the tenant context — every
 // sp_*/OIDC credential is bound to exactly one tenant server-side, and the
@@ -50,8 +51,8 @@ export default function TenantSwitcher(props: { onSwitch?: () => void }) {
       {principal ? (
         <div className="tenant-roles">
           {principal.roles.map((r) => (
-            <span key={r} className="pill pill-mute">
-              {r}
+            <span key={r} className="pill pill-mute" title={r}>
+              {roleLabel(r)}
             </span>
           ))}
         </div>
@@ -59,6 +60,7 @@ export default function TenantSwitcher(props: { onSwitch?: () => void }) {
       {saved.length > 0 ? (
         <select
           className="tenant-select"
+          aria-label="切换租户 Switch tenant"
           disabled={busy}
           value=""
           onChange={(e) => {
@@ -80,6 +82,7 @@ export default function TenantSwitcher(props: { onSwitch?: () => void }) {
               {s.name}
               <button
                 className="btn btn-ghost tenant-remove"
+                aria-label={"移除已保存的租户 " + s.name}
                 onClick={() => {
                   removeSavedToken(s.token);
                   setSaved(listSavedTokens());

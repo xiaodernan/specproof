@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { AgentDiff, getAgentDiff } from "../../api";
 import { Empty, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
+import { diffFileStatusLabel, diffModeLabel } from "../util";
+import { loadFailed } from "../../ui/errorHints";
 
 function useDiff(jobId: string, mode: "unified" | "split") {
   const [diff, setDiff] = useState<AgentDiff | null>(null);
@@ -66,7 +68,11 @@ export default function AgentDiffViewer(props: { jobId: string; mode: "unified" 
         }
       >
         {!diff ? (
-          <Empty text="变更包不可用 (worker 尚未产生 bundle — 诚实 404 空态)" />
+          loadFailed(error) ? (
+            <Empty text="变更包暂时无法加载（请求失败）— 这不代表没有改动，请稍后重试" />
+          ) : (
+            <Empty text="变更包不可用 (worker 尚未产生 bundle — 诚实 404 空态)" />
+          )
         ) : diff.files.length === 0 ? (
           <Empty text="变更包为空 (无文件改动)" />
         ) : (
@@ -74,8 +80,8 @@ export default function AgentDiffViewer(props: { jobId: string; mode: "unified" 
             <div className="diff-stats mono">
               <span className="diff-add">+{diff.stats.insertions}</span>
               <span className="diff-del">-{diff.stats.deletions}</span>
-              <span className="muted">{diff.stats.files_changed} files</span>
-              <span className="muted">{diff.mode}</span>
+              <span className="muted">{diff.stats.files_changed} 个文件 files</span>
+              <span className="muted">{diffModeLabel(diff.mode)}</span>
             </div>
             {diff.files.map((file) => (
               <div key={file.path} className="diff-file">
@@ -90,7 +96,7 @@ export default function AgentDiffViewer(props: { jobId: string; mode: "unified" 
                         : "pill-run")
                     }
                   >
-                    {file.status}
+                    {diffFileStatusLabel(file.status)}
                   </span>
                   <span className="mono">{file.path}</span>
                   <span className="mono diff-add">+{file.insertions}</span>

@@ -102,4 +102,33 @@ describe("Matrix result/evidence pills — status has its own tone map", () => {
     expect(missing.className).toBe("mono muted");
     expect(missing.className).not.toMatch(/pill-ok|pill-pass/);
   });
+
+  it("renders through the design-system Table with the quality density class", async () => {
+    apiGetMock.mockImplementation(((path: string) => {
+      if (path === "/jobs?limit=200") {
+        return Promise.resolve({
+          jobs: [{ id: "job-1", base_ref: "base", head_ref: "head", status: "VERIFIED" }],
+        });
+      }
+      return Promise.resolve({
+        job_id: "job-1",
+        rows: [row("AUTH-01", "PASS", "ev/pass.json")],
+        counts: { total: 1, passed: 1, failed: 0, unverified: 0 },
+        degraded: false,
+        degraded_reason: null,
+      });
+    }) as unknown as typeof apiGet);
+
+    await mountAndSelect();
+    await screen.findByText("AUTH-01");
+
+    // Phase 1.9: the table must be the shared component (window class contract),
+    // not a hand-written .data table — the quality page keeps its own density.
+    document.querySelectorAll("table.data").forEach(() => {
+      throw new Error("Matrix still renders a hand-written table.data");
+    });
+    const wrap = document.querySelector(".ui-table-wrap.quality-table");
+    expect(wrap).toBeTruthy();
+    expect(document.querySelectorAll(".ui-table-wrap").length).toBe(1);
+  });
 });

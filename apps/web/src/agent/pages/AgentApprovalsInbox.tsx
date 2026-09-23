@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { AgentApproval, AgentJobSummary, listAgentApprovals, listAgentJobs } from "../../api";
 import { Empty, ErrorBox, Panel, Spinner, fmtTime, shortId } from "../../ui";
+import { loadFailed } from "../../ui/errorHints";
 import { ApprovalCard } from "../components";
-import { aggregateApprovals } from "../util";
+import { aggregateApprovals, approvalDecisionLabel } from "../util";
 
 export default function AgentApprovalsInbox() {
   const [approvals, setApprovals] = useState<AgentApproval[]>([]);
   const [jobs, setJobs] = useState<AgentJobSummary[]>([]);
   const [error, setError] = useState<Error | string | null>(null);
+  const [failedJobReads, setFailedJobReads] = useState(0);
   const [loading, setLoading] = useState(true);
   const [decisionFilter, setDecisionFilter] = useState("ALL");
 
@@ -20,7 +22,10 @@ export default function AgentApprovalsInbox() {
           list.map((j) =>
             listAgentApprovals(j.id)
               .then((r) => ({ job_id: j.id, approvals: r.approvals }))
-              .catch(() => ({ job_id: j.id, approvals: [] as AgentApproval[] }))
+              .catch(() => {
+                if (alive) setFailedJobReads((n) => n + 1);
+                return { job_id: j.id, approvals: [] as AgentApproval[] };
+              })
           )
         );
         if (!alive) return;
@@ -63,21 +68,38 @@ export default function AgentApprovalsInbox() {
         title={"审批 (" + filtered.length + " / " + approvals.length + ")"}
         right={
           <select
+            aria-label="按处理状态筛选 Filter by decision"
             value={decisionFilter}
             onChange={(e) => setDecisionFilter(e.target.value)}
           >
             {["ALL", "approve", "reject"].map((s) => (
               <option key={s} value={s}>
-                {s}
+                {s === "ALL" ? "全部决策 All" : approvalDecisionLabel(s)}
               </option>
             ))}
           </select>
         }
       >
-        {filtered.length === 0 ? (
-          <Empty text="尚无审批记录 — 计划审阅/步骤审阅/门禁的每个决策都会出现在这里" />
+        {loadFailed(error) ? (
+          <div className="errorbox" role="alert">
+            审批列表暂时无法加载（请求失败）— 这不代表没有审批，请稍后重试。
+          </div>
+        ) : filtered.length === 0 ? (
+          failedJobReads > 0 ? (
+            <div className="errorbox" role="alert">
+              有 {failedJobReads} 个任务的审批无法读取（请求失败）— 这不代表没有审批，请稍后重试。
+            </div>
+          ) : (
+            <Empty text="尚无审批记录 — 计划审阅/步骤审阅/门禁的每个决策都会出现在这里" />
+          )
         ) : (
-          filtered.map((a) => (
+          <>
+            {failedJobReads > 0 && (
+              <div className="errorbox" role="alert">
+                有 {failedJobReads} 个任务的审批无法读取，列表可能不完整。
+              </div>
+            )}
+            {filtered.map((a) => (
             <div key={a.id} className="inbox-row">
               <a href={"#/agent/approvals/" + a.id} style={{ flex: 1, textDecoration: "none" }}>
                 <ApprovalCard approval={a} jobLabel={(label[a.job_id] || shortId(a.job_id)) + " · " + fmtTime(a.created_at)} />
@@ -86,7 +108,8 @@ export default function AgentApprovalsInbox() {
                 打开任务
               </a>
             </div>
-          ))
+          ))}
+          </>
         )}
       </Panel>
     </div>

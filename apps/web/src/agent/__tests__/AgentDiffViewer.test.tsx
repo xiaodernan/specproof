@@ -101,6 +101,7 @@ describe("AgentDiffViewer", () => {
         return {
           ok: false,
           status: 404,
+          headers: new Headers(),
           json: async () => ({
             detail: "Agent job job-1 has no change bundle yet",
             error: { code: "EVIDENCE_UNVERIFIED", message: "x", request_id: "r" },
@@ -115,5 +116,23 @@ describe("AgentDiffViewer", () => {
     await waitFor(() =>
       expect(screen.getByText(/尚未产生 bundle/)).toBeTruthy()
     );
+  });
+
+  it("does not claim an honest 404 when the request actually failed (5xx)", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/diff")) {
+        return { ok: false, status: 500, headers: new Headers(), json: async () => ({ detail: "boom" }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ job }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AgentDiffViewer jobId="job-1" mode="unified" />);
+    await waitFor(() =>
+      expect(screen.getByText(/暂时无法加载/)).toBeTruthy()
+    );
+    // A load failure must never be dressed up as the benign "no bundle yet" state.
+    expect(screen.queryByText(/诚实 404/)).toBeNull();
+    expect(screen.queryByText(/尚未产生 bundle/)).toBeNull();
   });
 });

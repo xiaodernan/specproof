@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { createVerification, type VerificationRequest } from "../api";
 import { DEMO_VERIFY, DEMO_VERIFY_REPO_NOTE } from "../demo";
-import { Breadcrumbs, Button, ErrorBox, Input } from "../ui";
+import { Breadcrumbs, Button, ErrorBox, Input, Term } from "../ui";
 import "../styles/verification.css";
 import "./onboarding.css";
 
@@ -21,6 +21,26 @@ const DEMO = {
   head: demoEnv.VITE_DEMO_HEAD_REF,
 };
 const demoAvailable = Boolean(DEMO.repo && DEMO.spec);
+
+// 把后端错误翻译成对用户友好的中文提示。零依赖轻量模式下网页版 Verify
+// 需要 MySQL/Redis，缺失时后端返回 503 PROVIDER_UNAVAILABLE——这里给出可操作的
+// 下一步（改用 CLI 或启动依赖服务），而不是把英文堆栈直接抛给用户。
+function describeSubmitError(e: unknown): string {
+  const err = e as { status?: number; code?: string; message?: string };
+  if (err?.status === 503 || err?.code === "PROVIDER_UNAVAILABLE") {
+    return "验证服务暂时不可用：网页版需要 MySQL / Redis 等后端服务。若你在使用免 Docker 的轻量模式，请改用命令行 `specproof verify`，或先启动这些服务后重试。";
+  }
+  // A transport failure (backend down, wrong API base, offline, CORS) surfaces
+  // as a TypeError with no status/code — the browser's raw "Failed to fetch"
+  // would otherwise leak English to the user.
+  if (
+    err?.status === undefined &&
+    /failed to fetch|networkerror|load failed|err_network|econn|timed out|timeout/i.test(err?.message || "")
+  ) {
+    return "无法连接到验证服务，任务未提交。请确认后端已启动、地址填写正确（见「模型连接 / 设置」中的 API 地址），然后重试。";
+  }
+  return err?.message || "任务创建失败，请检查服务连接后重试。";
+}
 
 function readPrefill(search: string): VerificationRequest | null {
   const params = new URLSearchParams(search);
@@ -89,7 +109,7 @@ export default function NewVerification() {
       if (!result.job_id) throw new Error("服务未返回任务编号，请刷新验证记录，确认是否已创建后再重试。");
       window.location.hash = "#/jobs/" + encodeURIComponent(result.job_id);
     } catch (e) {
-      setError(e instanceof Error ? e : "任务创建失败，请检查服务连接后重试。");
+      setError(describeSubmitError(e));
       setSubmitting(false);
     }
   };
@@ -99,7 +119,7 @@ export default function NewVerification() {
       <Breadcrumbs items={[{ label: "验证记录", href: "#/jobs" }, { label: "新建验证" }]} />
       <div className="page-head verification-heading">
         <div><span className="verification-eyebrow">START A VERIFICATION</span><h1>这次改动，符合需求吗？</h1>
-        <p className="verification-description">选择代码的两个版本，再提供需求文件。SpecProof 会检查改动，并把结论与可追溯的证据放在一起。</p></div>
+        <p className="verification-description">选择代码的两个版本，再提供需求文件。SpecProof 会检查改动，并把结论与可追溯的<Term id="evidence">证据</Term>放在一起。</p></div>
       </div>
       <div className="verification-layout">
         <form className="verification-form" onSubmit={submit} noValidate aria-label="新建验证">
@@ -148,14 +168,14 @@ export default function NewVerification() {
         <aside className="verification-guide">
           <span className="verification-eyebrow">WHAT YOU GET</span><h2>从“看起来没问题”<br />到有证据的判断。</h2>
           <ol className="verification-benefits">
-            <li><strong>需求逐条对应</strong><p>看到每条验收条件的检查结果，以及尚未覆盖的部分。</p></li>
-            <li><strong>问题有据可查</strong><p>查看风险描述、影响位置与可用的复现证据。</p></li>
+            <li><strong>需求逐条对应</strong><p>看到每条<Term id="contract">验收条件</Term>的检查结果，以及尚未覆盖的部分。</p></li>
+            <li><strong>问题有据可查</strong><p>查看<Term id="finding">风险发现</Term>、影响位置与可用的复现证据。</p></li>
             <li><strong>评审更有依据</strong><p>用验证报告支持代码评审；证据不足会明确标注。</p></li>
           </ol>
           <div className="verification-example"><strong>需求可以这样写</strong><p>未登录用户调用 <code>POST /orders</code> 时应返回 401，且不得创建订单。</p><span>明确条件、预期结果和禁止行为，比“优化订单功能”更容易验证。</span></div>
           <div className="demo-prefill">
             <strong>想立刻看到效果？</strong>
-            <p>项目自带一个演示仓库：改动前的版本权限检查完整，改动后的版本移除了邮箱修改接口的权限检查。提交验证后，预期结论为 <code>BLOCKED</code> — 你会看到具体风险、代码位置和证据。</p>
+            <p>项目自带一个演示仓库：改动前的版本权限检查完整，改动后的版本移除了邮箱修改接口的权限检查。提交验证后，预期结论为 <strong>发现风险</strong>（<code>BLOCKED</code>）— 你会看到具体风险、代码位置和证据。</p>
             <div className="demo-prefill-row">
               <Button type="button" size="sm" onClick={fillDemo}>填入演示案例</Button>
               {demoFilled ? <span className="demo-prefill-status" role="status">已填入左侧表单，直接点「开始验证」</span> : null}

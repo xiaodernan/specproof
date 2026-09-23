@@ -1,48 +1,54 @@
 import { useEffect, useRef, useState } from "react";
-import { AgentEvent, openAgentEventStream } from "../../api";
+import { AgentEvent } from "../../api";
 import { ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, EventRow, useAgentJob } from "../components";
-import { eventKindLabel } from "../util";
+import { eventKindLabel, sseStateLabel } from "../util";
 
-function useToolEvents(jobId: string) {
+/** 与本文件之外的调用方（测试）共用的原始事件缓冲上限。 */
+const MAX_BUFFERED_EVENTS = 300;
+
+/**
+ * 原始事件缓冲：同一个任务只建立一条 SSE 连接。
+ *
+ * 这里刻意**不再自己开流**——`useAgentJob` 已成为唯一的实时通道（验证详情页
+ * 与开发助手共用）。此前本页与详情页各开一条连接，同一任务会被订阅两次。
+ * `ready` 为 false 时保持"尚未收到任何事件"的真实状态，而不是伪造空列表。
+ */
+function useToolEvents(
+  jobId: string, streamEvents: AgentEvent[], streamState: string,
+) {
   const [events, setEvents] = useState<AgentEvent[]>([]);
-  const [sseState, setSseState] = useState<string>("closed");
   const [done, setDone] = useState(false);
   const bufferRef = useRef<AgentEvent[]>([]);
+  const highestRef = useRef(0);
 
   useEffect(() => {
-    let alive = true;
-    let highestSequence = 0;
+    // 切换任务时清空，避免把上一个任务的事件留在新任务的日志里。
     bufferRef.current = [];
-    setEvents([]); setDone(false); setSseState("connecting");
-    const close = openAgentEventStream(
-      jobId,
-      (ev) => {
-        if (!alive || ev.seq <= highestSequence) return;
-        highestSequence = ev.seq;
-        bufferRef.current = [...bufferRef.current.slice(-299), ev];
-        setEvents(bufferRef.current);
-      },
-      (state) => {
-        if (alive) setSseState(state);
-      },
-      () => {
-        if (alive) setDone(true);
-      }
-    );
-    return () => {
-      alive = false;
-      close();
-    };
+    highestRef.current = 0;
+    setEvents([]); setDone(false);
   }, [jobId]);
 
-  return { events, sseState, done };
+  useEffect(() => {
+    for (const ev of streamEvents) {
+      if (ev.seq <= highestRef.current) continue;  // 重放去重
+      highestRef.current = ev.seq;
+      bufferRef.current = [...bufferRef.current.slice(-(MAX_BUFFERED_EVENTS - 1)), ev];
+    }
+    setEvents(bufferRef.current);
+  }, [streamEvents]);
+
+  useEffect(() => {
+    if (streamState === "closed") setDone(true);
+  }, [streamState]);
+
+  return { events, sseState: streamState, done };
 }
 
 export default function AgentToolStream(props: { jobId: string }) {
   const { jobId } = props;
-  const { job, error, loading } = useAgentJob(jobId);
-  const { events, sseState, done } = useToolEvents(jobId);
+  const { job, error, loading, events: streamEvents, streamState } = useAgentJob(jobId);
+  const { events, sseState, done } = useToolEvents(jobId, streamEvents, streamState);
 
   if (loading) return <Spinner />;
   if (!job) {
@@ -77,7 +83,7 @@ export default function AgentToolStream(props: { jobId: string }) {
           "实时工具流 Tool stream (" +
           events.length +
           " 帧 · SSE " +
-          sseState +
+          sseStateLabel(sseState) +
           (done || ["COMPLETED", "FAILED", "CANCELLED"].includes(job.status) ? " · 已结束 closed" : "") +
           ")"
         }

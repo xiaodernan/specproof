@@ -40,15 +40,19 @@ describe("AgentToolStream", () => {
   it("clears old events and disconnects when navigating to another job", async () => {
     const view = render(<AgentToolStream jobId="job-1" />);
     await waitFor(() => expect(screen.getByRole("log")).toBeTruthy());
-    act(() => sessions[0].event({ seq: 20, type: "model_output", at: job.created_at, data: { text: "old output" } }));
+    await act(async () => {
+      sessions[0].event({ seq: 20, type: "model_output", at: job.created_at, data: { text: "old output" } });
+    });
     view.rerender(<AgentToolStream jobId="job-2" />);
     await waitFor(() => expect(sessions).toHaveLength(2));
     await waitFor(() => expect(screen.getByRole("log")).toBeTruthy());
     expect(sessions[0].close).toHaveBeenCalledOnce();
     expect(screen.queryByText("old output")).toBeNull();
-    act(() => sessions[1].event({ seq: 1, type: "model_output", at: job.created_at, data: { text: "new output" } }));
+    await act(async () => {
+      sessions[1].event({ seq: 1, type: "model_output", at: job.created_at, data: { text: "new output" } });
+    });
     expect(screen.getByRole("log").textContent).toContain("new output");
-    act(() => sessions[1].done());
+    await act(async () => { sessions[1].done(); });
     expect(screen.getByText(/已结束 closed/)).toBeTruthy();
   });
 });

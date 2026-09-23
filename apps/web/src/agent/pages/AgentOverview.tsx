@@ -1,7 +1,46 @@
 import { useEffect, useMemo, useState } from "react";
 import { AgentJobSummary, listAgentJobs } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner, fmtTime, shortId } from "../../ui";
+import { Empty, ErrorBox, Panel, Spinner, Table, fmtTime, shortId, type Column } from "../../ui";
+import { loadFailed } from "../../ui/errorHints";
 import { agentStatusMeta } from "../util";
+
+const STATUS_TONE: Record<string, string> = {
+  ok: "pill-ok",
+  bad: "pill-bad",
+  warn: "pill-run",
+};
+
+const COLUMNS: Column<AgentJobSummary>[] = [
+  {
+    key: "task_name",
+    header: "任务",
+    sortable: true,
+    render: (j) => (
+      <span className="mono">
+        {j.task_name}
+        <span className="muted"> ({shortId(j.id)})</span>
+      </span>
+    ),
+  },
+  { key: "repo_path", header: "仓库 Repository", sortable: true, render: (j) => <span className="muted">{j.repo_path}</span> },
+  {
+    key: "status",
+    header: "状态",
+    sortable: true,
+    render: (j) => {
+      const meta = agentStatusMeta(j.status);
+      return (
+        <span className={"pill " + (STATUS_TONE[meta.tone] ?? "pill-mute")} title={j.status || ""}>
+          {meta.label}
+        </span>
+      );
+    },
+  },
+  { key: "plan_steps", header: "计划步骤", align: "right", sortable: true, render: (j) => <span className="mono">{j.plan_steps}</span> },
+  { key: "events_count", header: "事件", align: "right", sortable: true, render: (j) => <span className="mono">{j.events_count}</span> },
+  { key: "approvals_count", header: "审批", align: "right", sortable: true, render: (j) => <span className="mono">{j.approvals_count}</span> },
+  { key: "updated_at", header: "更新时间", sortable: true, render: (j) => <span className="muted">{fmtTime(j.updated_at)}</span> },
+];
 
 export default function AgentOverview() {
   const [jobs, setJobs] = useState<AgentJobSummary[]>([]);
@@ -52,58 +91,28 @@ export default function AgentOverview() {
       <Panel
         title={"Agent 任务 (" + jobs.length + ")"}
         right={
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select aria-label="按状态筛选 Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             {statuses.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {s === "ALL" ? "全部状态" : agentStatusMeta(s).label}
               </option>
             ))}
           </select>
         }
       >
-        {jobs.length === 0 ? (
+        {loadFailed(error) ? (
+          <div className="errorbox" role="alert">
+            任务列表暂时无法加载（请求失败）— 这不代表没有任务，请稍后重试。
+          </div>
+        ) : jobs.length === 0 ? (
           <Empty text="暂无 Agent 任务 — 通过任务向导提交第一条需求规格" />
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>任务</th>
-                <th>Repository</th>
-                <th>状态</th>
-                <th>计划步骤</th>
-                <th>事件</th>
-                <th>审批</th>
-                <th>更新时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((j) => {
-                const meta = agentStatusMeta(j.status);
-                return (
-                  <tr
-                    key={j.id}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => (window.location.hash = "#/agent/jobs/" + j.id)}
-                  >
-                    <td className="mono">
-                      {j.task_name}
-                      <span className="muted"> ({shortId(j.id)})</span>
-                    </td>
-                    <td className="muted">{j.repo_path}</td>
-                    <td>
-                      <span className={"pill " + (meta.tone === "ok" ? "pill-ok" : meta.tone === "bad" ? "pill-bad" : meta.tone === "warn" ? "pill-run" : "pill-mute")}>
-                        {j.status}
-                      </span>
-                    </td>
-                    <td className="mono">{j.plan_steps}</td>
-                    <td className="mono">{j.events_count}</td>
-                    <td className="mono">{j.approvals_count}</td>
-                    <td className="muted">{fmtTime(j.updated_at)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <Table<AgentJobSummary>
+            columns={COLUMNS}
+            rows={jobs}
+            rowKey={(j) => j.id}
+            onRowClick={(j) => (window.location.hash = "#/agent/jobs/" + j.id)}
+          />
         )}
       </Panel>
     </div>

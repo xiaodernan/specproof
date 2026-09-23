@@ -36,8 +36,7 @@ const AGENT_ROUTES: RouteDef[] = [
   { path: "#/agent", label: "Agent 总览", sub: "Agent overview" },
   { path: "#/agent/new", label: "新建任务 · 仓库", sub: "New task — repo" },
   { path: "#/agent/new/spec", label: "新建任务 · 规范", sub: "New task — spec" },
-  { path: "#/agent/new/gates", label: "新建任务 · 门禁", sub: "New task — gates" },
-  { path: "#/agent/new/review", label: "新建任务 · 复核", sub: "New task — review" },
+  { path: "#/agent/new/review", label: "新建任务 · 提交", sub: "New task — review" },
   { path: "#/agent/approvals", label: "审批收件箱", sub: "Approvals inbox" },
   { path: "#/agent/settings", label: "Agent 设置", sub: "Console settings" },
 ];

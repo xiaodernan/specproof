@@ -7,11 +7,22 @@ export { Empty } from "./Empty";
 export { ErrorBoundary } from "./ErrorBoundary";
 export { ErrorBox } from "./ErrorBox";
 export { Panel } from "./Panel";
+export { PreflightCard } from "./PreflightCard";
+export {
+  describePreflightError, preflightCheckLabel, preflightLanguageLabel,
+  preflightNotRunReason, preflightStatusLabel, PREFLIGHT_CHECK_LABELS,
+  PREFLIGHT_LANGUAGE_LABELS, PREFLIGHT_STATUS_LABELS,
+  type PreflightCheck, type PreflightResult,
+} from "./preflight";
 export { Spinner } from "./Spinner";
 export { StatCard, type StatTone } from "./StatCard";
-export { StatusPill } from "./StatusPill";
-export { fmtPct, fmtTime, kv, shortId, verdictTone } from "./util";
-export { resultPill, severityPill, type PillSpec } from "./toneMap";
+export { StatusPill, statusLabel, STATUS_LABELS } from "./StatusPill";
+export { fmtPct, fmtTime, kv, shortId, verdictTone, verdictLabel } from "./util";
+export {
+  checkerLabel, contractStatusLabel, CONTRACT_STATUS_CN, evalVerdictLabel, evidenceLabel, healthStatusLabel,
+  resultPill, severityHint, severityPill, SEVERITY_HINT, type PillSpec,
+} from "./toneMap";
+export { stageLabel, STAGE_LABELS } from "./stages";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { CommandPalette } from "./CommandPalette";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
@@ -29,3 +40,5 @@ export { Textarea, type TextareaProps } from "./Textarea";
 export { Timeline, type TimelineEvent, type TimelineProps } from "./Timeline";
 export { ToastProvider, useToast, type ToastOptions, type ToastTone } from "./Toast";
 export { Tooltip, type TooltipProps } from "./Tooltip";
+export { Term, type TermProps } from "./Term";
+export { GLOSSARY, glossaryEntry, type GlossaryEntry } from "./glossary";

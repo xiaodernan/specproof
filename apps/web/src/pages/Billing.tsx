@@ -99,6 +99,33 @@ function invoicePill(status: string): string {
   return "pill-mute";
 }
 
+// Billing statuses arrive as English enums. Known tokens get a Chinese gloss in
+// the familiar "中文 · token" form (raw stays visible so nothing is hidden); an
+// unexpected value is passed through verbatim rather than guessed at.
+const SUBSCRIPTION_LABELS: Record<string, string> = {
+  active: "生效中",
+  canceled: "已取消",
+  past_due: "逾期未付",
+  trialing: "试用中",
+};
+const INVOICE_LABELS: Record<string, string> = {
+  draft: "草稿",
+  issued: "已开具",
+  paid: "已支付",
+  void: "已作废",
+};
+function glossEnum(labels: Record<string, string>, raw: string): string {
+  if (!raw) return "—";
+  const cn = labels[raw];
+  return cn ? cn + " · " + raw : raw;
+}
+function subscriptionLabel(status: string): string {
+  return glossEnum(SUBSCRIPTION_LABELS, status);
+}
+function invoiceLabel(status: string): string {
+  return glossEnum(INVOICE_LABELS, status);
+}
+
 // UI visibility gate for the billing console (RBAC: billing:read —
 // admin/operator/auditor). Mirrors identity/useIdentityAccess: fail-open
 // on UNKNOWN identity so legacy (non-auth) deployments keep the existing
@@ -288,7 +315,7 @@ const invoiceColumns: Column<Invoice>[] = [
   {
     key: "status",
     header: "状态 Status",
-    render: (inv) => <span className={"pill " + invoicePill(inv.status)}>{inv.status}</span>,
+    render: (inv) => <span className={"pill " + invoicePill(inv.status)} title={inv.status}>{invoiceLabel(inv.status)}</span>,
   },
 ];
 
@@ -476,8 +503,8 @@ export default function Billing() {
                   <div className="kv">
                     <span className="kv-label">状态 Status</span>
                     <span className="kv-value">
-                      <span className={"pill " + subscriptionPill(data.subscription.status)}>
-                        {data.subscription.status}
+                      <span className={"pill " + subscriptionPill(data.subscription.status)} title={data.subscription.status}>
+                        {subscriptionLabel(data.subscription.status)}
                       </span>
                     </span>
                   </div>

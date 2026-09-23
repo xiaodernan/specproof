@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, type Job } from "../api";
-import { Button, ErrorBox, Panel, Spinner, StatusPill, fmtTime, shortId } from "../ui";
+import { Button, ErrorBox, Panel, STATUS_LABELS, Spinner, StatusPill, statusLabel, Table, fmtTime, shortId } from "../ui";
 import "../styles/verification.css";
 
 const PAGE_SIZE = 25;
 const ACTIVE = new Set(["QUEUED", "RUNNING", "PENDING", "WAITING_FOR_PROVIDER", "FAILED"]);
-const STATUS_LABELS: Record<string, string> = {
-  QUEUED: "等待执行", RUNNING: "正在验证", VERIFIED: "验证通过", BLOCKED: "发现阻断问题",
-  FAILED: "执行失败", CANCELLED: "已取消", WAITING_FOR_PROVIDER: "等待模型服务", ERROR: "执行出错",
-  UNVERIFIED: "证据不足", INCONCLUSIVE: "尚无明确结论", PENDING: "等待处理",
-};
 interface JobsPage { jobs: Job[]; total?: number; }
+
+/** 仓库路径 → 展示名（取最后一段目录名）。 */
+function repoName(job: Job): string {
+  return (job.repo_path || "未命名项目").replace(/[\\/]$/, "").split(/[\\/]/).pop() || "未命名项目";
+}
 
 export default function Jobs() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -95,14 +95,66 @@ export default function Jobs() {
             <p>{error ? "请确认服务连接，稍后点击刷新重试。" : query || statusFilter !== "ALL" ? "换个关键词，或清除筛选条件查看全部记录。" : "准备一个 Git 仓库和需求文件，比较两个版本，了解代码改动是否满足预期。"}</p>
             {query || statusFilter !== "ALL" ? <Button onClick={() => { setTextFilter(""); setQuery(""); setStatusFilter("ALL"); setPage(1); }}>清除筛选</Button> : !error ? <Button variant="primary" onClick={() => { window.location.hash = "#/jobs/new"; }}>创建第一次验证 →</Button> : null}
           </div>
-        ) : <div className="verification-table-wrap"><table className="data"><thead><tr><th>项目 / 验证编号</th><th>比较版本</th><th>验证状态</th><th>更新时间</th><th aria-label="操作" /></tr></thead><tbody>
-          {jobs.map((job) => <tr key={job.id}>
-            <td><a className="verification-repo" href={"#/jobs/" + encodeURIComponent(job.id)} title={job.repo_path}>{(job.repo_path || "未命名项目").replace(/[\\/]$/, "").split(/[\\/]/).pop()}</a>{!!job.is_demo && <span className="demo-label">演示</span>}<span className="verification-job-id">{shortId(job.id)}</span></td>
-            <td className="mono">{job.base_ref || "—"} <span className="muted">→</span> {job.head_ref || "—"}</td>
-            <td><StatusPill status={job.status || ""} /><span className="verification-status-label">{STATUS_LABELS[(job.status || "").toUpperCase()] || "状态未知"}</span></td>
-            <td className="muted">{fmtTime(job.updated_at || job.created_at)}</td><td><a href={"#/jobs/" + encodeURIComponent(job.id)} aria-label={"查看验证 " + shortId(job.id)}>查看 →</a></td>
-          </tr>)}
-        </tbody></table></div>}
+        ) : <div className="verification-table-wrap">
+          <Table
+            rows={jobs}
+            rowKey={(job) => job.id}
+            columns={[
+              {
+                key: "repo",
+                header: "项目 / 验证编号",
+                sortable: true,
+                sortValue: (job) => repoName(job),
+                render: (job) => (
+                  <>
+                    <a className="verification-repo" href={"#/jobs/" + encodeURIComponent(job.id)} title={job.repo_path}>
+                      {repoName(job)}
+                    </a>
+                    {!!job.is_demo && <span className="demo-label">演示</span>}
+                    <span className="verification-job-id">{shortId(job.id)}</span>
+                  </>
+                ),
+              },
+              {
+                key: "refs",
+                header: "比较版本",
+                render: (job) => (
+                  <span className="mono">
+                    {job.base_ref || "—"} <span className="muted">→</span> {job.head_ref || "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "status",
+                header: "验证状态",
+                sortable: true,
+                sortValue: (job) => statusLabel(job.status) || "状态未知",
+                render: (job) => (
+                  // The pill already renders the canonical label; a second
+                  // plain-text label is redundant and was allowed to drift.
+                  <StatusPill status={job.status || ""} />
+                ),
+              },
+              {
+                key: "updated",
+                header: "更新时间",
+                sortable: true,
+                sortValue: (job) => job.updated_at || job.created_at || "",
+                render: (job) => <span className="muted">{fmtTime(job.updated_at || job.created_at)}</span>,
+              },
+              {
+                key: "actions",
+                header: "",
+                align: "right",
+                render: (job) => (
+                  <a href={"#/jobs/" + encodeURIComponent(job.id)} aria-label={"查看验证 " + shortId(job.id)}>
+                    查看 →
+                  </a>
+                ),
+              },
+            ]}
+          />
+        </div>}
         {total > PAGE_SIZE ? <div className="verification-pagination"><span>共 {total} 条验证</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || refreshing} onClick={() => setPage((value) => value - 1)}>上一页</Button><span>{page} / {pages}</span><Button variant="ghost" size="sm" disabled={page >= pages || refreshing} onClick={() => setPage((value) => value + 1)}>下一页</Button></div></div> : null}
       </Panel>
     </div>

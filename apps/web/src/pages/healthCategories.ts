@@ -12,6 +12,9 @@ export interface HealthCategory {
   state: HealthCategoryState;
   value: string;
   detail: string;
+  // Raw payload field name behind a friendly detail line, kept inspectable via
+  // the title tooltip so softening the wording never hides what the API sent.
+  detailTitle?: string;
 }
 
 const UNKNOWN_PILL = "未知 UNKNOWN";
@@ -35,7 +38,8 @@ export function buildHealthCategories(
         label: "服务可达 Service reachable",
         state: "ok",
         value: "可达 REACHABLE",
-        detail: "/api/v1/health 探测成功返回 — 服务进程在线。",
+        detail: "健康检查已成功返回 — 服务进程在线。",
+        detailTitle: "GET /api/v1/health",
       }
     : error
     ? {
@@ -76,14 +80,16 @@ export function buildHealthCategories(
             detail:
               "不可达: " +
               (downNames.length > 0 ? downNames.join(", ") : "无") +
-              " — 相关数据端点将显式降级 (degraded), 不伪造数据。",
+              " — 相关数据会明确标记为降级，绝不伪造。",
+            detailTitle: "degraded",
           }
       : {
           key: "deps",
           label: "依赖可达 Dependencies",
           state: "unknown",
           value: UNKNOWN_PILL,
-          detail: "健康载荷未返回 checks 字段 (依赖探测缺失) — 不猜测状态。",
+          detail: "健康检查未返回任何依赖探测结果 — 不猜测状态。",
+          detailTitle: "checks 字段缺失",
         };
 
   // 3. 能力完整度 — only reported when the payload carries a capability
@@ -122,8 +128,8 @@ export function buildHealthCategories(
         label: "能力完整度 Capabilities",
         state: "unknown",
         value: UNKNOWN_PILL,
-        detail:
-          "载荷未提供能力清单 (capabilities 字段缺失) — 完整度不猜测。",
+        detail: "健康检查未提供能力清单 — 完整度无法判断。",
+        detailTitle: "capabilities 字段缺失",
       };
 
   // 4. 当前降级 — reported only when the degraded flag is actually present.
@@ -139,21 +145,23 @@ export function buildHealthCategories(
               Array.isArray(data.degraded_reasons) &&
               data.degraded_reasons.length > 0
                 ? data.degraded_reasons.join("; ")
-                : "部分依赖不可用 — 相关数据端点以空数据 + degraded 字段诚实降级。",
+                : "部分依赖不可用 — 相关数据会以空结果明确降级，绝不伪造。",
           }
         : {
             key: "degraded",
             label: "当前降级 Degraded",
             state: "ok",
             value: "正常 NORMAL",
-            detail: "未处于降级状态 (degraded: false)。",
+            detail: "服务未处于降级状态。",
+            detailTitle: "degraded: false",
           }
       : {
           key: "degraded",
           label: "当前降级 Degraded",
           state: "unknown",
           value: UNKNOWN_PILL,
-          detail: "载荷未返回 degraded 字段 — 不猜测降级状态。",
+          detail: "健康检查未返回降级状态 — 不猜测。",
+          detailTitle: "degraded 字段缺失",
         };
 
   // 5. 数据可查询 — derived from the MySQL probe (the data store of record),
@@ -165,7 +173,8 @@ export function buildHealthCategories(
         label: "数据可查询 Data queryable",
         state: "unknown",
         value: UNKNOWN_PILL,
-        detail: "无 mysql 探测结果 (数据主库状态未知) — 不猜测。",
+        detail: "暂无主数据库的探测结果 — 数据能否查询无法判断。",
+        detailTitle: "checks.mysql 缺失",
       }
     : mysql.ok === true
     ? {

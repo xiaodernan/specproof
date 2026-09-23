@@ -6,9 +6,22 @@ import {
   revokeToken,
   saveToken,
 } from "../../api";
-import { Button, Empty, ErrorBox, Panel } from "../../ui";
+import { Button, ErrorBox, Panel, Table, fmtTime, type Column } from "../../ui";
+import { loadFailed } from "../../ui/errorHints";
 import { PermissionDenied } from "../PermissionDenied";
 import { useIdentityAccess } from "../useIdentityAccess";
+
+// Renders a unix-seconds timestamp as a friendly local date, with the exact
+// ISO instant kept in the title tooltip so the raw value stays inspectable.
+function tsCell(ts: number | null | undefined): JSX.Element {
+  if (!ts) return <>—</>;
+  const iso = new Date(ts * 1000).toISOString();
+  return (
+    <span className="mono" title={iso}>
+      {fmtTime(iso)}
+    </span>
+  );
+}
 
 // Token management (RBAC: admin/operator). Minted tokens are show-once: the
 // cleartext appears exactly once and is then discarded from component state;
@@ -24,6 +37,8 @@ export default function TenantTokens() {
   const [cleartextName, setCleartextName] = useState("");
 
   function reload() {
+    setError(null);
+    setLoading(true);
     listTokens()
       .then((data) => {
         setTokens(data.tokens);
@@ -71,6 +86,43 @@ export default function TenantTokens() {
       .catch((e: Error) => setError(e));
   }
 
+  const columns: Column<TokenRow>[] = [
+    { key: "name", header: "名称 Name", sortable: true },
+    { key: "user_email", header: "用户 User", sortable: true },
+    {
+      key: "scopes",
+      header: "权限范围 Scopes",
+      render: (t) => (
+        <span className="mono" title={t.scopes || undefined}>
+          {t.scopes || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "expires_at",
+      header: "过期 Expires",
+      sortable: true,
+      sortValue: (t) => t.expires_at ?? 0,
+      render: (t) => tsCell(t.expires_at),
+    },
+    {
+      key: "last_used_at",
+      header: "最近使用 Last used",
+      sortable: true,
+      sortValue: (t) => t.last_used_at ?? 0,
+      render: (t) => tsCell(t.last_used_at),
+    },
+    {
+      key: "actions",
+      header: "操作",
+      render: (t) => (
+        <Button variant="ghost" size="sm" onClick={() => revoke(t)}>
+          吊销 Revoke
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div>
       <div className="page-head">
@@ -81,12 +133,14 @@ export default function TenantTokens() {
         <div style={{ display: "flex", gap: 8 }}>
           <input
             type="text"
+            aria-label="Token 名称 Name"
             value={name}
             placeholder="名称 (如 ci)"
             onChange={(e) => setName(e.target.value)}
           />
           <input
             type="text"
+            aria-label="权限范围 Scopes (逗号分隔)"
             value={scopes}
             placeholder="scopes (如 jobs:read, 留空=角色矩阵决定)"
             onChange={(e) => setScopes(e.target.value)}
@@ -122,39 +176,21 @@ export default function TenantTokens() {
       ) : null}
       <ErrorBox error={error} />
       <Panel title="已签发 Tokens">
-        {loading ? (
+        {loadFailed(error) ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span>Token 列表暂时无法加载（请求失败）— 这不代表没有 Token。</span>
+            <Button variant="secondary" size="sm" onClick={reload}>重试 Retry</Button>
+          </div>
+        ) : loading ? (
           <div className="spinner">加载中 LOADING…</div>
-        ) : tokens.length === 0 ? (
-          <Empty text="暂无 Token No tokens" />
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>名称 Name</th>
-                <th>用户 User</th>
-                <th>Scopes</th>
-                <th>过期 Expires</th>
-                <th>最近使用 Last used</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tokens.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.name}</td>
-                  <td>{t.user_email}</td>
-                  <td className="mono">{t.scopes || "—"}</td>
-                  <td>{t.expires_at ? new Date(t.expires_at * 1000).toISOString() : "—"}</td>
-                  <td>{t.last_used_at ? new Date(t.last_used_at * 1000).toISOString() : "—"}</td>
-                  <td>
-                    <Button variant="ghost" size="sm" onClick={() => revoke(t)}>
-                      吊销 Revoke
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table<TokenRow>
+            columns={columns}
+            rows={tokens}
+            rowKey={(t) => t.id}
+            emptyTitle="暂无 Token No tokens"
+            emptyDescription="当前租户还没有签发过 Token。"
+          />
         )}
       </Panel>
     </div>

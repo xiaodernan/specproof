@@ -12,7 +12,10 @@ import {
   validateSpecStep,
 } from "../util";
 
-export type WizardStep = "repo" | "spec" | "gates" | "review";
+// 三步向导。此前是四步，其中"门禁"步骤没有任何可编辑控件（预算与步数只由
+// 服务端环境变量决定），用户只能点"下一步"空转一次。与其放一个不生效的开关，
+// 不如把那一步的诚实说明并入提交前的审阅页。
+export type WizardStep = "repo" | "spec" | "review";
 
 // 内置示例需求：点击即可填充，新手不用面对空白文本框。
 const EXAMPLE_SPECS: { title: string; text: string }[] = [
@@ -39,8 +42,7 @@ const EXAMPLE_SPECS: { title: string; text: string }[] = [
 const STEPS: { key: WizardStep; label: string; href: string }[] = [
   { key: "repo", label: "1 仓库 Repo", href: "#/agent/new" },
   { key: "spec", label: "2 需求 Spec", href: "#/agent/new/spec" },
-  { key: "gates", label: "3 门禁 Gates", href: "#/agent/new/gates" },
-  { key: "review", label: "4 提交 Review", href: "#/agent/new/review" },
+  { key: "review", label: "3 提交 Review", href: "#/agent/new/review" },
 ];
 
 export default function AgentWizard(props: { step: WizardStep }) {
@@ -80,7 +82,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
     <div>
       <div className="page-head">
         <h1>新建 Agent 任务</h1>
-        <div className="page-sub">TASK WIZARD — 4 步: 仓库 → 需求 → 门禁 → 提交</div>
+        <div className="page-sub">TASK WIZARD — 3 步: 仓库 → 需求 → 提交</div>
       </div>
       <div className="wizard-steps">
         {STEPS.map((s, i) => (
@@ -100,33 +102,37 @@ export default function AgentWizard(props: { step: WizardStep }) {
       <ErrorBox error={error} />
 
       {props.step === "repo" ? (
-        <Panel title="步骤 1/4 — 目标仓库">
-          <label className="field">仓库路径 Repo path</label>
+        <Panel title="步骤 1/3 — 目标仓库">
+          <label className="field" htmlFor="wizard-repo">仓库路径 Repo path</label>
           <input
+            id="wizard-repo"
             type="text"
             data-testid="wizard-repo"
             value={draft.repo_path}
             placeholder="D:\repos\my-service"
             onChange={(e) => set({ repo_path: e.target.value })}
           />
-          <label className="field">任务名称 Task name (可选)</label>
+          <label className="field" htmlFor="wizard-task">任务名称 Task name (可选)</label>
           <input
+            id="wizard-task"
             type="text"
             data-testid="wizard-task"
             value={draft.task_name}
             placeholder="为服务端增加分页"
             onChange={(e) => set({ task_name: e.target.value })}
           />
-          <label className="field">基线 Base ref（仅参考，不切换工作目录）</label>
+          <label className="field" htmlFor="wizard-base">基线 Base ref（仅参考，不切换工作目录）</label>
           <input
+            id="wizard-base"
             type="text"
             data-testid="wizard-base"
             value={draft.base_ref}
             placeholder="main"
             onChange={(e) => set({ base_ref: e.target.value })}
           />
-          <label className="field">目标 Head ref（仅参考，不切换工作目录）</label>
+          <label className="field" htmlFor="wizard-head">目标 Head ref（仅参考，不切换工作目录）</label>
           <input
+            id="wizard-head"
             type="text"
             data-testid="wizard-head"
             value={draft.head_ref}
@@ -149,8 +155,9 @@ export default function AgentWizard(props: { step: WizardStep }) {
               未知 Unknown — 不提供虚构估算 (honest: 无伪造数字)。耗时取决于仓库规模、门禁选择与执行档位, 提交前不显示预估, 以任务实际执行为唯一依据。
             </span>
           </div>
-          <label className="field">执行模式 Execution mode</label>
+          <label className="field" htmlFor="wizard-mode">执行模式 Execution mode</label>
           <select
+            id="wizard-mode"
             data-testid="wizard-mode"
             value={draft.execution_mode}
             onChange={(e) =>
@@ -185,7 +192,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
       ) : null}
 
       {props.step === "spec" ? (
-        <Panel title="步骤 2/4 — 需求规格">
+        <Panel title="步骤 2/3 — 需求规格">
           <div className="wizard-examples" role="group" aria-label="示例需求">
             <span className="wizard-examples-label">不知道怎么写？从一个示例开始：</span>
             {EXAMPLE_SPECS.map((example) => (
@@ -199,8 +206,9 @@ export default function AgentWizard(props: { step: WizardStep }) {
               </button>
             ))}
           </div>
-          <label className="field">需求规格 Spec text</label>
+          <label className="field" htmlFor="wizard-spec">需求规格 Spec text</label>
           <textarea
+            id="wizard-spec"
             rows={12}
             data-testid="wizard-spec"
             value={draft.spec_text}
@@ -227,7 +235,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
             </a>
             <a
               className={"btn" + (validateSpecStep(draft) ? " btn-disabled" : "")}
-              href={validateSpecStep(draft) ? "#/agent/new/spec" : "#/agent/new/gates"}
+              href={validateSpecStep(draft) ? "#/agent/new/spec" : "#/agent/new/review"}
             >
               下一步 Next
             </a>
@@ -235,25 +243,8 @@ export default function AgentWizard(props: { step: WizardStep }) {
         </Panel>
       ) : null}
 
-      {props.step === "gates" ? (
-        <Panel title="步骤 3/4 — 执行门禁">
-          <div className="degraded"><strong>计划批准后才会修改仓库</strong><p>规划阶段调用已配置的模型，生成步骤和验收标准。请审阅目标文件和检查命令，再批准执行。</p></div>
-          <p>执行器根据项目环境运行适用的检查，并在结果中逐项列出通过、失败或跳过的检查。当前页面不提供自定义测试、类型检查或运行预算开关。</p>
-          <p>AI 开发使用当前工作目录，不会自动切换 Base / Head；版本比较请使用独立验收功能。</p>
-          <a href="#/agent/settings">检查模型连接与推理强度 →</a>
-          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
-            <a className="btn btn-ghost" href="#/agent/new/spec">
-              上一步 Back
-            </a>
-            <a className="btn" href="#/agent/new/review">
-              下一步 Next
-            </a>
-          </div>
-        </Panel>
-      ) : null}
-
       {props.step === "review" ? (
-        <Panel title="步骤 4/4 — 审阅并提交">
+        <Panel title="步骤 3/3 — 审阅并提交">
           <div className="kv">
             <span className="kv-label">Repo</span>
             <span className="kv-value mono">{draft.repo_path || "—"}</span>
@@ -278,12 +269,22 @@ export default function AgentWizard(props: { step: WizardStep }) {
                 : "确定性档 deterministic"}
             </span>
           </div>
+          <div className="degraded" style={{ marginTop: 14 }}>
+            <strong>提交后会先生成计划，你批准前不会改动仓库</strong>
+            <p>
+              执行器根据项目环境运行适用的检查，并在结果中逐项列出通过、失败或跳过的检查；
+              未执行的检查不算通过。运行预算与最大步数由服务端配置决定，这里不提供开关。
+            </p>
+          </div>
+          <p style={{ marginTop: 10 }}>
+            AI 开发使用当前工作目录，不会自动切换 Base / Head；版本比较请使用独立验收功能。
+          </p>
           <div className="kv-label" style={{ margin: "10px 0 4px" }}>
             将提交的需求（不会添加未生效的配置）
           </div>
           <pre className="json">{buildSpecText(draft)}</pre>
           <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
-            <a className="btn btn-ghost" href="#/agent/new/gates">
+            <a className="btn btn-ghost" href="#/agent/new/spec">
               上一步 Back
             </a>
             <Button
