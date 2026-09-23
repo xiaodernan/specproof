@@ -303,3 +303,11 @@
 - **端到端诚实**：`/api/v1/eval/latest` 原样透传 sidecar，`apps/web/src/api.ts` 的 `EvalData.report` 三指标类型改 `number | null` 并补 `negative_cases/acceptance`（契约与现实一致）；`Eval.tsx` 的 `!= null` 兜底已把 `null` 渲染为"—"。新增前端锁：空样本集下三张统计卡显示"—"、且页面**不出现**"100.0%"。
 - **门证**：`ruff` 干净；`mypy .` 全绿（210 文件）；`tests/unit/test_acceptance_gate.py`（12 例，锁定伪满分回归、`None` vs `0.0` 之分、空/小集判 `INSUFFICIENT` 而非 `PASS`、下限 PASS/FAIL、默认仅样本门、`to_dict` JSON 安全）+ `test_baseline.py` 共 **43 passed**；`apps/web` `tsc --noEmit` 干净、`Eval.test.tsx` **6 passed**。
 - **意义**：这是退出标准里"量化 Recall/Precision 门"的一项从**纸面**变成**可执行、不可被缩小评测集绕过**的实门。
+
+### 6.5 默认关闭的本机自测差分门（任务 #50，本轮落地，红线合规路径 ii）
+
+- **背景**：#34 已落地纯函数地基（`self_test_execution_allowed()` 门策略 + `self_test_verdict()` 判定），但**故意不接线**——因为 Node/Python 的 `ExecutionAdapter` 是 local-first（宿主执行、无容器沙箱），直接接线会在宿主上跑未信任的 PR 自带测试，正面撞 `api/routes/jobs.py` 的"验收 API 绝不能变成远程执行面"红线。本轮按路径 (ii) 完成受控接线。
+- **接线（默认关，绝不在默认流水线执行宿主测试）**：`agent/nodes/run_differential.py` 在"非 Java 且无生成测试"分支里，**先查 `self_test_execution_allowed()`**；仅当运维显式 `SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1` 时，才经 `_run_self_tests_on_workspace`（detect→prepare→run）在 Base/Head 跑仓库自带测试、按语言选对应 summary 解析器、用 `self_test_verdict` 出判定；否则保留原诚实 UNVERIFIED 降级，并在文案里点明"默认关闭 + 如何显式开启"。**门关闭时适配器一次都不会被构造**——这是被单测锁死的安全不变式。
+- **诚实透出**：自测差分结果带 `evidence_type=self_test_diff` 与 `execution_surface`（local adapter ⇒ `local_host_no_sandbox`），detail 前缀"⚠ 本机执行·无沙箱"；任何一侧适配器缺失/崩溃/零测试汇总都判 `NON_REPRODUCIBLE`，**绝不当作通过**。前端 `toneMap.ts::EVIDENCE_CN` 给 `self_test_diff` 加了诚实中文标签"仓库自带测试差分（本机执行·无沙箱）"（保留原始 token），FindingDetail/JobDetail 的证据方式列据此诚实标注。
+- **门证**：`test_differential_language_honesty.py` 新增 4 例（默认关⇒`registry.get_calls==0` 且不执行；开⇒base green/head fail⇒REGRESSION+本机无沙箱标签；开⇒空汇总⇒NON_REPRODUCIBLE 非 pass；开⇒无适配器⇒诚实降级）；连同 #34 的 `test_self_test_diff.py` 纯函数 23 例，共 **30 passed**。既有非 Java 诚实降级 3 例不回归。`ruff check .` 干净、`mypy .` 全绿（210 文件）；前端 `tsc` 干净、`toneMap`+`FindingDetail`+`JobDetail` **36 passed**。
+- **仍未做（诚实边界）**：本轮是**路径 (ii) 默认关开关**，不是真正的 Node/Python **沙箱**（路径 i）。要默认安全地跑多语言差分，仍需 roadmap ④ 的 Node/Python 容器镜像；在那之前开启此门仍属"运维知情同意的宿主执行"。

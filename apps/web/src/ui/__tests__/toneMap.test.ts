@@ -69,6 +69,10 @@ describe("terminology gloss — plain-Chinese actionability without inventing me
   it("annotates known evidence types with Chinese, passes unknown through verbatim", () => {
     expect(evidenceLabel("runtime_test")).toContain("运行时测试");
     expect(evidenceLabel("runtime_test")).toContain("runtime_test"); // canonical token preserved
+    // #50: a repo self-test differential is local-first, so its label must say
+    // honestly that it ran on the host without a sandbox, keeping the token.
+    expect(evidenceLabel("self_test_diff")).toContain("本机执行·无沙箱");
+    expect(evidenceLabel("self_test_diff")).toContain("self_test_diff");
     expect(evidenceLabel("mystery_kind")).toBe("mystery_kind");
     expect(evidenceLabel(null)).toBe("—");
   });

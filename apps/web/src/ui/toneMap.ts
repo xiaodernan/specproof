@@ -76,6 +76,10 @@ const EVIDENCE_CN: Record<string, string> = {
   static: "静态分析",
   static_analysis: "静态分析",
   differential: "差分对比（改动前后行为）",
+  // Opt-in repo self-test differential. Honest label: its Node/Python adapter
+  // is local-first, so this evidence was produced by running the repo's own
+  // tests on the host WITHOUT a container sandbox (#50).
+  self_test_diff: "仓库自带测试差分（本机执行·无沙箱）",
   review: "人工评审",
 };
 

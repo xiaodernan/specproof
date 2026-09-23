@@ -38,7 +38,13 @@ from agent.nodes.build_cache import (
     save_base_build,
     seed_head_build,
 )
-from agent.preflight import LANGUAGE_JAVA, detect_language
+from agent.preflight import (
+    LANGUAGE_JAVA,
+    LANGUAGE_NODE,
+    LANGUAGE_PYTHON,
+    detect_language,
+)
+from agent.self_test_diff import self_test_execution_allowed, self_test_verdict
 from agent.state import Phase0State
 
 # Java source for the post-mortem DB dump helper. It opens the file-based
@@ -166,14 +172,28 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         # the checks that DID run, instead of a vague "nothing to run".
         language = detect_language(base_workspace, app_dir)
         if language and language != LANGUAGE_JAVA:
+            # Roadmap 4a (path ii): a repo's OWN test suite can yield a real
+            # base-vs-head regression with no LLM, but the Node/Python adapters
+            # are local-first (no container). So this only runs when the
+            # operator has explicitly opted in; otherwise the honest UNVERIFIED
+            # fallback below stands. Never executed by default.
+            if self_test_execution_allowed():
+                entry = _self_test_differential_entry(
+                    state, base_app, head_app, language
+                )
+                return {"diff_results": source_diff_results + [entry]}
             empty_result["diff_results"][0]["detail"] = (
                 f"Executable base-vs-head differential is not available for a "
                 f"{language} project: the counterexample generator emits "
-                "Java/JUnit tests only. This change is covered by the source / "
-                "static checks above; the differential experiment is reported "
-                "UNVERIFIED rather than as a pass."
+                "Java/JUnit tests only, and running the repository's own tests "
+                "is disabled by default (its Node/Python adapter has no "
+                "sandbox). Set SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1 to opt in to a "
+                "local, unsandboxed self-test differential. This change is "
+                "covered by the source / static checks above; the differential "
+                "experiment is reported UNVERIFIED rather than as a pass."
             )
             empty_result["diff_results"][0]["language"] = language
+            empty_result["diff_results"][0]["self_test_gate"] = "off"
         else:
             empty_result["diff_results"][0]["detail"] = (
                 "No generated counterexample test available — nothing to run; "
@@ -890,6 +910,110 @@ def _inject_test_into_workspaces(test_path: str, base_ws: str, head_ws: str) -> 
         except OSError:
             ok = False
     return ok
+
+
+def _self_test_parse_for(language: str) -> Any:
+    """Pick the summary parser matching a detected language's reporter."""
+    from experiments.adapters import (
+        parse_node_test_summary,
+        parse_pytest_summary,
+        parse_surefire_summary,
+    )
+
+    if language == LANGUAGE_NODE:
+        return parse_node_test_summary
+    if language == LANGUAGE_PYTHON:
+        return parse_pytest_summary
+    return parse_surefire_summary
+
+
+def _run_self_tests_on_workspace(workspace: str) -> dict[str, Any]:
+    """Run the repository's OWN test suite on one workspace via the adapter.
+
+    Returns ``{ok, counts, mode, sandbox, error}``. This executes untrusted
+    repo test code — for Node/Python the adapter is local-first (no container),
+    so the run happens on the HOST. The ONLY caller guards this with
+    ``self_test_execution_allowed()``; it never runs in the default pipeline.
+    """
+    from experiments.adapters import (
+        AdapterNotImplemented,
+        ExecutionRequest,
+        RepositorySnapshot,
+        registry,
+    )
+
+    out: dict[str, Any] = {
+        "ok": False, "counts": None, "mode": "", "sandbox": "", "error": "",
+    }
+    try:
+        snap = RepositorySnapshot(path=workspace)
+        adapter = registry.get(snap)
+        profile = adapter.detect(snap)
+        prepared = adapter.prepare(
+            ExecutionRequest(workspace=workspace, goal="run_test", timeout=900)
+        )
+        res = adapter.run(prepared)
+    except AdapterNotImplemented as exc:
+        out["error"] = str(exc)
+        return out
+    except Exception as exc:  # noqa: BLE001 - a crash is never laundered into a verdict
+        out["error"] = f"self-test execution failed: {exc}"
+        return out
+    out["counts"] = _self_test_parse_for(profile.language)(
+        res.stdout_tail + res.stderr_tail
+    )
+    out["mode"] = res.mode
+    out["sandbox"] = str(res.sandbox_resources.get("sandbox", ""))
+    out["error"] = res.error or ""
+    out["ok"] = True
+    return out
+
+
+def _self_test_differential_entry(
+    state: Phase0State, base_app: str, head_app: str, language: str
+) -> dict[str, Any]:
+    """Opt-in self-test differential: run the repo's tests on Base and Head and
+    compare. Honest regardless of outcome — an unusable adapter, a crash, or a
+    zero-test summary all report NON_REPRODUCIBLE / no-evidence, never a pass.
+    """
+    job_id = state.get("job_id")
+    base_run = run_with_cancel_checks(
+        job_id, "self_test_base", _run_self_tests_on_workspace, base_app
+    )
+    head_run = run_with_cancel_checks(
+        job_id, "self_test_head", _run_self_tests_on_workspace, head_app
+    )
+    host_unsandboxed = "local" in (base_run.get("mode", ""), head_run.get("mode", ""))
+    entry: dict[str, Any] = {
+        "contract_id": "DIFF-01",
+        "language": language,
+        "evidence_type": "self_test_diff",
+        "execution_surface": (
+            "local_host_no_sandbox" if host_unsandboxed else (
+                base_run.get("mode", "") or head_run.get("mode", "")
+            )
+        ),
+    }
+    if not base_run.get("ok") or not head_run.get("ok"):
+        reason = base_run.get("error") or head_run.get("error") or "no usable run"
+        entry["verdict"] = "NON_REPRODUCIBLE"
+        entry["detail"] = (
+            "本机执行·无沙箱 (SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1, host, no "
+            f"container) 已启用，但无法完成仓库自带测试差分: {reason}。"
+            "未据此判定为通过 (UNVERIFIED, not a pass)."
+        )
+        return entry
+    verdict, detail = self_test_verdict(base_run.get("counts"), head_run.get("counts"))
+    entry["verdict"] = verdict
+    entry["base_test_counts"] = base_run.get("counts")
+    entry["head_test_counts"] = head_run.get("counts")
+    entry["detail"] = (
+        "⚠ 本机执行·无沙箱 (SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1, host, no "
+        "container). " + detail
+        if host_unsandboxed
+        else detail
+    )
+    return entry
 
 
 def _run_generated_test(
