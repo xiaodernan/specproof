@@ -20,11 +20,16 @@ Adapter status (kept in sync with the classes below):
     re-homed behind the protocol).
   * Python/pytest — IMPLEMENTED local-first (工业化指南 阶段 4 / W57 — a
     project .venv on the host, no container).
-  * Node/npm — IMPLEMENTED local-first (runs the project's own
-    ``npm test --silent``; Jest / Vitest / node:test summaries parsed, a
-    missing ``node_modules`` fails honestly rather than faking a pass).
+  * Node/npm — IMPLEMENTED in the Docker sandbox (runs the project's own
+    ``npm test --silent`` with --network none and a read-only /work; Jest /
+    Vitest / node:test summaries parsed, a missing ``node_modules`` fails
+    honestly rather than faking a pass). Host execution is opt-in by name.
   * Java/Gradle and Go — NOT implemented; ``detect`` raises
     AdapterNotImplemented. We do NOT claim to support arbitrary projects.
+
+Every adapter also declares ``EXECUTION_SURFACE`` (see the surface section
+below): WHERE run() executes a repository's code. Callers must read it before
+deciding whether running untrusted repo tests is allowed at all.
 """
 
 from __future__ import annotations
@@ -43,10 +48,36 @@ from typing import Any, Protocol, runtime_checkable
 
 from sandbox.runner import (
     DEFAULT_M2_VOLUME,
+    DEFAULT_NODE_IMAGE,
     DEFAULT_PIDS_LIMIT,
+    NODE_PROFILE,
     SANDBOX_USER,
     run_sandboxed,
 )
+
+# ── Declared execution surface ───────────────────────────────────────────
+#
+# WHERE an adapter's run() executes a repository's own code. This is a DECLARED
+# class property, deliberately not inferred from the run result: the verify
+# pipeline will not execute UNTRUSTED repo-authored tests on the host without
+# an operator opting in, so the decision has to be readable BEFORE anything
+# runs. Callers read it with getattr(..., SURFACE_HOST) so an adapter that
+# forgets to declare is treated as the dangerous case, never the safe one.
+SURFACE_DOCKER_SANDBOX = "docker_sandbox"
+SURFACE_HOST = "host"
+
+
+def execution_surface_of(adapter: Any) -> str:
+    """Declared surface of an adapter, failing closed to host execution."""
+    return getattr(adapter, "EXECUTION_SURFACE", SURFACE_HOST)
+
+
+def runs_in_sandbox(adapter: Any) -> bool:
+    """True only when this adapter executes repository code inside the
+    hardened container. Callers decide safety with this, never by matching
+    surface strings themselves."""
+    return execution_surface_of(adapter) == SURFACE_DOCKER_SANDBOX
+
 
 # ── Domain dataclasses ──────────────────────────────────────────────────
 
@@ -302,6 +333,12 @@ def parse_node_test_summary(text: str) -> dict[str, int]:
     return {"tests": 0, "passed": 0, "failed": 0, "errors": 0, "skipped": 0}
 
 
+def _node_image() -> str:
+    """Image a Node sandbox run actually uses, honoring the same operator
+    override the runner applies when it builds the argv."""
+    return os.getenv("SPECPROOF_SANDBOX_NODE_IMAGE", "").strip() or DEFAULT_NODE_IMAGE
+
+
 def _maven_wrapper(workspace: str) -> str:
     """Maven wrapper script path for the local fallback (CreateProcessW on
     Windows resolves relative names against the parent cwd, so the path must
@@ -382,6 +419,7 @@ class JavaMavenAdapter:
     """
 
     IMAGE = "maven:3.9-eclipse-temurin-21"
+    EXECUTION_SURFACE = SURFACE_DOCKER_SANDBOX
     IMAGE_DIGEST = (
         "sha256:c07f7ccfb8ca6c9fa29ee523f00afa7d2ca6132c92f8652c4aebb5ee3491f502"
     )
@@ -617,6 +655,7 @@ class PythonAdapter:
     VENV_DIR = ".venv"
     ENV_SETUP_TIMEOUT = 600
     TOOLCHAIN = f"CPython {platform.python_version()} (host) / venv + pip / pytest"
+    EXECUTION_SURFACE = SURFACE_HOST
     OFFLINE_POLICY = (
         "local-first: reuse the project .venv when present; otherwise "
         "`python -m venv .venv` (offline-safe) + `pip install -r "
@@ -769,35 +808,52 @@ class PythonAdapter:
         return None
 
 
-# ── Node/npm adapter (local-first) ───────────────────────────────────────
+# ── Node/npm adapter (Docker sandbox) ────────────────────────────────────
 
 
 class NodeAdapter:
-    """JavaScript/TypeScript via the project's own ``npm test`` (local-first).
+    """JavaScript/TypeScript via the project's own ``npm test`` (Docker sandbox).
 
-    Runs the repository's declared test script with ``npm test --silent`` and
-    parses the terminal summary from Jest, Vitest or Node's built-in
-    ``--test`` runner. No container and no dependency install are performed —
-    the workspace is executed as-is, so a missing ``node_modules`` surfaces
-    honestly as a non-zero exit rather than a fabricated pass. ``node_modules``
-    provisioning is out of scope (the pipeline supplies a prepared workspace,
-    mirroring how the Python adapter reuses an existing ``.venv``).
+    Runs the repository's declared test script with ``npm test --silent`` inside
+    the hardened container (non-root, --network none, read-only /work) and
+    parses the terminal summary from Jest, Vitest or Node's built-in ``--test``
+    runner. A repository's own test script is UNTRUSTED input, so the default
+    is sandboxed and ``mode="docker"`` is passed explicitly: unlike ``auto`` it
+    never degrades to running on the host. Host execution happens ONLY when a
+    caller asks for it by name (``sandbox_mode="local"``).
+
+    No dependency install is performed, so a missing ``node_modules`` surfaces
+    honestly as a non-zero exit rather than a fabricated pass; under
+    --network none an install could not happen anyway.
     """
 
-    TOOLCHAIN = "Node/npm (host) / npm test / jest | vitest | node:test"
+    TOOLCHAIN = "Node/npm (docker sandbox) / npm test / jest | vitest | node:test"
+    EXECUTION_SURFACE = SURFACE_DOCKER_SANDBOX
+    IMAGE = DEFAULT_NODE_IMAGE
+    #: Verified with `docker image inspect` on this host, 2026-09-23. Not the
+    #: ref the runner pulls (that stays the tag, like the Maven row) — it is
+    #: the fingerprint of the image this adapter was actually validated on.
+    IMAGE_DIGEST = (
+        "sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85"
+    )
     OFFLINE_POLICY = (
-        "local-first: executes the project's own `npm test --silent` against "
-        "the prepared workspace; no network is used and dependencies are NOT "
-        "installed by the adapter (a missing node_modules fails honestly)"
+        "docker sandbox with --network none: executes the project's own"
+        " `npm test --silent`; no dependency install is attempted, so the"
+        " workspace must already carry node_modules (otherwise npm exits"
+        " non-zero and that is reported as-is, never as a pass)"
     )
     KNOWN_LIMITS: tuple[str, ...] = (
-        "local-first 执行 (无容器沙箱): 宿主 Node/npm",
+        "容器沙箱执行 (node:22-alpine, 非 root uid 1000, --network none)",
         "不安装依赖: workspace 需已备好 node_modules, 否则 npm test 非零退出 "
-        "(如实上报, 不伪造通过)",
+        "(如实上报, 不伪造通过); 而管线的 `git worktree` 检出不含未跟踪文件, 故"
+        "当前真实覆盖面是零依赖的 node:test 项目, 需装依赖的仓库判 "
+        "NON_REPRODUCIBLE 而非通过",
         "仅支持 goal=run_test; test_compile 无对应语义, 抛 AdapterNotImplemented",
         "汇总解析支持 Jest / Vitest / node:test; 无法识别时计数为 0 (无证据), "
         "判定以 exit_code 为准",
         "detect 规则: package.json 且声明了 test 脚本",
+        "/work 全程只读 (无 writable 子挂载): 向源码树写文件的测试会失败",
+        "镜像 digest 为 2026-09-23 本机验证值, 预拉/升级 node:22-alpine 时须复核",
         "输出按尾部 256000 字符截断 (§4.5 输出长度限制)",
     )
 
@@ -834,34 +890,69 @@ class NodeAdapter:
         if request.test_class:
             # Forward a name filter to the underlying runner via npm passthrough.
             command += ["--", "-t", request.test_class]
+        image = _node_image()
         return PreparedExecution(
             workdir=request.workspace,
             command=command,
             local_command=list(command),
-            image="—",
-            image_digest="—",
+            image=image,
+            # Only the default image carries the digest this adapter was
+            # validated on; an operator-supplied image is unidentified here.
+            image_digest=self.IMAGE_DIGEST if image == self.IMAGE else "—",
             offline_policy=self.OFFLINE_POLICY,
             timeout=request.timeout,
             sandbox_mode=request.sandbox_mode,
         )
 
     def run(self, prepared: PreparedExecution) -> ExecutionResult:
-        result = _run_local(
+        if prepared.sandbox_mode == "local":
+            # Opt-in by name only: this runs a repository's own test script
+            # with the host's privileges, so it is never the default and never
+            # reached by a fallback.
+            result = _run_local(
+                prepared.command,
+                cwd=prepared.workdir,
+                timeout=prepared.timeout,
+            )
+            prepared.result = ExecutionResult(
+                exit_code=result.exit_code,
+                stdout_tail=_tail(result.stdout),
+                stderr_tail=_tail(result.stderr),
+                mode="local",
+                sandbox_resources={
+                    "sandbox": "none (explicitly requested host execution)",
+                    "network": "unused (dependencies not installed by the adapter)",
+                    "workspace": "read-only intent (test execution only)",
+                },
+                error=result.error,
+            )
+            return prepared.result
+        # mode="docker" (not "auto"): Docker being unavailable must be an
+        # honest error, never a silent reason to run untrusted code here.
+        sandbox_result = run_sandboxed(
             prepared.command,
-            cwd=prepared.workdir,
+            workspace=prepared.workdir,
             timeout=prepared.timeout,
+            mode="docker",
+            profile=NODE_PROFILE,
         )
         prepared.result = ExecutionResult(
-            exit_code=result.exit_code,
-            stdout_tail=_tail(result.stdout),
-            stderr_tail=_tail(result.stderr),
-            mode="local",
+            exit_code=sandbox_result.exit_code,
+            stdout_tail=_tail(sandbox_result.stdout),
+            stderr_tail=_tail(sandbox_result.stderr),
+            mode=sandbox_result.mode,
             sandbox_resources={
-                "sandbox": "none (local-first execution on the host)",
-                "network": "unused (dependencies not installed by the adapter)",
-                "workspace": "read-only intent (test execution only)",
+                # What the sandbox runner enforces for this adapter's runs
+                # (sandbox/runner.py constants; §12 hardening).
+                "user": SANDBOX_USER,
+                "network": "none",
+                "capabilities": "drop ALL",
+                "no_new_privileges": "true",
+                "pids_limit": os.getenv("SPECPROOF_SANDBOX_PIDS", DEFAULT_PIDS_LIMIT),
+                "image": _node_image(),
+                "workspace_mount": "ro (no writable sub-mount; source tree immutable)",
             },
-            error=result.error,
+            error=sandbox_result.error,
         )
         return prepared.result
 
@@ -972,9 +1063,9 @@ COMPATIBILITY_MATRIX: tuple[MatrixRow, ...] = (
         language="JavaScript/TypeScript",
         build_tool="npm",
         test_runner="jest | vitest | node:test",
-        status="已支持 (local-first)",
-        image="—",
-        image_digest="—",
+        status="已支持 (Docker 沙箱)",
+        image=NodeAdapter.IMAGE,
+        image_digest=NodeAdapter.IMAGE_DIGEST,
         toolchain=NodeAdapter.TOOLCHAIN,
         offline_policy=NodeAdapter.OFFLINE_POLICY,
         known_limits=NodeAdapter.KNOWN_LIMITS,

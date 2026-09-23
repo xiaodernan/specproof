@@ -79,7 +79,15 @@ AI 开发在当前目录执行，批准前不会修改代码。Base/Head 是独�
 - `UNVERIFIED`：某条需求缺少足够证据。
 - “演示”：预置示例，用于理解页面，不是当前仓库的真实验证结果。
 
-Verify 的**测试差分执行**覆盖 Java/Maven、Python/pytest 与 JavaScript/TypeScript（`npm test`，识别 Jest/Vitest/node:test）；**深度静态契约检查器**（如权限注解回归）目前仍主要围绕 Java/Spring 及仓库自带的检查器。任意语言、任意自然语言需求都能自动验收，仍不是当前承诺。不能编译为可执行检查的需求必须呈现覆盖不足。无构建配置时检查可以跳过，跳过不算通过。
+Verify 的**测试差分执行**按语言区分执行面，因为“在哪里跑你的代码”是能力的一部分：
+
+| 语言 | 跑仓库自带测试 | 执行面 |
+| --- | --- | --- |
+| Java/Maven | 是（生成的反例测试） | Docker 沙箱（非 root、断网、只读工作区、离线缓存卷） |
+| JavaScript/TypeScript | 是（`npm test`，识别 Jest/Vitest/node:test）— **前提是工作区已备好 `node_modules`**；沙箱断网且不安装依赖，而 `git worktree` 检出不会带未跟踪的 `node_modules`，因此当前**实际覆盖零依赖的 `node:test` 项目**，需要安装的仓库会如实报"无法复现"而非通过 | Docker 沙箱（`node:22-alpine`、非 root uid 1000、`--network none`、源码树只读） |
+| Python/pytest | **默认否** | 适配器在宿主执行；需运维显式 `SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1`，且结果会标注“本机执行·无沙箱” |
+
+**深度静态契约检查器**（如权限注解回归）目前仍主要围绕 Java/Spring 及仓库自带的检查器。任意语言、任意自然语言需求都能自动验收，仍不是当前承诺。不能编译为可执行检查的需求必须呈现覆盖不足。无构建配置时检查可以跳过，跳过不算通过。未在无沙箱宿主上执行不受信仓库测试是本项目的安全红线，因此上表的“默认否”是设计而非缺陷。
 
 ## 本轮真实验证
 

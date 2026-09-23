@@ -41,6 +41,11 @@ from sandbox.cache_verify import enforce_cache_integrity
 
 DEFAULT_IMAGE = "maven:3.9-eclipse-temurin-21"
 
+# Node toolchain image for the repository-self-test sandbox. Alpine because it
+# is the smallest pull, and its unprivileged `node` user is uid/gid 1000 — the
+# same identity SANDBOX_USER pins, so no chown or seeded volume is needed.
+DEFAULT_NODE_IMAGE = "node:22-alpine"
+
 # §12 sandbox hardening (P6): workloads run as uid/gid 1000, never root.
 # The maven image ships no dedicated user, but docker auto-creates the
 # /home/maven/.m2 volume mountpoint at container start.
@@ -127,12 +132,32 @@ MAVEN_PROFILE = SandboxProfile(
 
 
 def _profile_from_env() -> SandboxProfile:
-    """Resolve the active profile. Only the Maven profile exists today; the
-    seam is here so a future sandboxed language selects its own profile
-    WITHOUT touching the host. Selection is additive — no profile is wired
-    into the differential pipeline until it has been validated on live
-    Docker, so the pipeline's effective behavior stays Maven-only."""
+    """Resolve the default profile for callers that do not name one.
+
+    Selection is additive: this stays Maven-only so the differential
+    pipeline's effective behavior is unchanged for anything that has not been
+    explicitly validated on live Docker. A language that wants a different
+    toolchain passes its own profile through ``run_sandboxed(profile=...)``
+    rather than changing the default.
+    """
     return MAVEN_PROFILE
+
+
+# Node/npm profile for running a repository's OWN test script under the same
+# isolation invariants as Maven. Deliberately carries NO cache volume:
+# `npm test` needs no dependency cache when node_modules is already in the
+# workspace, and mounting an unseeded named volume would hand uid 1000 a
+# root-owned directory it cannot write (the Maven path needs
+# scripts/seed_sandbox_cache.ps1 precisely for that reason). npm's own cache
+# therefore stays on the container's ephemeral layer, discarded by --rm.
+# node:22-alpine's `node` user is uid/gid 1000, matching SANDBOX_USER.
+NODE_PROFILE = SandboxProfile(
+    name="node",
+    image=DEFAULT_NODE_IMAGE,
+    image_env="SPECPROOF_SANDBOX_NODE_IMAGE",
+    env=(("npm_config_update_notifier", "false"),),
+    writable_submounts=(),
+)
 
 
 def _profile_image(profile: SandboxProfile) -> str:
@@ -198,10 +223,13 @@ def bound_output(
     bounded = text[:head_chars] + truncation_marker(dropped) + text[-tail_chars:]
     return bounded, True, dropped
 
-# Pull attempts are process-global: a registry outage must cost ONE failed
-# pull (a few seconds), not a hanging 900s pull per Maven invocation.
-_PULL_ATTEMPTED = False
-_PULL_SUCCEEDED = False
+# Pull attempts are cached per image for the life of the process: a registry
+# outage must cost ONE failed pull (a few seconds), not a hanging 900s pull per
+# invocation. Keyed BY IMAGE, not a single process-wide flag — with more than
+# one toolchain profile sharing this runner, a boolean would let a successful
+# maven pull vouch for an image that was never pulled, and the container would
+# then fail at `docker run` with a misleading error.
+_PULL_OUTCOMES: dict[str, str | None] = {}
 
 
 @dataclass
@@ -265,29 +293,27 @@ def _ensure_writable_mounts(workspace: str, profile: SandboxProfile) -> str:
 
 
 def _pull_image(image: str) -> str:
-    """Pull the sandbox image ONCE per process.
+    """Pull a sandbox image ONCE per process, keyed by image name.
 
-    Returns "" on success, the error otherwise. A second call in the same
-    process returns the cached outcome immediately — a registry outage must
-    not turn every Maven invocation into a hanging 900s pull.
+    Returns "" on success, the error otherwise. A second call for the SAME
+    image in the same process returns the cached outcome immediately — a
+    registry outage must not turn every invocation into a hanging 900s pull.
+    A DIFFERENT image is pulled on its own merits: a successful maven pull
+    says nothing about whether a node image exists in the registry.
     """
-    global _PULL_ATTEMPTED, _PULL_SUCCEEDED
-    if _PULL_SUCCEEDED:
-        return ""
-    if _PULL_ATTEMPTED:
-        return "image pull already failed earlier in this run (registry unreachable)"
-    _PULL_ATTEMPTED = True
+    cached = _PULL_OUTCOMES.get(image)
+    if cached is not None:
+        return cached
     try:
         proc = subprocess.run(
             ["docker", "pull", image],
             capture_output=True, text=True, timeout=120,
         )
-        if proc.returncode != 0:
-            return (proc.stderr or "pull failed")[:300]
-        _PULL_SUCCEEDED = True
-        return ""
+        outcome = "" if proc.returncode == 0 else (proc.stderr or "pull failed")[:300]
     except Exception as exc:
-        return str(exc)[:300]
+        outcome = str(exc)[:300]
+    _PULL_OUTCOMES[image] = outcome
+    return outcome
 
 
 def build_docker_argv(command: list[str], workspace: str, profile: SandboxProfile) -> list[str]:
@@ -346,7 +372,14 @@ def _run_docker(
                 exit_code=-1, stdout="", stderr="",
                 error=f"sandbox image unavailable: {err}", mode="docker",
             )
-    target_err = _ensure_writable_target(workspace)
+    # The Maven path keeps its historical single-arg hook, which is the
+    # monkeypatch point across the sandbox/fault suites; any other profile
+    # resolves its OWN writable dirs, so a node run neither needs nor gets a
+    # stray `target/` created in the worktree.
+    if profile is MAVEN_PROFILE:
+        target_err = _ensure_writable_target(workspace)
+    else:
+        target_err = _ensure_writable_mounts(workspace, profile)
     if target_err:
         return SandboxResult(
             exit_code=-1, stdout="", stderr="",
@@ -403,6 +436,7 @@ def run_sandboxed(
     cache_dir: str | None = None,
     cache_manifest: str | Mapping[str, str] | None = None,
     on_poison: str = "fail",
+    profile: SandboxProfile | None = None,
 ) -> SandboxResult:
     """Run a command inside the execution sandbox.
 
@@ -418,9 +452,17 @@ def run_sandboxed(
     selects the policy on mismatch: "fail" (default, refuse to execute)
     or "rebuild" (delete poisoned entries and proceed; re-seeding needs
     the host seed step since the sandbox has --network none).
+
+    profile selects the toolchain image + its env/volume/writable dirs. It
+    defaults to the historical Maven profile, so omitting it is behavior-
+    preserving. Note the interaction with mode: only mode="docker" actually
+    guarantees the workload never touches the host — mode="auto" falls back
+    to running local_command on the host when Docker errors, which is fine
+    for a trusted build and NOT fine for executing a repository's own tests.
     """
     mode = (mode or _mode_from_env()).lower()
     local_cmd = local_command or command
+    resolved_profile = profile or _profile_from_env()
     cache_note = ""
     if cache_dir and cache_manifest is not None:
         # Cache poisoning defense (backlog #7): verify the dependency cache
@@ -441,10 +483,10 @@ def run_sandboxed(
             )
         cache_note = check.note
     if mode == "docker":
-        result = _run_docker(command, workspace, timeout)
+        result = _run_docker(command, workspace, timeout, resolved_profile)
     elif mode == "auto":
         if _docker_available():
-            result = _run_docker(command, workspace, timeout)
+            result = _run_docker(command, workspace, timeout, resolved_profile)
             if result.error:
                 # Docker exists but the sandbox could not run — fall back
                 # locally ONLY when it is a transient sandbox problem, and

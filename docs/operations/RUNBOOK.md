@@ -64,9 +64,17 @@
   MongoDB 至少保留 checkpoint 集合。
 - 磁盘: 定时清理 workspace (--keep-worktrees 只在调试用);
   ES 索引按保留策略滚动。
-- 沙箱镜像: 预拉 maven:3.9-eclipse-temurin-21; 拉取失败有进程级缓存
-  (一次只付一次超时代价)。Docker Hub 不可达时置
+- 沙箱镜像: 预拉 maven:3.9-eclipse-temurin-21 与 node:22-alpine; 拉取失败
+  按镜像分别缓存 (进程级, 一次只付一次超时代价)。Docker Hub 不可达时置
   SPECPROOF_SANDBOX=local 并确认 JDK21 在宿主机可用。
+- **Node 沙箱无需缓存卷预置, 但镜像缺失不会回退到宿主**。NODE_PROFILE
+  不挂缓存卷、也不给 /work 加可写子挂载 (npm 的离线安装本就跑不了),
+  所以 Node 侧唯一的运维前置是把 node:22-alpine 拉进守护进程:
+  `docker pull node:22-alpine`。镜像 digest 记录在
+  experiments/adapters.py::NodeAdapter.IMAGE_DIGEST (2026-09-23 本机验证
+  值), 预拉或升级 node:22-alpine 后须复核该常量。拉取失败或镜像不存在时
+  执行面判定为 host ⇒ 默认不执行仓库自带测试 (诚实降级为 UNVERIFIED),
+  绝不会静默在宿主机上跑不受信测试。
 - **沙箱 Maven 缓存卷必须预置 (关键)**。沙箱容器一律 --network none
   且以非 root (--user 1000:1000) 运行, 任何依赖都只能来自命名卷
   specproof-maven-cache-1000 (容器内挂 /home/maven/.m2, 也是 runner 的
@@ -117,6 +125,7 @@
   (c) 首次起 sandbox 后把沙箱镜像预拉进 dind:
   `docker compose -f compose.phase0.yml -f compose.production.yml exec
   sandbox docker pull maven:3.9-eclipse-temurin-21`;
+  Node 差分还需 `docker pull node:22-alpine` 进同一 dind;
   (d) dind 首跑会 chown 卷存储目录, 之后重跑 seed 脚本可恢复 1000 属主。
 
 - **Outbox Relay 是生产必需组件**。compose.production.yml 的

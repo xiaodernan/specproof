@@ -1,28 +1,32 @@
-"""Self-test differential verdict (roadmap 4a groundwork — NOT wired to execution).
+"""Self-test differential verdict (roadmap 4a — pure math + the host gate).
 
 A "run the repository's own test suite on Base and Head" differential can
-produce real ``base_pass_head_fail`` evidence for Node/Python repos WITHOUT an
+produce real ``base_pass_head_fail`` evidence for non-Java repos WITHOUT an
 LLM: if the project's own tests are all green on Base and something fails on
 Head, that is a reproducible regression.
 
-But the ``NodeAdapter``/``PythonAdapter`` in ``experiments/adapters.py`` are
-local-first — they execute on the HOST with no container sandbox. Wiring that
-path naively would run UNTRUSTED PR-authored tests on the host, directly
-violating the ``api/routes/jobs.py`` "verification API must never become a
-remote execution surface" red line.
+Whether that run is ALLOWED depends on WHERE the adapter executes
+(``experiments/adapters.py`` declares ``EXECUTION_SURFACE`` per adapter):
 
-So this module ships ONLY the pure, offline-verifiable pieces:
+  * container sandbox (Java/Maven, Node/npm) — safe to run by default; the
+    untrusted script is confined to a non-root, ``--network none``, read-only
+    workspace.
+  * host (Python/pytest) — runs UNTRUSTED PR-authored tests with the host's
+    privileges, which would violate the ``api/routes/jobs.py`` "verification
+    API must never become a remote execution surface" red line unless the
+    operator opts in AND the result is labelled as unsandboxed host execution.
 
-  * ``self_test_execution_allowed()`` — the default-off execution gate policy.
-  * ``self_test_verdict()``          — the verdict math over parsed test-count
+This module holds the two pieces that need no execution at all:
+
+  * ``self_test_execution_allowed()`` — the default-off HOST-execution gate.
+    It is not the gate for sandboxed runs; ``run_differential`` only consults
+    it for adapters whose declared surface is the host.
+  * ``self_test_verdict()`` — the verdict math over parsed test-count
     summaries (whatever shape the adapter's ``parse_*_summary`` returns).
 
-The execution wiring is INTENTIONALLY ABSENT until an equivalent Docker sandbox
-for Node/Python exists (roadmap ④, whose argv-level groundwork already landed in
-``sandbox/runner.py``). Nothing here imports an adapter, spawns a process, or
-touches a workspace — importing this module has no side effects and cannot run
-untrusted code. When the sandbox lands, ``run_differential`` gains a caller of
-``self_test_verdict`` guarded by ``self_test_execution_allowed()``.
+Nothing here imports an adapter, spawns a process, or touches a workspace —
+importing this module has no side effects and cannot run untrusted code. The
+caller side lives in ``agent/nodes/run_differential.py``.
 """
 from __future__ import annotations
 

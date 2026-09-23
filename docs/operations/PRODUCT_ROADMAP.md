@@ -13,7 +13,7 @@
 | 检查项 | 命令 | 结果 |
 |---|---|---|
 | 前端类型检查 | `tsc --noEmit` | ✅ 通过 |
-| 前端单测 | `vitest run` | ✅ **39 文件 / 226 用例全绿**（本路线图持续扩充：错误可诊断化、Craft 去术语、demo 标签对齐、去脆弱化文案、开发→验收衔接、预检卡 + 8 处产品表格迁到设计系统 Table + 实时通道统一 + 降级原因中文化 + 术语内联化等） |
+| 前端单测 | `vitest run` | ✅ **39 文件 / 230 用例全绿**（本路线图持续扩充：错误可诊断化、Craft 去术语、demo 标签对齐、去脆弱化文案、开发→验收衔接、预检卡 + 8 处产品表格迁到设计系统 Table + 实时通道统一 + 降级原因中文化 + 术语内联化等） |
 | 后端测试规模 | `pytest tests/` | 收集 2754 用例，整套 >6 分钟，依赖 Docker/MySQL 的部分会挂起 |
 | 差分集成测试（全新克隆） | `pytest tests/integration/test_differential.py` | ❌ 曾 5 失败（`base`/`head-v1` git 标签不存在即报错）→ ✅ 本路线图 Phase 1.1 已修复为清晰跳过 |
 
@@ -27,6 +27,7 @@
 
 2. **验证能力窄，与"任意代码变更"的心智不符（阻塞核心价值）**
    - README 已诚实说明：Verify 检查能力主要围绕 Java/Spring。非 Java 仓库大量落到 `UNVERIFIED`，用户会觉得"没用"。
+   - 进度（见 §6.7）：**JavaScript/TypeScript 已可在真实 Docker 沙箱内跑"仓库自带测试差分"**（默认即可，无需开关），Python 仍默认降级为 `UNVERIFIED`（需显式开关且诚实标注宿主执行）。**剩余的真正短板是"跑完看不见"**——Base/Head 差分归因在持久层就被丢弃（任务 #55），所以即便能力已就位，用户仍看不到"改前通过 / 改后失败"这条最有价值的证据。
 
 3. **反馈链路慢且不透明（阻塞"爽感"）**
    - 一次验收从排队到出结果，进度、耗时、失败原因在前端不够实时、不够可诊断。
@@ -274,7 +275,7 @@
 
 1. **Phase 3.3 收尾**：引导页 checklist（进度持久化）。纯前端、可离线验证，风险低。
 2. **Phase 1.5 第二步**：`tests/unit` 引入 `slow` 标记并默认排除——**本轮实测再次确认该缺口真实**：`pytest tests/unit -m 'not integration'` 在本机跑了 7 分钟仍未结束（远超 Phase 1 定下的"60s 反馈"标准）。这是贡献者体验的硬伤，且完全可离线度量（改完前后各测一次墙钟时间即可作为证据）。
-3. **④ 4a 多语言差分**：逻辑地基（`agent/self_test_diff.py`）与沙箱参数化地基（`sandbox/runner.py::SandboxProfile`）都已就位，**唯一缺口是 Node/Python 沙箱镜像 + 真实接线**，而本机 Docker 未运行 ⇒ 需在有 Docker 的窗口做，不可离线验证，维持暂缓。
+3. ~~**④ 4a 多语言差分**~~ ✅ 已落地（见 §6.7）：**"本机 Docker 未运行"这一判断已失效**——本轮实测 Docker 可用，Node 差分已改为容器沙箱执行并默认接线；Python 仍为宿主面、仍由 #50 的默认关开关兜住。
 4. **Phase 1.6 轻量模式跑验收**：已确认"只换存储不够、必须连进程内执行器一起做"，维持暂缓。
 5. ⑤ API 侧稳定降级错误码（跨栈契约变更）、⑥ 一键创建演示仓库（安全受限）——均维持暂缓。
 
@@ -283,6 +284,8 @@
 ### 6.1 后端里程碑（语言感知预检 + 诚实非 Java 差分降级 + Node adapter + 沙箱参数化 + 轻量模式 503）
 
 本会话把 `agent/`、`api/`、`evidence/`、`experiments/`、`sandbox/`、`cli/`、`scripts/` 及对应单测的改动作为一个后端里程碑提交推送。要点已在 §4/§5 记档：`run_preflight` 语言感知节点接入、非 Java 项目差分诚实降级为 UNVERIFIED（而非模糊英文）、Node adapter、`SandboxProfile` 参数化、light-mode 友好 503（去掉 `{exc}` 原文外泄）。安全红线复核：`api/routes/jobs.py` 的 `JOB_CREATE_ALLOWLIST` 未动，`run_differential` 仅在存在 Java 生成测试类时经 `registry.get` 执行（Node/Py local-first adapter 从未被生产差分触达）。
+
+> **⚠ 本段末句已被 §6.7 取代**：自 #54 起 Node 差分默认经容器沙箱执行，"适配器从未被生产差分触达"不再成立，也不再是安全前提；现在的安全前提是 `EXECUTION_SURFACE` 显式声明 + 宿主面适配器在门关闭时 `prepare`/`run` 零调用（单测锁定）。`JOB_CREATE_ALLOWLIST` 仍未改动。
 
 ### 6.2 潜伏缺陷修复：`MinIOClient.list_job_objects` 此前根本不存在（可验证，非臆造）
 
@@ -297,7 +300,7 @@
 2. ~~**Recall/Precision 可执行量化门**（任务 #51）~~ ✅ 已落地（见 §6.4）。
 3. ~~**默认关闭的本地测试执行差分门**（任务 #50，红线合规路径 ii）~~ ✅ 已落地（见 §6.5）。
 4. **同类"潜伏缺陷"扫查**：本轮暴露了一种失败模式——**假件自带真实实现没有的方法 ⇒ 单测绿、生产红、静态门红**。值得专门排查其余 `ops/`、报告/删除类路径里对存储客户端的调用是否都有真实实现兜底。（注：`mypy .` 现已全仓库绿，这一扫查的边际价值已大幅下降。）
-5. **多语言差分的真正沙箱（路径 i）**：仍需提供 Node/Python 容器镜像，才能让 #50 的门从"运维知情同意的宿主执行"变成默认安全能力。
+5. ~~**多语言差分的真正沙箱（路径 i）**~~ **Node 半边已落地**（见 §6.7）：Node 现声明容器沙箱执行面并默认接线。**Python 半边仍待做**——`PythonAdapter` 仍为宿主面，#50 的默认关开关对它仍然有效；给 Python 建等价沙箱的难点不是镜像，而是"复用项目 `.venv`"这一离线策略在容器里不成立（venv 绑定宿主绝对路径与解释器），需先设计容器内的依赖落地方式。
 
 ### 6.4 Recall/Precision 可执行量化验收门（任务 #51，本轮落地）
 
@@ -316,6 +319,8 @@
 - **门证**：`test_differential_language_honesty.py` 新增 4 例（默认关⇒`registry.get_calls==0` 且不执行；开⇒base green/head fail⇒REGRESSION+本机无沙箱标签；开⇒空汇总⇒NON_REPRODUCIBLE 非 pass；开⇒无适配器⇒诚实降级）；连同 #34 的 `test_self_test_diff.py` 纯函数 23 例，共 **30 passed**。既有非 Java 诚实降级 3 例不回归。`ruff check .` 干净、`mypy .` 全绿（210 文件）；前端 `tsc` 干净、`toneMap`+`FindingDetail`+`JobDetail` **36 passed**。
 - **仍未做（诚实边界）**：本轮是**路径 (ii) 默认关开关**，不是真正的 Node/Python **沙箱**（路径 i）。要默认安全地跑多语言差分，仍需 roadmap ④ 的 Node/Python 容器镜像；在那之前开启此门仍属"运维知情同意的宿主执行"。
 
+> **⚠ 本段三处已被 §6.7 取代，阅读时请注意**：(1) "门关闭时适配器一次都不会被构造"——现已**不再成立**（判定执行面需要构造适配器，但它不执行任何代码），不变式已改述为"宿主面适配器在门关闭时 `prepare`/`run` 调用数为 0"；(2) "local adapter ⇒ `local_host_no_sandbox`"——现在只有真的在宿主跑完才是这个值，跑了但没跑成 ⇒ `unconfirmed`；(3) 前端标签"仓库自带测试差分（本机执行·无沙箱）"——**已删去执行面断言**（对沙箱执行是谎话）。本节其余结论（默认关、NON_REPRODUCIBLE 不粉饰）**依然有效**，只是适用范围从"Node+Python"缩到"仅宿主面语言（当前 Python）"。
+
 ### 6.6 单测快速内循环落地 + 两处计时假红根治（任务 #53，本轮落地）
 
 - **要消灭的真实缺陷**：Phase 1 定的"60s 内反馈"一直是纸面——§5.4 实测 `pytest tests/unit -m 'not integration'` 跑 7 分钟未完。"改一行等 16 分钟"是贡献者体验的头号硬伤，也是"不好用"的一部分。
@@ -333,3 +338,16 @@
   - `test_cancelling_model_call_stops_pending_request` 的 `thread.join(10)`/`finished.wait(10)` 在全套件争抢 CPU 时会不够。修法：上限 10s→30s，并把"被测契约是 cancel() 最终能解开调用线程，不是 10 秒内"写进注释；断言补了失败消息。**没有**改成"跳过"或删断言。
 - **回归锁**：新增 `tests/unit/test_slow_marker_tagging.py`（2 例，**离线、只 `--collect-only`**）——已知慢模块必须真带上 `slow`、已知快模块（`test_baseline.py`）必须**不**带上（否则打标是扫射，快速路径就在说谎）、且用 `--strict-markers` 证明标记已注册。**过程中踩到一个真实陷阱**：仓库 `addopts = "-v --tb=short"` 会抵消命令行的 `-q`，使 `--collect-only` 输出树而非 node id；探针须 `-o addopts=` 清空才能读到选定集，同时容忍 exit 5（零选定是快模块的**预期**结果）。
 - **门证**：`ruff check` 干净；快速路径 **2308 passed / 1 skipped / 176.78s**；受影响模块单独复跑 17 passed。CI 的 `ci.yml` 与慢标记的关系不变（裸跑⇒慢例照进合并门）。`README.md` §开发与运维 补了快速命令，并明确写"它只是开发便利，不是新的验收标准"。
+
+### 6.7 Node 仓库自带测试差分进入真实 Docker 沙箱（任务 #54，本轮落地，红线合规路径 i）
+
+- **要消灭的真实缺陷**：§6.5 的"默认关开关"只是路径 (ii)——开了门就在**宿主**上跑不受信的 PR 自带测试，属于"运维知情同意的越界"，不是能力。§5.4 当时记录的阻塞理由是"**本机 Docker 未运行**"。本轮先复核这条前提：Docker 守护进程在线，`node:22-alpine` 可拉——**该理由已失效**，于是按路径 (i) 真正建沙箱。
+- **执行面成为唯一判据（核心设计）**：新增 `experiments/adapters.py::EXECUTION_SURFACE`（每个适配器显式声明 `SURFACE_DOCKER_SANDBOX` 或 `SURFACE_HOST`），配 `execution_surface_of()` / `runs_in_sandbox()`。判定**fail-closed**：适配器忘记声明 ⇒ `host` ⇒ 默认不执行。`run_differential` 的非 Java 分支由此变成 `if sandboxed or self_test_execution_allowed():`——**沙箱面适配器无需任何开关即可默认执行**，宿主面仍要显式开关。安全不变式随之从"门关闭时适配器一次都不构造"（判定执行面本身需要构造适配器并 detect，旧锁在逻辑上无法保留）改述为**"宿主面适配器在门关闭时 `prepare`/`run` 调用计数为 0"**，并由计数器锁死而非靠观察（`test_gate_off_host_adapter_is_never_executed` 断言 `get_calls==1`、`prepare_calls==run_calls==0`）。
+- **诚实的三态执行面标签**：结果里的 `execution_surface` 只从**已完成的运行**取值——两侧 `mode` 均为 `docker` ⇒ `docker_sandbox`（"容器沙箱执行 (非 root uid 1000 · --network none · 源码只读)"）；任一 `mode` 含 `local` ⇒ `local_host_no_sandbox`；否则 ⇒ **`unconfirmed`**（"执行面未确认"）。这堵住了一个真实的谎：此前"声明了沙箱但进程崩了"会被报成 `docker_sandbox`。`test_surface_label_comes_from_the_run_not_the_declaration`（`mode=""` ⇒ `unconfirmed`）锁住它。
+- **顺手修掉一处会让整条新链路永久失能的潜伏缺陷**：`_self_test_parse_for()` 原来用**精确相等**比较语言，而适配器 `detect()` 返回的是 `"javascript/typescript"`，常量却是 `"node"` ⇒ Node 运行的 TAP 汇总会被喂给 **Surefire** 解析器，于是沙箱即便真跑成功也永远输出"无证据"。修复为按 `_LANGUAGE_ALIASES` 归一（node/javascript/typescript、python/pip/pytest、java/maven/junit 各自映射到对应解析器）。**验证方式不是"看起来对"**：把 `==` 临时改回去重跑，**恰好 4 例**红（`test_sandboxed_adapter_runs_the_self_test_with_the_gate_off`、`test_self_test_gate_on_computes_honest_regression`、`test_self_test_parser_covers_both_vocabularies`、`test_real_node_profile_language_parses_a_real_tap_summary`），恢复后全绿——证明这些锁真的在守护这条路径。测试假件的 `detect()` 也刻意返回适配器词汇 `"javascript/typescript"` 而非 `"node"`，以免假件再次掩盖真缺陷（§6.2 记录的同一种失败模式）。
+- **真实 Docker 实测（不是纸面声明）**：临时 Node 仓库、`npm test` 走 node:test。绿跑 3/3 通过 exit 0；把实现改坏后 2/1 exit 1。容器内 `id -u` = 1000，`--network none`，`/work` 只读。**但这条实测同时暴露了自己的代表性边界**（见下条），不能拿它当"Node 仓库已可验收"的证据。捕获的实际 `docker run` argv 已逐字写入 `docs/architecture/EXECUTION_COMPATIBILITY.md` §验证记录（修掉了文档初稿里两处凭记忆的错误：`no_new_privileges` 应为 `--security-opt no-new-privileges`，以及漏记 `-e npm_config_update_notifier=false`）。`NodeAdapter.IMAGE`/`IMAGE_DIGEST` 提升为常量并回填矩阵文档，`test_adapter_declarations_match_matrix_doc` 现在同时锁 image、digest、以及"Node 行不得再出现 `local-first`"。
+- **提交前自审抓到的过度声明（本轮最重要的一个修正）**：README 的按语言表最初写"JavaScript/TypeScript ⇒ 是（npm test）"，这**夸大了实际覆盖面**。三条已核实事实在一起：(a) `prepare_base/head` 用 `git worktree add --detach` 检出（`docs/architecture/ARCHITECTURE.md` §3），worktree **不带未跟踪文件** ⇒ 仓库的 `node_modules` 不在工作区；(b) 沙箱 `--network none` ⇒ 装不了依赖；(c) `NodeAdapter.KNOWN_LIMITS` 明确"不安装依赖"。合起来的结论是：**当前真能跑的只有零依赖的 `node:test` 项目**，用 Jest/Vitest 的真实仓库会 `Cannot find module` → 非零退出 → `NON_REPRODUCIBLE`（判定上诚实，但等于能力够不到用户）。已把这条写进 README 表格单元、`EXECUTION_COMPATIBILITY.md` 的"实际覆盖面（诚实边界）"段与 Node 行 known-limits、以及 `NodeAdapter.KNOWN_LIMITS`，并登记为任务 **#56（Node 版离线依赖卷，对应 Maven 的 `scripts/seed_sandbox_cache.ps1`）**。教训：**一次成功的端到端冒烟只证明"那条路径通了"，不证明"它覆盖用户的仓库"——实测样本的形态必须和被声称覆盖面一致，否则就是在给自己发假证书。**
+- **文档一致性收口（把已被取代的话标出来，而不是悄悄删）**：`README.md` 的能力段改为**按语言的执行面表**（Java=沙箱 / JS-TS=`node:22-alpine` 沙箱 / Python=默认否 + 需显式开关 + 诚实标注"本机执行·无沙箱"），并明确"未在无沙箱宿主上执行不受信仓库测试是安全红线，因此表中的『默认否』是设计而非缺陷"。`EXECUTION_COMPATIBILITY.md` 新增"执行面决定能否默认跑仓库自带测试"策略段；§接线现状里"适配器从未被生产差分触达"这句话**已标注为不再成立**。`RUNBOOK.md` §5 补 `node:22-alpine` 预拉指引，并说明**镜像缺失 ⇒ 执行面判为 host ⇒ 默认不执行，绝不静默回退宿主**。
+- **前端去谎**：`toneMap.ts::EVIDENCE_CN` 的 `self_test_diff` 标签从"仓库自带测试差分（本机执行·无沙箱）"改为中性的"仓库自带测试差分"（保留英文 token）——旧标签对沙箱执行是**错的**。执行面中文释义**没有**在本轮加入：API 目前不把 `execution_surface` 作为字段透出，加了就是无消费者的死代码，已归入任务 #55。
+- **门证**：`ruff check .` 干净；`mypy .` 全绿（210 文件）；`apps/web` `tsc --noEmit` 干净、`vitest run` **39 文件 / 230 用例全绿**、`vite build` 成功；定向 `test_adapters.py + test_python_adapter.py + test_node_adapter.py + test_differential_language_honesty.py` **85 passed / 2 skipped**；`test_differential_language_honesty.py` 重写为 **14 例 / 2.2s** 全离线（沙箱路径用假适配器，真 Docker 只在实测记录里出现，不进 CI）。
+- **仍未做（诚实边界）**：(0) **Node 差分的实际覆盖面窄于"支持 JS/TS"**——缺 Node 版离线依赖卷，需装依赖的仓库仍判 `NON_REPRODUCIBLE`（任务 #56，是本轮实测暴露的、原先没列进计划的新缺陷）；(1) **Python 沙箱未建**——项目的 `.venv` 绑定宿主绝对路径与解释器，Maven 那套"命名缓存卷 + 离线策略"无法照搬进容器，需要单独设计（任务 #26）；(2) 差分证据**基本到不了 UI**（`review_court.py:187-189` 只提升 REGRESSION/AMBIGUOUS、`build_matrix.py` 丢弃未编译的 `DIFF-01`；更彻底的是——`storage/mysql.py:1073-1081` 的 `insert_contract` 列清单里**根本没有** base/head/attribution 列，`api/routes/web.py:362-366` 只 SELECT 那 6 列，`apps/web/src` 对 `base_result`/`head_result`/`attribution` **零引用**）——本轮修的是"能不能安全地跑"，不是"跑完看不看得到"（任务 #55）。

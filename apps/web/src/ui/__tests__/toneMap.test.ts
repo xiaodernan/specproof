@@ -69,10 +69,15 @@ describe("terminology gloss — plain-Chinese actionability without inventing me
   it("annotates known evidence types with Chinese, passes unknown through verbatim", () => {
     expect(evidenceLabel("runtime_test")).toContain("运行时测试");
     expect(evidenceLabel("runtime_test")).toContain("runtime_test"); // canonical token preserved
-    // #50: a repo self-test differential is local-first, so its label must say
-    // honestly that it ran on the host without a sandbox, keeping the token.
-    expect(evidenceLabel("self_test_diff")).toContain("本机执行·无沙箱");
+    // #50/#54: a repo self-test differential may have run in the Docker
+    // sandbox (Node) or unsandboxed on the host (opt-in). The evidence kind
+    // alone cannot say which, so the label must stay neutral and let the
+    // finding's own description carry the surface — claiming either one here
+    // would be a lie for the other case.
+    expect(evidenceLabel("self_test_diff")).toContain("仓库自带测试差分");
     expect(evidenceLabel("self_test_diff")).toContain("self_test_diff");
+    expect(evidenceLabel("self_test_diff")).not.toContain("无沙箱");
+    expect(evidenceLabel("self_test_diff")).not.toContain("沙箱");
     expect(evidenceLabel("mystery_kind")).toBe("mystery_kind");
     expect(evidenceLabel(null)).toBe("—");
   });

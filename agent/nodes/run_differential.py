@@ -172,28 +172,38 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         # the checks that DID run, instead of a vague "nothing to run".
         language = detect_language(base_workspace, app_dir)
         if language and language != LANGUAGE_JAVA:
-            # Roadmap 4a (path ii): a repo's OWN test suite can yield a real
-            # base-vs-head regression with no LLM, but the Node/Python adapters
-            # are local-first (no container). So this only runs when the
-            # operator has explicitly opted in; otherwise the honest UNVERIFIED
-            # fallback below stands. Never executed by default.
-            if self_test_execution_allowed():
+            # Roadmap 4a: a repo's OWN test suite can yield a real base-vs-head
+            # regression with no LLM involved. Safety now turns on WHERE the
+            # adapter would run it: a container-sandboxed adapter (Node) is
+            # safe to invoke by default, while a host-surface adapter (Python)
+            # executes untrusted code with the host's privileges and so still
+            # requires the operator's explicit opt-in. Resolution below only
+            # inspects files — nothing is executed to make this decision.
+            sandboxed, surface, surface_reason = _self_test_surface_for(base_app)
+            if sandboxed or self_test_execution_allowed():
                 entry = _self_test_differential_entry(
                     state, base_app, head_app, language
                 )
                 return {"diff_results": source_diff_results + [entry]}
+            blocked = (
+                f"the repository's test adapter could not be resolved to a "
+                f"sandboxed toolchain ({surface_reason})"
+                if surface_reason
+                else "its adapter executes on the host and has no sandbox"
+            )
             empty_result["diff_results"][0]["detail"] = (
                 f"Executable base-vs-head differential is not available for a "
                 f"{language} project: the counterexample generator emits "
-                "Java/JUnit tests only, and running the repository's own tests "
-                "is disabled by default (its Node/Python adapter has no "
-                "sandbox). Set SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1 to opt in to a "
-                "local, unsandboxed self-test differential. This change is "
-                "covered by the source / static checks above; the differential "
-                "experiment is reported UNVERIFIED rather than as a pass."
+                f"Java/JUnit tests only, and running the repository's own tests "
+                f"is disabled by default ({blocked}). Set "
+                "SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1 to opt in to a local, "
+                "unsandboxed self-test differential. This change is covered by "
+                "the source / static checks above; the differential experiment "
+                "is reported UNVERIFIED rather than as a pass."
             )
             empty_result["diff_results"][0]["language"] = language
             empty_result["diff_results"][0]["self_test_gate"] = "off"
+            empty_result["diff_results"][0]["adapter_surface"] = surface
         else:
             empty_result["diff_results"][0]["detail"] = (
                 "No generated counterexample test available — nothing to run; "
@@ -912,6 +922,19 @@ def _inject_test_into_workspaces(test_path: str, base_ws: str, head_ws: str) -> 
     return ok
 
 
+#: Every name a language may be called by in this codebase. ``agent/preflight``
+#: reports marker-based names ("node"), while an adapter's own
+#: ``RuntimeProfile.language`` is reporter-based ("javascript/typescript" —
+#: the same ecosystem, a different string). Both must select the same summary
+#: parser; the mismatch silently routed Node output to Surefire, so
+#: ``test_self_test_parse_for_covers_both_vocabularies`` pins every alias.
+_LANGUAGE_ALIASES: dict[str, tuple[str, ...]] = {
+    LANGUAGE_NODE: ("node", "javascript", "typescript", "javascript/typescript"),
+    LANGUAGE_PYTHON: ("python", "pip", "pytest"),
+    LANGUAGE_JAVA: ("java", "maven", "junit"),
+}
+
+
 def _self_test_parse_for(language: str) -> Any:
     """Pick the summary parser matching a detected language's reporter."""
     from experiments.adapters import (
@@ -920,20 +943,45 @@ def _self_test_parse_for(language: str) -> Any:
         parse_surefire_summary,
     )
 
-    if language == LANGUAGE_NODE:
+    normalized = (language or "").strip().lower()
+    if normalized in _LANGUAGE_ALIASES[LANGUAGE_NODE]:
         return parse_node_test_summary
-    if language == LANGUAGE_PYTHON:
+    if normalized in _LANGUAGE_ALIASES[LANGUAGE_PYTHON]:
         return parse_pytest_summary
     return parse_surefire_summary
+
+
+def _self_test_surface_for(workspace: str) -> tuple[bool, str, str]:
+    """Where a self-test run on this workspace would execute.
+
+    Returns ``(sandboxed, surface, reason)``; ``reason`` explains a failure to
+    resolve. This only runs the adapters' ``detect`` — pure file inspection
+    that executes NOTHING — so it is safe to consult BEFORE deciding whether
+    execution is allowed. That is what lets a container-sandboxed language run
+    by default while a host-surface one stays behind the operator gate.
+    Fails closed: anything unresolved is reported as host execution.
+    """
+    try:
+        from experiments.adapters import (
+            RepositorySnapshot,
+            execution_surface_of,
+            registry,
+            runs_in_sandbox,
+        )
+
+        adapter = registry.get(RepositorySnapshot(path=workspace))
+        return runs_in_sandbox(adapter), execution_surface_of(adapter), ""
+    except Exception as exc:  # noqa: BLE001 - undecidable surface means host
+        return False, "host", str(exc)[:300]
 
 
 def _run_self_tests_on_workspace(workspace: str) -> dict[str, Any]:
     """Run the repository's OWN test suite on one workspace via the adapter.
 
     Returns ``{ok, counts, mode, sandbox, error}``. This executes untrusted
-    repo test code — for Node/Python the adapter is local-first (no container),
-    so the run happens on the HOST. The ONLY caller guards this with
-    ``self_test_execution_allowed()``; it never runs in the default pipeline.
+    repo test code, so every caller must first establish that the adapter's
+    declared surface is acceptable: a sandboxed adapter runs by default, a
+    host-surface one only after ``self_test_execution_allowed()``.
     """
     from experiments.adapters import (
         AdapterNotImplemented,
@@ -972,9 +1020,12 @@ def _run_self_tests_on_workspace(workspace: str) -> dict[str, Any]:
 def _self_test_differential_entry(
     state: Phase0State, base_app: str, head_app: str, language: str
 ) -> dict[str, Any]:
-    """Opt-in self-test differential: run the repo's tests on Base and Head and
-    compare. Honest regardless of outcome — an unusable adapter, a crash, or a
-    zero-test summary all report NON_REPRODUCIBLE / no-evidence, never a pass.
+    """Run the repo's own tests on Base and Head and compare.
+
+    The caller already established that this is allowed on the adapter's
+    declared surface. Honest regardless of outcome — an unusable adapter, a
+    crash, or a zero-test summary all report NON_REPRODUCIBLE / no-evidence,
+    never a pass. ``execution_surface`` records where the runs really happened.
     """
     job_id = state.get("job_id")
     base_run = run_with_cancel_checks(
@@ -983,23 +1034,31 @@ def _self_test_differential_entry(
     head_run = run_with_cancel_checks(
         job_id, "self_test_head", _run_self_tests_on_workspace, head_app
     )
-    host_unsandboxed = "local" in (base_run.get("mode", ""), head_run.get("mode", ""))
+    # The label is derived from what ACTUALLY ran, never from what was asked:
+    # a sandbox is only claimed when BOTH sides reported a completed Docker
+    # run. Anything else (host execution, or a run that never produced a mode
+    # because it crashed) fails closed to an un-sandboxed label.
+    modes = (base_run.get("mode", ""), head_run.get("mode", ""))
+    if modes == ("docker", "docker"):
+        surface = "docker_sandbox"
+        prefix = "容器沙箱执行 (非 root uid 1000 · --network none · 源码只读). "
+    elif any("local" in mode for mode in modes):
+        surface = "local_host_no_sandbox"
+        prefix = "⚠ 本机执行·无沙箱 (host, no container). "
+    else:
+        surface = "unconfirmed"
+        prefix = "⚠ 执行面未确认 (no completed run to attribute). "
     entry: dict[str, Any] = {
         "contract_id": "DIFF-01",
         "language": language,
         "evidence_type": "self_test_diff",
-        "execution_surface": (
-            "local_host_no_sandbox" if host_unsandboxed else (
-                base_run.get("mode", "") or head_run.get("mode", "")
-            )
-        ),
+        "execution_surface": surface,
     }
     if not base_run.get("ok") or not head_run.get("ok"):
         reason = base_run.get("error") or head_run.get("error") or "no usable run"
         entry["verdict"] = "NON_REPRODUCIBLE"
         entry["detail"] = (
-            "本机执行·无沙箱 (SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1, host, no "
-            f"container) 已启用，但无法完成仓库自带测试差分: {reason}。"
+            f"无法完成仓库自带测试差分 ({surface}): {reason}。"
             "未据此判定为通过 (UNVERIFIED, not a pass)."
         )
         return entry
@@ -1007,12 +1066,7 @@ def _self_test_differential_entry(
     entry["verdict"] = verdict
     entry["base_test_counts"] = base_run.get("counts")
     entry["head_test_counts"] = head_run.get("counts")
-    entry["detail"] = (
-        "⚠ 本机执行·无沙箱 (SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1, host, no "
-        "container). " + detail
-        if host_unsandboxed
-        else detail
-    )
+    entry["detail"] = prefix + detail
     return entry
 
 

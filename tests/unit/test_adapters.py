@@ -19,6 +19,7 @@ from experiments.adapters import (
     ExecutionAdapter,
     ExecutionRequest,
     JavaMavenAdapter,
+    NodeAdapter,
     RepositorySnapshot,
     registry,
 )
@@ -340,7 +341,12 @@ class TestCompatibilityMatrixContent:
         assert python_row.status == "已支持 (local-first)"
         node_row = next(row for row in rows if row.language == "JavaScript/TypeScript")
         assert node_row.build_tool == "npm"
-        assert node_row.status == "已支持 (local-first)"
+        # #54: Node left local-first behind — the row may only claim a status
+        # the sandbox actually delivers, and it now carries a real image.
+        assert node_row.status == "已支持 (Docker 沙箱)"
+        assert node_row.image == NodeAdapter.IMAGE
+        assert node_row.image_digest == NodeAdapter.IMAGE_DIGEST
+        assert node_row.image_digest.startswith("sha256:")
 
     def test_matrix_document_declares_everything(self) -> None:
         text = MATRIX_DOC.read_text(encoding="utf-8")
@@ -364,6 +370,17 @@ class TestCompatibilityMatrixContent:
         assert JavaMavenAdapter.IMAGE in text
         assert JavaMavenAdapter.IMAGE_DIGEST in text
         assert JavaMavenAdapter.TOOLCHAIN.split(" / ")[0] in text
+        # The document and the code may not disagree about Node either: it is
+        # no longer a local-first adapter, and the row must not still say so.
+        node_row = next(
+            row for row in registry.matrix() if row.language == "JavaScript/TypeScript"
+        )
+        assert node_row.status in text
+        assert NodeAdapter.IMAGE in text
+        assert NodeAdapter.IMAGE_DIGEST in text
+        node_line = next(ln for ln in text.splitlines() if "node:22-alpine" in ln)
+        assert "local-first" not in node_line
+        assert "Docker 沙箱" in node_line
 
 
 def test_detect_functions_exist_for_planned_adapters() -> None:

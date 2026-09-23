@@ -76,10 +76,12 @@ const EVIDENCE_CN: Record<string, string> = {
   static: "静态分析",
   static_analysis: "静态分析",
   differential: "差分对比（改动前后行为）",
-  // Opt-in repo self-test differential. Honest label: its Node/Python adapter
-  // is local-first, so this evidence was produced by running the repo's own
-  // tests on the host WITHOUT a container sandbox (#50).
-  self_test_diff: "仓库自带测试差分（本机执行·无沙箱）",
+  // Repo self-test differential. The evidence kind alone says NOTHING about
+  // where it ran: a Node repo is executed in the Docker sandbox while an
+  // opt-in host run is unsandboxed (#50/#54). The surface is reported in the
+  // finding's own description sentence; the API does not yet carry it as a
+  // field, so this label must not claim either way.
+  self_test_diff: "仓库自带测试差分",
   review: "人工评审",
 };
 
