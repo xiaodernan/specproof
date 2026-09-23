@@ -22,10 +22,20 @@ _KEY_PATTERNS = [
 
 
 def _is_source_file(path: str) -> bool:
-    """Check if a file should be scanned for secrets."""
+    """Check if a file should be scanned for secrets.
+
+    ``.local`` is exempted on purpose: its tracked ``.local/.gitignore`` holds
+    the single rule ``*``, so nothing in it can be committed without ``git
+    add -f``. That directory is where the repo tells an operator to keep real
+    runtime state and credentials (logs, the SQLite fallback store,
+    ``llm.json``). Scanning it would make the merge gate permanently red on
+    every machine that configured a working key — which trains people to
+    ignore red, and guards nothing, since the file can never ship. The
+    exemption is locked narrow by ``test_local_scratch_exemption_is_narrow``.
+    """
     excludes = {
         ".git", "__pycache__", "target", "node_modules", ".mvn",
-        "artifacts/legacy-invalid",
+        "artifacts/legacy-invalid", ".local",
     }
     skip_exts = {".jar", ".zip", ".class", ".jpg", ".png", ".woff", ".gz", ".tar"}
     normalized = path.replace("\\", "/")
@@ -35,6 +45,42 @@ def _is_source_file(path: str) -> bool:
     if ext in skip_exts:
         return False
     return "maven-wrapper.jar" not in normalized
+
+
+CONFIG_GLOBS = (
+    "*.yml", "*.yaml", "*.json", "*.toml",
+    "*.properties", "*.xml", "*.cfg", "*.ini",
+)
+
+
+def scan_config_tree(root: Path) -> list[str]:
+    """Return ``rel:line — kind`` for every key-shaped string in config files.
+
+    Factored out of the gate test so the same code path can be pointed at a
+    temporary tree and proven to still catch a planted key after an exclusion
+    is added.
+    """
+    violations: list[str] = []
+    for pattern in CONFIG_GLOBS:
+        for filepath in root.rglob(pattern):
+            rel = str(filepath.relative_to(root)).replace("\\", "/")
+            if not _is_source_file(rel):
+                continue
+            if ".env" in rel:
+                continue
+            try:
+                content = filepath.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, PermissionError):
+                continue
+            for lineno, line in enumerate(content.splitlines(), 1):
+                for pat, name in _KEY_PATTERNS:
+                    m = re.search(pat, line, re.IGNORECASE)
+                    if m is None:
+                        continue
+                    if CANARY_SECRET in m.group(0) or "replace_me" in line.lower():
+                        continue
+                    violations.append(f"{rel}:{lineno} — {name}")
+    return violations
 
 
 class TestNoHardcodedKeys:
@@ -102,35 +148,45 @@ class TestNoHardcodedKeys:
 
     def test_no_api_key_in_config_files(self):
         """YAML, JSON, TOML, .properties, .xml files must be free of `sk-***` keys."""
-        violations = []
-        config_globs = (
-            "*.yml", "*.yaml", "*.json", "*.toml",
-            "*.properties", "*.xml", "*.cfg", "*.ini",
-        )
-        for pattern in config_globs:
-            for filepath in PROJECT_ROOT.rglob(pattern):
-                rel = str(filepath.relative_to(PROJECT_ROOT)).replace("\\", "/")
-                if not _is_source_file(rel):
-                    continue
-                if ".env" in rel:
-                    continue
-                try:
-                    content = filepath.read_text(encoding="utf-8")
-                except (UnicodeDecodeError, PermissionError):
-                    continue
-                for lineno, line in enumerate(content.splitlines(), 1):
-                    for pat, name in _KEY_PATTERNS:
-                        if re.search(pat, line, re.IGNORECASE):
-                            matched = re.search(pat, line, re.IGNORECASE).group(0)
-                            if CANARY_SECRET in matched:
-                                continue
-                            if "replace_me" in line.lower():
-                                continue
-                            violations.append(f"{rel}:{lineno} — {name}")
+        violations = scan_config_tree(PROJECT_ROOT)
 
         assert violations == [], (
             f"Found {len(violations)} potential API keys in config files:\n"
             + "\n".join(violations)
+        )
+
+    def test_local_scratch_exemption_is_narrow(self, tmp_path: Path):
+        """The `.local` exemption must not blind the scanner anywhere else.
+
+        A key placed in a committable-looking config directory is still
+        reported; the identical key under `.local/` is not.
+        """
+        fake_key = "sk-" + "q" * 40
+        (tmp_path / ".local").mkdir()
+        (tmp_path / ".local" / "llm.json").write_text(
+            f'{{"api_key": "{fake_key}"}}\n', encoding="utf-8"
+        )
+        (tmp_path / "src" / "main" / "resources").mkdir(parents=True)
+        (tmp_path / "src" / "main" / "resources" / "app.yml").write_text(
+            f"key: {fake_key}\n", encoding="utf-8"
+        )
+
+        violations = scan_config_tree(tmp_path)
+        assert len(violations) == 1, violations
+        assert violations[0].startswith("src/main/resources/app.yml:")
+
+    def test_local_dir_is_genuinely_uncommittable(self):
+        """Justify the exemption: `.local/.gitignore` must ignore everything."""
+        ignore = PROJECT_ROOT / ".local" / ".gitignore"
+        if not ignore.exists():
+            pytest.skip(".local/ does not exist on this machine")
+        rules = [
+            ln.strip() for ln in ignore.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        assert "*" in rules, (
+            ".local is exempted from the secret scan only because its own "
+            f".gitignore ignores everything; its rules are {rules}"
         )
 
     def test_closed_loop_script_reads_from_env(self):
