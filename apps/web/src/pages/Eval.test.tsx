@@ -73,6 +73,32 @@ describe("Eval verdict + severity gloss", () => {
   });
 });
 
+describe("Eval null metrics (no vacuous 100%)", () => {
+  // #51: an eval set whose positive/negative denominator is 0 has UNDEFINED
+  // recall/precision/f1. The API emits those as null; the cards must show an
+  // em-dash placeholder, never a fabricated percentage.
+  it("renders undefined metrics as a dash, not a fake rate", async () => {
+    apiGetMock.mockResolvedValue(
+      payload({
+        report: {
+          precision: null,
+          recall: null,
+          f1: null,
+          total_cases: 0,
+          should_detect: 0,
+          negative_cases: 0,
+          false_positives: 0,
+          cases: [],
+        },
+      }) as never
+    );
+    render(<Eval />);
+    const cards = await screen.findAllByText("—");
+    expect(cards.length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByText("100.0%")).toBeNull();
+  });
+});
+
 describe("Eval error vs empty (no conflation)", () => {
   it("a 404 is an honest empty, not a failure, and offers no retry", async () => {
     apiGetMock.mockRejectedValueOnce(new ApiError(404, "not found"));

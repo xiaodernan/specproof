@@ -497,9 +497,13 @@ export interface EvalData {
     should_detect?: number;
     detected?: number;
     false_positives?: number;
-    precision?: number;
-    recall?: number;
-    f1?: number;
+    negative_cases?: number;
+    // Undefined when the sample denominator is 0: an empty positive set has no
+    // recall to report, so the API emits null rather than a vacuous 100%.
+    precision?: number | null;
+    recall?: number | null;
+    f1?: number | null;
+    acceptance?: { status?: string; passed?: boolean };
     cases?: {
       case?: string;
       verdict?: string;

@@ -34,6 +34,8 @@ from typing import Any
 
 import click
 
+from evidence.acceptance import MetricCounts, fmt_metric, score
+
 _DIFF_CAP_CHARS = 80_000
 _LLM_TIMEOUT = 90.0
 _SIMILARITY_THRESHOLD = 0.65
@@ -389,23 +391,25 @@ def judge_case(
     }
 
 
-def summarize(rows: list[dict[str, Any]]) -> dict[str, float | int]:
-    """Aggregate recall/precision/F1 over judged rows (eval-compatible)."""
+def summarize(rows: list[dict[str, Any]]) -> dict[str, float | int | None]:
+    """Aggregate recall/precision/F1 over judged rows (eval-compatible).
+
+    Delegates the metric math to evidence.acceptance so an empty/degenerate
+    sample yields ``None`` (undefined), never a misleading ``100.0``.
+    """
     should_total = sum(1 for r in rows if r["should_detect"])
     detected = sum(1 for r in rows if r["detected"])
     false_positives = sum(1 for r in rows if r["false_positive"])
-    precision = (
-        detected / (detected + false_positives) * 100
-        if (detected + false_positives) > 0 else 100.0
-    )
-    recall = detected / should_total * 100 if should_total > 0 else 100.0
+    negative_cases = sum(1 for r in rows if not r["should_detect"])
     detected_any = sum(1 for r in rows if r.get("detected_any"))
-    recall_any = (
-        detected_any / should_total * 100 if should_total > 0 else 100.0
-    )
-    f1 = (
-        2 * recall * precision / (recall + precision)
-        if (recall + precision) > 0 else 0.0
+    metrics = score(
+        MetricCounts(
+            should_detect=should_total,
+            detected=detected,
+            false_positives=false_positives,
+            negative_cases=negative_cases,
+            detected_any=detected_any,
+        )
     )
     return {
         "total_cases": len(rows),
@@ -413,10 +417,11 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, float | int]:
         "detected": detected,
         "detected_any": detected_any,
         "false_positives": false_positives,
-        "precision": round(precision, 1),
-        "recall": round(recall, 1),
-        "recall_any": round(recall_any, 1),
-        "f1": round(f1, 1),
+        "negative_cases": negative_cases,
+        "precision": metrics.precision,
+        "recall": metrics.recall,
+        "recall_any": metrics.recall_any,
+        "f1": metrics.f1,
     }
 
 
@@ -431,9 +436,33 @@ def _load_specproof_results(path: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _opt_float(value: Any) -> float | None:
+    """Coerce a sidecar/summary metric that may be None, int, float or str.
+
+    A JSON sidecar now carries ``null`` for metrics undefined on the sample;
+    reading it into a delta must yield ``None``, not a TypeError or a fake 0.
+    """
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _delta_pp(a: float | None, b: float | None) -> float | None:
+    if a is None or b is None:
+        return None
+    return round(a - b, 1)
+
+
+def _pp_or_dash(value: float | None) -> str:
+    return "—" if value is None else f"{value:+.1f}pp"
+
+
 def render_report(
     baseline_rows: list[dict[str, Any]],
-    baseline_summary: dict[str, float | int],
+    baseline_summary: dict[str, float | int | None],
     specproof: dict[str, Any] | None,
     mode: str,
     parse_failures: int = 0,
@@ -462,37 +491,41 @@ def render_report(
         )
     lines.append("")
     if specproof is not None:
-        delta_recall = round(
-            float(specproof.get("recall", 0)) - float(baseline_summary["recall"]), 1
-        )
-        delta_precision = round(
-            float(specproof.get("precision", 0))
-            - float(baseline_summary["precision"]), 1
-        )
-        gate = "PASS" if delta_recall >= 25.0 else "FAIL"
+        sp_recall = _opt_float(specproof.get("recall"))
+        base_recall = _opt_float(baseline_summary.get("recall"))
+        sp_precision = _opt_float(specproof.get("precision"))
+        base_precision = _opt_float(baseline_summary.get("precision"))
+        sp_f1 = _opt_float(specproof.get("f1"))
+        base_f1 = _opt_float(baseline_summary.get("f1"))
+        d_recall = _delta_pp(sp_recall, base_recall)
+        d_precision = _delta_pp(sp_precision, base_precision)
+        d_f1 = _delta_pp(sp_f1, base_f1)
         lines += [
             "## 对比 (同一 case 集合)",
             "",
             "| Metric | SpecProof | Baseline | Delta |",
             "|---|---|---|---|",
-            f"| Recall | {specproof.get('recall')}% | "
-            f"{baseline_summary['recall']}% | {delta_recall:+.1f}pp |",
-            f"| Precision | {specproof.get('precision')}% | "
-            f"{baseline_summary['precision']}% | {delta_precision:+.1f}pp |",
+            f"| Recall | {fmt_metric(sp_recall)} | {fmt_metric(base_recall)} "
+            f"| {_pp_or_dash(d_recall)} |",
+            f"| Precision | {fmt_metric(sp_precision)} "
+            f"| {fmt_metric(base_precision)} | {_pp_or_dash(d_precision)} |",
         ]
-        specproof_f1 = specproof.get("f1")
-        if specproof_f1 is not None:
-            delta_f1 = round(
-                float(specproof_f1) - float(baseline_summary.get("f1", 0.0)), 1
-            )
+        if sp_f1 is not None or base_f1 is not None:
             lines.append(
-                f"| F1 | {specproof_f1}% | "
-                f"{baseline_summary.get('f1', 0.0)}% | {delta_f1:+.1f}pp |"
+                f"| F1 | {fmt_metric(sp_f1)} | {fmt_metric(base_f1)} "
+                f"| {_pp_or_dash(d_f1)} |"
             )
-        lines += [
-            "",
-            f"Go/No-Go #14 (+25pp recall): **{gate}** ({delta_recall:+.1f}pp)",
-        ]
+        lines.append("")
+        if d_recall is None:
+            lines.append(
+                "Go/No-Go #14 (+25pp recall): **无法判定** —— Recall 因样本不足"
+                "未定义；空/退化的评测集不会给出可信增益。"
+            )
+        else:
+            gate = "PASS" if d_recall >= 25.0 else "FAIL"
+            lines.append(
+                f"Go/No-Go #14 (+25pp recall): **{gate}** ({d_recall:+.1f}pp)"
+            )
     else:
         lines += [
             "## 对比",
@@ -644,18 +677,26 @@ def baseline_cmd(
     )
 
     click.echo(
-        f"\nBaseline summary: recall={summary['recall']}% "
-        f"recall_any={summary['recall_any']}% "
-        f"precision={summary['precision']}% f1={summary['f1']}% "
+        f"\nBaseline summary: recall={fmt_metric(_opt_float(summary['recall']))} "
+        f"recall_any={fmt_metric(_opt_float(summary['recall_any']))} "
+        f"precision={fmt_metric(_opt_float(summary['precision']))} "
+        f"f1={fmt_metric(_opt_float(summary['f1']))} "
         f"fp={summary['false_positives']}"
     )
     if specproof is not None:
-        delta = round(
-            float(specproof.get("recall", 0)) - float(summary["recall"]), 1
-        )
-        click.echo(f"SpecProof recall={specproof.get('recall')}% -> "
-                   f"delta={delta:+.1f}pp "
-                   f"(Go/No-Go #14: {'PASS' if delta >= 25.0 else 'FAIL'})")
+        d = _delta_pp(_opt_float(specproof.get("recall")),
+                      _opt_float(summary["recall"]))
+        if d is None:
+            click.echo(
+                f"SpecProof recall={fmt_metric(_opt_float(specproof.get('recall')))} "
+                "— 无法与基线求增益（样本不足，指标未定义）。"
+            )
+        else:
+            click.echo(
+                f"SpecProof recall={fmt_metric(_opt_float(specproof.get('recall')))} -> "
+                f"delta={d:+.1f}pp "
+                f"(Go/No-Go #14: {'PASS' if d >= 25.0 else 'FAIL'})"
+            )
     else:
         click.echo(f"SpecProof results missing at {specproof_results}; "
                    "run specproof eval first.")

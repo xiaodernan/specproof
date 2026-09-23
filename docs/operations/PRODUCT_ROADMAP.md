@@ -294,3 +294,12 @@
 2. **Recall/Precision 可执行量化门**（任务 #51）：为评测集落地带下限、带非零守卫的可跑门，诚实透出到 Eval 页。
 3. **默认关闭的本地测试执行差分门**（任务 #50，红线合规路径 ii）：`SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1` + UI 诚实标注"本机执行·无沙箱"，先用假 adapter 离线测 verdict/digest/解析，真实接线前不得在无沙箱宿主跑任意仓库测试。
 4. **同类"潜伏缺陷"扫查**：本轮暴露了一种失败模式——**假件自带真实实现没有的方法 ⇒ 单测绿、生产红、静态门红**。值得专门排查其余 `ops/`、报告/删除类路径里对存储客户端的调用是否都有真实实现兜底。
+
+### 6.4 Recall/Precision 可执行量化验收门（任务 #51，本轮落地）
+
+- **要消灭的真实缺陷**：评测指标此前在**样本分母为 0**时会算出**伪满分 100%**（`detected/(detected+fp)`、`detected/should_detect`、`f1` 三处空集兜底都返回 `100.0`）。一个"没有任何正样本"的评测集会显示 Recall=100%、且能**通过**任意 `--min-recall` 下限——门越小越"绿"，这是可被"缩小评测集"作弊的假门，也正是"问题很大"的又一例。
+- **单一来源纯模块 `evidence/acceptance.py`**：`MetricCounts`→`score()` 产出 `float | None` 指标（分母为 0 ⇒ `None`=无法评估，**绝不用 0.0 冒充、也绝不用 100 冒充**；`f1` 只有在 recall 与 precision 都有定义时才有定义）；`AcceptanceCriteria` + `evaluate()` 先做**样本充分性**判定（正/负样本数不足下限 ⇒ `INSUFFICIENT`，早于任何数值门），再做数值门 ⇒ `PASS`/`FAIL`；`fmt_metric(None)` 渲染为"无法评估 (n=0)"。默认 `AcceptanceCriteria.default()` **钉死样本下限（正≥10、负≥5）但不钉死任何数值下限**（诚实：仓库当前无足够真实数据支撑一个具体 Recall 阈值）。
+- **接线**：`cli/specproof/commands/eval.py` 用共享打分器替换内联公式，新增 `--gate`（非 PASS 即 `SystemExit(1)`，可进 CI）与 `--min-recall/--min-precision/--min-f1/--min-positive-cases/--min-negative-cases` 选项，并统计 `negative_cases`；sidecar JSON 现把三指标写为**可空**、附 `acceptance` 块。`evidence/report.py` 的 HTML 统计卡改走 `fmt_metric`（`None`→"样本不足"，不再 `:.0f}%` 伪满分）。`cli/specproof/commands/baseline.py` 的 `summarize` 委托 `score()`、`_opt_float/_delta_pp/_pp_or_dash` 让基线对比在指标未定义时诚实显示"无法判定"，而非用 `float(None or 0)` 造出假的 +pp 判定。
+- **端到端诚实**：`/api/v1/eval/latest` 原样透传 sidecar，`apps/web/src/api.ts` 的 `EvalData.report` 三指标类型改 `number | null` 并补 `negative_cases/acceptance`（契约与现实一致）；`Eval.tsx` 的 `!= null` 兜底已把 `null` 渲染为"—"。新增前端锁：空样本集下三张统计卡显示"—"、且页面**不出现**"100.0%"。
+- **门证**：`ruff` 干净；`mypy .` 全绿（210 文件）；`tests/unit/test_acceptance_gate.py`（12 例，锁定伪满分回归、`None` vs `0.0` 之分、空/小集判 `INSUFFICIENT` 而非 `PASS`、下限 PASS/FAIL、默认仅样本门、`to_dict` JSON 安全）+ `test_baseline.py` 共 **43 passed**；`apps/web` `tsc --noEmit` 干净、`Eval.test.tsx` **6 passed**。
+- **意义**：这是退出标准里"量化 Recall/Precision 门"的一项从**纸面**变成**可执行、不可被缩小评测集绕过**的实门。

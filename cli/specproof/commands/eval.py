@@ -19,6 +19,12 @@ from typing import Any
 
 import click
 
+from evidence.acceptance import (
+    AcceptanceCriteria,
+    MetricCounts,
+    evaluate,
+    fmt_metric,
+)
 from evidence.report import render_eval_report
 
 
@@ -56,11 +62,34 @@ def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
     default=False,
     help="Enable LLM-assisted nodes (default: deterministic only)",
 )
+@click.option(
+    "--gate",
+    is_flag=True,
+    default=False,
+    help="Exit non-zero unless the acceptance status is PASS "
+    "(enforces the sample/floor criteria below as a CI gate).",
+)
+@click.option("--min-recall", type=float, default=None,
+              help="Recall floor (0-100); unset = only sample sufficiency is enforced")
+@click.option("--min-precision", type=float, default=None,
+              help="Precision floor (0-100); unset = only sample sufficiency is enforced")
+@click.option("--min-f1", type=float, default=None,
+              help="F1 floor (0-100)")
+@click.option("--min-positive-cases", type=int, default=10,
+              help="Fewest should-detect cases required before a verdict is trusted")
+@click.option("--min-negative-cases", type=int, default=5,
+              help="Fewest negative cases required before a verdict is trusted")
 def eval_cmd(
     cases_dir: str,
     repo_path: str | None,
     output: str,
     use_llm: bool,
+    gate: bool,
+    min_recall: float | None,
+    min_precision: float | None,
+    min_f1: float | None,
+    min_positive_cases: int,
+    min_negative_cases: int,
 ) -> None:
     """Evaluate SpecProof against golden cases.
 
@@ -99,6 +128,7 @@ def eval_cmd(
     detected = 0
     total_should_detect = 0
     false_positives = 0
+    negative_cases = 0
 
     for case_dir in case_dirs:
         spec_file = case_dir / "spec.md"
@@ -125,6 +155,8 @@ def eval_cmd(
 
         if should_detect:
             total_should_detect += 1
+        else:
+            negative_cases += 1
 
         click.echo(
             f"\n=== {case_dir.name} (base={base_ref}, head={head_ref}) ==="
@@ -216,19 +248,22 @@ def eval_cmd(
 
         _cleanup_worktrees(repo_resolved, final)
 
-    # ── Summary statistics ──
-    precision = (
-        detected / (detected + false_positives) * 100
-        if (detected + false_positives) > 0 else 100.0
+    # ── Summary statistics (single honest source: evidence.acceptance) ──
+    counts = MetricCounts(
+        should_detect=total_should_detect,
+        detected=detected,
+        false_positives=false_positives,
+        negative_cases=negative_cases,
     )
-    recall = (
-        detected / total_should_detect * 100
-        if total_should_detect > 0 else 100.0
+    criteria = AcceptanceCriteria(
+        min_recall=min_recall,
+        min_precision=min_precision,
+        min_f1=min_f1,
+        min_positive_cases=min_positive_cases,
+        min_negative_cases=min_negative_cases,
     )
-    f1 = (
-        2 * precision * recall / (precision + recall)
-        if (precision + recall) > 0 else 0.0
-    )
+    acceptance = evaluate(counts, criteria)
+    metrics = acceptance.metrics
 
     click.echo(f"\n{'=' * 50}")
     click.echo("Evaluation Results")
@@ -237,9 +272,20 @@ def eval_cmd(
     click.echo(f"Should detect:      {total_should_detect}")
     click.echo(f"Detected:           {detected}")
     click.echo(f"False positives:    {false_positives}")
-    click.echo(f"Precision:          {precision:.1f}%")
-    click.echo(f"Recall:             {recall:.1f}%")
-    click.echo(f"F1 Score:           {f1:.1f}%")
+    click.echo(f"Negative cases:     {negative_cases}")
+    click.echo(f"Precision:          {fmt_metric(metrics.precision)}")
+    click.echo(f"Recall:             {fmt_metric(metrics.recall)}")
+    click.echo(f"F1 Score:           {fmt_metric(metrics.f1)}")
+    click.echo(f"Acceptance:         {acceptance.status}")
+    for line in acceptance.insufficient:
+        click.echo(f"  ! 样本不足: {line}")
+    for line in acceptance.failures:
+        click.echo(f"  x 未达下限: {line}")
+    if acceptance.status != "PASS":
+        click.echo(
+            "  提示: 空/过小的评测集不会给出可信结论 —— 它记为 INSUFFICIENT/"
+            "FAIL 而非默认满分。"
+        )
 
     html = render_eval_report(results)
     out = Path(output)
@@ -248,7 +294,8 @@ def eval_cmd(
     click.echo(f"\nHTML report written to {out}")
 
     # Machine-readable sidecar consumed by the specproof baseline command
-    # (P6: "model reads the diff" comparison) and CI gates.
+    # (P6: "model reads the diff" comparison) and CI gates. precision/recall/
+    # f1 may be null (undefined for this sample) — never a fake 100.0.
     sidecar = out.with_suffix(".results.json")
     sidecar.write_text(
         json.dumps(
@@ -257,9 +304,11 @@ def eval_cmd(
                 "should_detect": total_should_detect,
                 "detected": detected,
                 "false_positives": false_positives,
-                "precision": precision,
-                "recall": recall,
-                "f1": f1,
+                "negative_cases": negative_cases,
+                "precision": metrics.precision,
+                "recall": metrics.recall,
+                "f1": metrics.f1,
+                "acceptance": acceptance.to_dict(),
                 "timing_note": (
                     "Per-case duration_ms is whole-pipeline wall clock measured "
                     "around the graph invocation; the Phase 0 graph exposes no "
@@ -272,3 +321,6 @@ def eval_cmd(
         encoding="utf-8",
     )
     click.echo(f"Results JSON written to {sidecar}")
+
+    if gate and not acceptance.passed:
+        raise SystemExit(1)

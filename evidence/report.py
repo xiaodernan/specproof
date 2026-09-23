@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from html import escape
 from typing import Any
 
+from evidence.acceptance import MetricCounts, fmt_metric, score
 from evidence.verdict import evaluate_verification
 
 
@@ -279,14 +280,18 @@ def render_eval_report(results: list[dict[str, Any]]) -> str:
     """Render evaluation results HTML page with precision/recall."""
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    # Compute summary stats
+    # Compute summary stats via the single honest source (evidence.acceptance):
+    # a metric is None when its sample denominator is 0 — never a fake 100%.
     total = len(results)
     detected = sum(1 for r in results if r.get("verdict") in ("PASS", "PARTIAL"))
     should = sum(1 for r in results if r.get("should_detect"))
     fp = sum(1 for r in results if r.get("verdict") == "FALSE_POSITIVE")
-    precision = detected / (detected + fp) * 100 if (detected + fp) > 0 else 100.0
-    recall = detected / should * 100 if should > 0 else 100.0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    neg = sum(1 for r in results if not r.get("should_detect"))
+    _m = score(MetricCounts(should_detect=should, detected=detected,
+                            false_positives=fp, negative_cases=neg))
+    precision_txt = fmt_metric(_m.precision, undefined="样本不足")
+    recall_txt = fmt_metric(_m.recall, undefined="样本不足")
+    f1_txt = fmt_metric(_m.f1, undefined="样本不足")
 
     verdict_color = {
         "PASS": "#7ee787",
@@ -336,15 +341,15 @@ def render_eval_report(results: list[dict[str, Any]]) -> str:
 
     <div class="stats">
         <div class="stat">
-            <div class="value" style="color:#58a6ff">{precision:.0f}%</div>
+            <div class="value" style="color:#58a6ff">{precision_txt}</div>
             <div class="label">Precision</div>
         </div>
         <div class="stat">
-            <div class="value" style="color:#7ee787">{recall:.0f}%</div>
+            <div class="value" style="color:#7ee787">{recall_txt}</div>
             <div class="label">Recall</div>
         </div>
         <div class="stat">
-            <div class="value" style="color:#d29922">{f1:.0f}%</div>
+            <div class="value" style="color:#d29922">{f1_txt}</div>
             <div class="label">F1 Score</div>
         </div>
         <div class="stat">
