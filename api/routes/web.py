@@ -373,41 +373,146 @@ def _contracts_from_table(
         return []
 
 
+#: summary matrix row -> public matrix row field names. The pipeline's own
+#: vocabulary is kept on the left; the response keeps the field names the web
+#: matrix page has always rendered, so this only ADDS columns to that contract.
+_SUMMARY_MATRIX_RENAMES: dict[str, str] = {
+    "contract_id": "contract_id_str",
+    "requirement": "requirement_text",
+    "evidence": "evidence_ref",
+}
+
+#: Differential fields the page needs to show "改前 / 改后" per requirement.
+_SUMMARY_MATRIX_EXTRA = (
+    "attribution",
+    "base_result",
+    "head_result",
+    "experiment",
+    "unverified_reason",
+    "next_action",
+    "severity",
+    "evidence_type",
+    "location",
+    "finding_id",
+)
+
+
+def _matrix_rows_from_summary(summary: dict[str, Any]) -> list[dict[str, Any]]:
+    """Project persisted pipeline matrix rows into the response shape.
+
+    Rows arrive already filtered to what the matrix view renders; a value that
+    is absent stays absent rather than being filled with a guess.
+    """
+    rows = summary.get("matrix_rows")
+    if not isinstance(rows, list):
+        return []
+    projected: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        out: dict[str, Any] = {}
+        for raw_key, value in row.items():
+            # An unobserved field stays ABSENT rather than becoming null: the
+            # page distinguishes "no differential ran" from a verdict, and a
+            # null would flatten both into the same shape.
+            if value is None:
+                continue
+            key = str(raw_key)
+            out[_SUMMARY_MATRIX_RENAMES.get(key, key)] = value
+        for key in _SUMMARY_MATRIX_EXTRA:
+            if row.get(key) is not None:
+                out[key] = row[key]
+        if out.get("contract_id_str"):
+            projected.append(out)
+    return projected
+
+
 @router.get("/jobs/{job_id}/matrix")
 def job_matrix(job_id: str) -> dict[str, Any]:
-    """Requirement-to-evidence matrix rows for one job (contracts table).
+    """Requirement-to-evidence matrix rows for one job.
 
-    The contracts table stores per-contract results (PASS/FAIL/UNVERIFIED)
-    with requirement text and evidence refs; summary counts are returned
-    alongside. Empty rows are honest, not fabricated.
+    Two sources are merged, exactly like the findings endpoint: the MySQL
+    ``contracts`` table (per-contract declarations, written by the demo
+    seeder) and the persisted pipeline summary, which is the ONLY source for
+    jobs that really ran. The summary is authoritative for a row's verdict,
+    since the table is never updated by the worker; the table only adds
+    requirement text and expected behaviour. Neither source may fabricate a
+    result the other did not produce.
     """
     store = MySQLStore()
     _load_job_or_404(store, job_id)
     errors: list[str] = []
-    rows = _contracts_from_table(store, job_id, errors)
+    table_rows = _contracts_from_table(store, job_id, errors)
     try:
         summary = store.get_job_summary(job_id) or {}
     except Exception as exc:  # noqa: BLE001
         logger.warning("summary read failed for %s: %s", job_id, exc)
         errors.append("验证摘要暂时无法读取，请稍后刷新重试。")
         summary = {}
+
+    by_id: dict[str, dict[str, Any]] = {}
+    ordered_ids: list[str] = []
+    for item in _matrix_rows_from_summary(summary):
+        cid = str(item["contract_id_str"])
+        if cid not in by_id:
+            ordered_ids.append(cid)
+        by_id[cid] = item
+    for item in table_rows:
+        cid = str(item.get("contract_id_str") or "")
+        if not cid:
+            continue
+        if cid not in by_id:
+            ordered_ids.append(cid)
+            by_id[cid] = dict(item)
+            continue
+        # Fill only what the pipeline row does not carry (requirement text,
+        # expected behaviour) — a table row must never overwrite a verdict.
+        merged = by_id[cid]
+        for key, value in item.items():
+            if merged.get(key) in (None, "") and value is not None:
+                merged[key] = value
+    rows = [by_id[cid] for cid in ordered_ids]
+
+    summary_rows = bool(summary.get("matrix_rows"))
+    counts: dict[str, Any] = {
+        "total": len(rows) or int(summary.get("contracts_total") or 0),
+        "passed": (
+            sum(row.get("result") == "PASS" for row in rows)
+            if rows else int(summary.get("matrix_passed") or 0)
+        ),
+        "failed": (
+            sum(row.get("result") == "FAIL" for row in rows)
+            if rows else int(summary.get("matrix_failed") or 0)
+        ),
+        "unverified": (
+            sum(row.get("result") not in ("PASS", "FAIL") for row in rows)
+            if rows else int(summary.get("matrix_unverified") or 0)
+        ),
+    }
+    # A capped summary carries fewer rows than the pipeline counted; its
+    # counts stay authoritative, so the totals must not be under-reported by
+    # the row list that was deliberately truncated for size.
+    if summary_rows and summary.get("matrix_rows_truncated"):
+        counts = {
+            "total": int(summary.get("contracts_total") or counts["total"]),
+            "passed": int(summary.get("matrix_passed") or 0),
+            "failed": int(summary.get("matrix_failed") or 0),
+            "unverified": int(summary.get("matrix_unverified") or 0),
+        }
     return {
         "job_id": job_id,
         "rows": jsonable_encoder(rows),
-        "counts": {
-            "total": len(rows) or int(summary.get("contracts_total") or 0),
-            "passed": (
-                sum(row.get("result") == "PASS" for row in rows)
-                if rows else int(summary.get("matrix_passed") or 0)
-            ),
-            "failed": (
-                sum(row.get("result") == "FAIL" for row in rows)
-                if rows else int(summary.get("matrix_failed") or 0)
-            ),
-            "unverified": (
-                sum(row.get("result") not in ("PASS", "FAIL") for row in rows)
-                if rows else int(summary.get("matrix_unverified") or 0)
-            ),
+        "counts": counts,
+        "counts_source": (
+            "pipeline_summary"
+            if summary_rows and summary.get("matrix_rows_truncated")
+            else "computed_from_returned_rows"
+        ),
+        "rows_total": int(summary.get("matrix_rows_total") or len(rows)),
+        "rows_truncated": bool(summary.get("matrix_rows_truncated")),
+        "sources": {
+            "mysql_summary_matrix_rows": summary_rows,
+            "mysql_contracts_table": bool(table_rows),
         },
         "degraded": bool(errors),
         "degraded_reason": " ".join(errors) or None,

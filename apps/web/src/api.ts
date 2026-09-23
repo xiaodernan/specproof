@@ -457,12 +457,37 @@ export interface MatrixRow {
   expected_behavior: string;
   result: string;
   evidence_ref: string;
+  /**
+   * Differential attribution — only present for rows the pipeline produced
+   * (the persisted summary), absent for declaration-only table rows. A
+   * missing value means "no differential experiment ran for this rule", and
+   * must never be rendered as a pass.
+   */
+  attribution?: string;
+  base_result?: string;
+  head_result?: string;
+  experiment?: string;
+  unverified_reason?: string;
+  next_action?: string;
+  severity?: string;
+  evidence_type?: string;
+  location?: string;
+  finding_id?: string;
 }
 
 export interface MatrixData {
   job_id: string;
   rows: MatrixRow[];
   counts: { total: number; passed: number; failed: number; unverified: number };
+  /** Which numbers the counts came from: the returned rows, or the pipeline's
+   *  own totals when the row list was deliberately truncated for size. */
+  counts_source?: string;
+  rows_total?: number;
+  rows_truncated?: boolean;
+  sources?: {
+    mysql_summary_matrix_rows?: boolean;
+    mysql_contracts_table?: boolean;
+  };
   degraded: boolean;
   degraded_reason: string | null;
 }

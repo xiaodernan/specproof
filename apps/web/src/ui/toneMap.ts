@@ -163,3 +163,23 @@ export function contractStatusLabel(status?: string | null): string {
   const cn = CONTRACT_STATUS_CN[s];
   return cn ? cn + " · " + s : s;
 }
+
+/**
+ * 证据矩阵的「差异归因」（attribution）—— 这条不符是改前就有的，还是这次变更
+ * 引入的。这是评审者最关心的一栏：值来自 agent/matrix_policy 的
+ * head/base/not_attributed/none/unknown 词汇。未知值原样透传。
+ */
+export const MATRIX_ATTRIBUTION_CN: Record<string, string> = {
+  head: "本次变更引入",
+  base: "改前既有",
+  not_attributed: "无法归因",
+  none: "无需归因",
+  unknown: "归因未知",
+};
+
+export function attributionLabel(attribution?: string | null): string {
+  const s = (attribution || "").trim().toLowerCase();
+  if (!s) return "—";
+  const cn = MATRIX_ATTRIBUTION_CN[s];
+  return cn ? cn + " · " + s : s;
+}

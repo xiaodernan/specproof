@@ -582,6 +582,75 @@ class Worker:
         )
 
 
+#: Matrix row keys the web matrix view renders. Persisting exactly this
+#: projection (rather than the whole row) keeps the audit summary readable
+#: while still carrying the Base/Head differential attribution, which is the
+#: single most actionable evidence a reviewer looks at.
+_SUMMARY_MATRIX_ROW_KEYS: tuple[str, ...] = (
+    "contract_id",
+    "requirement",
+    "checker_type",
+    "result",
+    "experiment",
+    "evidence",
+    "attribution",
+    "base_result",
+    "head_result",
+    "unverified_reason",
+    "next_action",
+    "severity",
+    "evidence_type",
+    "location",
+    "finding_id",
+)
+
+#: Rows carried per job. The pipeline counts stay authoritative regardless, so
+#: a cap can never under-report totals — see ``matrix_rows_total``.
+SUMMARY_MATRIX_ROW_CAP = 60
+
+#: Truncation ceiling for free-text cells inside a persisted matrix row.
+_SUMMARY_TEXT_LIMIT = 400
+
+
+def _matrix_rows_for_summary(
+    matrix: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Project the evidence matrix into the persisted job summary.
+
+    ``build_matrix`` produces one row per contract carrying the merge of every
+    experiment that touched it, including the Base/Head differential verdict.
+    Before this, only the COUNTS reached the API, so the "requirement coverage"
+    page was empty for every real job and the per-requirement verdict was
+    visible only in the HTML report. Rows are capped and the cap is reported,
+    so a long matrix is honest ("showing N of M") rather than silently short.
+    """
+    rows = (matrix or {}).get("rows")
+    if not isinstance(rows, list):
+        return {"matrix_rows": [], "matrix_rows_total": 0, "matrix_rows_truncated": False}
+
+    kept: list[dict[str, Any]] = []
+    for row in rows[:SUMMARY_MATRIX_ROW_CAP]:
+        if not isinstance(row, dict):
+            continue
+        projected: dict[str, Any] = {}
+        for key in _SUMMARY_MATRIX_ROW_KEYS:
+            value = row.get(key)
+            if value is None:
+                continue
+            if isinstance(value, str) and len(value) > _SUMMARY_TEXT_LIMIT:
+                value = value[:_SUMMARY_TEXT_LIMIT] + "…"
+            projected[key] = value
+        if str(projected.get("contract_id") or "").strip():
+            kept.append(projected)
+
+    total = int((matrix or {}).get("total_rows") or len(rows))
+    return {
+        "matrix_rows": kept,
+        "matrix_rows_total": total,
+        "matrix_rows_truncated": total > len(kept),
+    }
+
+
 def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
     """Compact pipeline summary persisted for the dashboard/audit view."""
     matrix = state.get("matrix", {})
@@ -610,6 +679,7 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
             for f in findings[:20]
         ],
         "capsules": [str(c) for c in state.get("capsules", [])[:10]],
+        **_matrix_rows_for_summary(matrix),
         "report_path": state.get("report_path", ""),
         "retrieval_note": state.get("retrieval_note", ""),
         "coverage_reason": decision.reason,

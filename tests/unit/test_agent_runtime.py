@@ -347,7 +347,19 @@ def test_create_auto_start_then_poll_get_to_terminal(
 
     job = store.get(job_id)
     assert job is not None and job.status == "succeeded"
+    # The accept projection is attached AFTER the terminal transition
+    # (W35.1 post-hoc attach: store goes terminal -> change bundle is written
+    # -> terminal progress event -> persist_accept_result), so a terminal
+    # status alone does not mean the closed projection is complete. Wait for
+    # the ordering the runtime actually documents, on the same deadline.
+    accept_deadline = time.monotonic() + 180.0
+    while job.accept_json is None and time.monotonic() < accept_deadline:
+        time.sleep(0.1)
+        refreshed = store.get(job_id)
+        if refreshed is not None:
+            job = refreshed
     assert job.accept_json is not None
+    assert job.status == "succeeded"
 
     # the runtime thread finished its post-run (gates/bundle/terminal events
     # are all recorded) before the SSE stream is drained

@@ -19,7 +19,8 @@ export { StatCard, type StatTone } from "./StatCard";
 export { StatusPill, statusLabel, STATUS_LABELS } from "./StatusPill";
 export { fmtPct, fmtTime, kv, shortId, verdictTone, verdictLabel } from "./util";
 export {
-  checkerLabel, contractStatusLabel, CONTRACT_STATUS_CN, evalVerdictLabel, evidenceLabel, healthStatusLabel,
+  attributionLabel, checkerLabel, contractStatusLabel, CONTRACT_STATUS_CN,
+  evalVerdictLabel, evidenceLabel, healthStatusLabel,
   resultPill, severityHint, severityPill, SEVERITY_HINT, type PillSpec,
 } from "./toneMap";
 export { stageLabel, STAGE_LABELS } from "./stages";

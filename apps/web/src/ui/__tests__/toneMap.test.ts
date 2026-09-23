@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resultPill, severityPill, severityHint, evidenceLabel, checkerLabel, contractStatusLabel, healthStatusLabel } from "../toneMap";
+import { resultPill, severityPill, severityHint, evidenceLabel, checkerLabel, contractStatusLabel, healthStatusLabel, attributionLabel } from "../toneMap";
 
 describe("severityPill — severity has its own tone map", () => {
   it("maps BLOCKER red, MAJOR orange, MINOR yellow, INFO neutral", () => {
@@ -131,5 +131,33 @@ describe("contractStatusLabel — 规则审核状态 keeps its canonical token v
     expect(contractStatusLabel(undefined)).toBe("—");
     expect(contractStatusLabel(null)).toBe("—");
     expect(contractStatusLabel("")).toBe("—");
+  });
+});
+
+describe("attributionLabel — 差分归因 keeps its canonical token visible", () => {
+  it("glosses the matrix_policy vocabulary and preserves the raw value", () => {
+    // These are the only values agent/matrix_policy._merged_attribution can
+    // emit; "head" is the one a reviewer must never mistake for a base bug.
+    expect(attributionLabel("head")).toBe("本次变更引入 · head");
+    expect(attributionLabel("base")).toBe("改前既有 · base");
+    expect(attributionLabel("not_attributed")).toBe("无法归因 · not_attributed");
+    expect(attributionLabel("none")).toBe("无需归因 · none");
+    expect(attributionLabel("unknown")).toBe("归因未知 · unknown");
+  });
+
+  it("is case-insensitive because the pipeline stores lowercase words", () => {
+    expect(attributionLabel("HEAD")).toBe("本次变更引入 · head");
+  });
+
+  it("passes an unrecognized value through verbatim instead of inventing one", () => {
+    expect(attributionLabel("flake_suspected")).toBe("flake_suspected");
+    expect(attributionLabel("flake_suspected")).not.toContain("归因未知");
+  });
+
+  it("renders missing as a dash, never as 无需归因", () => {
+    // "none" already means "no attribution needed" — a missing value must not
+    // borrow that meaning and imply a passing comparison.
+    expect(attributionLabel(undefined)).toBe("—");
+    expect(attributionLabel("   ")).toBe("—");
   });
 });

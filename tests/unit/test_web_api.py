@@ -57,6 +57,7 @@ class FakeMySQLStore:
     contracts_rows: list[dict[str, Any]] = []
     registry_rows: list[dict[str, Any]] = []
     mysql_down = False
+    summary_read_fails = False
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         if FakeMySQLStore.mysql_down:
@@ -66,6 +67,8 @@ class FakeMySQLStore:
     def get_job_summary(self, job_id: str) -> dict[str, Any] | None:
         if FakeMySQLStore.mysql_down:
             raise ConnectionError("mysql down")
+        if FakeMySQLStore.summary_read_fails:
+            raise ConnectionError("summary row unreadable")
         return FakeMySQLStore.summaries.get(job_id)
 
     def list_recent_jobs(self, limit: int = 10) -> list[dict[str, Any]]:
@@ -166,6 +169,7 @@ def fakes(monkeypatch: pytest.MonkeyPatch) -> None:
     FakeMySQLStore.contracts_rows = []
     FakeMySQLStore.registry_rows = []
     FakeMySQLStore.mysql_down = False
+    FakeMySQLStore.summary_read_fails = False
     FakeRedisStream.events = []
     FakeRedisStream.redis_down = False
     monkeypatch.setattr(web_module, "MySQLStore", FakeMySQLStore)
@@ -387,6 +391,204 @@ def test_matrix_counts_work_before_summary_is_persisted(fakes: None) -> None:
     assert response.json()["counts"] == {
         "total": 3, "passed": 1, "failed": 1, "unverified": 1,
     }
+
+
+def _pipeline_row(contract_id: str, **overrides: Any) -> dict[str, Any]:
+    """One persisted matrix row, in the pipeline's own vocabulary."""
+    row: dict[str, Any] = {
+        "contract_id": contract_id,
+        "requirement": "reject unauthenticated access",
+        "result": "FAIL",
+        "experiment": "DIFF-01",
+        "evidence": "sha256:abc123",
+        "attribution": "head",
+        "base_result": "PASS",
+        "head_result": "FAIL",
+    }
+    row.update(overrides)
+    return row
+
+
+def test_matrix_rows_come_from_the_pipeline_summary(fakes: None) -> None:
+    """A REAL job has no contracts-table rows — the summary is its only source.
+
+    This is the defect that made the coverage page empty for every job that
+    actually ran: `insert_contract` is called only by the demo seeder.
+    """
+    _seed_job()
+    FakeMySQLStore.contracts_rows = []
+    FakeMySQLStore.summaries[JOB_ID] = {
+        "contracts_total": 1, "matrix_passed": 0, "matrix_failed": 1,
+        "matrix_unverified": 0,
+        "matrix_rows": [_pipeline_row("AUTH-01")],
+        "matrix_rows_total": 1,
+        "matrix_rows_truncated": False,
+    }
+    body = TestClient(app).get(
+        f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers()
+    ).json()
+    (row,) = body["rows"]
+    assert row["contract_id_str"] == "AUTH-01"
+    assert row["requirement_text"] == "reject unauthenticated access"
+    assert row["evidence_ref"] == "sha256:abc123"
+    # The Base/Head differential attribution must survive to the API.
+    assert row["base_result"] == "PASS"
+    assert row["head_result"] == "FAIL"
+    assert row["attribution"] == "head"
+    assert body["sources"] == {
+        "mysql_summary_matrix_rows": True, "mysql_contracts_table": False,
+    }
+    assert body["counts"] == {
+        "total": 1, "passed": 0, "failed": 1, "unverified": 0,
+    }
+
+
+def test_matrix_summary_verdict_wins_over_a_disagreeing_table_row(
+    fakes: None,
+) -> None:
+    """The contracts table is never updated by the worker.
+
+    A stale/demo table row saying PASS must not launder a pipeline FAIL, while
+    the row's own descriptive fields (expected behavior) still ride along.
+    """
+    _seed_job()
+    FakeMySQLStore.contracts_rows = [
+        {"contract_id_str": "AUTH-01", "requirement_text": "stale text",
+         "checker_type": "java_source", "expected_behavior": "401",
+         "result": "PASS", "evidence_ref": "diff:old"},
+    ]
+    FakeMySQLStore.summaries[JOB_ID] = {
+        "matrix_rows": [_pipeline_row("AUTH-01", requirement="real text")],
+        "matrix_rows_total": 1,
+    }
+    body = TestClient(app).get(
+        f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers()
+    ).json()
+    (row,) = body["rows"]
+    assert len(body["rows"]) == 1  # merged into one row, not duplicated
+    assert row["result"] == "FAIL"
+    assert row["requirement_text"] == "real text"
+    assert row["expected_behavior"] == "401"  # table-only field survives
+    assert row["checker_type"] == "java_source"
+
+
+def test_truncated_matrix_rows_never_under_report_counts(fakes: None) -> None:
+    """Rows are capped for size; the totals must come from the pipeline."""
+    _seed_job()
+    FakeMySQLStore.contracts_rows = []
+    FakeMySQLStore.summaries[JOB_ID] = {
+        "contracts_total": 20, "matrix_passed": 20, "matrix_failed": 0,
+        "matrix_unverified": 0,
+        "matrix_rows": [_pipeline_row("AUTH-01", result="PASS",
+                                      base_result="PASS", head_result="PASS",
+                                      attribution="none")],
+        "matrix_rows_total": 20,
+        "matrix_rows_truncated": True,
+    }
+    body = TestClient(app).get(
+        f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers()
+    ).json()
+    assert len(body["rows"]) == 1
+    assert body["counts"] == {
+        "total": 20, "passed": 20, "failed": 0, "unverified": 0,
+    }
+    assert body["counts_source"] == "pipeline_summary"
+    assert body["rows_truncated"] is True
+    assert body["rows_total"] == 20
+
+
+def test_matrix_row_without_a_differential_stays_absent(fakes: None) -> None:
+    """No base/head observation must render as "no experiment", not a verdict."""
+    _seed_job()
+    FakeMySQLStore.contracts_rows = []
+    FakeMySQLStore.summaries[JOB_ID] = {
+        "matrix_rows": [_pipeline_row(
+            "AUTH-01", base_result=None, head_result=None, attribution=None,
+        )],
+        "matrix_rows_total": 1,
+    }
+    body = TestClient(app).get(
+        f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers()
+    ).json()
+    (row,) = body["rows"]
+    assert "base_result" not in row
+    assert "head_result" not in row
+    assert "attribution" not in row
+    assert row["result"] == "FAIL"
+
+
+def test_matrix_round_trips_from_the_worker_summary(fakes: None) -> None:
+    """The producer and the reader are locked together, not separately.
+
+    Each side had its own green test while the OTHER side could still typo the
+    key: the worker writes `contract_id`/`base_result` and the endpoint renames
+    them to `contract_id_str`/… . Only feeding the real `_state_summary` output
+    straight into the endpoint proves a differential verdict reaches the page.
+    """
+    from agent.worker import _state_summary
+
+    _seed_job()
+    FakeMySQLStore.contracts_rows = []
+    FakeMySQLStore.summaries[JOB_ID] = _state_summary(
+        {
+            "matrix": {
+                "rows": [
+                    {
+                        "contract_id": "AUTH-01",
+                        "requirement": "reject unauthenticated access",
+                        "checker_type": "java_source",
+                        "result": "FAIL",
+                        "experiment": "DIFF-01",
+                        "evidence": "sha256:abc123",
+                        "attribution": "head",
+                        "base_result": "PASS",
+                        "head_result": "FAIL",
+                        "unverified_reason": "",
+                        "next_action": "阻断合并",
+                        "severity": "MAJOR",
+                        "evidence_type": "differential_execution",
+                        "location": "UserController.java:42",
+                        "finding_id": "COURT-DIFF-01",
+                    }
+                ],
+                "total_rows": 1,
+                "passed": 0,
+                "failed": 1,
+                "unverified": 0,
+            },
+            "contracts": [{"id": "AUTH-01"}],
+            "confirmed_findings": [],
+            "errors": [],
+        },
+        "BLOCKED",
+    )
+    body = TestClient(app).get(
+        f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers()
+    ).json()
+    (row,) = body["rows"]
+    assert row["contract_id_str"] == "AUTH-01"
+    assert row["requirement_text"] == "reject unauthenticated access"
+    assert row["evidence_ref"] == "sha256:abc123"
+    assert row["result"] == "FAIL"
+    assert (row["base_result"], row["head_result"]) == ("PASS", "FAIL")
+    assert row["attribution"] == "head"
+    assert body["sources"]["mysql_summary_matrix_rows"] is True
+
+
+def test_matrix_unreadable_summary_degrades_without_faking_rows(
+    fakes: None,
+) -> None:
+    _seed_job()
+    FakeMySQLStore.contracts_rows = []
+    FakeMySQLStore.summary_read_fails = True
+    response = TestClient(app).get(
+        f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers()
+    )
+    body = response.json()
+    assert response.status_code == 200
+    assert body["rows"] == []
+    assert body["degraded"] is True
+    assert "验证摘要暂时无法读取" in (body["degraded_reason"] or "")
 
 
 @pytest.mark.parametrize("endpoint", ["matrix", "findings"])
