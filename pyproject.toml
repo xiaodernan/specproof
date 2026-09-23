@@ -119,6 +119,7 @@ asyncio_mode = "auto"
 addopts = "-v --tb=short"
 markers = [
     "integration: requires live infrastructure (MySQL/Redis/RabbitMQ/ES)",
+    "slow: measured-slow unit module (full agent-runtime / LLM-loop / benchmark simulation); CI still runs it, contributors may deselect",
     "slow_eval: full 100-case pipeline evaluation (multi-hour); nightly runs it as a dedicated job",
 ]
 

@@ -60,6 +60,36 @@ def pytest_configure(config):
     pytest.exit(msg, returncode=pytest.ExitCode.USAGE_ERROR)
 
 
+# Unit modules measured (via `pytest --durations`) to dominate wall-clock because
+# they simulate a full agent runtime / multi-step LLM loop / benchmark harness.
+# Auto-tagged `slow` so contributors can run a fast inner loop with
+# `-m 'not integration and not slow'`; CI does NOT deselect these, so the merge
+# gate keeps their coverage.
+SLOW_TEST_MODULES: frozenset[str] = frozenset({
+    "test_agent_runtime.py",
+    "test_bench_aider.py",
+    "test_bench_mutation.py",
+    "test_craft_accept.py",
+    "test_craft_llm.py",
+    "test_craft_loop.py",
+    "test_craft_loop_jobs.py",
+    "test_craft_loop_metrics.py",
+    "test_craft_memory.py",
+    "test_craft_stream.py",
+    "test_craft_tools.py",
+    "test_craft_verify.py",
+    "test_edit_anchor_and_verify_target.py",
+    "test_edit_test_guard.py",
+    "test_kind_threading.py",
+    "test_swebench_harness.py",
+    "test_swebench_llm.py",
+    "test_swebench_llm_fixes.py",
+    "test_swebench_v10_fixes.py",
+    "test_swebench_v11_fixes.py",
+    "test_verify_criterion_anchor.py",
+})
+
+
 def pytest_collection_modifyitems(config, items):
     """Auto-tag tests under tests/integration and tests/e2e as `integration`.
 
@@ -67,6 +97,14 @@ def pytest_collection_modifyitems(config, items):
     are slow and non-hermetic. Tagging by directory lets contributors and CI run
     a fast unit path with `pytest -m 'not integration'` without decorating every
     file by hand.
+
+    It also tags a measured set of slow UNIT modules (full agent-runtime /
+    LLM-loop / benchmark simulations) as `slow`, so contributors get a
+    sub-minute-to-few-minute inner loop via `-m 'not integration and not slow'`.
+    CI still runs them (its job does not deselect `slow`), so this never drops
+    coverage from the merge gate — it only reorders convenience. The module list
+    is derived from `pytest --durations` on this repo, not guessed; see the
+    test_slow_marker_tagging regression lock.
     """
     rootdir = str(Path(config.rootdir).resolve()).replace("\\", "/").rstrip("/")
     for item in items:
@@ -74,6 +112,8 @@ def pytest_collection_modifyitems(config, items):
         rel = fpath[len(rootdir) + 1:] if fpath.startswith(rootdir) else fpath
         if rel.startswith(("tests/integration/", "tests/e2e/")):
             item.add_marker(pytest.mark.integration)
+        elif Path(rel).name in SLOW_TEST_MODULES:
+            item.add_marker(pytest.mark.slow)
 
 
 @pytest.fixture

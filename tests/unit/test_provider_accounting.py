@@ -110,11 +110,14 @@ def test_cancelling_model_call_stops_pending_request():
         # Generous ceilings: the provider sleeps 60s and cancel() must abort it,
         # so a thread that survives these waits is a real failure — the ceilings
         # only absorb event-loop / thread scheduling latency on a loaded host.
+        # 30s rather than 10s because this runs inside a full unit suite where
+        # other suites may be competing for the same cores; the contract under
+        # test is "cancel() eventually unwinds the caller", not "within 10s".
         assert entered.wait(10)
         client.cancel()
-        thread.join(10)
-        assert not thread.is_alive()
-        assert finished.wait(10)
+        thread.join(30)
+        assert not thread.is_alive(), "cancel() did not stop the pending model call"
+        assert finished.wait(30)
         assert errors
     finally:
         client.close()

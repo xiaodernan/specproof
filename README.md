@@ -99,6 +99,10 @@ npm run build
 npm run test -- src/pages/NewVerification.test.tsx
 # Python 在项目根目录运行受影响的测试
 .venv/Scripts/python -m pytest tests/unit/test_product_setup.py
+# 改动后的快速内循环（排除 21 个实测重负载模块，本机约 3 分钟；全量 unit 约 16 分钟）
+.venv/Scripts/python -m pytest tests/unit -m "not integration and not slow" -q
 ```
+
+快速内循环只是**开发便利**，不是新的验收标准：CI 的合并门仍裸跑 `pytest tests/unit tests/security tests/fault`，被标 `slow` 的 275 例覆盖不会被排除。
 
 完整环境要求见 [本地体验](docs/operations/LOCAL_EXPERIENCE.md)，架构见 [架构说明](docs/architecture/ARCHITECTURE.md)。

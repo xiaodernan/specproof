@@ -100,6 +100,16 @@ async def test_slow_dashboard_does_not_block_other_http_requests(monkeypatch):
 
 
 async def test_health_times_out_and_closes_clients_when_probes_finish(monkeypatch):
+    """A probe that never returns must be reported as timed out, and its client
+    still closed once it unwinds.
+
+    The slow probe blocks on an event the test only releases *after* the
+    assertions, so it exceeds any finite budget — which means the patched
+    timeout is free to carry real headroom for the instantly-ready probes.
+    (It used to be 0.02s, so a busy host could push a *ready* dependency past
+    the budget and fail `"redis"]["ok"] is True`: a 20ms budget proves nothing
+    about the product and turns the suite red on load alone.)
+    """
     release = threading.Event()
     closed = threading.Event()
 
@@ -109,13 +119,13 @@ async def test_health_times_out_and_closes_clients_when_probes_finish(monkeypatc
 
     class Slow:
         def is_ready(self):
-            release.wait(1)
+            release.wait(30)
             return True
 
         def close(self):
             closed.set()
 
-    monkeypatch.setattr(web_module, "_HEALTH_PROBE_TIMEOUT_SECONDS", 0.02)
+    monkeypatch.setattr(web_module, "_HEALTH_PROBE_TIMEOUT_SECONDS", 2.0)
     monkeypatch.setattr(web_module, "MySQLStore", Slow)
     monkeypatch.setattr(web_module, "RedisStore", Ready)
     monkeypatch.setattr("storage.mongodb.MongoDBStore", Ready)

@@ -82,7 +82,9 @@
     - 剩余（诚实标注）：预检结果尚未出现在 **HTML 报告**与 CLI 输出中（目前只在任务详情的 summary 通道）；`agent/preflight.py` 的 JDK 版本门限仍是 21（演示仓库要求），未来目标仓库 JDK 版本从构建配置读取后应改为动态判定。
 - [x] **1.7 Python 版本门槛显性化（实测新增，已完成并验证）**：在默认 `python` 为 **3.11.1** 时，`tests/unit` 多个模块（含 `agent/job_control.py`、`experiments/minimize.py` 等使用 **PEP 695 泛型语法**的源文件）在收集期抛 `SyntaxError: expected '('`，既不指向"版本不对"也不列受影响模块，对新人极具劝退性。修复：`tests/conftest.py` 新增 `pytest_configure` 版本门禁——低于 3.12 时用 `ast.parse` 扫描源码树、统计真正需要新语法模块数，并以**一条可操作的 `pytest.exit`（USAGE_ERROR/exit 4）**取代成堆语法错误；≥3.12 短路、零影响。已验证：3.11 下 `test_minimize.py` 从"13 例 SyntaxError 墙"变为单行提示（点名 `agent\job_control.py, experiments\minimize.py` + `py -3.12 -m pytest` 指引）；ruff 全绿（mypy 的 `tests/` 已被 `pyproject` 排除，非门禁）。
 - [x] **1.5 单测提速（第一步）**：按目录自动为 `tests/integration`、`tests/e2e` 打 `integration` 标记，`pytest -m 'not integration'` 可从 2754 例降到 2662 例（92 个慢测试排除）。（已完成并验证：ruff 全绿、收集正确分区）
-  - **实测发现（下一步）**：`tests/unit` 内仍含 bench 等重负载用例，"not integration" 路径目前仍 >5 分钟。需在 unit 内引入 `slow` 标记并默认排除，才算真正达到"60s 内反馈"。
+- [x] **1.5 单测提速（第二步，已完成并实测）**：在 unit 内引入 `slow` 标记，把 21 个由 `pytest --durations` 实测出来的重负载模块（完整 agent 运行时 / 多步 LLM 循环 / benchmark 模拟）自动打标，贡献者可用 `-m 'not integration and not slow'` 走快速内循环。
+  - **设计纠正（诚实）**：本项原写"并**默认排除**"，实做时改为**不默认排除、只供按需选择**。原因：CI 的合并门是 `python -m pytest tests/unit tests/security tests/fault -q`（**裸跑、无 `-m` 过滤**）。若在 `addopts` 里塞进 deselect，会让这 275 例覆盖从合并门**静默消失**——为了"体验更快"而牺牲"门是真的"，不可接受。故快速路径是**贡献者显式 opt-in**，CI 覆盖不变。
+  - 度量与前后对比见 §6.6。
 - [~] **1.6 网页版 Verify 的后端解耦**：实测发现 `POST /jobs` 在 `api/routes/jobs.py` 里**硬编码 `MySQLStore`（Outbox）+ `RedisStore`（SSE）**，与 Craft 侧可插拔的 `AgentJobStore`（InMemory/SQLite/MySQL）不一致——这正是"轻量模式无法跑网页版差分验收"的根因。
   - 本轮已落地（可验证）：把该路径的 503 从"直吐原始异常"改为**可操作的行动指引**（提示需要 MySQL/Redis，或改用 CLI `specproof verify`），异常细节仅进日志；前端 `NewVerification` 将 503/`PROVIDER_UNAVAILABLE` 翻译成中文行动提示，不再把英文堆栈抛给用户。已验证：`tests/unit/test_api_jobs.py` 19 passed（含 `NOT accepted` 断言不破）、`NewVerification.test.tsx` 4 passed、`api/routes/jobs.py` ruff+mypy 全绿。
   - 待办（属较大重构，需评估范围后再动）：为 Verify 作业引入可插拔存储 + 进程内执行器/进度通道，使零 Docker 也能跑网页版验收，与 Craft 对齐。
@@ -127,7 +129,8 @@
 
 ## 3. 执行节奏与验收标准
 
-- **每个 PR**：前端 `tsc + vitest` 全绿；后端 `pytest -m 'not integration'` 全绿；`ruff` + `mypy` 通过。
+- **每个 PR**：前端 `tsc + vitest` 全绿；后端 **全量** unit 全绿（CI 合并门裸跑 `pytest tests/unit tests/security tests/fault`，含 `slow` 标记的 275 例）；`ruff` + `mypy` 通过。
+  - **开发内循环 ≠ 验收门**：本地迭代可先跑 `pytest tests/unit -m "not integration and not slow"`（实测约 3 分钟，vs 全量约 16 分钟），但**推送前必须补跑全量**——快速路径是便利，不是标准。
 - **每个 Phase 结束**：更新本文件勾选状态 + 在 `docs/operations/` 留实测记录（命令、输出、结论），杜绝"声称完成但无证据"。
 - **优先级原则**：先降低上手摩擦（Phase 1），再扩验证能力（Phase 2），体验与可信度并行。
 
@@ -290,10 +293,11 @@
 
 ### 6.3 下一步（本轮新增候选）
 
-1. **Phase 1.5 第二步（高价值、完全可离线度量）**：给 `tests/unit` 引入 `slow` 标记并默认排除——§5.4 已实测 `-m 'not integration'` 跑 7 分钟未完，违背 Phase 1 定的"60s 反馈"，是贡献者体验硬伤。改完前后各测一次墙钟时间即为证据。
-2. **Recall/Precision 可执行量化门**（任务 #51）：为评测集落地带下限、带非零守卫的可跑门，诚实透出到 Eval 页。
-3. **默认关闭的本地测试执行差分门**（任务 #50，红线合规路径 ii）：`SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1` + UI 诚实标注"本机执行·无沙箱"，先用假 adapter 离线测 verdict/digest/解析，真实接线前不得在无沙箱宿主跑任意仓库测试。
-4. **同类"潜伏缺陷"扫查**：本轮暴露了一种失败模式——**假件自带真实实现没有的方法 ⇒ 单测绿、生产红、静态门红**。值得专门排查其余 `ops/`、报告/删除类路径里对存储客户端的调用是否都有真实实现兜底。
+1. ~~**Phase 1.5 第二步**~~ ✅ 已落地（见 §6.6）：`slow` 标记已引入并实测提速。**但"默认排除"这一条被实测否决**——CI 合并门裸跑 `tests/unit`，默认排除会让 275 例覆盖静默消失；最终形态是**贡献者 opt-in 快速路径**。
+2. ~~**Recall/Precision 可执行量化门**（任务 #51）~~ ✅ 已落地（见 §6.4）。
+3. ~~**默认关闭的本地测试执行差分门**（任务 #50，红线合规路径 ii）~~ ✅ 已落地（见 §6.5）。
+4. **同类"潜伏缺陷"扫查**：本轮暴露了一种失败模式——**假件自带真实实现没有的方法 ⇒ 单测绿、生产红、静态门红**。值得专门排查其余 `ops/`、报告/删除类路径里对存储客户端的调用是否都有真实实现兜底。（注：`mypy .` 现已全仓库绿，这一扫查的边际价值已大幅下降。）
+5. **多语言差分的真正沙箱（路径 i）**：仍需提供 Node/Python 容器镜像，才能让 #50 的门从"运维知情同意的宿主执行"变成默认安全能力。
 
 ### 6.4 Recall/Precision 可执行量化验收门（任务 #51，本轮落地）
 
@@ -311,3 +315,21 @@
 - **诚实透出**：自测差分结果带 `evidence_type=self_test_diff` 与 `execution_surface`（local adapter ⇒ `local_host_no_sandbox`），detail 前缀"⚠ 本机执行·无沙箱"；任何一侧适配器缺失/崩溃/零测试汇总都判 `NON_REPRODUCIBLE`，**绝不当作通过**。前端 `toneMap.ts::EVIDENCE_CN` 给 `self_test_diff` 加了诚实中文标签"仓库自带测试差分（本机执行·无沙箱）"（保留原始 token），FindingDetail/JobDetail 的证据方式列据此诚实标注。
 - **门证**：`test_differential_language_honesty.py` 新增 4 例（默认关⇒`registry.get_calls==0` 且不执行；开⇒base green/head fail⇒REGRESSION+本机无沙箱标签；开⇒空汇总⇒NON_REPRODUCIBLE 非 pass；开⇒无适配器⇒诚实降级）；连同 #34 的 `test_self_test_diff.py` 纯函数 23 例，共 **30 passed**。既有非 Java 诚实降级 3 例不回归。`ruff check .` 干净、`mypy .` 全绿（210 文件）；前端 `tsc` 干净、`toneMap`+`FindingDetail`+`JobDetail` **36 passed**。
 - **仍未做（诚实边界）**：本轮是**路径 (ii) 默认关开关**，不是真正的 Node/Python **沙箱**（路径 i）。要默认安全地跑多语言差分，仍需 roadmap ④ 的 Node/Python 容器镜像；在那之前开启此门仍属"运维知情同意的宿主执行"。
+
+### 6.6 单测快速内循环落地 + 两处计时假红根治（任务 #53，本轮落地）
+
+- **要消灭的真实缺陷**：Phase 1 定的"60s 内反馈"一直是纸面——§5.4 实测 `pytest tests/unit -m 'not integration'` 跑 7 分钟未完。"改一行等 16 分钟"是贡献者体验的头号硬伤，也是"不好用"的一部分。
+- **不猜、先量**：用 `pytest --durations=0` 真跑一次全量 unit（**970.06s / 2581 passed**，另有 1008s、1136s 两次历史样本），按模块聚合后得到一条清晰结论：慢不是均匀分布的，而是**一簇约 700s 的"完整 agent 运行时 / 多步 LLM 循环 / benchmark 模拟"模块**（头部：`test_craft_loop_metrics.py` 83.1s、`test_craft_loop_jobs.py` 69.9s、`test_agent_runtime.py` 65.0s）。顺带纠正了一个臆测：**名字里带 bench/offline/mock 的模块大多其实很快**，不能凭名字打标。最终 `SLOW_TEST_MODULES` 取 **21 个实测模块**（`tests/conftest.py`，按文件名自动打标，无需逐个装饰）。
+- **设计纠正（拒绝"默认排除"）**：原计划写"引入 `slow` 标记并**默认排除**"。实做时**否决**了这条——CI 合并门是 `.github/workflows/ci.yml:71` 的裸跑 `python -m pytest tests/unit tests/security tests/fault -q`（无 `-m` 过滤）。若把 deselect 塞进 `addopts`，那 **275 例覆盖会从合并门静默消失**：用"更快"换掉"门是真的"，不可接受。故最终形态是**贡献者显式 opt-in 的快速路径**，CI 一字未改。
+- **实测前后对比（同机、同样有并发负载）**：
+  | 路径 | 命令 | 结果 |
+  | --- | --- | --- |
+  | 全量 unit（改前） | `pytest tests/unit` | 2581 passed · **970.06s (16:10)** |
+  | 快速内循环（改后） | `pytest tests/unit -m "not integration and not slow"` | 2308 passed, 1 skipped, 277 deselected · **176.78s (2:56)** |
+  | 同路径另两次采样 | 同上 | 239.73s / 202.99s |
+  即约 **4–5.5 倍**提速，**绝不是**当初承诺的"60s 内"。诚实记录：**Phase 1 的"60s 反馈"目标未达成**，本轮达成的是"3–4 分钟可用内循环"；要进一步到 60s 需要并行化，而本机未装 `pytest-xdist`，且这些模块大量使用线程/临时端口/临时文件，**盲目 -n auto 会把真红变成假绿**——故未做，留作待评估项。
+- **顺手根治两处计时假红（这是本轮真正的产品价值）**：快速路径改完头两次各带 **1 个 failed**，且**每次是不同的测试**（一次 `test_dashboard_performance`、一次 `test_provider_accounting`），单独跑均绿——这是负载争用的签名，不是回归。但"快速内循环默认红"比"慢"更毒：它会训练贡献者忽略红灯。根因两处：
+  - `test_health_times_out_and_closes_clients_when_probes_finish` 把探针预算 `monkeypatch` 成 **0.02s** 只为省时间——于是忙机上**连"立即就绪"的 mock 都会超预算**，打破 `checks["redis"]["ok"] is True`。修法：慢探针改为阻塞在"断言之后才 release"的事件上 ⇒ 它超过**任何**有限预算，从而允许把 patched 预算放宽到 2.0s；契约（"永不返回的探针被判超时 + 客户端仍被 close"）一字未松，只是不再拿 20ms 去赌调度。
+  - `test_cancelling_model_call_stops_pending_request` 的 `thread.join(10)`/`finished.wait(10)` 在全套件争抢 CPU 时会不够。修法：上限 10s→30s，并把"被测契约是 cancel() 最终能解开调用线程，不是 10 秒内"写进注释；断言补了失败消息。**没有**改成"跳过"或删断言。
+- **回归锁**：新增 `tests/unit/test_slow_marker_tagging.py`（2 例，**离线、只 `--collect-only`**）——已知慢模块必须真带上 `slow`、已知快模块（`test_baseline.py`）必须**不**带上（否则打标是扫射，快速路径就在说谎）、且用 `--strict-markers` 证明标记已注册。**过程中踩到一个真实陷阱**：仓库 `addopts = "-v --tb=short"` 会抵消命令行的 `-q`，使 `--collect-only` 输出树而非 node id；探针须 `-o addopts=` 清空才能读到选定集，同时容忍 exit 5（零选定是快模块的**预期**结果）。
+- **门证**：`ruff check` 干净；快速路径 **2308 passed / 1 skipped / 176.78s**；受影响模块单独复跑 17 passed。CI 的 `ci.yml` 与慢标记的关系不变（裸跑⇒慢例照进合并门）。`README.md` §开发与运维 补了快速命令，并明确写"它只是开发便利，不是新的验收标准"。
