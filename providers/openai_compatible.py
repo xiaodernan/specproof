@@ -398,7 +398,7 @@ class OpenAICompatibleProvider(ModelProvider):
         kind: str | None = None,
     ) -> LLMResponse:
         if self.protocol == "responses":
-            kwargs = request_kwargs(
+            kwargs: dict[str, Any] = request_kwargs(
                 self.model, messages, effort=self.reasoning_effort, tools=tools,
                 tool_choice=tool_choice, response_format=response_format, opts=opts,
                 timeout=timeout,
@@ -412,7 +412,7 @@ class OpenAICompatibleProvider(ModelProvider):
         caps = probe.capabilities
 
         oai_messages = self._to_openai_messages(messages)
-        kwargs: dict[str, Any] = {
+        kwargs = {
             "model": self.model,
             "messages": oai_messages,
             "timeout": timeout,

@@ -68,7 +68,10 @@ async def test_slow_dashboard_does_not_block_other_http_requests(monkeypatch):
     class SlowStore:
         def dashboard_snapshot(self, since):
             entered.set()
-            release.wait(1)
+            # Block until explicitly released (not a fixed 1s) so the
+            # `not dashboard.done()` assertions below can't race the store
+            # completing on a slow/loaded host.
+            release.wait(30)
             return {"statuses": [], "timeline": [], "recent_jobs": []}
 
     from api.auth import enforce_rate_limit
@@ -84,7 +87,7 @@ async def test_slow_dashboard_does_not_block_other_http_requests(monkeypatch):
                 "/api/v1/dashboard", headers={"X-API-Key": "performance-test-key"},
             ))
             try:
-                assert await asyncio.to_thread(entered.wait, 1)
+                assert await asyncio.to_thread(entered.wait, 10)
                 assert not dashboard.done()
                 metrics = await client.get("/metrics")
                 assert metrics.status_code == 200
@@ -127,4 +130,4 @@ async def test_health_times_out_and_closes_clients_when_probes_finish(monkeypatc
         assert result["degraded"] is True
     finally:
         release.set()
-        assert await asyncio.to_thread(closed.wait, 1)
+        assert await asyncio.to_thread(closed.wait, 10)

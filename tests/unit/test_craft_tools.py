@@ -275,6 +275,14 @@ def test_git_status_and_diff_on_real_repo(tmp_path: Path) -> None:
     from git import Actor, Repo
 
     repo = Repo.init(str(tmp_path))
+    # Neutralize any developer/machine-global core.hooksPath: `index.commit`
+    # runs git's pre-commit hook, and a stray global hook would fail the test
+    # for reasons unrelated to the code under test (fresh-clone robustness).
+    disabled_hooks = tmp_path / ".hooks-disabled"
+    disabled_hooks.mkdir()
+    cfg = repo.config_writer(config_level="repository")
+    cfg.set_value("core", "hooksPath", str(disabled_hooks))
+    cfg.release()
     (tmp_path / "tracked.txt").write_text("v1\n", encoding="utf-8")
     repo.index.add(["tracked.txt"])
     repo.index.commit("init", author=Actor("t", "t@x"), committer=Actor("t", "t@x"))

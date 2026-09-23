@@ -24,6 +24,10 @@ class Phase0State(MessagesState):
     app_dir: str  # subdirectory inside the repo that holds pom.xml ("" = repo root)
 
     # ── Intermediate ──
+    # Phase 1.4: environment preflight (toolchain probes). Channel, not a
+    # transient: the report and the web UI read it to explain why a job
+    # aborted before any evidence could be produced.
+    preflight: dict[str, Any]
     requirement_text: str
     contracts: list[dict[str, Any]]
     # §14.1: full audit of the compile_contracts run — parser rule version,
@@ -107,6 +111,7 @@ def initial_state(
         "job_id": "",
         "use_llm": True,
         "app_dir": "",
+        "preflight": {},
         "requirement_text": "",
         "contracts": [],
         "compile_report": {},

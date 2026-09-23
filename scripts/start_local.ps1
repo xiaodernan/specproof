@@ -215,6 +215,10 @@ Write-Step "检查并更新数据库结构"
 if ($LASTEXITCODE -ne 0) { throw "数据库结构更新失败，请检查 MySQL 配置。" }
 
 # ── 验证管道 (W43.1): worker -> outbox, 在 API 之前启动 ──
+# 降级登记簿：worker / outbox 启动失败时不再静默——过去脚本照样打印
+# "全部就绪"，用户新建任务后永远停在 QUEUED 却没有任何提示。
+$degradedServices = @()
+
 Write-Step "启动验证管道 (Worker + Outbox Relay — 新建验证任务从 QUEUED 走到终态)"
 $workerPidFile = Join-Path $LocalDir "worker.pid"
 $needWorkerStart = $false
@@ -255,11 +259,21 @@ if ($needWorkerStart) {
         if (Test-PortListening 9100) {
             Write-Ok "Worker 就绪 (metrics 端口 9100)"
         } else {
-            Write-WarnMsg "Worker 在 60 秒内未监听 9100 — 详情见 .local\worker.log (不阻断启动)"
+            Write-WarnMsg "Worker 在 60 秒内未监听 9100 — 详情见 .local\worker.log"
+            $degradedServices += [pscustomobject]@{
+                Name  = "验证 Worker"
+                Why   = "启动后 60 秒内未监听端口 9100"
+                Fix   = "查看 .local\worker.log 定位原因后重试: pwsh scripts\start_local.ps1 -Restart"
+            }
         }
     } catch {
-        Write-WarnMsg "Worker 启动失败 — 不阻断启动 (新建验证任务会停在 QUEUED), 原因: $($_.Exception.Message)"
+        Write-WarnMsg "Worker 启动失败: $($_.Exception.Message)"
         Add-Content -Path (Join-Path $LocalDir "worker.err") -Value "[start_local] worker start failed: $($_.Exception.Message)"
+        $degradedServices += [pscustomobject]@{
+            Name  = "验证 Worker"
+            Why   = "进程启动异常: $($_.Exception.Message)"
+            Fix   = "查看 .local\worker.err 与 .local\worker.log，修复后重试: pwsh scripts\start_local.ps1 -Restart"
+        }
     }
 }
 $outboxPidFile = Join-Path $LocalDir "outbox.pid"
@@ -281,9 +295,26 @@ if ($needOutboxStart) {
             -Arguments @("-m", "storage.outbox_relay") `
             -WorkDir $RepoRoot
         Write-Info "Outbox Relay 启动中 (日志: .local\outbox.log) ..."
+        # Outbox 没有 metrics 端口可探测，改为确认进程确实存活。
+        Start-Sleep -Seconds 3
+        if (Test-TrackedProcess $outboxPidFile) {
+            Write-Ok "Outbox Relay 已启动"
+        } else {
+            Write-WarnMsg "Outbox Relay 启动后进程已退出 — 详情见 .local\outbox.err"
+            $degradedServices += [pscustomobject]@{
+                Name  = "Outbox Relay"
+                Why   = "进程启动后立刻退出（常见于 RabbitMQ / MySQL 未就绪）"
+                Fix   = "确认 compose 容器健康后重试: pwsh scripts\start_local.ps1 -Restart；日志见 .local\outbox.err"
+            }
+        }
     } catch {
-        Write-WarnMsg "Outbox Relay 启动失败 — 不阻断启动 (新建验证任务会停在 QUEUED), 原因: $($_.Exception.Message)"
+        Write-WarnMsg "Outbox Relay 启动失败: $($_.Exception.Message)"
         Add-Content -Path (Join-Path $LocalDir "outbox.err") -Value "[start_local] outbox relay start failed: $($_.Exception.Message)"
+        $degradedServices += [pscustomobject]@{
+            Name  = "Outbox Relay"
+            Why   = "进程启动异常: $($_.Exception.Message)"
+            Fix   = "查看 .local\outbox.err，确认 RabbitMQ/MySQL 就绪后重试: pwsh scripts\start_local.ps1 -Restart"
+        }
     }
 }
 
@@ -341,6 +372,24 @@ if ($LASTEXITCODE -ne 0) {
     Write-WarnMsg "seed 脚本退出码 $LASTEXITCODE — 继续启动前端 (请查看上方输出)"
 }
 
+# ── 演示仓库 git 版本 (幂等) ──
+# 让网页「变更验收 → 新建验证 → 填入演示案例 → 开始验证」开箱可用:
+# API 进程工作目录为仓库根, 故相对路径 demo/spring-backend 可解析, 只需
+# base / head-v1 两个引用就位。prepare_demo_repo 已存在引用时直接跳过, 不改
+# 工作区内容; git 缺失或准备失败仅告警, 不阻断启动 (用户仍可手动 specproof demo)。
+Write-Step "准备演示仓库 git 版本 (base / head-v1, 幂等)"
+if (Test-Command "git") {
+    try {
+        & $pythonPath -c "from cli.specproof.commands.demo import prepare_demo_repo; print('created' if prepare_demo_repo() else 'exists')"
+        if ($LASTEXITCODE -ne 0) { throw "prepare_demo_repo 退出码 $LASTEXITCODE" }
+        Write-Ok "演示仓库 git 版本就绪 (base / head-v1)"
+    } catch {
+        Write-WarnMsg "演示仓库准备失败 — 网页差分演示可能报版本引用错误; 可稍后手动运行 specproof demo。原因: $($_.Exception.Message)"
+    }
+} else {
+    Write-WarnMsg "未检测到 git — 跳过演示仓库准备 (命令行体验请先安装 Git 并运行 specproof demo)"
+}
+
 # ── 前端 ──
 Write-Step "启动前端 (Vite dev server -> $WebUrl)"
 if (-not (Test-Path (Join-Path $WebDir "node_modules"))) {
@@ -375,6 +424,20 @@ if (Test-TrackedProcess $webPidFile) {
 }
 
 # ── 总结 ──
+if ($degradedServices.Count -gt 0) {
+    Write-Step "启动完成，但验证管道不可用"
+    Write-Host ""
+    Write-Host "  以下服务未就绪，新建的验证任务会一直停在【排队中】，不会产出结论：" -ForegroundColor Red
+    foreach ($svc in $degradedServices) {
+        Write-Host "    · $($svc.Name)：$($svc.Why)" -ForegroundColor Yellow
+        Write-Host "      处理：$($svc.Fix)" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    Write-Host "  网页仍可浏览演示数据与开发助手；需要跑真实验证请先修复上面的服务。" -ForegroundColor Red
+    Write-Host ""
+    exit 1
+}
+
 Write-Step "全部就绪"
 Write-Host ""
 if ($LlmConfigured) {

@@ -132,7 +132,7 @@ def _findings_from_table(
     except Exception as exc:  # noqa: BLE001 - table may be absent/unreachable
         logger.warning("findings table read failed for %s: %s", job_id, exc)
         if errors is not None:
-            errors.append("Findings could not be loaded. Retry when the database is available.")
+            errors.append("风险数据暂时无法读取，请在数据库恢复后刷新重试。")
         return []
 
 
@@ -369,7 +369,7 @@ def _contracts_from_table(
     except Exception as exc:  # noqa: BLE001 - table may be absent/unreachable
         logger.warning("contracts table read failed for %s: %s", job_id, exc)
         if errors is not None:
-            errors.append("Acceptance checks could not be loaded. Retry when MySQL is available.")
+            errors.append("验收检查项暂时无法读取，请在 MySQL 恢复后刷新重试。")
         return []
 
 
@@ -389,7 +389,7 @@ def job_matrix(job_id: str) -> dict[str, Any]:
         summary = store.get_job_summary(job_id) or {}
     except Exception as exc:  # noqa: BLE001
         logger.warning("summary read failed for %s: %s", job_id, exc)
-        errors.append("The verification summary could not be loaded.")
+        errors.append("验证摘要暂时无法读取，请稍后刷新重试。")
         summary = {}
     return {
         "job_id": job_id,
@@ -429,7 +429,7 @@ def job_findings(job_id: str) -> dict[str, Any]:
         summary = store.get_job_summary(job_id) or {}
     except Exception as exc:  # noqa: BLE001
         logger.warning("summary read failed for %s: %s", job_id, exc)
-        errors.append("The verification summary could not be loaded.")
+        errors.append("验证摘要暂时无法读取，请稍后刷新重试。")
         summary = {}
 
     table_rows = _findings_from_table(store, job_id, errors)

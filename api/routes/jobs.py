@@ -122,7 +122,12 @@ def create_job(payload: JobCreateRequest) -> dict[str, Any]:
         raise ApiError(
             status_code=503,
             code=PROVIDER_UNAVAILABLE,
-            detail=f"Job NOT accepted — persistence failed: {exc}",
+            detail=(
+                "Job NOT accepted — the verification job store is "
+                "unavailable. Web Verify needs MySQL/Redis backing "
+                "services; in zero-Docker light mode run the CLI "
+                "(`specproof verify`) instead, or start the services."
+            ),
         ) from exc
     return {"job_id": job_id, "status": "QUEUED"}
 

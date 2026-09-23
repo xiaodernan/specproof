@@ -235,9 +235,39 @@ def test_health_endpoint_open_and_ok(monkeypatch):
         def is_ready(self):
             return True
 
-    # api.server.health() imports RedisStore at call time from storage.redis
+    class FakeMySQL:
+        def is_ready(self):
+            return True
+
+    # api.server.health() imports the stores at call time.
     monkeypatch.setattr("storage.redis.RedisStore", FakeRedis)
+    monkeypatch.setattr("storage.mysql.MySQLStore", FakeMySQL)
+    monkeypatch.setenv("SPECPROOF_AGENT_JOBS_URL", "sqlite:.local/light-jobs.sqlite3")
     client = TestClient(app)
     resp = client.get("/health")  # no key needed for liveness
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+
+
+def test_health_reports_degraded_when_mysql_is_down(monkeypatch):
+    """A job-store outage must not be reported as a healthy stack."""
+
+    class DeadRedis:
+        def is_ready(self):
+            return False
+
+    class DeadMySQL:
+        def is_ready(self):
+            return False
+
+    monkeypatch.setattr("storage.redis.RedisStore", DeadRedis)
+    monkeypatch.setattr("storage.mysql.MySQLStore", DeadMySQL)
+    monkeypatch.setenv("SPECPROOF_AGENT_JOBS_URL", "sqlite:.local/light-jobs.sqlite3")
+    client = TestClient(app)
+    resp = client.get("/health")
+    # Still 200: readiness pollers must keep working while a dependency is down.
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "degraded"
+    assert body["mysql"] is False
+    assert body["redis"] is False

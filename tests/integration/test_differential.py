@@ -17,6 +17,33 @@ CONTROLLER_PATH = (
 REQUIREMENT_FILE = REPO_ROOT / "demo" / "requirement.txt"
 
 
+def _demo_tags_present() -> bool:
+    """True when the demo repo's base/head-v1 git tags exist in this checkout.
+
+    A fresh clone does not carry these tags; they are created by
+    ``scripts/prepare_demo_repo.ps1``. Differential tests that read real git
+    revisions must not fail (or pass vacuously) without them.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "tag", "-l", "base", "head-v1"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    listed = {line.strip() for line in result.stdout.splitlines()}
+    return {"base", "head-v1"} <= listed
+
+
+requires_demo_repo = pytest.mark.skipif(
+    not _demo_tags_present(),
+    reason=(
+        "Demo git tags (base, head-v1) are absent. "
+        "Run `specproof demo` (or scripts/prepare_demo_repo.ps1) to create "
+        "them, then re-run."
+    ),
+)
+
+
 def _specproof(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "cli.specproof.main"] + args,
@@ -102,6 +129,7 @@ class TestDifferentialVerification:
         assert "eval" in result.stdout.lower()
 
 
+@requires_demo_repo
 class TestStaticAnalysisDetection:
     """Verify static analysis detects known regressions."""
 
@@ -168,6 +196,7 @@ class TestAgentNodeContracts:
         contract_types = {c["checker_type"] for c in contracts}
         assert "http" in contract_types  # auth → http check
 
+    @requires_demo_repo
     def test_collect_diff_finds_annotation_removal(self):
         """collect_diff should find @PreAuthorize removal."""
         from agent.nodes.collect_diff import collect_diff_node
@@ -190,6 +219,7 @@ class TestAgentNodeContracts:
             f"Expected @PreAuthorize removal, got: {symbols}"
         )
 
+    @requires_demo_repo
     def test_contract_checkers_detect_auth_bypass(self):
         """Contract checkers detect annotation removal on real sources."""
         base = subprocess.run(
@@ -285,6 +315,7 @@ class TestAgentNodeContracts:
         assert tests_path == ""
 
 
+@requires_demo_repo
 class TestFullVerifyPipeline:
     """Run the complete graph pipeline end-to-end."""
 

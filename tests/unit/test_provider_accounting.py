@@ -107,11 +107,14 @@ def test_cancelling_model_call_stops_pending_request():
     thread = threading.Thread(target=invoke)
     thread.start()
     try:
-        assert entered.wait(2)
+        # Generous ceilings: the provider sleeps 60s and cancel() must abort it,
+        # so a thread that survives these waits is a real failure — the ceilings
+        # only absorb event-loop / thread scheduling latency on a loaded host.
+        assert entered.wait(10)
         client.cancel()
-        thread.join(2)
+        thread.join(10)
         assert not thread.is_alive()
-        assert finished.wait(2)
+        assert finished.wait(10)
         assert errors
     finally:
         client.close()

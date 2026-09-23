@@ -2,7 +2,8 @@
 """LangGraph verification graph for SpecProof Phase 0 / Phase 1.
 
 Pipeline:
-  intake → compile_contracts → prepare_base → prepare_head
+  intake → preflight → guard_preflight (conditional) → compile_contracts
+  → prepare_base → prepare_head
   → guard_errors (conditional) → collect_diff
   → retrieve_repository_context → run_static_checks
   → generate_counterexamples → run_differential → review_court
@@ -25,6 +26,7 @@ from agent.nodes.compile_contracts import compile_contracts_node
 from agent.nodes.create_capsule import create_capsule_node
 from agent.nodes.generate_counterexamples import generate_counterexamples_node
 from agent.nodes.intake import intake_node
+from agent.nodes.preflight import preflight_node
 from agent.nodes.prepare_base import prepare_base_node
 from agent.nodes.prepare_head import prepare_head_node
 from agent.nodes.publish_report import publish_report_node
@@ -46,6 +48,17 @@ def _abort_on_errors(state: Phase0State) -> str:
     return "collect_diff"
 
 
+def _abort_on_preflight(state: Phase0State) -> str:
+    """Phase 1.4: a missing toolchain means no evidence can ever be produced.
+
+    Abort here rather than after prepare_base/prepare_head so the user gets
+    an actionable message in seconds instead of raw build stderr minutes later.
+    """
+    if state.get("errors"):
+        return "publish_report"
+    return "compile_contracts"
+
+
 def build_phase0_graph(checkpointer: Any = None) -> Any:
     """Build and compile the Phase 0 verification graph.
 
@@ -61,6 +74,7 @@ def build_phase0_graph(checkpointer: Any = None) -> Any:
 
     # ── Add nodes ──
     builder.add_node("intake", intake_node)
+    builder.add_node("preflight", preflight_node)
     builder.add_node("compile_contracts", compile_contracts_node)
     builder.add_node("prepare_base", prepare_base_node)
     builder.add_node("prepare_head", prepare_head_node)
@@ -78,7 +92,15 @@ def build_phase0_graph(checkpointer: Any = None) -> Any:
 
     # ── Add edges ──
     builder.set_entry_point("intake")
-    builder.add_edge("intake", "compile_contracts")
+    builder.add_edge("intake", "preflight")
+
+    # Environment guard: abort before any build when the toolchain is missing.
+    builder.add_conditional_edges(
+        "preflight",
+        _abort_on_preflight,
+        {"publish_report": "publish_report", "compile_contracts": "compile_contracts"},
+    )
+
     builder.add_edge("compile_contracts", "prepare_base")
     builder.add_edge("prepare_base", "prepare_head")
 

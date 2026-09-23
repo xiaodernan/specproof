@@ -23,7 +23,7 @@ SpecProof **不宣称支持任意项目**。管线对每个仓库先执行适配
 |---|---|---|---|---|---|---|---|
 | Java | Maven | JUnit 5 + Surefire | **已支持 (实测)** | maven:3.9-eclipse-temurin-21<br>sha256:c07f7ccfb8ca6c9fa29ee523f00afa7d2ca6132c92f8652c4aebb5ee3491f502 | Maven 3.9.9 (wrapper 3.3.2) / Eclipse Temurin JDK 21 | mvn -o + --network none, 依赖只从预置卷 specproof-maven-cache-1000 解析 (RUNBOOK §5, scripts/seed_sandbox_cache.ps1); local 回退走仓库 Maven wrapper + 宿主 ~/.m2 | 缓存卷未预置则离线失败 (fail-closed); local 回退需宿主 JDK 21; 确定性测试模板仅支持 demo 仓库 (com.specproof.demo); 输出按尾部 256000 字符截断; digest 为 2026-08-18 本机验证值, 预拉/seed 时须复核 |
 | Java | Gradle | JUnit 5 (Gradle Test) | 规划 (planned) | — | 待定 | 待定 (离线缓存策略随实现声明) | detect 抛 AdapterNotImplemented; 无执行器 |
-| JavaScript/TypeScript | npm | Jest | 规划 (planned) | — | 待定 | 待定 (离线缓存策略随实现声明) | detect 抛 AdapterNotImplemented; 无执行器 |
+| JavaScript/TypeScript | npm | jest \| vitest \| node:test | **已支持 (local-first)** | — (无容器, 宿主执行) | Node/npm (宿主, 随执行机声明) / npm test / jest \| vitest \| node:test | local-first: 执行项目自带 `npm test --silent`; 不使用网络, 适配器不安装依赖 (缺 node_modules 时非零退出, 如实上报) | local-first 无容器沙箱; 不装依赖 (workspace 需备好 node_modules, 否则如实失败); 仅支持 goal=run_test; 汇总解析支持 Jest/Vitest/node:test, 无法识别时计数 0 (判定以 exit_code 为准); detect 规则 package.json + scripts.test; 输出按尾部 256000 字符截断 |
 | Python | pip | pytest | **已支持 (local-first)** | — (无容器, 宿主执行) | CPython 3.12 (宿主, 随执行机声明) / venv + pip / pytest | 复用项目 .venv; 缺失时 `python -m venv .venv` (离线安全) + `pip install -r requirements.txt` (首次安装可能需网络, 失败如实抛 PythonEnvironmentError) | local-first 无容器沙箱; 首次装依赖可能需网络; 复用 .venv 时跳过安装; 仅支持 pytest (goal=run_test); exotic Python 项目 detect 抛 AdapterNotImplemented; 输出按尾部 256000 字符截断; SPECPROOF_KEEP_VENV 时保留 .venv, 否则 cleanup 移除 |
 | Go | go build | go test | 规划 (planned) | — | 待定 | 待定 (离线缓存策略随实现声明) | detect 抛 AdapterNotImplemented; 无执行器 |
 
@@ -64,8 +64,8 @@ class ExecutionAdapter(Protocol):
   逐参数一致, 既有差分行为为回归红线。
 - 新增语言: 实现 ExecutionAdapter 五方法 → 在 registry 注册顺序中声明 → 更新本表 →
   用真实项目实测后把状态从"规划"改为"已支持"。每季度重跑兼容矩阵 (指南 §13)。
-- Python 适配器已注册 (registry 顺序: Java/Maven → Java/Gradle 规划 → Node 规划 →
-  Python → Go 规划); experiments/minimize.py 提供 ddmin 反例最小化
+- Python / Node 适配器已注册 (registry 顺序: Java/Maven → Java/Gradle 规划 →
+  Node → Python → Go 规划); experiments/minimize.py 提供 ddmin 反例最小化
   (步骤列表/集合/子串三种 fixture 缩减 + 迭代日志 + 预算停止 +
   unchanged-result 证明, runner 由调用方注入)。
 

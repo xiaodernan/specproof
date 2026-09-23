@@ -38,6 +38,7 @@ from agent.nodes.build_cache import (
     save_base_build,
     seed_head_build,
 )
+from agent.preflight import LANGUAGE_JAVA, detect_language
 from agent.state import Phase0State
 
 # Java source for the post-mortem DB dump helper. It opens the file-based
@@ -158,10 +159,26 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
 
     test_class = _test_class_from_path(generated_tests_path)
     if not test_class:
-        empty_result["diff_results"][0]["detail"] = (
-            "No generated counterexample test available — nothing to run; "
-            "source-diff evidence recorded separately"
-        )
+        # Honest multi-language reporting (roadmap Phase 2): the counterexample
+        # generator currently emits Java/JUnit tests only, so for a non-Java
+        # repository the absence of a generated test is an unsupported-language
+        # situation, not a silent failure. State the real reason and point at
+        # the checks that DID run, instead of a vague "nothing to run".
+        language = detect_language(base_workspace, app_dir)
+        if language and language != LANGUAGE_JAVA:
+            empty_result["diff_results"][0]["detail"] = (
+                f"Executable base-vs-head differential is not available for a "
+                f"{language} project: the counterexample generator emits "
+                "Java/JUnit tests only. This change is covered by the source / "
+                "static checks above; the differential experiment is reported "
+                "UNVERIFIED rather than as a pass."
+            )
+            empty_result["diff_results"][0]["language"] = language
+        else:
+            empty_result["diff_results"][0]["detail"] = (
+                "No generated counterexample test available — nothing to run; "
+                "source-diff evidence recorded separately"
+            )
         # Do NOT touch contract_results: this experiment produced none.
         return {
             "diff_results": source_diff_results + empty_result["diff_results"],

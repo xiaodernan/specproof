@@ -400,6 +400,30 @@ def verify(
         )
     )
 
+    # Phase 1.4: probe the toolchain *before* the pipeline so a missing JDK /
+    # Node / Python is reported in seconds with an actionable message instead
+    # of surfacing minutes later as raw build stderr.
+    from agent.preflight import detect_language, format_preflight_report, run_preflight
+
+    repo_language = detect_language(str(repo_path), app_dir)
+    try:
+        preflight = run_preflight(
+            str(repo_path / app_dir) if app_dir else str(repo_path),
+            language=repo_language,
+        )
+        click.echo("\n" + format_preflight_report(preflight))
+        if not preflight.passed:
+            click.echo(
+                "\nEnvironment is not ready — aborting before any build. "
+                "Fix the errors above and run the command again.",
+                err=True,
+            )
+            raise SystemExit(1)
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 - preflight must not block a run
+        click.echo(f"[warn] Environment preflight could not run: {exc}", err=True)
+
     click.echo("\nRunning verification pipeline...")
     final_state: dict[str, Any] = {}
     try:

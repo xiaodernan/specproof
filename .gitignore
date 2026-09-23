@@ -62,3 +62,6 @@ golden-cases-c4/
 # Browser inspection artifacts
 apps/web/.playwright-cli/
 output/playwright/
+
+# Vite/vitest transient config-load artifacts
+apps/web/vitest.config.ts.timestamp-*.mjs

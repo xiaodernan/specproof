@@ -30,10 +30,19 @@ function Stop-Tracked([string]$PidFile, [string]$Label) {
 }
 
 Write-Host "==> 停止本地体验 (数据卷保留)" -ForegroundColor Cyan
+# 全栈模式 PID (start_local.ps1)
 Stop-Tracked (Join-Path $LocalDir "web.pid") "前端 Vite"
 Stop-Tracked (Join-Path $LocalDir "api.pid") "后端 FastAPI"
 Stop-Tracked (Join-Path $LocalDir "worker.pid") "验证 Worker"
 Stop-Tracked (Join-Path $LocalDir "outbox.pid") "Outbox Relay"
+# 轻量模式 PID (start_local_light.ps1) — 此前遗漏，导致轻量实例残留、
+# 端口被占，而脚本却提示"已停止"。
+Stop-Tracked (Join-Path $LocalDir "web-light.pid") "前端 Vite (轻量)"
+Stop-Tracked (Join-Path $LocalDir "api-light.pid") "后端 FastAPI (轻量)"
+# 兜底：扫描任何其它 *-light.pid，避免将来新增轻量进程再次漏掉。
+Get-ChildItem -Path $LocalDir -Filter "*-light.pid" -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notin @("web-light.pid", "api-light.pid") } |
+    ForEach-Object { Stop-Tracked $_.FullName "轻量进程 ($($_.BaseName))" }
 
 Write-Host "==> 停止基础设施容器" -ForegroundColor Cyan
 try {

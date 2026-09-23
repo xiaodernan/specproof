@@ -12,10 +12,23 @@ Spec 是需求，Proof 是验证需求的证据。它适合需要评审 AI 代�
 需要 Python 3.12+、Node.js 18+ 和 Docker Desktop。首次安装：
 
 ```powershell
+python --version            # 必须是 3.12+；Windows 上默认 python 常是旧版
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"
 pwsh scripts/start_local.ps1
 ```
+
+> 若 `python --version` 低于 3.12，改用 `py -3.12 -m venv .venv`（或 `uv venv --python 3.12`）重建虚拟环境。项目源码使用了仅 3.12+ 支持的语法，跑在旧解释器上测试套件会在启动时给出明确提示。
+
+### 想先快速体验，不想装 Docker？
+
+用轻量模式，本机只需 Python 3.12 和 Node 18+，约 30 秒进入工作台：
+
+```powershell
+pwsh scripts/start_local_light.ps1
+```
+
+它把作业库和对象元数据都落在 `.local/*.sqlite3`，完全不依赖 Docker。可体验工作台、上手指南、AI 开发助手、模型连接、历史与需求矩阵。需要 Java/Spring 差分验收任务（走 RabbitMQ + Worker）或多租户团队部署时，再用上面的全栈模式。
 
 打开 [本地工作台](http://localhost:5173)。登录凭据由启动脚本显示；本地脚本默认 `specproof-local-demo-key`。它只用于本机工作区访问，不是模型密钥。
 
@@ -66,7 +79,7 @@ AI 开发在当前目录执行，批准前不会修改代码。Base/Head 是独�
 - `UNVERIFIED`：某条需求缺少足够证据。
 - “演示”：预置示例，用于理解页面，不是当前仓库的真实验证结果。
 
-Verify 的现有检查能力主要围绕 Java/Spring 后端及仓库提供的检查器。任意语言、任意自然语言需求都能自动验收，仍不是当前承诺。不能编译为可执行检查的需求必须呈现覆盖不足。无构建配置时检查可以跳过，跳过不算通过。
+Verify 的**测试差分执行**覆盖 Java/Maven、Python/pytest 与 JavaScript/TypeScript（`npm test`，识别 Jest/Vitest/node:test）；**深度静态契约检查器**（如权限注解回归）目前仍主要围绕 Java/Spring 及仓库自带的检查器。任意语言、任意自然语言需求都能自动验收，仍不是当前承诺。不能编译为可执行检查的需求必须呈现覆盖不足。无构建配置时检查可以跳过，跳过不算通过。
 
 ## 本轮真实验证
 

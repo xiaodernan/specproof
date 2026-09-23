@@ -208,14 +208,58 @@ async def metrics() -> Any:
 
 
 @app.get("/health")
-def health() -> dict[str, str | bool]:
+def health() -> dict[str, Any]:
+    """Readiness probe — reports the stores that actually gate job execution.
+
+    This used to check Redis only, so a MySQL outage was reported as "ok":
+    the startup script declared the stack ready while every /jobs call
+    answered 503. Probes are fail-soft and never raise — /health must keep
+    answering 200 while a dependency is down, so readiness pollers still
+    work and the payload tells the truth instead.
+
+    `status` reflects the Verify path (MySQL + Redis). Light mode has no
+    MySQL, so it is honestly reported as degraded with per-component detail.
+    """
+    checks: dict[str, bool] = {}
+
+    def probe(name: str, factory: Any) -> None:
+        try:
+            checks[name] = bool(factory().is_ready())
+        except Exception:  # noqa: BLE001 - a failing probe *is* the answer
+            checks[name] = False
+
+    from storage.mysql import MySQLStore
     from storage.redis import RedisStore
-    r = RedisStore()
-    redis_ok = r.is_ready()
+
+    probe("mysql", MySQLStore)
+    probe("redis", RedisStore)
+    _probe_agent_jobs(checks)
+
+    core_ready = checks["mysql"] and checks["redis"]
     return {
-        "status": "ok" if redis_ok else "degraded",
-        "redis": redis_ok,
+        "status": "ok" if core_ready else "degraded",
+        "mysql": checks["mysql"],
+        "redis": checks["redis"],
+        "agent_jobs": checks["agent_jobs"],
     }
+
+
+def _probe_agent_jobs(checks: dict[str, bool]) -> None:
+    """Readiness of the AI-development (Craft) job store.
+
+    Light mode points it at a SQLite file, so MySQL being down must not
+    make the agent console look broken — the two paths are independent.
+    """
+    import os
+
+    url = os.environ.get("SPECPROOF_AGENT_JOBS_URL", "")
+    if url.startswith("sqlite:"):
+        path = url[len("sqlite:"):]
+        checks["agent_jobs"] = os.path.isfile(path) or os.path.isdir(
+            os.path.dirname(path) or "."
+        )
+        return
+    checks["agent_jobs"] = checks.get("mysql", False)
 
 
 # ── React SPA (apps/web/dist preferred; static dashboard as fallback) ──

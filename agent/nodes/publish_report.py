@@ -47,6 +47,9 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
         findings=confirmed_findings,
         errors=errors,
         generated_at=now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        # Phase 1.4: the report is archived evidence, so it must record the
+        # environment the verdict was produced in.
+        preflight=raw_state.get("preflight", {}),
     )
 
     out = Path(output_dir)

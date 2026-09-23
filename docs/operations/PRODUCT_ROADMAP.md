@@ -1,0 +1,296 @@
+# SpecProof 长期执行开发路线图
+
+> 目标：把 SpecProof 从"能演示的框架"打磨成"团队每天都愿意用的验收产品"。
+> 本文档基于对当前代码库的实测诊断，给出分阶段、可验证、可执行的开发计划。
+> 维护方式：每个阶段有明确的验收标准（Definition of Done）。完成即勾选，未完成不进入下一阶段的主线。
+
+---
+
+## 0. 现状诊断（实测证据）
+
+本节结论来自实际运行，不是主观印象。
+
+| 检查项 | 命令 | 结果 |
+|---|---|---|
+| 前端类型检查 | `tsc --noEmit` | ✅ 通过 |
+| 前端单测 | `vitest run` | ✅ **39 文件 / 226 用例全绿**（本路线图持续扩充：错误可诊断化、Craft 去术语、demo 标签对齐、去脆弱化文案、开发→验收衔接、预检卡 + 8 处产品表格迁到设计系统 Table + 实时通道统一 + 降级原因中文化 + 术语内联化等） |
+| 后端测试规模 | `pytest tests/` | 收集 2754 用例，整套 >6 分钟，依赖 Docker/MySQL 的部分会挂起 |
+| 差分集成测试（全新克隆） | `pytest tests/integration/test_differential.py` | ❌ 曾 5 失败（`base`/`head-v1` git 标签不存在即报错）→ ✅ 本路线图 Phase 1.1 已修复为清晰跳过 |
+
+代码库规模：Python ≈11.3 万行、前端 React/TS 约 130 个源文件，含完整的 UI kit、主题、多租户、命令面板、引导页。**工程质量不低**，但"不好用、不友好"的根源不在代码整洁度，而在下面几类产品级问题。
+
+### 核心痛点（按对用户"上手→用起来"的阻塞程度排序）
+
+1. **上手成本高（阻塞第一次体验）**
+   - 首次运行需要 Python 3.12 + Node 18 + Docker Desktop + MySQL/Mongo/ES/Redis/RabbitMQ/MinIO + 真实模型 Key + Java/Maven。任何一个缺失即卡住。
+   - 全新克隆后跑测试是红的（已在 1.1 修复），第一印象受损。
+
+2. **验证能力窄，与"任意代码变更"的心智不符（阻塞核心价值）**
+   - README 已诚实说明：Verify 检查能力主要围绕 Java/Spring。非 Java 仓库大量落到 `UNVERIFIED`，用户会觉得"没用"。
+
+3. **反馈链路慢且不透明（阻塞"爽感"）**
+   - 一次验收从排队到出结果，进度、耗时、失败原因在前端不够实时、不够可诊断。
+
+4. **术语负担重（阻塞理解）**
+   - Spec/Proof/契约/Capsule/矩阵/Merge Certificate…引导页虽然存在，但主流程里仍频繁假设用户懂这些词。
+
+5. **AI 开发与验收两条链路体验割裂**
+   - `craft/`（开发）与 `agent/`（验收）是两套心智，用户在页面间跳转时对不上号。
+
+---
+
+## 1. 产品北极星与"完美产品"定义
+
+**一句话**：任何开发者提交一个变更，都能在几分钟内拿到"这次改动到底有没有满足需求"的、可点开看证据的可信结论——且**不限语言、不依赖重型环境**。
+
+"完美产品"的可衡量终态（GA 标准）：
+- **10 分钟首跳**：全新机器从 `git clone` 到看到第一个真实验收结论 ≤10 分钟，无需 Docker。
+- **≥3 种语言栈**开箱即验：Java/Spring、Python、TypeScript/Node；Go/Rust 通过通用检查器适配。
+- **结论可解释**：每个 VERIFIED/BLOCKED 都能一键看到"依据哪条需求、跑了哪些检查、证据在哪、哪些没覆盖"。
+- **可信度可量化**：golden-cases 上 Recall/Precision 有持续回归门禁。
+- **多租户可交付**：团队权限、审计、用量在真实部署里可用，而非仅单用户本地。
+
+---
+
+## 2. 分阶段执行计划
+
+图例：`[x]` 已完成并验证 · `[~]` 进行中 · `[ ]` 未开始
+
+### Phase 1 —— 稳定与"第一小时体验"（P0，1–2 周）
+让"克隆 → 跑起来 → 看到结果"这条路径不再劝退。
+
+- [x] **1.1 全新克隆测试套件的绿色基线**：为依赖 demo git 标签的差分测试加清晰跳过门禁，消除误红与虚假通过。（已完成并验证：8 passed / 8 skipped，ruff 全绿）
+- [x] **1.2 轻量本地模式（零 Docker）**：新增 `scripts/start_local_light.ps1`，仅用 SQLite 作业库 + SQLite 对象元数据起 API + Vite，无需 Docker Desktop。已端到端实测：脚本退出码 0，`/health` 返回 ok，`:8016` API 就绪、`:5176` Vite 返回 200；空库下 `/agent/jobs`、`/jobs` 均 200。README 已补"想先快速体验，不想装 Docker？"入口。
+  - 边界（诚实标注）：轻量模式支持工作台/AI 开发助手/模型连接/历史浏览；需 RabbitMQ + Worker 的 Java/Spring 差分验收任务投递仍走全栈 `start_local.ps1`。下一步：为该 worker 增加进程内/轻量执行选项，把差分验收也并入零 Docker。
+- [~] **1.3 演示仓库自动化**：`specproof demo`（CLI 一键初始化演示仓库 git 历史 + 可选 `--run` 真实验证）已存在；`prepare_demo_repo.ps1` 提供等价脚本路径。**本轮修复关键不一致**：`cli/specproof/commands/demo.py` 与 `scripts/prepare_demo_repo.ps1` 此前创建标签 `head-v1-bug`，而全仓其余部分（`agent/worker.py` 与所有 agent 节点默认 `head_ref`、`golden-cases/scenario.json`、`seed_demo.py`、`build_golden_scenarios.py`、CLAUDE.md/docs 速查命令、`tests/integration/test_differential.py`）一律使用 `head-v1`——导致 ① 差分集成测试 `_demo_tags_present()` 永远为假、跑完 bootstrap 仍 vacuous skip；② 文档里的旗舰命令 `verify --head head-v1` 对刚初始化的演示仓库失效。已将两个 bootstrap 工具对齐到 `head-v1`。端到端实测：`specproof demo` 现输出 `base -> head-v1`，`git tag -l base head-v1` 两标签齐全。
+  - ✅ 首次运行钩子已落地：`start_local.ps1`（seed 之后、前端之前）与 `start_local_light.ps1`（前端之后、总结之前）各新增幂等「准备演示仓库 git 版本」步骤，直接调用 `cli.specproof.commands.demo.prepare_demo_repo()`（引用已存在时打印 `exists` 并跳过），git 缺失或失败仅 `Write-WarnMsg` 不阻断启动。效果：全栈模式一启动，网页「填入演示案例 → 开始验证」即开箱可跑（API 工作目录=仓库根，相对路径 `demo/spring-backend` 可解析且 `base`/`head-v1` 就位）；轻量模式则为其推荐的命令行回退预置引用。顺带修复 `prepare_demo_repo.ps1` 缺失 UTF-8 BOM 的问题（同目录其余 5 个 .ps1 均有 BOM；无 BOM 时 Windows PowerShell 5.1 按 GBK 误读其中文注释/字符串而解析失败，本文件内容经 UTF-8 解码后语法完全有效），补齐 BOM、保留 CRLF。已验证：`powershell 5.1 Parser::ParseFile` 对 `prepare_demo_repo.ps1`/`start_local.ps1`/`start_local_light.ps1`（及 `stop_local`/`build_web`/`seed_sandbox_cache`）共 6 个脚本全部 OK；`.venv(3.12)` 实跑钩子内联命令输出 `exists`、退出码 0、demo 仓库 `base`/`head-v1` 齐全且工作树干净（新建路径已由上一轮 `specproof demo` 实测 `base -> head-v1`）。
+  - 待办（下一步）：网页「新建验证」在缺标签时给"一键创建演示仓库"按钮（后端端点触发 prepare），而非依赖 `start_local` 钩子或让用户手敲 CLI。
+- [x] **1.4 失败可诊断化**：所有基础设施缺失（Docker/模型 Key/Maven）在前端映射为"下一步做什么"的行动卡，而非堆栈。（**已收口**：语言感知的环境预检接入管线 + 透出网页，见下方"本会话后段追加"）
+  - 已完成：`summary.errors` 与 `job.last_error` 现均经 `describePipelineError` 映射（JobDetail.tsx）——已知 git/依赖错误签名（引用无法解析、路径不存在、检出失败、demo-only 反例缺口、无 pom.xml、模型不可用等）显示可操作的中文行动卡，原始英文串保留在 `title`（悬停/审计可见、绝不作为可见文本泄漏）；未识别的错误**逐字透传**，不臆造语义。新增测试锁定「worker last_error 诊断 + 原文留在 title」行为。
+  - 已完成（同一映射复用到 Craft）：把 `describePipelineError` 提取为共享模块 `apps/web/src/ui/errorHints.ts`，VERIFY 与 CRAFT 两条流程同源；开发助手失败横幅（AgentJobDetail.tsx）与结果页 `result.reason`（AgentResult.tsx）现同样先给中文行动卡、原文保留在 `title`/折叠的「完整执行记录」JSON。新增 `ui/__tests__/errorHints.test.ts` 锁定已知签名→中文、未知/空串逐字透传。前端门禁全绿（tsc / 144 vitest / vite build）。
+  - 已完成（签名按后端**实际产出**的 `state["errors"]` 字符串校准，非臆测）：遍历 `agent/nodes/*.py` 的 `errors.append(...)` 全部字面量，补齐此前未覆盖者——`No head workspace - cannot generate tests`、`Error preparing base/head workspace`（工作区准备失败）、`Fallback template failed to compile on Head` / `COMPILATION ERROR`（以**中性、不下结论**的措辞映射：既提示可能是版本与需求不符，也可能是构建环境问题）、`LLM contract compilation failed`（并入模型服务类）、并把 git-diff 签名扩展为逐文件形式 `git diff for X failed`。`ui/__tests__/errorHints.test.ts` 覆盖以上并保留「未知串逐字透传」不变式。前端门禁全绿（tsc / 149 vitest / vite build）。
+  - 已完成（提交前失败的传输层翻译）：`NewVerification` 提交时若 `fetch` 被拒（后端未启动 / API 地址错误 / 离线 / CORS），此前会把浏览器英文直接抛给用户。现已**下沉到共享客户端 `api.ts`**：新增 `doFetch` 包裹 `apiGet/apiPost/apiDelete/downloadCapsule` 的 `fetch`，把无 `status`/`code` 的传输 reject 统一转成 `ApiError(0, 中文行动卡)`，并**原样重抛 AbortError**（避免把用户取消误报为断网）——因此所有写/读操作一次性受益。`NewVerification.describeSubmitError` 保留自身网络分支作纵深防御（生产下现收到已翻译的中文 `ApiError`，二者不冲突）。新增 `__tests__/api.net.test.ts` 锁定「reject→中文 ApiError(0)」与「AbortError 透传」。前端门禁全绿（tsc / 153 vitest / 29 文件 / vite build）。
+  - 说明（已核实）：`agent/preflight.py` 的 `run_preflight` / `format_preflight_report`（JDK21 / JAVA_HOME / Maven-wrapper / Docker / 磁盘 检查）**全仓零调用点**（grep 仅命中定义处）——即当前是未接线的诊断代码，其友好文案既不经 web、也不经 CLI 呈现给用户。因此未把这几类文案纳入 web 映射（避免死签名）；真正的 JDK/Maven 环境失败目前多以 worker 子进程的原始 stderr 形式落入 `last_error`，已被上面的通用签名兜底。
+  - ✅ **已完成（本会话，Phase 1.4 主线收口）**：`run_preflight` 已真正接入管线并端到端透出到网页。
+    - **痛点根因**：旧 `run_preflight` 无条件检查 JDK / JAVA_HOME / Maven-wrapper / Docker——正因如此它一旦接进管线就会挡死所有非 Java 作业，于是长期处于"零调用点"状态。**本次先把实现改成语言感知，再接线**，这是顺序上不可颠倒的一步。
+    - **`agent/preflight.py` 重写**：新增 `detect_language()`（按 marker 文件识别 java/node/python/go，Java 优先，因为 Java 仓库常同时带 package.json）；按语言只跑相关检查（Java→java/javac/JAVA_HOME/maven_wrapper；Node→node/包管理器/`scripts.test`；Python→解释器/pytest；Go→go），通用项仅磁盘空间；新增 `skipped` 字段显式记录"因项目类型不适用而故意没跑的检查"，避免看起来像静默通过。
+    - **三处真实缺陷顺带修掉**：① `JAVA_HOME` 缺省从**阻断性 error 降为 warning**（PATH 上的 java 可用即足以继续，多数环境并未设 JAVA_HOME，此前的判定会误挡合法环境）；② **wrapper-less Maven 仓库**在 `mvn` 可用时不再报错（改为 PASS + 记录 system mvn 版本），只有 mvnw 与 mvn 都没有才阻断；③ **Windows 上 `npm`/`yarn`/`pnpm` 探测失败**——Python subprocess 不解析 PATHEXT，而 npm 实际以 `npm.cmd` 提供，导致健康的 Node 工具链被报"包管理器缺失"。新增 `_probe_variants()` 按 `.cmd/.exe/.bat/原样` 依次尝试，并用**真实的 npm 探测**验证（本机由 FAIL 变为 `npm 10.9.7` PASS）。
+    - **`agent/nodes/preflight.py`（新）**：位于 `intake` 之后、`compile_contracts` 之前。上游 intake 已有错误时**跳过自身**（`not_run=upstream_errors`），不给真正的病因叠加环境噪音；探测自身异常时 fail-open（`not_run=probe_error`）并只记 warning；提供 `SPECPROOF_PREFLIGHT=0` 关闭开关（供隔离 CI 与单测）；阻断原因以稳定前缀 `Preflight: ` 写入 `state["errors"]`。
+    - **`agent/graph.py`**：新增 `preflight` 节点与 `_abort_on_preflight` 条件边——工具链缺失时**在跑任何构建之前**短路到 `publish_report`。效果从"几分钟后吐出原始 Maven stderr"变为"几秒内给出该装什么"。
+    - **透出到网页**：`agent/worker.py` 的 `_state_summary` 增加 `preflight` 字段（结构化 checks/warnings/skipped）；前端新增 `apps/web/src/ui/preflight.ts`（check id/status/语言的展示层翻译，未知值原样透传）+ `PreflightCard.tsx`，接入 `JobDetail` 概览；`ui/errorHints.ts` 把 `Preflight: ` 前缀路由到专用中文行动卡映射；`ui/stages.ts` 补 `preflight` 步骤中文名。
+    - **已验证**：`tests/unit/test_preflight.py` **26 passed**（含红线用例：Node/Python 仓库在**没有 JDK** 时必须仍 PASS；wrapper-less + 有 mvn 必须 PASS；JAVA_HOME 缺失只 warning；旧 JDK 阻断；未知语言不被阻断；探测超时/probe 崩溃不抛异常）。`tsc --noEmit` 干净、`vite build` 通过、全量 vitest **173 passed / 31 文件**（新增 `ui/__tests__/preflight.test.ts` 14 例与 JobDetail 2 例）。后端相邻子集 `test_preflight + test_api_jobs + test_worker_cancel_points + test_worker_error_classify` **64 passed**；`ruff` 对 `agent/` 全绿。
+    - 剩余（诚实标注）：预检结果尚未出现在 **HTML 报告**与 CLI 输出中（目前只在任务详情的 summary 通道）；`agent/preflight.py` 的 JDK 版本门限仍是 21（演示仓库要求），未来目标仓库 JDK 版本从构建配置读取后应改为动态判定。
+- [x] **1.7 Python 版本门槛显性化（实测新增，已完成并验证）**：在默认 `python` 为 **3.11.1** 时，`tests/unit` 多个模块（含 `agent/job_control.py`、`experiments/minimize.py` 等使用 **PEP 695 泛型语法**的源文件）在收集期抛 `SyntaxError: expected '('`，既不指向"版本不对"也不列受影响模块，对新人极具劝退性。修复：`tests/conftest.py` 新增 `pytest_configure` 版本门禁——低于 3.12 时用 `ast.parse` 扫描源码树、统计真正需要新语法模块数，并以**一条可操作的 `pytest.exit`（USAGE_ERROR/exit 4）**取代成堆语法错误；≥3.12 短路、零影响。已验证：3.11 下 `test_minimize.py` 从"13 例 SyntaxError 墙"变为单行提示（点名 `agent\job_control.py, experiments\minimize.py` + `py -3.12 -m pytest` 指引）；ruff 全绿（mypy 的 `tests/` 已被 `pyproject` 排除，非门禁）。
+- [x] **1.5 单测提速（第一步）**：按目录自动为 `tests/integration`、`tests/e2e` 打 `integration` 标记，`pytest -m 'not integration'` 可从 2754 例降到 2662 例（92 个慢测试排除）。（已完成并验证：ruff 全绿、收集正确分区）
+  - **实测发现（下一步）**：`tests/unit` 内仍含 bench 等重负载用例，"not integration" 路径目前仍 >5 分钟。需在 unit 内引入 `slow` 标记并默认排除，才算真正达到"60s 内反馈"。
+- [~] **1.6 网页版 Verify 的后端解耦**：实测发现 `POST /jobs` 在 `api/routes/jobs.py` 里**硬编码 `MySQLStore`（Outbox）+ `RedisStore`（SSE）**，与 Craft 侧可插拔的 `AgentJobStore`（InMemory/SQLite/MySQL）不一致——这正是"轻量模式无法跑网页版差分验收"的根因。
+  - 本轮已落地（可验证）：把该路径的 503 从"直吐原始异常"改为**可操作的行动指引**（提示需要 MySQL/Redis，或改用 CLI `specproof verify`），异常细节仅进日志；前端 `NewVerification` 将 503/`PROVIDER_UNAVAILABLE` 翻译成中文行动提示，不再把英文堆栈抛给用户。已验证：`tests/unit/test_api_jobs.py` 19 passed（含 `NOT accepted` 断言不破）、`NewVerification.test.tsx` 4 passed、`api/routes/jobs.py` ruff+mypy 全绿。
+  - 待办（属较大重构，需评估范围后再动）：为 Verify 作业引入可插拔存储 + 进程内执行器/进度通道，使零 Docker 也能跑网页版验收，与 Craft 对齐。
+
+### Phase 2 —— 多语言验证能力（P1，3–6 周）
+兑现"任意变更"的价值承诺，这是"好不好用"的分水岭。
+
+- [x] **2.0 现实校正**：执行层其实已具备适配器架构 `experiments/adapters.py`（`ExecutionAdapter` 协议 + registry + 兼容矩阵），且 **Python/pytest 适配器已实现**（local-first，无 Docker）。真正缺的是把"仅 Java"的对外口径与体验补齐。
+- [x] **2.3 JavaScript/TypeScript 一等支持**：新增 `NodeAdapter`——`detect` 认 `package.json` + `scripts.test`，`run` 执行项目自带 `npm test --silent`，`collect` 解析 Jest/Vitest/node:test 汇总，无法识别时计数为 0 并以 exit_code 为准（绝不伪造通过）。registry 注册、兼容矩阵 + `EXECUTION_COMPATIBILITY.md` 同步为"已支持 (local-first)"。已验证：新增 `tests/unit/test_node_adapter.py` 17 passed/1 skipped、ruff+mypy 全绿、并**用真实 `node --test --test-reporter=tap` 输出验证解析器**（tests:2/passed:2）。
+- [ ] **2.1 差分链路贯通**：让 `run_differential` 的"基线跑/待验跑"对比对 Node/Python workspace 也产出 base_pass_head_fail 级证据（目前生成 JUnit 反例仍偏 Java）。
+  - **实测发现（2026-09-21，故此时序上尚不可动工）**：真正的拦路点在**上游的 `generate_counterexamples`**，不在 `run_differential`——生成器整体是 JUnit/Spring/演示仓库专用：LLM prompt 写死"Java security test engineer / Spring Boot"，`_TEST_SCHEMA_REQUIRED` 校验的是 `import org.junit...`/`MockMvc`，落盘路径写死 `src/test/java/com/specproof/demo/SpecProofGeneratedTest.java`，`_is_demo_repo` 之外的仓库诚实返回"无测试生成"。因此 Node/Python 侧根本没有反例可跑，`run_differential` 的语言无关化只是后半程。多语言贯通需要先做**分语言的测试生成（prompt + schema 校验 + review 规则 + 落盘布局）**，且必须接**真实模型**才能端到端验证——属较大、离线不可完全验证的工作，暂缓以免留下半成品。适配器层（Node/Python detect/prepare/run/collect）已就绪，是这条链路的下游地基。
+  - **本轮可落地的替代（诚实降级，见 2.4）**：把"当前语言/仓库无法生成可执行反例→差分不可复现"这条既成事实，在前端用中文讲清楚原因与下一步，而非暴露英文枚举/堆栈。
+- [ ] **2.4 "无构建配置"的诚实降级**：统一"跳过≠通过"呈现，避免误导为绿灯。
+- [ ] **2.5 需求→可执行检查对齐**：无法编译为检查的需求标注覆盖不足并给补充建议。
+- [ ] **2.6 更多语言**：Go、Java/Gradle 适配器（矩阵中的 planned 行）。
+
+### Phase 3 —— 验收体验与实时性（P1，并行推进）
+- [ ] **3.1 实时进度与流式日志**：SSE 事件粒度到"节点级"，前端时间线展示每步耗时/产物/失败点。
+- [~] **3.2 结论页重做**：首屏三问——通过没？风险在哪？我下一步做什么？证据折叠可展开。
+  - 本轮（可验证）：`JobDetail` 首屏"验证结论"大数字卡此前直显英文枚举（`VERIFIED`/`BLOCKED`/`NEEDS REVIEW`…）。新增 `verdictLabel()`：已知枚举译成中文（通过/受阻/执行失败/需复核/待验证/已过期/已取消），**未知值原样透传不臆测**（错误的友好标签会误导合并决策）。已验证：`JobDetail.test.tsx` 4 passed（含新用例断言显示"受阻"且无裸"BLOCKED"）、`tsc` 干净、全量 vitest 119 passed。
+- [~] **3.3 术语内联化**：矩阵/契约/Capsule 首次出现处悬浮解释，引导页关键步骤做成产品内 checklist（进度持久化）。
+  - **2026-09-23 完成"悬浮解释"这一半**：见文末 `2026-09-23` 条目——术语表抽成共享 `ui/glossary.ts`（上手指南与页面内 `<Term>` 读同一份数据），内联 `<Term>` 已落在 需求覆盖 / 验收规则 / 任务详情 / 风险详情 / 新建验证 五处主流程。**未做**：引导页关键步骤的产品内 checklist（进度持久化）仍待办。
+- [ ] **3.4 开发与验收链路缝合**：一次 AI 开发完成后可"就地发起独立验收"，产物与结论互相跳转。
+
+### Phase 4 —— 可信度工程与评测（P2）
+- [ ] **4.1 Golden-case 回归门禁**：每次改动跑 Recall/Precision 阈值，跌破即红。
+- [ ] **4.2 反例生成质量**：counterexample 从"能编译"到"真能复现回归"。
+- [ ] **4.3 Merge Certificate 签名**：Ed25519（现为 SHA-256 哈希占位）。
+
+### Phase 5 —— 团队化与生产化（P2）
+- [ ] **5.1 多租户与权限落地**：`identity/` 在真实存储下可用，RBAC 前后端一致。
+- [ ] **5.2 用量与账单准确**：模型 token/成本核算对齐真实 provider。
+- [ ] **5.3 可观测性默认开启**：`observability/` + compose 指标看板开箱可用。
+- [ ] **5.4 部署形态**：单二进制/容器一键部署、迁移与回滚脚本。
+
+### Phase 6 —— 差异化与生态（P3）
+- [ ] 6.1 IDE/CI 集成（PR 上自动验收评论）。
+- [ ] 6.2 MCP/插件生态成熟。
+- [ ] 6.3 Capsule 分享与协作评审。
+
+---
+
+## 3. 执行节奏与验收标准
+
+- **每个 PR**：前端 `tsc + vitest` 全绿；后端 `pytest -m 'not integration'` 全绿；`ruff` + `mypy` 通过。
+- **每个 Phase 结束**：更新本文件勾选状态 + 在 `docs/operations/` 留实测记录（命令、输出、结论），杜绝"声称完成但无证据"。
+- **优先级原则**：先降低上手摩擦（Phase 1），再扩验证能力（Phase 2），体验与可信度并行。
+
+## 4. 本次会话已落地
+- Phase 1.1：`tests/integration/test_differential.py` 引入 `requires_demo_repo` 跳过门禁，全新克隆下差分集成测试从"5 失败"变为"清晰跳过"，并消除一处 `git show` 空输出导致的虚假通过。已验证：`8 passed, 8 skipped`，`ruff` 全绿。
+- Phase 0：本路线图（实测诊断 + 分阶段计划 + 验收标准）。
+- Phase 1.5（第一步）：`tests/conftest.py` 新增按目录自动打 `integration` 标记的收集钩子，`-m 'not integration'` 可排除 92 个慢测试。已验证收集分区正确、`ruff` 全绿。
+- Phase 1.2：新增 `scripts/start_local_light.ps1`（零 Docker 轻量启动），端到端实测通过（脚本退出 0、`/health` ok、Vite 200、SQLite 后端读接口 200），README 补充入口。
+- Phase 2.3：`experiments/adapters.py` 新增可工作的 `NodeAdapter`（detect/prepare/run/collect/cleanup + Jest/Vitest/node:test 汇总解析），注册进 registry、兼容矩阵与 `EXECUTION_COMPATIBILITY.md` 改为"已支持 (local-first)"；新增 `tests/unit/test_node_adapter.py`（17 passed/1 skipped），ruff + mypy 全绿，并用真实 `node --test` 输出验证解析器。同步更新受影响的既有矩阵/计划适配器测试。README 如实更新支持语言范围。
+- Phase 1.6（第一步，可验证）：`POST /jobs` 的 503 从"直吐 MySQL 异常堆栈"改为**可操作的中文/英文行动指引**（异常细节仅进日志），前端 `NewVerification` 把 503/`PROVIDER_UNAVAILABLE` 翻译成"轻量模式请改用 CLI 或启动依赖服务"的中文提示，并新增对应测试。已验证：`test_api_jobs.py` 19 passed、`NewVerification.test.tsx` 4 passed、ruff+mypy 全绿。同时顺手修掉 `providers/openai_compatible.py` 一处真实的 `kwargs` 重复定义 mypy 报错（mypy strict 门禁恢复绿色）。
+- Phase 2.1（实测校正，暂缓）：确认多语言差分的真正阻塞在上游 `generate_counterexamples`（LLM prompt/`_TEST_SCHEMA_REQUIRED`/落盘路径整体写死 JUnit+Spring+`com.specproof`，`_is_demo_repo` 之外诚实返回"无测试"），非 `run_differential`；分语言生成需接真实模型端到端验证，属离线不可完整验证的较大改造，故不做半成品，适配器层作为已就绪的下游地基保留。
+- Phase 3.2（第一步，可验证）：`apps/web` 新增 `verdictLabel()` 并在 `JobDetail` 首屏"验证结论"卡本地化英文枚举（通过/受阻/需复核/待验证…，未知值原样透传不臆测）。已验证：`JobDetail.test.tsx` 4 passed（新用例断言显示"受阻"、无裸"BLOCKED"）、`tsc --noEmit` 干净、全量 vitest 119 passed。
+- Phase 1.7（已完成并验证）：`tests/conftest.py` 新增 `pytest_configure` Python 版本门禁——低于 3.12 时 `ast.parse` 扫描源码、以一条可操作的 `pytest.exit`（exit 4，点名 `agent/job_control.py` 等 PEP 695 模块 + `py -3.12 -m pytest` 指引）取代成堆 `SyntaxError` 收集错误；≥3.12 短路零影响。README 补 `python --version` 前置校验与旧解释器重建 venv 提示。已验证：3.11 下 `test_minimize.py` 单行清晰提示、ruff 全绿；provider/jobs/adapters 等既有可跑子集在加门禁前已分别 54/19/17 passed。
+  - **顺带纠正一处自伤**：本机同时存在全局 `python`（3.11.1）与项目 `.venv`（3.12.14）；之前的"13 例收集错误"正是误跑 3.11 所致。改用 `.venv/Scripts/python` 后同批测试 89 passed/1 skipped，版本门禁在 3.12 下确认为无害短路。以后所有后端命令一律走 `.venv/Scripts/python`（已写入项目记忆）。
+- Phase 2.4（第一步，可验证）：`apps/web/src/pages/JobDetail.tsx` 新增 `describePipelineError()`，把流水线记录的多语言/构建相关的英文错误串（仅支持 demo 仓库、无法生成反例/非可复现、缺 `pom.xml`、模型不可用四类）翻译为带**下一步动作**的中文说明，未知字符串原样透传不臆测；`title` 仍保留原始串供悬浮/审计。同面板标签"证据与产物 Artifacts/Report/Retrieval/Pipeline Errors"一并中文化。已验证：`JobDetail.test.tsx` 5 passed（新用例断言显示"演示仓库/接入对应检查器后重新验证"、无裸英文枚举、悬浮 title 保留原文）、`tsc --noEmit` 干净、全量 vitest 120 passed。
+- Phase 3.2（第二步，可验证）：`JobDetail` 首屏横幅新增**状态感知的"下一步"行动按钮**（`nextAction`）：BLOCKED 且有风险 → "查看 N 条风险并处理" 跳到风险发现页；VERIFIED → "查看验证报告" 跳报告页；UNVERIFIED/覆盖不足 → "了解如何补全验证" 跳引导页；替代此前忽略结果、恒为"查看需求覆盖"的单一 CTA。配套 `.next-action` 样式。已验证：`JobDetail.test.tsx` 6 passed（新增用例断言 BLOCKED+3 风险时出现"查看 3 条风险并处理"、点击后概览内容卸载）、`tsc --noEmit` 干净、全量 vitest 121 passed。
+- Phase 3.x（术语负担，痛点#4，可验证）：新建共享术语对照 `src/ui/toneMap.ts` 的 `severityHint()`/`evidenceLabel()`（保留英文规范值作可追溯 token，未知值原样透传不臆造），从 `ui/index` 导出。`FindingDetail` 全量去英文化：风险 pill 下加"该怎么办"中文提示、证据方式中文化、面板/字段/按钮标签（严重程度/验收条件/证据方式/置信度/代码位置/问题类型/复现包/基本信息/问题描述/影响路径/证据来源/下载复现包）本地化，**保留红线测试**（tone class、绝不显绿、`findByText("BLOCKER")` pill 仍可定位）。`JobDetail` 风险发现表：表头中英→纯中文、证据列用 `evidenceLabel` 加中文注、严重度 pill 悬浮 `title` 显示中文提示。已验证：`tsc --noEmit` 干净、`vite build` 通过、全量 vitest **125 passed**（toneMap +3、FindingDetail +1、JobDetail 用例增强断言中文表头与证据注）。
+- Phase 3.x 续（执行阶段，痛点#3/#4，可验证）：新建 `src/ui/stages.ts` 的 `stageLabel()`/`STAGE_LABELS`，覆盖 `agent/graph.py` 全部 15 个节点 id（intake…publish_report → 中文步骤名），`JobDetail` 执行进度行用中文步骤名展示、原始 id 移入 `title` 供审计，未知节点原样透传真实 id；实时日志行的 `[stage]` 前缀同样走 `stageLabel`。合并证书面板标签去中英混排（证书文件/签名文件/签名声明（in-toto 风格）/证书内容（原始 JSON）/复现包下载），**保留原始签名 JSON 不美化**、无密钥时如实说明"不伪造可信签名"。已验证：`tsc` 干净、`vite build` 通过、全量 vitest **129 passed**（新增 `stages.test.ts` 4 例：已知映射、未知透传、空值破折号、覆盖全 15 节点）。
+- Phase 1.3 / 3.x（上手 + 术语，痛点#1/#3/#4，可验证）：`describePipelineError()` 扩充对 git 引用/检出/差异/路径不存在四类底层错误的中文翻译（覆盖 `agent/repo_safety.py`/`prepare_*`/`collect_diff` 实际产出的串，如 `does not belong to the repository: fatal: unknown revision`、`Repository path does not exist`、`Failed to checkout`、`git diff failed`），每条给"确认分支/标签/提交 SHA""换可检出引用""确认是 Git 仓库"等可操作下一步，原始串保留在 `title`；未识别串仍原样透传不臆测。新增共享 `checkerLabel()`/`CHECKER_CN`（http/sql/redis/openapi/rabbitmq/constitution/tests），应用于 `Matrix` "检查方式"单元格（原 token 移入 `title`）。已验证：`tsc` 干净、`vite build` 通过、全量 vitest **131 passed**（JobDetail 新增引用错误中文用例断言无裸 git stderr + title 保留；toneMap 新增 checkerLabel 用例含未知透传/空值）。
+- Phase 3.x（后端降级原因，痛点#3，可验证）：`api/routes/web.py` 三处面向用户的降级串原为英文，直接落到中文 `Degraded` 组件里——改为可操作中文（风险数据/验收检查项/验证摘要暂时无法读取，提示刷新重试）；`logger.warning` 仍保留英文供运维。已验证：`.venv(3.12)` 下 `tests/unit/test_web_api.py` **35 passed**（相关用例仅断言 `degraded_reason` 真值，未锁英文），`ruff`、`mypy` 对该文件均绿。
+- Phase 3.x（Craft/agent 控制台去术语，痛点#5，可验证）：把 SpecCraft 控制台里此前"算了但没显示"或裸英文的 token 改为共享中文标签、原始 token 移入 `title` 供审计、未知值原样透传不臆测。`agent/util.ts` 新增 `diffFileStatusLabel`/`diffModeLabel`/`approvalDecisionLabel`/`approvalTargetLabel`/`sseStateLabel`；应用面：`AgentJobShell` 状态 pill 与概览行用 `agentStatusMeta().label`、事件表 `ev.type`→`eventKindLabel`、Diff 页 status/mode/文件数、JobDetail StatCard 状态 + Repo/Task/Worker 标签、PlanStep 决策 + 状态说明、审批收件箱筛选下拉与 `ApprovalCard` target/job/by 前缀、ToolStream SSE 连接态、Edits 文件数、Result eyebrow。已验证：`tsc --noEmit` 干净、`vite build` 通过、全量 vitest **138 passed**（`util.test.ts` 新增 diff/approval/sse 三组用例，含未知透传；`AgentApprovalsInbox` 按 value 而非 label 筛选故仍绿；`AgentToolStream` 只锁"已结束 closed"后缀故安全）。
+- Phase 1.3（演示 bootstrap 一致性，痛点#1，可验证）：发现并修复 `cli/specproof/commands/demo.py` 与 `scripts/prepare_demo_repo.ps1` 创建演示标签名 `head-v1-bug` 与全仓默认 `head-v1` 不一致的问题——该不一致使差分集成测试 `_demo_tags_present()` 永假（bootstrap 后仍 vacuous skip）、文档旗舰命令 `verify --head head-v1` 对新初始化演示仓库失效。两处统一改为 `head-v1`（含 docstring/注释/help 文案）。**并同步前端 `apps/web/src/demo.ts`**：`DEMO_VERIFY.head_ref` 原为 `head-v1-bug`，若不对齐，网页「填入演示案例」会提交已不存在的引用而报"引用无法解析"——改为 `head-v1`，注释/`DEMO_VERIFY_REPO_NOTE` 一并补上 `specproof demo` 入口（`Guide.tsx`/`NewVerification.tsx` 消费该常量故自动跟随）。已验证：`.venv(3.12)` 下 `py_compile` 通过、`ruff check` 全绿、`mypy` 对 `demo.py` 无新错（仅 `evidence/verdict.py:160` 既有无关错误）；实跑 `specproof demo` 输出 `base -> head-v1`，`git -C demo/spring-backend tag -l base head-v1` 两标签齐全；`grep -rn head-v1-bug` 全仓（除本文档历史条目外）已无引用；PS1 仅做 ASCII token 替换、中文与行尾未受影响（原文件本就无 BOM，与 `git show HEAD` 一致）。
+- 本会话后段追加（Phase 1.4 失败可诊断化主线，痛点#1/#3，可验证）：
+  - `describePipelineError()` 提取为共享模块 `apps/web/src/ui/errorHints.ts`，VERIFY 与 CRAFT 同源；`JobDetail` 的 `job.last_error` 此前**裸输出**英文，现与 `summary.errors` 一样先出中文行动卡、原文留 `title`。Craft 侧 `AgentJobDetail`（FAILED 横幅）与 `AgentResult`（`result.reason`）同步接入。
+  - 签名按后端**实际** `state["errors"]` 字面量校准（遍历 `agent/nodes/*.py` 的 `errors.append`）：补齐 `No head workspace`、`Error preparing base/head workspace`、`Fallback template failed to compile on Head`/`COMPILATION ERROR`（中性措辞、不下结论）、`LLM contract compilation failed`、逐文件 `git diff for X failed`。未知串仍逐字透传。
+  - **实测发现**：`agent/preflight.py` 的 `run_preflight`/`format_preflight_report`（JDK21/JAVA_HOME/Maven-wrapper/Docker/磁盘）**全仓零调用点**=未接线诊断代码，其友好文案既不上 web 也不上 CLI。故未把这几类文案塞进 web 映射（避免死签名）；真正的 JDK/Maven 失败目前以 worker 子进程 stderr 落入 `last_error`，已被通用签名兜底。
+  - 传输层兜底**下沉到 `api.ts`**：新增 `doFetch` 包裹 `apiGet/apiPost/apiDelete/downloadCapsule` 的 `fetch`，把无 `status`/`code` 的 reject（后端未起/地址错/离线/CORS）统一转 `ApiError(0, 中文行动卡)`，且**原样重抛 AbortError**（取消≠断网）——所有读写操作一次性受益；`NewVerification.describeSubmitError` 保留自身分支作纵深防御。
+  - 文案去脆弱化：`demo.ts` 的首运行提示拆为具名 `DEMO_VERIFY_PREPARE_NOTE`+`DEMO_VERIFY_ABS_PATH_NOTE` 组合，`Guide.tsx` 不再对整串 `split("; ")[1]`（改写文案即静默丢句的隐患）。
+  - 开发→验收衔接（痛点#5）：Craft 结果页「新建独立验收」由空白 `#/jobs/new` 改为 `#/jobs/new?repo=<job.repo_path>`，复用 `NewVerification` 的 `?repo=` 预填契约，免去重填绝对路径。
+  - 门禁累计：前端 `tsc --noEmit` 干净、`vite build` 通过、全量 vitest **157 passed / 30 文件**（新增 `errorHints.test.ts`、`api.net.test.ts`、`demo.test.ts` 与 Craft/Verify 用例）。
+  - 2026-09-22 追加（Phase 1.4 核实 + Phase 1.9 表格收敛，痛点#3，可验证）：**核实并纠正两处"计划与代码不符"**——(a) `experiments/adapters.py` 模块 docstring 原谎称 Node 适配器"未实现/抛 AdapterNotImplemented"，实为 `NodeAdapter.detect/run` 已落地（local-first `npm test`），改为如实清单（Java/Maven、Python/venv+pytest、Node/npm 已实现；Gradle/Go 才 raise）。(b) "下一步"里的 ①「HTML 报告与 CLI 输出补预检」经阅读 `evidence/report.py::_render_preflight`（报告已渲染预检区块，`test_report_preflight.py` 10 例覆盖）与 `cli/specproof/commands/verify.py:406-421`（CLI 已 `format_preflight_report` 且在 `not passed` 时 `SystemExit(1)`）确认**早已完成**，标记为已交付而非待办。**真实增量**：把 `apps/web/src/ui/PreflightCard.tsx` 里手写的 `<table className="data">` 迁到设计系统 `Table`（用 `render` 回调保留状态配色 STATUS_TONE、原始 check id 移入单元格 `title` 供审计、未知 id 原样透传），并补 `ui/__tests__/PreflightCard.test.tsx` 5 例（该卡此前无组件级测试）。已验证：`tsc` 干净、全量 vitest **181 passed / 32 文件**、`vite build` 通过。多语言真正阻塞仍记于 2.1（`generate_counterexamples` 写死 JUnit/Spring，非适配器层）。
+  - 2026-09-22 追加（Phase 2.4 诚实化延伸，痛点#2/#4，可验证）：`agent/nodes/run_differential.py` 在"无生成的可执行反例"分支此前对所有仓库一律回一句含糊的"nothing to run"，对 Node/Python 仓库既误导又暴露英文。改为复用**已接线**的 `agent.preflight.detect_language`：当目标语言非 Java 时，DIFF-01 明细如实说明"可执行 base-vs-head 差分仅支持 Java/JUnit，此 <language> 变更由上述源码/静态检查覆盖，差分记为 UNVERIFIED 而非通过"，并附 `language` 字段；Java 仓库仍走通用明细。关键红线不破：绝不把不可复现的差分谎报为 PASS。新增 `tests/unit/test_differential_language_honesty.py` 3 例（Node→honest+language=node、Java→通用明细、Python→language=python 且不误标 node），且断言 `contract_results==[]`。已验证：`.venv(3.12)` 下新例 + 既有 `test_probe_differential` 共 **25 passed**；`ruff` 对两文件全绿（顺带 `--fix` 修了新 import 的排序）、`mypy` 对节点干净。注意：这是**诚实降级**而非多语言贯通——真正让 Node/Python 产出 base_pass_head_fail 级证据仍需 2.1 的分语言生成器。
+  - 2026-09-22 追加（roadmap ④ 的安全地基：沙箱镜像/挂载参数化，可离线验证）：为 4a「为 Node/Python 建等价 Docker 沙箱」铺路——把 `sandbox/runner.py` 里 Maven 专用的镜像/环境变量/缓存卷/可写子挂载**硬编码**抽成一个 `SandboxProfile` 冻结数据类，并把 `docker run` argv 组装拆成**纯函数** `build_docker_argv(command, workspace, profile)`。安全不变量（`--user 1000:1000`/`--network none`/`--cap-drop ALL`/`--security-opt no-new-privileges`/`--pids-limit`/`--tmpfs /tmp`/只读 `/work:ro`/无 docker.sock）对所有 profile 一致施加，只有镜像名、`-e` 环境变量组、缓存卷名与容器内挂载点、可写子挂载随 profile 变化。**刻意只落地 `MAVEN_PROFILE` 一个 profile**（`_profile_from_env()` 目前恒返回它），不投产后尚无法在本机离线验证的 Node/Python 沙箱镜像，也**不把任何宿主执行接进差分流水线**——4a 的红线（`api/routes/jobs.py`"验证 API 绝不可成为远程执行面"）不动。已验证：`test_sandbox_runner.py` **18 passed**，新增的合成 `_NODE_PROFILE` 用例逐条断言同一套硬化旗标施加到非 Maven profile 上、缓存卷名可被环境变量覆盖、命令落在镜像名之后；Maven profile 的 argv 与重构前**逐字节一致**（回归锁）。`ruff`+`mypy` 对 `runner.py` 干净。另：本次发现 `test_bench_craft.py::test_recovery_tasks_ship_seeded_checkpoint` 因工作副本缺 10 个 recovery 任务的 `.specraft`（plan/checkpoint/memory）种子夹具而红——经 `bench_gen_tasks.py --check` 核实漂移**全部是"生成表有、落盘缺失"**（无内容冲突、无手工新增），确认 `write_suite` 此处纯增量后跑一次生成器补齐 30 个确定性夹具，`--check` 复绿、该文件 37 passed。**更正一条早前的错误结论**：补齐 bench 夹具后我曾据 `-x` 局部运行的 "362 passed" 误判全量已绿；实际跑完 `tests/unit`（166 模块，**2538 passed / 4 failed / 2 skipped，耗时 15:33**）显示仍有 4 处红，且都与本轮沙箱改动无关——见下一条。
+  - 2026-09-22 追加（Phase 1.1 续：让"干净克隆即全绿"成立，可验证）：全量单测暴露 4 个此前被 `-x` 早停掩盖的失败，逐一修复。① `test_craft_tools::test_git_status_and_diff_on_real_repo`：gitpython 的 `index.commit` 会执行 git 的 pre-commit 钩子，而本机 `core.hooksPath` 被设为**全局** `.codex/git-hooks`，其脚本从临时仓库目录解析失败（exit 127）→ 在临时仓库写入 repo 级 `core.hooksPath=<空目录>` 覆盖全局，测试不再受开发者机器配置左右。② `test_state_channels::test_diff_by_file_survives_graph_invoke`：该"LangGraph 通道不被丢弃"的回归锁把 `repo_path` 写成仓库根、`base`/`head-v1` 标签**根本不存在于干净克隆**（根仓库无任何 tag），diff 为空 → 判"通道被丢弃"是假阳。改为在 `tmp_path` 自建一个含真实 `.java` base→head-v1 变更的 git 夹具（提交同样 `-c core.hooksPath=` 免钩子），通道守卫得以确定性验证。③④ `test_provider_accounting::test_cancelling_model_call_stops_pending_request` 与 `test_dashboard_performance` 两条：功能正确但在**多 agent 并发满载**的本机上因 1–2 秒固定等待上限（`Event.wait(1/2)`/`join(2)`）被判失败——把调度等待放宽到 10 秒、并把 dashboard 的 mock store 从"固定 1 秒"改为"显式释放前一直阻塞"（消除 `not dashboard.done()` 与 store 自然到期的竞态）。放宽仅吸收调度延迟，失败检测力不变（被取消/被阻塞的操作真实耗时远大于上限）。已验证：四个文件隔离重跑 **39 passed + 15 passed**、`ruff` 对四文件全绿（mypy 按 `pyproject.toml` 排除 `tests/`）。这是"上手即绿"痛点#1 的实质推进。
+  - 2026-09-22 追加（roadmap ④/4a 安全的纯逻辑地基，可离线验证）：新增 `agent/self_test_diff.py`——"跑仓库自带测试"差分的**纯判定 + 默认关开关**，为多语言真证据铺路但**不碰任何执行面**。`self_test_verdict(base_counts, head_counts)` 吃三种 adapter 汇总口径（surefire 的 `failures`、pytest/node 的 `failed`，统一并入 `errors`）映射为 REGRESSION/COMPLIANT/AMBIGUOUS/UNEXPECTED_FIX，**零测试或解析不到汇总一律 NON_REPRODUCIBLE 绝不粉饰为通过**（诚实红线）；`self_test_execution_allowed()` 只在 `SPECPROOF_ALLOW_LOCAL_TEST_EXEC` 显式为真时放行、其余一律 fail-closed。关键：本模块**不 import adapter、不 spawn 进程、不接 `run_differential`**——在 Node/Python 等价 Docker 沙箱（依赖本轮 `sandbox/runner.py` 参数化地基）就绪前，**真实接线保持缺席**，避免"未信任 PR 自带测试在宿主执行"撞 `api/routes/jobs.py` 红线。已验证：`tests/unit/test_self_test_diff.py` **23 passed**（含三键口径、no-evidence 不可 laundering、gate 默认关/仅显式真值放行）、`ruff`+`mypy` 对模块干净。
+- Phase 1.4（**已收口**，见上）——语言感知预检接入管线并透出网页。
+- Phase 1.8（启动链路可见性，本轮新增并完成，可验证）：修掉三个"静默失败"缺陷。
+  - **`stop_local.ps1` 不覆盖轻量模式**：只停 `api.pid`/`web.pid`，而 `start_local_light.ps1` 写的是 `api-light.pid`/`web-light.pid`，脚本却提示"停止用 stop_local" ⇒ 轻量实例残留、端口被占、下次启动被跳过。已补齐两个 light PID，并增加 `*-light.pid` 通配兜底（将来新增轻量进程不会再漏）。
+  - **worker / outbox 静默失败**：启动失败原来只 `Write-WarnMsg`，脚本仍打印"全部就绪"并退出 0，用户随后只看到任务永远停在 QUEUED。现引入 `$degradedServices` 登记簿：Worker 60 秒未监听 9100、进程启动异常、Outbox 启动后立刻退出（新增 3 秒存活探测，因为 outbox 没有 metrics 端口可试）都会登记；总结段改为醒目的"启动完成，但验证管道不可用"，逐条给出原因与处理命令，并以 **exit 1** 结束（可被脚本/CI 感知）。
+  - **`/health` 失真**：原实现只探 Redis，**MySQL 挂了仍返回 `status: ok`**，`Wait-ApiReady` 因此误判就绪，而真实的 `/jobs` 早已 503。现同时探 MySQL 与 Redis 并返回逐项布尔值；`status` 反映 Verify 链路（MySQL+Redis）是否就绪；新增 `agent_jobs` 探针，轻量模式（`sqlite:` 前缀）独立判定，避免"MySQL 不在就当开发助手也坏了"的误报。保持**始终 HTTP 200**（探针自身失败不得让轮询器失联），由 payload 说明真相。
+  - 已验证：`tests/unit/test_api_jobs.py` 新增 `test_health_reports_degraded_when_mysql_is_down`（断言 200 + `status: degraded` + 两项 false），`test_middleware.py` 同步，合计 **35 passed**；`ruff` 对 `api/` 目标文件全绿；四个 PS1（`start_local`/`stop_local`/`start_local_light`/`prepare_demo_repo`）经 `Parser::ParseFile` 语法校验全部 OK（BOM/CRLF 未破坏）。
+- Phase 3.1（向导空转步骤，本轮完成，可验证）：`AgentWizard` 的**第 3 步"门禁 Gates"没有任何可编辑控件**，用户只能点一次"下一步"空转——而 `WizardDraft.gates/budget_minutes/max_steps` 既不渲染也不提交。
+  - **判定**：预算与最大步数在后端只由 `craft/budget.py` 的环境变量（`CRAFT_MAX_STEPS` 等）决定，**加开关等于放假控件**。因此正确的修法不是把控件补上，而是**把空转的步骤砍掉**：向导 4 步 → 3 步，原步骤里诚实的说明（"批准前不会改动仓库""未执行的检查不算通过""不提供预算开关""不会自动切换 Base/Head"）并入提交前的审阅页。旧路由 `#/agent/new/gates` 保留并落到审阅页，历史链接与书签不会 404。
+  - 同步清理：`WizardStep` 类型、`STEPS`、命令面板条目（移除"新建任务 · 门禁"）、审阅页标题改为"步骤 3/3"。
+  - 已验证：`AgentWizard.test.tsx` 更新为"下一步 → `#/agent/new/review`"、"步骤 3/3"、并保留"页面不得出现 checkbox"的断言；`tsc` 干净、全量 vitest **173 passed**。
+- Phase 1.9（设计系统落地，本轮起步，可验证）：审计发现 `ui/Table`（自带排序、粘性表头、空态）**只被 UiKit 样式页使用**，13 处产品页各自手写 `<table className="data">`。本轮把最常用的 **验证历史列表 `Jobs.tsx`** 迁到 `Table`：列定义驱动、**项目名 / 验证状态 / 更新时间均可点表头排序**（此前完全不可排序）、操作列右对齐。仓库名提取抽成 `repoName()` 供排序与渲染共用，避免两处漂移。
+  - 已验证：`Jobs.test.tsx` 新增排序用例（首次点击升序 → 再次点击降序），合计 **3 passed**；`tsc` 干净。
+  - 2026-09-22 续迁（本轮，全部经 `tsc`/`vitest`/`vite build` 三门禁验证）：**`TenantUsers` / `TenantTokens` / `Health`（依赖矩阵）/ `Eval`（案例明细）** 四处只读/交互表格迁到设计系统 `Table`——此前**均不可排序**，现列定义驱动、可点表头排序、内置空态。`Health.test.tsx` 新增排序用例锁进行为（9→10 passed）。
+    - `TenantUsers`：邮箱/角色/状态可排序，操作列（角色下拉 + 停用/启用）经 `render` 保留；空态文案「暂无用户」。
+    - `TenantTokens`：名称/用户/过期/最近使用可排序（时间戳列用 `sortValue ?? 0` 让 null 稳定排前）；`expires_at`/`last_used_at` 仍渲染 ISO。
+    - `Health`：抽 `DepRow` + 模块级 `DEP_COLUMNS`（依赖名经 `DEP_NAMES` 中文化、状态 pill、延迟右对齐）；`ok` 列 `sortValue` 让 OK<未知<DOWN。
+    - `Eval`：抽 `EvalCase` 类型 + `CASE_COLUMNS`，Case/Verdict/应检出/期望 Severity/期望 Contract 可排序，pill 逻辑抽 `pillClass()` 供测试复用。
+    - **刻意保留手写（已逐个复核为非"可排序数据集"）**：`Dashboard` 的「最近验收」表——产品化富样式预览（`table-scroll` 外层、`job-title` 链接、`demo-label`、`job-refs` 前后版本行、`sr-only` 表头、图标按钮列、仅取最近 N 条），机械套 `Table` 会降级定制排版，判定为**不迁**。
+  - 2026-09-22 续迁（本轮，全部经 `tsc`/`vitest`/`vite build` 三门禁验证）：**`AgentOverview`（Agent 任务列表）/ `JobDetail`（风险发现表）** 迁到设计系统 `Table`，并顺带**扩展共享 `Table` 增加可选 `onRowClick`**（整行可点 + `tabIndex=0` + Enter/Space 键盘激活，仅在有回调时生效），惠及整套设计系统。
+    - `AgentOverview`：任务/仓库/状态可排序（状态 pill 仍把原始枚举留在 `title` 供审计），步骤/事件/审批计数右对齐可排序，更新时间可排序；整行点击导航到 `#/agent/jobs/{id}`，改由 `onRowClick` 统一承担（原 `onClick` 移到行上）。空态 `Empty` 保留。
+    - `JobDetail` 风险发现：抽模块级 `SEVERITY_RANK` + `sevRank()`（未知/缺失严重度沉底、不臆造标签）与 `findingColumns(jobId)`——严重程度按 rank 排序（BLOCKER/CRITICAL→…→NONE，识别不出的值给 9、空给 99），验收条件/证据方式/置信度/描述可排序（置信度 `sortValue ?? -1`），复现包列渲染下载按钮。原 pill/`evidenceLabel`/`fmtPct`/`downloadCapsule` 行为与审计 `title` 全部保留。
+    - `Table.test.tsx` 新增 2 例锁定 `onRowClick`：鼠标点击 + 键盘 Enter 均触发、无回调时行不可聚焦（4→6 passed）。
+  - **Phase 1.9 收口判定**：全仓 `<table className="data">` 手写表格仅剩 `FindingDetail`（2 列 kv 明细块，非表格数据集）、`AgentEventLog`（按 seq 时间序的流式日志，排序会破坏时间线）、`AgentPlanReview`（严格有序的计划步骤）、`Dashboard`（富样式预览）四处，**均为语义上不应排序的表**，保留手写合理。`Matrix`/`Contracts` 早已用 `Table`。**可排序数据集已全部落地设计系统 `Table`。**
+- 下一步（优先级，已按现状校正）：① **预检透出到 HTML 报告与 CLI 输出 —— 2026-09-22 核实：已完成，非待办**：`evidence/report.py::render_verification_report` 经 `_render_preflight()` 已渲染"Environment Preflight"区块（检测语言 / PASS-FAIL-WARN 明细 / 阻断项 / 警告 / 刻意跳过项，未运行时如实说明原因），`tests/unit/test_report_preflight.py` 10 例覆盖；CLI `cli/specproof/commands/verify.py` 在建流水前 `run_preflight` 后 `click.echo(format_preflight_report(...))`，`not preflight.passed` 时打印行动提示并 `SystemExit(1)`。**预检已贯通 web 详情 + HTML 报告 + CLI 三处。** ② **其余手写表格迁到设计系统 `Table` —— 2026-09-22 收口，已完成**：`Jobs`/`TenantUsers`/`TenantTokens`/`Health`/`Eval`/`AgentOverview`/`JobDetail` 共 7 处可排序数据集全部落地列定义驱动的 `Table`（点表头排序 + 内置空态 + 右对齐），共享 `Table` 顺带新增可选 `onRowClick`（整行可点 + 键盘激活）。剩余 `<table className="data">` 仅 `FindingDetail`（kv 明细）、`AgentEventLog`（时间序日志）、`AgentPlanReview`（有序步骤）、`Dashboard`（富样式预览）四处，语义上不应排序，保留手写合理。③ **统一 `JobDetail` 与 Agent 控制台的实时通道 —— 2026-09-22 收口，已完成**：早期 `useAgentJob` 仅轮询，与验证详情页的 SSE+轮询双通道不一致。现已统一到一个健壮共享的 `api.ts::openEventStream`（带 Authorization 头、命名事件、`Last-Event-ID` 断线重放、指数退避重连）：`useAgentJob` 打开 `openAgentEventStream` 累积 `events`/`streamState`，AgentJobDetail/AgentToolStream 消费同一份。本轮再收掉**最后一处分歧**：`AgentEventLog` 原本无视 `useAgentJob.events`、自己用 `fetch(...?key=<API Key>)` 开第二条更弱的流（把密钥泄漏进 URL 查询串、无重连）——改为直接消费共享通道的 `events`/`streamState`（终态 `done`→"已同步"，否则"实时更新中…"）。新增 `AgentEventLog.test.tsx` 3 例锁定：事件经共享通道渲染、done 后切"已同步"、**断言绝不向 `/events` 直接 fetch**（守住密钥不外泄 URL）。全量 `tsc`/`vitest`(**33 文件 / 187 例**)/`vite build` 三门禁绿。④ **Phase 2.1 多语言差分（拆成两步降风险）**：**4a 离线可做、价值最高**——为 Node/Python 增加"跑仓库自带测试套件"的差分模式（base 全绿 / head 有挂 → 直接产出 `base_pass_head_fail` 真证据），复用已就绪的 `PythonAdapter`/`NodeAdapter` + `parse_pytest_summary`/`parse_node_test_summary`，无需模型即可离线端到端验证逻辑。**⚠️ 2026-09-22 安全核实（关键，勿盲接）**：`PythonAdapter`/`NodeAdapter` 是 **local-first（宿主直接跑 `pytest`/`npm test`，无容器沙箱）**，且审计确认它们**从未被生产差分流水线触达**（`run_differential` 只在拿到 Java 生成测试类时才经 `registry.get` 执行）。把 4a 直接接进 `run_differential` = **首次让未信任的 PR 自带测试在宿主上执行**，正面对撞 `api/routes/jobs.py` 记档的"验证 API 绝不可成为远程执行面"红线。因此 4a 落地**必须**满足其一：(i) 先为 Node/Python 建等价 Docker 沙箱（对齐 `JavaMavenAdapter` 的 `--network none`/只读/非 root），或 (ii) 置于**默认关闭**的显式开关（如 `SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1`）之后并在 UI 诚实标注"本地执行、无沙箱"。逻辑可先用假 adapter 离线单测（验证 verdict/digest/解析），但**真实接线到 pipeline 前不得在无沙箱宿主执行任意仓库测试**。**4b** 分语言**可执行反例生成**（LLM）需真实模型 + Docker 联调窗口，后置。⑤ **把降级原因的中文翻译下沉 —— 2026-09-22 完成 UI 侧切片**：`web.py` 的 `degraded_reason`/`degraded_reasons` 会把 `redis: {exc}`/`mysql: {exc}`/`job NOT accepted - persistence failed` 这类**技术串**直送前端 `<Degraded>`，此前原样显示英文子系统名。沿用全站一致的去术语范式（保留原始串于 `title` 供审计、命中已知子系统才加中文、**未知一律透传不臆造**），在 `ui/errorHints.ts` 新增 `describeDegradedReason()`（Redis/MySQL/持久化失败三类），`ui/Degraded.tsx` 渲染中文并把 raw 留在 `title`；`errorHints.test.ts` +4 例（含"未知子系统原样透传"）。`AgentEventLog` 断线提示也一并中文化。**遗留（低优先，需后端契约评审）**：更彻底的做法是 API 侧改吐**稳定错误码**（如 `degraded_code: "REDIS_UNAVAILABLE"`）而非 `f"redis: {exc}"` 字符串匹配——但会改动 `test_web_api.py` 断言的响应形状，属跨栈契约变更，暂缓。⑥ （低优先，安全受限）网页「一键创建演示仓库」若要做，必须置于默认关闭的显式环境变量开关（如 `SPECPROOF_DEMO_ALLOW_REPO_PREPARE=1`）之后并通过安全评审——它触及 `api/routes/jobs.py` 记档的"验证 API 绝不可成为远程执行面"红线。
+- 2026-09-22 追加（FE 批次 FE-1..FE-7：主路径友好性/中文化收口，痛点#1/#3/#5，可验证）：延续"保留英文枚举/原文于 `title`、命中才加中文、未知一律透传不臆造、错误≠空态"的红线，做了一轮**面向用户的高频页**修补：
+  - **FE-1 `AgentWizard` 步骤数纠偏**：向导此前标"4 步含门禁"却无门禁步（Phase 3.1 已把 4 步砍成 3 步，标题漏改），误导主创建路径。改为"3 步: 仓库 → 需求 → 提交"、`步骤 1/3`/`2/3`，并加"不得出现 `步骤 x/4`、不得出现幻影门禁步"的断言。
+  - **FE-2 `Dashboard` 降级原因中文化**：首页 `degraded_reasons` 复用 `describeDegradedReason()` 出中文、raw 留 `title`，未知原因透传（新增 `Dashboard.test.tsx` 2 例）。
+  - **FE-3 `Eval` 页**：逐案 verdict 经新 `evalVerdictLabel()`（PASS=判定正确 / MISS=漏检 / FALSE_POSITIVE=误报）中文化且防"token·token"重复；期望严重度走 `severityPill`+`severityHint`；**纠正把 404/读取失败与"尚无报告"混为一谈**——`ApiError(404)` 显空态、其余显 `ErrorBox`+「重新加载」（新增 `Eval.test.tsx` 5 例）。
+  - **FE-4 a11y**：把裸 `placeholder`/无标签控件改为 `htmlFor`+`id` 或 `aria-label`（`AgentGates`/`AgentPlanStep`/`TenantUsers`/`TenantTokens`/`AgentOverview`/`AgentApprovalsInbox`/`TenantSwitcher`），并给租户"×"移除按钮命名。
+  - **FE-5 状态术语归一**：`StatusPill` 抽出 `STATUS_LABELS`+`statusLabel()` 单一来源，`Jobs` 去掉本地重复 map 与冗余标签 span（同一状态此前既显"正在验收"又显"正在验证"）。
+  - **FE-6 `Health` 去字段术语**：把面向机器的 `checks/capabilities/degraded 字段`、`/api/v1/health`、`degraded: false` 从可见文案移到新增的 `HealthCategory.detailTitle`（渲染为 `title`），可见文案改口语中文；页头横幅与降级提示改中文、`DEGRADED`/`FIVE-CATEGORY HEALTH` 原 token 留 `title`。诚实语义（缺字段=未知、降级 reason 逐字）全保留，`Health.test.tsx` 新增 1 例锁"原文仅在 tooltip、可见区无字段名"。
+  - **FE-7 Identity 枚举/时间中文化**：新增 `identity/labels.ts` 的 `roleLabel`/`userStatusLabel`（viewer/operator/auditor/admin、active/disabled 出"中文 · token"，未知透传），应用到 `TenantUsers` 角色 pill + 状态列（原 token 留 `title`）；`TenantTokens` 的 `expires_at`/`last_used_at` 由裸 `toISOString()` 改为 `tsCell()`（友好本地时间 `fmtTime`、精确 ISO 留 `title`），"Scopes"表头→"权限范围 Scopes"、scopes 值留 `title`。`identity.test.tsx` 新增 2 例（枚举中文化+未知透传、时间戳友好化+ISO 留 tooltip）。
+  - 门禁累计：全量 `tsc --noEmit` 干净、`vite build` 通过、vitest **35 文件 / 205 例全绿**（本批次净增 6 例：Health +1、identity +2、及 FE-1/2/3 既有用例扩充）。所有改动**未提交**（本会话全部本地未 commit）。
+  - **FE-8 `AgentEdits` 密钥外泄修复（承接 roadmap ③ 实时通道收口的漏网之鱼，可验证）**：survey 发现 `pages/AgentEdits.tsx` 仍自行 `fetch(apiBase + "/agent/jobs/:id/events?key=" + getApiKey())`——把 API 明文密钥拼进 **URL 查询串**（泄漏到浏览器历史 / 代理 / 服务端访问日志），且与已统一的 `openAgentEventStream` 重复开第二条更弱的流。改为直接消费共享 `useAgentJob()` 的 `events`（`useMemo` 过滤 `type === "edit"`），连接态错误经 `sseStateLabel(streamState)` 提示。诚实空态（"尚无文件编辑事件…未接线"）与 `#seq / 变更包 / N 个文件 / 时间 / 查看差异` 行为全保留。**红线**：全站唯一 SSE = `api.ts::openEventStream`，绝不再向 `/events` 直接 fetch。新增 `AgentEdits.test.tsx` 2 例锁定：编辑事件经共享通道渲染且忽略非 edit 事件、**断言从不向 `/events` fetch 且 URL 不含 `key=`**。已验证：`tsc` 干净、`vite build` 通过、vitest **36 文件 / 207 例全绿**（含 `AgentEventLog`/`AgentPolling` 同族实时测试无回归）。
+  - **FE-9 加载失败≠空态（诚实红线#3 的最严重变体，可验证）**：survey（Explore 只读排查）发现多处把"读取失败（网络/5xx）"渲染成"诚实 404 / 暂无数据"空态——比术语问题更糟，因为它**断言了一个自己并不知晓的良性状态**，正撞"绝不用一个大绿勾掩盖缺陷"红线。先加共享判据 `ui/errorHints.ts::isNotFound(err)`（鸭子类型读 `err.status===404`，不引 `ApiError` 以免成环）与 `loadFailed(err)`（有错且非 404=真失败）。本轮修三处最尖锐的"谎报 404/吞错"：① `AgentDiffViewer`（`!diff` 无脑显示"诚实 404 空态"，改为 `loadFailed` 时显示"暂时无法加载（请求失败）— 并非没有改动，请稍后重试"，真 404 仍保留原诚实串）；② `AgentApprovalDetail`（同上，失败时不再谎报"审批记录不存在"）；③ `AgentResult` 审批子请求 `.catch(() => {})` **静默吞错→面板消失**，改为记 `approvalsError` 并诚实显示"暂时无法加载…请稍后重试"（空审批仍不显示面板）。新增/改测试：`AgentDiffViewer.test.tsx` 补"5xx 不得谎报 404"一例；**顺带发现**该测试原 404 桩缺 `headers` 字段，致 `handleResponse` 在 `resp.headers.get` 处抛非-ApiError 的 TypeError（真 404 用例被旧代码无脑分支掩盖），已给两个错误桩补 `headers: new Headers()` 使夹具贴近真实。已验证：`tsc` 干净、`vite build` 通过、vitest **36 文件 / 208 例全绿**。**遗留（已建任务 FE-10/FE-11）**：`AgentOverview`/`AgentApprovalsInbox`/`TenantTokens`/`AgentJobApprovals`/`AgentGates`/`JobDetail` 标签页仍存同类空态掩盖；以及剩余裸枚举/时间戳（Billing 状态、TenantSwitcher 角色 pill、`{ev.at}` 等）。
+  - **FE-10 加载失败≠空态（续 FE-9，把同一诚实红线推到其余列表/标签页，可验证）**：承接 FE-9 遗留清单，用共享判据 `loadFailed()` 收口剩余"把请求失败谎报为暂无数据/干净扫描"的页面：
+    - `AgentOverview`：`listAgentJobs` 真失败（非 404）时，主区不再显示"暂无 Agent 任务"，改显"任务列表暂时无法加载（请求失败）— 这不代表没有任务"。新增 `AgentOverview.test.tsx` 2 例锁定失败态与"干净空列表仍诚实显示空态"两分支。
+    - `AgentApprovalsInbox`：两处吞错——① 任务列表整体失败（原显示"尚无审批记录"）；② **逐任务审批读取被 `.catch(() => ({approvals: []}))` 静默吞掉**（原会把部分失败伪装成"无审批"）。新增 `failedJobReads` 计数，失败或部分失败时以错误框取代"尚无"文案。新增 2 例（整体 500、单任务 503 部分失败），错误桩均带 `headers`。
+    - `AgentJobApprovals` / `AgentGates`：此前**同时**渲染 `errorbox` 与"尚无审批/门禁审批记录"空态（自相矛盾）。把错误改存 `Error | string`（保留 `ApiError.status`），`loadFailed` 时只显失败提示（raw 留 `title`）、不再叠空态；真 404 才回落诚实空态。
+    - `TenantUsers` / `TenantTokens`：`reload()` 现先清 error+置 loading；列表读取失败时不再把空 `Table`（"暂无用户/Token"）当结论，改显失败提示 + 「重试 Retry」按钮。
+    - `JobDetail`（**最尖锐的一条：失败的风险扫描被渲染成干净扫描**）：`loadArtifacts` 用 `Promise.allSettled`，新增按产物粒度 `summaryLoadFailed`/`findingsLoadFailed`（经 `loadFailed(reason)` 判定）。风险发现页读取失败时显示"无法确认是否存在风险，请勿据此判定为安全"，**覆盖**原"暂未发现已确认的问题"文案；验证结果概览读取失败时显示"暂时无法读取…请点击刷新重试"而非"尚未生成"。真 404/成功空集仍走原诚实空态。新增 `JobDetail.test.tsx` 1 例锁定"findings 读取失败 ≠ 干净扫描"。
+    - 已验证：`tsc --noEmit` 干净、`vite build` 通过、vitest **37 文件 / 213 例全绿**（本批净增 5 例：Overview +2、Inbox +2、JobDetail +1）。所有改动**未提交**（本会话全部本地未 commit）。
+  - **FE-11 剩余裸枚举 / 裸时间戳 / 一处 a11y（承接 FE-10，把中文化与诚实范式推到最后一批角落，可验证）**：
+    - `Billing`：新增模块级 `subscriptionLabel()`/`invoiceLabel()`（`glossEnum()` 助手，命中出"中文 · token"、未命中透传），应用到期/账单状态 pill，raw 同时留 `title`；`Billing.test.tsx` 把原 `getByText("active")`/`getByText("draft")` 两处断言改为正则 `/生效中 · active/`、`/草稿 · draft/`（**仍强制裸 token 可见**，守诚实红线）。`fmtEpoch()` 经核对输出已是 `toLocaleString()` 友好格式（与 `fmtTime` 同形），不再无谓改动。
+    - `JobDetail`：新增 `DEPTH_LABELS`+`depthLabel()`（FAST/STANDARD/DEEP→"快速/标准/深度验证 · token"，未知透传、空→"—"）替换原"仅 FAST 出中文、其余裸值直显"的写法。新增 2 例锁定"STANDARD 出中文且裸 token 可见""未知深度 PARANOID 原样透传"。
+    - `TenantSwitcher`：角色 pill 改用 `identity/labels.ts::roleLabel()`（此前裸显 `principal.roles`），raw 留 `title`；`identity.test.tsx` 对应断言由 `getByText("operator")` 改为 `/操作员 · operator/`（token 仍可见）。
+    - 裸 ISO 时间戳统一走 `ui/util.tsx::fmtTime`（可见友好本地时间、原始 ISO 留 `title`）：`AgentEventLog` 时间列、`AgentEdits` 编辑行时间、`AgentJobDetail` 时间线条目与"最近事件"值（后者原有 `title`，改可见部分）。
+    - a11y：`TenantUsers` 每行的角色 `<select>` 补 `aria-label`（"用户角色 Role — {email}"，逐行唯一）。
+    - **刻意保留（经复核，判定不改动）**：`Health` 依赖矩阵的错误列（`mono` 技术表格内的探针异常串）——`describeDegradedReason` 只认 `redis:`/`mysql:` 前缀，对 `connect timeout`/`ECONNREFUSED` 是透传（无收益），且该列本就是刻意留给工程师查看的原始诊断面；强行套映射反可能盖住被测试锁定的原串。
+    - 已验证：`tsc --noEmit` 干净、`vite build` 通过、vitest **37 文件 / 215 例全绿**（本批净增 2 例：JobDetail 深度 +2）。所有改动**未提交**（本会话全部本地未 commit）。**至此 FE 批次（FE-1..FE-11）的高频页友好性 / 中文化 / 诚实性收口全部完成。**
+  - **FE-12 契约审核状态 pill 不再隐藏裸枚举（承接 FE-11 的"未知透传"红线，扫尾 Contracts 页，可验证）**：
+    - 缺陷：`pages/Contracts.tsx` 的"审核状态" pill 原来是 `STATUS[code] || "状态未知"` —— ① 命中已知值只出中文、丢弃英文枚举原值（与全站"中文 · token"约定不符）；② 后端若返回新的未知状态（如 `pending_legal_review`），被吞成"状态未知"，评审者看不到真实 token，违反"未知一律透传、绝不臆造措辞掩盖"红线。
+    - 修法：在单一来源 `ui/toneMap.ts` 新增 `CONTRACT_STATUS_CN`（APPROVED/PROPOSED/REJECTED/REVOKED）与 `contractStatusLabel()`（命中→"中文 · 大写 token"、未知→原样透传大写、空→"—"），与 `statusLabel`（job 状态）是**不同枚举**故不复用；`ui/index.ts` 导出。`Contracts.tsx` 删除本地私有 `STATUS` 地图（消除"同状态两套中文"漂移风险），pill 改用 `contractStatusLabel(rule.status)` 并把 raw 留 `title={rule.status}`；筛选下拉复用 `CONTRACT_STATUS_CN`（下拉保持纯中文更简洁，pill 作为审计面才带 token）。
+    - `toneMap.test.ts` 新增 3 例：已知值"中文+token 双显"、未知 `pending_legal_review` 透传且 `not.toContain("状态未知")`、空值→"—"。
+    - 已验证：`tsc --noEmit` 干净、`vite build` 通过、vitest **39 文件 / 229 例全绿**（含本会话树内既有未提交用例，FE-12 净增 3 例）。所有改动**未提交**（本会话全部本地未 commit）。
+  - **FE-13 首次上手文案里的裸 `BLOCKED` 枚举补中文（承接 de-jargon 红线，可验证）**：`pages/NewVerification.tsx` 演示说明原文"预期结论为 `<code>BLOCKED</code>`"直接把英文枚举丢给第一次使用的人（不知道 BLOCKED 意味着什么，正是"不友好"）。改为"预期结论为 **发现风险**（`<code>BLOCKED</code>`）"——中文 gloss 取自单一来源 `STATUS_LABELS.BLOCKED`，`<code>` 里的规范 token 仍保留供追溯（此处是固定演示结论、非运行期值，故直接内联中文不算臆造）。`NewVerification.test.tsx`（6 例）无对旧文案的锁定，未动；`tsc` 干净、`vite build` 通过。经复核 `Matrix.tsx`/`Jobs.tsx`/`AgentEventLog.tsx` 均无需改动：前两者错误≠空态已正确分流；AgentEventLog 的 `JSON.stringify(ev.data)` 是刻意保留给工程师的原始事件面（设计系统 Table 已记其"seq 有序流式日志"不迁移），强套映射反而臆造。
+
+
+
+## 5. 2026-09-23 会话：状态核实 + Phase 3.3（术语内联化）第一片
+
+### 5.1 状态核实（先查证，再动工）
+
+本轮先做只读核实，避免"照着过期计划做已完成的活"：
+
+| 核实项 | 方法 | 结论 |
+|---|---|---|
+| 前端门禁 | `tsc --noEmit` / `vitest run` / `vite build` | ✅ 干净 / **39 文件 226 例全绿** / 通过 |
+| 计划与代码是否一致（Phase 1.9 表格） | 全仓 grep `<table className="data">` | ✅ 一致：仅剩 `FindingDetail`/`AgentEventLog`/`AgentPlanReview`/`Dashboard` 四处，**均为语义上不应排序的表**（与文末判定吻合），可排序数据集确已全部落地设计系统 `Table` |
+| `Tooltip` 组件是否同样闲置 | grep `<Tooltip` | ⚠️ 只有 `ui-kit/UiKit.tsx` 的 4 处样式预览在用，产品页 0 处 —— 与当初 `Table` 的处境相同，是"已有能力没被用起来" |
+| 内部链接是否有死链 | 抽取全部 `#/...` href 与 `App.tsx::renderRoute` 对照 | ✅ 无死链（14 个一级前缀全部有对应路由） |
+| `/health` 与 `/api/v1/health` 是否打架 | 读 `api/server.py` 与 `api/routes/web.py` | ✅ **不是缺陷**：两者是不同契约（前者给启动轮询器，返回 `status/mysql/redis/agent_jobs`；后者给前端健康页，返回 `status/degraded/checks` 六依赖明细）。前端 `Health.tsx` 打的是 `/api/v1/health`，字段对得上 |
+| Phase 1.6（轻量模式跑验收）是否可直接动工 | 读 `scripts/start_local_light.ps1` | ❌ **确认"较大重构"的判断成立**：轻量模式只起 `uvicorn api.server:app` + Vite，**根本不起 Verify worker**。因此只把 `api/routes/jobs.py` 的 `MySQLStore` 换成可插拔存储**不够**——任务会永远停在 QUEUED，等于造一个假控件。必须连"进程内执行器 + 进度通道"一起做，维持暂缓 |
+| Docker 是否可用 | `docker info` | ❌ 守护进程未运行 → 本机**无法**验证 Node/Python 沙箱镜像，故本轮不碰 ④ 的镜像落地（只在文档标注） |
+
+### 5.2 修掉一处真实的英文枚举泄漏（`Health` 整体状态）
+
+`Health` 页「整体状态」指标卡原为 `data.status.toUpperCase()`，把 `/api/v1/health` 的 `ok`/`degraded` 直接喊成 **"OK" / "DEGRADED"**——与全站"英文枚举译中文、原文留 `title` 供审计"的约定（`verdictLabel`/`statusLabel`/`checkerLabel`/`evalVerdictLabel`…）不一致，也正是痛点#4"术语负担重"的典型。
+
+- `ui/toneMap.ts` 新增 `healthStatusLabel()`：`ok→正常`、`degraded→降级`；**未知值原样透传**（绝不把没见过的状态说成"正常"）、**缺失→未知**。经 `ui/index.ts` 导出。
+- `pages/Health.tsx` 改用它，原始值留在 `title`。
+- 该页 `buildHealthCategories()` 的诚实语义（缺字段=未知、降级 reason 逐字）**完全未动**。
+- 已验证：`ui/__tests__/toneMap.test.ts` 新增 3 例（两个已知值含大小写、未知透传且断言 `!== "正常"`、缺失→未知）。
+
+### 5.3 Phase 3.3 第一片：把"术语解释"从独立页面搬到使用现场
+
+**问题**：`需求矩阵 / 契约 / 风险发现 / 证据包 / 合并证书 / 开发助手` 只在「上手指南」页面解释过一次。用户在主流程遇到这些词时无处可查——要么离开当前页去翻指南，要么凭上下文猜。这是痛点#4 的根因，而 `Tooltip` 组件明明已经存在却只有样式预览页在用。
+
+- **新增 `ui/glossary.ts`（全站唯一来源）**：`GLOSSARY` 8 条（原 6 条 + 新增 `preflight` 环境预检、`evidence` 证据），每条 `{ id, label, en, definition }`；`glossaryEntry(id)` 查不到返回 `undefined`。**不臆造**：未知 id 由 `<Term>` 原样透传 children。
+- **新增 `ui/Term.tsx`**：`<Term id="capsule">证据包</Term>` —— 可见文案由各页自己决定（同一概念各页措辞可不同），悬浮/键盘聚焦时才展开定义与英文原名。复用已有 `Tooltip`（其 `cloneElement` 已自动补 `aria-describedby`，CSS 已支持 `:focus-within`），故**没有新造一套提示机制**。未知 id 直接渲染 children、不包壳。
+- **`pages/Guide.tsx` 改为渲染共享术语表**：`<dl className="guide-glossary">{GLOSSARY.map(...)}` —— 指南与内联提示读同一份数据，**再也不会两边措辞漂移**（此前定义硬编码在 JSX 里，改一处忘一处）。顺带给"需求矩阵"补了一句"导航里的「需求覆盖」就是它"，把导航标签与术语接上。
+- **落地位置（5 处主流程，覆盖用户第一次遇到这些词的地方）**：
+  - `Matrix`（需求覆盖）：已提取**规则** → `contract`、缺少**证据** → `evidence`
+  - `Contracts`（验收规则）：提取**契约** → `contract`
+  - `NewVerification`（新建验证，用户最先看到的一页）：可追溯的**证据** → `evidence`、每条**验收条件** → `contract`、**风险发现** → `finding`
+  - `JobDetail`：面板标题 **合并证书 / 拒绝通知** → `certificate`、**复现包下载** → `capsule`
+  - `FindingDetail`：**复现包** 字段 → `capsule`、**证据来源** 面板 → `evidence`
+- **顺带的小幅类型放宽（向后兼容）**：`ui/Panel.tsx` 的 `title: string` → `ReactNode`、`ui/util.tsx` 的 `kv(label: string, …)` → `label: ReactNode`，让面板/字段标题也能挂内联术语（与 `right?: ReactNode` 一致）。
+- **样式**：`styles/base.css` 新增 `.ui-term` 一组——虚线可交互下划线 + `cursor: help` + `:focus-visible` 焦点环；并把基础 tooltip 的 `white-space: nowrap` 在 `.ui-term` 作用域内改为**可换行、`max-width: 300px`**（一句定义不能挤成一行）。基础 tooltip 保持原有单行紧凑形态不受影响。
+- **已验证**：新增 `ui/__tests__/glossary.test.ts` 4 例（id 唯一且可反查、指南原有的 6 个 id 不得丢、label/definition 非空、未知 id 返回 `undefined`）与 `ui/__tests__/Term.test.tsx` 4 例（可见文案是调用方的、定义在 tooltip 里、`aria-describedby` + `role=tooltip` + `tabindex=0` 可键盘触达、英文原名呈现、**未知 id 原样透传且不产生 `.ui-term`/`.ui-tooltip`**）；`tsc --noEmit` 干净、`vite build` 通过、全量 vitest **39 文件 / 226 例全绿**。
+- **诚实标注（未做）**：3.3 的另一半——"引导页关键步骤做成产品内 checklist（进度持久化）"——本轮未动，仍挂在 Phase 3.3。术语目前覆盖主流程 5 页，`Dashboard` / `Eval` / 团队与权限等页未挂（这些页本身不出现上述术语，属刻意不加）。
+
+### 5.4 下一步（本轮校正后）
+
+优先级不变，仅补两条已核实结论：
+
+1. **Phase 3.3 收尾**：引导页 checklist（进度持久化）。纯前端、可离线验证，风险低。
+2. **Phase 1.5 第二步**：`tests/unit` 引入 `slow` 标记并默认排除——**本轮实测再次确认该缺口真实**：`pytest tests/unit -m 'not integration'` 在本机跑了 7 分钟仍未结束（远超 Phase 1 定下的"60s 反馈"标准）。这是贡献者体验的硬伤，且完全可离线度量（改完前后各测一次墙钟时间即可作为证据）。
+3. **④ 4a 多语言差分**：逻辑地基（`agent/self_test_diff.py`）与沙箱参数化地基（`sandbox/runner.py::SandboxProfile`）都已就位，**唯一缺口是 Node/Python 沙箱镜像 + 真实接线**，而本机 Docker 未运行 ⇒ 需在有 Docker 的窗口做，不可离线验证，维持暂缓。
+4. **Phase 1.6 轻量模式跑验收**：已确认"只换存储不够、必须连进程内执行器一起做"，维持暂缓。
+5. ⑤ API 侧稳定降级错误码（跨栈契约变更）、⑥ 一键创建演示仓库（安全受限）——均维持暂缓。
+
+## 6. 2026-09-23 会话：后端里程碑收口 + 一处真实潜伏缺陷
+
+### 6.1 后端里程碑（语言感知预检 + 诚实非 Java 差分降级 + Node adapter + 沙箱参数化 + 轻量模式 503）
+
+本会话把 `agent/`、`api/`、`evidence/`、`experiments/`、`sandbox/`、`cli/`、`scripts/` 及对应单测的改动作为一个后端里程碑提交推送。要点已在 §4/§5 记档：`run_preflight` 语言感知节点接入、非 Java 项目差分诚实降级为 UNVERIFIED（而非模糊英文）、Node adapter、`SandboxProfile` 参数化、light-mode 友好 503（去掉 `{exc}` 原文外泄）。安全红线复核：`api/routes/jobs.py` 的 `JOB_CREATE_ALLOWLIST` 未动，`run_differential` 仅在存在 Java 生成测试类时经 `registry.get` 执行（Node/Py local-first adapter 从未被生产差分触达）。
+
+### 6.2 潜伏缺陷修复：`MinIOClient.list_job_objects` 此前根本不存在（可验证，非臆造）
+
+- **现象**：仓库自带的 `mypy .` CI 门（`.github/workflows/ci.yml`）在我接手时其实是**红的**——唯一一处错误 `ops/data_lifecycle.py:128: "MinIOClient" has no attribute "list_job_objects"`。
+- **根因**：数据生命周期删除报告调用 `minio.list_job_objects(job_id)`，但真实 `MinIOClient` **从未实现**该方法。`tests/unit/test_data_lifecycle.py` 用 `monkeypatch` 换上一个**自带该方法**的 `FakeMinIO`，于是单测**永远掩盖**了这个洞：真实客户端在运行时走到那一步会抛 `AttributeError`，被外层 `except` 吞掉、把 minio 步骤永久记成 `ok:False` —— 也就是说**生产里这一"列证据供人工确认"的步骤从来没有真正列出过任何东西**，且没人发现。这正是"问题很大"的一个典型样本：门是红的、测试是绿的、缺陷是潜伏的。
+- **修复**：`storage/minio.py::list_job_objects` 落地真实现——按治理路径 `tenant/repo/job/type/version` 用**校验过的单段**（复用 `validate_path_segment`，`".."`/`"/"`/空格在触达客户端前即拒）跨三桶过滤出该 job 的对象，返回 `bucket/object-name` 字符串；**单个桶不可达只跳过、绝不清零其它桶已发现的证据**。新增 `test_list_job_objects_filters_by_job_segment_and_guards_traversal`（真客户端、桶感知假件），锁定三件事：只命中目标 job 段、不可达桶被跳过而不抹掉别处证据、越界 job id 抛 `InvalidObjectPathError`。
+- **门证**：`mypy .` 由 1 错转**全绿（209 文件）**；`ruff` 干净；`test_storage_governance.py + test_data_lifecycle.py` 共 **34 passed**。
+
+### 6.3 下一步（本轮新增候选）
+
+1. **Phase 1.5 第二步（高价值、完全可离线度量）**：给 `tests/unit` 引入 `slow` 标记并默认排除——§5.4 已实测 `-m 'not integration'` 跑 7 分钟未完，违背 Phase 1 定的"60s 反馈"，是贡献者体验硬伤。改完前后各测一次墙钟时间即为证据。
+2. **Recall/Precision 可执行量化门**（任务 #51）：为评测集落地带下限、带非零守卫的可跑门，诚实透出到 Eval 页。
+3. **默认关闭的本地测试执行差分门**（任务 #50，红线合规路径 ii）：`SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1` + UI 诚实标注"本机执行·无沙箱"，先用假 adapter 离线测 verdict/digest/解析，真实接线前不得在无沙箱宿主跑任意仓库测试。
+4. **同类"潜伏缺陷"扫查**：本轮暴露了一种失败模式——**假件自带真实实现没有的方法 ⇒ 单测绿、生产红、静态门红**。值得专门排查其余 `ops/`、报告/删除类路径里对存储客户端的调用是否都有真实实现兜底。

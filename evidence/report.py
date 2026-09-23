@@ -6,6 +6,92 @@ from typing import Any
 from evidence.verdict import evaluate_verification
 
 
+def _render_preflight(preflight: dict[str, Any] | None, safe: Any) -> str:
+    """Render the environment preflight section (roadmap Phase 1.4).
+
+    The report is the artifact people archive and diff months later, so it
+    must record the environment the verdict was produced in — otherwise a
+    FAILED verdict is unreadable ("did the code fail, or the machine?").
+
+    Only facts that were actually probed are rendered. When the pipeline
+    skipped preflight (upstream input error) the report says so instead of
+    implying a healthy environment.
+    """
+    if not isinstance(preflight, dict) or not preflight:
+        return ""
+
+    checks = [c for c in (preflight.get("checks") or []) if isinstance(c, dict)]
+    errors = [str(e) for e in (preflight.get("errors") or [])]
+    warnings = [str(w) for w in (preflight.get("warnings") or [])]
+    skipped = [str(s) for s in (preflight.get("skipped") or [])]
+    language = str(preflight.get("language") or "unknown")
+    not_run = str(preflight.get("not_run") or "")
+
+    if not checks and not errors and not warnings:
+        reason = {
+            "upstream_errors": (
+                "Input validation failed before the environment was probed."
+            ),
+            "probe_error": (
+                "The environment probe itself failed; the pipeline continued."
+            ),
+            "disabled_by_SPECPROOF_PREFLIGHT": (
+                "Environment preflight was disabled by configuration."
+            ),
+        }.get(not_run, "Environment preflight did not run.")
+        return (
+            '<section><h2>Environment Preflight</h2>'
+            f'<p class="unverified">{safe(reason)}</p></section>'
+        )
+
+    ok = not errors
+    status_html = (
+        '<span class="pass">satisfied</span>' if ok
+        else '<span class="fail">not satisfied</span>'
+    )
+
+    def _row(cell: dict[str, Any]) -> str:
+        status = str(cell.get("status", ""))
+        css = {"PASS": "pass", "FAIL": "fail"}.get(status, "unverified")
+        return (
+            f'<tr><td>{safe(cell.get("check", ""))}</td>'
+            f'<td class="{css}">{safe(status)}</td>'
+            f'<td>{safe(cell.get("detail", ""))}</td></tr>'
+        )
+
+    rows = "".join(_row(c) for c in checks)
+    table = (
+        "<table><thead><tr><th>Check</th><th>Result</th><th>Detail</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table>"
+        if rows else ""
+    )
+
+    errors_html = ""
+    if errors:
+        items = "".join(f"<li>{safe(e)}</li>" for e in errors)
+        errors_html = f'<h3 class="fail">Blocking ({len(errors)})</h3><ul>{items}</ul>'
+    warnings_html = ""
+    if warnings:
+        items = "".join(f"<li>{safe(w)}</li>" for w in warnings)
+        warnings_html = f"<h3>Warnings ({len(warnings)})</h3><ul>{items}</ul>"
+    skipped_html = ""
+    if skipped:
+        items = ", ".join(safe(s) for s in sorted(set(skipped)))
+        skipped_html = (
+            f'<p class="unverified">Not applicable to a {safe(language)} project '
+            f"(deliberately not run): {items}</p>"
+        )
+
+    return f"""<section>
+        <h2>Environment Preflight</h2>
+        <p>Detected project type: <strong>{safe(language)}</strong> — environment {status_html}</p>
+        {table}
+        {errors_html}
+        {warnings_html}
+        {skipped_html}
+    </section>"""
+
+
 def render_verification_report(
     repo: str,
     base_ref: str,
@@ -14,6 +100,7 @@ def render_verification_report(
     findings: list[dict[str, Any]],
     errors: list[str] | None = None,
     generated_at: str | None = None,
+    preflight: dict[str, Any] | None = None,
 ) -> str:
     """Render the full HTML Verification Report.
 
@@ -93,6 +180,8 @@ def render_verification_report(
             f"<ul>{items}</ul></section>"
         )
 
+    preflight_html = _render_preflight(preflight, safe)
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -149,6 +238,7 @@ def render_verification_report(
 
     {errors_html}
     {coverage_html}
+    {preflight_html}
 
     <section>
         <h2>Requirement-to-Evidence Matrix</h2>

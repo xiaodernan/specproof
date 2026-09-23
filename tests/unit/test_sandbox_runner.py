@@ -139,6 +139,73 @@ def test_docker_mode_result_reported(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.stdout == "fake stdout"
 
 
+# ── Sandbox profile seam: language-agnostic isolation, parametric toolchain ─
+#
+# A synthetic NON-Maven profile proves the runner's security invariants do not
+# depend on the toolchain: any language routed through build_docker_argv gets
+# the identical --network none / --user 1000 / cap-drop / tmpfs guarantees,
+# while the image, offline cache volume and writable sub-mounts vary. Nothing
+# here is wired into the differential pipeline — this only locks the mechanism
+# a future sandboxed Node/Python adapter would plug into.
+
+_NODE_PROFILE = runner.SandboxProfile(
+    name="node",
+    image="node:22-alpine",
+    image_env="SPECPROOF_SANDBOX_NODE_IMAGE",
+    env=(("npm_config_offline", "true"),),
+    cache_volume_env="SPECPROOF_SANDBOX_NPM_VOLUME",
+    cache_volume_default="specproof-npm-cache-1000",
+    cache_mount="/home/node/.npm",
+    writable_submounts=((".specproof-out", "/work/.specproof-out"),),
+)
+
+
+def test_maven_is_the_default_profile() -> None:
+    # Selection is additive: the only profile wired today is Maven, so the
+    # differential's effective behavior stays Maven-only.
+    assert runner._profile_from_env() is runner.MAVEN_PROFILE
+
+
+def test_build_docker_argv_matches_maven_hardening() -> None:
+    argv = runner.build_docker_argv(["mvn", "-o", "test"], "/ws", runner.MAVEN_PROFILE)
+    assert argv[argv.index("--user") + 1] == "1000:1000"
+    assert "--network" in argv and "none" in argv
+    assert "--cap-drop" in argv and "ALL" in argv
+    assert "--security-opt" in argv and "no-new-privileges" in argv
+    assert "MAVEN_USER_HOME=/home/maven/.m2" in argv
+    assert "/ws:/work:ro" in argv
+    assert "/ws/target:/work/target" in argv
+    assert "specproof-maven-cache-1000:/home/maven/.m2" in argv
+    assert argv[argv.index("maven:3.9-eclipse-temurin-21") + 1:] == ["mvn", "-o", "test"]
+
+
+def test_build_docker_argv_applies_invariants_to_a_non_maven_profile() -> None:
+    argv = runner.build_docker_argv(["npm", "test", "--silent"], "/ws", _NODE_PROFILE)
+    # Same isolation guarantees regardless of toolchain.
+    assert argv[argv.index("--user") + 1] == "1000:1000"
+    assert "--network" in argv and "none" in argv
+    assert "--cap-drop" in argv and "ALL" in argv
+    assert "--security-opt" in argv and "no-new-privileges" in argv
+    assert any("tmpfs" in a for a in argv)
+    # Parametric toolchain: different image, env, cache volume, writable mount.
+    assert "node:22-alpine" in argv
+    assert "npm_config_offline=true" in argv
+    assert "/ws:/work:ro" in argv
+    assert "/ws/.specproof-out:/work/.specproof-out" in argv
+    assert "specproof-npm-cache-1000:/home/node/.npm" in argv
+    # Never a docker socket, for any profile.
+    assert not any("docker.sock" in a for a in argv)
+    # Command stays the last tokens, after the image.
+    assert argv[argv.index("node:22-alpine") + 1:] == ["npm", "test", "--silent"]
+
+
+def test_build_docker_argv_cache_volume_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SPECPROOF_SANDBOX_NPM_VOLUME", "custom-npm-vol")
+    argv = runner.build_docker_argv(["npm", "test"], "/ws", _NODE_PROFILE)
+    assert "custom-npm-vol:/home/node/.npm" in argv
+    assert "specproof-npm-cache-1000" not in " ".join(argv)
+
+
 def _load_production_compose() -> dict[str, Any]:
     path = Path(__file__).resolve().parents[2] / "compose.production.yml"
     with open(path, encoding="utf-8") as f:

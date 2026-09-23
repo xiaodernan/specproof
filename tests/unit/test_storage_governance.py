@@ -560,3 +560,35 @@ def test_default_stamping_is_default_tenant_and_code(
     store.index_code_block("repo:test", "abc123", "A.java", "m", "void m() {}")
     assert fake.docs[0]["tenant_id"] == DEFAULT_TENANT_ID
     assert fake.docs[0]["source_type"] == "code"
+
+
+def test_list_job_objects_filters_by_job_segment_and_guards_traversal() -> None:
+    # The data-lifecycle delete report calls MinIOClient.list_job_objects;
+    # test_data_lifecycle.py only ever swaps in a fake that already HAS the
+    # method, so the real client was never exercised here. Cover the real
+    # behaviour: return bucket/name for the given job only, skip buckets that
+    # cannot be reached (never erase evidence found in the others), and
+    # reject an unsafe job id before any client call.
+    class _BucketedMinio:
+        def list_objects(
+            self, bucket_name: str, recursive: bool = False  # noqa: FBT001, FBT002, ARG002
+        ) -> list[Any]:
+            if bucket_name == "specproof-tool-reports":
+                raise ConnectionError("bucket unreachable")
+            names = {
+                "specproof-bug-capsules": [
+                    "tenant-a/repo-x/job-9/capsule/v1",
+                    "tenant-a/repo-x/job-99/capsule/v1",
+                ],
+                "specproof-html-reports": ["tenant-a/repo-x/job-9/report/v1"],
+            }.get(bucket_name, [])
+            return [SimpleNamespace(object_name=n) for n in names]
+
+    client = MinIOClient()
+    client._client = _BucketedMinio()  # type: ignore[assignment]
+    assert sorted(client.list_job_objects("job-9")) == [
+        "specproof-bug-capsules/tenant-a/repo-x/job-9/capsule/v1",
+        "specproof-html-reports/tenant-a/repo-x/job-9/report/v1",
+    ]
+    with pytest.raises(InvalidObjectPathError):
+        client.list_job_objects("../etc")

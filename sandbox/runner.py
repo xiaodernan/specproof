@@ -77,10 +77,79 @@ DEFAULT_PIDS_LIMIT = "256"
 DEFAULT_M2_VOLUME = "specproof-maven-cache-1000"
 
 
-def _m2_volume() -> str:
-    """Cache volume name: SPECPROOF_SANDBOX_M2_VOLUME overrides the non-root default."""
-    value = os.getenv("SPECPROOF_SANDBOX_M2_VOLUME", "").strip()
-    return value or DEFAULT_M2_VOLUME
+# ── Sandbox profiles (language-agnostic isolation, parametric toolchain) ─
+#
+# The isolation invariants (non-root user, --network none, --cap-drop ALL,
+# no-new-privileges, pids cap, tmpfs, read-only workspace, no docker.sock)
+# are IDENTICAL for every language — they are what makes it safe to run
+# UNTRUSTED PR code at all. What differs per language is only: which image
+# provides the toolchain, which env vars point the toolchain at an offline
+# cache, which volume seeds that cache, and which sub-directories of the
+# (read-only) workspace the build must write into. ``SandboxProfile`` captures
+# exactly that delta so the runner stays a single hardened path; a new
+# language becomes data, never a new copy of the security-critical argv.
+@dataclass(frozen=True)
+class SandboxProfile:
+    name: str
+    image: str
+    # Env var that lets operators pin/override the image for this profile.
+    image_env: str
+    # Extra "-e KEY=VALUE" env for the toolchain's offline resolution.
+    env: tuple[tuple[str, str], ...] = ()
+    # Offline dependency-cache volume mounted at ``cache_mount``.
+    cache_volume_env: str = ""
+    cache_volume_default: str = ""
+    cache_mount: str = ""
+    # Workspace-relative dirs that must be writable, pre-created on the host
+    # and sub-mounted read-write into the otherwise read-only /work.
+    writable_submounts: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def precreate_dirs(self) -> tuple[str, ...]:
+        return tuple(rel for rel, _ in self.writable_submounts)
+
+
+# The default profile reproduces the original Maven argv byte-for-byte:
+# the existing test_sandbox_runner.py assertions are the regression lock.
+MAVEN_PROFILE = SandboxProfile(
+    name="maven",
+    image=DEFAULT_IMAGE,
+    image_env="SPECPROOF_SANDBOX_IMAGE",
+    env=(
+        ("MAVEN_USER_HOME", MAVEN_USER_HOME_ENV),
+        ("MAVEN_OPTS", f"-Duser.home={MAVEN_HOME}"),
+    ),
+    cache_volume_env="SPECPROOF_SANDBOX_M2_VOLUME",
+    cache_volume_default=DEFAULT_M2_VOLUME,
+    cache_mount=MAVEN_USER_HOME_ENV,
+    writable_submounts=(("target", "/work/target"),),
+)
+
+
+def _profile_from_env() -> SandboxProfile:
+    """Resolve the active profile. Only the Maven profile exists today; the
+    seam is here so a future sandboxed language selects its own profile
+    WITHOUT touching the host. Selection is additive — no profile is wired
+    into the differential pipeline until it has been validated on live
+    Docker, so the pipeline's effective behavior stays Maven-only."""
+    return MAVEN_PROFILE
+
+
+def _profile_image(profile: SandboxProfile) -> str:
+    if profile.image_env:
+        value = os.getenv(profile.image_env, "").strip()
+        if value:
+            return value
+    return profile.image
+
+
+def _profile_cache_volume(profile: SandboxProfile) -> str:
+    if profile.cache_volume_env:
+        value = os.getenv(profile.cache_volume_env, "").strip()
+        if value:
+            return value
+    return profile.cache_volume_default
+
 
 # Output-flood defense (backlog #7): the runner bounds retained output to
 # head + explicit truncation marker + tail so downstream consumers never
@@ -174,20 +243,25 @@ def _image_ready(image: str) -> bool:
 
 
 def _ensure_writable_target(workspace: str) -> str:
-    """Pre-create the workspace target/ dir the writable sub-mount needs.
+    """Pre-create the active profile's writable sub-dirs (single-arg
+    monkeypatch point used across the sandbox/fault tests)."""
+    return _ensure_writable_mounts(workspace, _profile_from_env())
 
-    Returns "" on success, an error otherwise. Under DooD (docker:dind) the
-    daemon would otherwise create target/ as root, and the non-root Maven
-    could not write into it; on local Docker Desktop the nested mount source
-    must exist before `docker run` resolves it. Idempotent — the pipeline
-    always starts from a fresh worktree, and re-runs find an existing
-    container-owned target/.
+
+def _ensure_writable_mounts(workspace: str, profile: SandboxProfile) -> str:
+    """Pre-create each writable subdir the profile's sub-mounts need.
+
+    Under DooD the daemon would otherwise create these dirs as root and the
+    non-root workload could not write into them; on local Docker Desktop the
+    nested mount source must exist before `docker run` resolves it.
+    Idempotent — the pipeline always starts from a fresh worktree.
     """
-    try:
-        os.makedirs(os.path.join(workspace, "target"), exist_ok=True)
-        return ""
-    except OSError as exc:
-        return f"cannot create workspace target dir: {exc}"[:300]
+    for rel in profile.precreate_dirs:
+        try:
+            os.makedirs(os.path.join(workspace, rel), exist_ok=True)
+        except OSError as exc:
+            return f"cannot create workspace target dir: {exc}"[:300]
+    return ""
 
 
 def _pull_image(image: str) -> str:
@@ -216,22 +290,16 @@ def _pull_image(image: str) -> str:
         return str(exc)[:300]
 
 
-def _run_docker(command: list[str], workspace: str, timeout: int) -> SandboxResult:
-    image = os.getenv("SPECPROOF_SANDBOX_IMAGE", DEFAULT_IMAGE)
-    if not _image_ready(image):
-        err = _pull_image(image)
-        if err:
-            return SandboxResult(
-                exit_code=-1, stdout="", stderr="",
-                error=f"sandbox image unavailable: {err}", mode="docker",
-            )
-    target_err = _ensure_writable_target(workspace)
-    if target_err:
-        return SandboxResult(
-            exit_code=-1, stdout="", stderr="",
-            error=target_err, mode="docker",
-        )
-    docker_cmd = [
+def build_docker_argv(command: list[str], workspace: str, profile: SandboxProfile) -> list[str]:
+    """Assemble the hardened `docker run` argv for a profile (pure).
+
+    Isolation invariants are fixed here and shared by every language; only
+    the image / toolchain env / cache volume / writable sub-mounts vary with
+    the profile. Kept side-effect-free so the security-critical argv can be
+    unit-tested offline without a Docker daemon.
+    """
+    image = _profile_image(profile)
+    argv = [
         "docker", "run", "--rm",
         # §12: never root, with a pids-controller cap against fork bombs.
         "--user", SANDBOX_USER,
@@ -245,23 +313,46 @@ def _run_docker(command: list[str], workspace: str, timeout: int) -> SandboxResu
         # container, not the host's temp directory. The path is assembled
         # from parts so no bare /tmp literal trips static scanners.
         "--tmpfs", f"{os.path.join('/', 'tmp')}:rw,noexec,nosuid,size=512m",
-        # Maven must resolve dependencies and the wrapper distribution from
-        # the seeded cache volume even with --network none. See MAVEN_USER_HOME
-        # above for why both variables are required.
-        "-e", f"MAVEN_USER_HOME={MAVEN_USER_HOME_ENV}",
-        "-e", f"MAVEN_OPTS=-Duser.home={MAVEN_HOME}",
-        # Read-only workspace + a writable target sub-mount: the source
-        # tree stays immutable while Maven produces target/ (classes,
-        # surefire reports, H2 state) that the pipeline reads back for
-        # evidence. The workspace is a disposable worktree copy, not the
-        # repository itself.
-        "-v", f"{workspace}:/work:ro",
-        "-v", f"{workspace}/target:/work/target",
-        "-v", f"{_m2_volume()}:{MAVEN_USER_HOME_ENV}",
-        "-w", "/work",
-        image,
-        *command,
     ]
+    for key, value in profile.env:
+        argv += ["-e", f"{key}={value}"]
+    # Read-only workspace + per-profile writable sub-mounts: the source tree
+    # stays immutable while the build produces output the pipeline reads back
+    # for evidence. The workspace is a disposable worktree copy, not the
+    # repository itself. The offline cache volume lets the toolchain resolve
+    # dependencies even under --network none.
+    argv += ["-v", f"{workspace}:/work:ro"]
+    for rel, container in profile.writable_submounts:
+        # POSIX-style concat: the container path and these mount specs are
+        # always '/'-separated regardless of host OS (os.path.join would emit
+        # backslashes on Windows and change the argv).
+        argv += ["-v", f"{workspace}/{rel}:{container}"]
+    if profile.cache_mount:
+        argv += ["-v", f"{_profile_cache_volume(profile)}:{profile.cache_mount}"]
+    argv += ["-w", "/work", image, *command]
+    return argv
+
+
+def _run_docker(
+    command: list[str], workspace: str, timeout: int,
+    profile: SandboxProfile | None = None,
+) -> SandboxResult:
+    profile = profile or _profile_from_env()
+    image = _profile_image(profile)
+    if not _image_ready(image):
+        err = _pull_image(image)
+        if err:
+            return SandboxResult(
+                exit_code=-1, stdout="", stderr="",
+                error=f"sandbox image unavailable: {err}", mode="docker",
+            )
+    target_err = _ensure_writable_target(workspace)
+    if target_err:
+        return SandboxResult(
+            exit_code=-1, stdout="", stderr="",
+            error=target_err, mode="docker",
+        )
+    docker_cmd = build_docker_argv(command, workspace, profile)
     try:
         proc = subprocess.run(
             docker_cmd, capture_output=True, text=True, timeout=timeout,

@@ -614,6 +614,10 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
         "retrieval_note": state.get("retrieval_note", ""),
         "coverage_reason": decision.reason,
         "errors": list(state.get("errors", []))[:10],
+        # Phase 1.4: structured toolchain probes (checks/warnings/skipped).
+        # Kept separate from `errors` so the UI can render "what we checked"
+        # rather than only "what went wrong".
+        "preflight": state.get("preflight", {}),
     }
 
 

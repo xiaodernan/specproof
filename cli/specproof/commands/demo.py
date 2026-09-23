@@ -5,7 +5,7 @@ so the verification pipeline (which diffs two git refs) cannot run against
 it out of the box. This command initialises a local git history for it:
 
     base          original implementation (permission checks intact)
-    head-v1-bug   removes the @PreAuthorize guard from changeEmail
+    head-v1       removes the @PreAuthorize guard from changeEmail
 
 and optionally runs `specproof verify` against it, so a new user sees a
 real BLOCKED verdict with findings and evidence in minutes.
@@ -26,7 +26,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEMO_REPO = _PROJECT_ROOT / "demo" / "spring-backend"
 DEMO_SPEC = _PROJECT_ROOT / "demo" / "requirement.txt"
 BASE_REF = "base"
-HEAD_REF = "head-v1-bug"
+HEAD_REF = "head-v1"
 _GUARD_ANCHOR = '@PreAuthorize("isAuthenticated()")'
 _CONTROLLER = (
     Path("src/main/java/com/specproof/demo/controller/UserController.java")
@@ -52,7 +52,7 @@ def _ref_exists(repo: Path, ref: str) -> bool:
 
 
 def prepare_demo_repo(repo: Path = DEMO_REPO) -> bool:
-    """Create base / head-v1-bug refs in the demo repo. Returns True if created."""
+    """Create base / head-v1 refs in the demo repo. Returns True if created."""
     if not repo.is_dir():
         raise click.ClickException(f"未找到演示仓库目录: {repo}")
     if not DEMO_SPEC.is_file():
@@ -106,7 +106,7 @@ def demo(run: bool) -> None:
     """零配置体验 SpecProof: 准备演示仓库, 跑一次真实验证.
 
     \b
-    演示内容: demo/spring-backend 的 head-v1-bug 版本移除了邮箱修改接口的
+    演示内容: demo/spring-backend 的 head-v1 版本移除了邮箱修改接口的
     权限检查, 与 demo/requirement.txt 中「所有接口必须认证」的需求冲突,
     预期验证结论为 BLOCKED, 并给出风险描述与证据。
     """

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   准备 SpecProof 演示仓库 (demo/spring-backend) 供「变更验收」真实体验。
 
@@ -6,11 +6,11 @@
   演示仓库在源码包中不带 .git。本脚本把它初始化为一个本地 git 仓库,
   并创建两个引用:
     base            原始实现 (需求要求的权限检查完整)
-    head-v1-bug     移除了 changeEmail 的 @PreAuthorize 权限检查
+    head-v1     移除了 changeEmail 的 @PreAuthorize 权限检查
   之后即可在网页「变更验收 → 新建验证」中填入:
     仓库路径   demo/spring-backend (绝对路径见脚本输出)
     基准版本   base
-    待检查版本 head-v1-bug
+    待检查版本 head-v1
     需求文件   demo/requirement.txt
   提交后 SpecProof 会真实执行检查, 预期发现「未认证用户可修改邮箱」的
   回归 (BLOCKED 判定)。
@@ -45,7 +45,7 @@ function Show-Usage {
     Write-Host "演示仓库已就绪:" -ForegroundColor Green
     Write-Host "  仓库路径   : $DemoDir"
     Write-Host "  基准版本   : base          (权限检查完整)"
-    Write-Host "  待检查版本 : head-v1-bug   (移除了 @PreAuthorize 权限检查)"
+    Write-Host "  待检查版本 : head-v1   (移除了 @PreAuthorize 权限检查)"
     Write-Host "  需求文件   : $SpecPath"
     Write-Host ""
     Write-Host "在网页 变更验收 -> 新建验证 中填入以上四项, 提交后等待执行完成," -ForegroundColor Cyan
@@ -57,10 +57,10 @@ function Show-Usage {
 if (Test-Path -LiteralPath (Join-Path $DemoDir ".git")) {
     git -C $DemoDir rev-parse --verify --quiet base *> $null
     $baseOk = ($LASTEXITCODE -eq 0)
-    git -C $DemoDir rev-parse --verify --quiet head-v1-bug *> $null
+    git -C $DemoDir rev-parse --verify --quiet head-v1 *> $null
     $headOk = ($LASTEXITCODE -eq 0)
     if ($baseOk -and $headOk) {
-        Write-Host "演示仓库已初始化 (base / head-v1-bug 均存在), 无需重复执行。" -ForegroundColor DarkGray
+        Write-Host "演示仓库已初始化 (base / head-v1 均存在), 无需重复执行。" -ForegroundColor DarkGray
         Show-Usage
         exit 0
     }
@@ -86,7 +86,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 git -C $DemoDir tag -f base | Out-Null
 
-# ── head-v1-bug: 移除 @PreAuthorize 权限检查 ──
+# ── head-v1: 移除 @PreAuthorize 权限检查 ──
 $content = Get-Content -LiteralPath $Controller -Raw -Encoding UTF8
 if ($content -notmatch '@PreAuthorize\("isAuthenticated\(\)"\)') {
     Write-Host "权限检查注解已不在源文件中, 无法构造演示改动。" -ForegroundColor Yellow
@@ -102,14 +102,14 @@ try {
     if ($LASTEXITCODE -ne 0) {
         git -C $DemoDir commit -q -m "demo: 移除邮箱修改接口的权限检查 (演示回归)"
     }
-    git -C $DemoDir tag -f head-v1-bug | Out-Null
+    git -C $DemoDir tag -f head-v1 | Out-Null
 } finally {
     # 恢复工作区到 base 的原始内容, 避免污染用户的演示副本
     git -C $DemoDir checkout -q -- .
     git -C $DemoDir checkout -q base 2>$null
 }
 
-Write-Host "    [ok] base -> head-v1-bug 演示提交完成" -ForegroundColor Green
+Write-Host "    [ok] base -> head-v1 演示提交完成" -ForegroundColor Green
 
 Show-Usage
 exit 0

@@ -157,7 +157,11 @@ def contracts_with_results(
     """Attach fail-priority results without last-write-wins certification gaps."""
     from agent.matrix_policy import merge_contract_results
 
-    merged = {row["contract_id"]: row for row in merge_contract_results(list(results))}
+    # merge_contract_results accepts list[dict]; the callers pass read-only
+    # Mapping views (e.g. state entries), so materialise them here rather
+    # than widening the merger's contract.
+    entries = [dict(row) for row in results]
+    merged = {row["contract_id"]: row for row in merge_contract_results(entries)}
     output = []
     for contract in contracts:
         row = merged.get(contract.get("id"), {})

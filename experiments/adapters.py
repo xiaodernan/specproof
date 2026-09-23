@@ -15,12 +15,16 @@ Guide §4.5 contract:
         def collect(self, prepared: PreparedExecution) -> EvidenceFragment: ...
         def cleanup(self, prepared: PreparedExecution) -> None: ...
 
-First adapter batch (guide §14 task 10): Java/Maven is IMPLEMENTED (the
-existing capability, re-homed behind the protocol); Python/pytest is
-IMPLEMENTED local-first (工业化指南 阶段 4 / W57 — a project .venv on the
-host, no container). Java/Gradle, Node and Go remain planned matrix rows
-whose detect functions raise AdapterNotImplemented — we do NOT claim to
-support arbitrary projects.
+Adapter status (kept in sync with the classes below):
+  * Java/Maven — IMPLEMENTED (sandboxed Maven; the existing capability
+    re-homed behind the protocol).
+  * Python/pytest — IMPLEMENTED local-first (工业化指南 阶段 4 / W57 — a
+    project .venv on the host, no container).
+  * Node/npm — IMPLEMENTED local-first (runs the project's own
+    ``npm test --silent``; Jest / Vitest / node:test summaries parsed, a
+    missing ``node_modules`` fails honestly rather than faking a pass).
+  * Java/Gradle and Go — NOT implemented; ``detect`` raises
+    AdapterNotImplemented. We do NOT claim to support arbitrary projects.
 """
 
 from __future__ import annotations
@@ -231,6 +235,71 @@ def parse_pytest_summary(text: str) -> dict[str, int]:
         "skipped": _count(_PYTEST_SKIPPED),
         "errors": 0,
     }
+
+
+# ── Node test summary parsers (npm / jest / vitest / node:test) ──────────
+
+_JEST_TOTAL = re.compile(
+    r"Tests:\s+(?:.*?(\d+)\s+failed,\s+)?(\d+)\s+passed,\s+"
+    r"(?:.*?(\d+)\s+skipped,\s+)?(\d+)\s+total"
+)
+_VITEST_SUMMARY = re.compile(
+    r"Tests\s+(?:(\d+)\s+failed\s*\|\s*)?(?:(\d+)\s+skipped\s*\|\s*)?"
+    r"(\d+)\s+passed(?:\s*\((\d+)\))?"
+)
+_NODE_TEST_TOTAL = re.compile(r"^# tests\s+(\d+)", re.MULTILINE)
+_NODE_TEST_PASS = re.compile(r"^# pass\s+(\d+)", re.MULTILINE)
+_NODE_TEST_FAIL = re.compile(r"^# fail\s+(\d+)", re.MULTILINE)
+_NODE_TEST_SKIPPED = re.compile(r"^# skipped\s+(\d+)", re.MULTILINE)
+
+
+def parse_node_test_summary(text: str) -> dict[str, int]:
+    """Parse a Node test-suite summary into test counts.
+
+    Supports the three common terminal reporters — Jest, Vitest and Node's
+    built-in ``--test`` TAP output. When no recognised summary is present it
+    returns all-zero counts (honest "no evidence"): a zero is never a pass,
+    the caller must read exit_code for the verdict.
+    """
+    m = _JEST_TOTAL.search(text)
+    if m:
+        return {
+            "tests": int(m.group(4)),
+            "passed": int(m.group(2)),
+            "failed": int(m.group(1) or 0),
+            "errors": 0,
+            "skipped": int(m.group(3) or 0),
+        }
+    m = _VITEST_SUMMARY.search(text)
+    if m:
+        failed = int(m.group(1) or 0)
+        skipped = int(m.group(2) or 0)
+        passed = int(m.group(3))
+        total = int(m.group(4) or (passed + failed + skipped))
+        return {
+            "tests": total,
+            "passed": passed,
+            "failed": failed,
+            "errors": 0,
+            "skipped": skipped,
+        }
+    tests_m = _NODE_TEST_TOTAL.search(text)
+    pass_m = _NODE_TEST_PASS.search(text)
+    fail_m = _NODE_TEST_FAIL.search(text)
+    if tests_m or pass_m or fail_m:
+        failed = int(fail_m.group(1)) if fail_m else 0
+        passed = int(pass_m.group(1)) if pass_m else 0
+        skipped_m = _NODE_TEST_SKIPPED.search(text)
+        skipped = int(skipped_m.group(1)) if skipped_m else 0
+        total = int(tests_m.group(1)) if tests_m else (passed + failed + skipped)
+        return {
+            "tests": total,
+            "passed": passed,
+            "failed": failed,
+            "errors": 0,
+            "skipped": skipped,
+        }
+    return {"tests": 0, "passed": 0, "failed": 0, "errors": 0, "skipped": 0}
 
 
 def _maven_wrapper(workspace: str) -> str:
@@ -700,19 +769,132 @@ class PythonAdapter:
         return None
 
 
+# ── Node/npm adapter (local-first) ───────────────────────────────────────
+
+
+class NodeAdapter:
+    """JavaScript/TypeScript via the project's own ``npm test`` (local-first).
+
+    Runs the repository's declared test script with ``npm test --silent`` and
+    parses the terminal summary from Jest, Vitest or Node's built-in
+    ``--test`` runner. No container and no dependency install are performed —
+    the workspace is executed as-is, so a missing ``node_modules`` surfaces
+    honestly as a non-zero exit rather than a fabricated pass. ``node_modules``
+    provisioning is out of scope (the pipeline supplies a prepared workspace,
+    mirroring how the Python adapter reuses an existing ``.venv``).
+    """
+
+    TOOLCHAIN = "Node/npm (host) / npm test / jest | vitest | node:test"
+    OFFLINE_POLICY = (
+        "local-first: executes the project's own `npm test --silent` against "
+        "the prepared workspace; no network is used and dependencies are NOT "
+        "installed by the adapter (a missing node_modules fails honestly)"
+    )
+    KNOWN_LIMITS: tuple[str, ...] = (
+        "local-first 执行 (无容器沙箱): 宿主 Node/npm",
+        "不安装依赖: workspace 需已备好 node_modules, 否则 npm test 非零退出 "
+        "(如实上报, 不伪造通过)",
+        "仅支持 goal=run_test; test_compile 无对应语义, 抛 AdapterNotImplemented",
+        "汇总解析支持 Jest / Vitest / node:test; 无法识别时计数为 0 (无证据), "
+        "判定以 exit_code 为准",
+        "detect 规则: package.json 且声明了 test 脚本",
+        "输出按尾部 256000 字符截断 (§4.5 输出长度限制)",
+    )
+
+    def detect(self, repo: RepositorySnapshot) -> RuntimeProfile:
+        pkg = Path(repo.path) / "package.json"
+        if not pkg.is_file():
+            raise AdapterNotImplemented(
+                "Node detect rule (package.json with a test script) does not match"
+            )
+        try:
+            data = json.loads(pkg.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        scripts = data.get("scripts") if isinstance(data, dict) else None
+        if not (isinstance(scripts, dict) and scripts.get("test")):
+            raise AdapterNotImplemented(
+                "Node detect rule (package.json with a test script) does not "
+                "match: no `scripts.test` command declared"
+            )
+        return RuntimeProfile(
+            language="javascript/typescript",
+            build_tool="npm",
+            test_runner="jest | vitest | node:test",
+            known_limits=self.KNOWN_LIMITS,
+        )
+
+    def prepare(self, request: ExecutionRequest) -> PreparedExecution:
+        if request.goal != "run_test":
+            raise AdapterNotImplemented(
+                f"unsupported Node goal: {request.goal} "
+                "(NodeAdapter supports run_test only)"
+            )
+        command = ["npm", "test", "--silent"]
+        if request.test_class:
+            # Forward a name filter to the underlying runner via npm passthrough.
+            command += ["--", "-t", request.test_class]
+        return PreparedExecution(
+            workdir=request.workspace,
+            command=command,
+            local_command=list(command),
+            image="—",
+            image_digest="—",
+            offline_policy=self.OFFLINE_POLICY,
+            timeout=request.timeout,
+            sandbox_mode=request.sandbox_mode,
+        )
+
+    def run(self, prepared: PreparedExecution) -> ExecutionResult:
+        result = _run_local(
+            prepared.command,
+            cwd=prepared.workdir,
+            timeout=prepared.timeout,
+        )
+        prepared.result = ExecutionResult(
+            exit_code=result.exit_code,
+            stdout_tail=_tail(result.stdout),
+            stderr_tail=_tail(result.stderr),
+            mode="local",
+            sandbox_resources={
+                "sandbox": "none (local-first execution on the host)",
+                "network": "unused (dependencies not installed by the adapter)",
+                "workspace": "read-only intent (test execution only)",
+            },
+            error=result.error,
+        )
+        return prepared.result
+
+    def collect(self, prepared: PreparedExecution) -> EvidenceFragment:
+        result = prepared.result
+        if result is None:
+            return EvidenceFragment(
+                test_report_refs=(),
+                exit_evidence={"exit_code": None, "collected": False},
+            )
+        combined = result.stdout_tail + result.stderr_tail
+        return EvidenceFragment(
+            test_report_refs=(),
+            exit_evidence={
+                "exit_code": result.exit_code,
+                "mode": result.mode,
+                "sandbox_resources": dict(result.sandbox_resources),
+                "test_counts": parse_node_test_summary(combined),
+            },
+        )
+
+    def cleanup(self, prepared: PreparedExecution) -> None:
+        """Cleanup boundary: a no-op. node_modules is pipeline/user-owned and
+        must never be deleted by the adapter."""
+        return None
+
+
 # ── Planned adapters (matrix only; detect raises, per guide §14 task 10) ──
 
 
 def detect_java_gradle(repo: RepositorySnapshot) -> RuntimeProfile:
     raise AdapterNotImplemented(
         "Java/Gradle adapter is planned (compatibility matrix status=planned); "
-        "no executor is wired"
-    )
-
-
-def detect_node(repo: RepositorySnapshot) -> RuntimeProfile:
-    raise AdapterNotImplemented(
-        "Node adapter is planned (compatibility matrix status=planned); "
         "no executor is wired"
     )
 
@@ -789,13 +971,13 @@ COMPATIBILITY_MATRIX: tuple[MatrixRow, ...] = (
     MatrixRow(
         language="JavaScript/TypeScript",
         build_tool="npm",
-        test_runner="Jest",
-        status="规划 (planned)",
+        test_runner="jest | vitest | node:test",
+        status="已支持 (local-first)",
         image="—",
         image_digest="—",
-        toolchain="待定 (随实现声明)",
-        offline_policy="待定 (离线缓存策略随实现声明)",
-        known_limits=("detect 抛 AdapterNotImplemented; 无执行器",),
+        toolchain=NodeAdapter.TOOLCHAIN,
+        offline_policy=NodeAdapter.OFFLINE_POLICY,
+        known_limits=NodeAdapter.KNOWN_LIMITS,
     ),
     MatrixRow(
         language="Python",
@@ -832,7 +1014,7 @@ class ExecutionAdapterRegistry:
         self._adapters: list[ExecutionAdapter] = [
             JavaMavenAdapter(),
             _PlannedAdapter("Java/Gradle", detect_java_gradle),
-            _PlannedAdapter("Node", detect_node),
+            NodeAdapter(),
             PythonAdapter(),
             _PlannedAdapter("Go", detect_go),
         ]

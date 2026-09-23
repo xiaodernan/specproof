@@ -356,6 +356,32 @@ class MinIOClient:
         except Exception:
             return False
 
+    def list_job_objects(self, job_id: str) -> list[str]:
+        """List stored evidence objects for a job across every bucket, as
+        ``bucket/object-name`` strings.
+
+        Used by the data-lifecycle delete report: evidence is listed for
+        MANUAL confirmation and is never auto-deleted. ``job_id`` is
+        validated as a single governed path segment, so user input cannot
+        traverse ("..", "/") out of its prefix. A bucket that is absent or
+        unreachable is skipped rather than erasing evidence found in the
+        others.
+        """
+        segment = validate_path_segment(job_id, "job_id")
+        found: list[str] = []
+        for bucket in self.BUCKETS:
+            try:
+                listed = self.client.list_objects(
+                    bucket_name=bucket, recursive=True
+                )
+                for obj in listed:
+                    name = obj.object_name
+                    if name is not None and segment in name.split("/"):
+                        found.append(f"{bucket}/{name}")
+            except Exception:  # noqa: BLE001
+                continue
+        return found
+
     def is_ready(self) -> bool:
         try:
             return self.client.bucket_exists(self.BUCKETS[0]) or True

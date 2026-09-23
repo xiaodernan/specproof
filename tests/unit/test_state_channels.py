@@ -9,6 +9,8 @@ generation_source "unknown". These tests lock the channels into the
 graph wiring itself (not just the node return values).
 """
 
+import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,60 @@ from agent.nodes.collect_diff import collect_diff_node
 from agent.state import Phase0State, initial_state
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _git(repo: str, *args: str) -> None:
+    # `-c core.hooksPath=` disables hook lookup so a developer/machine-global
+    # hooksPath can't break these fixture commits (fresh-clone robustness).
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@x",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@x",
+    }
+    subprocess.run(
+        ["git", "-C", repo, "-c", "core.hooksPath=", *args],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def _make_java_repo(tmp_path: Path) -> str:
+    """A self-contained git repo whose base→head-v1 diff touches a .java file.
+
+    The graph channel guard needs a NON-EMPTY diff to distinguish "channel
+    preserved" from "genuinely empty"; relying on the checkout root to carry
+    phantom `base`/`head-v1` tags makes the test fail on any clean clone.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(str(repo), "init", "-b", "main")
+    java = repo / "Foo.java"
+    java.write_text(
+        "package com.demo;\n"
+        "public class Foo {\n"
+        "    public int bar(int x) { return x; }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    _git(str(repo), "add", "Foo.java")
+    _git(str(repo), "commit", "-m", "base")
+    _git(str(repo), "tag", "base")
+    java.write_text(
+        "package com.demo;\n"
+        "public class Foo {\n"
+        "    public int bar(int x) { return x * 2; }\n"
+        "    public int baz(int x) { return x + 1; }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    _git(str(repo), "add", "Foo.java")
+    _git(str(repo), "commit", "-m", "head")
+    _git(str(repo), "tag", "head-v1")
+    return str(repo)
 
 
 def test_initial_state_carries_new_channels():
@@ -32,7 +88,8 @@ def test_initial_state_carries_new_channels():
     assert state["generation_record"] == {}
 
 
-def test_diff_by_file_survives_graph_invoke():
+def test_diff_by_file_survives_graph_invoke(tmp_path: Path):
+    repo = _make_java_repo(tmp_path)
     graph = StateGraph(Phase0State)
     graph.add_node("collect_diff", collect_diff_node)
     graph.add_edge(START, "collect_diff")
@@ -40,7 +97,7 @@ def test_diff_by_file_survives_graph_invoke():
     app = graph.compile()
 
     state = initial_state(
-        repo_path=str(REPO_ROOT),
+        repo_path=repo,
         base_ref="base",
         head_ref="head-v1",
         spec_path="unused",
