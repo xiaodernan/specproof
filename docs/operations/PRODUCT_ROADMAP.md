@@ -790,7 +790,7 @@ N1/N2/N4 的红**分布在不同测试**上：N1 与 N4 都会踩到"宣告顺�
 
 ### 13.6 仍未做（诚实边界）
 
-1. **`integrations/notify` 整个包在生产里没有调用点**。实测依据：`webhook_connector_from_env` 的引用只出现在它自己的定义与 `integrations/notify/**` 的 `__init__` 重导出、以及文档字符串里；`text_for_summary` / `blocks_for_summary` 的调用点只有包内 `notification_for_summary` 与 `tests/unit/*`。也就是说本批"统一了两个对外渲染器"，而其中**只有一个真的对外**（GitHub Check Run）。要么把通知接进终态事件（需要 outbox/事件源与密钥策略的决策），要么把这整包删掉——留着会让下一个人以为 webhook 已通。
+1. **`integrations/notify` 整个包在生产里没有调用点**（**状态更新：本条已于 #65 接掉，接法与三条形状决定见 §16；下面记录的是当时实测的依据，不作为现状**）。实测依据：`webhook_connector_from_env` 的引用只出现在它自己的定义与 `integrations/notify/**` 的 `__init__` 重导出、以及文档字符串里；`text_for_summary` / `blocks_for_summary` 的调用点只有包内 `notification_for_summary` 与 `tests/unit/*`。也就是说本批"统一了两个对外渲染器"，而其中**只有一个真的对外**（GitHub Check Run）。要么把通知接进终态事件（需要 outbox/事件源与密钥策略的决策），要么把这整包删掉——留着会让下一个人以为 webhook 已通。
 2. **`lease` 与 `cancel_checkpoint` 两帧仍写 status=`failed`**。前者与落库的 FAILED 一致；后者不一致（同一段代码把行写成 CANCELLED）。这两处的写包在 `contextlib.suppress(Exception)` 里且没读回结果，所以不能在不复制 #63/#64 形状的前提下改成"跟随行状态"。已在 `docs/operations/OBSERVABILITY.md` §6 明写为未修不一致，避免文档先替它作证。
 3. **`_failure_summary` 只带一条 error，仍不含"跑到哪一步才炸的"**。GitHub Check 上现在会说"这一轮没数过契约"，但不会说"在 `run_differential` 之前就没了一半"。阶段信息在 Redis 进度流里有，在持久行里没有，所以对外通道拿不到——属 #62 家族的"终态但证据不完整"。
 4. **worker 的异常失败路径不进入 `jobs_<verdict>_total` 族**。`agent/worker.py:197-206` 的这段计数只在图跑完并成功落终态之后执行，所以 `jobs_failed_total` 数到的是"图跑完了、结论是 FAILED"那部分，**抛异常的轮次一次也不计**（它们只 +`worker_provider_wait_total`，或在被拒时 +`worker_terminal_cas_lost_total`，否则什么都不加）；`jobs_completed_total` 同理不含异常轮。也就是说看板上按 verdict 族算的"失败率"会**系统性低估**——分子缺，分母也缺。本批没改它，因为补计数会改变既有告警查询的口径（`jobs_failed_total` 之前一直是"结论级失败"），要先确认没有看板/规则依赖旧语义；这属于口径决策，不是漏写一行 `incr`。
@@ -860,13 +860,51 @@ N1/N2/N4 的红**分布在不同测试**上：N1 与 N4 都会踩到"宣告顺�
 
 - 后端：`ruff check .` All checks passed；`mypy .` Success: no issues found in **211** source files（无新文件，与 13.5 同数）；`pytest -k matrix` 定向 **14 passed / 6.38s**（变异期为 2 failed/12 passed，还原后回到 14）。`tests/unit/test_web_api.py` 由 41 例增至 **44 例**（+3），与 `test_contract_counts.py` + `test_summary_matrix_rows.py` 合跑 64 passed。
 - 前端：`npx tsc --noEmit` 无输出；`npx vitest run` ⇒ **43 files / 305 tests**（14.5 记 302，本批 +3 ⇒ 对得上账）；`npx vite build` ⇒ `✓ built in 3.75s`，`assets/index-CfDVe5ND.js 200.81 kB │ gzip: 69.60 kB`。
-- 全量合并门见本节末追记（跑完再记数，不预判）。
+- 全量合并门（#67 与 #65 合跑一次，事后记数）：`pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒ **2855 passed / 5 skipped**，`GATE_EXIT=0`。对账而非估算：跑前基线 2827 + #65 新增 21 例 + `test_notify_connector.py` 新增 7 例 = **2855**，与实测逐位吻合。`tests/unit/test_api_jobs_total.py`（#70 的契约测试，5 例）是在本次 collection 之后落盘的，**不在这个数里**，且它当时是红的（4 failed / 1 passed）—— 那是 #70 的起点，不是本门漏掉了它。耗时 1787s 只作记录，不作证据。
 
 ### 15.6 仍未做（诚实边界）
 
-1. `apps/web/src/pages/Contracts.tsx:41` 的 `counts.APPROVED ?? 0` 是同形状的兜底，但**本批没有量过后端那个"按状态分组"的端点的真实语义**：分桶计数里"缺键"很可能确实等于"该桶为 0"，与这里的"没数过"不同类。未实测就照搬修法会把一个正确的 0 改成"未统计"。留作待量候选，不算已修。
+1. ~~`apps/web/src/pages/Contracts.tsx:41` 的 `counts.APPROVED ?? 0` 是同形状的兜底~~ —— **本条已在 #67 收尾前实测推翻自己的指控，按诚实纪律在此改账**：`api/routes/web.py` 的 contracts 端点按状态分桶计数，且**没有行数上限**（与 `SUMMARY_MATRIX_ROW_CAP=60` 的矩阵投影不同源），所以某个状态键缺失就是"该桶真的没有契约"，`?? 0` 说的是事实。判据是"这个 0 有没有对应的记录动作"，不是"表达式长得像 `or 0`"。残余的一处不确定如实记下：分桶是否受请求过滤参数影响未逐一枚举，若将来给该端点加分页或上限，本结论即刻失效，须重量。
 2. 逐条明细仍受 `SUMMARY_MATRIX_ROW_CAP = 60`（`agent/worker.py:643`，#55 的形状）封顶，本批只改计数语义，没动投影大小。
 3. `not_counted` 只对 `/jobs/{id}/matrix` 生效；仪表盘/列表页若有别的统计聚合路径，未在本批审计范围内。
+
+## 16. #65：`integrations/notify` 整包"看着已通其实没通"——接线，而不是留着冒充（2026-09-24）
+
+### 16.1 起点：一条有 31 例单测、却一条也发不出去的通知通道
+
+13.6 登记的事实是本次的入口：`webhook_connector_from_env` 的生产引用为 0（只有自身定义、包内 `__init__` 重导出与文档字符串），`text_for_summary` / `blocks_for_summary` 的调用点只有包内的 `notification_for_summary` 与 `tests/unit/*`。也就是说 §13 那一整批"统一两个对外渲染器"里，**只有一个真的对外**（GitHub Check Run）。这类东西比缺功能更坏：单测越绿，下一个人越以为 webhook 已通。DRILLS §3.1 的 notify 行与 §6 第 5 行都把它记成 ⏳ 需开发（接线），而事故响应六动词里"通知"是唯一没有可执行路径的一行——所以选择接线而不是删除。
+
+### 16.2 接线的三个形状决定（都不是显然的）
+
+1. **verdict 从 summary 里读，不额外加参数。** 兄弟方法 `_maybe_publish_github_check(job_id, verdict, summary, …)` 的 verdict 来自 CAS 的目标态，是历史形状；通知若照抄就有两个 verdict 来源，二者一旦不一致没人报警。新签名 `_maybe_notify_terminal(job_id, summary)`，docstring 明写"这里刻意与兄弟方法不同"。既有断言 `assert notified == [summary]`（同一对象，不是二次派生的副本）把这条锁住。
+2. **跳过要说出口，不能靠 catch。** `notifiable(verdict)` 在建 payload 之前判；未命中模板时 `notify_skipped_total` + 一条同时点名 job id 与被拒 verdict 的 INFO 日志。若只 catch `build_terminal_notification` 抛的 `ValueError`，"没发"与"不该发"就会合并成一个静默分支——正是本批要消灭的那类形状。CANCELLED / ERROR / STALE 是真实终态行，这一支不是假设。
+3. **五个计数互斥且互补**：`notify_<status>_total`（拼接族，取 `SendStatus` 小写）覆盖 sent/disabled/failed，外加 `notify_skipped_total` 与 `notify_error_total`。`disabled` 单独算是本批的要点：它说"根本没人配置通知"，是唯一会被读成好消息的那个名字。读法写进 OBSERVABILITY 16 段落的姊妹段（OBSERVABILITY.md `notify_*` 一节）。
+
+### 16.3 失败/暂停路径与 Check Run 共用同一份 summary
+
+失败分支改为先 `_failure_summary(exc, classification)` 再交给两个通道，于是"GitHub 说 4 通过 0 失败"与"webhook 说 0 总"这种同一次死亡两种说法的结构可能性被消掉。暂停（`WAITING_FOR_PROVIDER`）与 CAS 被拒两条路径**一个通道都不发**，这条既有规则由 `tests/unit/test_worker_cancel_points.py` 的有序日志扩面守住：`w:/e:/p:` 三前缀变 `w:/e:/p:/n:` 四前缀，`test_failure_announces_only_after_the_row_was_written` 现在是 `["w:RUNNING","w:FAILED","e:failed","p:FAILED","n:FAILED"]`；四条既有断言在本次提交内一起改账。
+
+### 16.4 两处 fail-closed
+
+- **方言不猜。** worker 自己建连接器之后，`kind` 第一次成为环境变量读取项（`SPECPROOF_NOTIFY_WEBHOOK_KIND`）：未设=generic，认识=该方言，**不认识 ⇒ DisabledConnector + warning**（日志里带变量名、坏值与合法取值表）。猜成 generic 会把 generic body 发给一个本打算按 Slack 收信的接收端——记作"已送达"而没人读到，正是这条通道存在的意义所反对的事。
+- **连接器必须关。** `Connector` 协议新增 `close()`：工厂每次事件造一个连接器，而 `WebhookConnector.__init__` 自己持有 `httpx.Client`；worker 是长生命周期进程，不关就是每发一条泄漏一个连接池。`finally` 里无条件 close，`DisabledConnector.close()` 返回 None。
+- **测试环境弹掉三个变量。** `tests/conftest.py::clean_env` 新增弹出 `SPECPROOF_NOTIFY_WEBHOOK_URL/_SECRET/_KIND`：接线之后，一台真的配了 webhook 的开发机能让任意 worker 单测向真实端点发帖。
+
+### 16.5 门证（本批实测）
+
+- 后端静态：`ruff check .` All checks passed；`mypy .` Success: no issues found in **211** source files（与 13.5/15.5 同数，本批无新生产文件）。
+- 定向：`tests/unit/test_worker_cancel_points.py` + `test_worker_notify_terminal.py` = **37 passed**；再加 `test_notify_connector.py` 三文件合跑 **68 passed**（新文件 21 例；`test_notify_connector.py` 由 24 例增至 **31** 例，+7 条方言/环境例）。
+- 全量合并门：见 §15.5 末追记 ⇒ **2855 passed / 5 skipped / GATE_EXIT=0**；本批新增的 21 + 7 例都包含在那个总数里（账已对位）。
+- 变异探针（第一条记录是废的，如实保留）：第一版脚本往 `templates.py` 注入 JS 注释 `// MUTATION`，pytest 报的是 SyntaxError + collection error —— **红的理由与被测行为无关，等于零证据**，而且改错了文件（承重行在 `agent/worker.py`，不在 `templates.py`）。换成行为级变异（`incr("notify_skipped_total")` → `incr("notify_skipped")`）后 ⇒ `test_a_verdict_without_a_template_is_skipped_loudly` 的 **5 个参数化用例全部转红**（断言在 98 行），同文件其余 16 例不动；按字节备份还原后 `shaMatch=True / sha=8a6964700fcae793 / bytes=42678 / mutationStillPresent=False`，还原复验 37 passed。⇒ "跳过必须被显式计数" 这条规则由测试撑着，不是由那行 `logger.info` 撑着。
+- 前端（改口）：#65 自身没动 FE 文件，但合跑等待期间 #70 的前端半边落盘了（`Guide.tsx` / `Guide.test.tsx`），所以 15.5 记的 305 例已不描述当前树 ⇒ 重跑三门禁：`npx tsc --noEmit` 无输出；`npx vitest run` **43 files / 307 tests**（+2 条正是"响应里没有 total 就不能报次数"那两例）；`npx vite build` ✓ built in 3.49s。
+- 调用点对账（收尾判据之一）：`grep -n "_maybe_notify_terminal\|_maybe_publish_github_check" agent/worker.py` ⇒ 221/227（成功终态，位于 `if not written: return` 闸门之后）与 307/310（失败路径，同一份 summary）四处，与 13.6 登记的"只有一个真的对外"已不再是事实。
+
+### 16.6 仍未做（诚实边界）
+
+1. **best-effort ≠ 保证送达。** 没有 outbox、没有跨进程重试：进程在 `send()` 之前死掉，这条通知就永久消失，且除 `notify_*` 计数外无痕迹。DRILLS notify 行现在写"✅ 可执行"，其含义是"配置后会尽力发一次"，不是"一定送达"。真正的可靠投递要走 `storage/outbox_relay.py`（该文件已有自己的六个仪表与三个计数），属下一批候选。
+2. **取消与 lease_lost 不对外发。** 两者都没有模板，落入 `notify_skipped_total`。要不要为"人为取消"给订阅者一个信号，是产品决策不是缺陷。
+3. **密钥策略未接。** secret 只从环境变量读，未与 identity/密钥轮换联动；`SPECPROOF_NOTIFY_WEBHOOK_KIND` 写错只会静默关闭加一条 warning，没有部署期校验入口（health 端点未披露通知配置状态）。
+4. **Craft（agent）侧终态不通知。** 本次只接了 verify lane 的 worker；`api/routes/agent_console.py` 的终态仍无对外通道，属 §17 候选。
 
 
 

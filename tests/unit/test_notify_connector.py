@@ -21,6 +21,7 @@ from integrations.notify import (
     CAPABILITY_HMAC,
     CAPABILITY_TEXT,
     SIGNATURE_HEADER,
+    WEBHOOK_KIND_ENV,
     WEBHOOK_SECRET_ENV,
     WEBHOOK_URL_ENV,
     DisabledConnector,
@@ -306,6 +307,66 @@ def test_factory_reads_env_only(monkeypatch):
     assert connector.kind is WebhookKind.SLACK
     assert connector.capabilities == frozenset({CAPABILITY_TEXT, CAPABILITY_BLOCKS})
     connector.close()
+
+
+# --- dialect from the environment, and what an unreadable dialect means -----
+
+# `kind` became an environment read when the worker started building its own
+# connector (#65): an operator now sets three variables and never passes an
+# argument, so "what does an unrecognized dialect mean" stopped being a
+# hypothetical. Answering it with GENERIC would post a body the receiver was
+# not addressed to read — a notification that counts as delivered while
+# nothing readable arrived, which is the failure this lane exists to expose.
+
+
+@pytest.mark.parametrize("kind_value", ["slack", "Slack", " slack "])
+def test_kind_env_selects_the_dialect(monkeypatch, kind_value: str):
+    monkeypatch.setenv(WEBHOOK_URL_ENV, FAKE_URL)
+    monkeypatch.setenv(WEBHOOK_KIND_ENV, kind_value)
+    connector = webhook_connector_from_env()
+    assert isinstance(connector, WebhookConnector)
+    assert connector.kind is WebhookKind.SLACK
+    connector.close()
+
+
+def test_missing_url_disables_even_with_a_valid_kind(monkeypatch):
+    monkeypatch.setenv(WEBHOOK_URL_ENV, "")
+    monkeypatch.setenv(WEBHOOK_KIND_ENV, "slack")
+    assert isinstance(webhook_connector_from_env(), DisabledConnector)
+
+
+def test_kind_env_unset_defaults_to_generic(monkeypatch):
+    monkeypatch.delenv(WEBHOOK_KIND_ENV, raising=False)
+    monkeypatch.setenv(WEBHOOK_URL_ENV, FAKE_URL)
+    connector = webhook_connector_from_env()
+    assert isinstance(connector, WebhookConnector)
+    assert connector.kind is WebhookKind.GENERIC
+    connector.close()
+
+
+def test_explicit_kind_argument_beats_the_environment(monkeypatch):
+    monkeypatch.setenv(WEBHOOK_URL_ENV, FAKE_URL)
+    monkeypatch.setenv(WEBHOOK_KIND_ENV, "slack")
+    connector = webhook_connector_from_env(kind=WebhookKind.FEISHU)
+    assert isinstance(connector, WebhookConnector)
+    assert connector.kind is WebhookKind.FEISHU
+    connector.close()
+
+
+def test_unrecognized_kind_env_fails_closed(
+    monkeypatch, caplog: pytest.LogCaptureFixture
+):
+    monkeypatch.setenv(WEBHOOK_URL_ENV, FAKE_URL)
+    monkeypatch.setenv(WEBHOOK_SECRET_ENV, FAKE_SECRET)
+    monkeypatch.setenv(WEBHOOK_KIND_ENV, "msteams")
+    with caplog.at_level("WARNING", logger="integrations.notify.webhook"):
+        connector = webhook_connector_from_env()
+    assert isinstance(connector, DisabledConnector)
+    assert connector.send(_notification()) is SendStatus.DISABLED
+    message = "\n".join(r.message for r in caplog.records)
+    # The operator has to learn WHICH variable was wrong, from the log alone.
+    assert WEBHOOK_KIND_ENV in message
+    assert "msteams" in message
 
 
 # --- terminal-event templates ------------------------------------------------

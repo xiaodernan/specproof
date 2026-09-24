@@ -221,6 +221,10 @@ class Worker:
             self._maybe_publish_github_check(
                 job_id, verdict, summary, final_state
             )
+            # Only reachable past the `if not written: return` gate above, so a
+            # row this worker does not own gets no outward announcement from
+            # either channel.
+            self._maybe_notify_terminal(job_id, summary)
             self.redis.xadd_progress(job_id, "publish_report", "completed",
                                      message=f"Job completed: {verdict}", percent=100.0)
 
@@ -297,9 +301,13 @@ class Worker:
             # parked (provider-wait) job keeps its in-progress Check Run:
             # the retried run completes it honestly.
             if not provider_wait:
+                # ONE summary for both outward channels, so a Check Run and a
+                # notification cannot report the same failure differently.
+                failure_summary = _failure_summary(exc, classification)
                 self._maybe_publish_github_check(
-                    job_id, "FAILED", _failure_summary(exc, classification)
+                    job_id, "FAILED", failure_summary
                 )
+                self._maybe_notify_terminal(job_id, failure_summary)
         finally:
             heartbeat_stop.set()
             heartbeat.join(timeout=max(1.0, self.lease_ttl / 3))
@@ -510,6 +518,62 @@ class Worker:
         self.redis.xadd_progress(
             job_id, "lease", "failed", message=LEASE_LOST, percent=0.0,
         )
+
+    def _maybe_notify_terminal(self, job_id: str, summary: dict[str, Any]) -> None:
+        """Best-effort outbound notification for a terminal verdict.
+
+        The mirror of :meth:`_maybe_publish_github_check`, and it exists
+        because ``integrations/notify/`` shipped a connector, three payload
+        dialects and a template suite with a production call-site count of
+        zero — capability that only looked wired because it was tested.
+
+        Two deliberate choices:
+
+        * The verdict is read out of the same ``summary`` object the row just
+          persisted, not passed as a second argument. A verdict parameter
+          would be a second source for one fact, and the two outward renderers
+          (Check Run and notification) would then be able to disagree about
+          what the job concluded.
+        * An unsupported terminal verdict is declined on purpose, loudly, with
+          a counter. :func:`integrations.notify.templates._require_terminal`
+          raises ``ValueError`` for CANCELLED / ERROR / STALE, and catching
+          that as "nothing to do" would lose the notification AND the fact
+          that it was declined.
+
+        Never raises: a delivery problem cannot flip a job that already
+        reached its honest terminal state.
+        """
+        try:
+            from integrations.notify import (
+                build_terminal_notification,
+                notifiable,
+                webhook_connector_from_env,
+            )
+
+            verdict = str(summary.get("verdict", ""))
+            if not notifiable(verdict):
+                logger.info(
+                    "Job %s: terminal verdict %r has no notification template; "
+                    "nothing sent", job_id, verdict,
+                )
+                incr("notify_skipped_total")
+                return
+            connector = webhook_connector_from_env()
+            try:
+                status = connector.send(
+                    build_terminal_notification(job_id, summary)
+                )
+            finally:
+                # The factory returns a connector that owns an HTTP client and
+                # this worker is a long-lived process: not closing it leaks one
+                # client per announced job.
+                connector.close()
+            incr("notify_" + status.value + "_total")
+        except Exception as exc:  # noqa: BLE001 — best effort
+            logger.warning(
+                "Terminal notification failed for %s: %s", job_id, exc
+            )
+            incr("notify_error_total")
 
     def _maybe_publish_github_check(
         self,

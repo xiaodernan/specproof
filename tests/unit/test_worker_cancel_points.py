@@ -17,7 +17,10 @@ stream are fakes; the executor under test is a plain fake function):
   (identical behavior when not cancelled);
 - the terminal write is atomic: the verdict transition itself carries the
   summary, a refused CAS announces no completion and persists no evidence, and
-  a summary that cannot be built leaves no bare verdict behind (#63).
+  a summary that cannot be built leaves no bare verdict behind (#63);
+- both outward channels of a terminal failure — the GitHub Check Run and the
+  webhook notification — run after the accepted write, in that order, on the
+  SAME summary, and neither runs when the CAS was refused or the job parked (#65).
 """
 from __future__ import annotations
 
@@ -545,27 +548,44 @@ def _run_failing_job(
     *,
     refuse: set[str] | None = None,
     raise_on: set[str] | None = None,
-) -> tuple[list[str], _FakeMysql, _FakeRedis, list[tuple[str, dict[str, Any]]]]:
+) -> tuple[list[str], _FakeMysql, _FakeRedis, _Announcements]:
     """Run one dying job and return the ORDERED side-effect log.
 
     `log` interleaves row writes (``w:``), progress frames (``e:``) and
-    external publications (``p:``), so "announced before stored" and
-    "announced although refused" are both visible as a wrong sequence rather
-    than as an absence someone has to trust.
+    external publications (``p:`` for the Check Run, ``n:`` for the outbound
+    notification), so "announced before stored" and "announced although
+    refused" are both visible as a wrong sequence rather than as an absence
+    someone has to trust.
     """
     log: list[str] = []
-    published: list[tuple[str, dict[str, Any]]] = []
+    announcements = _Announcements()
     mysql = _FakeMysql(status="RUNNING", refuse=refuse, raise_on=raise_on, log=log)
     redis = _FakeRedis(lease_ok=True, log=log)
     worker = _make_worker(mysql, redis, _RaisingGraph(exc), monkeypatch)
 
-    def _spy(job_id: str, verdict: str, summary: dict[str, Any], *_rest: Any) -> None:
+    def _check(job_id: str, verdict: str, summary: dict[str, Any], *_rest: Any) -> None:
         log.append("p:" + verdict)
-        published.append((verdict, summary))
+        announcements.published.append((verdict, summary))
 
-    worker._maybe_publish_github_check = _spy  # type: ignore[method-assign]
+    def _notify(job_id: str, summary: dict[str, Any]) -> None:
+        # The verdict is read FROM the summary because that is how production
+        # calls it: one summary feeds both outward channels, so the two can
+        # never report the same failure differently.
+        log.append("n:" + str(summary.get("verdict")))
+        announcements.notified.append(summary)
+
+    worker._maybe_publish_github_check = _check  # type: ignore[method-assign]
+    worker._maybe_notify_terminal = _notify  # type: ignore[method-assign]
     worker._handle_job_impl("job-fail", {"repo_path": "/r", "spec_path": "/s"})
-    return log, mysql, redis, published
+    return log, mysql, redis, announcements
+
+
+class _Announcements:
+    """Both outward channels of one terminal write, kept apart for assertions."""
+
+    def __init__(self) -> None:
+        self.published: list[tuple[str, dict[str, Any]]] = []
+        self.notified: list[dict[str, Any]] = []
 
 
 def test_failure_announces_only_after_the_row_was_written(
@@ -574,20 +594,26 @@ def test_failure_announces_only_after_the_row_was_written(
     from observability import metrics as metrics_module
 
     before = metrics_module.snapshot()
-    log, _mysql, redis, published = _run_failing_job(
+    log, _mysql, redis, announcements = _run_failing_job(
         monkeypatch, TimeoutError("mvnw timed out"),
     )
     after = metrics_module.snapshot()
 
-    assert log == ["w:RUNNING", "w:FAILED", "e:failed", "p:FAILED"]
+    assert log == [
+        "w:RUNNING", "w:FAILED", "e:failed", "p:FAILED", "n:FAILED",
+    ]
     # The frame used to carry the job id as its "stage", which the timeline
     # then printed as a raw UUID.
     assert [node for node, status, _m in redis.events if status == "failed"] == [
         "terminal"
     ]
+    published, notified = announcements.published, announcements.notified
     assert len(published) == 1
     verdict, summary = published[0]
     assert verdict == "FAILED"
+    # The notification is the SAME summary object the Check Run got, not a
+    # second derived copy that could drift.
+    assert notified == [summary]
     # No statistics existed to report, so none may be reported: this call
     # site handed the renderer literal zeros and GitHub published
     # "Contracts: 0 total — 0 passed, 0 failed, 0 unverified."
@@ -604,19 +630,21 @@ def test_refused_failure_write_announces_nothing(
 
     A reclaimer or a cancel already moved it; the refused CAS persisted
     nothing, so a failure frame and a Check Run would report an outcome the
-    durable record does not carry.
+    durable record does not carry — and the notification channel is a third
+    such outcome, the one nobody watching GitHub would ever notice.
     """
     from observability import metrics as metrics_module
 
     before = metrics_module.snapshot()
-    log, _mysql, redis, published = _run_failing_job(
+    log, _mysql, redis, announcements = _run_failing_job(
         monkeypatch, TimeoutError("mvnw timed out"), refuse={"FAILED"},
     )
     after = metrics_module.snapshot()
 
     assert log == ["w:RUNNING", "w:FAILED"]
     assert redis.events == []
-    assert published == []
+    assert announcements.published == []
+    assert announcements.notified == []
     assert _counter_delta(after, before, "worker_terminal_cas_lost_total") == 1.0
     # Refusing to announce is not refusing to clean up: the lease goes back.
     assert redis.released == ["job-fail"]
@@ -626,12 +654,13 @@ def test_illegal_failure_transition_announces_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Same refusal through the raising door (row already CANCELLED)."""
-    log, _mysql, redis, published = _run_failing_job(
+    log, _mysql, redis, announcements = _run_failing_job(
         monkeypatch, TimeoutError("mvnw timed out"), raise_on={"FAILED"},
     )
     assert log == ["w:RUNNING", "w:FAILED"]
     assert redis.events == []
-    assert published == []
+    assert announcements.published == []
+    assert announcements.notified == []
 
 
 def test_parked_job_reports_waiting_not_failed(
@@ -646,7 +675,7 @@ def test_parked_job_reports_waiting_not_failed(
     from observability import metrics as metrics_module
 
     before = metrics_module.snapshot()
-    log, mysql, redis, published = _run_failing_job(monkeypatch, _rate_limited())
+    log, mysql, redis, announcements = _run_failing_job(monkeypatch, _rate_limited())
     after = metrics_module.snapshot()
 
     assert log == [
@@ -655,8 +684,10 @@ def test_parked_job_reports_waiting_not_failed(
     assert "FAILED" not in [status for status, _kw in mysql.transitions]
     assert [s for _n, s, _m in redis.events] == ["waiting_for_provider"]
     # The in-progress Check Run stays open: closing it as a failure would
-    # report a conclusion the retry has not produced yet.
-    assert published == []
+    # report a conclusion the retry has not produced yet. Same for the
+    # notification — a retry may still end VERIFIED.
+    assert announcements.published == []
+    assert announcements.notified == []
     assert _counter_delta(after, before, "worker_provider_wait_total") == 1.0
     assert _counter_delta(after, before, "worker_terminal_cas_lost_total") == 0.0
 
@@ -665,12 +696,13 @@ def test_refused_park_announces_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A park that lost its CAS is still a refused write."""
-    log, _mysql, redis, published = _run_failing_job(
+    log, _mysql, redis, announcements = _run_failing_job(
         monkeypatch, _rate_limited(), refuse={"WAITING_FOR_PROVIDER"},
     )
     assert log == ["w:RUNNING", "w:WAITING_FOR_PROVIDER"]
     assert redis.events == []
-    assert published == []
+    assert announcements.published == []
+    assert announcements.notified == []
 
 
 def _counter_delta(after: dict, before: dict, name: str) -> float:

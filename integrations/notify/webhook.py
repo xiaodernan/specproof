@@ -59,6 +59,7 @@ LOGGER = logging.getLogger("integrations.notify.webhook")
 
 WEBHOOK_URL_ENV = "SPECPROOF_NOTIFY_WEBHOOK_URL"
 WEBHOOK_SECRET_ENV = "SPECPROOF_NOTIFY_WEBHOOK_SECRET"
+WEBHOOK_KIND_ENV = "SPECPROOF_NOTIFY_WEBHOOK_KIND"
 SIGNATURE_HEADER = "X-SpecProof-Signature"
 CONTENT_TYPE_HEADER = "Content-Type"
 JSON_CONTENT_TYPE = "application/json"
@@ -288,7 +289,7 @@ class WebhookConnector:
 
 
 def webhook_connector_from_env(
-    kind: WebhookKind = WebhookKind.GENERIC,
+    kind: WebhookKind | None = None,
     *,
     timeout: float = DEFAULT_TIMEOUT,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
@@ -297,14 +298,36 @@ def webhook_connector_from_env(
     sleep_fn: Callable[[float], None] | None = None,
     transport: httpx.BaseTransport | None = None,
 ) -> Connector:
-    """Build a connector from SPECPROOF_NOTIFY_WEBHOOK_URL/_SECRET (env only).
+    """Build a connector from SPECPROOF_NOTIFY_WEBHOOK_URL/_SECRET/_KIND.
 
     No URL -> DisabledConnector, whose send() is a no-op returning DISABLED.
     A secret without a URL is ignored with a warning: nothing is ever sent
     unsigned by accident, because nothing is sent at all.
+
+    `kind` is the payload dialect. Left to None it comes from
+    SPECPROOF_NOTIFY_WEBHOOK_KIND, defaulting to generic when unset. An
+    unrecognized value fails CLOSED — DisabledConnector plus a warning, not a
+    guess: posting a generic body at a receiver the operator meant to address
+    as Slack would count as delivered while nothing readable arrived, which is
+    the exact failure this whole lane exists to make visible.
     """
     url = os.getenv(WEBHOOK_URL_ENV, "").strip()
     secret_raw = os.getenv(WEBHOOK_SECRET_ENV, "").strip()
+    if kind is None:
+        raw_kind = os.getenv(WEBHOOK_KIND_ENV, "").strip().lower()
+        if not raw_kind:
+            kind = WebhookKind.GENERIC
+        elif raw_kind in {member.value for member in WebhookKind}:
+            kind = WebhookKind(raw_kind)
+        else:
+            LOGGER.warning(
+                "%s=%r is not one of %s; notifications disabled rather than "
+                "guessed at",
+                WEBHOOK_KIND_ENV,
+                raw_kind,
+                sorted(member.value for member in WebhookKind),
+            )
+            return DisabledConnector()
     if not url:
         if secret_raw:
             LOGGER.warning(

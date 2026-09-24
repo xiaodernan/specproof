@@ -157,7 +157,7 @@
 - identity CLI (python -m api.identity.cli): init-admin / mint-token / list-users 三个子命令 (实测)。
 - 宿主工具实测: docker ✅, git ✅; mysqldump/mongodump/mc/redis-cli 宿主未安装 → 全部走容器内二进制 (docker exec)。
 - broker 实测: docker exec specproof-rabbitmq rabbitmqctl list_queues 输出 7 条队列 (q.p1.verify.job + .retry + .dlq + 4 条 phase0 队列); purge_queue 语法实测确认。
-- 缺口实测: integrations/notify/ (webhook/Slack 连接器) 存在且有单测, 但主管道零调用点; evidence/ 无任何 revoke/吊销 能力; api/ 无 logout 端点; worker 无启动回收器; WAITING_FOR_PROVIDER 无生产者。
+- 缺口实测: integrations/notify/ (webhook/Slack 连接器) 存在且有单测 — 原"主管道零调用点"缺口已于 #65 接掉 (worker 在每一次被接受的终态写入之后调用 _maybe_notify_terminal); 但默认仍不发声: 未设 SPECPROOF_NOTIFY_WEBHOOK_URL 时工厂返回 DisabledConnector, 只有 specproof_notify_disabled_total 在涨; evidence/ 无任何 revoke/吊销 能力; api/ 无 logout 端点; worker 无启动回收器; WAITING_FOR_PROVIDER 的生产者已于 #64 接上 (可重试 provider 故障改为暂停), 缺的是回收器。
 
 ### 3.1 六动词映射矩阵
 
@@ -183,7 +183,7 @@
 | preserve | MinIO 对象保全 | 宿主无 mc 二进制 (实测) → docker run --rm --network specproof-phase0_default minio/mc ... 或宿主机安装 mc 后 mc mirror (DATA_LIFECYCLE §5) | ⏳ 待基础设施 (宿主 mc 未安装) |
 | notify 通知 | 系统内审计/进度通知 | audit_logs (每次状态转移落库, /api/v1/admin/audit 可读), SSE 进度流 (GET /jobs/{id}/progress) | ✅ 可执行 |
 | notify | GitHub 侧状态回写 | worker 终态回写 Check Run + Inline Findings (integrations/github_checks.py, github_check_json 存在时) | ✅ 可执行 |
-| notify | 外部通知 (Slack/邮件/webhook) | integrations/notify/ 连接器已实现且有单测, 但主管道零调用点 (实测) | ⏳ 需开发 (接线) |
+| notify | 外部通知 (Slack/邮件/webhook) | worker 终态写入成功后自动发 (agent/worker.py::_maybe_notify_terminal, #65): 设 SPECPROOF_NOTIFY_WEBHOOK_URL (+_SECRET, 可选 _KIND=slack|generic|feishu) 后重启 worker; 未设=不发, 只涨 specproof_notify_disabled_total | ✅ 可执行 (需先配置环境变量) |
 
 ### 3.2 推演结论
 
@@ -253,10 +253,10 @@
 | # | 项目 | 缺口位置 | 状态 |
 |---|---|---|---|
 | 1 | 崩溃作业自动回收器 (RUNNING 超时 → 续跑/重投递) | 无任何组件调用 resume 路径; ops.drills.resume_job 是本演练的显式驱动 | ⏳ 需开发 |
-| 2 | WAITING_FOR_PROVIDER 接线 | worker 的 provider 故障直接 FAILED; 状态机与 RUNBOOK 已有该态但无生产者 | ⏳ 需开发 |
+| 2 | WAITING_FOR_PROVIDER 接线 | 生产者已接 (#64): 可重试的 provider 故障 (429/超时类) 走 CAS 暂停而非 FAILED, 且暂停未落库时不对外宣告; 仍缺的是把该行捞回来的回收器 (见第 1 行) | 🟡 生产者已接, 回收待开发 |
 | 3 | OIDC 会话注销/令牌吊销端点 | api/ 无 logout/revoke | ⏳ 需开发 |
 | 4 | Merge Certificate 撤销 | evidence/ 无撤销能力 (签名本身亦未实现, Phase 1+) | ⏳ 需开发 |
-| 5 | 外部通知接线 (Slack/邮件/webhook) | integrations/notify/ 连接器已有单测, 主管道零调用点 | ⏳ 需开发 |
+| 5 | 外部通知接线 (Slack/邮件/webhook) | 已接 (#65): worker 在每一次被接受的终态写入之后调用, 五个 notify 计数可区分"发了/没配置/该 verdict 无模板/对端拒绝/连接器炸"; 剩下的只是部署时是否设环境变量 | ✅ 已接线 |
 | 6 | 宿主备份工具 | mysqldump/mongodump/mc/redis-cli 宿主未安装 (实测) — 全部容器内执行或安装后按 §3.1 命令执行 | ⏳ 待基础设施 |
 
 ## 7. 演练支撑物 (本次交付)

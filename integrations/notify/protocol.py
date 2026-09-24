@@ -50,6 +50,11 @@ class Connector(Protocol):
     name identifies the implementation; capabilities is the set of feature
     names the sink supports; send() must return an honest SendStatus and must
     never raise for delivery-level failures (configuration errors may raise).
+
+    close() releases what the connector owns. It is part of the contract
+    because callers that build one connector per event — the worker's terminal
+    announcements — must be able to close unconditionally, without asking
+    which implementation the factory happened to return.
     """
 
     name: str
@@ -57,6 +62,10 @@ class Connector(Protocol):
 
     def send(self, notification: Notification) -> SendStatus:
         """Deliver one notification; return the honest per-send status."""
+        ...
+
+    def close(self) -> None:
+        """Release held resources; every implementation has one, even a no-op."""
         ...
 
 
@@ -74,3 +83,7 @@ class DisabledConnector:
     def send(self, notification: Notification) -> SendStatus:
         """Disabled no-op: nothing is delivered, nothing is raised."""
         return SendStatus.DISABLED
+
+    def close(self) -> None:
+        """Nothing to release — but present, so callers close unconditionally."""
+        return None

@@ -53,6 +53,19 @@ def _require_terminal(verdict: str) -> str:
     return verdict
 
 
+def notifiable(verdict: str) -> bool:
+    """Whether a verdict has a template, i.e. may be announced outward.
+
+    Callers ask this BEFORE building a notification, because
+    :func:`_require_terminal` raises for anything outside
+    :data:`TERMINAL_VERDICTS` — and a call site that caught that ValueError and
+    moved on would lose both the notification and the fact that it was
+    declined. CANCELLED / ERROR / STALE are real terminal rows, so this is not
+    a hypothetical.
+    """
+    return normalize_verdict(verdict) in TERMINAL_VERDICTS
+
+
 def event_type_for_verdict(verdict: str) -> str:
     """Dotted event name for a terminal verdict (verification.<verdict>)."""
     return "verification." + _require_terminal(verdict).lower()
