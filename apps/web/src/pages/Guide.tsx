@@ -68,11 +68,14 @@ export default function Guide() {
     let alive = true;
     // One real request answers two steps: it proves the workspace is
     // reachable, and its total says whether a verification exists yet.
+    // `total` ONLY: the probe asks for one row, so the length of `jobs` can
+    // never be more than "at least one" — reading it as a count told a
+    // workspace with 57 verifications that it had 1.
     apiGet<{ jobs: unknown[]; total?: number }>("/jobs?limit=1")
       .then((data) => {
         if (!alive) return;
         setConnection("ok");
-        setVerificationCount(data.total ?? data.jobs?.length ?? 0);
+        setVerificationCount(typeof data.total === "number" ? data.total : null);
       })
       .catch(() => {
         if (!alive) return;
@@ -103,11 +106,17 @@ export default function Guide() {
       return connection === "pending" ? "正在检测工作区连接…" : "工作区请求失败，因此无法判断是否已连接——这不等于没有连接";
     }
     if (step.id === "create_verification") {
-      if (state !== "unknown") return "工作区里已有 " + (verificationCount ?? 0) + " 次验证";
+      if (state !== "unknown" && verificationCount !== null) {
+        return "工作区里已有 " + verificationCount + " 次验证";
+      }
       if (credential === "absent") return "还没连上工作区，因此无法确认是否已经建过验证";
-      return connection === "pending"
-        ? "正在读取工作区的验证任务数量…"
-        : "读不到验证任务列表，因此无法判断是否已经建过验证";
+      if (connection === "pending") return "正在读取工作区的验证任务数量…";
+      // An answer without a total is not "unreadable" and not "zero": the
+      // workspace replied, it just never said how many there are.
+      if (connection === "ok") {
+        return "工作区应答了作业列表，但没有给出验证总次数，因此无法判断已经建过几次";
+      }
+      return "读不到验证任务列表，因此无法判断是否已经建过验证";
     }
     if (state === "unknown") return "本机进度读不出来，因此无法判断是否勾选过";
     return step.basis;

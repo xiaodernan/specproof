@@ -509,36 +509,6 @@ class MySQLStore:
             )
             return cast(list[dict[str, Any]], cur.fetchall())
 
-    def list_recent_jobs(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Return the most recent jobs (newest first), for the jobs API.
-
-        Tenant mode: rows of the caller's tenant (plus legacy NULL-tenant
-        rows) only; auditors keep the cross-tenant view (§2).
-        """
-        scope = current_scope()
-        if scope is not None and not scope.is_auditor():
-            with self.connection() as conn:
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT id, repo_path, base_ref, head_ref, status, depth, "
-                    "retry_count, worker_id, last_error, summary, created_at, "
-                    "updated_at "
-                    "FROM verification_jobs "
-                    "WHERE (tenant_id = %s OR tenant_id IS NULL) "
-                    "ORDER BY created_at DESC, id DESC LIMIT %s",
-                    (scope.tenant_id, limit),
-                )
-                return cast(list[dict[str, Any]], cur.fetchall())
-        with self.connection() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT id, repo_path, base_ref, head_ref, status, depth, "
-                "retry_count, worker_id, last_error, summary, created_at, updated_at "
-                "FROM verification_jobs ORDER BY created_at DESC, id DESC LIMIT %s",
-                (limit,),
-            )
-            return cast(list[dict[str, Any]], cur.fetchall())
-
     def search_jobs(
         self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
     ) -> dict[str, Any]:

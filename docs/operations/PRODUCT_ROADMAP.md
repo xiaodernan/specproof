@@ -904,8 +904,97 @@ N1/N2/N4 的红**分布在不同测试**上：N1 与 N4 都会踩到"宣告顺�
 1. **best-effort ≠ 保证送达。** 没有 outbox、没有跨进程重试：进程在 `send()` 之前死掉，这条通知就永久消失，且除 `notify_*` 计数外无痕迹。DRILLS notify 行现在写"✅ 可执行"，其含义是"配置后会尽力发一次"，不是"一定送达"。真正的可靠投递要走 `storage/outbox_relay.py`（该文件已有自己的六个仪表与三个计数），属下一批候选。
 2. **取消与 lease_lost 不对外发。** 两者都没有模板，落入 `notify_skipped_total`。要不要为"人为取消"给订阅者一个信号，是产品决策不是缺陷。
 3. **密钥策略未接。** secret 只从环境变量读，未与 identity/密钥轮换联动；`SPECPROOF_NOTIFY_WEBHOOK_KIND` 写错只会静默关闭加一条 warning，没有部署期校验入口（health 端点未披露通知配置状态）。
-4. **Craft（agent）侧终态不通知。** 本次只接了 verify lane 的 worker；`api/routes/agent_console.py` 的终态仍无对外通道，属 §17 候选。
+4. **Craft（agent）侧终态不通知。** 本次只接了 verify lane 的 worker；`api/routes/agent_console.py` 的终态仍无对外通道。（§17 已被 #70 占用，本条改记为 §17.7 之后的候选。）
 
 
 
 
+
+
+## 17. #70：`GET /jobs` 的两种回答合成一种，"次数"不再是"窗口长度"
+
+### 17.1 起因：一条前端文案把读回来的条数当成了总数
+
+引导页第一屏问"这台工作区做过几次验证"，它发的是 `GET /jobs?limit=1`。
+路由里有一条分叉：`offset` / `status` / `q` 任一存在才走 `search_jobs`（带
+`COUNT(*)`、返回 `total`），否则走 `list_recent_jobs`——那是一条只有
+`SELECT ... LIMIT` 的语句，响应形状是 `{"jobs": rows}`，**根本没有 `total`
+这个键**。于是 `Guide.tsx` 只能拿 `jobs.length` 充数，`limit=1` 就报
+"工作区里已有 1 次验证"，不管真实是 1 次还是 57 次。
+
+这个 bug 在绿色的前端测试里活了很久，因为所有旧测试桩都顺手补了一个
+`total` 字段——生产从来没发过它。教训写进了 memory：测试桩必须照生产真实
+返回的形状写。
+
+### 17.2 处理：删分叉，而不是给分叉补一个 total
+
+两个选项里选了删：`search_jobs` 已经用同一份 `where` 同时喂 COUNT 和
+SELECT，租户谓词只有一处；给 `list_recent_jobs` 补 COUNT 等于把同一套条件
+再抄一遍——那正是 §2 之外最容易漂 out 的地方。因此：
+
+- `api/routes/jobs.py::list_jobs` 现在无条件 `return store.search_jobs(limit,
+  offset or 0, status, q.strip())`；`if offset is not None or status or q:`
+  这条分叉与文件末尾的 `return {"jobs": rows}` 一起删除。
+- `storage/mysql.py::list_recent_jobs` 删除（生产唯一调用点就是那条分叉）。
+
+### 17.3 一并如实记录的形状变化（不是免费的）
+
+`search_jobs` 的 SELECT **刻意不带 `summary`**（列很大，列表页不该整搬），
+只带一个 `is_demo` 计算列。因此删分叉后，裸 `GET /jobs` 的行少了
+`summary`、多了 `is_demo`。改动前先 grep 证实过：`apps/web` 没有任何地方读
+列表行的 `job.summary`；而 `Jobs.tsx:113` 与 `Dashboard.tsx:65` 本来就在消费
+`is_demo`。也就是说这个形状变化对本产品是净收益：以前默认分支的行永远没有
+`is_demo`，"演示"标签恰好在那一条路径上不会亮。
+
+登记一处同源消费点，但不断言它在撒谎：`Matrix.tsx:22` 用
+`/jobs?limit=200` 填任务选择器，走的也是原来那条无 `total` 的分支。它的文案
+已经自我限定成"选择器提供最近 200 条任务"，所以现在的说法与窗口一致；若将来
+它要报"共多少次验证"，必须改读 `total`。
+
+### 17.4 租户谓词的门被抬高了
+
+`search_jobs` 现在同时服务裸列表，`test_tenant_auth.py` 里那条仓库层租户测试
+从 `list_recent_jobs(10)` 改指 `search_jobs(10)["jobs"]`，并把断言从"第一条
+语句带租户谓词"升级为 **COUNT 与 SELECT 两条都带** `(tenant_id = %s OR
+tenant_id IS NULL)`，同时钉住第 0 条确实是 `COUNT(*)`。理由：计数器漏了租户
+过滤时，行是对的、`total` 是跨租户的，从响应里看不出任何一行越权——只有看
+SQL 才看得见。`_FakeMysql.pending_rows` 因此要备两个结果集
+（`[[{"total": 1}], [{"id": "job-a"}]]`），旧测试留一个的习惯在两次
+`fetchall` 下会炸。
+
+### 17.5 新增的契约测试与它的牙齿
+
+`tests/unit/test_api_jobs_total.py`（5 例）用一个只提供 `search_jobs` 的
+fake 钉住四件事：任意查询形状都要回 `total`；`limit=1` 时 `total` 仍是全集
+大小（57 而非 1）；空工作区 `total == 0`；以及 `list_recent_jobs` **不得被
+调用**（fake 上刻意没有这个方法，并把同名属性设成会抛的哨兵）。
+
+变异探针（`total` → `len(page["jobs"])`，即把窗口长度冒充总数）⇒
+**恰好 1 条转红**：`test_the_plain_default_request_reports_the_full_count`。
+其余 24 例照绿，因为它们只问"`total` 在不在"、不问"它是谁"。这个分布本身
+就是结论：一条断言扛住了这个谎言，门不是靠人多。按字节备份还原
+`shaMatch=True sha=55af14767ea0d6c5 bytes=14839`，还原后 5 passed。
+
+### 17.6 门证（本批实测）
+
+- 定向合跑：`test_api_jobs.py + test_api_jobs_total.py + test_api_errors.py +
+  test_api_governance.py + test_envelope_retryable.py + test_web_api.py +
+  test_tenant_auth.py` ⇒ **176 passed**（改前同组合是 3 failed / 173 passed）。
+- 全仓静态：`ruff check .` All checks passed；`mypy .` Success: no issues found in **211** source files（本批删的是 `storage/mysql.py` 里的一个方法，不是文件，因此文件数不动）。
+- 死引用对账：`grep -rn "list_recent_jobs" --include=*.py --include=*.ts --include=*.tsx .` ⇒ **生产侧零命中**，剩下的全是 fake 桩（5 处无人调用，见 17.7-1）加 `test_web_api.py` 里 `dashboard_snapshot` 自用的一条，以及 `test_api_jobs_total.py` 里那个刻意设成会抛的哨兵。
+- 全量合并门：**本批提交时仍在跑**（22:25 起，机器上先后并发过全仓 mypy/ruff 与两次定向门，22:50 才到 36%，明显慢于 15.5 那次 29 分钟跑完的 2855）。数字留空，由紧随其后的追记提交补上 —— 不预判，也不拿"子集全绿"冒充全量绿。
+- 前端：`npx tsc --noEmit` 无输出；`npx vitest run` **43 files / 307 tests**；
+  `npx vite build` ✓ built in 3.49s。
+
+### 17.7 仍未做（诚实边界）
+
+1. 五处 fake 里的 `list_recent_jobs` 桩已经没人调用（`test_api_jobs.py`、
+   `test_api_errors.py`、`test_api_governance.py`、`test_envelope_retryable.py`、
+   `test_tenant_auth.py`），它们现在无人调用，但 `test_web_api.py` 的
+   `dashboard_snapshot` 与 e2e `fixture_server.py` 还在用自己的同名方法，
+   因此这五处桩没跟着删——留着不会让任何断言变假，只会在下一轮清理时统一处理。
+2. `search_jobs` 没有分页上界之外的深翻页保护：`offset` 由路由限到
+   1_000_000，`COUNT(*)` 每页都算一次。真实负载下的代价未量。
+3. `Guide.tsx` 现在读 `total`，但它只发 `limit=1`：拿一条行 + 全量计数是
+   省事的组合，没有校验"这个 total 是不是带过滤条件的结果集大小"。引导页无
+   过滤，因此当前成立。

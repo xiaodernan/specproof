@@ -188,9 +188,11 @@ def list_jobs(
             "BLOCKED", "FAILED", "ERROR", "CANCELLED", "UNVERIFIED", "INCONCLUSIVE",
         }:
             raise HTTPException(422, "Unknown job status filter")
-        if offset is not None or status is not None or q:
-            return store.search_jobs(limit, offset or 0, status, q.strip())
-        rows = store.list_recent_jobs(limit)
+        # One query shape for every caller. The old fork answered a bare
+        # GET /jobs from a SELECT with no COUNT, so that response had no
+        # `total` and any consumer asking "how many verifications exist"
+        # could only report the size of the window it happened to fetch.
+        return store.search_jobs(limit, offset or 0, status, q.strip())
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -199,7 +201,6 @@ def list_jobs(
             code=PROVIDER_UNAVAILABLE,
             detail=f"MySQL unavailable: {exc}",
         ) from exc
-    return {"jobs": rows}
 
 
 @router.get("/{job_id}")

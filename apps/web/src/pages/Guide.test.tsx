@@ -80,6 +80,28 @@ describe("guide onboarding checklist", () => {
     expect(screen.getByText(/工作区里已有 3 次验证/)).toBeTruthy();
   });
 
+  it("reads an answer that has no total as no answer about the count", async () => {
+    // The shape `GET /jobs` actually returns on the default (no-offset)
+    // branch: a window of rows and NO total field. Every stub above handed
+    // the page a `total` the backend never sent, which is how "已有 1 次验证"
+    // survived a green test file — the probe asks for limit=1, so the row
+    // count can only ever mean "at least one".
+    get.mockResolvedValue({ jobs: [{ id: "job-1" }] });
+    render(<Guide />);
+    expect(await screen.findByText(/但没有给出验证总次数/)).toBeTruthy();
+    expect(screen.queryByText(/工作区里已有 \d+ 次验证/)).toBeNull();
+    // Connection really is fine, so the probe step may still claim it.
+    expect(screen.getAllByText("已完成").length).toBe(1);
+    expect(screen.getAllByText("无法确认").length).toBe(1);
+  });
+
+  it("shows a real zero as zero, not as unknown", async () => {
+    get.mockResolvedValue({ jobs: [], total: 0 });
+    render(<Guide />);
+    expect(await screen.findByText(/工作区里已有 0 次验证/)).toBeTruthy();
+    expect(screen.queryByText(/但没有给出验证总次数/)).toBeNull();
+  });
+
   it("refuses to read a corrupt local record as a fresh start", async () => {
     window.localStorage.setItem(KEY, "{corrupt");
     get.mockResolvedValue({ jobs: [], total: 0 });

@@ -76,6 +76,15 @@ class FakeMySQLStore:
             raise ConnectionError("mysql down")
         return list(FakeMySQLStore.rows.values())[-limit:]
 
+    def search_jobs(self, limit: int = 50, offset: int = 0,
+                    status: str | None = None, query: str = "") -> dict[str, Any]:
+        del status, query
+        if FakeMySQLStore.mysql_down:
+            raise ConnectionError("mysql down")
+        items = list(FakeMySQLStore.rows.values())
+        return {"jobs": items[offset:offset + limit], "total": len(items),
+                "limit": limit, "offset": offset}
+
     def dashboard_snapshot(self, since: datetime) -> dict[str, list[dict[str, Any]]]:
         if FakeMySQLStore.mysql_down:
             raise ConnectionError("mysql down")

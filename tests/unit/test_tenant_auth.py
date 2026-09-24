@@ -286,6 +286,13 @@ class FakeJobStore:
         del limit
         return list(self.jobs.values())
 
+    def search_jobs(self, limit: int = 50, offset: int = 0,
+                    status: str | None = None, query: str = "") -> dict[str, Any]:
+        del status, query
+        items = list(self.jobs.values())
+        return {"jobs": items[offset:offset + limit], "total": len(items),
+                "limit": limit, "offset": offset}
+
     def transition_job_status(self, job_id: str, to_status: str, **kwargs: Any) -> bool:
         del job_id, to_status, kwargs
         return True
@@ -879,15 +886,22 @@ def test_repository_get_job_unscoped_sql_unchanged(fake_mysql: _FakeMysql) -> No
 
 
 def test_repository_list_jobs_filters_by_tenant(fake_mysql: _FakeMysql) -> None:
-    fake_mysql.pending_rows = [[{"id": "job-a"}]]
+    fake_mysql.pending_rows = [[{"total": 1}], [{"id": "job-a"}]]
     scope = TenantScope("tenant-a", user_id="u1", roles=frozenset({"viewer"}))
     token = TENANT_SCOPE_VAR.set(scope)
     try:
-        rows = MySQLStore().list_recent_jobs(10)
+        page = MySQLStore().search_jobs(10)
     finally:
         TENANT_SCOPE_VAR.reset(token)
-    assert rows == [{"id": "job-a"}]
+    assert page["jobs"] == [{"id": "job-a"}]
+    # The tenant predicate has to hold for BOTH statements: the SELECT that
+    # ships rows and the COUNT that ships the total. A scope leak on the
+    # counter is invisible in the rows but visible to every consumer that
+    # reads `total` as "how many exist".
+    assert len(fake_mysql.queries) >= 2
     assert "tenant_id = %s OR tenant_id IS NULL" in str(fake_mysql.queries[0][0])
+    assert "tenant_id = %s OR tenant_id IS NULL" in str(fake_mysql.queries[1][0])
+    assert "COUNT(*)" in str(fake_mysql.queries[0][0])
 
 
 def test_repository_create_job_stamps_principal_tenant(fake_mysql: _FakeMysql) -> None:
