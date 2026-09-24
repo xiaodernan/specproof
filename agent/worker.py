@@ -6,7 +6,10 @@ The Worker:
 3. Builds the Phase 0 graph with MongoDBSaver checkpointer.
 4. Invokes the graph with thread_id=job_id for crash recovery.
 5. Streams progress events to Redis for SSE.
-6. On completion/error, releases the lease and transitions MySQL status.
+6. On completion/error, releases the lease and transitions MySQL status. The
+   terminal verdict and the summary that justifies it are written by the same
+   statement, and the "completed" stream frame is only emitted once that write
+   was accepted — a row never announces a verdict it cannot back up.
 """
 from __future__ import annotations
 
@@ -173,13 +176,28 @@ class Worker:
             # never an unconditional VERIFIED (a job with BLOCKER findings or
             # pipeline errors is not verified).
             verdict = _terminal_status_from_state(final_state)
-            self.mysql.transition_job_status(job_id, verdict)
-            summary: dict[str, Any] = {}
+            # The verdict and the evidence behind it are ONE write. Flipping
+            # the row first and saving the summary afterwards let a reader
+            # observe a completed job with no report, and made that state
+            # permanent whenever the second write failed (it was suppressed).
+            summary = _state_summary(final_state, verdict)
+            if not self.mysql.transition_job_status(
+                job_id, verdict, summary=summary
+            ):
+                # The CAS lost: the reclaimer, a cancel or the supervisor
+                # already owns this row's status. This run's verdict is then
+                # not the job's status, so nothing may be announced as done.
+                logger.warning(
+                    "Job %s terminal transition refused (row no longer ours for "
+                    "worker %s) — verdict %s NOT announced as completion",
+                    job_id, self.worker_id, verdict,
+                )
+                incr("worker_terminal_cas_lost_total")
+                return
             with contextlib.suppress(Exception):
-                summary = _state_summary(final_state, verdict)
-                self.mysql.save_job_summary(job_id, summary)
-                # Observability: completion counter + processing duration
-                # (gauge = last job; histogram = p50/p95 SLO per §14).
+                # Observability (gauge = last job; histogram = p50/p95 SLO per
+                # §14) and nothing else: a metrics backend being down must
+                # never change what the job's durable record says.
                 incr("jobs_completed_total")
                 incr("jobs_" + verdict.lower() + "_total")
                 set_gauge("jobs_processing_seconds", float(time.time() - started))

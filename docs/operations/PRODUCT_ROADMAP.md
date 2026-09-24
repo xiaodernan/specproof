@@ -679,3 +679,62 @@
 3. UI 端把"终态且无投影"显示成"可能仍在写入，稍后刷新"（#59 落地的三态）在窗口内是对的，但同一句话目前被 **cancelled / 崩溃终态 / 写入窗口** 三种原因共用，其中前两种**永远不会再来投影**——已登记为 #62，本批只记录不动。
 4. `_crash_terminal`（`api/agent_runtime.py:822`）写出的 FAILED 终态**永远没有投影**（门禁流水线从未跑完）。它该补一条 `ERROR` 判决的投影、还是应该显式声明"无门禁结论"，与 #62 一起决策；本批未改，以免把"没有"和"没跑"继续混在一个文案里。
 
+## 12. 2026-09-25 会话（续）：验证车道的终态与证据合成一次写（任务 #63）
+
+### 12.1 同一族缺陷在验证车道上更严重，而且多一条越权写
+
+§11 关掉的是 Craft 车道的"宣告先于证据"。同一轮把同样的问法拿到验证车道（`agent/worker.py`）走了一遍，读到的是同形但更强的三处：
+
+1. 终态判定与证据是**两次写**：`transition_job_status(job_id, verdict)` 之后才 `save_job_summary(...)`；
+2. 第二次写整个包在 `contextlib.suppress(Exception)` 里——于是那条缝不是"短暂可见"，而是**可以永久存在**（写失败没人知道，行永远缺另一半）；
+3. 第一次写的返回值被丢弃。需要区分两种"写没成功"：行已经是终态时 `transition_job_status` 会 `raise InvalidStateTransition`，这条旧代码本来就有 `except` 接住（只记日志、不宣告）；**被忽略的是返回 False 那一支**——先读到 RUNNING、UPDATE 时行已被 reclaimer 改回 QUEUED 或被取消改动，这一支旧代码照样发 `publish_report completed` 帧、照样计费、照样发 GitHub Check。
+
+读码时另外发现的一条（此前没有任何文档提过）：`save_job_summary` 的 WHERE 只有 `id`（`storage/mysql.py:619-626`），不带状态条件。所以一个已经失去所有权的 worker 会**把摘要写进别人正在拥有的行**。#63 之后摘要只能随带 CAS 的那条 UPDATE 落库，这类越权写在结构上不再可能。
+
+### 12.2 为什么不能反过来做（先写证据、后翻状态）
+
+先记一个被否掉的方向：把两次写交换顺序——先 `save_job_summary` 再翻终态——会把"短暂缺证据"换成另一种更坏的东西：崩溃时留下一个仍然 RUNNING 的行、身上挂着一份看起来已完成的 `VERIFIED` 摘要；supervisor 之后把它翻成 FAILED，那份证据还在，读者会拿它当结论。**窗口不能靠挪位置关闭，只能靠合并成一次写。**
+
+### 12.3 修法：一个存储原语 + 三处按同一形状改写
+
+- `storage/mysql.py::transition_job_status` 新增 `summary: dict | None = None`，与 status 在**同一条 UPDATE** 里；序列化沿用 `_json.dumps(summary, default=str)`，与 `save_job_summary` 完全一致，所以列形状不变、零迁移。`None` 表示"没有新的要说"，**不发 `summary = NULL`**——"未提供"与"清空"是两句不同的陈述，docstring 里写明了。
+- `agent/worker.py`：`summary = _state_summary(final_state, verdict)` 从 best-effort 变成终止路径的一部分；终态写成 `if not transition_job_status(job_id, verdict, summary=summary): 记 warning + incr("worker_terminal_cas_lost_total") + return`。这个 `return` 的语义是"被拒 ⇒ 剩余副作用一个都不做"：不发 completed 帧、不计费、不发 GitHub Check、不写 `jobs_completed_total`（已在 return 之后，逐行核对过）。`suppress` 里剩下的只有 metrics 上报——观测后端挂了不得改变持久记录说了什么。
+- `ops/drills.py`：崩溃恢复演练的 replay 用同一条语句；协议 `JobAuditStore` 加 `summary` 成员并**删掉 `save_job_summary` 声明**（生产已无人调用的协议成员是假守卫）。`scripts/drill_worker_kill.py` 传的是真 `MySQLStore`，签名兼容，无需改。
+- `save_job_summary` 保留：CLI（`cli/specproof/commands/verify.py:543`）与 demo 种子（`scripts/seed_demo.py:415`）从不翻状态，它们写的本来就是"只有证据"那一半，没有窗口可关。
+
+### 12.4 反向验证：探针 M（三个变异，各自判红）
+
+| 变异 | 生产含义 | 结果 |
+| --- | --- | --- |
+| M1 worker 终态调用删掉 `summary=summary` | 回到"宣告与证据分离" | `test_terminal_verdict_carries_its_summary_in_the_same_write` + `test_worker_records_lease_and_stage_duration_metrics` 同时红（2 failed / 29 passed / 55.70s） |
+| M2 被拒分支删掉 `return` | CAS 输了照样宣告完成 | `test_refused_terminal_cas_announces_no_completion` 红（1 failed / 30 passed / 43.57s） |
+| M3 storage 的 `if summary is not None:` 变 `if False and ...` | 原语退化，摘要永不落列 | `test_summary_rides_in_the_status_statement` 红（1 failed / 30 passed / 44.90s） |
+
+M1 的第二条红是**改账的结果而不是意外**：那条既有测试原先断言的是"`save_job_summary` 被调用过"（kwargs 侧），本批把它改成断言"落到行上的摘要内容"（`mysql.written_summaries()`），因此它现在测的是可见结果。三条变异各自跑完立刻按备份字节还原，脚本末尾再逐锚点复核 `count == 1`（输出 `restored; verifying anchors are back / OK`）；未使用任何 git 破坏性命令。
+
+两处值得单独记的判据设计：
+
+- **存储层断言必须后端无关**。`tests/unit/test_job_state_machine.py::TestStateMachineWithDB` 在没有 MySQL 的机器上整类 `pytest.skip`，而"status 与 summary 同语句"正是那种**必须在笔记本上也能被检验**的陈述。新类 `TestTerminalWriteIsOneStatement` 用 recording fake connection 只断言 SQL 形状与参数位置（`params[0] == "VERIFIED"`、`params[1]` 能 `json.loads` 回原 dict、WHERE 的 id 与 from_status 在末尾），第二条断言"不带 summary 时 SQL 里根本不出现 `summary` 字样"——后者正是 12.3 里"None 不清空"那条承诺的可执行形式。
+- **假守卫清账**：`_FakeMysql` 不提供 `save_job_summary`（生产若还留着两次写路径，就会 `AttributeError` 响，而不是被一个没人调用的桩悄悄放过）；`test_drill_helpers.FakeJobStore` 把 `"summary": "stored"` 的副作用从 `save_job_summary` 搬进 `transition_job_status` 的 `summary` 分支；`test_worker_error_classify` 与 `test_job_reclaimer` 两个 stub 的同名死方法删掉。
+
+### 12.5 门证（本批实测）
+
+- `ruff check .` ⇒ All checks passed!；`mypy .` ⇒ Success: no issues found in 210 source files。
+- `pytest tests/unit/test_worker_cancel_points.py tests/unit/test_job_state_machine.py -q -o addopts= -p no:randomly` ⇒ **31 passed / 16.85s**（本批新增 5 例：worker 侧 3 例——同写/被拒/摘要造不出来；storage 侧 2 例——SQL 形状与"不带 summary 就不出现该列"）。
+- `pytest tests/unit/test_drill_helpers.py tests/unit/test_worker_error_classify.py tests/unit/test_job_reclaimer.py -q -o addopts= -p no:randomly` ⇒ **56 passed / 9.75s**（改账不改计数：`FakeJobStore` 的 `summary` 分支、两条被拒路径各加一条"什么都没留下"的断言、两个死 stub 删除）。
+- 探针 M 的三轮判红见 12.4 表格，每轮还原后逐锚点复核 `count == 1` 通过。
+- 同批顺带修掉一处**文档自身的假陈述**：`docs/operations/OBSERVABILITY.md` 的"已接线指标名（全部真实注册）"清单漏了 worker 生命周期整侧与 outbox relay 的 8 个名字。因为本项目没有静态注册表（名字只在第一次上报时才出现），"清单全不全"只能靠取上报点核对，于是把方法连同结果一起写进那一节：三个 `incr/set_gauge/observe_duration` 调用模块 + 常量解析 + 拼接族用正则匹配。`api/auth.py:91` 与 `storage/redis.py:112` 的 `client.incr(...)` 是 Redis 命令、不是指标，已排除并写明，免得下一次又把它当指标收录进来。
+- **终树全量合并门**：`pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒ **2805 passed, 5 skipped, 1 warning in 2460.48s (0:41:00)**，**0 失败**。计数对账：上轮 2800 + 本批新增 5（12.5 第二条那 5 例）= 2805；被改账的既有测试（`written_summaries` 断言、`FakeJobStore.summary` 分支、两条"被拒不留下任何东西"）不新增用例，因此不出现在这个差值里。
+- **耗时不作证据**：本轮 2460.48s vs §11.5 的 1021.03s。这台机器在本轮期间同时存在多个别的 python 会话，两轮之间可比的只有"0 失败"与用例计数；这 1400 秒既不能写成回归，也不能写成别的。探针 M 的三轮判红发生在单文件/单类范围，不受整机负载影响。
+
+### 12.6 仍未做（诚实边界）
+
+1. **只影响新落库的终态写**。改动之前写完的作业里，"终态但 summary 为空"的行仍然存在于表中（旧代码的第二写被 suppress 过时就是这样），而且这类行**永远不会再补上证据**。Web 验证车道对它们说的是另一回事：`apps/web/src/pages/JobDetail.tsx:327` 在 `summary == null` 且请求没失败时渲染 `Empty text="验证结果尚未生成。执行完成后，这里会展示结论、需求覆盖与风险证据。"`——一句"再等一会儿就有了"的承诺，而任务**已经完成了**。Craft 侧 `AgentResult.tsx` 的"可能仍在写入，稍后刷新"同形。两处都属 #62 要区分的"终态 + 无证据"，登记完不动文案。
+
+2. **Craft 车道（SQLite `agent_jobs.accept_json`）仍是两次写**。§11.6 第 1 条登记的纯轮询窗口**没有**因为本批的原语而关闭：原语只落在 `verification_jobs` 上，`accept_json` 侧要同样的合并得再做一个后端的等价改动。
+3. `ops/drills.py::side_effect_counts` 的 `summary_writes` 数的是"行上有没有摘要"（`1 if job.get("summary") else 0`），不是"写了几次"。这个 looseness 在本批之前就存在、本批也没改；后果是"崩溃恢复不产生重复副作用"的演练断言在摘要这一项上**看不见重复写**（只能看见缺失）。改法要么真计数，要么改名成 `summary_present`。
+4. **失败分支的对外宣告仍未与持久记录对齐，而且更糟**：`agent/worker.py` 的通用 `except Exception` 里，`xadd_progress(..., "failed")` 在落库之前无条件发出；终态写的返回值不看；`_maybe_publish_github_check(job_id, "FAILED", {"contracts_total": 0, "findings": []})` 把**现场造的零统计**发到 GitHub Check Run——`integrations/github_checks.py::check_summary_text`（155-178 行）会渲染成 `Contracts: 0 total — 0 passed, 0 failed, 0 unverified.`。流水线根本没数过契约，0 不是"没有契约"而是"未得出统计"。已登记为 #64。
+5. 取消与 lease-lost 两处 `_mark_*` 的语义（"这条事件说的是本 worker 停了"，不是"行归谁"）已经写在 docstring 里并有测试覆盖，属已界定而非遗漏。
+
+
+

@@ -114,9 +114,6 @@ class _FakeMysql:
         self.transitions.append((to_status, kwargs))
         return True
 
-    def save_job_summary(self, job_id: str, summary: dict[str, Any]) -> None:
-        return None
-
 
 class _FakeRedis:
     def __init__(self) -> None:

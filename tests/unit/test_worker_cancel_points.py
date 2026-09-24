@@ -14,7 +14,10 @@ stream are fakes; the executor under test is a plain fake function):
   and stops business writes;
 - lease renew count/duration + per-stage duration metrics land in
   observability.metrics, and an un-cancelled job still completes VERIFIED
-  (identical behavior when not cancelled).
+  (identical behavior when not cancelled);
+- the terminal write is atomic: the verdict transition itself carries the
+  summary, a refused CAS announces no completion and persists no evidence, and
+  a summary that cannot be built leaves no bare verdict behind (#63).
 """
 from __future__ import annotations
 
@@ -36,13 +39,23 @@ from agent.worker import Worker
 
 
 class _FakeMysql:
-    """MySQLStore fake: status + recorded transitions/audits/summaries."""
+    """MySQLStore fake: status + recorded transitions/audits.
 
-    def __init__(self, status: str = "RUNNING") -> None:
+    The summary now travels INSIDE the terminal status transition, so an
+    evidence write is observable as a ``summary=`` kwarg and nothing else.
+    Deliberately no ``save_job_summary`` here: a production path that still
+    used the two-write sequence would fail loudly instead of passing on a
+    fake nobody calls anymore.
+    """
+
+    def __init__(
+        self, status: str = "RUNNING", *, refuse: set[str] | None = None,
+    ) -> None:
         self.status = status
+        self.refuse = refuse or set()
         self.transitions: list[tuple[str, dict[str, Any]]] = []
+        self.applied: list[tuple[str, dict[str, Any]]] = []
         self.audits: list[dict[str, Any]] = []
-        self.summaries: list[tuple[str, dict[str, Any]]] = []
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         return {"id": job_id, "status": self.status, "tenant_id": None}
@@ -51,13 +64,18 @@ class _FakeMysql:
         self, job_id: str, to_status: str, **kwargs: Any,
     ) -> bool:
         self.transitions.append((to_status, kwargs))
+        if to_status in self.refuse:
+            return False  # CAS lost: nothing this call carried became visible
+        if kwargs.get("summary") is not None:
+            self.applied.append((to_status, dict(kwargs["summary"])))
         return True
 
     def record_audit(self, **kwargs: Any) -> None:
         self.audits.append(kwargs)
 
-    def save_job_summary(self, job_id: str, summary: dict[str, Any]) -> None:
-        self.summaries.append((job_id, summary))
+    def written_summaries(self) -> list[dict[str, Any]]:
+        """Summaries that reached the row — a refused CAS persisted nothing."""
+        return [summary for _status, summary in self.applied]
 
     def close(self) -> None:
         return None
@@ -273,7 +291,7 @@ def test_worker_marks_cancelled_at_checkpoint_and_writes_nothing(
     )
     assert any(m == "cancelled_at_checkpoint" for _, _, m in redis.events)
     # No further side effects: no summary, no verdict, no completion event.
-    assert mysql.summaries == []
+    assert mysql.written_summaries() == []
     assert "VERIFIED" not in [t for t, _kw in mysql.transitions]
     assert all(node != "publish_report" for node, _, _ in redis.events)
     assert redis.released == ["job-1"]
@@ -299,7 +317,7 @@ def test_cancel_during_final_stage_stops_terminal_write(
         t == "CANCELLED" and kw.get("error_msg") == "cancelled_at_checkpoint"
         for t, kw in mysql.transitions
     )
-    assert mysql.summaries == []
+    assert mysql.written_summaries() == []
     assert "VERIFIED" not in [t for t, _kw in mysql.transitions]
 
 
@@ -318,7 +336,7 @@ def test_worker_lease_lost_fails_fast_without_business_writes(
     assert len(failed) == 1
     assert failed[0]["error_msg"] == "lease_lost"
     assert any(m == "lease_lost" for _, _, m in redis.events)
-    assert mysql.summaries == []
+    assert mysql.written_summaries() == []
     assert "VERIFIED" not in [t for t, _kw in mysql.transitions]
     assert redis.released == ["job-3"]
 
@@ -354,10 +372,121 @@ def test_worker_records_lease_and_stage_duration_metrics(
     assert hist_delta("worker_lease_renew_seconds") >= 3
     for stage in ("intake", "prepare_base", "publish_report"):
         assert hist_delta("worker_stage_duration_seconds_" + stage) == 1
-    # Identical behavior when not cancelled: honest terminal verdict + summary.
+    # Identical behavior when not cancelled: honest terminal verdict, and the
+    # summary that justifies it written by that same transition.
     assert "VERIFIED" in [t for t, _kw in mysql.transitions]
-    assert len(mysql.summaries) == 1
+    assert [s["verdict"] for s in mysql.written_summaries()] == ["VERIFIED"]
     assert any(
         node == "publish_report" and status == "completed"
         for node, status, _m in redis.events
     )
+
+
+# ── terminal write: the verdict and its evidence are one statement (#63) ──
+
+
+def _completion_announces(events: list[tuple[str, str, str]]) -> list[str]:
+    """Messages that tell the dashboard "this job is done".
+
+    Every stage frame also carries status='completed', so the message is the
+    only thing that separates "a stage finished" from "the worker declared a
+    terminal verdict" — and only the second one is forbidden after a refused
+    write.
+    """
+    return [
+        message
+        for _node, status, message in events
+        if status == "completed" and message.startswith("Job completed")
+    ]
+
+
+def test_terminal_verdict_carries_its_summary_in_the_same_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A row must not announce VERIFIED without carrying the report for it.
+
+    The worker used to flip the status first and save the summary afterwards,
+    so a reader could observe a completed job with no evidence — and because
+    that second write sat inside a suppressed block, a failing write left the
+    job that way permanently.
+    """
+    mysql = _FakeMysql(status="RUNNING")
+    graph = _FakeGraph(["intake", "publish_report"], _final_state())
+    redis = _FakeRedis(lease_ok=True)
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    worker._handle_job_impl("job-atomic", {"repo_path": "/r", "spec_path": "/s"})
+
+    verdict_writes = [
+        kw for status, kw in mysql.transitions if status == "VERIFIED"
+    ]
+    assert len(verdict_writes) == 1
+    summary = verdict_writes[0]["summary"]
+    assert summary["verdict"] == "VERIFIED", (
+        "the terminal transition itself must carry the summary"
+    )
+    assert mysql.written_summaries() == [summary]
+    assert _completion_announces(redis.events) == ["Job completed: VERIFIED"]
+
+
+def test_refused_terminal_cas_announces_no_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CAS lost: this run's verdict is not the job's status.
+
+    The reclaimer or a cancel can move the row while the worker finishes. The
+    refused write persisted nothing, so announcing completion would report a
+    verdict the durable record does not carry.
+    """
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()
+    mysql = _FakeMysql(status="RUNNING", refuse={"VERIFIED"})
+    graph = _FakeGraph(["intake", "publish_report"], _final_state())
+    redis = _FakeRedis(lease_ok=True)
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    worker._handle_job_impl("job-cas-lost", {"repo_path": "/r", "spec_path": "/s"})
+
+    after = metrics_module.snapshot()
+
+    def counter_delta(name: str) -> float:
+        return after["counters"].get(name, 0.0) - before["counters"].get(name, 0.0)
+
+    # The attempt happened (the run did reach a verdict) ...
+    assert "VERIFIED" in [status for status, _kw in mysql.transitions]
+    # ... but nothing of it became visible, and nothing claimed otherwise.
+    assert mysql.written_summaries() == []
+    assert counter_delta("jobs_completed_total") == 0.0
+    assert counter_delta("worker_terminal_cas_lost_total") == 1.0
+    assert _completion_announces(redis.events) == []
+    assert redis.released == ["job-cas-lost"]
+
+
+def test_summary_that_cannot_be_built_leaves_no_bare_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No evidence, no verdict: building the summary is now part of finishing.
+
+    Before the atomic write this was the quiet failure — the row went VERIFIED
+    and the suppressed summary write dropped the report. Now the exception
+    reaches the handler, which fails (or parks) the job with a classified
+    reason instead of announcing a conclusion nobody can check.
+    """
+
+    def boom(state: dict[str, Any], verdict: str) -> dict[str, Any]:
+        raise RuntimeError("summary build exploded")
+
+    monkeypatch.setattr(worker_module, "_state_summary", boom)
+    mysql = _FakeMysql(status="RUNNING")
+    graph = _FakeGraph(["intake", "publish_report"], _final_state())
+    redis = _FakeRedis(lease_ok=True)
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    worker._handle_job_impl("job-nosummary", {"repo_path": "/r", "spec_path": "/s"})
+
+    statuses = [status for status, _kw in mysql.transitions]
+    assert "VERIFIED" not in statuses
+    assert {"FAILED", "WAITING_FOR_PROVIDER"} & set(statuses)
+    assert mysql.written_summaries() == []
+    assert _completion_announces(redis.events) == []

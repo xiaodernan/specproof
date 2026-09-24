@@ -108,14 +108,16 @@ LLM Token 与费用、Tool Timeout、Queue Depth (需 rabbitmq_prometheus 插件
 infra 栈改动)、DLQ、ES 延迟、Redis 命中、Base/Head 沙箱失败 (sandbox/ 代码无指标注册,
 属 sandbox 子代理职责)、Certificate 签发率。
 
-已接线指标名 (全部真实注册, 与看板/告警一致):
-specproof_up、specproof_http_requests_total、specproof_http_requests_failed_total、
-specproof_http_responses_5xx_total (api/server.py 中间件)、
-specproof_jobs_completed_total、specproof_jobs_verified_total、
-specproof_jobs_blocked_total、specproof_jobs_failed_total、
-specproof_jobs_processing_seconds (agent/worker.py)、
-specproof_jobs_duration_seconds 直方图 (P6 新增, agent/worker.py)、
-specproof_outbox_pending (storage/outbox_relay.py)。
+已接线指标名（2026-09-25 与代码逐条对账的结果）：本项目**没有静态指标注册表**，名字只在第一次上报时才出现在 /metrics 上，所以这份清单的唯一合法来源是上报点，不是本文件。本节此前写着"全部真实注册"却漏掉了 worker 生命周期整侧与 outbox relay 的 8 个名字，因此改成可复现的对账方法：取 `incr(` / `set_gauge(` / `observe_duration(` 三个上报函数的全仓调用点（`api/auth.py:91` 与 `storage/redis.py:112` 的 `client.incr(...)` 是 Redis 计数命令，不是指标，已排除），再把常量名解析成字面量。生产侧上报模块只有三个（外加 render_text 自己）：
+
+- `observability/metrics.py::render_text` 无条件输出：specproof_up。
+- `api/server.py` 中间件：specproof_http_requests_total、specproof_http_requests_failed_total、specproof_http_responses_5xx_total。
+- `agent/worker.py`：specproof_jobs_completed_total、specproof_jobs_processing_seconds (仪表)、specproof_jobs_duration_seconds (直方图, P6 新增)、specproof_worker_lease_renews_total、specproof_worker_lease_renew_seconds (直方图)、specproof_worker_cancelled_at_checkpoint_total、specproof_worker_lease_lost_total、specproof_worker_provider_wait_total、specproof_worker_terminal_cas_lost_total。
+- `storage/outbox_relay.py`：仪表 specproof_outbox_pending、specproof_outbox_oldest_age_seconds、specproof_outbox_failure_rate、specproof_outbox_retry_count、specproof_outbox_dead_letters、specproof_outbox_last_success_ts；计数 specproof_outbox_published_total、specproof_outbox_publish_failed_total、specproof_outbox_dead_lettered_total（常量定义在该文件 36-44 行）。
+
+两个**名字由代码拼接**的族不能列举，看板/告警要用正则匹配：`jobs_<verdict>_total`（verdict 取小写，所以旧清单里的 specproof_jobs_verified_total / _blocked_total / _failed_total 只是它的三个实例）与 `worker_stage_duration_seconds_<node>`（graph 节点名拼进指标名，每个节点一条直方图）。
+
+`specproof_worker_terminal_cas_lost_total` 的语义（#63 起）：终态 CAS 被拒绝的次数。终态判定与它背后的证据已合并为同一条 UPDATE，被拒时既不落库也不发出任何完成宣告，所以这个计数非 0 就是"有 worker 在替一行不属于它的状态说话"的信号；正常情况下它应当一直是 0。
 
 ## 7. 实测记录 (2026-08, Windows + Docker Desktop 29.6.2)
 

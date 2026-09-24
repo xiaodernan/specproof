@@ -709,11 +709,18 @@ class MySQLStore:
         error_msg: str | None = None,
         stale_replaced_by: str | None = None,
         increment_retry: bool = False,
+        summary: dict[str, Any] | None = None,
     ) -> bool:
         """Atomically transition a job to a new status using CAS.
 
         Returns True if exactly 1 row was updated, False if the CAS failed
         (wrong current status or job not found).
+
+        `summary` is written by the SAME statement as the status, so a row can
+        never be observed announcing a verdict without carrying the evidence
+        for it. Passing None never clears an existing summary — "no summary
+        given" and "summary cleared" are different claims, and only the first
+        one is what a caller that has nothing new to say means.
 
         Raises InvalidStateTransition if the from→to pair is statically illegal.
         """
@@ -743,6 +750,11 @@ class MySQLStore:
         if stale_replaced_by is not None:
             parts.append(", stale_replaced_by = %s")
             params.append(stale_replaced_by)
+        if summary is not None:
+            import json as _json
+
+            parts.append(", summary = %s")
+            params.append(_json.dumps(summary, default=str))
         if increment_retry:
             parts.append(", retry_count = retry_count + 1")
 

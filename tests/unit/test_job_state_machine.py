@@ -1,6 +1,8 @@
 """P1.1 Unit tests: Job state machine validation."""
 
+import json
 import uuid
+from typing import Any
 
 import pytest
 
@@ -10,6 +12,82 @@ from storage.mysql import (
     InvalidStateTransition,
     MySQLStore,
 )
+
+
+class _RecordingCursor:
+    def __init__(self) -> None:
+        self.statements: list[tuple[str, list[Any]]] = []
+        self.rowcount = 1
+
+    def execute(self, sql: str, params: Any = None) -> None:
+        self.statements.append((sql, list(params or [])))
+
+
+class _RecordingConn:
+    def __init__(self) -> None:
+        self.cursor_obj = _RecordingCursor()
+
+    def cursor(self) -> _RecordingCursor:
+        return self.cursor_obj
+
+    def __enter__(self) -> "_RecordingConn":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+
+class TestTerminalWriteIsOneStatement:
+    """The verdict and its evidence must become visible in ONE UPDATE (#63).
+
+    Backend-independent on purpose: the DB-backed class below skips when no
+    MySQL is reachable, and "status and summary share a statement" is exactly
+    the kind of claim that has to be checkable on a laptop.
+    """
+
+    def _store(self) -> tuple[MySQLStore, _RecordingConn]:
+        store = MySQLStore()
+        conn = _RecordingConn()
+        store.connection = lambda: conn  # type: ignore[method-assign]
+        store.record_audit = lambda **kw: None  # type: ignore[method-assign]
+        return store, conn
+
+    def test_summary_rides_in_the_status_statement(self):
+        store, conn = self._store()
+        summary = {"verdict": "VERIFIED", "matrix_passed": 3}
+        ok = store.transition_job_status(
+            "job-1", "VERIFIED", from_status="RUNNING", summary=summary
+        )
+        assert ok
+        statements = conn.cursor_obj.statements
+        assert len(statements) == 1, (
+            f"a terminal write is one statement, got {len(statements)}"
+        )
+        sql, params = statements[0]
+        assert "status = %s" in sql
+        assert "summary = %s" in sql
+        assert "WHERE id = %s AND status = %s" in sql
+        # Positional order is part of the contract: the WHERE pair is last.
+        assert params[0] == "VERIFIED"
+        assert params[-2] == "job-1"
+        assert params[-1] == "RUNNING"
+        assert json.loads(params[1]) == summary
+
+    def test_no_summary_quietly_clears_an_existing_one(self):
+        """Omitting `summary` must not emit the column at all.
+
+        "Nothing new to say" and "clear the evidence" are different claims;
+        a terminal transition that carries no summary has to leave whatever
+        the row already holds untouched.
+        """
+        for kwargs in ({}, {"summary": None}):
+            store, conn = self._store()
+            assert store.transition_job_status(
+                "job-2", "VERIFIED", from_status="RUNNING", **kwargs
+            )
+            sql, params = conn.cursor_obj.statements[0]
+            assert "summary" not in sql, sql
+            assert params == ["VERIFIED", "job-2", "RUNNING"]
 
 
 class TestStateMachineStatic:

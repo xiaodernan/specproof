@@ -105,16 +105,18 @@ class FakeJobStore:
         from_status: str | None = None,
         worker_id: str | None = None,
         error_msg: str | None = None,
+        summary: Mapping[str, Any] | None = None,
     ) -> bool:
         self.transitions.append((job_id, to_status))
         if job_id not in self.jobs:
             return False
         self.jobs[job_id]["status"] = to_status
+        # One call, one visible state: the summary lands with the status and a
+        # refused CAS stores neither half.
+        if summary is not None:
+            self.summaries[job_id] = dict(summary)
+            self.jobs[job_id]["summary"] = "stored"
         return True
-
-    def save_job_summary(self, job_id: str, summary: Mapping[str, Any]) -> None:
-        self.summaries[job_id] = dict(summary)
-        self.jobs[job_id]["summary"] = "stored"
 
 
 class FakeStream:
@@ -419,6 +421,7 @@ class TestResumeJob:
                 "worker-new", verdict_fn=_verdict_fn, summary_fn=_summary_fn,
             )
         assert leases.released == [("no-such-job", "worker-new")]
+        assert store.summaries == {}  # a refused CAS leaves no half-written verdict
 
 
 # ── Honest provider degradation ─────────────────────────────────────────────

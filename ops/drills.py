@@ -83,8 +83,8 @@ class JobAuditStore(Protocol):
         from_status: str | None = None,
         worker_id: str | None = None,
         error_msg: str | None = None,
+        summary: Mapping[str, Any] | None = None,
     ) -> bool: ...
-    def save_job_summary(self, job_id: str, summary: Mapping[str, Any]) -> None: ...
 
 
 class SideEffectStore(JobReader, JobAuditStore, Protocol):
@@ -320,7 +320,7 @@ def resume_job(
     Mirrors the post-lease half of Worker._handle_job_impl: acquire the
     lease (the crashed worker's lease must have expired), re-run the graph
     under the same thread_id so LangGraph skips completed nodes, then make
-    exactly one terminal transition and write the summary. Raises
+    exactly one terminal transition carrying the summary. Raises
     DrillTargetError when the lease is still held or the job is missing.
     """
     if not leases.acquire_lease(job_id, worker_id):
@@ -331,12 +331,15 @@ def resume_job(
     try:
         final_state = worker.execute_job(job_id, dict(payload))
         verdict = verdict_fn(final_state)
+        summary = summary_fn(final_state, verdict)
         try:
-            if not store.transition_job_status(job_id, verdict):
+            # One statement, like the worker: the replayed verdict and the
+            # evidence behind it become visible together, and a refused CAS
+            # leaves neither half behind.
+            if not store.transition_job_status(job_id, verdict, summary=summary):
                 raise DrillTargetError(f"terminal transition refused for job {job_id}")
         except InvalidStateTransition as exc:
             raise DrillTargetError(f"terminal transition refused: {exc}") from exc
-        store.save_job_summary(job_id, summary_fn(final_state, verdict))
         return verdict
     finally:
         leases.release_lease(job_id, worker_id)

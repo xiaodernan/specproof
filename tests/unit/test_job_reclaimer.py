@@ -478,9 +478,6 @@ class FakeWorkerMysql:
         self.waits.append((job_id, kwargs))
         return True
 
-    def save_job_summary(self, job_id: str, summary: dict[str, Any]) -> None:
-        return None
-
 
 class FakeWorkerRedis:
     def __init__(self) -> None:
