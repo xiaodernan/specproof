@@ -736,5 +736,66 @@ M1 的第二条红是**改账的结果而不是意外**：那条既有测试原�
 4. **失败分支的对外宣告仍未与持久记录对齐，而且更糟**：`agent/worker.py` 的通用 `except Exception` 里，`xadd_progress(..., "failed")` 在落库之前无条件发出；终态写的返回值不看；`_maybe_publish_github_check(job_id, "FAILED", {"contracts_total": 0, "findings": []})` 把**现场造的零统计**发到 GitHub Check Run——`integrations/github_checks.py::check_summary_text`（155-178 行）会渲染成 `Contracts: 0 total — 0 passed, 0 failed, 0 unverified.`。流水线根本没数过契约，0 不是"没有契约"而是"未得出统计"。已登记为 #64。
 5. 取消与 lease-lost 两处 `_mark_*` 的语义（"这条事件说的是本 worker 停了"，不是"行归谁"）已经写在 docstring 里并有测试覆盖，属已界定而非遗漏。
 
+## 13. 2026-09-25 会话（续）：失败路径不再伪造统计，宣告跟随落库结果（任务 #64）
+
+### 13.1 起点是上一批自己写下的一条"更糟"
+
+12.6 第 4 条把 `agent/worker.py` 的通用 `except Exception` 登记为"仍未做，而且比终态那条更糟"。本批回去读它，确认了三件同时发生的事：
+
+1. `xadd_progress(job_id, job_id, "failed", ...)` 在落库**之前**无条件发出，而且第二个位置参数（node 名）填的是 job id 本身——前端的阶段时间线因此在"阶段"列表里插入一个 UUID，`stageLabel` 认不出来就原样透传，用户看到一行 `3f2a…c81` 以为是某个执行阶段。
+2. 终态写的返回值被丢掉：CAS 输了（行已被 reclaimer 或 cancel 挪走）也照样发"failed"帧、照样更新 GitHub Check Run。这与 #63 修的是同一件事，只是发生在失败分支。
+3. `_maybe_publish_github_check(job_id, "FAILED", {"contracts_total": 0, "findings": [], "errors": [str(exc)[:200]]})`——第三个参数是**当场手搓的假摘要**。
+
+### 13.2 为什么第 3 条是这一批的主线：`0` 是一种陈述，不是"没有数据"
+
+`integrations/github_checks.py::check_summary_text` 见 `contracts_total` 就渲染 `Contracts: 0 total — 0 passed, 0 failed, 0 unverified.`。这句话读起来是一次**完整的清点结果**（数过了，共 0 条，全过），而真相是流水线在统计之前抛了异常，压根没数过契约。产品红线里"缺失保持缺失"在这里被违反了两次：一次由 worker 造出键，一次由渲染器把缺键也画成 0。
+
+同一族缺陷在 `integrations/notify/templates.py` 里有第二个实例：`*Contracts:* 0` 与 `*Matrix:* 0 passed / 0 failed / 0 unverified` 各自独立地用 `.get(key, 0)` 兜底，所以"只写了 total、没写 matrix"这种半截摘要会渲染成"总数 4，通过 0/失败 0/未验证 0"——两个字段互相拆台。
+
+因此本批的修法分成两半：**渲染侧只有一个说了算的地方**，**发送侧不再有凭空造的键**。
+
+### 13.3 修法
+
+- 新增 `integrations/contract_counts.py`：`COUNT_KEYS` 四个键、`counted()` 要求**四个全在且都是非负整数**才返回值（`bool` 不算整数、`"3"` 不算、`-1` 与 `1.5` 不算；JSON 里 `4.0` 是整数所以算），`count_sentence()` 在缺任一键时输出 `not counted — this run recorded no contract statistics`。注意"0"仍然合法：真数出来 0 条就写 0 条，缺的才是缺的。
+- `github_checks.py::check_summary_text` 与 `notify/templates.py` 的两个渲染函数改为调用同一个模块；`blocks_for_summary` 只算一次 `counted()`，让 Contracts 与 Matrix 两个字段**一起移动**（要么都有具体数字，要么都写 not counted）。findings 与 capsules 补上"键不存在"与"空列表"的区分（`not recorded for this run` vs `none`），errors 渲染并如实截断（`… N more`）。
+- worker 的失败分支改成与 #63 同一个形状：先由 `_provider_wait_allowed` 决定去向，再写，**只有写成功才宣告**。`written` 为假 ⇒ 记 `worker_terminal_cas_lost_total`、日志、`return`，进度帧与 GitHub Check 都不发。429 暂停落库成功时，帧的 status 从 `failed` 改成 `waiting_for_provider`（行状态是什么，事件就说什么）。
+- `_failure_summary(exc, classification)` 取代手搓字典：只有 `verdict` 与一条 `errors`，**不含任何 `COUNT_KEYS` 键、不含 `findings` 键**——即"这一轮没数过"由数据结构本身表达，而不是靠渲染器记住。
+- 失败/暂停帧的 node 名固定为 `terminal`；`apps/web/src/ui/stages.ts` 为它和 `lease`、`cancel_checkpoint` 三条 worker 事件补中文说明，并明写"不是某个执行阶段"。`StatusPill.tsx` 补 `COMPLETED`（时间线每一行的 status 都是它，之前满屏裸 token）。
+
+一处**顺序决定**要记下来：本批没有把 `notify/templates.py` 接进生产。它是先存在的第二个渲染者，改它可以顺手接线，但接线属于新功能（要选事件源、要管密钥、要有失败策略），而本批的目标是"对外说的每句话都能追溯到落库的那一行"。于是只统一它的语义，并把它**未接线**这一事实作为发现登记在 13.6。
+
+### 13.4 反向验证：探针 N（四个变异，各自判红）
+
+| 变异 | 它模拟的旧行为 | 判红结果 |
+|---|---|---|
+| N1 被拒分支的 `if not written:` 变 `if False:` | 落库被拒仍宣告失败 | 3 failed / 13 passed（`tests/unit/test_worker_cancel_points.py`） |
+| N2 把 `_failure_summary(...)` 换回字面量零统计 | GitHub Check 又拿到现场造的 0 | 1 failed / 15 passed（同上） |
+| N3 `count_sentence` 的 `None` 分支返回 `"0 total — 0 passed…"` | 缺失渲染成零清点 | 3 failed / 32 passed（`test_contract_counts.py` + `test_notify_connector.py`） |
+| N4 在决定与落库之前先插一帧 `xadd_progress` | 宣告跑在写入前面 | 5 failed / 11 passed（`test_worker_cancel_points.py`） |
+
+N1/N2/N4 的红**分布在不同测试**上：N1 与 N4 都会踩到"宣告顺序/宣告存在"断言，N4 额外踩到既有 `_completion_announces` 那条（#63 建立的判据），说明这批的断言不是只认某一种错法。四轮均按备份字节还原，脚本末尾逐锚点复核 `count == 1`（`restored; anchors back: OK`），未使用任何 git 破坏性命令。
+
+新增测试里有一条是**双向**的：`tests/unit/test_progress_event_labels.py` 用 AST 取 `agent/worker.py` 中 `xadd_progress` 的第 1/2 位置参数字面量（含三元表达式的两个分支）、用 AST 取 `agent/graph.py` 的 `add_node(...)` 名字，再用正则取 `stages.ts` 的 `STAGE_LABELS` 与 `StatusPill.tsx` 的 `STATUS_LABELS` 键集合，然后要求"生产出来的都必须有中文注释"和"注释里不得有生产者已不存在的死条目"同时成立。它是本批**唯一能真正抓住"文案漂移"的门**——单向门只会漏掉新增事件，不会报错辞典里的僵尸。
+
+### 13.5 门证（本批实测）
+
+- `ruff check .` ⇒ All checks passed!；`mypy .` ⇒ Success: no issues found in **211** source files（+1 是本批新增的 `contract_counts.py`）。
+- `pytest` 九文件定向跑（worker 取消点 / 状态机 / contract_counts / progress labels / notify / github_checks / drills / reclaimer / error_classify）⇒ **133 passed / 30.93s**。
+- 其中 `tests/unit/test_worker_cancel_points.py` + `tests/unit/test_job_state_machine.py` ⇒ **36 passed**（12.5 记录的同类跑是 31，本批 worker 侧新增 5 例：成功宣告、被拒不宣告、非法转移不宣告、暂停帧状态、假摘要不含统计键）。
+- 新增两文件各自：`test_contract_counts.py` **11 passed**、`test_progress_event_labels.py` **3 passed**。
+- 前端三门禁（`apps/web`）：`npx tsc --noEmit` 无输出通过；`npx vitest run` ⇒ **43 files / 293 tests passed**（上批 42/288，本批新增 `statusPill.test.tsx` 4 例 + `stages.test.ts` 1 例）；`npx vite build` ⇒ `✓ built in 4.18s`，`assets/index-*.js 200.81 kB │ gzip: 69.60 kB`。
+- 探针 N 的四轮判红见 13.4 表格。
+- **终树全量合并门**（`pytest tests/unit tests/security tests/fault -q -p no:randomly`，本批 13 文件全部落定后跑）⇒ **2824 passed, 5 skipped**。这条与 13.3 记录的上一轮 2805 对得上账：`2805 + 11 (test_contract_counts) + 3 (test_progress_event_labels) + 5 (worker 侧新增宣告例) = 2824`。三项相加恰好等于差值，说明本批没有静默改掉任何既有断言，新增例数与计划一致；如果哪个旧断言被"顺手放宽"了，这里会少掉对不上的那几例。
+- **耗时不作证据**：同一道门这次 2063.68s（34:23），上批记录约 41 分钟——机器负载不同而已，两者都不能用来说明"变快/变慢"。要谈耗时必须固定并发条件后重测；本节只把 pass/skip 计数当结论。
+
+### 13.6 仍未做（诚实边界）
+
+1. **`integrations/notify` 整个包在生产里没有调用点**。实测依据：`webhook_connector_from_env` 的引用只出现在它自己的定义与 `integrations/notify/**` 的 `__init__` 重导出、以及文档字符串里；`text_for_summary` / `blocks_for_summary` 的调用点只有包内 `notification_for_summary` 与 `tests/unit/*`。也就是说本批"统一了两个对外渲染器"，而其中**只有一个真的对外**（GitHub Check Run）。要么把通知接进终态事件（需要 outbox/事件源与密钥策略的决策），要么把这整包删掉——留着会让下一个人以为 webhook 已通。
+2. **`lease` 与 `cancel_checkpoint` 两帧仍写 status=`failed`**。前者与落库的 FAILED 一致；后者不一致（同一段代码把行写成 CANCELLED）。这两处的写包在 `contextlib.suppress(Exception)` 里且没读回结果，所以不能在不复制 #63/#64 形状的前提下改成"跟随行状态"。已在 `docs/operations/OBSERVABILITY.md` §6 明写为未修不一致，避免文档先替它作证。
+3. **`_failure_summary` 只带一条 error，仍不含"跑到哪一步才炸的"**。GitHub Check 上现在会说"这一轮没数过契约"，但不会说"在 `run_differential` 之前就没了一半"。阶段信息在 Redis 进度流里有，在持久行里没有，所以对外通道拿不到——属 #62 家族的"终态但证据不完整"。
+4. **worker 的异常失败路径不进入 `jobs_<verdict>_total` 族**。`agent/worker.py:197-206` 的这段计数只在图跑完并成功落终态之后执行，所以 `jobs_failed_total` 数到的是"图跑完了、结论是 FAILED"那部分，**抛异常的轮次一次也不计**（它们只 +`worker_provider_wait_total`，或在被拒时 +`worker_terminal_cas_lost_total`，否则什么都不加）；`jobs_completed_total` 同理不含异常轮。也就是说看板上按 verdict 族算的"失败率"会**系统性低估**——分子缺，分母也缺。本批没改它，因为补计数会改变既有告警查询的口径（`jobs_failed_total` 之前一直是"结论级失败"），要先确认没有看板/规则依赖旧语义；这属于口径决策，不是漏写一行 `incr`。
+5. 12.6 第 1–3 条（历史空摘要行、Craft 车道仍两次写、`side_effect_counts.summary_writes` 数的是存在性）本批一律未动，仍然有效。
+
+
 
 

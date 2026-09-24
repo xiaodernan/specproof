@@ -256,36 +256,49 @@ class Worker:
                 {**classification.as_dict(), "error": str(exc)[:800]},
                 ensure_ascii=False,
             )[:1024]
-            self.redis.xadd_progress(job_id, job_id, "failed",
-                                     message=reason, percent=0.0)
             # Backlog #5: a retryable provider outage parks the job in
             # WAITING_FOR_PROVIDER (audited) instead of failing it — the
             # recover path later moves it back to QUEUED, or to FAILED once
             # the retry budget is spent. Everything else keeps the FAILED
             # terminal path.
             provider_wait = self._provider_wait_allowed(job_id, classification)
+            # The progress frame and the Check Run are announcements of a
+            # stored outcome, not the outcome. They used to run first and
+            # unconditionally, so the stream said "failed" for a job whose row
+            # was parked in WAITING_FOR_PROVIDER, and a row already owned by a
+            # cancel or a reclaimer (CAS refused) still got a failure frame
+            # plus a GitHub Check Run concluding failure.
+            written = False
             with contextlib.suppress(InvalidStateTransition):
                 if provider_wait:
-                    self.mysql.enter_provider_wait(
+                    written = self.mysql.enter_provider_wait(
                         job_id, worker_id=self.worker_id, error_msg=reason,
                     )
-                    incr("worker_provider_wait_total")
+                    if written:
+                        incr("worker_provider_wait_total")
                 else:
-                    self.mysql.transition_job_status(
+                    written = self.mysql.transition_job_status(
                         job_id, "FAILED", error_msg=reason
                     )
+            if not written:
+                logger.warning(
+                    "Job %s failure transition refused (row no longer ours for "
+                    "worker %s) — no failure announced",
+                    job_id, self.worker_id,
+                )
+                incr("worker_terminal_cas_lost_total")
+                return
+            self.redis.xadd_progress(
+                job_id, "terminal",
+                "waiting_for_provider" if provider_wait else "failed",
+                message=reason, percent=0.0,
+            )
             # GitHub-sourced jobs must not stay in_progress forever. A
             # parked (provider-wait) job keeps its in-progress Check Run:
             # the retried run completes it honestly.
             if not provider_wait:
                 self._maybe_publish_github_check(
-                    job_id, "FAILED",
-                    {
-                        "verdict": "FAILED",
-                        "contracts_total": 0,
-                        "findings": [],
-                        "errors": [str(exc)[:200]],
-                    },
+                    job_id, "FAILED", _failure_summary(exc, classification)
                 )
         finally:
             heartbeat_stop.set()
@@ -669,6 +682,25 @@ def _matrix_rows_for_summary(
         "matrix_rows": kept,
         "matrix_rows_total": total,
         "matrix_rows_truncated": total > len(kept),
+    }
+
+
+def _failure_summary(
+    exc: BaseException, classification: ErrorClassification
+) -> dict[str, Any]:
+    """What a FAILED job can honestly put in front of an external channel.
+
+    It carries no contract-count keys on purpose. `_state_summary` derives
+    them from a finished pipeline state; a job that died mid-run never built a
+    matrix, so the numbers were not zero — they were never computed. This call
+    site used to hand the renderer literal zeros, which GitHub then published
+    as `Contracts: 0 total — 0 passed, 0 failed, 0 unverified.`
+    """
+    return {
+        "verdict": "FAILED",
+        "errors": [
+            f"[{classification.cls}/{classification.code}] {str(exc)[:300]}"
+        ],
     }
 
 

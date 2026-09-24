@@ -117,7 +117,13 @@ infra 栈改动)、DLQ、ES 延迟、Redis 命中、Base/Head 沙箱失败 (sand
 
 两个**名字由代码拼接**的族不能列举，看板/告警要用正则匹配：`jobs_<verdict>_total`（verdict 取小写，所以旧清单里的 specproof_jobs_verified_total / _blocked_total / _failed_total 只是它的三个实例）与 `worker_stage_duration_seconds_<node>`（graph 节点名拼进指标名，每个节点一条直方图）。
 
-`specproof_worker_terminal_cas_lost_total` 的语义（#63 起）：终态 CAS 被拒绝的次数。终态判定与它背后的证据已合并为同一条 UPDATE，被拒时既不落库也不发出任何完成宣告，所以这个计数非 0 就是"有 worker 在替一行不属于它的状态说话"的信号；正常情况下它应当一直是 0。
+`specproof_worker_terminal_cas_lost_total` 的语义（#63 起，#64 扩展）：终态写入被拒绝的次数。终态判定与它背后的证据已合并为同一条 UPDATE，被拒时既不落库也不发出任何完成宣告，所以这个计数非 0 就是"有 worker 在替一行不属于它的状态说话"的信号；正常情况下它应当一直是 0。#64 把同一条规则推广到**失败**路径，因此这个计数器现在覆盖三种被拒：VERIFIED/BLOCKED 等成功终态 CAS 被拒、FAILED 落库被拒（含 `InvalidStateTransition`，例如行已是 CANCELLED 时不再允许 FAILED）、以及 429 暂停写入 `WAITING_FOR_PROVIDER` 被拒。三者都不再对外宣告（Redis 进度帧与 GitHub Check Run 都不发）。注意 `specproof_worker_provider_wait_total` 只在暂停**落库成功**时才 +1 —— 它说"有多少行真的在等 provider"，不是"有多少次判定想让它等"。
+
+进度流（Redis stream，前端 `worker_stage_duration_seconds_<node>` 的 node 名与此同源）中有三个值**不是 graph 节点**，而是 worker 自己写的生命周期事件，看板/文案不要把它们当成"某个阶段跑完了"：`lease`（租约续约）、`cancel_checkpoint`（取消检查点）、`terminal`（#64 起，失败/暂停的终结帧；此前这里的 node 位置写的是一次性 job id，等于在阶段列表里插入一个 UUID）。#64 后终结帧的 status 只有 `failed` 与 `waiting_for_provider` 两种，不再出现"429 暂停也报 failed"的假陈述。
+
+已知未修的不一致（下一批候选，不是本文档的断言）：`lease` 与 `cancel_checkpoint` 两帧至今仍写 status=`failed`。前者与落库的 FAILED 一致；后者不一致——同一段代码把行写成 CANCELLED，帧却说 failed。原因是这两处的写入包在 `contextlib.suppress(Exception)` 里，"写了什么"没有被读回来，所以无法在不做 #63/#64 那种"先决定→写→按写入结果宣告"改造的前提下声称它反映了行状态。因此本节只把**已按写入结果取值**的 `terminal` 帧当作可信来源。
+
+这两个集合的双向对账由 `tests/unit/test_progress_event_labels.py` 守住：worker/graph 生产出来的每个 node/status 字面量都必须在 `apps/web/src/ui/stages.ts` / `StatusPill.tsx` 里有中文注释，反之清单里也不得留死条目。
 
 ## 7. 实测记录 (2026-08, Windows + Docker Desktop 29.6.2)
 

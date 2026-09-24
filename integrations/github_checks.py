@@ -33,6 +33,8 @@ import httpx
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
+from integrations.contract_counts import count_sentence
+
 CHECK_RUN_NAME = "specproof/verify"
 _JWT_TTL_SECONDS = 540  # GitHub caps app JWTs at 10 minutes.
 _TOKEN_CACHE_SECONDS = 45 * 60  # installation tokens live 60 minutes.
@@ -153,28 +155,41 @@ def conclusion_for_verdict(verdict: str) -> str:
 
 
 def check_summary_text(verdict: str, summary: dict[str, Any]) -> str:
-    """Markdown Check Run output summarizing a finished job."""
+    """Markdown Check Run output summarizing a finished job.
+
+    Reads the persisted summary; never fills in a number for a field the run
+    did not record. `count_sentence` and the findings branch both render
+    absence as absence, because a Check Run is an external, quoted artifact:
+    `Contracts: 0 total` on a job that died before counting anything read as
+    "this change touches no contract".
+    """
     lines = [f"**Verdict:** {verdict}", ""]
-    lines.append(
-        f"Contracts: {summary.get('contracts_total', 0)} total — "
-        f"{summary.get('matrix_passed', 0)} passed, "
-        f"{summary.get('matrix_failed', 0)} failed, "
-        f"{summary.get('matrix_unverified', 0)} unverified."
-    )
-    findings = summary.get("findings", [])
-    if findings:
-        lines.append("")
-        lines.append("**Findings:**")
+    lines.append("Contracts: " + count_sentence(summary) + ".")
+    findings = summary.get("findings")
+    if findings is None:
+        lines.extend(["", "**Findings:** not recorded for this run."])
+    elif findings:
+        lines.extend(["", "**Findings:**"])
         for finding in findings:
             lines.append(
                 f"- [{finding.get('severity', '?')}] "
                 f"{finding.get('contract_id', '?')}: "
                 f"{(finding.get('description') or '')[:200]}"
             )
+    else:
+        lines.extend(["", "**Findings:** none."])
     capsules = summary.get("capsules", [])
     if capsules:
         lines.append("")
         lines.append(f"**Capsules:** {len(capsules)}")
+    errors = summary.get("errors") or []
+    if errors:
+        lines.append("")
+        lines.append("**Errors:**")
+        for err in errors[:3]:
+            lines.append(f"- {str(err)[:300]}")
+        if len(errors) > 3:
+            lines.append(f"- … {len(errors) - 3} more")
     return "\n".join(lines)
 
 

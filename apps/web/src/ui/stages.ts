@@ -1,5 +1,7 @@
 // 执行阶段节点名 → 中文步骤说明。内部 LangGraph 节点 id 是稳定契约，
 // 这里只做展示层翻译；未收录的节点原样返回真实 id，绝不臆造步骤含义。
+// 末尾三项不是流水线阶段，而是 worker 直接写出的事件名（进度流里的
+// 终止/取消/租约事件），它们同样要有一句人话，否则时间线只能显示英文标识。
 export const STAGE_LABELS: Record<string, string> = {
   intake: "接收任务 · 校验输入",
   preflight: "检查执行环境（工具链）",
@@ -17,6 +19,9 @@ export const STAGE_LABELS: Record<string, string> = {
   create_capsule: "打包复现证据",
   run_release_checks: "运行发布前检查",
   publish_report: "生成验证报告",
+  terminal: "终止处理（不是某个执行阶段）",
+  cancel_checkpoint: "取消检查点（不是某个执行阶段）",
+  lease: "执行租约（不是某个执行阶段）",
 };
 
 /** 返回中文步骤名；未知节点原样透传真实 id，便于排查而非被猜测掩盖。 */

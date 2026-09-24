@@ -19,6 +19,9 @@ export const STATUS_LABELS: Record<string, string> = {
   WAITING_FOR_PROVIDER: "等待模型服务",
   UNVERIFIED: "证据不足",
   INCONCLUSIVE: "尚无明确结论",
+  // Progress-stream stage rows carry "completed" for every finished stage;
+  // without a label the timeline showed the raw token on every row.
+  COMPLETED: "已完成",
 };
 
 export function statusLabel(status?: string | null): string {

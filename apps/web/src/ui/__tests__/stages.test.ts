@@ -18,12 +18,27 @@ describe("stageLabel — translate internal node ids for humans, honestly", () =
   });
 
   it("covers every node registered in the graph", () => {
-    // These ids mirror agent/graph.py add_node(...) calls.
-    for (const id of ["intake", "compile_contracts", "prepare_base", "prepare_head", "collect_diff",
+    // Kept as a readable list; the authoritative two-way reconciliation is
+    // tests/unit/test_progress_event_labels.py, which parses agent/graph.py
+    // and agent/worker.py so this list cannot silently fall behind.
+    for (const id of ["intake", "preflight", "compile_contracts", "prepare_base", "prepare_head", "collect_diff",
       "retrieve_repository_context", "run_static_checks", "generate_counterexamples", "run_differential",
       "run_deep_experiments", "review_court", "build_matrix", "create_capsule", "run_release_checks",
       "publish_report"]) {
       expect(STAGE_LABELS[id], id).toBeTruthy();
+    }
+  });
+
+  it("glosses the worker's own events, which are not pipeline stages", () => {
+    // The worker writes these names directly into the progress stream. Before
+    // this, a failed job's timeline row was labelled with the raw job id,
+    // because the worker passed job_id as the node name.
+    expect(stageLabel("terminal")).toContain("终止处理");
+    expect(stageLabel("cancel_checkpoint")).toContain("取消");
+    expect(stageLabel("lease")).toContain("租约");
+    // A gloss must not pretend these are a step of the pipeline.
+    for (const id of ["terminal", "cancel_checkpoint", "lease"]) {
+      expect(STAGE_LABELS[id], id).toContain("不是某个执行阶段");
     }
   });
 });

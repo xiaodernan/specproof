@@ -26,6 +26,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
 import agent.job_control as control
@@ -36,6 +37,8 @@ from agent.job_control import (
     run_with_cancel_checks,
 )
 from agent.worker import Worker
+from integrations.contract_counts import COUNT_KEYS
+from storage.mysql import InvalidStateTransition
 
 
 class _FakeMysql:
@@ -50,12 +53,16 @@ class _FakeMysql:
 
     def __init__(
         self, status: str = "RUNNING", *, refuse: set[str] | None = None,
+        raise_on: set[str] | None = None, log: list[str] | None = None,
     ) -> None:
         self.status = status
         self.refuse = refuse or set()
+        self.raise_on = raise_on or set()
+        self.log = log
         self.transitions: list[tuple[str, dict[str, Any]]] = []
         self.applied: list[tuple[str, dict[str, Any]]] = []
         self.audits: list[dict[str, Any]] = []
+        self.provider_waits: list[dict[str, Any]] = []
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         return {"id": job_id, "status": self.status, "tenant_id": None}
@@ -63,12 +70,25 @@ class _FakeMysql:
     def transition_job_status(
         self, job_id: str, to_status: str, **kwargs: Any,
     ) -> bool:
+        if self.log is not None:
+            self.log.append("w:" + to_status)
         self.transitions.append((to_status, kwargs))
+        if to_status in self.raise_on:
+            raise InvalidStateTransition(f"RUNNING -> {to_status} is illegal")
         if to_status in self.refuse:
             return False  # CAS lost: nothing this call carried became visible
         if kwargs.get("summary") is not None:
             self.applied.append((to_status, dict(kwargs["summary"])))
         return True
+
+    def enter_provider_wait(
+        self, job_id: str, **kwargs: Any,
+    ) -> bool:
+        """CAS RUNNING -> WAITING_FOR_PROVIDER (same refusal semantics)."""
+        if self.log is not None:
+            self.log.append("w:WAITING_FOR_PROVIDER")
+        self.provider_waits.append(kwargs)
+        return "WAITING_FOR_PROVIDER" not in self.refuse
 
     def record_audit(self, **kwargs: Any) -> None:
         self.audits.append(kwargs)
@@ -84,8 +104,11 @@ class _FakeMysql:
 class _FakeRedis:
     """RedisStore fake: lease + progress events."""
 
-    def __init__(self, lease_ok: bool = True) -> None:
+    def __init__(
+        self, lease_ok: bool = True, log: list[str] | None = None,
+    ) -> None:
         self.lease_ok = lease_ok
+        self.log = log
         self.renews = 0
         self.events: list[tuple[str, str, str]] = []
         self.released: list[str] = []
@@ -107,6 +130,8 @@ class _FakeRedis:
         self, job_id: str, node: str, status: str,
         message: str = "", percent: float = 0.0,
     ) -> str:
+        if self.log is not None:
+            self.log.append("e:" + status)
         self.events.append((node, status, message))
         return "1-0"
 
@@ -490,3 +515,163 @@ def test_summary_that_cannot_be_built_leaves_no_bare_verdict(
     assert {"FAILED", "WAITING_FOR_PROVIDER"} & set(statuses)
     assert mysql.written_summaries() == []
     assert _completion_announces(redis.events) == []
+
+
+# ── failure path: announcements follow the stored outcome (#64) ──
+
+
+class _RaisingGraph:
+    """A pipeline that dies mid-run: there is no final state to count from."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+
+    def stream(self, state: Any, config: Any, stream_mode: Any = None) -> Any:
+        yield ("updates", {"intake": {"_done": "intake"}})
+        raise self._exc
+
+
+def _rate_limited() -> httpx.HTTPStatusError:
+    """A retryable provider outage — the one failure the worker parks."""
+    request = httpx.Request("POST", "https://provider.example/v1/chat")
+    response = httpx.Response(429, request=request)
+    return httpx.HTTPStatusError("Too Many Requests", request=request,
+                                 response=response)
+
+
+def _run_failing_job(
+    monkeypatch: pytest.MonkeyPatch,
+    exc: BaseException,
+    *,
+    refuse: set[str] | None = None,
+    raise_on: set[str] | None = None,
+) -> tuple[list[str], _FakeMysql, _FakeRedis, list[tuple[str, dict[str, Any]]]]:
+    """Run one dying job and return the ORDERED side-effect log.
+
+    `log` interleaves row writes (``w:``), progress frames (``e:``) and
+    external publications (``p:``), so "announced before stored" and
+    "announced although refused" are both visible as a wrong sequence rather
+    than as an absence someone has to trust.
+    """
+    log: list[str] = []
+    published: list[tuple[str, dict[str, Any]]] = []
+    mysql = _FakeMysql(status="RUNNING", refuse=refuse, raise_on=raise_on, log=log)
+    redis = _FakeRedis(lease_ok=True, log=log)
+    worker = _make_worker(mysql, redis, _RaisingGraph(exc), monkeypatch)
+
+    def _spy(job_id: str, verdict: str, summary: dict[str, Any], *_rest: Any) -> None:
+        log.append("p:" + verdict)
+        published.append((verdict, summary))
+
+    worker._maybe_publish_github_check = _spy  # type: ignore[method-assign]
+    worker._handle_job_impl("job-fail", {"repo_path": "/r", "spec_path": "/s"})
+    return log, mysql, redis, published
+
+
+def test_failure_announces_only_after_the_row_was_written(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()
+    log, _mysql, redis, published = _run_failing_job(
+        monkeypatch, TimeoutError("mvnw timed out"),
+    )
+    after = metrics_module.snapshot()
+
+    assert log == ["w:RUNNING", "w:FAILED", "e:failed", "p:FAILED"]
+    # The frame used to carry the job id as its "stage", which the timeline
+    # then printed as a raw UUID.
+    assert [node for node, status, _m in redis.events if status == "failed"] == [
+        "terminal"
+    ]
+    assert len(published) == 1
+    verdict, summary = published[0]
+    assert verdict == "FAILED"
+    # No statistics existed to report, so none may be reported: this call
+    # site handed the renderer literal zeros and GitHub published
+    # "Contracts: 0 total — 0 passed, 0 failed, 0 unverified."
+    assert not set(summary) & set(COUNT_KEYS)
+    assert "findings" not in summary
+    assert summary["errors"] and "timeout" in summary["errors"][0]
+    assert _counter_delta(after, before, "worker_terminal_cas_lost_total") == 0.0
+
+
+def test_refused_failure_write_announces_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The row is no longer this worker's to declare failed.
+
+    A reclaimer or a cancel already moved it; the refused CAS persisted
+    nothing, so a failure frame and a Check Run would report an outcome the
+    durable record does not carry.
+    """
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()
+    log, _mysql, redis, published = _run_failing_job(
+        monkeypatch, TimeoutError("mvnw timed out"), refuse={"FAILED"},
+    )
+    after = metrics_module.snapshot()
+
+    assert log == ["w:RUNNING", "w:FAILED"]
+    assert redis.events == []
+    assert published == []
+    assert _counter_delta(after, before, "worker_terminal_cas_lost_total") == 1.0
+    # Refusing to announce is not refusing to clean up: the lease goes back.
+    assert redis.released == ["job-fail"]
+
+
+def test_illegal_failure_transition_announces_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same refusal through the raising door (row already CANCELLED)."""
+    log, _mysql, redis, published = _run_failing_job(
+        monkeypatch, TimeoutError("mvnw timed out"), raise_on={"FAILED"},
+    )
+    assert log == ["w:RUNNING", "w:FAILED"]
+    assert redis.events == []
+    assert published == []
+
+
+def test_parked_job_reports_waiting_not_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retryable provider outage parks the row; the stream must not call it failed.
+
+    The frame used to be written first, unconditionally, so the timeline said
+    "failed" for a job whose row said WAITING_FOR_PROVIDER — and the retried
+    run then completed honestly, leaving a contradiction in the stream.
+    """
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()
+    log, mysql, redis, published = _run_failing_job(monkeypatch, _rate_limited())
+    after = metrics_module.snapshot()
+
+    assert log == [
+        "w:RUNNING", "w:WAITING_FOR_PROVIDER", "e:waiting_for_provider",
+    ]
+    assert "FAILED" not in [status for status, _kw in mysql.transitions]
+    assert [s for _n, s, _m in redis.events] == ["waiting_for_provider"]
+    # The in-progress Check Run stays open: closing it as a failure would
+    # report a conclusion the retry has not produced yet.
+    assert published == []
+    assert _counter_delta(after, before, "worker_provider_wait_total") == 1.0
+    assert _counter_delta(after, before, "worker_terminal_cas_lost_total") == 0.0
+
+
+def test_refused_park_announces_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A park that lost its CAS is still a refused write."""
+    log, _mysql, redis, published = _run_failing_job(
+        monkeypatch, _rate_limited(), refuse={"WAITING_FOR_PROVIDER"},
+    )
+    assert log == ["w:RUNNING", "w:WAITING_FOR_PROVIDER"]
+    assert redis.events == []
+    assert published == []
+
+
+def _counter_delta(after: dict, before: dict, name: str) -> float:
+    return after["counters"].get(name, 0.0) - before["counters"].get(name, 0.0)

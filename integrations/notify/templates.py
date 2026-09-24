@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from integrations.contract_counts import count_sentence, counted
 from integrations.notify.protocol import Notification
 
 TERMINAL_VERDICTS: frozenset[str] = frozenset(
@@ -63,15 +64,14 @@ def title_for_verdict(verdict: str) -> str:
 
 
 def text_for_summary(verdict: str, summary: Mapping[str, Any]) -> str:
-    """Plain-text rendering of the persisted job summary fields."""
+    """Plain-text rendering of the persisted job summary fields.
+
+    Counts come from `count_sentence`, so a summary that recorded none reads
+    "not counted" rather than a confident zero.
+    """
     lines = [
         f"Verdict: {verdict}",
-        (
-            f"Contracts: {summary.get('contracts_total', 0)} total — "
-            f"{summary.get('matrix_passed', 0)} passed, "
-            f"{summary.get('matrix_failed', 0)} failed, "
-            f"{summary.get('matrix_unverified', 0)} unverified."
-        ),
+        "Contracts: " + count_sentence(summary) + ".",
     ]
     findings = summary.get("findings") or []
     for finding in findings[:_MAX_FINDINGS_IN_TEXT]:
@@ -98,6 +98,21 @@ def blocks_for_summary(
     job_id: str, verdict: str, summary: Mapping[str, Any]
 ) -> list[dict[str, Any]]:
     """Slack-block-style rendering: header, matrix fields, findings, context."""
+    stats = counted(summary)
+    # Both fields move together: showing a total without its split (or the
+    # reverse) would be read as a complete tally.
+    contracts_field = (
+        f"*Contracts:* {stats['contracts_total']}"
+        if stats
+        else "*Contracts:* not counted"
+    )
+    matrix_field = (
+        f"*Matrix:* {stats['matrix_passed']} passed / "
+        f"{stats['matrix_failed']} failed / "
+        f"{stats['matrix_unverified']} unverified"
+        if stats
+        else "*Matrix:* not counted"
+    )
     blocks: list[dict[str, Any]] = [
         {
             "type": "header",
@@ -108,18 +123,8 @@ def blocks_for_summary(
             "fields": [
                 {"type": "mrkdwn", "text": f"*Job:* `{job_id}`"},
                 {"type": "mrkdwn", "text": f"*Verdict:* {verdict}"},
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Contracts:* {summary.get('contracts_total', 0)}",
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": (
-                        f"*Matrix:* {summary.get('matrix_passed', 0)} passed / "
-                        f"{summary.get('matrix_failed', 0)} failed / "
-                        f"{summary.get('matrix_unverified', 0)} unverified"
-                    ),
-                },
+                {"type": "mrkdwn", "text": contracts_field},
+                {"type": "mrkdwn", "text": matrix_field},
             ],
         },
     ]
