@@ -121,3 +121,67 @@ def test_cancelling_model_call_stops_pending_request():
         assert errors
     finally:
         client.close()
+
+
+def test_cancel_racing_the_submit_window_still_stops_the_call(monkeypatch):
+    """The old code submitted, *then* registered; cancel() in between found an
+    empty set and the caller waited out the whole model call. The window is
+    reproduced deterministically here by stalling the thread right after the
+    coroutine is handed to the loop, so the interleaving is not luck.
+    """
+    import asyncio
+    import threading
+    import time
+
+    from craft.llm import LLMClient, LLMUnavailableError
+    from providers.base import LLMMessage
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    class SlowProvider:
+        async def chat(self, *args, **kwargs):
+            entered.set()
+            await asyncio.sleep(60)
+
+        async def close(self):
+            pass
+
+    submit = asyncio.run_coroutine_threadsafe
+
+    def stalling_submit(coro, loop):
+        future = submit(coro, loop)
+        # The caller is "descheduled" here. With registration outside the
+        # lock this is exactly where cancel() slips in.
+        assert release.wait(5)
+        return future
+
+    monkeypatch.setattr("craft.llm.asyncio.run_coroutine_threadsafe", stalling_submit)
+
+    client = LLMClient(provider=SlowProvider())
+    errors: list[Exception] = []
+
+    def invoke():
+        try:
+            client.chat_sync([LLMMessage(role="user", content="x")], label="cancel-race")
+        except LLMUnavailableError as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=invoke)
+    worker.start()
+    try:
+        assert entered.wait(10)
+        canceler = threading.Thread(target=client.cancel)
+        canceler.start()
+        time.sleep(0.3)
+        release.set()
+        canceler.join(10)
+        worker.join(10)
+        assert not worker.is_alive(), (
+            "cancel() that races registration left the caller waiting for the model"
+        )
+        assert errors, "a cancelled call must surface as LLMUnavailableError"
+    finally:
+        release.set()
+        monkeypatch.undo()
+        client.close()

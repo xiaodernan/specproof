@@ -208,8 +208,10 @@ class LLMClient:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._provider_error: str = ""
+        # `_pending_lock` is held across submit+register: a call that already
+        # started running on the loop thread must never be invisible to cancel().
         self._pending_lock = threading.Lock()
-        self._pending: set[Future[LLMResponse]] = set()
+        self._pending: set[Future[Any]] = set()
 
     # -- availability -----------------------------------------------------
 
@@ -386,21 +388,25 @@ class LLMClient:
         loop = self._loop
         if loop is None:
             raise LLMUnavailableError("LLMClient 事件循环初始化失败")
-        future = asyncio.run_coroutine_threadsafe(
-            self.chat(
-                messages,
-                label=label,
-                kind=kind,
-                job_id=job_id,
-                step_id=step_id,
-                thinking=thinking,
-                response_format=response_format,
-                estimated_prompt_tokens=estimated_prompt_tokens,
-                timeout=timeout,
-            ),
-            loop,
-        )
+        # Registration happens inside the lock that cancel() also needs, and
+        # the coroutine starts running the moment it is submitted. Adding the
+        # future after submit would leave a window where cancel() legitimately
+        # finds nothing pending and the caller waits out the full model call.
         with self._pending_lock:
+            future = asyncio.run_coroutine_threadsafe(
+                self.chat(
+                    messages,
+                    label=label,
+                    kind=kind,
+                    job_id=job_id,
+                    step_id=step_id,
+                    thinking=thinking,
+                    response_format=response_format,
+                    estimated_prompt_tokens=estimated_prompt_tokens,
+                    timeout=timeout,
+                ),
+                loop,
+            )
             self._pending.add(future)
         try:
             return future.result(timeout=SYNC_CALL_TIMEOUT)
@@ -499,7 +505,9 @@ class LLMClient:
             except BaseException as exc:  # noqa: BLE001 — re-raised in the consumer
                 pending.put(("error", exc))
 
-        future = asyncio.run_coroutine_threadsafe(_produce(), loop)
+        with self._pending_lock:
+            future = asyncio.run_coroutine_threadsafe(_produce(), loop)
+            self._pending.add(future)
         try:
             while True:
                 try:
@@ -518,6 +526,8 @@ class LLMClient:
                 raise LLMUnavailableError(f"LLM 流式调用失败: {payload!r}")
         finally:
             future.cancel()
+            with self._pending_lock:
+                self._pending.discard(future)
 
     async def _stream_capability(self, provider: ModelProvider) -> bool:
         """Does the provider stream? Asks get_capabilities() when a
