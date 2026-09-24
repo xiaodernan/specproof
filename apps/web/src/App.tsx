@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import TenantSwitcher from "./identity/TenantSwitcher";
 import { ThemeProvider, useTheme } from "./theme/ThemeProvider";
 import { Button, CommandPalette, ErrorBoundary, Kbd, Spinner, ToastProvider } from "./ui";
+import { recordRouteVisit } from "./ui/onboarding";
 import { MoonIcon, SearchIcon, SunIcon } from "./ui/icons";
 import { ProductIcon, type ProductIconName } from "./ui/ProductIcon";
 
@@ -68,8 +69,14 @@ function Workspace() {
   const contentRef = useRef<HTMLElement>(null);
   const { resolved, toggle } = useTheme();
   useEffect(() => {
-    const onChange = () => { setRoute(window.location.hash || "#/dashboard"); setMenuOpen(false); };
+    const onChange = () => {
+      const hash = window.location.hash || "#/dashboard";
+      recordRouteVisit(hash);
+      setRoute(hash);
+      setMenuOpen(false);
+    };
     window.addEventListener("hashchange", onChange);
+    recordRouteVisit(window.location.hash || "#/dashboard");
     if (consumeOidcCallback()) setHasKey(true);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);

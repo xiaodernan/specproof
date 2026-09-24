@@ -99,3 +99,21 @@
 .guide-copy-status { display: block; color: var(--success-fg); font-size: 11px; margin-top: 8px; }
 @media (max-width: 900px) { .welcome-layout { gap: 35px; grid-template-columns: minmax(0, 1fr) minmax(300px, .9fr); }.welcome-brand { margin-bottom: 40px; }.welcome-connect.login-card { padding: 24px; }.welcome-flow { gap: 8px; }.welcome-flow small { display: none; }.guide-result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.guide-choice { padding: 19px; } }
 @media (max-width: 680px) { .onboarding-login.login-wrap { padding: 28px 20px 40px; }.welcome-layout { grid-template-columns: minmax(0, 1fr); gap: 30px; }.welcome-brand { margin-bottom: 35px; }.welcome-story h1 { font-size: 34px; }.welcome-description { font-size: 13px; }.welcome-flow small { display: block; }.welcome-connect.login-card { padding: 25px; }.guide-choices { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 32px; }.guide-choice p { min-height: auto; }.guide-steps { grid-template-columns: minmax(0, 1fr); padding-left: 0; }.guide-example-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }.guide-example { padding: 20px; }.guide-example-outcome { border-left: 0; border-top: 1px solid var(--color-border); padding: 22px 0 0; }.guide-result-grid { grid-template-columns: minmax(0, 1fr); }.guide-glossary > div { grid-template-columns: minmax(0, 1fr); gap: 5px; }.guide-startup { align-items: flex-start; flex-direction: column; gap: 14px; }.guide-section-head h2 { font-size: 17px; } }
+
+/* ── 产品内引导清单 (Phase 3.3 收尾) ── */
+.guide-checklist-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; font-size: 12px; color: var(--color-text-2); }
+.guide-checklist-head strong { font-size: 15px; font-weight: 550; color: var(--color-text); }
+.guide-checklist-unknown { color: var(--warning-fg); }
+.guide-checklist-warn { font-size: 12px; line-height: 1.8; color: var(--warning-fg); border-left: 2px solid var(--warning); padding-left: 10px; margin: 0 0 12px; }
+.guide-step-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.guide-step-mark { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--color-border); font-size: 10px; line-height: 1; color: var(--color-text-3); }
+.guide-step-mark-done { border-color: var(--success-fg); color: var(--success-fg); }
+.guide-step-mark-unknown { border-style: dashed; }
+.guide-step-check { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--color-text-3); }
+.guide-step-check input { margin: 0; }
+.guide-step-state { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--color-surface-3); color: var(--color-text-2); }
+.guide-step-state-done { background: var(--success-tint); color: var(--success-fg); }
+.guide-step-state-unknown { background: var(--warning-tint); color: var(--warning-fg); }
+.guide-step-kind { font-size: 10px; color: var(--color-text-3); }
+.guide-steps .guide-step-basis { font-size: 11px; color: var(--color-text-3); margin-top: 6px; }
+@media (max-width: 680px) { .guide-step-head { gap: 6px; } .guide-checklist-head { flex-wrap: wrap; } }

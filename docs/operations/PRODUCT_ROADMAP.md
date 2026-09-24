@@ -537,3 +537,53 @@
 - **修法**：判别**不取自 token，而取自同一份投影里的 `gates.overall`**——`failed` ⇒ 红色"门禁未通过，未签发合并证书"；通过 / 跳过 ⇒ 琥珀色"门禁摘要已过，尚未签发合并证书"；**摘要缺失或为 `error` ⇒ 明说"无法区分原因"**，两种都不猜。判据落在两个纯函数 `acceptBlockedMeaning()` / `acceptBlockedNotice()` 里，页面只渲染。
 - **既有断言里也编码了这个错误假设**，一并改正而不是放宽：`AgentResult.test.tsx` 的第一例原本喂的就是 `overall: "failed"`，却断言琥珀色 + "不代表下方门禁未通过"——等于把 §8.2 的反向假陈述锁进了测试。现拆成三例（闭包延后 / 真失败 / 无摘要不可判）。
 - 另加一条**真生产者锁** `test_the_two_blocked_flavors_reach_the_console_apart`：直接调 `AgentRuntime._gate_accept_projection` 生成两种 BLOCKED，断言两者在 HTTP 上的 `gates.overall` **不相等**。若投影哪天丢了该字段，前端就彻底没有可判别的依据——这正是探针 E 要买下的风险。
+
+## 9. 2026-09-24 会话（续）：引导页从"一段说明文"变成"能自查的清单"（任务 #60）
+
+### 9.1 要消灭的真实问题
+
+引导页（`Guide.tsx`）原来是一篇静态四步说明：读者读完不知道自己走到第几步，也得不到"这一步到底做完没有"的反馈——产品对"第一次使用"这件事没有任何状态。这是"不友好"诊断里 §0 记的那条：**新手路径全靠脑补**。
+
+### 9.2 落点
+
+- **`apps/web/src/ui/onboarding.ts`（新增，纯逻辑）**：把"做到没有"拆成两类依据——
+  - **系统能检测的**：连接（一次真实 `/jobs?limit=1` 探测）、是否已发起验证（同一探测带回的 `total`/`jobs.length`）；
+  - **只有用户自己知道的**：需求是否写成了可验收的句子、是否读懂了结论。这类**永远不由系统打勾**，只能用户亲手勾选。
+  - 进度落在 `localStorage`（键 `specproof_onboarding_v1`），路由到达结果页时由 `App.tsx` 记一次访问（`recordRouteVisit`）。
+- **`apps/web/src/pages/Guide.tsx`**：渲染清单 + 每步一条 `basis`（这句判断凭什么下的），原文四段说明一字未删，收在 `STEP_DETAIL` 里继续展示。
+- **`apps/web/src/pages/onboarding.css`**：只用已存在的 token（`--warning*` / `--success*` / `--color-surface-3` 等），零 `!important`。
+
+### 9.3 四条诚实性判据（本节的主体）
+
+1. **读不出来 ≠ 没有记录**。`loadOnboardingProgress()` 是三态：`ok` / `absent`（确实没有这个键）/ `unreadable`（解析或结构失败）。只有 `absent` 才允许显示"未完成"；`unreadable` 时全部降级为 `unknown`（"无法确认"），并显示一条明确的横幅。半条记录（`manual` 在、`visited` 不在）按 `unreadable` 处理——**静默丢掉读不出的一半，等于擦掉用户真的勾过的东西**。
+2. **探测没回来 ≠ 探测失败**。`connection` 有 `pending`，此时既不打勾也不打叉，页面显示"正在检测工作区连接…"。同理 `verificationCount === null` ⇒ 该步 `unknown`，不能因为"列表是空的"就说"你还没验证过"——**空列表和读不到列表是两件事**。
+3. **一个未被观察到的东西不能因为顺手就被写成 `null`/`—`**。`routeKeyFor("#/jobs/new")` 返回 `null`（那是创建表单，不是结果页），这条是自己写测试时抓到的真 bug：初版把 `new` 当成了某个 job 的 id，于是"打开新建表单"会被记成"已经看过结果"。
+4. **"没登录"是被观察到事实，不是"探测失败"**。引导页是免登录可访问的（`App.tsx` 对 `guide` 路由放行），所以它的**主要读者恰恰是还没连接工作区的人**。第一版对这类人显示"无法确认"——那是最没用的回答。现引入 `credential: "present" | "absent"`（读 `getBearerToken() || getApiKey()`，两者都在存储不可用时安全返回空串）：凭据缺席时**根本不发那次注定 401 的探测**，第一步直接显示"未完成 · 这个浏览器里还没有工作区凭据"。但这条判据**只覆盖到"这台设备"**，所以"是否已发起验证"仍保持 `unknown`——别的设备可能早就跑过，本机看不见不等于没有。
+
+### 9.4 反向验证（每个探针都先证明它改了字节，再看是否变红）
+
+| 探针 | 改动 | 结果 |
+|---|---|---|
+| G | `connection === "ok" ? "done" : "unknown"` → `: "todo"`（把"没探测出来"说成"没做"） | **4 failed** / 16 passed |
+| H | `!isStringMap(manual) \|\| !isStringMap(visited)` → `&&`（接受半条记录） | **1 failed** / 19 passed |
+| I | 去掉 `recordRouteVisit` 里的 `unreadable` 守卫（一次导航覆盖损坏存储） | **1 failed** / 19 passed |
+| J | 让 `credential === "absent"` 分支失效（对没登录的读者回退成"无法确认"） | **2 failed** / 20 passed（`onboarding.test.ts` 与 `Guide.test.tsx` 各一处） |
+
+三个探针均在跑完后从 `/tmp/onb_orig.ts` 还原并 `grep` 复核锚点计数，未使用任何 git 破坏性命令。上一轮记过的教训在这里再兑现一次：**第一次试探针时锚点含 `\n`，而仓库文件是 CRLF，`count()==0` ⇒ 什么都没改，随后那次"变红"是假的**；本轮改成无换行锚点，并在替换前先断言命中数为 1。
+
+### 9.5 门禁（本轮实测值，不抄历史）
+
+| 门 | 命令 | 结果 |
+|---|---|---|
+| 类型 | `npx tsc --noEmit` | exit 0 |
+| 单测 | `npx vitest run` | **42 files / 288 tests 全绿**（新增 `onboarding.test.ts` 15 例、`Guide.test.tsx` 7 例） |
+| 构建 | `npx vite build` | ✓ built in 2.21s，`dist/assets/Guide-*.js` 9.92 kB（gzip 4.96 kB） |
+| 后端 | `ruff check .` / `mypy .` | 沿用 §8.5 的读数：#60 **未改任何 Python 文件**，故无新增后端面 |
+
+（上表探针 G/H/I 跑在加入 `credential` 判据之前的 20 例上，J 跑在其后的 22 例上；"n passed"是各次运行的当场读数，不是同一基线。）
+
+### 9.6 仍未做（诚实边界）
+
+1. 清单只有四步，覆盖"第一次跑通验证"，**不含** Craft/AI 开发通道——那条通道的"做完了吗"仍无产品内状态。
+2. 进度只存在本机浏览器：换设备、清缓存即回到 `absent`。做多设备需要后端用户级存储，属另一件事。
+3. "验证是否通过"不计入完成度——清单只回答"你是否走到了能看结论的那一步"，不对结论好坏下判断。

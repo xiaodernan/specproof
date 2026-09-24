@@ -1,15 +1,117 @@
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "../hooks/navigate";
 import { DEMO_AGENT, DEMO_VERIFY, DEMO_VERIFY_ABS_PATH_NOTE } from "../demo";
 import { EMPTY_WIZARD_DRAFT, saveWizardDraft } from "../agent/util";
+import { apiGet, getApiKey, getBearerToken } from "../api";
 import { Button, GLOSSARY } from "../ui";
+import {
+  EMPTY_PROGRESS,
+  ONBOARDING_STEPS,
+  loadOnboardingProgress,
+  saveOnboardingProgress,
+  stepState,
+  summarize,
+  toggleManualStep,
+  type OnboardingProgress,
+  type OnboardingStep,
+  type OnboardingStepId,
+  type OnboardingState,
+  type StepSignals,
+} from "../ui/onboarding";
 import "./onboarding.css";
 
 const START_COMMAND = "pwsh scripts/start_local.ps1";
 
+const STATE_LABEL: Record<OnboardingState, string> = {
+  done: "已完成",
+  todo: "未完成",
+  unknown: "无法确认",
+};
+
+// The prose is the product copy; the completion mark next to it is derived in
+// code, which is exactly why the two must stay in the same list item.
+const STEP_DETAIL: Record<OnboardingStepId, ReactNode> = {
+  connect: (
+    <>本机运行启动命令，用终端提供的凭据登录。团队部署则向管理员获取凭据。工作区登录密钥用于进入 SpecProof；模型服务商的 API Key 用于调用 AI，可由部署管理员在<a href="#/agent/settings">模型连接</a>中配置并测试。</>
+  ),
+  prepare_spec: (
+    <>把“改进用户管理”写成“非管理员修改邮箱应被拒绝，管理员可以修改，邮箱必须符合格式”。需求越明确，越容易验证。</>
+  ),
+  create_verification: (
+    <>填入后端能够访问的仓库路径、基准版本 Base、待验证版本 Head，以及需求文件路径。提交后可查看排队、执行和结果。</>
+  ),
+  read_results: (
+    <>先看任务结论，再进入需求矩阵与风险发现。失败时查看证据和受影响位置，修复后提交新的验证任务。</>
+  ),
+};
+
 export default function Guide() {
   const [copyState, setCopyState] = useState("");
+  const [progress, setProgress] = useState<OnboardingProgress>(EMPTY_PROGRESS);
+  const [progressUnreadable, setProgressUnreadable] = useState(false);
+  const [connection, setConnection] = useState<"pending" | "ok" | "failed">("pending");
+  const [verificationCount, setVerificationCount] = useState<number | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [credential] = useState<"present" | "absent">(() =>
+    getBearerToken() || getApiKey() ? "present" : "absent"
+  );
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const read = loadOnboardingProgress();
+    setProgress(read.progress);
+    setProgressUnreadable(read.status === "unreadable");
+    // Without a credential the request cannot succeed, and asking anyway would
+    // turn "this browser has never logged in" into a red failure. The absence
+    // of the credential is the observation we act on.
+    if (credential === "absent") return;
+    let alive = true;
+    // One real request answers two steps: it proves the workspace is
+    // reachable, and its total says whether a verification exists yet.
+    apiGet<{ jobs: unknown[]; total?: number }>("/jobs?limit=1")
+      .then((data) => {
+        if (!alive) return;
+        setConnection("ok");
+        setVerificationCount(data.total ?? data.jobs?.length ?? 0);
+      })
+      .catch(() => {
+        if (!alive) return;
+        // A failed probe leaves both steps "unknown": an unreadable answer is
+        // not an answer of "no".
+        setConnection("failed");
+        setVerificationCount(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [credential]);
+
+  const signals: StepSignals = { progressUnreadable, credential, connection, verificationCount };
+  const summary = summarize(ONBOARDING_STEPS, progress, signals);
+
+  function tick(stepId: OnboardingStepId) {
+    const next = toggleManualStep(progress, stepId, new Date().toISOString());
+    setSaveFailed(!saveOnboardingProgress(next));
+    setProgress(next);
+  }
+
+  function basisNote(step: OnboardingStep, state: OnboardingState): string {
+    if (step.id === "connect") {
+      if (credential === "absent")
+        return "这个浏览器里还没有工作区凭据，所以还没连上工作区；登录后这里会自动更新";
+      if (state !== "unknown") return step.basis;
+      return connection === "pending" ? "正在检测工作区连接…" : "工作区请求失败，因此无法判断是否已连接——这不等于没有连接";
+    }
+    if (step.id === "create_verification") {
+      if (state !== "unknown") return "工作区里已有 " + (verificationCount ?? 0) + " 次验证";
+      if (credential === "absent") return "还没连上工作区，因此无法确认是否已经建过验证";
+      return connection === "pending"
+        ? "正在读取工作区的验证任务数量…"
+        : "读不到验证任务列表，因此无法判断是否已经建过验证";
+    }
+    if (state === "unknown") return "本机进度读不出来，因此无法判断是否勾选过";
+    return step.basis;
+  }
 
   function startDemoVerify() {
     const query = new URLSearchParams({
@@ -57,11 +159,47 @@ export default function Guide() {
 
       <section className="guide-section" aria-labelledby="guide-start">
         <div className="guide-section-head"><span className="guide-section-number">01</span><div><h2 id="guide-start">第一次使用，按这四步走</h2><p>先用项目提供的演示案例理解结果，再接入自己的仓库。</p></div></div>
-        <ol className="guide-steps">
-          <li><strong>启动并连接工作区</strong><p>本机运行启动命令，用终端提供的凭据登录。团队部署则向管理员获取凭据。工作区登录密钥用于进入 SpecProof；模型服务商的 API Key 用于调用 AI，可由部署管理员在<a href="#/agent/settings">模型连接</a>中配置并测试。</p></li>
-          <li><strong>准备一份可验收的需求</strong><p>把“改进用户管理”写成“非管理员修改邮箱应被拒绝，管理员可以修改，邮箱必须符合格式”。需求越明确，越容易验证。</p></li>
-          <li><strong>新建验证，选定比较范围</strong><p>填入后端能够访问的仓库路径、基准版本 Base、待验证版本 Head，以及需求文件路径。提交后可查看排队、执行和结果。</p></li>
-          <li><strong>看结论，也看依据</strong><p>先看任务结论，再进入需求矩阵与风险发现。失败时查看证据和受影响位置，修复后提交新的验证任务。</p></li>
+        <div className="guide-checklist-head">
+          <strong>{summary.done} / {summary.total}</strong>
+          <span>步已由系统或你本人确认</span>
+          {summary.unknown > 0 ? <span className="guide-checklist-unknown">另有 {summary.unknown} 步现在无法判断</span> : null}
+        </div>
+        {progressUnreadable ? (
+          <p className="guide-checklist-warn" role="status">本机进度记录读不出来（浏览器存储被禁用，或内容已损坏）。下面凡依赖本机记录的步骤都显示为“无法确认”，<strong>这不代表你从未开始</strong>。</p>
+        ) : null}
+        {saveFailed ? (
+          <p className="guide-checklist-warn" role="status">刚才的勾选没能保存到本机，刷新页面后会丢失。</p>
+        ) : null}
+        <ol className="guide-steps guide-steps-checklist">
+          {ONBOARDING_STEPS.map((step) => {
+            const state = stepState(step, progress, signals);
+            return (
+              <li key={step.id} className={"guide-step guide-step-" + state}>
+                <div className="guide-step-head">
+                  {step.evidence === "manual" ? (
+                    <label className="guide-step-check">
+                      <input
+                        type="checkbox"
+                        checked={state === "done"}
+                        disabled={state === "unknown"}
+                        onChange={() => tick(step.id)}
+                      />
+                      <span>我已完成</span>
+                    </label>
+                  ) : (
+                    <span className={"guide-step-mark guide-step-mark-" + state} aria-hidden="true">
+                      {state === "done" ? "✓" : state === "unknown" ? "?" : ""}
+                    </span>
+                  )}
+                  <strong>{step.title}</strong>
+                  <span className={"guide-step-state guide-step-state-" + state}>{STATE_LABEL[state]}</span>
+                  {step.evidence === "manual" ? <span className="guide-step-kind">需你自己确认</span> : <span className="guide-step-kind">系统检测</span>}
+                </div>
+                <p>{STEP_DETAIL[step.id]}</p>
+                <p className="guide-step-basis">{basisNote(step, state)}</p>
+              </li>
+            );
+          })}
         </ol>
       </section>
 
