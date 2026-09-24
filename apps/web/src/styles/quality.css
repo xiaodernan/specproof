@@ -31,6 +31,13 @@
 .quality-cell-secondary { display: block; margin-top: 5px; font-size: 11px; color: var(--color-text-3); }
 .quality-cell-copy { max-width: 380px; }
 .quality-result-caption { font-size: 10px; color: var(--color-text-2); margin-top: 5px; white-space: nowrap; }
+/* Where a differential experiment executed. A safety disclosure, so it is
+   always visible text (never colour alone) and the un-sandboxed cases carry a
+   warning tint instead of blending into the neutral captions above. */
+.quality-execution-surface { font-size: 10px; margin-top: 4px; line-height: 1.6; }
+.quality-execution-surface.tone-ok { color: var(--color-text-2); }
+.quality-execution-surface.tone-warn { color: var(--warning); }
+.quality-execution-surface.tone-mute { color: var(--color-text-3); }
 .quality-empty { text-align: center; padding: 42px 24px; }
 .quality-empty-icon { display: inline-grid; place-items: center; color: var(--accent-text); width: 54px; height: 54px; background: var(--accent-tint); border-radius: 16px; }
 .quality-empty h3 { font-size: 17px; font-weight: 500; margin: 20px 0 10px; }

@@ -364,3 +364,111 @@
 - **门证**：`ruff check .` 干净；`mypy .` 全绿（210 文件）；`tests/unit/test_summary_matrix_rows.py`（新增文件，9 例）+ `tests/unit/test_web_api.py`（新增 6 例矩阵用例，含往返锁）共 **50 passed**；`apps/web` `tsc --noEmit` 干净、`vitest run` **39 文件 / 240 用例**（+10）、`vite build` 成功。
 - **全量合并门（1984s / 2776 passed / 1 failed）与一个非本轮引入的真实竞态**：唯一红是 `test_agent_runtime.py::test_create_auto_start_then_poll_get_to_terminal`，且失败点是 `assert job.accept_json is not None` **而不是超时**——单独跑 43s 通过，故这是**顺序竞态**而非计时余量不足。读 `api/agent_runtime.py` 尾部证实：存储行进入终态 → 写 `change-bundle.json`（真文件 I/O）→ 发终态 SSE 事件 → **最后**才 `persist_accept_result`（`craft/accept.py:126`）。于是存在一段"succeeded 但验收投影还没落库"的可观察窗口，空闲机上亚秒级、争用时被拉长到能被观测——**这正是"慢机器上偶发红灯"背后的真问题**，与 §6.6 修掉的两处计时假红同类但成因不同。处理：测试改为**按运行时文档化的顺序**在同样的 180s 预算内等待验收落库（状态与 `accept_json` 两个断言一个都不放宽，`test_agent_runtime.py` 11 passed），并把"是否该把 attach 提到终态事件之前"作为产品决策登记为任务 **#57**（本轮不擅自改 Craft 运行时时序）。
 - **提交后终树复跑（无并发争用）**：`pytest tests/unit tests/security tests/fault -q` ⇒ **2778 passed / 5 skipped，1029.44s (17:09)，exit 0 全绿**（含等待验收投影的那条竞态用例）。同一门在本轮内的三次耗时是 1417s → 1984s → 1029s，用例数还从 2763 涨到 2778——**慢的主因是争用而不是代码**，这把 §6.6 的结论又确认了一次（那轮测的是 `tests/unit` 单独口径的 970s，与此处三门合并口径不可直接比较）。
+
+## 7. 2026-09-24 会话：把"执行面"披露补完（任务 #55 的遗留项）
+
+### 7.1 状态核实（先查证再动工）
+
+| 核实项 | 方法 | 结论 |
+|---|---|---|
+| 工作区是否干净 | `git status --short` + `git diff --numstat` | **本会话开工时**：429 个 "M" 全是 **LF/CRLF 行尾元数据**（`numstat` 全为 `0 0`），唯一真实内容改动是 `docs/eval/aider-results.md` 一行；**上轮改动已提交**（`51e408f feat(web): 高频页中文化/诚实性收口 FE-1..FE-13`）。（本节写作时该数字已随本轮改动增长，故结论只描述开工那一刻，不适用于读它时的树。） |
+| Docker 是否可用 | `docker info` | ❌ 守护进程未运行 ⇒ **任务 #56（Node 离线依赖卷）与 #26（Python 沙箱）本轮仍不可做**（§6.7 当时在线，现已离线） |
+| §6.6 的 `slow` 快速路径是否真的存在 | 读 `tests/conftest.py::SLOW_TEST_MODULES` + `tests/unit/test_slow_marker_tagging.py` | ✅ 存在且**有回归锁**（已知慢模块必须带 `slow`、已知快模块必须不带） |
+| §6.5/#50 的门是否真的默认关 | `grep self_test_execution_allowed` | ✅ 在 `run_differential` 非 Java 分支里按声明执行面 + 显式开关判定 |
+
+### 7.2 要消灭的真实缺陷（两个：主目标 + 顺带挖出的同族缺陷）
+
+**缺陷 A：跑了宿主测试，却没人告诉你**
+
+**背景**：§6.5 与 §6.7 一起确立了——**宿主面适配器（当前是 Python）会在你的机器上直接跑不受信变更自带的测试**，需要 `SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1` 才放行；沙箱面（Java、Node）则关在容器里。这条是产品的安全承诺。
+
+**缺陷**：`run_differential` 确实产出了 `execution_surface`（三态：`docker_sandbox` / `local_host_no_sandbox` / `unconfirmed`），但**它死在半路上**：
+
+1. `agent/nodes/build_matrix.py` 构造 diff 条目时**没有带上**这个字段；
+2. 更隐蔽的是——即便带上了，`agent/matrix_policy.py::_merge_group` 的行是**用固定键字典字面量拼出来的**，不认识的键会被**静默丢弃**（这是本轮最重要的发现：改完第 1 处后测试仍然不会红，因为丢在了合并层）；
+3. `agent/worker.py::_SUMMARY_MATRIX_ROW_KEYS` 的 15 个键里没有它；
+4. `apps/web/src` 对 `execution_surface` **零引用**。
+
+结果：用户看到"仓库自带测试差分 → REGRESSION"，却**无法知道这次运行有没有沙箱**——即无法知道自己有没有被暴露。§6.7 把这条记为"已归入任务 #55"，但 §6.8（#55 的落地）只交付了矩阵归因，**没有交付执行面**，所以它一直悬着。
+
+### 7.3 落点（四层一起改，缺一层就等于没做）
+
+- **`agent/nodes/build_matrix.py`**：diff 条目带上 `execution_surface`（空值不带，保持"未观测即缺席"）。
+- **`agent/matrix_policy.py`**：新增 `_merged_execution_surface(group)`，并把 `execution_surface` 提升为**规范字段**（`CANONICAL_FIELDS`，紧随 `attribution`）。合并规则**fail-closed**：
+  - 全组都没有 ⇒ 返回 `""`（"没做差分实验"必须与"在沙箱里跑过"可区分）；
+  - 取值**最不安全的一个**：`local_host_no_sandbox` > `unconfirmed` > `docker_sandbox`。理由：一条宿主运行就意味着代码真的在你的机器上跑过，用同组另一条沙箱证据把它盖过去是**假保证**；
+  - 认不出的取值按字典序取第一个并**原样透传**（确定性，保持纯函数；绝不四舍五入成"安全"）。
+- **`agent/worker.py`**：`_SUMMARY_MATRIX_ROW_KEYS` 加入该字段，随摘要落库。
+- **`apps/web/src`**：
+  - `api.ts::MatrixRow` 补 `execution_surface?: string`（注释写明这是安全披露，未知值必须原样显示）；
+  - `toneMap.ts` 新增 `executionSurfaceLabel()`（三态中文 + 保留原 token，未知透传，**缺失返回空串**——不是"容器沙箱执行"）与 `executionSurfaceTone()`（只有 `docker_sandbox` 给 `ok`，宿主与"未确认"都给 `warn`，与后端 fail-closed 一致）；
+  - `Matrix.tsx` 在"改前/改后对照"单元格里加一行徽标，`title` 保留原 token；`quality.css` 新增 `.quality-execution-surface` 三档配色（**始终是可见文字，不靠颜色单独表意**，无沙箱给警示色）。
+
+### 7.4 反向验证（三个变异探针，最后在终树上重新测过一遍）
+
+**探针 A — 把披露埋在合并层**：删掉 `_merge_group` 里那行 `"execution_surface": ...` 重跑
+`tests/unit/test_matrix_policy.py + test_matrix_pure.py + test_summary_matrix_rows.py + test_web_api.py`
+⇒ **9 例红**（`9 failed, 81 passed`）：
+`test_execution_surface_is_empty_when_no_differential_ran`、
+`..._reports_the_least_safe_run`、`..._treats_an_unattributable_run_as_unsafe`、
+`..._passes_an_unknown_value_through`、`..._is_blank_not_missing_on_every_row`、
+`test_report_shows_the_differential_and_where_it_ran`（HTML 报告侧）、
+`test_execution_surface_reaches_the_row_from_a_diff_result`（节点侧），
+外加两条字段完整性锁（`test_every_row_carries_all_canonical_fields`、
+`test_every_row_carries_complete_field_set`）。恢复后全绿。
+**说明这些锁真的在守护这条链路**，而不是"测试绿但门是假的"。
+（本小节前一版写的是 8 例——那是加报告锁之前的测量；终树重测为 9 例，数字以本节为准。）
+
+**探针 B — 把 §7.7 的修法退回去**：让 `_merged_side_verdict` 无条件走 `_merge_verdict`
+⇒ **4 例红**（`4 failed, 86 passed`）：
+`test_contract_without_any_experiment_is_unverified_with_reason`（就是那条"既有断言编码了错误假设"）、
+`test_report_says_not_run_instead_of_implying_a_pass`、
+`test_no_differential_leaves_both_sides_empty_not_unverified`、
+`test_a_one_sided_differential_keeps_the_side_that_ran`。
+注意 `test_an_inconclusive_differential_still_reports_both_sides` **不红**——这是对的：
+它锁的是相反方向（真·无结论仍须显示两侧），一个只往"空"方向退化的变异不该动它。
+
+**探针 C — 把安全配色改成装饰**：让 `executionSurfaceTone()` 不再给
+`local_host_no_sandbox` 警示色 ⇒ `vitest run` **2 个文件红**
+（`Matrix.test.tsx > Matrix execution-surface disclosure` 与
+`toneMap.test.ts > only grants the ok tone to a confirmed container run`）。
+即"宿主执行必须显眼看出来"这条是被锁住的，不是靠注释约束。
+
+三个探针均**改后立即从备份还原**，并用 `git diff --numstat` 对账确认行数回到改动前（防止用
+`git checkout --` 误丢本轮未提交的工作）。
+
+### 7.5 门证（终树重新测过）
+
+- 后端静态：`ruff check .` ⇒ `All checks passed!`；`mypy .` ⇒ `Success: no issues found in 210 source files`（全仓库口径，不是只测三个文件）。
+- 后端定向回归：`pytest` 跑 **13 个文件**（`test_matrix_policy`、`test_matrix_pure`、`test_summary_matrix_rows`、`test_web_api`、`test_verdict_policy`、`test_verdict_stability`、`test_review_court_policy`、`test_court_no_evidence_blocker`、`test_acceptance_gate`、`test_compile_report`、`test_report_preflight`、`test_client_policy`、**`test_verification_coverage`**）⇒ **253 passed / 12.56s**。
+  最后一份是本轮补进集合的：§7.7 给 HTML 报告矩阵表**加了一列**，而它恰好是唯一会数报告表格列的测试，不加进定向集合就等于漏掉最容易被打断的下游。
+- 前端：`tsc --noEmit` 干净；`vitest run` **39 文件 / 250 例全绿**（本批净增 10 例：toneMap +4、Matrix +6）；`vite build` 通过。
+- 新增锁：`test_web_api.py` 的**往返锁**补上 `execution_surface` 断言（worker 摘要 → `/jobs/{id}/matrix`，防止键名笔误造成"两侧各自绿"）。
+  顺带查实：`_matrix_rows_from_summary` 的第一段循环本来就**按 worker 白名单整行透传**，`_SUMMARY_MATRIX_EXTRA` 只是二次兜底 ⇒ 真正决定字段能否出站的是 `agent/worker.py::_SUMMARY_MATRIX_ROW_KEYS`。这条判断本身也是读代码读出来的，靠往返锁兜住。
+
+### 7.6 仍未做（诚实边界）
+
+1. **#56 Node 离线依赖卷** / **#26 Python 沙箱**：需 Docker 在线窗口，本轮守护进程未运行 ⇒ 不可做、不可验证。
+2. **执行面到了需求覆盖页与 HTML 报告，但没到风险详情页**：风险详情页的"证据方式"列只显示 `self_test_diff` 的中文标签，不带执行面（该字段在 findings 上不存在，属另一条数据路径）。
+3. **#57 Craft 运行时时序**（attach 与终态事件的顺序）仍待产品决策。本轮未动运行时时序，但已把它**在页面上的可见后果**消掉：终态任务若还没有验收投影，结果页现在说"这次运行还没有独立验收记录"并给出 `specproof craft accept --job <id>`，而不是继续显示"任务还在处理中"（详见 §8）。
+4. Phase 3.3 的另一半（引导页 checklist + 进度持久化）仍待办。
+5. §5.4 的 ⑤（API 侧稳定降级错误码）、⑥（一键创建演示仓库）仍暂缓。
+
+### 7.7 追加：顺带挖出的第二个缺陷——"没跑差分"被显示成"差分跑了但无结论"
+
+写报告测试时发现 `test_report_says_not_run_instead_of_implying_a_pass` 变红，追下去是**产品缺陷而不是测试写错**：
+
+- `agent/matrix_policy.py::_merge_verdict([])` 返回 `"UNVERIFIED"`（对**总体** verdict 是正确的：没有实验的规则必须是 UNVERIFIED，绝不能空白）。但它同时被用来算 `base_result`/`head_result`，于是**任何没跑差分的规则**，这两个字段都是 `"UNVERIFIED"`。
+- 后果：需求覆盖页把 `!row.base_result && !row.head_result` 当作"未做差分实验"的判据（§6.8 的设计），而这个条件**永远不会成立** ⇒ 每条没跑差分的规则都被渲染成 `UNVERIFIED → UNVERIFIED`，即**断言了一次并不存在的比较**。§6.8 想要的"区分没做实验 vs 某侧有判定"实际没做到。
+- **为什么 §6.8 没发现**：它的往返锁与前端用例都是**手工构造 payload**（不带 `base_result`/`head_result`），恰好绕开了真实产出路径。这正是 §6.8 自己记录过的失败模式（"假件掩盖真缺陷"）的另一种形态——这次是"手工 payload 掩盖真缺陷"。
+- **修法**：新增 `_merged_side_verdict()`，**空集返回 `""`**，与 `_merge_verdict` 的语义刻意相反，注释写明理由。`_merge_group` 的两个侧面改用它。
+- **两处既有断言编码了这个错误假设**，已连同"为什么原来是错的"一起改正（**不是放宽断言**）：
+  - `test_contract_without_any_experiment_is_unverified_with_reason`：`base_result/head_result` 由 `"UNVERIFIED"` 改为 `""`（`result`/`unverified_reason`/`next_action` 等断言一字未动）；
+  - `test_every_row_carries_all_canonical_fields`：字段域补上 `""` 这个合法值。
+- **新增 6 条锁**（后端 3 + 前端 3），成对锁定两个方向：
+  `test_no_differential_leaves_both_sides_empty_not_unverified`、
+  `test_an_inconclusive_differential_still_reports_both_sides`（真·无结论仍要显示两侧）、
+  `test_a_one_sided_differential_keeps_the_side_that_ran`（半次比较也是事实），
+  以及前端同名三例（空对 → "未做改前/改后差分实验"且**只出现 1 个 pill**、真无结论 → 3 个 pill、单侧 → 保留已观测侧并标"无观测"）。
+- 报告侧同步：`evidence/report.py` 的矩阵表新增 **Differential** 列（`PASS → FAIL (head)` + 换行的执行面 token；无差分显示 `not run`），并补 `.diff`/`.surface`/`.muted` 样式。**HTML 报告是用户会附到 PR 上的产物**，披露必须在那里也在。
+- **CLI 未改（诚实边界）**：`cli/specproof/commands/verify.py` 只打印矩阵的**计数**（passed/failed/unverified/total），没有逐行输出，因此没有可挂执行面的位置；要加需先让 CLI 输出逐行矩阵，属另一件事。

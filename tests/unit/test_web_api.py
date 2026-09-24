@@ -549,6 +549,9 @@ def test_matrix_round_trips_from_the_worker_summary(fakes: None) -> None:
                         "evidence_type": "differential_execution",
                         "location": "UserController.java:42",
                         "finding_id": "COURT-DIFF-01",
+                        # Where the differential actually ran. Locked here so
+                        # the safety disclosure cannot be dropped in transit.
+                        "execution_surface": "local_host_no_sandbox",
                     }
                 ],
                 "total_rows": 1,
@@ -572,6 +575,9 @@ def test_matrix_round_trips_from_the_worker_summary(fakes: None) -> None:
     assert row["result"] == "FAIL"
     assert (row["base_result"], row["head_result"]) == ("PASS", "FAIL")
     assert row["attribution"] == "head"
+    # The execution surface must survive the round trip: it is the only place
+    # the reader can learn the untrusted change's tests ran without a sandbox.
+    assert row["execution_surface"] == "local_host_no_sandbox"
     assert body["sources"]["mysql_summary_matrix_rows"] is True
 
 

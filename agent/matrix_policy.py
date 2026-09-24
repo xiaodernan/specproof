@@ -66,11 +66,23 @@ CANONICAL_FIELDS: tuple[str, ...] = (
     "base_result",
     "head_result",
     "attribution",
+    "execution_surface",
     "evidence_refs",
     "min_evidence_level",
     "unverified_reason",
     "next_action",
     *COURT_ROW_FIELDS,
+)
+
+#: Execution surfaces ordered by how much they disclose, most alarming first.
+#: A merged row that mixes experiments must report the LEAST safe one: the
+#: reader's question is "did this change's own code run without a sandbox?",
+#: and a single host run answers it yes. Unknown values sort last (and are
+#: still returned verbatim, never rounded to a safe label).
+_SURFACE_ALARM_ORDER: tuple[str, ...] = (
+    "local_host_no_sandbox",
+    "unconfirmed",
+    "docker_sandbox",
 )
 
 #: Stable reason strings — asserted by tests/unit/test_matrix_policy.py.
@@ -193,6 +205,23 @@ def _merge_verdict(results: list[str]) -> str:
     return best
 
 
+def _merged_side_verdict(results: list[str]) -> str:
+    """One side (Base or Head) of the differential, or "" when none ran.
+
+    Deliberately different from ``_merge_verdict``'s empty->UNVERIFIED default.
+    For a contract's overall verdict, "no experiment" MUST be UNVERIFIED — a
+    rule with no evidence can never pass. For the base/head PAIR it is the
+    opposite: reporting "UNVERIFIED -> UNVERIFIED" for a rule that ran no
+    differential asserts that a comparison happened and was inconclusive, when
+    in truth nothing was compared. The reader cannot tell those apart, and the
+    second one is false. Empty stays empty so the page can say "no differential
+    experiment ran" (see pages/Matrix.tsx and evidence/report.py).
+    """
+    if not results:
+        return ""
+    return _merge_verdict(results)
+
+
 def _evidence_level(ref: str) -> str:
     """Map one evidence ref to its level: sha256 digests are runtime
     evidence (differential execution); everything else is static."""
@@ -270,6 +299,30 @@ def _merged_attribution(group: list[dict[str, Any]], verdict: str) -> str:
     return attr if isinstance(attr, str) and attr.strip() else "head"
 
 
+def _merged_execution_surface(group: list[dict[str, Any]]) -> str:
+    """Where the group's differential experiments actually ran (fail-closed).
+
+    Empty when no entry ran a differential at all — the page distinguishes
+    "no differential experiment" from "ran sandboxed", so an absent value must
+    stay absent rather than defaulting to the reassuring one. When entries
+    disagree the LEAST safe surface wins: an un-sandboxed run really happened,
+    and hiding it behind a sibling's sandbox would be a false assurance.
+    """
+    seen = {
+        str(entry["execution_surface"]).strip()
+        for entry in group
+        if isinstance(entry.get("execution_surface"), str)
+        and str(entry["execution_surface"]).strip()
+    }
+    if not seen:
+        return ""
+    for surface in _SURFACE_ALARM_ORDER:
+        if surface in seen:
+            return surface
+    # Unrecognised surface: deterministic pick, passed through verbatim.
+    return sorted(seen)[0]
+
+
 def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any]:
     """Merge every entry of one contract into its canonical row."""
     verdict = _merge_verdict(
@@ -327,14 +380,14 @@ def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any
                 evidence_refs.append(ref)
     evidence_refs.sort()
 
-    base_result = _merge_verdict(
+    base_result = _merged_side_verdict(
         [
             entry["base_result"].upper()
             for entry in group
             if isinstance(entry.get("base_result"), str)
         ]
     )
-    head_result = _merge_verdict(
+    head_result = _merged_side_verdict(
         [
             entry["head_result"].upper()
             for entry in group
@@ -387,6 +440,7 @@ def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any
         "base_result": base_result,
         "head_result": head_result,
         "attribution": _merged_attribution(group, verdict),
+        "execution_surface": _merged_execution_surface(group),
         "evidence_refs": evidence_refs,
         "min_evidence_level": min_evidence_level,
         "unverified_reason": unverified_reason,

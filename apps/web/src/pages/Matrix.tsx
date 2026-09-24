@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Job, MatrixData } from "../api";
 import { useRemoteData } from "../hooks/useRemoteData";
-import { Button, Degraded, ErrorBox, Input, Panel, Select, Spinner, StatCard, Table, Term, attributionLabel, checkerLabel, resultPill, shortId } from "../ui";
+import { Button, Degraded, ErrorBox, Input, Panel, Select, Spinner, StatCard, Table, Term, attributionLabel, checkerLabel, executionSurfaceLabel, executionSurfaceTone, resultPill, shortId } from "../ui";
 import { ProductIcon } from "../ui/ProductIcon";
 import { QualityEmpty, QualityHeader, QualityPagination } from "./QualityLayout";
 
@@ -105,6 +105,18 @@ export default function Matrix() {
                     <div className="quality-result-caption">
                       {row.attribution ? attributionLabel(row.attribution) : "归因未知"}
                     </div>
+                    {/* Safety disclosure: the differential ran the change's own
+                        tests somewhere. Say where — a host run had no sandbox,
+                        and that is the reader's business, not an internal
+                        detail. Unknown values pass through verbatim. */}
+                    {row.execution_surface && (
+                      <div
+                        className={"quality-execution-surface tone-" + executionSurfaceTone(row.execution_surface)}
+                        title={row.execution_surface}
+                      >
+                        {executionSurfaceLabel(row.execution_surface)}
+                      </div>
+                    )}
                   </>
                 );
               },

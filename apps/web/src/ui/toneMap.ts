@@ -144,6 +144,35 @@ export function healthStatusLabel(s?: string | null): string {
 }
 
 /**
+ * 差分实验的"执行面"——仓库自带测试到底跑在容器沙箱里，还是跑在**你的本机上**。
+ *
+ * 这是安全问题而不是措辞问题：宿主执行会把不受信的 PR 自带测试真的跑起来，
+ * 用户有权知道自己有没有被暴露。所以：已知值译中文并**保留原 token**（审计/检索），
+ * 未知值原样透传，缺失返回空串（由调用方决定不渲染，而不是显示一个假的"安全"）。
+ */
+const EXECUTION_SURFACE_CN: Record<string, string> = {
+  docker_sandbox: "容器沙箱执行",
+  local_host_no_sandbox: "本机执行 · 无沙箱",
+  unconfirmed: "执行面未确认",
+};
+
+export function executionSurfaceLabel(s?: string | null): string {
+  if (!s) return "";
+  const cn = EXECUTION_SURFACE_CN[s];
+  return cn ? cn + " · " + s : s;
+}
+
+/**
+ * 执行面的语气。沙箱才给 ok；宿主执行与"未确认"都给 warn —— 与后端
+ * fail-closed 的判定一致（拿不到完成态运行就不算沙箱），绝不把未知当安全。
+ */
+export function executionSurfaceTone(s?: string | null): "ok" | "warn" | "mute" {
+  if (s === "docker_sandbox") return "ok";
+  if (s === "local_host_no_sandbox" || s === "unconfirmed") return "warn";
+  return "mute";
+}
+
+/**
  * 契约 / 验收规则「审核状态」（contract status）中文说明。这套枚举与任务的
  * job status（statusLabel）不是同一套语义：这里是规则评审生命周期
  * APPROVED/PROPOSED/REJECTED/REVOKED。已知值译中文并保留英文枚举原值供追溯；

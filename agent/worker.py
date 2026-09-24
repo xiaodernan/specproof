@@ -602,6 +602,9 @@ _SUMMARY_MATRIX_ROW_KEYS: tuple[str, ...] = (
     "evidence_type",
     "location",
     "finding_id",
+    # Where a differential experiment actually executed (container sandbox vs
+    # the host with no sandbox). Carried so the coverage page can disclose it.
+    "execution_surface",
 )
 
 #: Rows carried per job. The pipeline counts stay authoritative regardless, so

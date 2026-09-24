@@ -256,3 +256,140 @@ describe("Matrix 改前/改后 differential column", () => {
     expect(within(withoutAction).queryByText(/^下一步：/)).toBeNull();
   });
 });
+
+describe("Matrix execution-surface disclosure", () => {
+  it("says where the change's own tests ran, and warns when there was no sandbox", async () => {
+    matrixPayload({
+      rows: [
+        {
+          ...row("AUTH-01", "FAIL", "sha256:abc"),
+          base_result: "PASS",
+          head_result: "FAIL",
+          attribution: "head",
+          execution_surface: "local_host_no_sandbox",
+        },
+      ],
+      counts: { total: 1, passed: 0, failed: 1, unverified: 0 },
+    });
+
+    await mountAndSelect();
+    const cell = (await screen.findByText("AUTH-01")).closest("tr") as HTMLElement;
+
+    // Visible text (not colour alone) plus the raw token for audit.
+    const badge = within(cell).getByText(/本机执行 · 无沙箱/);
+    expect(badge.className).toContain("tone-warn");
+    expect(badge.getAttribute("title")).toBe("local_host_no_sandbox");
+  });
+
+  it("marks a container run as ok, and an unattributable run as a warning", async () => {
+    matrixPayload({
+      rows: [
+        {
+          ...row("AUTH-01", "PASS", "ev/1"),
+          base_result: "PASS",
+          head_result: "PASS",
+          attribution: "none",
+          execution_surface: "docker_sandbox",
+        },
+        {
+          ...row("AUTH-02", "FAIL", "ev/2"),
+          base_result: "PASS",
+          head_result: "FAIL",
+          attribution: "head",
+          execution_surface: "unconfirmed",
+        },
+      ],
+      counts: { total: 2, passed: 1, failed: 1, unverified: 0 },
+    });
+
+    await mountAndSelect();
+    const sandboxed = (await screen.findByText("AUTH-01")).closest("tr") as HTMLElement;
+    expect(within(sandboxed).getByText(/容器沙箱执行/).className).toContain("tone-ok");
+
+    // "We could not tell" fails closed to a warning — never to a safe label.
+    const unknown = screen.getByText("AUTH-02").closest("tr") as HTMLElement;
+    const badge = within(unknown).getByText(/执行面未确认/);
+    expect(badge.className).toContain("tone-warn");
+  });
+
+  it("renders no surface badge when the pipeline reported none", async () => {
+    matrixPayload({
+      rows: [
+        {
+          ...row("AUTH-01", "PASS", "ev/1"),
+          base_result: "PASS",
+          head_result: "PASS",
+          attribution: "none",
+        },
+      ],
+      counts: { total: 1, passed: 1, failed: 0, unverified: 0 },
+    });
+
+    await mountAndSelect();
+    const cell = (await screen.findByText("AUTH-01")).closest("tr") as HTMLElement;
+    // An absent surface must stay absent — no reassuring default.
+    expect(cell.querySelectorAll(".quality-execution-surface")).toHaveLength(0);
+  });
+});
+
+describe("Matrix: 'no differential ran' vs 'differential was inconclusive'", () => {
+  it("renders the empty pair as 'not run', never as an UNVERIFIED comparison", async () => {
+    // The pipeline now leaves both sides empty when nothing was compared.
+    // UNVERIFIED -> UNVERIFIED would claim a comparison happened.
+    matrixPayload({
+      rows: [
+        {
+          ...row("PLAIN-01", "UNVERIFIED", ""),
+          base_result: "",
+          head_result: "",
+          attribution: "unknown",
+        },
+      ],
+      counts: { total: 1, passed: 0, failed: 0, unverified: 1 },
+    });
+
+    await mountAndSelect();
+    const cell = (await screen.findByText("PLAIN-01")).closest("tr") as HTMLElement;
+    expect(within(cell).getByText("未做改前/改后差分实验")).toBeTruthy();
+    expect(within(cell).queryAllByText(/^UNVERIFIED$/, { selector: ".pill" })).toHaveLength(1);
+  });
+
+  it("still shows a genuine inconclusive comparison as two UNVERIFIED sides", async () => {
+    matrixPayload({
+      rows: [
+        {
+          ...row("FLAKY-01", "UNVERIFIED", "ev/1"),
+          base_result: "UNVERIFIED",
+          head_result: "UNVERIFIED",
+          attribution: "unknown",
+        },
+      ],
+      counts: { total: 1, passed: 0, failed: 0, unverified: 1 },
+    });
+
+    await mountAndSelect();
+    const cell = (await screen.findByText("FLAKY-01")).closest("tr") as HTMLElement;
+    expect(within(cell).queryByText("未做改前/改后差分实验")).toBeNull();
+    // 检查结果 pill + the two comparison sides.
+    expect(within(cell).getAllByText(/^UNVERIFIED$/, { selector: ".pill" })).toHaveLength(3);
+  });
+
+  it("keeps the observed side of a one-sided comparison and marks the other 无观测", async () => {
+    matrixPayload({
+      rows: [
+        {
+          ...row("HALF-01", "UNVERIFIED", "ev/1"),
+          base_result: "PASS",
+          head_result: "",
+          attribution: "unknown",
+        },
+      ],
+      counts: { total: 1, passed: 0, failed: 0, unverified: 1 },
+    });
+
+    await mountAndSelect();
+    const cell = (await screen.findByText("HALF-01")).closest("tr") as HTMLElement;
+    expect(within(cell).getByText("无观测")).toBeTruthy();
+    expect(within(cell).getByText("PASS", { selector: ".pill" })).toBeTruthy();
+  });
+});

@@ -158,6 +158,14 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
             entry["base_result"] = base_verdict
         if head_verdict is not None:
             entry["head_result"] = head_verdict
+        # WHERE the differential actually ran (docker_sandbox /
+        # local_host_no_sandbox / unconfirmed). This is a safety disclosure,
+        # not decoration: a host-surface run executes the untrusted PR's own
+        # tests on the operator's machine, and the reader is entitled to know
+        # which of the two happened. Dropped here it never reaches any UI.
+        surface = str(diff.get("execution_surface") or "").strip()
+        if surface:
+            entry["execution_surface"] = surface
         digest = diff.get("evidence_digest", "")
         if digest:
             entry["evidence_ref"] = digest

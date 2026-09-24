@@ -35,6 +35,14 @@ SpecProof **不宣称支持任意项目**。管线对每个仓库先执行适配
   `execution_surface=local_host_no_sandbox` 与"本机执行·无沙箱"文案，
   绝不伪装成沙箱证据。
 
+**披露链路 (2026-09-24 补齐)**: `execution_surface` 从
+`run_differential` → `build_matrix._merge_group` → `agent/worker.py`
+的 `_SUMMARY_MATRIX_ROW_KEYS` → `/api/v1/jobs/{id}/matrix` → 需求覆盖页
+逐行徽标，全程贯通。合并时**取最不安全的一个**（宿主执行 > 未确认 >
+沙箱）：一条宿主运行就意味着这次变更的代码真的在你的机器上跑过，用同组
+另一条沙箱证据把它盖过去是**假保证**。没有差分实验的行该字段为空串，
+页面不渲染徽标 —— "没做实验"与"在沙箱里跑过"必须可区分。
+
 依据: `api/routes/jobs.py` 的"验收 API 绝不可成为远程执行面"红线。
 
 ## 兼容矩阵

@@ -133,11 +133,30 @@ def render_verification_report(
             "UNVERIFIED": "unverified",
         }.get(r.get("result", ""), "")
         symbols = ", ".join(r.get("changed_symbols", [])) or "—"
+        # Base-vs-head comparison and WHERE it ran. Both are omitted when the
+        # pipeline recorded nothing: an absent differential must not render as
+        # a passing one, and a run without a sandbox must say so. The surface
+        # token is kept verbatim (audit) and never rounded to "sandboxed".
+        if r.get("base_result") or r.get("head_result"):
+            differential = (
+                f"{safe(r.get('base_result', '') or '?')} → "
+                f"{safe(r.get('head_result', '') or '?')}"
+            )
+            if r.get("attribution"):
+                differential += f" ({safe(r.get('attribution'))})"
+            if r.get("execution_surface"):
+                differential += (
+                    '<br /><small class="surface">'
+                    f"{safe(r.get('execution_surface'))}</small>"
+                )
+        else:
+            differential = '<span class="muted">not run</span>'
         rows_html += f"""<tr class="{result_class}">
             <td>{safe(r.get("contract_id", ""))}</td>
             <td class="req">{safe(r.get("requirement", ""))}</td>
             <td>{safe(symbols)}</td>
             <td>{safe(r.get("experiment", ""))}</td>
+            <td class="diff">{differential}</td>
             <td class="{result_class}">{safe(r.get("result", ""))}</td>
             <td>{safe(r.get("evidence", ""))}</td>
         </tr>"""
@@ -208,6 +227,11 @@ def render_verification_report(
         th {{ background: #161b22; color: #8b949e; font-weight: 600; }}
         tr:hover {{ background: #1c2128; }}
         .req {{ max-width: 300px; }}
+        .diff {{ white-space: nowrap; }}
+        /* The execution surface is a safety disclosure: a run without a
+           container sandbox executed the change's own tests on the host. */
+        .diff .surface {{ color: #d29922; font-family: ui-monospace, SFMono-Regular, monospace; }}
+        .muted {{ color: #8b949e; }}
         .pass {{ color: #7ee787; }}
         .fail {{ color: #ff7b72; background: #1a0505; }}
         .unverified {{ color: #8b949e; }}
@@ -250,6 +274,7 @@ def render_verification_report(
                     <th>Requirement</th>
                     <th>Changed Symbols</th>
                     <th>Experiment</th>
+                    <th>Differential</th>
                     <th>Result</th>
                     <th>Evidence</th>
                 </tr>

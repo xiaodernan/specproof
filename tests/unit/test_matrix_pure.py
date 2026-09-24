@@ -99,6 +99,10 @@ def _state_fixture() -> dict[str, Any]:
                 "base_exit_code": 0,
                 "head_exit_code": 1,
                 "evidence_digest": "sha256:d",
+                # Where the differential actually executed. Must survive the
+                # merge into the row (a fixed-key row builder silently drops
+                # anything it does not know about).
+                "execution_surface": "docker_sandbox",
             },
         ],
         "confirmed_findings": [
@@ -373,6 +377,21 @@ def test_court_metadata_never_changes_verdict_experiments_or_refs() -> None:
     assert row["attribution"] == "none"
     assert row["severity"] == "MAJOR"
     assert row["finding_id"] == "F-1"
+
+
+def test_execution_surface_reaches_the_row_from_a_diff_result() -> None:
+    """The differential's execution surface must survive the row builder.
+
+    `_merge_group` constructs the row from a fixed key list, so a field the
+    merge does not know about is dropped in silence — the value would be
+    produced by the pipeline and never seen by anyone. This locks the link.
+    """
+    matrix = build_matrix_node(_state_fixture())["matrix"]
+    rows = {row["contract_id"]: row for row in matrix["rows"]}
+    assert rows["AUTH-01"]["execution_surface"] == "docker_sandbox"
+    # A contract with no differential experiment must stay EMPTY, not inherit
+    # a sibling's sandbox claim — the page renders that as "no experiment ran".
+    assert rows["UNIQUE-01"]["execution_surface"] == ""
 
 
 def test_legacy_projection_unchanged_by_court_field_completion() -> None:

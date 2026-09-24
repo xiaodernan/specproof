@@ -20,8 +20,9 @@ export { StatusPill, statusLabel, STATUS_LABELS } from "./StatusPill";
 export { fmtPct, fmtTime, kv, shortId, verdictTone, verdictLabel } from "./util";
 export {
   attributionLabel, checkerLabel, contractStatusLabel, CONTRACT_STATUS_CN,
-  evalVerdictLabel, evidenceLabel, healthStatusLabel,
-  resultPill, severityHint, severityPill, SEVERITY_HINT, type PillSpec,
+  evalVerdictLabel, evidenceLabel, executionSurfaceLabel, executionSurfaceTone,
+  healthStatusLabel, resultPill, severityHint, severityPill, SEVERITY_HINT,
+  type PillSpec,
 } from "./toneMap";
 export { stageLabel, STAGE_LABELS } from "./stages";
 export { Checkbox, type CheckboxProps } from "./Checkbox";

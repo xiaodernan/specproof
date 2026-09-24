@@ -473,6 +473,14 @@ export interface MatrixRow {
   evidence_type?: string;
   location?: string;
   finding_id?: string;
+  /**
+   * WHERE the differential experiment actually executed:
+   * `docker_sandbox` | `local_host_no_sandbox` | `unconfirmed`. Absent for
+   * rules with no differential run. This is a safety disclosure — a host run
+   * executed the untrusted change's own tests on the operator's machine — so
+   * an unknown value must be shown verbatim, never rounded to "sandboxed".
+   */
+  execution_surface?: string;
 }
 
 export interface MatrixData {

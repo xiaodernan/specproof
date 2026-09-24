@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resultPill, severityPill, severityHint, evidenceLabel, checkerLabel, contractStatusLabel, healthStatusLabel, attributionLabel } from "../toneMap";
+import { resultPill, severityPill, severityHint, evidenceLabel, checkerLabel, contractStatusLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone } from "../toneMap";
 
 describe("severityPill — severity has its own tone map", () => {
   it("maps BLOCKER red, MAJOR orange, MINOR yellow, INFO neutral", () => {
@@ -159,5 +159,38 @@ describe("attributionLabel — 差分归因 keeps its canonical token visible", 
     // borrow that meaning and imply a passing comparison.
     expect(attributionLabel(undefined)).toBe("—");
     expect(attributionLabel("   ")).toBe("—");
+  });
+});
+
+describe("executionSurfaceLabel — where the change's own tests actually ran", () => {
+  // This is a safety disclosure, not decoration: a host-surface differential
+  // executed the untrusted change's own tests on the operator's machine.
+  it("translates the three surfaces the pipeline can report, keeping the token", () => {
+    expect(executionSurfaceLabel("docker_sandbox")).toBe("容器沙箱执行 · docker_sandbox");
+    expect(executionSurfaceLabel("local_host_no_sandbox")).toBe(
+      "本机执行 · 无沙箱 · local_host_no_sandbox"
+    );
+    expect(executionSurfaceLabel("unconfirmed")).toBe("执行面未确认 · unconfirmed");
+  });
+
+  it("passes an unknown surface through verbatim, never as 容器沙箱执行", () => {
+    expect(executionSurfaceLabel("wasm_sandbox")).toBe("wasm_sandbox");
+    expect(executionSurfaceLabel("wasm_sandbox")).not.toContain("容器沙箱");
+  });
+
+  it("returns empty for a missing surface so the caller renders nothing", () => {
+    // Empty (not "容器沙箱执行") — an absent value must not become a reassurance.
+    expect(executionSurfaceLabel(undefined)).toBe("");
+    expect(executionSurfaceLabel(null)).toBe("");
+    expect(executionSurfaceLabel("")).toBe("");
+  });
+
+  it("only grants the ok tone to a confirmed container run", () => {
+    expect(executionSurfaceTone("docker_sandbox")).toBe("ok");
+    expect(executionSurfaceTone("local_host_no_sandbox")).toBe("warn");
+    // Unattributable fails closed, exactly like the backend's label derivation.
+    expect(executionSurfaceTone("unconfirmed")).toBe("warn");
+    expect(executionSurfaceTone(undefined)).toBe("mute");
+    expect(executionSurfaceTone("wasm_sandbox")).toBe("mute");
   });
 });
