@@ -42,6 +42,7 @@ from api.errors import (
     VALIDATION_FAILED,
     ApiError,
 )
+from integrations.contract_counts import per_key_counts
 from storage.mysql import MySQLStore
 from storage.redis import RedisStore
 
@@ -474,40 +475,39 @@ def job_matrix(job_id: str) -> dict[str, Any]:
     rows = [by_id[cid] for cid in ordered_ids]
 
     summary_rows = bool(summary.get("matrix_rows"))
-    counts: dict[str, Any] = {
-        "total": len(rows) or int(summary.get("contracts_total") or 0),
-        "passed": (
-            sum(row.get("result") == "PASS" for row in rows)
-            if rows else int(summary.get("matrix_passed") or 0)
-        ),
-        "failed": (
-            sum(row.get("result") == "FAIL" for row in rows)
-            if rows else int(summary.get("matrix_failed") or 0)
-        ),
-        "unverified": (
-            sum(row.get("result") not in ("PASS", "FAIL") for row in rows)
-            if rows else int(summary.get("matrix_unverified") or 0)
-        ),
-    }
-    # A capped summary carries fewer rows than the pipeline counted; its
-    # counts stay authoritative, so the totals must not be under-reported by
-    # the row list that was deliberately truncated for size.
-    if summary_rows and summary.get("matrix_rows_truncated"):
-        counts = {
-            "total": int(summary.get("contracts_total") or counts["total"]),
-            "passed": int(summary.get("matrix_passed") or 0),
-            "failed": int(summary.get("matrix_failed") or 0),
-            "unverified": int(summary.get("matrix_unverified") or 0),
+    summary_counts = per_key_counts(summary)
+    summary_has_counts = any(v is not None for v in summary_counts.values())
+    rows_truncated = bool(summary_rows and summary.get("matrix_rows_truncated"))
+    if rows_truncated or not rows:
+        # Either the pipeline's own totals are the only complete tally (the row
+        # list was deliberately capped for size, so counting it under-reports),
+        # or there are no rows to count at all. In the latter case the summary
+        # answers key by key, and a key it never recorded stays None: a job that
+        # never published a matrix used to render as "0 contracts / 0 passed /
+        # 0 failed / 0 unverified", which no reader can tell apart from a run
+        # that really checked zero contracts.
+        counts: dict[str, Any] = {
+            "total": summary_counts["contracts_total"],
+            "passed": summary_counts["matrix_passed"],
+            "failed": summary_counts["matrix_failed"],
+            "unverified": summary_counts["matrix_unverified"],
         }
+        counts_source = "pipeline_summary" if summary_has_counts else "not_counted"
+    else:
+        counts = {
+            "total": len(rows),
+            "passed": sum(row.get("result") == "PASS" for row in rows),
+            "failed": sum(row.get("result") == "FAIL" for row in rows),
+            "unverified": sum(
+                row.get("result") not in ("PASS", "FAIL") for row in rows
+            ),
+        }
+        counts_source = "computed_from_returned_rows"
     return {
         "job_id": job_id,
         "rows": jsonable_encoder(rows),
         "counts": counts,
-        "counts_source": (
-            "pipeline_summary"
-            if summary_rows and summary.get("matrix_rows_truncated")
-            else "computed_from_returned_rows"
-        ),
+        "counts_source": counts_source,
         "rows_total": int(summary.get("matrix_rows_total") or len(rows)),
         "rows_truncated": bool(summary.get("matrix_rows_truncated")),
         "sources": {

@@ -8,6 +8,11 @@ import { QualityEmpty, QualityHeader, QualityPagination } from "./QualityLayout"
 const PAGE_SIZE = 25;
 const RESULT: Record<string, string> = { PASS: "检查通过", FAIL: "发现不符", UNVERIFIED: "证据不足", DEGRADED: "检查受限" };
 
+/** A count the pipeline never recorded is not the same fact as a recorded 0. */
+function countText(value: number | null): string | number {
+  return value === null ? "未统计" : value;
+}
+
 type MatrixRow = MatrixData["rows"][number];
 
 export default function Matrix() {
@@ -31,11 +36,11 @@ export default function Matrix() {
     <ErrorBox error={jobs.error || error} />
     {!jobId ? <Panel title="需求与证据"><QualityEmpty icon="matrix" title={jobs.error ? "暂时无法读取任务" : jobs.loading ? "正在读取验证任务" : jobs.data?.jobs.length ? "选择一次验证，展开交付依据" : "还没有可查看的验证"} description={jobs.error ? "请检查服务连接后重试。" : jobs.data?.jobs.length ? "选择器提供最近 200 条任务。查看每条需求是否经过检查，以及证据是否齐全。" : "创建一次变更验收后，即可在这里查看需求和证据的对应关系。"} action={jobs.error ? <Button onClick={jobs.refresh}>重新加载</Button> : !jobs.loading && !jobs.data?.jobs.length ? <a href="#/jobs/new" className="btn btn-primary">创建第一次验证 →</a> : null} /></Panel> : loading ? <Spinner /> : error ? <QualityEmpty icon="matrix" title="暂时无法读取这次验证" description="请稍后重试，也可以前往完整验证页检查任务进度。" action={<Button onClick={matrix.refresh}>重新加载</Button>} /> : data && <>
       {data.degraded && <Degraded reasons={[data.degraded_reason || "部分覆盖数据暂不可用，请稍后刷新。"]} />}
-      <div className="quality-metrics"><StatCard label="已提取规则" value={data.counts.total} /><StatCard label="检查通过" value={data.counts.passed} tone="ok" /><StatCard label="发现不符" value={data.counts.failed} tone="bad" /><StatCard label="证据不足" value={data.counts.unverified} tone="warn" /></div>
+      <div className="quality-metrics"><StatCard label="已提取规则" value={countText(data.counts.total)} /><StatCard label="检查通过" value={countText(data.counts.passed)} tone="ok" /><StatCard label="发现不符" value={countText(data.counts.failed)} tone="bad" /><StatCard label="证据不足" value={countText(data.counts.unverified)} tone="warn" /></div>
       {missingEvidence > 0 && <div className="quality-brief quality-warning"><ProductIcon name="guide" /><p><strong>{missingEvidence} 条规则尚无证据引用。</strong> 请结合完整验证报告核查，单独的检查状态无法代替可复核的证据。</p></div>}
-      {data.rows_truncated && <div className="quality-brief"><ProductIcon name="guide" /><p><strong>逐条结果较多，此处仅展示前 {data.rows.length} 条（共 {data.rows_total ?? data.rows.length} 条）。</strong> 上方统计取自管线自身的总数，不因展示条数减少而变小。</p></div>}
+      {data.rows_truncated && <div className="quality-brief"><ProductIcon name="guide" /><p><strong>逐条结果较多，此处仅展示前 {data.rows.length} 条（共 {data.rows_total ?? data.rows.length} 条）。</strong> {data.counts.total === null ? "管线没有记录这些计数，所以上方不做推算：展示条数既不是总数，也不代表没有任何结果。" : "上方统计取自管线自身的总数，不因展示条数减少而变小。"}</p></div>}
       <Panel title="需求与证据" right={<Input aria-label="搜索需求" type="search" placeholder="搜索需求、编号或结果" value={filter} onChange={event => { setFilter(event.target.value); setPage(1); }} />}>
-        {!rows.length ? <QualityEmpty icon="matrix" title={filter ? "没有匹配的需求" : data.counts.total > 0 ? "有统计数字，但读不到逐条结果" : "这次验证尚无逐条结果"} description={filter ? "换一个关键词，或清除搜索条件。" : data.counts.total > 0 ? `本次验证记录了 ${data.counts.total} 条规则的结果，但逐条明细没能读到（多半是任务在摘要写入前中断）。请把总数视为未经逐条核对，不要据此认为每条需求都有落点。` : "任务可能仍在执行，或尚未提取到可检查的规则。请查看任务详情；没有规则不能视为验收通过。"} action={filter ? <Button onClick={() => setFilter("")}>清除搜索</Button> : <a href={"#/jobs/" + encodeURIComponent(jobId)}>查看任务详情 →</a>} /> : <><Table<MatrixRow>
+        {!rows.length ? <QualityEmpty icon="matrix" title={filter ? "没有匹配的需求" : data.counts.total === null ? "这一轮没有留下矩阵统计" : data.counts.total > 0 ? "有统计数字，但读不到逐条结果" : "这次验证记录为 0 条规则"} description={filter ? "换一个关键词，或清除搜索条件。" : data.counts.total === null ? "上方四项都标着“未统计”：管线没有记录过任何一项计数——任务可能仍在执行、以失败结束，或早于这项统计上线。这不等于没有需求，也不等于全部通过；要结论请查看任务详情或重新发起验证。" : data.counts.total > 0 ? `本次验证记录了 ${data.counts.total} 条规则的结果，但逐条明细没能读到（多半是任务在摘要写入前中断）。请把总数视为未经逐条核对，不要据此认为每条需求都有落点。` : "管线确实记录了 0 条规则：这一轮没有提取到可检查的需求。没有规则不能视为验收通过，请确认需求是否已写进规格。"} action={filter ? <Button onClick={() => setFilter("")}>清除搜索</Button> : <a href={"#/jobs/" + encodeURIComponent(jobId)}>查看任务详情 →</a>} /> : <><Table<MatrixRow>
           className="quality-table"
           rows={rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)}
           rowKey={(row, index) => row.contract_id_str + index}

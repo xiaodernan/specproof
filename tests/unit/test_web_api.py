@@ -372,6 +372,14 @@ def test_matrix_empty_rows_still_returns_summary_counts(fakes: None) -> None:
     body = resp.json()
     assert body["rows"] == []
     assert body["counts"]["total"] == 4
+    # Each number answers for itself: total and passed were recorded, the
+    # failed/unverified split never was. Rendering those two as 0 would claim
+    # "nothing failed and nothing is unverified" — a complete-looking tally the
+    # pipeline never produced. None says this page does not know.
+    assert body["counts"]["passed"] == 4
+    assert body["counts"]["failed"] is None
+    assert body["counts"]["unverified"] is None
+    assert body["counts_source"] == "pipeline_summary"
 
 
 def test_matrix_404_unknown_job(fakes: None) -> None:
@@ -391,6 +399,69 @@ def test_matrix_counts_work_before_summary_is_persisted(fakes: None) -> None:
     assert response.json()["counts"] == {
         "total": 3, "passed": 1, "failed": 1, "unverified": 1,
     }
+
+
+def test_matrix_without_recorded_counts_says_not_counted(fakes: None) -> None:
+    """A run that never published a matrix must not read as "0 contracts".
+
+    This was the shape on the coverage page for every failed or still-queued
+    job: no summary counts, no contracts-table rows, and the endpoint answered
+    0 / 0 / 0 / 0 — indistinguishable from a verification that really checked
+    zero contracts. Absence now stays absence, and `counts_source` lets a
+    consumer tell the two apart.
+    """
+    _seed_job()
+    body = TestClient(app).get(
+        f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers()
+    ).json()
+    assert body["counts"] == {
+        "total": None, "passed": None, "failed": None, "unverified": None,
+    }
+    assert body["counts_source"] == "not_counted"
+
+
+def test_matrix_records_a_real_zero_as_zero(fakes: None) -> None:
+    """The pair of the test above: a recorded 0 is a fact, not absence."""
+    _seed_job()
+    FakeMySQLStore.summaries[JOB_ID] = {
+        "contracts_total": 0, "matrix_passed": 0, "matrix_failed": 0,
+        "matrix_unverified": 0,
+    }
+    body = TestClient(app).get(
+        f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers()
+    ).json()
+    assert body["counts"] == {
+        "total": 0, "passed": 0, "failed": 0, "unverified": 0,
+    }
+    assert body["counts_source"] == "pipeline_summary"
+
+
+def test_matrix_truncated_rows_without_totals_keep_the_row_count_out_of_total(
+    fakes: None,
+) -> None:
+    """A capped row list is a floor, never a total.
+
+    With 1 of 20 rows persisted and no recorded split, counting the visible row
+    would publish "1 contract" — under-reporting a number the endpoint already
+    knows is incomplete. The row facts stay where they belong (`rows`,
+    `rows_total`, `rows_truncated`) and the tally says it was not counted.
+    """
+    _seed_job()
+    FakeMySQLStore.summaries[JOB_ID] = {
+        "matrix_rows": [_pipeline_row("AUTH-01")],
+        "matrix_rows_total": 20,
+        "matrix_rows_truncated": True,
+    }
+    body = TestClient(app).get(
+        f"/api/v1/jobs/{JOB_ID}/matrix", headers=_headers()
+    ).json()
+    assert len(body["rows"]) == 1
+    assert body["rows_total"] == 20
+    assert body["rows_truncated"] is True
+    assert body["counts"] == {
+        "total": None, "passed": None, "failed": None, "unverified": None,
+    }
+    assert body["counts_source"] == "not_counted"
 
 
 def _pipeline_row(contract_id: str, **overrides: Any) -> dict[str, Any]:

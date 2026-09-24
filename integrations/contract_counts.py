@@ -50,6 +50,19 @@ def counted(summary: Mapping[str, Any]) -> dict[str, int] | None:
     return stats
 
 
+def per_key_counts(summary: Mapping[str, Any]) -> dict[str, int | None]:
+    """Every count answering for itself: the recorded int, or None.
+
+    Deliberately NOT `counted()`. That one is all-or-nothing because it feeds a
+    single sentence, where a total shown without its split would still be read
+    as a complete tally. A display with one slot per number (the matrix page's
+    four stat cards) can do better: each slot reports what was recorded, and a
+    slot with nothing recorded renders absence instead of a confident 0. A
+    recorded zero stays a real zero here.
+    """
+    return {key: _as_count(summary.get(key)) for key in COUNT_KEYS}
+
+
 def count_sentence(summary: Mapping[str, Any]) -> str:
     """"4 total — 3 passed, 1 failed, 0 unverified", or the absence note."""
     stats = counted(summary)

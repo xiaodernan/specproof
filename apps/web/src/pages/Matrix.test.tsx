@@ -230,7 +230,58 @@ describe("Matrix 改前/改后 differential column", () => {
 
     await mountAndSelect();
     expect(await screen.findByText("有统计数字，但读不到逐条结果")).toBeTruthy();
-    expect(screen.queryByText("这次验证尚无逐条结果")).toBeNull();
+    expect(screen.queryByText("这次验证记录为 0 条规则")).toBeNull();
+  });
+
+  it("reports 未统计 instead of 0 when nothing was counted", async () => {
+    matrixPayload({
+      rows: [],
+      counts: { total: null, passed: null, failed: null, unverified: null },
+      counts_source: "not_counted",
+    });
+
+    await mountAndSelect();
+    // Four cards, each answering for itself. The pipeline recorded none of
+    // them, so none may read as a confident 0 — that is what made a failed run
+    // look like "checked nothing".
+    expect((await screen.findAllByText("未统计")).length).toBe(4);
+    expect(screen.queryByText(/^0$/)).toBeNull();
+    expect(await screen.findByText("这一轮没有留下矩阵统计")).toBeTruthy();
+    // Absence is neither "no requirements" nor "all passed".
+    expect(screen.getByText(/不等于没有需求/)).toBeTruthy();
+    expect(screen.queryByText("这次验证记录为 0 条规则")).toBeNull();
+  });
+
+  it("keeps a recorded zero as a real zero", async () => {
+    matrixPayload({
+      rows: [],
+      counts: { total: 0, passed: 0, failed: 0, unverified: 0 },
+      counts_source: "pipeline_summary",
+    });
+
+    await mountAndSelect();
+    expect(await screen.findByText("这次验证记录为 0 条规则")).toBeTruthy();
+    expect(screen.queryByText("未统计")).toBeNull();
+    expect(screen.queryByText("这一轮没有留下矩阵统计")).toBeNull();
+    // A real zero still must not be read as a pass.
+    expect(screen.getByText(/没有规则不能视为验收通过/)).toBeTruthy();
+  });
+
+  it("does not derive a total from a capped row list when nothing was counted", async () => {
+    matrixPayload({
+      rows: [{ ...row("AUTH-01", "PASS", "ev/1"), base_result: "PASS", head_result: "PASS" }],
+      counts: { total: null, passed: null, failed: null, unverified: null },
+      counts_source: "not_counted",
+      rows_total: 20,
+      rows_truncated: true,
+    });
+
+    await mountAndSelect();
+    expect(await screen.findByText(/仅展示前 1 条（共 20 条）/)).toBeTruthy();
+    expect(screen.getByText(/所以上方不做推算/)).toBeTruthy();
+    expect(screen.queryByText(/上方统计取自管线自身的总数/)).toBeNull();
+    // One visible row must not silently become "1 contract".
+    expect(screen.getAllByText("未统计").length).toBe(4);
   });
 
   it("shows the pipeline's own next step, and stays silent when it has none", async () => {

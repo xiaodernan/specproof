@@ -486,10 +486,13 @@ export interface MatrixRow {
 export interface MatrixData {
   job_id: string;
   rows: MatrixRow[];
-  counts: { total: number; passed: number; failed: number; unverified: number };
-  /** Which numbers the counts came from: the returned rows, or the pipeline's
-   *  own totals when the row list was deliberately truncated for size. */
-  counts_source?: string;
+  /** Each number answers for itself: null means the pipeline never recorded it,
+   *  which is NOT the same fact as a recorded 0. */
+  counts: { total: number | null; passed: number | null; failed: number | null; unverified: number | null };
+  /** Which numbers the counts came from: the returned rows, the pipeline's own
+   *  totals (used when the row list was deliberately truncated for size), or
+   *  "not_counted" — nothing was recorded, so every count is null. */
+  counts_source?: "computed_from_returned_rows" | "pipeline_summary" | "not_counted";
   rows_total?: number;
   rows_truncated?: boolean;
   sources?: {

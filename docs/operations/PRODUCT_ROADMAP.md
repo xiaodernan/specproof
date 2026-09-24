@@ -831,6 +831,43 @@ N1/N2/N4 的红**分布在不同测试**上：N1 与 N4 都会踩到"宣告顺�
 2. FAILED 非终态（14.2 第 3 条）意味着"这一轮以执行失败结束"这句话在重排发生后会过期；页面不承诺永久，也不承诺"失败已定"。
 3. 13.6 第 3 条仍然成立：对外通道拿不到"炸在哪一步"的阶段信息（Redis 进度流里有，持久行里没有）。
 
+## 15. #67：矩阵页把"未统计"报成 0——同族缺陷的第三个对外渲染器（2026-09-24）
+
+### 15.1 起点
+
+13 章收掉了 GitHub Check Run 与通知模板两处 `.get(key, 0)`。同一族的第三处一直在主路径上：`api/routes/web.py::job_matrix` 逐键用 `int(summary.get(key) or 0)` 兜底，所以任何没写过摘要的轮次（失败、被取消、仍在排队、早于该统计上线的历史行）都会返回 `total/passed/failed/unverified = 0/0/0/0`，`apps/web/src/pages/Matrix.tsx` 的四个 StatCard 于是自信地宣布"已提取规则 0 / 检查通过 0 / 发现不符 0 / 证据不足 0"。读者无法把"这一轮没数过"与"这一轮真的没有契约"分开——而后者是本产品的负面结论，必须有证据才允许说。
+
+### 15.2 判据决策：这里刻意不用 13 章那个 all-or-nothing 的 `counted()`
+
+`integrations/contract_counts.counted()` 要求四个键齐了才算数，因为它喂的是**一句话**（`"4 total — 3 passed, 1 failed, 0 unverified"`）：一句里只显示总数不显示分布，整句仍会被读成一次完整清点。矩阵页不是句子，是**四个独立槽位**，每个槽位可以各自作答。所以新增 `per_key_counts(summary)`：逐键返回记录到的整数或 `None`，共用同一条 `_as_count` 校验（拒 bool、拒负数、接受整值 float）。两条规则并存而不是互相替换——句子级的保守与槽位级的粒度都各自正确，混用才会出错（句子若逐键，会出现"总数 4 · 其余未知"这种半截清点；槽位若全有全无，会把确实记过的 `passed=4` 因 `failed` 缺失而丢掉）。**记过的 0 仍是 0**：这是本批最重要的一条区分，新增专门一例锁它。
+
+### 15.3 对外契约变化（消费方需读)
+
+- `counts` 四键类型由 `number` 变 `number | null`（`apps/web/src/api.ts::MatrixData`）。
+- `counts_source` 由两值变三值：`computed_from_returned_rows` / `pipeline_summary` / **`not_counted`**（四键全未记录）。取行优先顺序不变：行列表被截断或没有行时以管线自身计数为准，绝不把"展示了几行"当成总数（`rows` / `rows_total` / `rows_truncated` 继续承载逐条事实）。
+- 前端 `countText()` 把 `null` 渲染成"未统计"；空态由两支变三支：未统计（"这不等于没有需求，也不等于全部通过"）、有总数无明细（原有自相矛盾提示）、真的记为 0（"没有规则不能视为验收通过"）。旧的"任务可能仍在执行，或尚未提取到可检查的规则"合并了后两种，已拆开。
+
+### 15.4 探针 O：两处变异各自判红，再按字节还原
+
+| 变异 | 预期 | 实测 |
+|---|---|---|
+| `api/routes/web.py` `"total": summary_counts["contracts_total"]` → `... or 0`（把 absence 折回 0） | 新例转红 | **2 failed, 12 passed**（`..._says_not_counted`、`..._keep_the_row_count_out_of_total` 红；`a_real_zero_as_zero` 与 `still_returns_summary_counts` 保持绿 ⇒ 门没有把"真 0"也一起绑走） |
+| `apps/web/src/pages/Matrix.tsx` `value === null ? "未统计" : value` → `value ?? 0` | 新例转红 | **2 failed \| 16 passed**（两条"未统计"例红，"keeps a recorded zero as a real zero" 绿，理由同上） |
+
+还原方式如实记录（本批与既往不同，须写明）：放置变异时**没有先做字节备份**，随后用唯一锚点反向替换生成 `.pristine` 快照，再从快照写回并以 `Buffer.compare(...)===0` 校验，最后删除快照并复核 `value === null` 锚点回到 `Matrix.tsx:13`。字节等价的成立条件是"变异只动过那一个唯一锚点"——两处锚点的出现次数在下笔前都验证为 1（不满足即 rc 3 中止）。下一批仍应先做原始字节备份再改。
+
+### 15.5 门证（本批实测）
+
+- 后端：`ruff check .` All checks passed；`mypy .` Success: no issues found in **211** source files（无新文件，与 13.5 同数）；`pytest -k matrix` 定向 **14 passed / 6.38s**（变异期为 2 failed/12 passed，还原后回到 14）。`tests/unit/test_web_api.py` 由 41 例增至 **44 例**（+3），与 `test_contract_counts.py` + `test_summary_matrix_rows.py` 合跑 64 passed。
+- 前端：`npx tsc --noEmit` 无输出；`npx vitest run` ⇒ **43 files / 305 tests**（14.5 记 302，本批 +3 ⇒ 对得上账）；`npx vite build` ⇒ `✓ built in 3.75s`，`assets/index-CfDVe5ND.js 200.81 kB │ gzip: 69.60 kB`。
+- 全量合并门见本节末追记（跑完再记数，不预判）。
+
+### 15.6 仍未做（诚实边界）
+
+1. `apps/web/src/pages/Contracts.tsx:41` 的 `counts.APPROVED ?? 0` 是同形状的兜底，但**本批没有量过后端那个"按状态分组"的端点的真实语义**：分桶计数里"缺键"很可能确实等于"该桶为 0"，与这里的"没数过"不同类。未实测就照搬修法会把一个正确的 0 改成"未统计"。留作待量候选，不算已修。
+2. 逐条明细仍受 `SUMMARY_MATRIX_ROW_CAP = 60`（`agent/worker.py:643`，#55 的形状）封顶，本批只改计数语义，没动投影大小。
+3. `not_counted` 只对 `/jobs/{id}/matrix` 生效；仪表盘/列表页若有别的统计聚合路径，未在本批审计范围内。
+
 
 
 
