@@ -52,8 +52,12 @@ describe("guide onboarding checklist", () => {
   it("does not turn a failed probe into 'not done'", async () => {    get.mockRejectedValue(new Error("offline"));
     render(<Guide />);
     await waitFor(() => expect(screen.getAllByText("无法确认").length).toBe(2));
-    expect(screen.getByText(/这不等于没有连接/)).toBeTruthy();
-    expect(screen.getByText(/读不到验证任务列表/)).toBeTruthy();
+    // Each sentence below is asserted with its own await: the count above is a
+    // proxy for the state, and under load React can render an intermediate
+    // state that already shows two "无法确认" marks while the explanation of
+    // one of them belongs to the next commit.
+    expect(await screen.findByText(/这不等于没有连接/)).toBeTruthy();
+    expect(await screen.findByText(/读不到验证任务列表/)).toBeTruthy();
     // Nothing may claim the first step is finished.
     expect(screen.queryByText("已完成")).toBeNull();
   });

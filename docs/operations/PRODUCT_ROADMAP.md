@@ -796,6 +796,41 @@ N1/N2/N4 的红**分布在不同测试**上：N1 与 N4 都会踩到"宣告顺�
 4. **worker 的异常失败路径不进入 `jobs_<verdict>_total` 族**。`agent/worker.py:197-206` 的这段计数只在图跑完并成功落终态之后执行，所以 `jobs_failed_total` 数到的是"图跑完了、结论是 FAILED"那部分，**抛异常的轮次一次也不计**（它们只 +`worker_provider_wait_total`，或在被拒时 +`worker_terminal_cas_lost_total`，否则什么都不加）；`jobs_completed_total` 同理不含异常轮。也就是说看板上按 verdict 族算的"失败率"会**系统性低估**——分子缺，分母也缺。本批没改它，因为补计数会改变既有告警查询的口径（`jobs_failed_total` 之前一直是"结论级失败"），要先确认没有看板/规则依赖旧语义；这属于口径决策，不是漏写一行 `incr`。
 5. 12.6 第 1–3 条（历史空摘要行、Craft 车道仍两次写、`side_effect_counts.summary_writes` 数的是存在性）本批一律未动，仍然有效。
 
+## 14. #62：同一句"稍后刷新"覆盖了四种不同的事实（2026-09-24）
+
+### 14.1 起点
+
+两个页面各有一句"没有证据"的通用文案：验证详情页 `JobDetail.tsx` 写"验证结果尚未生成。执行完成后，这里会展示结论、需求覆盖与风险证据。"（断言了一个"稍后就会有"的状态），Craft 结果页 `AgentResult.tsx` 更进一步写"结果投影在状态落库之后写入，**稍后刷新即可**"（一个明确的行动建议）。但读代码发现，同样的"没有"至少对应四种互斥的事实，而它们的正确建议完全不同：有的刷新会补上，有的永远不会补上，有的根本还没有结论可补，有的连"是什么状态"都不知道。把四种事实压成一句承诺，等于对其中三种说谎——用户会一直刷新一个永远不会变的页面。
+
+### 14.2 判据来自读存储层，不是猜（本批实测的三条事实）
+
+1. **执行终态与结果投影是同一条写入**：`storage/agent_jobs.py:371` 与 `:378`（`_UPDATE_STATUS_TERMINAL_SQL` / `_UPDATE_STATUS_NON_TERMINAL_SQL`）都带 `result_json = COALESCE(?, result_json)`。所以 Craft 侧"status=COMPLETED 但没有 result"**不是时序窗口**，"稍后刷新会补出结果"是假承诺——只能说明这一行的终态不是本轮执行写下的（被回收、supervisor 置位，或该规则之前完成的历史行）。
+2. **验收摘要是另一次写入，且只挂在执行完的轮次上**：`_ATTACH_ACCEPT_SQL`（`storage/agent_jobs.py:354-356`）的 WHERE 是 `status IN ('succeeded','failed')`。所以"已取消"永远不会等到验收投影，而"刚成功/刚失败"确实可能还在写——这两种"没有"必须分开说。
+3. **FAILED 在验证车道不是终态**：`storage/mysql.py:46-65` 的 `TERMINAL_STATUSES = {VERIFIED, BLOCKED, STALE, CANCELLED, ERROR}` 不含 FAILED，而 `"FAILED": {"QUEUED","CANCELLED","ERROR"}` 说明它还能被重排或取消。因此 JobDetail 的前端集合 `apps/web/src/pages/JobDetail.tsx:31-32`（`ACTIVE` / `TERMINAL`）与后端逐值对齐，并把 FAILED 单独成支——既不能并进"仍在执行"，也不能并进"已终态"。
+
+### 14.3 改了什么
+
+- `apps/web/src/pages/JobDetail.tsx`：摘要缺失处原来只有一支通用文案（"验证结果尚未生成。执行完成后，这里会展示…"），现按事实分四支（读失败那支是 FE-10 既有的 `summaryLoadFailed`，排在最前、不计入这四支）：仍在执行（`ACTIVE`）、这一轮以失败结束（`FAILED`，指向"最近执行错误/执行进度"）、已进入终态但没有摘要（`TERMINAL`，明说"同一条写入 ⇒ 不会随刷新补上"）、以及**未识别状态原样透出**（`任务状态为 X，这是本页面未识别的状态` + "既不等于已终态，也不等于仍在执行，所以这里不下结论"）。空状态值显示为 `（空）`，不伪装成任何一个已知 token。
+- `apps/web/src/agent/pages/AgentResult.tsx`：`AcceptProjection` 把"没有验收记录"分成未进终态 / 已取消（永远不会有）/ 执行完但还没挂上（这一次"可稍后刷新"是真的，因为它确实是两次写入）；缺结果投影分成 COMPLETED（**同一条写入** ⇒ 明说"稍后刷新不会补出结果"）与 FAILED/CANCELLED（这一轮本来就不产结果投影，指引去看失败原因）。改动的两条依据以代码注释钉在原地，避免下一个人把它"顺手改回"通用刷新提示。
+
+### 14.4 顺带根因掉一个"偶发红"：`Guide.test.tsx`（不是超时）
+
+引导页 checklist 的探针是异步的。原写法是"先等一个数量代理，再同步取具体文案"：`await waitFor(() => expect(getAllByText("无法确认").length).toBe(2))` 之后紧跟**非 await** 的 `screen.getByText(/这不等于没有连接/)`。实测红的正是后者，报错原文 `Unable to find an element with the text: /这不等于没有连接/`（本批回捞了会话记录里的那行才写下这句，不凭印象）。也就是说：**数量代理成立，并不蕴含它想代理的那句文案已经可见**，两者不是同一个渲染条件。并行负载把窗口拉开时就红。
+
+⚠️ 至于 `length===2` 为何能先于该句文案成立，本批**没有**把渲染次序钉死（要钉得给 `Guide.tsx` 的每步状态更新加插桩）；这里只登记"可复现的红断言 + 修复 + 复验"，不把未证实的机制当结论写。修复与既有纪律一致：**改判据，不放宽超时**——两条兄弟断言各用 `await screen.findByText(/…/)` 等自己要的那句话，门只等自己，不看别人的进度。改后 `Guide.test.tsx` 隔离连跑 3 次各 **7 passed**，随后并入全量门。
+
+### 14.5 门证（本批实测）
+
+- `npx tsc --noEmit` 无输出通过；`npx vitest run` ⇒ **43 files / 302 tests passed**；`npx vite build` ⇒ `✓ built`。
+- 302 与 13.5 记录的 293 的差是**本批新增 9 例**（`JobDetail.test.tsx` 新 describe 4 例 + `AgentResult.test.tsx` 新增 5 例、另有 1 例改账不增数）：`293 + 9 = 302`。13.5 的 293 是在这 9 例进树之前对同一棵树测的，两个数都是当时的真话，不是互相打脸。
+- 本轮 `vite build` 在后台合并门并行跑的条件下耗时 9.74s（13.5 记 4.18s）——**耗时不作证据**，只有 `✓ built` 与产物哈希存在才算。
+
+### 14.6 仍未做（诚实边界）
+
+1. **Craft 侧的"未识别状态"分支实际到不了**：`api/routes/agent_console.py::_console_status` 末尾是 `return "CANCELLED"`，任何未映射的存储层状态在 API 层就已经被折成"已取消"。前端这条分支是给验证车道（状态面宽得多）用的；要让 Craft 也如实，得先让 `_console_status` 原样透传未知 token——已开任务 #69。
+2. FAILED 非终态（14.2 第 3 条）意味着"这一轮以执行失败结束"这句话在重排发生后会过期；页面不承诺永久，也不承诺"失败已定"。
+3. 13.6 第 3 条仍然成立：对外通道拿不到"炸在哪一步"的阶段信息（Redis 进度流里有，持久行里没有）。
+
 
 
 

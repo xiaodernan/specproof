@@ -28,10 +28,17 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
   }
 
   if (!accept) {
+    // The three cases below are not interchangeable: the accept projection is
+    // a SEPARATE attach write that only matches a finished run (storage
+    // agent_jobs._ATTACH_ACCEPT_SQL: status IN succeeded/failed), so a
+    // cancelled job never gets one and "refresh later" would be a false promise.
     return <Panel title="独立验收记录 ACCEPT">
-      {!terminal ? <Empty text="任务尚未进入终态，独立验收还不会运行。" /> : <>
+      {!terminal ? <Empty text="任务尚未进入终态，独立验收还不会运行。" /> : job.status === "CANCELLED" ? <>
+        <Empty text="这一轮已取消，不会有独立验收记录。" />
+        <p className="result-boundary">验收投影只挂在执行完的轮次上（成功或失败），取消的轮次不会补出它。需要独立验收结论，请重新发起一次开发执行。</p>
+      </> : <>
         <Empty text="这次运行还没有独立验收记录。" />
-        <p className="result-boundary">独立验收由 <strong>开发执行完成</strong>之后的一次单独闭包产生（门禁复核 + 合并证书 + 签名）。如果任务刚刚完成，验收投影可能仍在写入——可稍后刷新本页；也可以直接在命令行补一次：</p>
+        <p className="result-boundary">独立验收由 <strong>开发执行完成</strong>之后的一次单独闭包产生（门禁复核 + 合并证书 + 签名），它与执行终态是两次写入，所以刚完成的一瞬间可能还没有——可稍后刷新本页；也可以直接在命令行补一次：</p>
         <pre className="json">{cliCommand}</pre>
       </>}
     </Panel>;
@@ -91,7 +98,16 @@ export default function AgentResult({ jobId }: { jobId: string }) {
   const models = [...new Set(result?.llm_usage?.calls_detail?.map(call => call.model).filter(Boolean) || [])];
   return <AgentJobShell job={job} active="result">
     <ErrorBox error={error} />
-    {!result ? <Panel title="执行结果">{terminal ? <><Empty text="任务已进入终态，但执行结果还没有写入记录。" /><p className="result-boundary">这可能只是刚完成的一瞬间：结果投影在状态落库之后写入，<strong>稍后刷新即可</strong>；若持续如此，请查看事件记录，并在命令行用 <code>craft accept --job …</code> 复核。<strong>在结果出现之前，这里不会显示“通过”，也不会显示“失败”。</strong></p></> : <Empty text="任务还在处理中，完成后会在这里显示改动、检查结果和下一步。" />}</Panel> : <>
+    {!result ? <Panel title="执行结果">{terminal ? (job.status === "COMPLETED" ? <>
+      <Empty text="任务显示已完成，但记录里没有执行结果投影。" />
+      {/* Status and result ride the SAME UPDATE (storage agent_jobs
+          _UPDATE_STATUS_TERMINAL_SQL), so this combination is not a timing
+          window — promising a refresh would be false. */}
+      <p className="result-boundary">执行终态与结果投影是<strong>同一条写入</strong>落库的，因此"已完成但没有结果"说明这一行的终态不是本轮执行写下的（例如被回收或由 supervisor 置位），或它是该规则之前完成的历史记录。<strong>稍后刷新不会补出结果</strong>；请查看事件记录，或在命令行用 <code>craft accept --job …</code> 复核。<strong>在结果出现之前，这里不会显示“通过”，也不会显示“失败”。</strong></p>
+    </> : <>
+      <Empty text={job.status === "FAILED" ? "这一轮以失败结束，没有产生执行结果。" : "这一轮已取消，没有产生执行结果。"} />
+      <p className="result-boundary">失败或取消的轮次不会补出结果投影。要判断出了什么问题，请查看执行进度里的失败原因；处理后再提交一次。</p>
+    </>) : <Empty text="任务还在处理中，完成后会在这里显示改动、检查结果和下一步。" />}</Panel> : <>
       <section className={"result-overview " + (completed ? "result-complete" : "result-attention")}><div className="eyebrow">开发结果 DEVELOPMENT RESULT</div><h2>{completed ? "开发执行完成，准备审阅改动" : job.status === "CANCELLED" ? "任务已取消" : "执行未完成，需要处理问题"}</h2><p title={result.reason || undefined}>{result.reason ? describePipelineError(String(result.reason)) : (completed ? "先查看代码差异和下方检查结果，再对这次变更进行独立验收。" : "请到执行进度中查看失败原因，调整需求或环境后重新提交。")}</p><div className="result-actions"><a className="btn btn-primary" href={"#/agent/jobs/" + jobId + "/diff"}>审阅代码差异 →</a><a className="btn" href={"#/jobs/new?repo=" + encodeURIComponent(job.repo_path)}>新建独立验收</a></div></section>
       <div className="metrics-grid result-metrics"><div className="metric-card"><div className="metric-top">改动文件</div><strong>{result.diff_stat?.files_changed ?? "—"}</strong><small>本次执行记录的文件变更</small></div><div className="metric-card"><div className="metric-top">执行阶段模型调用</div><strong>{result.llm_usage?.calls ?? "—"}</strong><small>{models.join("、") || "未记录模型调用"}</small></div><div className="metric-card"><div className="metric-top">通过的检查</div><strong>{gates.length ? gates.filter(gate => gate.status === "passed").length + " / " + gates.length : "—"}</strong><small>未执行的检查不算通过</small></div></div>
       <Panel title="检查结果">{gates.length ? <div className="result-gates">{gates.map(gate => <div className="result-gate" key={gate.gate}><div><strong>{gateLabel(gate.gate)}</strong><span className={gateStatusPillClass(gate.status)} title={gate.status}>{gateStatusLabel(gate.status)}</span></div><p>{gate.note}</p></div>)}</div> : <Empty text="没有可读取的检查结果，请查看执行日志。" />}<p className="result-boundary">开发完成不等于独立验收通过。未执行或尚未覆盖的检查，需要在交付前补齐。</p></Panel>

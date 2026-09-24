@@ -220,3 +220,51 @@ describe("verification lifecycle", () => {
     await waitFor(() => expect(get.mock.calls.some(([path]) => path.endsWith("/certificate"))).toBe(true));
   });
 });
+
+describe("overview with no summary (#62) — why it is missing must be the status", () => {
+  // One empty state used to cover every "no summary" case and it promised
+  // "执行完成后，这里会展示…", i.e. it told a reader to wait for something that
+  // is never coming when the row is already terminal. Terminal here follows
+  // the backend's own set (storage/mysql.py TERMINAL_STATUSES), where FAILED
+  // is deliberately NOT terminal — it stays retryable.
+  const stub = async (status: string) => {
+    get.mockImplementation((async (path: string) => {
+      if (path === "/jobs/job-1") return { job: { id: "job-1", status, repo_path: "/project" } };
+      if (path.endsWith("/summary")) return { summary: {} };
+      if (path.endsWith("/stages")) return { job_id: "job-1", stages: [], event_count: 0, degraded: false };
+      return { job_id: "job-1", findings: [], count: 0, degraded: false };
+    }) as typeof apiGet);
+    render(<JobDetail jobId="job-1" />);
+    await screen.findByRole("tablist");
+  };
+
+  it("still running: says it is running, and never claims a missing record", async () => {
+    await stub("RUNNING");
+    expect(screen.getByText("验证仍在执行中，完成后这里会展示结论、需求覆盖与风险证据。")).toBeTruthy();
+    expect(screen.queryByText(/不会随刷新补/)).toBeNull();
+    expect(screen.queryByText("这一轮以执行失败结束，记录里没有验证摘要。")).toBeNull();
+  });
+
+  it("FAILED: does not promise a summary on refresh", async () => {
+    await stub("FAILED");
+    expect(screen.getByText("这一轮以执行失败结束，记录里没有验证摘要。")).toBeTruthy();
+    expect(screen.queryByText("验证仍在执行中，完成后这里会展示结论、需求覆盖与风险证据。")).toBeNull();
+    expect(screen.queryByText(/执行完成后，这里会展示/)).toBeNull();
+  });
+
+  it("terminal without a summary: says the record will not arrive", async () => {
+    await stub("VERIFIED");
+    expect(screen.getByText("任务已进入终态，但记录里没有验证摘要。")).toBeTruthy();
+    expect(screen.getByText(/不会随刷新补上/)).toBeTruthy();
+    expect(screen.queryByText(/执行完成后，这里会展示/)).toBeNull();
+  });
+
+  it("an unrecognised status passes through instead of being called terminal", async () => {
+    await stub("SOMETHING_NEW");
+    expect(screen.getByText(/这是本页面未识别的状态/)).toBeTruthy();
+    expect(screen.getByText(/任务状态为 SOMETHING_NEW/)).toBeTruthy();
+    expect(screen.getByText(/既不等于已终态，也不等于仍在执行/)).toBeTruthy();
+    expect(screen.queryByText("任务已进入终态，但记录里没有验证摘要。")).toBeNull();
+  });
+});
+

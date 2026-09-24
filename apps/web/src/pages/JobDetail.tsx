@@ -323,8 +323,23 @@ export default function JobDetail(props: { jobId: string }) {
             </>
           ) : summaryLoadFailed ? (
             <div className="errorbox" role="alert">验证结果暂时无法读取（请求失败）— 这不代表没有结果，请点击刷新重试。</div>
+          ) : ACTIVE.has(status) ? (
+            <Empty text="验证仍在执行中，完成后这里会展示结论、需求覆盖与风险证据。" />
+          ) : status === "FAILED" ? (
+            <>
+              <Empty text="这一轮以执行失败结束，记录里没有验证摘要。" />
+              <p className="degraded">失败不会随刷新补出摘要：结论、覆盖与风险要在一次新的验证里重新产生。下方"最近执行错误"说明这一轮失败的原因，"执行进度"说明它停在哪一步。</p>
+            </>
+          ) : TERMINAL.has(status) ? (
+            <>
+              <Empty text="任务已进入终态，但记录里没有验证摘要。" />
+              <p className="degraded">这条不会随刷新补上。终态与摘要现在是同一条写入，因此读不到摘要意味着这一轮的证据当时就没有落库（多为该改动之前完成的历史任务）。可以用"执行进度"和"风险发现"判断这一轮走到哪里，需要结论时重新发起验证。</p>
+            </>
           ) : (
-            <Empty text="验证结果尚未生成。执行完成后，这里会展示结论、需求覆盖与风险证据。" />
+            <>
+              <Empty text={"任务状态为 " + (status || "（空）") + "，这是本页面未识别的状态，且记录里没有验证摘要。"} />
+              <p className="muted">未识别状态既不等于已终态，也不等于仍在执行，所以这里不下结论。</p>
+            </>
           )}
           <Panel title="任务信息">
             {kv("项目路径", job.repo_path || "—")}

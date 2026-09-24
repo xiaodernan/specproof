@@ -209,12 +209,58 @@ describe("AgentResult — 独立验收投影 ACCEPT", () => {
     expect(screen.queryByText("未回滚")).toBeNull();
   });
 
-  it("renders a missing result on a terminal job as pending, not as processing", async () => {
+  it("renders a missing result on a completed job as a missing record, not as pending", async () => {
     stubJob(baseJob({ status: "COMPLETED", result: null, accept: null }));
     render(<AgentResult jobId="job-1" />);
-    expect(await screen.findByText(/执行结果还没有写入记录/)).toBeTruthy();
+    expect(await screen.findByText("任务显示已完成，但记录里没有执行结果投影。")).toBeTruthy();
     expect(screen.getByText(/不会显示“通过”，也不会显示“失败”/)).toBeTruthy();
     expect(screen.queryByText("任务还在处理中，完成后会在这里显示改动、检查结果和下一步。")).toBeNull();
+  });
+
+  it("does not promise a refresh for a missing result — status and result are one write", async () => {
+    // storage/agent_jobs._UPDATE_STATUS_TERMINAL_SQL puts status and
+    // result_json in the same UPDATE, so "completed but no result" is not a
+    // timing window. The old copy told people to wait for something that
+    // never arrives.
+    stubJob(baseJob({ status: "COMPLETED", result: null, accept: null }));
+    render(<AgentResult jobId="job-1" />);
+    expect(await screen.findByText(/同一条写入/)).toBeTruthy();
+    // The denial is the emphasised part, not fine print.
+    expect(screen.getByText("稍后刷新不会补出结果").tagName).toBe("STRONG");
+    expect(screen.queryByText(/稍后刷新即可/)).toBeNull();
+  });
+
+  it("separates a failed run's absent result from a completed run's missing record", async () => {
+    stubJob(baseJob({ status: "FAILED", result: null, accept: null }));
+    render(<AgentResult jobId="job-1" />);
+    expect(await screen.findByText("这一轮以失败结束，没有产生执行结果。")).toBeTruthy();
+    expect(screen.queryByText("任务显示已完成，但记录里没有执行结果投影。")).toBeNull();
+    expect(screen.queryByText(/同一条写入/)).toBeNull();
+  });
+
+  it("separates a cancelled run's absent result from a failed run's", async () => {
+    stubJob(baseJob({ status: "CANCELLED", result: null, accept: null }));
+    render(<AgentResult jobId="job-1" />);
+    expect(await screen.findByText("这一轮已取消，没有产生执行结果。")).toBeTruthy();
+    expect(screen.queryByText("这一轮以失败结束，没有产生执行结果。")).toBeNull();
+  });
+
+  it("says a cancelled run never gets an acceptance record, without a refresh promise", async () => {
+    // _ATTACH_ACCEPT_SQL only matches succeeded/failed rows.
+    stubJob(baseJob({ status: "CANCELLED", accept: null }));
+    render(<AgentResult jobId="job-1" />);
+    expect(await screen.findByText("这一轮已取消，不会有独立验收记录。")).toBeTruthy();
+    expect(screen.queryByText("这次运行还没有独立验收记录。")).toBeNull();
+    expect(screen.queryByText(/可稍后刷新本页/)).toBeNull();
+  });
+
+  it("keeps the refresh wording only where the projection really is a later write", async () => {
+    // Accept attaches in its own statement AFTER the terminal status, so for a
+    // finished run "may still be missing right now" is the honest reading.
+    stubJob(baseJob({ status: "COMPLETED", accept: null }));
+    render(<AgentResult jobId="job-1" />);
+    expect(await screen.findByText("这次运行还没有独立验收记录。")).toBeTruthy();
+    expect(screen.getByText(/可稍后刷新本页/)).toBeTruthy();
   });
 
   it("shares one gate vocabulary between the development result and the accept record", async () => {
