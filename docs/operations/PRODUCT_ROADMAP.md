@@ -982,7 +982,7 @@ fake 钉住四件事：任意查询形状都要回 `total`；`limit=1` 时 `tota
   test_tenant_auth.py` ⇒ **176 passed**（改前同组合是 3 failed / 173 passed）。
 - 全仓静态：`ruff check .` All checks passed；`mypy .` Success: no issues found in **211** source files（本批删的是 `storage/mysql.py` 里的一个方法，不是文件，因此文件数不动）。
 - 死引用对账：`grep -rn "list_recent_jobs" --include=*.py --include=*.ts --include=*.tsx .` ⇒ **生产侧零命中**，剩下的全是 fake 桩（5 处无人调用，见 17.7-1）加 `test_web_api.py` 里 `dashboard_snapshot` 自用的一条，以及 `test_api_jobs_total.py` 里那个刻意设成会抛的哨兵。
-- 全量合并门（追记，把"随后补上"改成如实收口）：**这一次没有拿到可引用的整轮结尾数**。那一跑停在 94%，最后一行是 `tests\security	est_no_key_leak.py` 之后直接 `GATE_EXIT=1`——**没有 pytest 结尾摘要、没有 FAILED/ERROR 行** ⇒ 判据是"解释器被中途终止"，不是"某条测试判红"。
+- 全量合并门（追记，把"随后补上"改成如实收口）：**这一次没有拿到可引用的整轮结尾数**。那一跑停在 94%，最后一行是 `tests/security/test_no_key_leak.py` 之后直接 `GATE_EXIT=1`——**没有 pytest 结尾摘要、没有 FAILED/ERROR 行** ⇒ 判据是"解释器被中途终止"，不是"某条测试判红"。
   - 排除项（23:04–23:07 三段复跑，每段都带完整摘要）：`tests/security` 单跑 **80 passed / 2 skipped**；`tests/security + tests/fault` **170 passed / 2 skipped**；本批改过的 5 个测试文件（含 `test_api_jobs_total.py` 与 #65 那一对 worker 测试）合跑 **93 passed**。⇒ 死点所在目录与本批改动两侧都答"我这侧不红"，#70/#65 与那次终止无因果证据。
   - ⚠️顺手记一件我自己的仪器缺陷：那三段各配了一行 `STAGE_*_EXIT=0`，但它是在 `pytest | tail` 之后 echo 的，量到的是 **tail 的退出码**，不是 pytest 的。所以上面的结论只由"带摘要的 passed 行"支撑，不由那三个 0 支撑。下一次要量 pytest 自身的退出码：不接管道，或读 `${PIPESTATUS[0]}`。
   - 因此本节的门证不再挂"待补"：#70 的既有证据（定向 7 文件 176 passed、全仓 `ruff` 干净、`mypy` 211 files、前端 43 files / 307 tests、行为级变异探针 + 按字节还原）就是全部，不假装包含一次全量绿。整轮重跑要在**无并发**的机器上做（那一跑与全仓 mypy/ruff、探针、两次定向门共用过 CPU，30 分钟里累计状态是否相关**未测**，只列为候选，不当结论）。
