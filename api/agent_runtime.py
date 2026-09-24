@@ -30,6 +30,9 @@ plan + explicitly injected fix rules):
     never claims VERIFIED, because the full closure (SpecProof verification
     + certificate + Ed25519 signing) needs a git repo with base/head refs
     and a signing key and stays with the `specproof craft accept` CLI.
+    The projection is persisted before the terminal "progress" event is
+    recorded, so a client that refetches on terminal status never observes
+    "finished" without an acceptance record attached.
 
 cancel() sets a cooperative flag plus the durable store.cancel (which wins
 even over a leased worker); the loop flushes an honest CANCELLED terminal
@@ -660,6 +663,17 @@ class AgentRuntime:
             )
             return
         verdict = str(report.get("result", ""))
+        if current.status in ("succeeded", "failed"):
+            # Persist BEFORE the terminal event: a client that reacts to the
+            # terminal status by refetching must not land in a window where
+            # the job says "done" while its acceptance record is still
+            # missing — that reads as "no acceptance happened".
+            accept = self._gate_accept_projection(report)
+            attached = persist_accept_result(store, job_id, accept)
+            logger.info(
+                "agent job %s: accept projection attached=%s verdict=%s",
+                job_id, attached, accept.verdict,
+            )
         state.record_event(
             job_id, "progress",
             {
@@ -668,13 +682,6 @@ class AgentRuntime:
                 "message": f"craft run finished: {verdict}",
             },
         )
-        if current.status in ("succeeded", "failed"):
-            accept = self._gate_accept_projection(report)
-            attached = persist_accept_result(store, job_id, accept)
-            logger.info(
-                "agent job %s: accept projection attached=%s verdict=%s",
-                job_id, attached, accept.verdict,
-            )
 
     @staticmethod
     def _gate_accept_projection(report: dict[str, Any]) -> AcceptResult:

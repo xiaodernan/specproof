@@ -634,3 +634,48 @@
 2. `close()` 里那条 `run_coroutine_threadsafe(provider.close(), self._loop).result(...)` 不走 `_pending`，属关闭路径而非取消路径，本批未动。
 3. 探针 K 只证伪了 `chat_sync` 这一处；**流式登记目前没有独立测试覆盖**（需要 SSE 桩），是已知缺口。
 4. 同一形状的"先使用后登记"若出现在别的注册表里（例如任务级取消表），本批未系统排查。
+
+## 11. 2026-09-25 会话（续）：终态事件不再跑在验收摘要之前（任务 #57）
+
+### 11.1 这条记录一开始是被当成"设计"接受的
+
+#57 是 §6.8 那一步（真实任务的逐条证据）留下的登记项：那次全量合并门 2776 passed / 1 failed，唯一红点就是 `test_create_auto_start_then_poll_get_to_terminal` 的 `assert job.accept_json is not None` **而不是超时**，且单独跑 43s 通过——典型的交错窗口，不是时钟余量不足。当时的处置是"按运行时文档化的顺序再等一会儿"，把顺序当作事实写进注释：`store 终态 → 写 bundle → 终态 progress 事件 → 才 persist_accept_result`，并把"是否该把 attach 提到终态事件之前"作为产品决策登记为 #57（那一轮不擅自改 Craft 运行时时序）。本批重新追问的正是这条被接受的顺序：**它是设计，还是仅仅是实现的偶然？**
+
+### 11.2 为什么"先宣告完成、后写证据"是产品缺陷
+
+`_post_run` 原本的尾巴（`api/agent_runtime.py`）：
+
+1. `write_json_atomic(... change-bundle.json)` —— 真实文件 I/O；
+2. `state.record_event(job_id, "progress", {status: COMPLETED/FAILED, ...})` —— SSE 的最后一帧；
+3. 之后才 `persist_accept_result(store, job_id, accept)`。
+
+读端行为决定了这不是小事：**看到终态事件的正常反应就是立刻重取** `GET /agent/jobs/{id}`。落进 2→3 之间的读者取到的是"作业已完成，但没有任何验收记录"，而 `AgentResult.tsx` 面对 `accept == null` 只能显示"这次运行还没有独立验收记录（可能仍在写入）"。也就是说，运行时**自己发出的那个事件把读者推进了一个读者无法自证的窗口**——它不是"慢"，是一段时间内可被观察到的假陈述。窗口平时亚秒级，机器越忙（第 1 步的写盘越慢）越宽，这正好解释了"全量门里红、单跑绿"。
+
+### 11.3 修法：只换顺序，不改语义
+
+- 持久化块整体移到终态 `record_event` **之前**，原地留注释写明原因（重取者不得看见"完成而无证据"）。
+- 模块 docstring 增加一句可被检验的保证：投影在终态 `progress` 事件记录之前落库。
+- `cancelled` 分支保持提前 `return`、永不补投影（cancel wins；`attach_accept_result` 对 cancelled 永久拒绝，`storage/agent_jobs.py` 的文档写明）。
+- 事件之间的相对顺序未动：gate 事件仍先于终态事件（`_watch_progress` 承诺的那条）。
+
+### 11.4 反向验证：探针 L，以及一个新测试怎么才算"判顺序"而不是"判有无"
+
+新测试的关键是 `_RecordingState`：**在 `record_event` 内部**采样 `store.get(job_id).accept_json`。断言因此衡量的是"事件发布那一刻存储的真实状态"，而不是事后回看。
+
+- **变异 L**：把持久化块原样搬回 `record_event` 之后（只移动，不删改任何一行）。结果 `test_terminal_event_never_outruns_the_accept_projection[succeeded-COMPLETED]` 与 `[failed-FAILED]` **两例变红**，而取消那例 `test_cancelled_terminal_event_keeps_its_closed_projection` **仍绿**——正是想要的判据差异：新测试红的不是"投影不存在"，而是"投影存在得太晚"。
+- 跑完从备份 `cp`（绝对路径目标）还原，再 `grep -n` 复核：持久化调用在第 672 行、终态事件在第 677 行，顺序回到修正后状态；全程未使用任何 git 破坏性命令。
+
+### 11.5 门证（本批实测）
+
+- `ruff check .` ⇒ All checks passed!；`mypy .` ⇒ Success: no issues found in 210 source files。
+- `pytest tests/unit/test_agent_runtime.py -q -o addopts= -p no:randomly` ⇒ **14 passed / 57.11s**（本批新增 3 例：终态顺序参数化 2 例 + 取消终态 1 例；此前该文件 11 例）。
+- **终树全量合并门**：`pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒ **2800 passed, 5 skipped, 1 warning in 1021.03s (0:17:01)**，**0 失败**。计数对账：上轮 2797 + 本批 3 = 2800；那条曾经靠"再等一会儿"过关的轮询测试仍绿，区别是它现在等的是 §11.6 第 1 条那条**已登记的窗口**，而不是被当作设计接受的语义。
+- **耗时不作证据**：本轮 1021.03s vs 上轮 851.25s。等待期间本机 `tasklist` 里同时存在多个 python 进程（同一台机器上还有别的会话在跑），因此这 170 秒既不能写成回归也不能写成别的——两轮之间可比的只有"0 失败"与用例计数。探针 L 的判红发生在单文件范围（`-k` 选中 3 例，2 failed / 1 passed / 11 deselected / 5.93s），不受整机负载影响。
+
+### 11.6 仍未做（诚实边界）
+
+1. **只关闭了"事件驱动重取"这条路，没有关闭"纯轮询状态"那条**：存储行仍在 `CraftLoop._finish`（`craft/loop.py:2439`）里就翻成终态，那一刻 `_post_run` 根本还没开始。因此只看 `job.status` 的轮询者短暂看见"已终态、无投影"依然可能。真正原子地关闭需要"终态 + accept 一次写"的存储原语（要同时落在 SQLite 与 MySQL 两个后端上），本批没做，也没有假装做了。
+2. 由此，那个既有轮询测试**继续保留等待**，但注释改了账：它等的不再是"文档规定的后补语义"，而是上面这条已知窗口。
+3. UI 端把"终态且无投影"显示成"可能仍在写入，稍后刷新"（#59 落地的三态）在窗口内是对的，但同一句话目前被 **cancelled / 崩溃终态 / 写入窗口** 三种原因共用，其中前两种**永远不会再来投影**——已登记为 #62，本批只记录不动。
+4. `_crash_terminal`（`api/agent_runtime.py:822`）写出的 FAILED 终态**永远没有投影**（门禁流水线从未跑完）。它该补一条 `ERROR` 判决的投影、还是应该显式声明"无门禁结论"，与 #62 一起决策；本批未改，以免把"没有"和"没跑"继续混在一个文案里。
+

@@ -11,6 +11,8 @@ Covers the live-runtime contract end to end, all in-memory/local:
     events and projections);
   - the HTTP layer: POST /agent/jobs with auto_start=true, poll GET until
     terminal, drain the SSE stream; the pre-W42 payloads stay passive;
+  - post-run ordering: the terminal "progress" event is never published while
+    the durable accept projection is still missing (cancel keeps it closed);
   - no LLM / no network / no Docker: socket creation is forbidden for the
     whole run and no LLM usage is recorded.
 
@@ -24,6 +26,7 @@ import socket
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -31,7 +34,7 @@ from fastapi.testclient import TestClient
 
 import api.routes.agent_console as agent_console
 from api._agent_demo import DEMO_SPEC_TEXT
-from api.agent_runtime import AgentRuntime
+from api.agent_runtime import AgentRuntime, _JobHandle
 from api.server import app
 from craft.editor import Editor
 from craft.planner import Step
@@ -320,6 +323,113 @@ def test_no_llm_no_network_no_docker(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert "llm_usage" not in result  # no LLM client was ever attached
 
 
+# ── post-run ordering: the terminal event must not outrun the projection ──
+
+
+class _RecordingState:
+    """Console state that snapshots the durable store at every event.
+
+    An event is only as honest as the store at the instant it was published,
+    so the projection is sampled inside record_event rather than read later.
+    """
+
+    def __init__(self, store: InMemoryAgentJobStore) -> None:
+        self._store = store
+        self.types: list[str] = []
+        self.progress: list[tuple[str, bool]] = []
+
+    def set_meta(self, job_id: str, repo_path: str, task_name: str | None) -> None:
+        return None
+
+    def meta_for(self, job_id: str) -> dict[str, str]:
+        return {}
+
+    def set_bundle(self, job_id: str, files: list[dict[str, Any]]) -> None:
+        return None
+
+    def bundle_for(self, job_id: str) -> list[dict[str, Any]]:
+        return []
+
+    def record_event(
+        self, job_id: str, etype: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        job = self._store.get(job_id)
+        self.types.append(etype)
+        if etype == "progress":
+            self.progress.append(
+                (
+                    str(data.get("status", "")),
+                    job is not None and job.accept_json is not None,
+                )
+            )
+        return dict(data)
+
+
+@pytest.mark.parametrize(
+    ("status", "label"), [("succeeded", "COMPLETED"), ("failed", "FAILED")]
+)
+def test_terminal_event_never_outruns_the_accept_projection(
+    tmp_path: Path, status: str, label: str
+) -> None:
+    """Whatever a client sees at the terminal event must already be durable.
+
+    The projection used to be attached after the terminal "progress" event, so
+    a subscriber that reacted to the event by refetching landed in a window
+    where the job announced itself finished with no acceptance record at all —
+    which no reader can tell apart from "this run never produced one".
+    """
+    store = InMemoryAgentJobStore()
+    store.create("job-order", DEMO_SPEC_TEXT)
+    store.update_status("job-order", status)
+    state = _RecordingState(store)
+    runtime = AgentRuntime(store=store, state=state, workspace_root=tmp_path / "runtime")
+    loop = SimpleNamespace(editor=SimpleNamespace(audit=[]))
+
+    runtime._post_run(
+        _JobHandle("job-order"),
+        store,
+        state,
+        loop,
+        {
+            "result": "DONE",
+            "gates": {"overall": "passed", "gates": [], "summary": "GATES: 5 passed"},
+        },
+    )
+
+    assert state.progress == [(label, True)], (
+        "the terminal progress event was published while the job still had no "
+        "accept projection in the store"
+    )
+    assert state.types[-1] == "progress", "the terminal event must close the log"
+    assert "gate" in state.types, "gate events must precede the terminal event"
+    job = store.get("job-order")
+    assert job is not None and job.accept_json is not None
+
+
+def test_cancelled_terminal_event_keeps_its_closed_projection(tmp_path: Path) -> None:
+    """Cancel wins: the CANCELLED event is honest about there being no verdict.
+
+    Skipping the attach is the documented semantics (a cancelled job's
+    projection stays closed), but the event still has to be the last thing the
+    reader can observe, or the same refetch race reappears on this path.
+    """
+    store = InMemoryAgentJobStore()
+    store.create("job-cancelled", DEMO_SPEC_TEXT)
+    store.update_status("job-cancelled", "cancelled")
+    state = _RecordingState(store)
+    runtime = AgentRuntime(store=store, state=state, workspace_root=tmp_path / "runtime")
+    loop = SimpleNamespace(editor=SimpleNamespace(audit=[]))
+
+    runtime._post_run(
+        _JobHandle("job-cancelled"), store, state, loop, {"result": "CANCELLED"}
+    )
+
+    assert state.progress == [("CANCELLED", False)]
+    assert state.types == ["progress"]
+    job = store.get("job-cancelled")
+    assert job is not None and job.accept_json is None
+
+
 # ── HTTP layer: auto_start create -> poll GET -> SSE drain ────────────────
 
 
@@ -347,11 +457,12 @@ def test_create_auto_start_then_poll_get_to_terminal(
 
     job = store.get(job_id)
     assert job is not None and job.status == "succeeded"
-    # The accept projection is attached AFTER the terminal transition
-    # (W35.1 post-hoc attach: store goes terminal -> change bundle is written
-    # -> terminal progress event -> persist_accept_result), so a terminal
-    # status alone does not mean the closed projection is complete. Wait for
-    # the ordering the runtime actually documents, on the same deadline.
+    # The store row turns terminal inside CraftLoop._finish, i.e. before the
+    # runtime's post-run writes the change bundle and attaches the accept
+    # projection, so a poller that only watches job.status can still briefly
+    # see "succeeded without evidence". The guarantee this test pins is the
+    # published one: the terminal progress event never precedes the
+    # projection (test_terminal_event_never_outruns_the_accept_projection).
     accept_deadline = time.monotonic() + 180.0
     while job.accept_json is None and time.monotonic() < accept_deadline:
         time.sleep(0.1)
