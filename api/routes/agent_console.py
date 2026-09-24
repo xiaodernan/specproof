@@ -4,7 +4,8 @@ Endpoints (all key-protected and rate limited like /jobs and /api/v1/*):
 
   POST /agent/jobs                    create an agent job (repo_path + spec_text)
   GET  /agent/jobs                    list jobs, optional ?status= filter
-  GET  /agent/jobs/{job_id}           detail (status, plan, progress, result)
+  GET  /agent/jobs/{job_id}           detail (status, plan, progress, result,
+                                      accept projection)
   POST /agent/jobs/{job_id}/cancel    cancel a non-terminal job
   POST /agent/jobs/{job_id}/approve   approval decision (approve/reject + note)
   GET  /agent/jobs/{job_id}/approvals list approval records for a job
@@ -330,6 +331,102 @@ def _store_status_for_filter(
     )
 
 
+#: Both lists are capped so one pathological run cannot bloat the detail
+#: response. A truncated view must SAY so (same shape as the matrix rows in
+#: agent/worker.py): "showing 20" may never be read as "there were 20".
+_ACCEPT_GATE_CAP = 20
+_ACCEPT_FINDING_CAP = 20
+
+
+def _accept_gate_entries(raw: Any) -> list[dict[str, Any]]:
+    """Project gates_report["gates"] into view rows, keeping the honest tail."""
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for entry in raw[:_ACCEPT_GATE_CAP]:
+        if not isinstance(entry, dict):
+            continue
+        findings = entry.get("findings")
+        row: dict[str, Any] = {
+            "gate": str(entry.get("gate") or ""),
+            "status": str(entry.get("status") or ""),
+            "note": str(entry.get("note") or ""),
+            "duration_ms": entry.get("duration_ms"),
+            "findings_total": len(findings) if isinstance(findings, list) else 0,
+        }
+        out.append(row)
+    return out
+
+
+def _accept_view(job: AgentJob) -> dict[str, Any] | None:
+    """Shape the durable accept projection (W35.1) for the console.
+
+    The runtime lane has written this summary since W35.1 and the CLI prints
+    it, but no HTTP surface ever returned it — so the result page could state
+    "开发完成不等于独立验收通过" while being unable to show the one verdict
+    that separates the two.
+
+    Three states stay distinguishable, because collapsing them is how a
+    missing record turns into a false assurance:
+    * not attached -> ``None`` (the page pairs this with job status: a running
+      job has no verdict YET, a terminal job without one has none to show);
+    * attached -> the shaped summary;
+    * stored but unreadable -> ``{"attached": True, "malformed": True}`` — a
+      payload this endpoint cannot parse must never render as "没有验收记录".
+    """
+    raw = job.accept_json
+    if raw is None or not str(raw).strip():
+        return None
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return {"attached": True, "malformed": True}
+    if not isinstance(data, dict):
+        return {"attached": True, "malformed": True}
+
+    view: dict[str, Any] = {
+        "attached": True,
+        "malformed": False,
+        "verdict": str(data.get("verdict") or ""),
+        "note": str(data.get("note") or ""),
+    }
+    # Absent stays absent: `rolled_back: false` and "we were never told" are
+    # different answers, and only one of them is a claim about the repository.
+    for key in ("rolled_back", "idempotent"):
+        value = data.get(key)
+        if isinstance(value, bool):
+            view[key] = value
+    certificate = data.get("certificate_path")
+    if isinstance(certificate, str) and certificate.strip():
+        view["certificate_path"] = certificate
+    notice = data.get("rejection_notice_path")
+    if isinstance(notice, str) and notice.strip():
+        view["rejection_notice_path"] = notice
+
+    gates_report = data.get("gates_report")
+    if isinstance(gates_report, dict):
+        raw_entries = gates_report.get("gates")
+        total = len(raw_entries) if isinstance(raw_entries, list) else 0
+        entries = _accept_gate_entries(raw_entries)
+        view["gates"] = {
+            "overall": str(gates_report.get("overall") or ""),
+            "overall_note": str(gates_report.get("overall_note") or ""),
+            "summary": str(gates_report.get("summary") or ""),
+            "duration_ms": gates_report.get("duration_ms"),
+            "entries": entries,
+            "total": total,
+            "truncated": total > len(entries),
+        }
+
+    findings = data.get("findings")
+    if isinstance(findings, list):
+        kept = [dict(item) for item in findings[:_ACCEPT_FINDING_CAP] if isinstance(item, dict)]
+        view["findings"] = kept
+        view["findings_total"] = len(findings)
+        view["findings_truncated"] = len(findings) > len(kept)
+    return view
+
+
 def _job_view(job: AgentJob) -> dict[str, Any]:
     """Merge the durable projection with console state into the API shape."""
     state = get_state()
@@ -391,6 +488,9 @@ def _job_view(job: AgentJob) -> dict[str, Any]:
         "plan": plan,
         "progress": progress,
         "result": result,
+        # The independent accept projection (W35.1). `null` here means "not
+        # attached", never "verified"; the page renders the two apart.
+        "accept": _accept_view(job),
         "worker_id": job.lease_owner,
         "created_at": _iso(job.created_at),
         "updated_at": _iso(job.updated_at),

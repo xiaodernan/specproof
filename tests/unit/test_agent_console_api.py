@@ -541,3 +541,249 @@ def test_detail_reflects_store_plan_and_progress(
     assert job["plan"]["steps"][0]["title"] == "Locate the user list handler"
     assert job["progress"]["percent"] == 50.0
     assert job["progress"]["message"] == "halfway"
+
+
+# ── accept projection (W35.1) reaching the console ─────────────────────────
+
+
+def _accept_report(overall: str = "passed") -> dict[str, Any]:
+    return {
+        "task_id": "task8-test",
+        "overall": overall,
+        "overall_note": "5 gates, 5 passed",
+        "duration_ms": 4210,
+        "gates": [
+            {
+                "gate": "run_test",
+                "status": "passed",
+                "note": "3 tests passed",
+                "findings": [],
+                "duration_ms": 1200,
+            },
+        ],
+        "summary": f"GATES: task=task8-test overall={overall} run_test=passed",
+    }
+
+
+def test_detail_omits_nothing_about_a_missing_accept_projection(
+    client: TestClient, store: InMemoryAgentJobStore,
+) -> None:
+    """`accept` must be present and null, not absent.
+
+    The page has to tell "this job has no verdict yet" apart from "this
+    server does not report verdicts at all"; a missing key would let a stale
+    deployment look like an unverified job.
+    """
+    job_id = _create(client)
+    job = client.get(f"/agent/jobs/{job_id}", headers=_headers()).json()["job"]
+    assert "accept" in job
+    assert job["accept"] is None
+
+
+def test_accept_projection_round_trips_from_the_real_accept_result(
+    client: TestClient, store: InMemoryAgentJobStore,
+) -> None:
+    """Producer and consumer locked through the real AcceptResult, not a copy.
+
+    craft/accept.py owns these key names and the CLI prints them; the console
+    reads the same stored JSON. Feeding a hand-written dict here would leave a
+    renamed key invisible — the exact failure mode #55 hit on the matrix path.
+    """
+    from craft.accept import AcceptResult
+
+    job_id = _create(client)
+    store.update_status(job_id, "succeeded")
+    store.attach_accept_result(
+        job_id,
+        AcceptResult(
+            verdict="BLOCKED",
+            certificate_path=None,
+            findings=[{"gate": "run_test", "detail": "2 failures"}],
+            gates_report=_accept_report("failed"),
+            rolled_back=False,
+            note="内部门禁 FAIL: run_test",
+        ).to_dict(),
+    )
+
+    accept = client.get(f"/agent/jobs/{job_id}", headers=_headers()).json()["job"]["accept"]
+    assert accept["attached"] is True
+    assert accept["malformed"] is False
+    assert accept["verdict"] == "BLOCKED"
+    assert accept["note"] == "内部门禁 FAIL: run_test"
+    assert accept["rolled_back"] is False
+    assert accept["gates"]["overall"] == "failed"
+    assert accept["gates"]["entries"][0]["gate"] == "run_test"
+    assert accept["gates"]["entries"][0]["findings_total"] == 0
+    assert accept["findings"] == [{"gate": "run_test", "detail": "2 failures"}]
+    # A path that was never issued stays ABSENT, not null: the page renders
+    # "no certificate" either way, and an absent key cannot be mistaken for
+    # "there is one somewhere we will not say".
+    assert "certificate_path" not in accept
+
+
+def test_accept_projection_keeps_an_issued_certificate_path(
+    client: TestClient, store: InMemoryAgentJobStore,
+) -> None:
+    job_id = _create(client)
+    store.update_status(job_id, "succeeded")
+    store.attach_accept_result(
+        job_id,
+        {
+            "verdict": "VERIFIED",
+            "certificate_path": "/var/tmp/specproof/jobs/x/merge-certificate.json",
+            "findings": [],
+            "gates_report": None,
+            "rolled_back": False,
+            "note": "",
+        },
+    )
+    accept = client.get(f"/agent/jobs/{job_id}", headers=_headers()).json()["job"]["accept"]
+    assert accept["verdict"] == "VERIFIED"
+    assert accept["certificate_path"].endswith("merge-certificate.json")
+    # gates_report was literally null: "no gate summary" must not become an
+    # empty list the page could read as "zero checks, all fine".
+    assert "gates" not in accept
+
+
+def test_truncated_accept_lists_say_so(
+    client: TestClient, store: InMemoryAgentJobStore,
+) -> None:
+    """25 findings must never render as "there were 20"."""
+    job_id = _create(client)
+    store.update_status(job_id, "succeeded")
+    report = _accept_report()
+    report["gates"] = [
+        {
+            "gate": f"gate_{index}",
+            "status": "passed",
+            "note": "",
+            "findings": [],
+            "duration_ms": 1,
+        }
+        for index in range(25)
+    ]
+    store.attach_accept_result(
+        job_id,
+        {
+            "verdict": "BLOCKED",
+            "certificate_path": None,
+            "findings": [{"id": index} for index in range(25)],
+            "gates_report": report,
+            "rolled_back": False,
+            "note": "",
+        },
+    )
+    accept = client.get(f"/agent/jobs/{job_id}", headers=_headers()).json()["job"]["accept"]
+    assert len(accept["findings"]) == agent_console._ACCEPT_FINDING_CAP
+    assert accept["findings_total"] == 25
+    assert accept["findings_truncated"] is True
+    assert len(accept["gates"]["entries"]) == agent_console._ACCEPT_GATE_CAP
+    assert accept["gates"]["total"] == 25
+    assert accept["gates"]["truncated"] is True
+
+
+def test_unknown_accept_gate_status_passes_through(
+    client: TestClient, store: InMemoryAgentJobStore,
+) -> None:
+    """A status this endpoint has never seen is shown, not swallowed.
+
+    Silently dropping an unrecognised gate row would hide exactly the
+    evidence a reviewer needs, and would under-report the gate count.
+    """
+    job_id = _create(client)
+    store.update_status(job_id, "succeeded")
+    report = _accept_report()
+    report["gates"] = [
+        {
+            "gate": "custom_gate",
+            "status": "needs_review",
+            "note": "",
+            "findings": [],
+            "duration_ms": 2,
+        }
+    ]
+    store.attach_accept_result(
+        job_id,
+        {
+            "verdict": "BLOCKED",
+            "certificate_path": None,
+            "findings": [],
+            "gates_report": report,
+            "rolled_back": False,
+            "note": "",
+        },
+    )
+    accept = client.get(f"/agent/jobs/{job_id}", headers=_headers()).json()["job"]["accept"]
+    assert accept["gates"]["entries"] == [
+        {
+            "gate": "custom_gate",
+            "status": "needs_review",
+            "note": "",
+            "duration_ms": 2,
+            "findings_total": 0,
+        }
+    ]
+
+
+def test_unreadable_accept_projection_is_not_reported_as_missing(
+    client: TestClient, store: InMemoryAgentJobStore,
+) -> None:
+    """Corrupt stored JSON is its own state — never "没有验收记录"."""
+    from dataclasses import replace
+
+    job_id = _create(client)
+    store.update_status(job_id, "succeeded")
+    store.attach_accept_result(job_id, {"verdict": "BLOCKED", "note": "x"})
+    stored = store.get(job_id)
+    assert stored is not None
+    store._jobs[job_id] = replace(stored, accept_json='{"verdict": "BLOCKED"')
+
+    accept = client.get(f"/agent/jobs/{job_id}", headers=_headers()).json()["job"]["accept"]
+    assert accept == {"attached": True, "malformed": True}
+
+
+def test_the_two_blocked_flavors_reach_the_console_apart(
+    client: TestClient, store: InMemoryAgentJobStore,
+) -> None:
+    """BLOCKED-by-failed-gate and BLOCKED-by-deferred-closure stay tellable.
+
+    Locked through the real producer, `AgentRuntime._gate_accept_projection`,
+    not a hand-written payload: the console colours the verdict from
+    ``gates.overall``, so if this endpoint ever dropped that field the page
+    would paint a genuine gate failure amber and tell the reader nothing
+    failed. `_accept_report` builds a fresh dict per call, so mutating here
+    cannot leak between cases.
+    """
+    from api.agent_runtime import AgentRuntime
+
+    def attach(report: dict[str, Any]) -> dict[str, Any]:
+        job_id = _create(client)
+        store.update_status(job_id, "succeeded")
+        projection = AgentRuntime._gate_accept_projection(report)
+        store.attach_accept_result(job_id, projection.to_dict())
+        response = client.get(f"/agent/jobs/{job_id}", headers=_headers())
+        return response.json()["job"]["accept"]
+
+    failed = _accept_report("failed")
+    failed["gates"][0]["status"] = "failed"
+    failed["gates"][0]["findings"] = [{"gate": "run_test", "detail": "test_page_size"}]
+    blocked_by_gate = attach({"gates": failed})
+    assert blocked_by_gate["verdict"] == "BLOCKED"
+    assert blocked_by_gate["gates"]["overall"] == "failed"
+    assert blocked_by_gate["gates"]["entries"][0]["status"] == "failed"
+    assert blocked_by_gate["findings_total"] == 1
+
+    blocked_by_deferral = attach({"gates": _accept_report("passed")})
+    assert blocked_by_deferral["verdict"] == "BLOCKED"
+    assert blocked_by_deferral["gates"]["overall"] == "passed"
+    assert blocked_by_deferral["findings_total"] == 0
+
+    # Same token, different fact — the two must not be byte-identical, or the
+    # UI has nothing to discriminate on.
+    assert blocked_by_gate["gates"]["overall"] != blocked_by_deferral["gates"]["overall"]
+
+    errored = attach({})
+    assert errored["verdict"] == "ERROR"
+    # A projection without a gate summary carries no `gates` key at all: the
+    # page must say "cannot tell why", never infer the passing flavour.
+    assert "gates" not in errored

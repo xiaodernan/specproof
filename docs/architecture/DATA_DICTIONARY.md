@@ -307,6 +307,11 @@ epoch 秒 DOUBLE/REAL (与 `storage/identity.py` / `storage/billing.py` 的可�
 - **写入方**: `api/routes/agent_console.py` (create/cancel/approve) + `api/agent_runtime.py`
   (runtime 线程跑真实确定性 CraftLoop, loop 内 create/lease/renew/set_plan/set_progress/update_status) +
   `craft/loop.py` (store 接线后); `craft/accept.py` `persist_accept_result` 挂 accept_json。
+- **读取方**: `api/routes/agent_console.py::_accept_view` 把该列投影为
+  `GET /agent/jobs/{job_id}` 响应的 `accept` 字段 (落地记录见 PRODUCT_ROADMAP §8)。三态可分辨:
+  `null` = 尚未挂载, 对象 = 已挂载摘要, `{"attached": true, "malformed": true}` = 已挂载但本端点读不出来
+  (解析失败永不渲染成"没有验收记录")。`rolled_back`/`idempotent`/证书路径等键**缺失即不出现**;
+  门禁与发现列表各截断到 20 条, 同时给 `total` 与 `truncated`。
 - **租户作用域**: — (单租户投影, 无 tenant 列; 诚实边界见 STATE_MACHINES)。
 - **TTL/保留**: 永久; 无自动清理。
 

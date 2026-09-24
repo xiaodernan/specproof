@@ -205,3 +205,98 @@ export function diffModeLabel(mode: string): string {
   };
   return labels[mode] || mode;
 }
+
+// ── Craft gate labels ───────────────────────────────────────────────────────
+// Shared by the development result (job.result.gates) and the independent
+// accept projection (job.accept.gates): both are GateResult.to_dict() rows
+// from craft/gates.py, so one vocabulary must serve both. Unknown names and
+// statuses pass through verbatim — an unrecognised gate is still evidence.
+
+export const GATE_LABELS: Record<string, string> = {
+  run_test: "相关测试",
+  run_build: "项目构建",
+  run_typecheck: "类型检查",
+  security: "敏感信息检查",
+  self_verify: "改动自检",
+};
+
+export const GATE_STATUS_LABELS: Record<string, string> = {
+  passed: "通过",
+  failed: "未通过",
+  skipped: "未执行",
+  error: "执行出错",
+};
+
+export function gateLabel(gate: string): string {
+  return GATE_LABELS[gate] || gate || "未命名门禁";
+}
+
+export function gateStatusLabel(status: string): string {
+  return GATE_STATUS_LABELS[status] || status || "状态未知";
+}
+
+/** Pill class for one gate status: only `passed` is green. */
+export function gateStatusPillClass(status: string): string {
+  if (status === "passed") return "pill pill-ok";
+  if (status === "skipped") return "pill pill-mute";
+  if (status === "failed" || status === "error") return "pill pill-bad";
+  return "pill pill-mute";
+}
+
+// ── Accept projection verdict (W35.1) ───────────────────────────────────────
+
+export interface AcceptVerdictMeta {
+  label: string;
+  tone: "ok" | "bad" | "warn" | "mute";
+}
+
+export type AcceptBlockedMeaning = "gate_failed" | "closure_deferred" | "unknown";
+
+/**
+ * `BLOCKED` is not one fact but two, and only the payload tells them apart.
+ * `api/agent_runtime.py::_gate_accept_projection` emits BLOCKED both when an
+ * internal gate FAILed (`gates.overall === "failed"`, findings aggregated)
+ * and when every gate passed but the certificate closure was left to the
+ * CLI. Reading the token alone would tell a reader whose checks failed that
+ * nothing had failed — the mirror image of the false-red trap.
+ */
+export function acceptBlockedMeaning(
+  gatesOverall: string | undefined
+): AcceptBlockedMeaning {
+  const overall = gatesOverall || "";
+  if (overall === "failed") return "gate_failed";
+  if (!overall || overall === "error") return "unknown";
+  return "closure_deferred";
+}
+
+export function acceptBlockedNotice(meaning: AcceptBlockedMeaning): string {
+  if (meaning === "gate_failed")
+    return "此通道的 BLOCKED 来自内部门禁 FAIL：有门禁未通过（见下方逐条结果与关联发现），因此未签发合并证书。";
+  if (meaning === "closure_deferred")
+    return "此通道的 BLOCKED 表示门禁摘要已通过，但尚未签发合并证书（完整闭包需 git base/head 与签名密钥，由 craft accept 执行）。它不代表下方门禁未通过。";
+  return "此通道的 BLOCKED 表示尚未签发合并证书，但投影里没有可用来判断原因的门禁摘要：本页无法区分“门禁未通过”与“闭包尚未执行”，请以上方说明或命令行为准。";
+}
+
+/**
+ * The independent accept verdict. `BLOCKED` needs care: the runtime lane
+ * NEVER issues `VERIFIED` (the merge certificate + signature belong to
+ * `specproof craft accept`), so a plain gate summary that passed still
+ * arrives as BLOCKED. Rendering that as a red "失败" would tell the reader
+ * their code failed checks that actually passed — but the opposite blanket
+ * assurance is just as wrong when a gate really did fail, so the tone is
+ * taken from `gates.overall`, not from the token.
+ */
+export function acceptVerdictLabel(
+  verdict: string | undefined,
+  gatesOverall?: string
+): AcceptVerdictMeta {
+  const v = verdict || "";
+  if (v === "VERIFIED") return { label: "已签发合并证书 VERIFIED", tone: "ok" };
+  if (v === "BLOCKED") {
+    if (acceptBlockedMeaning(gatesOverall) === "gate_failed")
+      return { label: "门禁未通过，未签发合并证书 BLOCKED", tone: "bad" };
+    return { label: "未签发合并证书 BLOCKED", tone: "warn" };
+  }
+  if (v === "ERROR") return { label: "验收过程出错 ERROR", tone: "bad" };
+  return { label: v || "无结论", tone: "mute" };
+}

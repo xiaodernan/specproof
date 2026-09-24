@@ -472,3 +472,68 @@
   以及前端同名三例（空对 → "未做改前/改后差分实验"且**只出现 1 个 pill**、真无结论 → 3 个 pill、单侧 → 保留已观测侧并标"无观测"）。
 - 报告侧同步：`evidence/report.py` 的矩阵表新增 **Differential** 列（`PASS → FAIL (head)` + 换行的执行面 token；无差分显示 `not run`），并补 `.diff`/`.surface`/`.muted` 样式。**HTML 报告是用户会附到 PR 上的产物**，披露必须在那里也在。
 - **CLI 未改（诚实边界）**：`cli/specproof/commands/verify.py` 只打印矩阵的**计数**（passed/failed/unverified/total），没有逐行输出，因此没有可挂执行面的位置；要加需先让 CLI 输出逐行矩阵，属另一件事。
+
+## 8. 2026-09-24 会话（续）：独立验收结论终于能从 Web 读到（任务 #59）
+
+### 8.1 状态核实（先查证再动工）
+
+- 动工前 HEAD 仍是 `a3d815b`，#58 的改动整批留在工作区未提交（未出现并发写入者的痕迹：本仓库无其他会话）。
+- **写入侧本来就是完整的**：`docs/architecture/DATA_DICTIONARY.md:303` 记录 `accept_json` "仅 succeeded/failed 可挂, first-write-wins"，`docs/architecture/STATE_MACHINES.md:178` 记录 `attach_accept_result` 的幂等语义，`storage/agent_jobs.py` 用 `COALESCE` 实现、`craft/accept.py::persist_accept_result` 是唯一写入者。⇒ 缺的不是数据，是**读取路径**。
+- 读取侧查证：`api/routes/agent_console.py::_job_view` 返回 `status / plan / progress / result`，**从不返回 `job.accept_json`**；且 `_job_view` 全仓库只有一个调用点（`GET /agent/jobs/{job_id}`），所以不存在"别的端点已经给了"这种可能。前端 `api.ts::AgentJob` 也因此根本没有这个字段。
+
+### 8.2 要消灭的缺陷，以及一个会把"直接暴露"变成误导的陷阱
+
+- **主缺陷**：结果页写着"开发完成不等于独立验收通过"，但**同一页面拿不出那句区分所依据的结论**——验收结论、门禁明细、发现列表、证书路径全都只存在数据库列和 CLI 打印里。用户必须离开界面去跑 `specproof craft accept`，才能看到系统早就算完并落库的东西。
+- **陷阱（先读代码才发现，否则会做出一个主动误导用户的界面）**：`api/agent_runtime.py::_gate_accept_projection` **永不产出 `VERIFIED`**。它写出的 BLOCKED 附带的是"完整 accept 闭包（SpecProof 验证 + 证书 + 签名）需 git base/head 与签名密钥，交由 craft accept CLI 执行"。也就是说这条通道上的 `BLOCKED` = **"还没签发合并证书"**，不是"检查没过"。若按 `passed/failed` 的直觉把它涂成红色失败，就是凭空造出一个假失败结论。**这个陷阱还有一个反方向的孪生兄弟，本轮同样踩到了，见 §8.7**。
+- 顺带修掉一个同族缺陷（#57 的可见后果）：任务已进入 `COMPLETED/FAILED/CANCELLED` 但 `result` 为空时，页面原来固定显示"任务还在处理中"——对终态任务是假陈述。
+
+### 8.3 落点
+
+- **后端 `api/routes/agent_console.py`**：新增 `_accept_view(job)`，把 `accept_json` 投影成响应里的 `accept`，并**保持三态可分辨**——未挂载 ⇒ `null`；已挂载 ⇒ 结构化摘要；**已挂载但读不出来 ⇒ `{"attached": true, "malformed": true}`**（一条解析失败的记录绝不能渲染成"没有验收记录"）。
+  细节上守两条既有红线：**缺失保持缺失**（`rolled_back`/`idempotent` 只有在真是布尔值时才出现，证书/通知路径只有非空字符串才出现；不填 `null`、不填 `—`），**截断必须自报**（门禁与发现各 20 条上限，同时给 `total` 与 `truncated`，因为"显示 20 条"永远不能被读成"只有 20 条"）。
+- **前端**：`api.ts` 加 `AgentAccept` 等类型（注释写清 `null` 与 `malformed` 的区别）；`agent/util.ts` 把原本散在页面里的门禁标签表提为共享的 `gateLabel / gateStatusLabel / gateStatusPillClass`，并新增 `acceptVerdictLabel()`（`VERIFIED` 绿、`ERROR` 红、未知值原样透传）与 **`acceptBlockedMeaning()` / `acceptBlockedNotice()`**——`BLOCKED` 的颜色与说明**取自投影里的 `gates.overall`，不取自 token**（理由见 §8.7）；`AgentResult.tsx` 新增 `AcceptProjection` 面板，挂在 result 分支**之外**（否则没有执行结果的终态任务连验收都看不到）。
+
+### 8.4 反向验证（四个变异探针）
+
+新增的锁不测一遍就等于没测。逐个改坏源码 ⇒ 跑测试 ⇒ 用 `cp` 还原 ⇒ 核对 `git diff --numstat` 回到本轮真实改动量：
+
+- **A：把投影里的 `verdict` 键改名** ⇒ `2 failed`（往返锁 + 证书路径锁）。
+- **B：让 `malformed` 走 `return None`**（即"读不出来"伪装成"没有记录"）⇒ `1 failed`（`test_unreadable_accept_projection_is_not_reported_as_missing`）。
+- **C：`"truncated": total > len(entries)` 改成硬编码 `False`** ⇒ `1 failed`（截断自报锁）。
+- **D：把 `BLOCKED` 的 tone 从 `warn` 改成 `bad`**（就是 §8.2 那个陷阱）⇒ 前端 `2 files / 2 tests failed`。
+- **E：让投影不再转发 `gates.overall`（硬编码成空串）** ⇒ 后端 `2 failed`（往返锁 + §8.7 新增的"两种 BLOCKED 必须可分辨"锁）。
+- **F：让 `acceptBlockedMeaning()` 永远判成 `closure_deferred`**（即"门禁真挂了"被读成"只是闭包没跑"）⇒ 前端 `2 files / 2 tests failed`。
+- 一处踩坑值得记下：**A 的第一次尝试是假探针**——我的锚点串带 `\n`，而这些文件是 CRLF，`count()==0` 的断言直接失败，脚本没写进去，随后的"6 passed"测的是未变异的源码。改成不含换行的锚点后才是真正的 2 红。**"探针跑绿了"必须先证明探针确实改了字节**。
+
+### 8.5 门证（终树实测）
+
+- 后端静态：`ruff check .` ⇒ `All checks passed!`（中途我自己的新测试写崩过一次 E501，改正后复跑）；`mypy .` ⇒ `Success: no issues found in 210 source files`。
+- 后端定向回归：`pytest tests/unit/test_agent_console_api.py tests/unit/test_agent_jobs.py -q -p no:randomly` ⇒ **102 passed / 22.44s**；`-k accept` ⇒ **6 passed, 27 deselected**；单文件复跑 ⇒ **33 passed / 5.38s**。
+- 前端：`tsc --noEmit` 无输出；`vitest run` ⇒ **40 文件 / 263 例全绿**（相对 §7.5 的 39/250，本批净增 1 文件 13 例：`AgentResult.test.tsx` 9 例——该页面此前**零测试**——+ `util.test.ts` 4 例）；`vite build` 通过。
+- 变异还原后复验：`vitest run src/agent` ⇒ 12 文件 / 72 例绿，后端 accept 文件 33 例绿 ⇒ 工作区确实回到绿色。
+- **全量合并门**（`pytest tests/unit tests/security tests/fault -q`）：改后终树第一次全量跑 ⇒ **1 failed, 2795 passed, 5 skipped, 1 warning in 1379.33s (22:59)**。唯一红点是 `tests/unit/test_provider_accounting.py::test_cancelling_model_call_stops_pending_request`（`cancel()` 之后 30s 线程仍存活）——**与 #58/#59 无关**，根因与修复见 §10。这条不是可以放宽超时结案的偶发噪声，而是取消功能本身的竞态。
+
+### 8.6 仍未做（诚实边界）
+
+1. **本轮只做了"读出来"，没做"跑起来"**：Web 控制台现在展示 runtime 通道写下的验收摘要，但**不会**从界面触发完整 accept 闭包（那需要 git base/head 与签名密钥，仍归 CLI）。面板里给出的就是这条命令本身。
+2. **`VERIFIED` 在这一层目前不可达**：因为 `_gate_accept_projection` 永不产出它，`acceptVerdictLabel("VERIFIED")` 是**为 CLI 闭包写入的投影**准备的；它的正确性由 `craft.accept.AcceptResult.to_dict()` 的往返锁保证，而不是由"界面上见过这个值"保证。
+3. 验收投影**只在任务详情端点**上出现；列表页、SSE 事件流都没有它（列表要显示验收结论需要先决定"摘要里放什么"，属另一件事）。
+4. #57 的运行时时序本身仍未改（ attach 仍晚于终态事件），本轮只是让这段窗口在页面上显示为"还没有独立验收记录 + 怎么补"，而不是假装它不存在。
+5. #56 / #26 仍需 Docker 在线窗口，本机守护进程本轮未运行。
+
+### 8.7 追加：BLOCKED 有两种含义，把其中一种说成另一种同样是假陈述
+
+给 README 写"BLOCKED 只代表尚未签发合并证书"之前，回去核 `_gate_accept_projection` 的**全部**出口，发现它有四个：
+
+| 入口条件 | verdict | 真实含义 |
+| --- | --- | --- |
+| `report["gates"]` 不是 dict | `ERROR` | 没有可判的摘要 |
+| `gates.overall == "error"` | `ERROR` | 门禁管线自身出错 |
+| `gates.overall == "failed"` | **`BLOCKED`** | **内部门禁真的挂了**，且会把 failed/error 门禁下的 findings 汇总带上 |
+| 其余（overall 通过 / 跳过） | **`BLOCKED`** | 门禁都过了，只是**合并证书闭包**留给 `craft accept` CLI |
+
+- 所以 §8.2 只修掉了一半：把 BLOCKED 一律涂红是**假失败**；一律解释成"不代表下方门禁未通过"是**假安心**，而且更危险——它恰好发生在测试真挂了的那条分支上，页面会一边列出 findings 一边告诉读者"这不算挂"。
+- **我为什么先写错**：第一版只读了 docstring（"The runtime lane never claims VERIFIED … the verdict is BLOCKED"），没读函数体里的 `if overall == "failed"` 分支。**docstring 说的是作者设想的正常路径，不是全部出口**，与 §6.8 / §7.7 记过的"用读注释代替读代码"同类。
+- **修法**：判别**不取自 token，而取自同一份投影里的 `gates.overall`**——`failed` ⇒ 红色"门禁未通过，未签发合并证书"；通过 / 跳过 ⇒ 琥珀色"门禁摘要已过，尚未签发合并证书"；**摘要缺失或为 `error` ⇒ 明说"无法区分原因"**，两种都不猜。判据落在两个纯函数 `acceptBlockedMeaning()` / `acceptBlockedNotice()` 里，页面只渲染。
+- **既有断言里也编码了这个错误假设**，一并改正而不是放宽：`AgentResult.test.tsx` 的第一例原本喂的就是 `overall: "failed"`，却断言琥珀色 + "不代表下方门禁未通过"——等于把 §8.2 的反向假陈述锁进了测试。现拆成三例（闭包延后 / 真失败 / 无摘要不可判）。
+- 另加一条**真生产者锁** `test_the_two_blocked_flavors_reach_the_console_apart`：直接调 `AgentRuntime._gate_accept_projection` 生成两种 BLOCKED，断言两者在 HTTP 上的 `gates.overall` **不相等**。若投影哪天丢了该字段，前端就彻底没有可判别的依据——这正是探针 E 要买下的风险。

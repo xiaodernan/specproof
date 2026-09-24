@@ -622,11 +622,53 @@ export interface AgentJob {
   plan: AgentPlan | null;
   progress: AgentProgress;
   result: AgentJobResult | null;
+  /**
+   * The independent accept projection (W35.1) — the only record that says
+   * whether this change was ACCEPTED, as opposed to merely developed.
+   * `null` means no projection is attached (the page must pair it with job
+   * status: a running job has none YET, a finished job has none);
+   * `{ malformed: true }` means one exists but cannot be read, which is a
+   * different fact and must never render as "没有验收记录".
+   */
+  accept?: AgentAccept | null;
   worker_id: string | null;
   created_at: string;
   updated_at: string;
   events_count: number;
   approvals_count: number;
+}
+
+export interface AgentAcceptGateEntry {
+  gate: string;
+  status: string;
+  note: string;
+  duration_ms?: number | null;
+  findings_total: number;
+}
+
+export interface AgentAcceptGates {
+  overall: string;
+  overall_note: string;
+  summary: string;
+  duration_ms?: number | null;
+  entries: AgentAcceptGateEntry[];
+  total: number;
+  truncated: boolean;
+}
+
+export interface AgentAccept {
+  attached: boolean;
+  malformed: boolean;
+  verdict?: string;
+  note?: string;
+  rolled_back?: boolean;
+  idempotent?: boolean;
+  certificate_path?: string;
+  rejection_notice_path?: string;
+  gates?: AgentAcceptGates;
+  findings?: Record<string, unknown>[];
+  findings_total?: number;
+  findings_truncated?: boolean;
 }
 
 export interface AgentApproval {

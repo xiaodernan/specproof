@@ -272,6 +272,8 @@ table.data td { padding: 13px 16px; font-size: 11px; }
 .result-gate strong { font-size: 12px; font-weight: 550; }
 .result-gate p { color: var(--color-text-3); line-height: 1.8; font-size: 11px; margin-top: 8px; overflow-wrap: anywhere; }
 .result-boundary { color: var(--color-text-2); font-size: 11px; margin-top: 20px; }
+/* Accept projection: verdict pill plus the rollback facts, on one line. */
+.result-accept-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .result-raw { margin-top: 20px; font-size: 12px; color: var(--color-text-3); }
 .result-raw summary { cursor: pointer; padding-bottom: 12px; }
 @media (max-width: 760px) { .result-metrics, .result-gates { grid-template-columns: 1fr; } .result-overview { padding: 20px; } .result-overview h2 { font-size: 19px; } }

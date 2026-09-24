@@ -9,6 +9,13 @@ import {
   eventKindLabel,
   approvalDecisionLabel,
   approvalTargetLabel,
+  acceptVerdictLabel,
+  acceptBlockedMeaning,
+  acceptBlockedNotice,
+  type AcceptBlockedMeaning,
+  gateLabel,
+  gateStatusPillClass,
+  gateStatusLabel,
   sseStateLabel,
   rowsForFile,
   validateRepoStep,
@@ -161,5 +168,66 @@ describe("approval/sse labels", () => {
     expect(sseStateLabel("open")).toBe("已连接 open");
     expect(sseStateLabel("closed")).toBe("已断开 closed");
     expect(sseStateLabel("reconnecting")).toBe("reconnecting");
+  });
+});
+
+describe("gate + accept labels — one vocabulary for both gate lists", () => {
+  it("translates the five craft gates and passes an unknown gate through", () => {
+    expect(gateLabel("run_test")).toBe("相关测试");
+    expect(gateLabel("self_verify")).toBe("改动自检");
+    expect(gateLabel("custom_gate")).toBe("custom_gate");
+    expect(gateLabel("")).toBe("未命名门禁");
+  });
+
+  it("translates gate statuses and keeps an unseen one verbatim", () => {
+    expect(gateStatusLabel("passed")).toBe("通过");
+    expect(gateStatusLabel("skipped")).toBe("未执行");
+    expect(gateStatusLabel("needs_review")).toBe("needs_review");
+    expect(gateStatusLabel("")).toBe("状态未知");
+  });
+
+  it("only paints `passed` green, and never paints an unknown status red", () => {
+    expect(gateStatusPillClass("passed")).toBe("pill pill-ok");
+    expect(gateStatusPillClass("failed")).toBe("pill pill-bad");
+    expect(gateStatusPillClass("error")).toBe("pill pill-bad");
+    expect(gateStatusPillClass("skipped")).toBe("pill pill-mute");
+    expect(gateStatusPillClass("needs_review")).toBe("pill pill-mute");
+  });
+
+  it("names a runtime BLOCKED as a missing certificate, not a failed run", () => {
+    expect(acceptVerdictLabel("VERIFIED")).toEqual({ label: "已签发合并证书 VERIFIED", tone: "ok" });
+    // The runtime lane can never reach VERIFIED, so BLOCKED is its ordinary
+    // outcome; tone "bad" here would accuse passing code of failing.
+    expect(acceptVerdictLabel("BLOCKED").tone).toBe("warn");
+    expect(acceptVerdictLabel("BLOCKED").label).toContain("未签发合并证书");
+    expect(acceptVerdictLabel("ERROR").tone).toBe("bad");
+    expect(acceptVerdictLabel("SOMETHING_NEW")).toEqual({ label: "SOMETHING_NEW", tone: "mute" });
+    expect(acceptVerdictLabel(undefined).label).toBe("无结论");
+  });
+
+  it("splits the two meanings of BLOCKED by the gate summary, not by the token", () => {
+    // `_gate_accept_projection` emits BLOCKED both for "a gate FAILed" and for
+    // "everything passed but the certificate closure belongs to the CLI".
+    expect(acceptBlockedMeaning("failed")).toBe("gate_failed");
+    expect(acceptBlockedMeaning("passed")).toBe("closure_deferred");
+    expect(acceptBlockedMeaning("skipped")).toBe("closure_deferred");
+    // No summary, or a summary that errored, is not evidence either way.
+    expect(acceptBlockedMeaning(undefined)).toBe("unknown");
+    expect(acceptBlockedMeaning("")).toBe("unknown");
+    expect(acceptBlockedMeaning("error")).toBe("unknown");
+
+    // A failed gate must not be painted amber — that would promise the reader
+    // nothing failed.
+    expect(acceptVerdictLabel("BLOCKED", "failed").tone).toBe("bad");
+    expect(acceptVerdictLabel("BLOCKED", "failed").label).toContain("门禁未通过");
+    expect(acceptVerdictLabel("BLOCKED", "passed").tone).toBe("warn");
+    expect(acceptVerdictLabel("BLOCKED", "unknown_overall").tone).toBe("warn");
+
+    const notices = ["gate_failed", "closure_deferred", "unknown"].map((m) =>
+      acceptBlockedNotice(m as AcceptBlockedMeaning)
+    );
+    for (const notice of notices) expect(notice.length).toBeGreaterThan(0);
+    expect(new Set(notices).size).toBe(3);
+    expect(notices[2]).toContain("无法区分");
   });
 });
