@@ -998,3 +998,63 @@ fake 钉住四件事：任意查询形状都要回 `total`；`limit=1` 时 `tota
 3. `Guide.tsx` 现在读 `total`，但它只发 `limit=1`：拿一条行 + 全量计数是
    省事的组合，没有校验"这个 total 是不是带过滤条件的结果集大小"。引导页无
    过滤，因此当前成立。
+
+
+## 18. 下一批的实测登记（#66 / #69 / #70-余下）——只登记已核到的事实，未核的写"未核"
+
+这一节不是计划清单，是**动手前先量到的东西**：位置、可达性、以及"为什么做不到"
+的约束。三条都带行号，下一轮据此判断是否值得开工，不必重新量一遍。
+
+### 18.1 #66 `lease` 与 `cancel_checkpoint` 两帧：`failed` 各有一处是假的
+
+两处都在 `agent/worker.py`，都写成 `"failed"`：
+
+- `:503-506` —— `_observe_cancel_checkpoint` 里。它上面 496-502 行刚把行写成
+  `CANCELLED`（`transition_job_status(..., to_status="CANCELLED")` 与
+  `record_audit(action="job_cancelled_at_checkpoint", ...)`），紧接着的进度帧却
+  说 `failed`。**这一处是不一致的**：前端按 #64 的规则"终结帧的 status 可信"
+  去读，就会把一个已取消的作业显示成失败。
+- `:518-520` —— `_mark_lease_lost` 里。它上面 512-516 行写 `FAILED`
+  （`from_status="RUNNING"`），帧说 `failed` 与之一致。**这一处不是缺陷。**
+
+承重的事实不是"哪一处措辞错了"，而是**两处都被包在 `contextlib.suppress(Exception)`
+里**（`:512` 明确可见）：落库成功还是被拒，代码本身不知道，也没有把结果读回来。
+因此"这一帧说的状态 = 这一行真实的状态"这句话，在没有 #63/#64 那套
+"先决定 → 写 → 按写入结果宣告"改造之前，是**无法成立**的，改措辞只是换一句更
+好听的假话。
+
+`OBSERVABILITY.md` 的"已知未修的不一致"一节只点名了 `cancel_checkpoint`，
+按上面的读法应改成"只有 `lease` 与行状态一致"。该文件当前有另一个写者的未提交
+改动，本节不代它改口——留作 #66 的第一步。
+
+### 18.2 #69 `_console_status` 的兜底：可达性量到"未知"来自库外，不是并发写者
+
+`api/routes/agent_console.py:311-320` 的最后一行是 `return "CANCELLED"`。
+`storage/agent_jobs.py:55` 声明
+`JobStatus = Literal["pending", "running", "succeeded", "failed", "cancelled"]`，
+而 `_console_status` 逐条答了前四个，剩下的 `cancelled` 恰好由兜底接住——
+**声明词表内没有任何一个值会走到兜底**。
+
+于是"兜底替未知编了一个含义"要成立，前提是库里真出现词表外的值。量到的情况：
+在 `storage/agent_jobs.py` 里 grep `CREATE TABLE agent_jobs` 附近**没有**
+status 的 `CHECK` 约束命中（词表以 `_ALL_STATUS_TUPLE` 一类常量出现在
+55-65 行，DDL 是否引用它**未核**）。同时 `api/agent_runtime.py:108` 有一条
+"kept local so the ..." 的同款镜像映射——**同一份映射存在两处**，改一处就会
+漂。
+
+据此，#69 的正确落点不是"把兜底换个词"，而是先核 DDL：若有 CHECK，兜底是死
+分支，应删成显式分支 + 未知即透传原文（与 §13 的 UNKNOWN 透传规则同源）；若
+没有 CHECK，则两处映射要合并成单一来源，未知值一律原样透传给前端，由
+`statusLabel` 决定怎么显示。
+
+### 18.3 #70 之后仍记在账上的两笔
+
+1. 五处 fake 的 `list_recent_jobs` 桩已无人调用（`test_api_jobs.py:65`、
+   `test_api_errors.py:93`、`test_api_governance.py:91`、
+   `test_envelope_retryable.py:189`、`test_tenant_auth.py:285`）。留着不会让
+   任何断言变假；但 `test_web_api.py:94` 与 e2e `fixture_server.py:236` 仍在
+   自用同名方法，所以清理必须逐处判"死桩"还是"活方法"，不能一把删。
+2. `test_root_serves_spa_when_built` 在 22:20 那次 7 文件合跑里红过，单独跑与
+   22:23 重跑同一组合都是绿的。它是 subprocess + 计时敏感的那一类，机制推断
+   为机器负载（那次紧接全仓 mypy/ruff 之后）。**记为未复现，不当作已修，
+   也不靠加大超时压掉**；#70 的全量合并门数字出来后回看它是否再红。
