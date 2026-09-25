@@ -39,6 +39,8 @@ from urllib.parse import unquote, urlsplit
 import pymysql
 from pymysql.cursors import DictCursor
 
+from storage.unit_of_work import unit_of_work
+
 #: The four roles of the RBAC matrix (docs/architecture/MULTI_TENANT_DESIGN.md §2).
 ROLE_VALUES: tuple[str, ...] = ("admin", "operator", "viewer", "auditor")
 ROLE_SET: frozenset[str] = frozenset(ROLE_VALUES)
@@ -692,15 +694,8 @@ class MySqlIdentityStore:
 
     @contextmanager
     def connection(self) -> Iterator[pymysql.Connection]:
-        conn = self._connect()
-        try:
+        with unit_of_work(self._connect) as conn:
             yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
 
     def close(self) -> None:
         """No-op: each operation opens and closes its own connection."""

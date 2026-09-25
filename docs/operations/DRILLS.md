@@ -258,12 +258,13 @@
 | FIX-1 | storage/migrations.py _split_statements 先按 ";" 切分再删注释行 — 注释行内含分号时, 分号后的注释文字泄漏成假语句 (0008 的 "-- ...deferral; the relay only claims rows" 实测让 0008 应用失败) | 含分号注释的迁移无法应用 | 先删注释行再按 ";" 切分, 并保留行内 "-- " 尾部注释处理 | tests/unit/test_migrations.py 4 通过; 0008 在演练库真实应用成功 |
 | FIX-2 | providers/toolcheck.py 存在另一车道中途编辑遗留的语法损坏 (字符串字面量内裸换行, py_compile 失败) — 演练的桌面核对导入 api.server 时暴露 | 全仓 ruff/任何导入 craft/api 的代码全部失败 | 仅修复字符串字面量语法 (合并裸换行为 \n 转义) + 2 处 ruff 行宽/尾换行 | py_compile 通过; 全仓 ruff 通过; mypy strict 通过 |
 | FIX-3 | agent/mongo_saver.py 断点续跑两个缺陷: (a) put_writes 把 pending writes 塞进 checkpoint 文档子字段, 而 get_tuple 从不读取 → 待执行任务丢失; (b) get_tuple 忽略 config.checkpoint_id, 恒返回最新 checkpoint → 续跑永远找不到被杀超步的 pending 任务。**实测后果: 强杀后续跑从输入状态重放并在首个节点后停止, 空矩阵被判定映射为 VERIFIED (假通过)** | 崩溃恢复机制 (P1.6 的核心承诺) 实际不工作 | (a) pending writes 写入独立 checkpoint_writes 集合, 按 (thread_id, checkpoint_ns, checkpoint_id, task_id) 键控; (b) get_tuple 尊重显式 checkpoint_id; (c) get_tuple 以 (task_id, channel, value) 三元组挂载 pending_writes; (d) delete_thread 同步清理两集合 | 探针: 断点后续跑从第 4 个节点继续并跑完全部 15 个节点 (见 §1); Drill 1 真实强杀演练 PASS; tests/integration/test_worker_crash_mid_graph.py 11 通过 (含按新契约更新的 2 个 fake) |
+| FIX-4 | (#83) 5 个 store 的 `connection()` 逐字节相同, 形态是 `except Exception: conn.rollback(); raise` + `finally: conn.close()` — 连接被丢时 rollback/close 自己会抛 `InterfaceError: (0, '')`, 于是**每一个"连接丢了"的报错都写成"回滚坏了"**, 调查方向被指向错误的一层 (实测触发: #75 门里 `test_full_lifecycle_pending_to_verified` 的红, traceback 停在 `storage/mysql.py:200`; 单跑该文件 9 passed, 容器 `OOMKilled=false/Aborted_clients=16` ⇒ 真因是偶发丢连接) | 所有 MySQL 侧故障的报错都指不到真因; `finally` 里抛错还会把原异常整个丢弃 | 合并成唯一的 `storage/unit_of_work.py::unit_of_work(connect)`: 归还动作失败只记 WARNING (文案明说"调用方看到的那个才是真因"), 绝不再顶替原异常; 5 个 store 全部改为消费它, 不留第二份实现 | `tests/unit/test_unit_of_work.py` 27 通过 (含 5 个 store 各自的行为契约 + "storage 里不许再出现局部 rollback" 的单一来源门); 变异门 M1 归还再抛 / M2 静默吞掉 / M3 close 裸奔 / M4 干净路径不 commit / M5 某个 store 退回本地实现 = **5/5 逐条 RED** 且各自指名测试; ruff + mypy 全绿 |
 
 ## 6. 待基础设施 / 需开发清单 (如实标注, 均给出精确缺口位置)
 
 | # | 项目 | 缺口位置 | 状态 |
 |---|---|---|---|
-| 1 | 崩溃作业自动回收器 (RUNNING 超时 → 续跑/重投递) | 无任何组件调用 resume 路径; ops.drills.resume_job 是本演练的显式驱动 | ⏳ 需开发 |
+| 1 | 崩溃作业自动回收器 (RUNNING 超时 → 续跑/重投递) | 已落地: 人工入口 `specproof ops recover` (#68, 只读模式 #74), 自动周期触发在 worker 进程内 (#71, 默认 300s + Redis 作用域锁 + 重试预算上限)。仍缺的是跨进程 provider 健康信号, 所以 provider 暂停分支的定时恢复仍默认关 | ✅ 已落地 (剩 provider 信号) |
 | 2 | WAITING_FOR_PROVIDER 接线 | 生产者已接 (#64): 可重试的 provider 故障 (429/超时类) 走 CAS 暂停而非 FAILED, 且暂停未落库时不对外宣告; 仍缺的是把该行捞回来的回收器 (见第 1 行) | 🟡 生产者已接, 回收待开发 |
 | 3 | OIDC 会话注销/令牌吊销端点 | api/ 无 logout/revoke | ⏳ 需开发 |
 | 4 | Merge Certificate 撤销 | evidence/ 无撤销能力 (签名本身亦未实现, Phase 1+) | ⏳ 需开发 |

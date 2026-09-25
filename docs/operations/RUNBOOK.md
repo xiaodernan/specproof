@@ -154,6 +154,7 @@
 | 建单后一直 QUEUED | outbox_pending 高 / relay 退避 | 查 RabbitMQ; 恢复后 relay 自动续发 (at-least-once) |
 | job 停在 WAITING_FOR_PROVIDER | LLM 网关不可用 | 修网关后转 QUEUED 重试, 或人工 FAILED; job 不丢失 |
 | MySQL 不可达 | API 503 | 恢复数据库; Outbox 保证已提交任务不丢 |
+| 报错停在 `InterfaceError: (0, '')` 的 rollback/close 上 | 连接在语句执行期间被丢, 归还动作自己又失败了一次 —— 真因是"连接没了", 不是"回滚坏了" | 看同一时刻 logger=`storage.unit_of_work` 的 WARNING (它明说"调用方看到的那个才是真因"); MySQL 侧 `Aborted_clients` 只证明客户端先走, 不等于服务端故障 (#83) |
 | ES 不可达 | 检索节点诚实降级 (retrieval_note) | 修复后自然恢复, 不影响判定正确性 |
 | worker 崩溃 | lease TTL 到期 | 其他 worker 接管; Mongo checkpoint 从崩溃节点续跑 |
 | 重复 webhook | 幂等: Python 内存 delivery 键 + CP delivery_id 唯一索引 | 无需人工处理 |

@@ -20,6 +20,7 @@ from pymysql.cursors import DictCursor
 
 from contracts.events import payload_digest
 from storage.tenant_scope import current_scope
+from storage.unit_of_work import unit_of_work
 
 # ── Tenant-aware job SQL (industrialization phase 1) ─────────────
 # When a tenant scope is active (multi-tenant auth mode) every job read
@@ -192,15 +193,8 @@ class MySQLStore:
 
     @contextmanager
     def connection(self) -> Iterator[pymysql.Connection]:
-        conn = self._connect()
-        try:
+        with unit_of_work(self._connect) as conn:
             yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
 
     def close(self) -> None:
         """Compatibility close() — every operation opens and closes its own

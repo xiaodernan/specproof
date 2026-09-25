@@ -46,6 +46,7 @@ import pymysql
 from pymysql.cursors import DictCursor
 
 from storage.tenant_scope import current_scope
+from storage.unit_of_work import unit_of_work
 
 logger = logging.getLogger(__name__)
 
@@ -998,15 +999,8 @@ class MySqlBillingStore:
 
     @contextmanager
     def connection(self) -> Iterator[pymysql.Connection]:
-        conn = self._connect()
-        try:
+        with unit_of_work(self._connect) as conn:
             yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
 
     def close(self) -> None:
         """No-op: each operation opens and closes its own connection."""
