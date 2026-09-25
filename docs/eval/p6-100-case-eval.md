@@ -24,6 +24,33 @@
 新增负样本全部要求 0 finding (含 5 个 prompt-injection 文本注入到
 README/注释/requirement.txt/schema.sql/pom.xml 的沙箱语义案例)。
 
+## 1.1 案例集选择：默认跑 90，不是 100 (#77/#78)
+
+本节第 1 部分里的 "100 案例" 是**池子总大小**，不是一次评测实际测量的案例数。
+自 #77 起 `specproof eval`、自 #78 起 `specproof baseline` 都默认按
+`docs/eval/holdout-manifest.json`（case-01..case-10，status `candidate`）做隔离：
+
+| 案例集 | 命令 | 实测 (2026-09-26, 100 个 case 目录) |
+|---|---|---|
+| `tuning`（默认） | `specproof eval --cases golden-cases --repo ...` | 90 = 正 55 / 负 35 |
+| `holdout_only` | `specproof eval --only-holdout ...` | 10 = 正 8 / 负 2 |
+| `all_not_isolated` | `specproof eval --include-holdout ...` | 100（旧行为，报告会明说本轮未隔离） |
+
+规则（选择策略只有 `cli/specproof/case_set.py` 一份实现，两个命令共用）：
+
+- 三种池子的大小不能互相相减。两条命令都把 `case_set` 标签写进自己的
+  sidecar（`*.results.json`），`specproof baseline` 在两边标签不一致、或对方
+  是 #77 之前没有标签的旧文件时，把 "Go/No-Go #14 (+25pp recall)" 判为
+  **无法判定**，表里的 Delta 写成 "跨池不可比"，只保留各自的实测值。
+- manifest 读不到时 eval/baseline 直接失败，不会把"读不到"当成"没有隐藏案例"；
+  只有显式 `--include-holdout`（本来就不隔离）时才降级为警告。
+- 案例池被隔离清空（0 个可跑）不再报成 "目录里没有案例"，也不再以退出码 0 收场。
+- 第 1 部分的历史统计（正 63 / 负 37）与 CLAUDE.md 里早先的 Recall/Precision
+  都是在**合并池**上算出来的：本次隔离是事后声明（retroactive、partial），与
+  manifest 的 `note` 字段同一说法，CLI 每轮都会把该 note 原样打印出来。
+- 第 1 部分末尾的 "holdout (case-01/05/09) 锁定不动" 说的是**案例文件本身不再
+  改动**，与本节的评测隐藏集（case-01..case-10）只是名字相同，不是同一件事。
+
 ## 2. 检测面与严重度政策
 
 - 正样本优先 execution-only: 差分测试 + 状态快照 (users/products/orders

@@ -19,6 +19,10 @@ from typing import Any
 
 import click
 
+from cli.specproof.case_set import (
+    empty_pool_message,
+    plan_case_dirs,
+)
 from evidence.acceptance import (
     AcceptanceCriteria,
     MetricCounts,
@@ -79,6 +83,12 @@ def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
               help="Fewest should-detect cases required before a verdict is trusted")
 @click.option("--min-negative-cases", type=int, default=5,
               help="Fewest negative cases required before a verdict is trusted")
+@click.option("--include-holdout", is_flag=True, default=False,
+              help="关闭 holdout 隔离，隐藏案例一起跑（报告会标明本轮未隔离）")
+@click.option("--only-holdout", is_flag=True, default=False,
+              help="只跑 manifest 声明的 holdout 案例，单独报告隐藏集上的指标")
+@click.option("--holdout-manifest", default=None,
+              help="holdout manifest 路径（默认 docs/eval/holdout-manifest.json）")
 def eval_cmd(
     cases_dir: str,
     repo_path: str | None,
@@ -90,13 +100,25 @@ def eval_cmd(
     min_f1: float | None,
     min_positive_cases: int,
     min_negative_cases: int,
+    include_holdout: bool,
+    only_holdout: bool,
+    holdout_manifest: str | None,
 ) -> None:
     """Evaluate SpecProof against golden cases.
 
     Runs the full verification pipeline per case using that case's
     scenario.json refs, then compares confirmed findings with the
     ground truth (contract-id matching).
+
+    The case set is isolated by default: cases declared in
+    docs/eval/holdout-manifest.json are dropped from the run, since a
+    metric computed while the hidden cases sit in the pool is not a
+    held-out metric (#77). Every run labels the pool it measured —
+    header and sidecar — so tuning and holdout numbers can never be
+    diffed against each other by accident.
     """
+    if include_holdout and only_holdout:
+        raise click.ClickException("--include-holdout 与 --only-holdout 互斥")
     cases_path = Path(cases_dir)
     if not cases_path.exists():
         click.echo(f"ERROR: Cases directory not found: {cases_path}", err=True)
@@ -107,14 +129,27 @@ def eval_cmd(
         raise SystemExit(1)
     repo_resolved = str(Path(repo_path).resolve())
 
-    case_dirs = sorted(
+    discovered = sorted(
         d for d in cases_path.iterdir()
         if d.is_dir() and d.name.startswith("case-")
     )
 
+    plan = plan_case_dirs(
+        discovered,
+        include_holdout=include_holdout,
+        only_holdout=only_holdout,
+        manifest_path=holdout_manifest,
+    )
+    case_dirs = plan.kept
+    for line in plan.header_lines():
+        click.echo(line)
+
     if not case_dirs:
-        click.echo(f"No case directories found in {cases_path}")
-        return
+        # Zero measured cases never earns a green exit, whether the
+        # directory was empty or isolation emptied it — but the two
+        # need different fixes, so the message must not conflate them.
+        click.echo(empty_pool_message(len(discovered), plan, cases_path))
+        raise SystemExit(1)
 
     click.echo(f"Running evaluation across {len(case_dirs)} golden cases "
                f"(LLM: {'on' if use_llm else 'off'})...\n")
@@ -300,6 +335,7 @@ def eval_cmd(
     sidecar.write_text(
         json.dumps(
             {
+                "case_set": plan.as_json(),
                 "total_cases": len(results),
                 "should_detect": total_should_detect,
                 "detected": detected,

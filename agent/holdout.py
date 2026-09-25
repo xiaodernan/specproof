@@ -14,16 +14,16 @@ retroactive and partial. Consumers must surface that caveat whenever they
 report holdout metrics — the manifest ``note`` field carries the same
 wording.
 
-Integration note (cli/specproof/commands/eval.py): at commit time that
-file was modified by another lane (git status: ``M
-cli/specproof/commands/eval.py``), so the ``--exclude-holdout`` flag
-was deliberately NOT added here to avoid a write conflict. The intended
-wiring, for when that lane clears: after ``eval_cmd`` computes
-``case_dirs``, load ``HoldoutRegistry`` (default manifest) and drop
-every directory whose name satisfies ``registry.is_holdout(name)``
-unless an ``--include-holdout`` flag is passed, then print the
-skipped-case count in the run summary. The manifest
-``integration_note`` field carries the same text.
+Consumers: ``specproof eval`` and ``specproof baseline`` select their
+case set through ``cli.specproof.case_set.plan_case_dirs``, which is
+the only reader of this module outside its own tests (#77, #78).
+Isolation is on by default — declared cases leave the tuning pool —
+with ``--only-holdout`` to report the hidden set alone and
+``--include-holdout`` to merge the pool back (that run is labelled
+``all_not_isolated``). A manifest that will not load is never treated
+as "nothing is held out": the command fails instead of quietly
+measuring the hidden cases. The CLI prints this module's ``note``
+verbatim, so the retroactive caveat travels with every holdout number.
 """
 
 from __future__ import annotations

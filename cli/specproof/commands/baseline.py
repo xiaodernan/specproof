@@ -34,6 +34,11 @@ from typing import Any
 
 import click
 
+from cli.specproof.case_set import (
+    empty_pool_message,
+    plan_case_dirs,
+    pool_mismatch,
+)
 from evidence.acceptance import MetricCounts, fmt_metric, score
 
 _DIFF_CAP_CHARS = 80_000
@@ -466,8 +471,14 @@ def render_report(
     specproof: dict[str, Any] | None,
     mode: str,
     parse_failures: int = 0,
+    case_set_note: str | None = None,
 ) -> str:
-    """Markdown comparison report."""
+    """Markdown comparison report.
+
+    `case_set_note` carries why the two sides are *not* the same case
+    pool (computed by the caller from both sidecars' labels). It turns
+    the deltas into "not comparable" rather than dropping them.
+    """
     lines = [
         "# SpecProof vs 只看 Diff 基线 (Go/No-Go #14)",
         "",
@@ -500,23 +511,35 @@ def render_report(
         d_recall = _delta_pp(sp_recall, base_recall)
         d_precision = _delta_pp(sp_precision, base_precision)
         d_f1 = _delta_pp(sp_f1, base_f1)
+
+        def _delta_cell(value: float | None) -> str:
+            return "跨池不可比" if case_set_note else _pp_or_dash(value)
         lines += [
-            "## 对比 (同一 case 集合)",
+            (
+                "## 对比 (案例池不一致 — 差值不是增益)"
+                if case_set_note
+                else "## 对比 (同一 case 集合)"
+            ),
             "",
             "| Metric | SpecProof | Baseline | Delta |",
             "|---|---|---|---|",
             f"| Recall | {fmt_metric(sp_recall)} | {fmt_metric(base_recall)} "
-            f"| {_pp_or_dash(d_recall)} |",
+            f"| {_delta_cell(d_recall)} |",
             f"| Precision | {fmt_metric(sp_precision)} "
-            f"| {fmt_metric(base_precision)} | {_pp_or_dash(d_precision)} |",
+            f"| {fmt_metric(base_precision)} | {_delta_cell(d_precision)} |",
         ]
         if sp_f1 is not None or base_f1 is not None:
             lines.append(
                 f"| F1 | {fmt_metric(sp_f1)} | {fmt_metric(base_f1)} "
-                f"| {_pp_or_dash(d_f1)} |"
+                f"| {_delta_cell(d_f1)} |"
             )
         lines.append("")
-        if d_recall is None:
+        if case_set_note:
+            lines.append(
+                f"Go/No-Go #14 (+25pp recall): **无法判定** —— {case_set_note}"
+                " 跨池差值不作为增益结论。"
+            )
+        elif d_recall is None:
             lines.append(
                 "Go/No-Go #14 (+25pp recall): **无法判定** —— Recall 因样本不足"
                 "未定义；空/退化的评测集不会给出可信增益。"
@@ -566,6 +589,12 @@ def render_report(
     help="Backward-compatible alias: --llm = --mode llm, "
     "--no-llm = --mode diff-reader; an explicit flag wins over --mode.",
 )
+@click.option("--include-holdout", is_flag=True, default=False,
+              help="关闭 holdout 隔离，隐藏案例一起跑（报告会标明本轮未隔离）")
+@click.option("--only-holdout", is_flag=True, default=False,
+              help="只跑 manifest 声明的 holdout 案例")
+@click.option("--holdout-manifest", default=None,
+              help="holdout manifest 路径（默认 docs/eval/holdout-manifest.json）")
 def baseline_cmd(
     cases_dir: str,
     repo_path: str,
@@ -573,8 +602,20 @@ def baseline_cmd(
     output: str,
     mode: str,
     use_llm: bool | None,
+    include_holdout: bool,
+    only_holdout: bool,
+    holdout_manifest: str | None,
 ) -> None:
-    """Measure the diff-only reviewer baseline and compare with SpecProof."""
+    """Measure the diff-only reviewer baseline and compare with SpecProof.
+
+    The baseline runs the SAME case set `specproof eval` would: the
+    holdout manifest is applied here too (#78), because a gain computed
+    between two different pools is an arithmetic accident, not a result.
+    When the stored SpecProof sidecar disagrees about its pool, the
+    Go/No-Go gain is reported as undecidable instead of being printed.
+    """
+    if include_holdout and only_holdout:
+        raise click.ClickException("--include-holdout 与 --only-holdout 互斥")
     if use_llm is False and mode == "llm":
         raise click.UsageError("--no-llm conflicts with --mode llm")
     llm_mode = use_llm if use_llm is not None else (mode == "llm")
@@ -602,10 +643,22 @@ def baseline_cmd(
             click.echo(f"LLM baseline unavailable: {probe_reason}", err=True)
             raise SystemExit(2)
 
-    case_dirs = sorted(
+    discovered = sorted(
         d for d in cases_path.iterdir()
         if d.is_dir() and d.name.startswith("case-")
     )
+    plan = plan_case_dirs(
+        discovered,
+        include_holdout=include_holdout,
+        only_holdout=only_holdout,
+        manifest_path=holdout_manifest,
+    )
+    case_dirs = plan.kept
+    for line in plan.header_lines():
+        click.echo(line)
+    if not case_dirs:
+        click.echo(empty_pool_message(len(discovered), plan, cases_path))
+        raise SystemExit(1)
     rows: list[dict[str, Any]] = []
     for case_dir in case_dirs:
         sc_file = case_dir / "scenario.json"
@@ -661,18 +714,32 @@ def baseline_cmd(
     parse_failures = sum(1 for r in rows if r.get("llm_note"))
     summary["parse_failures"] = parse_failures
     specproof = _load_specproof_results(specproof_results)
+    case_set_note = pool_mismatch(
+        plan.as_json(),
+        specproof.get("case_set") if specproof else None,
+    )
+    if case_set_note:
+        click.echo(f"  ! 案例池不一致：{case_set_note}")
     report = render_report(
         rows, summary, specproof,
         "LLM (diff + requirement)" if llm_mode
         else "deterministic diff-reader",
         parse_failures=parse_failures,
+        case_set_note=case_set_note,
     )
 
     out = Path(output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(report, encoding="utf-8")
     out.with_suffix(".json").write_text(
-        json.dumps({"summary": summary, "cases": rows}, indent=2),
+        json.dumps(
+            {
+                "case_set": plan.as_json(),
+                "summary": summary,
+                "cases": rows,
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -686,7 +753,12 @@ def baseline_cmd(
     if specproof is not None:
         d = _delta_pp(_opt_float(specproof.get("recall")),
                       _opt_float(summary["recall"]))
-        if d is None:
+        if case_set_note:
+            click.echo(
+                "SpecProof recall vs 基线: — 无法求增益（"
+                f"{case_set_note}）。报告中的数值仍各自如实列出。"
+            )
+        elif d is None:
             click.echo(
                 f"SpecProof recall={fmt_metric(_opt_float(specproof.get('recall')))} "
                 "— 无法与基线求增益（样本不足，指标未定义）。"
