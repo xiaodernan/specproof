@@ -56,7 +56,7 @@ rowcount==1 才算成功; 静态非法转移抛 `InvalidStateTransition`; 成功
 | PENDING → ERROR | ✅ | **无生产调用点** (仅测试) | 白名单预留 |
 | QUEUED → RUNNING | ✅ | `agent/worker.py` (lease 获取后, 读当前状态 CAS) + `claim_job` 辅助 | worker_id 一并写入 |
 | QUEUED → CANCELLED | ✅ | `api/routes/jobs.py` POST /jobs/{id}/cancel | 仅用户/管理员入口, 符合冻结语义 |
-| QUEUED → STALE | ✅ | **无生产调用点** (`mark_stale_for_head` 仅测试调用) | 白名单预留; PR 同 Head 再触发不会把旧 Job 置 STALE |
+| QUEUED → STALE | ✅ | **无生产调用点** (`mark_stale_for_head(repo_path, new_job_id)` 仅测试调用) | 白名单预留; PR 同 Head 再触发不会把旧 Job 置 STALE。**作用域已收口 (#76)**: 旧实现 docstring 写 "same repo", SQL 却只有 `WHERE status IN ('QUEUED','RUNNING')` —— 一次提交会把**全表**在飞作业置 STALE (连触发它的新作业自己也置), 且 `new_head_ref` 参数从未被读。两条既有测试因为只造同一个 repo 的行, 结构上不可能发现缺作用域。现在: `repo_path = %s AND id <> %s` + 空 repo 直接 ValueError + 逐行 UPDATE 重申 `status IN ('QUEUED','RUNNING')` (并发终态写入不被覆盖), 并给作用域两侧各上真库测试 |
 | QUEUED → ERROR | ✅ | **无生产调用点** | 白名单预留 |
 | RUNNING → VERIFIED / BLOCKED / FAILED | ✅ | `agent/worker.py` 终态 (见 §2.4 映射表) | 终态 = 管线**真实结果**, 绝不无条件 VERIFIED |
 | RUNNING → CANCELLED | ✅ | API cancel CAS; worker 在阶段边界感知后以 `cancelled_at_checkpoint` 落审计 | worker 不再产生任何副作用 (§14 任务 8) |
@@ -102,7 +102,7 @@ rowcount==1 才算成功; 静态非法转移抛 `InvalidStateTransition`; 成功
 | Provider 等待进入审计 | transition 审计 + `record_audit(action=job_provider_wait_entered)` (backlog #5) | ✅ 已实现 |
 | 回收转移走白名单 | 回收器专用 CAS UPDATE (同 `mark_stale_for_head` 直写型, 附时间谓词) | ⚠️ 差异 |
 | PENDING→QUEUED | 事务内直接 UPDATE, 无审计行 | ⚠️ 差异 |
-| mark_stale_for_head | 直接 UPDATE, 无审计行、不走 CAS | ⚠️ 差异 (且无生产调用点) |
+| mark_stale_for_head | 逐行 UPDATE, 每行重申 `status IN ('QUEUED','RUNNING')` (被并发抢先落终态的行不会被覆盖), 但无审计行 | ⚠️ 差异 (且无生产调用点; repo 作用域已于 #76 收口) |
 | 每转换写事件 | 仅 JobCreated 入 Outbox; 状态转换不产事件 | ⚠️ 差异 (冻结要求每次转换写事件) |
 
 ---

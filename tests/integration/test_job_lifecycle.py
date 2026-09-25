@@ -80,7 +80,9 @@ class TestJobLifecycle:
         jid3 = self._create_job("VERIFIED")  # terminal — not staled
 
         new_job_id = str(uuid.uuid4())
-        staled = self.store.mark_stale_for_head("new-head-sha", new_job_id)
+        staled = self.store.mark_stale_for_head(
+            "/test/repo", new_job_id
+        )
 
         assert jid1 in staled
         assert jid2 in staled

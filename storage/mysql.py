@@ -1045,21 +1045,41 @@ class MySQLStore:
         )
         return changed, ("QUEUED" if changed else None)
 
-    def mark_stale_for_head(self, new_head_ref: str, new_job_id: str) -> list[str]:
-        """Mark all QUEUED/RUNNING jobs for the same repo as STALE.
+    def mark_stale_for_head(
+        self, repo_path: str, new_job_id: str
+    ) -> list[str]:
+        """Supersede one repo's in-flight jobs; every other repo is untouched.
 
-        Returns list of stale job IDs.
+        Two scoping rules the first version lacked (#76), each with a
+        test on both sides:
+
+        1. `repo_path = %s` — a new commit for repo A makes repo A's
+           queued/running jobs obsolete, not the whole queue. Without
+           it, submitting one job cancelled every other tenant's work.
+        2. `id <> %s` on the new job — the caller creates the new job
+           first (QUEUED), so an unscoped pass marked the job that
+           triggered the supersession STALE with itself as replacement.
+
+        The row-by-row UPDATE re-asserts the in-flight status, so a
+        concurrent terminal write wins instead of being overwritten.
+        Returns the job ids actually moved to STALE, in selection order.
         """
+        if not repo_path:
+            raise ValueError("repo_path is required: an empty scope would stale every repo")
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id FROM verification_jobs WHERE status IN ('QUEUED', 'RUNNING') FOR UPDATE"
+                "SELECT id FROM verification_jobs "
+                "WHERE status IN ('QUEUED', 'RUNNING') AND "
+                "repo_path = %s AND id <> %s FOR UPDATE",
+                (repo_path, new_job_id),
             )
             stale_jobs = [row["id"] for row in cursor.fetchall()]
             for sid in stale_jobs:
                 cursor.execute(
-                    "UPDATE verification_jobs SET status = 'STALE', stale_replaced_by = %s "
-                    "WHERE id = %s",
+                    "UPDATE verification_jobs SET status = 'STALE', "
+                    "stale_replaced_by = %s "
+                    "WHERE id = %s AND status IN ('QUEUED', 'RUNNING')",
                     (new_job_id, sid),
                 )
             return stale_jobs

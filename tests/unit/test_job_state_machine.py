@@ -270,20 +270,76 @@ class TestStateMachineWithDB:
         assert job["status"] == "QUEUED"
         assert job["retry_count"] == 1
 
-    def test_mark_stale_for_head(self):
-        self._insert_job("QUEUED")
-        job2 = self._track(str(uuid.uuid4()))
+    def _insert_at(self, repo_path: str, status: str) -> str:
+        jid = self._track(str(uuid.uuid4()))
         self.store.insert_job({
-            "id": job2, "repo_path": "/test/repo",
-            "base_ref": "base", "head_ref": "head2",
-            "spec_path": "/test/spec.md", "status": "RUNNING", "depth": "FAST",
+            "id": jid, "repo_path": repo_path,
+            "base_ref": "base", "head_ref": "head",
+            "spec_path": "/test/spec.md", "status": status, "depth": "FAST",
         })
-        stale_ids = self.store.mark_stale_for_head("head3", "new-job-id")
+        return jid
+
+    def test_mark_stale_for_head_supersedes_one_repo(self):
+        self._insert_job("QUEUED")
+        job2 = self._insert_at("/test/repo", "RUNNING")
+        stale_ids = self.store.mark_stale_for_head(
+            "/test/repo", "new-job-id"
+        )
         assert self.job_id in stale_ids
         assert job2 in stale_ids
         job = self.store.get_job(self.job_id)
         assert job["status"] == "STALE"
         assert job["stale_replaced_by"] == "new-job-id"
+
+    def test_mark_stale_for_head_leaves_other_repos_flying(
+        self,
+    ) -> None:
+        """The other side of the scope: another repo keeps its place.
+
+        Without this case a submission for repo A cancelled every
+        in-flight job in the table — and both older tests passed,
+        because every row they created lived in the same repo.
+        """
+        mine = self._insert_at("/test/repo-a", "QUEUED")
+        theirs_running = self._insert_at("/test/repo-b", "RUNNING")
+        theirs_queued = self._insert_at("/test/repo-b", "QUEUED")
+
+        stale_ids = self.store.mark_stale_for_head(
+            "/test/repo-a", "new-job-id"
+        )
+
+        assert mine in stale_ids
+        assert not (set(stale_ids) & {theirs_running, theirs_queued}), (
+            f"another repo was superseded: {sorted(set(stale_ids))}"
+        )
+        assert self.store.get_job(mine)["status"] == "STALE"
+        for jid in (theirs_running, theirs_queued):
+            job = self.store.get_job(jid)
+            assert job["status"] in ("RUNNING", "QUEUED"), (
+                f"{jid} was superseded by another repo's submission"
+            )
+            assert job["stale_replaced_by"] is None
+
+    def test_mark_stale_for_head_never_stales_the_new_job(
+        self,
+    ) -> None:
+        """The job that triggers the supersession must survive it."""
+        older = self._insert_at("/test/repo-c", "QUEUED")
+        new_job_id = self._insert_at("/test/repo-c", "QUEUED")
+
+        stale_ids = self.store.mark_stale_for_head(
+            "/test/repo-c", new_job_id
+        )
+
+        assert older in stale_ids
+        assert new_job_id not in stale_ids
+        assert self.store.get_job(new_job_id)["status"] == "QUEUED"
+        assert self.store.get_job(new_job_id)["stale_replaced_by"] is None
+
+    def test_mark_stale_for_head_refuses_an_empty_scope(self) -> None:
+        """repo_path="" would restore the table-wide behaviour."""
+        with pytest.raises(ValueError, match="repo_path is required"):
+            self.store.mark_stale_for_head("", "new-job-id")
 
     def test_cas_prevents_concurrent_claim(self):
         """Two claim attempts on same QUEUED job: only one succeeds."""
