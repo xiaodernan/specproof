@@ -74,6 +74,25 @@ RECLAIM_STALE_RUNNING_EXHAUSTED_ACTION = "job_stale_running_reclaim_exhausted"
 #: last_error reason for that branch, mirroring the provider-wait cap.
 STALE_RUNNING_EXHAUSTED_REASON = "stale_running_budget_exhausted"
 
+#: Read-only verdicts a dry-run reports instead of acting (#74). These
+#: describe what the CAS in reclaim_stale_running / recover_provider_wait
+#: would do, so the plan and the pass must share `retry_budget_spent`.
+PLAN_REQUEUE = "would_requeue"
+PLAN_FAIL_BUDGET = "would_fail_budget"
+PLAN_LEASE_ALIVE = "lease_alive"
+PLAN_NOT_JUDGED = "not_judged"
+
+
+def retry_budget_spent(row: dict[str, Any]) -> bool:
+    """True when this job's own retry budget is already spent.
+
+    #71 put the cap in the write path; #74 needs the same answer from a
+    reader that must not write. A second copy of the comparison is how a
+    dry-run starts describing a run that would never happen, so the CAS
+    passes and the previews all ask this function.
+    """
+    return int(row.get("retry_count") or 0) >= int(row.get("max_retries") or 0)
+
 
 class InvalidStateTransition(Exception):  # noqa: N818 — domain term, public API
     """Raised when a job status transition is not allowed."""
@@ -827,8 +846,9 @@ class MySQLStore:
         produce duplicate transitions.
 
         The retry budget caps the reclaim itself. A candidate whose own
-        ``retry_count >= max_retries`` (the same cap ``recover_provider_wait``
-        applies) is NOT requeued: the CAS moves it RUNNING→FAILED with reason
+        budget is spent (``retry_budget_spent`` — the same predicate
+        ``recover_provider_wait`` applies) is NOT requeued: the CAS moves it
+        RUNNING→FAILED with reason
         ``stale_running_budget_exhausted`` and it is reported in
         ``ReclaimOutcome.exhausted``. Without that cap a job that kills every
         worker it lands on would be requeued forever the moment a periodic
@@ -862,7 +882,7 @@ class MySQLStore:
                 continue
             retry_count = int(row.get("retry_count") or 0)
             max_retries = int(row.get("max_retries") or 0)
-            budget_spent = retry_count >= max_retries
+            budget_spent = retry_budget_spent(row)
             to_status = "FAILED" if budget_spent else "QUEUED"
             reason = json.dumps(
                 {
@@ -943,6 +963,19 @@ class MySQLStore:
             )
             return cast(list[dict[str, Any]], cur.fetchall())
 
+    def list_stale_running_candidates(
+        self, lease_ttl_seconds: int
+    ) -> list[dict[str, Any]]:
+        """Read-only view of the rows a reclaim pass would consider.
+
+        Shares `_stale_running_candidates` with `reclaim_stale_running` on
+        purpose: `specproof ops recover --dry-run` (#74) must enumerate the
+        same rows the CAS would touch, so there is exactly one definition
+        of "stale RUNNING" in the codebase. This method issues no UPDATE,
+        writes no audit row and re-delivers nothing.
+        """
+        return self._stale_running_candidates(lease_ttl_seconds)
+
     # ── WAITING_FOR_PROVIDER wiring (provider outage retry) ────
 
     def enter_provider_wait(
@@ -985,7 +1018,7 @@ class MySQLStore:
     ) -> tuple[bool, str | None]:
         """Recover one WAITING_FOR_PROVIDER job: QUEUED (retry) or FAILED.
 
-        Retry budget: ``retry_count < max_retries`` → CAS
+        Retry budget: while ``retry_budget_spent(job)`` is false, CAS
         WAITING_FOR_PROVIDER → QUEUED with ``retry_count = retry_count + 1``
         (audited by transition_job_status); budget exhausted → CAS
         WAITING_FOR_PROVIDER → FAILED, the job's own max_retries column
@@ -995,9 +1028,7 @@ class MySQLStore:
         job = self.get_job(job_id)
         if job is None or str(job.get("status", "")) != "WAITING_FOR_PROVIDER":
             return False, None
-        retry_count = int(job.get("retry_count") or 0)
-        max_retries = int(job.get("max_retries") or 0)
-        if retry_count >= max_retries:
+        if retry_budget_spent(job):
             changed = self.transition_job_status(
                 job_id,
                 "FAILED",

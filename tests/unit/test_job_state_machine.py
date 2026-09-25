@@ -1,5 +1,6 @@
 """P1.1 Unit tests: Job state machine validation."""
 
+import contextlib
 import json
 import uuid
 from typing import Any
@@ -180,7 +181,14 @@ class TestStateMachineStatic:
 
 
 class TestStateMachineWithDB:
-    """Tests that require a MySQL connection (integration-style but fast)."""
+    """Tests that require a MySQL connection (integration-style but fast).
+
+    Every row these tests write goes into the real `verification_jobs`
+    table, so teardown deletes what the test created and then proves the
+    row is gone (#73). A leftover RUNNING row is not harmless litter:
+    `specproof ops recover` reads exactly that shape — RUNNING plus a stale
+    updated_at — as a hung job and re-delivers it.
+    """
 
     @pytest.fixture(autouse=True)
     def setup(self):
@@ -190,8 +198,29 @@ class TestStateMachineWithDB:
         except Exception:
             pytest.skip("MySQL not available")
         self.job_id = str(uuid.uuid4())
+        self.created: list[str] = []
+        try:
+            yield
+        finally:
+            leftovers: list[str] = []
+            for jid in self.created:
+                with contextlib.suppress(Exception):
+                    self.store.delete_job_records(jid)
+                if self.store.get_job(jid) is not None:
+                    leftovers.append(jid)
+            assert not leftovers, (
+                "test rows survived into the shared verification_jobs table: "
+                f"{leftovers} — a leftover RUNNING row is what the reclaim "
+                "pass steals (#73)"
+            )
+
+    def _track(self, jid: str) -> str:
+        if jid not in self.created:
+            self.created.append(jid)
+        return jid
 
     def _insert_job(self, status: str = "PENDING") -> None:
+        self._track(self.job_id)
         self.store.insert_job({
             "id": self.job_id,
             "repo_path": "/test/repo",
@@ -243,7 +272,7 @@ class TestStateMachineWithDB:
 
     def test_mark_stale_for_head(self):
         self._insert_job("QUEUED")
-        job2 = str(uuid.uuid4())
+        job2 = self._track(str(uuid.uuid4()))
         self.store.insert_job({
             "id": job2, "repo_path": "/test/repo",
             "base_ref": "base", "head_ref": "head2",
@@ -278,7 +307,7 @@ class TestStateMachineWithDB:
 
     def test_terminal_cannot_transition(self):
         for status in TERMINAL_STATUSES:
-            jid = str(uuid.uuid4())
+            jid = self._track(str(uuid.uuid4()))
             self.store.insert_job({
                 "id": jid, "repo_path": "/test/repo",
                 "base_ref": "base", "head_ref": "head",

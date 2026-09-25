@@ -23,6 +23,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +42,16 @@ from agent.state import initial_state
 from agent.worktree_reclaimer import reclaim_orphans
 from evidence.verdict import evaluate_verification
 from observability.metrics import incr, observe_duration, set_gauge
-from storage.mysql import InvalidStateTransition, MySQLStore, ReclaimOutcome
+from storage.mysql import (
+    PLAN_FAIL_BUDGET,
+    PLAN_LEASE_ALIVE,
+    PLAN_NOT_JUDGED,
+    PLAN_REQUEUE,
+    InvalidStateTransition,
+    MySQLStore,
+    ReclaimOutcome,
+    retry_budget_spent,
+)
 from storage.rabbitmq import RabbitMQClient, make_idempotency_check
 from storage.redis import RedisStore
 
@@ -1029,6 +1039,117 @@ def reclaim_stale_running_jobs(
     redis.close()
     store.close()
     return outcome
+
+
+@dataclass
+class ReclaimPlan:
+    """What a reclaim pass WOULD do, computed without touching a row (#74).
+
+    A separate type from ReclaimOutcome on purpose: an outcome reports
+    transitions that already happened, a plan reports transitions that were
+    not made. Filling one shape with the other's meaning is how a read-only
+    mode ends up claiming work it never did.
+    """
+
+    rows: list[dict[str, Any]] = field(default_factory=list)
+    lease_probe_error: str | None = None
+
+    def job_ids(self, verdict: str) -> list[str]:
+        """Job ids carrying this verdict, in candidate order."""
+        return [str(r["job_id"]) for r in self.rows if r["verdict"] == verdict]
+
+
+def preview_stale_running_jobs(
+    *,
+    lease_ttl_seconds: int = 30,
+) -> ReclaimPlan:
+    """Read-only sibling of `reclaim_stale_running_jobs` (#74).
+
+    Same candidate query, same Redis lease probe and same budget
+    predicate as the mutating pass — but no UPDATE, no audit row and no
+    re-delivery, so an operator can ask "is anything stuck?" without
+    moving a job. When Redis cannot answer the lease question the pass
+    stops judging (remaining candidates are reported as `not_judged`)
+    rather than inventing a verdict — mirroring the way the real pass
+    refuses to requeue what it cannot prove dead.
+    """
+    store = MySQLStore()
+    redis = RedisStore()
+    try:
+        candidates = store.list_stale_running_candidates(lease_ttl_seconds)
+        rows: list[dict[str, Any]] = []
+        probe_error: str | None = None
+        for row in candidates:
+            job_id = str(row["id"])
+            if probe_error is not None:
+                lease, verdict = "unknown", PLAN_NOT_JUDGED
+            else:
+                try:
+                    alive = redis.get_lease_owner(job_id) is not None
+                except Exception as exc:  # noqa: BLE001 — 判不了 ≠ 已过期
+                    probe_error = f"{type(exc).__name__}: {str(exc)[:300]}"
+                    lease, verdict = "unknown", PLAN_NOT_JUDGED
+                else:
+                    lease = "alive" if alive else "lost"
+                    verdict = (
+                        PLAN_LEASE_ALIVE
+                        if alive
+                        else (
+                            PLAN_FAIL_BUDGET
+                            if retry_budget_spent(row)
+                            else PLAN_REQUEUE
+                        )
+                    )
+            rows.append(
+                {
+                    "job_id": job_id,
+                    "repo_path": row.get("repo_path"),
+                    "worker_id": row.get("worker_id"),
+                    "retry_count": int(row.get("retry_count") or 0),
+                    "max_retries": int(row.get("max_retries") or 0),
+                    "updated_at": str(row.get("updated_at") or ""),
+                    "lease": lease,
+                    "verdict": verdict,
+                }
+            )
+        return ReclaimPlan(rows=rows, lease_probe_error=probe_error)
+    finally:
+        with contextlib.suppress(Exception):
+            redis.close()
+        with contextlib.suppress(Exception):
+            store.close()
+
+
+def preview_waiting_for_provider_jobs() -> list[dict[str, Any]]:
+    """Read-only sibling of `recover_waiting_for_provider_jobs` (#74).
+
+    Lists the parked jobs and the budget verdict each one would get.
+    Deliberately does not answer "is the provider back?": that probe is
+    per-process and default-off, so a dry-run that claimed the provider
+    was healthy would be an invented verdict.
+    """
+    store = MySQLStore()
+    try:
+        rows = store.get_jobs_by_status("WAITING_FOR_PROVIDER")
+    finally:
+        with contextlib.suppress(Exception):
+            store.close()
+    planned: list[dict[str, Any]] = []
+    for row in rows:
+        planned.append(
+            {
+                "job_id": str(row["id"]),
+                "repo_path": row.get("repo_path"),
+                "retry_count": int(row.get("retry_count") or 0),
+                "max_retries": int(row.get("max_retries") or 0),
+                "verdict": (
+                    PLAN_FAIL_BUDGET
+                    if retry_budget_spent(row)
+                    else PLAN_REQUEUE
+                ),
+            }
+        )
+    return planned
 
 
 def recover_waiting_for_provider_jobs(
