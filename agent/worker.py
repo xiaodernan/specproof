@@ -316,6 +316,16 @@ class Worker:
             # parked (provider-wait) job keeps its in-progress Check Run:
             # the retried run completes it honestly.
             if not provider_wait:
+                # §13.6-4: the verdict-family counters (jobs_failed_total …)
+                # only count rounds whose graph ran to the terminal
+                # transition — their incr sites sit past it. An exception
+                # round ends HERE, so without this counter those rounds were
+                # invisible: verdict-family failure rates underestimated by
+                # dropping them from numerator AND denominator. Additive on
+                # purpose — jobs_failed_total keeps its "graph finished,
+                # verdict FAILED" semantics and existing alert queries are
+                # untouched; read the two together for the full picture.
+                incr("worker_exception_failures_total")
                 # ONE summary for both outward channels, so a Check Run and a
                 # notification cannot report the same failure differently.
                 failure_summary = _failure_summary(

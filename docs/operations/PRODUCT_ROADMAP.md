@@ -1297,3 +1297,60 @@ P1/P2 都被同一个测试接住是**有意设计**：该测试断言"行信封
   **2873 passed, 5 skipped, 880.27s (14:40)，GATE_EXIT=0**。
 - 对账：批次 A 的 2868 + worker 侧 2（阶段溯源两例）+ notify 侧 1 +
   github_checks 侧 1 + 词表门 1 = **2873**，与实测逐位吻合。
+
+## 21. §12.6-2 按证据收口 + 异常失败轮次可见（2026-09-25）
+
+### 21.1 §20.6-3 的前置问题有了答案：accept 与执行**同轮**发生
+
+§12.6-2 登记的"Craft 车道仍是两次写"悬着一个前置问题：accept 是否可能与
+执行同轮发生？本轮把调用链读完：
+
+- `craft.accept.persist_accept_result`（唯一 attach 入口）的生产调用点只有
+  两处：`api/agent_runtime.py:681`（**运行时线程，run 刚结束时**）与
+  CLI `specproof craft accept --job`（用户事后手动）。
+- runtime 这条路径的代码（`api/agent_runtime.py:664-693`）明确写着：终态
+  状态由 CraftLoop 自己写（`update_status(result_json=report)` at finish），
+  runtime 随后在发终态 progress 事件**之前** attach accept——注释原文：
+  "Persist BEFORE the terminal event: a client that reacts to the terminal
+  status by refetching must not land in a window where the job says 'done'
+  while its acceptance record is still missing"。
+
+**结论**： accept 与执行同轮（毫秒级窗口），且 SSE 终态事件被刻意排在
+attach 之后；轮询窗口确实存在但宽度是毫秒级，且 #14 已把 UI 的对应分支
+改成诚实话术（"这一次'可稍后刷新'是真的"）。**登记项收口**：
+①CLI accept 是终态之后的独立动作（first-attach-wins、幂等），它的两次写
+**不可能也不应该**合并——那不是窗口，是两个不同的用户动作；②runtime 同轮
+窗口的彻底关闭需要 CraftLoop 在写终态前计算 accept 投影（跨 craft/loop.py
+与 api/agent_runtime.py 的重构），收益对冲不了风险，**判定不做**，除非
+将来轮询方报出真实的可观察问题。
+
+### 21.2 §13.6-4 收口：新增 `worker_exception_failures_total`，不改旧口径
+
+登记的事实：verdict 族（`jobs_failed_total` 等）的 incr 点在"图跑完并成功
+落终态"之后，抛异常的轮次一次也不进族——按族算失败率时分子分母同时缺，
+失败率被系统性低估。原登记说这是"口径决策"：直接把异常轮次补进
+`jobs_failed_total` 会改变该名字的历史语义，可能破坏既有告警查询。
+
+**采取增量方案**：新计数 `worker_exception_failures_total`，只在"异常路径
+落 FAILED 成功"的轮次 +1（`agent/worker.py` 失败分支的 `if not
+provider_wait:` 块内——暂停轮次不算失败，CAS 被拒的轮次已由
+`worker_terminal_cas_lost_total` 覆盖）。`jobs_failed_total` 语义原样保留，
+全量失败 = 两名相加；读法同时写进 OBSERVABILITY.md 的指标清单段与 incr
+点注释。OBSERVABILITY.md 的"三个生产上报模块"清单同步 +1。
+
+### 21.3 探针 Q 与门证
+
+- 探针 Q（删除该 incr，模拟旧行为）⇒
+  `test_exception_failure_counts_where_the_verdict_family_cannot` 红；
+  按字节还原 sha 复核一致。新测试同时断言**暂停轮次不计**（429 + 预算内
+  ⇒ delta == 0），防止计数器把"等待"说成"失败"。
+- `ruff check .` ⇒ All checks passed!；`mypy .` ⇒ Success: no issues found
+  in 211 source files；`test_worker_cancel_points.py` **24 passed**。
+- 全量合并门：见 21.4 追记。
+
+### 21.4 全量合并门（追记）
+
+- `pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒
+  **2874 passed, 5 skipped, 808.38s (13:28)，GATE_EXIT=0**。
+- 对账：批次 B 的 2873 + 本批 worker 侧 1（异常失败计数两分支断言合为一例）
+  = **2874**，逐位吻合。

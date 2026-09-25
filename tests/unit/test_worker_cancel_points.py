@@ -954,3 +954,33 @@ def test_failure_before_any_stage_records_no_stage(
     assert "failed_after_stage" not in envelope
     assert "failed_after_stage" not in announcements.published[0][1]
     assert "failed_after_stage" not in announcements.notified[0]
+
+
+def test_exception_failure_counts_where_the_verdict_family_cannot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """§13.6-4: an exception round ends before the verdict-family incr
+    sites, so jobs_failed_total never saw it — the additive
+    worker_exception_failures_total makes the round visible without
+    changing the existing family's semantics. A parked round is NOT an
+    exception failure: the row is waiting, not failed."""
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()
+    log, mysql, _redis, _announcements = _run_failing_job(
+        monkeypatch, TimeoutError("mvnw timed out"),
+    )
+    after = metrics_module.snapshot()
+
+    assert "w:FAILED" in log
+    assert _counter_delta(after, before, "worker_exception_failures_total") == 1.0
+
+    before_park = metrics_module.snapshot()
+    log_park, mysql_park, _r2, _a2 = _run_failing_job(monkeypatch, _rate_limited())
+    after_park = metrics_module.snapshot()
+
+    assert "w:WAITING_FOR_PROVIDER" in log_park
+    assert "FAILED" not in [t for t, _kw in mysql_park.transitions]
+    assert _counter_delta(
+        after_park, before_park, "worker_exception_failures_total"
+    ) == 0.0
