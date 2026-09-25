@@ -11,7 +11,7 @@ import json
 import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, cast
 
@@ -68,6 +68,11 @@ TERMINAL_STATUSES = {"VERIFIED", "BLOCKED", "STALE", "CANCELLED", "ERROR"}
 RECLAIM_STALE_RUNNING_ACTION = "job_reclaimed_stale_running"
 #: last_error reason when a WAITING_FOR_PROVIDER job has spent its retry budget.
 PROVIDER_WAIT_EXHAUSTED_REASON = "provider_wait_retries_exhausted"
+#: Audit action when the reclaimer finds a stale RUNNING job whose own
+#: retry budget is spent (RUNNING→FAILED instead of RUNNING→QUEUED).
+RECLAIM_STALE_RUNNING_EXHAUSTED_ACTION = "job_stale_running_reclaim_exhausted"
+#: last_error reason for that branch, mirroring the provider-wait cap.
+STALE_RUNNING_EXHAUSTED_REASON = "stale_running_budget_exhausted"
 
 
 class InvalidStateTransition(Exception):  # noqa: N818 — domain term, public API
@@ -119,6 +124,31 @@ class MySQLConfig:
             read_timeout=int(os.getenv("MYSQL_READ_TIMEOUT", "15")),
             write_timeout=int(os.getenv("MYSQL_WRITE_TIMEOUT", "15")),
         )
+
+
+@dataclass(frozen=True)
+class ReclaimOutcome:
+    """What one stale-RUNNING reclaim pass actually determined.
+
+    ``reclaimed`` survives an early stop on purpose: an operator must never be
+    told "nothing was reclaimed" after rows were already moved back to QUEUED
+    and re-delivered. ``lease_probe_error`` is None only when every heartbeat
+    probe answered — a probe that cannot reach Redis leaves the lease UNKNOWN,
+    which is a different fact from "the lease expired", so the pass stops there
+    instead of stealing jobs it cannot judge.
+
+    ``exhausted`` holds the candidates whose own retry budget was already
+    spent (``retry_count >= max_retries``): they were moved to FAILED and
+    must not be re-delivered. It is a separate list, not a flag on
+    ``reclaimed``, because the two branches mean opposite things to an
+    operator — one job came back, another one ended for good.
+    """
+
+    reclaimed: list[dict[str, Any]]
+    candidates: int
+    probed: int
+    lease_probe_error: str | None = None
+    exhausted: list[dict[str, Any]] = field(default_factory=list)
 
 
 class MySQLStore:
@@ -764,7 +794,7 @@ class MySQLStore:
         lease_ttl_seconds: int,
         *,
         lease_alive: Callable[[str], bool],
-    ) -> list[dict[str, Any]]:
+    ) -> ReclaimOutcome:
         """Atomically return lease-expired, heartbeat-less RUNNING jobs to QUEUED.
 
         Staleness is decided in two steps, mirroring the worker lease
@@ -793,52 +823,109 @@ class MySQLStore:
         updated_at) is left alone. Every reclaim writes an audit row
         (action ``job_reclaimed_stale_running``) and a JSON reason
         envelope into last_error. Re-running the reclaimer finds no stale
-        RUNNING rows and returns [], so repeated calls never produce
-        duplicate transitions.
+        RUNNING rows and yields an empty outcome, so repeated calls never
+        produce duplicate transitions.
+
+        The retry budget caps the reclaim itself. A candidate whose own
+        ``retry_count >= max_retries`` (the same cap ``recover_provider_wait``
+        applies) is NOT requeued: the CAS moves it RUNNING→FAILED with reason
+        ``stale_running_budget_exhausted`` and it is reported in
+        ``ReclaimOutcome.exhausted``. Without that cap a job that kills every
+        worker it lands on would be requeued forever the moment a periodic
+        reclaim tick exists.
+
+        A candidate is only skipped when the probe says the lease is alive.
+        When ``lease_alive`` raises (Redis unreachable / not answering) the
+        pass stops right there: unknown heartbeat is not evidence of a dead
+        worker, and continuing would requeue live jobs. Whatever was already
+        reclaimed comes back in ``ReclaimOutcome.reclaimed`` together with
+        ``lease_probe_error``, so the abort is reported, not hidden.
         """
         if lease_ttl_seconds < 1:
             raise ValueError("lease_ttl_seconds must be >= 1")
         candidates = self._stale_running_candidates(lease_ttl_seconds)
         reclaimed: list[dict[str, Any]] = []
-        for row in candidates:
+        exhausted: list[dict[str, Any]] = []
+        for index, row in enumerate(candidates):
             job_id = str(row["id"])
-            if lease_alive(job_id):
+            try:
+                lease_alive_result = lease_alive(job_id)
+            except Exception as exc:  # noqa: BLE001 — 租约判不了 ≠ 租约已消失
+                return ReclaimOutcome(
+                    reclaimed=reclaimed,
+                    exhausted=exhausted,
+                    candidates=len(candidates),
+                    probed=index,
+                    lease_probe_error=f"{type(exc).__name__}: {str(exc)[:300]}",
+                )
+            if lease_alive_result:
                 continue
+            retry_count = int(row.get("retry_count") or 0)
+            max_retries = int(row.get("max_retries") or 0)
+            budget_spent = retry_count >= max_retries
+            to_status = "FAILED" if budget_spent else "QUEUED"
             reason = json.dumps(
                 {
-                    "reason": "stale_running_reclaimed",
+                    "reason": (
+                        STALE_RUNNING_EXHAUSTED_REASON
+                        if budget_spent
+                        else "stale_running_reclaimed"
+                    ),
                     "lease_ttl_seconds": lease_ttl_seconds,
+                    "retry_count": retry_count,
+                    "max_retries": max_retries,
                     "previous_worker": row.get("worker_id") or None,
                 },
                 ensure_ascii=False,
             )
             with self.connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE verification_jobs SET status = 'QUEUED', "
-                    "worker_id = NULL, retry_count = retry_count + 1, "
-                    "last_error = %s "
-                    "WHERE id = %s AND status = 'RUNNING' AND "
-                    "updated_at < (NOW(3) - INTERVAL %s SECOND)",
-                    (reason, job_id, lease_ttl_seconds),
-                )
+                if budget_spent:
+                    cursor.execute(
+                        "UPDATE verification_jobs SET status = 'FAILED', "
+                        "worker_id = NULL, last_error = %s "
+                        "WHERE id = %s AND status = 'RUNNING' AND "
+                        "updated_at < (NOW(3) - INTERVAL %s SECOND)",
+                        (reason, job_id, lease_ttl_seconds),
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE verification_jobs SET status = 'QUEUED', "
+                        "worker_id = NULL, retry_count = retry_count + 1, "
+                        "last_error = %s "
+                        "WHERE id = %s AND status = 'RUNNING' AND "
+                        "updated_at < (NOW(3) - INTERVAL %s SECOND)",
+                        (reason, job_id, lease_ttl_seconds),
+                    )
                 changed = bool(cursor.rowcount == 1)
             if not changed:
                 continue
             self.record_audit(
-                action=RECLAIM_STALE_RUNNING_ACTION,
+                action=(
+                    RECLAIM_STALE_RUNNING_EXHAUSTED_ACTION
+                    if budget_spent
+                    else RECLAIM_STALE_RUNNING_ACTION
+                ),
                 actor="reclaimer",
                 job_id=job_id,
                 from_status="RUNNING",
-                to_status="QUEUED",
+                to_status=to_status,
                 detail=reason,
             )
-            row["status"] = "QUEUED"
+            row["status"] = to_status
             row["worker_id"] = None
-            row["retry_count"] = int(row.get("retry_count") or 0) + 1
             row["last_error"] = reason
-            reclaimed.append(row)
-        return reclaimed
+            if budget_spent:
+                exhausted.append(row)
+            else:
+                row["retry_count"] = retry_count + 1
+                reclaimed.append(row)
+        return ReclaimOutcome(
+            reclaimed=reclaimed,
+            exhausted=exhausted,
+            candidates=len(candidates),
+            probed=len(candidates),
+        )
 
     def _stale_running_candidates(
         self, lease_ttl_seconds: int,

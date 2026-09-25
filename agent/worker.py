@@ -41,7 +41,7 @@ from agent.state import initial_state
 from agent.worktree_reclaimer import reclaim_orphans
 from evidence.verdict import evaluate_verification
 from observability.metrics import incr, observe_duration, set_gauge
-from storage.mysql import InvalidStateTransition, MySQLStore
+from storage.mysql import InvalidStateTransition, MySQLStore, ReclaimOutcome
 from storage.rabbitmq import RabbitMQClient, make_idempotency_check
 from storage.redis import RedisStore
 
@@ -965,26 +965,43 @@ def _redeliver_job(job: dict[str, Any], attempt: int) -> None:
         rabbitmq.close()
 
 
-def reclaim_stale_running_jobs(lease_ttl_seconds: int = 30) -> list[dict[str, Any]]:
+def reclaim_stale_running_jobs(
+    lease_ttl_seconds: int = 30,
+) -> ReclaimOutcome:
     """Standalone RUNNING-job reclaimer: lease-expired, heartbeat-less → QUEUED.
 
     Wires MySQLStore.reclaim_stale_running (CAS: status=RUNNING AND
     updated_at < now-ttl, per-job audit) to the Redis lease key as the
     heartbeat probe — ``RedisStore.get_lease_owner`` returns None exactly
-    when the lease expired or was never renewed. Each reclaimed job is
-    re-delivered to q.p1.verify.job with a fresh event_id (best-effort;
-    the audited QUEUED transition stands even if the broker is down).
+    when the lease expired or was never renewed, and raises when Redis cannot
+    answer (then the pass stops without stealing; see ReclaimOutcome).
+    Each reclaimed job is re-delivered to q.p1.verify.job with a fresh
+    event_id (best-effort; the audited QUEUED transition stands even if the
+    broker is down).
 
-    Returns the reclaimed job rows (post-reclaim retry_count), or [] when
-    nothing was stale.
+    A candidate whose retry budget is already spent was moved to FAILED by
+    the store and is deliberately NOT re-delivered here — that is what keeps
+    a deterministically crashing job from cycling through the queue forever
+    once a periodic tick exists. It is logged and counted instead, because
+    a budget-exhausted FAILED needs a human resubmit.
     """
     store = MySQLStore()
     redis = RedisStore()
-    reclaimed = store.reclaim_stale_running(
+    outcome = store.reclaim_stale_running(
         lease_ttl_seconds,
         lease_alive=lambda job_id: redis.get_lease_owner(job_id) is not None,
     )
-    for row in reclaimed:
+    if outcome.lease_probe_error is not None:
+        incr("worker_reclaim_lease_probe_unknown_total")
+        logger.warning(
+            "Lease probe unavailable (%s); reclaim stopped after %d/%d "
+            "candidates — %d already reclaimed",
+            outcome.lease_probe_error,
+            outcome.probed,
+            outcome.candidates,
+            len(outcome.reclaimed),
+        )
+    for row in outcome.reclaimed:
         attempt = int(row.get("retry_count") or 1)
         try:
             _redeliver_job(row, attempt)
@@ -996,9 +1013,22 @@ def reclaim_stale_running_jobs(lease_ttl_seconds: int = 30) -> list[dict[str, An
             logger.warning(
                 "Job %s reclaimed but re-delivery failed: %s", row["id"], exc
             )
+    if outcome.exhausted:
+        incr(
+            "worker_reclaim_retry_budget_exhausted_total",
+            float(len(outcome.exhausted)),
+        )
+        for row in outcome.exhausted:
+            logger.error(
+                "Job %s left FAILED: stale RUNNING with retry_count %s/%s, "
+                "budget exhausted — not re-delivered, needs a human resubmit",
+                row["id"],
+                int(row.get("retry_count") or 0),
+                int(row.get("max_retries") or 0),
+            )
     redis.close()
     store.close()
-    return reclaimed
+    return outcome
 
 
 def recover_waiting_for_provider_jobs(

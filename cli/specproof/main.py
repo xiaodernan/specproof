@@ -28,6 +28,7 @@ from cli.specproof.commands.devtools import devtools_cmd  # noqa: E402
 from cli.specproof.commands.eval import eval_cmd  # noqa: E402
 from cli.specproof.commands.fix import approve_cmd, fix_cmd  # noqa: E402
 from cli.specproof.commands.mcp import mcp_cmd  # noqa: E402
+from cli.specproof.commands.ops import ops_cmd  # noqa: E402
 from cli.specproof.commands.probe import probe  # noqa: E402
 from cli.specproof.commands.quickstart import quickstart  # noqa: E402
 from cli.specproof.commands.replay import replay  # noqa: E402
@@ -49,6 +50,8 @@ HELP_EPILOG = """\b
     specproof probe   (需要 LLM_BASE_URL / LLM_API_KEY 环境变量)
   网页工作台 (演示数据 + 审批流, 需要 Docker):
     pwsh scripts/start_local.ps1
+  作业卡住了 (收回 worker 崩掉后的 RUNNING、模型服务故障后的摆放):
+    specproof ops recover
 
 \b
 结果怎么读 Reading the verdict
@@ -79,6 +82,7 @@ cli.add_command(fix_cmd)
 cli.add_command(approve_cmd)
 cli.add_command(mcp_cmd)
 cli.add_command(devtools_cmd)
+cli.add_command(ops_cmd)
 
 
 if __name__ == "__main__":

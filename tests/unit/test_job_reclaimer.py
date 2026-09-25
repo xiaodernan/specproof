@@ -22,7 +22,10 @@ from agent.worker import Worker
 from storage.mysql import (
     PROVIDER_WAIT_EXHAUSTED_REASON,
     RECLAIM_STALE_RUNNING_ACTION,
+    RECLAIM_STALE_RUNNING_EXHAUSTED_ACTION,
+    STALE_RUNNING_EXHAUSTED_REASON,
     MySQLStore,
+    ReclaimOutcome,
 )
 
 NOW = datetime(2026, 8, 20, 12, 0, 0)
@@ -33,6 +36,10 @@ class FakeJobTable:
 
     def __init__(self, rows: list[dict[str, Any]], now: datetime) -> None:
         self.now = now
+        # The SQL strings the production code actually sent. The in-memory
+        # semantics below cannot catch a wrong clause in the statement text,
+        # and MySQL runs that text verbatim, so the text is asserted too.
+        self.statements: list[str] = []
         self.rows: dict[str, dict[str, Any]] = {
             str(row["id"]): dict(row) for row in rows
         }
@@ -50,18 +57,35 @@ class FakeJobTable:
         candidates.sort(key=lambda row: (row["updated_at"], str(row["id"])))
         return candidates
 
-    def reclaim_cas(self, job_id: str, ttl_seconds: int, reason: str) -> int:
-        """Apply the reclaim UPDATE; returns the matched row count (0 or 1)."""
+    def _stale_match(self, job_id: str, ttl_seconds: int) -> dict[str, Any] | None:
         row = self.rows.get(job_id)
         if row is None:
-            return 0
+            return None
         if row["status"] != "RUNNING" or row["updated_at"] >= self.cutoff(
             ttl_seconds
         ):
+            return None
+        return row
+
+    def reclaim_cas(self, job_id: str, ttl_seconds: int, reason: str) -> int:
+        """Apply the reclaim UPDATE; returns the matched row count (0 or 1)."""
+        row = self._stale_match(job_id, ttl_seconds)
+        if row is None:
             return 0
         row["status"] = "QUEUED"
         row["worker_id"] = None
         row["retry_count"] = int(row.get("retry_count") or 0) + 1
+        row["last_error"] = reason
+        row["updated_at"] = self.now
+        return 1
+
+    def fail_cas(self, job_id: str, ttl_seconds: int, reason: str) -> int:
+        """Apply the budget-exhausted UPDATE (no retry_count bump)."""
+        row = self._stale_match(job_id, ttl_seconds)
+        if row is None:
+            return 0
+        row["status"] = "FAILED"
+        row["worker_id"] = None
         row["last_error"] = reason
         row["updated_at"] = self.now
         return 1
@@ -81,6 +105,7 @@ class FakeCursor:
         self, sql: str, params: tuple[Any, ...] | list[Any] | None = None,
     ) -> None:
         self.sql = sql
+        self.table.statements.append(sql)
         self.params = list(params or [])
         self._select_rows = []
         self.rowcount = 0
@@ -93,6 +118,11 @@ class FakeCursor:
             job_id = str(self.params[1])
             ttl = int(self.params[2])
             self.rowcount = self.table.reclaim_cas(job_id, ttl, reason)
+        elif sql.startswith("UPDATE verification_jobs SET status = 'FAILED'"):
+            reason = str(self.params[0])
+            job_id = str(self.params[1])
+            ttl = int(self.params[2])
+            self.rowcount = self.table.fail_cas(job_id, ttl, reason)
 
     def fetchall(self) -> list[dict[str, Any]]:
         return self._select_rows
@@ -162,7 +192,7 @@ def test_reclaims_stale_running_job_and_audits() -> None:
     )
     store, audits = _store_with_fake_db(table)
 
-    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive)
+    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive).reclaimed
 
     assert [row["id"] for row in reclaimed] == ["j-stale"]
     row = table.rows["j-stale"]
@@ -191,7 +221,7 @@ def test_live_lease_heartbeat_skips_candidate() -> None:
     def alive(job_id: str) -> bool:
         return job_id == "j-alive"
 
-    reclaimed = store.reclaim_stale_running(30, lease_alive=alive)
+    reclaimed = store.reclaim_stale_running(30, lease_alive=alive).reclaimed
 
     assert reclaimed == []
     assert table.rows["j-alive"]["status"] == "RUNNING"
@@ -204,7 +234,7 @@ def test_fresh_updated_at_within_ttl_is_not_reclaimed() -> None:
     )
     store, audits = _store_with_fake_db(table)
 
-    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive)
+    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive).reclaimed
 
     assert reclaimed == []
     assert table.rows["j-fresh"]["status"] == "RUNNING"
@@ -222,7 +252,7 @@ def test_non_running_rows_are_untouched() -> None:
     )
     store, audits = _store_with_fake_db(table)
 
-    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive)
+    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive).reclaimed
 
     assert reclaimed == []
     assert audits == []
@@ -237,8 +267,8 @@ def test_reclaimer_is_idempotent() -> None:
     )
     store, audits = _store_with_fake_db(table)
 
-    first = store.reclaim_stale_running(30, lease_alive=_never_alive)
-    second = store.reclaim_stale_running(30, lease_alive=_never_alive)
+    first = store.reclaim_stale_running(30, lease_alive=_never_alive).reclaimed
+    second = store.reclaim_stale_running(30, lease_alive=_never_alive).reclaimed
 
     assert [row["id"] for row in first] == ["j-stale"]
     assert second == []
@@ -263,7 +293,7 @@ def test_reclaim_cas_lost_race_is_not_counted() -> None:
 
     table.reclaim_cas = win_race  # type: ignore[method-assign]
 
-    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive)
+    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive).reclaimed
 
     assert reclaimed == []
     assert audits == []
@@ -287,7 +317,7 @@ def test_reclaims_every_stale_job_exactly_once() -> None:
     )
     store, audits = _store_with_fake_db(table)
 
-    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive)
+    reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive).reclaimed
 
     assert sorted(row["id"] for row in reclaimed) == ["j-a", "j-b"]
     assert len(audits) == 2
@@ -613,15 +643,29 @@ def test_worker_non_retryable_provider_error_still_fails(
 
 
 class FakeReclaimStore:
-    def __init__(self, rows: list[dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        lease_probe_error: str | None = None,
+        exhausted: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.rows = rows
+        self.exhausted = exhausted or []
         self.calls: list[tuple[int, Callable[[str], bool]]] = []
+        self.lease_probe_error = lease_probe_error
 
     def reclaim_stale_running(
         self, lease_ttl_seconds: int, *, lease_alive: Callable[[str], bool],
-    ) -> list[dict[str, Any]]:
+    ) -> ReclaimOutcome:
         self.calls.append((lease_ttl_seconds, lease_alive))
-        return list(self.rows)
+        return ReclaimOutcome(
+            reclaimed=list(self.rows),
+            exhausted=list(self.exhausted),
+            candidates=len(self.rows) + len(self.exhausted),
+            probed=len(self.rows) + len(self.exhausted),
+            lease_probe_error=self.lease_probe_error,
+        )
 
     def close(self) -> None:
         return None
@@ -675,7 +719,7 @@ def test_standalone_reclaimer_wires_lease_probe_and_redelivers(
 
     result = worker_module.reclaim_stale_running_jobs(lease_ttl_seconds=30)
 
-    assert result == [dict(_RECLAIMED_ROW)]
+    assert result.reclaimed == [dict(_RECLAIMED_ROW)]
     assert store.calls[0][0] == 30
     probe = store.calls[0][1]
     assert probe("j1") is False  # lease key absent -> heartbeat dead
@@ -716,7 +760,7 @@ def test_standalone_reclaimer_tolerates_redelivery_failure(
 
     result = worker_module.reclaim_stale_running_jobs(lease_ttl_seconds=30)
 
-    assert result == [dict(_RECLAIMED_ROW)]  # the audited MySQL reclaim stands
+    assert result.reclaimed == [dict(_RECLAIMED_ROW)]  # the audited MySQL reclaim stands
 
 
 class FakeRecoverStore:
@@ -817,3 +861,317 @@ def test_standalone_recover_skips_cas_lost_races(
     assert results == []
     assert rabbit.published == []
 
+
+def test_unknown_lease_stops_pass_and_keeps_reclaimed_rows() -> None:
+    """Redis cannot answer != the lease expired: stop, and report the partial pass.
+
+    Before this contract, a Redis outage looked exactly like "every heartbeat is
+    dead" on the first candidate, or aborted the caller with a raw traceback that
+    hid the jobs already requeued. Neither may happen: the pass stops at the
+    unknown probe and the rows already reclaimed come back with it.
+    """
+    table = FakeJobTable(
+        [
+            _job("j-first", "RUNNING", NOW - timedelta(seconds=200)),
+            _job("j-second", "RUNNING", NOW - timedelta(seconds=190)),
+            _job("j-third", "RUNNING", NOW - timedelta(seconds=180)),
+        ],
+        NOW,
+    )
+    store, audits = _store_with_fake_db(table)
+    probed: list[str] = []
+
+    def probe(job_id: str) -> bool:
+        probed.append(job_id)
+        if job_id == "j-second":
+            raise ConnectionError("redis unreachable")
+        return False
+
+    outcome = store.reclaim_stale_running(30, lease_alive=probe)
+
+    assert [row["id"] for row in outcome.reclaimed] == ["j-first"]
+    assert outcome.candidates == 3
+    assert outcome.probed == 1
+    assert outcome.lease_probe_error is not None
+    assert "ConnectionError" in outcome.lease_probe_error
+    # the unknown candidate and everything after it are untouched
+    assert table.rows["j-second"]["status"] == "RUNNING"
+    assert table.rows["j-third"]["status"] == "RUNNING"
+    assert probed == ["j-first", "j-second"]
+    assert [a["job_id"] for a in audits] == ["j-first"]
+
+
+def test_answering_probe_leaves_no_error_marker() -> None:
+    table = FakeJobTable(
+        [_job("j-stale", "RUNNING", NOW - timedelta(seconds=120))], NOW
+    )
+    store, _audits = _store_with_fake_db(table)
+
+    outcome = store.reclaim_stale_running(30, lease_alive=_never_alive)
+
+    assert outcome.lease_probe_error is None
+    assert outcome.probed == outcome.candidates == 1
+
+
+def test_worker_reclaimer_passes_probe_error_through_without_redelivering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The requeued job is the reclaimed one only — an unknown lease is not stolen."""
+    store = FakeReclaimStore(
+        [dict(_RECLAIMED_ROW)], lease_probe_error="ConnectionError: redis unreachable"
+    )
+    redis = FakeLeaseRedis(owner=None)
+    rabbit = FakeRabbit()
+    monkeypatch.setattr(worker_module, "MySQLStore", lambda: store)
+    monkeypatch.setattr(worker_module, "RedisStore", lambda: redis)
+    monkeypatch.setattr(worker_module, "RabbitMQClient", lambda: rabbit)
+
+    from observability import metrics
+
+    before = metrics.snapshot()["counters"].get(
+        "worker_reclaim_lease_probe_unknown_total", 0.0
+    )
+    outcome = worker_module.reclaim_stale_running_jobs(lease_ttl_seconds=30)
+
+    assert outcome.lease_probe_error == "ConnectionError: redis unreachable"
+    assert [row["id"] for row in outcome.reclaimed] == ["j1"]
+    assert len(rabbit.published) == 1  # only the actually reclaimed job
+    after = metrics.snapshot()["counters"].get(
+        "worker_reclaim_lease_probe_unknown_total", 0.0
+    )
+    assert after - before == 1.0
+
+
+# ── #71: the reclaim itself is capped by the job's own retry budget ──
+
+
+def test_budget_exhausted_candidate_goes_to_failed_not_queued() -> None:
+    table = FakeJobTable(
+        [
+            _job(
+                "j-broke",
+                "RUNNING",
+                NOW - timedelta(seconds=120),
+                retry_count=3,
+                max_retries=3,
+                worker_id="w-9",
+            )
+        ],
+        NOW,
+    )
+    store, audits = _store_with_fake_db(table)
+
+    outcome = store.reclaim_stale_running(30, lease_alive=_never_alive)
+
+    assert outcome.reclaimed == []
+    assert [row["id"] for row in outcome.exhausted] == ["j-broke"]
+    row = table.rows["j-broke"]
+    assert row["status"] == "FAILED"
+    assert row["worker_id"] is None
+    assert row["retry_count"] == 3  # the FAILED branch never bumps the budget
+    reason = json.loads(row["last_error"])
+    assert reason["reason"] == STALE_RUNNING_EXHAUSTED_REASON
+    assert reason["retry_count"] == 3
+    assert reason["max_retries"] == 3
+    assert reason["previous_worker"] == "w-9"
+    assert len(audits) == 1
+    assert audits[0]["action"] == RECLAIM_STALE_RUNNING_EXHAUSTED_ACTION
+    assert audits[0]["from_status"] == "RUNNING"
+    assert audits[0]["to_status"] == "FAILED"
+
+
+def test_budget_is_read_per_row_not_from_a_global_constant() -> None:
+    """max_retries=1 is spent at once; max_retries=5 still has room."""
+    table = FakeJobTable(
+        [
+            _job(
+                "j-tight",
+                "RUNNING",
+                NOW - timedelta(seconds=200),
+                retry_count=1,
+                max_retries=1,
+            ),
+            _job(
+                "j-loose",
+                "RUNNING",
+                NOW - timedelta(seconds=190),
+                retry_count=1,
+                max_retries=5,
+            ),
+        ],
+        NOW,
+    )
+    store, audits = _store_with_fake_db(table)
+
+    outcome = store.reclaim_stale_running(30, lease_alive=_never_alive)
+
+    assert [row["id"] for row in outcome.reclaimed] == ["j-loose"]
+    assert [row["id"] for row in outcome.exhausted] == ["j-tight"]
+    assert table.rows["j-tight"]["status"] == "FAILED"
+    assert table.rows["j-tight"]["retry_count"] == 1
+    assert table.rows["j-loose"]["status"] == "QUEUED"
+    assert table.rows["j-loose"]["retry_count"] == 2
+    assert [a["to_status"] for a in audits] == ["FAILED", "QUEUED"]
+
+
+def test_repeated_reclaim_of_a_crashing_job_converges_and_stops() -> None:
+    """The harm the cap prevents: a periodic tick must not requeue forever."""
+    table = FakeJobTable(
+        [
+            _job(
+                "j-crash",
+                "RUNNING",
+                NOW - timedelta(seconds=120),
+                retry_count=2,
+                max_retries=3,
+            )
+        ],
+        NOW,
+    )
+    store, audits = _store_with_fake_db(table)
+
+    statuses: list[str] = []
+    for _ in range(6):
+        row = table.rows["j-crash"]
+        if row["status"] == "QUEUED":
+            # A worker claims the requeued job and dies on it again, which is
+            # what makes the row a stale-RUNNING candidate for the next tick.
+            row["status"] = "RUNNING"
+            row["worker_id"] = "w-loop"
+        row["updated_at"] = NOW - timedelta(seconds=120)
+        store.reclaim_stale_running(30, lease_alive=_never_alive)
+        statuses.append(str(row["status"]))
+
+    assert statuses == ["QUEUED", "FAILED", "FAILED", "FAILED", "FAILED", "FAILED"]
+    assert len(audits) == 2  # one QUEUED, one FAILED; nothing after that
+
+
+def test_failed_cas_lost_race_is_not_reported_as_exhausted() -> None:
+    table = FakeJobTable(
+        [
+            _job(
+                "j-race",
+                "RUNNING",
+                NOW - timedelta(seconds=120),
+                retry_count=5,
+                max_retries=5,
+            )
+        ],
+        NOW,
+    )
+    store, audits = _store_with_fake_db(table)
+
+    original = table.fail_cas
+
+    def win_race(job_id: str, ttl_seconds: int, reason: str) -> int:
+        if table.rows[job_id]["status"] == "RUNNING":
+            table.rows[job_id]["status"] = "CANCELLED"
+        return original(job_id, ttl_seconds, reason)
+
+    table.fail_cas = win_race  # type: ignore[method-assign]
+
+    outcome = store.reclaim_stale_running(30, lease_alive=_never_alive)
+
+    assert outcome.exhausted == []
+    assert outcome.reclaimed == []
+    assert audits == []
+    assert table.rows["j-race"]["status"] == "CANCELLED"
+
+
+def test_unknown_lease_never_reaches_the_budget_check() -> None:
+    """A probe that cannot answer stops the pass before any status is written."""
+    table = FakeJobTable(
+        [
+            _job(
+                "j-unknown",
+                "RUNNING",
+                NOW - timedelta(seconds=120),
+                retry_count=9,
+                max_retries=1,
+            )
+        ],
+        NOW,
+    )
+    store, audits = _store_with_fake_db(table)
+
+    def probe(job_id: str) -> bool:
+        raise ConnectionError("redis unreachable")
+
+    outcome = store.reclaim_stale_running(30, lease_alive=probe)
+
+    assert outcome.exhausted == []
+    assert outcome.lease_probe_error is not None
+    assert table.rows["j-unknown"]["status"] == "RUNNING"
+    assert audits == []
+
+
+def test_worker_does_not_redeliver_budget_exhausted_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Re-delivering a FAILED job would restart exactly the crash loop the cap ends."""
+    from observability import metrics
+
+    dead_row = dict(_RECLAIMED_ROW)
+    dead_row.update({"id": "j-dead", "retry_count": 3, "max_retries": 3})
+    store = FakeReclaimStore([dict(_RECLAIMED_ROW)], exhausted=[dead_row])
+    redis = FakeLeaseRedis(owner=None)
+    rabbit = FakeRabbit()
+    monkeypatch.setattr(worker_module, "MySQLStore", lambda: store)
+    monkeypatch.setattr(worker_module, "RedisStore", lambda: redis)
+    monkeypatch.setattr(worker_module, "RabbitMQClient", lambda: rabbit)
+
+    before = metrics.snapshot()["counters"].get(
+        "worker_reclaim_retry_budget_exhausted_total", 0.0
+    )
+    outcome = worker_module.reclaim_stale_running_jobs(lease_ttl_seconds=30)
+    after = metrics.snapshot()["counters"].get(
+        "worker_reclaim_retry_budget_exhausted_total", 0.0
+    )
+
+    assert [row["id"] for row in outcome.reclaimed] == ["j1"]
+    assert [p[1]["job_id"] for p in rabbit.published] == ["j1"]
+    assert after - before == 1.0
+
+
+
+def test_both_cas_statement_shapes_are_what_the_budget_branch_needs() -> None:
+    """A wrong clause in the SQL text is invisible to the in-memory fake.
+
+    RUNNING→QUEUED must carry the increment (that is how the budget is spent);
+    RUNNING→FAILED must not touch retry_count or the last_error reason of a
+    row nobody will run again.
+    """
+    table = FakeJobTable(
+        [
+            _job(
+                "j-ok",
+                "RUNNING",
+                NOW - timedelta(seconds=200),
+                retry_count=0,
+                max_retries=3,
+            ),
+            _job(
+                "j-dead",
+                "RUNNING",
+                NOW - timedelta(seconds=190),
+                retry_count=3,
+                max_retries=3,
+            ),
+        ],
+        NOW,
+    )
+    store, _ = _store_with_fake_db(table)
+
+    store.reclaim_stale_running(30, lease_alive=_never_alive)
+
+    queued = [s for s in table.statements if "SET status = 'QUEUED'" in s]
+    failed = [s for s in table.statements if "SET status = 'FAILED'" in s]
+    assert len(queued) == 1
+    assert len(failed) == 1
+    assert "retry_count = retry_count + 1" in queued[0]
+    assert "retry_count" not in failed[0]
+    # Both branches keep the same double guard, or a pass could move a row that
+    # a live worker just refreshed.
+    for stmt in (queued[0], failed[0]):
+        assert "status = 'RUNNING'" in stmt
+        assert "updated_at < (NOW(3) - INTERVAL %s SECOND)" in stmt

@@ -157,7 +157,7 @@
 - identity CLI (python -m api.identity.cli): init-admin / mint-token / list-users 三个子命令 (实测)。
 - 宿主工具实测: docker ✅, git ✅; mysqldump/mongodump/mc/redis-cli 宿主未安装 → 全部走容器内二进制 (docker exec)。
 - broker 实测: docker exec specproof-rabbitmq rabbitmqctl list_queues 输出 7 条队列 (q.p1.verify.job + .retry + .dlq + 4 条 phase0 队列); purge_queue 语法实测确认。
-- 缺口实测: integrations/notify/ (webhook/Slack 连接器) 存在且有单测 — 原"主管道零调用点"缺口已于 #65 接掉 (worker 在每一次被接受的终态写入之后调用 _maybe_notify_terminal); 但默认仍不发声: 未设 SPECPROOF_NOTIFY_WEBHOOK_URL 时工厂返回 DisabledConnector, 只有 specproof_notify_disabled_total 在涨; evidence/ 无任何 revoke/吊销 能力; api/ 无 logout 端点; worker 无启动回收器; WAITING_FOR_PROVIDER 的生产者已于 #64 接上 (可重试 provider 故障改为暂停), 缺的是回收器。
+- 缺口实测: integrations/notify/ (webhook/Slack 连接器) 存在且有单测 — 原"主管道零调用点"缺口已于 #65 接掉 (worker 在每一次被接受的终态写入之后调用 _maybe_notify_terminal); 但默认仍不发声: 未设 SPECPROOF_NOTIFY_WEBHOOK_URL 时工厂返回 DisabledConnector, 只有 specproof_notify_disabled_total 在涨; evidence/ 无任何 revoke/吊销 能力; api/ 无 logout 端点; WAITING_FOR_PROVIDER 的生产者已于 #64 接上 (可重试 provider 故障改为暂停)。**回收器触发点已于 #68 接上**: `specproof ops recover` (cli/specproof/commands/ops.py) 是 `reclaim_stale_running_jobs` / `recover_waiting_for_provider_jobs` 的生产调用点, 单测锁住「命令确实调用这两个函数」并锁住「判定失败不等于没有卡住的作业」; 仍缺的是**自动周期触发** (#71) —— 没人敲命令就没人回收。周期触发的两个前置之一已落地 (#71)：`reclaim_stale_running` 现在受作业自身 `retry_count >= max_retries` 约束，预算耗尽直接 RUNNING→FAILED 且不重投，所以默认开的 tick 不会把必然崩溃的作业无限重投；剩下那个前置是 provider 健康信号 —— 没有它，`recover_waiting_for_provider_jobs` 的定时轮会在模型服务仍在故障时空跑掉重试预算，把作业直接判成 FAILED。
 
 ### 3.1 六动词映射矩阵
 
