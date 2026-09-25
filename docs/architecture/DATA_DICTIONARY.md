@@ -434,7 +434,7 @@ epoch 秒 DOUBLE/REAL (与 `storage/identity.py` / `storage/billing.py` 的可�
 | specproof:stream:job:{job_id}:seq | string (INCR, 每事件 +1) | 键 TTL 86400 s (与流同写同过期) | `storage/redis.py` `xadd_progress` | 每作业 SSE 单调序列号计数器 (MAXLEN trim 后仍单调; 供事件载荷 `sequence` 字段) |
 | specproof:lease:job:{job_id} | string SET NX EX 30 | 30 s (每阶段续租) | worker acquire/renew; Lua 保证仅持有者可 release | Worker 租约 (防重复处理/失租快速失败) |
 | specproof:budget:job:{job_id} | string (DECRBY 消费, 超支回滚) | 7200 s | `storage/redis.py` `init/consume_budget` | LLM token 预算 |
-| specproof:lock:job:{job_id} | string SET NX EX 300 | 300 s | `storage/redis.py` `acquire_lock` | 互斥锁 |
+| specproof:lock:scope:{scope} | string SET NX EX ttl，值为持有者 token | 调用方 ttl (回收扫描 120 s) | `storage/redis.py` `acquire_scope_lock` / `release_scope_lock` | 互斥锁（**集群级作业锁**，不是按作业号的锁；释放要求 token 匹配，否则超时的那轮会删掉接班者的锁。唯一读写者是 #71 的周期回收 tick，scope=`stale-job-sweep`；以前的 `specproof:lock:job:{job_id}` 从未被任何代码调用过）|
 | specproof:cache:model:{cache_key} | string (SETEX, JSON) | 3600 s (默认) | `storage/redis.py` `cache_llm_response` | LLM 响应语义缓存 |
 | specproof:capability:{base_url_hash} | string (SETEX) | 86400 s | `storage/redis.py` `cache_provider_capability` | Provider 能力探测缓存 |
 | specproof:idempotent:{event_id} | string SET NX EX 86400 | 86400 s | `storage/rabbitmq.py` `make_idempotency_check` | RabbitMQ 消息幂等 (重复投递丢弃) |

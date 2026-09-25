@@ -68,7 +68,7 @@
 | specproof:stream:job:<job_id> | 86400 s | SSE 进度流 (MAXLEN 1000) |
 | specproof:lease:job:<job_id> | 30 s | Worker 租约 |
 | specproof:budget:job:<job_id> | 7200 s | LLM token 预算 |
-| specproof:lock:job:<job_id> | 300 s | 互斥锁 |
+| specproof:lock:scope:<scope> | 调用方 ttl（回收扫描 120 s）| 集群级互斥锁（#71 周期回收）|
 | specproof:cache:model:<key> | 3600 s | LLM 语义缓存 |
 | specproof:capability:<base_url_hash> | 86400 s | Provider 能力探测缓存 |
 | specproof:idempotent:<event_id> | 86400 s | 事件幂等键 |

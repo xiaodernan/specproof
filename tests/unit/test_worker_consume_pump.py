@@ -61,6 +61,9 @@ class _FakeRedisStore:
     def __init__(self) -> None:
         self.client = _FakeRedisClient()
 
+    def close(self) -> None:
+        return None
+
 
 class _FakeMysqlStore:
     def close(self) -> None:
@@ -95,14 +98,21 @@ def test_worker_start_wires_correct_idempotency_adapter(
     monkeypatch.setattr(worker_module, "MySQLStore", lambda: _FakeMysqlStore())
 
     worker = Worker()
-    worker.start()
+    try:
+        worker.start()
 
-    assert fake_rabbit.consume_kwargs["queue"] == "q.p1.verify.job"
-    check = fake_rabbit.consume_kwargs["idempotency_fn"]
-    assert callable(check)
-    assert check("event-1") is False  # new event: process it
-    assert check("event-1") is True  # repeat: duplicate, drop it
-    assert check("event-2") is False  # a different event is new
+        assert fake_rabbit.consume_kwargs["queue"] == "q.p1.verify.job"
+        check = fake_rabbit.consume_kwargs["idempotency_fn"]
+        assert callable(check)
+        assert check("event-1") is False  # new event: process it
+        assert check("event-1") is True  # repeat: duplicate, drop it
+        assert check("event-2") is False  # a different event is new
+    finally:
+        # start() owns the reclaim tick thread (#71), which waits its whole
+        # interval before its first sweep. A session is far longer than that,
+        # and by then monkeypatch is undone — a leaked worker would run a real
+        # sweep against live MySQL/Redis. stop() joins it.
+        worker.stop()
 
 
 def test_main_pumps_the_consumption_loop(monkeypatch: pytest.MonkeyPatch) -> None:

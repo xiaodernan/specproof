@@ -66,6 +66,8 @@ class Worker:
         worker_id: str | None = None,
         lease_ttl: int = 30,
         lease_max_hold: int | None = None,
+        reclaim_interval: int | None = None,
+        provider_park_seconds: int | None = None,
     ) -> None:
         self.worker_id = worker_id or f"worker-{os.getpid()}-{int(time.time())}"
         self.lease_ttl = lease_ttl
@@ -83,6 +85,29 @@ class Worker:
         # the top of _handle_job_impl). The failure path reports it so the
         # row and the outward channels can say where the run died (#13.6-3).
         self._last_completed_stage: str | None = None
+        # Periodic stuck-job sweep (#71). A worker that dies mid-job
+        # leaves a RUNNING row that only a reclaimer can move; since
+        # #68 that reclaimer had to be started by a human.
+        self.reclaim_interval = (
+            reclaim_interval
+            if reclaim_interval is not None
+            else int(
+                os.getenv(
+                    "WORKER_RECLAIM_INTERVAL_SECONDS",
+                    str(DEFAULT_RECLAIM_INTERVAL_SECONDS),
+                )
+            )
+        )
+        # No model-provider health probe exists in this codebase, so
+        # the tick does not guess: parked jobs are only released once
+        # an operator states how long is long enough (0 = never).
+        self.provider_park_seconds = (
+            provider_park_seconds
+            if provider_park_seconds is not None
+            else int(os.getenv("WORKER_PROVIDER_PARK_MAX_SECONDS", "0"))
+        )
+        self._reclaim_stop = threading.Event()
+        self._reclaim_thread: threading.Thread | None = None
 
     @property
     def compiled_graph(self) -> Any:
@@ -105,6 +130,7 @@ class Worker:
         """
         self._running = True
         self.rabbitmq.ensure_topology()
+        self._start_reclaim_tick()
 
         logger.info("Worker %s starting consumption", self.worker_id)
         self.rabbitmq.consume_with_policy(
@@ -116,10 +142,86 @@ class Worker:
 
     def stop(self) -> None:
         self._running = False
+        self._stop_reclaim_tick()
         self.rabbitmq.close()
         self.redis.close()
         self.mysql.close()
         logger.info("Worker %s stopped", self.worker_id)
+
+    # ── Periodic stuck-job sweep (#71) ──────────────────────────
+
+    def _start_reclaim_tick(self) -> None:
+        """Launch the sweep thread; interval <= 0 keeps recovery manual-only."""
+        if self.reclaim_interval <= 0:
+            logger.info(
+                "Reclaim tick disabled (interval %s) — stuck jobs need "
+                "`specproof ops recover`",
+                self.reclaim_interval,
+            )
+            return
+        if self._reclaim_thread is not None and self._reclaim_thread.is_alive():
+            return
+        self._reclaim_stop.clear()
+        self._reclaim_thread = threading.Thread(
+            target=self._reclaim_loop,
+            name="verify-reclaim-tick",
+            daemon=True,
+        )
+        self._reclaim_thread.start()
+        logger.info(
+            "Reclaim tick started: every %ds, lease ttl %ds, provider park %s",
+            self.reclaim_interval,
+            self.lease_ttl,
+            f">{self.provider_park_seconds}s"
+            if self.provider_park_seconds > 0
+            else "not auto-released",
+        )
+
+    def _stop_reclaim_tick(self) -> None:
+        """Ask the sweep thread to finish, and wait a little for it.
+
+        The wait is what makes stop() honest: the thread opens its own
+        stores per pass, so returning while it is still mid-pass lets it
+        use connections the process is on its way out of.
+        """
+        self._reclaim_stop.set()
+        thread = self._reclaim_thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=5.0)
+            if thread.is_alive():  # pragma: no cover — daemon, bounded by TTL
+                logger.warning("Reclaim tick still running after stop(); leaving it")
+        self._reclaim_thread = None
+
+    def _reclaim_loop(self) -> None:
+        """Sweep once per interval until stop() is called.
+
+        Waits BEFORE the first pass: this process has only just started, and
+        a candidate has to be lease-expired to be reclaimable anyway. Each
+        pass is isolated on purpose — a sweep that raises (MySQL restarting,
+        one malformed row) must leave the timer running, because the outage
+        that broke the pass is exactly the outage that will leave jobs stuck
+        and needing the next one.
+        """
+        while not self._reclaim_stop.wait(self.reclaim_interval):
+            try:
+                result = self._reclaim_once()
+            except Exception:  # noqa: BLE001 — the tick outlives any single pass
+                incr("worker_reclaim_pass_error_total")
+                logger.exception("Reclaim pass raised; tick continues on schedule")
+                continue
+            logger.info("Reclaim tick: %s", result.summary())
+
+    def _reclaim_once(self) -> ReclaimPass:
+        result = run_reclaim_pass(
+            lease_ttl_seconds=self.lease_ttl,
+            min_parked_seconds=self.provider_park_seconds,
+        )
+        # The gauge answers "is the sweeper alive", which is a different
+        # question from "did it find anything" — a tick that stopped ticking
+        # keeps reporting the last sweep's counters as if they were current.
+        set_gauge("worker_reclaim_last_ok_timestamp_seconds", time.time())
+        return result
+
 
     def execute_job(self, job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Run one job synchronously (for testing / direct invocation).
@@ -975,6 +1077,115 @@ def _redeliver_job(job: dict[str, Any], attempt: int) -> None:
         rabbitmq.close()
 
 
+#: One fleet-wide lock name for the periodic stuck-job sweep (#71).
+RECLAIM_SCOPE = "stale-job-sweep"
+#: How often the sweep runs by default. 0 disables it, which puts recovery
+#: back on the manual `specproof ops recover` entry point (#68).
+DEFAULT_RECLAIM_INTERVAL_SECONDS = 300
+#: A sweep lock outlives a healthy pass but not the next interval, so a
+#: replica that dies mid-sweep cannot block recovery indefinitely.
+RECLAIM_LOCK_TTL_SECONDS = 120
+
+
+@dataclass
+class ReclaimPass:
+    """What one guarded sweep did — including "nothing, and on whose account".
+
+    `lock_state` is never left to imply a result: "held_by_other" means a
+    replica did run the sweep, "acquired" with empty lists means nothing was
+    stuck. Reporting the second as the first would make a healthy fleet look
+    like a working one and hide a sweep that stopped reclaiming anything.
+    """
+
+    lock_state: str
+    reclaimed: list[str] = field(default_factory=list)
+    exhausted: list[str] = field(default_factory=list)
+    provider_recovered: list[tuple[str, str]] = field(default_factory=list)
+
+    def ran(self) -> bool:
+        return self.lock_state == "acquired"
+
+    def summary(self) -> str:
+        if not self.ran():
+            return f"skipped ({self.lock_state})"
+        return (
+            f"reclaimed={len(self.reclaimed)} "
+            f"budget_exhausted={len(self.exhausted)} "
+            f"provider_recovered={len(self.provider_recovered)}"
+            + (f" ids={','.join(self.reclaimed)}" if self.reclaimed else "")
+            + (
+                f" failed_ids={','.join(self.exhausted)}"
+                if self.exhausted
+                else ""
+            )
+        )
+
+
+def run_reclaim_pass(
+    *,
+    lease_ttl_seconds: int = 30,
+    min_parked_seconds: int = 0,
+    provider_ready: Callable[[], bool] | None = None,
+    lock_ttl_seconds: int = RECLAIM_LOCK_TTL_SECONDS,
+) -> ReclaimPass:
+    """One guarded sweep of both stuck-job recovery entries (#71).
+
+    This is the body a timer calls. The two functions it drives already
+    had a production caller — a human typing `specproof ops recover` — so
+    a crashed worker's job waited for someone to notice it was stuck.
+
+    The scope lock is what makes running this in every replica at once
+    safe; without it each replica re-delivers the same reclaimed job to
+    q.p1.verify.job. When Redis cannot answer, the sweep is skipped
+    rather than run unlocked, and that loses nothing: the same Redis is
+    the lease probe, so a sweep with Redis down stops at its first
+    candidate as "lease unknown" and reclaims nothing anyway.
+
+    Exceptions deliberately propagate — the caller is the tick loop, which
+    owns the decision to survive a bad pass.
+    """
+    redis = RedisStore()
+    token: str | None = None
+    try:
+        try:
+            token = redis.acquire_scope_lock(RECLAIM_SCOPE, ttl=lock_ttl_seconds)
+        except Exception as exc:  # noqa: BLE001 — unknown lock state is not a free lock
+            incr("worker_reclaim_lock_unknown_total")
+            logger.warning(
+                "Reclaim lock state unknown (%s); sweep skipped this interval", exc
+            )
+            return ReclaimPass(lock_state="unavailable")
+        if token is None:
+            incr("worker_reclaim_lock_held_total")
+            logger.debug("Another worker holds the reclaim lock; sweep skipped")
+            return ReclaimPass(lock_state="held_by_other")
+
+        outcome = reclaim_stale_running_jobs(lease_ttl_seconds)
+        provider: list[tuple[str, str]] = []
+        if min_parked_seconds > 0:
+            provider = recover_waiting_for_provider_jobs(
+                provider_ready=provider_ready,
+                min_parked_seconds=min_parked_seconds,
+            )
+        else:
+            incr("worker_reclaim_provider_wait_deferred_total")
+        return ReclaimPass(
+            lock_state="acquired",
+            reclaimed=[str(row["id"]) for row in outcome.reclaimed],
+            exhausted=[str(row["id"]) for row in outcome.exhausted],
+            provider_recovered=provider,
+        )
+    finally:
+        if token is not None:
+            try:
+                redis.release_scope_lock(RECLAIM_SCOPE, token)
+            except Exception as exc:  # noqa: BLE001 — the TTL expires it regardless
+                logger.warning(
+                    "Reclaim lock release failed (%s); it expires on its own", exc
+                )
+        redis.close()
+
+
 def reclaim_stale_running_jobs(
     lease_ttl_seconds: int = 30,
 ) -> ReclaimOutcome:
@@ -1155,6 +1366,7 @@ def preview_waiting_for_provider_jobs() -> list[dict[str, Any]]:
 def recover_waiting_for_provider_jobs(
     *,
     provider_ready: Callable[[], bool] | None = None,
+    min_parked_seconds: int = 0,
 ) -> list[tuple[str, str]]:
     """Recover WAITING_FOR_PROVIDER jobs: QUEUED under budget, FAILED over it.
 
@@ -1165,6 +1377,14 @@ def recover_waiting_for_provider_jobs(
     provider_ready probe is supplied (e.g. a CircuitBreaker state check),
     jobs stay parked until it reports True.
 
+    `min_parked_seconds` is for the caller with NO probe to offer —
+    the periodic sweep (#71). Releasing every parked row on a timer
+    would spend each job's retry budget while the provider is still
+    down and turn a recoverable park into "FAILED, needs a human
+    resubmit", so the sweep only releases rows the database itself
+    attests have been parked that long, and only when an operator
+    named the threshold. 0 keeps the previous behaviour (all rows).
+
     Returns [(job_id, new_status), ...] for every recovered job.
     """
     if provider_ready is not None and not provider_ready():
@@ -1172,7 +1392,12 @@ def recover_waiting_for_provider_jobs(
         return []
     store = MySQLStore()
     results: list[tuple[str, str]] = []
-    for row in store.get_jobs_by_status("WAITING_FOR_PROVIDER"):
+    rows = (
+        store.list_provider_wait_parked(min_parked_seconds)
+        if min_parked_seconds > 0
+        else store.get_jobs_by_status("WAITING_FOR_PROVIDER")
+    )
+    for row in rows:
         job_id = str(row["id"])
         changed, new_status = store.recover_provider_wait(job_id)
         if not changed or new_status is None:

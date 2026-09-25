@@ -558,6 +558,37 @@ class MySQLStore:
             )
             return cast(list[dict[str, Any]], cur.fetchall())
 
+    def list_provider_wait_parked(
+        self, min_parked_seconds: int
+    ) -> list[dict[str, Any]]:
+        """WAITING_FOR_PROVIDER rows parked at least this long (DB clock).
+
+        `updated_at` is when the job entered the park (the transition
+        that set the status writes the row), so this asks 'has nobody
+        resolved this in N seconds' — the closest honest substitute for
+        a provider health probe, which this codebase does not have.
+
+        The comparison runs in SQL against NOW(3), matching
+        reclaim_stale_running and list_stale_running_candidates: a
+        worker process with a skewed clock must not get to decide how
+        long a job has been waiting for the model provider.
+        """
+        if min_parked_seconds <= 0:
+            raise ValueError(
+                "min_parked_seconds 必须为正数；0 表示不自动放行停放作业，"
+                "调用方应跳过本查询而不是放宽成无上限"
+            )
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT * FROM verification_jobs "
+                "WHERE status = 'WAITING_FOR_PROVIDER' "
+                "AND updated_at < (NOW(3) - INTERVAL %s SECOND) "
+                "ORDER BY updated_at, id",
+                (min_parked_seconds,),
+            )
+            return cast(list[dict[str, Any]], cur.fetchall())
+
     def search_jobs(
         self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
     ) -> dict[str, Any]:

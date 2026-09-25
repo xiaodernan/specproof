@@ -68,6 +68,14 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-specproof_pass}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      # Stuck-job sweep (#71): a worker that dies mid-job leaves a
+      # RUNNING row only the reclaimer can move. Every replica ticks,
+      # and a Redis scope lock keeps it one sweep per interval.
+      # 0 = manual `specproof ops recover` only.
+      WORKER_RECLAIM_INTERVAL_SECONDS: ${WORKER_RECLAIM_INTERVAL_SECONDS:-300}
+      # No model-provider health probe exists, so parked jobs are not
+      # released on a timer by default (0 = never).
+      WORKER_PROVIDER_PARK_MAX_SECONDS: ${WORKER_PROVIDER_PARK_MAX_SECONDS:-0}
     volumes:
       - specproof-workspaces:/workspaces
     depends_on:

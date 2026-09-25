@@ -8,6 +8,7 @@ All keys carry TTL — no permanent business state in Redis.
 """
 import json
 import os
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -18,6 +19,14 @@ import redis
 #: job stream, and TTL for the stream key plus its sequence-counter key.
 STREAM_DEFAULT_MAXLEN = 1000
 STREAM_DEFAULT_TTL_SECONDS = 86400
+
+#: Scope-lock key prefix: one key per named fleet-level task.
+SCOPE_LOCK_PREFIX = "specproof:lock:scope:"
+#: Release only if we are still the holder (compare-and-delete).
+_RELEASE_IF_HOLDER_LUA = (
+    "if redis.call('get', KEYS[1]) == ARGV[1] "
+    "then return redis.call('del', KEYS[1]) else return 0 end"
+)
 
 
 @dataclass
@@ -47,7 +56,12 @@ class RedisConfig:
 
 
 class RedisStore:
-    """Cache, locks, progress tracking, leases, and LLM budget. All keys have TTL."""
+    """Cache, locks, progress tracking, leases, and LLM budget. All keys have TTL.
+
+    Locks here are fleet-scope (`acquire_scope_lock`), never per-job: a
+    per-job mutual exclusion would duplicate the lease key, which is
+    already a per-job TTL-bound claim with an owner in it.
+    """
 
     #: Retained-history cap per job stream (XADD MAXLEN; default value,
     #: configurable via RedisConfig.stream_maxlen / REDIS_STREAM_MAXLEN).
@@ -267,13 +281,43 @@ class RedisStore:
 
     # ── Lock ──────────────────────────────────────────────────
 
-    def acquire_lock(self, job_id: str, ttl: int = 300) -> bool:
-        key = f"specproof:lock:job:{job_id}"
-        return bool(self.client.set(key, "1", nx=True, ex=ttl))
+    def acquire_scope_lock(self, scope: str, ttl: int = 300) -> str | None:
+        """Try to take a named cross-process lock; the holder token or None.
 
-    def release_lock(self, job_id: str) -> None:
-        key = f"specproof:lock:job:{job_id}"
-        self.client.delete(key)
+        A *scope* lock guards work that must happen once per interval for
+        the whole fleet (the stuck-job sweep, #71). The per-job lease
+        cannot do this: the sweep covers jobs this process never held, so
+        requiring a lease it does not own would skip every candidate.
+
+        The result is a token, not a bool, because release has to be safe:
+        a pass that runs past its own TTL must not unlock the replica that
+        validly holds the lock now. `release_scope_lock` deletes only when
+        this token is still the stored value.
+        """
+        if not scope.strip():
+            raise ValueError(
+                "scope 锁名称不能为空：空名称会把所有扫描挤进同一把锁，"
+                "互相看起来都像被别人占了"
+            )
+        token = uuid.uuid4().hex
+        taken = self.client.set(
+            f"{SCOPE_LOCK_PREFIX}{scope}", token, nx=True, ex=ttl
+        )
+        return token if taken else None
+
+    def release_scope_lock(self, scope: str, token: str) -> bool:
+        """Delete the lock only while this token still holds it.
+
+        Returns False (rather than raising) when the lock is already gone
+        or belongs to someone else — that is the expected outcome after a
+        long pass, and the sweep does not retry it.
+        """
+        if not token:
+            return False
+        deleted = self.client.eval(
+            _RELEASE_IF_HOLDER_LUA, 1, f"{SCOPE_LOCK_PREFIX}{scope}", token
+        )
+        return bool(deleted)
 
     # ── Cache ─────────────────────────────────────────────────
 
