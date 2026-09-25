@@ -270,3 +270,17 @@ def test_node_test_profile_stays_free_of_install_mounts() -> None:
     assert not any("node_modules" in a for a in argv)
     assert not any("/home/node/.npm" in a for a in argv)
     assert not any("specproof-npm-cache" in a for a in argv)
+
+
+def test_python_profile_wheelhouse_is_read_only() -> None:
+    """#26: the wheelhouse mounts READ-ONLY — pip resolves with --no-index
+    --find-links, which only reads, so untrusted test code in the container
+    cannot poison the dependency source for future jobs."""
+    argv = runner.build_docker_argv(
+        ["python", "-m", "venv", "/work/.venv"], "/ws", runner.PYTHON_PROFILE,
+    )
+    assert "specproof-pip-wheelhouse-1000:/wheelhouse:ro" in argv
+    assert "/ws/.venv:/work/.venv" in argv
+    assert "PIP_CACHE_DIR=/tmp/pip-cache" in argv
+    assert argv[argv.index("--user") + 1] == "1000:1000"
+    assert "--network" in argv and "none" in argv

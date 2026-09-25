@@ -17,6 +17,7 @@ from typing import Any
 
 import pytest
 
+import agent.nodes.run_differential as run_differential_module
 import experiments.adapters as adapters
 from agent.nodes.run_differential import run_differential_node
 
@@ -90,19 +91,23 @@ def test_java_repo_keeps_generic_no_test_detail(tmp_path: Path) -> None:
     assert entry["detail"].startswith("No generated counterexample")
 
 
-def test_python_repo_names_python_and_stays_host_gated(tmp_path: Path) -> None:
-    """The REAL Python adapter must still be host-surface, so a Python repo
-    with the gate off degrades honestly instead of executing on the host."""
+def test_python_repo_resolves_to_the_sandboxed_surface_by_default(
+    tmp_path: Path,
+) -> None:
+    """#26 flipped the REAL Python adapter to a sandboxed surface: the same
+    pure file inspection that used to say "host, gated off" must now resolve
+    the adapter as container-sandboxed, so a Python repo runs its own
+    differential without an operator flag. The execution itself is covered by
+    the fakes above; this locks the DECISION that lets it run."""
     base = _mk_repo(tmp_path / "base", {"requirements.txt": "pytest\n"})
-    head = _mk_repo(tmp_path / "head", {"requirements.txt": "pytest\n"})
 
-    out = run_differential_node(_state(base, head))  # type: ignore[arg-type]
-    entry = _diff_entry(out)
+    sandboxed, surface, reason = run_differential_module._self_test_surface_for(
+        str(base)
+    )
 
-    assert entry.get("language") == "python"
-    assert "python project" in entry["detail"]
-    assert entry.get("adapter_surface") == adapters.SURFACE_HOST
-    assert entry.get("self_test_gate") == "off"
+    assert sandboxed is True
+    assert surface == adapters.SURFACE_DOCKER_SANDBOX
+    assert reason == ""
 
 
 # ── Fakes ────────────────────────────────────────────────────────────────
@@ -344,10 +349,10 @@ def test_real_adapters_declare_their_execution_surface() -> None:
         adapters.SURFACE_DOCKER_SANDBOX
     )
     assert adapters.execution_surface_of(adapters.PythonAdapter()) == (
-        adapters.SURFACE_HOST
+        adapters.SURFACE_DOCKER_SANDBOX
     )
     assert adapters.runs_in_sandbox(adapters.NodeAdapter()) is True
-    assert adapters.runs_in_sandbox(adapters.PythonAdapter()) is False
+    assert adapters.runs_in_sandbox(adapters.PythonAdapter()) is True
 
 
 def test_surface_of_fails_closed_when_an_adapter_forgets_to_declare() -> None:

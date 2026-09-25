@@ -18,7 +18,7 @@ Guide §4.5 contract:
 Adapter status (kept in sync with the classes below):
   * Java/Maven — IMPLEMENTED (sandboxed Maven; the existing capability
     re-homed behind the protocol).
-  * Python/pytest — IMPLEMENTED local-first (工业化指南 阶段 4 / W57 — a
+  * Python/pytest — IMPLEMENTED, container sandbox by default (#26; a
     project .venv on the host, no container).
   * Node/npm — IMPLEMENTED in the Docker sandbox (runs the project's own
     ``npm test --silent`` with --network none and a read-only /work; Jest /
@@ -50,9 +50,12 @@ from sandbox.runner import (
     DEFAULT_M2_VOLUME,
     DEFAULT_NODE_IMAGE,
     DEFAULT_PIDS_LIMIT,
+    DEFAULT_PYTHON_IMAGE,
     NODE_INSTALL_PROFILE,
     NODE_PROFILE,
+    PYTHON_PROFILE,
     SANDBOX_USER,
+    SandboxResult,
     run_sandboxed,
 )
 
@@ -338,6 +341,12 @@ def _node_image() -> str:
     """Image a Node sandbox run actually uses, honoring the same operator
     override the runner applies when it builds the argv."""
     return os.getenv("SPECPROOF_SANDBOX_NODE_IMAGE", "").strip() or DEFAULT_NODE_IMAGE
+
+
+def _python_image() -> str:
+    """Image a Python sandbox run actually uses, honoring the same operator
+    override the runner applies when it builds the argv."""
+    return os.getenv("SPECPROOF_SANDBOX_PYTHON_IMAGE", "").strip() or DEFAULT_PYTHON_IMAGE
 
 
 def _maven_wrapper(workspace: str) -> str:
@@ -641,39 +650,71 @@ class PythonEnvironmentError(Exception):
 
 
 class PythonAdapter:
-    """Python/pytest via a project-local virtualenv (local-first adapter).
+    """Python/pytest in a container sandbox by default (#26); the legacy
+    host venv flow survives only as an explicitly named ``sandbox_mode="local"``
+    opt-in, exactly like the Node adapter's split.
 
-    Declarations (host-executed; no container):
-      image          —  (local-first: pytest runs against the host)
-      toolchain      CPython <host version> / `python -m venv` + pip / pytest
-      offline policy reuse the project .venv when present; otherwise create
-                      it with `python -m venv` (offline-safe) and
-                      pip-install requirements.txt — the install itself may
-                      need network on first provision, and a pip failure is
-                      reported honestly as PythonEnvironmentError.
+    Declarations (container-executed):
+      image          python:3.12-slim (override: SPECPROOF_SANDBOX_PYTHON_IMAGE)
+      toolchain      CPython 3.12 (container) / python -m venv + pip / pytest
+      offline policy venv + pytest resolved from the seeded wheelhouse volume
+                     with ``--no-index --find-links`` (scripts/
+                     seed_pip_wheelhouse.ps1 downloads them online, then
+                     verifies an offline install); a missing wheel fails the
+                     setup loudly and NO tests run — never a laundered pass
     """
 
     VENV_DIR = ".venv"
     ENV_SETUP_TIMEOUT = 600
-    TOOLCHAIN = f"CPython {platform.python_version()} (host) / venv + pip / pytest"
-    EXECUTION_SURFACE = SURFACE_HOST
+    TOOLCHAIN = "CPython 3.12 (docker sandbox) / venv + pip / pytest"
+    EXECUTION_SURFACE = SURFACE_DOCKER_SANDBOX
+    IMAGE = DEFAULT_PYTHON_IMAGE
+    #: Verified with `docker image inspect` on this host, 2026-09-25. The
+    #: fingerprint of the image this adapter was actually validated on; an
+    #: operator-supplied image override is unidentified here.
+    IMAGE_DIGEST = (
+        "sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9"
+    )
     OFFLINE_POLICY = (
-        "local-first: reuse the project .venv when present; otherwise "
-        "`python -m venv .venv` (offline-safe) + `pip install -r "
+        "docker sandbox with --network none: venv creation and the pytest run "
+        "resolve only from the seeded pip wheelhouse volume via `pip install "
+        "--no-index --find-links` — an unseeded wheel fails the setup loudly "
+        "and that is reported as-is, never as a pass"
+    )
+    #: The explicitly-named host flow carries its OWN honest declaration (the
+    #: class-level one describes the sandbox default).
+    HOST_OFFLINE_POLICY = (
+        "local, explicitly requested: reuse the project .venv when present; "
+        "otherwise `python -m venv .venv` (offline-safe) + `pip install -r "
         "requirements.txt` — first-time dependency install may require "
         "network and fails honestly (PythonEnvironmentError) on pip errors"
     )
     KNOWN_LIMITS: tuple[str, ...] = (
-        "local-first 执行 (无容器沙箱): 宿主 CPython + 项目 .venv",
-        "首次 pip install -r requirements.txt 可能需要网络; 失败如实报错 "
-        "(PythonEnvironmentError, stage=venv_create/pip_install)",
-        "复用已存在的 .venv 时跳过依赖安装 (信任既有环境)",
+        "容器沙箱执行 (python:3.12-slim, 非 root uid 1000, --network none)",
+        "依赖与 pytest 只来自已播种的 pip wheelhouse 卷 (#26, "
+        "scripts/seed_pip_wheelhouse.ps1): 未播种的包在安装阶段失败, "
+        "不跑测试并如实判 NON_REPRODUCIBLE, 不伪造通过",
+        "wheelhouse 卷以只读方式挂载: 容器内代码无法污染后续任务的依赖来源",
+        "venv 与 pytest 在容器内创建/运行 (与宿主 CPython 版本解耦); "
+        "依赖宿主 .venv 的旧 local 流程仅 sandbox_mode=local 显式可用",
         "仅支持 pytest (goal=run_test); 其他 goal 抛 AdapterNotImplemented",
         "detect 规则: pyproject.toml | requirements.txt | pytest.ini; "
         "exotic Python 项目抛 AdapterNotImplemented",
+        "/work 全程只读 (.venv 子挂载可写: venv/安装目标); "
+        "向源码树写文件的测试会失败",
         "输出按尾部 256000 字符截断 (§4.5 输出长度限制)",
-        "SPECPROOF_KEEP_VENV 设置时 cleanup 保留 .venv, 否则移除",
+        "镜像 digest 为 2026-09-25 本机验证值, 预拉/升级 python:3.12-slim 时须复核",
     )
+    #: One command per phase, kept as data so the sandboxed setup is
+    #: auditable: venv creation, the offline pip install (pytest is ALWAYS
+    #: resolved from the wheelhouse — the container image does not carry it),
+    #: then the pytest run itself.
+    VENV_CREATE_COMMAND = ["python", "-m", "venv", "/work/.venv"]
+    VENV_PYTHON = "/work/.venv/bin/python"
+    OFFLINE_INSTALL_BASE = [
+        "/work/.venv/bin/pip", "install", "--no-index",
+        "--find-links", "/wheelhouse", "pytest",
+    ]
 
     def detect(self, repo: RepositorySnapshot) -> RuntimeProfile:
         if (
@@ -698,6 +739,30 @@ class PythonAdapter:
                 f"unsupported Python goal: {request.goal} "
                 "(PythonAdapter supports run_test only)"
             )
+        if request.sandbox_mode == "local":
+            return self._prepare_host(request)
+        # Sandbox flow (#26): NO host side effects here — the venv is created
+        # inside the container on the .venv sub-mount, so prepare stays pure
+        # file inspection plus command assembly.
+        command = [self.VENV_PYTHON, "-m", "pytest", "-q"]
+        if request.test_class:
+            command += ["-k", request.test_class]
+        image = _python_image()
+        return PreparedExecution(
+            workdir=request.workspace,
+            command=command,
+            local_command=list(command),
+            image=image,
+            # Only the default image carries the digest this adapter was
+            # validated on; an operator-supplied image is unidentified here.
+            image_digest=self.IMAGE_DIGEST if image == self.IMAGE else "—",
+            offline_policy=self.OFFLINE_POLICY,
+            timeout=request.timeout,
+            sandbox_mode=request.sandbox_mode,
+        )
+
+    def _prepare_host(self, request: ExecutionRequest) -> PreparedExecution:
+        """Legacy host flow (explicit sandbox_mode="local" only)."""
         workspace = Path(request.workspace)
         venv_dir = workspace / self.VENV_DIR
         python = _venv_python(venv_dir)
@@ -715,7 +780,7 @@ class PythonAdapter:
             local_command=list(command),
             image="—",
             image_digest="—",
-            offline_policy=self.OFFLINE_POLICY,
+            offline_policy=self.HOST_OFFLINE_POLICY,
             timeout=request.timeout,
             sandbox_mode=request.sandbox_mode,
         )
@@ -754,7 +819,80 @@ class PythonAdapter:
                 + _tail(result.stdout + result.stderr, 2000),
             )
 
+    def _python_sandbox_resources(self, note: str) -> dict[str, str]:
+        """Resource disclosure for the sandboxed Python phases (§12 hardening
+        plus the two things that make it an offline install)."""
+        return {
+            "user": SANDBOX_USER,
+            "network": "none (pip resolves offline from the wheelhouse only)",
+            "capabilities": "drop ALL",
+            "no_new_privileges": "true",
+            "pids_limit": os.getenv("SPECPROOF_SANDBOX_PIDS", DEFAULT_PIDS_LIMIT),
+            "image": _python_image(),
+            "workspace_mount": "ro (.venv sub-mount writable: venv/install target only)",
+            "wheelhouse_volume": (
+                "specproof-pip-wheelhouse-1000 "
+                "(override: SPECPROOF_SANDBOX_PIP_WHEELHOUSE_VOLUME), mounted read-only"
+            ),
+            "setup_phase": note,
+        }
+
     def run(self, prepared: PreparedExecution) -> ExecutionResult:
+        if prepared.sandbox_mode == "local":
+            return self._run_host(prepared)
+        # mode="docker" (not "auto"): Docker being unavailable must be an
+        # honest error, never a silent reason to run untrusted code here.
+        # Three phases, fail-fast: venv → offline install → pytest. A setup
+        # phase that fails stops the run — a missing wheel must never be
+        # confused with "tests ran and passed".
+        workspace = prepared.workdir
+        phases: list[tuple[str, list[str]]] = [
+            ("venv", list(self.VENV_CREATE_COMMAND)),
+        ]
+        install = list(self.OFFLINE_INSTALL_BASE)
+        if (Path(workspace) / "requirements.txt").is_file():
+            install += ["-r", "/work/requirements.txt"]
+        phases.append(("pip_install", install))
+        phases.append(("pytest", list(prepared.command)))
+        result: SandboxResult | None = None
+        for name, command in phases:
+            result = run_sandboxed(
+                command,
+                workspace=workspace,
+                timeout=prepared.timeout,
+                mode="docker",
+                profile=PYTHON_PROFILE,
+            )
+            if result.exit_code != 0 and name != "pytest":
+                prepared.result = ExecutionResult(
+                    exit_code=result.exit_code,
+                    stdout_tail=_tail(result.stdout),
+                    stderr_tail=_tail(result.stderr),
+                    mode=result.mode,
+                    sandbox_resources=self._python_sandbox_resources(
+                        f"{name} failed — pytest not run"
+                    ),
+                    error=(
+                        f"offline environment setup failed at '{name}' — "
+                        "tests were not run"
+                        + (f": {result.error}" if result.error else "")
+                    ),
+                )
+                return prepared.result
+        assert result is not None, "sandbox phases loop must produce a result"
+        # The pytest phase's exit code is the TEST verdict (pass or real
+        # regression) — reported as-is, never rewritten.
+        prepared.result = ExecutionResult(
+            exit_code=result.exit_code,
+            stdout_tail=_tail(result.stdout),
+            stderr_tail=_tail(result.stderr),
+            mode=result.mode,
+            sandbox_resources=self._python_sandbox_resources("completed"),
+            error=result.error,
+        )
+        return prepared.result
+
+    def _run_host(self, prepared: PreparedExecution) -> ExecutionResult:
         result = _run_local(
             prepared.command,
             cwd=prepared.workdir,
@@ -766,7 +904,7 @@ class PythonAdapter:
             stderr_tail=_tail(result.stderr),
             mode="local",
             sandbox_resources={
-                "sandbox": "none (local-first execution on the host)",
+                "sandbox": "none (explicitly requested host execution)",
                 "network": "host (first-time pip install may require it)",
                 "workspace": "read-write (project .venv lives inside)",
             },
@@ -793,14 +931,18 @@ class PythonAdapter:
         )
 
     def cleanup(self, prepared: PreparedExecution) -> None:
-        """venv cleanup boundary (local-first mirror of guide §4.5 cleanup).
+        """venv cleanup boundary (host flow only).
 
         Removes the project .venv unless SPECPROOF_KEEP_VENV is set (any
         non-empty value). Windows interpreter locks are tolerated via
         rmtree(ignore_errors=True) — a leftover directory is a workspace
         disposal concern, never fabricated success. The workspace itself
         and every other file in it are pipeline-owned and never touched.
+        Sandbox runs skip this: their .venv lives in the disposable
+        worktree, which the pipeline removes whole.
         """
+        if prepared.result is not None and prepared.result.mode != "local":
+            return None
         if os.getenv("SPECPROOF_KEEP_VENV", "").strip():
             return None
         venv_dir = Path(prepared.workdir) / self.VENV_DIR
@@ -1154,9 +1296,9 @@ COMPATIBILITY_MATRIX: tuple[MatrixRow, ...] = (
         language="Python",
         build_tool="pip",
         test_runner="pytest",
-        status="已支持 (local-first)",
-        image="—",
-        image_digest="—",
+        status="已支持 (Docker 沙箱)",
+        image=PythonAdapter.IMAGE,
+        image_digest=PythonAdapter.IMAGE_DIGEST,
         toolchain=PythonAdapter.TOOLCHAIN,
         offline_policy=PythonAdapter.OFFLINE_POLICY,
         known_limits=PythonAdapter.KNOWN_LIMITS,

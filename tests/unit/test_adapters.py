@@ -20,6 +20,7 @@ from experiments.adapters import (
     ExecutionRequest,
     JavaMavenAdapter,
     NodeAdapter,
+    PythonAdapter,
     RepositorySnapshot,
     registry,
 )
@@ -338,7 +339,11 @@ class TestCompatibilityMatrixContent:
         python_row = next(row for row in rows if row.language == "Python")
         assert python_row.build_tool == "pip"
         assert python_row.test_runner == "pytest"
-        assert python_row.status == "已支持 (local-first)"
+        # #26: Python left local-first behind — sandbox actually delivered,
+        # and the row carries a real image like Node's does.
+        assert python_row.status == "已支持 (Docker 沙箱)"
+        assert python_row.image == PythonAdapter.IMAGE
+        assert python_row.image_digest.startswith("sha256:")
         node_row = next(row for row in rows if row.language == "JavaScript/TypeScript")
         assert node_row.build_tool == "npm"
         # #54: Node left local-first behind — the row may only claim a status

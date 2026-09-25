@@ -1446,3 +1446,91 @@ provider_wait:` 块内——暂停轮次不算失败，CAS 被拒的轮次已由
 4. 执行面披露（`execution_surface`）取的是合并后"最不安全"值——安装与
    测试都在沙箱内，披露值不变；`dependency_install` 键目前只在
    `sandbox_resources` JSON 里，未上 UI 面板（候选）。
+
+## 23. #26：Python 沙箱落地——三语言全部默认容器执行（2026-09-25）
+
+### 23.1 架构发现：管线早已为这次翻转留好了门
+
+`agent/nodes/run_differential.py` 的 `_self_test_surface_for()` 用**纯文件
+检查**（只跑 `detect`）决议"这次自测会在哪里执行"：容器沙箱面默认放行、
+宿主面才需要 `SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1`。因此 #26 的核心不是改
+管线，而是让 `PythonAdapter` 的声明与实现匹配沙箱——声明翻转后默认门自动
+放行，`execution_surface` 披露链路（§7）自动生效。
+
+### 23.2 设计：三段式 + 只读 wheelhouse + 宿主流程降级为显式选项
+
+- **`PYTHON_PROFILE`**（`sandbox/runner.py`，与 Maven/Node 同一参数化机制）：
+  镜像 `python:3.12-slim`（slim 非 alpine——musl 缺 wheel，离线安装会失败）、
+  wheelhouse 卷 `specproof-pip-wheelhouse-1000` 挂 `/wheelhouse` 且**只读**
+  （`cache_readonly` 为本批新增的 profile 字段：pip `--no-index --find-links`
+  只读不写，不可信测试代码无法污染后续任务的依赖来源——Maven/npm 缓存是
+  rw 的，因为工具确实要写）、`.venv` 可写子挂载（跨三次容器调用存活，
+  Maven target 同款机制）。
+- **三段式 fail-fast**：`venv` → `pip install --no-index --find-links
+  /wheelhouse pytest [-r requirements.txt]` → `pytest`。pytest 本身也从
+  wheelhouse 解析（镜像不带）；任一 setup 阶段失败即停，error 明说
+  "tests were not run"，绝不把装不上依赖混同成测试结论；pytest 阶段的
+  非零退出是**真实测试失败**，原样上报。
+- **宿主流程降级**：`prepare/run` 按 `sandbox_mode` 分支——只有显式
+  `"local"` 走旧宿主 venv 流程（专属 `HOST_OFFLINE_POLICY` 声明），默认
+  （None/docker）走沙箱且 prepare **零宿主副作用**（venv 不再在 prepare
+  里建在宿主上）。`EXECUTION_SURFACE` 翻转为 `SURFACE_DOCKER_SANDBOX`。
+- **`scripts/seed_pip_wheelhouse.ps1`**：建卷 + chown 1000 + `pip download`
+  在线暖卷 + 离线冒烟（`--network none` 下 venv+install+pytest --version）。
+
+### 23.3 实测记录（真 Docker，2026-09-25）
+
+1. **真 bug 二：docker `--tmpfs` 默认 noexec**。种子脚本冒烟步
+   `Permission denied: /work/.venv/bin/pip`——venv 的解释器在 tmpfs 上，
+   不可执行。修法：`--tmpfs /work:rw,exec,uid=1000,gid=1000` 并注释原因。
+   （真实沙箱的 .venv 是宿主 bind 子挂载，不经过 tmpfs，不受此影响——
+   端到端正例实证。）
+2. **端到端正例**：`six==1.16.0` 仓库 → seed 脚本暖卷 + 离线冒烟过 →
+   adapter 默认模式三段全绿（容器内 pytest 报 1 passed，six 离线解析）。
+3. **端到端负例**：requirements 换成未播种的 `python-dateutil` →
+   `pip_install failed — pytest not run` + pip 原文报错，exit 1。
+4. `IMAGE_DIGEST` 实测记录：`sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9`。
+5. **仪器教训（记一次自伤）**：用 heredoc 写测试补丁时 `\n` 转义被
+   Git Bash/Python 双层解析搅乱，把测试文件里的字符串字面量写成了真换行
+   （collection error）。修复改用 Edit 工具做精确替换。教训与 §15.4 的
+   "锚点出现次数先验 1"同族：**写完必须立刻收集验证，不能等下一轮门**。
+
+### 23.4 门证（本批实测）
+
+- 定向：`test_sandbox_runner.py` **21 passed**（+1：wheelhouse 只读挂载
+  断言）；`test_python_adapter.py` **29 passed**（+4：三段序、pip 失败不
+  跑测试、venv 失败即停、prepare 零宿主副作用；既有 12 处宿主流程请求
+  显式 `sandbox_mode="local"` 改账）；
+  `test_differential_language_honesty.py` 声明锁翻转（Python →
+  docker_sandbox，"stays host gated" 用例改写为"默认解析到沙箱面"）；
+  `test_adapters.py` 矩阵行改账（Python → 已支持 (Docker 沙箱) + 真镜像
+  digest）。
+- 变异探针（两条，各自判红，按字节还原 sha 复核）：P1 拆掉 fail-fast
+  （pip 失败仍跑测试）⇒ `test_pip_failure_runs_no_tests` 红；P2 wheelhouse
+  改回 rw ⇒ `test_python_profile_wheelhouse_is_read_only` 红。
+- `ruff` / `mypy`（211 files）与全量合并门：见 23.5 追记。
+
+### 23.5 全量合并门（追记）
+
+- `pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒
+  **2886 passed, 5 skipped, 714.45s (11:54)，GATE_EXIT=0**。
+- 对账：批次 D 的 2881 + python 沙箱 4 + wheelhouse argv 1 = **2886**，
+  逐位吻合（宿主流程 12 处改账与声明锁翻转不改变用例总数）。
+
+### 23.6 仍未做（诚实边界）
+
+1. **PythonExecution honest-degradation 细节**：Docker 不可用时沙箱流报
+   `sandbox image unavailable`（诚实错误 → NON_REPRODUCIBLE），与 Node
+   一致；宿主门 `SPECPROOF_ALLOW_LOCAL_TEST_EXEC` 仍保留在管线里作为
+   声明翻转的保险，但现在生产路径永远先问 surface，宿主门实际不再可达
+   （候选：下一批清理或明确废弃）。
+2. wheelhouse 按**部署**共享（Maven/npm 同模型）；`pip download` 不锁
+   已有 wheel 版本，重复播种幂等但可能引入新版本——锁版本需 pip-compile
+   类工具，属运维策略。
+3. `pyproject.toml`-only（无 requirements.txt）的项目：pytest 照常从
+   wheelhouse 安装，但项目自身的 build 依赖（如 setuptools 项目需要
+   `pip install -e .`）尚未处理——检测到这类项目时当前行为是"装了
+   pytest 跑测试，项目自身依赖缺失则测试失败"，仍是诚实失败，不是谎报；
+   支持 `-e .` 属下一批候选。
+4. Python 报告的 `execution_surface` 披露链路（web/HTML）复用 §7 机制，
+   本批未改 UI。

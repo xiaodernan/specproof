@@ -28,6 +28,7 @@ from experiments.adapters import (
     RepositorySnapshot,
     registry,
 )
+from sandbox.runner import PYTHON_PROFILE, SandboxResult
 
 MATRIX_DOC = (
     Path(__file__).resolve().parents[2] / "docs" / "architecture" / "EXECUTION_COMPATIBILITY.md"
@@ -105,14 +106,16 @@ class TestPrepare:
             return _fake_run_ok()
 
         monkeypatch.setattr(adapters, "_run_local", fake_run_local)
-        prepared = PythonAdapter().prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        prepared = PythonAdapter().prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         assert calls == [], "reusing .venv must not invoke any subprocess"
         assert prepared.command == [str(python), "-m", "pytest", "-q"]
         assert prepared.local_command == prepared.command
         assert prepared.image == "—"
         assert prepared.image_digest == "—"
         assert prepared.timeout == 600
-        assert "local-first" in prepared.offline_policy
+        assert "local, explicitly requested" in prepared.offline_policy
 
     def test_creates_venv_when_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -125,7 +128,9 @@ class TestPrepare:
             return _fake_run_ok(stdout="")
 
         monkeypatch.setattr(adapters, "_run_local", fake_run_local)
-        prepared = PythonAdapter().prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        prepared = PythonAdapter().prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         assert len(calls) == 1
         venv_call = calls[0]
         assert venv_call[0] == sys.executable
@@ -146,7 +151,9 @@ class TestPrepare:
             return _fake_run_ok(stdout="")
 
         monkeypatch.setattr(adapters, "_run_local", fake_run_local)
-        PythonAdapter().prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        PythonAdapter().prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         assert len(calls) == 2
         assert calls[0][1:3] == ["-m", "venv"]
         pip_call = calls[1]
@@ -160,7 +167,10 @@ class TestPrepare:
         repo = _make_python_repo(tmp_path)
         python = _write_fake_venv(tmp_path)
         prepared = PythonAdapter().prepare(
-            ExecutionRequest(workspace=str(repo), goal="run_test", test_class="SpecProofTest")
+            ExecutionRequest(
+            workspace=str(repo), goal="run_test",
+            test_class="SpecProofTest", sandbox_mode="local",
+        )
         )
         assert prepared.command == [str(python), "-m", "pytest", "-q", "-k", "SpecProofTest"]
 
@@ -181,7 +191,9 @@ class TestEnvironmentFailures:
 
         monkeypatch.setattr(adapters, "_run_local", fake_run_local)
         with pytest.raises(PythonEnvironmentError) as excinfo:
-            PythonAdapter().prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+            PythonAdapter().prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         assert excinfo.value.stage == "venv_create"
         assert "venv boom" in str(excinfo.value)
 
@@ -200,7 +212,9 @@ class TestEnvironmentFailures:
 
         monkeypatch.setattr(adapters, "_run_local", fake_run_local)
         with pytest.raises(PythonEnvironmentError) as excinfo:
-            PythonAdapter().prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+            PythonAdapter().prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         assert excinfo.value.stage == "pip_install"
         assert "No matching distribution" in str(excinfo.value)
 
@@ -219,7 +233,9 @@ class TestRunThroughLocalRunner:
 
         monkeypatch.setattr(adapters, "_run_local", fake_run_local)
         adapter = PythonAdapter()
-        prepared = adapter.prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        prepared = adapter.prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         result = adapter.run(prepared)
 
         assert len(calls) == 1
@@ -229,7 +245,7 @@ class TestRunThroughLocalRunner:
         assert result.exit_code == 0
         assert result.mode == "local"
         assert "3 passed" in result.stdout_tail
-        assert result.sandbox_resources["sandbox"] == "none (local-first execution on the host)"
+        assert result.sandbox_resources["sandbox"] == "none (explicitly requested host execution)"
         assert prepared.result is result
 
     def test_output_tail_capped(
@@ -240,7 +256,9 @@ class TestRunThroughLocalRunner:
         big = "x" * (adapters.OUTPUT_TAIL_CHARS + 10) + "3 passed in 0.01s\n"
         monkeypatch.setattr(adapters, "_run_local", lambda *a, **k: _fake_run_ok(stdout=big))
         adapter = PythonAdapter()
-        prepared = adapter.prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        prepared = adapter.prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         result = adapter.run(prepared)
         assert len(result.stdout_tail) <= adapters.OUTPUT_TAIL_CHARS
         assert "3 passed" in result.stdout_tail
@@ -256,7 +274,9 @@ class TestRunThroughLocalRunner:
 
         monkeypatch.setattr(adapters, "_run_local", fake_run_local)
         adapter = PythonAdapter()
-        prepared = adapter.prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        prepared = adapter.prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         result = adapter.run(prepared)
         assert result.exit_code == -1
         assert "timed out" in result.error
@@ -273,7 +293,9 @@ class TestCollectEvidence:
             lambda *a, **k: _fake_run_ok(stdout="2 passed, 1 failed in 1.23s\n"),
         )
         adapter = PythonAdapter()
-        prepared = adapter.prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        prepared = adapter.prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         adapter.run(prepared)
         fragment = adapter.collect(prepared)
         assert fragment.test_report_refs == ()
@@ -286,7 +308,9 @@ class TestCollectEvidence:
     def test_collect_before_run_reports_not_collected(self, tmp_path: Path) -> None:
         repo = _make_python_repo(tmp_path)
         _write_fake_venv(tmp_path)
-        prepared = PythonAdapter().prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        prepared = PythonAdapter().prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         fragment = PythonAdapter().collect(prepared)
         assert fragment.exit_evidence == {"exit_code": None, "collected": False}
         assert fragment.test_report_refs == ()
@@ -307,7 +331,9 @@ class TestCleanup:
         monkeypatch.delenv("SPECPROOF_KEEP_VENV", raising=False)
         repo = _make_python_repo(tmp_path)
         _write_fake_venv(tmp_path)
-        prepared = PythonAdapter().prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        prepared = PythonAdapter().prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         PythonAdapter().cleanup(prepared)
         assert not (tmp_path / PythonAdapter.VENV_DIR).exists()
         assert (tmp_path / "pyproject.toml").exists(), "cleanup must never delete the workspace"
@@ -318,7 +344,9 @@ class TestCleanup:
         monkeypatch.setenv("SPECPROOF_KEEP_VENV", "1")
         repo = _make_python_repo(tmp_path)
         _write_fake_venv(tmp_path)
-        prepared = PythonAdapter().prepare(ExecutionRequest(workspace=str(repo), goal="run_test"))
+        prepared = PythonAdapter().prepare(ExecutionRequest(
+            workspace=str(repo), goal="run_test", sandbox_mode="local",
+        ))
         PythonAdapter().cleanup(prepared)
         assert (tmp_path / PythonAdapter.VENV_DIR).exists()
 
@@ -331,18 +359,123 @@ class TestRegistryAndMatrix:
     def test_python_adapter_satisfies_protocol(self) -> None:
         assert isinstance(PythonAdapter(), ExecutionAdapter)
 
-    def test_matrix_row_python_is_supported_local_first(self) -> None:
+    def test_matrix_row_python_is_sandboxed(self) -> None:
         rows = registry.matrix()
         python_row = next(row for row in rows if row.language == "Python")
         assert python_row.build_tool == "pip"
         assert python_row.test_runner == "pytest"
-        assert python_row.status == "已支持 (local-first)"
-        assert python_row.image == "—"
-        assert "network" in python_row.offline_policy
-        assert any("venv_create" in limit for limit in python_row.known_limits)
+        assert python_row.status == "已支持 (Docker 沙箱)"
+        assert python_row.image == PythonAdapter.IMAGE
+        assert "wheelhouse" in python_row.offline_policy
+        assert any("NON_REPRODUCIBLE" in limit for limit in python_row.known_limits)
 
     def test_matrix_document_declares_python_row(self) -> None:
         text = MATRIX_DOC.read_text(encoding="utf-8")
-        assert "已支持 (local-first)" in text
-        assert "PythonEnvironmentError" in text
-        assert "SPECPROOF_KEEP_VENV" in text
+        assert "已支持 (Docker 沙箱)" in text
+        assert "wheelhouse" in text
+        assert "seed_pip_wheelhouse" in text
+
+
+class TestSandboxedRun:
+    """#26: the sandbox flow is the DEFAULT — three container phases
+    (venv -> offline pip -> pytest), fail-fast on setup, and a wheelhouse
+    the container can only read."""
+
+    def _recording_sandbox(self, monkeypatch: pytest.MonkeyPatch, fail_at: str | None = None):
+        calls: list[tuple[list[str], dict[str, Any]]] = []
+
+        def fake_sandboxed(command, **kwargs):
+            calls.append((list(command), dict(kwargs)))
+            if fail_at and command[0] == fail_at:
+                return SandboxResult(
+                    exit_code=1, stdout="",
+                    stderr="ERROR: Could not find a version that satisfies the requirement",
+                    mode="docker",
+                )
+            return SandboxResult(
+                exit_code=0, stdout="1 passed in 0.01s", stderr="", mode="docker",
+            )
+
+        monkeypatch.setattr(adapters, "run_sandboxed", fake_sandboxed)
+        return calls
+
+    def test_default_run_is_three_sandboxed_phases(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        repo = _make_python_repo(tmp_path)
+        (repo / "requirements.txt").write_text("six\n", encoding="utf-8")
+        calls = self._recording_sandbox(monkeypatch)
+
+        adapter = PythonAdapter()
+        prepared = adapter.prepare(
+            ExecutionRequest(workspace=str(repo), goal="run_test")
+        )
+        result = adapter.run(prepared)
+
+        assert len(calls) == 3
+        venv_cmd, venv_kwargs = calls[0]
+        pip_cmd, _pip_kwargs = calls[1]
+        pytest_cmd, pytest_kwargs = calls[2]
+        assert venv_cmd == ["python", "-m", "venv", "/work/.venv"]
+        assert pip_cmd[:5] == ["/work/.venv/bin/pip", "install", "--no-index",
+                               "--find-links", "/wheelhouse"]
+        assert "pytest" in pip_cmd
+        assert pip_cmd[pip_cmd.index("-r") + 1] == "/work/requirements.txt"
+        assert pytest_cmd[:4] == ["/work/.venv/bin/python", "-m", "pytest", "-q"]
+        for _cmd, kwargs in calls:
+            assert kwargs["mode"] == "docker"
+            assert kwargs["profile"] is PYTHON_PROFILE
+        assert result.exit_code == 0
+        assert result.mode == "docker"
+        assert result.sandbox_resources["setup_phase"] == "completed"
+        assert result.sandbox_resources["network"].startswith("none")
+
+    def test_pip_failure_runs_no_tests(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        repo = _make_python_repo(tmp_path)
+        calls = self._recording_sandbox(
+            monkeypatch, fail_at="/work/.venv/bin/pip",
+        )
+
+        prepared = PythonAdapter().prepare(
+            ExecutionRequest(workspace=str(repo), goal="run_test")
+        )
+        result = PythonAdapter().run(prepared)
+
+        assert len(calls) == 2, "a failed install must stop before the test run"
+        assert result.exit_code == 1
+        assert "tests were not run" in result.error
+        assert result.sandbox_resources["setup_phase"] == (
+            "pip_install failed — pytest not run"
+        )
+
+    def test_venv_failure_runs_nothing_more(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        repo = _make_python_repo(tmp_path)
+        calls = self._recording_sandbox(monkeypatch, fail_at="python")
+
+        prepared = PythonAdapter().prepare(
+            ExecutionRequest(workspace=str(repo), goal="run_test")
+        )
+        result = PythonAdapter().run(prepared)
+
+        assert len(calls) == 1
+        assert "tests were not run" in result.error
+
+    def test_prepare_has_no_host_side_effects(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        repo = _make_python_repo(tmp_path)
+
+        def never_local(*a, **k):  # pragma: no cover - must not run
+            raise AssertionError("sandbox prepare must not touch the host")
+
+        monkeypatch.setattr(adapters, "_run_local", never_local)
+        prepared = PythonAdapter().prepare(
+            ExecutionRequest(workspace=str(repo), goal="run_test")
+        )
+        assert prepared.command[:1] == ["/work/.venv/bin/python"]
+        assert prepared.image == PythonAdapter.IMAGE
+        assert not (repo / PythonAdapter.VENV_DIR).exists()

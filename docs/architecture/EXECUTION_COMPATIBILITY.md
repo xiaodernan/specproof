@@ -28,12 +28,12 @@ SpecProof **不宣称支持任意项目**。管线对每个仓库先执行适配
 这条声明是 `agent/nodes/run_differential.py` 是否默认执行"仓库自带测试差分"
 (4a) 的**唯一判据**:
 
-- 声明为容器沙箱 (Java/Maven、Node/npm): 可以默认跑 — 未信任代码被关在
-  `--network none` + 非 root + 只读源码树里。
-- 声明为宿主 (Python/pytest): 默认**不跑**，除非运维显式
+- 声明为容器沙箱 (Java/Maven、Node/npm、Python/pytest —— Python 自 #26 起翻转):
+  可以默认跑 — 未信任代码被关在 `--network none` + 非 root + 只读源码树里。
+- 声明为宿主的适配器: 默认**不跑**，除非运维显式
   `SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1`；一旦跑了，结果必须带
   `execution_surface=local_host_no_sandbox` 与"本机执行·无沙箱"文案，
-  绝不伪装成沙箱证据。
+  绝不伪装成沙箱证据。(当前无适配器声明宿主; 该门保留作声明翻转的保险。)
 
 **披露链路 (2026-09-24 补齐)**: `execution_surface` 从
 `run_differential` → `build_matrix._merge_group` → `agent/worker.py`
@@ -52,7 +52,7 @@ SpecProof **不宣称支持任意项目**。管线对每个仓库先执行适配
 | Java | Maven | JUnit 5 + Surefire | **已支持 (实测)** | maven:3.9-eclipse-temurin-21<br>sha256:c07f7ccfb8ca6c9fa29ee523f00afa7d2ca6132c92f8652c4aebb5ee3491f502 | Maven 3.9.9 (wrapper 3.3.2) / Eclipse Temurin JDK 21 | mvn -o + --network none, 依赖只从预置卷 specproof-maven-cache-1000 解析 (RUNBOOK §5, scripts/seed_sandbox_cache.ps1); local 回退走仓库 Maven wrapper + 宿主 ~/.m2 | 缓存卷未预置则离线失败 (fail-closed); local 回退需宿主 JDK 21; 确定性测试模板仅支持 demo 仓库 (com.specproof.demo); 输出按尾部 256000 字符截断; digest 为 2026-08-18 本机验证值, 预拉/seed 时须复核 |
 | Java | Gradle | JUnit 5 (Gradle Test) | 规划 (planned) | — | 待定 | 待定 (离线缓存策略随实现声明) | detect 抛 AdapterNotImplemented; 无执行器 |
 | JavaScript/TypeScript | npm | jest \| vitest \| node:test | **已支持 (Docker 沙箱)** | node:22-alpine<br>sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 | Node/npm (docker sandbox) / npm test / jest \| vitest \| node:test | 容器内 `--network none` 执行项目自带 `npm test --silent`; 有 lockfile 且无 node_modules 的仓库先在沙箱内离线 `npm ci --ignore-scripts` (#56), 依赖只来自已播种的 npm 缓存卷 `specproof-npm-cache-1000` (scripts/seed_npm_cache.ps1), 未播种的包安装失败并如实判 NON_REPRODUCIBLE; 镜像可用 SPECPROOF_SANDBOX_NODE_IMAGE 覆盖 (覆盖后 digest 不再适用) | 非 root uid 1000 + 断网 + /work 全程只读 (无 writable 子挂载): 向源码树写文件的测试会失败; 不装依赖 (workspace 需备好 node_modules, 否则如实失败; 管线 worktree 检出不含未跟踪文件 ⇒ 当前真实覆盖面是零依赖 node:test 项目); 仅支持 goal=run_test; 汇总解析支持 Jest/Vitest/node:test, 无法识别时计数 0 (判定以 exit_code 为准); detect 规则 package.json + scripts.test; 输出按尾部 256000 字符截断; digest 为 2026-09-23 本机验证值, 预拉/升级时须复核 |
-| Python | pip | pytest | **已支持 (local-first)** | — (无容器, 宿主执行) | CPython 3.12 (宿主, 随执行机声明) / venv + pip / pytest | 复用项目 .venv; 缺失时 `python -m venv .venv` (离线安全) + `pip install -r requirements.txt` (首次安装可能需网络, 失败如实抛 PythonEnvironmentError) | local-first 无容器沙箱; 首次装依赖可能需网络; 复用 .venv 时跳过安装; 仅支持 pytest (goal=run_test); exotic Python 项目 detect 抛 AdapterNotImplemented; 输出按尾部 256000 字符截断; SPECPROOF_KEEP_VENV 时保留 .venv, 否则 cleanup 移除 |
+| Python | pip | pytest | **已支持 (Docker 沙箱)** | python:3.12-slim<br>sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9 | CPython 3.12 (容器) / venv + pip / pytest | 容器内三段式 (#26): `python -m venv /work/.venv` → `pip install --no-index --find-links /wheelhouse pytest -r requirements.txt` → `.venv/bin/python -m pytest -q`; 依赖与 pytest 只来自只读挂载的 wheelhouse 卷 `specproof-pip-wheelhouse-1000` (scripts/seed_pip_wheelhouse.ps1 播种), 未播种的包在安装阶段失败且不跑测试, 如实判 NON_REPRODUCIBLE; 旧宿主流程仅 sandbox_mode=local 显式可用 | 非 root uid 1000 + 断网 + /work 只读 (.venv 子挂载可写); wheelhouse 只读挂载防投毒; 仅支持 pytest (goal=run_test); exotic Python 项目 detect 抛 AdapterNotImplemented; 输出按尾部 256000 字符截断; 镜像可用 SPECPROOF_SANDBOX_PYTHON_IMAGE 覆盖 (覆盖后 digest 不再适用) |
 | Go | go build | go test | 规划 (planned) | — | 待定 | 待定 (离线缓存策略随实现声明) | detect 抛 AdapterNotImplemented; 无执行器 |
 
 ## 协议与执行模型 (指南 §4.5)
@@ -104,9 +104,9 @@ class ExecutionAdapter(Protocol):
   unchanged-result 证明, runner 由调用方注入)。
 - **"仓库自带测试差分" (4a) 的生产接线** (2026-09-23 更新, 覆盖此前"生产差分从不
   触达 Node/Python 适配器"的表述): `run_differential` 在没有 Java 生成测试类时,
-  会按上述执行面判据决定是否真的去跑仓库自带测试 —— Node (声明沙箱) **默认跑**,
-  Python (声明宿主) **默认不跑** 且需 `SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1`。
-  因此"适配器从未被生产差分触达"已不再成立, 也不再是安全前提; 安全前提变成
+  会按上述执行面判据决定是否真的去跑仓库自带测试 —— Node 与 Python
+  (均声明沙箱; Python 自 #26 起) **默认跑**。因此"适配器从未被生产差分触达"
+  已不再成立, 也不再是安全前提; 安全前提变成
   `EXECUTION_SURFACE` 的声明 + `tests/unit/test_differential_language_honesty.py`
   里"宿主面适配器在门关闭时 prepare/run 调用数为 0"的锁。
 - **Node 差分的实际覆盖面 (2026-09-25 #56 落地后更新)**: 上述三条事实的

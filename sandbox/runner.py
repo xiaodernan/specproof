@@ -46,6 +46,13 @@ DEFAULT_IMAGE = "maven:3.9-eclipse-temurin-21"
 # same identity SANDBOX_USER pins, so no chown or seeded volume is needed.
 DEFAULT_NODE_IMAGE = "node:22-alpine"
 
+# Python toolchain image for the repository-self-test sandbox (#26). slim (not
+# alpine): many wheels have no musl builds, so alpine would force source
+# builds that an offline --no-index install cannot perform. Runs as uid/gid
+# 1000 via SANDBOX_USER (the image's default user is root — the --user flag
+# is what pins the identity, exactly like the Maven profile).
+DEFAULT_PYTHON_IMAGE = "python:3.12-slim"
+
 # §12 sandbox hardening (P6): workloads run as uid/gid 1000, never root.
 # The maven image ships no dedicated user, but docker auto-creates the
 # /home/maven/.m2 volume mountpoint at container start.
@@ -105,6 +112,12 @@ class SandboxProfile:
     cache_volume_env: str = ""
     cache_volume_default: str = ""
     cache_mount: str = ""
+    # Mount the cache volume READ-ONLY (#26): a wheelhouse is resolved with
+    # --no-index --find-links, which only reads — so untrusted test code in
+    # the container cannot poison the volume for future jobs. Maven/npm keep
+    # rw caches because their tools legitimately write there (wrapper dists,
+    # _cacache).
+    cache_readonly: bool = False
     # Workspace-relative dirs that must be writable, pre-created on the host
     # and sub-mounted read-write into the otherwise read-only /work.
     writable_submounts: tuple[tuple[str, str], ...] = ()
@@ -181,6 +194,27 @@ NODE_INSTALL_PROFILE = SandboxProfile(
     cache_volume_default="specproof-npm-cache-1000",
     cache_mount="/home/node/.npm",
     writable_submounts=(("node_modules", "/work/node_modules"),),
+)
+
+
+# Python profile (#26): venv creation, the offline pip install from the
+# seeded wheelhouse, and the pytest run all share ONE profile — the .venv
+# lives on a writable sub-mount (it must survive across the three container
+# invocations, exactly like Maven's target/) and the wheelhouse volume mounts
+# READ-ONLY: pip resolves with --no-index --find-links, which only reads, so
+# untrusted test code cannot poison the volume for future jobs. The wheelhouse
+# is seeded by scripts/seed_pip_wheelhouse.ps1 (pytest and the repo's
+# requirements, downloaded online, then verified offline).
+PYTHON_PROFILE = SandboxProfile(
+    name="python",
+    image=DEFAULT_PYTHON_IMAGE,
+    image_env="SPECPROOF_SANDBOX_PYTHON_IMAGE",
+    env=(("PIP_CACHE_DIR", "/tmp/pip-cache"),),
+    cache_volume_env="SPECPROOF_SANDBOX_PIP_WHEELHOUSE_VOLUME",
+    cache_volume_default="specproof-pip-wheelhouse-1000",
+    cache_mount="/wheelhouse",
+    cache_readonly=True,
+    writable_submounts=((".venv", "/work/.venv"),),
 )
 
 
@@ -378,7 +412,8 @@ def build_docker_argv(command: list[str], workspace: str, profile: SandboxProfil
         # backslashes on Windows and change the argv).
         argv += ["-v", f"{workspace}/{rel}:{container}"]
     if profile.cache_mount:
-        argv += ["-v", f"{_profile_cache_volume(profile)}:{profile.cache_mount}"]
+        ro = ":ro" if profile.cache_readonly else ""
+        argv += ["-v", f"{_profile_cache_volume(profile)}:{profile.cache_mount}{ro}"]
     argv += ["-w", "/work", image, *command]
     return argv
 
