@@ -41,6 +41,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -697,6 +698,10 @@ class PythonAdapter:
         "wheelhouse 卷以只读方式挂载: 容器内代码无法污染后续任务的依赖来源",
         "venv 与 pytest 在容器内创建/运行 (与宿主 CPython 版本解耦); "
         "依赖宿主 .venv 的旧 local 流程仅 sandbox_mode=local 显式可用",
+        "pyproject 带 [project] 表的仓库额外做可编辑安装 (-e ., "
+        "--no-build-isolation): 构建依赖 setuptools/wheel 与 "
+        "project.dependencies 必须已在 wheelhouse/requirements.txt 中播种, "
+        "否则该阶段失败并如实上报; 纯工具配置的 pyproject 跳过此阶段",
         "仅支持 pytest (goal=run_test); 其他 goal 抛 AdapterNotImplemented",
         "detect 规则: pyproject.toml | requirements.txt | pytest.ini; "
         "exotic Python 项目抛 AdapterNotImplemented",
@@ -711,6 +716,7 @@ class PythonAdapter:
     #: then the pytest run itself.
     VENV_CREATE_COMMAND = ["python", "-m", "venv", "/work/.venv"]
     VENV_PYTHON = "/work/.venv/bin/python"
+    VENV_PIP = "/work/.venv/bin/pip"
     OFFLINE_INSTALL_BASE = [
         "/work/.venv/bin/pip", "install", "--no-index",
         "--find-links", "/wheelhouse", "pytest",
@@ -837,22 +843,60 @@ class PythonAdapter:
             "setup_phase": note,
         }
 
+    def _pyproject_is_package(self, workspace: str | Path) -> bool:
+        """True when pyproject.toml declares a buildable project ([project]).
+
+        A pyproject.toml that only carries tool configuration ([tool.pytest...]
+        with no [project] table) is NOT installable — attempting ``pip install
+        -e .`` on it would fail with a packaging error that has nothing to do
+        with the code under test. Unparseable files count as not-a-package:
+        pip would fail anyway, and the honest flow is the plain pytest run.
+        """
+        path = Path(workspace) / "pyproject.toml"
+        if not path.is_file():
+            return False
+        try:
+            with path.open("rb") as fh:
+                data = tomllib.load(fh)
+        except (OSError, tomllib.TOMLDecodeError):
+            return False
+        return "project" in data
+
     def run(self, prepared: PreparedExecution) -> ExecutionResult:
         if prepared.sandbox_mode == "local":
             return self._run_host(prepared)
         # mode="docker" (not "auto"): Docker being unavailable must be an
         # honest error, never a silent reason to run untrusted code here.
-        # Three phases, fail-fast: venv → offline install → pytest. A setup
-        # phase that fails stops the run — a missing wheel must never be
-        # confused with "tests ran and passed".
+        # Phases are fail-fast: venv → offline install → (optional editable
+        # project install) → pytest. A setup phase that fails stops the run —
+        # a missing wheel must never be confused with "tests ran and passed".
         workspace = prepared.workdir
+        is_package = self._pyproject_is_package(workspace)
         phases: list[tuple[str, list[str]]] = [
             ("venv", list(self.VENV_CREATE_COMMAND)),
         ]
         install = list(self.OFFLINE_INSTALL_BASE)
+        if is_package:
+            # Build dependencies for --no-build-isolation: without network,
+            # pip cannot fetch a build environment on its own, so the
+            # wheelhouse must carry setuptools + wheel (the seed script
+            # always downloads them).
+            install += ["setuptools", "wheel"]
         if (Path(workspace) / "requirements.txt").is_file():
             install += ["-r", "/work/requirements.txt"]
         phases.append(("pip_install", install))
+        if is_package:
+            # The project itself must be importable for its own tests — the
+            # editable install is what a developer would run. [project]
+            # dependencies that were never seeded fail here honestly.
+            phases.append((
+                "project_install",
+                [
+                    self.VENV_PIP, "install", "--no-index",
+                    "--no-build-isolation", "--find-links", "/wheelhouse",
+                    "-e", "/work",
+                ],
+            ))
         phases.append(("pytest", list(prepared.command)))
         result: SandboxResult | None = None
         for name, command in phases:

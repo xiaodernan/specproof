@@ -479,3 +479,86 @@ class TestSandboxedRun:
         assert prepared.command[:1] == ["/work/.venv/bin/python"]
         assert prepared.image == PythonAdapter.IMAGE
         assert not (repo / PythonAdapter.VENV_DIR).exists()
+
+
+class TestPyprojectPackageInstall:
+    """#24 batch: a pyproject.toml with a [project] table is a buildable
+    package — its tests need the package importable, so the sandbox adds a
+    build-dep install and an editable project install. Tool-config-only
+    pyprojects skip both."""
+
+    def _pyproject(self, tmp_path: Path, body: str) -> Path:
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "pyproject.toml").write_text(body, encoding="utf-8")
+        return tmp_path
+
+    def test_package_detection(self, tmp_path: Path) -> None:
+        adapter = PythonAdapter()
+        pkg = self._pyproject(
+            tmp_path / "pkg", "[project]\nname = 'a'\nversion = '0.1.0'\n",
+        )
+        cfg = self._pyproject(
+            tmp_path / "cfg", "[tool.pytest.ini_options]\ntestpaths=['t']\n",
+        )
+        bad = tmp_path / "bad"
+        bad.mkdir(parents=True)
+        (bad / "pyproject.toml").write_text("[project\nname = broken", encoding="utf-8")
+        assert adapter._pyproject_is_package(pkg) is True
+        assert adapter._pyproject_is_package(cfg) is False
+        assert adapter._pyproject_is_package(bad) is False
+
+    def _recording_sandbox(self, monkeypatch: pytest.MonkeyPatch):
+        calls: list[tuple[list[str], dict[str, Any]]] = []
+
+        def fake_sandboxed(command, **kwargs):
+            calls.append((list(command), dict(kwargs)))
+            return SandboxResult(
+                exit_code=0, stdout="1 passed in 0.01s", stderr="", mode="docker",
+            )
+
+        monkeypatch.setattr(adapters, "run_sandboxed", fake_sandboxed)
+        return calls
+
+    def test_package_gets_build_deps_and_editable_install(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        repo = self._pyproject(
+            tmp_path, "[project]\nname = 'a'\nversion = '0.1.0'\n",
+        )
+        calls = self._recording_sandbox(monkeypatch)
+
+        prepared = PythonAdapter().prepare(
+            ExecutionRequest(workspace=str(repo), goal="run_test")
+        )
+        result = PythonAdapter().run(prepared)
+
+        assert len(calls) == 4
+        pip_cmd = calls[1][0]
+        assert "setuptools" in pip_cmd and "wheel" in pip_cmd
+        project_cmd, project_kwargs = calls[2]
+        assert project_cmd == [
+            "/work/.venv/bin/pip", "install", "--no-index",
+            "--no-build-isolation", "--find-links", "/wheelhouse",
+            "-e", "/work",
+        ]
+        assert project_kwargs["profile"] is PYTHON_PROFILE
+        assert result.exit_code == 0
+        assert result.sandbox_resources["setup_phase"] == "completed"
+
+    def test_tool_config_pyproject_skips_project_install(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        repo = self._pyproject(
+            tmp_path, "[tool.pytest.ini_options]\ntestpaths=['t']\n",
+        )
+        calls = self._recording_sandbox(monkeypatch)
+
+        PythonAdapter().run(
+            PythonAdapter().prepare(
+                ExecutionRequest(workspace=str(repo), goal="run_test")
+            )
+        )
+
+        assert len(calls) == 3
+        assert "setuptools" not in calls[1][0]
+        assert calls[2][0][0] == "/work/.venv/bin/python"

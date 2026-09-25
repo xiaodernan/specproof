@@ -1534,3 +1534,51 @@ provider_wait:` 块内——暂停轮次不算失败，CAS 被拒的轮次已由
    支持 `-e .` 属下一批候选。
 4. Python 报告的 `execution_surface` 披露链路（web/HTML）复用 §7 机制，
    本批未改 UI。
+
+## 24. pyproject 包的离线可编辑安装——#26 的最后一类真实仓库（2026-09-25）
+
+### 24.1 起点与判据
+
+§23.6-3 登记：pyproject-only 的项目（常见形态）只装 pytest 跑不了自己的包。
+本批的判据是 **`[project]` 表（PEP 621）是否存在**（`tomllib` 解析，坏文件算
+非包——pip 反正会失败，诚实路径是普通 pytest 跑）：有 → 该仓库是可构建包，
+沙箱额外做两件事；无（纯工具配置，如 `[tool.pytest.ini_options]`）→ 跳过，
+行为与 #26 逐字节一致。
+
+### 24.2 改动
+
+- `pip_install` 阶段在有 `[project]` 时追加 `setuptools wheel`（离线 +
+  `--no-build-isolation` 意味着 pip 无法自取构建环境，构建依赖必须来自
+  wheelhouse——种子脚本现在**总是**下载它们）。
+- 新增 `project_install` 阶段：`pip install --no-index --no-build-isolation
+  --find-links /wheelhouse -e /work`——包可导入，测试才能测它；`[project]
+  dependencies` 未播种的在该阶段诚实失败。
+- `scripts/seed_pip_wheelhouse.ps1`：下载清单加入 setuptools + wheel。
+
+### 24.3 门证（本批实测）
+
+- 单测：`test_python_adapter.py` **32 passed**（+3：判定三分支含坏文件、
+  包仓库四阶段序、工具配置跳过）。
+- 真 Docker：`mypkg`（pyproject 包 + 测试导入它）→ 播种 → adapter 默认
+  模式四段全绿（editable 安装离线成功，包导入断言通过）。
+- 探针 R（两条，按字节还原）：P1 把 `-e /work` 阶段从 phases 删除 ⇒
+  `test_package_gets_build_deps_and_editable_install` 红；P2 检测恒 False
+  ⇒ 同一测试红（四阶段变三阶段的序断言接住）。变异探针本轮只记录结论，
+  锚点计数先验 1、还原 sha 复核一致，过程与 §22.4 相同。
+- `ruff` / `mypy`（211 files）与全量合并门：见 24.4 追记。
+
+### 24.4 全量合并门（追记）
+
+- `pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒
+  **2889 passed, 5 skipped, 672.18s (11:12)，GATE_EXIT=0**。
+- 对账：批次 E 的 2886 + pyproject 包 3（判定三分支 + 四阶段序 + 工具配置
+  跳过）= **2889**，逐位吻合。
+
+### 24.5 仍未做（诚实边界）
+
+1. `[project.dependencies]` 的解析与自动播种仍不做：需要 pip-compile 类
+   工具与锁文件策略，属运维课题；当前契约是"把运行依赖列进
+   requirements.txt 一并播种"，未播种的在 project_install 阶段诚实失败。
+2. 非 setuptools 后端（hatchling/flit 等）需要把对应后端 wheel 加进
+   wheelhouse——机制同构（build 依赖都走 --no-build-isolation），种子
+   脚本加参数即可，未做。

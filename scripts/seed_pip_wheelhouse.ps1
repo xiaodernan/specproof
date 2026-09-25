@@ -39,7 +39,10 @@ Write-Output "== 3/4 download wheels for $repo (ONLINE) into the volume =="
 # The repo binds read-only at /repo and /work is a writable tmpfs (a tmpfs
 # mountpoint cannot be created INSIDE a read-only bind). pip download puts
 # the wheels directly into the mounted volume.
-$args = "pip download --dest /wheelhouse pytest"
+# setuptools + wheel are ALWAYS seeded: a pyproject with a [project] table
+# is installed editable with --no-build-isolation, which needs them in the
+# venv (there is no network to fetch a build environment).
+$args = "pip download --dest /wheelhouse pytest setuptools wheel"
 if (Test-Path (Join-Path $repo "requirements.txt")) {
     $args = "$args -r /work/requirements.txt"
 }
