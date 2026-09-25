@@ -282,10 +282,6 @@ class FakeJobStore:
         row = self.jobs.get(job_id)
         return row.get("summary") if row else None
 
-    def list_recent_jobs(self, limit: int = 50) -> list[dict[str, Any]]:
-        del limit
-        return list(self.jobs.values())
-
     def search_jobs(self, limit: int = 50, offset: int = 0,
                     status: str | None = None, query: str = "") -> dict[str, Any]:
         del status, query

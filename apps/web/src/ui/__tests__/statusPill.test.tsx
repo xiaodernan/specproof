@@ -29,4 +29,13 @@ describe("StatusPill — stage-row statuses", () => {
   it("passes an unknown status through verbatim", () => {
     expect(statusLabel("some_future_status")).toBe("SOME_FUTURE_STATUS");
   });
+
+  it("glosses every status the worker's lease frame can echo (#66)", () => {
+    // After a refused lease-lost CAS the frame echoes the row's actual
+    // status; STALE is a legal RUNNING outcome, so it must not show raw.
+    expect(statusLabel("stale")).toBe("已过期");
+    expect(statusLabel("queued")).toBe("等待执行");
+    expect(statusLabel("cancelled")).toBe("已取消");
+    expect(statusLabel("failed")).toBe("执行失败");
+  });
 });

@@ -1061,3 +1061,152 @@ status 的 `CHECK` 约束命中（词表以 `_ALL_STATUS_TUPLE` 一类常量出�
    22:23 重跑同一组合都是绿的。它是 subprocess + 计时敏感的那一类，机制推断
    为机器负载（那次紧接全仓 mypy/ruff 之后）。**记为未复现，不当作已修，
    也不靠加大超时压掉**；#70 的全量合并门数字出来后回看它是否再红。
+
+## 19. #66 / #69 / #70-余项：停止帧跟随落库的行，未知状态不再被编成"已取消"（2026-09-25）
+
+### 19.1 #66 动手前把可达性量完：cancel_checkpoint 的 CAS 被拒是常态，不是异常
+
+§18.1 只登记了措辞不一致（帧说 `failed`、行是 `CANCELLED`）。本轮先量可达性，
+发现一个 §18.1 没写的承重事实：`is_cancelled()` 只有在行的 status 读回
+CANCELLED 时才为真（`agent/job_control.py:190-206`），而 `JobCancelledError`
+的全部抛出点都以它为前提——所以 `_mark_cancelled_at_checkpoint` 里的
+RUNNING→CANCELLED CAS 在生产里**几乎总是被拒**（行早已被 API 的取消 CAS 写成
+CANCELLED，且 CANCELLED 在状态机里是终态、无出边）。也就是说：这一段此前的
+真实行为是"审计行 + 进度帧无条件照发"，transition 只是仪式；§18.1 说的
+"两处都被 suppress 包住、写了什么没读回来"对 cancel 路径还意味着更糟的一层——
+**被拒才是主路径**，任何"只在写成功时宣告"的朴素修法会把取消帧几乎全部吞掉，
+时间线从此没有"运行因取消而停止"的叙述。
+
+另一个状态机事实决定了 lease 路径的语义：reclaimer 对过期 RUNNING 行做的是
+RUNNING→**QUEUED**（重排队，`storage/mysql.py:815-824`），不是 FAILED。所以
+lease-lost 后 CAS 被拒时行最可能是 QUEUED——旧代码在这里发 `failed` 帧，
+是把"即将重试"叙述成"执行失败"，与 cancel 路径同族的谎报。
+
+### 19.2 修法：#63/#64 形状 + 被拒不宣告时读回行
+
+- 新增 `Worker._persisted_status()`：best-effort 读回行状态，读不到返回
+  None。这是"被拒不宣告"与"诚实宣告"之间的桥：帧只能说行真实具有的状态，
+  要么因为这次写入成功了，要么因为读回确认了。
+- `_mark_cancelled_at_checkpoint`：写入成功**或读回确认 CANCELLED** 才发帧
+  （status=`cancelled`）并写检查点审计（确认条件与旧行为"either way 记审计"
+  的真值域相同，因为被拒=API 已取消=行确是 CANCELLED）；确认不了就不发帧、
+  不写审计，`worker_cancel_checkpoint_unconfirmed_total` +1。确认路径的帧
+  status 用字面量 `"cancelled"`，对 §13.4 的 AST 标签门可见。
+- `_mark_lease_lost`：写入成功发 `failed`；被拒时读回，行是什么就发什么
+  （QUEUED→`queued`、CANCELLED→`cancelled`……），读不回就不发帧，
+  `worker_lease_lost_unconfirmed_total` +1。动态回显用 `status.lower()`，
+  对 AST 字面量门不可见——但门关注的"生产了却没有中文注释"在此不可能发生：
+  行状态的全部取值都已在 `STATUS_LABELS` 里。为守住这句话，把状态机词表里
+  唯一缺失的 `STALE` 补进前端 `STATUS_LABELS`（"已过期"，措辞沿用
+  `util.tsx::VERDICT_LABELS` 的既有先例）并加前端测试锁定——RUNNING→STALE
+  是合法转移，读回窗口内可能看到它，不能裸显 token。
+- 两个新计数都登记进 `OBSERVABILITY.md` 的已接线指标清单；该文档的
+  "已知未修的不一致"一节按事实改写为"已修 + 语义"，不再让文档替旧代码作证。
+
+### 19.3 探针 M：两个变异各自判红，按字节还原
+
+| 变异 | 模拟的旧行为 | 判红 |
+|---|---|---|
+| M1 cancel 帧改回无条件 `"failed"` | 帧不再跟随行 | 2 failed / 19 passed：`test_cancel_frame_narrates_cancelled_not_failed` + `test_refused_cancel_cas_with_cancelled_row_still_narrates_cancelled` |
+| M2 lease 帧改回无条件 `"failed"` | 无视读回的行状态 | 1 failed / 20 passed：`test_lease_lost_frame_follows_the_row_when_cas_refused` |
+
+两次均按原始字节还原并 sha 复核一致，红名单逐个点名（不是只记数量）。
+一处仪器细节如实记录：探针对 `api/agent_runtime.py`（#69 的变异）第一版用
+LF 锚点没有命中——该文件是 CRLF，`read_bytes().decode()` 不做换行翻译；
+改用 `read_text()` 的统一换行后锚点命中 1 次。还原始终按原始字节，
+与行尾无关。
+
+### 19.4 #69：DDL 无 CHECK 已核实；两处镜像映射合并为单一来源，未知透传
+
+§18.2 的两个待核项都有了答案：
+
+- DDL（`storage/agent_jobs.py:268-285`）里 `agent_jobs.status` 是
+  `VARCHAR(16) NOT NULL`，**没有 CHECK**。写入侧有 `_validate_status`（:394）
+  把关，但库外的旧写入/人工干预仍可能留下词表外的值——兜底分支不是死分支，
+  必须按"透传"处理而不是删掉了事。
+- 同一份映射确实存在两处（routes 的 `_console_status` 与
+  `api/agent_runtime.py::console_status_label`），后者 docstring 自己承认是
+  镜像（"Mirrors api/routes/agent_console._console_status"）。
+
+修法：单一来源定为 `api.agent_runtime.console_status_label`（公开命名、本就
+自称 stable API surface），routes 的 `_console_status` 改为一行委托
+（lazy import，沿用该模块既有的 agent_runtime 延迟导入模式，不把 craft.*
+拉进 routes 的 import 图）。未知值 `return str(job.status)` 原样透传，
+前端 `agentStatusMeta` 本就是未知透传（mute tone），§14.6 登记的"Craft 侧
+未识别状态分支到不了"由此打通。
+
+透传对所有分支调用点安全的依据（逐点核过）：approval 预检（:597 附近）与
+gate 预检（:868 附近）对未知值与旧的 CANCELLED 同样拒绝（都不等于
+AWAITING_APPROVAL / 都不在终态集）；`_require_cancellable` 对未知值会放行到
+`get_runtime().cancel` ——而 store 的 cancel 是接口文档写明的"无条件覆盖、
+幂等、wins even over terminal"（`storage/agent_jobs.py:230-237`），不抛
+`InvalidJobTransitionError`，所以不存在新的 500 面。
+
+新增 3 例：词表全映射回归锁（`set(expected) == set(JOB_STATUSES)`）、未知值
+直通映射、端到端（store 行被 `dataclasses.replace` 换成词表外状态后
+`GET /agent/jobs/{id}` 返回原值）。变异探针（把未知值折回
+`return "CANCELLED"`）⇒ 恰好 2 例转红（直通映射 + 端到端），词表回归锁保持
+绿——门只惩罚那一个谎言。按字节还原复验。
+
+### 19.5 #70 余项：全量扫描甄别出 7 处死桩（§18.3 只登记了 5 处，且有一处记错）
+
+全仓 `grep -rn list_recent_jobs` 逐处判"死桩/活方法"，判据是
+**文件内是否有调用点**（fake 是模块私有的，跨文件不引用）：
+
+- **死桩 7 处，全删**：`test_api_jobs.py`、`test_api_errors.py`、
+  `test_api_governance.py`、`test_envelope_retryable.py`、
+  `test_tenant_auth.py`（§18.3 登记的 5 处）+ `test_dashboard_api.py:39`
+  （§18.3 漏登记，本次扫描发现）+ `tests/e2e/fixture_server.py:236`。
+  最后这一处 §18.3 说它"仍在自用同名方法"——**该登记不准确**：实测全文件
+  只有定义无调用，fixture 同时提供 `search_jobs`，路由走的正是它。
+- **活方法 1 处保留**：`test_web_api.py:74`——它的假 `dashboard_snapshot`
+  （:94）自用 `self.list_recent_jobs(10)`。真实 dashboard 路由走
+  `store.dashboard_snapshot`（SQL 聚合，`storage/mysql.py:547`），与
+  `list_recent_jobs` 无关——这条对照顺便证实了 §18.3 的另一半：清理确实
+  不能一把删。
+- 契约测试 `test_api_jobs_total.py` 的哨兵与文档引用保留：那正是"谁再调用
+  就死给谁看"的门本身。
+
+### 19.6 门证（本批实测）
+
+- 后端静态：`ruff check .` ⇒ All checks passed!；`mypy .` ⇒ Success: no
+  issues found in **211** source files（无新生产文件）。
+- 定向：`test_worker_cancel_points.py` **21 passed**（16 + 新 5）；
+  `test_agent_console_api.py + test_agent_runtime.py` **51 passed**（新 3）；
+  8 个受影响 store-fake 文件合跑 **181 passed**；
+  `test_progress_event_labels + test_worker_notify_terminal +
+  test_notify_connector` **55 passed**；`py_compile(fixture_server.py)` OK。
+- 前端三门禁（因 StatusPill 改动适用）：`npx tsc --noEmit` 无输出；
+  `npx vitest run` ⇒ **43 files / 308 tests**（+1：STALE/queued/cancelled/
+  failed 帧回显词条锁定）；`npx vite build` ⇒ ✓ built。
+- 全量合并门（`pytest tests/unit tests/security tests/fault -q -p
+  no:randomly`）：见文末追记。
+
+### 19.7 仍未做（诚实边界）
+
+1. #66 的被拒路径新增一次 `get_job` 读回（单行主键读）。用户取消的常态路径
+   每次多一次读，代价未量化——量级评估是"可忽略"，但没有测过就不写"已验证
+   无影响"。
+2. 帧回显的取值空间由不变式"行状态词表 ⊆ STATUS_LABELS"保证，该不变式
+   目前只有词汇表齐全性的人工核对（本轮补了 STALE），没有自动测试——
+   候选：把 `TERMINAL_STATUSES`/`_VALID_TRANSITIONS` 的键集与
+   `STATUS_LABELS` 的键集做一个双向对账测试。
+3. §13.6.4（异常失败路径不进 `jobs_<verdict>_total` 族——口径决策）、
+   §12.6（Craft 车道 `accept_json` 两次写）仍未动。
+4. `test_root_serves_spa_when_built` 在 §18.3 记为未复现的偶发红，本批
+   全量门结果出来后回看（见文末追记）。
+
+### 19.8 全量合并门（追记，收口 §19.6 与 §18.3-4）
+
+- `pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒
+  **2868 passed, 5 skipped, 3 warnings, 871.99s (14:31)，GATE_EXIT=0**。
+- 对账（逐位，不是估算）：§15.5 的 2855 + `test_api_jobs_total.py` 5 例
+  （§15.5 明记它在那次 collection 之后落盘、不在 2855 内）+ 本批 #66 的
+  worker 侧 5 例 + 本批 #69 的 console 侧 3 例 = **2868**，与实测吻合。
+  7 处死桩删除不改变用例数（删的是没人调用的方法，不是测试）。
+- §18.3-4 登记的偶发红 `test_root_serves_spa_when_built`：本轮全量门
+  **未红**（整门 exit 0）。按既定口径仍不写"已修"——它本来就是未复现项，
+  本轮只是多了一个绿的观察点。
+- 耗时 871.99s 短于此前两轮（1787s/2063s）只作记录不作证据：本轮前端
+  三门禁与全量门并行跑，机器负载构成不同，两轮之间可比的只有 0 失败与
+  用例计数。

@@ -309,15 +309,16 @@ class ApprovalRequest(BaseModel):
 
 
 def _console_status(job: AgentJob) -> str:
-    if job.status == "pending":
-        return "AWAITING_APPROVAL" if job.plan_json else "PLANNING"
-    if job.status == "running":
-        return "EXECUTING"
-    if job.status == "succeeded":
-        return "COMPLETED"
-    if job.status == "failed":
-        return "FAILED"
-    return "CANCELLED"
+    """Delegate to the single source (api.agent_runtime.console_status_label).
+
+    This used to be a private copy of that mapping — two hand-mirrored
+    branches that could drift apart. The unknown-status pass-through lives
+    there now; the lazy import follows this module's existing pattern for
+    agent_runtime (keeps craft.* out of the routes import graph).
+    """
+    from api.agent_runtime import console_status_label
+
+    return console_status_label(job)
 
 
 def _store_status_for_filter(

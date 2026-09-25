@@ -36,9 +36,6 @@ class FakeMySQLStore:
     def get_job_summary(self, job_id):
         return FakeMySQLStore.summaries.get(job_id)
 
-    def list_recent_jobs(self, limit=50):
-        return list(FakeMySQLStore.rows.values())[-limit:]
-
     def transition_job_status(self, job_id, to_status, **kwargs):
         row = FakeMySQLStore.rows.get(job_id)
         if row is None:

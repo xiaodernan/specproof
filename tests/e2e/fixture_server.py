@@ -233,10 +233,6 @@ class FakeMySQLStore:
     def record_audit(self, **_: Any) -> None:
         return None
 
-    def list_recent_jobs(self, limit: int = 50) -> list[dict[str, Any]]:
-        del limit
-        return [dict(row) for row in self.rows.values()]
-
     def search_jobs(
         self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
     ) -> dict[str, Any]:

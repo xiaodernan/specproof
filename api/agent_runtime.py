@@ -105,8 +105,15 @@ class ConsoleState(Protocol):
 def console_status_label(job: AgentJob) -> str:
     """Map the store status onto the console vocabulary (stable API surface).
 
-    Mirrors api/routes/agent_console._console_status; kept local so the
-    runtime stays decoupled from the routes module internals.
+    The single source for this mapping — the routes module delegates here
+    (its former private copy is exactly the kind of mirror that drifts).
+    The store validates every write against the JobStatus vocabulary, but
+    the column is VARCHAR without a CHECK, so an out-of-vocabulary value is
+    not impossible (an older writer, a manual fix). Folding such a value
+    into "CANCELLED" would invent a meaning the row does not carry — the
+    store's schema does not promise every value is cancellable — so an
+    unknown status is passed through verbatim and the UI's own unknown
+    handling decides how to show it.
     """
     if job.status == "pending":
         return "AWAITING_APPROVAL" if job.plan_json else "PLANNING"
@@ -116,7 +123,9 @@ def console_status_label(job: AgentJob) -> str:
         return "COMPLETED"
     if job.status == "failed":
         return "FAILED"
-    return "CANCELLED"
+    if job.status == "cancelled":
+        return "CANCELLED"
+    return str(job.status)
 
 
 @dataclass

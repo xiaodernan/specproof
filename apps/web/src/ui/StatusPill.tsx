@@ -16,6 +16,7 @@ export const STATUS_LABELS: Record<string, string> = {
   RUNNING: "正在验收",
   PENDING: "等待处理",
   CANCELLED: "已取消",
+  STALE: "已过期",
   WAITING_FOR_PROVIDER: "等待模型服务",
   UNVERIFIED: "证据不足",
   INCONCLUSIVE: "尚无明确结论",

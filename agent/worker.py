@@ -481,27 +481,74 @@ class Worker:
         max_retries = int(max_retries_raw) if max_retries_raw is not None else 3
         return retry_count < max_retries
 
+    def _persisted_status(self, job_id: str) -> str | None:
+        """Best-effort read of the row's current status (None when unreadable).
+
+        This is how a refused CAS can still narrate the truth: a stop frame
+        may only carry a status the persisted row actually has — either
+        because this write landed, or because the row was read back. A read
+        failure means the row state is unknown, so nothing may be narrated.
+        """
+        try:
+            row = self.mysql.get_job(job_id)
+        except Exception:
+            logger.warning(
+                "Job %s: row read-back failed — row state unknown", job_id,
+                exc_info=True,
+            )
+            return None
+        if not row:
+            return None
+        status = str(row.get("status") or "").strip()
+        return status or None
+
     def _mark_cancelled_at_checkpoint(self, job_id: str) -> None:
         """Mark the job CANCELLED with reason 'cancelled_at_checkpoint'.
 
         The API's cancel CAS usually owns the CANCELLED row already; this
-        CAS is the worker's best-effort race-winner (row still RUNNING) and
-        the audit row + progress event carry the checkpoint reason either
-        way. Nothing else is written — a cancelled job gets no further side
-        effects.
+        CAS is the worker's best-effort race-winner (row still RUNNING).
+        The frame narrates the row, not the intention (#66): it says
+        "cancelled" only when this write landed or a read-back confirms
+        CANCELLED, and the audit row records the checkpoint reason under
+        exactly the same condition. A row that confirms neither gets no
+        frame, no audit — just a counter. Nothing else is written — a
+        cancelled job gets no further side effects.
         """
-        with contextlib.suppress(Exception):
-            self.mysql.transition_job_status(
+        written = False
+        try:
+            written = self.mysql.transition_job_status(
                 job_id, "CANCELLED", from_status="RUNNING",
                 worker_id=self.worker_id, error_msg=CANCELLED_AT_CHECKPOINT,
             )
+        except Exception:
+            logger.warning(
+                "Job %s: cancel transition at checkpoint raised — reading back",
+                job_id, exc_info=True,
+            )
+        if not written:
+            status = self._persisted_status(job_id)
+            if status != "CANCELLED":
+                logger.warning(
+                    "Job %s: checkpoint cancel not confirmed on the row "
+                    "(status=%s) — no cancel frame narrated", job_id, status,
+                )
+                incr("worker_cancel_checkpoint_unconfirmed_total")
+                return
+            # The API's cancel CAS won the race, and the row confirms it:
+            # the checkpoint reason is still this worker's fact to record.
+        try:
             self.mysql.record_audit(
                 action="job_cancelled_at_checkpoint", actor=self.worker_id,
                 job_id=job_id, from_status="RUNNING", to_status="CANCELLED",
                 detail=CANCELLED_AT_CHECKPOINT,
             )
+        except Exception:
+            logger.warning(
+                "Job %s: checkpoint-cancel audit could not be written",
+                job_id, exc_info=True,
+            )
         self.redis.xadd_progress(
-            job_id, "cancel_checkpoint", "failed",
+            job_id, "cancel_checkpoint", "cancelled",
             message=CANCELLED_AT_CHECKPOINT, percent=0.0,
         )
 
@@ -509,14 +556,34 @@ class Worker:
         """Fail fast on lease loss: FAILED with reason 'lease_lost'.
 
         No summary, billing end or GitHub check — the worker no longer owns
-        the job, so it must stop writing business results.
+        the job, so it must stop writing business results. The frame follows
+        the row (#66): this write's success narrates FAILED; a refused CAS
+        reads the row back — the reclaimer may already have requeued the job
+        (QUEUED: a retry is coming, "failed" would be a lie) or the user may
+        have cancelled it — and narrates what the row actually says. When
+        the row cannot be read, nothing is narrated and a counter records
+        the silence.
         """
-        with contextlib.suppress(Exception):
-            self.mysql.transition_job_status(
+        written = False
+        try:
+            written = self.mysql.transition_job_status(
                 job_id, "FAILED", from_status="RUNNING", error_msg=LEASE_LOST,
             )
+        except Exception:
+            logger.warning(
+                "Job %s: lease-lost transition raised — reading back",
+                job_id, exc_info=True,
+            )
+        status = "FAILED" if written else self._persisted_status(job_id)
+        if status is None:
+            logger.warning(
+                "Job %s: lease lost but the row state could not be confirmed "
+                "— no stop frame narrated", job_id,
+            )
+            incr("worker_lease_lost_unconfirmed_total")
+            return
         self.redis.xadd_progress(
-            job_id, "lease", "failed", message=LEASE_LOST, percent=0.0,
+            job_id, "lease", status.lower(), message=LEASE_LOST, percent=0.0,
         )
 
     def _maybe_notify_terminal(self, job_id: str, summary: dict[str, Any]) -> None:

@@ -188,6 +188,67 @@ def test_get_agent_job_unknown_returns_404_envelope(client: TestClient) -> None:
     assert body["schema_version"] == 1
 
 
+# ── unknown store status passes through verbatim (#69) ─────────────────────
+
+
+def _job_with_status(status: str) -> Any:
+    """An AgentJob carrying an arbitrary status string.
+
+    The dataclass field is typed as the JobStatus literal, but the column is
+    VARCHAR without a CHECK — an out-of-vocabulary value is exactly the
+    scenario #69 is about, so the test constructs it deliberately.
+    """
+    from storage.agent_jobs import AgentJob
+
+    return AgentJob(
+        id="job-x", status=status, spec_text="spec", spec_digest="d" * 64,
+        created_at=0.0, updated_at=0.0,
+    )
+
+
+def test_console_status_maps_the_whole_store_vocabulary() -> None:
+    """Every declared status keeps its console meaning (regression lock)."""
+    from api.agent_runtime import console_status_label
+    from storage.agent_jobs import JOB_STATUSES
+
+    expected = {
+        "pending": "PLANNING",
+        "running": "EXECUTING",
+        "succeeded": "COMPLETED",
+        "failed": "FAILED",
+        "cancelled": "CANCELLED",
+    }
+    assert set(expected) == set(JOB_STATUSES)
+    for status in JOB_STATUSES:
+        assert console_status_label(_job_with_status(status)) == expected[status]
+
+
+def test_unknown_store_status_passes_through_verbatim() -> None:
+    """An out-of-vocabulary status reaches the API as itself.
+
+    Folding it into "CANCELLED" invented a meaning the row does not carry;
+    the frontend's own unknown handling decides how to show it (#69).
+    """
+    from api.agent_runtime import console_status_label
+
+    assert console_status_label(_job_with_status("archived")) == "archived"
+
+
+def test_get_agent_job_reports_unknown_status_verbatim(
+    client: TestClient, store: InMemoryAgentJobStore,
+) -> None:
+    """Endpoint level: a row written out-of-band (old writer / manual fix)
+    is reported as its raw status, not as CANCELLED."""
+    import dataclasses
+
+    job_id = _create(client)
+    stored = store._jobs[job_id]
+    store._jobs[job_id] = dataclasses.replace(stored, status="archived")
+    resp = client.get(f"/agent/jobs/{job_id}", headers=_headers())
+    assert resp.status_code == 200
+    assert resp.json()["job"]["status"] == "archived"
+
+
 def test_list_agent_jobs_with_status_filter(client: TestClient) -> None:
     first = _create(client)
     second = _create(client)

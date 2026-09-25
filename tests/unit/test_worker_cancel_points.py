@@ -369,6 +369,165 @@ def test_worker_lease_lost_fails_fast_without_business_writes(
     assert redis.released == ["job-3"]
 
 
+# ── #66: the stop frames follow the row, not the intention ─────────────────
+
+
+def test_cancel_frame_narrates_cancelled_not_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The row says CANCELLED, so the timeline must not read '执行失败' on a
+    job the user cancelled — the frame's status follows the row (#66)."""
+    mysql = _FakeMysql(status="RUNNING")
+
+    def cancel_after_intake(stage: str) -> None:
+        if stage == "intake":
+            mysql.status = "CANCELLED"
+
+    graph = _FakeGraph(
+        ["intake", "prepare_base", "publish_report"],
+        _final_state(),
+        on_stage=cancel_after_intake,
+    )
+    redis = _FakeRedis(lease_ok=True)
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    worker._handle_job_impl("job-66a", {"repo_path": "/r", "spec_path": "/s"})
+
+    cancel_frames = [
+        (node, status) for node, status, _m in redis.events
+        if node == "cancel_checkpoint"
+    ]
+    assert cancel_frames == [("cancel_checkpoint", "cancelled")]
+
+
+def test_refused_cancel_cas_with_cancelled_row_still_narrates_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The API's cancel CAS usually owns the row (this CAS's refusal is the
+    norm, not an anomaly); the frame may still say 'cancelled' because a
+    read-back confirms the row, and the checkpoint audit stays this
+    worker's fact to record under exactly that confirmation."""
+    mysql = _FakeMysql(status="RUNNING", refuse={"CANCELLED"})
+
+    def cancel_after_intake(stage: str) -> None:
+        if stage == "intake":
+            mysql.status = "CANCELLED"
+
+    graph = _FakeGraph(
+        ["intake", "prepare_base", "publish_report"],
+        _final_state(),
+        on_stage=cancel_after_intake,
+    )
+    redis = _FakeRedis(lease_ok=True)
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    worker._handle_job_impl("job-66b", {"repo_path": "/r", "spec_path": "/s"})
+
+    cancel_frames = [
+        (node, status) for node, status, _m in redis.events
+        if node == "cancel_checkpoint"
+    ]
+    assert cancel_frames == [("cancel_checkpoint", "cancelled")]
+    assert any(
+        a.get("detail") == "cancelled_at_checkpoint" for a in mysql.audits
+    )
+
+
+def test_unconfirmed_cancel_narrates_nothing_and_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A row this worker cannot confirm as CANCELLED gets no cancel frame
+    and no audit — silence plus a counter, never a narrated guess."""
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()
+    mysql = _FakeMysql(status="RUNNING", refuse={"CANCELLED"})
+
+    def cancel_after_intake(stage: str) -> None:
+        if stage == "intake":
+            mysql.status = "CANCELLED"
+            reads: list[str] = []
+
+            def drifting_read(job_id: str) -> dict[str, Any]:
+                reads.append(job_id)
+                # First read: the boundary checkpoint observes the cancel.
+                # Later reads: the row has moved on (the defensive branch) —
+                # the read-back after the refused CAS no longer confirms
+                # CANCELLED, so nothing may be narrated.
+                status = "CANCELLED" if len(reads) == 1 else "RUNNING"
+                return {"id": job_id, "status": status, "tenant_id": None}
+
+            mysql.get_job = drifting_read
+
+    graph = _FakeGraph(
+        ["intake", "prepare_base", "publish_report"],
+        _final_state(),
+        on_stage=cancel_after_intake,
+    )
+    redis = _FakeRedis(lease_ok=True)
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    worker._handle_job_impl("job-66c", {"repo_path": "/r", "spec_path": "/s"})
+
+    assert [node for node, _s, _m in redis.events] == []
+    assert mysql.audits == []
+    after = metrics_module.snapshot()
+    assert _counter_delta(
+        after, before, "worker_cancel_checkpoint_unconfirmed_total"
+    ) == 1.0
+
+
+def test_lease_lost_frame_follows_the_row_when_cas_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After a refused lease-lost CAS the row may already be QUEUED (the
+    reclaimer requeued it) — narrating 'failed' would announce an outcome
+    the row does not carry, and the retry the row promises would read as a
+    death."""
+    mysql = _FakeMysql(status="RUNNING", refuse={"FAILED"})
+    # Read-back: the reclaimer already requeued the job.
+    mysql.get_job = lambda job_id: {
+        "id": job_id, "status": "QUEUED", "tenant_id": None,
+    }
+    graph = _FakeGraph(["intake", "prepare_base"], _final_state())
+    redis = _FakeRedis(lease_ok=False)
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    worker._handle_job_impl("job-66d", {"repo_path": "/r", "spec_path": "/s"})
+
+    lease_frames = [
+        (node, status) for node, status, _m in redis.events if node == "lease"
+    ]
+    assert lease_frames == [("lease", "queued")]
+
+
+def test_lease_lost_unconfirmed_narrates_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lease-lost stop whose row state cannot be read back narrates
+    nothing — the counter records the silence instead of a guessed status."""
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()
+    mysql = _FakeMysql(status="RUNNING", refuse={"FAILED"})
+
+    def broken_read(job_id: str) -> dict[str, Any]:
+        raise RuntimeError("mysql down")
+
+    mysql.get_job = broken_read
+    graph = _FakeGraph(["intake", "prepare_base"], _final_state())
+    redis = _FakeRedis(lease_ok=False)
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    worker._handle_job_impl("job-66e", {"repo_path": "/r", "spec_path": "/s"})
+
+    assert redis.events == []
+    after = metrics_module.snapshot()
+    assert _counter_delta(
+        after, before, "worker_lease_lost_unconfirmed_total"
+    ) == 1.0
+
+
 def test_worker_records_lease_and_stage_duration_metrics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

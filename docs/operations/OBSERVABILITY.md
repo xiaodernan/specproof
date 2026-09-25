@@ -112,7 +112,7 @@ infra 栈改动)、DLQ、ES 延迟、Redis 命中、Base/Head 沙箱失败 (sand
 
 - `observability/metrics.py::render_text` 无条件输出：specproof_up。
 - `api/server.py` 中间件：specproof_http_requests_total、specproof_http_requests_failed_total、specproof_http_responses_5xx_total。
-- `agent/worker.py`：specproof_jobs_completed_total、specproof_jobs_processing_seconds (仪表)、specproof_jobs_duration_seconds (直方图, P6 新增)、specproof_worker_lease_renews_total、specproof_worker_lease_renew_seconds (直方图)、specproof_worker_cancelled_at_checkpoint_total、specproof_worker_lease_lost_total、specproof_worker_provider_wait_total、specproof_worker_terminal_cas_lost_total；#65 起外加对外通知的三个定名计数 specproof_notify_skipped_total、specproof_notify_error_total 与拼接族 specproof_notify_<status>_total（见下一段）。
+- `agent/worker.py`：specproof_jobs_completed_total、specproof_jobs_processing_seconds (仪表)、specproof_jobs_duration_seconds (直方图, P6 新增)、specproof_worker_lease_renews_total、specproof_worker_lease_renew_seconds (直方图)、specproof_worker_cancelled_at_checkpoint_total、specproof_worker_lease_lost_total、specproof_worker_provider_wait_total、specproof_worker_terminal_cas_lost_total、specproof_worker_cancel_checkpoint_unconfirmed_total、specproof_worker_lease_lost_unconfirmed_total（#66 起：停止帧无法对行核实时的静默计数）；#65 起外加对外通知的三个定名计数 specproof_notify_skipped_total、specproof_notify_error_total 与拼接族 specproof_notify_<status>_total（见下一段）。
 - `storage/outbox_relay.py`：仪表 specproof_outbox_pending、specproof_outbox_oldest_age_seconds、specproof_outbox_failure_rate、specproof_outbox_retry_count、specproof_outbox_dead_letters、specproof_outbox_last_success_ts；计数 specproof_outbox_published_total、specproof_outbox_publish_failed_total、specproof_outbox_dead_lettered_total（常量定义在该文件 36-44 行）。
 
 三个**名字由代码拼接**的族不能列举，看板/告警要用正则匹配：`jobs_<verdict>_total`（verdict 取小写，所以旧清单里的 specproof_jobs_verified_total / _blocked_total / _failed_total 只是它的三个实例）、`worker_stage_duration_seconds_<node>`（graph 节点名拼进指标名，每个节点一条直方图）与 `notify_<status>_total`（`SendStatus` 的三个成员小写拼进名字：specproof_notify_sent_total / _disabled_total / _failed_total）。
@@ -123,7 +123,7 @@ infra 栈改动)、DLQ、ES 延迟、Redis 命中、Base/Head 沙箱失败 (sand
 
 进度流（Redis stream，前端 `worker_stage_duration_seconds_<node>` 的 node 名与此同源）中有三个值**不是 graph 节点**，而是 worker 自己写的生命周期事件，看板/文案不要把它们当成"某个阶段跑完了"：`lease`（租约续约）、`cancel_checkpoint`（取消检查点）、`terminal`（#64 起，失败/暂停的终结帧；此前这里的 node 位置写的是一次性 job id，等于在阶段列表里插入一个 UUID）。#64 后终结帧的 status 只有 `failed` 与 `waiting_for_provider` 两种，不再出现"429 暂停也报 failed"的假陈述。
 
-已知未修的不一致（下一批候选，不是本文档的断言）：`lease` 与 `cancel_checkpoint` 两帧至今仍写 status=`failed`。前者与落库的 FAILED 一致；后者不一致——同一段代码把行写成 CANCELLED，帧却说 failed。原因是这两处的写入包在 `contextlib.suppress(Exception)` 里，"写了什么"没有被读回来，所以无法在不做 #63/#64 那种"先决定→写→按写入结果宣告"改造的前提下声称它反映了行状态。因此本节只把**已按写入结果取值**的 `terminal` 帧当作可信来源。
+`lease` 与 `cancel_checkpoint` 两帧的 status 语义（#66 起，取代本节此前"已知未修的不一致"登记）：两帧都**跟随落库的行**，与 `terminal` 帧同一可信级别。worker 自己的写入成功时，帧说写入的状态（cancel_checkpoint → `cancelled`；lease → `failed`）；CAS 被拒时读回行、说行真实的状态——取消路径被拒是常态（API 的取消 CAS 通常已把行写成 CANCELLED，读回确认后帧仍说 `cancelled`，检查点审计照样记录），租约丢失被拒时行可能已被 reclaimer 改回 QUEUED（帧如实说 `queued`：这是重试，不是死亡）或已被用户取消（`cancelled`）。只有行读不回来或读回的状态两者都对不上时，帧**不发**，改记 specproof_worker_cancel_checkpoint_unconfirmed_total / specproof_worker_lease_lost_unconfirmed_total——静默可观测，不猜测。此前两帧无条件写 `failed`，在"用户取消了作业"与"作业被改回队列待重试"两种场景下都是对行的谎报。
 
 这两个集合的双向对账由 `tests/unit/test_progress_event_labels.py` 守住：worker/graph 生产出来的每个 node/status 字面量都必须在 `apps/web/src/ui/stages.ts` / `StatusPill.tsx` 里有中文注释，反之清单里也不得留死条目。
 
