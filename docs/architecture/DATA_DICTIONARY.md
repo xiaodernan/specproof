@@ -1,10 +1,17 @@
 # 数据字典 (DATA_DICTIONARY) — SpecProof 全存储字段级说明
 
 > 口径与出处: 本文逐字段登记 SpecProof 的全部持久化状态。MySQL 表结构以
-> `infra/mysql/migrations/0001_init.sql` 至 `0008_outbox_governance.sql` 八个版本化迁移为准,
+> `infra/mysql/migrations/0001_init.sql` 至 `0011_agent_jobs.sql` 十一个版本化迁移为准,
 > 并与代码内幂等 DDL (`storage/identity.py` / `storage/billing.py` / `storage/agent_jobs.py` /
 > `storage/object_metadata.py` / `storage/migrations.py`) 逐表核对; MongoDB/MinIO/ES/Redis/RabbitMQ
-> 以对应 `storage/*` 适配器为准。保留/清理操作 (retention ops) 不在本文展开, 见
+> 以对应 `storage/*` 适配器为准。
+>
+> **"版本化迁移为准"这句话以前是不成立的** (2026-09-26 实测纠正): 本节一度写到 0008 为止,
+> 而 `agent_jobs` 当时只有代码 DDL —— 结果是 `ensure_tables()` 建出来的新库比线上产品库少一张表
+> (17 vs 18)。迁移 0011 把它纳入了版本化体系; 代码 DDL 从"唯一来源"降级为"已存在安装上的
+> 自愈路径", 同一张表现在有两份描述, 由 `tests/unit/test_agent_jobs_migration_parity.py`
+> 逐列锁定 (列名/类型/顺序不一致即红)。
+>保留/清理操作 (retention ops) 不在本文展开, 见
 > `docs/operations/DATA_LIFECYCLE.md` (2026-08-19 已演练)。本文只登记**事实**:
 > 每张表/集合/桶/索引/键族的 字段、类型、租户作用域、TTL/保留、写入方。
 
@@ -16,9 +23,13 @@
 
 ## 1. MySQL — 数据库 `specproof_phase0` (compose 服务 mysql:8.4)
 
-共 19 张表: 15 张来自迁移 0001-0008, 4 张来自代码内幂等 DDL。
-时间戳约定: 迁移 0001-0004/0006/0008 的表用 MySQL TIMESTAMP; 0005/0007 及代码 DDL 表用
-epoch 秒 DOUBLE/REAL (与 `storage/identity.py` / `storage/billing.py` 的可移植约定一致)。
+共 18 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测):
+17 张来自版本化迁移 0001-0011, 1 张 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
+本文 §1.18 / §1.19 两张对象元数据表**不在这 18 张里** —— 它们只在显式选择 MySQL 对象元数据后端时
+由 `ensure_schema()` 现建, 默认后端是 SQLite (见 §1.18 的口径说明)。
+时间戳约定: 迁移 0001-0004/0006/0008/0009 用 MySQL TIMESTAMP; 0005/0007 与 0011 的 `agent_jobs`
+用 epoch 秒 DOUBLE/REAL (`agent_jobs` 走的是 `storage/identity.py` / `storage/billing.py` 那条
+可移植时间戳约定, 不是 TIMESTAMP —— 这正是 0011 必须与代码 DDL 逐列对齐的原因之一)。
 
 ### 1.1 verification_jobs — 验证任务 (业务事实源)
 
@@ -285,7 +296,7 @@ epoch 秒 DOUBLE/REAL (与 `storage/identity.py` / `storage/billing.py` 的可�
 - **写入方**: `storage/migrations.py` `MigrationRunner` (每迁移一个事务, 全成功才记账)。
 - **租户作用域**: —。**TTL/保留**: 永久, 不清理。
 
-### 1.17 agent_jobs — SpecCraft Agent 任务投影 (代码 DDL: `storage/agent_jobs.py`)
+### 1.17 agent_jobs — SpecCraft Agent 任务投影 (来源 `0011_agent_jobs.sql`; `storage/agent_jobs.py` 的代码 DDL 是已存在安装上的自愈路径)
 
 | 列 | 类型 | 说明 |
 |---|---|---|
@@ -317,6 +328,13 @@ epoch 秒 DOUBLE/REAL (与 `storage/identity.py` / `storage/billing.py` 的可�
 
 ### 1.18 object_metadata — 对象元数据 (代码 DDL: `storage/object_metadata.py`, §A 任务 7)
 
+> **口径 (2026-09-26 实测补充)**: 本节和 §1.19 描述的是 **MySQL 后端**的表, 而
+> `default_object_metadata_store()` 的默认后端是 **SQLite** (`~/.specproof/object-metadata.sqlite3`),
+> MySQL 只在显式给出 `MYSQL_URL` 并构造 `MySQLObjectMetadataStore` 时启用, 且表要由
+> `ensure_schema()` 现建 —— 因此 `specproof_phase0` / `specproof_test` 两个真实 schema 里
+> **都没有这两张表** (已在 §1 表数中排除)。本节列的是 SQLite 方言 (REAL/TEXT),
+> MySQL 方言由 `_to_mysql()` 转换。
+
 | 列 | 类型 | 说明 |
 |---|---|---|
 | object_id | VARCHAR(32) PK | uuid4().hex, 稳定身份 (绝不等于路径) |
@@ -339,6 +357,30 @@ epoch 秒 DOUBLE/REAL (与 `storage/identity.py` / `storage/billing.py` 的可�
 | contract_id | VARCHAR(128) | |
 
 - **写入方**: `storage/object_metadata.py`。**租户作用域**: J。**TTL/保留**: 与 object_metadata 同步。
+
+### 1.20 finding_feedback — Finding 验收反馈 (来源 `0009_finding_feedback.sql`; 本文此前漏登记该表)
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | CHAR(36) PK | UUID |
+| job_id | CHAR(36) NOT NULL | 所属验证任务; `idx_feedback_job` |
+| tenant_id | VARCHAR(36) NULL | `idx_feedback_tenant` (可空 = 尚未绑定租户的历史写入) |
+| finding_id | CHAR(36) NOT NULL | FK -> `findings(id)` ON DELETE CASCADE |
+| contract_id | VARCHAR(128) NOT NULL | 被评价的契约 |
+| severity | ENUM('BLOCKER','MAJOR','MINOR','NEEDS_CONFIRMATION') | 冗余快照, 便于按级别算接受率 |
+| verdict | ENUM('accept','reject') | 唯一取值域 |
+| reason | VARCHAR(1000) NULL | reject 的理由 |
+| created_by | VARCHAR(128) NOT NULL | 打回人 |
+| created_at | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | |
+
+- **写入方**: `api/routes/feedback.py` (`POST /api/v1/jobs/{job_id}/feedback` -> `MySQLStore.insert_feedback`)。
+- **读取方**: 同路由 `GET /api/v1/jobs/{job_id}/feedback` -> `list_feedback` + `feedback_stats`;
+  Go/No-Go #13 的 `acceptance_rate` = accepted/(accepted+rejected), **无反馈的 finding 不计入**
+  ("沉默不等于接受"), 分母为 0 时 `acceptance_rate_pct` 为 `null` 而不是 0。
+- **租户作用域**: T (有 `tenant_id` 列)。**TTL/保留**: 永久(无自动清理)。
+- **已知缺口 (2026-09-26 实测)**: `apps/web/src` 对 "feedback" 的引用只有 UI-kit 的示例区块一处,
+  即 **这条机制在 Web 上没有任何入口** —— 试点用户只能用 HTTP 客户端手工 POST 才能产生反馈行,
+  两个真实 schema 里该表当前为 0 行。已登记为工作项 #84。
 
 ---
 
@@ -475,8 +517,9 @@ epoch 秒 DOUBLE/REAL (与 `storage/identity.py` / `storage/billing.py` 的可�
 
 ## 8. 事实来源清单 (写入方代码定位)
 
-- MySQL 迁移: `infra/mysql/migrations/0001_init.sql` … `0008_outbox_governance.sql` (down 文件在 `infra/mysql/migrations/down/`)。
+- MySQL 迁移: `infra/mysql/migrations/0001_init.sql` … `0011_agent_jobs.sql` (down 文件在 `infra/mysql/migrations/down/`; 0011 是 2026-09-26 为 `agent_jobs` 补的那一份, 它的缺失曾让全新安装比线上少一张表)。
 - MySQL 业务/状态: `storage/mysql.py`; 迁移执行: `storage/migrations.py`。
+- Finding 验收反馈 (Go/No-Go #13): `storage/mysql.py` `insert_feedback`/`feedback_stats` + `api/routes/feedback.py` (Web 侧无入口, 见 §1.20)。
 - 租户身份: `storage/identity.py` + `api/identity/store.py` + `api/routes/admin.py`。
 - 计费: `storage/billing.py` (计量钩子: `agent/worker.py`)。
 - Agent 任务: `storage/agent_jobs.py` + `api/agent_runtime.py` + `api/routes/agent_console.py`。

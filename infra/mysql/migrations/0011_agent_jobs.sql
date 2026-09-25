@@ -1,0 +1,16 @@
+-- 0011: bring agent_jobs inside the versioned migration set.
+--
+-- Measured on 2026-09-26 while bootstrapping an isolated test schema (#75):
+-- `ensure_tables()` applied 0001..0010 and produced 17 tables, while the live
+-- product schema holds 18. The extra one is `agent_jobs`, whose only DDL was a
+-- runtime `CREATE TABLE IF NOT EXISTS` in storage/agent_jobs.py:268. That
+-- contradicts this directory's own rule ("Schema changes are NEVER ad-hoc
+-- CREATE IF NOT EXISTS", storage/migrations.py) and means a fresh bootstrap is
+-- not the same schema as a running one.
+--
+-- The statement below mirrors _SCHEMA_SQL in storage/agent_jobs.py exactly
+-- (tests/unit/test_agent_jobs_migration_parity.py locks the two against each
+-- other), so it is a no-op on an existing installation and authoritative on a
+-- fresh one. The runtime CREATE stays as a self-heal for a database the app
+-- user cannot migrate.
+CREATE TABLE IF NOT EXISTS agent_jobs (id VARCHAR(255) PRIMARY KEY, status VARCHAR(16) NOT NULL, spec_text TEXT NOT NULL, spec_digest CHAR(64) NOT NULL, plan_json TEXT, current_step VARCHAR(255), progress_json TEXT, lease_owner VARCHAR(255), lease_expires_at DOUBLE, started_at DOUBLE, finished_at DOUBLE, result_json TEXT, accept_json TEXT, error TEXT, created_at DOUBLE NOT NULL, updated_at DOUBLE NOT NULL);
