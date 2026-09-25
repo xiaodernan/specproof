@@ -40,6 +40,7 @@ def _modules_needing_newer_python(root: Path) -> list[str]:
 
 def pytest_configure(config):
     if sys.version_info >= _MIN_PYTHON:
+        _apply_mysql_isolation()
         return
     offending = _modules_needing_newer_python(_PROJECT_ROOT)
     running = ".".join(str(x) for x in sys.version_info[:3])
@@ -88,6 +89,201 @@ SLOW_TEST_MODULES: frozenset[str] = frozenset({
     "test_swebench_v11_fixes.py",
     "test_verify_criterion_anchor.py",
 })
+
+
+# ── #75: DB-backed tests must never write the product schema ──────
+#
+# `MySQLConfig` defaults `database` to the PRODUCTION schema and `password` to
+# the production app credential, and `from_env()` falls back to both — so an
+# unset environment still reaches production tables. Measured here: 13 test
+# files build a real `MySQLStore()`, and `verification_jobs` held 177 rows of
+# which 177 were `repo_path = '/test/repo'` — the product job table was written
+# entirely by the unit suite, and the Dashboard counts those rows as real
+# verification jobs. This is not a cleanliness preference: #73 and #76 both
+# began from a row a test left behind.
+#
+# Scope, stated plainly: this contract covers MySQL only. `MongoDBConfig`
+# defaults its `database` to the same name and is untouched here.
+PRODUCT_MYSQL_DATABASE = "specproof_phase0"
+#: One-time creation (additive; grants only on this schema):
+#:     powershell scripts/create_test_database.ps1
+DEFAULT_TEST_MYSQL_DATABASE = "specproof_test"
+TEST_REPO_PATH_PATTERN = "/test/%"
+
+#: (state, database, product-schema test-row count at session start)
+MYSQL_ISOLATION: tuple[str, str, int | None] = ("unresolved", "", None)
+
+#: 'blocked' stops the session on purpose: one actionable message beats
+#: thousands of tests silently writing the wrong database.
+BLOCKED_MESSAGE = (
+    "SpecProof's tests must not write the product MySQL schema "
+    f"({PRODUCT_MYSQL_DATABASE}), but that is the only schema reachable: "
+    "MYSQL_DATABASE names it (or is unset, which defaults to it) and the "
+    "isolated test schema is not usable. Create it once with "
+    "`powershell scripts/create_test_database.ps1`, or point "
+    "SPECPROOF_TEST_MYSQL_DATABASE at an existing non-product schema. "
+    "Carrying on would put test rows in the same table as real verification "
+    "jobs — 177 of 177 rows were test rows the last time this was counted."
+)
+
+
+def chosen_test_database() -> str:
+    """The schema DB-backed tests may write. Never the product one."""
+    named = (
+        os.getenv("SPECPROOF_TEST_MYSQL_DATABASE") or DEFAULT_TEST_MYSQL_DATABASE
+    ).strip()
+    if not named or named == PRODUCT_MYSQL_DATABASE:
+        raise RuntimeError(
+            "SPECPROOF_TEST_MYSQL_DATABASE must name a non-product schema; "
+            f"got {named!r}"
+        )
+    return named
+
+
+def _connect(database: str, timeout: int):  # noqa: ANN202 — pymysql has no stubs
+    import pymysql
+
+    from storage.mysql import MySQLConfig
+
+    config = MySQLConfig.from_env()
+    return pymysql.connect(
+        host=config.host,
+        port=config.port,
+        user=config.user,
+        password=config.password,
+        database=database,
+        charset="utf8mb4",
+        connect_timeout=timeout,
+        read_timeout=timeout,
+        write_timeout=timeout,
+    )
+
+
+def probe_database(database: str) -> str:
+    """'ready' | 'absent' | 'unreachable' — read-only, never creates anything."""
+    try:
+        connection = _connect(database, 3)
+    except Exception as exc:  # noqa: BLE001 — the code, not the message, decides
+        code = getattr(exc, "args", (None,))[0]
+        # 1044/1049: the server answered and this schema is not ours to use.
+        return "absent" if code in (1044, 1045, 1049) else "unreachable"
+    connection.close()
+    return "ready"
+
+
+def count_product_test_rows() -> int | None:
+    """Rows in the PRODUCT schema that look like test residue; None if unreadable."""
+    try:
+        connection = _connect(PRODUCT_MYSQL_DATABASE, 5)
+    except Exception:  # noqa: BLE001 — reporting must never break a run
+        return None
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) FROM verification_jobs WHERE repo_path LIKE %s",
+                (TEST_REPO_PATH_PATTERN,),
+            )
+            row = cursor.fetchone()
+        values = tuple(row.values()) if isinstance(row, dict) else tuple(row)
+        return int(values[0])
+    except Exception:  # noqa: BLE001
+        return None
+    finally:
+        connection.close()
+
+
+def enforce_test_database() -> tuple[str, str]:
+    """Decide (and apply) which schema DB-backed tests write. Fail closed.
+
+    states:
+      'dedicated'   — the environment already named a non-product schema;
+      'redirected'  — it named the product schema and the test schema answers,
+                      so MYSQL_DATABASE now names the test schema;
+      'unreachable' — no MySQL answers, so DB-backed tests skip as they always
+                      have (that is a coverage fact, not isolation);
+      'blocked'     — the product schema is the only writable one.
+    """
+    current = (os.getenv("MYSQL_DATABASE") or "").strip() or PRODUCT_MYSQL_DATABASE
+    if current != PRODUCT_MYSQL_DATABASE:
+        return "dedicated", current
+    target = chosen_test_database()
+    if probe_database(target) == "ready":
+        os.environ["MYSQL_DATABASE"] = target
+        return "redirected", target
+    if probe_database(PRODUCT_MYSQL_DATABASE) != "ready":
+        return "unreachable", PRODUCT_MYSQL_DATABASE
+    return "blocked", target
+
+
+def prepare_test_schema(state: str, database: str) -> None:
+    """Apply the schema migrations to the redirected target.
+
+    11 of the 13 DB-backed test files never call `ensure_tables()` — they relied
+    on the product schema already having its tables, so a bare redirect would
+    turn them into 'table doesn't exist' errors.
+    """
+    if state not in ("dedicated", "redirected"):
+        return
+    import time
+
+    from storage.mysql import MySQLStore
+
+    # Retried on purpose: this machine measured a transient
+    # `InterfaceError(0, '')` from `ensure_tables()` under load (connect
+    # timeout is 5s), and a one-shot check would fail-close a whole session on
+    # a stutter. A real missing privilege fails three times too.
+    last: Exception | None = None
+    for attempt in range(3):
+        try:
+            MySQLStore().ensure_tables()
+            return
+        except Exception as exc:  # noqa: BLE001 — the retry decides, not the type
+            last = exc
+            time.sleep(5 * (attempt + 1))
+    raise RuntimeError(f"test schema {database!r} is not usable: {last!r}")
+
+
+def _apply_mysql_isolation() -> None:
+    global MYSQL_ISOLATION
+    try:
+        state, database = enforce_test_database()
+        prepare_test_schema(state, database)
+    except Exception as exc:  # noqa: BLE001 — a broken check must be loud
+        pytest.exit(f"MySQL test isolation check failed: {exc}", returncode=1)
+    if state == "blocked":
+        pytest.exit(BLOCKED_MESSAGE, returncode=4)  # ExitCode.USAGE_ERROR
+    MYSQL_ISOLATION = (state, database, count_product_test_rows())
+
+
+def pytest_report_header(config) -> str:  # noqa: ARG001 — pytest hook signature
+    state, database, before = MYSQL_ISOLATION
+    if state == "unresolved":
+        return "MySQL isolation: not evaluated (Python version guard fired)"
+    residue = "unknown" if before is None else str(before)
+    return (
+        f"MySQL test isolation: {state} -> {database} "
+        f"(product schema {PRODUCT_MYSQL_DATABASE} holds {residue} "
+        "'/test/%' job rows at session start)"
+    )
+
+
+def pytest_sessionfinish(session, exitstatus) -> None:  # noqa: ARG001 — hook signature
+    state, database, before = MYSQL_ISOLATION
+    if state not in ("dedicated", "redirected") or before is None:
+        return
+    after = count_product_test_rows()
+    if after is None:
+        return
+    delta = after - before
+    verdict = (
+        "no test row landed in the product schema"
+        if delta == 0
+        else f"ISOLATION BREACH: {delta} new /test/% rows in the product schema"
+    )
+    print(
+        f"\nMySQL test isolation ({state} -> {database}): product schema "
+        f"'/test/%' rows {before} -> {after}; {verdict}"
+    )
 
 
 def pytest_collection_modifyitems(config, items):

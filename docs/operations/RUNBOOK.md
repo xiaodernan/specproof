@@ -48,6 +48,7 @@
 | LLM_API_KEY | 管线确定性降级 (与 --no-llm 同效果) |
 | SPECPROOF_SANDBOX | auto: 有 Docker 用 docker, 否则 local_fallback (结果标注 mode) |
 | SPECPROOF_PUBLIC_URL | Check Run details_url 链接 (可选) |
+| MYSQL_DATABASE | 回落**产品库名** `specproof_phase0` —— 见 §5 的测试库隔离条目, 这是 #79 登记的缺陷; 测试会话已由 conftest 自动重定向到 `specproof_test` |
 
 ## 4. 健康与观测
 
@@ -135,6 +136,16 @@
   outbox-relay:9101/metrics)。api/worker 的 OTEL 链路经
   OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 汇入观测栈
   (compose.observability.yml)。
+
+- **测试库隔离是自动的, 但前置要人做一次 (#75)**。跑过任何连库的测试前,
+  先执行一次 `scripts/create_test_database.ps1` (需要 `MYSQL_ROOT_PASSWORD`
+  在环境变量里, 脚本只 CREATE/GRANT 名字匹配 `^specproof_test[A-Za-z0-9_]*$`
+  的库, 目标等于 `specproof_phase0` 时直接拒绝)。之后 `tests/conftest.py`
+  会在收集前把 `MYSQL_DATABASE` 重定向到 `specproof_test`, 并在会话头/尾打印
+  产品库 `/test/%` 残行数与增量 —— **尾行报 `N -> N` 才算这次绿色门没写脏
+  产品库**; 判定不了就 `pytest.exit` 返回码 4 并指名本脚本, 不会退化成 skip
+  (跳过和"没隔离"不能是一回事)。产品库仍留存的 177 行 `/test/…` 是 #75 之前
+  的历史残行, 清理属破坏性动作, 需人工确认后再做。
 
 ## 6. 故障手册
 
