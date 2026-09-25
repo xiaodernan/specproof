@@ -84,8 +84,13 @@ def text_for_summary(verdict: str, summary: Mapping[str, Any]) -> str:
     """
     lines = [
         f"Verdict: {verdict}",
-        "Contracts: " + count_sentence(summary) + ".",
     ]
+    failed_after_stage = str(summary.get("failed_after_stage") or "")
+    if failed_after_stage:
+        # Where the run died, as observed by the stream. Absent key = the
+        # run died before any stage finished = no line, no inference.
+        lines.append(f"Failed after stage: {failed_after_stage}")
+    lines.append("Contracts: " + count_sentence(summary) + ".")
     findings = summary.get("findings") or []
     for finding in findings[:_MAX_FINDINGS_IN_TEXT]:
         if not isinstance(finding, Mapping):
@@ -162,6 +167,9 @@ def blocks_for_summary(
             }
         )
     context: list[str] = []
+    failed_after_stage = str(summary.get("failed_after_stage") or "")
+    if failed_after_stage:
+        context.append(f"Failed after stage: {failed_after_stage}")
     capsules = summary.get("capsules") or []
     if capsules:
         context.append(f"Capsules: {len(capsules)}")

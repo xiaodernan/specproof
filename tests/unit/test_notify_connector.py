@@ -489,3 +489,26 @@ def test_feishu_template_payload_is_minimal():
         "msg_type": "text",
         "content": {"text": notification.title + "\n" + notification.text},
     }
+
+
+def test_failed_after_stage_is_rendered_when_recorded_and_absent_when_not():
+    """#13.6-3: the stage fact renders only when the summary carries it —
+    an absent key stays absent (no line, no empty bracket, no inference)."""
+    with_stage = dict(BLOCKED_SUMMARY, failed_after_stage="run_differential")
+    notification = build_terminal_notification("job-stage", with_stage)
+    assert "Failed after stage: run_differential" in notification.text
+    context_lines = [
+        block for block in notification.blocks if block["type"] == "context"
+    ]
+    assert any(
+        "Failed after stage: run_differential" in str(element)
+        for block in context_lines
+        for element in block["elements"]
+    )
+
+    without_stage = {
+        key: value for key, value in BLOCKED_SUMMARY.items()
+        if key != "failed_after_stage"
+    }
+    plain = build_terminal_notification("job-nostage", without_stage)
+    assert "Failed after stage" not in plain.text

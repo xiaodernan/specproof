@@ -68,6 +68,11 @@ class Worker:
         self.rabbitmq = RabbitMQClient()
         self._running = False
         self._compiled_graph: Any = None
+        # Last pipeline stage whose completion chunk reached the stream loop
+        # during the CURRENT job (single consumer callback ⇒ serial; reset at
+        # the top of _handle_job_impl). The failure path reports it so the
+        # row and the outward channels can say where the run died (#13.6-3).
+        self._last_completed_stage: str | None = None
 
     @property
     def compiled_graph(self) -> Any:
@@ -132,6 +137,10 @@ class Worker:
     def _handle_job_impl(self, job_id: str, payload: dict[str, Any]) -> None:
         if not self._running:
             return
+
+        # Stage provenance belongs to THIS run only — a previous job's last
+        # stage must never be reported as where this one died.
+        self._last_completed_stage = None
 
         # Acquire lease (prevents duplicate processing)
         if not self.redis.acquire_lease(
@@ -256,10 +265,16 @@ class Worker:
                 "Job %s failed: [%s/%s] %s", job_id,
                 classification.cls, classification.code, exc,
             )
-            reason = json.dumps(
-                {**classification.as_dict(), "error": str(exc)[:800]},
-                ensure_ascii=False,
-            )[:1024]
+            reason_envelope: dict[str, Any] = {
+                **classification.as_dict(), "error": str(exc)[:800],
+            }
+            if self._last_completed_stage:
+                # Where the run died, as far as the stream can say: the last
+                # stage whose completion chunk arrived. Persisted on the row
+                # (last_error) so the outward channels inherit a fact, not a
+                # re-derivation (#13.6-3).
+                reason_envelope["failed_after_stage"] = self._last_completed_stage
+            reason = json.dumps(reason_envelope, ensure_ascii=False)[:1024]
             # Backlog #5: a retryable provider outage parks the job in
             # WAITING_FOR_PROVIDER (audited) instead of failing it — the
             # recover path later moves it back to QUEUED, or to FAILED once
@@ -303,7 +318,10 @@ class Worker:
             if not provider_wait:
                 # ONE summary for both outward channels, so a Check Run and a
                 # notification cannot report the same failure differently.
-                failure_summary = _failure_summary(exc, classification)
+                failure_summary = _failure_summary(
+                    exc, classification,
+                    failed_after_stage=self._last_completed_stage,
+                )
                 self._maybe_publish_github_check(
                     job_id, "FAILED", failure_summary
                 )
@@ -378,6 +396,10 @@ class Worker:
             mode, chunk = item
             if mode == "updates":
                 stage = next(iter(chunk), "unknown") if chunk else "unknown"
+                # Stage provenance for the failure path: this chunk names a
+                # stage that just finished, so an exception later in the run
+                # can be reported as "died after this stage" (#13.6-3).
+                self._last_completed_stage = stage
                 now = time.monotonic()
                 observe_duration(
                     "worker_stage_duration_seconds_" + str(stage),
@@ -817,7 +839,8 @@ def _matrix_rows_for_summary(
 
 
 def _failure_summary(
-    exc: BaseException, classification: ErrorClassification
+    exc: BaseException, classification: ErrorClassification,
+    failed_after_stage: str | None = None,
 ) -> dict[str, Any]:
     """What a FAILED job can honestly put in front of an external channel.
 
@@ -826,13 +849,22 @@ def _failure_summary(
     matrix, so the numbers were not zero — they were never computed. This call
     site used to hand the renderer literal zeros, which GitHub then published
     as `Contracts: 0 total — 0 passed, 0 failed, 0 unverified.`
+
+    `failed_after_stage` records the last pipeline stage whose completion
+    chunk reached the stream before the exception — the stream's only
+    observation of "where it died" (None when it died before any stage
+    finished, and then the key is absent, not empty: renderers treat an
+    absent key as nothing to say).
     """
-    return {
+    summary: dict[str, Any] = {
         "verdict": "FAILED",
         "errors": [
             f"[{classification.cls}/{classification.code}] {str(exc)[:300]}"
         ],
     }
+    if failed_after_stage:
+        summary["failed_after_stage"] = failed_after_stage
+    return summary
 
 
 def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:

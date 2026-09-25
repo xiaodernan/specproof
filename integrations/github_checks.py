@@ -164,6 +164,12 @@ def check_summary_text(verdict: str, summary: dict[str, Any]) -> str:
     "this change touches no contract".
     """
     lines = [f"**Verdict:** {verdict}", ""]
+    failed_after_stage = str(summary.get("failed_after_stage") or "")
+    if failed_after_stage:
+        # Triage fact, not decoration: the run died after this stage
+        # completed. Absent key = died before any stage finished = no line.
+        lines.append(f"**Failed after stage:** {failed_after_stage}")
+        lines.append("")
     lines.append("Contracts: " + count_sentence(summary) + ".")
     findings = summary.get("findings")
     if findings is None:

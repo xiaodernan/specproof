@@ -106,3 +106,44 @@ def test_no_gloss_is_left_pointing_at_nothing() -> None:
         "STAGE_LABELS entries emitted by neither the graph nor the worker: "
         f"{sorted(labels - produced)}"
     )
+
+
+MYSQL = REPO / "storage" / "mysql.py"
+
+
+def _row_status_vocabulary(path: Path) -> set[str]:
+    """Every status the verification_jobs state machine can put on a row.
+
+    Parsed from the ``_VALID_TRANSITIONS`` dict (keys ∪ values cover every
+    status the machine can ever write) — a renamed constant or a new status
+    row cannot hide from the probe.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    statuses: set[str] = set()
+    for node in tree.body:
+        # _VALID_TRANSITIONS is an annotated assignment (AnnAssign), so
+        # both assignment shapes must be probed (Assign.targets / AnnAssign.target).
+        target = node.targets[0] if isinstance(node, ast.Assign) else getattr(
+            node, "target", None
+        )
+        if getattr(target, "id", "") == "_VALID_TRANSITIONS" and isinstance(
+            node.value, ast.Dict
+        ):
+            statuses |= _string_literals(node.value)
+    return statuses
+
+
+def test_every_row_status_is_glossed_for_frame_echo_and_pills() -> None:
+    """The lease frame echoes the row's status verbatim (#66), and every
+    job-status pill renders through the same map — so the state machine's
+    vocabulary must be fully glossed in STATUS_LABELS. Without this, a rare
+    echo inside the CAS/read-back window (e.g. STALE, a legal RUNNING
+    outcome) would show a user a raw token."""
+    statuses = _row_status_vocabulary(MYSQL)
+    assert statuses, "state-machine constants not found — the probe is broken"
+    assert "STALE" in statuses, "vocabulary probe missed the dict values"
+    status_labels = _ts_object_keys(
+        STATUS_TSX, "STATUS_LABELS: Record<string, string> = {"
+    )
+    missing = statuses - status_labels
+    assert not missing, f"row statuses without a gloss: {sorted(missing)}"

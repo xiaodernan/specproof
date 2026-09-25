@@ -25,6 +25,7 @@ stream are fakes; the executor under test is a plain fake function):
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -866,3 +867,90 @@ def test_refused_park_announces_nothing(
 
 def _counter_delta(after: dict, before: dict, name: str) -> float:
     return after["counters"].get(name, 0.0) - before["counters"].get(name, 0.0)
+
+
+# ── #13.6-3: the failure can say where the run died ────────────────────────
+
+
+def test_failure_summary_names_the_stage_the_run_died_after(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stream's updates chunks are the only observation of "where it
+    died": the row's last_error and both outward channels must record the
+    last stage that COMPLETED, not a guessed stage name."""
+    announcements = _Announcements()
+    log: list[str] = []
+    mysql = _FakeMysql(status="RUNNING", log=log)
+    redis = _FakeRedis(lease_ok=True, log=log)
+
+    def die_after_intake(stage: str) -> None:
+        if stage == "intake":
+            raise RuntimeError("mvnw exploded")
+
+    graph = _FakeGraph(
+        ["intake", "prepare_base"], _final_state(), on_stage=die_after_intake,
+    )
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    def _check(job_id: str, verdict: str, summary: dict[str, Any], *_rest: Any) -> None:
+        log.append("p:" + verdict)
+        announcements.published.append((verdict, summary))
+
+    def _notify(job_id: str, summary: dict[str, Any]) -> None:
+        log.append("n:" + str(summary.get("verdict")))
+        announcements.notified.append(summary)
+
+    worker._maybe_publish_github_check = _check  # type: ignore[method-assign]
+    worker._maybe_notify_terminal = _notify  # type: ignore[method-assign]
+
+    worker._handle_job_impl("job-stage", {"repo_path": "/r", "spec_path": "/s"})
+
+    failed = [kw for t, kw in mysql.transitions if t == "FAILED"]
+    assert len(failed) == 1
+    envelope = json.loads(failed[0]["error_msg"])
+    assert envelope["failed_after_stage"] == "intake"
+    # Both channels read the same fact, and the announce order is unchanged.
+    assert announcements.published[0][1]["failed_after_stage"] == "intake"
+    assert announcements.notified[0]["failed_after_stage"] == "intake"
+    assert log == [
+        "w:RUNNING", "w:FAILED", "e:failed", "p:FAILED", "n:FAILED",
+    ]
+
+
+def test_failure_before_any_stage_records_no_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run that died before any stage completed has nothing to say about
+    stages — the key is absent, not empty, in both the row and the channels
+    (an empty string would read as "stage known but unnamed").
+
+    _RaisingGraph cannot play this role: it yields the intake completion
+    chunk before dying, which IS a completed stage — the row then honestly
+    names it (see the sibling test)."""
+    announcements = _Announcements()
+
+    class _ImmediateDeath:
+        def stream(self, state: Any, config: Any, stream_mode: Any = None) -> Any:
+            raise TimeoutError("died before any stage completed")
+            yield  # pragma: no cover — makes this a generator function
+
+    mysql = _FakeMysql(status="RUNNING")
+    redis = _FakeRedis(lease_ok=True)
+    worker = _make_worker(mysql, redis, _ImmediateDeath(), monkeypatch)
+
+    def _check(job_id: str, verdict: str, summary: dict[str, Any], *_rest: Any) -> None:
+        announcements.published.append((verdict, summary))
+
+    def _notify(job_id: str, summary: dict[str, Any]) -> None:
+        announcements.notified.append(summary)
+
+    worker._maybe_publish_github_check = _check  # type: ignore[method-assign]
+    worker._maybe_notify_terminal = _notify  # type: ignore[method-assign]
+
+    worker._handle_job_impl("job-nostage", {"repo_path": "/r", "spec_path": "/s"})
+
+    failed = [kw for t, kw in mysql.transitions if t == "FAILED"]
+    envelope = json.loads(failed[0]["error_msg"])
+    assert "failed_after_stage" not in envelope
+    assert "failed_after_stage" not in announcements.published[0][1]
+    assert "failed_after_stage" not in announcements.notified[0]

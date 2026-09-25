@@ -325,3 +325,20 @@ def test_create_fix_pr_payload(rsa_key):
         "body": "Fix body",
     }
     client.close()
+
+
+def test_check_summary_text_renders_failed_after_stage_only_when_recorded():
+    """#13.6-3: the Check Run says where the run died only when the summary
+    actually carries the fact — absence stays absence."""
+    from integrations.github_checks import check_summary_text
+
+    with_stage = check_summary_text(
+        "FAILED",
+        {"failed_after_stage": "run_differential", "errors": ["boom"]},
+    )
+    assert "**Failed after stage:** run_differential" in with_stage
+
+    without_stage = check_summary_text(
+        "FAILED", {"errors": ["boom"]},
+    )
+    assert "Failed after stage" not in without_stage

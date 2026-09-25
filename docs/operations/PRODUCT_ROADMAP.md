@@ -1210,3 +1210,90 @@ AWAITING_APPROVAL / 都不在终态集）；`_require_cancellable` 对未知值�
 - 耗时 871.99s 短于此前两轮（1787s/2063s）只作记录不作证据：本轮前端
   三门禁与全量门并行跑，机器负载构成不同，两轮之间可比的只有 0 失败与
   用例计数。
+
+## 20. 失败能说出"炸在哪一步"了 + 行状态词表对账门（2026-09-25）
+
+### 20.1 批次 B 的两个登记项
+
+§13.6-3 与 §14.6-3 两次登记同一件事：对外通道（GitHub Check Run、webhook
+通知）拿不到"炸在哪一步"的阶段信息——阶段信息在 Redis 进度流里有，在持久
+行里没有。§19.7-2 是本批自己新开的候选：帧回显的取值空间靠不变式
+"行状态词表 ⊆ STATUS_LABELS"保证，但该不变式没有自动测试。
+
+### 20.2 阶段溯源：流能观察到的事实是什么，就只写什么
+
+流（`stream_mode=["updates","values"]`）的 updates 块在**节点完成时**到达
+（`agent/worker.py` `_run_graph` 的循环），没有"节点开始"事件。所以诚实的
+说法不是"死在 X 阶段"，而是"**X 阶段完成之后**这一轮死了"——后者是观察，
+前者是推断。落地三层：
+
+- **行**：失败路径的 `last_error` JSON 信封新增 `failed_after_stage`（仅当
+  至少一个阶段完成过；没有就不写这个键——"没观察过"与"观察到了但为空"是
+  两个陈述）。阶段值来自 worker 实例的 `_last_completed_stage`（每次任务
+  开始重置；单 consumer 回调 ⇒ 串行，无跨任务泄漏）。
+- **摘要**：`_failure_summary()` 增加可选 `failed_after_stage` 参数，规则
+  同上——缺键渲染器就不画线。
+- **通道**：`check_summary_text` 在 Verdict 行后渲染
+  `**Failed after stage:** X`；`text_for_summary`/`blocks_for_summary`
+  在 Verdict/context 中渲染同一事实。两处渲染的措辞取自数据，不重新推断。
+
+**测试自摆乌龙一处，如实记录**：`_RaisingGraph`（既有夹具）在抛异常前会先
+yield 一个 intake 完成块——即那条路径**确实**完成了 intake，新代码如实记录
+了它，我的"无任何阶段"测试前提因此是错的。改成真正零阶段的
+`_ImmediateDeath` 图（在生成器第一行就抛），并在 docstring 里写明为什么
+`_RaisingGraph` 扮演不了这个角色。这本身是对"流能观察到什么"的又一次确认。
+
+### 20.3 探针 P：两个变异各自判红，按字节还原
+
+| 变异 | 模拟的旧行为 | 判红 |
+|---|---|---|
+| P1 `_failure_summary` 丢掉 `failed_after_stage` 分支 | 通道不报阶段 | 1 failed：`test_failure_summary_names_the_stage_the_run_died_after` |
+| P2 行信封丢掉 `failed_after_stage` 键 | 行不落阶段 | 同一测试红（它同时断言行信封与两个通道） |
+
+P1/P2 都被同一个测试接住是**有意设计**：该测试断言"行信封 == 通道摘要 ==
+同一事实"，删任何一层都会破坏一致性断言。按字节还原 sha 复核一致。
+词表门（20.4）的探针：删除 `STATUS_LABELS` 的 STALE 词条 ⇒ 恰好
+`test_every_row_status_is_glossed_for_frame_echo_and_pills` 红，还原复绿。
+
+### 20.4 行状态词表对账门（收 §19.7-2）
+
+`tests/unit/test_progress_event_labels.py` 新增
+`test_every_row_status_is_glossed_for_frame_echo_and_pills`：用 AST 从
+`storage/mysql.py` 解析 `_VALID_TRANSITIONS`（键 ∪ 值 = 状态机可能写上行
+的全部状态），断言每个值都在前端 `STATUS_LABELS` 里有中文词条。探针实现
+踩了一处 AST 细节：`_VALID_TRANSITIONS` 是带注解赋值（`AnnAssign`，target
+单数），与普通 `Assign`（targets 复数）不同，两种都要接——第一版只接了
+`Assign`，探针空手而归被 `assert statuses` 兜住（"probe is broken" 断言
+正是为此写的）。
+
+### 20.5 门证（本批实测）
+
+- `ruff check .` ⇒ All checks passed!；`mypy .` ⇒ Success: no issues found
+  in 211 source files。
+- 定向：`test_progress_event_labels`（4）+ `test_worker_cancel_points`
+  （23，+2）+ `test_worker_error_classify` + `test_job_reclaimer` +
+  `test_notify_connector`（32，+1）+ `test_github_checks` +
+  `test_contract_counts` + `test_worker_github_checks` +
+  `test_worker_notify_terminal` 合跑 **120 passed**。
+- 全量合并门：见 20.7 追记。
+- 前端无改动（STALE 词条已随批次 A 进树），本批不适用前端门禁。
+
+### 20.6 仍未做（诚实边界）
+
+1. `failed_after_stage` 目前只进 last_error JSON 与对外摘要；任务详情页的
+   执行进度时间线本来就有逐阶段行（进度流直读），未重复展示。
+2. 阶段语义是"最后一个完成块"，不是"死在哪个节点"——流没有节点开始事件，
+   这个边界已写进 `_failure_summary` docstring，UI 文案若将来引用同一字段
+   应沿用"X 之后"的措辞而不是"死在 X"。
+3. §13.6-4（`jobs_<verdict>_total` 口径决策）与 §12.6（Craft 车道
+   `accept_json` 两次写）仍未动；后者经复核 `_ATTACH_ACCEPT_SQL` 的 WHERE
+   是 `status IN ('succeeded','failed')`，而 accept 本就是终态之后的独立
+   动作（CLI `specproof craft accept`），两次写的"窗口"是否值得合并需要先
+   回答"accept 是否可能与执行同轮发生"——登记为下一批候选的**前置问题**。
+
+### 20.7 全量合并门（追记）
+
+- `pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒
+  **2873 passed, 5 skipped, 880.27s (14:40)，GATE_EXIT=0**。
+- 对账：批次 A 的 2868 + worker 侧 2（阶段溯源两例）+ notify 侧 1 +
+  github_checks 侧 1 + 词表门 1 = **2873**，与实测逐位吻合。
