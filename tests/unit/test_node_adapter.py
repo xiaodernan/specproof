@@ -35,7 +35,7 @@ from experiments.adapters import (
     parse_node_test_summary,
     registry,
 )
-from sandbox.runner import NODE_PROFILE, SandboxResult
+from sandbox.runner import NODE_INSTALL_PROFILE, NODE_PROFILE, SandboxResult
 
 
 def _make_node_repo(
@@ -317,3 +317,153 @@ def test_node_adapter_runs_real_suite_in_sandbox(tmp_path: Path) -> None:
 # above skip condition is meaningful on machines that do have npm.
 def test_shutil_and_subprocess_imported() -> None:
     assert callable(subprocess.run)
+
+
+class TestNodeOfflineInstall:
+    """#56: the sandboxed offline install for lockfile projects.
+
+    The install runs FIRST in its own container (NODE_INSTALL_PROFILE: seeded
+    cache volume + writable node_modules sub-mount) and a failed install runs
+    NO tests — a dependency that cannot be resolved offline is an honest
+    NON_REPRODUCIBLE, never a pass.
+    """
+
+    def _lockfile_workspace(self, tmp_path: Path, *, with_modules: bool) -> Path:
+        (tmp_path / "package.json").write_text(
+            json.dumps({"name": "a", "scripts": {"test": "node --test"}}),
+            encoding="utf-8",
+        )
+        (tmp_path / "package-lock.json").write_text(
+            json.dumps({"name": "a", "lockfileVersion": 3}), encoding="utf-8",
+        )
+        if with_modules:
+            modules = tmp_path / "node_modules"
+            modules.mkdir()
+            (modules / ".package-lock.json").write_text("{}", encoding="utf-8")
+        return tmp_path
+
+    def _recording_sandbox(self, monkeypatch: pytest.MonkeyPatch, install_exit: int):
+        calls: list[tuple[list[str], dict[str, Any]]] = []
+
+        def fake_sandboxed(command, **kwargs):
+            calls.append((list(command), dict(kwargs)))
+            if len(calls) == 1 and install_exit != 0:
+                return SandboxResult(
+                    exit_code=install_exit,
+                    stdout="",
+                    stderr="npm error code E404\nnpm error 404 Not Found - GET https://registry",
+                    mode="docker",
+                )
+            return SandboxResult(
+                exit_code=0, stdout="# pass 2\n# fail 0", stderr="", mode="docker",
+            )
+
+        monkeypatch.setattr(adapters, "run_sandboxed", fake_sandboxed)
+        return calls
+
+    def _run(self, tmp_path: Path, adapter: NodeAdapter) -> Any:
+        prepared = adapter.prepare(
+            ExecutionRequest(workspace=str(tmp_path), goal="run_test")
+        )
+        return adapter.run(prepared)
+
+    def test_lockfile_project_gets_offline_install_then_test(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = self._lockfile_workspace(tmp_path, with_modules=False)
+        calls = self._recording_sandbox(monkeypatch, install_exit=0)
+
+        result = self._run(workspace, NodeAdapter())
+
+        assert len(calls) == 2, "install first, then the test run"
+        install_cmd, install_kwargs = calls[0]
+        test_cmd, test_kwargs = calls[1]
+        assert install_cmd == NodeAdapter.OFFLINE_INSTALL_COMMAND
+        assert "--offline" in install_cmd and "--ignore-scripts" in install_cmd
+        assert install_kwargs["profile"] is NODE_INSTALL_PROFILE
+        assert install_kwargs["mode"] == "docker"
+        assert test_cmd[:3] == ["npm", "test", "--silent"]
+        assert test_kwargs["profile"] is NODE_PROFILE
+        assert result.exit_code == 0
+        assert result.sandbox_resources["dependency_install"] == (
+            "offline npm ci from the seeded cache volume"
+        )
+        # The install phase disclosed its own hardening surface.
+        assert result.sandbox_resources["network"] == "none"
+
+    def test_failed_install_runs_no_tests_and_says_why(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = self._lockfile_workspace(tmp_path, with_modules=False)
+        calls = self._recording_sandbox(monkeypatch, install_exit=1)
+
+        result = self._run(workspace, NodeAdapter())
+
+        assert len(calls) == 1, "a failed install must not be followed by a test run"
+        assert result.exit_code == 1
+        assert "tests were not run" in result.error
+        assert "E404" in result.stderr_tail
+        assert result.sandbox_resources["lifecycle_scripts"] == "disabled (--ignore-scripts)"
+        assert result.sandbox_resources["cache_volume"].startswith("specproof-npm-cache-1000")
+
+    def test_populated_node_modules_skips_install(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = self._lockfile_workspace(tmp_path, with_modules=True)
+        calls = self._recording_sandbox(monkeypatch, install_exit=0)
+
+        result = self._run(workspace, NodeAdapter())
+
+        assert len(calls) == 1
+        assert calls[0][1]["profile"] is NODE_PROFILE
+        assert result.sandbox_resources["dependency_install"] == (
+            "skipped (node_modules already populated)"
+        )
+
+    def test_dependency_free_project_skips_install(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        (tmp_path / "package.json").write_text(
+            json.dumps({"name": "a", "scripts": {"test": "node --test"}}),
+            encoding="utf-8",
+        )
+        calls = self._recording_sandbox(monkeypatch, install_exit=0)
+
+        result = self._run(tmp_path, NodeAdapter())
+
+        assert len(calls) == 1
+        assert calls[0][1]["profile"] is NODE_PROFILE
+        assert result.sandbox_resources["dependency_install"] == (
+            "skipped (node_modules already populated)"
+        )
+
+    def test_local_mode_never_installs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Host execution installs nothing, ever: an offline install needs the
+        Docker cache volume, and untrusted lifecycle scripts on the host are
+        exactly what the red line forbids."""
+        workspace = self._lockfile_workspace(tmp_path, with_modules=False)
+
+        def never_sandbox(*a, **k):  # pragma: no cover - must not run
+            raise AssertionError("local mode must not touch the sandbox runner")
+
+        local_calls: list[tuple[Any, dict[str, Any]]] = []
+
+        def fake_local(command, **kwargs):
+            local_calls.append((list(command), dict(kwargs)))
+            return LocalRunResult(exit_code=0, stdout="# pass 1", stderr="")
+
+        monkeypatch.setattr(adapters, "run_sandboxed", never_sandbox)
+        monkeypatch.setattr(adapters, "_run_local", fake_local)
+        adapter = NodeAdapter()
+        prepared = adapter.prepare(
+            ExecutionRequest(
+                workspace=str(workspace), goal="run_test", sandbox_mode="local",
+            )
+        )
+        result = adapter.run(prepared)
+
+        assert len(local_calls) == 1
+        assert local_calls[0][0] == ["npm", "test", "--silent"]
+        assert result.exit_code == 0

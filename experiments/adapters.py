@@ -50,6 +50,7 @@ from sandbox.runner import (
     DEFAULT_M2_VOLUME,
     DEFAULT_NODE_IMAGE,
     DEFAULT_PIDS_LIMIT,
+    NODE_INSTALL_PROFILE,
     NODE_PROFILE,
     SANDBOX_USER,
     run_sandboxed,
@@ -822,9 +823,16 @@ class NodeAdapter:
     never degrades to running on the host. Host execution happens ONLY when a
     caller asks for it by name (``sandbox_mode="local"``).
 
-    No dependency install is performed, so a missing ``node_modules`` surfaces
-    honestly as a non-zero exit rather than a fabricated pass; under
-    --network none an install could not happen anyway.
+    Dependency resolution (#56): a lockfile project whose workspace carries
+    no node_modules (a `git worktree` checkout never has the untracked dir)
+    gets an OFFLINE `npm ci` first, inside the same hardened container shape
+    but with the seeded npm-cache volume and a writable node_modules
+    sub-mount (`NODE_INSTALL_PROFILE`). The install is Docker-only — the
+    host path ("local") never installs, because lifecycle scripts of
+    untrusted packages are exactly the kind of code that must not run on
+    the host. Install failure (cache missing a package, lockfile mismatch)
+    surfaces honestly as a non-zero exit and no test run follows; it is
+    never laundered into a pass.
     """
 
     TOOLCHAIN = "Node/npm (docker sandbox) / npm test / jest | vitest | node:test"
@@ -836,23 +844,34 @@ class NodeAdapter:
     IMAGE_DIGEST = (
         "sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85"
     )
+    #: One flag per hardening choice, spelled in the argv so the sandboxed
+    #: install is auditable: --offline (resolve from the seeded cache only),
+    #: --ignore-scripts (untrusted packages get no lifecycle-script execution),
+    #: --no-audit/--no-fund (no advisory network would exist anyway).
+    OFFLINE_INSTALL_COMMAND = [
+        "npm", "ci", "--offline", "--ignore-scripts", "--no-audit", "--no-fund",
+    ]
     OFFLINE_POLICY = (
         "docker sandbox with --network none: executes the project's own"
-        " `npm test --silent`; no dependency install is attempted, so the"
-        " workspace must already carry node_modules (otherwise npm exits"
-        " non-zero and that is reported as-is, never as a pass)"
+        " `npm test --silent`; a lockfile project without node_modules gets"
+        " an offline `npm ci --ignore-scripts` first, resolved only from the"
+        " seeded npm cache volume (scripts/seed_npm_cache.ps1) — an unseeded"
+        " cache fails the install loudly and that is reported as-is, never"
+        " as a pass"
     )
     KNOWN_LIMITS: tuple[str, ...] = (
         "容器沙箱执行 (node:22-alpine, 非 root uid 1000, --network none)",
-        "不安装依赖: workspace 需已备好 node_modules, 否则 npm test 非零退出 "
-        "(如实上报, 不伪造通过); 而管线的 `git worktree` 检出不含未跟踪文件, 故"
-        "当前真实覆盖面是零依赖的 node:test 项目, 需装依赖的仓库判 "
-        "NON_REPRODUCIBLE 而非通过",
+        "有 lockfile 且无 node_modules 的仓库先在沙箱内离线 npm ci (#56): 依赖"
+        "只来自已播种的 npm 缓存卷 (scripts/seed_npm_cache.ps1), 未播种的包会让"
+        "安装失败并如实判 NON_REPRODUCIBLE, 不伪造通过",
+        "离线安装禁用包生命周期脚本 (--ignore-scripts): 需要安装期构建脚本的"
+        "依赖会安装失败, 如实上报; 宿主执行路径永不安装依赖",
         "仅支持 goal=run_test; test_compile 无对应语义, 抛 AdapterNotImplemented",
         "汇总解析支持 Jest / Vitest / node:test; 无法识别时计数为 0 (无证据), "
         "判定以 exit_code 为准",
         "detect 规则: package.json 且声明了 test 脚本",
-        "/work 全程只读 (无 writable 子挂载): 向源码树写文件的测试会失败",
+        "/work 全程只读 (离线安装阶段仅 node_modules 子挂载可写): 向源码树写"
+        "文件的测试会失败",
         "镜像 digest 为 2026-09-23 本机验证值, 预拉/升级 node:22-alpine 时须复核",
         "输出按尾部 256000 字符截断 (§4.5 输出长度限制)",
     )
@@ -904,11 +923,42 @@ class NodeAdapter:
             sandbox_mode=request.sandbox_mode,
         )
 
+    def _needs_offline_install(self, workspace: Path) -> bool:
+        """#56: does this workspace need the sandboxed offline install?
+
+        Only lockfile projects without a populated node_modules — a
+        `git worktree` checkout never carries the untracked dir, while a
+        committed (vendored) node_modules or a dependency-free project
+        skips the install entirely, keeping the historical argv.
+        """
+        if not (workspace / "package-lock.json").is_file():
+            return False
+        node_modules = workspace / "node_modules"
+        return not node_modules.is_dir() or not any(node_modules.iterdir())
+
+    def _install_sandbox_resources(self, result: Any) -> dict[str, str]:
+        """Resource disclosure for the offline-install phase (same hardening
+        as the test phase, plus the two things that make it an install)."""
+        return {
+            "user": SANDBOX_USER,
+            "network": "none (npm resolves offline from the cache volume only)",
+            "capabilities": "drop ALL",
+            "no_new_privileges": "true",
+            "pids_limit": os.getenv("SPECPROOF_SANDBOX_PIDS", DEFAULT_PIDS_LIMIT),
+            "image": _node_image(),
+            "workspace_mount": "ro (node_modules sub-mount writable: install target only)",
+            "cache_volume": "specproof-npm-cache-1000 (override: SPECPROOF_SANDBOX_NPM_VOLUME)",
+            "lifecycle_scripts": "disabled (--ignore-scripts)",
+        }
+
     def run(self, prepared: PreparedExecution) -> ExecutionResult:
         if prepared.sandbox_mode == "local":
             # Opt-in by name only: this runs a repository's own test script
             # with the host's privileges, so it is never the default and never
-            # reached by a fallback.
+            # reached by a fallback. No install here — ever: an offline
+            # `npm ci` needs the seeded Docker cache volume, and running the
+            # lifecycle scripts of untrusted packages on the host is exactly
+            # what the red line forbids.
             result = _run_local(
                 prepared.command,
                 cwd=prepared.workdir,
@@ -929,6 +979,35 @@ class NodeAdapter:
             return prepared.result
         # mode="docker" (not "auto"): Docker being unavailable must be an
         # honest error, never a silent reason to run untrusted code here.
+        install_state = "skipped (node_modules already populated)"
+        if self._needs_offline_install(Path(prepared.workdir)):
+            install_state = "offline npm ci from the seeded cache volume"
+            install_result = run_sandboxed(
+                self.OFFLINE_INSTALL_COMMAND,
+                workspace=prepared.workdir,
+                timeout=prepared.timeout,
+                mode="docker",
+                profile=NODE_INSTALL_PROFILE,
+            )
+            if install_result.exit_code != 0:
+                # Fail loudly, run nothing: a failed install must not be
+                # confused with "tests ran and passed" — the stderr tail
+                # carries npm's reason (cache miss, lockfile mismatch).
+                prepared.result = ExecutionResult(
+                    exit_code=install_result.exit_code,
+                    stdout_tail=_tail(install_result.stdout),
+                    stderr_tail=_tail(install_result.stderr),
+                    mode=install_result.mode,
+                    sandbox_resources=self._install_sandbox_resources(
+                        install_result
+                    ),
+                    error=(
+                        "offline dependency install failed — tests were not "
+                        f"run ({install_state}); npm stderr follows"
+                        + (f": {install_result.error}" if install_result.error else "")
+                    ),
+                )
+                return prepared.result
         sandbox_result = run_sandboxed(
             prepared.command,
             workspace=prepared.workdir,
@@ -951,6 +1030,7 @@ class NodeAdapter:
                 "pids_limit": os.getenv("SPECPROOF_SANDBOX_PIDS", DEFAULT_PIDS_LIMIT),
                 "image": _node_image(),
                 "workspace_mount": "ro (no writable sub-mount; source tree immutable)",
+                "dependency_install": install_state,
             },
             error=sandbox_result.error,
         )

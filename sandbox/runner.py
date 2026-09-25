@@ -159,6 +159,30 @@ NODE_PROFILE = SandboxProfile(
     writable_submounts=(),
 )
 
+# Node OFFLINE INSTALL profile (#56): `npm ci --offline` resolves every
+# dependency from the seeded npm-cache volume (scripts/seed_npm_cache.ps1,
+# uid-1000 layout exactly like the Maven volume) and writes node_modules
+# through a writable sub-mount — the source tree itself stays read-only.
+# Kept separate from NODE_PROFILE on purpose: test runs of zero-dependency
+# or already-installed workspaces neither need nor get a volume/sub-mount,
+# so their argv (and the shadowing risk a sub-mount would pose to a
+# committed node_modules) is unchanged. A missing cache entry fails the
+# install loudly under --network none — an honest NON_REPRODUCIBLE, never a
+# fabricated pass.
+NODE_INSTALL_PROFILE = SandboxProfile(
+    name="node-install",
+    image=DEFAULT_NODE_IMAGE,
+    image_env="SPECPROOF_SANDBOX_NODE_IMAGE",
+    env=(
+        ("npm_config_update_notifier", "false"),
+        ("npm_config_cache", "/home/node/.npm"),
+    ),
+    cache_volume_env="SPECPROOF_SANDBOX_NPM_VOLUME",
+    cache_volume_default="specproof-npm-cache-1000",
+    cache_mount="/home/node/.npm",
+    writable_submounts=(("node_modules", "/work/node_modules"),),
+)
+
 
 def _profile_image(profile: SandboxProfile) -> str:
     if profile.image_env:

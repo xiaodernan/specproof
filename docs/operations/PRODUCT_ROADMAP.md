@@ -1354,3 +1354,95 @@ provider_wait:` 块内——暂停轮次不算失败，CAS 被拒的轮次已由
   **2874 passed, 5 skipped, 808.38s (13:28)，GATE_EXIT=0**。
 - 对账：批次 B 的 2873 + 本批 worker 侧 1（异常失败计数两分支断言合为一例）
   = **2874**，逐位吻合。
+
+## 22. #56：Node 离线依赖卷落地——"零依赖"的诚实边界前移（2026-09-25）
+
+### 22.1 起点：本机 Docker 在线，#56 从"需 Docker 在线窗口"变为可开工
+
+§6.3-7 与 README 的诚实边界都登记着同一件事：Node 差分的真实覆盖面是零依赖
+项目（worktree 检出不带未跟踪的 node_modules + 沙箱断网 + 适配器不安装依赖）。
+本会话实测 `docker info` 可用（29.8.0，node:22-alpine 镜像已在本地），#56
+的"需 Docker 在线窗口"前提首次满足，全部路径都能实测。
+
+### 22.2 设计：安装是**另一个容器**，测试的 argv 一字不动
+
+- `sandbox/runner.py` 新增 `NODE_INSTALL_PROFILE`（与既有
+  `SandboxProfile` 参数化机制同源）：同一套硬化旗标（`--user 1000:1000` /
+  `--network none` / `--cap-drop ALL` / no-new-privileges / pids 上限 /
+  tmpfs / `/work:ro`）+ 三样新东西——npm 缓存卷
+  `specproof-npm-cache-1000`（可 `SPECPROOF_SANDBOX_NPM_VOLUME` 覆盖）挂
+  `/home/node/.npm`、`npm_config_cache` env、node_modules 可写子挂载
+  （`/work/node_modules`，Maven 的 `target` 子挂载同款机制）。
+- **`NODE_PROFILE`（测试运行）保持字节不变**——由新增回归测试锁定"无缓存卷、
+  无子挂载"。这不仅省事：子挂载会用空目录遮蔽一个提交进仓库的（vendored）
+  node_modules，测试路径绝不冒这个险；已带 node_modules 或零依赖的仓库
+  行为与 #56 之前完全一致。
+- `NodeAdapter.run()` 两段式：`_needs_offline_install()`（有
+  `package-lock.json` 且 node_modules 缺失/为空）先跑
+  `npm ci --offline --ignore-scripts --no-audit --no-fund`
+  （`OFFLINE_INSTALL_COMMAND`，每个旗标都是一个可审计的安全决定：
+  --offline 只信缓存、--ignore-scripts 不执行不可信包的生命周期脚本），
+  安装**失败就不跑测试**——exit 非零 + "tests were not run" + npm stderr
+  原文，绝不把装不上依赖混同成"测试跑过"。测试阶段的
+  `sandbox_resources` 新增 `dependency_install` 披露键；宿主执行路径
+  （"local"）**永不安装**——离线安装依赖 Docker 缓存卷，而不可信包的生命
+  周期脚本在宿主上运行正是红线本身。
+- `scripts/seed_npm_cache.ps1`（UTF-8 BOM + CRLF，PS 5.1 Parser 校验通过）：
+  建卷 + chown 1000 + 在线暖缓存（repo 挂 `/repo:ro`、`/work` 整体 tmpfs、
+  拷入后安装）+ **离线冒烟**（`--network none` 重装，证明缓存自足）。
+
+### 22.3 实测记录（真 Docker，2026-09-25）
+
+1. **脚本守卫先接住我自己**：首跑临时仓库只有 package.json 没有
+   lockfile，脚本按设计 throw——离线安装本就是 lockfile 驱动。
+2. **真 bug：tmpfs 挂进只读 bind 必失败**。脚本首版用
+   `--tmpfs /work/node_modules`（repo 挂 `/work:ro`），runc 报
+   `make mountpoint "/work/node_modules": read-only file system`——挂载点
+   不能建在只读挂载内部。Maven 的 bind-over-bind（宿主预建目录）没这个
+   问题，这也反证 runner 子挂载机制用 bind 是对的。修法：repo 改挂
+   `/repo:ro`、`/work` 整体 tmpfs、`cp -r` 拷入后安装（顺手把 cp -a 的
+   Windows 属主告警降为 cp -r 并注释原因）。
+3. **端到端正例**：带 `ms@2.1.3` 依赖的临时仓库 → seed 脚本暖缓存 +
+   离线冒烟均过 → adapter 对"无 node_modules 的检出"跑完整两段：
+   安装 exit 0、`node test` TAP 输出 `ok 1`（依赖离线解析并行为正确）、
+   `dependency_install` 如实披露；宿主侧确认 node_modules 真落在了
+   子挂载（bind-over-ro-bind 在本机 Docker Desktop 实证可用）。
+4. **端到端负例**：把依赖换成从未播种的 `is-odd` → 安装失败
+   `npm error code ENOTCACHED`，exit 1，error 明说 "tests were not
+   run"——诚实边界按设计生效。
+
+### 22.4 门证（本批实测）
+
+- `ruff check .` / `mypy .`（211 files）/ 全部单测：见 22.5 追记的全量门。
+- 定向：`test_sandbox_runner.py` **20 passed**（+2：安装 profile 的旗标/
+  卷/子挂载断言 + 测试 profile 无安装挂载的回归锁）；`test_node_adapter.py`
+  **24 passed / 2 skipped**（+5：安装→测试两段序、失败不跑测试、
+  node_modules 已备跳过、零依赖跳过、宿主路径永不安装）。
+- PS1：`Parser::ParseFile` OK（BOM/CRLF 完整）。
+- 变异探针（三条，各自判红，按字节还原 sha 复核）：M1 安装判定恒 False
+  ⇒ `test_lockfile_project_gets_offline_install_then_test` 红；M2 失败安装
+  仍跑测试（`if install_result.exit_code != 0:` 变 `if False:`）⇒
+  `test_failed_install_runs_no_tests_and_says_why` 红；M3 给测试 profile 加
+  node_modules 子挂载 ⇒ `test_node_test_profile_stays_free_of_install_mounts`
+  红。首轮 M1 的变异写错缩进导致 collection error——那等于零证据，已按
+  正确缩进重做并记下（探针自己也要验红得对）。
+
+### 22.5 全量合并门（追记）
+
+- `pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒
+  **2881 passed, 5 skipped, 770.18s (12:50)，GATE_EXIT=0**。
+- 对账：批次 C 的 2874 + sandbox 2 + node adapter 5 = **2881**，逐位吻合。
+
+### 22.6 仍未做（诚实边界）
+
+1. `--ignore-scripts` 是刻意取舍：需要安装期构建（node-gyp 等）的依赖会
+   安装失败并如实上报——支持它们意味着在沙箱里给不可信包执行任意构建脚本，
+   需要先过一轮安全评审，不是"漏了"。
+2. 缓存卷按**部署**共享（与 Maven 卷同模型），不是按仓库隔离：一个仓库
+   的锁文件若与卷内版本不匹配，`npm ci --offline` 会失败（这是 npm 的
+   正确行为）；多仓库部署的卷管理策略属运维文档课题。
+3. `package-lock.jsonVersion 1/2` 的老锁文件未逐一验证（实测 3）；npm
+   的兼容面是 npm 自己的承诺。
+4. 执行面披露（`execution_surface`）取的是合并后"最不安全"值——安装与
+   测试都在沙箱内，披露值不变；`dependency_install` 键目前只在
+   `sandbox_resources` JSON 里，未上 UI 面板（候选）。

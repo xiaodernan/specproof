@@ -238,3 +238,35 @@ def test_production_has_sandbox_daemon_service() -> None:
         for v in mounts
     ), "sandbox must bridge the -1000 cache volume into the dind volume store"
     assert "specproof-maven-cache-1000" in compose.get("volumes", {})
+
+
+def test_node_install_profile_carries_cache_volume_and_submount() -> None:
+    """#56: the offline-install profile is the same hardened argv plus the
+    two things an install needs — the seeded npm cache volume and a writable
+    node_modules sub-mount. Nothing else moves: invariants are identical."""
+    argv = runner.build_docker_argv(
+        ["npm", "ci", "--offline", "--ignore-scripts"], "/ws",
+        runner.NODE_INSTALL_PROFILE,
+    )
+    assert argv[argv.index("--user") + 1] == "1000:1000"
+    assert "--network" in argv and "none" in argv
+    assert "--cap-drop" in argv and "ALL" in argv
+    assert "--security-opt" in argv and "no-new-privileges" in argv
+    assert "/ws:/work:ro" in argv
+    assert "/ws/node_modules:/work/node_modules" in argv
+    assert "specproof-npm-cache-1000:/home/node/.npm" in argv
+    assert "npm_config_cache=/home/node/.npm" in argv
+    # Maven's sub-mount must not leak into the Node profile.
+    assert "/ws/target:/work/target" not in argv
+
+
+def test_node_test_profile_stays_free_of_install_mounts() -> None:
+    """Regression lock: test runs keep the historical argv — no cache volume
+    and no node_modules sub-mount (a sub-mount would shadow a committed
+    node_modules of a vendored repo with an empty directory)."""
+    argv = runner.build_docker_argv(
+        ["npm", "test", "--silent"], "/ws", runner.NODE_PROFILE,
+    )
+    assert not any("node_modules" in a for a in argv)
+    assert not any("/home/node/.npm" in a for a in argv)
+    assert not any("specproof-npm-cache" in a for a in argv)
