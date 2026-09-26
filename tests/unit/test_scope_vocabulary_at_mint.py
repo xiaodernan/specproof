@@ -20,7 +20,13 @@ from pathlib import Path
 import pytest
 
 from api.identity import cli
-from api.identity.principal import ALL_ACTIONS, RESOURCES, scope_cells
+from api.identity.principal import (
+    ALL_ACTIONS,
+    CELLS_WITHOUT_A_ROUTE,
+    RESOURCES,
+    mintable_cells,
+    scope_cells,
+)
 from api.identity.tokens import ScopeVocabularyError, mint_token
 from storage.identity import IdentityStore, build_identity_store
 
@@ -95,9 +101,25 @@ def test_a_refused_scope_stores_no_token_row(store) -> None:
 
 
 # ── the accepted vocabulary is read from the matrix, not retyped ────────────
-@pytest.mark.parametrize("scope", scope_cells())
-def test_every_matrix_cell_can_be_minted(store, scope: str) -> None:
+@pytest.mark.parametrize("scope", mintable_cells())
+def test_every_mintable_matrix_cell_can_be_minted(store, scope: str) -> None:
     assert mint(store, scope).startswith("sp_")
+
+
+def test_the_only_unmintable_cells_are_the_ones_no_route_enforces(store) -> None:
+    """The two vocabulary gates must agree on where the exception list is.
+
+    #106 refuses a cell that no request is ever checked against, so 'every cell
+    is mintable' is no longer the rule — and the exception has to stay exactly
+    as small as the declared set, or minting shrinks in a place nobody is
+    watching.
+    """
+    unmintable = sorted(set(scope_cells()) - set(mintable_cells()))
+    assert unmintable, "every cell is mintable, so the loop below proves nothing"
+    assert unmintable == sorted(CELLS_WITHOUT_A_ROUTE)
+    for cell in unmintable:
+        with pytest.raises(ScopeVocabularyError):
+            mint(store, cell)
 
 
 @pytest.mark.parametrize(

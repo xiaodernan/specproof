@@ -22,7 +22,7 @@ import time
 import bcrypt
 
 from api.identity.config import bcrypt_rounds, token_hmac_key
-from api.identity.principal import Principal, scope_cells, scope_problems
+from api.identity.principal import Principal, mintable_cells, scope_problems
 from storage.identity import ApiTokenRow, IdentityStore, User
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ def mint_token(
         raise ScopeVocabularyError(
             "; ".join(problems)
             + " | valid scopes are: "
-            + ", ".join(scope_cells())
+            + ", ".join(mintable_cells())
             + ", <resource>:*, *"
         )
     token_id = str(secrets.token_hex(16))

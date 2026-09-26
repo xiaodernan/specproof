@@ -179,8 +179,38 @@ def scope_problems(raw: str) -> list[str]:
                 f"{item!r} names unknown action {action!r} on {resource!r}; "
                 f"{resource} accepts {', '.join(sorted(ALL_ACTIONS[resource]))} or '*'"
             )
+            continue
+        if item in CELLS_WITHOUT_A_ROUTE:
+            problems.append(
+                f"'{item}' is not enforced by any route today - "
+                + CELLS_WITHOUT_A_ROUTE[item]
+            )
     return problems
 
+
+#: Vocabulary cells that no HTTP request can ever be checked against, each with
+#: the reason an operator needs before deciding to mint one.
+#:
+#: A scope list NARROWS a credential, so minting a cell nobody enforces does not
+#: merely fail to add a right - it strips the rights the roles would otherwise
+#: have had, and the holder is then refused with a message that names a permission
+#: that never existed. `tests/unit/test_rbac_cells_reach_routes.py` reconciles this
+#: declaration against the operations the app actually exposes, in both
+#: directions, so the list cannot quietly collect a lie either way.
+CELLS_WITHOUT_A_ROUTE: dict[str, str] = {
+    "cases:verify": (
+        "no route is ever classified as cases:verify. The certificate / "
+        "rejection-notice endpoint GET /api/v1/jobs/{job_id}/certificate is a "
+        "cases:read, and signature verification runs in the CLI verify flow, "
+        "which does not consult this matrix. Read the certificate with "
+        "cases:read instead."
+    ),
+}
+
+
+def mintable_cells() -> tuple[str, ...]:
+    """The cells that actually change what a credential can do."""
+    return tuple(cell for cell in scope_cells() if cell not in CELLS_WITHOUT_A_ROUTE)
 
 _ADMIN_SUB_RESOURCES: dict[str, str] = {
     "tenants": "manage",
