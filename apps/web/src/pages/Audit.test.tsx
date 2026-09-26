@@ -184,6 +184,47 @@ it("reads the job filter from the deep link and asks the server for it", async (
   expect(note.querySelector("a")?.getAttribute("href")).toBe("#/jobs/" + JOB);
 });
 
+// #102 — both readings below came out of the live pass: the note said the job
+// row was gone, guessed "可能按生命周期删除", and then linked to 作业详情, which
+// is exactly the page that cannot open. A sentence has to stop at what the
+// answer proves: the rows are the job's, the job row is not there, and whether
+// a lifecycle purge or a never-existing id explains that depends on whether any
+// row was left behind at all.
+it("offers no job link and no deletion story when the job row is gone but its rows remain", async () => {
+  window.location.hash = "#/audit?job=" + JOB;
+  apiGetMock.mockResolvedValue({
+    ...ROWS,
+    count: 3,
+    total: 3,
+    job_id: JOB,
+    job_present: false,
+  } as never);
+  render(<Audit />);
+  await screen.findAllByTestId("audit-disposition");
+  const note = await screen.findByTestId("audit-filter-note");
+  expect(note.textContent).toContain("库里已无这条作业");
+  expect(note.querySelector("a")).toBeNull();
+  expect(note.textContent).not.toContain("生命周期");
+});
+
+it("says nothing was left behind when an absent job has no rows either", async () => {
+  window.location.hash = "#/audit?job=" + JOB;
+  apiGetMock.mockResolvedValue({
+    audit: [],
+    count: 0,
+    total: 0,
+    job_id: JOB,
+    job_present: false,
+  } as never);
+  render(<Audit />);
+  const note = await screen.findByTestId("audit-filter-note");
+  expect(note.textContent).toContain("也没有它留下的审计行");
+  expect(note.querySelector("a")).toBeNull();
+  expect(note.textContent).not.toContain("生命周期");
+  // The empty state below still owns the explanation, unchanged.
+  expect(await screen.findByTestId("audit-job-missing")).toBeTruthy();
+});
+
 it("keeps the three empty answers apart", async () => {
   // 1. the id matches no job at all — the reader typed it wrong;
   window.location.hash = "#/audit?job=" + JOB;

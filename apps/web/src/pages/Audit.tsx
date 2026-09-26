@@ -384,13 +384,16 @@ export default function Audit(): JSX.Element {
       {!loading && !error && jobFilter && (
         <p className="muted" data-testid="audit-filter-note">
           当前按作业号 <code>{jobFilter}</code> 检索 ·{" "}
-          {jobPresent === true
-            ? "作业在册"
-            : jobPresent === false
-              ? "库里已无此作业行（可能按生命周期删除）"
-              : "服务端未回传作业是否存在"}
-          {" · "}
-          <a href={"#/jobs/" + encodeURIComponent(jobFilter)}>查看作业详情</a>
+          {jobPresent === false
+            ? rows.length > 0
+              ? "库里已无这条作业，下面这些是它留下的审计行；作业详情已经打不开"
+              : "库里既没有这条作业，也没有它留下的审计行（见下方说明）；作业详情无从链接"
+            : jobPresent === true
+              ? "作业在册 · "
+              : "服务端未回传作业是否存在 · "}
+          {jobPresent !== false ? (
+            <a href={"#/jobs/" + encodeURIComponent(jobFilter)}>查看作业详情</a>
+          ) : null}
         </p>
       )}
       {!loading && !error && rows.length > 0 && (
