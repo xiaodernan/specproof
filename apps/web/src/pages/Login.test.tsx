@@ -36,6 +36,35 @@ describe("workspace connection", () => {
     expect(window.sessionStorage.getItem("specproof_api_key")).toBe("");
   });
 
+  it("does not ask about the backend when the backend already answered", async () => {
+    // This is the envelope GET /api/v1/admin/audit actually returns when
+    // SPECPROOF_AUTH_ENABLED is unset — captured from a live uvicorn process,
+    // not typed from the code that reads it.
+    const detail =
+      "Multi-tenant auth is not enabled: set SPECPROOF_AUTH_ENABLED=true or OIDC_ISSUER";
+    const fetchMock = vi.fn(async (url: string) =>
+      url.endsWith("/auth/config")
+        ? response(200, { auth_mode: "legacy", oidc: { enabled: false } })
+        : response(503, {
+            detail,
+            error: { code: "PROVIDER_UNAVAILABLE", message: detail, retryable: true },
+            schema_version: 1,
+          }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const connected = vi.fn();
+    render(<Login onConnected={connected} />);
+    fireEvent.change(screen.getByLabelText("工作区 API Key"), { target: { value: "any-key" } });
+    fireEvent.click(screen.getByRole("button", { name: "连接工作区" }));
+    const alert = await screen.findByRole("alert");
+    // The server proved it is reachable, so the copy must not send the operator
+    // to check that; it must carry the switch name instead.
+    expect(alert.textContent).toContain("后端已响应");
+    expect(alert.textContent).not.toContain("请确认后端已启动");
+    expect(alert.textContent).toContain("SPECPROOF_AUTH_ENABLED");
+    expect(connected).not.toHaveBeenCalled();
+  });
+
   it("clears a stale bearer token before validating an API key and waits for success", async () => {
     window.sessionStorage.setItem("specproof_bearer_token", "old-token");
     const connected = vi.fn();

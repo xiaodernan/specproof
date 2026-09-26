@@ -21,7 +21,19 @@ function connectionError(error: unknown): string {
     if (error.status === 401) return "凭据未通过验证。请检查是否复制完整，或向工作区管理员获取新的凭据。";
     if (error.status === 403) return "当前凭据没有工作区访问权限，请联系管理员。";
     if (error.status === 429) return "连接请求过于频繁，请稍后重试。";
-    if (error.status >= 500) return "服务暂时无法完成连接。请确认后端已启动、服务端已配置登录凭据，然后重试。";
+    if (error.status >= 500) {
+      // A 5xx here means the server *answered*. Measured live against a running
+      // API: the only 503 the audit endpoint gives is "auth not enabled", so
+      // telling that user to check whether the backend is up sends them to the
+      // one thing already proven.
+      if (error.code === "PROVIDER_UNAVAILABLE") {
+        return "后端已响应，但工作区登录未在服务端开启。服务端说明：" + error.detail;
+      }
+      return (
+        "后端已响应，但没能完成这次请求（HTTP " + error.status + "）。" +
+        "服务端说明：" + error.detail
+      );
+    }
     return error.message;
   }
   return "无法连接到服务。请确认本地启动脚本已完成，或联系工作区管理员检查服务地址。";
