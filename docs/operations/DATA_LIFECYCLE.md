@@ -298,5 +298,17 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 `job_present` 是三态（作业在册 / 库里已无此作业行 / 本次未按作业过滤）且由一次独立的存在性探测给出，
 不从返回行数推断。页面口径与限制记在 DATA_DICTIONARY §1.8。
 
-上面"删除侧有两类"里的第二类——测试 teardown 手删 job 行——**仍在制造新的 `unexplained`**，#97 没有
-碰它：那是把测试改走 `delete_job_records`（留下解释行）的独立一步。
+上面"删除侧有两类"里的第二类——测试 teardown 手删 job 行——**已在 #98 收口**（2026-09-26）：
+`tests/` 里不再允许出现就地删除 `verification_jobs` 的语句，job 行只能经产品的
+`MySQLStore.delete_job_records` 离开（它在同一事务里写下解释行），需要连轨迹一起清掉的测试残留则
+在清除 job 行后按 id 删除自己的 `audit_logs` 行。这条禁令由
+`tests/unit/test_audit_action_parity.py::test_no_test_reaches_past_the_product_delete_path` 双向锁定：
+它遍历 `tests/**/*.py` 自己求命中集合（不是手抄清单），并用
+`test_the_ban_has_something_to_ban` 要求 `storage/mysql.py` 里那个语句仍然存在——否则产品路径一旦被人
+删掉，禁令会安静地变成永真。两侧都实测过：植入一个含该语句的临时测试文件，门立刻红并点名
+`tests/unit/test_zz_plant_probe.py:1`；移除后三个受影响文件 43 项通过。
+
+同一轮实测（`specproof_test`）：修好之后跑完这三个文件，`unexplained` 停在 **112 行不变**，而
+`present` 的 32 行不再被孤儿化——它们要么按产品路径离开并留下解释，要么连同自己的轨迹一起清掉。
+那 112 行仍是**修复之前**的残留（对应的 job 行早已不存在，无解释行可补），清它们需要一次与 §8
+同型的批准删除并先备份。

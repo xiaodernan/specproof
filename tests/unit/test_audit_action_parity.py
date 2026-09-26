@@ -486,6 +486,24 @@ def _live_store() -> MySQLStore:
     return store
 
 
+def _purge_jobs_under(store: MySQLStore, repo_path: str) -> list[str]:
+    """Remove every job row under ``repo_path`` via the product path (#98).
+
+    Returns the ids whose audit trails the caller should then clear as test
+    residue. Reaching for the job table directly here would leave those very
+    rows dangling — the state #95 had to add a column to explain.
+    """
+    with store.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id FROM verification_jobs WHERE repo_path = %s", (repo_path,)
+        )
+        ids = [row["id"] for row in cur.fetchall()]
+    for job_id in ids:
+        store.delete_job_records(job_id)
+    return ids
+
+
 def test_purge_then_read_reports_purged_not_unexplained() -> None:
     """Insert → transition (audited) → purge → read, against the real schema.
 
@@ -538,13 +556,11 @@ def test_purge_then_read_reports_purged_not_unexplained() -> None:
     finally:
         if created:
             store.delete_job_records(job_id)
+        abandoned = _purge_jobs_under(store, "/test/audit-purge")
         with store.connection() as conn:
             cur = conn.cursor()
-            cur.execute("DELETE FROM audit_logs WHERE job_id = %s", (job_id,))
-            cur.execute(
-                "DELETE FROM verification_jobs WHERE repo_path = %s",
-                ("/test/audit-purge",),
-            )
+            for leftover in [job_id, *abandoned]:
+                cur.execute("DELETE FROM audit_logs WHERE job_id = %s", (leftover,))
 
 
 def test_one_job_can_be_asked_about_directly() -> None:
@@ -602,12 +618,68 @@ def test_one_job_can_be_asked_about_directly() -> None:
             other
         }
     finally:
+        abandoned = _purge_jobs_under(store, "/test/audit-filter")
         with store.connection() as conn:
             cur = conn.cursor()
-            cur.execute(
-                "DELETE FROM audit_logs WHERE job_id IN (%s, %s)", (mine, other)
-            )
-            cur.execute(
-                "DELETE FROM verification_jobs WHERE repo_path = %s",
-                ("/test/audit-filter",),
-            )
+            for leftover in [mine, other, *abandoned]:
+                cur.execute("DELETE FROM audit_logs WHERE job_id = %s", (leftover,))
+
+
+# ── #98: a test must never be a source of unexplained audit rows ──────
+
+TESTS_ROOT = Path(__file__).resolve().parents[1]
+STORAGE_MYSQL = REPO_ROOT / "storage" / "mysql.py"
+
+#: The statement, lower-cased, because the ban is about the *write*, not about
+#: how someone typed it.
+JOB_ROW_DELETE = "delete from verification_jobs"
+
+
+def _job_deletes_in_tests() -> list[str]:
+    """Every test file that removes job rows without going through the store.
+
+    Derived by walking ``tests/`` rather than from a hand-typed list: a new
+    teardown is exactly what this gate exists to catch.
+    """
+    here = Path(__file__).resolve()
+    hits: list[str] = []
+    for path in sorted(TESTS_ROOT.rglob("*.py")):
+        if path.resolve() == here:
+            continue  # this file declares the ban, so it has to name the statement
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if JOB_ROW_DELETE in line.lower():
+                hits.append(f"{path.relative_to(REPO_ROOT).as_posix()}:{number}")
+    return hits
+
+
+def test_no_test_reaches_past_the_product_delete_path() -> None:
+    """Job rows may only leave via ``delete_job_records``.
+
+    #95 measured 112 dangling audit rows in the test schema and attributed them
+    to teardowns: audit_logs outlives the job on purpose, so removing a job row
+    in place turns a documented deletion into data an operator has to
+    investigate — and trains them to ignore the column that flags it.
+    """
+    hits = _job_deletes_in_tests()
+    assert not hits, (
+        f"{hits} delete job rows in place; call MySQLStore.delete_job_records "
+        "(it writes its own explanation in the same transaction) and clear "
+        "audit_logs for the id as well when the trail is only test residue"
+    )
+
+
+def test_the_ban_has_something_to_ban() -> None:
+    """Reverse direction: the product path must still own exactly one job delete.
+
+    Otherwise the scan above turns green by the protected statement vanishing,
+    which is the vacuous-green failure mode #81 had to guard against.
+    """
+    text = STORAGE_MYSQL.read_text(encoding="utf-8")
+    assert text.lower().count(JOB_ROW_DELETE) == 1, (
+        "storage/mysql.py no longer holds exactly one in-place job delete — "
+        "the #98 ban is protecting nothing and needs re-pointing"
+    )
+    assert "def delete_job_records" in text, (
+        "the sole owner of the job-row delete is gone; #98's ban named it as "
+        "the path tests must use"
+    )

@@ -271,9 +271,9 @@ def test_real_mysql_one_verdict_per_reviewer(live_store: MySQLStore) -> None:
                 "DELETE FROM finding_feedback WHERE job_id = %s", (job_id,)
             )
             cur.execute("DELETE FROM findings WHERE job_id = %s", (job_id,))
-            cur.execute(
-                "DELETE FROM verification_jobs WHERE id = %s", (job_id,)
-            )
+        # The job row leaves through the product path (#98), which writes its
+        # own explanation in the same transaction instead of dangling the trail.
+        live_store.delete_job_records(job_id)
 
 
 def test_real_mysql_unique_key_exists(live_store: MySQLStore) -> None:

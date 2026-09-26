@@ -19,10 +19,23 @@ class TestOutboxCrashRecovery:
             # Fresh state per test: the shared dev database accumulates rows
             # from previous runs, which would pollute LIMIT-based assertions.
             with self.store.connection() as conn:
-                conn.cursor().execute("DELETE FROM outbox")
-                conn.cursor().execute("DELETE FROM findings")
-                conn.cursor().execute("DELETE FROM contracts")
-                conn.cursor().execute("DELETE FROM verification_jobs")
+                cur = conn.cursor()
+                cur.execute("DELETE FROM outbox")
+                cur.execute("DELETE FROM findings")
+                cur.execute("DELETE FROM contracts")
+                cur.execute("SELECT id FROM verification_jobs")
+                stale = [row["id"] for row in cur.fetchall()]
+            # Job rows go out through the product's own delete path (#98): a bare
+            # whole-table job delete left every audit row of those jobs dangling,
+            # so the fixture was manufacturing the state operators investigate.
+            for job_id in stale:
+                self.store.delete_job_records(job_id)
+            with self.store.connection() as conn:
+                cur = conn.cursor()
+                # These trails are test residue, not a compliance history, so the
+                # reset clears them instead of leaving explained rows to grow.
+                for job_id in stale:
+                    cur.execute("DELETE FROM audit_logs WHERE job_id = %s", (job_id,))
         except Exception:
             pytest.skip("MySQL not available")
         self.job_id = str(uuid.uuid4())
