@@ -49,6 +49,10 @@
   应用层与 compose.phase0.yml 的基础设施层读的是**同名**宿主变量，所以两侧不可能配成两套口令。
   守卫检查的清单与部署文件要求的清单由 `tests/unit/test_production_guard_reachability.py`
   双向对账（守卫多查一个没人提供的变量、或应用要求一个守卫不管的凭据，都会红）。
+- **本节写的数字与"必须"是有门的** (#88)：`tests/unit/test_runbook_claims_hold.py` 核对
+  上面那个迁移范围是否等于 `infra/mysql/migrations/` 里最新的迁移、RUNBOOK 里每一条
+  "生产必须 VAR=值" 是否真被某个 compose/启动脚本设置、以及这份凭据清单是否等于 compose
+  实际 `${X:?}` 要求的集合。写错一句就会红，所以这句话不是承诺而是被检查的事实。
 
 ## 3. 关键环境变量与 fail-closed 行为
 
