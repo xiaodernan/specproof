@@ -104,19 +104,35 @@ def roles_allowed(roles: Collection[str], resource: str, action: str) -> bool:
 
 
 def principal_allowed(principal: Principal, resource: str, action: str) -> bool:
-    """RBAC + scope intersection.
+    """RBAC + scope intersection."""
+    return principal_denial(principal, resource, action) is None
 
-    Roles decide the matrix (§2); when a local token carries explicit scopes
-    the request must also be covered by them ("resource:action",
-    "resource:*" or "*"). Empty scopes (OIDC, unscoped tokens) mean
-    "roles decide".
+
+def principal_denial(principal: Principal, resource: str, action: str) -> str | None:
+    """Why this request is refused — naming the gate that actually closed.
+
+    Two independent gates can deny the same call, and they have opposite fixes:
+    the role matrix (§2) says the *person* may not, while a scoped local token
+    says this *credential* may not even though the person may. Reporting a
+    scope refusal as a role refusal sends an admin to add roles to a user who
+    already had them, which is a privilege change made on a wrong diagnosis.
     """
     if not roles_allowed(principal.roles, resource, action):
-        return False
+        return (
+            f"role {sorted(principal.roles)} may not "
+            f"{action} on {resource}"
+        )
     if principal.scopes:
         wanted = (f"{resource}:{action}", f"{resource}:*", "*")
-        return any(w in principal.scopes for w in wanted)
-    return True
+        if not any(w in principal.scopes for w in wanted):
+            return (
+                f"token scopes {sorted(principal.scopes)} do not cover "
+                f"{resource}:{action}; role {sorted(principal.roles)} does "
+                f"allow it, so mint a token with --scopes {resource}:{action}"
+            )
+    # Empty scopes (OIDC id_tokens, unscoped tokens) mean "roles decide".
+    return None
+
 
 
 _ADMIN_SUB_RESOURCES: dict[str, str] = {

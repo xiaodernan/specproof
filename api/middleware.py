@@ -196,7 +196,7 @@ class TenantAuthMiddleware:
             return
         from api.identity.authn import authenticate_bearer
         from api.identity.config import auth_enabled
-        from api.identity.principal import classify_request, principal_allowed
+        from api.identity.principal import classify_request, principal_denial
         from storage.tenant_scope import TENANT_SCOPE_VAR, TenantScope
 
         if not auth_enabled():
@@ -239,17 +239,15 @@ class TenantAuthMiddleware:
             return
 
         resource_action = classify_request(method, path)
-        if resource_action is not None and not principal_allowed(
-            principal, resource_action.resource, resource_action.action
-        ):
-            await self._send_error(
-                send, scope, 403, TENANT_FORBIDDEN,
-                (
-                    f"role {sorted(principal.roles)} may not "
-                    f"{resource_action.action} on {resource_action.resource}"
-                ),
+        if resource_action is not None:
+            denial = principal_denial(
+                principal, resource_action.resource, resource_action.action
             )
-            return
+            if denial is not None:
+                await self._send_error(
+                    send, scope, 403, TENANT_FORBIDDEN, denial,
+                )
+                return
 
         if not self._cross_tenant_allowed(principal, path):
             await self._send_error(
