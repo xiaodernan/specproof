@@ -135,6 +135,53 @@ def principal_denial(principal: Principal, resource: str, action: str) -> str | 
 
 
 
+def scope_cells() -> tuple[str, ...]:
+    """Every concrete 'resource:action' the matrix knows about."""
+    return tuple(
+        f"{resource}:{action}"
+        for resource in RESOURCES
+        for action in sorted(ALL_ACTIONS[resource])
+    )
+
+
+def scope_problems(raw: str) -> list[str]:
+    """Human-readable reasons why a scope list grants nothing intended.
+
+    A scope list NARROWS a token: once any scope is present, a request must be
+    covered by it (see principal_denial). So a typo — "job:read", "cases:reed" —
+    does not just fail to grant what the operator meant, it silently strips
+    every permission the credential would otherwise have had, and the holder is
+    then refused with a message that correctly says "token scopes [...] do not
+    cover ...". Mint time is the only place this can be caught, and the matrix
+    is the single source of what a scope may even name.
+    """
+    problems: list[str] = []
+    for item in (part.strip() for part in raw.split(",")):
+        if not item:
+            continue
+        if item == "*":
+            continue
+        resource, sep, action = item.partition(":")
+        if not sep or not resource or not action:
+            problems.append(
+                f"{item!r} is not a scope: use '*', '<resource>:*' or "
+                f"'<resource>:<action>' (resources: {', '.join(RESOURCES)})"
+            )
+            continue
+        if resource not in ALL_ACTIONS:
+            problems.append(
+                f"{item!r} names unknown resource {resource!r}; "
+                f"resources are {', '.join(RESOURCES)}"
+            )
+            continue
+        if action != "*" and action not in ALL_ACTIONS[resource]:
+            problems.append(
+                f"{item!r} names unknown action {action!r} on {resource!r}; "
+                f"{resource} accepts {', '.join(sorted(ALL_ACTIONS[resource]))} or '*'"
+            )
+    return problems
+
+
 _ADMIN_SUB_RESOURCES: dict[str, str] = {
     "tenants": "manage",
     "users": "users",

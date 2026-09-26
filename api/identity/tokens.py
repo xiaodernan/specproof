@@ -22,12 +22,21 @@ import time
 import bcrypt
 
 from api.identity.config import bcrypt_rounds, token_hmac_key
-from api.identity.principal import Principal
+from api.identity.principal import Principal, scope_cells, scope_problems
 from storage.identity import ApiTokenRow, IdentityStore, User
 
 logger = logging.getLogger(__name__)
 
 TOKEN_PREFIX = "sp_"
+
+
+class ScopeVocabularyError(ValueError):
+    """The requested scopes name cells the RBAC matrix has no entry for.
+
+    Distinct from TokenConfigError (a deployment that cannot mint at all, 503)
+    and from a permission refusal: this is caller input that would produce a
+    token unable to do what its operator intended.
+    """
 
 
 class TokenConfigError(RuntimeError):
@@ -65,7 +74,20 @@ def mint_token(
     scopes: str = "",
     ttl_days: int | None = None,
 ) -> tuple[ApiTokenRow, str]:
-    """Create a scoped token row; returns (row, cleartext) — show once."""
+    """Create a scoped token row; returns (row, cleartext) — show once.
+
+    Scope strings are validated against the RBAC matrix here, so every entry
+    point that mints (CLI and POST /api/v1/admin/tokens) refuses a typo before
+    a narrowed, silently useless credential exists.
+    """
+    problems = scope_problems(scopes)
+    if problems:
+        raise ScopeVocabularyError(
+            "; ".join(problems)
+            + " | valid scopes are: "
+            + ", ".join(scope_cells())
+            + ", <resource>:*, *"
+        )
     token_id = str(secrets.token_hex(16))
     # token_hex: the secret alphabet [0-9a-f] never contains '_', so the
     # sp_<id>_<secret> format stays unambiguous to parse.

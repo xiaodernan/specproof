@@ -23,7 +23,7 @@ import argparse
 import sys
 
 from api.identity.store import get_identity_store
-from api.identity.tokens import TokenConfigError, mint_token
+from api.identity.tokens import ScopeVocabularyError, TokenConfigError, mint_token
 from storage.identity import IdentityStore
 
 
@@ -58,7 +58,7 @@ def _mint(args: argparse.Namespace) -> None:
             scopes=args.scopes or "",
             ttl_days=args.ttl_days,
         )
-    except TokenConfigError as exc:
+    except (TokenConfigError, ScopeVocabularyError) as exc:
         print(f"refusing to mint: {exc}", file=sys.stderr)
         sys.exit(2)
     print("SHOW-ONCE token (it is never stored and cannot be recovered):")

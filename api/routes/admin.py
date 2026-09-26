@@ -54,7 +54,7 @@ from api.identity.config import (
 from api.identity.oidc import OidcError, get_oidc_validator
 from api.identity.principal import Principal
 from api.identity.store import get_identity_store
-from api.identity.tokens import TokenConfigError, mint_token
+from api.identity.tokens import ScopeVocabularyError, TokenConfigError, mint_token
 from storage.identity import ROLE_SET, DuplicateUserError, IdentityStore, User
 
 logger = logging.getLogger(__name__)
@@ -488,6 +488,12 @@ async def create_token(request: Request, payload: TokenCreate) -> dict[str, Any]
             store, user_id=target.id, name=payload.name,
             scopes=payload.scopes, ttl_days=payload.ttl_days,
         )
+    except ScopeVocabularyError as exc:
+        # Bad input from the caller, not an unavailable provider: a 503 would
+        # send the operator to look at the server for their own typo.
+        raise ApiError(
+            status_code=422, code=VALIDATION_FAILED, detail=str(exc),
+        ) from exc
     except TokenConfigError as exc:
         raise ApiError(
             status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
