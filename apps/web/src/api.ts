@@ -442,6 +442,91 @@ export interface FindingsData {
   degraded_reason: string | null;
 }
 
+// ── Finding acceptance feedback (Go/No-Go #13) ──
+// Mirrors api/routes/feedback.py. One verdict per (finding, reviewer):
+// the backend upserts, so `state` says what actually happened to the row
+// rather than implying a new record on every click.
+
+export interface FeedbackRow {
+  id: string;
+  job_id: string;
+  tenant_id: string | null;
+  finding_id: string;
+  contract_id: string;
+  severity: string;
+  verdict: "accept" | "reject";
+  reason: string | null;
+  created_by: string;
+  created_at: string | null;
+}
+
+export interface FeedbackStats {
+  job_id: string;
+  accepted: number;
+  rejected: number;
+  no_feedback_not_counted: boolean;
+  // null means "nobody has voted yet" — deliberately NOT 0.
+  acceptance_rate_pct: number | null;
+}
+
+export interface FeedbackData {
+  job_id: string;
+  rows: FeedbackRow[];
+  stats: FeedbackStats;
+}
+
+export interface FeedbackReceipt {
+  id: string;
+  job_id: string;
+  finding_id: string;
+  verdict: "accept" | "reject";
+  state: "created" | "replaced" | "unchanged";
+}
+
+export interface FeedbackDraft {
+  finding_id: string;
+  contract_id: string;
+  severity: string;
+  verdict: "accept" | "reject";
+  reason?: string | null;
+  created_by: string;
+}
+
+export function getJobFeedback(jobId: string): Promise<FeedbackData> {
+  return apiGet<FeedbackData>("/api/v1/jobs/" + encodeURIComponent(jobId) + "/feedback");
+}
+
+export function createFindingFeedback(
+  jobId: string,
+  draft: FeedbackDraft
+): Promise<FeedbackReceipt> {
+  return apiPost<FeedbackReceipt>(
+    "/api/v1/jobs/" + encodeURIComponent(jobId) + "/feedback",
+    draft
+  );
+}
+
+// The reviewer identity is not an account login here (the platform has no
+// session user for this action), so it is remembered locally. It must be
+// non-empty because it is half of the "one verdict per person" key.
+const REVIEWER_STORAGE = "specproof_reviewer";
+
+export function getReviewer(): string {
+  try {
+    return localStorage.getItem(REVIEWER_STORAGE) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setReviewer(name: string): void {
+  try {
+    localStorage.setItem(REVIEWER_STORAGE, name.trim());
+  } catch {
+    /* storage disabled (private mode) — the name still works for this page */
+  }
+}
+
 export interface CertificateData {
   job_id: string;
   path: string;

@@ -45,6 +45,13 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       "一次检查发现的具体问题，包括影响、严重程度、代码位置与证据。",
   },
   {
+    id: "feedback",
+    label: "验收反馈",
+    en: "Finding Feedback",
+    definition:
+      "人对某条风险判定给出的接受或打回意见。同一人对同一条风险只计一票；没有反馈不等于已接受。",
+  },
+  {
     id: "capsule",
     label: "证据包（Bug Capsule）",
     en: "Bug Capsule",

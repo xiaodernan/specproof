@@ -1,7 +1,7 @@
 # 数据字典 (DATA_DICTIONARY) — SpecProof 全存储字段级说明
 
 > 口径与出处: 本文逐字段登记 SpecProof 的全部持久化状态。MySQL 表结构以
-> `infra/mysql/migrations/0001_init.sql` 至 `0011_agent_jobs.sql` 十一个版本化迁移为准,
+> `infra/mysql/migrations/0001_init.sql` 至 `0012_finding_feedback_idempotency.sql` 十二个版本化迁移为准,
 > 并与代码内幂等 DDL (`storage/identity.py` / `storage/billing.py` / `storage/agent_jobs.py` /
 > `storage/object_metadata.py` / `storage/migrations.py`) 逐表核对; MongoDB/MinIO/ES/Redis/RabbitMQ
 > 以对应 `storage/*` 适配器为准。
@@ -24,7 +24,8 @@
 ## 1. MySQL — 数据库 `specproof_phase0` (compose 服务 mysql:8.4)
 
 共 18 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测):
-17 张来自版本化迁移 0001-0011, 1 张 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
+17 张来自版本化迁移 0001-0012 (0012 只给 `finding_feedback` 加唯一约束, 不建新表), 1 张
+(`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
 本文 §1.18 / §1.19 两张对象元数据表**不在这 18 张里** —— 它们只在显式选择 MySQL 对象元数据后端时
 由 `ensure_schema()` 现建, 默认后端是 SQLite (见 §1.18 的口径说明)。
 时间戳约定: 迁移 0001-0004/0006/0008/0009 用 MySQL TIMESTAMP; 0005/0007 与 0011 的 `agent_jobs`
@@ -293,7 +294,7 @@
 | name | VARCHAR(255) | 迁移名 |
 | applied_at | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | |
 
-- **写入方**: `storage/migrations.py` `MigrationRunner` (每迁移一个事务, 全成功才记账)。
+- **写入方**: `storage/migrations.py` `MigrationRunner` (每迁移一个连接; **但 MySQL 对 DDL 隐式提交**, 所以含 ALTER 的迁移做不到"要么全成要么全不成" —— 半路断线时约束已建而版本号未记, 重跑会撞 1061。runner 因此只把 1050/1060/1061 三个"已经是这样了"的错误当作可跳过并记 WARNING, 其余错误照旧中止且不记账, 由 `tests/unit/test_migrations.py` 两侧各自钉住)。
 - **租户作用域**: —。**TTL/保留**: 永久, 不清理。
 
 ### 1.17 agent_jobs — SpecCraft Agent 任务投影 (来源 `0011_agent_jobs.sql`; `storage/agent_jobs.py` 的代码 DDL 是已存在安装上的自愈路径)
@@ -358,7 +359,7 @@
 
 - **写入方**: `storage/object_metadata.py`。**租户作用域**: J。**TTL/保留**: 与 object_metadata 同步。
 
-### 1.20 finding_feedback — Finding 验收反馈 (来源 `0009_finding_feedback.sql`; 本文此前漏登记该表)
+### 1.20 finding_feedback — Finding 验收反馈 (来源 `0009_finding_feedback.sql` + `0012_finding_feedback_idempotency.sql`; 本文此前漏登记该表)
 
 | 列 | 类型 | 说明 |
 |---|---|---|
@@ -373,14 +374,32 @@
 | created_by | VARCHAR(128) NOT NULL | 打回人 |
 | created_at | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | |
 
-- **写入方**: `api/routes/feedback.py` (`POST /api/v1/jobs/{job_id}/feedback` -> `MySQLStore.insert_feedback`)。
+**唯一键 `uniq_feedback_finding_actor (finding_id, created_by)`** —— 由迁移 0012 建立 (先按
+`(finding_id, created_by)` 保留最新一行去重, 再加约束)。它是 Go/No-Go #13 的度量契约本身:
+一个评审人对一个 finding 只能有一票, 改主意是**覆盖**而不是**加权**。
+
+- **写入方**: `api/routes/feedback.py` (`POST /api/v1/jobs/{job_id}/feedback` ->
+  `MySQLStore.insert_feedback`, 该语句是 `INSERT ... AS new ON DUPLICATE KEY UPDATE`, 返回
+  `{"state": created|replaced|unchanged, "id": <库中真实行 id>}`; 路由把 `state` 原样回给前端。
+  **重述时回显的是库里那一行的 id, 不是调用方新造的 uuid** —— 后者在库里根本不存在)。
 - **读取方**: 同路由 `GET /api/v1/jobs/{job_id}/feedback` -> `list_feedback` + `feedback_stats`;
   Go/No-Go #13 的 `acceptance_rate` = accepted/(accepted+rejected), **无反馈的 finding 不计入**
   ("沉默不等于接受"), 分母为 0 时 `acceptance_rate_pct` 为 `null` 而不是 0。
+  **2026-09-26 实测的两个缺陷已在同一里程碑修掉并各有一道门**: (a) 这两个读函数原先按位置取列
+  (`row[0]`), 而本 store 的连接是 `cursorclass=DictCursor` —— 于是**任何真实调用都抛
+  `KeyError: 0`**, 即整条验收反馈读路径在产品数据库上是坏的; (b) 每次 POST 生成新 uuid 且无约束,
+  同一个人双击"接受"会在分子里留下两行。
 - **租户作用域**: T (有 `tenant_id` 列)。**TTL/保留**: 永久(无自动清理)。
-- **已知缺口 (2026-09-26 实测)**: `apps/web/src` 对 "feedback" 的引用只有 UI-kit 的示例区块一处,
-  即 **这条机制在 Web 上没有任何入口** —— 试点用户只能用 HTTP 客户端手工 POST 才能产生反馈行,
-  两个真实 schema 里该表当前为 0 行。已登记为工作项 #84。
+- **产品入口 (2026-09-26 已落地, 工作项 #84)**: `apps/web/src/pages/FindingDetail.tsx` 的
+  `FeedbackSection` 是这张表唯一的写入界面 —— 评审人标识存在本机浏览器 (`localStorage`
+  `specproof_reviewer`), 它就是"一人一票"键的另一半, 所以页面上如实写明它不是登录账号;
+  三种 `state` 各有各的文案 (新票/改票/重复提交不重复计数); 读失败渲染为失败而不是"没人投过";
+  0 票时接受率显示"无法计算"。页面只在 `severity ∈ {BLOCKER, MAJOR, MINOR, NEEDS_CONFIRMATION}`
+  时才给按钮 —— 本表的 `severity` 与请求模型是同一个 ENUM, 前端词表里多出来的 `INFO`
+  (以及检查器为证据族写下的 `NONE`) 存不进任何一行, 允许点击只会换来一个 422。
+  **约束本身仍未在产品库落地**: `specproof_phase0` 当前没有 `uniq_feedback_finding_actor`
+  (对共享库做 DDL 属需批准操作, 未擅自执行); 它会在共享栈下一次 `ensure_tables()` 启动时由
+  0012 收敛 —— 而 FIX-6 (见 `docs/operations/DRILLS.md` §5) 正是为了让那一步能重跑。
 
 ---
 
@@ -517,7 +536,7 @@
 
 ## 8. 事实来源清单 (写入方代码定位)
 
-- MySQL 迁移: `infra/mysql/migrations/0001_init.sql` … `0011_agent_jobs.sql` (down 文件在 `infra/mysql/migrations/down/`; 0011 是 2026-09-26 为 `agent_jobs` 补的那一份, 它的缺失曾让全新安装比线上少一张表)。
+- MySQL 迁移: `infra/mysql/migrations/0001_init.sql` … `0012_finding_feedback_idempotency.sql` (down 文件在 `infra/mysql/migrations/down/`; 0011 是 2026-09-26 为 `agent_jobs` 补的那一份, 它的缺失曾让全新安装比线上少一张表; 0012 是同日为 `finding_feedback` 加的那份约束)。
 - MySQL 业务/状态: `storage/mysql.py`; 迁移执行: `storage/migrations.py`。
 - Finding 验收反馈 (Go/No-Go #13): `storage/mysql.py` `insert_feedback`/`feedback_stats` + `api/routes/feedback.py` (Web 侧无入口, 见 §1.20)。
 - 租户身份: `storage/identity.py` + `api/identity/store.py` + `api/routes/admin.py`。

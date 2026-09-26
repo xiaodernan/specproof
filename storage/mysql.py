@@ -1151,21 +1151,62 @@ class MySQLStore:
         with self.connection() as conn:
             conn.cursor().execute(_sql, finding)
 
-    def insert_feedback(self, feedback: dict[str, Any]) -> None:
-        """Record one accept/reject verdict (Go/No-Go #13 mechanism)."""
+    def insert_feedback(self, feedback: dict[str, Any]) -> dict[str, Any]:
+        """Record one accept/reject verdict (Go/No-Go #13 mechanism).
+
+        One row per (finding_id, created_by) is the measurement contract, and
+        migration 0012 turned that into a unique key. This statement upserts on
+        it, so a reviewer who double-clicks — or changes their mind — restates
+        one verdict instead of adding weight to ``acceptance_rate``.
+
+        Returns ``{"state": created|replaced|unchanged, "id": <stored row id>}``.
+        The id is read back rather than echoed: on a restated verdict the
+        caller's freshly generated uuid is never stored, and reporting it would
+        point at a row that does not exist.
+        """
         _sql = (
             "INSERT INTO finding_feedback "
             "(id, job_id, tenant_id, finding_id, contract_id, severity, "
             "verdict, reason, created_by) "
             "VALUES (%(id)s, %(job_id)s, %(tenant_id)s, %(finding_id)s, "
             "%(contract_id)s, %(severity)s, %(verdict)s, %(reason)s, "
-            "%(created_by)s)"
+            "%(created_by)s) AS new "
+            "ON DUPLICATE KEY UPDATE "
+            "verdict = new.verdict, reason = new.reason, "
+            "severity = new.severity, contract_id = new.contract_id, "
+            "job_id = new.job_id, tenant_id = new.tenant_id"
+        )
+        _find = (
+            "SELECT id FROM finding_feedback "
+            "WHERE finding_id = %s AND created_by = %s"
         )
         with self.connection() as conn:
-            conn.cursor().execute(_sql, feedback)
+            cursor = conn.cursor()
+            cursor.execute(_sql, feedback)
+            affected = int(cursor.rowcount)
+            state = ("created" if affected == 1
+                     else "replaced" if affected == 2 else "unchanged")
+            if state == "created":
+                stored_id = str(feedback["id"])
+            else:
+                cursor.execute(_find, (feedback["finding_id"], feedback["created_by"]))
+                row = cursor.fetchone()
+                if row is None:  # pragma: no cover — the upsert just wrote one
+                    raise RuntimeError(
+                        f"feedback row vanished for finding {feedback['finding_id']}"
+                    )
+                stored_id = str(row["id"])
+        return {"state": state, "id": stored_id}
 
     def list_feedback(self, job_id: str) -> list[dict[str, Any]]:
-        """All feedback rows for one job, newest first."""
+        """All feedback rows for one job, newest first.
+
+        Rows are read by column name: this store connects with
+        ``cursorclass=DictCursor``, so a positional ``row[0]`` raises
+        ``KeyError: 0``. Measured 2026-09-26 — that is exactly what this
+        method did, which meant the only two readers of the Go/No-Go #13
+        table failed on every real call.
+        """
         _sql = (
             "SELECT id, job_id, tenant_id, finding_id, contract_id, "
             "severity, verdict, reason, created_by, created_at "
@@ -1177,12 +1218,16 @@ class MySQLStore:
             cursor.execute(_sql, (job_id,))
             return [
                 {
-                    "id": row[0], "job_id": row[1], "tenant_id": row[2],
-                    "finding_id": row[3], "contract_id": row[4],
-                    "severity": row[5], "verdict": row[6], "reason": row[7],
-                    "created_by": row[8],
+                    "id": row["id"], "job_id": row["job_id"],
+                    "tenant_id": row["tenant_id"],
+                    "finding_id": row["finding_id"],
+                    "contract_id": row["contract_id"],
+                    "severity": row["severity"], "verdict": row["verdict"],
+                    "reason": row["reason"],
+                    "created_by": row["created_by"],
                     "created_at": (
-                        row[9].isoformat() if row[9] is not None else None
+                        row["created_at"].isoformat()
+                        if row["created_at"] is not None else None
                     ),
                 }
                 for row in cursor.fetchall()
@@ -1195,13 +1240,13 @@ class MySQLStore:
         treated as acceptance (go-nogo #13 measurement contract).
         """
         _sql = (
-            "SELECT verdict, COUNT(*) FROM finding_feedback "
+            "SELECT verdict, COUNT(*) AS n FROM finding_feedback "
             "WHERE job_id = %s GROUP BY verdict"
         )
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.execute(_sql, (job_id,))
-            counts = {str(row[0]): int(row[1]) for row in cursor.fetchall()}
+            counts = {str(row["verdict"]): int(row["n"]) for row in cursor.fetchall()}
         accepted = counts.get("accept", 0)
         rejected = counts.get("reject", 0)
         total = accepted + rejected

@@ -15,11 +15,25 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import pymysql.err
+
 from storage.mysql import MySQLStore
 
 logger = logging.getLogger(__name__)
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "infra" / "mysql" / "migrations"
+
+# Statements that failed because their desired end state ALREADY holds.
+# MySQL has no "ADD UNIQUE KEY IF NOT EXISTS", so a migration that mixes DML
+# and DDL cannot be made atomic here and must be made re-appliable instead:
+# see the note on MigrationRunner.apply_pending.
+_IDEMPOTENT_DDL_ERRNOS = frozenset(
+    {
+        1050,  # table already exists
+        1060,  # duplicate column name
+        1061,  # duplicate key name (index already exists)
+    }
+)
 
 
 class MigrationError(Exception):
@@ -88,7 +102,23 @@ class MigrationRunner:
         return files
 
     def apply_pending(self) -> list[str]:
-        """Apply every not-yet-applied migration. Returns applied names."""
+        """Apply every not-yet-applied migration. Returns applied names.
+
+        A migration is one connection and one COMMIT, but that is NOT
+        atomic the way a reader assumes: MySQL commits implicitly for every
+        DDL statement, so if the connection dies between `ALTER TABLE` and
+        the `schema_migrations` row, the ALTER stands and the version does
+        not get recorded. Measured 2026-09-26 on 0012 under this box's load
+        (pymysql read_timeout=15s): the index existed, version 12 did not,
+        and re-running `ensure_tables()` failed hard with error 1061 — the
+        database was permanently unreappliable.
+
+        The repair is convergence, not a wider transaction: statements whose
+        error means "already in the desired state" are skipped with a
+        WARNING that names the migration, so a re-apply finishes the job
+        (record the version) instead of erroring out. Every other error
+        still aborts before the version is recorded.
+        """
         applied: list[str] = []
         done = self.applied_versions()
         for version, name, path in self.migration_files():
@@ -96,10 +126,11 @@ class MigrationRunner:
                 continue
             sql = path.read_text(encoding="utf-8")
             statements = _split_statements(sql)
-            # One migration = one transaction: either fully applied or not.
+            # One connection per migration; see the DDL implicit-commit note
+            # above for why that is weaker than it looks.
             with self.store.connection() as conn:
                 for stmt in statements:
-                    conn.cursor().execute(stmt)
+                    self._execute(conn, version, name, stmt)
                 conn.cursor().execute(
                     "INSERT INTO schema_migrations (version, name) VALUES (%s, %s)",
                     (version, name),
@@ -107,6 +138,24 @@ class MigrationRunner:
             applied.append(name)
             logger.info("Applied migration %04d %s", version, name)
         return applied
+
+    def _execute(self, conn: Any, version: int, name: str, stmt: str) -> None:
+        """Run one migration statement, tolerating only 'already applied'."""
+        try:
+            conn.cursor().execute(stmt)
+        except pymysql.err.MySQLError as exc:
+            errno = exc.args[0] if exc.args and isinstance(exc.args[0], int) else None
+            if errno in _IDEMPOTENT_DDL_ERRNOS:
+                logger.warning(
+                    "Migration %04d %s: statement already applied, skipping "
+                    "(MySQL error %s): %s",
+                    version,
+                    name,
+                    errno,
+                    stmt.split("\n", 1)[0][:120],
+                )
+                return
+            raise
 
     def status(self) -> dict[str, Any]:
         """Human-readable migration status."""

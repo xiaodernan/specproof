@@ -55,7 +55,15 @@ class FeedbackRequest(BaseModel):
 
 @router.post("/{job_id}/feedback", status_code=201)
 async def create_feedback(job_id: str, payload: FeedbackRequest) -> dict[str, Any]:
-    """Record one finding verdict. 201 only when the row is persisted."""
+    """Record one finding verdict. 201 only when a row is persisted.
+
+    One row per (finding, reviewer): restating a verdict overwrites it (see
+    migration 0012), and ``state`` tells the caller which of the three things
+    happened — ``created``, ``replaced`` (same reviewer, different verdict or
+    reason) or ``unchanged`` (the identical verdict submitted twice). A client
+    that counted ``state != created`` as a new record would inflate the
+    acceptance rate this endpoint exists to measure.
+    """
     store = MySQLStore()
     try:
         job = store.get_job(job_id)
@@ -82,14 +90,20 @@ async def create_feedback(job_id: str, payload: FeedbackRequest) -> dict[str, An
         "created_by": payload.created_by,
     }
     try:
-        store.insert_feedback(feedback)
+        stored = store.insert_feedback(feedback)
     except Exception as exc:  # noqa: BLE001
         logger.warning("feedback insert failed: %s", exc)
         raise ApiError(
             status_code=503, code=PROVIDER_UNAVAILABLE,
             detail="feedback storage unavailable",
         ) from exc
-    return {"id": feedback["id"], "job_id": job_id, "verdict": payload.verdict}
+    return {
+        "id": stored["id"],
+        "job_id": job_id,
+        "finding_id": payload.finding_id,
+        "verdict": payload.verdict,
+        "state": stored["state"],
+    }
 
 
 @router.get("/{job_id}/feedback")
