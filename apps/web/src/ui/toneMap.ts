@@ -1,6 +1,6 @@
 // Pure tone mapping for severity and result/evidence status pills.
 //
-// Two independent maps, on purpose: severity (BLOCKER/MAJOR/MINOR/INFO) and
+// Two independent maps, on purpose: severity (see SEVERITIES below) and
 // result/evidence status (PASS/FAIL/UNVERIFIED/DEGRADED) must never share a
 // tone scale — conflating them once rendered UNVERIFIED with a green PASS
 // tone. Every unknown/missing value renders 未知 UNKNOWN in the neutral
@@ -16,23 +16,46 @@ export interface PillSpec {
 
 const UNKNOWN: PillSpec = { cls: "pill-mute", label: "未知 UNKNOWN" };
 
+export interface SeveritySpec {
+  rank: number;
+  cls: string;
+  label: string;
+  storeable: boolean;
+  hint: string;
+}
+
 /**
- * Severity tone map: BLOCKER red, MAJOR orange, MINOR yellow, INFO neutral.
- * Anything else (absent, empty, unrecognized) is 未知 in the neutral tone.
+ * The one severity vocabulary in the product, on one line per value so the
+ * parity gate (`tests/unit/test_severity_vocabulary_parity.py`) can read it.
+ *
+ * `storeable` mirrors `findings.severity` / `finding_feedback.severity` — the
+ * same MySQL ENUM, which is also the pattern `api/routes/feedback.py` accepts.
+ * The two `false` rows are pipeline events that reach the UI through the job
+ * summary and can NEVER be stored or voted on: glossing them as 未知 used to
+ * hide the most actionable line on the page (a crashing checker) behind the
+ * same words used for a typo in a payload.
+ */
+export const SEVERITIES: Record<string, SeveritySpec> = {
+  BLOCKER: { rank: 0, cls: "pill-bad", label: "BLOCKER", storeable: true, hint: "阻塞问题——必须修复，会阻止本次合并。" },
+  MAJOR: { rank: 1, cls: "pill-major", label: "MAJOR", storeable: true, hint: "重要问题——建议在本次改动内处理。" },
+  MINOR: { rank: 2, cls: "pill-minor", label: "MINOR", storeable: true, hint: "轻微问题——可择机改进。" },
+  NEEDS_CONFIRMATION: { rank: 3, cls: "pill-unverified", label: "NEEDS_CONFIRMATION", storeable: true, hint: "需要人工确认——机器没有给出足够证据，请你判定接受或打回。" },
+  NONE: { rank: 4, cls: "pill-mute", label: "NONE", storeable: false, hint: "不构成风险判定——检查器崩溃或该语言/框架没有检查器，相关验收条件保持未验证（不会因沉默而判为通过）。" },
+  ERROR: { rank: 5, cls: "pill-mute", label: "ERROR", storeable: false, hint: "生成反例时出错——这一条没有可执行的证据。" },
+};
+
+/** Severity values the platform can persist and a reviewer can vote on. */
+export const SEVERITY_STOREABLE: string[] = Object.keys(SEVERITIES).filter(
+  (k) => SEVERITIES[k].storeable
+);
+
+/**
+ * Severity tone map. Values outside the vocabulary render 未知 in the neutral
+ * tone: no branch of this map can ever return a green class.
  */
 export function severityPill(severity?: string | null): PillSpec {
-  switch ((severity || "").toUpperCase()) {
-    case "BLOCKER":
-      return { cls: "pill-bad", label: "BLOCKER" };
-    case "MAJOR":
-      return { cls: "pill-major", label: "MAJOR" };
-    case "MINOR":
-      return { cls: "pill-minor", label: "MINOR" };
-    case "INFO":
-      return { cls: "pill-mute", label: "INFO" };
-    default:
-      return { ...UNKNOWN };
-  }
+  const spec = SEVERITIES[(severity || "").toUpperCase()];
+  return spec ? { cls: spec.cls, label: spec.label } : { ...UNKNOWN };
 }
 
 /**
@@ -59,12 +82,23 @@ export function resultPill(result?: string | null): PillSpec {
 // 同时保留英文原值以便追溯。未知值原样返回，绝不臆造含义。
 
 /** 每个严重级别一句"该怎么办"，用于风险详情页与风险列表悬浮提示。 */
-export const SEVERITY_HINT: Record<string, string> = {
-  BLOCKER: "阻塞问题——必须修复，会阻止本次合并。",
-  MAJOR: "重要问题——建议在本次改动内处理。",
-  MINOR: "轻微问题——可择机改进。",
-  INFO: "提示信息——供参考，一般无需处理。",
-};
+export const SEVERITY_HINT: Record<string, string> = Object.fromEntries(
+  Object.entries(SEVERITIES).map(([token, spec]) => [token, spec.hint])
+);
+
+/**
+ * Sort rank for finding tables: most actionable first, and anything outside
+ * the vocabulary sinks to the bottom instead of being re-labelled.
+ *
+ * This used to be a private map inside JobDetail.tsx listing CRITICAL/HIGH/
+ * MEDIUM/LOW/INFO — five severities no backend can produce — while
+ * NEEDS_CONFIRMATION, which the findings ENUM really has, was missing and so
+ * sorted as unknown.
+ */
+export function severityRank(severity?: string | null): number {
+  const spec = SEVERITIES[(severity || "").toUpperCase()];
+  return spec ? spec.rank : 99;
+}
 
 export function severityHint(severity?: string | null): string | undefined {
   return SEVERITY_HINT[(severity || "").toUpperCase()];

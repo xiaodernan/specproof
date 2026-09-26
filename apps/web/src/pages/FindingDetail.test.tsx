@@ -12,9 +12,9 @@ import {
   type FindingsData,
 } from "../api";
 
-// Red-line test: the finding severity pill uses the severity tone map
-// (BLOCKER red / MAJOR orange / MINOR yellow / INFO neutral) and can never
-// fall into a result tone — absent severity renders 未知, never green.
+// Red-line test: the finding severity pill uses the shared severity vocabulary
+// in ui/toneMap.ts and can never fall into a result tone — a value outside
+// that vocabulary (including the retired INFO badge) renders 未知, never green.
 //
 // Only the network functions are mocked. ApiError, NETWORK_UNREACHABLE,
 // getReviewer and setReviewer must stay the real ones: the component's error
@@ -113,7 +113,7 @@ describe("FindingDetail severity pill — severity has its own tone map", () => 
     ["BLOCKER", "pill-bad"],
     ["MAJOR", "pill-major"],
     ["MINOR", "pill-minor"],
-    ["INFO", "pill-mute"],
+    ["NEEDS_CONFIRMATION", "pill-unverified"],
   ] as const)("renders %s with %s — never a green result tone", async (severity, cls) => {
     get.mockResolvedValueOnce(payload(severity));
     render(<FindingDetail jobId="job-1" findingId="f-1" />);
@@ -122,12 +122,17 @@ describe("FindingDetail severity pill — severity has its own tone map", () => 
     expect(pill.className).not.toMatch(/pill-ok|pill-pass/);
   });
 
-  it("renders 未知 for a missing severity — neutral, never green", async () => {
-    get.mockResolvedValueOnce(payload(undefined));
-    render(<FindingDetail jobId="job-1" findingId="f-1" />);
-    const pill = await screen.findByText(/未知/, { selector: ".pill" });
-    expect(pill.className).toBe("pill pill-mute");
-    expect(pill.className).not.toMatch(/pill-ok|pill-pass/);
+  it("renders 未知 for a severity the vocabulary does not contain", async () => {
+    // INFO had its own badge until #81 proved nothing can produce it: the
+    // findings ENUM has no INFO, so the badge was decoration nobody would see.
+    for (const severity of ["INFO", undefined]) {
+      get.mockResolvedValueOnce(payload(severity));
+      const { unmount } = render(<FindingDetail jobId="job-1" findingId="f-1" />);
+      const pill = await screen.findByText(/未知/, { selector: ".pill" });
+      expect(pill.className).toBe("pill pill-mute");
+      expect(pill.className).not.toMatch(/pill-ok|pill-pass/);
+      unmount();
+    }
   });
 
   it("explains severity in plain Chinese and localizes the metadata labels", async () => {
@@ -239,13 +244,14 @@ describe("FindingDetail 验收反馈入口 (#84) — Go/No-Go #13 needs a UI", (
   });
 
   it("does not offer buttons the backend can never record a row for", async () => {
-    // INFO is a badge the tone map knows and a value finding_feedback.severity
-    // cannot hold (same ENUM as the request pattern). Enabling the button here
-    // would guarantee a 422 and blame the reviewer.
+    // findings.severity / finding_feedback.severity are one MySQL ENUM and the
+    // request pattern accepts exactly those values. A severity outside them
+    // (INFO, or the NONE a crashed checker carries) has nowhere to be stored,
+    // so an enabled button would only buy the reviewer a 422.
     get.mockResolvedValueOnce(payload("INFO"));
     render(<FindingDetail jobId="job-1" findingId="f-1" />);
 
-    expect((await screen.findAllByText(/不在后端可记录的四个值/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/不在后端可记录的值/)).length).toBeGreaterThan(0);
     const accept = (await screen.findByRole("button", {
       name: "接受这条判定",
     })) as HTMLButtonElement;

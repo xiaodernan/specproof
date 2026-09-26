@@ -74,6 +74,18 @@
 | capsule_path | VARCHAR(1024) NULL | Bug Capsule zip 路径 |
 | created_at | TIMESTAMP | |
 
+**severity 的词表只有一份** (2026-09-26, #81): `apps/web/src/ui/toneMap.ts` 的 `SEVERITIES`
+是 Web 侧唯一的严重度词表, 由 `tests/unit/test_severity_vocabulary_parity.py` 双向钉住 ——
+ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION` 曾让一条合法风险渲染成
+"未知 UNKNOWN", 与一个拼错的值长得一样), 词表里每个词也必须能被产出来 (原先的 `INFO`
+哪一列都存不下、没有任何生产者, 是一个永远不会出现的徽章)。检查器实际会写但**存不进本表**的两个值
+(`NONE`: 检查器崩溃/目标无检查器; `ERROR`: 反例编译失败) 也在词表里, 且被标为不可投票
+(`SEVERITY_STOREABLE`), 因为 `finding_feedback.severity` 与本表是同一个 ENUM。
+**`evidence_type` 没有这个保障**: 它是 VARCHAR(64), 既无 DB 约束也无对账门, 实测 Web 侧
+`EVIDENCE_CN` 认识的 6 个词里只有 `self_test_diff` 真被产出, 而 `constitution_check` /
+`checker_failed` / `java_source_diff` / `probe_differential` / `base_pass_head_fail`
+会以原文出现在页面上 —— 已登记为工作项, 不在本节掩饰。
+
 - **写入方**: `storage/mysql.py` `insert_finding`; 当前生产调用点仅 `scripts/seed_demo.py` (演示种子) —
   正式管线的 findings 以 summary JSON (`verification_jobs.summary`) 与 capsule 落盘为准, 本表为演示/历史口径。
 - **租户作用域**: J (经 job_id)。**TTL/保留**: 永久, 无自动清理。

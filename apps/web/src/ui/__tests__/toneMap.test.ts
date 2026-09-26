@@ -1,12 +1,69 @@
 import { describe, expect, it } from "vitest";
-import { resultPill, severityPill, severityHint, evidenceLabel, checkerLabel, contractStatusLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone } from "../toneMap";
+import { resultPill, severityPill, severityHint, severityRank, evidenceLabel, checkerLabel, contractStatusLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone, SEVERITIES, SEVERITY_STOREABLE } from "../toneMap";
+
+// The severity vocabulary is reconciled against the MySQL ENUM, the HTTP
+// request pattern and the pipeline's own emission sites by
+// tests/unit/test_severity_vocabulary_parity.py. These cases hold the UI half
+// of that contract: a value the column can hold must have a word, and a word
+// must have a value that can reach it.
 
 describe("severityPill — severity has its own tone map", () => {
-  it("maps BLOCKER red, MAJOR orange, MINOR yellow, INFO neutral", () => {
+  it("glosses every severity the findings column can store", () => {
     expect(severityPill("BLOCKER")).toEqual({ cls: "pill-bad", label: "BLOCKER" });
     expect(severityPill("MAJOR")).toEqual({ cls: "pill-major", label: "MAJOR" });
     expect(severityPill("MINOR")).toEqual({ cls: "pill-minor", label: "MINOR" });
-    expect(severityPill("INFO")).toEqual({ cls: "pill-mute", label: "INFO" });
+    // NEEDS_CONFIRMATION is a legal findings.severity value and used to have
+    // no word at all: the pill rendered it as 未知 UNKNOWN, which is what a
+    // reviewer sees for a typo, so the one verdict that asks for human review
+    // looked like broken data.
+    expect(severityPill("NEEDS_CONFIRMATION")).toEqual({
+      cls: "pill-unverified",
+      label: "NEEDS_CONFIRMATION",
+    });
+    expect(severityHint("NEEDS_CONFIRMATION")).toMatch(/人工确认/);
+  });
+
+  it("names the two pipeline events that carry a severity but cannot be stored", () => {
+    // NONE: a checker crashed or the target has no checker (registry.py);
+    // ERROR: the counterexample generator could not compile (agent/nodes).
+    // Both used to render as 未知 UNKNOWN — the same words used for garbage,
+    // hiding the most actionable line on the page.
+    expect(severityPill("NONE")).toEqual({ cls: "pill-mute", label: "NONE" });
+    expect(severityHint("NONE")).toMatch(/不构成风险判定/);
+    expect(severityHint("NONE")).toMatch(/未验证/);
+    expect(severityPill("ERROR")).toEqual({ cls: "pill-mute", label: "ERROR" });
+    expect(severityHint("ERROR")).toMatch(/反例/);
+    // ...and neither can be voted on, because the column cannot hold them.
+    expect(SEVERITY_STOREABLE).not.toContain("NONE");
+    expect(SEVERITY_STOREABLE).not.toContain("ERROR");
+  });
+
+  it("keeps INFO out of the vocabulary: no column, no producer, no badge", () => {
+    // INFO used to have its own neutral badge. Nothing in the product can
+    // produce it, so the gloss was decoration nobody would ever see — and the
+    // reason a reviewer trusted the map to be complete.
+    expect(Object.keys(SEVERITIES)).not.toContain("INFO");
+    expect(severityPill("INFO")).toEqual({ cls: "pill-mute", label: "未知 UNKNOWN" });
+    expect(severityHint("INFO")).toBeUndefined();
+  });
+
+  it("ranks the storable severities most-actionable-first and sinks the unknown", () => {
+    // JobDetail used to keep a private rank map with CRITICAL/HIGH/MEDIUM/LOW
+    // (values that exist nowhere else) while NEEDS_CONFIRMATION was missing and
+    // so sorted as unknown.
+    expect(
+      ["NEEDS_CONFIRMATION", "MINOR", "MAJOR", "BLOCKER"].map(severityRank)
+    ).toEqual([3, 2, 1, 0]);
+    expect(severityRank("CRITICAL")).toBe(99);
+    expect(severityRank(undefined)).toBe(99);
+    expect(severityRank("needs_confirmation")).toBe(3);
+  });
+
+  it("declares exactly the findings.severity values as voteable", () => {
+    expect(SEVERITY_STOREABLE).toEqual(["BLOCKER", "MAJOR", "MINOR", "NEEDS_CONFIRMATION"]);
+    for (const token of SEVERITY_STOREABLE) {
+      expect(SEVERITIES[token].storeable).toBe(true);
+    }
   });
 
   it("is case-insensitive and canonicalizes the label", () => {
@@ -24,7 +81,7 @@ describe("severityPill — severity has its own tone map", () => {
   });
 
   it("never returns a green tone for any severity", () => {
-    for (const s of ["BLOCKER", "MAJOR", "MINOR", "INFO", "BOGUS"]) {
+    for (const s of [...Object.keys(SEVERITIES), "BOGUS"]) {
       expect(severityPill(s).cls).not.toMatch(/pill-ok|pill-pass/);
     }
   });

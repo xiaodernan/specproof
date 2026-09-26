@@ -5,7 +5,7 @@ import {
 } from "../api";
 import {
   Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, PreflightCard, Progress, Spinner, StatCard, StatusPill, Table, Term,
-  fmtPct, fmtTime, kv, shortId, severityPill, severityHint, evidenceLabel, stageLabel, verdictTone, verdictLabel,
+  fmtPct, fmtTime, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
   type Column, type PreflightResult,
 } from "../ui";
 import { recordRecentJob } from "../ui/recentJobs";
@@ -57,24 +57,13 @@ function depthLabel(depth: string | undefined): string {
   return cn ? cn + " · " + depth : depth;
 }
 
-// Severity ordering for the findings table: the canonical enum values are
-// normalized into a rank so sorting puts the most actionable risks first,
-// while unrecognized/absent severities sink to the bottom rather than being
-// silently re-labeled.
-const SEVERITY_RANK: Record<string, number> = {
-  BLOCKER: 0, CRITICAL: 0, MAJOR: 1, HIGH: 1, MINOR: 2, MEDIUM: 2, INFO: 3, LOW: 3, NONE: 4,
-};
-function sevRank(s?: string): number {
-  return s ? SEVERITY_RANK[s.toUpperCase()] ?? 9 : 99;
-}
-
 function findingColumns(jobId: string): Column<Finding>[] {
   return [
     {
       key: "severity",
       header: "严重程度",
       sortable: true,
-      sortValue: (f) => sevRank(f.severity),
+      sortValue: (f) => severityRank(f.severity),
       render: (f) => {
         const sev = severityPill(f.severity);
         const hint = severityHint(f.severity);

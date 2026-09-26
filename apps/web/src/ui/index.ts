@@ -21,8 +21,8 @@ export { fmtPct, fmtTime, kv, shortId, verdictTone, verdictLabel } from "./util"
 export {
   attributionLabel, checkerLabel, contractStatusLabel, CONTRACT_STATUS_CN,
   evalVerdictLabel, evidenceLabel, executionSurfaceLabel, executionSurfaceTone,
-  healthStatusLabel, resultPill, severityHint, severityPill, SEVERITY_HINT,
-  type PillSpec,
+  healthStatusLabel, resultPill, severityHint, severityPill, severityRank,
+  SEVERITIES, SEVERITY_HINT, SEVERITY_STOREABLE, type PillSpec, type SeveritySpec,
 } from "./toneMap";
 export { stageLabel, STAGE_LABELS } from "./stages";
 export { Checkbox, type CheckboxProps } from "./Checkbox";

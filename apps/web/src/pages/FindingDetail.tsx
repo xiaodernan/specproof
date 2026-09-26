@@ -3,7 +3,7 @@ import {
   ApiError, NETWORK_UNREACHABLE, apiGet, createFindingFeedback, downloadCapsule, getJobFeedback,
   getReviewer, setReviewer, type FeedbackData, type FeedbackReceipt, type Finding, type FindingsData,
 } from "../api";
-import { Button, Degraded, Empty, ErrorBox, Input, Panel, Spinner, Term, Textarea, fmtPct, fmtTime, kv, severityPill, severityHint, evidenceLabel } from "../ui";
+import { Button, Degraded, Empty, ErrorBox, Input, Panel, SEVERITY_STOREABLE, Spinner, Term, Textarea, fmtPct, fmtTime, kv, severityPill, severityHint, evidenceLabel } from "../ui";
 
 // The backend already scales this to a percentage; fmtPct() multiplies by
 // 100, so routing it through fmtPct would print "5000.0%" for a 50% rate.
@@ -29,11 +29,10 @@ const STATE_TEXT: Record<FeedbackReceipt["state"], string> = {
 };
 
 // finding_feedback.severity is the SAME MySQL ENUM as the backend request
-// pattern (infra/mysql/migrations/0009 + api/routes/feedback.py): four
-// tokens, nothing else. The severity tone map also knows an INFO badge that
-// this column cannot store, so a button that fired for INFO would be
-// guaranteed a 422 — say so instead of offering a dead button.
-const VERDICT_SEVERITIES = ["BLOCKER", "MAJOR", "MINOR", "NEEDS_CONFIRMATION"];
+// pattern (infra/mysql/migrations/0009 + api/routes/feedback.py), and the
+// vocabulary lives in exactly one place: ui/toneMap.ts. A severity outside it
+// cannot be stored, so the buttons stay off with the reason on screen —
+// enabling them would trade a dead click for a 422 the reviewer cannot act on.
 
 export function FeedbackSection(props: { jobId: string; finding: Finding }) {
   const { jobId, finding } = props;
@@ -80,9 +79,9 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
     ? "这条风险没有 id，无法把票挂到它上面（不替你编一个）"
     : !finding.contract_id
       ? "这条风险缺少验收条件编号，后端要求随票一起记录，缺任何一项都无法提交"
-      : !VERDICT_SEVERITIES.includes(severity)
-        ? "这条风险的严重程度是 " + (severity || "未知") + "，不在后端可记录的四个值（" +
-          VERDICT_SEVERITIES.join("/") + "）之内，所以这一票没有地方存 —— 不是不让你投，是存下来就会说谎"
+      : !SEVERITY_STOREABLE.includes(severity)
+        ? "这条风险的严重程度是 " + (severity || "未知") + "，不在后端可记录的值（" +
+          SEVERITY_STOREABLE.join("/") + "）之内，所以这一票没有地方存 —— 不是不让你投，是存下来就会说谎"
         : null;
 
   async function submit(verdict: "accept" | "reject") {
