@@ -54,6 +54,35 @@ from bench_craft import (  # noqa: E402
 )
 
 BENCH_TASKS = REPO_ROOT / "bench" / "tasks"
+BENCH_ROOT = REPO_ROOT / "bench"
+
+#: `.gitignore` carries a blanket `.specraft/` rule, so the recovery fixtures'
+#: seeded checkpoints are generated artefacts that no clone or `git worktree`
+#: copy contains. Two tests used to assert they exist on disk, which made
+#: `tests/unit/test_bench_craft.py` red on a fresh checkout (measured in a
+#: detached worktree of f5dacaf: 2 failed / 35 passed) while passing in a tree
+#: that had ever run the generator. #89: assert the *generator*, and only
+#: compare with disk where the file is actually present.
+_SEEDED_DIR = ".specraft"
+
+
+def _seeded_checkpoints_are_ignored() -> bool:
+    lines = {
+        line.strip()
+        for line in (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    }
+    return _SEEDED_DIR + "/" in lines
+
+
+def _generated_seeded_files() -> dict[str, str]:
+    from bench_gen_tasks import build_suite  # noqa: E402
+
+    mapping, _counts = build_suite()
+    seeded = {
+        rel: content for rel, content in mapping.items() if _SEEDED_DIR in Path(rel).parts
+    }
+    assert seeded, "生成器不再产出任何 .specraft 种子文件 — 下面的检查失去了对象"
+    return seeded
 
 
 def _verdict(
@@ -496,23 +525,47 @@ def test_adversarial_tasks_are_all_traps() -> None:
 
 
 def test_recovery_tasks_ship_seeded_checkpoint() -> None:
+    generated = _generated_seeded_files()
+    checked = 0
     for task_dir in discover_tasks(CATEGORY_DIRS["recovery"]):
         meta = load_task_meta(task_dir)
         recovery = meta["recovery"]
-        checkpoint = (
-            task_dir
-            / "fixture"
-            / ".specraft"
-            / "jobs"
-            / str(recovery["job_id"])
-            / "checkpoint.json"
+        rel_dir = (
+            task_dir.relative_to(BENCH_ROOT).as_posix()
+            + "/fixture/"
+            + _SEEDED_DIR
+            + "/jobs/"
+            + str(recovery["job_id"])
         )
-        assert checkpoint.is_file()
-        payload = json.loads(checkpoint.read_text(encoding="utf-8"))
+        checkpoint_rel = rel_dir + "/checkpoint.json"
+        plan_rel = rel_dir + "/plan.json"
+        assert checkpoint_rel in generated, f"生成器没有产出 {checkpoint_rel}"
+        assert plan_rel in generated, f"生成器没有产出 {plan_rel}"
+        checkpoint = REPO_ROOT / "bench" / checkpoint_rel
+        plan_path = REPO_ROOT / "bench" / plan_rel
+        if not checkpoint.is_file():
+            # The only legitimate reason a checkout has no seeded file.
+            assert _seeded_checkpoints_are_ignored(), (
+                f"{checkpoint} 不在盘上，但 .gitignore 已不再忽略 {_SEEDED_DIR}/ —— "
+                "那时种子文件就是该被追踪的交付物，这条放宽必须去掉"
+            )
+        payload = json.loads(
+            checkpoint.read_text(encoding="utf-8")
+            if checkpoint.is_file()
+            else generated[checkpoint_rel]
+        )
         assert payload["workspace"] == SCRATCH_PLACEHOLDER
         assert payload["last_green_step"] == "s2"
-        plan = task_dir / "fixture" / ".specraft" / "jobs" / str(recovery["job_id"]) / "plan.json"
-        assert plan.is_file()
+        from craft.planner import Plan  # noqa: E402 — the generator's own validator
+
+        plan_text = (
+            plan_path.read_text(encoding="utf-8")
+            if plan_path.is_file()
+            else generated[plan_rel]
+        )
+        assert Plan.from_dict(json.loads(plan_text)).steps
+        checked += 1
+    assert checked == 10, f"只检查了 {checked} 个恢复任务的种子"
 
 
 def test_approval_tasks_declare_required_action() -> None:
@@ -535,8 +588,26 @@ def test_generator_counts_and_idempotency() -> None:
     again, counts_again = build_suite()
     assert again == mapping
     assert counts_again == counts
-    # Generated artifacts must exist on disk and match the table (no drift).
+    # Generated artifacts must exist on disk and match the table (no drift) —
+    # except the seeded `.specraft` files, which `.gitignore` keeps out of every
+    # clone. Their content is verified by the generator itself in
+    # test_recovery_tasks_ship_seeded_checkpoint, and the count is pinned here so
+    # the exemption cannot silently grow.
+    exempt = 0
     for rel, content in mapping.items():
         path = REPO_ROOT / "bench" / rel
-        assert path.is_file(), f"生成物未落盘: {rel}"
+        if not path.is_file():
+            assert _SEEDED_DIR in Path(rel).parts, f"生成物未落盘: {rel}"
+            assert _seeded_checkpoints_are_ignored(), f"生成物未落盘: {rel}"
+            exempt += 1
+            continue
         assert path.read_text(encoding="utf-8") == content, f"落盘漂移: {rel}"
+    exempt_paths = {rel for rel in mapping if _SEEDED_DIR in Path(rel).parts}
+    assert len(exempt_paths) == 30, (
+        f"生成器产出 {len(exempt_paths)} 个 .specraft 种子文件（10 个恢复任务 × 3）；"
+        "数目变了就要重新决定哪些该被追踪"
+    )
+    assert exempt in (0, len(exempt_paths)), (
+        f"只有 {exempt}/{len(exempt_paths)} 个种子文件不在盘上：一棵跑过生成器的树是全有，"
+        "一次干净的 clone 是全无；半有半没有说明有人单独删了种子"
+    )
