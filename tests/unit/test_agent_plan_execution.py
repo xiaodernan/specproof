@@ -87,7 +87,7 @@ def test_llm_plan_waits_for_approval_then_runs_same_plan(runtime_env, tmp_path, 
     job_id = created.json()["job_id"]
     planned = wait_for_plan(store, job_id)
     assert planned.status == "pending"
-    assert source.read_text() == "original"
+    assert source.read_text(encoding="utf-8") == "original"
     assert len(calls) == 1
     assert any(event["type"] == "model_output" for event in state.events_since(job_id, 0))
     # Metadata survives resetting the process-local console state.
@@ -102,7 +102,7 @@ def test_llm_plan_waits_for_approval_then_runs_same_plan(runtime_env, tmp_path, 
                            json={"target": "plan", "decision": "approve"})
     assert approved.status_code == 200
     assert runtime.wait_until_terminal(job_id, timeout=3)
-    assert source.read_text() == "edited after approval"
+    assert source.read_text(encoding="utf-8") == "edited after approval"
     assert len(calls) == 1  # do not regenerate the reviewed plan
     assert client.post(f"/agent/jobs/{job_id}/approve", headers=headers,
                        json={"target": "plan", "decision": "approve"}).status_code == 409

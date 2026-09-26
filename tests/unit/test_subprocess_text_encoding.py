@@ -40,9 +40,13 @@ PINNED_SCOPES = {
 }
 SUBPROCESS_FUNCS = {"run", "Popen", "check_output", "check_call", "call"}
 
-# Measured on 2026-09-26 after the first pass: unpinned captures outside the
-# pinned scope. Shrink this number; never let it grow.
-DEBT_CEILING = 66
+# Measured with this gate's own lens (subprocess calls only: `text=` or
+# `universal_newlines=` without `encoding=`) at 74750fc. Two earlier numbers of
+# mine were wrong and are retracted here: 66 came from a loose scan that counted
+# model constructors with a `text=` field (`RepoRule(...)`, `BuiltPrompt(...)`),
+# and a "6 unpinned file reads" claim counted `open(..., "rb")` binary reads.
+# Shrink this number; never let it grow.
+DEBT_CEILING = 55
 
 
 def _is_subprocess_call(node: ast.Call) -> bool:

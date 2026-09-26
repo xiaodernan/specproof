@@ -41,7 +41,7 @@ def test_model_config_keeps_secret_on_server_and_preserves_blank_key(model_file)
     payload["api_key"] = ""
     payload["model"] = "other-model"
     assert client.post("/api/v1/model/config", json=payload, headers=headers).status_code == 200
-    assert json.loads(model_file.read_text())["api_key"] == "private-model-value"
+    assert json.loads(model_file.read_text(encoding="utf-8"))["api_key"] == "private-model-value"
     assert "private-model-value" not in client.get("/api/v1/model/config", headers=headers).text
     assert client.get("/api/v1/model/config").status_code == 401
 
