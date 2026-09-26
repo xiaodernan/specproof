@@ -261,3 +261,46 @@ def test_the_offered_windows_all_fit_the_handlers_declared_range() -> None:
     low, high = int(window.group(1)), int(window.group(2))
     outside = sorted(v for v in offered if not low <= v <= high)
     assert not outside, f"{outside} would only produce a 422 (handler allows {low}..{high})"
+
+
+def test_the_handler_gate_matches_the_matrix_cell_the_middleware_checks() -> None:
+    """Three copies of "who may read the audit trail" must be one rule.
+
+    ``test_the_nav_gate_matches_the_handler`` reconciles the UI with the
+    handler's hand-written ``frozenset({...})``. Nothing reconciled *that* set
+    with ``ROLE_MATRIX`` — the cell ``TenantAuthMiddleware`` actually enforces,
+    since classify_request maps /api/v1/admin/audit onto admin:audit. Two
+    hand-written encodings of one §2 rule drift without anyone noticing: the
+    middleware would admit a role into a handler that 403s it, or the sidebar
+    would advertise a page the matrix refuses.
+
+    The expected set is derived from the matrix, never typed here, and the last
+    assertion pins the cell this test is about — otherwise the parity below
+    would compare the handler against a rule nobody enforces.
+    """
+    from api.identity.principal import ROLE_MATRIX, classify_request
+
+    matrix_granted = {
+        role
+        for role, resources in ROLE_MATRIX.items()
+        if "audit" in resources.get("admin", frozenset())
+    }
+    handler = server_roles_for_audit()
+    assert matrix_granted == handler, (
+        f"ROLE_MATRIX grants admin:audit to {sorted(matrix_granted)} but "
+        f"GET /admin/audit asserts {sorted(handler)} — one of the two gates "
+        "will refuse a caller the other admitted"
+    )
+    assert fe_roles() == matrix_granted, (
+        f"the sidebar lists {sorted(fe_roles())} for a matrix cell held by "
+        f"{sorted(matrix_granted)}"
+    )
+    assert matrix_granted, (
+        "nobody holds admin:audit in the matrix, so the parity above is "
+        "vacuous and the endpoint is unreachable by design"
+    )
+    cell = classify_request("GET", "/api/v1/admin/audit")
+    assert cell is not None and (cell.resource, cell.action) == ("admin", "audit"), (
+        "classify_request no longer maps the audit route onto the cell this "
+        "test reconciles — the comparison below proves nothing"
+    )
