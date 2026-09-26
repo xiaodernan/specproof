@@ -206,7 +206,8 @@ specproof-local-demo-key
 
   ```powershell
   $env:SPECPROOF_AUTH_ENABLED = "true"
-  $env:SPECPROOF_IDENTITY_URL = "sqlite:specproof_identity.db"   # 或 mysql://user:pass@host/db
+  $env:SPECPROOF_IDENTITY_URL = ""                               # 留空即可: 默认库见下方 SPECPROOF_DATA_DIR; 也可写 sqlite:<绝对路径> 或 mysql://user:pass@host/db
+  $env:SPECPROOF_DATA_DIR = "D:\specproof-data"                  # 可选; 默认身份库/计费库放这里 (不设 = 仓库根目录)
   $env:SPECPROOF_TOKEN_HMAC_KEY = (python -c "import secrets; print(secrets.token_hex(32))")
   python -m api.identity.cli init-admin admin@example.com        # 创建 default 租户 + admin
   python -m api.identity.cli mint-token <user_id>                # 生成 show-once sp_* token
@@ -214,6 +215,12 @@ specproof-local-demo-key
 
   然后用 `sp_` token 登录 Web: 侧栏出现"身份"页 (租户/用户/Token/RBAC 审计),
   TenantSwitcher 可切换已保存的 token。没有 HMAC key 时 mint 拒绝执行 —— 没有默认密钥, fail-closed。
+- **默认库放在哪 (别再靠启动目录)**: 未配置 URL 时, 租户模式的默认身份库/计费库是
+  `<SPECPROOF_DATA_DIR 或仓库根目录>/specproof_identity.db` 与 `specproof_billing.db`,
+  与进程的工作目录无关 (`api/data_paths.py`)。以前默认值是相对路径, 从别的目录启动 =
+  打开另一个空库 = 所有用户和 token "凭空消失", 接口只剩没有解释的 401; CLI 与 server
+  在不同目录运行时也会各写一个库。若一定要写相对路径 (`SPECPROOF_IDENTITY_URL=sqlite:relative.db`),
+  它仍按当前目录解析 —— 那是不建议自己踩回去的语义。
 
 ## 5. 预期视觉 (验收清单)
 

@@ -32,7 +32,8 @@
 | 变量 | 说明 |
 |---|---|
 | SPECPROOF_AUTH_ENABLED | `true` 开启租户模式 (或设置 OIDC_ISSUER) |
-| SPECPROOF_IDENTITY_URL | `''`=内存, `sqlite:<path>`, `mysql://...`; 租户模式默认 `sqlite:specproof_identity.db` |
+| SPECPROOF_IDENTITY_URL | `''`=内存, `sqlite:<path>`, `mysql://...`; 租户模式未配置时默认 `<数据目录>/specproof_identity.db` |
+| SPECPROOF_DATA_DIR | 默认 SQLite 文件 (身份库/计费库) 所在目录, 未设置时为仓库根目录; 与启动目录无关 |
 | SPECPROOF_TOKEN_HMAC_KEY | 本地 token 的 HMAC 密钥 (必填, 无默认值 — fail-closed) |
 | SPECPROOF_BCRYPT_ROUNDS | bcrypt 成本, 默认 12 (测试可降到 4) |
 | OIDC_ISSUER / OIDC_CLIENT_ID / OIDC_CLIENT_SECRET | OIDC 客户端 |

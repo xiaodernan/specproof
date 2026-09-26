@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
 from api.auth import enforce_rate_limit
+from api.data_paths import BILLING_DB_FILENAME, default_sqlite_url
 from api.errors import (
     AUTH_REQUIRED,
     PROVIDER_UNAVAILABLE,
@@ -58,8 +59,6 @@ router = APIRouter(
     dependencies=[Depends(enforce_rate_limit)],
 )
 
-_DEFAULT_SQLITE_URL = "sqlite:specproof_billing.db"
-
 _cached_store: BillingStore | None = None
 _cached_url: str | None = None
 
@@ -68,14 +67,15 @@ def billing_url() -> str:
     """The configured billing URL, or the auth-mode default when enabled.
 
     Mirrors api/identity/store.py: an explicit SPECPROOF_BILLING_URL wins;
-    otherwise tenant mode falls back to a local SQLite file so dev
-    deployments survive restarts, and legacy mode uses the in-memory
-    store (the endpoints still answer 503 before any query runs).
+    otherwise tenant mode falls back to the anchored default file from
+    api/data_paths.py (never the working directory), so dev deployments
+    survive restarts no matter where they were started. Legacy mode uses
+    the in-memory store (the endpoints still answer 503 before any query runs).
     """
     raw = os.getenv("SPECPROOF_BILLING_URL", "").strip()
     if raw:
         return raw
-    return _DEFAULT_SQLITE_URL if auth_enabled() else ""
+    return default_sqlite_url(BILLING_DB_FILENAME) if auth_enabled() else ""
 
 
 def get_billing_store() -> BillingStore:

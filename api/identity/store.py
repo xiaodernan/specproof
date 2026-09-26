@@ -4,8 +4,10 @@ Mirrors the SPECPROOF_AGENT_JOBS_URL convention of storage/agent_jobs.py:
 '' (in-memory), 'sqlite:<path>' or 'mysql://...'. The instance is cached
 per URL so every request shares one store; changing the env var (tests,
 restart) rebuilds it. When auth is enabled but no URL is configured the
-default is a local SQLite file (specproof_identity.db in the working
-directory) so dev deployments survive restarts; tests always pass an
+default is a local SQLite file whose location is anchored by
+api/data_paths.py (SPECPROOF_DATA_DIR, else the repo root) so dev
+deployments survive restarts and every entry point opens one database
+no matter which directory it was started from; tests always pass an
 explicit sqlite: URL with a tmp_path database.
 """
 
@@ -14,11 +16,10 @@ from __future__ import annotations
 import logging
 import os
 
+from api.data_paths import IDENTITY_DB_FILENAME, default_sqlite_url
 from storage.identity import IdentityStore, build_identity_store
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_SQLITE_URL = "sqlite:specproof_identity.db"
 
 _cached_store: IdentityStore | None = None
 _cached_url: str | None = None
@@ -31,7 +32,7 @@ def identity_url() -> str:
         return raw
     from api.identity.config import auth_enabled
 
-    return _DEFAULT_SQLITE_URL if auth_enabled() else ""
+    return default_sqlite_url(IDENTITY_DB_FILENAME) if auth_enabled() else ""
 
 
 def get_identity_store() -> IdentityStore:
