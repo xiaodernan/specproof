@@ -176,6 +176,11 @@ $null = Wait-ContainerHealthy "specproof-minio" 120 "MinIO"
 
 # ── API 环境变量 ──
 Write-Step "配置 API 环境变量 (演示密钥, 仅本机演示用)"
+# Say out loud which environment this is. storage/config_guard.py only refuses
+# shipped-default credentials when SPECPROOF_ENV=production, and a bare "unset"
+# would leave that decision to whatever the shell happens to inherit — the local
+# stack is deliberately NOT production, so it states so.
+$env:SPECPROOF_ENV      = "dev"
 $env:SPECPROOF_API_KEY  = $DemoApiKey
 $env:SPECPROOF_API_BASE = $ApiUrl
 if (Test-ContainerHealthy "specproof-mysql") {

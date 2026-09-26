@@ -52,6 +52,8 @@ $JobsDb     = Join-Path $LocalDir "light-jobs.sqlite3"
 $MetadataDb = Join-Path $LocalDir "light-object-metadata.sqlite3"
 
 # ── 轻量后端环境变量: 全部落 SQLite, 零外部服务 ──
+# 显式声明这不是生产环境 (config_guard 只在 SPECPROOF_ENV=production 时拒绝默认口令)。
+$env:SPECPROOF_ENV                   = "dev"
 $env:SPECPROOF_API_KEY               = $DemoApiKey
 $env:SPECPROOF_AGENT_JOBS_URL        = "sqlite:$JobsDb"
 $env:SPECPROOF_AGENT_CONSOLE_URL     = "sqlite:$JobsDb"

@@ -10,6 +10,10 @@ from __future__ import annotations
 import os
 
 _DEFAULT_CREDENTIALS = (
+    # The account name is part of the credential: `specproof` is the user the
+    # product database was seeded with, so shipping it means "no configuration"
+    # already points at the product schema.
+    ("MYSQL_USER", "specproof"),
     ("MYSQL_PASSWORD", "specproof_pass"),
     ("MYSQL_ROOT_PASSWORD", "specproof_root"),
     ("MONGODB_PASSWORD", "specproof_pass"),

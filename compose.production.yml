@@ -18,6 +18,13 @@ services:
       dockerfile: docker/Dockerfile.api
     restart: unless-stopped
     environment:
+      # Arm storage/config_guard.py. Without SPECPROOF_ENV=production the guard
+      # that refuses default credentials never runs, so a stack that forgot a
+      # secret would boot against the product database with `specproof_pass`.
+      # Every credential below is therefore REQUIRED (`:?`), not defaulted: the
+      # infra layer (compose.phase0.yml) reads the same host variables, so a
+      # value that reaches the app is also the value the servers were given.
+      SPECPROOF_ENV: production
       SPECPROOF_API_KEY: ${SPECPROOF_API_KEY:?set SPECPROOF_API_KEY}
       SPECPROOF_CORS_ORIGINS: ${SPECPROOF_CORS_ORIGINS:-http://localhost:3000}
       MYSQL_HOST: mysql
@@ -26,10 +33,14 @@ services:
       ES_HOST: http://elasticsearch:9200
       RABBITMQ_HOST: rabbitmq
       MINIO_HOST: minio
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-specproof_pass}
-      ES_PASSWORD: ${ES_PASSWORD:-specproof_pass}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+      ES_PASSWORD: ${ES_PASSWORD:?set ES_PASSWORD}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:?set MONGODB_PASSWORD}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
       # Observability profile: ship OTel to the collector (compose.observability.yml).
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
     ports:
@@ -49,6 +60,7 @@ services:
     restart: unless-stopped
     user: "1000:1000"
     environment:
+      SPECPROOF_ENV: production
       SPECPROOF_SANDBOX: docker
       # Non-root cache volume (uid-1000 layout); the runner defaults to
       # the legacy root-layout volume unless this is set.
@@ -64,9 +76,14 @@ services:
       REDIS_HOST: redis
       MONGODB_HOST: mongodb
       RABBITMQ_HOST: rabbitmq
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-specproof_pass}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:?set MONGODB_PASSWORD}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
+      ES_PASSWORD: ${ES_PASSWORD:?set ES_PASSWORD}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       # Stuck-job sweep (#71): a worker that dies mid-job leaves a
       # RUNNING row only the reclaimer can move. Every replica ticks,
@@ -100,10 +117,12 @@ services:
     command: ["python", "-m", "storage.outbox_relay"]
     restart: unless-stopped
     environment:
+      SPECPROOF_ENV: production
       MYSQL_HOST: mysql
       RABBITMQ_HOST: rabbitmq
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-specproof_pass}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-specproof_pass}
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}
       OUTBOX_RELAY_METRICS_PORT: "9101"
     expose:
       - "9101"

@@ -33,9 +33,22 @@
     cd services/control-plane && ./mvnw spring-boot:run
 
 - 数据库迁移在应用启动时自动执行 (infra/mysql/migrations/*.sql,
-  schema_migrations 记录版本; 当前 0001-0004)。
-- 生产必须 SPECPROOF_ENV=production — config_guard 拒绝默认口令
-  (specproof_pass / replace_me) fail-fast。
+  schema_migrations 记录版本; 当前 0001-0012, 见 docs/architecture/DATA_DICTIONARY.md
+  的逐字段登记与 `tests/unit/test_data_dictionary_covers_migrations.py`)。
+- **生产必须 SPECPROOF_ENV=production，而且这件事现在由部署文件本身做到** (#79, 2026-09-26 实测纠正):
+  此前 config_guard 只在 `SPECPROOF_ENV=production` 时才拒绝默认口令，而**没有任何入口设置这个变量**
+  —— compose 的两个文件、两个本机启动脚本都没有它，于是 `api/server.py` 那句
+  `enforce_production_config()` 在真实部署里恒为 no-op，而本节却写着"生产必须…"。
+  现在 compose.production.yml 的 api / worker / outbox-relay 三个应用服务都显式写
+  `SPECPROOF_ENV: production`，本机脚本显式写 `dev`（"没设"不再等于"随便猜"）。
+- **部署可见的变更**: compose.production.yml 里应用服务用到的凭据已从 `${X:-specproof_pass}`
+  改成 `${X:?set X}`（必填），需要设的变量是
+  `MYSQL_USER / MYSQL_PASSWORD / REDIS_PASSWORD / ES_PASSWORD / MONGODB_PASSWORD /
+  RABBITMQ_PASSWORD / MINIO_ROOT_USER / MINIO_ROOT_PASSWORD`（外加原有的 SPECPROOF_API_KEY）。
+  漏设任何一个都会在 `docker compose up` 时被 compose 直接拒绝并点名，而不是悄悄用出厂口令启动。
+  应用层与 compose.phase0.yml 的基础设施层读的是**同名**宿主变量，所以两侧不可能配成两套口令。
+  守卫检查的清单与部署文件要求的清单由 `tests/unit/test_production_guard_reachability.py`
+  双向对账（守卫多查一个没人提供的变量、或应用要求一个守卫不管的凭据，都会红）。
 
 ## 3. 关键环境变量与 fail-closed 行为
 
