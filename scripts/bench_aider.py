@@ -453,7 +453,8 @@ def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, 
     try:
         create = subprocess.run(
             [sys.executable, "-m", "venv", str(venv_dir)],
-            capture_output=True, text=True, timeout=timeout, check=False,
+            capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"python": "", "error": f"venv 创建失败: {exc}", "note": ""}
@@ -464,7 +465,8 @@ def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, 
         pip = subprocess.run(
             [python, "-m", "pip", "install", "--no-input",
              "--disable-pip-version-check", "pytest"],
-            capture_output=True, text=True, timeout=timeout, check=False,
+            capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"python": python, "error": f"venv pytest 安装失败: {exc}", "note": ""}
@@ -590,7 +592,7 @@ def _run_command(
     started = time.monotonic()
     try:
         proc = subprocess.run(
-            command, cwd=cwd, capture_output=True, text=True,
+            command, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=timeout, check=False,
         )
     except subprocess.TimeoutExpired:
@@ -637,6 +639,7 @@ def _npm_install(workdir: Path, npm_path: str, timeout: int) -> dict[str, Any]:
     try:
         proc = subprocess.run(
             command, cwd=workdir, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
             timeout=timeout, check=False,
         )
     except subprocess.TimeoutExpired:

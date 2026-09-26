@@ -41,7 +41,7 @@ def _git(
 ) -> str:
     proc = subprocess.run(
         ["git", "-C", repo_path, *args],
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
     )
     if proc.returncode != 0:
         raise _GitDiffError(proc.stderr.strip()[:300] or "git exited non-zero")

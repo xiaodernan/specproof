@@ -172,7 +172,7 @@ def _probe(cmd: list[str], timeout: int = PROBE_TIMEOUT_SECONDS) -> tuple[int, s
             proc = subprocess.run(
                 candidate,
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8", errors="replace",
                 timeout=timeout,
             )
         except FileNotFoundError:

@@ -446,7 +446,7 @@ def test_cli_help_lists_flags() -> None:
         [sys.executable, str(BENCH_SCRIPT), "--help"],
         cwd=REPO_ROOT,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         timeout=120,
         check=False,
     )

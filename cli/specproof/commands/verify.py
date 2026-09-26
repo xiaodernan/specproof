@@ -113,7 +113,7 @@ def _owner_repo_from_remote(repo_path: Path) -> tuple[str, str] | None:
     try:
         proc = subprocess.run(
             ["git", "-C", str(repo_path), "remote", "get-url", "origin"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
     except Exception:  # noqa: BLE001 — best effort resolution
         return None
@@ -275,7 +275,7 @@ def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
         with suppress(Exception):
             subprocess.run(
                 ["git", "-C", repo, "worktree", "remove", "--force", ws],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
             )
 
 
@@ -553,7 +553,7 @@ def verify(
     try:
         proc = subprocess.run(
             ["git", "-C", str(repo_path), "rev-parse", head_ref],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
         if proc.returncode == 0:
             head_sha = proc.stdout.strip()

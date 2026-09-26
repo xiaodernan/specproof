@@ -546,7 +546,8 @@ def _venv_pytest_available(python: str, timeout: int) -> tuple[bool, str]:
     try:
         probe = subprocess.run(
             [python, "-m", "pytest", "--version"],
-            capture_output=True, text=True, timeout=timeout, check=False,
+            capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return False, f"venv pytest 可用性检查失败: {exc}"
@@ -589,7 +590,8 @@ def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, 
     try:
         create = subprocess.run(
             [sys.executable, "-m", "venv", str(venv_dir)],
-            capture_output=True, text=True, timeout=timeout, check=False,
+            capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"python": "", "error": f"venv 创建失败: {exc}", "note": ""}
@@ -600,7 +602,8 @@ def _prepare_venv(work_root: Path, *, enabled: bool, timeout: int) -> dict[str, 
         pip = subprocess.run(
             [python, "-m", "pip", "install", "--no-input",
              "--disable-pip-version-check", "pytest"],
-            capture_output=True, text=True, timeout=timeout, check=False,
+            capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"python": "", "error": f"venv pytest 安装失败: {exc}", "note": ""}
@@ -675,6 +678,7 @@ def _install_instance_deps(
     try:
         proc = subprocess.run(
             command, cwd=workdir, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
             timeout=timeout, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -712,7 +716,8 @@ def _apply_pins_to_venv(
     ]
     try:
         proc = subprocess.run(
-            command, capture_output=True, text=True, timeout=timeout,
+            command, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -764,7 +769,8 @@ def _is_git_dir(path: Path) -> bool:
     try:
         proc = subprocess.run(
             ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=30, check=False,
+            capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=30, check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
@@ -811,7 +817,8 @@ def _checkout_instance(
             cached.parent.mkdir(parents=True, exist_ok=True)
             subprocess.run(
                 ["git", "clone", clone_url, str(cached)],
-                capture_output=True, text=True, timeout=3600, check=True,
+                capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=3600, check=True,
             )
         except subprocess.CalledProcessError as exc:
             tail = (exc.stderr or exc.stdout or "").strip()
@@ -831,7 +838,8 @@ def _checkout_instance(
                     "git", "-C", str(source), "worktree", "add", "--detach",
                     str(target), base_commit,
                 ],
-                capture_output=True, text=True, timeout=600, check=True,
+                capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=600, check=True,
             )
         except subprocess.CalledProcessError as exc:
             tail = (exc.stderr or exc.stdout or "").strip()
@@ -869,7 +877,8 @@ def _cleanup_workdir(workdir: Path, checkout_info: dict[str, str]) -> None:
         if source:
             subprocess.run(
                 ["git", "-C", source, "worktree", "remove", "--force", str(workdir)],
-                capture_output=True, text=True, timeout=60, check=False,
+                capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=60, check=False,
             )
             return
     shutil.rmtree(workdir, ignore_errors=True)
@@ -886,7 +895,8 @@ def _apply_test_patch(workdir: Path, patch_text: str) -> dict[str, Any]:
         try:
             proc = subprocess.run(
                 ["git", "-C", str(workdir), "apply", *extra_args, str(patch_path)],
-                capture_output=True, text=True, timeout=120, check=False,
+                capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=120, check=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             last_error = f"git apply 无法启动/超时: {exc}"
@@ -920,6 +930,7 @@ def _run_one_test(
     try:
         proc = subprocess.run(
             command, cwd=workdir, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
             timeout=timeout, check=False,
         )
     except subprocess.TimeoutExpired as exc:

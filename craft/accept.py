@@ -156,7 +156,7 @@ def _rollback_to(repo: Path, base_sha: str) -> bool:
         proc = subprocess.run(
             ["git", "-C", str(repo), "reset", "--hard", base_sha],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=120,
         )
     except Exception:  # noqa: BLE001 — any failure means no rollback happened
@@ -169,7 +169,7 @@ def _workspace_buckets(repo: Path, agent_paths: list[str]) -> dict[str, list[str
     proc = subprocess.run(
         ["git", "-C", str(repo), "status", "--porcelain"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         timeout=60,
     )
     if proc.returncode != 0:
@@ -231,7 +231,7 @@ def run_specproof_verification(
                     subprocess.run(
                         ["git", "-C", str(repo_path), "worktree", "remove", "--force", workspace],
                         capture_output=True,
-                        text=True,
+                        text=True, encoding="utf-8", errors="replace",
                         timeout=60,
                     )
     return _verification_summary(final_state)

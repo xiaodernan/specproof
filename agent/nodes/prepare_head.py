@@ -54,7 +54,7 @@ def prepare_head_node(state: Phase0State) -> dict[str, Any]:
         proc = subprocess.run(
             ["git", "-C", repo_path, "worktree", "add", "--detach",
              str(workspace), head_ref],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
         )
         if proc.returncode != 0:
             _discard_workspace(workspace, marker)

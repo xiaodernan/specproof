@@ -42,7 +42,7 @@ def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
         with suppress(Exception):
             subprocess.run(
                 ["git", "-C", repo, "worktree", "remove", "--force", ws],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
             )
 
 

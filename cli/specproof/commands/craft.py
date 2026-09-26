@@ -618,7 +618,7 @@ def craft_accept_cmd(job_id: str, base_sha: str, repo: Path, db_path: str | None
         proc = subprocess.run(
             ["git", "-C", str(repo_resolved), "rev-parse", "HEAD"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=30,
         )
         head_sha = proc.stdout.strip()

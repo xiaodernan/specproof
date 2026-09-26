@@ -45,7 +45,7 @@ def base_build_cache_dir(state: Phase0State) -> Path | None:
     try:
         proc = subprocess.run(
             ["git", "-C", repo_path, "rev-parse", base_ref],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
         sha = proc.stdout.strip()
         if proc.returncode != 0 or not sha:
@@ -128,7 +128,7 @@ def head_changed_paths(state: Phase0State) -> list[str]:
     try:
         proc = subprocess.run(
             ["git", "-C", repo_path, "diff", "--name-only", base_ref, head_ref],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
         if proc.returncode != 0:
             return []

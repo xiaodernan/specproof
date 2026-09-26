@@ -1186,7 +1186,7 @@ def _capture_db_snapshot(workspace: str) -> dict[str, Any]:
         try:
             javac = subprocess.run(
                 ["javac", "-cp", str(h2_jar), str(src)],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
             )
             if javac.returncode != 0:
                 return {
@@ -1195,7 +1195,7 @@ def _capture_db_snapshot(workspace: str) -> dict[str, Any]:
                 }
             run = subprocess.run(
                 ["java", "-cp", classpath, "SpecProofDbCheck", jdbc_url],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
             )
             if run.returncode != 0:
                 return {

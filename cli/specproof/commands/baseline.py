@@ -133,7 +133,7 @@ def capture_diff(
     try:
         proc = subprocess.run(
             ["git", "-C", repo, "diff", base_ref + ".." + head_ref],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
         )
     except (OSError, subprocess.SubprocessError):
         return ""

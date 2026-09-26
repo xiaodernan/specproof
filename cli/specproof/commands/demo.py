@@ -37,7 +37,7 @@ def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
     proc = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         timeout=120,
     )
     if check and proc.returncode != 0:

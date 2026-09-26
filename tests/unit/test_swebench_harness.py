@@ -30,7 +30,7 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(BENCH_SCRIPT), *args],
         cwd=REPO_ROOT,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         timeout=600,
         check=False,
     )

@@ -310,7 +310,7 @@ def _docker_available() -> bool:
     try:
         proc = subprocess.run(
             ["docker", "info", "--format", "{{.ServerVersion}}"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15,
         )
         return bool(proc.returncode == 0 and proc.stdout.strip())
     except Exception:
@@ -321,7 +321,7 @@ def _image_ready(image: str) -> bool:
     try:
         proc = subprocess.run(
             ["docker", "image", "inspect", image],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
         return proc.returncode == 0
     except Exception:
@@ -365,7 +365,7 @@ def _pull_image(image: str) -> str:
     try:
         proc = subprocess.run(
             ["docker", "pull", image],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
         )
         outcome = "" if proc.returncode == 0 else (proc.stderr or "pull failed")[:300]
     except Exception as exc:
@@ -447,7 +447,8 @@ def _run_docker(
     docker_cmd = build_docker_argv(command, workspace, profile)
     try:
         proc = subprocess.run(
-            docker_cmd, capture_output=True, text=True, timeout=timeout,
+            docker_cmd, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout,
         )
         stdout, out_trunc, out_dropped = bound_output(proc.stdout)
         stderr, err_trunc, err_dropped = bound_output(proc.stderr)
@@ -571,7 +572,8 @@ def _run_local(
 ) -> SandboxResult:
     try:
         proc = subprocess.run(
-            command, cwd=workspace, capture_output=True, text=True, timeout=timeout,
+            command, cwd=workspace, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout,
         )
         stdout, out_trunc, out_dropped = bound_output(proc.stdout)
         stderr, err_trunc, err_dropped = bound_output(proc.stderr)

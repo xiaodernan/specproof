@@ -131,7 +131,7 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
         proc = subprocess.run(  # nosec B603 B607 — args from local repo state
             ["git", "-C", state.get("repo_path", ""), "rev-parse",
              state.get("head_ref", "head-v1")],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
         if proc.returncode == 0:
             head_sha = proc.stdout.strip()

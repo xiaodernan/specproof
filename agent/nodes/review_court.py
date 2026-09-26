@@ -240,7 +240,7 @@ def _changed_files(state: Phase0State) -> list[str]:
     try:
         result = subprocess.run(
             ["git", "-C", repo_path, "diff", "--name-only", base_ref, head_ref],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
         if result.returncode == 0:
             return [f.strip() for f in result.stdout.splitlines() if f.strip()]

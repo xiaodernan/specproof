@@ -39,7 +39,8 @@ def _run(
     cmd: list[str], cwd: Path, timeout: int = 600
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        cmd, cwd=str(cwd), capture_output=True, text=True, timeout=timeout
+        cmd, cwd=str(cwd), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout,
     )
 
 

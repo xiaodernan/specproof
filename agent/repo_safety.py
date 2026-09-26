@@ -129,7 +129,8 @@ GitRunner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
 def default_git_runner(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
     """Run git with an argument list (no shell interpolation), text stdio."""
     return subprocess.run(
-        ["git", *argv], capture_output=True, text=True, timeout=60,
+        ["git", *argv], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=60,
     )
 
 
