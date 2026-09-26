@@ -245,3 +245,33 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 - ES 单索引无 ILM; delete_by_query 在 Windows 崩溃 → 清理改走 delete_projection 的逐文档删除 (backlog #10)。✅ 已接线: 写入侧 retrieve_repository_context 节点把 state.job_id 传给索引调用; 调用方入口 agent.worker.cleanup_job_projection(job_id) 可独立调用 (幂等)。剩余缺口如实标注: **无自动触发** — 检索投影属审计证据, 终态 (VERIFIED/BLOCKED/FAILED/CANCELLED/ERROR/STALE) 不删除, 仅在数据生命周期删除 job 记录/租户删除时显式调用该入口; 且 index_repository 内部整索引重建在多租户下成本随 repo 数线性增长。
 - audit_logs 无按租户删除路径 (有意取舍, §3.1)。
 - Webhook 重放防护的去重集为进程内存 (重启即失), 签名时间戳窗口为可选加固 (GitHub 原生不发送), 未签名重放的残余风险由 tests/security/test_webhook_replay.py 中 test_unsigned_replay_with_new_delivery_documented_limitation 如实钉住。
+
+## 8. 一次性清理：产品库里的测试残行（2026-09-26 执行，已获批准）
+
+实测事实（清理前）：`specproof_phase0.verification_jobs` 共 177 行，**177/177 的
+`repo_path` 都是 `/test/repo`**，`created_at` 全落在 2026-09-25 09:09:54–18:08:52，
+状态分布 STALE 73 / BLOCKED 28 / ERROR 28 / VERIFIED 20 / PENDING 19 / CANCELLED 9。
+也就是说 Dashboard 与引导页此刻显示的验收数字**全部**来自测试残行，不是任何一次真实验收。
+
+成因与边界：#73 只停止了「RUNNING 形状」的净增，#75 才把测试重定向到 `specproof_test`；
+这 177 行是两者落地之前留下的历史数据。产品码里没有、也不该有「忽略 `/test/` 前缀」这种
+分支（#74 已明确拒绝在产品码里遮蔽测试数据）——所以唯一的修法是把数据清掉。
+
+批准与执行：用户选择「备份后删除」。执行顺序与核对：
+
+1. 备份（`--batch` 的 TSV，换行在字段内被转义为 `\n`；这是可读回格式，不是 mysqldump——
+   本机宿主没有安装 mysqldump，见 §1 工具可用性）：
+   `.local/test-residue-backup-20260926/verification_jobs.tsv`（178 行 = 1 表头 + 177）
+   `.local/test-residue-backup-20260926/audit_logs.tsv`（144 行 = 1 表头 + 143）
+2. 关联面先数清再动手：`findings`/`contracts` 里属于这些 job 的行是 **0**（真实管线从不写
+   这两张表，见 DATA_DICTIONARY §1.2 的写入方说明），只有 `audit_logs` 有 143 行引用它们。
+3. 删除在一个事务里做，两条 DELETE 的 `ROW_COUNT()` 分别是 143 与 177，**与备份行数逐一相等**
+   才 COMMIT；第一次尝试因语句里带了一个只读变量的 SET 而整批中止（未删任何行），第二次因
+   多表 DELETE 的别名写法报 `No database selected`（同样未删），最终用
+   `USE specproof_phase0;` + 子查询形式完成。
+4. 清理后核对：`verification_jobs` 总数 0、`repo_path LIKE '/test/%'` 为 0、
+   表数仍是 18（结构未动）。
+
+顺带量到、尚未处理的一件事：清理后 `audit_logs` 里有 **822 行的 `job_id` 指向不存在的作业**
+（我删的 143 行是当时唯一能 JOIN 上的，所以这些孤儿行在我动手之前就已是孤儿）。审计日志记的是
+"谁的哪个作业发生了什么"，指向不存在作业的行既查不回作业也无法解释，属另一条缺陷，已登记为工作项。
