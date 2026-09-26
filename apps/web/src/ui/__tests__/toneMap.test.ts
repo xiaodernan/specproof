@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resultPill, severityPill, severityHint, severityRank, evidenceLabel, checkerLabel, contractStatusLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone, SEVERITIES, SEVERITY_STOREABLE } from "../toneMap";
+import { resultPill, severityPill, severityHint, severityRank, acceptSeverityLabel, acceptSeverityTone, ACCEPT_SEVERITY_BLOCKING, evidenceLabel, checkerLabel, contractStatusLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone, SEVERITIES, SEVERITY_STOREABLE } from "../toneMap";
 
 // The severity vocabulary is reconciled against the MySQL ENUM, the HTTP
 // request pattern and the pipeline's own emission sites by
@@ -108,6 +108,26 @@ describe("resultPill — result/evidence status map", () => {
     expect(severityPill("UNVERIFIED")).toEqual({ cls: "pill-mute", label: "未知 UNKNOWN" });
     expect(severityPill("PASS")).toEqual({ cls: "pill-mute", label: "未知 UNKNOWN" });
     expect(resultPill("BLOCKER")).toEqual({ cls: "pill-mute", label: "未知 UNKNOWN" });
+  });
+});
+
+describe("acceptSeverityLabel — 独立验收用的是另一套刻度 (#86)", () => {
+  it("glosses the scanner scale without borrowing the verification ENUM's meanings", () => {
+    expect(acceptSeverityLabel("CRITICAL")).toBe("关键（凭证已泄漏，计入验收阻断） · CRITICAL");
+    expect(acceptSeverityLabel("high")).toContain("高危");
+    expect(acceptSeverityLabel("MEDIUM")).toContain("不阻断验收");
+    expect(acceptSeverityLabel("LOW")).toContain("不阻断验收");
+    // Only these two are counted as blocking by craft's gates, so nothing else
+    // may wear the blocking colour.
+    expect(ACCEPT_SEVERITY_BLOCKING).toEqual(["CRITICAL", "HIGH"]);
+    expect(acceptSeverityTone("CRITICAL")).toBe("bad");
+    expect(acceptSeverityTone("BLOCKER")).toBe("mute");
+  });
+
+  it("passes an unrecognised severity through as written, and names a missing one", () => {
+    expect(acceptSeverityLabel("wuzzy")).toBe("wuzzy");
+    expect(acceptSeverityLabel("")).toBe("未记录严重程度");
+    expect(acceptSeverityLabel(undefined)).toBe("未记录严重程度");
   });
 });
 

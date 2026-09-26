@@ -105,6 +105,46 @@ export function severityHint(severity?: string | null): string | undefined {
 }
 
 /**
+ * 独立验收（craft 通道）发现的严重程度。
+ *
+ * 这不是验收平台那条 `findings.severity` ENUM，而是另一套刻度：密钥扫描器报
+ * CRITICAL/HIGH/MEDIUM/LOW（agent/security_scanner.py 的规则表），craft 自己的
+ * 发现缺省写 BLOCKER/MAJOR。只有 CRITICAL 与 HIGH 计入阻断，所以两套刻度不能混用，
+ * 措辞也必须说清"阻断"与"不阻断"。值集由 `craft/severity.py` 声明，
+ * `tests/unit/test_accept_severity_parity.py` 双向钉住；扫描器若报出新级别，
+ * 这里必须先加词，否则门红。
+ */
+export const ACCEPT_SEVERITY_CN: Record<string, string> = {
+  CRITICAL: "关键（凭证已泄漏，计入验收阻断）",
+  HIGH: "高危（凭证类发现，与关键同级计入阻断）",
+  MEDIUM: "中危（不阻断验收，交付前应处理）",
+  LOW: "低危（信息性发现，不阻断验收）",
+  BLOCKER: "阻断级（独立验收自身发现的缺省级别）",
+  MAJOR: "重要（契约类发现的缺省级别）",
+};
+
+/**
+ * The only two severities the acceptance gates actually block on — mirrored
+ * from `craft/severity.py::BLOCKING_ACCEPT_SEVERITIES` and reconciled by
+ * `tests/unit/test_accept_severity_parity.py`, so the console cannot colour a
+ * MEDIUM finding red or a CRITICAL one harmless.
+ */
+export const ACCEPT_SEVERITY_BLOCKING: string[] = ["CRITICAL", "HIGH"];
+
+/** Known kinds are glossed with the token kept; anything else is shown exactly
+ * as the scanner wrote it — re-casing an unrecognised value would dress up a
+ * guess in the product's own typography. */
+export function acceptSeverityLabel(severity?: string | null): string {
+  if (!severity) return "未记录严重程度";
+  const cn = ACCEPT_SEVERITY_CN[severity.toUpperCase()];
+  return cn ? cn + " · " + severity.toUpperCase() : severity;
+}
+
+export function acceptSeverityTone(severity?: string | null): "bad" | "mute" {
+  return ACCEPT_SEVERITY_BLOCKING.includes((severity || "").toUpperCase()) ? "bad" : "mute";
+}
+
+/**
  * 证据采集方式的中文说明；未知类型原样透传。
  *
  * The key set is the declared domain: `EVIDENCE_KINDS` in

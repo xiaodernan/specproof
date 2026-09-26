@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listAgentApprovals, type AgentJob } from "../../api";
-import { Empty, ErrorBox, Panel, Spinner } from "../../ui";
+import { Empty, ErrorBox, Panel, Spinner, acceptSeverityLabel, acceptSeverityTone } from "../../ui";
 import { describePipelineError } from "../../ui/errorHints";
 import { AgentJobShell, ApprovalCard, useAgentJob } from "../components";
 import {
@@ -69,7 +69,21 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
     {accept.certificate_path ? <p className="mono muted" style={{ fontSize: 11 }} title="证书由服务端本机路径保存，Web 端不提供下载">合并证书：{accept.certificate_path}</p> : <p className="result-boundary">本次未签发合并证书。</p>}
     {findings.length ? <>
       <div className="kv-label" style={{ margin: "12px 0 6px" }}>验收发现</div>
-      <pre className="json">{JSON.stringify(findings, null, 2)}</pre>
+      {/* This used to be `JSON.stringify(findings)`: that was honest but not
+          readable — the severity of a leaked credential could only be seen by
+          parsing the object. The full projection stays in the raw dump below. */}
+      <div className="result-gates">{findings.map((finding, index) => <div className="result-gate" key={String(finding.file || finding.kind || "finding") + index}>
+        <div>
+          <span className={"pill pill-" + acceptSeverityTone(finding.severity)} title={finding.severity || undefined}>
+            {acceptSeverityLabel(finding.severity)}
+          </span>
+          <strong> {finding.kind || "未记录类型"}</strong>
+          {finding.file
+            ? <span className="mono muted">{finding.file}{finding.line ? ":" + finding.line : ""}</span>
+            : null}
+        </div>
+        <p>{finding.description || "（该发现没有描述文字）"}</p>
+      </div>)}</div>
       {accept.findings_truncated ? <p className="result-boundary">发现记录较多，此处仅展示前 {findings.length} 条（共 {accept.findings_total ?? findings.length} 条）。</p> : null}
     </> : null}
     <details className="result-raw"><summary>查看完整验收投影</summary><pre className="json">{JSON.stringify(accept, null, 2)}</pre></details>

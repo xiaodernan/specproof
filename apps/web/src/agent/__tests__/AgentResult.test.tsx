@@ -85,6 +85,47 @@ describe("AgentResult — 独立验收投影 ACCEPT", () => {
     expect(screen.getByText("本次未签发合并证书。")).toBeTruthy();
   });
 
+  it("names each acceptance finding's severity in Chinese and keeps the token (#86)", async () => {
+    stubJob(
+      baseJob({
+        accept: accept({
+          findings: [
+            {
+              kind: "secret",
+              severity: "CRITICAL",
+              file: "svc/config.py",
+              line: 12,
+              pattern: "Password in Config",
+              description: "Password in Config (命中已脱敏)",
+            },
+            { kind: "contract", severity: "MAJOR", description: "契约 AUTH-01 未被覆盖" },
+            { kind: "secret", severity: "wuzzy", description: "扫描器报了一个平台没见过的级别" },
+          ],
+          findings_total: 3,
+          findings_truncated: false,
+        }),
+      })
+    );
+    render(<AgentResult jobId="job-1" />);
+
+    const critical = await screen.findByText("关键（凭证已泄漏，计入验收阻断） · CRITICAL", {
+      selector: ".pill",
+    });
+    expect(critical.className).toBe("pill pill-bad");
+    expect(critical.getAttribute("title")).toBe("CRITICAL");
+    // Only CRITICAL/HIGH block, so craft's own MAJOR default must not borrow
+    // the blocking colour — that would tell the reviewer the merge stopped.
+    const major = screen.getByText("重要（契约类发现的缺省级别） · MAJOR", { selector: ".pill" });
+    expect(major.className).toBe("pill pill-mute");
+    // An unrecognised severity is passed through verbatim, never translated
+    // into a level the platform has a word for.
+    const unknown = screen.getByText("wuzzy", { selector: ".pill" });
+    expect(unknown.textContent).toBe("wuzzy");
+    expect(unknown.className).toBe("pill pill-mute");
+    expect(screen.getAllByText("svc/config.py:12").length).toBeGreaterThan(0);
+    expect(screen.getByText("契约 AUTH-01 未被覆盖")).toBeTruthy();
+  });
+
   it("renders a BLOCKED that came from a failed internal gate as a real failure", async () => {
     // Same token, opposite fact: `_gate_accept_projection` also emits BLOCKED
     // when `gates.overall === "failed"`. Painting that amber and telling the

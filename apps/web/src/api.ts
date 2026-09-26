@@ -744,6 +744,16 @@ export interface AgentAcceptGates {
   truncated: boolean;
 }
 
+export interface AgentAcceptFinding {
+  kind?: string;
+  severity?: string;
+  description?: string;
+  file?: string;
+  line?: number | null;
+  pattern?: string;
+  [key: string]: unknown;
+}
+
 export interface AgentAccept {
   attached: boolean;
   malformed: boolean;
@@ -754,7 +764,7 @@ export interface AgentAccept {
   certificate_path?: string;
   rejection_notice_path?: string;
   gates?: AgentAcceptGates;
-  findings?: Record<string, unknown>[];
+  findings?: AgentAcceptFinding[];
   findings_total?: number;
   findings_truncated?: boolean;
 }
