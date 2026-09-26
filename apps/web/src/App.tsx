@@ -9,6 +9,7 @@ import { Button, CommandPalette, ErrorBoundary, Kbd, Spinner, ToastProvider } fr
 import { recordRouteVisit } from "./ui/onboarding";
 import { MoonIcon, SearchIcon, SunIcon } from "./ui/icons";
 import { ProductIcon, type ProductIconName } from "./ui/ProductIcon";
+import { AUDIT_ROLES } from "./ui/auditLabels";
 
 const Jobs = lazy(() => import("./pages/Jobs"));
 const NewVerification = lazy(() => import("./pages/NewVerification"));
@@ -19,6 +20,7 @@ const Contracts = lazy(() => import("./pages/Contracts"));
 const Eval = lazy(() => import("./pages/Eval"));
 const Health = lazy(() => import("./pages/Health"));
 const Billing = lazy(() => import("./pages/Billing"));
+const Audit = lazy(() => import("./pages/Audit"));
 const AgentApp = lazy(() => import("./agent/AgentApp"));
 const IdentityApp = lazy(() => import("./identity/IdentityApp"));
 const UiKit = lazy(() => import("./ui-kit/UiKit"));
@@ -35,6 +37,7 @@ const NAV: NavItem[] = [
   { path: "eval", label: "效果评测", icon: "chart", group: "质量与证据" },
   { path: "identity", label: "团队与权限", icon: "team", group: "管理" },
   { path: "billing", label: "用量与账单", icon: "billing", group: "管理" },
+  { path: "audit", label: "审计轨迹", icon: "health", group: "管理" },
   { path: "settings", label: "模型连接", icon: "agent", group: "管理" },
   { path: "health", label: "服务状态", icon: "health", group: "管理" },
 ];
@@ -58,6 +61,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "eval") return <Eval />;
   if (seg[0] === "health") return <Health />;
   if (seg[0] === "billing") return <Billing />;
+  if (seg[0] === "audit") return <Audit />;
   return <div className="product-empty"><ProductIcon name="guide" size={36} /><h1>没有找到这个页面</h1><p>链接可能已更新，你可以回到工作台继续。</p><a className="btn btn-primary" href="#/dashboard">返回工作台</a></div>;
 }
 
@@ -102,7 +106,12 @@ function Workspace() {
   if (!hasKey && active !== "guide") return <Login onConnected={() => setHasKey(true)} />;
   const canManage = principal == null || principal.roles?.some(r => ["admin", "operator"].includes(r));
   const canBill = principal == null || principal.roles?.some(r => ["admin", "operator", "auditor"].includes(r));
-  const nav = NAV.filter(item => (item.path !== "identity" || canManage) && (item.path !== "billing" || canBill));
+  // Audit read is narrower than billing: admin OR auditor only, per
+  // api/routes/admin.py list_audit. The role list is imported, not retyped, so
+  // the nav cannot advertise a page the server would refuse (pinned by
+  // tests/unit/test_audit_disposition_labels.py).
+  const canAudit = principal == null || principal.roles?.some(r => AUDIT_ROLES.includes(r));
+  const nav = NAV.filter(item => (item.path !== "identity" || canManage) && (item.path !== "billing" || canBill) && (item.path !== "audit" || canAudit));
 
   return <div className="shell product-shell">
     <a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); contentRef.current?.focus(); }}>跳至主要内容</a>
