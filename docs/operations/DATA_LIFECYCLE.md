@@ -272,6 +272,8 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 4. 清理后核对：`verification_jobs` 总数 0、`repo_path LIKE '/test/%'` 为 0、
    表数仍是 18（结构未动）。
 
+清理后经产品自己的读路径复核（`MySQLStore.dashboard_snapshot`，以 `MYSQL_DATABASE=specproof_phase0` 只读调用）：`statuses`/`timeline`/`recent_jobs` 全为空——首页那些数字此前确实 100% 来自残行，而现在也没有任何产品码把数据藏起来（查询语句一字未改）。
+
 顺带量到、尚未处理的一件事：清理后 `audit_logs` 里有 **822 行的 `job_id` 指向不存在的作业**
 （我删的 143 行是当时唯一能 JOIN 上的，所以这些孤儿行在我动手之前就已是孤儿）。审计日志记的是
 "谁的哪个作业发生了什么"，指向不存在作业的行既查不回作业也无法解释，属另一条缺陷，已登记为工作项。
