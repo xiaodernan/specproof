@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import Audit from "./Audit";
 import { ApiError, apiGet, getAuthMe } from "../api";
 import { AUDIT_DISPOSITIONS } from "../ui/auditLabels";
@@ -134,13 +134,109 @@ it("hides the page behind the same role gate the handler uses", async () => {
   expect(apiGetMock).not.toHaveBeenCalled();
 });
 
-it("counts only what was loaded, and says so", async () => {
+it("says the total is unknown when the server does not answer one", async () => {
   apiGetMock.mockResolvedValue({
     audit: [...ROWS.audit, { ...ROWS.audit[0], id: 77, job_disposition: "unexplained" }],
     count: 4,
   } as never);
   render(<Audit />);
   const note = await screen.findByTestId("audit-scope-note");
-  expect(note.textContent).toContain("4");
-  expect(note.textContent).toContain("不代表全部审计历史");
+  expect(note.textContent).toContain("未回传命中总数");
+  // The old sentence claimed a window size; without a total the page may only
+  // say what it cannot say.
+  expect(note.textContent).not.toContain("已全部显示");
+});
+
+it("reports how much history the loaded window does not cover", async () => {
+  apiGetMock.mockResolvedValue({ ...ROWS, count: 3, total: 42 } as never);
+  render(<Audit />);
+  const note = await screen.findByTestId("audit-scope-note");
+  expect(note.textContent).toContain("共命中 42 条");
+  expect(note.textContent).toContain("另有 39 条未加载");
+});
+
+it("says a filtered trail is complete when it is", async () => {
+  apiGetMock.mockResolvedValue({ ...ROWS, count: 3, total: 3 } as never);
+  render(<Audit />);
+  const note = await screen.findByTestId("audit-scope-note");
+  expect(note.textContent).toContain("已全部显示");
+  expect(note.textContent).not.toContain("未加载");
+});
+
+// ── #97: asking about one job ──────────────────────────────────
+
+const JOB = "11111111-2222-3333-4444-555555555555";
+
+beforeEach(() => {
+  window.location.hash = "";
+});
+
+it("reads the job filter from the deep link and asks the server for it", async () => {
+  window.location.hash = "#/audit?job=" + JOB;
+  apiGetMock.mockResolvedValue({ ...ROWS, count: 3, total: 3, job_id: JOB, job_present: true } as never);
+  render(<Audit />);
+  await screen.findAllByTestId("audit-disposition");
+  const url = String(apiGetMock.mock.calls[0][0]);
+  expect(url).toContain("job_id=" + JOB);
+  const note = await screen.findByTestId("audit-filter-note");
+  expect(note.textContent).toContain(JOB);
+  expect(note.textContent).toContain("作业在册");
+  expect(note.querySelector("a")?.getAttribute("href")).toBe("#/jobs/" + JOB);
+});
+
+it("keeps the three empty answers apart", async () => {
+  // 1. the id matches no job at all — the reader typed it wrong;
+  window.location.hash = "#/audit?job=" + JOB;
+  apiGetMock.mockResolvedValue({ audit: [], count: 0, total: 0, job_id: JOB, job_present: false } as never);
+  const first = render(<Audit />);
+  expect(await screen.findByTestId("audit-job-missing")).toBeTruthy();
+  expect(screen.getByTestId("audit-job-missing").textContent).toContain(JOB);
+  // the unfiltered sentence must not appear under a filter.
+  expect(screen.queryByText("最近没有审计记录")).toBeNull();
+  first.unmount();
+  vi.clearAllMocks();
+
+  // 2. the job exists but has no audit rows;
+  window.location.hash = "#/audit?job=" + JOB;
+  apiGetMock.mockResolvedValue({ audit: [], count: 0, total: 0, job_id: JOB, job_present: true } as never);
+  const second = render(<Audit />);
+  expect(await screen.findByTestId("audit-job-no-rows")).toBeTruthy();
+  expect(screen.queryByTestId("audit-job-missing")).toBeNull();
+  second.unmount();
+  vi.clearAllMocks();
+
+  // 3. the server did not probe existence, which is its own answer.
+  window.location.hash = "#/audit?job=" + JOB;
+  apiGetMock.mockResolvedValue({ audit: [], count: 0, total: 0, job_id: JOB, job_present: null } as never);
+  render(<Audit />);
+  expect(await screen.findByTestId("audit-job-unknown")).toBeTruthy();
+  expect(screen.queryByTestId("audit-job-no-rows")).toBeNull();
+});
+
+it("applies a typed job id without a page reload", async () => {
+  window.location.hash = "#/audit";
+  apiGetMock.mockResolvedValue({ ...ROWS, count: 3, total: 3, job_present: true } as never);
+  render(<Audit />);
+  await screen.findAllByTestId("audit-disposition");
+  expect(String(apiGetMock.mock.calls[0][0])).not.toContain("job_id=");
+
+  fireEvent.change(screen.getByLabelText(/按作业号过滤/), { target: { value: JOB } });
+  fireEvent.click(screen.getByRole("button", { name: "查询" }));
+  await screen.findByTestId("audit-filter-note");
+  const last = String(apiGetMock.mock.calls[apiGetMock.mock.calls.length - 1][0]);
+  expect(last).toContain("job_id=" + JOB);
+  // 清除筛选 must go back to the whole window, not to an empty filter string.
+  fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
+  const cleared = String(apiGetMock.mock.calls[apiGetMock.mock.calls.length - 1][0]);
+  expect(cleared).not.toContain("job_id=");
+});
+
+it("leaves a malformed job id to the server instead of guessing a copy", async () => {
+  // The page sends whatever the reader typed and renders the server's own
+  // refusal: re-declaring the id shape here is how #81 drifted.
+  window.location.hash = "#/audit?job=not-a-uuid";
+  apiGetMock.mockRejectedValue(new ApiError(422, "string does match regex", "VALIDATION_FAILED"));
+  render(<Audit />);
+  expect(await screen.findByText(/VALIDATION_FAILED/)).toBeTruthy();
+  expect(String(apiGetMock.mock.calls[0][0])).toContain("job_id=not-a-uuid");
 });

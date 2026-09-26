@@ -523,21 +523,47 @@ async def revoke_token(request: Request, token_id: str) -> dict[str, Any]:
 # ── /api/v1/admin/audit ─────────────────────────────────────────────────────
 
 
+#: Job ids are ``str(uuid.uuid4())`` and ``audit_logs.job_id`` is CHAR(36).
+#: Declared once, on the query itself, so a malformed id is refused by the
+#: framework instead of quietly answering "no audit rows" for a filter that
+#: could never have matched anything. Both hex cases are accepted because the
+#: column's collation is not case sensitive — rejecting ``A1B2…`` would be a
+#: needless 422 for an id the store would have found.
+AUDIT_JOB_ID_PATTERN = (
+    r"^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+)
+
+
 @admin_router.get("/audit")
 async def list_audit(
-    request: Request, limit: int = Query(default=100, ge=1, le=1000),
+    request: Request,
+    limit: int = Query(default=100, ge=1, le=1000),
+    job_id: str | None = Query(default=None, pattern=AUDIT_JOB_ID_PATTERN),
 ) -> dict[str, Any]:
-    """Audit log view — admin and auditor (§2: cross-tenant audit view)."""
+    """Audit log view — admin and auditor (§2: cross-tenant audit view).
+
+    ``job_id`` narrows the view to one job's trail. Without it the answer is a
+    window over the newest rows, which is why ``total`` and ``job_present``
+    travel with it: the reader has to be able to tell "the newest 100 of N"
+    from "all there is", and an empty filtered result from "no such job".
+    """
     _require_tenant_mode()
     principal = _principal(request)
     _assert_role(principal, frozenset({"admin", "auditor"}))
     try:
         from storage.mysql import MySQLStore
 
-        rows = MySQLStore().list_audit_logs(limit)
+        trail = MySQLStore().audit_trail(limit=limit, job_id=job_id)
     except Exception as exc:  # noqa: BLE001 — storage outage is a 503
         raise ApiError(
             status_code=503, code=PROVIDER_UNAVAILABLE,
             detail=f"audit store unavailable: {exc}",
         ) from exc
-    return {"audit": rows, "count": len(rows)}
+    rows = trail["rows"]
+    return {
+        "audit": rows,
+        "count": len(rows),
+        "total": trail["total"],
+        "job_id": job_id,
+        "job_present": trail["job_present"],
+    }

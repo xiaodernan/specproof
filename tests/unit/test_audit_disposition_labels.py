@@ -1,4 +1,4 @@
-"""#96 — the Web audit view must not invent its own copy of the vocabulary.
+"""#96/#97 — the Web audit view must not invent its own copy of the vocabulary.
 
 `storage/mysql.py` stamps every `list_audit_logs` row with a
 ``job_disposition`` (#95), and `apps/web/src/pages/Audit.tsx` is now the first
@@ -14,7 +14,10 @@ expectation would only re-assert what the author already believed.
 from __future__ import annotations
 
 import re
+import uuid
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 LABELS = REPO / "apps" / "web" / "src" / "ui" / "auditLabels.ts"
@@ -129,3 +132,132 @@ def test_the_role_gate_is_narrower_than_billing_on_purpose() -> None:
         "auditLabels.ts and DATA_DICTIONARY §1.8 together, not one alone"
     )
     assert roles == {"admin", "auditor"}
+
+
+# ── #97: the search contract has one owner per fact ────────────
+
+AUDIT_PAGE = REPO / "apps" / "web" / "src" / "pages" / "Audit.tsx"
+
+_RESPONSE_KEYS_RE = re.compile(
+    r'return \{\s*\n\s+"audit":.*?\n    \}', re.DOTALL
+)
+_INTERFACE_RE = re.compile(r"interface AuditResponse \{(.*?)\n\}", re.DOTALL)
+_FIELD_RE = re.compile(r"^\s*(\w+):", re.MULTILINE)
+
+
+def handler_response_keys() -> set[str]:
+    text = ADMIN_ROUTE.read_text(encoding="utf-8")
+    match = _RESPONSE_KEYS_RE.search(text)
+    assert match, (
+        "GET /admin/audit no longer returns the literal dict this gate "
+        "parses — re-point the probe instead of deleting it"
+    )
+    return set(re.findall(r'"(\w+)":', match.group(0)))
+
+
+def page_response_keys() -> set[str]:
+    text = AUDIT_PAGE.read_text(encoding="utf-8")
+    match = _INTERFACE_RE.search(text)
+    assert match, "AuditResponse interface not found in Audit.tsx"
+    return set(_FIELD_RE.findall(match.group(1)))
+
+
+def test_the_page_reads_exactly_the_shape_the_handler_returns() -> None:
+    """`total` and `job_present` were added together; a later field must be too.
+
+    The mirror is how the page types its fetch. A key the handler stops
+    sending becomes a permanently `null` column the reader trusts; a key the
+    handler adds is invisible until someone notices it in the JSON.
+    """
+    served, read = handler_response_keys(), page_response_keys()
+    assert served == read, (
+        f"page-only={sorted(read - served)} handler-only={sorted(served - read)}"
+    )
+
+
+def test_the_job_id_shape_is_declared_once() -> None:
+    """The pattern lives on the query; the page must not re-derive it.
+
+    A client-side copy would let the two disagree about which ids are legal —
+    the page refusing a search the server would have answered, or sending one
+    it 422s on. Either way the reader learns about it from a failed click.
+    """
+    pattern = re.search(
+        r'AUDIT_JOB_ID_PATTERN = \(\s*r"([^"]+)"', ADMIN_ROUTE.read_text(encoding="utf-8")
+    )
+    assert pattern, "AUDIT_JOB_ID_PATTERN not found in admin.py"
+    assert "[0-9a-fA-F]" in pattern.group(1), (
+        "the id shape no longer accepts the case the reader may paste; the "
+        "column's collation is not case sensitive, so refusing one case is a "
+        "422 for a search that would have worked"
+    )
+    page = AUDIT_PAGE.read_text(encoding="utf-8")
+    invented = re.findall(r"\[0-9a-fA-F\]|\{8\}|\{12\}", page)
+    assert not invented, f"Audit.tsx re-declares the job id shape: {invented}"
+
+
+#: The first draft of this pattern said `(?:[0-9a-f]{3}-){3}` — three groups of
+#: three, not four — and every assertion written against a typed example still
+#: passed, because the example was typed from the same wrong idea. The only
+#: proof a shape accepts the platform's own ids is to hand it generated ones.
+@pytest.mark.parametrize("job_id", [str(uuid.uuid4()) for _ in range(8)] + [
+    str(uuid.UUID(int=0)),
+    "11111111-2222-3333-4444-555555555555".upper(),
+])
+def test_the_declared_shape_accepts_the_ids_the_platform_writes(job_id: str) -> None:
+    declared = _handler_job_id_pattern()
+    assert re.fullmatch(declared, job_id), (
+        f"{job_id} is a real job id the audit filter would 422 away"
+    )
+
+
+@pytest.mark.parametrize(
+    "job_id",
+    [
+        "",
+        "not-a-uuid",
+        "1111111-2222-3333-4444-555555555555",  # one hex short
+        "11111111-2222-3333-4444-5555555555555",  # one hex over
+        "11111111222233334444555555555555",  # right bytes, no dashes
+        "11111111-2222-3333-4444-55555555555g",  # not hex
+        "'; DROP TABLE audit_logs; --",
+        "%27%3B%20DROP",
+    ],
+)
+def test_the_declared_shape_refuses_everything_the_column_cannot_hold(job_id: str) -> None:
+    assert not re.fullmatch(_handler_job_id_pattern(), job_id), (
+        f"{job_id!r} would reach the store as a filter that can never match"
+    )
+
+
+def _handler_job_id_pattern() -> str:
+    match = re.search(
+        r'AUDIT_JOB_ID_PATTERN = \(\s*r"([^"]+)"', ADMIN_ROUTE.read_text(encoding="utf-8")
+    )
+    assert match, "AUDIT_JOB_ID_PATTERN not found in admin.py"
+    return match.group(1)
+
+
+def test_the_page_asks_for_the_parameter_the_handler_accepts() -> None:
+    server_param = re.search(
+        r"(?m)^\s+(\w+): str \| None = Query\(default=None, pattern=",
+        ADMIN_ROUTE.read_text(encoding="utf-8"),
+    )
+    assert server_param, "no pattern-validated optional query param on /admin/audit"
+    page = AUDIT_PAGE.read_text(encoding="utf-8")
+    assert f'"{server_param.group(1)}=' in page or f'&{server_param.group(1)}=' in page, (
+        f"the page never sends {server_param.group(1)} — the filter is cosmetic"
+    )
+
+
+def test_the_offered_windows_all_fit_the_handlers_declared_range() -> None:
+    limits = re.search(r"const LIMITS = \[([^\]]*)\]", AUDIT_PAGE.read_text(encoding="utf-8"))
+    window = re.search(
+        r"limit: int = Query\(default=\d+, ge=(\d+), le=(\d+)\)",
+        ADMIN_ROUTE.read_text(encoding="utf-8"),
+    )
+    assert limits and window, "LIMITS or the limit window declaration moved"
+    offered = {int(v) for v in limits.group(1).split(",") if v.strip()}
+    low, high = int(window.group(1)), int(window.group(2))
+    outside = sorted(v for v in offered if not low <= v <= high)
+    assert not outside, f"{outside} would only produce a 422 (handler allows {low}..{high})"

@@ -273,7 +273,7 @@ export default function JobDetail(props: { jobId: string }) {
       <div className="verification-detail-banner" aria-live="polite"><h2>{summary?.coverage_reason ? "覆盖不足，暂不能确认验收通过" : statusHelp[0]}</h2><p>{summary?.coverage_reason ? "本次没有形成可执行的检查项。请完善验收条件，或接入对应检查器后重新验收。" : statusHelp[1]}</p>
         {ACTIVE.has(status) ? <Progress value={latest?.percentage ?? latest?.percent ?? 0} label={latest?.summary || latest?.message || "等待执行进度"} showValue /> : null}
         {nextAction ? <div className="next-action" role="group" aria-label="下一步操作"><span>下一步：</span><Button size="sm" variant="primary" onClick={nextAction.run}>{nextAction.label}</Button></div> : null}
-        <div style={{ display: "flex", gap: 12, marginTop: 18 }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>刷新结果</Button><a href="#/matrix">查看需求覆盖 →</a></div>
+        <div style={{ display: "flex", gap: 12, marginTop: 18 }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>刷新结果</Button><a href="#/matrix">查看需求覆盖 →</a><a href={"#/audit?job=" + encodeURIComponent(jobId)}>查看这个作业的审计轨迹 →</a></div>
       </div>
 
       <div className="tabs" role="tablist" aria-label="验证详情">

@@ -50,6 +50,23 @@ _AUDIT_INSERT_TENANT_SQL = (
     "VALUES (%s, %s, %s, %s, %s, %s, %s)"
 )
 
+#: The audit read (#95/#97). One statement text, so the filtered and
+#: unfiltered views cannot disagree about what a disposition means.
+_AUDIT_TRAIL_SQL = (
+    "SELECT a.id, a.job_id, a.actor, a.action, a.from_status, "
+    "a.to_status, a.detail, a.attempted_tenant, a.created_at, "
+    "(j.id IS NOT NULL) AS job_present, "
+    "EXISTS (SELECT 1 FROM audit_logs d WHERE d.job_id = a.job_id "
+    "AND d.action = %s) AS purge_recorded "
+    "FROM audit_logs a "
+    "LEFT JOIN verification_jobs j ON j.id = a.job_id "
+)
+#: Shared by the page and its total: a "共 N 条" that counts a different
+#: window than the rows beside it is a worse lie than no count at all.
+_AUDIT_JOB_FILTER_SQL = "WHERE a.job_id = %s "
+_AUDIT_TOTAL_SQL = "SELECT COUNT(*) AS total FROM audit_logs a "
+_AUDIT_JOB_EXISTS_SQL = "SELECT 1 AS hit FROM verification_jobs WHERE id = %s"
+
 #: Audit action written when the documented data-lifecycle path removes a
 #: job's rows (#95). It exists so a surviving audit row whose ``job_id`` no
 #: longer resolves is *explained by the same table* instead of being an
@@ -762,8 +779,11 @@ class MySQLStore:
         tenant = row.get("tenant_id")
         return str(tenant) if tenant else None
 
-    def list_audit_logs(self, limit: int = 100) -> list[dict[str, Any]]:
-        """Most recent audit rows (tenant auth attempts / auditor view).
+    def audit_trail(
+        self, *, limit: int = 100, job_id: str | None = None
+    ) -> dict[str, Any]:
+        """One audit read: the page, how much history it stands for, and —
+        when filtered by job — whether that job still exists.
 
         Every row carries ``job_disposition`` (#95). An audit row references a
         job by id only, and DATA_LIFECYCLE §3.1 keeps ``audit_logs`` when a job
@@ -772,24 +792,41 @@ class MySQLStore:
         without reading SQL: the job still exists, it was deleted through the
         documented lifecycle path (which audited itself), or nothing explains
         it and a human has to investigate.
+
+        ``total`` answers the question a window cannot: with thousands of rows
+        in the table, "these 100 are all there are" and "these are the newest
+        100 of 3421" look identical on screen. ``job_present`` answers the one a
+        zero-row filter cannot — an empty result is either "this job has no
+        audit rows" or "there is no such job", and only the second means the
+        id was typed wrong.
         """
+        where, filter_params = (
+            (_AUDIT_JOB_FILTER_SQL, (job_id,)) if job_id else ("", ())
+        )
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT a.id, a.job_id, a.actor, a.action, a.from_status, "
-                "a.to_status, a.detail, a.attempted_tenant, a.created_at, "
-                "(j.id IS NOT NULL) AS job_present, "
-                "EXISTS (SELECT 1 FROM audit_logs d WHERE d.job_id = a.job_id "
-                "AND d.action = %s) AS purge_recorded "
-                "FROM audit_logs a "
-                "LEFT JOIN verification_jobs j ON j.id = a.job_id "
-                "ORDER BY a.id DESC LIMIT %s",
-                (JOB_RECORDS_DELETED_ACTION, limit),
+                _AUDIT_TRAIL_SQL + where + "ORDER BY a.id DESC LIMIT %s",
+                (JOB_RECORDS_DELETED_ACTION, *filter_params, limit),
             )
             rows = cast(list[dict[str, Any]], cur.fetchall())
+            cur.execute(_AUDIT_TOTAL_SQL + where, filter_params)
+            total_row = cast(dict[str, Any] | None, cur.fetchone())
+            total = int((total_row or {}).get("total") or 0)
+            job_present: bool | None = None
+            if job_id:
+                cur.execute(_AUDIT_JOB_EXISTS_SQL, (job_id,))
+                job_present = cur.fetchone() is not None
         for row in rows:
             row["job_disposition"] = _job_disposition(row)
-        return rows
+        return {"rows": rows, "total": total, "job_present": job_present}
+
+    def list_audit_logs(
+        self, limit: int = 100, *, job_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """The audit rows themselves — see :meth:`audit_trail`."""
+        trail = self.audit_trail(limit=limit, job_id=job_id)
+        return cast(list[dict[str, Any]], trail["rows"])
 
     def count_pending_outbox(self) -> int:
         """Number of unpublished, non-dead outbox rows (relay backlog gauge).

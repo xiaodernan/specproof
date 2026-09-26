@@ -216,6 +216,11 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 <!-- AUDIT_ACTIONS_END -->
 
 **为什么需要 `job_records_deleted`**: audit_logs 永久保留而 job 行可被删除, 于是"job_id 指向不存在的作业"是**正常状态**而非损坏。`list_audit_logs` 因此为每行给出 `job_disposition`: `present` (作业仍在) / `purged_by_lifecycle` (有本行解释) / `system_level` (job_id 本来为 NULL) / `unexplained` (三者皆非, 需要人工排查)。
+
+**按作业检索 (#97)**: 上表的说明确认了"这行不是损坏", 但排障要的是"这个作业经历过什么", 而 newest-N 窗口里通常根本没有该作业的任何一行。所以读路径是 `storage/mysql.py::MySQLStore.audit_trail(limit, job_id)` = `GET /api/v1/admin/audit?job_id=<uuid4>`:
+- 过滤条件只有一个文本源 (`_AUDIT_JOB_FILTER_SQL`), 分页与 `total` 各自拼在同一次连接的三条语句里 — "这次查询共命中 N 条"与旁边的行永远出自同一个窗口 (`tests/unit/test_audit_action_parity.py::test_a_job_filter_narrows_the_page_and_its_total_together`)。
+- `job_present` 是三态: true 作业在册 / false 库里已无此作业行 (于是"查不到"要么是纯审计作业要么已被清理) / null 本次未按作业过滤。它由一次独立的存在性探测得出, **不**从返回行数推断, 因为空结果集本身无法区分这两件事。
+- `job_id` 的形状只声明在 `api/routes/admin.py::AUDIT_JOB_ID_PATTERN`, 前端原样提交并让服务端 422; 页面不得再复制一份 UUID 正则 (`tests/unit/test_audit_disposition_labels.py::test_the_job_id_shape_is_declared_once`)。
 - **租户作用域**: attempted_tenant 审计列; 审计员可跨租户读 (`api/routes/admin.py` GET /audit)。
 - **TTL/保留**: 永久, 不清理。
 

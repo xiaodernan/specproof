@@ -219,6 +219,19 @@ class _FakeCursor:
     def fetchall(self) -> list[dict[str, Any]]:
         return list(self._recorder.rows)
 
+    def fetchone(self) -> dict[str, Any] | None:
+        """Answer COUNT and the existence probe from scripted answers.
+
+        Scripted per statement *kind* rather than by position, so a test that
+        adds a query cannot silently re-point the answers.
+        """
+        sql = self._recorder.statements[-1][0]
+        if sql.startswith("SELECT COUNT(*)"):
+            return self._recorder.total_row
+        if "FROM verification_jobs WHERE id" in sql:
+            return {"hit": 1} if self._recorder.job_exists else None
+        return None
+
     def close(self) -> None:
         return None
 
@@ -230,6 +243,8 @@ class _FakeStore(MySQLStore):
         self.statements: list[tuple[str, Any]] = []
         self.rows: list[dict[str, Any]] = []
         self.rowcounts = rowcounts or {}
+        self.total_row: dict[str, Any] | None = None
+        self.job_exists = False
         self._cursor = _FakeCursor(self)
 
     def connection(self):  # type: ignore[override]
@@ -347,6 +362,99 @@ def test_read_side_asks_for_the_markers_it_classifies_on() -> None:
     assert store.statements[0][1] == (JOB_RECORDS_DELETED_ACTION, 5), store.statements[0]
 
 
+# ── #97: one job's trail, and how much history the page stands for ──
+
+
+def test_a_job_filter_narrows_the_page_and_its_total_together() -> None:
+    """The count beside the rows must count those rows' question.
+
+    A total over the whole table while the page is filtered reads as "this
+    job has 3421 audit events" — the exact kind of confident wrong number
+    #67 was about.
+    """
+    store = _FakeStore()
+    store.rows = [{"id": 1, "job_id": "job-1", "action": "job_cancelled"}]
+    store.total_row = {"total": 1}
+    trail = store.audit_trail(limit=10, job_id="job-1")
+    page_sql, count_sql = store.statements_text[0], store.statements_text[1]
+    assert mysql_mod._AUDIT_JOB_FILTER_SQL in page_sql  # noqa: SLF001
+    assert mysql_mod._AUDIT_JOB_FILTER_SQL in count_sql, (  # noqa: SLF001
+        f"the total ignored the filter: {count_sql}"
+    )
+    assert store.statements[0][1] == (JOB_RECORDS_DELETED_ACTION, "job-1", 10)
+    assert store.statements[1][1] == ("job-1",), store.statements[1]
+    assert trail["total"] == 1
+    assert [r["job_id"] for r in trail["rows"]] == ["job-1"]
+
+
+def test_a_filtered_read_probes_existence_and_an_unfiltered_one_does_not() -> None:
+    """`None` and `False` are different answers and must stay different.
+
+    `job_present: false` means "no such job — check the id"; `null` means the
+    question was not asked (no filter). Collapsing them would make every
+    unfiltered read claim the job is missing.
+    """
+    store = _FakeStore()
+    store.rows = []
+    store.total_row = {"total": 0}
+    assert store.audit_trail(limit=10)["job_present"] is None, (
+        "an unfiltered read must not answer a question it never probed"
+    )
+    assert len(store.statements) == 2, store.statements_text
+    store2 = _FakeStore()
+    store2.rows = []
+    store2.total_row = {"total": 0}
+    store2.job_exists = True
+    filtered = store2.audit_trail(limit=10, job_id="job-9")
+    assert filtered["job_present"] is True
+    assert "FROM verification_jobs WHERE id" in store2.statements_text[2]
+
+
+@pytest.mark.parametrize(
+    ("total_row", "expected"),
+    [
+        (None, 0),
+        ({"total": None}, 0),
+        ({"total": 0}, 0),
+        ({"total": 42}, 42),
+    ],
+)
+def test_the_total_is_read_from_the_answer_not_the_page(
+    total_row: dict[str, Any] | None, expected: int
+) -> None:
+    """A missing COUNT row reads as 0, never as len(rows).
+
+    Falling back to the page length would report "all 3 of 3 audit events"
+    for a job with 3 shown rows out of 900 — a truncation hidden by the
+    number that exists to reveal it.
+    """
+    store = _FakeStore()
+    store.rows = [{"id": n, "job_id": "j", "action": "job_cancelled"} for n in (1, 2, 3)]
+    store.total_row = total_row
+    assert store.audit_trail(limit=3)["total"] == expected
+
+
+def test_a_real_miss_reads_absent_not_unknown() -> None:
+    store = _FakeStore()
+    store.rows = []
+    store.total_row = {"total": 0}
+    store.job_exists = False
+    trail = store.audit_trail(limit=10, job_id="00000000-0000-4000-8000-000000000000")
+    assert trail["job_present"] is False, (
+        "a probe that found nothing must say so; `None` reads as 'unknown' "
+        "and the page would have no basis for 'this job id does not exist'"
+    )
+
+
+def test_disposition_is_stamped_on_filtered_rows_too() -> None:
+    """The filter must not bypass the #95 classification step."""
+    store = _FakeStore()
+    store.rows = [{"id": 1, "job_id": "job-1", "job_present": 0, "purge_recorded": 1}]
+    store.total_row = {"total": 1}
+    trail = store.audit_trail(limit=10, job_id="job-1")
+    assert trail["rows"][0]["job_disposition"] == AUDIT_JOB_PURGED
+
+
 def test_disposition_vocabulary_is_closed() -> None:
     declared = {
         AUDIT_JOB_PRESENT,
@@ -436,4 +544,70 @@ def test_purge_then_read_reports_purged_not_unexplained() -> None:
             cur.execute(
                 "DELETE FROM verification_jobs WHERE repo_path = %s",
                 ("/test/audit-purge",),
+            )
+
+
+def test_one_job_can_be_asked_about_directly() -> None:
+    """Filtering by job is the point of the disposition column (#96 → #97).
+
+    Without it an operator holding one job id can only read the newest N rows
+    of the whole table, so on any schema with real history the job's own trail
+    is usually not on the page at all. The second half is the payoff: after the
+    documented purge, asking about that job still answers in one query — its
+    rows are there, they read ``purged_by_lifecycle``, and the job row is gone.
+    """
+    import uuid
+
+    store = _live_store()
+    mine, other = str(uuid.uuid4()), str(uuid.uuid4())
+    try:
+        for job_id in (mine, other):
+            store.insert_job(
+                {
+                    "id": job_id,
+                    "repo_path": "/test/audit-filter",
+                    "base_ref": "base",
+                    "head_ref": "head",
+                    "spec_path": "spec",
+                    "status": "PENDING",
+                    "depth": 1,
+                    "github_check_json": None,
+                }
+            )
+            store.transition_job_status(job_id, "QUEUED", from_status="PENDING")
+            store.record_audit(
+                action="job_cancelled", actor="test", job_id=job_id, detail="filtered"
+            )
+
+        global_total = store.audit_trail(limit=10)["total"]
+        trail = store.audit_trail(limit=100, job_id=mine)
+        assert trail["job_present"] is True, trail
+        assert 0 < trail["total"] < global_total, (
+            f"filtered total {trail['total']} vs whole table {global_total} — "
+            "the count is not describing the rows it is shown beside"
+        )
+        assert {r["job_id"] for r in trail["rows"]} == {mine}, trail["rows"]
+        assert len(trail["rows"]) == trail["total"], (
+            "a total below the page length means the filter over-matched"
+        )
+        assert {r["job_disposition"] for r in trail["rows"]} == {AUDIT_JOB_PRESENT}
+
+        assert store.delete_job_records(mine)["audit"] == 1
+        after = store.audit_trail(limit=100, job_id=mine)
+        assert after["job_present"] is False, after
+        assert after["rows"], "the purge deleted the job, not its audit trail"
+        assert {r["job_disposition"] for r in after["rows"]} == {AUDIT_JOB_PURGED}
+        # The other tenant of rows is untouched by this job's filter.
+        assert {r["job_id"] for r in store.audit_trail(limit=100, job_id=other)["rows"]} == {
+            other
+        }
+    finally:
+        with store.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "DELETE FROM audit_logs WHERE job_id IN (%s, %s)", (mine, other)
+            )
+            cur.execute(
+                "DELETE FROM verification_jobs WHERE repo_path = %s",
+                ("/test/audit-filter",),
             )

@@ -4,6 +4,7 @@ import type { PrincipalInfo } from "../api";
 import type { Column } from "../ui";
 import {
   ErrorBox,
+  Input,
   Panel,
   Select,
   Spinner,
@@ -15,7 +16,7 @@ import {
 import { AUDIT_ROLES, auditDisposition } from "../ui/auditLabels";
 
 // Wire shape mirrors GET /api/v1/admin/audit (api/routes/admin.py), whose rows
-// come from storage/mysql.py::list_audit_logs. `job_disposition` is stamped
+// come from storage/mysql.py::audit_trail. `job_disposition` is stamped
 // server-side; this page never re-derives it.
 interface AuditRow {
   id: number;
@@ -33,10 +34,26 @@ interface AuditRow {
 interface AuditResponse {
   audit: AuditRow[];
   count: number;
+  // `total` is how many audit rows the query actually covers (the whole table
+  // unfiltered, one job's trail filtered); `job_present` is only answered for a
+  // filtered read — null means the server did not probe it.
+  total: number | null;
+  job_id: string | null;
+  job_present: boolean | null;
 }
 
 // The API validates 1..1000; offering more would only produce a 422.
 const LIMITS = [100, 500, 1000];
+
+// #/audit?job=<id> is the deep link JobDetail hands over. The hash is the one
+// source of truth for the filter, so back/forward and a pasted link agree.
+function jobFromHash(): string {
+  const hash = window.location.hash || "";
+  const queryIndex = hash.indexOf("?");
+  if (queryIndex < 0) return "";
+  const params = new URLSearchParams(hash.slice(queryIndex + 1));
+  return (params.get("job") || "").trim();
+}
 
 function useAuditAccess(): { checked: boolean; canView: boolean } {
   const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
@@ -75,25 +92,88 @@ function dispositionPill(raw: string | null): JSX.Element {
   );
 }
 
+// A filtered read that answers with nothing has three different meanings, and
+// the page must not collapse them into "最近没有审计记录" — that sentence
+// describes an unfiltered window, not the job the reader asked about.
+function filteredEmpty(jobFilter: string, jobPresent: boolean | null): JSX.Element {
+  if (jobPresent === false) {
+    return (
+      <div data-testid="audit-job-missing">
+        <h3>没有找到这个作业号</h3>
+        <p className="muted">
+          库里既没有 <code>{jobFilter}</code> 这条作业，也没有它留下的任何审计行。
+          审计行不会因为作业被删除而消失，所以这通常意味着作业号抄错了。
+        </p>
+      </div>
+    );
+  }
+  if (jobPresent === true) {
+    return (
+      <div data-testid="audit-job-no-rows">
+        <h3>作业在册，但没有审计行</h3>
+        <p className="muted">
+          <code>{jobFilter}</code> 存在于 verification_jobs，却没有记录任何状态转换或取消动作。
+          新建后尚未被 worker 领取的作业就是这样；如果它已经跑完，说明有写入路径绕过了审计。
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div data-testid="audit-job-unknown">
+      <h3>这个作业号没有返回审计行</h3>
+      <p className="muted">
+        服务端没有回传该作业是否存在（job_present 为空），所以无法区分“抄错作业号”与
+        “作业在但没有审计行”。请确认 API 版本已支持按作业检索。
+      </p>
+    </div>
+  );
+}
+
 export default function Audit(): JSX.Element {
   const { checked, canView } = useAuditAccess();
   const [limit, setLimit] = useState<number>(100);
+  const [jobFilter, setJobFilter] = useState<string>(() => jobFromHash());
+  const [jobDraft, setJobDraft] = useState<string>("");
   const [rows, setRows] = useState<AuditRow[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [jobPresent, setJobPresent] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
   const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    const onChange = () => {
+      const next = jobFromHash();
+      setJobFilter(next);
+      setJobDraft(next);
+    };
+    window.addEventListener("hashchange", onChange);
+    onChange();
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+
   const load = useCallback(() => {
     let alive = true;
     setLoading(true);
     setError(null);
-    apiGet<AuditResponse>("/api/v1/admin/audit?limit=" + limit)
+    const query =
+      "/api/v1/admin/audit?limit=" +
+      limit +
+      (jobFilter ? "&job_id=" + encodeURIComponent(jobFilter) : "");
+    apiGet<AuditResponse>(query)
       .then((data) => {
         if (!alive) return;
         setRows(Array.isArray(data?.audit) ? data.audit : []);
+        // null, not 0: a server that does not answer the total must not be
+        // read as "there are none".
+        setTotal(typeof data?.total === "number" ? data.total : null);
+        setJobPresent(data?.job_present ?? null);
       })
       .catch((err: unknown) => {
         if (!alive) return;
         setRows([]);
+        setTotal(null);
+        setJobPresent(null);
         setError(err instanceof ApiError ? err : new ApiError(0, String(err)));
       })
       .finally(() => {
@@ -102,7 +182,7 @@ export default function Audit(): JSX.Element {
     return () => {
       alive = false;
     };
-  }, [limit]);
+  }, [limit, jobFilter]);
   // Ask only once the identity is known and permitted: a session the handler
   // will refuse should not fire a request it is told it cannot make. The
   // server stays authoritative — this only avoids a guaranteed 403 round-trip.
@@ -110,6 +190,16 @@ export default function Audit(): JSX.Element {
     if (!checked || !canView) return undefined;
     return load();
   }, [checked, canView, load, reload]);
+
+  // The filter travels through the hash so one job's trail can be linked from
+  // its job page or pasted to a colleague. Assigning the hash fires no event
+  // when it already holds that value, so the state is set here as well.
+  const applyJob = (raw: string) => {
+    const next = raw.trim();
+    const target = next ? "#/audit?job=" + encodeURIComponent(next) : "#/audit";
+    if (window.location.hash !== target) window.location.hash = target;
+    setJobFilter(next);
+  };
 
   if (!canView) {
     return (
@@ -191,6 +281,34 @@ export default function Audit(): JSX.Element {
         title="审计轨迹 Audit trail"
         right={
           <div className="row-gap">
+            <form
+              className="row-gap"
+              onSubmit={(event) => {
+                event.preventDefault();
+                applyJob(jobDraft);
+              }}
+            >
+              <Input
+                label="按作业号过滤 Job id"
+                type="search"
+                value={jobDraft}
+                placeholder="粘贴作业号后查询"
+                maxLength={64}
+                onChange={(event) => setJobDraft(event.target.value)}
+              />
+              <button className="btn" type="submit">
+                查询
+              </button>
+              {jobFilter ? (
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  onClick={() => applyJob("")}
+                >
+                  清除筛选
+                </button>
+              ) : null}
+            </form>
             <Select
               label="读取条数 Limit"
               value={String(limit)}
@@ -235,6 +353,8 @@ export default function Audit(): JSX.Element {
               error={"审计读取失败（" + (error.code || error.status || "未知错误") + "）：" + error.detail}
             />
           )
+        ) : jobFilter && rows.length === 0 ? (
+          filteredEmpty(jobFilter, jobPresent)
         ) : (
           <Table
             columns={columns}
@@ -261,9 +381,26 @@ export default function Audit(): JSX.Element {
           />
         </div>
       )}
+      {!loading && !error && jobFilter && (
+        <p className="muted" data-testid="audit-filter-note">
+          当前按作业号 <code>{jobFilter}</code> 检索 ·{" "}
+          {jobPresent === true
+            ? "作业在册"
+            : jobPresent === false
+              ? "库里已无此作业行（可能按生命周期删除）"
+              : "服务端未回传作业是否存在"}
+          {" · "}
+          <a href={"#/jobs/" + encodeURIComponent(jobFilter)}>查看作业详情</a>
+        </p>
+      )}
       {!loading && !error && rows.length > 0 && (
         <p className="muted" data-testid="audit-scope-note">
-          以上计数只统计本页已加载的 {rows.length} 条，不代表全部审计历史。
+          {total === null
+            ? `服务端未回传命中总数，因此无法判断是否还有未加载的历史。`
+            : total > rows.length
+              ? `这次查询共命中 ${total} 条，这里显示最近的 ${rows.length} 条，另有 ${total - rows.length} 条未加载。`
+              : `这次查询共命中 ${total} 条，已全部显示。`}{" "}
+          统计卡只数本页已加载的行。
         </p>
       )}
       <Panel title="怎么读这张表 How to read">
@@ -271,6 +408,8 @@ export default function Audit(): JSX.Element {
           每条审计只保存作业号，不保存作业本身。删除作业记录时，系统会在同一事务里补一行
           job_records_deleted 说明，因此“作业已删除”是可解释的正常状态；三者都对不上的行会被标成
           “引用无法解释”，它需要人工排查，而不是被隐藏。
+          排查某一个作业时请用上方的作业号检索：整张表只返回最近若干条，
+          一个作业的轨迹通常根本不在这个窗口里。
         </p>
       </Panel>
     </div>

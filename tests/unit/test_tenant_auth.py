@@ -303,9 +303,27 @@ class FakeJobStore:
         tenant = row.get("tenant_id")
         return str(tenant) if tenant else None
 
-    def list_audit_logs(self, limit: int = 100) -> list[dict[str, Any]]:
-        del limit
-        return list(self.audit)
+    def audit_trail(
+        self, *, limit: int = 100, job_id: str | None = None
+    ) -> dict[str, Any]:
+        # Same shape as storage/mysql.py::audit_trail, including the filter:
+        # a stub that ignored job_id would let a broken filter look correct.
+        rows = [
+            dict(entry) for entry in self.audit
+            if job_id is None or entry.get("job_id") == job_id
+        ][:limit]
+        return {
+            "rows": rows,
+            "total": len(rows),
+            "job_present": (
+                None if job_id is None else job_id in self.jobs
+            ),
+        }
+
+    def list_audit_logs(
+        self, limit: int = 100, *, job_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        return self.audit_trail(limit=limit, job_id=job_id)["rows"]
 
     def is_ready(self) -> bool:
         return True
@@ -408,6 +426,56 @@ def test_rbac_matrix_http_assertions(
     assert client.post("/jobs", json=_payload(), headers=bearer(t["auditor"])).status_code == 403
     assert client.get("/api/v1/admin/audit", headers=bearer(t["auditor"])).status_code == 200
     assert client.get("/api/v1/admin/users", headers=bearer(t["auditor"])).status_code == 403
+
+
+def test_audit_can_be_asked_about_one_job(
+    tenant_env: None, fakes: FakeJobStore, seeded: dict[str, Any],
+) -> None:
+    """``GET /admin/audit?job_id=`` is the only way to read one job's trail.
+
+    The unfiltered view is a window over the newest rows, so on any schema with
+    real history a specific job is not in it — which left #95's disposition
+    column unreachable from the product. The handler has to forward the
+    parameter, not merely accept it.
+    """
+    import uuid
+
+    client = TestClient(app)
+    admin = bearer(seeded["tokens"]["admin"])
+    mine, other = str(uuid.uuid4()), str(uuid.uuid4())
+    for job_id in (mine, other):
+        fakes.jobs[job_id] = {"id": job_id, "status": "COMPLETED"}
+    fakes.audit.extend([
+        {"job_id": mine, "action": "job_status_transition"},
+        {"job_id": other, "action": "job_status_transition"},
+        {"job_id": mine, "action": "job_cancelled"},
+    ])
+
+    hit = client.get(f"/api/v1/admin/audit?job_id={mine}", headers=admin)
+    assert hit.status_code == 200, hit.text
+    body = hit.json()
+    assert body["job_id"] == mine
+    assert [r["job_id"] for r in body["audit"]] == [mine, mine], body["audit"]
+    assert body["count"] == 2 and body["total"] == 2, body
+    assert body["job_present"] is True
+
+    miss = client.get(f"/api/v1/admin/audit?job_id={uuid.uuid4()}", headers=admin)
+    assert miss.status_code == 200, miss.text
+    assert miss.json()["audit"] == [] and miss.json()["job_present"] is False
+
+    # An id the column cannot hold is refused rather than answered with "no
+    # audit rows" — that wrong answer sends an operator hunting for a job that
+    # was never addressable.
+    bad = client.get("/api/v1/admin/audit?job_id=not-a-uuid", headers=admin)
+    assert bad.status_code == 422, bad.text
+    assert "job_id" in bad.text
+
+    # Unfiltered stays what it always was: a window that claims nothing about
+    # a job it was never asked about.
+    whole = client.get("/api/v1/admin/audit", headers=admin)
+    assert whole.status_code == 200, whole.text
+    assert whole.json()["job_present"] is None
+    assert whole.json()["total"] == 3
 
 
 def test_cross_tenant_job_read_404_with_audit(
