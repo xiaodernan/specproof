@@ -59,7 +59,7 @@ function payload(severity?: string, id = "f-1"): FindingsData {
         severity,
         contract_id: "AUTH-01",
         confidence: 0.92,
-        evidence_type: "runtime_test",
+        evidence_type: "java_source_diff",
         type: "regression",
         location: "SecurityConfig.java",
         description: "授权检查被移除",
@@ -137,13 +137,13 @@ describe("FindingDetail severity pill — severity has its own tone map", () => 
 
   it("explains severity in plain Chinese and localizes the metadata labels", async () => {
     const p = payload("BLOCKER");
-    p.findings[0].evidence_type = "runtime_test";
+    p.findings[0].evidence_type = "java_source_diff";
     get.mockResolvedValueOnce(p);
     render(<FindingDetail jobId="job-1" findingId="f-1" />);
     // canonical token preserved, plus an actionable Chinese gloss a reviewer can act on
     expect(await screen.findByText(/阻塞问题——必须修复/)).toBeTruthy();
     expect(screen.getByText("严重程度")).toBeTruthy();
-    expect(screen.getAllByText(/运行时测试/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Java 源码差分/).length).toBeGreaterThan(0);
     expect(screen.getByText("问题描述")).toBeTruthy();
     // the raw English jargon headers are gone
     expect(screen.queryByText("元数据 Metadata")).toBeNull();

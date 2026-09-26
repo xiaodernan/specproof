@@ -75,7 +75,7 @@ describe("verification lifecycle", () => {
       if (path === "/jobs/job-1") return { job: { id: "job-1", status: "BLOCKED" } };
       if (path.endsWith("/summary")) return { summary: { verdict: "BLOCKED", contracts_total: 4, matrix_failed: 2 } };
       if (path.endsWith("/stages")) return { job_id: "job-1", stages: [], event_count: 0, degraded: false };
-      return { job_id: "job-1", findings: [{ id: "f-1", severity: "BLOCKER", evidence_type: "runtime_test", contract_id: "AUTH-01", description: "权限检查被移除" }], count: 3, degraded: false };
+      return { job_id: "job-1", findings: [{ id: "f-1", severity: "BLOCKER", evidence_type: "java_source_diff", contract_id: "AUTH-01", description: "权限检查被移除" }], count: 3, degraded: false };
     }) as typeof apiGet);
     render(<JobDetail jobId="job-1" />);
     const cta = await screen.findByRole("button", { name: /查看 3 条风险并处理/ });
@@ -85,7 +85,7 @@ describe("verification lifecycle", () => {
     // landed on the risks tab: localized table headers + a plain-Chinese evidence gloss
     expect(await screen.findByText("严重程度")).toBeTruthy();
     expect(screen.queryByText("Severity")).toBeNull();
-    expect(screen.getAllByText(/运行时测试/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Java 源码差分/).length).toBeGreaterThan(0);
   });
 
   it("explains an unresolvable git ref in Chinese instead of the raw git stderr", async () => {

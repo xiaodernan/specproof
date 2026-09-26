@@ -104,19 +104,35 @@ export function severityHint(severity?: string | null): string | undefined {
   return SEVERITY_HINT[(severity || "").toUpperCase()];
 }
 
-/** 证据采集方式的中文说明；未知类型原样透传。 */
+/**
+ * 证据采集方式的中文说明；未知类型原样透传。
+ *
+ * The key set is the declared domain: `EVIDENCE_KINDS` in
+ * `agent/evidence_kinds.py`, reconciled both ways by
+ * `tests/unit/test_evidence_vocabulary_parity.py`. `findings.evidence_type` is a
+ * plain VARCHAR(64), so before that declaration existed the UI glossary named
+ * `runtime_test` / `static` / `differential` / `review` — kinds no emitter
+ * produces — while six kinds the pipeline does write reached a reviewer as raw
+ * English.
+ */
 const EVIDENCE_CN: Record<string, string> = {
-  runtime_test: "运行时测试（实际执行验证）",
-  static: "静态分析",
-  static_analysis: "静态分析",
-  differential: "差分对比（改动前后行为）",
-  // Repo self-test differential. The evidence kind alone says NOTHING about
-  // where it ran: a Node repo is executed in the Docker sandbox while an
-  // opt-in host run is unsandboxed (#50/#54). The surface is reported in the
-  // finding's own description sentence; the API does not yet carry it as a
-  // field, so this label must not claim either way.
+  java_source_diff: "Java 源码差分（静态比对改动前后的源码，没有执行任何代码）",
+  constitution_check: "工程规范检查（constitution 规则命中，没有执行任何代码）",
+  static_analysis: "静态分析（源码规则命中，没有执行任何代码）",
+  // The evidence kind alone says NOTHING about where it ran: a Node repo is
+  // executed in the Docker sandbox while an opt-in host run is unsandboxed
+  // (#50/#54). The surface is reported in the finding's own description, so
+  // this label must not claim either way.
   self_test_diff: "仓库自带测试差分",
-  review: "人工评审",
+  base_pass_head_fail: "改前通过、改后失败（本次变更引入的失败，实际执行过）",
+  differential_execution: "差分执行（改前/改后各执行一次的对比证据）",
+  probe_differential: "探针差分（对既有行为下探针再对比，用于确认能否复现）",
+  // A crashing checker is a finding, not silence — the label must not read as
+  // "checked and clean".
+  checker_failed: "检查器崩溃（这一项没有跑出结果，相关验收条件保持未验证，不等于没有问题）",
+  // The finding carries no evidence kind at all (capsules and PR comments write
+  // "unknown"). Say that plainly rather than dressing it up as a kind of proof.
+  unknown: "未记录证据方式（这条风险没有说明它是凭什么得出的）",
 };
 
 export function evidenceLabel(t?: string | null): string {

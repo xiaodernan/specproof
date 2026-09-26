@@ -81,10 +81,13 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 哪一列都存不下、没有任何生产者, 是一个永远不会出现的徽章)。检查器实际会写但**存不进本表**的两个值
 (`NONE`: 检查器崩溃/目标无检查器; `ERROR`: 反例编译失败) 也在词表里, 且被标为不可投票
 (`SEVERITY_STOREABLE`), 因为 `finding_feedback.severity` 与本表是同一个 ENUM。
-**`evidence_type` 没有这个保障**: 它是 VARCHAR(64), 既无 DB 约束也无对账门, 实测 Web 侧
-`EVIDENCE_CN` 认识的 6 个词里只有 `self_test_diff` 真被产出, 而 `constitution_check` /
-`checker_failed` / `java_source_diff` / `probe_differential` / `base_pass_head_fail`
-会以原文出现在页面上 —— 已登记为工作项, 不在本节掩饰。
+**`evidence_type` 的权威值集在 Python 侧** (2026-09-26, #87): 本列是 VARCHAR(64), 没有 ENUM 可依赖,
+所以域被声明为 `agent/evidence_kinds.py::EVIDENCE_KINDS` (9 个值, 含 `unknown` —— `create_capsule.py:185`
+与 `inline_comments.py:132` 在风险没记证据方式时确实会写它, PR 行内评论也就照原样发出去)。
+`tests/unit/test_evidence_vocabulary_parity.py` 三个方向都钉: 生产者写的字面量 ⊆ 声明、声明里的每个值必须
+真有生产者 (否则那是愿望不是词表)、Web 词表 `EVIDENCE_CN` 的键 == 声明集。修前实测: `EVIDENCE_CN` 认识的
+6 个词里 `runtime_test`/`static`/`differential`/`review` **没有任何生产者**, 而流水线真正写出的 6 个 kind
+一个词都没有 —— 它们以英文原文出现在风险页与任务页的证据方式一栏。
 
 - **写入方**: `storage/mysql.py` `insert_finding`; 当前生产调用点仅 `scripts/seed_demo.py` (演示种子) —
   正式管线的 findings 以 summary JSON (`verification_jobs.summary`) 与 capsule 落盘为准, 本表为演示/历史口径。

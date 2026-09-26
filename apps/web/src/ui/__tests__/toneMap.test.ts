@@ -124,8 +124,16 @@ describe("terminology gloss — plain-Chinese actionability without inventing me
   });
 
   it("annotates known evidence types with Chinese, passes unknown through verbatim", () => {
-    expect(evidenceLabel("runtime_test")).toContain("运行时测试");
-    expect(evidenceLabel("runtime_test")).toContain("runtime_test"); // canonical token preserved
+    // #87: the keys here are agent/evidence_kinds.py's declared domain, kept
+    // equal by tests/unit/test_evidence_vocabulary_parity.py. runtime_test /
+    // static / differential / review used to be glossed and are gone — nothing
+    // in the product emits them.
+    expect(evidenceLabel("java_source_diff")).toContain("Java 源码差分");
+    expect(evidenceLabel("java_source_diff")).toContain("java_source_diff"); // token preserved
+    expect(evidenceLabel("java_source_diff")).toMatch(/没有执行任何代码/);
+    expect(evidenceLabel("base_pass_head_fail")).toContain("改前通过、改后失败");
+    // A crashing checker must never read as "checked and clean".
+    expect(evidenceLabel("checker_failed")).toMatch(/不等于没有问题/);
     // #50/#54: a repo self-test differential may have run in the Docker
     // sandbox (Node) or unsandboxed on the host (opt-in). The evidence kind
     // alone cannot say which, so the label must stay neutral and let the
