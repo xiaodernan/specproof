@@ -13,7 +13,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, Final, cast
 
 import pymysql
 from pymysql.cursors import DictCursor
@@ -38,11 +38,45 @@ _JOB_INSERT_TENANT_SQL = (
     "%(github_check_json)s, %(tenant_id)s)"
 )
 
+_AUDIT_INSERT_SQL = (
+    "INSERT INTO audit_logs "
+    "(job_id, actor, action, from_status, to_status, detail) "
+    "VALUES (%s, %s, %s, %s, %s, %s)"
+)
+
 _AUDIT_INSERT_TENANT_SQL = (
     "INSERT INTO audit_logs "
     "(job_id, actor, action, from_status, to_status, detail, attempted_tenant) "
     "VALUES (%s, %s, %s, %s, %s, %s, %s)"
 )
+
+#: Audit action written when the documented data-lifecycle path removes a
+#: job's rows (#95). It exists so a surviving audit row whose ``job_id`` no
+#: longer resolves is *explained by the same table* instead of being an
+#: operator's mystery: DATA_LIFECYCLE §3.1 keeps audit_logs on purpose, so
+#: without this marker "job X went QUEUED→RUNNING" and "X never existed"
+#: are literally indistinguishable.
+JOB_RECORDS_DELETED_ACTION = "job_records_deleted"
+
+#: The three answers an auditor can be given about an audit row's job.
+AUDIT_JOB_PRESENT = "present"
+AUDIT_JOB_PURGED = "purged_by_lifecycle"
+AUDIT_JOB_UNEXPLAINED = "unexplained"
+AUDIT_JOB_SYSTEM_LEVEL = "system_level"
+
+#: The whole vocabulary this module can write.
+#: tests/unit/test_audit_action_parity.py reconciles it in both directions
+#: with the AST-derived call-site set and with DATA_DICTIONARY §1.19.
+AUDIT_ACTIONS: Final[frozenset[str]] = frozenset({
+    "job_status_transition",
+    "job_cancelled",
+    "job_cancelled_at_checkpoint",
+    "job_reclaimed_stale_running",
+    "job_stale_running_reclaim_exhausted",
+    "job_provider_wait_entered",
+    "tenant_isolation_blocked",
+    JOB_RECORDS_DELETED_ACTION,
+})
 
 # ── State machine ──────────────────────────────────────────────
 
@@ -93,6 +127,22 @@ def retry_budget_spent(row: dict[str, Any]) -> bool:
     passes and the previews all ask this function.
     """
     return int(row.get("retry_count") or 0) >= int(row.get("max_retries") or 0)
+
+
+def _job_disposition(row: dict[str, Any]) -> str:
+    """Classify one audit row's reference to its job (#95).
+
+    ``job_id IS NULL`` is a legitimate system-level row (e.g. a refused
+    cross-tenant attempt before any job was named), so it must not be counted
+    as dangling — otherwise the one number an operator trusts cries wolf.
+    """
+    if row.get("job_id") is None:
+        return AUDIT_JOB_SYSTEM_LEVEL
+    if int(row.get("job_present") or 0):
+        return AUDIT_JOB_PRESENT
+    if int(row.get("purge_recorded") or 0):
+        return AUDIT_JOB_PURGED
+    return AUDIT_JOB_UNEXPLAINED
 
 
 class InvalidStateTransition(Exception):  # noqa: N818 — domain term, public API
@@ -252,9 +302,7 @@ class MySQLStore:
                     )
                 else:
                     conn.cursor().execute(
-                        "INSERT INTO audit_logs "
-                        "(job_id, actor, action, from_status, to_status, detail) "
-                        "VALUES (%s, %s, %s, %s, %s, %s)",
+                        _AUDIT_INSERT_SQL,
                         (job_id, actor, action, from_status, to_status, detail),
                     )
         except Exception as exc:  # noqa: BLE001 — audit must not take down jobs
@@ -715,16 +763,33 @@ class MySQLStore:
         return str(tenant) if tenant else None
 
     def list_audit_logs(self, limit: int = 100) -> list[dict[str, Any]]:
-        """Most recent audit rows (tenant auth attempts / auditor view)."""
+        """Most recent audit rows (tenant auth attempts / auditor view).
+
+        Every row carries ``job_disposition`` (#95). An audit row references a
+        job by id only, and DATA_LIFECYCLE §3.1 keeps ``audit_logs`` when a job
+        is purged — so a dangling ``job_id`` is a *normal* state here, not
+        corruption, and an auditor must be able to tell the three cases apart
+        without reading SQL: the job still exists, it was deleted through the
+        documented lifecycle path (which audited itself), or nothing explains
+        it and a human has to investigate.
+        """
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT id, job_id, actor, action, from_status, to_status, "
-                "detail, attempted_tenant, created_at "
-                "FROM audit_logs ORDER BY id DESC LIMIT %s",
-                (limit,),
+                "SELECT a.id, a.job_id, a.actor, a.action, a.from_status, "
+                "a.to_status, a.detail, a.attempted_tenant, a.created_at, "
+                "(j.id IS NOT NULL) AS job_present, "
+                "EXISTS (SELECT 1 FROM audit_logs d WHERE d.job_id = a.job_id "
+                "AND d.action = %s) AS purge_recorded "
+                "FROM audit_logs a "
+                "LEFT JOIN verification_jobs j ON j.id = a.job_id "
+                "ORDER BY a.id DESC LIMIT %s",
+                (JOB_RECORDS_DELETED_ACTION, limit),
             )
-            return cast(list[dict[str, Any]], cur.fetchall())
+            rows = cast(list[dict[str, Any]], cur.fetchall())
+        for row in rows:
+            row["job_disposition"] = _job_disposition(row)
+        return rows
 
     def count_pending_outbox(self) -> int:
         """Number of unpublished, non-dead outbox rows (relay backlog gauge).
@@ -1116,11 +1181,19 @@ class MySQLStore:
         deletion path — never automatically on terminal state. Returns the
         deleted row counts so callers can audit what was removed. Idempotent:
         a missing job returns zero counts.
+
+        The purge itself is audited in the SAME transaction (#95): audit_logs
+        outlives the job by design, so without an explaining row the surviving
+        trail references a job that "never existed". ``record_audit`` is
+        best-effort and swallows its own failure — acceptable for a status
+        transition, unacceptable here, where a lost audit silently turns a
+        documented deletion into unexplained data.
         """
         counts: dict[str, int] = {
             "findings": 0,
             "contracts": 0,
             "jobs": 0,
+            "audit": 0,
         }
         with self.connection() as conn:
             cur = conn.cursor()
@@ -1136,6 +1209,23 @@ class MySQLStore:
                 "DELETE FROM verification_jobs WHERE id = %s", (job_id,)
             )
             counts["jobs"] = cur.rowcount if cur.rowcount else 0
+            if counts["jobs"]:
+                cur.execute(
+                    _AUDIT_INSERT_SQL,
+                    (
+                        job_id,
+                        "lifecycle",
+                        JOB_RECORDS_DELETED_ACTION,
+                        None,
+                        None,
+                        (
+                            f"deleted findings={counts['findings']} "
+                            f"contracts={counts['contracts']} job=1; "
+                            "audit_logs retained by design (DATA_LIFECYCLE §3.1)"
+                        )[:1024],
+                    ),
+                )
+                counts["audit"] = cur.rowcount if cur.rowcount else 0
         return counts
 
     # ── Finding / Contract CRUD ───────────────────────────────

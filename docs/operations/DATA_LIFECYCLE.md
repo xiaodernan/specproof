@@ -274,6 +274,19 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 
 清理后经产品自己的读路径复核（`MySQLStore.dashboard_snapshot`，以 `MYSQL_DATABASE=specproof_phase0` 只读调用）：`statuses`/`timeline`/`recent_jobs` 全为空——首页那些数字此前确实 100% 来自残行，而现在也没有任何产品码把数据藏起来（查询语句一字未改）。
 
-顺带量到、尚未处理的一件事：清理后 `audit_logs` 里有 **822 行的 `job_id` 指向不存在的作业**
-（我删的 143 行是当时唯一能 JOIN 上的，所以这些孤儿行在我动手之前就已是孤儿）。审计日志记的是
-"谁的哪个作业发生了什么"，指向不存在作业的行既查不回作业也无法解释，属另一条缺陷，已登记为工作项。
+顺带量到、已收口的一件事（#95，2026-09-26）：清理后 `audit_logs` 里有 **822 行的 `job_id` 指向不存在的作业**
+（我删的 143 行是当时唯一能 JOIN 上的，所以这些孤儿行在我动手之前就已是孤儿）。实测归因：
+
+- **写入侧无缺陷**：产品里唯一写 `job_status_transition` 的地方是 `transition_job_status`，
+  它只在 CAS 真正改掉 1 行之后才记审计（`storage/mysql.py`），也就是"作业当时确实存在"。
+  所以孤儿行只能来自**删除**，不能来自写入。
+- **删除侧有两类**：一是本文件 §3.1 的产品删除路径 `delete_job_records`（有意保留 audit_logs），
+  二是测试 teardown 删 job 行。测试库 `specproof_test` 实测 144 行审计里 112 行悬空，且时间戳
+  就在几分钟前——证明这是**活的行为**，不是历史事故。
+- 修法（不是外键、也不是拒绝写入）：`delete_job_records` 现在在**同一事务**里补一行
+  `action='job_records_deleted'` 的解释，`list_audit_logs` 为每行给出 `job_disposition`
+  （present / purged_by_lifecycle / system_level / unexplained）。词表由
+  `storage/mysql.py::AUDIT_ACTIONS` 声明，`tests/unit/test_audit_action_parity.py` 与 §1.8 双向对账。
+- 遗留如实记录：那 822 行**仍是 `unexplained`**——它们是修复之前留下的测试残行（产品作业表当时
+  已被清空），没有对应的解释行可补；它们的存在正是 §2.1 所说"audit_logs 不清理"这条策略的代价。
+  若要清掉，需要一次与本次同型的批准删除，且要先备份。

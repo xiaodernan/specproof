@@ -190,7 +190,7 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 | id | BIGINT AUTO PK | |
 | job_id | CHAR(36) NULL | |
 | actor | VARCHAR(128) | 操作者 (worker/api/system/user) |
-| action | VARCHAR(64) | job_status_transition / job_cancelled / job_cancelled_at_checkpoint / tenant_isolation_blocked 等 |
+| action | VARCHAR(64) | 受控词表, 见本节末 `AUDIT_ACTIONS` 声明块 (单一事实源 `storage/mysql.py::AUDIT_ACTIONS`) |
 | from_status / to_status | VARCHAR(32) NULL | 状态转换前后 |
 | detail | VARCHAR(1024) DEFAULT '' | |
 | attempted_tenant | VARCHAR(128) NULL (0005) | 越权读取被拒时记录的对方租户 |
@@ -198,6 +198,24 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 
 索引: idx_job, idx_created。
 - **写入方**: `storage/mysql.py` `record_audit` (best-effort, 永不阻断业务; 状态转换/取消/租户隔离拒绝)。
+- **例外**: `delete_job_records` 的删除说明行不走 best-effort — 它与三条 DELETE 同事务提交, 见下表 `job_records_deleted`。
+
+<!-- AUDIT_ACTIONS_BEGIN: 与 storage/mysql.py::AUDIT_ACTIONS 对账, 由 tests/unit/test_audit_action_parity.py 双向锁定 -->
+`action` 受控词表 (新增写入点必须同时登记此处与 `AUDIT_ACTIONS`, 否则该门红):
+
+| action | 写入者 | 含义 |
+|---|---|---|
+| `job_status_transition` | `transition_job_status` | 一次被 CAS 接受的状态转换 (actor=worker_id 或 system) |
+| `job_cancelled` | `api/routes/jobs.py` | API 请求取消作业 |
+| `job_cancelled_at_checkpoint` | `agent/worker.py` | 在断点处响应取消 |
+| `job_reclaimed_stale_running` | `reclaim_stale_running` | 租约过期, RUNNING→QUEUED 回收 (#68/#71) |
+| `job_stale_running_reclaim_exhausted` | `reclaim_stale_running` | 回收时发现重试预算已尽, 改判 FAILED (#71) |
+| `job_provider_wait_entered` | `recover_provider_wait` | 进入/离开供应商等待的处置记录 |
+| `tenant_isolation_blocked` | `api/middleware.py`, `storage/mysql.py` | 跨租户读取被拒 (attempted_tenant 取证) |
+| `job_records_deleted` | `delete_job_records` | 该 job 的记录已按 DATA_LIFECYCLE §3 显式删除; audit_logs 有意保留 |
+<!-- AUDIT_ACTIONS_END -->
+
+**为什么需要 `job_records_deleted`**: audit_logs 永久保留而 job 行可被删除, 于是"job_id 指向不存在的作业"是**正常状态**而非损坏。`list_audit_logs` 因此为每行给出 `job_disposition`: `present` (作业仍在) / `purged_by_lifecycle` (有本行解释) / `system_level` (job_id 本来为 NULL) / `unexplained` (三者皆非, 需要人工排查)。
 - **租户作用域**: attempted_tenant 审计列; 审计员可跨租户读 (`api/routes/admin.py` GET /audit)。
 - **TTL/保留**: 永久, 不清理。
 
