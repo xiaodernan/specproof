@@ -20,24 +20,21 @@ export type StatTone = "ok" | "bad" | "warn" | "mute";
 
 export function verdictTone(v: string | undefined): StatTone {
   if (v === "VERIFIED") return "ok";
-  if (v === "BLOCKED" || v === "FAILED" || v === "ERROR") return "bad";
-  if (v === "NEEDS REVIEW") return "warn";
+  if (v === "BLOCKED" || v === "FAILED") return "bad";
   return "mute";
 }
 
 // The summary verdict arrives as an English enum; the 验证结论 headline should
 // speak the user's language. Known tokens map to Chinese; anything unexpected
 // is shown verbatim rather than guessed at (an unknown label is honest, a wrong
-// friendly label would mislead a merge decision).
+// friendly label would mislead a merge decision). Exactly the words the worker
+// writes into `summary.verdict` — see evidence/verdict_channels.py, which
+// fails the build if this record and that channel disagree. Status words
+// (STALE, ERROR, CANCELLED) live in STATUS_HELP on the job page, not here.
 const VERDICT_LABELS: Record<string, string> = {
   VERIFIED: "通过",
   BLOCKED: "受阻",
   FAILED: "执行失败",
-  ERROR: "执行错误",
-  UNVERIFIED: "待验证",
-  "NEEDS REVIEW": "需复核",
-  STALE: "已过期",
-  CANCELLED: "已取消",
 };
 
 export function verdictLabel(v: string | undefined): string {

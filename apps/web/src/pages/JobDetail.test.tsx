@@ -105,7 +105,7 @@ describe("verification lifecycle", () => {
   it("explains a demo-only counterexample gap in Chinese instead of the raw English", async () => {
     get.mockImplementation((async (path: string) => {
       if (path === "/jobs/job-1") return { job: { id: "job-1", status: "UNVERIFIED" } };
-      if (path.endsWith("/summary")) return { summary: { verdict: "UNVERIFIED", contracts_total: 3, matrix_unverified: 3, errors: ["Deterministic template only supports the demo repository (com.specproof); LLM generation also failed. No counterexample test produced."] } };
+      if (path.endsWith("/summary")) return { summary: { verdict: "BLOCKED", contracts_total: 3, matrix_unverified: 3, errors: ["Deterministic template only supports the demo repository (com.specproof); LLM generation also failed. No counterexample test produced."] } };
       if (path.endsWith("/stages")) return { job_id: "job-1", stages: [], event_count: 0, degraded: false };
       return { job_id: "job-1", findings: [], count: 0, degraded: false };
     }) as typeof apiGet);

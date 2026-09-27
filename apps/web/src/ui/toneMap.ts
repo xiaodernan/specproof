@@ -200,12 +200,13 @@ export function checkerLabel(t?: string | null): string {
 
 /**
  * 评测（evaluation）逐案判定 verdict 的中文说明。这里的 verdict 与需求覆盖的
- * PASS/FAIL 不是同一套语义：PASS=检出结果与预期一致，MISS=预期问题被漏检
- * （假阴性），FALSE_POSITIVE=报出了并不预期的问题（假阳性）。未知值原样返回，
- * 绝不臆造含义。
+ * PASS/FAIL 不是同一套语义：PASS=检出结果与预期一致，PARTIAL=检出但少于预期
+ * 数量（命中不全），MISS=预期问题被漏检（假阴性），FALSE_POSITIVE=报出了并不
+ * 预期的问题（假阳性）。未知值原样返回，绝不臆造含义。
  */
 const EVAL_VERDICT_CN: Record<string, string> = {
   PASS: "判定正确",
+  PARTIAL: "部分检出（命中但少于预期数量）",
   MISS: "漏检（未检出预期问题）",
   FALSE_POSITIVE: "误报（检出非预期问题）",
 };
