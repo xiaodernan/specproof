@@ -78,15 +78,25 @@ def _optional_str(arguments: dict[str, Any], name: str) -> str | None:
 
 
 def _run_cli(cmd: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-    """Run a SpecProof CLI invocation, mapping transport failures to ToolError."""
+    """Run a SpecProof CLI invocation, mapping transport failures to ToolError.
+
+    Both ends of the codec are pinned: the child is told to emit UTF-8 and the
+    parent is told to read UTF-8. Left to the platform default, a CJK repo path
+    (this product installs under a directory like D:/面试项目) reaches the MCP
+    client as mojibake that still matches the finding pattern, so a garbled path
+    would be reported as if it were evidence.
+    """
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     try:
         return subprocess.run(  # noqa: S603 - argv built from validated constants/args
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             errors="replace",
             timeout=timeout,
             check=False,
+            env=env,
         )
     except subprocess.TimeoutExpired as exc:
         raise ToolError(

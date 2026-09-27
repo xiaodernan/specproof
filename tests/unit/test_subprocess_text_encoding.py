@@ -45,7 +45,7 @@ VENVISH = {"venv", ".venv", "site-packages", "dist-packages"}
 # Dirs where an unpinned capture is a defect, not debt.
 PINNED_SCOPES = {
     "agent", "api", "cli", "craft", "sandbox", "storage", "providers",
-    "integrations", "evidence", "ops",
+    "integrations", "evidence", "ops", "mcp", "contracts", "observability",
 }
 SUBPROCESS_FUNCS = {"run", "Popen", "check_output", "check_call", "call"}
 
@@ -57,8 +57,14 @@ SUBPROCESS_FUNCS = {"run", "Popen", "check_output", "check_call", "call"}
 # Re-measured at bbdfa0c after venvs were excluded by marker rather than by the
 # single name `.venv`: 55 — exactly this ceiling, zero headroom. It counts only
 # the repo's own files now, so it moves when the repo moves.
+# #111 pinned the one shipped MCP capture (`mcp/tools.py` read a child's UTF-8
+# with the OS locale and reported mojibake paths as evidence) and brought `mcp`,
+# `contracts` and `observability` into PINNED_SCOPES — they are loaded by a
+# shipped entry point, so an unpinned read there is a defect, not debt. Those
+# three lanes measured 0 offenders, so only the fixed one leaves debt: 55 -> 54.
+# The remaining 54 are `scripts/` and `tests/`.
 # Shrink this number; never let it grow.
-DEBT_CEILING = 55
+DEBT_CEILING = 54
 
 
 def _is_subprocess_call(node: ast.Call) -> bool:
