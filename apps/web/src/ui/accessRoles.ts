@@ -17,6 +17,15 @@ export const IDENTITY_ROLES: readonly string[] = ["admin", "operator"];
 export const BILLING_ROLES: readonly string[] = ["admin", "operator", "auditor"];
 export const AUDIT_ROLES: readonly string[] = ["admin", "auditor"];
 
+// #116: the roles that may CAST a 验收反馈 (POST /api/v1/jobs/{id}/feedback),
+// as opposed to read it. It mirrors the cell that call is classified under
+// (cases:trigger), so a viewer or auditor who opens the finding page can see every
+// vote and the acceptance rate and is told why the two buttons are not for them,
+// instead of clicking into a 403 the page cannot explain.
+// tests/unit/test_access_role_parity.py re-derives this set too — it is the only
+// governed action in apps/web that is a button rather than a page.
+export const FEEDBACK_VOTE_ROLES: readonly string[] = ["admin", "operator"];
+
 /** True when the principal holds at least one of `allowed`. */
 export function roleSetAllows(
   roles: string[] | undefined | null,

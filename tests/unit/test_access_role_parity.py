@@ -52,7 +52,17 @@ SURFACES: dict[str, tuple[str, list[str]]] = {
     ),
     "billing": ("BILLING_ROLES", ["pages/Billing.tsx"]),
     "audit": ("AUDIT_ROLES", ["pages/Audit.tsx"]),
+    # #116: a button, not a page. The governed action is the one FindingDetail
+    # casts (POST /api/v1/jobs/{id}/feedback), so the derivation reads the same
+    # call the click does.
+    "vote": ("FEEDBACK_VOTE_ROLES", ["pages/FindingDetail.tsx"]),
 }
+
+# The subset of SURFACES that App.tsx gates from the sidebar. Kept separate from
+# SURFACES because since #116 a governed action can also be a button: the nav
+# count is a claim about the sidebar, and letting it grow to cover a button would
+# let a genuinely missing nav gate pass unnoticed.
+NAV_SURFACES = ("identity", "billing", "audit")
 
 # Paths every principal may read, so they cannot narrow a surface's role set.
 # /auth/me answers with the caller's own principal; classify_request() returns
@@ -137,21 +147,91 @@ def _initializer_before(source: str, name: str, call_start: int) -> str | None:
     return rest if end == -1 else rest[:end]
 
 
+def _top_split(text: str, sep: str) -> list[str]:
+    """Split on `sep` only where it sits outside quotes and brackets."""
+    parts: list[str] = []
+    depth = 0
+    quote: str | None = None
+    cur: list[str] = []
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote is not None:
+            cur.append(ch)
+            if ch == "\\":
+                cur.append(text[i + 1])
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+        elif ch in """'"`""":
+            quote = ch
+            cur.append(ch)
+        elif ch in "([{":
+            depth += 1
+            cur.append(ch)
+        elif ch in ")]}":
+            depth -= 1
+            cur.append(ch)
+        elif ch == sep and depth == 0:
+            parts.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+        i += 1
+    parts.append("".join(cur))
+    return parts
+
+
+def _concat_path(arg: str) -> str | None:
+    r"""One path out of `"/api/v1/jobs/" + encodeURIComponent(jobId) + "/feedback"`.
+
+    api.ts builds several governed paths by concatenation, and a literal-only scan
+    read `POST /api/v1/jobs/` for the feedback call: a path the browser never
+    sends. Dynamic segments become `_` so the resolved path keeps the shape the
+    server matches. Returns None when the argument is not a concatenation starting
+    at a rooted path, so the caller falls back instead of inventing a path.
+
+    Only the call's first top-level argument is looked at, because that is the
+    path parameter in every api* wrapper; reading the whole paren region glues the
+    body argument onto the last segment (`"/feedback",\n draft`) and turns the
+    trailing literal into a `_`.
+    """
+    parts = _top_split(arg, "+")
+    if len(parts) < 2:
+        return None
+    segs: list[str] = []
+    for part in parts:
+        literal = re.match(r"""^\s*['"`](.*?)['"`]\s*$""", part, re.S)
+        if literal is not None:
+            segs.extend(s for s in literal.group(1).split("/") if s)
+        elif part.strip():
+            segs.append("_")
+        else:
+            return None
+    joined = "/" + "/".join(segs)
+    return joined if joined.startswith(("/api/", "/auth/")) else None
+
+
 def _calls_in(source: str) -> tuple[list[tuple[str, str]], list[str]]:
     """([ (METHOD, path], opaque descriptions) per api* call in this source.
 
-    The path may be a literal inside the parens, a `<>`-less string on the next
-    line, or a local `const` the call passes by name (Audit.tsx builds its query
-    string in one). Anything else comes back as opaque so the caller can refuse
-    rather than silently gate a page on fewer calls than it makes.
+    The path may be a literal on its own, a concatenation of literals and dynamic
+    segments, or a local `const` the call passes by name (Audit.tsx builds its
+    query string in one). Only the first top-level argument is read, since that is
+    the path parameter of every api* wrapper. Anything else comes back as opaque so
+    the caller can refuse rather than silently gate a page on fewer calls than it
+    makes.
     """
     calls: list[tuple[str, str]] = []
     opaque: list[str] = []
     for m in _API_SITE_RE.finditer(source):
         if source[: m.start()].rstrip().endswith("function"):
             continue
-        arg = _arg_region(source, m.end() - 1)
-        paths = _PATH_RE.findall(arg)
+        region = _arg_region(source, m.end() - 1)
+        arg = _top_split(region, ",")[0]
+        joined = _concat_path(arg)
+        paths = [joined] if joined else _PATH_RE.findall(arg)
         if not paths:
             ident = _IDENT_RE.match(arg)
             if ident:
@@ -243,16 +323,47 @@ def declared_roles() -> dict[str, set[str]]:
 
 
 def test_every_gated_nav_item_resolves_to_one_shared_declaration() -> None:
-    """App.tsx may gate a nav item only by a name declared in the module."""
+    """App.tsx may gate a nav item only by a name declared in the module.
+
+    The count is checked against the surfaces the *sidebar* gates, not against
+    SURFACES: since #116 a governed action can be a button rather than a page, and
+    letting the nav count grow to cover it would let a genuine fifth nav item pass
+    with nobody deriving its set.
+    """
     gated = _NAV_ROLE_RE.findall(_text(APP_TSX))
     declared = declared_roles()
-    assert len(gated) == len(SURFACES), (
-        f"App.tsx gates {sorted(gated)} but this gate covers {sorted(SURFACES)}: a "
-        "fourth gated page appeared (or one was removed) and its role set is "
-        "unchecked either way"
+    assert len(gated) == len(NAV_SURFACES), (
+        f"App.tsx gates {sorted(gated)} but this gate's nav surfaces are "
+        f"{sorted(NAV_SURFACES)}: a fourth gated page appeared (or one was removed) "
+        "and its role set is unchecked either way"
     )
     missing = [name for name in gated if name not in declared]
     assert not missing, f"App.tsx nav references undeclared role sets: {missing}"
+    nav_names = {SURFACES[s][0] for s in NAV_SURFACES}
+    assert set(gated) == nav_names, (
+        f"App.tsx gates {sorted(gated)} but the nav surfaces are declared for "
+        f"{sorted(nav_names)} — that is a gated item whose set is not the one this "
+        "gate derives, or a nav surface nobody gates"
+    )
+
+
+def test_a_declaration_nobody_reads_is_not_a_gate() -> None:
+    """Each shared role set must be used by the surface it claims to govern.
+
+    #112 collapsed five hand copies into three declarations; #116 added a fourth
+    for a button. A declaration that no page or nav item reads proves nothing, so
+    the gate refuses it rather than counting it as coverage.
+    """
+    declared = declared_roles()
+    unread: list[str] = []
+    for surface, (name, members) in SURFACES.items():
+        assert name in declared, f"{surface}: declares {name} but accessRoles.ts has no such set"
+        readers = list(members) + (["App.tsx"] if surface in NAV_SURFACES else [])
+        if not any(name in _text(WEB / member) for member in readers):
+            unread.append(f"{name} ({surface})")
+    assert not unread, (
+        f"role sets declared but never read by their surface: {unread}"
+    )
 
 
 def test_each_surface_role_set_is_the_one_the_matrix_derives() -> None:
@@ -269,17 +380,49 @@ def test_each_surface_role_set_is_the_one_the_matrix_derives() -> None:
         )
 
 
+def test_the_vote_set_is_derived_from_the_vote_call_not_the_page() -> None:
+    """FEEDBACK_VOTE_ROLES gates a button, so it must come from the POST the click
+    sends — not from whatever else FindingDetail happens to read.
+
+    The page's GETs classify as cases:read, which is a strictly larger role set
+    than the POST's cases:trigger. Intersecting the page therefore returns the
+    trigger set today, and that equality is *not* the claim: if the vote call were
+    ever renamed or the page lost its POST, the intersection would quietly keep
+    producing a plausible set for a button nobody can press. So this test pins the
+    call itself (a POST whose resolved path ends in the feedback suffix) and then
+    requires the declared set to equal the roles that single cell grants.
+    """
+    cells = surface_cells("vote")
+    votes = [(m, p, c) for m, p, c in cells if m == "POST" and p.endswith("/feedback")]
+    assert len(votes) == 1, (
+        f"the vote surface resolves {len(votes)} feedback POSTs out of {cells}; "
+        "this gate's claim is about exactly one button, so a renamed, duplicated or "
+        "missing vote call must stop here rather than be averaged with the page's "
+        "reads"
+    )
+    method, path, cell = votes[0]
+    assert path.startswith("/api/v1/jobs/"), path
+    declared = declared_roles()[SURFACES["vote"][0]]
+    want = roles_for(cell)
+    assert declared == want, (
+        f"FEEDBACK_VOTE_ROLES = {sorted(declared)} but {method} {path} needs {cell}, "
+        f"which the matrix grants to {sorted(want)}"
+    )
+
+
 def test_the_reader_resolves_every_call_shape_the_pages_use() -> None:
     """Both ways, because a reader that quietly under-reads gates on less than the
     page actually does.
 
-    The four shapes below are the ones present in apps/web/src today: a literal on
+    The five shapes below are the ones present in apps/web/src today: a literal on
     the same line, a literal on the next line of a multi-line call, a generic type
     argument containing `;` (`<{ users: UserRow[]; count: number }>`, the shape
-    api.ts uses — a statement-boundary scan loses it), and a path built in a local
-    const and passed by name (Audit.tsx), plus a template literal. The import line
-    and the `export async function apiGet<T>(path: string, ...)` definition must
-    NOT read as calls.
+    api.ts uses — a statement-boundary scan loses it), a path built in a local
+    const and passed by name (Audit.tsx), a rooted path concatenated out of
+    literals and an `encodeURIComponent(...)` segment (getJobFeedback /
+    createFindingFeedback), plus a template literal. The import line and the
+    `export async function apiGet<T>(path: string, ...)` definition must NOT read
+    as calls.
     """
     source = (
         'import { ApiError, apiGet, getAuthMe } from "../../api";\n'
@@ -295,6 +438,10 @@ def test_the_reader_resolves_every_call_shape_the_pages_use() -> None:
         '    "/api/v1/admin/users",\n'
         "    { email, role },\n"
         "  );\n"
+        "  apiPost<FeedbackReceipt>(\n"
+        '    "/api/v1/jobs/" + encodeURIComponent(jobId) + "/feedback",\n'
+        "    draft,\n"
+        "  );\n"
         "  return apiDelete(`/api/v1/admin/tokens/${id}`);\n"
         "}\n"
     )
@@ -304,8 +451,26 @@ def test_the_reader_resolves_every_call_shape_the_pages_use() -> None:
         ("GET", "/api/v1/admin/audit"),
         ("GET", "/api/v1/admin/users"),
         ("POST", "/api/v1/admin/users"),
+        ("POST", "/api/v1/jobs/_/feedback"),
         ("DELETE", "/api/v1/admin/tokens/"),
     ], calls
+
+
+def test_a_concatenated_path_keeps_its_trailing_literal() -> None:
+    """Reverse control for the shape above: a concatenation this reader cannot root
+    must be reported, not half-read.
+
+    `apiPost(fetchBase + "/feedback", draft)` starts at a variable, so no rooted
+    path comes out of it. Before the first-argument split existed, the trailing
+    `"/feedback", draft` was not recognised as a literal either and the call
+    resolved to `/api/v1/jobs/_/_` — a path that classifies the same as the real
+    one here, which is exactly why the wrong path could pass every assertion the
+    gate made. Refusing it keeps the gap visible.
+    """
+    calls, opaque = _calls_in('apiPost(fetchBase + "/feedback", draft);\n')
+    assert calls == [], calls
+    assert len(opaque) == 1, f"unrootable concat was dropped: {opaque}"
+    assert opaque[0].startswith("POST"), opaque[0]
 
 
 def test_the_reader_reports_a_call_it_cannot_resolve() -> None:

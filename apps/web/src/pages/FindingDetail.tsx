@@ -4,6 +4,8 @@ import {
   getReviewer, setReviewer, type FeedbackData, type FeedbackReceipt, type Finding, type FindingsData,
 } from "../api";
 import { Button, Degraded, Empty, ErrorBox, Input, Panel, SEVERITY_STOREABLE, Spinner, Term, Textarea, fmtPct, fmtTime, kv, severityPill, severityHint, evidenceLabel } from "../ui";
+import { FEEDBACK_VOTE_ROLES } from "../ui/accessRoles";
+import { useRoleAccess } from "../ui/useRoleAccess";
 
 // The backend already scales this to a percentage; fmtPct() multiplies by
 // 100, so routing it through fmtPct would print "5000.0%" for a 50% rate.
@@ -14,6 +16,14 @@ function rateText(pct: number | null): string {
 
 function describeFeedbackError(e: unknown): string {
   if (e instanceof ApiError) {
+    if (e.status === 403) {
+      // Two independent gates can refuse this call for opposite fixes (role
+      // matrix vs token scopes), so the server's own sentence is printed
+      // rather than paraphrased into one of them. The code is shown only when
+      // the envelope carries one — there is no invented placeholder here.
+      return "权限不足（HTTP 403" + (e.code ? " · " + e.code : "")
+        + "）—— 后端给出的原因：" + e.detail;
+    }
     return e.detail + "（HTTP " + e.status + (e.code ? " · " + e.code : "") + "）";
   }
   if (e instanceof Error && e.message === NETWORK_UNREACHABLE) {
@@ -45,6 +55,7 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
   const [busy, setBusy] = useState<"accept" | "reject" | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<FeedbackReceipt | null>(null);
+  const vote = useRoleAccess(FEEDBACK_VOTE_ROLES);
 
   useEffect(() => {
     let alive = true;
@@ -75,14 +86,17 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
     ? data.rows.find((r) => r.finding_id === findingId && r.created_by === who)
     : undefined;
   const severity = finding.severity ? String(finding.severity) : "";
-  const blocking = !findingId
+  const notYourVote = vote.known && !vote.allowed
+    ? "只有 " + FEEDBACK_VOTE_ROLES.join(" / ") + " 可以对这条判定投票 —— 后端对每一次写票都按同一条权限规则把关，这不是这个页面自己定的规矩；下面的票数与接受率你照常读得到。"
+    : null;
+  const blocking = notYourVote ?? (!findingId
     ? "这条风险没有 id，无法把票挂到它上面（不替你编一个）"
     : !finding.contract_id
       ? "这条风险缺少验收条件编号，后端要求随票一起记录，缺任何一项都无法提交"
       : !SEVERITY_STOREABLE.includes(severity)
         ? "这条风险的严重程度是 " + (severity || "未知") + "，不在后端可记录的值（" +
           SEVERITY_STOREABLE.join("/") + "）之内，所以这一票没有地方存 —— 不是不让你投，是存下来就会说谎"
-        : null;
+        : null);
 
   async function submit(verdict: "accept" | "reject") {
     setFormError(null);

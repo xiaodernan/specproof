@@ -5,6 +5,7 @@ import {
   ApiError,
   apiGet,
   createFindingFeedback,
+  getAuthMe,
   getJobFeedback,
   type FeedbackData,
   type FeedbackReceipt,
@@ -29,15 +30,28 @@ vi.mock("../api", async (orig) => {
     downloadCapsule: vi.fn(),
     getJobFeedback: vi.fn(),
     createFindingFeedback: vi.fn(),
+    getAuthMe: vi.fn(),
   };
 });
 
 const get = vi.mocked(apiGet);
 const loadFeedback = vi.mocked(getJobFeedback);
 const postFeedback = vi.mocked(createFindingFeedback);
+const whoami = vi.mocked(getAuthMe);
+
+
+// An identity in the shape /auth/me answers with ({principal}) but only the field
+// this page branches on. A fixture that spelled out user_id/scopes/email would
+// keep passing when PrincipalInfo grows or the page starts reading something else.
+function principalWith(roles: string[]) {
+  return { principal: { roles } } as never;
+}
 
 beforeEach(() => {
   get.mockReset();
+  whoami.mockReset();
+  // Default: an operator, a role the matrix does grant the vote (#116).
+  whoami.mockResolvedValue(principalWith(["operator"]));
   loadFeedback.mockReset();
   postFeedback.mockReset();
   localStorage.clear();
@@ -283,5 +297,99 @@ describe("FindingDetail 验收反馈入口 (#84) — Go/No-Go #13 needs a UI", (
     expect(await screen.findByText(/不存在于任务/)).toBeTruthy();
     expect(screen.queryByText("另一条风险")).toBeNull();
     expect(screen.queryByText("评审人标识")).toBeNull();
+  });
+});
+
+describe("FindingDetail 投票权限 (#116) — a button the server would refuse", () => {
+  // The page's own principle (stated above the component): a click must never be
+  // dead. Before #116 a viewer or auditor could press 接受/打回 and get a raw 403
+  // the page could not explain. The role set is the shared FEEDBACK_VOTE_ROLES
+  // derived from ROLE_MATRIX::cases:trigger by tests/unit/test_access_role_parity.py,
+  // so these expectations follow the matrix rather than a hand-typed list.
+
+  it("lets a role the matrix grants actually cast the vote", async () => {
+    localStorage.setItem("specproof_reviewer", "ana");
+    get.mockResolvedValueOnce(payload("MAJOR"));
+    render(<FindingDetail jobId="job-1" findingId="f-1" />);
+
+    const accept = (await screen.findByRole("button", {
+      name: "接受这条判定",
+    })) as HTMLButtonElement;
+    expect(accept.disabled).toBe(false);
+    expect(screen.queryByText(/可以对这条判定投票/)).toBeNull();
+    fireEvent.click(accept);
+    expect(postFeedback).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([["viewer"], ["auditor"]])(
+    "disables both buttons for %s and says why, while the ledger stays readable",
+    async (role) => {
+      whoami.mockResolvedValue(principalWith([role]));
+      loadFeedback.mockResolvedValue(
+        feedbackData([feedbackRow({ id: "b1" }), feedbackRow({ id: "b2", verdict: "reject", created_by: "bob" })], 50.0)
+      );
+      get.mockResolvedValueOnce(payload("MAJOR"));
+      render(<FindingDetail jobId="job-1" findingId="f-1" />);
+
+      const accept = (await screen.findByRole("button", {
+        name: "接受这条判定",
+      })) as HTMLButtonElement;
+      const reject = (await screen.findByRole("button", {
+        name: "打回（误报/证据不足）",
+      })) as HTMLButtonElement;
+      expect(accept.disabled).toBe(true);
+      expect(reject.disabled).toBe(true);
+      fireEvent.click(accept);
+      fireEvent.click(reject);
+      expect(postFeedback).not.toHaveBeenCalled();
+
+      const reason = await screen.findByText(/只有 admin \/ operator 可以对这条判定投票/);
+      expect(reason.textContent).toContain("不是这个页面自己定的规矩");
+      // The refusal is about the vote only — the rate and the rows must survive it.
+      expect(screen.getByText("50.0%")).toBeTruthy();
+      expect(screen.getByText("验收反馈", { selector: ".ui-term-label" })).toBeTruthy();
+    }
+  );
+
+  it.each([
+    ["refuses /auth/me", () => whoami.mockRejectedValue(new Error("no /auth/me"))],
+    ["never answers", () => whoami.mockReturnValue(new Promise<never>(() => {}))],
+  ])("stays fail-open when the identity %s", async (_label, arm) => {
+    arm();
+    localStorage.setItem("specproof_reviewer", "ana");
+    get.mockResolvedValueOnce(payload("MAJOR"));
+    render(<FindingDetail jobId="job-1" findingId="f-1" />);
+
+    const accept = (await screen.findByRole("button", {
+      name: "接受这条判定",
+    })) as HTMLButtonElement;
+    expect(accept.disabled).toBe(false);
+    expect(screen.queryByText(/可以对这条判定投票/)).toBeNull();
+  });
+
+  it("explains a 403 the page could not predict instead of printing the bare code", async () => {
+    // The disabled buttons are the page's prediction. This is the case where it
+    // is wrong for a reason the page cannot see at all: an admin whose TOKEN
+    // lacks the scope is refused by the second gate (principal_denial, api/
+    // identity/principal.py:125-132) even though the role matrix allows the vote.
+    // The envelope below is that refusal's real code and real sentence.
+    whoami.mockResolvedValue(principalWith(["admin"]));
+    localStorage.setItem("specproof_reviewer", "ana");
+    postFeedback.mockRejectedValue(
+      new ApiError(
+        403,
+        "token scopes ['cases:read'] do not cover cases:trigger; "
+        + "role ['admin'] does allow it, so mint a token with --scopes cases:trigger",
+        "TENANT_FORBIDDEN"
+      )
+    );
+    get.mockResolvedValueOnce(payload("MAJOR"));
+    render(<FindingDetail jobId="job-1" findingId="f-1" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "接受这条判定" }));
+
+    const box = await screen.findByText(/权限不足/);
+    expect(box.textContent).toContain("HTTP 403 · TENANT_FORBIDDEN");
+    expect(box.textContent).toContain("mint a token with --scopes cases:trigger");
   });
 });
