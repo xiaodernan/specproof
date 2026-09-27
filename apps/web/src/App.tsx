@@ -9,7 +9,7 @@ import { Button, CommandPalette, ErrorBoundary, Kbd, Spinner, ToastProvider } fr
 import { recordRouteVisit } from "./ui/onboarding";
 import { MoonIcon, SearchIcon, SunIcon } from "./ui/icons";
 import { ProductIcon, type ProductIconName } from "./ui/ProductIcon";
-import { AUDIT_ROLES } from "./ui/auditLabels";
+import { AUDIT_ROLES, BILLING_ROLES, IDENTITY_ROLES, roleSetAllows } from "./ui/accessRoles";
 
 const Jobs = lazy(() => import("./pages/Jobs"));
 const NewVerification = lazy(() => import("./pages/NewVerification"));
@@ -27,7 +27,14 @@ const UiKit = lazy(() => import("./ui-kit/UiKit"));
 const ModelSettings = lazy(() => import("./pages/ModelSettings"));
 const Guide = lazy(() => import("./pages/Guide"));
 
-type NavItem = { path: string; label: string; icon: ProductIconName; group: string };
+type NavItem = {
+  path: string;
+  label: string;
+  icon: ProductIconName;
+  group: string;
+  /** Roles allowed to open this surface; omitted means ungated. From ui/accessRoles.ts. */
+  roles?: readonly string[];
+};
 const NAV: NavItem[] = [
   { path: "dashboard", label: "工作台", icon: "overview", group: "工作空间" },
   { path: "jobs", label: "变更验收", icon: "verify", group: "工作空间" },
@@ -35,9 +42,9 @@ const NAV: NavItem[] = [
   { path: "matrix", label: "需求覆盖", icon: "matrix", group: "质量与证据" },
   { path: "contracts", label: "验收规则", icon: "contracts", group: "质量与证据" },
   { path: "eval", label: "效果评测", icon: "chart", group: "质量与证据" },
-  { path: "identity", label: "团队与权限", icon: "team", group: "管理" },
-  { path: "billing", label: "用量与账单", icon: "billing", group: "管理" },
-  { path: "audit", label: "审计轨迹", icon: "health", group: "管理" },
+  { path: "identity", label: "团队与权限", icon: "team", group: "管理", roles: IDENTITY_ROLES },
+  { path: "billing", label: "用量与账单", icon: "billing", group: "管理", roles: BILLING_ROLES },
+  { path: "audit", label: "审计轨迹", icon: "health", group: "管理", roles: AUDIT_ROLES },
   { path: "settings", label: "模型连接", icon: "agent", group: "管理" },
   { path: "health", label: "服务状态", icon: "health", group: "管理" },
 ];
@@ -104,14 +111,12 @@ function Workspace() {
 
   if (active === "ui-kit") return <Suspense fallback={<Spinner />}><UiKit /></Suspense>;
   if (!hasKey && active !== "guide") return <Login onConnected={() => setHasKey(true)} />;
-  const canManage = principal == null || principal.roles?.some(r => ["admin", "operator"].includes(r));
-  const canBill = principal == null || principal.roles?.some(r => ["admin", "operator", "auditor"].includes(r));
-  // Audit read is narrower than billing: admin OR auditor only, per
-  // api/routes/admin.py list_audit. The role list is imported, not retyped, so
-  // the nav cannot advertise a page the server would refuse (pinned by
-  // tests/unit/test_audit_disposition_labels.py).
-  const canAudit = principal == null || principal.roles?.some(r => AUDIT_ROLES.includes(r));
-  const nav = NAV.filter(item => (item.path !== "identity" || canManage) && (item.path !== "billing" || canBill) && (item.path !== "audit" || canAudit));
+  // A gated item is hidden unless the principal holds one of its roles, so the
+  // sidebar cannot advertise a page the server would refuse. The sets come from
+  // ui/accessRoles.ts — tests/unit/test_access_role_parity.py re-derives each
+  // one from ROLE_MATRIX applied to the calls that page actually makes.
+  const nav = NAV.filter(item =>
+    item.roles == null || principal == null || roleSetAllows(principal.roles, item.roles));
 
   return <div className="shell product-shell">
     <a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); contentRef.current?.focus(); }}>跳至主要内容</a>

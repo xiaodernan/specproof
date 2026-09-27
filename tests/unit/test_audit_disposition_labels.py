@@ -21,6 +21,9 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 LABELS = REPO / "apps" / "web" / "src" / "ui" / "auditLabels.ts"
+# #112 moved the audit role set next to the other two governed surfaces, so the
+# three cannot carry different copies; the block below keeps pinning it.
+ACCESS_ROLES = REPO / "apps" / "web" / "src" / "ui" / "accessRoles.ts"
 ADMIN_ROUTE = REPO / "api" / "routes" / "admin.py"
 
 from storage.mysql import (  # noqa: E402 — after path setup for symmetry
@@ -32,7 +35,7 @@ from storage.mysql import (  # noqa: E402 — after path setup for symmetry
 )
 
 _DISPOSITION_KEY_RE = re.compile(r"^  ([a-z_]+): \{$", re.MULTILINE)
-_ROLES_RE = re.compile(r"AUDIT_ROLES: string\[\] = \[([^\]]*)\]")
+_ROLES_RE = re.compile(r"AUDIT_ROLES: readonly string\[\] = \[([^\]]*)\]")
 _HANDLER_ROLES_RE = re.compile(
     r'@admin_router\.get\("/audit"\).*?_assert_role\(\s*principal,\s*frozenset\(\{([^}]*)\}\)',
     re.DOTALL,
@@ -53,8 +56,8 @@ def fe_dispositions() -> set[str]:
 
 
 def fe_roles() -> set[str]:
-    match = _ROLES_RE.search(_labels_text())
-    assert match, "AUDIT_ROLES not found in auditLabels.ts"
+    match = _ROLES_RE.search(ACCESS_ROLES.read_text(encoding="utf-8"))
+    assert match, "AUDIT_ROLES not found in ui/accessRoles.ts"
     return {s.strip().strip('"') for s in match.group(1).split(",") if s.strip()}
 
 
@@ -129,7 +132,8 @@ def test_the_role_gate_is_narrower_than_billing_on_purpose() -> None:
     roles = server_roles_for_audit()
     assert "operator" not in roles, (
         f"the audit handler now accepts operator {sorted(roles)}; update "
-        "auditLabels.ts and DATA_DICTIONARY §1.8 together, not one alone"
+        "ui/accessRoles.ts (AUDIT_ROLES) and DATA_DICTIONARY §1.8 together, "
+        "not one alone — #112 moved the list out of auditLabels.ts"
     )
     assert roles == {"admin", "auditor"}
 

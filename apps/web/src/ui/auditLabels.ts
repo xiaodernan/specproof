@@ -53,7 +53,7 @@ export function auditDispositionKeys(): string[] {
   return Object.keys(AUDIT_DISPOSITIONS);
 }
 
-// RBAC per api/routes/admin.py list_audit: admin OR auditor only — operator is
-// deliberately not included, unlike the billing console. The Python parity
-// gate reads the handler's own frozenset and fails if these two drift.
-export const AUDIT_ROLES: string[] = ["admin", "auditor"];
+// RBAC for the audit trail (admin OR auditor, operator deliberately excluded)
+// lives in ui/accessRoles.ts with the other two governed surfaces, so the
+// sidebar and this page cannot carry different copies. The parity gate there
+// re-derives it from ROLE_MATRIX.

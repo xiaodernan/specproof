@@ -13,7 +13,8 @@ import {
   fmtTime,
   shortId,
 } from "../ui";
-import { AUDIT_ROLES, auditDisposition } from "../ui/auditLabels";
+import { auditDisposition } from "../ui/auditLabels";
+import { AUDIT_ROLES } from "../ui/accessRoles";
 
 // Wire shape mirrors GET /api/v1/admin/audit (api/routes/admin.py), whose rows
 // come from storage/mysql.py::audit_trail. `job_disposition` is stamped

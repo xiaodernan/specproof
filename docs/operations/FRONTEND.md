@@ -40,6 +40,10 @@
 - 所有 /api/v1/* 与 /jobs/* 走 require_api_key (fail-closed) +
   enforce_rate_limit (Redis 计数, fail-open)。
 - SPECPROOF_API_KEY 未配置 -> 503; 密钥错误/缺失 -> 401。
+- 侧栏三张受管页 (团队与权限 / 用量与账单 / 审计轨迹) 的可见性只看
+  `src/ui/accessRoles.ts` 一处声明:名单的值不由前端手写,`tests/unit/test_access_role_parity.py`
+  按「页面实际发出的 /api 请求 -> classify_request -> ROLE_MATRIX」逐格反推后对账,
+  改矩阵或让页面多发一个越权请求都会当场红。UI 门只是体验,服务端独立强制。
 - EventSource 无法设置请求头: SSE 进度流 /jobs/{id}/progress 支持
   ?key=<api-key> 或 ?api_key=<api-key> 查询参数 (api/auth.py 的最小适配,
   恒定时间比较; 本应用不记录查询串)。普通 fetch 一律走 X-API-Key 头。

@@ -9,6 +9,7 @@ import {
 } from "../api";
 import type { PrincipalInfo } from "../api";
 import type { Column } from "../ui";
+import { BILLING_ROLES } from "../ui/accessRoles";
 import {
   Empty,
   ErrorBox,
@@ -65,10 +66,8 @@ interface BillingData {
   invoices: Invoice[];
 }
 
-// billing:read roles per the §2 RBAC matrix; viewer is refused with
-// TENANT_FORBIDDEN by the middleware and by every handler, so the UI gate
-// mirrors that exact role set (auditor included).
-const BILLING_ROLES = ["admin", "operator", "auditor"];
+// The role set is the shared one in ui/accessRoles.ts (billing:read), which the
+// sidebar uses for the same page; App.tsx used to carry its own copy of it.
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
 function currentMonth(): string {

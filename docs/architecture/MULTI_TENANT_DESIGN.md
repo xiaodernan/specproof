@@ -18,10 +18,18 @@ Python API 单租户默认; 无 OIDC/RBAC 矩阵。目标: Python API + Web 全�
 | admin | 全 | 全 | 全 | 全 |
 | operator | 全 | 读+触发 | 读 | 用户/Token 管理 |
 | viewer | 读 | 读 | 无 | 无 |
-| auditor | 读(全租户审计视图) | 读+验签 | 读 | 无 |
+| auditor | 读(全租户审计视图) | 读+验签 | 读 | 审计视图(admin:audit) |
 
 资源级权限: 所有查询强制 tenant_id 过滤; 跨租户访问一律 404 (不暴露存在性),
 审计记录拒绝尝试 (audit 事件带 attempted_tenant)。
+
+* 本表是 `api/identity/principal.py::ROLE_MATRIX` 的人读副本。两侧不由同一只手维护过,
+  所以有门对账:`tests/unit/test_access_role_parity.py` 从 matrix 反推前端三张角色名单,
+  `tests/unit/test_rbac_cells_reach_routes.py` 核对单元与路由,`docs/api/auth/README.md`
+  是同一规则的第三份副本。
+  本表 admin 列的 auditor 格写「无」已经与源码矛盾:`git log -S` 显示 matrix 的
+  `admin: frozenset({"audit"})` 与 README 那格的「审计视图」同出于 0d85586,本表当时没跟上;
+  #96 让 auditor 真能在产品里读审计轨迹之后,这格矛盾才变成读者会踩的坑。矛盾是实测到的。
 
 ## 3. 数据模型 (MySQL 迁移)
 
