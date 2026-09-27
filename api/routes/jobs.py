@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from api.auth import enforce_rate_limit, require_api_key
 from api.errors import JOB_NOT_FOUND, PROVIDER_UNAVAILABLE, STATE_CONFLICT, ApiError
-from storage.mysql import MySQLStore
+from storage.mysql import ALL_STATUSES, MySQLStore
 from storage.redis import RedisStore
 
 logger = logging.getLogger(__name__)
@@ -183,10 +183,14 @@ def list_jobs(
     """List the most recent verification jobs."""
     try:
         store = MySQLStore()
-        if status is not None and status not in {
-            "QUEUED", "RUNNING", "PENDING", "WAITING_FOR_PROVIDER", "VERIFIED",
-            "BLOCKED", "FAILED", "ERROR", "CANCELLED", "UNVERIFIED", "INCONCLUSIVE",
-        }:
+        # The accepted set is DERIVED from the state machine, not re-typed.
+        # A hand-written copy here had drifted both ways: it accepted
+        # UNVERIFIED/INCONCLUSIVE (never job statuses ⇒ the filter silently
+        # matched nothing while the page reported "no results") and rejected
+        # STALE with a 422 — STALE being a real terminal status this system
+        # writes. Rejecting an unknown word loudly is the point: a filter that
+        # cannot match must fail, not answer "nothing found".
+        if status is not None and status not in ALL_STATUSES:
             raise HTTPException(422, "Unknown job status filter")
         # One query shape for every caller. The old fork answered a bare
         # GET /jobs from a SELECT with no COUNT, so that response had no

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, type Job } from "../api";
-import { Button, ErrorBox, Panel, STATUS_LABELS, Spinner, StatusPill, statusLabel, Table, fmtTime, shortId } from "../ui";
+import { Button, ErrorBox, JOB_STATUSES, Panel, Spinner, StatusPill, statusLabel, Table, fmtTime, shortId } from "../ui";
 import "../styles/verification.css";
 
 const PAGE_SIZE = 25;
@@ -86,7 +86,7 @@ export default function Jobs() {
       <Panel title="验证记录" right={<div className="verification-toolbar">
         <input aria-label="搜索验证" type="search" maxLength={256} placeholder="搜索项目、分支或任务编号" value={textFilter} onChange={(e) => setTextFilter(e.target.value)} />
         <select aria-label="验证状态" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
-          <option value="ALL">全部状态</option>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          <option value="ALL">全部状态</option>{JOB_STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
         </select>
         <Button variant="ghost" size="sm" loading={refreshing} onClick={() => setRefresh((value) => value + 1)}>刷新</Button>
       </div>}>

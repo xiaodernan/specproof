@@ -116,6 +116,22 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
 
 TERMINAL_STATUSES = {"VERIFIED", "BLOCKED", "STALE", "CANCELLED", "ERROR"}
 
+#: Every status this state machine can name: the keys of _VALID_TRANSITIONS
+#: (states a row can hold) plus every value (states reachable from one).
+#:
+#: Exported so callers that must accept a status FROM A USER — the
+#: `GET /jobs?status=` filter — do not keep a second hand-written copy. That
+#: copy had drifted both ways: it accepted UNVERIFIED and INCONCLUSIVE (matrix
+#: / verdict words, never a job status, so the query silently matched nothing
+#: and the page said "no results" for a filter that cannot mean anything) while
+#: REJECTING STALE with a 422 — and STALE is a real terminal status this module
+#: writes. Derived, never re-typed: a new state added to the machine above is
+#: immediately filterable, and a word that is not a state is immediately
+#: rejected. tests/unit/test_job_status_channel_parity.py locks both directions.
+ALL_STATUSES: Final[frozenset[str]] = frozenset(_VALID_TRANSITIONS) | frozenset(
+    set().union(*_VALID_TRANSITIONS.values())
+)
+
 #: Audit action written when the stale-RUNNING reclaimer returns a job to QUEUED.
 RECLAIM_STALE_RUNNING_ACTION = "job_reclaimed_stale_running"
 #: last_error reason when a WAITING_FOR_PROVIDER job has spent its retry budget.

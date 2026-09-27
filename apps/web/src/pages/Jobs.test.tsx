@@ -60,3 +60,40 @@ describe("verification history", () => {
     expect(screen.queryByText("正在验证")).toBeNull();
   });
 });
+
+describe("status filter offers only real statuses", () => {
+  it("includes every status the state machine can name, STALE included", async () => {
+    get.mockResolvedValue({ jobs: [], total: 0 });
+    render(<Jobs />);
+    const select = await screen.findByRole("combobox", { name: "验证状态" });
+
+    const values = Array.from(select.querySelectorAll("option")).map(
+      (o) => (o as HTMLOptionElement).value
+    );
+    // storage/mysql.py::ALL_STATUSES — the dropdown is built from the same set.
+    for (const status of [
+      "PENDING", "QUEUED", "RUNNING", "WAITING_FOR_PROVIDER",
+      "VERIFIED", "BLOCKED", "FAILED", "ERROR", "CANCELLED", "STALE",
+    ]) {
+      expect(values).toContain(status);
+    }
+    // STALE is a real terminal status; it used to be missing from the dropdown
+    // AND rejected with a 422 if you typed it into the URL yourself.
+    expect(screen.getByRole("option", { name: "已过期" })).toBeTruthy();
+  });
+
+  it("never offers a verdict word as a status filter", async () => {
+    get.mockResolvedValue({ jobs: [], total: 0 });
+    render(<Jobs />);
+    const select = await screen.findByRole("combobox", { name: "验证状态" });
+
+    const values = Array.from(select.querySelectorAll("option")).map(
+      (o) => (o as HTMLOptionElement).value
+    );
+    // UNVERIFIED/INCONCLUSIVE are matrix/verdict words: offering them sent a
+    // filter that could not match anything, so the page said "没有找到".
+    expect(values).not.toContain("UNVERIFIED");
+    expect(values).not.toContain("INCONCLUSIVE");
+    expect(screen.queryByRole("option", { name: "证据不足" })).toBeNull();
+  });
+});

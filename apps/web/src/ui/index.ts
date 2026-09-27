@@ -16,7 +16,7 @@ export {
 } from "./preflight";
 export { Spinner } from "./Spinner";
 export { StatCard, type StatTone } from "./StatCard";
-export { StatusPill, statusLabel, STATUS_LABELS } from "./StatusPill";
+export { StatusPill, statusLabel, STATUS_LABELS, JOB_STATUSES } from "./StatusPill";
 export { fmtPct, fmtTime, kv, shortId, verdictTone, verdictLabel } from "./util";
 export {
   attributionLabel, checkerLabel, contractStatusLabel, CONTRACT_STATUS_CN,

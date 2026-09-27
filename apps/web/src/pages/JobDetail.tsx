@@ -30,7 +30,16 @@ interface Summary {
 type Tab = "overview" | "stages" | "findings" | "certificate";
 const ACTIVE = new Set(["QUEUED", "RUNNING", "PENDING", "WAITING_FOR_PROVIDER"]);
 const TERMINAL = new Set(["VERIFIED", "BLOCKED", "STALE", "CANCELLED", "ERROR"]);
+// Guidance for each job STATUS the API can report. Keyed by
+// storage/mysql.py::ALL_STATUSES — a status with no entry here falls back to
+// the generic line below, so the map must cover all ten. PENDING is the status
+// EVERY job starts in (storage/mysql.py writes 'PENDING' on insert) and was
+// missing, so a freshly created job showed the generic fallback; UNVERIFIED was
+// present but is not a job status at all (RUNNING never transitions to it — it
+// is a verdict/matrix word), i.e. an entry no job could ever reach.
+// tests/unit/test_job_status_channel_parity.py locks both directions.
 const STATUS_HELP: Record<string, [string, string]> = {
+  PENDING: ["验证已创建，正在排队", "系统已受理，等待执行服务接手。进度会自动出现在这里，可以先离开。"],
   QUEUED: ["验证已创建，等待执行", "执行服务接手后，进度会自动出现在这里。可以先离开，稍后从验证记录继续查看。"],
   RUNNING: ["正在检查代码与需求", "系统正在分析改动、收集证据并核对需求。完成后会自动更新结论。"],
   WAITING_FOR_PROVIDER: ["正在等待模型服务", "任务已保存，模型服务恢复可用后将继续处理。"],
@@ -40,7 +49,6 @@ const STATUS_HELP: Record<string, [string, string]> = {
   CANCELLED: ["验证已取消", "本次执行已停止，需要继续时可以创建新的验证任务。"],
   STALE: ["本次验证已过期", "代码版本可能已变化，请基于最新提交重新验证。"],
   ERROR: ["执行遇到错误", "请查看错误原因，处理执行环境或服务问题后重新验证。"],
-  UNVERIFIED: ["目前证据不足", "部分需求尚无法确认，请查看未验证项，并补充验收条件、测试或执行环境。"],
 };
 
 // Verification depth arrives as an English enum (FAST / STANDARD / DEEP). Gloss

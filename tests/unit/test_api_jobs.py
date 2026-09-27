@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 import api.routes.jobs as jobs_module
 from api.server import app
+from storage.mysql import ALL_STATUSES
 
 API_KEY = "test-api-key-123456"
 
@@ -178,6 +179,34 @@ def test_list_jobs_rejects_unbounded_queries(fake_mysql, limit):
     client = TestClient(app)
     response = client.get(f"/jobs?limit={limit}", headers=_headers())
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("status", sorted(ALL_STATUSES))
+def test_list_jobs_accepts_every_status_the_state_machine_can_name(
+    fake_mysql, status
+):
+    """The filter accepts exactly the statuses a row can hold.
+
+    A hand-written copy of this list once drifted in BOTH directions: it
+    accepted UNVERIFIED and INCONCLUSIVE (matrix/verdict words, never a job
+    status, so the query silently matched nothing while the page reported "no
+    results") and it REJECTED STALE with a 422 — and STALE is a real terminal
+    status this system writes.
+    """
+    client = TestClient(app)
+    response = client.get(f"/jobs?status={status}", headers=_headers())
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("status", ["UNVERIFIED", "INCONCLUSIVE", "MAYBE"])
+def test_list_jobs_rejects_a_word_that_is_not_a_status(fake_mysql, status):
+    """Failing loudly is the point: a filter that cannot match anything must
+    say so, not answer "nothing found" — that answer is indistinguishable from
+    a real empty result."""
+    client = TestClient(app)
+    response = client.get(f"/jobs?status={status}", headers=_headers())
+    assert response.status_code == 422
+    assert "Unknown job status filter" in response.text
 
 
 def test_submission_trims_copied_paths_and_rejects_blank_values(fake_mysql):
