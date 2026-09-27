@@ -26,8 +26,9 @@ Python API 单租户默认; 无 OIDC/RBAC 矩阵。目标: Python API + Web 全�
 * 本表是 `api/identity/principal.py::ROLE_MATRIX` 的人读副本。两侧不由同一只手维护过,
   所以有门对账:`tests/unit/test_access_role_parity.py` 从 matrix 反推前端三张角色名单,
   `tests/unit/test_rbac_cells_reach_routes.py` 核对单元与路由,`docs/api/auth/README.md`
-  是同一规则的第三份副本。
-  本表 admin 列的 auditor 格写「无」已经与源码矛盾:`git log -S` 显示 matrix 的
+  是同一规则的第三份副本。两张表的表头定列、措辞定动作集合,每一格都与 matrix 逐格
+  比对:`tests/unit/test_rbac_doc_tables_match_matrix.py`(#114)。
+  本表 admin 列的 auditor 格曾写「无」,那与源码矛盾:`git log -S` 显示 matrix 的
   `admin: frozenset({"audit"})` 与 README 那格的「审计视图」同出于 0d85586,本表当时没跟上;
   #96 让 auditor 真能在产品里读审计轨迹之后,这格矛盾才变成读者会踩的坑。矛盾是实测到的。
 
