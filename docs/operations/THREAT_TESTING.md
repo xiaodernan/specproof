@@ -21,7 +21,7 @@
 craft/executor.py 的 Executor, 而它从不为命令传 profile, run_sandboxed 的默认
 profile 只有 Maven —— 把这条路径直接改成 docker 会让 pytest/npm test 跑进 java
 镜像, 以错误的原因失败。因此 api/agent_runtime.py 的 CraftLoop 仍显式跑 local,
-但自 #127 起必须把「这条缓解未生效」写进作业日志 (craft_plane_decision),
+但自 #128 起必须把「这条缓解未生效」写进作业日志 (craft_plane_decision),
 tests/unit/test_craft_plane_discloses_the_deployment_pin.py 钉住三端: 代码读的
 旋钮名 = compose 设的旋钮名、note 只在钉了非 local 面时出现且点出 profile 这个
 前置条件、CraftLoop 的 exec_mode 不许再写死字面量。要真正消除这个缺口, 前置是

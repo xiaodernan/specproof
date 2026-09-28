@@ -474,3 +474,39 @@ ts/level/logger/message，所以事实必须写在 message 里——这条前提
 2. `table.data` 只剩 Dashboard 一个生产者；`base.css:1402-1411` + `product.css:176-177` 这七行样式等它一起收。
 3. 本批改过 `helpers.ts` 与配置后，其余 e2e 场景（wizard/detail/permissions/degradation）还没跟跑过；按「不全量回归」
    的口径，在下一次改动它们之前单独跑一遍确认没被 240s/120s/domcontentloaded 影响到。
+
+### 2026-09-29：部署钉的 docker 从不覆盖「改代码」这条路，所以先把「未生效」说出来（#128）
+
+**编号更正（先说，免得后来人按错号找）**：本里程碑的提交 `f2a6cb7` 写的是 `#127`，但 `#127` 已被 `a31c192` 那一节（「一个叫 `query` 的参数不是「SQL 文本」的证据」）占用并已推送。已推送的提交信息不改写；**本条是权威编号：后续一律引用 `#128`**（`THREAT_TESTING.md` §1 与门文件的 docstring 已同步改掉）。撞号这件事没有任何门能发现——仓库里没有「里程碑编号唯一」这本账（见文末下一批第 3 项）。
+
+**量到的事实（逐条读自源码/日志，不是推测）**：
+
+- `compose.production.yml` 的 worker 钉了 `SPECPROOF_SANDBOX=docker`；`tests/fault/test_malicious_build.py::TestProductionPinsDockerMode` 断言的**只是这个 YAML 字符串等于 `docker`**。
+- `docs/operations/THREAT_TESTING.md` §1 把这条钉列为它自己钉住的缺口「显式 local 模式无隔离」的**缓解事实**。
+- 但产品里真正改代码的那条路径——`api/agent_runtime.py` 构造 `CraftLoop`——传的是字面量 `exec_mode="local"`，而 `Executor` 的读取规则是 `mode or getenv(SANDBOX_MODE_ENV, "auto")`：显式 `mode=` 让 env 永远读不到 ⇒ **这条缓解对该路径从未生效**，而唯一的门只证明 YAML 里那个字符。
+- 不能直接把钉 honour 掉：`run_sandboxed` 的 profile 默认来自 `_profile_from_env()`——无参数、无条件返回 `MAVEN_PROFILE`，且全仓库没有任何 `run_sandboxed` 调用点传 `profile=`。pytest/npm test 进 java 镜像会以**错误的理由**失败。所以本批做的是**披露**：`craft_plane_decision()` 返回 `(plane, note)`，note 点名「未生效的缓解 + 它的前置条件」；`agent_runtime` 用它取代硬编码的 `local` 并 `logger.warning`（已验证 `observability/logging.py::JsonFormatter` 只渲染 ts/level/logger/message ⇒ 事实必须写在 message 正文里，否则日志里等于没说）。
+
+**门与见证**：新门 `tests/unit/test_craft_plane_discloses_the_deployment_pin.py` 7 例 = `7 passed in 62.22s`；受影响面（`test_agent_runtime` + `test_runbook_claims_hold` + `test_malicious_build`）= `32 passed in 236.09s`，exit 0；`ruff` 三个改动文件 All checks passed；`mypy craft/executor.py api/agent_runtime.py` = Success（2 files）。四臂**全部按事前预测红**：
+
+| 臂 | 红数 | 红的案例（逐字） |
+|---|---|---|
+| control（未变异） | 0 | — |
+| `arm_runtime`（把 `exec_mode` 写回字面量） | 1 | `test_the_runtime_asks_instead_of_inventing_a_plane` |
+| `arm_env_name`（改旋钮名） | 1 | `test_the_pin_reader_reads_the_env_the_deployment_sets` |
+| `arm_no_note`（note 置空） | 2 | `test_a_pinned_sandbox_is_disclosed_as_not_in_effect`、`test_the_disclosure_survives_the_json_formatter` |
+| `arm_profile_kw`（给调用点加 `profile=`） | 1 | `test_the_note_blames_a_prerequisite_that_really_holds` |
+
+⇒ 4/4 捕获，每条红都命中它 aimed 的那一条款。
+
+- **我自己脚本的测量缺陷（记录，不隐瞒）**：`arm127.py` 四条腿全报 RESTORE FAILED（sha 不符）。查因而非直接重试：HEAD blob 与工作树文件都 CR=0、`core.autocrlf=true`、`git diff --stat` 只有预期的 +36/−2 ⇒ 是 `write_text(..., newline="")` 把工作树的 CRLF 抹平成 LF，我的字节校验比 git 还严。内容未坏；还原证明要按 git 平面重做，不能用我自己的字节口径。
+
+**#126 h 的机制已定，LF/CRLF 假设被否证**：CI run 36480857832 汇总行 `5 failed, 3322 passed, 27 skipped in 488.82s`，且红成员在多次 run 之间轮转（`5 failed/3317`、`4 failed/3311`、更早一次 9 红）——所以「哪五条红」不是线索，「红为什么存在」才是。#126 g 落地的终态日志在 CI 上确实生效，逐字为 `check='test_green' exit_code=1 mode='local'`，配的是真实断言失败正文 ⇒ 幸存的 craft 红是**「编辑从未落地」**，不是执行面或超时的假象。另用 `.scratch/test_lf_probe.py` 把同一 fixture 分别按 LF 与 CRLF 各跑一遍：两面都收敛 `DONE`、`llm_calls: 1` ⇒ **换行符假设否证**。仍未解释的形状是 `IndexError: pop from empty list`：脚本化 stub provider 被询问的次数比测试脚本案数多一次，下一站按 `_llm_fix` 的无响应分支插桩（任务 #112）。
+
+**下一批（按顺序，不并行跳）**：
+
+1. `Executor` 按命令词干选 profile（mvn→MAVEN / pytest·python→PYTHON / npm→NODE）；只有做完这一步才允许 craft 这条路尊重钉值，并且同一条门要把 note 从「未生效」翻转成「已生效」——翻转本身就是新证据。
+2. `agent/repo_safety.py` 的两个 arming 旋钮（`SPECPROOF_EXEC_MODE`、`SPECPROOF_ALLOWED_ROOT`）**全仓库无人设置**：`DEFAULT_EXEC_MODE = "local"` ⇒ 它自己的 fail-closed sandbox 分支是死代码，`execution_mode_signal` 在生产里以「local mode: host filesystem access allowed」通过。这是 fail-open，与 #128 同族但不是同一件事，必须单独量、单独落。
+3. 里程碑编号没有登记处：本轮的 `#127` 撞号只能靠人肉 `git log` 发现。要么加一本「编号唯一」的账（种群读 git log 的号集合，两端都钉），要么换成别的锚；现在这类引用是无人核对的。
+4. 仍然欠着的止血项：`tests-with-infra`（`docker compose up -d --wait`，minio unauthorized）、`eval-golden-cases`（Maven cache 播种 exit 126）、`test_slow_marker_tagging` 的 180s 预算还没按实测处理。
+
+**落地后补记（属于上面「门与见证」，因为它是提交之后才量到的）**：本批的见证驱动器 `.scratch/arm127.py` 第 129 行是 `text=True` 而不写 `encoding=`，被 #111 那条普查门算进仓库债务，于是 `test_the_rest_of_the_repo_cannot_grow_the_debt` 报 **55 unpinned child captures (ceiling 54)**，offender 逐字 `.scratch/arm127.py:129`。普查走的是工作树而不是 git，所以未跟踪的 scratch 也算数，CI（全新 clone）永远复现不出这个数。**没有抬 ceiling**：给那一行补 `encoding="utf-8"` 后重跑 = `11 passed in 32.63s`（4 条普查 + 7 条本批门）。口径与 `#126 d` 同源——本地量到的 debt 计数含未跟踪文件时就不是可归因的仓库数字；但这一次不必删证据，**把驱动器本身写成守规矩的形状更好**：它跑的正是 #111 立的规则，自己不该成为 offender。
