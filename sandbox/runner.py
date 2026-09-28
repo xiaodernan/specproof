@@ -285,6 +285,21 @@ def bound_output(
     bounded = text[:head_chars] + truncation_marker(dropped) + text[-tail_chars:]
     return bounded, True, dropped
 
+def timed_out_partial(value: object) -> str:
+    """The output a `TimeoutExpired` carries, whichever OS filled it.
+
+    `text=True` translates the pipes on the normal return path, but the POSIX
+    timeout path re-raises with the raw accumulated BYTES in `exc.stdout`,
+    while Windows re-runs `communicate()` and gets `str`. Treating only `str`
+    as usable silently threw away the whole partial output of every workload
+    killed by the timeout on Linux — and the docker branch is the production
+    default, so the evidence loss was the normal path there.
+    """
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value if isinstance(value, str) else ""
+
+
 # Pull attempts are cached per image for the life of the process: a registry
 # outage must cost ONE failed pull (a few seconds), not a hanging 900s pull per
 # invocation. Keyed BY IMAGE, not a single process-wide flag — with more than
@@ -468,8 +483,8 @@ def _run_docker(
         # Preserve whatever the workload already emitted before the kill —
         # the honest partial output beats a silent empty result (bounded,
         # so a flood interrupted by the kill cannot balloon the worker).
-        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
-        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        stdout = timed_out_partial(exc.stdout)
+        stderr = timed_out_partial(exc.stderr)
         stdout, out_trunc, out_dropped = bound_output(stdout)
         stderr, err_trunc, err_dropped = bound_output(stderr)
         return SandboxResult(
@@ -591,8 +606,8 @@ def _run_local(
         # Preserve whatever the workload already emitted before the kill —
         # the honest partial output beats a silent empty result (bounded,
         # so a flood interrupted by the kill cannot balloon the worker).
-        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
-        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        stdout = timed_out_partial(exc.stdout)
+        stderr = timed_out_partial(exc.stderr)
         stdout, out_trunc, out_dropped = bound_output(stdout)
         stderr, err_trunc, err_dropped = bound_output(stderr)
         return SandboxResult(
