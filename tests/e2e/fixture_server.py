@@ -110,6 +110,28 @@ _MATRIX_ROWS: list[dict[str, Any]] = [
 
 _STATUS_ROWS: list[dict[str, Any]] = [{"status": "VERIFIED", "n": 1}]
 
+#: One reviewer row whose 理由 is a single unbroken run of 300 characters — the
+#: shape a hand-rolled <table class="data"> has no container to hold, and the
+#: reason pages/FindingDetail.tsx moved its reviewer ledger to ui/Table (#122).
+#: It lives here, in the fixture, so the long-text scenario measures the REAL
+#: page in a REAL browser instead of asserting a DOM shape and calling it layout.
+_LONG_REASON = "证据不足：" + "A" * 300
+
+_FEEDBACK_ROWS: list[dict[str, Any]] = [
+    {
+        "id": "fb-1",
+        "job_id": JOB_ID,
+        "tenant_id": None,
+        "finding_id": "f-1",
+        "contract_id": "AUTH-02",
+        "severity": "MAJOR",
+        "verdict": "reject",
+        "reason": _LONG_REASON,
+        "created_by": "e2e-admin",
+        "created_at": "2026-08-17T09:00:00+00:00",
+    }
+]
+
 _STAGE_EVENTS: list[dict[str, Any]] = [
     {
         "id": "0-1",
@@ -233,6 +255,48 @@ class FakeMySQLStore:
     def record_audit(self, **_: Any) -> None:
         return None
 
+    def list_feedback(self, job_id: str) -> list[dict[str, Any]]:
+        return [dict(row) for row in _FEEDBACK_ROWS if row["job_id"] == job_id]
+
+    def insert_feedback(self, feedback: dict[str, Any]) -> dict[str, Any]:
+        """Mirror the real upsert: one row per (finding, reviewer).
+
+        The route copies this return value straight into its 201 body, so a fake
+        that echoed only an id would make the endpoint look like it worked while
+        dropping the created/replaced/unchanged distinction migration 0012
+        exists to expose -- the SPA uses ``state`` to decide whether it counted
+        a new vote or restated one.
+        """
+        for index, row in enumerate(_FEEDBACK_ROWS):
+            same_reviewer = (
+                row["finding_id"] == feedback["finding_id"]
+                and row["created_by"] == feedback["created_by"]
+            )
+            if not same_reviewer:
+                continue
+            unchanged = (
+                row["verdict"] == feedback["verdict"]
+                and row["reason"] == feedback["reason"]
+            )
+            _FEEDBACK_ROWS[index] = {**row, **feedback}
+            return {"state": "unchanged" if unchanged else "replaced", "id": row["id"]}
+        stored = {"id": "fb-" + str(len(_FEEDBACK_ROWS) + 1), **feedback}
+        _FEEDBACK_ROWS.append(stored)
+        return {"state": "created", "id": stored["id"]}
+
+    def feedback_stats(self, job_id: str) -> dict[str, Any]:
+        rows = self.list_feedback(job_id)
+        accepted = sum(1 for r in rows if r["verdict"] == "accept")
+        rejected = sum(1 for r in rows if r["verdict"] == "reject")
+        total = accepted + rejected
+        return {
+            "job_id": job_id,
+            "accepted": accepted,
+            "rejected": rejected,
+            "no_feedback_not_counted": True,
+            "acceptance_rate_pct": None if total == 0 else round(100.0 * accepted / total, 1),
+        }
+
     def search_jobs(
         self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
     ) -> dict[str, Any]:
@@ -285,11 +349,18 @@ def _install_fakes() -> None:
     """Swap storage backends behind the route modules (unit-test technique)."""
     from unittest.mock import patch
 
+    import api.routes.feedback as feedback_module
     import api.routes.jobs as jobs_module
     import api.routes.web as web_module
     import storage.mysql as mysql_module
     import storage.redis as redis_module
 
+    # Measured 2026-09-29: feedback.py was the one route module whose
+    # MySQLStore was left unpatched. GET /api/v1/jobs/{id}/feedback then built
+    # a REAL MySQLStore against no MySQL, so the SPA's 验收反馈 panel sat on
+    # "加载中" until the test timed out -- an e2e scenario that looked like a UI
+    # bug while the fixture was simply not stubbing this module.
+    patch.object(feedback_module, "MySQLStore", FakeMySQLStore).start()
     patch.object(mysql_module, "MySQLStore", FakeMySQLStore).start()
     patch.object(redis_module, "RedisStore", FakeRedisStore).start()
     patch.object(jobs_module, "MySQLStore", FakeMySQLStore).start()

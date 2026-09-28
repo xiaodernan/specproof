@@ -10,7 +10,12 @@ export default defineConfig({
   testDir: ".",
   outputDir: "test-results",
   testMatch: /(wizard|detail|permissions|longtext)\.spec\.ts/,
-  timeout: 60_000,
+  // Measured 2026-09-29: with a parallel full pytest gate running, Vite's first
+  // on-demand transform of the SPA alone exceeded the 60_000 this replaced, so a
+  // scenario failed at `page.goto` before it ever reached its subject. 120s
+  // still fails a real hang; it stops failing the first page load on a loaded
+  // developer machine.
+  timeout: 120_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,

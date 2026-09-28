@@ -11,6 +11,17 @@
 | 详情 detail | detail.spec.ts | 验证任务详情页渲染矩阵摘要 (Verdict/PASS/FAIL/UNVERIFIED)、证据与产物 (报告路径)、阶段时间线、Findings、证书文档; 需求矩阵页渲染合约行 |
 | 权限 permissions | permissions.spec.ts | W37 身份 UI: admin 可见身份控制台 (新建用户/角色管理); viewer 看不到 admin 专属控件 (身份页无权限提示 + 控件不渲染, 侧栏入口随 App.tsx 导航门隐藏或点击后仍被拦; 只读页面仍可用); 未认证访客只能看到登录门 |
 | 降级 degradation | degradation.spec.ts | 后端完全不启动: 登录页/总览/任务/向导均渲染优雅错误提示 (data-testid=errorbox), 无白屏; 应用级 ErrorBoundary 兜底渲染崩溃 |
+| 长理由 longtext | longtext.spec.ts | #122: 一条 305 字符不换行的验收理由, 在风险详情页里必须"够得到"——最近的裁剪祖先是有滚动条的 `.ui-table-wrap`, 而不是 `.panel{overflow:hidden}` 那种直接截断; 同一次运行里把同样的字符串塞回旧markup (`<table class="data">`) 作为对照臂, 断言它确实被截断 |
+
+### 长理由场景为什么要有对照臂
+
+测出来的事实和 #122 最早的叙述不一样: `.panel { overflow: hidden }` (styles/base.css:1369) 会先把溢出裁掉,
+所以"长理由把整页撑宽"在这类面板里**不成立**; 真正的用户可见损失是"被截断且没有滚动条够得到"。
+因此断言的判据是**可达性**(最近的裁剪祖先是谁、它的 `overflow-x` 是 `auto` 还是 `hidden`), 而且每条断言都配一个
+**对照臂**: 同一浏览器、同一套 CSS、同一串字符, 只把 markup 换成这一页原来的手写表格。没有对照臂, 真臂的绿色
+可能只是"这条断言什么都没测"。实测(2026-09-29): 真臂 clipper = `.ui-table-wrap` `overflow-x:auto`
+(clientWidth 936 / scrollWidth 2821); 对照臂 clipper = `.panel` `overflow-x:hidden`, 表格宽 > 面板宽却无处可滚。
+把 `.ui-table-wrap` 的 `overflow` 改成 `hidden` 再跑, 真臂会在预测的那一行红掉(见本套件提交说明)。
 
 ## 架构: 真实应用, 不 mock DOM
 

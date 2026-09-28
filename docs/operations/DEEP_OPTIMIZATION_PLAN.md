@@ -431,3 +431,46 @@ ts/level/logger/message，所以事实必须写在 message 里——这条前提
 4. #53 的 180s collect-only 预算、`tests-with-infra`（minio unauthorized）、`eval-golden-cases`
    （Maven cache 播种 exit 126）仍未处理。
 5. 别碰 `apps/web/**` 与 `tests/unit/test_hand_written_table_ledger.py`（并发的 #122 会话拥有它们）。
+
+### 2026-09-29：#122 的布局级证据——真浏览器里量到的不是「撑宽」，而是「够不到」
+
+- 这是本线程唯一还没兑现的那类证据（前四处的判据都是结构级）。真浏览器跑 `tests/e2e/longtext.spec.ts`：
+  风险详情页 + fixture 里一条 305 字符不换行的理由。
+- **先说被推翻的前提**：#122 的叙述是「长理由把页面撑宽」。实测（1280 视口，chromium headless）**不成立**：
+  `.panel { overflow: hidden }`（`styles/base.css:1369`）会先把溢出裁掉，而壳层真正的滚动容器是
+  `.content { overflow-y: auto }`（`base.css:1363`，按规范 overflow-x 计算成 auto），所以
+  `documentElement.scrollWidth` 恒等于视口宽。第一次我把对照臂写成「注入旧 markup 后 documentWidth 必须 > 视口」，
+  对照臂红了：`{"documentWidth":1280,"viewportWidth":1280}`——**对照臂自己证明那条断言什么都测不到**。
+  这是本批最有价值的一次红，也说明对照臂不是装饰。
+- 换成能区分两种世界的判据：**可达性**——从出问题的单元格往上走，最近的裁剪祖先是谁、它的 computed `overflow-x`
+  是 `auto` 还是 `hidden`。前者意味着有滚动条够得到整条理由，后者意味着直接截断。
+  - 真臂（现状，走 `ui/Table`）：clipper = `div.ui-table-wrap`，`overflow-x: auto`，clientWidth **936** /
+    scrollWidth **2821**（单元格实测 **2539.6px** 宽）；`.content` 的 scrollWidth ≤ clientWidth + 1，页面本身不横滚。
+  - 对照臂（同浏览器 / 同 CSS / 同一串字符，只在同一个 `.panel-body` 里注入旧的手写 `<table class="data">`）：
+    clipper = `.panel`，`overflow-x: hidden`，表格比面板宽却**没有可滚动的祖先**。
+  两臂在同一个 `page.evaluate` 里量，对照表量完即 `remove()`，不污染后续用例。
+- 对照臂是「在场证据」，但「真臂自己能不能红」还得单独证：把 `.ui-table-wrap` 的 `overflow: auto` 改成 `hidden`
+  （只动 CSS，不动 TSX）重跑 → **1 failed**，红在事前预测的那一行
+  `expect(real.clipper?.overflowX).toBe("auto")` → received `"hidden"`，失败消息里带着实测
+  `clientWidth 936 / scrollWidth 2821`。按备份还原后 `shaMatch=True`（`sha=800625bebfa27d29`、`git diff` 无输出）；
+  绿色那次就是这份还原后的文件：**1 passed (2.5m)**，用例本体 28.0s。
+- 途中修掉三个**环境级**问题（每一个都会伪装成产品缺陷）：
+  1. `api.routes.feedback` 是 fixture **唯一没被打桩**的 store 模块：GET `/api/v1/jobs/{id}/feedback` 会去连真 MySQL，
+     页面上「验收反馈」永远停在 `加载中 LOADING…`（第一轮 e2e 就是这样红的）。已把该模块的 `MySQLStore` 一起 patch，
+     并补上 `insert_feedback`（旧件只有 list/stats，POST 会 503）——返回 `created/replaced/unchanged` 与真 store 对齐。
+  2. `loginWithToken` 的 `page.goto("/")` 用默认 `load` 等待：并行全量门压着时，光是 Vite 首次按需编译就超过 60s 用例
+     预算，红成「导航超时」，看起来像应用没起来。改成 `domcontentloaded`——紧接着的断言本身就是显式可见性等待，壳层又
+     要等 `/auth/me` 才出现，没有跳过任何东西。
+  3. `playwright.config.ts` 每用例预算 60s → **120s**，理由同上一批 webServer 的 240s：本机实测成本高于预算时，红的
+     是环境不是代码；真挂起仍然会红。
+- **诚实边界**：本次判据是**布局级**（真浏览器 computed style + clientWidth/scrollWidth），强于前四处的结构级；但它只覆盖
+  「风险详情页的验收反馈表 + 一条 305 字符理由」这一个站点。Dashboard 那处的 `minmax(0, …)` 结论**仍是源码级推断**，
+  没有被浏览器量过。
+
+**下一批（按顺序）**：
+1. 用同一套 e2e 手法把 Dashboard 的 `minmax(0, …)` 变成布局级：注入超长仓库名，量 `.table-scroll` 的
+   clientWidth/scrollWidth 与 `.content` 的横滚；顺带确认 `.panel{overflow:hidden}` 是否已经把它的溢出裁掉
+   ——若是，Dashboard 的「已被容纳」也要按可达性重写，而不是照抄一条 overflow 规则。
+2. `table.data` 只剩 Dashboard 一个生产者；`base.css:1402-1411` + `product.css:176-177` 这七行样式等它一起收。
+3. 本批改过 `helpers.ts` 与配置后，其余 e2e 场景（wizard/detail/permissions/degradation）还没跟跑过；按「不全量回归」
+   的口径，在下一次改动它们之前单独跑一遍确认没被 240s/120s/domcontentloaded 影响到。
