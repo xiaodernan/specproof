@@ -1,10 +1,17 @@
 """Unit tests for the mutation kill-rate benchmark (offline, no Docker/network).
 
-The offline sample (scripts/mutation_sample) is hand-defined and
-deterministic: exactly 6 mutants, of which 5 are killed and 1 survives
-(M06 targets an out-of-spec, untested behavior — the honest gap). M04 is
-killed by the SpecProof verdict alone because the test suite deliberately
-does not probe the 100.0 free-shipping boundary.
+The offline sample (scripts/mutation_sample) is hand-defined: exactly 6
+mutants, of which 5 are killed and 1 survives (M06 targets an out-of-spec,
+untested behavior — the honest gap). M04 is killed by the SpecProof verdict
+alone because the test suite deliberately does not probe the 100.0
+free-shipping boundary.
+
+"deterministic" is a claim about the sample's definition, not about the
+machine that measures it: this host reports 5 killed / 1 survived with
+SPECPROOF_SANDBOX both unset and pinned to "docker", while CI's
+tests-no-infra job has reported 6. The case below therefore prints a
+per-record verdict table so a red names the mutant that moved and the
+channel that moved it.
 """
 
 import json
