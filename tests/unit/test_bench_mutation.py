@@ -33,16 +33,29 @@ def test_offline_sample_kill_rate_and_records(tmp_path: Path) -> None:
     out_md = tmp_path / "mutation-results.md"
     result = run_mutation_bench(OFFLINE_SAMPLE, 10, out_json=out_json, out_md=out_md)
 
+    payload = json.loads(out_json.read_text(encoding="utf-8"))
+    # Every count below is asserted against this string, because the counts
+    # alone cannot say WHICH mutant moved. The offline sample has been
+    # measured at killed=5/survived=1 on a Windows host (with
+    # SPECPROOF_SANDBOX unset AND pinned to "docker") while CI's
+    # tests-no-infra job reported killed=6 — a red that named no mutant was
+    # unusable for three follow-up sessions.
+    verdicts = "; ".join(
+        f"{record['mutant_id']}={record['status']}"
+        f"/{'+'.join(record['killed_by']) or 'none'}"
+        f"/exit{record['test_exit_code']}"
+        for record in payload["records"]
+    )
+
     assert result.mutants_requested == 10
     assert result.mutants_total == 6
-    assert result.killed == 5
-    assert result.survived == 1
-    assert result.skipped == 0
+    assert result.killed == 5, verdicts
+    assert result.survived == 1, verdicts
+    assert result.skipped == 0, verdicts
     assert 0.0 <= result.kill_rate <= 1.0
-    assert result.kill_rate == pytest.approx(5 / 6, abs=1e-3)
+    assert result.kill_rate == pytest.approx(5 / 6, abs=1e-3), verdicts
     assert result.baseline_ok
 
-    payload = json.loads(out_json.read_text(encoding="utf-8"))
     assert payload["summary"]["kill_rate"] == pytest.approx(5 / 6, abs=1e-3)
     records = payload["records"]
     assert len(records) == 6
