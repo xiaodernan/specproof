@@ -42,6 +42,30 @@ export function verdictLabel(v: string | undefined): string {
   return VERDICT_LABELS[v] ?? v;
 }
 
+// #118: the acceptance-feedback verdict is a DIFFERENT vocabulary from the summary
+// verdict above -- accept/reject is what a reviewer casts, VERIFIED/BLOCKED/FAILED is
+// what a run concluded. Keeping them in one map would let one word's meaning leak into
+// the other's column.
+//
+// The keys are the words the backend stores; tests/unit/test_feedback_verdict_parity.py
+// refuses a label for a verdict the ENUM cannot hold, and refuses a stored verdict with
+// no label here. An unexpected value is shown verbatim, never guessed at: a binary
+// `=== "accept" ? "接受" : "打回"` filed every unknown (empty, a typo, a future third
+// word) as 打回, which told a reader a reviewer rejected something they never rejected.
+const FEEDBACK_VERDICT_LABELS: Record<string, string> = {
+  accept: "接受",
+  reject: "打回",
+};
+
+export function feedbackVerdictWords(): string[] {
+  return Object.keys(FEEDBACK_VERDICT_LABELS);
+}
+
+export function feedbackVerdictLabel(v: string | undefined): string {
+  if (!v) return "—";
+  return FEEDBACK_VERDICT_LABELS[v] ?? v;
+}
+
 export function kv(label: ReactNode, value: ReactNode): ReactNode {
   return (
     <div className="kv">

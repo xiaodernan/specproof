@@ -6,6 +6,7 @@ import {
 import { Button, Degraded, Empty, ErrorBox, Input, Panel, SEVERITY_STOREABLE, Spinner, Term, Textarea, fmtPct, fmtTime, kv, severityPill, severityHint, evidenceLabel } from "../ui";
 import { FEEDBACK_VOTE_ROLES } from "../ui/accessRoles";
 import { useRoleAccess } from "../ui/useRoleAccess";
+import { feedbackVerdictLabel } from "../ui/util";
 
 // The backend already scales this to a percentage; fmtPct() multiplies by
 // 100, so routing it through fmtPct would print "5000.0%" for a 50% rate.
@@ -170,7 +171,7 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
         {blocking ? <p className="severity-hint">{blocking}</p> : null}
         {mine ? (
           <p className="severity-hint">
-            你当前的一票：{mine.verdict === "accept" ? "接受" : "打回"}
+            你当前的一票：{feedbackVerdictLabel(mine.verdict)}
             {mine.reason ? " · " + mine.reason : ""}（{fmtTime(mine.created_at)}）
           </p>
         ) : null}
@@ -216,7 +217,7 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
             {data.rows.map((r) => (
               <tr key={r.id}>
                 <td className="mono">{r.created_by}{r.created_by === who ? "（你）" : ""}</td>
-                <td>{r.verdict === "accept" ? "接受" : "打回"}</td>
+                <td>{feedbackVerdictLabel(r.verdict)}</td>
                 <td className="mono">{r.finding_id.slice(0, 8)}</td>
                 <td>{r.reason || "—"}</td>
                 <td className="mono">{fmtTime(r.created_at)}</td>
