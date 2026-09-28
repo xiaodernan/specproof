@@ -63,6 +63,7 @@ from api._agent_demo import (
 )
 from craft.accept import AcceptResult, persist_accept_result
 from craft.editor import MAX_READ_LINES, EditError, Editor
+from craft.executor import craft_plane_decision
 from craft.llm import LLMClient
 from craft.loop import CraftLoop, CraftLoopError, FixFunction
 from craft.planner import CraftModeError, CraftPlanError, Plan, compile_plan
@@ -591,13 +592,16 @@ class AgentRuntime:
                 (current := store.get(job_id)) is not None and current.status == "cancelled"
             ),
         )
+        craft_plane, plane_note = craft_plane_decision()
+        if plane_note:
+            logger.warning("作业 %s craft 执行面: %s", job_id, plane_note)
         loop = CraftLoop(
             spec,
             plan,
             workspace,
             job_id=job_id,
             fix_registry=registry,
-            exec_mode="local",
+            exec_mode=craft_plane,
             store=store,
             lease_ttl_seconds=self._lease_ttl_seconds,
             tool_registry=ToolRegistry(workspace, editor=editor),

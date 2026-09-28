@@ -29,6 +29,36 @@ OUTPUT_TAIL_CHARS = 4000
 STACK_LINE_LIMIT = 5
 DEFAULT_TIMEOUT = 600
 
+#: The one knob a deployment uses to ask for a sandboxed execution plane
+#: (compose.production.yml pins it to ``docker``).
+SANDBOX_MODE_ENV = "SPECPROOF_SANDBOX"
+
+
+def sandbox_pin_from_deployment() -> str:
+    """The plane the deployment pinned, or ``""`` when it pinned none."""
+    return os.getenv(SANDBOX_MODE_ENV, "").strip().lower()
+
+
+def craft_plane_decision() -> tuple[str, str]:
+    """Return ``(plane, note)`` for the craft repair loop's command execution.
+
+    The pin cannot be honoured here yet, and saying so is the point: craft's
+    commands reach ``run_sandboxed`` without a ``profile=``, whose default is
+    the Maven-only profile, so a ``pytest``/``npm test`` command pinned to
+    docker would run inside the java image and fail for the wrong reason.
+    Craft therefore stays on the host plane, and the returned note names the
+    mitigation that is NOT in effect so the job log says it out loud instead
+    of letting THREAT_TESTING.md §1's pin read as if it covered this path.
+    """
+    pinned = sandbox_pin_from_deployment()
+    if not pinned or pinned == "local":
+        return "local", ""
+    return "local", (
+        f"部署钉了 {SANDBOX_MODE_ENV}={pinned}，但 craft 修复回路仍在 local 面: "
+        "Executor 从不为命令选 profile，run_sandboxed 的默认 profile 只有 Maven，"
+        "python/npm 命令进容器会跑错工具链 —— 该沙箱缓解对这条路径未生效"
+    )
+
 
 class CommandNotAllowedError(RuntimeError):
     """A command outside the M1 whitelist was requested."""
@@ -109,7 +139,7 @@ class Executor:
         self.workspace = Path(workspace)
         self.mode = mode
         self.timeout = timeout
-        effective_mode = mode or os.getenv("SPECPROOF_SANDBOX", "auto")
+        effective_mode = mode or os.getenv(SANDBOX_MODE_ENV, "auto")
         self.python = python or (sys.executable if effective_mode == "local" else None)
 
     def allowed_commands(self) -> set[str]:

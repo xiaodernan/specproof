@@ -17,8 +17,17 @@
 | **钉住的缺口**: 显式 local 模式无隔离 | 真实 tmp 运行证明白名单解释器可覆盖 mvnw / 写工作区外 / 删关键文件 | 缺口钉住 (注释) |
 
 缓解事实: 生产 compose.production.yml 钉死 SPECPROOF_SANDBOX=docker
-(测试断言)。后续硬化 (拒绝为不可信内容使用 local 模式) 落地时, 需翻转
-TestLocalModeTamperingGapPinned 三个用例为断言拒绝。
+(测试断言)。这条钉**只覆盖差分/验收那条执行路径**: craft 修复回路的命令走
+craft/executor.py 的 Executor, 而它从不为命令传 profile, run_sandboxed 的默认
+profile 只有 Maven —— 把这条路径直接改成 docker 会让 pytest/npm test 跑进 java
+镜像, 以错误的原因失败。因此 api/agent_runtime.py 的 CraftLoop 仍显式跑 local,
+但自 #127 起必须把「这条缓解未生效」写进作业日志 (craft_plane_decision),
+tests/unit/test_craft_plane_discloses_the_deployment_pin.py 钉住三端: 代码读的
+旋钮名 = compose 设的旋钮名、note 只在钉了非 local 面时出现且点出 profile 这个
+前置条件、CraftLoop 的 exec_mode 不许再写死字面量。要真正消除这个缺口, 前置是
+让 Executor 按命令词干选 profile (mvn→MAVEN / pytest·python→PYTHON / npm→NODE),
+然后让这条路径也尊重钉值。后续硬化 (拒绝为不可信内容使用 local 模式) 落地时,
+需翻转 TestLocalModeTamperingGapPinned 三个用例为断言拒绝。
 
 ## 2. 输出洪水 (tests/fault/test_output_flood.py)
 
