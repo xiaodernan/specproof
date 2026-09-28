@@ -167,4 +167,35 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
 3. `test_craft_loop_jobs.py::test_supervisor_cancel_wins_over_leased_worker` 的 `STUCK` vs `CANCELLED`：先问「谁写这个状态、按什么顺序」，再决定是竞态还是判据；不许用 retry 蒙。
 4. CI 还有两个 job 红着：`tests-with-infra`（`docker compose up -d --wait`，minio unauthorized）、`eval-golden-cases`（exit 126 / Maven cache 播种）。
 5. 口径沿用：`gh run view --log-failed` 只能拿到末段，按用例取正文要 `--job <databaseId>`；自己 spawn 的子进程日志写进被挂载的目录；本地量到的 debt/provenance 计数若含未跟踪文件就不是可归因的仓库数字。
+### 2026-09-29：一个叫 `query` 的参数不是「SQL 文本」的证据（#127）
 
+起因是一条**假阴性**：`#125` 那轮的探针 P2 把 `storage/mysql.py::search_jobs` 变异成
+`f"...{where} AND id = '{query}'"`（把一个本该走绑定参数的值改成拼进 SQL 文本），而当时的判据
+因为参数**名叫 `query`**（在 `_EXECUTOR_PARAMS` 里）就把它当常量 ⇒ 注入形状被放行。这一批把口子补上，
+规则写成一句可判的话：**按名字不是证据，按位置才是**。
+
+- 改动（`tests/unit/test_sql_text_static.py`）：`forwarding` 从「所有参数名的集合」变成
+  `Mapping[str, bool]`——参数只有在**被整个作为第一条实参**交给执行器时才算「转发」（责任上移到调用者），
+  否则它是数据。判定这一点的 `_bare_parameter()` 只认三种形状：裸名、两侧同名的三元式、
+  `.replace(...)` 链；`'SELECT ' + statement` 这种拼进更大表达式的不算。
+- 见证（同文件新增 3 例）：① 只把数据插进被执行文本的参数必须被拒（P2 的形状）；
+  ② 整参转发必须被放行（义务落在调用者）；③ 转发边界（`.replace` 算、`+` 不算）。
+  两平面读数：新判据 **3/3 绿**；旧判据 **2/3 红**（`old RED … got {'cur': False, 'query': True}`、
+  `old RED … forwarding said True`）。第③例在旧判据下也绿——它钉的是**边界**而不是缺陷修复，
+  如实记，不当成两平面。
+- 真实注入臂（不是内存里的字符串，是真改文件）：把上面那种注入写进 `storage/mysql.py`
+  （锚点命中 **1**，改后 `ast.parse` 通过）⇒
+  - 新判据：**1 finding**，原文点名该行；
+  - 旧判据：**0 findings**（漏掉这一行）；
+  - 真门跑：`1 failed, 11 passed in 35.28s`，红的正是 `test_no_sql_text_reaches_an_executor_without_proof`。
+  - 按字节还原：`shaMatch=True / sha=e6d4efad8122d310 / mutationStillPresent=False`，还原后 `12 passed in 38.94s`。
+- 定向门：`ruff check tests/unit/test_sql_text_static.py` **All checks passed**（顺带清掉接手的草稿里
+  `F821`（`Mapping` 没 import，全靠 `from __future__ import annotations` 才没在运行期炸）、`SIM102`、`C420` 三条；
+  这是"被改的测试自己也是一个站点"的又一例）。`mypy` 配置 `exclude = ["tests/", ...]`，直跑该文件的
+  2 条报错都在排除面内且是既有报错，不计入本批。
+- **诚实边界**：这一批**没有**扩大对现存代码的判定范围——在未变异的仓库上，新旧判据产出同一份 findings
+  （`storage/migrations.py` 那条已登记的）。它买下的是**将来**同类注入不再被参数名骗过；本文件不把它写成
+  "修好了一个正在发生的漏洞"。
+
+**这一支的下一步（与并行的 #126 那一支互不重叠）**：接 `#122` 的手写 `<table>` 债务名册——一处一个单位，
+迁移到 `ui/Table` 并同步删名册行（名册门翻红是它在尽职）。前端三门前置：`tsc`／`vitest`／`vite build`。

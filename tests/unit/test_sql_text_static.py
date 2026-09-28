@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -157,7 +158,7 @@ def _collect(function: ast.AST, module: ast.Module) -> dict[str, list[ast.expr]]
 def _is_static(
     node: ast.expr,
     env: dict[str, list[ast.expr]],
-    forwarding: frozenset[str],
+    forwarding: Mapping[str, bool],
     guards: frozenset[str],
     module: ast.Module,
     depth: int = 0,
@@ -167,12 +168,12 @@ def _is_static(
     if isinstance(node, ast.Constant):
         return isinstance(node.value, str)
     if isinstance(node, ast.Name):
-        if node.id in forwarding:
-            # A parameter shadows any same-named module constant (probe P2 found
-            # this the hard way: `query` looked constant because the module had a
-            # name like it). Only the SQL-carrying names may be forwarded, and the
-            # call sites feeding them are checked below.
-            return node.id in _EXECUTOR_PARAMS
+        forwarded = forwarding.get(node.id)
+        if forwarded is not None:
+            # A parameter shadows any same-named module constant, and a parameter
+            # that is not forwarded is data — `query` in `search_jobs` is a search
+            # term, not a statement. Probe P2 is why this branch exists.
+            return forwarded
         bindings = env.get(node.id)
         if not bindings:
             return False  # a parameter, or something this file cannot see
@@ -234,7 +235,7 @@ def _is_static(
 def _fstring_is_static(
     node: ast.JoinedStr,
     env: dict[str, list[ast.expr]],
-    forwarding: frozenset[str],
+    forwarding: Mapping[str, bool],
     guards: frozenset[str],
     module: ast.Module,
     depth: int,
@@ -253,7 +254,7 @@ def _fstring_is_static(
 def _call_is_static(
     node: ast.Call,
     env: dict[str, list[ast.expr]],
-    forwarding: frozenset[str],
+    forwarding: Mapping[str, bool],
     guards: frozenset[str],
     module: ast.Module,
     depth: int,
@@ -341,6 +342,59 @@ def _params(function: ast.AST) -> list[str]:
     ]
 
 
+def _forwarded_names(function: ast.AST, params: frozenset[str]) -> frozenset[str]:
+    """Parameters this function hands to an executor *as the statement itself*.
+
+    Only a whole-argument pass-through counts: `cur.execute(statement, values)`,
+    `cur.execute(stmt.replace("?", "%s"))`, or a branch that picks between such
+    forms. A name that merely appears *inside* a bigger expression — a search term
+    called `query` interpolated into an f-string — is data, and probe P2 caught
+    exactly that name being waved through.
+    """
+    forwarded: set[str] = set()
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        if _receiver(node) not in _RECEIVER_NAMES:
+            continue
+        name = _bare_parameter(node.args[0], params)
+        if name is not None:
+            forwarded.add(name)
+    return frozenset(forwarded)
+
+
+def _param_states(function: ast.AST) -> Mapping[str, bool]:
+    """Every parameter of `function`, mapped to "is this the statement itself?".
+
+    A parameter is *not* constant by default; the only parameters this gate may
+    wave through are the ones the function hands to an executor as the whole
+    first argument, because then the obligation moves to that caller. The
+    difference matters for the ones that look like SQL by name: `query` in a
+    search body is a search term, and treating it as a statement is how probe P2
+    produced a finding against safe code.
+    """
+    params = frozenset(_params(function))
+    forwarded = _forwarded_names(function, params)
+    return {name: name in forwarded for name in params}
+
+
+def _bare_parameter(node: ast.expr, params: frozenset[str]) -> str | None:
+    """The parameter `node` is, when it is nothing but that parameter."""
+    if isinstance(node, ast.Name):
+        return node.id if node.id in params else None
+    if isinstance(node, ast.IfExp):
+        left = _bare_parameter(node.body, params)
+        right = _bare_parameter(node.orelse, params)
+        return left if left is not None and left == right else None
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "replace"
+    ):
+        return _bare_parameter(node.func.value, params)
+    return None
+
+
 def executor_helpers(module: ast.Module) -> dict[str, list[int]]:
     """Helper name -> argument positions carrying SQL it executes itself.
 
@@ -381,7 +435,7 @@ def _scan_function(
     findings: list[tuple[str, int]],
 ) -> None:
     env = _collect(function, module)
-    forwarding = frozenset(_params(function))
+    forwarding = _param_states(function)
     guards = frozenset(_aborting_guards(function))
     for node in ast.walk(function):
         if not isinstance(node, ast.Call) or not node.args:
@@ -407,7 +461,7 @@ def _scan_helper_calls(
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]:
         env = _collect(function, module)
-        forwarding = frozenset(_params(function))
+        forwarding = _param_states(function)
         guards = frozenset(_aborting_guards(function))
         for node in ast.walk(function):
             if not isinstance(node, ast.Call):
@@ -598,10 +652,11 @@ def test_a_parameter_is_never_treated_as_constant() -> None:
     env = _collect(function, tree)
     arg = function.body[0].value.args[0]  # type: ignore[attr-defined]
     params = frozenset(p.arg for p in function.args.args)
-    assert not _is_static(arg, env, params, frozenset(), tree)
+    states = dict.fromkeys(params, False)
+    assert not _is_static(arg, env, states, frozenset(), tree)
     # ... and the same statement with the value inlined as a literal is fine.
     literal = ast.parse("'SELECT * FROM t WHERE id = 1'", mode="eval").body
-    assert _is_static(literal, env, params, frozenset(), tree)
+    assert _is_static(literal, env, states, frozenset(), tree)
 
 
 def test_a_forwarding_helper_is_checked_at_its_call_sites() -> None:
@@ -630,3 +685,73 @@ def test_a_forwarding_helper_is_checked_at_its_call_sites() -> None:
     helpers = executor_helpers(safe)
     _scan_helper_calls(safe, helpers, "synthetic.py", findings)
     assert not findings, "a constant handed to a pass-through executor was refused"
+
+
+def test_a_parameter_named_like_sql_is_not_a_statement_by_its_name() -> None:
+    """Probe P2: `query` interpolated into the text is data, not proof.
+
+    The mutation that found this: `search_jobs` in `storage/mysql.py` was changed
+    to execute `f"...{where} AND id = '{query}'"`. The old judgement waved
+    `query` through because the parameter's *name* is on the executor list, and
+    called that f-string provably constant — a false negative on the one shape
+    this file exists to catch. Naming is not evidence; only handing the value
+    over as the statement moves the obligation to the caller.
+    """
+    tree = ast.parse(
+        "def search_jobs(cur, query):\n"
+        "    where = ' WHERE status = %s'\n"
+        "    cur.execute(f\"SELECT id FROM jobs{where} AND id = '{query}'\")\n"
+    )
+    function = tree.body[0]
+    assert isinstance(function, ast.FunctionDef)
+    env = _collect(function, tree)
+    states = _param_states(function)
+    assert states == {"cur": False, "query": False}, (
+        f"nothing here hands a parameter over as the statement; got {states}"
+    )
+    call = function.body[1].value  # type: ignore[attr-defined]
+    assert not _is_static(call.args[0], env, states, frozenset(), tree), (
+        "a search term interpolated into executed text was treated as if it "
+        "were the statement itself"
+    )
+
+
+def test_a_parameter_handed_over_as_the_statement_moves_the_obligation_up() -> None:
+    """The other half of the same rule: a real pass-through is not a finding."""
+    tree = ast.parse(
+        "def _run(cur, statement, values=()):\n"
+        "    cur.execute(statement, values)\n"
+    )
+    function = tree.body[0]
+    assert isinstance(function, ast.FunctionDef)
+    env = _collect(function, tree)
+    states = _param_states(function)
+    assert states == {"cur": False, "statement": True, "values": False}, (
+        f"only the parameter that is the whole first argument is forwarded; got {states}"
+    )
+    call = function.body[0].value  # type: ignore[attr-defined]
+    assert _is_static(call.args[0], env, states, frozenset(), tree), (
+        "the caller's obligation must land on the caller, not be refused here"
+    )
+
+
+def test_only_a_whole_argument_pass_through_counts_as_forwarding() -> None:
+    """`.replace(...)` keeps the value the statement; `+` glues it into one."""
+    translated = ast.parse(
+        "def _run(cur, statement, values=()):\n"
+        "    cur.execute(statement.replace('?', '%s'), values)\n"
+    )
+    glued = ast.parse(
+        "def _run(cur, statement, values=()):\n"
+        "    cur.execute('SELECT * FROM t WHERE ' + statement, values)\n"
+    )
+    for tree, expected, call_index in ((translated, True, 0), (glued, False, 0)):
+        function = tree.body[0]
+        assert isinstance(function, ast.FunctionDef)
+        env = _collect(function, tree)
+        states = _param_states(function)
+        assert states["statement"] is expected, (
+            f"{ast.unparse(function.body[0])!r}: forwarding said {states['statement']}"
+        )
+        call = function.body[call_index].value  # type: ignore[attr-defined]
+        assert _is_static(call.args[0], env, states, frozenset(), tree) is expected
