@@ -437,3 +437,33 @@ describe("FindingDetail 投票身份的时间点 (#121)", () => {
     );
   });
 });
+
+describe("FindingDetail 评审人框说的是被记下来的那个身份 (#115b)", () => {
+  // Two worlds, each asserted with its own sentence: a session (the box is the login
+  // identity and cannot be retyped) and no session (still self-reported, and the hint
+  // says the backend cannot verify it). Values come from the fixture's own rule.
+  it("有会话时框里是登录身份、锁死，并说清来源", async () => {
+    localStorage.setItem("specproof_reviewer", "whoever-was-typed-here");
+    get.mockResolvedValueOnce(payload("MAJOR"));
+    render(<FindingDetail jobId="job-1" findingId="f-1" />);
+
+    const box = (await screen.findByDisplayValue("u-operator")) as HTMLInputElement;
+    expect(box.readOnly).toBe(true);
+    expect(screen.queryByDisplayValue("whoever-was-typed-here")).toBeNull();
+    const hint = await screen.findByText(/取自当前登录身份/);
+    expect(hint.textContent).toContain("u-operator");
+    expect(screen.queryByText(/后端不会替你核验它是谁/)).toBeNull();
+  });
+
+  it("没有会话时仍可自报，并把「没被核验」说出来", async () => {
+    whoami.mockRejectedValue(new Error("no session"));
+    localStorage.setItem("specproof_reviewer", "ana");
+    get.mockResolvedValueOnce(payload("MAJOR"));
+    render(<FindingDetail jobId="job-1" findingId="f-1" />);
+
+    const box = (await screen.findByDisplayValue("ana")) as HTMLInputElement;
+    expect(box.readOnly).toBe(false);
+    expect(await screen.findByText(/后端不会替你核验它是谁/)).toBeTruthy();
+    expect(screen.queryByText(/取自当前登录身份/)).toBeNull();
+  });
+});

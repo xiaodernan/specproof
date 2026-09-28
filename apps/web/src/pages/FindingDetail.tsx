@@ -81,7 +81,11 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
   }, [jobId, reload]);
 
   const findingId = finding.id ? String(finding.id) : "";
-  const who = reviewer.trim();
+  // #115b: this is BOTH what the box shows and what the "my current vote" lookup below
+  // compares against. cb55acd made the ledger record the session identity, so leaving
+  // this as the local name showed one identity in the box and filed the vote under
+  // another -- and `mine` then never matched the reviewer's own recorded vote.
+  const who = (vote.userId ?? reviewer).trim();
   const mine = data && findingId
     ? data.rows.find((r) => r.finding_id === findingId && r.created_by === who)
     : undefined;
@@ -147,9 +151,14 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
       <div>
         <Input
           label="评审人标识"
-          value={reviewer}
+          value={who}
           onChange={(e) => setReviewerName(e.target.value)}
-          hint="只存在本机浏览器；它是「一人一票」的计票依据，不是登录账号"
+          readOnly={!!vote.userId}
+          hint={
+            vote.userId
+              ? "取自当前登录身份（" + vote.userId + "），改不了：后端按它计「一人一票」"
+              : "未登录：这是本机自报的计票键，只存在浏览器里，后端不会替你核验它是谁"
+          }
         />
         <Textarea
           label="理由（打回必填）"
