@@ -151,18 +151,34 @@ def parse_spec_file(path: str | Path) -> TaskSpec:
     return parse_spec_text(content)
 
 
+def _existing_file(source: str, cwd: Path | None) -> Path | None:
+    """`source` as an existing file, or None.
+
+    A spec typed on the command line is usually not a path, so this probe may
+    not raise: on POSIX `stat()` on a name longer than 255 bytes fails with
+    ENAMETOOLONG instead of answering "no such file", and `Path.is_file()` only
+    swallows ENOENT/ENOTDIR. Measured on the Linux CI runner, where an inline
+    JSON spec crashed here.
+    """
+    try:
+        candidate = Path(source)
+        if not candidate.is_absolute() and cwd is not None:
+            candidate = Path(cwd) / candidate
+        return candidate if candidate.is_file() else None
+    except (OSError, ValueError):
+        return None
+
+
 def parse_spec(source: str, *, cwd: Path | None = None) -> TaskSpec:
     """Unified entry: file path (existing) -> file parse; spec-file-like path
     that does not exist -> clear error; JSON literal -> strict JSON parse;
     anything else -> deterministic text parse."""
     if not source or not source.strip():
         raise SpecParseError("spec 输入为空")
-    candidate = Path(source)
-    if not candidate.is_absolute() and cwd is not None:
-        candidate = Path(cwd) / candidate
-    if candidate.is_file():
-        return parse_spec_file(candidate)
-    if candidate.suffix.lower() in _SPEC_FILE_SUFFIXES:
+    file_candidate = _existing_file(source, cwd)
+    if file_candidate is not None:
+        return parse_spec_file(file_candidate)
+    if Path(source).suffix.lower() in _SPEC_FILE_SUFFIXES:
         raise SpecParseError(f"spec 文件不存在: {source}")
     stripped = source.strip()
     if stripped.startswith("{") or stripped.startswith("["):

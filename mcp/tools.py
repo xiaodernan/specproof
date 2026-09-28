@@ -127,6 +127,16 @@ _MATRIX_RE = re.compile(
 )
 
 
+def _report_basename(text: str) -> str:
+    """Last segment of a path a report printed, whichever OS printed it.
+
+    `Path(...).name` splits only on the running platform's separator, so a
+    Windows-style capsule path read by a Linux MCP server reached the tool
+    payload as a full server-side path instead of a name.
+    """
+    return text.strip().replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+
+
 def parse_verify_stdout(stdout: str) -> dict[str, Any]:
     """Extract the verdict/findings summary from specproof verify output.
 
@@ -201,7 +211,7 @@ def parse_verify_stdout(stdout: str) -> dict[str, Any]:
         if in_capsules:
             capsule = re.match(r"^\s+(.+\.zip)$", line)
             if capsule:
-                summary["capsules"].append(Path(capsule.group(1).strip()).name)
+                summary["capsules"].append(_report_basename(capsule.group(1)))
                 continue
             in_capsules = False
         job = re.match(r"^Job ID:\s+(\S+)$", line)

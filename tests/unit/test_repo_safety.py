@@ -8,6 +8,7 @@ exactly as before).
 from __future__ import annotations
 
 import subprocess
+import sys
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -258,32 +259,53 @@ class TestWorktreeTarget:
 
 
 class TestSymlinkEscape:
-    def _make_junction(self, link: Path, target: Path) -> bool:
-        made = subprocess.run(
-            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
-            capture_output=True, text=True,
-        )
-        return made.returncode == 0
+    def _make_escape_link(self, link: Path, target: Path) -> str:
+        """Create a directory link in whichever form this OS offers.
 
-    def test_junction_escape_detected(self, repo: Path, tmp_path: Path) -> None:
+        A junction needs `cmd.exe`, which does not exist on the Linux CI runner;
+        there a plain symlink is the same escape and any user may create one.
+        Returns the kind made, or '' when neither worked.
+        """
+        if sys.platform == "win32":
+            try:
+                made = subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                    capture_output=True, text=True,
+                )
+            except OSError:
+                return ""
+            return "junction" if made.returncode == 0 else ""
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            return ""
+        return "symlink"
+
+    def _skip_unless(self, kind: str, repo: Path, link_name: str) -> None:
+        if kind:
+            return
+        (repo / link_name).unlink(missing_ok=True)
+        pytest.skip(f"neither a junction nor a symlink could be created for {link_name}")
+
+    def test_directory_link_escape_detected(self, repo: Path, tmp_path: Path) -> None:
         outside = tmp_path / "outside"
         outside.mkdir()
-        if not self._make_junction(repo / "escape", outside):
-            pytest.skip("junction creation not permitted on this machine")
+        kind = self._make_escape_link(repo / "escape", outside)
+        self._skip_unless(kind, repo, "escape")
         report = _check(repo, tmp_path)
         check = _get(report, CHECK_NO_SYMLINK_ESCAPE)
         assert check.passed is False
         assert "escapes" in check.detail
 
-    def test_junction_inside_repo_passes(self, repo: Path, tmp_path: Path) -> None:
+    def test_directory_link_inside_repo_passes(self, repo: Path, tmp_path: Path) -> None:
         inner = repo / "subdir"
         inner.mkdir()
         (inner / "f.txt").write_text("x", encoding="utf-8")
-        if not self._make_junction(repo / "loop", inner):
-            pytest.skip("junction creation not permitted on this machine")
+        kind = self._make_escape_link(repo / "loop", inner)
+        self._skip_unless(kind, repo, "loop")
         report = _check(repo, tmp_path)
         assert _get(report, CHECK_NO_SYMLINK_ESCAPE).passed is True
-        # The walk prunes the junction: subdir files are counted once.
+        # The walk prunes the link: subdir files are counted once.
         assert _get(report, CHECK_REPO_SIZE_WITHIN_LIMIT).passed is True
 
 

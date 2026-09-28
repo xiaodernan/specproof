@@ -15,6 +15,7 @@ only observable through real collection.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -46,7 +47,16 @@ def _collected_slow(node_ids: list[str]) -> list[str]:
         cmd, cwd=REPO_ROOT, capture_output=True, text=True, timeout=180
     )
     # 5 = nothing selected, which is the expected outcome for a fast module.
-    assert proc.returncode in (0, 5), proc.stdout + proc.stderr
+    # A non-zero exit is nearly always the child's session-level bootstrap
+    # refusing to start, so name the environment it inherited: on a runner
+    # without MySQL the isolation contract can end the session before any test
+    # runs, and "which env did the child see" is the first question.
+    assert proc.returncode in (0, 5), (
+        f"exit={proc.returncode} MYSQL_DATABASE={os.environ.get('MYSQL_DATABASE')!r} "
+        f"SPECPROOF_TEST_MYSQL_DATABASE={os.environ.get('SPECPROOF_TEST_MYSQL_DATABASE')!r}\n"
+        + proc.stdout
+        + proc.stderr
+    )
     return [ln for ln in proc.stdout.splitlines() if "::" in ln]
 
 
