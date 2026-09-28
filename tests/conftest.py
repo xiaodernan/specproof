@@ -42,7 +42,7 @@ def _modules_needing_newer_python(root: Path) -> list[str]:
 
 def pytest_configure(config):
     if sys.version_info >= _MIN_PYTHON:
-        _apply_mysql_isolation()
+        _apply_mysql_isolation(config)
         return
     offending = _modules_needing_newer_python(_PROJECT_ROOT)
     running = ".".join(str(x) for x in sys.version_info[:3])
@@ -245,11 +245,17 @@ def prepare_test_schema(state: str, database: str) -> None:
     raise RuntimeError(f"test schema {database!r} is not usable: {last!r}")
 
 
-def _apply_mysql_isolation() -> None:
+def _apply_mysql_isolation(config) -> None:
     global MYSQL_ISOLATION
+    # `--collect-only` answers "which tests exist"; it executes no fixture and
+    # writes no row, so the migration step that needs a live server is the one
+    # thing it must not depend on. The `blocked` verdict below still bites,
+    # because that verdict is about configuration, not connectivity.
+    collecting_only = bool(config.getoption("collectonly", default=False))
     try:
         state, database = enforce_test_database()
-        prepare_test_schema(state, database)
+        if not collecting_only:
+            prepare_test_schema(state, database)
     except Exception as exc:  # noqa: BLE001 — a broken check must be loud
         pytest.exit(f"MySQL test isolation check failed: {exc}", returncode=1)
     if state == "blocked":

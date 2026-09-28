@@ -321,8 +321,29 @@ def test_the_contract_runs_before_any_test_writes() -> None:
     A fixture can be bypassed (and ordering with autouse fixtures is not a
     guarantee worth trusting); configure-time is the only point before which no
     test has run.
+
+    The wiring is read off the call node rather than matched as literal text:
+    since #126 the guard also needs the session's `config` (it skips the
+    live-server step when only collecting), and an exact-source substring would
+    go red on a harmless reformat while staying green for a call that passes
+    the wrong thing.
     """
+    import ast
     import inspect
 
-    source = inspect.getsource(contract.pytest_configure)
-    assert "_apply_mysql_isolation()" in source
+    tree = ast.parse(inspect.getsource(contract.pytest_configure))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_apply_mysql_isolation"
+    ]
+    assert len(calls) == 1, (
+        f"the guard must be wired into the hook exactly once, found {len(calls)}"
+    )
+    [call] = calls
+    assert len(call.args) == 1 and getattr(call.args[0], "id", None) == "config", (
+        "the collect-only exemption is decided from the session's own options, so "
+        f"the hook has to hand the guard its config; call reads: {ast.dump(call)}"
+    )
