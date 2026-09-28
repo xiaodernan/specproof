@@ -164,11 +164,14 @@ jobs:
           python -m cli.specproof.main eval \
             --cases eval-subset --repo . --no-llm \
             --output docs/eval/eval-report.html | tee eval-run.log
-      - name: Gate: recall must be 100%
+      # Quoted: an unquoted scalar cannot contain ": ", and this file failed to
+      # parse as YAML because of these two names -- so every push since the file
+      # landed produced a 0s "workflow file issue" run and no job ever started.
+      - name: "Gate: recall must be 100%"
         run: |
           grep -q "Recall:             100.0%" eval-run.log \
             || (echo "Recall gate FAILED" && exit 1)
-      - name: Gate: zero false positives
+      - name: "Gate: zero false positives"
         run: |
           grep -q "False positives:    0" eval-run.log \
             || (echo "False-positive gate FAILED" && exit 1)
