@@ -1637,3 +1637,25 @@ provider_wait:` 块内——暂停轮次不算失败，CAS 被拒的轮次已由
    不中会整体透传——可读性可再打磨，但信息不丢。
 2. `dependency_install` 未进 `ops/drills.py` 的演练断言面（演练不覆盖
    Node/Python 自测差分路径）。
+
+## 26. §12.6-3 收口：`summary_writes` 改名 `summary_present`——演练计数不再冒充次数（2026-09-28）
+
+### 26.1 判定：改名而非真计数，理由来自 #63 之后的事实
+
+§12.6-3 登记了两个选项（真计数 / 改名）。选**改名**，因为"真次数"在持久
+状态里不可观测：summary 列只显示最新值，第二次写无法从列上看出。而 #63
+之后摘要随终态转移**同语句**写入，重复写摘要必然意味着重复的终态转移——
+那正是 `terminal_transitions` 已经在数的东西（`drill_outbox_crash.py` 的
+passed 判定里 `terminal_transitions == 1` 一直就是重复写检测的承载者）。
+所以诚实形态是：`summary_present`（行上有没有摘要，0/1）+ docstring 写明
+重复检测挂在哪里。
+
+### 26.2 改动与门证
+
+- `ops/drills.py::side_effect_counts`：`summary_writes` → `summary_present`，
+  docstring 记录上面的判定；消费点 `scripts/drill_outbox_crash.py` 同步；
+  `tests/unit/test_drill_helpers.py` 两条断言与 `DRILLS.md` 4 处示例改账。
+- 探针（按字节还原）：计数器退回旧键名 ⇒ `test_side_effect_counts_full_ledger`
+  红；`test_drill_helpers.py` **22 passed**；`ruff` / `mypy` 全绿。
+- 全量合并门：基线取并行会话最后记录（3274，`bc9b118`）+ 本批 0 新用例
+  （改账不增数）⇒ 预期 3276，以实测为准（见提交记录）。

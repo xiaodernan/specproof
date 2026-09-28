@@ -56,7 +56,7 @@
         "side_effects": {
           "terminal_transitions": 1,
           "running_transitions": 1,
-          "summary_writes": 1,
+          "summary_present": 1,
           "findings": 2,
           "capsules": 2,
           "errors": 0
@@ -69,7 +69,7 @@
         "side_effects": {
           "terminal_transitions": 1,
           "running_transitions": 1,
-          "summary_writes": 1,
+          "summary_present": 1,
           "findings": 2,
           "capsules": 2,
           "errors": 0
@@ -226,14 +226,14 @@
       "idempotency_key_after_first_delivery": true,
       "side_effects_after_first_delivery": {
         "terminal_transitions": 1, "running_transitions": 1,
-        "summary_writes": 1, "findings": 2, "capsules": 2, "errors": 0
+        "summary_present": 1, "findings": 2, "capsules": 2, "errors": 0
       },
       "relay_replay_published_rows": 1,
       "outbox_publish_count": 1,
       "outbox_published_at_set": true,
       "side_effects_after_duplicate_delivery": {
         "terminal_transitions": 1, "running_transitions": 1,
-        "summary_writes": 1, "findings": 2, "capsules": 2, "errors": 0
+        "summary_present": 1, "findings": 2, "capsules": 2, "errors": 0
       },
       "queue_messages_remaining": 0,
       "terminal_transitions": 1,

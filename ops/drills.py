@@ -258,18 +258,25 @@ def side_effect_counts(store: SideEffectStore, job_id: str) -> dict[str, int]:
 
     The drill assertions read this dict: a crash-recovered job must show
     exactly the same counts as an uninterrupted control run of the same
-    deterministic payload — one terminal transition, one summary write, one
-    set of findings and capsules (no duplicated side effects).
+    deterministic payload — one terminal transition, one summary on the row,
+    one set of findings and capsules (no duplicated side effects).
+
+    ``summary_present`` is a PRESENCE flag (does the row carry a summary?),
+    not a write count: the column only ever shows the latest value, so a
+    second write cannot be observed there. Since #63 the summary travels
+    inside the terminal status transition, which makes the two inseparable —
+    a duplicate summary write implies a duplicate terminal transition, and
+    that duplication IS observable, via ``terminal_transitions``.
     """
     job = store.get_job(job_id)
     summary = store.get_job_summary(job_id) or {}
-    summary_writes = 1 if job is not None and job.get("summary") else 0
+    summary_present = 1 if job is not None and job.get("summary") else 0
     terminal = len(terminal_transitions(store, job_id))
     total = count_audit_actions(store, job_id, TRANSITION_ACTION)
     return {
         "terminal_transitions": terminal,
         "running_transitions": total - terminal,
-        "summary_writes": summary_writes,
+        "summary_present": summary_present,
         "findings": len(summary.get("findings", [])),
         "capsules": len(summary.get("capsules", [])),
         "errors": len(summary.get("errors", [])),

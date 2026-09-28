@@ -217,7 +217,7 @@ def main() -> int:
         passed = bool(
             counts_before == counts_after
             and counts_before["terminal_transitions"] == 1
-            and counts_before["summary_writes"] == 1
+            and counts_before["summary_present"] == 1
             and result["outbox_publish_count"] == 1
             and result["outbox_published_at_set"]
             and idem_before

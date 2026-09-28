@@ -340,7 +340,7 @@ class TestSideEffectAccounting:
         assert counts == {
             "terminal_transitions": 2,
             "running_transitions": 1,
-            "summary_writes": 1,
+            "summary_present": 1,
             "findings": 1,
             "capsules": 1,
             "errors": 0,
@@ -350,7 +350,7 @@ class TestSideEffectAccounting:
         store = FakeJobStore()
         store.jobs["j-2"] = {"status": "RUNNING"}
         counts = side_effect_counts(store, "j-2")
-        assert counts["summary_writes"] == 0
+        assert counts["summary_present"] == 0
         assert counts["terminal_transitions"] == 0
 
 
