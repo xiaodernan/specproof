@@ -323,3 +323,6 @@
 
 > **#117 全量合并门追记（2026-09-28）**：数字只认这一次运行自己的输出 —— 在 `f1fef07`（#117 collapse the four hand-written /aut）上跑 `pytest tests/unit tests/security tests/fault -q -p no:randomly -W error`，收集 `collected 3266 items`，隔离声明 `MySQL test isolation: redirected -> specproof_test (product schema specproof_phase0 holds 0 '/test/%' job rows at session start)`，汇总 `=========== 2 failed, 3259 passed, 5 skipped in 1703.64s (0:28:23) ============`，运行自己印出的页脚 `MERGE_EXIT=1`。这一轮之前有一次在 `eeaba27` 上起跑的同型运行随它的会话一起死了：日志停在 31% 且没有页脚，所以它不构成任何证据、这里也不引用它的任何数字。
 > 口径说明：这些数字属于 `f1fef07` 那棵树，不属于更早或更晚的 commit；跑测平面是共享工作副本，运行前逐条核过「相对 HEAD 有未提交改动的 tracked 文件」——每一条都要由 tests/unit|security|fault 三道的扫描证明没有测试按文件名读它，才允许留在平面上（本轮排除项：`docs/eval/aider-results.md`）；#72 的欠账由这一段闭合。
+
+> **8a7d209 全量合并门追记（2026-09-28）**：数字只认这一次运行自己的输出 —— 在 `8a7d209`（tests: close the metrics test server's listening）上跑 `pytest tests/unit tests/security tests/fault -q -p no:randomly -W error`，收集 `collected 3266 items`，隔离声明 `MySQL test isolation (redirected -> specproof_test): product schema '/test/%' rows 0 -> 0; no test row landed in the product schema`，汇总 `================ 3261 passed, 5 skipped in 1535.42s (0:25:35) =================`，运行自己印出的页脚 `MERGE_EXIT=0`。
+> 口径说明：这些数字属于 `8a7d209` 那棵树，不属于更早或更晚的 commit；日志文件是 `w112/merge_8a7d209.log`。
