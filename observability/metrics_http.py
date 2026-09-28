@@ -59,6 +59,7 @@ def _resolve_bind_host() -> str:
     if os.path.exists("/.dockerenv"):
         # 容器网络内 metrics 端口需对外可刮取: Prometheus 在同 compose 网络
         # 跨容器抓取, 端口不发布到宿主机; 因此容器内默认绑定全网卡。
+        # container-wide bind; the port is never published to the host
         return "0.0.0.0"  # nosec B104
     return "127.0.0.1"
 

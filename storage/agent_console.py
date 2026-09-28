@@ -155,9 +155,15 @@ class ConsoleState:
         """One indexed read for a whole API page, including ownership and counts."""
         if not job_ids:
             return {}
+        # `placeholders` is a run of '?' built from the list length — the text is a
+        # constant token repeated, and the ids themselves are bound. bandit reads
+        # the `+` as construction and cannot see that; the invariant is enforced by
+        # tests/unit/test_sql_text_static.py.
         placeholders = ",".join("?" for _ in job_ids)
         statement = (
-            "SELECT m.job_id, m.repo_path, m.task_name, m.tenant_id, m.last_seq, "
+            # placeholder run + bound params
+            "SELECT m.job_id, m.repo_path, m.task_name, m.tenant_id, "  # nosec B608
+            "m.last_seq, "
             "(SELECT COUNT(*) FROM agent_console_approvals a WHERE a.job_id=m.job_id) "
             "AS approvals_count FROM agent_console_meta m WHERE m.job_id IN ("
             + placeholders + ")"

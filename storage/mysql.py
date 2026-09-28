@@ -343,22 +343,6 @@ class MySQLStore:
 
             logging.getLogger(__name__).warning("audit write failed: %s", exc)
 
-    def run_migration(self, sql_path: str) -> None:
-        """Run a SQL migration file."""
-        with open(sql_path, encoding="utf-8") as f:
-            sql = f.read()
-        with self.connection() as conn:
-            for statement in sql.split(";"):
-                stmt = statement.strip()
-                if stmt and not stmt.startswith("--"):
-                    try:
-                        conn.cursor().execute(stmt)
-                    except pymysql.err.OperationalError as e:
-                        code = e.args[0] if e.args else 0
-                        # 1060 = Duplicate column, 1061 = Duplicate index name
-                        if code not in (1060, 1061):
-                            raise
-
     # ── CRUD ──────────────────────────────────────────────────
 
     def insert_job(self, job: dict[str, Any]) -> None:
@@ -664,6 +648,22 @@ class MySQLStore:
             )
             return cast(list[dict[str, Any]], cur.fetchall())
 
+    # Every WHERE below is assembled from literal fragments plus `%s` placeholders:
+    # the values travel as bound parameters, never as text. bandit cannot see that
+    # through a `+` on a variable, so the affected `execute` calls carry a
+    # suppression — but the suppression is not what proves the claim.
+    # tests/unit/test_sql_text_static.py does, over every execute() in the shipped
+    # packages, and it refuses a new unprovable call.
+    #
+    # Each tail below is `<reason>  then the nosec directive naming the ids bandit
+    # reports on that exact line`. The order is measured, not stylistic: text written
+    # after the directive is read by bandit as more ids, so a prose tail suppresses
+    # every test on the line -- including a future real finding -- and fills the CI log
+    # with "Test in comment" warnings. A directive naming the wrong id leaves the real
+    # finding reported. And a directive on a line of its own is not read at all.
+    # tests/security/test_bandit_suppressions_are_earned.py runs bandit over both
+    # shapes and refuses a suppression that hides nothing, hides the wrong test, or is
+    # written where the scanner cannot see it.
     def search_jobs(
         self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
     ) -> dict[str, Any]:
@@ -684,10 +684,17 @@ class MySQLStore:
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
         with self.connection() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) AS total FROM verification_jobs" + where, tuple(params))
+            # fragments + bound params
+            cur.execute(
+                "SELECT COUNT(*) AS total FROM verification_jobs"  # nosec B608
+                + where,
+                tuple(params),
+            )
             total = int(cur.fetchone()["total"])
             cur.execute(
-                "SELECT id, repo_path, base_ref, head_ref, status, depth, retry_count, "
+                # fragments + bound params
+                "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
+                "status, depth, retry_count, "
                 "worker_id, last_error, created_at, updated_at, "
                 "CASE WHEN JSON_VALID(summary) THEN "
                 "LOCATE('seeded demo', JSON_UNQUOTE("
@@ -715,21 +722,24 @@ class MySQLStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT status, COUNT(*) AS n FROM verification_jobs"
+                # fragments
+                "SELECT status, COUNT(*) AS n FROM verification_jobs"  # nosec B608
                 + where + " GROUP BY status",
                 params,
             )
             statuses = cast(list[dict[str, Any]], cur.fetchall())
             time_where = where + (" AND" if where else " WHERE") + " created_at >= %s"
             cur.execute(
-                "SELECT DATE_FORMAT(created_at, '%%Y-%%m-%%dT%%H:00:00') AS hour, "
+                # fragments
+                "SELECT DATE_FORMAT(created_at, '%%Y-%%m-%%dT%%H:00:00') AS hour, "  # nosec B608
                 "COUNT(*) AS count, SUM(status IN ('FAILED', 'ERROR')) AS failed "
                 "FROM verification_jobs" + time_where + " GROUP BY hour ORDER BY hour",
                 (*params, since),
             )
             timeline = cast(list[dict[str, Any]], cur.fetchall())
             cur.execute(
-                "SELECT id, repo_path, base_ref, head_ref, status, depth, "
+                # fragments
+                "SELECT id, repo_path, base_ref, head_ref, status, depth, "  # nosec B608
                 "retry_count, worker_id, last_error, created_at, updated_at, "
                 "CASE WHEN JSON_VALID(summary) THEN "
                 "LOCATE('seeded demo', JSON_UNQUOTE("

@@ -209,7 +209,11 @@ PYTHON_PROFILE = SandboxProfile(
     name="python",
     image=DEFAULT_PYTHON_IMAGE,
     image_env="SPECPROOF_SANDBOX_PYTHON_IMAGE",
-    env=(("PIP_CACHE_DIR", "/tmp/pip-cache"),),
+    # A container path, not the host's: the docker argv below mounts /tmp as a
+    # throwaway tmpfs (--tmpfs /tmp:rw,noexec,nosuid,size=512m), so pip's cache
+    # dies with the container.
+    # the /tmp above is the container tmpfs the block over this line describes
+    env=(("PIP_CACHE_DIR", "/tmp/pip-cache"),),  # nosec B108
     cache_volume_env="SPECPROOF_SANDBOX_PIP_WHEELHOUSE_VOLUME",
     cache_volume_default="specproof-pip-wheelhouse-1000",
     cache_mount="/wheelhouse",

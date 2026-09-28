@@ -40,7 +40,8 @@ def capture_mysql_state(store: MySQLStore, tables: list[str]) -> dict[str, Any]:
                 cur = conn.cursor()
                 # Identifier validated against the allowlist above.
                 cur.execute(
-                    f"SELECT * FROM {table} ORDER BY 1 LIMIT 500"  # nosec
+                    # {table} matched _TABLE_RE above
+                    f"SELECT * FROM {table} ORDER BY 1 LIMIT 500"  # nosec B608
                 )
                 state[table] = [dict(r) for r in cur.fetchall()]
             except Exception as exc:  # noqa: BLE001

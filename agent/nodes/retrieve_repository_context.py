@@ -27,7 +27,7 @@ eval) index unstamped chunks exactly as before.
 from __future__ import annotations
 
 import logging
-import subprocess  # nosec B404 — git rev-parse only; argument list, no shell
+import subprocess  # git rev-parse only; argument list, no shell  # nosec B404
 from pathlib import Path
 from typing import Any
 
@@ -128,7 +128,7 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
 
     head_sha = ""
     try:
-        proc = subprocess.run(  # nosec B603 B607 — args from local repo state
+        proc = subprocess.run(  # args from local repo state  # nosec B603 B607
             ["git", "-C", state.get("repo_path", ""), "rev-parse",
              state.get("head_ref", "head-v1")],
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,

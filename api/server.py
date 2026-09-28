@@ -309,7 +309,8 @@ def main() -> None:
 
     # Containerized deployment listens on all interfaces; authentication and
     # rate limiting are enforced at the app layer, so this is intentional.
-    host = os.getenv("SPECPROOF_API_HOST", "0.0.0.0")  # nosec
+    # bind-all default for containers; override with SPECPROOF_API_HOST
+    host = os.getenv("SPECPROOF_API_HOST", "0.0.0.0")  # nosec B104
     uvicorn.run(app, host=host, port=8000, log_level="info")
 
 
