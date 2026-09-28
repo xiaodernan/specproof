@@ -264,3 +264,22 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
 - 定向门：`vitest run src/pages/FindingDetail.test.tsx -t "共享表格"` **2 passed**；
   `pytest tests/unit/test_hand_written_table_ledger.py` **7 passed**；`tsc --noEmit` **exit 0**。
 - **诚实边界**同上一条：判据是结构级的；「长理由不再撑宽页面」的布局级结论仍待真浏览器量。
+### 2026-09-29：#122 第三处——事件日志走共享表格（3 处 → 2 处）
+
+- 站点：`agent/pages/AgentEventLog.tsx:43` 的事件日志表。它比反馈台账更暴露：**内容列是服务器原样 JSON**，
+  一个长值就能把页面撑宽，而 `table.data` 没有容器能兜住它。
+- 迁移：四列（序号/类型/时间/内容）→ `ui/Table`；`mono`、`title=`、以及内容列的 `word-break: break-all`
+  原样保留在**单元格内部**（`ui/Table` 只给 `td` 提供对齐类，样式留在 `render` 里）。
+- 名册：该文件退出名册，`hand_rolled_table_sites()` 实测 **3 处 → 2 处 / 2 文件**；名册门由 **7 例变 6 例**。
+- 见证（`src/agent/__tests__/AgentEventLog.test.tsx` 新增 1 例）：喂一条 `{ blob: "x"*300 }` 事件之后，
+  那一格必须在 `.ui-table-wrap` 里、且不在 `table.data` 里。
+- 两平面：新平面 `vitest run src/agent/__tests__/AgentEventLog.test.tsx` **4 passed**；旧平面
+  （`git checkout HEAD -- apps/web/src/agent/pages/AgentEventLog.tsx`，测试文件不动）**1 failed**，
+  红在事前预测的那一行 `AgentEventLog.test.tsx:70: expect(cell.closest(".ui-table-wrap")).toBeTruthy()`
+  → `expected null to be truthy`；按备份还原后 diff 为 `42 insertions / 22 deletions`，与迁移一致。
+- **这一批顺带处理的一个环境事实**（不是产品缺陷，但会让人误判 e2e「坏了」）：`tests/e2e` 的
+  fixture 后端在这台机器上**导入 `api.server` 就要 93.0 秒**（探针逐段计时：env/cert/fakes/seed 全都 <1s，
+  时间全在 import），而 `playwright.config.ts` 里那条 webServer 的 `timeout` 是 `90_000` ⇒ 门会以
+  「Timed out waiting 90000ms from config.webServer」红掉，看起来像 fixture 起不来。已按实测改成 **240_000**
+  并把这行测量写进注释。另一条同样实测出来的前提：fixture 必须用**仓库 venv 的 python**（`PATH` 前置
+  `.venv\Scripts`），系统 Python 3.11 下同一句 import 在几分钟内都没有开始监听。

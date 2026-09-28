@@ -9,7 +9,7 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
   outputDir: "test-results",
-  testMatch: /(wizard|detail|permissions)\.spec\.ts/,
+  testMatch: /(wizard|detail|permissions|longtext)\.spec\.ts/,
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
@@ -27,7 +27,14 @@ export default defineConfig({
     {
       command: "python fixture_server.py --port 8010 --state .state/e2e-state.json",
       url: "http://127.0.0.1:8010/health",
-      timeout: 90_000,
+      // Measured 2026-09-29: importing api.server is the whole cost here, and on
+      // a machine that is also running the full pytest gate it took **93.0s**
+      // (probe: `_import_app()` timed; env/cert/fakes/seeding were all < 1s).
+      // The 90_000 this replaced was therefore a timeout the server could not
+      // meet under load — the harness appeared "broken" while the fixture was
+      // merely still importing. 240s leaves room without hiding a real hang:
+      // a fixture that cannot import never listens, and this still fails.
+      timeout: 240_000,
       reuseExistingServer: false,
     },
     {

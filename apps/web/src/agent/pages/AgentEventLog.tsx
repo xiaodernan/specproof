@@ -1,4 +1,4 @@
-import { Empty, ErrorBox, Panel, Spinner, fmtTime } from "../../ui";
+import { Empty, ErrorBox, Panel, Spinner, Table, fmtTime } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
 import { eventKindLabel } from "../util";
 
@@ -40,28 +40,48 @@ export default function AgentEventLog(props: { jobId: string }) {
         {events.length === 0 ? (
           <Empty text="无事件 (任务尚未产生任何事件 — 诚实空态)" />
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>序号 Seq</th>
-                <th>类型</th>
-                <th>时间</th>
-                <th>内容</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((ev) => (
-                <tr key={ev.seq}>
-                  <td className="mono">#{ev.seq}</td>
-                  <td className="mono" title={ev.type}>{eventKindLabel(ev.type)}</td>
-                  <td className="mono muted" title={ev.at}>{fmtTime(ev.at)}</td>
-                  <td className="mono" style={{ wordBreak: "break-all" }}>
+          // Through the shared table (#122): the payload column is arbitrary
+          // server JSON, and `.ui-table-wrap` scrolls it inside the panel
+          // instead of letting one long value widen the page.
+          <Table
+            rows={events}
+            rowKey={(ev) => String(ev.seq)}
+            columns={[
+              {
+                key: "seq",
+                header: "序号 Seq",
+                width: 90,
+                render: (ev) => <span className="mono">#{ev.seq}</span>,
+              },
+              {
+                key: "type",
+                header: "类型",
+                render: (ev) => (
+                  <span className="mono" title={ev.type}>
+                    {eventKindLabel(ev.type)}
+                  </span>
+                ),
+              },
+              {
+                key: "at",
+                header: "时间",
+                render: (ev) => (
+                  <span className="mono muted" title={ev.at}>
+                    {fmtTime(ev.at)}
+                  </span>
+                ),
+              },
+              {
+                key: "data",
+                header: "内容",
+                render: (ev) => (
+                  <span className="mono" style={{ wordBreak: "break-all" }}>
                     {JSON.stringify(ev.data)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </span>
+                ),
+              },
+            ]}
+          />
         )}
       </Panel>
     </AgentJobShell>

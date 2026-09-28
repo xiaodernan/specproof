@@ -54,4 +54,20 @@ describe("AgentEventLog", () => {
     const calls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(calls.some((u) => u.includes("/events"))).toBe(false);
   });
+
+  it("renders the event log through the shared table (#122), not a hand-rolled one", async () => {
+    render(<AgentEventLog jobId="job-1" />);
+    await waitFor(() => expect(sessions.length).toBeGreaterThan(0));
+    act(() => {
+      // The payload column is whatever the server sent; one unbroken value is
+      // what a hand-rolled <td> had no way to contain.
+      sessions[0].event({
+        seq: 7, type: "tool_call", at: job.created_at,
+        data: { blob: "x".repeat(300) },
+      });
+    });
+    const cell = await screen.findByText(/"blob"/, undefined, { timeout: 5000 });
+    expect(cell.closest(".ui-table-wrap")).toBeTruthy();
+    expect(cell.closest("table.data")).toBeNull();
+  });
 });
