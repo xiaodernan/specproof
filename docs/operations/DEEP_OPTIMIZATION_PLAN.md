@@ -199,3 +199,28 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
 
 **这一支的下一步（与并行的 #126 那一支互不重叠）**：接 `#122` 的手写 `<table>` 债务名册——一处一个单位，
 迁移到 `ui/Table` 并同步删名册行（名册门翻红是它在尽职）。前端三门前置：`tsc`／`vitest`／`vite build`。
+### 2026-09-29：#122 第一处——反馈台账走共享表格（5 处 → 4 处）
+
+- 站点：`pages/FindingDetail.tsx` 的反馈台账表（原 212 行）。名册当初就是为这个形状写的「长理由撑破表」——
+  `table.data` 没有溢出容器，评审人粘一整段不换行的理由会把整页撑宽；`ui/Table` 的
+  `.ui-table-wrap { overflow: auto }` 把它关在面板里滚动。
+- 迁移：`<Table rows={data.rows} rowKey={(r) => r.id} columns=[评审人/判定/对应风险/理由/时间] />`，
+  五列既有文案与 `mono` 观感保留；空态仍走页面自己那句「还没有人提交过反馈…」
+  （`ui/Table` 的默认空态会换掉这句诚实话术，所以不交给它）。
+- 量到的名册变化：`hand_rolled_table_sites()` **5 → 4**（FindingDetail 从 2 处降到 1 处，文件仍在册——还剩一处 kv 表）。
+- 见证（`src/pages/FindingDetail.test.tsx` 新增 1 例，理由用 300 个不换行的「证」字）：
+  `cell.closest(".ui-table-wrap")` 必须非空、`cell.closest("table.data")` 必须为空。
+  两平面：新平面 **1 passed**；旧平面（`git checkout HEAD -- src/pages/FindingDetail.tsx`，测试文件不动）
+  **1 failed**，红在事前预测的那一行 `FindingDetail.test.tsx:482: expect(cell.closest(".ui-table-wrap")).toBeTruthy() → null`；
+  按备份还原后 diff 为 `32 insertions / 17 deletions`，与迁移本身一致。
+- 定向门：`vitest run src/pages/FindingDetail.test.tsx` **25 passed**；`tsc --noEmit` **exit 0**；
+  `pytest tests/unit/test_hand_written_table_ledger.py` **8 passed**（名册没有说谎）。
+- **诚实边界**：这一条的见证是**结构级**的（谁渲染在哪个容器里），不是**布局级**的。jsdom 没有排版引擎，
+  「长理由不再撑宽页面」这句话必须由真浏览器量；在量到之前，本文件不把它写成已证实的视觉结论。
+
+**这一支的下一步（按顺序，仍与并行的 #126 支互不重叠）**：
+1. #122 第二处：`pages/FindingDetail.tsx` 的「证据来源」kv 表 → `kv()` 行，迁完把该文件从名册删掉。
+2. #122 第三、四处：`agent/pages/AgentEventLog.tsx`、`agent/pages/AgentPlanReview.tsx` 的事件/计划表。
+3. #122 第五处：`pages/Dashboard.tsx`；迁完名册为空，届时 `test_the_scan_actually_read_something`
+   那条「一处都没有 = 扫描瞎了」的断言必须重做（空名册是**目标**，不是故障），否则门会用一条假红挡住收尾。
+4. 真浏览器量「长理由不再撑宽页面」：走 `tests/e2e`（真 SPA + 真 fixture 后端）而不是 jsdom。

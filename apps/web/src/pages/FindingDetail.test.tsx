@@ -467,3 +467,19 @@ describe("FindingDetail 评审人框说的是被记下来的那个身份 (#115b)
     expect(screen.queryByText(/取自当前登录身份/)).toBeNull();
   });
 });
+
+
+describe("FindingDetail 反馈台账走共享表格 (#122) — 长理由不再把页面撑宽", () => {
+  it("renders the reviewer ledger through ui/Table, not a hand-rolled <table>", async () => {
+    // A human can paste one unbroken run of text into 理由; the hand-rolled
+    // table has no overflow container, so that run widens the whole page.
+    const reason = "证".repeat(300);
+    loadFeedback.mockResolvedValue(feedbackData([feedbackRow({ id: "b1", reason })], 100.0));
+    get.mockResolvedValueOnce(payload("MAJOR"));
+    render(<FindingDetail jobId="job-1" findingId="f-1" />);
+
+    const cell = await screen.findByText(reason);
+    expect(cell.closest(".ui-table-wrap")).toBeTruthy();
+    expect(cell.closest("table.data")).toBeNull();
+  });
+});

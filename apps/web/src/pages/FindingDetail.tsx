@@ -3,7 +3,7 @@ import {
   ApiError, NETWORK_UNREACHABLE, apiGet, createFindingFeedback, downloadCapsule, getJobFeedback,
   getReviewer, setReviewer, type FeedbackData, type FeedbackReceipt, type Finding, type FindingsData,
 } from "../api";
-import { Button, Degraded, Empty, ErrorBox, Input, Panel, SEVERITY_STOREABLE, Spinner, Term, Textarea, fmtPct, fmtTime, kv, severityPill, severityHint, evidenceLabel } from "../ui";
+import { Button, Degraded, Empty, ErrorBox, Input, Panel, SEVERITY_STOREABLE, Spinner, Table, Term, Textarea, fmtPct, fmtTime, kv, severityPill, severityHint, evidenceLabel } from "../ui";
 import { FEEDBACK_VOTE_ROLES } from "../ui/accessRoles";
 import { useRoleAccess } from "../ui/useRoleAccess";
 import { feedbackVerdictLabel } from "../ui/util";
@@ -209,22 +209,37 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
       ) : !data || data.rows.length === 0 ? (
         <Empty text="还没有人提交过反馈。注意：没有反馈不等于已接受 —— 接受率在最常见情形下就是「无法计算」。" />
       ) : (
-        <table className="data">
-          <thead>
-            <tr><th>评审人</th><th>判定</th><th>对应风险</th><th>理由</th><th>时间</th></tr>
-          </thead>
-          <tbody>
-            {data.rows.map((r) => (
-              <tr key={r.id}>
-                <td className="mono">{r.created_by}{r.created_by === who ? "（你）" : ""}</td>
-                <td>{feedbackVerdictLabel(r.verdict)}</td>
-                <td className="mono">{r.finding_id.slice(0, 8)}</td>
-                <td>{r.reason || "—"}</td>
-                <td className="mono">{fmtTime(r.created_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        // Through the shared table (#122): 理由 is the one cell on this page a
+        // human types freely, and `.ui-table-wrap` scrolls a long unbroken
+        // reason inside the panel instead of widening the whole page.
+        <Table
+          rows={data.rows}
+          rowKey={(r) => r.id}
+          columns={[
+            {
+              key: "created_by",
+              header: "评审人",
+              render: (r) => (
+                <span className="mono">
+                  {r.created_by}
+                  {r.created_by === who ? "（你）" : ""}
+                </span>
+              ),
+            },
+            { key: "verdict", header: "判定", render: (r) => feedbackVerdictLabel(r.verdict) },
+            {
+              key: "finding_id",
+              header: "对应风险",
+              render: (r) => <span className="mono">{r.finding_id.slice(0, 8)}</span>,
+            },
+            { key: "reason", header: "理由", render: (r) => r.reason || "—" },
+            {
+              key: "created_at",
+              header: "时间",
+              render: (r) => <span className="mono">{fmtTime(r.created_at)}</span>,
+            },
+          ]}
+        />
       )}
       {data ? (
         <p className="muted">
