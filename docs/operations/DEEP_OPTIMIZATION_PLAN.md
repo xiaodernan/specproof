@@ -224,6 +224,26 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
 3. #122 第五处：`pages/Dashboard.tsx`；迁完名册为空，届时 `test_the_scan_actually_read_something`
    那条「一处都没有 = 扫描瞎了」的断言必须重做（空名册是**目标**，不是故障），否则门会用一条假红挡住收尾。
 4. 真浏览器量「长理由不再撑宽页面」：走 `tests/e2e`（真 SPA + 真 fixture 后端）而不是 jsdom。
+
+### 2026-09-29：没跑成的检查不许判代码（#126 第五批，CI 那族轮转红的真因）
+
+`tests-no-infra` 在 `3ad9310` 上是 **9 failed / 3301 passed / 27 skipped in 477.78s**，其中 7 条是 craft 循环：5 条 `assert 'STUCK' == 'DONE'`、2 条 `IndexError: pop from empty list`。关键是**红的名单在两次 CI 之间会换**（`36463431113` 是另外四条 STUCK）——同一份代码上会换名单的红是环境掷硬币，不是回归。名单换到哪个测试，取决于那一次 `docker info` 探针答没答上来。
+
+- 机制（读源码得到的，不是猜的）：`Executor` 默认 `mode=None` → `SPECPROOF_SANDBOX` 缺省 `auto` → `run_sandboxed` 先 `_docker_available()`；**daemon 在、镜像不在**时走 `_run_docker` 返回 `sandbox image unavailable`，auto 这一支再 `_run_local(local_cmd, ..., "local_fallback")` 兜底，并把降级写在 `result.error` 上。而 craft 传下去的命令带的是**容器内路径**，在宿主机上必然跑不起来 ⇒ `exit_code != 0` **且** `error` 非空。`_check_criteria` 过去只看 `exit_code`，于是把「没跑成」当成「检查失败」，同一签名攒满 3 次就答 `STUCK`——一个关于用户代码的结论，实际坏的是执行面。探针超时那一次 auto 直接跳过 docker，宿主机跑干净，同一个测试就绿。**这就是轮转。**
+- 本机量到的两条对照证据：① CI 只在 Linux 有 docker 的平面上红；② 我在 Windows 上按接缝注入同一个结果，旧平面原样复现 CI 那句 —— `result='STUCK' reason="同类错误连续 3 次, 判定 stuck (签名: s3|python: can't open file '/work/test_calc.py')"`：**签名里就是一个容器路径**，这是「判的是没跑成的命令」最直接的自证。
+- 生产改动（`craft/loop.py`）：`compile` 与 `test_green` 这两处会执行命令的判据，遇到 `error` 非空且 `exit_code != 0` 时改走**已有的** W114 `unverifiable` 出口（`_sandbox_unverifiable_evidence`），理由是那句出口本来就写着「不进入修复循环, 不计入连续同类失败」；不新增判决种类，只把没产出的结论接进对的出口。`grep` 类判据不执行任何东西，因此不在范围内。
+- 见证（`tests/unit/test_sandbox_degradation_is_not_a_code_verdict.py`，5 例，接缝打在 `craft.executor.run_sandboxed`）：①降级+非零 ⇒ `FAILED` 且 `unverifiable`、reason 里带上那句降级原文、**没有**「同类错误连续」、`iterations == 0`；②真失败（exit 1、`error=""`）⇒ 仍是 `STUCK` 且 `iterations == 3`（防我把豁免扩宽到吞掉真红）；③降级但 exit 0 ⇒ 仍然 `DONE`（触发条件是「没有结论」，不是「有任何降级字样」）；④走**真** `run_sandboxed`：只假 docker 的两个探针，量出兜底结果确实同时带着 `local_fallback`、非零退出与那句 degradation——没有这条，豁免可能是在管一个没人能造出来的形状；⑤AST 钉住两个调用点（`compile`/`test_green`），不许靠子串。
+- 两平面：新平面 **5 passed in 9.23s**；旧平面（`git worktree` 指 `3f2237b` + 拷入新测试）**2 failed / 3 passed in 35.17s**，红的正是事前点名的两条（例①在第一个断言、例⑤在「found 0 call site(s)」），三条对照例在旧平面本就应当绿——它们的职责是证明豁免没扩宽。
+- 一次自己的错，记下来防止复发：第一版编辑把 `if criteria.type == "test_green":` 那行连同上下文一起删掉了，`test_green` 分支变成 compile 分支 return 之后的死代码，于是两个行为例**全绿在错误的地方**（4 步全 green）。抓到它的是我自己那句「exactly one step may end the run, got [...green...]"——**断言「有且只有一个失败步」比断言结果字符串更能揭穿分支被绕过**。修法不是加断言深度而是把分支补回来，并用一个记录 command 的桩先量清 plan 的 4 个步骤各自跑什么（s1 grep / s2 compile / s3+s4 test_green，命令是 `<venv python> -m pytest -q`）。
+- 全量 lane 数字补档（可归因，跑在 `3ad9310` 的干净 worktree，与 CI 同一套 `tests/unit tests/security tests/fault`）：**3329 passed, 6 skipped, 2 deselected in 3568.11s**，本机满载冷跑；CI 上同一 commit 是 9 failed / 3301 passed，差的就是本批解释掉的那 7 条 + 2 条 `test_slow_marker_tagging`（已在 #126 d 修掉，CI 已确认它们不再红）。
+- 定向门：`ruff check craft/loop.py tests/unit/test_sandbox_degradation_is_not_a_code_verdict.py` 0 错；`mypy craft/loop.py` Success。**受影响面（`test_craft_loop.py`/`test_craft_verify.py`/`test_edit_test_guard.py`/`test_swebench_v10_fixes.py`）这一批没读到结果**——它在后台跑了 20 分钟仍未出汇总（本机同时压着全量 lane），所以本文件不写它的数字；下一批的第一条就是把它读完。
+
+**下一批（可直接接手，按顺序）**：
+1. 先读 `/tmp/reg126f.xml`（或重跑那四个受影响文件）并把数字补进上一条；若里面有红，第一嫌疑是本批的豁免把「命令超时」也算成没产出结论——先量再决定，不许靠 retry 蒙。
+2. 让 CI 能自己说清是哪一面：`tests-no-infra` 里 craft 例失败时，断言消息应带上 `mode`（`docker`/`local_fallback`/`local`）。做法是把 `_result_dict(result)` 里的 mode 抄进失败诊断，而不是等人再翻一遍 `--log-failed`。
+3. 真正的止血项：`auto` 在「有 daemon、无镜像」时不该悄悄换平面跑同一条命令——容器路径在宿主机上没有意义。要么在这种情形下直接判 unverifiable（本批已让判决诚实），要么让 craft 显式传 `local_command`；先量有多少生产调用点在 auto 下命中这一支。
+4. `test_slow_marker_tagging.py` 的 180s 预算仍没按实测处理；`tests-with-infra`（minio unauthorized）与 `eval-golden-cases`（Maven cache 播种 exit 126）两个 job 还红着。
+5. #122 前端那支由并行会话推进（`55b37d3` FindingDetail 已迁、AgentEventLog 正在改），本支不要碰 `apps/web` 与 `test_hand_written_table_ledger.py`。
 ### 2026-09-29：#122 第二处——证据面板走 kv 行，`pages/FindingDetail.tsx` 退出名册
 
 - 站点：同文件的「证据来源」两列表（原 318 行）。它不是数据网格而是三对 label/value，所以迁到页面里已经在用的

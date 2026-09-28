@@ -1201,6 +1201,8 @@ class CraftLoop:
                 evidence["stderr_tail"] = result.stderr[-1000:]
             if result.error:
                 evidence["error"] = result.error
+            if result.error and result.exit_code != 0:
+                return (False, self._sandbox_unverifiable_evidence("compile", result), result)
             return (result.exit_code == 0, evidence, result)
         if criteria.type == "test_green":
             result = self._exec(self._build_test_step_command(), state)
@@ -1218,6 +1220,8 @@ class CraftLoop:
                 evidence["stderr_tail"] = result.stderr[-1000:]
             if result.error:
                 evidence["error"] = result.error
+            if result.error and result.exit_code != 0:
+                return (False, self._sandbox_unverifiable_evidence("test_green", result), result)
             return (result.exit_code == 0, evidence, result)
         contents: dict[str, str] = {}
         # 诚实不变量 (W113): 断言值类 grep 校验 ("assertion appears") 只搜索
@@ -1546,6 +1550,34 @@ class CraftLoop:
             if found:
                 break
         return choice, targets
+
+    def _sandbox_unverifiable_evidence(
+        self, check: str, result: ExecResult
+    ) -> dict[str, Any]:
+        """Evidence for a criterion whose command never reached a verdict (W164).
+
+        A sandbox-level failure (missing image, spawn error, a killed run)
+        leaves `error` set; `run_sandboxed`'s auto path then runs the
+        command on the host, where the sandbox-internal paths cannot exist,
+        so the non-zero exit says nothing about the repository's code.
+        Judging it as a failed check feeds the 3x same-signature rule and
+        surfaces 'STUCK' — a verdict about the user's code — for what is an
+        execution-plane problem. Same terminal as W114: no diagnose loop,
+        no repeated-failure counting.
+        """
+        return {
+            "check": check,
+            "unverifiable": True,
+            "exit_code": result.exit_code,
+            "mode": result.mode,
+            "error": result.error,
+            "output_tail": result.output_tail,
+            "reason": (
+                f"unverifiable: 检查命令没有在执行面内产出结论 "
+                f"(mode={result.mode}, exit_code={result.exit_code}): {result.error} — "
+                "不进入修复循环, 不计入连续同类失败"
+            ),
+        }
 
     def _unverifiable_reason(self, value: str) -> str:
         """Honest reason for a verify criterion that cannot be rebuilt (W114)."""
