@@ -15,10 +15,11 @@ only observable through real collection.
 """
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
+
+import tests.conftest as contract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -52,8 +53,8 @@ def _collected_slow(node_ids: list[str]) -> list[str]:
     # without MySQL the isolation contract can end the session before any test
     # runs, and "which env did the child see" is the first question.
     assert proc.returncode in (0, 5), (
-        f"exit={proc.returncode} MYSQL_DATABASE={os.environ.get('MYSQL_DATABASE')!r} "
-        f"SPECPROOF_TEST_MYSQL_DATABASE={os.environ.get('SPECPROOF_TEST_MYSQL_DATABASE')!r}\n"
+        f"exit={proc.returncode} this process was handed "
+        f"{contract.mysql_database_provenance()}\n"
         + proc.stdout
         + proc.stderr
     )

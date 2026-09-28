@@ -141,10 +141,30 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
   2. `test_subprocess_text_encoding.py::test_the_rest_of_the_repo_cannot_grow_the_debt` 报 **55 unpinned child captures (ceiling 54)**，多出来的那一条是 `.scratch/m126c-wip/test_collect_only_needs_no_db.py:49`——**我自己上一轮留下的未跟踪草稿**。这条普查走的是工作树而不是 git，所以它会把任何未跟踪 scratch 算进仓库债务；CI（全新 clone）永远复现不出这个数。草稿已被落地文件取代，删掉后回到 54。**口径**：本地量到的 debt 计数若含未跟踪文件，就不是可归因的仓库数字，要按 git 平面重推，不能靠抬 ceiling 蒙过去。
 - 定向门：`ruff check` 三个改动文件 0 错；`tests/unit/test_mysql_isolation_contract.py + test_collect_only_needs_no_db.py + test_subprocess_text_encoding.py` = **29 passed in 19.80s**；这一批的 affected-area 跑里 `test_slow_marker_tagging.py` 两条也是绿的（child 没再撞那句 refusal）。
 
-**下一批（可直接接手，按顺序）**：
+**当时定下的下一批（第 2 项已在下面「#126 第四批」一节落地，其余项以文末的「下一批」为准）**：
 1. `test_slow_marker_tagging.py` 的 180s 预算：上一轮在被我自己 spawn 的子进程压着的机器上，`tests/unit/test_agent_runtime.py` 的**纯收集**就 >180s ⇒ 这条门有时间脆弱性。要做的是先量（无并发时单跑那条 child 一次，记下真实耗时），再决定是换探测目标（用一个小的重模块等价物）还是按实测抬预算；不许靠 retry 蒙。
 2. 同一文件里那条诊断的口径要修：assert 消息打印的 `MYSQL_DATABASE` 是从**子进程自己的环境**读的，而 conftest 在 redirected 分支会改写它 ⇒ 「runner 给的」和「conftest 自己写的」分不清。做法：`enforce_test_database()` 改写前先留一份继承值（模块级变量或 `SPECPROOF_INHERITED_MYSQL_DATABASE`），诊断与 refusal 消息都报两个值。
 3. `test_craft_loop_jobs.py::test_supervisor_cancel_wins_over_leased_worker` 的 `STUCK` vs `CANCELLED`：先问「谁写这个状态、按什么顺序」，再决定是竞态还是判据；不许用 retry 蒙。
 4. CI 还有两个 job 红着：`tests-with-infra`（`docker compose up -d --wait`，minio unauthorized）、`eval-golden-cases`（exit 126 / Maven cache 播种）。
 5. 本轮新增的一条口径：`gh run view --log-failed` 只能拿到**末段**，要按用例取正文就得 `--job <databaseId>`；自己 spawn 的子进程日志要写进被挂载的目录（`.scratch/`），否则会像这次一样只剩 tail 而丢掉失败原因。
+
+### 2026-09-29：一句 refusal 必须说得出「这个库是谁定的」（#126 第四批，上一条的第 2 项已落地）
+
+上一批的表格里写着：CI 的 `--collect-only` 红打印了 `MYSQL_DATABASE='specproof_test'`，而 `ci.yml` 根本没有这个变量 ⇒ **读环境本身分不清**「runner 给的」和「我上面那个 conftest 改写的」。这一批把那句问话变成那句回答。
+
+- 生产改动（三处，都在 `tests/conftest.py`）：`enforce_test_database()` 的 redirect 分支在改写 `MYSQL_DATABASE` 的同时写下 `SPECPROOF_MYSQL_DATABASE_REWRITTEN_FROM=<被替换掉的那个值>`；`_apply_mysql_isolation()` 在**任何改写之前**记下 `(MYSQL_DATABASE, 那个变量)` 到 `MYSQL_DATABASE_HANDED_TO`；`mysql_database_provenance()` 把这一对念成一句人话，句尾要么写 `(no ancestor conftest rewrote it)`，要么写 `(an ancestor conftest rewrote it from 'specproof_phase0')`。这句话现在出现在两处人都会读的地方：结束 session 的那条 `pytest.exit` refusal，以及 `test_slow_marker_tagging.py` 的 assert 消息（那条消息原来只是把两个环境变量抄出来，抄的还是被改写后的值）。
+- 见证：新文件 `tests/unit/test_isolation_provenance.py`，5 例，全部走真守卫或真判决函数（`_apply_mysql_isolation` / `enforce_test_database`），**没有一例是自己手填那条记录再念出来的**——否则测的就不是生产在哪里读它。全绿：单跑 `5 passed in 1.60s`（冷跑 5.12s）。
+- 两条变异臂，跑之前先把「哪几条该红、红成什么形状」写死：
+  - A 臂：删掉 redirect 分支写 marker 那一行 ⇒ 预测**只有** `test_the_process_that_rewrites_the_schema_leaves_the_trail_it_handed_over` 红。实到 `1 failed, 4 passed`，红消息自己说清了断的是什么（`... got None`）。
+  - B 臂：把守卫入口的采集换成 `(None, None)` ⇒ 预测 3 红（dedicated 名 / 子进程继承 / refusal 带话），且「未设置环境」那例与「不经过守卫」的那例（A 臂那条，直接调 `enforce_test_database`）应保持绿。实到 `3 failed, 2 passed`，红的三条名字与预测逐条一致。
+  - 两臂都从 `.scratch/conftest.py.bak126e` 原样还原并 `sha256` 对过（`2afee7cd…` 两行相同），还原后再跑一次未变异对照 = `5 passed`。
+- 一处自己抓到的见证缺陷：A 臂第一版是 `os.environ[marker] == ...`，那样删掉写入会变成 **KeyError**（红但没有主张）。改成 `.get()` 并在消息里带上实际读到的值，红才说得出「断的是这条trail」。承接本仓库已有的口径：断言要能自己说话。
+- **本轮故意没跑满的一条**：`test_slow_marker_tagging.py` 改了消息，它会 spawn 两条 `--collect-only` 子进程，而此刻 `3ad9310` 的全量 lane 正在独立 worktree 里跑（13%）。并发跑它既会把 lane 的 wall-clock 灌水，又会亲手复现上一条第 1 项记的那次 >180s 脆弱性 ⇒ 只跑了不 spawn 子进程的两步：`--collect-only` 该文件 = `2 tests collected in 1.64s`（证明新的 `import tests.conftest` 与消息路径在装载期不炸），以及直接把消息念出来 = `MYSQL_DATABASE='specproof_test' as this process was handed it (an ancestor conftest rewrote it from 'specproof_phase0')`。两条子进程仍未在无并发平面上重跑，记在下一批第 1 项。`ruff check` 四个改动文件 0 错。
+
+**下一批（可直接接手，按顺序）**：
+1. 先补两条没量的：① `test_slow_marker_tagging.py` 在无并发平面上单跑（改了消息之后必须重跑）；② `3ad9310` 与这一批 commit 的全量 lane 数字（lane 在 `/tmp/sp-gate126d.log`，读汇总行，不许引成别的 commit 的数）。
+2. `test_slow_marker_tagging.py` 的 180s 预算：先量无并发时 `tests/unit/test_agent_runtime.py` 纯收集的真实耗时，再决定换探测目标还是按实测抬预算；不许靠 retry 蒙。
+3. `test_craft_loop_jobs.py::test_supervisor_cancel_wins_over_leased_worker` 的 `STUCK` vs `CANCELLED`：先问「谁写这个状态、按什么顺序」，再决定是竞态还是判据；不许用 retry 蒙。
+4. CI 还有两个 job 红着：`tests-with-infra`（`docker compose up -d --wait`，minio unauthorized）、`eval-golden-cases`（exit 126 / Maven cache 播种）。
+5. 口径沿用：`gh run view --log-failed` 只能拿到末段，按用例取正文要 `--job <databaseId>`；自己 spawn 的子进程日志写进被挂载的目录；本地量到的 debt/provenance 计数若含未跟踪文件就不是可归因的仓库数字。
 

@@ -112,6 +112,32 @@ PRODUCT_MYSQL_DATABASE = "specproof_phase0"
 DEFAULT_TEST_MYSQL_DATABASE = "specproof_test"
 TEST_REPO_PATH_PATTERN = "/test/%"
 
+#: Written next to the redirect so a child process can say who chose its schema.
+#: `enforce_test_database()` rewrites `MYSQL_DATABASE`, so a child's own
+#: environment cannot tell "the runner set this" from "the conftest above me set
+#: this" by value alone — and CI's red asked exactly that question. Presence of
+#: this variable is the evidence, not its contents.
+MYSQL_DATABASE_REWRITTEN_FROM = "SPECPROOF_MYSQL_DATABASE_REWRITTEN_FROM"
+
+#: (MYSQL_DATABASE, MYSQL_DATABASE_REWRITTEN_FROM) as observed at guard entry,
+#: i.e. before this process could have rewritten anything itself.
+MYSQL_DATABASE_HANDED_TO: tuple[str | None, str | None] = (None, None)
+
+
+def mysql_database_provenance() -> str:
+    """Who decided the schema this process was handed — runner or conftest?"""
+    value, rewritten_from = MYSQL_DATABASE_HANDED_TO
+    if value is None:
+        sentence = (
+            f"MYSQL_DATABASE was unset, so the guard defaults to "
+            f"{PRODUCT_MYSQL_DATABASE!r}"
+        )
+    else:
+        sentence = f"MYSQL_DATABASE={value!r} as this process was handed it"
+    if rewritten_from:
+        return sentence + f" (an ancestor conftest rewrote it from {rewritten_from!r})"
+    return sentence + " (no ancestor conftest rewrote it)"
+
 #: (state, database, product-schema test-row count at session start)
 MYSQL_ISOLATION: tuple[str, str, int | None] = ("unresolved", "", None)
 
@@ -211,6 +237,7 @@ def enforce_test_database() -> tuple[str, str]:
     target = chosen_test_database()
     if probe_database(target) == "ready":
         os.environ["MYSQL_DATABASE"] = target
+        os.environ[MYSQL_DATABASE_REWRITTEN_FROM] = current
         return "redirected", target
     if probe_database(PRODUCT_MYSQL_DATABASE) != "ready":
         return "unreachable", PRODUCT_MYSQL_DATABASE
@@ -246,7 +273,13 @@ def prepare_test_schema(state: str, database: str) -> None:
 
 
 def _apply_mysql_isolation(config) -> None:
-    global MYSQL_ISOLATION
+    global MYSQL_ISOLATION, MYSQL_DATABASE_HANDED_TO
+    # Read before `enforce_test_database()` may rewrite: the point of the record
+    # is which process in the chain chose this process's schema.
+    MYSQL_DATABASE_HANDED_TO = (
+        os.environ.get("MYSQL_DATABASE"),
+        os.environ.get(MYSQL_DATABASE_REWRITTEN_FROM),
+    )
     # `--collect-only` answers "which tests exist"; it executes no fixture and
     # writes no row, so the migration step that needs a live server is the one
     # thing it must not depend on. The `blocked` verdict below still bites,
@@ -257,7 +290,10 @@ def _apply_mysql_isolation(config) -> None:
         if not collecting_only:
             prepare_test_schema(state, database)
     except Exception as exc:  # noqa: BLE001 — a broken check must be loud
-        pytest.exit(f"MySQL test isolation check failed: {exc}", returncode=1)
+        pytest.exit(
+            f"MySQL test isolation check failed: {exc} — {mysql_database_provenance()}",
+            returncode=1,
+        )
     if state == "blocked":
         pytest.exit(BLOCKED_MESSAGE, returncode=4)  # ExitCode.USAGE_ERROR
     MYSQL_ISOLATION = (state, database, count_product_test_rows())
