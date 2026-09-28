@@ -120,7 +120,13 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
 - 定向门：`ruff check` 三个改动文件 0 错（一处 `.encode("utf-8")` 被 UP012 判多余，改成 `.encode()`，断言的口径不变：解码头一段注释写明「runner 必须按 UTF-8 解，不按机器 locale」）；`mypy sandbox/runner.py scripts/bench_swebench.py` Success。
 
 **下一批（可直接接手，按顺序）**：
-1. `--collect-only` 的子进程不该要求活着的 MySQL：`conftest._apply_mysql_isolation()` 在纯收集时跳过 `prepare_test_schema()`（收集不写库，`blocked` 的 fail-closed 判决保留）。本地就能复现 CI 的 111 拒连，不用等 CI（本机已实测：`exit=1`，正文是 WinError 10061 拒连，与 CI 的 `[Errno 111]` 同一件事的两个平面）：把 `MYSQL_DATABASE=specproof_test` + `MYSQL_HOST/MYSQL_PORT` 指向一个没人听的端口，跑 `pytest --collect-only tests/unit/test_baseline.py` ⇒ 现在 `exit=1`，修后 `0`/`5`。同时把 `test_slow_marker_tagging.py` 的诊断改准：它必须报**子进程实际看到**的 env（`proc` 的 argv/env），不能报父进程被 conftest 改写后的 `os.environ`。
-2. `test_supervisor_cancel_wins_over_leased_worker` 的 `STUCK` vs `CANCELLED`：先问「谁写这个状态、按什么顺序」，再决定是竞态还是判据；不许用 retry 蒙。
+1. `--collect-only` 的子进程不该要求活着的 MySQL（**量过、已复现、这一轮没落地**，草稿在 `.scratch/m126c-wip/`：`conftest.py.fixed` + 见证文件）：
+   - 本机复现拿到与 CI 同一条 refusal，不用等 CI：`MYSQL_DATABASE=specproof_test MYSQL_HOST=127.0.0.1 MYSQL_PORT=3399 pytest -o addopts= tests/unit/test_baseline.py --collect-only` ⇒ `exit=1`，正文 `MySQL test isolation check failed: test schema 'specproof_test' is not usable: OperationalError(2003, ... [WinError 10061])`（CI 那条是同一件事的 `[Errno 111]` 面）。机制：`enforce_test_database()` 决定 redirected 时会把 `os.environ["MYSQL_DATABASE"]` 写回（conftest:213），所以子进程天生在 `dedicated` 这一支——也正是唯一会调 `prepare_test_schema()` 的一支。
+   - 改法（4 行）：`_apply_mysql_isolation(config)`，`config.getoption("--collect-only")` 为真时跳过 `prepare_test_schema()`，`blocked` 的 fail-closed 判决保留（那条讲的是配置不是连通性）。
+   - 第一次跑就把**整个 session 打死**：改了签名忘了调用点 ⇒ `TypeError: _apply_mysql_isolation() missing 1 required positional argument: 'config'`，INTERNALERROR、0 条收集。教训：conftest 的 `pytest_configure` 是装载期守卫，每个子进程都 inherit，改它的第一步必须是**先跑一条 collect-only 再看 exit code**，不是先写见证。
+   - **没落地的原因是一条成本的实测**：把两条用例和邻居一起跑 = **759.60s / 4 failed, 1 passed**，而且红的方式里有一条不是我的用例：`test_slow_marker_tagging.py::test_known_slow_module_is_tagged_slow` 报 `subprocess.TimeoutExpired: ... 'tests/unit/test_agent_runtime.py' '-m' 'slow' '--collect-only' timed out after 180 seconds` ⇒ 在被我自己那几个子进程压着的 Windows 机器上，`test_agent_runtime.py` 的纯收集就要 >180s，这是既有 #53 门自身的时间脆弱性，与本修复无关。同时我新文件里的「真跑仍被拒」对照用例是成本大头（拒连 ⇒ 三次重试迁移 + 5s/10s 睡，单个 child 实测 100–190s）。我那两条自己的用例为什么红，日志只留下了末段，**我没读到原因，所以不写它绿**。
+   - 下一轮的做法（已按这次实测省钱）：不要再 spawn「真跑」对照（那条 100s+ 就是它）；collect-only 的豁免用一个极小模块的 `--co` child + 一条 in-process 分支测试（喂一个 `getoption` 桩）来钉，整个文件目标 <30s；并且单独处理 `test_slow_marker_tagging.py` 的 180s 预算——要么换掉它探测的重模块，要么把预算按实测抬起来，不许靠 retry 蒙。
+2. `test_craft_loop_jobs.py::test_supervisor_cancel_wins_over_leased_worker` 的 `STUCK` vs `CANCELLED`：先问「谁写这个状态、按什么顺序」，再决定是竞态还是判据；不许用 retry 蒙。
 3. CI 还有两个 job 红着：`tests-with-infra`（`docker compose up -d --wait`，minio unauthorized）、`eval-golden-cases`（exit 126 / Maven cache 播种）。
+4. 本轮新增的一条口径：`gh run view --log-failed` 只能拿到**末段**，要按用例取正文就得 `--job <databaseId>`；自己 spawn 的子进程日志要写进被挂载的目录（`.scratch/`），否则会像这次一样只剩 tail 而丢掉失败原因。
 
