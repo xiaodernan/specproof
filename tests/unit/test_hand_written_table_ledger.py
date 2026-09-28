@@ -10,6 +10,12 @@ longer exists.
 Population measured at commit 84e02e8: 5 sites across 4 files
 (agent/pages/AgentEventLog.tsx:43, agent/pages/AgentPlanReview.tsx:48,
 pages/Dashboard.tsx:65, pages/FindingDetail.tsx:212 and :318).
+
+Paid off since, one site per commit, each with the file leaving the register:
+  * pages/FindingDetail.tsx — the reviewer ledger moved to ui/Table (14335d3),
+    then the evidence panel moved to kv() rows, so the file is out. What is left:
+    3 sites across 3 files (AgentEventLog.tsx:43, AgentPlanReview.tsx:48,
+    Dashboard.tsx:65).
 """
 
 from __future__ import annotations
@@ -27,7 +33,6 @@ HAND_WRITTEN_TABLE_DEBT = {
     "agent/pages/AgentEventLog.tsx",
     "agent/pages/AgentPlanReview.tsx",
     "pages/Dashboard.tsx",
-    "pages/FindingDetail.tsx",
 }
 
 

@@ -224,3 +224,23 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
 3. #122 第五处：`pages/Dashboard.tsx`；迁完名册为空，届时 `test_the_scan_actually_read_something`
    那条「一处都没有 = 扫描瞎了」的断言必须重做（空名册是**目标**，不是故障），否则门会用一条假红挡住收尾。
 4. 真浏览器量「长理由不再撑宽页面」：走 `tests/e2e`（真 SPA + 真 fixture 后端）而不是 jsdom。
+### 2026-09-29：#122 第二处——证据面板走 kv 行，`pages/FindingDetail.tsx` 退出名册
+
+- 站点：同文件的「证据来源」两列表（原 318 行）。它不是数据网格而是三对 label/value，所以迁到页面里已经在用的
+  `kv()`（`.kv-value { word-break: break-all }`）：长路径会断开，而不是把 `<td>` 撑宽。
+- 名册：`HAND_WRITTEN_TABLE_DEBT` 删掉该文件，并把文件头的「84e02e8 时 5 处 / 4 文件」改成同时记下付清的这两处与
+  剩下的 3 处 / 3 文件；`hand_rolled_table_sites()` 实测 **4 处 → 3 处**。名册门从 **8 例变 7 例**（参数化跟着文件数走，
+  这不是掉了断言，是名册真的少了一行）。
+- 见证（同文件新增 1 例）：`container.querySelector("table.data")` 必须为空 + `证据方式` 恰好出现 2 次
+  （基本信息面板与证据面板各一次）。
+- 两平面：新平面 **2 passed**；旧平面（`git checkout HEAD -- apps/web/src/pages/FindingDetail.tsx`，只回退证据面板、
+  保留上一批的共享表格）**1 failed**，红在事前预测的那一行：`expect(container.querySelector("table.data")).toBeNull()`
+  → `expected <table class="data">…(1)</table> to be null`。
+- 一处必须记下的**假红**：同一批的第一次旧平面跑里，反馈台账那条红成「1 秒内没等到那一行」——这台机器此刻被
+  并行的全量门压着，`findByText` 的 1s 默认等待到期时 React 还没 flush，于是红成了「容器不对」的形状。
+  把等待放宽到 5s 后新平面两例全绿，且耗时为 **3366ms / 1252ms**——也就是说那一行在负载下真的要 3 秒多才出现。
+  ⇒ 判据一字未动，只把被负载压到不成立的默认等待改掉；这不是「用重试蒙绿」，是本仓库自己那条
+  「时间脆弱性要先量再改」的口径。
+- 定向门：`vitest run src/pages/FindingDetail.test.tsx -t "共享表格"` **2 passed**；
+  `pytest tests/unit/test_hand_written_table_ledger.py` **7 passed**；`tsc --noEmit` **exit 0**。
+- **诚实边界**同上一条：判据是结构级的；「长理由不再撑宽页面」的布局级结论仍待真浏览器量。

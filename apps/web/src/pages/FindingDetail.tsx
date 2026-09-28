@@ -330,13 +330,12 @@ export default function FindingDetail(props: { jobId: string; findingId: string 
       </Panel>
 
       <Panel title={<Term id="evidence">证据来源</Term>}>
-        <table className="data">
-          <tbody>
-            <tr><td className="kv-label">证据方式</td><td className="mono">{evidenceLabel(f.evidence_type)}</td></tr>
-            <tr><td className="kv-label">代码位置</td><td className="mono">{f.location || "—"}</td></tr>
-            <tr><td className="kv-label">置信度</td><td className="mono">{fmtPct(f.confidence)}</td></tr>
-          </tbody>
-        </table>
+        {/* Three label/value pairs, not a table: `.kv-value` wraps a long
+            unbroken path (`word-break: break-all`), which is the whole point —
+            a <td> here had no way to break one (#122). */}
+        {kv("证据方式", evidenceLabel(f.evidence_type))}
+        {kv("代码位置", f.location || "—")}
+        {kv("置信度", fmtPct(f.confidence))}
       </Panel>
 
       <FeedbackSection jobId={jobId} finding={f} />

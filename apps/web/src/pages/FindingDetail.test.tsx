@@ -478,8 +478,24 @@ describe("FindingDetail 反馈台账走共享表格 (#122) — 长理由不再�
     get.mockResolvedValueOnce(payload("MAJOR"));
     render(<FindingDetail jobId="job-1" findingId="f-1" />);
 
-    const cell = await screen.findByText(reason);
+    // 5s, not the 1s default: this box is shared with parallel full-gate runs,
+    // and a wait that expires before React flushes reads as "the container is
+    // wrong" — a false red on the judgement under test. The judgement itself is
+    // unchanged.
+    const cell = await screen.findByText(reason, undefined, { timeout: 5000 });
     expect(cell.closest(".ui-table-wrap")).toBeTruthy();
     expect(cell.closest("table.data")).toBeNull();
+  });
+
+  it("renders the evidence panel as kv rows, leaving no hand-rolled table", async () => {
+    loadFeedback.mockResolvedValue(feedbackData([feedbackRow({ id: "b1" })], 100.0));
+    get.mockResolvedValueOnce(payload("MAJOR"));
+    const { container } = render(<FindingDetail jobId="job-1" findingId="f-1" />);
+
+    await screen.findByText(/本任务计票/, undefined, { timeout: 5000 });
+    // The evidence rows are the second place a long value (a repo path) had no
+    // way to wrap: .kv-value breaks it, a <td> did not.
+    expect(container.querySelector("table.data")).toBeNull();
+    expect(screen.getAllByText("证据方式").length).toBe(2);
   });
 });
