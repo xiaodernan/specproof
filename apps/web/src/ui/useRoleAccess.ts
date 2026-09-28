@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PrincipalInfo, getAuthMe } from "../api";
 import { roleSetAllows } from "./accessRoles";
 
@@ -22,23 +22,44 @@ export type RoleAccess = {
   checked: boolean;
   known: boolean;
   allowed: boolean;
+  // #121: the session's user_id once /auth/me has answered for this mount, or null
+  // when it failed or there is no principal. A reader that must record WHO voted uses
+  // this when `checked` is already true, and awaits `identity` when it is not: a
+  // reviewer who clicked faster than /auth/me answered was being counted under their
+  // local name, so one human showed up in acceptance_rate as several.
+  userId: string | null;
+  identity: Promise<string | null>;
 };
 
 export function useRoleAccess(allowedRoles: readonly string[]): RoleAccess {
   const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
   const [checked, setChecked] = useState(false);
+  const settleRef = useRef<(id: string | null) => void>(() => {});
+  const [identity] = useState(
+    () =>
+      new Promise<string | null>((resolve) => {
+        settleRef.current = resolve;
+      })
+  );
 
   useEffect(() => {
     let alive = true;
+    let sessionId: string | null = null;
     Promise.resolve()
       .then(() => getAuthMe())
       .then((me) => {
-        if (alive && me && me.principal) setPrincipal(me.principal);
+        if (me && me.principal) {
+          sessionId = me.principal.user_id;
+          if (alive) setPrincipal(me.principal);
+        }
       })
       .catch(() => {
         // unknown identity: stay fail-open, the server still refuses
       })
       .finally(() => {
+        // Resolved even when this component unmounted: the promise is per-mount, and
+        // a vote that is already awaiting it must not hang because the page moved on.
+        settleRef.current(sessionId);
         if (alive) setChecked(true);
       });
     return () => {
@@ -48,9 +69,12 @@ export function useRoleAccess(allowedRoles: readonly string[]): RoleAccess {
 
   const roles = principal ? principal.roles : null;
   const known = checked && Array.isArray(roles);
+  const userId = principal ? principal.user_id : null;
   return {
     checked,
     known,
     allowed: !known || roleSetAllows(roles ?? [], allowedRoles),
+    userId,
+    identity,
   };
 }

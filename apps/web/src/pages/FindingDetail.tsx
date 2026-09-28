@@ -115,13 +115,19 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
     }
     setBusy(verdict);
     try {
+      // #121: wait for the identity ONLY while /auth/me is still in flight. Once the
+      // check has settled the vote goes out in this same tick -- #116 certifies that a
+      // granted role's click actually casts, and an unconditional await delayed it by a
+      // microtask (measured: that test went red on `toHaveBeenCalledTimes(1)`).
+      const settled = vote.checked ? null : await vote.identity;
+      const reviewerKey = (vote.userId ?? settled ?? reviewer).trim();
       const r = await createFindingFeedback(jobId, {
         finding_id: findingId,
         contract_id: String(finding.contract_id),
         severity,
         verdict,
         reason: reason.trim() || null,
-        created_by: who,
+        created_by: reviewerKey,
       });
       setReviewer(who);
       setReceipt(r);

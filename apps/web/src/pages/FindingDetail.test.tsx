@@ -44,7 +44,14 @@ const whoami = vi.mocked(getAuthMe);
 // this page branches on. A fixture that spelled out user_id/scopes/email would
 // keep passing when PrincipalInfo grows or the page starts reading something else.
 function principalWith(roles: string[]) {
-  return { principal: { roles } } as never;
+  // The fixture used to hand back a principal with ONLY roles. api.ts declares
+  // PrincipalInfo as { user_id, tenant_id, roles, scopes, email? }, and /auth/me
+  // really answers that shape -- so every test built on this fixture was asserting
+  // against a principal the API can never return, and any identity derived from
+  // user_id silently read null. Fields are filled from the role list so no test has
+  // to memorise a magic id.
+  return { principal: { user_id: "u-" + roles.join("+"), tenant_id: "t-1",
+                          roles, scopes: [] } } as never;
 }
 
 beforeEach(() => {
@@ -222,14 +229,17 @@ describe("FindingDetail 验收反馈入口 (#84) — Go/No-Go #13 needs a UI", (
     fireEvent.click(await screen.findByRole("button", { name: "接受这条判定" }));
 
     expect(await screen.findByText(/本次没有重复计数/)).toBeTruthy();
-    // The vote must carry the four fields the backend requires, verbatim.
+    // The vote must carry the fields the backend requires, verbatim. #121 changed the
+    // last cell: once /auth/me has answered, the ledger records the identity it gave,
+    // not the name typed into the box on this machine -- that is what keeps one human
+    // as one voter. The value comes from the fixture's own rule ("u-" + roles).
     expect(postFeedback).toHaveBeenCalledWith("job-1", {
       finding_id: "f-1",
       contract_id: "AUTH-01",
       severity: "MAJOR",
       verdict: "accept",
       reason: null,
-      created_by: "ana",
+      created_by: "u-operator",
     });
   });
 
@@ -391,5 +401,39 @@ describe("FindingDetail 投票权限 (#116) — a button the server would refuse
     const box = await screen.findByText(/权限不足/);
     expect(box.textContent).toContain("HTTP 403 · TENANT_FORBIDDEN");
     expect(box.textContent).toContain("mint a token with --scopes cases:trigger");
+  });
+});
+
+describe("FindingDetail 投票身份的时间点 (#121)", () => {
+  // Not a timing coincidence: the /auth/me promise is held open by the test and
+  // released AFTER the click, so this case proves which value submit() reads.
+  // Before #121 submit used the render-time name, so this case is red; after it the
+  // recorded identity is the one /auth/me answered with.
+  it("点得比 /auth/me 快，记下来的仍是登录身份", async () => {
+    let release!: (v: Awaited<ReturnType<typeof getAuthMe>>) => void;
+    whoami.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      })
+    );
+    localStorage.setItem("specproof_reviewer", "ana");
+    postFeedback.mockResolvedValue(receipt("unchanged"));
+    get.mockResolvedValueOnce(payload("MAJOR"));
+    render(<FindingDetail jobId="job-1" findingId="f-1" />);
+
+    // The panel only exists once the finding has loaded; /auth/me is still held by
+    // this test, so the identity cannot arrive during that await.
+    const btn = await screen.findByRole("button", { name: "接受这条判定" });
+    fireEvent.click(btn);
+    // The click has happened while the only identity the component had was "ana".
+    release(principalWith(["operator"]));
+
+    expect(await screen.findByText(/本次没有重复计数/)).toBeTruthy();
+    // The id is derived by the fixture itself ("u-" + roles), not by a string I typed:
+    // asserting "session-user" here was my invention and it never existed anywhere.
+    expect(postFeedback).toHaveBeenCalledWith(
+      "job-1",
+      expect.objectContaining({ created_by: "u-operator" })
+    );
   });
 });
