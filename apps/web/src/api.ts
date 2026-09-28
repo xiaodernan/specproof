@@ -970,8 +970,41 @@ export function getAuthConfig(): Promise<AuthConfig> {
   return apiGet<AuthConfig>("/auth/config");
 }
 
+// #119: /auth/me is read by the shell (App.tsx), by the tenant switcher in the
+// sidebar, and by every page's role gate (ui/useRoleAccess.ts). On one mount those
+// readers used to send one request each for the same credential, so a single page
+// cost two or three identical round trips. Since #121 a feedback vote waits for
+// this answer before it can name who voted, so the duplicate is a latency the
+// reviewer feels, not just traffic.
+//
+// The credential IS the identity of the question, so it is the key: readers that
+// hold the same credential while a read is in flight share that one read, and a
+// credential that changed mid-flight is never answered with the old identity.
+//
+// What this deliberately does NOT do is remember the answer once it lands, so
+// identity is still re-read on the next mount. A remembered answer goes stale
+// silently -- a role revoked on the server would keep drawing the sidebar for the
+// rest of the session -- and that is not worth saving one request per navigation.
+// It also means there is no cache to invalidate: every way this app can change the
+// credential (login, the tenant switcher, logout, an OIDC callback) is already a
+// different key, so a stale identity cannot be served rather than merely being
+// cleaned up after the fact.
+let authMeInflight: { credential: string; answer: Promise<{ principal: PrincipalInfo }> } | null =
+  null;
+
 export function getAuthMe(): Promise<{ principal: PrincipalInfo }> {
-  return apiGet<{ principal: PrincipalInfo }>("/auth/me");
+  const credential = getBearerToken() || getApiKey();
+  if (authMeInflight && authMeInflight.credential === credential) return authMeInflight.answer;
+  const answer = apiGet<{ principal: PrincipalInfo }>("/auth/me");
+  const entry = { credential, answer };
+  authMeInflight = entry;
+  const settled = () => {
+    // Clear only the entry this call installed: a read for a newer credential may
+    // already own the slot, and a failure is not an answer to keep either.
+    if (authMeInflight === entry) authMeInflight = null;
+  };
+  answer.then(settled, settled);
+  return answer;
 }
 
 export function listTenants(): Promise<{ tenants: TenantRow[]; count: number }> {

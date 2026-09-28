@@ -580,3 +580,77 @@ def test_only_one_module_asks_who_the_caller_is() -> None:
         "live once, so the alive flag, the fail-open branch and the role comparison "
         "cannot disagree per page — call useRoleAccess(<SHARED_ROLES>) instead."
     )
+
+
+_AUTHME_PATH_RE = re.compile(r"""["'`]/auth/me["'`]""")
+# An exported no-argument function whose body reads sessionStorage directly: the
+# credential readers. Matched by shape so a rename does not mean editing this gate.
+_CREDENTIAL_ACCESSOR_RE = re.compile(
+    r"export function (\w+)\(\): string \{(?:(?!\}).)*?sessionStorage\.getItem", re.S
+)
+
+
+def auth_me_readers() -> list[str]:
+    """Non-test modules under apps/web/src that name the /auth/me path."""
+    return [
+        p.relative_to(WEB).as_posix()
+        for p in sorted(WEB.rglob("*.ts*"))
+        if ".test." not in p.name and _AUTHME_PATH_RE.search(_text(p))
+    ]
+
+
+def credential_accessors() -> set[str]:
+    """The exported functions that read a credential out of sessionStorage."""
+    return set(_CREDENTIAL_ACCESSOR_RE.findall(_api_ts()))
+
+
+def _function_body(name: str) -> str:
+    body = api_function_bodies()[name]
+    end = body.find("\n}\n")
+    assert end != -1, (
+        f"{name} has no closing brace at column 0, so the slice api_function_bodies() "
+        "returned runs into the next function and anything read from it is not a body"
+    )
+    return body[:end]
+
+
+def test_auth_me_is_read_through_one_shared_call() -> None:
+    """#119: one module speaks /auth/me, and it shares one read per credential.
+
+    Measured before this clause existed: a single page mount asked /auth/me once per
+    reader — the shell (App.tsx), the tenant switcher in the sidebar, and the page's
+    own role gate (ui/useRoleAccess.ts) — so one credential cost two or three
+    identical round trips. Since #121 a feedback vote waits for that answer before it
+    can name who voted, which makes the duplicates latency a reviewer feels.
+
+    The fix is per-credential sharing inside api.ts::getAuthMe, and it only holds
+    while every reader goes through that function: a module that fetched the endpoint
+    itself would get no sharing, and nothing else in the repo would notice.
+
+    Both values compared here are derived from source — the module that names the
+    path, and the credential readers inside api.ts — so the clause cannot be satisfied
+    by renaming, and a blind read is refused instead of counted as a pass.
+
+    What this does NOT claim: that the answer is remembered. It is shared while in
+    flight and re-read on the next mount, so a role revoked server-side shows up on
+    the next navigation rather than being frozen for the session. The shared-round-trip
+    behaviour itself is locked by apps/web/src/__tests__/authmeShare.test.tsx.
+    """
+    readers = auth_me_readers()
+    assert readers == ["api.ts"], (
+        f"modules naming /auth/me: {readers}. It must be api.ts::getAuthMe alone: that "
+        "is where readers holding the same credential share one in-flight request, so a "
+        "second reader would silently cost another round trip on every page mount"
+    )
+    accessors = credential_accessors()
+    assert {"getBearerToken", "getApiKey"} <= accessors, (
+        f"the credential readers derived from api.ts are {sorted(accessors)} — the "
+        "derivation is blind (or the credential stopped being read from sessionStorage), "
+        "and the check below would then compare nothing"
+    )
+    body = _function_body("getAuthMe")
+    assert any(name in body for name in accessors), (
+        "getAuthMe() no longer reads the credential, so one answer would be shared "
+        f"across credentials as well ({sorted(accessors)} read the credential today). "
+        "The credential is the key: a switched credential is a new question"
+    )
