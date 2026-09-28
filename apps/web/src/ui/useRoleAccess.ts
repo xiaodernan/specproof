@@ -4,7 +4,7 @@ import { roleSetAllows } from "./accessRoles";
 
 // #116: "may this principal run the governed action?" for a single button or
 // control, from the same shared role sets the sidebar uses (#112) and the same
-// fail-open posture identity/useIdentityAccess.ts documents: an UNKNOWN identity
+// fail-open posture this hook implements: an UNKNOWN identity
 // (legacy X-API-Key deployments, /auth/me unreachable) is rendered as allowed,
 // because the server enforces the matrix regardless of what this says.
 //
@@ -12,11 +12,11 @@ import { roleSetAllows } from "./accessRoles";
 // with a principal that carries a role list. A page that hides a control while
 // `known` is false would take the admin's buttons away on a slow first paint.
 //
-// NOT YET THE ONLY COPY: pages/Audit.tsx:59 (useAuditAccess), pages/Billing.tsx:133
-// (useBillingAccess) and identity/useIdentityAccess.ts each still hand-write the
-// same getAuthMe/fail-open body. This hook is the generalisation they should
-// collapse into; it is not wired to them here because those three gate whole
-// pages (and their tests), while #116 is about one button. Tracked as #117.
+// SINCE #117 THIS IS THE ONLY /auth/me ACCESS BODY in apps/web/src: the three
+// page-level copies (useAuditAccess in pages/Audit.tsx, useBillingAccess in
+// pages/Billing.tsx, identity/useIdentityAccess.ts) call this hook and keep only
+// their own role set. tests/unit/test_access_role_parity.py refuses a fourth copy
+// by shape, so the sentence above cannot silently become false again.
 
 export type RoleAccess = {
   checked: boolean;

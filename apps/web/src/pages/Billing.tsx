@@ -4,12 +4,11 @@ import {
   apiBase,
   apiGet,
   getApiKey,
-  getAuthMe,
   getBearerToken,
 } from "../api";
-import type { PrincipalInfo } from "../api";
 import type { Column } from "../ui";
 import { BILLING_ROLES } from "../ui/accessRoles";
+import { useRoleAccess } from "../ui/useRoleAccess";
 import {
   Empty,
   ErrorBox,
@@ -131,32 +130,10 @@ function invoiceLabel(status: string): string {
 // behavior; the backend enforces fail-closed and answers 403
 // TENANT_FORBIDDEN, which this page renders as its own state.
 function useBillingAccess(): { checked: boolean; canView: boolean } {
-  const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    getAuthMe()
-      .then((me) => {
-        if (alive && me && me.principal) setPrincipal(me.principal);
-      })
-      .catch(() => {
-        // unknown identity: render as before (legacy mode answers 503 anyway)
-      })
-      .finally(() => {
-        if (alive) setChecked(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const canView =
-    !checked ||
-    principal == null ||
-    !Array.isArray(principal.roles) ||
-    BILLING_ROLES.some((role) => principal.roles.includes(role));
-  return { checked, canView };
+  // #117: one /auth/me + fail-open body for the whole app (ui/useRoleAccess.ts);
+  // the fail-open reason the comment above this hook states lives there now.
+  const access = useRoleAccess(BILLING_ROLES);
+  return { checked: access.checked, canView: access.allowed };
 }
 
 // Shared forbidden view: identity-gate denials and server-side 403

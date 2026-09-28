@@ -541,3 +541,42 @@ def test_the_role_vocabulary_the_identity_pages_offer_is_the_servers() -> None:
         f"identity/labels.ts ROLE_CN covers {sorted(keys)}, ROLE_VALUES is {sorted(server)}; "
         "a role with no gloss shows as a bare token to the person managing accounts"
     )
+
+
+_ACCESS_BODY_RE = re.compile(r"getAuthMe\(\)[\s\S]{0,600}?setChecked\(true\)")
+
+
+def test_only_one_module_asks_who_the_caller_is() -> None:
+    """#117: the /auth/me + fail-open body lives in exactly one module.
+
+    Measured before this clause: pages/Audit.tsx, pages/Billing.tsx and
+    identity/useIdentityAccess.ts each hand-wrote the same
+    getAuthMe().then(...)/catch(fail-open)/finally(setChecked) loop, and #116 added a
+    fourth (ui/useRoleAccess.ts). Four bodies means four private answers to "what does
+    an unknown identity do" — the same failure #112 closed for role sets: the copies can
+    drift and every test that renders one page alone stays green.
+
+    The count is a shape match over every non-test module under apps/web/src, and the
+    expectation is an exact set, because a clause that reads nothing looks identical to
+    one that finds nothing wrong.
+
+    What this does NOT claim: that only one module ever reads /auth/me. Measured at landing,
+    App.tsx:97, identity/TenantSwitcher.tsx:24/32 and pages/Login.tsx:82 also call getAuthMe,
+    and none of them is an access gate (App keeps the principal for the whole app, the
+    switcher reloads after a tenant change, Login verifies a credential just minted). The
+    shape named here is the gate body specifically: read identity, fail open, then settle a
+    checked flag.
+    """
+    population = [p for p in sorted(WEB.rglob("*.ts*")) if ".test." not in p.name]
+    assert len(population) >= 20, (
+        f"only {len(population)} modules under apps/web/src were scanned — that is not "
+        "the app, so this clause would be reading nothing"
+    )
+    carriers = [
+        p.relative_to(WEB).as_posix() for p in population if _ACCESS_BODY_RE.search(_text(p))
+    ]
+    assert carriers == ["ui/useRoleAccess.ts"], (
+        f"modules that hand-write the getAuthMe/setChecked body: {carriers}. It must "
+        "live once, so the alive flag, the fail-open branch and the role comparison "
+        "cannot disagree per page — call useRoleAccess(<SHARED_ROLES>) instead."
+    )

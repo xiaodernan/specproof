@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, apiGet, getAuthMe } from "../api";
-import type { PrincipalInfo } from "../api";
+import { ApiError, apiGet } from "../api";
 import type { Column } from "../ui";
 import {
   ErrorBox,
@@ -15,6 +14,7 @@ import {
 } from "../ui";
 import { auditDisposition } from "../ui/auditLabels";
 import { AUDIT_ROLES } from "../ui/accessRoles";
+import { useRoleAccess } from "../ui/useRoleAccess";
 
 // Wire shape mirrors GET /api/v1/admin/audit (api/routes/admin.py), whose rows
 // come from storage/mysql.py::audit_trail. `job_disposition` is stamped
@@ -57,31 +57,12 @@ function jobFromHash(): string {
 }
 
 function useAuditAccess(): { checked: boolean; canView: boolean } {
-  const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
-  const [checked, setChecked] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    getAuthMe()
-      .then((me) => {
-        if (alive && me && me.principal) setPrincipal(me.principal);
-      })
-      .catch(() => {
-        // Unknown identity stays fail-open for visibility only; the server is
-        // fail-closed and its 403 is rendered as its own state below.
-      })
-      .finally(() => {
-        if (alive) setChecked(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  const canView =
-    !checked ||
-    principal == null ||
-    !Array.isArray(principal.roles) ||
-    AUDIT_ROLES.some((role) => principal.roles.includes(role));
-  return { checked, canView };
+  // #117: this used to be a second hand-written copy of the /auth/me + fail-open
+  // body. One body now — ui/useRoleAccess.ts — so the three pages cannot
+  // disagree about what 'identity unknown' means while still naming the same
+  // shared role set. tests/unit/test_access_role_parity.py refuses a new copy.
+  const access = useRoleAccess(AUDIT_ROLES);
+  return { checked: access.checked, canView: access.allowed };
 }
 
 function dispositionPill(raw: string | null): JSX.Element {
