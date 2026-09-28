@@ -315,3 +315,41 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
    迁之前先量 `table-scroll` 与 `.ui-table-wrap` 的 CSS 差别，别把已有的滚动能力换成没有的。
 3. 名册清空后 `test_the_scan_actually_read_something` 会自相矛盾（空名册是目标，但断言 `sites` 非空）；
    付清最后一处时把它改成「名册允许为空，但扫描必须真的读过 ≥1 个 tsx 文件」。
+
+### 2026-09-29：#122 收尾——名册不再是「不许有」，而是「每一处都要交代清楚」
+
+- 量到的前情：`pages/Dashboard.tsx:65`（最近验收表）与前四处**不是同一类**。它已经包在
+  `<div className="table-scroll">` 里，而 `.table-scroll { overflow-x: auto; }`（`styles/product.css:175`）；
+  更要紧的是托着它的网格轨道是 `.dashboard-bottom { grid-template-columns: minmax(0, 2.1fr) minmax(250px, 1fr); }`
+  （同文件 141 行）——**`minmax(0, …)` 才是真正买到滚动的那个半句**：写成 `2.1fr` 时轨道 min-content 宽度由最宽的
+  单元格决定，溢出容器再全也照样把页面撑宽。也就是说 #122 想消灭的失效模式在这一处**本来就不会发生**。
+- 所以这一处**不迁移**，改成「登记 + 复查」：放进新的 `CONTAINED_HAND_ROLLED_TABLES`，把三条事实（包裹类名
+  `table-scroll`、`overflow-x: auto` 规则、可缩到 0 的网格轨道）一并登记，由
+  `test_contained_hand_rolled_tables_are_still_contained` 逐条重量。不迁的理由也要记诚实：迁到 `ui/Table` 会顺带把
+  这张表的字号（11px→13px）、内边距、边框、阴影、sticky 表头全换掉——那是没人要求的外观重做，不在 #122 的诉求里。
+- 门换了性质：`HAND_WRITTEN_TABLE_DEBT` 现在是**空集**（这是本线程的目标，不是失败），
+  `test_every_hand_rolled_table_is_accounted_for` 要求「扫到的每一处都必须有名有姓地交代」；
+  原来那条 `test_the_scan_actually_read_something` 断的是 `sum(sites.values()) >= len(DEBT)`，名册为空时自相矛盾
+  （空名册是目标却被判红），已改成**断言扫描自身读了多少 .tsx**（实测 75，下限 40）——它现在证明「扫描没坏」，
+  而不是「名册还没清空」。
+- 证据（三条事实各自单独判红，每轮按备份还原且 `shaMatch=True`）：
+  - 删掉 `.table-scroll { overflow-x: auto; }` → **1 failed, 4 passed**，红在
+    「`.table-scroll { overflow-x: auto; }` is gone from styles/product.css…」；
+  - 把 `minmax(0, 2.1fr)` 改成 `2.1fr` → **1 failed, 4 passed**，红在「without a grid track that may shrink to 0 …」；
+  - 在 `pages/Health.tsx` 末尾加一行含 `<table` 的注释（模拟新的手写表格）→ **1 failed, 4 passed**，红在
+    `test_every_hand_rolled_table_is_accounted_for`。
+  全部还原后 `pytest tests/unit/test_hand_written_table_ledger.py` **5 passed**。
+- 顺带量到的另一件事：`table.data` 这套样式现在只剩**一个生产者**（就是 Dashboard 那一处，另有 3 条「不得出现
+  `table.data`」的断言和 Matrix 那条全文档检查）。也就是说 `table.data` 已经接近可以随 Dashboard 一起收掉的死样式——
+  见「下一批」第 2 条。
+- **诚实边界（这条比前四处更要紧）**：以上全是**源码级**证据——三条事实都是「CSS 里确实写着这条规则」，不是
+  「浏览器里真的这么排版」。`minmax(0, …)` 配 `overflow-x: auto` 在真实布局下究竟兜不兜得住，至今没有任何测试
+  观察过；这是本线程唯一还没兑现的那类证据。
+
+**下一批（按顺序）**：
+1. 真浏览器布局证据（`tests/e2e`）：长摘要不再撑宽页面。已有未提交草稿（fixture 的 feedback 端点 + `longtext.spec.ts`），
+   上次红在 chromium 的 `Runtime.callFunctionOn: … session closed`；要么跑通并记下数字，要么如实记为未证明。
+2. `table.data` 只剩 Dashboard 一个生产者；等它（或它的样式）收掉时，把 `base.css:1402-1411` 与
+   `product.css:176-177` 这七行一并处理，并确认那 3 条「不得出现 table.data」的断言的判据随之更新，而不是悄悄失效。
+3. #122 之外：`docs/operations/PRODUCT_ROADMAP.md` §28.4 里那些还红着的 CI job（`tests-with-infra` 的 minio
+   unauthorized、`eval-golden-cases` 的 Maven cache exit 126）仍是没被处理的止血项。
