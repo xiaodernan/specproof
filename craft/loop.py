@@ -146,6 +146,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -343,6 +344,12 @@ class StepState:
 
 
 _ASSERT_EQ_RE = re.compile(r"^\s*E\s+assert\s+(.+?)\s*==\s*(.+?)\s*$", re.MULTILINE)
+
+#: A terminal verdict (STUCK / unverifiable) has to be readable where the
+#: report never reaches: the worker log, and a red unit test's captured log
+#: section. observability/logging.py renders only ts/level/logger/message, so
+#: every fact this line carries must live in the message text itself.
+LOGGER = logging.getLogger("craft.loop")
 
 #: Non-alphanumeric characters that make a grep assertion value degenerate
 #: when they are all it contains (W114): grepping for "." / "==" / "->"
@@ -1117,8 +1124,15 @@ class CraftLoop:
             if consecutive >= 3:
                 state.status = "stuck"
                 state.iterations = attempts
-                state.evidence["reason"] = (
-                    f"同类错误连续 {consecutive} 次, 判定 stuck (签名: {signature[:160]})"
+                self._record_terminal_check(
+                    step,
+                    state,
+                    "STUCK",
+                    (
+                        f"同类错误连续 {consecutive} 次, 判定 stuck "
+                        f"(签名: {signature[:160]})"
+                    ),
+                    evidence,
                 )
                 self.memory.add(
                     "decision",
@@ -1143,6 +1157,43 @@ class CraftLoop:
                 verdict="progress",
             )
 
+    def _record_terminal_check(
+        self,
+        step: Step,
+        state: StepState,
+        verdict: str,
+        reason: str,
+        evidence: Mapping[str, Any],
+    ) -> None:
+        """Attach the check behind a terminal verdict and log it (W165).
+
+        A STUCK / unverifiable answer is a claim about the user's code, and
+        until now the step's evidence carried only the reason text: the check
+        name, its exit code and the execution plane stayed in a local variable
+        that the loop threw away. Both readers of this — the report a human
+        opens in the console, and a red unit test's captured log — need the
+        check itself, so the same dict is written to the step and rendered into
+        one log line (never two sources that can disagree).
+        """
+        merged = dict(evidence)
+        merged["reason"] = reason
+        merged["terminal_verdict"] = verdict
+        state.evidence = merged
+        facts = " ".join(
+            f"{key}={merged[key]!r}"
+            for key in ("check", "exit_code", "mode", "error")
+            if merged.get(key) is not None
+        )
+        tail = str(merged.get("output_tail") or "")[-300:].replace("\n", " ")
+        LOGGER.warning(
+            "craft 步骤 %s 的终态 %s 由这条检查决定: %s | output_tail=%s | reason=%s",
+            step.id,
+            verdict,
+            facts,
+            tail,
+            reason,
+        )
+
     def _fail_unverifiable(
         self,
         step: Step,
@@ -1161,7 +1212,7 @@ class CraftLoop:
         reason = str(evidence.get("reason") or "unverifiable")
         state.status = "failed"
         state.iterations = iteration
-        state.evidence = dict(evidence)
+        self._record_terminal_check(step, state, "FAILED", reason, evidence)
         self.memory.add(
             "decision",
             f"步骤 {step.id} unverifiable: {reason} (不进入修复循环)",

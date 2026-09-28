@@ -353,3 +353,81 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
    `product.css:176-177` 这七行一并处理，并确认那 3 条「不得出现 table.data」的断言的判据随之更新，而不是悄悄失效。
 3. #122 之外：`docs/operations/PRODUCT_ROADMAP.md` §28.4 里那些还红着的 CI job（`tests-with-infra` 的 minio
    unauthorized、`eval-golden-cases` 的 Maven cache exit 126）仍是没被处理的止血项。
+
+---
+
+### 2026-09-29：终态裁决必须说得出是哪条检查决定的（#126 g）
+
+**先更正上一条（#126 f）的过度声称。** 那一节写的是「auto 降级 = 这条轮转红族的机制」，
+把 `result.error` 非空那一支收掉了，CI 从 `9 failed, 3301 passed` 降到
+`5 failed, 3317 passed, 27 skipped in 510.10s`（run 36473165360 / job 109100204345，`61e4a85`）——
+**但剩下的 5 条不走 `error` 那一支**，所以 f 只解释了这一族的一部分，不是全部。
+上一条把这个结论当成整族的解释，是过度声称，在此改口。
+
+**这一批把「轮转」量成了表**（同一条 `python -m pytest tests/unit tests/security tests/fault -q`，
+逐条读四次 run 的 `--log-failed`，只读名字与断言行）：
+
+| run | job | `tests-no-infra` 红名 |
+| --- | --- | --- |
+| 36459987681 | 109055858874 | `test_craft_llm`、`test_craft_loop`、`test_craft_memory`、`test_slow_marker_tagging` ×2 |
+| 36463431113 | 109067450482 | `test_agent_runtime`、`test_craft_llm`、`test_craft_loop_metrics`、`test_craft_verify`、`test_slow_marker_tagging` ×2 |
+| 36467013322 | 109079522865 | `test_bench_mutation`、`test_swebench_llm_fixes`、`test_swebench_v10_fixes`、`test_swebench_v11_fixes` |
+| 36473165360 | 109100204345 | `test_craft_llm`、`test_craft_loop_jobs`、`test_craft_loop_metrics`、`test_craft_verify`、`test_kind_threading` |
+
+两件事从表里读出来，而不是从推断里读出来：
+1. `test_slow_marker_tagging` 那两三条在 f 之后**消失了**——它是 #126 e 的 collect-only 豁免收掉的，
+   机制另有一条（子进程继承父 conftest 改写后的 `MYSQL_DATABASE`，落到 `dedicated` 那一支，
+   被迫去连一个不存在的库；本机复现记在上一条之前的段落里）。它和 craft 族是**两个不同的机制**，
+   以前被我混在「轮转」这一个词里。
+2. 剩下的红全都读作 `assert 'STUCK' == 'DONE'`（或 `IndexError: pop from empty list`——
+   剧本回复被多出来的重诊断轮次掏空），且**名字集合在换**；`exec_mode` 全是 `"local"`，
+   所以 docker/降级那条解释对这一族**不成立**。CI 里这些测试的 captured stdout 只有四条
+   `craft llm call`，一行证据都没有。
+
+**为什么没有证据**：`craft/loop.py` 过去整个文件没有 logger；而 `_check_criteria` 明明造出了
+富证据（`check` / `exit_code` / `mode` / `output_tail`），STUCK 那一支却只把
+`同类错误连续 3 次 (签名: …)` 塞进 `state.evidence`，把这条结论**由哪条检查、在哪个执行面、
+以什么退出码**决定的一手证据丢掉了。报告的读者（Web 控制台）和日志的读者（worker、CI）
+于是同时看不见。
+
+**这一批落的东西**：`CraftLoop._record_terminal_check(step, state, verdict, reason, evidence)`
+把那份证据合进终态 step 的 `evidence`（多出的键：`check/exit_code/mode/output_tail/terminal_verdict`），
+并渲染成一行 `LOGGER.warning`——同一个 dict 喂两个读者，杜绝「日志和报告各抄一份、抄歪了」。
+接在**两个**非绿终态上：3× 签名的 STUCK（在 `_run_step` 里）与 W114 的 unverifiable
+（`_fail_unverifiable`）。刻意**不**接在「编辑提案重复 3 次」那一支：那里没有检查，硬套一行
+「由这条检查决定」就是撒谎。`observability/logging.py` 的 formatter 只渲染
+ts/level/logger/message，所以事实必须写在 message 里——这条前提也被一个案例钉住。
+
+**数字（都从输出里读的）**：
+- 新增 `tests/unit/test_terminal_verdict_names_its_check.py` 7 例：`7 passed in 66.26s`（本机 win32 / Python 3.12.13 / pytest 9.1.1）。
+- 变异臂（把 helper 体首行前插 `return`，call site 原样留着）：`4 failed, 3 passed in 64.28s`，
+  红的正是事前点名的 4 条行为案例，绿的正是「绿步骤不该有终态行」「AST 接线门」「formatter 前提」——
+  接线门在这种臂下**故意不动**，它量的是接线不是效果。
+- 我这次用 `.scratch/arm126g.py` 把对照跑在包装进程里，**对照那一腿崩了**
+  （exit `3221227274`，没有汇总行），所以 7/7 这个数字来自随后单独直跑的对照，不来自那次包装跑；
+  臂腿跑完 `restored sha … match=True`（字节级还原，锚点唯一性先断言）。
+- 兄弟文件 `tests/unit/test_sandbox_degradation_is_not_a_code_verdict.py` 与本批新文件同跑：
+  `11 passed`（那 5 例是本改动最直接的下游读者，它们对 stuck 的 `reason` 只做子串断言，
+  所以新增键是纯加法——已经这样读过一次，不是推测）。
+- `ruff check craft/loop.py tests/unit/test_terminal_verdict_names_its_check.py` → All checks passed；
+  `mypy craft/loop.py` → Success。
+
+**没做到的事，写清楚**：上一条「下一批」第 1 条要求先读完受影响面四文件
+（`test_craft_loop.py` / `test_craft_verify.py` / `test_edit_test_guard.py` / `test_swebench_v10_fixes.py`，62 例）。
+本机这一次跑到 `tests\unit\test_craft_loop.py` 的第 5 个点就停了：这台机器同时在跑别的会话的全量腿，
+一条 craft 用例要 1–3 分钟，按这个速度四文件要一小时以上，我把它停了以免它和我后面的验证互抢 CPU。
+**所以本文件仍然没有这四文件的可归因数字**；本批的验证范围就是上面那两条（新文件 + 兄弟文件）。
+这一批没有回答「craft 族为什么在 CI 里失败」——它造的是回答这问题所必需的那件东西。
+
+**下一批（按顺序）**：
+1. 看 CI 在 `61e4a85`+本批 这一 run 的 `tests-no-infra` 日志：现在每条 STUCK 都会留下一行
+   `craft 步骤 sN 的终态 STUCK 由这条检查决定: check=… exit_code=… mode=… | output_tail=…`，
+   直接读它点名哪条检查、哪个面、什么输出——不再靠猜。
+2. 如果那一行显示 `check='test_green'` 且 tail 是真测试失败，就顺着 tail 查编辑器/锚点在这一族 fixture 上
+   是否根本没落上（`fix_registry` 的 no-op 剧本会伪装成「改了」，所以我这条臂里的 `fix_double` 故意不做编辑：
+   它证明的是**日志与报告一致**，不是修复路径正确）。
+3. `mode=auto` 静默把容器路径拿到宿主机重跑这条仍然开着：量清生产调用点有几处会走到，再决定是钉死
+   还是要求显式授权降级。
+4. #53 的 180s collect-only 预算、`tests-with-infra`（minio unauthorized）、`eval-golden-cases`
+   （Maven cache 播种 exit 126）仍未处理。
+5. 别碰 `apps/web/**` 与 `tests/unit/test_hand_written_table_ledger.py`（并发的 #122 会话拥有它们）。
