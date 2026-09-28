@@ -1720,3 +1720,60 @@ passed 判定里 `terminal_transitions == 1` 一直就是重复写检测的承�
 3. `pages/Login.tsx` 的凭证校验仍会自己发一次请求（凭证不同就不是同一个问题）；
    它与外壳的在途读合并的前提是**凭证相同**。
 4. 未进演练（`ops/drills.py`）与任何 E2E 面。
+## 28. CI 其实从未跑起来过 + #120：一次 pytest 必须说清谁需要 MySQL（2026-09-28）
+
+### 28.1 先记一件比任何功能都严重的事：CI 是死的
+
+- **现象**：`gh run list` 里最近十几次运行全部 `failure`，时长清一色 **0s**。
+- **根因**：`.github/workflows/ci.yml` 里两个 step 的 `name:` 值含**未加引号的 `": "`**
+  （`Gate: recall must be 100%`、`Gate: zero false positives`）。`: ` 在 YAML 里是映射分隔符，
+  于是整个文件解析失败——GitHub 对"workflow 文件非法"的表示就是一次 0s 的失败运行，
+  **没有任何 job 被创建过**。所以此前"CI 红"是**假信号**：红在文件本身，不在代码。
+- **修法**：给这两个名字加引号（并留注释说明为什么必须加）。本地 `yaml.safe_load` 验证
+  ⇒ 6 个 job 解析出来；`nightly-eval.yml` 一并复核，无同类问题。
+- **门证**：`2fb4612` 之后最近一次运行 `36421800057` 时长 **9m24s**（不再是 0s），
+  6 个 job 全部真的被创建。
+- **顺带暴露的真相（诚实边界，本批未修）**：workflow 一旦能跑，**6 个 job 里 5 个是红的**
+  ——`lint-type` ✅；`security`（bandit B608，7 处 medium，如 `storage/mysql.py:732`）、
+  `tests-with-infra`（`docker compose … up -d --wait` 起基础设施）、`tests-no-infra`、
+  `eval-golden-cases`（seed Maven cache）、`openapi-schema-diff` ❌。
+  这些红是**既有缺陷第一次可见**，不是这次改动引入的；本批只把假信号变成真信号，
+  逐个转绿的活单列在 §28.4。
+
+### 28.2 #120：全量门为什么慢——先让运行自己说出谁需要 MySQL
+
+- **动机**：本机全量合并门在 1293s–1704s 之间摆动（四个数据点），只看总时长分不清
+  "这台机器当时忙"与"结构上就是这么重"。可判断的那一半先拿到：**哪些测试文件要 MySQL、
+  这次跑了几个、各花了多少 wall-clock**。
+- **改法**：`tests/conftest.py` 新增 census（`mysql_backed_test_files()` 扫描 `test_*.py` 中
+  构建 `MySQLStore(`／`MySQLConfig(` 的文件）+ 计时钩子（`pytest_runtest_logreport` 累计 `call`
+  阶段耗时）+ 收尾块（`pytest_terminal_summary`）。每次 pytest 结束都打印，名册不靠手抄
+  ——上方注释里"13 个 DB 文件"的旧说法已过期，扫描实测 **16**。
+- **一条边界就是判据**：正则带 `\b` 前缀，所以 `FakeMySQLStore()`（`test_api_errors.py`、
+  `test_api_governance.py`、`test_envelope_retryable.py` 三处使用）**不进**名册——
+  "提到 MySQL 形状的名字"不等于"需要 MySQL"。这条边界由
+  `test_a_fake_store_is_not_a_mysql_dependency` 锁住。
+- **绝不沉默**：名册为空时打印 "the scan found none — the scan is blind, or the tests moved"；
+  一个都没跑时打印 "none of them ran in this session (0 of 16)"。两者是不同事实，
+  不能都长成一张空屏。
+
+### 28.3 门证（本批实测）
+
+- 新测试 `tests/unit/test_mysql_usage_report.py`：**7 passed**。
+- 活证据：`pytest tests/unit/test_storage.py` 结束打印
+  `MySQL-backed test files (#120…): 16` + `tests/unit/test_storage.py  0.0s  (7 tests)` +
+  `subtotal 0.0s of 0.1s (2% of the session); 1 of 16 census files ran`。
+- 回归面：`test_api_errors.py` + `test_storage.py` 合跑 **22 passed**；`ruff check` 干净；
+  `mypy .` ⇒ `Success: no issues found in 218 source files`。
+- 探针（三条，各自按事前预测判红，按字节还原后 sha `829640e49b59` 一致）：
+  P1 去掉 `\b` ⇒ `FakeMySQLStore` 相关用例红；P2 不累计 `call` 耗时 ⇒ 计时用例红；
+  P3 删掉"空名册"分支 ⇒ 空名册用例红。
+- **未跑全量合并门**：按用户长期指示（不要每次都跑全量回归，本机 32–37 分钟）本批只跑定向门。
+
+### 28.4 仍未做（诚实边界）
+
+1. census 只回答"谁需要 MySQL"这一半（静态可判定），**没有**回答"是不是负载问题"——
+   要判负载得在同一台机器上做对照运行，那是另一个单位。
+2. CI 那 5 个红 job 一个都还没修：bandit B608（7 处）、宿主机 `docker compose` 起基础设施、
+   `tests-no-infra`、Maven cache 播种、OpenAPI schema diff。它们已从"不可见"变成"可见"，
+   排在后面按序处理；每修一个都要把运行号与 job 结论写回本文件。

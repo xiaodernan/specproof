@@ -64,8 +64,18 @@
    OIDC 回调每一种换凭证都是不同的键，于是「忘了调用失效」这个失败模式不存在。
    门谓词按计划改为由源码重新推导（见 `tests/unit/test_access_role_parity.py` 的
    `test_auth_me_is_read_through_one_shared_call`），不是手写豁免名单。
-4. #120：全量门用时在 1293s–1704s 之间摆动（本机四个数据点：1703.64 / 1535.42 / 1587.78 / 1293.43s）。
-   需要把「谁需要 MySQL」印进运行输出，才能判断这是负载还是结构问题。
+4. ✅ **已完成（`0099c96`）**：#120 —— 全量门用时在 1293s–1704s 之间摆动（本机四个数据点：
+   1703.64 / 1535.42 / 1587.78 / 1293.43s）。已把「谁需要 MySQL」印进每次 pytest 的输出：
+   扫描名册（实测 **16** 个文件，`\b` 锚定使三处 `FakeMySQLStore()` 不入册）+ 本次跑了几个 +
+   各自 wall-clock 与会话占比；「空名册」与「一个都没跑」各印不同的话，绝不沉默。
+   见 `tests/conftest.py`、`tests/unit/test_mysql_usage_report.py`（7 passed）与 ROADMAP §28。
+   ⚠️ census 只回答静态可判定的那一半（谁需要 MySQL）；「是不是负载问题」仍需同机对照运行，
+   那是另一个单位——本文件不把它算作已完成。
 5. 需要产品决策或授权、因此**故意没做**的：#113 的路由分类错位、服务端强制
    `created_by == principal.user_id`（改的是线上权限语义）、产品库 `specproof_phase0` 中
    822 行无归因审计残留的清理。
+6. **CI 复活后暴露的 5 个红 job**（`2fb4612` 之前 CI 文件本身解析失败，所有 job 从未创建过，
+   详见 ROADMAP §28.1）：`bandit B608` 7 处 medium（如 `storage/mysql.py:732`）、
+   `tests-with-infra` 的 `docker compose … up -d --wait`、`tests-no-infra`、`eval-golden-cases`
+   的 Maven cache 播种、`openapi-schema-diff`。`lint-type` 已绿。逐个修，每个都要把运行号与
+   job 结论写回本节。
