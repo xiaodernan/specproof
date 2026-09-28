@@ -2,10 +2,12 @@
 
 import ast
 import os
+import re
 import sys
 import uuid
-from collections.abc import Generator
+from collections.abc import Generator, Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -284,6 +286,94 @@ def pytest_sessionfinish(session, exitstatus) -> None:  # noqa: ARG001 — hook 
         f"\nMySQL test isolation ({state} -> {database}): product schema "
         f"'/test/%' rows {before} -> {after}; {verdict}"
     )
+
+
+# ── #120: which tests need MySQL, and how much of the run they are ───────────
+#
+# The full merge gate on this machine swings between 1293s and 1704s, and the
+# total alone cannot say whether that is load or structure. This block answers the
+# half that is knowable from the run: how many test files build a MySQL store, which
+# of them ran, and how much wall-clock they took. The census is a scan rather than a
+# hand-kept list because the number drifts — the comment above
+# `_apply_mysql_isolation` still says 13 DB-backed files.
+MYSQL_USAGE_SECONDS: dict[str, float] = {}
+MYSQL_USAGE_TESTS: dict[str, int] = {}
+SESSION_CALL_SECONDS = 0.0
+
+# The leading \b is the whole difference between a census of files that NEED MySQL
+# and a census of files that mention a MySQL-shaped name: `FakeMySQLStore()` (built
+# by tests/unit/test_api_errors.py, test_api_governance.py and
+# test_envelope_retryable.py) has no boundary before `MySQLStore`, so it stays out.
+_MYSQL_BUILD_RE = re.compile(r"\bMySQLStore\s*\(|\bMySQLConfig\s*\(")
+
+
+def mysql_backed_test_files(root: Path | None = None) -> list[str]:
+    """Repo-relative test files that build a MySQL store or config, by scanning.
+
+    Kept pure and parameterised so the regression lock can point it at a tree it
+    has never seen; a scan that only ever reads the real tree cannot be told apart
+    from one that reads nothing.
+    """
+    base = root if root is not None else _PROJECT_ROOT / "tests"
+    found: list[str] = []
+    for path in sorted(base.rglob("test_*.py")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if _MYSQL_BUILD_RE.search(text):
+            found.append(path.relative_to(base.parent).as_posix())
+    return found
+
+
+def format_mysql_usage(
+    census: Sequence[str],
+    seconds: Mapping[str, float],
+    tests: Mapping[str, int],
+    session_seconds: float,
+) -> list[str]:
+    """The end-of-run block. Never silent, because "none of them ran" and "the scan
+    is blind" are different facts and must not both look like an empty screen."""
+    head = (
+        "MySQL-backed test files (#120, scanned from test_*.py that build a MySQL "
+        f"store/config): {len(census)}"
+    )
+    if not census:
+        return [head, "  the scan found none — the scan is blind, or the tests moved"]
+    ran = [name for name in census if name in seconds]
+    if not ran:
+        return [head, f"  none of them ran in this session (0 of {len(census)})"]
+    lines = [head]
+    for name in sorted(ran, key=lambda item: (-seconds[item], item)):
+        lines.append(f"  {name:<46} {seconds[name]:8.1f}s  ({tests.get(name, 0)} tests)")
+    subtotal = sum(seconds[name] for name in ran)
+    share = f" ({subtotal / session_seconds * 100:.0f}% of the session)" if session_seconds else ""
+    lines.append(
+        f"  subtotal {subtotal:.1f}s of {session_seconds:.1f}s{share}; "
+        f"{len(ran)} of {len(census)} census files ran"
+    )
+    return lines
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    global SESSION_CALL_SECONDS
+    if report.when != "call":
+        return
+    SESSION_CALL_SECONDS += report.duration
+    name = report.nodeid.split("::")[0]
+    MYSQL_USAGE_SECONDS[name] = MYSQL_USAGE_SECONDS.get(name, 0.0) + report.duration
+    MYSQL_USAGE_TESTS[name] = MYSQL_USAGE_TESTS.get(name, 0) + 1
+
+
+def pytest_terminal_summary(  # noqa: ARG001
+    terminalreporter: Any, exitstatus: int, config: pytest.Config
+) -> None:
+    lines = format_mysql_usage(
+        mysql_backed_test_files(), MYSQL_USAGE_SECONDS, MYSQL_USAGE_TESTS, SESSION_CALL_SECONDS
+    )
+    terminalreporter.write_line("")
+    for line in lines:
+        terminalreporter.write_line(line)
 
 
 def pytest_collection_modifyitems(config, items):
