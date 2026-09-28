@@ -15,8 +15,10 @@ Paid off since, one site per commit, each with the file leaving the register:
   * pages/FindingDetail.tsx — the reviewer ledger moved to ui/Table (14335d3),
     then the evidence panel moved to kv() rows, so the file is out. What is left:
     3 sites across 3 files at that point, then agent/pages/AgentEventLog.tsx moved
-    its event log to ui/Table too. What is left: 2 sites across 2 files
-    (AgentPlanReview.tsx:48, Dashboard.tsx:65).
+    its event log to ui/Table too (3 of 5 -> 2 of 5). What is left: 1 site, the
+    single dense table in pages/Dashboard.tsx:65. Recorded here because the
+    register must keep describing real debt -- a shrunk list is the point, not a
+    loss of coverage.
 """
 
 from __future__ import annotations
@@ -31,7 +33,6 @@ SHARED_TABLE = WEB_SRC / "ui/Table.tsx"
 
 # The files that still hand-roll a table, measured at the commit this test landed on.
 HAND_WRITTEN_TABLE_DEBT = {
-    "agent/pages/AgentPlanReview.tsx",
     "pages/Dashboard.tsx",
 }
 

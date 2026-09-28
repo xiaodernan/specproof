@@ -26,8 +26,9 @@ const job: AgentJob = {
   approvals_count: 0,
 };
 
-function stubFetch() {
+function stubFetch(overrides: Partial<AgentJob> = {}) {
   const calls: { url: string; body: unknown }[] = [];
+  const served: AgentJob = { ...job, ...overrides };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null });
@@ -50,7 +51,7 @@ function stubFetch() {
         }),
       };
     }
-    return { ok: true, status: 200, json: async () => ({ job }) };
+    return { ok: true, status: 200, json: async () => ({ job: served }) };
   });
   vi.stubGlobal("fetch", fetchMock);
   return { calls, fetchMock };
@@ -96,5 +97,21 @@ describe("AgentPlanReview", () => {
         note: "rollback missing",
       });
     });
+  });
+
+  it("renders a long step summary inside the shared table (#122), not a hand-rolled one", async () => {
+    // 摘要 is free text the model writes. One unbroken 300-char summary is what a
+    // bare <td> had no way to contain -- it widened the page instead of scrolling.
+    stubFetch({
+      plan: {
+        version: 1,
+        created_at: "2026-08-18T00:00:00Z",
+        steps: [{ index: 0, title: "Locate handler", summary: "s".repeat(300), status: "pending" }],
+      },
+    });
+    const { container } = render(<AgentPlanReview jobId="job-1" />);
+    const cell = await screen.findByText("s".repeat(300), undefined, { timeout: 5000 });
+    expect(cell.closest(".ui-table-wrap")).toBeTruthy();
+    expect(container.querySelector("table.data")).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { approveAgentJob } from "../../api";
-import { Button, Empty, ErrorBox, Panel, Spinner } from "../../ui";
+import { Button, Empty, ErrorBox, Panel, Spinner, Table } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
 import { stepStatusLabel } from "../util";
 
@@ -45,48 +45,57 @@ export default function AgentPlanReview(props: { jobId: string }) {
       ) : (
         <>
           <Panel title={"计划 (v" + plan.version + " · " + plan.steps.length + " 步)"}>
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>标题</th>
-                  <th>摘要</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.steps.map((s) => (
-                  <tr key={s.index}>
-                    <td className="mono">{s.index}</td>
-                    <td>{s.title}</td>
-                    <td className="muted">{s.summary}</td>
-                    <td>
-                      <span
-                        className={
-                          "pill " +
-                          (s.status === "approved"
-                            ? "pill-ok"
-                            : s.status === "rejected"
-                            ? "pill-bad"
-                            : "pill-mute")
-                        }
-                      >
-                        {stepStatusLabel(s.status)}
-                      </span>
-                    </td>
-                    <td>
-                      <a
-                        className="btn btn-ghost btn-sm"
-                        href={"#/agent/jobs/" + jobId + "/plan/" + s.index}
-                      >
-                        审阅 Review
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {/* Through the shared table (#122): 摘要 is free text written by the
+                model, and a hand-rolled <td> had no container to scroll in, so
+                one long summary widened the whole page instead of the panel. */}
+            <Table
+              rows={plan.steps}
+              rowKey={(s) => String(s.index)}
+              columns={[
+                {
+                  key: "index",
+                  header: "#",
+                  width: 56,
+                  render: (s) => <span className="mono">{s.index}</span>,
+                },
+                { key: "title", header: "标题", render: (s) => s.title },
+                {
+                  key: "summary",
+                  header: "摘要",
+                  render: (s) => <span className="muted">{s.summary}</span>,
+                },
+                {
+                  key: "status",
+                  header: "状态",
+                  render: (s) => (
+                    <span
+                      className={
+                        "pill " +
+                        (s.status === "approved"
+                          ? "pill-ok"
+                          : s.status === "rejected"
+                          ? "pill-bad"
+                          : "pill-mute")
+                      }
+                    >
+                      {stepStatusLabel(s.status)}
+                    </span>
+                  ),
+                },
+                {
+                  key: "review",
+                  header: "操作",
+                  render: (s) => (
+                    <a
+                      className="btn btn-ghost btn-sm"
+                      href={"#/agent/jobs/" + jobId + "/plan/" + s.index}
+                    >
+                      审阅 Review
+                    </a>
+                  ),
+                },
+              ]}
+            />
           </Panel>
           <Panel title="整计划决策 Whole-plan decision">
             <div style={{ display: "flex", gap: 8 }}>

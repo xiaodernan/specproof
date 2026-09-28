@@ -283,3 +283,35 @@ CI `36456722364`（= `11ef7a9`）`tests-no-infra`：**4 failed / 3293 passed / 2
   「Timed out waiting 90000ms from config.webServer」红掉，看起来像 fixture 起不来。已按实测改成 **240_000**
   并把这行测量写进注释。另一条同样实测出来的前提：fixture 必须用**仓库 venv 的 python**（`PATH` 前置
   `.venv\Scripts`），系统 Python 3.11 下同一句 import 在几分钟内都没有开始监听。
+
+### 2026-09-29：#122 第四处——计划步骤表走共享表格（2 处 → 1 处）
+
+- 站点：`agent/pages/AgentPlanReview.tsx:48` 的计划步骤表（# / 标题 / 摘要 / 状态 / 操作）。
+- 为什么它在这五处里最该修：**摘要列是模型自由生成的文本**，而这一页是审批人唯一能看到「它到底打算做什么」的地方。
+  一个 300 字符不含空格的摘要会让手写 `<td>` 把面板（进而整页）撑宽——表格本身在 `Panel` 里，没有滚动容器。
+- 迁移：五列 → `ui/Table`。`mono` 落在序号格、`muted` 落在摘要格，状态 pill 与「审阅」链接的类名原样留在
+  `render` 内；`.ui-table-wrap` 与单元格对齐类由 `ui/Table` 提供。行数、待审文案、审批接口一字未动。
+- 名册：该文件退出 `HAND_WRITTEN_TABLE_DEBT`，`hand_rolled_table_sites()` 实测 **2 处 → 1 处 / 1 文件**；
+  名册门由 **6 例变 5 例**（参数化跟着文件数走，不是掉了断言）。
+- 见证（`src/agent/__tests__/AgentPlanReview.test.tsx` 新增 1 例）：喂一条 `summary = "s"*300` 的步骤，那一格必须在
+  `.ui-table-wrap` 里，且全页不得再有 `table.data`。为此给 `stubFetch()` 加了可选的 `Partial<AgentJob>` 覆盖参数。
+- 两平面：新平面 `vitest run src/agent/__tests__/AgentPlanReview.test.tsx` **4 passed**；旧平面
+  （`git checkout HEAD -- apps/web/src/agent/pages/AgentPlanReview.tsx`，测试文件不动）**1 failed**，红在事前预测的那一行
+  `AgentPlanReview.test.tsx:114: expect(cell.closest(".ui-table-wrap")).toBeTruthy()` → `expected null to be truthy`。
+  同一时刻名册门在旧平面也是红的（`1 failed, 4 passed`，
+  `hand-rolled <table> appeared in ['agent/pages/AgentPlanReview.tsx']`）——这一处有两个互不依赖的红同时指着它。
+  按备份还原后 `shaMatch=True`（`sha=0c0c1276f174d617`）、`git diff --numstat` = `52 43`，名册门 **5 passed**，
+  `tsc --noEmit` exit 0。
+- **诚实边界**：同前三处，判据是结构级（DOM 祖先链 + 类名），不是布局级；`.ui-table-wrap` 真有 `overflow-x: auto`
+  这件事至今没有任何测试证明过——见「下一批」第 1 条。
+- 顺带量到的一个**环境事实**（与本次改动无关，但会让人误判「测试变慢了」）：本机此刻被并行的全量门压着，单文件
+  `vitest` 的分解是 transform 13.4s / collect 39.6s / environment 102.4s / tests 4.9s。看到慢先看这份分解，
+  别怀疑新加的断言。
+
+**下一批（按顺序）**：
+1. 用真浏览器给「长摘要不再撑宽页面」补布局级证据（`tests/e2e`）；若仍是 chromium 的
+   `Runtime.callFunctionOn: session closed`，就如实记为未证明，不许拿 jsdom 的结构断言冒充布局证明。
+2. #122 最后一处：`pages/Dashboard.tsx:65`（最近验收表）。它是单行 JSX，且已经包在 `.table-scroll` 里——
+   迁之前先量 `table-scroll` 与 `.ui-table-wrap` 的 CSS 差别，别把已有的滚动能力换成没有的。
+3. 名册清空后 `test_the_scan_actually_read_something` 会自相矛盾（空名册是目标，但断言 `sites` 非空）；
+   付清最后一处时把它改成「名册允许为空，但扫描必须真的读过 ≥1 个 tsx 文件」。
