@@ -332,3 +332,6 @@
 
 > **118 全量合并门追记（2026-09-28）**：数字只认这一次运行自己的输出 —— 在 `84e02e8`（#118 an unknown feedback verdict must not be dra）上跑 `pytest tests/unit tests/security tests/fault -q -p no:randomly -W error`，收集 `collected 3271 items`，隔离声明 `MySQL test isolation (redirected -> specproof_test): product schema '/test/%' rows 0 -> 0; no test row landed in the product schema`，汇总 `================ 3266 passed, 5 skipped in 1293.43s (0:21:33) =================`，运行自己印出的页脚 `MERGE_EXIT=0`。
 > 口径说明：这些数字属于 `84e02e8` 那棵树，不属于更早或更晚的 commit；日志文件是 `w112/merge_84e02e8.log`。
+
+> **122 全量合并门追记（2026-09-28）**：数字只认这一次运行自己的输出 —— 在 `bc9b118`（plan: fill 实施记录 with this session's landed units）上跑 `pytest tests/unit tests/security tests/fault -q -p no:randomly -W error`，收集 `collected 3279 items`，隔离声明 `MySQL test isolation (redirected -> specproof_test): product schema '/test/%' rows 0 -> 0; no test row landed in the product schema`，汇总 `================ 3274 passed, 5 skipped in 1247.62s (0:20:47) =================`，运行自己印出的页脚 `MERGE_EXIT=0`。
+> 口径说明：这些数字属于 `bc9b118` 那棵树，不属于更早或更晚的 commit；日志文件是 `w112/merge_bc9b118.log`。
