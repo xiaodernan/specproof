@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resultPill, severityPill, severityHint, severityRank, acceptSeverityLabel, acceptSeverityTone, ACCEPT_SEVERITY_BLOCKING, evidenceLabel, checkerLabel, contractStatusLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone, SEVERITIES, SEVERITY_STOREABLE } from "../toneMap";
+import { resultPill, severityPill, severityHint, severityRank, acceptSeverityLabel, acceptSeverityTone, ACCEPT_SEVERITY_BLOCKING, evidenceLabel, checkerLabel, contractStatusLabel, dependencyInstallLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone, SEVERITIES, SEVERITY_STOREABLE } from "../toneMap";
 
 // The severity vocabulary is reconciled against the MySQL ENUM, the HTTP
 // request pattern and the pipeline's own emission sites by
@@ -277,5 +277,32 @@ describe("executionSurfaceLabel — where the change's own tests actually ran", 
     expect(executionSurfaceTone("unconfirmed")).toBe("warn");
     expect(executionSurfaceTone(undefined)).toBe("mute");
     expect(executionSurfaceTone("wasm_sandbox")).toBe("mute");
+  });
+});
+
+describe("dependencyInstallLabel — how the workspace's dependencies came to exist", () => {
+  it("glosses the sandbox install disclosures", () => {
+    expect(dependencyInstallLabel("offline npm ci from the seeded cache volume"))
+      .toBe("沙箱内离线安装依赖 (npm ci)");
+    expect(dependencyInstallLabel("offline pip install from the seeded wheelhouse volume"))
+      .toBe("沙箱内离线安装依赖 (pip)");
+  });
+
+  it("classifies skip and host-flow values", () => {
+    expect(dependencyInstallLabel("skipped (node_modules already populated)"))
+      .toBe("依赖已就绪，未执行安装");
+    expect(dependencyInstallLabel("not applicable (host venv flow)"))
+      .toBe("不适用 (宿主流程)");
+  });
+
+  it("passes combined and unknown values through verbatim", () => {
+    const combined = "base: offline npm ci from the seeded cache volume; head: skipped (node_modules already populated)";
+    expect(dependencyInstallLabel(combined)).toBe(combined);
+    expect(dependencyInstallLabel("some future disclosure")).toBe("some future disclosure");
+  });
+
+  it("returns empty for absent data so callers skip rendering", () => {
+    expect(dependencyInstallLabel(undefined)).toBe("");
+    expect(dependencyInstallLabel("")).toBe("");
   });
 });

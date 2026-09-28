@@ -166,6 +166,12 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
         surface = str(diff.get("execution_surface") or "").strip()
         if surface:
             entry["execution_surface"] = surface
+        # Where the workspace's dependencies came from (offline install from
+        # the seeded cache / skipped / host flow) — the provenance sibling of
+        # execution_surface, disclosed for the same reason.
+        install = str(diff.get("dependency_install") or "").strip()
+        if install:
+            entry["dependency_install"] = install
         digest = diff.get("evidence_digest", "")
         if digest:
             entry["evidence_ref"] = digest

@@ -66,11 +66,17 @@ class TestMatrixRowsForSummary:
 
     def test_only_the_declared_keys_are_carried(self) -> None:
         (kept,) = _matrix_rows_for_summary(
-            {"rows": [_row("AUTH-01", changed_symbols=["A", "B"], noise="x")]
+            {"rows": [_row("AUTH-01", changed_symbols=["A", "B"], noise="x",
+                           dependency_install="offline npm ci from the seeded cache volume")]
              }
         )["matrix_rows"]
         assert "changed_symbols" not in kept
         assert "noise" not in kept
+        # The provenance disclosure is a DECLARED key: dropped here it never
+        # reaches the coverage page (#56/#26).
+        assert kept["dependency_install"] == (
+            "offline npm ci from the seeded cache volume"
+        )
 
     def test_long_text_is_cut_and_still_marked_as_truncated(self) -> None:
         (kept,) = _matrix_rows_for_summary(

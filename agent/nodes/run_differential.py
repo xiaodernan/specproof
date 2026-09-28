@@ -1012,6 +1012,13 @@ def _run_self_tests_on_workspace(workspace: str) -> dict[str, Any]:
     )
     out["mode"] = res.mode
     out["sandbox"] = str(res.sandbox_resources.get("sandbox", ""))
+    # How the workspace's dependencies got there (offline install from the
+    # seeded cache / skipped / host flow) — a provenance disclosure, not
+    # decoration: "where did node_modules come from" is part of what the
+    # reader is entitled to know about a sandboxed self-test run.
+    out["dependency_install"] = str(
+        res.sandbox_resources.get("dependency_install", "")
+    )
     out["error"] = res.error or ""
     out["ok"] = True
     return out
@@ -1054,6 +1061,17 @@ def _self_test_differential_entry(
         "evidence_type": "self_test_diff",
         "execution_surface": surface,
     }
+    # Dependency provenance, same "announce what both sides reported" rule:
+    # identical disclosures collapse to one value; differing ones name both
+    # sides rather than averaging a story. Absent everywhere = key absent.
+    base_install = str(base_run.get("dependency_install") or "")
+    head_install = str(head_run.get("dependency_install") or "")
+    if base_install and base_install == head_install:
+        entry["dependency_install"] = base_install
+    elif base_install or head_install:
+        entry["dependency_install"] = (
+            f"base: {base_install or '—'}; head: {head_install or '—'}"
+        )
     if not base_run.get("ok") or not head_run.get("ok"):
         reason = base_run.get("error") or head_run.get("error") or "no usable run"
         entry["verdict"] = "NON_REPRODUCIBLE"

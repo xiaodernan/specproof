@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Job, MatrixData } from "../api";
 import { useRemoteData } from "../hooks/useRemoteData";
-import { Button, Degraded, ErrorBox, Input, Panel, Select, Spinner, StatCard, Table, Term, attributionLabel, checkerLabel, executionSurfaceLabel, executionSurfaceTone, resultPill, shortId } from "../ui";
+import { Button, Degraded, ErrorBox, Input, Panel, Select, Spinner, StatCard, Table, Term, attributionLabel, checkerLabel, dependencyInstallLabel, executionSurfaceLabel, executionSurfaceTone, resultPill, shortId } from "../ui";
 import { ProductIcon } from "../ui/ProductIcon";
 import { QualityEmpty, QualityHeader, QualityPagination } from "./QualityLayout";
 
@@ -120,6 +120,14 @@ export default function Matrix() {
                         title={row.execution_surface}
                       >
                         {executionSurfaceLabel(row.execution_surface)}
+                      </div>
+                    )}
+                    {row.dependency_install && (
+                      <div
+                        className="quality-execution-surface tone-mute"
+                        title={row.dependency_install}
+                      >
+                        {dependencyInstallLabel(row.dependency_install)}
                       </div>
                     )}
                   </>

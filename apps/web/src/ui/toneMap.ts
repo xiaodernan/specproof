@@ -264,6 +264,25 @@ export function executionSurfaceTone(s?: string | null): "ok" | "warn" | "mute" 
 }
 
 /**
+ * 依赖来源披露（#56/#26）：沙箱自测跑之前，工作区的依赖是怎么来的
+ * （离线安装 / 已备好 / 宿主流程）。后端给的是一句描述性英文（不同语言
+ * 适配器措辞不同，双侧不一致时还有 "base: …; head: …" 形态），所以这里
+ * 按关键词归类出中文短标签，归类不中的原样透传；原始串由调用方放
+ * `title` 供审计。缺失返回空串（调用方不渲染，而不是显示一个假来源）。
+ */
+export function dependencyInstallLabel(s?: string | null): string {
+  if (!s) return "";
+  // A combined disclosure names both sides ("base: …; head: …") — it cannot
+  // be compressed into one label, so it passes through verbatim.
+  if (s.includes("; head:") || s.includes("; base:")) return s;
+  if (s.includes("offline npm ci")) return "沙箱内离线安装依赖 (npm ci)";
+  if (s.includes("offline pip install")) return "沙箱内离线安装依赖 (pip)";
+  if (s.includes("skipped")) return "依赖已就绪，未执行安装";
+  if (s.includes("not applicable")) return "不适用 (宿主流程)";
+  return s;
+}
+
+/**
  * 契约 / 验收规则「审核状态」（contract status）中文说明。这套枚举与任务的
  * job status（statusLabel）不是同一套语义：这里是规则评审生命周期
  * APPROVED/PROPOSED/REJECTED/REVOKED。已知值译中文并保留英文枚举原值供追溯；

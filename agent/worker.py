@@ -911,6 +911,10 @@ _SUMMARY_MATRIX_ROW_KEYS: tuple[str, ...] = (
     # Where a differential experiment actually executed (container sandbox vs
     # the host with no sandbox). Carried so the coverage page can disclose it.
     "execution_surface",
+    # Where the workspace's dependencies came from (offline install from the
+    # seeded cache / skipped / host flow) — the provenance sibling of
+    # execution_surface (#56/#26 disclosure).
+    "dependency_install",
 )
 
 #: Rows carried per job. The pipeline counts stay authoritative regardless, so

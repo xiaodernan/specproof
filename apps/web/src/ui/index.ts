@@ -20,7 +20,7 @@ export { StatusPill, statusLabel, STATUS_LABELS, JOB_STATUSES } from "./StatusPi
 export { fmtPct, fmtTime, kv, shortId, verdictTone, verdictLabel } from "./util";
 export {
   attributionLabel, checkerLabel, contractStatusLabel, CONTRACT_STATUS_CN,
-  evalVerdictLabel, evidenceLabel, executionSurfaceLabel, executionSurfaceTone,
+  dependencyInstallLabel, evalVerdictLabel, evidenceLabel, executionSurfaceLabel, executionSurfaceTone,
   healthStatusLabel, resultPill, severityHint, severityPill, severityRank,
   ACCEPT_SEVERITY_BLOCKING, ACCEPT_SEVERITY_CN, acceptSeverityLabel, acceptSeverityTone,
   SEVERITIES, SEVERITY_HINT, SEVERITY_STOREABLE, type PillSpec, type SeveritySpec,

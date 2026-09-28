@@ -149,6 +149,11 @@ def render_verification_report(
                     '<br /><small class="surface">'
                     f"{safe(r.get('execution_surface'))}</small>"
                 )
+            if r.get("dependency_install"):
+                differential += (
+                    '<br /><small class="surface">deps: '
+                    f"{safe(r.get('dependency_install'))}</small>"
+                )
         else:
             differential = '<span class="muted">not run</span>'
         rows_html += f"""<tr class="{result_class}">

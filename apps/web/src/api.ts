@@ -566,6 +566,13 @@ export interface MatrixRow {
    * an unknown value must be shown verbatim, never rounded to "sandboxed".
    */
   execution_surface?: string;
+  /**
+   * Where the workspace's dependencies came from for the sandboxed self-test
+   * (offline install from the seeded cache / skipped / host flow). Provenance
+   * disclosure — the reader is entitled to know what produced node_modules /
+   * .venv. Absent when the run recorded nothing.
+   */
+  dependency_install?: string;
 }
 
 export interface MatrixData {

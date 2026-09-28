@@ -1582,3 +1582,58 @@ provider_wait:` 块内——暂停轮次不算失败，CAS 被拒的轮次已由
 2. 非 setuptools 后端（hatchling/flit 等）需要把对应后端 wheel 加进
    wheelhouse——机制同构（build 依赖都走 --no-build-isolation），种子
    脚本加参数即可，未做。
+
+## 25. 依赖来源披露贯通到需求覆盖页——"node_modules 是哪来的"读者可见（2026-09-28）
+
+### 25.1 起点
+
+§22.6-4 登记：#56/#26 的 `dependency_install` 披露只存在于
+`sandbox_resources` JSON，未上 UI。本批沿 `execution_surface` 的既有五层
+贯通路径照同构补齐——那条路径的每一层都有一个"固定键列表会静默丢弃未知
+字段"的合并点，任何一层漏接都是"产出但没人看见"。
+
+### 25.2 五层贯通（与 execution_surface 同构）
+
+1. **适配器**：Python 侧补上与 Node 同名的 `dependency_install` 披露键
+   （此前叫 setup_phase，语义不同——披露的是"依赖从哪来"不是"装到哪步"）；
+   宿主 local 流程如实说 "not applicable (host venv flow)"。
+2. **差分入口**（`_run_self_tests_on_workspace` → `_self_test_differential_entry`）：
+   双侧披露一致则收敛为一个值；不一致则 `base: …; head: …` 双列——不平均
+   出一个没人说过的故事；全空则键缺省。
+3. **行构建**（`build_matrix`）与 **合并层**（`matrix_policy`）：进
+   `CANONICAL_FIELDS`，合并规则是"保序去重拼接"而非执行面的最不安全优先
+   ——来源描述不是安全等级，没有"更危险"的排序，拼接让每个不同陈述都活着。
+4. **摘要投影**（worker `_SUMMARY_MATRIX_ROW_KEYS`）：进投影键列表。
+5. **呈现**：HTML 报告差分列加 `deps: …` 小字；FE 需求覆盖页在执行面徽标
+   下渲染中文短标签（toneMap 新 `dependencyInstallLabel`：按关键词归类，
+   双侧合并值整体透传，未知透传，缺失不渲染；原始串在 `title`）。
+
+### 25.3 门证（本批实测）
+
+- 后端定向：`test_differential_language_honesty`（15，+1：披露收敛/双列
+  两分支）+ `test_matrix_pure` + `test_matrix_policy` + 
+  `test_summary_matrix_rows` 合跑 **65 passed**；`ruff` 全绿；
+  `mypy .` 全绿。
+- 探针 S（两条，按字节还原）：S1 摘要投影键删除 ⇒
+  `test_only_the_declared_keys_are_carried` 红；S2 合并层键删除 ⇒
+  `test_dependency_install_reaches_the_row_from_a_diff_result` 红。
+- 前端三门禁：`tsc --noEmit` 干净；`vitest run` **45 files / 361 tests**
+  （+6：toneMap 4 + Matrix 2）；`vite build` ✓。
+- 全量合并门：见 25.4 追记。
+
+### 25.4 全量合并门（追记）
+
+- `pytest tests/unit tests/security tests/fault -q -p no:randomly` ⇒
+  **3276 passed, 5 skipped, 1157.44s (19:17)，GATE_EXIT=0**。
+- 对账与以往批次不同，须如实记：本批的基线不是我自己上一批的 2889——
+  并行会话在同一树上推进了约 40 个提交（#79-#122，其最后一次记录在
+  `bc9b118` 上为 **3274 passed**，见 DRILLS.md 的 #122 追记）。本批 +2
+  （披露收敛/双列 1 + 行透传 1）⇒ 预期 3276，实测 **3276**，逐位吻合。
+  跨会话共树的对账基准因此改为"最近一次记录的全量门 + 本批增量"。
+
+### 25.5 仍未做（诚实边界）
+
+1. 双侧披露不一致的合并形态（`base: …; head: …`）是英文句子拼接，FE 归类
+   不中会整体透传——可读性可再打磨，但信息不丢。
+2. `dependency_install` 未进 `ops/drills.py` 的演练断言面（演练不覆盖
+   Node/Python 自测差分路径）。

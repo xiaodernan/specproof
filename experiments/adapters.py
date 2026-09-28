@@ -830,6 +830,9 @@ class PythonAdapter:
         plus the two things that make it an offline install)."""
         return {
             "user": SANDBOX_USER,
+            "dependency_install": (
+                "offline pip install from the seeded wheelhouse volume"
+            ),
             "network": "none (pip resolves offline from the wheelhouse only)",
             "capabilities": "drop ALL",
             "no_new_privileges": "true",
@@ -949,6 +952,7 @@ class PythonAdapter:
             mode="local",
             sandbox_resources={
                 "sandbox": "none (explicitly requested host execution)",
+                "dependency_install": "not applicable (host venv flow)",
                 "network": "host (first-time pip install may require it)",
                 "workspace": "read-write (project .venv lives inside)",
             },

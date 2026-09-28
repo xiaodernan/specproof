@@ -67,6 +67,7 @@ CANONICAL_FIELDS: tuple[str, ...] = (
     "head_result",
     "attribution",
     "execution_surface",
+    "dependency_install",
     "evidence_refs",
     "min_evidence_level",
     "unverified_reason",
@@ -323,6 +324,24 @@ def _merged_execution_surface(group: list[dict[str, Any]]) -> str:
     return sorted(seen)[0]
 
 
+def _merged_dependency_install(group: list[dict[str, Any]]) -> str:
+    """The group's dependency-provenance disclosures, distinct ones joined.
+
+    Unlike execution_surface there is no alarm ordering to apply: the values
+    are provenance descriptions ("offline install from the seeded cache" /
+    "skipped"), not safety levels, so the merge preserves every distinct
+    statement instead of picking one. Empty when no entry disclosed anything.
+    """
+    seen: list[str] = []
+    for entry in group:
+        if not isinstance(entry, dict):
+            continue
+        value = str(entry.get("dependency_install", "")).strip()
+        if value and value not in seen:
+            seen.append(value)
+    return "; ".join(seen)
+
+
 def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any]:
     """Merge every entry of one contract into its canonical row."""
     verdict = _merge_verdict(
@@ -441,6 +460,7 @@ def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any
         "head_result": head_result,
         "attribution": _merged_attribution(group, verdict),
         "execution_surface": _merged_execution_surface(group),
+        "dependency_install": _merged_dependency_install(group),
         "evidence_refs": evidence_refs,
         "min_evidence_level": min_evidence_level,
         "unverified_reason": unverified_reason,

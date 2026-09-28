@@ -444,3 +444,49 @@ describe("Matrix: 'no differential ran' vs 'differential was inconclusive'", () 
     expect(within(cell).getByText("PASS", { selector: ".pill" })).toBeTruthy();
   });
 });
+
+describe("Matrix — dependency provenance disclosure (#56/#26)", () => {
+  it("renders the install badge with the raw disclosure in the title", async () => {
+    matrixPayload({
+      rows: [
+        {
+          ...row("AUTH-01", "PASS", "sha256:abc"),
+          base_result: "PASS",
+          head_result: "FAIL",
+          attribution: "head",
+          execution_surface: "docker_sandbox",
+          dependency_install: "offline npm ci from the seeded cache volume",
+        },
+      ],
+      counts: { total: 1, passed: 0, failed: 1, unverified: 0 },
+    });
+
+    await mountAndSelect();
+    const cell = (await screen.findByText("AUTH-01")).closest("tr") as HTMLElement;
+
+    const badge = within(cell).getByText(/沙箱内离线安装依赖/);
+    expect(badge.getAttribute("title")).toBe(
+      "offline npm ci from the seeded cache volume",
+    );
+  });
+
+  it("shows no dependency badge when the run recorded none", async () => {
+    matrixPayload({
+      rows: [
+        {
+          ...row("AUTH-01", "PASS", "sha256:abc"),
+          base_result: "PASS",
+          head_result: "FAIL",
+          attribution: "head",
+          execution_surface: "docker_sandbox",
+        },
+      ],
+      counts: { total: 1, passed: 0, failed: 1, unverified: 0 },
+    });
+
+    await mountAndSelect();
+    const cell = (await screen.findByText("AUTH-01")).closest("tr") as HTMLElement;
+    expect(within(cell).queryByText(/依赖已就绪/)).toBeNull();
+    expect(within(cell).queryByText(/沙箱内离线安装依赖/)).toBeNull();
+  });
+});

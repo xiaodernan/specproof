@@ -103,6 +103,9 @@ def _state_fixture() -> dict[str, Any]:
                 # merge into the row (a fixed-key row builder silently drops
                 # anything it does not know about).
                 "execution_surface": "docker_sandbox",
+                "dependency_install": (
+                    "offline npm ci from the seeded cache volume"
+                ),
             },
         ],
         "confirmed_findings": [
@@ -488,3 +491,16 @@ def test_html_legacy_cells_unchanged_by_new_fields() -> None:
     assert "无契约归属的发现" in html
     assert "sha256:d" in html
     assert "sha256:beef" in html
+
+
+def test_dependency_install_reaches_the_row_from_a_diff_result() -> None:
+    """The provenance sibling of execution_surface (#56/#26): how the
+    workspaces' dependencies came to exist must survive the row builder the
+    same way — a dropped field is a disclosure nobody ever sees."""
+    matrix = build_matrix_node(_state_fixture())["matrix"]
+    rows = {row["contract_id"]: row for row in matrix["rows"]}
+    assert rows["AUTH-01"]["dependency_install"] == (
+        "offline npm ci from the seeded cache volume"
+    )
+    # No differential experiment → no dependency story to tell.
+    assert rows["UNIQUE-01"]["dependency_install"] == ""

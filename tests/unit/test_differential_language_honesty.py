@@ -131,9 +131,11 @@ class _FakeAdapter:
         *,
         mode: str = "local",
         surface: str = adapters.SURFACE_HOST,
+        dependency_install: str = "",
     ) -> None:
         self._tails = tails
         self._mode = mode
+        self._dependency_install = dependency_install
         self.EXECUTION_SURFACE = surface
         self.detect_calls = 0
         self.prepare_calls = 0
@@ -158,7 +160,10 @@ class _FakeAdapter:
             stdout_tail=self._tails[key],
             stderr_tail="",
             mode=self._mode,
-            sandbox_resources={"sandbox": self.EXECUTION_SURFACE},
+            sandbox_resources={
+                "sandbox": self.EXECUTION_SURFACE,
+                "dependency_install": self._dependency_install,
+            },
             error="",
         )
 
@@ -404,3 +409,52 @@ def test_real_node_profile_language_parses_a_real_tap_summary(
     assert profile.language == "javascript/typescript"
     assert (counts["tests"], counts["passed"], counts["failed"]) == (5, 4, 1)
 
+
+
+def test_dependency_provenance_reaches_the_differential_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#56/#26 disclosure: the entry records how the workspaces' dependencies
+    came to exist. Identical disclosures collapse to one value; differing
+    ones name both sides — never an averaged story."""
+    monkeypatch.delenv("SPECPROOF_ALLOW_LOCAL_TEST_EXEC", raising=False)
+    install = "offline npm ci from the seeded cache volume"
+    adapter = _FakeAdapter(
+        _GREEN_VS_RED,
+        mode="docker",
+        surface=adapters.SURFACE_DOCKER_SANDBOX,
+        dependency_install=install,
+    )
+    monkeypatch.setattr(adapters, "registry", _RecordingRegistry(adapter))
+    base, head = _node_pair(tmp_path)
+
+    entry = _diff_entry(run_differential_node(_state(base, head)))  # type: ignore[arg-type]
+
+    assert entry["dependency_install"] == install
+
+    # Differing sides: both named, nothing averaged away.
+    class _TwoSidedAdapter(_FakeAdapter):
+        def run(self, prepared: Any) -> Any:
+            res = super().run(prepared)
+            ws = Path(prepared.workspace).name
+            res.sandbox_resources["dependency_install"] = (
+                "skipped (node_modules already populated)"
+                if "head" in ws else install
+            )
+            return res
+
+    monkeypatch.setattr(
+        adapters, "registry", _RecordingRegistry(
+            _TwoSidedAdapter(
+                _GREEN_VS_RED,
+                mode="docker",
+                surface=adapters.SURFACE_DOCKER_SANDBOX,
+                dependency_install=install,
+            )
+        )
+    )
+    base2, head2 = _node_pair(tmp_path)
+    entry2 = _diff_entry(run_differential_node(_state(base2, head2)))  # type: ignore[arg-type]
+    assert entry2["dependency_install"] == (
+        f"base: {install}; head: skipped (node_modules already populated)"
+    )
