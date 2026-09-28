@@ -35,6 +35,7 @@ def test_metrics_endpoint_serves_registry_text() -> None:
         assert "specproof_jobs_completed_total" in body
     finally:
         server.shutdown()
+        server.server_close()
 
 
 def test_metrics_endpoint_health_and_404() -> None:
@@ -48,6 +49,7 @@ def test_metrics_endpoint_health_and_404() -> None:
         assert status == 404
     finally:
         server.shutdown()
+        server.server_close()
 
 
 def test_bind_host_defaults_to_loopback_on_local_host(
