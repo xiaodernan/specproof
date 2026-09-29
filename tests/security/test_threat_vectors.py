@@ -254,6 +254,7 @@ def _flood_sandbox(
         timeout: int,
         mode: str | None = None,
         local_command: list[str] | None = None,
+        profile: object | None = None,
     ) -> SandboxResult:
         calls.append(command)
         return SandboxResult(exit_code=0, stdout=stdout, stderr="", error="", mode="local")

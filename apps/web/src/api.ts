@@ -143,6 +143,34 @@ export function clearApiKey(): void {
   }
 }
 
+// Logout: call server-side /auth/logout to revoke local tokens and get IdP end_session URL.
+// Returns the IdP end_session URL if OIDC was used, or empty string for local auth.
+// Even if the server call fails, we still clear local credentials.
+export async function logout(): Promise<string> {
+  const bearer = getBearerToken();
+  let idpLogoutUrl = "";
+  
+  if (bearer) {
+    try {
+      const resp = await doFetch(apiBase() + "/auth/logout", {
+        method: "POST",
+        headers: headers(),
+      });
+      if (resp.ok) {
+        const body = await resp.json();
+        idpLogoutUrl = body?.idp_logout_url || "";
+      }
+    } catch {
+      // Server unreachable or error - still proceed with local cleanup
+    }
+  }
+  
+  clearApiKey();
+  clearBearerToken();
+  
+  return idpLogoutUrl;
+}
+
 function headers(): Record<string, string> {
   const h: Record<string, string> = { Accept: "application/json" };
   const bearer = getBearerToken();
