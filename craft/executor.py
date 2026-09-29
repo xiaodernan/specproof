@@ -23,11 +23,14 @@ from pathlib import Path
 import defusedxml.ElementTree as SafeET
 
 from sandbox.runner import (
+    ISOLATION_PLANES,
     MAVEN_PROFILE,
     NODE_PROFILE,
     PYTHON_PROFILE,
+    SANDBOX_MODE_ENV,
     SandboxProfile,
     SandboxResult,
+    deployment_plane_pin,
     run_sandboxed,
 )
 
@@ -35,10 +38,6 @@ ALLOWED_COMMANDS: frozenset[str] = frozenset({"mvn", "gradle", "npm", "pytest", 
 OUTPUT_TAIL_CHARS = 4000
 STACK_LINE_LIMIT = 5
 DEFAULT_TIMEOUT = 600
-
-#: The one knob a deployment uses to ask for a sandboxed execution plane
-#: (compose.production.yml pins it to ``docker``).
-SANDBOX_MODE_ENV = "SPECPROOF_SANDBOX"
 
 #: Which container toolchain a whitelisted command stem needs. Before this
 #: table craft commands reached ``run_sandboxed`` with no ``profile=``, whose
@@ -51,12 +50,6 @@ PROFILE_BY_STEM: dict[str, SandboxProfile] = {
     "python": PYTHON_PROFILE,
 }
 
-#: Planes that promise the workload never touches the host. A stem with no
-#: image on such a plane is refused, not run in someone else's image and not
-#: quietly executed on the host.
-IMAGE_REQUIRED_MODES: frozenset[str] = frozenset({"docker"})
-
-
 class PlaneToolchainMissingError(RuntimeError):
     """The pinned container plane has no toolchain image for this command."""
 
@@ -64,11 +57,6 @@ class PlaneToolchainMissingError(RuntimeError):
 def stems_without_profile() -> set[str]:
     """Whitelisted stems that have no container image — derived, never typed."""
     return set(ALLOWED_COMMANDS) - set(PROFILE_BY_STEM)
-
-
-def sandbox_pin_from_deployment() -> str:
-    """The plane the deployment pinned, or ``""`` when it pinned none."""
-    return os.getenv(SANDBOX_MODE_ENV, "").strip().lower()
 
 
 def craft_plane_decision() -> tuple[str, str]:
@@ -84,12 +72,12 @@ def craft_plane_decision() -> tuple[str, str]:
     craft stays on the host plane ON PURPOSE and the disclosure rides the job
     log, keeping THREAT_TESTING.md §1's "缓解事实" honest about this path.
     """
-    pinned = sandbox_pin_from_deployment()
+    pinned = deployment_plane_pin()
     if not pinned or pinned == "local":
         return "local", ""
     outcome = (
         "会被拒绝而不是被隔离"
-        if pinned in IMAGE_REQUIRED_MODES
+        if pinned in ISOLATION_PLANES
         else f"会经 {pinned} 面落到宿主执行而不是被隔离"
     )
     return "local", (
@@ -179,7 +167,7 @@ class Executor:
         self.workspace = Path(workspace)
         self.mode = mode
         self.timeout = timeout
-        effective_mode = mode or os.getenv(SANDBOX_MODE_ENV, "auto")
+        effective_mode = mode or deployment_plane_pin() or "auto"
         self.effective_mode = effective_mode
         self.python = python or (sys.executable if effective_mode == "local" else None)
 
@@ -224,7 +212,7 @@ class Executor:
             )
         resolved = self._resolve_command(command)
         profile = PROFILE_BY_STEM.get(stem)
-        if profile is None and self.effective_mode in IMAGE_REQUIRED_MODES:
+        if profile is None and self.effective_mode in ISOLATION_PLANES:
             raise PlaneToolchainMissingError(
                 f"命令词干 {stem!r} 没有容器镜像，而执行面钉了 {self.effective_mode}"
                 f" —— 既不塞进 {MAVEN_PROFILE.name} 镜像跑错工具链，也不落到宿主；"

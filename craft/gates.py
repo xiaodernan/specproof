@@ -29,12 +29,13 @@ Docker.
 
 from __future__ import annotations
 
-import os
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
+
+from sandbox.runner import deployment_plane_pin
 
 from .executor import ExecResult, Executor
 from .schemas import ChangeBundle
@@ -162,7 +163,7 @@ def detect_test_suite(workspace: Path) -> list[str]:
 def _resolve_executor(workspace: Path, executor: ExecRunner | None) -> ExecRunner:
     if executor is not None:
         return executor
-    return Executor(workspace, mode=os.getenv("SPECPROOF_SANDBOX") or None)
+    return Executor(workspace, mode=deployment_plane_pin() or None)
 
 
 def _run_commands(gate: str, commands: list[list[str]], executor: ExecRunner) -> GateResult:

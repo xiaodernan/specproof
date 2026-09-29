@@ -13,6 +13,7 @@ The workspace is registered with a sidecar marker file
 registration and cleanup leaves a reclaimable claim behind.
 """
 import contextlib
+import logging
 import subprocess
 import tempfile
 from pathlib import Path
@@ -22,12 +23,15 @@ from agent.repo_safety import check_repo_safety
 from agent.state import Phase0State
 from agent.worktree_reclaimer import write_worktree_marker
 
+logger = logging.getLogger(__name__)
+
 
 def prepare_base_node(state: Phase0State) -> dict[str, Any]:
     """Prepare the base workspace using git worktree."""
     repo_path = state.get("repo_path", "")
     base_ref = state.get("base_ref", "base")
     errors: list[str] = list(state.get("errors", []))
+    job_id = str(state.get("job_id", ""))
 
     workspace = Path(tempfile.mkdtemp(prefix="specproof-base-"))
 
@@ -36,6 +40,13 @@ def prepare_base_node(state: Phase0State) -> dict[str, Any]:
         ref=base_ref,
         worktree_target=workspace,
     )
+    # SafetyReport.warnings carries this deployment's own admissions (an
+    # un-armed containment knob on a pinned isolation plane, an ignored env
+    # value).  Nothing else reads that field, so the check would pass in
+    # silence; observability renders only the message, so each warning goes
+    # into it verbatim.
+    for warning in report.warnings:
+        logger.warning("base prepare 安全披露 作业 %s: %s", job_id, warning)
     if not report.ok:
         _discard_workspace(workspace, None)
         errors.append(
@@ -47,7 +58,7 @@ def prepare_base_node(state: Phase0State) -> dict[str, Any]:
     marker = write_worktree_marker(
         workspace,
         repo_path=repo_path,
-        job_id=str(state.get("job_id", "")),
+        job_id=job_id,
     )
 
     try:

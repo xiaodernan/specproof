@@ -32,7 +32,11 @@ Check list (each must pass for ``ok``):
 Environment knobs: SPECPROOF_ALLOWED_ROOT, SPECPROOF_MAX_REPO_BYTES,
 SPECPROOF_EXEC_MODE.  All are optional; with none configured every check
 passes and the prepare nodes behave byte-identically to their
-pre-extraction form.
+pre-extraction form.  Because "optional" means a deployment can pin an
+isolating sandbox plane (SPECPROOF_SANDBOX=docker) while this containment
+still resolves to local mode, ``safety_plane_truth()`` records that
+contradiction as a warning the prepare nodes log -- disclosure only, never a
+verdict change.
 """
 from __future__ import annotations
 
@@ -43,6 +47,12 @@ import subprocess
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from sandbox.runner import (
+    ISOLATION_PLANES,
+    SANDBOX_MODE_ENV,
+    deployment_plane_pin,
+)
 
 # ── Check names (stable public surface) ─────────────────────────
 
@@ -528,6 +538,35 @@ if _missing or _extra:
 # ── Public API ───────────────────────────────────────────────────
 
 
+def safety_plane_truth() -> tuple[str, str]:
+    """The execution mode the deployment declares, plus its own admission.
+
+    Containment (``repo_under_allowed_root``, and the sandbox branch of
+    ``execution_mode_signal``) engages only once an operator arms
+    ``SPECPROOF_EXEC_MODE=sandbox`` together with ``SPECPROOF_ALLOWED_ROOT``.
+    A deployment that pins a plane whose whole promise is that the workload
+    never touches the host is therefore asserting the thing this layer exists
+    to guard, while this layer still resolves to ``local`` and passes.  That
+    contradiction is stated here so the prepare nodes can log it; the verdict
+    is untouched, because arming containment on a deployment that has not set
+    a root would fail every job closed instead of fixing anything.
+
+    Returns ``(mode, note)``; ``note`` is ``""`` unless the deployment pins an
+    isolating plane while the safety layer is not in sandbox mode.
+    """
+    pinned = deployment_plane_pin()
+    declared = os.getenv(EXEC_MODE_ENV, "").strip().lower()
+    mode = declared or DEFAULT_EXEC_MODE
+    if pinned not in ISOLATION_PLANES or mode == "sandbox":
+        return mode, ""
+    return mode, (
+        f"执行面披露：部署已用 {SANDBOX_MODE_ENV}={pinned} 把工作负载送进容器，"
+        f"但 {EXEC_MODE_ENV} 未设为 sandbox（当前 {mode}），"
+        f"{CHECK_REPO_UNDER_ALLOWED_ROOT} 需要 {ALLOWED_ROOT_ENV} 才会生效 —— "
+        "仓库挂载范围此刻未校验（仅披露，判定不变）"
+    )
+
+
 def check_repo_safety(
     repo_path: str | os.PathLike[str],
     ref: str,
@@ -571,9 +610,14 @@ def check_repo_safety(
             ordered.append(name)
 
     explicit_mode = exec_mode.strip().lower() if exec_mode and exec_mode.strip() else None
-    mode = explicit_mode or os.getenv(EXEC_MODE_ENV, "").strip().lower() or DEFAULT_EXEC_MODE
+    if explicit_mode is None:
+        mode, plane_note = safety_plane_truth()
+    else:
+        mode, plane_note = explicit_mode, ""
 
     warnings: list[str] = []
+    if plane_note:
+        warnings.append(plane_note)
     if explicit_mode is None and os.getenv(EXEC_MODE_ENV, "").strip():
         warnings.append(
             f"{EXEC_MODE_ENV}={os.getenv(EXEC_MODE_ENV, '').strip()!r}"
@@ -670,4 +714,5 @@ __all__ = [
     "SafetyReport",
     "check_repo_safety",
     "default_git_runner",
+    "safety_plane_truth",
 ]

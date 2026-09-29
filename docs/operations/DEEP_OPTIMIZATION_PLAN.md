@@ -510,3 +510,31 @@ ts/level/logger/message，所以事实必须写在 message 里——这条前提
 4. 仍然欠着的止血项：`tests-with-infra`（`docker compose up -d --wait`，minio unauthorized）、`eval-golden-cases`（Maven cache 播种 exit 126）、`test_slow_marker_tagging` 的 180s 预算还没按实测处理。
 
 **落地后补记（属于上面「门与见证」，因为它是提交之后才量到的）**：本批的见证驱动器 `.scratch/arm127.py` 第 129 行是 `text=True` 而不写 `encoding=`，被 #111 那条普查门算进仓库债务，于是 `test_the_rest_of_the_repo_cannot_grow_the_debt` 报 **55 unpinned child captures (ceiling 54)**，offender 逐字 `.scratch/arm127.py:129`。普查走的是工作树而不是 git，所以未跟踪的 scratch 也算数，CI（全新 clone）永远复现不出这个数。**没有抬 ceiling**：给那一行补 `encoding="utf-8"` 后重跑 = `11 passed in 32.63s`（4 条普查 + 7 条本批门）。口径与 `#126 d` 同源——本地量到的 debt 计数含未跟踪文件时就不是可归因的仓库数字；但这一次不必删证据，**把驱动器本身写成守规矩的形状更好**：它跑的正是 #111 立的规则，自己不该成为 offender。
+
+## #130 — repo_safety 的两个 arming 旋钮只有单测会设（披露落地，判定不变）
+
+**测到的事实（逐条亲验，不抄上一批的结论）**：
+
+- `compose.production.yml` 的 worker 钉 `SPECPROOF_SANDBOX: docker`，`tests/fault/test_malicious_build.py::TestProductionPinsDockerMode` 钉的正是这个 YAML 值。
+- `agent/repo_safety.py` 管的就是这条交接：`repo_under_allowed_root` 拒「仓库落在 allowed root 之外」，`execution_mode_signal` 在 sandbox 模式没有 root 时 fail closed。两者只由 `SPECPROOF_EXEC_MODE` / `SPECPROOF_ALLOWED_ROOT` 武装，而** shipped 部署一个都不设**：全仓库唯一设置点是 `tests/unit/test_repo_safety.py:419,422` 的两处 `monkeypatch.setenv` ⇒ 在那个「承诺隔离」的平面上，模块自己回答「local mode: host filesystem access allowed」，fail-closed 分支是死代码。攻击者能命名宿主机上任意一个 git 仓库（不是它自己的），`git worktree add` 就把那个仓库的内容检出来放进将被挂进容器的 workspace —— 跨租约读这条通道此刻没有任何校验挡住。
+- 这条「未武装」的事实**早就写在 `report.warnings` 里**，而 `SafetyReport.warnings` 在产品侧没有任何读者：两个 prepare 节点只读 `ok` 与 `fail_reason` ⇒ 守卫的自我披露被丢弃。
+
+**这一批做的是披露，不是武装**：在没有 root 的部署上直接翻成 sandbox 会让每个作业 fail closed（不是修好任何事），而往 `compose.production.yml` 加 root 属于改线上行为，需用户批准。沿用 #128 已接受的做法：先把话说清、把话接上读者。
+
+**落地内容**：
+1. 平面钉值的真值收进一层：`sandbox/runner.py` 现在拥有 `SANDBOX_MODE_ENV`、`ISOLATION_PLANES`、`deployment_plane_pin()`（`sandbox` 只依赖 stdlib 与 `sandbox.cache_verify`，agent/craft 都已在它之上；`agent → craft` 才是循环，因为 craft 懒导 agent）。`craft/executor.py` 删掉自己的同名常量与 `sandbox_pin_from_deployment()`/`IMAGE_REQUIRED_MODES`，`craft/gates.py` 改调 helper。
+2. `agent/repo_safety.py::safety_plane_truth()` 返回 `(mode, note)`：note 只在「钉了承诺隔离的平面、而本层没进 sandbox」时出现，正文点名 `SPECPROOF_SANDBOX` 的钉值、`SPECPROOF_EXEC_MODE`、`SPECPROOF_ALLOWED_ROOT` 与 `repo_under_allowed_root`。`check_repo_safety` 把它塞进 `warnings`，判定一字不改。
+3. `prepare_base` / `prepare_head` 逐条 `logger.warning` 出 `report.warnings`（带 job_id）——这条披露唯一的可达读者。`JsonFormatter` 只渲染 ts/level/logger/message，所以事实全在 message 正文。
+
+**门与见证**：新门 `tests/unit/test_repo_safety_discloses_the_unarmed_containment.py` 9 例（含逐字点的 compose 矛盾、按声明而非行号键的普查、`warnings` 读者普查、两个节点的实机日志腿）。测量面 = `.scratch/wt130`（HEAD 平面 + 我这 8 个文件覆盖上去；`agent.repo_safety.__file__` 已探针确认解析到该平面，不是仓库根）：control 63 例 0 红（新门 9 + `test_craft_plane_discloses_the_deployment_pin` 12 + `test_repo_safety` 42）；`ruff` 8 个改动文件 All checks passed；`mypy` 6 个产品模块 Success（6 files）。六臂全部按事前预测红、零存活：
+
+| 臂 | 含义 | 红数 | 红的案例 |
+|---|---|---|---|
+| A | `safety_plane_truth` 永不产出 note | 4 | `_a_pinned_container_plane_...`、`_the_note_rides_the_report_...`、节点腿 `[base]` `[head]` |
+| B | prepare_base 不再读 `report.warnings` | 2 | `_every_module_that_asks_for_a_safety_report_reads_its_warnings`、节点腿 `[base]` |
+| C | 再抄一份平面钉值定义 | 1 | `_the_pin_name_has_exactly_one_definition_in_product_code` |
+| D | note 算出来了但没进报告 | 1 | `_the_note_rides_the_report_without_changing_the_verdict` |
+| E | 调用点绕过 helper 直接手抄字面量 | 1 | `_the_pin_name_has_exactly_one_definition_in_product_code` |
+| F | note 点名错的检查 | 1 | `_a_pinned_container_plane_...` |
+
+臂 E 是 `literals` 那条款式的**非空证**（臂 C 只证 `definitions`）：普查里「没有杂散拼写」如果没被敲过一次，就等于没测。还原校验按整体字节比对：`restore byte-identical: True`。

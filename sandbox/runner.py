@@ -39,6 +39,20 @@ from dataclasses import dataclass
 
 from sandbox.cache_verify import enforce_cache_integrity
 
+#: The knob a deployment uses to pin the execution plane. The production
+#: worker sets it to ``docker`` (compose.production.yml); this module owns the
+#: name and the reading, so no caller re-types the spelling.
+SANDBOX_MODE_ENV = "SPECPROOF_SANDBOX"
+
+#: Pins whose whole promise is that the workload never reaches the host.
+ISOLATION_PLANES: frozenset[str] = frozenset({"docker"})
+
+
+def deployment_plane_pin() -> str:
+    """The plane the deployment pinned, normalized; ``""`` when it pinned none."""
+    return os.getenv(SANDBOX_MODE_ENV, "").strip().lower()
+
+
 DEFAULT_IMAGE = "maven:3.9-eclipse-temurin-21"
 
 # Node toolchain image for the repository-self-test sandbox. Alpine because it
@@ -322,7 +336,7 @@ class SandboxResult:
 
 
 def _mode_from_env() -> str:
-    return os.getenv("SPECPROOF_SANDBOX", "auto").strip().lower()
+    return deployment_plane_pin() or "auto"
 
 
 def _docker_available() -> bool:

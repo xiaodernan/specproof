@@ -12,8 +12,8 @@ Measured, not assumed:
   overwrite ``mvnw`` / write outside the workspace / delete a critical file).
 - The product's code-modifying path — ``api/agent_runtime.py`` building the
   ``CraftLoop`` — passed ``exec_mode="local"`` literally, so the pin never
-  reached it. ``Executor`` only reads ``SPECPROOF_SANDBOX`` when ``mode`` is
-  ``None`` (craft/executor.py: ``mode or os.getenv(...)``).
+  reached it. ``Executor`` only reads the pinned plane when ``mode`` is
+  ``None`` (craft/executor.py: ``mode or deployment_plane_pin() or "auto"``).
 - ``Executor`` now selects a container profile per command stem
   (``craft.executor.PROFILE_BY_STEM``), so a pinned docker plane no longer runs
   ``pytest``/``npm test`` inside the java image. Craft still keeps the host
@@ -46,11 +46,9 @@ import yaml
 from craft.executor import (
     ALLOWED_COMMANDS,
     PROFILE_BY_STEM,
-    SANDBOX_MODE_ENV,
     Executor,
     PlaneToolchainMissingError,
     craft_plane_decision,
-    sandbox_pin_from_deployment,
     stems_without_profile,
 )
 from craft.tools import (
@@ -59,7 +57,12 @@ from craft.tools import (
     ToolRegistry,
 )
 from observability.logging import JsonFormatter
-from sandbox.runner import SandboxProfile, SandboxResult
+from sandbox.runner import (
+    SANDBOX_MODE_ENV,
+    SandboxProfile,
+    SandboxResult,
+    deployment_plane_pin,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 PRODUCTION_COMPOSE = REPO / "compose.production.yml"
@@ -103,9 +106,9 @@ def test_the_pin_reader_reads_the_env_the_deployment_sets() -> None:
 
 def test_the_pin_reader_is_normally_typed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(SANDBOX_MODE_ENV, raising=False)
-    assert sandbox_pin_from_deployment() == ""
+    assert deployment_plane_pin() == ""
     monkeypatch.setenv(SANDBOX_MODE_ENV, "  Docker ")
-    assert sandbox_pin_from_deployment() == "docker"
+    assert deployment_plane_pin() == "docker"
 
 
 # ── the disclosure itself ────────────────────────────────────────
