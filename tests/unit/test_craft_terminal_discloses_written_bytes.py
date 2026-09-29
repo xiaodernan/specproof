@@ -15,13 +15,20 @@ Predictions before running:
 1. a fix that really writes different bytes -> STUCK, ``written_bytes`` holds
    ``calc.py`` with the digest of the bytes now on disk, and that digest is NOT
    the digest of the pre-fix text;
-2. a fix whose anchor rewrites identical content -> STUCK, and the disclosure
-   still equals the bytes on disk. Measured here (and why this case is written
-   the way it is): that pair was NOT byte-identical — 81B became 87B, i.e. the
-   Editor re-wrote the file's line endings on this Windows host. So the
-   host-neutral invariant this case pins is "disclosure == disk", while the
-   content check says the logic did not move. The encoding rewrite itself is a
-   separate defect (#133), not something to assert away;
+2. a fix whose anchor rewrites identical content -> STUCK, the file stays
+   byte-for-byte equal to its own bytes, and the disclosure therefore equals
+   the pre-fix digest. Paired with (1) that is what makes the field
+   discriminating: the same key, two different answers, and only the write
+   moved between them.
+
+   Correction kept on the record because it is how this case got written: the
+   first run of this case showed 81B becoming 87B, and I booked that as an
+   Editor line-ending defect. Measured directly it was the opposite — with an
+   LF fixture and with a CRLF fixture, an identical ``apply_edit`` left the
+   file ``byte_identical=True`` in both. The 6 extra bytes were this test's own
+   ``write_text`` (newline=None translates "\n" to the host separator), so the
+   fixture lied about its plane, not the Editor. Hence newline="\n" above and
+   no assertion about re-encoding here.
 3. the WARNING line and the report evidence carry the same digest string (one
    dict, two readers).
 """
@@ -51,12 +58,17 @@ def _digest(raw: bytes) -> str:
 
 
 def _write_repo(tmp_path: Path) -> None:
-    (tmp_path / "calc.py").write_text(BEFORE, encoding="utf-8")
+    # newline="\n" on purpose: Path.write_text defaults to newline=None, which
+    # re-writes "\n" as the host separator, so an LF fixture silently becomes a
+    # CRLF file on Windows. The disclosure cases below compare digests, so the
+    # fixture must say what it means on every host.
+    (tmp_path / "calc.py").write_text(BEFORE, encoding="utf-8", newline="\n")
     (tmp_path / "test_calc.py").write_text(
         "from calc import double, greeting\n\n\n"
         "def test_double():\n    assert double(4) == 8\n\n\n"
         'def test_greeting():\n    assert greeting("a") == "hello a"\n',
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -129,13 +141,18 @@ def test_a_stuck_from_a_no_op_write_discloses_the_bytes_on_disk(
     assert report["result"] == "STUCK"
     written = _s3_evidence(report)["written_bytes"]
     on_disk = calc.read_bytes()
+    assert on_disk == BEFORE.encode("utf-8"), (
+        "an identical replacement must leave the file byte-for-byte as it was; "
+        "the Editor detects the file's own line style and writes that style "
+        f"back: {on_disk!r}"
+    )
     assert written == {"calc.py": _digest(on_disk)}, (
         f"the disclosure must agree with the workspace's own bytes {on_disk!r}: "
         f"{written!r}"
     )
-    assert "return x / 2" in calc.read_text(encoding="utf-8"), (
-        "the fix re-wrote identical CONTENT, so the only honest reading of a "
-        "changed digest is that the write touched the encoding, not the logic"
+    assert written["calc.py"] == _digest(BEFORE.encode("utf-8")), (
+        "paired with the previous case, this is what gives the field its "
+        f"discriminating power: {written!r}"
     )
 
 
