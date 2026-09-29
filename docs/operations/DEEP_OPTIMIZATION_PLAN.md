@@ -538,3 +538,51 @@ ts/level/logger/message，所以事实必须写在 message 里——这条前提
 | F | note 点名错的检查 | 1 | `_a_pinned_container_plane_...` |
 
 臂 E 是 `literals` 那条款式的**非空证**（臂 C 只证 `definitions`）：普查里「没有杂散拼写」如果没被敲过一次，就等于没测。还原校验按整体字节比对：`restore byte-identical: True`。
+
+## #132 — CI 的红名单不是信号：旋转量化 + 唯一稳定红的归因（只测量，未改代码）
+
+实测的三个运行（workflow `specproof-ci`，job `tests-no-infra / Unit + security + fault tests`）：
+
+- `36608818914` @ 7b06dab（#130）= 7 failed / 3361 passed / 27 skipped in 495.98s
+- `36604571352` @ 5d07632（#131）= 6 failed / 3353 passed / 27 skipped in 492.10s
+- `36604556204` @ 5d07632（同一 commit 的第二次运行）= 6 条真红
+
+**同一份代码的两次运行只共享 1 条红名。** 5d07632 的两轮并集是 11 个不同名字，交集只有
+`tests/unit/test_craft_loop.py::test_loop_converges_done_with_injected_fix`。其余各红 5 条
+（`test_no_llm_no_network_no_docker` / `test_offline_sample_kill_rate_and_records` /
+`test_judge_persona_applied_to_the_diagnose_prompt` 对
+`test_two_concurrent_jobs_do_not_interfere` / `test_cache_miss_fills_the_cache_and_reports_zero_hits` /
+`test_kind_threading::test_loop_diagnosis_passes_diagnose_kind` /
+`test_swebench_v10_fixes::test_genuinely_different_proposal_gets_a_new_iteration` /
+`test_verify_criterion_anchor::test_deterministic_no_llm_path_report_shape_unchanged`）。
+⇒ 拿"这次比上次多一条红"当回归证据是错的；#130 推上去后那条 +1 落在旋转带里，
+红名单里没有 `test_repo_safety_discloses_the_unarmed_containment`，也没有
+`test_craft_plane_discloses_the_deployment_pin`。
+
+旋转带全部落在同一个机制上：deterministic craft 循环 + 真跑 `python -m pytest -q` 的
+`test_green` 检查。每条 STUCK 红都由同一行披露决定
+（`check='test_green' exit_code=1 mode='local'`，签名 `s3|E  assert 2.0 == 8`），
+`IndexError: pop from empty list` 的两条是夹具里预置的 fix 列表被多消耗的一轮取空。
+
+**唯一 3/3 稳定红的那条被归因了**：`05bdc5a`、`d96f494`、`3f99ed4`、`5fdc0ef` 四次运行里
+`test_loop_converges_done_with_injected_fix` 都不在红名单；从 5d07632 的两轮到 7b06dab 一直红。
+5d07632 是纯测试 commit（`+114/-0`，`craft/executor.py` 零 diff），产品代码来自它父级
+`6826f15`（"Add profile selection per command stem in executor" + `_requested_stem`），
+而 6826f15 自己没有 CI 运行 ⇒ 红的出现点 = 6826f15 的产品改动第一次进 CI。与 #130 无关。
+
+否证记录（两条曾经的说法都不许再写）：
+
+1. LF/CRLF：前一轮已否证。
+2. 同长度、同秒的编辑被 `__pycache__` 顶掉：本轮直接量过——工作区写
+   `def double(x):\n    return x / 2`，跑一遍 `python -m pytest -q`（rc=1，生成 pyc），
+   再原地改成 `return x * 2`（字节数不变，均为 34，同一秒内），重跑 = **rc=0 / 1 passed**。
+   ⇒ 陈旧字节码不背这个锅。
+
+本地平面的对照（`.scratch/wt130` = 5d07632 + #130 九个文件覆盖，与 CI 同一份代码）：
+**3212 passed / 5 skipped / 0 failed，PYTEST_RC=0，1670.78s**。含 CI 上 3/3 稳定红的那条。
+⇒ #130 没有引入任何本地红，而那 7 条 CI 红里有一条在本地全绿——差异在平面，不在代码。
+
+还缺的证据：CI 日志只证明判定读到的仍是 `2.0`，没有证明工作区里 `calc.py` 的字节。
+所以"编辑未落地"目前是推断，不是观察。#132 的做法是让证据自己说话：`test_green` 的
+evidence 带上被检查文件的字节摘要，红一次就能区分"没写进去"和"写进去了但检查读的是别处"。
+在这条证据到位前不改 `craft/executor.py`。
