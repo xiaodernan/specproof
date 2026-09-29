@@ -196,16 +196,33 @@ class Executor:
             return [self.python, *command[1:]]
         return command
 
+    def _requested_stem(self, argv0: str) -> str:
+        """The stem the whitelist judges.
+
+        ``run_pytest`` and ``_resolve_command`` put OUR configured interpreter
+        into argv[0]; that path must count as ``python`` instead of becoming a
+        command nobody asked for. A caller-supplied path is still judged by its
+        own stem, so this widens nothing: asking for the interpreter was already
+        legal as the bare name.
+        """
+        if self.python and argv0 == self.python:
+            return "python"
+        return Path(argv0).stem.lower()
+
     def run(self, command: list[str], *, timeout: int | None = None) -> ExecResult:
         if not command:
             raise CommandNotAllowedError("命令为空")
-        resolved = self._resolve_command(command)
-        stem = Path(resolved[0]).stem.lower()
+        # The whitelist judges the command that was ASKED FOR. Resolution may
+        # substitute our own configured interpreter into argv[0], and that
+        # substitution must never be able to make a legal command illegal: a
+        # host whose interpreter is python3.12 used to refuse "pytest" here.
+        stem = self._requested_stem(command[0])
         if stem not in self.allowed_commands():
             raise CommandNotAllowedError(
-                f"命令 '{resolved[0]}' 不在白名单 {sorted(self.allowed_commands())} "
+                f"命令 '{command[0]}' 不在白名单 {sorted(self.allowed_commands())} "
                 "(M1 默认拒绝其余命令)"
             )
+        resolved = self._resolve_command(command)
         profile = PROFILE_BY_STEM.get(stem)
         if profile is None and self.effective_mode in IMAGE_REQUIRED_MODES:
             raise PlaneToolchainMissingError(

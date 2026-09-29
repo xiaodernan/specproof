@@ -682,13 +682,20 @@ def _rsa_key() -> tuple[Any, str, str]:
     return key, b64url(n_bytes), b64url(e_bytes)
 
 
-def _mock_idp_transport(issuer: str, jwks: dict[str, Any]) -> httpx.MockTransport:
-    discovery = {
+def _mock_idp_transport(
+    issuer: str,
+    jwks: dict[str, Any],
+    *,
+    extra_discovery: dict[str, Any] | None = None,
+) -> httpx.MockTransport:
+    discovery: dict[str, Any] = {
         "issuer": issuer,
         "authorization_endpoint": issuer + "/authorize",
         "token_endpoint": issuer + "/token",
         "jwks_uri": issuer + "/jwks",
     }
+    if extra_discovery:
+        discovery.update(extra_discovery)
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/.well-known/openid-configuration":
@@ -980,3 +987,130 @@ def test_repository_create_job_stamps_principal_tenant(fake_mysql: _FakeMysql) -
     insert = fake_mysql.queries[0]
     assert "tenant_id" in str(insert[0])
     assert isinstance(insert[1], dict) and insert[1]["tenant_id"] == "tenant-a"
+
+
+# ── Logout (DRILLS §4 / §6 row 3, #129) ──────────────────────────────────────
+
+
+def test_local_token_id_parses_only_the_shape_the_store_minted() -> None:
+    from api.identity.tokens import local_token_id
+
+    assert local_token_id("sp_" + "deadbeef01" + "_" + "secret") == "deadbeef01"
+    assert local_token_id("sp_nounderscore") is None
+    assert local_token_id("not-a-token") is None
+    assert local_token_id("") is None
+
+
+def test_logout_revokes_the_presented_local_token(
+    tenant_env: None, fakes: FakeJobStore, seeded: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    token = seeded["tokens"]["viewer"]
+    resp = client.post("/auth/logout", headers=bearer(token))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["credential"] == "local"
+    assert body["revoked"] is True
+    assert body["idp_end_session"] == ""
+    assert body["client_action"] == "drop-stored-credential"
+    # Proof, not a promise: the same credential is dead on the next request.
+    assert client.get("/auth/me", headers=bearer(token)).status_code == 401
+    # Reverse control: another user's credential is untouched.
+    other = seeded["tokens"]["operator"]
+    assert client.get("/auth/me", headers=bearer(other)).status_code == 200
+    # The revoked credential cannot even log out twice — the middleware stops it.
+    assert client.post("/auth/logout", headers=bearer(token)).status_code == 401
+
+
+def test_logout_reports_a_revocation_that_failed_to_take_effect(
+    tenant_env: None, fakes: FakeJobStore, seeded: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`revoked` is re-verified: a store call that does nothing says False."""
+    from api.identity.store import get_identity_store
+
+    monkeypatch.setattr(get_identity_store(), "revoke_token", lambda token_id: False)
+    token = seeded["tokens"]["viewer"]
+    client = TestClient(app)
+    body = client.post("/auth/logout", headers=bearer(token)).json()
+    assert body["revoked"] is False
+    assert "did not take effect" in body["reason"]
+    # The credential really is still alive — that is why we said so.
+    assert client.get("/auth/me", headers=bearer(token)).status_code == 200
+
+
+def test_logout_requires_a_credential(
+    tenant_env: None, fakes: FakeJobStore,
+) -> None:
+    resp = TestClient(app).post("/auth/logout")
+    assert resp.status_code == 401
+    assert resp.json()["error"]["code"] == "AUTH_REQUIRED"
+
+
+def test_logout_never_claims_to_revoke_a_stateless_id_token(
+    oidc_setup: dict[str, Any], seeded: dict[str, Any],
+) -> None:
+    token = _sign_id_token(
+        oidc_setup["key"], oidc_setup["kid"],
+        claims={"roles": ["specproof:viewer"], "tenant_id": seeded["tenant_a"]},
+    )
+    client = TestClient(app)
+    assert client.get("/auth/me", headers=bearer(token)).status_code == 200
+    body = client.post("/auth/logout", headers=bearer(token)).json()
+    assert body["credential"] == "oidc"
+    assert body["revoked"] is False
+    # This mock IdP publishes no end_session_endpoint — say so, don't invent one.
+    assert body["idp_end_session"] == ""
+    assert "stateless" in body["reason"]
+    assert "publishes no end_session_endpoint" in body["reason"]
+    assert body["client_action"] == "drop-stored-credential"
+    # Reverse control: revoked:false is truthful — the id_token still works,
+    # because SpecProof never stored anything it could revoke.
+    assert client.get("/auth/me", headers=bearer(token)).status_code == 200
+
+
+def test_logout_hands_back_the_idp_end_session_url(
+    tenant_env: None, seeded: dict[str, Any], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key, n, e = _rsa_key()
+    jwks = {"keys": [{"kty": "RSA", "use": "sig", "alg": "RS256",
+                      "kid": "kid-1", "n": n, "e": e}]}
+    validator = OidcValidator(
+        ISSUER, CLIENT_ID,
+        transport=_mock_idp_transport(
+            ISSUER, jwks,
+            extra_discovery={"end_session_endpoint": ISSUER + "/logout"},
+        ),
+        discovery_ttl=0.0,
+    )
+    monkeypatch.setenv("OIDC_ISSUER", ISSUER)
+    monkeypatch.setenv("OIDC_CLIENT_ID", CLIENT_ID)
+    import api.identity.oidc as oidc_module
+
+    monkeypatch.setattr(oidc_module, "_validator", validator)
+    monkeypatch.setattr(oidc_module, "_validator_key", (ISSUER, CLIENT_ID))
+    token = _sign_id_token(
+        key, "kid-1",
+        claims={"roles": ["specproof:viewer"], "tenant_id": seeded["tenant_a"]},
+    )
+    body = TestClient(app).post("/auth/logout", headers=bearer(token)).json()
+    assert body["credential"] == "oidc"
+    assert body["revoked"] is False
+    end_session = body["idp_end_session"]
+    assert end_session.startswith(ISSUER + "/logout?")
+    assert "id_token_hint=" in end_session
+    assert "post_logout_redirect_uri=" in end_session
+    assert "end the IdP session" in body["reason"]
+
+
+def test_logout_is_503_in_legacy_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SPECPROOF_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("OIDC_ISSUER", raising=False)
+    from api.identity.oidc import reset_oidc_validator
+    from api.identity.store import reset_identity_store
+
+    reset_identity_store()
+    reset_oidc_validator()
+    resp = TestClient(app).post("/auth/logout")
+    assert resp.status_code == 503
+    assert resp.json()["error"]["code"] == "PROVIDER_UNAVAILABLE"

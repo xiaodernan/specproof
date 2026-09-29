@@ -66,6 +66,8 @@ MySQL 迁移的 live 验证属集成车道 (本车道无 Docker)。
 * `GET /auth/config` / `GET /auth/me` — 前端登录页/主体信息
 * `GET /auth/oidc/login` → `/auth/oidc/callback` — 授权码流程, id_token 经
   URL fragment 交回 SPA
+* `POST /auth/logout` — 会话注销 (#129): 本地 `sp_*` 吊销并复验 (下一次请求 401);
+  OIDC id_token 无状态不可吊销 → `revoked:false` + IdP `end_session_endpoint`
 * `/api/v1/admin/{tenants,users,tokens,audit}` — RBAC 治理的管理面
 
 ## 测试
@@ -73,3 +75,4 @@ MySQL 迁移的 live 验证属集成车道 (本车道无 Docker)。
 tests/unit/test_tenant_auth.py — 阶段1出口安全测试 (跨租户404+审计、RBAC 矩阵、
 OIDC mock JWKS (RS256/过期/错误 issuer)、tenant 参数覆盖无效、兼容模式);
 tests/unit/test_identity_store.py — 身份存储 (SQLite/内存, 无 Docker)。
+tests/unit/test_drills_gap_claims_hold.py — 缺口声称 ↔ 代码双向门 (含本节端点清单 ↔ OpenAPI 合同)。

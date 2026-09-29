@@ -120,6 +120,18 @@ def _parse_token(raw: str) -> tuple[str, str] | None:
     return parts[0], parts[1]
 
 
+def local_token_id(raw: str) -> str | None:
+    """The id embedded in an `sp_*` credential, or None if malformed.
+
+    Logout parses the credential the middleware has *just* verified (that
+    check is `row.id == token_id`), so the id returned here is necessarily
+    the one the store matched — no caller-supplied id ever reaches
+    `IdentityStore.revoke_token`.
+    """
+    parsed = _parse_token(raw)
+    return parsed[0] if parsed else None
+
+
 def principal_for_user(user: User, scopes: frozenset[str]) -> Principal:
     return Principal(
         user_id=user.id,

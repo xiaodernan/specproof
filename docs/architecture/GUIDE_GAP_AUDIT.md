@@ -30,7 +30,7 @@
 | 阶段 | 现状 | 差距 |
 |---|---|---|
 | 0 基线冻结 | 部分 (门禁全绿/文档多) | Python 依赖锁 snapshot ⏳ (DEPENDENCY_LOCK.md 治理文档 ✅ W103); 事件清单 (数据字典 ✅ W103 DATA_DICTIONARY.md) |
-| 1 身份多租户 | ✅ 核心完成 (W37): OIDC JWKS RS256 + sp_* 本地 Token; RBAC 4×4 矩阵; Python 侧 tenant scope (repository scoped SQL); 前端登录/租户切换/用户与 Token 管理; 迁移 0005 | SAML (阶段2+); OIDC logout ⏳ (DRILLS 4 需开发); 邀请流; live-MySQL 迁移 up/down 实测 |
+| 1 身份多租户 | ✅ 核心完成 (W37): OIDC JWKS RS256 + sp_* 本地 Token; RBAC 4×4 矩阵; Python 侧 tenant scope (repository scoped SQL); 前端登录/租户切换/用户与 Token 管理; 迁移 0005 | SAML (阶段2+); OIDC logout ✅ (#129 `POST /auth/logout`; 原写"⏳ (DRILLS 4 需开发)"于 2026-09-28 更正); 邀请流; live-MySQL 迁移 up/down 实测 |
 | 2 完整工作流前端 | ✅ Agent 工作台 20 路由 (W31 已交付: 任务向导/计划与步骤审阅/SSE 实时工具流/事件/编辑/门禁/统一+分栏 Diff/审批收件箱/设置; 8 API 端点走 agent_jobs 投影) + Playwright e2e 9 用例全绿 (W39) | 批量操作/通知中心/移动端/错误边界 |
 | 3 集成与策略 | 部分 (GitHub App webhook/checks/评论/fix; Policy DSL + 豁免流 ✅ W102: agent/policy_dsl.py + agent/waiver.py, 42 测试) | GitLab/Gerrit, 分支保护建议 |
 | 4 验证深度生态 | 部分 (mvn+沙箱+变异+状态快照; Python 适配器 ✅ W78/W105 + ddmin 反例最小化 ✅ W105) | Gradle/Node/Go 适配器 ⏳, 状态机测试 ⏳, 200 案例路线表 ⏳ (反例最小化 ✅ W105; 100 案例 ✅ 100.0%) |

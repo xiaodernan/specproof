@@ -5,6 +5,8 @@ Auth endpoints (prefix-less):
   GET  /auth/me                      the request principal (user/tenant/roles)
   GET  /auth/oidc/login              redirect to the IdP authorization endpoint
   GET  /auth/oidc/callback           authorization-code exchange → SPA redirect
+  POST /auth/logout                  revoke this local token / hand back the
+                                     IdP end-session URL (#129)
 
 Admin endpoints (/api/v1/admin, RBAC-governed by the §2 matrix):
   GET/POST /tenants                  admin only
@@ -54,7 +56,13 @@ from api.identity.config import (
 from api.identity.oidc import OidcError, get_oidc_validator
 from api.identity.principal import Principal
 from api.identity.store import get_identity_store
-from api.identity.tokens import ScopeVocabularyError, TokenConfigError, mint_token
+from api.identity.tokens import (
+    ScopeVocabularyError,
+    TokenConfigError,
+    local_token_id,
+    mint_token,
+    verify_local_token,
+)
 from storage.identity import ROLE_SET, DuplicateUserError, IdentityStore, User
 
 logger = logging.getLogger(__name__)
@@ -186,11 +194,14 @@ async def oidc_login(return_to: str = "") -> RedirectResponse:
     return RedirectResponse(f"{authorization_endpoint}?{params}", status_code=302)
 
 
-def _oidc_redirect_uri() -> str:
+def _public_base_url() -> str:
     import os
 
-    base = os.getenv("SPECPROOF_PUBLIC_URL", "http://localhost:8000").rstrip("/")
-    return f"{base}/auth/oidc/callback"
+    return os.getenv("SPECPROOF_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+
+
+def _oidc_redirect_uri() -> str:
+    return f"{_public_base_url()}/auth/oidc/callback"
 
 
 @router.get("/auth/oidc/callback", include_in_schema=False)
@@ -248,6 +259,88 @@ async def oidc_callback(
     if pending["return_to"]:
         fragment["return_to"] = pending["return_to"]
     return _spa_redirect(fragment)
+
+
+@router.post("/auth/logout")
+async def auth_logout(request: Request) -> dict[str, Any]:
+    """End what this credential is worth — stated per credential type.
+
+    Two credential types, two different truths (DRILLS §4 / §6 row 3):
+
+    * `sp_*` local tokens are rows in the identity store, so logout REVOKES
+      the presented one: the next request with that same credential is 401.
+      The id comes from parsing the Authorization header the middleware
+      just verified (`row.id == token_id`), so it is necessarily the
+      caller's own — no caller-supplied id ever reaches `revoke_token`.
+      `revoked` is then *re-verified* with the same check the middleware
+      performs, so the response reports what the credential does now, not
+      what a store call claimed to do.
+    * an OIDC id_token is a stateless JWT SpecProof never stored: there is
+      nothing on this side to revoke and `revoked: false` says exactly
+      that. Ending the browser's IdP session is RP-initiated logout, which
+      needs the IdP's `end_session_endpoint`: discovery publishes one →
+      `idp_end_session` carries it (with `id_token_hint` and the SPA as
+      `post_logout_redirect_uri`); publishes none → `reason` says so
+      instead of implying the session ended.
+
+    No rate limit here: the middleware already required a valid credential
+    and revoking is idempotent. In either case the client still has to drop
+    its stored copy (`client_action` names that debt).
+    """
+    _require_tenant_mode()
+    _principal(request)
+    authorization = request.headers.get("authorization") or ""
+    _, _, raw = authorization.partition(" ")
+    credential = raw.strip()
+
+    token_id = local_token_id(credential)
+    if token_id is not None:
+        store = _store()
+        store.revoke_token(token_id)
+        revoked = verify_local_token(store, credential) is None
+        return {
+            "credential": "local",
+            "revoked": revoked,
+            "idp_end_session": "",
+            "reason": (
+                "local sp_* token revoked server-side; it no longer authenticates"
+                if revoked
+                else "revocation did not take effect: the credential still authenticates"
+            ),
+            "client_action": "drop-stored-credential",
+        }
+
+    reason = "OIDC id_token is a stateless JWT: SpecProof stored nothing to revoke"
+    end_session = ""
+    validator = get_oidc_validator()
+    if validator is None:
+        reason += "; OIDC is not configured, so there is no IdP session to end"
+    else:
+        try:
+            end_session = str(validator.discovery().get("end_session_endpoint") or "")
+        except OidcError as exc:
+            reason += (
+                f"; IdP discovery failed ({exc}) — the IdP session may still be alive"
+            )
+        else:
+            if not end_session:
+                reason += "; the IdP publishes no end_session_endpoint"
+    if end_session:
+        separator = "&" if "?" in end_session else "?"
+        end_session = end_session + separator + urlencode(
+            {
+                "id_token_hint": credential,
+                "post_logout_redirect_uri": f"{_public_base_url()}/",
+            }
+        )
+        reason += "; end the IdP session at idp_end_session"
+    return {
+        "credential": "oidc",
+        "revoked": False,
+        "idp_end_session": end_session,
+        "reason": reason,
+        "client_action": "drop-stored-credential",
+    }
 
 
 # ── /api/v1/admin/tenants ───────────────────────────────────────────────────

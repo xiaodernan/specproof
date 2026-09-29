@@ -168,6 +168,9 @@
     "POST /api/v1/model/test": [
       "200"
     ],
+    "POST /auth/logout": [
+      "200"
+    ],
     "POST /jobs": [
       "202",
       "422"

@@ -14,6 +14,15 @@ import { loginWithToken } from "./helpers";
 // and it makes a control arm mandatory: the same 300 characters, in the markup
 // this page used to render, appended to the same panel-body. Without the
 // control, a green real arm could just be an assertion about nothing.
+//
+// The second scenario measures the one site #122 did NOT migrate,
+// pages/Dashboard.tsx's recent-jobs table, whose entry in the table register
+// rests on a source-level claim: it is wrapped in its own `.table-scroll` box
+// AND its grid track is `minmax(0, 2.1fr)`. The `minmax(0, ...)` half is the one
+// worth putting in front of a layout engine -- with a plain `2.1fr` track, the
+// track's min-content width comes from the widest cell, so the page grows
+// sideways and the inner scroll box has nothing left to absorb. That is measured
+// here by mutating the track in the browser and reading the same boxes again.
 test.describe("长理由 long text — 一处不换行的理由必须够得到 (#122)", () => {
   test("the reviewer ledger keeps a 300-char reason scrollable, not clipped", async ({ page }) => {
     const token = process.env.E2E_ADMIN_TOKEN || "";
@@ -122,5 +131,97 @@ test.describe("长理由 long text — 一处不换行的理由必须够得到 (
       control.clipper?.overflowX,
       "the old markup was clipped, not scrollable: " + JSON.stringify(control),
     ).toBe("hidden");
+  });
+
+  test("the dashboard's own scroll box absorbs a long repo name, and minmax(0, …) is why", async ({ page }) => {
+    const token = process.env.E2E_ADMIN_TOKEN || "";
+    expect(token.length).toBeGreaterThan(0);
+    await loginWithToken(page, token);
+    await page.goto("/#/dashboard");
+    await expect(page.locator(".table-scroll table.data tbody tr").first()).toBeVisible();
+
+    const measured = await page.evaluate((run: string) => {
+      const clipper = (start: Element | null) => {
+        let node: Element | null = start?.parentElement ?? null;
+        while (node) {
+          const overflowX = getComputedStyle(node).overflowX;
+          if (overflowX !== "visible") {
+            const el = node as HTMLElement;
+            return {
+              className: String(node.className),
+              overflowX,
+              clientWidth: el.clientWidth,
+              scrollWidth: el.scrollWidth,
+            };
+          }
+          node = node.parentElement;
+        }
+        return null;
+      };
+      const box = (selector: string) => {
+        const el = document.querySelector(selector) as HTMLElement | null;
+        return el ? { clientWidth: el.clientWidth, scrollWidth: el.scrollWidth } : null;
+      };
+
+      // The fixture's demo job has a short name, so the long value is injected
+      // into a CLONE of the page's own row: same elements, same classes, same
+      // CSS path -- only the text differs, which is the only thing a real
+      // repository could also make long.
+      const tbody = document.querySelector(".table-scroll table.data tbody") as HTMLElement;
+      const row = tbody.querySelector("tr")!.cloneNode(true) as HTMLElement;
+      const title = row.querySelector(".job-title") as HTMLElement;
+      title.textContent = run;
+      tbody.appendChild(row);
+      const cell = title.parentElement as HTMLElement;
+
+      const shipped = {
+        runLength: run.length,
+        clipper: clipper(cell),
+        content: box(".content"),
+        dashboardBottom: box(".dashboard-bottom"),
+      };
+
+      // Counterfactual: the same 300 characters, the same DOM, one CSS
+      // declaration weaker -- a grid track that is no longer allowed to shrink
+      // below its min-content width.
+      const bottom = document.querySelector(".dashboard-bottom") as HTMLElement;
+      bottom.style.gridTemplateColumns = "2.1fr minmax(250px, 1fr)";
+      const naive = {
+        clipper: clipper(cell),
+        content: box(".content"),
+        dashboardBottom: box(".dashboard-bottom"),
+      };
+      bottom.style.gridTemplateColumns = "";
+      row.remove();
+      return { shipped, naive };
+    }, "r".repeat(300));
+
+    const { shipped, naive } = measured;
+    expect(shipped.runLength).toBe(300);
+
+    // Shipped: the inner box is the nearest clipper and it really scrolls, so the
+    // rest of the name is reachable. The page itself does not grow.
+    expect(shipped.clipper?.className, "nearest clipper: " + JSON.stringify(shipped)).toContain("table-scroll");
+    expect(shipped.clipper?.overflowX, "the box must scroll: " + JSON.stringify(shipped)).toBe("auto");
+    expect(
+      shipped.clipper!.scrollWidth,
+      "the long name must overflow the box, or this proves nothing: " + JSON.stringify(shipped),
+    ).toBeGreaterThan(shipped.clipper!.clientWidth);
+    expect(
+      shipped.content!.scrollWidth,
+      "the dashboard must not widen .content: " + JSON.stringify(shipped),
+    ).toBeLessThanOrEqual(shipped.content!.clientWidth + 1);
+
+    // Naive track: the property is gone -- the page is wider than its viewport
+    // and the inner box has nothing left to absorb, which is exactly the failure
+    // mode the `minmax(0, ...)` in .dashboard-bottom prevents.
+    expect(
+      naive.clipper!.scrollWidth,
+      "with a plain 2.1fr track the inner box should stop absorbing: " + JSON.stringify(naive),
+    ).toBeLessThanOrEqual(naive.clipper!.clientWidth + 1);
+    expect(
+      naive.content!.scrollWidth,
+      "with a plain 2.1fr track the page should widen instead: " + JSON.stringify(naive),
+    ).toBeGreaterThan(naive.content!.clientWidth);
   });
 });
