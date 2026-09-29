@@ -10,7 +10,12 @@
 #   pwsh scripts/seed_pip_wheelhouse.ps1                        # create volume only
 #   pwsh scripts/seed_pip_wheelhouse.ps1 -RepoPath C:\path\to\repo   # + seed pytest & requirements
 param(
-    [string]$RepoPath = ""
+    [string]$RepoPath = "",
+    # PEP 518 build backend wheels to seed in addition to setuptools+wheel
+    # (e.g. -BuildRequires "hatchling" for hatchling-built projects). The
+    # sandbox install reads [build-system].requires and resolves them from
+    # the wheelhouse with --no-build-isolation.
+    [string]$BuildRequires = ""
 )
 $ErrorActionPreference = "Stop"
 $image   = "python:3.12-slim"
@@ -43,6 +48,9 @@ Write-Output "== 3/4 download wheels for $repo (ONLINE) into the volume =="
 # is installed editable with --no-build-isolation, which needs them in the
 # venv (there is no network to fetch a build environment).
 $args = "pip download --dest /wheelhouse pytest setuptools wheel"
+if ($BuildRequires -ne "") {
+    $args = "$args $BuildRequires"
+}
 if (Test-Path (Join-Path $repo "requirements.txt")) {
     $args = "$args -r /work/requirements.txt"
 }

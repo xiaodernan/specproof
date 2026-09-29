@@ -503,9 +503,23 @@ class TestPyprojectPackageInstall:
         bad = tmp_path / "bad"
         bad.mkdir(parents=True)
         (bad / "pyproject.toml").write_text("[project\nname = broken", encoding="utf-8")
-        assert adapter._pyproject_is_package(pkg) is True
-        assert adapter._pyproject_is_package(cfg) is False
-        assert adapter._pyproject_is_package(bad) is False
+        assert adapter._pyproject_build_info(pkg) == (
+            True, list(PythonAdapter.DEFAULT_BUILD_REQUIRES),
+        )
+        assert adapter._pyproject_build_info(cfg) == (False, [])
+        assert adapter._pyproject_build_info(bad) == (False, [])
+
+    def test_declared_build_backend_is_used_verbatim(self, tmp_path: Path) -> None:
+        """§24.5-2: a pyproject with [build-system] gets ITS backend wheels
+        installed (hatchling etc.) — never a silent fallback to setuptools."""
+        adapter = PythonAdapter()
+        hatch = self._pyproject(
+            tmp_path / "hatch",
+            "[build-system]\nrequires = ['hatchling>=1.0']\n"
+            "build-backend = 'hatchling.build'\n"
+            "[project]\nname = 'a'\nversion = '0.1.0'\n",
+        )
+        assert adapter._pyproject_build_info(hatch) == (True, ["hatchling>=1.0"])
 
     def _recording_sandbox(self, monkeypatch: pytest.MonkeyPatch):
         calls: list[tuple[list[str], dict[str, Any]]] = []

@@ -1777,3 +1777,31 @@ passed 判定里 `terminal_transitions == 1` 一直就是重复写检测的承�
 2. CI 那 5 个红 job 一个都还没修：bandit B608（7 处）、宿主机 `docker compose` 起基础设施、
    `tests-no-infra`、Maven cache 播种、OpenAPI schema diff。它们已从"不可见"变成"可见"，
    排在后面按序处理；每修一个都要把运行号与 job 结论写回本文件。
+
+## 27. §24.5-2 收口：build-backend 感知的离线安装——hatchling/flit 不再是例外（2026-09-28）
+
+### 27.1 判据来自 PEP 518 本身
+
+§24.5-2 登记"非 setuptools 后端需要把对应 wheel 加进 wheelhouse——机制同构，
+种子脚本加参数即可"。本批把"机制同构"落到实处：构建依赖不再硬编码
+`setuptools wheel`，而是解析 pyproject 的 `[build-system].requires`
+**逐字使用**（`_pyproject_is_package` 升级为 `_pyproject_build_info` 返回
+`(是否可构建包, 构建依赖列表)`）；`[build-system]` 缺省时回落 PEP 518 的
+隐式默认（setuptools+wheel，与旧行为逐字节一致）。hatchling/flit-core 项目
+的 wheel 经种子脚本新参数 `-BuildRequires "hatchling"` 播种——**绝不静默
+回退到另一个后端**：wheelhouse 缺哪个后端，安装阶段就诚实失败。
+
+### 27.2 门证（本批实测）
+
+- `test_python_adapter.py` **33 passed**（+1：声明后端逐字使用；既有判定
+  测试改账为 `DEFAULT_BUILD_REQUIRES` 三分支）。
+- 种子脚本 `-BuildRequires` 参数（PS 5.1 Parser OK，BOM 完整复核）。
+- 探针：见提交记录（锚点计数先验、字节还原复核，过程与 §22.4 相同）。
+- 并行会话同时在树上活跃（其 `.scratch/` 探针与 craft/identity 在飞改动
+  使全仓 `ruff check .` 含他人未跟踪文件的红）——本轮 ruff/mypy 的门证
+  范围是**本批改动文件**，全量门结果见 27.3；若红在他人领地，按 §17.6
+  先例如实记录、不冒领全绿。
+
+### 27.3 全量合并门（追记）
+
+见提交记录。

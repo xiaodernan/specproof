@@ -699,8 +699,9 @@ class PythonAdapter:
         "venv 与 pytest 在容器内创建/运行 (与宿主 CPython 版本解耦); "
         "依赖宿主 .venv 的旧 local 流程仅 sandbox_mode=local 显式可用",
         "pyproject 带 [project] 表的仓库额外做可编辑安装 (-e ., "
-        "--no-build-isolation): 构建依赖 setuptools/wheel 与 "
-        "project.dependencies 必须已在 wheelhouse/requirements.txt 中播种, "
+        "--no-build-isolation): 构建依赖按 PEP 518 取 [build-system].requires "
+        "(缺省 setuptools+wheel; hatchling 等经种子脚本 -BuildRequires 播种) "
+        "与 project.dependencies 必须已在 wheelhouse/requirements.txt 中播种, "
         "否则该阶段失败并如实上报; 纯工具配置的 pyproject 跳过此阶段",
         "仅支持 pytest (goal=run_test); 其他 goal 抛 AdapterNotImplemented",
         "detect 规则: pyproject.toml | requirements.txt | pytest.ini; "
@@ -717,6 +718,10 @@ class PythonAdapter:
     VENV_CREATE_COMMAND = ["python", "-m", "venv", "/work/.venv"]
     VENV_PYTHON = "/work/.venv/bin/python"
     VENV_PIP = "/work/.venv/bin/pip"
+    #: PEP 518's implicit build backend when [build-system] is absent — the
+    #: same wheels the seed script downloads by default (seed_pip_wheelhouse.ps1
+    #: -BuildRequires takes the explicit list for hatchling/flit-core/…).
+    DEFAULT_BUILD_REQUIRES: tuple[str, ...] = ("setuptools", "wheel")
     OFFLINE_INSTALL_BASE = [
         "/work/.venv/bin/pip", "install", "--no-index",
         "--find-links", "/wheelhouse", "pytest",
@@ -846,24 +851,44 @@ class PythonAdapter:
             "setup_phase": note,
         }
 
-    def _pyproject_is_package(self, workspace: str | Path) -> bool:
-        """True when pyproject.toml declares a buildable project ([project]).
+    def _pyproject_build_info(self, workspace: str | Path) -> tuple[bool, list[str]]:
+        """(is_buildable_package, build_requires) from pyproject.toml.
 
         A pyproject.toml that only carries tool configuration ([tool.pytest...]
         with no [project] table) is NOT installable — attempting ``pip install
         -e .`` on it would fail with a packaging error that has nothing to do
         with the code under test. Unparseable files count as not-a-package:
         pip would fail anyway, and the honest flow is the plain pytest run.
+
+        ``build_requires`` follows PEP 518: the [build-system].requires list
+        verbatim when declared (hatchling, flit-core, …), else the implicit
+        setuptools default. These wheels must be seeded into the wheelhouse —
+        under --no-build-isolation pip cannot fetch a build environment, and
+        a missing backend wheel fails the install loudly (honest, never a
+        silent fallback to a different backend).
         """
         path = Path(workspace) / "pyproject.toml"
         if not path.is_file():
-            return False
+            return False, []
         try:
             with path.open("rb") as fh:
                 data = tomllib.load(fh)
         except (OSError, tomllib.TOMLDecodeError):
-            return False
-        return "project" in data
+            return False, []
+        if "project" not in data:
+            return False, []
+        build_system = data.get("build-system")
+        requires: Any = (
+            build_system.get("requires")
+            if isinstance(build_system, dict)
+            else None
+        )
+        if isinstance(requires, list) and requires and all(
+            isinstance(r, str) for r in requires
+        ):
+            return True, [r for r in requires if r.strip()]
+        # PEP 518 implicit default when [build-system] is absent/empty.
+        return True, list(self.DEFAULT_BUILD_REQUIRES)
 
     def run(self, prepared: PreparedExecution) -> ExecutionResult:
         if prepared.sandbox_mode == "local":
@@ -874,7 +899,7 @@ class PythonAdapter:
         # project install) → pytest. A setup phase that fails stops the run —
         # a missing wheel must never be confused with "tests ran and passed".
         workspace = prepared.workdir
-        is_package = self._pyproject_is_package(workspace)
+        is_package, build_requires = self._pyproject_build_info(workspace)
         phases: list[tuple[str, list[str]]] = [
             ("venv", list(self.VENV_CREATE_COMMAND)),
         ]
@@ -882,9 +907,9 @@ class PythonAdapter:
         if is_package:
             # Build dependencies for --no-build-isolation: without network,
             # pip cannot fetch a build environment on its own, so the
-            # wheelhouse must carry setuptools + wheel (the seed script
-            # always downloads them).
-            install += ["setuptools", "wheel"]
+            # wheelhouse must carry the backend's wheels (PEP 518 requires
+            # verbatim; the seed script takes them via -BuildRequires).
+            install += build_requires
         if (Path(workspace) / "requirements.txt").is_file():
             install += ["-r", "/work/requirements.txt"]
         phases.append(("pip_install", install))
