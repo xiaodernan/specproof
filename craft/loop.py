@@ -1181,7 +1181,7 @@ class CraftLoop:
         state.evidence = merged
         facts = " ".join(
             f"{key}={merged[key]!r}"
-            for key in ("check", "exit_code", "mode", "error")
+            for key in ("check", "exit_code", "mode", "error", "written_bytes")
             if merged.get(key) is not None
         )
         tail = str(merged.get("output_tail") or "")[-300:].replace("\n", " ")
@@ -1230,6 +1230,35 @@ class CraftLoop:
 
     # -- criteria --------------------------------------------------------
 
+    def _written_bytes_evidence(self) -> dict[str, str]:
+        """Re-read, at check time, every path the Editor claims to have touched.
+
+        A STUCK verdict asserts "the fix did not take", and until now its only
+        evidence was the checker's stdout, which cannot separate an edit that
+        never reached disk from one that landed and still leaves the test red.
+        The population is the Editor's own audit — the same list ``_finish``
+        derives ``report.diff_stat`` from — so the check-time evidence and the
+        published diff cannot drift apart. An empty dict is itself the answer
+        ("nothing was written"), which is why callers must not filter it out.
+        """
+        written: dict[str, str] = {}
+        for entry in self.editor.audit:
+            if entry.action not in ("write", "edit", "move", "delete"):
+                continue
+            path = self.workspace / entry.path
+            if not path.is_file():
+                written[entry.path] = "absent"
+                continue
+            try:
+                raw = path.read_bytes()
+            except OSError:
+                written[entry.path] = "unreadable"
+                continue
+            written[entry.path] = (
+                f"sha256:{hashlib.sha256(raw).hexdigest()[:12]}/{len(raw)}B"
+            )
+        return written
+
     def _check_criteria(
         self, step: Step, state: StepState
     ) -> tuple[bool, dict[str, Any], ExecResult | None]:
@@ -1266,6 +1295,7 @@ class CraftLoop:
                 "failed_tests": extract_pytest_failed_tests(f"{result.stdout}\n{result.stderr}"),
                 "mode": result.mode,
                 "output_tail": result.output_tail,
+                "written_bytes": self._written_bytes_evidence(),
             }
             if result.stderr.strip():
                 evidence["stderr_tail"] = result.stderr[-1000:]
