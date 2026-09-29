@@ -51,7 +51,7 @@ from typing import Any, Literal
 
 from .ast_edit import AstEditor, AstParseError
 from .editor import EditError, Editor, StaleContextError
-from .executor import CommandNotAllowedError, Executor
+from .executor import CommandNotAllowedError, Executor, PlaneToolchainMissingError
 from .schemas import Approval, ToolCall, ToolResult
 
 ENVELOPE_VERSION = 1
@@ -77,6 +77,8 @@ CODE_APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
 CODE_FILE_NOT_FOUND = "FILE_NOT_FOUND"
 CODE_NOT_A_GIT_REPO = "NOT_A_GIT_REPO"
 CODE_COMMAND_NOT_ALLOWED = "COMMAND_NOT_ALLOWED"
+#: Permitted, but the pinned plane has no image to serve it — retrying cannot help.
+CODE_PLANE_TOOLCHAIN_MISSING = "PLANE_TOOLCHAIN_MISSING"
 CODE_STALE_CONTEXT = "STALE_CONTEXT"
 CODE_EDIT_REJECTED = "EDIT_REJECTED"
 CODE_AST_PARSE_FAILED = "AST_PARSE_FAILED"
@@ -423,6 +425,8 @@ class ToolRegistry:
             return _error(CODE_EDIT_REJECTED, str(exc))
         except CommandNotAllowedError as exc:
             return _denied(CODE_COMMAND_NOT_ALLOWED, str(exc))
+        except PlaneToolchainMissingError as exc:
+            return _denied(CODE_PLANE_TOOLCHAIN_MISSING, str(exc))
         except Exception as exc:
             return _error(
                 CODE_EXECUTION_FAILED, f"{call.tool} 执行失败: {type(exc).__name__}: {exc}"

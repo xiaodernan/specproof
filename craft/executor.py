@@ -22,7 +22,14 @@ from pathlib import Path
 
 import defusedxml.ElementTree as SafeET
 
-from sandbox.runner import SandboxResult, run_sandboxed
+from sandbox.runner import (
+    MAVEN_PROFILE,
+    NODE_PROFILE,
+    PYTHON_PROFILE,
+    SandboxProfile,
+    SandboxResult,
+    run_sandboxed,
+)
 
 ALLOWED_COMMANDS: frozenset[str] = frozenset({"mvn", "gradle", "npm", "pytest", "python", "cargo"})
 OUTPUT_TAIL_CHARS = 4000
@@ -33,6 +40,31 @@ DEFAULT_TIMEOUT = 600
 #: (compose.production.yml pins it to ``docker``).
 SANDBOX_MODE_ENV = "SPECPROOF_SANDBOX"
 
+#: Which container toolchain a whitelisted command stem needs. Before this
+#: table craft commands reached ``run_sandboxed`` with no ``profile=``, whose
+#: default is Maven-only, so a plane pinned to docker executed ``pytest`` /
+#: ``npm test`` inside the java image and failed for the wrong reason.
+PROFILE_BY_STEM: dict[str, SandboxProfile] = {
+    "mvn": MAVEN_PROFILE,
+    "npm": NODE_PROFILE,
+    "pytest": PYTHON_PROFILE,
+    "python": PYTHON_PROFILE,
+}
+
+#: Planes that promise the workload never touches the host. A stem with no
+#: image on such a plane is refused, not run in someone else's image and not
+#: quietly executed on the host.
+IMAGE_REQUIRED_MODES: frozenset[str] = frozenset({"docker"})
+
+
+class PlaneToolchainMissingError(RuntimeError):
+    """The pinned container plane has no toolchain image for this command."""
+
+
+def stems_without_profile() -> set[str]:
+    """Whitelisted stems that have no container image — derived, never typed."""
+    return set(ALLOWED_COMMANDS) - set(PROFILE_BY_STEM)
+
 
 def sandbox_pin_from_deployment() -> str:
     """The plane the deployment pinned, or ``""`` when it pinned none."""
@@ -42,21 +74,29 @@ def sandbox_pin_from_deployment() -> str:
 def craft_plane_decision() -> tuple[str, str]:
     """Return ``(plane, note)`` for the craft repair loop's command execution.
 
-    The pin cannot be honoured here yet, and saying so is the point: craft's
-    commands reach ``run_sandboxed`` without a ``profile=``, whose default is
-    the Maven-only profile, so a ``pytest``/``npm test`` command pinned to
-    docker would run inside the java image and fail for the wrong reason.
-    Craft therefore stays on the host plane, and the returned note names the
-    mitigation that is NOT in effect so the job log says it out loud instead
-    of letting THREAT_TESTING.md §1's pin read as if it covered this path.
+    ``Executor`` now picks a container profile per command stem, so a pinned
+    docker plane runs each language in its own image. That is still not enough
+    to move THIS path onto the pinned plane, and the note says why instead of
+    letting it read as covered: the repair loop's commands are the model's
+    choice, and every whitelisted stem in ``stems_without_profile()`` (today
+    ``gradle``/``cargo`` — no image exists) would be refused on a pinned plane.
+    A craft job could then die on a step the sandbox cannot serve at all, so
+    craft stays on the host plane ON PURPOSE and the disclosure rides the job
+    log, keeping THREAT_TESTING.md §1's "缓解事实" honest about this path.
     """
     pinned = sandbox_pin_from_deployment()
     if not pinned or pinned == "local":
         return "local", ""
+    outcome = (
+        "会被拒绝而不是被隔离"
+        if pinned in IMAGE_REQUIRED_MODES
+        else f"会经 {pinned} 面落到宿主执行而不是被隔离"
+    )
     return "local", (
-        f"部署钉了 {SANDBOX_MODE_ENV}={pinned}，但 craft 修复回路仍在 local 面: "
-        "Executor 从不为命令选 profile，run_sandboxed 的默认 profile 只有 Maven，"
-        "python/npm 命令进容器会跑错工具链 —— 该沙箱缓解对这条路径未生效"
+        f"部署钉了 {SANDBOX_MODE_ENV}={pinned}，但 craft 修复回路仍在 local 面 ——"
+        " 该沙箱缓解对这条路径未生效: Executor 已按命令词干选 profile，"
+        f"而白名单里 {sorted(stems_without_profile())} 没有任何镜像，"
+        f"钉住这个面时这些命令{outcome}"
     )
 
 
@@ -140,6 +180,7 @@ class Executor:
         self.mode = mode
         self.timeout = timeout
         effective_mode = mode or os.getenv(SANDBOX_MODE_ENV, "auto")
+        self.effective_mode = effective_mode
         self.python = python or (sys.executable if effective_mode == "local" else None)
 
     def allowed_commands(self) -> set[str]:
@@ -165,11 +206,19 @@ class Executor:
                 f"命令 '{resolved[0]}' 不在白名单 {sorted(self.allowed_commands())} "
                 "(M1 默认拒绝其余命令)"
             )
+        profile = PROFILE_BY_STEM.get(stem)
+        if profile is None and self.effective_mode in IMAGE_REQUIRED_MODES:
+            raise PlaneToolchainMissingError(
+                f"命令词干 {stem!r} 没有容器镜像，而执行面钉了 {self.effective_mode}"
+                f" —— 既不塞进 {MAVEN_PROFILE.name} 镜像跑错工具链，也不落到宿主；"
+                f"缺镜像的词干: {sorted(stems_without_profile())}"
+            )
         result: SandboxResult = run_sandboxed(
             command=resolved,
             workspace=str(self.workspace),
             timeout=timeout if timeout is not None else self.timeout,
             mode=self.mode,
+            profile=profile,
         )
         combined = f"{result.stdout}\n{result.stderr}".rstrip()
         if not combined and result.error:
