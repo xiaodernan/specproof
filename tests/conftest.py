@@ -64,7 +64,11 @@ def pytest_configure(config):
 
 
 # Unit modules measured (via `pytest --durations`) to dominate wall-clock because
-# they simulate a full agent runtime / multi-step LLM loop / benchmark harness.
+# they simulate a full agent runtime / multi-step LLM loop / benchmark harness,
+# or because they spawn a real child pytest per case: the #132/#134 terminal-
+# verdict and stale-bytecode witnesses cost 40.05s and 23.62s for 3 cases each,
+# summed from that pair's own junit while the merge leg ran (#132's lesson is
+# that a cost registered from a one-off cold command is not a cost).
 # Auto-tagged `slow` so contributors can run a fast inner loop with
 # `-m 'not integration and not slow'`; CI does NOT deselect these, so the merge
 # gate keeps their coverage.
@@ -73,12 +77,14 @@ SLOW_TEST_MODULES: frozenset[str] = frozenset({
     "test_bench_aider.py",
     "test_bench_mutation.py",
     "test_craft_accept.py",
+    "test_craft_editor_drops_stale_bytecode.py",
     "test_craft_llm.py",
     "test_craft_loop.py",
     "test_craft_loop_jobs.py",
     "test_craft_loop_metrics.py",
     "test_craft_memory.py",
     "test_craft_stream.py",
+    "test_craft_terminal_discloses_written_bytes.py",
     "test_craft_tools.py",
     "test_craft_verify.py",
     "test_edit_anchor_and_verify_target.py",

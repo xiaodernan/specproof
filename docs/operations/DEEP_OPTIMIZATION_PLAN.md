@@ -634,3 +634,58 @@ CPython 用「源码 mtime 的整秒 + 字节数」校验 `.pyc`。把时序钉�
 平面门数字（干净 worktree 检出 `6c6d6f0`，tests/unit + tests/security + tests/fault，
 由本脚本从 junit 读出、不许手抄）：tests=3423 / failures=0 /
 errors=0 / skipped=7，用时 1135.443s。
+
+## #135 — 快环为两个「每条案例起一个真 child」的见证白等；登记口径改成从合入门的 junit 求和
+
+本轮把 `tests/unit/test_craft_terminal_discloses_written_bytes.py`（#132 的终态披露）
+与 `tests/unit/test_craft_editor_drops_stale_bytecode.py`（#134 的字节码缓存）登进
+`tests/conftest.py::SLOW_TEST_MODULES`，登记之后这张表有 **23** 个名字（登记之前 21）。
+
+成本不来自我手敲的命令，来自合入门自己那本 junit 里 per-case `time` 的按模块求和
+（平面 `6c6d6f0`，`tests/unit+security+fault`，**3423 例 / 3416 passed / 0 failed-error / 7 skipped / 1135.443s**）：
+
+- `test_craft_terminal_discloses_written_bytes` ＝ **40.05s**（3 例）
+- `test_craft_editor_drops_stale_bytecode` ＝ **23.62s**（3 例：10.059 + 13.532 + 0.032，只有第 3 例不起 child）
+- 两条合计 **63.68s**；`-m 'not integration and not slow'` 的收集量从 **3423** 降到 **3137**（−286 例），
+  其中这两个文件各自贡献 **3 + 3 例**（逐文件探针印的是 `no tests collected (3 deselected)`，
+  rc=5）——块级 −286 里其余是既有 slow 集合，所以「快环变小」这句话只能靠逐文件探针站住，不能靠块级数字。
+
+订正（原句留着）：我草稿里写的是「~33s 与 ~56s」，那是**一次性冷启动手敲命令**的读数，
+正是 #132 记过并被撤回的那种测量。改成上表这两个在 suite 里的求和之后，`tests/conftest.py`
+的注释也跟着写实测值——注释里的数字同样是一个声明，它也要有出处。
+
+登记的是这两条，不是「所有慢的」：同一本 junit 里 `test_repo_safety` 是 **53.57s**，
+排第 7，比若干已登记的模块更慢，但**故意不登记**——它是 #130/#131 那套 containment
+守卫自己的覆盖面，把守卫请出快环是反向收益。这条留在文档里，而不是留在 frozenset 里。
+
+CI 覆盖不受影响是读出来的，不是推的：`.github/workflows/ci.yml:71` 的 tests-no-infra 作业
+不带 `-m`，所以 `slow` 只重排本地快环的便利，不减合并门（`pytest_collection_modifyitems`
+docstring 里同一条声明由 `tests/unit/test_slow_marker_tagging.py` 双向钉着）。
+
+双向见证（跑在改完的那个平面）：既有门 `test_slow_marker_tagging.py` **2 通过**；
+两个文件各自 `-m slow --collect-only` 收 **3 例**、`-m 'not integration and not slow' --collect-only`
+收 **0 例（3 deselected，rc=5）**——正向证明它被标上了，反向证明快环真的把它请出去了。
+
+那 7 条 skip 逐个有名。它们与共享副本记 5 条的差**不在代码里，在平面的产物与特权上**：
+`apps/web/dist` 在主工作副本＝True，在本轮那条腿的干净 worktree
+＝False，于是 `test_web_api.py` 的两条只在干净平面上被跳过：
+
+- `test_billing.py::test_mysql_backend_scenario` — MYSQL_URL not set — MySQL billing test skipped (skip)
+- `test_node_adapter.py::test_node_adapter_runs_real_suite_on_host` — real npm execution is exercised on POSIX CI; skipped when  (skip)
+- `test_node_adapter.py::test_node_adapter_runs_real_suite_in_sandbox` — needs a live Docker daemon; opt in with SPECPROOF_TEST_DOC (skip)
+- `test_web_api.py::test_root_serves_spa_when_built` — SPA not built - run npm run build in apps/web (skip)
+- `test_web_api.py::test_spa_fallback_does_not_mask_api_404s` — SPA not built - run npm run build in apps/web (skip)
+- `test_threat_vectors.py::test_real_symlink_escape_rejected_if_platform_allows` — 平台不允许创建符号链接 (Windows 需开发者模式/管理员): [WinError 1314] 客户端没有所需的 (skip)
+- `test_threat_vectors.py::test_real_symlink_inside_root_allowed_if_platform_allows` — 平台不允许创建符号链接 (Windows 需开发者模式/管理员): [WinError 1314] 客户端没有所需的 (skip)
+
+基线口径订正：我给 #134 的预测钉在 3217，那是 `DRILLS.md` FIX-17（2026-09-27，**共享工作副本**平面）
+的数字，距本轮三天、中间并发会话已落 `4a58e36`/`c49057c` 两批测试。最近的一条记录是 FIX-21
+的 3403 passed（2026-09-30，同样是共享副本）。本轮 3416 相对 3403 是 **+13**＝
+#132 的 3 例 + #134 的 3 例 + 并发会话在 `4a58e36`/`c49057c` 里的 provider-hold 与 notify-outbox 测试；
+我没有逐文件列举差值，因为那条基线本身就不是我这一路的平面。教训写进方法里：**预测要钉在
+「同一个 commit 的上一条腿」，不能钉在文档里最顺手的那个数**——否则一个正确的修复会被用来
+解释一个我自己算错的差值。
+
+欠一条：`docs/operations/PRODUCT_ROADMAP.md:333` 仍写「`SLOW_TEST_MODULES` 取 21 个实测模块」，
+本轮之后是 23 个。该文件在并发写者清单里，我不改它，在这里登记为欠账，由它的拥有者把
+「21」换成读数口径（按合入门 junit 的 per-case 求和登记，而不是按一次 `--durations` 手敲）。
