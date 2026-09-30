@@ -7,12 +7,19 @@ file pins the next link — agent/nodes/run_deep_experiments.py must carry that
 note into deep_results / deep-report.json, which is the artifact a reviewer
 actually opens.
 
-Mutation arms and their predicted reds (written before running):
-  A1 drop the `if cache_integrity:` guard      -> test_no_disclosure_writes_no_key
-  A2 drop the dedupe (`and note not in seen`)  -> test_agreeing_runs_collapse_to_one_statement
+Mutation witness (.scratch/g137/mutate_137.py, control 7/7 green, source
+restored by sha256): A2/A4 below, measured outcome in the trailing note.
+
+  A1 drop the `if cache_integrity:` guard      -> test_no_disclosure_writes_no_key            MATCHED
+  A2 drop the dedupe (`and note not in seen`)  -> predicted 2 red, measured 4: the two extra
+       (test_agreeing_runs_collapse_to_one_statement stays, plus
+        test_only_a_repeat_run_disclosing_still_lands and
+        test_deep_report_json_contains_the_disclosure) are real consequences, because those
+       fixtures feed the same note to several runs -> CAUGHT, prediction under-specified
   A3 pass [head_run] only                      -> test_only_a_repeat_run_disclosing_still_lands
-  A4 drop cache_note from _run_test_via_sandbox-> test_the_real_run_function_carries_the_note
-  A5 rename the results key                    -> every node-level case here
+       + test_disagreeing_runs_name_both_sides                                                  MATCHED
+  A4 drop cache_note from _run_test_via_sandbox-> test_the_real_run_function_carries_the_note  MATCHED
+  A5 rename the results key                    -> the four node-level cases                    MATCHED
 """
 
 from __future__ import annotations
