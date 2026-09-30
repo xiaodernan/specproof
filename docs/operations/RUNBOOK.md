@@ -33,7 +33,7 @@
     cd services/control-plane && ./mvnw spring-boot:run
 
 - 数据库迁移在应用启动时自动执行 (infra/mysql/migrations/*.sql,
-  schema_migrations 记录版本; 当前 0001-0012, 见 docs/architecture/DATA_DICTIONARY.md
+  schema_migrations 记录版本; 当前 0001-0013, 见 docs/architecture/DATA_DICTIONARY.md
   的逐字段登记与 `tests/unit/test_data_dictionary_covers_migrations.py`)。
 - **生产必须 SPECPROOF_ENV=production，而且这件事现在由部署文件本身做到** (#79, 2026-09-26 实测纠正):
   此前 config_guard 只在 `SPECPROOF_ENV=production` 时才拒绝默认口令，而**没有任何入口设置这个变量**

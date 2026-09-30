@@ -1,7 +1,7 @@
 # 数据字典 (DATA_DICTIONARY) — SpecProof 全存储字段级说明
 
 > 口径与出处: 本文逐字段登记 SpecProof 的全部持久化状态。MySQL 表结构以
-> `infra/mysql/migrations/0001_init.sql` 至 `0012_finding_feedback_idempotency.sql` 十二个版本化迁移为准,
+> `infra/mysql/migrations/0001_init.sql` 至 `0013_notify_outbox.sql` 十三个版本化迁移为准,
 > 并与代码内幂等 DDL (`storage/identity.py` / `storage/billing.py` / `storage/agent_jobs.py` /
 > `storage/object_metadata.py` / `storage/migrations.py`) 逐表核对; MongoDB/MinIO/ES/Redis/RabbitMQ
 > 以对应 `storage/*` 适配器为准。
@@ -23,8 +23,9 @@
 
 ## 1. MySQL — 数据库 `specproof_phase0` (compose 服务 mysql:8.4)
 
-共 18 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测):
-17 张来自版本化迁移 0001-0012 (0012 只给 `finding_feedback` 加唯一约束, 不建新表), 1 张
+共 19 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测; 0013 落库后为 19):
+18 张来自版本化迁移 0001-0013 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0013 建
+`notify_outbox`, 见 §1.21), 1 张
 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
 本文 §1.18 / §1.19 两张对象元数据表**不在这 18 张里** —— 它们只在显式选择 MySQL 对象元数据后端时
 由 `ensure_schema()` 现建, 默认后端是 SQLite (见 §1.18 的口径说明)。
@@ -576,6 +577,38 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 
 - MySQL 迁移: `infra/mysql/migrations/0001_init.sql` … `0012_finding_feedback_idempotency.sql` (down 文件在 `infra/mysql/migrations/down/`; 0011 是 2026-09-26 为 `agent_jobs` 补的那一份, 它的缺失曾让全新安装比线上少一张表; 0012 是同日为 `finding_feedback` 加的那份约束)。
 - MySQL 业务/状态: `storage/mysql.py`; 迁移执行: `storage/migrations.py`。
+### 1.21 notify_outbox — 通知发件箱 (来源 `0013_notify_outbox.sql`; #16.6-1)
+
+webhook 通知的可靠投递队列: worker 在终态写被接受后, 把**构建完成的**通知
+(event_type/title/text/blocks, 冻结于入库时刻——模板后续修改不会改写历史
+通知该说什么) 持久化于此, 由 `storage/notify_relay.py` 的独立循环以
+at-least-once 语义送达。治理形状与 `outbox`(§1.x, job-event) 同构:
+端点收下才落 `delivered_at`; 失败按指数退避延期并计入 `attempts`;
+超过预算进死信 (`dead_lettered_at`), 等运营处理而非无限重试;
+连接器 DISABLED (没人配置接收端) 立即死信——重试修不了缺配置。
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT AUTO_INCREMENT PK | 发件序号 (relay 按它 FIFO 认领) |
+| job_id | CHAR(36) NOT NULL | 所属验证任务; `idx_notify_job`; 接收端以它 + event_type 去重 |
+| verdict | VARCHAR(32) NOT NULL | 入库时的终态判定 |
+| payload | JSON NOT NULL | 冻结的通知 (event_type/title/text/blocks/job_id) |
+| created_at | TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP(3) | 入库时刻; 治理仪表 `oldest_age_seconds` 的分母 |
+| delivered_at | TIMESTAMP(3) NULL | 端点收下的时刻 (NULL = 未送达) |
+| attempts | INT NOT NULL DEFAULT 0 | 总投递尝试 (成功+失败) |
+| last_error | VARCHAR(1000) NULL | 最近一次失败原因 (store 截断) |
+| next_retry_at | TIMESTAMP(3) NULL | 退避延期; relay 只认领到期行 |
+| dead_lettered_at | TIMESTAMP(3) NULL | 死信时刻 (NULL = 仍在投递队列) |
+
+**索引** `idx_notify_claim (dead_lettered_at, delivered_at, id)` 服务认领查询,
+`idx_notify_job (job_id)` 服务按任务排查。**写入方**: `agent/worker.py` 的
+outbox 车道 (`SPECPROOF_NOTIFY_OUTBOX=1`, 默认关=直发车道原样); **消费方**:
+`storage/notify_relay.py` (可独立进程)。**诚实边界**: 入库与终态写是同一库的
+两条语句, 进程在两者之间死亡仍会丢这条通知——完全事务化属后续批次。
+**租户作用域**: 无 tenant_id 列 (通知跟随 job, 当前经 job_id 关联)。
+**TTL/保留**: 永久(无自动清理); 已送达行可按保留策略清理 (见
+`docs/operations/DATA_LIFECYCLE.md`)。
+
 - Finding 验收反馈 (Go/No-Go #13): `storage/mysql.py` `insert_feedback`/`feedback_stats` + `api/routes/feedback.py` (Web 侧无入口, 见 §1.20)。
 - 租户身份: `storage/identity.py` + `api/identity/store.py` + `api/routes/admin.py`。
 - 计费: `storage/billing.py` (计量钩子: `agent/worker.py`)。
