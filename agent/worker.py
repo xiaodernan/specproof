@@ -52,6 +52,7 @@ from storage.mysql import (
     ReclaimOutcome,
     retry_budget_spent,
 )
+from storage.notify_relay import notify_outbox_lane_enabled
 from storage.rabbitmq import RabbitMQClient, make_idempotency_check
 from storage.redis import RedisStore
 
@@ -767,12 +768,20 @@ class Worker:
 
         Never raises: a delivery problem cannot flip a job that already
         reached its honest terminal state.
+
+        Delivery lanes (§16.6-1): the direct send below is best-effort — a
+        crash between the accepted terminal write and the HTTP POST loses
+        the notification with only a counter as a trace. The outbox lane
+        (``SPECPROOF_NOTIFY_OUTBOX=1``) instead persists the BUILT
+        notification in ``notify_outbox`` (same accepted-terminal adjacency)
+        for ``storage.notify_relay`` to deliver at-least-once; an enqueue
+        failure falls back to the direct send rather than losing the
+        announcement twice.
         """
         try:
             from integrations.notify import (
                 build_terminal_notification,
                 notifiable,
-                webhook_connector_from_env,
             )
 
             verdict = str(summary.get("verdict", ""))
@@ -783,6 +792,11 @@ class Worker:
                 )
                 incr("notify_skipped_total")
                 return
+            if notify_outbox_lane_enabled():
+                self._enqueue_notify_intent(job_id, verdict, summary)
+                return
+            from integrations.notify import webhook_connector_from_env
+
             connector = webhook_connector_from_env()
             try:
                 status = connector.send(
@@ -799,6 +813,56 @@ class Worker:
                 "Terminal notification failed for %s: %s", job_id, exc
             )
             incr("notify_error_total")
+
+    def _enqueue_notify_intent(
+        self, job_id: str, verdict: str, summary: dict[str, Any]
+    ) -> None:
+        """Outbox lane: persist the BUILT notification for the relay.
+
+        The payload freezes the exact announcement (event_type/title/text/
+        blocks) so template edits never rewrite what a verdict said. An
+        enqueue failure falls back to the direct send: losing the durable
+        promise must not ALSO lose the immediate attempt.
+        """
+        from dataclasses import asdict
+
+        from integrations.notify import build_terminal_notification
+
+        try:
+            notification = build_terminal_notification(job_id, summary)
+            payload = asdict(notification)
+            self.mysql.enqueue_notify_intent(job_id, verdict, payload)
+        except Exception as exc:  # noqa: BLE001 — fall back, never lose twice
+            logger.warning(
+                "Job %s: notify outbox enqueue failed (%s) — falling back "
+                "to the direct send", job_id, exc,
+            )
+            incr("notify_outbox_enqueue_failed_total")
+            self._send_direct_notification(job_id, summary)
+            return
+        incr("notify_outbox_enqueued_total")
+        logger.info(
+            "Job %s: notification enqueued for relay delivery (verdict=%s)",
+            job_id, verdict,
+        )
+
+    def _send_direct_notification(
+        self, job_id: str, summary: dict[str, Any]
+    ) -> None:
+        """The historical best-effort direct send, shared by both lanes."""
+        from integrations.notify import (
+            build_terminal_notification,
+            webhook_connector_from_env,
+        )
+
+        connector = webhook_connector_from_env()
+        try:
+            status = connector.send(
+                build_terminal_notification(job_id, summary)
+            )
+        finally:
+            connector.close()
+        incr("notify_" + status.value + "_total")
 
     def _maybe_publish_github_check(
         self,

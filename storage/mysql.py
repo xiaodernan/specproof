@@ -522,6 +522,125 @@ class MySQLStore:
                 (error[:1000], outbox_id),
             )
 
+    # ── Notification outbox (§16.6-1: reliable webhook delivery) ────────
+    #
+    # Same governance shape as the job-event outbox above (claim due rows
+    # SKIP LOCKED, mark delivered only after the endpoint confirms, defer
+    # failures, dead-letter past max_retries), but the payload is the
+    # BUILT notification (event_type/title/text/blocks) frozen at enqueue
+    # time, and delivery is an HTTP POST, not a broker publish.
+
+    def enqueue_notify_intent(
+        self, job_id: str, verdict: str, payload: dict[str, Any]
+    ) -> None:
+        """Persist the built notification payload for relay delivery.
+
+        Called by the worker after the terminal write was ACCEPTED — a row
+        in this table is the promise "this announcement will be delivered
+        at least once". Failures here are the caller's to fall back from;
+        the enqueue itself is not retried.
+        """
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "INSERT INTO notify_outbox (job_id, verdict, payload) "
+                "VALUES (%s, %s, %s)",
+                (job_id, verdict, json.dumps(payload, default=str)),
+            )
+
+    def fetch_due_notify_intents(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Fetch due, undelivered notification intents with SKIP LOCKED.
+
+        Rows are due only when next_retry_at is NULL or in the past;
+        delivered and dead-lettered rows are excluded.
+        """
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, job_id, verdict, payload, attempts "
+                "FROM notify_outbox "
+                "WHERE delivered_at IS NULL "
+                "AND dead_lettered_at IS NULL "
+                "AND (next_retry_at IS NULL OR next_retry_at <= NOW(3)) "
+                "ORDER BY id "
+                "LIMIT %s "
+                "FOR UPDATE SKIP LOCKED",
+                (limit,),
+            )
+            return cast(list[dict[str, Any]], cur.fetchall())
+
+    def mark_notify_delivered(self, notify_id: int) -> None:
+        """Mark a notification intent delivered (sets delivered_at to NOW)."""
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "UPDATE notify_outbox SET delivered_at = NOW(3), "
+                "attempts = attempts + 1, next_retry_at = NULL, "
+                "last_error = NULL WHERE id = %s",
+                (notify_id,),
+            )
+
+    def mark_notify_failed(
+        self, notify_id: int, error: str, retry_after_seconds: float
+    ) -> None:
+        """Record a failed delivery attempt and defer the next one."""
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "UPDATE notify_outbox SET attempts = attempts + 1, "
+                "last_error = %s, "
+                "next_retry_at = NOW(3) + INTERVAL %s SECOND "
+                "WHERE id = %s",
+                (error[:1000], retry_after_seconds, notify_id),
+            )
+
+    def dead_letter_notify_intent(self, notify_id: int, error: str) -> None:
+        """Dead-letter a notification intent (operator replay territory)."""
+        with self.connection() as conn:
+            conn.cursor().execute(
+                "UPDATE notify_outbox SET dead_lettered_at = NOW(3), "
+                "last_error = %s, next_retry_at = NULL "
+                "WHERE id = %s",
+                (error[:1000], notify_id),
+            )
+
+    def notify_outbox_stats(self) -> dict[str, Any]:
+        """Governance snapshot of the notify_outbox table (relay metrics).
+
+        pending/dead_letters/retries are counted in SQL (no Python-side
+        table scan); oldest_created_at covers only rows the relay will
+        still pick up, last_success is the most recent delivered_at.
+        """
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT "
+                "COALESCE(SUM(delivered_at IS NULL AND dead_lettered_at "
+                "IS NULL), 0) AS pending, "
+                "COALESCE(SUM(dead_lettered_at IS NOT NULL), 0) "
+                "AS dead_letters, "
+                "COALESCE(SUM(CASE WHEN delivered_at IS NULL AND "
+                "dead_lettered_at IS NULL THEN attempts ELSE 0 END), 0) "
+                "AS retries, "
+                "MIN(CASE WHEN delivered_at IS NULL AND dead_lettered_at "
+                "IS NULL THEN created_at END) AS oldest_created_at, "
+                "MAX(delivered_at) AS last_success "
+                "FROM notify_outbox"
+            )
+            row = cast(dict[str, Any] | None, cur.fetchone())
+        if row is None:
+            return {
+                "pending": 0,
+                "dead_letters": 0,
+                "retries": 0,
+                "oldest_created_at": None,
+                "last_success": None,
+            }
+        return {
+            "pending": int(row["pending"]),
+            "dead_letters": int(row["dead_letters"]),
+            "retries": int(row["retries"]),
+            "oldest_created_at": row["oldest_created_at"],
+            "last_success": row["last_success"],
+        }
+
     def outbox_stats(self) -> dict[str, Any]:
         """Governance snapshot of the outbox table (§14.2 relay metrics).
 

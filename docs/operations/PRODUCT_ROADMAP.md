@@ -1816,3 +1816,51 @@ passed 判定里 `terminal_transitions == 1` 一直就是重复写检测的承�
   自 #124 后新增了测试），本次只认隔离运行自己的输出。
 - 教训进机制：共树并行开发时，全量门的"红"必须先做领地归属再谈回归；
   worktree 隔离是本轮验证过的可复用手段。
+
+## 28. §16.6-1 收口：notify 走 outbox——"尽力而为"升级为"至少一次"（2026-09-28）
+
+### 28.1 语义与形状（镜像 §14.2 的 job-event outbox 治理）
+
+- **新表** `notify_outbox`（迁移 0013，up/down 配对）：job_id、verdict、
+  payload（**构建完成的**通知：event_type/title/text/blocks，冻结于入库
+  时刻——模板后续修改不会改写历史通知该说什么）、delivered_at、attempts、
+  last_error、next_retry_at、dead_lettered_at。
+- **store 方法**（storage/mysql.py）：`enqueue_notify_intent` /
+  `fetch_due_notify_intents`（SKIP LOCKED 认领到期行）/ `mark_notify_delivered`
+  / `mark_notify_failed`（指数退避延期）/ `dead_letter_notify_intent` /
+  `notify_outbox_stats`（SQL 端聚合，与 outbox_stats 同构）。
+- **relay**（storage/notify_relay.py，可独立进程运行）：认领 → 重建
+  Notification → 连接器 POST → **端点收下才标记 delivered**；FAILED 延期
+  重试、超预算死信；DISABLED（没人配置接收端）**立即死信**——重试修不了
+  缺配置，行等运营回放；连接器抛异常（配置错误）按契约视为硬失败同样
+  死信。多实例安全（SKIP LOCKED）；at-least-once，接收端以 job_id 去重。
+- **worker 双车道**（`SPECPROOF_NOTIFY_OUTBOX`，默认关=原直发车道原样）：
+  开启后 notifiable 过滤照旧先行，通过则把构建好的通知入库
+  （`notify_outbox_enqueued_total`），本进程不再构建连接器；**入库失败
+  回落直发**（`notify_outbox_enqueue_failed_total`）——丢掉持久承诺不能
+  连带丢掉当下这一次。测试环境 clean_env 弹出该变量。
+
+### 28.2 诚实边界
+
+1. **入库与终态写仍是两条语句**（同一库、不同表）：进程在两者之间死亡仍
+   会丢这条通知。完全事务化需要 store 层提供"终态转移 + 意图入库"的
+   同事务方法，属后续批次；当前 flag 下的承诺是"入库之后至少一次"。
+2. Craft（agent）车道终态仍不走任何通知通道（§16.6-4 未变）。
+3. 送达的幂等性交给接收端（job_id + event_type 可去重）；relay 不承诺
+   exactly-once，与 job-event outbox 的消费者契约一致。
+
+### 28.3 门证（本批实测）
+
+- 定向：`test_worker_notify_outbox.py` **5**（车道开关/载荷冻结/回落/
+  过滤先行/未配置仍入库）+ `test_notify_relay.py` **6**（送达标记/延期/
+  耗尽死信/DISABLED 即死信/抛异常硬死信/JSON 字符串解析）+
+  `test_worker_notify_terminal.py` **21**（直发车道无回归）+
+  `test_drill_helpers.py` 22 + `test_notify_connector.py` 全部通过。
+- 探针 U（两条，按字节还原）：U1 回落直发被删 ⇒
+  `test_enqueue_failure_falls_back_to_direct_send` 红；U2 DISABLED 被当作
+  送达 ⇒ `test_disabled_connector_dead_letters_immediately` 红。
+- `ruff` / `mypy` 对本批文件全绿；全量门以 worktree 隔离运行（见 28.4）。
+
+### 28.4 全量合并门（追记）
+
+见提交记录。

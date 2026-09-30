@@ -476,10 +476,14 @@ def clean_env(tmp_path: Path) -> Generator[None, None, None]:
     # The worker announces terminal verdicts over the webhook connector (#65),
     # which is built from these three variables. A developer machine that has
     # them configured must not turn a unit run into real outbound posts.
+    # SPECPROOF_NOTIFY_OUTBOX switches the lane to the durable outbox (#16.6-1);
+    # tests set it explicitly per case, so a stray machine default must not
+    # leak into runs that expect the direct lane.
     for key in (
         "SPECPROOF_NOTIFY_WEBHOOK_URL",
         "SPECPROOF_NOTIFY_WEBHOOK_SECRET",
         "SPECPROOF_NOTIFY_WEBHOOK_KIND",
+        "SPECPROOF_NOTIFY_OUTBOX",
     ):
         saved[key] = os.environ.pop(key, None)
 
