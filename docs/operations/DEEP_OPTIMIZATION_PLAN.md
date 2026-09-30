@@ -729,3 +729,37 @@ compose/播种脚本的环境变量上 —— 那属于需要用户批准的那�
 旁证（同一次推送的 CI）：run `36749532101`（master `9deb5f9`）的 `tests-no-infra` 是 success ——
 #134 预测可否证的旋转红（六条 `assert 'STUCK' == 'DONE'`）消失；该 run 的三个红作业是既有的
 `lint-type`（就是上面那个 `evidence/filelock.py`）、`eval-golden-cases`、`tests-with-infra`。
+
+## #137 DEEP 层的缓存完整性披露：第一个产品读者（已落地）
+
+#136 把守卫本身修诚实了，但同时登记过一句实话：`SandboxResult.cache_note` 在仓库里
+**没有任何 shipped 读者**，所以 verdict 到不了作业记录也到不了界面。`experiments/adapters.py`
+在并发写者清单上（不许动），因此这条链不能从适配器平面穿；能穿的地方是**本来就握着整个
+SandboxResult 的 shipped 调用方** —— `agent/nodes/run_deep_experiments.py` 的每次 Maven 运行
+都在消费种子缓存卷，而它原先只把 `exit_code/error/mode` 传出去，note 在这个边界被丢。
+
+落地内容：
+
+- `_run_test_via_sandbox` 的返回多带 `cache_note`；新增纯函数 `_cache_integrity_disclosure`
+  按访问顺序保留**每一条不同的**陈述（这是来源披露不是安全等级，不许取平均），全为空时
+  返回空串，调用方**只在非空时写键** —— 缺席的披露不能长成 `""`，那会被读成「查过，没问题」。
+- 披露取自完整 run 视图（头跑 + 稳定性和重跑）。第一次跑门就抓到真缺陷：`repeat_runs` 是
+  投影掉 `cache_note` 的字典，`[head_run, *repeat_runs]` 其实只读到了头跑那一条。
+- 读者是持久化的 `deep-report.json`（评审者真会打开的工件），断言直接读回那个文件。
+
+| 门 | 数字 |
+|---|---|
+| 新门 `tests/unit/test_deep_cache_disclosure.py` | 7 例 / 0 红 / 0.565s（AST 的 `def test_` 数与 junit 逐例数互相对账 = 7） |
+| 焦点腿（新门 + `test_verdict_stability.py` + `tests/fault/test_cache_poisoning.py` + `test_cache_guard_producer_and_arm.py`） | 52 passed / 0 failed / 0 errors / 0 skipped / 1.383s |
+| 变异见证 `.scratch/g137/mutate_137b.py` | 控制腿 7/7 绿；A1/A3/A4/A5 MATCHED，**A2 事前预测 2 条红、实测 4 条**（多出的两条是同一去重子句的真实后果：那两个夹具把同一条 note 喂给多次运行）⇒ 0 臂存活，记档按实测改写（`bbb161c`），漏预测写在 docstring 里没被抹平 |
+| 源码字节 | 每臂之后按 sha256 还原，收尾再与提交前备份核对 `src==committed-bytes: True`；多行臂点先按文件自己的行尾（CRLF）重排，否则每臂都是 BAD PATCH SITE |
+| `ruff check` | 本批 3 个文件全绿 |
+
+仍未闭合（如实登记）：
+
+- 没有任何 shipped 调用方**武装** `cache_dir`+`cache_manifest`：这一步要改 `compose.*.yml` 或
+  seed 脚本，按约定需用户批准，不擅自动。
+- `deep_results` 不入库，Web 界面仍读不到这条披露 —— 下一单位是把它接进作业记录/界面。
+- `craft/executor.py:221` 同样丢弃 `cache_note`（`ExecResult` 没有披露字段）。
+
+提交：`6e2aa25`（代码 + 7 例）与 `bbb161c`（见证按实测订正），均已推送。
