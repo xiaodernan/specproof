@@ -257,6 +257,32 @@ class Editor:
             head = handle.read(64 * 1024)
         return "CRLF" if b"\r\n" in head else "LF"
 
+    @staticmethod
+    def _drop_stale_bytecode(target: Path) -> None:
+        """Remove cached bytecode for a source file we just replaced.
+
+        CPython validates a .pyc against the source's mtime in WHOLE SECONDS
+        plus its size. A fix that keeps the byte count (``return x / 2`` ->
+        ``return x * 2``) and lands inside the second the previous check's
+        child already compiled is therefore INVISIBLE to the next child: it
+        keeps importing the pre-fix bytecode, so the loop's own verification
+        reports the old failure and a STUCK verdict that asserts "the fix did
+        not take" while the bytes are on disk. Measured on a two-file repo
+        with the child run pinned to one second: run2 rc=1, `1 failed`, with
+        the source already fixed; rc=0 once the cache is dropped first.
+
+        Best effort by design: an absent cache is the normal case, and a
+        generated artifact is never worth failing a write over.
+        """
+        if target.suffix != ".py":
+            return
+        cache = target.parent / "__pycache__"
+        if not cache.is_dir():
+            return
+        with suppress(OSError):
+            for stale in cache.glob(f"{target.stem}.*.pyc"):
+                stale.unlink()
+
     def _atomic_write(self, target: Path, content: str, style: str) -> None:
         tmp = target.parent / f".{target.name}.{secrets.token_hex(6)}.tmp"
         normalized = content.replace("\r\n", "\n")
@@ -270,6 +296,7 @@ class Editor:
             with suppress(OSError):
                 tmp.unlink()
             raise EditError(f"原子写失败 ({target}): {exc}") from exc
+        self._drop_stale_bytecode(target)
 
     # -- public toolset --------------------------------------------------
 
