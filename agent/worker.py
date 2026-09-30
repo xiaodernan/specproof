@@ -68,6 +68,7 @@ class Worker:
         lease_max_hold: int | None = None,
         reclaim_interval: int | None = None,
         provider_park_seconds: int | None = None,
+        provider_hold_seconds: int | None = None,
     ) -> None:
         self.worker_id = worker_id or f"worker-{os.getpid()}-{int(time.time())}"
         self.lease_ttl = lease_ttl
@@ -98,13 +99,25 @@ class Worker:
                 )
             )
         )
-        # No model-provider health probe exists in this codebase, so
-        # the tick does not guess: parked jobs are only released once
-        # an operator states how long is long enough (0 = never).
+        # Parked jobs are only released once an operator states how long is
+        # long enough (0 = never); the freshness hold below is the only
+        # health signal the tick consults, and it too defaults to off.
         self.provider_park_seconds = (
             provider_park_seconds
             if provider_park_seconds is not None
             else int(os.getenv("WORKER_PROVIDER_PARK_MAX_SECONDS", "0"))
+        )
+        # Provider-readiness hold for the sweep (#133): while any worker has
+        # parked a job for provider reasons within the last N seconds
+        # (DB-attested, cross-process — see `has_fresh_provider_park`), the
+        # tick holds every parked row instead of releasing by age. 0 = off,
+        # which is today's behaviour: timer plus retry budget decide.
+        # The honest reading is narrow — "nobody faulted lately", not
+        # "the provider is healthy" — and the default stays the safe one.
+        self.provider_hold_seconds = (
+            provider_hold_seconds
+            if provider_hold_seconds is not None
+            else int(os.getenv("WORKER_PROVIDER_HOLD_SECONDS", "0"))
         )
         self._reclaim_stop = threading.Event()
         self._reclaim_thread: threading.Thread | None = None
@@ -215,6 +228,7 @@ class Worker:
         result = run_reclaim_pass(
             lease_ttl_seconds=self.lease_ttl,
             min_parked_seconds=self.provider_park_seconds,
+            provider_hold_seconds=self.provider_hold_seconds,
         )
         # The gauge answers "is the sweeper alive", which is a different
         # question from "did it find anything" — a tick that stopped ticking
@@ -1125,11 +1139,45 @@ class ReclaimPass:
         )
 
 
+def _fresh_park_hold_probe(hold_seconds: int) -> Callable[[], bool]:
+    """Provider-readiness probe from DB-attested park freshness (#133).
+
+    True (release by age) unless some worker parked a job for provider
+    reasons within the last `hold_seconds` — the database clock decides,
+    so a skewed sweeper cannot stretch or shrink the window, and every
+    replica reads the same rows. A probe that cannot answer holds: an
+    unknown provider is not a ready provider (the same rule the scope
+    lock two screens up follows).
+    """
+
+    def _probe() -> bool:
+        try:
+            fresh = MySQLStore().has_fresh_provider_park(hold_seconds)
+        except Exception as exc:  # noqa: BLE001 — unknown provider is not ready
+            incr("worker_reclaim_provider_probe_error_total")
+            logger.warning(
+                "Provider-readiness probe failed (%s); holding parked jobs", exc
+            )
+            return False
+        if fresh:
+            incr("worker_reclaim_provider_wait_held_total")
+            logger.info(
+                "A provider park is fresher than %ds; "
+                "WAITING_FOR_PROVIDER jobs stay parked",
+                hold_seconds,
+            )
+            return False
+        return True
+
+    return _probe
+
+
 def run_reclaim_pass(
     *,
     lease_ttl_seconds: int = 30,
     min_parked_seconds: int = 0,
     provider_ready: Callable[[], bool] | None = None,
+    provider_hold_seconds: int = 0,
     lock_ttl_seconds: int = RECLAIM_LOCK_TTL_SECONDS,
 ) -> ReclaimPass:
     """One guarded sweep of both stuck-job recovery entries (#71).
@@ -1144,6 +1192,11 @@ def run_reclaim_pass(
     rather than run unlocked, and that loses nothing: the same Redis is
     the lease probe, so a sweep with Redis down stops at its first
     candidate as "lease unknown" and reclaims nothing anyway.
+
+    `provider_hold_seconds` arms the freshness hold (#133): with no
+    explicit `provider_ready` probe, parked jobs stay parked while any
+    worker has parked one within the last N seconds (DB-attested). 0
+    keeps the previous behaviour — timer plus retry budget decide.
 
     Exceptions deliberately propagate — the caller is the tick loop, which
     owns the decision to survive a bad pass.
@@ -1167,8 +1220,13 @@ def run_reclaim_pass(
         outcome = reclaim_stale_running_jobs(lease_ttl_seconds)
         provider: list[tuple[str, str]] = []
         if min_parked_seconds > 0:
+            probe = provider_ready
+            if probe is None and provider_hold_seconds > 0:
+                # No explicit probe: the tick's own freshness hold (#133).
+                # An operator-supplied probe always wins over this default.
+                probe = _fresh_park_hold_probe(provider_hold_seconds)
             provider = recover_waiting_for_provider_jobs(
-                provider_ready=provider_ready,
+                provider_ready=probe,
                 min_parked_seconds=min_parked_seconds,
             )
         else:

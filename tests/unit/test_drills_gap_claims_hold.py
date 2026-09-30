@@ -134,22 +134,30 @@ def test_certificate_revocation_gap_still_matches_the_evidence_tree() -> None:
 
 def test_provider_signal_residue_matches_the_worker_source() -> None:
     source = WORKER_SOURCE.read_text(encoding="utf-8")
-    body = re.search(
-        r"def _reclaim_once\(self\) -> ReclaimPass:(?P<body>.*?)(?=\r?\n    def )",
+    # The tick passes the hold window; the pass builds the DB probe (#133).
+    once = re.search(
+        r"def _reclaim_once\(self\)[^:]*:(?P<body>.*?)(?=\r?\n    def )",
         source,
         re.S,
     )
-    assert body is not None, "找不到 Worker._reclaim_once, 残留说法无从核对"
-    assert "provider_ready" not in body.group("body"), (
-        "_reclaim_once 现在传 provider_ready 了 — §6 第 1/2 行的残留说法过期, 请同批更正"
+    assert once is not None, "找不到 Worker._reclaim_once, 残留说法无从核对"
+    assert "provider_hold_seconds" in once.group("body"), (
+        "_reclaim_once 不再传递 hold 窗口 — §6 第 1/2 行的落地说法过期, 请同批更正"
     )
     signature = re.search(r"def run_reclaim_pass\([^)]*\)", source, re.S)
-    assert signature is not None and "provider_ready" in signature.group(0)
-    assert "def recover_waiting_for_provider_jobs(" in source
+    assert signature is not None and "provider_hold_seconds" in signature.group(0)
+    assert "WORKER_PROVIDER_HOLD_SECONDS" in source
+    assert "def _fresh_park_hold_probe(" in source
+    # The "no probe exists" sentence must be gone with the probe's arrival.
+    assert "No model-provider health probe exists" not in source
+    store_source = (REPO / "storage" / "mysql.py").read_text(encoding="utf-8")
+    assert "def has_fresh_provider_park(" in store_source
+    assert "NOW(3) - INTERVAL %s SECOND" in store_source
     row1 = _row("| 1 | 崩溃作业自动回收器")
     row2 = _row("| 2 | WAITING_FOR_PROVIDER 接线")
-    assert "provider" in row1 and ("信号" in row1 or "provider_ready" in row1), row1
-    assert "provider_ready" in row2, row2
+    assert "✅" in row1 and "#133" in row1, row1
+    assert "provider_hold_seconds" in row1, row1
+    assert "✅" in row2 and "#133" in row2, row2
     assert "回收待开发" not in row2, "§6 第 2 行还在说'回收待开发', 而回收器早已存在"
 
 

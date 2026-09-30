@@ -624,8 +624,9 @@ class MySQLStore:
 
         `updated_at` is when the job entered the park (the transition
         that set the status writes the row), so this asks 'has nobody
-        resolved this in N seconds' — the closest honest substitute for
-        a provider health probe, which this codebase does not have.
+        resolved this in N seconds'. The other direction — 'has anybody
+        parked *recently*' — is `has_fresh_provider_park`, the freshness
+        half the sweep's readiness probe is built on (#133).
 
         The comparison runs in SQL against NOW(3), matching
         reclaim_stale_running and list_stale_running_candidates: a
@@ -647,6 +648,37 @@ class MySQLStore:
                 (min_parked_seconds,),
             )
             return cast(list[dict[str, Any]], cur.fetchall())
+
+    def has_fresh_provider_park(self, within_seconds: int) -> bool:
+        """Any WAITING_FOR_PROVIDER row parked within the last N seconds.
+
+        The cross-process half of the sweep's provider-readiness probe
+        (#133): `updated_at` is written by the parking transition itself,
+        so a fresh row means *some worker, on some replica, just saw a
+        provider fault* — DB-attested, visible to every sweeper, no new
+        keys and no new clocks. The honest reading is narrow: True means
+        "hold, the provider faulted recently"; False means "nothing was
+        parked lately", NOT "the provider is healthy" (a quiet outage
+        parks nothing, and the sweep then releases by age as before).
+
+        DB clock (NOW(3)) like its sibling: a skewed worker clock must
+        not decide what "recently" means.
+        """
+        if within_seconds <= 0:
+            raise ValueError(
+                "within_seconds 必须为正数；0 表示不启用新鲜度保持，"
+                "调用方应跳过本查询而不是放宽成无上限"
+            )
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT 1 FROM verification_jobs "
+                "WHERE status = 'WAITING_FOR_PROVIDER' "
+                "AND updated_at > (NOW(3) - INTERVAL %s SECOND) "
+                "LIMIT 1",
+                (within_seconds,),
+            )
+            return cur.fetchone() is not None
 
     # Every WHERE below is assembled from literal fragments plus `%s` placeholders:
     # the values travel as bound parameters, never as text. bandit cannot see that
