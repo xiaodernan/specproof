@@ -58,7 +58,7 @@ class TestDeepStabilityWiring:
         import agent.nodes.run_deep_experiments as deep
 
         monkeypatch.setattr(deep, "_run_test_via_sandbox", lambda app, t: {
-            "exit_code": 0, "error": "", "mode": "fake",
+            "exit_code": 0, "error": "", "mode": "fake", "cache_note": "",
         })
         monkeypatch.setattr(
             deep, "_make_test_runner",

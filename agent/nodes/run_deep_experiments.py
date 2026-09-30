@@ -11,6 +11,12 @@ FAST covers static checks + differential. DEEP additionally runs:
 Honesty: infra capture failures are recorded per subsystem (incomplete);
 the node never fabricates deltas. Results land in state["deep_results"]
 and a deep-report.json is written next to the HTML report.
+
+Cache integrity (backlog #7 / #136): every Maven run here consumes the
+seeded cache volume, so the sandbox's own ``cache_note`` is carried into
+``deep_results["cache_integrity"]`` instead of being dropped at this
+boundary — an unverified cache must be readable in the artifact a reviewer
+opens, not only inside the runner.
 """
 
 from __future__ import annotations
@@ -100,6 +106,10 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
 
     repeats = _env_int("SPECPROOF_DEEP_REPEATS", 2)
     repeat_runs: list[dict[str, Any]] = []
+    # Full run views (cache_note included); repeat_runs above is projected
+    # down to exactly what verdict_stability.summarize consumes, so the
+    # disclosure cannot ride it.
+    run_views: list[dict[str, Any]] = [head_run]
     contaminated = False
     baseline_snapshot: dict[str, Any] | None = None
     for index in range(repeats):
@@ -120,7 +130,16 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
             "exit_code": repeat_run["exit_code"],
             "error": repeat_run["error"],
         })
+        run_views.append(repeat_run)
     results["verdict_stability"] = summarize(repeat_runs, contaminated)
+
+    # What the sandbox said about the cache these runs consumed. Derived from
+    # the full run views (head run + stability repeats); the mutation runner
+    # is contracted to (exit_code, error) by run_mutation_campaign, so it
+    # cannot carry a note.
+    cache_integrity = _cache_integrity_disclosure(run_views)
+    if cache_integrity:
+        results["cache_integrity"] = cache_integrity
 
     # ── Persist the deep report next to the HTML report ──────────
     out_dir = Path(state.get("output_dir", "reports"))
@@ -213,4 +232,23 @@ def _run_test_via_sandbox(app: str, generated_tests_path: str) -> dict[str, Any]
         "exit_code": result.exit_code,
         "error": result.error,
         "mode": result.mode,
+        "cache_note": result.cache_note,
     }
+
+
+def _cache_integrity_disclosure(runs: list[dict[str, Any]]) -> str:
+    """Collapse the DEEP runs' cache-integrity notes into one statement.
+
+    Every distinct non-empty note is kept (they are provenance statements,
+    not safety levels, so nothing may be averaged away): if one run reported
+    a verified cache and another an unverified one, the reader sees both.
+    Empty return means "nothing was disclosed" — the caller omits the key
+    rather than writing "", so an absent disclosure can never be misread as
+    a clean one.
+    """
+    seen: list[str] = []
+    for run in runs:
+        note = str(run.get("cache_note", "")).strip()
+        if note and note not in seen:
+            seen.append(note)
+    return "; ".join(seen)
