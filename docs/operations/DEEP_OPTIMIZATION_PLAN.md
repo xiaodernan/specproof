@@ -586,3 +586,51 @@ ts/level/logger/message，所以事实必须写在 message 里——这条前提
 所以"编辑未落地"目前是推断，不是观察。#132 的做法是让证据自己说话：`test_green` 的
 evidence 带上被检查文件的字节摘要，红一次就能区分"没写进去"和"写进去了但检查读的是别处"。
 在这条证据到位前不改 `craft/executor.py`。
+
+## #134 — 旋转的 CI 红集合：等长同秒的修复，下一跳检查根本看不见
+
+实测（origin 上三个连续 run，同一个 tests-no-infra 作业）：
+
+- `36613910190`＝6 failed / 3362 passed / 27 skipped / 469.07s，六条红全是同一形状
+  `assert 'STUCK' == 'DONE'`（test_craft_memory、test_craft_verify、test_kind_threading、
+  test_swebench_llm_fixes 等）；
+- `36634530368`＝3 failed / 3368 passed / 27 skipped / 501.94s，`36638027066`＝2 failed /
+  3369 passed / 27 skipped / 519.26s；两次的红名字与上一次几乎不相交。
+  （名单里那条 `FAILED test_calc.py::test_double` 不是红，它是 STUCK 披露回显的夹具输出；
+  上面三个数字取的是 runner 自己的汇总行，不是 grep 出来的条数。）
+
+关键读数：那些 STUCK 披露里的子进程始终打印 `assert 2.0 == 8`（即 `x / 2` 还在生效），
+而整份日志里 **锚点拒绝 0 次**（grep `apply_edit 被拒` / `old 未命中` 无命中）。
+也就是修复确实写进了磁盘，是产品自己的验证读不到它。
+
+机制（`.scratch/g134/probe.py`，无依赖两平面探针，本机 windows/python3.12.13 实测）：
+CPython 用「源码 mtime 的整秒 + 字节数」校验 `.pyc`。把时序钉死后
+`run1 rc=1 → 等长且同秒的原子替换 → run2 rc=1 "1 failed"`，源码此时已经是修好的字节；
+不钉时序则每次跨秒 ⇒ 本机常年全绿。
+这解释了「红集合旋转」：它不是 flaky，是一个以时序为谓词的确定性缺陷。
+
+落地 `6c6d6f0`：`Editor._atomic_write` 之后 best-effort 删掉被改模块的
+`__pycache__` 条目（三条写路径 apply_edit / write_file / `ast_edit._atomic_write`
+都经过这一个入口），不入审计 ⇒ 公布的 diff_stat 不会多出缓存文件。
+
+见证 `tests/unit/test_craft_editor_drops_stale_bytecode.py` 3 例：钉时序的循环必须 DONE；
+**对照臂**（把删除动作废掉）必须 STUCK——这条保证第 1 例的红真是机制而非巧合；
+以及只删被改模块的缓存、非 .py 的兄弟缓存不动。
+
+订正 #132 的第 2 条否证记录（那句「陈旧字节码不背这个锅」要改成下面这样）：
+那一次测量本身是真的（写→跑→等长改→再跑 rc=0），但它没有构造出它所否证的谓词。
+本轮同一支探针不钉时序时印的是 `mtime_s 1790785534 -> 1790785539 (same_second=False)`
+——编辑跨到了 5 秒之后，pyc 头里的整秒自然对不上，rc=0 是必然的。加上 `os.utime`
+把 mtime 钉回源码创建那一秒，`same_second=True`，同一条链 100% 复现 rc=1。
+⇒ 正确结论＝「未钉时序的探针没测到同秒情形」，而不是「同秒情形不存在」。
+教训：写下「否证」之前要指出是哪一次测量、以及那次测量是否满足了被否证命题的谓词。
+
+还剩一条推断（不是测量）：CI 子进程只要 0.03s，所以修复更容易落进源码创建的那一秒；
+本机慢平面每次跨秒，所以常年全绿。这条推断可被直接检验——`6c6d6f0` 推上去以后，
+如果 `assert 'STUCK' == 'DONE'` 这一族红不再出现，机制成立；如果仍出现，
+说明字节码陈旧不是（全部）原因，要另找。届时 #132 的 written_bytes 披露能同时回答
+「字节动没动」。
+
+平面门数字（干净 worktree 检出 `6c6d6f0`，tests/unit + tests/security + tests/fault，
+由本脚本从 junit 读出、不许手抄）：tests=3423 / failures=0 /
+errors=0 / skipped=7，用时 1135.443s。
