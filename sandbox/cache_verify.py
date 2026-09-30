@@ -16,8 +16,12 @@ seed time and enforce a fail-closed policy on the next execution:
 - on mismatch the verdict is FAIL (refuse to execute) or REBUILD (delete
   the poisoned entries so the caller can re-seed), never "use".
 
-Manifest format (JSON, produced by the seed step):
+Manifest format (JSON, produced by this module's `seed` action, which runs
+against the host-side copy of a seeded cache):
     {"rel/path/in/cache": "<64-hex sha256>", ...}
+
+    python -m sandbox.cache_verify seed   --cache-dir DIR --out MANIFEST
+    python -m sandbox.cache_verify verify --cache-dir DIR --manifest MANIFEST
 
 Docker-mode note (honest gap): the runner cannot read a docker NAMED
 volume from the host, so the pre-run check applies to host-accessible
@@ -31,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -95,6 +100,49 @@ def load_manifest(path: str | Path) -> dict[str, str]:
             raise CacheManifestError(f"缓存清单条目 {key!r} 的摘要不是 64 位 hex sha256")
         manifest[key] = value
     return manifest
+
+
+def build_digest_manifest(
+    cache_dir: str | Path,
+    *,
+    max_entry_bytes: int = MAX_ENTRY_BYTES,
+) -> dict[str, str]:
+    """Hash a seeded cache into the manifest format this module verifies.
+
+    Keys are POSIX-style paths relative to the cache root, so a manifest
+    seeded on one host verifies on another. Symlinks are left out (this
+    verifier cannot vouch for what one points at), as are files above
+    ``max_entry_bytes`` — an oversized cache entry is exactly what
+    ``verify_cache_dir`` reports as ``<oversized>`` instead of hashing.
+
+    An empty cache refuses rather than writing ``{}``: an empty manifest
+    makes every later verification pass on nothing.
+    """
+    root = Path(cache_dir)
+    if not root.is_dir():
+        raise CacheManifestError(f"缓存目录不存在: {root}")
+    manifest: dict[str, str] = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        if path.stat().st_size > max_entry_bytes:
+            continue
+        manifest[path.relative_to(root).as_posix()] = sha256_hex(path.read_bytes())
+    if not manifest:
+        raise CacheManifestError(f"缓存目录为空, 拒绝写出空清单: {root}")
+    return manifest
+
+
+def save_digest_manifest(manifest: Mapping[str, str], path: str | Path) -> Path:
+    """Write a digest manifest atomically (temp + replace)."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text(
+        json.dumps(dict(manifest), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    tmp.replace(target)
+    return target
 
 
 def _resolve_entry(root: Path, rel_path: str) -> Path:
@@ -227,13 +275,57 @@ def enforce_cache_integrity(
     )
 
 
+def main(argv: list[str] | None = None) -> int:
+    """Operator entry point: seed a manifest from a cache, or verify one.
+
+    Exit codes carry the verdict: 0 clean, 1 mismatch (fail-closed: the
+    caller must not execute), 2 the manifest or cache itself is unusable
+    (unreadable, malformed, empty) — a broken verifier never reports 0.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m sandbox.cache_verify",
+        description="sandbox 依赖缓存的摘要清单: 播种与校验",
+    )
+    sub = parser.add_subparsers(dest="action", required=True)
+    seed = sub.add_parser("seed", help="把已播种的缓存目录写成摘要清单")
+    verify = sub.add_parser("verify", help="按清单校验缓存目录, 不一致即拒绝")
+    for entry in (seed, verify):
+        entry.add_argument("--cache-dir", required=True, help="宿主可读的缓存目录")
+    seed.add_argument("--out", required=True, help="写出的 JSON 清单路径")
+    verify.add_argument("--manifest", required=True, help="seed 写出的 JSON 清单")
+    args = parser.parse_args(argv)
+
+    try:
+        if args.action == "seed":
+            manifest = build_digest_manifest(args.cache_dir)
+            written = save_digest_manifest(manifest, args.out)
+            print(f"seeded {len(manifest)} entries -> {written}")
+            return 0
+        entries = load_manifest(args.manifest)
+        check = enforce_cache_integrity(args.cache_dir, entries, on_poison="fail")
+    except (CacheManifestError, ValueError) as exc:
+        print(f"cache verification refused: {exc}", file=sys.stderr)
+        return 2
+    print(check.note)
+    return 0 if check.ok else 1
+
+
 __all__ = [
     "MAX_ENTRY_BYTES",
     "CacheCheck",
     "CacheManifestError",
     "DigestMismatch",
+    "build_digest_manifest",
     "enforce_cache_integrity",
     "load_manifest",
+    "main",
+    "save_digest_manifest",
     "sha256_hex",
     "verify_cache_dir",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

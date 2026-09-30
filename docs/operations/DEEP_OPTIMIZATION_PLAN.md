@@ -689,3 +689,43 @@ docstring 里同一条声明由 `tests/unit/test_slow_marker_tagging.py` 双向�
 欠一条：`docs/operations/PRODUCT_ROADMAP.md:333` 仍写「`SLOW_TEST_MODULES` 取 21 个实测模块」，
 本轮之后是 23 个。该文件在并发写者清单里，我不改它，在这里登记为欠账，由它的拥有者把
 「21」换成读数口径（按合入门 junit 的 per-case 求和登记，而不是按一次 `--durations` 手敲）。
+
+## #136 — 缓存投毒守卫的三段死：没有生产者、半配置会自己拆火、裁决没人读
+
+实测（修复前）：`enforce_cache_integrity` 的唯一调用点在 `sandbox/runner.py` 的
+`if cache_dir and cache_manifest is not None:` 之后，而全仓没有任何 shipped 调用方传过这对参数
+（`experiments/adapters.py` 四处、`scripts/mutation_bench_lib.py`、`agent/nodes/run_deep_experiments.py`、
+`craft/executor.py` 都没传），守卫在生产里从未举过枪；`cache_verify.py` 的模块头写着
+"Manifest format (JSON, produced by the seed step)"，而 `seed_sandbox_cache.ps1`、`seed_npm_cache.ps1`、
+`seed_pip_wheelhouse.ps1` 三只播种脚本里 `manifest|sha256|Get-FileHash` 0 命中 —— 生产者不存在，
+操作者无从造出守卫要吃的那个文件；`SandboxResult.cache_note` 在测试之外 0 个读者。
+
+三段里本轮修掉两段半：
+
+1. 生产者：`build_digest_manifest()`（POSIX 相对键 + 按文件自身字节 sha256；跳符号链接；跳过超过
+   `max_entry_bytes` 的条目，因为那正是 `verify_cache_dir` 报 `<oversized>` 而不哈希的形状）+
+   `save_digest_manifest()`（临时文件 + replace，不留 `.tmp`）+ `python -m sandbox.cache_verify seed|verify`
+   真入口，退出码把裁决写出来：0 通过 / 1 投毒（拒绝执行）/ 2 清单或目录本身不可用 —— 坏掉的校验器永远不报 0。
+   空缓存拒写空清单：`{}` 会让之后每一次校验都在 Nothing 上通过。
+2. 半配置不再自己拆火：过去只传一对里的一半会穿过那个 `and` 落进"没配置校验"，照常执行 ——
+   一个本该武装却静默解除武装的部署，比一个明说的未武装部署更坏。现在它拒执行并点名缺的是哪一半
+   （"给了 cache_manifest 却缺 cache_dir"），且断言在零次 spawn 之前成立。
+3. 未武装要被读出来（第三段只做了这一半）：挂了缓存卷却没配校验的每一次执行，`cache_note` 写
+   `NOT VERIFIED` + 具体挂载点 + 播种命令，与"校验通过"共用同一个字段，于是"没验过"不可能被读成"验过、没问题"。
+
+仍未闭合（如实登记，不是已落地）：没有任何 shipped 调用方武装这对参数，因为真正的武装点在
+compose/播种脚本的环境变量上 —— 那属于需要用户批准的那一类改动；字段的产品读者（作业记录/UI）同样待接。
+
+| 门 | 数字 |
+|---|---|
+| 新门 `tests/unit/test_cache_guard_producer_and_arm.py` | 16 例（生产者 7 / CLI 4 / 武装 5） |
+| `tests/fault/test_cache_poisoning.py` | 21 例，其中原 `test_verification_skipped_when_not_requested`（断言 `cache_note == ""`，即把静默当作正确行为）改名成 `test_unarmed_cache_volume_is_disclosed_not_silent` 并改成断言披露 |
+| 本轮焦点腿（新门 + fault + `test_sandbox_runner.py` + `test_sandbox_degradation_is_not_a_code_verdict.py`） | 63 passed / 0 failed / 0 errors / 0 skipped / 5.799s，junit 逐例数 63 与 attrs 相等 |
+| 变异见证 | 6/6 臂 MATCHED（M1 撤半配置拒 → 2 红；M2 撤披露 → 1 红 unit + 1 红 fault；M3 生产者哈希超大条目 → 1 红；M4 键改成宿主分隔符 → 2 红；M5 CLI 投毒报 0 → 1 红；M6 允许空清单 → 1 红），控制腿修复前后各 37 例全绿，还原按 sha 校验 |
+| `ruff check` | 本批 4 个文件全绿 |
+| `mypy .` | 221 文件 5 错，全部在并发会话新增的未跟踪 `evidence/filelock.py`（Windows 无 `fcntl`）；本批文件 0 错 |
+| 编码欠账棘轮 | 唯一红 `162 > 54` 的名册里只有 `.scratch/wt130/**`（另一会话的 worktree 草稿）：逐路径剥掉 wt130 前缀后为空集 ⇒ 本批 0 新增；新测试里的子进程两端都钉（`text=True` + `encoding="utf-8"`） |
+
+旁证（同一次推送的 CI）：run `36749532101`（master `9deb5f9`）的 `tests-no-infra` 是 success ——
+#134 预测可否证的旋转红（六条 `assert 'STUCK' == 'DONE'`）消失；该 run 的三个红作业是既有的
+`lint-type`（就是上面那个 `evidence/filelock.py`）、`eval-golden-cases`、`tests-with-infra`。

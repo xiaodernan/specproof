@@ -38,7 +38,7 @@ from sandbox.cache_verify import (
     sha256_hex,
     verify_cache_dir,
 )
-from sandbox.runner import run_sandboxed
+from sandbox.runner import MAVEN_USER_HOME_ENV, run_sandboxed
 
 
 class _FakeCompleted:
@@ -377,18 +377,21 @@ class TestCachePoisoningRunnerWiring:
         assert "cache verification failed" in result.error
         assert calls == []
 
-    def test_verification_skipped_when_not_requested(
+    def test_unarmed_cache_volume_is_disclosed_not_silent(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The check is opt-in via cache_dir+cache_manifest; callers that
-        pass neither keep the legacy behaviour (documented)."""
+        """The check stays opt-in, but silence was the fail-open half: a
+        profile that mounts a cache volume while neither cache_dir nor
+        cache_manifest is passed must disclose NOT VERIFIED in cache_note,
+        so an unverified cache can never be read as a verified one."""
         calls = _capture_runs(monkeypatch)
         result = run_sandboxed(["mvn", "-o", "test"], str(tmp_path / "ws"), mode="docker")
         assert result.exit_code == 0
         assert len(calls) == 1
-        assert result.cache_note == ""
+        assert "NOT VERIFIED" in result.cache_note
+        assert MAVEN_USER_HOME_ENV in result.cache_note
 
     def test_manifest_entry_hash_helper_stable(self) -> None:
         assert sha256_hex(b"abc") == hashlib.sha256(b"abc").hexdigest()

@@ -546,6 +546,13 @@ def run_sandboxed(
     or "rebuild" (delete poisoned entries and proceed; re-seeding needs
     the host seed step since the sandbox has --network none).
 
+    Both halves or neither: passing one without the other REFUSES the run
+    (a verification that silently disarmed itself is worse than an absent
+    one), and a profile that mounts a cache volume while neither is passed
+    records an explicit "NOT VERIFIED" cache_note, so an unarmed cache is
+    disclosed instead of looking clean. Seed the manifest with
+    `python -m sandbox.cache_verify seed --cache-dir DIR --out MANIFEST`.
+
     profile selects the toolchain image + its env/volume/writable dirs. It
     defaults to the historical Maven profile, so omitting it is behavior-
     preserving. Note the interaction with mode: only mode="docker" actually
@@ -557,6 +564,25 @@ def run_sandboxed(
     local_cmd = local_command or command
     resolved_profile = profile or _profile_from_env()
     cache_note = ""
+    half_armed = bool(cache_dir) != (cache_manifest is not None)
+    if half_armed:
+        # Backlog #7 was fail-open here: passing only one of the pair used to
+        # fall through to "no check configured" and run anyway, so a
+        # half-configured deployment (manifest env set, cache dir typo'd — or
+        # the reverse) executed against a cache nobody vouched for. A
+        # verification that was meant to be armed and silently disarmed
+        # itself is worse than an unarmed one: refuse and say which half is
+        # missing.
+        missing = "cache_dir" if cache_manifest is not None else "cache_manifest"
+        provided = "cache_manifest" if cache_manifest is not None else "cache_dir"
+        return SandboxResult(
+            exit_code=-1, stdout="", stderr="",
+            error=(
+                f"缓存完整性校验只配置了一半: 给了 {provided} 却缺 {missing} "
+                "—— 拒绝执行 (fail-closed), 补上另一半或两个都别传"
+            ),
+            mode=mode,
+        )
     if cache_dir and cache_manifest is not None:
         # Cache poisoning defense (backlog #7): verify the dependency cache
         # against the seed-time digest manifest BEFORE executing anything.
@@ -575,6 +601,18 @@ def run_sandboxed(
                 error=check.note, mode=mode, cache_note=check.note,
             )
         cache_note = check.note
+    elif resolved_profile.cache_mount:
+        # Silence here would be the fail-open half again: a run that mounts a
+        # writable dependency cache and verifies nothing must say so in the
+        # same field a verified run writes, so "unverified" can never be read
+        # as "verified, all good".
+        cache_note = (
+            f"缓存完整性: 未校验 (NOT VERIFIED) —— profile {resolved_profile.name} 挂了缓存卷 "
+            f"{resolved_profile.cache_mount}, 调用方却没传 cache_dir+cache_manifest, "
+            "被投毒的缓存会被静默消费。宿主可读目录用 "
+            "`python -m sandbox.cache_verify seed|verify` 播种并配对; docker 命名卷宿主读不到 "
+            "(见 sandbox/cache_verify.py 的 honest gap)。"
+        )
     if mode == "docker":
         result = _run_docker(command, workspace, timeout, resolved_profile)
     elif mode == "auto":
