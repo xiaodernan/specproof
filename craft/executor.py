@@ -111,6 +111,17 @@ class ExecResult:
     def combined(self) -> str:
         return f"{self.stdout}\n{self.stderr}".rstrip()
 
+    @property
+    def cache_disclosure(self) -> dict[str, str]:
+        """The sandbox's own cache statement, ready to merge into evidence.
+
+        An empty dict means the profile mounted no dependency cache at all —
+        'nothing to disclose', never 'the cache was verified'. A cache-mounting
+        profile always fills cache_note in (sandbox/runner.py), including the
+        un-armed case.
+        """
+        return {"cache_note": self.cache_note} if self.cache_note else {}
+
 
 @dataclass(frozen=True)
 class FailedTest:

@@ -1181,7 +1181,7 @@ class CraftLoop:
         state.evidence = merged
         facts = " ".join(
             f"{key}={merged[key]!r}"
-            for key in ("check", "exit_code", "mode", "error", "written_bytes")
+            for key in ("check", "exit_code", "mode", "error", "written_bytes", "cache_note")
             if merged.get(key) is not None
         )
         tail = str(merged.get("output_tail") or "")[-300:].replace("\n", " ")
@@ -1276,6 +1276,7 @@ class CraftLoop:
                 "exit_code": result.exit_code,
                 "mode": result.mode,
                 "output_tail": result.output_tail,
+                **result.cache_disclosure,
             }
             if result.stderr.strip():
                 evidence["stderr_tail"] = result.stderr[-1000:]
@@ -1296,6 +1297,7 @@ class CraftLoop:
                 "mode": result.mode,
                 "output_tail": result.output_tail,
                 "written_bytes": self._written_bytes_evidence(),
+                **result.cache_disclosure,
             }
             if result.stderr.strip():
                 evidence["stderr_tail"] = result.stderr[-1000:]
@@ -1653,6 +1655,7 @@ class CraftLoop:
             "mode": result.mode,
             "error": result.error,
             "output_tail": result.output_tail,
+            **result.cache_disclosure,
             "reason": (
                 f"unverifiable: 检查命令没有在执行面内产出结论 "
                 f"(mode={result.mode}, exit_code={result.exit_code}): {result.error} — "
