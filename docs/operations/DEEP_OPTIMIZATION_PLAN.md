@@ -954,3 +954,25 @@ L5 facts 键位丢了它→1 红（只红日志那半）；L6 整个机制没了
   今天没有任何 shipped 调用方同时传 `cache_dir` + `cache_manifest`，所以每份报告与每条提示词里的
   `NOT VERIFIED` 都还是真话。
 - 本弧（#140/#141/#142/#143）的全量合并门数字仍未在干净平面重跑；这批只取影响面腿。
+
+## #144 待办配方（实测范围，不是猜测）：envelope 自检那条提示词也带着执行面，却没有证人
+
+**实测到的现状。** `craft/loop.py` 里只有两处 `assemble(... "diagnose" ...)`：
+`:1755`（普通提案腿）与 `:2124`（W44 自检腿，`include_envelope=True`，它把
+`_diagnose_context` 的字典 `dict(context)` 复制一份再加 `self_check_repair`）。
+`_diagnose_context` 只有一个 `return`，因此 #143 的 `execution_plane` 现在**两条腿都带**——
+这是读代码确认的结构性事实，不是新增行为。
+
+**欠的证人。** #143 的 5 例全部走 `envelope_mode=False`。也就是说「自检腿也向模型披露执行面」
+今天只成立在结构上：将来谁给 envelope 腿单独拼一份 sections（很自然的优化动机是「自检只带
+JSON 契约，别拖 2000 行源码」），执行面就会从自检提示词里消失，而 5 例照旧全绿。
+
+**下一号的配方（成本已量过，够便宜）。** 在 `tests/unit/test_diagnose_prompt_names_the_plane.py`
+追加一例：`context(loop, result, envelope_mode=True)` → `assemble(base, "diagnose", sections,
+include_envelope=True)` 的 `built.text` 里同时出现 `[execution_plane]`、`CACHE_UNARMED` 原话与
+JSON Action Envelope 块；再补一臂 M6＝自检腿改成自己拼 sections（丢掉这个键），预测恰 1 红。
+控制腿 collected 仍要等于 AST 派生的 `def test_` 数。整例在沙箱接缝之后不需要真跑命令，
+所以成本与现有 5 例同级（`5 passed in 2.79s`）。
+
+**为什么现在不落。** 本批只剩记档的回合预算；一个没有见证的新例不如一条写清范围与预测的配方。
+按测量走，不按名字走。
