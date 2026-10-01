@@ -56,6 +56,11 @@ STATE_CONFLICT = "STATE_CONFLICT"
 #: the wire (no existence leak), but admin endpoints may name the missing
 #: resource for their own authenticated callers.
 USER_NOT_FOUND = "USER_NOT_FOUND"
+#: HTTP 503 when the Ed25519 signing capability is not configured. A
+#: revocation that cannot be signed is never written (fail-closed), so the
+#: caller gets its own stable code instead of PROVIDER_UNAVAILABLE — "model
+#: provider down" and "signature key missing" are different diagnoses.
+SIGNING_UNAVAILABLE = "SIGNING_UNAVAILABLE"
 
 #: Stable code → canonical HTTP status.
 ERROR_CODES: dict[str, int] = {
@@ -71,6 +76,7 @@ ERROR_CODES: dict[str, int] = {
     INTERNAL: 500,
     STATE_CONFLICT: 409,
     USER_NOT_FOUND: 404,
+    SIGNING_UNAVAILABLE: 503,
 }
 
 #: Default stable code per HTTP status for plain HTTPException instances
@@ -106,6 +112,9 @@ ERROR_CLASS_BY_CODE: dict[str, str] = {
     INTERNAL: "internal",
     STATE_CONFLICT: "conflict",
     USER_NOT_FOUND: "not-found",
+    # A missing signing key may be fixed by ops and then succeed, so it
+    # rides the documented "degrade" class like PROVIDER_UNAVAILABLE.
+    SIGNING_UNAVAILABLE: "degrade",
 }
 
 #: §14.3 failure classes that may succeed on a later attempt.

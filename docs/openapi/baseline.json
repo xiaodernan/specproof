@@ -33,6 +33,10 @@
       "200",
       "422"
     ],
+    "GET /api/v1/admin/certificates/revocations": [
+      "200",
+      "422"
+    ],
     "GET /api/v1/admin/tenants": [
       "200"
     ],
@@ -135,6 +139,10 @@
     ],
     "POST /agent/jobs/{job_id}/cancel": [
       "202",
+      "422"
+    ],
+    "POST /api/v1/admin/certificates/revoke": [
+      "200",
       "422"
     ],
     "POST /api/v1/admin/tenants": [

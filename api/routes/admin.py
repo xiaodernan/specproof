@@ -11,10 +11,12 @@ Auth endpoints (prefix-less):
 Admin endpoints (/api/v1/admin, RBAC-governed by the §2 matrix):
   GET/POST /tenants                  admin only
   GET/POST /users, /users/{id}/role, /users/{id}/status
-                                     admin / operator (own tenant)
+                                      admin / operator (own tenant)
   GET/POST /tokens, DELETE /tokens/{id}
-                                     admin / operator (own tenant, show-once)
+                                      admin / operator (own tenant, show-once)
   GET      /audit                    admin / auditor (cross-tenant view)
+  POST   /certificates/revoke        admin / auditor (sign + log revocation)
+  GET    /certificates/revocations   admin / auditor (list revocations)
 
 Enforcement layers: the TenantAuthMiddleware already rejected anonymous
 requests and RBAC violations before these handlers run; the handlers
@@ -42,6 +44,7 @@ from api.auth import enforce_rate_limit
 from api.errors import (
     AUTH_REQUIRED,
     PROVIDER_UNAVAILABLE,
+    SIGNING_UNAVAILABLE,
     STATE_CONFLICT,
     TENANT_FORBIDDEN,
     USER_NOT_FOUND,
@@ -63,6 +66,12 @@ from api.identity.tokens import (
     mint_token,
     verify_local_token,
 )
+from evidence.revocation_log import (
+    append_revocation,
+    find_revocations,
+    list_revocations,
+)
+from evidence.signing import SigningError
 from storage.identity import ROLE_SET, DuplicateUserError, IdentityStore, User
 
 logger = logging.getLogger(__name__)
@@ -617,6 +626,82 @@ async def revoke_token(request: Request, token_id: str) -> dict[str, Any]:
         raise ApiError(status_code=404, code=USER_NOT_FOUND, detail="Token not found")
     store.revoke_token(token_id)
     return {"revoked": True, "token_id": token_id}
+
+
+class CertificateRevocationRequest(BaseModel):
+    target_certificate_digest: str = Field(min_length=10, pattern=r"^sha256:[a-f0-9]{64}$")
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+@admin_router.post("/certificates/revoke")
+async def revoke_certificate(
+    request: Request, payload: CertificateRevocationRequest
+) -> dict[str, Any]:
+    """Revoke a Merge Certificate by its canonical digest.
+
+    The revocation is signed with the configured Ed25519 key and appended
+    to the revocation log (SPECPROOF_REVOCATION_LOG). The revocation is
+    immutable once written.
+    """
+    _require_tenant_mode()
+    principal = _principal(request)
+    _assert_role(principal, frozenset({"admin", "auditor"}))
+
+    from evidence.certificate import CertificateRevocation
+
+    revocation = CertificateRevocation(
+        target_certificate_digest=payload.target_certificate_digest,
+        reason=payload.reason,
+        revoked_by=f"{principal.user_id}@{principal.tenant_id}",
+    )
+    try:
+        signed = revocation.sign()
+    except SigningError as exc:
+        # Fail-closed: an unsigned revocation must never reach the
+        # append-only log, so nothing is written and the diagnosis
+        # (key not configured) travels as its own stable code.
+        raise ApiError(
+            status_code=503,
+            code=SIGNING_UNAVAILABLE,
+            detail=(
+                "revocation not written: signing key unavailable ("
+                + str(exc)
+                + ")"
+            ),
+        ) from exc
+    append_revocation(signed)
+
+    return {
+        "revoked": True,
+        "target": payload.target_certificate_digest,
+        "reason": payload.reason,
+        "revoked_by": signed["payload"]["revoked_by"],
+        "revoked_at": signed["payload"]["revoked_at"],
+    }
+
+
+@admin_router.get("/certificates/revocations")
+async def list_certificate_revocations(
+    request: Request,
+    target: str | None = Query(default=None, pattern=r"^sha256:[a-f0-9]{64}$"),
+) -> dict[str, Any]:
+    """List all certificate revocations, optionally filtered by target digest.
+
+    The log is append-only; each entry is the signed statement exactly
+    as written, so a caller can re-verify the signature itself.
+    """
+    _require_tenant_mode()
+    principal = _principal(request)
+    _assert_role(principal, frozenset({"admin", "auditor"}))
+
+    revocations = (
+        find_revocations(target) if target else list_revocations()
+    )
+
+    return {
+        "revocations": revocations,
+        "count": len(revocations),
+    }
 
 
 # ── /api/v1/admin/audit ─────────────────────────────────────────────────────

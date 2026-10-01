@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -1114,3 +1115,253 @@ def test_logout_is_503_in_legacy_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     resp = TestClient(app).post("/auth/logout")
     assert resp.status_code == 503
     assert resp.json()["error"]["code"] == "PROVIDER_UNAVAILABLE"
+
+# ── Merge Certificate 撤销 (#138) ────────────────────────────────────────────
+
+DIGEST_A = "sha256:" + "ab" * 32
+DIGEST_B = "sha256:" + "cd" * 32
+REVOKE_URL = "/api/v1/admin/certificates/revoke"
+LIST_URL = "/api/v1/admin/certificates/revocations"
+
+
+@pytest.fixture()
+def revocation_env(
+    tenant_env: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """A real Ed25519 key and a log path inside tmp — never the repo root."""
+    from evidence.signing import generate_key_hex
+
+    log_path = tmp_path / "revocations.jsonl"
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(log_path))
+    monkeypatch.setenv("SPECPROOF_SIGNING_KEY", generate_key_hex())
+    monkeypatch.delenv("SPECPROOF_SIGNING_KEY_FILE", raising=False)
+    return log_path
+
+
+def test_certificate_digest_is_the_canonical_sha256_of_its_payload() -> None:
+    from evidence.certificate import MergeCertificate
+
+    cert = MergeCertificate(
+        repository="acme/repo",
+        commit_sha="deadbeef",
+        requirements_digest="sha256:req",
+        verified_contracts=3,
+        evidence_digests=["sha256:e1", "sha256:e2"],
+        toolchain={"python": "3.12"},
+    )
+    first = cert.canonical_digest()
+    # The same certificate must digest to the same string forever — a
+    # revocation that references it has to keep matching.
+    assert cert.canonical_digest() == first
+    assert cert.to_dict() == cert.to_dict()
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", first)
+    # Reverse control: any field change must move the digest, otherwise a
+    # revocation aimed at one certificate would hit another.
+    cert.verified_contracts = 4
+    assert cert.canonical_digest() != first
+    cert.verified_contracts = 3
+    assert cert.canonical_digest() == first
+
+
+def test_revocation_names_target_reason_and_actor() -> None:
+    from evidence.certificate import CertificateRevocation
+
+    with pytest.raises(ValueError, match="sha256:"):
+        CertificateRevocation("deadbeef", "looks like a digest")
+    with pytest.raises(ValueError, match="at least 3"):
+        CertificateRevocation(DIGEST_A, "x")
+    revocation = CertificateRevocation(
+        DIGEST_A, "  head-v2 shipped a leaked key  ", revoked_by="alice@a.example.com",
+    )
+    doc = revocation.to_dict()
+    assert doc["_type"] == "https://specproof.dev/revocation/v0.1"
+    assert doc["target"] == DIGEST_A
+    assert doc["reason"] == "head-v2 shipped a leaked key"
+    assert doc["revoked_by"] == "alice@a.example.com"
+    assert doc["revoked_at"] == revocation.revoked_at
+    # Two serializations separated by a clock tick are still identical:
+    # the instant is stamped in __init__, never re-read at write time.
+    time.sleep(0.03)
+    assert revocation.to_dict() == doc
+    # The instant is stamped once: two serializations of one revocation are
+    # byte-identical, or the signed payload could not be re-derived.
+    assert revocation.to_dict() == doc
+
+
+def test_revocation_log_appends_newest_first_and_survives_a_torn_line(
+    revocation_env: Path,
+) -> None:
+    from evidence.revocation_log import RevocationLog
+
+    log = RevocationLog(revocation_env)
+    assert log.all() == []
+    assert not log.is_revoked(DIGEST_A)
+    log.append({"payload": {"target": DIGEST_A, "reason": "r1"}})
+    log.append({"payload": {"target": DIGEST_B, "reason": "r2"}})
+    entries = log.all()
+    assert [entry["payload"]["reason"] for entry in entries] == ["r2", "r1"]
+    assert log.is_revoked(DIGEST_A) and log.is_revoked(DIGEST_B)
+    assert [e["payload"]["target"] for e in log.find_by_target(DIGEST_A)] == [DIGEST_A]
+    # A half-written last line is corruption evidence, not a crash: it is
+    # skipped, and the good statements before it still count.
+    revocation_env.write_bytes(revocation_env.read_bytes() + b'{"payload": {"targ\n')
+    assert len(log.all()) == 2
+    assert log.is_revoked(DIGEST_A)
+
+
+def test_the_default_log_path_is_read_from_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evidence import revocation_log
+
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(tmp_path / "elsewhere.jsonl"))
+    assert revocation_log.default_revocation_log().path == tmp_path / "elsewhere.jsonl"
+    revocation_log.append_revocation({"payload": {"target": DIGEST_A}})
+    assert revocation_log.is_revoked(DIGEST_A)
+    assert revocation_log.find_revocations(DIGEST_B) == []
+    assert len(revocation_log.list_revocations()) == 1
+
+
+def test_revoke_endpoint_writes_a_statement_that_verifies(
+    revocation_env: Path, fakes: FakeJobStore, seeded: dict[str, Any],
+) -> None:
+    from evidence import revocation_log as log_module
+    from evidence.signing import public_key_hex, verify_statement
+
+    client = TestClient(app)
+    resp = client.post(
+        REVOKE_URL,
+        json={"target_certificate_digest": DIGEST_A,
+              "reason": "head-v2 shipped a leaked key"},
+        headers=bearer(seeded["tokens"]["admin"]),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["revoked"] is True
+    assert body["target"] == DIGEST_A
+    assert body["revoked_by"] == f"{seeded['users']['admin']}@{seeded['tenant_a']}"
+    # What landed on disk is a real in-toto statement, re-verifiable with the
+    # public key — not a claim that something was signed.
+    statement = json.loads(revocation_env.read_text(encoding="utf-8").strip())
+    assert verify_statement(statement, public_key_hex())
+    assert statement["payload"]["target"] == DIGEST_A
+    assert statement["payload"]["reason"] == "head-v2 shipped a leaked key"
+    assert statement["_type"].startswith("https://specproof.dev/")
+    # Forward: the log's own verdict flips for exactly this target.
+    assert log_module.is_revoked(DIGEST_A)
+    assert len(log_module.find_revocations(DIGEST_A)) == 1
+    # Reverse control: a different certificate is untouched by this one.
+    assert not log_module.is_revoked(DIGEST_B)
+    assert log_module.find_revocations(DIGEST_B) == []
+
+
+def test_revoke_endpoint_is_admin_and_auditor_only(
+    revocation_env: Path, fakes: FakeJobStore, seeded: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    payload = {"target_certificate_digest": DIGEST_A, "reason": "role probe"}
+    for role, want in (("admin", 200), ("auditor", 200),
+                       ("operator", 403), ("viewer", 403)):
+        resp = client.post(REVOKE_URL, json=payload,
+                           headers=bearer(seeded["tokens"][role]))
+        assert resp.status_code == want, (role, resp.status_code, resp.text)
+    # Cross-tenant viewer is refused for its role, before any log write.
+    assert client.post(
+        REVOKE_URL, json=payload, headers=bearer(seeded["tokens"]["viewer_b"]),
+    ).status_code == 403
+    assert client.post(REVOKE_URL, json=payload).status_code == 401
+
+
+def test_revoke_endpoint_refuses_malformed_targets_and_short_reasons(
+    revocation_env: Path, fakes: FakeJobStore, seeded: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    headers = bearer(seeded["tokens"]["admin"])
+    bad_target = client.post(
+        REVOKE_URL,
+        json={"target_certificate_digest": "sha256:zz", "reason": "too short"},
+        headers=headers,
+    )
+    assert bad_target.status_code == 422
+    assert bad_target.json()["error"]["code"] == "VALIDATION_FAILED"
+    # A well-formed digest with a 2-character reason is still refused.
+    short_reason = client.post(
+        REVOKE_URL,
+        json={"target_certificate_digest": DIGEST_A, "reason": "no"},
+        headers=headers,
+    )
+    assert short_reason.status_code == 422
+    # Nothing was written by either refusal.
+    assert not revocation_env.exists()
+
+
+def test_revoke_endpoint_fails_closed_without_a_signing_key(
+    revocation_env: Path, fakes: FakeJobStore, seeded: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No key, no revocation: an unsigned statement must never be logged."""
+    monkeypatch.delenv("SPECPROOF_SIGNING_KEY", raising=False)
+    monkeypatch.setenv("SPECPROOF_SIGNING_KEY_FILE", "")
+    resp = TestClient(app).post(
+        REVOKE_URL,
+        json={"target_certificate_digest": DIGEST_A, "reason": "no key configured"},
+        headers=bearer(seeded["tokens"]["admin"]),
+    )
+    assert resp.status_code == 503
+    body = resp.json()
+    assert body["error"]["code"] == "SIGNING_UNAVAILABLE"
+    assert "not written" in body["detail"]
+    # The refusal is verifiable: the log file does not exist at all.
+    assert not revocation_env.exists()
+
+
+def test_list_revocations_endpoint_returns_signed_statements_verbatim(
+    revocation_env: Path, fakes: FakeJobStore, seeded: dict[str, Any],
+) -> None:
+    from evidence.signing import public_key_hex, verify_statement
+
+    client = TestClient(app)
+    admin = bearer(seeded["tokens"]["admin"])
+    for digest in (DIGEST_A, DIGEST_B):
+        assert client.post(
+            REVOKE_URL,
+            json={"target_certificate_digest": digest, "reason": "listed probe"},
+            headers=admin,
+        ).status_code == 200
+    everything = client.get(LIST_URL, headers=admin)
+    assert everything.status_code == 200
+    assert everything.json()["count"] == 2
+    only_a = client.get(LIST_URL, params={"target": DIGEST_A}, headers=admin)
+    assert only_a.json()["count"] == 1
+    assert only_a.json()["revocations"][0]["payload"]["target"] == DIGEST_A
+    assert verify_statement(only_a.json()["revocations"][0], public_key_hex())
+    # A certificate nobody revoked answers 0 rows, not an error that would
+    # look the same as "log unreadable".
+    assert client.get(
+        LIST_URL, params={"target": "sha256:" + "ee" * 32}, headers=admin,
+    ).json()["count"] == 0
+    # Shape guard: an unparseable filter is refused, never ignored.
+    assert client.get(LIST_URL, params={"target": "nope"}, headers=admin).status_code == 422
+    # Auditor reads the log; a viewer does not.
+    assert client.get(LIST_URL, headers=bearer(seeded["tokens"]["auditor"])).status_code == 200
+    assert client.get(LIST_URL, headers=bearer(seeded["tokens"]["viewer"])).status_code == 403
+
+
+def test_certificate_revocation_endpoints_are_503_in_legacy_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(tmp_path / "legacy.jsonl"))
+    monkeypatch.delenv("SPECPROOF_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("OIDC_ISSUER", raising=False)
+    from api.identity.oidc import reset_oidc_validator
+    from api.identity.store import reset_identity_store
+
+    reset_identity_store()
+    reset_oidc_validator()
+    client = TestClient(app)
+    for method, url in (("post", REVOKE_URL), ("get", LIST_URL)):
+        kwargs = {"json": {"target_certificate_digest": DIGEST_A, "reason": "legacy"}} \
+            if method == "post" else {}
+        resp = getattr(client, method)(url, **kwargs)
+        assert resp.status_code == 503, (url, resp.status_code)
+        assert resp.json()["error"]["code"] == "PROVIDER_UNAVAILABLE"

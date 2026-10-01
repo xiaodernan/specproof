@@ -9,6 +9,14 @@ Honesty contract (v2):
   evidence; Ed25519 signing of the canonical statement is layered on top
   by evidence/signing.py (P5 core, in-toto style) when a signing key is
   configured. SHA-256 alone is never called a signature.
+
+Revocation (v2, #134):
+- A certificate can be revoked by its issuer. The revocation is a signed
+  document that references the original certificate by its canonical
+  SHA-256 digest and states the revocation reason.
+- Revocations are immutable once signed and are stored in a append-only
+  revocation log (JSONL file, one revocation per line).
+- Verification MUST check the revocation log before trusting a certificate.
 """
 from __future__ import annotations
 
@@ -68,6 +76,71 @@ class MergeCertificate:
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2)
+
+    def canonical_digest(self) -> str:
+        """The canonical SHA-256 digest of this certificate's payload.
+
+        This is the stable identifier used by revocations to reference
+        the exact certificate they revoke. It is the SHA-256 of the
+        canonical JSON (sorted keys, no whitespace) of the certificate's
+        to_dict() output, prefixed with "sha256:".
+        """
+        canonical = json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":")).encode()
+        return "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+
+class CertificateRevocation:
+    """A signed revocation of a previously issued MergeCertificate.
+
+    The revocation is a signed statement that identifies the target
+    certificate by its canonical SHA-256 digest and provides the
+    revocation reason. It is signed with the same Ed25519 key used for
+    certificate signing, so verification is identical.
+    """
+
+    def __init__(
+        self,
+        target_certificate_digest: str,
+        reason: str,
+        revoked_by: str = "SpecProof",
+    ) -> None:
+        if not target_certificate_digest.startswith("sha256:"):
+            raise ValueError(
+                "target_certificate_digest must be a sha256: digest"
+            )
+        if not reason or len(reason.strip()) < 3:
+            raise ValueError("revocation reason must be at least 3 characters")
+        self.target_certificate_digest = target_certificate_digest
+        self.reason = reason.strip()
+        self.revoked_by = revoked_by
+        self.revoked_at = datetime.now(UTC).isoformat()
+        self.version = "0.1.0"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "_type": "https://specproof.dev/revocation/v0.1",
+            "target": self.target_certificate_digest,
+            "reason": self.reason,
+            "revoked_by": self.revoked_by,
+            # Stamped once in __init__: every to_dict() must agree,
+            # or two digests of one revocation would differ.
+            "revoked_at": self.revoked_at,
+            "version": "0.1.0",
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), indent=2)
+
+    def sign(self) -> dict[str, Any]:
+        """Sign this revocation using the configured Ed25519 key.
+
+        Returns the in-toto style signed statement as produced by
+        evidence.signing.sign_statement. Raises SigningError if the
+        signing key is not configured.
+        """
+        from evidence.signing import sign_statement
+
+        return sign_statement(self.to_dict())
 
 
 class RejectionNotice:

@@ -21,7 +21,7 @@
 | §4.4 Contract 领域增强 | ✅ | W38: checker_version+不可变版本+对象元数据 (已落地; GUIDE_GAP_AUDIT §A 任务 6/7) |
 | §4.5 执行沙箱 | ✅ | DooD 沙箱+15 测试; Linux 非 root 沙箱 ⏳ (真实缺口) |
 | §4.6 LLM Provider 治理 | ◐ | V4 Pro 适配+TokenBudget ✅; 租户预算 ✅ (W40); 模型路由 ⏳ (M9) |
-| §4.7 证据签名重放 | ◐ | Ed25519+血缘 ✅; 胶囊重放 ✅ 25/25=100.0% (Go/No-Go #4 PASS; docs/eval/replay-results.md); KMS/HSM ⏳ + 证书撤销 ⏳ (DRILLS 4 需开发) |
+| §4.7 证据签名重放 | ◐ | Ed25519+血缘 ✅; 胶囊重放 ✅ 25/25=100.0% (Go/No-Go #4 PASS; docs/eval/replay-results.md); KMS/HSM ⏳; 证书撤销簿 ✅ #138 (签发侧 JSONL + admin 端点; 消费方拦截 ⏳ DRILLS §6 第 10 行) **更正 (2026-10-01, #138)**: 原句 "证书撤销 ⏳ (DRILLS 4 需开发)" 已过期 |
 | §5.1-5.6 前端 | ◐ | 9 页验证控制台+20 路由工作台+登录/租户/Token 页 ✅; e2e ✅ W39 (Playwright 9 用例全绿); 向导第一步全信息+权限页+计费路由 ✅ W101 (19 文件 90 测试+typecheck+build 绿); 弱网/性能 ⏳ |
 | §6.1 证据图谱血缘 | ✅ | evidence/lineage.py + 证书 extension |
 | §6.5 AI 修复闭环 | ✅ | W35 craft_accept 强制闭环 |
@@ -34,7 +34,7 @@
 | §9 测试评测 | ✅ | unit 2530 passed/3 skipped + security 36/fault 45/contract 27 + golden 100 = 100.0% (63/63, FP 0; docs/eval/eval-100-segments.md); SWE-bench LLM 十二轮 v1-v12 诚实实录 (resolved 0%, harness 障碍逐轮清完剩模型能力层, v12 实测网关仅 v4-flash/v4-pro 无更强档); Capsule 重放 25/25=100.0%; aider polyglot 1/3=33.3% (W98) |
 | §10 安全合规 | ◐ | 威胁矩阵/密钥 env-only/注入 24 矩阵 ✅; 密钥泄漏 0 + bandit Medium+=0 ✅; SOC2 路线 ⏳ |
 | §11 可观测运维 | ◐ | 恢复演练 ✅ (W89 DRILLS: Drill1 真实 kill 6 检查点→9.09s resume→BLOCKED=control / Drill2 provider outage 真实 / Drill4 outbox 崩溃→exactly-once / Drill3 桌面 9 可执行 4 需开发); Grafana/SLO 面板 ⏳ (真实缺口) |
-| §12 阶段0-8 | ◐ | 0/1/2/6/7 核心完成 (6 = W40 后端 + W101 计费路由); 3 部分 (Policy DSL+豁免流 ✅ W102; GitLab ⏳); 4 部分 (探针 ✅ W36, 100 案例 ✅ 100.0%, Python 适配器+ddmin ✅ W78/W105; Gradle/Node/Go ⏳); 5 ⏳ (KMS/HSM+证书撤销); 8 部分 |
+| §12 阶段0-8 | ◐ | 0/1/2/6/7 核心完成 (6 = W40 后端 + W101 计费路由); 3 部分 (Policy DSL+豁免流 ✅ W102; GitLab ⏳); 4 部分 (探针 ✅ W36, 100 案例 ✅ 100.0%, Python 适配器+ddmin ✅ W78/W105; Gradle/Node/Go ⏳); 5 部分 (KMS/HSM ⏳ + 证书撤销 ✅ #138 **更正 (2026-10-01)**: 原列 ⏳, 撤销簿已落地, 消费方拦截仍 ⏳); 8 部分 |
 | §13 团队配置 | ✅ | 车道制 (每轮审计→实现→全绿验证) |
 | §14 首批 15 任务 | ◐ | 5 ✅ W39 e2e; 6/7 ✅ W38; 8 ✅ W85B+W106 (node 级取消检查点+classify_job_error {system|repo|provider|policy|unknown}); 13 ✅ httpx 弃用已消解; 14 ◐ (W89 演练已执行; 删除/导出/主机备份工具 ⏳); 12 ◐ (100 案例 ✅ 100.0%; 200 案例路线表 ⏳) |
 | §15 验收清单 | ◐ | 见 GUIDE_GAP_AUDIT §C (代码/功能/安全 ✅ 大部分; 运营商业: 账本 ✅ W40+计费路由 ✅ W101, Grafana/SLO ⏳, 恢复演练 ✅ W89) |
@@ -78,7 +78,7 @@
 7. ⏳ M4: AST 编辑 + 结构化 Diff (计划书任务 6 第三项)
 8. ⏳ 阶段 3: GitLab 集成 (Policy DSL+豁免流 ✅ W102: agent/policy_dsl.py + agent/waiver.py, 42 测试)
 9. ⏳ 阶段 4: Gradle/Node/Go 适配器 + 状态机验证 + 200 案例路线表 (Python 适配器 ✅ W78/W105 PythonAdapter local-first; 反例最小化 ✅ W105 experiments/minimize.py)
-10. ⏳ 阶段 5: KMS/HSM + 证书撤销 (DRILLS 4 需开发) + 对象加密 (恢复演练 ✅ W89 DRILLS)
+10. ⏳ 阶段 5: KMS/HSM + 对象加密 (恢复演练 ✅ W89 DRILLS); 证书撤销已 ✅ #138 **更正 (2026-10-01)**: 原文 "KMS/HSM + 证书撤销 (DRILLS 4 需开发)" 中的撤销部分已落地 (签发侧), 剩余的是 KMS/HSM 与消费方拦截 (DRILLS §6 第 10 行)
 11. ⏳ M6 残留: IDE 插件 (VSCode/JetBrains); M9: 模型路由/每作业成本会计; M10: MCP 客户端/通知连接器 (notify wiring, DRILLS 4 需开发)/插件市场
 12. ⏳ 运维: 生产部署指南/SOC2 合规路线 + Grafana/SLO 面板 (数据字典 ✅ W103 DATA_DICTIONARY.md)
 13. ⏳ VERIFIED 路径 Java E2E 手动补跑 (W35 已留命令); 100 案例段1 ✅ 已合并总表 (docs/eval/eval-100-segments.md)
