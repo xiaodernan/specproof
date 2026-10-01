@@ -102,6 +102,10 @@ class ExecResult:
     truncated: bool
     error: str
     mode: str
+    # The sandbox's own cache-integrity statement (#7/#141). A cache-mounting
+    # profile always fills it in — an empty string means "this profile mounts
+    # no cache", never "the cache was verified".
+    cache_note: str = ""
 
     @property
     def combined(self) -> str:
@@ -239,6 +243,7 @@ class Executor:
             truncated=len(combined) > OUTPUT_TAIL_CHARS,
             error=result.error,
             mode=result.mode,
+            cache_note=result.cache_note,
         )
 
     def run_pytest(self, extra_args: list[str] | None = None) -> ExecResult:

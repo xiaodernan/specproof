@@ -181,8 +181,14 @@ def _run_commands(gate: str, commands: list[list[str]], executor: ExecRunner) ->
             continue
         if result.error:
             notes.append(f"{label}: sandbox 记录 error={result.error[:200]!r}")
+        # 缓存完整性 (backlog #7/#141): the sandbox's own statement belongs in
+        # the same note the console already renders mode= from. Dropped here,
+        # an honest "NOT VERIFIED" never reaches a reviewer. An empty note
+        # means the profile mounted no cache — that must not be written as a
+        # claim, so the suffix is absent, not "verified".
+        cache_suffix = f", 缓存={result.cache_note}" if result.cache_note else ""
         if result.exit_code == 0:
-            notes.append(f"{label}: 通过 (exit 0, mode={result.mode})")
+            notes.append(f"{label}: 通过 (exit 0, mode={result.mode}{cache_suffix})")
             continue
         findings.append(
             {
@@ -194,7 +200,7 @@ def _run_commands(gate: str, commands: list[list[str]], executor: ExecRunner) ->
                 "description": f"{label}: exit {result.exit_code} — {result.output_tail[-600:]}",
             }
         )
-        notes.append(f"{label}: 失败 (exit {result.exit_code}, mode={result.mode})")
+        notes.append(f"{label}: 失败 (exit {result.exit_code}, mode={result.mode}{cache_suffix})")
     duration_ms = round((time.perf_counter() - started) * 1000)
     if errored:
         return GateResult(
