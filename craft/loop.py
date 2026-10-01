@@ -2183,6 +2183,24 @@ class CraftLoop:
         self._record_proposal(envelope_ops)
         return diagnosis, [path]
 
+    def _execution_plane_block(self, result: ExecResult | None) -> str:
+        """Tell the model which plane produced the failure it is asked to fix.
+
+        The diagnose prompt has always quoted `failure_output`, never the plane
+        that generated it — so when the honest answer to "why is this still
+        failing" is "this run consumed an unverified dependency cache", the
+        proposal loop could never hear it and kept editing source code instead.
+        """
+        if result is None:
+            return "(本步骤没有执行任何命令: 判据是只读/断言型, 因此不存在执行面)"
+        cache = result.cache_disclosure.get("cache_note")
+        cache_line = (
+            f"依赖缓存: {cache}"
+            if cache
+            else "依赖缓存: 该 profile 未挂载依赖缓存卷 (无内容可披露, 这不等于缓存已验证)"
+        )
+        return f"mode={result.mode}\n{cache_line}"
+
     def _diagnose_context(
         self,
         step: Step,
@@ -2271,6 +2289,7 @@ class CraftLoop:
             "step": json.dumps(step.to_dict(), ensure_ascii=False, indent=2),
             "failure_diagnosis": diagnosis,
             "failure_output": (result.output_tail if result is not None else "") or "(无)",
+            "execution_plane": self._execution_plane_block(result),
             "forbidden_changes": "\n".join(self.spec.forbidden_changes) or "(无)",
             "target_files": target_section,
             "task_memory": self.memory.summarize_for_prompt() or "(无任务记忆)",
