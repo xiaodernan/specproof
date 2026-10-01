@@ -4,7 +4,7 @@ public class UserResponse {
 
     private Long id;
     private String username;
-    private String email;
+    private String emailAddress;
     private Integer orderCount;
 
     public UserResponse() {}
@@ -12,13 +12,13 @@ public class UserResponse {
     public UserResponse(Long id, String username, String email) {
         this.id = id;
         this.username = username;
-        this.email = email;
+        this.emailAddress = email;
     }
 
     public UserResponse(Long id, String username, String email, Integer orderCount) {
         this.id = id;
         this.username = username;
-        this.email = email;
+        this.emailAddress = email;
         this.orderCount = orderCount;
     }
 
@@ -28,8 +28,8 @@ public class UserResponse {
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public String getEmailAddress() { return emailAddress; }
+    public void setEmailAddress(String emailAddress) { this.emailAddress = emailAddress; }
 
     public Integer getOrderCount() { return orderCount; }
     public void setOrderCount(Integer orderCount) { this.orderCount = orderCount; }

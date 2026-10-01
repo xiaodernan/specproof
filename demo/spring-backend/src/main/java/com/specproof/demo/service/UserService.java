@@ -112,6 +112,8 @@ public class UserService {
         userRepository.save(user);
 
         evictUserCache(userId);
+        invalidateOldTokens(userId);
+
         EmailChangedEvent event = new EmailChangedEvent(userId, oldEmail, newEmail);
         rabbitTemplate.convertAndSend(
                 "specproof.demo.events",
