@@ -828,3 +828,42 @@ N5 披露行不过 `safe()` → 1 红；N6 整节从文档里掉出来 → 4 红
   baseline，而 `scripts/export_openapi.py` 在本窗口是并发写者文件，动不了。
 - compose 武装（`SPECPROOF_ALLOWED_ROOT` + `SPECPROOF_EXEC_MODE=sandbox`）仍需用户批准；今天没有任何
   shipped 调用方同时传 `cache_dir` + `cache_manifest`，所以每一份当前报告里的 `NOT VERIFIED` 都是真话。
+## #141 Craft 的门禁 note 才是控制台读得到的那条缓存披露
+
+**问题。** `run_sandboxed` 有两条 shipped 调用路径：DEEP 节点（#137/#140 已接）和
+`craft/executor.py`。后者把 `SandboxResult` 投影成 `ExecResult` 时只留
+exit/stdout/stderr/error/mode——`cache_note` 在投影处消失。Craft 循环每跑一次 `mvn`
+都消费播种缓存卷（#129 之后 mvn 走 MAVEN profile），但评审人在 Web 控制台看到的门禁
+note 只有 `mode=docker_sandbox`。也就是说「缓存被投毒的构建」与「缓存干净的构建」在产品里
+长得一模一样，而这正是 #7 那道守卫想说的话。
+
+**修法。** `ExecResult` 加 `cache_note`（默认空串），`Executor.run()` 原样转发；
+`craft/gates.py::_run_commands` 在**通过与失败两条 note**上都追加
+`缓存=<沙箱原话>`——只在失败分支带等于「披露只会在已经出事时出现」。GateResult 的
+`note` 经 `to_dict()` 进 `api/agent_runtime.py` 的 entry 载荷，所以这条文案就是控制台载荷本身，
+不需要新路由、不动 OpenAPI baseline。
+
+**诚实口径。** 空 note＝该 profile 不挂缓存：此时一个字都不写，绝不写「已验证」。
+这条由 C4 臂钉死（把空 note 编成「缓存=已验证」必须红）。
+
+**门（实测）。** 聚焦腿 5 个文件 `81 passed / 0 failed`（新模块 5 例 + `test_craft_gates` +
+`test_acceptance_gate` + #140 的 7 例 + #7 守卫的产家/武装文件）；`ruff` 三文件过；
+`mypy` `Success: no issues found in 2 source files`。
+
+**变异见证（预测先写，实测后读）。** 控制腿 5/5 绿且 `collected == AST 派生的用例数`。
+第一轮 5 臂里 3 MATCHED + 2 MISMATCH，两条都在预测侧：
+- C2（通过分支丢后缀）实测 2 红而非 1 红：第 5 例（控制台载荷）本来就走通过分支，是同一条线的
+  真后果，不是多余红；预测按「案例的名字」而不是按「它踩的分支」写，已订正为 {2,5}。
+- C5（`ExecResult` 整个字段没了）实测 4 红而第 4 例仍绿——**这条抓到我自己的洞**：
+  `_run_commands` 把执行器异常吞成「执行异常」note，而那条 note 里同样没有「缓存」，
+  所以「空 note 不造话」只断言 absence 时分不清「没缓存可披露」与「功能整个没了」。
+  第 4 例现在要求 note 里出现 `mode=docker_sandbox`（只有真 `ExecResult` 走到 note 构造才会
+  有它），C5 重测＝5 红，5 臂 5/5 MATCHED、0 存活，逐臂 sha256 与被见证字节相等。
+
+**仍未闭合。**
+- `craft/loop.py` 的三处 evidence 字典（compile / test_green / `_sandbox_unverifiable_evidence`）
+  仍只带 `mode`/`output_tail`，没带 `cache_note`；终态那行日志（#126 g 的
+  `_record_terminal_check`）同理。这条不在本批里，因为要先把 loop 的构造成本降下来才测得起。
+- `deep_results` 依旧不入库、Web 界面读不到 DEEP 结论；HTTP 读路径要重生成 OpenAPI baseline，
+  而 `scripts/export_openapi.py` 仍是并发写者文件。
+- compose 武装（`SPECPROOF_ALLOWED_ROOT` + `SPECPROOF_EXEC_MODE=sandbox`）仍需用户批准。
