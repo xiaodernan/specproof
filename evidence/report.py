@@ -93,6 +93,54 @@ def _render_preflight(preflight: dict[str, Any] | None, safe: Any) -> str:
     </section>"""
 
 
+def _render_deep_evidence(
+    deep: dict[str, Any] | None, note: str, safe: Any
+) -> str:
+    """Render the DEEP tier's own disclosures (backlog #7/#136/#138).
+
+    DEEP runs the mutation campaign and the state-delta experiment against a
+    seeded cache volume. The sandbox therefore produces a cache-integrity
+    statement that used to die at the node boundary: the archived HTML report
+    — the artifact a reviewer opens months later — said nothing about it, so
+    an honest "NOT VERIFIED" was unreadable and looked like a clean run.
+
+    Absent disclosure is rendered as absent, never as verified. When DEEP was
+    not requested the section says which tier ran instead of implying a deep
+    campaign that never happened.
+    """
+    payload = deep if isinstance(deep, dict) else {}
+    tier_note = str(note or "").strip()
+    if not payload and "DEEP" not in tier_note:
+        return ""
+
+    cache = str(payload.get("cache_integrity") or "").strip()
+    if cache:
+        cache_html = f'<p class="unverified">Cache integrity: {safe(cache)}</p>'
+    elif payload:
+        # The campaign ran and said nothing about the cache. Saying "clean"
+        # here would be a fabrication, so the absence itself is the finding.
+        cache_html = (
+            '<p class="unverified">Cache integrity: not disclosed by this run '
+            "(no cache note was recorded on the deep test runs).</p>"
+        )
+    else:
+        cache_html = ""
+
+    report_file = str(payload.get("deep_report_file") or "").strip()
+    file_html = (
+        f'<p class="muted">Sidecar evidence: {safe(report_file)}</p>'
+        if report_file
+        else ""
+    )
+
+    return f"""<section>
+        <h2>Deep Verification</h2>
+        {f'<p class="muted">{safe(tier_note)}</p>' if tier_note else ""}
+        {cache_html}
+        {file_html}
+    </section>"""
+
+
 def render_verification_report(
     repo: str,
     base_ref: str,
@@ -102,6 +150,8 @@ def render_verification_report(
     errors: list[str] | None = None,
     generated_at: str | None = None,
     preflight: dict[str, Any] | None = None,
+    deep: dict[str, Any] | None = None,
+    deep_note: str = "",
 ) -> str:
     """Render the full HTML Verification Report.
 
@@ -206,6 +256,7 @@ def render_verification_report(
         )
 
     preflight_html = _render_preflight(preflight, safe)
+    deep_html = _render_deep_evidence(deep, deep_note, safe)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -269,6 +320,7 @@ def render_verification_report(
     {errors_html}
     {coverage_html}
     {preflight_html}
+    {deep_html}
 
     <section>
         <h2>Requirement-to-Evidence Matrix</h2>

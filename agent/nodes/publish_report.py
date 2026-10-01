@@ -50,6 +50,11 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
         # Phase 1.4: the report is archived evidence, so it must record the
         # environment the verdict was produced in.
         preflight=raw_state.get("preflight", {}),
+        # Backlog #138: the DEEP tier's cache-integrity statement and its
+        # sidecar filename. Dropped here they die at the node boundary and
+        # the archived report silently implies a clean deep campaign.
+        deep=raw_state.get("deep_results", {}),
+        deep_note=str(raw_state.get("deep_note", "")),
     )
 
     out = Path(output_dir)

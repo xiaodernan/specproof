@@ -796,3 +796,35 @@ javadoc）一起带进了 7d178e8 并推送。我在提交前的 numstat 里看�
 ——打印清单不是校验，能拒绝才算。事后不重写历史、不擅自回滚别人的内容（那是另一个
 写者的意图），只做披露与流程订正：以后 staged 集合必须与自己的路径集合相等，不等就
 先 git restore --staged <他人路径>（保留其工作副本内容）再提交。
+## #140 DEEP 缓存披露的最后一位读者：归档的 HTML 报告
+
+**问题。** #7 的守卫产出 `SandboxResult.cache_note`，#137 把它接进 `deep_results["cache_integrity"]`，
+#139 让 sidecar `deep-report-<job8>.json` 能被归因。这三个都是机器工件。评审人真正打开、并且会存进
+档案柜几年后再 diff 的那份工件——HTML Verification Report——对 DEEP 跑测时消费的缓存卷一个字都没说：
+一条诚实的 `NOT VERIFIED` 与一次干净的缓存在报告里长得一样。`publish_report_node` 已经在渲染
+`preflight`（环境披露），DEEP 的披露却在节点边界被丢掉。
+
+**修法。** `evidence/report.py` 加 `_render_deep_evidence(deep, note, safe)`，渲染三种必须互不混淆的情形：
+①有披露——原文照抄（分号合并、保持访问顺序，不做平均）；②DEEP 跑了却没有披露——写
+`not disclosed by this run`，绝不写 verified；③根本没跑 DEEP（`deep_note` 含 tier 语句）——只说没跑，
+不产生任何缓存断言；④调用方完全不带 deep 状态（旧调用点）——整节不渲染，免得把「没传」冒充成「没跑」。
+`publish_report_node` 把 `deep_results`/`deep_note` 传进去。
+
+**门（实测）。** 聚焦腿 4 个文件 `29 passed / 0 failed / 0 skipped`（新模块 7 例 + `test_report_preflight`
+10 例 + #137 的 7 例 + #139 的 5 例）；`ruff` 三文件全过；`mypy` 两个源文件 `Success: no issues found
+in 2 source files`。
+
+**变异见证（预测先写，实测后读）。** 控制腿 7/7 绿，且 `collected == ast_declared`（用例数从测试文件自己的
+AST 派生，不是手抄）。6 臂全部 CAUGHT，0 存活、0 未判，还原后按 sha256 与被见证字节逐文件相等：
+N1 节点不再转发 deep 关键参数 → 2 红；N2 渲染器丢掉披露行 → 2 红；N3「无披露」被写成 verified → 1 红；
+N4 去掉「不是 DEEP 就不渲染」的守卫 → 1 红（第 4 例：旧调用方的静默被冒充成「没跑 DEEP」）；
+N5 披露行不过 `safe()` → 1 红；N6 整节从文档里掉出来 → 4 红。
+
+**仍未闭合（不要在下一批里假设它们已闭）。**
+- Craft 的 `ExecResult` 仍然丢 `cache_note`：`craft/executor.py` 里 `run_sandboxed` 的返回被投影成
+  exit/stdout/mode，注记无处可去。本项目内 `craft.executor` 无仓库外调用点，所以这条要么连着
+  Craft 结果工件一起接，要么别单独落（后端半边单独落＝没人读的字段）。
+- `deep_results` 依旧不入库、Web 界面读不到 DEEP 的任何结论；给它一条 HTTP 读路径要重生成 OpenAPI
+  baseline，而 `scripts/export_openapi.py` 在本窗口是并发写者文件，动不了。
+- compose 武装（`SPECPROOF_ALLOWED_ROOT` + `SPECPROOF_EXEC_MODE=sandbox`）仍需用户批准；今天没有任何
+  shipped 调用方同时传 `cache_dir` + `cache_manifest`，所以每一份当前报告里的 `NOT VERIFIED` 都是真话。
