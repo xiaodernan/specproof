@@ -1861,6 +1861,15 @@ passed 判定里 `terminal_transitions == 1` 一直就是重复写检测的承�
   送达 ⇒ `test_disabled_connector_dead_letters_immediately` 红。
 - `ruff` / `mypy` 对本批文件全绿；全量门以 worktree 隔离运行（见 28.4）。
 
-### 28.4 全量合并门（追记）
+### 28.4 全量合并门（追记）——含一次被自己的迁移触发的登记门
 
-见提交记录。
+- 首次隔离 worktree 门报 **4 failed**：全部是并行会话建的"文档不能撒谎"门
+  （`test_runbook_claims_hold` + `test_data_dictionary_covers_migrations`
+  三例）——0013 落地而 RUNBOOK/数据字典没跟上，门**按设计**判红
+  （"下一个迁移不能不登记就落地"）。修法是补文档：数据字典范围改至 0013、
+  表数 18→19、新增 §1.21 notify_outbox 字段级登记（含诚实边界）；
+  RUNBOOK §2 迁移范围同步（`5b7f1d0`）。
+- 修复后在最新已提交树（df5a319，含并行会话 #130-#137 与本研究）重跑
+  隔离 worktree 门 ⇒ **3439 passed, 7 skipped, 1614.82s (26:54)，
+  GATE_EXIT=0**，0 failed。基线对账再次跨会话移动（并行会话新增了
+  ~80 例），本次只认隔离运行自己的输出与 0 failed。
