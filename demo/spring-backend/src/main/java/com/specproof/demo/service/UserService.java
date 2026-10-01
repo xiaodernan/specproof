@@ -92,6 +92,7 @@ public class UserService {
                 .toList();
     }
 
+    @Transactional
     public UserResponse changeEmail(Long userId, ChangeEmailRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
@@ -109,7 +110,6 @@ public class UserService {
 
         user.setEmail(newEmail);
         userRepository.save(user);
-        userRepository.saveAndFlush(user);
 
         evictUserCache(userId);
         invalidateOldTokens(userId);
