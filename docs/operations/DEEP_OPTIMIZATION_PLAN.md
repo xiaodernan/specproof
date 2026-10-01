@@ -1007,3 +1007,29 @@ JSON Action Envelope 块；再补一臂 M6＝自检腿改成自己拼 sections�
 
 **仍未闭合。** `deep_results` 入库与 Web 读路径（并发写者文件 + OpenAPI 重导）、compose 武装
 （要用户批准）、以及本弧 #140–#144 的干净平面全量合并门数字。
+
+## #145 待办配方（本轮实测）：step 证据里的缓存披露在前端一个读者都没有
+
+**实测到的现状（三条，都是这一轮量出来的）。**
+1. `cache_note` 在 `apps/web/src` 全库 **0 命中**——#142 把它写进三处 evidence 字典之后，
+   没有任何前端组件读它。
+2. 门禁 note 那条路**是**通的：`apps/web/src/agent/pages/AgentGates.tsx` 里有 `note` 读者
+   （#141 的设计前提，仍然成立）。所以「控制台读得到缓存披露」这句话只对**门禁 note**成立，
+   不能推广到 step 证据。
+3. `output_tail` / `written_bytes` / `exit_code` 在 `src/agent` 下 **0 命中**。也就是说
+   evidence 面板要么是通用 JSON 直出（那 `cache_note` 会被动露出，但会是裸英文键名，需要词表），
+   要么压根没渲染（那是 #58/#59 那一类「证据落库却看不见」的缺陷）。**这两种情况的修法不同**，
+   所以 #145 的第一步不是写组件而是走这一条：从 `api/agent_runtime.py` 的 entry 载荷形状
+   找到渲染点，判定落在哪个分支。
+
+**下一号的顺序（别跳）。** 先量渲染点（读代码 + 一个真实作业载荷）→ 再决定是「补词表 + Term」
+还是「补面板」→ 才写测试。若走词表分支，注意 #81/#87 那类「值有词」对账门会点名新键，
+先查 `tests/` 里的枚举门是否覆盖 evidence 键名，避免把门改成迎合实现。
+
+**平面归属（本轮确认）。** `apps/web` 目前干净（只有一个未跟踪的 vite timestamp 文件），
+`AgentEventLog.tsx` 与其测试仍是并发写者文件；前端三门禁（tsc / vitest / vite build）都要走。
+
+**本轮同时欠着的一次测量。** #140–#144 这条弧的干净平面全量合并门正在
+`.scratch/plane144`（`git archive HEAD` 冻结平面，PYTHONPATH 已钉，`craft.loop.__file__`
+实测落在平面内）后台跑，产物 `.scratch/plane144_gate.xml` / `.scratch/plane144_gate.log`
+（末行 `GATE_EXIT=`）。**没有读到汇总行之前，任何地方都不许引用这个弧的「全量门已过」。**
