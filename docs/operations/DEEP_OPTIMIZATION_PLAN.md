@@ -905,3 +905,52 @@ L5 facts 键位丢了它→1 红（只红日志那半）；L6 整个机制没了
   今天没有任何 shipped 调用方同时传 `cache_dir` + `cache_manifest`，所以每份报告里的
   `NOT VERIFIED` 都是真话。
 - 本弧的全量合并门数字仍未在干净平面重跑（这批只取聚焦腿）。
+
+## #143 诊断提示词第一次说出「这段失败是哪一面跑出来的」
+
+**问题。** `_diagnose_context` 一直只引用 `failure_output`，从不说明这段输出出自哪个执行面。
+于是当「为什么这条判据还在失败」的诚实答案是「这一轮消费了未校验的依赖缓存」时，提案循环
+里没有任何一句话能把这件事告诉模型——它只能回到源码去改，而 #7 那道守卫想让人看见的正是
+「STUCK 可能是在缓存没校验的容器里得出的」。#140/#141/#142 把报告、控制台与终态日志这四个
+读者接上了，剩下的读者是模型自己。
+
+**修法。** 新增一个 context 变量 `execution_plane`：`mode=…` + 依赖缓存那一行原话（值直接来自
+#142 的 `ExecResult.cache_disclosure`，规则仍只写一次）；`result is None`（只读/断言型判据）
+时明说「本步骤没有执行任何命令，因此不存在执行面」。接缝是实测出来的而不是假设的：
+`providers/prompt_templates.py::assemble` 泛型渲染 variable dict 的**每一个**键
+（`sections = [f"[{key}]\n{value}" for key, value in sorted(variable_data.items())]`），
+所以一个新键天然进模型——不动模板、不新增路由、不重生成 OpenAPI baseline（后两条在今天
+是硬约束：`scripts/export_openapi.py` 是并发写者文件）。
+
+**诚实口径。** 空 note 写成「该 profile 未挂载依赖缓存卷（无内容可披露，这不等于缓存已验证）」，
+绝不写成「已验证」；没跑命令的判据不许冒充有执行面。每条 absence 断言同时钉住 `mode`，
+这样「看不见缓存」不能是「什么都没读」的别名。副作用要说清：新增键改变了每份 diagnose 提示词
+的字节，`cache_key(_prompt_digest(built.text), …)` 那层语义缓存因此会失效一次——这是正确行为
+（提示词确实变了），不是回归。
+
+**门（实测）。** 新模块 5 例 `5 passed in 2.79s`；影响面腿 10 个文件
+（`test_craft_loop*`、`test_craft_memory`、`test_craft_verify`、`test_terminal_verdict_names_its_check`、
+`test_providers_dsv4`、`tests/security/test_injection_matrix`）**142 passed / 0 failed，267.74s**；
+`ruff` 两文件 `All checks passed!`；`mypy` `Success: no issues found in 2 source files`。
+
+**变异见证（预测先写在测试模块 docstring，实测后读）。** 控制腿 collected=5 且等于 AST 派生的
+`def test_` 数；5 臂 5/5 MATCHED、0 未判、逐臂 sha256 还原后被见证平面 byte-identical。
+红集合按「案例踩哪条分支」预测：
+- M1 从 context 里删掉这个键 → 4 红（案例 1 渲染整份提示词，2/3/4 直接取那个键），案例 5 照旧绿＝
+  它两次构建的差别本来就在 `failure_diagnosis`，这条对照说明 M1 没伤到缓存不变量。
+- M2 空 note 分支编造「依赖缓存: 已验证」→ 案例 3 红。
+- M3 没跑命令的分支返回一个执行面形状的块 → 案例 4 红。
+- M4 `assemble` 把变量段折进稳定前缀 → 案例 5 红（每轮都变的诊断再也不能共享前缀）。这条线
+  仓库里本来就有守卫（`verify_variables_after_prefix`，被 `test_providers_dsv4`、
+  `test_injection_matrix`、`test_craft_memory` 三处断言），所以 M4 是双保险：新例把它从
+  **诊断读者**这一侧也钉住了。
+- M5 执行面块丢掉 `mode` 行 → 3 红（案例 1/2/3 都钉着平面），案例 4/5 绿——因为那条分支本来就
+  没有平面可报。第一轮就全中，没有一条预测需要订正。
+
+**仍未闭合。**
+- `deep_results` 依旧不入库、Web 界面读不到 DEEP 结论；HTTP 读路径要重生成 OpenAPI baseline，
+  而 `scripts/export_openapi.py` 仍是并发写者文件。
+- compose 武装（`SPECPROOF_ALLOWED_ROOT` + `SPECPROOF_EXEC_MODE=sandbox`）仍需用户批准；
+  今天没有任何 shipped 调用方同时传 `cache_dir` + `cache_manifest`，所以每份报告与每条提示词里的
+  `NOT VERIFIED` 都还是真话。
+- 本弧（#140/#141/#142/#143）的全量合并门数字仍未在干净平面重跑；这批只取影响面腿。
