@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -144,7 +145,13 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
     # ── Persist the deep report next to the HTML report ──────────
     out_dir = Path(state.get("output_dir", "reports"))
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "deep-report.json").write_text(
+    report_name, naming = _deep_report_name(job_id)
+    # The artifact carries its own attribution: a reader holding only the file
+    # can tell which job produced it and under which name it was written.
+    results["job_id"] = job_id or ""
+    results["deep_report_file"] = report_name
+    results["deep_report_naming"] = naming
+    (out_dir / report_name).write_text(
         json.dumps(results, indent=2, default=str), encoding="utf-8"
     )
 
@@ -234,6 +241,23 @@ def _run_test_via_sandbox(app: str, generated_tests_path: str) -> dict[str, Any]
         "mode": result.mode,
         "cache_note": result.cache_note,
     }
+
+
+def _deep_report_name(job_id: str | None) -> tuple[str, str]:
+    """(filename, reason) for this job's DEEP artifact.
+
+    The reports directory is SHARED (``state["output_dir"]`` defaults to
+    "reports" for every job), so one fixed filename means the second
+    concurrent DEEP run silently replaces the first job's mutation / state
+    delta / cache evidence — and the surviving artifact no longer says which
+    job it describes. Job ids are scoped by their first 8 characters, the
+    naming convention the certificate artifacts already use; an id that is
+    not id-shaped (ad-hoc CLI runs) keeps the plain historical name rather
+    than letting an arbitrary string become part of a path.
+    """
+    if job_id and re.fullmatch(r"[0-9a-fA-F-]{8,64}", job_id):
+        return f"deep-report-{job_id[:8]}.json", "job-scoped"
+    return "deep-report.json", "unscoped"
 
 
 def _cache_integrity_disclosure(runs: list[dict[str, Any]]) -> str:

@@ -13,10 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Demo controller for SpecProof golden scenarios.
- * This comment documents nothing behavioural and must not trigger findings.
- */
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
