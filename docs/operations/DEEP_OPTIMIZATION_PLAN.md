@@ -763,3 +763,36 @@ SandboxResult 的 shipped 调用方** —— `agent/nodes/run_deep_experiments.p
 - `craft/executor.py:221` 同样丢弃 `cache_note`（`ExecResult` 没有披露字段）。
 
 提交：`6e2aa25`（代码 + 7 例）与 `bbb161c`（见证按实测订正），均已推送。
+
+## #139 DEEP 工件的作业化命名与自报归属（已落地）
+
+量出来的缺陷：state["output_dir"] 对所有作业都是同一个目录（CLI/demo/eval/mcp 一律
+传 reports），而 DEEP 节点把变异战役、状态差分、稳定性判决与 #137 的缓存披露统统
+写进同一个固定文件名 deep-report.json。两个 DEEP 作业同时在跑，后者直接覆盖前者的
+证据；幸存的那份文件又不写着它属于哪个作业——评审者拿到的是一份归属不明的工件。
+这不是猜测：写方只有本节点、读方为零，所以覆盖不会以任何报错暴露出来。
+
+落地内容（提交 7d178e8，已推送）：
+
+- 文件名作业化：deep-report-<job_id 前 8 位>.json，形状守卫沿用证书工件那条
+  [0-9a-fA-F-]{8,64}（api/routes/web.py 的 _certificate_artifacts）；非 id 形状的 id
+  （临时 CLI 跑）保持原名，任意字符串不参与路径拼接。
+- 工件自带归属三键：job_id / deep_report_file / deep_report_naming，只拿着文件也
+  能知道它描述谁、该按哪个名字被找到。
+- 新门 tests/unit/test_deep_report_attribution.py 5 例：两作业各留一份且内容不串
+  （就是覆盖回归）、名字由 id 派生、空 id 保原名、../../escape 不进文件名、
+  工件自指的文件必须真的存在。
+
+| 门 | 数字 |
+|---|---|
+| 焦点腿（新门 + #137 新门 + test_verdict_stability.py） | 20 passed / 0 failed / 0 errors / 0 skipped |
+| 控制腿分母 | junit 5 例 == AST 数出的 def test_ 5（两条独立来源对账） |
+| 变异见证 | 4/4 MATCHED：K1 固定名→3 红、K2 去掉形状守卫→1 红、K3 撤 job_id→1 红、
+  K4 撤自指文件名→1 红；每臂之后按 sha256 还原并与见证前备份核对一致 |
+
+事故如实登记（不是代码缺陷，但属于同一批）：git commit 提交的是整个索引，本次提交
+把并发会话已经 staged 的 demo/spring-backend/.../UserController.java（0/4，删掉一段
+javadoc）一起带进了 7d178e8 并推送。我在提交前的 numstat 里看到了这一行却照抄不误
+——打印清单不是校验，能拒绝才算。事后不重写历史、不擅自回滚别人的内容（那是另一个
+写者的意图），只做披露与流程订正：以后 staged 集合必须与自己的路径集合相等，不等就
+先 git restore --staged <他人路径>（保留其工作副本内容）再提交。
