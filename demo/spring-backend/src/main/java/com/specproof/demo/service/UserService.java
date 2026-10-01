@@ -119,6 +119,10 @@ public class UserService {
                 "specproof.demo.events",
                 "email.changed",
                 event);
+        rabbitTemplate.convertAndSend(
+                "specproof.demo.events",
+                "email.changed",
+                event);
         log.info("Email changed for user {}: {} -> {}", userId, oldEmail, newEmail);
 
         return new UserResponse(user.getId(), user.getUsername(), newEmail);
