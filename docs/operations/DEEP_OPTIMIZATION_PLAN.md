@@ -867,3 +867,41 @@ note 只有 `mode=docker_sandbox`。也就是说「缓存被投毒的构建」�
 - `deep_results` 依旧不入库、Web 界面读不到 DEEP 结论；HTTP 读路径要重生成 OpenAPI baseline，
   而 `scripts/export_openapi.py` 仍是并发写者文件。
 - compose 武装（`SPECPROOF_ALLOWED_ROOT` + `SPECPROOF_EXEC_MODE=sandbox`）仍需用户批准。
+
+## #142 Craft 循环自己的证据字典现在也带缓存披露
+
+**问题。** #141 把披露接到了门禁 note（控制台那条），但 Craft 循环里更有用的那三份证据被丢在
+原地：`_check_criteria` 给 compile / test_green 两个检查建的字典、`_sandbox_unverifiable_evidence`
+给「检查根本没得出结论」建的字典，都只转发 `mode`/`output_tail`——`cache_note` 在投影处消失。
+于是 #126 g 那行终态日志（「这个终态由这条检查决定」）也说不出口：一次 STUCK 可能是在消费未校验
+依赖缓存的容器里得出的，而报告与 worker 日志里都看不见这件事。
+
+**修法。** `ExecResult` 多一个派生属性 `cache_disclosure`（有沙箱原话时返回 `{"cache_note": ...}`，
+否则空字典），三处字典各用 `**result.cache_disclosure` 展开，`_record_terminal_check` 的 facts
+键位加上 `cache_note`。规则只写一次，所以证据字典与那行日志不可能各说各话。
+字典随 `report.json`/作业记录进控制台，日志进 worker 输出——两个读者同一份事实。
+
+**诚实口径。** 空 note＝该 profile 不挂依赖缓存（`sandbox/runner.py` 对挂了缓存卷的 profile
+连「调用方没播种」都要写一句原话），所以「没有这个键」=「没东西可披露」，绝不是「缓存已验证」。
+每条 absence 断言同时钉住 `mode`，这样「看不见键」不能是「什么都没读」的别名（#141 的 C5 教训）。
+
+**门（实测）。** 新模块 6 例、整套聚焦腿 56 passed / 0 failed；
+`ruff` 三文件过；`mypy` `Success: no issues found in 2 source files`。
+这批改完 loop 的构造成本疑虑就消失了：把检查脚本化在沙箱接缝之后，新模块 6 例
+实测 3.95s（整套聚焦腿 104.92s），
+所以 #141 记档里「要先降成本才测得起」那句已被测量否证——按测量走，不登记进 `SLOW_TEST_MODULES`。
+
+**变异见证（预测先写在测试模块 docstring，实测后读）。** 控制腿 collected=6 且等于 AST 派生的
+`def test_` 数；6 臂 6/6 MATCHED、0 未判、逐臂 sha256 还原后被见证平面
+byte-identical。红集合按「案例踩哪条分支」预测而不是按名字，所以第一轮就全中：
+L1 compile 字典→1 红；L2 test_green 字典→2 红（终态那例走的正是这条检查）；
+L3 unverifiable 字典→1 红；L4 空 note 也写键→2 红（两条 absence 例）；
+L5 facts 键位丢了它→1 红（只红日志那半）；L6 整个机制没了→4 红，两条 absence 例照旧绿＝它们是对照。
+
+**仍未闭合。**
+- `deep_results` 依旧不入库、Web 界面读不到 DEEP 结论；HTTP 读路径要重生成 OpenAPI baseline，
+  而 `scripts/export_openapi.py` 仍是并发写者文件。
+- compose 武装（`SPECPROOF_ALLOWED_ROOT` + `SPECPROOF_EXEC_MODE=sandbox`）仍需用户批准；
+  今天没有任何 shipped 调用方同时传 `cache_dir` + `cache_manifest`，所以每份报告里的
+  `NOT VERIFIED` 都是真话。
+- 本弧的全量合并门数字仍未在干净平面重跑（这批只取聚焦腿）。
