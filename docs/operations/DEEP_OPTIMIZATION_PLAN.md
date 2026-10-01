@@ -976,3 +976,34 @@ JSON Action Envelope 块；再补一臂 M6＝自检腿改成自己拼 sections�
 
 **为什么现在不落。** 本批只剩记档的回合预算；一个没有见证的新例不如一条写清范围与预测的配方。
 按测量走，不按名字走。
+
+## #144 落地：自检提示词的执行面披露现在有证人，而它先抓到我自己的三条假预测
+
+**做了什么（只动测试）。** `tests/unit/test_diagnose_prompt_names_the_plane.py` 加第 6 例：
+不再从外面拼提示词，而是把 W44 自检腿 `_llm_fix_envelope` 真的驱动起来——第一份信封故意版本号
+不合法，逼出那条重试（`[self_check_repair]` 因此也进提示词），再用 recording client 收下两条
+真正发给模型的文本。生产代码字节没动（见证逐臂 sha256 还原后平面 byte-identical）。
+
+**实测门。** 模块 6 例 `6 passed in 3.43s`；信封机构腿 4 个文件
+（`test_craft_loop_metrics`/`test_toolcheck`/`test_craft_tools`/`test_craft_verify`）
+`89 passed / 0 failed, 112.66s`；#143 那条 10 文件影响面腿 `142 passed / 0 failed, 267.74s`
+仍成立（生产未变）。
+
+**预测订正（先记错的那半，不是事后改数字）。** 第一轮 7 臂见证 **拒收**（exit 1，3 臂未判），
+三条都在预测侧，全部按实测订正而不是把断言改松：
+- M1（context 丢键）预测 4 红，实测 5 红——多出来的是新例：自检腿 `sections = dict(context)`
+  复制的正是同一个字典，所以「删键」这条线在两条腿上都有后果。
+- M5（执行面块丢 `mode` 行）预测 3 红，实测 4 红，同一原因（新例也钉 `mode=`）。
+- **M7 存活**（预测 1 红，实测 0 红）——这条抓到的是我自己的假钉子：我原本断言信封块的
+  「首行出现在提示词里」，而 envelope 模式的 context 自己就引用了那段契约文字，于是
+  `include_envelope=False` 也照样绿。钉子改成**位置**断言（信封块必须是提示词的结尾），
+  重跑后 M7 恰 1 红。教训与 #141 的 C5 同一型：一条 absence/presence 断言如果不绑定
+  「只有被测机制才会产生的那个形状」，它就是零证据。
+订正后端到端：控制腿 collected=6 且等于 AST 派生 `def test_` 数，M1–M7 **7/7 MATCHED、
+0 未判**，逐臂 sha256 还原后平面 byte-identical。
+
+**§#144 配方里那句「两处 assemble 都带披露」现在有了证人**：结构性事实（单 return + dict 复制）
+不再只是读代码得到的保证，M6 一臂（自检腿自己拼 sections 丢掉这个键）会立刻红。
+
+**仍未闭合。** `deep_results` 入库与 Web 读路径（并发写者文件 + OpenAPI 重导）、compose 武装
+（要用户批准）、以及本弧 #140–#144 的干净平面全量合并门数字。
