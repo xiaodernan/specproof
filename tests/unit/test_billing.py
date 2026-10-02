@@ -33,12 +33,15 @@ from storage.billing import (
     _SCHEMA_MYSQL,
     _SCHEMA_SQLITE,
     DEFAULT_PLANS,
+    INVOICE_TRANSITIONS,
     METRIC_SET,
     METRIC_VALUES,
     BillingStore,
     BillingWriter,
     DuplicatePlanError,
     InMemoryBillingStore,
+    InvalidInvoiceTransitionError,
+    InvoiceNotFoundError,
     MySqlBillingStore,
     PlanNotFoundError,
     QuotaExceededError,
@@ -56,6 +59,24 @@ from storage.billing import (
 from storage.tenant_scope import TENANT_SCOPE_VAR, TenantScope
 
 HMAC_KEY = "test" + "-hmac-" + "billing-w40"
+
+
+class _FakeRateLimitRedis:
+    """Backs enforce_rate_limit (imported at call time from storage.redis).
+
+    `.client` returns self so the fail-open warning never fires; incr
+    always reports 1, which no billing test throttles on.
+    """
+
+    @property
+    def client(self) -> _FakeRateLimitRedis:
+        return self
+
+    def incr(self, key: str) -> int:
+        return 1
+
+    def expire(self, key: str, ttl: int) -> None:
+        pass
 MYSQL_URL = os.getenv("MYSQL_URL")
 
 
@@ -106,6 +127,18 @@ def _scenario(store: BillingStore) -> dict[str, Any]:
     )
     assert store.get_invoice("tenant-a", "2026-08") == invoice
     assert [i.period for i in store.list_invoices("tenant-a")] == ["2026-08"]
+
+    # #148: the draft→issued→paid column now has a driveable state
+    # machine — forward only, idempotent replay, refusal changes nothing.
+    assert store.transition_invoice("tenant-a", "2026-08", "issued").status == "issued"
+    assert store.transition_invoice("tenant-a", "2026-08", "issued").status == "issued"
+    assert store.transition_invoice("tenant-a", "2026-08", "paid").status == "paid"
+    with pytest.raises(InvalidInvoiceTransitionError):
+        store.transition_invoice("tenant-a", "2026-08", "issued")
+    with pytest.raises(InvoiceNotFoundError):
+        store.transition_invoice("tenant-ghost", "2026-08", "issued")
+    settled = store.get_invoice("tenant-a", "2026-08")
+    assert settled is not None and settled.status == "paid"
     return {"tenant": "tenant-a", "subscription": sub.id}
 
 
@@ -182,6 +215,44 @@ def test_cross_tenant_usage_isolation_sqlite(tmp_path: Path) -> None:
     assert [r.event_id for r in store.list_usage("tenant-a", 0.0, 100.0)] == ["a:1"]
     assert len(store.list_usage("tenant-b", 0.0, 100.0)) == 1
     assert len(store.list_usage(None, 0.0, 100.0)) == 2
+    store.close()
+
+
+def test_invoice_lifecycle_refuses_skips_backwards_and_unknown_words(
+    tmp_path: Path,
+) -> None:
+    """#148: one place spells out every refused step of draft→issued→paid."""
+    store = SqliteBillingStore(tmp_path / "billing.db")
+    seed_default_plans(store)
+    store.create_invoice(
+        "tenant-a", "2026-08", [{"metric": "plan", "amount": 1.0}],
+        1.0, "USD", "draft",
+    )
+    # draft -> paid skips issued: refused, reported with both ends,
+    # and the row is untouched by the refusal.
+    with pytest.raises(InvalidInvoiceTransitionError) as exc:
+        store.transition_invoice("tenant-a", "2026-08", "paid")
+    assert exc.value.current == "draft"
+    assert exc.value.requested == "paid"
+    untouched = store.get_invoice("tenant-a", "2026-08")
+    assert untouched is not None and untouched.status == "draft"
+    # An unknown word is a vocabulary error, not a lifecycle step.
+    with pytest.raises(ValueError):
+        store.transition_invoice("tenant-a", "2026-08", "settled")
+    assert store.transition_invoice("tenant-a", "2026-08", "issued").status == "issued"
+    assert store.transition_invoice("tenant-a", "2026-08", "paid").status == "paid"
+    # paid is terminal: backward and forward-skip both refused.
+    with pytest.raises(InvalidInvoiceTransitionError):
+        store.transition_invoice("tenant-a", "2026-08", "issued")
+    with pytest.raises(InvalidInvoiceTransitionError):
+        store.transition_invoice("tenant-a", "2026-08", "draft")
+    # reverse control: another tenant has no invoice here to move.
+    with pytest.raises(InvoiceNotFoundError):
+        store.transition_invoice("tenant-b", "2026-08", "issued")
+    # The map itself is exactly the §4 vocabulary, nothing more.
+    assert {k: sorted(v) for k, v in INVOICE_TRANSITIONS.items()} == {
+        "draft": ["issued"], "issued": ["paid"], "paid": [],
+    }
     store.close()
 
 
@@ -408,6 +479,7 @@ def billing_tenant_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     reset_oidc_validator()
     reset_billing_store()
     reset_billing_writer()
+    monkeypatch.setattr("storage.redis.RedisStore", _FakeRateLimitRedis)
 
 
 @pytest.fixture()

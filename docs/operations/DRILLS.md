@@ -335,6 +335,31 @@ mypy . 221 文件: 唯一红 `agent/worker.py:422` (notify outbox 重名变量, 
 ruff . 全仓 27 错: 全部并发会话在途文件 (`agent/worker.py` 重名变量、`storage/mysql.py`、`demo/.../UserController.java`、5 个 test_*.py、`.scratch/`) — 本批文件全绿
 口径: 与 FIX-20/FIX-17 同 — 共享工作树, 外部红仅归因, 不计入本批通过率。
 
+| FIX-23 | (#148) **发票状态机 draft→issued→paid 只存在于文档, 产品面没有一个可调用的状态转移**。功能面: `api/routes/billing.py` GET /invoices 的 docstring 原话 "the state machine draft→issued→paid is exercised by the store API" — 而 `BillingStore` 协议只有 create/get/list 三个发票方法, 全无 transition;`tests/unit/test_billing.py` 里 `issued`/`paid`/`transition` 实测 0 命中; `BILLING_DESIGN.md` §4 与 `DATA_DICTIONARY.md` invoices.status 列却同源写着 draft→issued→paid。即: 台账承诺会流转的列, 实际只能停在 create_invoice 写入的那个词, 没有任何代码路径能推动它, 而 route docstring 正给这个假事实背书 | 月初账单流程 (生成→开具→收款) 在产品面没有合法推进路径: 月结/对账/催款没有可调用原语; 读者按设计文档与 docstring 以为 status 会自动流转, 读到的却是一根死列; docstring 把"已锻炼"写给一个不存在的 API, 是 FIX-14 同型的假声称 (声称在产品代码里, 台账无此句, 故按修法直接改口为真) | `storage/billing.py`: `INVOICE_TRANSITIONS` (draft→{issued}, issued→{paid}, paid→∅ — 单向、无跳跃、paid 终态) + `InvoiceNotFoundError`/`InvalidInvoiceTransitionError` (均 BillingStoreError 子类, 携带 current/requested) + 协议方法 `transition_invoice(tenant_id, period, to_status)`, 三后端同语义: InMemory 锁内直改; SQLite/MySQL 走 CAS `UPDATE … WHERE tenant_id/period/status = 预读值`, rowcount=0 → 重读按实际状态裁决 (已等于目标 = 并发赢家幂等接受, 否则按实际状态抛 Invalid), 词汇校验 `_validate_invoice_status` 先于一切 (bogus → ValueError), 同状态 = 幂等重放 (crash-retry 安全), (tenant, period) 错键 → NotFound 不静默。HTTP 写面不开: RBAC billing 只有 `billing:read` (`test_scope_vocabulary_at_mint` 钉住词表), 发票仍由月初 cron/ensure_invoice 生成, 转移是 store API。route docstring 改口为点名 `BillingStore.transition_invoice` (#148) — 真身在了才写得下。**测试卫生 (环境面)**: `billing_tenant_env` 补 `storage.redis.RedisStore` 假件 — 本机实测 docker 停机后 redis 连接失败路径 **48s/次** (redis-py 8 重试栈, 单次尝试 4.07s), 不接假件的 billing HTTP 测试会从秒级变成环境性爬行; 与 test_api_jobs/test_api_errors 等同一接法 (`.client` 回自身, fail-open 零告警)。**诚实边界**: `agent/worker.py` 的 meter end 计量缝本批不钉 — 该区域正被并发会话在途改动覆盖, 按归因口径延后 | `tests/unit/test_billing.py` 29 collected → **28 passed + 1 skipped** (MySQL 门控): `_scenario` 扩展让 InMemory/SQLite (MySQL 在 MYSQL_URL 下同路) 每次都走完 issued→issued 幂等→paid→回退拒→错租户 NotFound, 专测 `test_invoice_lifecycle_refuses_skips_backwards_and_unknown_words` 把跳档/回退/未知词/paid 终态/地图词表一次钉死; `tests/unit/test_live_money_path.py` **4 通过** (活钱链 202→§6 租户戳 (body tenant_id 被中间件剥离)→meter→usage→draft 对账 total==Σ; free 配额耗尽同请求翻 429 且假 MySQL 行数不增; 状态机经 store 走完且 HTTP 读回 paid; 跨租户 usage 双向不可见 + 错键 NotFound 且对方 draft 原样), 合跑 32 passed/1 skipped/7.37s; 缺口门 11 通过; 本批 4 文件 ruff 全绿、mypy 全绿。**变异探针与全量合并门数字见本行下方追记** |
+
+**FIX-23 变异探针逐条记录 (8/8 判红、字节级还原、最终绿):**
+M1 draft 边改指 paid (允许跳档 + 拒绝正步) → 4 红 (两 scenario + 专测 + E2E T3) ✅
+M2 撤掉幂等重放分支 (同状态改抛) → 3 红 (两 scenario + E2E T3) ✅ — 专测无同状态调用, 红集合按实测收窄
+M3 SQLite 预读缺行改抛 ValueError 而非 NotFound → 3 红 (sqlite scenario + 专测 + E2E T4) ✅
+M4 SQLite 转移撤掉词汇校验 → 2 红 (专测 + E2E T3 的 bogus 词断言) ✅
+M5 配额预检映射撤掉 POST /jobs → 2 红 (既有 preflight 测试 + E2E T2, 均期望 429) ✅
+M6 中间件 body tenant_id 剥离改直通 → 1 红 (E2E T1: 422 拒绝未知字段) ✅
+M7 GET /invoices?period 撤掉 ensure_invoice → 3 红 (既有 draft 生成测试 + E2E T1 + E2E T3) ✅
+M8 verify-start 计量 1.0 → 1.5 → 2 红 (E2E T1 usage 断言 + 既有 meter 投影测试) ✅
+全部 8 条探针: 预测集合 == 实测集合, 无 missing/extra, 还原后与突变前内容逐字节一致; 基线跑零红。
+见完整报告: `mutations_148.txt` (临时区, 与驱动 `mutate_148.py` 同目录)。
+**FIX-23 全量合并门追记 (在本批待提交树上跑, 含并发会话在途文件):**
+日志: `gate_20261002-1335.log`
+通过/失败/跳过/耗时: **3459 passed / 9 failed / 28 skipped / 2613.40s (43m33s)**
+本批三文件在门内全绿: `test_billing.py` 28+1skip (MySQL parity 门控) + `test_live_money_path.py` 4 通过 + 缺口门 11 通过。
+失败归因:
+  - 4 条并发会话在途 `agent/worker.py` notify outbox 车道: `test_worker_notify_outbox.py` 3 条 + `test_job_state_machine.py::TestNotifyIntentRidesTheTerminalWrite` 1 条 (与 #138 同源, 非本批文件, 归因不改)
+  - 5 条既存/环境红: `test_audit_disposition_labels.py` 1 条 + `test_job_reclaimer.py` 2 条 + `test_sql_text_static.py` 1 条 (与 #138 同批) + `test_subprocess_text_encoding.py` 债务门 1 条 (108 unpinned child captures 全在并发会话 `.scratch/plane144/`, 非本批; #138 时红的 `test_no_key_leak` 本轮已绿)
+跳过 28: 16 条 `test_job_state_machine.py` (并发在途新增 skip) + 1 条本批 MySQL parity 门控 + 11 条分散既存/环境 skip。
+耗时说明: docker 停机致 redis 不可达, 未接假件的 HTTP 测试走 fail-open 重试爬行 (单请求可达 48s, 见本行修法段) + 同机另有两个 pytest 会话在跑。
+口径: 与 FIX-20/FIX-17 同 — 共享工作树, 外部红仅归因, 不计入本批通过率。
+
+
 ## 6. 待基础设施 / 需开发清单 (如实标注, 均给出精确缺口位置)
 
 | # | 项目 | 缺口位置 | 状态 |

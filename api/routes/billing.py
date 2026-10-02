@@ -287,8 +287,8 @@ async def list_invoices(
 
     When period is given and no invoice exists yet, the draft invoice is
     generated on demand from the ledger (the production cron will call the
-    same ensure_invoice at month start; the state machine draft→issued→paid
-    is exercised by the store API).
+    same ensure_invoice at month start; the draft→issued→paid steps
+    themselves only walk through BillingStore.transition_invoice, #148).
     """
     _require_tenant_mode()
     principal = _principal(request)

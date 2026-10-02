@@ -36,7 +36,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -85,6 +85,17 @@ QUOTA_KEY_BY_METRIC: dict[str, str] = {
 SUBSCRIPTION_STATUS_VALUES: frozenset[str] = frozenset({"active", "cancelled"})
 INVOICE_STATUS_VALUES: frozenset[str] = frozenset({"draft", "issued", "paid"})
 
+#: The invoice lifecycle BILLING_DESIGN.md §4 mandates: draft → issued →
+#: paid. A step is legal only into a status registered for the CURRENT
+#: one (#148). Asking for the status the invoice already holds is an
+#: idempotent replay (a crashed caller may retry); every other step is
+#: refused before any write touches the row.
+INVOICE_TRANSITIONS: dict[str, frozenset[str]] = {
+    "draft": frozenset({"issued"}),
+    "issued": frozenset({"paid"}),
+    "paid": frozenset(),
+}
+
 DEFAULT_CURRENCY = "USD"
 
 #: Seeded plans: free is hard-stop everywhere (empty overage); pro is
@@ -129,6 +140,36 @@ class PlanNotFoundError(BillingStoreError):
 
 class InvoiceExistsError(BillingStoreError):
     """An invoice for this (tenant, period) already exists."""
+
+
+class InvoiceNotFoundError(BillingStoreError):
+    """No invoice exists for this (tenant_id, period)."""
+
+    def __init__(self, tenant_id: str, period: str) -> None:
+        self.tenant_id = tenant_id
+        self.period = period
+        super().__init__(
+            f"invoice for tenant {tenant_id!r} period {period!r} does not exist"
+        )
+
+
+class InvalidInvoiceTransitionError(BillingStoreError):
+    """An invoice state-machine step the draft→issued→paid lifecycle
+    forbids (#148). Carries current/requested so callers can report the
+    exact refused step; the invoice row is left untouched. """
+
+    def __init__(
+        self, tenant_id: str, period: str, current: str, requested: str,
+    ) -> None:
+        self.tenant_id = tenant_id
+        self.period = period
+        self.current = current
+        self.requested = requested
+        super().__init__(
+            f"invoice {tenant_id!r}/{period!r} is {current!r}: "
+            f"{current!r} -> {requested!r} is not a legal step "
+            f"(lifecycle draft -> issued -> paid)"
+        )
 
 
 class QuotaExceededError(BillingStoreError):
@@ -267,6 +308,10 @@ class BillingStore(Protocol):
     def get_invoice(self, tenant_id: str, period: str) -> Invoice | None: ...
     def list_invoices(self, tenant_id: str) -> list[Invoice]: ...
 
+    def transition_invoice(
+        self, tenant_id: str, period: str, to_status: str,
+    ) -> Invoice: ...
+
 
 # ── Validation / parsing helpers ─────────────────────────────────────────────
 
@@ -293,6 +338,23 @@ def _validate_invoice_status(status: str) -> str:
             f"expected one of {sorted(INVOICE_STATUS_VALUES)}"
         )
     return status
+
+
+def _check_invoice_step(
+    tenant_id: str, period: str, current: str, requested: str,
+) -> str:
+    """Classify one invoice state-machine step (#148): 'noop' or 'advance'.
+
+    Anything not registered in INVOICE_TRANSITIONS for `current` is
+    refused with InvalidInvoiceTransitionError BEFORE any write; asking for
+    the status already held is an idempotent replay of the caller's own
+    intent (crash-retry safe).
+    """
+    if requested == current:
+        return "noop"
+    if requested in INVOICE_TRANSITIONS.get(current, frozenset()):
+        return "advance"
+    raise InvalidInvoiceTransitionError(tenant_id, period, current, requested)
 
 
 def _parse_metric_map(raw: Any) -> dict[str, float]:
@@ -514,6 +576,13 @@ _SELECT_INVOICE_SQL: str = (
 )
 _LIST_INVOICES_SQL: str = (
     "SELECT * FROM invoices WHERE tenant_id = ? ORDER BY period DESC"
+)
+#: CAS transition: the UPDATE only moves the status the pre-read judged,
+#: so a racing writer's win shows up as rowcount=0 instead of a lost
+#: update; the caller then re-reads and judges the ACTUAL status.
+_UPDATE_INVOICE_STATUS_SQL: str = (
+    "UPDATE invoices SET status = ? "
+    "WHERE tenant_id = ? AND period = ? AND status = ?"
 )
 
 
@@ -770,6 +839,22 @@ class InMemoryBillingStore:
             ]
         return sorted(rows, key=lambda i: i.period, reverse=True)
 
+    def transition_invoice(
+        self, tenant_id: str, period: str, to_status: str,
+    ) -> Invoice:
+        to_status = _validate_invoice_status(to_status)
+        with self._lock:
+            invoice = self._invoices.get((tenant_id, period))
+            if invoice is None:
+                raise InvoiceNotFoundError(tenant_id, period)
+            action = _check_invoice_step(
+                tenant_id, period, invoice.status, to_status,
+            )
+            if action == "advance":
+                invoice = replace(invoice, status=to_status)
+                self._invoices[(tenant_id, period)] = invoice
+        return invoice
+
 
 # ── SQLite backend ───────────────────────────────────────────────────────────
 
@@ -970,6 +1055,40 @@ class SqliteBillingStore:
                 _LIST_INVOICES_SQL, (tenant_id,),
             ).fetchall()
         return [_row_to_invoice(row) for row in rows]
+
+    def transition_invoice(
+        self, tenant_id: str, period: str, to_status: str,
+    ) -> Invoice:
+        to_status = _validate_invoice_status(to_status)
+        with self._lock, self._conn:
+            row = self._conn.execute(
+                _SELECT_INVOICE_SQL, (tenant_id, period),
+            ).fetchone()
+            if row is None:
+                raise InvoiceNotFoundError(tenant_id, period)
+            invoice = _row_to_invoice(row)
+            action = _check_invoice_step(
+                tenant_id, period, invoice.status, to_status,
+            )
+            if action == "advance":
+                cur = self._conn.execute(
+                    _UPDATE_INVOICE_STATUS_SQL,
+                    (to_status, tenant_id, period, invoice.status),
+                )
+                if cur.rowcount == 0:
+                    fresh = self._conn.execute(
+                        _SELECT_INVOICE_SQL, (tenant_id, period),
+                    ).fetchone()
+                    if fresh is None:
+                        raise InvoiceNotFoundError(tenant_id, period)
+                    actual = _row_to_invoice(fresh).status
+                    if actual == to_status:
+                        return _row_to_invoice(fresh)
+                    raise InvalidInvoiceTransitionError(
+                        tenant_id, period, actual, to_status,
+                    )
+                invoice = replace(invoice, status=to_status)
+        return invoice
 
 
 # ── MySQL backend ────────────────────────────────────────────────────────────
@@ -1190,6 +1309,43 @@ class MySqlBillingStore:
             cur.execute(_to_mysql(_LIST_INVOICES_SQL), (tenant_id,))
             rows = cur.fetchall()
         return [_row_to_invoice(cast(dict[str, Any], row)) for row in rows]
+
+    def transition_invoice(
+        self, tenant_id: str, period: str, to_status: str,
+    ) -> Invoice:
+        to_status = _validate_invoice_status(to_status)
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(_to_mysql(_SELECT_INVOICE_SQL), (tenant_id, period))
+            row = cur.fetchone()
+            if row is None:
+                raise InvoiceNotFoundError(tenant_id, period)
+            invoice = _row_to_invoice(cast(dict[str, Any], row))
+            action = _check_invoice_step(
+                tenant_id, period, invoice.status, to_status,
+            )
+            if action == "advance":
+                cur.execute(
+                    _to_mysql(_UPDATE_INVOICE_STATUS_SQL),
+                    (to_status, tenant_id, period, invoice.status),
+                )
+                if cur.rowcount == 0:
+                    cur.execute(
+                        _to_mysql(_SELECT_INVOICE_SQL), (tenant_id, period),
+                    )
+                    fresh = cur.fetchone()
+                    if fresh is None:
+                        raise InvoiceNotFoundError(tenant_id, period)
+                    actual = _row_to_invoice(
+                        cast(dict[str, Any], fresh)
+                    ).status
+                    if actual == to_status:
+                        return _row_to_invoice(cast(dict[str, Any], fresh))
+                    raise InvalidInvoiceTransitionError(
+                        tenant_id, period, actual, to_status,
+                    )
+                invoice = replace(invoice, status=to_status)
+        return invoice
 
 
 # ── Store factory (SPECPROOF_BILLING_URL, agent_jobs convention) ─────────────
