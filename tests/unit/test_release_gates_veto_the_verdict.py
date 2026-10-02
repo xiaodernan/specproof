@@ -25,22 +25,28 @@ Honesty rules this section pins, each with its own case:
   - a tier that never ran (FAST/DEEP, `release_results={}`) is untouched — "no gate"
     is not "a gate that refused";
   - a gate that checked an empty roster, or recorded no flag, is 未判定 — it can
-    refuse a certificate but never support one.
+    refuse a certificate but never support one (#152: before this, only the tier's
+    summary flag could refuse, so `capsule_integrity=[]` with `passed=True` certified
+    a run that had checked nothing, while the report called the same row 未判定);
+  - when the rows all agree and only the summary refuses, the refusal names itself —
+    a reader must never see "every gate 通过, therefore BLOCKED".
 
 Mutation arms, with the red set predicted from which branch each case walks (written
 into this docstring before the witness ran, not after):
 
   V1 the CLI call stops passing `release=`         -> 9, 12 (2)
-  V2 the veto never fires                          -> 2,3,6,7,8,9,12 (7)
+  V2 the veto never fires                          -> 2,3,6,7,8,9,12,13,14,15 (10)
   V3 a gate set that names nothing still vetoes     -> 4 (1)
   V4 the notice stops quoting the gate's own reason -> 9 (1)
   V5 the veto also rewrites a FAILED job           -> 5 (1)
-  V6 an empty capsule roster reads as 通过          -> 7 (1)
-  V7 a gate with no `passed` flag reads as 通过     -> 6 (1)
+  V6 an empty capsule roster reads as 通过          -> 7, 13 (2)
+  V7 a gate with no `passed` flag reads as 通过     -> 6, 14 (2)
   V8 the gate names stop being sorted               -> 8 (1)
+  V9 only the summary flag can refuse (pre-#152)    -> 13, 14 (2)
+  V10 the summary's own refusal is never named      -> 15 (1)
 
 Cases 1, 10 and 11 are the no-false-refusal controls: they must stay green under every
-arm, which is what makes V2/V3/V5 evidence rather than decoration.
+arm, which is what makes V2/V3/V5/V9 evidence rather than decoration.
 """
 
 from __future__ import annotations
@@ -380,3 +386,33 @@ def test_12_the_published_check_carries_the_vetoed_verdict(
     )
     assert len(run["checks"]) == 1
     assert run["checks"][0]["verdict"] == "BLOCKED"
+
+
+def test_13_an_unchecked_roster_cannot_certify_even_when_the_flag_says_passed() -> None:
+    """#152: this is exactly what `run_release_checks` writes for a capsule-free run."""
+    release = {
+        "passed": True,
+        "gates": {"reproducibility": _REPRO_PASSED, "capsule_integrity": []},
+    }
+    decision = _accept(release)
+    assert decision.status == "BLOCKED"
+    assert "没有条目可校验" in decision.reason
+    assert "reproducibility: 通过" in decision.reason, "the gate that did work stays credited"
+
+
+def test_14_a_gate_without_a_flag_cannot_certify_even_when_the_flag_says_passed() -> None:
+    release = {"passed": True, "gates": {"reproducibility": _REPRO_NO_FLAG}}
+    decision = _accept(release)
+    assert decision.status == "BLOCKED"
+    assert "未判定" in decision.reason
+
+
+def test_15_a_refused_summary_names_itself_when_every_row_agrees() -> None:
+    release = {
+        "passed": False,
+        "gates": {"reproducibility": _REPRO_PASSED, "capsule_integrity": [_CAPSULE_OK]},
+    }
+    reasons = _accept(release).reasons
+    assert any("总判定: 未通过" in reason for reason in reasons)
+    assert all(reason.startswith(RELEASE_GATE_REASON_PREFIX) for reason in reasons)
+    assert len(reasons) == 3

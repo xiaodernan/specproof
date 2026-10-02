@@ -82,21 +82,35 @@ def release_gate_veto(release: Mapping[str, Any] | None) -> tuple[str, tuple[str
     strongest tier the product offers certified a campaign whose evidence had
     just failed to reproduce.
 
-    Returns ``(status, reasons)``; ``("", ())`` when the tier recorded no gate
-    verdict to listen to — a FAST/DEEP job, or a caller that never ran the node.
-    The status stays inside this module's existing vocabulary: a gate refusal
-    blocks acceptance, it does not invent a fourth state.
+    Refusal is read from two places, because they can disagree (#152): the tier's
+    own summary flag, and the per-gate rows. A row that could not be judged — no
+    flag, or a roster with nothing in it — refuses just like a row that refused:
+    an unchecked gate may block an acceptance, it may never support one. The
+    returns stay ``(status, reasons)``, and ``("", ())`` means there was no gate
+    verdict to listen to at all (a FAST/DEEP job, or a caller that never ran the
+    node). The status stays inside this module's existing vocabulary: a gate
+    refusal blocks acceptance, it does not invent a fourth state.
     """
     payload = release if isinstance(release, Mapping) else {}
     gates = payload.get("gates")
     if not isinstance(gates, Mapping) or not gates:
         return "", ()
-    if payload.get("passed") is True:
+    words = {name: _gate_row(name, gates[name]) for name in sorted(gates)}
+    refused = payload.get("passed") is not True or any(
+        word != "通过" for word in words.values()
+    )
+    if not refused:
         return "", ()
     reasons = tuple(
-        f"{RELEASE_GATE_REASON_PREFIX} {name}: {_gate_row(name, gates[name])}"
-        for name in sorted(gates)
+        f"{RELEASE_GATE_REASON_PREFIX} {name}: {words[name]}" for name in words
     )
+    if all(word == "通过" for word in words.values()):
+        # Every row agrees while the tier's own summary refuses: say which of the
+        # two refused, instead of handing the reader "all gates passed, therefore
+        # blocked".
+        reasons += (
+            f"{RELEASE_GATE_REASON_PREFIX} 总判定: 未通过（节点汇总旗标拒绝）",
+        )
     return "BLOCKED", reasons
 
 

@@ -19,7 +19,11 @@ Honesty rules this section is built on, each pinned by a case:
   - a tier that never ran produces no per-gate verdict, and the words 通过 must not appear;
   - a caller with no release state at all gets no section (silence, not reassurance);
   - a gate that checked an empty set is 未判定, not "all digests match";
-  - a gate entry carrying no `passed` flag is 未判定 — the flag is the only source of verdicts.
+  - a gate entry carrying no `passed` flag is 未判定 — the flag is the only source of verdicts;
+  - #152: the headline is not the summary flag's echo. A run whose flag says 通过 while a gate
+    row reads 未判定 or 未通过 must not open with 总判定: 通过 — that is the same shape the
+    verdict policy refuses on, so one run cannot look passed here and blocked there. Equally, a
+    refusal that came from the flag alone is not dressed up as an unjudged gate.
 
 Mutation arms, with red sets predicted from which branch each case walks (written before the
 witness ran, not after):
@@ -28,13 +32,31 @@ witness ran, not after):
   R2 the not-requested branch says the gates passed  -> 3 (1)
   R3 the empty-capsule branch is dropped             -> 5 (1)
   R4 a gate with no `passed` flag reads as passed    -> 8 (1)
-  R5 the section is never inserted into the document -> 1,2,3,5,6,7,8 (7); 4,9,10 stay green
+  R5 the section is never inserted into the document -> 1,2,3,5,6,7,8,11,12 (9); 4,9,10 stay green
   R6 a capsule path is rendered unescaped            -> 7 (1)
-  R7 the overall verdict ignores `passed`            -> 2 (1)
+  R7 the headline follows only the summary flag      -> 2, 11 (2)
+  W1 the row scan's answer is discarded              -> 5, 8, 12 (3)
+  W2 a refusal stops naming the gates it rests on    -> 12 (1)
+  W3 only 未判定 rows can withhold credit            -> 12 (1)
+
+W1 and W3 share a victim but destroy different clauses: W3 keeps the row scan and drops its 未通过
+half, which is why case 12 (a refused row under a passing flag) exists at all — without it, W3
+would be indistinguishable from W1 and the 未判定/未通过 distinction would be untested prose.
+R7 is the mirror image of W1: it removes the flag, not the rows.
+
+W1's first draft was `if verdict != "通过"]` -> `if verdict != "没有这种判定词"]`, labelled "finds
+nothing to withhold credit". That predicate is true for *every* row, so the arm withheld credit from
+campaigns whose gates all passed: the leg came back red on case 1 with 5/8/12 green — the arm's name
+and its effect disagreed, and the pre-written prediction judged the arm, not the code. Re-pointed to
+a plain discard (`uncredited = []`); `evidence/report.py` was not touched to fit the arm.
 
 Case 4 (legacy caller) stays green under R1/R5 by design: it asserts an absence, and an absent
 section cannot make an absence assertion fail. That is why it is paired with 9/10, which assert
 the carrier is actually wired.
+
+R7 was re-pointed by #152. It used to read `overall_word = "通过" if payload.get("passed") is True
+else "未通过"`; that line is gone, and an arm whose patch site vanished is not an arm, so it now
+targets `flag_passed` — the same claim, one variable earlier.
 """
 
 from __future__ import annotations
@@ -101,6 +123,7 @@ def test_2_a_failed_gate_cannot_look_like_a_pass() -> None:
     }
     html = _render(release=payload, release_note="RELEASE gates: FAILED")
     assert "发布门总判定: 未通过" in html
+    assert "有门未判定或未通过" not in html, "a flag refusal is not an unjudged gate"
     assert "reproducibility: 未通过" in html
     assert "first_head_pass=True" in html
     assert "rerun_head_pass=False" in html
@@ -125,6 +148,12 @@ def test_5_an_empty_capsule_set_is_not_a_pass() -> None:
     assert "capsule_integrity: 未判定" in html
     assert "没有条目可校验" in html
     assert "全部相符" not in html
+    # #152: this is the shape `run_release_checks` really writes for a capsule-free
+    # run — the summary flag stays True. The headline has to refuse it, the same way
+    # the verdict policy does; a report may not open 通过 where the acceptance says
+    # BLOCKED.
+    assert "发布门总判定: 通过" not in html
+    assert "有门未判定或未通过" in html
 
 
 def test_6_an_unopenable_capsule_is_named() -> None:
@@ -166,6 +195,49 @@ def test_8_a_gate_without_a_flag_is_undecided_not_passed() -> None:
     html = _render(release=payload, release_note="ran")
     assert "signing: 未判定" in html
     assert "signing: 通过" not in html
+    assert "发布门总判定: 通过" not in html
+    assert "有门未判定或未通过" in html
+
+
+def test_11_the_flag_refusing_alone_is_not_reported_as_an_unjudged_gate() -> None:
+    """Every gate did its work and said 通过; only the tier's summary refuses.
+
+    The headline has to follow the flag down (that is what separates this from case 1)
+    without inventing an unjudged gate — the reader must be able to tell "the node said
+    no" from "a gate never answered".
+    """
+    payload: dict[str, Any] = {
+        "passed": False,
+        "gates": {
+            "reproducibility": {"passed": True, "rerun_mode": "local"},
+            "capsule_integrity": [{"capsule": "reports/capsule-1.zip", "digest_ok": True}],
+        },
+    }
+    html = _render(release=payload, release_note="RELEASE gates: FAILED")
+    assert "reproducibility: 通过" in html
+    assert "capsule_integrity: 通过" in html
+    assert "发布门总判定: 未通过" in html
+    assert "有门未判定或未通过" not in html
+
+
+def test_12_a_refused_row_refuses_the_headline_even_under_a_passing_flag() -> None:
+    """The 未通过 half of the row scan, with the gate it rests on named.
+
+    Case 5 and 8 cover 未判定 rows; without this case an arm that only honours 未判定
+    while a 未通过 row slips past is indistinguishable from one that drops the scan.
+    """
+    payload: dict[str, Any] = {
+        "passed": True,
+        "gates": {
+            "capsule_integrity": [
+                {"capsule": "reports/bad.zip", "error": "File is not a zip file"}
+            ]
+        },
+    }
+    html = _render(release=payload, release_note="RELEASE gates: PASSED")
+    assert "capsule_integrity: 未通过" in html
+    assert "发布门总判定: 通过" not in html
+    assert "发布门总判定: 未通过（有门未判定或未通过: capsule_integrity）" in html
 
 
 def _drive_node(

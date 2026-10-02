@@ -224,14 +224,29 @@ def _render_release_gates(
 
     gates = payload.get("gates")
     gate_rows = gates if isinstance(gates, dict) else {}
-    overall = "pass" if payload.get("passed") is True else "fail"
-    overall_word = "通过" if payload.get("passed") is True else "未通过"
+    rendered = sorted(
+        (name, _gate_verdict(entry, safe)) for name, entry in gate_rows.items()
+    )
+    flag_passed = payload.get("passed") is True
+    # The tier's own summary flag cannot certify the headline by itself (#152): a
+    # gate that checked an empty roster, or recorded no flag, reads 未判定 in its row,
+    # and "未判定" may never support an acceptance — not in the verdict policy, and
+    # not as the first sentence a reviewer reads here. So the headline and the
+    # verdict answer to the same rule, and one run cannot look passed in one and
+    # blocked in the other.
+    uncredited = [name for name, (_, verdict, _) in rendered if verdict != "通过"]
+    if not flag_passed:
+        overall, overall_word = "fail", "未通过"
+    elif uncredited:
+        # safe() on the names: the headline carries strings the payload supplied, and
+        # this section's rule is that everything from a run stays text (#150 case 7).
+        names = "、".join(str(safe(name)) for name in uncredited)
+        overall, overall_word = "fail", f"未通过（有门未判定或未通过: {names}）"
+    else:
+        overall, overall_word = "pass", "通过"
     rows = "".join(
         f'<li class="{css}">{safe(name)}: {verdict} — {detail}</li>'
-        for name, (css, verdict, detail) in sorted(
-            (name, _gate_verdict(entry, safe))
-            for name, entry in gate_rows.items()
-        )
+        for name, (css, verdict, detail) in rendered
     )
     if not rows:
         # The tier ran yet recorded no gate: the reader has to be able to tell

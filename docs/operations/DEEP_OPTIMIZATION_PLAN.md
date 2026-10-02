@@ -1308,3 +1308,66 @@ V7 无旗标的门读作 通过 ⇒ {6}；V8 门名不再排序 ⇒ {8}。
 - **#153**：CLI 按 verdict 退出码 + `mcp/tools.py` 的非零返回码分支（上面已量）。
 - 旧的 #151 之前欠的：`deep_results` 入库与 Web 读路径（需 `agent/worker.py`、`storage/mysql.py`、
   OpenAPI 重导，都是并发写者）；compose 武装仍待用户批准。
+### #152 「没有条目可校验」在三个地方有三种含义：汇总旗标不再单独作证
+
+**实测前提（写代码之前量的）**：`run_release_checks_node` 起手是
+`results = {"gates": {}, "passed": True}`，两道门都**只清除** `passed`、从不因为「什么都没校验」
+把它置灰：`capsules` 为空时写出的是 `capsule_integrity=[]` 而 `passed` 仍是 `True`。于是同一次运行
+在三个地方读出三种含义——节点：通过；#150 报告的门行：`未判定（没有条目可校验）`；#151 的否决：
+只看总旗标，所以**通过**，证书照签。一份什么都没校验的 RELEASE 活动对外宣告 VERIFIED，而它自己
+的报告下面那行写着「该门没有获得任何证据」。
+
+**为什么修下游不修节点**：节点的 `passed` 就是它自己的汇总旗标，语义没写错；错的是下游把旗标当作
+唯一证据。去改节点的旗标等于再发明第四种口径（#151 记档时预告的就是这一句）。
+
+**落了什么**：
+- `evidence/verdict.py::release_gate_veto`：拒绝读**两处**——总旗标不为真，**或**任一门行读作
+  未通过/未判定。一行既然不能证明通过，就不能在自己未被判定时无声地放行一份验收。反过来，当
+  每行都写着 通过、只有总旗标拒绝时，理由表末尾补一句 `总判定: 未通过（节点汇总旗标拒绝）`，
+  读者不会看到「全通过 ⇒ BLOCKED」这种自相矛盾。
+- `evidence/report.py::_render_release_gates`：报告标题不再复述旗标。旗标 True 而有门未判定/未通过
+  ⇒ `发布门总判定: 未通过（有门未判定或未通过: <门名>）`，门名过 `safe()`（这一节自己的规矩：
+  来自运行的字符串只能是文本）；旗标自己拒绝 ⇒ 仍只写 `未通过`，不冒充「有门没判定」。
+  于是同一次运行在报告和对外宣告里回答同一套口径。
+
+**四形必须互不混淆**（每形有自己的唯一证人）：
+1. 旗标 True 且每行 通过 ⇒ `通过`（报告案例 1／政策案例 1，对照腿）；
+2. 旗标 True 而有行 未判定 ⇒ 标题拒绝并点名（报告 5、8／政策 13、14）；
+3. 旗标 True 而有行 未通过 ⇒ 标题拒绝（报告 12，政策 V6 同臂下红）；
+4. 只有旗标拒绝、每行都 通过 ⇒ 标题 `未通过` 且**不带**「有门未判定」这句话；理由表带 `总判定`
+   那一句（报告 11、2／政策 15）。
+
+**见证**：`.scratch/g152/witness_all_152.py`，两张表一次跑完，控制腿
+`collected == AST def test_ 计数`（15 与 12）、0 红，20/20 MATCHED，还原后四个源文件字节相同。
+预测先写在两个门 docstring 里。政策面 V1–V10 与 #151 同一形状，新增
+V9 只让总旗标有权拒绝（#152 之前的口径）⇒ {13,14}、V10 拿掉 `总判定` 那句话 ⇒ {15}。
+报告面 R1–R6 是 #150 的原臂（R5 的预测因新增案例从 7 红改为 9 红），R7 **重新指过**：它原来打的
+`overall_word = ... if payload.get("passed") ...` 那行已被本次改写删掉，补丁行消失的臂不是臂，
+现在打 `flag_passed` ⇒ {2,11}；W1 discard 行扫描 ⇒ {5,8,12}、W2 拒绝不再点名 ⇒ {12}、
+W3 只认 未判定 不认 未通过 ⇒ {12}。
+第一轮 W1 被自己的标签骗了：写成 `!= "没有这种判定词"`，那句对**每行**都为真，于是它不是「什么都不
+扣」而是「逢门就扣」，红在案例 1 而 5/8/12 全绿——预写的预测判的是臂，不是代码；改成
+`uncredited = []` 后**整张表重跑**，`evidence/report.py` 一个字节没为臂让路。
+
+**门数字（干净平面，`git archive bed281b` 解到 `.scratch/plane152`，PYTHONPATH 钉在平面内并先印
+`evidence.report.__file__` / `evidence.verdict.__file__` 证明确实读的是平面）**：同一组十二个文件
+（两本发布门门 + 报告 DEEP 节 + `test_release_checks` + 八本会驱动 `verify` 命令的测试）
+HEAD = **170 passed / 0 红 / 0 错 / 0 skip**；把本号改动的两个源文件与两本门覆盖进去 = **175 passed / 0 红 / 0 错 / 0 skip**，
+即 **+5 例 / +0 红**（12→15 与 10→12 两次相加）。
+ruff 四个文件干净；mypy `evidence/report.py evidence/verdict.py` `Success: no issues found in
+2 source files`。
+
+**订正 #151 的口径（本号实测，不是漏网重试）**：#151 那一句「三个出口读同一个 `verdict` 变量」
+量的是 `verify` 命令进程。作业路径在**另一个进程**里自己算裁决：`agent/worker.py:314` 用
+`_terminal_status_from_state(final_state)` 取 MySQL 终态，`:319` 用 `_state_summary(final_state,
+verdict)` 落库，而这两个函数（worker.py:1081 / :1121）调的都是 `evaluate_verification`——全文件
+`grep release` 没有任何一处读 `release_results`。也就是说 Web/MySQL 上的 RELEASE 作业既不会因为
+发布门拒绝而变 BLOCKED，落库摘要的 `coverage_reason` 也说不清拒绝来自哪里。这一条另立 **#154**，
+它需要自己的案例与臂表（改的是持久化终态，属于产品状态机），不与本号混落。
+
+**下一号**：
+- **#154**（上面已量，两行调用点已定位）：作业路径听发布门。
+- **#153**：CLI 按 verdict 退出码 + `mcp/tools.py` 的非零返回码分支（#151 已量：现在根本不按裁决
+  退出，补退出码会先把 BLOCKED 摘要降级成 raw tail）。
+- 旧的欠账：`deep_results` 入库与 Web 读路径（`agent/worker.py`、`storage/mysql.py`、OpenAPI 重导
+  都是并发写者）；compose 武装仍待用户批准。
