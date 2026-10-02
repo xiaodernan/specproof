@@ -504,6 +504,12 @@ class FakeWorkerMysql:
         self.transitions.append((to_status, kwargs))
         return True
 
+    def transition_job_status_with_notify(
+        self, job_id: str, to_status: str, **kwargs: Any,
+    ) -> bool:
+        """Same durable effect; the notify payload rides the kwargs."""
+        return self.transition_job_status(job_id, to_status, **kwargs)
+
     def enter_provider_wait(self, job_id: str, **kwargs: Any) -> bool:
         self.waits.append((job_id, kwargs))
         return True

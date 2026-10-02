@@ -71,6 +71,13 @@ NON_STATIC_SQL_SITES: dict[str, str] = {
         "_split_statements only strips comments, and values still travel as "
         "bound parameters"
     ),
+    "storage/mysql.py::cursor.execute(_sql, params)": (
+        "transition_job_status_with_notify executes the SAME assembled "
+        "statement as transition_job_status — both come from the shared "
+        "_transition_statement helper (literal fragments + bound parameters, "
+        "no request data). The static prover proves single-function "
+        "dataflow, so the helper's return value needs this registration."
+    ),
 }
 
 
