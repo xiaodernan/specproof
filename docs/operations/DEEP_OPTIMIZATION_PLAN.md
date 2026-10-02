@@ -1033,3 +1033,36 @@ JSON Action Envelope 块；再补一臂 M6＝自检腿改成自己拼 sections�
 `.scratch/plane144`（`git archive HEAD` 冻结平面，PYTHONPATH 已钉，`craft.loop.__file__`
 实测落在平面内）后台跑，产物 `.scratch/plane144_gate.xml` / `.scratch/plane144_gate.log`
 （末行 `GATE_EXIT=`）。**没有读到汇总行之前，任何地方都不许引用这个弧的「全量门已过」。**
+
+## #146 本弧欠的那次干净平面全量门：数字到手，而它顺手抓到一条用户看得见的地雷
+
+**跑法（可归因的关键）。** `git archive HEAD` 冻结到 `.scratch/plane144`（平面＝`4ce4b58`，
+我的弧最后一次生产改动），CI 的单测腿原样：`pytest tests/unit tests/security tests/fault -q`，
+**PYTHONPATH 钉在平面根**，并实测 `craft.loop.__file__` 落在
+`.scratch/plane144/craft/loop.py`——不钉这一条，venv 的 editable-install `.pth` 会把
+「干净平面」偷偷换成带着并发写者脏文件的工作副本，数字就成了假证据。
+
+**数字（读的是 junit，不是退出码）。** `tests=3488 / failures=1 / errors=0 / skipped=30`，
+`time=3966.769s`，`GATE_EXIT=1`。历史那个「约 45 分钟」的口径在这个平面是 66 分钟：
+冻结平面没有共享缓存、机器上还有别的会话在跑——所以耗时照实记，不拿来当基线。
+**#140/#141/#142/#143/#144 这条弧至此才有可归因的全量门数字**，且这 1 条红不在弧里：
+弧动的文件是 `craft/`、`providers/`、`sandbox/` 与两个 `test_diagnose*`/`test_craft*` 文件。
+
+**那条红是确定的、可复现的，而且是一句真话。**
+`tests/unit/test_audit_disposition_labels.py::test_the_page_asks_for_the_parameter_the_handler_accepts`
+在冻结平面上单独重跑 `1 failed in 1.34s`，断言原文就是结论：
+`AssertionError: the page never sends target — the filter is cosmetic`。
+也就是说审计页那个按作业检索的筛选器**不把参数发出去**——用户填了、按了，结果集没被过滤。
+归属审计那条 lane（该测试文件最近三次提交是 #112/#107/#97），不是本弧引入的回归。
+
+**为什么这条比任何性能数字都重要。** 这正是「不好用」最坏的形状：控件看起来在工作。
+下一条（候选 #147）就是把它真的接上——页面把 `target` 发出去，并让那条门从
+「正则扫页面源码」升级成「真的把参数带到请求上」。先量归属再动手，别把别人的红当自己的修。
+
+**#145 的分支判断也量完了（修正上一轮的配方）。** 上一轮写「evidence 面板要么通用 JSON
+直出，要么根本没渲染」——实测落在**前者**：`AgentResult.tsx:129` 有
+`<details>查看完整执行记录</details>` 里 `JSON.stringify(result, null, 2)`，
+所以 `cache_note` 会露出，但是以**裸英文键名、折叠在原始 JSON 里**的形式；
+`AgentEventLog.tsx:79` 同样 `JSON.stringify(ev.data)`（那是并发写者文件，别碰）。
+结论：#145 不是「补面板」，而是把这条披露从原始 dump 里提出来放到有中文标签的位置，
+并按 #81/#87 那道「值有词」门的方式配词表——先查枚举门是否覆盖 evidence 键名。
