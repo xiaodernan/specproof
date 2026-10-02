@@ -1102,3 +1102,39 @@ JSON Action Envelope 块；再补一臂 M6＝自检腿改成自己拼 sections�
      ⇒ 门必须**绿**（这才是这条门真正的用途；旧写法在这里必红，即误响本体）。
 4. 顺带：#146 里「地雷」的说法作废，`Audit.tsx` 的 job 筛选器工作正常；真正的欠账还是
    #145（`cache_note` 在前端没有读者）。
+
+## #147 修那条误响的门：探针不再拿整本文件里的第一个 `pattern=`，而是绑到 `/audit` 自己的签名上
+
+**改动只在测试里，产品代码一字未动。** `test_the_page_asks_for_the_parameter_the_handler_accepts`
+原来的探针是 `re.search(r"(?m)^\s+(\w+): str \| None = Query\(default=None, pattern=", 整本 admin.py)`，
+取的是**全文第一个**匹配。#138（证书撤销）把 `/certificates/revocations` 的 `target` 写在 `/audit`
+**之前**，从此探针读的是别人的参数名，门便永久红在 `the page never sends target — the filter is
+cosmetic` —— 一句真话，说的却是一个**工作正常**的页面（#146 的"地雷"判断据此作废）。
+
+**改法（新增 `_audit_handler_block()` 助手）。** 锚 `@admin_router.get("/audit")`，在**下一个
+`@admin_router.` 装饰之前**截断，得到 `/audit` 处理器自己那一段；参数名只从这一段里派生。形状与
+同文件早已在用的 `_HANDLER_ROLES_RE` 一致（先锚路由，再向后取）。
+
+**自证（不是硬写 `job_id`）。** 派生名必须在该段里以 `{name}={name}` 的形式出现——即处理器把它
+**按同名关键字转发**给存储（`audit_trail(limit=limit, job_id=job_id)`）。两边都由派生名生成，所以
+改名后依然为真、而删掉转发则为假：它证明的是"探针读的是真正参与过滤的那个参数"，而不是"这段里
+恰好有个声明"。
+
+**三臂变异（预测先写在 #147 定义里，再跑；每臂按字节还原并校验 sha）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A1 | 把 `/audit` 的参数改名（声明 + 转发 + 响应键三处） | 门**红**（证明它跟着处理器走） | **RED (exit=1)** ✅ 如预测 |
+| A2 | 把 `Audit.tsx` 的 `&job_id=` 改成 `&jobId=` | 门**红**（证明它跟着请求走） | **RED (exit=1)** ✅ 如预测 |
+| A3 | 在 `/audit` **之前**再插一个带 `pattern=` 的可选参数路由（复刻 #138 的撞法） | 门必须**绿** | **GREEN (exit=0)** ✅ 如预测 |
+
+A3 的绿正是这条门真正的用途：**旧写法在 A3 场景下必红**，而那个红就是误响本体——它已经以
+baseline 的形式被测到了（修复前同一条断言报 `the page never sends target`）。A1/A2 则保证修完
+之后这条门没有退化成"永远绿"：它仍然两侧都咬得住。
+
+**门证。** `ruff check tests/unit/test_audit_disposition_labels.py` 全绿；
+`test_audit_disposition_labels.py` **28 passed**（修复前 1 failed / 27 passed）；
+连带 `test_audit_action_parity.py` + `test_web_api.py` 共 **100 passed**。
+变异脚本落在仓库外 `D:/面试项目/_arm147.py`（三臂各自还原并校验 sha 后才进下一臂）。
+
+**仍未做。** 本弧（#140–#147）的可归因干净平面全量门还没跑——见下一条。

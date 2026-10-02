@@ -242,15 +242,47 @@ def _handler_job_id_pattern() -> str:
     return match.group(1)
 
 
+def _audit_handler_block() -> str:
+    """The `/audit` handler alone: its decorator up to the next route decoration.
+
+    A witness clause has to be BOUND to the thing it claims to witness. The
+    previous form searched the whole module for the first
+    `Query(default=None, pattern=` and took whoever happened to own it. #138
+    (certificate revocations) added a `target` parameter on
+    `/certificates/revocations` ABOVE `/audit`, so the probe silently switched
+    to another handler's parameter name and the gate went permanently red with
+    "the page never sends target — the filter is cosmetic" — a true sentence
+    about a page that was, in fact, filtering correctly. The anchor below is
+    the same shape `_HANDLER_ROLES_RE` already used for the roles set.
+    """
+    text = ADMIN_ROUTE.read_text(encoding="utf-8")
+    start = text.find('@admin_router.get("/audit")')
+    assert start != -1, "the /audit route decorator moved"
+    tail = text[start:]
+    following = tail.find("@admin_router.", 1)
+    return tail if following == -1 else tail[:following]
+
+
 def test_the_page_asks_for_the_parameter_the_handler_accepts() -> None:
+    block = _audit_handler_block()
+    assert '@admin_router.get("/audit")' in block
     server_param = re.search(
-        r"(?m)^\s+(\w+): str \| None = Query\(default=None, pattern=",
-        ADMIN_ROUTE.read_text(encoding="utf-8"),
+        r"(?m)^\s+(\w+): str \| None = Query\(default=None, pattern=", block
     )
     assert server_param, "no pattern-validated optional query param on /admin/audit"
+    name = server_param.group(1)
+    # Self-proof that the derived name is the one that actually filters, and
+    # not merely the first declaration inside the block: the handler must
+    # forward it to the store under its own name. Nothing is hard-coded here —
+    # both sides of the equality come from the derived name, so renaming the
+    # parameter keeps this true and dropping the forward makes it false.
+    assert f"{name}={name}" in block, (
+        f"{name} is declared on /audit but never forwarded — the probe is not "
+        "reading the parameter that filters"
+    )
     page = AUDIT_PAGE.read_text(encoding="utf-8")
-    assert f'"{server_param.group(1)}=' in page or f'&{server_param.group(1)}=' in page, (
-        f"the page never sends {server_param.group(1)} — the filter is cosmetic"
+    assert f'"{name}=' in page or f'&{name}=' in page, (
+        f"the page never sends {name} — the filter is cosmetic"
     )
 
 
