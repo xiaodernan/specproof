@@ -55,6 +55,11 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
         # the archived report silently implies a clean deep campaign.
         deep=raw_state.get("deep_results", {}),
         deep_note=str(raw_state.get("deep_note", "")),
+        # Backlog #150: the RELEASE tier's two gates. Dropped here they die at
+        # the node boundary and a release campaign that failed to reproduce its
+        # own evidence is archived looking like one that passed.
+        release=raw_state.get("release_results", {}),
+        release_note=str(raw_state.get("release_note", "")),
     )
 
     out = Path(output_dir)

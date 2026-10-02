@@ -141,6 +141,110 @@ def _render_deep_evidence(
     </section>"""
 
 
+def _gate_verdict(entry: Any, safe: Any) -> tuple[str, str, str]:
+    """One gate row as (css class, verdict word, detail text).
+
+    The verdict word comes from the recorded ``passed`` flag and nothing else:
+    a gate whose entry carries no flag is rendered 未判定, because inventing
+    "passed" for a gate the pipeline never judged is exactly the lie this
+    section exists to prevent.
+    """
+    if isinstance(entry, list):
+        # A gate that checked a set has to disclose the set, including the
+        # empty one: "0 capsules checked" is not "capsules are intact".
+        if not entry:
+            return "unverified", "未判定", "没有条目可校验（该门没有获得任何证据）"
+        checked = len(entry)
+        failed = [
+            item
+            for item in entry
+            if not (isinstance(item, dict) and item.get("digest_ok") is True)
+        ]
+        detail = "; ".join(_capsule_line(item, safe) for item in entry)
+        if failed:
+            return "fail", "未通过", f"{len(failed)}/{checked} 条不符: {detail}"
+        return "pass", "通过", f"{checked} 条全部相符: {detail}"
+    if isinstance(entry, dict):
+        if "passed" not in entry:
+            return "unverified", "未判定", _detail_of(entry, safe)
+        ok = bool(entry["passed"])
+        return ("pass", "通过", _detail_of(entry, safe)) if ok else (
+            "fail", "未通过", _detail_of(entry, safe)
+        )
+    return "unverified", "未判定", safe(str(entry))
+
+
+def _capsule_line(item: Any, safe: Any) -> str:
+    if not isinstance(item, dict):
+        return str(safe(str(item)))
+    capsule = safe(str(item.get("capsule", "?")))
+    if item.get("digest_ok") is True:
+        return f"{capsule} 摘要相符"
+    if item.get("digest_ok") is False:
+        return f"{capsule} 摘要不符"
+    return f"{capsule} 无法打开: {safe(str(item.get('error', '')))}"
+
+
+def _detail_of(entry: dict[str, Any], safe: Any) -> str:
+    """Render whatever the gate recorded besides its own verdict."""
+    parts = [
+        f"{safe(str(key))}={safe(str(value))}"
+        for key, value in sorted(entry.items())
+        if key != "passed" and value not in (None, "")
+    ]
+    return "; ".join(parts) if parts else "该门未记录任何细节"
+
+
+def _render_release_gates(
+    release: dict[str, Any] | None, note: str, safe: Any
+) -> str:
+    """Render the RELEASE tier's own gates (backlog #150).
+
+    ``--depth RELEASE`` is a shipped CLI choice and ``run_release_checks`` runs
+    on every graph execution, recomputing reproducibility and every capsule
+    digest. Their verdict used to die at the node boundary: the archived report
+    — the artifact a reviewer opens, and diffs months later — said nothing about
+    them, so a RELEASE campaign that failed to reproduce its own evidence looked
+    exactly like one that passed.
+
+    Absent gates are rendered as absent, never as passed. When RELEASE was not
+    requested the section carries the node's own note and produces no per-gate
+    verdict at all.
+    """
+    payload = release if isinstance(release, dict) else {}
+    tier_note = str(note or "").strip()
+    if not payload and "RELEASE" not in tier_note:
+        return ""
+    if not payload:
+        return f"""<section>
+        <h2>Release Gates 发布门</h2>
+        {f'<p class="muted">{safe(tier_note)}</p>' if tier_note else ""}
+        <p class="unverified">本次没有执行任何发布门: 该档位未请求, "未跑"不等于"已通过"。</p>
+    </section>"""
+
+    gates = payload.get("gates")
+    gate_rows = gates if isinstance(gates, dict) else {}
+    overall = "pass" if payload.get("passed") is True else "fail"
+    overall_word = "通过" if payload.get("passed") is True else "未通过"
+    rows = "".join(
+        f'<li class="{css}">{safe(name)}: {verdict} — {detail}</li>'
+        for name, (css, verdict, detail) in sorted(
+            (name, _gate_verdict(entry, safe))
+            for name, entry in gate_rows.items()
+        )
+    )
+    if not rows:
+        # The tier ran yet recorded no gate: the reader has to be able to tell
+        # that from a campaign whose gates all passed.
+        rows = '<li class="unverified">该档位没有记录任何一道门</li>'
+    return f"""<section>
+        <h2>Release Gates 发布门</h2>
+        {f'<p class="muted">{safe(tier_note)}</p>' if tier_note else ""}
+        <p class="{overall}">发布门总判定: {overall_word}</p>
+        <ul class="gates">{rows}</ul>
+    </section>"""
+
+
 def render_verification_report(
     repo: str,
     base_ref: str,
@@ -152,6 +256,8 @@ def render_verification_report(
     preflight: dict[str, Any] | None = None,
     deep: dict[str, Any] | None = None,
     deep_note: str = "",
+    release: dict[str, Any] | None = None,
+    release_note: str = "",
 ) -> str:
     """Render the full HTML Verification Report.
 
@@ -257,6 +363,7 @@ def render_verification_report(
 
     preflight_html = _render_preflight(preflight, safe)
     deep_html = _render_deep_evidence(deep, deep_note, safe)
+    release_html = _render_release_gates(release, release_note, safe)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -321,6 +428,7 @@ def render_verification_report(
     {coverage_html}
     {preflight_html}
     {deep_html}
+    {release_html}
 
     <section>
         <h2>Requirement-to-Evidence Matrix</h2>

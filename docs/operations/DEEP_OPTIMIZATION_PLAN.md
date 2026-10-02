@@ -1184,3 +1184,64 @@ baseline 的形式被测到了（修复前同一条断言报 `the page never sen
 没有缓存时保持沉默）、`vite build` 通过。变异脚本落在仓库外 `D:/面试项目/_arm145.py`。
 
 **仍未做。** 本弧的可归因干净平面全量门仍在跑（见下一条）。
+
+## #150 RELEASE 档的两道发布门：结论过去只活在一个没人读的文件里，现在进了评审人的报告
+
+**先量，再动手（三条都是实测）。**
+- `--depth RELEASE` 是 shipped 的 CLI 选项（`cli/specproof/commands/verify.py:293` 的
+  `click.Choice(["FAST","DEEP","RELEASE"])`），而 `run_release_checks` 在图上无条件执行
+  （`agent/graph.py:122-123`：`create_capsule → run_release_checks → publish_report`）。
+  节点真跑两道门：把生成的反例测试在 HEAD 上重放、逐个胶囊重算 manifest 摘要
+  （`agent/nodes/run_release_checks.py:33-84`）。
+- 全库普查（排除 `.scratch`）：`release-report.json` 的**读者数 = 0**（只有
+  `run_release_checks.py:87` 一处写）；`release_results` / `release_note` 除
+  `tests/unit/test_release_checks.py` 外**没有读者**。
+- `agent/nodes/publish_report.py` 只转发 `deep`/`deep_note`（#140 那条缝），把发布门整对键丢掉。
+  于是：**用户显式请求最高档，两道门的结论在节点边界死掉**；一次"证据复现不出来"的 RELEASE
+  作业，归档报告与一次全通过的 RELEASE 作业**一字不差**。
+
+**改动（两处产品代码 + 一条新门）。**
+- `evidence/report.py`：新增 `_render_release_gates(release, note, safe)` 与三个小助手
+  （`_gate_verdict` / `_capsule_line` / `_detail_of`），`render_verification_report` 多收
+  `release` / `release_note` 两个参数，文档体里 `{release_html}` 紧跟 `{deep_html}`。
+  门行**按 `gates` 通用迭代**（节点以后新增门会自动出行，不需要改渲染器，也不给渲染器
+  一份手抄的门名册）。四条诚实规则，每条都有案例钉住：
+  1. 档位未请求（`payload == {}` 且 note 含 `RELEASE`）→ 只带节点自己的原话 +
+     「本次没有执行任何发布门: 该档位未请求, "未跑"不等于"已通过"」，**不产生任何门判定字样**；
+  2. 调用方根本不带 release 状态 → 整节不渲染（沉默，不是安慰）；
+  3. 胶囊集合为空 → 该门 `未判定` + 「没有条目可校验（该门没有获得任何证据）」，
+     绝不写"全部相符"（`passed: True` 的载荷也一样，读者的判断权高于节点的自我宣告）；
+  4. 门条目里没有 `passed` 键 → `未判定`。裁决词的唯一来源就是那个旗标，缺了就说不判。
+- `agent/nodes/publish_report.py`：转发 `release=raw_state.get("release_results", {})` +
+  `release_note=str(raw_state.get("release_note", ""))`（与 #140 同形状，空即真空，不编造）。
+
+**新门 `tests/unit/test_release_gates_reach_the_report.py`（10 例）**：渲染端 8 例（含逐条摘要、
+极性翻转、打不开的胶囊、敌意路径转义、缺旗标、空集合）+ 真节点端 2 例（跑 shipped
+`publish_report_node` 捕获它递给渲染器的 kwargs，钉"有状态要转发"与"无状态转发空"）。
+
+**七臂变异见证（预测先写进门文件 docstring，再跑；`.scratch/g150/mutate_150.py`）——7/7 MATCHED：**
+
+| 臂 | 变异 | 预测红 | 实测 |
+|---|---|---|---|
+| R1 | 节点不再转发 release 那对键 | 9,10 | 2 红 [9,10] ✅ |
+| R2 | "未请求"分支改口说门已通过 | 3 | 1 红 [3] ✅ |
+| R3 | 去掉空胶囊集合的分支 | 5 | 1 红 [5] ✅ |
+| R4 | 缺 `passed` 的条目按通过渲染 | 8 | 1 红 [8] ✅ |
+| R5 | 整节不插入文档 | 1,2,3,5,6,7,8 | 7 红 ✅ |
+| R6 | 胶囊路径不转义 | 7 | 1 红 [7] ✅ |
+| R7 | 总判定无视 `passed` | 2 | 1 红 [2] ✅ |
+
+控制腿：`collected == AST 里 def test_ 数 == 10`，0 红；每臂还原后整平面 sha 一致。
+案例 4 在 R1/R5 下**故意保持绿**（它断言的是"缺席"，缺席不可能让缺席断言失败），所以它必须与
+9/10 这对"载体在场"断言配对才有意义——这条判断写进门 docstring，避免后人把它当漏网臂。
+
+**门证。** `ruff` 三个文件全绿；新门 **10 passed**；连带 `test_report_deep_section.py`(7) +
+`test_release_checks.py`(3) **20 passed**；受影响大腿 `-k "report or lineage or release or deep or
+publish"` **249 passed / 0 failed（145.18s）**；`mypy evidence/report.py agent/nodes/publish_report.py`
+`Success: no issues found in 2 source files`（第一轮 1 条 `no-any-return` 已按字节改好后**重跑整张
+臂表**，不是只重跑门）。
+
+**下一号（#151 配方，未做）**：报告有了读者，但**对外宣告还没听这道门**——实测 `verify.py` 在
+:293 之后没有任何一处读 `release_results`，也就是 RELEASE 门失败既不改变 CLI 退出码、也不拦证书、
+也不进 GitHub Check（:614 那条发布路径）。这一号要动的是命令结果与签发路径，属于用户可观察行为
+改变，得单独一批、先量三个入口（CLI 退出码 / 证书签发 / Check 注解）再动。
