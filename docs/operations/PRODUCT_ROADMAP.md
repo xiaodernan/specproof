@@ -1873,3 +1873,45 @@ passed 判定里 `terminal_transitions == 1` 一直就是重复写检测的承�
   隔离 worktree 门 ⇒ **3439 passed, 7 skipped, 1614.82s (26:54)，
   GATE_EXIT=0**，0 failed。基线对账再次跨会话移动（并行会话新增了
   ~80 例），本次只认隔离运行自己的输出与 0 failed。
+
+## 29. §28.2-1 收口：notify 意图与终态写同事务——"至少一次"从此无窗口（2026-09-28）
+
+### 29.1 设计:判定前置,载荷搭车
+
+J 批的诚实边界(入库与终态写两条语句,进程在其间死亡丢通知)本批关闭:
+
+- **store 新组合方法** `transition_job_status_with_notify(...)`:终态 CAS
+  UPDATE 与 notify_outbox 的 INSERT 在**同一个事务**——"判定被接受"与"这次
+  宣告欠一次送达"成为一个不可分的事实。SQL 组装抽为共享私助手
+  `_transition_statement`,两条路径字节一致(既有 SQL 形状测试是回归锁)。
+- **意图入库失败绝不回滚终态**:INSERT 在事务内被就地捕获,终态照常落库,
+  通知降级为丢并计数(`notify_outbox_intent_lost_total`)——通知通道的问题
+  不能扣住作业的诚实终态。这条不变式有专门的 store 级测试(假连接上
+  UPDATE 与 INSERT 同连接、INSERT 抛异常后 UPDATE 照常提交)。
+- **worker 判定前置**:新增 `_notify_intent_for()` 在终态写**之前**决定
+  意图(车道关→(None,False)回落直发;无模板→(None,True) 跳过只计一次;
+  有模板→载荷,搭终态写)。成功与失败两条路径都接入;`handled=True` 时
+  调用方不得再跑直发车道(否则双重宣告)。J 批的
+  `_enqueue_notify_intent`(独立入库+回落直发)被本机制取代而删除,
+  `notify_outbox_enqueue_failed_total` 随之退役,
+  `notify_outbox_intent_lost_total` 上岗(语义:终态已落、宣告降级为丢)。
+- store 的成功 INSERT 记 `notify_outbox_enqueued_total`——"入队"这一事实
+  的计数器随实现搬家(worker→store),测试跟着搬家而不是留一个数不出来的
+  断言。
+
+### 29.2 门证(本批实测)
+
+- 定向:worker 四套(cancel_points/error_classify/notify_terminal/
+  notify_outbox)+ relay + job_state_machine + drill_helpers 合跑
+  **116 passed**;`ruff` / `mypy`(worker/mysql/notify_relay)全绿。
+- store 级新测试 3 例:`_RecordingConn` 上断言"同一连接先 UPDATE 后
+  INSERT"、"无载荷不产生 INSERT"、"INSERT 失败后 UPDATE 照常提交且
+  ok=True"。
+- 探针 W(两条,按字节还原):W1 意图永不搭车(worker 传 None)⇒
+  `test_outbox_lane_rides_the_terminal_write` 红;W2 意图失败改抛出
+  (终态被扣)⇒ `test_intent_insert_failure_never_rolls_back_the_verdict` 红。
+- 全量门:worktree 隔离运行(见 29.3)。
+
+### 29.3 全量合并门(追记)
+
+见提交记录。

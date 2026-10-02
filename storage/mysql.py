@@ -8,6 +8,7 @@ per-attempt publish/retry counters, last_error/next_retry_at deferral,
 dead-letter state, and a single-query stats snapshot for relay metrics.
 """
 import json
+import logging
 import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -21,6 +22,8 @@ from pymysql.cursors import DictCursor
 from contracts.events import payload_digest
 from storage.tenant_scope import current_scope
 from storage.unit_of_work import unit_of_work
+
+logger = logging.getLogger(__name__)
 
 # ── Tenant-aware job SQL (industrialization phase 1) ─────────────
 # When a tenant scope is active (multi-tenant auth mode) every job read
@@ -1047,6 +1050,46 @@ class MySQLStore:
 
         Raises InvalidStateTransition if the from→to pair is statically illegal.
         """
+        _sql, params = self._transition_statement(
+            job_id, to_status,
+            from_status=from_status, worker_id=worker_id, error_msg=error_msg,
+            stale_replaced_by=stale_replaced_by, summary=summary,
+            increment_retry=increment_retry,
+        )
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(_sql, params)
+            changed = bool(cursor.rowcount == 1)
+        if changed:
+            # P0-A5: every status change is audited (who/from/to/when).
+            self.record_audit(
+                action="job_status_transition",
+                actor=worker_id or "system",
+                job_id=job_id,
+                from_status=from_status,
+                to_status=to_status,
+                detail=(error_msg or "")[:1000],
+            )
+        return changed
+
+    def _transition_statement(
+        self,
+        job_id: str,
+        to_status: str,
+        *,
+        from_status: str | None = None,
+        worker_id: str | None = None,
+        error_msg: str | None = None,
+        stale_replaced_by: str | None = None,
+        summary: dict[str, Any] | None = None,
+        increment_retry: bool = False,
+    ) -> tuple[str, list[Any]]:
+        """Assemble the CAS UPDATE for a status transition (shared shape).
+
+        One statement for every caller so the "status travels with its
+        evidence" invariant cannot drift between them. from_status=None
+        resolves (and validates) the current status from the row.
+        """
         # Resolve current status if not provided
         if from_status is None:
             job = self.get_job(job_id)
@@ -1083,12 +1126,65 @@ class MySQLStore:
 
         parts.append("WHERE id = %s AND status = %s")
         params.extend([job_id, from_status])
+        return " ".join(parts), params
 
-        _sql = " ".join(parts)
+    def transition_job_status_with_notify(
+        self,
+        job_id: str,
+        to_status: str,
+        *,
+        from_status: str | None = None,
+        worker_id: str | None = None,
+        error_msg: str | None = None,
+        summary: dict[str, Any] | None = None,
+        notify_payload: dict[str, Any] | None = None,
+    ) -> bool:
+        """CAS transition and the notify intent in ONE transaction (§16.6-1).
+
+        ``notify_payload`` (the notification AS BUILT by the worker) is
+        inserted into notify_outbox inside the same transaction as the
+        status UPDATE — "the verdict was accepted" and "this announcement
+        is owed at least once" become one durable fact. None degrades to
+        the plain transition (lane off, or the verdict has no template —
+        the caller has already counted that skip).
+
+        The intent insert NEVER rolls back the transition: if it fails, the
+        status still lands and the announcement degrades to lost
+        (notify_outbox_intent_lost_total) — a notify-channel problem must
+        not hold a job's honest terminal state hostage.
+        """
+        _sql, params = self._transition_statement(
+            job_id, to_status,
+            from_status=from_status, worker_id=worker_id, error_msg=error_msg,
+            summary=summary,
+        )
+        from observability.metrics import incr
+
         with self.connection() as conn:
             cursor = conn.cursor()
             cursor.execute(_sql, params)
             changed = bool(cursor.rowcount == 1)
+            if changed and notify_payload is not None:
+                try:
+                    import json as _json
+
+                    cursor.execute(
+                        "INSERT INTO notify_outbox (job_id, verdict, payload) "
+                        "VALUES (%s, %s, %s)",
+                        (
+                            job_id,
+                            to_status,
+                            _json.dumps(notify_payload, default=str),
+                        ),
+                    )
+                    incr("notify_outbox_enqueued_total")
+                except Exception:
+                    logger.warning(
+                        "Job %s: notify intent insert failed — terminal "
+                        "status stands, announcement lost", job_id,
+                        exc_info=True,
+                    )
+                    incr("notify_outbox_intent_lost_total")
         if changed:
             # P0-A5: every status change is audited (who/from/to/when).
             self.record_audit(

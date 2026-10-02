@@ -401,3 +401,78 @@ class TestStateMachineWithDB:
         assert job["status"] == "ERROR"
         assert job["retry_count"] == 1
         assert "Permanent failure" in job["last_error"]
+
+
+class TestNotifyIntentRidesTheTerminalWrite:
+    """§16.6-1 closure: the notify intent and the terminal verdict share one
+    transaction — backend-independent, like TestTerminalWriteIsOneStatement.
+
+    A notify-channel problem must never hold a job's honest terminal state
+    hostage: an insert failure degrades to a lost announcement (counted),
+    never to a missing verdict.
+    """
+
+    PAYLOAD = {
+        "event_type": "verification.verified",
+        "title": "SpecProof verification passed",
+        "text": "Verdict: VERIFIED",
+        "blocks": [],
+        "job_id": "job-n1",
+    }
+
+    def _store(self) -> tuple[MySQLStore, _RecordingConn]:
+        store = MySQLStore()
+        conn = _RecordingConn()
+        store.connection = lambda: conn  # type: ignore[method-assign]
+        store.record_audit = lambda **kw: None  # type: ignore[method-assign]
+        return store, conn
+
+    def test_intent_inserts_in_the_same_connection(self):
+        from observability import metrics as metrics_module
+
+        before = metrics_module.snapshot()
+        store, conn = self._store()
+        ok = store.transition_job_status_with_notify(
+            "job-n1", "VERIFIED", from_status="RUNNING",
+            summary={"verdict": "VERIFIED"}, notify_payload=self.PAYLOAD,
+        )
+        after = metrics_module.snapshot()
+        assert ok
+        # The successful insert is the enqueue — observable at the store.
+        assert after["counters"].get(
+            "notify_outbox_enqueued_total", 0.0
+        ) - before["counters"].get("notify_outbox_enqueued_total", 0.0) == 1.0
+        statements = conn.cursor_obj.statements
+        assert len(statements) == 2, (
+            "one transaction carries the terminal UPDATE and the notify INSERT"
+        )
+        insert_sql, insert_params = statements[1]
+        assert insert_sql.startswith("INSERT INTO notify_outbox")
+        assert insert_params[0] == "job-n1"
+        assert insert_params[1] == "VERIFIED"
+        assert json.loads(insert_params[2]) == self.PAYLOAD
+
+    def test_no_payload_emits_no_insert(self):
+        store, conn = self._store()
+        assert store.transition_job_status_with_notify(
+            "job-n2", "VERIFIED", from_status="RUNNING", notify_payload=None,
+        )
+        assert len(conn.cursor_obj.statements) == 1
+
+    def test_intent_insert_failure_never_rolls_back_the_verdict(self):
+        store, conn = self._store()
+        original = conn.cursor_obj.execute
+
+        def failing_on_notify(sql: str, params: Any = None) -> int:
+            if "notify_outbox" in sql:
+                raise RuntimeError("notify table unavailable")
+            return original(sql, params)
+
+        conn.cursor_obj.execute = failing_on_notify  # type: ignore[method-assign]
+        ok = store.transition_job_status_with_notify(
+            "job-n3", "BLOCKED", from_status="RUNNING",
+            summary={"verdict": "BLOCKED"}, notify_payload=self.PAYLOAD,
+        )
+        assert ok, "the verdict must stand when the intent insert fails"
+        # The UPDATE was executed against the connection that commits.
+        assert "UPDATE verification_jobs" in conn.cursor_obj.statements[0][0]

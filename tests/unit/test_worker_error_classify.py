@@ -114,6 +114,13 @@ class _FakeMysql:
         self.transitions.append((to_status, kwargs))
         return True
 
+    def transition_job_status_with_notify(
+        self, job_id: str, to_status: str, **kwargs: Any,
+    ) -> bool:
+        """Same durable effect as transition_job_status; the payload rides
+        the recorded kwargs so tests can assert on it."""
+        return self.transition_job_status(job_id, to_status, **kwargs)
+
 
 class _FakeRedis:
     def __init__(self) -> None:

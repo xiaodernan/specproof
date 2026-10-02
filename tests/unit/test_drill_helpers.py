@@ -118,6 +118,13 @@ class FakeJobStore:
             self.jobs[job_id]["summary"] = "stored"
         return True
 
+    def transition_job_status_with_notify(
+        self, job_id: str, to_status: str, **kwargs: Any,
+    ) -> bool:
+        """Same durable effect as transition_job_status; the payload rides
+        the recorded kwargs so tests can assert on it."""
+        return self.transition_job_status(job_id, to_status, **kwargs)
+
 
 class FakeStream:
     def __init__(self) -> None:

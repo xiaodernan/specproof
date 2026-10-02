@@ -317,8 +317,12 @@ class Worker:
             # observe a completed job with no report, and made that state
             # permanent whenever the second write failed (it was suppressed).
             summary = _state_summary(final_state, verdict)
-            if not self.mysql.transition_job_status(
-                job_id, verdict, summary=summary
+            notify_payload, notify_handled = self._notify_intent_for(
+                job_id, verdict, summary
+            )
+            if not self.mysql.transition_job_status_with_notify(
+                job_id, verdict, summary=summary,
+                notify_payload=notify_payload,
             ):
                 # The CAS lost: the reclaimer, a cancel or the supervisor
                 # already owns this row's status. This run's verdict is then
@@ -359,8 +363,11 @@ class Worker:
             )
             # Only reachable past the `if not written: return` gate above, so a
             # row this worker does not own gets no outward announcement from
-            # either channel.
-            self._maybe_notify_terminal(job_id, summary)
+            # either channel. On the outbox lane the announcement is already
+            # owed durably (it rode the terminal write) — running the direct
+            # lane on top of it would announce twice.
+            if not notify_handled:
+                self._maybe_notify_terminal(job_id, summary)
             self.redis.xadd_progress(job_id, "publish_report", "completed",
                                      message=f"Job completed: {verdict}", percent=100.0)
 
@@ -408,6 +415,21 @@ class Worker:
             # the retry budget is spent. Everything else keeps the FAILED
             # terminal path.
             provider_wait = self._provider_wait_allowed(job_id, classification)
+            # The failure summary and the notify intent are decided BEFORE the
+            # transition: on the outbox lane the intent rides the FAILED write
+            # itself (one transaction), so it must exist beforehand. Parking
+            # produces no notification (non-terminal), so no intent either.
+            failure_notify_payload: dict[str, Any] | None = None
+            failure_notify_handled = False
+            failure_summary: dict[str, Any] | None = None
+            if not provider_wait:
+                failure_summary = _failure_summary(
+                    exc, classification,
+                    failed_after_stage=self._last_completed_stage,
+                )
+                failure_notify_payload, failure_notify_handled = (
+                    self._notify_intent_for(job_id, "FAILED", failure_summary)
+                )
             # The progress frame and the Check Run are announcements of a
             # stored outcome, not the outcome. They used to run first and
             # unconditionally, so the stream said "failed" for a job whose row
@@ -423,8 +445,9 @@ class Worker:
                     if written:
                         incr("worker_provider_wait_total")
                 else:
-                    written = self.mysql.transition_job_status(
-                        job_id, "FAILED", error_msg=reason
+                    written = self.mysql.transition_job_status_with_notify(
+                        job_id, "FAILED", error_msg=reason,
+                        notify_payload=failure_notify_payload,
                     )
             if not written:
                 logger.warning(
@@ -455,14 +478,15 @@ class Worker:
                 incr("worker_exception_failures_total")
                 # ONE summary for both outward channels, so a Check Run and a
                 # notification cannot report the same failure differently.
-                failure_summary = _failure_summary(
-                    exc, classification,
-                    failed_after_stage=self._last_completed_stage,
-                )
+                assert failure_summary is not None, "non-parked failure path"
                 self._maybe_publish_github_check(
                     job_id, "FAILED", failure_summary
                 )
-                self._maybe_notify_terminal(job_id, failure_summary)
+                # On the outbox lane the intent already rode the FAILED write
+                # (one transaction) — running the direct lane on top would
+                # announce twice.
+                if not failure_notify_handled:
+                    self._maybe_notify_terminal(job_id, failure_summary)
         finally:
             heartbeat_stop.set()
             heartbeat.join(timeout=max(1.0, self.lease_ttl / 3))
@@ -746,12 +770,12 @@ class Worker:
         )
 
     def _maybe_notify_terminal(self, job_id: str, summary: dict[str, Any]) -> None:
-        """Best-effort outbound notification for a terminal verdict.
+        """Best-effort DIRECT outbound notification for a terminal verdict.
 
-        The mirror of :meth:`_maybe_publish_github_check`, and it exists
-        because ``integrations/notify/`` shipped a connector, three payload
-        dialects and a template suite with a production call-site count of
-        zero — capability that only looked wired because it was tested.
+        This is the direct lane only: on the outbox lane
+        (``SPECPROOF_NOTIFY_OUTBOX=1``) the announcement rides the terminal
+        write itself via ``transition_job_status_with_notify`` and this
+        method is never reached — the caller checks ``notify_handled``.
 
         Two deliberate choices:
 
@@ -768,20 +792,12 @@ class Worker:
 
         Never raises: a delivery problem cannot flip a job that already
         reached its honest terminal state.
-
-        Delivery lanes (§16.6-1): the direct send below is best-effort — a
-        crash between the accepted terminal write and the HTTP POST loses
-        the notification with only a counter as a trace. The outbox lane
-        (``SPECPROOF_NOTIFY_OUTBOX=1``) instead persists the BUILT
-        notification in ``notify_outbox`` (same accepted-terminal adjacency)
-        for ``storage.notify_relay`` to deliver at-least-once; an enqueue
-        failure falls back to the direct send rather than losing the
-        announcement twice.
         """
         try:
             from integrations.notify import (
                 build_terminal_notification,
                 notifiable,
+                webhook_connector_from_env,
             )
 
             verdict = str(summary.get("verdict", ""))
@@ -792,11 +808,6 @@ class Worker:
                 )
                 incr("notify_skipped_total")
                 return
-            if notify_outbox_lane_enabled():
-                self._enqueue_notify_intent(job_id, verdict, summary)
-                return
-            from integrations.notify import webhook_connector_from_env
-
             connector = webhook_connector_from_env()
             try:
                 status = connector.send(
@@ -814,55 +825,51 @@ class Worker:
             )
             incr("notify_error_total")
 
-    def _enqueue_notify_intent(
-        self, job_id: str, verdict: str, summary: dict[str, Any]
-    ) -> None:
-        """Outbox lane: persist the BUILT notification for the relay.
+    def _notify_intent_for(
+        self, job_id: str, verdict: str, summary: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, bool]:
+        """Decide the notify intent BEFORE the terminal write (§16.6-1).
 
-        The payload freezes the exact announcement (event_type/title/text/
-        blocks) so template edits never rewrite what a verdict said. An
-        enqueue failure falls back to the direct send: losing the durable
-        promise must not ALSO lose the immediate attempt.
+        Returns ``(payload, handled)``:
+
+        * lane off                       -> ``(None, False)`` — the caller
+          falls back to the direct lane (:meth:`_maybe_notify_terminal`);
+        * lane on, no template for the
+          verdict                        -> ``(None, True)`` — the skip is
+          already counted here, running the direct lane would count it twice;
+        * lane on, template exists       -> the BUILT payload, which rides
+          ``transition_job_status_with_notify`` in the same transaction —
+          running the direct lane would announce twice.
+
+        A template/build failure on the outbox lane degrades to a lost
+        announcement (counted via ``notify_error_total``): it is not
+        transient, and the honest terminal write must not be blocked by it.
         """
-        from dataclasses import asdict
-
-        from integrations.notify import build_terminal_notification
-
+        if not notify_outbox_lane_enabled():
+            return None, False
         try:
-            notification = build_terminal_notification(job_id, summary)
-            payload = asdict(notification)
-            self.mysql.enqueue_notify_intent(job_id, verdict, payload)
-        except Exception as exc:  # noqa: BLE001 — fall back, never lose twice
+            from integrations.notify import (
+                build_terminal_notification,
+                notifiable,
+            )
+
+            if not notifiable(verdict):
+                logger.info(
+                    "Job %s: terminal verdict %r has no notification template; "
+                    "nothing enqueued", job_id, verdict,
+                )
+                incr("notify_skipped_total")
+                return None, True
+            from dataclasses import asdict
+
+            payload = asdict(build_terminal_notification(job_id, summary))
+            return payload, True
+        except Exception as exc:  # noqa: BLE001 — best effort
             logger.warning(
-                "Job %s: notify outbox enqueue failed (%s) — falling back "
-                "to the direct send", job_id, exc,
+                "Notify intent build failed for %s: %s", job_id, exc
             )
-            incr("notify_outbox_enqueue_failed_total")
-            self._send_direct_notification(job_id, summary)
-            return
-        incr("notify_outbox_enqueued_total")
-        logger.info(
-            "Job %s: notification enqueued for relay delivery (verdict=%s)",
-            job_id, verdict,
-        )
-
-    def _send_direct_notification(
-        self, job_id: str, summary: dict[str, Any]
-    ) -> None:
-        """The historical best-effort direct send, shared by both lanes."""
-        from integrations.notify import (
-            build_terminal_notification,
-            webhook_connector_from_env,
-        )
-
-        connector = webhook_connector_from_env()
-        try:
-            status = connector.send(
-                build_terminal_notification(job_id, summary)
-            )
-        finally:
-            connector.close()
-        incr("notify_" + status.value + "_total")
+            incr("notify_error_total")
+            return None, True
 
     def _maybe_publish_github_check(
         self,
