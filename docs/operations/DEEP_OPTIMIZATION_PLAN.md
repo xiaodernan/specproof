@@ -1066,3 +1066,39 @@ JSON Action Envelope 块；再补一臂 M6＝自检腿改成自己拼 sections�
 `AgentEventLog.tsx:79` 同样 `JSON.stringify(ev.data)`（那是并发写者文件，别碰）。
 结论：#145 不是「补面板」，而是把这条披露从原始 dump 里提出来放到有中文标签的位置，
 并按 #81/#87 那道「值有词」门的方式配词表——先查枚举门是否覆盖 evidence 键名。
+
+## 更正 #146：那条红不是「筛选器不发参数」，是我把 #96 的门读错了——#138 撞了它的探针
+
+#146 记的是「审计页的 job 筛选器是装饰性的，它从不把参数发到请求上」。这句话**错了**，
+在把 junit 的那一条红归因之后我按落库字节重量了三处，结论反转：
+
+- `apps/web/src/pages/Audit.tsx:142-144` 实打实地拼了请求：
+  `"/api/v1/admin/audit?limit=" + … + (jobFilter ? "&job_id=" + encodeURIComponent(jobFilter) : "")`。
+  `grep -c "target="` 在该文件是 **0**，而 `job_id=` 就在请求串里。筛选器不是装饰。
+- 那条门（`tests/unit/test_audit_disposition_labels.py:245` `test_the_page_asks_for_the_parameter_the_handler_accepts`）
+  从 `api/routes/admin.py` **整本文件**里取第一个匹配
+  `^\s+(\w+): str \| None = Query(default=None, pattern=` 的名字。当前第一个匹配是
+  **:686** 的 `target`，它属于 `@admin_router.get("/certificates/revocations")`（:683），
+  不是 `@admin_router.get("/audit")`（:721，参数在 :725 是 `job_id`）。
+  所以门把「另一个路由的参数名」当成审计处理器的名字去页面里找，找不到就判死。
+- 引入时间可归因：`git log -S` 指向 **9e1abd8（#138 证书撤销）**——它把带 `pattern=` 的
+  可选查询参数写在 `/audit` **之前**，从此第一个匹配换了人。#138 的提交里全量门已经
+  报到 3448/9/5，这条属于其中被归因为「既存」的那批。
+
+也就是说：这是**一条误响的证人**（witness clause 没有绑定它宣称的那个处理器），不是用户
+看见的地雷。同一文件里 `_HANDLER_ROLES_RE`（:38-40）已经示范了正确写法——先锚
+`@admin_router.get("/audit")` 再向后取。
+
+下一条（重定范围后的 #147）＝修这条门，别改产品代码：
+
+1. 探针改成从 `@admin_router.get("/audit")` 的签名里取参数名（DOTALL、和 roles 那条同一个
+   锚形状），并且**先自证取到的这个名字属于 /audit**——断言派生名 == 该签名里
+   `Query(default=None, pattern=` 的那个，而不是硬写 `job_id`（硬写就又变成手抄后端）。
+2. 页面的断言保持「把派生名带到请求串上」的形状（`&{name}=`），因为 :144 就是这个形状。
+3. 变异臂预测（先写后跑）：
+   - A1 把 :725 的 `job_id` 改名 ⇒ 门**红**（证明它跟着处理器走）。
+   - A2 把 Audit.tsx:144 的 `job_id=` 改掉 ⇒ 门**红**（证明它跟着请求走）。
+   - A3 在 admin.py 更靠前的位置再插一个带 `pattern=` 的可选参数路由（复刻 #138 的撞法）
+     ⇒ 门必须**绿**（这才是这条门真正的用途；旧写法在这里必红，即误响本体）。
+4. 顺带：#146 里「地雷」的说法作废，`Audit.tsx` 的 job 筛选器工作正常；真正的欠账还是
+   #145（`cache_note` 在前端没有读者）。
