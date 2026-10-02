@@ -331,3 +331,59 @@ describe("AgentResult — 独立验收投影 ACCEPT", () => {
     expect(screen.getByText("custom_gate")).toBeTruthy();
   });
 });
+
+describe("dependency-cache disclosure reaches a labelled reader (#145)", () => {
+  const NOTE = "缓存完整性: 未校验 (NOT VERIFIED) —— profile maven 挂了缓存卷 /m2";
+
+  it("lifts the step evidence's cache_note out of the raw JSON dump", async () => {
+    stubJob(baseJob({
+      result: {
+        verdict: "COMPLETED",
+        reason: null,
+        steps: [
+          { id: "s1", status: "green", evidence: { cache_note: NOTE, mode: "docker" } },
+        ],
+      },
+    }));
+    render(<AgentResult jobId="job-1" />);
+
+    // The labelled panel, not just the <details>原始 JSON</details> dump.
+    const panel = await screen.findByText("依赖缓存完整性");
+    expect(panel).toBeTruthy();
+    expect(screen.getByText(NOTE)).toBeTruthy();
+  });
+
+  it("states the fact once when several steps consumed the same cache", async () => {
+    stubJob(baseJob({
+      result: {
+        verdict: "COMPLETED",
+        reason: null,
+        steps: [
+          { id: "s1", status: "green", evidence: { cache_note: NOTE } },
+          { id: "s2", status: "green", evidence: { cache_note: NOTE } },
+        ],
+      },
+    }));
+    render(<AgentResult jobId="job-1" />);
+    await screen.findByText("依赖缓存完整性");
+    expect(screen.getAllByText(NOTE)).toHaveLength(1);
+  });
+
+  it("stays silent when no cache was mounted — silence is not a verification", async () => {
+    stubJob(baseJob({
+      result: {
+        verdict: "COMPLETED",
+        reason: null,
+        steps: [
+          { id: "s1", status: "green", evidence: { cache_note: "   " } },
+          { id: "s2", status: "green", evidence: { mode: "docker" } },
+        ],
+      },
+    }));
+    render(<AgentResult jobId="job-1" />);
+    // Wait for the result branch to render (the gates panel is unique to it),
+    // then assert the cache panel is absent.
+    await screen.findByText("检查结果");
+    expect(screen.queryByText("依赖缓存完整性")).toBeNull();
+  });
+});

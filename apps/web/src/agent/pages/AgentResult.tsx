@@ -110,6 +110,20 @@ export default function AgentResult({ jobId }: { jobId: string }) {
   const terminal = ["COMPLETED", "FAILED", "CANCELLED"].includes(job.status);
   const gates = result?.gates?.gates || [];
   const models = [...new Set(result?.llm_usage?.calls_detail?.map(call => call.model).filter(Boolean) || [])];
+  // #145: the sandbox's own statement about the dependency cache it consumed
+  // ("缓存完整性通过…" / "缓存完整性: 未校验 (NOT VERIFIED)…") is written into the
+  // step evidence by craft/loop.py. Until now the only way to read it in the
+  // product was to expand the raw-JSON <details> and know the English key name —
+  // an honest disclosure that no reviewer would find. Lifted out here, in the
+  // reader's language, on the panel that also carries the gates.
+  //
+  // Deduplicated because the same note is recorded once per step that ran a
+  // command; the page states the fact, not how many steps repeated it.
+  const cacheNotes = [...new Set(
+    (result?.steps || [])
+      .map(step => step.evidence?.cache_note)
+      .filter((note): note is string => typeof note === "string" && note.trim() !== "")
+  )];
   return <AgentJobShell job={job} active="result">
     <ErrorBox error={error} />
     {!result ? <Panel title="执行结果">{terminal ? (job.status === "COMPLETED" ? <>
@@ -125,6 +139,12 @@ export default function AgentResult({ jobId }: { jobId: string }) {
       <section className={"result-overview " + (completed ? "result-complete" : "result-attention")}><div className="eyebrow">开发结果 DEVELOPMENT RESULT</div><h2>{completed ? "开发执行完成，准备审阅改动" : job.status === "CANCELLED" ? "任务已取消" : "执行未完成，需要处理问题"}</h2><p title={result.reason || undefined}>{result.reason ? describePipelineError(String(result.reason)) : (completed ? "先查看代码差异和下方检查结果，再对这次变更进行独立验收。" : "请到执行进度中查看失败原因，调整需求或环境后重新提交。")}</p><div className="result-actions"><a className="btn btn-primary" href={"#/agent/jobs/" + jobId + "/diff"}>审阅代码差异 →</a><a className="btn" href={"#/jobs/new?repo=" + encodeURIComponent(job.repo_path)}>新建独立验收</a></div></section>
       <div className="metrics-grid result-metrics"><div className="metric-card"><div className="metric-top">改动文件</div><strong>{result.diff_stat?.files_changed ?? "—"}</strong><small>本次执行记录的文件变更</small></div><div className="metric-card"><div className="metric-top">执行阶段模型调用</div><strong>{result.llm_usage?.calls ?? "—"}</strong><small>{models.join("、") || "未记录模型调用"}</small></div><div className="metric-card"><div className="metric-top">通过的检查</div><strong>{gates.length ? gates.filter(gate => gate.status === "passed").length + " / " + gates.length : "—"}</strong><small>未执行的检查不算通过</small></div></div>
       <Panel title="检查结果">{gates.length ? <div className="result-gates">{gates.map(gate => <div className="result-gate" key={gate.gate}><div><strong>{gateLabel(gate.gate)}</strong><span className={gateStatusPillClass(gate.status)} title={gate.status}>{gateStatusLabel(gate.status)}</span></div><p>{gate.note}</p></div>)}</div> : <Empty text="没有可读取的检查结果，请查看执行日志。" />}<p className="result-boundary">开发完成不等于独立验收通过。未执行或尚未覆盖的检查，需要在交付前补齐。</p></Panel>
+      {cacheNotes.length > 0 && <Panel title="依赖缓存完整性">
+        {cacheNotes.map(note => <p className="result-boundary" key={note}>{note}</p>)}
+        {/* An empty note means the profile mounted no cache. That must stay
+            silent rather than become "verified" — so this panel is absent, not
+            reassuring, when there is nothing to disclose. */}
+      </Panel>}
       {approvalsError ? <Panel title="审批记录"><div className="errorbox" title={approvalsError instanceof Error ? approvalsError.message : String(approvalsError)}>审批记录暂时无法加载（请求失败）— 不代表没有审批，请稍后重试</div></Panel> : approvals.length > 0 ? <Panel title="审批记录">{approvals.map(approval => <ApprovalCard key={approval.id} approval={approval} />)}</Panel> : null}
       <details className="result-raw"><summary>查看完整执行记录</summary><pre className="json">{JSON.stringify(result, null, 2)}</pre></details>
     </>}

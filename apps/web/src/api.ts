@@ -726,6 +726,29 @@ export interface AgentPlan {
   created_at?: string;
 }
 
+/**
+ * One runtime step as the craft loop reported it. `evidence` is the dict the
+ * loop writes at a terminal verdict — it carries the sandbox's own statement
+ * about the dependency cache it consumed. Before #145 the whole thing was
+ * reachable only through `JSON.stringify(result)` in the raw-dump `<details>`,
+ * i.e. an honest disclosure filed under a raw English key where no reviewer
+ * would find it.
+ */
+export interface AgentJobStep {
+  id: string;
+  kind?: string;
+  status: string;
+  iterations?: number;
+  evidence?: {
+    /** e.g. "缓存完整性通过: 校验 N 个条目" or "缓存完整性: 未校验 (NOT VERIFIED) …" */
+    cache_note?: string;
+    mode?: string;
+    exit_code?: number;
+    check?: string;
+    [key: string]: unknown;
+  };
+}
+
 export interface AgentJobResult {
   verdict: string;
   reason: string | null;
@@ -733,6 +756,8 @@ export interface AgentJobResult {
   gates?: { overall: string; overall_note?: string; gates?: { gate: string; status: string; note?: string }[] };
   llm_usage?: { calls?: number; total_tokens?: number; prompt_tokens?: number; completion_tokens?: number; calls_detail?: { model?: string }[] };
   cost_unavailable_reason?: string;
+  /** Per-step runtime records; present when the loop produced a report. */
+  steps?: AgentJobStep[];
 }
 
 export interface AgentJob {

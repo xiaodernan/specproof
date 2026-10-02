@@ -1138,3 +1138,49 @@ baseline 的形式被测到了（修复前同一条断言报 `the page never sen
 变异脚本落在仓库外 `D:/面试项目/_arm147.py`（三臂各自还原并校验 sha 后才进下一臂）。
 
 **仍未做。** 本弧（#140–#147）的可归因干净平面全量门还没跑——见下一条。
+
+## #145 落地：缓存披露从原始 JSON dump 里提出来，放到有中文标签的面板上——先量再动手，量的结果改写了任务本身
+
+**先量，任务的前提被改写了一半。** #145 的配方写「step 证据里的缓存披露在前端**一个读者都没有**」。实测：
+`craft/gates.py:189` 早就把 `缓存={result.cache_note}` 拼进**门禁 note**，而
+`apps/web/src/agent/pages/AgentResult.tsx` 的「检查结果」面板会渲染 `gate.note` —— 所以对**跑命令且通过**
+的门，披露是有读者的。真正没有读者的是**另一条路径**：`craft/loop.py:1184` 写进 step evidence 的
+`cache_note`，它只出现在 `result.steps[].evidence` 里，而前端 `AgentJobResult` **根本没有 `steps` 字段**
+（只有 `plan.steps`），于是它只能靠 `<details>查看完整执行记录</details>` 里的
+`JSON.stringify(result, null, 2)` 露出——**裸英文键名、折叠在原始 dump 里**。这就是"诚实的披露没人找得到"。
+
+**枚举门那一问的答案（量到的，不是猜的）。** 配方说"先查枚举门是否覆盖 evidence 键名"。实测
+`CacheCheck.verdict` 的三个值（`use` | `fail` | `rebuild`，`sandbox/cache_verify.py:67`）
+**从不进入任何载荷**：`SandboxResult`（`sandbox/runner.py:335`）与 `ExecResult`
+（`craft/executor.py:108`）都只有 `cache_note: str`。所以给这三个词配中文表会是**死代码**而不是披露——
+本批**不加**词表，并把这条判断写进门文件的 docstring，将来真透出了要一起改。
+
+**改动。**
+- `apps/web/src/api.ts`：新增 `AgentJobStep`（`id/kind/status/iterations/evidence`）与
+  `evidence.cache_note`，并给 `AgentJobResult` 补 `steps?: AgentJobStep[]`。此前该字段**没有类型**，
+  这正是它只能待在 dump 里的原因。
+- `apps/web/src/agent/pages/AgentResult.tsx`：从 `result.steps[].evidence.cache_note` 取出披露，
+  **去重**（同一条 note 每个跑过命令的 step 都会记一次；页面陈述事实，不陈述重复了几次），
+  渲染到新的「依赖缓存完整性」面板。**没有 note 就不渲染该面板**——"没挂缓存"必须保持沉默，
+  不能变成一句让人安心的"已验证"。
+
+**见证门（`tests/unit/test_cache_disclosure_has_a_reader.py`，4 例）——把读者的键绑到生产者的键上。**
+① `craft/loop.py` 的证据投影列表里仍有 `cache_note`；② `sandbox/runner.py` 与 `craft/executor.py`
+仍在该字段上有生产者；③ 页面的 `evidence?.<key>` **派生集合必须等于** `{"cache_note"}` 且
+⊆ 循环写的键集（**两边都由源码派生，没有一边硬写另一边**）；④ 标签是中文的、且面板是
+`cacheNotes.length > 0` 条件渲染的。
+
+**三臂变异（预测先写后跑，各臂按字节还原并校验 sha）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| M1 | 生产者把证据键改名 `cache_note` → `cacheNote` | 红 | **RED**，点名 `test_the_producer_still_writes_the_cache_key` + `test_the_page_reads_the_key_the_loop_writes` ✅ |
+| M2 | 页面改读 `evidence?.cacheNote` | 红 | **RED**，点名 `test_the_page_reads_the_key_the_loop_writes` ✅ |
+| M3 | 把中文标签去掉（披露退回只剩原始 JSON） | 红 | **RED**，点名 `test_the_label_is_chinese_and_the_panel_is_conditional` ✅ |
+
+**门证。** `ruff` 全绿；新门 4 passed，连带 `test_craft_cache_disclosure.py` +
+`test_craft_loop_cache_disclosure.py` 共 **15 passed**；前端 `tsc --noEmit` 0 错、
+`vitest run` **46 文件 / 372 通过**（`AgentResult.test.tsx` +3：披露出得来、多步同一条只陈述一次、
+没有缓存时保持沉默）、`vite build` 通过。变异脚本落在仓库外 `D:/面试项目/_arm145.py`。
+
+**仍未做。** 本弧的可归因干净平面全量门仍在跑（见下一条）。
