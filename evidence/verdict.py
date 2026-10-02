@@ -7,7 +7,7 @@ and certificate consumers. This policy performs no I/O.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 _EMPTY_REFERENCES = frozenset({"", "-", "—", "none", "null", "n/a", "unknown", "pending"})
@@ -41,6 +41,90 @@ class VerificationDecision:
     @property
     def reason(self) -> str:
         return "；".join(self.reasons)
+
+
+#: Every veto sentence produced by :func:`release_gate_veto` starts with this
+#: prefix, and the CLI selects the gate's own reasons out of a decision by it.
+#: A constant because two modules have to agree on the spelling, not on prose.
+RELEASE_GATE_REASON_PREFIX = "RELEASE 档发布门"
+
+
+def _gate_row(name: str, entry: Any) -> str:
+    """One gate's verdict word, read from what the gate actually recorded.
+
+    The overall ``passed`` flag is the node's own summary; a veto has to say
+    *which* gate refused, so each entry is read here. An entry with no flag and
+    an entry that checked nothing are both reported as 未判定 — silence is not
+    agreement.
+    """
+    if isinstance(entry, Mapping):
+        if "passed" not in entry:
+            return "未判定"
+        return "通过" if entry["passed"] else "未通过"
+    if isinstance(entry, (list, tuple)):
+        if not entry:
+            return "未判定（没有条目可校验）"
+        ok = all(
+            isinstance(item, Mapping) and item.get("digest_ok") is True
+            for item in entry
+        )
+        return "通过" if ok else "未通过"
+    return "未判定"
+
+
+def release_gate_veto(release: Mapping[str, Any] | None) -> tuple[str, tuple[str, ...]]:
+    """Veto an outward ``VERIFIED`` when the RELEASE tier's own gates refuse.
+
+    ``--depth RELEASE`` re-runs the generated test on HEAD and recomputes every
+    capsule digest (``agent/nodes/run_release_checks.py``). Until #151 nothing
+    listened to that result: the CLI issued a Merge Certificate, published the
+    GitHub Check and persisted the job summary from contract rows alone, so the
+    strongest tier the product offers certified a campaign whose evidence had
+    just failed to reproduce.
+
+    Returns ``(status, reasons)``; ``("", ())`` when the tier recorded no gate
+    verdict to listen to — a FAST/DEEP job, or a caller that never ran the node.
+    The status stays inside this module's existing vocabulary: a gate refusal
+    blocks acceptance, it does not invent a fourth state.
+    """
+    payload = release if isinstance(release, Mapping) else {}
+    gates = payload.get("gates")
+    if not isinstance(gates, Mapping) or not gates:
+        return "", ()
+    if payload.get("passed") is True:
+        return "", ()
+    reasons = tuple(
+        f"{RELEASE_GATE_REASON_PREFIX} {name}: {_gate_row(name, gates[name])}"
+        for name in sorted(gates)
+    )
+    return "BLOCKED", reasons
+
+
+def evaluate_acceptance(
+    matrix: Mapping[str, Any] | None,
+    *,
+    contracts: Sequence[Mapping[str, Any]] | None = None,
+    findings: Sequence[Any] = (),
+    errors: Sequence[Any] = (),
+    release: Mapping[str, Any] | None = None,
+) -> VerificationDecision:
+    """Contract policy plus the RELEASE tier's veto — one shared entry point.
+
+    Callers that have no release state pass nothing and get exactly
+    :func:`evaluate_verification`. A veto can only ever downgrade VERIFIED, so
+    it never turns a FAILED or BLOCKED job into something reassuring.
+    """
+    decision = evaluate_verification(
+        matrix, contracts=contracts, findings=findings, errors=errors
+    )
+    status, reasons = release_gate_veto(release)
+    if not status or decision.status != "VERIFIED":
+        return decision
+    return replace(
+        decision,
+        status=status,
+        reasons=tuple(dict.fromkeys(decision.reasons + reasons)),
+    )
 
 
 def evaluate_verification(

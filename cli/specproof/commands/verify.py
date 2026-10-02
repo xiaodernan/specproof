@@ -3,7 +3,8 @@
 
 Honesty contract (v2):
 - VERDICT FAILED    when the pipeline recorded errors
-- VERDICT BLOCKED   when findings, failures or incomplete coverage require review
+- VERDICT BLOCKED   when findings, failures, incomplete coverage or a
+                    refused RELEASE-tier gate require review
 - VERDICT VERIFIED  only when every contract passed with evidence
 - A Merge Certificate is issued only for VERIFIED; otherwise a Rejection
   Notice JSON is written alongside the HTML report.
@@ -442,7 +443,11 @@ def verify(
     capsules = final_state.get("capsules", [])
     errors = final_state.get("errors", [])
 
-    from evidence.verdict import contracts_with_results, evaluate_verification
+    from evidence.verdict import (
+        RELEASE_GATE_REASON_PREFIX,
+        contracts_with_results,
+        evaluate_acceptance,
+    )
 
     merged_contracts = contracts_with_results(contracts, contract_results)
 
@@ -521,8 +526,16 @@ def verify(
             click.echo(f"  {cap}{note}")
 
     # ── Honest verdict ──
-    decision = evaluate_verification(
-        matrix, contracts=contracts, findings=findings, errors=errors,
+    # Backlog #151: the RELEASE tier's own gates veto this verdict. Every
+    # outward outlet below (certificate, persisted summary, GitHub Check) reads
+    # the single `verdict` variable, so listening here is what makes the
+    # strongest tier's refusal reach the outside world.
+    decision = evaluate_acceptance(
+        matrix,
+        contracts=contracts,
+        findings=findings,
+        errors=errors,
+        release=final_state.get("release_results"),
     )
     verdict = decision.status
 
@@ -596,7 +609,15 @@ def verify(
         else:
             click.echo("Merge Certificate: NOT ISSUED (no fully verified contracts)")
     else:
-        reasons = [
+        # The gate's own refusal is the notice's headline reason. Falling
+        # through to "contracts unverified" would send the reader to the
+        # contracts when the contracts were fine and the release evidence
+        # failed to reproduce.
+        gate_reasons = [
+            reason for reason in decision.reasons
+            if reason.startswith(RELEASE_GATE_REASON_PREFIX)
+        ]
+        reasons = gate_reasons or [
             f.get("description", "") for f in findings[:5]
         ] or errors[:5] or ["contracts unverified"]
         notice = build_rejection_notice(

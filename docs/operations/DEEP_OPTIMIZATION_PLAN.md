@@ -1245,3 +1245,66 @@ publish"` **249 passed / 0 failed（145.18s）**；`mypy evidence/report.py agen
 :293 之后没有任何一处读 `release_results`，也就是 RELEASE 门失败既不改变 CLI 退出码、也不拦证书、
 也不进 GitHub Check（:614 那条发布路径）。这一号要动的是命令结果与签发路径，属于用户可观察行为
 改变，得单独一批、先量三个入口（CLI 退出码 / 证书签发 / Check 注解）再动。
+
+### #151 对外宣告从此听发布门：RELEASE 门失败不再签发证书（`BLOCKED` 走三个出口）
+
+**实测前提（写代码之前量的，不是推断）**：#150 只给了报告一个读者。`release_results` 在全库
+仍只有 `publish_report.py` 一处读者，验收宣告路径上没有任何一处读它：`verify.py` 收了
+`--depth RELEASE`、跑了 `run_release_checks` 节点，然后**只用契约行**算 verdict，于是
+一道门刚失败的活动照样签发 Merge Certificate、照样把 `VERIFIED` 落进作业摘要、照样在
+`--publish-check` 上发布成功注解。三个出口读同一个 `verdict` 变量，所以否决权放在共享策略里、
+只在那一个调用点接上。
+
+**订正 #126 里我自己写下的口径**：这一号的原始描述说「不改 CLI 退出码」。实测 `verify.py`
+**根本没有按 verdict 退出**——全文件只有三处 `SystemExit`（仓库路径缺失、spec 缺失、preflight
+未通过），VERIFIED 与 FAILED 一样退 0。退出码不是「漏了发布门」，是「漏了所有裁决」，而它不能
+顺手补：`mcp/tools.py` 在子进程返回码非零时抛 `ToolError` 并丢弃已解析的 BLOCKED 摘要
+（`specproof_verify` 里那句 `specproof verify exited with code …`），所以补退出码必须同时给
+MCP 那条读路径留一个「非零但仍带裁决」的分支。这一条另立 **#153**，不与本号混落。
+
+**落了什么**：
+- `evidence/verdict.py`：`RELEASE_GATE_REASON_PREFIX` 常量、`_gate_row()`、`release_gate_veto()`、
+  `evaluate_acceptance()`。共享策略的模块文档句本来就自称「jobs / reports / certificates 共用的
+  一份 fail-closed 验收口径」，否决权放这里是归位不是新层。
+- `cli/specproof/commands/verify.py`：裁决改走 `evaluate_acceptance(..., release=final_state
+  .get("release_results"))`；拒绝通知书的理由先取**门自己那句话**，取不到才退回原有的
+  findings / errors / `"contracts unverified"` 链；模块文档的诚实契约补一句「被拒的 RELEASE 门
+  也构成 BLOCKED」。
+- 新门 `tests/unit/test_release_gates_veto_the_verdict.py`（12 例）。
+
+**四条不许互相混淆的口径**（每条有自己的案例）：
+1. 门拒绝 ⇒ `VERIFIED` 降为 `BLOCKED`，并且**点名是哪道门**（状态词仍只用本模块既有的三分法，
+   不发明第四态）；
+2. 已经 `FAILED` / `BLOCKED` 的作业**永不被改写**——否决只会向下，不会替坏消息编一个好口径，
+   也不在已失败的理由里追加门话；
+3. 没跑这一档（FAST/DEEP，`release_results={}`）**不受影响**：「没有门」不等于「有门拒绝」，
+   否则每个普通作业都会莫名其妙丢掉证书；
+4. 门记录里**没有 `passed` 旗标**、或**校验了空集合**，都写作 未判定——它有权拒绝一份验收，
+   但永远不能用来支持一份验收。
+
+**见证**：`.scratch/g151/mutate_151.py`，控制腿 `collected=12 == AST def test_ 计数`、
+0 红；V1–V8 八臂 **8/8 MATCHED**，0 unsettled，还原后两个源文件字节相同。
+预测是按**每个案例踩哪条分支**写的（写在门文档里，先于跑见证）：
+V1 调用点不再传 `release=` ⇒ {9,12}；V2 否决永不生效 ⇒ {2,3,6,7,8,9,12}；
+V3 「没有门可听」的子句被摘掉 ⇒ {4}；V4 通知书不再引用门话 ⇒ {9}；
+V5 否决连 `FAILED` 一起改写 ⇒ {5}；V6 空胶囊名册读作 通过 ⇒ {7}；
+V7 无旗标的门读作 通过 ⇒ {6}；V8 门名不再排序 ⇒ {8}。
+案例 1、10、11 是「不得误拒」对照腿，八臂下都必须绿。
+
+**门数字（只在干净平面读，PYTHONPATH 钉在平面内并断言 `evidence.verdict.__file__` 落在平面里）**：
+`git archive HEAD` 冻结为 `.scratch/plane151`。同一组文件在 HEAD（九个文件，本号新增的门还不存在）
+= **149 passed / 0 failed / 0 errors / 0 skipped, 94.932s**；把本号三个文件覆盖进去同一条腿
+= **161 / 0 / 0 / 0, 101.089s**，即 **+12 例 / +0 红**。脏工作副本同一条腿是 164 例 **1 红**，
+红在 `test_verdict_channel_parity`：`accept: witness craft/accept.py:475 does not contain 'ERROR'`
+——那是并发会话正在改的 `craft/accept.py`（工作副本脏、HEAD 干净，同一文件在 HEAD 平面上
+13/13 绿），归因明确，不属本号。ruff 两个源文件＋门文件干净；mypy `Success: no issues found in
+2 source files`。
+
+**下一号**：
+- **#152**（本号实测发现，故意没修）：`run_release_checks` 在 `capsules` 为空时写
+  `capsule_integrity=[]` 却仍让 `passed=True`，于是「没有条目可校验」在节点里算通过、在报告里算
+  未判定，两个口径不一致；本号的否决只在 `passed` 不为真时触发，所以这条空集合路径仍然只在报告
+  里露出来。要修的是节点的旗标，不是新增第四种口径。
+- **#153**：CLI 按 verdict 退出码 + `mcp/tools.py` 的非零返回码分支（上面已量）。
+- 旧的 #151 之前欠的：`deep_results` 入库与 Web 读路径（需 `agent/worker.py`、`storage/mysql.py`、
+  OpenAPI 重导，都是并发写者）；compose 武装仍待用户批准。
