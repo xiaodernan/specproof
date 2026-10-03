@@ -1751,4 +1751,34 @@ pipeline 通道走 Maven/Java，无 CPython pyc 协议，不受影响，未动�
 同测试仅报「通过」一条）：前者是并行脏文件 `craft/accept.py` 在途 diff 的行号漂移；
 后者待并行落库后复测再定性。**本支零动作。**
 
+### #159b minio 撤镜定案：换 SeaweedFS 3.80（六调用实证 + 双 compose 落地 + healthcheck 实测 Healthy）
+
+**选型**：Garage 淘汰（强制 RPC 拓扑初始化，compose 化重）；SeaweedFS 胜出——
+Docker Hub 匿名可拉（对照：quay.io/minio 实测 401，DockerHub 该镜像 404，本地 pull 同
+401）、单容器内嵌 S3（v4 签名）、官方声明 minio 客户端兼容、镜像内自带 busybox nc/wget
+（healthcheck 无需加包）。
+
+**兼容实证（storage/minio.py 全部六个调用，真容器逐个跑过）**：bucket_exists /
+make_bucket / put_object / stat_object / get_object / list_objects——匿名与身份双模式
+全通；错误凭据 S3Error 拒绝；目录挂载 s3.json 身份隔离生效。`test_artifact_recovery.py`
+的 21 处 "minio" 勘察为纯 Python 模拟数据，不真连服务——真依赖面只有 minio-py 客户端
+与 compose 服务定义。
+
+**落地**：
+- `deploy/seaweedfs/s3.json`：phase0 静态默认身份（minioadmin/specproof_pass）。
+- `compose.phase0.yml`：minio 服务换 image/command/healthcheck（`nc -z localhost 9000`，
+  start_period 40s 吸收 raft 选举——实测容器起到 "Start Seaweed S3 API Server" ≈25s），
+  服务名保留 `minio`（MINIO_HOST 与 app env 契约不动）；旧 9001 控制台无对应物，映射删除。
+- `compose.production.yml`：minio override 用 entrypoint 从容器 env 现场 printf 生成
+  /tmp/s3.json——凭据单一来源（config_guard 拒默认凭据的臂甲不破）；**command 必须同
+  覆盖**（compose 列表合并语义：不覆盖则合并后仍指挂载的默认 s3.json，docker compose
+  config 实测抓到）。
+- `RUNBOOK.md` 端口表更新（MinIO→SeaweedFS(S3)，9001 删除）。
+
+**门证**：`docker compose -f compose.phase0.yml config` rc=0；双文件合并 config rc=0
+（REQUIRED 变量补齐后，确认 command 覆盖与 env 注入生效）；本地
+`docker compose up -d --wait minio` 全链 **Healthy**（与 CI `up -d --wait` 等效）；
+compose 栈冒烟 ensure_buckets/upload/get_object OK。测试容器与卷已清理。
+
+
 

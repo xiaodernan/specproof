@@ -16,7 +16,7 @@
 | RabbitMQ | 5672/15672 | 可靠任务管道 (Confirm + Manual Ack + DLQ) |
 | MongoDB | 27017 | checkpoint / 复杂分析工件 |
 | Elasticsearch | 9200 | 仓库符号检索 (诚实降级) |
-| MinIO | 9000/9001 | 报告/胶囊/证书对象存储 |
+| SeaweedFS (S3) | 9000 | 报告/胶囊/证书对象存储 (#159b: MinIO 已撤公共镜像, 服务名仍为 minio; 旧 9001 控制台无对应物, master UI 9333 仅容器网内) |
 
 ## 2. 启动与停止
 

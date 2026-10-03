@@ -1,0 +1,11 @@
+{
+  "identities": [
+    {
+      "name": "minioadmin",
+      "credentials": [
+        {"accessKey": "minioadmin", "secretKey": "specproof_pass"}
+      ],
+      "actions": ["Admin", "Read", "Write"]
+    }
+  ]
+}

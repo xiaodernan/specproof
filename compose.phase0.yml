@@ -134,25 +134,44 @@ services:
           cpus: "1.0"
           memory: 512M
 
+  # S3-compatible object storage. MinIO pulled its community images from every
+  # public registry (quay/DockerHub/local pull all measured 401/404 on
+  # 2026-10-01, #159b), so the stack runs SeaweedFS: its S3 API server speaks
+  # v4 signatures, which is all minio-py (storage/minio.py) needs. The six
+  # calls the client uses were verified live against 3.80 — bucket_exists,
+  # make_bucket, put_object, stat_object, get_object, list_objects — in both
+  # anonymous and credentialed mode; wrong credentials are rejected (S3Error).
+  # The service keeps the `minio` name so MINIO_HOST and the app env contract
+  # are unchanged. Identity comes from the mounted s3.json (defaults below
+  # must move together with MINIO_ROOT_USER/MINIO_ROOT_PASSWORD in
+  # compose.production.yml, which generates the same file from the real
+  # environment at boot). SeaweedFS ships no S3 console, so the old :9001
+  # mapping is gone; the master UI (9333) stays inside the compose network.
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-08T15-41-24Z
+    image: chrislusf/seaweedfs:3.80
     container_name: specproof-minio
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-specproof_pass}
+    command: >
+      server -dir=/data
+      -master.volumeSizeLimitMB=1024
+      -volume.max=0
+      -filer -s3 -s3.port=9000
+      -s3.config=/etc/seaweedfs/s3.json
+      -ip.bind=0.0.0.0
     ports:
       - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio-data:/data
+      - ./deploy/seaweedfs:/etc/seaweedfs:ro
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      # busybox nc is in the image (no curl); S3 binds 9000 only after the
+      # filer is up, so the start_period absorbs the raft election (~25s
+      # measured from container start to "Start Seaweed S3 API Server").
+      test: ["CMD-SHELL", "nc -z localhost 9000"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 40s
     deploy:
       resources:
         limits:
