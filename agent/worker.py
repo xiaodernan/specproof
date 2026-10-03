@@ -1085,6 +1085,11 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
     status uses (#154): a RELEASE gate refusal names itself in
     `coverage_reason` instead of the summary silently saying "everything
     unverified" next to a gate report that says why the job is blocked.
+
+    DEEP tier disclosure (#155): `deep_results` rides along only when the
+    tier actually produced them — an empty dict must not masquerade as a
+    run — while `deep_note` is always carried, same style as
+    `retrieval_note`: "DEEP tier not requested" is an honest answer.
     """
     matrix = state.get("matrix", {})
     findings = state.get("confirmed_findings", [])
@@ -1093,7 +1098,7 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
         errors=state.get("errors", []),
         release=state.get("release_results"),
     )
-    return {
+    summary: dict[str, Any] = {
         "verdict": verdict,
         "contracts_total": len(state.get("contracts", [])),
         "matrix_passed": decision.passed,
@@ -1123,6 +1128,11 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
         # rather than only "what went wrong".
         "preflight": state.get("preflight", {}),
     }
+    deep_results = state.get("deep_results")
+    if deep_results:
+        summary["deep_results"] = deep_results
+    summary["deep_note"] = str(state.get("deep_note", ""))
+    return summary
 
 
 def _terminal_status_from_state(state: dict[str, Any]) -> str:

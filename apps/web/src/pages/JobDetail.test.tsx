@@ -213,6 +213,45 @@ describe("verification lifecycle", () => {
     expect(screen.getByText("PARANOID")).toBeTruthy();
   });
 
+  it("discloses DEEP verification results when the summary carries them", async () => {
+    get.mockImplementation((async (path: string) => {
+      if (path === "/jobs/deep-job") return { job: { id: "deep-job", status: "VERIFIED", depth: "DEEP", repo_path: "/p" } };
+      if (path.endsWith("/summary")) return {
+        summary: {
+          verdict: "VERIFIED",
+          deep_note: "DEEP experiments completed: mutation campaigns=2, state delta captured",
+          deep_results: {
+            verdict_stability: { repeat_count: 2, verdicts: ["exit_0", "exit_0"], classification: "stable" },
+            cache_integrity: "cache seeded from the sandbox note",
+            deep_report_file: "deep-report-deep-job.json",
+          },
+        },
+      };
+      if (path.endsWith("/stages")) return { job_id: "deep-job", stages: [], event_count: 0, degraded: false };
+      return { job_id: "deep-job", findings: [], count: 0, degraded: false };
+    }) as typeof apiGet);
+    render(<JobDetail jobId="deep-job" />);
+    await screen.findByText("DEEP 深度验证披露");
+    // classification is glossed, the raw enum token stays visible
+    expect(screen.getByText(/结论稳定 · stable/)).toBeTruthy();
+    expect(screen.getByText(/2 次重复运行/)).toBeTruthy();
+    // the run-produced note is shown verbatim, never paraphrased
+    expect(screen.getByText(/mutation campaigns=2/)).toBeTruthy();
+    expect(screen.getByText("deep-report-deep-job.json")).toBeTruthy();
+  });
+
+  it("renders no DEEP disclosure panel when the tier produced nothing", async () => {
+    get.mockImplementation((async (path: string) => {
+      if (path === "/jobs/fast-job") return { job: { id: "fast-job", status: "VERIFIED", depth: "FAST", repo_path: "/p" } };
+      if (path.endsWith("/summary")) return { summary: { verdict: "VERIFIED", matrix_passed: 2, deep_note: "DEEP tier not requested" } };
+      if (path.endsWith("/stages")) return { job_id: "fast-job", stages: [], event_count: 0, degraded: false };
+      return { job_id: "fast-job", findings: [], count: 0, degraded: false };
+    }) as typeof apiGet);
+    render(<JobDetail jobId="fast-job" />);
+    await screen.findByText("本次验证通过");
+    expect(screen.queryByText("DEEP 深度验证披露")).toBeNull();
+  });
+
   it("loads the report only when requested", async () => {
     get.mockImplementation((async (path: string) => {
       if (path === "/jobs/job-1") return { job: { id: "job-1", status: "VERIFIED" } };

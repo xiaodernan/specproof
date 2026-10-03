@@ -1494,3 +1494,46 @@ E1 词表把 BLOCKED/FAILED 也映到 0 ⇒ {1,5,6}；E2 掉尾部 `raise System
 **下一号**：
 - 旧的欠账（本轮没动）：`deep_results` 入库与 Web 读路径（`agent/worker.py`、`storage/mysql.py`、
   OpenAPI 重导都是并发写者，动手前先量归属）；compose 武装仍待用户批准。
+
+### #155 落地：deep_results 入库 + Dashboard 读路径——DEEP 档的证据终于到达摘要通道
+
+**实测前提（写代码之前量的）**：`deep_results`/`deep_note` 只由 `run_deep_experiments_node` 写
+（三路返回：FAST ⇒ 空 dict+"DEEP tier not requested"；缺 workspace ⇒ 空 dict+"DEEP skipped…"；
+跑完 ⇒ 完整 results+"DEEP experiments completed: …"），此前唯一读者是 `publish_report.py` 的
+HTML/deep-report.json；而 `storage/mysql.py::get_job_summary` 对 summary 列整块 JSON 透传、
+`api/routes/jobs.py::get_job_summary` 直接 return，端点又是泛型 `dict[str, Any]` 响应——所以本号
+零改动面就是 `_state_summary` 一处投影 + 前端一个 Panel，storage/api/OpenAPI 一个字节不用动
+（openapi baseline 零 diff 有门作证）。`verdict_stability.classification` 的词表在
+`agent/verdict_stability.py`：stable / flaky / no_runs / single_run / contaminated。
+
+**落了什么（一处后端投影 + 一块前端披露）**：
+- `agent/worker.py::_state_summary`：加 `deep_results`——**仅非空写**：空 dict 不能冒充
+  "跑过且没发现"，缺席即无话可说；加 `deep_note`——**总写**（`str(state.get(...))`，与
+  `retrieval_note` 同风格，"DEEP tier not requested" 是对 FAST 作业的诚实回答）。FAILED 路径
+  `_failure_summary` 不动：死在半路的作业没有 DEEP 证据可披露。
+- `apps/web/src/pages/JobDetail.tsx`：`Summary` 接口加 `deep_note?`/`deep_results?`；
+  `DeepResults` 只声明要渲染的键（verdict_stability / cache_integrity / deep_report_file）——节点
+  以后加的键在这里被忽略而不是被猜；`DEEP_CLASSIFICATION_LABELS` 走 `DEPTH_LABELS` 同款
+  gloss 模式（"中文 · token"，词表外的值原样透传，绝不替后端断言一个它没报告的分类）；
+  overview tab"证据与产物"之后加"DEEP 深度验证披露"Panel，**仅当 `deep_results` 非空在场
+  才渲染**（前端对空 dict 再防一道）。
+- 门：后端新门 `tests/unit/test_worker_summary_deep_disclosure.py` 4 例，预测预写在 docstring
+  （FAST 诚实 note 不造结果 / DEEP 原样透传含 classification token / 空 dict 不冒充一次运行 /
+  无键状态序列化为 "" 而不是键消失）；前端 `JobDetail.test.tsx` 2 例（DEEP 节渲染含
+  gloss+原样 note+报告文件名 / FAST 不渲染披露节）。
+
+**门数字**：
+- 新门 **4 passed**；定向三文件（新门+matrix rows+openapi diff）**22 passed**，OpenAPI
+  baseline 零 diff；`ruff`/`mypy` 干净；前端全量 **47 文件 379 passed**。
+- 宽腿 10 文件（worker summary 域全量交叉引用）**169 passed / 1 红**——红 = parity accept
+  witness `craft/accept.py:475`，与 #154 记档同一处、同一归属：craft/accept.py 是并行会话脏
+  文件，本号未触碰，不代抬。
+- 干净平面：**+180/-1 行、4 文件**（worker.py +11/-1、JobDetail.tsx +45、JobDetail.test.tsx
+  +39、新门 85 行）全在本号清单内；9 个并行会话脏文件原样未动。
+
+**仪器教训一条**：全量 pytest 含黄金 eval 慢阶段（实测 >80min 量级），且后台转存让三次全量
+互相并发叠加、互相拖慢——本号门证按 #153 先例回归"定向宽腿"口径；全量套件不是逐号纪律。
+
+**下一号**：
+- 旧的欠账（本轮没动）：compose 武装仍待用户批准；并发写者归属（storage/api）在 #155 已量清：
+  summary 列读路径是纯透传，后续往 summary 加键不需要再动它们。

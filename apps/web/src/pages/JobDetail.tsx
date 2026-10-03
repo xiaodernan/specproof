@@ -13,6 +13,15 @@ import { recordRecentJob } from "../ui/recentJobs";
 import { describePipelineError, loadFailed } from "../ui/errorHints";
 import "../styles/verification.css";
 
+// DEEP tier disclosure (#155): shape written by run_deep_experiments_node.
+// Only declared keys are rendered; anything the node adds later is ignored
+// here rather than guessed at.
+interface DeepResults {
+  verdict_stability?: { repeat_count?: number; classification?: string };
+  cache_integrity?: string;
+  deep_report_file?: string;
+}
+
 interface Summary {
   coverage_reason?: string;
   verdict?: string;
@@ -26,6 +35,8 @@ interface Summary {
   retrieval_note?: string;
   errors?: string[];
   preflight?: PreflightResult;
+  deep_note?: string;
+  deep_results?: DeepResults;
 }
 
 type Tab = "overview" | "stages" | "findings" | "certificate";
@@ -64,6 +75,24 @@ function depthLabel(depth: string | undefined): string {
   if (!depth) return "—";
   const cn = DEPTH_LABELS[depth];
   return cn ? cn + " · " + depth : depth;
+}
+
+// DEEP stability classification arrives as an English enum from
+// agent/verdict_stability.py (stable / flaky / single_run / no_runs /
+// contaminated). Same rule as DEPTH_LABELS: known values are glossed as
+// "中文 · token"; anything else passes through verbatim so we never assert a
+// classification the backend didn't report.
+const DEEP_CLASSIFICATION_LABELS: Record<string, string> = {
+  stable: "结论稳定",
+  flaky: "结论不稳定",
+  single_run: "仅单次运行",
+  no_runs: "无重复运行",
+  contaminated: "环境受污染",
+};
+function deepClassificationLabel(value: string | undefined): string {
+  if (!value) return "—";
+  const cn = DEEP_CLASSIFICATION_LABELS[value];
+  return cn ? cn + " · " + value : value;
 }
 
 function findingColumns(jobId: string): Column<Finding>[] {
@@ -317,6 +346,22 @@ export default function JobDetail(props: { jobId: string }) {
                     </>
                   ) : null}
                 </Panel>
+                {s.deep_results && Object.keys(s.deep_results).length > 0 ? (
+                  <Panel title="DEEP 深度验证披露">
+                    {kv("执行说明", s.deep_note || "—")}
+                    {s.deep_results.verdict_stability
+                      ? kv(
+                          "结论稳定性",
+                          deepClassificationLabel(s.deep_results.verdict_stability.classification)
+                            + (s.deep_results.verdict_stability.repeat_count
+                              ? "（" + s.deep_results.verdict_stability.repeat_count + " 次重复运行）"
+                              : ""),
+                        )
+                      : null}
+                    {s.deep_results.cache_integrity ? kv("缓存完整性", s.deep_results.cache_integrity) : null}
+                    {s.deep_results.deep_report_file ? kv("深度报告", s.deep_results.deep_report_file) : null}
+                  </Panel>
+                ) : null}
               </div>
             </>
           ) : summaryLoadFailed ? (
