@@ -1,8 +1,8 @@
 // Pure tone mapping for severity and result/evidence status pills.
 //
 // Two independent maps, on purpose: severity (see SEVERITIES below) and
-// result/evidence status (PASS/FAIL/UNVERIFIED/DEGRADED) must never share a
-// tone scale — conflating them once rendered UNVERIFIED with a green PASS
+// result/evidence status (RESULT_STATES: PASS/FAIL/UNVERIFIED) must never share
+// a tone scale — conflating them once rendered UNVERIFIED with a green PASS
 // tone. Every unknown/missing value renders 未知 UNKNOWN in the neutral
 // tone; no branch of either map ever returns a green class for anything
 // other than a verified pass.
@@ -59,23 +59,39 @@ export function severityPill(severity?: string | null): PillSpec {
 }
 
 /**
- * Result / evidence status map: PASS green, FAIL red, UNVERIFIED amber,
- * DEGRADED neutral. Anything else renders 未知 in the neutral tone —
- * never green.
+ * Result / evidence status map: PASS green, FAIL red, UNVERIFIED amber.
+ * Anything else renders 未知 in the neutral tone — never green.
+ *
+ * The keys are the merge rule's own vocabulary
+ * (`agent/matrix_policy.py::_RESULT_PRIORITY`), and
+ * `tests/unit/test_matrix_result_vocabulary_parity.py` pins both directions.
+ * This used to carry a fourth row, `DEGRADED`: no producer in the pipeline ever
+ * wrote that word into a matrix result (it belongs to the health scale, which
+ * `healthStatusLabel` glosses), so the badge could never appear — and every
+ * real "the run was limited" signal went to 未知 instead, where it reads as an
+ * unrecognised value rather than a documented state.
  */
+export const RESULT_STATES: Record<string, { cls: string; caption: string }> = {
+  PASS: { cls: "pill-ok", caption: "检查通过" },
+  FAIL: { cls: "pill-bad", caption: "发现不符" },
+  UNVERIFIED: { cls: "pill-unverified", caption: "证据不足" },
+};
+
+/** What the page says about a result token this vocabulary does not hold. */
+const RESULT_UNKNOWN_CAPTION = "待确认状态";
+
 export function resultPill(result?: string | null): PillSpec {
-  switch ((result || "").toUpperCase()) {
-    case "PASS":
-      return { cls: "pill-ok", label: "PASS" };
-    case "FAIL":
-      return { cls: "pill-bad", label: "FAIL" };
-    case "UNVERIFIED":
-      return { cls: "pill-unverified", label: "UNVERIFIED" };
-    case "DEGRADED":
-      return { cls: "pill-mute", label: "DEGRADED" };
-    default:
-      return { ...UNKNOWN };
-  }
+  const token = (result || "").toUpperCase();
+  const spec = RESULT_STATES[token];
+  return spec ? { cls: spec.cls, label: token } : { ...UNKNOWN };
+}
+
+/**
+ * The one Chinese gloss of a result value, next to its pill. Exported so pages
+ * import it instead of writing a second copy of the same vocabulary.
+ */
+export function resultCaption(result?: string | null): string {
+  return RESULT_STATES[(result || "").toUpperCase()]?.caption || RESULT_UNKNOWN_CAPTION;
 }
 
 // 术语对照表：把面向机器的规范枚举/字段翻译成评审者能直接行动的中文说明，

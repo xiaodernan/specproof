@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resultPill, severityPill, severityHint, severityRank, acceptSeverityLabel, acceptSeverityTone, ACCEPT_SEVERITY_BLOCKING, evidenceLabel, checkerLabel, contractStatusLabel, dependencyInstallLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone, SEVERITIES, SEVERITY_STOREABLE } from "../toneMap";
+import { resultPill, resultCaption, severityPill, severityHint, severityRank, acceptSeverityLabel, acceptSeverityTone, ACCEPT_SEVERITY_BLOCKING, evidenceLabel, checkerLabel, contractStatusLabel, dependencyInstallLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone, SEVERITIES, SEVERITY_STOREABLE } from "../toneMap";
 
 // The severity vocabulary is reconciled against the MySQL ENUM, the HTTP
 // request pattern and the pipeline's own emission sites by
@@ -88,11 +88,27 @@ describe("severityPill — severity has its own tone map", () => {
 });
 
 describe("resultPill — result/evidence status map", () => {
-  it("maps PASS green, FAIL red, UNVERIFIED amber, DEGRADED neutral", () => {
+  it("maps PASS green, FAIL red, UNVERIFIED amber", () => {
     expect(resultPill("PASS")).toEqual({ cls: "pill-ok", label: "PASS" });
     expect(resultPill("FAIL")).toEqual({ cls: "pill-bad", label: "FAIL" });
     expect(resultPill("UNVERIFIED")).toEqual({ cls: "pill-unverified", label: "UNVERIFIED" });
-    expect(resultPill("DEGRADED")).toEqual({ cls: "pill-mute", label: "DEGRADED" });
+  });
+
+  it("glosses each result in Chinese, for the caption under the pill", () => {
+    expect(resultCaption("PASS")).toBe("检查通过");
+    expect(resultCaption("FAIL")).toBe("发现不符");
+    expect(resultCaption("UNVERIFIED")).toBe("证据不足");
+    // Case-insensitive on the value, like the pill: the pipeline upper-cases
+    // its merge, an older persisted row need not have.
+    expect(resultCaption("pass")).toBe("检查通过");
+  });
+
+  it("has no word for DEGRADED: that is the health scale, not a matrix result", () => {
+    // Nothing in the merge rule produces it, so the pill must not pretend a
+    // documented state is on screen — 未知 is the honest reading, and it is the
+    // same tone the old DEGRADED row used.
+    expect(resultPill("DEGRADED")).toEqual({ cls: "pill-mute", label: "未知 UNKNOWN" });
+    expect(resultCaption("DEGRADED")).toBe("待确认状态");
   });
 
   it("renders 未知 for unknown results — never green", () => {
@@ -101,6 +117,7 @@ describe("resultPill — result/evidence status map", () => {
       expect(p.cls).toBe("pill-mute");
       expect(p.label).toContain("未知");
       expect(p.cls).not.toMatch(/pill-ok|pill-pass/);
+      expect(resultCaption(r)).toBe("待确认状态");
     }
   });
 

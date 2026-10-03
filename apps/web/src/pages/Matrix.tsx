@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
 import type { Job, MatrixData } from "../api";
 import { useRemoteData } from "../hooks/useRemoteData";
-import { Button, Degraded, ErrorBox, Input, Panel, Select, Spinner, StatCard, Table, Term, attributionLabel, checkerLabel, dependencyInstallLabel, executionSurfaceLabel, executionSurfaceTone, resultPill, shortId } from "../ui";
+import { Button, Degraded, ErrorBox, Input, Panel, Select, Spinner, StatCard, Table, Term, attributionLabel, checkerLabel, dependencyInstallLabel, executionSurfaceLabel, executionSurfaceTone, resultCaption, resultPill, shortId } from "../ui";
 import { ProductIcon } from "../ui/ProductIcon";
 import { QualityEmpty, QualityHeader, QualityPagination } from "./QualityLayout";
 
 const PAGE_SIZE = 25;
-const RESULT: Record<string, string> = { PASS: "检查通过", FAIL: "发现不符", UNVERIFIED: "证据不足", DEGRADED: "检查受限" };
 
 /** A count the pipeline never recorded is not the same fact as a recorded 0. */
 function countText(value: number | null): string | number {
@@ -24,7 +23,7 @@ export default function Matrix() {
   const { data, error, loading } = matrix;
   const rows = useMemo(() => {
     const query = filter.trim().toLowerCase();
-    return (data?.rows ?? []).filter(row => !query || [row.requirement_text, row.contract_id_str, row.result, RESULT[row.result] || ""].join(" ").toLowerCase().includes(query));
+    return (data?.rows ?? []).filter(row => !query || [row.requirement_text, row.contract_id_str, row.result, resultCaption(row.result)].join(" ").toLowerCase().includes(query));
   }, [data, filter]);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(rows.length / PAGE_SIZE)));
   const missingEvidence = (data?.rows ?? []).filter(row => !row.evidence_ref?.trim()).length;
@@ -73,7 +72,7 @@ export default function Matrix() {
                 return (
                   <>
                     <span className={"pill " + result.cls}>{result.label}</span>
-                    <div className="quality-result-caption">{RESULT[row.result] || "待确认状态"}</div>
+                    <div className="quality-result-caption">{resultCaption(row.result)}</div>
                     {/* The pipeline's own next step, when it has one. It is
                         evidence-derived guidance, so an absent value stays
                         absent rather than defaulting to generic advice. */}

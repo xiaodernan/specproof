@@ -21,7 +21,7 @@ export { fmtPct, fmtTime, kv, shortId, verdictTone, verdictLabel } from "./util"
 export {
   attributionLabel, checkerLabel, contractStatusLabel, CONTRACT_STATUS_CN,
   dependencyInstallLabel, evalVerdictLabel, evidenceLabel, executionSurfaceLabel, executionSurfaceTone,
-  healthStatusLabel, resultPill, severityHint, severityPill, severityRank,
+  healthStatusLabel, resultCaption, resultPill, severityHint, severityPill, severityRank,
   ACCEPT_SEVERITY_BLOCKING, ACCEPT_SEVERITY_CN, acceptSeverityLabel, acceptSeverityTone,
   SEVERITIES, SEVERITY_HINT, SEVERITY_STOREABLE, type PillSpec, type SeveritySpec,
 } from "./toneMap";

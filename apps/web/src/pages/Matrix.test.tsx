@@ -4,8 +4,8 @@ import Matrix from "./Matrix";
 import { apiGet } from "../api";
 
 // Red-line test: result and evidence status render separately with their own
-// tone map (PASS green / FAIL red / UNVERIFIED amber / DEGRADED neutral;
-// unknown -> 未知, never green). The .pill class contract (W39 e2e) is kept.
+// tone map (PASS green / FAIL red / UNVERIFIED amber; any other token ->
+// 未知, never green). The .pill class contract (W39 e2e) is kept.
 
 vi.mock("../api", () => ({ apiGet: vi.fn() }));
 const apiGetMock = vi.mocked(apiGet);
@@ -52,27 +52,27 @@ async function mountAndSelect() {
 }
 
 describe("Matrix result/evidence pills — status has its own tone map", () => {
-  it("renders PASS green, FAIL red, UNVERIFIED amber, DEGRADED neutral, unknown 未知", async () => {
+  it("renders PASS green, FAIL red, UNVERIFIED amber, anything else 未知", async () => {
     apiGetMock.mockImplementation(((path: string) => {
       if (path === "/jobs?limit=200") {
+          return Promise.resolve({
+            jobs: [{ id: "job-1", base_ref: "base", head_ref: "head", status: "VERIFIED" }],
+          });
+        }
         return Promise.resolve({
-          jobs: [{ id: "job-1", base_ref: "base", head_ref: "head", status: "VERIFIED" }],
+          job_id: "job-1",
+          rows: [
+            row("AUTH-01", "PASS", "ev/pass.json"),
+            row("AUTH-02", "FAIL", ""),
+            row("AUTH-03", "UNVERIFIED", "ev/unv.json"),
+            row("AUTH-04", "DEGRADED", ""),
+            row("AUTH-05", "", ""),
+          ],
+          counts: { total: 5, passed: 1, failed: 1, unverified: 1 },
+          degraded: false,
+          degraded_reason: null,
         });
-      }
-      return Promise.resolve({
-        job_id: "job-1",
-        rows: [
-          row("AUTH-01", "PASS", "ev/pass.json"),
-          row("AUTH-02", "FAIL", ""),
-          row("AUTH-03", "UNVERIFIED", "ev/unv.json"),
-          row("AUTH-04", "DEGRADED", ""),
-          row("AUTH-05", "", ""),
-        ],
-        counts: { total: 5, passed: 1, failed: 1, unverified: 1 },
-        degraded: false,
-        degraded_reason: null,
-      });
-    }) as unknown as typeof apiGet);
+      }) as unknown as typeof apiGet);
 
     await mountAndSelect();
 
@@ -83,13 +83,56 @@ describe("Matrix result/evidence pills — status has its own tone map", () => {
     expect(screen.getByText("UNVERIFIED", { selector: ".pill" }).className).toBe(
       "pill pill-unverified"
     );
-    expect(screen.getByText("DEGRADED", { selector: ".pill" }).className).toBe(
-      "pill pill-mute"
-    );
 
-    const unknownPill = screen.getByText("未知 UNKNOWN", { selector: ".pill" });
-    expect(unknownPill.className).toBe("pill pill-mute");
-    expect(unknownPill.className).not.toMatch(/pill-ok|pill-pass/);
+    // DEGRADED is not a matrix result: the merge rule can only return
+    // PASS/FAIL/UNVERIFIED, so the word the pipeline never writes reads here
+    // exactly like any other unrecognised token — 未知, neutral, never green.
+    const unknownPills = screen.getAllByText("未知 UNKNOWN", { selector: ".pill" });
+    expect(unknownPills).toHaveLength(2);
+    for (const pill of unknownPills) {
+      expect(pill.className).toBe("pill pill-mute");
+      expect(pill.className).not.toMatch(/pill-ok|pill-pass/);
+    }
+
+    // The caption under the pill is the same vocabulary, not a second one: each
+    // value has exactly one Chinese reading, and an unknown value says 待确认.
+    const passRow = passPill.closest("tr") as HTMLElement;
+    expect(within(passRow).getByText("检查通过")).toBeTruthy();
+    const failRow = screen.getByText("FAIL", { selector: ".pill" }).closest("tr") as HTMLElement;
+    expect(within(failRow).getByText("发现不符")).toBeTruthy();
+    const unvRow = screen
+      .getByText("UNVERIFIED", { selector: ".pill" })
+      .closest("tr") as HTMLElement;
+    expect(within(unvRow).getByText("证据不足")).toBeTruthy();
+    const degradedRow = unknownPills[0].closest("tr") as HTMLElement;
+    expect(within(degradedRow).getByText("待确认状态")).toBeTruthy();
+  });
+
+  it("searches the Chinese caption, so the box finds what the table shows", async () => {
+    apiGetMock.mockImplementation(((path: string) => {
+      if (path === "/jobs?limit=200") {
+        return Promise.resolve({
+          jobs: [{ id: "job-1", base_ref: "base", head_ref: "head", status: "VERIFIED" }],
+        });
+      }
+      return Promise.resolve({
+        job_id: "job-1",
+        rows: [
+          row("AUTH-01", "PASS", "ev/pass.json"),
+          row("AUTH-03", "UNVERIFIED", "ev/unv.json"),
+        ],
+        counts: { total: 2, passed: 1, failed: 0, unverified: 1 },
+        degraded: false,
+        degraded_reason: null,
+      });
+    }) as unknown as typeof apiGet);
+
+    await mountAndSelect();
+    await screen.findByText("AUTH-01");
+
+    fireEvent.change(screen.getByLabelText("搜索需求"), { target: { value: "证据不足" } });
+    expect(await screen.findByText("AUTH-03")).toBeTruthy();
+    expect(screen.queryByText("AUTH-01")).toBeNull();
   });
 
   it("renders evidence status separately: missing refs are honest 未知, never green", async () => {

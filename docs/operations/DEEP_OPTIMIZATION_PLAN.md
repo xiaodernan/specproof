@@ -2282,3 +2282,44 @@ craft 的 `ERROR`），而全库没有一本门把「哪些命令按裁决退出
 （`AgentResult.tsx`、`AgentJobDetail.tsx`、`agent/util.ts::agentStatusMeta`），
 但**还没量过它们有没有门**；先量再决定是补对账还是删副本。另：`STATUS_LABELS` 这个名字在
 后端控制台与前端 `StatusPill.tsx` 各有一份，属同一通道不同词表，量普查时别把两者当同一份。
+
+### #171 矩阵结果词表：`DEGRADED` 是一个没有任何生产者写过的徽章，而四份副本没人对账（已落地）
+
+**量到的事实（HEAD `0932ebe`，全部来自源码而不是记忆）**
+
+- 权威集合只有一处：`agent/matrix_policy.py:31` `_RESULT_PRIORITY = {"FAIL":3,"PASS":2,"UNVERIFIED":1}`；`_merge_verdict` 的每个返回值要么是这张表的键、要么是它自己 `best = "UNVERIFIED"` 的字面默认值。写 `result` 的节点（`run_static_checks.py:158`、`compile_contracts.py:214`、`run_differential.py:615-640`、`checkers/java_source.py:541-568`）也只写这三个词。
+- 但把这套词写给读者看的副本有 **四份**，没有一条门比较过它们：
+  1. `apps/web/src/ui/toneMap.ts` 的 `resultPill` switch（配色）；
+  2. `apps/web/src/pages/Matrix.tsx:9` 的私有 `const RESULT`（中文说明 + 搜索框匹配文本）；
+  3. `evidence/report.py:304-308` 的 `result_class`（HTML 报告行样式）；
+  4. `agent/nodes/build_matrix.py:248-250` 的三处 `row["result"] == ...`（矩阵页四个 StatCard 的分母）。
+- **一个词没有值。** 前端两份都给了 `DEGRADED` 含义（"检查受限" / pill-mute）。全仓 `DEGRADED` 实测：Python 产品代码 0 个生产者（只有 `tests/unit/test_terminal_verdict_names_its_check.py` 里的变量名和文档），它真正属于另一套刻度——`/api/v1/health` 的 `ok/degraded`，而 `toneMap.ts` 里给那套刻度做翻译的 `healthStatusLabel` 早就存在。于是这枚徽章永远不可能出现，同时它把"这一轮跑受限"的说法塞进了结果词表：读者若真遇到异常值，看到的是 未知，而不是一个被产品承诺过的状态。
+- **一份词表没有门。** `evidence/verdict_channels.py` 的 `matrix_row` 通道 scale 写的正是那三个词（碰巧对），但它的对账门 `test_verdict_channel_parity.py` 只比较 `Literal`/pydantic `pattern` 那类权威，从不读 `_RESULT_PRIORITY`，所以"对"这件事没有任何东西在守。
+
+**改法**
+
+`resultPill` 的 switch 换成一张表 `RESULT_STATES`（一行一个值：`cls` + `caption`），`DEGRADED` 随之消失；`Matrix.tsx` 删掉自己那份 `RESULT`，改 `import { resultCaption } from "../ui"`。未知值仍走 pill-mute（与旧 `DEGRADED` 同色），只是不再享有中文名——`resultPill` 给 `未知 UNKNOWN`、`resultCaption` 给 `待确认状态`，搜索框现在匹配的是屏幕上真实出现的那句。行为等价性由两侧测试各自钉住：`vitest` 58 例（Matrix 21、toneMap 37）改前改后同一集合绿，其中我为收敛新增 1 例（搜索中文说明）。
+
+**新门（`tests/unit/test_matrix_result_vocabulary_parity.py`，7 例）**
+
+五个来源各读各的源码：`_RESULT_PRIORITY`（正则取字面表）、`_merge_verdict` 的字面默认值（AST）、`RESULT_STATES`（`^export const` 锚定，一行一条）、`report.py` 的 `result_class`（AST，注意它是 `{...}.get(...)`，字面量是调用的接收者而不是赋值右值）、`build_matrix.py` 的比较（AST，含 `>=3` 自检）、`verdict_channels.py` 的 `matrix_row` scale（AST，`frozenset({...})` 要剥一层 Call）。断言分三个方向：每个值有词、每个词有值、每条表项同时带 `cls` 与 `caption`；外加普查 `apps/web/src` 里"在词表位置"写这些词的站点，只允许 `src/ui/` 一份。
+
+**见证：5 臂，全部 MATCHED，还原逐字节相同**
+
+- `A1` 把死词放回去 ⇒ 2 条门红 + 2 条 vitest 红（含矩阵页"两枚 未知"计数）。
+- `A2` 让页面重新声明单行 `const RESULT` ⇒ 2 条门红（导入位 + 普查）。**这条臂第一轮 MISMATCH，抓到门自身一个洞**：普查只认行首键，而单行 map（正是 HEAD 上 `Matrix.tsx` 的形状）整个溜过去；改成 `^\s*|[{,]\s*` 后 MATCHED。改完的基线当场被 `sites>=3` 的下限拒了一次（"扫到 0 条"≠"很干净"），说明这类假绿确实有东西在拦。
+- `A3` 让一条表项丢掉 `caption` ⇒ 1 条门红 + 3 条 vitest 红。第一轮预测漏了搜索框那例（预测之外的额外红，不是洞），按实测补进预测。
+- `A4` 把普查的词表缩成一个不存在的词 ⇒ 门红在自己的下限上（vacuity 控制）。
+- `A5` 把 `_merge_verdict` 的默认值改成 `"UNKNOWN"` ⇒ 恰 1 条门红（词表没动，所以只有默认值那条子句看得见）。
+
+**读数**
+
+- `pytest` 本门 7/0 红；连同邻居 `test_verdict_channel_parity.py`、`test_severity_vocabulary_parity.py`、`test_job_status_channel_parity.py`、`test_web_api.py` 共 **80 passed / 1 failed**。那 1 条红不是本单位的：`api/routes/agent_console.py`(+41) 与 `craft/accept.py`(+51) 有并发会话未提交的改动，把 witness 指向的 455/475 两行挪走了；那两个文件在禁改清单里，只登记不碰。
+- `npx tsc --noEmit` rc=0；`ruff check` rc=0；`mypy` 门文件 Success。
+- 门耗时 <1s（纯文本/AST），不进基线。
+
+**合并门读数（落地前补跑）/ 下一号种子**
+
+- 全量合并 Python 门（本弧落地前补跑，两个平面各一次）：纯 HEAD 平面 collect **3667** 例，同一平面叠加本弧 7 个文件后 collect **3674** 例 ⇒ 差值恰为新门自己的 7 例；WITH 平面 **4 failed / 3644 passed / 26 skipped (1265.87s)**，把这 4 条案例名拿到**不含本弧**的纯 HEAD 平面重跑 ⇒ 红的正是同 4 条名字（同一多重集，非按条数对上），所以本弧是 **+7 collected / +0 红**。平面自证：两条 run 的 log 首行分别是 `rootdir: D:\面试项目\plane171`（WITH）与 `plane171base`（WITHOUT），`agent.__file__` 也在平面内——工作副本里那些并发车道的脏文件没有参与本次测量。那 4 条红不归本弧：`tests/integration/test_differential.py:129`（`'NoneType' object has no attribute 'lower'`）、`tests/integration/test_phase_acceptance.py:109`（`argument of type 'NoneType' is not iterable`）与同文件 `:226`（`AssertionError: Matrix has no rows`）、`tests/unit/test_metrics_http.py:108`（histogram ladder 断言），本弧没有改动它们的任何输入。
+- `#172` 种子（已量，未修）：Craft 控制台的**终态集合在前端有五份手抄**——`apps/web/src/agent/components.tsx:13`（`TERMINAL_AGENT_STATUSES`）、`AgentJobDetail.tsx:91`、`AgentResult.tsx:17`、`AgentResult.tsx:110`，以及第五份 `agent/pages/AgentToolStream.tsx:87`（藏在 SSE 尾标的模板串里，`["COMPLETED","FAILED","CANCELLED"].includes(job.status)` 直接写在 JSX 内）。权威是 `api/agent_runtime.py:106 console_status_label`：#69 之后它末尾是 `return str(job.status)`，docstring 明写「unknown status 原样透传，由 UI 自己的 unknown handling 决定怎么显示」（:114-116），而 `test_agent_console_api.py:234` 已把这条透传钉住（`"archived" → "archived"）。**那句话目前没有兑现的证人**：一个超出词表的**已终态**存储状态到了前端，五份副本一律判「非终态」，于是 `AgentResult.tsx:36` 永远显示「任务尚未进入终态，独立验收还不会运行」，`AgentToolStream` 的尾标也永远不带「已结束」——为未知编不出含义是对的，但把未知当成「还在跑」是另一种编造。收法与 #170/#171 同型：一处导出（`src/ui` 或 `src/agent/util.ts`）＋一条词表门（前端集合 == 后端 `_TERMINAL_CONSOLE_STATUSES`，两个方向 + 普查不许有第六份），并为透传 token 补一条「终态但未识别 ⇒ 明确说不认识，而不是说仍在执行」的界面见证。
+- 另两处只刻画不修：`apps/web/src/pages/Jobs.tsx:49` 的 `data.total ?? data.jobs?.length ?? 0` 在路由总返回真实 `COUNT`（`storage/mysql.py::search_jobs`）的前提下是潜在回退而非当前缺陷，但 `api.ts` 把 `total?: number` 声明成可选，等于允许未来某个调用点把窗口长度当总数；`tests/e2e/longtext.spec.ts` 用 "证据不足" 作为矩阵行文案锚点，本弧已确认它仍成立（`UNVERIFIED` 的中文说明未变）。
