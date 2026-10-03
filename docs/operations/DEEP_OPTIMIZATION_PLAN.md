@@ -1602,3 +1602,30 @@ slow 集合里，恰是贡献者最需要的那条信号。代价口径写进 do
 **下一号**：次级债只剩 `test_craft_loop_jobs.py::test_supervisor_cancel_wins_over_leased_worker`
 的 STUCK vs CANCELLED（先问谁写状态、按什么顺序）；CI 两个红 job（minio unauthorized /
 Maven 播种 126）需要 CI 权限与基础设施。
+
+### #158 关账：STUCK vs CANCELLED 判据问题由并行会话收口——本支冲突改动全部回退，零净变更
+
+**判据调查（本支结论，供追溯）**：CI 红 `assert 'STUCK' == 'CANCELLED'` 不可能是 job.status
+（JobStatus 词表无 "stuck"），必出自 `report["result"]`——3x 同签名规则在步内返回 STUCK，而
+loop 的 cancel 检查只在步骤边界（`craft/loop.py` 步首），步内落地的取消对三个终态出口
+（非 green / 门失败 / DONE）不可见。本支据此落过修：`_store_cancelled` 加 `step_ran` 参数 +
+终态出口补离场取消检查 + 回归测试（mid-step cancel 击穿 3x-STUCK 判词）。
+
+**撞车与并行契约**：门证跑两次之间发现并行会话在同一测试文件写同题测试，钉的是**相反契约**
+——"两个词都诚实"：worker 的 report 保留自己的裁决词（STUCK 是对用户代码的主张，不是作业
+生命周期）；store 的取消是终局且永不被 worker 覆盖（`update_status:failed` 被 CAS 拒绝且
+留在 spy 记录）；`job_store_note` 披露覆盖。期间还观测到第二个并行写入的 PROBE-X1 探测
+（删除 supersession note，与其测试断言 `job_store_note` 相斥），随后被并行会话自行撤掉。
+按并发纪律：不代抬、不抢写，本支改动全部回退。
+
+**处置与验证**：`craft/loop.py` 手术恢复原 `_store_cancelled(step)` 签名/docstring、run()
+原三终态出口与诊断原文（期间 PROBE-X1 已被并行自行撤销，恢复后该文件 diff 清空）；
+`tests/unit/test_craft_loop_jobs.py` 由并行会话自行整体还原到 HEAD（其测试与本支测试均已
+不在，原测试尾 4 行断言完好）。回退后 HEAD 状态全文件 **7 passed**（57.83s）。本号**零净
+变更、不产生提交**；CI 一次性红（run 36456722364）的归属与"两词都诚实"契约是否重新落测，
+由并行 lane 主理。
+
+**纪律更新**：`craft/loop.py` 取消语义与 `tests/unit/test_craft_loop_jobs.py` 列为并发写者
+文件，本支不再触碰（加入 9 个并行脏文件的禁碰清单口径）。
+
+**下一号**：CI 两红 job 需 CI 权限（暂不可达）；从台账/ROADMAP 另选题继续推进。
