@@ -2054,6 +2054,41 @@ alerts/prometheus.yml 改动（无新告警，promtool 不重跑）；worker 未
 
 
 
+## #168：LLM Token 与费用——craft 车道的计量咽喉点接进 /metrics
+
+**背景**：§8.10 清单「LLM Token 与费用」未接线。量先于动的勘察：
+providers/budget.py 的 `TokenBudget.record()` 是 craft 车道（craft/llm.py
+流式 :345 与非流式 :612 两路）每次 LLM 调用的唯一计量咽喉点——与 billing
+listener（`_emit_usage`）同点同 entry；agent 验证管线（generate_counterexamples
+等节点）直连 `provider.chat` 不经过 budget——其 token 无计量点，这是诚实
+边界不是遗漏修复项（给验证管线加 budget 是行为变更——BudgetExceeded 会在
+作业中途 raise——不属观测接线）。storage/redis.py 的 cache_llm_response /
+get_cached_llm_response 全仓零调用点，「Redis 命中」没有活观测点（诚实
+不接线，接了就是永久为 0 的谎）——同轮勘察否决。
+
+**修法**：record() 落 entry 后上报 7 计数 + 1 仪表：llm_calls_total、
+llm_tokens_prompt/_completion/_reasoning_total、llm_prompt_cache_hit/_miss_
+tokens_total（hit/miss 是 prompt 的不相交子集分区）、llm_charge_units_total
+（cost_weights 加权，部署相对量纲非货币）、llm_budget_remaining_units（
+进程级最后写入仪表，并发 run 相互覆盖——记账看计数器，诚实注进文档与
+面板描述）；check()/record() 两处超限 raise 前计数 llm_budget_exceeded_
+total（在涨=有 run 死于预算耗尽）。parity 门 EMIT_DIRS 增 providers/
+（OBSERVABILITY.md 对账方法行同步四改五）；看板面板 22（x=12,y=71 与
+面板 21 并排）三 target：prompt/completion tok/s + charge units/s；
+无告警（§14 无 token 阈值，预算强制本就由进程内 BudgetExceeded 执行）。
+§8.10 未接线清单移出 LLM Token 与费用并入已收口（边界全注）。
+
+**门证**：ruff 清；mypy providers/budget.py 清；定向 pytest **25 passed**
+（含新增 test_record_emits_token_and_charge_metrics 与 test_overrun_records_
+budget_exceeded_counter——前者钉 7 计数 delta 与 remaining 仪表，后者钉
+超限可见性）；端到端 exposition 实测 9 个 specproof_llm_* 序列全部渲染，
+数值对账（charge 180+超限 100=280、remaining -90 负值即超限可见、exceeded
+1）；看板 JSON 解析 22 面板、面板 22 x=12,y=71 与 21 并排无重叠。craft
+未跑时序列不存在（面板空载条件已如实记录）；promtool 不重跑（零 alerts/
+prometheus.yml 改动）。
+
+
+
 
 
 

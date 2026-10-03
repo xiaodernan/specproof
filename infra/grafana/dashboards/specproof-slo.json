@@ -1841,6 +1841,121 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "LLM Token 与费用 (§8.10: token 吞吐与加权消耗)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "craft 车道每次 LLM 调用的 token 与加权消耗 (providers/budget.py TokenBudget.record——与 billing listener 同一咽喉点, #168 接线)。prompt/completion 为原始 token 吞吐; charge units 按 cost_weights 加权 (可配置, 默认 1 token=1 单位, KV-cache 命中 0.1x), 是部署相对量纲不是货币。诚实边界: agent 验证管线 (各节点直连 provider.chat) 尚未过 budget 计量, 本面板只覆盖 craft 车道; llm_budget_remaining_units 是进程级最后写入 (并发 run 相互覆盖, 记账看计数器); BudgetExceeded 次数在 specproof_llm_budget_exceeded_total, 无告警 (§14 无 token 阈值, 预算强制在进程内由 BudgetExceeded 执行)。craft 未跑时序列不存在, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 71
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_llm_tokens_prompt_total[15m])",
+          "legendFormat": "prompt tok/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_llm_tokens_completion_total[15m])",
+          "legendFormat": "completion tok/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_llm_charge_units_total[15m])",
+          "legendFormat": "charge units/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        }
+      ]
     }
   ],
   "refresh": "30s",

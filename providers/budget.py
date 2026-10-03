@@ -20,6 +20,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from observability.metrics import incr, set_gauge
+
 DEFAULT_COST_WEIGHTS: dict[str, float] = {
     "prompt": 1.0,
     "completion": 1.0,
@@ -148,6 +150,7 @@ class TokenBudget:
             prompt_tokens, completion_tokens, reasoning_tokens, cache_hit_tokens
         )
         if charge > self.remaining:
+            incr("llm_budget_exceeded_total")
             raise BudgetExceeded(
                 limit=self.limit_tokens, used=self._used, charge=charge, label=label
             )
@@ -179,8 +182,24 @@ class TokenBudget:
             "remaining_after": round(self.remaining, 4),
         }
         self.entries.append(entry)
+        # §8.10 "LLM Token 与费用" (#168): the craft lane meters every call
+        # through this method (craft/llm.py streams and non-streams both
+        # land here), so this is the same choke point the billing listener
+        # sees. Counters are monotone fleet truth; the budget gauge is a
+        # per-process latest-write (concurrent runs overwrite each other —
+        # read the counters for accounting, the gauge only for "is some
+        # run's budget nearly spent right now").
+        incr("llm_calls_total")
+        incr("llm_tokens_prompt_total", prompt)
+        incr("llm_tokens_completion_total", completion)
+        incr("llm_tokens_reasoning_total", reasoning)
+        incr("llm_prompt_cache_hit_tokens_total", cache_hit)
+        incr("llm_prompt_cache_miss_tokens_total", cache_miss)
+        incr("llm_charge_units_total", charge)
+        set_gauge("llm_budget_remaining_units", self.remaining)
         _emit_usage(entry)
         if self._used > self.limit_tokens:
+            incr("llm_budget_exceeded_total")
             raise BudgetExceeded(
                 limit=self.limit_tokens, used=self._used, charge=charge, label=label
             )

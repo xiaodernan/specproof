@@ -32,7 +32,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 
 #: Trees scanned for emission sites (mirrors OBSERVABILITY.md's method note).
-EMIT_DIRS = ("agent", "api", "storage", "observability")
+#: providers/ joined in #168: the LLM token/charge meters live in
+#: providers/budget.py (TokenBudget.record), the same choke point the
+#: billing listener reads.
+EMIT_DIRS = ("agent", "api", "storage", "observability", "providers")
 
 #: Reference surfaces: the two Prometheus files (plain text — comments are
 #: prose but a comment naming a dead metric misleads the same way) and every

@@ -4,10 +4,58 @@ import json
 import pytest
 
 from craft.cost import cost_of_usage
-from providers.budget import TokenBudget
+from providers.budget import BudgetExceeded, TokenBudget
 from providers.config import load_model_config
 from providers.openai_compatible import OpenAICompatibleProvider
 from providers.responses_protocol import usage_data
+
+
+def test_record_emits_token_and_charge_metrics():
+    """§8.10 "LLM Token 与费用" (#168): every recorded usage lands in the
+    process registry — the same entry the billing listener receives."""
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()
+    budget = TokenBudget(1000, cost_weights={"cache_hit": 1})
+    budget.record({
+        "prompt_tokens": 100, "completion_tokens": 80,
+        "reasoning_tokens": 60, "prompt_cache_hit_tokens": 40,
+        "prompt_cache_miss_tokens": 60,
+    }, label="metrics")
+
+    after = metrics_module.snapshot()
+
+    def counter_delta(name: str) -> float:
+        return after["counters"].get(name, 0.0) - before["counters"].get(name, 0.0)
+
+    assert counter_delta("llm_calls_total") == 1
+    assert counter_delta("llm_tokens_prompt_total") == 100
+    assert counter_delta("llm_tokens_completion_total") == 80
+    assert counter_delta("llm_tokens_reasoning_total") == 60
+    assert counter_delta("llm_prompt_cache_hit_tokens_total") == 40
+    assert counter_delta("llm_prompt_cache_miss_tokens_total") == 60
+    # cache_hit weighted 1 here: (100-40-60) + 40 + 60 + (80-60) + 60 = 180
+    assert counter_delta("llm_charge_units_total") == 180
+    assert counter_delta("llm_budget_exceeded_total") == 0
+    remaining = after["gauges"].get("llm_budget_remaining_units")
+    assert remaining == pytest.approx(1000 - 180)
+
+
+def test_overrun_records_budget_exceeded_counter():
+    """The ledger entry stays visible in the evidence chain AND the overrun
+    is observable in /metrics — budget death is a real failure mode, not a
+    silent one."""
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()
+    budget = TokenBudget(10)
+    with pytest.raises(BudgetExceeded):
+        budget.record({"prompt_tokens": 100}, label="overrun")
+
+    after = metrics_module.snapshot()
+    delta = after["counters"].get("llm_budget_exceeded_total", 0.0) - \
+        before["counters"].get("llm_budget_exceeded_total", 0.0)
+    assert delta == 1
 
 
 def test_reasoning_and_cache_are_subsets_not_extra_tokens():
