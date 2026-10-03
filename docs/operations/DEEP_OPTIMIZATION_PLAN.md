@@ -1653,6 +1653,9 @@ run 全 failure；`2fb4612`（ci.yml 第二个提交）自述"workflow 之前根
      为准，修完应 44 ≤ 54。
    - `test_bench_mutation` kill-rate **6≠5**：M04=killed/spec_verdict/exit0 被计入 killed；
      先本地复现，分清计数 bug 还是期望过期（#126 i 让红自己点名变异体的设计仍在）。
+     **【本支复测（同日）】本地 5 passed（37.55s），不复现**——CI 红读数取自 #159c 之前
+     的 run，且本测对目标模块内容敏感（并行在途改动可能移过计数）；留待最新 master CI
+     run 复核，暂不认领。
    - `test_verdict_channel_parity`：`report_verdict: written but never declared: 通过`——
      查"通过"写入方与 #109 三词词表口径，改写入方或补声明，二选一前先量。
 
@@ -1701,7 +1704,11 @@ run 全 failure；`2fb4612`（ci.yml 第二个提交）自述"workflow 之前根
 两红均有主、均在修/已留配方，**不代抬、零新增动作**；合并门的使命（给 #150–#157 补上
 全量读数）完成。worktree 归档后即清理。
 
-**认领**：下一号本支接 **#159 配方第 1 条**——`scripts/bench_craft.py:786,819,845` +
-`scripts/bench_replay.py:769,1589,1610,1622,1632,1643,1675,1695,1712` 钉 codec（两脚本
-均不在并行脏清单）；验证以 HEAD 版断言（ceiling 54）为准，修完应 44 ≤ 54；
-`tests/unit/test_subprocess_text_encoding.py` 是并行脏文件，本支不触碰。
+**更正（同日，写档后复核）**：本条目初稿曾认领配方第 1 条，复核发现**已被并行 lane 抢先
+在 master 落地**——`git log 1bfe632..master` 里的 `34934e8 #159c encoding ratchet: pin
+utf-8 on all 16 unpinned bench-script captures`（实际 16 处，配方里数的 11 处是漏数）。
+按工作树内容（master+并行在途）用同 lens 复算主树：**39 个违例（≤ 54，棘轮已绿；
+其中含并行在途测试自带的 2 处，纯 HEAD 口径只少不多）**；本次门读数 55>54 是
+#157 时点（1bfe632）的历史快照，不是 master 现状。教训：隔离 worktree 出数前先
+`git log <worktree_head>..master` 确认没有更新的修复落地，否则会把已修的账记成待办。
+红 2（`通过`）仍归并行 `evidence/report.py` 在修。**本支零动作收账，认领撤销。**
