@@ -86,9 +86,11 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         ),
         note=(
             "The 验证结论 headline. `_terminal_status_from_state` returns "
-            "`evaluate_verification(...).status`, so this field and the job's "
+            "`evaluate_acceptance(...).status` — the shared policy plus the "
+            "RELEASE gate veto (#154), so this field and the job's "
             "terminal status are the same three words in the same write "
-            "(worker.py:306). `evidence/verdict.py` is where those three words "
+            "(worker.py `transition_job_status_with_notify`). "
+            "`evidence/verdict.py` is where those three words "
             "are chosen; it never names the field `verdict`, which is why the "
             "parity test reads its `VerificationDecision(...)` call directly."
         ),

@@ -40,7 +40,7 @@ from agent.job_control import (
 from agent.mongo_saver import MongoDBSaver
 from agent.state import initial_state
 from agent.worktree_reclaimer import reclaim_orphans
-from evidence.verdict import evaluate_verification
+from evidence.verdict import evaluate_acceptance
 from observability.metrics import incr, observe_duration, set_gauge
 from storage.mysql import (
     PLAN_FAIL_BUDGET,
@@ -1079,12 +1079,19 @@ def _failure_summary(
 
 
 def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
-    """Compact pipeline summary persisted for the dashboard/audit view."""
+    """Compact pipeline summary persisted for the dashboard/audit view.
+
+    The decision comes from the same shared acceptance policy the terminal
+    status uses (#154): a RELEASE gate refusal names itself in
+    `coverage_reason` instead of the summary silently saying "everything
+    unverified" next to a gate report that says why the job is blocked.
+    """
     matrix = state.get("matrix", {})
     findings = state.get("confirmed_findings", [])
-    decision = evaluate_verification(
+    decision = evaluate_acceptance(
         matrix, contracts=state.get("contracts"), findings=findings,
         errors=state.get("errors", []),
+        release=state.get("release_results"),
     )
     return {
         "verdict": verdict,
@@ -1122,13 +1129,20 @@ def _terminal_status_from_state(state: dict[str, Any]) -> str:
     """Map the pipeline's honest result onto the MySQL job state machine.
 
     - FAILED   pipeline recorded errors (bad refs, missing spec, Maven errors)
-    - BLOCKED  any confirmed finding, or contracts left UNVERIFIED: a human
-               must look before merge — VERIFIED must never be fabricated
-    - VERIFIED every contract passed with evidence and zero findings
+    - BLOCKED  any confirmed finding, contracts left UNVERIFIED, or a RELEASE
+               gate that refused / could not be judged (#154: the job path
+               listens to the same veto the CLI signs under)
+    - VERIFIED every contract passed with evidence, zero findings, no gate
+               refusal
+
+    `release_results` absent or empty (FAST/DEEP, or the node never ran) is
+    "no gate verdict to listen to", not "a gate passed": ordinary jobs keep
+    their verdicts untouched.
     """
-    return evaluate_verification(
+    return evaluate_acceptance(
         state.get("matrix"), contracts=state.get("contracts"),
         findings=state.get("confirmed_findings", []), errors=state.get("errors", []),
+        release=state.get("release_results"),
     ).status
 
 

@@ -1371,3 +1371,69 @@ verdict)` 落库，而这两个函数（worker.py:1081 / :1121）调的都是 `e
   退出，补退出码会先把 BLOCKED 摘要降级成 raw tail）。
 - 旧的欠账：`deep_results` 入库与 Web 读路径（`agent/worker.py`、`storage/mysql.py`、OpenAPI 重导
   都是并发写者）；compose 武装仍待用户批准。
+
+### #154 落地：作业路径听发布门——两个调用点接上同一份共享否决，摘要终于说得出拒绝来自哪道门
+
+**实测前提（写代码之前量的）**：#151/#152 之后，`release_results` 在全库仍有且仅有一个读者
+（`publish_report.py`）。作业路径自己算裁决：`agent/worker.py` 的 `_terminal_status_from_state`
+（:1128，供 :314 的终态写）与 `_state_summary`（:1081，供 :319 的落库摘要）调的都是
+`evaluate_verification`——于是一道刚拒绝的 RELEASE 活动照样把 `VERIFIED` 落进 MySQL、照样给
+notify 通道发"验证通过"、照样上 Dashboard，而 `coverage_reason` 只会说"契约未验证"，说不出发
+布门的名字。CLI 路径同样受害在摘要上：`verify.py:556/:645` 调 `_state_summary(final_state,
+verdict)`，内部那份决策从未听说发布门——#151 给 CLI 的裁决接了 veto，持久化摘要的
+`coverage_reason` 却还说不出拒绝来自哪。
+
+**落了什么（一个文件的两行调用点，不是新层）**：
+- `agent/worker.py`：两个函数改调 `evaluate_acceptance(..., release=state.get("release_results"))`
+  ——与 CLI 签证书、报告渲染同一份共享策略。`_terminal_status_from_state` 的 docstring 补第四行
+  口径（门拒绝/未判定 → BLOCKED；`release_results` 缺席或空 = "没有门可听"，不是"门通过"）。
+- `evidence/verdict_channels.py`：`job_summary` 通道的 note 是散文声称，本号让它继续说真话
+  ——`evaluate_verification(...).status` 改为 `evaluate_acceptance(...).status` + veto 一句，
+  顺手更正已漂移的 `worker.py:306` 行号引用（终态写现在是 `transition_job_status_with_notify`）。
+  parity 门不读 note，这不是门要求的，是它自称"通道声明"就不得过期。
+- 新门 `tests/unit/test_release_gates_veto_the_job.py`（7 例），载荷取 `run_release_checks.py`
+  写进 state 的真实形状（`gates.reproducibility` 带 passed 旗标的映射、`gates.capsule_integrity`
+  摘要行列表），不是手编的抽象 dict。
+
+**七条口径互不混淆**（每条一个证人）：①门拒绝 ⇒ 终态 VERIFIED→BLOCKED 且 `coverage_reason`
+点名 `RELEASE 档发布门 reproducibility`；②行无旗标 ⇒ 未判定照样拒绝（哪怕节点总旗标说通过）；
+③空名册 ⇒ 未判定照样拒绝（#152 的第二口径在作业路径同形）；④`release_results` 缺席/空/无
+gates ⇒ 普通作业裁决分毫不动；⑤veto 永不改写 FAILED/BLOCKED，也不往已阻塞的理由里加门话；
+⑥两个读者（终态/摘要）对同一 state 说同一个故事；⑦全行通过+总旗标通过 ⇒ VERIFIED 照常
+（不过度拒绝）。否决不擦证据：`matrix_passed` 仍是 1，通过的还是通过的。
+
+**见证**：`.scratch/g154/mutate_154.py`，控制腿 `collected == AST def test_ 计数 == 7`、0 红；
+三臂 **3/3 MATCHED**，还原后 worker.py 字节相同（sha 复核）：A1 终态掉 `release=` ⇒ {1,2,3}；
+A2 摘要掉 `release=` ⇒ {1,6}；A3 整体绕过（导入+调用一起变回 `evaluate_verification`）⇒ {1,2,3}。
+**预写的预测错了一次，按实测改**：A1 原预测含 6——错。案例 6 断言两个读者一致，而 A1 让它们
+通过 `verdict` 参数继续一致（错得一致）；它的否决半边由 1-3 钉、摘要半边由 A2 钉。"为什么绿"
+写进了门 docstring（#150 案例 4 同族：缺席/参数传递类断言在单边变异下绿是设计，不是漏网）。
+**仪器教训两条**：①见证首版的红集解析拿 `" FAILED "`（带前导空格）匹配 `-q` 短摘要——摘要行
+以 `FAILED ` 起头，永远匹配不上，**红集恒空冒充全绿**；改为按 `FAILED + ::test_` 形状匹配。
+②A3 只变异调用行不变异导入行 ⇒ NameError 七例全错——那红是脚本造的，不是臂的；导入与调用
+必须同臂。另记一笔自伤：调试时先 `write_bytes(b'')` 截断了 worker.py，再用
+`git checkout --` 还原，把本号未提交的编辑一并抹掉——编辑重放即恢复，但破坏性命令作用于
+"含自己未提交工作的工作树"之前必须先看清树里有什么（#139"提交索引吞并他人 staged 路径"的
+镜像：这次是 checkout 吞并自己的 unstaged 工作）。
+
+**门数字**：
+- 定向腿（工作树）：新门 + 既有五本 verdict/summary/coverage 门 **86 passed**（79+7）；
+  `ruff` 三文件干净；`mypy agent/worker.py evidence/verdict_channels.py`
+  `Success: no issues found in 2 source files`。
+- 受影响宽腿（工作树，`-k "worker or verdict or release or summary or notify or reclaimer"`）：
+  **393 passed / 1 failed**——红在 `test_verdict_channel_parity` 的
+  `accept: witness craft/accept.py:475 does not contain 'ERROR'`，归属并行会话（其工作副本正在
+  改 craft/accept.py，HEAD 上该 witness 13/13 绿；#151 记档已归因同一条）。
+- 干净平面对照（`git archive HEAD` → `.scratch/plane154`，PYTHONPATH 钉平面并先印
+  `agent.worker.__file__` 证明确实读的是平面）：同一宽腿 HEAD 基线 = **386 passed / 1 failed**；
+  覆盖本号三文件 = **393 passed / 1 failed**，即 **+7 例 / +0 红**，且那条红字节级同因——
+  `report_verdict: written but never declared: 通过`，这是已落库 #152 在 `report.py` 引入的
+  局部变量名（`verdict != "通过"` 的 compare 形状撞进 report_verdict 通道），**#152 当时的
+  12 文件定向腿不含 parity 门所以从未见过它**；并行会话工作树里 9 行的 `report.py` diff 正在
+  修它（局部变量 `verdict` → `word`）。两条红都有名有姓有归属，本号零贡献、不代抬。
+
+**下一号**：
+- **#153**：CLI 按 verdict 退出码 + `mcp/tools.py` 的非零返回码分支（#151 已量：现在根本不按裁决
+  退出，补退出码会先把 BLOCKED 摘要降级成 raw tail）。
+- 旧的欠账：`deep_results` 入库与 Web 读路径（`agent/worker.py`、`storage/mysql.py`、OpenAPI 重导
+  都是并发写者）；compose 武装仍待用户批准。
