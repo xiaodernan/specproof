@@ -24,6 +24,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -226,10 +227,22 @@ class Worker:
             logger.info("Reclaim tick: %s", result.summary())
 
     def _reclaim_once(self) -> ReclaimPass:
+        started = time.perf_counter()
         result = run_reclaim_pass(
             lease_ttl_seconds=self.lease_ttl,
             min_parked_seconds=self.provider_park_seconds,
             provider_hold_seconds=self.provider_hold_seconds,
+        )
+        # §14 "Worker 崩溃后可恢复" (#163): one clock of the recovery SLO —
+        # how long a sweep itself takes (lock + candidate scan + per-job
+        # lease probes + re-delivery). The perf_counter pair brackets only
+        # the success path; a pass that raises is already counted by the
+        # tick loop's worker_reclaim_pass_error_total, which is the signal
+        # that matters when the sweep is broken.
+        observe_duration(
+            "worker_reclaim_pass_seconds",
+            time.perf_counter() - started,
+            _RECLAIM_PASS_BUCKETS,
         )
         # The gauge answers "is the sweeper alive", which is a different
         # question from "did it find anything" — a tick that stopped ticking
@@ -1207,6 +1220,17 @@ DEFAULT_RECLAIM_INTERVAL_SECONDS = 300
 #: A sweep lock outlives a healthy pass but not the next interval, so a
 #: replica that dies mid-sweep cannot block recovery indefinitely.
 RECLAIM_LOCK_TTL_SECONDS = 120
+#: §14 "Worker 崩溃后可恢复" (#163): histogram ladders for the two recovery
+#: clocks. The default ladder starts at 60s (minute-scale job durations) and
+#: cannot resolve either clock: a healthy pass is sub-second to a few
+#: seconds, and the death-to-reclaim wait is bounded by the sweep interval
+#: itself (300s), so its interesting resolution sits below that.
+_RECLAIM_PASS_BUCKETS: tuple[float, ...] = (
+    0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0,
+)
+_RECOVERY_LAG_BUCKETS: tuple[float, ...] = (
+    30.0, 60.0, 120.0, 180.0, 240.0, 300.0, 600.0, 1200.0,
+)
 
 
 @dataclass
@@ -1390,6 +1414,26 @@ def reclaim_stale_running_jobs(
         )
     for row in outcome.reclaimed:
         attempt = int(row.get("retry_count") or 1)
+        # §14 "Worker 崩溃后可恢复" (#163): the second recovery clock —
+        # how long a dead job waited past its own expiry before the sweep
+        # picked it up. updated_at is the heartbeat stamp the CAS itself
+        # ages against, so (now - updated_at - ttl) is exactly the
+        # post-expiry wait; the pre-expiry half is the TTL by contract and
+        # the post-requeue half (queue → re-pickup) is broker latency.
+        # updated_at is a naive datetime in the DB session's clock; the
+        # arithmetic assumes the worker process reads the same wall clock
+        # (compose runs both in UTC). A skewed deployment bends the
+        # histogram, never the count — recovery still happens either way.
+        updated_at = row.get("updated_at")
+        if isinstance(updated_at, datetime):
+            observe_duration(
+                "worker_reclaim_recovery_lag_seconds",
+                max(
+                    0.0,
+                    time.time() - updated_at.timestamp() - lease_ttl_seconds,
+                ),
+                _RECOVERY_LAG_BUCKETS,
+            )
         try:
             _redeliver_job(row, attempt)
             logger.info(

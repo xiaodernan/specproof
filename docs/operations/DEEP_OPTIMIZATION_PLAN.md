@@ -1881,6 +1881,40 @@ test_webhook_endpoint + test_observability_metric_parity` **18 passed**（含新
 `test_api_errors + test_production_guard_reachability` **22 passed**（server.py 导入期
 回归）；YAML/JSON 解析 OK。
 
+## #163：Worker 崩溃恢复的两个可测时钟——死亡到收回有等待，扫描本身有耗时
+
+**背景**：OBSERVABILITY §6 第 98 行「Worker 崩溃后可恢复 🟡 崩溃检测已接线; 恢复时长
+指标未接线」。量测恢复路径后发现语义要先拆开：恢复 = 死亡(最后一次心跳 updated_at)
+→ 租约过期(+ttl) → 回收 tick 收回(CAS 判回 QUEUED) → 重投递 → 重新 pickup。其中
+**过期后到被收回的等待**与**单轮扫描的耗时**是 worker 侧自然计时点；重投递后的排队
+等待属 broker 域无上报点，checkpoint 续跑无独立边界不可测——诚实边界写进 §6。
+另一缺口：`worker_reclaim_last_ok_timestamp_seconds` 仪表自 #71 起上报却**没有任何
+告警**——「进程活着但 tick 死了」是 up 告警抓不到的形态。
+
+**修法**：
+- `agent/worker.py`：`reclaim_stale_running_jobs` 对每个收回行 observe
+  `worker_reclaim_recovery_lag_seconds` = `now - updated_at - ttl`（updated_at 正是
+  CAS 自身判过期的心跳戳，两钟同源；梯度 30..1200s 按默认 tick 周期 300s 定）；
+  `_reclaim_once` 成功路径 observe `worker_reclaim_pass_seconds`（perf_counter,
+  梯度 0.05..30s；抛异常的 pass 不观测——那是 pass_error 计数的故事，观测半个扫描
+  会污染「完整扫描多久」的语义）。时钟假设：DB 会话钟 == worker 进程钟（compose
+  双方 UTC），skew 只弯直方图不弯计数——注释写明。
+- alerts-slo.yml 新增 `SpecproofWorkerReclaimTickStale`（time() - gauge > 900s =
+  3×默认 tick, for 5m）；THRESHOLDS 表加 RECLAIM_TICK_STALE_SECONDS=900；描述写清
+  gauge 舰队级语义（任一副本刷新即算活）与启动期无序列不触发（up 告警补位）。
+- 看板面板 16 缩半 (w=24→12)，右侧插入面板 17「崩溃恢复」（lag p50/p95 + pass p95
+  + tick 滞后序列 + 900s 阈值线）——同排插入零 y 级联。
+- OBSERVABILITY.md：§5 告警表、§6 第 98 行 🟡→✅、worker 上报清单补两个直方图名。
+
+**对账门零改动自证**：两个字面量直方图名 + alerts 引用的 gauge 名全部被 #161 的
+parity gate 自动纳管追到上报点，无需注册拼接族。
+
+**门证**：ruff/mypy 双清（worker.py）；`test_job_reclaimer +
+test_observability_metric_parity` **37 passed**（含新增两条：lag≈45s 按 ttl+45s
+死亡行断言 + 区间梯度首格 30s；pass 计时成功观测 + 异常路径零观测）；JSON 解析 OK
+（17 面板，p16/p17 同排无重叠）。drills 缺口门 1 红归并行会话 in-flight diff
+（craft/accept.py + DRILLS.md 均为禁碰清单脏文件，#159e 同款 witness 红），本支零触碰。
+
 
 
 

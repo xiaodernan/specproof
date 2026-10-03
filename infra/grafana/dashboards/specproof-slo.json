@@ -1085,7 +1085,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 38
       },
@@ -1137,6 +1137,137 @@
           "range": true,
           "instant": false,
           "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "崩溃恢复 (§14: Worker 崩溃后可恢复)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "两个恢复时钟 (#163 起接线): 死亡→收回 lag = 过期 RUNNING 作业从租约到期到被回收 tick 收回的等待 (直方图按 tick 周期 300s 定梯度); pass 耗时 = 单轮回收扫描 (锁+扫描+探针+重投递) 端到端。tick 滞后 = time() - 上一轮完整扫描时间戳, > 900s 触发 SpecproofWorkerReclaimTickStale 告警。lag 大多数时候为空是健康的 — 没有作业崩溃就没有恢复。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 900
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 38
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum(rate(specproof_worker_reclaim_recovery_lag_seconds_bucket[30m])) by (le))",
+          "legendFormat": "死亡→收回 lag p50 (30m)",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(specproof_worker_reclaim_recovery_lag_seconds_bucket[30m])) by (le))",
+          "legendFormat": "死亡→收回 lag p95 (30m)",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(specproof_worker_reclaim_pass_seconds_bucket[10m])) by (le))",
+          "legendFormat": "pass 耗时 p95 (10m)",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "time() - specproof_worker_reclaim_last_ok_timestamp_seconds",
+          "legendFormat": "tick 滞后 (告警线 900s)",
+          "range": true,
+          "instant": false,
+          "refId": "D"
         }
       ]
     },

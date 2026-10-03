@@ -1181,3 +1181,95 @@ def test_both_cas_statement_shapes_are_what_the_budget_branch_needs() -> None:
     for stmt in (queued[0], failed[0]):
         assert "status = 'RUNNING'" in stmt
         assert "updated_at < (NOW(3) - INTERVAL %s SECOND)" in stmt
+
+
+# ── #163: §14 "Worker 崩溃后可恢复" — the two recovery clocks ──────────
+
+
+def test_reclaimed_job_recovery_lag_observed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every reclaimed job observes its death-to-reclaim wait.
+
+    The lag is ``now - updated_at - ttl`` where updated_at is the same
+    heartbeat stamp the CAS itself ages against — the post-expiry wait the
+    job spent dead before the sweep picked it up. The row below died a bit
+    more than ttl+45s ago, so the observed lag must land near 45s (real wall
+    clock on both sides; execution drift is absorbed by the window). The
+    ladder is the interval-bounded one (first bound 30s), not the 60s
+    default — the default cannot resolve a wait bounded by the 300s tick.
+    """
+    from observability.metrics import snapshot
+
+    stale = dict(_RECLAIMED_ROW)
+    stale["updated_at"] = datetime.now() - timedelta(seconds=30 + 45)
+    store = FakeReclaimStore([stale])
+    redis = FakeLeaseRedis(owner=None)
+    monkeypatch.setattr(worker_module, "MySQLStore", lambda: store)
+    monkeypatch.setattr(worker_module, "RedisStore", lambda: redis)
+    monkeypatch.setattr(worker_module, "RabbitMQClient", FakeRabbit)
+
+    key = "worker_reclaim_recovery_lag_seconds"
+    before = snapshot()["histograms"].get(
+        key,
+        {"count": 0.0, "sum": 0.0, "inf": 0.0, "bounds": [], "buckets": []},
+    )
+    worker_module.reclaim_stale_running_jobs(lease_ttl_seconds=30)
+    entry = snapshot()["histograms"][key]
+
+    assert entry["count"] == before["count"] + 1.0
+    assert entry["inf"] == before["inf"] + 1.0
+    lag = entry["sum"] - before["sum"]
+    assert 40.0 <= lag <= 60.0  # ~45s post-expiry wait, jitter-tolerant
+    assert entry["bounds"][0] == 30.0  # interval-bounded ladder, not 60s
+
+
+def test_reclaim_tick_pass_duration_observed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A completed sweep observes its wall time; a raising one must not.
+
+    The perf_counter pair in _reclaim_once brackets only the success path —
+    a pass that raises is the tick loop's worker_reclaim_pass_error_total
+    story, and observing a half-sweep's duration would pollute a histogram
+    whose whole point is how long a *complete* scan takes.
+    """
+    from observability.metrics import snapshot
+
+    monkeypatch.setattr(
+        worker_module, "MySQLStore", lambda: FakeReclaimStore([]),
+    )
+    monkeypatch.setattr(worker_module, "RedisStore", lambda: FakeLeaseRedis())
+    monkeypatch.setattr(worker_module, "MongoDBSaver", lambda: None)
+    monkeypatch.setattr(
+        worker_module,
+        "build_phase0_graph",
+        lambda checkpointer=None: ProviderDownGraph(200),
+    )
+    monkeypatch.setattr(worker_module, "RabbitMQClient", FakeWorkerRabbit)
+    worker = Worker(worker_id="w-reclaim", lease_ttl=30)
+
+    def ok_pass(**_kwargs: Any) -> worker_module.ReclaimPass:
+        return worker_module.ReclaimPass(lock_state="acquired")
+
+    monkeypatch.setattr(worker_module, "run_reclaim_pass", ok_pass)
+
+    key = "worker_reclaim_pass_seconds"
+    before = snapshot()["histograms"].get(
+        key, {"count": 0.0, "inf": 0.0, "bounds": []},
+    )
+    worker._reclaim_once()
+    entry = snapshot()["histograms"][key]
+
+    assert entry["count"] == before["count"] + 1.0
+    assert entry["inf"] == before["inf"] + 1.0
+    assert entry["bounds"][0] == 0.05  # sub-minute ladder, not the 60s default
+
+    def boom(**_kwargs: Any) -> worker_module.ReclaimPass:
+        raise RuntimeError("sweep broken")
+
+    monkeypatch.setattr(worker_module, "run_reclaim_pass", boom)
+    failed_before = snapshot()["histograms"][key]
+    with pytest.raises(RuntimeError, match="sweep broken"):
+        worker._reclaim_once()
+    assert snapshot()["histograms"][key] == failed_before  # no observation
