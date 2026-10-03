@@ -26,6 +26,7 @@ interface Summary {
   coverage_reason?: string;
   verdict?: string;
   contracts_total?: number;
+  matrix_rows_total?: number;
   matrix_passed?: number;
   matrix_failed?: number;
   matrix_unverified?: number;
@@ -268,6 +269,13 @@ export default function JobDetail(props: { jobId: string }) {
   const statusHelp = STATUS_HELP[status] || ["查看本次验证结果", "结合需求覆盖与风险证据判断本次改动，未验证项需要进一步确认。"];
   const latest = live[live.length - 1];
   const findingCount = findings ? findings.count : 0;
+  // #169: `coverage_reason` is ONE joined string for every non-VERIFIED outcome
+  // (evidence/verdict.py emits 零检查 / 记录格式与覆盖不一致 / 「存在 N 项已确认问题」 /
+  // 「执行过程有错误」, and release_gate_veto adds the 「RELEASE 档发布门」 refusals).
+  // Only a recorded row count of 0 proves「没有形成可执行的检查项」; an absent count —
+  // a summary persisted before rows reached the summary (agent/worker.py
+  //::_matrix_rows_for_summary) — is unknown, and must not be read as 0.
+  const rowsTotal = typeof s?.matrix_rows_total === "number" ? s.matrix_rows_total : null;
   // Answer "下一步做什么" with one primary action chosen from the outcome,
   // instead of a fixed link that ignores whether there are risks to review.
   const nextAction: { label: string; run: () => void } | null =
@@ -275,8 +283,10 @@ export default function JobDetail(props: { jobId: string }) {
       ? { label: "查看 " + findingCount + " 条风险并处理 →", run: () => setTab("findings") }
       : status === "VERIFIED"
       ? { label: "查看验证报告 →", run: () => setTab("certificate") }
-      : status === "UNVERIFIED" || !!s?.coverage_reason
+      : status === "UNVERIFIED" || (!!s?.coverage_reason && rowsTotal === 0)
       ? { label: "了解如何补全验证 →", run: () => { window.location.hash = "#/guide"; } }
+      : s?.coverage_reason
+      ? { label: "逐项查看未确认的验收条件 →", run: () => { window.location.hash = "#/matrix"; } }
       : null;
   const caps: string[] = [];
   if (findings) {
@@ -307,8 +317,8 @@ export default function JobDetail(props: { jobId: string }) {
         </div>
       </div>
       <ErrorBox error={error || artifactError} />
-      {summary?.coverage_reason && <div className="degraded" role="status"><strong>验收覆盖不足</strong><p>{summary.coverage_reason}</p><a href="#/guide">了解支持的验收方式 →</a></div>}
-      <div className="verification-detail-banner" aria-live="polite"><h2>{summary?.coverage_reason ? "覆盖不足，暂不能确认验收通过" : statusHelp[0]}</h2><p>{summary?.coverage_reason ? "本次没有形成可执行的检查项。请完善验收条件，或接入对应检查器后重新验收。" : statusHelp[1]}</p>
+      {summary?.coverage_reason && <div className="degraded" role="status"><strong>本次验收结论未能确认</strong><p>{summary.coverage_reason}</p>{rowsTotal === 0 ? <a href="#/guide">了解支持的验收方式 →</a> : <a href="#/matrix">逐项查看未确认的验收条件 →</a>}</div>}
+      <div className="verification-detail-banner" aria-live="polite"><h2>{summary?.coverage_reason ? rowsTotal === 0 ? "覆盖不足，暂不能确认验收通过" : "本次不能确认验收通过" : statusHelp[0]}</h2><p>{summary?.coverage_reason ? rowsTotal === 0 ? "本次没有形成可执行的检查项。请完善验收条件，或接入对应检查器后重新验收。" : rowsTotal === null ? "请查看上方原因，并结合需求覆盖与风险证据判断本次结论。" : "本次已形成 " + rowsTotal + " 项检查，结论仍不能确认为通过。请查看上方原因，并结合需求覆盖与风险证据判断。" : statusHelp[1]}</p>
         {ACTIVE.has(status) ? <Progress value={latest?.percentage ?? latest?.percent ?? 0} label={latest?.summary || latest?.message || "等待执行进度"} showValue /> : null}
         {nextAction ? <div className="next-action" role="group" aria-label="下一步操作"><span>下一步：</span><Button size="sm" variant="primary" onClick={nextAction.run}>{nextAction.label}</Button></div> : null}
         <div style={{ display: "flex", gap: 12, marginTop: 18 }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>刷新结果</Button><a href="#/matrix">查看需求覆盖 →</a><a href={"#/audit?job=" + encodeURIComponent(jobId)}>查看这个作业的审计轨迹 →</a></div>

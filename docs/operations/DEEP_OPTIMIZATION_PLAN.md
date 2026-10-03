@@ -2171,3 +2171,54 @@ craft 的 `ERROR`），而全库没有一本门把「哪些命令按裁决退出
 这一条要在下一号用臂表证明它有牙齿（把 craft 的链改成引用 `exit_code_for` 会不会红、
 把 `ERROR` 从 `AcceptVerdict` 里去掉会不会被 2 静默接住），不在本号动。
 
+### #169 验收原因有五种，页面却只讲其中一种：文案判据换成 payload 能证明的字段
+
+**实测到的缺陷**：`agent/worker.py::_state_summary` 把 `decision.reason` 原样存成
+`coverage_reason`，而 `evidence/verdict.py` 里那个串是**一个「；」拼接的多原因列表**——
+零检查（`if not rows`）、记录格式/契约标识/汇总不一致、`缺少契约检查结果：…`、
+`存在 N 项已确认问题…`、`执行过程有错误…`，再叠上 `release_gate_veto` 的
+`RELEASE 档发布门 <name>: <word>`。`api/routes/jobs.py::get_job_summary` 把摘要**不加过滤**
+透出去，所以这些都会到浏览器。而 `apps/web/src/pages/JobDetail.tsx:310-311`（以及
+`nextAction` 的第三条分支）对**任何一种**原因都渲染同一句话：
+「本次没有形成可执行的检查项。请完善验收条件，或接入对应检查器后重新验收。」，
+并把下一步指到 `#/guide`。一个四条检查都跑完、只被发布门拒掉的作业，于是被告知
+「你根本没形成检查」——评审人按错的方向补验收条件，真正的门结论在同一个页面上方
+就写着，却没有被当成下一步的依据。
+
+**为什么用 `matrix_rows_total` 而不是猜原因**：那句文案唯一能被 payload 证明的形式是
+「本轮没有形成任何检查行」，而 `agent/worker.py::_matrix_rows_for_summary` 恰好持久化了它
+（`matrix_rows_total`，2026-09-23 起随摘要入库）。三种读数必须互不混淆：
+`=== 0`（确实没形成检查）、`> 0`（形成了检查，原因在别处）、**缺席**（摘要早于该字段，
+属于未知）。缺席当 0 就是本号要修的那个错的翻版，所以判据写成
+`typeof s?.matrix_rows_total === "number"`，绝不用 `?? 0`。
+
+**落地内容**：banner 的标题与正文、`degraded` 框的链接、`nextAction` 的第三条分支，
+四处都按同一个 `rowsTotal` 分流；小节标题从中性的「本次验收结论未能确认」起，
+把「哪一种原因」留给后端原话（`coverage_reason` 逐字仍在框里，#150 的披露不动）。
+`Summary` 接口补 `matrix_rows_total?: number`——它是已提交摘要里真实存在的键，
+不是我为测试发明的字段。
+
+**门数字（全部走文件，不手抄）**：
+新增 4 条 vitest 案例，**先对旧页面跑一次**：3 红 / 20 绿（共 23 例），红的三条正是「把四种原因讲成一种」
+的三处断言，绿的正是那句文案**确实成立**的那一条（零检查作业），所以改文不是把话删了了事。
+改完同一本文件 23 passed / 0 红；全量 web 套件 47 个文件 383 例：381 passed、2 failed——那 2 条红是并发会话正在改的
+`SameRepoCraftPanel.tsx` 与其测试（该测试只 import `../SameRepoCraftPanel` 与 `../../api`，
+从不 import `JobDetail`），按案例名与失败原因（`Found multiple elements with the text: /已完成/`）
+归因给别人，本号不动。`tsc --noEmit` 零诊断。落地改动 测试文件 +78/-0（纯追加），页面 +13/-3。
+
+**见证（`.scratch/g169/witness169.py`，7 臂）**：7 臂全 CAUGHT（0 存活、0 MISMATCH），还原字节相同。每臂只拆一个子句，
+预测的是**案例名**而不是条数——`A1` 只毁正文分流、`A2` 只毁标题分流、`A2b` 把同一
+三元式朝反方向掰（只有零检查那条该红，用来证明那条绿案例不是空转）、`A3` 把缺席读成 0、
+`A4` 让 `degraded` 链接重新对所有原因指引导页、`A5` 让主下一步按钮同样不分类、
+`L1` 把小节标题改回「验收覆盖不足」。`A1` 与 `A2` 预测相同而机制不同，正是标题与正文
+各自承重的证据。
+
+**这一号欠下的流程账（写给后面的号）**：一次「拼接串当分类键」在同一条弧上出现第三次
+（#109 的标识符撞名、#152b 的门行判定词、本号的多原因共用一句文案）。凡文案要说出
+**原因**，判据必须是某个具名字段，不能是对一段散文的正则或存在性检查。
+
+**下一号**：#170 的候选已定位——`JobDetail.tsx` 的 `nextAction` 第一条操作数是
+`status === "UNVERIFIED"`，而本文件 `STATUS_HELP` 上方的注释（`storage/mysql.py::ALL_STATUSES`
+对账，由 `tests/unit/test_job_status_channel_parity.py` 钉住）明确说 `UNVERIFIED` **不是作业状态**。
+先用探针量那本门扫不扫 `nextAction` 里的字面量（扫不到就是门有洞，不是分支没问题），
+再决定是删不可达分支还是补门；本号不动它。

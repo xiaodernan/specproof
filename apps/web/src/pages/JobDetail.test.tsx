@@ -315,3 +315,81 @@ describe("overview with no summary (#62) — why it is missing must be the statu
   });
 });
 
+describe("coverage_reason disclosure (#169) — the banner may only claim what the payload proves", () => {
+  // Measured before this block was written:
+  //   * evidence/verdict.py::evaluate_verification emits a reason per cause family —
+  //     零检查 / 记录格式无效 / 缺少契约检查结果 / 没有对应验收契约 / 汇总不一致 /
+  //     「存在 N 项已确认问题」 / 「执行过程有错误」 — and release_gate_veto adds the
+  //     「RELEASE 档发布门 …」 refusals; VerificationDecision.reason joins them with 「；」.
+  //   * agent/worker.py::_state_summary persists that joined string as `coverage_reason`
+  //     next to `matrix_rows_total` (from _matrix_rows_for_summary), and
+  //     api/routes/jobs.py::get_job_summary hands the summary through unfiltered.
+  // So `matrix_rows_total === 0` is the only reading that proves「本次没有形成可执行的
+  // 检查项」, while the previous copy asserted that sentence — and the 补全指引 route —
+  // for every reason at all.
+  // Predicted red set against the previous JobDetail.tsx: cases 1, 3 and 4 RED,
+  // case 2 GREEN (it is the one case where the old sentence was true).
+  const stub = async (
+    summary: Record<string, unknown>,
+    findings: Record<string, unknown> = { findings: [], count: 0, degraded: false },
+  ) => {
+    get.mockImplementation((async (path: string) => {
+      if (path === "/jobs/job-1") return { job: { id: "job-1", status: "BLOCKED", repo_path: "/project" } };
+      if (path.endsWith("/summary")) return { summary };
+      if (path.endsWith("/stages")) return { job_id: "job-1", stages: [], event_count: 0, degraded: false };
+      return { job_id: "job-1", ...findings };
+    }) as typeof apiGet);
+    render(<JobDetail jobId="job-1" />);
+    await screen.findByRole("tablist");
+  };
+
+  it("names a RELEASE gate refusal without claiming there were no checks", async () => {
+    await stub({
+      verdict: "BLOCKED", contracts_total: 4, matrix_rows_total: 4, matrix_unverified: 1,
+      coverage_reason: "RELEASE 档发布门 verified_release_gates: 未通过",
+    });
+    // the reason still reaches the reader verbatim (#150 disclosure stays)
+    expect(screen.getByText(/RELEASE 档发布门 verified_release_gates: 未通过/)).toBeTruthy();
+    // and the page must not describe four executed checks as「没有形成可执行的检查项」
+    expect(screen.queryByText(/本次没有形成可执行的检查项/)).toBeNull();
+    expect(screen.getByText("本次不能确认验收通过")).toBeTruthy();
+    expect(screen.getByText(/已形成 4 项检查/)).toBeTruthy();
+    // a job that did compile checks is not sent to the onboarding guide
+    expect(screen.queryByRole("link", { name: /了解支持的验收方式/ })).toBeNull();
+    expect(screen.getByRole("link", { name: /逐项查看未确认的验收条件/ })).toBeTruthy();
+    // added after the measured run above, so its old-code red is read from HEAD's
+    // `<strong>验收覆盖不足</strong>` rather than re-measured; arm L1 re-proves it
+    expect(screen.getByText("本次验收结论未能确认")).toBeTruthy();
+  });
+
+  it("keeps the zero-check copy when the payload really records zero rows", async () => {
+    await stub({
+      verdict: "BLOCKED", contracts_total: 0, matrix_rows_total: 0,
+      coverage_reason: "零检查不能判定验收通过：请补充验收条件并接入适用检查器",
+    });
+    expect(screen.getByText("覆盖不足，暂不能确认验收通过")).toBeTruthy();
+    expect(screen.getByText(/本次没有形成可执行的检查项/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /了解支持的验收方式/ })).toBeTruthy();
+    expect(screen.queryByText(/已形成/)).toBeNull();
+  });
+
+  it("an absent matrix_rows_total is not read as zero checks", async () => {
+    // Summaries persisted before 2026-09-23 carry no row count. Absence must not
+    // become 0, or the page invents the very claim this unit is removing.
+    await stub({ verdict: "BLOCKED", contracts_total: 3, coverage_reason: "缺少契约检查结果：AUTH-03" });
+    expect(screen.queryByText(/本次没有形成可执行的检查项/)).toBeNull();
+    expect(screen.getByText("本次不能确认验收通过")).toBeTruthy();
+    expect(screen.queryByText(/已形成/)).toBeNull();
+    expect(screen.getByText(/请查看上方原因/)).toBeTruthy();
+  });
+
+  it("routes the next step by the payload instead of by any reason at all", async () => {
+    await stub({
+      verdict: "BLOCKED", contracts_total: 4, matrix_rows_total: 4, matrix_failed: 1,
+      coverage_reason: "第 2 条检查失败",
+    });
+    expect(screen.queryByRole("button", { name: /了解如何补全验证/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /逐项查看未确认的验收条件/ })).toBeTruthy();
+  });
+});
+
