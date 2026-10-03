@@ -882,7 +882,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "specproof_jobs_duration_seconds 直方图 (§14 性能目标)。注意: 指标无 depth 标签, 无法区分 FAST/DEEP, 参考线为 FAST 阈值 (p50=180s / p95=480s)。",
+      "description": "specproof_jobs_duration_seconds_<depth> 直方图族 (§14 性能目标, #161 起按 depth 拆名)。FAST 参考线 p50=180s / p95=480s, DEEP 参考线 p95=1500s。注: 队列入口当前仅收 FAST, DEEP 序列在入队前无数据。",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -957,8 +957,8 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum(rate(specproof_jobs_duration_seconds_bucket[30m])) by (le))",
-          "legendFormat": "p50 (30m)",
+          "expr": "histogram_quantile(0.50, sum(rate(specproof_jobs_duration_seconds_fast_bucket[30m])) by (le))",
+          "legendFormat": "FAST p50 (30m)",
           "range": true,
           "instant": false,
           "refId": "A"
@@ -969,11 +969,35 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(specproof_jobs_duration_seconds_bucket[30m])) by (le))",
-          "legendFormat": "p95 (30m)",
+          "expr": "histogram_quantile(0.95, sum(rate(specproof_jobs_duration_seconds_fast_bucket[30m])) by (le))",
+          "legendFormat": "FAST p95 (30m)",
           "range": true,
           "instant": false,
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum(rate(specproof_jobs_duration_seconds_deep_bucket[30m])) by (le))",
+          "legendFormat": "DEEP p50 (30m)",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(specproof_jobs_duration_seconds_deep_bucket[30m])) by (le))",
+          "legendFormat": "DEEP p95 (30m)",
+          "range": true,
+          "instant": false,
+          "refId": "D"
         },
         {
           "datasource": {
@@ -985,7 +1009,19 @@
           "legendFormat": "FAST p95 阈值 (480s)",
           "range": true,
           "instant": false,
-          "refId": "C"
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "1500",
+          "legendFormat": "DEEP p95 阈值 (1500s)",
+          "range": true,
+          "instant": false,
+          "refId": "F"
         }
       ]
     },

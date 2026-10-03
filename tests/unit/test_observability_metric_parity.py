@@ -1,0 +1,203 @@
+"""Parity gate: every metric name referenced by alerts/dashboards must trace
+to a real emission site (#161).
+
+This project's metrics registry has NO static table — a name appears on
+/metrics only after its first emission (docs/operations/OBSERVABILITY.md,
+section "已接线指标名", documents the reproducible reconciliation method:
+take the incr/set_gauge/observe_duration call sites and resolve constants to
+literals). That made stale references invisible: the duration alert kept
+querying ``specproof_jobs_duration_seconds_bucket`` after #161 split the
+histogram into a ``_fast/_deep`` family, and prometheus.yml's comment claimed
+the outbox-relay service "尚未进入 compose.production.yml" long after it did.
+
+This test turns that class of drift red: every ``specproof_*`` name referenced
+by alerts-slo.yml, prometheus.yml or the Grafana SLO dashboard must either be
+emitted by a scanned call site or match one of the hand-registered
+concatenated families (names the code builds at runtime — those cannot be
+listed exhaustively, only pattern-matched).
+
+Scope note: the source scan covers the four trees that own emission sites
+(agent/, api/, storage/, observability/). Emissions elsewhere would still
+work at runtime; they are simply not part of this gate's inventory until they
+appear here — which is the same honesty rule OBSERVABILITY.md applies.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[2]
+
+#: Trees scanned for emission sites (mirrors OBSERVABILITY.md's method note).
+EMIT_DIRS = ("agent", "api", "storage", "observability")
+
+#: Reference surfaces: the two Prometheus files (plain text — comments are
+#: prose but a comment naming a dead metric misleads the same way) and every
+#: string inside the Grafana dashboard JSON (exprs, legends, descriptions).
+REFERENCE_FILES = (
+    Path("infra/prometheus/alerts-slo.yml"),
+    Path("infra/prometheus/prometheus.yml"),
+    Path("infra/grafana/dashboards/specproof-slo.json"),
+)
+
+#: First-arg literal (``incr("x")``) or module constant (``incr(METRIC_X)``).
+_EMIT_CALL = re.compile(
+    r"\b(?:incr|set_gauge|observe_duration)\(\s*"
+    r"(?:['\"]([a-z0-9_]+)['\"]|([A-Z][A-Z0-9_]*))"
+)
+#: Module-level string constant usable as a metric name.
+_MODULE_CONST = re.compile(r"^([A-Z][A-Z0-9_]*)\s*=\s*['\"]([a-z0-9_]+)['\"]", re.M)
+_REFERENCE = re.compile(r"specproof_([a-z0-9_]+)")
+#: Histogram exposition adds these to the base name; queries must be reduced
+#: back to the base before matching (e.g. ..._fast_bucket → ..._fast).
+_HISTOGRAM_SUFFIXES = ("_bucket", "_sum", "_count")
+
+#: Names the code concatenates at runtime — unlistable, so pattern-matched.
+#: Each entry carries its emission-site pointer so a failing match can be
+#: traced by hand (same discipline as OBSERVABILITY.md's inventory). The
+#: vocabularies themselves are NOT hand-copied here:
+#: test_concatenated_families_track_their_vocabularies derives them from the
+#: product sources, so a new word fails (or extends) the gate together with
+#: the code instead of drifting apart from a copy.
+CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
+    "verdict": (
+        re.compile(r"^jobs_[a-z]+_total$"),
+        "agent/worker.py: incr(\"jobs_\" + verdict.lower() + \"_total\") — "
+        "verdict words are single lowercase tokens",
+    ),
+    "stage": (
+        re.compile(r"^worker_stage_duration_seconds_[a-z0-9_]+$"),
+        "agent/worker.py: \"worker_stage_duration_seconds_\" + str(stage) — "
+        "graph node names are Python identifiers",
+    ),
+    "depth": (
+        re.compile(r"^jobs_duration_seconds_(fast|deep|release)$"),
+        "agent/worker.py #161: \"jobs_duration_seconds_\" + depth.lower() — "
+        "word list derived from the shipped CLI choice in the derivation test",
+    ),
+    "notify": (
+        re.compile(r"^notify_(sent|disabled|failed)_total$"),
+        "agent/worker.py: incr(\"notify_\" + status.value + \"_total\") — "
+        "SendStatus members; skipped/error are worker literals instead",
+    ),
+}
+
+
+def _walk_strings(node: Any) -> list[str]:
+    if isinstance(node, str):
+        return [node]
+    if isinstance(node, dict):
+        return [s for value in node.values() for s in _walk_strings(value)]
+    if isinstance(node, list):
+        return [s for item in node for s in _walk_strings(item)]
+    return []
+
+
+def _referenced_names() -> set[str]:
+    names: set[str] = set()
+    for rel in REFERENCE_FILES:
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        if rel.suffix == ".json":
+            # Scan every string in the document: exprs, legends and the prose
+            # descriptions all quote metric names, and a stale name in prose
+            # misleads exactly like a stale one in an expr.
+            text = " ".join(_walk_strings(json.loads(text)))
+        for match in _REFERENCE.finditer(text):
+            names.add(match.group(1))
+    # Prose placeholders like jobs_duration_seconds_<depth> capture as a name
+    # ending in "_". A real metric never does, and the placeholder names a
+    # documented family — drop them rather than widening the families.
+    return {n for n in names if not n.endswith("_")}
+
+
+def _emitted_names() -> set[str]:
+    names = {"up"}  # observability/metrics.py::render_text, unconditional
+    for emit_dir in EMIT_DIRS:
+        for path in sorted((ROOT / emit_dir).rglob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            constants = dict(_MODULE_CONST.findall(text))
+            for literal, const in _EMIT_CALL.findall(text):
+                if literal:
+                    names.add(literal)
+                elif const in constants:
+                    names.add(constants[const])
+    return names
+
+
+def test_every_referenced_metric_name_traces_to_an_emission_site() -> None:
+    referenced = _referenced_names()
+    emitted = _emitted_names()
+
+    unaccounted: list[str] = []
+    for name in sorted(referenced):
+        base = name
+        for suffix in _HISTOGRAM_SUFFIXES:
+            if base.endswith(suffix):
+                base = base[: -len(suffix)]
+        if base in emitted:
+            continue
+        if any(
+            pattern.match(base) for pattern, _ in CONCATENATED_FAMILIES.values()
+        ):
+            continue
+        unaccounted.append(name)
+
+    assert not unaccounted, (
+        "alerts/dashboards reference metric names with no emission site "
+        f"(OBSERVABILITY.md '已接线指标名' is the inventory method): {unaccounted}. "
+        "Either the reference is stale (fix the alert/dashboard), or the name "
+        "is a new concatenated family (register it in CONCATENATED_FAMILIES "
+        "with its emission-site pointer and vocabulary derivation)."
+    )
+
+
+def _alternation_branches(pattern: re.Pattern[str]) -> list[str]:
+    """The inside of the family's single (...) group, split on '|'."""
+    inside = re.search(r"\(([^()]+)\)", pattern.pattern)
+    assert inside is not None, f"family pattern has no (...) group: {pattern.pattern}"
+    return inside.group(1).split("|")
+
+
+def test_concatenated_families_track_their_vocabularies() -> None:
+    """Family wildcards must derive from the real vocabulary sources."""
+
+    # notify == SendStatus members (integrations/notify/protocol.py). Derive
+    # the expected alternation from the enum so a new member forces this gate
+    # and the family to move together.
+    from integrations.notify.protocol import SendStatus
+
+    notify_pattern, _ = CONCATENATED_FAMILIES["notify"]
+    expected = "^notify_(" + "|".join(m.value for m in SendStatus) + ")_total$"
+    assert notify_pattern.pattern == expected, (
+        "notify family drifted from SendStatus: "
+        f"{notify_pattern.pattern} != {expected}"
+    )
+
+    # depth == the shipped CLI choice (the WIDEST enqueue/exec vocabulary:
+    # POST /jobs and MCP are currently narrower, and webhook hard-codes FAST —
+    # the family must cover what the product can name, not what one gate takes).
+    cli_text = (ROOT / "cli" / "specproof" / "commands" / "verify.py").read_text(
+        encoding="utf-8"
+    )
+    choice_match = re.search(r"click\.Choice\(\[([^\]]*)\]\)", cli_text)
+    assert choice_match is not None, "CLI verify --depth choice not found"
+    depths = [d.lower() for d in re.findall(r'"([A-Z]+)"', choice_match.group(1))]
+    depth_pattern, _ = CONCATENATED_FAMILIES["depth"]
+    assert sorted(_alternation_branches(depth_pattern)) == sorted(depths), (
+        f"depth family {depth_pattern.pattern} != CLI choice {depths}"
+    )
+    for depth in depths:
+        assert depth_pattern.match(f"jobs_duration_seconds_{depth}"), (
+            f"family rejects shipped depth {depth}"
+        )
+
+    # verdict / stage stay anchored single-token wildcards (their vocabularies
+    # are Python-identifier-shaped and enumerated elsewhere); assert the
+    # anchoring that keeps them from becoming catch-alls.
+    for key in ("verdict", "stage"):
+        pattern, _ = CONCATENATED_FAMILIES[key]
+        assert pattern.pattern.startswith("^") and pattern.pattern.endswith("$")
+        assert "(...)" not in pattern.pattern

@@ -39,8 +39,8 @@ scrape_configs:
     static_configs:
       - targets: ["worker:9100"]
 
-  # outbox relay 服务尚未进入 compose.production.yml (应用栈侧待办);
-  # 部署后本目标自动转 up, specproof_outbox_pending 随之可采集。
+  # outbox relay 随应用栈部署 (compose.production.yml 的 outbox-relay 服务,
+  # #161 核实; 未起应用栈时本目标 down, 不影响其他抓取)。
   - job_name: outbox-relay
     metrics_path: /metrics
     static_configs:

@@ -1799,6 +1799,57 @@ pytest_report_header/collection_modifyitems` 钉 `pytest.Config`，`pytest_sessi
 `test_baseline + test_slow_marker_tagging` **33 passed**（后者即标记行为的回归锁——
 integration/slow 双标记经 rootpath 路径仍正确）。
 
+### #161 SLO 时长告警按 depth 分档 + 观测栈引用对账门：§14 FAST/DEEP 各用各的阈值，陈旧引用从此红在测试里
+
+**选题量测**：盘点 ROADMAP「P6 可观测/SLO」欠账时，alerts-slo.yml 头注释自认
+「jobs_duration_seconds 无 depth 标签, 暂用 FAST 480s 作统一上界」——即 DEEP 的
+1500s 门槛（§14: DEEP 小 PR p95 ≤ 25 分钟）从未被单独告警；OBSERVABILITY.md §6
+第 97/98 行同样登记着这笔 🟡。顺藤摸到两处陈旧引用：prometheus.yml 注释说 outbox
+relay「尚未进入 compose.production.yml」而该服务早在其中（#161 逐行核实）；
+OBSERVABILITY.md §6 第 95 行同句过期。这暴露出一类结构性盲区：本项目指标注册表
+**没有静态表**（名字只在第一次上报时出现），告警/看板引用死名字没有任何门会红。
+
+**修法（尊重「直方图无标签」的既有设计）**：observability/metrics.py 的手写注册表
+注释明言 histograms 无标签是有意为之——所以维度走**名字**而非标签，与既有先例
+`worker_stage_duration_seconds_<node>` 同构：worker 终态上报改
+`jobs_duration_seconds_<depth>`（depth 小写拼名）。基数安全的前提量过：三个入口的
+词表全封闭——POST /jobs 钉 `^(FAST)$`、MCP `_JOB_DEPTH_VALUES=("FAST",)`、webhook
+硬编码 FAST；CLI `--depth` 是 `click.Choice(["FAST","DEEP","RELEASE"])` 但 CLI 走
+本地执行不入队。词表取并集 {fast, deep, release}，族有界。
+
+**诚实边界（重要）**：队列今天**只收 FAST**，所以 `_deep` 序列与 DEEP 告警上线即
+armed 但无数据——这不是假装接线：DEEP 走 CLI 本地执行不过 worker，1500s 告警要等
+DEEP 入队那天自动生效。alerts 描述、看板 description、OBSERVABILITY.md §6 三处
+都明写这一点，不冒充已测量。
+
+**落地**：`agent/worker.py` 拆名（注释记词表封闭证据）；alerts-slo.yml 一条
+SpecproofJobDurationP95High 拆成 `…P95FastHigh`（>480s）与 `…P95DeepHigh`（>1500s），
+头注释的「无标签」自白改为分档说明；grafana 面板 12 从 p50/p95+单阈值线扩为
+FAST/DEEP 各 p50+p95 四序列 + 480/1500 双阈值线；prometheus.yml 与 OBSERVABILITY.md
+三处陈旧更正（§5 告警表拆两行、§6 FAST ✅ / DEEP 🟡armed、上报清单改名 + 拼接族
+登记第四族）。
+
+**对账门（本号的结构性产出）**：新增
+`tests/unit/test_observability_metric_parity.py`——把 OBSERVABILITY.md 自己登记的
+对账方法变成可执行的门：
+1. 从 alerts-slo.yml + prometheus.yml（纯文本，注释也算引用面）+ specproof-slo.json
+   （全字符串遍历，prose 里的死名字同样误导）提取全部 `specproof_*` 引用，
+   剥 `_bucket/_sum/_count` 展开后缀；
+2. 从 agent/api/storage/observability 四棵树扫 `incr(/set_gauge(/observe_duration(`
+   调用点，字面量与**同文件模块常量**双层解析（outbox_relay/notify_relay 的名字全走
+   `METRIC_* = "..."` 常量，单层字面量必漏——OBSERVABILITY.md 第 111 行的方法描述
+   就是这么写的）；
+3. 每个引用必须落在「已上报 ∪ 拼接族」里，否则红。四个拼接族（verdict/stage/
+   depth/notify）各有上报点指针；族词表**不手抄**——notify 族从 `SendStatus`
+   枚举派生、depth 族从 CLI `click.Choice` 派生（取最宽入口词表），产品加词时门
+   与代码一起动，杜绝清单漂移。散文占位符（如 `..._<depth>`）剥成尾下划线名丢弃。
+
+**门证**：ruff/mypy 双清（新测试 + worker）；`test_observability_metric_parity +
+test_metrics_http` **8 passed**（对账门第一轮就验住了本轮全部改名——若 alerts 还指
+旧名立即红）；worker 接线回归 `test_worker_consume_pump + test_worker_cancel_points`
+**26 passed**；alerts/prometheus YAML 与看板 JSON 解析 OK。
+
+
 
 
 

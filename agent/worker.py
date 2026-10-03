@@ -341,8 +341,17 @@ class Worker:
                 incr("jobs_completed_total")
                 incr("jobs_" + verdict.lower() + "_total")
                 set_gauge("jobs_processing_seconds", float(time.time() - started))
+                # §14 sets DIFFERENT p95 budgets per depth (FAST 480s vs DEEP
+                # 1500s), so the dimension must survive into the metric. The
+                # registry is label-free by design; like the per-stage family
+                # below, the dimension goes into the NAME instead. Depth is a
+                # closed word list at every enqueue point (POST /jobs pins
+                # ^FAST$, MCP _JOB_DEPTH_VALUES, webhook hard-codes FAST), so
+                # the family stays bounded: _fast / _deep / _release.
                 observe_duration(
-                    "jobs_duration_seconds", float(time.time() - started)
+                    "jobs_duration_seconds_"
+                    + str(payload.get("depth", "FAST")).lower(),
+                    float(time.time() - started),
                 )
             # Billing metering: gate_findings units = confirmed findings at
             # the terminal transition (idempotent event_id — a crash-recovery

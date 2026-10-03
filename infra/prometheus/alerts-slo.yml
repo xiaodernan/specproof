@@ -13,9 +13,12 @@
 #                                        15 分钟窗口内失败率 > 30% 触发排查
 #   JOB_P95_FAST_SECONDS     = 480    ← §14 性能 "FAST 小 PR p95 <= 8 分钟"
 #   JOB_P95_DEEP_SECONDS     = 1500   ← §14 性能 "DEEP 小 PR p95 <= 25 分钟"
-#                                        (当前 jobs_duration_seconds 无 depth 标签,
-#                                        暂用 FAST 阈值 480s 作统一上界; 标签化后
-#                                        再按 FAST/DEEP 分别告警)
+#                                        (#161 起直方图按 depth 拆名
+#                                        jobs_duration_seconds_<depth>,
+#                                        FAST/DEEP 各用各的阈值分别告警;
+#                                        队列入口当前仅收 FAST — POST /jobs
+#                                        钉 ^FAST$、MCP 同、webhook 硬编码,
+#                                        DEEP 通道先 armed, 入队那天自动生效)
 
 groups:
   - name: specproof-slo
@@ -88,16 +91,29 @@ groups:
           summary: "SpecProof job 失败率超过阈值 (WORKER_FAIL_RATE_THRESHOLD=0.30)"
           description: "15 分钟窗口内失败/完成比 {{ $value | humanizePercentage }} (§14 质量目标 Precision/Replay 的前置健康条件)。"
 
-      # ── Job 时长 p95 (§14 性能目标) ─────────────────────────────────
-      - alert: SpecproofJobDurationP95High
+      # ── Job 时长 p95 (§14 性能目标, 按 depth 分档) ──────────────────
+      - alert: SpecproofJobDurationP95FastHigh
         expr: >
           histogram_quantile(
             0.95,
-            sum(rate(specproof_jobs_duration_seconds_bucket[30m])) by (le)
+            sum(rate(specproof_jobs_duration_seconds_fast_bucket[30m])) by (le)
           ) > 480
         for: 30m
         labels:
           severity: warning
         annotations:
-          summary: "SpecProof job 时长 p95 超过阈值 (JOB_P95_FAST_SECONDS=480)"
-          description: "30 分钟窗口 p95 = {{ $value }}s (§14: FAST 小 PR p95 <= 8 分钟; 指标无 depth 标签, 暂以 FAST 阈值为统一上界)。"
+          summary: "SpecProof FAST job 时长 p95 超过阈值 (JOB_P95_FAST_SECONDS=480)"
+          description: "30 分钟窗口 FAST p95 = {{ $value }}s (§14: FAST 小 PR p95 <= 8 分钟)。"
+
+      - alert: SpecproofJobDurationP95DeepHigh
+        expr: >
+          histogram_quantile(
+            0.95,
+            sum(rate(specproof_jobs_duration_seconds_deep_bucket[30m])) by (le)
+          ) > 1500
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof DEEP job 时长 p95 超过阈值 (JOB_P95_DEEP_SECONDS=1500)"
+          description: "30 分钟窗口 DEEP p95 = {{ $value }}s (§14: DEEP 小 PR p95 <= 25 分钟)。队列入口当前仅收 FAST, 本告警在 DEEP 入队前不会有数据 (armed)。"
