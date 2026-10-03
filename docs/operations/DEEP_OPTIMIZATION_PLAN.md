@@ -2222,3 +2222,63 @@ craft 的 `ERROR`），而全库没有一本门把「哪些命令按裁决退出
 对账，由 `tests/unit/test_job_status_channel_parity.py` 钉住）明确说 `UNVERIFIED` **不是作业状态**。
 先用探针量那本门扫不扫 `nextAction` 里的字面量（扫不到就是门有洞，不是分支没问题），
 再决定是删不可达分支还是补门；本号不动它。
+
+## #170 状态词表的「比较位置」从未被任何门看见：删掉一条永远走不到的分支，并把页面手抄的两份集合钉住
+
+**实测起点（先量，不改）**：#110 那本门把作业状态词表钉在三个**声明位置**上 ——
+`StatusPill.tsx::JOB_STATUSES`（数组元素）、`STATUS_LABELS` 与 `JobDetail.tsx::STATUS_HELP`
+（Record 键）。它没钉**使用位置**。用 `\b\w*[sS]tatus\w* === "大写词"` 扫一遍 `apps/web/src`，
+得到的站点里只有一处属于验收作业通道却又不在那三个声明位置：
+
+- `apps/web/src/pages/JobDetail.tsx:286` 的 `nextAction` 三元链里带着
+  `status === "UNVERIFIED" || …`。而同一个文件第 268 行写得很清楚
+  `const status = (job.status || "").toUpperCase()` —— 这个 `status` 只会是作业行的状态；
+  `storage/mysql.py::_VALID_TRANSITIONS` 十个状态里没有 `UNVERIFIED`，`RUNNING` 也到不了它
+  （它是矩阵行/裁决词，正是 #110 的 `_NOT_STATUSES` 点名要挡的那两个词之一）。
+  也就是说：这条分支**永远走不到**，而它已经在#169 之前一直被误当作用户路径。
+  它在 `||` 里，删掉之后行为不变（另一个析取项 `!!s?.coverage_reason && rowsTotal === 0` 才是活的那条）。
+
+扫出来的其余大写比较词**属于另外两套词表**，不是缺陷：`AgentResult.tsx:109` 的
+`job.status === "COMPLETED"` 走的是 Craft 控制台的裁决（`api/agent_runtime.py::console_status_label`
+把 store 的 `succeeded` 映射成 `COMPLETED`；store 自己那套是小写的
+`pending/running/succeeded/failed/cancel`，见 `storage/agent_jobs.py::JOB_STATUSES`），
+`Contracts.tsx:70` 走的是契约状态。所以按词的形状建门会一次误伤三套通道 ——
+新条款必须绑「左值是不是状态」而不是「词长得像不像枚举」。
+
+**第二处实测到的洞**：`JobDetail.tsx:44-45` 手抄了 `ACTIVE` / `TERMINAL` 两个集合，
+而 `TERMINAL.has(currentStatus)` 决定的是关掉进度流、触发工件加载、以及 5 秒轮询是否继续
+（第 204/221/233 行）。今天它恰好等于后端的 `TERMINAL_STATUSES`，但**没有任何门钉它**：
+后端新增一个终态，这个页面就会对着一件已经结束的作业永远轮询下去。
+
+**改了什么**：
+1. `JobDetail.tsx`：删掉 `nextAction` 里那条不可达的 `status === "UNVERIFIED" ||`（+1/−1）。
+2. `tests/unit/test_job_status_channel_parity.py`：追加三条条款 + 两个读取器 ——
+   `test_job_detail_compares_only_statuses_the_machine_can_hold`（比较位置的每个操作数必须是
+   状态机真有的状态，并带一条**下限** `len(sites) >= 3`：扫描解析不到东西时，条款不能算通过）、
+   `test_job_detail_keeps_no_ungated_copy_of_the_terminal_set`（页面 TERMINAL == 后端 TERMINAL_STATUSES，
+   两个方向分别说清「永远轮询」与「提前停轮」）、
+   `test_job_detail_progress_bar_set_covers_in_flight_states`
+   （ACTIVE 不含终态、不遗漏任何非终态；唯一例外 `FAILED` 是被点名的那条：它可重试所以仍要轮询，
+   但没有在飞进度可画，所以没有进度条）。
+
+**读数（全部来自本次真实输出）**：门在 HEAD 收 **8** 例，加条款后 **11 例 0.91s**（快环，纯文本，不碰数据库）；
+`ruff check` All checks passed、`mypy` Success、`npx tsc --noEmit` **0 诊断**；
+`vitest src/pages/JobDetail.test.tsx` 删除前后都是 **23 passed**（例数没变，#169 那四条 payload 分流案例仍绿，
+证明这一刀确实行为不变）。
+
+**见证：4 臂，全部 MATCHED，还原字节相同**（`.scratch/g170/witness170.py`，预测在跑之前写死）：
+- E1 把不可达分支**放回去**（反向控制：门必须在改前的页面上点名它）→ 预测且实测只红
+  `compares_only_statuses…`；
+- E2 从页面 TERMINAL 抄件里删掉 `STALE` → 只红 `no_ungated_copy_of_the_terminal_set`；
+- E3 把终态 `ERROR` 塞进 ACTIVE → 只红 `progress_bar_set_covers_in_flight_states`；
+- E4 把门的正则收窄到解析不到任何站点 → 红在下限那条断言上（证明下限是承重的，不是装饰）。
+
+**流程规则（进本弧纪律）**：一本只读**声明位置**的词表门，会在「用这个词的那条分支」腐烂时照样绿。
+词表门必须同时钉比较位置，而且钉的是**左值的身份**（它是不是状态），不是词的形状 ——
+因为这个产品里至少有三套状态词表（验收作业 / Craft 控制台 / 契约），它们的合法词互相都是对方的死词。
+
+**#171 种子（只登记，未量）**：控制台那套词（`console_status_label` 的六个裁决 +
+`api/routes/agent_console.py` 的 `STATUS_LABELS` 与 `_CONSOLE_TO_STORE_STATUS`）在前端有若干手抄比较站点
+（`AgentResult.tsx`、`AgentJobDetail.tsx`、`agent/util.ts::agentStatusMeta`），
+但**还没量过它们有没有门**；先量再决定是补对账还是删副本。另：`STATUS_LABELS` 这个名字在
+后端控制台与前端 `StatusPill.tsx` 各有一份，属同一通道不同词表，量普查时别把两者当同一份。

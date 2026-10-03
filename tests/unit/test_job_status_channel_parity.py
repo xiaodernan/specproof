@@ -185,3 +185,106 @@ def test_job_detail_guidance_covers_every_status_including_pending() -> None:
     assert "PENDING" in keys
     for ghost in _NOT_STATUSES:
         assert ghost not in keys
+
+
+def _status_comparisons(source: str) -> list[tuple[int, str]]:
+    """Every `…status… === "WORD"` operand in a TS/TSX source, with its line.
+
+    Comparison position is where a status word is USED to decide what the reader
+    sees, and it is the position the scans above cannot reach: they read Record
+    keys and list elements, so `STATUS_HELP` stayed pinned while `nextAction`
+    compared `status === "UNVERIFIED"` a few lines away from it (#170).
+
+    The left operand is matched structurally (an identifier whose name ends in
+    `status`) and the operand must be an uppercase token, which keeps this
+    inside the job-status channel: the same file also holds
+    `s.status === "fulfilled"` (a Promise result, not a status word), and other
+    pages compare their OWN vocabularies — the agent console's `COMPLETED`,
+    contracts' `APPROVED` — which are not this state machine's and are not
+    checked here.
+    """
+    sites: list[tuple[int, str]] = []
+    for n, line in enumerate(source.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith(("//", "*", "/*")):
+            continue
+        for match in re.finditer(r'\b\w*[sS]tatus\w*\s*===\s*"([A-Z][A-Z0-9_]*)"', line):
+            sites.append((n, match.group(1)))
+    return sites
+
+
+def _ts_string_set(source: str, name: str) -> set[str]:
+    """Read `const NAME = new Set(["A", "B"]);` — the page's own copy of a set."""
+    match = re.search(rf"const {name} = new Set\(\[([^\]]*)\]\)", source)
+    assert match, f"const {name} = new Set([...]) not found — gate would pass vacuously"
+    words = set(re.findall(r'"([^"]+)"', match.group(1)))
+    assert words, f"{name} parsed to no members — gate would pass vacuously"
+    return words
+
+
+def test_job_detail_compares_only_statuses_the_machine_can_hold() -> None:
+    """The dead branch this file previously certified around.
+
+    `status` here is `(job.status || "").toUpperCase()`, so a word outside the
+    state machine can never match it, and an `||` term carrying one is not a
+    harmless spare branch: it claims a meaning (「这条状态要去看引导页」) that no
+    row can ever reach, which is how a reviewer ends up trusting a branch that
+    has never run.
+    """
+    source = JOB_DETAIL.read_text(encoding="utf-8")
+    sites = _status_comparisons(source)
+    # Floor, from the scan itself: a clause that matches nothing is greener than
+    # the bug it is supposed to guard, and the page really does compare here.
+    assert len(sites) >= 3, (
+        f"the comparison scan found {len(sites)} site(s) in {JOB_DETAIL.name}; "
+        "expected at least the three in nextAction and the failure banner"
+    )
+    unreachable = [(n, word) for n, word in sites if word not in ALL_STATUSES]
+    assert not unreachable, (
+        f"JobDetail compares a job status against words no row can hold: "
+        f"{unreachable} — storage/mysql.py has no such state"
+    )
+    for ghost in _NOT_STATUSES:
+        assert ghost not in {word for _, word in sites}, (
+            f"{ghost} is a verdict/matrix word, never a job status"
+        )
+
+
+def test_job_detail_keeps_no_ungated_copy_of_the_terminal_set() -> None:
+    """TERMINAL decides when the page stops listening, so it is not prose.
+
+    `terminal = TERMINAL.has(currentStatus)` closes the progress stream and
+    triggers the artifact load, and the 5-second poll runs while `!terminal`;
+    #62's three-way "why is there no summary" split reads it too. A terminal
+    status missing from this copy is therefore a finished job that the page
+    polls forever — while a status present here but not terminal on the backend
+    stops the poll on a row that is still moving.
+    """
+    source = JOB_DETAIL.read_text(encoding="utf-8")
+    page_terminal = _ts_string_set(source, "TERMINAL")
+    assert page_terminal == set(TERMINAL_STATUSES), (
+        "JobDetail::TERMINAL and storage/mysql.py::TERMINAL_STATUSES disagree: "
+        f"polled forever {sorted(set(TERMINAL_STATUSES) - page_terminal)}, "
+        f"stopped too early {sorted(page_terminal - set(TERMINAL_STATUSES))}"
+    )
+
+
+def test_job_detail_progress_bar_set_covers_in_flight_states() -> None:
+    """ACTIVE drives the progress bar; every in-flight state must be in it.
+
+    The one exception is named rather than counted: FAILED is retryable on the
+    backend (FAILED → QUEUED/CANCELLED/ERROR) yet holds no live progress to
+    draw, so it is polled without a bar. If that carve-out ever changes, this
+    assertion says which side moved instead of quietly shrinking to fit.
+    """
+    source = JOB_DETAIL.read_text(encoding="utf-8")
+    active = _ts_string_set(source, "ACTIVE")
+    in_flight = set(ALL_STATUSES) - set(TERMINAL_STATUSES)
+    overlap = active & set(TERMINAL_STATUSES)
+    assert not overlap, f"ACTIVE draws a progress bar for terminal states: {sorted(overlap)}"
+    missing = in_flight - active - {"FAILED"}
+    assert not missing, f"in-flight statuses with no progress bar: {sorted(missing)}"
+    assert "FAILED" in in_flight - active, (
+        "FAILED is no longer the retryable-without-progress exception; "
+        "update this clause to say what replaced it"
+    )

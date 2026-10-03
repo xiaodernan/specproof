@@ -283,7 +283,7 @@ export default function JobDetail(props: { jobId: string }) {
       ? { label: "查看 " + findingCount + " 条风险并处理 →", run: () => setTab("findings") }
       : status === "VERIFIED"
       ? { label: "查看验证报告 →", run: () => setTab("certificate") }
-      : status === "UNVERIFIED" || (!!s?.coverage_reason && rowsTotal === 0)
+      : !!s?.coverage_reason && rowsTotal === 0
       ? { label: "了解如何补全验证 →", run: () => { window.location.hash = "#/guide"; } }
       : s?.coverage_reason
       ? { label: "逐项查看未确认的验收条件 →", run: () => { window.location.hash = "#/matrix"; } }
