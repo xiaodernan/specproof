@@ -1740,3 +1740,15 @@ pipeline 通道走 Maven/Java，无 CPython pyc 协议，不受影响，未动�
 
 **门证**：`test_bench_mutation.py` 5 passed（47.87s）；ruff/mypy lib 双清。
 
+### #159e parity「通过」量证收账：写入方修复已由并行 lane 在途（report.py 9 行 diff），本支零动作不代抬
+
+**量**：本地跑 `test_verdict_channel_parity.py` = `1 failed, 12 passed`——**CI 的那条
+「通过」红本地已不红**：并行脏 diff `evidence/report.py`（9 行在途）正是在修声明侧
+（`verdict != "通过"` → `word != "通过"` 改名 + #109 口径注释），属"补声明"路线的
+在途施工，归并行，不抢。
+本地面板多出的两条 witness 红（`craft/accept.py:475 does not contain 'ERROR'`、
+`agent_console.py:455 does not contain 'UNKNOWN'`）与 HEAD 口径不符（CI 37098380151
+同测试仅报「通过」一条）：前者是并行脏文件 `craft/accept.py` 在途 diff 的行号漂移；
+后者待并行落库后复测再定性。**本支零动作。**
+
+
