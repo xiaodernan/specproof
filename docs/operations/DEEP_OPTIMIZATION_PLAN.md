@@ -1712,3 +1712,31 @@ utf-8 on all 16 unpinned bench-script captures`（实际 16 处，配方里数�
 #157 时点（1bfe632）的历史快照，不是 master 现状。教训：隔离 worktree 出数前先
 `git log <worktree_head>..master` 确认没有更新的修复落地，否则会把已修的账记成待办。
 红 2（`通过`）仍归并行 `evidence/report.py` 在修。**本支零动作收账，认领撤销。**
+
+### #159d mutation kill-rate 6≠5 定案：stale-bytecode 竞态（配方二选一之外的第三种答案），PYTHONDONTWRITEBYTECODE 根除
+
+**CI 红自点名成功**（verdict 表设计兑现）：`M06=killed/test_failure/exit1`，其余 M01–M05
+全部符合期望；错误尾巴 `where 118.0 = with_tax(100.0) | tests/test_pricing`。
+配方给的二选一（计数 bug vs 期望过期）**都不对**——期望 5/6 是样本设计的真相，计数逻辑
+也无辜；红在测量通道本身。
+
+**机制（实验逐字复现，非推断）**：`run_mutation_bench` 全程复用一个 copytree workspace，
+目标模块全部变体（v0/v5/v6）**同字节长**（0.08↔0.18、0.15↔0.18）；CPython pyc 校验 =
+(mtime 秒, size)。M05 轮 pytest 编译 v5 写 pyc（头=源 mtime 秒）；M05 finally 还原与
+M06 写入连续执行——CI 每轮 pytest ≈1s（bench 文件 05:01:43→05:01:54 跑完 7 轮），
+M06 源 mtime 与 pyc 头**同秒同 size** 时 pytest 直读 **M05 的字节码**（TAX_RATE=0.18）
+→ `with_tax(100)=118` → M06 被诬杀。概率型 flake（同秒命中≈每轮 20%），与"CI 偶红
+偶绿"的历史吻合；本地每轮 >1s 必跨秒，永不复现。
+spec 通道无辜的旁证：`check_module` 对内存源串 exec，永远基于真实变异源——M06 无
+spec_verdict 与"pytest 读到 v5 字节码"完全自洽。
+
+**实验**：临时 workspace 手工重放——v5 跑 pytest 产 pyc（flags=0, hdr_mtime, size=1309）
+→ 写 v6 并 `os.utime` 钉到 pyc 头同秒 → pytest 红 `assert 118.0 == 108.0`（与 CI 逐字
+同错）；加 `PYTHONDONTWRITEBYTECODE=1` 重放 → **pyc 不再写出**，同秒下 v6 rc=0。
+
+**修法**：`mutation_bench_lib._run_pytest` 注入 `env["PYTHONDONTWRITEBYTECODE"]="1"`
+（子进程每轮从真实源重编译，竞态根除；每轮多编译一个 50 行文件，可忽略）。real-repo
+pipeline 通道走 Maven/Java，无 CPython pyc 协议，不受影响，未动。
+
+**门证**：`test_bench_mutation.py` 5 passed（47.87s）；ruff/mypy lib 双清。
+

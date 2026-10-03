@@ -199,6 +199,15 @@ def _run_pytest(workspace: Path) -> tuple[int | None, str]:
     """
     env = dict(os.environ)
     env["PYTHONPATH"] = str(workspace) + os.pathsep + env.get("PYTHONPATH", "")
+    # The workspace is reused across mutants and every sample variant of the
+    # target module is the same byte length, so a child-written .pyc whose
+    # (mtime-second, size) header matches the next mutant's source serves the
+    # PREVIOUS mutant's bytecode: the restore + next-write pair can land in
+    # the same second. Measured on CI (tests-no-infra): M06's pytest read
+    # M05's TAX_RATE=0.18 bytecode and reported with_tax(100.0)=118.0,
+    # framing an honest survivor as killed — kill_rate flaked 5/6 vs 6/6.
+    # Never let the child cache bytecode it must re-derive each round.
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     try:
         completed = subprocess.run(
             _pytest_command(),
