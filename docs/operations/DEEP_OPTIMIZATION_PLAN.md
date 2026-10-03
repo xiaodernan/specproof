@@ -1780,5 +1780,25 @@ make_bucket / put_object / stat_object / get_object / list_objects——匿名�
 `docker compose up -d --wait minio` 全链 **Healthy**（与 CI `up -d --wait` 等效）；
 compose 栈冒烟 ensure_buckets/upload/get_object OK。测试容器与卷已清理。
 
+### #160 conftest 类型债收口：6 条 no-untyped-def 清零，顺带把 pytest 9 已除名的 legacy rootdir 换成 rootpath
+
+**背景**：#157/#159 多轮门证反复被 `import tests.conftest` 牵出 6 条 no-untyped-def 挡路
+（当时明言"不代修"——本号补上）。conftest.py 不在并行脏清单，零冲突。
+
+**修**：六个 hook/内部函数钉签名——`pytest_configure/_apply_mysql_isolation/
+pytest_report_header/collection_modifyitems` 钉 `pytest.Config`，`pytest_sessionfinish`
+钉 `pytest.Session, exitstatus: int`，`_connect` 钉 `-> Any`（pymysql 无 stubs）。
+
+**注解牵出的真发现**：`pytest_collection_modifyitems` 一旦入 mypy 视野，`config.rootdir`
+报 attr-defined——实测 pytest 9.1.1 的 `Config` **类上已无 rootdir**（实例上是 legacy
+`LocalPath` 兼容物），typed 等价物是 `rootpath: Path`。改用 `config.rootpath.resolve()`
+并留注释，防下一个注解这行的人再踩。这不是纯类型修饰：legacy 属性随时可能随 py.path
+退役而消失，届时标记 hook 会在 collection 期炸掉整个 session。
+
+**门证**：`mypy tests/conftest.py` **0 errors**（6→0）；ruff 干净；
+`test_baseline + test_slow_marker_tagging` **33 passed**（后者即标记行为的回归锁——
+integration/slow 双标记经 rootpath 路径仍正确）。
+
+
 
 

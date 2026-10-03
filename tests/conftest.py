@@ -40,7 +40,7 @@ def _modules_needing_newer_python(root: Path) -> list[str]:
     return bad
 
 
-def pytest_configure(config):
+def pytest_configure(config: pytest.Config) -> None:
     if sys.version_info >= _MIN_PYTHON:
         _apply_mysql_isolation(config)
         return
@@ -174,7 +174,7 @@ def chosen_test_database() -> str:
     return named
 
 
-def _connect(database: str, timeout: int):  # noqa: ANN202 — pymysql has no stubs
+def _connect(database: str, timeout: int) -> Any:  # pymysql has no stubs
     import pymysql
 
     from storage.mysql import MySQLConfig
@@ -278,7 +278,7 @@ def prepare_test_schema(state: str, database: str) -> None:
     raise RuntimeError(f"test schema {database!r} is not usable: {last!r}")
 
 
-def _apply_mysql_isolation(config) -> None:
+def _apply_mysql_isolation(config: pytest.Config) -> None:
     global MYSQL_ISOLATION, MYSQL_DATABASE_HANDED_TO
     # Read before `enforce_test_database()` may rewrite: the point of the record
     # is which process in the chain chose this process's schema.
@@ -305,7 +305,7 @@ def _apply_mysql_isolation(config) -> None:
     MYSQL_ISOLATION = (state, database, count_product_test_rows())
 
 
-def pytest_report_header(config) -> str:  # noqa: ARG001 — pytest hook signature
+def pytest_report_header(config: pytest.Config) -> str:  # noqa: ARG001 — pytest hook signature
     state, database, before = MYSQL_ISOLATION
     if state == "unresolved":
         return "MySQL isolation: not evaluated (Python version guard fired)"
@@ -317,7 +317,9 @@ def pytest_report_header(config) -> str:  # noqa: ARG001 — pytest hook signatu
     )
 
 
-def pytest_sessionfinish(session, exitstatus) -> None:  # noqa: ARG001 — hook signature
+def pytest_sessionfinish(
+    session: pytest.Session, exitstatus: int
+) -> None:  # noqa: ARG001 — hook signature
     state, database, before = MYSQL_ISOLATION
     if state not in ("dedicated", "redirected") or before is None:
         return
@@ -424,7 +426,9 @@ def pytest_terminal_summary(  # noqa: ARG001
         terminalreporter.write_line(line)
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
     """Auto-tag tests under tests/integration and tests/e2e as `integration`.
 
     Those paths drive real subprocesses, git tags, Maven and live infra, so they
@@ -440,7 +444,9 @@ def pytest_collection_modifyitems(config, items):
     is derived from `pytest --durations` on this repo, not guessed; see the
     test_slow_marker_tagging regression lock.
     """
-    rootdir = str(Path(config.rootdir).resolve()).replace("\\", "/").rstrip("/")
+    # rootpath is the typed Path equivalent of the legacy rootdir (py.path
+    # LocalPath), which pytest 9 removed from the Config type stubs.
+    rootdir = str(config.rootpath.resolve()).replace("\\", "/").rstrip("/")
     for item in items:
         fpath = str(Path(item.fspath).resolve()).replace("\\", "/")
         rel = fpath[len(rootdir) + 1:] if fpath.startswith(rootdir) else fpath
