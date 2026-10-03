@@ -234,7 +234,10 @@ def _render_release_gates(
     # not as the first sentence a reviewer reads here. So the headline and the
     # verdict answer to the same rule, and one run cannot look passed in one and
     # blocked in the other.
-    uncredited = [name for name, (_, verdict, _) in rendered if verdict != "通过"]
+    # The slot is a gate row's word, not the report's `verdict` field: naming it
+    # `verdict` here would claim this file compares that field against a Chinese word
+    # outside its declared scale (the #109 channel gate reads identifiers, not intent).
+    uncredited = [name for name, (_, word, _) in rendered if word != "通过"]
     if not flag_passed:
         overall, overall_word = "fail", "未通过"
     elif uncredited:
@@ -245,8 +248,8 @@ def _render_release_gates(
     else:
         overall, overall_word = "pass", "通过"
     rows = "".join(
-        f'<li class="{css}">{safe(name)}: {verdict} — {detail}</li>'
-        for name, (css, verdict, detail) in rendered
+        f'<li class="{css}">{safe(name)}: {word} — {detail}</li>'
+        for name, (css, word, detail) in rendered
     )
     if not rows:
         # The tier ran yet recorded no gate: the reader has to be able to tell

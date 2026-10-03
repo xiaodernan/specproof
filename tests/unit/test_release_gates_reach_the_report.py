@@ -24,6 +24,12 @@ Honesty rules this section is built on, each pinned by a case:
     row reads 未判定 or 未通过 must not open with 总判定: 通过 — that is the same shape the
     verdict policy refuses on, so one run cannot look passed here and blocked there. Equally, a
     refusal that came from the flag alone is not dressed up as an unjudged gate.
+  - the gate row's word is called `word`, never `verdict`: #109's channel gate reads
+    identifiers, and a comparison `verdict != "通过"` in this owner file claims the
+    `report_verdict` scale (VERIFIED/BLOCKED/NEEDS REVIEW). That misfire was measured, not
+    theorised — the first #152 landed exactly that name and `test_verdict_channel_parity`
+    went red with "written but never declared: 通过". The parity gate is the witness here,
+    so no case of this file re-pins it.
 
 Mutation arms, with red sets predicted from which branch each case walks (written before the
 witness ran, not after):

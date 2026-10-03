@@ -2092,3 +2092,82 @@ prometheus.yml 改动）。
 
 
 
+### #152b 我自己给 #152 引入的一条越界词：门行的词不该借 `verdict` 这个名字
+
+**这是订正，不是新功能**：#152（9708712）落地后跑本弧欠的干净平面全量门，读数
+**3350 passed / 2 红 / 0 错 / 5 skip**。两条红里：
+
+- `test_subprocess_text_encoding::test_the_rest_of_the_repo_cannot_grow_the_debt` 在
+  `bed281b` 与 `9708712` 两个平面上的红集合**逐行相同**（`scripts/bench_craft.py` 3 处 +
+  `scripts/bench_replay.py` 9 处，55 > 上限 54），且那一本文件在工作副本里正被另一个会话改着——
+  不是我欠的，也不在本号动它。
+- `test_verdict_channel_parity::test_a_declared_word_is_written_and_a_written_word_is_declared`
+  在 `bed281b` **绿**、在 `9708712` **红**：`report_verdict: written but never declared: 通过`。
+  这条是我的。
+
+**落点已经不是我提交的那个 ref**：修复在途期间，并行 lane 在同一支 `master` 上又落了 23 个提交
+（#153–#158、#159a–e、#160–#168）。其中 **#159e（3a4f87a）** 明确记了这条红的归属——
+「parity『通过』量证收账：写入方修复已由并行 lane 在途（report.py 9 行 diff），本支零动作不代抬」。
+也就是说这条红**一直活着**，本号到 `463cdd9` 仍是必要的而不是重复的：腿的 HEAD 平面里
+`evidence/report.py` 仍然写着 `(_, verdict, _) in rendered`，本号覆盖进去才消失。
+fill 脚本对这两点各有一条 refuse——测到的 ref 与本号要提交的文件若已被别人改动（不同字节），
+或那处误命名槽位在 `git rev-parse HEAD` 上已经不存在（别人已修），都拒绝落笔而不是照抄旧数字。
+
+**根因（用探针定位，不是猜）**：`.scratch/g152/probe_parity.py` 把两个平面的扫描命中逐条打印出来，
+`bed281b` 上中文词命中 **0 条**，`9708712` 上恰好 1 条——
+`evidence/report.py:237 [compare] '通过'`，也就是本号新写的那行
+`uncredited = [name for name, (_, verdict, _) in rendered if verdict != "通过"]`。
+#109 那本门按**标识符**认频道：比较式一侧的名字是 `verdict`（或属性 `.verdict`）就认定它在说
+`report_verdict` 这个字段，于是要求字面量属于该频道声明的刻度
+`{VERIFIED, BLOCKED, NEEDS REVIEW}`。我那个元组槽位其实是 `_gate_verdict` 自己 docstring 里的
+「verdict word」——门行的判定词，跟报告的 `verdict` 字段是两种东西，却借了同一个名字，
+于是报告文件被读成「拿中文词比较报告裁决字段」。
+
+**为什么改名而不是给中文词加一个频道**：频道表描述的是**字段**（`report.json` 的 verdict、
+`result_json.verdict`、作业终态……），而这里没有任何字段叫 `verdict` 装着 `通过`；为一次误命名
+去登记一个频道，等于把撞名写成规矩。改名同时把这条约束留在原地：`evidence/report.py` 里加了一行
+注释说明槽位为什么必须叫 `word`，两本门的 docstring 记了这次实测，而真正的守门人是
+`test_verdict_channel_parity` 本身——将来谁把它改回 `verdict`，那本门立刻红，本号不需要再补一条案例
+去复述别人的门。
+
+**门数字（两个平面，同一组 13 个文件：#152 的两本发布门门 + `test_verdict_channel_parity` +
+#150/#151 的 10 本 + `test_baseline_pool_alignment`）**：**测在落点 ref `463cdd9`**，
+不是测在 9708712——因为要落的平面是前者。`463cdd9` = **188 passed / 1 红**；把本号这两个文件
+（`evidence/report.py` 与报告门 docstring）覆盖进去 = **188 passed / 0 红**，即 **+0 例 / −1 红**。
+改名是行为中性的，所以唯一允许的读数就是红少一条；若案例数变了，本号就是写错了。
+同一组腿先在 `9708712` 上跑过一轮（188 collected / 1 红 → 188 passed / 0 红），两个 ref 之间
+这 13 本文件只有 `evidence/verdict_channels.py` 动过（+4/−2，全在 `note=` 散文里），
+所以两轮读数相同不是巧合，fill 脚本仍按 `463cdd9` 那一轮写进本节。
+
+**见证**：`.scratch/g152/witness_all_152.py` 在**改名后的字节**上整张表重跑（20 臂，
+V1–V10 政策面 + R1–R7/W1–W3 报告面），W1 与 W3 的补丁串跟着改名重指
+（`(_, word, _) in rendered if word != "通过"` / `if word == "未判定"]`）；
+预测表一个字没动，**20 臂全 MATCHED、还原字节相同**。
+
+**这一号欠下的流程账（写给后面的号）**：#152 的干净平面腿只有 12 个文件，全是我自己那两本门加相邻
+调用方——**没有一本是全库结构门**。`test_verdict_channel_parity` 按 `SCAN_ROOTS` 走产品目录，
+它会读到我的新代码，却不在我的腿里。所以自本号起，凡改 `evidence/**`、`agent/**`、`cli/**` 的号，
+腿集合必须至少含一本按全库走的结构门（`test_verdict_channel_parity`、
+`test_hand_written_table_ledger`、`test_drills_gap_claims_hold` 之类），否者「+0 红」只覆盖了我
+挑的那 12 本。本弧全量门因此从「收尾动作」提前成了「下一号的第一个动作」——它就是这样抓到东西的。
+
+**下一号（订正 #152 结尾的预告）**：#154 与 #153 已被并行 lane 落掉，不是欠账——
+`a81dd49`（作业路径：`_terminal_status_from_state`/`_state_summary` 都改调 `evaluate_acceptance`
+并传 `release=state.get("release_results")`，HEAD 上 worker.py:1119/:1175 实测）、
+`aedfc7f`（CLI 退出码 `VERDICT_EXIT_CODES = {VERIFIED: 0, BLOCKED: 1, FAILED: 2}` + MCP 不再丢弃
+BLOCKED 摘要）、`d13f0bd`（#155 `deep_results` 进持久化摘要 + Dashboard 面板）。
+本号之后走**全弧欠的那件事**：在落点 ref 的干净平面上跑一次全量合并门，把红逐条归因，
+再据读数挑 #169；不自挑一个「听起来对」的号绕过测量。
+
+**顺手量到的一个候选（只记已证的部分）**：`cli/specproof/commands/craft.py:669-673` 手抄了
+同一套「裁决→退出码」映射，而不引用 #153 在 verify 那条路上建立的 `exit_code_for`，
+两条链的尾巴都是 `sys.exit(2)`；`craft/accept.py:51` 的 `AcceptVerdict` 只有
+`{VERIFIED, BLOCKED, ERROR}` 三个词，所以 2 目前**恰好**只由 `ERROR` 走到——
+「未知词被静默降级成 ERROR」在今天的字节上不可达，本号不把它写成缺陷（写过的草稿已经删：
+原先那句说 `result.verdict` 能拿到 `_verification_summary` 的 `FAILED`，实测 `result.verdict`
+来自 `AcceptResult`，而 `FAILED` 只存在于另一个 dict 里，两个载体没有同一个读者被证过）。
+剩下的可修事实只有一条：同一个数字 2 在两条命令里挂着两个名字（verify 的 `FAILED` /
+craft 的 `ERROR`），而全库没有一本门把「哪些命令按裁决退出、数字各是什么」对账。
+这一条要在下一号用臂表证明它有牙齿（把 craft 的链改成引用 `exit_code_for` 会不会红、
+把 `ERROR` 从 `AcceptVerdict` 里去掉会不会被 2 静默接住），不在本号动。
+
