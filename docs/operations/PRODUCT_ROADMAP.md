@@ -1912,6 +1912,16 @@ J 批的诚实边界(入库与终态写两条语句,进程在其间死亡丢通�
   (终态被扣)⇒ `test_intent_insert_failure_never_rolls_back_the_verdict` 红。
 - 全量门:worktree 隔离运行(见 29.3)。
 
-### 29.3 全量合并门(追记)
+### 29.3 全量合并门(追记)——三处红两修一记,归属逐条
 
-见提交记录。
+- 首跑隔离 worktree 门 4 failed,逐条定性:①② 本研究两处改账——组合写法
+  的 `execute(_sql, params)` 需按设计登记进 NON_STATIC_SQL_SITES(静态证明
+  器只证单函数数据流,共享 `_transition_statement` 的跨函数返回值它看不
+  见)、`test_job_reclaimer` 假件补组合方法;③ `test_subprocess_text_encoding`
+  的债上限红(55>54)归属并行会话——55 个未钉 codec 全在其 #130-#137 新增
+  的 bench 脚本,本研究零贡献,上限 54 是其自校准值。**不代抬别人的债上
+  限**:抬了就是把别人未命名的 codec 洗白进基线,这正是该门存在的意义所
+  反对的事;留给上限的所有人校准(其后续提交显示正在自己处理)。
+- 修复后重跑(d244cd8)⇒ **3493 passed, 7 skipped, 1 failed**(仅剩上述
+  归属他人的债上限),本研究三处全绿。归入门证:3493/7 + 1 条他人领地红
+  (名字、文件、归属依据俱全)。
