@@ -768,7 +768,7 @@ def checkout_worktree_ref(repo: Path, ref: str) -> str:
     """Check out one recorded ref in the temp worktree; '' when it worked."""
     result = subprocess.run(
         ["git", "-C", str(repo), "checkout", "--quiet", "-f", ref],
-        capture_output=True, text=True, timeout=300, check=False,
+        capture_output=True, text=True, encoding="utf-8", timeout=300, check=False,
     )
     if result.returncode == 0:
         return ""
@@ -1553,7 +1553,7 @@ def probe_environment() -> dict[str, Any]:
     if java:
         try:
             java_version = subprocess.run(
-                [java, "-version"], capture_output=True, text=True, timeout=30,
+                [java, "-version"], capture_output=True, text=True, encoding="utf-8", timeout=30,
                 check=False,
             ).stderr.strip().splitlines()[0]
         except (OSError, subprocess.TimeoutExpired, IndexError):
@@ -1588,7 +1588,7 @@ def prepare_temp_worktree(
     clone = work_root / "src"
     result = subprocess.run(
         ["git", "clone", "--quiet", "--no-checkout", "--", str(repo_root), str(clone)],
-        capture_output=True, text=True, timeout=600, check=False,
+        capture_output=True, text=True, encoding="utf-8", timeout=600, check=False,
     )
     if result.returncode != 0:
         return {
@@ -1612,7 +1612,7 @@ def _prepare_via_subtree(clone: Path, refs: frozenset[str]) -> dict[str, Any]:
                 "git", "-C", str(clone), "subtree", "split",
                 "--prefix=demo/spring-backend", ref,
             ],
-            capture_output=True, text=True, timeout=900, check=False,
+            capture_output=True, text=True, encoding="utf-8", timeout=900, check=False,
         )
         if split.returncode != 0:
             raise subprocess.SubprocessError(
@@ -1621,7 +1621,7 @@ def _prepare_via_subtree(clone: Path, refs: frozenset[str]) -> dict[str, Any]:
         commit = split.stdout.strip().splitlines()[-1].strip()
         tagged = subprocess.run(
             ["git", "-C", str(clone), "tag", "-f", ref, commit],
-            capture_output=True, text=True, timeout=120, check=False,
+            capture_output=True, text=True, encoding="utf-8", timeout=120, check=False,
         )
         if tagged.returncode != 0:
             raise subprocess.SubprocessError(
@@ -1631,7 +1631,7 @@ def _prepare_via_subtree(clone: Path, refs: frozenset[str]) -> dict[str, Any]:
     first = sorted(refs)[0]
     subprocess.run(
         ["git", "-C", str(clone), "checkout", "--quiet", "-f", first],
-        capture_output=True, text=True, timeout=600, check=False,
+        capture_output=True, text=True, encoding="utf-8", timeout=600, check=False,
     )
     return {"repo": clone, "mechanism": "subtree-split", "refs": resolved, "error": ""}
 
@@ -1642,7 +1642,7 @@ def _prepare_via_archive(clone: Path, refs: frozenset[str]) -> dict[str, Any]:
     synthetic.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         ["git", "-C", str(synthetic), "init", "--quiet", "-b", "main"],
-        capture_output=True, text=True, timeout=120, check=False,
+        capture_output=True, text=True, encoding="utf-8", timeout=120, check=False,
     )
     resolved: dict[str, bool] = {}
     for ref in sorted(refs):
@@ -1674,7 +1674,7 @@ def _prepare_via_archive(clone: Path, refs: frozenset[str]) -> dict[str, Any]:
                     target.write_bytes(extracted.read())
         subprocess.run(
             ["git", "-C", str(synthetic), "add", "-A"],
-            capture_output=True, text=True, timeout=300, check=False,
+            capture_output=True, text=True, encoding="utf-8", timeout=300, check=False,
         )
         committed = subprocess.run(
             [
@@ -1682,19 +1682,19 @@ def _prepare_via_archive(clone: Path, refs: frozenset[str]) -> dict[str, Any]:
                 "-c", "user.email=bench-replay@specproof.invalid",
                 "commit", "--quiet", "-m", f"archive of {ref}",
             ],
-            capture_output=True, text=True, timeout=300, check=False,
+            capture_output=True, text=True, encoding="utf-8", timeout=300, check=False,
         )
         if committed.returncode != 0:
             resolved[ref] = False
             continue
         subprocess.run(
             ["git", "-C", str(synthetic), "tag", "-f", ref, "HEAD"],
-            capture_output=True, text=True, timeout=120, check=False,
+            capture_output=True, text=True, encoding="utf-8", timeout=120, check=False,
         )
         resolved[ref] = True
     subprocess.run(
         ["git", "-C", str(synthetic), "checkout", "--quiet", "-f", sorted(refs)[0]],
-        capture_output=True, text=True, timeout=600, check=False,
+        capture_output=True, text=True, encoding="utf-8", timeout=600, check=False,
     )
     return {
         "repo": synthetic,
@@ -1717,6 +1717,7 @@ def extract_via_replay_cli(
         cwd=repo_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=CLI_TIMEOUT_S,
         check=False,
     )
@@ -1753,7 +1754,7 @@ def execute_run_script(extracted_dir: Path, repo: Path, timeout: float) -> RunRe
     try:
         result = subprocess.run(
             command, cwd=extracted_dir, capture_output=True, text=True,
-            timeout=timeout, check=False,
+            encoding="utf-8", timeout=timeout, check=False,
         )
         return RunResult(
             exit_code=result.returncode,

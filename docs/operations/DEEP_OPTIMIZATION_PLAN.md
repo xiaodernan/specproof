@@ -1659,3 +1659,49 @@ run 全 failure；`2fb4612`（ci.yml 第二个提交）自述"workflow 之前根
 **#159a 落了什么**：`.github/workflows/ci.yml` 两处 `./mvnw -q -v` → `sh mvnw -q -v`（sh
 调用不依赖执行位，Windows 贡献者再提交也不会复发），行间注释写明 126 根因。**验证依赖
 下次 CI run**（本地无 maven 容器等效验证手段）；minio 替代选型与单测三红按上面配方继续。
+
+### #159c 编码棘轮落地：两 bench 脚本 16 处钉 utf-8，仓库自身未钉 55→39（ceiling 54 不动）
+
+**先量修正配方**：镜头实测（HEAD 版棘轮门口径）未钉不是配方写的 11 处而是 **16 处**——
+`bench_craft.py:786,819,845`（3 处多行式）+ `bench_replay.py:769,1555,1589,1610,1622,1632,
+1643,1675,1679,1690,1695,1712,1754`（13 处）；配方漏计 `1555`（java -version 探测）、
+`1679`（synthetic commit）、`1690`（synthetic tag）、`1754`（capsule run script 执行）四处。
+
+**修法**：全部按仓库惯例钉 `encoding="utf-8"`（`text=True` 保留，仅插一行/一个 kwarg），
+零逻辑改动。`bench_replay.py` 修改前 grep 确认零个已钉 subprocess 调用，replace_all 无误伤。
+
+**验证（分清账与环境噪声）**：
+- 两脚本镜头归零；全仓计数 532 = `.scratch/` 评估残留副本 **493** + 仓库自身 **39**。
+  39 = 55 − 16，ceiling 54 有 15 余量。CI 无 `.scratch/`，将是 39 ≤ 54 绿。
+- 本地跑棘轮门 `1 failed, 3 passed`：唯一失败 `test_the_rest_of_the_repo_cannot_grow_the_debt`
+  的 offender 前 12 条全是 `.scratch/attr_9708712/` 下旧版副本（行号与修前完全一致），挂因
+  是环境残留非本次改动；pinned-scopes / venv 跳过 / 解码机制三门全绿。
+- 门证：ruff 两脚本 All checks passed；mypy 两脚本 no issues；py_compile rc=0；
+  `bench_craft.py --help` 正常出 usage。tests/ 无 bench 直测文件（grep 无匹配）。
+- 棘轮测试文件本身是并行脏文件（并行会话加了 linked-worktree skip，ceiling 仍 54，不冲突），
+  本地验证用工作区版镜头计量，台账以"仓库自身 39"为准。
+
+
+### #150–#157 合并门追记：隔离 worktree 全量 2 failed / 3539 passed——两红全部对上 #159 配方，零新增动作
+
+**量法**：隔离 worktree `.scratch/wt-mergegate-150-157`（HEAD=`1bfe632`=#157 tip；
+`master..HEAD` 为空，#150–#157 已全部并入 master；master 与该点仅差 `ci.yml` 与本文件，
+门相关 scripts/tests **零差异**），跑 `pytest tests/unit tests/security tests/fault -q`，
+**1008.59s**，`GATE_EXIT=1`。
+
+**读数**：**2 failed / 3539 passed / 7 skipped**。两红逐一对号：
+
+1. `test_subprocess_text_encoding::test_the_rest_of_the_repo_cannot_grow_the_debt`
+   **55 > 54**——即 #159 配方第 1 条（编码棘轮）。worktree 内跑无嵌套 worktree 倍增
+   （印证并行会话 lens fix 的测量口径：这份 55 就是仓库自身的裸数）。
+2. `test_verdict_channel_parity::test_a_declared_word_is_written_and_a_written_word_is_declared`
+   `report_verdict: written but never declared: 通过`——#157 提交信息已记（#152 落库代码
+   引入、并行会话 `evidence/report.py` 9 行 diff 在修），即 #159 配方第 3 条。
+
+两红均有主、均在修/已留配方，**不代抬、零新增动作**；合并门的使命（给 #150–#157 补上
+全量读数）完成。worktree 归档后即清理。
+
+**认领**：下一号本支接 **#159 配方第 1 条**——`scripts/bench_craft.py:786,819,845` +
+`scripts/bench_replay.py:769,1589,1610,1622,1632,1643,1675,1695,1712` 钉 codec（两脚本
+均不在并行脏清单）；验证以 HEAD 版断言（ceiling 54）为准，修完应 44 ≤ 54；
+`tests/unit/test_subprocess_text_encoding.py` 是并行脏文件，本支不触碰。

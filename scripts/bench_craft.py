@@ -789,6 +789,7 @@ def run_craft(
             env=env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
             check=False,
         )
@@ -822,6 +823,7 @@ def run_resume(
             env=env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
             check=False,
         )
@@ -847,6 +849,7 @@ def run_judge(task_dir: Path, scratch_repo: Path, timeout: int) -> tuple[int, li
             cwd=scratch_repo,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
             check=False,
         )
