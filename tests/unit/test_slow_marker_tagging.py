@@ -10,8 +10,19 @@ for a fast inner loop. This locks three things offline:
     deselect expression is honored rather than silently ignored.
 
 The check runs ``pytest --collect-only`` in a subprocess because the marker is
-applied by the collection hook (not a decorator on the function object), so it is
-only observable through real collection.
+applied by the collection hook (not a decorator on the function object), so it
+is only observable through real collection.
+
+Budget (#157, measured not guessed): the child's intrinsic cost is a
+~5s conftest/session bootstrap floor plus ~1-3s of module import — the
+fast-module probe (``test_baseline.py``) and the heavy one
+(``test_agent_runtime.py``) both sit in the 5-8s band on an unloaded
+machine, so switching the probe target would buy ~2s of a
+bootstrap-dominated floor and was rejected. The historical >180s red was
+self-inflicted local contention (a full lane plus spawned children on one
+box), and the CI lane runs single-process. 600s keeps ≥75x headroom over
+the measured band: a false timeout costs a red lane and an investigation,
+a genuinely hung child only costs a few extra minutes before it is named.
 """
 from __future__ import annotations
 
@@ -45,7 +56,7 @@ def _collected_slow(node_ids: list[str]) -> list[str]:
         "no:cacheprovider",
     ]
     proc = subprocess.run(
-        cmd, cwd=REPO_ROOT, capture_output=True, text=True, timeout=180
+        cmd, cwd=REPO_ROOT, capture_output=True, text=True, timeout=600
     )
     # 5 = nothing selected, which is the expected outcome for a fast module.
     # A non-zero exit is nearly always the child's session-level bootstrap

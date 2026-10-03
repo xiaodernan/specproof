@@ -1578,3 +1578,27 @@ api/outbox-relay 从不跑它——只武装 worker 一个服务是对的。`doc
 **欠账清空**：台账长期挂着的"compose 武装待用户批准"至此闭合（用户本窗口批准）。剩余次级
 债：`test_craft_loop_jobs` 的 STUCK vs CANCELLED 判据、`test_slow_marker_tagging` 180s 预算、
 CI 两个红 job（minio unauthorized / Maven 播种 126，需要 CI 权限与基础设施）。
+
+### #157 落地：slow-marker 探针的 180s 预算按实测收口——地板是引导不是模块，抬预算而不是换目标
+
+**先量（台账挂了很久的"先量无并发真实耗时"）**：探针 child 原命令各跑 3 次、无并发——
+慢模块 `test_agent_runtime.py` **6-8s**，快模块 `test_baseline.py` **5-6s**（exit 5 为预期）。
+关键事实：**地板是 conftest/session 引导（~5s），模块导入只占 1-3s**——换一个更小的慢集合
+模块只能省 ~2s，对"导入树缩小"的期待被实测否掉（这正是台账给的两个选项里必须先量才能选的
+原因）。历史 >180s 的红出自**本地自spawn竞争**（同机全量 lane + 自己 spawn 的子进程互相压），
+不是探针的固有成本；CI lane 单进程无 xdist（`ci.yml` 实测命令行），CI 的 slow_marker 两连红
+另有真因、已在 #126d 修掉且 CI 确认不再红。
+
+**决定与落地**：`tests/unit/test_slow_marker_tagging.py` 的 child 预算 **180s → 600s**（实测
+5-8s 带 ⇒ ≥75 倍余量）；探测目标**保持** `test_agent_runtime.py`——最重的模块保持被钉在
+slow 集合里，恰是贡献者最需要的那条信号。代价口径写进 docstring：误报超时 = 红 lane + 人工
+排查，真挂死只多等几分钟就被点名；docstring 同时记录两次实测数字与"换目标被否"的理由，
+防止下一个号再把它当 open question。
+
+**门数字**：本文件 **2 passed**（13.81s，child 真跑）；`ruff` 干净；`mypy` 对本文件 0 错
+（`import tests.conftest` 牵出的 6 条 no-untyped-def 全部是 conftest.py 既有欠账，本号未触碰
+该文件、不代修）。干净平面：**+14/-3、1 文件**；9 个并行脏文件原样。
+
+**下一号**：次级债只剩 `test_craft_loop_jobs.py::test_supervisor_cancel_wins_over_leased_worker`
+的 STUCK vs CANCELLED（先问谁写状态、按什么顺序）；CI 两个红 job（minio unauthorized /
+Maven 播种 126）需要 CI 权限与基础设施。
