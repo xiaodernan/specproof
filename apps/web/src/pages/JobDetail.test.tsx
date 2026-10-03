@@ -3,7 +3,13 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import JobDetail from "./JobDetail";
 import { apiGet, openProgressStream } from "../api";
 
-vi.mock("../api", () => ({ apiGet: vi.fn(), openProgressStream: vi.fn(), downloadCapsule: vi.fn() }));
+vi.mock("../api", () => ({
+  apiGet: vi.fn(),
+  openProgressStream: vi.fn(),
+  downloadCapsule: vi.fn(),
+  // SameRepoCraftPanel reads the agent list on every job detail view.
+  listAgentJobs: vi.fn().mockResolvedValue({ jobs: [], count: 0, filter: { status: null } }),
+}));
 const get = vi.mocked(apiGet);
 const open = vi.mocked(openProgressStream);
 const close = vi.fn();

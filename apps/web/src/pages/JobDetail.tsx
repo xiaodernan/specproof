@@ -8,6 +8,7 @@ import {
   fmtPct, fmtTime, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
   type Column, type PreflightResult,
 } from "../ui";
+import { SameRepoCraftPanel } from "./SameRepoCraftPanel";
 import { recordRecentJob } from "../ui/recentJobs";
 import { describePipelineError, loadFailed } from "../ui/errorHints";
 import "../styles/verification.css";
@@ -349,6 +350,7 @@ export default function JobDetail(props: { jobId: string }) {
             {job.last_error ? <div className="kv-label" style={{ margin: "8px 0 4px" }}>最近执行错误</div> : null}
             {job.last_error ? <div role="alert" className="errorbox" title={job.last_error}>{describePipelineError(String(job.last_error))}</div> : null}
           </Panel>
+          <SameRepoCraftPanel repoPath={job.repo_path} />
         </>
       ) : null}
 
