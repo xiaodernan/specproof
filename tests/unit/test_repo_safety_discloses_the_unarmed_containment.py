@@ -29,6 +29,17 @@ containment-promising pin whose guard is unarmed and names the real
 prerequisites, that the note rides the report without changing the verdict, and
 that ``warnings`` now has a reader -- every module that asks for a safety report
 reads and logs its warnings, in a shape the shipped log renderer preserves.
+
+#156 update (user-approved arming): the production worker now sets both knobs
+(``SPECPROOF_EXEC_MODE: sandbox`` + ``SPECPROOF_ALLOWED_ROOT: /workspaces``),
+so the deployment-fact case below was re-derived per its own failure-message
+contract ("if the worker arms containment itself, the disclosure must be
+re-derived").  It no longer asserts bare literals: the root must equal the
+worker's ``TMPDIR`` AND be the ``specproof-workspaces`` mount target, and the
+worker must have no host bind mounts -- the two volume facts that make
+``/workspaces`` the only sound root.  The mechanism cases are unchanged: a
+deployment that pins a plane without arming still gets the disclosure, which
+is what they simulate with monkeypatched env.
 """
 
 from __future__ import annotations
@@ -92,15 +103,6 @@ def _product_python_files() -> list[Path]:
         dirnames[:] = [d for d in dirnames if d not in NON_PRODUCT_PARTS]
         found += [Path(dirpath) / name for name in filenames if name.endswith(".py")]
     return sorted(found)
-
-
-def _worker_env() -> dict[str, Any]:
-    compose = yaml.safe_load(PRODUCTION_COMPOSE.read_text(encoding="utf-8"))
-    services = compose["services"]
-    assert "worker" in services, f"no worker service in {sorted(services)}"
-    env = services["worker"]["environment"]
-    assert env, "the production worker sets no environment -- the probe is broken"
-    return env
 
 
 # ── one name, one owner ──────────────────────────────────────────
@@ -173,21 +175,40 @@ def test_the_pin_name_has_exactly_one_definition_in_product_code() -> None:
 # ── the deployment fact the note is allowed to claim ─────────────
 
 
-def test_the_production_worker_pins_the_plane_but_arms_no_containment() -> None:
-    env = _worker_env()
-    declared = {key for key in env if isinstance(key, str)}
-    assert SANDBOX_MODE_ENV in declared, (
-        f"the worker no longer pins {SANDBOX_MODE_ENV}: {sorted(declared)}"
+def test_the_production_worker_pins_the_plane_and_arms_containment() -> None:
+    """#156 re-derivation. The predecessor of this case pinned the unarmed
+    state and its own failure message demanded exactly this when arming
+    landed.  The arming is not asserted as bare literals: the root must be
+    the workspaces volume mount target -- the only place the worker can see
+    a repository at all -- and the worker must have no host bind mounts, the
+    premise that makes that root sound."""
+    compose = yaml.safe_load(PRODUCTION_COMPOSE.read_text(encoding="utf-8"))
+    worker = compose["services"]["worker"]
+    env = worker["environment"]
+    assert env.get(SANDBOX_MODE_ENV) in ISOLATION_PLANES, (
+        "premise: production pins a plane whose promise is isolation; "
+        f"compose says {env.get(SANDBOX_MODE_ENV)!r}"
     )
-    pinned = str(env[SANDBOX_MODE_ENV])
-    assert pinned in ISOLATION_PLANES, (
-        "this suite's premise is that production pins a plane whose promise is "
-        f"isolation; the compose value is {pinned!r} and the isolation planes "
-        f"are {sorted(ISOLATION_PLANES)}"
+    assert env.get(EXEC_MODE_ENV) == "sandbox", (
+        f"the worker must arm {EXEC_MODE_ENV}=sandbox on the pinned plane, "
+        f"got {env.get(EXEC_MODE_ENV)!r}"
     )
-    assert EXEC_MODE_ENV not in declared and ALLOWED_ROOT_ENV not in declared, (
-        f"the worker now arms containment itself ({sorted(declared)}) -- the "
-        "disclosure must be re-derived, not left claiming the guard is unarmed"
+    tmpdir = env.get("TMPDIR")
+    assert tmpdir and env.get(ALLOWED_ROOT_ENV) == tmpdir, (
+        f"{ALLOWED_ROOT_ENV} must equal the worker's TMPDIR ({tmpdir!r}): the "
+        "root guards exactly the directories the prepare nodes create"
+    )
+    mounts = [m for m in worker.get("volumes", []) if isinstance(m, str)]
+    assert f"specproof-workspaces:{tmpdir}" in mounts, (
+        f"{tmpdir!r} must be the specproof-workspaces mount target so the "
+        f"root names a volume the sandbox daemon shares: {mounts}"
+    )
+    top_level = compose.get("volumes", {})
+    host_binds = [m for m in mounts if m.split(":", 1)[0] not in top_level]
+    assert not host_binds, (
+        "the worker gained host bind mounts -- the premise that made "
+        f"{tmpdir!r} the only sound root is broken, re-derive the arming: "
+        f"{host_binds}"
     )
 
 

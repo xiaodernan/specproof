@@ -62,6 +62,17 @@ services:
     environment:
       SPECPROOF_ENV: production
       SPECPROOF_SANDBOX: docker
+      # Containment armed (#156, user-approved): the worker pins an isolating
+      # plane and touches no path outside the shared /workspaces volume (no
+      # host repo bind mounts; worktrees come from TMPDIR=/workspaces). With
+      # both knobs set, repo_under_allowed_root refuses any repository
+      # resolving outside /workspaces and execution_mode_signal stops
+      # answering "local mode: host filesystem access allowed" on a plane
+      # whose whole promise is isolation. tests/unit/
+      # test_repo_safety_discloses_the_unarmed_containment.py locks this
+      # arming to the volume facts below — change one, re-derive the other.
+      SPECPROOF_EXEC_MODE: sandbox
+      SPECPROOF_ALLOWED_ROOT: /workspaces
       # Non-root cache volume (uid-1000 layout); the runner defaults to
       # the legacy root-layout volume unless this is set.
       SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000

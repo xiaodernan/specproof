@@ -1537,3 +1537,44 @@ HTML/deep-report.json；而 `storage/mysql.py::get_job_summary` 对 summary 列�
 **下一号**：
 - 旧的欠账（本轮没动）：compose 武装仍待用户批准；并发写者归属（storage/api）在 #155 已量清：
   summary 列读路径是纯透传，后续往 summary 加键不需要再动它们。
+
+### #156 落地：compose 武装——fail-closed 沙箱分支结束停役，隔离平面的承诺与管束终于同键
+
+**实测前提（写代码之前量的）**：`sandbox/runner.py` 的 `ISOLATION_PLANES={"docker"}`，而
+`compose.production.yml` 的 worker 早已 `SPECPROOF_SANDBOX: docker`——隔离平面的承诺一直在
+声明，containment 却因 `SPECPROOF_EXEC_MODE`/`SPECPROOF_ALLOWED_ROOT` 全仓库无人设置而停在
+"local mode: host filesystem access allowed"（#130 只落了披露）。管束只由 `agent/repo_safety.py`
+的 env 旋钮驱动（该文件是并行会话脏文件，本号一字未动——武装是部署事实，不是代码改动）。
+**根只能是 /workspaces**：worker 没有任何宿主仓库 bind mount（只有
+`specproof-workspaces:/workspaces`，与 sandbox dind 共享），worktree 全部来自
+`tempfile.mkdtemp`（TMPDIR=/workspaces），即 worker 能看见的仓库路径要么在 /workspaces 下
+要么不存在；`check_repo_safety` 的读者只有 prepare_base/prepare_head（worker 侧），
+api/outbox-relay 从不跑它——只武装 worker 一个服务是对的。`docker/Dockerfile.*` 无预置旋钮。
+
+**落了什么（两处）**：
+- `compose.production.yml` worker environment：`SPECPROOF_EXEC_MODE: sandbox` +
+  `SPECPROOF_ALLOWED_ROOT: /workspaces`（注释写明两旋钮与卷事实互相锁死：改一处必须重派生
+  另一处）。生效后：`repo_under_allowed_root` 对解析到 /workspaces 之外的仓库拒绝（此前
+  local 模式只 warning），`execution_mode_signal` 的 sandbox 分支不再停役；仓库缺失/越界的
+  作业 fail-closed，这是该检查存在的本意。
+- `tests/unit/test_repo_safety_discloses_the_unarmed_containment.py`：部署事实案例按它自己的
+  失败消息契约重派生（"worker 若自己武装，披露必须重派生"）——
+  `test_the_production_worker_pins_the_plane_but_arms_no_containment` 更名为
+  `..._pins_the_plane_and_arms_containment`，断言不再写死字面量：root == worker 的 TMPDIR ==
+  specproof-workspaces 卷挂载点，且 worker 无宿主 bind mount（两个让 /workspaces 成为唯一
+  合法根的卷事实）；`_worker_env` 助手随之删除。**机制案例一字未动**：钉了平面而不武装的
+  部署照样收到披露（monkeypatch 模拟的就是那种部署），#130 的披露语义对它们永续成立。
+  模块 docstring 追加 #156 段说明重派生依据。
+
+**门数字**：
+- 本域两文件 **51 passed / 0 红**（披露套件 + repo_safety 机制全套）；安全域宽腿
+  `-k "safety or deployment_plane or sandbox"` **92 passed / 1 skipped / 0 红**；
+  `ruff`/`mypy` 干净。
+- 干净平面：**+54/-22、2 文件**（compose +11/-0、测试 +43/-22）全在本号清单内；9 个并行
+  会话脏文件原样未动。
+- 预测预写：重派生案例在跑之前写好四条断言（plane/sandbox/root==TMPDIR/挂载点+无宿主挂载），
+  一次全绿；compose 的 YAML 可解析性由该案例的 `yaml.safe_load` 本身作证。
+
+**欠账清空**：台账长期挂着的"compose 武装待用户批准"至此闭合（用户本窗口批准）。剩余次级
+债：`test_craft_loop_jobs` 的 STUCK vs CANCELLED 判据、`test_slow_marker_tagging` 180s 预算、
+CI 两个红 job（minio unauthorized / Maven 播种 126，需要 CI 权限与基础设施）。
