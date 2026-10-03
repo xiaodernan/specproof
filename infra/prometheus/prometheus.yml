@@ -45,3 +45,15 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["outbox-relay:9101"]
+
+  # rabbitmq 经自带插件 rabbitmq_prometheus 抓取 (#165): 该插件在
+  # rabbitmq:4.0-management-alpine 里已随镜像启用 (容器内 rabbitmq-plugins
+  # list -e 实测 E* running), 15692 端口存活。观测栈与 phase0 栈共用网络,
+  # 服务名直达, 无需端口映射。队列级深度 (带 queue label 的 per-queue 序列)
+  # 在 /metrics/per-object 渲染 — 默认 /metrics 是聚合渲染, 没有 per-queue
+  # 序列, DLQ/积压告警的 queue 选择器在聚合渲染下匹配不到东西 (两者均实测)。
+  # 未起 phase0 栈时本目标 down, 不影响其他抓取。
+  - job_name: rabbitmq
+    metrics_path: /metrics/per-object
+    static_configs:
+      - targets: ["rabbitmq:15692"]

@@ -201,3 +201,60 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         pattern, _ = CONCATENATED_FAMILIES[key]
         assert pattern.pattern.startswith("^") and pattern.pattern.endswith("$")
         assert "(...)" not in pattern.pattern
+
+
+def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:
+    """The #165 broker-side alerts consume rabbitmq_* series that only the
+    rabbitmq scrape job provides — and only in its per-object rendering.
+
+    A revert of the scrape job, or a metrics_path back to the aggregate
+    /metrics (which has no per-queue series — verified live against the
+    container's own endpoint in #165), leaves the queue/DLQ selectors
+    matching nothing: absent series never fire, so the rule files stay
+    valid and every broker-side signal goes dark silently. The parity gate
+    cannot see this drift (its regex only covers specproof_* names), so
+    this test pins the pairing at the text level.
+    """
+    prom = (ROOT / "infra" / "prometheus" / "prometheus.yml").read_text(
+        encoding="utf-8"
+    )
+    alerts = (ROOT / "infra" / "prometheus" / "alerts-slo.yml").read_text(
+        encoding="utf-8"
+    )
+
+    # The scrape job must exist, on the per-object path, against the plugin
+    # port (rabbitmq_prometheus ships enabled in the management image).
+    assert "- job_name: rabbitmq" in prom
+    assert "metrics_path: /metrics/per-object" in prom
+    assert 'targets: ["rabbitmq:15692"]' in prom
+
+    # Both alerts must still reference the plugin's series.
+    assert "alert: SpecproofVerifyQueueBacklogHigh" in alerts
+    assert "rabbitmq_queue_messages_ready" in alerts
+    assert "alert: SpecproofVerifyDlqNonEmpty" in alerts
+    # The DLQ selector derives its shape from storage/rabbitmq.py's
+    # dlq_suffix='.dlq' rule. Escaping is double: PromQL string literals
+    # reject `\.` (promtool: "unknown escape sequence"), so the regex needs
+    # `\\.` inside the PromQL source, and the single-quoted YAML passes it
+    # through verbatim — a de-escaped variant fails promtool AND matches
+    # garbage names.
+    assert 'queue=~"q\\\\..+\\\\.dlq"' in alerts
+
+    # The dashboard panels carry the same double-escaped PromQL. No config
+    # gate validates Grafana JSON exprs, so a single-backslash literal there
+    # fails only at query time (same silent dark). Compare against the
+    # JSON-parsed form: json.load unescapes once, leaving the two-backslash
+    # PromQL source.
+    dashboard = json.loads(
+        (ROOT / "infra" / "grafana" / "dashboards" / "specproof-slo.json")
+        .read_text(encoding="utf-8")
+    )
+    rabbit_exprs = [
+        target["expr"]
+        for panel in dashboard["panels"]
+        for target in panel.get("targets", [])
+        if "rabbitmq_queue" in target.get("expr", "")
+    ]
+    assert len(rabbit_exprs) == 3, f"expected 3 rabbitmq panel exprs, got {rabbit_exprs}"
+    assert any('queue=~"q\\\\..+"' in expr for expr in rabbit_exprs)
+    assert any('queue=~"q\\\\..+\\\\.dlq"' in expr for expr in rabbit_exprs)

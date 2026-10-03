@@ -68,8 +68,9 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 3. Grafana 数据源: GET http://localhost:3000/api/datasources (Basic admin) → 列表含
    Prometheus (url http://prometheus:9090)。
 4. Prometheus 目标: GET http://localhost:9090/api/v1/targets — api/worker/outbox-relay
-   未起时 state=down 属正常 (应用栈 up 后自动转 up); otel-collector/prometheus 应 up。
-5. 告警: http://localhost:9090/alerts 可见 7 条 specproof-slo 规则; 无 Alertmanager
+   未起时 state=down 属正常 (应用栈 up 后自动转 up); phase0 栈未起时 rabbitmq (15692,
+   /metrics/per-object) 同样 down 属正常 (#165 起); otel-collector/prometheus 应 up。
+5. 告警: http://localhost:9090/alerts 可见 13 条 specproof-slo 规则; 无 Alertmanager
    部署 (§17 profile 未含), 告警在 Prometheus UI 观察, 生产接 Alertmanager 后走通知。
 
 ## 5. SLO 告警 (alerts-slo.yml)
@@ -90,13 +91,15 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | SpecproofWebhookDurationP95High | webhook 响应 p95 > 1s | 5m | WEBHOOK_P95_SECONDS=1 | §14 GitHub Webhook 响应 p95 <= 1 秒 (#162 接线, 亚秒桶梯度) |
 | SpecproofWorkerReclaimTickStale | time() - 上一轮完整回收扫描时间戳 > 900s (3×默认 tick 300s) | 5m | RECLAIM_TICK_STALE_SECONDS=900 | §14 Worker 崩溃后可恢复 (#163 接线; gauge 是舰队级——任一副本 tick 跑完即刷新, 本告警=没有任何 sweeper 活着; worker 刚启动 gauge 未上报时无序列不触发, 由 up 告警补位) |
 | SpecproofDashboardProgressLagHigh | 进度事件写入→SSE 发出驻留 p95 > 2s | 5m | DASHBOARD_PROGRESS_P95_SECONDS=2 | §14 Dashboard 进度延迟 <= 2 秒 (#164 接线; 只测 live 投递, SSE 轮询间隔 0.5s 是下限; 发出→浏览器的网络/前端段无服务端观测点) |
+| SpecproofVerifyQueueBacklogHigh | broker ready 深度合计 > 50 | 10m | VERIFY_QUEUE_BACKLOG_THRESHOLD=50 | §14 Job 不丢失 — MQ 侧 (#165 接线; rabbitmq per-object 抓取; 消费端停摆时 broker 深度是唯一还在涨的信号, 与 Outbox 侧积压互不替代) |
+| SpecproofVerifyDlqNonEmpty | 任意 *.dlq 死信 > 0 (阈值内联) | 5m | VERIFY_DLQ_THRESHOLD=0 | §14 Job 不丢失 — 死信 (#165 接线; 队列名按 storage/rabbitmq.py 的 dlq_suffix='.dlq' 规则正则匹配, 覆盖全部车道; 死信不会自己消失) |
 
 ## 6. SLO 接线状态 (§14 各指标, 诚实标注)
 
 | §14 指标 | 测量方式 | 状态 |
 |---|---|---|
 | Control Plane 月可用性 99.5% | up{job="api"} + 5xx 率 + down 告警 | ✅ 已接线 (看板 + 告警) |
-| Job 不丢失 (Outbox/MQ/幂等) | specproof_outbox_pending 积压 + relay down 告警 | 🟡 指标与告警已接线; relay 服务已进入 compose.production.yml (#161 核实), 起应用栈后本面板即有数据 |
+| Job 不丢失 (Outbox/MQ/幂等) | specproof_outbox_pending 积压 + relay down 告警 | 🟡 指标与告警已接线; relay 服务已进入 compose.production.yml (#161 核实), 起应用栈后本面板即有数据。#165 起 MQ 侧也已接线: broker ready 深度合计告警 (消费端停摆) + *.dlq 非空告警 (死信待人工) + 看板面板 19/20 (rabbitmq per-object 抓取) — 两侧互不替代 |
 | Worker 崩溃后可恢复 | SpecproofWorkerReclaimTickStale (tick 停摆) + specproof_worker_reclaim_recovery_lag_seconds (死亡→收回等待, 梯度 30..1200s 按 tick 周期定) + specproof_worker_reclaim_pass_seconds (单轮扫描耗时) 直方图 | ✅ 已接线 (#163: 恢复的两个可测时钟; 收回重投递后的排队等待属 broker 域无上报点, 崩溃作业的 checkpoint 续跑无独立边界不可测) |
 | FAST p50<=3min / p95<=8min | specproof_jobs_duration_seconds_fast 直方图 (p50/p95 面板 + p95 告警) | ✅ 已接线 (#161 起按 depth 拆名, FAST 用自己的 480s 阈值) |
 | DEEP p50<=10min / p95<=25min | specproof_jobs_duration_seconds_deep 直方图 | 🟡 拆名与 1500s 告警已 armed (#161); 队列入口当前仅收 FAST (POST /jobs 钉 ^FAST$、MCP 同、webhook 硬编码), DEEP 走 CLI 本地执行不入队, 入队前该序列无数据 |
@@ -107,10 +110,11 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | 无证据严重评论=0 | 无指标 | ❌ 未接线 (由证据门禁保证, 不可观测) |
 | PR 归因准确率>=90% | 无指标 | ❌ 未接线 |
 
-§8.10 指标清单中未接线的: 各阶段耗时 (仅总时长直方图)、Finding Precision、
-LLM Token 与费用、Tool Timeout、Queue Depth (需 rabbitmq_prometheus 插件, 属 phase0
-infra 栈改动)、DLQ、ES 延迟、Redis 命中、Base/Head 沙箱失败 (sandbox/ 代码无指标注册,
-属 sandbox 子代理职责)、Certificate 签发率。
+§8.10 指标清单中未接线的: 各阶段耗时 (worker_stage_duration_seconds_<node> 族已在代码
+拼接上报, 但无看板面板与告警)、Finding Precision、LLM Token 与费用、Tool Timeout、
+ES 延迟、Redis 命中、Base/Head 沙箱失败 (sandbox/ 代码无指标注册,
+属 sandbox 子代理职责)、Certificate 签发率。Queue Depth 与 DLQ 已于 #165 接线
+(rabbitmq 自带插件 per-object 抓取, 见 §5 表末两行)。
 
 已接线指标名（2026-09-25 与代码逐条对账的结果）：本项目**没有静态指标注册表**，名字只在第一次上报时才出现在 /metrics 上，所以这份清单的唯一合法来源是上报点，不是本文件。本节此前写着"全部真实注册"却漏掉了 worker 生命周期整侧与 outbox relay 的 8 个名字，因此改成可复现的对账方法：取 `incr(` / `set_gauge(` / `observe_duration(` 三个上报函数的全仓调用点（`api/auth.py:91` 与 `storage/redis.py:112` 的 `client.incr(...)` 是 Redis 计数命令，不是指标，已排除），再把常量名解析成字面量。生产侧上报模块只有四个（外加 render_text 自己）：
 
@@ -120,6 +124,8 @@ infra 栈改动)、DLQ、ES 延迟、Redis 命中、Base/Head 沙箱失败 (sand
 - `storage/outbox_relay.py`：仪表 specproof_outbox_pending、specproof_outbox_oldest_age_seconds、specproof_outbox_failure_rate、specproof_outbox_retry_count、specproof_outbox_dead_letters、specproof_outbox_last_success_ts；计数 specproof_outbox_published_total、specproof_outbox_publish_failed_total、specproof_outbox_dead_lettered_total（常量定义在该文件 36-44 行）。
 - `api/routes/jobs.py`（#164 起）：`_progress_stream` 对 **live** SSE 投递 observe specproof_dashboard_progress_delivery_lag_seconds（进度事件从 xadd_progress 的 `at` 戳写入到端点发出的驻留；梯度 0.05..5s, §14 的 2s 上界在梯度内才有分辨率）。重放（Last-Event-ID 断线补发）刻意不观测——重放的驻留测的是导致重连的断档, 不是看板延迟; `at` 解析失败照发不测。
 - `storage/notify_relay.py`（#16.6-1，`SPECPROOF_NOTIFY_OUTBOX=1` 时的 webhook 投递车道）：仪表 specproof_notify_outbox_pending、specproof_notify_outbox_oldest_age_seconds、specproof_notify_outbox_retry_count、specproof_notify_outbox_dead_letters、specproof_notify_outbox_last_success_ts；计数 specproof_notify_outbox_delivered_total、specproof_notify_outbox_failed_total、specproof_notify_outbox_dead_lettered_total。入车道侧（K 收口后）由 `storage/mysql.py::transition_job_status_with_notify` 在终态写同事务内上报：specproof_notify_outbox_enqueued_total（意图入库成功）与 specproof_notify_outbox_intent_lost_total（意图入库失败——终态照常落库，通知降级为丢，绝不回滚终态）。
+
+另有一类**第三方指标**不在本对账内：`rabbitmq_*`（RabbitMQ 自带插件 rabbitmq_prometheus 的输出，#165 起 prometheus.yml 的 rabbitmq 抓取任务经 /metrics/per-object 供给；队列级深度 rabbitmq_queue_messages / _ready / _unacked 带 vhost/queue label）。对账门的 specproof_* regex 天然扫不到它们——第三方名的真伪只能靠抓取目标 up 与实际查询验证（#165 已实测 15692 存活、per-queue 序列与 rabbitmqctl 对数一致）。
 
 三个**名字由代码拼接**的族不能列举，看板/告警要用正则匹配：`jobs_<verdict>_total`（verdict 取小写，所以旧清单里的 specproof_jobs_verified_total / _blocked_total / _failed_total 只是它的三个实例）、`worker_stage_duration_seconds_<node>`（graph 节点名拼进指标名，每个节点一条直方图）、`jobs_duration_seconds_<depth>`（#161 起 depth 小写拼进名字：specproof_jobs_duration_seconds_fast / _deep / _release，词表封闭见三个入口的校验）与 `notify_<status>_total`（`SendStatus` 的三个成员小写拼进名字：specproof_notify_sent_total / _disabled_total / _failed_total）。
 

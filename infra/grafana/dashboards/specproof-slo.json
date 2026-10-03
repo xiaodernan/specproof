@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "SpecProof SLO 看板 — 全部面板只引用代码中真实注册的指标 (observability/metrics.py 与 Prometheus 自身)。未接线指标见 docs/operations/OBSERVABILITY.md。",
+  "description": "SpecProof SLO 看板 — 全部面板只引用代码中真实注册的指标 (observability/metrics.py 与 Prometheus 自身); 面板 19/20 的 rabbitmq_* 来自 RabbitMQ 自带插件 (prometheus.yml 的 rabbitmq 抓取任务, per-object 渲染, #165)。未接线指标见 docs/operations/OBSERVABILITY.md。",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -1563,6 +1563,178 @@
           "legendFormat": "pending 事件数",
           "range": true,
           "instant": false,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "MQ 队列深度 (§14: Job 不丢失 — MQ 侧, §8.10 Queue Depth)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "broker 侧积压: 每条 q.* 车道的 ready (待消费) 与 unacked (消费中) 深度 (RabbitMQ 自带插件 per-object 渲染, #165)。生产者侧的 Outbox 积压见面板 14/15 — 两侧互不替代: Outbox 涨说明投递断, broker 涨说明消费停。worker 崩溃后未 ack 的消息会重新投递, 深度回落依赖回收器与消费端恢复。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 18,
+        "x": 0,
+        "y": 63
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rabbitmq_queue_messages_ready{vhost=\"/\",queue=~\"q\\\\..+\"}",
+          "legendFormat": "{{queue}} ready",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rabbitmq_queue_messages_unacked{vhost=\"/\",queue=~\"q\\\\..+\"}",
+          "legendFormat": "{{queue}} unacked",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "DLQ 死信数 (应为 0)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "全部 *.dlq 死信队列的消息总数 (队列名按 storage/rabbitmq.py 的 dlq_suffix='.dlq' 规则匹配, #165)。非 0 = 有消费被拒且不再回炉的作业等待人工处理; 它们不会自己消失。告警 SpecproofVerifyDlqNonEmpty 同源 (阈值 >0 for 5m)。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 63
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rabbitmq_queue_messages{vhost=\"/\",queue=~\"q\\\\..+\\\\.dlq\"})",
+          "legendFormat": "DLQ 死信总数",
+          "range": false,
+          "instant": true,
           "refId": "A"
         }
       ]

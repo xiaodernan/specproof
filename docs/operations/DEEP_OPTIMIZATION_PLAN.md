@@ -1948,6 +1948,53 @@ test_observability_metric_parity` **27 passed**（含新增两条：重放零观
 恰一次观测且 sum<2s、坏 `at` 照发不测）；`test_envelope_retryable + test_web_api`
 **78 passed**（SSE/共享模块回归）；JSON 解析 OK（18 面板，y=46/54/55 无重叠）。
 
+## #165：Queue Depth / DLQ 接线——「Job 不丢失」的 broker 侧终于可测
+
+**背景**：OBSERVABILITY §8.10 清单把 Queue Depth 标为「需 rabbitmq_prometheus 插件,
+属 phase0 infra 栈改动」而搁置。本轮实测推翻两个前提：①插件无需安装——
+rabbitmq:4.0-management-alpine 自带 rabbitmq_prometheus 4.0.9 且已启用（容器内
+rabbitmq-plugins list -e 实测 E* running，15692 存活）；②队列级序列无需改
+compose——观测栈与 phase0 栈共用 specproof-phase0 网络，服务名直达。但默认
+/metrics 是聚合渲染（无 per-queue label，队列选择器会匹配空），队列级深度在
+/metrics/per-object 渲染——metrics_path 必须钉死后者，否则告警静默失效
+（absent series 不触发，配置合法、信号全黑）。DLQ 队列 q.p1.verify.job.dlq
+实测存在，命名规则出自 storage/rabbitmq.py 的 dlq_suffix='.dlq' 拼接——告警用
+queue=~"q\\..+\\.dlq" 贴合代码规则而非硬编码单队列。
+
+**修法**：
+- prometheus.yml 新增 rabbitmq 抓取任务（metrics_path=/metrics/per-object，
+  target rabbitmq:15692；注释写明聚合/per-object 两种渲染的坑）。
+- alerts-slo.yml 两条 broker 侧告警：SpecproofVerifyQueueBacklogHigh
+  （sum(ready)>50 for 10m——消费端停摆时 broker 深度是唯一还在涨的信号，与
+  Outbox 侧积压互不替代）与 SpecproofVerifyDlqNonEmpty（*.dlq>0 for 5m——
+  死信不会自己消失）；THRESHOLDS 加 VERIFY_QUEUE_BACKLOG_THRESHOLD=50 与
+  VERIFY_DLQ_THRESHOLD=0。
+- 看板面板 19「MQ 队列深度」（每车道 ready/unacked，x=0,y=63）与面板 20
+  「DLQ 死信数(应为 0)」（stat，绿→红@1，x=18,y=63）——挂 row 13
+  「积压 (Job 不丢失)」组尾，零 y 级联。
+- OBSERVABILITY.md：§4 验证清单（rabbitmq 目标 down 属正常 + 告警数 7→13——
+  旧数字在 #161-#164 连续加告警后早已过时）、§5 表 +2 行、§6「Job 不丢失」行补
+  MQ 侧、§8.10 清单移除 Queue Depth/DLQ（并修正「各阶段耗时(仅总时长直方图)」
+  的过时括注——stage 族早已在代码拼接上报）、已接线指标名节新增第三方指标段
+  （rabbitmq_* 不在 specproof_* 对账管辖，靠抓取 up + 实测验证）。
+- test_observability_metric_parity.py 新增配对测试：钉住抓取任务/metrics_path/
+  端口与两条告警/看板 expr 的共存——revert 任一侧都是静默失明（对账门
+  specproof_* regex 天然看不到 rabbitmq_*）。
+
+**门证插曲（PromQL 转义）**：首轮 DLQ expr 写 `queue=~"q\..+\.dlq"`，promtool
+抓出 parse error "unknown escape sequence"——PromQL 字符串字面量不认 `\.`，
+正则转义必须双写 `\\.`（单引号 YAML 原样透传、JSON 解一层、PromQL 再解一层，
+三层各砍一刀）；看板三个 expr 同病（promtool 管不到 Grafana JSON，只能在配对
+测试里钉 JSON 解析后的形态）。修正后 promtool SUCCESS 13 rules。
+
+**门证**：promtool check config SUCCESS（13 rules）；ruff/mypy 双清（parity
+测试）；test_observability_metric_parity **3 passed**（含新配对测试）；JSON
+解析 20 面板（19/20 同排无重叠）；端到端实测：compose 起 prometheus 后
+/api/v1/targets 显示 rabbitmq **up**（api/worker 等 down 属应用栈未起），告警
+同款 expr 实查：DLQ 序列 q.p1.verify.job.dlq=0（不触发）、sum(ready)=1（与
+rabbitmqctl 对数一致）、per-queue 精确查询=1。本号零 Python 生产代码改动
+（纯 infra+docs+测试）。
+
 
 
 

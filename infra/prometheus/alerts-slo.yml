@@ -32,6 +32,16 @@
 #                                        (#164 起接线, 事件写入→SSE 发出的
 #                                        驻留时长 p95; 亚秒首格梯度 0.05..5,
 #                                        2s 上界在梯度内部分辨率才存在)
+#   VERIFY_QUEUE_BACKLOG_THRESHOLD = 50
+#                                     ← §14 "Job 不丢失" 的 MQ 侧 (#165 起)
+#                                        broker ready 深度合计 > 50 持续 10m =
+#                                        消费端停摆 (Outbox 侧积压由
+#                                        OUTBOX_PENDING_THRESHOLD 覆盖 — 两侧
+#                                        各自可涨, 一侧健康不代表另一侧通)
+#   VERIFY_DLQ_THRESHOLD = 0          ← §14 "Job 不丢失" 死信 (#165 起)
+#                                        DLQ 非空即告警, 阈值内联在 expr
+#                                        (> 0 for 5m) — 死信是消费被拒且
+#                                        不再回炉的作业, 不会自己消失
 
 groups:
   - name: specproof-slo
@@ -169,3 +179,26 @@ groups:
         annotations:
           summary: "SpecProof 进度事件驻留 p95 超过阈值 (DASHBOARD_PROGRESS_P95_SECONDS=2)"
           description: "10 分钟窗口内进度事件从写入 Redis 到 SSE 发出的驻留 p95 = {{ $value }}s (§14: Dashboard 进度延迟 <= 2 秒)。只测 live 投递; SSE 轮询间隔 0.5s 是该时钟的下限。发出→浏览器渲染的网络/前端段无服务端观测点, 不在本告警内。"
+
+      # ── MQ 队列深度/死信 (§14 可用性: Job 不丢失 — broker 侧, #165) ─
+      # 数据源是 rabbitmq 自带插件的 per-object 渲染 (prometheus.yml 的
+      # rabbitmq 抓取任务, metrics_path=/metrics/per-object); rabbitmq_*
+      # 是第三方指标, 不在本仓 specproof_* 对账门管辖内。队列命名规则
+      # (q.<lane> 与 dlq 后缀) 来自 storage/rabbitmq.py 的 dlq_suffix='.dlq'。
+      - alert: SpecproofVerifyQueueBacklogHigh
+        expr: sum(rabbitmq_queue_messages_ready{vhost="/"}) > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof MQ 队列 ready 积压超过阈值 (VERIFY_QUEUE_BACKLOG_THRESHOLD=50)"
+          description: "broker ready 消息合计 {{ $value }} 条, 持续 10 分钟 (§14: Job 不丢失 — 消费端停摆时 broker 深度是唯一还在涨的信号; worker 崩溃后靠回收器收回, 但回收器同样要能跑起来)。生产者侧积压由 SpecproofOutboxBacklogHigh 覆盖, 两侧互不替代。"
+
+      - alert: SpecproofVerifyDlqNonEmpty
+        expr: 'rabbitmq_queue_messages{vhost="/",queue=~"q\\..+\\.dlq"} > 0'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof 死信队列非空 (DLQ)"
+          description: "队列 {{ $labels.queue }} 有 {{ $value }} 条死信 (§14: Job 不丢失 — 死信是消费被拒且重试耗尽的作业, 不会自己消失, 需人工回炉或归档)。队列名按 storage/rabbitmq.py 的 dlq_suffix='.dlq' 规则匹配, 覆盖全部车道的死信而不只 verify。"
