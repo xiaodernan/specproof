@@ -5,9 +5,10 @@ outbox relay can emit gauges/counters without importing the API layer.
 """
 from observability.metrics import (  # noqa: F401
     incr,
+    observe_duration,
     render_text,
     set_gauge,
     snapshot,
 )
 
-__all__ = ["incr", "render_text", "set_gauge", "snapshot"]
+__all__ = ["incr", "observe_duration", "render_text", "set_gauge", "snapshot"]

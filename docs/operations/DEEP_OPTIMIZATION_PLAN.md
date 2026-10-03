@@ -1849,6 +1849,39 @@ test_metrics_http` **8 passed**（对账门第一轮就验住了本轮全部改�
 旧名立即红）；worker 接线回归 `test_worker_consume_pump + test_worker_cancel_points`
 **26 passed**；alerts/prometheus YAML 与看板 JSON 解析 OK。
 
+### #162 GitHub Webhook 响应 p95≤1s 接线（§14 最后一个未接线的性能项之一）：亚秒桶梯度 + 中间件按路径计时
+
+**选题量测**：OBSERVABILITY.md §6 第 100 行登记「Webhook 响应 p95<=1s ❌ 无指标」。
+量后发现真正的缺口有两层：①无直方图；②即便加了，注册表的全局桶梯度首格是 **60s**
+（为 FAST/DEEP 分钟级目标设计），对 1s 分位数毫无分辨率——histogram_quantile 只能
+在桶间线性插值，全落进 60s 桶的 p95 读数毫无意义。所以本号必须先给注册表开
+per-histogram 桶梯度，否则接线是假的。
+
+**修法**：
+- `observability/metrics.py`：`observe_duration` 增加可选 `buckets` 参数，梯度随
+  首次上报钉死（后续调用沿用存储梯度——二次传入不匹配梯度会静默污染累计计数，
+  首次为准是设计决定，docstring 写明）；`snapshot()` 的 histograms 项新增
+  `bounds` 键（counters/gauges 消费方不受影响，实测全仓只读 counters）。
+- `api/server.py` 中间件按路径 `/webhooks/github` 计时：**含 4xx/5xx 与异常路径**
+  ——GitHub 感受的是响应时延本身，不是只有成功响应的时延；亚秒梯度
+  (0.05, 0.1, 0.25, 0.5, 1.0, 2.5)。/metrics 自抓取不经此路径，不自污染。
+- alerts-slo.yml 新增 `SpecproofWebhookDurationP95High`（10m 窗口 p95>1, for 5m）；
+  看板新增「Webhook 响应时延」面板（p50/p95 + 1s 参考线，id=16，后续面板 y 坐标
+  级联 +8）；OBSERVABILITY.md §5 告警表、§6 第 100 行 ❌→✅、上报清单同步。
+- 顺手修掉看板面板 14 描述里第三处「outbox-relay 尚未进入应用栈」陈旧声明
+  （与 #161 的 prometheus.yml 同款，同因：无对账门时散文里的部署声明随便老去）。
+
+**对账门零改动自证**：新直方图名是字面量上报，#161 的 parity gate 自动纳管——
+alerts/看板引用的 `webhook_github_handling_seconds_bucket` 剥后缀即命中字面量，
+无需注册任何新拼接族。
+
+**门证**：ruff/mypy 双清（metrics/metrics_api/server 三文件）；`test_metrics_http +
+test_webhook_endpoint + test_observability_metric_parity` **18 passed**（含新增三条：
+亚秒梯度渲染、梯度首次为准、401 拒绝响应也必须进直方图——§14 语义的回归锁）；
+`test_api_errors + test_production_guard_reachability` **22 passed**（server.py 导入期
+回归）；YAML/JSON 解析 OK。
+
+
 
 
 

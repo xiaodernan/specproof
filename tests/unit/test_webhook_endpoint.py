@@ -114,6 +114,37 @@ def test_invalid_signature_rejected(fake_mysql):
     assert FakeMySQL.jobs == []
 
 
+def test_response_latency_observed_even_on_rejection(fake_mysql):
+    """§14 "GitHub Webhook 响应: p95 <= 1 秒" (#162): the middleware measures
+    the response latency itself, so a 401 (rejected before any business work)
+    must still land in the sub-second histogram — GitHub feels the latency
+    of every response, not only the accepted ones."""
+    from observability.metrics import snapshot
+
+    hist_key = "webhook_github_handling_seconds"
+    before = snapshot()["histograms"].get(hist_key, {"count": 0.0})["count"]
+
+    client = TestClient(app)
+    raw = json.dumps(_pr_event_body()).encode()
+    resp = client.post(
+        "/webhooks/github",
+        content=raw,
+        headers={
+            "X-Hub-Signature-256": "sha256=" + "0" * 64,
+            "X-GitHub-Event": "pull_request",
+            "X-GitHub-Delivery": "d-latency",
+        },
+    )
+    assert resp.status_code == 401
+
+    entry = snapshot()["histograms"][hist_key]
+    assert entry["count"] == before + 1.0
+    assert entry["bounds"][0] == 0.05  # sub-second ladder, not the 60s default
+    # a rejected signature is fast, but CI jitter forbids pinning the bucket;
+    # the cumulative top buckets are the honest assertion.
+    assert entry["inf"] == before + 1.0
+
+
 def test_missing_secret_fails_closed(fake_mysql, monkeypatch):
     monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", "")
     client = TestClient(app)

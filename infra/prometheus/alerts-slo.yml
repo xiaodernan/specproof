@@ -19,6 +19,9 @@
 #                                        队列入口当前仅收 FAST — POST /jobs
 #                                        钉 ^FAST$、MCP 同、webhook 硬编码,
 #                                        DEEP 通道先 armed, 入队那天自动生效)
+#   WEBHOOK_P95_SECONDS      = 1      ← §14 "GitHub Webhook 响应: p95 <= 1 秒"
+#                                        (#162 起接线, 亚秒桶梯度 0.05..2.5;
+#                                        默认梯度首格 60s, 对 1s 分位数无分辨率)
 
 groups:
   - name: specproof-slo
@@ -117,3 +120,17 @@ groups:
         annotations:
           summary: "SpecProof DEEP job 时长 p95 超过阈值 (JOB_P95_DEEP_SECONDS=1500)"
           description: "30 分钟窗口 DEEP p95 = {{ $value }}s (§14: DEEP 小 PR p95 <= 25 分钟)。队列入口当前仅收 FAST, 本告警在 DEEP 入队前不会有数据 (armed)。"
+
+      # ── GitHub Webhook 响应 p95 (§14 性能目标) ──────────────────────
+      - alert: SpecproofWebhookDurationP95High
+        expr: >
+          histogram_quantile(
+            0.95,
+            sum(rate(specproof_webhook_github_handling_seconds_bucket[10m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof GitHub webhook 响应 p95 超过阈值 (WEBHOOK_P95_SECONDS=1)"
+          description: "10 分钟窗口 webhook 响应 p95 = {{ $value }}s (§14: GitHub Webhook 响应 p95 <= 1 秒; 亚秒桶梯度, 含 4xx/5xx 响应)。"

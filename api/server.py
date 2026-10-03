@@ -17,6 +17,7 @@ Provides:
 
 import logging
 import sys
+import time
 from pathlib import Path
 
 # Ensure project root on path (enables python -m api.server from a checkout)
@@ -160,17 +161,39 @@ configure_logging()
 add_trace_middleware(app)
 
 
+# §14 "GitHub Webhook 响应: p95 <= 1 秒"。默认桶梯度的第一格是 60s——
+# 对 1s 的分位数毫无分辨率, 所以 webhook 用亚秒梯度 (0.05..2.5)。
+# 时长在中间件层测量 (含 4xx/5xx 与异常路径): GitHub 关心的是响应时延本身,
+# 不关心响应内容。/metrics 自抓取不经过该路径, 不会自污染。
+_WEBHOOK_METRIC_PATH = "/webhooks/github"
+_WEBHOOK_BUCKETS: tuple[float, ...] = (0.05, 0.1, 0.25, 0.5, 1.0, 2.5)
+
+
 @app.middleware("http")
 async def request_metrics(request: Request, call_next: Any) -> Any:
     """Count every request by route (observability baseline)."""
-    from api.metrics import incr
+    from api.metrics import incr, observe_duration
 
     incr("http_requests_total")
+    timed = request.url.path == _WEBHOOK_METRIC_PATH
+    started = time.perf_counter()
     try:
         response = await call_next(request)
     except Exception:
         incr("http_requests_failed_total")
+        if timed:
+            observe_duration(
+                "webhook_github_handling_seconds",
+                time.perf_counter() - started,
+                _WEBHOOK_BUCKETS,
+            )
         raise
+    if timed:
+        observe_duration(
+            "webhook_github_handling_seconds",
+            time.perf_counter() - started,
+            _WEBHOOK_BUCKETS,
+        )
     if response.status_code >= 500:
         incr("http_responses_5xx_total")
     return response

@@ -23,8 +23,12 @@ _started_at = time.time()
 _HISTOGRAM_BUCKETS: tuple[float, ...] = (
     60.0, 120.0, 180.0, 300.0, 480.0, 600.0, 900.0, 1500.0, 2400.0,
 )
-# name -> [c_bucket_0, ..., c_bucket_n, c_+Inf, sum, count]
-_histograms: dict[str, list[float]] = {}
+# name -> (bucket_ladder, [c_bucket_0, ..., c_bucket_n, c_+Inf, sum, count]).
+# The ladder is stored per histogram: the default ladder targets job-level
+# durations (minutes), but §14 also sets sub-second targets (GitHub webhook
+# p95 <= 1s) whose quantiles are meaningless against 60s bucket resolution —
+# an emit site may pass a tighter ladder (see api/server.py middleware).
+_histograms: dict[str, tuple[tuple[float, ...], list[float]]] = {}
 
 
 def incr(name: str, value: float = 1.0) -> None:
@@ -37,19 +41,26 @@ def set_gauge(name: str, value: float) -> None:
         _gauges[name] = value
 
 
-def observe_duration(name: str, seconds: float) -> None:
+def observe_duration(
+    name: str, seconds: float, buckets: tuple[float, ...] | None = None
+) -> None:
     """Record a duration observation into a fixed-bucket histogram.
 
     Cumulative buckets: every bucket whose upper bound is >= seconds is
     incremented, plus the +Inf bucket, _sum and _count (Prometheus
     exposition semantics). Histograms have no labels (like the rest of
-    this hand-rolled registry).
+    this hand-rolled registry). ``buckets`` overrides this histogram's
+    ladder at first use; later observations reuse the stored ladder
+    (a mismatched second call would silently corrupt the cumulative
+    counts, so the first one wins by design).
     """
+    ladder = _HISTOGRAM_BUCKETS if buckets is None else tuple(buckets)
     with _lock:
-        hist = _histograms.setdefault(
-            name, [0.0] * (len(_HISTOGRAM_BUCKETS) + 3)
-        )
-        for i, upper in enumerate(_HISTOGRAM_BUCKETS):
+        entry = _histograms.get(name)
+        if entry is None:
+            entry = _histograms[name] = (ladder, [0.0] * (len(ladder) + 3))
+        stored_ladder, hist = entry
+        for i, upper in enumerate(stored_ladder):
             if seconds <= upper:
                 hist[i] += 1.0
         hist[-3] += 1.0  # +Inf bucket
@@ -64,12 +75,13 @@ def snapshot() -> dict[str, Any]:
             "gauges": dict(_gauges),
             "histograms": {
                 name: {
+                    "bounds": list(ladder),
                     "buckets": list(hist[:-3]),
                     "inf": hist[-3],
                     "sum": hist[-2],
                     "count": hist[-1],
                 }
-                for name, hist in _histograms.items()
+                for name, (ladder, hist) in _histograms.items()
             },
             "uptime_seconds": time.time() - _started_at,
         }
@@ -94,8 +106,9 @@ def render_text() -> str:
         safe = name.replace("-", "_").replace(".", "_")
         lines.append(f"# HELP specproof_{safe} Duration histogram (seconds).")
         lines.append(f"# TYPE specproof_{safe} histogram")
+        bounds: list[float] = hist["bounds"]
         buckets: list[float] = hist["buckets"]
-        for i, upper in enumerate(_HISTOGRAM_BUCKETS):
+        for i, upper in enumerate(bounds):
             lines.append(
                 f'specproof_{safe}_bucket{{le="{upper:g}"}} {int(buckets[i])}'
             )

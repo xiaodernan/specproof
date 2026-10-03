@@ -1026,6 +1026,121 @@
       ]
     },
     {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Webhook 响应时延 (§14: p95 <= 1s)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "specproof_webhook_github_handling_seconds 直方图 (#162 起接线, api/server.py 中间件按路径测量, 含 4xx/5xx 与异常响应)。亚秒桶梯度 0.05..2.5s — 默认梯度首格 60s 对 1s 分位数无分辨率。参考线 1s。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum(rate(specproof_webhook_github_handling_seconds_bucket[10m])) by (le))",
+          "legendFormat": "p50 (10m)",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(specproof_webhook_github_handling_seconds_bucket[10m])) by (le))",
+          "legendFormat": "p95 (10m)",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "1",
+          "legendFormat": "SLO p95 (1s)",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        }
+      ]
+    },
+    {
       "id": 13,
       "type": "row",
       "title": "积压 (§14: Job 不丢失 — Outbox + MQ + 幂等)",
@@ -1034,7 +1149,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 38
+        "y": 46
       },
       "panels": []
     },
@@ -1046,7 +1161,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "specproof_outbox_pending (storage/outbox_relay.py)。outbox-relay 服务尚未进入应用栈 compose — 部署前显示无数据 (见 docs/operations/OBSERVABILITY.md 未接线清单)。告警阈值 50 (§14)。",
+      "description": "specproof_outbox_pending (storage/outbox_relay.py)。outbox-relay 随应用栈 compose 部署 (#161/#162 核实已进入 compose.production.yml), 起应用栈后本面板即有数据。告警阈值 50 (§14)。",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1078,7 +1193,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 39
+        "y": 47
       },
       "options": {
         "reduceOptions": {
@@ -1173,7 +1288,7 @@
         "h": 8,
         "w": 18,
         "x": 6,
-        "y": 39
+        "y": 47
       },
       "options": {
         "legend": {

@@ -87,6 +87,7 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | SpecproofWorkerFailureRateHigh | 失败/完成 > 0.30 | 15m | WORKER_FAIL_RATE_THRESHOLD=0.30 | 质量目标 (Precision/Replay 前置健康) |
 | SpecproofJobDurationP95FastHigh | FAST job 时长 p95 > 480s | 30m | JOB_P95_FAST_SECONDS=480 | FAST 小 PR p95 <= 8 分钟 |
 | SpecproofJobDurationP95DeepHigh | DEEP job 时长 p95 > 1500s | 30m | JOB_P95_DEEP_SECONDS=1500 | DEEP 小 PR p95 <= 25 分钟 (队列仅收 FAST, DEEP armed) |
+| SpecproofWebhookDurationP95High | webhook 响应 p95 > 1s | 5m | WEBHOOK_P95_SECONDS=1 | §14 GitHub Webhook 响应 p95 <= 1 秒 (#162 接线, 亚秒桶梯度) |
 
 ## 6. SLO 接线状态 (§14 各指标, 诚实标注)
 
@@ -97,7 +98,7 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | Worker 崩溃后可恢复 | up{job="worker"} down 告警; 恢复语义在应用层 (checkpoint/lease) | 🟡 崩溃检测已接线; 恢复时长指标未接线 |
 | FAST p50<=3min / p95<=8min | specproof_jobs_duration_seconds_fast 直方图 (p50/p95 面板 + p95 告警) | ✅ 已接线 (#161 起按 depth 拆名, FAST 用自己的 480s 阈值) |
 | DEEP p50<=10min / p95<=25min | specproof_jobs_duration_seconds_deep 直方图 | 🟡 拆名与 1500s 告警已 armed (#161); 队列入口当前仅收 FAST (POST /jobs 钉 ^FAST$、MCP 同、webhook 硬编码), DEEP 走 CLI 本地执行不入队, 入队前该序列无数据 |
-| Webhook 响应 p95<=1s | 无指标 | ❌ 未接线 (api 无 webhook 处理耗时直方图) |
+| Webhook 响应 p95<=1s | specproof_webhook_github_handling_seconds 直方图 (api/server.py 中间件按路径测量, 含 4xx/5xx; 亚秒桶梯度 0.05..2.5s) | ✅ 已接线 (#162: 面板 + p95>1s 告警; 默认梯度首格 60s 对 1s 分位数无分辨率, 故用亚秒梯度) |
 | Dashboard 进度延迟<=2s | 无指标 | ❌ 未接线 |
 | BLOCKER/MAJOR Precision>=90% | 无指标 (需按 Finding 判定聚合) | ❌ 未接线 (依赖应用层产出) |
 | Capsule Replay>=95% | 无指标 | ❌ 未接线 |
@@ -112,7 +113,7 @@ infra 栈改动)、DLQ、ES 延迟、Redis 命中、Base/Head 沙箱失败 (sand
 已接线指标名（2026-09-25 与代码逐条对账的结果）：本项目**没有静态指标注册表**，名字只在第一次上报时才出现在 /metrics 上，所以这份清单的唯一合法来源是上报点，不是本文件。本节此前写着"全部真实注册"却漏掉了 worker 生命周期整侧与 outbox relay 的 8 个名字，因此改成可复现的对账方法：取 `incr(` / `set_gauge(` / `observe_duration(` 三个上报函数的全仓调用点（`api/auth.py:91` 与 `storage/redis.py:112` 的 `client.incr(...)` 是 Redis 计数命令，不是指标，已排除），再把常量名解析成字面量。生产侧上报模块只有三个（外加 render_text 自己）：
 
 - `observability/metrics.py::render_text` 无条件输出：specproof_up。
-- `api/server.py` 中间件：specproof_http_requests_total、specproof_http_requests_failed_total、specproof_http_responses_5xx_total。
+- `api/server.py` 中间件：specproof_http_requests_total、specproof_http_requests_failed_total、specproof_http_responses_5xx_total；#162 起按路径计时 specproof_webhook_github_handling_seconds (直方图, 亚秒桶梯度 0.05..2.5s——默认梯度首格 60s, 对 §14 的 1s 分位数无分辨率)。
 - `agent/worker.py`：specproof_jobs_completed_total、specproof_jobs_processing_seconds (仪表)、specproof_jobs_duration_seconds_<depth> (直方图族, #161 起按 depth 拆名, 见拼接族)、specproof_worker_lease_renews_total、specproof_worker_lease_renew_seconds (直方图)、specproof_worker_cancelled_at_checkpoint_total、specproof_worker_lease_lost_total、specproof_worker_provider_wait_total、specproof_worker_terminal_cas_lost_total、specproof_worker_cancel_checkpoint_unconfirmed_total、specproof_worker_lease_lost_unconfirmed_total（#66 起：停止帧无法对行核实时的静默计数）、specproof_worker_exception_failures_total（异常失败轮次，读法见下）、specproof_worker_reclaim_lease_probe_unknown_total（#68 起：回收轮里 Redis 答不出租约的次数；每一次都意味着本轮**停止**抢回而不是继续猜测，非 0 时先看 Redis，不要读成「有作业卡死」）、specproof_worker_reclaim_retry_budget_exhausted_total（#71 起：回收器把过期 RUNNING 判成 FAILED 的个数，判据是作业自身 `retry_count >= max_retries`；这个数在涨说明有作业每次都把 worker 打挂，**必须人工处理**，它不会再自己回来）；**#71 起（worker 周期回收 tick）**新增四个计数与一个仪表。先说后者，因为它是唯一能回答「扫描还活着吗」的那个：specproof_worker_reclaim_last_ok_timestamp_seconds（仪表：上一轮完整跑完的时间戳，区分「扫了、这轮确实没有卡住的作业」与「tick 早就死了」——前者是健康，后者是所有卡死作业的总开关）；specproof_worker_reclaim_lock_held_total（锁被别的 worker 持有，本轮什么都没做——多副本下这是「只有一个 worker 在扫」的正常证据，不是故障）、specproof_worker_reclaim_lock_unknown_total（Redis 答不出锁状态，本轮直接跳过；非 0 时先查 Redis，**绝不能**读成「没有卡死作业」）、specproof_worker_reclaim_pass_error_total（扫描抛异常、tick 继续活着的次数，持续上涨要查，因为它意味着每轮都没有人在回收）、specproof_worker_reclaim_provider_wait_deferred_total（因为没有 provider 健康探针而**不**自动放行停放作业的次数；这个数在涨是默认行为，不是故障）；#65 起外加对外通知的三个定名计数 specproof_notify_skipped_total、specproof_notify_error_total 与拼接族 specproof_notify_<status>_total（见下一段）。 #133 补两项: `specproof_worker_reclaim_provider_wait_held_total`(新鲜度保持整轮——过去 N 秒内有 park 行) 与 `specproof_worker_reclaim_provider_probe_error_total`(探针答不出也保持, 与 held 分开计数); 上句"因为没有探针"只在 `WORKER_PROVIDER_HOLD_SECONDS=0` 默认时成立, 启用后保持由本两项计数。
 - `storage/outbox_relay.py`：仪表 specproof_outbox_pending、specproof_outbox_oldest_age_seconds、specproof_outbox_failure_rate、specproof_outbox_retry_count、specproof_outbox_dead_letters、specproof_outbox_last_success_ts；计数 specproof_outbox_published_total、specproof_outbox_publish_failed_total、specproof_outbox_dead_lettered_total（常量定义在该文件 36-44 行）。
 - `storage/notify_relay.py`（#16.6-1，`SPECPROOF_NOTIFY_OUTBOX=1` 时的 webhook 投递车道）：仪表 specproof_notify_outbox_pending、specproof_notify_outbox_oldest_age_seconds、specproof_notify_outbox_retry_count、specproof_notify_outbox_dead_letters、specproof_notify_outbox_last_success_ts；计数 specproof_notify_outbox_delivered_total、specproof_notify_outbox_failed_total、specproof_notify_outbox_dead_lettered_total。入车道侧（K 收口后）由 `storage/mysql.py::transition_job_status_with_notify` 在终态写同事务内上报：specproof_notify_outbox_enqueued_total（意图入库成功）与 specproof_notify_outbox_intent_lost_total（意图入库失败——终态照常落库，通知降级为丢，绝不回滚终态）。
