@@ -103,7 +103,10 @@ jobs:
             -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
             -v specproof-maven-cache-1000:/home/maven/.m2 \
             -v $PWD/demo/spring-backend:/work:ro -w /work \
-            maven:3.9-eclipse-temurin-21 ./mvnw -q -v
+            # #159: CI exit 126 — mvnw is committed 100644 (Windows drops the
+          # exec bit), so `./mvnw` cannot exec as the non-root sandbox user.
+          # Invoke it through sh, which needs no exec bit.
+          maven:3.9-eclipse-temurin-21 sh mvnw -q -v
       - name: Kernel integration tests (real MySQL/Redis/RabbitMQ/Mongo)
         run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py -q
       - name: Stop infrastructure
@@ -150,7 +153,10 @@ jobs:
             -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
             -v specproof-maven-cache-1000:/home/maven/.m2 \
             -v $PWD/demo/spring-backend:/work:ro -w /work \
-            maven:3.9-eclipse-temurin-21 ./mvnw -q -v
+            # #159: CI exit 126 — mvnw is committed 100644 (Windows drops the
+          # exec bit), so `./mvnw` cannot exec as the non-root sandbox user.
+          # Invoke it through sh, which needs no exec bit.
+          maven:3.9-eclipse-temurin-21 sh mvnw -q -v
       - name: Evaluate representative golden-case subset (deterministic)
         run: |
           # The full 100-case eval is a multi-hour gate (local slow_eval /

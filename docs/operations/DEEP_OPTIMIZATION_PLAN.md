@@ -1629,3 +1629,33 @@ loop 的 cancel 检查只在步骤边界（`craft/loop.py` 步首），步内落
 文件，本支不再触碰（加入 9 个并行脏文件的禁碰清单口径）。
 
 **下一号**：CI 两红 job 需 CI 权限（暂不可达）；从台账/ROADMAP 另选题继续推进。
+
+### #159 CI 恢复绿开工：gh 权限已通，四 job 三因量清——#159a 落 mvnw 修复，minio 撤镜与单测三红留配方
+
+**前提变化（先量）**：gh 对本仓库的查询权限已恢复。master CI 自 10-01 21:34 起连续 14 个
+run 全 failure；`2fb4612`（ci.yml 第二个提交）自述"workflow 之前根本无法解析，job 从未
+启动"——**这批 job 从未绿过，一出生就是红的**，不是回归。
+
+**三因量证（全部拿到原始日志，不是推断）**：
+1. **Maven 播种 exit 126**（eval-golden-cases + nightly-eval）：`mvn-entrypoint.sh: exec:
+   ./mvnw: Permission denied`。根因：`demo/spring-backend/mvnw` 在 git 里自 create mode 起
+   就是 **100644**（Windows 提交丢执行位），非 root 沙箱用户 `./mvnw` exec 必 126。
+2. **Start infrastructure 红**（tests-with-infra）：`docker pull quay.io/minio/minio` 返回
+   daemon 级 401。三路互证：quay API 匿名查询同 401、Docker Hub 该 tag 404、本地 docker
+   pull 同样 401 —— **MinIO 已把社区镜像从公共 registry 整体撤下，任何 tag 不可匿名拉取**。
+   而 `tests/integration/test_artifact_recovery.py` 真依赖 minio（21 处 S3/boto 引用），
+   服务不能移除，需选型 S3 兼容替代品（SeaweedFS/Garage 等）+ `storage/minio.py` 兼容性
+   验证 + healthcheck 改写——**独立号，不与 #159a 混落**。
+3. **tests-no-infra 3 红**（3498 passed / 3 failed），配方清单：
+   - 编码棘轮 55>54：`scripts/bench_craft.py:786,819,845` + `scripts/bench_replay.py:769,
+     1589,1610,1622,1632,1643,1675,1695,1712` 共 **11 处** subprocess 未钉 codec；两脚本
+     不在并行脏清单可修；注意测试文件本身是并行脏文件，验证时以 HEAD 版断言（ceiling 54）
+     为准，修完应 44 ≤ 54。
+   - `test_bench_mutation` kill-rate **6≠5**：M04=killed/spec_verdict/exit0 被计入 killed；
+     先本地复现，分清计数 bug 还是期望过期（#126 i 让红自己点名变异体的设计仍在）。
+   - `test_verdict_channel_parity`：`report_verdict: written but never declared: 通过`——
+     查"通过"写入方与 #109 三词词表口径，改写入方或补声明，二选一前先量。
+
+**#159a 落了什么**：`.github/workflows/ci.yml` 两处 `./mvnw -q -v` → `sh mvnw -q -v`（sh
+调用不依赖执行位，Windows 贡献者再提交也不会复发），行间注释写明 126 根因。**验证依赖
+下次 CI run**（本地无 maven 容器等效验证手段）；minio 替代选型与单测三红按上面配方继续。
