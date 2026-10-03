@@ -14,6 +14,7 @@ import json
 import logging
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -22,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from api.auth import enforce_rate_limit, require_api_key
 from api.errors import JOB_NOT_FOUND, PROVIDER_UNAVAILABLE, STATE_CONFLICT, ApiError
+from observability.metrics import observe_duration
 from storage.mysql import ALL_STATUSES, MySQLStore
 from storage.redis import RedisStore
 
@@ -54,6 +56,39 @@ _SSE_HISTORY_CAP = 1000
 
 #: The single event kind the VERIFY progress stream emits (§14.3).
 _SSE_EVENT_TYPE = "progress"
+
+#: §14 "Dashboard 进度延迟 <= 2s" (#164): ladder for the write-to-emit wait.
+#: The 2s SLO bound sits inside the ladder, so a p95 breach is resolvable;
+#: the 60s-default ladder's first bound would make the whole target a
+#: single bucket.
+_PROGRESS_LAG_BUCKETS: tuple[float, ...] = (
+    0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0,
+)
+
+
+def _observe_delivery_lag(ev: dict[str, Any]) -> None:
+    """One dashboard-progress clock: stream-entry write → SSE emit (#164).
+
+    xadd_progress stamps every entry with `at` (UTC ISO-8601); the gap to
+    "now" at emit time is the dwell this endpoint added on top of the
+    worker's write — the 0.5s poll sleep plus the read itself. Only live
+    entries observe: a replay serves events written long ago (history
+    refill after reconnect), whose dwell measures the outage, not the
+    dashboard. Emit-to-browser latency is network/frontend territory and
+    has no server-side observation point — OBSERVABILITY §6 records that
+    boundary. A clock skew backwards clamps to zero; an unparseable stamp
+    still gets delivered, just not measured.
+    """
+    try:
+        written = datetime.fromisoformat(str(ev.get("at") or ""))
+    except ValueError:
+        return
+    lag = (datetime.now(UTC) - written).total_seconds()
+    observe_duration(
+        "dashboard_progress_delivery_lag_seconds",
+        max(0.0, lag),
+        _PROGRESS_LAG_BUCKETS,
+    )
 
 
 def get_redis() -> RedisStore:
@@ -351,6 +386,10 @@ async def _progress_stream(
                 if entry_id in sent_ids:
                     continue
                 seq += 1
+                # §14 "Dashboard 进度延迟" (#164): live deliveries only —
+                # a replay's entries measure the outage that caused the
+                # reconnect, not the dashboard latency the SLO speaks of.
+                _observe_delivery_lag(ev)
             sent_ids.add(entry_id)
             last_emitted_id = entry_id
             payload = json.dumps(

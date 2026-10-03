@@ -27,6 +27,11 @@
 #                                        跑完过一轮 = 卡死作业无人收;
 #                                        worker 进程 down 告警抓不到
 #                                        "进程活着但 tick 死了" 的形态
+#   DASHBOARD_PROGRESS_P95_SECONDS = 2
+#                                     ← §14 "Dashboard 进度延迟 <= 2s"
+#                                        (#164 起接线, 事件写入→SSE 发出的
+#                                        驻留时长 p95; 亚秒首格梯度 0.05..5,
+#                                        2s 上界在梯度内部分辨率才存在)
 
 groups:
   - name: specproof-slo
@@ -150,3 +155,17 @@ groups:
         annotations:
           summary: "SpecProof 回收 tick 超过阈值没跑完一轮 (RECLAIM_TICK_STALE_SECONDS=900)"
           description: "上一轮完整回收扫描距今 {{ $value }}s (§14: Worker 崩溃后可恢复 — 卡死的 RUNNING 作业只有回收器能收回, tick 停摆后它们永远滞留)。进程活着但 tick 死了是 up 告警抓不到的形态。gauge 语义是舰队级: 任一副本的 tick 跑完一轮都会刷新它, 所以本告警含义是「没有任何一个 sweeper 活着」; 所有副本全灭的场景由 SpecproofWorkerDown 覆盖。worker 刚启动、首轮 pass 未跑前 gauge 不存在, 本表达式无序列不触发 (由 up 告警补位)。"
+
+      # ── Dashboard 进度延迟 (§14 体验目标, #164) ─────────────────────
+      - alert: SpecproofDashboardProgressLagHigh
+        expr: >
+          histogram_quantile(
+            0.95,
+            sum(rate(specproof_dashboard_progress_delivery_lag_seconds_bucket[10m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof 进度事件驻留 p95 超过阈值 (DASHBOARD_PROGRESS_P95_SECONDS=2)"
+          description: "10 分钟窗口内进度事件从写入 Redis 到 SSE 发出的驻留 p95 = {{ $value }}s (§14: Dashboard 进度延迟 <= 2 秒)。只测 live 投递; SSE 轮询间隔 0.5s 是该时钟的下限。发出→浏览器渲染的网络/前端段无服务端观测点, 不在本告警内。"

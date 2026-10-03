@@ -1915,6 +1915,39 @@ test_observability_metric_parity` **37 passed**（含新增两条：lag≈45s �
 （17 面板，p16/p17 同排无重叠）。drills 缺口门 1 红归并行会话 in-flight diff
 （craft/accept.py + DRILLS.md 均为禁碰清单脏文件，#159e 同款 witness 红），本支零触碰。
 
+## #164：Dashboard 进度延迟接线——live 投递才叫延迟，重放叫恢复
+
+**背景**：OBSERVABILITY §6 第 103 行最后一处可自包含收口的 ❌「Dashboard 进度延迟
+<=2s 无指标」。量测发现时钟天然存在：`RedisStore.xadd_progress` 每条事件自带
+`at`（UTC ISO-8601 写入戳），SSE 循环 `sleep(0.5)` 轮询是延迟主导项——驻留
+（写入→发出）可测，无需新表新列。语义必须先拆：**live 投递**（写入后经轮询发出）
+才是 SLO 说的「延迟」；**重放**（Last-Event-ID 断线补发/首连历史回放）的条目
+驻留长达断档时长——测它会在端点干恢复工作的那一刻报告看板坏了。
+
+**修法**：
+- `api/routes/jobs.py`：`_progress_stream` else 分支（live）yield 前 observe
+  `dashboard_progress_delivery_lag_seconds` = `now(UTC) - fromisoformat(at)`，
+  梯度 0.05..5s（§14 的 2s 上界在梯度内才有分辨率）；时钟回拨 clamp 0、
+  `at` 解析失败照发不测（观测钩子绝不门控它搭载的载荷）。重放分支零观测。
+  首连历史回放同样走重放分支——同语义（那不是延迟，是补课）。
+- alerts-slo.yml 新增 `SpecproofDashboardProgressLagHigh`（10m p95>2, for 5m）；
+  THRESHOLDS 加 DASHBOARD_PROGRESS_P95_SECONDS=2。
+- 看板面板 18「进度事件驻留」（p50/p95 + 2s 参考线，y=46 新排），row 13 与
+  面板 14/15 级联 +8。
+- OBSERVABILITY.md：§5 告警表、§6 ❌→✅（诚实边界：SSE 发出→浏览器渲染属
+  网络/前端域无服务端观测点）、上报模块清单「三个」→「四个」+ jobs.py 条目。
+- **对账门零改动自证**：新字面量名自动纳管（第四个上报模块无需登记拼接族）。
+
+**门证插曲（witness 证伪）**：首轮测试 live 断言 KeyError——spy 驱动复现发现
+reader 在流启动前 append 的条目走**重放路径**（第一轮 history 已含它），不观测
+正是设计行为；测试自身的 two-phase（先吞重放轮再 append live 条目）才是对的
+测法。修正后两测变绿，同时坐实「重放不观测」分支被真实测试覆盖。
+
+**门证**：ruff/mypy 双清（jobs.py）；`test_api_governance +
+test_observability_metric_parity` **27 passed**（含新增两条：重放零观测 + live
+恰一次观测且 sum<2s、坏 `at` 照发不测）；`test_envelope_retryable + test_web_api`
+**78 passed**（SSE/共享模块回归）；JSON 解析 OK（18 面板，y=46/54/55 无重叠）。
+
 
 
 

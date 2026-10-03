@@ -306,6 +306,91 @@ async def test_verify_sse_live_entries_continue_sequence(
     _assert_progress_payload(parsed[-1][2], "job-2")
 
 
+async def test_verify_sse_delivery_lag_observed_on_live_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """§14 "Dashboard 进度延迟 <= 2s" (#164): every *live* SSE delivery
+    observes its write-to-emit dwell into the delivery-lag histogram; a
+    replayed entry must not — its dwell is as old as whatever caused the
+    replay (initial history load or reconnect refill), and measuring it
+    would report the dashboard as broken precisely when the endpoint is
+    doing its recovery job. The probe therefore runs three polls: one
+    replay round, one live round after an append, one to disconnect."""
+    from datetime import UTC
+    from datetime import datetime as dt
+
+    from observability.metrics import snapshot
+
+    key = "dashboard_progress_delivery_lag_seconds"
+    before = snapshot()["histograms"].get(
+        key, {"count": 0.0, "sum": 0.0, "bounds": []},
+    )
+
+    monkeypatch.setattr("asyncio.sleep", _no_sleep)
+    reader = _FakeProgressReader()
+    reader.append({
+        "id": "20-0", "node": "intake", "status": "running",
+        "percent": "5.0", "message": "started",
+        "at": dt.now(UTC).isoformat(),
+    })
+    stream = jobs_module._progress_stream(
+        "job-l", _DisconnectProbe(polls=3), reader, "0",
+    )
+    replayed = _parse_frames(await _drain_frames(stream, 3))
+    assert [p["seq"] for _eid, _etype, p in replayed] == [1]
+    after_replay = snapshot()["histograms"].get(
+        key, {"count": 0.0, "sum": 0.0, "bounds": []},
+    )
+    assert after_replay["count"] == before["count"]  # replay: not measured
+
+    reader.append({
+        "id": "20-1", "node": "run_differential", "status": "completed",
+        "percent": "100.0", "message": "VERIFIED",
+        "at": dt.now(UTC).isoformat(),
+    })
+    live = _parse_frames(await _collect_frames(stream))
+    assert [p["seq"] for _eid, _etype, p in live] == [2]
+
+    entry = snapshot()["histograms"][key]
+    assert entry["count"] == after_replay["count"] + 1.0  # live: measured
+    assert entry["bounds"][0] == 0.05  # sub-second ladder, not the 60s default
+    assert entry["sum"] - after_replay["sum"] < 2.0  # well inside the SLO
+
+
+async def test_verify_sse_unparseable_at_still_delivers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A live entry with a broken `at` stamp is delivered anyway (#164) —
+    the observability hook must never gate the payload it rides on; it
+    just doesn't measure that delivery."""
+    from datetime import UTC
+    from datetime import datetime as dt
+
+    from observability.metrics import snapshot
+
+    monkeypatch.setattr("asyncio.sleep", _no_sleep)
+    key = "dashboard_progress_delivery_lag_seconds"
+    before = snapshot()["histograms"].get(key, {"count": 0.0})
+    reader = _FakeProgressReader()
+    reader.append({
+        "id": "21-0", "node": "intake", "status": "running",
+        "percent": "5.0", "message": "started",
+        "at": dt.now(UTC).isoformat(),
+    })
+    stream = jobs_module._progress_stream(
+        "job-x", _DisconnectProbe(polls=3), reader, "0",
+    )
+    await _drain_frames(stream, 3)  # replay round: not measured, done first
+    reader.append({
+        "id": "21-1", "node": "intake", "status": "running",
+        "percent": "5.0", "message": "started", "at": "not-a-timestamp",
+    })
+    parsed = _parse_frames(await _collect_frames(stream))
+    assert len(parsed) == 1  # delivered
+    after = snapshot()["histograms"].get(key, {"count": 0.0})
+    assert after["count"] == before["count"]  # not measured
+
+
 # ── retryable derivation from the error-code failure class ────────────────
 
 

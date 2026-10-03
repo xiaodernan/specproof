@@ -1272,6 +1272,125 @@
       ]
     },
     {
+      "id": 18,
+      "type": "timeseries",
+      "title": "进度事件驻留 (§14: Dashboard 进度延迟 <= 2s)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "specproof_dashboard_progress_delivery_lag_seconds 直方图 (#164 起接线): 进度事件从 worker 写入 Redis (xadd_progress 的 at 戳) 到 SSE 端点发出的驻留时长, 只测 live 投递 (重连补发的重放不测)。SSE 轮询间隔 0.5s 是该时钟的下限; 发出→浏览器渲染的网络/前端段无服务端观测点。参考线 2s。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum(rate(specproof_dashboard_progress_delivery_lag_seconds_bucket[10m])) by (le))",
+          "legendFormat": "驻留 p50 (10m)",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(specproof_dashboard_progress_delivery_lag_seconds_bucket[10m])) by (le))",
+          "legendFormat": "驻留 p95 (10m)",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "2",
+          "legendFormat": "SLO p95 (2s)",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        }
+      ]
+    },
+    {
       "id": 13,
       "type": "row",
       "title": "积压 (§14: Job 不丢失 — Outbox + MQ + 幂等)",
@@ -1280,7 +1399,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 54
       },
       "panels": []
     },
@@ -1324,7 +1443,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 47
+        "y": 55
       },
       "options": {
         "reduceOptions": {
@@ -1419,7 +1538,7 @@
         "h": 8,
         "w": 18,
         "x": 6,
-        "y": 47
+        "y": 55
       },
       "options": {
         "legend": {
