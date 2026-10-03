@@ -1437,3 +1437,60 @@ A2 摘要掉 `release=` ⇒ {1,6}；A3 整体绕过（导入+调用一起变回 
   退出，补退出码会先把 BLOCKED 摘要降级成 raw tail）。
 - 旧的欠账：`deep_results` 入库与 Web 读路径（`agent/worker.py`、`storage/mysql.py`、OpenAPI 重导
   都是并发写者）；compose 武装仍待用户批准。
+
+### #153 落地：退出码是裁决的最后一个出口——0=VERIFIED / 1=BLOCKED / 2=无裁决，MCP 不再把 BLOCKED 摘要降级成 raw tail
+
+**实测前提（写代码之前量的）**：#151 已量得 `verify.py` 全文件只有三处 `SystemExit`（仓库缺失
+:385、spec 缺失 :392、preflight 未过 :443，当年都退 1），VERIFIED 与 FAILED 一样退 0——退出码
+不是「漏了发布门」，是「漏了所有裁决」。补之前还必须先看下游：`mcp/tools.py::_tool_verify` 在
+子进程返回码非零时无条件抛 `ToolError`，把已经解析出来的 BLOCKED 摘要（含 BLOCKER findings）
+整个丢弃，调用方只拿到一句 raw tail。所以退出码与 MCP 读路径必须同号落地，不能拆开。
+
+**落了什么（两处产品代码 + 一条新门）**：
+- `cli/specproof/commands/verify.py`：`VERDICT_EXIT_CODES = {"VERIFIED": 0, "BLOCKED": 1,
+  "FAILED": 2}` + `exit_code_for()`（词表外的词 fail-closed 映射 2——本模块从不写那个词，映射
+  到「无裁决」而不是猜）；三处 setup 退出 1→2（注释写明：环境拒绝构建不是对变更的裁决，"1"
+  从此永远意味着一个真实裁决在拒绝这次变更）；命令末尾 `raise SystemExit(exit_code_for(verdict))`
+  ——打印的 VERDICT 行、证书/通知书、GitHub Check、退出码，四个出口说同一个词。模块 docstring
+  的诚实契约补退出码三行。
+- `mcp/tools.py`：非零返回码**但有 parsed verdict** ⇒ 返回摘要 + `cli_exit_code`（BLOCKED 是
+  工具对"该不该合"这个问题的成功回答，不是工具故障）；非零**且无裁决** ⇒ 照旧 `ToolError`
+  （transport/setup 类失败没有摘要可交）；零退出路径一个字节没动。模块文档的 ToolError 条目
+  同步改写。
+- 新门 `tests/unit/test_verify_exit_codes.py`（9 例）：CliRunner + monkeypatch 假图覆盖完整命令
+  尾部（MySQL persist 在 try/except 内被吞、issue_certificate 空契约返回 None、
+  `_maybe_sign_document` 的 SigningError 被吞、`_cleanup_worktrees` 无 workspace 键则 no-op），
+  MCP 侧 monkeypatch `_run_cli`。
+
+**四条互不混淆的口径**（每条有自己的证人）：
+1. VERIFIED ⇒ 0、BLOCKED ⇒ 1、FAILED ⇒ 2（案例 4/5/6）；
+2. setup 失败（仓库缺失/spec 缺失/preflight）⇒ 2，不是 1（案例 2/3）——"1"不再有第二种读法；
+3. 词表外的词 ⇒ 2（案例 1，fail-closed 映射腿）；
+4. MCP：非零+裁决 ⇒ 摘要+`cli_exit_code`（案例 7）；非零+无裁决 ⇒ `ToolError`（案例 8）；
+   零退出 ⇒ 行为不变（案例 9）。
+
+**见证**：`.scratch/g153/mutate_153.py`，控制腿 `collected == AST def test_ 计数 == 9`、0 红；
+四臂 **4/4 MATCHED**，还原后 verify.py 与 mcp/tools.py 字节相同（sha 复核）：
+E1 词表把 BLOCKED/FAILED 也映到 0 ⇒ {1,5,6}；E2 掉尾部 `raise SystemExit(exit_code_for(verdict))`
+⇒ {5,6}；E3 MCP 非零分支退回无条件 ToolError ⇒ {7}；E4 仓库缺失 setup 退回 1 ⇒ {2}。
+**预测在跑之前修正过一次**：E1/E2 首版预测把案例 4 算进红集（{1,4,5,6}/{4,5,6}）——错。案例 4
+是 VERIFIED→0：E1 只动 BLOCKED/FAILED 两个词条，E2 去掉尾部后 CliRunner fall-through 也退 0，
+两臂下它都该绿，它是对照腿不是证人。预测判的是"每个案例踩哪条分支"，必须先于跑写对（#154 A1
+同族教训：把"为什么绿"写进门 docstring）。
+
+**门数字**：
+- 新门 **9 passed**；`ruff` 三文件干净；`mypy cli/specproof/commands/verify.py mcp/tools.py`
+  `Success: no issues found in 2 source files`。
+- 受影响宽腿（工作树，11 文件：新门 + verify 命令域 + MCP 五本 + `test_release_gates_veto_the_
+  verdict`）：**140 passed / 0 红**。
+- 干净平面对照（`git archive HEAD` → `.scratch/plane153`，PYTHONPATH 钉平面）：纯 HEAD 基线
+  10 文件 = **131 passed / 0 红**；覆盖本号三文件（新门随之进场）11 文件 = **140 passed / 0 红**，
+  即 **+9 例 / +0 红**。
+- **仪器教训三条**：①默认 `python` 是 3.11，conftest 的版本门直接 rc=4 退出——见证与门必须用
+  `.venv`（3.12）跑，`sys.executable` 才指向对的解释器；②PowerShell 管道 `git archive | tar`
+  会把二进制流过文本编码、tar 报 damaged archive——改 `git archive -o` 落盘再 `tar -xf` 中转；
+  ③平面解包有两个 CJK 文档名失败（tar 路径编码），与门无关，不追。
+
+**下一号**：
+- 旧的欠账（本轮没动）：`deep_results` 入库与 Web 读路径（`agent/worker.py`、`storage/mysql.py`、
+  OpenAPI 重导都是并发写者，动手前先量归属）；compose 武装仍待用户批准。

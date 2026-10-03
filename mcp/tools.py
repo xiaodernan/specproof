@@ -4,7 +4,10 @@ Every tool returns a plain JSON-serializable payload. There are exactly two
 failure modes, both structured:
 
 - ToolError          -> the server answers with isError=true (bad arguments,
-                       missing artifacts, non-zero CLI exits, timeouts).
+                       missing artifacts, non-zero CLI exits that carry no
+                       verdict, timeouts). A non-zero exit WITH a verdict is
+                       the tool's answer, not an error (#153): `specproof_verify`
+                       returns the parsed summary plus `cli_exit_code`.
 - degraded payload   -> infrastructure is unreachable but the answer is still
                        useful (degraded: true + explicit reason), mirroring
                        the honesty contract of api/routes/web.py. Missing data
@@ -273,10 +276,17 @@ def _tool_verify(arguments: dict[str, Any]) -> dict[str, Any]:
     proc = _run_cli(cmd, timeout)
     summary = parse_verify_stdout(proc.stdout)
     if proc.returncode != 0:
-        raise ToolError(
-            f"specproof verify exited with code {proc.returncode}: "
-            f"{_tail(proc.stderr or proc.stdout)}"
-        )
+        if summary["verdict"] is None:
+            raise ToolError(
+                f"specproof verify exited with code {proc.returncode}: "
+                f"{_tail(proc.stderr or proc.stdout)}"
+            )
+        # A non-zero exit with a parsed verdict is the tool's honest answer,
+        # not a tool failure (#153): the CLI exits 1 exactly when the change
+        # is BLOCKED and 2 when it could not reach a verdict. Dropping the
+        # summary here used to discard the BLOCKER findings the caller asked
+        # for; the exit code rides along as `cli_exit_code`.
+        summary["cli_exit_code"] = proc.returncode
     if summary["verdict"] is None:
         raise ToolError(
             "specproof verify finished but its output was unparseable "

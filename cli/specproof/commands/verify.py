@@ -1,5 +1,4 @@
-
-"""specproof verify — Run a verification job (Phase 0 CLI).
+"""specproof verify — Run a verification job (Phase 0 CLI).
 
 Honesty contract (v2):
 - VERDICT FAILED    when the pipeline recorded errors
@@ -8,6 +7,10 @@ Honesty contract (v2):
 - VERDICT VERIFIED  only when every contract passed with evidence
 - A Merge Certificate is issued only for VERIFIED; otherwise a Rejection
   Notice JSON is written alongside the HTML report.
+- The process exit code mirrors the verdict vocabulary (#153): 0 = VERIFIED,
+  1 = BLOCKED, 2 = no verdict was reached (FAILED, preflight not ready, bad
+  paths). "1" therefore always means a real verdict refused the change —
+  never "the tool could not run".
 """
 import os
 import subprocess
@@ -16,6 +19,20 @@ from pathlib import Path
 from typing import Any
 
 import click
+
+#: Exit codes by verdict word (#153). Anything outside the vocabulary is a
+#: word this module never writes, and maps to "no verdict" — fail-closed.
+VERDICT_EXIT_CODES = {"VERIFIED": 0, "BLOCKED": 1, "FAILED": 2}
+
+
+def exit_code_for(verdict: str) -> int:
+    """Map the verdict word onto the process exit code (#153).
+
+    ``0`` = VERIFIED, ``1`` = BLOCKED, ``2`` = no verdict (FAILED or an
+    unexpected word). CI can trust the code alone; the stdout VERDICT line
+    remains the human-readable half of the same statement.
+    """
+    return VERDICT_EXIT_CODES.get(verdict, 2)
 
 
 def _load_approved_contracts(
@@ -364,14 +381,15 @@ def verify(
         click.echo(
             f"ERROR: Repository path does not exist: {repo_path}", err=True
         )
-        raise SystemExit(1)
+        # Exit 2 = "no verdict was reached" (#153); 1 is reserved for BLOCKED.
+        raise SystemExit(2)
 
     spec_file = Path(spec_path).resolve()
     if not spec_file.exists():
         click.echo(
             f"ERROR: Spec file does not exist: {spec_file}", err=True
         )
-        raise SystemExit(1)
+        raise SystemExit(2)
 
     output_path = Path(output_dir).resolve()
     output_path.mkdir(parents=True, exist_ok=True)
@@ -419,7 +437,10 @@ def verify(
                 "Fix the errors above and run the command again.",
                 err=True,
             )
-            raise SystemExit(1)
+            # Exit 2 = "no verdict was reached" (#153); 1 is reserved for
+            # BLOCKED — the environment refusing to build is not a verdict
+            # about the change.
+            raise SystemExit(2)
     except SystemExit:
         raise
     except Exception as exc:  # noqa: BLE001 - preflight must not block a run
@@ -644,3 +665,9 @@ def verify(
             depth=depth,
             summary=_state_summary(final_state, verdict),
         )
+
+    # The exit code is the last outlet of the same verdict (#153): 0 =
+    # VERIFIED, 1 = BLOCKED, 2 = no verdict. Every outward surface — the
+    # printed VERDICT line, the certificate/notice, the persisted summary,
+    # the GitHub Check and this code — now answers with one word.
+    raise SystemExit(exit_code_for(verdict))
