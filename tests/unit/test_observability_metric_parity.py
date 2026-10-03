@@ -258,3 +258,30 @@ def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:
     assert len(rabbit_exprs) == 3, f"expected 3 rabbitmq panel exprs, got {rabbit_exprs}"
     assert any('queue=~"q\\\\..+"' in expr for expr in rabbit_exprs)
     assert any('queue=~"q\\\\..+\\\\.dlq"' in expr for expr in rabbit_exprs)
+
+
+def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
+    """#166: the per-stage panel selects the concatenated stage family via a
+    __name__ regex. The parity gate drops that reference as a prose
+    placeholder (the captured name ends in '_'), so a typo'd family name in
+    the selector would go unnoticed and the panel would be silently empty —
+    pin the exact selector and the two quantiles instead.
+    """
+    dashboard = json.loads(
+        (ROOT / "infra" / "grafana" / "dashboards" / "specproof-slo.json")
+        .read_text(encoding="utf-8")
+    )
+    stage_exprs = [
+        target["expr"]
+        for panel in dashboard["panels"]
+        for target in panel.get("targets", [])
+        if "worker_stage_duration_seconds_" in target.get("expr", "")
+    ]
+    assert len(stage_exprs) == 2, f"expected p50+p95 stage exprs, got {stage_exprs}"
+    expected_selector = (
+        '__name__=~"specproof_worker_stage_duration_seconds_[a-z0-9_]+_bucket"'
+    )
+    for expr in stage_exprs:
+        assert expected_selector in expr, expr
+    assert any("histogram_quantile(0.95" in expr for expr in stage_exprs)
+    assert any("histogram_quantile(0.50" in expr for expr in stage_exprs)

@@ -1995,6 +1995,34 @@ queue=~"q\\..+\\.dlq" 贴合代码规则而非硬编码单队列。
 rabbitmqctl 对数一致）、per-queue 精确查询=1。本号零 Python 生产代码改动
 （纯 infra+docs+测试）。
 
+## #166：各阶段耗时面板——stage 直方图族从「上报了但看不见」到接线
+
+**背景**：§8.10 清单里「各阶段耗时」一行括注「仅总时长直方图」是过时陈述——
+`worker_stage_duration_seconds_<node>` 早在 #161 前就由 agent/worker.py 在
+updates 流的每个 stage 边界 observe（节点名拼进指标名），对账门也有 stage 拼接族
+登记；缺的只是看板入口。量先于动的核实：看板 JSON 全文零 worker_stage 引用、
+上报点用默认梯度（首格 60s）、面板空载条件=worker 未跑完任一 stage。
+
+**修法**：
+- 看板面板 21「各阶段耗时」(x=0,y=71,w=12)：per-stage p50/p95，
+  `histogram_quantile(..., sum by (__name__, le) (rate({__name__=~"specproof_worker_
+  stage_duration_seconds_[a-z0-9_]+_bucket"}[15m])))`——族名拼接所以查询必须用
+  __name__ regex，按 __name__ 分组保留每 stage 一条序列，图例即指标名。
+- 诚实边界写进面板描述与 §8.10：默认梯度首格 60s（为分钟级作业时长设计），
+  亚秒级阶段的分位数分辨率有限；定制梯度要改 worker 上报点（#162/#164 的
+  per-histogram 首用钉死语义），留给下一号。
+- §8.10 清单收口：各阶段耗时移入「已收口」并保留分辨率括注；未接线剩
+  Finding Precision、LLM Token 费用、Tool Timeout、ES 延迟、Redis 命中、
+  Base/Head 沙箱失败、Certificate 签发率。
+- test_observability_metric_parity.py 新增 selector 防漂移测试：对账门把
+  __name__ regex 里的引用当 prose 占位符丢弃（捕获名以 _ 结尾），selector
+  打错字会静默空面板——钉死精确 selector 文本与 0.95/0.50 两个分位数。
+
+**门证**：JSON 解析 21 面板（21 号 x=0,y=71 与 19/20 无重叠）；ruff 清；
+`test_observability_metric_parity` **4 passed**（含新 selector 测试）。零
+prometheus/alerts 改动（无新告警，promtool 不重跑）。worker 未起无法实测
+序列（面板空载条件已如实记录），expr 语法经 parity 测试的精确文本钉死。
+
 
 
 

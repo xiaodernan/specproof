@@ -1738,6 +1738,109 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "各阶段耗时 (§8.10: per-stage p50/p95)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "graph 每个节点跑完一段的耗时直方图族 worker_stage_duration_seconds_<node> (agent/worker.py 在 updates 流的每个 stage 边界 observe, 节点名拼进指标名, #166 接线)。按 __name__ 分组取 per-stage p50/p95 — 图例即指标名, 后缀去 _seconds_ 前缀即节点名。诚实边界: 该族用默认梯度 (首格 60s, 为分钟级作业时长设计), 亚秒级阶段的分位数分辨率有限; 定制梯度需改 worker 上报点 (同 #162/#164 的 per-histogram 首用钉死语义), 留给下一号。worker 未起或没跑完任一 stage 前无序列, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 71
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (__name__, le) (rate({__name__=~\"specproof_worker_stage_duration_seconds_[a-z0-9_]+_bucket\"}[15m])))",
+          "legendFormat": "{{__name__}} p95",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (__name__, le) (rate({__name__=~\"specproof_worker_stage_duration_seconds_[a-z0-9_]+_bucket\"}[15m])))",
+          "legendFormat": "{{__name__}} p50",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
     }
   ],
   "refresh": "30s",

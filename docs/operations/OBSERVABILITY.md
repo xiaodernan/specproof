@@ -110,11 +110,11 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | 无证据严重评论=0 | 无指标 | ❌ 未接线 (由证据门禁保证, 不可观测) |
 | PR 归因准确率>=90% | 无指标 | ❌ 未接线 |
 
-§8.10 指标清单中未接线的: 各阶段耗时 (worker_stage_duration_seconds_<node> 族已在代码
-拼接上报, 但无看板面板与告警)、Finding Precision、LLM Token 与费用、Tool Timeout、
+§8.10 指标清单中未接线的: Finding Precision、LLM Token 与费用、Tool Timeout、
 ES 延迟、Redis 命中、Base/Head 沙箱失败 (sandbox/ 代码无指标注册,
-属 sandbox 子代理职责)、Certificate 签发率。Queue Depth 与 DLQ 已于 #165 接线
-(rabbitmq 自带插件 per-object 抓取, 见 §5 表末两行)。
+属 sandbox 子代理职责)、Certificate 签发率。已收口的: 各阶段耗时（#166 接线,
+看板面板 21 per-stage p50/p95——但该族用默认梯度首格 60s, 亚秒阶段分辨率有限,
+定制梯度待后续号）、Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 
 已接线指标名（2026-09-25 与代码逐条对账的结果）：本项目**没有静态指标注册表**，名字只在第一次上报时才出现在 /metrics 上，所以这份清单的唯一合法来源是上报点，不是本文件。本节此前写着"全部真实注册"却漏掉了 worker 生命周期整侧与 outbox relay 的 8 个名字，因此改成可复现的对账方法：取 `incr(` / `set_gauge(` / `observe_duration(` 三个上报函数的全仓调用点（`api/auth.py:91` 与 `storage/redis.py:112` 的 `client.incr(...)` 是 Redis 计数命令，不是指标，已排除），再把常量名解析成字面量。生产侧上报模块只有四个（外加 render_text 自己）：
 
