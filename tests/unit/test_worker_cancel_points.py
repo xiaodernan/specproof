@@ -577,6 +577,34 @@ def test_worker_records_lease_and_stage_duration_metrics(
     )
 
 
+def test_stage_duration_family_pins_custom_ladder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#167: the stage family must pin its custom ladder at first use, not
+    the default 60s-first ladder designed for minute-scale job durations —
+    sub-second nodes (intake/preflight/build_matrix) would pile their whole
+    distribution into the first bucket and per-stage quantiles (panel 21)
+    would have no resolution below 60s. Same per-histogram
+    first-observation-pins-the-ladder semantics as #162/#164; bounds are
+    asserted instead of the exact count so the test is order-independent
+    against the shared process-global registry."""
+    from observability import metrics as metrics_module
+
+    mysql = _FakeMysql(status="RUNNING")
+    graph = _FakeGraph(["intake", "publish_report"], _final_state())
+    redis = _FakeRedis(lease_ok=True)
+    worker = _make_worker(mysql, redis, graph, monkeypatch)
+
+    worker._handle_job_impl("job-167", {"repo_path": "/r", "spec_path": "/s"})
+
+    snap = metrics_module.snapshot()
+    for stage in ("intake", "publish_report"):
+        entry = snap["histograms"].get("worker_stage_duration_seconds_" + stage)
+        assert entry is not None
+        assert entry["bounds"][0] == 0.25  # sub-second ladder, not the 60s default
+        assert entry["bounds"][-1] == 1800.0  # above DEEP p95 1500s: quantile never lands in +Inf
+
+
 # ── terminal write: the verdict and its evidence are one statement (#63) ──
 
 

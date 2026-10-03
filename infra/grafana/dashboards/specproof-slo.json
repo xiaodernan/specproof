@@ -1747,7 +1747,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "graph 每个节点跑完一段的耗时直方图族 worker_stage_duration_seconds_<node> (agent/worker.py 在 updates 流的每个 stage 边界 observe, 节点名拼进指标名, #166 接线)。按 __name__ 分组取 per-stage p50/p95 — 图例即指标名, 后缀去 _seconds_ 前缀即节点名。诚实边界: 该族用默认梯度 (首格 60s, 为分钟级作业时长设计), 亚秒级阶段的分位数分辨率有限; 定制梯度需改 worker 上报点 (同 #162/#164 的 per-histogram 首用钉死语义), 留给下一号。worker 未起或没跑完任一 stage 前无序列, 面板为空属正常。",
+      "description": "graph 每个节点跑完一段的耗时直方图族 worker_stage_duration_seconds_<node> (agent/worker.py 在 updates 流的每个 stage 边界 observe, 节点名拼进指标名, #166 接线)。按 __name__ 分组取 per-stage p50/p95 — 图例即指标名, 后缀去 _seconds_ 前缀即节点名。#167 起该族用定制梯度 0.25..1800s (首用钉死, 同 #162/#164 语义): 亚秒级节点 (intake/preflight/build_matrix) 有分辨率, 顶格 1800s 高于 DEEP 作业级 p95 目标 1500s, 分位数不会落入 +Inf 桶。worker 未起或没跑完任一 stage 前无序列, 面板为空属正常。",
       "fieldConfig": {
         "defaults": {
           "color": {

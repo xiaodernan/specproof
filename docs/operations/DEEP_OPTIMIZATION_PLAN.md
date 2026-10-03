@@ -2025,6 +2025,35 @@ prometheus/alerts 改动（无新告警，promtool 不重跑）。worker 未起�
 
 
 
+## #167：stage 族定制梯度——亚秒阶段的分位数从「不可测」到「有分辨率」
+
+**背景**：#166 面板 21 上线时留下的诚实边界：`worker_stage_duration_seconds_<node>`
+族用默认梯度（首格 60s，为分钟级作业时长设计），而 16 个 graph 节点的耗时跨
+两个量级——intake/preflight/build_matrix 亚秒级，prepare_base/generate_
+counterexamples/run_deep_experiments 分钟级。首格 60s 意味着所有快节点的
+整个分布堆进第一个桶，per-stage p50/p95 在 60s 以下完全无分辨率。
+
+**修法**：agent/worker.py 上报点传 `_STAGE_BUCKETS`（0.25..1800s 共 14 桶：
+0.25/0.5/1/2/5/10/30/60/120/300/600/900/1200/1800）。梯度设计三点：低密
+亚秒段给快节点分辨率；中段 5/10/30/60/120 覆盖秒到分钟级 LLM/构建节点；
+顶格 1800s 高于 DEEP 作业级 p95 目标 1500s——单阶段分位数永不落入 +Inf
+桶（histogram_quantile 对 +Inf 无插值，会返回 NaN）。首用钉死语义与
+#162 webhook / #163 recovery 两个先例一致（metrics.observe_duration 的
+per-histogram ladder，first-use-wins）。面板 21 描述、§8.10 两处括注、
+对账文档拼接族行同步去掉「分辨率有限」边界。
+
+**门证**：ruff 清；mypy agent/worker.py 清（项目口径 exclude tests/，
+最初误把测试文件带进 mypy 范围报出 16 个既有错属范围噪音非本号引入）；
+定向 pytest **37 passed**（含新增 test_stage_duration_family_pins_custom_
+ladder——断言 bounds[0]==0.25 / bounds[-1]==1800 而非精确 count，对进程级
+全局 registry 顺序无关）；端到端 exposition 实测：0.11s 观测落
+le="0.25" 首桶、173s 落 le="300" 桶、默认 `_HISTOGRAM_BUCKETS` 首格仍
+60s 未受影响；看板 JSON 解析 21 面板、面板 21 描述更新确认。零
+alerts/prometheus.yml 改动（无新告警，promtool 不重跑）；worker 未起无法
+实测真实序列（#166 已记录的空载条件不变，需下次起应用栈后观察面板）。
+
+
+
 
 
 

@@ -587,6 +587,7 @@ class Worker:
                 observe_duration(
                     "worker_stage_duration_seconds_" + str(stage),
                     now - stage_started,
+                    _STAGE_BUCKETS,
                 )
                 stage_started = now
                 # Stage boundary: cancel checkpoint first (a cancelled job
@@ -1230,6 +1231,20 @@ _RECLAIM_PASS_BUCKETS: tuple[float, ...] = (
 )
 _RECOVERY_LAG_BUCKETS: tuple[float, ...] = (
     30.0, 60.0, 120.0, 180.0, 240.0, 300.0, 600.0, 1200.0,
+)
+#: Stage durations span two orders of magnitude more than either recovery
+#: clock: lightweight nodes (intake/preflight/build_matrix) finish in
+#: sub-second to a few seconds, while build/LLM nodes (prepare_base,
+#: generate_counterexamples, run_deep_experiments) run minutes. The default
+#: ladder starts at 60s, leaving everything below unresolvable — the p50 of
+#: every fast stage would pile into the first bucket (#166's honest edge).
+#: Top bucket 1800s stays above the DEEP job-level p95 target (1500s) so a
+#: stage quantile never falls into the +Inf bucket (histogram_quantile
+#: returns NaN there). First use pins the ladder (metrics.observe_duration),
+#: same semantics as the #162 webhook and #163 recovery ladders.
+_STAGE_BUCKETS: tuple[float, ...] = (
+    0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0,
+    120.0, 300.0, 600.0, 900.0, 1200.0, 1800.0,
 )
 
 
