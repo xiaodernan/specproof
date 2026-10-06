@@ -31,7 +31,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 SKIP_DIRS = {
-    "node_modules", ".git", "dist", ".local", ".specraft",
+    "node_modules", ".git", "dist", ".local", ".specraft", ".scratch",
     ".mypy_cache", ".pytest_cache", "worktrees",
 }
 # A virtualenv is recognised by what makes one, not by what the operator named
@@ -77,6 +77,19 @@ def _is_subprocess_call(node: ast.Call) -> bool:
     return False
 
 
+def _is_linked_worktree(directory: Path) -> bool:
+    """A linked-worktree root carries `.git` as a *file* (a `gitdir:` pointer).
+
+    Measured 2026-10-01: two live eval checkouts under `.scratch/` (wt130,
+    wt134 — still registered in `git worktree list`) doubled the repo's own
+    54 offenders to 162 without one line of product code changing. A worktree
+    is a second copy of the repo, not the repo's files, so the lens skips it
+    the same way it skips venvs and the top-level `worktrees/` dir. A real
+    repo root is unaffected: its `.git` is a directory, not a file.
+    """
+    return (directory / ".git").is_file()
+
+
 def _is_skipped_dir(directory: Path) -> bool:
     name = directory.name
     return (
@@ -84,6 +97,7 @@ def _is_skipped_dir(directory: Path) -> bool:
         or name in VENVISH
         or name.startswith(".venv")
         or (directory / "pyvenv.cfg").is_file()
+        or _is_linked_worktree(directory)
     )
 
 
