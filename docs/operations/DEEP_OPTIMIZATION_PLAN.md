@@ -2456,3 +2456,35 @@ def _require_cancellable(job):           # :685
 另记一次环境事故：追加测试时 heredoc 被执行了两遍，同一个测试函数进了文件两次（`ruff` F811 抓住），已去重——**这个坑在本项目里已出现过，追加多行内容后必须数一次函数名出现次数**。
 
 **#173 至此收口**（①②已落地；③ `AgentJobDetail.tsx` 的取消按钮失败回读仍只刻画不修，需要先有真实 409 的回读路径）。
+
+## #174 repo-safety 遍历剪掉 vendored 依赖树——venv 里的 pem 文件不是仓库密钥
+
+**背景。** 开发者主机上 prepare 全被拒、同一仓库在干净 CI checkout 上却通过：检出位置决定了判决。根因是检出目录里可以带着**已安装**的依赖树（`.venv`/`node_modules`/`.m2`），这些树 vendor 出密钥材料形状的第三方文件——certifi 自带的 `cacert.pem` 是公开 CA bundle，任何 virtualenv 都把它放在 `site-packages` 下。密钥普查把它们当仓库密钥，于是主机上每次遍历都红；而且这些目录 git 忽略、根本不会进沙箱 worktree，体积检查也不该量它们。
+
+**修法。** `agent/repo_safety.py`（+67/-2）：`_VENDOR_DIR_EXACT`（venv/virtualenv/node_modules/site-packages/dist-packages/__pycache__/.tox/.nox/.m2/.gradle/.pypoetry/.mypy_cache/.ruff_cache/.pytest_cache 共 14 个无歧义名）+ 前缀 `.venv`/`.virtualenv`（盖住 `.venv312` 这类）；`_iter_repo_walk` 剪枝。**剪枝永不静默**：每次跳过记录目录名，受影响检查把清单写进 detail——"没找到禁文件"不得在"有一棵子树根本没读"时不说。`env/` 有意不剪（Python 项目里它是合理的**源**目录名）。
+
+**门证。** ruff/mypy 清；单测含 vendored 剪枝分支（fake 树 + 披露断言）。
+
+## #175 被吊销的缓存证书永远不再以 VERIFIED 服务——accept 重跑闭包、签发新证
+
+**背景。** `craft/accept.py` 的幂等键命中（同 job_id+head_sha+bundle digest）直接返回已存证书、不重跑——但证书可能在签发后被吊销（#149 的吊销日志）。缓存层绕过了 `evidence/certificate.py` 的强制条款："Verification MUST check the revocation log before trusting a certificate"。结果：吊销只拦住重验路径，拦不住幂等命中路径——VERIFIED 徽章可以来自一张已被吊销的证书。
+
+**修法。** 命中缓存后先算缓存证书的 canonical sha256（同时接受 in-toto 信封 `{"payload":...}` 与裸 `to_dict()` 两种盘上形状），查吊销日志：**不可读 = 视同吊销**（fail-closed，绝不服务）；日志文件不存在 = 无物可吊销，且**询问本身不得创建空日志文件**（`revocation_log.py` 新增无 I/O 的 `default_log_path()`，读路径先 `exists()` 再问）。被吊销/不可读则穿透缓存，闭包重跑、验证仍过就签发**新**证书——被吊销的字节永不返回。
+
+**门证。** `test_craft_accept.py` +105（吊销命中→重跑重签、不可读缓存→fail-closed、无日志不落文件等）；ruff/mypy 清。
+
+## #176 同仓关联键落库——repo_path 持久列 + 服务端过滤，面板读 store 不读内存
+
+**背景。** §30.2 登记的缺口收口：AI 任务面板的"同仓关联"此前是客户端过滤 + 进程内 metadata——重启即失忆，且列表接口不封顶时客户端过滤只看得到第一页。关联键（repo_path）是产品事实，却活在最易失的层。
+
+**修法。** 全链落地（8 文件 +359/-77）：迁移 `0011_agent_jobs.sql` 加 `repo_path` 列；`storage/agent_jobs.py` create 时写**分隔符归一化**的值、list 支持同归一化的服务端 `repo_path` 过滤；`api/routes/agent_console.py` 的 `_job_view`/`_summary_view` 以持久列为权威（journal 与 spec-embedded options 降为 pre-column 旧行的 fallback，且不把旧行谎报为 durable 匹配）；`GET /jobs` 新增 `repo_path` 查询参数并在响应 `filter` 里如实回显；前端 `SameRepoCraftPanel` 改读服务端过滤。顺带把 `util.ts` 的 `AWAITING_APPROVAL` 文案与后端对齐（"等待计划审批"，#173 种子之一）。注：本号与并行车道共享 `agent_console.py`/`agent_jobs.py`/`apps/web`——这是车道自己的号，禁碰清单所指是**别人的**未提交改动，本号提交时一并落库。
+
+**门证。** `test_agent_console_terminal_vocabulary_parity.py` +117（含 service 端过滤与列权威语义）；`SameRepoCraftPanel.test.tsx` 更新；ruff/mypy/tsc/vitest 清。
+
+## #177 ES round trip 获得专属延迟梯度与面板——golden-tag 验证器批量 parent 查询
+
+**背景。** §8.10 "ES 延迟"：`storage/elasticsearch.py` 的 16 个 client 调用点此前零观测——ES 请求落在毫秒到秒带（带 refresh 的 bulk、delete_by_query 可达秒级，ping 亚毫秒），而注册表默认梯度 60s 起步（为分钟级 job 设计），分位数不可测；顶格还必须有限：client 自己 `request_timeout=30`，超时请求若落 +Inf，分位数返回 NaN。
+
+**修法。** 模块级 `_ES_BUCKETS` 12 桶（0.005..30s，顶格对齐 request_timeout）；`_timed_es(op)` 上下文管理器 **finally 语义计时**（失败请求也计数——失败延迟是真实的延迟），名字 `es_request_seconds_<op>`（拼接族，同 worker stage 族形状），16 个调用点全包（op 词表：search/index/bulk/delete_by_query/count/ping/indices）。parity 门 `CONCATENATED_FAMILIES` 加 `es_op`——**词表不手抄**：派生测试从 `self.client.<op>` 调用点提取，新 op 强制门与族一起动；selector 防漂移测试钉 `__name__=~"specproof_es_request_seconds_[a-z_]+_bucket"` 与 0.95/0.50 两个分位数（拼错的选择器 = 静默空面板）。面板 23（per-op p50/p95，x=0,y=79）；OBSERVABILITY §8.10 未接线清单移出 ES 延迟。捎带：`scripts/verify_golden_tags.py` parent 查询批量、`apps/web/src/ui/errorHints.ts` 验收原因细分文案、DRILLS.md 重排。注：代码注释里的 "#169" 指 §8.10 清单条目语境，提交号 #169 已先行被验收原因文案占用——编号双关，如实登记。
+
+**门证。** 定向 pytest **16 passed**（`test_es_store` 4 含 `test_es_requests_are_timed_per_op`——断言五族 bounds 全等 `_ES_BUCKETS` 且 per-op count delta 精确：bulk/search/count/ping 各 1、indices 4（ensure+delete+re-ensure+exists 守卫）；parity 门 4；metrics_http 8）；ruff All checks passed；mypy `storage/elasticsearch.py` Success；面板 JSON 解析 23 panels、panel 23 双 target 均 `__name__=~` 选择器；exposition 端到端实测——真实 `_timed_es("search")` 落 `le="0.005"` 首桶、`observe_duration(..., 30.0)` 落 `le="30"` 有限顶桶、45s 落 +Inf、per-op 族名全部渲染。
