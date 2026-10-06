@@ -2380,3 +2380,34 @@ craft 的 `ERROR`），而全库没有一本门把「哪些命令按裁决退出
 1. `_CANCELLABLE_STATUSES` 是一份**死声明**（HEAD 全仓只有声明自身）：要么把 `_require_cancellable` 改成按它判定，要么删掉它。现在它既不做判定，又被本门当作前端活跃词表的镜像源——这个不对称本门已在话术里明说「钉的是词表，不是那条死集合的行为」，但真正修它需要 `api/routes/agent_console.py` 从并发车道手里空出来。
 2. `api/routes/agent_console.py:120 STATUS_LABELS`（六词中文/英文标签，注释自称 "mirrored by the SPA timeline"）是同一份 console 词表的**第三份枚举**，而那句 mirrored 没有任何门守着：`agent/util.ts::AGENT_STATUS_META` 是渲染权威，后端这份唯一的读点是 `:798` 的查询参数校验（不参与渲染），两者谁也不读谁。本门扫的是前端目录，后端这份不在普查范围内；把它接进 `console_mapped_tokens ↔ AGENT_STATUS_META ↔ STATUS_LABELS` 三方对账是下一号最便宜的活。注意别和 `apps/web/src/ui/StatusPill.tsx:19` 的同名 `STATUS_LABELS` 混为一份——那是 verify-job 通道，已由 `test_job_status_channel_parity.py` 看着。
 3. `AgentJobDetail.tsx` 的取消按钮仍用「非终态 ⇒ 可点」的口径，与服务端 `_require_cancellable` 一致，但 `:105` 那个 `disabled` 只看集合，没有覆盖「已在取消中」以外的失败回读；这一条要改得先有真实 409 的回读路径，暂时只刻画。
+
+## #173-2 落地：后端自己那份 `STATUS_LABELS` 的「mirrored by the SPA timeline」第一次有了证人
+
+**起点（#172 的 #173 种子第 2 条，原话是"下一号最便宜的活"）。** `api/routes/agent_console.py` 里还有**两份**本通道的枚举，而 #172 那道门两份都不读：它普查的是 `apps/web/src`，读前端的是 `web_status_meta_keys`。于是：
+
+- `STATUS_LABELS`（六词中文/英文标签）的注释自称 *"Human-readable status labels mirrored by the SPA timeline"* —— **一句没有任何门守着的声称**。实测今天它确实是逐字节镜像的（后端 `"已完成 Completed"` == 前端 `AGENT_STATUS_META.COMPLETED.label`），但"今天恰好一致"与"有人保证它一致"是两件事；任一侧单独改词，两个界面就会用不同的名字称呼同一个状态，而所有门照绿。
+- `_CONSOLE_TO_STORE_STATUS`（console 词 → 存储状态的过滤映射）是**唯一**把控制台筛选翻译成存储状态的地方：词表里有而这里没有的词会**静默筛不出任何东西**，不是词表的键则会接受一个控制台永远显示不出来的筛选。
+
+**改法（只加门，不动产品代码）。** 在 #172 那道门里补两个助手 + 两条断言，复用它的解析（`console_mapped_tokens()` 是映射权威，`_source`/`_string_literals` 同源）：
+
+- `backend_label_maps()`：AST 读 `STATUS_LABELS` 与 `_CONSOLE_TO_STORE_STATUS`（两份都是 `AnnAssign`，所以 `AnnAssign` 与 `Assign` 都要认；`_dict_pairs` 取键值对——`_string_literals` 对 Dict **只返回键**，这正是它读不出镜像关系的原因）。两个都要解析到，否则拒（"扫到 0 条"不能绿）。
+- `web_status_meta_labels()`：新正则 `_META_LABEL_RE` 读 `AGENT_STATUS_META` 的 **key → label**（#172 已有的 `_META_KEY_RE` 只读键，读不出"渲染的是哪个词"）。
+
+**两条门。**
+1. `test_the_backends_labels_are_the_ones_the_spa_renders`：`set(STATUS_LABELS) == console_mapped_tokens()`、`set(AGENT_STATUS_META) == console_mapped_tokens()`，**并且逐词** `STATUS_LABELS[t] == AGENT_STATUS_META[t].label`。第三句就是把那句 mirrored 从声称变成事实。
+2. `test_the_store_filter_map_covers_exactly_the_console_vocabulary`：`set(_CONSOLE_TO_STORE_STATUS) == console_mapped_tokens()`，双向。
+
+**四臂变异（预测先写后跑；`agent_console.py` 在并发车道的禁改清单里，所以四条臂全部只在冻结平面 `D:/面试项目/plane173` 上做，工作副本一字未碰）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| M1 | 后端 `STATUS_LABELS["COMPLETED"]` 改成「完成 Completed」 | 门1 红 | **1 red**，正是门1 ✅ |
+| M2 | 前端 `AGENT_STATUS_META.COMPLETED.label` 改成「完成 Completed」 | 门1 红 | **1 red**，正是门1 ✅ |
+| M3 | 给 `STATUS_LABELS` 塞一个映射从不产出的 `PAUSED` | 门1 红 | **1 red**，正是门1 ✅ |
+| M4 | 从 `_CONSOLE_TO_STORE_STATUS` 删掉 `CANCELLED` | 门2 红 | **1 red**，正是门2 ✅ |
+
+**过程中我自己制造过一次假警报，值得记下来。** 第一版臂脚本被 SIGTERM 打断，`finally` 没跑到，平面被留在**已变异**状态；下一次跑出来的 baseline 是红的（报 `labelled-but-unmapped ['PAUSED']`）。我差点把它当成"平面抓到一个真缺陷"——复核 `git show HEAD:api/routes/agent_console.py` 后确认 HEAD 里根本没有 `PAUSED`，是我自己的残留。修法是让每臂**从 `git show HEAD:<rel>` 重建原始字节**再施加变异（而不是依赖上一臂的还原），于是被杀掉的进程再也毒不到下一轮。重建后 baseline 绿、M4 也从"2 red"回到预测的"1 red"。
+
+**门证。** 平面身份实测：`PYTHONPATH` 钉平面根后 `api.agent_runtime.__file__` 与 `craft.loop.__file__` 都落在 `D:/面试项目/plane173` 内（venv 的 editable `.pth` 没有把它偷偷换回工作副本）。平面 baseline **10 passed / rc=0**；主树同文件 **10 passed**（#172 的 8 例 + 本批 2 例）；`ruff` All checks passed、`mypy` Success。臂脚本落在仓库外 `D:/面试项目/_arm173.py`。
+
+**#173 剩余两条（复核后仍挂起）**：① `_CANCELLABLE_STATUSES` 死声明要改 `_require_cancellable` 或删掉，仍需要 `api/routes/agent_console.py` 从并发车道手里空出来——**本批复核：该文件仍有未提交改动（+32/−9），继续不动**；③ `AgentJobDetail.tsx` 的取消按钮失败回读仍只刻画不修。
