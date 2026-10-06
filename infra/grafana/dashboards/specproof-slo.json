@@ -3021,7 +3021,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "intake 节点的验证计数 (agent/nodes/intake.py #186): runs/s 计总调用, repo_missing/s 计仓库路径不存在, spec_missing/s 计需求文件不存在, spec_read/s 计成功读取。repo_missing + spec_missing 是互斥的终端失败模式，解释为何作业从未到达后续节点（诚实归因，非静默丢弃）。",
+      "description": "intake 节点的验证计数 (agent/nodes/intake.py #186): runs/s 计总调用, repo_missing/s 计仓库路径不存在, spec_missing/s 计需求文件不存在, spec_read/s 计成功读取。两个检查彼此独立：缺仓库不停需求读取，一次运行可同时记 repo_missing 与 spec_read（#186b 行为测试钉住）。任一记录错误在 preflight 守卫处中止作业，解释为何作业从未到达后续节点（诚实归因，非静默丢弃）。",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3148,7 +3148,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "publish_report 节点的执行计数 (agent/nodes/publish_report.py #187): runs/s 计总调用, success/s 计成功生成 HTML + lineage 产物。两者差值即诚实失败——lineage/replay 构建失败或元数据管道故障会在 HTML 落地前丢弃作业。",
+      "description": "publish_report 节点的执行计数 (agent/nodes/publish_report.py #187): runs/s 计总调用, success/s 计成功生成 HTML + lineage 产物。两者差值即诚实失败——渲染/写盘失败，或 lineage 构建失败（发生在 HTML 落地之后：报告可能没有血缘文档）；元数据管道故障被 best-effort 吞掉、不动两计数（#187b 行为测试钉住）。",
       "fieldConfig": {
         "defaults": {
           "color": {

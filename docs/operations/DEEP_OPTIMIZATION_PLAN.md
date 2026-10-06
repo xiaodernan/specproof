@@ -2687,3 +2687,22 @@ def _require_cancellable(job):           # :685
     的最近绿跑复核 case-17/01 的 matched 语义。
 - 提交本号的码面（acceptance/eval/report 三文件 + 测试）与对账机制门证均
   不改变 findings 产出——纯聚合， MISS 现象非本号引入。
+
+
+### #186 intake 节点执行面计数（已落地 306687d；#186b 补行为证人）
+
+**落地面（306687d）。** `agent/nodes/intake.py` 四个计数：intake_runs_total（每次执行）、intake_repo_missing_total / intake_spec_missing_total（两个检查各自的失败）、intake_spec_read_total（成功读取）；同名 parity 家族（intake_validation）、仪表盘面板、OBSERVABILITY 条目随行落地。**落地时没有任何行为测试**——当时的"门证"只有 parity 门的名字对账（+10 行），与 #185 同型（见上文 #185b 账实订正）。
+
+**#186b 补行为见证（2026-10-07 提交）。** 新测试 `tests/unit/test_intake_execution_is_observable.py` 5 例直接驱动真节点（intake 只读文件系统，无需任何 stub；计数器用 delta 断言，注册表是进程全局）：①成功——runs+1、spec_read+1、requirement_text 与 errors 全断言；②缺仓库——runs+1、repo_missing+1、**spec_read 也 +1**；③缺需求——spec_missing+1、spec_read 恰 0、文本空串；④双缺——两个失败计数同一次运行同记、errors 恰 2 条；⑤上游 errors 存活（节点是追加不是替换）。实测 **5 passed**。
+
+**订正（行为测试证伪的散文，全部副本已改）。** 落地散文称"repo missing / spec missing / success 是互斥的（mutually exclusive）失败模式"——②与④实测否证：仓库与需求两个检查彼此独立（缺仓库不短路需求读取，一次运行可同时记 repo_missing 与 spec_read；两个失败计数亦可同记）。真实史实：任一记录错误都会让作业在 preflight 守卫（`agent/graph.py:_abort_on_preflight` 读累积 errors）处中止——"解释为何作业从未到达后续节点"半边成立，故保留。订正副本（单行 regex 曾漏掉换行的 intake.py 版本，逐处人工核对）：`intake.py` docstring＋两处行内注释、parity 家族描述、OBSERVABILITY.md 条目、仪表盘面板 description。
+
+### #187 publish_report 节点执行面计数（已落地 bafd22f；#187b 补行为证人）
+
+**落地面（bafd22f）。** `agent/nodes/publish_report.py` 两个计数：runs（每次尝试，在渲染前）、success（HTML + lineage 两个产物都写盘后）；parity 家族、仪表盘面板、OBSERVABILITY 条目随行落地。**落地时没有任何行为测试**（parity 门 +8 行）。
+
+**#187b 补行为见证（2026-10-07 提交）。** 新测试 `tests/unit/test_publish_report_execution_is_observable.py` 2 例驱动真节点——渲染器、lineage 构建、两次写盘全真跑；只 stub 元数据 sink（真 sink 连共享对象库）：①成功——runs+1、success+1、两产物都在盘上、lineage 文件名是 8 位 job slug（`job-185b-lineage.json`）而非时间戳、sink 恰见一对 replay_report 且 job_id 正确；②lineage 构建抛错——runs+1、success 不变、**HTML 已落地**（glob 非空）、无 lineage 文件、sink 0 调用。实测 **2 passed**。
+
+**订正（行为测试证伪的散文，全部副本已改）。** 落地散文称"lineage/replay 构建失败或元数据管道故障会在 **HTML 落地前**丢弃作业"——②实测两点否证：①HTML 写盘发生在 lineage 构建**之前**，lineage 失败时 HTML 已落地（不是"落地前丢弃"）；②元数据管道丢不了作业：`record_file_object_best_effort` 内部吞掉一切异常（object_metadata.py 文档即 "never raising"，288-306 行），且调用点在两个计数之后。订正副本：parity 家族描述、OBSERVABILITY.md 条目、仪表盘面板 description。
+
+**门证（#186b/#187b 合计，HEAD 5b84116）。** 定向 pytest **11 passed**＝intake 5＋publish 2＋parity 4（55.88s）；ruff 四 py 文件 All checks passed；仪表盘 JSON 仍可解析（33 panels）且 parity 门全绿（名字未动，仅 description 散文订正）。

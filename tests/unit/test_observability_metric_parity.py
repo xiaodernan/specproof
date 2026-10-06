@@ -173,17 +173,23 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         ),
         "agent/nodes/intake.py #186: intake_<word>_total at the intake node "
         "boundary — validation outcomes are repo missing / spec missing / "
-        "spec read success; runs counts every intake execution. These are "
-        "mutually exclusive failure modes that explain why jobs never reach "
-        "later nodes (honest attribution, not silent drops)",
+        "spec read success; runs counts every intake execution. The repo "
+        "and spec checks are independent per-check outcomes — one run can "
+        "tick repo_missing AND spec_read (a missing repo does not stop the "
+        "spec read; #186b pinned by behavior test). Recorded errors abort "
+        "the job at the preflight guard (honest attribution, not silent "
+        "drops)",
     ),
     "publish_report": (
         re.compile(r"^publish_report_(runs|success)_total$"),
         "agent/nodes/publish_report.py #187: publish_report_<word>_total at "
         "the publish_report node boundary — runs counts every report "
         "generation attempt, success counts completed artifact generation. "
-        "The gap between the two is honest: failed lineage/replay or "
-        "metadata plumbing failures drop the job before the HTML lands",
+        "The gap between the two is honest: a render/HTML-write failure "
+        "counts runs without success, and a lineage failure lands after "
+        "the HTML write, leaving the report without its lineage document "
+        "(#187b: pinned by behavior test; metadata plumbing failures are "
+        "swallowed and move neither counter)",
     ),
 }
 
