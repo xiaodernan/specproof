@@ -16,8 +16,9 @@ emitted by a scanned call site or match one of the hand-registered
 concatenated families (names the code builds at runtime — those cannot be
 listed exhaustively, only pattern-matched).
 
-Scope note: the source scan covers the four trees that own emission sites
-(agent/, api/, storage/, observability/). Emissions elsewhere would still
+Scope note: the source scan covers the trees that own emission sites —
+the list is EMIT_DIRS below, grown by the numbered task that wired each
+tree's first meter. Emissions elsewhere would still
 work at runtime; they are simply not part of this gate's inventory until they
 appear here — which is the same honesty rule OBSERVABILITY.md applies.
 """
@@ -36,8 +37,13 @@ ROOT = Path(__file__).resolve().parents[2]
 #: providers/budget.py, the same choke point the billing listener reads);
 #: craft/ joined in #178 (the tool-execution meters live in
 #: craft/executor.py's Executor.run choke point); evidence/ joined in #179
-#: (certificate issuance/refusal/notice meters in evidence/certificate.py).
-EMIT_DIRS = ("agent", "api", "craft", "evidence", "storage", "observability", "providers")
+#: (certificate issuance/refusal/notice meters in evidence/certificate.py);
+#: experiments/ joined in #181 (the sandbox run/failure/timeout counters
+#: live at JavaMavenAdapter.run's single run_sandboxed call site).
+EMIT_DIRS = (
+    "agent", "api", "craft", "evidence", "experiments",
+    "storage", "observability", "providers",
+)
 
 #: Reference surfaces: the two Prometheus files (plain text — comments are
 #: prose but a comment naming a dead metric misleads the same way) and every

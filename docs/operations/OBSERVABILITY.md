@@ -110,9 +110,14 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | 无证据严重评论=0 | 无指标 | ❌ 未接线 (由证据门禁保证, 不可观测) |
 | PR 归因准确率>=90% | 无指标 | ❌ 未接线 |
 
-§8.10 指标清单中未接线的:
-Redis 命中、Base/Head 沙箱失败 (sandbox/ 代码无指标注册,
-属 sandbox 子代理职责)。已收口的: 法庭判定聚合
+§8.10 指标清单中未接线的: Redis 命中
+（#168 判定诚实不接线——storage/redis.py 的 LLM 缓存零调用点）。
+已收口的: Base/Head 沙箱失败
+（#181 接线, experiments/adapters.py 的 JavaMavenAdapter.run 咽喉点——产品树里
+唯一的 run_sandboxed 调用点, sandbox/ 本体保持无指标不动其所有权边界:
+sandbox_runs_total 计每次到达沙箱的运行, sandbox_failures_total 计 error 非空
+（沙箱 runner 自己的 "无法跑完" 契约）, sandbox_timeouts_total 用与 #178 同源的
+"timed out after" 公共子串判超时——spawn 错误计入失败不冒充超时）、法庭判定聚合
 （#180 接线, agent/nodes/review_court.py 的 run_review_court 节点边界:
 findings_court_candidates_total 计进入法庭的候选, findings_court_<outcome>_total
 计四类判定——confirmed/needs_confirmation/not_attributed/skipped, 词表 = policy 层
@@ -155,6 +160,7 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 - `craft/executor.py`（#178 起）：`Executor.run` 咽喉点的 `_timed_tool` 包住每次 run_sandboxed, 拼接族 specproof_tool_run_seconds_<stem>（stem ∈ ALLOWED_COMMANDS 白名单 mvn/gradle/npm/pytest/python/cargo, 对账门 import 该常量钉死; CRAFT_EXTRA_COMMANDS 运行时扩展的词干同样进族, 面板用通配 selector 覆盖）。直方图梯度 0.5..3600s——亚秒往返到 10 分钟默认超时全程有分辨率, 顶格对齐工具 API 的 timeout 上限 (Param max_value=3600), 超时执行也落有限桶（分位数不落 +Inf）。计时含失败执行（finally 语义）。超时另计 specproof_tool_timeouts_total: 判据是两类沙箱超时文案的公共子串 "timed out after", spawn 错误等其他沙箱失败不冒充超时。
 - `evidence/certificate.py`（#179 起）：`issue_certificate` 的 VERIFIED 出口 incr specproof_certificates_issued_total、非 VERIFIED 出口 incr specproof_certificates_refused_total（refused 即 BLOCKED+FAILED 之和, 判定词表封闭）；`build_rejection_notice` incr specproof_rejection_notices_total——实际写出拒绝单的计数, 与「判定未过」语义分开（调用者可拒绝而不写单）。签发率 = issued 与 refused 两条 rate 的比值, §14 无证书阈值故无告警。
 - `agent/nodes/review_court.py`（#180 起）：`run_review_court` 节点边界的判定聚合——findings_court_candidates_total（进入法庭的候选数）与 findings_court_<outcome>_total 四词族（confirmed / needs_confirmation / not_attributed / skipped, 词表 = policy 层封闭的 COURT_OUTCOMES, 对账门 import 该常量钉死）。确认率 = confirmed 与 candidates 两条 rate 的比值, 是 §14 BLOCKER/MAJOR Precision 的线上前置; 真精度需评测集 ground truth（bench_replay 离线）, §14 阈值故无告警。
+- `experiments/adapters.py`（#181 起）：`JavaMavenAdapter.run` 咽喉点（产品树里唯一的 run_sandboxed 调用点, Base/Head 差分与 self-test 全部过此点）计 sandbox_runs_total / sandbox_failures_total / sandbox_timeouts_total。failure 判据是沙箱 runner 的 error 非空契约; timeout 判据与 #178 同源（"timed out after" 公共子串）, spawn 错误不冒充超时; sandbox/ 本体保持无指标（所有权边界不动）。§14 无沙箱失败率阈值故无告警。
 - `storage/notify_relay.py`（#16.6-1，`SPECPROOF_NOTIFY_OUTBOX=1` 时的 webhook 投递车道）：仪表 specproof_notify_outbox_pending、specproof_notify_outbox_oldest_age_seconds、specproof_notify_outbox_retry_count、specproof_notify_outbox_dead_letters、specproof_notify_outbox_last_success_ts；计数 specproof_notify_outbox_delivered_total、specproof_notify_outbox_failed_total、specproof_notify_outbox_dead_lettered_total。入车道侧（K 收口后）由 `storage/mysql.py::transition_job_status_with_notify` 在终态写同事务内上报：specproof_notify_outbox_enqueued_total（意图入库成功）与 specproof_notify_outbox_intent_lost_total（意图入库失败——终态照常落库，通知降级为丢，绝不回滚终态）。
 
 另有一类**第三方指标**不在本对账内：`rabbitmq_*`（RabbitMQ 自带插件 rabbitmq_prometheus 的输出，#165 起 prometheus.yml 的 rabbitmq 抓取任务经 /metrics/per-object 供给；队列级深度 rabbitmq_queue_messages / _ready / _unacked 带 vhost/queue label）。对账门的 specproof_* regex 天然扫不到它们——第三方名的真伪只能靠抓取目标 up 与实际查询验证（#165 已实测 15692 存活、per-queue 序列与 rabbitmqctl 对数一致）。

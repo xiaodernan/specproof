@@ -398,3 +398,64 @@ def test_detect_functions_exist_for_planned_adapters() -> None:
         with pytest.raises(AdapterNotImplemented, match="planned"):
             fn(RepositorySnapshot(path="."))
 
+
+
+# ── #181: adapter-mediated sandbox runs are observable ──────────────────
+
+
+def _counter(name: str) -> int:
+    from observability.metrics import snapshot
+
+    # the registry stores bare names; render_text adds the specproof_ prefix
+    return int(snapshot()["counters"].get(name, 0))
+
+
+class TestSandboxRunCounters:
+    def test_run_counts_success_failure_and_timeout_arms(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import experiments.adapters as adapters
+
+        adapter = JavaMavenAdapter()
+        prepared = adapter.prepare(
+            ExecutionRequest(workspace=str(tmp_path), goal="run_test", test_class="T")
+        )
+        before_runs = _counter("sandbox_runs_total")
+        before_failures = _counter("sandbox_failures_total")
+        before_timeouts = _counter("sandbox_timeouts_total")
+
+        # Arm 1: clean run — runs +1, failures +0.
+        monkeypatch.setattr(
+            adapters, "run_sandboxed",
+            lambda *args, **kwargs: _fake_sandbox_result(exit_code=0),
+        )
+        adapter.run(prepared)
+        assert _counter("sandbox_runs_total") == before_runs + 1
+        assert _counter("sandbox_failures_total") == before_failures
+        assert _counter("sandbox_timeouts_total") == before_timeouts
+
+        # Arm 2: spawn failure (docker daemon unreachable) — failures +1,
+        # timeouts +0 (spawn errors do not impersonate timeouts).
+        monkeypatch.setattr(
+            adapters, "run_sandboxed",
+            lambda *args, **kwargs: _fake_sandbox_result(
+                exit_code=-1, error="docker daemon unreachable",
+            ),
+        )
+        adapter.run(prepared)
+        assert _counter("sandbox_runs_total") == before_runs + 2
+        assert _counter("sandbox_failures_total") == before_failures + 1
+        assert _counter("sandbox_timeouts_total") == before_timeouts
+
+        # Arm 3: timeout — a timeout IS a failure (the run did not complete),
+        # so failures and timeouts both move.
+        monkeypatch.setattr(
+            adapters, "run_sandboxed",
+            lambda *args, **kwargs: _fake_sandbox_result(
+                exit_code=-1, error="sandbox execution timed out after 900s",
+            ),
+        )
+        adapter.run(prepared)
+        assert _counter("sandbox_runs_total") == before_runs + 3
+        assert _counter("sandbox_failures_total") == before_failures + 2
+        assert _counter("sandbox_timeouts_total") == before_timeouts + 1

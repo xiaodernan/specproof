@@ -47,6 +47,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
+from observability.metrics import incr
 from sandbox.runner import (
     DEFAULT_M2_VOLUME,
     DEFAULT_NODE_IMAGE,
@@ -525,6 +526,20 @@ class JavaMavenAdapter:
             mode=prepared.sandbox_mode,
             local_command=prepared.local_command,
         )
+        # §8.10 "Base/Head 沙箱失败" (#181): counted after the call returns —
+        # a failed sandbox run is still a run. error non-empty = the sandbox
+        # runner's own "could not run to completion" contract; the timeout
+        # judge is the same public substring both sandbox backends put in
+        # their error text as craft/executor.py's tool_timeouts_total (#178),
+        # so a spawn error counts as a failure but never impersonates a
+        # timeout. sandbox/ itself stays metric-free (its documented
+        # ownership boundary) — the counters live at the product tree's
+        # single run_sandboxed call site.
+        incr("sandbox_runs_total")
+        if sandbox_result.error:
+            incr("sandbox_failures_total")
+            if "timed out after" in sandbox_result.error:
+                incr("sandbox_timeouts_total")
         prepared.result = ExecutionResult(
             exit_code=sandbox_result.exit_code,
             stdout_tail=_tail(sandbox_result.stdout),

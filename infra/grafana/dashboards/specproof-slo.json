@@ -2413,6 +2413,120 @@
         "range": true,
         "instant": false,
         "refId": "E"
+        }
+      ]    },
+    {
+      "id": 27,
+      "type": "timeseries",
+      "title": "沙箱执行结果 (§8.10: Base/Head 沙箱失败)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Base/Head 沙箱执行的可观测性 (experiments/adapters.py 的 JavaMavenAdapter.run, #181 接线——产品树里唯一的 run_sandboxed 调用点, Base/Head 差分与 self-test 全部过此点): sandbox_runs_total 计每次到达沙箱的运行, sandbox_failures_total 计 error 非空 (沙箱 runner 自己的 无法跑完 契约), sandbox_timeouts_total 用与 #178 tool_timeouts_total 同源的 timed out after 公共子串——spawn 错误计入失败不冒充超时。失败率 = failures 与 runs 两条 rate 的比值。sandbox/ 本体保持无指标 (所有权边界不动)。§14 无沙箱失败率阈值, 故无告警。无差分运行前无序列, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 95
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_sandbox_runs_total[15m])",
+        "legendFormat": "runs/s",
+        "range": true,
+        "instant": false,
+        "refId": "A"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_sandbox_failures_total[15m])",
+        "legendFormat": "failures/s",
+        "range": true,
+        "instant": false,
+        "refId": "B"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_sandbox_timeouts_total[15m])",
+        "legendFormat": "timeouts/s",
+        "range": true,
+        "instant": false,
+        "refId": "C"
       }
       ]
     }
