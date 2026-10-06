@@ -1,23 +1,17 @@
 // Phase 3.4 (开发与验收链路缝合): from a verification job's detail page, the
 // AI-development jobs recorded for the SAME repository path are one click
-// away. The join key is the exact repo path — there is no foreign key
-// between the two lanes — so the panel says exactly that, and the metadata
-// it matches on is recorded by the running service process (agent console
-// meta), which the note states instead of implying a permanent relation.
+// away. The join key is the repo path — there is no foreign key between the
+// two lanes — and since §30.2 持久化关联 the path lives as a durable,
+// separator-normalized agent_jobs.repo_path column: this panel asks the
+// server to filter on it (one request, no client-side filtering) instead of
+// matching over the first page of an uncapped list with in-process metadata
+// that a restart forgot. Rows created before the column existed carry no
+// durable path and are honestly absent here — the note says so.
 import { useEffect, useState } from "react";
 
 import { listAgentJobs, type AgentJobSummary } from "../api";
 import { agentStatusMeta } from "../agent/util";
 import { Empty, ErrorBox, Panel, Spinner, Table, fmtTime, shortId } from "../ui";
-
-function normalizeRepoPath(path: string): string {
-  // Windows paths mix separators AND double them (a JSX string attribute
-  // passes backslashes through verbatim, so "D:\\repo" really carries two).
-  // Collapsing runs of separators to one "/" is the robust normal form;
-  // case is left alone — an exact-name mismatch is a real difference the
-  // reader can see in the note, not something to hide.
-  return path.replace(/[\\/]+/g, "/").replace(/\/+$/, "");
-}
 
 export function SameRepoCraftPanel(props: { repoPath?: string | null }) {
   const repoPath = props.repoPath || "";
@@ -29,15 +23,11 @@ export function SameRepoCraftPanel(props: { repoPath?: string | null }) {
     let alive = true;
     setJobs(null);
     setFailed(false);
-    listAgentJobs()
+    listAgentJobs(undefined, repoPath)
       .then((res) => {
         if (!alive) return;
-        const wanted = normalizeRepoPath(repoPath);
-        setJobs(
-          res.jobs.filter(
-            (j) => normalizeRepoPath(j.repo_path || "") === wanted,
-          ),
-        );
+        // The server matched on the durable repo_path column; no client-side filter.
+        setJobs(res.jobs);
       })
       .catch(() => {
         if (alive) setFailed(true);
@@ -77,9 +67,10 @@ export function SameRepoCraftPanel(props: { repoPath?: string | null }) {
   return (
     <Panel title="AI 开发任务（同仓库）">
       <p className="muted" style={{ marginTop: 0 }}>
-        按仓库路径精确匹配本次验证的 <code>{repoPath}</code>，仅涵盖本服务
-        进程记录的开发任务元数据（最近列表内）；两条链路之间没有外键，这里
-        不是因果断言，只是同一仓库的工作对照。
+        开发任务创建时登记的仓库路径（已归一分隔符，大小写不作归一）与本仓库
+        <code>{repoPath}</code> 持久化匹配，重启后依然可查。两条链路之间没有
+        外键，这里不是因果断言，只是同一仓库的工作对照；在本字段启用前创建的
+        旧记录可能没有登记路径，因而不在此列出。
       </p>
       {failed ? (
         <ErrorBox error="开发任务列表暂时无法读取（请求失败）— 这不代表没有同仓库任务，请稍后重试。" />

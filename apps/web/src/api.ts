@@ -907,14 +907,25 @@ export function openAgentEventStream(
 }
 
 export function listAgentJobs(
-  status?: string
-): Promise<{ jobs: AgentJobSummary[]; count: number; filter: { status: string | null } }> {
-  const q = status && status !== "ALL" ? "?status=" + encodeURIComponent(status) : "";
+  status?: string,
+  repoPath?: string
+): Promise<{
+  jobs: AgentJobSummary[];
+  count: number;
+  filter: { status: string | null; repo_path: string | null };
+}> {
+  // repoPath (§30.2 持久化关联) asks the server to filter on the durable,
+  // separator-normalized agent_jobs.repo_path column — one request answers
+  // "which AI-dev jobs ran on this repo", no client-side filtering needed.
+  const params = new URLSearchParams();
+  if (status && status !== "ALL") params.set("status", status);
+  if (repoPath) params.set("repo_path", repoPath);
+  const q = params.toString();
   return apiGet<{
     jobs: AgentJobSummary[];
     count: number;
-    filter: { status: string | null };
-  }>("/agent/jobs" + q);
+    filter: { status: string | null; repo_path: string | null };
+  }>("/agent/jobs" + (q ? "?" + q : ""));
 }
 
 export function getAgentJob(jobId: string): Promise<{ job: AgentJob }> {

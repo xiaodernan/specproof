@@ -24,10 +24,13 @@ Agent-Plan task 3 module — InMemory/SQLite/MySQL backends behind one
 protocol with create/get/list/update_status/set_plan/set_progress/lease/
 renew/release/cancel). The backend is chosen at import via
 SPECPROOF_AGENT_JOBS_URL ("" = in-memory; "sqlite:<path>" = SQLite;
-"mysql://..." = MySQL) and fails closed on an unknown scheme. Console-only
-state that the job store deliberately does not own — repo_path/task_name
-metadata, the SSE event log, approval records and the change bundle — is
-kept in a transactional SQL journal beside it, using the same configured backend.
+"mysql://..." = MySQL) and fails closed on an unknown scheme. Since §30.2
+持久化关联 the store also owns the separator-normalized repo_path as a
+durable column (create-time write, list-time filter), so the same-repo
+panel on the verification page no longer depends on in-process metadata.
+Console-only state the job store still does not own — task_name metadata,
+the SSE event log, approval records and the change bundle — is kept in a
+transactional SQL journal beside it, using the same configured backend.
 The recent event window is bounded and SSE reads use keyset pagination.
 
 Console status vocabulary is a stable API surface mapped onto the store's
@@ -479,6 +482,10 @@ def _job_view(job: AgentJob) -> dict[str, Any]:
     if options:
         meta = {**meta, "repo_path": options.get("repo_path", meta["repo_path"]),
                 "task_name": options.get("task_name") or meta["task_name"]}
+    # §30.2 持久化关联: the durable column is the authority; the journal and
+    # the spec-embedded options remain fallbacks for pre-column rows.
+    if job.repo_path:
+        meta = {**meta, "repo_path": job.repo_path}
     return {
         "id": job.id,
         "task_name": meta["task_name"],
@@ -518,7 +525,10 @@ def _summary_view(job: AgentJob, metadata: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": job.id,
         "task_name": options.get("task_name") or metadata.get("task_name", job.id),
-        "repo_path": options.get("repo_path") or metadata.get("repo_path", ""),
+        # §30.2 持久化关联: durable column first; journal/spec fallbacks keep
+        # pre-column rows visible.
+        "repo_path": job.repo_path or options.get("repo_path")
+        or metadata.get("repo_path", ""),
         "status": _console_status(job),
         "plan_steps": len(plan.get("steps", [])),
         "events_count": metadata.get("last_seq", 0),
@@ -748,7 +758,7 @@ def create_agent_job(payload: AgentJobCreateRequest) -> dict[str, Any]:
         }
         spec_text = json.dumps(document, ensure_ascii=False)
     try:
-        job = get_store().create(job_id, spec_text)
+        job = get_store().create(job_id, spec_text, repo_path=repo_path or None)
     except Exception as exc:  # noqa: BLE001 — backend down must reject honestly
         logger.exception("Failed to persist agent job")
         raise ApiError(
@@ -772,10 +782,19 @@ def create_agent_job(payload: AgentJobCreateRequest) -> dict[str, Any]:
 @router.get("/jobs")
 def list_agent_jobs(
     status: str | None = None,
+    repo_path: str | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 200,
     offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
 ) -> dict[str, Any]:
-    """List agent jobs, optionally filtered by exact console status."""
+    """List agent jobs, optionally filtered by exact console status.
+
+    repo_path (§30.2 持久化关联) filters server-side on the durable,
+    separator-normalized column — the same normalization create() applied —
+    so a same-repo query is answered from the store, not from a client-side
+    filter over the first page of the uncapped list. Rows created before
+    the column existed carry NULL and are matched only by the client's
+    fallback over the console journal, never claimed as durable matches.
+    """
     if status is not None and status not in STATUS_LABELS:
         raise ApiError(
             status_code=422,
@@ -784,7 +803,10 @@ def list_agent_jobs(
         )
     store_status = _store_status_for_filter(status)
     try:
-        rows = get_store().list(status=store_status, limit=limit + 1, offset=offset)
+        rows = get_store().list(
+            status=store_status, repo_path=repo_path or None,
+            limit=limit + 1, offset=offset,
+        )
     except AgentJobStoreError as exc:
         raise ApiError(
             status_code=503,
@@ -801,7 +823,8 @@ def list_agent_jobs(
         if status != "PLANNING" or not job.plan_json
         if status != "AWAITING_APPROVAL" or job.plan_json
     ]
-    return {"jobs": summaries, "count": len(summaries), "filter": {"status": status},
+    return {"jobs": summaries, "count": len(summaries),
+            "filter": {"status": status, "repo_path": repo_path or None},
             "next_offset": offset + limit if len(rows) > limit else None}
 
 

@@ -20,7 +20,16 @@ the canonical status tuple by a consistency test.
 Job record fields: id, status (pending/running/succeeded/failed/cancelled),
 spec_text, spec_digest (sha256 hex), plan_json, current_step, progress_json,
 lease_owner, lease_expires_at (epoch seconds), started_at, finished_at,
-result_json, accept_json, error, created_at, updated_at.
+result_json, accept_json, error, created_at, updated_at, repo_path.
+
+'repo_path' (§30.2 持久化关联) is the separator-normalized repository path
+the job was created for — the join key between the development lane and the
+verification lane. Normalization collapses separator runs to one "/" and
+strips trailing separators; case is PRESERVED (a differently-cased name is a
+real difference a reader can see, not noise to hide). It is recorded at
+create() time and filtered with the same normalization on list(); rows
+created before the column existed carry NULL and keep resolving their path
+through the console journal at the API layer.
 
 W35.1: 'attach_accept_result' is the post-hoc accept projection — the ONLY
 write allowed on a terminal job. It targets succeeded/failed exclusively
@@ -39,6 +48,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -77,6 +87,17 @@ _STATUS_VALUES: frozenset[str] = frozenset(JOB_STATUSES)
 def compute_spec_digest(spec_text: str) -> str:
     """SHA-256 hex digest of the spec text — the stored 'spec_digest'."""
     return hashlib.sha256(spec_text.encode("utf-8")).hexdigest()
+
+
+def normalize_repo_path(path: str) -> str:
+    """Canonical join-key form for repository paths (§30.2 持久化关联).
+
+    Separator runs — mixed and paired backslashes included ("D:\\repo" is a
+    literal double backslash in a JSX string attribute) — collapse to one
+    "/" and trailing separators drop. Case is PRESERVED: a differently
+    cased name is a visible real difference, not noise to hide.
+    """
+    return re.sub(r"[\\/]+", "/", path).rstrip("/")
 
 
 class AgentJobStoreError(RuntimeError):
@@ -123,6 +144,7 @@ class AgentJob:
     result_json: str | None = None
     accept_json: str | None = None
     error: str | None = None
+    repo_path: str | None = None
 
 
 class AgentJobStore(Protocol):
@@ -136,8 +158,14 @@ class AgentJobStore(Protocol):
     projection to a succeeded/failed job only, first write wins.
     """
 
-    def create(self, job_id: str, spec_text: str) -> AgentJob:
+    def create(
+        self, job_id: str, spec_text: str, repo_path: str | None = None
+    ) -> AgentJob:
         """Insert a pending job; 'spec_digest' is always sha256(spec_text).
+
+        'repo_path' (§30.2 持久化关联) is stored in its separator-normalized
+        form when given; None/blank leaves the column NULL (the API layer
+        keeps resolving legacy paths through the console journal).
 
         Raises JobAlreadyExistsError when 'job_id' is already taken.
         """
@@ -151,12 +179,15 @@ class AgentJobStore(Protocol):
         self,
         *,
         status: JobStatus | None = None,
+        repo_path: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[AgentJob]:
         """Return jobs ordered by 'created_at' then 'id'.
 
-        'status' filters when given; limit >= 1 and offset >= 0 are
+        'status' and 'repo_path' filter when given; 'repo_path' is matched
+        after the same separator normalization create() applies (exact
+        match; case is preserved). limit >= 1 and offset >= 0 are
         enforced (ValueError otherwise).
         """
         ...
@@ -281,6 +312,7 @@ _SCHEMA_SQL: str = (
     "finished_at DOUBLE, "
     "result_json TEXT, "
     "accept_json TEXT, "
+    "repo_path TEXT, "
     "error TEXT, "
     "created_at DOUBLE NOT NULL, "
     "updated_at DOUBLE NOT NULL)"
@@ -295,31 +327,61 @@ _ADD_ACCEPT_JSON_COLUMN_SQL: str = (
     "ALTER TABLE agent_jobs ADD COLUMN accept_json TEXT"
 )
 
+# §30.2 持久化关联: same upgrade pattern as accept_json — installs whose
+# agent_jobs table predates the repo_path column get the static ALTER
+# best-effort in ensure_schema(); fresh installs already carry the column
+# in _SCHEMA_SQL (mirrored by migration 0011).
+_ADD_REPO_PATH_COLUMN_SQL: str = (
+    "ALTER TABLE agent_jobs ADD COLUMN repo_path TEXT"
+)
+
 _INSERT_SQL: str = (
     "INSERT INTO agent_jobs "
-    "(id, status, spec_text, spec_digest, created_at, updated_at) "
-    "VALUES (?, 'pending', ?, ?, ?, ?)"
+    "(id, status, spec_text, spec_digest, repo_path, created_at, updated_at) "
+    "VALUES (?, 'pending', ?, ?, ?, ?, ?)"
 )
 
 _SELECT_BY_ID_SQL: str = (
     "SELECT id, status, spec_text, spec_digest, plan_json, current_step, "
     "progress_json, lease_owner, lease_expires_at, started_at, finished_at, "
-    "result_json, accept_json, error, created_at, updated_at "
+    "result_json, accept_json, repo_path, error, created_at, updated_at "
     "FROM agent_jobs WHERE id = ?"
 )
 
 _LIST_SQL: str = (
     "SELECT id, status, spec_text, spec_digest, plan_json, current_step, "
     "progress_json, lease_owner, lease_expires_at, started_at, finished_at, "
-    "result_json, accept_json, error, created_at, updated_at FROM agent_jobs "
+    "result_json, accept_json, repo_path, error, created_at, updated_at "
+    "FROM agent_jobs "
     "ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?"
 )
 
 _LIST_BY_STATUS_SQL: str = (
     "SELECT id, status, spec_text, spec_digest, plan_json, current_step, "
     "progress_json, lease_owner, lease_expires_at, started_at, finished_at, "
-    "result_json, accept_json, error, created_at, updated_at FROM agent_jobs "
+    "result_json, accept_json, repo_path, error, created_at, updated_at "
+    "FROM agent_jobs "
     "WHERE status = ? ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?"
+)
+
+# §30.2 持久化关联: server-side same-repo filter. The value is normalized
+# by list() before binding, matching the normalization create() applied —
+# the statement itself stays fully static (value through a placeholder).
+_LIST_BY_REPO_SQL: str = (
+    "SELECT id, status, spec_text, spec_digest, plan_json, current_step, "
+    "progress_json, lease_owner, lease_expires_at, started_at, finished_at, "
+    "result_json, accept_json, repo_path, error, created_at, updated_at "
+    "FROM agent_jobs "
+    "WHERE repo_path = ? ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?"
+)
+
+_LIST_BY_STATUS_REPO_SQL: str = (
+    "SELECT id, status, spec_text, spec_digest, plan_json, current_step, "
+    "progress_json, lease_owner, lease_expires_at, started_at, finished_at, "
+    "result_json, accept_json, repo_path, error, created_at, updated_at "
+    "FROM agent_jobs "
+    "WHERE status = ? AND repo_path = ? "
+    "ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?"
 )
 
 _LEASE_SQL: str = (
@@ -406,6 +468,13 @@ def _validate_list_args(limit: int, offset: int) -> None:
         raise ValueError(f"offset must be >= 0, got {offset}")
 
 
+def _normalized_repo_path(repo_path: str | None) -> str | None:
+    """Blank stays NULL; otherwise the canonical join-key form."""
+    if repo_path is None or not repo_path.strip():
+        return None
+    return normalize_repo_path(repo_path.strip())
+
+
 def _denied_or_missing(job: AgentJob | None, job_id: str) -> bool:
     if job is None:
         raise JobNotFoundError(f"agent job {job_id!r} not found")
@@ -438,6 +507,7 @@ def _row_to_job(row: Any) -> AgentJob:
         error=_opt_str(row["error"]),
         created_at=float(row["created_at"]),
         updated_at=float(row["updated_at"]),
+        repo_path=_opt_str(row["repo_path"]),
     )
 
 
@@ -545,7 +615,9 @@ class InMemoryAgentJobStore:
     def close(self) -> None:
         """No-op: nothing to release."""
 
-    def create(self, job_id: str, spec_text: str) -> AgentJob:
+    def create(
+        self, job_id: str, spec_text: str, repo_path: str | None = None
+    ) -> AgentJob:
         now = self._now_fn()
         job = AgentJob(
             id=job_id,
@@ -554,6 +626,7 @@ class InMemoryAgentJobStore:
             spec_digest=compute_spec_digest(spec_text),
             created_at=now,
             updated_at=now,
+            repo_path=_normalized_repo_path(repo_path),
         )
         with self._lock:
             if job_id in self._jobs:
@@ -569,13 +642,18 @@ class InMemoryAgentJobStore:
         self,
         *,
         status: JobStatus | None = None,
+        repo_path: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[AgentJob]:
         _validate_list_args(limit, offset)
+        wanted_path = _normalized_repo_path(repo_path)
         with self._lock:
             matching = [
-                job for job in self._jobs.values() if status is None or job.status == status
+                job
+                for job in self._jobs.values()
+                if (status is None or job.status == status)
+                and (wanted_path is None or job.repo_path == wanted_path)
             ]
             matching.sort(key=lambda job: (job.created_at, job.id))
             return matching[offset : offset + limit]
@@ -780,6 +858,7 @@ class SqliteAgentJobStore:
         with self._lock, self._conn:
             self._conn.execute(_SCHEMA_SQL)
             self._ensure_accept_json_column()
+            self._ensure_repo_path_column()
 
     def _ensure_accept_json_column(self) -> None:
         """Upgrade path for pre-W35.1 databases (best effort).
@@ -793,16 +872,32 @@ class SqliteAgentJobStore:
         with suppress(sqlite3.OperationalError):
             self._conn.execute(_ADD_ACCEPT_JSON_COLUMN_SQL)
 
+    def _ensure_repo_path_column(self) -> None:
+        """Upgrade path for pre-§30.2 databases (best effort).
+
+        Same contract as _ensure_accept_json_column: the static ALTER is a
+        no-op on fresh schemas and the duplicate-column error from a schema
+        that already carries repo_path is swallowed.
+        """
+        # duplicate column: the table already carries repo_path
+        with suppress(sqlite3.OperationalError):
+            self._conn.execute(_ADD_REPO_PATH_COLUMN_SQL)
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()
 
-    def create(self, job_id: str, spec_text: str) -> AgentJob:
+    def create(
+        self, job_id: str, spec_text: str, repo_path: str | None = None
+    ) -> AgentJob:
         now = self._now_fn()
         digest = compute_spec_digest(spec_text)
+        stored_path = _normalized_repo_path(repo_path)
         with self._lock, self._conn:
             try:
-                self._conn.execute(_INSERT_SQL, (job_id, spec_text, digest, now, now))
+                self._conn.execute(
+                    _INSERT_SQL, (job_id, spec_text, digest, stored_path, now, now)
+                )
             except sqlite3.IntegrityError as exc:
                 raise JobAlreadyExistsError(
                     f"agent job {job_id!r} already exists"
@@ -814,6 +909,7 @@ class SqliteAgentJobStore:
             spec_digest=compute_spec_digest(spec_text),
             created_at=now,
             updated_at=now,
+            repo_path=stored_path,
         )
 
     def get(self, job_id: str) -> AgentJob | None:
@@ -825,13 +921,21 @@ class SqliteAgentJobStore:
         self,
         *,
         status: JobStatus | None = None,
+        repo_path: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[AgentJob]:
         _validate_list_args(limit, offset)
-        if status is not None:
+        wanted_path = _normalized_repo_path(repo_path)
+        if status is not None and wanted_path is not None:
+            sql = _LIST_BY_STATUS_REPO_SQL
+            params: tuple[Any, ...] = (status, wanted_path, limit, offset)
+        elif status is not None:
             sql = _LIST_BY_STATUS_SQL
-            params: tuple[Any, ...] = (status, limit, offset)
+            params = (status, limit, offset)
+        elif wanted_path is not None:
+            sql = _LIST_BY_REPO_SQL
+            params = (wanted_path, limit, offset)
         else:
             sql = _LIST_SQL
             params = (limit, offset)
@@ -995,15 +1099,22 @@ class MySqlAgentJobStore:
             # pre-W35.1 upgrade: static ALTER, duplicate column (1060) only
             with suppress(pymysql.err.OperationalError):
                 cur.execute(_to_mysql(_ADD_ACCEPT_JSON_COLUMN_SQL))
+            # pre-§30.2 upgrade: same pattern for the repo_path column
+            with suppress(pymysql.err.OperationalError):
+                cur.execute(_to_mysql(_ADD_REPO_PATH_COLUMN_SQL))
 
-    def create(self, job_id: str, spec_text: str) -> AgentJob:
+    def create(
+        self, job_id: str, spec_text: str, repo_path: str | None = None
+    ) -> AgentJob:
         now = self._now_fn()
         digest = compute_spec_digest(spec_text)
+        stored_path = _normalized_repo_path(repo_path)
         with self.connection() as conn:
             cur = conn.cursor()
             try:
                 cur.execute(
-                    _to_mysql(_INSERT_SQL), (job_id, spec_text, digest, now, now)
+                    _to_mysql(_INSERT_SQL),
+                    (job_id, spec_text, digest, stored_path, now, now),
                 )
             except pymysql.err.IntegrityError as exc:
                 raise JobAlreadyExistsError(
@@ -1016,6 +1127,7 @@ class MySqlAgentJobStore:
             spec_digest=digest,
             created_at=now,
             updated_at=now,
+            repo_path=stored_path,
         )
 
     def get(self, job_id: str) -> AgentJob | None:
@@ -1031,13 +1143,21 @@ class MySqlAgentJobStore:
         self,
         *,
         status: JobStatus | None = None,
+        repo_path: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[AgentJob]:
         _validate_list_args(limit, offset)
-        if status is not None:
+        wanted_path = _normalized_repo_path(repo_path)
+        if status is not None and wanted_path is not None:
+            sql = _LIST_BY_STATUS_REPO_SQL
+            params: tuple[Any, ...] = (status, wanted_path, limit, offset)
+        elif status is not None:
             sql = _LIST_BY_STATUS_SQL
-            params: tuple[Any, ...] = (status, limit, offset)
+            params = (status, limit, offset)
+        elif wanted_path is not None:
+            sql = _LIST_BY_REPO_SQL
+            params = (wanted_path, limit, offset)
         else:
             sql = _LIST_SQL
             params = (limit, offset)

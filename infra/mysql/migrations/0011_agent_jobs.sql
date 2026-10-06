@@ -13,4 +13,11 @@
 -- other), so it is a no-op on an existing installation and authoritative on a
 -- fresh one. The runtime CREATE stays as a self-heal for a database the app
 -- user cannot migrate.
-CREATE TABLE IF NOT EXISTS agent_jobs (id VARCHAR(255) PRIMARY KEY, status VARCHAR(16) NOT NULL, spec_text TEXT NOT NULL, spec_digest CHAR(64) NOT NULL, plan_json TEXT, current_step VARCHAR(255), progress_json TEXT, lease_owner VARCHAR(255), lease_expires_at DOUBLE, started_at DOUBLE, finished_at DOUBLE, result_json TEXT, accept_json TEXT, error TEXT, created_at DOUBLE NOT NULL, updated_at DOUBLE NOT NULL);
+--
+-- 2026-10-03 (§30.2 持久化关联): repo_path added — the separator-normalized
+-- repository path recorded at create() time, the durable join key between the
+-- development lane and the verification lane. Installations whose table
+-- predates the column are upgraded by the best-effort static ALTER in
+-- ensure_schema() (storage/agent_jobs.py), the same pattern accept_json used;
+-- this CREATE stays a no-op for them.
+CREATE TABLE IF NOT EXISTS agent_jobs (id VARCHAR(255) PRIMARY KEY, status VARCHAR(16) NOT NULL, spec_text TEXT NOT NULL, spec_digest CHAR(64) NOT NULL, plan_json TEXT, current_step VARCHAR(255), progress_json TEXT, lease_owner VARCHAR(255), lease_expires_at DOUBLE, started_at DOUBLE, finished_at DOUBLE, result_json TEXT, accept_json TEXT, repo_path TEXT, error TEXT, created_at DOUBLE NOT NULL, updated_at DOUBLE NOT NULL);

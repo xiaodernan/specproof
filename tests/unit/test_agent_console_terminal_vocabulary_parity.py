@@ -46,6 +46,11 @@ _TS_ARRAY_RE = re.compile(
     re.S | re.M,
 )
 _META_KEY_RE = re.compile(r'^\s*"?([A-Z][A-Z_0-9]*)"?\s*:\s*\{', re.M)
+#: `TOKEN: { label: "规划中 Planning", tone: "info" }` — the words the timeline
+#: renders, as opposed to the keys #172 already read.
+_META_LABEL_RE = re.compile(
+    r'^\s*"?([A-Z][A-Z_0-9]*)"?\s*:\s*\{\s*label:\s*"([^"]*)"', re.M
+)
 #: `job.status === "TOKEN"` — a comparison against THE run's status. Anchoring on
 #: any `.status` was over-broad and named other scales as offenders
 #: (`gate.status === "passed"`, `line.status === "added"`,
@@ -382,4 +387,116 @@ def test_no_page_compares_a_status_the_console_cannot_emit() -> None:
         "job.status comparison outside the console vocabulary — the branch can "
         "never fire (or the vocabulary grew without this gate):\n  "
         + "\n  ".join(offenders)
+    )
+
+
+# ── #173-2: the backend's OWN label maps, and the "mirrored by the SPA" claim ──
+#
+# `api/routes/agent_console.py` carries a THIRD enumeration of this same
+# vocabulary — `STATUS_LABELS`, whose comment says "Human-readable status labels
+# mirrored by the SPA timeline" — plus `_CONSOLE_TO_STORE_STATUS`, which maps
+# the console tokens onto store statuses. Nothing above this line read either
+# one: the census in `test_the_web_keeps_no_second_console_vocabulary` scans
+# `apps/web/src`, and `web_status_meta_keys` reads the frontend. So the two
+# backend maps could drift from the mapping authority and from the rendered
+# words with every gate green — and a "mirrored by the SPA" comment that no
+# test enforces is a claim, not a fact. (Do not confuse this `STATUS_LABELS`
+# with `apps/web/src/ui/StatusPill.tsx`'s same-named map: that one belongs to
+# the verify-job channel and is pinned by
+# `tests/unit/test_job_status_channel_parity.py`.)
+
+
+def _dict_pairs(node: ast.expr) -> dict[str, str]:
+    """String key → string value pairs from a dict literal."""
+    if not isinstance(node, ast.Dict):
+        return {}
+    pairs: dict[str, str] = {}
+    for key, value in zip(node.keys, node.values, strict=True):
+        if (
+            isinstance(key, ast.Constant)
+            and isinstance(key.value, str)
+            and isinstance(value, ast.Constant)
+            and isinstance(value.value, str)
+        ):
+            pairs[key.value] = value.value
+    return pairs
+
+
+def backend_label_maps() -> dict[str, dict[str, str]]:
+    """`STATUS_LABELS` and `_CONSOLE_TO_STORE_STATUS`, by name."""
+    wanted = ("STATUS_LABELS", "_CONSOLE_TO_STORE_STATUS")
+    found: dict[str, dict[str, str]] = {}
+    for node in ast.walk(ast.parse(_source(CONSOLE))):
+        targets: list[ast.expr] = []
+        value: ast.expr | None = None
+        if isinstance(node, ast.AnnAssign):
+            targets, value = [node.target], node.value
+        elif isinstance(node, ast.Assign):
+            targets, value = list(node.targets), node.value
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id in wanted and value is not None:
+                found[target.id] = _dict_pairs(value)
+    assert len(found) == 2, (
+        f"parsed {sorted(found)} — expected both backend label maps; probe broken"
+    )
+    for name, pairs in found.items():
+        assert pairs, f"{name} parsed to nothing — probe broken"
+    return found
+
+
+def web_status_meta_labels() -> dict[str, str]:
+    """`AGENT_STATUS_META`'s key → label (the words the timeline renders)."""
+    labels = {
+        match.group(1): match.group(2)
+        for match in _META_LABEL_RE.finditer(_source(UTIL))
+    }
+    assert labels, "AGENT_STATUS_META parsed to nothing — probe broken"
+    return labels
+
+
+def test_the_backends_labels_are_the_ones_the_spa_renders() -> None:
+    """Make "mirrored by the SPA timeline" a checked fact.
+
+    Both directions and both halves: the label map must hold exactly the console
+    vocabulary, and every one of its values must be the string the timeline
+    actually renders. A label edited on one side only would otherwise leave the
+    two surfaces naming the same status differently, with every gate green.
+    """
+    vocabulary = console_mapped_tokens()
+    labels = backend_label_maps()["STATUS_LABELS"]
+    rendered = web_status_meta_labels()
+
+    assert set(labels) == vocabulary, (
+        "STATUS_LABELS and console_status_label disagree: "
+        f"labelled-but-unmapped {sorted(set(labels) - vocabulary)}, "
+        f"mapped-but-unlabelled {sorted(vocabulary - set(labels))}"
+    )
+    assert set(rendered) == vocabulary, (
+        f"the timeline's meta and the mapping disagree: {sorted(set(rendered) ^ vocabulary)}"
+    )
+    mismatched = {
+        token: (labels[token], rendered[token])
+        for token in sorted(vocabulary)
+        if labels[token] != rendered[token]
+    }
+    assert not mismatched, (
+        "the backend calls these 'mirrored by the SPA timeline' but the words "
+        f"differ (backend, spa): {mismatched}"
+    )
+
+
+def test_the_store_filter_map_covers_exactly_the_console_vocabulary() -> None:
+    """The console→store filter map must not invent or drop a token.
+
+    It is the only place that translates a console filter into a store status;
+    a token present in the vocabulary but missing here would silently filter
+    nothing, and a key that is not a vocabulary word would accept a filter the
+    console can never display.
+    """
+    vocabulary = console_mapped_tokens()
+    store_map = backend_label_maps()["_CONSOLE_TO_STORE_STATUS"]
+    assert set(store_map) == vocabulary, (
+        "the console→store filter map and the console vocabulary disagree: "
+        f"mapped-but-unreachable {sorted(set(store_map) - vocabulary)}, "
+        f"reachable-but-unmapped {sorted(vocabulary - set(store_map))}"
     )

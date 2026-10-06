@@ -1,10 +1,12 @@
 // Phase 3.4 stitching: the verification detail page surfaces the AI-dev jobs
-// recorded for the same repository path. The honest states matter as much as
-// the happy path: a failed list read must never render as "no tasks", and
-// the panel states its join key (exact repo path, in-process metadata) so a
-// reader cannot mistake it for a foreign-key relation.
+// recorded for the same repository path. Since §30.2 持久化关联 the matching
+// happens server-side on the durable agent_jobs.repo_path column, so the
+// panel's job is narrower and its honest states matter more, not less: the
+// raw path must reach the API unmodified (normalization is the store's
+// semantics now), a failed list read must never render as "no tasks", and
+// the note must state the join key without implying a foreign-key relation.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 
 import { SameRepoCraftPanel } from "../SameRepoCraftPanel";
 import type { AgentJobSummary } from "../../api";
@@ -37,32 +39,41 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("SameRepoCraftPanel — same-repo AI-dev jobs on the verify page", () => {
-  it("lists matching jobs and links to the agent console", async () => {
+  it("asks the server to filter on the raw repo path and renders the durable matches", async () => {
     api.listAgentJobs.mockResolvedValue({
       jobs: [
         job(),
-        job({ id: "cj-2", task_name: "别的仓库", repo_path: "D:/work/other" }),
+        job({ id: "cj-2", task_name: "同仓库的另一个任务", created_at: "2026-09-29T09:00:00Z" }),
       ],
       count: 2,
-      filter: { status: null },
+      filter: { status: null, repo_path: "D:/work/demo" },
     });
 
-    render(<SameRepoCraftPanel repoPath="D:/work/demo" />);
+    render(<SameRepoCraftPanel repoPath="D:\\work\\demo" />);
 
-    const row = await screen.findByText("修复登录超时");
+    // The raw JSX-attribute path reaches the API verbatim — separator
+    // normalization is the store's semantics (create + list agree on it).
+    expect(api.listAgentJobs).toHaveBeenCalledWith(undefined, "D:\\\\work\\\\demo");
+    expect(await screen.findByText("修复登录超时")).toBeTruthy();
+    expect(screen.getByText("同仓库的另一个任务")).toBeTruthy();
+    const row = screen.getByText("修复登录超时");
     expect(row.getAttribute("href")).toBe("#/agent/jobs/cj-1");
-    // The other repo's job is filtered out client-side.
-    expect(screen.queryByText("别的仓库")).toBeNull();
     // The status uses the console vocabulary, raw token in the title.
     expect(screen.getByText(/已完成/).getAttribute("title")).toBe("COMPLETED");
   });
 
-  it("states the join key instead of implying a foreign-key relation", async () => {
-    api.listAgentJobs.mockResolvedValue({ jobs: [], count: 0, filter: { status: null } });
+  it("states the join key and the durable association instead of a foreign-key relation", async () => {
+    api.listAgentJobs.mockResolvedValue({
+      jobs: [],
+      count: 0,
+      filter: { status: null, repo_path: "D:/work/demo" },
+    });
     render(<SameRepoCraftPanel repoPath="D:/work/demo" />);
     await screen.findByText("同仓库路径下没有开发任务记录。");
-    const note = screen.getByText(/按仓库路径精确匹配/);
+    const note = screen.getByText(/持久化匹配/);
     expect(note.textContent).toContain("没有外键");
+    // The honest caveat: pre-column rows have no durable path to match.
+    expect(note.textContent).toContain("旧记录");
   });
 
   it("renders a failed read as a failure, never as an empty result", async () => {
@@ -78,13 +89,15 @@ describe("SameRepoCraftPanel — same-repo AI-dev jobs on the verify page", () =
     expect(api.listAgentJobs).not.toHaveBeenCalled();
   });
 
-  it("normalizes trailing separators when matching", async () => {
+  it("renders whatever the server returned without re-filtering client-side", async () => {
+    // A row the old client-side filter would have dropped (its stored path
+    // differs in case) must still show: the server already decided the match.
     api.listAgentJobs.mockResolvedValue({
-      jobs: [job({ repo_path: "D:/work/demo/" })],
+      jobs: [job({ repo_path: "D:/Work/Demo" })],
       count: 1,
-      filter: { status: null },
+      filter: { status: null, repo_path: "D:/work/demo" },
     });
-    render(<SameRepoCraftPanel repoPath="D:\\work\\demo" />);
-    await waitFor(() => expect(screen.getByText("修复登录超时")).toBeTruthy());
+    render(<SameRepoCraftPanel repoPath="D:/work/demo" />);
+    await screen.findByText("修复登录超时");
   });
 });

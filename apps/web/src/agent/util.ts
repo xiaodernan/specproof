@@ -9,7 +9,7 @@ export interface AgentStatusMeta {
 
 export const AGENT_STATUS_META: Record<string, AgentStatusMeta> = {
   PLANNING: { label: "规划中 Planning", tone: "info" },
-  AWAITING_APPROVAL: { label: "等待审批 Awaiting approval", tone: "warn" },
+  AWAITING_APPROVAL: { label: "等待计划审批 Awaiting approval", tone: "warn" },
   EXECUTING: { label: "执行中 Executing", tone: "info" },
   COMPLETED: { label: "已完成 Completed", tone: "ok" },
   FAILED: { label: "失败 Failed", tone: "bad" },
