@@ -22,8 +22,19 @@ on every indexed chunk via the store's optional job_id parameter, so the
 data-lifecycle cleanup (agent.worker.cleanup_job_projection) can delete
 this job's projection with the job record. Runs without a job_id (CLI /
 eval) index unstamped chunks exactly as before.
-"""
 
+Counters (#195): ``retrieve_repository_context_runs_total`` counts every
+invocation and ``retrieve_repository_context_outcomes_<word>_total``
+records how the attempt ended — ``hybrid_rrf`` / ``bm25_graph`` (a real
+retrieval ran; which subsystem is config-dependent), ``no_workspace`` /
+``no_java_sources`` (nothing to index, decided before any infra access),
+``es_unavailable`` (the documented honesty contract: optional infra down,
+empty context, job continues) or ``retrieval_failed`` (the attempt raised;
+degraded to an empty context with the reason in retrieval_note). The
+retrieval_note is prose built per run; the word is the countable record —
+an empty repo_context alone cannot tell "retrieval ran and found zero
+candidates" from "no infra" from "no inputs" from "it crashed".
+"""
 from __future__ import annotations
 
 import logging
@@ -32,8 +43,21 @@ from pathlib import Path
 from typing import Any
 
 from agent.state import Phase0State
+from observability.metrics import incr
 
 logger = logging.getLogger(__name__)
+
+#: The closed set of ways a retrieval attempt can end (#195). Mirrored by
+#: the parity family's regex and the behavior tests — a new word must move
+#: all three together.
+RETRIEVE_OUTCOMES = frozenset({
+    "hybrid_rrf",        # embeddings configured — hybrid RRF pipeline ran
+    "bm25_graph",        # no embeddings — deterministic BM25 + graph ran
+    "no_workspace",      # head workspace missing — skipped before any I/O
+    "no_java_sources",   # workspace has no Java sources — nothing to index
+    "es_unavailable",    # optional infra down — empty context, job continues
+    "retrieval_failed",  # the attempt raised — degraded with the reason
+})
 
 _QUERY_STOPWORDS = (
     "must", "must not", "should", "shall", "requirements", "the", "a", "an",
@@ -103,6 +127,7 @@ def _index_job_kwargs(job_id: str | None) -> dict[str, str]:
 
 def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
     """Index head sources and retrieve requirement-relevant symbols."""
+    incr("retrieve_repository_context_runs_total")
     head_workspace = state.get("head_workspace", "")
     app_dir = state.get("app_dir", "")
     requirement_text = state.get("requirement_text", "")
@@ -113,6 +138,7 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
     job_id: str | None = state.get("job_id") or None
 
     if not head_workspace:
+        incr("retrieve_repository_context_outcomes_no_workspace_total")
         return {
             "repo_context": [],
             "retrieval_note": "No head workspace — repository retrieval skipped",
@@ -121,6 +147,7 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
     app = str(Path(head_workspace) / app_dir) if app_dir else head_workspace
     files = _read_java_files(app)
     if not files:
+        incr("retrieve_repository_context_outcomes_no_java_sources_total")
         return {
             "repo_context": [],
             "retrieval_note": "No Java sources in head workspace — nothing to index",
@@ -143,6 +170,7 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
 
         store = ElasticsearchStore()
         if not store.is_ready():
+            incr("retrieve_repository_context_outcomes_es_unavailable_total")
             return {
                 "repo_context": [],
                 "retrieval_note": "Elasticsearch unavailable — retrieval skipped",
@@ -212,6 +240,7 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
                 meta.get("vector_hits"),
                 len(context),
             )
+            incr("retrieve_repository_context_outcomes_hybrid_rrf_total")
             return {"repo_context": context, "retrieval_note": note}
 
         # No embeddings configured: BM25 + symbol graph, exactly the
@@ -249,6 +278,7 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
             len(hits),
             len(context),
         )
+        incr("retrieve_repository_context_outcomes_bm25_graph_total")
         return {
             "repo_context": context,
             "retrieval_note": (
@@ -257,6 +287,7 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
             ),
         }
     except Exception as exc:  # noqa: BLE001 — optional infra, honest degradation
+        incr("retrieve_repository_context_outcomes_retrieval_failed_total")
         return {
             "repo_context": [],
             "retrieval_note": "Repository retrieval failed: " + str(exc)[:200],

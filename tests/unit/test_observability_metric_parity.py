@@ -275,6 +275,26 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "by the derivation test, so a new word forces this gate and the "
         "family to move together",
     ),
+    "retrieve_repository_context": (
+        re.compile(
+            r"^retrieve_repository_context_(outcomes_"
+            r"(bm25_graph|es_unavailable|hybrid_rrf|no_java_sources"
+            r"|no_workspace|retrieval_failed)|runs)_total$"
+        ),
+        "agent/nodes/retrieve_repository_context.py #195: "
+        "retrieve_repository_context_runs_total + "
+        "retrieve_repository_context_outcomes_<word>_total at the "
+        "retrieval node boundary — runs counts every invocation; the word "
+        "separates a real hybrid/BM25 retrieval (config-dependent "
+        "subsystem) from the no-input fates decided before any infra "
+        "access, from the documented ES-unavailable degradation and from "
+        "an attempt that raised. An empty repo_context alone cannot tell "
+        "those apart (retrieval can succeed with zero hits). The "
+        "vocabulary is imported from "
+        "agent.nodes.retrieve_repository_context (RETRIEVE_OUTCOMES) by "
+        "the derivation test, so a new word forces this gate and the "
+        "family to move together",
+    ),
 }
 
 
@@ -581,6 +601,27 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert diff_pattern.match(f"collect_diff_outcomes_{word}_total"), (
             f"family rejects collect_diff outcome {word}"
         )
+
+    # retrieve_repository_context == the node's closed RETRIEVE_OUTCOMES
+    # vocabulary. Imported, same discipline as preflight: an empty
+    # repo_context alone cannot tell "retrieval ran, zero candidates" from
+    # "no infra" from "no inputs" from "it raised".
+    from agent.nodes.retrieve_repository_context import RETRIEVE_OUTCOMES
+
+    retrieve_pattern, _ = CONCATENATED_FAMILIES["retrieve_repository_context"]
+    expected_retrieve = (
+        "^retrieve_repository_context_(outcomes_("
+        + "|".join(sorted(RETRIEVE_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert retrieve_pattern.pattern == expected_retrieve, (
+        f"retrieve family {retrieve_pattern.pattern} != node vocabulary "
+        f"{sorted(RETRIEVE_OUTCOMES)}"
+    )
+    for word in sorted(RETRIEVE_OUTCOMES):
+        assert retrieve_pattern.match(
+            f"retrieve_repository_context_outcomes_{word}_total"
+        ), f"family rejects retrieve outcome {word}"
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

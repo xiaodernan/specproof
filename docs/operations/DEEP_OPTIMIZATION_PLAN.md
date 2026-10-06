@@ -2878,3 +2878,30 @@ collect_diff（git diff 三范围：文件级/符号级/语义候选）此前零
 
 - 新增名 4 个（runs + 三词）；面板 36→37；OBSERVABILITY 清单 22 个文件。
 - 剩余 7 个无计数节点：retrieve_repository_context、run_static_checks、generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks。
+
+
+### #195 仓库上下文检索节点执行计数——六种检索结局，note 散文之外的第一份可告警记录（已落地）
+
+**背景**
+
+retrieve_repository_context（把 head 工作区 Java 源索引进 ES、按需求检索相关符号）此前零观测面。结局有六个且互不可见：hybrid_rrf（配置了 embeddings 的 RAG 2.0 混合管线）/ bm25_graph（无 embeddings 的确定性 BM25+符号图）/ no_workspace（无 head 工作区，未触任何 I/O）/ no_java_sources（工作区无 Java 源）/ es_unavailable（可选基建下线——docstring 的诚实契约：空上下文继续、不造内容）/ retrieval_failed（尝试抛异常后的降级）。关键：空 repo_context 同时出现在四种无输入/退化情形与「检索跑了但零命中」的两条成功路上，retrieval_note 是每轮现拼的散文（不可告警），词表是唯一可计比率的记录。
+
+**实现**
+
+- 节点：runs 在入口；五个字在各自 return 前（no_workspace / no_java_sources 在最早两处，es_unavailable 在就绪探针拒绝后，hybrid_rrf 在混合返回前，bm25_graph 在 BM25 返回前）；retrieval_failed 在外层 except 里（唯一兜底，注释原本就写着 honest degradation）。
+- 对账门新家族 retrieve_repository_context；推导 import RETRIEVE_OUTCOMES。
+- 仪表盘 panel 38「仓库上下文检索 (§14.1: RAG 检索)」7 条 target。
+- OBSERVABILITY.md 条目（#195 起）+ 头计数 22→23（重数脚本实测 24 bullets / 23 distinct / 头部写 23）。
+- 行为测试 tests/unit/test_retrieve_repository_context_node_execution_is_observable.py（7 例）：late-import seam（ElasticsearchStore / RepoGraph / EmbeddingClient / hybrid_search）按仓内既有惯例 patched 在导入源上，git rev-parse 子进程桩成固定 sha；见证——hybrid 例钉「走了 index_with_embeddings、从不触 search_code」、bm25 例的 hybrid 桩是炸弹、no_workspace 例的读盘函数是炸弹、no_java_sources 例的 store 构造与 subprocess 双炸弹、es_unavailable 例钉 `calls == ["is_ready"]`（就绪探针拒绝后什么都没跑）、retrieval_failed 例钉 note 里的原因词；+ 漂移门。
+- ⚠️ 本弧付费的坑（漂移门自纠，落地前）：漂移门的源字面量正则沿用了 `[a-z_]+`，而 `bm25_graph` 含数字——正则静默漏匹配，漂移门让「literals == vocabulary」红在**我的正则**上而不是真漂移；改成 `[a-z0-9_]+` 并注释理由。对账门（parity）自身的 `([^()]+)` 提取无字符类，不受影响——但今后任何按词形写正则的地方都要先问词里有没有数字。
+
+**门证（HEAD 7fcf418 + 本弧）**
+
+- 定向 pytest **33 passed** = 新 7 + provenance 2 + es_cleanup_wiring + 注入安全测试 + parity 4（6.86s）；ruff 三 py 文件 All checks passed；mypy 仓级门 `mypy .` **0 issue / 222 源文件**；仪表盘 JSON 可解析（38 panels，panel 38 七条 target 逐条核过）。
+- 变异臂 4 条（预测先写，junit 读红）：对照 **33/33 绿**（臂前后各一次）；A1 去重 hybrid 词（发射点→bm25_graph）⇒ 恰 2 红（hybrid 例 + 漂移门；**bm25 例按预测保持绿**——自己的发射没动）；A2 删 es_unavailable 发射行 ⇒ 恰 2 红（es 例 + 漂移门）；A3 只改声明词 no_workspace→workspace_missing（发射不动）⇒ 恰 3 红（no_workspace 例的 delta 表键随声明移动 + 漂移门 + parity 推导）；A4 纯散文 ⇒ **SURVIVED 按预测 0 红**。**3/3 击杀臂 MATCHED + 1 预测存活**，臂后 sha256 逐字节一致（914f53c4…）。
+- 锚点干跑一坑：A1 初锚缩进写成 16 空格（hybrid incr 实为 12）命中 0——干跑与臂跑写在同一脚本里，hits 检查先于任何写盘，修正后才进臂。
+
+**读数**
+
+- 新增名 7 个（runs + 六词）；面板 37→38；OBSERVABILITY 清单 23 个文件。
+- 剩余 6 个无计数节点：run_static_checks、generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks。

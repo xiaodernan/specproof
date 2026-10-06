@@ -3894,6 +3894,169 @@
           "refId": "D"
         }
       ]
+    },
+    {
+      "id": 38,
+      "type": "timeseries",
+      "title": "仓库上下文检索 (§14.1: RAG 检索)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "retrieve_repository_context 节点的执行计数 (agent/nodes/retrieve_repository_context.py #195): runs/s 计每次调用; outcomes_<word>/s 按六种结局分列——hybrid_rrf（配置了 embeddings：索引带向量 + RRF 混合检索）、bm25_graph（无 embeddings：确定性 BM25 + 符号图扩散）、no_workspace（无 head 工作区，未触任何 I/O）、no_java_sources（工作区无 Java 源）、es_unavailable（可选基建下线，空上下文继续——文档化的诚实契约）、retrieval_failed（尝试抛异常，带原因的降级）。空 repo_context 分不出这些情形与「检索跑了但零命中」的成功路，retrieval_note 是每轮现拼的散文——只有 outcomes_<word> 给出可告警的比率（#195 行为测试逐词钉住）。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 135
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_retrieve_repository_context_runs_total[15m])",
+          "legendFormat": "runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_retrieve_repository_context_outcomes_hybrid_rrf_total[15m])",
+          "legendFormat": "hybrid_rrf/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_retrieve_repository_context_outcomes_bm25_graph_total[15m])",
+          "legendFormat": "bm25_graph/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_retrieve_repository_context_outcomes_no_workspace_total[15m])",
+          "legendFormat": "no_workspace/s",
+          "range": true,
+          "instant": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_retrieve_repository_context_outcomes_no_java_sources_total[15m])",
+          "legendFormat": "no_java_sources/s",
+          "range": true,
+          "instant": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_retrieve_repository_context_outcomes_es_unavailable_total[15m])",
+          "legendFormat": "es_unavailable/s",
+          "range": true,
+          "instant": false,
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_retrieve_repository_context_outcomes_retrieval_failed_total[15m])",
+          "legendFormat": "retrieval_failed/s",
+          "range": true,
+          "instant": false,
+          "refId": "G"
+        }
+      ]
     }
   ],
   "refresh": "30s",
