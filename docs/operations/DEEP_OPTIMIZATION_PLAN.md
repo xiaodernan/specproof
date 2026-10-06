@@ -2982,3 +2982,30 @@ run_deep_experiments（DEEP 档：突变战役 + 全栈状态 delta + verdict �
 
 - 新增名 4 个（runs + 三词）；面板 40→41；OBSERVABILITY 清单 26 个文件。
 - 剩余 3 个无计数节点：build_matrix、create_capsule、run_release_checks。
+
+
+### #199 矩阵构建节点执行计数——built / no_contracts / pass_downgraded 与「矩阵拒绝背书」事件（已落地）
+
+**背景**
+
+build_matrix（需求-证据矩阵的合并点，纯函数）此前零观测面。行计数（passed/failed/unverified）分不出「无契约的空矩阵」与「有契约但全 UNVERIFIED」；而本节点唯一的分支逻辑——对每行 PASS 用 evaluate_verification 复检、拒绝时改写成 UNVERIFIED——此前只有行级 unverified_reason 散文，没有可计比率。
+
+**实现**
+
+- 节点：runs 在入口；末尾按 `not contracts` / `pass_downgraded` 标志二/三分支（空契约优先——两者互斥：无契约时不会有 PASS 行被拒）。
+- 对账门新家族 build_matrix；推导 import BUILD_MATRIX_OUTCOMES。
+- 仪表盘 panel 42「矩阵构建」4 条 target。
+- OBSERVABILITY.md 条目 + 头计数 26→27（重数 28 bullets / 27 distinct / 头部 27）。
+- 行为测试 tests/unit/test_build_matrix_node_execution_is_observable.py（4 例）：纯节点零桩，全部真状态驱动——built 例钉有证据 PASS 行原样存活（拒绝原因槽为空）；no_contracts 例钉空契约矩阵；pass_downgraded 例钉「无证据/无实验的 PASS 被门拒绝 → UNVERIFIED + 门自己的理由（缺证据引用/缺实验记录）+ 重验 next_action」；+ 漂移门。
+- ⚠️ 臂的崩溃坑（预判规避）：A2 若把 elif 体整行删掉会留下空分支 → SyntaxError → 收集期崩溃 0 红（记忆里的 crash-vs-red 陷阱）；改成替换为 `pass  # arm` 保持语法完整，红的才是目标条款。
+- 数据点：build_matrix.py 是首个 **LF** 行尾的节点文件（此前 compile_contracts/prepare/collect_diff/retrieve/run_static/generate/deep 全 CRLF）——EOL 自适应臂 runner 无需改动即兼容（干跑打印 '\n'）。混行尾继续被逐文件实测对待。
+
+**门证（HEAD b153a1e + 本弧）**
+
+- 定向 pytest **100 passed** = 新 4 + matrix_pure + matrix_policy + matrix_result_vocabulary_parity + attribution_parity + verdict_policy（既有矩阵驱动者）+ parity 4（6.92s）；ruff 三 py 文件 All checks passed；mypy 仓级门 `mypy .` **0 issue / 222 源文件**；仪表盘 JSON 可解析（42 panels，panel 42 四条 target 逐条核过）。
+- 变异臂 4 条（预测先写，junit 读红）：对照 **100/100 绿**（臂前后各一次）；A1 反转叉条件（`not contracts`→`contracts`）⇒ 恰 3 红（built 例、no_contracts 例、downgrade 例——都落错分支；漂移门保持绿——字面集合未变）；A2 把 pass_downgraded 发射换成 pass ⇒ 恰 2 红（downgrade 例无词可对 + 漂移门）；A3 只改声明词 built→assembled ⇒ 恰 3 红（built 例 delta 键随声明 + 漂移门 + parity 推导；no_contracts/downgrade 例按预测保持绿）；A4 纯散文 ⇒ **SURVIVED 按预测 0 红**。**3/3 击杀臂 MATCHED + 1 预测存活**，臂后 sha256 逐字节一致（66bdab2f…）。
+
+**读数**
+
+- 新增名 4 个（runs + 三词）；面板 41→42；OBSERVABILITY 清单 27 个文件。
+- 剩余 2 个无计数节点：create_capsule、run_release_checks。

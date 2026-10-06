@@ -351,6 +351,23 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "(RUN_DEEP_OUTCOMES) by the derivation test, so a new word forces "
         "this gate and the family to move together",
     ),
+    "build_matrix": (
+        re.compile(
+            r"^build_matrix_(outcomes_"
+            r"(built|no_contracts|pass_downgraded)|runs)_total$"
+        ),
+        "agent/nodes/build_matrix.py #199: build_matrix_runs_total + "
+        "build_matrix_outcomes_<word>_total at the node boundary — runs "
+        "counts every invocation; the word separates a normal build from "
+        "a contract-less state (no_contracts: findings-only matrix) from a "
+        "build where this node's own evaluate_verification gate refused at "
+        "least one PASS row and rewrote it to UNVERIFIED "
+        "(pass_downgraded). Row counts alone cannot separate a "
+        "contract-less matrix from a fully-UNVERIFIED one. The vocabulary "
+        "is imported from agent.nodes.build_matrix (BUILD_MATRIX_OUTCOMES) "
+        "by the derivation test, so a new word forces this gate and the "
+        "family to move together",
+    ),
 }
 
 
@@ -739,6 +756,26 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert deep_pattern.match(
             f"run_deep_experiments_outcomes_{word}_total"
         ), f"family rejects DEEP outcome {word}"
+
+    # build_matrix == the node's closed BUILD_MATRIX_OUTCOMES vocabulary.
+    # Imported, same discipline as preflight: row counts alone cannot
+    # separate a contract-less matrix from a fully-UNVERIFIED one.
+    from agent.nodes.build_matrix import BUILD_MATRIX_OUTCOMES
+
+    matrix_pattern, _ = CONCATENATED_FAMILIES["build_matrix"]
+    expected_matrix = (
+        "^build_matrix_(outcomes_("
+        + "|".join(sorted(BUILD_MATRIX_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert matrix_pattern.pattern == expected_matrix, (
+        f"build_matrix family {matrix_pattern.pattern} != node vocabulary "
+        f"{sorted(BUILD_MATRIX_OUTCOMES)}"
+    )
+    for word in sorted(BUILD_MATRIX_OUTCOMES):
+        assert matrix_pattern.match(
+            f"build_matrix_outcomes_{word}_total"
+        ), f"family rejects matrix outcome {word}"
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

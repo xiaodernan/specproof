@@ -23,6 +23,16 @@ for a known contract the court metadata is attached WITHOUT a result, so it
 can never fabricate or downgrade a verdict (verdicts still come only from
 real experiment results). The build is a pure function of the state dict:
 no clock, no randomness, no module-level mutable state.
+
+Counters (#199): ``build_matrix_runs_total`` counts every invocation and
+``build_matrix_outcomes_<word>_total`` records how the build ended —
+``no_contracts`` (the state carried an empty contract list: the matrix is
+assembled from findings alone), ``pass_downgraded`` (at least one PASS row
+was refused by this node's own evaluate_verification gate and rewritten to
+UNVERIFIED — the matrix declining to back a verdict) or ``built`` (a
+normal build). The row counts alone cannot separate a contract-less
+matrix from a fully-UNVERIFIED one; the word separates the empty-contract
+jobs and the refusal events.
 """
 from typing import Any
 
@@ -34,6 +44,7 @@ from agent.matrix_policy import (
 )
 from agent.state import Phase0State
 from evidence.verdict import evaluate_verification
+from observability.metrics import incr
 
 #: diff_results verdict -> row attribution (Review Court vocabulary).
 _ATTRIBUTION_BY_VERDICT: dict[str, str] = {
@@ -60,6 +71,15 @@ COMPLETE_ROW_FIELDS: tuple[str, ...] = (
     "result",
     *LEGACY_ROW_FIELDS,
 )
+
+#: The closed set of ways a matrix build can end (#199). Mirrored by the
+#: parity family's regex and the behavior tests — a new word must move all
+#: three together.
+BUILD_MATRIX_OUTCOMES = frozenset({
+    "built",            # normal build — contracts present, verdicts stand
+    "no_contracts",     # empty contract list — findings-only matrix
+    "pass_downgraded",  # >=1 PASS row refused by the node's own gate
+})
 
 
 def _exit_verdict(value: object) -> str | None:
@@ -99,6 +119,7 @@ def _court_fields_of_finding(finding: dict[str, Any]) -> dict[str, Any]:
 
 def build_matrix_node(state: Phase0State) -> dict[str, Any]:
     """Build the Requirement-to-Evidence Matrix from real contract results."""
+    incr("build_matrix_runs_total")
     contracts = state.get("contracts", [])
     contract_results = state.get("contract_results", [])
     diff_results = state.get("diff_results", [])
@@ -212,6 +233,7 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
 
     # ── Legacy row shape for existing consumers ───────────────────────
     matrix_rows: list[dict[str, Any]] = []
+    pass_downgraded = False
     for row in rows:
         legacy = dict(row)
         legacy["requirement"] = row["requirement_summary"]
@@ -224,6 +246,7 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
                 legacy["result"] = "UNVERIFIED"
                 legacy["unverified_reason"] = decision.reason
                 legacy["next_action"] = NEXT_ACTION_UNVERIFIED
+                pass_downgraded = True
         matrix_rows.append(legacy)
 
     # Preserve the pre-policy row order: compiled contracts in order, then
@@ -249,5 +272,12 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
         "failed": sum(1 for row in matrix_rows if row["result"] == "FAIL"),
         "unverified": sum(1 for row in matrix_rows if row["result"] == "UNVERIFIED"),
     }
+
+    if not contracts:
+        incr("build_matrix_outcomes_no_contracts_total")
+    elif pass_downgraded:
+        incr("build_matrix_outcomes_pass_downgraded_total")
+    else:
+        incr("build_matrix_outcomes_built_total")
 
     return {"matrix": matrix}

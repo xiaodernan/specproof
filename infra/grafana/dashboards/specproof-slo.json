@@ -4450,6 +4450,133 @@
           "refId": "D"
         }
       ]
+    },
+    {
+      "id": 42,
+      "type": "timeseries",
+      "title": "矩阵构建 (§14.1: 需求-证据矩阵)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "build_matrix 节点的执行计数 (agent/nodes/build_matrix.py #199): runs/s 计每次调用; outcomes_<word>/s 按三种结局分列——built（常规构建）、no_contracts（契约列表为空——矩阵只剩 findings 行）、pass_downgraded（本节点自己的 evaluate_verification 门拒绝了至少一行 PASS 并改写为 UNVERIFIED——矩阵拒绝为判决背书的事件）。行计数分不出「无契约的空矩阵」与「有契约但全 UNVERIFIED」，只有 outcomes_<word> 能区分并告警（#199 行为测试逐词钉住）。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 151
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_build_matrix_runs_total[15m])",
+          "legendFormat": "runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_build_matrix_outcomes_built_total[15m])",
+          "legendFormat": "built/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_build_matrix_outcomes_no_contracts_total[15m])",
+          "legendFormat": "no_contracts/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_build_matrix_outcomes_pass_downgraded_total[15m])",
+          "legendFormat": "pass_downgraded/s",
+          "range": true,
+          "instant": false,
+          "refId": "D"
+        }
+      ]
     }
   ],
   "refresh": "30s",
