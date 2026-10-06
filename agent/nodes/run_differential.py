@@ -114,13 +114,6 @@ public class SpecProofDbCheck {
 }
 """
 
-# #185: Differential verification execution timing buckets — 12 buckets from
-# 0.5s to 3600s (1 hour), covering fast unit tests through long integration
-# suites. Top bucket aligns with typical CI timeout ceilings.
-_DIFF_BUCKETS: tuple[float, ...] = (
-    0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0,
-)
-
 # #185: Differential outcome vocabulary — the closed set of verdict patterns
 # that can result from running a test on both Base and Head. The parity gate
 # imports this frozenset so a new outcome forces the gate and the family to
@@ -339,8 +332,9 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             f"head: {head_result.get('error') or 'ok'}, "
             f"base: {base_result.get('error') or 'ok'}"
         )
-        # #185: count differential runs that errored out as ambiguous
-        incr("differential_outcomes_ambiguous_total")
+        # #185b: execution errors get their own counter — outcomes_ambiguous
+        # keeps its declared meaning (base_fail + head_fail).
+        incr("differential_errors_total")
         return {
             "diff_results": source_diff_results + [{
                 "contract_id": "DIFF-01",

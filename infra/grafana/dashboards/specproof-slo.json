@@ -2945,7 +2945,7 @@
           "uid": "${datasource}"
         },
         "editorMode": "code",
-        "expr": "rate(specproof_differential_skipped_total[15m])",
+        "expr": "rate(specproof_differential_outcomes_skipped_total[15m])",
         "legendFormat": "skipped/s",
         "range": true,
         "instant": false,
