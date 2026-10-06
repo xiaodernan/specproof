@@ -142,9 +142,12 @@ def test_certificate_revocation_gap_still_matches_the_evidence_tree() -> None:
         assert "✅" in row and "#138" in row, row
         assert "⏳" not in row, f"能力已存在, §6 第 4 行却仍写 ⏳: {row}"
         assert "test_certificate_revocation_gap_still_matches_the_evidence_tree" in row
-        # 签发侧 ✅ 不许顺手把没接的消费方也说成 ✅: 第 10 行必须仍在⏳。
+        # #149: 消费方已接线 (craft/accept.py 幂等短路查吊销) — 第 10 行必须
+        # 已翻 ✅ 并记 #149, 不许再挂 ⏳ (零调用点时期才允许 ⏳, 见 consumer
+        # pin 测试的反向分支; 两测试同批改口, 事实变了门跟着变, #133 惯例)。
         row10 = _row("| 10 | 已撤销证书的消费方拦截")
-        assert "⏳" in row10, row10
+        assert "✅" in row10 and "#149" in row10, row10
+        assert "⏳" not in row10, row10
     else:
         assert "⏳" in row, f"evidence/ 撤销能力没了, §6 第 4 行却不是 ⏳: {row}"
 
