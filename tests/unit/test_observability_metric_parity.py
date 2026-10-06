@@ -257,6 +257,24 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "vocabulary is imported from agent.nodes.prepare_head by the "
         "derivation test and asserted equal to the twin's declaration",
     ),
+    "collect_diff": (
+        re.compile(
+            r"^collect_diff_(outcomes_(diff_failed|no_changes|scanned)|runs)"
+            r"_total$"
+        ),
+        "agent/nodes/collect_diff.py #194: collect_diff_runs_total + "
+        "collect_diff_outcomes_<word>_total at the collect_diff node "
+        "boundary — runs counts every invocation; the outcome word "
+        "separates a real scanned diff from a zero-file diff from a diff "
+        "that could not be produced at all. No error guard follows this "
+        "node (the graph's only one sits after prepare_head), so a failed "
+        "diff does not stop the job and downstream state readers see the "
+        "same empty tables as a change-free pair of refs — the word is the "
+        "only machine-readable record of which case it was. The vocabulary "
+        "is imported from agent.nodes.collect_diff (COLLECT_DIFF_OUTCOMES) "
+        "by the derivation test, so a new word forces this gate and the "
+        "family to move together",
+    ),
 }
 
 
@@ -542,6 +560,27 @@ def test_concatenated_families_track_their_vocabularies() -> None:
             assert prepare_pattern.match(f"{node_name}_outcomes_{word}_total"), (
                 f"family rejects {node_name} outcome {word}"
             )
+
+    # collect_diff == the node's closed COLLECT_DIFF_OUTCOMES vocabulary.
+    # Imported, same discipline as preflight: the graph has no error guard
+    # after this node, so the outcome word is the only machine-readable
+    # record separating a failed diff from a change-free pair of refs.
+    from agent.nodes.collect_diff import COLLECT_DIFF_OUTCOMES
+
+    diff_pattern, _ = CONCATENATED_FAMILIES["collect_diff"]
+    expected_diff = (
+        "^collect_diff_(outcomes_("
+        + "|".join(sorted(COLLECT_DIFF_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert diff_pattern.pattern == expected_diff, (
+        f"collect_diff family {diff_pattern.pattern} != node vocabulary "
+        f"{sorted(COLLECT_DIFF_OUTCOMES)}"
+    )
+    for word in sorted(COLLECT_DIFF_OUTCOMES):
+        assert diff_pattern.match(f"collect_diff_outcomes_{word}_total"), (
+            f"family rejects collect_diff outcome {word}"
+        )
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

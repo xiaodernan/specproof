@@ -2851,3 +2851,30 @@ prepare_base 与 prepare_head 是一对逐字孪生节点（同一结构，只�
 
 - 新增名 10 个（2 runs + 8 结局）；面板 35→36；OBSERVABILITY 清单 21 个文件。
 - 剩余 8 个无计数节点：collect_diff、retrieve_repository_context、run_static_checks、generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks。
+
+
+### #194 变更收集节点执行计数——scanned / no_changes / diff_failed，外加测试先行抓到的一次丢错误缺陷（已落地）
+
+**背景**
+
+collect_diff（git diff 三范围：文件级/符号级/语义候选）此前零观测面，而它是管线里最危险的「静默区」：图里唯一的错误守卫在 prepare_head 之后，本节点**之后没有守卫**——顶层 git diff 失败时节点带错误早退，作业照常往下跑；下游状态读取者（review_court 的 changed_files 检查、worker 的 diff_by_file 归因）看到的空表与「两 ref 真无变更」完全同形（changed_files 只存在于成功路径的返回，失败路径根本没有这个键）。三结局互相不可见：scanned（diff 产出、被分析）/ no_changes（diff 产出、零文件）/ diff_failed（diff 本身失败）。
+
+**实现**
+
+- 节点：runs 在入口；diff_failed 在早退前；scanned/no_changes 在末尾同一判定的 if/else（哨兵串分支 = no_changes；scanned 不区分「每文件读取全成功」与「部分失败」，后者 append 进 errors 并继续）。
+- 对账门新家族 collect_diff；推导 import COLLECT_DIFF_OUTCOMES。
+- 仪表盘 panel 37「变更收集 (§14.1: git diff 三范围)」（runs + 三词，4 target）。
+- OBSERVABILITY.md 条目（#194 起）+ 头计数 21→22（重数脚本实测 23 bullets / 22 distinct / 头部写 22）。
+- 行为测试 tests/unit/test_collect_diff_node_execution_is_observable.py（5 例）：git seam 换成分发式假 `_git`（name-only / numstat / 每文件 diff 按 argv 尾分发）；scanned 例钉三范围完整产物（REMOVED/ADDED 符号、cache 语义候选、README 进 unresolved）；diff_failed 例钉两键返回形状（**没有** changed_files 键）与错误词；partial 例钉「每文件失败 → errors 记录 + 继续扫 → 词仍是 scanned」；no_changes 例钉哨兵；+ 漂移门。
+- ⚠️ 测试先行抓到既有缺陷（partial 例第一跑即红）：成功路径的返回漏掉 errors 键，循环里 append 的每条「git diff for X failed」被整段静默丢弃，与 docstring「Errors are recorded in state[errors]」直接矛盾；修＝最终返回补 `"errors": errors`（守卫在其前已跑、publish_report / worker 只把 errors 读进记录，无路由变化），并把旧 docstring 的错误括号「(which the graph's error guard routes on)」改成「守卫在本节点之前」的事实。审查过全仓 errors 读者：守卫（graph.py:46/57）在 collect_diff 之前、publish_report/worker 只读进记录 ⇒ 无行为回归。
+
+**门证（HEAD d51a05b + 本弧）**
+
+- 定向 pytest **13 passed** = 新 5 + 既有 scopes 4 + parity 4；ruff 三 py 文件 All checks passed；mypy 仓级门 `mypy .` **0 issue / 222 源文件**；仪表盘 JSON 可解析（37 panels，panel 37 四条 target 逐条核过）。
+- 变异臂 4 条（预测先写，junit 读红）：对照 **13/13 绿**（臂前后各一次）；A1 对调 scanned/no_changes 两发射词 ⇒ 恰 3 红（scanned + partial + no_changes；**漂移门按预测保持绿**——字面集合未变，只有案例的红暴露 swap）；A2 删 diff_failed 发射行 ⇒ 恰 2 红（两键形状例 + 漂移门）；A3 只在声明里加 "abandoned" ⇒ 恰 2 红（漂移门 + parity 推导；行为例按预测保持绿——delta 表随声明派生，新词没有发射点所以每例只看集合相等）；A4 纯散文 ⇒ **SURVIVED 按预测 0 红**。**3/3 击杀臂 MATCHED + 1 预测存活**，臂后 sha256 逐字节一致（4ad2df72…）。
+- 臂预测自纠一例：A1 初稿只预测 2 红（漏了 partial 例——它也是 scanned 结局断言，swap 后必红）；运行前把预测改为 3 红，实测 3 红——「预测是对照，不是事后描述」。
+
+**读数**
+
+- 新增名 4 个（runs + 三词）；面板 36→37；OBSERVABILITY 清单 22 个文件。
+- 剩余 7 个无计数节点：retrieve_repository_context、run_static_checks、generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks。

@@ -4,15 +4,38 @@
 §14.1 three scopes: file-level (audit), symbol-level (retrieval/checkers)
 and semantic candidates (dynamic experiment + mutation budget). Changes in
 unparseable languages or binary files are kept as unresolved_changes —
-never silently dropped. Errors are recorded in state["errors"] (which the
-graph's error guard routes on) instead of being disguised as
-changed-symbol data.
+never silently dropped. Errors are recorded in state["errors"] instead of
+being disguised as changed-symbol data (the graph's error guard sits
+BEFORE this node — after prepare_head — so these errors are reported but
+do not abort the job).
+
+Counters (#194): ``collect_diff_runs_total`` counts every invocation and
+``collect_diff_outcomes_<word>_total`` records how the attempt ended —
+``scanned`` (the diff was produced and the three scopes analyzed;
+per-file read failures are appended to state errors and do NOT change the
+word), ``no_changes`` (the diff was produced but lists zero changed files)
+or ``diff_failed`` (the top-level git diff itself failed).  No error guard
+follows this node, so a failed diff does not stop the job — downstream
+state readers (review_court's changed-files check, the worker's
+diff_by_file attribution) see the same empty tables as a genuinely
+change-free pair of refs; the outcome word is the only machine-readable
+record of which case it was.
 """
 import re
 import subprocess
 from typing import Any
 
 from agent.state import Phase0State
+from observability.metrics import incr
+
+#: The closed set of ways a collect_diff run can end (#194). Mirrored by
+#: the parity family's regex and the behavior tests — a new word must move
+#: all three together.
+COLLECT_DIFF_OUTCOMES = frozenset({
+    "scanned",      # diff produced; >=1 changed file analyzed
+    "no_changes",   # diff produced; zero changed files
+    "diff_failed",  # the top-level git diff itself failed
+})
 
 #: Changed lines hinting at semantics that dynamic experiments and mutation
 #: testing should budget for (messaging / cache / data / security+tx).
@@ -65,6 +88,7 @@ def _is_binary_change(repo_path: str, base_ref: str, head_ref: str, f: str) -> b
 
 def collect_diff_node(state: Phase0State) -> dict[str, Any]:
     """Collect and analyze the git diff between base and head."""
+    incr("collect_diff_runs_total")
     repo_path = state.get("repo_path", "")
     base_ref = state.get("base_ref", "base")
     head_ref = state.get("head_ref", "head-v1")
@@ -80,6 +104,7 @@ def collect_diff_node(state: Phase0State) -> dict[str, Any]:
         name_only = _git(repo_path, "diff", "--name-only", base_ref, head_ref)
     except _GitDiffError as exc:
         errors.append(f"git diff failed: {exc}")
+        incr("collect_diff_outcomes_diff_failed_total")
         return {"changed_symbols": [], "errors": errors}
 
     changed_files = [
@@ -150,6 +175,9 @@ def collect_diff_node(state: Phase0State) -> dict[str, Any]:
 
     if not changed_symbols and not changed_files:
         changed_symbols = ["No changes detected between base and head"]
+        incr("collect_diff_outcomes_no_changes_total")
+    else:
+        incr("collect_diff_outcomes_scanned_total")
 
     return {
         "changed_symbols": changed_symbols,
@@ -157,4 +185,8 @@ def collect_diff_node(state: Phase0State) -> dict[str, Any]:
         "semantic_candidates": semantic_candidates,
         "unresolved_changes": unresolved_changes,
         "diff_by_file": diff_by_file,
+        # #194: per-file read failures collected above must ride out with
+        # the result — omitting the key here silently dropped every
+        # "git diff for X failed" against the docstring's claim.
+        "errors": errors,
     }

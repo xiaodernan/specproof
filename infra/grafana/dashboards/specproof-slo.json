@@ -3767,6 +3767,133 @@
           "refId": "J"
         }
       ]
+    },
+    {
+      "id": 37,
+      "type": "timeseries",
+      "title": "变更收集 (§14.1: git diff 三范围)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "collect_diff 节点的执行计数 (agent/nodes/collect_diff.py #194): runs/s 计每次调用; outcomes_<word>/s 按三种结局分列——scanned（diff 产出、至少一个变更文件被分析；每文件读取失败 append 进 errors 并继续，词不变）、no_changes（diff 产出但零变更文件）、diff_failed（顶层 git diff 本身失败）。本节点之后没有错误守卫，diff 失败不停摆作业——下游读者（review_court 的 changed_files、worker 的 diff_by_file）看到的空表与「两 ref 真无变更」完全同形，只有 outcomes_<word> 能区分（#194 行为测试逐词钉住；成功路径此前漏掉 errors 键的丢错误缺陷已一并修复）。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 135
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_collect_diff_runs_total[15m])",
+          "legendFormat": "runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_collect_diff_outcomes_scanned_total[15m])",
+          "legendFormat": "scanned/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_collect_diff_outcomes_no_changes_total[15m])",
+          "legendFormat": "no_changes/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_collect_diff_outcomes_diff_failed_total[15m])",
+          "legendFormat": "diff_failed/s",
+          "range": true,
+          "instant": false,
+          "refId": "D"
+        }
+      ]
     }
   ],
   "refresh": "30s",
