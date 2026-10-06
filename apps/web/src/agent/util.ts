@@ -33,10 +33,12 @@ export function agentStatusMeta(status: string | undefined): AgentStatusMeta {
 //
 // The terminal list is the one the API enforces: `_require_cancellable` and
 // the approvals route both refuse on membership in
-// `api/routes/agent_console.py::_TERMINAL_CONSOLE_STATUSES`. The active list
-// mirrors the declared `_CANCELLABLE_STATUSES`; that frozenset currently has
-// no call site (the live rule is the complement of the terminal set), so the
-// parity gate below pins the vocabulary, not a behaviour of the dead set.
+// `api/routes/agent_console.py::_TERMINAL_CONSOLE_STATUSES`. The active list is
+// therefore the COMPLEMENT of that set over the console vocabulary — which is
+// exactly what the cancel rule allows, so the gate checks it against the rule
+// rather than against a second declaration. (A `_CANCELLABLE_STATUSES` copy used
+// to live on the backend; nothing read it and it was deleted in #173-1, with a
+// clause here that fails if one comes back.)
 //
 // Both lists, plus `AGENT_STATUS_META` against the mapped tokens, are pinned
 // by `tests/unit/test_agent_console_terminal_vocabulary_parity.py`; the pages

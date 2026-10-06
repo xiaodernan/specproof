@@ -86,22 +86,51 @@ def _string_literals(node: ast.expr) -> set[str]:
     return set()
 
 
-def backend_sets() -> dict[str, set[str]]:
-    """`_CANCELLABLE_STATUSES` / `_TERMINAL_CONSOLE_STATUSES`, by name."""
-    found: dict[str, set[str]] = {}
+def backend_terminal_set() -> set[str]:
+    """`_TERMINAL_CONSOLE_STATUSES` — the set the live cancel rule refuses on.
+
+    This used to read a second declaration, `_CANCELLABLE_STATUSES`, and check the
+    frontend's active set against it. That declaration had no consumer anywhere in
+    the product (#173-1): the rule refuses on the TERMINAL set, so the cancellable
+    set was a copy nothing could catch disagreeing. It is deleted, and the active
+    set is now checked against the RULE (the complement of this set) rather than
+    against a copy of it — a strictly stronger statement, since the rule is what
+    actually runs.
+    """
+    words: set[str] = set()
     for node in ast.walk(ast.parse(_source(CONSOLE))):
         if not isinstance(node, ast.Assign):
             continue
         for target in node.targets:
-            if isinstance(target, ast.Name) and target.id in (
-                "_CANCELLABLE_STATUSES",
-                "_TERMINAL_CONSOLE_STATUSES",
+            if (
+                isinstance(target, ast.Name)
+                and target.id == "_TERMINAL_CONSOLE_STATUSES"
             ):
-                found[target.id] = _string_literals(node.value)
-    assert len(found) == 2, f"only {sorted(found)} console frozensets parsed — probe broken"
-    for name, words in found.items():
-        assert words, f"{name} parsed to nothing — probe broken"
-    return found
+                words |= _string_literals(node.value)
+    assert words, "_TERMINAL_CONSOLE_STATUSES parsed to nothing — probe broken"
+    return words
+
+
+def backend_declares_no_cancellable_set() -> bool:
+    """False if a `_CANCELLABLE_STATUSES` DECLARATION came back.
+
+    Reads bindings, not text: the name is still mentioned in a comment that
+    records why it was removed, and a substring probe would call that a
+    resurrection. (The same prose-vs-code trap as `test_verdict_channel_parity`'s
+    "a docstring is not a value" clause.)
+    """
+    for node in ast.walk(ast.parse(_source(CONSOLE))):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        elif isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        if any(
+            isinstance(t, ast.Name) and t.id == "_CANCELLABLE_STATUSES"
+            for t in targets
+        ):
+            return False
+    return True
 
 
 def _function(tree: ast.Module, name: str) -> ast.FunctionDef:
@@ -263,29 +292,39 @@ def unknown_notice_readers() -> list[str]:
 
 def test_the_probe_found_a_real_vocabulary_on_every_side() -> None:
     """A gate that silently parses nothing is greener than a bug."""
-    backend = backend_sets()
+    terminal = backend_terminal_set()
     lists = web_lists()
-    assert backend["_TERMINAL_CONSOLE_STATUSES"] == {
+    assert terminal == {
         "COMPLETED",
         "FAILED",
         "CANCELLED",
-    }, backend
-    assert backend["_CANCELLABLE_STATUSES"] == {
-        "PLANNING",
-        "AWAITING_APPROVAL",
-        "EXECUTING",
-    }, backend
+    }, terminal
     assert lists["AGENT_TERMINAL_STATUSES"] == {"COMPLETED", "FAILED", "CANCELLED"}
     assert lists["AGENT_ACTIVE_STATUSES"] == {"PLANNING", "AWAITING_APPROVAL", "EXECUTING"}
     assert console_mapped_tokens() == set(TOKENS)
     assert web_status_meta_keys() == set(TOKENS)
 
 
+def test_the_dead_cancellable_declaration_stays_deleted() -> None:
+    """#173-1: `_CANCELLABLE_STATUSES` had no consumer in the product.
+
+    Keeping the declaration around is worse than useless — it reads as a rule
+    while the rule that runs is elsewhere, so the two can disagree with every
+    gate green. This clause fails if a copy comes back, which forces the question
+    "what reads it?" to be answered at the moment it is re-added.
+    """
+    assert backend_declares_no_cancellable_set(), (
+        "api/routes/agent_console.py declares _CANCELLABLE_STATUSES again — "
+        "either delete it or make the cancel rule read it, but do not leave a "
+        "second declaration nothing consumes"
+    )
+
+
 def test_the_pages_terminal_set_is_the_one_the_api_enforces() -> None:
     """Both directions: a set that drifts either stops polling a live run or
     declares a running one closed (and hides its 取消 button while the server
     would still honour it)."""
-    backend = backend_sets()["_TERMINAL_CONSOLE_STATUSES"]
+    backend = backend_terminal_set()
     frontend = web_lists()["AGENT_TERMINAL_STATUSES"]
     missing = backend - frontend
     extra = frontend - backend
@@ -301,26 +340,37 @@ def test_the_pages_terminal_set_is_the_one_the_api_enforces() -> None:
     )
 
 
-def test_the_active_set_mirrors_the_declared_cancellable_vocabulary() -> None:
-    backend = backend_sets()["_CANCELLABLE_STATUSES"]
+def test_the_active_set_is_the_complement_of_the_live_cancel_rule() -> None:
+    """The frontend's active set must match the RULE, not a copy of it.
+
+    `_require_cancellable` refuses exactly the terminal statuses, so every other
+    token the console can name is one the operator may still cancel — which is
+    what the 取消 button offers. Checking against the complement means a token
+    added to the vocabulary cannot be silently omitted from either side.
+    """
+    vocabulary = console_mapped_tokens()
+    terminal = backend_terminal_set()
+    expected = vocabulary - terminal
     frontend = web_lists()["AGENT_ACTIVE_STATUSES"]
-    assert frontend == backend, (
-        f"frontend {sorted(frontend)} vs declared {sorted(backend)} — the console "
-        "would classify a phase the API never listed as active"
+    assert frontend == expected, (
+        f"frontend {sorted(frontend)} vs rule-derived {sorted(expected)} — the "
+        "console would classify a phase the cancel rule disagrees about"
     )
 
 
-def test_the_two_backend_sets_are_disjoint_and_cover_the_mapping() -> None:
-    """A token in both sets makes 终态 and 进行中 the same claim, and a mapped
-    token in neither leaves `agentRunPhase` answering 不认识 for a status the
-    runtime does know."""
-    backend = backend_sets()
-    overlap = backend["_CANCELLABLE_STATUSES"] & backend["_TERMINAL_CONSOLE_STATUSES"]
-    assert not overlap, f"{sorted(overlap)} is both cancellable and terminal"
-    uncovered = console_mapped_tokens() - set().union(*backend.values())
+def test_the_terminal_and_active_sets_partition_the_vocabulary() -> None:
+    """A token in both makes 终态 and 进行中 the same claim, and a mapped token in
+    neither leaves `agentRunPhase` answering 不认识 for a status the runtime does
+    know."""
+    vocabulary = console_mapped_tokens()
+    terminal = backend_terminal_set()
+    active = web_lists()["AGENT_ACTIVE_STATUSES"]
+    overlap = terminal & active
+    assert not overlap, f"{sorted(overlap)} is both terminal and active"
+    uncovered = vocabulary - (terminal | active)
     assert not uncovered, (
-        f"console_status_label returns {sorted(uncovered)} which neither frozenset "
-        "holds — the pages can only call it 不认识"
+        f"console_status_label returns {sorted(uncovered)} which neither set holds "
+        "— the pages can only call it 不认识"
     )
 
 

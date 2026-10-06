@@ -110,9 +110,6 @@ router = APIRouter(
 # PLANNING → AWAITING_APPROVAL → EXECUTING → COMPLETED; FAILED/CANCELLED
 # anywhere. Derived from the store projection (see _console_status).
 
-_CANCELLABLE_STATUSES = frozenset({"PLANNING", "AWAITING_APPROVAL", "EXECUTING"})
-_TERMINAL_CONSOLE_STATUSES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
-
 #: Event types carried by the SSE stream (plus "progress").
 EVENT_TYPES = ("plan", "tool_call", "tool_result", "edit", "gate", "progress", "model_output")
 
@@ -135,6 +132,20 @@ _CONSOLE_TO_STORE_STATUS: dict[str, str] = {
     "FAILED": "failed",
     "CANCELLED": "cancelled",
 }
+
+#: Console statuses that name the END of a run. The live cancel rule refuses on
+#: this set — see `_require_cancellable`. There used to be a matching
+#: `_CANCELLABLE_STATUSES` here; it was deleted (#173-1) because NOTHING read it:
+#: a declaration with no consumer cannot be caught disagreeing with the rule that
+#: actually runs, and the frontend's active set now checks against the rule
+#: itself (the complement of this set) instead of against a copy of it.
+#:
+#: The rule therefore ACCEPTS a status outside the vocabulary. That is the
+#: deliberate half: a row written by an older writer or a manual fix is exactly
+#: the wedged job an operator needs the cancel lever for, and refusing would
+#: leave them with no action. `test_cancel_accepts_a_status_outside_the_vocabulary`
+#: pins it so the stricter reading has to be a decision, not a drift.
+_TERMINAL_CONSOLE_STATUSES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
 
 
 def _now_iso() -> str:

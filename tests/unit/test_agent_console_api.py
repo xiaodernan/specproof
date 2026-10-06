@@ -848,3 +848,31 @@ def test_the_two_blocked_flavors_reach_the_console_apart(
     # A projection without a gate summary carries no `gates` key at all: the
     # page must say "cannot tell why", never infer the passing flavour.
     assert "gates" not in errored
+
+
+def test_cancel_accepts_a_status_outside_the_vocabulary(
+    client: TestClient, store: InMemoryAgentJobStore,
+) -> None:
+    """RECORDED CHOICE (#173-1): the cancel rule refuses on the TERMINAL set,
+    so a row whose status is outside the console vocabulary stays cancellable.
+
+    Why this test exists at all: the rule was always "terminal ⇒ refuse", which
+    means "unknown ⇒ accept", but nothing said so out loud and nothing pinned
+    it. A hand-written `_CANCELLABLE_STATUSES` sat next to it that NOTHING read,
+    so the declared set and the running rule could disagree with every gate
+    green. That declaration is deleted now and the frontend's active set is
+    checked against the rule itself — but the declaration only ever covered the
+    three in-vocabulary tokens, so the rule's other half still needed pinning:
+    an out-of-vocabulary row is exactly the wedged job an operator needs the
+    cancel lever for, and refusing would leave them with no action. Moving to
+    the stricter reading must fail here first.
+    """
+    import dataclasses
+
+    job_id = _create(client)
+    stored = store._jobs[job_id]
+    store._jobs[job_id] = dataclasses.replace(stored, status="archived")
+
+    resp = client.post(f"/agent/jobs/{job_id}/cancel", headers=_headers())
+    assert resp.status_code == 202, resp.text
+    assert resp.json() == {"job_id": job_id, "status": "CANCELLED"}

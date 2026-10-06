@@ -2411,3 +2411,48 @@ craft 的 `ERROR`），而全库没有一本门把「哪些命令按裁决退出
 **门证。** 平面身份实测：`PYTHONPATH` 钉平面根后 `api.agent_runtime.__file__` 与 `craft.loop.__file__` 都落在 `D:/面试项目/plane173` 内（venv 的 editable `.pth` 没有把它偷偷换回工作副本）。平面 baseline **10 passed / rc=0**；主树同文件 **10 passed**（#172 的 8 例 + 本批 2 例）；`ruff` All checks passed、`mypy` Success。臂脚本落在仓库外 `D:/面试项目/_arm173.py`。
 
 **#173 剩余两条（复核后仍挂起）**：① `_CANCELLABLE_STATUSES` 死声明要改 `_require_cancellable` 或删掉，仍需要 `api/routes/agent_console.py` 从并发车道手里空出来——**本批复核：该文件仍有未提交改动（+32/−9），继续不动**；③ `AgentJobDetail.tsx` 的取消按钮失败回读仍只刻画不修。
+
+## #173-1 落地：`_CANCELLABLE_STATUSES` 是一份没人读的声明——删掉它，并把规则真正的那一半钉住
+
+**起点（#172 的 #173 种子第 1 条）。** `api/routes/agent_console.py` 里两份集合并排躺着：
+
+```python
+_CANCELLABLE_STATUSES = frozenset({"PLANNING", "AWAITING_APPROVAL", "EXECUTING"})   # 无消费者
+_TERMINAL_CONSOLE_STATUSES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})        # 活规则用它
+
+def _require_cancellable(job):           # :685
+    if _console_status(job) in _TERMINAL_CONSOLE_STATUSES:   # ← 真正在跑的判定
+        raise ApiError(409, ...)
+```
+
+`git grep` 实测：`_CANCELLABLE_STATUSES` 在全仓**只有它自己的声明这一处**。#172 的门之所以还读它，只是因为前端的活跃集合"镜像"着它——**一份没有任何消费者的声明，无法被发现与真正在跑的规则不一致**，这正是本批要消掉的东西。
+
+**为什么选"删掉"而不是"改成按它判定"。** 计划给的两条路，实测后只有一条成立。两份集合在词表上互补（六词的划分），所以对**词表内的每个 token** 两种写法给出同一个答案；它们**只在一个地方不同：词表外的状态**。改成 `status not in _CANCELLABLE_STATUSES ⇒ 拒绝` 会把"未知状态可取消"翻成"不可取消"——这是**行为变更**，而且是产品决策（一个状态读不出来的行，要不要留一根取消杠杆？），不该由本批顺手翻掉。于是走另一条：**删掉声明**，让前端的活跃集合改去对**规则本身**（终态集合的补集）负责，这比对着"一份副本"更强——副本可以是错的，规则不会。
+
+**顺带钉住规则真正的那一半。** 删掉声明后，"词表外 ⇒ 可取消"这半边就没有任何东西看着了（声明从来只覆盖三个词表内的 token）。新增
+`test_cancel_accepts_a_status_outside_the_vocabulary`（`tests/unit/test_agent_console_api.py`）：造一行 `status="archived"`（旧写入者/人工修库的形状，与既有的 `test_get_agent_job_reports_unknown_status_verbatim` 同一个手法），断言 cancel 返回 **202**。理由写进 docstring：状态读不出来的行正是操作者最需要取消杠杆的那种卡死作业，拒绝等于让人无计可施。**要改成更严的读法，必须先在这里红。**
+
+**门这边的改动（`test_agent_console_terminal_vocabulary_parity.py`）。**
+- `backend_sets()` → `backend_terminal_set()`：只读那份活权威；`_CANCELLABLE_STATUSES` 没了就不该再要求解析到两份。
+- `test_the_active_set_mirrors_the_declared_cancellable_vocabulary` → **`test_the_active_set_is_the_complement_of_the_live_cancel_rule`**：断言 `前端活跃集合 == console_mapped_tokens() − 终态集合`。对着规则而不是对着副本。
+- `test_the_two_backend_sets_are_disjoint_and_cover_the_mapping` → **`test_the_terminal_and_active_sets_partition_the_vocabulary`**：终态 ∩ 活跃 == ∅ 且 终态 ∪ 活跃 == 词表（覆盖语义保留）。
+- 新增 `test_the_dead_cancellable_declaration_stays_deleted`：**声明**不许回来。
+- `apps/web/src/agent/util.ts` 的注释按实情改口（原文说"活跃集合镜像那份死声明"）。
+
+**过程中我自己踩的一个坑（值得记）。** 那条"不许回来"的 clause 第一版写成 `"_CANCELLABLE_STATUSES" not in 源码`，当场被我自己**刚写的注释**（"There used to be a matching `_CANCELLABLE_STATUSES` here; it was deleted"）判红。这正是 #109/#172 一路记下来的"散文不是代码"：探针必须读**绑定**（AST 的 `Assign`/`AnnAssign` 目标），不能读文本。改成 AST 后通过。
+
+**四条变异臂（预测先写后跑；文件已不在并发车道的禁改清单里，所以在工作副本上做，每臂从**运行前快照**还原——不是从上一臂的还原结果，这正是 #173-2 里让我吃过假警报的那个坑）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| N1 | 把 `_CANCELLABLE_STATUSES` 声明塞回来 | 恰"不许回来"那条红 | **1 red**，正是它 ✅ |
+| N2 | 前端活跃集合删掉一个 token | 补集条 + 划分条 + 探针下限 | **3 red**（`..._is_the_complement_...`、`..._partition_...`、`..._probe_found_a_real_vocabulary...`）✅ |
+| N3 | 后端终态集合丢掉 `CANCELLED` | 终态条 + 补集条 + 划分条 + 探针 | **4 red**，四条都在预测里 ✅ |
+| N4 | 让判定恒不拒绝（`if False`） | API 套件里的取消生命周期 409 | **1 red**（`test_cancel_agent_job_lifecycle`）✅ |
+
+**门证。** `ruff` All checks passed；`mypy` Success（改动的两个文件）；
+`test_agent_console_api.py` + `test_agent_console_terminal_vocabulary_parity.py` + `test_agent_console_status_mirror.py` 共 **55 passed**（基线 49，新增 1 例 + 门由 8 例变 11 例）；
+前端 `tsc --noEmit` 0 错、`vitest run src/agent` **12 文件 / 92 通过**。臂脚本落在仓库外 `D:\面试项目\_arm173b.py`。
+另记一次环境事故：追加测试时 heredoc 被执行了两遍，同一个测试函数进了文件两次（`ruff` F811 抓住），已去重——**这个坑在本项目里已出现过，追加多行内容后必须数一次函数名出现次数**。
+
+**#173 至此收口**（①②已落地；③ `AgentJobDetail.tsx` 的取消按钮失败回读仍只刻画不修，需要先有真实 409 的回读路径）。
