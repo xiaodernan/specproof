@@ -726,3 +726,76 @@ def test_court_outcomes_are_counted_at_the_node_boundary() -> None:
     )
     assert result["candidate_findings"][0]["policy_outcome"] == "needs_confirmation"
     assert _court_counter("findings_court_needs_confirmation_total") == before_needs + 1
+
+
+def test_attribution_decisions_are_counted_at_the_node_boundary() -> None:
+    """§6 "PR 归因准确率" (#184): the policy layer's both-fail attribution
+    decisions counted at the node boundary — compared / kept / rejected,
+    plus the closed signal vocabulary carrying the WHY (policy stays pure)."""
+    from agent.nodes.review_court import run_review_court
+
+    # Arm 1: identical both-fail -> attribution rejected (preexisting defect);
+    # no signal fired because nothing distinguishes Head from Base.
+    before = (
+        _court_counter("findings_attribution_compared_total"),
+        _court_counter("findings_attribution_kept_total"),
+        _court_counter("findings_attribution_rejected_total"),
+        _court_counter("findings_attribution_signal_exit_code_differs_total"),
+    )
+    result = run_review_court(_node_state(diff_results=[_diff_record()]))
+    assert result["candidate_findings"][0]["policy_outcome"] == NOT_ATTRIBUTED_STATUS
+    assert (
+        _court_counter("findings_attribution_compared_total"),
+        _court_counter("findings_attribution_kept_total"),
+        _court_counter("findings_attribution_rejected_total"),
+        _court_counter("findings_attribution_signal_exit_code_differs_total"),
+    ) == (before[0] + 1, before[1], before[2] + 1, before[3])
+
+    # Arm 2: both-fail with different exit codes -> attribution kept, and
+    # exit_code_differs carries the WHY (exactly one signal: the failure
+    # signatures, test counts and DB rows stay identical).
+    distinct = _diff_record(head_exit_code=2)
+    before_kept = (
+        _court_counter("findings_attribution_compared_total"),
+        _court_counter("findings_attribution_kept_total"),
+        _court_counter("findings_attribution_rejected_total"),
+        _court_counter("findings_attribution_signal_exit_code_differs_total"),
+        _court_counter("findings_attribution_signal_failure_signature_differs_total"),
+    )
+    result = run_review_court(_node_state(diff_results=[distinct]))
+    assert result["candidate_findings"][0]["policy_outcome"] == "confirmed"
+    assert (
+        _court_counter("findings_attribution_compared_total"),
+        _court_counter("findings_attribution_kept_total"),
+        _court_counter("findings_attribution_rejected_total"),
+        _court_counter("findings_attribution_signal_exit_code_differs_total"),
+        _court_counter("findings_attribution_signal_failure_signature_differs_total"),
+    ) == (
+        before_kept[0] + 1,
+        before_kept[1] + 1,
+        before_kept[2],
+        before_kept[3] + 1,
+        before_kept[4],
+    )
+
+    # Arm 3: base passes (head-only failure) -> no both-fail comparison,
+    # nothing counted — the family measures the ambiguous decision point.
+    regression = _diff_record(
+        verdict="REGRESSION",
+        severity="MAJOR",
+        base_exit_code=0,
+        head_exit_code=1,
+        base_output="Tests run: 1, Failures: 0, Errors: 0",
+        detail="Head fails, Base passes",
+    )
+    before_arm3 = (
+        _court_counter("findings_attribution_compared_total"),
+        _court_counter("findings_attribution_kept_total"),
+        _court_counter("findings_attribution_rejected_total"),
+    )
+    run_review_court(_node_state(diff_results=[regression]))
+    assert (
+        _court_counter("findings_attribution_compared_total"),
+        _court_counter("findings_attribution_kept_total"),
+        _court_counter("findings_attribution_rejected_total"),
+    ) == before_arm3

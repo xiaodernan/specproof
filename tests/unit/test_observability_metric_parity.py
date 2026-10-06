@@ -141,6 +141,19 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "the derivation test, so a template word change forces this gate "
         "and the family to move together",
     ),
+    "attribution_signal": (
+        re.compile(
+            r"^findings_attribution_signal_"
+            r"(exit_code_differs|failure_signature_differs"
+            r"|head_db_state_differs|head_extra_failure_count)"
+            r"_total$"
+        ),
+        "agent/nodes/review_court.py #184: findings_attribution_signal_<word>"
+        "_total per head-only difference signal on a kept attribution — "
+        "the vocabulary is imported from agent.review_court.policy "
+        "(HEAD_ONLY_SIGNALS) by the derivation test, so a new signal "
+        "forces this gate and the family to move together",
+    ),
 }
 
 
@@ -336,6 +349,27 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert replay_pattern.match(f"capsule_replay_verdict_{word}_total"), (
             f"family rejects replay verdict word {word}"
         )
+
+    # attribution_signal == the policy layer's closed head-only difference
+    # signal vocabulary. Imported, same discipline as court_outcome: a new
+    # signal in the preexisting-defect comparison forces this gate and the
+    # family to move together.
+    from agent.review_court.policy import HEAD_ONLY_SIGNALS
+
+    attribution_pattern, _ = CONCATENATED_FAMILIES["attribution_signal"]
+    expected_attribution = (
+        "^findings_attribution_signal_("
+        + "|".join(sorted(HEAD_ONLY_SIGNALS))
+        + ")_total$"
+    )
+    assert attribution_pattern.pattern == expected_attribution, (
+        f"attribution_signal family {attribution_pattern.pattern} != policy "
+        f"vocabulary {sorted(HEAD_ONLY_SIGNALS)}"
+    )
+    for word in sorted(HEAD_ONLY_SIGNALS):
+        assert attribution_pattern.match(
+            f"findings_attribution_signal_{word}_total"
+        ), f"family rejects attribution signal {word}"
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

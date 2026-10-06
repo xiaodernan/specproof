@@ -356,6 +356,24 @@ def run_review_court(
     incr("findings_court_candidates_total", float(len(candidates)))
     for audit_entry in result["audit_entries"]:
         incr("findings_court_" + str(audit_entry.get("final_status", "")) + "_total")
+        # §6 "PR 归因准确率>=90%" (#184): the both-fail attribution decision
+        # the policy layer already made, made countable at the node
+        # boundary (the policy layer stays pure). kept = a head-only
+        # behavioral difference attributed the failure to Head; rejected =
+        # the preexisting-defect protection. The signal family carries the
+        # WHY (vocabulary: policy.HEAD_ONLY_SIGNALS). True accuracy needs
+        # evaluation ground truth — the distribution is the online-measurable
+        # part, exactly like the Precision boundary above.
+        preexisting = audit_entry.get("preexisting_check")
+        if not isinstance(preexisting, dict) or not preexisting.get("applicable"):
+            continue
+        incr("findings_attribution_compared_total")
+        if preexisting.get("head_only_difference"):
+            incr("findings_attribution_kept_total")
+            for signal in preexisting.get("head_only_signals") or []:
+                incr("findings_attribution_signal_" + str(signal) + "_total")
+        else:
+            incr("findings_attribution_rejected_total")
     return {
         "candidate_findings": result["candidate_findings"],
         "confirmed_findings": result["confirmed_findings"],

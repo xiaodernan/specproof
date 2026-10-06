@@ -2734,6 +2734,121 @@
         "refId": "C"
       }
       ]
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "PR 归因判定 (§6: 归因准确率>=90% 前置)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "归因判定的计数化 (agent/nodes/review_court.py 节点边界, #184 接线; policy 层保持 pure): 双侧同败时 policy 层做 Head 行为差异比较 (preexisting_check)——compared/s 计归因比较, kept/s 计保留归因 (Head-only 差异, att-08 场景), rejected/s 计拒归因 (既有缺陷的假阳性保护)。kept 的 WHY 由 findings_attribution_signal_<word>_total 四词族携带 (exit_code_differs / failure_signature_differs / head_extra_failure_count / head_db_state_differs, 词表 = policy 层封闭的 HEAD_ONLY_SIGNALS, 对账门 import 钉死)。kept/compared 是归因分布不是真准确率——真准确率需评测集 ground truth, §14 的 90% 阈值不做告警 (同 #180 Precision 纪律)。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 103
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_findings_attribution_kept_total[15m])",
+        "legendFormat": "kept/s",
+        "range": true,
+        "instant": false,
+        "refId": "A"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_findings_attribution_rejected_total[15m])",
+        "legendFormat": "rejected/s",
+        "range": true,
+        "instant": false,
+        "refId": "B"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_findings_attribution_compared_total[15m])",
+        "legendFormat": "compared/s",
+        "range": true,
+        "instant": false,
+        "refId": "C"
+      }
+      ]
     }
   ],
   "refresh": "30s",

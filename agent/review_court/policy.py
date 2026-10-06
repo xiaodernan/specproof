@@ -69,6 +69,22 @@ COURT_OUTCOMES = frozenset({
     NOT_ATTRIBUTED_STATUS,
 })
 
+# §6 "PR 归因准确率" (#184): the closed vocabulary of head-only behavioral
+# difference signals (see _head_only_behavior_difference). Data, not
+# scattered literals: the findings_attribution_signal_* metric family and
+# its parity gate word list derive from this frozenset, never a hand copy.
+SIGNAL_EXIT_CODE_DIFFERS = "exit_code_differs"
+SIGNAL_FAILURE_SIGNATURE_DIFFERS = "failure_signature_differs"
+SIGNAL_HEAD_EXTRA_FAILURE_COUNT = "head_extra_failure_count"
+SIGNAL_HEAD_DB_STATE_DIFFERS = "head_db_state_differs"
+
+HEAD_ONLY_SIGNALS = frozenset({
+    SIGNAL_EXIT_CODE_DIFFERS,
+    SIGNAL_FAILURE_SIGNATURE_DIFFERS,
+    SIGNAL_HEAD_EXTRA_FAILURE_COUNT,
+    SIGNAL_HEAD_DB_STATE_DIFFERS,
+})
+
 POLICY_VERSION = "review-court-policy-v2"
 
 # ── Model layer contract ────────────────────────────────────────────────
@@ -164,22 +180,22 @@ def _head_only_behavior_difference(record: dict[str, Any]) -> dict[str, Any]:
         and isinstance(head_exit, int)
         and base_exit != head_exit
     ):
-        signals.append("exit_code_differs")
+        signals.append(SIGNAL_EXIT_CODE_DIFFERS)
 
     base_sig = _failure_signature(str(record.get("base_output", "")))
     head_sig = _failure_signature(str(record.get("head_output", "")))
     if base_sig and head_sig and base_sig != head_sig:
-        signals.append("failure_signature_differs")
+        signals.append(SIGNAL_FAILURE_SIGNATURE_DIFFERS)
 
     base_count = _failure_count(record.get("base_test_counts"))
     head_count = _failure_count(record.get("head_test_counts"))
     if head_count > base_count:
-        signals.append("head_extra_failure_count")
+        signals.append(SIGNAL_HEAD_EXTRA_FAILURE_COUNT)
 
     base_rows = _db_rows(record.get("base_db_snapshot"))
     head_rows = _db_rows(record.get("head_db_snapshot"))
     if base_rows and head_rows and base_rows != head_rows:
-        signals.append("head_db_state_differs")
+        signals.append(SIGNAL_HEAD_DB_STATE_DIFFERS)
 
     return {"distinct": bool(signals), "signals": signals}
 
