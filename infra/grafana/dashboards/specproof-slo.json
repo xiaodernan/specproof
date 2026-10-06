@@ -3242,6 +3242,157 @@
         "refId": "B"
       }
       ]
+    },
+    {
+      "id": 34,
+      "type": "timeseries",
+      "title": "环境预检 (§1.4: 语言感知工具链检查)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "preflight 节点的执行计数 (agent/nodes/preflight.py #190): runs/s 计每次调用; outcomes_<word>/s 按五种结局分列——clean（真实探测跑了、无阻塞问题）、blocked（真实探测跑了、有阻塞问题：错误带 Preflight: 前缀，graph._abort_on_preflight 据此提前收口作业）、upstream_errors（intake 已记录错误：探测未执行）、disabled（SPECPROOF_PREFLIGHT 逃生门：探测未执行）、probe_error（运行器抛异常：fail-open 仍 passed=True，仅有一条 warning——「探测坏了」只有本词表能看见）。注意 result 的 passed=true 覆盖 clean/probe_error/disabled/upstream_errors 四种情形，只有 outcomes_<word> 能区分当轮到底发生了什么（#190 行为测试逐词钉住）。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 119
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_preflight_runs_total[15m])",
+        "legendFormat": "runs/s",
+        "range": true,
+        "instant": false,
+        "refId": "A"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_preflight_outcomes_clean_total[15m])",
+        "legendFormat": "clean/s",
+        "range": true,
+        "instant": false,
+        "refId": "B"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_preflight_outcomes_blocked_total[15m])",
+        "legendFormat": "blocked/s",
+        "range": true,
+        "instant": false,
+        "refId": "C"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_preflight_outcomes_upstream_errors_total[15m])",
+        "legendFormat": "upstream_errors/s",
+        "range": true,
+        "instant": false,
+        "refId": "D"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_preflight_outcomes_disabled_total[15m])",
+        "legendFormat": "disabled/s",
+        "range": true,
+        "instant": false,
+        "refId": "E"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_preflight_outcomes_probe_error_total[15m])",
+        "legendFormat": "probe_error/s",
+        "range": true,
+        "instant": false,
+        "refId": "F"
+      }
+      ]
     }
   ],
   "refresh": "30s",

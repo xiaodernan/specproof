@@ -191,6 +191,20 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "(#187b: pinned by behavior test; metadata plumbing failures are "
         "swallowed and move neither counter)",
     ),
+    "preflight": (
+        re.compile(
+            r"^preflight_(outcomes_"
+            r"(blocked|clean|disabled|probe_error|upstream_errors)|runs)"
+            r"_total$"
+        ),
+        "agent/nodes/preflight.py #190: preflight_runs_total + preflight_"
+        "outcomes_<word>_total at the preflight node boundary — runs counts "
+        "every invocation; the outcome words are how the run ended and the "
+        "result's passed=True is true for FOUR of the five, so only the "
+        "family separates the fates. The vocabulary is imported from "
+        "agent.nodes.preflight (PREFLIGHT_OUTCOMES) by the derivation test, "
+        "so a new word forces this gate and the family to move together",
+    ),
 }
 
 
@@ -407,6 +421,26 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert attribution_pattern.match(
             f"findings_attribution_signal_{word}_total"
         ), f"family rejects attribution signal {word}"
+
+    # preflight == the node's closed PREFLIGHT_OUTCOMES vocabulary. Imported,
+    # same discipline as court_outcome: the result's passed=True covers four
+    # of the five words, so the family is the only place the fates separate.
+    from agent.nodes.preflight import PREFLIGHT_OUTCOMES
+
+    preflight_pattern, _ = CONCATENATED_FAMILIES["preflight"]
+    expected_preflight = (
+        "^preflight_(outcomes_("
+        + "|".join(sorted(PREFLIGHT_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert preflight_pattern.pattern == expected_preflight, (
+        f"preflight family {preflight_pattern.pattern} != node vocabulary "
+        f"{sorted(PREFLIGHT_OUTCOMES)}"
+    )
+    for word in sorted(PREFLIGHT_OUTCOMES):
+        assert preflight_pattern.match(f"preflight_outcomes_{word}_total"), (
+            f"family rejects preflight outcome {word}"
+        )
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

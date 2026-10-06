@@ -2746,3 +2746,30 @@ rows`）、`tests/unit/test_metrics_http.py:108`（histogram ladder 断言）。
   head 再引入，ground truth 双声明，eval 侧对账消费 review court 的
   preexisting_check——收 §6 最后一行 🟡「PR 归因准确率」的评测基建）；
   或 findings 召回层 MISS 根因排查（本机 no-llm 3/3 MISS vs CI Recall 门）。
+
+
+### #190 preflight 节点执行计数——五种结局，passed=true 覆盖其中四种（已落地）
+
+**背景**
+
+preflight（Phase 1.4 起的首个真守卫节点，intake→preflight 为无条件边）此前零观测面。节点结果字典在**五种结局里有四种**都写 `passed=true`：clean（真实探测跑了、无阻塞问题）、upstream_errors（intake 已记录错误——探测根本没跑）、disabled（SPECPROOF_PREFLIGHT 逃生门——探测根本没跑）、probe_error（运行器抛异常——fail-open：仅一条 warning、checks 空表）；只有 blocked 是 false。于是「作业为何没跑起来 / 探测坏了没」在指标面上全不可分——「探测坏了」与「探测说环境干净」同形，「没探测」与「探测过了」同形。
+
+**实现**
+
+- `agent/nodes/preflight.py`：`preflight_runs_total`（每次到达本节点）+ `preflight_outcomes_<word>_total` 五词族（clean / blocked / upstream_errors / disabled / probe_error，`PREFLIGHT_OUTCOMES` frozenset 封闭词表；每分支恰一次 incr——upstream/disabled/probe_error 在早退分支，clean/blocked 在真实探测后的分叉处）。
+- 对账门 `tests/unit/test_observability_metric_parity.py`：新家族 `preflight`（regex `^preflight_(outcomes_(blocked|clean|disabled|probe_error|upstream_errors)|runs)_total$`）+ 推导块（import `PREFLIGHT_OUTCOMES` 与 regex 字面量全等比较——新词必须同时改族与门）。
+- 仪表盘 panel 34「环境预检 (§1.4: 语言感知工具链检查)」：runs + 五词共 6 条 rate target；description 明写「passed=true 覆盖四种情形——只有 outcomes 词表能区分」。
+- `docs/operations/OBSERVABILITY.md`：新条目（#190 起，含五词读法）+ 顺手订正清单头「生产侧上报模块」计数 14→17（该句是手账：按文件名重数，#184 为已在册的 review_court.py 加第二条目时误 +1、#185–#187 三个新文件未同步；订正依据已写入该文件内注）。
+- 行为测试 `tests/unit/test_preflight_node_execution_is_observable.py`（6 例，**落地即写**非补账）：五词逐词一例 + runs 每路径 + 词表漂移门（`PREFLIGHT_OUTCOMES` == parity regex words == 源字面量）。
+
+**门证（HEAD 8391020 + 本弧）**
+
+- 定向 pytest **44 passed** = 新 6 + test_preflight 26（旧行为零回归）+ parity 4 + metrics_http 8（30.31s，冻结字节）。
+- ruff 三 py 文件 All checks passed；mypy `agent/nodes/preflight.py` 0 issue；仪表盘 JSON 可解析（34 panels，panel 34 六条 target 逐条核过）。
+- 变异臂 3 条（预测先写，junit 读红）：对照 **10/10 绿**；A1 反转 clean/blocked 分叉 ⇒ 恰 2 红（clean、blocked 两例）；A2 删 upstream incr 行 ⇒ 恰 2 红（upstream 例 + 源字面量漂移门）；A3 仅词表 clean→ok ⇒ 恰 3 红（clean 例 + 漂移门 + parity 推导）。**3/3 MATCHED**，还原后 sha256 与臂前逐字节一致。
+- ⚠️ 还原坑：`Path.read_text/write_text` 文本模式往返在 Windows 上把 LF 工作副本整体转 CRLF（sha 假红、内容其实正确）——恢复须 `newline=''` 写回；本仓工作副本为 LF 而 `core.autocrlf=true`。
+
+**读数**
+
+- 新增名 6 个（runs + 五词）；面板 33→34。为并发车道占用校准：§#171 复测号（8391020）已用 #189，本号让位落 #190，其文末「#190 评测集…」候选相应后移。
+- 下一号候选：preflight 逃生门/失败态（disabled、probe_error）目前只在返回字典的 `not_run` 键上，「环境未验证」进作业披露；或承接上节两个候选（评测集 preexisting 探针 / findings 召回层 MISS 排查）。
