@@ -2706,3 +2706,43 @@ def _require_cancellable(job):           # :685
 **订正（行为测试证伪的散文，全部副本已改）。** 落地散文称"lineage/replay 构建失败或元数据管道故障会在 **HTML 落地前**丢弃作业"——②实测两点否证：①HTML 写盘发生在 lineage 构建**之前**，lineage 失败时 HTML 已落地（不是"落地前丢弃"）；②元数据管道丢不了作业：`record_file_object_best_effort` 内部吞掉一切异常（object_metadata.py 文档即 "never raising"，288-306 行），且调用点在两个计数之后。订正副本：parity 家族描述、OBSERVABILITY.md 条目、仪表盘面板 description。
 
 **门证（#186b/#187b 合计，HEAD 5b84116）。** 定向 pytest **11 passed**＝intake 5＋publish 2＋parity 4（55.88s）；ruff 四 py 文件 All checks passed；仪表盘 JSON 仍可解析（33 panels）且 parity 门全绿（名字未动，仅 description 散文订正）。
+
+
+### #189 #171 遗留四红重测——全部复绿，零码面收口（已落地）
+
+**背景**
+
+#171 弧（HEAD `0932ebe`）的合并门读数记了 4 条「不归本弧」的红：
+`tests/integration/test_differential.py:129`（`'NoneType' object has no attribute
+'lower'`）、`tests/integration/test_phase_acceptance.py:109`（`argument of type
+'NoneType' is not iterable`）、同文件 `:226`（`AssertionError: Matrix has no
+rows`）、`tests/unit/test_metrics_http.py:108`（histogram ladder 断言）。当时的
+成因线索：并发会话未提交的 `api/routes/agent_console.py`(+41) 与
+`craft/accept.py`(+51) 把 witness 指向的行挪走——是测量平面的污染而非持久缺陷。
+本号对这 4 条做重测定性并归档，不留悬账。
+
+**修法（无码面改动——量先于动，量完即收）**
+
+- `tests/integration/test_differential.py::TestStaticAnalysisDetection`
+  （即 :129 所在类，3 例）：**3 passed / 2.97s**。
+- `tests/unit/test_metrics_http.py`（:108 histogram ladder 所在文件，8 例）：
+  **8 passed / 6.95s**——该文件随后被并行车道接线批次（#166-#188 间）正经
+  修改过，红早已消。
+- `tests/integration/test_phase_acceptance.py::TestPhaseAcceptance::
+  test_eval_generates_html_report`（:109）与 `::test_full_pipeline_produces_
+  all_artifacts`（:226）：**2 passed / 717.92s（11m57s）**——两个都是真管线
+  慢测（4-case eval 子集 + 全管线 artifacts），本号后台实测跑通。
+- 成因判定：#171 测量时工作树有并发车道脏文件（witness 行号被挪）+ 沙箱/
+  环境瞬时态；此后码面经 #180-#188 正经演进，四红全部不复现。与 #188 实测
+  观测互洽：eval 4-case 在本机 no-llm 下 findings 全 MISS 但 exit 0，
+  test_eval_generates_html_report 的断言面（returncode/HTML 存在/含 SpecProof）
+  本就不含 Recall——两轮测量说的是同一件事的不同侧面。findings 召回层
+  （MISS vs CI 绿）的根因排查另行立号，不入本账。
+
+**读数**
+
+- 四红全绿（3+8+2 例，合计 ~12 分钟），零文件改动之外的账：本号只追加本节。
+- 下一号候选：#190 评测集 preexisting 缺陷探针构造（base tag 带既有缺陷 +
+  head 再引入，ground truth 双声明，eval 侧对账消费 review court 的
+  preexisting_check——收 §6 最后一行 🟡「PR 归因准确率」的评测基建）；
+  或 findings 召回层 MISS 根因排查（本机 no-llm 3/3 MISS vs CI Recall 门）。
