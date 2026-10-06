@@ -177,6 +177,14 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "mutually exclusive failure modes that explain why jobs never reach "
         "later nodes (honest attribution, not silent drops)",
     ),
+    "publish_report": (
+        re.compile(r"^publish_report_(runs|success)_total$"),
+        "agent/nodes/publish_report.py #187: publish_report_<word>_total at "
+        "the publish_report node boundary — runs counts every report "
+        "generation attempt, success counts completed artifact generation. "
+        "The gap between the two is honest: failed lineage/replay or "
+        "metadata plumbing failures drop the job before the HTML lands",
+    ),
 }
 
 

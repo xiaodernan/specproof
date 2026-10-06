@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from agent.state import Phase0State
+from observability.metrics import incr
 
 
 def publish_report_node(state: Phase0State) -> dict[str, Any]:
@@ -23,6 +24,11 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
     recomputes every edge hash and the root from the file alone. The root
     hash is returned in state ("lineage_root") for the certificate issuer,
     and any certificate already present in state gets its extension updated.
+
+    #187: count every report generation attempt and its outcomes at the node
+    boundary — successful report + lineage generation vs failures in either
+    artifact. These are the final output artifacts of every verification job;
+    tracking them ensures we never silently lose user-facing evidence.
     """
     raw_state: dict[str, Any] = cast(dict[str, Any], state)
     matrix = raw_state.get("matrix", {})
@@ -32,6 +38,9 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
     base_ref = raw_state.get("base_ref", "")
     head_ref = raw_state.get("head_ref", "")
     output_dir = raw_state.get("output_dir", "reports")
+
+    # #187: count every publish_report execution that reaches this point
+    incr("publish_report_runs_total")
 
     from evidence.report import render_verification_report
 
@@ -75,6 +84,9 @@ def publish_report_node(state: Phase0State) -> dict[str, Any]:
     job_slug = str(raw_state.get("job_id") or "")[:8] or timestamp
     lineage_path = out / f"{job_slug}-lineage.json"
     lineage_path.write_text(lineage_to_json(dag, lineage_root), encoding="utf-8")
+
+    # #187: both artifacts written successfully
+    incr("publish_report_success_total")
 
     result: dict[str, Any] = {
         "report_path": str(report_path.resolve()),
