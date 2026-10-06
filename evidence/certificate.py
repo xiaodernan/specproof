@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from evidence.verdict import evaluate_verification, evidence_references
+from observability.metrics import incr
 
 
 class MergeCertificate:
@@ -209,12 +210,17 @@ def issue_certificate(
         {"rows": contracts}, contracts=contracts, require_experiment=False,
     )
     if decision.status != "VERIFIED":
+        # §8.10 "Certificate 签发率" (#179): the refusal is observable —
+        # issued vs refused rates give the certificate issuance ratio, and a
+        # silent refusal would look exactly like "nobody ever asked".
+        incr("certificates_refused_total")
         return None
 
     recorded_evidence = sorted({
         ref for contract in contracts for ref in evidence_references(contract)
     } | set(evidence_digests or []))
 
+    incr("certificates_issued_total")
     return MergeCertificate(
         repository=repository,
         commit_sha=commit_sha,
@@ -238,6 +244,7 @@ def build_rejection_notice(
     extension: dict[str, Any] | None = None,
 ) -> RejectionNotice:
     """Build the rejection notice written instead of a certificate."""
+    incr("rejection_notices_total")
     return RejectionNotice(
         repository=repository,
         commit_sha=commit_sha,

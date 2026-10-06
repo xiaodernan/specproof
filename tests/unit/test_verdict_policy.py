@@ -150,3 +150,48 @@ def test_static_pass_references_exact_inputs_and_deleted_class_is_unverified(tmp
     deleted = run_static_checks_node(state)["contract_results"][0]
     assert deleted["result"] == "UNVERIFIED"
     assert "被删除" in deleted["details"]
+
+
+
+def test_certificate_issuance_is_observable():
+    """§8.10 "Certificate 签发率" (#179): the VERIFIED exit counts an issue,
+    the non-VERIFIED exit counts a refusal — the issuance ratio is
+    derivable from rates, and neither exit is silent."""
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()["counters"]
+    ok = issue_certificate("r", "s", "req", [passing_row(), passing_row("C-2")])
+    refused = issue_certificate(
+        "r", "s", "req", [passing_row("C-3") | {"result": "FAIL"}]
+    )
+    after = metrics_module.snapshot()["counters"]
+
+    assert ok is not None and refused is None
+    issued = after["certificates_issued_total"] - before.get(
+        "certificates_issued_total", 0.0
+    )
+    refusals = after["certificates_refused_total"] - before.get(
+        "certificates_refused_total", 0.0
+    )
+    assert issued == 1
+    assert refusals == 1
+
+
+def test_rejection_notice_counts_when_written():
+    """build_rejection_notice counts an actually written notice — a
+    different fact from the refusal decision itself (a caller may decline
+    to write one)."""
+    from evidence.certificate import build_rejection_notice
+    from observability import metrics as metrics_module
+
+    before = metrics_module.snapshot()["counters"].get(
+        "rejection_notices_total", 0.0
+    )
+    build_rejection_notice(
+        "r", "s", "req", [passing_row("C-4") | {"result": "FAIL"}],
+        ["no evidence"],
+    )
+    after = metrics_module.snapshot()["counters"].get(
+        "rejection_notices_total", 0.0
+    )
+    assert after - before == 1

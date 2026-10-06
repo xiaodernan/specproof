@@ -35,8 +35,9 @@ ROOT = Path(__file__).resolve().parents[2]
 #: providers/ joined in #168 (LLM token/charge meters in
 #: providers/budget.py, the same choke point the billing listener reads);
 #: craft/ joined in #178 (the tool-execution meters live in
-#: craft/executor.py's Executor.run choke point).
-EMIT_DIRS = ("agent", "api", "craft", "storage", "observability", "providers")
+#: craft/executor.py's Executor.run choke point); evidence/ joined in #179
+#: (certificate issuance/refusal/notice meters in evidence/certificate.py).
+EMIT_DIRS = ("agent", "api", "craft", "evidence", "storage", "observability", "providers")
 
 #: Reference surfaces: the two Prometheus files (plain text — comments are
 #: prose but a comment naming a dead metric misleads the same way) and every

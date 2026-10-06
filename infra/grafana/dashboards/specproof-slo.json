@@ -2162,6 +2162,121 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "id": 25,
+      "type": "timeseries",
+      "title": "证书签发/拒绝 (§8.10: 签发率)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Merge Certificate 的签发与拒绝计数 (evidence/certificate.py, #179 接线): specproof_certificates_issued_total (issue_certificate 的 VERIFIED 出口) 与 specproof_certificates_refused_total (非 VERIFIED 出口——判定词表 VERIFIED/BLOCKED/FAILED 封闭, refused 即 blocked+failed 之和); specproof_rejection_notices_total 是 build_rejection_notice 被实际写出拒绝单的计数——与 refused (判定未过) 语义分开, 调用者可以判定拒绝而不写单。签发率 = issued 与 refused 两条 rate 的比值。§14 未定义证书阈值, 故无告警。无 accept 运行前无序列, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 87
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_certificates_issued_total[15m])",
+          "legendFormat": "issued/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_certificates_refused_total[15m])",
+          "legendFormat": "refused/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_rejection_notices_total[15m])",
+          "legendFormat": "notices/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        }
+      ]
     }
   ],
   "refresh": "30s",
