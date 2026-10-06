@@ -227,7 +227,8 @@ class RecordingVerify:
 
     def __call__(self, repo: str, base_sha: str, head_sha: str, spec_text: str) -> dict[str, Any]:
         self.calls += 1
-        return self.inner(repo, base_sha, head_sha, spec_text)
+        result: dict[str, Any] = self.inner(repo, base_sha, head_sha, spec_text)
+        return result
 
 
 def clean_runner() -> FakeRunner:
@@ -665,5 +666,321 @@ def test_accept_result_attach_rejected_for_cancelled_job(tmp_path: Path) -> None
     job = store.get("task-1")
     assert job is not None and job.accept_json is None
     assert job.error == "supervisor"
+
+
+# -- #175: unreadable revocation log → fail-closed -------------------------------
+
+
+def test_missing_revocation_log_does_not_create_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#175: missing log file ⇒ no empty file created, cached cert served.
+
+    Asking "is this certificate revoked?" must NOT materialise an empty log
+    file in the working directory (default_log_path is I/O-free).
+    """
+    log_file = tmp_path / "nonexistent_revocations.jsonl"
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(log_file))
+    assert not log_file.exists()
+
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    out = tmp_path / "accept-out"
+
+    signer = FakeSigner()
+    recorded_verify = RecordingVerify(verify_ok)
+    first = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                       output_dir=out)
+    assert first.verdict == "VERIFIED"
+
+    # No log file should have been created by merely asking about revocation.
+    assert not log_file.exists()
+
+    # Idempotent replay: cached cert still served (nothing could be revoked).
+    second = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    assert second.idempotent is True
+    assert second.certificate_path == first.certificate_path
+    assert recorded_verify.calls == 1  # no re-run
+    assert not log_file.exists()  # still no file created
+
+
+def test_revoked_cert_never_served_as_verified_both_shapes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#175: revoked bytes never returned as VERIFIED, both cert shapes.
+
+    The digest helper must recognise both the in-toto envelope shape
+    ({"payload": ..., "signatures": [...]}) and the raw MergeCertificate.to_dict()
+    shape. When revoked, the cache is rejected and the closure re-runs.
+    """
+    log_file = tmp_path / "revocations.jsonl"
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(log_file))
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    out = tmp_path / "accept-out"
+
+    signer = FakeSigner()
+    recorded_verify = RecordingVerify(verify_ok)
+
+    # First accept: issues certificate.
+    first = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                       output_dir=out)
+    assert first.verdict == "VERIFIED"
+    assert first.certificate_path is not None
+    cert_path = Path(first.certificate_path)
+    cert_digest = _cached_certificate_digest(cert_path)
+    assert cert_digest is not None
+
+    # Revoke the certificate.
+    RevocationLog(log_file).append(
+        {"payload": {"target": cert_digest, "reason": "test revocation"}}
+    )
+    assert is_revoked(cert_digest) is True
+
+    # Second accept: cache hit finds revoked cert ⇒ re-runs, issues NEW cert.
+    second = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    assert second.verdict == "VERIFIED"
+    assert second.idempotent is False  # cache rejected due to revocation
+    assert recorded_verify.calls == 2  # closure re-ran
+    assert signer.calls == 2  # new signature
+
+    # New certificate has different digest (fresh timestamp, different bytes).
+    new_digest = _cached_certificate_digest(Path(str(second.certificate_path)))
+    assert new_digest is not None
+    assert new_digest != cert_digest
+    assert is_revoked(new_digest) is False  # new cert not revoked
+    assert is_revoked(cert_digest) is True  # old cert still revoked in log
+
+
+def test_corrupt_certificate_in_cache_treated_as_revoked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#175: corrupted cached cert file ⇒ digest=None ⇒ treated as revoked.
+
+    When the cached certificate file exists but contains garbage JSON,
+    _cached_certificate_digest returns None, which the caller treats as
+    "must re-run" (fail-closed).
+    """
+    log_file = tmp_path / "revocations.jsonl"
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(log_file))
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    out = tmp_path / "accept-out"
+
+    signer = FakeSigner()
+    recorded_verify = RecordingVerify(verify_ok)
+    first = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                       output_dir=out)
+    assert first.verdict == "VERIFIED"
+    assert first.certificate_path is not None
+
+    # Corrupt the cached certificate file.
+    Path(first.certificate_path).write_text("not json{{{", encoding="utf-8")
+
+    second = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    # Corrupt cache ⇒ digest=None ⇒ cache rejected ⇒ closure re-runs.
+    assert second.verdict == "VERIFIED"
+    assert second.idempotent is False
+    assert recorded_verify.calls == 2
+    assert signer.calls == 2
+
+
+def test_cached_cert_digest_handles_envelope_and_raw_shapes(
+    tmp_path: Path,
+) -> None:
+    """#175: digest computation works for both certificate shapes on disk.
+
+    The cached certificate may be stored as:
+    1. In-toto envelope: {"payload": {...}, "signatures": [...]}
+    2. Raw MergeCertificate.to_dict(): {"subject": ..., "result": ...}
+
+    Both must produce the same canonical digest when they represent the same
+    payload.
+    """
+    payload = {
+        "subject": {"repository": "test-repo", "commit_sha": "abc123"},
+        "result": "VERIFIED",
+        "extension": {"bundle_digest": "bd"},
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    expected = "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+    # Shape 1: in-toto envelope.
+    enveloped = tmp_path / "envelope.json"
+    enveloped.write_text(
+        json.dumps({"payload": payload, "signatures": [{"sig": "fake"}]}),
+        encoding="utf-8",
+    )
+    assert _cached_certificate_digest(enveloped) == expected
+
+    # Shape 2: raw document.
+    raw = tmp_path / "raw.json"
+    raw.write_text(json.dumps(payload), encoding="utf-8")
+    assert _cached_certificate_digest(raw) == expected
+
+    # Both shapes produce identical digest.
+    assert _cached_certificate_digest(enveloped) == _cached_certificate_digest(raw)
+
+
+def test_revoked_cert_with_envelope_shape_triggers_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#175: revoked in-toto envelope cert triggers closure re-run.
+
+    Verifies that the revocation check correctly extracts the digest from
+    an in-toto envelope format and rejects it when revoked.
+    """
+    log_file = tmp_path / "revocations.jsonl"
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(log_file))
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    out = tmp_path / "accept-out"
+
+    signer = FakeSigner()
+    recorded_verify = RecordingVerify(verify_ok)
+
+    # First accept produces an in-toto envelope certificate.
+    first = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                       output_dir=out)
+    assert first.verdict == "VERIFIED"
+    assert first.certificate_path is not None
+    cert_path = Path(first.certificate_path)
+    cert_data = json.loads(cert_path.read_text(encoding="utf-8"))
+
+    # Verify it's actually an in-toto envelope.
+    assert "payload" in cert_data
+    assert "signatures" in cert_data
+
+    cert_digest = _cached_certificate_digest(cert_path)
+    assert cert_digest is not None
+
+    # Revoke this certificate.
+    RevocationLog(log_file).append(
+        {"payload": {"target": cert_digest, "reason": "compromised key"}}
+    )
+
+    # Second accept must re-run because cache is revoked.
+    second = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    assert second.idempotent is False
+    assert recorded_verify.calls == 2
+    assert signer.calls == 2
+
+
+def test_multiple_revocations_same_target_all_prevent_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#175: multiple revocation entries for same target all block cache.
+
+    Even if a certificate is revoked multiple times (different reasons),
+    the cache must still be rejected and the closure must re-run.
+    """
+    log_file = tmp_path / "revocations.jsonl"
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(log_file))
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    out = tmp_path / "accept-out"
+
+    signer = FakeSigner()
+    recorded_verify = RecordingVerify(verify_ok)
+
+    first = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                       output_dir=out)
+    assert first.verdict == "VERIFIED"
+    assert first.certificate_path is not None
+    cert_digest = _cached_certificate_digest(Path(first.certificate_path))
+    assert cert_digest is not None
+
+    # Add multiple revocation entries for the same target.
+    log = RevocationLog(log_file)
+    log.append({"payload": {"target": cert_digest, "reason": "first revocation"}})
+    log.append({"payload": {"target": cert_digest, "reason": "second revocation"}})
+    log.append({"payload": {"target": cert_digest, "reason": "third revocation"}})
+
+    # All three revocations are present.
+    revocations = log.find_by_target(cert_digest)
+    assert len(revocations) == 3
+
+    # Cache still rejected, closure re-runs.
+    second = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    assert second.idempotent is False
+    assert recorded_verify.calls == 2
+    assert is_revoked(cert_digest) is True
+
+
+def test_empty_revocation_log_allows_cache_hit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#175: empty but readable log file allows idempotent cache hit.
+
+    An empty log means nothing is revoked, so the cached certificate can
+    be served without re-running the closure.
+    """
+    log_file = tmp_path / "revocations.jsonl"
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(log_file))
+    # Create empty log file.
+    log_file.write_text("", encoding="utf-8")
+
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    out = tmp_path / "accept-out"
+
+    signer = FakeSigner()
+    recorded_verify = RecordingVerify(verify_ok)
+
+    first = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                       output_dir=out)
+    assert first.verdict == "VERIFIED"
+
+    # Empty log allows idempotent hit.
+    second = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    assert second.idempotent is True
+    assert recorded_verify.calls == 1  # no re-run
+    assert signer.calls == 1
+
+
+def test_malformed_revocation_log_lines_skipped_gracefully(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#175: malformed lines in JSONL log are skipped, valid entries checked.
+
+    If the log has some corrupted lines, they should be skipped while still
+    checking valid revocation entries. A partially readable log should not
+    cause a crash.
+    """
+    log_file = tmp_path / "revocations.jsonl"
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(log_file))
+
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    out = tmp_path / "accept-out"
+
+    signer = FakeSigner()
+    recorded_verify = RecordingVerify(verify_ok)
+
+    first = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                       output_dir=out)
+    assert first.verdict == "VERIFIED"
+    assert first.certificate_path is not None
+    cert_digest = _cached_certificate_digest(Path(first.certificate_path))
+    assert cert_digest is not None
+
+    # Write a log with mixed valid and invalid lines.
+    valid_entry = json.dumps(
+        {"payload": {"target": cert_digest, "reason": "valid revocation"}},
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    log_file.write_text(
+        f"not json\n{valid_entry}\ngarbage line\n",
+        encoding="utf-8",
+    )
+
+    # The valid revocation should still be found despite malformed lines.
+    assert is_revoked(cert_digest) is True
+
+    # Cache rejected due to revocation, closure re-runs.
+    second = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    assert second.idempotent is False
+    assert recorded_verify.calls == 2
 
 

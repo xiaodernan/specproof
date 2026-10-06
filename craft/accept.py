@@ -310,21 +310,29 @@ def _cached_certificate_digest(cert_file: Path) -> str | None:
 
 
 def _cached_certificate_is_revoked(cert_file: Path) -> bool:
-    """True when the cached certificate must NOT be served as VERIFIED (#149).
+    """True when the cached certificate must NOT be served as VERIFIED (#149/#175).
 
     evidence/certificate.py mandates: "Verification MUST check the
     revocation log before trusting a certificate." An unreadable cache
     entry counts as revoked here — it is never served, the closure
     re-runs instead. A missing log file means nothing could have been
     revoked (and asking must not create the file — see
-    default_log_path).
+    default_log_path). **Unreadable log = treated as revoked**
+    (fail-closed, #175): any I/O or parse error while checking the log
+    means the cached bytes are untrustworthy and must not be returned
+    as VERIFIED.
     """
     digest = _cached_certificate_digest(cert_file)
     if digest is None:
         return True
     if not default_log_path().exists():
         return False
-    return is_revoked(digest)
+    try:
+        return is_revoked(digest)
+    except Exception:
+        # Unreadable or corrupt log = fail-closed: treat as revoked so the
+        # cached certificate is never served; the closure will re-run below.
+        return True
 
 
 def _write_record(
