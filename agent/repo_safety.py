@@ -131,6 +131,59 @@ _ENV_TEMPLATE_SUFFIXES: frozenset[str] = frozenset(
     {"example", "sample", "template", "dist"}
 )
 
+# ── Vendored dependency trees (pruned, and the prune is disclosed) ──
+# A checkout can carry an *installed* dependency tree next to the sources:
+# ``.venv``/``.venv312``, ``node_modules``, a Maven ``.m2``.  Those trees
+# vendor third-party key-material-shaped files that are not the repository's
+# secrets — certifi ships ``cacert.pem``, a *public* CA bundle, and any
+# virtualenv puts it under ``site-packages``.  Scanning them refused every
+# prepare on a developer host (no worktree -> no differential execution ->
+# every execution-only golden case silently became a MISS) while a clean CI
+# checkout, which has no venv, passed: the same repository judged differently
+# by *where* it was checked out.  They are also not what reaches the sandbox —
+# worktrees come from git, and these directories are ignored by git — so the
+# size check must not measure them either.
+#
+# Pruning is never silent: every walk that skips a vendored tree records its
+# name and the affected checks put the list in their detail, so "no forbidden
+# files found" cannot mean "a subtree was never read" without saying so.
+# Only unambiguous dependency/build trees are pruned; ``env/`` is left alone
+# because it is a plausible *source* directory name in Python projects.
+_VENDOR_DIR_EXACT: frozenset[str] = frozenset(
+    {
+        "venv",
+        "virtualenv",
+        "node_modules",
+        "site-packages",
+        "dist-packages",
+        "__pycache__",
+        ".tox",
+        ".nox",
+        ".m2",
+        ".gradle",
+        ".pypoetry",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+    }
+)
+#: Prefix-matched vendored names (``.venv312``, ``.virtualenv-3.12``, ...).
+_VENDOR_DIR_PREFIXES: tuple[str, ...] = (".venv", ".virtualenv")
+
+
+def _is_vendor_dir(name: str) -> bool:
+    """True for an installed dependency / build-cache directory name."""
+    lower = name.lower()
+    return lower in _VENDOR_DIR_EXACT or lower.startswith(_VENDOR_DIR_PREFIXES)
+
+
+def _prune_note(pruned: set[str]) -> str:
+    """Human-readable disclosure suffix for checks that pruned vendored trees."""
+    if not pruned:
+        return ""
+    return " (pruned vendored dependency trees: " + ", ".join(sorted(pruned)) + ")"
+
+
 # ── Data model ───────────────────────────────────────────────────
 
 GitRunner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
@@ -212,13 +265,25 @@ def _resolves_inside(link: Path, root: Path) -> bool:
     return target == root or target.is_relative_to(root)
 
 
-def _iter_repo_walk(repo: Path) -> Iterator[tuple[Path, list[str], list[str]]]:
-    """Walk the repo, pruning .git entries and reparse points (never follow)."""
+def _iter_repo_walk(
+    repo: Path, pruned: set[str] | None = None
+) -> Iterator[tuple[Path, list[str], list[str]]]:
+    """Walk the repo, pruning .git entries, vendored trees and reparse points.
+
+    Never follows a link.  ``pruned`` (optional) collects the installed
+    dependency directory names the walk refused to descend into so the caller
+    can disclose them — a check must not report "nothing found" for a tree it
+    never read.
+    """
     for root, dirs, files in os.walk(repo, topdown=True, followlinks=False):
         root_path = Path(root)
         kept_dirs: list[str] = []
         for name in dirs:
             if name == ".git":
+                continue
+            if _is_vendor_dir(name):
+                if pruned is not None:
+                    pruned.add(name)
                 continue
             if _is_reparse_point(root_path / name):
                 continue
