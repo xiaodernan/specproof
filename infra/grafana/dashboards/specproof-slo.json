@@ -4184,6 +4184,145 @@
           "refId": "D"
         }
       ]
+    },
+    {
+      "id": 40,
+      "type": "timeseries",
+      "title": "反例生成 (§14.1: JUnit 反例)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "generate_counterexamples 节点的执行计数 (agent/nodes/generate_counterexamples.py #197): runs/s 计每次调用; outcomes_<word>/s 按四种结局分列——llm_generated（LLM 产出的测试编译通过）、deterministic_template（demo 回退模板已写入并记录其 head 运行；那条 head 运行自身的编译结果在 record.compile_passed 而非词）、no_workspace（无 head 工作区）、template_unsupported（LLM 失败且非 demo 仓——「No counterexample test produced」）。空 generated_tests_path 出现在两种诚实拒绝里，只有 outcomes_<word> 能分开（#197 行为测试逐词钉住）。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 143
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_generate_counterexamples_runs_total[15m])",
+          "legendFormat": "runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_generate_counterexamples_outcomes_llm_generated_total[15m])",
+          "legendFormat": "llm_generated/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_generate_counterexamples_outcomes_deterministic_template_total[15m])",
+          "legendFormat": "deterministic_template/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_generate_counterexamples_outcomes_no_workspace_total[15m])",
+          "legendFormat": "no_workspace/s",
+          "range": true,
+          "instant": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_generate_counterexamples_outcomes_template_unsupported_total[15m])",
+          "legendFormat": "template_unsupported/s",
+          "range": true,
+          "instant": false,
+          "refId": "E"
+        }
+      ]
     }
   ],
   "refresh": "30s",

@@ -10,6 +10,18 @@ v2 honesty fixes:
   (com.specproof). For any other repo it fails honestly instead of
   pretending to work.
 - LLM failures are recorded in the generation record, never swallowed.
+
+Counters (#197): ``generate_counterexamples_runs_total`` counts every
+invocation and ``generate_counterexamples_outcomes_<word>_total`` records
+how the attempt ended — ``llm_generated`` (the LLM produced a test that
+compiled), ``deterministic_template`` (the demo fallback test was written
+and its head run recorded; whether that run compiled is the record's
+compile_passed flag, not a word) or one of the two honest empty-path
+refusals: ``no_workspace`` and ``template_unsupported`` (LLM failed AND
+the repo is not the demo — "No counterexample test produced"). An empty
+generated_tests_path appears in both refusal cases; the word is the only
+countable difference, and the record's source field now has a metric-side
+twin.
 """
 from __future__ import annotations
 
@@ -27,6 +39,17 @@ from agent.job_control import (
     run_with_cancel_checks,
 )
 from agent.state import Phase0State
+from observability.metrics import incr
+
+#: The closed set of ways a generation run can end (#197). Mirrored by the
+#: parity family's regex and the behavior tests — a new word must move all
+#: three together.
+GENERATE_TEST_OUTCOMES = frozenset({
+    "llm_generated",           # LLM test compiled — final_code is its
+    "deterministic_template",  # demo fallback test written; head run recorded
+    "no_workspace",            # nothing to generate into — early refusal
+    "template_unsupported",    # LLM failed AND non-demo repo — honest refusal
+})
 
 # ── Test source tracking ──────────────────────────────────────────
 TestSource = str  # "llm_generated" | "deterministic_template" | "human_fixture"
@@ -1158,9 +1181,11 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
     job_id = state.get("job_id")
     all_findings = static_findings + confirmed_findings
 
+    incr("generate_counterexamples_runs_total")
     record = TestGenerationRecord()
 
     if not head_workspace:
+        incr("generate_counterexamples_outcomes_no_workspace_total")
         record.errors.append("No head workspace - cannot generate tests")
         return {
             "generated_tests_path": "",
@@ -1255,6 +1280,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
                 "(com.specproof); LLM generation also failed. "
                 "No counterexample test produced."
             )
+            incr("generate_counterexamples_outcomes_template_unsupported_total")
             return {
                 "generated_tests_path": "",
                 "generation_record": {
@@ -1306,6 +1332,11 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
     from agent.testgen_review import review_generated_test
 
     record.review = review_generated_test(record.final_code, app_workspace)
+
+    if record.source == "llm_generated":
+        incr("generate_counterexamples_outcomes_llm_generated_total")
+    else:
+        incr("generate_counterexamples_outcomes_deterministic_template_total")
 
     return {
         "generated_tests_path": record.test_path,

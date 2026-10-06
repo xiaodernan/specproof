@@ -314,6 +314,26 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "derivation test, so a new word forces this gate and the family "
         "to move together",
     ),
+    "generate_counterexamples": (
+        re.compile(
+            r"^generate_counterexamples_(outcomes_"
+            r"(deterministic_template|llm_generated|no_workspace"
+            r"|template_unsupported)|runs)_total$"
+        ),
+        "agent/nodes/generate_counterexamples.py #197: "
+        "generate_counterexamples_runs_total + "
+        "generate_counterexamples_outcomes_<word>_total at the node "
+        "boundary — runs counts every invocation; the word separates an "
+        "LLM-generated compiled test from the demo fallback template (whose "
+        "own head-run compile result rides the record's compile_passed "
+        "flag, not the word) from the two honest empty-path refusals "
+        "(no workspace / LLM failed on a non-demo repo). An empty "
+        "generated_tests_path appears in both refusal cases — the word is "
+        "the only countable difference. The vocabulary is imported from "
+        "agent.nodes.generate_counterexamples (GENERATE_TEST_OUTCOMES) by "
+        "the derivation test, so a new word forces this gate and the "
+        "family to move together",
+    ),
 }
 
 
@@ -661,6 +681,26 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert static_pattern.match(
             f"run_static_checks_outcomes_{word}_total"
         ), f"family rejects run_static_checks outcome {word}"
+
+    # generate_counterexamples == the node's closed GENERATE_TEST_OUTCOMES
+    # vocabulary. Imported, same discipline as preflight: an empty
+    # generated_tests_path appears in both honest refusal cases.
+    from agent.nodes.generate_counterexamples import GENERATE_TEST_OUTCOMES
+
+    gen_pattern, _ = CONCATENATED_FAMILIES["generate_counterexamples"]
+    expected_gen = (
+        "^generate_counterexamples_(outcomes_("
+        + "|".join(sorted(GENERATE_TEST_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert gen_pattern.pattern == expected_gen, (
+        f"generate_counterexamples family {gen_pattern.pattern} != node "
+        f"vocabulary {sorted(GENERATE_TEST_OUTCOMES)}"
+    )
+    for word in sorted(GENERATE_TEST_OUTCOMES):
+        assert gen_pattern.match(
+            f"generate_counterexamples_outcomes_{word}_total"
+        ), f"family rejects generate outcome {word}"
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

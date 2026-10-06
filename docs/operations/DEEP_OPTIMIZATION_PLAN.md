@@ -2930,3 +2930,29 @@ run_static_checks（确定性契约检查器，十只 checker：七只 java-sour
 
 - 新增名 4 个（runs + 三词）；面板 38→39；OBSERVABILITY 清单 24 个文件。
 - 剩余 5 个无计数节点：generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks。
+
+
+### #197 反例生成节点执行计数——llm_generated / deterministic_template 与两种诚实拒绝（已落地）
+
+**背景**
+
+generate_counterexamples（产出 JUnit 反例测试：LLM 生成→schema 校验→沙箱编译重试，失败则 demo 回退模板并在 head 上整轮记跑）此前零观测面。结局四条互不可见：llm_generated / deterministic_template（record.source 有字段，但没有可计比率）与两种**诚实拒绝**——no_workspace 与 template_unsupported（LLM 失败且非 demo 仓，「No counterexample test produced」）——两者的 generated_tests_path 都是空串，形态完全一样。
+
+**实现**
+
+- 节点：runs 在入口；no_workspace / template_unsupported 在各自早退前；最终返回前按 record.source 二选一（llm_generated / deterministic_template）。deterministic 模板自己的 head 编译结果留在 record.compile_passed，不占词。
+- 对账门新家族 generate_counterexamples；推导 import GENERATE_TEST_OUTCOMES。
+- 仪表盘 panel 40「反例生成」5 条 target。
+- OBSERVABILITY.md 条目 + 头计数 24→25（重数 26 bullets / 25 distinct / 头部 25）。
+- 行为测试 tests/unit/test_generate_counterexamples_node_execution_is_observable.py（5 例）：seam 全桩（_get_provider 假 provider 带 async chat / _compile_test 直返 (0,"") / run_differential._run_generated_test 假跑 / asyncio 句柄换成「未运行 + 真 runner」确定性引用）；确定性模板构造、review 阶段、记录组装全真跑。见证：no_workspace 例的 provider 炸弹；template_unsupported 例的模板构造函数炸弹（非 demo 仓在模板化之前被拒）；deterministic 例钉 head_run 记录复用（exit_code 0、无 COMPILATION ERROR）与文件里确有模板类名；llm 例钉恰一次 chat 与写盘内容 == LLM 代码；+ 漂移门。
+- ⚠️ asyncio 坑的规避（预判而非付费）：节点里 `asyncio.get_event_loop()` 在 3.12 无当前循环时带 DeprecationWarning、更高版本行为更硬——测试把模块级 asyncio 换成 `SimpleNamespace(get_event_loop→未运行, run=真 asyncio.run)`，不依赖任何 policy。
+
+**门证（HEAD fc4b5f8 + 本弧）**
+
+- 定向 pytest **52 passed** = 新 5 + state_channels + checkpoint_recovery + worker_cancel_points（既有生成节点驱动者）+ parity 4（6.53s）；ruff 三 py 文件 All checks passed；mypy 仓级门 `mypy .` **0 issue / 222 源文件**；仪表盘 JSON 可解析（40 panels，panel 40 五条 target 逐条核过）。
+- 变异臂 4 条（预测先写，junit 读红）：对照 **52/52 绿**（臂前后各一次）；A1 对调 llm/template 两发射词 ⇒ 恰 2 红（llm 例 + deterministic 例；漂移门按预测保持绿）；A2 删 no_workspace 发射行 ⇒ 恰 2 红；A3 只改声明词 template_unsupported→unsupported_repo ⇒ 恰 3 红（delta 表键随声明 + 漂移门 + parity 推导）；A4 纯散文 ⇒ **SURVIVED 按预测 0 红**。**3/3 击杀臂 MATCHED + 1 预测存活**，臂后 sha256 逐字节一致（db1e15fa…）。
+
+**读数**
+
+- 新增名 5 个（runs + 四词）；面板 39→40；OBSERVABILITY 清单 25 个文件。
+- 剩余 4 个无计数节点：run_deep_experiments、build_matrix、create_capsule、run_release_checks。
