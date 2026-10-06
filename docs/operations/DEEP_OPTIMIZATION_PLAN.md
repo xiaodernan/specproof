@@ -2323,3 +2323,60 @@ craft 的 `ERROR`），而全库没有一本门把「哪些命令按裁决退出
 - 全量合并 Python 门（本弧落地前补跑，两个平面各一次）：纯 HEAD 平面 collect **3667** 例，同一平面叠加本弧 7 个文件后 collect **3674** 例 ⇒ 差值恰为新门自己的 7 例；WITH 平面 **4 failed / 3644 passed / 26 skipped (1265.87s)**，把这 4 条案例名拿到**不含本弧**的纯 HEAD 平面重跑 ⇒ 红的正是同 4 条名字（同一多重集，非按条数对上），所以本弧是 **+7 collected / +0 红**。平面自证：两条 run 的 log 首行分别是 `rootdir: D:\面试项目\plane171`（WITH）与 `plane171base`（WITHOUT），`agent.__file__` 也在平面内——工作副本里那些并发车道的脏文件没有参与本次测量。那 4 条红不归本弧：`tests/integration/test_differential.py:129`（`'NoneType' object has no attribute 'lower'`）、`tests/integration/test_phase_acceptance.py:109`（`argument of type 'NoneType' is not iterable`）与同文件 `:226`（`AssertionError: Matrix has no rows`）、`tests/unit/test_metrics_http.py:108`（histogram ladder 断言），本弧没有改动它们的任何输入。
 - `#172` 种子（已量，未修）：Craft 控制台的**终态集合在前端有五份手抄**——`apps/web/src/agent/components.tsx:13`（`TERMINAL_AGENT_STATUSES`）、`AgentJobDetail.tsx:91`、`AgentResult.tsx:17`、`AgentResult.tsx:110`，以及第五份 `agent/pages/AgentToolStream.tsx:87`（藏在 SSE 尾标的模板串里，`["COMPLETED","FAILED","CANCELLED"].includes(job.status)` 直接写在 JSX 内）。权威是 `api/agent_runtime.py:106 console_status_label`：#69 之后它末尾是 `return str(job.status)`，docstring 明写「unknown status 原样透传，由 UI 自己的 unknown handling 决定怎么显示」（:114-116），而 `test_agent_console_api.py:234` 已把这条透传钉住（`"archived" → "archived"）。**那句话目前没有兑现的证人**：一个超出词表的**已终态**存储状态到了前端，五份副本一律判「非终态」，于是 `AgentResult.tsx:36` 永远显示「任务尚未进入终态，独立验收还不会运行」，`AgentToolStream` 的尾标也永远不带「已结束」——为未知编不出含义是对的，但把未知当成「还在跑」是另一种编造。收法与 #170/#171 同型：一处导出（`src/ui` 或 `src/agent/util.ts`）＋一条词表门（前端集合 == 后端 `_TERMINAL_CONSOLE_STATUSES`，两个方向 + 普查不许有第六份），并为透传 token 补一条「终态但未识别 ⇒ 明确说不认识，而不是说仍在执行」的界面见证。
 - 另两处只刻画不修：`apps/web/src/pages/Jobs.tsx:49` 的 `data.total ?? data.jobs?.length ?? 0` 在路由总返回真实 `COUNT`（`storage/mysql.py::search_jobs`）的前提下是潜在回退而非当前缺陷，但 `api.ts` 把 `total?: number` 声明成可选，等于允许未来某个调用点把窗口长度当总数；`tests/e2e/longtext.spec.ts` 用 "证据不足" 作为矩阵行文案锚点，本弧已确认它仍成立（`UNVERIFIED` 的中文说明未变）。
+
+### #172 Craft 控制台的运行阶段：五份「终态」手抄，加上 #69 那句「由 UI 自己的 unknown handling 决定」一直没有证人（已落地）
+
+**量到的事实（HEAD `d33fb73`，全部来自源码而不是记忆）**
+
+- 映射权威只有一处：`api/agent_runtime.py:106 console_status_label`。它的六个返回词是 `PLANNING / AWAITING_APPROVAL / EXECUTING / COMPLETED / FAILED / CANCELLED`（`pending` 行的两个词藏在同一个条件返回里），末尾 #69 留下的 `return str(job.status)` 把词表外的存储状态**原样透传**，docstring 明写「由 UI 自己的 unknown handling 决定怎么显示」；`tests/unit/test_agent_console_api.py:234` 与 `:249` 已把这条透传钉在 API 层（`"archived" → "archived"`）。
+- 服务端强制只认一份集合：`api/routes/agent_console.py:111 _TERMINAL_CONSOLE_STATUSES`。取消走 `_require_cancellable`（`:675` 定义，`:677` 判 `status in _TERMINAL_CONSOLE_STATUSES` 抛 409），审批走 `:869` 同一句。同一行的 `:110 _CANCELLABLE_STATUSES` 在 HEAD **全仓只有它自己的声明这一处**（`git grep`），是死声明。
+- 前端把「终态」手抄了**五份**：`apps/web/src/agent/components.tsx:13`（`TERMINAL_AGENT_STATUSES`，停轮询）、`pages/AgentJobDetail.tsx:91`（禁取消按钮）、`pages/AgentResult.tsx:17`（验收面板）、`pages/AgentResult.tsx:110`（结果面板）、`pages/AgentToolStream.tsx:87`（SSE 尾标，藏在模板串里）。`git grep` 实测 `tests/` 里没有任何东西读过这些名字或那两个后端 frozenset ⇒ 五份副本与后端之间**零对账**。
+
+**这个缺陷读者看到什么**
+
+一个词表外的**已终态**存储状态到了前端（旧行、旧写入者），五份副本一律判「非终态」：验收面板永远显示「任务尚未进入终态，独立验收还不会运行」，结果面板永远「任务还在处理中」，SSE 尾标永远不带「已结束」，轮询永不停止。#69 在后端删掉的是「替未知编一个含义」（把未知报成 `CANCELLED`），前端却用 `!terminal` 这个二值判断把同一件事**反着**编了一遍：把未知当成「还在跑」。承诺过的「UI 自己的 unknown handling」在 UI 里根本不存在。
+
+**改法**
+
+- 一处导出（`apps/web/src/agent/util.ts`）：`AGENT_ACTIVE_STATUSES` / `AGENT_TERMINAL_STATUSES` / `agentRunPhase() → "active" | "terminal" | "unknown"` / `isAgentTerminal()` / `agentUnknownNotice()`。
+- 四个站点全部改成调用导出（`components.tsx` 删掉自己那份 `new Set`）。**收敛处行为等价**：集合一字未动，变的只是「谁拥有它」。
+- 真正改行为的只有第三支：`AgentResult` 的两个面板与 `AgentToolStream` 的尾标对 `unknown` 明确说「这一轮上报的状态不在本页词表里 / 无法判断它是仍在执行还是已经结束」，既不按「仍在执行」也不按「已终态」；尾标加 `状态未识别 unrecognized`，轮询继续（未识别不等于结束），但页面上没有任何一句替它编含义。
+- 走过的一段弯路值得记：我先写了 `isAgentCancellable` 并在注释里断言「API 会拒这种状态」。读了 `_require_cancellable` 与数过 `_CANCELLABLE_STATUSES` 的调用点之后发现**恰恰相反**——服务端只拒「在终态集合里」的，未知状态它照收。那个 helper 是给一条不存在的规则做见证，已删；`util.ts` 的注释按实测改成「活跃集合镜像的是那份死声明，本门钉的是词表而不是它的行为」。
+
+**新门（`tests/unit/test_agent_console_terminal_vocabulary_parity.py`，8 例）**
+
+五个来源各读各的源码：两个后端 frozenset（AST，两个都要解析到否则拒）、`console_status_label` 的**返回**字面量（只读 `Return`，且剥 `IfExp`——不剥就少读一个词，因为 `pending` 行一次返回两个词）、`util.ts` 的两条 `export const` 数组、`AGENT_STATUS_META` 的键、以及页面里的**比较位置**（`job.status === "TOKEN"`）。断言四个方向：终态集合双向 ==、活跃集合 == 声明、两后端集合互斥且覆盖映射、透传与「不认识」分支同生共死（透传没了就要求删分支，分支没了就红），外加每个映射词恰一个 UI 词、第六份手抄普查、比较词必须出自词表。三条下限（两个 frozenset 都到、`util_sites>=2`、比较站点 `total>=3`）：「扫到 0 条」绝不能绿着过。
+
+一处口径是实测逼出来的收窄：`\bstatus\s*[!=]==` 把 `gate.status === "passed"`、`line.status === "added"`、`step.status === "approved"` 也算成 offender（5 条假红），那是三套本通道不拥有的词表；锚定成 `job\.status` 之后只剩真实站点，正则在注释与断言话术里都写明了为什么只算这一个字段。
+
+**见证：8 臂，全部 MATCHED，控制位改前改后都绿**
+
+预测先写、每臂开头还原 pristine **字节**（工作副本是 CRLF，按行尾翻译锚点；按文本重写会把一行臂变成整文件 diff）：
+
+- `A1` 前端终态集合丢 `FAILED` ⇒ 恰 2 红（下限 + 终态双向）。
+- `A2` `components.tsx` 重新声明第六份 ⇒ 恰 1 红（普查）。
+- `A3` 把 `return str(job.status)` 折成 `return "CANCELLED"` ⇒ 恰 1 红（透传/分支同生）——这正是 #69 删掉的那个含义，如今有东西守着它回来。
+- `A4` 给 `AGENT_STATUS_META` 加一条没有生产者的 `PAUSED` ⇒ 恰 2 红（下限 + 每词有值）。
+- `A5` 把一处 `job.status === "EXECUTING"` 改成 `"ARCHIVED"` ⇒ 恰 1 红（比较位置）。
+- `A6` 把两处 `agentUnknownNotice(job.status)` 换成裸字符串 ⇒ 恰 1 红（同一条 clause 的另一半：读者消失）。
+- `A7` 前端活跃集合丢 `AWAITING_APPROVAL` ⇒ 恰 2 红（下限 + 活跃双向）。
+- `A8` 给 `_TERMINAL_CONSOLE_STATUSES` 塞进 `PLANNING`（`api/routes/agent_console.py` 在并发车道的禁改清单里，所以这一臂在 `git archive HEAD` 的**冻结平面** `D:\面试项目\plane172` 上做）⇒ `FF.F....` 恰 3 红（下限 + 终态双向 + 互斥），活跃集合与其余四例照绿；还原后平面 `8 passed`，还原字节与 HEAD blob 在 LF 归一后 sha 相同。
+
+八个案例名各自被至少一臂杀到，没有一条断言是「写了但没人敲过」。
+
+**读数**
+
+- `pytest` 本门 **8 passed / 0 红**；`mypy` Success、`ruff` All checks passed。门文件第一轮 mypy 报 `ast.Return.value` 可能是 `None`，按类型收窄成 `node.value is not None`（语义不变：裸 `return` 本来就贡献零个词），改完**七臂当场全部重跑**，仍 7/7 MATCHED。
+- `npx vitest run src/agent` **12 files / 92 passed**：本弧开始时同一集合是 86，+6 = `util.test.ts` 4 + `AgentResult.test.tsx` 1 + `AgentToolStream.test.tsx` 1。新增的三例都是「未知」方向：结果页两个面板同时承认词表外（`findAllByText(/不在本页词表里/)` 恰 2）、不许出现「还在处理中 / 尚未进入终态」、流面板尾标说 `状态未识别` 且不说 `已结束`。
+- `npx tsc --noEmit` rc=0（0 行输出）。
+- Web 全量 `npx vitest run --reporter=basic`：**47 files / 392 tests：390 passed / 2 failed**，两条红都在 `src/pages/__tests__/SameRepoCraftPanel.test.tsx`（并发车道的 §30.2 repo_path 活）。这次没有靠「看着不像我」下结论，而是在**一个不含我任何文件的平面**上做了归因：`plane172base`（纯 `git archive HEAD`，临时挂一个 node_modules junction 让 vitest 能解析）里该文件 **5 passed**；只把那两个脏文件（`pages/SameRepoCraftPanel.tsx` 与它的测试）覆盖进同一平面 ⇒ **同样的 2 条案例名红**，报错正是 `Found multiple elements with the text: /已完成/`——他们删掉了客户端 `normalizeRepoPath` 过滤、把 mock 返回的每一行都渲染出来，于是两枚「已完成 Completed」药丸撞了 `getByText`。本弧没碰这两个文件，`agentStatusMeta` 的 COMPLETED 文案一字未改（门里那条「每个映射词恰一个 UI 词」钉的就是它）。测量完把平面里的两个文件按 HEAD 还原（逐文件 sha 与 `git show HEAD:` 一致）并拆掉 junction，确认原 `node_modules` 未被链接操作伤到。
+- 平面自检：`rootdir: D:\面试项目\plane172`，本门在平面上 8 passed（平面是 `git archive HEAD` + 只叠加本弧 9 个文件，并发车道的脏文件没有参与测量）。
+- 合并门读数（两趟都在 `git archive HEAD` 平面族上做，逐名归因由 `.scratch/g172/attr172.py` 计算，不靠心算）：WITH **collected 3402 / 3397 passed / 5 skipped / 0 red / rc=0 / 1470.96s**（`rootdir: D:\面试项目\plane172`），BASE（同一平面、断言本门文件不存在）**collected 3394 / 3389 passed / 5 skipped / 0 red / rc=0 / 1292.15s**（`rootdir: D:\面试项目\plane172base`）。差值 **+8 collected、−0 collected、+0 red**，且这 8 个名字**逐名**是本门的 8 个案例（`test_the_probe_found_a_real_vocabulary_on_every_side` 到 `test_no_page_compares_a_status_the_console_cannot_emit`），非本门的新增 = 0、消失 = 0，红名多重集两侧 identical。平面身份按 §#146 那条教训实测过而不是推理：在两平面各自用同一入口（`cd 平面 && venv python -m …`）打印 `api.agent_runtime` / `craft.loop` / `storage.agent_jobs` 的 `__file__`，三个都落在该平面目录下——venv 的 editable-install `.pth` 没有把「干净平面」偷偷换成带并发脏文件的工作副本。耗时不进口径（§#146 已立此规：冻结平面无共享缓存、机器上还有别的会话），只有 rc 与逐名归因是读数。
+- 一个测量隐患就此登记：`tests/unit/test_audit_disposition_labels::test_the_declared_shape_accepts_the_ids_the_platform_writes` 的案例名带真实审计行的 uuid，两趟各 10 例但**成员名字不同**（WITH 有 8 个 BASE 没有、BASE 有 8 个 WITH 没有）。按原始名比对会把它印成「双侧各 8 条意外」，第一版归因脚本正是这样拒了我的 +8。归因脚本因此改成先剥 `[参数化 id]` 折成 family，再按 (family, count) 比对，并且**显式**区分「同 family 同计数的名字旋转」与「计数变化」——后者仍然拒。顺带第二个坑：junit 的 `classname` 是**模块名**，用文件名 `..._parity.py` 去匹配永远匹配不到，「没匹配到」看起来跟「新增不是我」一模一样。
+- 中途平面漂移的处理：WITH 构建之后有两个文件又被并发车道改过，于是把这两个文件重新叠加到 plane172、用 `cmp` 证明字节一致，再在该平面重跑读它们的两道门（`rootdir: D:\面试项目\plane172`，12 passed）。归因 claim 只引用干净平面上的数字。
+
+**#173 种子（已量，未修）**
+
+1. `_CANCELLABLE_STATUSES` 是一份**死声明**（HEAD 全仓只有声明自身）：要么把 `_require_cancellable` 改成按它判定，要么删掉它。现在它既不做判定，又被本门当作前端活跃词表的镜像源——这个不对称本门已在话术里明说「钉的是词表，不是那条死集合的行为」，但真正修它需要 `api/routes/agent_console.py` 从并发车道手里空出来。
+2. `api/routes/agent_console.py:120 STATUS_LABELS`（六词中文/英文标签，注释自称 "mirrored by the SPA timeline"）是同一份 console 词表的**第三份枚举**，而那句 mirrored 没有任何门守着：`agent/util.ts::AGENT_STATUS_META` 是渲染权威，后端这份唯一的读点是 `:798` 的查询参数校验（不参与渲染），两者谁也不读谁。本门扫的是前端目录，后端这份不在普查范围内；把它接进 `console_mapped_tokens ↔ AGENT_STATUS_META ↔ STATUS_LABELS` 三方对账是下一号最便宜的活。注意别和 `apps/web/src/ui/StatusPill.tsx:19` 的同名 `STATUS_LABELS` 混为一份——那是 verify-job 通道，已由 `test_job_status_channel_parity.py` 看着。
+3. `AgentJobDetail.tsx` 的取消按钮仍用「非终态 ⇒ 可点」的口径，与服务端 `_require_cancellable` 一致，但 `:105` 那个 `disabled` 只看集合，没有覆盖「已在取消中」以外的失败回读；这一条要改得先有真实 409 的回读路径，暂时只刻画。

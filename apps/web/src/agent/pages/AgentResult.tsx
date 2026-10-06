@@ -7,6 +7,8 @@ import {
   acceptBlockedMeaning,
   acceptBlockedNotice,
   acceptVerdictLabel,
+  agentRunPhase,
+  agentUnknownNotice,
   gateLabel,
   gateStatusPillClass,
   gateStatusLabel,
@@ -14,7 +16,7 @@ import {
 
 function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
   const accept = job.accept;
-  const terminal = ["COMPLETED", "FAILED", "CANCELLED"].includes(job.status);
+  const phase = agentRunPhase(job.status);
   const cliCommand = "specproof craft accept --job " + jobId;
 
   if (accept?.malformed) {
@@ -33,7 +35,15 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
     // agent_jobs._ATTACH_ACCEPT_SQL: status IN succeeded/failed), so a
     // cancelled job never gets one and "refresh later" would be a false promise.
     return <Panel title="独立验收记录 ACCEPT">
-      {!terminal ? <Empty text="任务尚未进入终态，独立验收还不会运行。" /> : job.status === "CANCELLED" ? <>
+      {phase === "unknown" ? <>
+        {/* A status this console has never seen is not "still running". The
+            runtime maps unknown store statuses through verbatim, so an
+            already-finished run can arrive here with a word outside the six
+            labels — and 「尚未进入终态」 would then be a promise that never
+            expires. Say what is unknown instead. */}
+        <Empty text="这一轮上报的状态不在本页词表里，无法判断独立验收是否应当已经发生。" />
+        <p className="result-boundary">{agentUnknownNotice(job.status)}</p>
+      </> : phase !== "terminal" ? <Empty text="任务尚未进入终态，独立验收还不会运行。" /> : job.status === "CANCELLED" ? <>
         <Empty text="这一轮已取消，不会有独立验收记录。" />
         <p className="result-boundary">验收投影只挂在执行完的轮次上（成功或失败），取消的轮次不会补出它。需要独立验收结论，请重新发起一次开发执行。</p>
       </> : <>
@@ -107,7 +117,7 @@ export default function AgentResult({ jobId }: { jobId: string }) {
   if (!job) return <ErrorBox error={error || "暂时无法读取任务结果"} />;
   const result = job.result;
   const completed = job.status === "COMPLETED";
-  const terminal = ["COMPLETED", "FAILED", "CANCELLED"].includes(job.status);
+  const phase = agentRunPhase(job.status);
   const gates = result?.gates?.gates || [];
   const models = [...new Set(result?.llm_usage?.calls_detail?.map(call => call.model).filter(Boolean) || [])];
   // #145: the sandbox's own statement about the dependency cache it consumed
@@ -126,7 +136,10 @@ export default function AgentResult({ jobId }: { jobId: string }) {
   )];
   return <AgentJobShell job={job} active="result">
     <ErrorBox error={error} />
-    {!result ? <Panel title="执行结果">{terminal ? (job.status === "COMPLETED" ? <>
+    {!result ? <Panel title="执行结果">{phase === "unknown" ? <>
+      <Empty text="这一轮上报的状态不在本页词表里，无法判断它是仍在执行还是已经结束。" />
+      <p className="result-boundary">{agentUnknownNotice(job.status)}要判断这一轮发生了什么，请查看执行进度与事件记录，或在命令行用 <code>specproof craft accept --job {jobId}</code> 复核。<strong>这里不会替这个状态编一个含义，也不会因为读不出来就说“还在处理中”。</strong></p>
+    </> : phase === "terminal" ? (job.status === "COMPLETED" ? <>
       <Empty text="任务显示已完成，但记录里没有执行结果投影。" />
       {/* Status and result ride the SAME UPDATE (storage agent_jobs
           _UPDATE_STATUS_TERMINAL_SQL), so this combination is not a timing

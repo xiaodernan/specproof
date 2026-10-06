@@ -55,4 +55,18 @@ describe("AgentToolStream", () => {
     await act(async () => { sessions[1].done(); });
     expect(screen.getByText(/已结束 closed/)).toBeTruthy();
   });
+
+  it("names an unmapped status 状态未识别 rather than leaving it looking like a live run", async () => {
+    // #69: console_status_label forwards an out-of-vocabulary store status
+    // verbatim. This header may not read that as "still executing", and it may
+    // not borrow the closed claim from a stream that never sent "done".
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({
+      ok: true, status: 200,
+      json: async () => ({ job: { ...job, status: "archived", id: String(url).split("/").pop() } }),
+    })));
+    render(<AgentToolStream jobId="job-1" />);
+    await waitFor(() => expect(screen.getByRole("log")).toBeTruthy());
+    expect(screen.getByText(/状态未识别/)).toBeTruthy();
+    expect(screen.queryByText(/已结束 closed/)).toBeNull();
+  });
 });

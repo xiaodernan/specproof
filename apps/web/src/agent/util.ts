@@ -20,6 +20,65 @@ export function agentStatusMeta(status: string | undefined): AgentStatusMeta {
   return AGENT_STATUS_META[status || ""] || { label: status || "UNKNOWN", tone: "mute" };
 }
 
+// ── Run phase (the terminal/active split the console pages gate on) ─────────
+//
+// `api/agent_runtime.py::console_status_label` is the single source of the
+// console vocabulary, and since #69 its last line is `return str(job.status)`:
+// a store status outside the mapping reaches the browser VERBATIM (its own
+// docstring promises "the UI's own unknown handling decides how to show it").
+// That promise is only kept if the page can tell three things apart — a run
+// still going, a run that ended, and a token this vocabulary does not hold.
+// Gating on `!terminal` would answer the third case with "still running",
+// which is the same invention #69 removed on the backend.
+//
+// The terminal list is the one the API enforces: `_require_cancellable` and
+// the approvals route both refuse on membership in
+// `api/routes/agent_console.py::_TERMINAL_CONSOLE_STATUSES`. The active list
+// mirrors the declared `_CANCELLABLE_STATUSES`; that frozenset currently has
+// no call site (the live rule is the complement of the terminal set), so the
+// parity gate below pins the vocabulary, not a behaviour of the dead set.
+//
+// Both lists, plus `AGENT_STATUS_META` against the mapped tokens, are pinned
+// by `tests/unit/test_agent_console_terminal_vocabulary_parity.py`; the pages
+// import these helpers instead of writing a sixth copy.
+
+export const AGENT_ACTIVE_STATUSES: readonly string[] = [
+  "PLANNING",
+  "AWAITING_APPROVAL",
+  "EXECUTING",
+];
+
+export const AGENT_TERMINAL_STATUSES: readonly string[] = [
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
+];
+
+export type AgentRunPhase = "active" | "terminal" | "unknown";
+
+export function agentRunPhase(status: string | undefined): AgentRunPhase {
+  const token = status || "";
+  if (AGENT_TERMINAL_STATUSES.includes(token)) return "terminal";
+  if (AGENT_ACTIVE_STATUSES.includes(token)) return "active";
+  return "unknown";
+}
+
+export function isAgentTerminal(status: string | undefined): boolean {
+  return agentRunPhase(status) === "terminal";
+}
+
+/**
+ * The page's own words for a status token it does not hold. Empty for known
+ * values, so callers can append it unconditionally.
+ */
+export function agentUnknownNotice(status: string | undefined): string {
+  if (agentRunPhase(status) !== "unknown") return "";
+  return (
+    `这一轮上报的状态「${status || "空"}」不在本页的词表里：` +
+    "无法判断它是否已经结束，因此这里既不按“仍在执行”处理，也不按“已终态”处理。"
+  );
+}
+
 // ── New-job wizard ──────────────────────────────────────────────────────────
 
 export interface WizardGates {

@@ -330,6 +330,23 @@ describe("AgentResult — 独立验收投影 ACCEPT", () => {
     expect(unknown.className).toBe("pill pill-mute");
     expect(screen.getByText("custom_gate")).toBeTruthy();
   });
+
+  it("does not tell an unmapped status 还在处理中 on either panel", async () => {
+    // #69: console_status_label returns an out-of-vocabulary store status
+    // VERBATIM, so a row can arrive here as "archived". "还在处理中" and
+    // "任务尚未进入终态" would then be a promise about a run that may already
+    // have ended — the page cannot know, and must say so.
+    stubJob(baseJob({ status: "archived", result: null, accept: null }));
+    render(<AgentResult jobId="job-1" />);
+    // Both panels admit it: the result projection and the acceptance record.
+    expect(await screen.findAllByText(/不在本页词表里/)).toHaveLength(2);
+    expect(screen.queryByText(/任务还在处理中/)).toBeNull();
+    expect(screen.queryByText(/任务尚未进入终态/)).toBeNull();
+    expect(screen.getAllByText(/无法判断它是仍在执行还是已经结束/)).toHaveLength(1);
+    expect(screen.getAllByText(/无法判断独立验收是否应当已经发生/)).toHaveLength(1);
+    // The raw token stays readable: the notice names the value, not a paraphrase.
+    expect(screen.getAllByText(/archived/).length).toBeGreaterThan(1);
+  });
 });
 
 describe("dependency-cache disclosure reaches a labelled reader (#145)", () => {

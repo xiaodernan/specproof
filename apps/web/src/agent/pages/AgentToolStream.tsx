@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AgentEvent } from "../../api";
 import { ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, EventRow, useAgentJob } from "../components";
-import { eventKindLabel, sseStateLabel } from "../util";
+import { agentRunPhase, eventKindLabel, isAgentTerminal, sseStateLabel } from "../util";
 
 /** 与本文件之外的调用方（测试）共用的原始事件缓冲上限。 */
 const MAX_BUFFERED_EVENTS = 300;
@@ -84,7 +84,10 @@ export default function AgentToolStream(props: { jobId: string }) {
           events.length +
           " 帧 · SSE " +
           sseStateLabel(sseState) +
-          (done || ["COMPLETED", "FAILED", "CANCELLED"].includes(job.status) ? " · 已结束 closed" : "") +
+          // 「已结束」只来自两个事实：这条流自己收到了 done，或任务状态在终态词表里。
+          // 未识别的状态不能借用其中任何一条——既不宣称结束，也不暗示仍在执行。
+          (done || isAgentTerminal(job.status) ? " · 已结束 closed" : "") +
+          (agentRunPhase(job.status) === "unknown" ? " · 状态未识别 unrecognized" : "") +
           ")"
         }
       >

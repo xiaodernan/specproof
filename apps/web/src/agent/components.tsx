@@ -5,12 +5,9 @@ import {
   AgentApproval, AgentEvent, AgentJob, apiGet, openAgentEventStream,
 } from "../api";
 import { fmtTime, shortId } from "../ui";
-import { agentStatusMeta, approvalTargetLabel, eventKindLabel } from "./util";
+import { agentStatusMeta, approvalTargetLabel, eventKindLabel, isAgentTerminal } from "./util";
 
 export type AgentStreamState = "connecting" | "open" | "closed" | "error";
-
-/** 终态：SSE 与轮询都以它为准停止。 */
-const TERMINAL_AGENT_STATUSES = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
 export function useAgentJob(jobId: string) {
   const [job, setJob] = useState<AgentJob | null>(null);
@@ -66,7 +63,8 @@ export function useAgentJob(jobId: string) {
         );
         if (!alive || controller.signal.aborted) return;
         setJob(result.job); setError(null); setLoading(false);
-        stopped = TERMINAL_AGENT_STATUSES.has(result.job.status);
+        // 终态才停轮询；未识别的状态继续轮询，但不对外宣告「已结束」。
+        stopped = isAgentTerminal(result.job.status);
       } catch (reason) {
         if (!alive || controller.signal.aborted) return;
         setError(reason as Error); setLoading(false);

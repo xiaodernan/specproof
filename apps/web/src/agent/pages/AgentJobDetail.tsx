@@ -4,7 +4,7 @@ import { Button, ErrorBox, Panel, Spinner, StatCard, fmtTime, kv, shortId } from
 import { recordRecentJob } from "../../ui/recentJobs";
 import { describePipelineError } from "../../ui/errorHints";
 import { AgentJobShell, ProgressBar, useAgentJob } from "../components";
-import { agentStatusMeta, eventKindLabel, sseStateLabel } from "../util";
+import { agentStatusMeta, eventKindLabel, isAgentTerminal, sseStateLabel } from "../util";
 
 function Timeline({ job }: { job: AgentJob }) {
 
@@ -88,7 +88,12 @@ export default function AgentJobDetail(props: { jobId: string }) {
   };
 
   const progress = job.progress;
-  const terminal = ["COMPLETED", "FAILED", "CANCELLED"].includes(job.status);
+  // Same predicate the API enforces: `_require_cancellable`
+  // (api/routes/agent_console.py) refuses only what is IN
+  // _TERMINAL_CONSOLE_STATUSES, so a status this console has never seen stays
+  // cancellable here too. The point of importing the shared set is not a new
+  // rule — it is that this page and the server cannot drift apart.
+  const terminal = isAgentTerminal(job.status);
   const failure = job.result?.reason || progress.message;
 
   return (

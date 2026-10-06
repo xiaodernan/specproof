@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_WIZARD_DRAFT,
+  AGENT_ACTIVE_STATUSES,
+  AGENT_STATUS_META,
+  AGENT_TERMINAL_STATUSES,
   WizardDraft,
+  agentRunPhase,
+  agentUnknownNotice,
   aggregateApprovals,
   buildSpecText,
   diffFileStatusLabel,
@@ -16,6 +21,7 @@ import {
   gateLabel,
   gateStatusPillClass,
   gateStatusLabel,
+  isAgentTerminal,
   sseStateLabel,
   rowsForFile,
   validateRepoStep,
@@ -229,5 +235,46 @@ describe("gate + accept labels — one vocabulary for both gate lists", () => {
     for (const notice of notices) expect(notice.length).toBeGreaterThan(0);
     expect(new Set(notices).size).toBe(3);
     expect(notices[2]).toContain("无法区分");
+  });
+});
+
+describe("run phase — 终态 / 进行中 / 不认识", () => {
+  const KNOWN = [...AGENT_ACTIVE_STATUSES, ...AGENT_TERMINAL_STATUSES];
+
+  it("classifies each vocabulary token by its own set, and nothing by both", () => {
+    for (const token of AGENT_ACTIVE_STATUSES) expect(agentRunPhase(token)).toBe("active");
+    for (const token of AGENT_TERMINAL_STATUSES) expect(agentRunPhase(token)).toBe("terminal");
+    // A token in both sets would make "terminal" and "active" the same claim.
+    expect(KNOWN.length).toBe(new Set(KNOWN).size);
+    expect(AGENT_ACTIVE_STATUSES.length).toBeGreaterThan(0);
+    expect(AGENT_TERMINAL_STATUSES.length).toBeGreaterThan(0);
+  });
+
+  it("labels exactly the tokens it can phase — no label without a phase, no phase without a label", () => {
+    expect(Object.keys(AGENT_STATUS_META).sort()).toEqual([...KNOWN].sort());
+  });
+
+  it("keeps isAgentTerminal true only for the terminal set", () => {
+    for (const token of AGENT_TERMINAL_STATUSES) expect(isAgentTerminal(token)).toBe(true);
+    for (const token of AGENT_ACTIVE_STATUSES) expect(isAgentTerminal(token)).toBe(false);
+    expect(isAgentTerminal("archived")).toBe(false);
+  });
+
+  it("says it does not recognise an unmapped status, and takes neither side", () => {
+    // console_status_label passes an out-of-vocabulary store status through
+    // verbatim (#69), so "archived" is a value a real row can carry.
+    expect(agentRunPhase("archived")).toBe("unknown");
+    const notice = agentUnknownNotice("archived");
+    expect(notice).toContain("archived");
+    expect(notice).toContain("不在本页的词表里");
+    expect(notice).toContain("既不");
+    expect(notice).toContain("也不");
+    // A known status must not earn the notice, or the page would claim
+    // ignorance about a value it just classified.
+    for (const token of KNOWN) expect(agentUnknownNotice(token)).toBe("");
+    // An absent status is still not recognised, and is named as 空 rather than
+    // silently treated as a run that never started.
+    expect(agentRunPhase(undefined)).toBe("unknown");
+    expect(agentUnknownNotice(undefined)).toContain("空");
   });
 });
