@@ -295,6 +295,25 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "the derivation test, so a new word forces this gate and the "
         "family to move together",
     ),
+    "run_static_checks": (
+        re.compile(
+            r"^run_static_checks_(outcomes_"
+            r"(checked|checker_failures|inputs_missing)|runs)_total$"
+        ),
+        "agent/nodes/run_static_checks.py #196: run_static_checks_runs_total "
+        "+ run_static_checks_outcomes_<word>_total at the run_static_checks "
+        "node boundary — runs counts every invocation; the outcome word "
+        "separates a fully returned check run from one where at least one "
+        "checker crashed (CHECKER_FAILED is infrastructure evidence, never "
+        "a source verdict — a crash must not read as 'no problems found') "
+        "and from the defensive missing-inputs short circuit (the errors "
+        "guard precedes this node, so today's graph cannot reach it). An "
+        "empty static_findings list looks identical for a clean run and a "
+        "short-circuited one. The vocabulary is imported from "
+        "agent.nodes.run_static_checks (RUN_STATIC_OUTCOMES) by the "
+        "derivation test, so a new word forces this gate and the family "
+        "to move together",
+    ),
 }
 
 
@@ -622,6 +641,26 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert retrieve_pattern.match(
             f"retrieve_repository_context_outcomes_{word}_total"
         ), f"family rejects retrieve outcome {word}"
+
+    # run_static_checks == the node's closed RUN_STATIC_OUTCOMES vocabulary.
+    # Imported, same discipline as preflight: an empty static_findings list
+    # looks identical for a clean checked run and a short-circuited one.
+    from agent.nodes.run_static_checks import RUN_STATIC_OUTCOMES
+
+    static_pattern, _ = CONCATENATED_FAMILIES["run_static_checks"]
+    expected_static = (
+        "^run_static_checks_(outcomes_("
+        + "|".join(sorted(RUN_STATIC_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert static_pattern.pattern == expected_static, (
+        f"run_static_checks family {static_pattern.pattern} != node "
+        f"vocabulary {sorted(RUN_STATIC_OUTCOMES)}"
+    )
+    for word in sorted(RUN_STATIC_OUTCOMES):
+        assert static_pattern.match(
+            f"run_static_checks_outcomes_{word}_total"
+        ), f"family rejects run_static_checks outcome {word}"
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

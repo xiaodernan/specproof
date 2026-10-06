@@ -2905,3 +2905,28 @@ retrieve_repository_context（把 head 工作区 Java 源索引进 ES、按需�
 
 - 新增名 7 个（runs + 六词）；面板 37→38；OBSERVABILITY 清单 23 个文件。
 - 剩余 6 个无计数节点：run_static_checks、generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks。
+
+
+### #196 静态检查节点执行计数——checked / checker_failures / inputs_missing，空 findings 不再伪装「跑干净了」（已落地）
+
+**背景**
+
+run_static_checks（确定性契约检查器，十只 checker：七只 java-source 统一注册表 + 三只按名分派的异构检查器）此前零观测面。两处同形陷阱：static_findings 空表在「干净跑完」与「无输入短路」下完全一样；CHECKER_FAILED（checker 崩溃）是基建证据而非源判决——注册表自己的文档就说「崩掉的 checker 绝不许读成 no problems found」，但出了 out["checker_failures"] 这个键之外无任何可计读数。
+
+**实现**
+
+- 节点：runs 在入口；inputs_missing 在防御性早退（**如实注明今日图不可达**：错误守卫在本节点之前、缺工作区必带错误——保留该词以便图变化或直接调用者可见）；checked / checker_failures 在末尾按 checker_failures 是否非空二选一。
+- 对账门新家族 run_static_checks；推导 import RUN_STATIC_OUTCOMES。
+- 仪表盘 panel 39「静态检查」4 条 target。
+- OBSERVABILITY.md 条目 + 头计数 23→24（重数 25 bullets / 24 distinct / 头部 24）。
+- 行为测试 tests/unit/test_run_static_checks_node_execution_is_observable.py（5 例）：checker seam（run_contract_checks / dispatch_checker / contract_results_for——节点模块级导入）桩在节点模块上，文件读取与 merge_contract_results 全部真跑（tmp 工作区）；inputs_missing 例见证「短路先于任何 checker」+ contract_results 原对象穿透；checked 例钉 BLOCKER→MAJOR/0.85 封顶、PASS 带 static:C1:<digest>、无契约时恰分派两只异构 checker；checker_failures 例钉崩溃条目原样流出（免封顶）而兄弟 BLOCKER 照常封顶；**删除降级例**钉「base 有 head 无的源文件把静态 PASS 降为 UNVERIFIED」且词仍是 checked（跑过了就是跑过了——词不撒谎）；+ 漂移门。
+
+**门证（HEAD 13e5c70 + 本弧）**
+
+- 定向 pytest **69 passed** = 新 5 + court_no_evidence_blocker + verdict_policy（既有消费者）+ parity 4（7.53s）；ruff 三 py 文件 All checks passed；mypy 仓级门 `mypy .` **0 issue / 222 源文件**；仪表盘 JSON 可解析（39 panels，panel 39 四条 target 逐条核过）。
+- 变异臂 4 条（预测先写，junit 读红）：对照 **69/69 绿**（臂前后各一次）；A1 对调 checked/checker_failures 两发射词 ⇒ 恰 3 红（checked 例 + checker_failures 例 + 删除降级例——它也断言 checked；**漂移门按预测保持绿**，字面集合未变）；A2 删 inputs_missing 发射行 ⇒ 恰 2 红；A3 只改声明词 inputs_missing→no_inputs ⇒ 恰 3 红（delta 表键随声明 + 漂移门 + parity 推导）；A4 纯散文 ⇒ **SURVIVED 按预测 0 红**。**3/3 击杀臂 MATCHED + 1 预测存活**，臂后 sha256 逐字节一致（64e1a714…）。
+
+**读数**
+
+- 新增名 4 个（runs + 三词）；面板 38→39；OBSERVABILITY 清单 24 个文件。
+- 剩余 5 个无计数节点：generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks。

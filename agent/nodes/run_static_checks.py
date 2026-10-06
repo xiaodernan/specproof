@@ -11,6 +11,18 @@ All ten checkers are dispatched through the registry: the seven uniform
 java-source checkers via run_registered_checks, and the three
 heterogeneous ones (schema.sql / test-strength / forbidden changes) via
 dispatch_checker by name — unknown checker names fail closed.
+
+Counters (#196): ``run_static_checks_runs_total`` counts every invocation
+and ``run_static_checks_outcomes_<word>_total`` records how the attempt
+ended — ``checked`` (the registry ran and every checker returned),
+``checker_failures`` (the registry ran but at least one checker crashed;
+CHECKER_FAILED evidence is infrastructure, never a source verdict — a
+crashing checker must not read as "no problems found") or
+``inputs_missing`` (defensive: today's graph cannot reach it — the errors
+guard sits before this node and a missing workspace always carries an
+error — kept so a future graph change or a direct caller stays visible).
+An empty static_findings list looks identical for a clean checked run and
+a short-circuited one; the outcome word is the countable difference.
 """
 import hashlib
 import json
@@ -21,8 +33,18 @@ from agent.checkers.java_source import contract_results_for, run_contract_checks
 from agent.checkers.registry import dispatch_checker
 from agent.contract_results import merge_contract_results
 from agent.state import Phase0State
+from observability.metrics import incr
 
 _STATIC_CONFIDENCE_CEILING = 0.85
+
+#: The closed set of ways a static-check run can end (#196). Mirrored by
+#: the parity family's regex and the behavior tests — a new word must move
+#: all three together.
+RUN_STATIC_OUTCOMES = frozenset({
+    "checked",           # registry ran; every checker returned
+    "checker_failures",  # registry ran; >=1 checker crashed (evidence, not verdict)
+    "inputs_missing",    # no workspaces — defensive; the guard precedes this node
+})
 
 
 def _read_java_files(workspace: str) -> dict[str, str]:
@@ -64,12 +86,14 @@ def _read_text(workspace: str, rel: str) -> str:
 
 def run_static_checks_node(state: Phase0State) -> dict[str, Any]:
     """Run deterministic contract checkers against Base and Head sources."""
+    incr("run_static_checks_runs_total")
     base_workspace = state.get("base_workspace", "")
     head_workspace = state.get("head_workspace", "")
     app_dir = state.get("app_dir", "")
     contracts = state.get("contracts", [])
 
     if not base_workspace or not head_workspace:
+        incr("run_static_checks_outcomes_inputs_missing_total")
         return {
             "static_findings": [],
             "contract_results": state.get("contract_results", []),
@@ -181,4 +205,7 @@ def run_static_checks_node(state: Phase0State) -> dict[str, Any]:
     }
     if checker_failures:
         out["checker_failures"] = checker_failures
+        incr("run_static_checks_outcomes_checker_failures_total")
+    else:
+        incr("run_static_checks_outcomes_checked_total")
     return out

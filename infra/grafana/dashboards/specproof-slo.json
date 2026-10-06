@@ -4057,6 +4057,133 @@
           "refId": "G"
         }
       ]
+    },
+    {
+      "id": 39,
+      "type": "timeseries",
+      "title": "静态检查 (§14.1: 契约检查器)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "run_static_checks 节点的执行计数 (agent/nodes/run_static_checks.py #196): runs/s 计每次调用; outcomes_<word>/s 按三种结局分列——checked（注册表跑完，每个 checker 都返回）、checker_failures（至少一个 checker 崩溃——CHECKER_FAILED 是基建证据不是源判决，崩溃绝不许读成「没问题」，细节在 out[checker_failures]）、inputs_missing（防御分支：今日图不可达，错误守卫在本节点之前）。static_findings 空表在「干净跑完」与「无输入短路」下完全同形，只有 outcomes_<word> 能区分；删除源文件的 PASS→UNVERIFIED 降级不改变词（#196 行为测试钉住）。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 143
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_static_checks_runs_total[15m])",
+          "legendFormat": "runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_static_checks_outcomes_checked_total[15m])",
+          "legendFormat": "checked/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_static_checks_outcomes_checker_failures_total[15m])",
+          "legendFormat": "checker_failures/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_static_checks_outcomes_inputs_missing_total[15m])",
+          "legendFormat": "inputs_missing/s",
+          "range": true,
+          "instant": false,
+          "refId": "D"
+        }
+      ]
     }
   ],
   "refresh": "30s",
