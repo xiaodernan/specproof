@@ -384,6 +384,22 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "(CREATE_CAPSULE_OUTCOMES) by the derivation test, so a new word "
         "forces this gate and the family to move together",
     ),
+    "run_release_checks": (
+        re.compile(
+            r"^run_release_checks_(outcomes_"
+            r"(failed|not_requested|passed)|runs)_total$"
+        ),
+        "agent/nodes/run_release_checks.py #201: run_release_checks_runs_total "
+        "+ run_release_checks_outcomes_<word>_total at the node boundary — "
+        "runs counts every invocation; the word separates the healthy "
+        "not-requested default (depth != RELEASE) from a gate aggregate "
+        "that held (passed) from one that refused (failed: unreproducible "
+        "flip, nothing to re-run, or a capsule digest mismatch). Which "
+        "gate refused lives in release_results.gates and the report. The "
+        "vocabulary is imported from agent.nodes.run_release_checks "
+        "(RUN_RELEASE_OUTCOMES) by the derivation test, so a new word "
+        "forces this gate and the family to move together",
+    ),
 }
 
 
@@ -812,6 +828,27 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert capsule_pattern.match(
             f"create_capsule_outcomes_{word}_total"
         ), f"family rejects capsule outcome {word}"
+
+    # run_release_checks == the node's closed RUN_RELEASE_OUTCOMES
+    # vocabulary. Imported, same discipline as preflight: an empty
+    # release_results marks the not-requested default, and the per-gate
+    # detail lives in release_results.gates, not in more words.
+    from agent.nodes.run_release_checks import RUN_RELEASE_OUTCOMES
+
+    release_pattern, _ = CONCATENATED_FAMILIES["run_release_checks"]
+    expected_release = (
+        "^run_release_checks_(outcomes_("
+        + "|".join(sorted(RUN_RELEASE_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert release_pattern.pattern == expected_release, (
+        f"run_release_checks family {release_pattern.pattern} != node "
+        f"vocabulary {sorted(RUN_RELEASE_OUTCOMES)}"
+    )
+    for word in sorted(RUN_RELEASE_OUTCOMES):
+        assert release_pattern.match(
+            f"run_release_checks_outcomes_{word}_total"
+        ), f"family rejects release outcome {word}"
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

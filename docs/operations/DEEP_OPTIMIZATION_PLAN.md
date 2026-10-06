@@ -3035,3 +3035,33 @@ create_capsule（把 BLOCKER/MAJOR 发现打包成可回放的 Bug Capsule zip�
 
 - 新增名 4 个（runs + 三词）；面板 42→43；OBSERVABILITY 清单 28 个文件。
 - 剩余 1 个无计数节点：run_release_checks（收官单元）。
+
+
+### #201 发布检查节点执行计数——passed / failed / not_requested，节点计数弧收口（已落地）
+
+**背景**
+
+run_release_checks（RELEASE 档两道发布门：diff 判决可复现性重跑 + 胶囊 manifest 摘要链）是弧的收官节点。三条结局：not_requested（depth != RELEASE 的健康默认）与两种门聚合（passed/failed——失败细分在 release_results.gates：翻极性 / 无测试可重放 / 胶囊摘要不符或开不出）。
+
+**实现**
+
+- 节点：runs 在入口；not_requested 在早退前；passed/failed 在 release-report.json 写盘之后、最终返回前。
+- 对账门新家族 run_release_checks；推导 import RUN_RELEASE_OUTCOMES。
+- 仪表盘 panel 44「发布检查」4 条 target。
+- OBSERVABILITY.md 条目 + 头计数 28→29（重数 30 bullets / 29 distinct / 头部 29）。
+- 行为测试 tests/unit/test_run_release_checks_node_execution_is_observable.py（5 例）：沙箱重跑 seam 桩掉（late import 自 run_deep_experiments），胶囊完整性门读**真 zip**；passed 例钉「空 capsule_integrity 是空表而非假通过」（否决层读作未判定，与 #152 的口径一致）与报告落盘；flip 例钉极性翻转=failed；**坏胶囊摘要例**用真 zip 与假 digest 隔离验证胶囊门（同轮 reproducibility 保持通过）；+ 漂移门。
+- ⚠️ 文本小坑两枚（已修）：parity 描述先写成 "not-REQUEST" 再写成 "imported else from"——两处都是手滑，落地前由 ruff/自读纠掉。
+
+**门证（HEAD c47eb3b + 本弧）**
+
+- 定向 pytest **46 passed** = 新 5 + release_checks + 三个发布门文件（report/veto job/veto verdict）+ parity 4（6.98s）；ruff 三 py 文件 All checks passed；mypy 仓级门 `mypy .` **0 issue / 222 源文件**；仪表盘 JSON 可解析（44 panels，panel 44 四条 target 逐条核过）。
+- 变异臂 4 条（预测先写，junit 读红）：对照 **46/46 绿**（臂前后各一次）；A1 对调 passed/failed 两发射词 ⇒ 恰 3 红（passed 例 + flip 例 + 坏胶囊例；漂移门保持绿）；A2 删 not_requested 发射 ⇒ 恰 2 红；A3 只改声明词 passed→accepted ⇒ 恰 3 红（passed 例 delta 键 + 漂移门 + parity 推导；另两例保持绿）；A4 纯散文 ⇒ **SURVIVED 按预测 0 红**。**3/3 击杀臂 MATCHED + 1 预测存活**，臂后 sha256 逐字节一致（dfceb158…）。
+
+**弧收口**
+
+#190–#201 十二连（preflight→compile_contracts→prepare_base/head→collect_diff→retrieve_repository_context→run_static_checks→generate_counterexamples→run_deep_experiments→build_matrix→create_capsule→run_release_checks）：**agent/nodes 下 17 个节点文件全部有边界计数**（含此前 #175–#189 弧的 intake/publish_report/run_differential/review_court），全部走同一套契约：每文件 frozenset 词表 + parity 家族 + 推导 import + 漂移门 + 行为测试 + 3–4 臂。仪表盘 30→44 号面板补齐；OBSERVABILITY 清单 14→29 个文件（每步重数、逐次订正）。剩余观测面候选（非节点）：评测集 preexisting 探针 / findings 召回层 MISS 排查 / web 侧新弧。
+
+**读数**
+
+- 新增名 4 个（runs + 三词）；面板 43→44；OBSERVABILITY 清单 29 个文件。
+- 下一号候选：见弧收口段。

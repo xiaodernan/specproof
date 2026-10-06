@@ -10,6 +10,15 @@ RELEASE = FAST + DEEP experiments + release gates:
   3. Certificate path: the caller (verify CLI) signs when VERIFIED.
 
 Results land in state["release_results"] + release-report.json.
+
+Counters (#201): ``run_release_checks_runs_total`` counts every invocation
+and ``run_release_checks_outcomes_<word>_total`` records how the attempt
+ended — ``not_requested`` (depth != RELEASE: the healthy default for most
+jobs), ``passed`` (every gate held; an empty capsule_integrity list is an
+empty list, NOT a fabricated pass — the veto layer reads it as 未判定) or
+``failed`` (>=1 gate refused: unreproducible flip, no generated test to
+re-run, or a capsule digest mismatch/error). Which gate refused lives in
+release_results.gates and the report; the word is the countable rate.
 """
 
 from __future__ import annotations
@@ -21,10 +30,22 @@ from pathlib import Path
 from typing import Any
 
 from agent.state import Phase0State
+from observability.metrics import incr
+
+#: The closed set of ways a RELEASE-tier check run can end (#201). Mirrored
+#: by the parity family's regex and the behavior tests — a new word must
+#: move all three together.
+RUN_RELEASE_OUTCOMES = frozenset({
+    "failed",        # >=1 gate refused — details in release_results.gates
+    "not_requested", # depth != RELEASE — the healthy default
+    "passed",        # every gate held
+})
 
 
 def run_release_checks_node(state: Phase0State) -> dict[str, Any]:
+    incr("run_release_checks_runs_total")
     if state.get("depth", "FAST") != "RELEASE":
+        incr("run_release_checks_outcomes_not_requested_total")
         return {"release_results": {}, "release_note": "RELEASE tier not requested"}
 
     results: dict[str, Any] = {"gates": {}, "passed": True}
@@ -87,6 +108,12 @@ def run_release_checks_node(state: Phase0State) -> dict[str, Any]:
     (out_dir / "release-report.json").write_text(
         json.dumps(results, indent=2, default=str), encoding="utf-8"
     )
+
+    if results["passed"]:
+        incr("run_release_checks_outcomes_passed_total")
+    else:
+        incr("run_release_checks_outcomes_failed_total")
+
     return {
         "release_results": results,
         "release_note": (

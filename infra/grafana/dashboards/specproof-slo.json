@@ -4704,6 +4704,133 @@
           "refId": "D"
         }
       ]
+    },
+    {
+      "id": 44,
+      "type": "timeseries",
+      "title": "发布检查 (§A: RELEASE 发布门)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "run_release_checks 节点的执行计数 (agent/nodes/run_release_checks.py #201): runs/s 计每次调用; outcomes_<word>/s 按三种结局分列——passed（全部门通过）、failed（至少一门拒绝：reproducibility 翻极性 / 无生成测试可重放 / 胶囊摘要不符或开不出——哪个门拒绝在 release_results.gates 与报告里）、not_requested（depth != RELEASE 的健康默认）。空 capsule_integrity 列表是「空表」而非假通过（否决层读作未判定）。#201 也是节点计数弧的收口：agent/nodes 下 17 个节点文件全部有边界计数。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 159
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_release_checks_runs_total[15m])",
+          "legendFormat": "runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_release_checks_outcomes_passed_total[15m])",
+          "legendFormat": "passed/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_release_checks_outcomes_failed_total[15m])",
+          "legendFormat": "failed/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_release_checks_outcomes_not_requested_total[15m])",
+          "legendFormat": "not_requested/s",
+          "range": true,
+          "instant": false,
+          "refId": "D"
+        }
+      ]
     }
   ],
   "refresh": "30s",
