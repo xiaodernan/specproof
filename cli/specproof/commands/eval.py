@@ -28,6 +28,8 @@ from evidence.acceptance import (
     MetricCounts,
     evaluate,
     fmt_metric,
+    severity_match_of,
+    severity_reconciliation,
 )
 from evidence.report import render_eval_report
 
@@ -264,7 +266,7 @@ def eval_cmd(
             {str(f.get("contract_id") or "") for f in findings}
         )
 
-        results.append({
+        record = {
             "case": case_dir.name,
             "verdict": verdict,
             "should_detect": should_detect,
@@ -275,7 +277,11 @@ def eval_cmd(
             "matched_severities": ", ".join(matched_severities) or "—",
             "contracts_found": ", ".join(contracts_found),
             "expected_contract": expected_contract or "—",
-        })
+        }
+        # Ground-truth level call: True = exact match, False = drift,
+        # None = no level call (recall miss or negative case).
+        record["severity_match"] = severity_match_of(record)
+        results.append(record)
         click.echo(
             f"  [{verdict}] matched {len(matched)} finding(s), "
             f"contracts found: {contracts_found} ({duration_ms} ms)"
@@ -311,6 +317,21 @@ def eval_cmd(
     click.echo(f"Precision:          {fmt_metric(metrics.precision)}")
     click.echo(f"Recall:             {fmt_metric(metrics.recall)}")
     click.echo(f"F1 Score:           {fmt_metric(metrics.f1)}")
+    severity = severity_reconciliation(results)
+    click.echo(
+        f"Severity agreement: {fmt_metric(severity['severity_agreement'])} "
+        f"({severity['matched_positive_cases']} matched positive cases)"
+    )
+    click.echo(
+        f"Severe precision:   {fmt_metric(severity['severe_precision'])} "
+        f"(severe calls: {severity['severe_call_positives']} positive / "
+        f"{severity['severe_false_positives']} negative)"
+    )
+    for m in severity["mismatches"]:
+        click.echo(
+            f"  ! severity drift: {m['case']} "
+            f"expected {m['expected']}, got {m['actual']}"
+        )
     click.echo(f"Acceptance:         {acceptance.status}")
     for line in acceptance.insufficient:
         click.echo(f"  ! 样本不足: {line}")
@@ -345,6 +366,7 @@ def eval_cmd(
                 "recall": metrics.recall,
                 "f1": metrics.f1,
                 "acceptance": acceptance.to_dict(),
+                "severity_reconciliation": severity,
                 "timing_note": (
                     "Per-case duration_ms is whole-pipeline wall clock measured "
                     "around the graph invocation; the Phase 0 graph exposes no "

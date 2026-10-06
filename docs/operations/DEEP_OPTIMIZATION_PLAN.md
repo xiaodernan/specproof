@@ -2553,11 +2553,11 @@ def _require_cancellable(job):           # :685
 
 ## #185 差分验证执行进 /metrics——run_differential 节点边界的 runs/skipped/errors/outcomes 词族
 
-**背景。** Phase 2「多语言验证能力」的核心节点 run_differential（1598 行）此前零观测——跑了多少次差分、多少被跳过（非演示仓库/无测试生成）、多少异常退出、各 verdict 分布如何，全不可见。真差分覆盖率需结合下游证据（§2.1 的 Node/Python 生成器缺口），但执行面计数是线上可测的前置。
+**背景。** Phase 2「多语言验证能力」的核心节点 run_differential（1598 行）此前零观测——跑了多少次差分、多少被跳过（workspace 未备好/无生成测试/注入失败）、多少执行出错、各 verdict 分布如何，全不可见。真差分覆盖率需结合下游证据（§2.1 的 Node/Python 生成器缺口），但执行面计数是线上可测的前置。
 
-**修法。** 计数放节点边界、内部 helper 保持 pure：①`agent/nodes/run_differential.py` 顶部导入 `from observability.metrics import incr, observe_duration`；②定义 `_DIFF_BUCKETS`（12 档：0.5s–3600s，预留 histogram 扩展）与 `DIFF_OUTCOMES = frozenset({"regression", "compliant", "ambiguous", "unexpected_fix", "skipped"})`；③函数入口 `incr("differential_runs_total")`；④skip 路径（非演示仓库/无测试生成）各 `incr("differential_skipped_total")`；⑤异常捕获前 `incr("differential_errors_total")`；⑥返回前遍历 primary_entries，按 verdict 词表递增对应 `differential_outcomes_<word>_total`。词表不手抄：parity 门 CONCATENATED_FAMILIES 增 diff_outcome，派生测试 import DIFF_OUTCOMES 生成期望正则。面板 31（七条 rate：runs/skipped/errors + regression/compliant/ambiguous/unexpected_fix，x=0,y=111）；无告警（outcomes 是分布不是准确率，§2 的多语言能力成熟度阈值不冒充——同 #180/#184 纪律）。
+**修法（#185b 订正后）。** 计数放节点边界、内部 helper 保持 pure：①`agent/nodes/run_differential.py` 顶部只导入 `from observability.metrics import incr`（原文记录里的 observe_duration/_DIFF_BUCKETS 从未被落地使用——`_DIFF_BUCKETS` 是死常量，#185b 已删）；②定义 `DIFF_OUTCOMES = frozenset({"regression", "compliant", "ambiguous", "unexpected_fix", "skipped"})`；③三条未执行路径（workspace 未备好 / 无生成测试 / 注入失败）各 `incr("differential_runs_total")` + `incr("differential_outcomes_skipped_total")`；④主执行点 `incr("differential_runs_total")`；⑤执行出错（Base/Head 结果 error 非空）`incr("differential_errors_total")`（#185b 起独立计数——outcomes_ambiguous 保持词表声明的 base_fail+head_fail 义，不吸收基础设施错误）；⑥返回前遍历 primary_entries，按 verdict 词表递增对应 `differential_outcomes_<word>_total`。词表不手抄：parity 门 CONCATENATED_FAMILIES 增 diff_outcome，派生测试 import DIFF_OUTCOMES 生成期望正则。面板 31（七条 rate：runs/skipped/errors + regression/compliant/ambiguous/unexpected_fix，x=0,y=111）；无告警（outcomes 是分布不是准确率，§2 的多语言能力成熟度阈值不冒充——同 #180/#184 纪律）。
 
-**门证。** ruff All checks passed（nodes/parity/test 三文件）；mypy `agent/nodes/run_differential.py` Success；定向 pytest **6 passed**（test_differential_execution_is_observable 6 含五臂——总调用+1、非演示仓库 skipped+1、无测试生成 skipped+1、异常 errors+1、四 outcome 各+1；词汇漂移门 1 例断言 parity regex words == DIFF_OUTCOMES declaration）；parity 门 5 家族含 diff_outcome 派生；dashboard 31 panels、面板 31 七 target（alerts-slo.yml 本号未动，仍 15 rules）。
+**门证（#185b 订正后重跑，2026-10-07）。** ruff All checks passed（nodes/parity/test 三文件）；mypy `agent/nodes/run_differential.py` Success；定向 pytest **14 passed**＝parity 门 4＋本文件 10（六例臂：全路径 runs+1 且 seam 调用序 maven_base→maven_head→maven_probe、workspace 未备好 runs+1/skipped+1、无生成测试与注入失败各 runs+1/skipped+1 且 seam 0 调用、执行出错 errors+1 且 ambiguous 恰 0、四 outcome 参数化各 +1；词汇漂移门 1 例断言 parity regex words == DIFF_OUTCOMES declaration）；dashboard 31 panels、面板 31 七 target（B 改 outcomes_skipped、C 的 errors 修复后真实存在；alerts-slo.yml 本号未动，仍 15 rules）。
 
 **门证插曲。** ①类型标注陷阱：tmp_path: "Path" 在 from __future__ import annotations 下合法但 ruff UP037 要求去引号，且 Path 需显式 import（F821）——修后 10 errors → 0；②词汇顺序：DIFF_OUTCOMES frozenset 无序，parity regex 按字母序排列（ambiguous|compliant|regression|skipped|unexpected_fix），派生测试提取 alternation group 后 set 比对，避免字母序 mismatch 导致假红；③全部改动走标准流程（无 .scratch patch，直接 Edit 成功）。
 
@@ -2626,3 +2626,64 @@ def _require_cancellable(job):           # :685
 - `pytest` 本门 **4 passed / 0 红**。
 - `npx vitest run src/agent` **12 files / 92 passed**。
 - `npx tsc --noEmit` rc=0（0 行输出）。
+
+
+### #188 eval 评测集 ground truth 严重度对账——「BLOCKER/MAJOR Precision」的 🟡 收口（已落地）
+
+**量到的事实（HEAD `bafd22f`，全部来自源码与数据）**
+
+- §6 SLO 表两行 🟡 的堵点都写着「真(准)精度需评测集 ground truth」：BLOCKER/MAJOR
+  Precision 行（#180 线上判定聚合可算确认率，但判级对错没有 ground truth 对账）与
+  PR 归因准确率行（#184 分布可算，真准确率需 ground truth）。
+- ground truth 评测基建早已存在且在跑：golden-cases/ 100 case 每个带 ground-truth.json
+  （expected_severity 全量覆盖：BLOCKER 16 / MAJOR 47 / NONE 37；should_detect
+  63 True / 37 False；probe_expectation 仅 3 个执行探针），`specproof eval --cases`
+  走完整管线按 contract-id 匹配，CI eval-golden-cases job 跑 4-case 代表子集 grep 门。
+- 但 eval 的对账只算 case 级 recall/precision（evidence/acceptance.py score）：
+  判级对错在 results 记录里带了 expected_severity 与 matched_severities 两个字段，
+  却从不比较——判级漂移（MAJOR 判成 MINOR）在所有输出面（CLI/HTML/sidecar）不可见。
+- 归因准确率在现评测集上不可测：100 case 全是 head 引入缺陷（scenario.json 的
+  base→head 构造 diff），没有 base-已含缺陷探针，ground truth 无 preexisting 声明
+  ——诚实边界升级记录（OBSERVABILITY 两处），而非硬造指标。
+
+**改法**
+
+- `evidence/acceptance.py` 两个纯函数（单一诚实源，零 I/O 离线可测）：
+  - `severity_match_of(record)` 三态——True: matched 正例判级与 expected 完全一致
+    （单值）；False: 判级漂移/多值；None: 无判级可评（recall MISS 是召回失败不进
+    判级分母；负例错误已由 false_positives 计）。
+  - `severity_reconciliation(results)` 两个口径——`severity_agreement` = matched
+    正例判级一致率；`severe_precision` = severe call 认可率：分母 = expected
+    BLOCKER/MAJOR 的 matched 正例（无论报什么级别，MAJOR 漂成 MINOR 仍是错的
+    severe call）+ FALSE_POSITIVE 负例（与 case 级 precision 的 FP 同源：clean PR
+    上任何 confirmed finding 都是错判），分子 = 其中判级一致的；expected 低级别的
+    matched 正例不进分母（没做 severe call）；分母 0 → None，永不假 100。
+- `cli/specproof/commands/eval.py`：results 每 case 附 `severity_match` 三值字段；
+  汇总区新两行 `Severity agreement:` / `Severe precision:` + drift 明细行；
+  sidecar JSON 新增 `severity_reconciliation` 块（机器可读，baseline/CI 可消费）。
+- `evidence/report.py` render_eval_report：汇总卡新两张（Severity Agreement /
+  Severe Precision，同款 fmt_metric——None 渲染「样本不足」不假 100）；
+  表格 Severities 列漂移 case 红标。
+- OBSERVABILITY.md：§6 行 🟡→✅（对账落地，90% 阈值仍未 pin——acceptance.default()
+  同款先例，由维护者从全量跑数 pin）；正文前置说明同步；归因两处补勘察边界。
+
+**读数**
+
+- 新门 tests/unit/test_acceptance_gate.py 6 例：一致率份额、三态判定与漂移、
+  无判级时双 None、severe 分母盖漂移+FP 且低级别正例不入分母、完美跑恰 100、
+  多值判级=漂移不崩。全套 18 passed；ruff/mypy 三文件全绿。
+- 实测（两轮 eval，no-llm 确定性，本机 local mode——SPECPROOF_ALLOWED_ROOT
+  未配置走 local_fallback）：
+  - 轮一 tuning 池 2 case（holdout 隔离按 #77 生效，case-01/56 被排除）：
+    case-17 MISS（325s）、case-10 负例无 FP；轮二 --include-holdout 单跑
+    case-01 MISS（356s）。三 case 全 MISS → Recall 0.0%，对账指标诚实渲染
+    「无法评估 (n=0)」（agreement 分母=0 matched 正例；severe 分母=0 severe
+    call）——空样本不假 100 的机制恰好被真数据证明。CLI 两新行、sidecar
+    `severity_reconciliation` 块、HTML 双卡+红标三输出面全部落盘验证。
+  - 观测到 specproof-nightly-eval 连续 4 天 1 分钟级 failure（10-03..10-06，
+    runner 初始化后即挂，log 显示 UNKNOWN STEP）——评测 job 配置层问题，
+    ci.yml 属并行车道禁碰文件，根因排查留给该车道；本机全 MISS 与之呼应
+    （管线召回 or 环境差异）留下一号候选：对照 CI eval-golden-cases job
+    的最近绿跑复核 case-17/01 的 matched 语义。
+- 提交本号的码面（acceptance/eval/report 三文件 + 测试）与对账机制门证均
+  不改变 findings 产出——纯聚合， MISS 现象非本号引入。

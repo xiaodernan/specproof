@@ -236,6 +236,106 @@ def evaluate(
     )
 
 
+#: Severity levels the SLO row "BLOCKER/MAJOR Precision>=90%" counts as a
+#: severe call. Ground-truth positives in the golden case set are all
+#: BLOCKER or MAJOR (16 + 47 of 100); negatives expect no finding at all.
+SEVERE_SEVERITIES: frozenset[str] = frozenset({"BLOCKER", "MAJOR"})
+
+
+def severity_match_of(result: dict[str, Any]) -> bool | None:
+    """Ground-truth severity reconciliation for one eval case record.
+
+    ``True``  - a matched positive case whose reported severity is exactly
+                the expected one (single value, no drift).
+    ``False`` - a matched positive case whose severity drifted or spread
+                across several levels: the level call was wrong.
+    ``None``  - no level call to judge: an unmatched positive (that is a
+                recall miss, not a level error) or a negative case (whose
+                wrongness is already counted by ``false_positives``).
+
+    Operates on the per-case record ``cli/specproof/commands/eval.py``
+    appends to ``results`` (keys: ``should_detect``, ``matched_findings``,
+    ``matched_severities``, ``expected_severity``). Pure, no I/O.
+    """
+    if not result.get("should_detect"):
+        return None
+    if not result.get("matched_findings"):
+        return None
+    severities = [
+        s.strip()
+        for s in str(result.get("matched_severities") or "").split(",")
+        if s.strip() and s.strip() != "—"
+    ]
+    expected = str(result.get("expected_severity") or "")
+    if not expected or not severities:
+        return None
+    return severities == [expected]
+
+
+def severity_reconciliation(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate ground-truth severity reconciliation over eval results.
+
+    Two honest numbers close the SLO row "BLOCKER/MAJOR Precision>=90%"
+    (whose yellow read was "true precision needs ground truth"):
+
+    - ``severity_agreement`` - of the matched positive cases, the share
+      whose reported severity is exactly the expected one. This judges the
+      *level* call; a MISS is a recall failure and stays out of the
+      denominator (it never made a level call to be wrong).
+    - ``severe_precision`` - the share of *severe calls* the ground truth
+      endorses. A severe call is a matched positive case whose expected
+      severity is BLOCKER/MAJOR (at any reported level: a MAJOR finding
+      downgraded to MINOR is still a wrong severe call) plus a negative
+      case that produced any confirmed finding - the same FP the
+      case-level precision already counts, because a confirmed finding on
+      a clean PR is a wrong verdict at any level. Positives expecting
+      lower severities never enter the denominator (they made no severe
+      call to be right or wrong about). ``None`` when the denominator
+      is 0.
+
+    Both are ``None`` on an empty sample, mirroring ``score``: an
+    unevaluated metric must never render as a high score.
+    """
+    matched = 0
+    agreed = 0
+    mismatches: list[dict[str, str]] = []
+    tp = 0
+    severe_domain = 0
+    fp = 0
+    for result in results:
+        match = severity_match_of(result)
+        if match is not None:
+            matched += 1
+            expected = str(result.get("expected_severity") or "")
+            if expected in SEVERE_SEVERITIES:
+                severe_domain += 1
+                if match:
+                    tp += 1
+            if match:
+                agreed += 1
+            else:
+                mismatches.append({
+                    "case": str(result.get("case", "")),
+                    "expected": expected,
+                    "actual": str(result.get("matched_severities") or ""),
+                })
+        if (
+            not result.get("should_detect")
+            and result.get("verdict") == "FALSE_POSITIVE"
+        ):
+            fp += 1
+    return {
+        "severity_agreement": _pct(agreed, matched),
+        "severe_precision": _pct(tp, severe_domain + fp),
+        "matched_positive_cases": matched,
+        "severity_mismatch_cases": len(mismatches),
+        "mismatches": mismatches,
+        "severe_true_positives": tp,
+        "severe_call_positives": severe_domain,
+        "severe_false_positives": fp,
+    }
+
+
 def fmt_metric(value: float | None, *, undefined: str = "无法评估") -> str:
     """Render a metric honestly for a human surface.
 
@@ -253,6 +353,7 @@ __all__ = [
     "FAIL",
     "INSUFFICIENT",
     "ACCEPTANCE_STATUSES",
+    "SEVERE_SEVERITIES",
     "MetricCounts",
     "Metrics",
     "AcceptanceCriteria",
@@ -260,4 +361,6 @@ __all__ = [
     "score",
     "evaluate",
     "fmt_metric",
+    "severity_match_of",
+    "severity_reconciliation",
 ]

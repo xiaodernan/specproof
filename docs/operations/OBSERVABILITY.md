@@ -105,10 +105,10 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | DEEP p50<=10min / p95<=25min | specproof_jobs_duration_seconds_deep 直方图 | 🟡 拆名与 1500s 告警已 armed (#161); 队列入口当前仅收 FAST (POST /jobs 钉 ^FAST$、MCP 同、webhook 硬编码), DEEP 走 CLI 本地执行不入队, 入队前该序列无数据 |
 | Webhook 响应 p95<=1s | specproof_webhook_github_handling_seconds 直方图 (api/server.py 中间件按路径测量, 含 4xx/5xx; 亚秒桶梯度 0.05..2.5s) | ✅ 已接线 (#162: 面板 + p95>1s 告警; 默认梯度首格 60s 对 1s 分位数无分辨率, 故用亚秒梯度) |
 | Dashboard 进度延迟<=2s | specproof_dashboard_progress_delivery_lag_seconds 直方图 (api/routes/jobs.py SSE 循环对 live 事件测写入→发出驻留; p50/p95 面板 + p95>2s 告警) | ✅ 已接线 (#164: 服务端可测段; SSE 发出→浏览器渲染属网络/前端域无观测点, 诚实边界记录于此) |
-| BLOCKER/MAJOR Precision>=90% | specproof_findings_court_*_total 判定族 (Review Court 节点边界) | 🟡 判定聚合已接线 (#180: confirmed/candidates 确认率可算, needs_confirmation 转人工); 真精度需评测集 ground truth (bench_replay 离线), §14 的 90% 阈值不做告警 |
+| BLOCKER/MAJOR Precision>=90% | specproof_findings_court_*_total 判定族 (Review Court 节点边界) + eval 评测集 ground truth 对账 (evidence/acceptance.py severity_reconciliation: Severity agreement=matched 正例判级一致率, Severe precision=severe call 认可率——漂移到 MINOR 仍在分母, FP 负例入分母; 经 eval --cases 进 CLI/HTML/sidecar) | ✅ 已接线 (#180 线上判定聚合 + #188 离线 ground truth 对账, §14 的 90% 阈值在评测门上仍未 pin——acceptance.default() 同款先例, 由维护者从全量跑数 pin) |
 | Capsule Replay>=95% | specproof_capsule_replay_runs_total / specproof_capsule_replay_verdict_<word>_total 四词族 / exec_errors、timeouts (evidence/capsule_replay.py: --run 显式 opt-in, run.sh 在沙箱内执行, verdict 词表 = create_capsule 模板) | ✅ 已接线 (#183: 成功率 = confirmed/runs, <95% 告警 SpecproofCapsuleReplayRateLow; git/依赖离线不可解是真实失败计 exec_errors, 非环境借口) |
 | 无证据严重评论=0 | specproof_severe_comments_without_evidence_total 拒发计数 (integrations/inline_comments.py build_review_comments 证据门: BLOCKER/MAJOR 无 evidence_type 在锚定前拒发) | ✅ 已接线 (#182: SLO=计数恒 0, >0 即 critical 告警 SpecproofNoEvidenceSevereComment) |
-| PR 归因准确率>=90% | specproof_findings_attribution_compared/kept/rejected_total + findings_attribution_signal_<word>_total 词族 (review_court 节点边界: 双侧同败的归因判定分布——kept=Head 行为差异保留归因, rejected=既有缺陷拒归因, 信号词族携带 WHY) | 🟡 归因判定分布已接线 (#184: kept/compared 可算, 拒归因保护可见); 真准确率需评测集 ground truth, §14 的 90% 阈值不做告警 |
+| PR 归因准确率>=90% | specproof_findings_attribution_compared/kept/rejected_total + findings_attribution_signal_<word>_total 词族 (review_court 节点边界: 双侧同败的归因判定分布——kept=Head 行为差异保留归因, rejected=既有缺陷拒归因, 信号词族携带 WHY) | 🟡 归因判定分布已接线 (#184: kept/compared 可算, 拒归因保护可见); 真准确率需 ground truth 且评测集无 base-已含缺陷探针 (#188 勘察: 100 case 全是 head 引入, 对账在现评测集上不可测), §14 的 90% 阈值不做告警 |
 
 §8.10 指标清单中未接线的: Redis 命中
 （#168 判定诚实不接线——storage/redis.py 的 LLM 缓存零调用点）。
@@ -136,8 +136,11 @@ sandbox_runs_total 计每次到达沙箱的运行, sandbox_failures_total 计 er
 findings_court_candidates_total 计进入法庭的候选, findings_court_<outcome>_total
 计四类判定——confirmed/needs_confirmation/not_attributed/skipped, 词表 = policy 层
 封闭的 COURT_OUTCOMES, 对账门 import 钉死; 确认率 = confirmed/candidates 的 rate 比,
-是 §14 BLOCKER/MAJOR Precision>=90% 的线上前置——真精度需评测集 ground truth
-(bench_replay 离线评测), §14 阈值不做告警）、PR 归因判定分布
+是 §14 BLOCKER/MAJOR Precision>=90% 的线上前置——真精度对账已落地 (#188,
+evidence/acceptance.py severity_reconciliation: eval --cases 按 ground truth
+对账 Severity agreement/Severe precision 两个口径, 结果进 CLI/HTML/sidecar;
+线上 90% 阈值仍不做告警——评测门是离线 CI gate, §14 无对应线上序列)、
+PR 归因判定分布
 （#184 接线, agent/nodes/review_court.py 的 run_review_court 节点边界, policy 层
 保持 pure: audit entry 携带 preexisting_check——双侧同败的归因比较结果,
 findings_attribution_compared_total 计比较, findings_attribution_kept_total 计
@@ -145,7 +148,9 @@ Head 行为差异保留归因, findings_attribution_rejected_total 计既有缺�
 findings_attribution_signal_<word>_total 四词族（词表 = policy 层封闭的
 HEAD_ONLY_SIGNALS, 对账门 import 钉死）携带 WHY——exit_code_differs /
 failure_signature_differs / head_extra_failure_count / head_db_state_differs;
-kept/compared 可算, 拒归因保护可见, 真准确率需 ground truth 故无告警）、
+kept/compared 可算, 拒归因保护可见, 真准确率无告警; #188 勘察: 评测集 100 case
+全是 head 引入缺陷 (正例 63 全 BLOCKER/MAJOR, 负例 37), 无 base-已含缺陷探针,
+归因准确率的 ground truth 对账在现评测集上不可测, 需构造 preexisting case）、
 证书签发与拒绝
 （#179 接线, evidence/certificate.py: issue_certificate 的 VERIFIED 出口计
 specproof_certificates_issued_total、非 VERIFIED 出口计 specproof_certificates_refused_total
@@ -184,7 +189,7 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 - `evidence/certificate.py`（#179 起）：`issue_certificate` 的 VERIFIED 出口 incr specproof_certificates_issued_total、非 VERIFIED 出口 incr specproof_certificates_refused_total（refused 即 BLOCKED+FAILED 之和, 判定词表封闭）；`build_rejection_notice` incr specproof_rejection_notices_total——实际写出拒绝单的计数, 与「判定未过」语义分开（调用者可拒绝而不写单）。签发率 = issued 与 refused 两条 rate 的比值, §14 无证书阈值故无告警。
 - `agent/nodes/review_court.py`（#180 起）：`run_review_court` 节点边界的判定聚合——findings_court_candidates_total（进入法庭的候选数）与 findings_court_<outcome>_total 四词族（confirmed / needs_confirmation / not_attributed / skipped, 词表 = policy 层封闭的 COURT_OUTCOMES, 对账门 import 该常量钉死）。确认率 = confirmed 与 candidates 两条 rate 的比值, 是 §14 BLOCKER/MAJOR Precision 的线上前置; 真精度需评测集 ground truth（bench_replay 离线）, §14 阈值故无告警。
 - `agent/nodes/review_court.py`（#184 起）：run_review_court 节点边界的归因判定分布——audit entry 携带 preexisting_check（policy 层 _preexisting_check 的双侧同败比较结果, policy 保持 pure）: findings_attribution_compared_total / findings_attribution_kept_total / findings_attribution_rejected_total 与 findings_attribution_signal_<word>_total 四词族（exit_code_differs / failure_signature_differs / head_extra_failure_count / head_db_state_differs, 词表 = policy 层封闭的 HEAD_ONLY_SIGNALS, 对账门 import 钉死）。kept = Head 行为差异保留归因（att-08 场景）, rejected = 既有缺陷拒归因（假阳性保护）; kept/compared 是 §6 PR 归因准确率的线上前置, 真准确率需 ground truth, 故无告警。
-- `agent/nodes/run_differential.py`（#185 起）：`run_differential` 节点边界的执行计数——differential_runs_total（每次调用）、differential_skipped_total（非演示仓库或无测试生成跳过）、differential_errors_total（异常退出）、differential_outcomes_<word>_total 五词族（regression / compliant / ambiguous / unexpected_fix / skipped, 词表 = DIFF_OUTCOMES frozenset, 对账门 import 钉死）。skipped 既可能是诚实降级也可能是能力缺口（需结合 error rate 判断）；outcomes 是 Phase 2「多语言验证能力」的执行面分布，§2 的多语言能力成熟度阈值不冒充，故无告警。
+- `agent/nodes/run_differential.py`（#185 起，#185b 订正）：`run_differential_node` 节点边界的执行计数——differential_runs_total（每次调用，含未执行即返回的尝试）、differential_outcomes_skipped_total（三条未执行路径：workspace 未备好 / 无生成测试 / 注入失败）、differential_errors_total（执行出错：Base/Head 结果 error 非空；#185b 起独立计数，outcomes_ambiguous 保持词表声明的 base_fail+head_fail 义，不吸收基础设施错误）、differential_outcomes_<word>_total 五词族（regression / compliant / ambiguous / unexpected_fix / skipped, 词表 = DIFF_OUTCOMES frozenset, 对账门 import 钉死）。skipped 既可能是诚实降级也可能是能力缺口（需结合 errors rate 判断）；outcomes 是 Phase 2「多语言验证能力」的执行面分布，§2 的多语言能力成熟度阈值不冒充，故无告警。
 - `experiments/adapters.py`（#181 起）：`JavaMavenAdapter.run` 咽喉点（产品树里唯一的 run_sandboxed 调用点, Base/Head 差分与 self-test 全部过此点）计 sandbox_runs_total / sandbox_failures_total / sandbox_timeouts_total。failure 判据是沙箱 runner 的 error 非空契约; timeout 判据与 #178 同源（"timed out after" 公共子串）, spawn 错误不冒充超时; sandbox/ 本体保持无指标（所有权边界不动）。§14 无沙箱失败率阈值故无告警。
 - `integrations/inline_comments.py`（#182 起）：`build_review_comments` 证据门——BLOCKER/MAJOR 且 evidence_type ∈ {"", "unknown", "?"} 的 finding 在锚定之前拒发（continue）并计 specproof_severe_comments_without_evidence_total。拒绝即策略（与锚定失败的静默丢弃同一诚实族）, §6 "无证据严重评论=0" 的 SLO 就是这条计数恒 0, >0 即 critical 告警 SpecproofNoEvidenceSevereComment。纯函数模块: 计数进进程内注册表, 不引入网络/env。
 - `evidence/capsule_replay.py`（#183 起）：`run_capsule_replay`——replay --run 显式 opt-in 后 run.sh 在沙箱内执行（mode="docker" 钉死: 无 Docker 是诚实报错, 绝不本地回退跑不可信代码; host 上唯一执行物是 git clone）。计数: capsule_replay_runs_total（每次到达沙箱的执行, 失败也是运行）、capsule_replay_exec_errors_total（沙箱 error 非空契约）、capsule_replay_timeouts_total（"timed out after" 公共子串, 与 #178/#181 同源）、capsule_replay_verdict_<word>_total 四词族（词表 = create_capsule 模板 REGRESSION CONFIRMED / UNEXPECTED FIX / AMBIGUOUS / COMPLIANT, 对账门 import VERDICTS 钉死; stdout 首个命中, 沙箱跑完且 exit 0 才解析, 解析不出不计族——诚实缺席）。成功率 = confirmed 与 runs 两条 rate 的比值, §14 "Capsule Replay>=95%", <95% 告警 SpecproofCapsuleReplayRateLow。

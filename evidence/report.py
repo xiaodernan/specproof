@@ -3,7 +3,12 @@ from datetime import UTC, datetime
 from html import escape
 from typing import Any
 
-from evidence.acceptance import MetricCounts, fmt_metric, score
+from evidence.acceptance import (
+    MetricCounts,
+    fmt_metric,
+    score,
+    severity_reconciliation,
+)
 from evidence.verdict import evaluate_verification
 
 
@@ -497,6 +502,9 @@ def render_eval_report(results: list[dict[str, Any]]) -> str:
     neg = sum(1 for r in results if not r.get("should_detect"))
     _m = score(MetricCounts(should_detect=should, detected=detected,
                             false_positives=fp, negative_cases=neg))
+    sev = severity_reconciliation(results)
+    sev_agree_txt = fmt_metric(sev["severity_agreement"], undefined="样本不足")
+    sev_prec_txt = fmt_metric(sev["severe_precision"], undefined="样本不足")
     precision_txt = fmt_metric(_m.precision, undefined="样本不足")
     recall_txt = fmt_metric(_m.recall, undefined="样本不足")
     f1_txt = fmt_metric(_m.f1, undefined="样本不足")
@@ -512,6 +520,9 @@ def render_eval_report(results: list[dict[str, Any]]) -> str:
     for r in results:
         v = r.get("verdict", "")
         color = verdict_color.get(v, "#c9d1d9")
+        sev_color = (
+            "#ff7b72" if r.get("severity_match") is False else "#c9d1d9"
+        )
         rows_html += f"""<tr>
             <td>{r.get("case", "")}</td>
             <td style="color:{color};font-weight:700">{v}</td>
@@ -519,7 +530,7 @@ def render_eval_report(results: list[dict[str, Any]]) -> str:
             <td>{r.get("expected_severity", "")}</td>
             <td>{r.get("expected_evidence", "")}</td>
             <td>{r.get("matched_findings", 0)}</td>
-            <td>{r.get("matched_severities", "")}</td>
+            <td style="color:{sev_color}">{r.get("matched_severities", "")}</td>
             <td>{r.get("contracts_found", "")}</td>
         </tr>"""
 
@@ -567,6 +578,14 @@ def render_eval_report(results: list[dict[str, Any]]) -> str:
         <div class="stat">
             <div class="value">{fp}</div>
             <div class="label">False Positives</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#79c0ff">{sev_agree_txt}</div>
+            <div class="label">Severity Agreement</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:#79c0ff">{sev_prec_txt}</div>
+            <div class="label">Severe Precision</div>
         </div>
     </div>
 

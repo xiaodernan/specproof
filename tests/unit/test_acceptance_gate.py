@@ -7,6 +7,8 @@ small to prove a floor must yield INSUFFICIENT, never PASS.
 """
 from __future__ import annotations
 
+from typing import Any
+
 from evidence.acceptance import (
     FAIL,
     INSUFFICIENT,
@@ -16,6 +18,8 @@ from evidence.acceptance import (
     evaluate,
     fmt_metric,
     score,
+    severity_match_of,
+    severity_reconciliation,
 )
 
 
@@ -158,3 +162,110 @@ def test_result_to_dict_is_json_safe_with_nulls() -> None:
     assert payload["status"] == INSUFFICIENT
     assert payload["metrics"]["recall"] is None
     assert payload["counts"]["should_detect"] == 0
+
+
+# -- #188: ground-truth severity reconciliation ---------------------------
+
+
+def _case(**kw: Any) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "case": "case-x",
+        "verdict": "PASS",
+        "should_detect": True,
+        "matched_findings": 1,
+        "matched_severities": "BLOCKER",
+        "expected_severity": "BLOCKER",
+        "expected_contract": "AUTH-01",
+    }
+    base.update(kw)
+    return base
+
+
+def test_severity_agreement_is_exact_level_match_share() -> None:
+    results = [
+        _case(case="a", matched_severities="BLOCKER"),
+        _case(case="b", matched_severities="BLOCKER"),
+        _case(case="c", matched_severities="MAJOR", expected_severity="MAJOR"),
+        _case(case="d", matched_severities="MINOR", expected_severity="MAJOR"),
+    ]
+    rec = severity_reconciliation(results)
+    assert rec["severity_agreement"] == 75.0
+    assert rec["matched_positive_cases"] == 4
+    assert rec["severity_mismatch_cases"] == 1
+    assert rec["mismatches"] == [
+        {"case": "d", "expected": "MAJOR", "actual": "MINOR"}
+    ]
+
+
+def test_severity_match_triple_state_and_drift_detection() -> None:
+    assert severity_match_of(_case()) is True
+    assert (
+        severity_match_of(
+            _case(matched_severities="MINOR", expected_severity="MAJOR")
+        )
+        is False
+    )
+    assert (
+        severity_match_of(_case(matched_findings=0, matched_severities="-"))
+        is None
+    )
+    assert severity_match_of(_case(should_detect=False)) is None
+
+
+def test_severity_metrics_none_when_no_level_call_made() -> None:
+    results = [
+        _case(
+            case="miss",
+            verdict="MISS",
+            matched_findings=0,
+            matched_severities="-",
+        ),
+        _case(
+            case="neg",
+            should_detect=False,
+            verdict="PASS",
+            matched_findings=0,
+            matched_severities="-",
+        ),
+    ]
+    rec = severity_reconciliation(results)
+    assert rec["severity_agreement"] is None
+    assert rec["severe_precision"] is None
+
+
+def test_severe_precision_denominator_covers_drift_and_false_positives() -> None:
+    results = [
+        # Severe positives: 3 in the domain - 2 exact, 1 downgraded to MINOR.
+        _case(case="a"),
+        _case(case="b"),
+        _case(case="c", expected_severity="MAJOR", matched_severities="MINOR"),
+        # A negative that produced a confirmed finding: a severe-call FP.
+        _case(
+            case="neg",
+            should_detect=False,
+            verdict="FALSE_POSITIVE",
+            matched_findings=0,
+            matched_severities="-",
+        ),
+        # A matched positive expecting a low severity: never a severe call,
+        # so it stays out of the denominator entirely.
+        _case(case="low", expected_severity="MINOR", matched_severities="MINOR"),
+    ]
+    rec = severity_reconciliation(results)
+    # TP=2; denominator = 3 severe positives + 1 FP negative = 4.
+    assert rec["severe_precision"] == 50.0
+    assert rec["severe_call_positives"] == 3
+    assert rec["severe_true_positives"] == 2
+    assert rec["severe_false_positives"] == 1
+    # Agreement still judges every matched positive, including "low".
+    assert rec["matched_positive_cases"] == 4
+
+
+def test_perfect_level_calls_score_exactly_hundred() -> None:
+    rec = severity_reconciliation([_case(case="a"), _case(case="b")])
+    assert rec["severity_agreement"] == 100.0
+    assert rec["severe_precision"] == 100.0
+
+
+def test_multi_value_severities_count_as_drift_not_crash() -> None:
+    assert severity_match_of(_case(matched_severities="BLOCKER, MAJOR")) is False
