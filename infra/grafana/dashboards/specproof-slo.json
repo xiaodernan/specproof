@@ -3393,6 +3393,181 @@
         "refId": "F"
       }
       ]
+    },
+    {
+      "id": 35,
+      "type": "timeseries",
+      "title": "契约编译 (§14.1: 需求→契约 编译报告)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "compile_contracts 节点的执行计数 (agent/nodes/compile_contracts.py #192): runs/s 计每次调用; outcomes_<word>/s 按七种结局分列——empty_input（未提供需求文本，空契约直接收口）、approved_loaded（注册表已批准契约优先，跳过编译）、rules_sufficient（规则命中>=2 条，LLM 根本未尝试）、llm_disabled（规则稀疏 + use_llm=False，按请求确定性编译）、llm_unavailable（规则稀疏、想要 LLM 但未配置 provider）、llm_replaced（LLM 候选通过 schema 校验并替换规则列表）、llm_degraded（LLM 已尝试但无可用产出，规则列表保留）。注意编译报告的 accepted_count 单独无法区分这些结局：llm_replaced 与 rules_sufficient 都可能产出可接受契约，llm_unavailable/llm_disabled/llm_degraded 都「保留规则列表继续」，只有 outcomes_<word> 能看见当轮究竟走了哪条路（#192 行为测试逐词钉住）。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 127
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_compile_contracts_runs_total[15m])",
+          "legendFormat": "runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_compile_contracts_outcomes_empty_input_total[15m])",
+          "legendFormat": "empty_input/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_compile_contracts_outcomes_approved_loaded_total[15m])",
+          "legendFormat": "approved_loaded/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_compile_contracts_outcomes_rules_sufficient_total[15m])",
+          "legendFormat": "rules_sufficient/s",
+          "range": true,
+          "instant": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_compile_contracts_outcomes_llm_disabled_total[15m])",
+          "legendFormat": "llm_disabled/s",
+          "range": true,
+          "instant": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_compile_contracts_outcomes_llm_unavailable_total[15m])",
+          "legendFormat": "llm_unavailable/s",
+          "range": true,
+          "instant": false,
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_compile_contracts_outcomes_llm_replaced_total[15m])",
+          "legendFormat": "llm_replaced/s",
+          "range": true,
+          "instant": false,
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_compile_contracts_outcomes_llm_degraded_total[15m])",
+          "legendFormat": "llm_degraded/s",
+          "range": true,
+          "instant": false,
+          "refId": "H"
+        }
+      ]
     }
   ],
   "refresh": "30s",

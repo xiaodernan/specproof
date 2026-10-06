@@ -2796,3 +2796,31 @@ preflight（Phase 1.4 起的首个真守卫节点，intake→preflight 为无条
 
 - 变更 4 文件：PreflightCard.tsx、PreflightCard.test.tsx、JobDetail.test.tsx、本文件。全仓 grep「环境正常」只有此一处实现（无第二处徽章副本）。
 - 下一号候选：承接上节（评测集 preexisting 探针 / findings 召回层 MISS 排查）；或 11 个尚无计数的 agent 节点（compile_contracts、prepare_base/head、collect_diff、retrieve_repository_context、run_static_checks、generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks）。
+
+
+### #192 compile_contracts 节点执行计数——七种编译结局，accepted_count 单独读不出走了哪条路（已落地）
+
+**背景**
+
+compile_contracts（需求→契约的编译节点）此前零观测面，而它的执行路径有七条且互相不可见：empty_input（无需求文本，空契约直接收口）；approved_loaded（P2 注册表已批准契约优先，编译整体跳过）；rules_sufficient（规则命中 ≥2 条——LLM 根本不尝试）；llm_disabled（规则稀疏 + use_llm=False——按请求确定性编译）；llm_unavailable（规则稀疏、想要 LLM 但未配置 provider/key）；llm_replaced（LLM 候选通过 schema 校验并**替换**规则列表）；llm_degraded（LLM 尝试了但无可用产出，规则列表保留）。编译报告单看 accepted_count 分不出这些结局——llm_replaced 与 rules_sufficient 都能产出可接受契约；llm_unavailable / llm_disabled / llm_degraded 都是「保留规则列表继续」，差别只在 LLM 是否被尝试、为何没有产出。
+
+**实现**
+
+- `agent/nodes/compile_contracts.py`：`compile_contracts_runs_total`（每次调用）+ `compile_contracts_outcomes_<word>_total` 七词族（`COMPILE_OUTCOMES` frozenset 封闭词表；每分支恰一次 incr——empty_input/approved_loaded 在早退分支，llm_replaced/llm_degraded 在 LLM 分叉，llm_unavailable 在无 provider 分支，rules_sufficient/llm_disabled 在最终 else 的二路分叉）。
+- 对账门 `tests/unit/test_observability_metric_parity.py`：新家族 `compile_contracts`（regex `^compile_contracts_(outcomes_(approved_loaded|empty_input|llm_degraded|llm_disabled|llm_replaced|llm_unavailable|rules_sufficient)|runs)_total$`）+ 推导块（import `COMPILE_OUTCOMES` 与 regex 字面量全等比较——新词必须同时改族与门）。
+- 仪表盘 panel 35「契约编译 (§14.1: 需求→契约 编译报告)」：runs + 七词共 8 条 rate target；description 明写「accepted_count 单独无法区分这些结局——只有 outcomes 词表能看见当轮走了哪条路」。
+- `docs/operations/OBSERVABILITY.md`：新条目（#192 起，含七词读法）+ 清单头计数重数 17→19（该句是手账：git 逐提交实测，在 #190 提交 0808c1a 处清单实为 18 个文件——#190 写 17 时漏计了**自身新增的 preflight 条目**；本号加入 compile_contracts.py 后按同一口径为 19，订正依据写入该文件内注）。
+- 行为测试 `tests/unit/test_compile_contracts_node_execution_is_observable.py`（8 例，**落地即写**非补账）：七词逐词一例（含 rules_sufficient 的「bomb provider 零调用」与 llm_disabled 的「_get_provider 零调用」两条执行面断言）+ 词表漂移门（`COMPILE_OUTCOMES` == parity regex words == 源字面量，runs 字面量恰 1 处）。
+
+**门证（HEAD ac3b5de + 本弧）**
+
+- 定向 pytest **28 passed** = 新 8 + parity 4 + test_compile_report 16（109.52s，冻结字节）。
+- ruff 三 py 文件 All checks passed；mypy 仓级门 `mypy .` **0 issue / 222 源文件**（tests/ 按 [tool.mypy] exclude 不在门内；显式点名测试文件会越出仓门口径，与已提交的 test_compile_report.py 同型，不做单独订制）；仪表盘 JSON 可解析（35 panels，panel 35 八条 target 逐条核过）；OBSERVABILITY.md 清单重数脚本实测 20 bullets / 19 distinct / 头部写 19。
+- 变异臂 3 条（预测先写，junit 读红）：对照 **28/28 绿**（臂前后各一次）；A1 把最终 else 的两路 incr 改成 pass ⇒ 恰 3 红（rules_sufficient 例 + llm_disabled 例 + 源字面量漂移门）；A2 只把 llm_replaced 的名字改成 llm_fallback ⇒ 恰 2 红（replaced 例 + 漂移门；**引用面 parity 测试按预测保持绿**——家族 regex 仍匹配看板上的旧引用，这是词表漂移门而非引用门的承重分工）；A3 对调两路词 ⇒ 恰 2 红（两例互换）。**3/3 MATCHED**，每臂还原后 sha256 与臂前逐字节一致（7d8d6526…）。
+- ⚠️ EOL 坑（本次付费）：本仓工作副本**混行尾**——compile_contracts.py 是 CRLF 而 preflight.py 是 LF（逐字节实测）；臂锚点以 `\n` 写成后必须按目标文件自身 EOL 适配（`old.replace("\n", eol)`），且读数要用 `read_bytes().decode` 而非 `read_text`（后者 universal-newline 归一化：干跑 1 命中、实跑 0 命中）。锚点断言在写盘之前触发——0 命中的那次未污染文件（sha 前后一致 7d8d6526…）。
+- 附带读数（承接上节）：全量 web 套件 47 文件 / 402 例，400 绿；2 红均在 `SameRepoCraftPanel.test.tsx`——a3f6161 (#176) 起的既有 HEAD 红（单跑仍红；diffstat 不含其任何载入文件），非 #191 弧引入。
+
+**读数**
+
+- 新增名 8 个（runs + 七词）；面板 34→35；OBSERVABILITY 清单 19 个文件。
+- 下一号候选：11 个尚无计数的 agent 节点之 prepare_base / prepare_head / collect_diff / retrieve_repository_context / run_static_checks / generate_counterexamples / run_deep_experiments / build_matrix / create_capsule / run_release_checks；或承接（评测集 preexisting 探针 / findings 召回层 MISS 排查 / preflight disabled·probe_error 的「环境未验证」进作业记录）。

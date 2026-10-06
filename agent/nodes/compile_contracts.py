@@ -3,6 +3,14 @@
 
 Phase 0: rule-based parser with optional LLM fallback.
 Phase 1+: full LLM-based compilation.
+
+Counters (#192): ``compile_contracts_runs_total`` counts every invocation
+and ``compile_contracts_outcomes_<word>_total`` records which compiler
+produced the final contract list — the report's accepted_count alone
+cannot tell "rules were sufficient" from "LLM never ran" from "LLM
+produced nothing usable". The seven words are the closed vocabulary
+COMPILE_OUTCOMES; a new word must move the declaration, the parity
+family and the drift gate together.
 """
 
 import asyncio
@@ -20,6 +28,7 @@ from agent.contracts.compile_report import (
 )
 from agent.contracts.records import checker_version_for
 from agent.state import Phase0State
+from observability.metrics import incr
 from providers.judge_persona import build_judge_prompt
 
 #: Semantic version of the deterministic rule parser + contract templates
@@ -27,6 +36,19 @@ from providers.judge_persona import build_judge_prompt
 #: rule-based pass produces; every compile report stamps this version so a
 #: small candidate set can be traced to a parser change, not just the spec.
 PARSER_RULE_VERSION = "1.0.0"
+
+#: The closed set of ways a compile run can end (#192): which compiler
+#: produced the final contract list. Mirrored by the parity family's regex
+#: and the drift gate — a new word must move all three together.
+COMPILE_OUTCOMES = frozenset({
+    "empty_input",       # no requirement text — nothing to compile
+    "approved_loaded",   # registry-approved contracts took precedence
+    "rules_sufficient",  # >=2 rule matches — the LLM is never attempted
+    "llm_disabled",      # sparse rules + use_llm=False — deterministic by request
+    "llm_unavailable",   # sparse rules, LLM wanted, no provider configured
+    "llm_replaced",      # LLM candidates accepted, the rule list is replaced
+    "llm_degraded",      # LLM attempted, produced nothing usable; rules kept
+})
 
 _CONTRACT_TEMPLATES = {
     "auth": {
@@ -425,13 +447,21 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
     pipeline reports UNVERIFIED rather than inventing a generic contract.
     LLM failures are recorded in state["errors"] and explained in the §14.1
     compile report (state["compile_report"]), never silently swallowed.
+    #192: emits compile_contracts_runs_total plus exactly one
+    ``compile_contracts_outcomes_<word>_total`` per invocation
+    (COMPILE_OUTCOMES is the closed vocabulary).
     """
     text = state.get("requirement_text", "")
     errors: list[str] = list(state.get("errors", []))
     started = time.perf_counter()
     digest = requirement_digest(text)
 
+    # #192: count every compile execution that reaches this node
+    incr("compile_contracts_runs_total")
+
     if not text:
+        # #192: nothing to compile — the rule/LLM fork below is unreachable
+        incr("compile_contracts_outcomes_empty_input_total")
         report = CompileReport(
             parser_rule_version=PARSER_RULE_VERSION,
             llm_used=False,
@@ -449,6 +479,8 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
     # compilation (they were explicitly approved by a human).
     approved_loaded = state.get("approved_contracts", [])
     if approved_loaded:
+        # #192: human-approved registry rows take precedence over any compilation
+        incr("compile_contracts_outcomes_approved_loaded_total")
         for c in approved_loaded:
             c.setdefault("result", "UNVERIFIED")
             c.setdefault("evidence_ref", None)
@@ -502,6 +534,8 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
         )
         if llm_contracts:
             contracts = llm_contracts
+            # #192: the LLM pass replaced the deterministic candidate list
+            incr("compile_contracts_outcomes_llm_replaced_total")
             rule_report = replace(
                 rule_report,
                 accepted_count=0,
@@ -515,7 +549,11 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
             )
         else:
             contracts = rule_contracts
+            # #192: LLM attempted but produced nothing usable (degrade_reasons)
+            incr("compile_contracts_outcomes_llm_degraded_total")
     elif provider is None and use_llm and len(rule_contracts) < 2:
+        # #192: LLM wanted (use_llm=True, sparse rules) but no key configured
+        incr("compile_contracts_outcomes_llm_unavailable_total")
         llm_report = CompileReport(
             parser_rule_version=PARSER_RULE_VERSION,
             llm_used=False,
@@ -530,6 +568,13 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
         contracts = rule_contracts
     else:
         contracts = rule_contracts
+        if len(rule_contracts) >= 2:
+            # #192: by design — the rule parser was enough, the LLM is never
+            # attempted for rich specs
+            incr("compile_contracts_outcomes_rules_sufficient_total")
+        else:
+            # #192: use_llm=False with sparse rules — deterministic by request
+            incr("compile_contracts_outcomes_llm_disabled_total")
 
     # Every contract starts UNVERIFIED; only real experiments set PASS/FAIL.
     # P2: contracts compiled directly from the spec the user explicitly

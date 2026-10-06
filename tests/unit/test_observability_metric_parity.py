@@ -205,6 +205,24 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "agent.nodes.preflight (PREFLIGHT_OUTCOMES) by the derivation test, "
         "so a new word forces this gate and the family to move together",
     ),
+    "compile_contracts": (
+        re.compile(
+            r"^compile_contracts_(outcomes_"
+            r"(approved_loaded|empty_input|llm_degraded|llm_disabled"
+            r"|llm_replaced|llm_unavailable|rules_sufficient)|runs)"
+            r"_total$"
+        ),
+        "agent/nodes/compile_contracts.py #192: compile_contracts_runs_total "
+        "+ compile_contracts_outcomes_<word>_total at the compile_contracts "
+        "node boundary — runs counts every invocation; the outcome word "
+        "names which compiler produced the final contract list, which the "
+        "compile report's accepted_count alone cannot tell apart (rules "
+        "sufficient / LLM disabled or unavailable / LLM replaced the rules / "
+        "LLM degraded back to the rules / registry rows loaded / nothing to "
+        "compile). The vocabulary is imported from "
+        "agent.nodes.compile_contracts (COMPILE_OUTCOMES) by the derivation "
+        "test, so a new word forces this gate and the family to move together",
+    ),
 }
 
 
@@ -440,6 +458,26 @@ def test_concatenated_families_track_their_vocabularies() -> None:
     for word in sorted(PREFLIGHT_OUTCOMES):
         assert preflight_pattern.match(f"preflight_outcomes_{word}_total"), (
             f"family rejects preflight outcome {word}"
+        )
+
+    # compile_contracts == the node's closed COMPILE_OUTCOMES vocabulary.
+    # Imported, same discipline as preflight: which compiler produced the
+    # final contract list is only visible in the outcome word.
+    from agent.nodes.compile_contracts import COMPILE_OUTCOMES
+
+    compile_pattern, _ = CONCATENATED_FAMILIES["compile_contracts"]
+    expected_compile = (
+        "^compile_contracts_(outcomes_("
+        + "|".join(sorted(COMPILE_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert compile_pattern.pattern == expected_compile, (
+        f"compile_contracts family {compile_pattern.pattern} != node "
+        f"vocabulary {sorted(COMPILE_OUTCOMES)}"
+    )
+    for word in sorted(COMPILE_OUTCOMES):
+        assert compile_pattern.match(f"compile_contracts_outcomes_{word}_total"), (
+            f"family rejects compile outcome {word}"
         )
 
 
