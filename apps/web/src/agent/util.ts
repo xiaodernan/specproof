@@ -200,17 +200,24 @@ export function aggregateApprovals(
 
 // ── Event / step labels ─────────────────────────────────────────────────────
 
+/**
+ * The canonical vocabulary of SSE event kinds emitted by the agent console.
+ * Hoisted from the function body so structure gates and readers can enumerate
+ * it without calling the labeler. Unknown tokens pass through verbatim — an
+ * unrecognised kind is still evidence, not a lie.
+ */
+export const EVENT_KIND_LABELS: Record<string, string> = {
+  plan: "计划 Plan",
+  tool_call: "工具调用 Tool call",
+  tool_result: "工具结果 Tool result",
+  edit: "编辑 Edit",
+  gate: "门禁 Gate",
+  progress: "进度 Progress",
+  model_output: "模型实时输出",
+};
+
 export function eventKindLabel(type: string): string {
-  const labels: Record<string, string> = {
-    plan: "计划 Plan",
-    tool_call: "工具调用 Tool call",
-    tool_result: "工具结果 Tool result",
-    edit: "编辑 Edit",
-    gate: "门禁 Gate",
-    progress: "进度 Progress",
-    model_output: "模型实时输出",
-  };
-  return labels[type] || type;
+  return EVENT_KIND_LABELS[type] || type;
 }
 
 export function stepStatusLabel(status: string): string {

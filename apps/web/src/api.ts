@@ -895,13 +895,23 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 // The stream closes itself with a "done" event once the job is terminal.
+export interface AgentReplayGap {
+  requested_after: number;
+  first_available: number;
+}
+
 export function openAgentEventStream(
   jobId: string,
   onEvent: (ev: AgentEvent) => void,
   onStatus: (state: "connecting" | "open" | "closed" | "error") => void,
-  onDone?: () => void
+  onDone?: () => void,
+  onGap?: (gap: AgentReplayGap) => void
 ): () => void {
-  return openEventStream("/agent/jobs/" + encodeURIComponent(jobId) + "/events", (_type, data) => {
+  return openEventStream("/agent/jobs/" + encodeURIComponent(jobId) + "/events", (type, data) => {
+    if (type === "replay_gap") {
+      onGap?.(data as AgentReplayGap);
+      return;
+    }
     onEvent(data as AgentEvent);
   }, onStatus, onDone);
 }

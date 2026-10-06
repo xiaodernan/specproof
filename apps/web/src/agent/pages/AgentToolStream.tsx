@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AgentEvent } from "../../api";
+import { AgentEvent, AgentReplayGap } from "../../api";
 import { ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, EventRow, useAgentJob } from "../components";
 import { agentRunPhase, eventKindLabel, isAgentTerminal, sseStateLabel } from "../util";
@@ -15,19 +15,25 @@ const MAX_BUFFERED_EVENTS = 300;
  * `ready` 为 false 时保持"尚未收到任何事件"的真实状态，而不是伪造空列表。
  */
 function useToolEvents(
-  jobId: string, streamEvents: AgentEvent[], streamState: string,
+  jobId: string, streamEvents: AgentEvent[], streamState: string, replayGap: AgentReplayGap | null,
 ) {
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [done, setDone] = useState(false);
   const bufferRef = useRef<AgentEvent[]>([]);
   const highestRef = useRef(0);
+  const gapRef = useRef<AgentReplayGap | null>(null);
 
   useEffect(() => {
     // 切换任务时清空，避免把上一个任务的事件留在新任务的日志里。
     bufferRef.current = [];
     highestRef.current = 0;
+    gapRef.current = null;
     setEvents([]); setDone(false);
   }, [jobId]);
+
+  useEffect(() => {
+    if (replayGap) gapRef.current = replayGap;
+  }, [replayGap]);
 
   useEffect(() => {
     for (const ev of streamEvents) {
@@ -42,13 +48,13 @@ function useToolEvents(
     if (streamState === "closed") setDone(true);
   }, [streamState]);
 
-  return { events, sseState: streamState, done };
+  return { events, sseState: streamState, done, replayGap: gapRef.current };
 }
 
 export default function AgentToolStream(props: { jobId: string }) {
   const { jobId } = props;
-  const { job, error, loading, events: streamEvents, streamState } = useAgentJob(jobId);
-  const { events, sseState, done } = useToolEvents(jobId, streamEvents, streamState);
+  const { job, error, loading, events: streamEvents, streamState, replayGap } = useAgentJob(jobId);
+  const { events, sseState, done, replayGap: activeGap } = useToolEvents(jobId, streamEvents, streamState, replayGap);
 
   if (loading) return <Spinner />;
   if (!job) {
@@ -61,9 +67,12 @@ export default function AgentToolStream(props: { jobId: string }) {
   }
 
   const toolish = events.filter((ev) => ev.type !== "progress");
+  const gapNotice = activeGap
+    ? `\n[日志缺口 replay_gap：请求 seq>${activeGap.requested_after}，首个可用 seq=${activeGap.first_available}，中间缺了 ${activeGap.first_available - activeGap.requested_after - 1} 条]\n`
+    : "";
   const consoleText =
     toolish.length === 0
-      ? "[等待工具事件… 计划批准后 worker 会发出 tool_call/tool_result/edit/gate]\n"
+      ? "[等待工具事件… 计划批准后 worker 会发出 tool_call/tool_result/edit/gate]\n" + gapNotice
       : toolish
           .map((ev) => {
             const d = ev.data || {};
@@ -73,7 +82,7 @@ export default function AgentToolStream(props: { jobId: string }) {
                 : JSON.stringify(d);
             return "#" + ev.seq + " [" + eventKindLabel(ev.type) + "]" + detail;
           })
-          .join("\n");
+          .join("\n") + gapNotice;
 
   return (
     <AgentJobShell job={job} active="tools">

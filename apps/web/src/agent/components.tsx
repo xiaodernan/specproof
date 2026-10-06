@@ -2,7 +2,7 @@
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
-  AgentApproval, AgentEvent, AgentJob, apiGet, openAgentEventStream,
+  AgentApproval, AgentEvent, AgentJob, AgentReplayGap, apiGet, openAgentEventStream,
 } from "../api";
 import { fmtTime, shortId } from "../ui";
 import { agentStatusMeta, approvalTargetLabel, eventKindLabel, isAgentTerminal } from "./util";
@@ -17,6 +17,9 @@ export function useAgentJob(jobId: string) {
   // 轮询，进度会滞后数秒且看不到细粒度事件——同一个产品两条链路体验不一致。
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [streamState, setStreamState] = useState<AgentStreamState>("connecting");
+  // replay_gap 帧披露：SSE 流在补发缺口时发 replay_gap 事件（无 seq/type），
+  // 不能当普通事件行渲染。单独追踪，让页面能说「日志中间缺了 N 条」。
+  const [replayGap, setReplayGap] = useState<AgentReplayGap | null>(null);
   const refresh = useRef<() => void>(() => undefined);
   const reload = useCallback(() => refresh.current(), []);
 
@@ -25,6 +28,7 @@ export function useAgentJob(jobId: string) {
   useEffect(() => {
     setEvents([]);
     setStreamState("connecting");
+    setReplayGap(null);
     let alive = true;
     const close = openAgentEventStream(
       jobId,
@@ -37,6 +41,7 @@ export function useAgentJob(jobId: string) {
       },
       (state) => { if (alive) setStreamState(state); },
       () => { if (alive) { setStreamState("closed"); refresh.current(); } },
+      (gap) => { if (alive) setReplayGap(gap); },
     );
     return () => { alive = false; close(); };
   }, [jobId]);
@@ -100,7 +105,7 @@ export function useAgentJob(jobId: string) {
   return {
     job: job?.id === jobId ? job : null,
     error, loading, reload,
-    events, streamState,
+    events, streamState, replayGap,
   };
 }
 

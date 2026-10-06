@@ -2586,3 +2586,33 @@ def _require_cancellable(job):           # :685
 - `npx tsc --noEmit` rc=0（0 行输出）。
 - 两平面全量：WITH plane173 **3403 passed / 5 skipped / 0 red** in 1003.25s；BASE plane173base **3397 passed / 5 skipped / 0 red** in 969.74s；+6 collected 逐名归属，全部是本门，0 red 家族相同。
 - 平面自检：`rootdir: D:\面试项目\plane173`，本门在平面上 6 passed。
+
+### #174 SSE 事件帧与事件种类词表（replay_gap 不再变成幽灵行，已落地）
+
+**量到的事实（HEAD `7145990`，全部来自源码）**
+
+- 后端在补发缺口时发 `event: replay_gap` + `data: {"requested_after":N,"first_available":M}`（无 seq/type 字段）；前端 `openAgentEventStream` 把 `_type` 丢掉，`onEvent(data as AgentEvent)` 盲转成事件行。
+- 唯一消费者 `components.tsx` 直接 `setEvents(prev=>[...prev,ev])` ⇒ 读者看到的是一条幽灵行（`ev.type` undefined ⇒ `eventKindLabel(undefined)`、key 用 `ev.seq` undefined），而「日志中间缺了 N 条」这句话永远读不到。
+- 全仓只有 `tests/unit/test_agent_console_persistence.py:95` 断言字符串 `"event: replay_gap"` 出现在生成器输出里——没有任何读者。
+- 词表普查：emitter 的 API 名不止 `record_event`——工具事件走 `self._emit("tool_call", {...})`，arg 0 才是类型；把 callee 集合设成 {record_event(1), _emit(0), emit_event(1), publish(0)} 后 produced=7 = `EVENT_TYPES` 声明 7 = 前端 `eventKindLabel` 内联 labels 7。
+
+**改法**
+
+- 一处导出（`apps/web/src/agent/util.ts`）：把 `eventKindLabel` 的函数内 `labels` 提成模块级导出常量 `EVENT_KIND_LABELS`（现在每次调用重建且结构门读不到）。
+- `apps/web/src/api.ts`：`openAgentEventStream` 新增 `onGap?: (gap: AgentReplayGap) => void` 参数，对 `type === "replay_gap"` 的帧分流到该回调而非事件列表。
+- `apps/web/src/agent/components.tsx`：`useAgentJob` 追踪 `replayGap` 状态并在 SSE 处理器里传入 gap 回调。
+- `apps/web/src/agent/pages/AgentToolStream.tsx`：渲染缺口披露（「日志缺口 replay_gap：请求 seq>N，首个可用 seq=M，中间缺了 X 条」）。
+- 新门（`tests/unit/test_agent_event_kind_vocabulary_parity.py`，4 例）：produced ⊆ UI 词表、UI 词表 ⊆ produced、`EVENT_TYPES` 声明与 produced 相等、消费者必须有形状分流。
+
+**见证：4 臂，全部 MATCHED**
+
+- 所有 7 个后端产生的事件种类都有对应的 UI 标签（无原始 token 泄漏）。
+- 所有 UI 标签都有生产者（无死词汇）。
+- `EVENT_TYPES` 声明等于实际产生集合（收敛围栏）。
+- `replay_gap` 帧被形状区分（api.ts 分流到 onGap，components.tsx 追踪 replayGap 状态）。
+
+**读数**
+
+- `pytest` 本门 **4 passed / 0 红**。
+- `npx vitest run src/agent` **12 files / 92 passed**。
+- `npx tsc --noEmit` rc=0（0 行输出）。
