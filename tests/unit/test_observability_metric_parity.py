@@ -334,6 +334,23 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "the derivation test, so a new word forces this gate and the "
         "family to move together",
     ),
+    "run_deep_experiments": (
+        re.compile(
+            r"^run_deep_experiments_(outcomes_"
+            r"(completed|inputs_missing|not_requested)|runs)_total$"
+        ),
+        "agent/nodes/run_deep_experiments.py #198: "
+        "run_deep_experiments_runs_total + "
+        "run_deep_experiments_outcomes_<word>_total at the node boundary — "
+        "runs counts every invocation; the word separates the healthy FAST "
+        "default (not_requested) from a DEEP request that had nothing to "
+        "run on (inputs_missing — the tier is silently empty) from a full "
+        "campaign that ran and wrote its report (completed). An empty "
+        "deep_results looks identical for the first two. The vocabulary is "
+        "imported from agent.nodes.run_deep_experiments "
+        "(RUN_DEEP_OUTCOMES) by the derivation test, so a new word forces "
+        "this gate and the family to move together",
+    ),
 }
 
 
@@ -701,6 +718,27 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert gen_pattern.match(
             f"generate_counterexamples_outcomes_{word}_total"
         ), f"family rejects generate outcome {word}"
+
+    # run_deep_experiments == the node's closed RUN_DEEP_OUTCOMES
+    # vocabulary. Imported, same discipline as preflight: an empty
+    # deep_results looks identical for "FAST default" and "DEEP requested
+    # but nothing to run on".
+    from agent.nodes.run_deep_experiments import RUN_DEEP_OUTCOMES
+
+    deep_pattern, _ = CONCATENATED_FAMILIES["run_deep_experiments"]
+    expected_deep = (
+        "^run_deep_experiments_(outcomes_("
+        + "|".join(sorted(RUN_DEEP_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert deep_pattern.pattern == expected_deep, (
+        f"run_deep_experiments family {deep_pattern.pattern} != node "
+        f"vocabulary {sorted(RUN_DEEP_OUTCOMES)}"
+    )
+    for word in sorted(RUN_DEEP_OUTCOMES):
+        assert deep_pattern.match(
+            f"run_deep_experiments_outcomes_{word}_total"
+        ), f"family rejects DEEP outcome {word}"
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

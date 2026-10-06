@@ -17,6 +17,16 @@ seeded cache volume, so the sandbox's own ``cache_note`` is carried into
 ``deep_results["cache_integrity"]`` instead of being dropped at this
 boundary — an unverified cache must be readable in the artifact a reviewer
 opens, not only inside the runner.
+
+Counters (#198): ``run_deep_experiments_runs_total`` counts every
+invocation and ``run_deep_experiments_outcomes_<word>_total`` records how
+the attempt ended — ``not_requested`` (depth != DEEP: the healthy FAST
+default), ``inputs_missing`` (DEEP WAS requested but there is no head
+workspace or no generated test — the tier is silently empty and the word
+is the alertable record, since nothing downstream can tell it from
+not_requested) or ``completed`` (mutation campaign + state delta stability
+ran and the deep report was written). An empty deep_results looks
+identical for the first two; the note is prose, not countable.
 """
 
 from __future__ import annotations
@@ -31,10 +41,22 @@ from typing import Any
 
 from agent.job_control import run_with_cancel_checks
 from agent.state import Phase0State
+from observability.metrics import incr
+
+#: The closed set of ways a DEEP-tier attempt can end (#198). Mirrored by
+#: the parity family's regex and the behavior tests — a new word must move
+#: all three together.
+RUN_DEEP_OUTCOMES = frozenset({
+    "completed",      # full campaign ran; deep report written
+    "inputs_missing", # DEEP requested but nothing to run it on — tier empty
+    "not_requested",  # depth != DEEP — the healthy FAST default
+})
 
 
 def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
+    incr("run_deep_experiments_runs_total")
     if state.get("depth", "FAST") != "DEEP":
+        incr("run_deep_experiments_outcomes_not_requested_total")
         return {"deep_results": {}, "deep_note": "DEEP tier not requested"}
 
     head_workspace = state.get("head_workspace", "")
@@ -42,6 +64,7 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
     generated_tests_path = state.get("generated_tests_path", "")
     job_id = state.get("job_id")
     if not head_workspace or not generated_tests_path:
+        incr("run_deep_experiments_outcomes_inputs_missing_total")
         return {
             "deep_results": {},
             "deep_note": "DEEP skipped: no head workspace or generated test",
@@ -155,6 +178,7 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
         json.dumps(results, indent=2, default=str), encoding="utf-8"
     )
 
+    incr("run_deep_experiments_outcomes_completed_total")
     return {
         "deep_results": results,
         "deep_note": (

@@ -4323,6 +4323,133 @@
           "refId": "E"
         }
       ]
+    },
+    {
+      "id": 41,
+      "type": "timeseries",
+      "title": "DEEP 深核 (§14.1: 突变战役 + 状态 delta + 稳定性)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "run_deep_experiments 节点的执行计数 (agent/nodes/run_deep_experiments.py #198): runs/s 计每次调用; outcomes_<word>/s 按三种结局分列——completed（突变战役 + 状态 delta + verdict 稳定性全跑并落盘 deep-report）、inputs_missing（要求了 DEEP 却无 head 工作区/无生成测试——该档静默为空，深核证据不存在而作业照常）、not_requested（depth != DEEP 的健康 FAST 默认）。前两者的 deep_results 都是空对象、note 只是散文，只有 outcomes_<word> 能分开并告警（#198 行为测试逐词钉住）。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 151
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_deep_experiments_runs_total[15m])",
+          "legendFormat": "runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_deep_experiments_outcomes_completed_total[15m])",
+          "legendFormat": "completed/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_deep_experiments_outcomes_inputs_missing_total[15m])",
+          "legendFormat": "inputs_missing/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_deep_experiments_outcomes_not_requested_total[15m])",
+          "legendFormat": "not_requested/s",
+          "range": true,
+          "instant": false,
+          "refId": "D"
+        }
+      ]
     }
   ],
   "refresh": "30s",

@@ -2956,3 +2956,29 @@ generate_counterexamples（产出 JUnit 反例测试：LLM 生成→schema 校�
 
 - 新增名 5 个（runs + 四词）；面板 39→40；OBSERVABILITY 清单 25 个文件。
 - 剩余 4 个无计数节点：run_deep_experiments、build_matrix、create_capsule、run_release_checks。
+
+
+### #198 DEEP 深核节点执行计数——not_requested / inputs_missing / completed，静默空档首次可告警（已落地）
+
+**背景**
+
+run_deep_experiments（DEEP 档：突变战役 + 全栈状态 delta + verdict 稳定性重跑，落盘 deep-report）此前零观测面。三条结局互不可见：not_requested（depth != DEEP 的健康 FAST 默认）与 inputs_missing（**要求了 DEEP 却无 head 工作区/无生成测试**——该档静默为空、深核证据根本不存在而作业照常走完）返回的 deep_results 都是空对象，note 是散文；completed 才是全跑。
+
+**实现**
+
+- 节点：runs 在入口；not_requested / inputs_missing 在各自早退前；completed 在 deep-report 写盘之后、最终返回前。
+- 对账门新家族 run_deep_experiments；推导 import RUN_DEEP_OUTCOMES。
+- 仪表盘 panel 41「DEEP 深核」4 条 target。
+- OBSERVABILITY.md 条目 + 头计数 25→26（重数 27 bullets / 26 distinct / 头部 26）。
+- 行为测试 tests/unit/test_run_deep_experiments_node_execution_is_observable.py（4 例）：campaign / 栈捕获（capture_full_stack / diff_states / 三个 store 构造）/ 稳定性 summarizer / DB 快照读取器 / 沙箱 runner 全桩；**假 campaign 会真的调用交给它的 runner**，钉住「突变换入 → 跑沙箱 → 原文件恢复」的 swap/restore 契约；completed 例还钉 head + 2 次稳定性重跑 + 1 次突变运行的沙箱调用共 4 次、缓存 note 汇入 cache_integrity、job-scoped 报告名与落盘文件；+ 漂移门。
+- ⚠️ 自纠一例（落地前）：completed 例初稿预测沙箱调用 3 次（head+2 repeats），实测 4 次——忘了假 campaign 内嵌的 runner 也是一次真实沙箱调用；改为 4 并把组成写进注释。预测不是装饰：锚/数字都要按机制的完整路径数。
+
+**门证（HEAD 903c017 + 本弧）**
+
+- 定向 pytest **32 passed** = 新 4 + 四个既有 DEEP 驱动（deep_cache_disclosure / deep_report_attribution / verdict_stability / worker_summary_deep_disclosure）+ parity 4（9.50s）；ruff 三 py 文件 All checks passed；mypy 仓级门 `mypy .` **0 issue / 222 源文件**；仪表盘 JSON 可解析（41 panels，panel 41 四条 target 逐条核过）。
+- 变异臂 4 条（预测先写，junit 读红）：对照 **32/32 绿**（臂前后各一次）；A1 把 not_requested 发射词去重成 inputs_missing ⇒ 恰 2 红（not_requested 例 + 漂移门；inputs_missing 例按预测保持绿——自己的分支没动）；A2 删 completed 发射行 ⇒ 恰 2 红；A3 只改声明词 completed→succeeded ⇒ 恰 3 红（delta 表键随声明 + 漂移门 + parity 推导）；A4 纯散文 ⇒ **SURVIVED 按预测 0 红**。**3/3 击杀臂 MATCHED + 1 预测存活**，臂后 sha256 逐字节一致（14a6a280…）。
+
+**读数**
+
+- 新增名 4 个（runs + 三词）；面板 40→41；OBSERVABILITY 清单 26 个文件。
+- 剩余 3 个无计数节点：build_matrix、create_capsule、run_release_checks。
