@@ -3009,3 +3009,29 @@ build_matrix（需求-证据矩阵的合并点，纯函数）此前零观测面�
 
 - 新增名 4 个（runs + 三词）；面板 41→42；OBSERVABILITY 清单 27 个文件。
 - 剩余 2 个无计数节点：create_capsule、run_release_checks。
+
+
+### #200 缺陷胶囊节点执行计数——packed / no_findings / filtered_out，「胶囊归零」先能问出是哪一种（已落地）
+
+**背景**
+
+create_capsule（把 BLOCKER/MAJOR 发现打包成可回放的 Bug Capsule zip）此前零观测面。两种空 capsules 列表使命中告警时无法归因：confirmed_findings 为空（根本没发现）与发现存在但全部低于打包线（被严重度过滤 continue）——状态、报告与控制台三处同形。
+
+**实现**
+
+- 节点：runs 在入口；末尾按 `capsules` 非空 / `not confirmed_findings` / else 三分支（互斥完备）。
+- 对账门新家族 create_capsule；推导 import CREATE_CAPSULE_OUTCOMES。
+- 仪表盘 panel 43「缺陷胶囊」4 条 target。
+- OBSERVABILITY.md 条目 + 头计数 27→28（重数 29 bullets / 28 distinct / 头部 28）。
+- 行为测试 tests/unit/test_create_capsule_node_execution_is_observable.py（4 例）：元数据记录器桩掉（best-effort 侧路），胶囊文件/zip/回放脚本全真写（chdir 到 tmp——节点的 capsules 目录相对进程 cwd）；packed 例钉「BLOCKER 打包、MINOR 兄弟被过滤」、zip 内 manifest.json/finding.json/run.sh/run.ps1/README.md 五件套、manifest_digest 前缀与记录器恰一次（kind=capsule、job_id、contract_ids）；no_findings 与 filtered_out 例钉两种空表同形、词分开；+ 漂移门。
+- ⚠️ 臂的语法坑（预判规避，同 #199）：A2 不能整行删 packed 发射（`if capsules:` 后直接 `elif` = SyntaxError → 收集期崩溃 0 红）；替换为 `pass  # arm` 保持语法完整。
+
+**门证（HEAD 5a8a8c2 + 本弧）**
+
+- 定向 pytest **42 passed** = 新 4 + create_capsule + object_metadata + capsule_replay（既有驱动者）+ parity 4（7.08s）；ruff 三 py 文件（首跑抓到我一枚未用 import，已删）；mypy 仓级门 `mypy .` **0 issue / 222 源文件**；仪表盘 JSON 可解析（43 panels，panel 43 四条 target 逐条核过）。
+- 变异臂 4 条（预测先写，junit 读红）：对照 **42/42 绿**（臂前后各一次）；A1 反转叉条件（`elif not confirmed_findings`→`elif confirmed_findings`）⇒ 恰 2 红（两种空表例互换词；packed 与漂移门保持绿）；A2 把 packed 发射换成 pass ⇒ 恰 2 红（packed 例无词可对 + 漂移门）；A3 只改声明词 packed→packaged ⇒ 恰 3 红（packed 例 delta 键 + 漂移门 + parity 推导；另两例保持绿）；A4 纯散文 ⇒ **SURVIVED 按预测 0 红**。**3/3 击杀臂 MATCHED + 1 预测存活**，臂后 sha256 逐字节一致（6648382b…）。
+
+**读数**
+
+- 新增名 4 个（runs + 三词）；面板 42→43；OBSERVABILITY 清单 28 个文件。
+- 剩余 1 个无计数节点：run_release_checks（收官单元）。

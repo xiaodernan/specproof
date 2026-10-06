@@ -1,5 +1,16 @@
 
-"""create_capsule node — package Bug Capsules for BLOCKER/MAJOR findings."""
+"""create_capsule node — package Bug Capsules for BLOCKER/MAJOR findings.
+
+Counters (#200): ``create_capsule_runs_total`` counts every invocation and
+``create_capsule_outcomes_<word>_total`` records how the attempt ended —
+``packed`` (>=1 capsule written), ``no_findings`` (no confirmed findings
+at all) or ``filtered_out`` (findings exist but every one is below the
+BLOCKER/MAJOR packaging threshold). The last two both return an empty
+capsules list; the word is the countable difference between "nothing was
+found" and "everything was filtered". Capsule metadata recording stays
+best-effort (logged, no counter — the documented gap shared with
+publish_report's lineage plumbing).
+"""
 import hashlib
 import json
 import os
@@ -10,6 +21,16 @@ from pathlib import Path
 from typing import Any
 
 from agent.state import Phase0State
+from observability.metrics import incr
+
+#: The closed set of ways a capsule-packing run can end (#200). Mirrored by
+#: the parity family's regex and the behavior tests — a new word must move
+#: all three together.
+CREATE_CAPSULE_OUTCOMES = frozenset({
+    "packed",          # >=1 capsule zip written
+    "no_findings",     # confirmed findings list empty
+    "filtered_out",    # findings exist, all below BLOCKER/MAJOR
+})
 
 
 def create_capsule_node(state: Phase0State) -> dict[str, Any]:
@@ -24,6 +45,7 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
     generated_tests_path = state.get("generated_tests_path", "")
     capsules: list[str] = []
 
+    incr("create_capsule_runs_total")
     output_dir = Path("capsules")
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -143,6 +165,13 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
             job_id=str(state.get("job_id") or ""),
             contract_id=str(finding.get("contract_id") or ""),
         )
+
+    if capsules:
+        incr("create_capsule_outcomes_packed_total")
+    elif not confirmed_findings:
+        incr("create_capsule_outcomes_no_findings_total")
+    else:
+        incr("create_capsule_outcomes_filtered_out_total")
 
     return {"capsules": capsules}
 

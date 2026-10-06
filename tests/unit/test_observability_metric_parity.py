@@ -368,6 +368,22 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "by the derivation test, so a new word forces this gate and the "
         "family to move together",
     ),
+    "create_capsule": (
+        re.compile(
+            r"^create_capsule_(outcomes_"
+            r"(filtered_out|no_findings|packed)|runs)_total$"
+        ),
+        "agent/nodes/create_capsule.py #200: create_capsule_runs_total + "
+        "create_capsule_outcomes_<word>_total at the node boundary — runs "
+        "counts every invocation; the word separates a run that packed >=1 "
+        "capsule from the two empty-list endings: no confirmed findings at "
+        "all vs findings that were all below the BLOCKER/MAJOR packaging "
+        "threshold. Capsule metadata recording stays best-effort (logged, "
+        "no counter — the documented gap shared with publish_report). The "
+        "vocabulary is imported from agent.nodes.create_capsule "
+        "(CREATE_CAPSULE_OUTCOMES) by the derivation test, so a new word "
+        "forces this gate and the family to move together",
+    ),
 }
 
 
@@ -776,6 +792,26 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert matrix_pattern.match(
             f"build_matrix_outcomes_{word}_total"
         ), f"family rejects matrix outcome {word}"
+
+    # create_capsule == the node's closed CREATE_CAPSULE_OUTCOMES
+    # vocabulary. Imported, same discipline as preflight: the two
+    # empty-list endings return the same capsules==[] shape.
+    from agent.nodes.create_capsule import CREATE_CAPSULE_OUTCOMES
+
+    capsule_pattern, _ = CONCATENATED_FAMILIES["create_capsule"]
+    expected_capsule = (
+        "^create_capsule_(outcomes_("
+        + "|".join(sorted(CREATE_CAPSULE_OUTCOMES))
+        + ")|runs)_total$"
+    )
+    assert capsule_pattern.pattern == expected_capsule, (
+        f"create_capsule family {capsule_pattern.pattern} != node "
+        f"vocabulary {sorted(CREATE_CAPSULE_OUTCOMES)}"
+    )
+    for word in sorted(CREATE_CAPSULE_OUTCOMES):
+        assert capsule_pattern.match(
+            f"create_capsule_outcomes_{word}_total"
+        ), f"family rejects capsule outcome {word}"
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:
