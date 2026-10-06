@@ -29,6 +29,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -36,6 +37,7 @@ from craft.accept import (
     CERTIFICATE_NAME,
     REJECTION_NOTICE_NAME,
     AcceptResult,
+    _cached_certificate_digest,
     bundle_digest,
     craft_accept,
     persist_accept_result,
@@ -43,6 +45,7 @@ from craft.accept import (
 )
 from craft.executor import ExecResult
 from craft.schemas import ChangeBundle
+from evidence.revocation_log import RevocationLog, is_revoked
 from evidence.signing import SigningError, verify_statement
 from storage.agent_jobs import InMemoryAgentJobStore
 
@@ -243,6 +246,7 @@ def run_accept(
     runner: FakeRunner | None = None,
     job_id: str = "task-1",
     depth: str = "FAST",
+    output_dir: Path | None = None,
 ) -> AcceptResult:
     return craft_accept(
         bundle or make_bundle(job_id),
@@ -253,6 +257,7 @@ def run_accept(
         signer=signer,
         verify_fn=verify_fn,
         job_id=job_id,
+        output_dir=output_dir,
         executor=runner if runner is not None else clean_runner(),
         security_scan=no_findings_scan,
         self_verify_fn=self_verify_passed,
@@ -474,6 +479,106 @@ def test_idempotent_repeat_returns_same_certificate(tmp_path: Path) -> None:
     assert second.certificate_path == first.certificate_path
     assert recorded_verify.calls == 1  # 闭包没有重跑
     assert signer.calls == 1
+
+
+def test_idempotent_replay_refuses_a_revoked_certificate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#149 双向门正向: 吊销落地后, 幂等重放不再返回那张旧证书.
+
+    三段式: 首验签发 → 未吊销重放仍短路 (正向对照) → 吊销后重放回落重跑,
+    旧 digest 永不再次以 VERIFIED 身份被交出.
+    """
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(tmp_path / "revocations.jsonl"))
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    out = tmp_path / "accept-out"  # 仓库外: 重跑时工作区守卫不受缓存文件干扰
+    signer = FakeSigner()
+    recorded_verify = RecordingVerify(verify_ok)
+    first = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                       output_dir=out)
+    assert first.verdict == "VERIFIED" and first.idempotent is False
+    assert first.certificate_path is not None
+    served = Path(first.certificate_path)
+    revoked_digest = _cached_certificate_digest(served)
+    assert revoked_digest is not None and revoked_digest.startswith("sha256:")
+
+    # 正向对照: 未吊销时重放仍短路, 与既有幂等测试同断言.
+    replay = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    assert replay.verdict == "VERIFIED" and replay.idempotent is True
+    assert replay.certificate_path == first.certificate_path
+    assert recorded_verify.calls == 1
+
+    # 吊销落地 (读者只认 payload.target, 与签发侧 revoke 端点同口径).
+    RevocationLog(tmp_path / "revocations.jsonl").append(
+        {"payload": {"target": revoked_digest, "reason": "key compromise (test)"}}
+    )
+    assert is_revoked(revoked_digest) is True
+
+    # 重放回落: 闭包重跑, 不再交出旧证书.
+    second = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    assert second.verdict == "VERIFIED"
+    assert second.idempotent is False
+    assert recorded_verify.calls == 2  # 闭包重跑了, 不是短路
+    assert signer.calls == 2  # 新证书重新签名
+    assert second.certificate_path == first.certificate_path  # 同路径被新鲜证书覆盖
+    fresh_digest = _cached_certificate_digest(Path(str(second.certificate_path)))
+    assert fresh_digest is not None and fresh_digest != revoked_digest
+    assert is_revoked(fresh_digest) is False  # 新证书不受旧吊销牵连
+    assert is_revoked(revoked_digest) is True  # 日志只增不减
+
+
+def test_idempotent_replay_with_unreadable_cache_falls_through(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#149 fail-closed: 缓存损坏不短路、不崩溃 — 回落重跑."""
+    monkeypatch.setenv("SPECPROOF_REVOCATION_LOG", str(tmp_path / "revocations.jsonl"))
+    repo, base_sha, head_sha = make_repo(tmp_path)
+    out = tmp_path / "accept-out"  # 仓库外: 同上
+    signer = FakeSigner()
+    recorded_verify = RecordingVerify(verify_ok)
+    first = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                       output_dir=out)
+    assert first.verdict == "VERIFIED" and first.idempotent is False
+    assert first.certificate_path is not None
+    Path(first.certificate_path).write_text("not json{{{", encoding="utf-8")
+
+    second = run_accept(repo, base_sha, head_sha, signer=signer, verify_fn=recorded_verify,
+                        output_dir=out)
+    assert second.verdict == "VERIFIED"
+    assert second.idempotent is False
+    assert recorded_verify.calls == 2
+    assert _cached_certificate_digest(Path(str(second.certificate_path))) is not None
+
+
+def test_cached_certificate_digest_accepts_both_shapes_and_rejects_garbage(
+    tmp_path: Path,
+) -> None:
+    """#149: digest  helper 认 envelope 与裸文档, 垃圾进 → None 出."""
+    payload = {"subject": {"repository": "r", "commit_sha": "abc"}, "result": "VERIFIED"}
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    expected = "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+    enveloped = tmp_path / "signed.json"
+    enveloped.write_text(
+        json.dumps({"payload": payload, "signatures": [{"sig": "x"}]}), encoding="utf-8"
+    )
+    assert _cached_certificate_digest(enveloped) == expected
+
+    raw_doc = tmp_path / "raw.json"
+    raw_doc.write_text(json.dumps(payload), encoding="utf-8")
+    assert _cached_certificate_digest(raw_doc) == expected
+
+    garbage = tmp_path / "garbage.json"
+    garbage.write_text("not json{{{", encoding="utf-8")
+    assert _cached_certificate_digest(garbage) is None
+
+    not_a_dict = tmp_path / "list.json"
+    not_a_dict.write_text("[1, 2]", encoding="utf-8")
+    assert _cached_certificate_digest(not_a_dict) is None
+
+    assert _cached_certificate_digest(tmp_path / "missing.json") is None
 
 
 # -- workspace guard ---------------------------------------------------------------

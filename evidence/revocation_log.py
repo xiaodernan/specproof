@@ -71,13 +71,22 @@ class RevocationLog:
         return bool(self.find_by_target(target_digest))
 
 
+def default_log_path() -> Path:
+    """The default revocation log path from environment (#149, no I/O).
+
+    Read paths use this to check existence first: merely asking "is this
+    certificate revoked?" must not materialise an empty log file in the
+    working directory.
+    """
+    return Path(os.getenv("SPECPROOF_REVOCATION_LOG", "./revocations.jsonl"))
+
+
 def default_revocation_log() -> RevocationLog:
     """Build the default revocation log from environment.
 
     SPECPROOF_REVOCATION_LOG defaults to ./revocations.jsonl in the cwd.
     """
-    path = Path(os.getenv("SPECPROOF_REVOCATION_LOG", "./revocations.jsonl"))
-    return RevocationLog(path)
+    return RevocationLog(default_log_path())
 
 
 def append_revocation(revocation: dict[str, Any]) -> None:

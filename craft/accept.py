@@ -13,7 +13,9 @@ Follows docs/architecture/CRAFT_ACCEPT_DESIGN.md exactly:
     ChangeBundle digests) + Ed25519 signature (evidence/signing.py);
     anything else ⇒ rollback + rejection notice;
   4. idempotency key (job_id, head_sha, bundle digest): a repeat accept of
-    the same head returns the existing certificate without re-running;
+    the same head returns the existing certificate without re-running —
+    unless that certificate has since been revoked (then the closure
+    re-runs and a fresh certificate replaces it, #149);
   5. every failure mode is fail-closed per the design's failure table —
     signing key missing ⇒ ERROR, never a silent unsigned accept.
 
@@ -25,6 +27,7 @@ tests (fake signer / fake verification, no network, no live LLM, no Docker).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import tempfile
@@ -37,6 +40,7 @@ from typing import Any, Literal
 
 from evidence.certificate import build_rejection_notice, issue_certificate
 from evidence.lineage import build_lineage
+from evidence.revocation_log import default_log_path, is_revoked
 from evidence.signing import SigningError, sign_json_document
 from storage.agent_jobs import AgentJobStore, AgentJobStoreError
 
@@ -284,6 +288,44 @@ def _record_matches(record: Mapping[str, Any], job_id: str, head_sha: str, diges
     expected = {"job_id": job_id, "head_sha": head_sha, "bundle_digest": digest}
     return all(record.get(key) == value for key, value in expected.items())
 
+def _cached_certificate_digest(cert_file: Path) -> str | None:
+    """Canonical sha256: digest of the certificate stored at cert_file (#149).
+
+    Accepts both shapes found on disk: the signed in-toto envelope
+    ({"payload": ..., "signatures": [...]}) written by craft_accept, and
+    the raw unsigned MergeCertificate.to_dict() document. Returns None
+    when the file cannot be read or parsed — the caller treats that as
+    "not servable from cache" and re-runs the closure (fail-closed).
+    """
+    try:
+        data = json.loads(cert_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    payload = data.get("payload")
+    document = payload if isinstance(payload, dict) else data
+    canonical = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+    return "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+
+def _cached_certificate_is_revoked(cert_file: Path) -> bool:
+    """True when the cached certificate must NOT be served as VERIFIED (#149).
+
+    evidence/certificate.py mandates: "Verification MUST check the
+    revocation log before trusting a certificate." An unreadable cache
+    entry counts as revoked here — it is never served, the closure
+    re-runs instead. A missing log file means nothing could have been
+    revoked (and asking must not create the file — see
+    default_log_path).
+    """
+    digest = _cached_certificate_digest(cert_file)
+    if digest is None:
+        return True
+    if not default_log_path().exists():
+        return False
+    return is_revoked(digest)
+
 
 def _write_record(
     out_dir: Path,
@@ -404,7 +446,12 @@ def craft_accept(
         certificate_path = record.get("certificate_path")
         if record.get("verdict") == "VERIFIED" and isinstance(certificate_path, str):
             cert_file = Path(certificate_path)
-            if cert_file.is_file():
+            # #149: the cached certificate is only servable while it is
+            # NOT revoked. A revoked (or unreadable) cache entry falls
+            # through: the closure below re-runs and issues a fresh
+            # certificate when verification still passes — the revoked
+            # bytes are never returned as VERIFIED.
+            if cert_file.is_file() and not _cached_certificate_is_revoked(cert_file):
                 gates_record = record.get("gates_report")
                 return AcceptResult(
                     "VERIFIED",
