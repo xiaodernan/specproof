@@ -42,6 +42,12 @@
 #                                        DLQ 非空即告警, 阈值内联在 expr
 #                                        (> 0 for 5m) — 死信是消费被拒且
 #                                        不再回炉的作业, 不会自己消失
+#   NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD = 0
+#                                     ← §14 质量目标 "无证据严重评论 = 0"
+#                                        (#182 起接线) build_review_comments
+#                                        拒发缺证据的 BLOCKER/MAJOR 评论并
+#                                        计数, 阈值内联在 expr (> 0 for 1m)
+#                                        — 计数器只增不减, 一次违规永久可见
 
 groups:
   - name: specproof-slo
@@ -202,3 +208,17 @@ groups:
         annotations:
           summary: "SpecProof 死信队列非空 (DLQ)"
           description: "队列 {{ $labels.queue }} 有 {{ $value }} 条死信 (§14: Job 不丢失 — 死信是消费被拒且重试耗尽的作业, 不会自己消失, 需人工回炉或归档)。队列名按 storage/rabbitmq.py 的 dlq_suffix='.dlq' 规则匹配, 覆盖全部车道的死信而不只 verify。"
+
+      # ── 无证据严重评论 (§14 质量目标, #182) ─────────────────────────
+      # 证据门禁的计数化: build_review_comments (integrations/inline_comments.py)
+      # 拒发缺 evidence_type 的 BLOCKER/MAJOR 评论并计数 — SLO 是计数器
+      # 保持 0; 计数器只增不减, 一次违规即永久可见。门禁在起作用
+      # (评论没发出去) 但门禁被触达本身说明上游产出了无证据的严重 finding。
+      - alert: SpecproofNoEvidenceSevereComment
+        expr: 'specproof_severe_comments_without_evidence_total > 0'
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SpecProof 出现无证据的严重评论 (阈值 NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD=0)"
+          description: "证据门禁拦下了 {{ $value }} 条缺 evidence_type 的 BLOCKER/MAJOR 评论 (§14: 无证据严重评论 = 0) — 评论已拒发, 但需排查上游为何产出无证据的严重 finding。"

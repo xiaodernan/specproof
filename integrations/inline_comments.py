@@ -13,7 +13,9 @@ comments anchored on lines that EXIST in the head file. Anchoring rules:
   ordered by severity (BLOCKER > MAJOR > MINOR > rest), then confidence.
 
 This module is pure: no network, no env — the GitHub client call lives in
-integrations.github_checks.publish_inline_findings.
+integrations.github_checks.publish_inline_findings. (#182: the evidence
+gate below counts refusals into the in-process metrics registry — still no
+network, no env.)
 """
 
 from __future__ import annotations
@@ -22,7 +24,27 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from observability.metrics import incr
+
 INLINE_MAX = 8
+
+#: §14 质量目标 "无证据严重评论 = 0" (#182): the severe levels the evidence
+#: gate refuses to publish without an evidence kind — the band the BLOCKER
+#: six-conditions policy guards at the court layer, mirrored here at the
+#: comment boundary.
+_SEVERE_LEVELS = frozenset({"BLOCKER", "MAJOR"})
+
+#: Evidence-kind values that mean "no evidence": unset, or the module's own
+#: rendering default for a missing kind (the _comment_body fallback).
+_NO_EVIDENCE_KINDS = frozenset({"", "unknown", "?"})
+
+
+def _lacks_evidence(finding: dict[str, Any]) -> bool:
+    return (
+        str(finding.get("evidence_type", "")).strip().lower()
+        in _NO_EVIDENCE_KINDS
+    )
+
 
 _SEVERITY_RANK = {
     "BLOCKER": 0,
@@ -149,6 +171,8 @@ def build_review_comments(
     """Build the review-comment payload list (path, line, side, body).
 
     Severity-ordered, location-deduplicated, capped at max_comments.
+    Severe findings (BLOCKER/MAJOR) without an evidence kind are refused
+    outright and counted — never published (#182, §6 无证据严重评论=0).
     Findings that cannot be anchored honestly are silently dropped here;
     callers can see the count difference against the input.
     """
@@ -163,6 +187,17 @@ def build_review_comments(
     comments: list[dict[str, Any]] = []
     seen: set[tuple[str, int]] = set()
     for finding in ranked:
+        # §6 "无证据严重评论=0" (#182): the evidence gate, made countable.
+        # A BLOCKER/MAJOR comment with no evidence kind behind it must never
+        # reach the PR — refusal IS the policy (same honesty family as the
+        # anchoring skip below); the counter makes the refusal auditable and
+        # the SLO is the counter staying at zero.
+        if (
+            str(finding.get("severity", "")).upper() in _SEVERE_LEVELS
+            and _lacks_evidence(finding)
+        ):
+            incr("severe_comments_without_evidence_total")
+            continue
         located = locate_finding(finding, diff_by_file)
         if located is None:
             continue

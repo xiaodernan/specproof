@@ -159,3 +159,52 @@ def test_comment_body_mentions_evidence_and_replay():
     assert "MAJOR" in body
     assert "java_source_diff" in body
     assert "specproof replay" in body
+
+
+# ── #182: the evidence gate at the comment boundary is countable ──
+
+
+def _counter(name: str) -> int:
+    from observability.metrics import snapshot
+
+    # the registry stores bare names; render_text adds the specproof_ prefix
+    return int(snapshot()["counters"].get(name, 0))
+
+
+def test_severe_comment_without_evidence_is_refused_and_counted():
+    before = _counter("severe_comments_without_evidence_total")
+    blocked = dict(EVENT_FINDING, evidence_type="unknown")
+    comments = build_review_comments(
+        [blocked], {"src/UserService.java": ROUTING_KEY_DIFF}
+    )
+    assert comments == []
+    assert _counter("severe_comments_without_evidence_total") == before + 1
+
+
+def test_severe_comment_with_unset_evidence_is_refused_too():
+    before = _counter("severe_comments_without_evidence_total")
+    blocked = dict(EVENT_FINDING, evidence_type="")
+    comments = build_review_comments(
+        [blocked], {"src/UserService.java": ROUTING_KEY_DIFF}
+    )
+    assert comments == []
+    assert _counter("severe_comments_without_evidence_total") == before + 1
+
+
+def test_minor_without_evidence_still_publishes():
+    before = _counter("severe_comments_without_evidence_total")
+    minor = dict(ANNOTATION_FINDING, severity="MINOR", evidence_type="")
+    comments = build_review_comments(
+        [minor], {"src/UserController.java": ANNOTATION_DIFF}
+    )
+    assert len(comments) == 1  # the gate is severe-only, MINOR publishes
+    assert _counter("severe_comments_without_evidence_total") == before
+
+
+def test_severe_comment_with_evidence_is_untouched():
+    before = _counter("severe_comments_without_evidence_total")
+    comments = build_review_comments(
+        [EVENT_FINDING], {"src/UserService.java": ROUTING_KEY_DIFF}
+    )
+    assert len(comments) == 1  # BLOCKER with real evidence publishes as before
+    assert _counter("severe_comments_without_evidence_total") == before

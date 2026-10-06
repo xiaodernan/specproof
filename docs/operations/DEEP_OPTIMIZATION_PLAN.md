@@ -2520,3 +2520,13 @@ def _require_cancellable(job):           # :685
 **修法。** `JavaMavenAdapter.run` 在 run_sandboxed 返回后计数（失败的运行也是运行）：`sandbox_runs_total`（每次到达沙箱）、`sandbox_failures_total`（error 非空 = 沙箱 runner 自己的"无法跑完"契约）、`sandbox_timeouts_total`（判据 = 两类沙箱后端超时文案的公共子串 "timed out after"，与 #178 tool_timeouts_total 同源同判据——spawn 错误计入失败不冒充超时）。parity 门 EMIT_DIRS 增 experiments/（对账模块七改八），顺手修正门 docstring 里过时的"四棵树"口径（清单即 EMIT_DIRS，随接线号增长）。面板 27（三条 15m rate，x=0,y=95）。无告警（§14 无沙箱失败率阈值，如实不做）。
 
 **门证。** ruff All checks passed（adapters.py 经 --fix 修 import 分组空行）；mypy `experiments/adapters.py` Success；定向 pytest **40 passed**（test_adapters 28 含新增 `TestSandboxRunCounters` 三臂——成功 runs+1/failures+0、spawn 失败 failures+1/timeouts+0、超时 failures+1 且 timeouts+1（超时也是失败）；parity 门 4；metrics_http 8）；exposition 端到端实测——真实 `JavaMavenAdapter.prepare`+`run` 三臂（沙箱调用打桩，同单测口径），runs=3 / failures=2 / timeouts=1 全部渲染。门证插曲：①PowerShell 侧 `[regex]::Escape` 计数 marker 假 0 而 Python 侧恒中——read_text 通用换行翻译使 \n marker 恒匹配，patch 计数一律 Python 侧做；②文件里首个 refId "E" 属更早的多 target 面板，面板尾锚点必须 LastIndexOf；③expo 脚本 lambda `**k, _f=v` 语法错（具名参数不能跟在 kwargs 后）改工厂函数，且 experiments 包不在脚本 sys.path 需补 repo 根。
+
+## #182 无证据严重评论拒发进 /metrics——build_review_comments 证据门的可对账拒发计数
+
+**背景。** §6 质量目标"无证据严重评论=0"是清单上唯一标着"由证据门禁保证, 不可观测"的行——门禁真实存在（BLOCKER 六条件 + 锚定策略），但"拒发"这件事零观测：门坏掉（新严重级漏进 severe 集合、渲染缺省变化）不会有任何信号，SLO 无法对账。评论构造咽喉点勘察：产品树唯一出口在 `integrations/inline_comments.py` 的 `build_review_comments`（GitHub review comments 的唯一组装点，纯函数模块——无网络无 env）。
+
+**修法。** 证据门做成可计数：severity ∈ {BLOCKER, MAJOR}（_SEVERE_LEVELS）且 evidence_type ∈ {"", "unknown", "?"}（_NO_EVIDENCE_KINDS——"" 是调用方未填，"unknown"/"?" 是模块自己的渲染缺省）的 finding 在 locate 之前 `incr("severe_comments_without_evidence_total")` + continue 拒发。拒绝即策略（与锚定失败的静默丢弃同一诚实族），SLO 就是这条计数恒 0；首个 critical 告警 SpecproofNoEvidenceSevereComment（>0, for 1m）。parity 门 EMIT_DIRS 增 integrations/（八改九）。面板 28（15m rate，x=12,y=95）。
+
+**门证。** ruff All checks passed；mypy `integrations/inline_comments.py` Success；定向 pytest **16 passed**（test_inline_comments 12 含新增四臂——BLOCKER+unknown 拒发且计数+1、BLOCKER+"" 拒发且计数+1、MINOR+"" 照发计数不动、BLOCKER+真实证据照发计数不动；parity 门 4）；exposition 端到端实测——真实 `build_review_comments` 拒发臂 comments==[] 且 `specproof_severe_comments_without_evidence_total` 渲染（# TYPE counter 行）；alerts-slo.yml 解析 14 rules 含新告警；dashboard 28 panels、面板 28 target 接线。
+
+**门证插曲。** ①Part B 的 dashboard 替换串吞掉 panel 27 target C 的闭合 `}`（锚点只到 refId 行没含对象闭合）→ JSONDecodeError line 2530；Python probe 定位后补 `        }` 修复——教训：跨对象替换串必须含前一个对象的完整闭合括号。②expo 探针首跑把面板 27 当成自己的——27 是 #181 沙箱面板，#182 是 28；断言面板属性前先核对身份。③Edit 工具故障延续（old_string 注入 ": " 前缀），全部改动走 .scratch patch 脚本（fix182/gate182b/expo182，用完即删）。

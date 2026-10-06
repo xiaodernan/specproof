@@ -2527,6 +2527,96 @@
         "range": true,
         "instant": false,
         "refId": "C"
+        }
+      ]    },
+    {
+      "id": 28,
+      "type": "timeseries",
+      "title": "无证据严重评论 (§14 质量目标: =0)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "证据门禁的计数化 (integrations/inline_comments.py 的 build_review_comments, #182 接线): 缺 evidence_type 的 BLOCKER/MAJOR 评论在发布边界被拒发并计入 specproof_severe_comments_without_evidence_total——门禁保证从断言变成可对账的计数器。缺证据词表 = 空 / unknown / ? (模块自身的渲染默认值); MINOR 及以下不设门 (§14 只钉严重档)。SLO 是计数器保持 0: 它只增不减, 一次违规即永久可见, 告警 SpecproofNoEvidenceSevereComment (>0, for 1m, critical)。无违规时序列不存在, 面板为空即 SLO 成立。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 95
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_severe_comments_without_evidence_total[15m])",
+        "legendFormat": "violations/s",
+        "range": true,
+        "instant": false,
+        "refId": "A"
       }
       ]
     }

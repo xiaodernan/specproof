@@ -39,9 +39,11 @@ ROOT = Path(__file__).resolve().parents[2]
 #: craft/executor.py's Executor.run choke point); evidence/ joined in #179
 #: (certificate issuance/refusal/notice meters in evidence/certificate.py);
 #: experiments/ joined in #181 (the sandbox run/failure/timeout counters
-#: live at JavaMavenAdapter.run's single run_sandboxed call site).
+#: live at JavaMavenAdapter.run's single run_sandboxed call site);
+#: integrations/ joined in #182 (the no-evidence severe-comment refusal
+#: counter at the build_review_comments boundary).
 EMIT_DIRS = (
-    "agent", "api", "craft", "evidence", "experiments",
+    "agent", "api", "craft", "evidence", "experiments", "integrations",
     "storage", "observability", "providers",
 )
 
