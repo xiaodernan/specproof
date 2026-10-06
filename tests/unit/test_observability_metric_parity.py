@@ -167,6 +167,16 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "(DIFF_OUTCOMES) by the derivation test, so a new outcome pattern "
         "forces this gate and the family to move together",
     ),
+    "intake_validation": (
+        re.compile(
+            r"^intake_(repo_missing|runs|spec_missing|spec_read)_total$"
+        ),
+        "agent/nodes/intake.py #186: intake_<word>_total at the intake node "
+        "boundary — validation outcomes are repo missing / spec missing / "
+        "spec read success; runs counts every intake execution. These are "
+        "mutually exclusive failure modes that explain why jobs never reach "
+        "later nodes (honest attribution, not silent drops)",
+    ),
 }
 
 
