@@ -2773,3 +2773,26 @@ preflight（Phase 1.4 起的首个真守卫节点，intake→preflight 为无条
 
 - 新增名 6 个（runs + 五词）；面板 33→34。为并发车道占用校准：§#171 复测号（8391020）已用 #189，本号让位落 #190，其文末「#190 评测集…」候选相应后移。
 - 下一号候选：preflight 逃生门/失败态（disabled、probe_error）目前只在返回字典的 `not_run` 键上，「环境未验证」进作业披露；或承接上节两个候选（评测集 preexisting 探针 / findings 召回层 MISS 排查）。
+
+
+### #191 预检卡徽章：`passed=true` 被读成「环境正常」——未运行探测的三种 not_run 结局在 UI 上与真通过同形（已落地）
+
+**背景**
+
+#190 在指标面上钉死了五种结局；同一条读法错误在 UI 面上还活着：`PreflightCard` 徽章只按 `blocked = passed === false || errors.length > 0` 二值判决，于是 `not_run`（probe_error / disabled_by_SPECPROOF_PREFLIGHT / upstream_errors——探测根本没跑）的载荷一律亮绿色「环境正常」，而同一张卡的正文同时写着「已跳过预检」——单张卡内两个互相矛盾的判决。三处早退分支的真实载荷已逐行核对（`agent/nodes/preflight.py`:88/102/126）：`passed=true` + `not_run` 词 + 空 checks 表。
+
+**实现**
+
+- `apps/web/src/ui/PreflightCard.tsx`：三态徽章——blocked→「环境不满足」（danger 色调）；`unverified = !blocked && Boolean(p.not_run)`→「环境未验证」（warning 色调）；否则「环境正常」（success）。条件旁注释引用 #190 读法（passed=true 覆盖四种结局）。
+- 测试**先写、测红于未修改组件**：`PreflightCard.test.tsx` 新增 5 例——it.each 三个 not_run 词（断言「未验证」在 + 「正常」不在 + 原因句逐字）、未知 not_run 词动词原样透传且仍判「未验证」、clean 对照组（真探测过、checks 非空→「环境正常」）；既有阻塞例补一条「不出现未验证」。`JobDetail.test.tsx` 新增页面级见证（VERIFIED 作业 + `not_run=probe_error` 载荷，通过 /summary 直达页面）。
+
+**门证（HEAD 0808c1a + 本弧）**
+
+- 测试先行红：**5 failed / 29 passed (34)** = 恰 4 卡例（三词 it.each + 未知词）+ 1 页例，与预写预测逐名一致；修后 **34/34 绿**（臂前后各一次），`tsc --noEmit` 0。
+- 变异臂 2 条（预测先写）：A1 只改判决词回两态（还原 shipped 谎言）⇒ 恰 5 红（4 卡 + 1 页）；A2 反转条件为 `p.not_run === undefined` ⇒ 恰 6 红（4 卡 + clean 对照组 + 1 页）。**2/2 MATCHED**，两次还原后 sha256 与臂前逐字节一致（d29e911e…）。
+- ⚠️ 已知未钉面：徽章色调（warning vs success/danger）无测试断言——与仓内先例一致（web 测试无样式断言），承重面是判决词本身。
+
+**读数**
+
+- 变更 4 文件：PreflightCard.tsx、PreflightCard.test.tsx、JobDetail.test.tsx、本文件。全仓 grep「环境正常」只有此一处实现（无第二处徽章副本）。
+- 下一号候选：承接上节（评测集 preexisting 探针 / findings 召回层 MISS 排查）；或 11 个尚无计数的 agent 节点（compile_contracts、prepare_base/head、collect_diff、retrieve_repository_context、run_static_checks、generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks）。

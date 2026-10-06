@@ -40,6 +40,46 @@ describe("PreflightCard", () => {
     expect(screen.queryByText("环境不满足")).not.toBeNull();
     expect(screen.queryByText(/安装 Eclipse Temurin JDK 21/)).not.toBeNull();
     expect(screen.queryByText(/^Preflight: Java not found/)).toBeNull();
+    // blocked is a verdict about a probe that RAN — never conflated with 未验证
+    expect(screen.queryByText("环境未验证")).toBeNull();
+  });
+
+  // #190 semantics on the UI plane: the backend's passed=true covers four of
+  // five outcomes (clean / upstream_errors / disabled / probe_error) and only
+  // not_run says the probe was skipped. A two-state pill therefore calls every
+  // skipped probe 环境正常.
+  describe("the pill may only claim 环境正常 when the probe actually ran (#191)", () => {
+    it.each([
+      ["probe_error", "环境探测自身异常，已跳过预检并继续验证。"],
+      ["disabled_by_SPECPROOF_PREFLIGHT", "已通过环境变量关闭环境预检。"],
+      ["upstream_errors", "输入校验未通过，环境预检已跳过。"],
+    ])("not_run=%s renders 环境未验证, never 环境正常", (notRun, reason) => {
+      render(<PreflightCard preflight={{ passed: true, not_run: notRun }} />);
+      expect(screen.queryByText("环境未验证")).not.toBeNull();
+      expect(screen.queryByText("环境正常")).toBeNull();
+      expect(screen.queryByText(reason)).not.toBeNull();
+    });
+
+    it("an unknown not_run reason still reads 环境未验证, token verbatim", () => {
+      render(<PreflightCard preflight={{ passed: true, not_run: "future_reason" }} />);
+      expect(screen.queryByText("环境未验证")).not.toBeNull();
+      expect(screen.queryByText("环境正常")).toBeNull();
+      expect(screen.queryByText(/future_reason/)).not.toBeNull();
+    });
+
+    it("a real clean probe still reads 环境正常", () => {
+      render(
+        <PreflightCard
+          preflight={{
+            passed: true,
+            language: "node",
+            checks: [{ check: "node", status: "PASS", detail: "v20.11.0" }],
+          }}
+        />,
+      );
+      expect(screen.queryByText("环境正常")).not.toBeNull();
+      expect(screen.queryByText("环境未验证")).toBeNull();
+    });
   });
 
   it("renders nothing when there is nothing to report", () => {

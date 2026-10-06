@@ -47,13 +47,25 @@ export function PreflightCard(props: { preflight?: PreflightResult | null }): JS
 
   const notRun = preflightNotRunReason(p);
   const blocked = p.passed === false || (p.errors?.length ?? 0) > 0;
+  // passed=true 覆盖 clean / probe_error / disabled / upstream_errors 四种结局
+  // （agent/nodes/preflight.py #190）：只有 not_run 为空时才证明探测真的跑过且通过。
+  const unverified = !blocked && Boolean(p.not_run);
 
   return (
     <Panel
       title="执行环境预检"
       right={
-        <span className="pill" style={{ borderColor: blocked ? "var(--danger)" : "var(--success)" }}>
-          {blocked ? "环境不满足" : "环境正常"}
+        <span
+          className="pill"
+          style={{
+            borderColor: blocked
+              ? "var(--danger)"
+              : unverified
+                ? "var(--warning, var(--accent-text))"
+                : "var(--success)",
+          }}
+        >
+          {blocked ? "环境不满足" : unverified ? "环境未验证" : "环境正常"}
         </span>
       }
     >

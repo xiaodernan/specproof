@@ -161,6 +161,29 @@ describe("verification lifecycle", () => {
     expect(document.querySelector(".errorbox")?.getAttribute("title")).toMatch(/Java not found/);
   });
 
+  it("does not call a skipped preflight 环境正常 on the job page (#191)", async () => {
+    // Same #190 reading rule, one level up: a VERIFIED job can carry
+    // preflight.passed=true with not_run=probe_error — passed is true because
+    // the failure was swallowed fail-open, not because anything was checked.
+    get.mockImplementation((async (path: string) => {
+      if (path === "/jobs/probe-skipped-job") return { job: { id: "probe-skipped-job", status: "VERIFIED", repo_path: "/repo" } };
+      if (path.endsWith("/summary")) return {
+        summary: {
+          verdict: "VERIFIED",
+          preflight: { passed: true, not_run: "probe_error" },
+        },
+      };
+      if (path.endsWith("/stages")) return { job_id: "probe-skipped-job", stages: [], event_count: 0, degraded: false };
+      return { job_id: "probe-skipped-job", findings: [], count: 0, degraded: false };
+    }) as typeof apiGet);
+    render(<JobDetail jobId="probe-skipped-job" />);
+    await screen.findByText("执行环境预检");
+    expect(screen.getByText("环境未验证")).toBeTruthy();
+    expect(screen.getByText("环境探测自身异常，已跳过预检并继续验证。")).toBeTruthy();
+    expect(screen.queryByText("环境正常")).toBeNull();
+    expect(screen.queryByText("环境不满足")).toBeNull();
+  });
+
   it("hides the preflight card when nothing was recorded", async () => {
     get.mockImplementation((async (path: string) => {
       if (path === "/jobs/plain-job") return { job: { id: "plain-job", status: "VERIFIED" } };
