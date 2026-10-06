@@ -154,6 +154,19 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "(HEAD_ONLY_SIGNALS) by the derivation test, so a new signal "
         "forces this gate and the family to move together",
     ),
+    "diff_outcome": (
+        re.compile(
+            r"^differential_outcomes_"
+            r"(ambiguous|compliant|regression|skipped|unexpected_fix)"
+            r"_total$"
+        ),
+        "agent/nodes/run_differential.py #185: differential_outcomes_<word>"
+        "_total at the run_differential node boundary — outcome words are "
+        "the closed set of verdict patterns from running tests on both Base "
+        "and Head; the vocabulary is imported from agent.nodes.run_differential "
+        "(DIFF_OUTCOMES) by the derivation test, so a new outcome pattern "
+        "forces this gate and the family to move together",
+    ),
 }
 
 

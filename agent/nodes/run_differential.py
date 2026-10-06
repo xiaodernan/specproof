@@ -46,6 +46,7 @@ from agent.preflight import (
 )
 from agent.self_test_diff import self_test_execution_allowed, self_test_verdict
 from agent.state import Phase0State
+from observability.metrics import incr
 
 # Java source for the post-mortem DB dump helper. It opens the file-based
 # H2 database that the Spring Boot test run left on disk and prints one
@@ -113,6 +114,25 @@ public class SpecProofDbCheck {
 }
 """
 
+# #185: Differential verification execution timing buckets — 12 buckets from
+# 0.5s to 3600s (1 hour), covering fast unit tests through long integration
+# suites. Top bucket aligns with typical CI timeout ceilings.
+_DIFF_BUCKETS: tuple[float, ...] = (
+    0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0,
+)
+
+# #185: Differential outcome vocabulary — the closed set of verdict patterns
+# that can result from running a test on both Base and Head. The parity gate
+# imports this frozenset so a new outcome forces the gate and the family to
+# move together.
+DIFF_OUTCOMES: frozenset[str] = frozenset({
+    "regression",       # base_pass + head_fail
+    "compliant",        # base_pass + head_pass
+    "ambiguous",        # base_fail + head_fail
+    "unexpected_fix",   # base_fail + head_pass
+    "skipped",          # workspace not prepared / no test to run
+})
+
 
 def run_differential_node(state: Phase0State) -> dict[str, Any]:
     """Run the generated counterexample test on Base and Head workspaces."""
@@ -134,6 +154,9 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         "contract_results": [],
     }
     if not base_workspace or not head_workspace:
+        # #185: count skipped differential runs (no workspaces)
+        incr("differential_runs_total")
+        incr("differential_outcomes_skipped_total")
         return empty_result
 
     base_app = str(Path(base_workspace) / app_dir) if app_dir else base_workspace
@@ -165,6 +188,9 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
 
     test_class = _test_class_from_path(generated_tests_path)
     if not test_class:
+        # #185: count skipped differential runs (no generated test)
+        incr("differential_runs_total")
+        incr("differential_outcomes_skipped_total")
         # Honest multi-language reporting (roadmap Phase 2): the counterexample
         # generator currently emits Java/JUnit tests only, so for a non-Java
         # repository the absence of a generated test is an unsupported-language
@@ -217,6 +243,9 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # ── Inject the generated test into BOTH workspaces ──
     injected = _inject_test_into_workspaces(generated_tests_path, base_app, head_app)
     if not injected:
+        # #185: count skipped differential runs (injection failed)
+        incr("differential_runs_total")
+        incr("differential_outcomes_skipped_total")
         empty_result["diff_results"][0]["detail"] = (
             "Could not inject generated test into both workspaces; "
             "source-diff evidence recorded separately"
@@ -265,6 +294,9 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # §14 任务 8: cancellation checkpoints before+after each differential
     # execution — a cancelled job neither starts the run nor receives its
     # result (no business results get written).
+    # #185: count every differential execution that reaches this point
+    incr("differential_runs_total")
+
     base_start = time.monotonic()
     base_result = run_with_cancel_checks(
         job_id, "maven_base", _run_generated_test,
@@ -307,6 +339,8 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             f"head: {head_result.get('error') or 'ok'}, "
             f"base: {base_result.get('error') or 'ok'}"
         )
+        # #185: count differential runs that errored out as ambiguous
+        incr("differential_outcomes_ambiguous_total")
         return {
             "diff_results": source_diff_results + [{
                 "contract_id": "DIFF-01",
@@ -597,6 +631,21 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     diff_results: list[dict[str, Any]] = (
         source_diff_results + primary_entries + probe_results
     )
+
+    # ── #185: Count differential outcomes from the primary entries ──
+    # Each primary entry carries a verdict that maps to one of the four
+    # outcome patterns. Count them at the node boundary after all verdicts
+    # have been determined (both split-method and legacy paths).
+    for entry in primary_entries:
+        verdict = str(entry.get("verdict", "")).lower()
+        if verdict == "regression":
+            incr("differential_outcomes_regression_total")
+        elif verdict == "compliant":
+            incr("differential_outcomes_compliant_total")
+        elif verdict == "ambiguous":
+            incr("differential_outcomes_ambiguous_total")
+        elif verdict == "unexpected_fix":
+            incr("differential_outcomes_unexpected_fix_total")
 
     # ── Contract results: only what this experiment exercised ──
     # P6: the attributed contract family is marked FAIL exactly like the

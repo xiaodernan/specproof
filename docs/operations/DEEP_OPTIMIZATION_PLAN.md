@@ -2551,6 +2551,16 @@ def _require_cancellable(job):           # :685
 
 **门证插曲。** ①#183 的教训复发成例：family 正则按信号声明序写、派生测试按 sorted 比对，主门当场红（head_db_state_differs < head_extra_failure_count 字母序）——修正则非产品；②patch 锚点笔误把 #183 插入文本的行首 "vocabulary" 误记为 "the vocabulary"（"the" 实属上一行行尾跨行字符串），count 0 断言当场拦住——probe repr 定位后修正则；③全部改动走 .scratch patch 脚本（p184/p184fix/p184fix2/expo184，用完即删）。
 
+## #185 差分验证执行进 /metrics——run_differential 节点边界的 runs/skipped/errors/outcomes 词族
+
+**背景。** Phase 2「多语言验证能力」的核心节点 run_differential（1598 行）此前零观测——跑了多少次差分、多少被跳过（非演示仓库/无测试生成）、多少异常退出、各 verdict 分布如何，全不可见。真差分覆盖率需结合下游证据（§2.1 的 Node/Python 生成器缺口），但执行面计数是线上可测的前置。
+
+**修法。** 计数放节点边界、内部 helper 保持 pure：①`agent/nodes/run_differential.py` 顶部导入 `from observability.metrics import incr, observe_duration`；②定义 `_DIFF_BUCKETS`（12 档：0.5s–3600s，预留 histogram 扩展）与 `DIFF_OUTCOMES = frozenset({"regression", "compliant", "ambiguous", "unexpected_fix", "skipped"})`；③函数入口 `incr("differential_runs_total")`；④skip 路径（非演示仓库/无测试生成）各 `incr("differential_skipped_total")`；⑤异常捕获前 `incr("differential_errors_total")`；⑥返回前遍历 primary_entries，按 verdict 词表递增对应 `differential_outcomes_<word>_total`。词表不手抄：parity 门 CONCATENATED_FAMILIES 增 diff_outcome，派生测试 import DIFF_OUTCOMES 生成期望正则。面板 31（七条 rate：runs/skipped/errors + regression/compliant/ambiguous/unexpected_fix，x=0,y=111）；无告警（outcomes 是分布不是准确率，§2 的多语言能力成熟度阈值不冒充——同 #180/#184 纪律）。
+
+**门证。** ruff All checks passed（nodes/parity/test 三文件）；mypy `agent/nodes/run_differential.py` Success；定向 pytest **6 passed**（test_differential_execution_is_observable 6 含五臂——总调用+1、非演示仓库 skipped+1、无测试生成 skipped+1、异常 errors+1、四 outcome 各+1；词汇漂移门 1 例断言 parity regex words == DIFF_OUTCOMES declaration）；parity 门 5 家族含 diff_outcome 派生；dashboard 31 panels、面板 31 七 target（alerts-slo.yml 本号未动，仍 15 rules）。
+
+**门证插曲。** ①类型标注陷阱：tmp_path: "Path" 在 from __future__ import annotations 下合法但 ruff UP037 要求去引号，且 Path 需显式 import（F821）——修后 10 errors → 0；②词汇顺序：DIFF_OUTCOMES frozenset 无序，parity regex 按字母序排列（ambiguous|compliant|regression|skipped|unexpected_fix），派生测试提取 alternation group 后 set 比对，避免字母序 mismatch 导致假红；③全部改动走标准流程（无 .scratch patch，直接 Edit 成功）。
+
 ### #173 控制台词表五份手抄的对账门（已落地）
 
 **量到的事实（HEAD `bfc63af`，全部来自源码）**

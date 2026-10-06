@@ -2849,6 +2849,169 @@
         "refId": "C"
       }
       ]
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "差分验证执行 (§2: 多语言验证能力)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "差分验证节点的执行计数 (agent/nodes/run_differential.py #185): runs/s 计总调用, skipped/s 计跳过 (非演示仓库/无测试生成), errors/s 计异常退出; outcomes 族按 verdict 词表分解 (regression/compliant/ambiguous/unexpected_fix/skipped, 词表 = DIFF_OUTCOMES frozenset, 对账门 import 钉死)。skipped 既可能是诚实降级也可能是能力缺口——需结合 error rate 判断。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 111
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_differential_runs_total[15m])",
+        "legendFormat": "runs/s",
+        "range": true,
+        "instant": false,
+        "refId": "A"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_differential_skipped_total[15m])",
+        "legendFormat": "skipped/s",
+        "range": true,
+        "instant": false,
+        "refId": "B"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_differential_errors_total[15m])",
+        "legendFormat": "errors/s",
+        "range": true,
+        "instant": false,
+        "refId": "C"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_differential_outcomes_regression_total[15m])",
+        "legendFormat": "regression/s",
+        "range": true,
+        "instant": false,
+        "refId": "D"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_differential_outcomes_compliant_total[15m])",
+        "legendFormat": "compliant/s",
+        "range": true,
+        "instant": false,
+        "refId": "E"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_differential_outcomes_ambiguous_total[15m])",
+        "legendFormat": "ambiguous/s",
+        "range": true,
+        "instant": false,
+        "refId": "F"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_differential_outcomes_unexpected_fix_total[15m])",
+        "legendFormat": "unexpected_fix/s",
+        "range": true,
+        "instant": false,
+        "refId": "G"
+      }
+      ]
     }
   ],
   "refresh": "30s",
