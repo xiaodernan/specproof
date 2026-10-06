@@ -30,7 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def git(*args: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(REPO_ROOT), *args],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=180,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {proc.stderr.strip()[:300]}")
@@ -57,6 +57,13 @@ def main() -> int:
     print(f"case tags found: {len(tags)}")
     if len(tags) != 99:
         failures.append(f"expected 99 case tags, found {len(tags)}")
+    # ONE batched call for all parent pointers (N calls blew the 30s budget).
+    revs = git("log", "--no-walk", "--format=%H %P", *tags).splitlines()
+    sha_parents: dict[str, list[str]] = {}
+    for line in revs:
+        parts = line.split()
+        if parts:
+            sha_parents[parts[0]] = parts[1:]
     direct = 0
     for tag in tags:
         tree_files = git("diff", "--name-only", base, tag).splitlines()
@@ -66,12 +73,15 @@ def main() -> int:
         off_demo = [f for f in tree_files if not f.startswith("demo/")]
         if off_demo:
             failures.append(f"{tag}: touches non-demo/: {off_demo}")
+        tag_sha = git("rev-parse", tag)
+        if sha_parents.get(tag_sha) == [base]:
+            direct += 1
+            continue
+        # Legacy chained commit: merge-base must still be base so that even
+        # a three-dot diff resolves to the same isolated mutation.
         mb = git("merge-base", base, tag)
         if mb != base:
             failures.append(f"{tag}: merge-base with base is {mb[:8]}, not base")
-        parent = git("rev-list", "--parents", "-n", "1", tag).split()[1:]
-        if parent == [base]:
-            direct += 1
     print(f"tags with parent == base: {direct} (remainder are legacy chained, trees verified)")
 
     if failures:

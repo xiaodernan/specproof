@@ -16,12 +16,16 @@ no-op), using per-document delete instead of delete_by_query (which
 hard-crashes on Windows in elasticsearch-py 8.19.x, see delete_repo).
 """
 import os
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from elasticsearch import Elasticsearch
 
 from contracts.events import DEFAULT_TENANT_ID
+from observability.metrics import observe_duration
 
 if TYPE_CHECKING:
     from retrieval.embeddings import EmbeddingClient
@@ -46,6 +50,37 @@ class ElasticsearchConfig:
             user=os.getenv("ES_USER", "elastic"),
             password=os.getenv("ES_PASSWORD", "specproof_pass"),
             vector_dims=vector_dims,
+        )
+
+
+#: §8.10 "ES 延迟" (#169): histogram ladder for ES round trips. The default
+#: ladder starts at 60s (minute-scale job durations) while ES requests land
+#: in the milliseconds-to-seconds band — a bulk with refresh=True or a
+#: delete_by_query can take seconds, a ping is sub-millisecond. Top bucket
+#: 30s matches the client's own request_timeout=30 so a timed-out request
+#: still lands in a finite bucket (never +Inf, where quantiles return NaN).
+_ES_BUCKETS: tuple[float, ...] = (
+    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0,
+)
+
+
+@contextmanager
+def _timed_es(op: str) -> Iterator[None]:
+    """Time one ES round trip into es_request_seconds_<op> (#169).
+
+    The op word is appended to the metric name (concatenated family, same
+    shape as the worker stage family): search / index / bulk /
+    delete_by_query / count / ping / indices — the vocabulary the client
+    call sites actually use. First use pins the ladder
+    (metrics.observe_duration, first-use-wins).
+    """
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        observe_duration(
+            "es_request_seconds_" + op, time.perf_counter() - started,
+            _ES_BUCKETS,
         )
 
 
@@ -180,42 +215,45 @@ class ElasticsearchStore:
         return self._client
 
     def ensure_indices(self) -> None:
-        if not self.client.indices.exists(index=self.INDEX_CODE):
-            self.client.indices.create(
-                index=self.INDEX_CODE,
-                body={
-                    "settings": {"number_of_shards": 1, "number_of_replicas": 0},
-                    "mappings": {
-                        "properties": {
-                            "repo": {"type": "keyword"},
-                            "tenant_id": {"type": "keyword"},
-                            # Backlog #10: optional per-job stamp so one
-                            # job's projection can be deleted with the job.
-                            "job_id": {"type": "keyword"},
-                            "source_type": {"type": "keyword"},
-                            "commit_sha": {"type": "keyword"},
-                            "path": {"type": "keyword"},
-                            "symbol": {"type": "keyword"},
-                            "language": {"type": "keyword"},
-                            "content": {"type": "text"},
-                            # RAG 2.0: HNSW-enabled vector channel (卷IV 4.1).
-                            "embedding": {
-                                "type": "dense_vector",
-                                "dims": self.config.vector_dims,
-                                "index": True,
-                                "similarity": "cosine",
-                                "index_options": {
-                                    "type": "hnsw",
-                                    "m": 16,
-                                    "ef_construction": 100,
+        with _timed_es("indices"):
+            exists = self.client.indices.exists(index=self.INDEX_CODE)
+        if not exists:
+            with _timed_es("indices"):
+                self.client.indices.create(
+                    index=self.INDEX_CODE,
+                    body={
+                        "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+                        "mappings": {
+                            "properties": {
+                                "repo": {"type": "keyword"},
+                                "tenant_id": {"type": "keyword"},
+                                # Backlog #10: optional per-job stamp so one
+                                # job's projection can be deleted with the job.
+                                "job_id": {"type": "keyword"},
+                                "source_type": {"type": "keyword"},
+                                "commit_sha": {"type": "keyword"},
+                                "path": {"type": "keyword"},
+                                "symbol": {"type": "keyword"},
+                                "language": {"type": "keyword"},
+                                "content": {"type": "text"},
+                                # RAG 2.0: HNSW-enabled vector channel (卷IV 4.1).
+                                "embedding": {
+                                    "type": "dense_vector",
+                                    "dims": self.config.vector_dims,
+                                    "index": True,
+                                    "similarity": "cosine",
+                                    "index_options": {
+                                        "type": "hnsw",
+                                        "m": 16,
+                                        "ef_construction": 100,
+                                    },
                                 },
-                            },
-                            "start_line": {"type": "integer"},
-                            "end_line": {"type": "integer"},
-                        }
+                                "start_line": {"type": "integer"},
+                                "end_line": {"type": "integer"},
+                            }
+                        },
                     },
-                },
-            )
+                )
 
     def index_code_block(
         self,
@@ -249,7 +287,8 @@ class ElasticsearchStore:
             doc["job_id"] = job_id
         # refresh=True makes the document immediately searchable; without it
         # a search right after indexing returns nothing (near-real-time).
-        self.client.index(index=self.INDEX_CODE, document=doc, refresh=True)
+        with _timed_es("index"):
+            self.client.index(index=self.INDEX_CODE, document=doc, refresh=True)
 
     def search_code(
         self,
@@ -273,10 +312,11 @@ class ElasticsearchStore:
         if commit_sha:
             must.append({"term": {"commit_sha": commit_sha}})
 
-        result = self.client.search(
-            index=self.INDEX_CODE,
-            body={"query": {"bool": {"must": must}}, "size": size},
-        )
+        with _timed_es("search"):
+            result = self.client.search(
+                index=self.INDEX_CODE,
+                body={"query": {"bool": {"must": must}}, "size": size},
+            )
         return [hit["_source"] for hit in result["hits"]["hits"]]
 
     def index_repository(
@@ -306,9 +346,10 @@ class ElasticsearchStore:
         # Bulk + ONE refresh: per-document refresh=True costs a disk sync
         # per chunk (30+ chunks took minutes and blew past every timeout).
         if docs:
-            self.client.bulk(
-                operations=_bulk_operations(docs, self.INDEX_CODE), refresh=True
-            )
+            with _timed_es("bulk"):
+                self.client.bulk(
+                    operations=_bulk_operations(docs, self.INDEX_CODE), refresh=True
+                )
         return len(docs)
 
     def index_with_embeddings(
@@ -352,9 +393,10 @@ class ElasticsearchStore:
                         + str(self.config.vector_dims)
                         + " expected) — indexed without embedding"
                     )
-            self.client.bulk(
-                operations=_bulk_operations(docs, self.INDEX_CODE), refresh=True
-            )
+            with _timed_es("bulk"):
+                self.client.bulk(
+                    operations=_bulk_operations(docs, self.INDEX_CODE), refresh=True
+                )
         return {
             "indexed": len(docs),
             "embedded": embedded,
@@ -392,7 +434,8 @@ class ElasticsearchStore:
             },
             "size": k,
         }
-        result = self.client.search(index=self.INDEX_CODE, body=body)
+        with _timed_es("search"):
+            result = self.client.search(index=self.INDEX_CODE, body=body)
         return [
             {**hit["_source"], "vector_score": float(hit.get("_score", 0.0))}
             for hit in result["hits"]["hits"]
@@ -405,9 +448,10 @@ class ElasticsearchStore:
         hard-crashes on Windows inside delete_by_query (native fault in the
         transport layer), while the plain DELETE index request is stable.
         """
-        self.client.indices.delete(
-            index=self.INDEX_CODE, ignore_unavailable=True
-        )
+        with _timed_es("indices"):
+            self.client.indices.delete(
+                index=self.INDEX_CODE, ignore_unavailable=True
+            )
         self.ensure_indices()
 
     def _delete_by_filter(self, query: dict[str, Any]) -> int:
@@ -419,12 +463,13 @@ class ElasticsearchStore:
         the whole-index delete_repo shortcut) because a multi-tenant index
         cannot be dropped per tenant.
         """
-        response = self.client.delete_by_query(
-            index=self.INDEX_CODE,
-            body={"query": query},
-            refresh=True,
-            wait_for_completion=True,
-        )
+        with _timed_es("delete_by_query"):
+            response = self.client.delete_by_query(
+                index=self.INDEX_CODE,
+                body={"query": query},
+                refresh=True,
+                wait_for_completion=True,
+            )
         return int(response.get("deleted", 0))
 
     def delete_by_tenant_repo(self, tenant_id: str, repo: str) -> int:
@@ -482,16 +527,19 @@ class ElasticsearchStore:
         """
         if tenant_id is None and job_id is None:
             raise ValueError("count_projection_docs needs tenant_id or job_id")
-        if not self.client.indices.exists(index=self.INDEX_CODE):
+        with _timed_es("indices"):
+            exists = self.client.indices.exists(index=self.INDEX_CODE)
+        if not exists:
             return 0
-        result = self.client.count(
-            index=self.INDEX_CODE,
-            body={
-                "query": build_tenant_repo_filter(
-                    tenant_id=tenant_id, job_id=job_id
-                )
-            },
-        )
+        with _timed_es("count"):
+            result = self.client.count(
+                index=self.INDEX_CODE,
+                body={
+                    "query": build_tenant_repo_filter(
+                        tenant_id=tenant_id, job_id=job_id
+                    )
+                },
+            )
         return int(result.get("count", 0))
 
     def _delete_matching(self, query: dict[str, Any]) -> int:
@@ -504,19 +552,22 @@ class ElasticsearchStore:
         naturally idempotent — a missing index or missing documents are
         simply zero matches.
         """
-        if not self.client.indices.exists(index=self.INDEX_CODE):
+        with _timed_es("indices"):
+            exists = self.client.indices.exists(index=self.INDEX_CODE)
+        if not exists:
             return 0
         deleted = 0
         while True:
-            response = self.client.search(
-                index=self.INDEX_CODE,
-                body={
-                    "query": query,
-                    "size": _DELETE_PAGE_SIZE,
-                    "_source": False,
-                },
-                ignore_unavailable=True,
-            )
+            with _timed_es("search"):
+                response = self.client.search(
+                    index=self.INDEX_CODE,
+                    body={
+                        "query": query,
+                        "size": _DELETE_PAGE_SIZE,
+                        "_source": False,
+                    },
+                    ignore_unavailable=True,
+                )
             hits = response["hits"]["hits"]
             if not hits:
                 return deleted
@@ -524,24 +575,29 @@ class ElasticsearchStore:
                 {"delete": {"_index": self.INDEX_CODE, "_id": hit["_id"]}}
                 for hit in hits
             ]
-            result = self.client.bulk(operations=operations, refresh=True)
+            with _timed_es("bulk"):
+                result = self.client.bulk(operations=operations, refresh=True)
             for item in result.get("items", []):
                 if item.get("delete", {}).get("status") == 200:
                     deleted += 1
 
     def count_repo_docs(self, repo: str) -> int:
         """Number of indexed chunks for a repository (0 when absent)."""
-        if not self.client.indices.exists(index=self.INDEX_CODE):
+        with _timed_es("indices"):
+            exists = self.client.indices.exists(index=self.INDEX_CODE)
+        if not exists:
             return 0
-        result = self.client.count(
-            index=self.INDEX_CODE,
-            body={"query": {"term": {"repo": repo}}},
-        )
+        with _timed_es("count"):
+            result = self.client.count(
+                index=self.INDEX_CODE,
+                body={"query": {"term": {"repo": repo}}},
+            )
         return int(result.get("count", 0))
 
     def is_ready(self) -> bool:
         try:
-            return self.client.ping()
+            with _timed_es("ping"):
+                return self.client.ping()
         except Exception:
             return False
 

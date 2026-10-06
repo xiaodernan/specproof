@@ -69,6 +69,27 @@ export function describePipelineError(raw: string): string {
   return raw;
 }
 
+/**
+ * 失败位置的披露（#13.6-3 的 Web 侧读者）。
+ *
+ * 终态失败行的 last_error 是一个 JSON 信封，`failed_after_stage` 记录流里
+ * 最后一个**完成**的阶段——措辞必须是「X 之后失败」而不是「死在 X」
+ * （流没有节点开始事件，后者是推断；见 PRODUCT_ROADMAP §20.2）。解析不了
+ * （老行、别的错误形状、1024 截断把 JSON 切坏）一律返回 null：页面就不
+ * 渲染这一行，绝不猜测。
+ */
+export function terminalStageNote(raw: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const stage = (parsed as Record<string, unknown>)["failed_after_stage"];
+    if (typeof stage !== "string" || !stage.trim()) return null;
+    return `这一轮在「${stageLabel(stage)}」阶段完成后失败`;
+  } catch {
+    return null;
+  }
+}
+
 // "降级 DEGRADED" notices carry short, dynamic strings emitted at the API
 // source (e.g. `redis: Connection refused`, `mysql: ...`). They are technical
 // and mix English subsystem names with raw provider errors, so we gloss the

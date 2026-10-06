@@ -86,6 +86,17 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "agent/worker.py: incr(\"notify_\" + status.value + \"_total\") — "
         "SendStatus members; skipped/error are worker literals instead",
     ),
+    "es_op": (
+        re.compile(
+            r"^es_request_seconds_"
+            r"(bulk|count|delete_by_query|index|indices|ping|search)$"
+        ),
+        "storage/elasticsearch.py #169: _timed_es(\"<op>\") — op words are "
+        "the Elasticsearch client methods the store calls; the vocabulary "
+        "is derived from the self.client.<op> call sites by the derivation "
+        "test, so a new ES op forces this gate and the family to move "
+        "together",
+    ),
 }
 
 
@@ -205,6 +216,23 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert pattern.pattern.startswith("^") and pattern.pattern.endswith("$")
         assert "(...)" not in pattern.pattern
 
+    # es_op == the Elasticsearch client methods the store actually calls.
+    # Derived from the self.client.<word> call sites in the emission file
+    # itself: a new ES client op fails this gate until the family (and the
+    # dashboard regex, if the panel is extended) moves with it.
+    es_text = (ROOT / "storage" / "elasticsearch.py").read_text(encoding="utf-8")
+    es_ops = sorted(set(re.findall(r"self\.client\.(\w+)", es_text)))
+    assert es_ops, "no Elasticsearch client call sites found"
+    es_pattern, _ = CONCATENATED_FAMILIES["es_op"]
+    expected_es = "^es_request_seconds_(" + "|".join(es_ops) + ")$"
+    assert es_pattern.pattern == expected_es, (
+        f"es_op family {es_pattern.pattern} != client call sites {es_ops}"
+    )
+    for op in es_ops:
+        assert es_pattern.match(f"es_request_seconds_{op}"), (
+            f"family rejects shipped es op {op}"
+        )
+
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:
     """The #165 broker-side alerts consume rabbitmq_* series that only the
@@ -288,3 +316,22 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
         assert expected_selector in expr, expr
     assert any("histogram_quantile(0.95" in expr for expr in stage_exprs)
     assert any("histogram_quantile(0.50" in expr for expr in stage_exprs)
+
+    # Same drift shape for the ES latency panel (#169): the family is
+    # concatenated at runtime, the reference regex captures a trailing-
+    # underscore placeholder the gate drops, so the exact selector and
+    # quantiles are pinned at text level.
+    es_exprs = [
+        target["expr"]
+        for panel in dashboard["panels"]
+        for target in panel.get("targets", [])
+        if "es_request_seconds_" in target.get("expr", "")
+    ]
+    assert len(es_exprs) == 2, f"expected p50+p95 es exprs, got {es_exprs}"
+    expected_es_selector = (
+        '__name__=~"specproof_es_request_seconds_[a-z_]+_bucket"'
+    )
+    for expr in es_exprs:
+        assert expected_es_selector in expr, expr
+    assert any("histogram_quantile(0.95" in expr for expr in es_exprs)
+    assert any("histogram_quantile(0.50" in expr for expr in es_exprs)
