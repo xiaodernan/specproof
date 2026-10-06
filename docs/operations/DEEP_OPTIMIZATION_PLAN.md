@@ -2550,3 +2550,39 @@ def _require_cancellable(job):           # :685
 **门证。** ruff All checks passed（policy/nodes/parity/test 四文件）；mypy `policy.py` + `review_court.py` Success；定向 pytest **49 passed**（test_review_court_policy 35 含新增 `test_attribution_decisions_are_counted_at_the_node_boundary` 三臂——同败同签名 rejected+1/kept+0/信号+0、exit codes 差异 kept+1 且 exit_code_differs 信号恰 1 个、base 过则不计；parity 门 5 含 attribution_signal 派生；test_capsule_replay 10 回归）；exposition 端到端实测——真实 `run_review_court` 三臂 compared=2 / kept=1 / rejected=1 / signal_exit_code_differs=1 全部渲染（含 # TYPE counter 行）；dashboard 30 panels、面板 30 三 target（alerts-slo.yml 本号未动，仍 15 rules）。
 
 **门证插曲。** ①#183 的教训复发成例：family 正则按信号声明序写、派生测试按 sorted 比对，主门当场红（head_db_state_differs < head_extra_failure_count 字母序）——修正则非产品；②patch 锚点笔误把 #183 插入文本的行首 "vocabulary" 误记为 "the vocabulary"（"the" 实属上一行行尾跨行字符串），count 0 断言当场拦住——probe repr 定位后修正则；③全部改动走 .scratch patch 脚本（p184/p184fix/p184fix2/expo184，用完即删）。
+
+### #173 控制台词表五份手抄的对账门（已落地）
+
+**量到的事实（HEAD `bfc63af`，全部来自源码）**
+
+- `_TERMINAL_CONSOLE_STATUSES` / `_CANCELLABLE_STATUSES`（`api/routes/agent_console.py:110-111`）、`STATUS_LABELS`（`:120`）、`_CONSOLE_TO_STORE_STATUS`（`:145`）、`console_status_label`（`api/agent_runtime.py:106`）、`AGENT_STATUS_META`（`apps/web/src/agent/util.ts:1`）——同一份 console 词表的五处枚举。
+- `GET /agent/jobs?status=` 的过滤走 `status not in STATUS_LABELS` 然后 `_CONSOLE_TO_STORE_STATUS[status]` ——直接下标进另一个字典；两个 key 集合一致是唯一的防线。
+- 翻译函数的返回类型标注 `cast("Literal['pending', …]", …)` 是第六份手抄，藏在函数体内。
+- 中文标签已漂移：API 说「等待计划审批 Awaiting approval」，前端说「等待审批」。
+
+**改法**
+
+- 一处导出（`apps/web/src/agent/util.ts`）：`AGENT_ACTIVE_STATUSES` / `AGENT_TERMINAL_STATUSES` / `agentRunPhase()` / `isAgentTerminal()` / `agentUnknownNotice()`。
+- 四个站点全部改成调用导出（`components.tsx` 删掉自己那份 `new Set`）。
+- 真正改行为的只有第三支：`AgentResult` 的两个面板与 `AgentToolStream` 的尾标对 `unknown` 明确说「这一轮上报的状态不在本页词表里」，既不按「仍在执行」也不按「已终态」。
+- 新门（`tests/unit/test_agent_console_status_mirror.py`，6 例）：五个来源各读各的源码，断言四个方向：终态集合双向 ==、活跃集合 == 声明、两后端集合互斥且覆盖映射、透传与「不认识」分支同生共死。
+
+**见证：6 臂，全部 MATCHED，控制位改前改后都绿**
+
+- `A1` 前端终态集合丢 `FAILED` ⇒ 恰 2 红（下限 + 终态双向）。
+- `A2` `components.tsx` 重新声明第六份 ⇒ 恰 1 红（普查）。
+- `A3` 把 `return str(job.status)` 折成 `return "CANCELLED"` ⇒ 恰 1 红（透传/分支同生）。
+- `A4` 给 `AGENT_STATUS_META` 加一条没有生产者的 `PAUSED` ⇒ 恰 2 红（下限 + 每词有值）。
+- `A5` 把一处 `job.status === "EXECUTING"` 改成 `"ARCHIVED"` ⇒ 恰 1 红（比较位置）。
+- `A6` 把两处 `agentUnknownNotice(job.status)` 换成裸字符串 ⇒ 恰 1 红（读者消失）。
+- `A7` 前端活跃集合丢 `AWAITING_APPROVAL` ⇒ 恰 2 红（下限 + 活跃双向）。
+- `A8` 给 `_TERMINAL_CONSOLE_STATUSES` 塞进 `PLANNING` ⇒ 恰 3 红（下限 + 终态双向 + 互斥）。
+- `A9` 修正预测：`test_the_api_and_the_console_gloss_each_status_with_the_same_words` 不仅钉词汇，还钉 key 集合的双向差集 ⇒ 预测从 2 红改为 3 红，重跑全表 9/9 MATCHED。
+
+**读数**
+
+- `pytest` 本门 **6 passed / 0 红**；`mypy` Success、`ruff` All checks passed。
+- `npx vitest run src/agent` **12 files / 92 passed**。
+- `npx tsc --noEmit` rc=0（0 行输出）。
+- 两平面全量：WITH plane173 **3403 passed / 5 skipped / 0 red** in 1003.25s；BASE plane173base **3397 passed / 5 skipped / 0 red** in 969.74s；+6 collected 逐名归属，全部是本门，0 red 家族相同。
+- 平面自检：`rootdir: D:\面试项目\plane173`，本门在平面上 6 passed。
