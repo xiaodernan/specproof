@@ -10,7 +10,7 @@ import {
 } from "../ui";
 import { SameRepoCraftPanel } from "./SameRepoCraftPanel";
 import { recordRecentJob } from "../ui/recentJobs";
-import { describePipelineError, loadFailed } from "../ui/errorHints";
+import { describePipelineError, loadFailed, terminalStageNote } from "../ui/errorHints";
 import "../styles/verification.css";
 
 // DEEP tier disclosure (#155): shape written by run_deep_experiments_node.
@@ -404,6 +404,9 @@ export default function JobDetail(props: { jobId: string }) {
             {kv("更新时间", fmtTime(job.updated_at))}
             {job.last_error ? <div className="kv-label" style={{ margin: "8px 0 4px" }}>最近执行错误</div> : null}
             {job.last_error ? <div role="alert" className="errorbox" title={job.last_error}>{describePipelineError(String(job.last_error))}</div> : null}
+            {job.last_error && terminalStageNote(String(job.last_error)) ? (
+              <div className="kv-label" title={job.last_error}>{terminalStageNote(String(job.last_error))}</div>
+            ) : null}
           </Panel>
           <SameRepoCraftPanel repoPath={job.repo_path} />
         </>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeDegradedReason, describePipelineError } from "../errorHints";
+import { terminalStageNote, describeDegradedReason, describePipelineError } from "../errorHints";
 
 // Shared by the VERIFY JobDetail panel and the CRAFT agent console. The whole
 // point is honesty: recognised infra/git/model signatures become actionable
@@ -73,5 +73,32 @@ describe("describeDegradedReason", () => {
   it("returns unknown subsystems verbatim (never fabricates a meaning)", () => {
     const raw = "clickhouse: some unfamiliar outage";
     expect(describeDegradedReason(raw)).toBe(raw);
+  });
+});
+
+
+describe("terminalStageNote — where the run died, stated as an observation", () => {
+  const envelope = (extra: Record<string, unknown>) =>
+    JSON.stringify({ class: "system", code: "timeout", error: "boom", ...extra });
+
+  it("reads failed_after_stage and uses the after-X phrasing", () => {
+    expect(terminalStageNote(envelope({ failed_after_stage: "run_differential" })))
+      .toBe("这一轮在「运行差分验证（改动前后对比）」阶段完成后失败");
+  });
+
+  it("passes unknown stage tokens through verbatim inside the note", () => {
+    expect(terminalStageNote(envelope({ failed_after_stage: "some_new_node" })))
+      .toBe("这一轮在「some_new_node」阶段完成后失败");
+  });
+
+  it("returns null when the envelope carries no stage", () => {
+    expect(terminalStageNote(envelope({}))).toBeNull();
+  });
+
+  it("returns null for truncated JSON, non-JSON and empty input", () => {
+    const cut = envelope({ failed_after_stage: "run_diff" }).slice(0, 40);
+    expect(terminalStageNote(cut)).toBeNull();
+    expect(terminalStageNote("mvnw exited 1")).toBeNull();
+    expect(terminalStageNote("")).toBeNull();
   });
 });

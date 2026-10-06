@@ -6,6 +6,7 @@
 // hover/audit via the caller's `title` attribute.
 
 import { describePreflightError } from "./preflight";
+import { stageLabel } from "./stages";
 
 // Honest distinction between "the resource genuinely isn't there (404)" and
 // "the read failed (network / 5xx / backend down)". Collapsing these is a
