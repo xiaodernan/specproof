@@ -48,6 +48,12 @@
 #                                        拒发缺证据的 BLOCKER/MAJOR 评论并
 #                                        计数, 阈值内联在 expr (> 0 for 1m)
 #                                        — 计数器只增不减, 一次违规永久可见
+#   REPLAY_RATE_THRESHOLD = 0.95      ← §14 质量目标 "Capsule Replay >= 95%"
+#                                        (#183 起接线) 15m 窗口
+#                                        verdict_regression_confirmed/runs
+#                                        成功率 < 95% 告警; verdict 词表 =
+#                                        run.sh 模板四词 (create_capsule
+#                                        同源, 对账门 import 钉死)
 
 groups:
   - name: specproof-slo
@@ -222,3 +228,26 @@ groups:
         annotations:
           summary: "SpecProof 出现无证据的严重评论 (阈值 NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD=0)"
           description: "证据门禁拦下了 {{ $value }} 条缺 evidence_type 的 BLOCKER/MAJOR 评论 (§14: 无证据严重评论 = 0) — 评论已拒发, 但需排查上游为何产出无证据的严重 finding。"
+
+      # ── Capsule Replay 成功率 (§14 质量目标, #183) ──────────────────
+      # 成功率 = 15m 窗口 confirmed/runs 的 rate 比 (verdict 词族 vs. 到达
+      # 沙箱的执行总数)。unexpected_fix/ambiguous/exec_errors/超时全部算
+      # 失败侧。无 replay 请求时序列不存在, 本表达式无序列不触发 —
+      # 没人用不是质量违规, 用了才谈得上成功率。
+      - alert: SpecproofCapsuleReplayRateLow
+        expr: >
+          (
+            1
+            -
+            (
+              sum(rate(specproof_capsule_replay_verdict_regression_confirmed_total[15m]))
+              /
+              clamp_min(sum(rate(specproof_capsule_replay_runs_total[15m])), 0.001)
+            )
+          ) > 0.05
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof Capsule Replay 成功率低于阈值 (REPLAY_RATE_THRESHOLD=0.95)"
+          description: "15 分钟窗口 replay 成功率 {{ $value | humanizePercentage }} (§14: Capsule Replay >= 95%)。成功 = run.sh stdout 判定 regression_confirmed (沙箱跑完且 exit 0 才解析); unexpected_fix / ambiguous / 执行错误 / 超时都算失败侧。"

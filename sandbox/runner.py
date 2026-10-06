@@ -158,6 +158,30 @@ MAVEN_PROFILE = SandboxProfile(
 )
 
 
+# Replay profile (#183): capsule run.sh executes under the same isolation
+# invariants — a capsule bundles UNTRUSTED generated tests and the target
+# repo is cloned fresh for every replay. Profile is data, not a new copy of
+# the security-critical argv. Default image is the Maven one (run.sh is
+# bash); if that image lacks git the run fails honestly INSIDE the sandbox —
+# operators pin a git-capable variant via SPECPROOF_REPLAY_IMAGE. The host
+# clones the repo into <workspace>/repo BEFORE run_sandboxed, so the
+# writable sub-mount binds the real clone (run.sh checks out base/head
+# refs there). Callers MUST pass mode="docker": the auto/local fallback
+# would run untrusted capsule code on the host. No cache_dir/cache_manifest:
+# like the Maven default path, an unverified dependency cache never looks
+# verified (the honest "NOT VERIFIED" cache_note).
+REPLAY_PROFILE = SandboxProfile(
+    name="replay",
+    image=DEFAULT_IMAGE,
+    image_env="SPECPROOF_REPLAY_IMAGE",
+    env=MAVEN_PROFILE.env,
+    cache_volume_env="SPECPROOF_SANDBOX_M2_VOLUME",
+    cache_volume_default=DEFAULT_M2_VOLUME,
+    cache_mount=MAVEN_USER_HOME_ENV,
+    writable_submounts=(("repo", "/work/repo"),),
+)
+
+
 def _profile_from_env() -> SandboxProfile:
     """Resolve the default profile for callers that do not name one.
 

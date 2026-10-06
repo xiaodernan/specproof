@@ -84,10 +84,35 @@ def _resolve_capsule(reference: str) -> tuple[Path, Any | None]:
 @click.command("replay")
 @click.argument("capsule_ref", type=str)
 @click.option("--output-dir", default=None, help="Directory to extract and replay in")
-def replay(capsule_ref: str, output_dir: str | None) -> None:
+@click.option(
+    "--run",
+    "run_repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Execute run.sh in the sandbox against this git repository "
+    "(explicit opt-in — capsule and repo code are untrusted and only ever "
+    "run inside the sandbox, never on the host)",
+)
+@click.option(
+    "--timeout",
+    "run_timeout",
+    type=int,
+    default=900,
+    show_default=True,
+    help="Sandbox timeout in seconds for --run",
+)
+def replay(
+    capsule_ref: str, output_dir: str | None,
+    run_repo: Path | None, run_timeout: int,
+) -> None:
     """Replay a Bug Capsule to verify the finding is reproducible.
 
     CAPSULE_REF is a capsule .zip path, an object id, or a payload digest.
+
+    Without --run the capsule is only extracted and inspected (report
+    status "extracted"). With --run, run.sh executes INSIDE the sandbox
+    against a fresh host-side clone of the given repository — the only
+    thing this command executes on the host is the git binary itself.
     """
     capsule, metadata = _resolve_capsule(capsule_ref)
     if capsule.suffix != ".zip":
@@ -135,8 +160,26 @@ def replay(capsule_ref: str, output_dir: str | None) -> None:
     click.echo(f"Severity: {manifest.get('severity')}")
     click.echo(f"Expected hash: {manifest.get('sha256', 'N/A')}")
 
-    report_path = _write_replay_report(work_dir, capsule, manifest, metadata)
+    run_result: dict[str, Any] | None = None
+    if run_repo is not None:
+        # #183: explicit opt-in execution. run.sh and the repo's code are
+        # untrusted — run_capsule_replay keeps them inside the sandbox and
+        # shells out to git (the clone) as the only host-side execution.
+        from evidence.capsule_replay import run_capsule_replay
+
+        click.echo(f"\nReplaying run.sh in the sandbox against: {run_repo}")
+        run_result = run_capsule_replay(work_dir, run_repo, timeout=run_timeout)
+
+    report_path = _write_replay_report(work_dir, capsule, manifest, metadata, run_result)
     click.echo(f"Replay report: {report_path}")
+
+    if run_result is not None:
+        click.echo(f"Status: {run_result['status']}")
+        if run_result.get("verdict"):
+            click.echo(f"Verdict: {run_result['verdict']}")
+        if run_result.get("error"):
+            click.echo(f"Error: {run_result['error']}")
+        return
 
     run_script = work_dir / "run.sh"
     if not run_script.exists():
@@ -151,7 +194,8 @@ def replay(capsule_ref: str, output_dir: str | None) -> None:
 
 
 def _write_replay_report(
-    work_dir: Path, capsule_path: Path, manifest: dict[str, Any], metadata: Any | None,
+    work_dir: Path, capsule_path: Path, manifest: dict[str, Any],
+    metadata: Any | None, run_result: dict[str, Any] | None = None,
 ) -> str:
     """Write replay-report.json and record it as a replay_report object.
 
@@ -179,6 +223,17 @@ def _write_replay_report(
         "status": "extracted",
         "replayed_at": datetime.now(UTC).isoformat(),
     }
+    if run_result is not None:
+        # #183: the report states what actually happened (replayed /
+        # clone_failed) and carries the execution evidence — the legacy
+        # "extracted" report (no --run) stays byte-for-byte unchanged.
+        report["status"] = str(run_result.get("status", "replayed"))
+        for key in (
+            "exit_code", "stdout_tail", "stderr_tail", "mode", "error",
+            "verdict", "repo", "replayed_at", "cache_note",
+        ):
+            if key in run_result:
+                report[key] = run_result[key]
     report_path = work_dir / "replay-report.json"
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     record_file_object_best_effort(

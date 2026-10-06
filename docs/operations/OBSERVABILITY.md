@@ -106,7 +106,7 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | Webhook 响应 p95<=1s | specproof_webhook_github_handling_seconds 直方图 (api/server.py 中间件按路径测量, 含 4xx/5xx; 亚秒桶梯度 0.05..2.5s) | ✅ 已接线 (#162: 面板 + p95>1s 告警; 默认梯度首格 60s 对 1s 分位数无分辨率, 故用亚秒梯度) |
 | Dashboard 进度延迟<=2s | specproof_dashboard_progress_delivery_lag_seconds 直方图 (api/routes/jobs.py SSE 循环对 live 事件测写入→发出驻留; p50/p95 面板 + p95>2s 告警) | ✅ 已接线 (#164: 服务端可测段; SSE 发出→浏览器渲染属网络/前端域无观测点, 诚实边界记录于此) |
 | BLOCKER/MAJOR Precision>=90% | specproof_findings_court_*_total 判定族 (Review Court 节点边界) | 🟡 判定聚合已接线 (#180: confirmed/candidates 确认率可算, needs_confirmation 转人工); 真精度需评测集 ground truth (bench_replay 离线), §14 的 90% 阈值不做告警 |
-| Capsule Replay>=95% | 无指标 | ❌ 未接线 |
+| Capsule Replay>=95% | specproof_capsule_replay_runs_total / specproof_capsule_replay_verdict_<word>_total 四词族 / exec_errors、timeouts (evidence/capsule_replay.py: --run 显式 opt-in, run.sh 在沙箱内执行, verdict 词表 = create_capsule 模板) | ✅ 已接线 (#183: 成功率 = confirmed/runs, <95% 告警 SpecproofCapsuleReplayRateLow; git/依赖离线不可解是真实失败计 exec_errors, 非环境借口) |
 | 无证据严重评论=0 | specproof_severe_comments_without_evidence_total 拒发计数 (integrations/inline_comments.py build_review_comments 证据门: BLOCKER/MAJOR 无 evidence_type 在锚定前拒发) | ✅ 已接线 (#182: SLO=计数恒 0, >0 即 critical 告警 SpecproofNoEvidenceSevereComment) |
 | PR 归因准确率>=90% | 无指标 | ❌ 未接线 |
 
@@ -117,7 +117,16 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 BLOCKER/MAJOR 且 evidence_type 缺失/unknown/? 的 finding 在锚定之前拒发并计
 severe_comments_without_evidence_total——SLO 即计数恒 0, 非零即 critical
 告警 SpecproofNoEvidenceSevereComment; 纯函数模块, 计数进进程内注册表,
-不碰网络/env）、Base/Head 沙箱失败
+不碰网络/env）、Capsule Replay 成功率
+（#183 接线, evidence/capsule_replay.py: replay --run 显式 opt-in 把 run.sh 送进沙箱
+执行, mode="docker" 钉死——无 Docker 是诚实报错, 绝不本地回退跑不可信 capsule 代码;
+capsule_replay_runs_total 计每次到达沙箱的执行, capsule_replay_exec_errors_total 计
+error 非空, capsule_replay_timeouts_total 用与 #178/#181 同源的 "timed out after"
+公共子串, capsule_replay_verdict_<word>_total 四词族——词表 = create_capsule 模板的
+REGRESSION CONFIRMED / UNEXPECTED FIX / AMBIGUOUS / COMPLIANT, 对账门 import
+VERDICTS 钉死, stdout 首个命中、解析不出不计族; 成功率 = confirmed/runs 的 rate 比,
+<95% 告警 SpecproofCapsuleReplayRateLow。host 上唯一执行物是 git clone——
+declared execution surface 契约）、Base/Head 沙箱失败
 （#181 接线, experiments/adapters.py 的 JavaMavenAdapter.run 咽喉点——产品树里
 唯一的 run_sandboxed 调用点, sandbox/ 本体保持无指标不动其所有权边界:
 sandbox_runs_total 计每次到达沙箱的运行, sandbox_failures_total 计 error 非空
@@ -153,7 +162,7 @@ LLM Token 与费用
 有分辨率, 顶格高于 DEEP 作业级 p95 目标 1500s, 分位数不落 +Inf 桶）、
 Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 
-已接线指标名（2026-09-25 与代码逐条对账的结果）：本项目**没有静态指标注册表**，名字只在第一次上报时才出现在 /metrics 上，所以这份清单的唯一合法来源是上报点，不是本文件。本节此前写着"全部真实注册"却漏掉了 worker 生命周期整侧与 outbox relay 的 8 个名字，因此改成可复现的对账方法：取 `incr(` / `set_gauge(` / `observe_duration(` 三个上报函数的全仓调用点（`api/auth.py:91` 与 `storage/redis.py:112` 的 `client.incr(...)` 是 Redis 计数命令，不是指标，已排除），再把常量名解析成字面量。生产侧上报模块有十一个（#168 起 providers 加入，外加 render_text 自己）：
+已接线指标名（2026-09-25 与代码逐条对账的结果）：本项目**没有静态指标注册表**，名字只在第一次上报时才出现在 /metrics 上，所以这份清单的唯一合法来源是上报点，不是本文件。本节此前写着"全部真实注册"却漏掉了 worker 生命周期整侧与 outbox relay 的 8 个名字，因此改成可复现的对账方法：取 `incr(` / `set_gauge(` / `observe_duration(` 三个上报函数的全仓调用点（`api/auth.py:91` 与 `storage/redis.py:112` 的 `client.incr(...)` 是 Redis 计数命令，不是指标，已排除），再把常量名解析成字面量。生产侧上报模块有十三个（#168 起 providers 加入，外加 render_text 自己）：
 
 - `observability/metrics.py::render_text` 无条件输出：specproof_up。
 - `api/server.py` 中间件：specproof_http_requests_total、specproof_http_requests_failed_total、specproof_http_responses_5xx_total；#162 起按路径计时 specproof_webhook_github_handling_seconds (直方图, 亚秒桶梯度 0.05..2.5s——默认梯度首格 60s, 对 §14 的 1s 分位数无分辨率)。
@@ -167,6 +176,7 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 - `agent/nodes/review_court.py`（#180 起）：`run_review_court` 节点边界的判定聚合——findings_court_candidates_total（进入法庭的候选数）与 findings_court_<outcome>_total 四词族（confirmed / needs_confirmation / not_attributed / skipped, 词表 = policy 层封闭的 COURT_OUTCOMES, 对账门 import 该常量钉死）。确认率 = confirmed 与 candidates 两条 rate 的比值, 是 §14 BLOCKER/MAJOR Precision 的线上前置; 真精度需评测集 ground truth（bench_replay 离线）, §14 阈值故无告警。
 - `experiments/adapters.py`（#181 起）：`JavaMavenAdapter.run` 咽喉点（产品树里唯一的 run_sandboxed 调用点, Base/Head 差分与 self-test 全部过此点）计 sandbox_runs_total / sandbox_failures_total / sandbox_timeouts_total。failure 判据是沙箱 runner 的 error 非空契约; timeout 判据与 #178 同源（"timed out after" 公共子串）, spawn 错误不冒充超时; sandbox/ 本体保持无指标（所有权边界不动）。§14 无沙箱失败率阈值故无告警。
 - `integrations/inline_comments.py`（#182 起）：`build_review_comments` 证据门——BLOCKER/MAJOR 且 evidence_type ∈ {"", "unknown", "?"} 的 finding 在锚定之前拒发（continue）并计 specproof_severe_comments_without_evidence_total。拒绝即策略（与锚定失败的静默丢弃同一诚实族）, §6 "无证据严重评论=0" 的 SLO 就是这条计数恒 0, >0 即 critical 告警 SpecproofNoEvidenceSevereComment。纯函数模块: 计数进进程内注册表, 不引入网络/env。
+- `evidence/capsule_replay.py`（#183 起）：`run_capsule_replay`——replay --run 显式 opt-in 后 run.sh 在沙箱内执行（mode="docker" 钉死: 无 Docker 是诚实报错, 绝不本地回退跑不可信代码; host 上唯一执行物是 git clone）。计数: capsule_replay_runs_total（每次到达沙箱的执行, 失败也是运行）、capsule_replay_exec_errors_total（沙箱 error 非空契约）、capsule_replay_timeouts_total（"timed out after" 公共子串, 与 #178/#181 同源）、capsule_replay_verdict_<word>_total 四词族（词表 = create_capsule 模板 REGRESSION CONFIRMED / UNEXPECTED FIX / AMBIGUOUS / COMPLIANT, 对账门 import VERDICTS 钉死; stdout 首个命中, 沙箱跑完且 exit 0 才解析, 解析不出不计族——诚实缺席）。成功率 = confirmed 与 runs 两条 rate 的比值, §14 "Capsule Replay>=95%", <95% 告警 SpecproofCapsuleReplayRateLow。
 - `storage/notify_relay.py`（#16.6-1，`SPECPROOF_NOTIFY_OUTBOX=1` 时的 webhook 投递车道）：仪表 specproof_notify_outbox_pending、specproof_notify_outbox_oldest_age_seconds、specproof_notify_outbox_retry_count、specproof_notify_outbox_dead_letters、specproof_notify_outbox_last_success_ts；计数 specproof_notify_outbox_delivered_total、specproof_notify_outbox_failed_total、specproof_notify_outbox_dead_lettered_total。入车道侧（K 收口后）由 `storage/mysql.py::transition_job_status_with_notify` 在终态写同事务内上报：specproof_notify_outbox_enqueued_total（意图入库成功）与 specproof_notify_outbox_intent_lost_total（意图入库失败——终态照常落库，通知降级为丢，绝不回滚终态）。
 
 另有一类**第三方指标**不在本对账内：`rabbitmq_*`（RabbitMQ 自带插件 rabbitmq_prometheus 的输出，#165 起 prometheus.yml 的 rabbitmq 抓取任务经 /metrics/per-object 供给；队列级深度 rabbitmq_queue_messages / _ready / _unacked 带 vhost/queue label）。对账门的 specproof_* regex 天然扫不到它们——第三方名的真伪只能靠抓取目标 up 与实际查询验证（#165 已实测 15692 存活、per-queue 序列与 rabbitmqctl 对数一致）。

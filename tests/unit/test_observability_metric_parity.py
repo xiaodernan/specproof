@@ -128,6 +128,19 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "derivation test, so a new policy outcome forces this gate and the "
         "family to move together",
     ),
+    "replay_verdict": (
+        re.compile(
+            r"^capsule_replay_verdict_"
+            r"(ambiguous|compliant|regression_confirmed|unexpected_fix)"
+            r"_total$"
+        ),
+        "evidence/capsule_replay.py #183: capsule_replay_verdict_<word>_total "
+        "after parsing run.sh's stdout on a completed sandbox run — verdict "
+        "words are the replay template's closed four-marker vocabulary; the "
+        "vocabulary is imported from evidence.capsule_replay (VERDICTS) by "
+        "the derivation test, so a template word change forces this gate "
+        "and the family to move together",
+    ),
 }
 
 
@@ -300,6 +313,28 @@ def test_concatenated_families_track_their_vocabularies() -> None:
     for word in sorted(FINDINGS_COURT_WORDS):
         assert court_pattern.match(f"findings_court_{word}_total"), (
             f"family rejects court word {word}"
+        )
+
+    # replay_verdict == the capsule replay template's closed verdict
+    # markers. Imported from evidence.capsule_replay (VERDICTS maps the
+    # template's uppercase stdout markers to the lowercase family words) —
+    # same discipline as court_outcome: a template word change forces this
+    # gate and the family to move together.
+    from evidence.capsule_replay import VERDICTS
+
+    replay_pattern, _ = CONCATENATED_FAMILIES["replay_verdict"]
+    expected_replay = (
+        "^capsule_replay_verdict_("
+        + "|".join(sorted(set(VERDICTS.values())))
+        + ")_total$"
+    )
+    assert replay_pattern.pattern == expected_replay, (
+        f"replay_verdict family {replay_pattern.pattern} != template "
+        f"vocabulary {sorted(set(VERDICTS.values()))}"
+    )
+    for word in sorted(set(VERDICTS.values())):
+        assert replay_pattern.match(f"capsule_replay_verdict_{word}_total"), (
+            f"family rejects replay verdict word {word}"
         )
 
 

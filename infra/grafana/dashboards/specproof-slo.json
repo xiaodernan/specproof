@@ -2619,6 +2619,121 @@
         "refId": "A"
       }
       ]
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "Capsule Replay 成功率 (§14: >=95%)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Capsule Replay 产品化 (cli/specproof/commands/replay.py 的 --run 显式 opt-in, #183 接线): run.sh 在沙箱内执行 (mode=docker 钉死), 成功 = 沙箱跑完且 exit 0 且 stdout 解析出模板判定 regression_confirmed。三条 rate: confirmed/s、runs/s (到达沙箱的执行)、exec_errors/s (沙箱 error 非空契约)。成功率 = confirmed/runs, <95% 告警 SpecproofCapsuleReplayRateLow (warning)。verdict 词表 = create_capsule 模板四词 (REGRESSION CONFIRMED / UNEXPECTED FIX / AMBIGUOUS / COMPLIANT), 解析不出不计族 — 诚实缺席; git/依赖离线不可解是真实失败, 计入 exec_errors, 不是环境借口。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 103
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_capsule_replay_verdict_regression_confirmed_total[15m])",
+        "legendFormat": "confirmed/s",
+        "range": true,
+        "instant": false,
+        "refId": "A"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_capsule_replay_runs_total[15m])",
+        "legendFormat": "runs/s",
+        "range": true,
+        "instant": false,
+        "refId": "B"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_capsule_replay_exec_errors_total[15m])",
+        "legendFormat": "exec_errors/s",
+        "range": true,
+        "instant": false,
+        "refId": "C"
+      }
+      ]
     }
   ],
   "refresh": "30s",
