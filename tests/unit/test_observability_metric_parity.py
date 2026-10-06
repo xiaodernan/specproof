@@ -107,6 +107,19 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "whitelisted command forces this gate and the family to move "
         "together",
     ),
+    "court_outcome": (
+        re.compile(
+            r"^findings_court_"
+            r"(candidates|confirmed|needs_confirmation|not_attributed|skipped)"
+            r"_total$"
+        ),
+        "agent/nodes/review_court.py #180: findings_court_<word>_total at "
+        "the run_review_court node boundary — outcome words are the policy "
+        "layer's closed COURT_OUTCOMES plus the candidates entering word; "
+        "the vocabulary is imported from agent.nodes.review_court by the "
+        "derivation test, so a new policy outcome forces this gate and the "
+        "family to move together",
+    ),
 }
 
 
@@ -261,6 +274,24 @@ def test_concatenated_families_track_their_vocabularies() -> None:
     for stem in sorted(ALLOWED_COMMANDS):
         assert tool_pattern.match(f"tool_run_seconds_{stem}"), (
             f"family rejects whitelisted stem {stem}"
+        )
+
+    # court_outcome == the policy layer's closed outcome vocabulary plus the
+    # candidates entering word. Imported, same discipline as tool_stem: a
+    # new policy outcome forces the gate and the family to move together.
+    from agent.nodes.review_court import FINDINGS_COURT_WORDS
+
+    court_pattern, _ = CONCATENATED_FAMILIES["court_outcome"]
+    expected_court = (
+        "^findings_court_(" + "|".join(sorted(FINDINGS_COURT_WORDS)) + ")_total$"
+    )
+    assert court_pattern.pattern == expected_court, (
+        f"court_outcome family {court_pattern.pattern} != policy vocabulary "
+        f"{sorted(FINDINGS_COURT_WORDS)}"
+    )
+    for word in sorted(FINDINGS_COURT_WORDS):
+        assert court_pattern.match(f"findings_court_{word}_total"), (
+            f"family rejects court word {word}"
         )
 
 

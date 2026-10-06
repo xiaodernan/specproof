@@ -663,3 +663,66 @@ class TestNodeOrchestration:
         assert len(result["confirmed_findings"]) == 1
         assert result["confirmed_findings"][0]["status"] == "confirmed"
 
+
+
+# ── #180: the court's judgment aggregation is observable ────────────────
+
+
+def _node_state(**overrides: Any) -> dict[str, Any]:
+    state: dict[str, Any] = {
+        "static_findings": [],
+        "diff_results": [],
+        "contracts": [],
+        "generated_tests_path": "",
+        "changed_files": [],
+    }
+    state.update(overrides)
+    return state
+
+
+def _court_counter(name: str) -> int:
+    from observability.metrics import snapshot
+
+    # the registry stores bare names; render_text adds the specproof_ prefix
+    return int(snapshot()["counters"].get(name, 0))
+
+
+def test_court_outcomes_are_counted_at_the_node_boundary() -> None:
+    from agent.nodes.review_court import run_review_court
+
+    # Arm 1: base and head fail identically -> preexisting-defect rule ->
+    # not_attributed (the false-positive protection outcome).
+    before_candidates = _court_counter("findings_court_candidates_total")
+    before_not_attr = _court_counter("findings_court_not_attributed_total")
+    result = run_review_court(_node_state(diff_results=[_diff_record()]))
+    assert result["confirmed_findings"] == []
+    assert result["candidate_findings"][0]["policy_outcome"] == NOT_ATTRIBUTED_STATUS
+    assert _court_counter("findings_court_candidates_total") == before_candidates + 1
+    assert _court_counter("findings_court_not_attributed_total") == before_not_attr + 1
+
+    # Arm 2: head-only regression with real base/head exit codes -> confirmed.
+    regression = _diff_record(
+        verdict="REGRESSION",
+        severity="MAJOR",
+        base_exit_code=0,
+        head_exit_code=1,
+        base_output="Tests run: 1, Failures: 0, Errors: 0",
+        detail="Head fails, Base passes",
+    )
+    before_confirmed = _court_counter("findings_court_confirmed_total")
+    result = run_review_court(_node_state(diff_results=[regression]))
+    assert result["candidate_findings"][0]["policy_outcome"] == "confirmed"
+    assert _court_counter("findings_court_confirmed_total") == before_confirmed + 1
+
+    # Arm 3: unparsable model output never auto-confirms -> needs_confirmation.
+    before_needs = _court_counter("findings_court_needs_confirmation_total")
+    result = run_review_court(
+        _node_state(diff_results=[regression]),
+        model_produce_defense=lambda candidates, state: {
+            "defense_materials": [],
+            "parse_failed": True,
+            "error": "model returned prose",
+        },
+    )
+    assert result["candidate_findings"][0]["policy_outcome"] == "needs_confirmation"
+    assert _court_counter("findings_court_needs_confirmation_total") == before_needs + 1

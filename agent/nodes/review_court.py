@@ -27,6 +27,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from agent.review_court.policy import (
+    COURT_OUTCOMES,
     NON_BLOCKER_EVIDENCE_TYPES,
     STATIC_CONFIDENCE_CEILING,
     DefenseMaterial,
@@ -35,12 +36,20 @@ from agent.review_court.policy import (
     policy_recalculate,
 )
 from agent.state import Phase0State
+from observability.metrics import incr
 from providers.judge_persona import build_judge_prompt
 
 DefenseProducer = Callable[
     [list[dict[str, Any]], Any],
     ModelDefenseOutput | Awaitable[ModelDefenseOutput],
 ]
+
+#: §6 "BLOCKER/MAJOR Precision" (#180): the court's outcome distribution as
+#: a findings_court_<word>_total family. The word list is the policy
+#: layer's closed COURT_OUTCOMES vocabulary plus "candidates" (every
+#: finding entering the court); the parity gate imports this frozenset, so
+#: a new policy outcome forces the gate and the family to move together.
+FINDINGS_COURT_WORDS: frozenset[str] = frozenset({"candidates", *COURT_OUTCOMES})
 
 _LLM_DEFENSE_PROMPT = """You are the DEFENDER in a code review court. Your role is to produce
 defense material for each candidate finding — never the final severity.
@@ -338,6 +347,15 @@ def run_review_court(
         generated_tests_path=state.get("generated_tests_path", ""),
         changed_files=_changed_files(state),
     )
+    # §6 "BLOCKER/MAJOR Precision" (#180): the court's judgment aggregation.
+    # final_status is the policy layer's closed outcome vocabulary; every
+    # candidate — confirmed, needs_confirmation (parse failure), skipped
+    # (NON_REPRODUCIBLE bookkeeping) and not_attributed (preexisting
+    # defect) — is counted, so the confirmation rate is computable from
+    # rates alone.
+    incr("findings_court_candidates_total", float(len(candidates)))
+    for audit_entry in result["audit_entries"]:
+        incr("findings_court_" + str(audit_entry.get("final_status", "")) + "_total")
     return {
         "candidate_findings": result["candidate_findings"],
         "confirmed_findings": result["confirmed_findings"],

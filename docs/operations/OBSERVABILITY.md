@@ -105,14 +105,20 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | DEEP p50<=10min / p95<=25min | specproof_jobs_duration_seconds_deep 直方图 | 🟡 拆名与 1500s 告警已 armed (#161); 队列入口当前仅收 FAST (POST /jobs 钉 ^FAST$、MCP 同、webhook 硬编码), DEEP 走 CLI 本地执行不入队, 入队前该序列无数据 |
 | Webhook 响应 p95<=1s | specproof_webhook_github_handling_seconds 直方图 (api/server.py 中间件按路径测量, 含 4xx/5xx; 亚秒桶梯度 0.05..2.5s) | ✅ 已接线 (#162: 面板 + p95>1s 告警; 默认梯度首格 60s 对 1s 分位数无分辨率, 故用亚秒梯度) |
 | Dashboard 进度延迟<=2s | specproof_dashboard_progress_delivery_lag_seconds 直方图 (api/routes/jobs.py SSE 循环对 live 事件测写入→发出驻留; p50/p95 面板 + p95>2s 告警) | ✅ 已接线 (#164: 服务端可测段; SSE 发出→浏览器渲染属网络/前端域无观测点, 诚实边界记录于此) |
-| BLOCKER/MAJOR Precision>=90% | 无指标 (需按 Finding 判定聚合) | ❌ 未接线 (依赖应用层产出) |
+| BLOCKER/MAJOR Precision>=90% | specproof_findings_court_*_total 判定族 (Review Court 节点边界) | 🟡 判定聚合已接线 (#180: confirmed/candidates 确认率可算, needs_confirmation 转人工); 真精度需评测集 ground truth (bench_replay 离线), §14 的 90% 阈值不做告警 |
 | Capsule Replay>=95% | 无指标 | ❌ 未接线 |
 | 无证据严重评论=0 | 无指标 | ❌ 未接线 (由证据门禁保证, 不可观测) |
 | PR 归因准确率>=90% | 无指标 | ❌ 未接线 |
 
-§8.10 指标清单中未接线的: Finding Precision、
+§8.10 指标清单中未接线的:
 Redis 命中、Base/Head 沙箱失败 (sandbox/ 代码无指标注册,
-属 sandbox 子代理职责)。已收口的: 证书签发与拒绝
+属 sandbox 子代理职责)。已收口的: 法庭判定聚合
+（#180 接线, agent/nodes/review_court.py 的 run_review_court 节点边界:
+findings_court_candidates_total 计进入法庭的候选, findings_court_<outcome>_total
+计四类判定——confirmed/needs_confirmation/not_attributed/skipped, 词表 = policy 层
+封闭的 COURT_OUTCOMES, 对账门 import 钉死; 确认率 = confirmed/candidates 的 rate 比,
+是 §14 BLOCKER/MAJOR Precision>=90% 的线上前置——真精度需评测集 ground truth
+(bench_replay 离线评测), §14 阈值不做告警）、证书签发与拒绝
 （#179 接线, evidence/certificate.py: issue_certificate 的 VERIFIED 出口计
 specproof_certificates_issued_total、非 VERIFIED 出口计 specproof_certificates_refused_total
 ——判定词表 VERIFIED/BLOCKED/FAILED 封闭, refused 即 blocked+failed 之和;
@@ -148,6 +154,7 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 - `storage/elasticsearch.py`（#169 起）：`_timed_es` 包住每个 ES client 往返, 拼接族 specproof_es_request_seconds_<op>（op ∈ search / index / bulk / delete_by_query / count / ping / indices, 词表派生自 self.client.<op> 调用点, 对账门钉死; indices 合并 exists/create/delete 管理往返）。直方图梯度 0.005..30s——毫秒级 ping 到秒级 bulk(refresh) 全程有分辨率, 顶格对齐 client 的 request_timeout=30, 超时请求也落有限桶（分位数不落 +Inf）。计时含失败请求（finally 语义）: 一次超时的 search 记完时长照常抛错, 延迟序列不因故障缺样本。
 - `craft/executor.py`（#178 起）：`Executor.run` 咽喉点的 `_timed_tool` 包住每次 run_sandboxed, 拼接族 specproof_tool_run_seconds_<stem>（stem ∈ ALLOWED_COMMANDS 白名单 mvn/gradle/npm/pytest/python/cargo, 对账门 import 该常量钉死; CRAFT_EXTRA_COMMANDS 运行时扩展的词干同样进族, 面板用通配 selector 覆盖）。直方图梯度 0.5..3600s——亚秒往返到 10 分钟默认超时全程有分辨率, 顶格对齐工具 API 的 timeout 上限 (Param max_value=3600), 超时执行也落有限桶（分位数不落 +Inf）。计时含失败执行（finally 语义）。超时另计 specproof_tool_timeouts_total: 判据是两类沙箱超时文案的公共子串 "timed out after", spawn 错误等其他沙箱失败不冒充超时。
 - `evidence/certificate.py`（#179 起）：`issue_certificate` 的 VERIFIED 出口 incr specproof_certificates_issued_total、非 VERIFIED 出口 incr specproof_certificates_refused_total（refused 即 BLOCKED+FAILED 之和, 判定词表封闭）；`build_rejection_notice` incr specproof_rejection_notices_total——实际写出拒绝单的计数, 与「判定未过」语义分开（调用者可拒绝而不写单）。签发率 = issued 与 refused 两条 rate 的比值, §14 无证书阈值故无告警。
+- `agent/nodes/review_court.py`（#180 起）：`run_review_court` 节点边界的判定聚合——findings_court_candidates_total（进入法庭的候选数）与 findings_court_<outcome>_total 四词族（confirmed / needs_confirmation / not_attributed / skipped, 词表 = policy 层封闭的 COURT_OUTCOMES, 对账门 import 该常量钉死）。确认率 = confirmed 与 candidates 两条 rate 的比值, 是 §14 BLOCKER/MAJOR Precision 的线上前置; 真精度需评测集 ground truth（bench_replay 离线）, §14 阈值故无告警。
 - `storage/notify_relay.py`（#16.6-1，`SPECPROOF_NOTIFY_OUTBOX=1` 时的 webhook 投递车道）：仪表 specproof_notify_outbox_pending、specproof_notify_outbox_oldest_age_seconds、specproof_notify_outbox_retry_count、specproof_notify_outbox_dead_letters、specproof_notify_outbox_last_success_ts；计数 specproof_notify_outbox_delivered_total、specproof_notify_outbox_failed_total、specproof_notify_outbox_dead_lettered_total。入车道侧（K 收口后）由 `storage/mysql.py::transition_job_status_with_notify` 在终态写同事务内上报：specproof_notify_outbox_enqueued_total（意图入库成功）与 specproof_notify_outbox_intent_lost_total（意图入库失败——终态照常落库，通知降级为丢，绝不回滚终态）。
 
 另有一类**第三方指标**不在本对账内：`rabbitmq_*`（RabbitMQ 自带插件 rabbitmq_prometheus 的输出，#165 起 prometheus.yml 的 rabbitmq 抓取任务经 /metrics/per-object 供给；队列级深度 rabbitmq_queue_messages / _ready / _unacked 带 vhost/queue label）。对账门的 specproof_* regex 天然扫不到它们——第三方名的真伪只能靠抓取目标 up 与实际查询验证（#165 已实测 15692 存活、per-queue 序列与 rabbitmqctl 对数一致）。

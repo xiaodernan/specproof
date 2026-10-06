@@ -2276,6 +2276,144 @@
           "instant": false,
           "refId": "C"
         }
+      ]    },
+    {
+      "id": 26,
+      "type": "timeseries",
+      "title": "Review Court 判定分布 (§14.1: Precision 前置)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Review Court 的判定聚合 (agent/nodes/review_court.py, #180 接线): findings_court_candidates_total 计进入法庭的候选, 四类判定的 rate——confirmed (确认)、needs_confirmation (模型输出解析失败, 转人工确认)、not_attributed (既有缺陷, 归因保护)、skipped (NON_REPRODUCIBLE 记账)。确认率 = confirmed 与 candidates 两条 rate 的比值, 是 §14 BLOCKER/MAJOR Precision>=90% 的线上前置——真精度需评测集 ground truth (bench_replay 离线评测), 法庭计数是可测的代理信号, §14 阈值故不做告警。词表封闭 (policy 层 COURT_OUTCOMES), 对账门 import 钉死。无 court 运行前无序列, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 87
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_findings_court_candidates_total[15m])",
+        "legendFormat": "candidates/s",
+        "range": true,
+        "instant": false,
+        "refId": "A"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_findings_court_confirmed_total[15m])",
+        "legendFormat": "confirmed/s",
+        "range": true,
+        "instant": false,
+        "refId": "B"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_findings_court_needs_confirmation_total[15m])",
+        "legendFormat": "needs-confirmation/s",
+        "range": true,
+        "instant": false,
+        "refId": "C"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_findings_court_not_attributed_total[15m])",
+        "legendFormat": "not-attributed/s",
+        "range": true,
+        "instant": false,
+        "refId": "D"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "editorMode": "code",
+        "expr": "rate(specproof_findings_court_skipped_total[15m])",
+        "legendFormat": "skipped/s",
+        "range": true,
+        "instant": false,
+        "refId": "E"
+      }
       ]
     }
   ],

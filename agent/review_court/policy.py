@@ -54,6 +54,21 @@ NOT_ATTRIBUTED_STATUS = "not_attributed"
 NOT_ATTRIBUTED_SEVERITY = "INFORMATIONAL"
 NOT_ATTRIBUTED_CONFIDENCE_CEILING = 0.5
 
+COURT_OUTCOME_CONFIRMED = "confirmed"
+COURT_OUTCOME_NEEDS_CONFIRMATION = "needs_confirmation"
+COURT_OUTCOME_SKIPPED = "skipped"
+
+# §6 "BLOCKER/MAJOR Precision" (#180): the court's closed outcome
+# vocabulary. policy_recalculate assigns exactly one of these per candidate
+# (audit final_status); the findings_court_* metric family and its parity
+# gate word list derive from this frozenset, never a hand copy.
+COURT_OUTCOMES = frozenset({
+    COURT_OUTCOME_CONFIRMED,
+    COURT_OUTCOME_NEEDS_CONFIRMATION,
+    COURT_OUTCOME_SKIPPED,
+    NOT_ATTRIBUTED_STATUS,
+})
+
 POLICY_VERSION = "review-court-policy-v2"
 
 # ── Model layer contract ────────────────────────────────────────────────
@@ -430,7 +445,7 @@ def policy_recalculate(
             digest = _evidence_digest(cf_id, evidence_type, severity, confidence)
             outcome = {
                 **cf,
-                "status": "needs_confirmation",
+                "status": COURT_OUTCOME_NEEDS_CONFIRMATION,
                 "severity": severity,
                 "confidence": confidence,
                 "defense_reasoning": (
@@ -444,10 +459,10 @@ def policy_recalculate(
             finalized_candidates.append({
                 **outcome,
                 "status": "candidate",
-                "policy_outcome": "needs_confirmation",
+                "policy_outcome": COURT_OUTCOME_NEEDS_CONFIRMATION,
             })
             audit.update({
-                "final_status": "needs_confirmation",
+                "final_status": COURT_OUTCOME_NEEDS_CONFIRMATION,
                 "final_severity": severity,
                 "final_confidence": confidence,
                 "court_source": "model_defense_policy",
@@ -462,10 +477,10 @@ def policy_recalculate(
         if cf.get("diff_verdict") == "NON_REPRODUCIBLE":
             finalized_candidates.append({
                 **cf,
-                "policy_outcome": "skipped",
+                "policy_outcome": COURT_OUTCOME_SKIPPED,
             })
             audit.update({
-                "final_status": "skipped",
+                "final_status": COURT_OUTCOME_SKIPPED,
                 "final_severity": candidate_severity,
                 "final_confidence": candidate_confidence,
                 "court_source": "",
@@ -534,7 +549,7 @@ def policy_recalculate(
         court_source = cf.get("court_source", "rule_based")
         outcome = {
             **cf,
-            "status": "confirmed",
+            "status": COURT_OUTCOME_CONFIRMED,
             "severity": severity,
             "confidence": confidence,
             "court_source": court_source,
@@ -549,10 +564,10 @@ def policy_recalculate(
         finalized_candidates.append({
             **outcome,
             "status": "candidate",
-            "policy_outcome": "confirmed",
+            "policy_outcome": COURT_OUTCOME_CONFIRMED,
         })
         audit.update({
-            "final_status": "confirmed",
+            "final_status": COURT_OUTCOME_CONFIRMED,
             "final_severity": severity,
             "final_confidence": confidence,
             "court_source": court_source,
