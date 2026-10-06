@@ -17,11 +17,15 @@ from __future__ import annotations
 import os
 import re
 import sys
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import defusedxml.ElementTree as SafeET
 
+from observability.metrics import incr, observe_duration
 from sandbox.runner import (
     ISOLATION_PLANES,
     MAVEN_PROFILE,
@@ -38,6 +42,36 @@ ALLOWED_COMMANDS: frozenset[str] = frozenset({"mvn", "gradle", "npm", "pytest", 
 OUTPUT_TAIL_CHARS = 4000
 STACK_LINE_LIMIT = 5
 DEFAULT_TIMEOUT = 600
+
+#: §8.10 "Tool Timeout" (#178): ladder for whitelisted tool executions. A
+#: pytest/mvn run is minutes-scale (DEFAULT_TIMEOUT 600) while a git status
+#: is sub-second; the top bucket 3600s matches the tool API's own timeout
+#: cap (Param max_value=3600) so a timed-out run still lands in a finite
+#: bucket (never +Inf, where quantiles return NaN).
+_TOOL_BUCKETS: tuple[float, ...] = (
+    0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0,
+    120.0, 300.0, 600.0, 1200.0, 1800.0, 3600.0,
+)
+
+
+@contextmanager
+def _timed_tool(stem: str) -> Iterator[None]:
+    """Time one whitelisted tool execution into tool_run_seconds_<stem> (#178).
+
+    The stem word is appended to the metric name (concatenated family, same
+    shape as the worker stage / ES op families): the whitelist vocabulary
+    mvn / gradle / npm / pytest / python / cargo (CRAFT_EXTRA_COMMANDS may
+    extend it at runtime). First use pins the ladder. finally semantics: a
+    run that dies inside the sandbox still records its wall time.
+    """
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        observe_duration(
+            "tool_run_seconds_" + stem, time.perf_counter() - started,
+            _TOOL_BUCKETS,
+        )
 
 #: Which container toolchain a whitelisted command stem needs. Before this
 #: table craft commands reached ``run_sandboxed`` with no ``profile=``, whose
@@ -233,13 +267,20 @@ class Executor:
                 f" —— 既不塞进 {MAVEN_PROFILE.name} 镜像跑错工具链，也不落到宿主；"
                 f"缺镜像的词干: {sorted(stems_without_profile())}"
             )
-        result: SandboxResult = run_sandboxed(
-            command=resolved,
-            workspace=str(self.workspace),
-            timeout=timeout if timeout is not None else self.timeout,
-            mode=self.mode,
-            profile=profile,
-        )
+        with _timed_tool(stem):
+            result: SandboxResult = run_sandboxed(
+                command=resolved,
+                workspace=str(self.workspace),
+                timeout=timeout if timeout is not None else self.timeout,
+                mode=self.mode,
+                profile=profile,
+            )
+        if "timed out after" in (result.error or ""):
+            # #178: the two sandbox modes phrase their timeout with this
+            # shared substring (docker: "sandbox execution timed out after
+            # {t}s", local: "execution timed out after {t}s") — spawn errors
+            # and other sandbox failures must not count as timeouts.
+            incr("tool_timeouts_total")
         combined = f"{result.stdout}\n{result.stderr}".rstrip()
         if not combined and result.error:
             # Sandbox-level failures (spawn errors, timeouts) must never

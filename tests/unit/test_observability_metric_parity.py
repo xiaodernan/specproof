@@ -32,10 +32,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 
 #: Trees scanned for emission sites (mirrors OBSERVABILITY.md's method note).
-#: providers/ joined in #168: the LLM token/charge meters live in
-#: providers/budget.py (TokenBudget.record), the same choke point the
-#: billing listener reads.
-EMIT_DIRS = ("agent", "api", "storage", "observability", "providers")
+#: providers/ joined in #168 (LLM token/charge meters in
+#: providers/budget.py, the same choke point the billing listener reads);
+#: craft/ joined in #178 (the tool-execution meters live in
+#: craft/executor.py's Executor.run choke point).
+EMIT_DIRS = ("agent", "api", "craft", "storage", "observability", "providers")
 
 #: Reference surfaces: the two Prometheus files (plain text — comments are
 #: prose but a comment naming a dead metric misleads the same way) and every
@@ -95,6 +96,14 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "the Elasticsearch client methods the store calls; the vocabulary "
         "is derived from the self.client.<op> call sites by the derivation "
         "test, so a new ES op forces this gate and the family to move "
+        "together",
+    ),
+    "tool_stem": (
+        re.compile(r"^tool_run_seconds_(cargo|gradle|mvn|npm|pytest|python)$"),
+        "craft/executor.py #178: _timed_tool(<stem>) inside Executor.run — "
+        "stem words are the ALLOWED_COMMANDS whitelist; the vocabulary is "
+        "imported from craft.executor by the derivation test, so a new "
+        "whitelisted command forces this gate and the family to move "
         "together",
     ),
 }
@@ -233,6 +242,26 @@ def test_concatenated_families_track_their_vocabularies() -> None:
             f"family rejects shipped es op {op}"
         )
 
+    # tool_stem == the executor's command whitelist. Imported, not AST-read:
+    # craft.executor is import-safe (its tests import it too) and importing
+    # the constant keeps the family pinned to what the product ships —
+    # CRAFT_EXTRA_COMMANDS may extend the whitelist at runtime, those runs
+    # still emit into the family (the name is built by concatenation and the
+    # dashboard selects with a wildcard), but the gate covers the shipped
+    # vocabulary only.
+    from craft.executor import ALLOWED_COMMANDS
+
+    tool_pattern, _ = CONCATENATED_FAMILIES["tool_stem"]
+    expected_tool = "^tool_run_seconds_(" + "|".join(sorted(ALLOWED_COMMANDS)) + ")$"
+    assert tool_pattern.pattern == expected_tool, (
+        f"tool_stem family {tool_pattern.pattern} != whitelist "
+        f"{sorted(ALLOWED_COMMANDS)}"
+    )
+    for stem in sorted(ALLOWED_COMMANDS):
+        assert tool_pattern.match(f"tool_run_seconds_{stem}"), (
+            f"family rejects whitelisted stem {stem}"
+        )
+
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:
     """The #165 broker-side alerts consume rabbitmq_* series that only the
@@ -335,3 +364,22 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
         assert expected_es_selector in expr, expr
     assert any("histogram_quantile(0.95" in expr for expr in es_exprs)
     assert any("histogram_quantile(0.50" in expr for expr in es_exprs)
+
+    # Same drift shape for the tool-execution panel (#178): the stem family
+    # is concatenated at runtime, the panel's reference is a __name__ regex
+    # the gate drops as a placeholder, so the exact selector and both
+    # quantiles are pinned at text level.
+    tool_exprs = [
+        target["expr"]
+        for panel in dashboard["panels"]
+        for target in panel.get("targets", [])
+        if "tool_run_seconds_" in target.get("expr", "")
+    ]
+    assert len(tool_exprs) == 2, f"expected p50+p95 tool exprs, got {tool_exprs}"
+    expected_tool_selector = (
+        '__name__=~"specproof_tool_run_seconds_[a-z0-9_]+_bucket"'
+    )
+    for expr in tool_exprs:
+        assert expected_tool_selector in expr, expr
+    assert any("histogram_quantile(0.95" in expr for expr in tool_exprs)
+    assert any("histogram_quantile(0.50" in expr for expr in tool_exprs)

@@ -2059,6 +2059,109 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "工具执行时长 (§8.10: per-stem p50/p95)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "白名单工具每次执行的耗时直方图族 tool_run_seconds_<stem> (craft/executor.py 的 Executor.run 咽喉点: _timed_tool 包住每次 run_sandboxed, stem 词表=ALLOWED_COMMANDS 白名单由对账门 import 钉死, CRAFT_EXTRA_COMMANDS 运行时扩展同样进族, #178 接线)。按 __name__ 分组取 per-stem p50/p95 — 图例即指标名, 后缀去 tool_run_seconds_ 前缀即词干 (mvn/gradle/npm/pytest/python/cargo)。梯度 0.5..3600s: 亚秒往返到分钟级 pytest/mvn 全程有分辨率, 顶格 3600s 对齐工具 API 的 timeout 上限 (Param max_value=3600), 超时执行也落有限桶, 分位数不落 +Inf。超时另由 specproof_tool_timeouts_total 计数。无工具执行前无序列, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 79
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (__name__, le) (rate({__name__=~\"specproof_tool_run_seconds_[a-z0-9_]+_bucket\"}[15m])))",
+          "legendFormat": "{{__name__}} p95",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (__name__, le) (rate({__name__=~\"specproof_tool_run_seconds_[a-z0-9_]+_bucket\"}[15m])))",
+          "legendFormat": "{{__name__}} p50",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
     }
   ],
   "refresh": "30s",

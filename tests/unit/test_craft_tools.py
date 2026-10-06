@@ -598,3 +598,64 @@ def test_loop_without_registry_keeps_legacy_editor_surface(tmp_path: Path) -> No
     prompt = provider.calls[0][0].content
     assert "可用编辑工具" in prompt  # legacy _EDITOR_API_BLOCK
     assert "TOOL REGISTRY ENVELOPE" not in prompt
+
+
+
+def test_executor_run_times_each_whitelisted_execution(tmp_path):
+    """§8.10 "Tool Timeout" (#178): Executor.run — the choke point every
+    run_* tool goes through — observes each execution into the
+    tool_run_seconds_<stem> family, pinned to the 0.5..3600s ladder whose
+    top bucket matches the tool API's timeout cap (a timed-out run lands
+    in a finite bucket, never +Inf where quantiles return NaN)."""
+    from craft.executor import _TOOL_BUCKETS
+    from observability import metrics as metrics_module
+
+    executor = Executor(tmp_path, mode="local")
+    before = metrics_module.snapshot()
+    result = executor.run(["python", "-c", "pass"])
+    assert result.exit_code == 0
+
+    hist = metrics_module.snapshot()["histograms"]["tool_run_seconds_python"]
+    before_count = before["histograms"].get(
+        "tool_run_seconds_python", {}
+    ).get("count", 0.0)
+    assert hist["bounds"] == list(_TOOL_BUCKETS)
+    assert hist["count"] - before_count == 1
+
+
+def test_executor_counts_sandbox_timeouts_but_not_spawn_errors(monkeypatch, tmp_path):
+    """A sandbox-level timeout — both sandbox modes phrase it
+    "...timed out after {t}s" — increments tool_timeouts_total: a dead run
+    is observable, not silent. Spawn errors and other sandbox failures do
+    not masquerade as timeouts."""
+    from craft import executor as executor_module
+    from craft.executor import Executor
+    from observability import metrics as metrics_module
+    from sandbox.runner import SandboxResult
+
+    def fake_timed_out(**kwargs):
+        return SandboxResult(
+            exit_code=124, stdout="", stderr="",
+            error="execution timed out after 5s", mode="local",
+        )
+
+    monkeypatch.setattr(executor_module, "run_sandboxed", fake_timed_out)
+    executor = Executor(tmp_path, mode="local")
+    before = metrics_module.snapshot()["counters"].get("tool_timeouts_total", 0.0)
+    result = executor.run(["python", "-c", "pass"])
+    assert "timed out after" in result.error
+    after = metrics_module.snapshot()["counters"].get("tool_timeouts_total", 0.0)
+    assert after - before == 1
+
+    def fake_spawn_error(**kwargs):
+        return SandboxResult(
+            exit_code=None, stdout="", stderr="",
+            error="docker daemon unreachable", mode="docker",
+        )
+
+    monkeypatch.setattr(executor_module, "run_sandboxed", fake_spawn_error)
+    before = after
+    result = executor.run(["python", "-c", "pass"])
+    assert "timed out after" not in result.error
+    after = metrics_module.snapshot()["counters"].get("tool_timeouts_total", 0.0)
+    assert after - before == 0
