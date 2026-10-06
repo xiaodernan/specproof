@@ -3568,6 +3568,205 @@
           "refId": "H"
         }
       ]
+    },
+    {
+      "id": 36,
+      "type": "timeseries",
+      "title": "工作区准备 (§14.1: base/head worktree)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "prepare_base / prepare_head 两个节点边界的执行计数 (agent/nodes/prepare_base.py + agent/nodes/prepare_head.py #193): runs/s 计每次调用; outcomes_<word>/s 按四种结局分列——prepared（worktree 已创建并交给图）、safety_failed（共享仓库安检拒绝，作业载荷/仓库状态层；警告披露见 #130）、checkout_failed（安检放行后 git worktree add 非零退出，git 层）、prepare_error（git 调用本身抛异常，基础设施层）。三种失败都返回「空 workspace + errors 追加一条」的同一形状，返回值本身分不出是谁拒绝的，只有 outcomes_<word> 能按层归因（#193 行为测试逐词钉住；两节点词表共享，parity 门断言两者相等）。注意 base 失败不短路 head——图里两段都是无条件边，各自计数，随后在 prepare_head 之后的错误守卫收口。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 127
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_base_runs_total[15m])",
+          "legendFormat": "base runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_base_outcomes_prepared_total[15m])",
+          "legendFormat": "base prepared/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_base_outcomes_safety_failed_total[15m])",
+          "legendFormat": "base safety_failed/s",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_base_outcomes_checkout_failed_total[15m])",
+          "legendFormat": "base checkout_failed/s",
+          "range": true,
+          "instant": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_base_outcomes_prepare_error_total[15m])",
+          "legendFormat": "base prepare_error/s",
+          "range": true,
+          "instant": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_head_runs_total[15m])",
+          "legendFormat": "head runs/s",
+          "range": true,
+          "instant": false,
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_head_outcomes_prepared_total[15m])",
+          "legendFormat": "head prepared/s",
+          "range": true,
+          "instant": false,
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_head_outcomes_safety_failed_total[15m])",
+          "legendFormat": "head safety_failed/s",
+          "range": true,
+          "instant": false,
+          "refId": "H"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_head_outcomes_checkout_failed_total[15m])",
+          "legendFormat": "head checkout_failed/s",
+          "range": true,
+          "instant": false,
+          "refId": "I"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_prepare_head_outcomes_prepare_error_total[15m])",
+          "legendFormat": "head prepare_error/s",
+          "range": true,
+          "instant": false,
+          "refId": "J"
+        }
+      ]
     }
   ],
   "refresh": "30s",

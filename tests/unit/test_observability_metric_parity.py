@@ -223,6 +223,40 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "agent.nodes.compile_contracts (COMPILE_OUTCOMES) by the derivation "
         "test, so a new word forces this gate and the family to move together",
     ),
+    "prepare_base": (
+        re.compile(
+            r"^prepare_base_(outcomes_"
+            r"(checkout_failed|prepare_error|prepared|safety_failed)|runs)"
+            r"_total$"
+        ),
+        "agent/nodes/prepare_base.py #193: prepare_base_runs_total + "
+        "prepare_base_outcomes_<word>_total at the prepare_base node "
+        "boundary — runs counts every invocation; the outcome word names "
+        "who ended the attempt: the shared repo safety check refused, git "
+        "worktree add exited non-zero, the git invocation raised, or the "
+        "worktree was prepared and handed to the graph. Every failure "
+        "returns an empty workspace plus one appended error, so the word "
+        "is the only machine-readable record of which layer refused. The "
+        "vocabulary is imported from agent.nodes.prepare_base "
+        "(PREPARE_OUTCOMES) by the derivation test, which also asserts it "
+        "equals the twin node's declaration, so a new word moves both "
+        "nodes and both families together",
+    ),
+    "prepare_head": (
+        re.compile(
+            r"^prepare_head_(outcomes_"
+            r"(checkout_failed|prepare_error|prepared|safety_failed)|runs)"
+            r"_total$"
+        ),
+        "agent/nodes/prepare_head.py #193: the twin of prepare_base — one "
+        "job mounts two worktrees (base and head), so the same four-word "
+        "PREPARE_OUTCOMES vocabulary is emitted per node and the operator "
+        "can see which half failed; the fates mirror the base node's "
+        "(safety_failed = the same shared check refused; "
+        "checkout_failed/prepare_error = the same git-level fates). The "
+        "vocabulary is imported from agent.nodes.prepare_head by the "
+        "derivation test and asserted equal to the twin's declaration",
+    ),
 }
 
 
@@ -479,6 +513,35 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         assert compile_pattern.match(f"compile_contracts_outcomes_{word}_total"), (
             f"family rejects compile outcome {word}"
         )
+
+    # prepare_base == the prepare nodes' closed PREPARE_OUTCOMES vocabulary,
+    # imported from both twin declarations (same discipline as preflight).
+    # The two nodes are verbatim twins, so the derivation also asserts the
+    # declarations are word-for-word equal: an accidental one-copy edit
+    # fails here, and a deliberate divergence must move this gate AND both
+    # families, never just one node.
+    from agent.nodes.prepare_base import PREPARE_OUTCOMES as BASE_PREPARE_OUTCOMES
+    from agent.nodes.prepare_head import PREPARE_OUTCOMES as HEAD_PREPARE_OUTCOMES
+
+    assert BASE_PREPARE_OUTCOMES == HEAD_PREPARE_OUTCOMES, (
+        "twin prepare vocabularies drifted: "
+        f"{sorted(BASE_PREPARE_OUTCOMES)} != {sorted(HEAD_PREPARE_OUTCOMES)}"
+    )
+    for node_name in ("prepare_base", "prepare_head"):
+        prepare_pattern, _ = CONCATENATED_FAMILIES[node_name]
+        expected_prepare = (
+            f"^{node_name}_(outcomes_("
+            + "|".join(sorted(BASE_PREPARE_OUTCOMES))
+            + ")|runs)_total$"
+        )
+        assert prepare_pattern.pattern == expected_prepare, (
+            f"{node_name} family {prepare_pattern.pattern} != node "
+            f"vocabulary {sorted(BASE_PREPARE_OUTCOMES)}"
+        )
+        for word in sorted(BASE_PREPARE_OUTCOMES):
+            assert prepare_pattern.match(f"{node_name}_outcomes_{word}_total"), (
+                f"family rejects {node_name} outcome {word}"
+            )
 
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:

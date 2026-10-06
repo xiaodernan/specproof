@@ -2824,3 +2824,30 @@ compile_contracts（需求→契约的编译节点）此前零观测面，而它
 
 - 新增名 8 个（runs + 七词）；面板 34→35；OBSERVABILITY 清单 19 个文件。
 - 下一号候选：11 个尚无计数的 agent 节点之 prepare_base / prepare_head / collect_diff / retrieve_repository_context / run_static_checks / generate_counterexamples / run_deep_experiments / build_matrix / create_capsule / run_release_checks；或承接（评测集 preexisting 探针 / findings 召回层 MISS 排查 / preflight disabled·probe_error 的「环境未验证」进作业记录）。
+
+
+### #193 工作区准备双子节点执行计数——prepared / safety_failed / checkout_failed / prepare_error 按层归因（已落地）
+
+**背景**
+
+prepare_base 与 prepare_head 是一对逐字孪生节点（同一结构，只差 ref 与状态键），此前零观测面；一次作业挂两个 worktree，哪一半失败只能翻日志。三条失败路径都返回同一形状——空 workspace + errors 追加一条——返回值本身分不出是谁拒绝的：共享仓库安检（作业载荷/仓库状态层）、git worktree add 非零退出（git 层）、git 调用抛异常（基础设施层）。三者对运维是三种事件。
+
+**实现**
+
+- 两个节点文件各自声明同一份四词封闭词表 PREPARE_OUTCOMES（prepared / safety_failed / checkout_failed / prepare_error；保持 #190/#192「词表在节点自身文件」的先例），每分支恰一次 incr（runs 在函数入口，outcome 在各自 return 前）。
+- 对账门两条新家族 prepare_base / prepare_head；推导块 import 两份声明并**实测断言逐词相等**（twin 收敛门：只改一份副本会被点名，有意分家必须同时动门与两个家族）。
+- 仪表盘 panel 36「工作区准备 (§14.1: base/head worktree)」：两节点各 runs + 四词，共 10 条 rate target；description 含「base 失败不短路 head（图里两段都是无条件边，错误守卫在 prepare_head 之后）」。
+- OBSERVABILITY.md 两条目（#193 起）+ 头计数 19→21（双生词表共享同一概念，仍按文件各计一次）。
+- 行为测试 tests/unit/test_prepare_nodes_execution_is_observable.py（9 例 = 四结局 × 两节点参数化 + 1 漂移门）：seam 全桩在节点模块自身导入名（check_repo_safety / write_worktree_marker / subprocess / tempfile）；prepared 例钉全 argv（末位 = 本节点自己的 ref 键值，交叉接线会掉回另一枚默认值）与 marker 先注册；safety_failed 例见证 marker 与 git 两个记录器全空（拒绝不许登记 claim、不许碰 git）且空目录被丢弃；checkout_failed / prepare_error 例钉错误词与 workspace 丢弃。
+
+**门证（HEAD 4453002 + 本弧）**
+
+- 定向 pytest **13 passed** = 新 9 + parity 4（17.02s）；回归面（prepare 节点消费者：test_repo_safety、unarmed-containment 披露测试、test_checkpoint_recovery）**66 passed**（126.99s）。
+- ruff 四文件 All checks passed；mypy 仓级门 `mypy .` **0 issue / 222 源文件**；仪表盘 JSON 可解析（36 panels，panel 36 十条 target 逐条核过）；OBSERVABILITY 重数脚本实测 22 bullets / 21 distinct / 头部写 21。
+- 变异臂 4 条（预测先写，junit 读红）：对照 **13/13 绿**（臂前后各一次）；A1 base 节点把成功词去重成 safety_failed（发射点）⇒ 恰 2 红（prepared[base] + 漂移门）；A2 head 节点删 safety_failed 发射行 ⇒ 恰 2 红（safety[head] + 漂移门；**引用面 parity 测试按预测保持绿**——家族与声明均未动）；A3 head 节点只改声明词 checkout_failed→checkout_denied（发射不动）⇒ 恰 3 红（checkout[head]——delta 表键随声明移动——+ 漂移门的 twin 收敛断言 + parity 推导）；A4 纯换 docstring 散文 ⇒ **SURVIVED 按预测 0 红**（散文无见证）。**3/3 击杀臂 MATCHED + 1 预测存活**，两节点文件臂后 sha256 与臂前逐字节一致（4fe8b0f7… / bddfecb2…）。
+- ⚠️ 本弧付费的坑：桩记录器形参——`subprocess.run([...])` 的首参是 list，记录条目是 `((argv,), kwargs)`，解包写成 `(argv, _kwargs), = calls` 会把「含 list 的元组」当 argv 与字符串列表比，两例假红；改成 `(positional, _kwargs), = calls; (argv,) = positional`（落地前由定向门抓到，未进任何臂）。
+
+**读数**
+
+- 新增名 10 个（2 runs + 8 结局）；面板 35→36；OBSERVABILITY 清单 21 个文件。
+- 剩余 8 个无计数节点：collect_diff、retrieve_repository_context、run_static_checks、generate_counterexamples、run_deep_experiments、build_matrix、create_capsule、run_release_checks。
