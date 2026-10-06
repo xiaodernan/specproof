@@ -30,6 +30,7 @@ import ast
 import re
 from pathlib import Path
 
+from storage.agent_jobs import JOB_STATUSES as AGENT_JOB_STATUSES
 from storage.mysql import _VALID_TRANSITIONS, ALL_STATUSES, TERMINAL_STATUSES
 
 REPO = Path(__file__).resolve().parents[2]
@@ -288,3 +289,92 @@ def test_job_detail_progress_bar_set_covers_in_flight_states() -> None:
         "FAILED is no longer the retryable-without-progress exception; "
         "update this clause to say what replaced it"
     )
+
+# —— #179: agent_jobs has its OWN lifecycle, NOT derived from the verification
+# state machine. This is the boundary pin: the Literal in agent_jobs.py IS the
+# source of truth for agent jobs; it must NOT be rewritten from ALL_STATUSES,
+# and the two machines must not be confused.
+AGENT_STATUSES = tuple(AGENT_JOB_STATUSES)
+AGENT_TERMINAL = ("succeeded", "failed", "cancelled")
+
+
+def test_agent_jobs_statuses_are_an_independent_machine_not_derived() -> None:
+    """agent_jobs lifecycle (5 states) is a SEPARATE state machine from the
+    verification jobs (10 states). The Literal in storage/agent_jobs.py IS the
+    authority for agent jobs. It must NOT be rewritten from ALL_STATUSES.
+
+    Evidence:
+    - storage/agent_jobs.py:67 declares JobStatus = Literal["pending",
+      "running", "succeeded", "failed", "cancelled"] -- this IS the vocabulary.
+    - The SQL in that module uses these exact lowercase words in static
+      statements (_UPDATE_STATUS_NONTERMINAL_SQL, _UPDATE_STATUS_TERMINAL_SQL,
+      _ATTACH_ACCEPT_SQL) -- they are NOT parameters but literal IN-lists.
+    - If someone derives a list from ALL_STATUSES here, the gate fails with the
+      exact reason: two different domains, two different vocabularies.
+    """
+    # Agent machine is exactly these 5 words (lowercase)
+    assert AGENT_STATUSES == ("pending", "running", "succeeded", "failed", "cancelled")
+    assert AGENT_TERMINAL == ("succeeded", "failed", "cancelled")
+
+    # NONE of the agent words (lowercase) appear in the verification machine
+    # (which is all UPPERCASE). A lowercase word in the verification machine
+    # would be a category error.
+    for w in AGENT_STATUSES:
+        assert w not in ALL_STATUSES, (
+            f"agent word {w!r} leaked into verification machine -- "
+            "two domains must stay separate"
+        )
+    # Conversely, no verification word (UPPERCASE) is in the agent Literal.
+    for w in ALL_STATUSES:
+        assert w not in AGENT_STATUSES, (
+            f"verification word {w!r} leaked into agent Literal -- "
+            "two domains must stay separate"
+        )
+
+
+def test_agent_sql_uses_the_literal_words_and_nothing_else() -> None:
+    """The static SQL in storage/agent_jobs.py IN-lists must match the
+    Literal exactly. If the Literal grows, the SQL must grow with it (manual
+    edit, not derivation). This guards the #110/FIX-18 "no second copy" rule
+    inside the agent_jobs module itself.
+    """
+    import re
+
+    import storage.agent_jobs as mod
+
+    sqls = [
+        mod._UPDATE_STATUS_NONTERMINAL_SQL,
+        mod._UPDATE_STATUS_TERMINAL_SQL,
+        mod._ATTACH_ACCEPT_SQL,
+    ]
+    for sql in sqls:
+        # Extract words from IN ('word1', 'word2', ...)
+        found = re.findall(r"IN \(([^)]*)\)", sql)
+        assert found, f"no IN-list in {sql[:80]}"
+        words = [w.strip().strip("'") for w in found[0].split(",")]
+        # Every word must be in the Literal
+        for w in words:
+            assert w in AGENT_STATUSES, f"{w!r} in SQL but not in Literal"
+    # Specifically: TERMINAL SQL must contain exactly the three terminal words
+    terminal_words = re.findall(r"IN \(([^)]*)\)", mod._UPDATE_STATUS_TERMINAL_SQL)[0]
+    terminal_words = [w.strip().strip("'") for w in terminal_words.split(",")]
+    assert set(terminal_words) == set(AGENT_TERMINAL), (
+        f"_UPDATE_STATUS_TERMINAL_SQL IN-list {terminal_words} "
+        f"must match Literal terminal {AGENT_TERMINAL}"
+    )
+
+
+def test_agent_jobs_has_no_verdict_channel_confusion() -> None:
+    """The evidence/verdict_channels.py registers a 'job_status' channel
+    sourced from _VALID_TRANSITIONS (verification machine). That channel is
+    ONLY for verification jobs. It must NOT be imported or used by agent_jobs.
+    """
+    import storage.agent_jobs as mod
+    source = Path(mod.__file__).read_text(encoding="utf-8")
+    assert "verdict_channels" not in source, (
+        "agent_jobs must not import verdict_channels -- wrong state machine"
+    )
+    assert "job_status" not in source.lower().replace("_", " "), (
+        "agent_jobs must not reference 'job_status' channel"
+    )
+
