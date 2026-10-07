@@ -18,10 +18,9 @@ from ops.drills import (
     DrillTargetError,
     crash_window_publish,
     honest_degradation_report,
+    notify_intent_counts,
     outbox_event_id,
     resume_job,
-    notify_intent_counts,
-    notify_intent_rows,
     side_effect_counts,
     terminal_transitions,
     wait_for_checkpoint_count,
@@ -565,10 +564,10 @@ class TestNotifyIntentCounts:
                     return [r for r in outer._rows if r.get("job_id") == job_id]
 
             class _Conn:
-                def cursor(self) -> "_Cursor":
+                def cursor(self) -> _Cursor:
                     return _Cursor()
 
-                def __enter__(self) -> "_Conn":
+                def __enter__(self) -> _Conn:
                     return self
 
                 def __exit__(self, *exc_info: Any) -> None:
