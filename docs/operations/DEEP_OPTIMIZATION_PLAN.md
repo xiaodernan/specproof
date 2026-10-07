@@ -3647,3 +3647,67 @@ version_mismatch 而实测 tool_version_mismatch）；修三处（测试、parit
 **不会拦**（它扫的是 `_error(` 调用点，不是状态字面量），这是已知口径。② 本族只覆盖 craft 内建工具；
 外部 mcp.* 透传不计数（上已写明）。③ 面板 46 与 parity 钉的是名字与词表，不证明任何比值接近 §14 阈值
 （§14 就没有工具错误率阈值这一项）。
+## #210 provider 边界的 LLM 请求不可观测：直连 provider.chat 的调用没有请求数、错误数与延迟，三兄弟补齐请求层
+
+**起点（#168 界线的另一侧）。** OBSERVABILITY.md 的 budget 条目写明：agent 验证管线各节点直连 `provider.chat`，
+不经过 TokenBudget。这条界线说的是 **token** 记账；但在它被写下的时候，这些调用的**请求层**也没有任何痕迹——
+每分钟多少次、失败率多少、延迟多长，`/metrics` 上一个字都没有。craft 车道的请求散落在 worker/agent 各节点的
+调用点上，但「一次逻辑调用」的语义只有 provider 自己知道（tenacity 重试、Retry-After 等待、流式消耗、放弃流）。
+本号把请求计量钉在 `OpenAICompatibleProvider` 边界：**token** 边界不动（#168 不变），**请求/错误/延迟**自本号起可见。
+
+**实现（一个上下文管理器、四个站点）。** `_metered()` asynccontextmanager 是唯一计量点，三兄弟：
+`llm_requests_total`（一次逻辑调用计一次——3 次线上尝试仍是 1 个请求）、`llm_request_errors_total`
+（仅 Exception 类结局：`CancelledError` 与放弃流时 yield 点的 `GeneratorExit` 都不算 provider 失败, 边界类型错了会
+同时污染两端, 见变异臂 C3）、`llm_request_seconds`（直方图 `LLM_REQUEST_BUCKETS` 0.5..600s, 顶格高于 ABC 声明的
+默认超时 180s；finally 语义——失败、取消与中途放弃也进延迟序列）。四个 `async with self._metered()` 站点：
+chat() 的 responses 分支（包住 parse_response + 能力记录）与 chat 分支（包住 policy/原始调用）、
+chat_stream() 的 responses 分支（包住 `_responses_stream` 全程消耗）与 chat 分支（包住建流 + 整个 `async for`）。
+`_responses_stream` 是唯一区外传输入口——它由 chat_stream 自己的区包住，其内部 `_create_response` 在区内被消费；
+`_ensure_probed` 调用刻意留在区外（探测时间不属于调用者可感样本）。
+
+**门（行为差值表 + 源内 AST 含入普查）。** 新文件 15 例：9 条行为案例读进程内注册表的前后差值（requests/errors/
+histogram count 三个字段, 429 案例钉「3 次尝试仍是 1」, cancelled 与 abandoned 钉「不算失败」）；6 条普查——
+ABC 动词（从 `providers/base.py::ModelProvider` 现读, 不手抄）每个都有计量区；传输入口含入关系逐调用点钉死
+（每个动词 inside == total, 区外集合恰 `{_responses_stream}`, 下限 chat≥3 / chat_stream≥2 来自同一遍 walk）；
+raw `.create` 站点恰好三个传输 helper 且 `_raw_create` 只被传递从未被调用；`_metered` 区域结构（恰一个 try、恰一个
+`Exception` 型 handler、observe 在 finally、桶常量按名字、三个族名在整个模块里各恰一个字符串字面量）；梯度覆盖 ABC
+默认超时。parity 门补面板 47/48（targets 键值对与 expr 集合双双钉死；46→48 面板, sha 83041d00→fc7d65e0,
+156271→162961 字节, 纯 CRLF；钉块 26 行, 1116→1142 CRLF 行, sha 1dfbaf35→5cb8eee7）。
+OBSERVABILITY.md 同号记账：生产侧上报模块 30→31（providers 第二个文件入册）, 249→250 行。
+
+**读法（同步进 OBSERVABILITY.md 与面板 47/48）。** requests rate 是**逻辑调用**速率, 不是线上尝试速率；
+errors/requests 是「provider 层失败率」——取消与放弃不算失败；延迟是**调用者可感**时长。探测可见性不对称：
+CapabilityProbe 的 chat 协议探测自建客户端、不经计量；responses 协议探测复用 chat_stream、在计量内（重连后首拨
+会看到 +1, 别读成业务流量）。面板 47（requests/errors rate 对照）与 48（p50/p95）；§14 无 LLM 请求阈值, 故无告警——
+比率健康与否要靠人读面板。
+
+**门证（全部实读）。** 首跑抓到一处普查缺陷：`_call_sites` 把嵌套重试包装 `attempt()` 归错宿主（raw-create 普查读到
+`{'_attempt','_raw_create','attempt'}` 而非三个传输 helper）, 修为「嵌套 def 归属最外层方法」后 `15 passed`。
+聚焦两文件 `19 passed in 14.19s`（15 新 + 4 parity）。ruff 首跑 4 处（B905 `zip` 缺 `strict=`×2、N815 ast 派发名
+×2）修后 All checks passed；`mypy providers/openai_compatible.py` Success；全仓 mypy 222 files Success
+（tests/ 按 pyproject `exclude` 不在 mypy 门内, 显式点名仍会报的类型瑕疵不进本仓的门）。
+
+**变异臂（预测先写后跑，脚本 `.scratch/arm210-request-metrics-arms.py`，每臂 finally 从字节快照还原 + sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| C0 | 未变异基线 | 0 红 / 19 | **MATCHED 0 红 / 19** ✅ |
+| C1 | `_metered` 删 requests incr | 12 红 = 9 行为 + render + 区域普查 + parity 引用追踪 | **MATCHED 12 红，逐名相符** ✅ |
+| C2 | 删 errors incr（留裸 raise） | 5 红 = 2 行为 + render + 区域普查 + parity | **MATCHED 5 红，逐名相符** ✅ |
+| C3 | `except Exception`→`BaseException` | 2 红 = cancelled + 区域普查 | **MISMATCH：实到 3 红**（多出 abandoned，见下） |
+| C4 | 删 chat_stream chat 分支计量区 | 4 红 = 3 流行为 + 含入普查 | **MATCHED 4 红，逐名相符** ✅ |
+| C5 | 删 chat_stream responses 分支计量区 | 2 红 = responses 流行为 + 含入普查 | **MATCHED 2 红，逐名相符** ✅ |
+| C6 | `_to_llm_response` 移进计量区 | 预测 SURVIVED 0 红（无声明覆盖转换位置） | **MATCHED SURVIVED 0 红** ✅ |
+
+**C3 的预测误差如实记（先写后跑规则的用意）。** 第 3 条红是 `test_abandoned_stream_is_observed_but_not_an_error`：
+放弃流在 yield 点抛 `GeneratorExit`，也落在计量区内，边界放宽到 `BaseException` 后它也进 errors。预测时只数了
+`CancelledError` 一种 BaseException 结局，忘了 `GeneratorExit`——**门多抓的不是缺陷**，是把「取消/放弃不算失败」
+两端都立成行为案例的必要性证据（订正已写入臂脚本 docstring，原预测保留可见）。C6 是本组的诚实负控制：
+把应答**转换**移进计量区没有任何声明覆盖它（不是传输入口、不改三兄弟、不改行为）——门如实放过。
+（臂 XML 全部落 `.scratch/arm210-*.xml`；脚本末行 `final sha256 == original: True`。）
+
+**诚实边界。** ① token 边界不动：agent 节点直连的请求数与时延自本号起可见，但它们的 token 仍不过 budget
+（#168 边界没变——两条名字族各答一个问题, 别把 requests rate 读成计费覆盖）。② 探测可见性不对称（见读法）：
+responses 协议探测计入, chat 协议探测不计——重连后首拨的 +1 是探测不是业务流量。③ `_ensure_probed` 在区外：
+探测时间不进延迟直方图。④ 门钉的是名字、含入关系与词形；§14 无 LLM 请求阈值, 无告警——面板 47/48 只给读数, 
+不承诺任何比率健康。

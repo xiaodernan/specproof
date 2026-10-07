@@ -1114,3 +1114,29 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
         assert code.lower() in error_description, (
             f"panel description does not name error word {code.lower()}"
         )
+    # #210: LLM 请求三件套 (provider 边界) — requests/errors 是字面名, 由
+    # 上方的 trace 门自己核对发点名; 这里 pin 面板的漂移形状: 两条速率表达式
+    # 与图例, 以及延迟面板的两条分位数 (bucket 名与 observe_duration 的第一
+    # 参数字面一致 — trace 门已按 _bucket 后缀剥回核对)。
+    llm_request_panel = [p for p in dashboard["panels"] if p.get("id") == 47]
+    assert len(llm_request_panel) == 1, "LLM request panel (id 47) missing"
+    llm_request_targets = {
+        t["expr"]: t.get("legendFormat")
+        for t in llm_request_panel[0].get("targets", [])
+    }
+    assert llm_request_targets == {
+        "sum(rate(specproof_llm_requests_total[15m]))": "requests/s",
+        "sum(rate(specproof_llm_request_errors_total[15m]))": "errors/s",
+    }, llm_request_targets
+
+    llm_latency_panel = [p for p in dashboard["panels"] if p.get("id") == 48]
+    assert len(llm_latency_panel) == 1, "LLM latency panel (id 48) missing"
+    llm_latency_exprs = {
+        t["expr"] for t in llm_latency_panel[0].get("targets", [])
+    }
+    assert llm_latency_exprs == {
+        "histogram_quantile(0.50, "
+        "sum(rate(specproof_llm_request_seconds_bucket[15m])) by (le))",
+        "histogram_quantile(0.95, "
+        "sum(rate(specproof_llm_request_seconds_bucket[15m])) by (le))",
+    }, llm_latency_exprs

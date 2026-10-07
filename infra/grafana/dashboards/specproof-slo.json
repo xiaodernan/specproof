@@ -5037,6 +5037,212 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "id": 47,
+      "type": "timeseries",
+      "title": "LLM 请求与错误 (#210: provider 边界)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "LLM 请求的 provider 边界计数 (providers/openai_compatible.py #210)。requests/s 是 chat()/chat_stream() 的逻辑调用速率——所有车道 (agent 节点 / craft / 探测) 共享这两个入口; tenacity 重试与 Retry-After 等待都发生在同一次请求内, 429 重试不会把一次调用记成三次。errors/s 只计 Exception 结尾: 取消与生成器关闭是 BaseException, 不算 provider 失败 (延迟仍进 llm_request_seconds)。错误率 = errors/s ÷ requests/s。诚实边界: CapabilityProbe 的 chat 协议探测自建 client, 不在计数内; responses 协议探测复用 chat_stream, 会进计数; token 记账仍只在 craft 车道 (providers/budget.py)。无调用前无序列, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 175
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(specproof_llm_requests_total[15m]))",
+          "legendFormat": "requests/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(specproof_llm_request_errors_total[15m]))",
+          "legendFormat": "errors/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "type": "timeseries",
+      "title": "LLM 请求延迟 (#210: provider 边界 p50/p95)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "LLM 请求延迟 (providers/openai_compatible.py #210)。llm_request_seconds 是 caller-visible 延迟直方图, finally 语义: 失败、取消、被放弃的流都留在序列里, 延迟不因故障缺样本; 计的是逻辑调用 (含重试与退避), 不是单次 wire 尝试。梯度 0.5..600 秒: 亚秒命中到多分钟推理全程有分辨率, 默认超时 180s 落在 120 与 300 的桶之间, 分位数不落 +Inf。图例的 p50/p95 来自 sum by (le)。无调用则面板为空。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 175
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum(rate(specproof_llm_request_seconds_bucket[15m])) by (le))",
+          "legendFormat": "p50 (s)",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(specproof_llm_request_seconds_bucket[15m])) by (le))",
+          "legendFormat": "p95 (s)",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
     }
   ],
   "refresh": "30s",

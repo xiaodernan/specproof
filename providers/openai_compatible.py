@@ -22,13 +22,23 @@ DeepSeek V4 Pro adaptation (see docs/design/DEEPSEEK_V4_PRO_ADAPTATION.md):
   (two-tier router + classify_retry retry matrix + semantic cache for
   draft/diagnose); when the gate is unset, the exact legacy path runs —
   the policy layer is never even constructed.
+- provider-boundary meters (#210): chat()/chat_stream() wrap their request
+  region in _metered() — llm_requests_total counts logical calls (tenacity
+  retries and Retry-After waits stay inside ONE request),
+  llm_request_errors_total counts Exception-class endings only (a
+  cancelled call is not a provider failure) and llm_request_seconds
+  observes caller-visible latency with finally semantics. CapabilityProbe
+  builds its own clients and stays outside the meter; the responses-
+  protocol probe reuses chat_stream and is counted.
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import os
+import time
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from openai import (
@@ -45,6 +55,8 @@ from tenacity import (
     retry_if_exception,
     stop_after_attempt,
 )
+
+from observability.metrics import incr, observe_duration
 
 from .base import LLMMessage, LLMResponse, ModelProvider
 from .capability_probe import CapabilityProbe
@@ -86,6 +98,14 @@ _RETRYABLE_EXCEPTIONS = (
 
 def _is_retryable(exc: BaseException) -> bool:
     return isinstance(exc, _RETRYABLE_EXCEPTIONS)
+
+
+#: Histogram ladder for provider request latency (seconds): sub-second
+#: cache/route hits through multi-minute reasoning generations. The 180s
+#: default timeout lands between the 120 and 300 bounds.
+LLM_REQUEST_BUCKETS: tuple[float, ...] = (
+    0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0,
+)
 
 
 def _retry_after_seconds(exc: BaseException) -> float | None:
@@ -386,6 +406,34 @@ class OpenAICompatibleProvider(ModelProvider):
             make_client=self._client_for_base_url,
         )
 
+    @asynccontextmanager
+    async def _metered(self) -> AsyncIterator[None]:
+        """Provider-boundary meter for one logical LLM call (#210).
+
+        The region wraps the request itself: chat()/chat_stream() enter it
+        around the raw call (and the streamed consumption loop). It counts
+        the call once (llm_requests_total — tenacity retries and Retry-After
+        waits stay inside ONE request), observes caller-visible latency with
+        finally semantics (llm_request_seconds — failures, cancellations and
+        abandoned streams remain in the sequence), and counts Exception-class
+        endings as llm_request_errors_total while letting BaseException
+        (cancellation, generator close) pass through untouched: a cancelled
+        call is not a provider failure.
+        """
+        incr("llm_requests_total")
+        start = time.perf_counter()
+        try:
+            yield
+        except Exception:
+            incr("llm_request_errors_total")
+            raise
+        finally:
+            observe_duration(
+                "llm_request_seconds",
+                time.perf_counter() - start,
+                buckets=LLM_REQUEST_BUCKETS,
+            )
+
     async def chat(
         self,
         messages: list[LLMMessage],
@@ -403,10 +451,11 @@ class OpenAICompatibleProvider(ModelProvider):
                 tool_choice=tool_choice, response_format=response_format, opts=opts,
                 timeout=timeout,
             )
-            result = parse_response(await self._create_response(kwargs))
-            self._record_responses_capabilities(
-                result, response_format=response_format, tool_choice=tool_choice,
-            )
+            async with self._metered():
+                result = parse_response(await self._create_response(kwargs))
+                self._record_responses_capabilities(
+                    result, response_format=response_format, tool_choice=tool_choice,
+                )
             return result
         probe = await self._ensure_probed()
         caps = probe.capabilities
@@ -439,13 +488,14 @@ class OpenAICompatibleProvider(ModelProvider):
             kwargs["extra_body"] = extra_body
 
         policy = self._policy
-        if policy is not None and kind is not None:
-            # W44/W60: policy-governed call (route + classify_retry matrix +
-            # semantic cache). Only kind-tagged calls under an enabled policy
-            # leave the legacy path; everything else stays byte-identical.
-            response = await self._policy_chat(policy, kind, kwargs)
-        else:
-            response = await self._create_chat_completion(kwargs)
+        async with self._metered():
+            if policy is not None and kind is not None:
+                # W44/W60: policy-governed call (route + classify_retry matrix +
+                # semantic cache). Only kind-tagged calls under an enabled policy
+                # leave the legacy path; everything else stays byte-identical.
+                response = await self._policy_chat(policy, kind, kwargs)
+            else:
+                response = await self._create_chat_completion(kwargs)
         return self._to_llm_response(response)
 
     async def chat_stream(  # type: ignore[override, misc]
@@ -457,8 +507,9 @@ class OpenAICompatibleProvider(ModelProvider):
         timeout: float = 180.0,
     ) -> AsyncIterator[LLMResponse]:
         if self.protocol == "responses":
-            async for result in self._responses_stream(messages, tools, opts, timeout):
-                yield result
+            async with self._metered():
+                async for result in self._responses_stream(messages, tools, opts, timeout):
+                    yield result
             return
         probe = await self._ensure_probed()
         caps = probe.capabilities
@@ -486,29 +537,30 @@ class OpenAICompatibleProvider(ModelProvider):
         if extra_body:
             kwargs["extra_body"] = extra_body
 
-        stream = await self._create_chat_completion(kwargs)
-        async for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta:
-                delta = chunk.choices[0].delta
-                yield LLMResponse(
-                    content=delta.content,
-                    tool_calls=(
-                        [
-                            {
-                                "id": tc.id,
-                                "function": {
-                                    "name": tc.function.name if tc.function else "",
-                                    "arguments": tc.function.arguments if tc.function else "",
-                                },
-                            }
-                            for tc in delta.tool_calls
-                        ]
-                        if delta.tool_calls
-                        else []
-                    ),
-                    model=chunk.model or self.model or "",
-                    finish_reason=chunk.choices[0].finish_reason or "",
-                )
+        async with self._metered():
+            stream = await self._create_chat_completion(kwargs)
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta:
+                    delta = chunk.choices[0].delta
+                    yield LLMResponse(
+                        content=delta.content,
+                        tool_calls=(
+                            [
+                                {
+                                    "id": tc.id,
+                                    "function": {
+                                        "name": tc.function.name if tc.function else "",
+                                        "arguments": tc.function.arguments if tc.function else "",
+                                    },
+                                }
+                                for tc in delta.tool_calls
+                            ]
+                            if delta.tool_calls
+                            else []
+                        ),
+                        model=chunk.model or self.model or "",
+                        finish_reason=chunk.choices[0].finish_reason or "",
+                    )
 
     # ── Private helpers ────────────────────────────────────────────
 
