@@ -3432,3 +3432,63 @@ errors: ['Repository safety check failed for base prepare (no_forbidden_files: f
 
 **仍未做。** 这只是让本机评测能跑起来；**评测本身的召回率是否达标（CI 那道 `Recall: 100.0%`）本机仍无法给出结论**——
 需要跑完整 100 例（multi-hour），而那属于 nightly 的活，且仍取决于那 80 个提交推不推。
+
+## #207 发行版不装 `experiments`：差分节点的最后一步在真实安装里必然 ModuleNotFoundError
+
+**怎么撞上的。** 为了查「正例为什么全 MISS」，我写了个诊断脚本从 `build_phase0_graph().invoke(...)` 直接跑
+`case-17`。第一次跑（`python D:\面试项目\_diagcase.py`，脚本在**仓库外**）崩了：
+
+```
+File "agent/nodes/run_differential.py", line 1163, in _run_generated_test
+    from experiments.adapters import (
+ModuleNotFoundError: No module named 'experiments'
+During task with name 'generate_counterexamples'
+```
+
+**我一度以为是自己的脚本问题**——把 `sys.path[0]`（脚本所在目录）和 cwd 搞混了。**但它同时暴露了一个真缺陷**：
+
+- `experiments/__init__.py` **存在**（它是个包），`experiments/adapters.py` 也在；
+- `pyproject.toml:82` 的 `[tool.setuptools.packages.find].include` 是一份**白名单**，
+  而里面**没有 `experiments`**（也没有 `devtools`）；
+- 实测 `.venv` 的 editable 安装映射里 `experiments` **0 次命中**——因为映射就是从这份 include 生成的；
+- 而**生产代码在 9 处** late-import 它：`run_differential.py` 6 处（`:985/1013/1034/1163/1200/1577`）、
+  `run_deep_experiments.py` 2 处、`generate_counterexamples.py` 1 处；`devtools` 另有 3 处。
+
+**读者/部署看到什么。** 白名单式漏项是**静默**的：工作副本靠 cwd 解析得通，所以**测试、editable 安装、
+本机每一轮跑都绿**；只有**真实（非 editable）安装**会在那条代码路径跑到的**那一刻**炸。
+而 `run_differential` 正是产出 `base_pass_head_fail` / `differential_test` 证据的那个节点——
+**旗舰证据链的最后一步在部署里是坏的，而仓库里每一道门都是绿的。**
+
+**四份实测读数。** 顶层有 `__init__.py` 的包共 18 个；未进 include 的 5 个里 `tests` 被 exclude 明确排除，
+**剩下 `devtools`/`experiments`/`ops`/`plugins` 两边都没有**；其中被生产代码导入的是
+**`experiments`（9 处）与 `devtools`（3 处）**，`ops`/`plugins` 为 0 处（本号不动它们）。
+
+**改法。** `pyproject.toml` 的 include 补上 `devtools*` 与 `experiments*`（15 条），
+并把"为什么这是一份必须与导入面对齐的白名单"写进注释。
+
+**新门（`tests/unit/test_packaging_ships_every_imported_package.py`，2 例）。**
+① **普查式**：对**已列入 include 的那些包**里的每个 `.py` 做 AST，收集它们导入的顶层名，
+凡落在"本地包"集合里的，**必须**被 include 覆盖（或**被 exclude 明确排除**——那是一种表态）；
+写成"每个被导入的本地包都要被覆盖"，而不是"这两个名字必须在"，**下一个漏项同样会被抓住**。
+② 点名条款：`experiments` 与 `devtools` 必须仍是包、且仍被 include——
+`run_differential` 就是那条证据链，将来谁想动它得先在这里停一下。
+两处都带下限（include ≥5 条、本地包 ≥10 个、导入名 ≥20 个）：**"扫到 0 条"不能绿着过。**
+
+**三臂变异（预测先写后跑，每臂从运行前快照还原）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| U1 | **把原缺陷放回去**（从 include 删掉 `experiments*`） | 门①红 | **2 red**（门①+门②）✅ |
+| U2 | 从 include 删掉 `devtools*` | 门①红 | **2 red** ✅ |
+| U3 | 把 `experiments*` 从 include 挪到 **exclude**（"有意不装"） | 门②红 | **1 red**，正是门② ✅ |
+
+U3 是这条门的设计意图：**"有意不装"可以，但那条旗舰证据链不行**——所以门①放它过去、门②拦住它。
+
+**门证。** `ruff` All checks passed（首跑抓到我一处 SIM102 嵌套 if，已按建议合并）；
+本门 **2 passed**；`tomllib` 实测 `pyproject.toml` 可解析、include 15 条、两个包都在。
+臂脚本落在仓库外 `D:\面试项目\_arm207.py`。
+
+**仍未做（重要，别当成已解决）。** ① **本地 venv 的 editable 映射没更新**——映射是安装时生成的，
+我没有重装（这是并发会话共用的 venv）。所以**本机的 `python -c "import experiments"` 仍然只在
+"cwd 在仓库根"时成立**；本号修的是**发行物**，本机行为不变。② 这次是"撞上"的，**不是排查出来的**：
+`ops`/`plugins` 两个同样两边都没有的包本号没动（生产零导入，留着由后续判定归属）。

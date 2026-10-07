@@ -79,7 +79,17 @@ specproof = "cli.specproof.main:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["agent*", "api*", "cli*", "contracts*", "craft*", "evidence*", "integrations*", "mcp*", "observability*", "providers*", "retrieval*", "sandbox*", "storage*"]
+# Every top-level package that SHIPPED code imports must be listed here — the
+# list is an allow-list, so an omission is silent until someone runs the
+# installed distribution instead of the working copy. `experiments` (imported by
+# agent/nodes/run_differential.py, run_deep_experiments.py and
+# generate_counterexamples.py) and `devtools` were both missing: the differential
+# and the deep-experiment nodes would die on `ModuleNotFoundError: No module
+# named 'experiments'` in any non-editable install, because a late import that
+# the working tree resolves via cwd is not resolved by an installed wheel.
+# tests/unit/test_packaging_ships_every_imported_package.py now reconciles the
+# two.
+include = ["agent*", "api*", "cli*", "contracts*", "craft*", "devtools*", "evidence*", "experiments*", "integrations*", "mcp*", "observability*", "providers*", "retrieval*", "sandbox*", "storage*"]
 exclude = ["tests*", "apps*", "demo*", "bench*", "artifacts*"]
 
 [tool.ruff]
