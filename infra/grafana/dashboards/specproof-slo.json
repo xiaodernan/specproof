@@ -4934,6 +4934,109 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "id": 46,
+      "type": "timeseries",
+      "title": "工具执行错误 (#209: craft tool call errors)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "craft 工具门的错误计数 (craft/tools.py #209): calls/s 是 ToolRegistry.dispatch 入口的每次调用速率 (与 #208 拒绝面板共享同一诚实分母); tool_errors_<code>/s 按错误码分列, 由 _error() 计数——它是每个 status=error ToolResult 的唯一构造点: unknown_tool (未注册工具) / version_mismatch 见下 (版本不匹配) / tool_version_mismatch (版本不匹配) / invalid_arguments (参数校验失败, 含 handler 晚抛的一支) / file_not_found (文件或目录不存在) / not_a_git_repo (工作区无 .git) / stale_context (expected_digest 已过期) / edit_rejected (old 未命中或不唯一) / ast_parse_failed (源码不解析) / execution_failed (handler 未预期异常兜底)。九词词表封闭 (ERROR_CODES), 由对账门 import 钉死, 源内 AST 语料门把每个 _error() 调用点与词表对齐 (动态首参不过门)。读法: status=denied 不进这组 (拒绝见 #208 面板——两种状态不混计); 命令非零退出码不是错误 (run_test 返回 ok+exit_code); 外部 mcp.* 工具的错误不经 _error() (providers/mcp_bridge 构造直通), 不在本计数内。无工具调用前无序列, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 167
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(specproof_tool_calls_total[15m]))",
+          "legendFormat": "calls/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (__name__) (rate({__name__=~\"specproof_tool_errors_[a-z0-9_]+_total\"}[15m]))",
+          "legendFormat": "{{__name__}}/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
     }
   ],
   "refresh": "30s",

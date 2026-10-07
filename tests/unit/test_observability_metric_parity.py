@@ -415,6 +415,23 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "derivation test, so a new denial code forces this gate and the "
         "family to move together",
     ),
+    "tool_error": (
+        re.compile(
+            r"^tool_errors_"
+            r"(ast_parse_failed|edit_rejected|execution_failed|file_not_found"
+            r"|invalid_arguments|not_a_git_repo|stale_context"
+            r"|tool_version_mismatch|unknown_tool)_total$"
+        ),
+        "craft/tools.py #209: incr(\"tool_errors_\" + code.lower() + "
+        "\"_total\") inside _error(), the single construction point of "
+        "every error ToolResult — the code words are the closed "
+        "ERROR_CODES set (unknown tool / version mismatch / argument "
+        "validation / missing file / not-a-git-repo / stale context / "
+        "rejected edit / AST parse failure / handler crash). The "
+        "vocabulary is imported from craft.tools (ERROR_CODES) by the "
+        "derivation test, so a new error code forces this gate and the "
+        "family to move together",
+    ),
 }
 
 
@@ -888,6 +905,33 @@ def test_concatenated_families_track_their_vocabularies() -> None:
             f"family rejects denial code {word}"
         )
 
+    # tool_error == the craft tool gate's closed ERROR_CODES set: every
+    # status="error" ToolResult rides one of these codes through _error().
+    # Same discipline as tool_denial: the expected alternation derives from
+    # ERROR_CODES itself (imported, not hand-copied), code.lower() keeps
+    # the name charset inside [a-z0-9_], and the two closed sets must be
+    # disjoint — error and denied can never share a word.
+    from craft.tools import ERROR_CODES
+
+    error_lower = sorted(code.lower() for code in ERROR_CODES)
+    assert len(set(error_lower)) == len(ERROR_CODES), (
+        f"ERROR_CODES collapses under lowercasing: {sorted(ERROR_CODES)}"
+    )
+    assert not (set(ERROR_CODES) & set(DENIAL_CODES)), (
+        "ERROR_CODES and DENIAL_CODES overlap: "
+        f"{sorted(set(ERROR_CODES) & set(DENIAL_CODES))}"
+    )
+    error_pattern, _ = CONCATENATED_FAMILIES["tool_error"]
+    expected_error = "^tool_errors_(" + "|".join(error_lower) + ")_total$"
+    assert error_pattern.pattern == expected_error, (
+        f"tool_error family {error_pattern.pattern} != error vocabulary "
+        f"{error_lower}"
+    )
+    for word in error_lower:
+        assert error_pattern.match(f"tool_errors_{word}_total"), (
+            f"family rejects error code {word}"
+        )
+
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:
     """The #165 broker-side alerts consume rabbitmq_* series that only the
@@ -1031,7 +1075,10 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
         for target in panel.get("targets", [])
         if "specproof_tool_calls_total" in target.get("expr", "")
     ]
-    assert calls_exprs == ["sum(rate(specproof_tool_calls_total[15m]))"], calls_exprs
+    # One shared calls denominator per tool-gate panel: #208 refusals and
+    # #209 errors each pair their family rate with the same expr.
+    expected_calls_expr = "sum(rate(specproof_tool_calls_total[15m]))"
+    assert calls_exprs == [expected_calls_expr] * 2, calls_exprs
 
     from craft.tools import DENIAL_CODES
 
@@ -1041,4 +1088,29 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
     for code in sorted(DENIAL_CODES):
         assert code.lower() in description, (
             f"panel description does not name denial word {code.lower()}"
+        )
+
+    # Same drift shape for the tool-execution-error panel (#209): the error
+    # family reference is a __name__ regex the gate drops as a placeholder,
+    # so pin the selector and require the description to name every
+    # ERROR_CODES word — the reading rule must not drift from the closed
+    # vocabulary the derivation test pins.
+    error_exprs = [
+        target["expr"]
+        for panel in dashboard["panels"]
+        for target in panel.get("targets", [])
+        if "tool_errors" in target.get("expr", "")
+    ]
+    assert len(error_exprs) == 1, f"expected 1 error selector expr, got {error_exprs}"
+    expected_error_selector = '__name__=~"specproof_tool_errors_[a-z0-9_]+_total"'
+    assert expected_error_selector in error_exprs[0], error_exprs[0]
+
+    from craft.tools import ERROR_CODES
+
+    error_panels = [p for p in dashboard["panels"] if p.get("id") == 46]
+    assert len(error_panels) == 1, "tool-error panel (id 46) missing"
+    error_description = error_panels[0]["description"]
+    for code in sorted(ERROR_CODES):
+        assert code.lower() in error_description, (
+            f"panel description does not name error word {code.lower()}"
         )

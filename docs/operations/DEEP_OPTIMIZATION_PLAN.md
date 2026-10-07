@@ -3589,3 +3589,61 @@ CI 在一步里做两件事把它变成可用：`chown -R 1000:1000 /m2` 与 `mv
 合成工具案例就是那条见证；它变可达时计数照记。② 这组名字只覆盖**工具门**的拒绝；
 provider/沙箱/预算等其他拒绝面各有自己的故事（分别在 #168/#178 等条目里）。③ parity/面板钉的是**名字与词表**，
 不证明任何比值接近 §14 阈值（§14 就没有工具拒绝率阈值这一项）。
+## #209 craft 工具的错误面不可观测：九类失败在 /metrics 上没有名字，按因计数补齐工具结果的完整分类
+
+**起点（#208 的同文件下半张脸）。** #208 让「被拒绝」的五类在 /metrics 上可见（tool_denials_<code>_total），
+但 `status="error"`——工具真跑了而失败——仍然只活在会话 transcript 的 `[CODE] message` summary 里：
+未知工具、版本不匹配、参数非法、文件不存在、不是 git 仓库、上下文过期、编辑被拒、AST 解析失败、执行器崩溃，
+九类失败没有任何名字能回答「哪个失败码在涨」。
+
+**实现（`craft/tools.py`，仍是单点产口）。**
+- `_error()` 是 error 结果的**唯一构造点**（全文件只有它写 `status="error"`），
+  其中按 `code.lower()` incr 拼接族 `tool_errors_<code>_total`。全文件 14 个 `_error(` 调用点 → 9 个唯一码。
+- **族词小写的是码的 VALUE，不是常量短名**：`CODE_VERSION_MISMATCH = "TOOL_VERSION_MISMATCH"` ⇒ 词是
+  `tool_version_mismatch`。首跑正是死在这条词形上（见门证），三处修复后才绿。
+- 词表 `ERROR_CODES` frozenset 钉在 `craft/tools.py`；与 `DENIAL_CODES` **互斥**（ok / error / denied 三分，
+  error 与 denied 永不共词，互斥关系两侧各有一条门）。模块 docstring 的稳定码清单同步写明该子集封闭。
+
+**门（比 #208 的文本正则更强：AST 普查）。** 行为测试里的源内语料门用 AST 而不是正则：
+walk `craft/**/*.py` 的 `_error(` Call 节点，第一实参必须是**字符串字面量或模块可解析的 `CODE_*` 名**；
+任何其它形态（f-string / 拼接 / 变量 / 关键字形式）按位置落进 `dynamic` 名单——docstring 里出现 `_error(),`
+这样的散文不会被数进去（模块 docstring 现在就真的含这句话），而动态实参无从藏。下限从**同一遍 walk** 取：
+站点 ≥10（实测 14）、无 dynamic、解析出的码集 == ERROR_CODES。
+parity 门补 `tool_error` 族（regex）+ 推导块（import ERROR_CODES：逐词匹配 + alternation 相等 +
+小写唯一 + 与 DENIAL_CODES 互斥）；面板 46 的钉在 stage-family 面板钉案例尾部续写——
+1 条 `tool_errors` selector expr、`__name__` 族通配、id 46 存在、描述点名全部 9 词；
+面板 45/46 共用 `tool_calls_total` 分母 ⇒ parity 的调用面钉从 ×1 改 ×2。
+
+**读法（同步进 OBSERVABILITY.md 与面板 46）。** `error ≠ denied`（工具跑了而失败是 error，门拒了是 denied）；
+**命令非零退出不是 error**（`run_test` 返回 ok+exit_code，退出码是证据不是故障）；
+`execution_failed` = handler 内意外异常（合成 boom 工具在册）；三条写路径失败各有专词
+（stale_context / edit_rejected / ast_parse_failed）。外部 mcp.* 工具的 error dict 由
+`providers/mcp_bridge.py` 构造、经 `craft/mcp_wiring.py:77` 原样透传，**不进本族**——「craft 工具」的边界
+就在这里，OBSERVABILITY.md 写明。
+
+**门证（全部实读）。** 新文件首跑 `1 failed, 14 passed in 17.08s`——红的是词形（断言写了常量短名
+version_mismatch 而实测 tool_version_mismatch）；修三处（测试、parity alternation、面板 46 描述）后
+`15 passed in 11.84s`。聚焦三文件 `57 passed in 58.49s`（15 新 + 4 parity + 38 craft_tools 回归）；
+`ruff` 三文件 All checks passed；`mypy craft/tools.py` Success。
+
+**变异臂（预测先写后跑，脚本 `.scratch/arm209-tool-error-arms.py`，每臂 finally 从字节快照还原 + sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| B0 | 未变异基线 | 0 红 / 19 | **MATCHED 0 红 / 19** ✅ |
+| B1 | `_error()` 里删 errors incr | 11 红 = 期望错误词移动的 10 条行为案例 + render 面 | **MATCHED 11 红，逐名相符** ✅ |
+| B2 | `ERROR_CODES` 里插入 `CODE_APPROVAL_REQUIRED`（拒绝词混进错误表） | 4 红 = 语料门 + 互斥门 + parity 推导 + parity 面板钉 | **MATCHED 4 红，逐名相符** ✅ |
+| B3 | read_file 站点换成字面量 `"FILE_VANISHED"` | 3 红 = 语料门（源多一码 / 表少一码）+ missing_file + render | **MATCHED 3 红，逐名相符** ✅ |
+| B4 | 同站点换成动态实参 `CODE_FILE_NOT_FOUND + ""`（运行时等价） | 1 红 = 仅语料门（动态形态被拒） | **MATCHED 1 红** ✅ |
+| B5 | 加一个从不进 `_error()` 的 `CODE_UNUSED_PROBE` 常量 | 预测 SURVIVED 0 红（门绑的是执行面词表，不是整张常量注册表） | **MATCHED SURVIVED 0 红** ✅ |
+
+**B4 是这组门的要害。** 运行时行为完全等价（拼接后仍是 `FILE_NOT_FOUND`，行为案例全绿），
+但静态形态不再是字面量 / 常量名 ⇒ 语料门单点变红。它证明普查抓的是「站点可枚举性」本身：
+一个形式合法但读不出码名的站点进不了任何词表。（臂 XML 全部落 `.scratch/arm209-*.xml`；
+脚本末行 `final sha256 == original: True`。）
+
+**诚实边界。** ① `cancelled` / `timed_out` 两种状态 `craft/schemas.py` 允许但 craft 树里今天没有生产者——
+「分类齐全」指有生产者的三类（ok / error / denied）齐了，不是五种状态都接表；将来新增生产者时语料门
+**不会拦**（它扫的是 `_error(` 调用点，不是状态字面量），这是已知口径。② 本族只覆盖 craft 内建工具；
+外部 mcp.* 透传不计数（上已写明）。③ 面板 46 与 parity 钉的是名字与词表，不证明任何比值接近 §14 阈值
+（§14 就没有工具错误率阈值这一项）。

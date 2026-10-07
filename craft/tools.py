@@ -29,7 +29,10 @@ EDIT_REJECTED / AST_PARSE_FAILED / EXECUTION_FAILED. The denied-status
 subset is closed in DENIAL_CODES: every denied result is built by
 _denied(), which counts it (tool_denials_<code>_total, #208), and
 dispatch() counts every call (tool_calls_total) as the refusal-rate
-denominator.
+denominator. The error-status subset is closed in ERROR_CODES: every
+error result is built by _error(), which counts it
+(tool_errors_<code>_total, #209), so failures are measurable by reason
+too. The two sets are disjoint by construction (error is never denied).
 
 Segmentation contract (计划书 §6.3): results are untrusted data. The
 registry exposes envelope_block() — a deterministic, versioned description
@@ -104,6 +107,27 @@ DENIAL_CODES: frozenset[str] = frozenset(
     }
 )
 
+#: Closed set of codes that may ride a status="error" result (#209).
+#: Gated against the source by test_craft_tool_errors_are_observable.py —
+#: every _error() call must name a code from this set, so a new failure
+#: reason cannot ship uncounted. Disjoint from DENIAL_CODES by design
+#: (error is never denied). External mcp.* tools are outside this
+#: taxonomy: their error dicts are built by providers/mcp_bridge.py and
+#: pass through craft/mcp_wiring.py without touching _error().
+ERROR_CODES: frozenset[str] = frozenset(
+    {
+        CODE_UNKNOWN_TOOL,
+        CODE_VERSION_MISMATCH,
+        CODE_INVALID_ARGUMENTS,
+        CODE_FILE_NOT_FOUND,
+        CODE_NOT_A_GIT_REPO,
+        CODE_STALE_CONTEXT,
+        CODE_EDIT_REJECTED,
+        CODE_AST_PARSE_FAILED,
+        CODE_EXECUTION_FAILED,
+    }
+)
+
 Risk = Literal["readonly", "low_write", "controlled_exec", "high"]
 RISKS: tuple[Risk, ...] = ("readonly", "low_write", "controlled_exec", "high")
 
@@ -167,6 +191,18 @@ def _split_output(text: str) -> tuple[str, str, bool]:
 
 
 def _error(code: str, message: str) -> ToolResult:
+    """Single construction point of every error result — and its meter.
+
+    #209: tool_errors_<code>_total counts each failure by its code, so the
+    in-tree failure surface (unknown tool / version mismatch / invalid
+    arguments / missing file / not-a-git-repo / stale context / rejected
+    edit / AST parse failure / handler crash) is measurable per reason.
+    Calls are counted once at dispatch() entry (tool_calls_total, #208),
+    so errors over calls is the honest failure rate — and the statuses
+    stay partitioned: a refusal is denied (tool_denials family), never an
+    error, and vice versa.
+    """
+    incr(f"tool_errors_{code.lower()}_total")
     return ToolResult(
         status="error", summary=f"[{code}] {message}", security_tags=["untrusted"]
     )
