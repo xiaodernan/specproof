@@ -5449,6 +5449,109 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "id": 51,
+      "type": "timeseries",
+      "title": "Redis 往返延迟 (#212: per-op p50/p95)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Redis 每个 client 往返的耗时直方图族 redis_request_seconds_<op> (storage/redis.py 的 _timed_redis 包住每个 self.client.<op> 调用, op 词表派生自调用点并由对账门钉死, #212 接线)。按 __name__ 分组取 per-op p50/p95 — 图例即指标名, 后缀去 _seconds_ 前缀即 op (decrby/eval/exists/expire/get/incr/incrby/ping/set/setex/xadd/xlen/xread; close() 刻意不计——它不属于往返延迟样本)。梯度 0.0005..6s: 亚毫秒命中到秒级阻塞命令全程有分辨率, 顶格 6s 高于 client 的 socket_timeout=5——被超时砍断的请求实测略高于 5s, 顶格取等会把这类样本推进 +Inf, 1s 余量让超时请求也落有限桶, 分位数不落 +Inf。计时含失败与被吞掉的往返 (finally 语义): 被 except 吞成空列表的 xread、吞成 0 的 xlen 与吞成 False 的 ping 同样留在序列里。Redis 未起或无作业流量前无序列, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 191
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (__name__, le) (rate({__name__=~\"specproof_redis_request_seconds_[a-z_]+_bucket\"}[15m])))",
+          "legendFormat": "{{__name__}} p95",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (__name__, le) (rate({__name__=~\"specproof_redis_request_seconds_[a-z_]+_bucket\"}[15m])))",
+          "legendFormat": "{{__name__}} p50",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
     }
   ],
   "refresh": "30s",

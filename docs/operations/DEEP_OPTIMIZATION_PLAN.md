@@ -3778,3 +3778,63 @@ parity 钉（派生词表 + 面板描述）变红；A7 是正控制：错误路�
 两分面互斥，不重复计数（refusal 行为案例钉住）。② `unprefixed` 是读侧声明而非静默丢弃；非零先看 bridge 契约而非外部服务器。
 ③ handler 崩溃计 mcp calls/seconds 但错误面归 dispatch 的 execution_failed（crash 行为案例两端都钉）。④ 桶顶 240s 对默认超时
 是双倍余量；自定义更长 timeout 溢出顶桶落 +Inf 是诚实残差；§14 无 MCP 阈值，无告警——面板 49/50 只给读数，不承诺任何比率健康。
+
+## #212 Redis 往返不可观测：30 个 client 调用点没有一条延迟序列，per-op 直方图族补齐 #169 的另一半
+
+**起点（#169 界线的另一侧）。** #169 把 ES 的每个 client 往返接进了 es_request_seconds_<op>，但同一个存储层的另一半——storage/redis.py 的
+30 个 self.client.<op> 调用点——在 /metrics 上没有一个延迟名字：progress 流的 xadd/xread、租约的 set/get/expire/eval、预算的 decrby/incrby、
+缓存 setex、幂等 set 全部静默。Phase 1 的 Redis 就是进度、租约、预算三条主链路的底座，它慢起来整条验证管线一起慢，而看板上只有 ES 的一半
+可见。本号按 #169 的同型形状把 Redis 每往返计时族 redis_request_seconds_<op> 接进注册表：13 词、30 个调用点、面板 51。
+
+**实现（一个上下文管理器、30 个包装）。** storage/redis.py 新增 `_timed_redis(op)`（@contextmanager, try/finally: perf_counter 计时 +
+observe_duration("redis_request_seconds_" + op, …, _REDIS_BUCKETS)）；30 个 self.client.<op> 调用点全部包进 `with _timed_redis("<op>"):`
+——get×6 / set×6 / setex×3 / expire×3 / exists×3 / eval×2 / incr / incrby / decrby / xadd / xread / xlen / ping 各 ×1。close() 刻意不包：
+它经 self._client 直连（不走路由）——连接收尾不属于往返延迟样本。桶梯度 0.0005..6.0s：亚毫秒命中到秒级阻塞命令全程有分辨率；顶格 6s 高于
+client 的 socket_timeout=5——被超时砍断的请求实测略高于 5s，顶格取等会把这类样本推进 +Inf，1s 余量让超时请求也落有限桶（分位数不落
++Inf）。计时含失败与被吞掉的往返（finally 语义）：被 except 吞成 [] 的 xread、吞成 0 的 xlen 与吞成 False 的 is_ready ping 同样是真实
+往返，照常入序列。（storage/redis.py 15677→18928 字节, sha 6ae4ccf8→e4dfb939, CRLF 364→442。）
+
+**门（行为差值表 + 源内 AST 普查 + 派生对账）。** 新文件 6 例：4 条行为（驱动全部关键路径 21 次方法调用后逐 op 读注册表增量，与假客户端的
+调用账本相等；抛错的 get 仍观测；三个被吞失败各 +1；预算回滚的 incrby 也计时）；1 条梯度（运行时桶 == _REDIS_BUCKETS 且顶格严格高于源内
+socket_timeout 字面量——正则现读不手抄；取等会让超时样本落 +Inf，故此门钉的是严格大于）；1 条 AST 普查（30 个 self.client.<op> 调用点与
+30 个 `with _timed_redis("word")` 一一对应：每个包装恰包一个调用、词与调用同名、包装数==调用数==覆盖数，词表下限 13 与 ALL_OPS 相等——
+无包装的调用与无调用的包装都无法出厂）。parity 门三处（首跑即 10 passed）：新族 redis_op（词表从 storage/redis.py 的 self.client.<op>
+调用点现读派生，与 es_op/tool_stem 同型；新 Redis 调用会让族与门同步失败）；面板 51 pin（恰两条表达式、__name__ 通配 selector、
+p50+p95 两分位数齐备）。dashboard 50→51 面板（169858→173656 字节, sha 4c021695→1e131745, 纯 CRLF, 5490→5593 CRLF 行，净增 103 行）。
+OBSERVABILITY.md 同号记账：生产侧上报模块 32→33（storage/redis.py 入册），251→252 行；**并订正 #211 落地时链尾已到 32 而前导数字
+停在 31 的漏同步**（前导随本号一并改为 33）。
+
+**读法（同步进 OBSERVABILITY.md 与面板 51）。** redis_request_seconds_<op> 是 caller-visible 的每往返延迟：失败、被吞的失败都在序列里
+（finally 语义），但**只计已发生的往返**——Redis 未起时 is_ready 的 ping 失败也计数（对「Redis 健康吗」这是真信号）；该族只有进程内注册表、
+无 label，图例按 __name__ 拆分。顶格 6s 的 1s 余量是刻意的：socket_timeout=5 砍断的请求落 5..6 桶而不是 +Inf——若面板上 p95 贴近顶点，
+先看 Redis 网络而不是先怀疑应用。close() 不在族内（它不是往返）。§14 无 Redis 延迟阈值，无告警——面板 51 只给读数。
+
+**门证（全部实读）。** 回归批 6 模块（redis_stream / 本号两门 / es_store / mcp / provider 请求门）`60 passed in 9.11s`；新文件首跑
+2 failed——两处全是自伤（renew_lease 的假客户端 get 默认 None 没读回租约；普查把含重复的 30 词列表与 13 词集合直接比相等）；修后 6/6。
+ruff 首跑一处 C416（dict 推导式）修后三文件 All checks passed；mypy 全仓 222 files Success。聚焦两文件 A0 基线 10/10（臂脚本实读）。
+
+**变异臂（预测先写后跑，脚本 `.scratch/arm212-redis-latency-arms.py`，每臂 finally 从字节快照还原 + sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A0 | 未变异基线 | 0 红 / 10 | **MATCHED 0 红 / 10** ✅ |
+| A1 | 拆 get_progress 的 get 包装 | 2 红 = 驱动 + 普查 | **MISMATCH：实到 3 红**（多 raising，见下） |
+| A1b | 拆 get_lease_owner 的 get 包装（订正臂） | 2 红 = 驱动 + 普查 | **MATCHED 2 红，逐名相符** ✅ |
+| A2 | 一处包装词 expire→expires | 2 红 = 驱动 + 普查 | **MATCHED 2 红，逐名相符** ✅ |
+| A3 | _timed_redis 去掉 try/finally | 2 红 = raising + swallowed | **MATCHED 2 红，逐名相符** ✅ |
+| A4 | 梯度顶 6.0→4.0 | 1 红 = 梯度锚 | **MATCHED 1 红** ✅ |
+| A5 | 指标前缀改 v2 | 5 红 = 驱动+梯度+raising+swallowed+rollback（普查绿） | **MATCHED 5 红，逐名相符** ✅ |
+| A6 | 追加无包装的 self.client.dbgop 调用 | 2 红 = 普查 + 派生 | **MATCHED 2 红，逐名相符** ✅ |
+| A7 | 面板 selector [a-z_]+→[a-z]+ | 1 红 = 面板 pin（trace 绿：尾下划线占位符被丢） | **MATCHED 1 红** ✅ |
+| A8 | 一条表达式改用字面桶名 | 2 红 = 面板 pin + trace（字面名无上报点） | **MATCHED 2 红，逐名相符** ✅ |
+
+**A1 的预测误差如实记（先写后跑规则的用意）。** 预测 2 红漏掉了 test_raising_round_trip_still_observes：它的驱动载体恰是 get_progress 本身
+——拆掉该处的包装等于拆掉这个案子的观测点，于是它随之变红（3 红全部是真实后果，非门有洞）。A1b 把同一形态换到 raising/swallowed 都不使用
+的 get 站点（get_lease_owner），预测的 2 红逐名命中——证明多出来的红来自载体重叠，而不是普查或驱动测试有隐藏依赖。（臂日志
+`.scratch/arm212-arms.log`；脚本末行 `final sha256 == original: True`。）
+
+**诚实边界。** ① 顶格 6s 是被超时砍断样本的余量（见上）——梯度形状对齐 #169，但**不复制其等值顶格**：ES 面同一句「超时请求也落有限桶」在
+顶格==request_timeout（30s）的取等下同型存疑（超时实测略高于 30s），已立待核，未在本号改动 ES 代码。② close() 不在族内——连接收尾不是
+往返；`_client` 直连不建连接。③ 该族无 label、无告警，只给读数；§14 无 Redis 阈值，承诺仅一条：每往返恰一次观测（账本相等案例 + AST
+普查两向钉住）。④ 30 个调用点全包住的判据是 AST 一一对应，不是文本 grep——未来把 `client` 换成局部别名会让普查先从 ALL_OPS
+下限变红而不是静默漏计。

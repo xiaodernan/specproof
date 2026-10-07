@@ -107,6 +107,17 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "test, so a new ES op forces this gate and the family to move "
         "together",
     ),
+    "redis_op": (
+        re.compile(
+            r"^redis_request_seconds_"
+            r"(decrby|eval|exists|expire|get|incr|incrby|ping|set|setex|"
+            r"xadd|xlen|xread)$"
+        ),
+        "storage/redis.py #212: _timed_redis(\"<op>\") — op words are the "
+        "Redis client methods the store calls; the vocabulary is derived "
+        "from the self.client.<op> call sites by the derivation test, so a "
+        "new Redis op forces this gate and the family to move together",
+    ),
     "tool_stem": (
         re.compile(r"^tool_run_seconds_(cargo|gradle|mvn|npm|pytest|python)$"),
         "craft/executor.py #178: _timed_tool(<stem>) inside Executor.run — "
@@ -581,6 +592,25 @@ def test_concatenated_families_track_their_vocabularies() -> None:
     for op in es_ops:
         assert es_pattern.match(f"es_request_seconds_{op}"), (
             f"family rejects shipped es op {op}"
+        )
+
+    # redis_op == the Redis client methods the store actually calls (#212).
+    # Same derivation shape as es_op: the vocabulary is read from the
+    # emission file's self.client.<word> call sites, so a new Redis call
+    # fails this gate until the family (and the dashboard panel) moves with
+    # it.
+    redis_text = (ROOT / "storage" / "redis.py").read_text(encoding="utf-8")
+    redis_ops = sorted(set(re.findall(r"self\.client\.(\w+)", redis_text)))
+    assert redis_ops, "no Redis client call sites found"
+    redis_pattern, _ = CONCATENATED_FAMILIES["redis_op"]
+    expected_redis = "^redis_request_seconds_(" + "|".join(redis_ops) + ")$"
+    assert redis_pattern.pattern == expected_redis, (
+        f"redis_op family {redis_pattern.pattern} != client call sites "
+        f"{redis_ops}"
+    )
+    for op in redis_ops:
+        assert redis_pattern.match(f"redis_request_seconds_{op}"), (
+            f"family rejects shipped redis op {op}"
         )
 
     # tool_stem == the executor's command whitelist. Imported, not AST-read:
@@ -1247,3 +1277,22 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
         assert word in description49, (
             f"MCP boundary panel description does not name word {word}"
         )
+
+    # Same drift shape for the Redis latency panel (#212): the family is
+    # concatenated at runtime, the panel's reference is a __name__ regex the
+    # gate drops as a placeholder, so the exact selector and both quantiles
+    # are pinned at text level.
+    redis_exprs = [
+        target["expr"]
+        for panel in dashboard["panels"]
+        for target in panel.get("targets", [])
+        if "redis_request_seconds_" in target.get("expr", "")
+    ]
+    assert len(redis_exprs) == 2, f"expected p50+p95 redis exprs, got {redis_exprs}"
+    expected_redis_selector = (
+        '__name__=~"specproof_redis_request_seconds_[a-z_]+_bucket"'
+    )
+    for expr in redis_exprs:
+        assert expected_redis_selector in expr, expr
+    assert any("histogram_quantile(0.95" in expr for expr in redis_exprs)
+    assert any("histogram_quantile(0.50" in expr for expr in redis_exprs)

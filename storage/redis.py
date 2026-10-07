@@ -4,16 +4,24 @@ P1.4: Added Redis Streams for progress, worker lease, and LLM token budget.
 Backlog #9: progress entries carry a per-job monotonic sequence number
 (atomic INCR counter key sharing the stream's TTL) and the retention
 policy (XADD MAXLEN + key TTL) is configurable via RedisConfig.
+#212: every self.client.<op> round trip (13-op vocabulary) is timed with
+finally semantics into the redis_request_seconds_<op> family — failures
+included; close() is connection release, not a round trip, and is untimed.
 All keys carry TTL — no permanent business state in Redis.
 """
 import json
 import os
+import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
 import redis
+
+from observability.metrics import observe_duration
 
 #: Default progress-stream retention policy (§14.3): XADD MAXLEN cap per
 #: job stream, and TTL for the stream key plus its sequence-counter key.
@@ -27,6 +35,41 @@ _RELEASE_IF_HOLDER_LUA = (
     "if redis.call('get', KEYS[1]) == ARGV[1] "
     "then return redis.call('del', KEYS[1]) else return 0 end"
 )
+
+
+#: §8.10 "Redis 延迟" (#212): histogram ladder for Redis round trips. Local
+#: Redis answers in tens of microseconds (unix socket) to a few milliseconds
+#: (TCP + real payloads); the ES ladder's 5ms floor would put every local
+#: ping in the first bucket, so this ladder starts a decade lower. Top
+#: bucket 6s sits just above the client's own socket_timeout=5 (the
+#: `client` property): a request cut off at the timeout measures slightly
+#: over 5s, so an exactly-equal top would push it into +Inf (where
+#: quantiles return NaN) — 1s of headroom keeps timed-out rounds finite.
+_REDIS_BUCKETS: tuple[float, ...] = (
+    0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1,
+    0.25, 0.5, 1.0, 2.5, 6.0,
+)
+
+
+@contextmanager
+def _timed_redis(op: str) -> Iterator[None]:
+    """Time one Redis round trip into redis_request_seconds_<op> (#212).
+
+    The op word is appended to the metric name (concatenated family, same
+    shape as the ES `_timed_es` family): get / set / setex / expire / incr /
+    incrby / decrby / exists / xadd / xread / xlen / eval / ping — the
+    vocabulary the client call sites actually use, pinned by the derivation
+    gate. First use pins the ladder (metrics.observe_duration,
+    first-use-wins).
+    """
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        observe_duration(
+            "redis_request_seconds_" + op, time.perf_counter() - started,
+            _REDIS_BUCKETS,
+        )
 
 
 @dataclass
@@ -91,11 +134,13 @@ class RedisStore:
 
     def set_progress(self, job_id: str, progress: dict[str, Any]) -> None:
         key = f"specproof:progress:{job_id}"
-        self.client.setex(key, 600, json.dumps(progress))
+        with _timed_redis("setex"):
+            self.client.setex(key, 600, json.dumps(progress))
 
     def get_progress(self, job_id: str) -> dict[str, Any] | None:
         key = f"specproof:progress:{job_id}"
-        val = self.client.get(key)
+        with _timed_redis("get"):
+            val = self.client.get(key)
         return json.loads(val) if val else None
 
     # ── Redis Stream: progress events ─────────────────────────
@@ -123,10 +168,12 @@ class RedisStore:
         XADD can leave a gap in the sequence; monotonicity, not contiguity,
         is the contract.
         """
-        seq = int(self.client.incr(self.sequence_key(job_id)))
-        self.client.expire(
-            self.sequence_key(job_id), self.config.stream_ttl_seconds
-        )
+        with _timed_redis("incr"):
+            seq = int(self.client.incr(self.sequence_key(job_id)))
+        with _timed_redis("expire"):
+            self.client.expire(
+                self.sequence_key(job_id), self.config.stream_ttl_seconds
+            )
         data = {
             "seq": str(seq),
             "node": node,
@@ -136,11 +183,13 @@ class RedisStore:
             "message": message,
         }
         key = self.stream_key(job_id)
-        entry_id = self.client.xadd(
-            key, cast(Any, data), maxlen=self.config.stream_maxlen
-        )
+        with _timed_redis("xadd"):
+            entry_id = self.client.xadd(
+                key, cast(Any, data), maxlen=self.config.stream_maxlen
+            )
         # Set TTL on the stream key (24h by default)
-        self.client.expire(key, self.config.stream_ttl_seconds)
+        with _timed_redis("expire"):
+            self.client.expire(key, self.config.stream_ttl_seconds)
         return str(entry_id)
 
     def xread_progress(
@@ -154,7 +203,10 @@ class RedisStore:
         """
         key = self.stream_key(job_id)
         try:
-            result = cast(Any, self.client.xread({key: from_id}, count=count))
+            with _timed_redis("xread"):
+                result = cast(
+                    Any, self.client.xread({key: from_id}, count=count)
+                )
             if not result:
                 return []
             entries: list[dict[str, Any]] = []
@@ -175,7 +227,8 @@ class RedisStore:
 
     def stream_length(self, job_id: str) -> int:
         try:
-            return self.client.xlen(self.stream_key(job_id))
+            with _timed_redis("xlen"):
+                return self.client.xlen(self.stream_key(job_id))
         except redis.ResponseError:
             return 0
 
@@ -210,25 +263,35 @@ class RedisStore:
         """
         key = self.lease_key(job_id)
         # SET NX: only succeeds if key doesn't exist
-        acquired = bool(self.client.set(key, worker_id, nx=True, ex=ttl))
+        with _timed_redis("set"):
+            acquired = bool(self.client.set(key, worker_id, nx=True, ex=ttl))
         if acquired and max_hold_seconds is not None:
-            self.client.set(self.lease_cap_flag_key(job_id), "1")
-            self.client.set(
-                self.lease_start_key(job_id), worker_id, ex=max_hold_seconds,
-            )
+            with _timed_redis("set"):
+                self.client.set(self.lease_cap_flag_key(job_id), "1")
+            with _timed_redis("set"):
+                self.client.set(
+                    self.lease_start_key(job_id), worker_id,
+                    ex=max_hold_seconds,
+                )
         return acquired
 
     def renew_lease(self, job_id: str, worker_id: str, ttl: int = 30) -> bool:
         """Renew an existing lease. Worker must own the lease AND the
         max-hold window (when a cap was configured) must still be open."""
         key = self.lease_key(job_id)
-        current = self.client.get(key)
+        with _timed_redis("get"):
+            current = self.client.get(key)
         if current != worker_id:
             return False
-        capped = bool(self.client.exists(self.lease_cap_flag_key(job_id)))
-        if capped and not self.client.exists(self.lease_start_key(job_id)):
-            return False  # max hold exhausted — let the lease lapse
-        self.client.expire(key, ttl)
+        with _timed_redis("exists"):
+            capped = bool(self.client.exists(self.lease_cap_flag_key(job_id)))
+        if capped:
+            with _timed_redis("exists"):
+                held = self.client.exists(self.lease_start_key(job_id))
+            if not held:
+                return False  # max hold exhausted — let the lease lapse
+        with _timed_redis("expire"):
+            self.client.expire(key, ttl)
         return True
 
     def release_lease(self, job_id: str, worker_id: str) -> None:
@@ -244,15 +307,17 @@ class RedisStore:
             return 0
         end
         """
-        self.client.eval(
-            lua_script, 3, key,
-            self.lease_start_key(job_id), self.lease_cap_flag_key(job_id),
-            worker_id,
-        )
+        with _timed_redis("eval"):
+            self.client.eval(
+                lua_script, 3, key,
+                self.lease_start_key(job_id), self.lease_cap_flag_key(job_id),
+                worker_id,
+            )
 
     def get_lease_owner(self, job_id: str) -> str | None:
         """Return the worker_id that holds the lease, or None."""
-        val = self.client.get(self.lease_key(job_id))
+        with _timed_redis("get"):
+            val = self.client.get(self.lease_key(job_id))
         return str(val) if val is not None else None
 
     # ── LLM Token budget ──────────────────────────────────────
@@ -263,20 +328,24 @@ class RedisStore:
     def init_budget(self, job_id: str, max_tokens: int) -> None:
         """Initialize the token budget for a job."""
         key = self.budget_key(job_id)
-        self.client.set(key, str(max_tokens), ex=7200)
+        with _timed_redis("set"):
+            self.client.set(key, str(max_tokens), ex=7200)
 
     def consume_budget(self, job_id: str, tokens: int) -> bool:
         """Consume tokens from the budget. Returns False if budget exceeded."""
         key = self.budget_key(job_id)
-        remaining = self.client.decrby(key, tokens)
+        with _timed_redis("decrby"):
+            remaining = self.client.decrby(key, tokens)
         if remaining < 0:
-            self.client.incrby(key, tokens)  # rollback
+            with _timed_redis("incrby"):
+                self.client.incrby(key, tokens)  # rollback
             return False
         return True
 
     def check_budget(self, job_id: str) -> int:
         """Return remaining budget tokens. -1 if budget not initialized."""
-        val = self.client.get(self.budget_key(job_id))
+        with _timed_redis("get"):
+            val = self.client.get(self.budget_key(job_id))
         return int(val) if val else -1
 
     # ── Lock ──────────────────────────────────────────────────
@@ -300,9 +369,10 @@ class RedisStore:
                 "互相看起来都像被别人占了"
             )
         token = uuid.uuid4().hex
-        taken = self.client.set(
-            f"{SCOPE_LOCK_PREFIX}{scope}", token, nx=True, ex=ttl
-        )
+        with _timed_redis("set"):
+            taken = self.client.set(
+                f"{SCOPE_LOCK_PREFIX}{scope}", token, nx=True, ex=ttl
+            )
         return token if taken else None
 
     def release_scope_lock(self, scope: str, token: str) -> bool:
@@ -314,29 +384,34 @@ class RedisStore:
         """
         if not token:
             return False
-        deleted = self.client.eval(
-            _RELEASE_IF_HOLDER_LUA, 1, f"{SCOPE_LOCK_PREFIX}{scope}", token
-        )
+        with _timed_redis("eval"):
+            deleted = self.client.eval(
+                _RELEASE_IF_HOLDER_LUA, 1, f"{SCOPE_LOCK_PREFIX}{scope}", token
+            )
         return bool(deleted)
 
     # ── Cache ─────────────────────────────────────────────────
 
     def cache_llm_response(self, cache_key: str, response: dict[str, Any], ttl: int = 3600) -> None:
         key = f"specproof:cache:model:{cache_key}"
-        self.client.setex(key, ttl, json.dumps(response))
+        with _timed_redis("setex"):
+            self.client.setex(key, ttl, json.dumps(response))
 
     def get_cached_llm_response(self, cache_key: str) -> dict[str, Any] | None:
         key = f"specproof:cache:model:{cache_key}"
-        val = self.client.get(key)
+        with _timed_redis("get"):
+            val = self.client.get(key)
         return json.loads(val) if val else None
 
     def cache_provider_capability(self, base_url_hash: str, capabilities: dict[str, Any]) -> None:
         key = f"specproof:capability:{base_url_hash}"
-        self.client.setex(key, 86400, json.dumps(capabilities))
+        with _timed_redis("setex"):
+            self.client.setex(key, 86400, json.dumps(capabilities))
 
     def get_cached_provider_capability(self, base_url_hash: str) -> dict[str, Any] | None:
         key = f"specproof:capability:{base_url_hash}"
-        val = self.client.get(key)
+        with _timed_redis("get"):
+            val = self.client.get(key)
         return json.loads(val) if val else None
 
     # ── idempotency ───────────────────────────────────────────
@@ -344,17 +419,20 @@ class RedisStore:
     def set_idempotent(self, event_id: str, ttl: int = 86400) -> bool:
         """Mark an event as processed. Returns False if already processed."""
         key = f"specproof:idempotent:{event_id}"
-        return bool(self.client.set(key, "1", nx=True, ex=ttl))
+        with _timed_redis("set"):
+            return bool(self.client.set(key, "1", nx=True, ex=ttl))
 
     def is_idempotent(self, event_id: str) -> bool:
         """Check if an event has already been processed."""
-        return bool(self.client.exists(f"specproof:idempotent:{event_id}"))
+        with _timed_redis("exists"):
+            return bool(self.client.exists(f"specproof:idempotent:{event_id}"))
 
     # ── health ────────────────────────────────────────────────
 
     def is_ready(self) -> bool:
         try:
-            return self.client.ping()
+            with _timed_redis("ping"):
+                return self.client.ping()
         except Exception:
             return False
 
