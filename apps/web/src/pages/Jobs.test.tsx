@@ -97,3 +97,22 @@ describe("status filter offers only real statuses", () => {
     expect(screen.queryByRole("option", { name: "证据不足" })).toBeNull();
   });
 });
+
+
+describe("the list reports the server's total, not the window size", () => {
+  it("shows the COUNT even when this window holds a single row", async () => {
+    // 67 matching rows, one of them in this window. The page used to fall back
+    // to data.jobs.length when `total` was missing; the shared type makes it
+    // required, and this pins the rendered number to the server's answer.
+    get.mockResolvedValue({
+      jobs: [{ id: "job-1", repo_path: "/workspace/orders", status: "VERIFIED" }],
+      total: 67,
+    });
+    render(<Jobs />);
+    await screen.findByRole("link", { name: "orders" });
+
+    expect(screen.getByText("共 67 条验证")).toBeTruthy();
+    // Pagination is derived from the same number: ceil(67 / 25) === 3 pages.
+    expect(screen.getByText("1 / 3")).toBeTruthy();
+  });
+});

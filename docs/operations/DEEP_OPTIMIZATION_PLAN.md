@@ -3065,3 +3065,77 @@ run_release_checks（RELEASE 档两道发布门：diff 判决可复现性重跑 
 
 - 新增名 4 个（runs + 三词）；面板 43→44；OBSERVABILITY 清单 29 个文件。
 - 下一号候选：见弧收口段。
+
+## #202 作业列表的「共 N 条」不许退化成窗口长度——把 `total` 从可选改成必需（**半验证，见文末状态**）
+
+**候选来源。** #172 的「另两处只刻画不修」第 1 条：`apps/web/src/pages/Jobs.tsx:49` 的
+`setTotal(data.total ?? data.jobs?.length ?? 0)`，在路由总返回真实 `COUNT` 的前提下是**潜在回退**而非当前缺陷，
+但 `api.ts` 把 `total` 声明成可选，等于允许未来某个调用点把**窗口长度**当总数。
+
+**为什么值得修：这不是风格问题，是把「我不知道」说成一个自信的错数。** `api/routes/jobs.py` 的
+`list_jobs` 返回处**自己就写着这段历史**：
+
+> The old fork answered a bare GET /jobs from a SELECT with no COUNT, so that response had no
+> `total` and any consumer asking "how many verifications exist" could only report the size of the
+> window it happened to fetch.
+
+后端把这条路修掉了，**前端却把这段注释描述的那个回退原样留着**——而且不是靠共享类型，是靠
+`pages/Jobs.tsx:8` 自己写的 `interface JobsPage { jobs: Job[]; total?: number }`：一份**私有的、被削弱的**副本。
+于是任何一次缺 `total` 的响应，页面会把**页大小 25** 当成"符合筛选的验证"，并用它算分页。
+与 #110 的幽灵筛选、#173 的死声明同族：**允许"算不出来"退化成"一个确定的错答案"**。
+
+**改法（消掉可能性，而不只是消掉这一处）。**
+- `apps/web/src/api.ts`：新增**导出**的 `JobsPage`，`total: number` **必需**，docstring 把上面那段后端注释
+  与页面残留的回退一起记下来。
+- `apps/web/src/pages/Jobs.tsx`：删掉私有 `interface JobsPage`，改 `import { type JobsPage }`；
+  `setTotal(data.total)`——**没有回退可回退**。
+
+**新门（`tests/unit/test_jobs_page_total_is_not_the_window.py`，5 例）——两端 + 中间权威一起钉。**
+① 权威：`storage/mysql.py::search_jobs` 里 `COUNT(*) AS total` 在、且以 `"total": total` 返回；
+② 路由：`list_jobs` 必须 `return store.search_jobs(`（自己拼响应就会再丢字段）；
+③ 共享类型：`api.ts` 的 `JobsPage` 里 `total: number` 在、`total?:` 不在；
+④ 页面不得再声明私有 `JobsPage`，且必须从 `../api` 取共享类型；
+⑤ 调用点：`setTotal(` 那一行不许出现 `length`，且必须形如 `setTotal(data.total)`。
+（③④⑤ 都带"探针先自证找得到东西"的下限：找不到 `JobsPage`、找不到 `setTotal(` 一律拒，不绿着过。）
+
+**行为见证（`apps/web/src/pages/Jobs.test.tsx` +1）。** `total: 67` 而窗口里只有 **1** 行 ⇒ 页面显示
+`共 67 条验证` 且分页指示为 `1 / 3`（`ceil(67/25)`）。若哪天回退复活，这条会显示 1 条 / 1 页。
+
+### 五臂变异（预测先写后跑；每臂从运行前快照还原，工作副本，逐臂复核字节）
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| P1 | `api.ts` 把 `total: number` 改回 `total?: number` | 门③红 | **1 red**，正是门③ ✅ |
+| P2 | `Jobs.tsx` 重新声明私有 `interface JobsPage` | 门④红 | **1 red**，正是门④ ✅ |
+| P3 | 调用点改回 `data.total ?? data.jobs?.length ?? 0` | 门⑤红 | **1 red**，正是门⑤ ✅ |
+| P4 | `search_jobs` 的返回键改成 `"count"` | 门①红 | **1 red**，正是门① ✅ |
+| P5 | `search_jobs` 自己的 COUNT 改成 `COUNT(id)` | 门①红 | **1 red**，正是门① ✅（**前两轮不是**，见下） |
+
+**P5 前两轮都 SURVIVED，而两次的原因不同，两个都值得记。**
+① 第一轮写成 `replace("COUNT(*) AS total", "COUNT(id) AS total", 1)` —— 它替换的是**全文件第一处**，
+而 `storage/mysql.py:70` 有一个模块级常量 `_AUDIT_TOTAL_SQL` 也写着同样的字符串，
+于是 `search_jobs` **根本没被碰到**，门绿得完全正确。**这是臂瞄错了，不是门瞎了。**
+② 顺着 ① 我去查"门是不是只看文件级存在"，发现**那确实是个真洞**：门原先断言 `"COUNT(*) AS total" in 整份文件`，
+只要 line 70 还在，把 `search_jobs` 的 COUNT 改掉也能绿——**证人没有绑定到它宣称见证的东西**（同 #173-2 的教训）。
+已把断言收进 `search_jobs` 的函数体。改完再把臂瞄到 `FROM verification_jobs` 那一句，P5 才红。
+**教训：臂 SURVIVED 时先怀疑臂瞄错了，再怀疑门瞎了；但两个方向都要真的去查。**
+
+### 状态（已全部验证，见提交）
+
+| 项 | 读数 |
+|---|---|
+| `api.ts` + `Jobs.tsx` 源码改动 | `npx tsc --noEmit` **0 行输出** |
+| 新门 `test_jobs_page_total_is_not_the_window.py` | **5 passed**；`ruff` All checks passed；`mypy` Success |
+| `Jobs.test.tsx`（新增 1 例，共 7 例） | **7 passed**（`total: 67` + 窗口 1 行 ⇒ 显示 `共 67 条验证`、分页 `1 / 3`） |
+| 五条变异臂 | **5/5 如预测**，各点名被测条款 |
+
+**本次会话中途的环境事故（非本号代码问题，已跨会话互证）**：执行环境一度整体失效——
+`bash.exe` 报 `fatal error - unable to load netapi32.dll, Win32 error 5`，连 `echo` 都跑不了，
+沙箱拒绝读源码、`vitest` 被点名拒绝读 `node_modules/jsdom/...`。
+**同日另一会话（minicc-codex）记下了同一件事**（`CreateProcessW errno 13` / `fork: Permission denied` → 同样的 dll 报错 → PowerShell 也被拒），
+所以是宿主环境而不是任一项目的代码。事故期间本号停在"源码已改、定向门已绿、行为测试与臂未跑、未提交"，
+**计划文件里当时留下的接手须知已被本轮全部执行完**。
+另：事故发生在臂脚本的"开臂前 reset"，**变异没有残留**——三个目标文件事后逐个复核过
+（`api.ts` 仍 `total: number;`、`Jobs.tsx` 无私有接口且 `setTotal(data.total)`、`mysql.py` 仍 `COUNT(*) AS total` 与 `"total": total`）。
+
+

@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiGet, type Job } from "../api";
+import { apiGet, type Job, type JobsPage } from "../api";
 import { Button, ErrorBox, JOB_STATUSES, Panel, Spinner, StatusPill, statusLabel, Table, fmtTime, shortId } from "../ui";
 import "../styles/verification.css";
 
 const PAGE_SIZE = 25;
 const ACTIVE = new Set(["QUEUED", "RUNNING", "PENDING", "WAITING_FOR_PROVIDER", "FAILED"]);
-interface JobsPage { jobs: Job[]; total?: number; }
 
 /** 仓库路径 → 展示名（取最后一段目录名）。 */
 function repoName(job: Job): string {
@@ -46,7 +45,11 @@ export default function Jobs() {
         const data = await apiGet<JobsPage>("/jobs?" + params.toString(), controller.signal);
         if (!alive) return;
         setJobs(data.jobs || []);
-        setTotal(data.total ?? data.jobs?.length ?? 0);
+        // `total` is required by the shared type, so there is no fallback to
+        // fall back to: the page either shows the server's count or the request
+        // failed. Substituting the window length here would have printed the
+        // page size (25) as if it were the number of matching verifications.
+        setTotal(data.total);
         activeRef.current = (data.jobs || []).some((job) => ACTIVE.has((job.status || "").toUpperCase()));
         setError(null);
       } catch (e) {

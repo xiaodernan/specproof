@@ -403,6 +403,26 @@ export interface Job {
   summary?: unknown;
 }
 
+/**
+ * `GET /jobs` — one window of jobs plus the TOTAL number of rows matching the
+ * filter, not the size of the window.
+ *
+ * `total` is REQUIRED on purpose. The route always returns it (`list_jobs`
+ * returns `store.search_jobs(...)`, which computes it with a real
+ * `SELECT COUNT(*)`), and the backend comment on that return says exactly why:
+ * an earlier fork answered a bare `GET /jobs` with no COUNT, so "any consumer
+ * asking how many verifications exist could only report the size of the window
+ * it happened to fetch". `pages/Jobs.tsx` still kept that fallback
+ * (`data.total ?? data.jobs?.length ?? 0`) behind a private `total?:` type, so
+ * the page would have reported "25" — the page size — for any response that
+ * omitted the field. Making the field required deletes the possibility rather
+ * than the instance.
+ */
+export interface JobsPage {
+  jobs: Job[];
+  total: number;
+}
+
 export interface VerificationRequest {
   repo_path: string;
   spec_path: string;
