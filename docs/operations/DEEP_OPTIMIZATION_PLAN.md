@@ -3711,3 +3711,70 @@ CapabilityProbe 的 chat 协议探测自建客户端、不经计量；responses 
 responses 协议探测计入, chat 协议探测不计——重连后首拨的 +1 是探测不是业务流量。③ `_ensure_probed` 在区外：
 探测时间不进延迟直方图。④ 门钉的是名字、含入关系与词形；§14 无 LLM 请求阈值, 无告警——面板 47/48 只给读数, 
 不承诺任何比率健康。
+## #211 MCP 外部工具边界不可观测：七个失败词只活在 bridge 契约里，wiring 边界补齐调用/错误/延迟三兄弟
+
+**起点（#209 界线的另一侧）。** #208/#209 的语料门把工具结果的三态（ok / error / denied）接进了计数，但两条诚实边界当时就写明：外部
+mcp.* 工具的失败由 `providers/mcp_bridge.py` 构造直通、不经 `_error()`——只有树内失败可计数。bridge 的契约是每个失败 summary 带
+`[CODE] ` 前缀（六个稳定码 + 声明的无前缀回退），而这七个词在 `/metrics` 上没有任何名字：每分钟多少次调用、失败率多少、延迟多长，
+一个字都没有。本号把计量钉在 `craft/mcp_wiring.py::_tool_spec_from_envelope` 的嵌套 handler——每次 mcp.* 调用的唯一执行点：
+dispatch 面（#208/#209）不动，**MCP 边界三兄弟**自本号起可见。
+
+**实现（一个 handler、三个名字）。** 入口 `incr("mcp_tool_calls_total")`（分母：每次真实到达执行面的调用）；`try/finally` 里
+`observe_duration("mcp_tool_seconds", …, buckets=MCP_TOOL_BUCKETS)`（finally 语义——失败与 ToolResult 构造崩溃也进延迟序列）；
+`status == "error"` 的结果按 `_error_word(summary)` 计 `mcp_tool_errors_<word>_total`：锚定的 `_STAMP` 正则把 bridge 的 `[CODE] `
+前缀读回并小写，恰七个词——mcp.client 六个稳定码的值（invalid_arguments / mcp_connection_error / mcp_protocol_error /
+mcp_server_error / mcp_timeout / unknown_tool）+ 声明回退 `unprefixed`（bridge 忘记盖章时可见而非静默丢弃）。`MCP_TOOL_BUCKETS`
+梯度 0.25..240s：一次会话最多烧 2×DEFAULT_TIMEOUT（initialize + tools/call 各一次），顶格对齐两倍超时，双超时调用也落有限桶。
+分面互斥：dispatch 门拒绝（未知工具/版本/参数/审批）在执行面之前返回——只计 tool_calls_total 与 #208/#209 族，**永不**到达本
+handler；handler 崩溃（envelope → ToolResult 校验失败）计 mcp calls 与 mcp seconds（边界到达了），但错误面是 dispatch 的
+execution_failed，**不进** mcp 错误族；bridge 两个 status="error" dict 的盖章载体恰为 {exc.code, CODE_SERVER_ERROR}。
+（mcp_wiring.py 6884→10236 字节, sha 49626cc5→ac0ef2a5; craft/tools.py 只加一条文档交叉引用, 42801→42884。）
+
+**门（行为差值表 + 源内 AST 普查）。** 新文件 14 例：11 条行为案例读进程内注册表（ok 分母与延迟；六码各一例 + 回退词一例；
+anchored——中段括号不算戳；crash 分面；refusal 互斥零增量）；1 条梯度（运行时桶与常量相等、顶格 ≥ 2×mcp.client.DEFAULT_TIMEOUT
+现读）；2 条普查——wiring：恰一个 handler、恰三个计量点且全部在其中（无区外上报）、错误词必须来自 `_error_word(result.summary)`、
+observe 必须在 finally、`^` 锚在、`_UNSTAMPED_WORD` 声明唯一；bridge：源内 status="error" dict 恰两个且盖章载体恰
+{exc.code, CODE_SERVER_ERROR}（新增错误出口无法不计数地出厂）。parity 门：新族 `mcp_tool_error`（词表从 mcp.client.__all__ 的
+CODE_* 常量值 + wiring 源内 `_UNSTAMPED_WORD` 声明现读派生，不手抄；两半各有唯一性断言）+ 面板 49/50 pin（两条表达式与图例、
+两条分位数、面板 49 描述挨个点名七个派生词）。首跑抓到一处旧钉误伤：#209 的面板 pin 用 `"tool_errors" in expr` 过滤，新选择器
+`specproof_mcp_tool_errors_…` 含子串 `tool_errors`——会同时命中两块面板（1→2），收紧为 `"specproof_tool_errors"`
+（`specproof_mcp_tool_errors` 不含该子串）。dashboard 48→50 面板（sha fc7d65e0→4c021695, 162961→169858 字节, 纯 CRLF,
+5284→5490 CRLF 行, 插入 207 行；面板 50 的桶 selector 与 49 的描述由 pin 块钉死）。OBSERVABILITY.md 同号记账：
+生产侧上报模块 31→32（craft/mcp_wiring.py 入册）, 250→251 行。
+
+**读法（同步进 OBSERVABILITY.md 与面板 49/50）。** calls 是**到达执行面**的真实调用数——被 dispatch 门拒绝的调用不在此
+（它们只有 dispatch 面的 tool_calls_total），所以 calls 是「真正跑过的 mcp 调用」的诚实分母；errors 是结果级失败
+（bridge 的 status="error"），execution_failed 崩溃不在此（见上）；`unprefixed` 非零 = bridge 盖章契约的破口，先看 bridge
+而不是读成外部服务器错了。面板 49（calls/errors rate 对照）与 50（p50/p95）；§14 无 MCP 阈值故无告警——比率健康与否要靠人读面板；
+自定义更长 timeout 的调用可能溢出 240s 顶桶（+Inf 诚实残差）。
+
+**门证（全部实读）。** 回归批 6 模块（wiring / 本号两门 / craft tools 三面）`89 passed in 60.25s`；新文件首跑 11 passed /
+3 failed——三处全是自伤：两处计数器名缺 `_total` 后缀（`.get(name, 0.0)` 把拼错的名字吞成 0.0 假绿）、一处 `ast.Constant`
+按身份比较使 bridge 普查读到 0 个 dict（修成逐对按值扫）；修后 14/14，ruff 首跑一处 I001 修后四文件 All checks passed，
+mypy 全仓 222 files Success。聚焦两文件 A0 基线 18/18（臂脚本实读）。
+
+**变异臂（预测先写后跑，脚本 `.scratch/arm211-mcp-tool-metrics-arms.py`，每臂 finally 从字节快照还原 + sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A0 | 未变异基线 | 0 红 / 18 | **MATCHED 0 红 / 18** ✅ |
+| A1 | 删 calls incr | 12 红 = 10 行为 + 普查 + trace | **MATCHED 12 红，逐名相符** ✅ |
+| A2 | 删 error if+incr | 9 红 = 8 行为 + 普查 | **MATCHED 9 红，逐名相符** ✅ |
+| A3 | 删 observe 整段 | 5 红 = ok / crash / ladder / 普查 / trace | **MATCHED 5 红，逐名相符** ✅ |
+| A4 | observe 移出 finally | 2 红 = crash + 普查 | **MATCHED 2 红，逐名相符** ✅ |
+| A5 | 回退词改名 | 2 红 = 派生 + 面板 pin | **MATCHED 2 红，逐名相符** ✅ |
+| A6 | 去 `^` 锚 | 2 红 = anchored + 普查 | **MISMATCH：实到 1 红**（anchored 未红，见下） |
+| A6b | 去 `^` 且 match→search（订正臂） | 2 红 = anchored + 普查 | **MATCHED 2 红，逐名相符** ✅ |
+| A7 | 删 status=="error" 守卫 | 1 红 = ok | **MATCHED 1 红，逐名相符** ✅ |
+
+**A6 的预测误差如实记（先写后跑规则的用意）。** 去 `^` 后行为不变：`_error_word` 走 `re.match`——它本身就从串首锚定，`^` 对行为
+是冗余词形；唯一红是普查的 `startswith("^")` 词形条款。**这不是门有洞**：声明空间 (match|search)×(^|无^) 里只有 (search, 无^)
+让「仅领头戳分类」翻转；A6b 把两件一并变异，行为案例如实变红（"x [MCP_TIMEOUT] later" 被误读成 mcp_timeout）、普查同步红——
+行为红的可达性有单独见证（原预测保留可见，订正写入臂脚本 docstring）。A5 是负控制方向：unit 案自洽读源所以全绿，只有两份
+parity 钉（派生词表 + 面板描述）变红；A7 是正控制：错误路径行为不变，只有 ok 路径落进回退词。（臂日志 `.scratch/arm211-arms.log`；
+脚本末行 `final sha256 == original: True`。）
+
+**诚实边界。** ① 计量在 wiring handler（到达执行面的每次真实调用）；dispatch 门拒绝只有 tool_calls_total 与 #208/#209 族——
+两分面互斥，不重复计数（refusal 行为案例钉住）。② `unprefixed` 是读侧声明而非静默丢弃；非零先看 bridge 契约而非外部服务器。
+③ handler 崩溃计 mcp calls/seconds 但错误面归 dispatch 的 execution_failed（crash 行为案例两端都钉）。④ 桶顶 240s 对默认超时
+是双倍余量；自定义更长 timeout 溢出顶桶落 +Inf 是诚实残差；§14 无 MCP 阈值，无告警——面板 49/50 只给读数，不承诺任何比率健康。

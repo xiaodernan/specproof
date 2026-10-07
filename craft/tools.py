@@ -113,7 +113,8 @@ DENIAL_CODES: frozenset[str] = frozenset(
 #: reason cannot ship uncounted. Disjoint from DENIAL_CODES by design
 #: (error is never denied). External mcp.* tools are outside this
 #: taxonomy: their error dicts are built by providers/mcp_bridge.py and
-#: pass through craft/mcp_wiring.py without touching _error().
+#: pass through craft/mcp_wiring.py without touching _error() — #211
+#: counts them there as the separate mcp_tool_errors_<code>_total family.
 ERROR_CODES: frozenset[str] = frozenset(
     {
         CODE_UNKNOWN_TOOL,

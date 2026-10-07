@@ -432,6 +432,21 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "derivation test, so a new error code forces this gate and the "
         "family to move together",
     ),
+    "mcp_tool_error": (
+        re.compile(
+            r"^mcp_tool_errors_"
+            r"(invalid_arguments|mcp_connection_error|mcp_protocol_error"
+            r"|mcp_server_error|mcp_timeout|unknown_tool|unprefixed)_total$"
+        ),
+        "craft/mcp_wiring.py #211: incr(f\"mcp_tool_errors_{_error_word("
+        "result.summary)}_total\") inside the metered external-tool handler "
+        "— the word is the bridge summary's \"[CODE] \" stamp read back and "
+        "lowercased, with the declared unprefixed fallback for prefix-less "
+        "summaries; the vocabulary derives from mcp.client's stable CODE_* "
+        "set plus that fallback word by the derivation test, so a new "
+        "client code or a moved fallback declaration forces this gate and "
+        "the family to move together",
+    ),
 }
 
 
@@ -933,6 +948,44 @@ def test_concatenated_families_track_their_vocabularies() -> None:
         )
 
 
+    # mcp_tool_error == the external MCP boundary's read-side vocabulary:
+    # the six stable CODE_* words mcp.client declares (lowercased — the
+    # bridge stamps "[CODE] " into every failure summary and the wiring
+    # meter reads it back) plus the wiring's declared unprefixed fallback
+    # word for prefix-less summaries. Both halves derive from the product
+    # sources, not a hand copy: the codes from mcp.client.__all__, the
+    # fallback from the wiring source's own declaration.
+    import mcp.client as mcp_client
+
+    mcp_client_words = sorted(
+        getattr(mcp_client, name).lower()
+        for name in mcp_client.__all__
+        if name.startswith("CODE_")
+    )
+    assert len(mcp_client_words) == 6, (
+        f"mcp.client code vocabulary moved: {mcp_client_words}"
+    )
+    assert len(set(mcp_client_words)) == 6, (
+        f"mcp.client codes collapse under lowercasing: {mcp_client_words}"
+    )
+    wiring_src = (ROOT / "craft" / "mcp_wiring.py").read_text(encoding="utf-8")
+    fallback_words = re.findall(r'^_UNSTAMPED_WORD = "([a-z_]+)"$', wiring_src, re.M)
+    assert len(fallback_words) == 1, (
+        f"mcp_wiring fallback declaration not unique: {fallback_words}"
+    )
+    mcp_words = sorted([*mcp_client_words, fallback_words[0]])
+    mcp_pattern, _ = CONCATENATED_FAMILIES["mcp_tool_error"]
+    expected_mcp = "^mcp_tool_errors_(" + "|".join(mcp_words) + ")_total$"
+    assert mcp_pattern.pattern == expected_mcp, (
+        f"mcp_tool_error family {mcp_pattern.pattern} != mcp vocabulary "
+        f"{mcp_words}"
+    )
+    for word in mcp_words:
+        assert mcp_pattern.match(f"mcp_tool_errors_{word}_total"), (
+            f"family rejects mcp error word {word}"
+        )
+
+
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:
     """The #165 broker-side alerts consume rabbitmq_* series that only the
     rabbitmq scrape job provides — and only in its per-object rendering.
@@ -1099,7 +1152,7 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
         target["expr"]
         for panel in dashboard["panels"]
         for target in panel.get("targets", [])
-        if "tool_errors" in target.get("expr", "")
+        if "specproof_tool_errors" in target.get("expr", "")
     ]
     assert len(error_exprs) == 1, f"expected 1 error selector expr, got {error_exprs}"
     expected_error_selector = '__name__=~"specproof_tool_errors_[a-z0-9_]+_total"'
@@ -1140,3 +1193,57 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
         "histogram_quantile(0.95, "
         "sum(rate(specproof_llm_request_seconds_bucket[15m])) by (le))",
     }, llm_latency_exprs
+
+    # #211: MCP 外部工具边界三件套 (craft/mcp_wiring.py) — calls 是字面名,
+    # 由上方 trace 门自己核对发点名; 错误族选择器是 __name__ 正则 (trace 门
+    # 按占位符丢弃), 延迟 bucket 名与 observe_duration 第一参数字面一致。
+    # 这里 pin 面板的漂移形状: 面板 49 的两条表达式与图例、面板 50 的两条
+    # 分位数, 以及 49 的描述必须挨个点名读侧词表 (六个稳定码 + 声明的回退
+    # 词, 两半都派生自产品源码) — 读法与派生门钉的词表不许各走各的。
+    mcp_panel = [p for p in dashboard["panels"] if p.get("id") == 49]
+    assert len(mcp_panel) == 1, "MCP boundary panel (id 49) missing"
+    mcp_targets = {
+        t["expr"]: t.get("legendFormat") for t in mcp_panel[0].get("targets", [])
+    }
+    assert mcp_targets == {
+        "sum(rate(specproof_mcp_tool_calls_total[15m]))": "calls/s",
+        'sum by (__name__) (rate({__name__=~"specproof_mcp_tool_errors_'
+        '[a-z0-9_]+_total"}[15m]))': "{{__name__}}/s",
+    }, mcp_targets
+
+    mcp_latency_panel = [p for p in dashboard["panels"] if p.get("id") == 50]
+    assert len(mcp_latency_panel) == 1, "MCP latency panel (id 50) missing"
+    mcp_latency_exprs = {
+        t["expr"] for t in mcp_latency_panel[0].get("targets", [])
+    }
+    assert mcp_latency_exprs == {
+        "histogram_quantile(0.50, "
+        "sum(rate(specproof_mcp_tool_seconds_bucket[15m])) by (le))",
+        "histogram_quantile(0.95, "
+        "sum(rate(specproof_mcp_tool_seconds_bucket[15m])) by (le))",
+    }, mcp_latency_exprs
+
+    import mcp.client as mcp_client
+
+    fallback_match = re.search(
+        r'^_UNSTAMPED_WORD = "([a-z_]+)"$',
+        (ROOT / "craft" / "mcp_wiring.py").read_text(encoding="utf-8"),
+        re.M,
+    )
+    assert fallback_match is not None, "mcp_wiring fallback declaration missing"
+    mcp_pin_words = sorted(
+        [
+            *(
+                getattr(mcp_client, name).lower()
+                for name in mcp_client.__all__
+                if name.startswith("CODE_")
+            ),
+            fallback_match.group(1),
+        ]
+    )
+    assert len(mcp_pin_words) == 7, mcp_pin_words
+    description49 = mcp_panel[0]["description"]
+    for word in mcp_pin_words:
+        assert word in description49, (
+            f"MCP boundary panel description does not name word {word}"
+        )

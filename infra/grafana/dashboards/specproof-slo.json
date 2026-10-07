@@ -5243,6 +5243,212 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "id": 49,
+      "type": "timeseries",
+      "title": "MCP 外部工具边界 (#211: craft mcp wiring)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "外部 MCP 工具边界的调用计数 (craft/mcp_wiring.py #211): calls/s 是到达 wiring handler 的执行次数速率——每次调用开一个全新 stdio 会话 (spawn + initialize + tools/call + close), 不经 handler 的门拒绝 (未知工具/版本/参数/审批) 不在此列, 只进 tool_* 家族 (两面分区不叠加, 拒绝率的诚实分母见 #208 面板)。mcp_tool_errors_<code>/s 只计 bridge 以 status=\"error\" 回答的调用, 按 [CODE] 前缀分类: mcp_timeout / mcp_connection_error / mcp_protocol_error / mcp_server_error / invalid_arguments / unknown_tool (mcp.client 的稳定词表); 无前缀的摘要落到声明的 unprefixed 桶而不是被丢弃。诚实边界: handler 自身崩溃 (坏 envelope) 是 dispatch 的 execution_failed, 不属本错误族; 无调用则面板为空。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 183
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(specproof_mcp_tool_calls_total[15m]))",
+          "legendFormat": "calls/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (__name__) (rate({__name__=~\"specproof_mcp_tool_errors_[a-z0-9_]+_total\"}[15m]))",
+          "legendFormat": "{{__name__}}/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "type": "timeseries",
+      "title": "MCP 工具调用延迟 (#211: craft mcp wiring p50/p95)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "外部 MCP 工具调用延迟 (craft/mcp_wiring.py #211): mcp_tool_seconds 是 caller-visible 延迟直方图 (finally 语义) — 失败、超时与被拒回合都留在序列里; 计的是整段每调用会话 (spawn + initialize + tools/call + close), 不是单次 wire 往返。梯度 0.25..240 秒: 顶部对齐 2x 默认 120s 超时 (initialize 与 tools/call 可各烧一个 DEFAULT_MCP_TIMEOUT), 双重超时的调用仍落在有限桶; 自定义更长 timeout 可能溢出到 +Inf — 诚实残差。图例 p50/p95 来自 sum by (le)。无调用则面板为空。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 183
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum(rate(specproof_mcp_tool_seconds_bucket[15m])) by (le))",
+          "legendFormat": "p50 (s)",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(specproof_mcp_tool_seconds_bucket[15m])) by (le))",
+          "legendFormat": "p95 (s)",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
     }
   ],
   "refresh": "30s",

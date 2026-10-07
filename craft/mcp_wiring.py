@@ -40,13 +40,30 @@ Contract:
   The tool surface needs no extra work: once the specs are registered, the
   registry envelope block (already DATA-section-wrapped by the loop)
   automatically lists the mcp.* tools.
+- Observability (#211): every external call executes through the handler
+  this module builds, so the mcp.* surface is metered there —
+  mcp_tool_calls_total (denominator: one per handler entrance),
+  mcp_tool_errors_<code>_total (every status="error" result; the word is
+  read back from the bridge's documented "[CODE] " summary prefix and
+  lowercased — the closed vocabulary is mcp.client's stable CODE_* set,
+  and a prefix-less summary lands in the declared "unprefixed" fallback
+  word instead of going uncounted) and mcp_tool_seconds (caller-visible
+  latency of the whole per-call session, finally semantics). Gate
+  refusals decided before the handler (unknown tool / version / arguments
+  / approval) never reach this boundary — they tick tool_calls_total and
+  the in-tree refusal/error families instead, so the surfaces partition
+  instead of stacking. A handler raise (broken envelope dict) is a
+  dispatch-level crash (tool_errors_execution_failed), not an mcp word.
 """
 
 from __future__ import annotations
 
+import re
+import time
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from observability.metrics import incr, observe_duration
 from providers.mcp_bridge import (
     DEFAULT_MAX_OUTPUT_BYTES,
     DEFAULT_MCP_TIMEOUT,
@@ -61,6 +78,33 @@ from .tools import Param, ToolRegistry, ToolSpec
 
 ServerConfig = Mapping[str, Any] | Sequence[Mapping[str, Any]] | None
 
+#: Caller-visible duration ladder for mcp_tool_seconds (#211). The
+#: measured region is one whole per-call session: the bridge opens a
+#: fresh stdio session per call, so spawn + initialize + tools/call +
+#: close all count. 0.25s keeps sub-second local spawns resolvable; the
+#: top aligns with 2x the default per-request timeout (initialize and
+#: tools/call can each burn DEFAULT_MCP_TIMEOUT before the handler
+#: answers), so even a double-timeout call lands in a finite bucket. A
+#: custom longer timeout may overflow the top bucket (+Inf) — the
+#: honest residual.
+MCP_TOOL_BUCKETS: tuple[float, ...] = (
+    0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 240.0,
+)
+
+#: The bridge stamps every failure summary with the documented
+#: "[CODE] " prefix (the codes are mcp.client's stable set). The meter
+#: reads the stamp back at this boundary; the regex is anchored to the
+#: start so only a leading stamp classifies, and a prefix-less error
+#: summary lands in _UNSTAMPED_WORD — a declared read-side word, never
+#: a silent drop.
+_STAMP = re.compile(r"^\[([A-Z][A-Z0-9_]*)\]")
+_UNSTAMPED_WORD = "unprefixed"
+
+
+def _error_word(summary: str) -> str:
+    match = _STAMP.match(summary)
+    return match.group(1).lower() if match else _UNSTAMPED_WORD
+
 
 def _tool_spec_from_envelope(envelope: dict[str, Any]) -> ToolSpec:
     """One bridge envelope dict -> a real registry ToolSpec (W59)."""
@@ -74,7 +118,27 @@ def _tool_spec_from_envelope(envelope: dict[str, Any]) -> ToolSpec:
     params = tuple(Param(**param) for param in envelope["params"])
 
     def handler(arguments: dict[str, Any]) -> ToolResult:
-        return ToolResult(**raw_handler(arguments))
+        # #211: the external MCP surface is metered here — every mcp.*
+        # call reaching this handler is one call (gate refusals happen
+        # upstream in dispatch and never arrive), errors are the
+        # bridge's status="error" dicts classified by their [CODE]
+        # stamp, and the histogram observes the whole call with finally
+        # semantics (failures and ToolResult-construction crashes stay
+        # in the sequence; the crash itself is dispatch's
+        # execution_failed, not an mcp word).
+        incr("mcp_tool_calls_total")
+        started = time.perf_counter()
+        try:
+            result = ToolResult(**raw_handler(arguments))
+        finally:
+            observe_duration(
+                "mcp_tool_seconds",
+                time.perf_counter() - started,
+                buckets=MCP_TOOL_BUCKETS,
+            )
+        if result.status == "error":
+            incr(f"mcp_tool_errors_{_error_word(result.summary)}_total")
+        return result
 
     def budget_cost(arguments: dict[str, Any]) -> dict[str, int]:
         del arguments  # fixed per-call estimate, copied verbatim from the envelope
@@ -148,6 +212,7 @@ def external_result_section(result: ToolResult) -> str:
 
 
 __all__ = [
+    "MCP_TOOL_BUCKETS",
     "ServerConfig",
     "external_result_section",
     "register_external_tools",
