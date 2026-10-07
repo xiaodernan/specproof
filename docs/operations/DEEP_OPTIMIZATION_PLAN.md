@@ -3190,3 +3190,41 @@ Q1 是这条门存在的意义：**它能抓住那个正在让 nightly 一直红
 
 **门证。** `ruff` All checks passed；`mypy` Success；本门 **3 passed**；两臂 2/2 如预测；
 臂脚本落在仓库外 `D:\面试项目\_arm203.py`。
+
+### #203 追加：这个缺陷有**三个**落点，而且"CI 全红"里很大一部分是**未 push 的修复**
+
+顺着 #203 往下查，把这条链量全了：
+
+**① 同一缺陷的第三个落点。** `ci.yml::eval-golden-cases`（不是 `tests-with-infra`）在 2026-09-28 那次运行里
+**也是同一个 `./mvnw: Permission denied` / exit 126** —— 也就是说 `./mvnw` 一共落在**三处**：
+`ci.yml` 的两个 job + `nightly-eval.yml` 一个 job。`#159a`（`546508e`，2026-10-03）修了 `ci.yml` 的两处，
+**nightly 那处没人管**，于是夜间的评测继续死在播种步骤（本号修的就是它）。
+新门 `test_workflows_invoke_mvnw_through_sh.py` 普查的是**所有** `.github/workflows/*.yml`，
+所以第四个落点不会再有——这正是"门检查规则本身、而不是检查两个文件一致"的价值。
+
+**② 更重要的重构认识：CI 的红，很大一部分是"修复还没 push"。**
+`git merge-base --is-ancestor 546508e origin/master` → **不在 origin 上**。
+实测 `git rev-list --left-right --count @{u}...HEAD` = **`0  77`**（0 落后 / 77 领先，快进、非破坏性）。
+也就是说：**我读到的每一次 CI 运行都跑在落后本地 77 个提交的代码上**——
+`eval-golden-cases` 的 `./mvnw` 红是 09-28 的，`#159a` 10-03 就在本地修好了，只是没推上去。
+`specproof-nightly-eval` 是 **schedule 工作流，跑在 origin/master 上**，所以它连 `#159a` 都看不到，
+而 #203 的修复**不 push 同样永远不生效**。
+
+**③ 对"findings 召回层 MISS"这条候选的实测结论（本机复现）。**
+按 CI 的口径在本机跑那 4 例子集（`--no-llm`），复现了 MISS：
+`Total cases: 2 / Should detect: 2 / Detected: 0 / Recall: 0.0%`，两个正例的 `contracts_found` 都是空。
+**但这不是"基础设施缺失"**：实测 `localhost` 的 redis:6379 / mysql:3306 / rabbitmq:5672 / mongo:27017 **全部 OPEN**
+（compose 的 specproof 栈没起，端口由别的东西服务着）。
+另外两点要一起看，否则会误判：
+- 我传了 4 个 case 目录，**只有 2 个真的跑了**（`case-17-logic-inversion`、`case-56-redis-cache-eviction-removed`），
+  `case-01` / `case-10` 被丢掉——case_set 的规划逻辑为什么丢，本号没查（**未查清，不当结论**）。
+- `docs/eval/c4-rerun.log`（已存在的记录）显示：**在基础设施齐的环境里同一批用例能跑到 Recall 100.0%**，
+  且那份日志里 `contracts found: []` 的是**负例**（comment-only / 等价重构 / javadoc 这类"不该报"的用例）——
+  **`[]` 对负例是正确的**。所以"`contracts found: []` ⇒ 有缺陷"是错的读法；**它是不是缺陷取决于该用例的 `should_detect`**。
+- 我这次的 `case-56` 是正例（`should_detect: true`、期望 `CACHE-01`）却 MISS，与 `c4-rerun.log` 里
+  `case-61/63/65`（同为 CACHE-01 正例）能 PASS 形成对比。**根因未定**：`findings` 取自
+  `graph.invoke(state)` 的 `confirmed_findings`，且 `depth="FAST"`——
+  "FAST 档是否跑差分、因而能否产出 `base_pass_head_fail` 证据"是本号**没量**的一步，留作下一号的第一问。
+
+**本号不动**：`findings 召回层 MISS` 的根因排查仍另行立号，本号只把上面这些**实测边界**记清楚，
+以免下一个会话把"负例的空 `[]`"当成缺陷、或把"本机 MISS"直接归因给基础设施。
