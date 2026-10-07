@@ -604,9 +604,10 @@ def test_loop_without_registry_keeps_legacy_editor_surface(tmp_path: Path) -> No
 def test_executor_run_times_each_whitelisted_execution(tmp_path):
     """§8.10 "Tool Timeout" (#178): Executor.run — the choke point every
     run_* tool goes through — observes each execution into the
-    tool_run_seconds_<stem> family, pinned to the 0.5..3600s ladder whose
-    top bucket matches the tool API's timeout cap (a timed-out run lands
-    in a finite bucket, never +Inf where quantiles return NaN)."""
+    tool_run_seconds_<stem> family, pinned to the 0.5..3600s ladder extended
+    with a 4320s headroom top (#214): the ladder case below anchors the top
+    strictly above the tool API's timeout cap, so a timed-out run lands in a
+    finite bucket, never +Inf where quantiles return NaN."""
     from craft.executor import _TOOL_BUCKETS
     from observability import metrics as metrics_module
 
@@ -621,6 +622,49 @@ def test_executor_run_times_each_whitelisted_execution(tmp_path):
     ).get("count", 0.0)
     assert hist["bounds"] == list(_TOOL_BUCKETS)
     assert hist["count"] - before_count == 1
+
+
+def test_tool_bucket_ladder_clears_the_timeout_cap() -> None:
+    """§8.10 "Tool Timeout" (#214): the ladder's top STRICTLY exceeds the
+    tool API's own timeout cap, read from craft/tools.py's
+    Param("timeout", ..., max_value=...) declaration by AST — not by a text
+    regex or a docstring. An equal top pushed a run cut off AT the cap
+    (measured slightly over it) into +Inf, falsifying the
+    "timeout executions stay finite" claim.
+    """
+    import ast
+    from pathlib import Path
+
+    from craft.executor import _TOOL_BUCKETS
+
+    assert list(_TOOL_BUCKETS) == sorted(_TOOL_BUCKETS)
+    assert all(b > 0 for b in _TOOL_BUCKETS)
+
+    source = Path(__file__).resolve().parents[2] / "craft" / "tools.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    timeout_params = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "Param"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == "timeout"
+    ]
+    assert len(timeout_params) == 1, (
+        f"expected one Param(\"timeout\", ...) declaration, got {len(timeout_params)}"
+    )
+    max_values = [
+        kw.value for kw in timeout_params[0].keywords if kw.arg == "max_value"
+    ]
+    assert len(max_values) == 1, "timeout Param has no max_value keyword"
+    value = max_values[0]
+    assert isinstance(value, ast.Constant) and isinstance(value.value, (int, float))
+    assert _TOOL_BUCKETS[-1] > float(value.value), (
+        f"ladder top {_TOOL_BUCKETS[-1]}s does not clear the tool timeout cap "
+        f"{value.value}s — a run cut off at the cap would land in +Inf"
+    )
 
 
 def test_executor_counts_sandbox_timeouts_but_not_spawn_errors(monkeypatch, tmp_path):

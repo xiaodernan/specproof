@@ -2068,7 +2068,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "白名单工具每次执行的耗时直方图族 tool_run_seconds_<stem> (craft/executor.py 的 Executor.run 咽喉点: _timed_tool 包住每次 run_sandboxed, stem 词表=ALLOWED_COMMANDS 白名单由对账门 import 钉死, CRAFT_EXTRA_COMMANDS 运行时扩展同样进族, #178 接线)。按 __name__ 分组取 per-stem p50/p95 — 图例即指标名, 后缀去 tool_run_seconds_ 前缀即词干 (mvn/gradle/npm/pytest/python/cargo)。梯度 0.5..3600s: 亚秒往返到分钟级 pytest/mvn 全程有分辨率, 顶格 3600s 对齐工具 API 的 timeout 上限 (Param max_value=3600), 超时执行也落有限桶, 分位数不落 +Inf。超时另由 specproof_tool_timeouts_total 计数。无工具执行前无序列, 面板为空属正常。",
+      "description": "白名单工具每次执行的耗时直方图族 tool_run_seconds_<stem> (craft/executor.py 的 Executor.run 咽喉点: _timed_tool 包住每次 run_sandboxed, stem 词表=ALLOWED_COMMANDS 白名单由对账门 import 钉死, CRAFT_EXTRA_COMMANDS 运行时扩展同样进族, #178 接线)。按 __name__ 分组取 per-stem p50/p95 — 图例即指标名, 后缀去 tool_run_seconds_ 前缀即词干 (mvn/gradle/npm/pytest/python/cargo)。梯度 0.5..3600s (#214 在 3600s 顶格后追加 4320s): 亚秒往返到分钟级 pytest/mvn 全程有分辨率, 顶格 4320s 为工具 API 的 timeout 上限 (Param max_value=3600) 留 1.2 倍余量——被超时砍断的执行实测略高于 3600s, 等值顶格会把它推进 +Inf; 3600 边界保留, le=3600 与 (3600,4320] 之差即「临界成功」与「被砍断」, 超时执行也落有限桶, 分位数不落 +Inf。超时另由 specproof_tool_timeouts_total 计数。无工具执行前无序列, 面板为空属正常。",
       "fieldConfig": {
         "defaults": {
           "color": {

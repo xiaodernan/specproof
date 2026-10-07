@@ -3864,3 +3864,28 @@ ruff 首跑一处 C416（dict 推导式）修后三文件 All checks passed；my
 （臂日志 `.scratch/arm213-arms.log`；脚本末行 `final sha256 == original: True`——四个文件逐字节还原。）
 
 **诚实边界。** ① 同型取等嫌疑仍有一处、未在本号动：`craft/executor.py` 的 `_TOOL_BUCKETS` 顶格 3600 == 工具 API `Param max_value=3600` 的超时上限，DEEP #178 写了同一句承诺「超时执行也落有限桶」——按本号口径（被砍断实测略高于上限）同型存疑，已立待核，留作下一号候选。② 36s 的承诺种群说清楚：接住的是「经 client 的往返里被 `request_timeout` 砍断的样本」（实测 30.x s）；远大于 36s 的样本只能来自把 request_timeout 改大的路径，那属于新种群、不在承诺里——承诺的证据形状是 1.2 倍比例（与 redis 面 6.0=1.2×5 同型），不是对任意输入成立。③ 无告警无标签：§14 无 ES 阈值。④ 锚点是「构造计数」不是「字面量搜索」：未来若把构造挪进工厂函数（构造调用消失），两个门先以 `expected one ... construction, got 0` 变红而不是静默漂移——失败消息写自己的形状。
+
+## #214 工具执行梯度的等值顶格（核销 #213 诚实边界 ①）：顶格 3600s 追加 4320s 余量，锚点第一次钉在 Param(timeout) 的 max_value 上
+
+**起点（#213 立在纸面上的同型嫌疑，核销时发现门比预想更薄）。** #213 诚实边界 ① 写着：craft/executor.py 的 `_TOOL_BUCKETS` 顶格 3600 == 工具 API 的 `Param max_value=3600`，DEEP #178 写了同一句承诺「超时执行也落有限桶」——同型取等，已立待核。核实：运行时形状与 ES/redis 完全同型——`subprocess.run(..., timeout=T)` 与 docker 分支都在 T 秒处砍断（两类沙箱超时文案 "timed out after {T}s"，sandbox/runner.py:564/:725），被砍断的执行实测略高于 3600s。更薄的一点：该梯度**此前根本没有锚**——运行时案只断言 `hist["bounds"] == list(_TOOL_BUCKETS)`（自指相等, 对常量漂移恒真），「顶格对齐上限」这句话只活在注释/DEEP/OBS/面板四处文本里。本号两件事一起做：补余量 + 把锚第一次钉在生产者声明上。
+
+**修法一（顶格补余量，3600 边界保留）。** `_TOOL_BUCKETS` 在 3600.0 后追加 4320.0（13→14 桶, 0.5..4320s；1.2×3600, 与 redis 6.0=1.2×5、ES 36.0=1.2×30 两处同比例），模块注释改写写明理由；3600 边界保留——`le=3600` 与 `(3600,4320]` 之差恰好是「临界成功」与「被砍断」的判别。（craft/executor.py 14084→14305 字节, sha 13ffd4f6→ff5ba559, LF 347→351。）
+
+**修法二（锚点钉生产者：Param("timeout", max_value=…) 的 AST 读法）。** 新案 `test_tool_bucket_ladder_clears_the_timeout_cap`：AST 扫 craft/tools.py——全文件恰好一处 `Param("timeout", …)` 调用（第 859 行, 四个 run_* 工具共用同一个 timeout_param）、其中恰好一个 max_value 关键字、断言 `_TOOL_BUCKETS[-1] > float(值)` 严格大于。全树扫描（排除 tests/.venv）确认这是唯一的生产声明：providers/toolcheck.py 的 ParamSchema 只镜像类结构（文件头注明不引 craft 以避免依赖环），值经 `schemas_from_registry` 运行时派生——无值副本可漂移。旧案 docstring（「0.5..3600s ladder whose top bucket matches …」）订正。（test_craft_tools.py 25696→27498 字节, sha 3b5e6dda→28cd82a7, LF 661→705。）
+
+**门证（全部实读）。** 变异臂基线 43 passed（T1 test_craft_tools 39 + T2 parity 4）；回归批 6 模块（test_craft_tools / parity / toolcheck / tool_denials / tool_errors / plane_pin）`104 passed in 23.03s`；ruff 两文件 All checks passed；mypy 全仓 222 files Success。文档同步三处：OBSERVABILITY.md §8.10 汇总行与面板 24 明细 bullet（「#214 在 3600s 顶格后追加 4320s … le=3600 与 (3600,4320] 之差即『临界成功』与『被砍断』」）、dashboard 面板 24 描述同句。**选择器、分位数、指标名全部未动**——本号只沉梯度常量、描述文本、一处测试锚。（OBSERVABILITY.md 57772→58183 字节, sha c3bcb1bc→69c735c3, CRLF 253→255；specproof-slo.json 173810→174039 字节, sha c223cc92→7b4016fa, CRLF 5593→5593——只改描述文本。）
+
+**变异臂（预测先写后跑，脚本 `.scratch/arm214-tool-arms.py`，每臂从字节快照重基 + 终态 sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A0 | 未变异基线 | 0 红 / 43 | **MATCHED 0 红 / 43** ✅ |
+| A1pre | 拆掉追加的 4320.0 且 T1 换回 HEAD 字节（#214 前的文件） | 0 红（洞实测：等值顶格在无锚时静默——42 案） | **MATCHED 0 红 / 42** ✅ |
+| A1 | 拆掉追加的 4320.0（恢复等值顶格形态） | 1 红 = T1::test_tool_bucket_ladder_clears_the_timeout_cap（自指 bounds 案保持绿） | **MATCHED 1 红** ✅ |
+| A2 | tools.py 上限 max_value=3600→5400（生产者抬到顶格之上） | 1 红 = 同一 T1 案子（绑定见证：读注释/文档的门会保持绿） | **MATCHED 1 红** ✅ |
+| A3 | 顶格 4320.0→9999.0（仍高于 3600） | 0 红（负对照：没有门钉死 4320 这个值） | **MATCHED 0 红** ✅ |
+| A4 | 删掉 timeout Param 的 max_value 关键字 | 1 红 = 同一 T1 案子（形状拒绝：timeout Param has no max_value keyword） | **MATCHED 1 红** ✅ |
+
+（臂日志 `.scratch/arm214-arms.log`；脚本末行 `final sha256 == original: True`——三个文件逐字节还原。）
+
+**诚实边界。** ① 4320 的承诺种群说清楚：接住的是「经 `Executor.run` 且 timeout ≤ 3600 的执行」——今天的两个生产调用方都在界内（craft/tools.py:821 经工具 API 参数（上限 3600）；craft/loop.py 的 exec_timeout 默认 600）；直接以更大 timeout 调用 Executor.run 的未来路径会越过承诺（锚钉的是工具 API 的声明, 不是 run 的签名）。② 文档四处（模块注释/测试 docstring/OBS 两处/面板描述）与新常量同步；providers/toolcheck.py 的 ParamSchema 类镜像与 test_toolcheck 夹具里的 max_value=3600 是测试侧副本, 不在本锚范围（生产无值副本, 见上）。③ 无告警无标签：§14 无工具阈值。④ 锚点是「构造计数」不是「字面量搜索」：Param("timeout", …) 声明消失或改名会让门先红而不是静默漂移——与 #213 的两个锚同一形状。

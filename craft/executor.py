@@ -43,14 +43,18 @@ OUTPUT_TAIL_CHARS = 4000
 STACK_LINE_LIMIT = 5
 DEFAULT_TIMEOUT = 600
 
-#: §8.10 "Tool Timeout" (#178): ladder for whitelisted tool executions. A
-#: pytest/mvn run is minutes-scale (DEFAULT_TIMEOUT 600) while a git status
-#: is sub-second; the top bucket 3600s matches the tool API's own timeout
-#: cap (Param max_value=3600) so a timed-out run still lands in a finite
-#: bucket (never +Inf, where quantiles return NaN).
+#: §8.10 "Tool Timeout" (#178, headroom #214): ladder for whitelisted tool
+#: executions. A pytest/mvn run is minutes-scale (DEFAULT_TIMEOUT 600) while
+#: a git status is sub-second. Top bucket 4320s is 1.2x the tool API's own
+#: timeout cap (craft/tools.py's Param("timeout", max_value=3600)): a run
+#: cut off AT the cap measures slightly OVER it, so the previously equal top
+#: (3600s) pushed timeout cuts into +Inf (where quantiles return NaN). The
+#: 3600s boundary stays: le=3600 vs (3600, 4320] separates "succeeded just
+#: under the cap" from "cut".
 _TOOL_BUCKETS: tuple[float, ...] = (
     0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0,
     120.0, 300.0, 600.0, 1200.0, 1800.0, 3600.0,
+    4320.0,
 )
 
 
