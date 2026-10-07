@@ -3492,3 +3492,44 @@ U3 是这条门的设计意图：**"有意不装"可以，但那条旗舰证据�
 我没有重装（这是并发会话共用的 venv）。所以**本机的 `python -c "import experiments"` 仍然只在
 "cwd 在仓库根"时成立**；本号修的是**发行物**，本机行为不变。② 这次是"撞上"的，**不是排查出来的**：
 `ops`/`plugins` 两个同样两边都没有的包本号没动（生产零导入，留着由后续判定归属）。
+
+## 更正 #207：`differential_results` 这个键**不存在**——我把探针指错了名字，"差分返回空"是我的错，不是产品的
+
+**#207 末尾我写「`differential_results: 0` —— 差分跑了、没报错、返回空」。这句话是错的。**
+状态里的键是 **`diff_results`**（`agent/state.py:62` 声明、`:133` 初始化），全仓**没有 `differential_results` 这个键**。
+我的诊断脚本读了一个**看起来很像**的名字，`dict.get` 对不存在的键返回 `None`，`or []` 把它变成 `0` ——
+**于是我把"我的探针指错了"读成了"产品静默返回空"。**
+
+这与本仓反复记下的那条是同一件事：**探针必须绑定到真实存在的东西，不能绑到一个看起来对的名字**
+（#109 的标识符撞名、#173-2 的"证人没绑到它宣称见证的处理器"、#207 的"注释不是代码"）。
+**新增一条推论：`dict.get(<不存在的键>) or []` 会把"我查错了"伪装成"结果是空的"，而且两者在输出上完全同形。**
+
+**换成正确的键之后的真实读数**（单跑 `case-17`，`PYTHONPATH=.`）：
+
+```
+diff_results: 1
+{ "contract_id": "AUTH-01", "verdict": "AMBIGUOUS", "evidence_type": "differential_execution",
+  "base_exit_code": "1", "head_exit_code": "1",
+  "base_output": "Can not write to /root/.m2/copy_reference_file.log. Wrong volume permissions? Carrying on ...
+                  [ERROR] Could not create local repository at /home/maven/.m2/repository -> [Help 1]" }
+```
+
+**差分不是"没跑"，是跑了、两边都 exit 1，而失败原因是执行面本身**：Maven 建不出本地仓库。
+
+**本机 MISS 的真根因（实测）。** 沙箱把 Maven 缓存卷挂到 `/home/maven/.m2`，卷名由
+`SPECPROOF_SANDBOX_M2_VOLUME` 控制、缺省 `specproof-maven-cache-1000`（`experiments/adapters.py:604-605`）。
+本机那个卷**存在但不可用**：`docker run … ls -ld /m2` ⇒ **`drwxr-xr-x root root`，且内容是空的**；
+而沙箱以 **uid 1000** 跑 ⇒ 建不出 `repository/` ⇒ Maven 失败。
+CI 在一步里做两件事把它变成可用：`chown -R 1000:1000 /m2` 与 `mvn dependency:go-offline` 播种
+（`ci.yml` 的 `Seed sandbox Maven cache`，**正是 #203 修过 `./mvnw` 的那一步**；`RUNBOOK.md:98-112` 也记着这套步骤）。
+**也就是说：本机评测 MISS 的原因是本机没做这一步，不是产品缺陷。**
+
+**对 #207 的影响：结论不变，依据要换。** #207 的打包缺陷（`experiments`/`devtools` 不在发行 include 里）
+是**从诊断脚本崩在 `ModuleNotFoundError` 上**发现的，与键名无关，**那条仍然成立**；
+但 #207 末尾那句"`differential_results: 0`"作废，下一号的第一问也随之改写：
+**不是"差分为什么返回空"，而是"执行面失败（Maven 建不出本地仓库）为什么会被记成一次 AMBIGUOUS 差分、
+进而让该用例以 MISS 结账"**——这与 #204 是同一族（**把"没跑成"读成"跑坏了"**），只是这次的"没跑成"
+发生在**差分内部的 Maven 调用**上，而 #204 修的是**管线级**的 abort。
+
+**下一步（本号内做）：** 按 CI 的步骤把卷播种好，重跑同一例子集，看 MISS 是否变成检出——
+**只有这一步跑完，"本机 MISS = 未播种缓存卷"才算被证实，而不是被论证。**
