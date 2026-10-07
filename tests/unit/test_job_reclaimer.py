@@ -1221,7 +1221,8 @@ def test_reclaimed_job_recovery_lag_observed(
     assert entry["inf"] == before["inf"] + 1.0
     lag = entry["sum"] - before["sum"]
     assert 40.0 <= lag <= 60.0  # ~45s post-expiry wait, jitter-tolerant
-    assert entry["bounds"][0] == 30.0  # interval-bounded ladder, not 60s
+    # #215: derived — the runtime ladder must be the module constant.
+    assert entry["bounds"] == list(worker_module._RECOVERY_LAG_BUCKETS)
 
 
 def test_reclaim_tick_pass_duration_observed(
@@ -1263,7 +1264,7 @@ def test_reclaim_tick_pass_duration_observed(
 
     assert entry["count"] == before["count"] + 1.0
     assert entry["inf"] == before["inf"] + 1.0
-    assert entry["bounds"][0] == 0.05  # sub-minute ladder, not the 60s default
+    assert entry["bounds"] == list(worker_module._RECLAIM_PASS_BUCKETS)
 
     def boom(**_kwargs: Any) -> worker_module.ReclaimPass:
         raise RuntimeError("sweep broken")

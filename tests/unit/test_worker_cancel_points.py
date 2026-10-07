@@ -601,8 +601,11 @@ def test_stage_duration_family_pins_custom_ladder(
     for stage in ("intake", "publish_report"):
         entry = snap["histograms"].get("worker_stage_duration_seconds_" + stage)
         assert entry is not None
-        assert entry["bounds"][0] == 0.25  # sub-second ladder, not the 60s default
-        assert entry["bounds"][-1] == 1800.0  # above DEEP p95 1500s: quantile never lands in +Inf
+        # #215: derived, not hand-typed — the runtime ladder must be the
+        # module constant (a legal re-tune of the ladder moves both ends
+        # together); the "clears the DEEP p95 target" clause lives in
+        # test_bucket_ladders_bind_their_declarations.
+        assert entry["bounds"] == list(worker_module._STAGE_BUCKETS)
 
 
 # ── terminal write: the verdict and its evidence are one statement (#63) ──

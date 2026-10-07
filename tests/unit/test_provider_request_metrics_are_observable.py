@@ -721,15 +721,17 @@ def test_meter_region_counts_the_trio_with_exception_only_endings() -> None:
 
 
 def test_ladder_resolves_the_declared_default_timeout() -> None:
-    """The ladder is ascending, positive, and keeps a finite bucket at or
-    above the ABC's declared default timeout — quantiles at the default
-    deadline must never fall into +Inf."""
+    """The ladder is ascending, positive, and keeps a finite bucket
+    STRICTLY above the ABC's declared default timeout — a call cut off AT
+    the deadline measures slightly over it (#213/#214), so an equal top
+    would push those samples into +Inf where quantiles return NaN."""
     bounds = list(LLM_REQUEST_BUCKETS)
     assert bounds == sorted(bounds) and len(bounds) >= 8, bounds
     assert all(bound > 0 for bound in bounds), bounds
     defaults = _abc_timeout_defaults()
     assert defaults, "no timeout default found on the ABC verbs"
-    assert bounds[-1] >= max(defaults), (
-        f"the ladder must cover the declared default timeout "
-        f"{max(defaults)}s: {bounds}"
+    assert bounds[-1] > max(defaults), (
+        f"the ladder must clear the declared default timeout "
+        f"{max(defaults)}s strictly (a cut at the deadline measures over "
+        f"it): {bounds}"
     )

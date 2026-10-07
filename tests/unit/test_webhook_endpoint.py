@@ -137,9 +137,12 @@ def test_response_latency_observed_even_on_rejection(fake_mysql):
     )
     assert resp.status_code == 401
 
+    from api.server import _WEBHOOK_BUCKETS
+
     entry = snapshot()["histograms"][hist_key]
     assert entry["count"] == before + 1.0
-    assert entry["bounds"][0] == 0.05  # sub-second ladder, not the 60s default
+    # #215: derived from the module constant, not a hand-typed first bound.
+    assert entry["bounds"] == list(_WEBHOOK_BUCKETS)
     # a rejected signature is fast, but CI jitter forbids pinning the bucket;
     # the cumulative top buckets are the honest assertion.
     assert entry["inf"] == before + 1.0

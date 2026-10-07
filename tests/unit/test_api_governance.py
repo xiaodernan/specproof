@@ -353,7 +353,7 @@ async def test_verify_sse_delivery_lag_observed_on_live_only(
 
     entry = snapshot()["histograms"][key]
     assert entry["count"] == after_replay["count"] + 1.0  # live: measured
-    assert entry["bounds"][0] == 0.05  # sub-second ladder, not the 60s default
+    assert entry["bounds"] == list(jobs_module._PROGRESS_LAG_BUCKETS)
     assert entry["sum"] - after_replay["sum"] < 2.0  # well inside the SLO
 
 

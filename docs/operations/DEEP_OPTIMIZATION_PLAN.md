@@ -3889,3 +3889,29 @@ ruff 首跑一处 C416（dict 推导式）修后三文件 All checks passed；my
 （臂日志 `.scratch/arm214-arms.log`；脚本末行 `final sha256 == original: True`——三个文件逐字节还原。）
 
 **诚实边界。** ① 4320 的承诺种群说清楚：接住的是「经 `Executor.run` 且 timeout ≤ 3600 的执行」——今天的两个生产调用方都在界内（craft/tools.py:821 经工具 API 参数（上限 3600）；craft/loop.py 的 exec_timeout 默认 600）；直接以更大 timeout 调用 Executor.run 的未来路径会越过承诺（锚钉的是工具 API 的声明, 不是 run 的签名）。② 文档四处（模块注释/测试 docstring/OBS 两处/面板描述）与新常量同步；providers/toolcheck.py 的 ParamSchema 类镜像与 test_toolcheck 夹具里的 max_value=3600 是测试侧副本, 不在本锚范围（生产无值副本, 见上）。③ 无告警无标签：§14 无工具阈值。④ 锚点是「构造计数」不是「字面量搜索」：Param("timeout", …) 声明消失或改名会让门先红而不是静默漂移——与 #213 的两个锚同一形状。
+
+## #215 梯度顶格的声明面普查（#213/#214 弧收口）：四族顶格/分辨率门从手抄魔法数改读声明面，五处修复 + 一个 5 案普查文件
+
+**起点（#214 之后的残余面，一次全量核对）。** #213/#214 把 ES/redis/tool 三族顶格钉到了生产者构造；同一次核对把剩余各族逐个读过，发现「顶格/分辨率 vs 声明数」的关系活在四种更薄的地方：① stage 族（worker `_STAGE_BUCKETS` 顶格 1800）的句子「above the DEEP job-level p95 target (1500s)」只有注释，测试钉的是手抄魔法 0.25/1800.0；② webhook 族（api.server `_WEBHOOK_BUCKETS` 顶格 2.5）的「对 §14 的 1s 分位数有分辨率」零门，测试只钉 bounds[0]==0.05 魔法；③ progress lag 族（jobs `_PROGRESS_LAG_BUCKETS` 顶格 5）的「2s SLO bound sits inside the ladder」零门；④ 默认梯度（metrics `_HISTOGRAM_BUCKETS`，自称「对齐 §14 性能目标」）与 480/1500 两个部署告警阈值没有任何门连接；⑤ 恢复钟两族（worker 同文件 `_RECOVERY_LAG_BUCKETS`/`_RECLAIM_PASS_BUCKETS`）与 tick=300s、锁 TTL=120s 的关系只有一个魔法 30.0；⑥ LLM 族虽有 `_abc_timeout_defaults()` 的 AST 锚（#210 起）但谓词是 `>=`——被砍断样本实测略高于截止值，取等形态可过门（#213/#214 同一课）。
+
+**修法（一个普查文件 + 五处手抄改派生 + 一处谓词收紧）。** 新文件 `tests/unit/test_bucket_ladders_bind_their_declarations.py`（5 案, 6845 字节, sha b92a4ebf, 纯 LF）：`_alert_thresholds()` 用 pyyaml（已是声明依赖 pyproject `pyyaml>=6.0.2`）解析 `infra/prometheus/alerts-slo.yml` 每条规则的 expr 阈值（`> N` 按告警名取出；解析数下限 `assert len(out) >= 5`——匹配面塌缩不许当「没有问题」过）。五个关系：stage 顶格 > `SpecproofJobDurationP95DeepHigh` 阈值（1800 > 1500）；webhook 顶格 > 其 P95 阈值（2.5 > 1）；progress 阈值必须**是梯子的一级**（`in`——精确 le=2 读数）且顶格高于它（5 > 2）；默认梯度必须载着 Fast/Deep 两个 P95 告警阈值这两级（480/1500——改 yml 不改梯度, 或反, 同红）；恢复钟两族读**同文件常量**：tick（`DEFAULT_RECLAIM_INTERVAL_SECONDS`=300）是 recovery-lag 的一级且顶格高于它、pass 顶格 < 锁 TTL（`RECLAIM_LOCK_TTL_SECONDS`=120, 原文即「A sweep lock outlives a healthy pass」）。五处手抄修复（全部从魔法数改成 `bounds == list(常量)`）：test_worker_cancel_points（0.25/1800.0）、test_webhook_endpoint（0.05）、test_job_reclaimer 两处（30.0/0.05）、test_api_governance（0.05）。LLM 谓词 `>=` → 严格 `>`（docstring 同步: 取等会把被砍断样本推进 +Inf）。手抄数消失后「合法重调梯度」不再误红——A2 臂实测（stage 顶格 1800→1600, 仍 >1500, 0 红）。
+
+**门证（全部实读）。** 变异臂基线 113 passed（6 模块）；跨弧回归批（parity/es_store/redis 延迟/craft_tools）`54 passed in 19.62s`；ruff 首跑一处 I001（import 排序）修复后六文件 All checks passed；mypy 全仓 222 files Success。文档零改动（本号只沉测试门：五处魔法改派生的语义不变, 断言面变宽——把「恰好是这两个数」放宽为「是常量」——两个方向都由普查文件覆盖）。
+
+**变异臂（预测先写后跑，脚本 `.scratch/arm215-ladder-census-arms.py`，每臂从字节快照重基 + 终态 sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A0 | 未变异基线 | 0 红 / 113 | **MATCHED 0 红 / 113** ✅ |
+| A1 | yml DeepHigh 阈值 `> 1500` → `> 1900`（抬到 stage 顶格之上） | 2 红 = 普查 stage 案 + 默认梯度 rungs 案（同一阈值喂两个门） | **MATCHED 2 红，逐名相符** ✅ |
+| A2 | worker stage 顶格 1800.0→1600.0（合法重调, 仍 >1500） | 0 红（魔法 1800 已无处可误红） | **MATCHED 0 红 / 113** ✅ |
+| A3 | yml webhook 阈值 `) > 1` → `) > 9`（抬到顶格之上） | 1 红 = 普查 webhook 案 | **MATCHED 1 红** ✅ |
+| A4 | jobs 梯度删掉 2.0 这一级 | 1 红 = 普查 progress 案（`in` 子句；governance 运行时案已派生, 保持绿） | **MATCHED 1 红** ✅ |
+| A5 | base.py ABC 默认超时 180.0→700.0（两个动词, 抬到顶格之上） | 1 红 = provider 严格 `>` 案 | **MATCHED 1 红** ✅ |
+| A6 | worker tick 常量 300→360（不再是 rung） | 1 红 = 普查恢复钟案 | **MATCHED 1 红** ✅ |
+
+（臂日志 `.scratch/arm215-arms.log`；脚本末行 `final sha256 == original: True`——yml/worker/jobs/base 四个生产文件逐字节还原。）
+
+**字节账（worktree 平面）。** 新文件 test_bucket_ladders_bind_their_declarations.py 6845 字节 sha b92a4ebf（LF）；test_worker_cancel_points.py 41347→41509, sha 849e3fb1→a17867c4；test_webhook_endpoint.py 7051→7148, sha d73b8081→4b247f5f；test_job_reclaimer.py 44016→44079, sha d02fa74b→ee75bedc；test_api_governance.py 18153→18143, sha bdd48549→0ab56c49（-10 字节: 魔法长行换成常量相等）；test_provider_request_metrics_are_observable.py 27561→27717, sha 8148e229→50109773（严格 `>` + docstring）。
+
+**诚实边界。** ① 同批核过但**维持原状**的两处：`SpecproofWorkerReclaimTickStale`（900s）与 tick=300s 的 3 倍关系无文面声称（告警文只声明阈值本身, 不声称倍数——不加门）; `MCP_TOOL_BUCKETS[-1] >= 2 * DEFAULT_MCP_TIMEOUT` 维持 `>=`（2 倍余量本身就是 #211 承诺的余量形状, 不是取等门）。② 四个 `__BUCKETS` 常量与 yml 阈值仍是两处声明——本号只保证「动一处另一处红灯」, **不做单一来源合并**（改生产结构超出本号, 留作待核）。③ progress 的 `in` 谓词绑定「精确一级」读数；若未来设计改为「阈值落在两级之间仍可读」（histogram_quantile 线性插值下仍可分辨），该谓词会先红提示重审, 而不是静默放宽。④ 普查的 yml 解析若塌缩（regex 全不匹配）会以 `assert len(out) >= 5` 变红——「匹配不到」与「没有问题」分开。⑤ A1 的两红是设计使然: 同一部署阈值同时是 stage 门与默认梯度门的操作数, 改它必须两个族一起审。
