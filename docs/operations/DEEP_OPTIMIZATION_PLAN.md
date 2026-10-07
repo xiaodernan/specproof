@@ -3915,3 +3915,28 @@ ruff 首跑一处 C416（dict 推导式）修后三文件 All checks passed；my
 **字节账（worktree 平面）。** 新文件 test_bucket_ladders_bind_their_declarations.py 6845 字节 sha b92a4ebf（LF）；test_worker_cancel_points.py 41347→41509, sha 849e3fb1→a17867c4；test_webhook_endpoint.py 7051→7148, sha d73b8081→4b247f5f；test_job_reclaimer.py 44016→44079, sha d02fa74b→ee75bedc；test_api_governance.py 18153→18143, sha bdd48549→0ab56c49（-10 字节: 魔法长行换成常量相等）；test_provider_request_metrics_are_observable.py 27561→27717, sha 8148e229→50109773（严格 `>` + docstring）。
 
 **诚实边界。** ① 同批核过但**维持原状**的两处：`SpecproofWorkerReclaimTickStale`（900s）与 tick=300s 的 3 倍关系无文面声称（告警文只声明阈值本身, 不声称倍数——不加门）; `MCP_TOOL_BUCKETS[-1] >= 2 * DEFAULT_MCP_TIMEOUT` 维持 `>=`（2 倍余量本身就是 #211 承诺的余量形状, 不是取等门）。② 四个 `__BUCKETS` 常量与 yml 阈值仍是两处声明——本号只保证「动一处另一处红灯」, **不做单一来源合并**（改生产结构超出本号, 留作待核）。③ progress 的 `in` 谓词绑定「精确一级」读数；若未来设计改为「阈值落在两级之间仍可读」（histogram_quantile 线性插值下仍可分辨），该谓词会先红提示重审, 而不是静默放宽。④ 普查的 yml 解析若塌缩（regex 全不匹配）会以 `assert len(out) >= 5` 变红——「匹配不到」与「没有问题」分开。⑤ A1 的两红是设计使然: 同一部署阈值同时是 stage 门与默认梯度门的操作数, 改它必须两个族一起审。
+
+## #216 §5 告警表与部署规则的对账门：表已漂移（少 2 行、13→15 过期、for/阈值列无门），并订正 #215 边界对 tick 3× 的误读
+
+**起点（读表时的两处现形）。** #215 收口后例行核对 OBSERVABILITY.md §5 告警表与部署文件：yml 有 15 条 alert 规则，§5 表只有 13 行——#182/#183 的两条（NoEvidenceSevereComment / CapsuleReplayRateLow）进了 §6 接线状态表却没进 §5 告警表，运维清单的「可见 13 条 specproof-slo 规则」也停在旧数；两处都是没有门的两个手抄副本。同一次核对顺手订正 #215 自己的一处边界误读：tick-stale 900s 的 3 倍 tick 关系**有**文面声称——yml 头部 THRESHOLDS 注释写着「回收 tick 3 个默认周期 (3×300s)」、§5 行也写着「(3×默认 tick 300s)」；#215 只读了 alert 自身的 annotations 就把「倍数无声称」写进了边界。本号三点一起收：补表、订正计数、把 3× 也钉成门。
+
+**修法（一个对账文件 + 表补 2 行 + 计数 13→15）。** 新文件 tests/unit/test_alert_table_matches_the_deployed_rules.py（3 案, 4949 字节, sha 1a0465e0, 纯 LF）：§5 表名称列与 yml 规则**集合相等**（两向点名：表多/部署多）；运维清单 prose「可见 N 条 specproof-slo 规则」== 部署规则数；每行 `for` 列 == 规则的 `for`；每行阈值变量列 `NAME=N` 与 expr 的 `> N` 对账（`—` ⇔ expr 无 `>N` 的三条 up 告警；**ReplayRateLow 是补数**——expr 触发在失败份额 `> 0.05`, 行里 0.95 按 `1 - expr` 比较, 不显式列入补数清单就会拿 0.05 对 0.95 错杀）；tick-stale 阈值 == 3 × `DEFAULT_RECLAIM_INTERVAL_SECONDS`（同文件常量；倍数在两个出处都有文面）。文档修复：§5 补两行（格式与全表一致）、「可见 13 条」→「可见 15 条」。（OBSERVABILITY.md 58183→58707 字节, sha 69c735c3→dbe490d0, CRLF 255→257。）
+
+**门证（全部实读）。** 变异臂基线 8 passed（新文件 3 + #215 普查 5）；9 模块回归批（两门 + parity + verification_coverage + #215 五文件）`130 passed in 6.35s`；ruff All checks passed；mypy 全仓 222 files Success。文档与本门的 yml 解析都用 pyyaml（声明依赖）；解析面塌缩由 `len(...) >= 10` 下限变红。
+
+**变异臂（预测先写后跑，脚本 `.scratch/arm216-alert-table-arms.py`，8 臂，预测零失手）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A0 | 未变异基线 | 0 红 / 8 | **MATCHED 0 红 / 8** ✅ |
+| A1 | 表删 SpecproofWebhookDurationP95High 一行 | 1 红 = 集合相等 | **MATCHED 1 红** ✅ |
+| A2 | yml 重命名 `SpecproofApiHigh5xxRate` | 2 红 = 集合相等 + 阈值案（行按名查规则 KeyError） | **MATCHED 2 红，逐名相符** ✅ |
+| A3 | yml outbox expr `> 50` → `> 60` | 1 红 = 阈值案 | **MATCHED 1 红** ✅ |
+| A4 | yml tick `> 900` → `> 800` | 2 红 = 阈值案 + 3× 案 | **MATCHED 2 红，逐名相符** ✅ |
+| A5 | 表 Deep 变量格 `=1500` → `=1400`（文档侧漂移） | 1 红 = 阈值案（census 读未动的 yml 保持绿） | **MATCHED 1 红** ✅ |
+| A6 | prose `可见 15 条` → `可见 14 条` | 1 红 = 计数子句 | **MATCHED 1 红** ✅ |
+| A7 | yml webhook `for: 5m` → `for: 8m` | 1 红 = for 对账 | **MATCHED 1 红** ✅ |
+
+（臂日志 `.scratch/arm216-arms.log`；脚本末行 `final sha256 == original: True`——OBS 与 yml 逐字节还原。）
+
+**诚实边界。** ① 表与 yml 仍是两处手抄——表是给人读的「表达式要点」转写, 不是机器可执行的副本：本门保证名称集合、`for` 列、阈值变量一致, **不保证「表达式要点」列与 expr 字面一致**（那是自然语言概述, 逐字绑定会把概述变成代码）。② replay 的补数特判是显式清单（`_COMPLEMENT_ROWS`）：未来再出现「以余量形态告警」的规则要显式加入, 否则会被阈值对账错杀——清单本身是有意的单点。③ #215 的边界误读在此订正, 历史节不重写, 以本节为准；两门不重叠——#215 普查管「tick=300 是 recovery-lag 梯子的一级」, 本门管「告警阈值 = 3×tick」。

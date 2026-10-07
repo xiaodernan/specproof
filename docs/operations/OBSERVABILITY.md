@@ -70,7 +70,7 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 4. Prometheus 目标: GET http://localhost:9090/api/v1/targets — api/worker/outbox-relay
    未起时 state=down 属正常 (应用栈 up 后自动转 up); phase0 栈未起时 rabbitmq (15692,
    /metrics/per-object) 同样 down 属正常 (#165 起); otel-collector/prometheus 应 up。
-5. 告警: http://localhost:9090/alerts 可见 13 条 specproof-slo 规则; 无 Alertmanager
+5. 告警: http://localhost:9090/alerts 可见 15 条 specproof-slo 规则; 无 Alertmanager
    部署 (§17 profile 未含), 告警在 Prometheus UI 观察, 生产接 Alertmanager 后走通知。
 
 ## 5. SLO 告警 (alerts-slo.yml)
@@ -93,6 +93,8 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | SpecproofDashboardProgressLagHigh | 进度事件写入→SSE 发出驻留 p95 > 2s | 5m | DASHBOARD_PROGRESS_P95_SECONDS=2 | §14 Dashboard 进度延迟 <= 2 秒 (#164 接线; 只测 live 投递, SSE 轮询间隔 0.5s 是下限; 发出→浏览器的网络/前端段无服务端观测点) |
 | SpecproofVerifyQueueBacklogHigh | broker ready 深度合计 > 50 | 10m | VERIFY_QUEUE_BACKLOG_THRESHOLD=50 | §14 Job 不丢失 — MQ 侧 (#165 接线; rabbitmq per-object 抓取; 消费端停摆时 broker 深度是唯一还在涨的信号, 与 Outbox 侧积压互不替代) |
 | SpecproofVerifyDlqNonEmpty | 任意 *.dlq 死信 > 0 (阈值内联) | 5m | VERIFY_DLQ_THRESHOLD=0 | §14 Job 不丢失 — 死信 (#165 接线; 队列名按 storage/rabbitmq.py 的 dlq_suffix='.dlq' 规则正则匹配, 覆盖全部车道; 死信不会自己消失) |
+| SpecproofNoEvidenceSevereComment | 无证据严重评论计数 > 0 (阈值内联; 评论已被拒发, 排查上游产出) | 1m | NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD=0 | §14 质量目标 (无证据严重评论 = 0; #182 接线 — 计数器只增不减, 一次违规永久可见) |
+| SpecproofCapsuleReplayRateLow | replay 成功率 < 95% (15m 窗口 confirmed/runs rate 比) | 15m | REPLAY_RATE_THRESHOLD=0.95 | §14 质量目标 (Capsule Replay >= 95%; #183 接线 — 没人用不算违规, 用了才谈成功率) |
 
 ## 6. SLO 接线状态 (§14 各指标, 诚实标注)
 
