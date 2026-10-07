@@ -39,6 +39,7 @@ from agent.nodes.build_cache import (
     seed_head_build,
 )
 from agent.preflight import (
+    LANGUAGE_GO,
     LANGUAGE_JAVA,
     LANGUAGE_NODE,
     LANGUAGE_PYTHON,
@@ -974,6 +975,7 @@ def _inject_test_into_workspaces(test_path: str, base_ws: str, head_ws: str) -> 
 _LANGUAGE_ALIASES: dict[str, tuple[str, ...]] = {
     LANGUAGE_NODE: ("node", "javascript", "typescript", "javascript/typescript"),
     LANGUAGE_PYTHON: ("python", "pip", "pytest"),
+    LANGUAGE_GO: ("go", "golang"),
     LANGUAGE_JAVA: ("java", "maven", "junit"),
 }
 
@@ -981,6 +983,7 @@ _LANGUAGE_ALIASES: dict[str, tuple[str, ...]] = {
 def _self_test_parse_for(language: str) -> Any:
     """Pick the summary parser matching a detected language's reporter."""
     from experiments.adapters import (
+        parse_go_test_summary,
         parse_node_test_summary,
         parse_pytest_summary,
         parse_surefire_summary,
@@ -991,6 +994,8 @@ def _self_test_parse_for(language: str) -> Any:
         return parse_node_test_summary
     if normalized in _LANGUAGE_ALIASES[LANGUAGE_PYTHON]:
         return parse_pytest_summary
+    if normalized in _LANGUAGE_ALIASES[LANGUAGE_GO]:
+        return parse_go_test_summary
     return parse_surefire_summary
 
 

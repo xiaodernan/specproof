@@ -67,6 +67,12 @@ DEFAULT_NODE_IMAGE = "node:22-alpine"
 # is what pins the identity, exactly like the Maven profile).
 DEFAULT_PYTHON_IMAGE = "python:3.12-slim"
 
+# Go toolchain image for the repository-self-test sandbox (Phase 2.6).
+# alpine keeps the pull small and forces pure-Go builds: CGO projects need a
+# C toolchain this image does not carry, and an offline sandbox cannot fetch
+# one — those projects fail honestly instead of pretending support.
+DEFAULT_GO_IMAGE = "golang:1.23-alpine"
+
 # §12 sandbox hardening (P6): workloads run as uid/gid 1000, never root.
 # The maven image ships no dedicated user, but docker auto-creates the
 # /home/maven/.m2 volume mountpoint at container start.
@@ -257,6 +263,34 @@ PYTHON_PROFILE = SandboxProfile(
     cache_mount="/wheelhouse",
     cache_readonly=True,
     writable_submounts=((".venv", "/work/.venv"),),
+)
+
+
+# Go profile (Phase 2.6): `go test -json ./...` with module resolution from
+# the seeded module-cache volume (GOPROXY=off). The build cache and the test
+# temp dir live on a writable workspace sub-mount because BOTH are executed
+# from: the runner's /tmp tmpfs is noexec (deliberately), and a noexec
+# GOTMPDIR breaks `go test` exactly like the seed script's tmpfs did (#26).
+# GOMODCACHE stays on the named volume, rw — go writes lock files and
+# extracts modules there, same trust model as the Maven/npm caches.
+GO_PROFILE = SandboxProfile(
+    name="go",
+    image=DEFAULT_GO_IMAGE,
+    image_env="SPECPROOF_SANDBOX_GO_IMAGE",
+    env=(
+        ("GOPROXY", "off"),
+        ("GOFLAGS", "-mod=mod"),
+        ("GOCACHE", "/work/.gocache/cache"),
+        ("GOTMPDIR", "/work/.gocache/tmp"),
+        ("GOMODCACHE", "/go/pkg/mod"),
+    ),
+    cache_volume_env="SPECPROOF_SANDBOX_GO_MODCACHE_VOLUME",
+    cache_volume_default="specproof-go-modcache-1000",
+    cache_mount="/go/pkg/mod",
+    writable_submounts=(
+        (".gocache", "/work/.gocache"),
+        (".gocache/tmp", "/work/.gocache/tmp"),
+    ),
 )
 
 

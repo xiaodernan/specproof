@@ -2079,3 +2079,51 @@ da8ba7f(JOB 细节失败位置披露 + #177 缺失的 stageLabel 导入修复)�
 
 5 个本地提交(9eea392 及之前)仍待 #159a 作者的 workflow-scope 凭据
 (§29.4);本节为纯文档,随下次推送一并上远端。
+
+## 34. Phase 2.6:Go 适配器——第三语言进沙箱,"任意变更"的承诺再进一步(2026-09-28)
+
+### 34.1 内容(按 §33 清单实施)
+
+- **GO_PROFILE**(sandbox/runner.py):golang:1.23-alpine;模块缓存卷
+  `specproof-go-modcache-1000` 挂 /go/pkg/mod(rw——go 在其中写锁文件并
+  解压模块,Maven/npm 同信任模型);`.gocache` 可写子挂载承载
+  **GOCACHE 与 GOTMPDIR**——go test 把编译出的测试二进制放进 GOTMPDIR
+  执行,而 runner 的 /tmp tmpfs 是 noexec(刻意),不指过去就是 #26 种子
+  脚本 noexec 教训的 Go 变体;env GOPROXY=off + GOFLAGS=-mod=mod。
+- **GoAdapter**(experiments/adapters.py):detect=go.mod;两段 fail-fast
+  (`go mod download` 离线校验 → `go test -json ./...`);模块未播种在
+  下载阶段失败、不跑测试("tests were not run");**无宿主车道**——local
+  请求显式拒绝(不可信 Go 测试代码 + 宿主权限 = 红线本身),这是三适配器
+  中第一个连 local 都不提供的。
+- **parse_go_test_summary**:go test -json 事件行解析——带 Test 字段的
+  pass/fail/skip 计测试;**无 Test 字段的 fail 是包级失败(编译/装配)
+  计 errors**,"包没编译过"不是"测试失败";非 JSON 行跳过,零事件 =
+  诚实无证据,判定仍以 exit_code 为准。
+- **scripts/seed_go_modcache.ps1**:三段式(建卷+chown / 在线
+  `go mod download all` / GOPROXY=off 离线冒烟),tmpfs 带 exec(#26 教训)。
+
+### 34.2 真库演练与两次工具链真问题(如实)
+
+1. **sumdb 状态目录在卷外**:暖缓存时 go 报
+   `verifying go.mod: open /go/pkg/sumdb/...: no such file or directory`——
+   uid 1000 无法写 /go/pkg/sumdb。修法:暖缓存步加 `GONOSUMDB=*`——仓库内
+   的 go.sum 仍钉住每个哈希,供应链校验不丢;sumdb 只覆盖 go.sum 没见过
+   的模块。
+2. **测试仓库自身 go.mod 不完整**:smoke 报 `module lookup disabled by
+   GOPROXY=off`——真实 Go 项目会提交完整 go.mod/go.sum,补全后 smoke 通过。
+   这不是产品缺陷,是仓库作者责任,但演练脚本把它如实暴露了出来。
+3. **四象限全验证**:已播种仓库 adapter 端到端绿(JSON pass 事件,依赖
+   rsc.io/quote 离线解析);未播种依赖 `module lookup disabled` 诚实失败
+   不跑测试;digest 实测记录(sha256:383395b794dffa...);seed 离线冒烟过。
+
+### 34.3 门证(本批实测)
+
+- 定向:test_go_adapter **14**(detect/prepare 无副作用/两段序/下载失败
+  不跑测试/local 拒绝/解析三态)+ test_adapters 28 + test_sandbox_runner
+  (含 GO_PROFILE argv 断言)+ test_differential_language_honesty
+  (Go surface 声明)合跑 **56 passed**;`ruff` / `mypy` 全绿。
+- 全量门:见 34.4(worktree 隔离)。
+
+### 34.4 全量合并门(追记)
+
+见提交记录。

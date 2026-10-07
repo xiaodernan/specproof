@@ -358,6 +358,7 @@ def test_real_adapters_declare_their_execution_surface() -> None:
     )
     assert adapters.runs_in_sandbox(adapters.NodeAdapter()) is True
     assert adapters.runs_in_sandbox(adapters.PythonAdapter()) is True
+    assert adapters.runs_in_sandbox(adapters.GoAdapter()) is True
 
 
 def test_surface_of_fails_closed_when_an_adapter_forgets_to_declare() -> None:

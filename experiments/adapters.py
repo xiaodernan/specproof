@@ -49,10 +49,12 @@ from typing import Any, Protocol, runtime_checkable
 
 from observability.metrics import incr
 from sandbox.runner import (
+    DEFAULT_GO_IMAGE,
     DEFAULT_M2_VOLUME,
     DEFAULT_NODE_IMAGE,
     DEFAULT_PIDS_LIMIT,
     DEFAULT_PYTHON_IMAGE,
+    GO_PROFILE,
     NODE_INSTALL_PROFILE,
     NODE_PROFILE,
     PYTHON_PROFILE,
@@ -255,6 +257,45 @@ _PYTEST_FAILED = re.compile(r"(\d+)\s+failed")
 _PYTEST_SKIPPED = re.compile(r"(\d+)\s+skipped")
 
 
+def parse_go_test_summary(text: str) -> dict[str, int]:
+    """Parse `go test -json ./...` output into test counts.
+
+    Each line is a JSON event; per-test results carry a non-empty ``Test``
+    field with Action pass/fail/skip. A fail event WITHOUT a Test field is a
+    package-level failure (build/setup) and counts as an error — "the package
+    did not compile" is not "a test failed". Non-JSON lines (build output,
+    go's own chatter) are skipped: zero parsed events is honest no-evidence,
+    and the verdict still reads exit_code.
+    """
+    passed = failed = skipped = errors = 0
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        action = event.get("Action")
+        is_test = bool(event.get("Test"))
+        if action == "pass" and is_test:
+            passed += 1
+        elif action == "fail" and is_test:
+            failed += 1
+        elif action == "skip" and is_test:
+            skipped += 1
+        elif action == "fail" and not is_test:
+            errors += 1
+    return {
+        "tests": passed + failed + skipped,
+        "passed": passed,
+        "failed": failed,
+        "errors": errors,
+    }
+
+
 def parse_pytest_summary(text: str) -> dict[str, int]:
     """Parse the pytest short summary ("N passed[, M failed][, K skipped]")
     out of `pytest -q` output. Absent counters parse to 0 (no evidence);
@@ -349,6 +390,12 @@ def _python_image() -> str:
     """Image a Python sandbox run actually uses, honoring the same operator
     override the runner applies when it builds the argv."""
     return os.getenv("SPECPROOF_SANDBOX_PYTHON_IMAGE", "").strip() or DEFAULT_PYTHON_IMAGE
+
+
+def _go_image() -> str:
+    """Image a Go sandbox run actually uses, honoring the same operator
+    override the runner applies when it builds the argv."""
+    return os.getenv("SPECPROOF_SANDBOX_GO_IMAGE", "").strip() or DEFAULT_GO_IMAGE
 
 
 def _maven_wrapper(workspace: str) -> str:
@@ -1300,13 +1347,6 @@ def detect_java_gradle(repo: RepositorySnapshot) -> RuntimeProfile:
     )
 
 
-def detect_go(repo: RepositorySnapshot) -> RuntimeProfile:
-    raise AdapterNotImplemented(
-        "Go adapter is planned (compatibility matrix status=planned); "
-        "no executor is wired"
-    )
-
-
 class _PlannedAdapter:
     """Matrix placeholder: every protocol method fails closed with
     AdapterNotImplemented — the detect functions exist so callers (and the
@@ -1345,6 +1385,187 @@ class _PlannedAdapter:
 
 
 # ── Compatibility matrix (single source of truth for the doc + tests) ────
+
+class GoAdapter:
+    """Go via the project's own `go test ./...` (Docker sandbox, Phase 2.6).
+
+    Module resolution happens OFFLINE from the seeded module-cache volume
+    (`GOPROXY=off`): the download phase verifies the cache satisfies go.mod,
+    and an unseeded module fails loudly before any test runs — the same
+    honest semantics as the Python wheelhouse (#26) and the Node cache
+    (#56). Test output is `go test -json` (per-test events), and the exit
+    code stays the verdict's source of truth.
+
+    CGO projects are NOT supported by the alpine image (no C toolchain, and
+    an offline sandbox cannot fetch one): they fail the build honestly. The
+    host path ("local") is never offered — this adapter is sandbox-only,
+    because untrusted Go test code with host privileges is exactly what the
+    red line forbids.
+    """
+
+    TOOLCHAIN = "Go (docker sandbox) / go mod download + go test -json ./..."
+    EXECUTION_SURFACE = SURFACE_DOCKER_SANDBOX
+    IMAGE = DEFAULT_GO_IMAGE
+    #: Verified with `docker image inspect` on this host — the fingerprint of
+    #: the image this adapter was actually validated on.
+    IMAGE_DIGEST = (
+        "sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f"
+    )
+    OFFLINE_POLICY = (
+        "docker sandbox with --network none: `go mod download` resolves only "
+        "from the seeded module-cache volume (GOPROXY=off), then `go test -json "
+        "./...`; an unseeded module fails the download phase loudly and NO "
+        "tests run — reported as-is, never as a pass"
+    )
+    KNOWN_LIMITS: tuple[str, ...] = (
+        "容器沙箱执行 (golang:1.23-alpine, 非 root uid 1000, --network none)",
+        "模块只来自已播种的 Go 模块缓存卷 (scripts/seed_go_modcache.ps1): "
+        "未播种的模块在下载阶段失败, 不跑测试并如实判 NON_REPRODUCIBLE",
+        "仅纯 Go (CGO_ENABLED=0): 需要 C 工具链的项目离线无法获取构建环境, "
+        "如实失败; 旧 local 流程不提供",
+        "构建缓存与测试临时目录在工作区 .gocache 子挂载 (可执行): 向源码树 "
+        "其余部分写文件的测试会失败",
+        "仅支持 goal=run_test; test_compile 无对应语义, 抛 AdapterNotImplemented",
+        "detect 规则: go.mod 存在",
+        "汇总解析 go test -json 事件行; 无法识别时计数为 0 (无证据), "
+        "判定以 exit_code 为准",
+        "镜像 digest 为本机验证值, 预拉/升级 golang 镜像时须复核",
+        "输出按尾部 256000 字符截断 (§4.5 输出长度限制)",
+    )
+    OFFLINE_DOWNLOAD_COMMAND = ["go", "mod", "download"]
+    TEST_COMMAND = ["go", "test", "-json", "./..."]
+
+    def detect(self, repo: RepositorySnapshot) -> RuntimeProfile:
+        if repo.has("go.mod"):
+            return RuntimeProfile(
+                language="go",
+                build_tool="go",
+                test_runner="go test",
+                known_limits=self.KNOWN_LIMITS,
+            )
+        raise AdapterNotImplemented(
+            "Go detect rule (go.mod) does not match"
+        )
+
+    def prepare(self, request: ExecutionRequest) -> PreparedExecution:
+        if request.goal != "run_test":
+            raise AdapterNotImplemented(
+                f"unsupported Go goal: {request.goal} "
+                "(GoAdapter supports run_test only)"
+            )
+        command = list(self.TEST_COMMAND)
+        if request.test_class:
+            command += ["-run", request.test_class]
+        image = _go_image()
+        return PreparedExecution(
+            workdir=request.workspace,
+            command=command,
+            local_command=list(command),
+            image=image,
+            # Only the default image carries the digest this adapter was
+            # validated on; an operator-supplied image is unidentified here.
+            image_digest=self.IMAGE_DIGEST if image == self.IMAGE else "—",
+            offline_policy=self.OFFLINE_POLICY,
+            timeout=request.timeout,
+            sandbox_mode=request.sandbox_mode,
+        )
+
+    def _go_sandbox_resources(self, note: str) -> dict[str, str]:
+        """Resource disclosure for the sandboxed Go phases (§12 hardening)."""
+        return {
+            "user": SANDBOX_USER,
+            "network": "none (go resolves offline from the module cache only)",
+            "capabilities": "drop ALL",
+            "no_new_privileges": "true",
+            "pids_limit": os.getenv("SPECPROOF_SANDBOX_PIDS", DEFAULT_PIDS_LIMIT),
+            "image": _go_image(),
+            "workspace_mount": "ro (.gocache sub-mount writable: build cache only)",
+            "modcache_volume": (
+                "specproof-go-modcache-1000 "
+                "(override: SPECPROOF_SANDBOX_GO_MODCACHE_VOLUME), mounted rw"
+            ),
+            "setup_phase": note,
+        }
+
+    def run(self, prepared: PreparedExecution) -> ExecutionResult:
+        # mode="docker" (not "auto"): there IS no host lane for Go — untrusted
+        # Go test code with host privileges is exactly what the red line
+        # forbids, so a "local" request is refused, not silently honored.
+        if prepared.sandbox_mode == "local":
+            raise AdapterNotImplemented(
+                "GoAdapter has no host lane: untrusted Go test code must run "
+                "in the container sandbox (omit sandbox_mode)"
+            )
+        # Fail-fast phases: module resolution first, then the tests. A cache
+        # miss stops the run — "could not download" must never be confused
+        # with "tests ran and passed".
+        workspace = prepared.workdir
+        phases: list[tuple[str, list[str]]] = [
+            ("mod_download", list(self.OFFLINE_DOWNLOAD_COMMAND)),
+            ("go_test", list(prepared.command)),
+        ]
+        result: SandboxResult | None = None
+        for name, command in phases:
+            result = run_sandboxed(
+                command,
+                workspace=workspace,
+                timeout=prepared.timeout,
+                mode="docker",
+                profile=GO_PROFILE,
+            )
+            if result.exit_code != 0 and name != "go_test":
+                prepared.result = ExecutionResult(
+                    exit_code=result.exit_code,
+                    stdout_tail=_tail(result.stdout),
+                    stderr_tail=_tail(result.stderr),
+                    mode=result.mode,
+                    sandbox_resources=self._go_sandbox_resources(
+                        f"{name} failed — tests not run"
+                    ),
+                    error=(
+                        f"offline module resolution failed at '{name}' — "
+                        "tests were not run"
+                        + (f": {result.error}" if result.error else "")
+                    ),
+                )
+                return prepared.result
+        assert result is not None, "sandbox phases loop must produce a result"
+        # The go test exit code IS the verdict (pass or real regression) —
+        # reported as-is, never rewritten.
+        prepared.result = ExecutionResult(
+            exit_code=result.exit_code,
+            stdout_tail=_tail(result.stdout),
+            stderr_tail=_tail(result.stderr),
+            mode=result.mode,
+            sandbox_resources=self._go_sandbox_resources("completed"),
+            error=result.error,
+        )
+        return prepared.result
+
+    def collect(self, prepared: PreparedExecution) -> EvidenceFragment:
+        result = prepared.result
+        if result is None:
+            return EvidenceFragment(
+                test_report_refs=(),
+                exit_evidence={"exit_code": None, "collected": False},
+            )
+        combined = result.stdout_tail + result.stderr_tail
+        return EvidenceFragment(
+            test_report_refs=(),
+            exit_evidence={
+                "exit_code": result.exit_code,
+                "mode": result.mode,
+                "sandbox_resources": dict(result.sandbox_resources),
+                "test_counts": parse_go_test_summary(combined),
+            },
+        )
+
+    def cleanup(self, prepared: PreparedExecution) -> None:
+        """No-op: the worktree (with .gocache) is pipeline-owned and the
+        containers run --rm. Adapters never delete the workspace."""
+        return None
+
+
 
 COMPATIBILITY_MATRIX: tuple[MatrixRow, ...] = (
     MatrixRow(
@@ -1393,14 +1614,14 @@ COMPATIBILITY_MATRIX: tuple[MatrixRow, ...] = (
     ),
     MatrixRow(
         language="Go",
-        build_tool="go build",
+        build_tool="go",
         test_runner="go test",
-        status="规划 (planned)",
-        image="—",
-        image_digest="—",
-        toolchain="待定 (随实现声明)",
-        offline_policy="待定 (离线缓存策略随实现声明)",
-        known_limits=("detect 抛 AdapterNotImplemented; 无执行器",),
+        status="已支持 (Docker 沙箱)",
+        image=GoAdapter.IMAGE,
+        image_digest=GoAdapter.IMAGE_DIGEST,
+        toolchain=GoAdapter.TOOLCHAIN,
+        offline_policy=GoAdapter.OFFLINE_POLICY,
+        known_limits=GoAdapter.KNOWN_LIMITS,
     ),
 )
 
@@ -1417,7 +1638,7 @@ class ExecutionAdapterRegistry:
             _PlannedAdapter("Java/Gradle", detect_java_gradle),
             NodeAdapter(),
             PythonAdapter(),
-            _PlannedAdapter("Go", detect_go),
+            GoAdapter(),
         ]
 
     @property

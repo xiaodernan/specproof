@@ -19,6 +19,7 @@ from experiments.adapters import (
     ExecutionAdapter,
     ExecutionRequest,
     JavaMavenAdapter,
+    GoAdapter,
     NodeAdapter,
     PythonAdapter,
     RepositorySnapshot,
@@ -329,13 +330,19 @@ class TestCompatibilityMatrixContent:
         assert rows[0].build_tool == "Maven"
         assert rows[0].status == "已支持 (实测)"
         assert rows[0].image_digest.startswith("sha256:")
+        # Go left planned behind too (#Phase 2.6): only Gradle remains.
         planned_rows = [
-            row for row in rows[1:]
-            if row.language not in ("Python", "JavaScript/TypeScript")
+            row for row in rows[1:] if row.language not in (
+                "Python", "JavaScript/TypeScript", "Go",
+            )
         ]
         assert all(row.status == "规划 (planned)" for row in planned_rows)
         planned_build_tools = {row.build_tool for row in planned_rows}
-        assert planned_build_tools == {"Gradle", "go build"}
+        assert planned_build_tools == {"Gradle"}
+        go_row = next(row for row in rows if row.language == "Go")
+        assert go_row.status == "已支持 (Docker 沙箱)"
+        assert go_row.image == GoAdapter.IMAGE
+        assert go_row.image_digest.startswith("sha256:")
         python_row = next(row for row in rows if row.language == "Python")
         assert python_row.build_tool == "pip"
         assert python_row.test_runner == "pytest"
@@ -391,9 +398,10 @@ class TestCompatibilityMatrixContent:
 def test_detect_functions_exist_for_planned_adapters() -> None:
     from experiments import adapters as adapters
 
+    # detect_go was removed with #Phase 2.6: the real GoAdapter replaced the
+    # planned stub, so only Gradle remains planned.
     for fn in (
         adapters.detect_java_gradle,
-        adapters.detect_go,
     ):
         with pytest.raises(AdapterNotImplemented, match="planned"):
             fn(RepositorySnapshot(path="."))
