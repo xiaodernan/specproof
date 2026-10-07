@@ -3305,3 +3305,59 @@ errors: ['Repository safety check failed for base prepare (no_forbidden_files: f
   注意 #204 之后这个现象**更值得查了**：被丢的用例连 `NOT_RUN` 都不会出现，它直接从 `Total cases` 里消失。
 - 本机那个 `.env` 是**未跟踪的本地文件**，不在版本库里，**我没有动它**（它不属于仓库，且里面有真实凭据）。
   若要让本机评测真的跑起来，需要用户决定怎么处理它。
+
+## #205 CI 的评测子集里有两个是 holdout：一半用例被静默丢掉，丢掉的正好是唯一的负例
+
+**接 #204 的"仍未做"。** #204 记下"我传 4 个 case 目录只有 2 个真跑了"，并指出 `plan_case_dirs` 为什么丢**仍未查**。
+这一条查清了，而且**不是 bug，是配置**——但它暴露的是 **CI 的一道门**。
+
+**真因（读源码 + 读清单，两处都实测）。**
+- `cli/specproof/commands/eval.py:134` 的发现逻辑是
+  `d for d in cases_path.iterdir() if d.is_dir() and d.name.startswith("case-")` —— **四个目录全部被发现**。
+- 丢人的是 `plan_case_dirs(...)`：它按 `docs/eval/holdout-manifest.json` 做 holdout 隔离，
+  而**隔离默认开启**（`agent/holdout.py` 的 docstring 明写 "Isolation is on by default"）。
+- 那份清单里**恰好声明了 `case-01-auth-bypass` 与 `case-10-comment-only`**（都是 `status: candidate`）。
+- 所以 `4 → 2` 完全正确：**这是隔离在按设计工作**，不是缺陷。
+
+**缺陷在 CI 那一步，而且三句话叠在一起。** `ci.yml` 的
+`Evaluate representative golden-case subset` 复制了这四个用例，注释写的是
+"static positive, negative, execution-only positive, new-category execution case"，然后：
+
+1. **四个里有两个是 holdout** ⇒ 被静默丢成 2 例，**注释承诺的组成与实际跑的不是一回事**。
+2. **丢掉的那一个正好是唯一的负例**（`case-10-comment-only`，`should_detect: false`）。
+   于是 `grep -q "False positives:    0"` 这道门**变成恒真**——
+   负例为零时"误报为零"永远成立。**一道不可能失败的门不是门。**
+3. **工具自己的门没被用**：`eval` 有 `--gate`（"Exit non-zero unless the acceptance status is PASS
+   (enforces the sample/floor criteria below as a CI gate)"），工作流却去 grep 两行汇总文字。
+   于是**工具自己判 `INSUFFICIENT` 的一轮（样本太小、无法判定召回率）照样能过那两道 grep**。
+
+**改法（保守，只动这两处）。**
+- 子集换成**非 holdout** 的同角色用例：`case-01-auth-bypass` → `case-21-auth-weakened-permitall`（正例，AUTH-01）、
+  `case-10-comment-only` → `case-12-add-javadoc`（负例，comment-only 的同型）；`case-17`/`case-56` 原样保留。
+- 评测调用加 `--gate --min-positive-cases 3 --min-negative-cases 1`：
+  **子集缩水就不再是"更小的一声绿"，而是响的一声红**。两条 grep 保留（召回与误报的期望值不变）。
+
+**实测（本机，同一条命令）。** 改前：`Running evaluation across 2 golden cases`（4 个目录只跑 2 个）。
+改后：**`Running evaluation across 4 golden cases`**，四例逐个回显 `NOT RUN: … worktree not created`
+（本机那个未跟踪 `.env` 仍然让管线 abort——这正是 #204 修好的那条诚实路径在起作用）。
+两个工作流的 YAML 都实测可解析（`yaml.safe_load` → jobs 列表齐全）。
+
+**新门（`tests/unit/test_ci_eval_subset_is_measurable.py`，4 例）——直接读工作流文本与清单。**
+① 子集里每个用例都必须存在、且**不在 holdout 清单里**；② 子集必须**含至少一个负例**
+（否则"误报为零"那道 grep 又是恒真）；③ 必须含至少一个正例；④ 那一步必须带 `--gate` 且
+**显式**给出 `--min-positive-cases` 与 `--min-negative-cases`。四处都带下限（用例数 ≥2），扫到 0 条不绿着过。
+
+**四臂变异（预测先写后跑，每臂从运行前快照还原）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| S1 | **把原缺陷放回去**（子集换回两个 holdout 用例） | 门①红 | **1 red**，正是门① ✅ |
+| S2 | 把负例换成另一个正例 | 门②红 | **1 red**，正是门② ✅ |
+| S3 | 去掉 `--gate --min-*` 整串 | 门④红 | **1 red**，正是门④ ✅ |
+| S4 | 只去掉 `--min-negative-cases` | 门④红 | **1 red**，正是门④ ✅ |
+
+**门证。** `ruff` All checks passed；新门 **4 passed**；两个工作流 YAML 可解析；
+本机评测子集从 2 例变回 4 例（上面"实测"）。臂脚本落在仓库外 `D:\面试项目\_arm205.py`。
+
+**仍未做。** 子集换过之后 CI 那一步**能不能真的绿**，本机无法验证（本机有那个 `.env`，管线一律 abort）；
+需要在 CI 上跑一次才知道——而**这仍然取决于那 77 个提交推不推**（见 #203 追加）。

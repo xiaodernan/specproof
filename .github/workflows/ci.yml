@@ -160,15 +160,25 @@ jobs:
       - name: Evaluate representative golden-case subset (deterministic)
         run: |
           # The full 100-case eval is a multi-hour gate (local slow_eval /
-          # nightly job). CI runs a representative subset: static positive,
-          # negative, execution-only positive, new-category execution case.
+          # nightly job). CI runs a representative subset: execution-only
+          # positive, second-category positive, and a NEGATIVE control.
+          #
+          # #205: the subset used to copy case-01 and case-10, which
+          # `docs/eval/holdout-manifest.json` declares as holdout. Isolation is
+          # on by default, so `plan_case_dirs` silently dropped both: the run
+          # went from 4 cases to 2, and the case it lost was the only NEGATIVE
+          # one — which made the "False positives: 0" gate below vacuously true
+          # (zero negative cases means zero false positives, always). Every
+          # case here must be non-holdout, and --gate with explicit floors
+          # makes a shrunk subset fail loudly instead of quietly passing.
           mkdir -p eval-subset
-          cp -r golden-cases/case-01-auth-bypass eval-subset/
-          cp -r golden-cases/case-10-comment-only eval-subset/
+          cp -r golden-cases/case-21-auth-weakened-permitall eval-subset/
+          cp -r golden-cases/case-12-add-javadoc eval-subset/
           cp -r golden-cases/case-17-logic-inversion eval-subset/
           cp -r golden-cases/case-56-redis-cache-eviction-removed eval-subset/
           python -m cli.specproof.main eval \
             --cases eval-subset --repo . --no-llm \
+            --gate --min-positive-cases 3 --min-negative-cases 1 \
             --output docs/eval/eval-report.html | tee eval-run.log
       # Quoted: an unquoted scalar cannot contain ": ", and this file failed to
       # parse as YAML because of these two names -- so every push since the file
