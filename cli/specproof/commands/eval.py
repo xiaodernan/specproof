@@ -166,6 +166,7 @@ def eval_cmd(
     total_should_detect = 0
     false_positives = 0
     negative_cases = 0
+    not_run = 0
 
     for case_dir in case_dirs:
         spec_file = case_dir / "spec.md"
@@ -190,10 +191,10 @@ def eval_cmd(
         expected_evidence = gt.get("expected_evidence_type", "UNKNOWN")
         min_findings = gt.get("expected_min_findings", 1)
 
-        if should_detect:
-            total_should_detect += 1
-        else:
-            negative_cases += 1
+        # NOTE: should_detect / negative_cases are counted AFTER the run, not
+        # here. A case whose pipeline aborted never compared anything, so it
+        # belongs in neither the numerator nor the denominator (see the
+        # NOT_RUN branch below).
 
         click.echo(
             f"\n=== {case_dir.name} (base={base_ref}, head={head_ref}) ==="
@@ -220,6 +221,46 @@ def eval_cmd(
         except Exception as exc:  # noqa: BLE001
             click.echo(f"  WARNING: pipeline failed for {case_dir.name}: {exc}")
         duration_ms = max(0, round((time.perf_counter() - started_at) * 1000))
+
+        # A node that recorded an error short-circuits the graph
+        # (agent/graph.py: guard_errors), so the comparison never happened.
+        # Scoring that as a MISS would say "the tool failed to detect the
+        # defect" about a run that never looked — and it silently drags Recall
+        # down, which can fail the recall gate for a reason unrelated to
+        # detection quality (a local untracked .env tripping the repo-safety
+        # check is exactly how this was found). Not-run is its own verdict, it
+        # is excluded from both sides of the ratio, and it is stated out loud.
+        pipeline_errors = final.get("errors") or []
+        if pipeline_errors:
+            not_run += 1
+            for message in pipeline_errors:
+                click.echo(f"  NOT RUN: {message}")
+            record = {
+                "case": case_dir.name,
+                "verdict": "NOT_RUN",
+                "should_detect": should_detect,
+                "duration_ms": duration_ms,
+                "expected_severity": gt.get("expected_severity"),
+                "expected_evidence": expected_evidence,
+                "matched_findings": 0,
+                "matched_severities": "—",
+                "contracts_found": "",
+                "expected_contract": expected_contract or "—",
+                "errors": "; ".join(str(e) for e in pipeline_errors),
+            }
+            record["severity_match"] = severity_match_of(record)
+            results.append(record)
+            click.echo(
+                f"  [NOT_RUN] pipeline aborted before any comparison "
+                f"({duration_ms} ms) — excluded from recall, not counted as a miss"
+            )
+            _cleanup_worktrees(repo_resolved, final)
+            continue
+
+        if should_detect:
+            total_should_detect += 1
+        else:
+            negative_cases += 1
 
         findings = final.get("confirmed_findings", [])
 
@@ -310,6 +351,7 @@ def eval_cmd(
     click.echo("Evaluation Results")
     click.echo(f"{'=' * 50}")
     click.echo(f"Total cases:        {len(results)}")
+    click.echo(f"Not run:            {not_run}")
     click.echo(f"Should detect:      {total_should_detect}")
     click.echo(f"Detected:           {detected}")
     click.echo(f"False positives:    {false_positives}")
@@ -358,6 +400,7 @@ def eval_cmd(
             {
                 "case_set": plan.as_json(),
                 "total_cases": len(results),
+                "not_run": not_run,
                 "should_detect": total_should_detect,
                 "detected": detected,
                 "false_positives": false_positives,

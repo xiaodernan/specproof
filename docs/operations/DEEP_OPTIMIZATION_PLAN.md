@@ -3228,3 +3228,80 @@ Q1 是这条门存在的意义：**它能抓住那个正在让 nightly 一直红
 
 **本号不动**：`findings 召回层 MISS` 的根因排查仍另行立号，本号只把上面这些**实测边界**记清楚，
 以免下一个会话把"负例的空 `[]`"当成缺陷、或把"本机 MISS"直接归因给基础设施。
+
+## #204 评测把"管线根本没跑"记成"漏报"——一次 abort 悄悄拉低 Recall，而 CI 正是拿 Recall 当门
+
+**起点。** 上一条（#203 追加）把「findings 召回层 MISS」的下一号第一问定为
+"`depth=FAST` 是否跑差分、能否产出 `base_pass_head_fail` 证据"。**这一问的答案是否定的**——
+`agent/nodes/run_deep_experiments.py:3` 写着 **"FAST covers static checks + differential"**，
+差分在 FAST 里就跑，所以我的假设**错了**。改成直接跑一遍管线看状态，才拿到真因。
+
+**真因（实测，不是推理）。** 用 `build_phase0_graph().invoke(...)` 单跑 `case-56`（与 eval 同样的入参），
+`final` 里躺着两条：
+
+```
+errors: ['Repository safety check failed for base prepare (no_forbidden_files: forbidden file in
+          repository (.env/key patterns): .env); worktree not created',
+         'Repository safety check failed for head prepare (… .env); worktree not created']
+```
+
+**`agent/graph.py` 在 `state["errors"]` 非空时短路**（`guard_errors`，`:46`/`:57`），
+所以 **prepare 一拒，worktree 没建、差分没跑、没有证据、没有 findings**。
+而契约层是好的：同一个 `final` 里 `contracts` 有 **1 条 `CACHE-01`**（`checker_type=redis`）——
+**失败不在契约抽取，在"根本没开始比"**。
+
+**那个 `.env` 是什么。** 实测：`git ls-files --error-unmatch .env` → **未跟踪**；
+`.gitignore:14,38` 里有 `.env`；文件里是 `LLM_PROVIDER/LLM_API_KEY/...`。
+也就是说：**一份本地未跟踪的密钥文件触发了仓库安全门**——**安全门的行为是正确的**，
+错的是评测把这次"拒跑"记成了"漏报"。
+
+**缺陷（读者/运维看到什么）。** `eval_cmd` 在**跑之前**就把 `should_detect` 计进分母，
+然后把"没有 findings"一律判 `MISS`。于是一次 abort 会：进分母、不进分子 ⇒
+**Recall 被拉低，而其实什么都没比过**。本机实测就是这个读数：
+`Should detect: 2 / Detected: 0 / Recall: 0.0%` —— 读起来像"检测能力回归"。
+**这与 #203 是同一个形状：把"没跑成"读成"跑坏了"**；而且更严重，因为它污染的是
+**CI 拿来做门的那一个数字**（`Recall: 100.0%`）。用 #203 的话说：**门报红的原因与被测的东西无关。**
+
+**改法。** `cli/specproof/commands/eval.py`：
+- 计数从"跑之前"挪到"跑之后"（`total_should_detect` / `negative_cases` 只在管线真的完成时才 +1）；
+- 新增第三类终态 **`NOT_RUN`**：`final["errors"]` 非空时，**逐条回显原因**、把该例记为 `NOT_RUN`、
+  **两侧都不计入**（既不进分母也不当漏报），并继续下一例；
+- 汇总多一行 `Not run:`，results JSON 多一个 `not_run` 字段——**"跑了 0 例"必须看得出来**，
+  不能长得像"跑了一堆、结果都挺好"。
+
+**行为读数（同一条命令，改前 → 改后）。**
+
+| | 改前 | 改后 |
+|---|---|---|
+| 汇总 | `Should detect: 2 / Detected: 0 / Recall: 0.0%` | `Not run: 2 / Should detect: 0 / Recall: 无法评估 (n=0)` |
+| 逐例 | `[MISS] matched 0 finding(s), contracts found: []` | `NOT RUN: … worktree not created` + `[NOT_RUN] … excluded from recall` |
+
+**新门（`tests/unit/test_eval_does_not_score_an_aborted_pipeline.py`，3 例）——行为为主。**
+用 `CliRunner` 驱动真命令，`monkeypatch` 掉 `agent.graph.build_phase0_graph` 让 abort **确定性地**发生
+（不依赖本机有没有那个 `.env`）：① abort 例必须出现 `NOT_RUN`、必须回显原因、
+`Should detect: 0`、`Not run: 1`，且**不得**出现 `Recall: 0.0%`；② **对照**：没有 abort 时照旧计分并判 `MISS`
+（防"一刀切成永远不算"）；③ 结构条款：两个计数器在源码里的位置**必须在 `final = graph.invoke(state)` 之后**
+——防后人把增量挪回上面、而行为测试因为别的路径仍然绿。
+
+**三臂变异（预测先写后跑，每臂从运行前快照还原）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| R1 | **把原缺陷放回去**（整段删掉 `NOT_RUN` 分支） | 行为两条红 | **3 red**（含结构条款）✅ |
+| R2 | 汇总不再打印 `Not run:` | 1 红 | **2 red**（多的一条是对照例——它也断言了这行，属预期之外但非洞）✅ |
+| R3 | 逐例不再回显原因 | 1 红 | **1 red** ✅（**第一轮无效**，见下） |
+
+**R3 第一轮是"崩溃不是红"，值得记。** 我把回显那行**整行删掉**，`for message in pipeline_errors:` 就剩空体
+⇒ **SyntaxError ⇒ rc=2、一条测试都没收集**。若只看"没有 FAILED"就当成"这条子句没有牙齿"，就错了。
+改成替换为 `pass  # arm` 保持语法完整后才拿到真红。**这与 #199/#200 记的 crash-vs-red 陷阱同源**——
+本仓库已经踩过三次，**读 rc=2 与读 rc=1 必须分开**。
+
+**门证。** `ruff` All checks passed；`mypy` Success（两个文件）；
+新门 **3 passed**；`pytest tests/unit -k "eval"` **86 passed / 3478 deselected**（无回归）；
+两臂 3/3 如预测 + 1 条无效臂已修正后如预测。臂脚本落在仓库外 `D:\面试项目\_arm204.py`。
+
+**仍未做（明确留给下一号）。**
+- 我传 4 个 case 目录**只有 2 个真跑了**（`case-01`/`case-10` 被丢）——`plan_case_dirs` 为什么丢**仍未查**。
+  注意 #204 之后这个现象**更值得查了**：被丢的用例连 `NOT_RUN` 都不会出现，它直接从 `Total cases` 里消失。
+- 本机那个 `.env` 是**未跟踪的本地文件**，不在版本库里，**我没有动它**（它不属于仓库，且里面有真实凭据）。
+  若要让本机评测真的跑起来，需要用户决定怎么处理它。
