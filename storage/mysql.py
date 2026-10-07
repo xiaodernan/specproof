@@ -1504,6 +1504,7 @@ class MySQLStore:
             "contracts": 0,
             "jobs": 0,
             "audit": 0,
+            "notify_outbox": 0,
         }
         with self.connection() as conn:
             cur = conn.cursor()
@@ -1515,6 +1516,14 @@ class MySQLStore:
                 "DELETE FROM contracts WHERE job_id = %s", (job_id,)
             )
             counts["contracts"] = cur.rowcount if cur.rowcount else 0
+            # The notification outbox (#16.6-1) has no FK to the job row:
+            # without this purge a deleted job leaves announcements that
+            # reference a job that "never existed" — the same unexplained-
+            # data problem #95 fixed for the audit trail.
+            cur.execute(
+                "DELETE FROM notify_outbox WHERE job_id = %s", (job_id,)
+            )
+            counts["notify_outbox"] = cur.rowcount if cur.rowcount else 0
             cur.execute(
                 "DELETE FROM verification_jobs WHERE id = %s", (job_id,)
             )

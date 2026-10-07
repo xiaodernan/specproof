@@ -1990,3 +1990,42 @@ da8ba7f(JOB 细节失败位置披露 + #177 缺失的 stageLabel 导入修复)�
 
 - notify_outbox 的崩溃恢复演练(DRILLS)覆盖 outbox 车道——下一批候选。
 - da8ba7f 的推送等待 #159a 作者的 workflow-scope 凭据(见 §29.4)。
+
+## 32. notify outbox 的崩溃恢复演练——真库实证"至少一次"（2026-09-28）
+
+### 32.1 内容
+
+- **ops/drills.py**:`notify_intent_rows()` / `notify_intent_counts()`——
+  一个作业的通知承诺按行读取与断言视图(enqueued/delivered/dead_lettered/
+  attempts_total)。SQL 走 drills 层的 pymysql `%s` 约定——首版误用 storage
+  层的 `?` 占位符,真库演练当场以 `not all arguments converted` 抓住,
+  已修(两个层的占位符约定不同,这个差别此前没有文档,现在由测试钉住)。
+- **scripts/drill_notify_outbox.py**:真 MySQL 演练——建作业 → 认领 →
+  终态与意图同事务写入 → 崩溃窗口(断言 enqueued=1/delivered=0)→
+  两轮 relay → 断言恰好送达一次且第二轮零变化。webhook 接收端是合成
+  记录连接器(演练证的是 outbox 状态机对真库的机制,HTTP 端点契约由
+  test_notify_connector 覆盖)——脚本 docstring 明写。
+- **生命周期补口(我的表我的责)**:`delete_job_records` 补
+  `DELETE FROM notify_outbox WHERE job_id = %s`——该表无 FK,不补则产品
+  删除后留悬垂宣告(与 #95 修的"未解释数据"同型)。DATA_LIFECYCLE §2.1
+  表补 notify_outbox 行(删除路径✅ / 到期清理⏳)。
+
+### 32.2 真库演练的两次运行(两次都有收获)
+
+1. 首跑 FAIL:`relay_first=2`——首版脚本因占位符 bug 崩溃时留下的孤儿
+   意图行,被第二轮演练的 relay **如期送达**。这是 at-least-once 在真实
+   崩溃场景下正确工作的直接证据;错的是演练判据(把全局送达数当单作业
+   判据)。判据改为按作业(after_first/after_second 的 per-job 快照 +
+   `own_deliveries == 1`),孤儿送达作为现象如实打印。
+2. 重跑 PASS(exit 0):intent 跨崩溃窗口存活、恰好送达一次、第二轮零
+   变化,elapsed 0.95s。
+
+### 32.3 门证(本批实测)
+
+- 定向:test_drill_helpers **25**(+3)+ test_notify_relay 6 +
+  test_data_lifecycle/test_job_state_machine 合跑 32;
+  test_runbook_claims_hold + test_data_dictionary_covers_migrations 8
+  (登记门未受本批影响)。
+- `ruff` / `mypy`(drills/script)全绿;真库演练 exit 0。
+- 推送状态:da8ba7f/bec1d04/bec1d04+ 仍待 #159a 作者的 workflow-scope
+  推送(§29.4),本批提交在其后一并待推。

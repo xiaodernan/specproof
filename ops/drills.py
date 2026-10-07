@@ -282,6 +282,52 @@ def side_effect_counts(store: SideEffectStore, job_id: str) -> dict[str, int]:
         "errors": len(summary.get("errors", [])),
     }
 
+class NotifyIntentStore(Protocol):
+    """Anything that can read the notify_outbox table (§16.6-1)."""
+
+    def connection(self) -> SqlConnection: ...
+
+
+_NOTIFY_INTENT_SELECT_SQL = (
+    "SELECT id, verdict, delivered_at, dead_lettered_at, attempts, last_error "
+    "FROM notify_outbox WHERE job_id = %s ORDER BY id"
+)
+
+
+def notify_intent_rows(store: NotifyIntentStore, job_id: str) -> list[dict[str, Any]]:
+    """Every notify_outbox row for one job, oldest first (§16.6-1 drill view).
+
+    The rows ARE the drill facts: the outbox lane's promise is "enqueued at
+    most one intent per terminal verdict, delivered at least once, dead-
+    lettered only past budget or without a receiver".
+    """
+    with store.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(_NOTIFY_INTENT_SELECT_SQL, (job_id,))
+        return cast(list[dict[str, Any]], cur.fetchall())
+
+
+def notify_intent_counts(store: NotifyIntentStore, job_id: str) -> dict[str, int]:
+    """Assertion view of one job's notification promises (§16.6-1 drill).
+
+    enqueued counts EVERY row for the job (at most one per terminal verdict);
+    delivered / dead_lettered count rows in each state; attempts_total sums
+    per-row attempts — the relay's claim excludes delivered rows, so a value
+    above the row count means retries happened before success, and a
+    delivered row with a second claim would be a relay defect.
+    """
+    rows = notify_intent_rows(store, job_id)
+    return {
+        "enqueued": len(rows),
+        "delivered": sum(
+            1 for r in rows if r.get("delivered_at") is not None
+        ),
+        "dead_lettered": sum(
+            1 for r in rows if r.get("dead_lettered_at") is not None
+        ),
+        "attempts_total": sum(int(r.get("attempts") or 0) for r in rows),
+    }
+
 
 # ── Crash-window / resume orchestration ─────────────────────────────────────
 

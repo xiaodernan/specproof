@@ -31,6 +31,7 @@
 |---|---|---|---|
 | verification_jobs (10 态状态机, 含 tenant_id) | 永久 — 验收证据与审计主体 | 无自动化归档; 如需收缩: 仅清理终态 (VERIFIED/BLOCKED/FAILED/ERROR/STALE) 且 > 180 天, 关联 findings/object_metadata 一并归档 | ⏳ 待基础设施 (无自动化) |
 | outbox | 未发布行永久保留 (at-least-once 的根基); 已发布行 > 7 天可删 | DELETE FROM outbox WHERE published_at IS NOT NULL AND published_at < NOW() - INTERVAL 7 DAY | ⏳ 待基础设施 (无自动化) |
+| notify_outbox (#16.6-1) | 未送达行永久保留 (同 at-least-once 根基); 已送达行 > 7 天可删; 死信行留待运营回放 | 随产品删除路径清 (delete_job_records 同事务 purge); 到期送达行 DELETE ... WHERE delivered_at IS NOT NULL AND delivered_at < NOW() - INTERVAL 7 DAY | ✅ 删除路径已实现 (随 job); 到期清理 ⏳ 待基础设施 |
 | audit_logs | 永久 (合规与跨租户取证; attempted_tenant 审计在此) | 不清理 | ✅ 已实现 (写入) |
 | findings / contracts | 永久; contracts 为追加式 (id,version) 不可就地改 | 不清理 | ✅ 已实现 (写入) |
 | provider_capabilities | 可重建 (lazy probe 重跑即重建); 30 天滚动足够 | DELETE FROM provider_capabilities WHERE updated_at < NOW() - INTERVAL 30 DAY | ⏳ 待基础设施 |

@@ -20,6 +20,8 @@ from ops.drills import (
     honest_degradation_report,
     outbox_event_id,
     resume_job,
+    notify_intent_counts,
+    notify_intent_rows,
     side_effect_counts,
     terminal_transitions,
     wait_for_checkpoint_count,
@@ -538,3 +540,74 @@ class TestBuildDeterministicFixture:
                 java_sources={},
                 head_java_sources={},
             )
+
+
+class TestNotifyIntentCounts:
+    """§16.6-1 drill view: the notification promises of one job, as rows."""
+
+    class _NotifyRowsStore:
+        """Serves canned notify_outbox rows through the connection protocol."""
+
+        def __init__(self, rows: list[dict[str, Any]]) -> None:
+            self._rows = rows
+            self.executed: list[tuple[str, tuple[Any, ...]]] = []
+
+        def connection(self) -> Any:
+            outer = self
+
+            class _Cursor:
+                def execute(self, sql: str, params: Any = None) -> None:
+                    outer.executed.append((sql, params or ()))
+
+                def fetchall(self) -> list[dict[str, Any]]:
+                    (sql, params) = outer.executed[-1]
+                    job_id = params[0]
+                    return [r for r in outer._rows if r.get("job_id") == job_id]
+
+            class _Conn:
+                def cursor(self) -> "_Cursor":
+                    return _Cursor()
+
+                def __enter__(self) -> "_Conn":
+                    return self
+
+                def __exit__(self, *exc_info: Any) -> None:
+                    return None
+
+            return _Conn()
+
+    def test_counts_the_three_row_states_and_attempts(self) -> None:
+        store = self._NotifyRowsStore([
+            {"job_id": "j-1", "verdict": "VERIFIED", "delivered_at": "t",
+             "dead_lettered_at": None, "attempts": 1, "last_error": None},
+            {"job_id": "j-1", "verdict": "BLOCKED", "delivered_at": None,
+             "dead_lettered_at": None, "attempts": 3, "last_error": "e"},
+            {"job_id": "j-1", "verdict": "FAILED", "delivered_at": None,
+             "dead_lettered_at": "t", "attempts": 6, "last_error": "e2"},
+            {"job_id": "j-other", "verdict": "VERIFIED", "delivered_at": "t",
+             "dead_lettered_at": None, "attempts": 1, "last_error": None},
+        ])
+        counts = notify_intent_counts(store, "j-1")
+        assert counts == {
+            "enqueued": 3, "delivered": 1, "dead_lettered": 1,
+            "attempts_total": 10,
+        }
+
+    def test_select_is_static_and_binds_only_the_job_id(self) -> None:
+        store = self._NotifyRowsStore([])
+        notify_intent_counts(store, "j-2")
+        sql, params = store.executed[0]
+        assert "notify_outbox" in sql and "job_id = %s" in sql
+        assert params == ("j-2",), "values travel as bound parameters only"
+
+    def test_enqueued_above_row_count_is_a_relay_defect_signal(self) -> None:
+        """attempts_total > enqueued means a row was retried before success —
+        legitimate; a SECOND delivered row for one verdict would be the relay
+        announcing twice, which the drill's ==1 assertions catch."""
+        store = self._NotifyRowsStore([
+            {"job_id": "j-3", "verdict": "VERIFIED", "delivered_at": "t",
+             "dead_lettered_at": None, "attempts": 4, "last_error": None},
+        ])
+        counts = notify_intent_counts(store, "j-3")
+        assert counts["enqueued"] == 1 and counts["delivered"] == 1
+        assert counts["attempts_total"] == 4
