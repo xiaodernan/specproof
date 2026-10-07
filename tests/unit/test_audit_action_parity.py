@@ -265,7 +265,10 @@ class _FakeStore(MySQLStore):
 
 
 def test_purge_of_a_real_job_leaves_an_explaining_audit_row_in_the_same_session() -> None:
-    store = _FakeStore(rowcounts={0: 2, 1: 1, 2: 1, 3: 1})
+    # statement order after #16.6-1: findings, contracts, notify_outbox,
+    # verification_jobs, audit insert (0:2 findings, 1:1 contracts,
+    # 2:0 notify rows, 3:1 job, 4:1 audit insert)
+    store = _FakeStore(rowcounts={0: 2, 1: 1, 2: 0, 3: 1, 4: 1})
     counts = store.delete_job_records("job-1")
     assert counts["jobs"] == 1, counts
     inserts = [
@@ -285,7 +288,11 @@ def test_purge_of_a_real_job_leaves_an_explaining_audit_row_in_the_same_session(
     assert "audit_logs retained by design" in str(params[5]), params
     assert counts["audit"] == 1, counts
     deletes = [s for s in store.statements_text if s.startswith("DELETE FROM")]
-    assert len(deletes) == 3, deletes
+    assert len(deletes) == 4, deletes
+    assert any("notify_outbox" in s for s in deletes), (
+        "the notification outbox has no FK to the job row; without a purge a "
+        "deleted job leaves announcements referencing a job that never existed"
+    )
     assert store.statements_text.index(deletes[-1]) < min(
         i for i, s in enumerate(store.statements_text)
         if "INSERT INTO audit_logs" in s
@@ -299,7 +306,7 @@ def test_purge_of_a_missing_job_invents_no_explanation() -> None:
     make ``unexplained`` impossible to reach and turn the disposition column
     into a claim about the query, not about the data.
     """
-    store = _FakeStore(rowcounts={0: 0, 1: 0, 2: 0})
+    store = _FakeStore(rowcounts={0: 0, 1: 0, 2: 0, 3: 0})
     counts = store.delete_job_records("never-existed")
     assert counts["jobs"] == 0, counts
     assert not [s for s in store.statements_text if "INSERT INTO audit_logs" in s]
@@ -310,7 +317,7 @@ def test_purge_of_a_missing_job_invents_no_explanation() -> None:
 
 def test_audit_insert_statement_is_not_copied_between_write_paths() -> None:
     """One statement text, two callers (#80's parity shape)."""
-    store = _FakeStore(rowcounts={0: 0, 1: 0, 2: 1, 3: 1})
+    store = _FakeStore(rowcounts={0: 0, 1: 0, 2: 0, 3: 1, 4: 1})
     store.delete_job_records("job-2")
     purge_sql = next(s for s in store.statements_text if "INSERT INTO audit_logs" in s)
     assert purge_sql == mysql_mod._AUDIT_INSERT_SQL  # noqa: SLF001
