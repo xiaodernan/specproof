@@ -3139,3 +3139,54 @@ run_release_checks（RELEASE 档两道发布门：diff 判决可复现性重跑 
 （`api.ts` 仍 `total: number;`、`Jobs.tsx` 无私有接口且 `setTotal(data.total)`、`mysql.py` 仍 `COUNT(*) AS total` 与 `"total": total`）。
 
 
+
+## #203 夜间评测门从来没跑到评测那一步：`./mvnw` 的修复只在 ci.yml 里，nightly-eval.yml 没跟上
+
+**怎么找到的（不是计划里排的号，是从"最近 CI 全红"查出来的）。** `gh run list` 显示最近 8 次运行**全是 failure**，
+其中 `specproof-nightly-eval` 在同一个 SHA 上**连续失败 5 次**。读它的失败日志：
+
+```
+mkdir: cannot create directory '/root': Permission denied
+/usr/local/bin/mvn-entrypoint.sh: 50: exec: ./mvnw: Permission denied
+##[error]Process completed with exit code 126
+```
+
+**exit 126 = 找到了但不可执行**，不是测试失败。而 `ci.yml:106` 的注释**自己就写着这条**：
+
+> `# #159: CI exit 126 — mvnw is committed 100644 (Windows drops the exec bit), so ./mvnw cannot exec as the non-root sandbox user. Invoke it through sh, which needs no exec bit.`
+
+实测 `git ls-files -s demo/spring-backend/mvnw` → **100644**（无执行位，Windows 往返会丢），
+`ci.yml` 的**两个 job**（`tests-with-infra` 与 `eval-golden-cases`）都已经改成 `sh mvnw -q -v`，
+**只有 `nightly-eval.yml` 还写着 `./mvnw -q -v`**。
+
+**读者/运维看到什么。** 夜间的评测**在"播种 Maven 缓存"这一步就死了**，后面的
+`Nightly 100 golden-case evaluation` 与 `Alert on regression`（那条 `grep -q "Recall: 100.0%" … || exit 1` 的回归告警）
+**从来没有执行过**。于是：评测信号是死的，而唯一说它没死的东西是工作流的名字——`specproof-nightly-eval` 报红，
+读起来像"评测回归了"，实际是"评测根本没跑"。这正是本项目最在意的那类：**把"没跑成"读成"跑坏了"**。
+
+**改法（一个词）＋一条把两个文件对上的门。**
+- `.github/workflows/nightly-eval.yml`：`./mvnw -q -v` → `sh mvnw -q -v`，并把 #159 的理由与本条后果一起写进注释。
+- 新门 `tests/unit/test_workflows_invoke_mvnw_through_sh.py`（3 例）：**普查**所有
+  `.github/workflows/*.yml` 里**非注释行**的 `mvnw` 调用（注释被排除，因为它们正是在引用错误写法——
+  这个仓库已经吃过"散文不是代码"的亏）；断言**没有一处**绕过解释器直接执行（`./mvnw`、裸 `mvnw` 都算）；
+  外加一条"理由还成立吗"：用 `git ls-files -s` 实测 `mvnw` 仍是 100644——**若哪天它有了执行位，这条会红**，
+  那是要**有意**做的决定，而不是让一条理由已过期的规则继续挂着。普查带下限（≥3 处、必须含 `nightly-eval.yml`），
+  "扫到 0 条"不能绿着过。
+
+**门不是"nightly 与 ci 一致"，而是规则本身**——这样下一个新增 Maven 播种步骤的工作流会自动继承它。
+
+**两臂变异（预测先写后跑，每臂从运行前快照还原）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| Q1 | **把原缺陷放回去**（nightly 改回 `./mvnw`） | 门红 | **1 red**，正是那条 ✅ |
+| Q2 | ci.yml 改成裸 `mvnw`（不带解释器） | 门红 | **1 red**，正是那条 ✅ |
+
+Q1 是这条门存在的意义：**它能抓住那个正在让 nightly 一直红、而且已经红到没人看的缺陷。**
+
+**过程中记一个探针设计教训。** 门的第一版正则写成"匹配 `maven:<镜像> <how> mvnw` 这个完整命令形状"，
+**它看不见错误写法**——`./mvnw` 里那个 token 是 `./mvnw`，于是"找 mvnw 前面那个词"的正则什么也匹配不到，
+违规者不可见。**一个只认正确拼写的探针，永远不可能在错误拼写上变红。** 改成逐行普查（排除注释行）后才对。
+
+**门证。** `ruff` All checks passed；`mypy` Success；本门 **3 passed**；两臂 2/2 如预测；
+臂脚本落在仓库外 `D:\面试项目\_arm203.py`。

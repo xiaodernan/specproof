@@ -46,7 +46,13 @@ jobs:
             -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
             -v specproof-maven-cache-1000:/home/maven/.m2 \
             -v $PWD/demo/spring-backend:/work:ro -w /work \
-            maven:3.9-eclipse-temurin-21 ./mvnw -q -v
+            # #159 / #203: exit 126 — demo/spring-backend/mvnw is committed
+            # 100644 (Windows drops the exec bit), so `./mvnw` cannot exec as
+            # the non-root sandbox user. Invoke it through sh, which needs no
+            # exec bit. ci.yml learned this in #159; this file kept the old
+            # form, so every nightly run died HERE — before the evaluation
+            # step — and the "Alert on regression" gate below never ran.
+            maven:3.9-eclipse-temurin-21 sh mvnw -q -v
       - name: Nightly 100 golden-case evaluation (multi-hour)
         run: |
           python -m cli.specproof.main eval \
