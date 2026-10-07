@@ -3361,3 +3361,74 @@ errors: ['Repository safety check failed for base prepare (no_forbidden_files: f
 
 **仍未做。** 子集换过之后 CI 那一步**能不能真的绿**，本机无法验证（本机有那个 `.env`，管线一律 abort）；
 需要在 CI 上跑一次才知道——而**这仍然取决于那 77 个提交推不推**（见 #203 追加）。
+
+## #206 `no_forbidden_files` 把「开发者的本地 .env」当成「仓库内容」——于是工具无法验收任何标准配置的仓库
+
+**起点（#204 里那个 `.env`）。** #204 查明本机评测一律 abort 的原因是
+`no_forbidden_files` 拒绝了一份**未跟踪**的 `.env`。当时只把"记账"修好（记 `NOT_RUN` 而不是 `MISS`），
+并把 `.env` 的处理留给用户决定。本号查的是那个决定的上游问题：**这道门本身判得对不对。**
+
+**量到的事实（三条，都实测）。**
+- `agent/repo_safety.py::_check_no_forbidden_files` 走的是 `_iter_repo_walk(repo_real)`，即**工作树**；
+  它按**文件名**分类（`_classify_file_name`），**不查 `.gitignore`**。
+- 于是**任何在工作区放了一份标准本地 `.env` 的仓库都无法被验收**——而这个项目**自己**就把 `.env` 写进
+  `.gitignore`（`:14`、`:38`），也就是说：**它要求开发者做的事，会让它自己拒绝服务。**
+- 而管线实际运行的地方是 **ref 的 worktree**（`prepare_base`/`prepare_head` 用 `git worktree add`）——
+  **未跟踪的 `.env` 不在任何 ref 里，因此根本不会出现在 worktree 中**。
+  也就是说：**门的扫描范围（工作树）比它要保护的暴露面（ref worktree）更宽。**
+
+**这不是"把安全门放松"，而是把它对准它自己声称保护的东西。** 判据交给 git：
+`git check-ignore` 说"这个路径被忽略"⇒ 它是**开发者的本地文件，不是仓库内容**；反之则照旧拒绝。
+**提交进仓库的密钥仍然被抓住**——被跟踪的路径永远不会被报成 ignored。
+
+**改法（`agent/repo_safety.py`）。**
+- 新增 `_git_ignored_paths(ctx, rel_paths)`：一次 `git check-ignore -C <repo> -- <paths...>`
+  （只问**候选**文件，通常 0–5 个，不遍历整个忽略集合）。**失败即闭**：git 抛异常或返回
+  0/1 以外的码 ⇒ 返回空集（什么都不跳过）——**问题答不上来 ≠ 树是干净的**，坏掉的 git 只会让门更严。
+- `_check_no_forbidden_files` 改成"先收集候选、再过滤、再判定"，并在**通过**的 detail 里
+  **披露跳过了几个**：`no forbidden files …; N ignored path(s) skipped as non-repository content (git check-ignore)`
+  —— 一道门不许对**它没判过的文件**报出干净结论。
+- docstring 第 6 条同步改成"仓库**内容**"的措辞。
+
+**⚠️ 过程中抓到我自己实现里的一个洞（值得单独记）。** 第一版用了 `git check-ignore --no-index`，
+想着"别让索引影响判断"。实测**恰好相反**：`--no-index` 让 check-ignore 只按忽略规则回答、**忘掉索引**，
+于是 `git add -f .env`（**密钥真正被提交进仓库的那条路径**）会被报成 "ignored" 而被跳过——
+**一道本该拦住提交密钥的门，会放走它。** 是那条"强制加入的 .env 仍须被拒"的测试把它逼出来的。
+去掉 `--no-index` 后：被跟踪的路径永不被报 ignored，正是本门需要的区分。
+
+**端到端实测（这是本号的重点，不是单测）。**
+- 直接对 specproof 自己的仓库跑 `check_repo_safety('.', 'HEAD', …)`：
+  **`passed: True`**，detail = `no forbidden files (.env/key patterns) found; 6 ignored path(s) skipped as non-repository content (git check-ignore)`，
+  `overall ok: True`。**改之前这里是 `False`。**
+- 跑真评测（单例 `case-12-add-javadoc`）：**`[PASS] matched 0 finding(s)`，`Not run: 0`，`Negative cases: 1`，耗时 178s**。
+  改之前同一命令是 `NOT RUN`（四例全 abort，每例 42–66s）。**这是本仓库近期第一次本机评测真的跑出裁决**——
+  负例判 `[PASS]`（纯注释改动不该报）也正是它该给的答案。
+
+**新门（加在 `tests/unit/test_repo_safety.py::TestIgnoredSecretsAreNotRepositoryContent`，3 例）。**
+① 被 gitignore 的 `.env` ⇒ 通过，且 detail **必须披露跳过**；
+② `git add -f .env`（强制加入，模拟密钥被提交）⇒ **仍然拒绝**（这条逼出了 `--no-index` 那个洞）；
+③ 注入一个对 `check-ignore` 抛异常的 runner ⇒ **仍然拒绝**（失败即闭，答不上来不是干净）。
+
+**四臂变异（预测先写后跑，每臂从运行前快照还原）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| T1 | **把原缺陷放回去**（不过滤 ignored，走到的名字一律判） | 门①红 | **1 red**，正是门① ✅ |
+| T2 | `--no-index` 放回来（强制加入的密钥会被读成 ignored） | 门②红 | **1 red**，正是门② ✅ |
+| T3 | 通过时不披露跳过了几个 | 门①红 | **1 red**，正是门① ✅ |
+| T4 | 坏掉的 git 改成**失败即开**（把全部候选当 ignored） | 门③红 | **1 red**，正是门③ ✅ |
+
+**门证。** `ruff` All checks passed；`mypy agent/repo_safety.py` Success；
+本门 **3 passed**（基线，臂前后各一次）；四臂 4/4 如预测。臂脚本落在仓库外 `D:\面试项目\_arm206.py`。
+
+**全套读数与一处不归因的观察。** `pytest tests/unit/test_repo_safety.py`（45 例）跑完，
+进度串是 `...........E.....................E.......` + `....` —— **2 个 `E`（error）**，
+位置对应 `TestRefInRepo::test_empty_ref_fails` 与
+`TestForbiddenFiles::test_key_token_in_ordinary_file_is_not_content_scanned`。
+**这两条单跑都通过（2 passed in 50.93s）**，且其中之一（`ref_in_repo`）与 #206 改的代码毫无关系；
+跑完时紧跟着出现本机那个 `[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED]` 垫片消息。
+**因此：不把它们归因给 #206**（单跑绿 + 一条在别通道 + 同批出现已知的临时目录守卫），
+但也不声称"全套绿"——**如实记成 2 个未复现的 error**，留给下一次全套跑复核。
+
+**仍未做。** 这只是让本机评测能跑起来；**评测本身的召回率是否达标（CI 那道 `Recall: 100.0%`）本机仍无法给出结论**——
+需要跑完整 100 例（multi-hour），而那属于 nightly 的活，且仍取决于那 80 个提交推不推。

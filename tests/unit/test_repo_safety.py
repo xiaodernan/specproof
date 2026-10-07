@@ -577,3 +577,60 @@ class TestPrepareNodeWiring:
         # Empty workspace dir and its marker are discarded on failure.
         assert list(temp_root.glob(".specproof-worktree-*.json")) == []
         assert list(temp_root.iterdir()) == []
+
+
+class TestIgnoredSecretsAreNotRepositoryContent:
+    """#206: ``no_forbidden_files`` guards REPOSITORY CONTENT, and git says what that is.
+
+    The walk sees the working tree, which also holds the developer's own ignored
+    files. A local ``.env`` is the standard pattern — this project gitignores
+    ``.env`` itself, and its own ``.env`` made ``specproof eval --repo .`` refuse
+    every case. Such a file is in no ref, so it is in no worktree the pipeline
+    actually runs in. A COMMITTED secret must still be refused.
+    """
+
+    def test_a_gitignored_env_is_skipped_and_the_skip_is_disclosed(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        (repo / ".gitignore").write_text(".env\n", encoding="utf-8")
+        (repo / ".env").write_text("LLM_API_KEY=local-only\n", encoding="utf-8")
+        check = _get(_check(repo, tmp_path), CHECK_NO_FORBIDDEN_FILES)
+        assert check.passed is True, check.detail
+        # A clean verdict must not cover a file it never judged.
+        assert "skipped" in check.detail and "ignored" in check.detail, check.detail
+
+    def test_a_force_added_env_is_still_refused(self, repo: Path, tmp_path: Path) -> None:
+        """`git add -f` is how a secret actually gets committed.
+
+        No `git commit` here: this machine's global pre-commit hook refuses to
+        commit a `.env` at all, and the point is the INDEX — a tracked path is
+        never "ignored", which is why `check-ignore` is called without
+        `--no-index`.
+        """
+        (repo / ".gitignore").write_text(".env\n", encoding="utf-8")
+        (repo / ".env").write_text("LLM_API_KEY=committed\n", encoding="utf-8")
+        _git(repo, "add", "-f", ".env")
+        check = _get(_check(repo, tmp_path), CHECK_NO_FORBIDDEN_FILES)
+        assert check.passed is False, "a tracked secret IS repository content"
+        assert ".env" in check.detail
+
+    def test_a_broken_git_makes_the_check_stricter_not_laxer(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        from agent.repo_safety import default_git_runner
+
+        (repo / ".gitignore").write_text(".env\n", encoding="utf-8")
+        (repo / ".env").write_text("LLM_API_KEY=local-only\n", encoding="utf-8")
+
+        def selective(argv: object) -> object:
+            if "check-ignore" in argv:  # type: ignore[operator]
+                raise OSError("git is gone")
+            return default_git_runner(argv)  # type: ignore[arg-type]
+
+        check = _get(
+            _check(repo, tmp_path, git_runner=selective), CHECK_NO_FORBIDDEN_FILES
+        )
+        assert check.passed is False, (
+            "when git cannot say what is ignored, the check must fail closed — "
+            "an unanswerable question is not a clean tree"
+        )

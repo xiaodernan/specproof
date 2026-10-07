@@ -24,8 +24,11 @@ Check list (each must pass for ``ok``):
    resolves outside the repository root.
 5. ``repo_size_within_limit``  — total checked-out file size is within the
    configured limit.
-6. ``no_forbidden_files``      — no ``.env``/key-material files, and no real
-   secrets inside ``.env``-style template files.
+6. ``no_forbidden_files``      — no ``.env``/key-material files in the
+   REPOSITORY's content, and no real secrets inside ``.env``-style template
+   files. Git is the authority on "content": paths git ignores (a developer's
+   local ``.env``) are skipped and the skip is disclosed in the verdict, while
+   a committed secret is still refused because tracked files are never ignored.
 7. ``execution_mode_signal``   — the current execution mode is known and the
    repository is safe to mount under it (unknown modes fail closed).
 
@@ -509,6 +512,33 @@ def _scan_template_content(path: Path) -> str | None:
     return None
 
 
+def _git_ignored_paths(ctx: _SafetyContext, rel_paths: Sequence[str]) -> set[str]:
+    """Which of these repo-relative paths does git ignore?
+
+    **Fails CLOSED**: an empty set (nothing ignored) when git cannot answer, so
+    a broken git makes the check stricter, never laxer. ``check-ignore`` exits
+    0 when at least one path is ignored and 1 when none are — both are answers;
+    anything else is not.
+
+    Deliberately WITHOUT ``--no-index``: that flag makes check-ignore answer
+    from the ignore rules alone and forget the index, so a file that was
+    force-added (``git add -f .env`` — the way a secret actually gets committed)
+    would be reported as "ignored" and skipped. With the index in play, a
+    tracked path is never ignored, which is exactly the distinction this check
+    needs: the developer's local file versus the repository's content.
+    """
+    if not rel_paths:
+        return set()
+    argv = ["-C", os.fspath(ctx.repo_real), "check-ignore", "--", *rel_paths]
+    try:
+        proc = ctx.git_runner(argv)
+    except Exception:  # noqa: BLE001 — fail closed on runner errors
+        return set()
+    if proc.returncode not in (0, 1):
+        return set()
+    return {line.strip() for line in proc.stdout.splitlines() if line.strip()}
+
+
 def _check_no_forbidden_files(ctx: _SafetyContext) -> SafetyCheck:
     repo_real = ctx.repo_real
     if not repo_real.is_dir():
@@ -516,35 +546,57 @@ def _check_no_forbidden_files(ctx: _SafetyContext) -> SafetyCheck:
             CHECK_NO_FORBIDDEN_FILES, False,
             "repository is not a directory; cannot scan for forbidden files",
         )
+    candidates: list[tuple[Path, str]] = []
     try:
         for root, _dirs, files in _iter_repo_walk(repo_real):
             for name in files:
                 if name == ".git":
                     continue
-                path = Path(root) / name
                 verdict = _classify_file_name(name)
-                if verdict == "forbidden":
-                    return SafetyCheck(
-                        CHECK_NO_FORBIDDEN_FILES, False,
-                        "forbidden file in repository "
-                        f"(.env/key patterns): {path.relative_to(repo_real)}",
-                    )
-                if verdict == "template":
-                    problem = _scan_template_content(path)
-                    if problem is not None:
-                        return SafetyCheck(
-                            CHECK_NO_FORBIDDEN_FILES, False,
-                            f"{path.relative_to(repo_real)}: {problem}",
-                        )
+                if verdict in ("forbidden", "template"):
+                    candidates.append((Path(root) / name, verdict))
     except OSError as exc:
         return SafetyCheck(
             CHECK_NO_FORBIDDEN_FILES, False,
             f"cannot scan repository for forbidden files: {exc}",
         )
-    return SafetyCheck(
-        CHECK_NO_FORBIDDEN_FILES, True,
-        "no forbidden files (.env/key patterns) found",
-    )
+
+    # This check guards REPOSITORY CONTENT, and git is the authority on what
+    # that is. The walk above sees the working tree, which also holds the
+    # developer's own ignored files — a local `.env` is the standard pattern
+    # (this project gitignores `.env` itself, and its own `.env` used to make
+    # `specproof eval --repo .` refuse every case). Such a file is in no ref, so
+    # it is in no worktree the pipeline runs in: refusing on it made the tool
+    # unable to verify any repository whose developer keeps one, while a
+    # COMMITTED secret is still caught here (tracked files are never ignored).
+    rel_paths = [path.relative_to(repo_real).as_posix() for path, _ in candidates]
+    ignored = _git_ignored_paths(ctx, rel_paths)
+    skipped = 0
+    for path, verdict in candidates:
+        if path.relative_to(repo_real).as_posix() in ignored:
+            skipped += 1
+            continue
+        if verdict == "forbidden":
+            return SafetyCheck(
+                CHECK_NO_FORBIDDEN_FILES, False,
+                "forbidden file in repository "
+                f"(.env/key patterns): {path.relative_to(repo_real)}",
+            )
+        problem = _scan_template_content(path)
+        if problem is not None:
+            return SafetyCheck(
+                CHECK_NO_FORBIDDEN_FILES, False,
+                f"{path.relative_to(repo_real)}: {problem}",
+            )
+    detail = "no forbidden files (.env/key patterns) found"
+    if skipped:
+        # Never let "nothing found" cover a tree that was partly skipped — a
+        # check must not report a clean verdict for files it did not judge.
+        detail += (
+            f"; {skipped} ignored path(s) skipped as non-repository content "
+            "(git check-ignore)"
+        )
+    return SafetyCheck(CHECK_NO_FORBIDDEN_FILES, True, detail)
 
 
 def _check_execution_mode_signal(ctx: _SafetyContext) -> SafetyCheck:
