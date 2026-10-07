@@ -1965,7 +1965,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Elasticsearch 每个 client 往返的耗时直方图族 es_request_seconds_<op> (storage/elasticsearch.py 的 _timed_es 包住每个 self.client.<op> 调用, op 词表派生自调用点并由对账门钉死, #169 接线)。按 __name__ 分组取 per-op p50/p95 — 图例即指标名, 后缀去 _seconds_ 前缀即 op (search/index/bulk/delete_by_query/count/ping/indices; indices 合并 exists/create/delete 管理往返)。梯度 0.005..30s: 毫秒级 ping 到秒级 bulk(refresh) 全程有分辨率, 顶格 30s 对齐 client 的 request_timeout=30, 超时请求也落有限桶, 分位数不落 +Inf。ES 未起或未跑索引前无序列, 面板为空属正常。",
+      "description": "Elasticsearch 每个 client 往返的耗时直方图族 es_request_seconds_<op> (storage/elasticsearch.py 的 _timed_es 包住每个 self.client.<op> 调用, op 词表派生自调用点并由对账门钉死, #169 接线)。按 __name__ 分组取 per-op p50/p95 — 图例即指标名, 后缀去 _seconds_ 前缀即 op (search/index/bulk/delete_by_query/count/ping/indices; indices 合并 exists/create/delete 管理往返)。梯度 0.005..36s (#213 在 30s 顶格后追加 36s): 毫秒级 ping 到秒级 bulk(refresh) 全程有分辨率, 顶格 36s 为 request_timeout=30 留 1.2 倍余量——被超时砍断的请求实测略高于 30s, 等值顶格会把它推进 +Inf; 30s 边界保留, le=30 与 (30,36] 之差即「临界成功」与「被砍断」。ES 未起或未跑索引前无序列, 面板为空属正常。",
       "fieldConfig": {
         "defaults": {
           "color": {

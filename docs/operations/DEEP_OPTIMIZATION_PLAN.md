@@ -3838,3 +3838,29 @@ ruff 首跑一处 C416（dict 推导式）修后三文件 All checks passed；my
 往返；`_client` 直连不建连接。③ 该族无 label、无告警，只给读数；§14 无 Redis 阈值，承诺仅一条：每往返恰一次观测（账本相等案例 + AST
 普查两向钉住）。④ 30 个调用点全包住的判据是 AST 一一对应，不是文本 grep——未来把 `client` 换成局部别名会让普查先从 ALL_OPS
 下限变红而不是静默漏计。
+
+## #213 等值顶格的核销与锚点重钉：ES 延迟梯度追加 36s 余量，redis 梯度锚从注释改读生产者
+
+**起点（核销 #212 立的待核点）。** #212 在诚实边界立下的那句「ES 面同一句『超时请求也落有限桶』在顶格==request_timeout（30s）的取等下同型存疑（超时实测略高于 30s）」在本号核实。一手证据就藏在 #177 自己的门证里——「`observe_duration(..., 30.0)` 落 `le="30"` 有限顶桶、**45s 落 +Inf**」：#177 当时把这条读数读成了「超时请求也落有限桶 已经成立」，但被 client 自己 `request_timeout=30` 砍断的请求实测就是略高于 30s（30.x），与 45s 落入同一条 +Inf 通道——30s 边界上没有任何一档接住它。修法用 #212 已在 redis 面落过的形状：追加一档 1.2 倍余量顶格。
+
+**修法一（ES 梯度补余量，30s 边界保留）。** `storage/elasticsearch.py` 的 `_ES_BUCKETS` 在 30.0 后追加 36.0（12→13 桶, 0.005..36s；1.2×30 与 redis 面 6.0=1.2×5 同比例），模块注释改写写明理由；30.0 边界不动——`le=30` 与 `(30,36]` 之差恰好是「临界成功」与「被砍断」的判别。测试面 `tests/unit/test_es_store.py` 新增锚案 `test_es_bucket_ladder_clears_the_request_timeout`：按构造计数读生产者（全文件恰好一处 `Elasticsearch(...)` 构造、其中恰好一个 `request_timeout` 关键字、断言 `_ES_BUCKETS[-1] > float(值)` 严格大于），旧案的 docstring（「top bucket 30s equals the client's request_timeout」）同步订正为 36s/1.2x。（storage/elasticsearch.py 23485→23709 字节, sha 0acc4ab0→90243465, CRLF 607→611（注释 3→6 行 + 梯度 +1 行）；test_es_store.py 4354→6134 字节, sha 742b64a5→f8fe77c8, CRLF 117→160。）
+
+**修法二（redis 梯度锚的重钉，写同型锚点时发现的 #212 门洞）。** #212 的 `test_bucket_ladder_matches_the_constant_and_covers_socket_timeout` 用 `re.search(r"socket_timeout=(\d+(?:\.\d+)?)", text)` 读锚——文本正则的**首个匹配是梯度注释里的字面量**（第 44 行「bucket 6s sits just above the client's own socket_timeout=5」那行措辞），不是 `redis.Redis(...)` 构造的 `socket_timeout=5,` 关键字（第 129 行）：门钉的是文档不是生产者，只把构造抬到顶格之上而注释不动，门保持绿。改为与 ES 面同形的 AST 构造计数读法（全文件恰好一处 `redis.Redis` 构造、其中恰好一个 `socket_timeout` 关键字、严格大于），`import re` 随之删除。洞与修复分别由 A3pre / A3 两臂实测（见臂表）——不是从注记推断的。（test_redis_request_metrics_are_observable.py 10306→11233 字节, sha 74c1ffee→4284eab3, LF 289→309——本文件纯 LF。）
+
+**门证（全部实读）。** 变异臂基线 15 passed（T1 test_es_store 5 + T2 redis 延迟门 6 + T3 parity 4）；定向回归批 5 模块（test_es_store / test_es_cleanup_wiring / test_es_projection_cleanup / redis 延迟门 / parity）`48 passed in 7.18s`；ruff 三文件 All checks passed；mypy 全仓 222 files Success。文档同步四处：OBSERVABILITY.md §8.10 汇总行（「#169 接线/#213 订正 … 梯度 0.005..36s——顶格 36s 为 request_timeout=30 留 1.2 倍余量, 超时请求落有限桶分位数不落 +Inf」）与面板 23 明细 bullet（「#213 在 30s 顶格后追加 36s … le=30 与 (30,36] 之差即『临界成功』与『被砍断』」）、dashboard 面板 23 描述同句、测试 docstring 与模块注释。**选择器、分位数、指标名全部未动**（面板 23 两条 target 原样, parity 无名字变化）——本号只沉三样东西：梯度常量、描述文本、两处测试锚。（OBSERVABILITY.md 57572→57772 字节, sha cccdede1→c3bcb1bc, CRLF 252→253；specproof-slo.json 173656→173810 字节, sha 1e131745→c223cc92, CRLF 5593→5593——只改描述文本, 行数不变。）
+
+**变异臂（预测先写后跑，脚本 `.scratch/arm213-es-arms.py`，每臂从字节快照重基 + 终态 sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A0 | 未变异基线 | 0 红 / 15 | **MATCHED 0 红 / 15** ✅ |
+| A1 | ES 拆掉追加的 36.0（恢复等值顶格形态） | 1 红 = T1::test_es_bucket_ladder_clears_the_request_timeout | **MATCHED 1 红** ✅ |
+| A2 | ES 构造 request_timeout=30→45（生产者抬到顶格之上） | 1 红 = 同一 T1 案子（绑定见证：注释仍写 30，读注释的门会保持绿） | **MATCHED 1 红** ✅ |
+| A3pre | redis 构造 socket_timeout=5→10 且 T2 锚点回退旧正则（+import re） | 0 红（洞实测：旧谓词读注释的 5 保持绿） | **MATCHED 0 红** ✅ |
+| A3 | redis 构造 socket_timeout=5→10，现行 AST 锚 | 1 红 = T2::test_bucket_ladder_matches_the_constant_and_covers_socket_timeout | **MATCHED 1 红** ✅ |
+| A4 | ES 顶格 36.0→60.0（仍高于 30） | 0 红（负对照：没有门钉死 36 这个具体值） | **MATCHED 0 红** ✅ |
+| A5 | redis 梯度 6.0→5.0（取等） | 1 红 = 同一 T2 案子（取等被严格大于拒绝） | **MATCHED 1 红** ✅ |
+
+（臂日志 `.scratch/arm213-arms.log`；脚本末行 `final sha256 == original: True`——四个文件逐字节还原。）
+
+**诚实边界。** ① 同型取等嫌疑仍有一处、未在本号动：`craft/executor.py` 的 `_TOOL_BUCKETS` 顶格 3600 == 工具 API `Param max_value=3600` 的超时上限，DEEP #178 写了同一句承诺「超时执行也落有限桶」——按本号口径（被砍断实测略高于上限）同型存疑，已立待核，留作下一号候选。② 36s 的承诺种群说清楚：接住的是「经 client 的往返里被 `request_timeout` 砍断的样本」（实测 30.x s）；远大于 36s 的样本只能来自把 request_timeout 改大的路径，那属于新种群、不在承诺里——承诺的证据形状是 1.2 倍比例（与 redis 面 6.0=1.2×5 同型），不是对任意输入成立。③ 无告警无标签：§14 无 ES 阈值。④ 锚点是「构造计数」不是「字面量搜索」：未来若把构造挪进工厂函数（构造调用消失），两个门先以 `expected one ... construction, got 0` 变红而不是静默漂移——失败消息写自己的形状。

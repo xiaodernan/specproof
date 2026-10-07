@@ -8,8 +8,10 @@ family ``redis_request_seconds_<op>``. These cases pin:
   per-op histogram by exactly the call counts, and the fake's ledger
   agrees with the histogram deltas;
 - ladder: bounds == _REDIS_BUCKETS (sorted, positive) and the top covers
-  the client's own socket_timeout literal (a timed-out request stays in a
-  finite bucket);
+  the client's own socket_timeout read from the redis.Redis(...)
+  construction keyword by AST (#213 repair — a text regex bound the ladder
+  comment, the first occurrence, instead of the producer; a timed-out
+  request stays in a finite bucket);
 - finally semantics: a raising round trip still observes;
 - failure partition: a swallowed xread/xlen/ping failure still counts
   (the failed round trip is a real request);
@@ -22,7 +24,6 @@ family ``redis_request_seconds_<op>``. These cases pin:
 from __future__ import annotations
 
 import ast
-import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -179,12 +180,31 @@ def test_bucket_ladder_matches_the_constant_and_covers_socket_timeout(store) -> 
     assert all(b > 0 for b in _REDIS_BUCKETS)
     # The top must sit ABOVE the timed-out worst case: a request cut off at
     # socket_timeout measures slightly over it, so an exactly-equal top would
-    # dump timed-out samples into +Inf. The bound comes from the source,
-    # not copied here.
-    text = REDIS_SOURCE.read_text(encoding="utf-8")
-    match = re.search(r"socket_timeout=(\d+(?:\.\d+)?)", text)
-    assert match is not None, "client socket_timeout literal not found"
-    assert _REDIS_BUCKETS[-1] > float(match.group(1))
+    # dump timed-out samples into +Inf. The bound is read from the
+    # redis.Redis(...) construction's keyword by AST — not by a text regex,
+    # which matched the ladder comment (the first socket_timeout occurrence)
+    # instead of the producer: with the regex, changing the client's own
+    # socket_timeout alone left this gate green (#213 repair).
+    tree = ast.parse(REDIS_SOURCE.read_text(encoding="utf-8"))
+    constructions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "Redis"
+    ]
+    assert len(constructions) == 1, (
+        f"expected one redis.Redis construction, got {len(constructions)}"
+    )
+    socket_timeouts = [
+        kw.value
+        for kw in constructions[0].keywords
+        if kw.arg == "socket_timeout"
+    ]
+    assert len(socket_timeouts) == 1, "client socket_timeout keyword not found"
+    value = socket_timeouts[0]
+    assert isinstance(value, ast.Constant) and isinstance(value.value, (int, float))
+    assert _REDIS_BUCKETS[-1] > float(value.value)
 
 
 def test_raising_round_trip_still_observes(store) -> None:

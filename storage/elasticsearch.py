@@ -57,10 +57,14 @@ class ElasticsearchConfig:
 #: ladder starts at 60s (minute-scale job durations) while ES requests land
 #: in the milliseconds-to-seconds band — a bulk with refresh=True or a
 #: delete_by_query can take seconds, a ping is sub-millisecond. Top bucket
-#: 30s matches the client's own request_timeout=30 so a timed-out request
-#: still lands in a finite bucket (never +Inf, where quantiles return NaN).
+#: 36s is 1.2x the client's own request_timeout=30 (#213): a request cut
+#: off AT the timeout measures slightly OVER 30s, so an equal top pushed
+#: those samples into +Inf (where quantiles return NaN) — the appended
+#: headroom keeps timeout cuts finite. The 30s boundary stays: le=30 vs
+#: (30, 36] separates "succeeded just under the timeout" from "cut".
 _ES_BUCKETS: tuple[float, ...] = (
     0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0,
+    36.0,
 )
 
 
