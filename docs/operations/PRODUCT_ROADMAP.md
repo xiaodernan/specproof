@@ -2038,3 +2038,44 @@ da8ba7f(JOB 细节失败位置披露 + #177 缺失的 stageLabel 导入修复)�
 归一化正斜杠路径)——其领地、其在飞改动,与 notify 车道无关。本研究全部
 十套件(199 tests,含与 #176 改动共存的组合)当前全绿。记录于此,避免
 "notify 车道有红"的误账随门记录扩散。
+
+## 33. Phase 2.6 开工登记:Go 适配器的勘探结论(下一批从实施开始)
+
+### 33.1 勘选结论(本轮勘探,未实施)
+
+- **领地**:experiments/adapters.py / sandbox/runner.py 当前无任何会话在飞
+  改动,自由。
+- **镜像**:golang:alpine 系(具体 tag 实施时拉取并记录 digest,同
+  #26 惯例)。alpine 对 Go 无 wheel 类问题(纯静态编译),但 CGO 项目
+  需要 bookworm 系——首版只承诺纯 Go(CGO_ENABLED=0),CGO 项目如实失败。
+- **关键工具链事实(本轮分析,实施时验证)**:
+  1. `go test` 把编译出的测试二进制放进 **GOTMPDIR**(默认 TMPDIR=/tmp),
+     而 runner 的 /tmp tmpfs 是 **noexec**——直接跑会 "permission denied"。
+     这是 #26 种子脚本 tmpfs-exec 教训的 Go 变体,解法不同:Python 用的是
+     bind 子挂载(宿主 bind 可执行),Go 的 GOTMPDIR/GOCACHE 指向
+     **工作区内可写子挂载**(如 `.gocache`,与 .venv/node_modules 同款
+     bind 机制,已实证可执行)。
+  2. GOMODCACHE(/go/pkg/mod)用**命名卷 rw**(go 会在缓存内写锁文件与
+     提取目录),与 Maven/npm 同模型;播种 = 在线 `go mod download all`
+     到卷 + 离线冒烟(GOPROXY=off go test)。
+  3. GOPROXY=off + GOFLAGS=-mod=mod:离线解析只信缓存;缺模块如实失败
+     (NON_REPRODUCIBLE),同 #56/#26 的诚实语义。
+- **seed 脚本**:seed_go_modcache.ps1(镜像 #26 的三段式:建卷+chown+
+  在线下载+离线冒烟),tmpfs 记得 exec(#26 教训)。
+
+### 33.2 实施清单(下一批照此执行)
+
+1. sandbox/runner.py:GO_PROFILE(cache_volume=specproof-go-modcache-1000
+   挂 /go/pkg/mod、writable_submounts=((".gocache", "/work/.gocache"),)、
+   env GOCACHE/GOTMPDIR/GOFLAGS/GOPROXY)。
+2. experiments/adapters.py:GoAdapter(detect=go.mod;run 三段式:
+   go mod download 离线校验 → go test ./... → 解析 `--- FAIL`/ok 行;
+   失败不跑测试语义同 Python)。
+3. scripts/seed_go_modcache.ps1。4. 单测+真 Docker e2e(四象限)。
+5. 文档(EXECUTION_COMPATIBILITY Go 行从 planned 转正)+ DATA_DICTIONARY
+   无新表(卷不进字典)。
+
+### 33.3 推送状态
+
+5 个本地提交(9eea392 及之前)仍待 #159a 作者的 workflow-scope 凭据
+(§29.4);本节为纯文档,随下次推送一并上远端。
