@@ -24,8 +24,12 @@ default; the approval_policy hook can only make requirements STRICTER
 Stable error codes live as a "[CODE]" prefix in ToolResult.summary:
 UNKNOWN_TOOL / TOOL_VERSION_MISMATCH / INVALID_ARGUMENTS / PATH_ESCAPE /
 PATH_OUT_OF_RANGE / APPROVAL_REQUIRED / FILE_NOT_FOUND / NOT_A_GIT_REPO /
-COMMAND_NOT_ALLOWED / STALE_CONTEXT / EDIT_REJECTED / AST_PARSE_FAILED /
-EXECUTION_FAILED.
+COMMAND_NOT_ALLOWED / PLANE_TOOLCHAIN_MISSING / STALE_CONTEXT /
+EDIT_REJECTED / AST_PARSE_FAILED / EXECUTION_FAILED. The denied-status
+subset is closed in DENIAL_CODES: every denied result is built by
+_denied(), which counts it (tool_denials_<code>_total, #208), and
+dispatch() counts every call (tool_calls_total) as the refusal-rate
+denominator.
 
 Segmentation contract (计划书 §6.3): results are untrusted data. The
 registry exposes envelope_block() — a deterministic, versioned description
@@ -48,6 +52,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+from observability.metrics import incr
 
 from .ast_edit import AstEditor, AstParseError
 from .editor import EditError, Editor, StaleContextError
@@ -83,6 +89,20 @@ CODE_STALE_CONTEXT = "STALE_CONTEXT"
 CODE_EDIT_REJECTED = "EDIT_REJECTED"
 CODE_AST_PARSE_FAILED = "AST_PARSE_FAILED"
 CODE_EXECUTION_FAILED = "EXECUTION_FAILED"
+
+#: Closed set of codes that may ride a status="denied" result (#208).
+#: Gated against the source by test_craft_tool_denials_are_observable.py —
+#: a denial site using a code outside this set fails that census, so a new
+#: refusal reason cannot ship uncounted.
+DENIAL_CODES: frozenset[str] = frozenset(
+    {
+        CODE_APPROVAL_REQUIRED,
+        CODE_COMMAND_NOT_ALLOWED,
+        CODE_PATH_ESCAPE,
+        CODE_PATH_OUT_OF_RANGE,
+        CODE_PLANE_TOOLCHAIN_MISSING,
+    }
+)
 
 Risk = Literal["readonly", "low_write", "controlled_exec", "high"]
 RISKS: tuple[Risk, ...] = ("readonly", "low_write", "controlled_exec", "high")
@@ -153,6 +173,14 @@ def _error(code: str, message: str) -> ToolResult:
 
 
 def _denied(code: str, message: str) -> ToolResult:
+    """Single construction point of every denied result — and its meter.
+
+    #208: tool_denials_<code>_total counts each refusal by its code, so the
+    refusal surface (approval gate / path containment / owned_paths range /
+    command whitelist / pinned-plane toolchain) is measurable per reason
+    instead of only visible in the model's transcript.
+    """
+    incr(f"tool_denials_{code.lower()}_total")
     return ToolResult(
         status="denied", summary=f"[{code}] {message}", security_tags=["untrusted"]
     )
@@ -390,6 +418,9 @@ class ToolRegistry:
 
     def dispatch(self, call: ToolCall) -> ToolResult:
         """Execute one ToolCall through the full gate chain."""
+        # #208: honest denominator for the refusal rate — every call is
+        # counted before any gate runs, so refusals over calls is exact.
+        incr("tool_calls_total")
         self.dispatch_count += 1
         spec = self._specs.get(call.tool)
         if spec is None:

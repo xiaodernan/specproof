@@ -400,6 +400,21 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "(RUN_RELEASE_OUTCOMES) by the derivation test, so a new word "
         "forces this gate and the family to move together",
     ),
+    "tool_denial": (
+        re.compile(
+            r"^tool_denials_"
+            r"(approval_required|command_not_allowed|path_escape"
+            r"|path_out_of_range|plane_toolchain_missing)_total$"
+        ),
+        "craft/tools.py #208: incr(\"tool_denials_\" + code.lower() + "
+        "\"_total\") inside _denied(), the single construction point of "
+        "every denied ToolResult — the code words are the closed "
+        "DENIAL_CODES set (approval gate / command whitelist / path "
+        "containment / owned_paths range / pinned-plane toolchain). The "
+        "vocabulary is imported from craft.tools (DENIAL_CODES) by the "
+        "derivation test, so a new denial code forces this gate and the "
+        "family to move together",
+    ),
 }
 
 
@@ -850,6 +865,29 @@ def test_concatenated_families_track_their_vocabularies() -> None:
             f"run_release_checks_outcomes_{word}_total"
         ), f"family rejects release outcome {word}"
 
+    # tool_denial == the craft tool gate's closed DENIAL_CODES set: every
+    # status="denied" ToolResult rides one of these codes through _denied().
+    # The family lowercases the CODE_* literals, so the expected
+    # alternation derives from DENIAL_CODES itself (same discipline as
+    # tool_stem/court_outcome: imported, not hand-copied). code.lower()
+    # keeps the name charset inside [a-z0-9_] — the assertion pins that.
+    from craft.tools import DENIAL_CODES
+
+    denial_lower = sorted(code.lower() for code in DENIAL_CODES)
+    assert len(set(denial_lower)) == len(DENIAL_CODES), (
+        f"DENIAL_CODES collapses under lowercasing: {sorted(DENIAL_CODES)}"
+    )
+    denial_pattern, _ = CONCATENATED_FAMILIES["tool_denial"]
+    expected_denial = "^tool_denials_(" + "|".join(denial_lower) + ")_total$"
+    assert denial_pattern.pattern == expected_denial, (
+        f"tool_denial family {denial_pattern.pattern} != denial vocabulary "
+        f"{denial_lower}"
+    )
+    for word in denial_lower:
+        assert denial_pattern.match(f"tool_denials_{word}_total"), (
+            f"family rejects denial code {word}"
+        )
+
 
 def test_rabbitmq_scrape_stays_paired_with_broker_side_alerts() -> None:
     """The #165 broker-side alerts consume rabbitmq_* series that only the
@@ -971,3 +1009,36 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
         assert expected_tool_selector in expr, expr
     assert any("histogram_quantile(0.95" in expr for expr in tool_exprs)
     assert any("histogram_quantile(0.50" in expr for expr in tool_exprs)
+
+    # Same drift shape for the tool-gate refusal panel (#208): the denial
+    # family reference is a __name__ regex the gate drops as a placeholder,
+    # while tool_calls_total is a literal the gate traces by itself. Pin the
+    # selector and the calls expr, and require the description to name every
+    # DENIAL_CODES word — the reading rule must not drift from the closed
+    # vocabulary the derivation test pins.
+    denial_exprs = [
+        target["expr"]
+        for panel in dashboard["panels"]
+        for target in panel.get("targets", [])
+        if "tool_denials" in target.get("expr", "")
+    ]
+    assert len(denial_exprs) == 1, f"expected 1 denial selector expr, got {denial_exprs}"
+    expected_denial_selector = '__name__=~"specproof_tool_denials_[a-z0-9_]+_total"'
+    assert expected_denial_selector in denial_exprs[0], denial_exprs[0]
+    calls_exprs = [
+        target["expr"]
+        for panel in dashboard["panels"]
+        for target in panel.get("targets", [])
+        if "specproof_tool_calls_total" in target.get("expr", "")
+    ]
+    assert calls_exprs == ["sum(rate(specproof_tool_calls_total[15m]))"], calls_exprs
+
+    from craft.tools import DENIAL_CODES
+
+    refusal_panels = [p for p in dashboard["panels"] if p.get("id") == 45]
+    assert len(refusal_panels) == 1, "tool-gate refusal panel (id 45) missing"
+    description = refusal_panels[0]["description"]
+    for code in sorted(DENIAL_CODES):
+        assert code.lower() in description, (
+            f"panel description does not name denial word {code.lower()}"
+        )

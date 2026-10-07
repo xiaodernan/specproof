@@ -3533,3 +3533,59 @@ CI 在一步里做两件事把它变成可用：`chown -R 1000:1000 /m2` 与 `mv
 
 **下一步（本号内做）：** 按 CI 的步骤把卷播种好，重跑同一例子集，看 MISS 是否变成检出——
 **只有这一步跑完，"本机 MISS = 未播种缓存卷"才算被证实，而不是被论证。**
+
+## #208 craft 工具门的拒绝面不可观测：五类拒绝只活在模型转写里，没有分母也没有按因计数
+
+**起点（agent 节点弧 #186–#201 收口后，第一次回头看不属于节点弧的面）。** 节点弧把每个 agent 节点的执行面都接了计数，
+但 craft 车道的**工具门**——审批 (approval) / 路径包含 (path containment) / owned_paths 范围 / 命令白名单 / 钉死 plane 工具链——
+模型每次调用工具真正撞上的那五道拒绝，在 /metrics 上完全不可见。被拒一次的痕迹只存在于那一次会话的 transcript 里
+（`[CODE] message` 的 summary 字段），线上没有任何名字能回答「审批门拦了多少次」「哪个拒绝码在涨」。
+
+**实现（`craft/tools.py`，一处分母 + 一处产口，都落单点）。**
+- `ToolRegistry.dispatch()` 入口无条件 `incr("tool_calls_total")`——**每次调用先计、含被拒的一次**，
+  拒绝率 = tool_denials / tool_calls 的诚实分母（不是"成功的调用数"，那会把分母定义成结果）。
+- `_denied()` 是 denied 结果的**唯一构造点**（全文件只有它写 `status="denied"`，语义上唯一），
+  其中按 `code.lower()` incr 拼接族 `tool_denials_<code>_total`。五个调用点：
+  审批门 (:440)、`exc.code` 透传（ToolPathError，:450，源头是 :472/:475/:480 三处 raise）、
+  dispatch 层 `except CommandNotAllowedError` (:458)、`except PlaneToolchainMissingError` (:460)、
+  `_run_command` 白名单预检 (:780)。三种异常在 `craft/` 里**只**在 dispatch 被捕获、只转成 `_denied`——
+  没有哪条路径能把拒绝吞掉改成别的状态（已核对全目录）。
+- 词表 `DENIAL_CODES` frozenset 钉在 `craft/tools.py`（approval_required / command_not_allowed / path_escape /
+  path_out_of_range / plane_toolchain_missing）；parity 门的推导块 import 该常量生成 alternation + 逐词匹配，
+  行为测试里另有一条**源内语料门**：扫 `craft/**/*.py` 的 `_denied(` 调用与 `raise ToolPathError(` 的码
+  （常量名或字面量两种拼法都算），断言并集 == DENIAL_CODES——**新拒绝码无法不计数地出厂**；
+  语料门带下限（常量 ≥14、denied 调用点 ≥4、raise ≥3），"扫到 0 条"不能绿着过。
+- 模块 docstring 的稳定码清单补上 `PLANE_TOOLCHAIN_MISSING`（#129 引入后一直漏登），并写明 denied 子集封闭在
+  DENIAL_CODES、每个 denied 都被 `_denied()` 计数。
+
+**读法（同步进 OBSERVABILITY.md 与面板 45）。** `status=error` 与 `denied` 是**两种状态不混计**——
+工具跑了而命令失败是 error，门拒了才是 denied；`command_not_allowed` 今天经 `_run_command` 预检一层
+（dispatch 层 except 分支被预检遮蔽，由合成工具的行为测试在册——**别删预检**，删了它计数语义不变但与测试叙事脱节）；
+`plane_toolchain_missing` = 钉死 plane（docker）无该词干镜像，**重试无用**、要补镜像。面板 45 通配 selector 覆盖族名；
+§14 没有工具拒绝率阈值，故无告警。
+
+**门证（本号第二轮，全部实读）。** 聚焦三文件 `52 passed in 92.96s`（新文件 10 例 + parity 4 例 + craft_tools 38 例回归）；
+`ruff` All checks passed（首跑抓到 F401 未用 import 与 I001 import 排序，已修）；`mypy craft/tools.py` Success。
+测试读法是进程内注册表的**前后差值表**：每次断言"这条调用只该动这一个词"（calls +1、命名词 +1、其余词 0）。
+
+**变异臂（预测先写后跑，脚本 `.scratch/arm208-tool-denial-arms.py`，每臂 finally 从字节快照还原 + sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A0 | 未变异基线 | 0 红 / 14 | **MATCHED 0 红 / 14** ✅ |
+| A1 | `_denied()` 里删 `incr(f"tool_denials_{code.lower()}_total")` | 恰 7 红 = 期望拒绝词移动的案例 + render | **MATCHED 7 红，逐名相符** ✅ |
+| A2 | `dispatch()` 里删 `incr("tool_calls_total")` | 8 红 = 所有断言 calls 增量的案例 | **MISMATCH：实到 9 红**（多出第 9 条见下，代码无缺陷） |
+| A3 | `DENIAL_CODES` 里插入 `CODE_UNKNOWN_TOOL`（有词无站点） | 3 红 = 语料门 + parity 推导 + parity 面板钉 | **MATCHED 3 红，逐名相符** ✅ |
+| A4 | 加一个从不被 `_denied`/`ToolPathError` 使用的 `CODE_UNUSED_PROBE` 常量 | 预测 SURVIVED 0 红（门绑的是拒绝词表，不是整张错误码注册表） | **MATCHED SURVIVED 0 红** ✅ |
+
+**A2 的预测误差如实记（先写后跑规则的用意）。** 第 9 条红是 parity 门的
+`test_every_referenced_metric_name_traces_to_an_emission_site`，报
+`alerts/dashboards reference metric names with no emission site … ['tool_calls_total']`——
+删掉发射点后，面板 45 对 `specproof_tool_calls_total` 的引用悬空，**门正确地抓住了它**。
+我预测时只数了行为案例，没数到引用追踪也吃这条名字——**这是正确的多抓，不是缺陷**。
+（臂 XML 全部落 `.scratch/arm208-*.xml`；脚本末行 `final sha256 == original: True`。）
+
+**诚实边界。** ① `command_not_allowed` 的 dispatch 层 except 分支今天**不可达**（被 `_run_command` 预检遮蔽）——
+合成工具案例就是那条见证；它变可达时计数照记。② 这组名字只覆盖**工具门**的拒绝；
+provider/沙箱/预算等其他拒绝面各有自己的故事（分别在 #168/#178 等条目里）。③ parity/面板钉的是**名字与词表**，
+不证明任何比值接近 §14 阈值（§14 就没有工具拒绝率阈值这一项）。

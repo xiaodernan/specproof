@@ -4831,6 +4831,109 @@
           "refId": "D"
         }
       ]
+    },
+    {
+      "id": 45,
+      "type": "timeseries",
+      "title": "工具门拒绝 (#208: craft tool gate)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "craft 工具门的拒绝计数 (craft/tools.py #208): calls/s 是 ToolRegistry.dispatch 入口的每次调用速率 (含被拒调用——拒绝率的诚实分母); tool_denials_<code>/s 按拒绝码分列，由 _denied() 计数——它是每个 denied ToolResult 的唯一构造点: approval_required (审批门) / command_not_allowed (命令白名单预检) / path_escape (workspace 越界) / path_out_of_range (owned_paths 范围外) / plane_toolchain_missing (执行面钉住 docker 而没有该词干的镜像, 重试无用)。五词词表封闭 (DENIAL_CODES), 由对账门 import 钉死; status=error (未知工具/参数非法/文件缺失等) 不进这组计数——拒绝与执行错误是两种状态, 不混计。无工具调用前无序列, 面板为空属正常。",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 167
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(specproof_tool_calls_total[15m]))",
+          "legendFormat": "calls/s",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (__name__) (rate({__name__=~\"specproof_tool_denials_[a-z0-9_]+_total\"}[15m]))",
+          "legendFormat": "{{__name__}}/s",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ]
     }
   ],
   "refresh": "30s",
