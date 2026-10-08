@@ -502,6 +502,31 @@ def _emitted_names() -> set[str]:
     return names
 
 
+def emission_files() -> set[str]:
+    """Repo-relative paths of the modules that own an emission site (#217).
+
+    Same scan as ``_emitted_names`` — same EMIT_DIRS, same call shapes — but
+    returns the owning FILES instead of the metric names, so a caller can
+    reconcile a per-file inventory (OBSERVABILITY.md 8.10 calls the emission
+    sites its only legal source, so its list and this census must be equal).
+
+    ``observability/metrics.py`` is added explicitly: ``render_text`` emits
+    ``up`` unconditionally rather than through incr/set_gauge/
+    observe_duration, and the doc's inventory names that entry too ("含
+    render_text 自己的条目").
+    """
+    files = {"observability/metrics.py"}
+    for emit_dir in EMIT_DIRS:
+        for path in sorted((ROOT / emit_dir).rglob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            constants = dict(_MODULE_CONST.findall(text))
+            for literal, const in _EMIT_CALL.findall(text):
+                if literal or const in constants:
+                    files.add(path.relative_to(ROOT).as_posix())
+                    break
+    return files
+
+
 def test_every_referenced_metric_name_traces_to_an_emission_site() -> None:
     referenced = _referenced_names()
     emitted = _emitted_names()

@@ -3940,3 +3940,42 @@ ruff 首跑一处 C416（dict 推导式）修后三文件 All checks passed；my
 （臂日志 `.scratch/arm216-arms.log`；脚本末行 `final sha256 == original: True`——OBS 与 yml 逐字节还原。）
 
 **诚实边界。** ① 表与 yml 仍是两处手抄——表是给人读的「表达式要点」转写, 不是机器可执行的副本：本门保证名称集合、`for` 列、阈值变量一致, **不保证「表达式要点」列与 expr 字面一致**（那是自然语言概述, 逐字绑定会把概述变成代码）。② replay 的补数特判是显式清单（`_COMPLEMENT_ROWS`）：未来再出现「以余量形态告警」的规则要显式加入, 否则会被阈值对账错杀——清单本身是有意的单点。③ #215 的边界误读在此订正, 历史节不重写, 以本节为准；两门不重叠——#215 普查管「tick=300 是 recovery-lag 梯子的一级」, 本门管「告警阈值 = 3×tick」。
+
+## #217 §8.10「已接线指标名」的清单与上报点普查对账门：清单漏了 `storage/mysql.py`，手数「三十三个」订正 14 次却无门
+
+**起点（同一类漂移的第二处，紧接 #216 的 §5 表）。** OBSERVABILITY.md §8.10 自己写着它的口径：「本项目**没有静态指标注册表**，名字只在第一次上报时才出现在 /metrics 上，所以这份清单的**唯一合法来源是上报点，不是本文件**」。既然如此，那份按文件列出的清单就应当是一份**完整的**上报点名册——而它同时带着一个**手数的模块总数**（「生产侧上报模块有三十三个」），从 #190 到 #212 被**逐号手工订正了十四次**（#190 订正 #184 的第二条目、#192 订正 #190 自己漏计、#193/#194/#195/#196/#197/#198/#199/#200/#201/#208/#210/#211/#212 每次加一棵树都手改一次，末尾还留了一句「订正: #211 链尾已到 32 而前导数字未同步」）。这正是 #216 在 §5 告警表上抓到的同一形状：**同一个事实的两份手抄副本，中间没有门**。
+
+**实测（写门前先量）。** 用 parity 门自己的方法（`EMIT_DIRS` 内 `incr(`/`set_gauge(`/`observe_duration(` 调用点，常量解析成字面量，加上无条件输出 `up` 的 `observability/metrics.py`）普查上报点：
+
+```
+census files        : 34
+doc bullet entries  : 34
+doc unique files    : 33
+in census, NOT in doc list: storage/mysql.py   (2 call sites)
+duplicated doc bullets: agent/nodes/review_court.py x2
+```
+
+两个方向各一处不合：**清单漏了 `storage/mysql.py`**（`transition_job_status_with_notify` 在终态写同事务内 incr `notify_outbox_enqueued_total` / `notify_outbox_intent_lost_total`——它此前**只作为 `storage/notify_relay.py` 条目的一个括号**存活，读者把清单当名册用时看不见 mysql.py 在上报）；清单里 `review_court.py` 有两条目（#180 判定族、#184 归因族，都合法）——所以**条数 34 与唯一文件数 33 不相等**，而那句手数写的 33 恰好等于「唯一文件数」而不是普查数，**两个 33 是巧合，不是一致**。
+
+**修法（一处单一来源 + 一个两向门 + 文档补齐）。** ① `tests/unit/test_observability_metric_parity.py` 新增公开函数 `emission_files()`——与 `_emitted_names()` 同一次扫描（同 `EMIT_DIRS`、同调用形状），但返回**拥有上报点的文件**而不是指标名，并显式加入 `observability/metrics.py`（`render_text` 无条件输出 `up`，文档也把它算作条目：「含 render_text 自己的条目」）。普查口径从此只有一份，`EMIT_DIRS` 长大时两个门一起动。② 新门 `tests/unit/test_metric_inventory_lists_every_emission_site.py`（107 行，4484 字节，sha 636e1909，纯 LF）：**两向集合相等**（普查 ⊄ 清单 ⇒ 名册漏项；清单 ⊄ 普查 ⇒ 死条目）＋ 解析塌缩下限（`>= 20` 条，正则失配不许当「没问题」）＋ **手数 == 清单唯一文件数**（中文数字解析 `三十四`→34；「每个列出文件计一次、重复条目不计」，所以 review_court 的第二条目不许把数字抬起来）。③ 文档修复：§8.10 补一条 `storage/mysql.py` 条目（描述入车道侧两个计量的互斥互补读法），并把 `notify_relay` 条目里那段重复的内联描述**收成一句指针**（同一事实不再留两份副本），手数 `三十三个` → `三十四个` 并在链尾登记 #217 重数。
+
+**门证（全部实读）。** 新门**对未修文档首跑**：`1 failed, 1 passed`——红的是 `test_the_inventory_names_every_emission_site`，消息逐字点名 `['storage/mysql.py']`（这就是「原缺陷放回去 ⇒ 门红」的直接证据，不靠臂）；修文档后 `2 passed in 10.59s`。回归批（parity + #216 告警表门 + 新门 + differential 执行门）`19 passed in 16.02s`。`ruff` 两文件 All checks passed；`mypy` 两文件 Success。
+
+**变异臂（预测先写后跑，脚本 `_arm217.py`，每臂从运行前字节快照重基 + 终态 sha256 核验，6 臂）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A0 | 未变异基线 | 0 红 / 2（绿对照） | **MATCHED 0 红 / 2** ✅ |
+| A1 | **把原缺陷放回去**：删掉 mysql.py 条目 | 2 红 = 集合门（漏项）+ 计数门（唯一 33 vs 手数 34） | **MATCHED 2 红，逐名相符** ✅ |
+| A2 | 手数漂回 `三十三`（清单不动） | 1 红 = 计数门（集合门保持绿） | **MATCHED 1 红** ✅ |
+| A3 | 某条目改名成没有上报点的文件（`storage/redis.py` → `redis_x.py`） | 1 红 = 集合门（同时漏 + 死两向） | **MATCHED 1 红** ✅ |
+| A4 | **下一条弧**：一个**新的**上报点出现在清单之外（往 `agent/state.py` 加 `incr("probe_arm_total")`） | 1 红 = 集合门（漏项方向） | **MATCHED 1 红** ✅ |
+| A5 | 普查单一来源被解开（`EMIT_DIRS` 里删掉 `storage`） | 1 红 = 集合门（清单里 5 个 storage 条目变死条目） | **MATCHED 1 红** ✅ |
+
+（臂日志见下；脚本末行 `final sha256 == original: True`——OBSERVABILITY.md / parity / agent/state.py 三个文件逐字节还原。）
+
+**A1 是这组门的要害，且我的预测先错了一次。** 我预测 A1 只有集合门 1 红；实测 **2 红**——因为删掉条目会让唯一文件数从 34 掉到 33，而手数仍是 34，**计数门同时翻红**。这不是冗余，是**耦合**：A2 证明计数门可被单独打红（清单不动、只手数漂移），A1 证明「删条目」这个动作必须**连计数一起改**才可能绿。两个门合起来把「清单与数字是同一个事实的两半」钉住了。
+
+**字节账。** OBSERVABILITY.md 58450→59375 字节, sha 8f47b7b1→207ec595（工作树 CRLF 258 行；`git diff --ignore-cr-at-eol` 实测 **3/2**——两行改写 + 一行新增，全部是本号的）；test_observability_metric_parity.py 62637→65099 字节, sha 21282871→5421c451, `--ignore-cr-at-eol` **25/0**（只增 `emission_files()` 与其 docstring）；新文件 test_metric_inventory_lists_every_emission_site.py 4484 字节 sha 636e1909 纯 LF。
+
+**诚实边界。** ① 门保证的是**文件级**名册完整（哪个模块在上报），**不保证**每个指标名都被描述——那仍由 §8.10 的散文与 parity 门的名字追踪各自负责，两者不重叠也不互相替代。② `emission_files()` 的普查口径与 `_emitted_names()` 共享 `EMIT_DIRS`：**未被列入 `EMIT_DIRS` 的树**（例如 `sandbox/`、`mcp/`）即使有上报点也不进普查——这是既有口径（parity 门 docstring 的 scope note 已写明），本号沿用未改，不是新洞。③ 手数解析只支持到十位（`三十四`），若将来模块数破百（`一百零三`）解析会失配——届时**以解析失败（`AssertionError: the module-count sentence moved`）变红**而不是静默算错，这是有意的失败形状。④ `review_court.py` 的两条目是**合法的**（两个不同计量族挂同一个节点边界），门按集合比较、计数按唯一文件算，所以它不会误红；若将来真要合并成一条，改清单即可，计数不动。
