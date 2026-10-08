@@ -4043,3 +4043,34 @@ A12 是**负控制**：把 50→80 同时合法改到 9 个载体（yml expr + �
 **#218 的两处订正（本号读数时现形；不改已落地节的正文）。** ① #218 的边界句把「落在均匀形状之外的 2 个变量」写成「连注记都没有」：本号现读，1 个（VERIFY_DLQ_THRESHOLD）确实不含变量名，另 1 个（NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD）写了 `(阈值 VAR=0)`——**有名字、只是不均匀**，原措辞把两件事说成了一件。② #218 记的看板数字混了平面：字节数 168446→168671 取自 `git show HEAD:` 的 **blob 平面**（core.autocrlf=true ⇒ blob 为 LF），而「CRLF 5593→5593 不变、lone LF 0」取自**工作区平面**。两句各自为真，但当时未标平面，读起来像同一把尺。本号在同一对文件上复测两平面：blob 168671 字节 / lone LF 5593，工作区 174264 字节 / CRLF 5593 / lone LF 0，行数在两个平面相等（5593）——差异只在换行符的写法。
 
 **诚实边界。** ① 本门只读这一个 yml、SPEC 的 §14，以及它自己散文点名的三个常数（两条桶梯度 + 回收 tick 周期）；梯度本身归 #215，OBS §5 表归 #216，看板绘制数字归 #218。② `annotations.description` 里的运行时模板（`{{ $value }}`、`humanizePercentage`）不是阈值的第三抄，不参与三份相等——第三抄只认 summary 的 `(VAR=value)`。③ 中文数字（「一轮」「两侧」「四词」）在本门字母表之外，门里明说这一点而不是假装读得到。④ 第⑫ 案只保证「每个 ASCII 数字都有一条关系在读它」，不保证那条关系语义正确——语义由其余 11 案各自承担。⑤ 批里两个模块（parity / inventory）import `observability/metrics.py`，本会话它是另一写者未提交的 WIP：基线与臂读的是同一个工作区平面，这一点与 #218 落地时同。⑥ 无生产代码改动；与 #217/#218 一样只做本地提交（仓库在此不可推）。⑦ 计划文档仍是**混合换行**（#217 节带 lone LF 39 行）：本节只按文档主导约定写 CRLF，lone-LF 增量由脚本钉死为 0，不替别人重写已落地的节。
+
+## #220 抓取名册 ↔ 部署规则对账门：broker 侧两条告警的「无序列即静默」补上存活探针，两份目标清单改回与配置一致
+
+**起点（HEAD 平面现读，用新门自己的解析器跑 `git show HEAD:` 的字节）。** prometheus.yml 声明 6 个抓取 job，15 条部署规则里只有 3 条是 `up{job=...} == 0` 存活探针（api, outbox-relay, worker）；otel-collector, prometheus, rabbitmq 三个无人守望，其中 rabbitmq 是承重的：2 条规则（`SpecproofVerifyDlqNonEmpty + SpecproofVerifyQueueBacklogHigh`）读的 2 个家族 `rabbitmq_queue_messages`、`rabbitmq_queue_messages_ready` 只由 rabbitmq 任务的 `/metrics/per-object` 渲染供给。PromQL 对缺失序列不作判决——抓取一断，这两条不进 pending 而是**静默**，恰好在它们本该说话的时刻。OBSERVABILITY.md 自己写过机制（「第三方名的真伪只能靠抓取目标 `up` 与实际查询验证」），可没有任何规则读 `up{job="rabbitmq"}`：点名的守卫没有读者。两份人手清单也各自漂移：prometheus.yml 头部注释在 6-job 名册下只列 5 个目标（漏 rabbitmq:15692），且同一份注释宣称「全部为服务名 DNS」，而它自己的名册里就写着 `localhost:9090`；§1 的 prometheus 行只以 host:port 形状列出 4 个目标——localhost:9090、rabbitmq:15692 读不到（自身只写作「自身」二字）。
+
+**修法（新门 13 案 + 三处载体归一）。** 新文件 tests/unit/test_scrape_roster_binds_the_liveness_probes.py（26455 字节、sha 71e492d3、纯 LF、13 案）：R1 目标必须是 host:port 且主机名是名册里的 job（loopback 例外按 `_SELF_TARGET_HOSTS` 声明）；R2 头部注释的目标清单与 scrape_configs **双向相等**；R3 「全部为服务名 DNS」这句只有在真没有例外时才许裸说，有例外必须点名；R4 探针不得指向名册已删的 job（永不存在的序列＝永不触发的告警）；R5 名册 = 有探针的 ∪ 声明豁免的，两个方向都查，且下限 4 条探针；R6 每条豁免的理由**再推导**一遍（prometheus：无 `remote_write`、无 blackbox 守望任务；otel-collector：没有任何规则读它供给的家族），理由失效即红——skip list 需要的可达性守卫；R7 规则读的每个家族必须有声明的属主 job（`_FAMILY_OWNERS` 两条前缀），未声明前缀一律拒绝；R8 读某家族的规则必须有属主 job 的存活探针，否则点名「静默」；R9 那枚 sole-provider 探针的 description 必须点名它兜住的告警（读者要能在规则文件里看出它买回了哪段沉默）；R10 §1 行的目标清单与 scrape_configs 双向相等；R11 「15s 抓取」等于 `global.scrape_interval`；R12 武装：本门读的这两个文件必须是 compose 以 `:ro` 挂到 `--config.file` / `rule_files` 所指路径的那两个文件；R13 #219 的 `_LIVENESS_RULES` 豁免表与本门从 expr 导出的探针集**双向相等**。载体改动（一律记 git 的 LF blob 平面，工作区字节另行标注）：infra/prometheus/alerts-slo.yml blob 8822f7cd→8d538d8e（LF 15549→16908 字节、行数 258→272；工作区 17180 字节，CRLF 272 / lone LF 0）新增 `SpecproofRabbitMQExporterDown`（`up{job="rabbitmq"} == 0`, for 5m）与一段说明为什么它不是凑数的注释；infra/prometheus/prometheus.yml blob 4670c9cc→f0f9d73d（LF 2481→2675 字节）注释清单补 rabbitmq 行、裸断句改为带例外；docs/operations/OBSERVABILITY.md blob 1821567e→febbf0b2（LF 59248→59675 字节、行数 259→260）§1 行补两条目标、散文计数 15→16、§5 补新探针行；tests/unit/test_alert_rules_bind_their_own_threshold_table.py blob 75425194→b2d61181（LF 30375→30477 字节）的存活豁免 3→4（+SpecproofRabbitMQExporterDown）——这条级联是**预测到的**：#219 按名字豁免，新探针不登记它就数不平。compose 只被读、不被改（工作区过 clean filter 后的 blob 与 HEAD 同为 0273f7f3，故不在本次提交路径内）。
+
+**门证（落地脚本现读）。** A0 未变异基线 = 0 红，跑满 16 臂；本轮批 **44 passed**，与 `--collect-only` 的 44 collected、AST 复算的函数定义数（13 + 12 + 5 + 3 + 5 + 4 + 2 = 44）三者相等；ruff（新门 + #219 门 + 臂脚本 + 两支探针）All checks passed；mypy 全仓 Success, **222 files**。
+
+**变异臂（预测同写于脚本 docstring 与 ARMS 两处，落地脚本逐臂核对两处相等、再核对两轮日志；`.scratch/arm220-roster-arms.py`；两轮各 16/16 全中，判定按红案例**集合相等**）。** 第一轮即 16/16，没有一条预测靠放宽收场。三处值得单说：A5 把 rabbitmq 探针改瞄 otel-collector 后探针**总数仍为 4**，`_probes()` 的下限不会替我红——红的是 R5 的划分、R6 的「已声明却已守望」、R8 的 `owners ∩ probes` 与 R9 的非空下限，这条臂存在的意义就是证明 R8 的判决不靠下限代劳；A14/A15 是一对**配对控制**——只往名册加一个 grafana job（其余一字不动）必须红 3 案（R2 注释、R5 划分、R10 §1 行），而把同一个 job 诚实补齐（注释清单、§1 行、加一条能被 R6 复核的豁免）必须全绿：前者红说明豁免不是橡皮章，后者绿说明门惩罚的是**不一致**而不是**新增**；A13 往 #219 的豁免表塞一个不存在的探针名只红 R13，证明两门互读的是集合而非数量。16 臂之后六条路径逐字节 sha 复等到与原平面相等。第二轮只是本门 docstring 措辞按实测订正（§1 行「4 条 host:port」而非「5 条清单」）后的复跑，本脚本断言两轮**逐臂判定与红集完全相等**（`r1 == r2`）——那几行承载说法，不承载行为，相等复跑是这件事的证据。
+
+| 臂 | 变异 | 预测 | 实测（两轮一致） |
+|---|---|---|---|
+| A0 | no mutation (baseline) | 全绿 | 全绿 ✅ |
+| A1 | roster target rabbitmq:15692 -> rabbitmq | R1 + R2 + R10 | R1 + R2 + R10 ✅ |
+| A2 | header comment stops listing rabbitmq:15692 | R2 | R2 ✅ |
+| A3 | 「全部为服务名 DNS」 with no carve-out | R3 | R3 ✅ |
+| A4 | worker probe aimed at a typo'd job | R4 + R5 | R4 + R5 ✅ |
+| A5 | the rabbitmq probe re-aimed at otel-collector | R5 + R6 + R8 + R9 | R5 + R6 + R8 + R9 ✅ |
+| A6 | a remote_write ships data elsewhere | R6 | R6 ✅ |
+| A7 | DLQ rule reads an undeclared family | R6 + R7 | R6 + R7 ✅ |
+| A8 | the job renamed, the probe left pointing at it | R1 + R3 + R4 + R5 + R7 | R1 + R3 + R4 + R5 + R7 ✅ |
+| A9 | the probe's description drops one guarded alert | R9 | R9 ✅ |
+| A10 | §1's row stops listing the rabbitmq target | R10 | R10 ✅ |
+| A11 | scrape_interval 15s -> 30s | R11 | R11 ✅ |
+| A12 | the rule-file mount moves off the gated file | R12 | R12 ✅ |
+| A13 | #219's exemption list gains a ghost probe | R13 | R13 ✅ |
+| A14 | roster gains a grafana job, nothing else moves | R2 + R5 + R10 | R2 + R5 + R10 ✅ |
+| A15 | NEGATIVE CONTROL: the same grafana job added honestly — comment, §1 row and a derived _UNPROBED_JOBS entry all moved | 全绿 | 全绿 ✅ |
+
+**诚实边界。** ① 本门做**静态名册对账**：它读 prometheus.yml / alerts-slo.yml / compose.observability.yml 的 `:ro` 挂载 / OBS §1 与 #219 的豁免表；阈值三份互读归 #219，§5 告警表归 #216，看板绘制数字归 #218，桶梯度归 #215。② 「rabbitmq 的 per-object 渲染真的产出这两族」是 #165 的实测结论（记录在 prometheus.yml 自己的注释里），本门不启动任何容器、不复测线上序列；R12 保证被审的文件就是 prometheus 会加载的那两个，仅此而已——序列存在性在本门之外。③ 家族→job 的映射是**声明表**（`_FAMILY_OWNERS` 两条前缀），不是从序列标签或 job 的 metrics_path 推出来的：表写窄了 R7 红（A7 见证），表写错了 R8 红；它不接受未声明的家族，也不替谁猜属主。④ R6 的豁免理由是可失效的推导（`remote_write`、blackbox 任务、家族读数），A6/A5 分别证伪其中两条；但「prometheus 自身不可守望」仍是一句**受配置约束的论证**，不是定理。⑤ R9 只保证探针的 description 点名了它 sole-provider 的那批告警，不保证那段说明写得对读者有用；措辞质量归人 review，本门不冒充。⑥ 本门与被改的两个 yml、OBS 全在工作区 CRLF 平面上书写，`git show HEAD:` 的 blob 是 LF 平面（core.autocrlf=true）——上面每组字节/行数都标了平面。⑦ 无生产代码改动；未改 compose；与 #216–#219 一样只做本地提交（此仓库在此不可推）。⑧ 计划文档仍是混合换行（历史节带 lone LF 39 行）：本节按文档主导约定写 CRLF，lone-LF 增量由脚本钉死为 0，不替别人重写已落地的节。

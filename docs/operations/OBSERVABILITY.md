@@ -8,7 +8,7 @@
 | 服务 | 镜像 | 端口 | 职责 |
 |---|---|---|---|
 | otel-collector | otel/opentelemetry-collector-contrib:0.123.0 | 4317 (OTLP gRPC) / 4318 (OTLP HTTP) / 8889 (prom exporter) | 接收 api/worker 的 OTLP 数据; 指标经内嵌 prometheus exporter 暴露, Trace 走 debug exporter (无外部后端) |
-| prometheus | prom/prometheus:v3.3.1 | 9090 | 15s 抓取: api:8000/metrics、worker:9100/metrics、outbox-relay:9101/metrics、otel-collector:8889、自身; 规则 alerts-slo.yml |
+| prometheus | prom/prometheus:v3.3.1 | 9090 | 15s 抓取: api:8000/metrics、worker:9100/metrics、outbox-relay:9101/metrics、otel-collector:8889、rabbitmq:15692/metrics/per-object、自身 (localhost:9090); 规则 alerts-slo.yml |
 | grafana | grafana/grafana:11.6.1 | 3000 | provisioning 自动接 Prometheus 数据源 + SLO 看板 (uid: specproof-slo) |
 
 数据流: api / worker / outbox-relay (进程内 registry, observability/metrics.py)
@@ -70,7 +70,7 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 4. Prometheus 目标: GET http://localhost:9090/api/v1/targets — api/worker/outbox-relay
    未起时 state=down 属正常 (应用栈 up 后自动转 up); phase0 栈未起时 rabbitmq (15692,
    /metrics/per-object) 同样 down 属正常 (#165 起); otel-collector/prometheus 应 up。
-5. 告警: http://localhost:9090/alerts 可见 15 条 specproof-slo 规则; 无 Alertmanager
+5. 告警: http://localhost:9090/alerts 可见 16 条 specproof-slo 规则; 无 Alertmanager
    部署 (§17 profile 未含), 告警在 Prometheus UI 观察, 生产接 Alertmanager 后走通知。
 
 ## 5. SLO 告警 (alerts-slo.yml)
@@ -84,6 +84,7 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 | SpecproofApiDown | up{job="api"} == 0 | 1m | — | 可用性 99.5% |
 | SpecproofWorkerDown | up{job="worker"} == 0 | 5m | — | Job 不丢失 (消费端) |
 | SpecproofOutboxRelayDown | up{job="outbox-relay"} == 0 | 5m | — | Job 不丢失 (投递端) |
+| SpecproofRabbitMQExporterDown | up{job="rabbitmq"} == 0 | 5m | — | §14 Job 不丢失 — MQ 侧的补位 (#220; 两条 broker 侧规则只读这个抓取任务的 per-object 序列, 抓取一断它们无序列永不触发, 所以要有一条能发的规则盯着数据源本身; otel-collector 与 prometheus 自身不设探针, 理由登记在门的 _UNPROBED_JOBS) |
 | SpecproofOutboxBacklogHigh | specproof_outbox_pending > 50 | 5m | OUTBOX_PENDING_THRESHOLD=50 | Job 不丢失: Outbox + MQ + 幂等 |
 | SpecproofApiHigh5xxRate | 5xx 率 > 0.05 | 5m | API_5XX_RATE_THRESHOLD=0.05 | CP 月可用性 99.5% |
 | SpecproofWorkerFailureRateHigh | 失败/完成 > 0.30 | 15m | WORKER_FAIL_RATE_THRESHOLD=0.30 | 质量目标 (Precision/Replay 前置健康) |

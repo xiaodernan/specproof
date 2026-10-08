@@ -91,6 +91,20 @@ groups:
           summary: "SpecProof outbox relay 抓取目标 down"
           description: "{{ $labels.instance }} 超过 5 分钟不可抓取 (§14: Job 不丢失依赖 Outbox 投递)。"
 
+      # rabbitmq 导出器的存活探针不是凑数: 下面两条 broker 侧规则的序列
+      # (rabbitmq_queue_messages / _ready) 只有这个抓取任务的
+      # /metrics/per-object 渲染能提供, 而 PromQL 对无序列的表达式永不
+      # 判定 —— 导出器一断, 这两条规则恰好在 broker 出事的那一刻集体静默。
+      # #220 的门把「读了谁的序列」与「谁有存活探针」绑在一起, 缺探针即拒绝。
+      - alert: SpecproofRabbitMQExporterDown
+        expr: up{job="rabbitmq"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof RabbitMQ 导出器抓取目标 down"
+          description: "{{ $labels.instance }} 超过 5 分钟不可抓取 (§14: Job 不丢失 — MQ 侧)。本条为 SpecproofVerifyQueueBacklogHigh 与 SpecproofVerifyDlqNonEmpty 补位: 它们读的 rabbitmq_queue_messages_ready / rabbitmq_queue_messages 只由本抓取任务的 /metrics/per-object 渲染供给, 抓取一断两条表达式无序列, 无序列永不触发——broker 最可疑的时刻正是它们集体静默的时刻。otel-collector 与 prometheus 自身不设本仓探针: 前者没有任何规则读它的序列, 后者一断本文件的判定全都送不出去, 两条口径都由 #220 门里的 _UNPROBED_JOBS 登记并复核。"
+
       # ── Outbox 积压 (§14 可用性: Job 不丢失) ────────────────────────
       - alert: SpecproofOutboxBacklogHigh
         expr: specproof_outbox_pending > 50

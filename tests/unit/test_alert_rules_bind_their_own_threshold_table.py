@@ -9,7 +9,8 @@ in the same commit as the gate that makes it checkable.
 
 Measured before writing (probe_219.py / probe219b/c/d):
 
-- 12 header vars, 15 deployed rules. 3 rules are ``up{job=...} == 0``
+- 12 header vars, 16 deployed rules (15 at the time of writing; #220 added a
+  fourth liveness probe). 4 rules are ``up{job=...} == 0``
   liveness rules carrying no threshold, so the remaining 12 must pair off
   with the 12 vars exactly. They did not: SpecproofVerifyDlqNonEmpty's
   summary said "(DLQ)" and named NO variable, while the OBS §5 row and the
@@ -63,6 +64,7 @@ _LIVENESS_RULES = {
     "SpecproofApiDown",
     "SpecproofWorkerDown",
     "SpecproofOutboxRelayDown",
+    "SpecproofRabbitMQExporterDown",
 }
 
 #: Rules whose expr fires on the FAILURE share: the declared SLO figure is the
@@ -268,7 +270,7 @@ def test_threshold_table_and_rules_pair_off() -> None:
     pairing itself is asserted in `_owners()`, so every case that pairs
     through it names an orphaned variable instead of skipping it), every
     thresholded rule names exactly one row, and the only rules naming nothing
-    are the three declared liveness probes."""
+    are the four declared liveness probes."""
     values = _values()
     rules = _rules()
     owners = _owners()
