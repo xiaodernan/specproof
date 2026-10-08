@@ -75,8 +75,9 @@ PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲,
 
 ## 5. SLO 告警 (alerts-slo.yml)
 
-阈值集中在规则文件头部 THRESHOLDS 表 (Prometheus 规则文件不支持模板变量, 单一修改点),
-逐条注释 PRODUCTION_SPEC §14 出处:
+阈值集中在规则文件头部 THRESHOLDS 表 (Prometheus 规则文件不支持模板变量; 但同一
+阈值在规则 expr 与 summary 的 (VAR=value) 槽里还各有一份, 改一处要三处齐改,
+#219 的门在三处不一致时拒绝), 逐条注释 PRODUCTION_SPEC §14 出处:
 
 | 告警 | 表达式要点 | for | 阈值变量 | §14 出处 |
 |---|---|---|---|---|

@@ -1,7 +1,12 @@
 # SpecProof SLO 告警规则 (PRODUCTION_SPEC §14 可自动化部分)
 #
 # 阈值变量化说明: Prometheus 规则文件不支持模板变量, 所有阈值集中在本文件
-# 顶部的 THRESHOLDS 表中, 调整只需改对应规则的 expr/for (单一修改点)。
+# 顶部的 THRESHOLDS 表里登记; 但每条规则仍要在自己的 expr 里写字面量, 并在
+# summary 的 (VAR=value) 槽里复述一次——同一个阈值在本文件有三份, 改一处必然
+# 让另外两处说谎。#219 的门
+# (tests/unit/test_alert_rules_bind_their_own_threshold_table.py) 把三份钉在
+# 一起: 不一致时拒绝, 所以 retune 必须一次改齐 (看板绘制值与 OBS §5 行另有
+# #218/#216 两道门同批拒绝)。
 #
 # THRESHOLDS (出处: docs/PRODUCTION_SPEC.txt §14 "SLO 与生产质量")
 #   OUTBOX_PENDING_THRESHOLD = 50     ← §14 可用性 "Job 不丢失: Outbox + MQ + 幂等"
@@ -212,7 +217,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "SpecProof 死信队列非空 (DLQ)"
+          summary: "SpecProof 死信队列非空 (VERIFY_DLQ_THRESHOLD=0)"
           description: "队列 {{ $labels.queue }} 有 {{ $value }} 条死信 (§14: Job 不丢失 — 死信是消费被拒且重试耗尽的作业, 不会自己消失, 需人工回炉或归档)。队列名按 storage/rabbitmq.py 的 dlq_suffix='.dlq' 规则匹配, 覆盖全部车道的死信而不只 verify。"
 
       # ── 无证据严重评论 (§14 质量目标, #182) ─────────────────────────
@@ -226,7 +231,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "SpecProof 出现无证据的严重评论 (阈值 NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD=0)"
+          summary: "SpecProof 出现无证据的严重评论 (NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD=0)"
           description: "证据门禁拦下了 {{ $value }} 条缺 evidence_type 的 BLOCKER/MAJOR 评论 (§14: 无证据严重评论 = 0) — 评论已拒发, 但需排查上游为何产出无证据的严重 finding。"
 
       # ── Capsule Replay 成功率 (§14 质量目标, #183) ──────────────────

@@ -4009,3 +4009,37 @@ duplicated doc bullets: agent/nodes/review_court.py x2
 A12 是**负控制**：把 50→80 同时合法改到 9 个载体（yml expr + 头部 THRESHOLDS 注释 + annotations 的 `(VAR=…)`、§5 行的表达式要点格与阈值变量格、看板颜色档与描述三处数字）后必须**全绿**——证明门绑的是关系而不是我手打的字面量；反向的单边改档（A3/A4/A5）全被抓住，且 A5 同时惊动 #215 的梯度门（480→500 不再是默认梯子的一级）与 #216 的阈值列——三号门在同一条链上各自有份。
 
 **诚实边界。** ① 门绑「数字值 + 单位」，不绑「这句引的是 §14 哪一行」；指标级归属由序列 join 承担。② 面板描述里除 Outbox 两档之外的数字（窗口长度、梯度范围、节点计数下限）不在本门：梯度归 #215，§5 表归 #216。③ yml **内部三抄**（头部 THRESHOLDS 注释表 ↔ expr ↔ annotations 的 `(VAR=value)`）仍无门——本号现读：头部声明 12 个变量、全文件只有 10 处 `(VAR=value)` 注记槽、2 个变量（NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD, VERIFY_DLQ_THRESHOLD）连注记都没有；而 A12 恰好证实「只动头部不动 expr」不会变红。这就是 #219 的形状。④ row 面板（id 1/7/13）没有 target，只参与标题↔§14 成员检查，不参与规则 join——这不是漏洞而是它们的形状。⑤ 无生产代码改动；与 #217 一样只做本地提交（仓库不可推）。⑥ 计划文档自 #217 起是**混合换行**：#217 的追加节带 39 行 lone LF（本仓库其余文档节为 CRLF）。本节只按文档主导约定写 CRLF、`lone LF` 增量钉死为 0，不替别人重写已落地的节——那 39 行留给一个显式的收号处理，不在本号偷改。
+
+## #219 alerts-slo.yml 内部三抄对账门：表行 / expr 字面量 / (VAR=value) 注记第一次互相读到，头部那句「单一修改点」撤下
+
+**起点（读数时现形的洞）。** #216 钉住 OBS §5 告警表、#218 钉住看板绘制数字，而 #218 的落地脚本把「yml 内部三抄无门」现读出来写进自己的边界——本号收口它。总体：12 个 THRESHOLDS 行 ↔ 15 条部署规则，其中 3 条是 `up{job=...} == 0` 存活探针不带阈值，剩下 12 条必须与 12 个变量一对一。真实缺陷三处全在这一个文件内部：① HEAD 的均匀 `(VAR=value)` 注记槽只有 10 处，2 个变量落在形状之外——VERIFY_DLQ_THRESHOLD 的 summary 写 "(DLQ)"（**变量名都不在**，而同一文件的头部表行与 OBS §5 行早已写明它 = 0：部署的那条规则自己是三份里的异类），NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD 写成 `(阈值 VAR=0)`（同一机制的第二种拼法：有名字，不均匀，两条规则两种形状=一张表两种读法）；② 头部写「调整只需改对应规则的 expr/for (单一修改点)」，这句话在本文件内就是假的——同一阈值在这里恰好三份；③ 头部引用了 2 处自定义桶梯度（DASHBOARD_PROGRESS_P95_SECONDS 0.05..5.0、WEBHOOK_P95_SECONDS 0.05..2.5），逐字为真却无读者：#215 绑常数↔阈值，不绑这两句散文，梯子改顶格后这里会继续引用一个代码已不构建的区间。§14 引用分三类且类别承重：identity 6 行（单位换算后相等）、motivation 2 行（API_5XX=0.05 **不是** 1-0.995，WORKER_FAIL=0.30 也不是 1-0.90 或 1-0.95——它们引的是前置条件）、goal-only 4 行（无数字）。统称「派生自 §14」是假话，统称「前置条件」是免费通行证。
+
+**修法（新门 12 案 + 三处载体归一）。** 新文件 tests/unit/test_alert_rules_bind_their_own_threshold_table.py（30375 字节, sha fa904c1d, 纯 LF；pyyaml 解析规则、头部块按 `^#{2,}NAME =` 切片、SPEC 里切 §14）：① 表行↔规则按注记**名字**配对（12 行下限），存活豁免按名字点名且每条 expr 必须 fullmatch `up{job="[^"]+"} == 0`；② 三份同值：槽==表行，所属规则的 expr 比该值或其补数，direct ≥ 11；③ 补数集合**从部署算术导出**（`1 - 值` 确实出现在 expr 里）并与声明集合双向相等，再对每个声明名双向验算（值本身不得同时是它自己的补数）；④ 头部 §14 引用必须能在**同一行**内寻得（规整化 + 子序列），且本门自己的引用表必须逐字出现在被审文件里；⑤ 引用类别按算术计算后与声明类别相等；⑥ 行内散文阈值（积压条数/占比/失败率/ready 深度/内联阈值/成功率）绑自己行的阈值，claimed ≥ 7；⑦ 行内时钟（for/分钟窗口/窗口时长/持续）绑自己规则的 `for:` 与 rate 窗口，claims ≥ 7；⑧ 梯度区间绑声明常数的**首末格**（本轮新增：两处引用测得为真而无读者），tick 句绑 `DEFAULT_RECLAIM_INTERVAL_SECONDS` 并复算乘法；⑨ `*_P95_*` 名字 ↔ expr 里的 0.95 双向相等（named ≥ 4）；⑩ 散文指标类别词（5xx）必须出现在所属 expr；⑪ DLQ 描述引用的 `dlq_suffix='...'` 必须等于 `QueuePolicy().dlq_suffix` 且出现在它自己的 expr 正则里；⑫ 数字清算：头部每一串 ASCII 数字必须落在某条被检关系内（`§NN` / `#NNN` 引用豁免），下限 checked_runs ≥ 40、markers ≥ 20——家族塌缩时这条先红，而不是让保护性扫描悄悄变窄。载体改动：infra/prometheus/alerts-slo.yml 15166→15807 字节（sha 5947ee4a→c1c686ec，工作区 CRLF 258 行 / lone LF 0），均匀槽 10→12（两条 summary 归一到一种形状）+ 前导注释改写为「三份同改，#219 在不一致时拒绝」；docs/operations/OBSERVABILITY.md 59117→59507 字节（sha 155b6bb5→90db3657，行数 258→259；blob 平面纯 LF 故其 CRLF 计数为 0，工作区 CRLF 259 行 / lone LF 0——#218 那条「平面要标出来」的订正在这里被照着做），§5 前言不再声称「单一修改点」。
+
+**门证（落地脚本现读）。** A0 未变异基线 = 0 红，跑满 17 臂；本轮批 **31 passed**，与 `--collect-only` 的 31 collected、AST 复算的函数定义数（12 + 5 + 3 + 5 + 4 + 2 = 31）三者相等；ruff（本门 + 臂脚本）All checks passed；mypy 全仓 Success, **222 files**。
+
+**变异臂（预测同写于脚本 docstring 与 ARMS 两处，落地脚本逐臂核对两处相等，再跑；`.scratch/arm219-threshold-trio-arms.py`；四轮，终轮 17/17 全中，判定按红案例**集合相等**）。** 第一轮 13/17，四条失手全部追因，没有一条靠放宽预测收场：A1 多红 `test_complement_declaration_is_exercised`；A2 多红 `test_complement_declaration_is_exercised`；A4 多红 `test_metric_class_tokens_name_a_real_series`；A8 多红 `test_complement_declaration_is_exercised`。A1、A2、A8 撞的是**门的洞**——当时 M3 用负问题（「声明值不在 expr 里」）导出补数集，那是一台不一致检测器挂着补数标签，任何单边改档都会撞进来；已改为正问题（`1 - 值` 出现在 expr 中）并按声明名双向验算，A1/A2/A8 的预测原样成立、第二轮三条全中。A4（多红 `test_metric_class_tokens_name_a_real_series`）是**我的算术洞**：配对原本写成 `_owners()` 里 `len >= 12` 的哑下限，它挡在 M1 的点名断言之前，又把共用配对关系的案子一并塌掉，我却手数成 6 个。已把配对断言本身移进 `_owners()`（红字点名孤立变量；任何共用者都不能跳过它），预测按门文件调用点用 AST 重数 = 7 案（M1, M10, M2, M3, M6, M7, M9），A4 == 该集合、A5 == 该集合 ∪ {M4}（M4 是把引用表与表行对比的那一案）——两条等式由落地脚本现场核对，不是手抄。第二轮 16/17：A5 多红 `test_complement_declaration_is_exercised`, `test_metric_class_tokens_name_a_real_series`, `test_p95_in_the_name_binds_histogram_quantil`, `test_prose_restates_its_own_threshold`, `test_the_three_copies_of_a_threshold_agree`——正是新配对断言按设计带来的级联（改前，第 13 行表只让 M1/M4/M7 红，而 M2 会对那条无主阈值**沉默跳过**并继续绿：那是真洞，现已闭）。A15 是**负控制**：50→80 一次改齐六个载体（表行/行内散文/expr/注记/§5 行/看板色档与描述三处数字）必须全绿——门绑的是关系，不是我手打的字面量；A16 新增一条带阈值不带注记的规则 → M1+T1，即 #216 的名册同批抓住它。第三轮已 17/17；第四轮只是臂脚本自身三处 E501 折行后的原样复跑，落地脚本断言两轮逐臂**判定与红集完全相等**（`v4 == v3`）——那三行只承载排版、不承载语义，相等复跑是这件事的证据，不是我的说法。
+
+| 臂 | 变异 | 预测 | 实测（终轮） |
+|---|---|---|---|
+| A0 | no mutation (baseline) | 全绿 | 全绿 ✅ |
+| A1 | header row OUTBOX 50->60 (row only) | M2 + M6 | M2 + M6 ✅ |
+| A2 | Outbox expr > 50 -> > 80 (expr only) | D1 + D5 + M2 + T2 | D1 + D5 + M2 + T2 ✅ |
+| A3 | Outbox annotation slot =50 -> =80 (slot only) | M2 | M2 ✅ |
+| A4 | Outbox annotation slot deleted entirely | M1 + M10 + M2 + M3 + M6 + M7 + M9 | M1 + M10 + M2 + M3 + M6 + M7 + M9 ✅ |
+| A5 | a 13th THRESHOLDS row with no rule naming it | M1 + M10 + M2 + M3 + M4 + M6 + M7 + M9 | M1 + M10 + M2 + M3 + M4 + M6 + M7 + M9 ✅ |
+| A6 | ApiDown liveness expr == 0 -> == 1 | D1 + D4 + M1 | D1 + D4 + M1 ✅ |
+| A7 | FAST row cites a §14 paraphrase, not the line | M12 + M4 | M12 + M4 ✅ |
+| A8 | API_5XX row 0.05 -> 0.005 (becomes 1-0.995) | M2 + M5 + M6 | M2 + M5 + M6 ✅ |
+| A9 | replay expr > 0.05 -> > 0.10 (breaks the 1-0.95) | D3 + M2 + M3 + T2 | D3 + M2 + M3 + T2 ✅ |
+| A10 | webhook ladder prose 0.05..2.5 -> ..2.6 | M8 | M8 ✅ |
+| A11 | tick prose (3x300s) -> (3x301s) | M8 | M8 ✅ |
+| A12 | FAST expr quantile 0.95 -> 0.90 (name still P95) | M9 | M9 ✅ |
+| A13 | prose "5xx 占比" -> "4xx 占比" (expr reads 5xx) | M10 | M10 ✅ |
+| A14 | DLQ description cites dlq_suffix='.dead' | M11 | M11 ✅ |
+| A15 | NEGATIVE CONTROL: Outbox retuned 50->80 in all | 全绿 | 全绿 ✅ |
+| A16 | a new thresholded rule with no (VAR=value) slot | M1 + T1 | M1 + T1 ✅ |
+
+**#218 的两处订正（本号读数时现形；不改已落地节的正文）。** ① #218 的边界句把「落在均匀形状之外的 2 个变量」写成「连注记都没有」：本号现读，1 个（VERIFY_DLQ_THRESHOLD）确实不含变量名，另 1 个（NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD）写了 `(阈值 VAR=0)`——**有名字、只是不均匀**，原措辞把两件事说成了一件。② #218 记的看板数字混了平面：字节数 168446→168671 取自 `git show HEAD:` 的 **blob 平面**（core.autocrlf=true ⇒ blob 为 LF），而「CRLF 5593→5593 不变、lone LF 0」取自**工作区平面**。两句各自为真，但当时未标平面，读起来像同一把尺。本号在同一对文件上复测两平面：blob 168671 字节 / lone LF 5593，工作区 174264 字节 / CRLF 5593 / lone LF 0，行数在两个平面相等（5593）——差异只在换行符的写法。
+
+**诚实边界。** ① 本门只读这一个 yml、SPEC 的 §14，以及它自己散文点名的三个常数（两条桶梯度 + 回收 tick 周期）；梯度本身归 #215，OBS §5 表归 #216，看板绘制数字归 #218。② `annotations.description` 里的运行时模板（`{{ $value }}`、`humanizePercentage`）不是阈值的第三抄，不参与三份相等——第三抄只认 summary 的 `(VAR=value)`。③ 中文数字（「一轮」「两侧」「四词」）在本门字母表之外，门里明说这一点而不是假装读得到。④ 第⑫ 案只保证「每个 ASCII 数字都有一条关系在读它」，不保证那条关系语义正确——语义由其余 11 案各自承担。⑤ 批里两个模块（parity / inventory）import `observability/metrics.py`，本会话它是另一写者未提交的 WIP：基线与臂读的是同一个工作区平面，这一点与 #218 落地时同。⑥ 无生产代码改动；与 #217/#218 一样只做本地提交（仓库在此不可推）。⑦ 计划文档仍是**混合换行**（#217 节带 lone LF 39 行）：本节只按文档主导约定写 CRLF，lone-LF 增量由脚本钉死为 0，不替别人重写已落地的节。
