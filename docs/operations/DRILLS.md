@@ -387,8 +387,20 @@ P3 整包哈希 (不用 payload) → 1 红 (仅 digest 形状测试 — 吊销�
 P4 坏缓存改放行 → 1 红 (坏缓存测试) ✅
 全部 4 条探针: 首轮 3 条预测不完整 (MISMATCH) → 按实测根因修正预测 (门守双层 / 正向对照连带 / 一致性偏移失明) → 重跑 4/4 预测集合 == 实测集合, 无 missing/extra, 还原后 SHA-256 逐字节一致, 基线零红。
 见完整报告: `mutations_149.txt` (临时区, 与驱动 `mutate_149.py` 同目录)。
+**FIX-24 全量合并门追记 (在本批待提交树上跑, 含并发会话在途文件):**
+日志: `gate_20261002-1530.log`
+通过/失败/跳过/耗时: **3583 passed / 8 failed / 6 skipped / 2880.49s (48m00s)**
+本批三文件在门内全绿: `test_craft_accept.py` 21 通过 + `evidence/revocation_log.py` 修改仅接线 + 缺口门同批改口已绿。
+失败归因:
+  - 4 条并发会话在途 `agent/worker.py` notify outbox 车道: `test_agent_plan_execution.py` 1 条 + `test_job_state_machine.py` 2 条 (与 #138 同源, 非本批文件, 归因不改)
+  - 4 条并发会话在途 verdict 词表/通道: `test_verdict_channel_parity.py` 3 条 + `test_job_state_machine.py` 1 条 (#179-#182 lane 重写 verdict_channels + 状态机, 非本批文件, 归因不改)
+  - 1 条环境/既存红: `test_data_dictionary_covers_migrations.py` 1 条 (schema 计数漂移, 并发会话 #183 新表在途)
+  - 1 条既存红: `test_feedback_store_read.py` 1 条 (MySQL 反馈唯一键约束, 并发会话迁移 0012 在途)
+跳过 6: 分散既存/环境 skip。
+耗时说明: docker 停机致 redis 不可达, 未接假件的 HTTP 测试走 fail-open 重试爬行 (单请求可达 48s, 见本行修法段) + 同机另有三个 pytest 会话在跑。
+口径: 与 FIX-20/FIX-17 同 — 共享工作树, 外部红仅归因, 不计入本批通过率。
 
-## 6. 待基础设施 / 需开发清单 (如实标注, 均给出精确缺口位置)
+**## 6. 待基础设施 / 需开发清单 (如实标注, 均给出精确缺口位置)
 
 | # | 项目 | 缺口位置 | 状态 |
 |---|---|---|---|
