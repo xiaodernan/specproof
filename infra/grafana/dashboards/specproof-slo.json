@@ -1411,7 +1411,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "specproof_outbox_pending (storage/outbox_relay.py)。outbox-relay 随应用栈 compose 部署 (#161/#162 核实已进入 compose.production.yml), 起应用栈后本面板即有数据。告警阈值 50 (§14)。",
+      "description": "specproof_outbox_pending (storage/outbox_relay.py)。outbox-relay 随应用栈 compose 部署 (#161/#162 核实已进入 compose.production.yml), 起应用栈后本面板即有数据。视觉档: red=50 与告警 SpecproofOutboxBacklogHigh 同阈值 (§14 Job 不丢失); yellow=20 是人工早期预警带, 没有对应告警规则 -- 它只让积压趋势在到达 50 之前可见, 裁决仍以 50 那条规则为准 (#218 声明)。",
       "fieldConfig": {
         "defaults": {
           "color": {

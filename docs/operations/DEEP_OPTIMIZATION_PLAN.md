@@ -3979,3 +3979,33 @@ duplicated doc bullets: agent/nodes/review_court.py x2
 **字节账。** OBSERVABILITY.md 58450→59375 字节, sha 8f47b7b1→207ec595（工作树 CRLF 258 行；`git diff --ignore-cr-at-eol` 实测 **3/2**——两行改写 + 一行新增，全部是本号的）；test_observability_metric_parity.py 62637→65099 字节, sha 21282871→5421c451, `--ignore-cr-at-eol` **25/0**（只增 `emission_files()` 与其 docstring）；新文件 test_metric_inventory_lists_every_emission_site.py 4484 字节 sha 636e1909 纯 LF。
 
 **诚实边界。** ① 门保证的是**文件级**名册完整（哪个模块在上报），**不保证**每个指标名都被描述——那仍由 §8.10 的散文与 parity 门的名字追踪各自负责，两者不重叠也不互相替代。② `emission_files()` 的普查口径与 `_emitted_names()` 共享 `EMIT_DIRS`：**未被列入 `EMIT_DIRS` 的树**（例如 `sandbox/`、`mcp/`）即使有上报点也不进普查——这是既有口径（parity 门 docstring 的 scope note 已写明），本号沿用未改，不是新洞。③ 手数解析只支持到十位（`三十四`），若将来模块数破百（`一百零三`）解析会失配——届时**以解析失败（`AssertionError: the module-count sentence moved`）变红**而不是静默算错，这是有意的失败形状。④ `review_court.py` 的两条目是**合法的**（两个不同计量族挂同一个节点边界），门按集合比较、计数按唯一文件算，所以它不会误红；若将来真要合并成一条，改清单即可，计数不动。
+
+## #218 看板 SLO 数字 ↔ 声明源对账门：10 处绘图数字与 11 处标题数字首次有读者，面板 14 的黄色预警档补上声明
+
+**起点（读数时现形的洞）。** #216 钉住 §5 告警表、#217 钉住指标清单之后，on-call 真正在看的那张面——Grafana SLO 看板——上的 SLO 数字仍无人读：parity 门只绑**名字**（每个 `specproof_*` 序列名对到发射点），数字本身自由漂移。实测总体：看板绘图数字 **10 处**（colour_step/guide_line——参考线 target 的整数值与 fieldConfig 颜色档），标题里的 §14 数字 **11 处**；声明链 = docs/PRODUCTION_SPEC.txt §14 → infra/prometheus/alerts-slo.yml expr → OBSERVABILITY.md §5（#216）→ 看板（本号）。§14 现读秒数 [1.0, 2.0, 180.0, 480.0, 600.0, 1500.0]、百分比 [90.0, 95.0, 99.5]、计数 [0.0]；面板↔规则的结构 join 命中 5 张（面板 [16, 18, 20, 28, 29]）。真实缺陷：**面板 14「Outbox 积压」在 20 涂黄，而 20 在全仓不存在**——规则是 `specproof_outbox_pending > 50`、§5 行是 `OUTBOX_PENDING_THRESHOLD=50`、§14 也没有 20：一个既无声明又无门、却出现在视觉裁决面上的数字。
+
+**修法（新门 5 案 + 面板 14 自述两档）。** 新文件 tests/unit/test_dashboard_slo_figures_bind_their_declarations.py（19396 字节, sha e01727d6, 纯 LF；规则用 pyyaml 解析、§14 切片读取，面板↔规则按规则自身的序列选择器 join，直方图 `_bucket` 折回基名与 parity 门同约定）：① 每个绘图数字必须落入四类之一——观测该面板序列的规则阈值 / `> N` 整数计数规则的**首个着色态** N+1（按**告警名**登记，绝不按面板位置）/ down 规则声明的存活值或其 +1 / 在面板描述里同时写出 `yellow=` 与 `red=` 并点名所依据规则的预警档；且**四个分支各自必须被走到**、豁免表每条必须被命中（条目腐烂即红，不许变成免费通行证）；② 每个标题数字必须在 §14（min/分钟→秒、s/秒→秒、%→百分比、无单位→§14 计数或该面板规则阈值）；③ 标题数字与绘图数字必须等于**同一条**部署规则的阈值（ReplayRateLow 走显式补数表：面板写成功率 95%，规则比的是 `1 - 失败份额 > 0.05`）；④ `up` 面板的 value mapping 由 down 规则的 `== 0` 推导——全仓 `up ==` 规则必须给出同一失败值、只允许一张 up 面板、失败值涂红写 DOWN、+1 涂绿写 UP；⑤ Outbox 面板必须恰一红一黄、红==告警、黄<红、黄**不等于任何部署阈值**（哪天真出现 20 的规则，描述里「没有对应告警规则」这句就被推翻），且描述必须点名规则。下限护住解析塌缩：绘图≥7、标题≥10、join≥4、规则≥10、§14 秒数≥6 且 {480.0, 1500.0}⊆、up 面板==1。看板改动：infra/grafana/dashboards/specproof-slo.json 168446→174264 字节（sha 20d20176→92b728b7，CRLF 0→5593，lone LF 0，51 面板不变），面板 14 描述写死两档来历（视觉档: red=50 与告警 SpecproofOutboxBacklogHigh 同阈值…yellow=20 是人工早期预警带, 没有对应告警规则…裁决仍以 50 那条规则为准 (#218 声明)）。
+
+**门证（全部实读，落地脚本现跑）。** A0 臂基线（四文件定向批：本门 5 + #216 案 3 + #215 案 5 + parity 案 4）= **17 passed**；落地批扩到五文件（加 #217 案 2）= **19 passed**，逐模块函数数由 AST 复算与通过数相等；ruff（本门 + 臂脚本）All checks passed；mypy 全仓 Success, **222 files**。
+
+**变异臂（预测先写进脚本 docstring，再跑；`.scratch/arm218-dashboard-figure-arms.py`，13 臂 13/13 全中，按红案例**集合相等**判定）。** 每臂开跑前从内存字节快照重建四个文件、`finally` 还原，末行逐文件 `sha256 == original: True`。
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| A0 | 未变异基线 | 0 红 | MATCHED 0 red ✅ |
+| A1 | specproof-slo.json `"expr": "480"`→`"expr": "500"` | C1 绘图数字 | MATCHED 1 red ✅ |
+| A2 | specproof-slo.json `"value": 900`→`"value": 800` | C1 绘图数字 | MATCHED 1 red ✅ |
+| A3 | alerts-slo.yml `specproof_outbox_pending > 50`→`specproof_outbox_pending > 60` | C1 绘图数字 + C5 Outbox 预警档 + §5 阈值列 | MATCHED 3 red ✅ |
+| A4 | alerts-slo.yml `> 900`→`> 700` | C1 绘图数字 + tick 3× + §5 阈值列 | MATCHED 3 red ✅ |
+| A5 | alerts-slo.yml `> 480`→`> 500` | #215 默认梯度 + C1 绘图数字 + §5 阈值列 | MATCHED 3 red ✅ |
+| A6 | PRODUCTION_SPEC.txt `p50 <= 10 分钟`→`p50 <= 12 分钟` | C2 标题数字∈§14 | MATCHED 1 red ✅ |
+| A7 | PRODUCTION_SPEC.txt `p95 <= 1 秒`→`p95 <= 4 秒` | C2 标题数字∈§14 + C3 标题=规则阈值 | MATCHED 2 red ✅ |
+| A8 | specproof-slo.json `"0": {`→`"2": {` | C4 up 着色映射 | MATCHED 1 red ✅ |
+| A9 | specproof-slo.json `"value": 1`→`"value": 2`（限 "title": "DLQ 死信数 (应为 0)" 窗口） | C1 绘图数字 | MATCHED 1 red ✅ |
+| A10 | alerts-slo.yml `> 0.05`→`> 0.10`（限 alert: SpecproofCapsuleReplayRateLow 窗口） | C3 标题=规则阈值 + §5 阈值列 | MATCHED 2 red ✅ |
+| A11 | specproof-slo.json ` 与告警 SpecproofOutboxBacklogHigh`→`∅` | C1 绘图数字 + C5 Outbox 预警档 | MATCHED 2 red ✅ |
+| A12 | alerts-slo.yml `specproof_outbox_pending > 50`→`specproof_outbox_pending > 80`；alerts-slo.yml `OUTBOX_PENDING_THRESHOLD = 50`→`OUTBOX_PENDING_THRESHOLD = 80`；alerts-slo.yml `OUTBOX_PENDING_THRESHOLD=50`→`OUTBOX_PENDING_THRESHOLD=80`；OBSERVABILITY.md `specproof_outbox_pending > 50`→`specproof_outbox_pending > 80`；OBSERVABILITY.md `OUTBOX_PENDING_THRESHOLD=50`→`OUTBOX_PENDING_THRESHOLD=80`；specproof-slo.json `"value": 50`→`"value": 80`；specproof-slo.json `red=50`→`red=80`；specproof-slo.json `到达 50 之前可见`→`到达 80 之前可见`；specproof-slo.json `裁决仍以 50 那条`→`裁决仍以 80 那条` | 0 红 | MATCHED 0 red ✅ |
+
+A12 是**负控制**：把 50→80 同时合法改到 9 个载体（yml expr + 头部 THRESHOLDS 注释 + annotations 的 `(VAR=…)`、§5 行的表达式要点格与阈值变量格、看板颜色档与描述三处数字）后必须**全绿**——证明门绑的是关系而不是我手打的字面量；反向的单边改档（A3/A4/A5）全被抓住，且 A5 同时惊动 #215 的梯度门（480→500 不再是默认梯子的一级）与 #216 的阈值列——三号门在同一条链上各自有份。
+
+**诚实边界。** ① 门绑「数字值 + 单位」，不绑「这句引的是 §14 哪一行」；指标级归属由序列 join 承担。② 面板描述里除 Outbox 两档之外的数字（窗口长度、梯度范围、节点计数下限）不在本门：梯度归 #215，§5 表归 #216。③ yml **内部三抄**（头部 THRESHOLDS 注释表 ↔ expr ↔ annotations 的 `(VAR=value)`）仍无门——本号现读：头部声明 12 个变量、全文件只有 10 处 `(VAR=value)` 注记槽、2 个变量（NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD, VERIFY_DLQ_THRESHOLD）连注记都没有；而 A12 恰好证实「只动头部不动 expr」不会变红。这就是 #219 的形状。④ row 面板（id 1/7/13）没有 target，只参与标题↔§14 成员检查，不参与规则 join——这不是漏洞而是它们的形状。⑤ 无生产代码改动；与 #217 一样只做本地提交（仓库不可推）。⑥ 计划文档自 #217 起是**混合换行**：#217 的追加节带 39 行 lone LF（本仓库其余文档节为 CRLF）。本节只按文档主导约定写 CRLF、`lone LF` 增量钉死为 0，不替别人重写已落地的节——那 39 行留给一个显式的收号处理，不在本号偷改。
