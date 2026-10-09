@@ -201,7 +201,17 @@ def _build_candidates(state: Phase0State) -> list[dict[str, Any]]:
         if evidence_type in NON_BLOCKER_EVIDENCE_TYPES:
             severity = "MAJOR" if severity == "BLOCKER" else (severity or "MAJOR")
         elif severity is None:
-            severity = "MAJOR" if dr.get("verdict") == "REGRESSION" else "MINOR"
+            # #222: an unset severity defaults to MAJOR here, the same default
+            # the static-evidence branch above uses — not MINOR. The records
+            # that reach this line are the split differential's both-sides-fail
+            # entries, emitted WITHOUT a severity on purpose (see
+            # run_differential's split path) so the court can compare the
+            # base/head failure signatures. When that comparison proves a
+            # head-only difference the policy CONFIRMS the finding, and the
+            # grade it keeps is this placeholder — so MINOR graded a confirmed
+            # head-introduced regression below plain static analysis, and it
+            severity = ("MAJOR" if dr.get("verdict") == "REGRESSION"
+                        else "MINOR")
         # Severity-NONE entries (contracts the failing test did NOT exercise)
         # are bookkeeping, not findings — they must never surface as
         # confirmed findings or false positives.

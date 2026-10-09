@@ -71,6 +71,14 @@ def _clone_repo(repo: Path, work_dir: Path) -> tuple[bool, str]:
             cwd=work_dir,
             capture_output=True,
             text=True,
+            # #92: `text=True` alone decodes with the OS locale — cp936 on this
+            # host. A failed decode does not raise here, it hands back
+            # `CompletedProcess.stderr is None`, so the branch below would read
+            # a CJK clone failure as `detail = ""` and report "git clone failed
+            # (exit 128)" with no reason attached. errors="replace" keeps the
+            # text even when the bytes are not UTF-8, which is strictly better
+            # than a silent empty detail.
+            encoding="utf-8",
             timeout=_CLONE_TIMEOUT,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
