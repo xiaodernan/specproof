@@ -157,10 +157,29 @@ class AcceptanceResult:
     def passed(self) -> bool:
         return self.status == PASS
 
+    @property
+    def floors_pinned(self) -> bool:
+        """True when at least one metric floor was actually requested.
+
+        With every floor left ``None`` (the shipped default, deliberately —
+        see ``AcceptanceCriteria.default``) a PASS asserts only that the
+        sample was large enough. It says nothing about recall or precision,
+        so it must not be surfaced as a bare "PASS" (#223).
+        """
+        return any(
+            floor is not None
+            for floor in (
+                self.criteria.min_recall,
+                self.criteria.min_precision,
+                self.criteria.min_f1,
+            )
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
             "passed": self.passed,
+            "floors_pinned": self.floors_pinned,
             "metrics": self.metrics.to_dict(),
             "counts": {
                 "should_detect": self.counts.should_detect,
@@ -234,6 +253,26 @@ def evaluate(
         criteria=criteria,
         failures=failures,
     )
+
+
+def acceptance_verdict_text(result: AcceptanceResult) -> str:
+    """The verdict, plus what it actually asserts — never a bare "PASS" (#223).
+
+    ``AcceptanceCriteria.default()`` ships with every metric floor ``None``, so
+    the shipped PASS means "the sample was large enough to judge" and nothing
+    more. Printed bare, it reads as "quality is fine": the first clean
+    end-to-end eval run (2026-10-09) showed ``Acceptance: PASS`` next to
+    ``Recall: 66.7%`` and ``Severity agreement: 0.0%`` with exit code 0, while
+    the CI workflows grepped the same log for ``Recall: 100.0%`` — the tool's
+    verdict and its own gate contradicted each other.
+
+    The floor values themselves stay ``None``: pinning arbitrary numbers would
+    be the dishonest gate ``AcceptanceCriteria.default`` warns about. What
+    changes is the *surface* — an unpinned PASS is labelled as such.
+    """
+    if result.status != PASS or result.floors_pinned:
+        return result.status
+    return f"{PASS}（仅样本充足：未设 recall/precision/f1 下限）"
 
 
 #: Severity levels the SLO row "BLOCKER/MAJOR Precision>=90%" counts as a
@@ -360,6 +399,7 @@ __all__ = [
     "AcceptanceResult",
     "score",
     "evaluate",
+    "acceptance_verdict_text",
     "fmt_metric",
     "severity_match_of",
     "severity_reconciliation",

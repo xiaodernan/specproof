@@ -4,6 +4,7 @@ from html import escape
 from typing import Any
 
 from evidence.acceptance import (
+    AcceptanceResult,
     MetricCounts,
     fmt_metric,
     score,
@@ -489,8 +490,18 @@ def render_verification_report(
 </html>"""
 
 
-def render_eval_report(results: list[dict[str, Any]]) -> str:
-    """Render evaluation results HTML page with precision/recall."""
+def render_eval_report(
+    results: list[dict[str, Any]],
+    acceptance: AcceptanceResult | None = None,
+) -> str:
+    """Render evaluation results HTML page with precision/recall.
+
+    ``acceptance`` is the verdict the CLI decided (``evidence.acceptance``);
+    when supplied, the page states it and — for an unpinned PASS — says what
+    that PASS does and does not assert (#223). This report is the artifact CI
+    uploads, so a reader must not have to consult the job log to learn that
+    "PASS" meant "the sample was large enough".
+    """
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # Compute summary stats via the single honest source (evidence.acceptance):
@@ -508,6 +519,33 @@ def render_eval_report(results: list[dict[str, Any]]) -> str:
     precision_txt = fmt_metric(_m.precision, undefined="样本不足")
     recall_txt = fmt_metric(_m.recall, undefined="样本不足")
     f1_txt = fmt_metric(_m.f1, undefined="样本不足")
+
+    acceptance_card = ""
+    acceptance_note = ""
+    if acceptance is not None:
+        acc_color = {"PASS": "#7ee787", "FAIL": "#ff7b72"}.get(
+            acceptance.status, "#d29922"
+        )
+        acceptance_card = (
+            '<div class="stat">'
+            f'<div class="value" style="color:{acc_color}">{acceptance.status}</div>'
+            '<div class="label">Acceptance</div>'
+            "</div>"
+        )
+        if acceptance.status == "PASS" and not acceptance.floors_pinned:
+            acceptance_note = (
+                '<p class="meta">Acceptance PASS 仅表示<b>样本充足</b>：'
+                "未设 recall / precision / f1 下限，这三个指标不构成合格判据。"
+                "</p>"
+            )
+        else:
+            reasons = [*acceptance.insufficient, *acceptance.failures]
+            if reasons:
+                acceptance_note = (
+                    '<p class="meta">Acceptance 判据：'
+                    + "；".join(escape(r) for r in reasons)
+                    + "</p>"
+                )
 
     verdict_color = {
         "PASS": "#7ee787",
@@ -587,7 +625,9 @@ def render_eval_report(results: list[dict[str, Any]]) -> str:
             <div class="value" style="color:#79c0ff">{sev_prec_txt}</div>
             <div class="label">Severe Precision</div>
         </div>
+        {acceptance_card}
     </div>
+    {acceptance_note}
 
     <table>
         <thead><tr>

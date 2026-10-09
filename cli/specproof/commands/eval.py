@@ -26,6 +26,7 @@ from cli.specproof.case_set import (
 from evidence.acceptance import (
     AcceptanceCriteria,
     MetricCounts,
+    acceptance_verdict_text,
     evaluate,
     fmt_metric,
     severity_match_of,
@@ -374,7 +375,7 @@ def eval_cmd(
             f"  ! severity drift: {m['case']} "
             f"expected {m['expected']}, got {m['actual']}"
         )
-    click.echo(f"Acceptance:         {acceptance.status}")
+    click.echo(f"Acceptance:         {acceptance_verdict_text(acceptance)}")
     for line in acceptance.insufficient:
         click.echo(f"  ! 样本不足: {line}")
     for line in acceptance.failures:
@@ -385,7 +386,7 @@ def eval_cmd(
             "FAIL 而非默认满分。"
         )
 
-    html = render_eval_report(results)
+    html = render_eval_report(results, acceptance)
     out = Path(output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
