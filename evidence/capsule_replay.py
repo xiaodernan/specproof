@@ -79,6 +79,7 @@ def _clone_repo(repo: Path, work_dir: Path) -> tuple[bool, str]:
             # text even when the bytes are not UTF-8, which is strictly better
             # than a silent empty detail.
             encoding="utf-8",
+            errors="replace",
             timeout=_CLONE_TIMEOUT,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:

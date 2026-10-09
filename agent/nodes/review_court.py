@@ -210,8 +210,8 @@ def _build_candidates(state: Phase0State) -> list[dict[str, Any]]:
             # head-only difference the policy CONFIRMS the finding, and the
             # grade it keeps is this placeholder — so MINOR graded a confirmed
             # head-introduced regression below plain static analysis, and it
-            severity = ("MAJOR" if dr.get("verdict") == "REGRESSION"
-                        else "MINOR")
+            # was the *stronger* evidence path that got the weaker default.
+            severity = "MAJOR"
         # Severity-NONE entries (contracts the failing test did NOT exercise)
         # are bookkeeping, not findings — they must never surface as
         # confirmed findings or false positives.
