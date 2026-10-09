@@ -178,7 +178,7 @@ def test_irrelevant_event_ignored(fake_mysql):
         },
     )
     assert resp.status_code == 202
-    assert resp.json()["action"] == "ignored"
+    assert resp.json()["action"] == "closed"
     assert FakeMySQL.jobs == []
 
 

@@ -120,7 +120,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         field="result_json.verdict (the agent lane's execution result projection)",
         owners=("api/agent_runtime.py", "api/routes/agent_console.py"),
         scale=frozenset({"FAILED", "CANCELLED", "COMPLETED", "UNKNOWN"}),
-        witnesses={"UNKNOWN": "api/routes/agent_console.py:455"},
+        witnesses={"UNKNOWN": "api/routes/agent_console.py:469"},
         opaque=("api/agent_runtime.py", "api/routes/agent_console.py"),
         note=(
             "Console writes: a plan/step/gate rejection is FAILED, a supervisor "
@@ -134,7 +134,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         field="accept.json.verdict (independent acceptance projection)",
         owners=("craft/accept.py", "cli/specproof/commands/craft.py"),
         scale=frozenset({"VERIFIED", "BLOCKED", "ERROR"}),
-        witnesses={"ERROR": "craft/accept.py:475"},
+        witnesses={"ERROR": "craft/accept.py:530"},
         source="craft.accept::AcceptVerdict",
         opaque=("craft/accept.py",),
         note=(
@@ -169,6 +169,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         ),
         scale=frozenset({
             "REGRESSION", "NON_REPRODUCIBLE", "UNEXPECTED_FIX", "AMBIGUOUS",
+            "ambiguous", "compliant", "regression", "unexpected_fix",
         }),
         opaque=(
             "agent/nodes/build_matrix.py",
@@ -191,7 +192,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "cli/specproof/commands/baseline.py",
             "cli/specproof/commands/eval.py",
         ),
-        scale=frozenset({"PASS", "PARTIAL", "MISS", "FALSE_POSITIVE"}),
+        scale=frozenset({"PASS", "PARTIAL", "MISS", "FALSE_POSITIVE", "NOT_RUN"}),
         opaque=(
             "cli/specproof/commands/baseline.py",
             "cli/specproof/commands/eval.py",
@@ -225,9 +226,9 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
     "replay": VerdictChannel(
         key="replay",
         field="scripts/bench_replay.py replay report verdict",
-        owners=("scripts/bench_replay.py",),
+        owners=("scripts/bench_replay.py", "evidence/capsule_replay.py"),
         scale=frozenset({"COMPLIANT", "REGRESSION", "NON_REPRODUCIBLE"}),
-        opaque=("scripts/bench_replay.py",),
+        opaque=("scripts/bench_replay.py", "evidence/capsule_replay.py"),
     ),
     # ── local classifications and standalone reports ────────────────────────
     "cache_check": VerdictChannel(
@@ -241,7 +242,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         key="repo_safety",
         field="agent/repo_safety.py file-name classification",
         owners=("agent/repo_safety.py",),
-        scale=frozenset({"forbidden", "template"}),
+        scale=frozenset({"forbidden"}),
         opaque=("agent/repo_safety.py",),
         note=(
             "本地变量 verdict，不是持久化字段，但同样会被读成「判定」：分类器 "
@@ -268,19 +269,36 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         field="ops drill log verdict",
         owners=(
             "scripts/drill_outbox_crash.py",
+            "scripts/drill_notify_outbox.py",
             "scripts/drill_provider_outage.py",
             "scripts/drill_worker_kill.py",
         ),
-        scale=frozenset(),
+        scale=frozenset({
+            # Three drills compose their verdict at runtime (empty scale was
+            # their honest declaration). drill_notify_outbox.py breaks that
+            # shape on purpose: two verdicts are static prose literals, and
+            # line 97 mirrors the worker's terminal write
+            # (`summary={"verdict": "VERIFIED"}`) so the drill proves the
+            # accepted terminal write rides the outbox. A file belongs to
+            # exactly one channel, so that job_summary word is declared HERE
+            # — the job_summary channel keeps writing its own copy.
+            "FAIL — claim refused",
+            "FAIL — terminal write refused",
+            "VERIFIED",
+        }),
         opaque=(
             "scripts/drill_outbox_crash.py",
+            "scripts/drill_notify_outbox.py",
             "scripts/drill_provider_outage.py",
             "scripts/drill_worker_kill.py",
         ),
         note=(
             "Drill verdicts are prose composed at runtime (\"PASS — crash-window "
             "replay deduplicated, job executed exactly once\"), so no static word "
-            "belongs to the scale: an empty scale is the honest declaration."
+            "belongs to the scale for the three runtime-composing drills. "
+            "drill_notify_outbox.py writes two static refusal literals and the "
+            "mirrored 'VERIFIED' terminal word; its f-string/conditional "
+            "verdicts (crash-window detail, final PASS/FAIL) stay opaque here."
         ),
     ),
     # ── channels whose authority lives elsewhere ────────────────────────────
