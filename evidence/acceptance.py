@@ -237,6 +237,20 @@ def _metric_failures(
     return reasons
 
 
+def _no_negatives_ceiling_reason(ceiling: int) -> str:
+    """Why a requested false-positive ceiling cannot be honoured.
+
+    A ceiling can only be breached by a negative case, so honouring one
+    over a negative-free set would certify a constraint never exercised
+    (#225). Returned as INSUFFICIENT rather than PASS: the floors cannot
+    raise this, because ``min_negative_cases`` defaults to 0 precisely so
+    a positive-only set stays gradeable.
+    """
+    return (
+        f"负例样本 0 < 1（上限 {ceiling} 只可能由负例触发，"
+        f"无负例时误报上限无从验证，故判样本不足而非通过）"
+    )
+
 def evaluate(
     counts: MetricCounts, criteria: AcceptanceCriteria
 ) -> AcceptanceResult:
@@ -259,6 +273,16 @@ def evaluate(
             f"负例样本 {counts.negative_cases} < 要求的最小负例数 "
             f"{criteria.min_negative_cases}（样本不足，无法验证误报率下限）"
         )
+    if criteria.max_false_positives is not None and counts.negative_cases == 0:
+        # A ceiling can only ever be breached by a negative case, so a run with
+        # no negatives cannot breach it at any quality: max_false_positives=0
+        # would print PASS having tested nothing (#225). The floors cannot raise
+        # this -- min_negative_cases defaults to 0 precisely so a positive-only
+        # set stays gradeable -- so the ceiling itself has to insist.
+        insufficient.append(
+            _no_negatives_ceiling_reason(criteria.max_false_positives)
+        )
+
     if insufficient:
         return AcceptanceResult(
             status=INSUFFICIENT,
