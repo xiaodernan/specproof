@@ -38,6 +38,11 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 from api.errors import AUTH_REQUIRED, PROVIDER_UNAVAILABLE, VALIDATION_FAILED, ApiError
+from observability.metrics import (
+    PR_CLOSED_WITHOUT_MERGE_TOTAL,
+    PR_MERGED_TOTAL,
+    incr,
+)
 from storage.mysql import MySQLStore
 
 logger = logging.getLogger(__name__)
@@ -181,6 +186,22 @@ async def github_webhook(request: Request) -> dict[str, Any]:
         raise ApiError(
             status_code=400, code=VALIDATION_FAILED, detail="Invalid JSON payload",
         ) from exc
+
+    if action == "closed":
+        # #184: PR merge outcome counters at the court boundary
+        # Delivery idempotency for closed events
+        dedupe_key = _delivery_key(delivery_id, event)
+        if _PROCESSED_EVENTS.get(dedupe_key):
+            return {"accepted": True, "action": "duplicate_delivery"}
+        _PROCESSED_EVENTS[dedupe_key] = True
+
+        pr = payload.get("pull_request", {})
+        merged = bool(pr.get("merged", False))
+        if merged:
+            incr(PR_MERGED_TOTAL)
+        else:
+            incr(PR_CLOSED_WITHOUT_MERGE_TOTAL)
+        return {"accepted": True, "action": "closed", "merged": merged}
 
     if action not in ("opened", "synchronize", "ready_for_review"):
         return {"accepted": True, "action": "ignored", "event": event, "action_seen": action}

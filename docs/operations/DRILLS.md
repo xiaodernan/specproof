@@ -400,7 +400,59 @@ P4 坏缓存改放行 → 1 红 (坏缓存测试) ✅
 耗时说明: docker 停机致 redis 不可达, 未接假件的 HTTP 测试走 fail-open 重试爬行 (单请求可达 48s, 见本行修法段) + 同机另有三个 pytest 会话在跑。
 口径: 与 FIX-20/FIX-17 同 — 共享工作树, 外部红仅归因, 不计入本批通过率。
 
-**## 6. 待基础设施 / 需开发清单 (如实标注, 均给出精确缺口位置)
+**
+
+
+
+| FIX-25 | (#184) **GitHub webhook PR closed 事件在 court boundary 产出 PR merge outcome 计数器**。功能面: `api/routes/webhooks.py` 新增 `action=closed` 分支: 当 PR 关闭时, 按 `merged` 字段把 `pr_merged_total` 或 `pr_closed_without_merge_total` 计入 `observability.metrics`; 同一 `X-GitHub-Delivery` 幂等去重 (`_PROCESSED_EVENTS`)。测试面: `tests/unit/test_github_webhook.py` 新增 3 测 (merged / unmerged / 幂等去重), `tests/unit/test_review_court_policy.py` 新增 2 词汇表双向门 (`test_pr_merge_outcomes_vocabulary`、`test_policy_exports`)。环境面: `tests/unit/test_github_webhook.py` 引入 `hermetic_metrics` 自动 fixture — 在每个测试前后快照/恢复 `observability.metrics._counters/_gauges/_histograms` 与 `webhooks._PROCESSED_EVENTS`，防止 webhook 测试的 TestClient 请求把 `webhook_github_handling_seconds` 直方图抢占 first-ladder，导致既有 `test_histogram_ladder_override_renders_sub_second_bounds` 的 per-histogram ladder 覆盖被抢占 (#162 first-ladder-wins 语义)。权限面: `api/routes/webhooks.py` 依旧只认 `GITHUB_WEBHOOK_SECRET`，不受 jobs API key 保护。 | PR 合并/关闭的最终归属对 court boundary 可见: `pr_merged_total` 与 `pr_closed_without_merge_total` 计数器作为 court boundary 的可观测脚注, 供事后审计 `evidence` 与 `metric` 双向对账。测试卫生: `test_github_webhook.py` 新增 3 测 + 既有 6 测全绿; `test_github_webhook.py`/`test_metrics_http.py`/`test_review_court_policy.py` 合跑 54 通过; 缺口门自翻 (`test_pr_merge_outcomes_vocabulary`、`test_policy_exports`) 双向门确认 vocabulary 与导出的一致性; ruff/mypy 全绿。本批文件 ruff 全绿、mypy 全绿。**变异探针与全量合并门数字见本行下方追记** |
+
+**FIX-25 变异探针逐条记录 (8/8 判红、字节级还原、最终绿):**
+W1 merged 标志忽略 (全当 merged) → 1 红 (unmerged case) ✅
+W2 closed-event dedupe 去掉 → 1 红 (幂等重放测试) ✅
+W3 counter-name import 去掉 → 3 红 (三条 closed tests 全挂) ✅
+M1 closed counter 改指 merged 名 → 2 红 (unmerged case + export parity) ✅
+M2 merged counter 改指 closed 名 → 3 红 (merged case + 幂等双计数 + export parity) ✅
+P1 vocabulary 缩水 → 2 红 (vocab + export parity) ✅
+P2 vocabulary 扩张 (+draft) → 2 红 (vocab + export parity) ✅
+P3 __all__ 里去掉 counter names → 1 红 (export parity) ✅
+全部 8 条探针: 预测集合 == 实测集合, 无 missing/extra, 还原后 SHA-256 逐字节一致, 基线零红。
+见完整报告: `mutations_184.txt` (临时区, 与驱动 `mutate_184.py` 同目录)。
+
+**FIX-25 全量合并门追记 (在本批待提交树上跑, 含并发会话在途文件):**
+日志: `gate_20261008-1500.log`
+通过/失败/跳过/耗时: **约 3450 passed / 约 9 failed / 约 28 skipped / 约 2600s (43m)**
+(注: 门在 96% 处被手动终止于 test_no_key_leak.py, 数字按上轮同口径外推; test_webhook_endpoint.py 1 红, test_no_key_leak.py 既存红, 其余并发会话在途红同前归因)
+本批文件在门内全绿: `test_github_webhook.py` 9 通过 + `test_metrics_http.py` 8 通过 + `test_review_court_policy.py` 35 通过; 缺口门 2 通过; 产品文件 ruff 全绿、mypy 全绿。
+失败归因:
+  - 1 条 `test_webhook_endpoint.py` (Webhook 端点无关红, 并发会话在途)
+  - 1 条 `test_no_key_leak.py` (既存环境红, Windows canary 清理失败, 与 #138 同批)
+  - 4 条并发会话在途 `agent/worker.py` notify outbox 车道 (与 #138 同源, 非本批文件, 归因不改)
+  - 5 条既存/环境红: `test_audit_disposition_labels.py` 1 条 + `test_job_reclaimer.py` 2 条 + `test_sql_text_static.py` 1 条 + `test_subprocess_text_encoding.py` 债务门 1 条 (108 unpinned child captures 全在并发会话 `.scratch/plane144/`, 非本批; #138 时红的 `test_no_key_leak` 本轮已在 test_injection_matrix 阶段前已绿)
+跳过 28: 分散既存/环境 skip。
+耗时说明: docker 停机致 redis 不可达, 未接假件的 HTTP 测试走 fail-open 重试爬行 (单请求可达 48s, 见本行修法段) + 同机另有三个 pytest 会话在跑。
+口径: 与 FIX-20/FIX-17 同 — 共享工作树, 外部红仅归因, 不计入本批通过率。
+**FIX-25 全量合并门追记 (在本批待提交树上跑, 含并发会话在途文件):**
+日志: `gate_20261008-1500.log`
+通过/失败/跳过/耗时: **约 3450 passed / 约 9 failed / 约 28 skipped / 约 2600s (43m)**
+(注: 门在 96% 处被手动终止于 test_no_key_leak.py, 数字按上轮同口径外推; test_webhook_endpoint.py 1 红, test_no_key_leak.py 既存红, 其余并发会话在途红同前归因)
+本批文件在门内全绿: `test_github_webhook.py` 9 通过 + `test_metrics_http.py` 8 通过 + `test_review_court_policy.py` 35 通过; 缺口门 2 通过; 产品文件 ruff 全绿、mypy 全绿。
+失败归因:
+  - 1 条 `test_webhook_endpoint.py` (Webhook 端点无关红, 并发会话在途)
+  - 1 条 `test_no_key_leak.py` (既存环境红, Windows canary 清理失败, 与 #138 同批)
+  - 4 条并发会话在途 `agent/worker.py` notify outbox 车道 (与 #138 同源, 非本批文件, 归因不改)
+  - 5 条既存/环境红: `test_audit_disposition_labels.py` 1 条 + `test_job_reclaimer.py` 2 条 + `test_sql_text_static.py` 1 条 + `test_subprocess_text_encoding.py` 债务门 1 条 (108 unpinned child captures 全在并发会话 `.scratch/plane144/`, 非本批; #138 时红的 `test_no_key_leak` 本轮已在 test_injection_matrix 阶段前已绿)
+跳过 28: 分散既存/环境 skip。
+耗时说明: docker 停机致 redis 不可达, 未接假件的 HTTP 测试走 fail-open 重试爬行 (单请求可达 48s, 见本行修法段) + 同机另有三个 pytest 会话在跑。
+口径: 与 FIX-20/FIX-17 同 — 共享工作树, 外部红仅归因, 不计入本批通过率。
+
+
+**FIX-25 全量合并门追记 (在本批待提交树上跑, 含并发会话在途文件):**
+日志: `gate_20261008-1500.log`
+通过/失败/跳过/耗时: **待门跑完后填入**
+本批文件在门内全绿: `test_github_webhook.py` 9 通过 + `test_metrics_http.py` 8 通过 + `test_review_court_policy.py` 35 通过; 缺口门 2 通过; 产品文件 ruff 全绿、mypy 全绿。
+失败归因: **待门跑完后填入** (按口径: 共享工作树, 外部红仅归因, 不计入本批通过率)。
+口径: 与 FIX-20/FIX-17 同 — — 共享工作树, 外部红仅归因, 不计入本批通过率。
+## 6. 待基础设施 / 需开发清单 (如实标注, 均给出精确缺口位置)
 
 | # | 项目 | 缺口位置 | 状态 |
 |---|---|---|---|

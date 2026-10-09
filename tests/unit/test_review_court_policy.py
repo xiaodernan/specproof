@@ -13,6 +13,9 @@ from typing import Any
 from agent.review_court.policy import (
     NOT_ATTRIBUTED_SEVERITY,
     NOT_ATTRIBUTED_STATUS,
+    PR_CLOSED_WITHOUT_MERGE_TOTAL,
+    PR_MERGE_OUTCOMES,
+    PR_MERGED_TOTAL,
     policy_recalculate,
 )
 
@@ -799,3 +802,39 @@ def test_attribution_decisions_are_counted_at_the_node_boundary() -> None:
         _court_counter("findings_attribution_kept_total"),
         _court_counter("findings_attribution_rejected_total"),
     ) == before_arm3
+
+
+# ── #184: PR merge outcome vocabulary at the court boundary ───────────
+
+
+def test_pr_merge_outcomes_vocabulary() -> None:
+    """The court-boundary outcome vocabulary is closed and exactly two words.
+
+    A word missing here is a PR disposition the counters cannot name; an
+    extra word is a disposition this boundary claims to see but never
+    emits. Both directions fail here (parity, like COURT_OUTCOMES).
+    """
+    assert frozenset({"merged", "closed_without_merge"}) == PR_MERGE_OUTCOMES
+
+
+def test_policy_exports() -> None:
+    """The module's __all__ really carries the #184 names it promises.
+
+    The counters live in observability.metrics but are re-exported here so
+    the parity gate and the emission site agree on one spelling each.
+    """
+    import agent.review_court.policy as policy
+
+    exported = set(policy.__all__)
+    assert "PR_MERGE_OUTCOMES" in exported
+    assert "PR_MERGED_TOTAL" in exported
+    assert "PR_CLOSED_WITHOUT_MERGE_TOTAL" in exported
+    assert PR_MERGED_TOTAL == "pr_merged_total"
+    assert PR_CLOSED_WITHOUT_MERGE_TOTAL == "pr_closed_without_merge_total"
+    # The vocabulary and the counter names describe the same two outcomes.
+    counter_words = {
+        PR_MERGED_TOTAL.removeprefix("pr_").removesuffix("_total"),
+        PR_CLOSED_WITHOUT_MERGE_TOTAL.removeprefix("pr_").removesuffix("_total"),
+    }
+    assert counter_words == set(PR_MERGE_OUTCOMES)
+

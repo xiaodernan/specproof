@@ -33,6 +33,12 @@ import hashlib
 import json
 from typing import Any, TypedDict
 
+# #184: expose PR merge outcome counter names at the court boundary
+from observability.metrics import (
+    PR_CLOSED_WITHOUT_MERGE_TOTAL,
+    PR_MERGED_TOTAL,
+)
+
 # ── Evidence policy constants (P0.5, ADR-004) ──────────────────────────
 
 BLOCKER_REQUIRED_EVIDENCE_TYPES = frozenset({
@@ -85,7 +91,39 @@ HEAD_ONLY_SIGNALS = frozenset({
     SIGNAL_HEAD_DB_STATE_DIFFERS,
 })
 
+# #184: PR merge outcome vocabulary at the court boundary (for metrics parity gate)
+PR_MERGE_OUTCOMES = frozenset({
+    "merged",
+    "closed_without_merge",
+})
+
 POLICY_VERSION = "review-court-policy-v2"
+
+# #184: export PR merge outcome vocabulary and counter names for parity gate
+__all__ = [
+    "POLICY_VERSION",
+    "BLOCKER_REQUIRED_EVIDENCE_TYPES",
+    "NON_BLOCKER_EVIDENCE_TYPES",
+    "STATIC_CONFIDENCE_CEILING",
+    "DOWNGRADED_BLOCKER_CONFIDENCE_CEILING",
+    "NOT_ATTRIBUTED_STATUS",
+    "NOT_ATTRIBUTED_SEVERITY",
+    "NOT_ATTRIBUTED_CONFIDENCE_CEILING",
+    "COURT_OUTCOME_CONFIRMED",
+    "COURT_OUTCOME_NEEDS_CONFIRMATION",
+    "COURT_OUTCOME_SKIPPED",
+    "NOT_ATTRIBUTED_STATUS",
+    "COURT_OUTCOMES",
+    "SIGNAL_EXIT_CODE_DIFFERS",
+    "SIGNAL_FAILURE_SIGNATURE_DIFFERS",
+    "SIGNAL_HEAD_EXTRA_FAILURE_COUNT",
+    "SIGNAL_HEAD_DB_STATE_DIFFERS",
+    "HEAD_ONLY_SIGNALS",
+    "PR_MERGE_OUTCOMES",
+    "PR_MERGED_TOTAL",
+    "PR_CLOSED_WITHOUT_MERGE_TOTAL",
+    "policy_recalculate",
+]
 
 # ── Model layer contract ────────────────────────────────────────────────
 

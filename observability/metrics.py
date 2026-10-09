@@ -30,6 +30,13 @@ _HISTOGRAM_BUCKETS: tuple[float, ...] = (
 # an emit site may pass a tighter ladder (see api/server.py middleware).
 _histograms: dict[str, tuple[tuple[float, ...], list[float]]] = {}
 
+# ── #184 PR merge outcome counters (court boundary) ──────────────────
+# These counters are incremented at the GitHub webhook boundary when a
+# pull_request is closed. They represent the court's visibility into the
+# final PR disposition: merged vs closed without merge.
+PR_MERGED_TOTAL = "pr_merged_total"
+PR_CLOSED_WITHOUT_MERGE_TOTAL = "pr_closed_without_merge_total"
+
 
 def incr(name: str, value: float = 1.0) -> None:
     with _lock:
