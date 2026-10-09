@@ -55,8 +55,13 @@ jobs:
             maven:3.9-eclipse-temurin-21 sh mvnw -q -v
       - name: Nightly 100 golden-case evaluation (multi-hour)
         run: |
+          # #222/#224: the recall/false-positive floors the "Alert on regression"
+          # step greps for are given to the tool here, so the step fails itself
+          # and names the metric instead of the tool reporting PASS (its
+          # shipped default pins no floors) beside a grep that contradicts it.
           python -m cli.specproof.main eval \
             --cases golden-cases --repo . --no-llm \
+            --gate --min-recall 100 --max-false-positives 0 \
             --output docs/eval/eval-report.html | tee eval-run.log
       - name: Publish eval artifact
         uses: actions/upload-artifact@v4

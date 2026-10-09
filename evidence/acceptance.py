@@ -113,11 +113,24 @@ class AcceptanceCriteria:
     floors below which the run is INSUFFICIENT (not a pass, not a fail) —
     this is what stops a small or empty evaluation set from certifying a
     verdict it cannot support.
+
+    ``max_false_positives`` is the one *ceiling*: "no false positives" cannot
+    be expressed as a ``min_`` floor, and until it existed here the CI
+    workflows had to assert that contract by grepping the CLI's own log text
+    (#224). A gate that lives only in a grep is a gate the tool's verdict
+    cannot honour: ``eval --gate`` printed PASS and exited 0 next to
+    ``False positives: 2`` while the workflow failed on a missing substring
+    whose message named no metric.
     """
 
     min_recall: float | None = None
     min_precision: float | None = None
     min_f1: float | None = None
+    #: Most confirmed findings on negative cases the run may produce. ``None``
+    #: means the false-positive rate is not part of the contract — it is *not*
+    #: an implicit "any number of false positives is fine", because a run with
+    #: zero negative cases produces zero false positives regardless of quality.
+    max_false_positives: int | None = None
     min_positive_cases: int = 1
     min_negative_cases: int = 0
 
@@ -137,6 +150,7 @@ class AcceptanceCriteria:
             "min_recall": self.min_recall,
             "min_precision": self.min_precision,
             "min_f1": self.min_f1,
+            "max_false_positives": self.max_false_positives,
             "min_positive_cases": self.min_positive_cases,
             "min_negative_cases": self.min_negative_cases,
         }
@@ -172,6 +186,7 @@ class AcceptanceResult:
                 self.criteria.min_recall,
                 self.criteria.min_precision,
                 self.criteria.min_f1,
+                self.criteria.max_false_positives,
             )
         )
 
@@ -195,7 +210,7 @@ class AcceptanceResult:
 
 
 def _metric_failures(
-    metrics: Metrics, criteria: AcceptanceCriteria
+    metrics: Metrics, criteria: AcceptanceCriteria, counts: MetricCounts
 ) -> list[str]:
     checks = [
         ("recall", metrics.recall, criteria.min_recall),
@@ -212,6 +227,13 @@ def _metric_failures(
             )
         elif value < floor:
             reasons.append(f"{name} {value} 低于下限 {floor}")
+    if criteria.max_false_positives is not None:
+        ceiling = criteria.max_false_positives
+        if counts.false_positives > ceiling:
+            reasons.append(
+                f"误报 {counts.false_positives} 超过上限 {ceiling}"
+                f"（负例被误判为已发现问题）"
+            )
     return reasons
 
 
@@ -245,7 +267,7 @@ def evaluate(
             criteria=criteria,
             insufficient=insufficient,
         )
-    failures = _metric_failures(metrics, criteria)
+    failures = _metric_failures(metrics, criteria, counts)
     return AcceptanceResult(
         status=FAIL if failures else PASS,
         metrics=metrics,

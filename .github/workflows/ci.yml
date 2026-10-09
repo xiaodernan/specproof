@@ -176,9 +176,17 @@ jobs:
           cp -r golden-cases/case-12-add-javadoc eval-subset/
           cp -r golden-cases/case-17-logic-inversion eval-subset/
           cp -r golden-cases/case-56-redis-cache-eviction-removed eval-subset/
+          # #222/#224: the two greps below used to be the ONLY place this
+          # contract lived, so `--gate` could print PASS and exit 0 next to
+          # "Recall: 66.7%" while the same log failed the grep. The floors are
+          # now given to the tool, which fails the step itself naming the
+          # metric ("recall 66.7 低于下限 100") instead of "substring missing".
+          # The greps stay as an independent second assertion (bound to the
+          # tool's own renderer by test_ci_acceptance_greps_match_the_eval_summary).
           python -m cli.specproof.main eval \
             --cases eval-subset --repo . --no-llm \
-            --gate --min-positive-cases 3 --min-negative-cases 1 \
+            --gate --min-recall 100 --max-false-positives 0 \
+            --min-positive-cases 3 --min-negative-cases 1 \
             --output docs/eval/eval-report.html | tee eval-run.log
       # Quoted: an unquoted scalar cannot contain ": ", and this file failed to
       # parse as YAML because of these two names -- so every push since the file

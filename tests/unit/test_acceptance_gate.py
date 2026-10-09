@@ -7,6 +7,7 @@ small to prove a floor must yield INSUFFICIENT, never PASS.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from evidence.acceptance import (
@@ -210,6 +211,108 @@ def test_severity_match_triple_state_and_drift_detection() -> None:
         is None
     )
     assert severity_match_of(_case(should_detect=False)) is None
+
+
+def test_false_positive_ceiling_fails_a_run_whose_recall_and_precision_pass() -> None:
+    """The ceiling is the only check that can hold "no false positives" (#224).
+
+    A ceiling cannot be written as a ``min_`` floor, which is why it lived in
+    the workflows as a grep for years. That split cost #222 an eval run whose
+    own gate said PASS (no floors pinned) while the grep for
+    ``False positives: 0`` failed on the same log — so the tool's verdict and
+    its own CI gate disagreed about the same two findings.
+
+    The counts below are chosen to pass every floor and still be wrong: 90%
+    recall, 82% precision, 89% F1, and two confirmed findings on negative
+    cases. Before this ceiling existed the only thing objecting to that run
+    was a substring search in YAML.
+    """
+    counts = MetricCounts(should_detect=10, detected=9, false_positives=2, negative_cases=10)
+    criteria = AcceptanceCriteria(
+        min_recall=90.0,
+        min_precision=80.0,
+        min_f1=85.0,
+        max_false_positives=0,
+        min_positive_cases=10,
+        min_negative_cases=5,
+    )
+    result = evaluate(counts, criteria)
+
+    assert result.status == FAIL
+    assert not result.passed
+    assert any("误报" in r for r in result.failures), (
+        f"the reason must name the false positives, got {result.failures}"
+    )
+    assert any("上限" in r for r in result.failures), (
+        "the reason must state the ceiling that was breached"
+    )
+    # The breached metric is stated with its observed count, so a failing run
+    # names what was wrong rather than reporting only that a check tripped.
+    assert any("误报 2 超过上限 0" in r for r in result.failures), result.failures
+
+
+def test_false_positive_ceiling_passes_when_observed_equals_ceiling() -> None:
+    # An upper bound is inclusive: a ceiling of 2 is satisfied by exactly 2.
+    counts = MetricCounts(should_detect=10, detected=9, false_positives=2, negative_cases=10)
+    criteria = AcceptanceCriteria(
+        min_recall=90.0,
+        min_precision=60.0,
+        max_false_positives=2,
+        min_positive_cases=10,
+        min_negative_cases=5,
+    )
+    result = evaluate(counts, criteria)
+    assert result.status == PASS, result.failures
+    assert not result.failures
+
+
+def test_false_positive_ceiling_unset_does_not_forbid_false_positives() -> None:
+    """``None`` means "not part of this contract", not "zero" (#224).
+
+    Distinct from ``max_false_positives=0``: the default must stay silent so
+    that a caller who never pinned a ceiling is not silently graded on one,
+    and so the docstring's warning holds — it is also *not* an implicit "any
+    number is fine", because a run with no negative cases produces none.
+    """
+    counts = MetricCounts(should_detect=10, detected=9, false_positives=7, negative_cases=10)
+    criteria = AcceptanceCriteria(
+        min_recall=90.0, min_positive_cases=10, min_negative_cases=5
+    )
+    result = evaluate(counts, criteria)
+    assert criteria.max_false_positives is None
+    assert not any("误报" in r for r in result.failures), result.failures
+    assert result.status == PASS
+
+
+def test_false_positive_ceiling_is_carried_into_the_criteria_fingerprint() -> None:
+    """Two runs graded against different ceilings are not interchangeable.
+
+    ``digest`` goes into the stored acceptance record, so an unrecorded
+    ceiling would let a PASS pinned at 0 false positives be replayed as
+    evidence for a run allowed 5 — same fingerprint, different contract.
+    """
+    strict = AcceptanceCriteria(max_false_positives=0).to_dict()
+    loose = AcceptanceCriteria(max_false_positives=5).to_dict()
+    unset = AcceptanceCriteria().to_dict()
+    assert strict["max_false_positives"] == 0
+    assert loose["max_false_positives"] == 5
+    assert unset["max_false_positives"] is None
+    # Compared as serialized JSON: to_dict() is the record stored alongside the
+    # verdict, so what matters is that the three contracts stay distinguishable
+    # once written out, not that the dicts be hashable here.
+    assert len({json.dumps(c, sort_keys=True) for c in (strict, loose, unset)}) == 3
+
+
+def test_false_positive_ceiling_fails_even_when_precision_is_undefined() -> None:
+    # Zero positive cases and zero detections make precision None, so every
+    # min_ floor is skipped; the ceiling is a raw count and still applies.
+    counts = MetricCounts(should_detect=0, detected=0, false_positives=3, negative_cases=3)
+    criteria = AcceptanceCriteria(
+        min_precision=100.0, max_false_positives=0, min_positive_cases=0, min_negative_cases=0
+    )
+    result = evaluate(counts, criteria)
+    assert result.status == FAIL
+    assert any("误报 3 超过上限 0" in r for r in result.failures), result.failures
 
 
 def test_severity_metrics_none_when_no_level_call_made() -> None:

@@ -82,6 +82,9 @@ def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
               help="Precision floor (0-100); unset = only sample sufficiency is enforced")
 @click.option("--min-f1", type=float, default=None,
               help="F1 floor (0-100)")
+@click.option("--max-false-positives", type=int, default=None,
+              help="上限：负例上最多允许多少个已确认误报"
+                   "（0 = 零误报；unset = 误报不参与判定）")
 @click.option("--min-positive-cases", type=int, default=10,
               help="Fewest should-detect cases required before a verdict is trusted")
 @click.option("--min-negative-cases", type=int, default=5,
@@ -101,6 +104,7 @@ def eval_cmd(
     min_recall: float | None,
     min_precision: float | None,
     min_f1: float | None,
+    max_false_positives: int | None,
     min_positive_cases: int,
     min_negative_cases: int,
     include_holdout: bool,
@@ -342,6 +346,7 @@ def eval_cmd(
         min_recall=min_recall,
         min_precision=min_precision,
         min_f1=min_f1,
+        max_false_positives=max_false_positives,
         min_positive_cases=min_positive_cases,
         min_negative_cases=min_negative_cases,
     )
