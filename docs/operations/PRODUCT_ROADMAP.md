@@ -2127,3 +2127,75 @@ da8ba7f(JOB 细节失败位置披露 + #177 缺失的 stageLabel 导入修复)�
 ### 34.4 全量合并门(追记)
 
 见提交记录。
+
+## 35. #224：误报上限还给工具本身——`eval --max-false-positives`（2026-10-10）
+
+### 35.1 起点：契约只活在 YAML 的 grep 里，#222 第一次干净评测当场露馅
+
+"零误报"**没法写成 `min_` 下限**——它是上界。于是这条契约长期只存在于两个
+workflow 的 grep 里：`ci.yml` 与 `nightly-eval.yml` 各自 grep 自己的 eval 日志
+的 `Recall:             100.0%` 与 `False positives:    0`，匹配不到子串即
+失败。#222 的第一次干净端到端评测，在同一份日志里印出：
+
+```
+Acceptance:         PASS（仅样本充足：未设 recall/precision/f1 下限）
+Recall:             66.7%
+False positives:    2
+```
+
+exit 0，紧跟其后两个 step 却因这份日志红了。**工具的判定和它自己的门对同一组
+数字各说各话**——因为判定看不到那份契约（#223 补的是"未钉下限的 PASS 别裸
+打印"，本条补的是"钉了下限也得进得了判定"）。只活在 grep 里的门，是工具的
+verdict 无法兑现的门。
+
+### 35.2 做法：上限是一等公民，不是 grep
+
+- `AcceptanceCriteria.max_false_positives`：上界而非下限，**含边界**（上限 2
+  时 2 个通过），进 `to_dict()` 的判据记录——两个用不同上限评过的 run 在存档
+  里仍可区分，否则"零误报的 PASS"会被当成"允许 5 个的 run"的证据回放。
+- `None` 的语义是**"不参与本契约"**：既不是隐含 0，也不是隐含"多少个都行"
+  （没有负例的 run 本来就不产生误报）。与下限不同，它是**原始计数**，所以在
+  所有指标都 undefined（零正例、零检出 ⇒ precision 为 None，所有 `min_`
+  下限被跳过）时**照样生效**。
+- CLI `--max-false-positives`；两个 workflow 改为
+  `--gate --min-recall 100 --max-false-positives 0`，**grep 保留**为廉价的第二
+  重断言（工具在打印摘要前崩溃时它仍在）。失败信息现在指名指标
+  （`recall 66.7 低于下限 100`），不再是"子串没找到"。
+
+### 35.3 门证（本批实测，两臂均见红）
+
+没见红的门不算门，所以两臂都做了变异：
+
+- **臂 1（workflow 侧）**：从 `ci.yml` 删掉 floors ⇒
+  `test_ci_floors_reach_the_tool.py` 两条红，报错指名 `False positives:`，
+  并列出实际传了哪些 flag。
+- **臂 2（判定侧）**：把 `> ceiling` 改成 `False` ⇒ **原 25 条用例全绿**。
+  这是本条唯一的真相：**上限此前没有任何行为测试**。故补 5 条——越界失败、
+  含边界通过、未设即沉默、判据记录可区分、指标 undefined 时仍生效。
+
+定向：`test_acceptance_gate.py` + `test_ci_floors_reach_the_tool.py` +
+`test_ci_acceptance_greps_match_the_eval_summary.py` +
+`test_unpinned_acceptance_pass_is_labelled.py` + `test_ci_eval_subset_is_measurable.py`
++ `test_eval_does_not_score_an_aborted_pipeline.py` +
+`test_eval_holdout_isolation.py` 合跑 **53 passed**；`ruff` / `mypy` 全绿。
+CLI 侧另证：`--max-false-positives notanint` 被拒绝（exit ≠ 0），`--help` 里
+出现该 flag，参数经 `AcceptanceCriteria(...)` 直通 `evaluate()`。
+
+### 35.4 附带：.gitignore 收口本地噪声（同批）
+
+`gate_*.log/.err`、`anchor.txt`、`specproof_identity.db` / `specproof_billing.db`
+（`api/data_paths.py` 写在进程 CWD 旁的 sqlite 回退库，见 LOCAL_EXPERIENCE.md：
+换目录即开另一个空库，是每机状态不是数据）、`vite.config.ts.timestamp-*.mjs`
+（与已忽略的 vitest 同名产物同族，规则原先只写了 vitest 一个文件，导致 vite
+的产物一直浮在 status 里）。
+
+### 35.5 仍未做（诚实边界）
+
+1. `--max-false-positives` 是**绝对计数**，不是比率；小负例集（如 2 个负例
+   容不下 1 个误报的 50%）与 200 个负例同样以"0"为界，调门槛时尚需手算。
+2. grep 那层第二断言目前只覆盖 `Recall:` 与 `False positives:`；
+   `--min-precision` / `--min-f1` 已能传但 workflow 未钉，也就没有对应的 grep
+   绑定（`test_ci_floors_reach_the_tool.py` 只要求**被 grep 的指标**必须有对应
+   flag，不要求每个 flag 都被 grep）。
+3. `scripts/run_offline_unit_gate.py` 是本地门跑法的收口，未接进 CI（CI 的
+   `-m` 表达式写在 YAML 里，不存在 PowerShell 拆参数问题）。
