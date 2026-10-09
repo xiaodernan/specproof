@@ -30,6 +30,13 @@ worktrees/
 # Demo build artifacts
 demo/spring-backend/target/
 
+# Local single-process sqlite fallbacks written next to the process CWD
+# (api/data_paths.py). See docs/operations/LOCAL_EXPERIENCE.md: starting from a
+# different directory opens a *different* empty DB, which is why these are
+# per-machine state and not data.
+specproof_identity.db
+specproof_billing.db
+
 # OS
 Thumbs.db
 Desktop.ini
@@ -51,6 +58,11 @@ services/control-plane/target/
 .pytest-*.log
 .probe-*.log
 .probe-*.json
+# Gate runs write here when not redirected into .local/ by the caller.
+gate_*.log
+gate_*.err
+# Local scratch notes written to the repo root by interactive sessions.
+anchor.txt
 golden-cases-first/
 golden-cases-rem/
 golden-cases-rel/
@@ -63,5 +75,6 @@ golden-cases-c4/
 apps/web/.playwright-cli/
 output/playwright/
 
-# Vite/vitest transient config-load artifacts
+# Vite/vitest transient config-load artifacts (one per config file, per run)
 apps/web/vitest.config.ts.timestamp-*.mjs
+apps/web/vite.config.ts.timestamp-*.mjs

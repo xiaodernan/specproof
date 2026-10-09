@@ -18,6 +18,8 @@
 worker/relay 的 /metrics 绑定地址 (observability/metrics_http.py): 环境变量
 METRICS_BIND_HOST 可覆盖; 默认容器内 0.0.0.0 (Prometheus 同 compose 网络跨容器抓取,
 端口不发布到宿主机)、本机运行 127.0.0.1。
+监听端口能否被 .env 移动是另一回事, 三处例外逐条写在 §2 末; 本段只讲绑定地址,
+不复述端口数字, 免得与 roster 各说各话。
 
 Trace 链路 (§8.10: Webhook → Outbox → RabbitMQ → Worker → LLM → Tools → GitHub):
 代码插桩已就绪 (observability/tracing.py, OTLP HTTP exporter)。api 默认端点
@@ -49,8 +51,27 @@ docker tag  docker.m.daocloud.io/otel/opentelemetry-collector-contrib:0.123.0 ot
 
 端口冲突: 4317/4318/8889/9090/3000 均可经环境变量覆盖
 (OTEL_OTLP_GRPC_PORT / OTEL_OTLP_HTTP_PORT / OTEL_PROM_EXPORTER_PORT /
-PROMETHEUS_PORT / GRAFANA_PORT)。本次实测主机上这些端口全部空闲, 未发生冲突,
-使用默认端口 (实测记录见 §7)。
+PROMETHEUS_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边值, 即宿主机
+发布端口: 容器内监听端口不变, Prometheus 走服务名 DNS 抓取也就跟着不变, 只有
+§3 的 http://localhost:9090 与 Grafana 3000 要按新值访问。冲突时改左边值即可。
+
+另有三处不属于这种, 照上面那句做会改错:
+
+  - WORKER_METRICS_PORT (agent/worker.py, 代码默认 9100): compose 未设这个键,
+    .env 改得动。它移的是 worker 进程自己的监听端口, 而 roster 写死抓
+    infra/prometheus/prometheus.yml 的 targets: ["worker:9100"] — 移了端口就得
+    同一改动里改那行 targets, 否则抓取指向空端口, specproof_* 整族序列消失,
+    只剩 SpecproofWorkerDown 报「目标没了」, 不会说「端口错了」(§5)。
+  - OUTBOX_RELAY_METRICS_PORT (storage/outbox_relay.py): compose.production.yml
+    用字面量 "9101" 钉住并 expose, .env 改不动 — 想移它必须改 compose 文件本身,
+    连带 infra/prometheus/prometheus.yml 的 targets: ["outbox-relay:9101"]。
+    两个旋钮名字同形, 能否被 .env 移动却相反, 这是部署文件决定的, 不是惯例。
+  - 在宿主机直接跑 api 时的 OTLP 客户端: observability/tracing.py 的默认端点
+    字面量是 http://localhost:4318/v1/traces。覆盖 OTEL_OTLP_HTTP_PORT 后宿主机
+    上不再有人在 4318 监听, 这个字面值就指不到 collector, 要同时设
+    OTEL_EXPORTER_OTLP_ENDPOINT (容器内跑 api 本来也要设成服务名地址, 见 §1)。
+
+本次实测主机上这些端口全部空闲, 未发生冲突, 使用默认端口 (实测记录见 §7)。
 
 ## 3. 访问与凭据
 
