@@ -4109,3 +4109,67 @@ grep -q "False positives:    0"      eval-run.log
 **⚠️ 我自己第一版的门有个洞，是 B1 逼出来的。** 第一轮预测 B1 只红填充案，实测只红**值**案——因为"13 个空格的串"**也以**"12 个空格的前缀"开头，`startswith` 恒真，那格空格滑进值里，于是**填充案其实没在测填充**。修法是加一句 `not pattern.startswith(prefix + " ")`；加上之后 B1 变 2 红，且**填充案自己**也红。同时我第一轮把 B2/B5 预测成 1 红，实测各 3 红（前缀查名失败会同时打红两条绑定案）——三个预测错误**全在"比预测红得多"的方向**，说明这组门比我以为的紧。修正预测后 **6/6 全中**。
 
 **诚实边界。** ① 本门钉的是**四条串**与工具一致、且两个 workflow 一致；**不钉 `grep -q` 的匹配语义**——`grep -q` 是**子串**匹配，一个更长的行照样命中，本门管不到（要管就得改成读 sidecar，那是另一号）。② 本门**不改 workflow**：CI 仍用 grep 抓日志；把验收改成读 `*.results.json` 的 `recall`/`false_positives`/`acceptance` 字段是**另一号**（也是更该做的方向）。③ `nightly-eval.yml` 用 `A && B || fail` 的单步短路，`ci.yml` 用两个独立步骤——**语义不同**，本门只看串、不看这个差异。④ 普查只覆盖 `eval-run.log` 的 grep；其它 `grep`（过滤、`-v`）不在范围内。
+
+## #222 分裂差分的 AMBIGUOUS 记录被法庭确认后仍以 MINOR 收场：最强证据路径拿了最弱默认档，§14「BLOCKER/MAJOR Precision>=90%」在唯一能量到它的样本上读 0%
+
+**起点（本仓库第一次拿到端到端评测的干净读数）。** 上一次会话把 Maven 缓存卷按 CI 的方式播了种（`chown -R 1000:1000` + `dependency:go-offline`，217 MB/24 条），本轮才第一次让**差分真的跑起来**——此前四次跑要么被 `.env` 安检挡住（#206）、要么 Maven 因卷属主是 root 而失败（`Could not create local repository at /home/maven/.m2/repository`），读数都是"管线跑了但产不出证据"。按 CI 口径跑那 4 例子集（`--gate --min-positive-cases 3 --min-negative-cases 1`），**总耗时 41 分钟**：
+
+```
+case-12-add-javadoc                    [PASS] matched 0 finding(s), contracts found: []                    ← 负例，正确
+case-17-logic-inversion                [MISS] matched 0 finding(s), contracts found: []                    ← 正例未检出
+case-21-auth-weakened-permitall        [PASS] matched 1 finding(s), contracts found: ['AUTH-01']          ← 检出，但严重度 MINOR
+case-56-redis-cache-eviction-removed   [PASS] matched 1 finding(s), contracts found: ['AUTH-01','CACHE-01'] ← 同上
+Total cases 4 / Not run 0 / Should detect 3 / Detected 2 / False positives 0 / Negative cases 1
+Precision 100.0% / Recall 66.7% / F1 80.0%
+Severity agreement: 0.0% (2 matched positive cases)
+Severe precision:   0.0% (severe calls: 2 positive / 0 negative)
+  ! severity drift: case-21-auth-weakened-permitall expected BLOCKER, got MINOR
+  ! severity drift: case-56-redis-cache-eviction-removed expected MAJOR, got MINOR
+Acceptance:         PASS          ← 注意：EVAL_EXIT=0
+```
+
+**本号修的是其中最锋利的一处：两个"检出但判 MINOR"。** 产品**看见了**回归，然后把它标成最低档——比纯静态分析还低。于是 §14 的「BLOCKER/MAJOR Precision>=90%」在**唯一能量到它的样本**上读 **0%**，而"无证据严重评论=0"这条 SLO 也会因为严重评论根本不产生而**恒真**。
+
+**根因（两处代码合起来才成立）。** ① `agent/nodes/run_differential.py:452-465`：分裂差分在"双侧都失败"时**故意不发 severity**（`severity = None`），让法庭去比较 base/head 的失败签名——这是 att-08 的设计，注释写得很清楚。② `agent/nodes/review_court.py:201-204` 填这个空档时：
+
+```python
+if evidence_type in NON_BLOCKER_EVIDENCE_TYPES:
+    severity = "MAJOR" if severity == "BLOCKER" else (severity or "MAJOR")   # 静态证据默认 MAJOR
+elif severity is None:
+    severity = "MAJOR" if dr.get("verdict") == "REGRESSION" else "MINOR"     # 差分证据按 verdict 分档
+```
+
+`differential_execution` **不在** `NON_BLOCKER_EVIDENCE_TYPES`（该集合只有 static_regex_analysis / static_analysis / java_source_diff / heuristic），所以 AMBIGUOUS 落到 `else "MINOR"`。而 AMBIGUOUS 正是**证据更强**的那条路（它比 REGRESSION 多了一次 base/head 签名比较）；签名不同 ⇒ 法庭 `_preexisting_check` 判 `head_only_difference=True` ⇒ **确认**这条 finding，并且**把占位档当最终档带出去**（`policy_recalculate` 的确认路径只在 BLOCKER 上做六条件降级，MINOR 原样穿过）。
+
+**修法（一行 + 注释写明为什么）。** `agent/nodes/review_court.py`：无 severity 的差分记录统一填 **MAJOR**——与紧邻的静态证据分支**同一个默认**。不再按 verdict 分档：REGRESSION 与 AMBIGUOUS 都是"Head 引入了失败"，占位不该因为证据更强反而更低。六条件降级照旧负责把不该是 BLOCKER 的压回 MAJOR。（`severity == "NONE"` 那条 bookkeeping 分支未动——那是显式的 NONE 值，与 None 不是一回事。）
+
+**门（纯函数，无管线/无 Docker/无模型）。** 新文件 `tests/unit/test_ambiguous_differential_is_not_minor.py`（5 案）：① `_build_candidates` 对 AMBIGUOUS+severity=None 必须给 MAJOR；② REGRESSION 分支的负对照仍是 MAJOR；③ 显式 `"NONE"` 仍被当 bookkeeping 跳过；④ **链路终点**：签名不同 ⇒ `head_only_difference is True` ⇒ 确认 ⇒ `final_severity != "MINOR"`；⑤ **邻条款**：签名相同 ⇒ 仍 `not_attributed`（改动不许碰既有缺陷规则）。
+
+**门证（全部实读）。** 新门 `5 passed`；法庭回归批（test_review_court_policy + test_attribution_att08 + 新门）`57 passed in 87.16s`；`ruff` 两文件 All checks passed；`mypy agent/nodes/review_court.py` Success。
+
+**变异臂（预测先写后跑，脚本 `_arm222.py`，5 臂；每臂从字节快照重基 + 终态 sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| C0 | 未变异基线 | 0 红 / 5（绿对照） | **MATCHED 0 红 / 5** ✅ |
+| C1 | **把原缺陷放回去**（AMBIGUOUS 回退 MINOR） | 2 红 = 判档案 + 链路终点案 | **MATCHED 2 红，逐名相符** ✅ |
+| C2 | AMBIGUOUS 分支**过度**判成 BLOCKER | 2 红 = 两条 MAJOR 断言 | **MATCHED 2 红** ✅（预测先写的是 1 红，我漏算了 REGRESSION 负对照也断言 MAJOR，已改） |
+| C3 | 无 severity 的记录**直接丢弃**而不是判档 | 1 红 = 判档案（无候选） | **MISMATCH 4 红**（丢弃会让**每一条**需要候选的案子都红；预测写低了） |
+| C4 | 邻条款：既有缺陷规则永不降级 | 1 红 = 签名相同仍 not_attributed | **MATCHED 1 红** ✅ |
+
+（脚本末行 `final sha256 == original: True`——review_court.py / policy.py 逐字节还原。）
+
+**C3 的第一次变异是个空操作，值得记。** 我第一版把 C3 写成"把后面的 `severity == "NONE"` 检查改成 `in ("NONE", None)`"——**SURVIVED**。原因不是门弱，是**变异没改变行为**：走到那一行时 `severity` 已被 `elif severity is None:` 填成了 MAJOR，**永远不再是 None**。真正的变异必须改那个分支本身（改成 `continue`）。这是"臂存活先怀疑臂瞄错了"这条纪律的又一个实例，方向是"变异无效"而不是"门有洞"。
+
+**诚实边界。** ① 本号只改**判档**，不改**为什么会走到 AMBIGUOUS**：case-21 的 ground truth 期望证据是 `base_pass_head_fail`（干净的 REGRESSION），实测却落进 AMBIGUOUS ⇒ **base 侧也失败了**。为什么，本号**没量**（要跑一次管线把 `diff_results` 打出来，单例约 17 分钟）——这是下一号的第一问。② 修完 case-21/56 会从 MINOR 变成 **MAJOR**，`severe_precision` 应从 0% 升到 100%，但 `severity_agreement` 仍是 0%（case-21 期望 BLOCKER 而 MAJOR≠BLOCKER）——**本号不声称端到端会全绿**；要真验需要再跑一次 41 分钟的四例（或单例 17 分钟）。③ 判档只影响**确认**路径；`not_attributed`（既有缺陷）与 parse_failed 分支的档位语义未动（后者在 `policy.py:494-496` 另有 `or "MINOR"` 回退，**只在 LLM 辩护输出解析失败时可达**，`--no-llm` 下不可达，本号未动、登记为待核）。④ 无告警无标签：本号不新增指标（`findings_court_<outcome>_total` 已有，档位不在其中）。
+
+**本号同时留下的两个未修候选（同一次读数里的另两处，都有实测证据）。**
+
+1. **case-17 的召回漏报**：规则解析器**本身没问题**——直接喂 `_parse_requirements` 三个 spec，实测 `case-17 → ['UNIQUE-01']`、`case-21 → ['AUTH-01']`、`case-56 → ['CACHE-01']`、`case-12 → []`（全对）。但评测报的 `contracts_found` 是**findings 的 contract_id**（`eval.py:306-308`），所以 `[]` 说的是"**UNIQUE-01 编译出来了，但差分没为它产出任何 finding**"。下一号第一问：**case-17 的 head 只改了一个字符（`git diff --stat base case-17-head` = `UserService.java | 2 +-`），为什么差分没产出 `base_pass_head_fail`**。
+2. **`Acceptance: PASS` 与 `Recall: 66.7%` 并排出现**，且 `EVAL_EXIT=0`：`AcceptanceCriteria.default()` 的 `min_recall/min_precision/min_f1` **全是 None**（docstring 说这是有意的——等维护者从全量跑钉数），于是"样本够大"就等价于 PASS，而 CLI 只在 `status != PASS` 时才打印那句"样本不足"提示。**工具自己的裁决说 PASS，CI 的两条 grep 说不过**——两者矛盾，且矛盾**没有门**。下一号候选：让"仅样本充足、指标下限未钉"的 PASS 在 CLI/报告/sidecar 里**显式区别于**"带指标下限的 PASS"。
+
+另记一条**产品事实**（不是本号的改动）：`case-56` 的 `contracts_found` 里出现 `AUTH-01`，而 case-56 的 spec 只该编译出 `CACHE-01`。已查：`initial_state` 每例重建（`eval.py:203`）、`approved_contracts` 默认为 `[]` 且 eval 不传（无注册表泄漏），所以**不是用例间状态泄漏**；`AUTH-01` 的来源**本号没查清**，登记为待核（不写成结论）。
+
+**⚠️ 并发事故（本号执行期间发生，必须记下）。** 本号跑变异臂时，**另一个会话把 `agent/nodes/review_court.py` 提交了**（`d880822`）——而那一刻工作树里正是 **C1 臂的"原缺陷已放回"状态**（`else "MINOR"`）。对方在自己的下一条提交里发现并修回（`cecd839`「restore the MAJOR default captured mid-arm - d880822 committed the red half of the mutation witness」），所以**最终 HEAD 是修好的版本**（已核对：`severity = "MAJOR"` 与 `#222` 注释都在 HEAD 里，见 `git show HEAD:agent/nodes/review_court.py`）。对方那两条提交还顺带扫进了他们自己的 `evidence/capsule_replay.py` 改动——那是他们的事，未动。
+
+**这条与项目记忆里"绝不 `git commit -a`"是同一件事，但暴露了新的一面**：变异臂运行期间，工作树里**必然**存在"故意改坏"的源文件。任何在此时 `add -A` / `commit -a` 的并发会话都会把**红的半边**提交进去。本号的 `_arm222.py` 已经做到每臂从字节快照重基 + 终态 sha256 核验（所以**不会自己留下残留**），但它**无法阻止别人在窗口内提交**。加固方向：把变异施加在**平面副本**上（`git archive HEAD | tar -x -C <平面>` + 独立目录跑 pytest），而不是工作树——这与项目既有的"平面门跑法"同源；`git stash` 在本机**禁用**（safe-delete 守卫），不能作为隔离手段。
