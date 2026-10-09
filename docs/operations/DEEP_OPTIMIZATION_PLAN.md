@@ -4074,3 +4074,38 @@ A12 是**负控制**：把 50→80 同时合法改到 9 个载体（yml expr + �
 | A15 | NEGATIVE CONTROL: the same grafana job added honestly — comment, §1 row and a derived _UNPROBED_JOBS entry all moved | 全绿 | 全绿 ✅ |
 
 **诚实边界。** ① 本门做**静态名册对账**：它读 prometheus.yml / alerts-slo.yml / compose.observability.yml 的 `:ro` 挂载 / OBS §1 与 #219 的豁免表；阈值三份互读归 #219，§5 告警表归 #216，看板绘制数字归 #218，桶梯度归 #215。② 「rabbitmq 的 per-object 渲染真的产出这两族」是 #165 的实测结论（记录在 prometheus.yml 自己的注释里），本门不启动任何容器、不复测线上序列；R12 保证被审的文件就是 prometheus 会加载的那两个，仅此而已——序列存在性在本门之外。③ 家族→job 的映射是**声明表**（`_FAMILY_OWNERS` 两条前缀），不是从序列标签或 job 的 metrics_path 推出来的：表写窄了 R7 红（A7 见证），表写错了 R8 红；它不接受未声明的家族，也不替谁猜属主。④ R6 的豁免理由是可失效的推导（`remote_write`、blackbox 任务、家族读数），A6/A5 分别证伪其中两条；但「prometheus 自身不可守望」仍是一句**受配置约束的论证**，不是定理。⑤ R9 只保证探针的 description 点名了它 sole-provider 的那批告警，不保证那段说明写得对读者有用；措辞质量归人 review，本门不冒充。⑥ 本门与被改的两个 yml、OBS 全在工作区 CRLF 平面上书写，`git show HEAD:` 的 blob 是 LF 平面（core.autocrlf=true）——上面每组字节/行数都标了平面。⑦ 无生产代码改动；未改 compose；与 #216–#219 一样只做本地提交（此仓库在此不可推）。⑧ 计划文档仍是混合换行（历史节带 lone LF 39 行）：本节按文档主导约定写 CRLF，lone-LF 增量由脚本钉死为 0，不替别人重写已落地的节。
+
+## #221 CI 的验收 grep 与 eval 摘要格式无门绑定：四条手抄串横跨两个 workflow，而 #203 证明过"一个改了一个没跟"
+
+**起点（同一族的第三处，紧接 #216 的 §5 表、#217 的 §8.10 清单）。** 产品的验收断言不是读工具的结构化产出，而是**对着日志抓子串**——`ci.yml:188/192` 与 `nightly-eval.yml:68/69` 各两条，四条串**逐字节相同**：
+
+```
+grep -q "Recall:             100.0%" eval-run.log
+grep -q "False positives:    0"      eval-run.log
+```
+
+每一条都是 CLI 摘要的一次手抄：标签、把值对齐到第 21 列的**列填充**（`Recall:` 后 13 个空格、`False positives:` 后 4 个），以及值的渲染形状（`fmt_metric(100.0)` 是 `"100.0%"`——注意 `fmt_metric` 只是 `f"{value}%"`，`100.0` 的 `str()` 自带一位小数）。**没有任何东西绑定这些副本**：改摘要的列宽、或改 `fmt_metric` 的形状，门的失败消息会指向**错误的东西**（"Recall gate FAILED" / "NIGHTLY EVAL REGRESSION"），而真实原因只是格式变了。更关键的是：**这正是 #203 抓过的形状**——同一个事实在两个 workflow 里各一份，`ci.yml` 修了、`nightly-eval.yml` 没跟（那次是 `./mvnw`）。四条串今天恰好一致，但**一致性没有门守着**。
+
+**修法（不碰 workflow，从工具的源码与格式化器派生期望）。** 新门 `tests/unit/test_ci_acceptance_greps_match_the_eval_summary.py`（134 行，6048 字节，sha d5a5d515，纯 LF）三案：
+1. **标签 + 列填充绑定**：从 `cli/specproof/commands/eval.py` 的摘要 echo 里解析出每个标签的**字面前缀**（`label + pad`），每条 CI grep 串必须**恰好**以其中一条前缀开头，且**再往后不能还是空格**（否则填充多了一格——见下"我自己第一版的门有个洞"）；解析塌缩（`< 6` 条）与点名标签缺失都先变红，不许"匹配不到"读成"没问题"。
+2. **值绑定**：`Recall:` 那条的值必须等于 `fmt_metric(100.0)`（完美召回的渲染），`False positives:` 那条必须等于 `str(0)`——**绑定到 `evidence/acceptance.py` 里的格式化器本体**，不是它的再导出（mypy 的 `attr-defined` 先把我的第一版 import 从 `cli...eval` 纠正到了真身）。
+3. **没有 workflow 被落下**：每个抓 `eval-run.log` 的 workflow 必须断言**同一组串**——直接覆盖 #203 的形状（少一条子句、或留一份旧格式，都是比旁边那道更弱的门）。
+
+**门证（全部实读）。** 新门首跑 `3 passed in 4.75s`；`ruff` All checks passed；`mypy` Success（订正 import 后）。臂脚本 `_arm218.py`（仓库外）。
+
+**变异臂（预测先写后跑，6 臂；每臂从字节快照重基 + 终态 sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| B0 | 未变异基线 | 0 红 / 3（绿对照） | **MATCHED 0 红 / 3** ✅ |
+| B1 | CLI 摘要列填充漂一格（`Recall:` 后 13→12 空格） | 2 红 = 填充子句 + 值子句（那格空格落进值里） | **MATCHED 2 红** ✅ |
+| B2 | `ci.yml` 留旧填充（两侧不一致） | 3 红 = 两条绑定案的前缀查名都失败 + 落下一案 | **MATCHED 3 红** ✅ |
+| B3 | `fmt_metric` 形状变（丢一位小数 → `"100%"`） | 1 红 = 值绑定案 | **MATCHED 1 红** ✅ |
+| B4 | `nightly-eval.yml` 只留召回子句（被落下） | 1 红 = 落下案 | **MATCHED 1 红** ✅ |
+| B5 | `nightly-eval.yml` 留一份旧格式串 | 3 红 = 两条绑定案 + 落下一案 | **MATCHED 3 红** ✅ |
+
+（脚本末行 `final sha256 == original: True`——eval.py / acceptance.py / ci.yml / nightly-eval.yml 四个文件逐字节还原。）
+
+**⚠️ 我自己第一版的门有个洞，是 B1 逼出来的。** 第一轮预测 B1 只红填充案，实测只红**值**案——因为"13 个空格的串"**也以**"12 个空格的前缀"开头，`startswith` 恒真，那格空格滑进值里，于是**填充案其实没在测填充**。修法是加一句 `not pattern.startswith(prefix + " ")`；加上之后 B1 变 2 红，且**填充案自己**也红。同时我第一轮把 B2/B5 预测成 1 红，实测各 3 红（前缀查名失败会同时打红两条绑定案）——三个预测错误**全在"比预测红得多"的方向**，说明这组门比我以为的紧。修正预测后 **6/6 全中**。
+
+**诚实边界。** ① 本门钉的是**四条串**与工具一致、且两个 workflow 一致；**不钉 `grep -q` 的匹配语义**——`grep -q` 是**子串**匹配，一个更长的行照样命中，本门管不到（要管就得改成读 sidecar，那是另一号）。② 本门**不改 workflow**：CI 仍用 grep 抓日志；把验收改成读 `*.results.json` 的 `recall`/`false_positives`/`acceptance` 字段是**另一号**（也是更该做的方向）。③ `nightly-eval.yml` 用 `A && B || fail` 的单步短路，`ci.yml` 用两个独立步骤——**语义不同**，本门只看串、不看这个差异。④ 普查只覆盖 `eval-run.log` 的 grep；其它 `grep`（过滤、`-v`）不在范围内。
