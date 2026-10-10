@@ -4173,3 +4173,39 @@ elif severity is None:
 **⚠️ 并发事故（本号执行期间发生，必须记下）。** 本号跑变异臂时，**另一个会话把 `agent/nodes/review_court.py` 提交了**（`d880822`）——而那一刻工作树里正是 **C1 臂的"原缺陷已放回"状态**（`else "MINOR"`）。对方在自己的下一条提交里发现并修回（`cecd839`「restore the MAJOR default captured mid-arm - d880822 committed the red half of the mutation witness」），所以**最终 HEAD 是修好的版本**（已核对：`severity = "MAJOR"` 与 `#222` 注释都在 HEAD 里，见 `git show HEAD:agent/nodes/review_court.py`）。对方那两条提交还顺带扫进了他们自己的 `evidence/capsule_replay.py` 改动——那是他们的事，未动。
 
 **这条与项目记忆里"绝不 `git commit -a`"是同一件事，但暴露了新的一面**：变异臂运行期间，工作树里**必然**存在"故意改坏"的源文件。任何在此时 `add -A` / `commit -a` 的并发会话都会把**红的半边**提交进去。本号的 `_arm222.py` 已经做到每臂从字节快照重基 + 终态 sha256 核验（所以**不会自己留下残留**），但它**无法阻止别人在窗口内提交**。加固方向：把变异施加在**平面副本**上（`git archive HEAD | tar -x -C <平面>` + 独立目录跑 pytest），而不是工作树——这与项目既有的"平面门跑法"同源；`git stash` 在本机**禁用**（safe-delete 守卫），不能作为隔离手段。
+
+## #223 未钉指标下限的 PASS 不再裸打印：默认 floors 全为 None 时，「样本充足」与「质量合格」在 CLI / sidecar / HTML 报告三面都分得开
+
+**起点（#222 那次读数里的第三处，与前两处同源）。** 第一次端到端评测的干净读数里，`Acceptance: PASS` 与 `Recall: 66.7%`、`Severity agreement: 0.0%` **并排**出现，且 `EVAL_EXIT=0`；而同一次运行的 CI 会 grep 同一份日志里的 `Recall: 100.0%`——**工具自己的裁决说 PASS，它自己的门说不过**，两者矛盾且矛盾**没有门**（这条已写进 #222 的记录）。
+
+**根因（三面各缺一块）。** ① `AcceptanceCriteria.default()` 的三个指标下限**全是 `None`**——这是**有意**的，模块 docstring 说得很清楚：在维护者从全量跑钉出数之前，"默认通过 recall >= 0"或"在未设下限上失败"**本身**就是一道不诚实的门。于是 PASS 只断言「样本够大」，**一个字都没说 recall/precision**。② CLI 只在 `status != PASS` 时才打印"样本不足"提示，**PASS 时什么都不说** ⇒ 裸 `PASS` 被读成"质量合格"。③ **HTML 报告根本不写裁决**——它只画 Precision/Recall/F1/Detected/False Positives/Severity 六张卡（`render_eval_report(results)` 连 `acceptance` 都不接收），而报告**正是 CI 上传的产物**：读者只看报告时，连"这轮判了什么"都看不到。
+
+**修法（钉表面，不钉阈值）。**
+- `evidence/acceptance.py`：新增 `AcceptanceResult.floors_pinned`（三个下限**任一非 None** 即 True）与纯函数 `acceptance_verdict_text(result)`——非 PASS 原样返回；PASS 且**有**下限 → 裸 `PASS`；PASS 且**无**下限 → `PASS（仅样本充足：未设 recall/precision/f1 下限）`。`to_dict()` 增 `floors_pinned`，sidecar 消费者能自己分辨两种 PASS。
+- `cli/specproof/commands/eval.py`：摘要行改印 `acceptance_verdict_text(acceptance)`；`render_eval_report(results, acceptance)` 把裁决传进报告。
+- `evidence/report.py`：`render_eval_report` 增可选第二参 `acceptance`（**不传则输出与旧版一致**）；传入时加一张 **Acceptance** 卡，并在无下限的 PASS 下加一句范围注记（"Acceptance PASS 仅表示样本充足…"）；有理由（INSUFFICIENT/FAIL）时把理由列出来。
+
+**门（7 案，纯函数，无管线/无 Docker/无模型）。** 新文件 `tests/unit/test_unpinned_acceptance_pass_is_labelled.py`：无下限 PASS 必须带限定语且**不等于**裸 `PASS`；**有下限的 PASS 必须仍是裸 `PASS`**（两种 PASS 不许被读成同一件事）；INSUFFICIENT/FAIL 不加限定语；sidecar 带 `floors_pinned`；**CLI 摘要行的插值必须是 `acceptance_verdict_text(acceptance)`**（正则读那一行，不是子串搜索）；报告在无下限 PASS 下同时出现 Acceptance 卡与注记、在有下限 PASS 下**只有卡没有注记**；不传 acceptance 时报告仍渲染（向后兼容）。
+
+**门证（全部实读）。** 新门 `7 passed`；`ruff` 四文件 All checks passed；`mypy` Success（首跑 8 个 `no-untyped-call`，给两个 helper 补 `-> AcceptanceResult` 后清零——**补注解的提交在本号之后**）。
+
+**变异臂（预测先写后跑，脚本 `_arm223.py`，6 臂；每臂从字节快照重基 + 终态 sha256 核验）。**
+
+| 臂 | 变异 | 预测 | 实测 |
+|---|---|---|---|
+| D0 | 未变异基线 | 0 红 / 7（绿对照） | **MATCHED 0 红 / 7** ✅ |
+| D1 | **把原缺陷放回去**（`acceptance_verdict_text` 永远返回裸 status） | 2 红 = 标注案 + 报告范围案 | **MISMATCH 1 红**（只有标注案）——见下 |
+| D2 | CLI 改回直接印 `acceptance.status` | 1 红 = CLI 接线探针 | **MATCHED 1 红** ✅ |
+| D3 | 报告去掉 Acceptance 卡 | 1 红 = 报告范围案 | **MATCHED 1 红** ✅ |
+| D4 | `floors_pinned` 恒 False（有下限的 PASS 也带限定语） | 3 红 = 裸 PASS 案 + 报告范围案 + sidecar 案 | **MATCHED 3 红，逐名相符** ✅ |
+| D5 | sidecar 去掉 `floors_pinned` | 1 红 = sidecar 案 | **MATCHED 1 红** ✅ |
+
+（脚本末行 `final sha256 == original: True`——acceptance.py / eval.py / report.py 逐字节还原。）
+
+**D1 的预测错，原因值得记：报告的注记不看 `acceptance_verdict_text`，看 `floors_pinned`。** 我预测"让函数永远返回裸 status"会同时打红报告案，实测没有——因为报告是从 `floors_pinned` 这个**谓词**自己决定要不要加注记的。两处**不共用措辞**（报告把「样本充足」加粗，CLI 用括号），但**共用同一个事实**（`floors_pinned`），所以它们**不可能在事实层面互相矛盾**，只可能在措辞上不同。这不是洞，是分工；但它说明"改一处会同时打红两处"的直觉在这里不成立。
+
+**⚠️ 另一条车道从另一面独立修了同一个缺陷（#225），必须一起记。** 我做完本号后才发现工作树里的 `AcceptanceCriteria` 已被扩展：新增 **`max_false_positives`**（"no false positives" 表达不成 `min_` 下限，所以它是唯一的**天花板**），并且**负例为零的集合判 INSUFFICIENT 且理由不再点名一次没发生的越界**（提交 `e9f9354`「#225 false-positive ceiling over a negative-free set is INSUFFICIENT…」），对方的 docstring 里写的动机与我的**逐字相同**（`eval --gate` 在 Recall 66.7% 旁边印 PASS 并 exit 0）。两条修法**互补**：**我钉表面**（两种 PASS 在三个面上分得开），**他们给门一个真能执行的下限**。对方还顺手把我 `floors_pinned` 的判据元组补上了 `max_false_positives`——**这是对的**（天花板也是下限的一种），我没有改回去。本节的臂是在**他们那次扩展之后**跑的（D4 的锚点因此改写成不依赖元组内容），所以读数是当下的代码。
+
+**并发事实（本号全程）**：我的 #223 改动**被另一条车道提交了**（`7e70587`，消息把我的改动描述得准确：CLI 括号 + HTML 报告卡片与注记）。**教训：不要假设"工作树里有我的改动"——先查 `git log -- <file>`**。本号的补注解提交与本节记录只碰我自己的两个文件。
+
+**诚实边界。** ① 本号**没有**钉任何阈值——下限仍是 `None`。要"PASS 等于质量合格"就得先有维护者从全量跑钉出的数，那是产品决策，不是本号。② 报告与 CLI 的**措辞**是两份（加粗 vs 括号），共用 `floors_pinned` 这一个事实源；改措辞不会互相打红，改事实会。③ 报告只在调用方**传入** `acceptance` 时才出现裁决行；其它 `render_eval_report` 调用者输出与旧版逐字节一致（门里有向后兼容案）。④ 本号不新增指标、不动 CI（CI 仍用那两条 grep；#221 已把它们与摘要格式绑定）。

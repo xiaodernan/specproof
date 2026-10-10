@@ -30,6 +30,7 @@ from pathlib import Path
 from evidence.acceptance import (
     PASS,
     AcceptanceCriteria,
+    AcceptanceResult,
     MetricCounts,
     acceptance_verdict_text,
     evaluate,
@@ -54,11 +55,11 @@ def _counts() -> MetricCounts:
     )
 
 
-def _unpinned_pass():
+def _unpinned_pass() -> AcceptanceResult:
     return evaluate(_counts(), AcceptanceCriteria(min_positive_cases=3, min_negative_cases=1))
 
 
-def _pinned_pass():
+def _pinned_pass() -> AcceptanceResult:
     """A PASS that DID have a floor pinned: recall 66.7% clears a 50% floor."""
     return evaluate(
         _counts(),
