@@ -185,7 +185,7 @@ jobs:
           # tool's own renderer by test_ci_acceptance_greps_match_the_eval_summary).
           python -m cli.specproof.main eval \
             --cases eval-subset --repo . --no-llm \
-            --gate --min-recall 100 --max-false-positives 0 \
+            --gate --min-recall 100 --min-precision 100 --max-false-positives 0 \
             --min-positive-cases 3 --min-negative-cases 1 \
             --output docs/eval/eval-report.html | tee eval-run.log
       # Quoted: an unquoted scalar cannot contain ": ", and this file failed to
@@ -195,6 +195,17 @@ jobs:
         run: |
           grep -q "Recall:             100.0%" eval-run.log \
             || (echo "Recall gate FAILED" && exit 1)
+      - name: "Gate: precision must be 100%"
+        # #230/#35.5-2: precision was the one acceptance number this workflow
+        # never asserted -- recall and false positives both had a floor, so a
+        # run could invent findings on negative cases and still exit 0. The
+        # floor is new; the value is not a guess. All three subset cases were
+        # measured at Precision 100.0% / False positives 0 in committed logs
+        # (case-01, case-17 in docs/eval/c1-rerun.log; case-56 in c3-rerun.log),
+        # and all five 20-case segments covering the full 100 read the same.
+        run: |
+          grep -q "Precision:          100.0%" eval-run.log \
+            || (echo "Precision gate FAILED" && exit 1)
       - name: "Gate: zero false positives"
         run: |
           grep -q "False positives:    0" eval-run.log \

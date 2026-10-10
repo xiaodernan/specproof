@@ -115,7 +115,7 @@
 - [ ] **3.4 开发与验收链路缝合**：一次 AI 开发完成后可"就地发起独立验收"，产物与结论互相跳转。
 
 ### Phase 4 —— 可信度工程与评测（P2）
-- [ ] **4.1 Golden-case 回归门禁**：每次改动跑 Recall/Precision 阈值，跌破即红。
+- [x] **4.1 Golden-case 回归门禁**：每次改动跑 Recall/Precision 阈值，跌破即红。每次 push 跑 eval-subset（case-01/17/56）钉 `--min-recall 100 --min-precision 100 --max-false-positives 0`，夜间跑全部 100 例同口径；三项各有工具自己的 FAIL 原因，再各配一条 grep 第二断言。门：`test_ci_floors_reach_the_tool.py` + `test_ci_acceptance_greps_match_the_eval_summary.py`（#231 收口）。
 - [ ] **4.2 反例生成质量**：counterexample 从"能编译"到"真能复现回归"。
 - [x] **4.3 Merge Certificate 签名**：Ed25519 已落地 —— `evidence/signing.py` 签发/验签、`craft/accept.py` fail-closed 接线（无密钥即 ERROR）、`specproof verify` 对证书与拒绝通知双签，SHA-256 只是被签名的 canonical digest 而非占位签名。剩 KMS/HSM 密钥托管 ⏳。门：`tests/unit/test_signing_docs_do_not_claim_it_is_unimplemented.py`。
 
@@ -2193,10 +2193,12 @@ CLI 侧另证：`--max-false-positives notanint` 被拒绝（exit ≠ 0），`--
 
 1. `--max-false-positives` 是**绝对计数**，不是比率；小负例集（如 2 个负例
    容不下 1 个误报的 50%）与 200 个负例同样以"0"为界，调门槛时尚需手算。
-2. grep 那层第二断言目前只覆盖 `Recall:` 与 `False positives:`；
-   `--min-precision` / `--min-f1` 已能传但 workflow 未钉，也就没有对应的 grep
-   绑定（`test_ci_floors_reach_the_tool.py` 只要求**被 grep 的指标**必须有对应
-   flag，不要求每个 flag 都被 grep）。
+2. ~~grep 那层第二断言目前只覆盖 `Recall:` 与 `False positives:`~~ **precision
+   已于 #231 钉上**（两个 workflow 的 `--min-precision 100` + 各自的 grep）。
+   `--min-f1` 仍未钉，这是**有意**的：F1 由 recall 与 precision 唯一决定，两者都
+   钉到 100 时 F1 不可能是别的值，再钉一条只会让失败信息从"P/F 谁掉了"退化成
+   "F1 掉了"。（`test_ci_floors_reach_the_tool.py` 只要求**被 grep 的指标**必须有
+   对应 flag，不要求每个 flag 都被 grep。）
 3. `scripts/run_offline_unit_gate.py` 是本地门跑法的收口，未接进 CI（CI 的
    `-m` 表达式写在 YAML 里，不存在 PowerShell 拆参数问题）。
 
@@ -2283,4 +2285,55 @@ FIX-14 恰恰要求假句留着（删掉它等于把这次复核的证据一起�
    这是 4.3 勾掉后留下的真缺口，已写进该行；
 2. 门只钉"这两份台账不得说签名不存在"，**不**钉"其他文档必须提到签名"；
    CLAUDE.md 删掉 Ed25519 那句会红，但 `docs/adr/` 等处不受约束。
+
+
+## 37. #231：precision 是唯一没人断言过的验收数字（2026-10-10）
+
+### 37.1 缺口
+
+#222/#224/#230 把 recall 与误报上限交给了工具，两个 workflow 都钉了
+`--min-recall 100 --max-false-positives 0`，各自也都有 grep 第二断言。
+**precision 从头到尾没有被任何一方断言** —— 既没有 floor，也没有 grep。于是一次在
+正例上多报的运行：recall 照旧 100%、`False positives` 照旧 0（那串数字只数**负例**上
+的已确认发现），precision 掉到 50%，而两个 gate 全绿。同一个病在 #224 只修了一半：
+那批把"上限"补上了，没补"下限里的这一个"。
+
+### 37.2 值不是拍的
+
+三个 eval-subset 案例都在已提交的分段日志里量过 `Precision 100.0%` /
+`False positives 0`：
+
+- case-01、case-17 → `docs/eval/c1-rerun.log`
+- case-56 → `docs/eval/c3-rerun.log`
+
+覆盖全部 100 例的五段（c1 / c2 / c3 / c4 / rem3）逐段同为 P=100.0% R=100.0% FP=0。
+
+floor 是**新加**的，100 这个数不是猜的。反过来这也让 floor 自证：若当前代码的
+precision 已经掉下去，下一次 push 的 CI 会自己红并点名 precision —— 这正是把
+"没人断言的假设"变成"有人断言的事实"的意义。
+
+### 37.3 改了什么
+
+- `ci.yml`: eval-subset 加 `--min-precision 100`；新增
+  `Gate: precision must be 100%` 一步。间距逐字对齐工具自己的输出
+  （`'Precision:          100.0%'`），与
+  `test_ci_acceptance_greps_match_the_eval_summary.py` 约束的是同一份渲染；
+- `nightly-eval.yml`: 全量 100 例同加 floor，`Alert on regression` 改成三项与门；
+- 台账：**4.1 勾掉** —— 它要的"每次改动跑 Recall/Precision 阈值，跌破即红"到此才
+  真的成立；§35.5 第 2 条划掉，并写下 F1 **故意不钉**的理由（F1 由 recall 与
+  precision 唯一决定，两者都钉到 100 时 F1 不可能是别的值，再钉一条只会让失败
+  信息从"P/F 谁掉了"退化成"F1 掉了"）。
+
+### 37.4 门证
+
+`test_ci_floors_reach_the_tool.py` + `test_ci_acceptance_greps_match_the_eval_summary.py`
+合跑 **5 passed**；两个 workflow `yaml.safe_load` 均通过（这个文件历史上就因 YAML
+写错静默 0s 过一次，见 `ci.yml` 内注释，所以每次改动都重新 parse 一遍）。
+
+### 37.5 仍未做（诚实边界）
+
+1. **floor 的值依赖已提交日志，不是本次重跑。** 真值以 CI 下一次运行为准；若红了，
+   那是真发现，不是门写错了。
+2. eval-subset 只有 3 例，precision 在小样本上波动大；全量 100 例只有夜间那一跑，
+   没有 PR 级的快速全量入口。
 

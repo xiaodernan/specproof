@@ -61,7 +61,7 @@ jobs:
           # shipped default pins no floors) beside a grep that contradicts it.
           python -m cli.specproof.main eval \
             --cases golden-cases --repo . --no-llm \
-            --gate --min-recall 100 --max-false-positives 0 \
+            --gate --min-recall 100 --min-precision 100 --max-false-positives 0 \
             --output docs/eval/eval-report.html | tee eval-run.log
       - name: Publish eval artifact
         uses: actions/upload-artifact@v4
@@ -69,7 +69,12 @@ jobs:
           name: nightly-eval-report
           path: docs/eval/eval-report.html
       - name: Alert on regression (fails the run so the schedule surfaces it)
+        # Precision joins here for the same reason it joined ci.yml (#230):
+        # recall and false positives were asserted while precision was not,
+        # so inventing findings on negative cases failed one gate and not the
+        # other. Measured 100.0% in every committed segment log.
         run: |
           grep -q "Recall:             100.0%" eval-run.log \
+            && grep -q "Precision:          100.0%" eval-run.log \
             && grep -q "False positives:    0" eval-run.log \
             || (echo "NIGHTLY EVAL REGRESSION" && exit 1)
