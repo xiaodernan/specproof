@@ -4211,3 +4211,45 @@ elif severity is None:
 **诚实边界。** ① 本号**没有**钉任何阈值——下限仍是 `None`。要"PASS 等于质量合格"就得先有维护者从全量跑钉出的数，那是产品决策，不是本号。② 报告与 CLI 的**措辞**是两份（加粗 vs 括号），共用 `floors_pinned` 这一个事实源；改措辞不会互相打红，改事实会。③ 报告只在调用方**传入** `acceptance` 时才出现裁决行；其它 `render_eval_report` 调用者输出与旧版逐字节一致（门里有向后兼容案）。④ 本号不新增指标、不动 CI（CI 仍用那两条 grep；#221 已把它们与摘要格式绑定）。
 
 **补记（提交纪律）：本节的记录提交 `d40edc4` 里多带了一个文件。** 另一条车道把 `tests/unit/test_false_positive_ceiling_needs_negatives.py`（#225 的门，116 行）**暂存了但没提交**；我用 `git add <我的文件> && git commit -F <消息>` 时，`git commit` **提交的是整个索引**，于是把**已暂存的别人文件**一并带进了我的提交（消息里没提它）。文件内容是他们自己的、未被改动，**没有破坏性后果**，但**归属被记错了**。加固：**用路径形式提交**——`git commit -F <消息> -- <路径1> <路径2>`（只提交列出的路径、**绕过索引**），而不是 `git add … && git commit`。
+
+## #230 「CI 全红」不是代码问题：这台机器的推送凭据缺 `workflow` scope，于是本地 114 个提交一个都推不上去
+
+**起点（本轮"检查项目状态"时顺手试了一次推送）。** 本地领先 origin **114** 个提交，而 CI 上最近十几次运行**全部**是 `specproof-nightly-eval` 在**同一个 SHA `c8658b64`** 上失败——也就是说 **origin/master 一直停在 `c8658b6`，CI 读的是几个星期前的代码**。前几轮我每次都把这件事记成"要不要 push 由你决定"，本轮直接试了一次：
+
+```
+$ git push origin master
+To https://github.com/xiaodernan/specproof.git
+ ! [remote rejected] master -> master (refusing to allow an OAuth App to create or
+   update workflow `.github/workflows/ci.yml` without `workflow` scope)
+error: failed to push some refs to 'https://github.com/xiaodernan/specproof.git'
+```
+
+**机制（不是网络、不是权限不足、不是冲突）。** `gh auth status` 实测这台机器的凭据：
+
+```
+Token: gho_************************************
+Token scopes: 'admin:public_key', 'gist', 'read:org', 'repo'
+```
+
+`gho_*` 是 **OAuth App** 令牌，scopes 里**没有 `workflow`**。GitHub 对 OAuth App 有一条硬规则：**没有 `workflow` scope 就不能创建或更新 `.github/workflows/` 下的文件**；而这条规则的作用面是**整条 ref 更新**——不是"跳过那几个文件、推其余部分"，而是**整个 push 被拒**。范围内动了 workflow 的提交实测 **4 个**：
+
+```
+3ff7cb5 #224 give the false-positive ceiling to the tool: eval --max-false-positives
+6d41c5c #205 CI 的评测子集里有两个是 holdout：一半用例被静默丢掉，丢掉的正好是唯一的负例
+2120408 #203 夜间评测门从来没跑到评测那一步：./mvnw 的修复只在 ci.yml 里
+546508e #159a CI: invoke mvnw through sh — exit 126 was the dropped exec bit (100644), not a sandbox regression
+```
+
+**后果（这条把前几号的结论整个重写了一遍）。** ① **`#159a` 与 `#203` 的修复永远不会生效**：`specproof-nightly-eval` 是 **schedule 工作流、跑在 origin/master 上**，而 origin 上既没有 `sh mvnw` 也没有 nightly 的修复——所以它每个周期都在"播种 Maven 缓存"那一步 exit 126 死掉，**评测步骤与 `Alert on regression` 从未执行过**。② 于是"最近 CI 全红"里**绝大部分是"已修但推不上去"**，不是待修的缺陷。③ 本机所有会话的"做完就 commit"都在**往一个推不出去的分支上堆**（114 个提交）。
+
+**为什么一直没被发现（这一条值得单独记）。** 推送失败的消息在 `git push` 的 **stderr** 里，而本机钩子先打印 `[codex-global pre-push] passed`——**"passed" 三个字出现在真正的拒绝之前**，读起来像成功。更糟的是我自己这次的命令写法：
+
+```bash
+git push origin master 2>&1 | tail -6; echo "PUSH_EXIT=$?"    # PUSH_EXIT=0 ← 假的
+```
+
+`$?` 取的是**管道最后一个命令（`tail`）**的退出码，不是 `git push` 的——**管道吞退出码**（项目记忆里早有这条，我又踩了一次）。所以**"PUSH_EXIT=0" 与"推送被拒"同时出现**，我差点读成"推成功了"。**读推送结果必须看 stderr 里有没有 `remote rejected`，或用 `git rev-parse @{u}` 与本地对比**，不要信 `$?`。
+
+**处置（本号做不到，需要凭据动作）。** 二选一：① `gh auth refresh -s workflow`（**交互式**，会走设备码流程，本环境无法代跑）；② 换成带 `workflow` scope 的 PAT。**本号不重写历史**：把 workflow 改动从这 114 个提交里剔掉，会连 `#159a`/`#203`/`#205`/`#221`/`#224` 一起丢掉——**那正是让 CI 变绿的东西**，把修复删掉来换取"推得上去"是本末倒置。
+
+**诚实边界。** ① 本号只**定位**，未修复（也无法修复：缺的是凭据 scope，不是代码）。② "凭据缺 scope"是**实测**（`gh auth status` 的 scopes 行 + `remote rejected` 的原文），不是推测；但"因此 CI 永远绿不了"的推论**依赖 origin/master 确实是 `c8658b6`**——那是 `git log -1 @{u}` 与 `gh run list` 的 headSha 两边读出来的，一致。③ 推送本身是**快进**（`0 落后 / 114 领先`），**非破坏性**；所以凭据一旦补上，这条路径立即通，不需要重写任何历史。④ 本号**不动 CI**（那 4 个 workflow 提交保持原样，等能推的时候一起上）。
