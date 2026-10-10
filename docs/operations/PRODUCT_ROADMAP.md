@@ -2337,3 +2337,50 @@ precision 已经掉下去，下一次 push 的 CI 会自己红并点名 precisio
 2. eval-subset 只有 3 例，precision 在小样本上波动大；全量 100 例只有夜间那一跑，
    没有 PR 级的快速全量入口。
 
+## 38. Gradle 离线沙箱：先实测，再写适配器（2026-10-11）
+
+§2.6 把 Java/Gradle 列在 2.1 与 2.6 的多语言 planned 行里，`experiments/adapters.py`
+的 Gradle 是 raise 的占位。本轮**没写适配器**，先把一个没答案的设计问题实测掉，
+因为下面第一条若猜错，写出来的适配器在真实沙箱里必然不可用。
+
+### 38.1 实测结论（`gradle:8.10-jdk21`，隔离块照抄 `sandbox/runner.py`）
+
+| 探针 | 配置 | 结果 |
+|---|---|---|
+| `offline` | uid 1000 + 全套隔离 + `--offline`，`GRADLE_USER_HOME=/gradle-home` 未挂载 | `Failed to load native library 'libnative-platform.so'` |
+| `root` | **去掉 `--user`**（其余不变）+ `--offline` | `fileHashes.lock (Permission denied)` |
+| `home` | uid 1000 + 全套隔离 + `--offline` + `/gradle-home` 可写 | `BUILD FAILED`，仅因 `junit:junit:4.13.2` 未进缓存 |
+| `seed` | 同 `home` 但**放开网络** | `BUILD SUCCESSFUL`，缓存 69 个文件（含 `caches/modules-2`）|
+| `home`（重跑）| 回到 `--network none`，复用上一步缓存 | **`BUILD SUCCESSFUL`，EXIT=0** |
+
+### 38.2 三个不可靠的先验，逐一被推翻
+
+1. **"root 能兜底" 是错的。** `--cap-drop ALL` 会摘掉 `CAP_DAC_OVERRIDE`，于是 root
+   也受文件属主约束：工作区挂载属 uid 1000，root 写 `.gradle/fileHashes.lock` 同样
+   Permission denied。降权 + 丢 capability 是叠加的，不是二选一。
+2. **"和 Maven 同形" 是错的。** Maven 只往 `~/.m2` 写仓库；Gradle 还要向
+   `GRADLE_USER_HOME` 解压 `libnative-platform.so`，所以**必须有第三个可写挂载**。
+   容器内默认 `$HOME` 不可写，`--tmpfs` 只救 `/tmp`，都救不到它。
+3. **播种必须原样保留 `-e GRADLE_USER_HOME`。** 首版 `seed` 探针漏了这个环境变量，
+   Gradle 于是往镜像自带 `$HOME` 下载，随 `--rm` 一起丢弃——缓存是空的，但
+   `BUILD SUCCESSFUL` 照样打印（任务 `UP-TO-DATE`），一次**假绿**。这就是 §22.4
+   要求探针带"锚点计数 + 字节还原复核"的原因：exit code 会骗人，缓存计数不会。
+
+### 38.3 留给适配器的形状（下一步，尚未开工）
+
+- 挂载三处可写：`build/`、`.gradle/`、`GRADLE_USER_HOME`（第三个是 Gradle 独有）。
+- 播种期放开网络并保留 `GRADLE_USER_HOME` 指向同一挂载，跑完**按文件数断言**
+  缓存非空，不能只看 exit code。
+- 判"是否可构建"沿用 §27 的 `[build-system].requires` 逐字读取思路，对应
+  Gradle wrapper（`gradle/wrapper/gradle-wrapper.properties` 的版本号）。
+
+### 38.4 诚实边界
+
+- 探针在 `.scratch/`，本轮**未提交**（并行会话在树上，`sandbox/runner.py` 等 16 个
+  文件是别人的在飞改动，未冒领）。
+- `gradle:latest` 是首版探针参数顺序写错（把命令放在了镜像名之前）导致误拉的，
+  已 `docker rmi`；`gradle:8.10-jdk21` 保留。
+- 只验了最小单模块 `gradle init` 工程，未验多模块、wrapper 下载、`--offline`
+  下的插件解析。
+
+
