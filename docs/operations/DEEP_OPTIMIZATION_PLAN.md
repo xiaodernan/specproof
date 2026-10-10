@@ -4253,3 +4253,34 @@ git push origin master 2>&1 | tail -6; echo "PUSH_EXIT=$?"    # PUSH_EXIT=0 ← 
 **处置（本号做不到，需要凭据动作）。** 二选一：① `gh auth refresh -s workflow`（**交互式**，会走设备码流程，本环境无法代跑）；② 换成带 `workflow` scope 的 PAT。**本号不重写历史**：把 workflow 改动从这 114 个提交里剔掉，会连 `#159a`/`#203`/`#205`/`#221`/`#224` 一起丢掉——**那正是让 CI 变绿的东西**，把修复删掉来换取"推得上去"是本末倒置。
 
 **诚实边界。** ① 本号只**定位**，未修复（也无法修复：缺的是凭据 scope，不是代码）。② "凭据缺 scope"是**实测**（`gh auth status` 的 scopes 行 + `remote rejected` 的原文），不是推测；但"因此 CI 永远绿不了"的推论**依赖 origin/master 确实是 `c8658b6`**——那是 `git log -1 @{u}` 与 `gh run list` 的 headSha 两边读出来的，一致。③ 推送本身是**快进**（`0 落后 / 114 领先`），**非破坏性**；所以凭据一旦补上，这条路径立即通，不需要重写任何历史。④ 本号**不动 CI**（那 4 个 workflow 提交保持原样，等能推的时候一起上）。
+
+## #231 差分证据在 case-17 上根本不是缺陷信号：生成的测试**两侧都加载不了 Spring 上下文**，而法庭把两条只差一个对象 hash 的基础设施报错当成了「Head 独有行为差异」
+
+**起点（#222 记录留下的第一号候选：case-17 为什么没为 `UNIQUE-01` 产出 finding）。** 先把已排除的写清楚：**规则解析器是好的**——直接喂 `_parse_requirements`，实测 `case-17 → ['UNIQUE-01']`、`case-21 → ['AUTH-01']`、`case-56 → ['CACHE-01']`、`case-12 → []`，全对。所以问题不在契约编译。跑 `_diagcase.py 17`（`build_phase0_graph().invoke(initial_state(..., depth="FAST"))`，**15 分 35 秒**）拿到状态：
+
+```
+static_findings: 0 []
+confirmed_findings: 2
+unverified: 0
+diff_results: 4
+```
+
+四条记录**全是** `verdict: AMBIGUOUS`、`base_exit_code: 1`、`head_exit_code: 1`，而 `base_output` / `head_output` 的正文是同一类东西：
+
+```
+type=java.lang.IllegalStateException | message=Failed to load ApplicationContext for
+[WebMergedContextConfiguration@19fce226 testClass = com.specproof.demo.SpecProofGeneratedTest ...]   ← base
+[WebMergedContextConfiguration@5242e9f7 testClass = com.specproof.demo.SpecProofGeneratedTest ...]   ← head
+```
+
+**根因（两段合起来才成立）。** ① 生成的反例测试 `SpecProofGeneratedTest` **两侧都起不来 Spring 上下文**（`Failed to load ApplicationContext`），所以 base 与 head **都**以 exit 1 收场、都落进分裂差分的"双侧都失败"分支（`run_differential.py:452-465`，正是 #222 里那条**故意不发 severity** 的路径）⇒ 四条记录全是 `AMBIGUOUS`。② 该分支把 base/head 的输出尾巴交给法庭比较签名；`_failure_signature`（`policy.py:166-180`）保留**带失败标记的行**、归一化空白、取前 8 行拼起来——**两条消息里那个 `WebMergedContextConfiguration@<hash>` 是不同的**（`19fce226` vs `5242e9f7`），于是签名不同 ⇒ 信号 `failure_signature_differs` ⇒ `head_only_difference=True` ⇒ **既有缺陷规则判"这不是既有缺陷"** ⇒ **确认**一条 finding。
+
+**也就是说：法庭"Head 独有行为差异"的证据，是一个对象 hash。** 差分没有测到任何代码行为——它测到的是**同一个基础设施故障在两份 JVM 里的两种打印**。
+
+**后果（三件，前两件是本号新量出来的）。** ① **旗舰证据链在本环境下是坏的**：`differential_test` / `base_pass_head_fail` 这两类证据（case-17 的 ground truth 期望正是它们）**产不出来**，因为生成测试连上下文都加载不了；case-17 的召回漏报由此而来。② **归因规则量错了东西**：`failure_signature_differs` 的**承诺**是"Head 的失败与 Base 的失败不同 ⇒ Head 引入了新行为"；实测它能被**基础设施报错里的一个 hash** 触发 ⇒ 这条信号会把环境噪声读成产品缺陷（**假归因**）。③ 与 #222 串起来看：AMBIGUOUS ⇒ severity `None` ⇒ 占位档（#222 前是 `MINOR`、之后是 `MAJOR`）——**case-21/case-56 的"检出但判 MINOR"与 case-17 的"确认却量不出行为"是同一个根因的两个面**。
+
+**⚠️ 一处我没能解决的矛盾（不当结论）。** 早先那次四例评测报的是 `case-17: [MISS] matched 0 finding(s), contracts_found: []`，而本号这次探针在**同一份状态构造**下看到 **2 条 `confirmed_findings`（contract_id 都是 `UNIQUE-01`）**。我逐行对过两边的 state 构造（`eval.py:208-217` vs `_diagcase.py:22-28`：`app_dir="demo/spring-backend"`、`depth="FAST"`、`use_llm=False` 都一致），**唯一看得见的差别是 `repo_resolved = Path(repo).resolve()` 而我用的是未 resolve 的路径串**。**我没有验证这是不是原因**，所以：**不能声称"评测现在会把 case-17 报成 PASS"**——要下这个结论必须再跑一次评测（四例 41 分钟 / 单例约 17 分钟）。
+
+**下一号的第一问（已缩小到一处）。** **为什么 `SpecProofGeneratedTest` 两侧都 `Failed to load ApplicationContext`**——是生成测试缺 `@SpringBootTest` 所需的上下文（数据库/端口/配置），还是本机缺依赖服务？这一条不解决，case-17 这类"只有执行才看得见"的回归**在本环境永远测不出来**，而且它会持续制造 AMBIGUOUS 噪声去喂那条已经证明会被 hash 触发的归因规则。
+
+**诚实边界。** ① 本号只**定位**，未改任何代码。② "生成测试两侧都加载不了上下文"是**实测**（四条记录里 base/head 的正文原文），"hash 差异触发归因"是**读码 + 实测输出一致**推出的机制（`_failure_signature` 的实现在 `policy.py:166-180`，我读过）；但"**所有** golden case 都如此"**没量**——我只跑了 case-17，不推广。③ 上面那处矛盾**登记为待核**，不写成结论。④ 本号不动 `_failure_signature`：把 hash 从签名里剔掉是**可能的修法之一**，但在弄清"上下文为什么加载不了"之前动手，会把"基础设施噪声"换成"看不见的噪声"，不是修好。
