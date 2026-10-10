@@ -2199,3 +2199,88 @@ CLI 侧另证：`--max-false-positives notanint` 被拒绝（exit ≠ 0），`--
    flag，不要求每个 flag 都被 grep）。
 3. `scripts/run_offline_unit_gate.py` 是本地门跑法的收口，未接进 CI（CI 的
    `-m` 表达式写在 YAML 里，不存在 PowerShell 拆参数问题）。
+
+## 36. #230：Ed25519 被两份台账说成"还没做"，而代码早就在做（2026-10-10）
+
+### 36.1 假句（两处，方向一致：都说签名能力不存在）
+
+- **假句** `CLAUDE.md`「Phase 0 已知限制」：「Merge Certificate 使用 SHA-256 哈希，Ed25519 签名计划 Phase 1+」；
+- **假句** `PRODUCT_ROADMAP.md` 4.3（**未勾选**）：「Ed25519（现为 SHA-256 哈希占位）」。
+
+两处都不是笔误而是过期：4.3 的勾选框自写下没人回来改过，而 P5 早在
+ADR-011 就被接受。**CLAUDE.md 是读者拿到的第一份文件** —— 照它办事的人会
+以为证书没有签名能力，于是要么重造一遍、要么干脆不去验签。这与 §35.5 要
+修的是同一类病：台账说的和工具做的不是一回事。
+
+### 36.2 代码实际是什么（逐条核对源码，非转述）
+
+- `evidence/signing.py`: `sign_statement` / `verify_statement` /
+  `sign_json_document` / `generate_key_hex`；密钥取
+  `SPECPROOF_SIGNING_KEY`(`_FILE`) 的 32 字节 hex seed，取不到就抛
+  `SigningError` —— **fail-closed，绝不静默签出未签名产物**；
+- `craft/accept.py:44` import signer，`signing_unavailable` /
+  `signing_failed` / `signing_invalid_statement` 三分支都是 ERROR；
+- `cli/specproof/commands/verify.py:103 _maybe_sign_document` 对**证书与拒绝
+  通知都签**；
+- `plugins/signing.py`（§6.10 清单签名）用注入的 verifier，缺密钥 →
+  UNSIGNED 而非 INVALID（"答不出"不等于"不通过"）；
+- 测试：`tests/unit/test_signing.py` 5 条（往返/篡改/错钥/缺钥/坏长度）、
+  `test_craft_accept.py:418` 用真公钥验真签名。
+
+**SHA-256 在这里是被签名的 canonical digest，不是签名本身** —— 台账把"先哈希
+再签"读成了"只有哈希"。
+
+### 36.3 改了什么
+
+两处改述真实状态，**并保留真正剩下的 KMS/HSM 密钥托管缺口**。4.3 勾掉，但
+强制点名剩余缺口 —— 否则 `[x]` 会被读成"签名这件事全做完了"（这一条有门守，
+见下）。
+
+### 36.4 门
+
+`tests/unit/test_signing_docs_do_not_claim_it_is_unimplemented.py`（4 测），
+三个方向都钉：
+
+1. `test_the_documented_capability_really_round_trips` —— **锚**：真跑一次
+   签发+验签。签名能力若消失这条先红，两条台账测试跟着红，一次运行讲完整个
+   故事，而不是一条孤立的文档断言红得莫名其妙；
+2. `test_the_accept_path_is_wired_to_signing` —— 接线（import +
+   `signing_unavailable` 分支）；
+3/4. 两条台账方向 —— 假句本身在页上即红。断言查的是**精确措辞**，不是"占位"
+   二字的任意出现：新句子里的"而非占位签名"正是在否认那句假话，让它把门判红
+   就等于门在惩罚诚实的改写。
+
+**门证：5/5 变异逐条 RED，红集合与预测完全一致**（`.scratch/arm230_signing_docs.py`）：
+
+| 变异 | 红 |
+|---|---|
+| A1 CLAUDE 改回假句"Ed25519 签名计划 Phase 1+" | 1：`test_claude_md_does_not_describe_the_certificate_as_unsigned` |
+| A2 4.3 重开为占位 | 1：`test_the_roadmap_does_not_call_ed25519_a_placeholder` |
+| A3 4.3 勾掉但不点名剩余缺口 | 1：同上（"必须点名缺口"确是承重断言） |
+| A4 `accept.py` 摘掉 signer import | 1：`test_the_accept_path_is_wired_to_signing` |
+| A5 `verify_statement` 恒 False | **只**红 1 条：锚 |
+
+基线绿，五次按字节还原，四个目标文件跑后 `git status` 全空。定向
+4 新 + `test_signing.py` 5 = **9 passed**；`ruff` / `mypy` 全绿。
+
+变异跑法上的一处真教训：`Start-Process` 的子进程会随父 shell 一起被超时杀掉，
+`cwd=` 传 `Path` 而非 `str` 时子 pytest 落在工作区根目录，于是"基线不绿"实际
+读到的是**别的会话正改到一半的文件**。两处都已修（cwd 显式转 str；跑前检查
+**被变异的那几个文件**是否已有未提交改动 —— 这个仓库同时有多个 lane，要求全树
+干净是做不到的，真正的风险只有"改了别人在改的文件"）。
+
+**写完当场自己踩到的坑（留作教训）**：初版门查的是"这些假句不得出现在文件里"，
+于是 §36 一落笔就把**修这个 bug 的那条记录本身**判红 —— 门要求假句消失，而
+FIX-14 恰恰要求假句留着（删掉它等于把这次复核的证据一起抹掉）。改成按行判定：
+假句可以在页上，但**同一行必须写着它是假的**（`假句` / `更正` / `已过期` /
+`原句` / `历史`）。`test_a_labelled_false_sentence_may_remain` 把这条规则的两半
+都钉住 —— 无标签照抓、有标签放行 —— 免得任一半自己漂走。§36.1 两行与 §36.4
+的 A1 行因此带 `假句` 标记。
+
+### 36.5 仍未做（诚实边界）
+
+1. **KMS/HSM 密钥托管未做**：密钥仍是环境变量/文件，无外部托管与轮换 ——
+   这是 4.3 勾掉后留下的真缺口，已写进该行；
+2. 门只钉"这两份台账不得说签名不存在"，**不**钉"其他文档必须提到签名"；
+   CLAUDE.md 删掉 Ed25519 那句会红，但 `docs/adr/` 等处不受约束。
+

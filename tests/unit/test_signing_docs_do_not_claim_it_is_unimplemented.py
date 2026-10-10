@@ -45,13 +45,30 @@ CLAUDE_MD = REPO / "CLAUDE.md"
 ROADMAP = REPO / "docs" / "operations" / "PRODUCT_ROADMAP.md"
 
 #: Verbatim claims these two files printed as fact while the feature already
-#: existed. Matching any of them in the doc is a failure — a revert to one of
-#: these exact wordings is how the stale state came back.
+#: existed. Matching an *unlabelled* occurrence of any of them is a failure —
+#: a revert to one of these exact wordings is how the stale state came back.
 STALE_SIGNING_CLAIMS = (
     "Ed25519 签名计划 Phase 1+",
     "现为 SHA-256 哈希占位",
     "Ed25519（现为 SHA-256",
 )
+
+#: FIX-14: a false sentence may stay quoted — the record of *finding* it is
+#: evidence, and deleting it deletes that record. What is forbidden is quoting
+#: it without saying on the same line that it is false, because then a reader
+#: (or a grep) takes it at face value. Without this rule the fix for a stale
+#: claim cannot be written down: §36 quotes both claims verbatim.
+CORRECTION_MARKERS = ("假句", "更正", "已过期", "原句", "历史")
+
+
+def _unlabelled_claims(text: str) -> list[str]:
+    """Stale claims that appear without saying they are stale."""
+    out: list[str] = []
+    for line in text.splitlines():
+        for claim in STALE_SIGNING_CLAIMS:
+            if claim in line and not any(m in line for m in CORRECTION_MARKERS):
+                out.append(claim)
+    return out
 
 
 def _claude() -> str:
@@ -102,12 +119,14 @@ def test_the_accept_path_is_wired_to_signing() -> None:
 def test_claude_md_does_not_describe_the_certificate_as_unsigned() -> None:
     """CLAUDE.md is the first file a reader gets — its claim is the default."""
     text = _claude()
-    for claim in STALE_SIGNING_CLAIMS:
-        assert claim not in text, (
-            f"CLAUDE.md still asserts {claim!r} while evidence/signing.py "
-            f"implements Ed25519 and craft/accept.py wires it in fail-closed "
-            f"(#230). Revert the doc or revert the code — not one alone."
-        )
+    unlabelled = _unlabelled_claims(text)
+    assert not unlabelled, (
+        f"CLAUDE.md asserts {unlabelled!r} without saying on that line that it "
+        f"is false, while evidence/signing.py implements Ed25519 and "
+        f"craft/accept.py wires it in fail-closed (#230). Revert the doc or "
+        f"revert the code — not one alone. (Quoting the old sentence is "
+        f"allowed, but only labelled 假句/更正 on the same line.)"
+    )
     assert "Ed25519" in text, (
         "CLAUDE.md no longer mentions Ed25519 at all; the limitation it "
         "replaced has vanished rather than been corrected"
@@ -117,12 +136,13 @@ def test_claude_md_does_not_describe_the_certificate_as_unsigned() -> None:
 def test_the_roadmap_does_not_call_ed25519_a_placeholder() -> None:
     """The 4.3 checkbox was never revisited after P5 landed (#230)."""
     text = _roadmap()
-    for claim in STALE_SIGNING_CLAIMS:
-        assert claim not in text, (
-            f"PRODUCT_ROADMAP.md still asserts {claim!r} — P5 shipped Ed25519 "
-            f"signing (ADR-011 accepted), so the checkbox describes a state "
-            f"that no longer exists (#230)"
-        )
+    unlabelled = _unlabelled_claims(text)
+    assert not unlabelled, (
+        f"PRODUCT_ROADMAP.md asserts {unlabelled!r} unlabelled — P5 shipped "
+        f"Ed25519 signing (ADR-011 accepted), so the row describes a state "
+        f"that no longer exists (#230). Label it 假句 if it is there as "
+        f"evidence of this fix."
+    )
     row = next(
         (ln for ln in text.splitlines() if "**4.3" in ln), ""
     )
@@ -134,3 +154,22 @@ def test_the_roadmap_does_not_call_ed25519_a_placeholder() -> None:
         f"4.3 was checked off without naming what genuinely remains — the "
         f"honest version names the gap it does not close: {row!r}"
     )
+
+
+def test_a_labelled_false_sentence_may_remain() -> None:
+    """The rule's other half — or the fix could not be written down.
+
+    §36 quotes both stale claims verbatim, because the record of *finding*
+    them is the only evidence the review happened. This asserts labelling
+    makes a quote legal and *not* labelling does not, so neither half of the
+    rule can drift on its own.
+    """
+    claim = "Ed25519 签名计划 Phase 1+"
+    assert _unlabelled_claims(f"- {claim}") == [claim], (
+        "an unlabelled quote must still be caught"
+    )
+    for marker in CORRECTION_MARKERS:
+        assert _unlabelled_claims(f"- {marker}：「{claim}」") == [], (
+            f"{marker!r} must legalise a labelled quote"
+        )
+
