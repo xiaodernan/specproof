@@ -117,7 +117,7 @@
 ### Phase 4 —— 可信度工程与评测（P2）
 - [ ] **4.1 Golden-case 回归门禁**：每次改动跑 Recall/Precision 阈值，跌破即红。
 - [ ] **4.2 反例生成质量**：counterexample 从"能编译"到"真能复现回归"。
-- [ ] **4.3 Merge Certificate 签名**：Ed25519（现为 SHA-256 哈希占位）。
+- [x] **4.3 Merge Certificate 签名**：Ed25519 已落地 —— `evidence/signing.py` 签发/验签、`craft/accept.py` fail-closed 接线（无密钥即 ERROR）、`specproof verify` 对证书与拒绝通知双签，SHA-256 只是被签名的 canonical digest 而非占位签名。剩 KMS/HSM 密钥托管 ⏳。门：`tests/unit/test_signing_docs_do_not_claim_it_is_unimplemented.py`。
 
 ### Phase 5 —— 团队化与生产化（P2）
 - [ ] **5.1 多租户与权限落地**：`identity/` 在真实存储下可用，RBAC 前后端一致。

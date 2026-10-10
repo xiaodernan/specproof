@@ -52,7 +52,7 @@ python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm
 
 - LLM 集成已通过真实 DeepSeek 端点验证（lazy probe → 7/10 capabilities，chat/JSON output/streaming 均可用）
 - compile_contracts / generate_counterexamples / review_court 均已添加 LLM fallback，LLM 不可用时自动退回 rule-based
-- Merge Certificate 使用 SHA-256 哈希，Ed25519 签名计划 Phase 1+
+- Merge Certificate 已由 `evidence/signing.py` 做 Ed25519 签名（in-toto 风格语句，签发/验签齐全，`craft/accept.py` 与 `specproof verify` 均已接线，fail-closed：无密钥即 ERROR，绝不静默签出未签名产物）；SHA-256 是被签名的 canonical digest，不是签名本身。剩：KMS/HSM 密钥托管未做。
 - DeepSeek gateway 始终返回 reasoning_content（always-on thinking），需额外 token 预算
 - strict_tool_calls 在 gateway 上返回 HTTP 400，已通过 JSON Action Envelope 降级处理
 
