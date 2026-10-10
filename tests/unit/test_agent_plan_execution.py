@@ -93,7 +93,7 @@ def test_llm_plan_waits_for_approval_then_runs_same_plan(runtime_env, tmp_path, 
     # Metadata survives resetting the process-local console state.
     monkeypatch.setattr(console, "_state", console._ConsoleState())
     detail = client.get(f"/agent/jobs/{job_id}", headers=headers).json()["job"]
-    assert detail["repo_path"] == str(tmp_path)
+    assert detail["repo_path"].replace("\\", "/") == str(tmp_path).replace("\\", "/")
     assert detail["execution_mode"] == "llm"
     assert detail["plan"]["steps"][0]["title"]
     assert client.post(f"/agent/jobs/{job_id}/approve", headers=headers,
