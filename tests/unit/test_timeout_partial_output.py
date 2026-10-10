@@ -156,8 +156,18 @@ def test_a_kill_before_any_output_stays_empty_not_none(
 
 # -- census ------------------------------------------------------------------
 
-_SKIP_DIRS = {"node_modules", "__pycache__", ".venv", ".venv312", ".git", ".pytest_cache", ".scratch",
-              "dist", "build", "bench"}
+_SKIP_DIRS = {
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    ".venv312",
+    ".git",
+    ".pytest_cache",
+    ".scratch",
+    "dist",
+    "build",
+    "bench",
+}
 
 
 def _product_python_files() -> list[Path]:

@@ -24,8 +24,6 @@ import ast
 import re
 from pathlib import Path
 
-import pytest
-
 REPO = Path(__file__).resolve().parents[2]
 RUNTIME = REPO / "api" / "agent_runtime.py"
 CONSOLE = REPO / "api" / "routes" / "agent_console.py"
@@ -45,13 +43,16 @@ def _extract_event_types_from_console() -> set[str]:
     for node in tree.body:
         if isinstance(node, ast.Assign):
             for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "EVENT_TYPES":
-                    if isinstance(node.value, ast.Tuple):
-                        return {
-                            elt.value
-                            for elt in node.value.elts
-                            if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
-                        }
+                if (
+                    isinstance(target, ast.Name)
+                    and target.id == "EVENT_TYPES"
+                    and isinstance(node.value, ast.Tuple)
+                ):
+                    return {
+                        elt.value
+                        for elt in node.value.elts
+                        if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+                    }
     return set()
 
 
@@ -59,7 +60,10 @@ def _extract_event_kind_labels_from_util() -> set[str]:
     """Parse `EVENT_KIND_LABELS = {...}` keys from util.ts."""
     src = _read(UTIL_TS)
     # Match: export const EVENT_KIND_LABELS: Record<string, string> = { ... }
-    m = re.search(r"export\s+const\s+EVENT_KIND_LABELS\s*:\s*Record<string,\s*string>\s*=\s*\{([^}]+)\}", src)
+    m = re.search(
+        r"export\s+const\s+EVENT_KIND_LABELS\s*:\s*Record<string,\s*string>\s*=\s*\{([^}]+)\}",
+        src,
+    )
     if not m:
         return set()
     body = m.group(1)
@@ -69,7 +73,7 @@ def _extract_event_kind_labels_from_util() -> set[str]:
 
 
 def _extract_produced_kinds_from_runtime() -> set[str]:
-    """Scan all `_emit("kind", ...)` / `emit_event(..., "kind")` / `record_event(..., "kind")` calls."""
+    """Scan `_emit("kind", ...)`, `emit_event(..., "kind")` and `record_event(...)` calls."""
     src = _read(RUNTIME)
     tree = ast.parse(src)
     produced = set()
@@ -81,17 +85,15 @@ def _extract_produced_kinds_from_runtime() -> set[str]:
                 if node.args and isinstance(node.args[0], ast.Constant):
                     produced.add(node.args[0].value)
             # state.record_event(job_id, "kind", {...}) - method call
-            elif isinstance(node.func, ast.Attribute) and node.func.attr == "record_event":
-                if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
-                    produced.add(node.args[1].value)
-            # emit_event(job_id, "kind", {...}) - function call
-            elif isinstance(node.func, ast.Name) and node.func.id == "emit_event":
-                if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
-                    produced.add(node.args[1].value)
-            # record_event(job_id, "kind", {...}) - function call
-            elif isinstance(node.func, ast.Name) and node.func.id == "record_event":
-                if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
-                    produced.add(node.args[1].value)
+            elif (
+                (
+                    isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "record_event"
+                )
+                or (isinstance(node.func, ast.Name) and node.func.id == "emit_event")
+                or (isinstance(node.func, ast.Name) and node.func.id == "record_event")
+            ) and len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
+                produced.add(node.args[1].value)
             self.generic_visit(node)
 
     EmitVisitor().visit(tree)
