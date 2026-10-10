@@ -4284,3 +4284,46 @@ type=java.lang.IllegalStateException | message=Failed to load ApplicationContext
 **下一号的第一问（已缩小到一处）。** **为什么 `SpecProofGeneratedTest` 两侧都 `Failed to load ApplicationContext`**——是生成测试缺 `@SpringBootTest` 所需的上下文（数据库/端口/配置），还是本机缺依赖服务？这一条不解决，case-17 这类"只有执行才看得见"的回归**在本环境永远测不出来**，而且它会持续制造 AMBIGUOUS 噪声去喂那条已经证明会被 hash 触发的归因规则。
 
 **诚实边界。** ① 本号只**定位**，未改任何代码。② "生成测试两侧都加载不了上下文"是**实测**（四条记录里 base/head 的正文原文），"hash 差异触发归因"是**读码 + 实测输出一致**推出的机制（`_failure_signature` 的实现在 `policy.py:166-180`，我读过）；但"**所有** golden case 都如此"**没量**——我只跑了 case-17，不推广。③ 上面那处矛盾**登记为待核**，不写成结论。④ 本号不动 `_failure_signature`：把 hash 从签名里剔掉是**可能的修法之一**，但在弄清"上下文为什么加载不了"之前动手，会把"基础设施噪声"换成"看不见的噪声"，不是修好。
+
+## #232 抓取端口的「谁在监听」侧第一次被逐条取证：四类属主证据、两种同名旋钮的相反可动性，与 §2 旋钮清单的双向对账
+
+**起点（用本门的解析器跑三个平面）。** prometheus.yml 的名册有 6 个 job，每个目标的端口都**确实**有 provider 侧声明，但声明分属四类：api 靠 compose 发布 + api/server.py 的路由，worker 只靠它自己进程读的一个环境变量默认值，outbox-relay 被 compose 的 expose 与一个字面量 env 钉了两遍，otel-collector 的端口写在 infra/otel/otel-collector.yaml 的 exporter endpoint 里，而 prometheus:9090 与 rabbitmq:15692 谁都没写——它们吃的是镜像内置默认。#220 把名册与规则对上了，却没有任何读者把「端口」与「谁能改这个端口」放在一起看。把 8ecae01 之前的 OBSERVABILITY.md 拿本门跑一遍，红的是且仅是读 §2 的四案（L12 + L5 + L6 + L7）：§2 的旋钮清单当时只有 5 个令牌，而部署文件里真实存在的旋钮族有 8 个（5 个发布侧 + OUTBOX_RELAY_METRICS_PORT、WORKER_METRICS_PORT + OTEL_EXPORTER_OTLP_ENDPOINT）；两个**会移动监听端口**的旋钮在文档里一个都不出现，按 §2 那句「改映射左边的值」去修冲突的操作者会把抓取端点整个移走。§1 的目标行不是本案修的：8ecae01 的 diff 只重写了 §2、并在 §1 加了一句范围句，那一行在它的父平面就已经与名册等价——两个平面各 6 条，声明路径的作业都是 api、outbox-relay、rabbitmq、worker，所以 L11 在前、后两平面同绿。L11 因此是保钉而不是修复：#220 的 R10 只比 host:port 令牌、从不读路径，而省略 metrics_path 与写下 /metrics 不是同一个断言，/metrics/per-object 更是另一个端点；这条断言要挡住的是未来那次「顺手把路径省掉」的编辑。同一批测量还钉住两个反直觉事实：同名同形的 WORKER_METRICS_PORT 与 OUTBOX_RELAY_METRICS_PORT 可动性相反（compose.production.yml 把后者钉成字面量，前者不设，所以只有前者改得动 .env），且三个 compose 里没有任何映射把冒号**右边**参数化，监听端口只能随进程 env 或镜像版本动。
+
+**修法（新门 14 案 + 已由 8ecae01 落地的文档载体）。** 新文件 tests/unit/test_listen_port_knobs_bind_the_scrape_roster.py（49000 字节、sha 8fd767da、纯 LF、14 案 L1..L14）：L1 每个 job 的**证据集合**与声明表双向相等（四类属主：compose-publish / compose-expose / compose-env-literal / config-endpoint，外加 code-listen / code-path / image-default）；L2 用 AST 在**全仓 tracked 文件**上普查 serve_metrics_in_thread 的调用点，把定义方与使用方分开（词法扫描把 ``def`` 那一行也算成调用，这正是定义≠使用必须用结构回答的例子），tests/** 的豁免由每个测试自己的端口表达式**再推导**；L3 每个旋钮的字面量默认 == 名册为该 job 抓的端口；L4 监听旋钮在 compose 里只能是字面量或干脆不设，字面量必须等于名册端口；L5 §2 的环境变量清单与 发布 ∪ 监听 ∪ 客户端 三个集合**双向**划分；L6 那句「只覆盖左边值」的适用范围与它自称的「N 处例外」必须等于实际条目数；L7 每条监听旋钮条目必须点名名册文件、引用名册自己的 target、把文中「代码默认」的数字与代码里的字面量对齐，并携带它的 compose 状态真正挣到的那个可动性标记；L8 没有任何部署文件参数化容器侧端口；L9 OTLP 那一个数字在名册、collector 自己的 exporter endpoint、compose 发布三处相等；L10 名册声明的 metrics_path 必须由其声明源文件**字面**提供；L11 §1 行的 target 与名册双向相等且路径声明形状一致；L12 应用内 OTLP 客户端默认端口 == collector 容器侧端口，且 §2 仍告诉读者哪个 env 能重定向它；L13 镜像默认档的 job 必须仍跑在声明的那个 tag 上、且 command 里没有 --web.listen-address 一类覆盖；L14 与 #220 的门**互读**同一 populations（job 集、metrics_path、target、以及「哪些 job 由我们自己的代码供数」）。文档载体是 8ecae01（「docs(observability): 端口旋…」）：§2 的清单补到 8 个令牌，加了「这类旋钮只覆盖 compose 映射的左边」的范围句 + 3 条例外条目（两条监听旋钮 + 宿主机直跑 api 的 OTLP 客户端），§1 另得一句只讲绑定地址的范围句。那一提交没有动 §1 的目标行，也没有动 infra/prometheus/prometheus.yml，所以本案「读文档才发现的缺陷」只有 §2 一处，L10 与 L11 挣到的身份是保钉。本次提交因此只含门与账本两径——载体的字节已在 HEAD（docs/operations/OBSERVABILITY.md 工作区是 CRLF 平面：281 组 CRLF、0 个 lone CR，经 clean filter 之后的 blob 与 HEAD 同为 119b3e9a，HEAD 侧 0 组 CRLF——LF 平面，故不入 PATHS），三处 compose 全部过 at-rest 断言（工作区 clean，臂改的两个文件已逐字节归位）。
+
+**门证（落地脚本现读）。** 未变异基线 0 红；把本门的 gate 文件放进两份全新 sibling clone 各跑一遍：HEAD 平面 **0 红**，8ecae01^ 的 OBS 平面 **4 红 = L12 + L5 + L6 + L7**（同一支扫描器，两个平面，红的恰好是只读 §2 的那 4 案；读 §1 目标行的 L11 在两平面同绿，见下文的保钉声明）。本轮批 **58 passed**，与 `--collect-only` 的 58 collected、AST 复算的函数定义数（14 + 13 + 12 + 5 + 3 + 5 + 4 + 2 = 58）三者相等；ruff（新门 + #220/#219 门 + 看板/告警/梯度门 + parity + inventory + 臂脚本与探针）All checks passed；mypy 在**落地平面**（HEAD clone + 本门）Success、222 个文件；共享工作区当时是红的：1 条错误全部落在本单位不碰的文件里（experiments/adapters.py），且这些文件逐个被断言为对 HEAD 未提交的外部改动——这条归因是落地脚本断言出来的，不是我口头说的。
+
+**变异臂（预测同写于脚本 docstring 与 ARMS 两处，落地脚本逐臂核对两处相等、再核对日志判定；`.scratch/arm232-port-arms.py`；28 臂全中，判定按红案例**集合相等**）。** 值得单名三条：relay_literal_moved 与 relay_literal_templated 都只红 L1+L4——文档 L7 的**类**判断（字面量/缺省 ⇒ .env 改不动）在这两种变异下都仍然正确，把监听旋钮挡在门外的确实是 L4 而非散文；definer_also_calls 往 observability/metrics_http.py 追加一个 `if False:` 包裹的真实调用，红的是 L2 的第一条子句（定义方不得同时是监听方），这条臂的存在就是证明 L2 的普查问的是**调用**而不是字面出现；gate_table_drops_api 删掉本门自己 `_PATH_SOURCES` 里 api 那一行，同时红 L1 与 L14——后者读的是 #220 门的 `_FAMILY_OWNERS`，这条臂证明两门互读的是集合而不是数量。臂在共享工作区上跑，所以脚本另带两条守卫：开跑前要求除本文档与本门之外的每个 carrier 对 HEAD 干净，且每轮 gate 前后比对快照哈希；任何外部写入记 INTERFERED（两轮汇总行都写 interfered=[]，落地脚本是**解析**这行而不是引用它；r1 misses=4、r2 misses=0）。同一份守卫在两轮里读到同一棵树：两条 at-rest 行各数出 13 个 carrier，脏的恰好是本案自己的两径（docs/operations/OBSERVABILITY.md、tests/unit/test_listen_port_knobs_bind_the_scrape_roster.py），baseline 都是「baseline: rc=0 reds=[]」——所以别的车道的红算不到我头上，而第三径一旦脏，本脚本会拒绝评分而不是把混树的判定写进账本。28 臂之后 13 条路径逐字节 sha 复等，复跑 control 仍 0 红。**两轮记录**：第一轮 28 臂里 4 条 MISS——3 条是预测漏了读者（`doc_client_bullet_loses_publish_knob`（第一轮预测 L12 + L5 → 实测 L12）、`knob_renamed_in_code`（第一轮预测 L2 + L3 → 实测 L2 + L3 + L7）、`relay_call_removed`（第一轮预测 L2 + L3 → 实测 L2 + L3 + L7）：两条同源，§2 的条目自己引用「代码默认 N」，旋钮在代码里被改名或调用被删时 `_knob_defaults()` 不再含那个键，L7 与 L3 读的是同一个推导），另外 1 条（`container_side_templated`）是**门的解析缺陷**：`_mappings()` 用 `rpartition(":")` 切 compose 端口行，而 `${X:-9090}` 的花括号里就有一个冒号，容器侧于是被切成 `-9090}`，L8 那句「右边不得是模板」的探针看不见被解析器吃掉的 `$`——它红了 L1+L5（都是残缺字符串的副产品），却放过了本臂要测的那一条。修复是带花括号深度的切分（只在顶层冒号处断，断言 2~3 段且两侧非空），L3/L7 的 `defaults[knob]` 直接索引同时换成**写明该断言**的子句（红要能说清自己红在哪句话，不靠 KeyError）。第二轮重跑，落地脚本断言：允许移动的红集合**只有**声明过的那一条臂、其余臂两轮实测逐臂相等、r1 实测 == 修订后的预测、r2 全 MATCHED、HARNESS_EXIT=0。
+
+| 臂 | 预测 | 实测 |
+|---|---|---|
+| roster_worker_port_moved | L11 + L3 + L7 | L11 + L3 + L7 ✅ |
+| code_default_worker_moved | L3 + L7 | L3 + L7 ✅ |
+| knob_renamed_in_code | L2 + L3 + L7 | L2 + L3 + L7 ✅ |
+| relay_call_removed | L2 + L3 + L7 | L2 + L3 + L7 ✅ |
+| relay_literal_moved | L1 + L4 | L1 + L4 ✅ |
+| relay_literal_templated | L1 + L4 | L1 + L4 ✅ |
+| doc_count_three_to_four | L6 | L6 ✅ |
+| doc_worker_bullet_loses_roster_file | L7 | L7 ✅ |
+| doc_markers_swapped | L7 | L7 ✅ |
+| doc_relay_marker_flipped | L7 | L7 ✅ |
+| doc_stale_code_default | L7 | L7 ✅ |
+| doc_drops_grafana_port | L5 | L5 ✅ |
+| roster_rabbitmq_path_removed | L11 | L11 ✅ |
+| otel_exporter_port_moved | L1 + L9 | L1 + L9 ✅ |
+| prometheus_container_side_moved | L1 | L1 ✅ |
+| container_side_templated | L1 + L8 | L1 + L8 ✅ |
+| extra_roster_job | L1 + L11 | L1 + L11 ✅ |
+| metrics_http_path_moved | L1 + L10 | L1 + L10 ✅ |
+| api_route_path_moved | L1 + L10 | L1 + L10 ✅ |
+| rabbitmq_image_bumped | L13 | L13 ✅ |
+| doc_row_rabbitmq_path_dropped | L11 | L11 ✅ |
+| doc_listen_phrase_removed | L6 | L6 ✅ |
+| tracing_client_port_moved | L12 | L12 ✅ |
+| doc_client_bullet_loses_publish_knob | L12 | L12 ✅ |
+| publish_knob_untemplated | L5 | L5 ✅ |
+| definer_also_calls | L2 | L2 ✅ |
+| test_reads_env_port | L2 | L2 ✅ |
+| gate_table_drops_api | L1 + L14 | L1 + L14 ✅ |
+
+**诚实边界。** ① 本门做**静态取证对账**：它证明每个端口的端口号有声明属主、每条 §2 的话与部署文件一致，不证明任何进程真在监听——容器不启动，序列存在性在门之外（rabbitmq per-object 真渲染由 #165 实测，记录在它自己的注释里）。② 证据类别是**声明表**（`_EVIDENCE` 六条集合），不是从序列标签或 metrics_path 推出来的：表写窄了 L1 红（relay_literal_moved 见证），写宽了同样红。③ L2 的普查总体是 `git ls-files *.py`（落地脚本在 HEAD clone 平面上用**同一条命令**复算，本次 945 个 tracked 文件；那平面上本门文件仍未跟踪，落地后总体 +1），**不含未跟踪文件**——`.scratch/` 未被忽略但不计入，这是声明过的边界；把指标服务挪进一个未跟踪文件会躲过普查，却仍会被 compose 与名册那两侧拦下。④ 镜像默认档（prometheus:9090 / rabbitmq:15692）的证书对象是**那一个 tag**：L13 钉死镜像串与 command 覆盖标志，tag 一 bump 该条即红并要求重查，不冒充「镜像永远如此」。⑤ compose 与部署文件只被读、不被改；本门允许 compose 把监听旋钮模板化吗——不允许，L4 直接拒绝，因为那会让 .env 移动一个名册写死的端点。⑥ 所有断言都写明平面：docs/operations/DEEP_OPTIMIZATION_PLAN.md 的工作区字节实测是 **LF 平面**（落地脚本现数：0 组 CRLF / 4286 个 lone LF——这份账本已被另一条车道整档归一过一次，所以追加**继承文档自己的行尾**，两种行尾同时非零时脚本直接拒绝拼接；本段写出的每个换行都是那一种，另一计的计数必须一字不动：CRLF 档要求 lone LF 增量 0，LF 档要求 CR 增量 0，并且追加前后字节前缀关系成立）。提交里 `git show HEAD:` 的 blob 永远是 LF 平面（core.autocrlf=true）。上面每组字节都带平面标签，实测的 after 数字写在提交信息里而不是这里。⑦ 无生产代码改动；与 #216–#220 一样只做本地提交（此仓库在此不可推）。⑧ 编号取自**两份登记处的并集**：`git log` 主题最大 231、本文档 `## #` 条目最大 231，并集下一空号是 232——[] 这几笔有提交主题却没有本文档的 §（另一条车道把账记在别处），只按文档编号会把已用过的号重发一次。落地脚本断言 232 在两处都未出现、且 log 的 next 等于并集的 next；「主题号与 § 号必须互相覆盖」这条对账本身还没有门，记在此处作为后续单位。本案草稿原本落在 #226，被另一条车道的在飞工件（`.scratch/` 下同批 *226* 文件）与之后一次提交主题各抢一次，最后按同一条并集规则改派 232；臂脚本、两轮日志、平面与本文案的所有令牌一起改名——**编号是登记处的属性，不是草稿的属性**。⑨ 本案只修一处文档缺陷（§2 的旋钮清单），L10 与 L11 是**保钉**而非修复：8ecae01 没动 §1 的目标行，也没动 prometheus.yml，L11 在 8ecae01^ 平面上就与在 HEAD 平面一样绿；落地脚本以「L11 不在 reds_before 里」加上前后两平面的 row == roster、path_declared 集合相同来钉住这个身份，谁把 L11 引成「已修复的漂移」都会先撞上那句断言。⑩ 本门不校验 `.env.example` 是否把 §2 承诺的旋钮交到操作者手上——compose 插值的旋钮与该模板互缺是量过的真缺陷，留给下一个单位。
