@@ -156,8 +156,17 @@ enforce_production_config()
 # the SDK; SPECPROOF_OTEL_ENABLED=1 turns tracing on).
 from observability.logging import configure_logging  # noqa: E402
 from observability.middleware import add_trace_middleware  # noqa: E402
+from observability.tracing import init_tracing  # noqa: E402
 
 configure_logging()
+# #236: init_tracing must run BEFORE add_trace_middleware. The instrumentor
+# only wraps the app's handlers with whatever TracerProvider is global at the
+# moment it runs; with no provider installed it captures the SDK's default
+# no-op proxy and every span it emits is discarded silently. Only the worker
+# ever called this, so the api process exported nothing no matter how the
+# operator configured it — the localhost:4318 default in OBSERVABILITY.md
+# §1 described the worker, not this process.
+init_tracing(service_name="specproof-api")
 add_trace_middleware(app)
 
 

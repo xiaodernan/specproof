@@ -16,11 +16,42 @@ logger = logging.getLogger(__name__)
 _NOOP = False
 
 
+def _flag(name: str) -> bool | None:
+    """Read a tri-state env switch: None when unset or unrecognised.
+
+    Tri-state matters here: an unset switch must not be mistaken for a
+    deliberate "off", or every caller that never heard of this variable would
+    silently lose tracing.
+    """
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
 def _is_enabled() -> bool:
-    """Return True if OpenTelemetry SDK is installed and enabled."""
+    """Return True if OpenTelemetry SDK is installed and enabled.
+
+    ``SPECPROOF_OTEL_ENABLED`` is this repo's own on/off switch and is
+    documented as such in api/server.py and docs/operations/MIDDLEWARE.md
+    (#236). Until now nothing read it: setting it to 0 turned nothing off and
+    the only lever was OTEL_SDK_DISABLED. It is read here as an explicit
+    override in both directions, while an *unset* value keeps the previous
+    implicit behaviour so callers that never set it are unaffected.
+
+    OTEL_SDK_DISABLED still wins over an explicit "on": it is the OTel
+    standard hard kill switch, and an operator who sets it means it.
+    """
     if _NOOP:
         return False
-    if os.getenv("OTEL_SDK_DISABLED", "").lower() == "true":
+    if _flag("SPECPROOF_OTEL_ENABLED") is False:
+        return False
+    if _flag("OTEL_SDK_DISABLED") is True:
         return False
     try:
         import opentelemetry  # noqa: F401
