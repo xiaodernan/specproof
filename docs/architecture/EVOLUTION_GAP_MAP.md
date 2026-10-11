@@ -90,4 +90,4 @@ providers/retrieval/craft: 统一网络客户端+日志脱敏 ✅ (W191) · 检�
 8. ✅ Job 创建白名单 (禁任意命令/env/docker) (W178)
 9. ✅ 错误 Envelope retryable 字段 + SSE 序列号/保留策略 (W83: 12 码分类 fail-closed + Last-Event-ID 恢复/终态幂等; 台账滞后已同步)
 10. ✅ ES 投影删除清理 (W185b delete_projection/count_projection_docs + W187b 生产接线 cleanup_job_projection; Outbox DLQ+指标/MinIO 治理/ES 租户过滤 ✅ W84, 迁移 0008)
-11. Grafana/SLO 面板 · ✅ Python 依赖锁 snapshot (W177) · ✅ 每作业成本会计 (W171) · ✅ court 无证据 BLOCKER 不变式测试 (W157)
+11. Grafana/SLO 面板 · ✅ Python 依赖锁 snapshot (W177) · ✅ 每作业成本会计 (W171 实测口径 + #230 账本归因/读取路径) · ✅ court 无证据 BLOCKER 不变式测试 (W157)

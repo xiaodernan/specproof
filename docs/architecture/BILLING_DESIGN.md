@@ -8,7 +8,8 @@
 - plans(id, name, price_monthly, quotas JSON: {jobs_verify, jobs_craft, llm_tokens,
   cases, seats}, overage JSON);
 - subscriptions(id, tenant_id, plan_id, status, period_start, period_end);
-- usage_ledger(id, tenant_id, event_id, metric, units, unit_label, happened_at)
+- usage_ledger(id, tenant_id, event_id, metric, units, unit_label, job_id,
+  happened_at) — job_id #233 加列 (迁移 0014), "" = 未归属 (#233 前存量/非作业事件)
   — metric ∈ {job_verify, job_craft, llm_tokens_in, llm_tokens_out,
   llm_cache_hit_tokens, llm_reasoning_tokens, gate_findings};
 - invoices(id, tenant_id, period, line_items JSON, total, currency, status)。
@@ -30,7 +31,10 @@
 ## 4. 报表与导出
 
 - GET /billing/usage?from&to (CSV/JSON), GET /billing/invoices (月账单);
-- 每作业成本视图: (job_id → tokens → 单价) 进 job 详情页 (W31 工作台扩展);
+- 每作业成本视图 (#233 后端已落): usage_ledger.job_id 归因
+  (TokenBudget entry 固化 job_id 后投影落列) + GET /billing/jobs/{job_id}
+  (单作业行+按 metric 汇总, billing:read, 跨租户 404); CSV 导出增 job_id 列;
+  (job_id → tokens → 单价) 进 job 详情页的 UI 接线仍待 (W31 工作台扩展);
 - 账单周期任务: 月初生成 invoice, 状态机 draft→issued→paid。
 
 ## 5. 测试

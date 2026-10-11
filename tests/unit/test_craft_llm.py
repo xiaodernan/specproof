@@ -435,3 +435,16 @@ def test_diagnose_thinking_on_under_auto(
     report = loop.run()
     assert report["result"] == "DONE"
     assert provider.calls[0]["thinking"] is True
+
+
+def test_budget_entries_carry_the_client_job_id() -> None:
+    """#233: ledger entries attribute to the job exactly like journal rows."""
+    provider = StubProvider([make_response("ok")])
+    client = LLMClient(provider=provider, token_budget=10_000, job_id="job-attr")
+    _OPEN_CLIENTS.append(client)
+    client.chat_sync([LLMMessage(role="user", content="hi")], label="plan")
+    assert client.budget.entries[-1]["job_id"] == "job-attr"
+    client.chat_sync(
+        [LLMMessage(role="user", content="hi")], label="step", job_id="job-call",
+    )
+    assert client.budget.entries[-1]["job_id"] == "job-call"

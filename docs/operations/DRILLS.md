@@ -477,3 +477,12 @@ P3 __all__ 里去掉 counter names → 1 红 (export parity) ✅
 
 > **122 全量合并门追记（2026-09-28）**：数字只认这一次运行自己的输出 —— 在 `bc9b118`（plan: fill 实施记录 with this session's landed units）上跑 `pytest tests/unit tests/security tests/fault -q -p no:randomly -W error`，收集 `collected 3279 items`，隔离声明 `MySQL test isolation (redirected -> specproof_test): product schema '/test/%' rows 0 -> 0; no test row landed in the product schema`，汇总 `================ 3274 passed, 5 skipped in 1247.62s (0:20:47) =================`，运行自己印出的页脚 `MERGE_EXIT=0`。
 > 口径说明：这些数字属于 `bc9b118` 那棵树，不属于更早或更晚的 commit；日志文件是 `w112/merge_bc9b118.log`。
+| FIX-26 | (#233) **“每作业成本会计”的帐本半边落地之前, 台账写着它整块待开发, 而帐本里连 job_id 都无处可查**: usage_ledger 无 job_id 列 (verify/craft 生命周期事件只在 event_id 里夹带 job, LLM 四类 token 行完全没有 job 维度), 没有任何查询能回答“这个作业花了多少”; EVOLUTION_GAP_MAP 又因 W171 的 bench 实测口径记为 ✅, 与其余四本台账的 ⏳ 互相矛盾 — 同一能力两种状态。现已落成后端半边: 迁移 0014 (up/down 成对) 给 usage_ledger 加 job_id VARCHAR(255) NOT NULL DEFAULT '' + (tenant_id, job_id) 索引; SQLite ensure_schema 带 PRAGMA+ALTER 原位自愈 (存量行读回 "", 不是猜); TokenBudget.record(usage, label, job_id) 给 entry 盖章, craft/llm.py 两条记录路径 (一次性+流式) 按 journal 同一口径 job_id or self.job_id 透传; 计量钩子与读取路径 GET /api/v1/billing/jobs/{job_id} (billing:read, operator/admin 只见本租户, auditor 跨租户, 无行即 404 JOB_NOT_FOUND, 旧单租户模式 503) 一并落成, /billing/usage 的 CSV/JSON 增加 job_id 列; 四本台账对账改口(后端 ◐ / UI 接线 + 月账单 cron 仍 ⏳)。 |
+
+**FIX-26 全量门实测追记 (2026-10-11, gate_20261011-0800.log; 并发 lane 在途破坏下的诚实数字):**
+
+- 门: `pytest tests/unit tests/security tests/fault -q -p no:randomly --tb=no` → **8 failed / 3772 passed / 2 skipped / 2505.86s (41m45s)**。
+- 采集破坏 (另并发 lane 在途): `experiments/adapters.py` 工作树半改状态使 7 个测试文件 collection 期 NameError (`DEFAULT_GRADLE_IMAGE`, 连 HEAD 里都没有的常量) — 与本批次无关, 本次以 `--ignore` 排除这 7 个文件后再跑。
+- 8 failed 归因: 6 个 `test_env_template_binds_the_compose_knobs.py` = 并发 lane 未提交的新文件 (其 .env/组合旋钭在途); 1 个 `test_feedback_store_read.py::test_real_mysql_one_verdict_per_reviewer` = MySQL 共享库顺序抖动 (孤立复跑绿, 非本批次); 2 个 (`test_data_dictionary_covers_migrations.py` / `test_runbook_claims_hold.py` 的迁移区间) = **本批次的账**: 0014 落库后字典/RUNBOOK 还写 0001-0013, 同批补登记, 复跑 8 passed。
+- 双向门 (先红后绿): 23 项红 (8 失败 + 15 seeded fixture 报错) → 焦点门 84 passed; 变异探针 10/10 预测红集==实测红集, 每次 content-capture 还原 + sha256 校验 (A1 计量丢 job / A2 行映射丢 job / A3 端点不按租户域 / A4 空作业返 200 / A5 entry 不盖章 / A6 一次性路径丢 job / A7 流式路径丢 job / A8 LLM 投影丢 job / A9 SQLite 不 ALTER / A10 record_event 不透传)。
+- 仍未落地 (如实): 每作业成本的 UI 接线 (job 详情页读该端点) 与月账单签发 cron; 本批次只落帐本 job_id 归因 + 读取路径。

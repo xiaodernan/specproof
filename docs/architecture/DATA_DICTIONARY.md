@@ -1,7 +1,7 @@
 # 数据字典 (DATA_DICTIONARY) — SpecProof 全存储字段级说明
 
 > 口径与出处: 本文逐字段登记 SpecProof 的全部持久化状态。MySQL 表结构以
-> `infra/mysql/migrations/0001_init.sql` 至 `0013_notify_outbox.sql` 十三个版本化迁移为准,
+> `infra/mysql/migrations/0001_init.sql` 至 `0014_usage_ledger_job_id.sql` 十四个版本化迁移为准,
 > 并与代码内幂等 DDL (`storage/identity.py` / `storage/billing.py` / `storage/agent_jobs.py` /
 > `storage/object_metadata.py` / `storage/migrations.py`) 逐表核对; MongoDB/MinIO/ES/Redis/RabbitMQ
 > 以对应 `storage/*` 适配器为准。
@@ -23,8 +23,9 @@
 
 ## 1. MySQL — 数据库 `specproof_phase0` (compose 服务 mysql:8.4)
 
-共 19 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测; 0013 落库后为 19):
-18 张来自版本化迁移 0001-0013 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0013 建
+共 19 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测; 0014 落库后仍为 19):
+18 张来自版本化迁移 0001-0014 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0014 只给
+`usage_ledger` 加 `job_id` 列不建新表; 0013 建
 `notify_outbox`, 见 §1.21), 1 张
 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
 本文 §1.18 / §1.19 两张对象元数据表**不在这 18 张里** —— 它们只在显式选择 MySQL 对象元数据后端时
@@ -304,11 +305,14 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 | metric | VARCHAR(32) | 如 job_verify / gate_findings |
 | units | DOUBLE | |
 | unit_label | VARCHAR(64) DEFAULT '' | |
+| job_id | VARCHAR(255) DEFAULT '' | 归属作业 (#233, 来源 0014; "" = 未归属: #233 之前的行与非作业事件) |
 | happened_at | DOUBLE | |
 
-索引: idx_usage_tenant_time, idx_usage_tenant_metric。
+索引: idx_usage_tenant_time, idx_usage_tenant_metric, idx_usage_tenant_job (tenant_id, job_id)。
 - **写入方**: `storage/billing.py` meter_* — `agent/worker.py` 在管线真正开始时计量
-  job_verify、终态时计量 gate_findings (event_id 幂等, best-effort, 未配 SPECPROOF_BILLING_URL 时 no-op)。
+  job_verify、终态时计量 gate_findings (event_id 幂等, best-effort, 未配 SPECPROOF_BILLING_URL 时 no-op);
+  LLM usage 经 `providers/budget.py` 的 TokenBudget 记 entry 时带上 job_id (`""` = 调用不归属作业), 由 usage
+  listener 投影到本列 (#233)。读路径 `GET /api/v1/billing/jobs/{job_id}` (billing:read, 跨租户 404)。
 - **租户作用域**: T。**TTL/保留**: 永久 (可归档 >13 个月)。
 
 ### 1.15 invoices — 发票 (来源 0007)

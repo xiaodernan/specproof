@@ -54,9 +54,9 @@
 | 九 测试自校验交接 | ✅ | M3 verify + W34 五道门 + W35 SpecProof 交接协议 (accept) |
 | 十 并行子代理 | ◐ | W34 只读并行 (写集 fail-closed) ✅; 可写并行 ⏳ M7+ |
 | 十一 前端需求 | ✅ | 9 页+20 路由+权限体验 (W31+W37); 向导第一步全信息+权限页+计费路由 ✅ (W101, 19 文件 90 测试); e2e ✅ W39 (Playwright 9 用例全绿) |
-| 十二 后端需求 | ◐ | 任务 API ✅; 事件/SSE ✅; 数据安全 ✅; 配额成本 ✅ (W40 后端 + W101 计费路由); 每作业成本会计 ⏳ |
+| 十二 后端需求 | ◐ | 任务 API ✅; 事件/SSE ✅; 数据安全 ✅; 配额成本 ✅ (W40 后端 + W101 计费路由); 每作业成本会计 ◐ (#230 后端: job_id 归因+读取路径; UI 接线 ⏳) |
 | 十三 安全信任 | ◐ | 沙箱/注入/凭据 ✅; 供应链 SBOM ⏳ |
-| 十四 商业化收费 | ◐ | 后端 ✅ W40 (账本/配额/发票/RBAC) + 计费路由 ✅ W101; 月账单 cron+签发流 ⏳; 每作业成本会计 ⏳ |
+| 十四 商业化收费 | ◐ | 后端 ✅ W40 (账本/配额/发票/RBAC) + 计费路由 ✅ W101; 月账单 cron+签发流 ⏳; 每作业成本会计 ◐ (#230 后端: job_id 归因+读取路径; UI 接线 ⏳) |
 | 十五 M0-M11 | ◐ | M0-M8 核心 ✅; M9 (模型路由) ⏳; M10 (生态) ⏳; M11 持续 |
 | 十六 每周模板 | ✅ | 每轮审计→实现→全绿验证 (本表+ledger) |
 | 十七 门禁 | ✅ | 质量门 (test/build/typecheck)/正确性门/安全门 全机检 |
@@ -79,7 +79,7 @@
 8. ⏳ 阶段 3: GitLab 集成 (Policy DSL+豁免流 ✅ W102: agent/policy_dsl.py + agent/waiver.py, 42 测试)
 9. ⏳ 阶段 4: Gradle/Node/Go 适配器 + 状态机验证 + 200 案例路线表 (Python 适配器 ✅ W78/W105 PythonAdapter local-first; 反例最小化 ✅ W105 experiments/minimize.py)
 10. ⏳ 阶段 5: KMS/HSM + 对象加密 (恢复演练 ✅ W89 DRILLS); 证书撤销已 ✅ #138 **更正 (2026-10-01)**: 原文 "KMS/HSM + 证书撤销 (DRILLS 4 需开发)" 中的撤销部分已落地 (签发侧), 剩余的是 KMS/HSM 与消费方拦截 (DRILLS §6 第 10 行)
-11. ⏳ M6 残留: IDE 插件 (VSCode/JetBrains); M9: 模型路由/每作业成本会计; M10: MCP 客户端/通知连接器 (notify wiring, DRILLS 4 需开发)/插件市场
+11. ⏳ M6 残留: IDE 插件 (VSCode/JetBrains); M9: 模型路由 ⏳; 每作业成本会计 ◐ (#230 后端: job_id 归因+读取路径; UI 接线 ⏳); M10: MCP 客户端/通知连接器 (notify wiring, DRILLS 4 需开发)/插件市场
 12. ⏳ 运维: 生产部署指南/SOC2 合规路线 + Grafana/SLO 面板 (数据字典 ✅ W103 DATA_DICTIONARY.md)
 13. ⏳ VERIFIED 路径 Java E2E 手动补跑 (W35 已留命令); 100 案例段1 ✅ 已合并总表 (docs/eval/eval-100-segments.md)
 14. ⏳ GitHub PR 创建 (需 PAT 增加 Pull requests 权限或用户手动点击)

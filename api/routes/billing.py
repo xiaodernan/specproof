@@ -11,10 +11,13 @@ every endpoint answers 503 PROVIDER_UNAVAILABLE exactly like
 api/routes/admin.py.
 
 Metering itself is opt-in (SPECPROOF_BILLING_URL, storage/billing.py);
-these endpoints only read the ledger. The UI (usage dashboards, per-job
-cost view) and the monthly invoice cron are deferred to the UI phase —
-GET /billing/invoices generates the draft invoice on demand so the data
-model and reconciliation are fully exercised by tests.
+these endpoints only read the ledger. GET /billing/jobs/{job_id} (#233)
+is the backend of the per-job cost view: one job's metered rows plus
+per-metric totals under the same matrix. Still deferred to the UI phase:
+the dashboards themselves (wiring the job detail page to that endpoint)
+and the monthly invoice cron — GET /billing/invoices generates the
+draft invoice on demand so the data model and reconciliation are fully
+exercised by tests.
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ from api.auth import enforce_rate_limit
 from api.data_paths import BILLING_DB_FILENAME, default_sqlite_url
 from api.errors import (
     AUTH_REQUIRED,
+    JOB_NOT_FOUND,
     PROVIDER_UNAVAILABLE,
     TENANT_FORBIDDEN,
     VALIDATION_FAILED,
@@ -168,6 +172,7 @@ def _usage_dict(row: UsageRecord) -> dict[str, Any]:
         "id": row.id,
         "tenant_id": row.tenant_id,
         "event_id": row.event_id,
+        "job_id": row.job_id,
         "metric": row.metric,
         "units": row.units,
         "unit_label": row.unit_label,
@@ -191,12 +196,13 @@ def _usage_csv(rows: list[UsageRecord]) -> Response:
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow([
-        "tenant_id", "event_id", "metric", "units", "unit_label", "happened_at",
+        "tenant_id", "event_id", "metric", "units", "unit_label",
+        "happened_at", "job_id",
     ])
     for row in rows:
         writer.writerow([
             row.tenant_id, row.event_id, row.metric, row.units,
-            row.unit_label, row.happened_at,
+            row.unit_label, row.happened_at, row.job_id,
         ])
     return Response(
         content=buffer.getvalue(),
@@ -301,3 +307,37 @@ async def list_invoices(
         "invoices": [_invoice_dict(inv) for inv in invoices],
         "count": len(invoices),
     }
+
+
+@router.get("/jobs/{job_id}")
+async def job_usage(request: Request, job_id: str) -> dict[str, Any]:
+    """One job's metered usage: rows + per-metric totals (#233).
+
+    billing:read roles only; operators/admins see their own tenant's
+    rows, auditors keep the cross-tenant audit view. No metered rows in
+    scope → 404 JOB_NOT_FOUND — metering is opt-in, and answering
+    404 for another tenant's job never confirms it exists (the
+    cross-tenant 404 contract this API already keeps). Legacy mode
+    answers 503 before any query, exactly like the other endpoints.
+    """
+    _require_tenant_mode()
+    principal = _principal(request)
+    _require_billing_read(principal)
+    tenant = None if "auditor" in principal.roles else principal.tenant_id
+    rows = get_billing_store().list_usage_by_job(tenant, job_id)
+    if not rows:
+        raise ApiError(
+            status_code=404,
+            code=JOB_NOT_FOUND,
+            detail=f"no metered usage for job {job_id!r}",
+        )
+    totals: dict[str, float] = {}
+    for row in rows:
+        totals[row.metric] = totals.get(row.metric, 0.0) + row.units
+    return {
+        "job_id": job_id,
+        "usage": [_usage_dict(row) for row in rows],
+        "count": len(rows),
+        "totals": totals,
+    }
+

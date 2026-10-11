@@ -9,6 +9,9 @@ docs/architecture/BILLING_DESIGN.md §5 — the exit criteria:
   * RBAC on the billing endpoints: viewer → TENANT_FORBIDDEN;
   * cross-tenant isolation: a tenant's usage never leaks into another
     tenant's view (auditor keeps the cross-tenant audit view).
+  * per-job attribution (#233): every metered row carries its job_id and
+    reads back through GET /billing/jobs/{job_id} under the same matrix
+    (viewer refused, cross-tenant/unknown jobs 404, legacy mode 503).
 
 All mock — SQLite/in-memory backends, no network, no Docker. A MySQL
 scenario is gated on MYSQL_URL (skipped when unset), mirroring
@@ -501,8 +504,14 @@ def seeded_billing(billing_tenant_env: None) -> dict[str, Any]:
         tokens[role] = token
     billing = get_billing_store()
     billing.upsert_subscription(tenant_a.id, "pro", "active", 0.0, 4_000_000_000.0)
-    billing.record_usage("usage:a:1", tenant_a.id, "job_verify", 1.0, "job", 100.0)
-    billing.record_usage("usage:b:1", tenant_b.id, "job_verify", 2.0, "job", 100.0)
+    billing.record_usage(
+        "usage:a:1", tenant_a.id, "job_verify", 1.0, "job", 100.0,
+        job_id="job-a-1",
+    )
+    billing.record_usage(
+        "usage:b:1", tenant_b.id, "job_verify", 2.0, "job", 100.0,
+        job_id="job-b-1",
+    )
     return {"tenant_a": tenant_a.id, "tenant_b": tenant_b.id, "tokens": tokens}
 
 
@@ -589,7 +598,9 @@ def test_usage_csv_export(
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/csv")
     lines = resp.text.strip().splitlines()
-    assert lines[0] == "tenant_id,event_id,metric,units,unit_label,happened_at"
+    assert lines[0] == (
+        "tenant_id,event_id,metric,units,unit_label,happened_at,job_id"
+    )
     assert len(lines) == 2  # header + the one tenant-a row
 
 
@@ -683,8 +694,273 @@ def test_mysql_backend_scenario() -> None:
     event_id = f"verify:tenant-mysql:{os.getpid()}:start"
     assert store.record_usage(event_id, "tenant-mysql", "job_verify", 1.0, "job")
     assert not store.record_usage(event_id, "tenant-mysql", "job_verify", 1.0, "job")
+    assert store.record_usage(
+        f"craft:tenant-mysql:{os.getpid()}:terminal", "tenant-mysql",
+        "job_craft", 1.0, "job", job_id="job-mysql",
+    )
+    job_rows = store.list_usage_by_job("tenant-mysql", "job-mysql")
+    assert [(r.metric, r.job_id) for r in job_rows] == [("job_craft", "job-mysql")]
     rows = store.list_usage("tenant-mysql", 0.0, time.time() + 1000.0)
-    assert len(rows) == 1
+    assert len(rows) == 2
     assert store.usage_total(
         "tenant-mysql", "job_verify", 0.0, time.time() + 1000.0,
     ) == 1.0
+
+
+# ── Per-job attribution & read path (#233) ───────────────────────────────
+
+
+# Declared domain: the ledger slice of "每作业成本会计" — every metered row
+# carries the job it belongs to (job_id column; pre-#233 rows read back as
+# ""), TokenBudget entries stamp the job before the billing projection, and
+# GET /billing/jobs/{job_id} reads one job's metered usage back with the
+# §2 RBAC matrix. Bidirectional doors:
+#   green: meter/LLM rows attribute to their job and read back with totals;
+#   red:   viewer refused, cross-tenant and unknown jobs answer 404
+#          JOB_NOT_FOUND, legacy mode answers 503 before any query, and a
+#          pre-#233 ledger upgrades in place with its rows intact.
+
+
+def test_usage_rows_carry_job_id_in_memory_and_sqlite(tmp_path: Path) -> None:
+    stores: list[Any] = [InMemoryBillingStore(), SqliteBillingStore(tmp_path / "b.db")]
+    try:
+        for store in stores:
+            assert store.record_usage(
+                "ev:1", "tenant-a", "job_verify", 1.0, "job", 100.0, job_id="job-9",
+            )
+            assert store.record_usage("ev:2", "tenant-a", "job_craft", 1.0, "job", 101.0)
+            rows = store.list_usage_by_job("tenant-a", "job-9")
+            assert [(r.event_id, r.job_id) for r in rows] == [("ev:1", "job-9")]
+            assert store.list_usage_by_job("tenant-a", "job-none") == []
+            assert store.list_usage_by_job("tenant-b", "job-9") == []
+            assert store.list_usage_by_job("tenant-a", "") == []
+            unattributed = [
+                r for r in store.list_usage("tenant-a", 0.0, 1e12)
+                if r.event_id == "ev:2"
+            ]
+            assert [(r.event_id, r.job_id) for r in unattributed] == [("ev:2", "")]
+    finally:
+        for store in stores:
+            close = getattr(store, "close", None)
+            if close is not None:
+                close()
+
+
+def test_pre_job_ledger_is_upgraded_in_place(tmp_path: Path) -> None:
+    """A ledger written before #233 opens, gains the column, keeps its rows."""
+    import sqlite3 as _sqlite3
+
+    db = tmp_path / "legacy.db"
+    conn = _sqlite3.connect(db)
+    conn.executescript(
+        "CREATE TABLE usage_ledger ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "tenant_id VARCHAR(36) NOT NULL, "
+        "event_id VARCHAR(255) NOT NULL UNIQUE, "
+        "metric VARCHAR(32) NOT NULL, "
+        "units DOUBLE NOT NULL, "
+        "unit_label VARCHAR(64) NOT NULL DEFAULT '', "
+        "happened_at DOUBLE NOT NULL);"
+        "INSERT INTO usage_ledger "
+        "(tenant_id, event_id, metric, units, unit_label, happened_at) "
+        "VALUES ('tenant-a', 'legacy:1', 'job_verify', 1.0, 'job', 50.0);"
+    )
+    conn.close()
+
+    store = SqliteBillingStore(db)
+    try:
+        old = store.list_usage("tenant-a", 0.0, 1e12)
+        assert [(r.event_id, r.job_id) for r in old] == [("legacy:1", "")]
+        assert store.record_usage(
+            "ev:new", "tenant-a", "job_craft", 1.0, "job", 60.0, job_id="job-new",
+        )
+        upgraded = store.list_usage_by_job("tenant-a", "job-new")
+        assert [(r.event_id, r.job_id) for r in upgraded] == [("ev:new", "job-new")]
+    finally:
+        store.close()
+
+
+def test_meter_events_attribute_rows_to_their_job(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SPECPROOF_BILLING_URL", f"sqlite:{tmp_path / 'billing.db'}")
+    reset_billing_writer()
+    writer = get_billing_writer()
+    assert writer is not None
+    assert meter_verify_job_start("tenant-a", "job-1")
+    assert meter_verify_job_end("tenant-a", "job-1", findings_count=2)
+    assert meter_craft_job_terminal("tenant-a", "job-2", "succeeded")
+    job1 = writer.store.list_usage_by_job("tenant-a", "job-1")
+    assert sorted(r.metric for r in job1) == ["gate_findings", "job_verify"]
+    assert all(r.job_id == "job-1" for r in job1)
+    job2 = writer.store.list_usage_by_job("tenant-a", "job-2")
+    assert [(r.metric, r.job_id) for r in job2] == [("job_craft", "job-2")]
+    assert writer.store.list_usage_by_job("tenant-a", "job-3") == []
+    reset_billing_writer()
+
+
+def test_llm_entry_job_id_flows_to_the_ledger(tmp_path: Path) -> None:
+    store = SqliteBillingStore(tmp_path / "billing.db")
+    writer = BillingWriter(store)
+    token = TENANT_SCOPE_VAR.set(TenantScope(tenant_id="tenant-a"))
+    try:
+        created = writer.record_llm_usage(
+            {
+                "label": "plan",
+                "timestamp": "2026-10-10T00:00:00+00:00",
+                "used_after": 12.0,
+                "job_id": "job-llm",
+                "prompt_tokens": 100,
+                "completion_tokens": 10,
+                "prompt_cache_hit_tokens": 8,
+                "reasoning_tokens": 2,
+            },
+        )
+        writer.record_llm_usage(
+            {
+                "label": "plan",
+                "timestamp": "2026-10-10T00:00:01+00:00",
+                "used_after": 13.0,
+                "prompt_tokens": 7,
+            },
+        )
+    finally:
+        TENANT_SCOPE_VAR.reset(token)
+    assert created == [True, True, True, True]
+    by_metric = {
+        r.metric: r.units for r in store.list_usage_by_job("tenant-a", "job-llm")
+    }
+    assert by_metric == {
+        "llm_tokens_in": 100.0,
+        "llm_tokens_out": 10.0,
+        "llm_cache_hit_tokens": 8.0,
+        "llm_reasoning_tokens": 2.0,
+    }
+    assert store.list_usage_by_job("tenant-a", "") == []
+    jobless = [
+        r
+        for r in store.list_usage("tenant-a", 0.0, time.time() + 1000.0)
+        if r.metric == "llm_tokens_in" and r.job_id == ""
+    ]
+    assert [r.units for r in jobless] == [7.0]
+    store.close()
+
+
+def test_budget_record_stamps_the_job_id() -> None:
+    clear_usage_listener()
+    budget = TokenBudget(limit_tokens=1000.0)
+    stamped = budget.record({"prompt_tokens": 5}, label="plan", job_id="job-b")
+    plain = budget.record({"prompt_tokens": 6}, label="plan")
+    assert stamped["job_id"] == "job-b"
+    assert plain["job_id"] == ""
+
+
+def test_job_usage_endpoint_scopes_to_the_caller_tenant(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    resp = client.get(
+        "/api/v1/billing/jobs/job-a-1",
+        headers=bearer(seeded_billing["tokens"]["admin"]),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["job_id"] == "job-a-1"
+    assert body["count"] == 1
+    assert body["usage"][0]["job_id"] == "job-a-1"
+    assert body["totals"] == {"job_verify": 1.0}
+
+
+def test_job_usage_endpoint_hides_other_tenants_as_404(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    resp = client.get(
+        "/api/v1/billing/jobs/job-b-1",
+        headers=bearer(seeded_billing["tokens"]["admin"]),
+    )
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "JOB_NOT_FOUND"
+
+
+def test_job_usage_endpoint_auditor_reads_cross_tenant(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    resp = client.get(
+        "/api/v1/billing/jobs/job-b-1",
+        headers=bearer(seeded_billing["tokens"]["auditor"]),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["usage"][0]["tenant_id"] == seeded_billing["tenant_b"]
+    assert body["totals"] == {"job_verify": 2.0}
+
+
+def test_job_usage_endpoint_unknown_job_is_404(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    resp = client.get(
+        "/api/v1/billing/jobs/job-nope",
+        headers=bearer(seeded_billing["tokens"]["admin"]),
+    )
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "JOB_NOT_FOUND"
+
+
+def test_viewer_is_refused_the_job_usage_endpoint(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    resp = client.get(
+        "/api/v1/billing/jobs/job-a-1",
+        headers=bearer(seeded_billing["tokens"]["viewer"]),
+    )
+    assert resp.status_code == 403
+    assert resp.json()["error"]["code"] == "TENANT_FORBIDDEN"
+
+
+def test_job_usage_endpoint_needs_tenant_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Legacy mode answers 503 before any ledger query (like /admin)."""
+    monkeypatch.delenv("SPECPROOF_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("OIDC_ISSUER", raising=False)
+    from api.identity.oidc import reset_oidc_validator
+    from api.identity.store import reset_identity_store
+    from api.routes.billing import reset_billing_store
+
+    reset_identity_store()
+    reset_oidc_validator()
+    reset_billing_store()
+    client = TestClient(app)
+    resp = client.get("/api/v1/billing/jobs/job-a-1")
+    assert resp.status_code == 503
+    assert resp.json()["error"]["code"] == "PROVIDER_UNAVAILABLE"
+    reset_billing_store()
+
+
+def test_job_endpoint_aggregates_lifecycle_and_llm_rows(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    """The per-job view totals every metered class for one job (#233)."""
+    from api.routes.billing import get_billing_store
+
+    store = get_billing_store()
+    assert store.record_usage(
+        "verify:start:job-a-2", seeded_billing["tenant_a"], "job_verify", 1.0,
+        "job", 100.0, job_id="job-a-2",
+    )
+    assert store.record_usage(
+        "llm:in:job-a-2", seeded_billing["tenant_a"], "llm_tokens_in", 120.0,
+        "token", 101.0, job_id="job-a-2",
+    )
+    client = TestClient(app)
+    resp = client.get(
+        "/api/v1/billing/jobs/job-a-2",
+        headers=bearer(seeded_billing["tokens"]["operator"]),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 2
+    assert body["totals"] == {"job_verify": 1.0, "llm_tokens_in": 120.0}
+    assert {row["job_id"] for row in body["usage"]} == {"job-a-2"}

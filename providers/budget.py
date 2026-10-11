@@ -155,12 +155,16 @@ class TokenBudget:
                 limit=self.limit_tokens, used=self._used, charge=charge, label=label
             )
 
-    def record(self, usage: dict[str, Any], label: str = "") -> dict[str, Any]:
+    def record(
+        self, usage: dict[str, Any], label: str = "", job_id: str = "",
+    ) -> dict[str, Any]:
         """Record actual usage (LLMResponse.usage fields) into the ledger.
 
         The entry is appended BEFORE the budget is enforced so that an
         overrun stays visible in the evidence chain, then BudgetExceeded
-        is raised.
+        is raised. job_id is stamped onto the entry (#233) so the billing
+        projection can attribute token spend to the run that spent it;
+        "" when the call is not job-scoped.
         """
         prompt = _as_int(usage.get("prompt_tokens"))
         completion = _as_int(usage.get("completion_tokens"))
@@ -172,6 +176,7 @@ class TokenBudget:
         entry: dict[str, Any] = {
             "timestamp": datetime.now(UTC).isoformat(),
             "label": label,
+            "job_id": job_id,
             "prompt_tokens": prompt,
             "completion_tokens": completion,
             "reasoning_tokens": reasoning,

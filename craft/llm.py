@@ -342,7 +342,8 @@ class LLMClient:
                 self.timeout_retries += 1
                 if delay > 0:
                     await asyncio.sleep(delay)
-        entry = self.budget.record(response.usage, label=label)  # may raise BudgetExceeded
+        # may raise BudgetExceeded
+        entry = self.budget.record(response.usage, label=label, job_id=job_id or self.job_id)
         stream_mode = "fallback" if wants_stream else ""
         self._journal(
             response,
@@ -609,7 +610,8 @@ class LLMClient:
             finish_reason="stop",
             model=model,
         )
-        entry = self.budget.record(usage, label=label)  # may raise BudgetExceeded
+        # may raise BudgetExceeded
+        entry = self.budget.record(usage, label=label, job_id=job_id or self.job_id)
         self._journal(
             response,
             entry,

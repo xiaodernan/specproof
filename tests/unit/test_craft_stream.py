@@ -396,3 +396,17 @@ def test_stream_echo_tty_emits_chunks_inline(monkeypatch: pytest.MonkeyPatch) ->
     assert ("[LLM 流式] ", False) in calls
     assert ("ab", False) in calls
     assert ("cd", False) in calls
+
+
+def test_streaming_budget_entry_carries_the_job_id() -> None:
+    """#233: the streaming aggregation path stamps the job on its entry too."""
+    provider = StreamProvider(content="ok")
+    client = LLMClient(provider=provider, job_id="job-stream")
+    _OPEN_CLIENTS.append(client)
+    pieces = list(
+        client.stream_chat_sync([LLMMessage(role="user", content="hi")], label="t")
+    )
+    assert pieces == ["ok"]
+    assert provider.stream_calls == 1
+    assert client.last_stream_mode == "native"
+    assert client.budget.entries[-1]["job_id"] == "job-stream"

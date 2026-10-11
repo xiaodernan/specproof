@@ -226,6 +226,8 @@ class UsageRecord:
     units: float
     unit_label: str
     happened_at: float
+    #: owning job ("" = unattributed: pre-#233 rows, non-job events)
+    job_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -288,9 +290,13 @@ class BillingStore(Protocol):
         units: float,
         unit_label: str = "",
         happened_at: float | None = None,
+        job_id: str = "",
     ) -> bool: ...
     def list_usage(
         self, tenant_id: str | None, from_ts: float, to_ts: float,
+    ) -> list[UsageRecord]: ...
+    def list_usage_by_job(
+        self, tenant_id: str | None, job_id: str,
     ) -> list[UsageRecord]: ...
     def usage_total(
         self, tenant_id: str, metric: str, from_ts: float, to_ts: float,
@@ -450,6 +456,7 @@ _SCHEMA_SQLITE: str = (
     "metric VARCHAR(32) NOT NULL, "
     "units DOUBLE NOT NULL, "
     "unit_label VARCHAR(64) NOT NULL DEFAULT '', "
+    "job_id VARCHAR(255) NOT NULL DEFAULT '', "
     "happened_at DOUBLE NOT NULL)"
     ";"
     "CREATE INDEX IF NOT EXISTS idx_usage_tenant_time "
@@ -457,6 +464,9 @@ _SCHEMA_SQLITE: str = (
     ";"
     "CREATE INDEX IF NOT EXISTS idx_usage_tenant_metric "
     "ON usage_ledger (tenant_id, metric)"
+    ";"
+    "CREATE INDEX IF NOT EXISTS idx_usage_tenant_job "
+    "ON usage_ledger (tenant_id, job_id)"
     ";"
     "CREATE TABLE IF NOT EXISTS invoices ("
     "id VARCHAR(36) PRIMARY KEY, "
@@ -501,10 +511,12 @@ _SCHEMA_MYSQL: str = (
     "metric VARCHAR(32) NOT NULL, "
     "units DOUBLE NOT NULL, "
     "unit_label VARCHAR(64) NOT NULL DEFAULT '', "
+    "job_id VARCHAR(255) NOT NULL DEFAULT '', "
     "happened_at DOUBLE NOT NULL, "
     "UNIQUE KEY uq_usage_event (event_id), "
     "INDEX idx_usage_tenant_time (tenant_id, happened_at), "
-    "INDEX idx_usage_tenant_metric (tenant_id, metric)"
+    "INDEX idx_usage_tenant_metric (tenant_id, metric), "
+    "INDEX idx_usage_tenant_job (tenant_id, job_id)"
     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     ";"
     "CREATE TABLE IF NOT EXISTS invoices ("
@@ -549,8 +561,16 @@ _LIST_SUBS_SQL: str = (
 
 _INSERT_USAGE_SQL: str = (
     "INSERT INTO usage_ledger "
-    "(tenant_id, event_id, metric, units, unit_label, happened_at) "
-    "VALUES (?, ?, ?, ?, ?, ?)"
+    "(tenant_id, event_id, metric, units, unit_label, happened_at, job_id) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?)"
+)
+_LIST_USAGE_JOB_SQL: str = (
+    "SELECT * FROM usage_ledger WHERE job_id = ? ORDER BY happened_at, id"
+)
+_LIST_USAGE_JOB_TENANT_SQL: str = (
+    "SELECT * FROM usage_ledger "
+    "WHERE tenant_id = ? AND job_id = ? "
+    "ORDER BY happened_at, id"
 )
 _LIST_USAGE_TENANT_SQL: str = (
     "SELECT * FROM usage_ledger "
@@ -624,6 +644,7 @@ def _row_to_usage(row: Any) -> UsageRecord:
         units=float(row["units"]),
         unit_label=cast(str, row["unit_label"]),
         happened_at=float(row["happened_at"]),
+        job_id=cast(str, row["job_id"] or ""),
     )
 
 
@@ -763,6 +784,7 @@ class InMemoryBillingStore:
         units: float,
         unit_label: str = "",
         happened_at: float | None = None,
+        job_id: str = "",
     ) -> bool:
         metric = _validate_metric(metric)
         units = float(units)
@@ -777,6 +799,7 @@ class InMemoryBillingStore:
                 id=self._usage_seq, tenant_id=tenant_id, event_id=event_id,
                 metric=metric, units=units, unit_label=unit_label,
                 happened_at=self._now_fn() if happened_at is None else float(happened_at),
+                job_id=job_id,
             )
         return True
 
@@ -788,6 +811,19 @@ class InMemoryBillingStore:
                 r for r in self._usage.values()
                 if (tenant_id is None or r.tenant_id == tenant_id)
                 and from_ts <= r.happened_at < to_ts
+            ]
+        return sorted(rows, key=lambda r: (r.happened_at, r.id))
+
+    def list_usage_by_job(
+        self, tenant_id: str | None, job_id: str,
+    ) -> list[UsageRecord]:
+        if not job_id:
+            return []
+        with self._lock:
+            rows = [
+                r for r in self._usage.values()
+                if r.job_id == job_id
+                and (tenant_id is None or r.tenant_id == tenant_id)
             ]
         return sorted(rows, key=lambda r: (r.happened_at, r.id))
 
@@ -885,6 +921,18 @@ class SqliteBillingStore:
 
     def ensure_schema(self) -> None:
         with self._lock, self._conn:
+            # CREATE TABLE IF NOT EXISTS never adds columns to a pre-#233
+            # ledger: migrate usage_ledger.job_id in place first (mirrors
+            # storage/agent_jobs.py's upgrade path), then the rest.
+            columns = {
+                row["name"]
+                for row in self._conn.execute("PRAGMA table_info(usage_ledger)")
+            }
+            if columns and "job_id" not in columns:
+                self._conn.execute(
+                    "ALTER TABLE usage_ledger "
+                    "ADD COLUMN job_id VARCHAR(255) NOT NULL DEFAULT ''"
+                )
             self._conn.executescript(_SCHEMA_SQLITE)
 
     def close(self) -> None:
@@ -972,6 +1020,7 @@ class SqliteBillingStore:
         units: float,
         unit_label: str = "",
         happened_at: float | None = None,
+        job_id: str = "",
     ) -> bool:
         metric = _validate_metric(metric)
         units = float(units)
@@ -982,7 +1031,8 @@ class SqliteBillingStore:
             try:
                 self._conn.execute(
                     _INSERT_USAGE_SQL,
-                    (tenant_id, event_id, metric, units, unit_label, happened),
+                    (tenant_id, event_id, metric, units, unit_label, happened,
+                     job_id),
                 )
             except sqlite3.IntegrityError as exc:
                 if "usage_ledger.event_id" in str(exc):
@@ -1001,6 +1051,22 @@ class SqliteBillingStore:
             else:
                 rows = self._conn.execute(
                     _LIST_USAGE_TENANT_SQL, (tenant_id, from_ts, to_ts),
+                ).fetchall()
+        return [_row_to_usage(row) for row in rows]
+
+    def list_usage_by_job(
+        self, tenant_id: str | None, job_id: str,
+    ) -> list[UsageRecord]:
+        if not job_id:
+            return []
+        with self._lock:
+            if tenant_id is None:
+                rows = self._conn.execute(
+                    _LIST_USAGE_JOB_SQL, (job_id,),
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    _LIST_USAGE_JOB_TENANT_SQL, (tenant_id, job_id),
                 ).fetchall()
         return [_row_to_usage(row) for row in rows]
 
@@ -1219,6 +1285,7 @@ class MySqlBillingStore:
         units: float,
         unit_label: str = "",
         happened_at: float | None = None,
+        job_id: str = "",
     ) -> bool:
         metric = _validate_metric(metric)
         units = float(units)
@@ -1229,7 +1296,8 @@ class MySqlBillingStore:
             try:
                 conn.cursor().execute(
                     _to_mysql(_INSERT_USAGE_SQL),
-                    (tenant_id, event_id, metric, units, unit_label, happened),
+                    (tenant_id, event_id, metric, units, unit_label, happened,
+                     job_id),
                 )
             except pymysql.err.IntegrityError as exc:
                 if exc.args and exc.args[0] == 1062:
@@ -1248,6 +1316,23 @@ class MySqlBillingStore:
                 cur.execute(
                     _to_mysql(_LIST_USAGE_TENANT_SQL),
                     (tenant_id, from_ts, to_ts),
+                )
+            rows = cur.fetchall()
+        return [_row_to_usage(cast(dict[str, Any], row)) for row in rows]
+
+    def list_usage_by_job(
+        self, tenant_id: str | None, job_id: str,
+    ) -> list[UsageRecord]:
+        if not job_id:
+            return []
+        with self.connection() as conn:
+            cur = conn.cursor()
+            if tenant_id is None:
+                cur.execute(_to_mysql(_LIST_USAGE_JOB_SQL), (job_id,))
+            else:
+                cur.execute(
+                    _to_mysql(_LIST_USAGE_JOB_TENANT_SQL),
+                    (tenant_id, job_id),
                 )
             rows = cur.fetchall()
         return [_row_to_usage(cast(dict[str, Any], row)) for row in rows]
@@ -1415,6 +1500,7 @@ class BillingWriter:
         units: float,
         unit_label: str = "",
         happened_at: float | None = None,
+        job_id: str = "",
     ) -> bool:
         """Project one event onto the ledger (idempotent by event_id)."""
         if not tenant_id or not event_id:
@@ -1424,6 +1510,7 @@ class BillingWriter:
             return False
         return self.store.record_usage(
             event_id, tenant_id, metric, float(units), unit_label, happened_at,
+            job_id=job_id,
         )
 
     def meter_verify_job_start(
@@ -1434,6 +1521,7 @@ class BillingWriter:
             event_id=f"verify:{tenant_id}:{job_id}:start",
             tenant_id=tenant_id, metric="job_verify", units=1.0,
             unit_label="job", happened_at=happened_at,
+            job_id=job_id,
         )
 
     def meter_verify_job_end(
@@ -1452,6 +1540,7 @@ class BillingWriter:
             tenant_id=tenant_id, metric="gate_findings",
             units=float(findings_count), unit_label=verdict or "finding",
             happened_at=happened_at,
+            job_id=job_id,
         )
         return 1 if created else 0
 
@@ -1464,6 +1553,7 @@ class BillingWriter:
             event_id=f"craft:{tenant_id}:{job_id}:terminal",
             tenant_id=tenant_id, metric="job_craft", units=1.0,
             unit_label=status or "craft", happened_at=happened_at,
+            job_id=job_id,
         )
 
     def record_llm_usage(
@@ -1483,6 +1573,7 @@ class BillingWriter:
         label = str(entry.get("label") or "llm")
         timestamp = str(entry.get("timestamp") or "")
         used_after = entry.get("used_after")
+        job_id = str(entry.get("job_id") or "")
         created: list[bool] = []
         classes = (
             ("llm_tokens_in", "prompt_tokens"),
@@ -1499,7 +1590,7 @@ class BillingWriter:
             )
             created.append(self.record_event(
                 event_id=event_id, tenant_id=tenant, metric=metric,
-                units=units, unit_label="token",
+                units=units, unit_label="token", job_id=job_id,
             ))
         return created
 

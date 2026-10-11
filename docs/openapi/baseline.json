@@ -51,6 +51,10 @@
       "200",
       "422"
     ],
+    "GET /api/v1/billing/jobs/{job_id}": [
+      "200",
+      "422"
+    ],
     "GET /api/v1/billing/plans": [
       "200"
     ],
