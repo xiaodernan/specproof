@@ -177,3 +177,76 @@ def test_the_api_names_itself_as_its_own_service() -> None:
         "api and worker spans are indistinguishable in the collector"
     )
 
+
+def test_middleware_doc_states_the_precedence_the_code_implements() -> None:
+    """MIDDLEWARE.md's env table must say what the switch can and cannot do.
+
+    Before this, the row read ``SPECPROOF_OTEL_ENABLED | (空) | 置 1 开启`` — an
+    operator could only learn that 1 enables tracing, never that 0 disables it
+    (the entire reason the switch exists, and the thing that had to be fixed)
+    nor that the OTel-standard kill switch outranks it. A table that documents
+    the "on" half of a tri-state switch and omits the "off" half reads as if
+    setting 0 is a no-op, which is precisely the bug this file is named for.
+
+    The assertions are deliberately about the *operator-facing* consequence, not
+    about prose: the row must exist, must name both values, and must say which
+    wins.
+    """
+    doc = (ROOT / "docs" / "operations" / "MIDDLEWARE.md").read_text(encoding="utf-8")
+    row = next(
+        (line for line in doc.splitlines()
+         if line.startswith("| SPECPROOF_OTEL_ENABLED")),
+        "",
+    )
+    assert row, (
+        "MIDDLEWARE.md's env table no longer has a SPECPROOF_OTEL_ENABLED row, "
+        "so the switch api/server.py documents in its own docstring is "
+        "undocumented in the operator's table"
+    )
+    assert "0" in row and "1" in row, (
+        f"the row must name both values of a tri-state switch: {row!r} — "
+        f"without 0 the table cannot tell an operator how to turn it off"
+    )
+    assert "关闭" in row, (
+        f"the row must state that 0 disables tracing, not just that 1 enables "
+        f"it: {row!r}"
+    )
+
+    disable_row = next(
+        (line for line in doc.splitlines()
+         if line.startswith("| OTEL_SDK_DISABLED")),
+        "",
+    )
+    assert disable_row, (
+        "MIDDLEWARE.md must document OTEL_SDK_DISABLED: it is the only lever "
+        "that ever worked, and leaving it out of the table leaves an operator "
+        "with a switch that appears to be the only one"
+    )
+    assert "高于" in disable_row, (
+        f"the row must say OTEL_SDK_DISABLED outranks an explicit 1, or an "
+        f"operator debugging \"why is nothing traced\" sees two switches and "
+        f"no ordering between them: {disable_row!r}"
+    )
+
+
+def test_the_documented_off_value_is_the_one_the_code_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The doc's "0" must be the literal the switch actually compares against.
+
+    A doc can say "置 0 关闭" while the code accepts only ``false``/``no``; the
+    table would then lie in exactly the way the old switch did. This binds the
+    wording the row now promises to the literal set ``_flag`` parses.
+    """
+    for raw, expected in (("0", False), ("1", True)):
+        monkeypatch.setenv("SPECPROOF_OTEL_ENABLED", raw)
+        assert tracing._flag("SPECPROOF_OTEL_ENABLED") is expected, (
+            f"MIDDLEWARE.md documents {raw!r}; the switch must parse it"
+        )
+    monkeypatch.delenv("SPECPROOF_OTEL_ENABLED")
+    assert tracing._flag("SPECPROOF_OTEL_ENABLED") is None, (
+        "the row says 未设 = 沿用默认; an unset switch must stay tri-state "
+        "None, not False, or every caller that never set it loses tracing"
+    )
+
+

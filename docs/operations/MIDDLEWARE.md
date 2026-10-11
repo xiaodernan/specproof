@@ -49,7 +49,8 @@ RequestID  →  PayloadLimit  →  request_metrics  →  OTel tracing (若启用
 | SPECPROOF_RATE_LIMIT_PER_MIN | 60 | 每 key 每分钟限流 |
 | SPECPROOF_MAX_JSON_BYTES | 10485760 (10 MiB) | JSON 请求体上限, 超限 413 |
 | SPECPROOF_CORS_ORIGINS | localhost:3000,localhost:8000 | CORS 白名单 |
-| SPECPROOF_OTEL_ENABLED | (空) | 置 1 开启 OTel tracing |
+| SPECPROOF_OTEL_ENABLED | (空) | 三态开关: 置 1 开启 tracing, 置 0 **关闭**; 未设/拼错 = 沿用默认 (不受影响) |
+| OTEL_SDK_DISABLED | (空) | OTel 标准硬开关, 优先级**高于**上面的显式 1: 置 1 时即使 SPECPROOF_OTEL_ENABLED=1 也不采样 |
 | GITHUB_WEBHOOK_SECRET | (无) | webhook 验签共享密钥 |
 
 ## 5. 响应缓存策略 (明确记录)
