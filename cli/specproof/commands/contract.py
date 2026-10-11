@@ -18,8 +18,10 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from agent.contracts.compiler import (  # noqa: E402
+    CoverageGap,
     candidates_from_constitution,
     compile_candidates,
+    coverage_gaps,
     dedupe_candidates,
 )
 from agent.contracts.parser import parse_requirements  # noqa: E402
@@ -28,6 +30,25 @@ from agent.contracts.registry import ContractRegistry  # noqa: E402
 
 def _spec_digest(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+def _echo_coverage_gaps(gaps: list[CoverageGap]) -> None:
+    """Print the §2.5 coverage report: which requirements nobody verifies.
+
+    Printed on stderr, because it is a finding about the run rather than part
+    of the result a caller parses from stdout — and because it must not be
+    droppable by a ``> file`` redirect, which is exactly how a coverage hole
+    would get lost.
+    """
+    if not gaps:
+        return
+    click.echo(
+        f"覆盖不足：{len(gaps)} 条需求无法编译为检查（这些需求当前无人验证）",
+        err=True,
+    )
+    for g in gaps:
+        click.echo(f"  [UNCOVERED] {g.requirement_ref} — {g.requirement[:120]}", err=True)
+        click.echo(f"              建议：{g.suggestion}", err=True)
 
 
 @click.group("contract")
@@ -72,6 +93,11 @@ def propose(repo: str, spec_path: str, constitution: tuple[str, ...]) -> None:
 
     parsed = parse_requirements(spec_text)
     candidates = compile_candidates(parsed.requirements)
+    # §2.5: computed from the candidate list actually going to the registry, so
+    # a requirement dropped by dedupe below is reported too. Printed before the
+    # "no candidates" return, because a spec where *nothing* compiles is the
+    # case where the gaps are the whole output.
+    gaps = coverage_gaps(parsed.requirements, candidates)
     if constitution:
         policy_texts = [
             Path(p).read_text(encoding="utf-8") for p in constitution
@@ -81,6 +107,12 @@ def propose(repo: str, spec_path: str, constitution: tuple[str, ...]) -> None:
 
     if not candidates:
         click.echo("No contract candidates extracted from the given sources.")
+        _echo_coverage_gaps(gaps)
+        if gaps:
+            # Not a usage error: the spec parsed fine and the answer is "these
+            # requirements cannot be verified yet". Exiting 1 lets a caller
+            # treat "nothing compilable" as a real result instead of success.
+            raise SystemExit(1)
         return
 
     registry = ContractRegistry()
@@ -94,6 +126,14 @@ def propose(repo: str, spec_path: str, constitution: tuple[str, ...]) -> None:
     )
     for c in candidates:
         click.echo(f"  [PROPOSED] {c.id} ({c.checker_type}) — {c.expected_behavior[:120]}")
+    _echo_coverage_gaps(gaps)
+    if gaps:
+        # Same refusal as the zero-candidate branch, and for the same reason:
+        # a spec that compiles *some* requirements still leaves the gapped ones
+        # unverified. Reading that run as plain success ("N proposed, ok") hides
+        # exactly the requirements §2.5 exists to surface. Exit 1 so a caller
+        # or gate treats a partial proposal as a result, not a clean pass.
+        raise SystemExit(1)
 
 
 @contract_cmd.command("approve")

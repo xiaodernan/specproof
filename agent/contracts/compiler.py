@@ -20,6 +20,31 @@ from agent.contracts.parser import Requirement
 from agent.contracts.records import checker_version_for
 
 
+class CoverageGap(BaseModel):
+    """A requirement no checker family could compile (§2.5).
+
+    Before this existed, an uncompilable requirement was *omitted*: two
+    requirements went in, one candidate came out, and nothing anywhere said
+    which one had been dropped. The count difference is not a report — a
+    reader has to diff two lists to notice it, and "4 candidates" looks like
+    an answer rather than a hole. A dropped requirement means nobody is
+    verifying that requirement at all, which is the one thing a coverage
+    number must never hide.
+
+    ``suggestion`` is deliberately not a checklist of everything a checker
+    could ever do; it names the families that were *considered and missed*,
+    so the fix is "express the invariant in these terms" rather than "add a
+    new checker".
+    """
+
+    requirement_ref: str
+    requirement: str
+    #: The families whose pattern was tested against this requirement, for
+    #: the suggestion below. Empty only if _TYPE_RULES itself is empty.
+    considered_families: list[str]
+    suggestion: str
+
+
 class ContractCandidate(BaseModel):
     id: str
     checker_type: str  # http | sql | redis | openapi | rabbitmq | constitution
@@ -118,6 +143,68 @@ def compile_candidates(requirements: list[Requirement]) -> list[ContractCandidat
                 checker_version=checker_version_for(checker_type),
             ))
     return candidates
+
+
+def coverage_gaps(
+    requirements: list[Requirement],
+    candidates: list[ContractCandidate],
+) -> list[CoverageGap]:
+    """Which requirements produced no candidate, and what would fix that (§2.5).
+
+    Takes the compiled list rather than re-deriving it, so the answer is
+    exactly "what the caller is actually about to use" — including after
+    ``dedupe_candidates`` drops a duplicate, where a requirement can lose its
+    only candidate without anything in it being uncompilable.
+
+    Deterministic and text-only: no checker runs, nothing is executed. The
+    requirement statement is truncated to the same 200 chars the candidates
+    use, so a gap and the candidate beside it in a report are comparable.
+    """
+    compiled_refs = {c.requirement_ref for c in candidates}
+    families = [checker_type for checker_type, _pattern, _behavior in _TYPE_RULES]
+    gaps: list[CoverageGap] = []
+    for req in requirements:
+        if req.id in compiled_refs:
+            continue
+        gaps.append(
+            CoverageGap(
+                requirement_ref=req.id,
+                requirement=req.statement[:200],
+                considered_families=families,
+                suggestion=_suggestion_for(req, families),
+            )
+        )
+    return gaps
+
+
+def _suggestion_for(req: Requirement, families: list[str]) -> str:
+    """How to make this requirement compilable, using what is already there.
+
+    The advice depends on *why* it did not match, and the two reasons need
+    opposite fixes:
+
+    - no acceptance criteria at all → the family patterns only ever look at
+      statement + criteria + forbidden changes, and there was no material to
+      match on. The fix is to state a checkable criterion.
+    - criteria exist but use none of the family vocabulary → the invariant is
+      real but not expressed in terms any checker recognises (rendering,
+      aesthetics, latency targets). The fix is to name the observable
+      quantity a checker could assert, not to add a family.
+
+    Both are phrased as a question about the requirement rather than a claim
+    that the requirement is fine: this function cannot know which.
+    """
+    named = "/".join(families)
+    if not req.acceptance_criteria:
+        return (
+            "该需求没有验收标准，无可匹配内容。补一条可观测的验收标准"
+            f"（现有检查器族覆盖：{named}）后即可编译。"
+        )
+    return (
+        "该需求的验收标准未使用任何检查器族可识别的措辞"
+        f"（已试：{named}）。把其中的不变量改述为可断言的观测值"
+        "（如唯一性/事务/缓存失效/事件投递/接口兼容），或补一个检查器族。"
+    )
 
 
 def candidates_from_constitution(

@@ -101,7 +101,10 @@
   - **实测发现（2026-09-21，故此时序上尚不可动工）**：真正的拦路点在**上游的 `generate_counterexamples`**，不在 `run_differential`——生成器整体是 JUnit/Spring/演示仓库专用：LLM prompt 写死"Java security test engineer / Spring Boot"，`_TEST_SCHEMA_REQUIRED` 校验的是 `import org.junit...`/`MockMvc`，落盘路径写死 `src/test/java/com/specproof/demo/SpecProofGeneratedTest.java`，`_is_demo_repo` 之外的仓库诚实返回"无测试生成"。因此 Node/Python 侧根本没有反例可跑，`run_differential` 的语言无关化只是后半程。多语言贯通需要先做**分语言的测试生成（prompt + schema 校验 + review 规则 + 落盘布局）**，且必须接**真实模型**才能端到端验证——属较大、离线不可完全验证的工作，暂缓以免留下半成品。适配器层（Node/Python detect/prepare/run/collect）已就绪，是这条链路的下游地基。
   - **本轮可落地的替代（诚实降级，见 2.4）**：把"当前语言/仓库无法生成可执行反例→差分不可复现"这条既成事实，在前端用中文讲清楚原因与下一步，而非暴露英文枚举/堆栈。
 - [x] **2.4 "无构建配置的诚实降级"**：统一"跳过≠通过"呈现，避免误导为绿灯。落地见任务 #9 / #28（语言感知的差分回退：非 Java 仓库明说"无法生成可执行反例"并给下一步，而不是留一条空绿线）。
-- [ ] **2.5 需求→可执行检查对齐**：无法编译为检查的需求标注覆盖不足并给补充建议。
+- [x] **2.5 需求→可执行检查对齐**：无法编译为检查的需求标注覆盖不足并给补充建议。落地见 §36。
+  - 落地：`agent/contracts/compiler.py` 新增 `coverage_gaps()` 与 `CoverageGap`；`specproof contract propose` 无论有没有候选都打印覆盖报告，且**整份规格一条都编译不出来时退出码 1**（此前退 0 并只说 "No contract candidates"）。
+  - 为什么取「编译后的候选表」而不是自己重算：`dedupe_candidates` 会让一条需求丢掉唯一候选，此时它没做错任何事却不再被任何人验证；重算会漏掉这一类，报告因此与调用方真正要用的表一致。
+  - 建议分两种，因为两种要做的修改相反：**没有验收标准**（无可匹配内容，补一条可观测标准）与**有验收标准但没用到任何检查器族措辞**（不变量真实但不可断言，改述成可观测值或补一个族）。早期草稿把「有 `-` 列表项」当无标准用例，两侧建议完全一样——解析器把每个 `-` 条目都读成 `AcceptanceCriterion`，所以真正的「无标准」形狀是正文里没有 `-`。这条写进了用例注释。
 - [ ] **2.6 更多语言**：Go、Java/Gradle 适配器（矩阵中的 planned 行）。
 
 ### Phase 3 —— 验收体验与实时性（P1，并行推进）
