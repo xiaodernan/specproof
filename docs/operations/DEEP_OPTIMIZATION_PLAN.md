@@ -4403,3 +4403,26 @@ type=java.lang.IllegalStateException | message=Failed to load ApplicationContext
 
 **剩余队列（仅 #237 一件）。**
 - **#237** 重跑四例评测，验证 #231 待核项：case-17 在干净差分下是否被报 PASS（单例约 17 分钟，CI 四例子集约 41 分钟；本环境需先做 Maven 缓存卷播种，见记忆「本地跑评测」前置）。
+
+## #237 (handoff / 待下次执行) 四例评测重跑 —— 精确交接规格
+
+**目的（#231 诚实边界③ 待核项）。** #236 已用胶囊证明 `SpecProofGeneratedTest` 在干净 Maven 差分下 base/head 两侧均 `tests=1 errors=0 failures=0`，但「测试本身能跑」≠「评测会把 case-17 判 PASS」。#231 留下一处未消的矛盾：早先四例评测报 `case-17: [MISS] matched 0 finding(s), contracts_found: []`，而 #231 探针在同一份 state 构造下看到 2 条 `confirmed_findings`（contract_id 都是 `UNIQUE-01`）；差异可能只是 `repo_resolved = Path(repo).resolve()` 与否——**下结论前必须再跑一次评测**。
+
+**前置（Maven 缓存卷播种，记忆「本地跑评测」）。** 不播种则差分里的 Maven 必失败、findings 恒空：
+```
+docker run --rm -v specproof-maven-cache-1000:/m2 maven:3.9-eclipse-temurin-21 sh -c "chown -R 1000:1000 /m2"
+docker run --rm -v specproof-maven-cache-1000:/m2 -v "$PWD":/ws -w /ws -u 1000:1000 -e MAVEN_USER_HOME=/m2 maven:3.9-eclipse-temurin-21 mvn -q -o dependency:go-offline
+# 确认 demo/spring-backend/.mvn/wrapper/maven-wrapper.jar 存在，否则差分 Maven 必失败
+```
+
+**执行。** 跑评测（优先四例子集以贴近 CI；本机单例可先跑 case-17 验证 #231 待核项，约 17 分钟）：
+```
+.venv/Scripts/python -m pytest tests/unit/test_eval.py -q        # 或 eval.py 入口
+# 读数：Recall / Precision / Severe precision / Severity agreement（基线 2026-10-09：66.7% / 100% / 0.0% / 0.0%）
+```
+
+**读数陷阱（#231 已记）。** `contracts_found` 是 findings 的 contract_id，不是编译出的契约——`[]` 意为"契约编译出来了但差分没为它产出 finding"；`Acceptance: PASS` 在 AcceptanceCriteria 三个指标下限全 `None` 时只保证样本足够大，≠质量合格。不要被这两个假绿骗过。
+
+**完成判据。** 报告里给出当前四例的 Recall/Precision/Severity agreement 与 case-17 是否 `PASS`；若 case-17 仍 `MISS`，定位 `eval.py` 的 state 构造与 `_diagcase.py` 的差异（重点 `repo` 是否 resolve），而不是改差分本身——#236 已证明差分测试健康。
+
+**诚实边界。** ① 此件无法在当前单轮可靠完成（≥17 分钟、超前台 Bash 10 分钟上限；后台任务随会话结束而死），故作为交接留给下一轮首先执行，本轮不伪造"已完成"。② 若下一轮仍受 429/时长限制，至少先完成 Maven 缓存卷播种（上面两条 docker 命令），让评测能在干净环境起跑。
