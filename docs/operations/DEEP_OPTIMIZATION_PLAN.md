@@ -4426,3 +4426,22 @@ docker run --rm -v specproof-maven-cache-1000:/m2 -v "$PWD":/ws -w /ws -u 1000:1
 **完成判据。** 报告里给出当前四例的 Recall/Precision/Severity agreement 与 case-17 是否 `PASS`；若 case-17 仍 `MISS`，定位 `eval.py` 的 state 构造与 `_diagcase.py` 的差异（重点 `repo` 是否 resolve），而不是改差分本身——#236 已证明差分测试健康。
 
 **诚实边界。** ① 此件无法在当前单轮可靠完成（≥17 分钟、超前台 Bash 10 分钟上限；后台任务随会话结束而死），故作为交接留给下一轮首先执行，本轮不伪造"已完成"。② 若下一轮仍受 429/时长限制，至少先完成 Maven 缓存卷播种（上面两条 docker 命令），让评测能在干净环境起跑。
+
+**2026-10-12 补充（实测，未跑评测）。** 本轮把 #237 的前置与起跑条件重新钉死，确认它仍只能作为交接，但把"差哪一步"说清了：① **Maven 缓存卷已确认播种**——`docker run ... maven:... ls /m2` 显示 218 目录 / 1522 jar（2026-10-08 落地），记忆「本地跑评测」前置已满足。② **真正的未解依赖是 `case-17-head` 这个 ref 不存在**：`demo/spring-backend` 当前只有 `base` / `head-v1` 两个 tag，而 case-17 的 `scenario.json` 要求 `head_ref: "case-17-head"`。`prepare_demo_repo()` 只造 `base`/`head-v1`，**不造 `case-17-head`**——该 ref 由 `scripts/build_golden_scenarios.py --only` 生成（#236 胶囊当时显然自建过）。所以 #237 真实起跑前还差一步：用 build_golden_scenarios（或等价方式）在 demo 仓库补出 `case-17-head` ref，否则评测在 checkout 阶段就红。③ CI 真实调用为 `specproof eval --cases eval-subset --repo . --no-llm`，eval-subset 位于 `.local/eval-subset`（含 case-01..10、case-17、case-56 共 12 例）。④ 时长仍超前台 10 分钟上限、后台任务随会话死——故 #237 继续作为交接，本轮**不伪造"已完成"**。
+
+## #241 网页「新建验证」一键创建演示仓库 —— 后端端点落地（roadmap 1.3 后端半）
+
+**起点（队列里是 roadmap 1.3 的「待办」）。** roadmap 1.3 明确：网页「新建验证」的"填入演示案例"快捷键假设 `demo/spring-backend` 已带 `base`/`head-v1` git ref；这些 ref 由 `prepare_demo_repo()`（CLI `specproof demo` 与 `start_local` 钩子都调用）创建。当 ref 缺失（比如用户走轻量模式跳过了钩子，或指向了全新 clone），快捷键会甩出裸 git 错误把操作员推回终端。roadmap 1.3 的「待办」是让网页在缺 ref 时给"一键创建演示仓库"按钮——**后端端点触发 `prepare`**。本号落地其后端半，前端按钮作为 #241b 续做。
+
+**修法（`api/routes/demo.py` 新增 `demo_router` + `api/server.py` 注册）。** `POST /api/v1/demo/prepare` 是对既有、已测的 `prepare_demo_repo()` 的一层薄、鉴权包装：直接复用 `web_router` 的同款 `require_api_key` + `enforce_rate_limit` 依赖；调用 `prepare_demo_repo()`（同步，跑 git subprocess），幂等——两 ref 都在则不碰 git 状态、回 `created:false`。**刻意不碰验证执行面**（`api/routes/jobs.py` 红线）：本端点只做本地演示仓库的 git ref 准备，不跑验证管线、不编造结论，与 `start_local.ps1` 已做的事同一性质，只是把触发口子从"终端/启动钩子"搬到 API。真实 `prepare_demo_repo` 的 git 副作用由它自己的命令测试覆盖；本端点测试用 mock 隔离，保证 HTTP 接线与 click 错误→422 翻译确定、不碰文件系统。
+
+**门证（实测）。** `.venv/Scripts/python -m pytest tests/unit/test_api_demo_prepare.py -q` → **4 passed**（覆盖：无 key→401 失败闭合、ref 已存在→200 `created:false`、ref 缺失→200 `created:true`、真实配置错误→422 且透出原中文消息而非伪造 200）；`.venv/Scripts/ruff check api/routes/demo.py tests/unit/test_api_demo_prepare.py api/server.py` → **All checks passed**；`.venv/Scripts/mypy api/routes/demo.py`（默认 follow-imports）→ **Success**（与 `web_router` 同款装饰器，无 untyped-decorator 报错；`--follow-imports=skip` 下的那一条是该模式人为造出的，非真实门禁）。
+
+**诚实边界。** ① 本号只交付后端端点；"网页按钮"是用户真正看得见的那一半，记在 **#241b**。② 本端点造的是 `base`/`head-v1`（与 `prepare_demo_repo` 一致），**不**造 `case-17-head`——所以它与 #237 的 case-17 阻塞无关，两者是不同 ref。③ 工作树 `experiments/adapters.py` 有 4 条 mypy 报错（attr-defined / call-arg / name-defined），属**另一条车道**的在途改动（git status 列为 `M`），与本号无关、不碰、不代修；`mypy api/routes/demo.py` 全量跟 import 时只报那一个脏文件，**我新增的文件零报错**。④ 无生产代码行为回归：`demo_router` 仅新增一个 POST 路由，未改任何既有路由。
+
+**下一号队列（#241b 起，按可直接接手的顺序）。**
+- **#241b** 前端「新建验证」缺 ref 时的一键创建按钮：调 `POST /api/v1/demo/prepare`，成功后续跑"填入演示案例"流程（前端 tsx + vitest，门禁 tsc/vitest/vite build）。
+- **#242** #237 真实起跑：先用 `scripts/build_golden_scenarios.py --only` 在 `demo/spring-backend` 补出 `case-17-head` ref，再按 CI 调用 `specproof eval --cases eval-subset --repo . --no-llm` 跑四例子集（单例 ~17 分钟 / 子集 ~41 分钟，需后台或长窗口），报告当前 Recall/Precision/Severity agreement 与 case-17 是否 `PASS`。
+- **#243** roadmap 1.6 待办：Verify 作业引入可插拔存储 + 进程内执行器/进度通道，使零 Docker 也能跑网页版验收（与 Craft 对齐，较大重构）。
+- **#244** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
+- **#245** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
