@@ -435,6 +435,21 @@ export function createVerification(payload: VerificationRequest): Promise<{ job_
   return apiPost("/jobs", payload);
 }
 
+// ── Demo repo preparation (mirror api/routes/demo.py, #241 backend half) ──
+// Idempotent: the backend creates the `base` / `head-v1` git refs only when
+// they are missing and reports which happened via `created`. A missing API key
+// (lightweight mode / not-yet-configured) comes back as 401, which the caller
+// turns into an actionable hint rather than a bare stack trace.
+export interface PrepareDemoResponse {
+  created: boolean;
+  refs: string[];
+  message: string;
+}
+
+export function prepareDemoRepo(): Promise<PrepareDemoResponse> {
+  return apiPost<PrepareDemoResponse>("/api/v1/demo/prepare", {});
+}
+
 export interface DashboardData {
   degraded: boolean;
   degraded_reasons: string[];

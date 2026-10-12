@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import NewVerification from "./NewVerification";
-import { createVerification } from "../api";
+import { createVerification, prepareDemoRepo, type ApiError } from "../api";
 
-vi.mock("../api", () => ({ createVerification: vi.fn() }));
+vi.mock("../api", () => ({ createVerification: vi.fn(), prepareDemoRepo: vi.fn() }));
 const create = vi.mocked(createVerification);
-beforeEach(() => { create.mockReset(); window.location.hash = "#/jobs/new"; });
+const prepare = vi.mocked(prepareDemoRepo);
+beforeEach(() => { create.mockReset(); prepare.mockReset(); window.location.hash = "#/jobs/new"; });
 
 function fillProject() {
   fireEvent.change(screen.getByLabelText(/Git 仓库路径/), { target: { value: "  /workspace/orders  " } });
@@ -72,5 +73,58 @@ describe("new verification", () => {
     fireEvent.click(screen.getByRole("button", { name: "开始验证 →" }));
     await screen.findByText(/无法连接到验证服务/);
     expect(screen.queryByText(/Failed to fetch/)).toBeNull();
+  });
+});
+
+// #241b: the one-click "create demo repo" button must call the backend and, on
+// success, continue into the demo-fill flow without the user touching the CLI.
+describe("NewVerification demo-repo creation (#241b)", () => {
+  function repoInput(): HTMLInputElement {
+    return screen.getByLabelText(/Git 仓库路径/) as HTMLInputElement;
+  }
+
+  it("offers a one-click create button", () => {
+    render(<NewVerification />);
+    expect(screen.getByRole("button", { name: "一键创建演示仓库" })).toBeTruthy();
+  });
+
+  it("creates the repo then auto-fills the demo form on success", async () => {
+    prepare.mockResolvedValue({ created: true, refs: ["base", "head-v1"], message: "ok" });
+    render(<NewVerification />);
+    expect(repoInput().value).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "一键创建演示仓库" }));
+    await waitFor(() => expect(repoInput().value).toBe("demo/spring-backend"));
+    expect(screen.getByText(/已创建演示仓库/)).toBeTruthy();
+    expect(prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it("still fills the form when the refs already existed (idempotent backend)", async () => {
+    prepare.mockResolvedValue({ created: false, refs: ["base", "head-v1"], message: "已存在" });
+    render(<NewVerification />);
+    fireEvent.click(screen.getByRole("button", { name: "一键创建演示仓库" }));
+    await waitFor(() => expect(repoInput().value).toBe("demo/spring-backend"));
+    expect(screen.getByText(/演示仓库已存在/)).toBeTruthy();
+  });
+
+  it("tells the user to configure an API key on 401 instead of crashing", async () => {
+    const err = Object.assign(new Error("missing key"), { status: 401, detail: "" }) as ApiError;
+    prepare.mockRejectedValue(err);
+    render(<NewVerification />);
+    fireEvent.click(screen.getByRole("button", { name: "一键创建演示仓库" }));
+    const alert = await screen.findByText(/API 密钥/);
+    expect(alert.textContent).toContain("需要先配置 API 密钥");
+    expect(repoInput().value).toBe("");
+  });
+
+  it("surfaces a genuine setup error verbatim rather than a fake success", async () => {
+    const err = Object.assign(new Error("boom"), {
+      status: 422,
+      detail: "演示仓库目录未找到: demo/spring-backend",
+    }) as ApiError;
+    prepare.mockRejectedValue(err);
+    render(<NewVerification />);
+    fireEvent.click(screen.getByRole("button", { name: "一键创建演示仓库" }));
+    const alert = await screen.findByText(/演示仓库目录未找到/);
+    expect(alert.textContent).toContain("演示仓库目录未找到");
   });
 });

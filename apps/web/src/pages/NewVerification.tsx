@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { createVerification, type VerificationRequest } from "../api";
+import { createVerification, prepareDemoRepo, type ApiError, type VerificationRequest } from "../api";
 import { DEMO_VERIFY, DEMO_VERIFY_REPO_NOTE } from "../demo";
 import { Breadcrumbs, Button, ErrorBox, Input, Term } from "../ui";
 import "../styles/verification.css";
@@ -67,6 +67,13 @@ export default function NewVerification() {
   const [error, setError] = useState<Error | string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [demoFilled, setDemoFilled] = useState(prefill !== null);
+  // #241b: one-click create of the demo repo (base / head-v1 refs) so a first
+  // run no longer requires the CLI. The backend call is idempotent; the handler
+  // fills the demo form on success regardless of whether the refs were just
+  // created or already present.
+  const [preparing, setPreparing] = useState(false);
+  const [prepareStatus, setPrepareStatus] = useState<string | null>(null);
+  const [prepareError, setPrepareError] = useState<string | null>(null);
 
   const fillDemo = () => {
     setForm({
@@ -87,8 +94,7 @@ export default function NewVerification() {
     setError(null);
   };
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
+  const submit = async (event: FormEvent) => {    event.preventDefault();
     if (submitting) return;
     const payload: VerificationRequest = {
       repo_path: form.repo_path.trim(), spec_path: form.spec_path.trim(),
@@ -111,6 +117,34 @@ export default function NewVerification() {
     } catch (e) {
       setError(describeSubmitError(e));
       setSubmitting(false);
+    }
+  };
+
+  const prepareDemo = async () => {
+    if (preparing) return;
+    setPreparing(true);
+    setPrepareError(null);
+    setPrepareStatus(null);
+    try {
+      const result = await prepareDemoRepo();
+      // Success: refs are now present (newly created or already there). The
+      // demo can be filled no matter which — the endpoint is idempotent and the
+      // user's goal is to reach a fillable form, not to learn which branch ran.
+      fillDemo();
+      setPrepareStatus(
+        result.created
+          ? "已创建演示仓库（" + result.refs.join(" / ") + "），演示案例已填入左侧表单。"
+          : "演示仓库已存在，演示案例已填入左侧表单。"
+      );
+    } catch (e) {
+      const err = e as ApiError;
+      if (err?.status === 401) {
+        setPrepareError("需要先配置 API 密钥（见「模型连接 / 设置」）才能创建演示仓库。");
+      } else {
+        setPrepareError(err?.detail || err?.message || "演示仓库创建失败，请稍后重试。");
+      }
+    } finally {
+      setPreparing(false);
     }
   };
 
@@ -178,8 +212,13 @@ export default function NewVerification() {
             <p>项目自带一个演示仓库：改动前的版本权限检查完整，改动后的版本移除了邮箱修改接口的权限检查。提交验证后，预期结论为 <strong>发现风险</strong>（<code>BLOCKED</code>）— 你会看到具体风险、代码位置和证据。</p>
             <div className="demo-prefill-row">
               <Button type="button" size="sm" onClick={fillDemo}>填入演示案例</Button>
+              <Button type="button" size="sm" variant="secondary" onClick={prepareDemo} disabled={preparing}>
+                {preparing ? "正在准备…" : "一键创建演示仓库"}
+              </Button>
               {demoFilled ? <span className="demo-prefill-status" role="status">已填入左侧表单，直接点「开始验证」</span> : null}
             </div>
+            {prepareStatus ? <span className="demo-prefill-status" role="status">{prepareStatus}</span> : null}
+            {prepareError ? <span className="demo-prefill-error" role="alert">{prepareError}</span> : null}
             <code className="demo-prefill-code">{DEMO_VERIFY_REPO_NOTE}</code>
           </div>
           <p className="verification-note">当前验收主要依赖已有 Java / Spring 检查器；不支持的需求会标记覆盖不足。提交后需由执行服务处理。验证耗时取决于改动范围、模型服务和项目环境。</p>

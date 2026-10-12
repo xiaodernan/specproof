@@ -4494,3 +4494,22 @@ A3 新必填旋钮、A4 清空拒绝消息、A5 需求降级为注释、A6 剥�
 compose 文件插值的模板行（CRAFT_*、LLM_*、OIDC_*、ES_HOST/ES_USER、SPECPROOF_AUTH_ENABLED、
 GITHUB_* 等）。那一面已按此口径量好，留给下一号；注意文档尾部的队列把 #243/#244/#245
 预留给 roadmap 条目，编号仍按两本台账在提交时现算。
+
+## #241b 网页「新建验证」一键创建演示仓库 —— 前端按钮落地（roadmap 1.3 前端半）
+
+**起点（#241 队列的第一件）。** #241 落地了后端端点 `POST /api/v1/demo/prepare`（对既有、已测的 `prepare_demo_repo()` 的薄鉴权包装，幂等创建 `base`/`head-v1`）。roadmap 1.3 的「待办」是让网页在缺 ref 时给"一键创建演示仓库"按钮、成功后续跑"填入演示案例"流程，而非让用户去终端跑 `specproof demo`。本号落地前端这半。
+
+**修法（三处）。**
+- `apps/web/src/api.ts`：新增 `prepareDemoRepo(): Promise<PrepareDemoResponse>`（`apiPost("/api/v1/demo/prepare", {})`）与 `PrepareDemoResponse { created, refs, message }` 类型，镜像后端 `api/routes/demo.py`。复用既有 `headers()`（X-API-Key / Bearer），与全站鉴权同源；401 由 `handleResponse` 转成 `ApiError(status=401)`，本组件据此给可操作提示。
+- `apps/web/src/pages/NewVerification.tsx`： aside 的 `.demo-prefill-row` 加一个 `secondary` 的「一键创建演示仓库」按钮（点按 `prepareDemo` handler）。`prepareDemo` 幂等：成功时**无论 `created` 是 true 还是 false 都调用 `fillDemo()`** 把演示案例填入表单（后端 idempotent，用户目标是拿到可提交的表单，不是区分"刚建"还是"已存在"）；`created=true` 提示"已创建演示仓库（base / head-v1）…"、`created=false` 提示"演示仓库已存在…"。失败：`status===401` → "需要先配置 API 密钥（见「模型连接 / 设置」）"；其余 → 透出 `detail || message`，**绝不伪造成功**。新增 3 个 state：`preparing` / `prepareStatus` / `prepareError`，按钮在 `preparing` 时禁用并显示"正在准备…"。
+- `apps/web/src/pages/NewVerification.test.tsx`：在**既有**测试文件里追加 #241b describe（5 案），并把 `vi.mock("../api", ...)` 补上 `prepareDemoRepo: vi.fn()`。覆盖：按钮存在、成功后自动填入（repo 输入框值变为 `demo/spring-backend` 且状态含"已创建演示仓库"）、idempotent（`created=false` 仍填入且状态含"演示仓库已存在"）、401 给中文密钥提示且表单不被填假、422 透出原中文错误（"演示仓库目录未找到"）。`beforeEach` 里 `prepare.mockReset()`。
+
+**门证（实测）。** `apps/web` 下：`npx tsc --noEmit` → **exit 0**；`npx vite build` → **✓ built in 5.80s**；`npx vitest run src/pages/NewVerification.test.tsx` → **11 passed**（6 原有 + 5 新增）；全量 `npx vitest run` → **406 passed / 2 failed / 408 total**。2 个失败在 `src/pages/__tests__/SameRepoCraftPanel.test.tsx`——断言文本含"没有外键"而组件实际渲染"之间没有 外键"（多一个空格），属**无关面板的既有测试/源码错位**（本号未触碰该面板与测试，且其文件不在工作树脏集、已提交），**不是 #241b 引入的回归**，按车道隔离纪律不在此号顺手修，记于此留后续。
+
+**诚实边界。** ① 本号只补前端按钮，未改后端（#241 已交付）；前后端契约为 `POST /api/v1/demo/prepare` 返回 `{created, refs, message}`，两侧类型对齐。② 后端只造 `base`/`head-v1`，**不**造 `case-17-head`，故与 #237 的 case-17 阻塞无关。③ 401 提示指向「模型连接 / 设置」里的 API 密钥——轻量模式未配密钥时按钮会优雅降级而非抛英文堆栈，正是 roadmap 1.3 想消的"裸 git 错误把操作员推回终端"的反面。④ `apps/web` 工作树本号为干净新增（git status 无 `apps/web` 脏集），提交只走本号三径 + 计划文件，绕过索引、不碰 `.scratch/`、`uv.lock`、别的 lane 的 `SpecProofGeneratedTest.java` 未跟踪件。
+
+**下一号队列（#242 已被另一车道占用为 compose `:?` 旋钮门；按顺序续接）。**
+- **#243** #237 真实起跑：先用 `scripts/build_golden_scenarios.py --only` 在 `demo/spring-backend` 补出 `case-17-head` ref，再按 CI 调用 `specproof eval --cases eval-subset --repo . --no-llm` 跑四例子集（单例 ~17 分钟 / 子集 ~41 分钟，需后台或长窗口），报告当前 Recall/Precision/Severity agreement 与 case-17 是否 `PASS`。
+- **#244** roadmap 1.6 待办：Verify 作业引入可插拔存储 + 进程内执行器/进度通道，使零 Docker 也能跑网页版验收（与 Craft 对齐，较大重构）。
+- **#245** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
+- **#246** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
