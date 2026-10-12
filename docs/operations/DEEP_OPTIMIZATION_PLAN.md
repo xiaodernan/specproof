@@ -4531,3 +4531,36 @@ GITHUB_* 等）。那一面已按此口径量好，留给下一号；注意文�
 - **#245** roadmap 1.6 待办：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）。
 - **#246** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
 - **#247** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
+
+## #244 case-17 真跑评测：**PASS**（检出 `UNIQUE-01`）——#231/#237 待核项闭环
+
+**起点（#231 诚实边界③ 的待核项）。** #231 留下一处未消的矛盾：早先四例评测报 `case-17: [MISS] matched 0 finding(s), contracts_found: []`，而 #231 探针在同一份 state 构造下看到 2 条 `confirmed_findings`（contract_id 都是 `UNIQUE-01`）。#236 用胶囊证明了"生成测试本身在干净 Maven 差分下 base/head 两侧均通过"，但没证明"评测会把 case-17 判 PASS"。本号真跑一次评测回答它。
+
+**前置全部满足（实测）。** Maven 缓存卷 `specproof-maven-cache-1000` 已播种（218 目录/1522 jar）；Docker 可用；主仓 `specproof-reference` 有 `base`/`head-v1`/`case-17-head` 三个 tag（#243 顺带更正了"case-17-head 不存在"的早前错误记录——那是查错了 `demo/spring-backend` 子仓）。
+
+**执行（真跑，非伪造）。** 把 `golden-cases/case-17-logic-inversion` 复制到单例目录，跑：
+```
+.venv/Scripts/specproof.exe eval --cases <单例目录> --repo . --no-llm --output <仓外报告>
+```
+后台任务 `cTxUin`，**14m 51s** 完成，EXIT=0（其中 case-17 管线 657534 ms ≈ 11 分钟）。
+
+**读数（实测，日志 `D:/面试项目/_eval_case17.log`）。**
+```
+=== case-17-logic-inversion (base=base, head=case-17-head) ===
+  [PASS] matched 1 finding(s), contracts found: ['UNIQUE-01'] (657534 ms)
+Total cases: 1 / Not run: 0 / Should detect: 1 / Detected: 1 / False positives: 0
+Precision: 100.0% / Recall: 100.0% / F1: 100.0%
+Severity agreement: 100.0% (1 matched positive cases)
+Severe precision: 100.0% (severe calls: 1 positive / 0 negative)
+Acceptance: INSUFFICIENT  （正例 1 < 10、负例 0 < 5 —— 样本不足，诚实记 INSUFFICIENT 而非默认满分）
+```
+
+**结论（#231/#237 待核项闭环）。** case-17 在干净差分下**被检出并判 PASS**，`contracts_found = ['UNIQUE-01']`。早先那次 `[MISS] matched 0 findings` **未复现**——与 #236 的结论一致：那是一次构建缓存复用/脏环境的产物，不是检测缺陷。故 #231 的两条真结论（归因规则被 hash 触发、旗舰证据链在脏环境产不出）依然成立，但"评测会把 case-17 判 MISS"这一疑虑**证伪**。
+
+**诚实边界。** ① 这是**单例**读数（case-17），`Acceptance: INSUFFICIENT` 是样本不足的诚实记账（1 正例 < 10 下限），**不等于质量合格**——Recall 100% 只保证"这一例被检出"。② `contracts_found` 是 findings 的 contract_id，`['UNIQUE-01']` 意为差分确为该契约产出 finding。③ 单例耗时 ~11 分钟（含 Maven 构建），四例子集预计 ~41 分钟；本会话已在后台起 CI 四例子集（`case-21/case-12/case-17/case-56`，任务 `nIJTmp`，日志 `D:/面试项目/_eval_subset4.log`），下轮据其读数给四例的 Recall/Precision/Severity agreement。④ 评测报告写在**仓外**（`D:/面试项目/_eval_case17_report.html`），未污染 `docs/eval/`（那条路径有另一车道在途改动）。
+
+**下一号队列（#244 单例已闭环；四例子集在飞）。**
+- **#244b** 四例子集读数：待后台任务 `nIJTmp` 完成，报告 Recall/Precision/Severity agreement 与 case-21/case-12/case-56 的逐例 verdict（基线 2026-10-09 四例：66.7%/100%/0.0%/0.0%）。
+- **#245** roadmap 1.6：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）。
+- **#246** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
+- **#247** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
