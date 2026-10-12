@@ -2386,4 +2386,69 @@ precision 已经掉下去，下一次 push 的 CI 会自己红并点名 precisio
 - 只验了最小单模块 `gradle init` 工程，未验多模块、wrapper 下载、`--offline`
   下的插件解析。
 
+## 39. #244：`down/` 里躺着一份回滚不掉的外键（2026-10-11）
+
+`MULTI_TENANT_DESIGN.md` 写着「迁移必须前向可回滚 (up/down 成对), 用真实 MySQL
+状态机测试验证」。14 个 up 迁移里 10 个带 `down/`，**没有任何测试看过这两半是不是
+真的一对**。`GUIDE_GAP_AUDIT.md` 自己也承认「迁移前向/回滚测试未做」。
+
+### 39.1 实测：up → down → up 走不通
+
+`infra/mysql/migrations/0006_contract_immutable_versions.sql` 为了把
+`contract_registry` 的主键从 `(id)` 改成 `(id, version)`，**按名字**删掉了
+`contract_approvals_ibfk_1`（0001 建表时的外键），再挂上复合外键
+`fk_contract_approvals_version`。它的 down 删了复合外键、删了它加的索引和列、
+**没有把任何外键加回去**。
+
+在一次性库上按顺序跑 `0001..0014` → `down/0006` → `0006`，实测两次：
+
+| | 修复前 | 修复后 |
+|---|---|---|
+| down 后 `contract_approvals` 的外键 | **一个都没有** | `contract_approvals_ibfk_1` |
+| 再跑一遍 up | `ERROR 1091: Can't DROP 'contract_approvals_ibfk_1'` | **exit 0** |
+
+两个后果不同性质：**回滚之后 `contract_approvals` 不再引用任何表**，而该文件自己的
+头部写着「matching the pre-0006 data shape」—— 静默丢掉 0001 的参照完整性；而
+up 不可重跑意味着「成对」承诺的往返本身不存在。探针
+`.scratch/probe_rollback_rt.py`，`RESULT: restored=False roundtrip_ok=False`
+→ `restored=True roundtrip_ok=True`。
+
+### 39.2 四条门，两个方向
+
+`tests/unit/test_migration_pairing_reverses.py`，**不连数据库**，静态读 SQL：
+
+| 测什么 | 为什么单独一条 |
+|---|---|
+| 每个 up 要么有 down，要么在 `_BASELINE` 里 | 0001-0004 是基线且头部没说可回滚；集合要**可见可审**，新增 0015 缺 down 不能悄悄混进去。反向断言在册条目不能是死的 |
+| down 删掉 up 加的每个对象 | 显然的方向 |
+| **down 补回 up 删掉的每个对象** | 上面那条**看不见**的方向 —— up 里的 `DROP` 是个洞，得由 down 填。0006 就栽在这里 |
+| down 不删 up 没加过的东西 | 这不是静默洞，是 `ERROR 1091`，而且 MySQL 隐式提交 DDL，**前几条已落库才炸**（0012 头部自己说了 ALTER 无法与 schema_migrations 行同事务）。所以正确的失败时机是事前红门，不是事故中 |
+
+四个都先把注释行剥掉再匹配：文件头是散文，会提到「adding version to the key」
+这类词，不剥会报出迁移里根本不存在的对象（探针第一版就因此把 0012 误判成
+`down-drops-nothing`，因为它认 `ADD INDEX` 而 0012 写的是 `ADD UNIQUE KEY`）。
+
+### 39.3 变异 5/5 红，红集合与预测一致
+
+| 臂 | 红的测 |
+|---|---|
+| A1 down 不再补回被删的外键 | `test_down_refills_what_the_up_takes_away` |
+| A2 down 删一个 up 没加的索引 | 2 条（补回 + 幽灵删，正是这条改动的两面） |
+| A3 新增 up 无 down | `test_every_up_is_either_paired_or_named_a_baseline` |
+| A4 从 `_BASELINE` 删掉一条 | 同上（**反向**：在册条目不能是死的） |
+| A5 down 删 up 没加的东西 | `test_down_never_drops_something_the_up_never_added` |
+
+`core.autocrlf=true` 让工作区是 CRLF、模式是 `\n` —— 与 #236b/#237 同一个坑，首版
+2 臂报 SKIP（0 hits）而非 RED。改成**按文件自己的 EOL 换算**模式与替换文本后再跑。
+
+### 39.4 诚实边界
+
+- 静态门**读不出** `DELETE` 是否真被 down 逆转（0006 down 的
+  `DELETE ... WHERE version > 1` 与 0012 的去重都不可逆，各自头部已声明），因此
+  这一轮没有断言行级可逆性。
+- **没跑全量 3845**：本轮 focused `14 passed`（`test_migrations.py` 10 +
+  新门 4）、ruff/mypy clean。
+- 四条 `down/` 缺失的 0001-0004 未补 —— 基线是否可逆是另一个决定，本轮只把它
+  变成显式可审的集合，没有替产品决定。
+
 
