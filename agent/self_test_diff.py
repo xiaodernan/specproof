@@ -61,10 +61,36 @@ def self_test_execution_allowed() -> bool:
     return os.getenv(ALLOW_LOCAL_TEST_EXEC_ENV, "").strip().lower() in _TRUTHY
 
 
+#: Counters meaning a test actually RAN (green or red). A skipped test did not
+#: run, so it is evidence of nothing.
+_RAN_COUNTERS = ("passed", "failed", "failures", "errors")
+
+
+def _executed(counts: dict[str, int], tests: int) -> int:
+    """How many tests actually ran, as opposed to being skipped.
+
+    The five reporters disagree about what ``tests`` counts, and the
+    disagreement is load-bearing: surefire, Jest, Vitest and node:test fold
+    skipped tests INTO ``tests``, while pytest's ``tests`` is passed+failed and
+    already excludes them. Neither extreme is right — subtracting ``skipped``
+    unconditionally drives pytest's count negative, and never subtracting it
+    certifies an all-skipped suite as green.
+
+    So: when the reporter publishes its own executed counters, sum them;
+    otherwise derive it from ``tests - skipped``. An all-``@Disabled`` suite,
+    a ``-k`` filter that matches nothing and a reporter nobody can parse all
+    land on 0 here, which is the honest answer for all three.
+    """
+    if "passed" in counts:
+        return sum(int(counts.get(k, 0) or 0) for k in _RAN_COUNTERS)
+    return max(tests - int(counts.get("skipped", 0) or 0), 0)
+
+
 def _failing(counts: dict[str, int] | None) -> int | None:
     """How many tests failed+errored in one side's summary, or None if the
-    summary carries no usable signal (missing keys or zero tests — an empty
-    run is not evidence of a green suite).
+    summary carries no usable signal (missing keys, zero tests, or nothing
+    actually ran — an empty or all-skipped run is not evidence of a green
+    suite).
 
     Handles all three adapter reporters: surefire uses ``failures`` while
     pytest/node use ``failed``; both are summed alongside ``errors``.
@@ -79,6 +105,8 @@ def _failing(counts: dict[str, int] | None) -> int | None:
             return None
         tests = sum(parts)
     if int(tests) <= 0:
+        return None
+    if _executed(counts, int(tests)) <= 0:
         return None
     return (
         int(counts.get("failed", 0) or 0)

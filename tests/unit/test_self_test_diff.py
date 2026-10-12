@@ -75,6 +75,59 @@ def test_no_counts_is_no_evidence_never_a_pass(empty: dict[str, int] | None) -> 
     assert verdict2 == VERDICT_NO_EVIDENCE
 
 
+    verdict2, _ = self_test_verdict(empty, green)
+    assert verdict2 == VERDICT_NO_EVIDENCE
+
+
+# ---- all-skipped runs are not green runs (#237) -------------------------------
+#
+# The five reporters disagree about what "tests" counts, and the disagreement
+# is load-bearing. surefire / Jest / Vitest / node:test fold skipped tests INTO
+# "tests"; pytest's "tests" is passed+failed and already excludes them. So
+# neither extreme is right: subtracting "skipped" unconditionally drives
+# pytest negative, and never subtracting it certifies an all-skipped suite as
+# COMPLIANT -- which is what these four lock shut.
+
+GREEN = {"tests": 5, "passed": 5, "failed": 0, "errors": 0, "skipped": 0}
+
+
+def test_all_skipped_surefire_is_not_compliant() -> None:
+    # parse_surefire_summary shape: "tests" includes the skipped ones.
+    skipped = {"tests": 3, "failures": 0, "errors": 0, "skipped": 3}
+    verdict, detail = self_test_verdict(dict(GREEN), skipped)
+    assert verdict == VERDICT_NO_EVIDENCE
+    assert "head" in detail
+
+
+def test_all_skipped_node_reporter_is_not_compliant() -> None:
+    # parse_node_test_summary shape: "tests" includes skipped/pending.
+    skipped = {"tests": 4, "passed": 0, "failed": 0, "skipped": 4}
+    verdict, _ = self_test_verdict(dict(GREEN), skipped)
+    assert verdict == VERDICT_NO_EVIDENCE
+
+
+def test_both_sides_all_skipped_is_not_compliant() -> None:
+    skipped = {"tests": 4, "passed": 0, "failed": 0, "skipped": 4}
+    verdict, _ = self_test_verdict(dict(skipped), dict(skipped))
+    assert verdict == VERDICT_NO_EVIDENCE
+
+
+def test_a_partial_skip_still_counts_the_tests_that_ran() -> None:
+    # 2 ran and passed, 1 skipped: a green head. This is the arm that stops
+    # the fix from over-correcting into "any skip means no evidence".
+    head = {"tests": 3, "passed": 2, "failed": 0, "errors": 0, "skipped": 1}
+    verdict, _ = self_test_verdict(dict(GREEN), head)
+    assert verdict == VERDICT_COMPLIANT
+
+
+def test_pytest_summary_is_not_double_subtracted() -> None:
+    # pytest's "tests" already excludes skipped (5 = 4 passed + 1 failed), so
+    # "tests - skipped" must never go negative and lose the failing test.
+    head = {"tests": 5, "passed": 4, "failed": 1, "errors": 0, "skipped": 7}
+    verdict, detail = self_test_verdict(dict(GREEN), head)
+    assert verdict == VERDICT_REGRESSION
+    assert "1 fail" in detail
+
 def test_verdict_is_reproducible_across_equal_inputs() -> None:
     base = {"tests": 10, "passed": 10, "failed": 0, "errors": 0, "skipped": 0}
     head = {"tests": 10, "passed": 9, "failed": 1, "errors": 0, "skipped": 0}
