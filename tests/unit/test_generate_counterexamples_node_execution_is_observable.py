@@ -212,6 +212,70 @@ def test_llm_generated_counts_llm(
     assert _deltas(before) == _only("llm_generated")
 
 
+def test_workspace_outside_the_temp_dir_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real checkout is refused — the leak that left demo/ polluted.
+
+    ``prepare_head`` only ever hands the node a ``tempfile.mkdtemp`` tree, so
+    any path outside the system temp dir means a caller bypassed it. Writing
+    there plants ``SpecProofGeneratedTest.java`` in someone's repository,
+    which is exactly what happened: it sat as the only stray path under
+    ``demo/``, and no diff-based check could see it because it was untracked.
+    """
+    outside = Path(ROOT) / "demo" / "spring-backend"
+
+    def bomb_provider() -> None:
+        raise AssertionError("a refused workspace must never reach the provider")
+
+    monkeypatch.setattr(gen_module, "_get_provider", bomb_provider)
+
+    before = _before()
+    out = generate_counterexamples_node(_state(str(outside)))  # type: ignore[arg-type]
+
+    assert out["generated_tests_path"] == ""
+    errors = out["generation_record"]["errors"]
+    assert len(errors) == 1 and "not under the temp dir" in errors[0], errors
+    # The write never happened: no generated test in the demo tree.
+    assert not (outside / "src/test/java/com/specproof/demo/SpecProofGeneratedTest.java").exists()
+    assert _deltas(before) == _only("workspace_not_tempdir")
+
+
+def test_a_tempdir_workspace_is_still_accepted(tmp_path: Path) -> None:
+    """The refusal must not refuse what prepare_head actually produces.
+
+    Without this arm the guard could be green while refusing every real run:
+    a check that only ever proves "outside is refused" says nothing about
+    "inside still works".
+    """
+    assert gen_module.refuse_to_pollute_a_checkout(tmp_path) == ""
+    assert gen_module.refuse_to_pollute_a_checkout(str(tmp_path)) == ""
+
+
+def test_the_write_site_itself_is_guarded(tmp_path: Path) -> None:
+    """Defense in depth: the coroutine refuses too, not only its caller.
+
+    ``test_worker_cancel_points`` calls ``_generate_with_compile_loop``
+    directly, so a guard placed only in the node would leave the write itself
+    unprotected for every other caller.
+    """
+    from agent.nodes.generate_counterexamples import (
+        _generate_with_compile_loop,
+        refuse_to_pollute_a_checkout,
+    )
+
+    outside = str(Path(ROOT) / "demo" / "spring-backend")
+    assert refuse_to_pollute_a_checkout(outside) != ""
+
+    async def _go() -> Any:
+        return await _generate_with_compile_loop(outside, [], [], "spec")
+
+    result = real_asyncio.run(_go())
+    assert result.compile_exit_code == -1
+    assert "not under the temp dir" in result.compile_stderr
+    assert result.code == ""
+
+
 def test_outcome_vocabulary_matches_parity_and_source() -> None:
     from tests.unit.test_observability_metric_parity import CONCATENATED_FAMILIES
 

@@ -329,7 +329,7 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         re.compile(
             r"^generate_counterexamples_(outcomes_"
             r"(deterministic_template|llm_generated|no_workspace"
-            r"|template_unsupported)|runs)_total$"
+            r"|template_unsupported|workspace_not_tempdir)|runs)_total$"
         ),
         "agent/nodes/generate_counterexamples.py #197: "
         "generate_counterexamples_runs_total + "

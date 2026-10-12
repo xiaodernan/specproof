@@ -18,16 +18,21 @@ compiled), ``deterministic_template`` (the demo fallback test was written
 and its head run recorded; whether that run compiled is the record's
 compile_passed flag, not a word) or one of the two honest empty-path
 refusals: ``no_workspace`` and ``template_unsupported`` (LLM failed AND
-the repo is not the demo — "No counterexample test produced"). An empty
-generated_tests_path appears in both refusal cases; the word is the only
-countable difference, and the record's source field now has a metric-side
-twin.
+the repo is not the demo — "No counterexample test produced"), plus the
+write guard ``workspace_not_tempdir``: a workspace outside the system temp
+dir is not a ``prepare_head`` worktree, so writing there would plant a
+generated test inside a real checkout (how ``demo/`` ended up holding an
+untracked ``SpecProofGeneratedTest.java``). An empty
+generated_tests_path appears in all three refusal cases; the word is the
+only countable difference, and the record's source field now has a
+metric-side twin.
 """
 from __future__ import annotations
 
 import asyncio
 import os
 import re
+import tempfile
 import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -49,6 +54,7 @@ GENERATE_TEST_OUTCOMES = frozenset({
     "deterministic_template",  # demo fallback test written; head run recorded
     "no_workspace",            # nothing to generate into — early refusal
     "template_unsupported",    # LLM failed AND non-demo repo — honest refusal
+    "workspace_not_tempdir",   # caller handed us a real checkout — early refusal
 })
 
 # ── Test source tracking ──────────────────────────────────────────
@@ -61,6 +67,37 @@ _TEST_SCHEMA_REQUIRED = [
     "@Test",
     "MockMvc",
 ]
+
+
+def refuse_to_pollute_a_checkout(workspace: str | Path) -> str:
+    """Refuse to write a counterexample into anything but a tempdir worktree.
+
+    ``prepare_head`` always builds the head workspace with
+    ``tempfile.mkdtemp(prefix="specproof-head-")``, so every path this node is
+    handed in normal operation lives under the system temp directory. A
+    workspace anywhere else means a caller skipped that node and passed a real
+    checkout instead — and writing there plants
+    ``SpecProofGeneratedTest.java`` inside someone's repository.
+
+    That is not hypothetical: a run left exactly that file behind as the only
+    stray path under ``demo/``, an untracked counterexample sitting in the
+    golden base tree. Nothing in the pipeline noticed, because the pipeline
+    only ever reads ``git diff``-tracked state there and a leak is untracked
+    by definition. ``scripts/verify_golden_tags.py`` checks the demo tree
+    between cases, but only after the write has already happened.
+
+    Returns the reason to refuse, or ``""`` when the workspace is safe.
+    """
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    try:
+        Path(workspace).resolve().relative_to(temp_root)
+    except ValueError:
+        return (
+            f"refusing to write a generated test into "
+            f"{Path(workspace).resolve()}: it is not under the temp dir "
+            f"{temp_root}, so it is not a prepare_head worktree"
+        )
+    return ""
 
 # ── LLM prompt for JUnit generation (non-thinking mode) ───────────
 
@@ -1100,6 +1137,19 @@ async def _generate_with_compile_loop(
     call and never receives the compile result.
     """
     max_retries = 3
+    refused = refuse_to_pollute_a_checkout(head_workspace)
+    if refused:
+        # Defense in depth: the node refuses first, but this coroutine also
+        # writes the file and is directly callable (test_worker_cancel_points
+        # calls it), so the invariant is enforced at the write, not only at
+        # the caller.
+        return GenerationResult(
+            source="deterministic_template",
+            code="",
+            compile_exit_code=-1,
+            compile_stderr=refused,
+            attempt=0,
+        )
     test_dir = (
         Path(head_workspace) / "src" / "test" / "java"
         / "com" / "specproof" / "demo"
@@ -1200,6 +1250,24 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
     app_workspace = (
         str(Path(head_workspace) / app_dir) if app_dir else head_workspace
     )
+    refused = refuse_to_pollute_a_checkout(app_workspace)
+    if refused:
+        # A checkout, not a prepare_head tempdir: writing here would plant a
+        # generated test inside a repository.  The demo tree kept one such
+        # leak as the only stray path under demo/, invisible to every diff-
+        # based check because an untracked file is not a diff.
+        incr("generate_counterexamples_outcomes_workspace_not_tempdir_total")
+        record.errors.append(refused)
+        return {
+            "generated_tests_path": "",
+            "generation_record": {
+                "source": record.source,
+                "attempts": 0,
+                "compile_passed": False,
+                "errors": record.errors,
+            },
+        }
+
     test_dir = (
         Path(app_workspace) / "src" / "test" / "java"
         / "com" / "specproof" / "demo"
