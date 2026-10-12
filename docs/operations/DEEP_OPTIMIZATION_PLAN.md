@@ -4445,3 +4445,52 @@ docker run --rm -v specproof-maven-cache-1000:/m2 -v "$PWD":/ws -w /ws -u 1000:1
 - **#243** roadmap 1.6 待办：Verify 作业引入可插拔存储 + 进程内执行器/进度通道，使零 Docker 也能跑网页版验收（与 Craft 对齐，较大重构）。
 - **#244** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
 - **#245** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
+
+## #242 compose 的 `:?` 必填旋钮必须抵达运维清单：新增 9 案门 R01-R09
+
+**测到的事实（2026-10-12，全部来自解析后的文件而不是记忆）**：compose 的插值里
+`:-`（有兜底）出现 33 次、`:?`（无兜底，缺值即拒绝启动）出现 22 次、裸 `${X}` 0 次。
+#235 的门只扫 `:-`，于是 9 个 `:?` 名字里有 3 个在运维唯一的杠杆清单上根本不存在：
+MINIO_ROOT_PASSWORD / MINIO_ROOT_USER / SPECPROOF_API_KEY。最后一个是 `api/auth.py`
+读的产品 API 凭据，缺了它每个作业调用都回 503；`.env.example` 没有这一行，而 #235
+的 L01 也永远不会要求它，因为 L01 的旋钮集看不见 `:?` 形状。
+
+**第二条缺陷是臂逼出来的，不是先想出来的**：R07 的判据「散文不得广告未声明的杠杆」
+最初用宽松的 `# NAME=` 前缀匹配。MYSQL_USER 的披露块里恰好有一句以
+`# SPECPROOF_ENV=production while MYSQL_USER still equals ...` 开头，那句话被当成
+SPECPROOF_ENV 的声明，于是 SPECPROOF_ENV——storage/config_guard.py 整套默认凭据拒绝
+逻辑的 arm 开关——在清单上缺席却绿着。臂 A6 因此多红一条 R07（预测 {R08}、观测
+{R07, R08}），红消息点名的正是这个意外豁免。修法：把判据收紧成结构式的
+`^#\s*NAME=(\S*)\s*$`（整行只有一个赋值才算声明），并补一行真的注释态杠杆
+`# SPECPROOF_ENV=production`，把「为什么不放开」写清楚：compose 已经为每个 app 服务
+设了它，这一行管的是 compose 之外那一面，那里未设=守卫失效=默认口令照常启动。
+
+**落地**：`.env.example` 180 -> 225 行（第一段 +29：SPECPROOF_API_KEY 凭据段与两处
+guard 冲突披露；第二段 +16：部署模式段含那行注释态杠杆），EOL 仍是纯 CRLF
+（225 CRLF / 0 lone LF），有效行 70 条、注释态行 4 条、形似赋值的散文 2 条（两者的
+名字都已真声明）。新增的 `SPECPROOF_API_KEY=` 故意留空：compose 的 `:?` 对空值同样
+触发，而 config_guard 只做存在性检查，填 `replace_me` 会同时骗过两者，把一个写在公开
+仓库里的字面量当成已配置密钥。
+
+**门与臂**：`tests/unit/test_compose_required_knobs_reach_the_operator.py` 9 案
+（R01 形态普查、R02-R05 必填集与投递、R06 两个扫描的分片、R07 散文广告、R08-R09
+guard 交叉读）。见证臂 9/9 每臂红集合与预测逐名一致（A1 删行、A2 `:?`->`:-`、
+A3 新必填旋钮、A4 清空拒绝消息、A5 需求降级为注释、A6 剥披露、A7 空值改
+`replace_me`、A8 第三种插值形态、A9 删注释态 SPECPROOF_ENV 行）；另加一条反向对照
+而不是口头承诺：保持 A9 的缺陷文件、把判据退回本单最初那版宽松匹配，R07 变绿——
+这正是收紧要消掉的失明。三文件臂前后 sha256 逐字节还原。
+
+**legs**：30 passed（本门 9 + #235 的 14 + #79 生产守卫可达性的 7）。ruff：新文件
+只剩 N802 家族，`pyproject.toml` 的 `tests/**` per-file-ignore 由 N801 扩到 N802，
+理由就是配置里已有的那句话——`test_L01_...`/`test_R02_...` 的条款号是臂预测红节点的
+身份标签，小写化会把它抹掉；其余 E501/E741/C416 债务（#235 文件 28 条）属并车道已提交
+文件，本单不混入。mypy .：4 errors，全部落在并车道**未提交**的
+`experiments/adapters.py`（+228 行 Gradle profile 半成品；HEAD 里 `GRADLE_PROFILE`
+出现 0 次），本单文件 0。
+
+**边界（写明不糊）**：本门读的是部署声明，不起容器——「compose 会拒绝」是 `:?` 的文档
+语义施加于解析后的值，不是 `docker compose up` 的实测；真启动验证仍欠。旋钮的**投递面**
+比本单宽：14 个服务里 `env_file:` 出现 0 次，另有 38 条被生产代码读取、却没有被任何
+compose 文件插值的模板行（CRAFT_*、LLM_*、OIDC_*、ES_HOST/ES_USER、SPECPROOF_AUTH_ENABLED、
+GITHUB_* 等）。那一面已按此口径量好，留给下一号；注意文档尾部的队列把 #243/#244/#245
+预留给 roadmap 条目，编号仍按两本台账在提交时现算。

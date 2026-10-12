@@ -102,8 +102,10 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 # Descriptive scenario class names (TestScenario01_...) and fixture-style
-# lowercase helpers are pytest conventions, not CapWords classes.
-"tests/**" = ["N801"]
+# lowercase helpers are pytest conventions, not CapWords classes. The clause-id
+# names (test_L01_..., test_R02_...) keep a mutation arm's red node-id readable
+# as the clause it charges, which a lowercase name would lose.
+"tests/**" = ["N801", "N802"]
 
 [tool.mypy]
 python_version = "3.12"
