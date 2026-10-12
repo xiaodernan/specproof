@@ -486,3 +486,12 @@ P3 __all__ 里去掉 counter names → 1 红 (export parity) ✅
 - 8 failed 归因: 6 个 `test_env_template_binds_the_compose_knobs.py` = 并发 lane 未提交的新文件 (其 .env/组合旋钭在途); 1 个 `test_feedback_store_read.py::test_real_mysql_one_verdict_per_reviewer` = MySQL 共享库顺序抖动 (孤立复跑绿, 非本批次); 2 个 (`test_data_dictionary_covers_migrations.py` / `test_runbook_claims_hold.py` 的迁移区间) = **本批次的账**: 0014 落库后字典/RUNBOOK 还写 0001-0013, 同批补登记, 复跑 8 passed。
 - 双向门 (先红后绿): 23 项红 (8 失败 + 15 seeded fixture 报错) → 焦点门 84 passed; 变异探针 10/10 预测红集==实测红集, 每次 content-capture 还原 + sha256 校验 (A1 计量丢 job / A2 行映射丢 job / A3 端点不按租户域 / A4 空作业返 200 / A5 entry 不盖章 / A6 一次性路径丢 job / A7 流式路径丢 job / A8 LLM 投影丢 job / A9 SQLite 不 ALTER / A10 record_event 不透传)。
 - 仍未落地 (如实): 每作业成本的 UI 接线 (job 详情页读该端点) 与月账单签发 cron; 本批次只落帐本 job_id 归因 + 读取路径。
+| FIX-27 | (#234) **“月初生成 invoice”一直没有生产者: 除非有人手动打开 GET /billing/invoices, 月度可以关闭彿一张发票都不存在**: `storage/invoice_cron.py` 落地独立进程 (`python -m storage.invoice_cron`, 部署形式同 outbox-relay) — 只给**已关闭的上个月**(previous_period_key, 跨年无分支; SPECPROOF_INVOICE_PERIOD 可排演) 按 tenant 循环生成草票: 候选集 = 该周期用量行 + 订阅表, 无可解析订阅 (无订阅/仅已取消) 跳过并计数而不按仲网价改造, ensure_invoice (tenant, period) 幂等重入 (新进程同月再扫不产重复票), 单租户异常隔离 (tenant+error 回写 summary 并计数) 而不终止整月, 循环只在关闭月前进时生成 (进程内防重, 重启后第一轮幂等重入), SPECPROOF_BILLING_URL 未设置时启动即 no-op (store_from_env 返回 None, 不合成一份库去开票); 计数器+last_success 仪表 served on INVOICE_CRON_METRICS_PORT (9103) 同 outbox relay 形状。 |
+
+**FIX-27 全量门实测追记 (2026-10-11, gate_20261011-1800.log; 代码部分落在 883980f, 并发地围落脚本把工作树的本批次两个文件选择性结阵):**
+
+- 门: `pytest tests/unit tests/security tests/fault -q -p no:randomly --tb=no` → **6 failed / 3786 passed / 1 skipped / 2108.44s (35m08s)**。
+- 采集排除同 FIX-26 (并发 lane 在途破坏 experiments/adapters.py 导致 7 个测试文件 collection NameError, 与本批次无关)。
+- 6 failed 归因: 5 个 `test_env_template_binds_the_compose_knobs.py` = 并发 lane 未提交的 .env/组合旋钭在途文件; 1 个 `test_metric_inventory_lists_every_emission_site.py` = **本批次的账**: OBSERVABILITY.md §8.10 指标清单声称“唯一合法来源是上报点”, 新模块 storage/invoice_cron.py 上报了四个计数器+一个仪表却没有字条, 同批补登 (并把手数句三十四→三十五), 复跑 6 passed。
+- 双向门: 11 项先红后绿 (import 红→全绿); 变异探针 8/8 预测红集==实测红集, 每次 content-capture 还原 + sha256 校验 (B1 给未关闭月开票 / B2 无订阅也按仲网价开票 / B3 单租户失败终止整月 / B4 每个 tick 重执 / B5 重执报“新生成” / B6 只看订阅表看不见用量-only 租户 / B7 last_success 仪表不更新 / B8 未配 URL 也合成库)。
+- 仍未落地 (如实): 发票签发流的操作入口 (draft→issued→paid 状态机已在 W148 落存储层, 但没有操作员入口/网页); 每作业成本的 UI 接线; compose 里的 invoice-cron 服务行与 9103 抓取目标。

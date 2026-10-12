@@ -169,6 +169,9 @@
       "200",
       "422"
     ],
+    "POST /api/v1/demo/prepare": [
+      "200"
+    ],
     "POST /api/v1/jobs/{job_id}/feedback": [
       "201",
       "422"

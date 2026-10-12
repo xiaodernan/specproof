@@ -35,6 +35,8 @@
 - 数据库迁移在应用启动时自动执行 (infra/mysql/migrations/*.sql,
   schema_migrations 记录版本; 当前 0001-0014, 见 docs/architecture/DATA_DICTIONARY.md
   的逐字段登记与 `tests/unit/test_data_dictionary_covers_migrations.py`)。
+- 月账单生成 (#234): 独立进程 `python -m storage.invoice_cron`
+  (部署形式同 outbox-relay: 需要同一份变量集, 包含 `SPECPROOF_BILLING_URL`; 未设置时启动即 no-op 而非猜库), 只给已关闭月生成草票。指标端点 `INVOICE_CRON_METRICS_PORT` (默认 9103) 上的 /metrics; 将 9103 加入 compose.observability.yml 的抓取列表属部署侧事项。
 - **生产必须 SPECPROOF_ENV=production，而且这件事现在由部署文件本身做到** (#79, 2026-09-26 实测纠正):
   此前 config_guard 只在 `SPECPROOF_ENV=production` 时才拒绝默认口令，而**没有任何入口设置这个变量**
   —— compose 的两个文件、两个本机启动脚本都没有它，于是 `api/server.py` 那句
