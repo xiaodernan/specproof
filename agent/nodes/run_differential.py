@@ -1128,11 +1128,23 @@ def _self_test_differential_entry(
             "未据此判定为通过 (UNVERIFIED, not a pass)."
         )
         return entry
+    # An adapter may report a usable run AND a warning at once: ok=True with a
+    # non-empty error (e.g. a sandbox resource the runner could not apply). Read
+    # here, before the return below — the `not ok` guard above never fires for
+    # this shape, so an error read only inside it is a dead write and the entry
+    # certifies "tests pass on both sides" naming no warning. The warning does
+    # not downgrade the verdict: the counts are real and the reader is entitled
+    # to see what qualified the run. Mirrors PROBE-01, which surfaces its
+    # adapter error before consulting ok.
+    run_warning = base_run.get("error") or head_run.get("error") or ""
     verdict, detail = self_test_verdict(base_run.get("counts"), head_run.get("counts"))
     entry["verdict"] = verdict
     entry["base_test_counts"] = base_run.get("counts")
     entry["head_test_counts"] = head_run.get("counts")
-    entry["detail"] = prefix + detail
+    if run_warning:
+        entry["detail"] = prefix + detail + f"（运行告警：{run_warning}）"
+    else:
+        entry["detail"] = prefix + detail
     return entry
 
 
