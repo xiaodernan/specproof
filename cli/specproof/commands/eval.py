@@ -49,6 +49,71 @@ def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
             )
 
 
+def _ref_problems(repo: str, case_dirs: list[Path]) -> list[str]:
+    """Scenario refs that do not resolve in `repo`, one line each.
+
+    A missing ref is a SETUP problem, not a detection result: the pipeline's
+    base-prepare node cannot create a worktree from a ref that is not there, so
+    the case would come back `NOT_RUN` (or worse, be mistaken for a detection
+    failure) for a reason the operator has to reverse-engineer out of a
+    mid-pipeline message. Resolving the refs first turns that into an up-front,
+    named, actionable failure — the same honesty the rest of this command
+    enforces for "did not run" vs "ran and missed".
+
+    Only cases that will actually run are checked (a case without `spec.md` is
+    skipped by the loop below, so its refs are irrelevant).
+    """
+    problems: list[str] = []
+    for case_dir in case_dirs:
+        if not (case_dir / "spec.md").exists():
+            continue
+        scenario: dict[str, Any] = {}
+        sc_file = case_dir / "scenario.json"
+        if sc_file.exists():
+            try:
+                scenario = json.loads(sc_file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                scenario = {}  # a malformed scenario is not a ref problem
+        # Same defaults the run below uses, so the preflight and the run agree.
+        for key, ref in (
+            ("base_ref", scenario.get("base_ref", "base")),
+            ("head_ref", scenario.get("head_ref", "head-v1")),
+        ):
+            if not ref:
+                continue
+            probe = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+            )
+            if probe.returncode != 0:
+                problems.append(f"  {case_dir.name}: {key} = {ref!r}")
+    return problems
+
+
+def _ensure_scenario_refs(repo: str, case_dirs: list[Path]) -> None:
+    """Fail loud, before the run, when `--repo` cannot resolve a case's refs.
+
+    Skipped when `--repo` is not itself a git repository: in that case the
+    pipeline reports the real problem, and a "ref missing" message would only
+    add noise on top of it.
+    """
+    is_git = subprocess.run(
+        ["git", "-C", repo, "rev-parse", "--git-dir"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+    )
+    if is_git.returncode != 0:
+        return
+    problems = _ref_problems(repo, case_dirs)
+    if not problems:
+        return
+    raise click.ClickException(
+        "以下场景引用的 git ref 在 --repo 里解析不到，评测无法在这些案例上运行：\n"
+        + "\n".join(problems)
+        + f"\n\n请确认 --repo ({repo}) 是这些 ref 所在的仓库；"
+        "golden 场景的 ref 由 scripts/build_golden_scenarios.py 生成。"
+    )
+
+
 @click.command("eval")
 @click.option(
     "--cases",
@@ -157,6 +222,11 @@ def eval_cmd(
         # need different fixes, so the message must not conflate them.
         click.echo(empty_pool_message(len(discovered), plan, cases_path))
         raise SystemExit(1)
+
+    # Fail loud BEFORE the run: a scenario ref that does not resolve in --repo
+    # is a setup error, and discovering it mid-pipeline reads as a detection
+    # result. (Skipped when --repo is not a git repository.)
+    _ensure_scenario_refs(repo_resolved, case_dirs)
 
     click.echo(f"Running evaluation across {len(case_dirs)} golden cases "
                f"(LLM: {'on' if use_llm else 'off'})...\n")

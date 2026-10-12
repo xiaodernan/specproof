@@ -4513,3 +4513,21 @@ GITHUB_* 等）。那一面已按此口径量好，留给下一号；注意文�
 - **#244** roadmap 1.6 待办：Verify 作业引入可插拔存储 + 进程内执行器/进度通道，使零 Docker 也能跑网页版验收（与 Craft 对齐，较大重构）。
 - **#245** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
 - **#246** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
+
+## #243 `specproof eval` 场景 ref 前置校验：缺 ref 从"跑一半才报"变成"起跑前指名报错"
+
+**起点（#237 起跑排查暴露的真实缺口）。** `specproof eval` 对每个案例读 `scenario.json` 的 `base_ref`/`head_ref` 后直接 `graph.invoke(state)`，**从不校验这两个 ref 在 `--repo` 里解析得到**。缺 ref 时 `graph.invoke` 在 `git worktree add` 处抛异常，被 `eval.py` 的 `try/except` 吞成一条 WARNING，`final` 留空 → `final.get("errors")` 为空 → 该案落进评分分支、findings 为空 → 被记成 **MISS**（#204 只把"图内记录了 errors"改成 NOT_RUN，"图外抛异常"这条路仍会把设置问题读成检测失败）。这正是本仓库反复对抗的"假红"形状。
+
+**顺带更正一处早前的错误记录。** #237 交接里写"`case-17-head` 这个 ref 不存在"——**查错了仓库**：`demo/spring-backend` 子仓只有 `base`/`head-v1`，但 eval 用的是 `--repo .`（主仓 `specproof-reference`），主仓**同时有** `base`/`head-v1`/`case-17-head` 三个 tag（实测 `git tag -l` 与 `git rev-parse --verify base` 均命中）。故 case-17-head 存在、eval 可跑，#237 的"缺 ref 阻塞"不成立。
+
+**修法（`cli/specproof/commands/eval.py`）。** 新增 `_ref_problems(repo, case_dirs)`：对每个将跑的案例（有 `spec.md` 者）用与运行相同的默认值（`base_ref=base`/`head_ref=head-v1`）解析 `git -C repo rev-parse --verify --quiet <ref>^{commit}`，收集解析失败的 `案例: 键 = ref`。新增 `_ensure_scenario_refs(repo, case_dirs)`：**先探 `--repo` 是否 git 仓库**（`rev-parse --git-dir`），非 git 仓库则**直接返回**（此时流水线会报真实问题，前置校验只会叠噪声）；是 git 仓库且有缺 ref 则 `ClickException`，指名案例与 ref 并提示 ref 由 `scripts/build_golden_scenarios.py` 生成。在空池检查之后、`build_phase0_graph` 之前调用，**失败即中止、不进入 41 分钟的流水线**。
+
+**门证（实测）。** `pytest tests/unit/test_eval_preflights_scenario_refs.py tests/unit/test_eval_does_not_score_an_aborted_pipeline.py tests/unit/test_eval_holdout_isolation.py -q` → **17 passed**（新 3 案：缺 ref 中止且指名 `case-x-head`、ref 可解析则放行并打印 "Running evaluation across 1 golden cases"、`--repo` 非 git 仓库时前置校验让路）；`ruff check cli/specproof/commands/eval.py` → **All checks passed**；`mypy cli/specproof/commands/eval.py` → **本文件 0 错**（4 条报错全在 `experiments/adapters.py`，属另一车道在途的 Gradle profile 半成品，不碰不代修）。既有两个 eval 测试（aborted-pipeline / holdout-isolation）用 `--repo <tmp 目录>`（非 git 仓库）驱动命令，前置校验的"非 git 仓库让路"分支正是为它们保绿。
+
+**诚实边界。** ① 本号只加**前置校验**，不改差分、不改评分语义：ref 存在 ≠ 评测会 PASS，case-17 是否被检出仍要真跑（#244）。② "非 git 仓库让路"是有意为之：那正是既有测试与"用户传错 `--repo`"两处的正确姿态——让流水线报真实问题，而非用一条 ref 消息掩盖。③ 前置校验是**逐案例**的：一个案例缺 ref 会中止整轮，这是 fail-loud 的选择（缺 ref 是全局设置问题，不是单案例的检测结果）。
+
+**下一号队列（#243 占号后重排）。**
+- **#244** 真跑 #237 四例评测：本会话已在后台起 `case-17` 单例（`.venv/Scripts/specproof.exe eval --cases <单例目录> --repo . --no-llm`，日志 `D:/面试项目/_eval_case17.log`），下轮据日志给 Recall/Precision/Severity agreement 与 case-17 是否 `PASS`；四例子集（`.local/eval-subset`）可随后补跑。
+- **#245** roadmap 1.6 待办：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）。
+- **#246** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
+- **#247** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
