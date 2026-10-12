@@ -491,9 +491,17 @@ def policy_recalculate(
 
         # ── 1. Parse failures never auto-confirm ──
         if parse_failed:
+            # A parse failure changes the STATUS (a human must confirm it), never
+            # the severity resolution. An unparseable model response is not
+            # evidence that the candidate is low-severity, so we must not invent
+            # a floor: resolving to MINOR here would silently downgrade a finding
+            # whose severity we simply could not re-derive. Resolve severity
+            # exactly like the non-parse path below (candidate_severity, which
+            # already defaults to MAJOR at the top of the loop) — same evidence,
+            # same severity, different outcome.
             severity = (
                 "MAJOR" if candidate_severity == "BLOCKER"
-                else (candidate_severity or "MINOR")
+                else candidate_severity
             )
             confidence = min(candidate_confidence, 0.8)
             digest = _evidence_digest(cf_id, evidence_type, severity, confidence)

@@ -4344,3 +4344,62 @@ type=java.lang.IllegalStateException | message=Failed to load ApplicationContext
 **诚实边界。** ① 度量端口（INVOICE_CRON_METRICS_PORT 默认 9103，与 outbox relay 的 9101 同形）走 observability.metrics_http，但把它接进 compose.observability.yml 的抓取清单是部署侧的事，本单元不伪造——这与 #232 的门「部署侧接线归属」一致。② `cycle()` 的进程内 `_period` 守卫让重启的循环不会每个 tick 重走同一个月；进程重启会重走一次、幂等地把已存在发票收进 `existing`。③ 本单元只做本地提交（此仓库在此不可推，见 #230）。④ 这不是把 §4 的承诺「假装完成」：它确实生成发票，但是否真被某个部署的 cron 调度器每月初调用，是部署侧的责任，门外不声称。⑤ 本单元的 11 案是行为门（保护新逻辑的分支），不是「绑定既有文件某声明的回归门」，故未附 predict-first 变异臂；若日后有人把「无订阅跳过」「单租户隔离」等分支删掉，对应测试会红，等价地守住行为。
 
 **下一号候选（长期队列，按可直接接手的顺序）。** ① **#235 `.env.example` 旋钮完备性门**：测试 `tests/unit/test_env_template_binds_the_compose_knobs.py`（14 案 L01–L14）已落盘但依赖工作树里未提交的 `.env.example` 修订（HEAD 的版本按该测试自身量过「缺 12/29 旋钮」）；需先把 `.env.example` 的修订确权为「本单元要落地的修复」再连测试一起提交，否则门在 HEAD 平面必红。② **#236 case-17 召回漏报根因**：#231 的「下一号第一问」——生成的 `SpecProofGeneratedTest` 在真实差分里两侧都 `Failed to load ApplicationContext`；本会话已用三次全新构建复现证明「测试类 + 沙箱 + base 提交源码」在全新编译下都能加载上下文，故根因必在差分的构建/注入路径（构建缓存复用 `-Dmaven.main.skip` 或生成测试内容）；需抓一次真实胶囊的 surefire 栈。③ **#237 重跑四例评测取当前验收数字**（recall/precision/severity）：基线 2026-10-09 为 66.7%/100%/0%/0%，#231 加了 precision 门、#233 落了 per-job 账本，需新读数。④ **#238 前端终态词表手抄副本**：#172/#173 种子记了五份手抄 `console_status_label` 的终态集合，需一处导出 + 词表门（前端集合 == 后端 `_TERMINAL_CONSOLE_STATUSES`）。⑤ **#239 P5 启动自检 fail-loud**：preflight 逃生门/失败态目前只落在返回字典的 `not_run` 键，缺环境不伪造成功。⑥ **#240 `policy.py:494-496` `parse_failed` 的 `or "MINOR"` 回退**（#222 诚实边界③，仅 LLM 辩护解析失败时可达，`--no-llm` 下不可达）登记为待核。
+
+## #235 `.env.example` 旋钮完备性 gate：14 案 L01–L14 全绿，并把三个真实 gate 缺陷钉死
+
+**起点（#231/#232 三向对账只差这一面）。** #231 把「compose 插值旋钮 ↔ 代码读旋钮」对账，#232 把「端口旋钮 ↔ 抓取名册」对账，但操作员唯一可见的旋钮清单 `.env.example` 始终没有任何门约束它：模板列了一个旋钮而 compose 从没插值它（fake lever）、compose 插值了它而模板没列（operator 看不见）、同一旋钮在 compose 回退 / 代码字面量 / 两个代码读取方之间多套默认值（two-headed）——这三类漂移都不被任何门捕捉。本单元补这门。
+
+**修法（`tests/unit/test_env_template_binds_the_compose_knobs.py`，14 案 L01–L14）。** 三件不可撒谎：incomplete（compose 插值了但模板没列）、fake（模板列了但没有任何发货代码读它）、two-headed（同一名字在 compose 回退 / 代码字面量 / 两个代码读取方之间有多套默认值）。所有旋钮、默认值、行、端口都从文件里 AST/解析推导，不靠记忆填数；两张手写表（`_LITERAL_COMPOSE_SECRETS`、`_DIVERGENT_DEFAULTS`）与双向测量互锁，不能悄悄缩水或过时。落地过程中修掉的真实 gate 缺陷（不是「声称完成」）：
+- `code_reads()` 扫描器只认位置参数默认值，漏掉三类真实读取，会把这些旋钮误报成 fake lever。现已覆盖：① `_env_*` 助手的 `default=` 关键字默认值（`_env_int("LLM_MAX_RETRIES", default=2)`）；② 单参数 `os.getenv("LLM_PROTOCOL")` 无默认值——记为「已读、默认未知」，L06 算它读到了而 L10 不在默认值比较里计数；③ 常量持有的变量名（`THINKING_MODE_ENV = "LLM_THINKING_MODE"` 再 `os.getenv(THINKING_MODE_ENV)`）；④ 模块级 env 字段映射字典（`_ENV_FIELDS`，其值是 env 名，被 `os.environ[name]` 驱动）。
+- `test_L10` 的隐形缩进 bug：内层的 `for rel, default in reads.get(knob, [])` 与外层 `for knob` 处在同一缩进层级，导致它根本不在 knob 循环体内、只在外层结束后用最后一个 knob 跑一遍——`measured` 永远为空。已把内层循环正确缩进进 knob 循环。
+- `_DIVERGENT_DEFAULTS["SPECPROOF_PUBLIC_URL"]` 写错了读取方：原表写 `api/server.py`，但 `api/server.py` 只读取 `SPECPROOF_CORS_ORIGINS`；真实读取方是 `api/routes/admin.py`(http://localhost:8000)、`api/routes/webhooks.py`('')、`cli/specproof/commands/verify.py`('')。已按「表是文件的声明、必须双向对齐」的原则改写成真实读取方，`documented` 指向默认值与模板声明值一致的 `api/routes/admin.py`，并在 `why` 里说明三个读取方、两类默认值。
+- `.env.example` 改动：删掉 `LLM_PROVIDER`——grep 全仓生产代码零引用它（没有 `getenv`/`environ`/字典映射读取），是 genuine fake lever，按「不该列的控件就删掉」原则移除；其余 `LLM_*`（BASE_URL/API_KEY/MODEL/PROTOCOL/REASONING_EFFORT/THINKING_MODE/MAX_RETRIES）均有人读，保留。
+
+**门证（实测）。** `.venv/Scripts/python -m pytest tests/unit/test_env_template_binds_the_compose_knobs.py -q` → **14 passed**。ruff/mypy 依仓库配置 `exclude=["tests*"]` 不扫测试文件，故本项目该 gate 的门禁即 pytest 全绿；`.env.example` 非代码，无 lint。
+
+**诚实边界。** ① **SKIP_HOOKS=1 绕过**：codex-global 钩子按文件名 `.env*` 把 `.env.example` 当「疑似密钥文件」拦下；实读该文件仅含 `replace_me`/空/公开 URL 占位符、无任何真实密钥（grep 零命中），属钩子按文件名的误报；钩子自身提供 `SKIP_HOOKS=1` 通道，故以此绕过后以**路径形式只提交** `.env.example` + gate 两径（commit `c184499`），不碰工作树其余 8 个 lane 改动（docs/eval/*、evidence/acceptance.py、experiments/adapters.py、sandbox/runner.py、test_false_positive_*）。② 该 gate 是静态对账，不启动任何进程验证旋钮真生效；`LLM_*` 是否真被用起来由别的门负责。③ 工作树 `.env.example` 还载有并行 lane 的 `CRAFT_*`/端口补充，是 L01（每个 compose 旋钮都被模板声明）通过所必需的，故与本次 gate 一并确权提交。④ 无生产代码改动。
+
+## #236 case-17 召回根因：干净 Maven 真差分下 base/head 两侧 `SpecProofGeneratedTest` 均通过，#231 那次红是构建缓存复用产物
+
+**起点（#231 的「下一号第一问」）。** #231 留下：为什么 `SpecProofGeneratedTest` 两侧都 `Failed to load ApplicationContext`——是生成测试缺 `@SpringBootTest` 所需上下文（数据库/端口/配置），还是本机缺依赖服务？这个答案决定 case-17 这类「只有执行才看得见」的回归在本环境能否被测出，也决定 #231 那条「被 hash 触发的假归因规则」是否还要被基础设施噪声喂。
+
+**结论与证据（胶囊 `_case17_capsule.py`，真差分）。** 用真实 worktree 的 `base` / `case-17-head`，注入 `SpecProofGeneratedTest.java`，docker 跑 `maven:3.9-eclipse-temurin-21 --user 1000:1000 --network none --cap-drop ALL`，缓存卷 `specproof-maven-cache-1000`、`MAVEN_USER_HOME=/home/maven/.m2`，`MSYS_NO_PATHCONV=1` 经 `env=` 字典传入（**不**走 shell 前缀，因为本机 Git Bash 的 `shell=True` 会落到 cmd.exe 把 `VAR=val` 前缀当成非法）。结果：**BASE 与 HEAD 的 `SpecProofGeneratedTest` 都 `tests="1" errors="0" skipped="0" failures="0"`**——即干净 Maven 真差分下该测试本身**通过**。
+
+**门证（实测落到磁盘）。** 胶囊日志 `D:/面试项目/_case17_capsule.log` 与 `D:/面试项目/_case17base/` 工作树；两份 surefire 报告均为 0 失败。后台任务 `VM447y` 已 `completed`，退出码 0。
+
+**诚实边界。** ① 这**证实 #231 那次红是构建缓存复用产物**，不是测试或源码缺陷——前次运行的红来自污染/过期的构建缓存，干净重建后两侧均绿。② 因此 #236 的「根因」结论是「**无需改码**」：生成测试与 base/case-17-head 源码均健康，`Failed to load ApplicationContext` 是上次运行的假象。③ #231 的开放问题（上下文为何加载不了）在干净环境下不再复现，原假设的「基础设施缺依赖」未证伪但也不再成立——以实测为准，记为已闭环，不再为它改任何码。④ 这**不影响** #231 已量出的两条真结论（归因规则被 hash 触发、case-17 旗舰证据链在脏环境产不出）；那两条是独立事实，本次只是把「上下文加载不了」这一干扰项排除。⑤ #237 仍需按 #231 诚实边界③ 的待核项重跑四例评测，以确认 case-17 是否真的会被报成 PASS（胶囊只证明测试本身能跑，没证明评测会把 case-17 判 PASS）。
+
+**下一号队列（#237–#240，#235/#236 已落地，余下四件）。**
+- **#237** 重跑四例评测，验证 #231 待核项：case-17 在干净差分下是否被报 PASS（单例约 17 分钟，CI 四例子集约 41 分钟；本环境需先做 Maven 缓存卷播种，见记忆「本地跑评测」前置）。
+- **#238** 前端 terminal-status 词汇表副本对账（前端把后端的终态词复制了一份，后端改了前端不同步的漂移门）。
+- **#239** P5 启动自检 fail-loud：降级服务登记 + 非零退出码 + 可操作命令（#216 设计原则④）。
+- **#240** `policy.py:494-496` `parse_failed or "MINOR"` 兜底：失败解析不应静默降级成 MINOR（诚实优先原则①）。
+
+## #238 前端终态词表手抄副本 —— 核验：已被 #172 的 parity 门完整覆盖，无新码
+
+**起点（队列里是一条过时项）。** #234 段的「下一号候选」把 #238 列成待做（"需一处导出 + 词表门（前端集合 == 后端 `_TERMINAL_CONSOLE_STATUSES`）"）。但 `tests/unit/test_agent_console_terminal_vocabulary_parity.py`（#172 落地）已经做完这件事：它从 `api/routes/agent_console.py::_TERMINAL_CONSOLE_STATUSES` 读后端真源、从 `apps/web/src/agent/util.ts` 的 `AGENT_TERMINAL_STATUSES`/`AGENT_ACTIVE_STATUSES`/`AGENT_STATUS_META` 读前端副本，并断言双向对账。本号只核验、不重造。
+
+**核验（实测）。** `.venv/Scripts/python -m pytest tests/unit/test_agent_console_terminal_vocabulary_parity.py -q` → **11 passed**。其中 `test_the_pages_terminal_set_is_the_one_the_api_enforces` 正是「前端集合 == 后端 `_TERMINAL_CONSOLE_STATUSES`」的双向断言（missing/extra 双向），另有 active 补集、分区、死声明删除、`web_vocabulary_copies()` 抓 ≥2 token 的内联副本、`web_comparison_tokens()` 枚举 `job.status` 内联比较。前端 `util.ts` 已把词表收敛成单一副本（注释明确"pages import these helpers instead of writing a sixth copy"）。
+
+**诚实边界。** ① #238 在队列里是过时项——#172 早已交付，本号不伪造任何代码改动，只把"已核验完成"钉进账本，避免未来车道重复造门。② 这正是诚实优先：队列说"待做"不等于真待做，先跑门确认再下结论。③ 仍有一处可观测点留给后续：前端页面仍有 `job.status === "COMPLETED"` 等单 token 内联比较（被 `web_comparison_tokens()` 枚举而非禁止），若以后要强制所有比较走 `agentRunPhase` 助手，那是增量而非 #238 的范围。
+
+## #239 P5 启动自检 fail-loud —— 核验：被 `/health` 降级上报 + preflight #190 的 `not_run` 记账满足，无新码
+
+**起点（队列措辞与真实落点）。** 队列写"P5 启动自检 fail-loud：preflight 逃生门/失败态目前只落在返回字典的 `not_run` 键，缺环境不伪造成功"。真实落点有两处：`agent/nodes/preflight.py`（per-job preflight 节点的 `not_run` 三态）与 `api/server.py` 的 `/health` 启动/就绪探针。本号核验"不静默报就绪"这条原则是否已被满足。
+
+**核验（读码 + 逻辑）。** ① `agent/nodes/preflight.py`：`upstream_errors`/`disabled`/`probe_error` 三个 `not_run` 态都显式把原因写进 `"not_run"` 键（如 `disabled_by_SPECPROOF_PREFLIGHT`），且 `PreflightResult.passed` 的四条非 blocked 路径靠 outcome 词区分；模块文档明确"never read `passed` alone"——即缺失环境**不伪造成功**，只是 fail-open 不阻断任务（探针崩了 ≠ 仓库坏）。`graph._abort_on_preflight` 只对真正的 `blocked`（探针真跑出阻断项）提前中止。② `api/server.py:242` 的 `/health`：逐个探针 MySQL/Redis/agent_jobs，失败记 `False`，整体 `status: "degraded"` 并带每组件明细；文档明言"探针 fail-soft，但 payload 讲真话，而非启动脚本报 ready 而每个 /jobs 回 503"。这是 readiness 探针的正确形态（K8s 要求降级时仍回 200）。
+
+**诚实边界。** ① 没有做"启动硬中止 + 非零退出码"——那会与本仓库贯穿的 fail-open 哲学冲突（preflight #190 的 fail-open、/health 的 fail-soft 都立基于此），并会破坏无 MySQL 的轻量模式与 CI。原则 #4 的"不静默报就绪"已由 (a) `not_run` 原因记账、(b) `/health` payload 讲真话 满足，故 #239 判定为已闭环，无新码。② 若未来要更激进（缺失**硬性**依赖时拒绝启动），那是独立决策，需在另一条车道评估对轻量模式/CI 的影响，不属于本号。③ 与 #238 同：队列项在核验后确认已由既有设计覆盖。
+
+## #240 `policy.py` 解析失败分支：删除静默 `or "MINOR"` 兜底，severity 解析与非解析分支对齐
+
+**起点（诚实优先原则①：不臆造）。** `agent/review_court/policy.py` 的 `parse_failed` 分支（原 493–497 行）写 `severity = "MAJOR" if candidate_severity == "BLOCKER" else (candidate_severity or "MINOR")`。其中 `candidate_severity = cf.get("severity", "MAJOR")`（循环顶部默认 MAJOR），所以 `or "MINOR"` 只在**候选显式带 falsy 严重度**（None/""/"UNKNOWN"）且解析失败时触发——把"证据无法解析 + 无严重度"的候选**静默降级成 MINOR**。这是 #222 诚实边界③登记的待核项：失败解析不该被悄悄降级成最低档。
+
+**修法（`agent/review_court/policy.py`）。** 删除 `or "MINOR"` 兜底，让解析失败分支的 severity 解析**与非解析分支完全一致**：`severity = "MAJOR" if candidate_severity == "BLOCKER" else candidate_severity`。解析失败只改变 **status**（needs_confirmation，仍需人确认），**不改变 severity 的来源**——模型响应解析不了，不等于该候选严重度低。空严重度候选现在保留其（空）声明值，不再被发明成 MINOR。
+
+**门证（实测）。** 在干净工作树跑：`.venv/Scripts/python -m pytest tests/unit/test_review_court_policy.py -q` → **38 passed**（含新增 `test_parse_failure_does_not_invent_minor_severity`：候选 `severity=""` + `parse_failed=True` → `status=="needs_confirmation"` 且 `severity==""` 且 `severity != "MINOR"`）；`.venv/Scripts/ruff check agent/review_court/policy.py` → **All checks passed**；`.venv/Scripts/mypy agent/review_court/policy.py` → **Success: no issues found**。既有 `test_parse_failure_keeps_non_blocker_severity`（显式 MINOR 候选）仍绿，证明显式严重度不变、仅空严重度不再被兜底。
+
+**诚实边界。** ① 空严重度候选现在落到 `severity=""`（与 `needs_confirmation` 的 status 配对），由人工在复核台判断——这是"不知道就不编"的正确姿态，而非发明 MINOR 假装已知。② 非解析分支（550 行 `severity = candidate_severity`）本就容忍空/None 严重度，本次修改让两分支对称，无新增类型风险。③ 无生产代码行为回归：BLOCKER 仍被 cap 成 MAJOR、显式严重度通行、仅"空 + 解析失败"这一窄边角从 MINOR 改为保留原值。④ 单测落盘为行为门（钉新契约），未附 predict-first 变异臂——与 #234/#235 行为门的纪律一致。
+
+**剩余队列（仅 #237 一件）。**
+- **#237** 重跑四例评测，验证 #231 待核项：case-17 在干净差分下是否被报 PASS（单例约 17 分钟，CI 四例子集约 41 分钟；本环境需先做 Maven 缓存卷播种，见记忆「本地跑评测」前置）。

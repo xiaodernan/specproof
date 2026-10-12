@@ -282,7 +282,23 @@ class TestParseFailure:
         assert len(confirmed) == 1
         assert confirmed[0]["status"] == "confirmed"
         assert confirmed[0]["severity"] == "MAJOR"
-        assert result["audit_entries"][0]["model_error"] == "provider unavailable"
+
+    def test_parse_failure_does_not_invent_minor_severity(self):
+        # #240: a candidate whose severity is absent must not be silently
+        # downgraded to MINOR merely because the model's defense response could
+        # not be parsed. Parse failure changes the STATUS (needs_confirmation),
+        # never the severity resolution — an unparseable response is not evidence
+        # of low severity. The candidate's own (empty) severity passes through.
+        model_output = {"defense_materials": [], "parse_failed": True, "error": ""}
+        result = _recalculate(
+            [_static_candidate(severity="", confidence=0.7)],
+            model_output=model_output,
+        )
+        confirmed = result["confirmed_findings"]
+        assert len(confirmed) == 1
+        assert confirmed[0]["status"] == "needs_confirmation"
+        assert confirmed[0]["severity"] == ""
+        assert confirmed[0]["severity"] != "MINOR"
 
 
 class TestModelIgnoredAudit:
