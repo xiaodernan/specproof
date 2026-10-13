@@ -67,10 +67,9 @@ export function SameRepoCraftPanel(props: { repoPath?: string | null }) {
   return (
     <Panel title="AI 开发任务（同仓库）">
       <p className="muted" style={{ marginTop: 0 }}>
-        开发任务创建时登记的仓库路径（已归一分隔符，大小写不作归一）与本仓库
-        <code>{repoPath}</code> 持久化匹配，重启后依然可查。两条链路之间没有
-        外键，这里不是因果断言，只是同一仓库的工作对照；在本字段启用前创建的
-        旧记录可能没有登记路径，因而不在此列出。
+        {"开发任务创建时登记的仓库路径（已归一分隔符，大小写不作归一）与本仓库"}
+        <code>{repoPath}</code>
+        {" 持久化匹配，重启后依然可查。两条链路之间没有外键，这里不是因果断言，只是同一仓库的工作对照；在本字段启用前创建的旧记录可能没有登记路径，因而不在此列出。"}
       </p>
       {failed ? (
         <ErrorBox error="开发任务列表暂时无法读取（请求失败）— 这不代表没有同仓库任务，请稍后重试。" />

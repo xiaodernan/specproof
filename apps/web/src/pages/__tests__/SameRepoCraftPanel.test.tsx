@@ -58,8 +58,9 @@ describe("SameRepoCraftPanel — same-repo AI-dev jobs on the verify page", () =
     expect(screen.getByText("同仓库的另一个任务")).toBeTruthy();
     const row = screen.getByText("修复登录超时");
     expect(row.getAttribute("href")).toBe("#/agent/jobs/cj-1");
-    // The status uses the console vocabulary, raw token in the title.
-    expect(screen.getByText(/已完成/).getAttribute("title")).toBe("COMPLETED");
+    // The status uses the console vocabulary, raw token in the title. Two rows
+    // render here, so the query must not assume a single status pill.
+    expect(screen.getAllByText(/已完成/)[0].getAttribute("title")).toBe("COMPLETED");
   });
 
   it("states the join key and the durable association instead of a foreign-key relation", async () => {

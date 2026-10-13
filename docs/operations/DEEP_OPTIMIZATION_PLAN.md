@@ -4564,3 +4564,54 @@ Acceptance: INSUFFICIENT  （正例 1 < 10、负例 0 < 5 —— 样本不足，
 - **#245** roadmap 1.6：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）。
 - **#246** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
 - **#247** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
+
+## #245 修掉前端全量测试里的 2 处红：同仓库 AI 开发任务面板（SameRepoCraftPanel）
+
+**起点（#241b 记在案的两处红）。** #241b 跑全量 `npx vitest run` 时报 `406 passed / 2 failed`，两例都落在 `tests/unit/__tests__/SameRepoCraftPanel.test.tsx`（Phase 3.4 缝合的"同仓库 AI 开发任务"面板，最后一次改动是 #176 的 `a3f6161`）。工作树里该文件是**干净的**（不在任何 lane 脏集），故这是 #176 留下的自建红灯，本号修掉，让前端门全绿。
+
+**两个独立缺陷。**
+1. **源码复制缺陷**：`SameRepoCraftPanel.tsx` 的说明段在 JSX 里折行书写，JSX 会把**文本中间的换行折叠成一个空格**，于是实际渲染成"两条链路之间没有 外键""创建的 旧记录"——中文里这两个空格是错的。这不是测试期望值写错，而是复制文案被折行污染。
+2. **测试用错查询**：该测试渲染**两行**任务（都是 `COMPLETED`），却用 `screen.getByText(/已完成/)`——单数查询命中两个元素即抛 `Found multiple elements`。测试想验的是"状态用控制台词汇、原始 token 留在 title"，与行数无关。
+
+**修法。**
+- `SameRepoCraftPanel.tsx`：把带 `<code>` 插值的说明段改成显式 JS 字符串（`{"…"}`），折行只发生在字符串字面量里、不落在 JSX 文本节点之间 → 中文不再被插入空格。
+- `SameRepoCraftPanel.test.tsx`：`getByText(/已完成/)` → `getAllByText(/已完成/)[0]`，并把"两行各有一个状态 pill"写进注释（查询不能默认只有一个），断言强度不变（`title === "COMPLETED"`）。
+
+**门证（实测）。** `npx vitest run src/pages/__tests__/SameRepoCraftPanel.test.tsx` → **5 passed**；`npx tsc --noEmit` → **exit 0**；全量 `npx vitest run` → **47 文件 / 408 例全绿**（此前 406 passed / 2 failed）。`npx vite build` 上一号已验证过，本号只改两处文本/查询，未再跑构建。
+
+**诚实边界。** ① 本号只修这两处红灯，不改面板行为、不动 #176 的语义。② 全量 vitest 全绿是**本号当时**的读数；别的 lane 若再提交前端改动，红不红要重新量，不永久声称。③ 提交只走本号两径 + 计划文件，未碰任何 lane 在途文件。
+
+**下一号队列（#245 占号后重排）。**
+- **#246** `specproof eval` 的案例文件读取容错：一次真实四例评测因 `ground-truth.json` 读到瞬时 `PermissionError`（Windows 文件锁/AV 扫描）**整个 run 带 traceback 崩掉**，第 4 例根本没跑；一个案例文件读不了不该杀死整个评测。
+- **#247** 四例评测完整读数：`case-21`/`case-56` 补跑，汇总四例 Recall/Precision/Severity agreement（现已知 case-12 PASS / case-17 PASS）。
+- **#248** roadmap 1.6：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）。
+- **#249** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
+- **#250** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
+
+## #246 case-17 单例评测读数：干净差分下 case-17 被真检出（UNIQUE-01，严重度一致）
+
+**起点。** #243 的「下一号队列」把 #244 定为「真跑 #237 四例评测、据日志给 Recall/Precision/Severity agreement 与 case-17 是否 PASS」，且当时已后台起了 `case-17` 单例。该后台运行现已完成：日志 `D:/面试项目/_eval_case17.log`、报告 `D:/面试项目/_eval_case17_report.html` 与 `.results.json`（均在仓库外，不入库）。占号前读 `git log --all` 与计划：`#246` 提交/文档均 0 命中（**#244 被两条并发车道各占一次**：`44e6578` 迁移 down 外键、`56db2a3` counterexample writer；#245 亦已被占），故本批认领 **#246**。
+
+**命令与耗时。** `specproof eval --cases <case-17 单例目录> --repo . --no-llm`；案例 `case-17-logic-inversion`（base=base, head=case-17-head）；**duration_ms = 657534 ≈ 11 分钟**（实测，Phase 0 图不暴露分阶段时间戳，只有整段墙钟）。
+
+**读数（实测，取自 results.json 与日志）。**
+- verdict：**PASS**；`matched_findings = 1`；`contracts_found = UNIQUE-01`，`expected_contract = UNIQUE-01`（**两者对齐**：没有"契约编译出来了但差分没为它产出 finding"的空洞）。
+- 严重度：`expected_severity = BLOCKER`、`matched_severities = BLOCKER`、`severity_match = true`。
+- 指标：Precision 100.0% / Recall 100.0% / F1 100.0% / **Severity agreement 100.0%**（matched_positive_cases 1、mismatches 0）/ Severe precision 100.0%（severe_true_positives 1、severe_false_positives 0）。
+- **Acceptance: INSUFFICIENT（passed=false, floors_pinned=false）**：`insufficient` 两条——正例 1 < 最小正例数 10、负例 0 < 最小负例数 5。
+
+**结论（三条，均可复核）。**
+1. **case-17 在干净差分下被真检出**（UNIQUE-01，严重度也对）。这实证 #231 当年那次红是**构建缓存复用产物**，而非检测缺陷（#236 用胶囊差分已得出同向结论；本批是 `specproof eval` 官方路径的复证）。
+2. **单例 100% ≠ 质量达标**：`Acceptance` 判 INSUFFICIENT 正是因为样本不足——正例要 ≥10、负例要 ≥5。这与记忆里的「读数陷阱」一致：`Acceptance: PASS` 在阈值全 None 时只保证样本量，反过来本例是样本量本身不够。
+3. 要给可信的 Recall/Precision 结论，必须跑更大的正例集并**补齐 ≥5 个负例**；本地已备 `D:/面试项目/_eval_subset4`（12 个文件）可用作下一轮。
+
+**边界（诚实交代）。**
+- 本批**只记录读数，零代码改动**；产物（log/html/json）全在 `D:/面试项目/` 仓库外，未入库、未提交。
+- `--no-llm`：本轮是确定性差分读数，不含 LLM 相关路径；LLM 开/关对结论的影响未测。
+- 未跑四例子集（41 分钟级，前台 Bash 有 10 分钟上限、后台随会话死），也未补负例——故 Recall/Precision 的**总体**口径仍缺样本，本轮只回答"case-17 是否 PASS"（是）与"干净差分下检出形状"（UNIQUE-01 + BLOCKER，一致）。
+- 计划文件提交只用路径形式，未碰其它车道在途的 12 个脏文件。
+
+**下一号队列（#246 占号后重排）。**
+- **#247** 四例子集重跑：用 `D:/面试项目/_eval_subset4` 跑 `specproof eval --repo . --no-llm`，验证 Recall/Precision 是否随样本量保持；同时盘点可用**负例**（需 ≥5）以解除 INSUFFICIENT。
+- **#248 及以后**：原 #245/#247 队列项顺延——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
+- 另：#231 遗留的"case-17 红"疑点本批已实质关闭（缓存产物），但只在评测口径层面；若要写进 `docs/eval/` 需先看该目录是否被别的车道占用（git status 显示 `docs/eval/aider-results.md`、`docs/eval/attribution-results.json` 常脏）。
