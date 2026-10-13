@@ -4807,3 +4807,29 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **下一号队列（接 #252 原意 + 既有 #253/#254 规划）。**
 - **#253** 真跑定论 case-17"证据为何没进 DB dump"（中途 DB 探针），本环境 Maven 缓存卷已播种，单例 ~11 分钟。
 - **#254 及以后**：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用本号就位后的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数。
+
+## #253 case-17 的「证据为何没进 DB dump」已通过读码定论：是测试脚手架把持久化效果擦掉了，不是"没发生变异"
+
+**起点（#249 留的开放项 + #252 对 #249 机制的技术性修正）。** #249 把 case-17 的 severity 下叫归因为"head 断言失败 → 事务回滚 → 两侧 H2 相同 → BLOCKER 门条件 4 不成 → 被 cap 成 MAJOR"。#252 已纠正：生成的 UNIQUE 测试**非事务**（类 `generate_counterexamples.py:327` 与方法均无 `@Transactional`），断言失败不会回滚，故"回滚吞掉证据"是错的；但当时"head 库为何与 base 一致"读码定不了，列为需真跑 + 中途探针才能定论。
+
+**定论（本次读码，确定性结论，无需 Maven 重跑）。** 直接 `git show base / case-17-head` 读 `demo/spring-backend/.../UserService.java` 的 `changeEmail`，并读生成测试模板：
+1. **回归就是一行逻辑反转**（case-17-head）：
+   - base（正确）：`if (userRepository.existsByEmail(newEmail)) throw` —— 重名才拒。
+   - case-17-head（被审的坏 PR）：`if (!userRepository.existsByEmail(newEmail)) throw` —— **唯一的（不重名）才拒，于是接受重名邮箱**。这正是 case 想检出的回归。
+2. **`changeEmail` 是 `@Transactional`**（`UserService.java:95`）。所以"接受重名"这条成功路径会 **COMMIT** 变异（bob 的邮箱被写成 `alice@example.com`）；只有抛异常才回滚。换言之 head（坏）侧**确实把变异落了库**。
+3. **但生成测试类非事务、且 `@BeforeEach` 调 `userRepository.deleteAll()`**（`generate_counterexamples.py:341`）。duplicate 测试把 bob 改成重名后，后面任一个测试方法的 setUp 会 `deleteAll` 把这条变异**在差分 dump 之前擦掉**。所以差分读到的 `DB_CONSISTENT` 是**脚手架假象**，不是"没发生变异"的证据。
+
+**推论（诚实）。** case-17 的 BLOCKER↔MAJOR 在**当前 DB 证据下不可判定**——证据本身对该 case 不可靠（被测试隔离擦除）。这恰好印证 #249 候选② / 原 #253 意图：**真正该做的是在 head 回归响应期间做 in-flight DB 采集**（读 head 测试回读的 `emailAfter`，或在 dump 前抓一次 mid-state），而不是把 confidence 调到 0.90 糊过去。本号**不动**差分快照路径（那条路正被别车道改着 `sandbox/runner.py` / `evidence/acceptance.py`），只把诊断钉死。
+
+**改动（只新增测试，零生产码）。** 新建 `tests/unit/test_case17_regression_is_a_logic_inversion.py`（3 案）：① base 含 `if (existsByEmail)` 且不含 `!existsByEmail`、head 反之（钉死一行反转）；② head 的 `changeEmail` 带 `@Transactional`（接受即提交）；③ 生成测试类头部无 `@Transactional` 但含 `@BeforeEach` + `deleteAll`（钉死"非事务 + 每测试重置 DB"的擦除机制）。`base` / `case-17-head` 缺失时 `pytest.skip`，不绑架其他 checkout。
+
+**门证（实测）。** `pytest tests/unit/test_case17_regression_is_a_logic_inversion.py -q` → **3 passed / ~6s**；`ruff check` → All checks passed。（注意：本环境 pytest 收尾的 safe-delete 全局护栏在清理临时目录时会超时卡一下，属环境怪癖，不影响用例本身通过——单文件跑显示 3 个绿点。）
+
+**诚实边界。**
+① 本号是**诊断钉死**，不是修复。case-17 在现有证据下仍读 MAJOR（与 #248/#249 一致），但本号证明这个 MAJOR 是"证据被脚手架擦掉"造成的**证据缺失**，不是"确认无 BLOCKER 级变异"。
+② "in-flight DB 采集"才是让 case-17 真正*挣到* BLOCKER 的诚实修复路径，列为 **#254 的候选**（需碰差分快照/沙箱路径，且要绕开别车道在途文件）。
+③ 本地领先 origin/master 140+ 提交，本批只提交不 push；提交走路径形式，未碰别车道在途改动（`sandbox/runner.py`、`evidence/acceptance.py`、`experiments/adapters.py` 等仍为 M）。
+
+**下一号队列（#253 已落诊断，修复留给 #254）。**
+- **#254** 实施 in-flight DB 采集：在 head 回归响应期间抓取 DB mid-state（或读 head 测试回读的 `emailAfter`），让"回归效果被测试脚手架擦除"的 case 也能产出 BLOCKER 所需的 `DB_MUTATED_ON_UNAUTH` 证据；需碰差分快照/沙箱路径，且要绕开别车道在途文件。
+- **#255 及以后**（原 #254）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数。
