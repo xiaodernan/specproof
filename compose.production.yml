@@ -24,6 +24,11 @@ services:
       # Every credential below is therefore REQUIRED (`:?`), not defaulted: the
       # infra layer (compose.phase0.yml) reads the same host variables, so a
       # value that reaches the app is also the value the servers were given.
+      CRAFT_MAX_ITERATIONS: ${CRAFT_MAX_ITERATIONS:-12}
+      CRAFT_MAX_STEPS: ${CRAFT_MAX_STEPS:-12}
+      CRAFT_MAX_TOOL_CALLS: ${CRAFT_MAX_TOOL_CALLS:-40}
+      CRAFT_TIMEOUT_MINUTES: ${CRAFT_TIMEOUT_MINUTES:-60}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
       SPECPROOF_ENV: production
       SPECPROOF_API_KEY: ${SPECPROOF_API_KEY:?set SPECPROOF_API_KEY}
       SPECPROOF_CORS_ORIGINS: ${SPECPROOF_CORS_ORIGINS:-http://localhost:3000}
@@ -43,6 +48,38 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
       # Observability profile: ship OTel to the collector (compose.observability.yml).
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      # Delivery plane (#257): every knob a module of THIS service reads and
+      # .env.example advertises arrives here - as a literal the stack is pinned
+      # to, or as `${X:-value}` whose fallback equals both the template row and
+      # the code's own default, so a stack started WITHOUT .env behaves exactly
+      # as it did before this block. Names that could not meet that test are
+      # deferred with a disclosure in .env.example and pinned in
+      # tests/unit/test_env_knobs_reach_the_process_that_reads_them.py.
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_INSTALLATION_ID: ${GITHUB_APP_INSTALLATION_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      LLM_THINKING_MODE: ${LLM_THINKING_MODE:-plan_only}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-specproof_phase0}
+      MONGODB_USER: ${MONGODB_USER:-specproof}
+      MYSQL_CONNECT_TIMEOUT: ${MYSQL_CONNECT_TIMEOUT:-5}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
+      MYSQL_READ_TIMEOUT: ${MYSQL_READ_TIMEOUT:-15}
+      MYSQL_WRITE_TIMEOUT: ${MYSQL_WRITE_TIMEOUT:-15}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      RABBITMQ_USER: ${RABBITMQ_USER:-specproof}
+      SPECPROOF_AUTH_ENABLED: ${SPECPROOF_AUTH_ENABLED:-}
+      SPECPROOF_BCRYPT_ROUNDS: ${SPECPROOF_BCRYPT_ROUNDS:-12}
+      SPECPROOF_DEFAULT_TENANT_ID: ${SPECPROOF_DEFAULT_TENANT_ID:-}
+      SPECPROOF_IDENTITY_URL: ${SPECPROOF_IDENTITY_URL:-}
+      SPECPROOF_OIDC_ROLE_CLAIM: ${SPECPROOF_OIDC_ROLE_CLAIM:-roles}
+      SPECPROOF_OIDC_TENANT_CLAIM: ${SPECPROOF_OIDC_TENANT_CLAIM:-tenant_id}
+      SPECPROOF_TOKEN_HMAC_KEY: ${SPECPROOF_TOKEN_HMAC_KEY:-}
+      WORKER_PROVIDER_PARK_MAX_SECONDS: ${WORKER_PROVIDER_PARK_MAX_SECONDS:-0}
+      WORKER_RECLAIM_INTERVAL_SECONDS: ${WORKER_RECLAIM_INTERVAL_SECONDS:-300}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -60,6 +97,7 @@ services:
     restart: unless-stopped
     user: "1000:1000"
     environment:
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
       SPECPROOF_ENV: production
       SPECPROOF_SANDBOX: docker
       # Containment armed (#156, user-approved): the worker pins an isolating
@@ -104,6 +142,23 @@ services:
       # No model-provider health probe exists, so parked jobs are not
       # released on a timer by default (0 = never).
       WORKER_PROVIDER_PARK_MAX_SECONDS: ${WORKER_PROVIDER_PARK_MAX_SECONDS:-0}
+      # Delivery plane (#257): the same rule api's block states.
+      # Retrieval was dead on the deployed plane: worker modules build
+      # ElasticsearchStore() from ES_HOST, only api pinned the in-network
+      # endpoint, so the worker fell back to http://localhost:9200 and every
+      # repository-context retrieval reported the es_unavailable outcome.
+      ES_HOST: http://elasticsearch:9200
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_INSTALLATION_ID: ${GITHUB_APP_INSTALLATION_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      LLM_THINKING_MODE: ${LLM_THINKING_MODE:-plan_only}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-specproof_phase0}
+      MONGODB_USER: ${MONGODB_USER:-specproof}
+      MYSQL_CONNECT_TIMEOUT: ${MYSQL_CONNECT_TIMEOUT:-5}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
+      MYSQL_READ_TIMEOUT: ${MYSQL_READ_TIMEOUT:-15}
+      MYSQL_WRITE_TIMEOUT: ${MYSQL_WRITE_TIMEOUT:-15}
+      RABBITMQ_USER: ${RABBITMQ_USER:-specproof}
     volumes:
       - specproof-workspaces:/workspaces
     depends_on:
@@ -135,6 +190,12 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}
       OUTBOX_RELAY_METRICS_PORT: "9101"
+      # Delivery plane (#257): the same rule api's block states.
+      MYSQL_CONNECT_TIMEOUT: ${MYSQL_CONNECT_TIMEOUT:-5}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
+      MYSQL_READ_TIMEOUT: ${MYSQL_READ_TIMEOUT:-15}
+      MYSQL_WRITE_TIMEOUT: ${MYSQL_WRITE_TIMEOUT:-15}
+      RABBITMQ_USER: ${RABBITMQ_USER:-specproof}
     expose:
       - "9101"
     depends_on:

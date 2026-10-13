@@ -69,15 +69,15 @@
 | SPECPROOF_PUBLIC_URL | Check Run details_url 链接 (可选) |
 | MYSQL_DATABASE | 回落**产品库名** `specproof_phase0` —— 见 §5 的测试库隔离条目, 这是 #79 登记的缺陷; 测试会话已由 conftest 自动重定向到 `specproof_test` |
 
-**这张表只说"未配置时的行为", 没说"设了就能抵达"** (#246 实测订正): 一个名字要在
+**这张表只说"未配置时的行为", 没说"设了就能抵达"** (#257 实测订正): 一个名字要在
 部署里真的生效, 必须由 `compose.production.yml` 的 `environment:` 映射把它带进读它的
 那个服务; 过去四个 GitHub 名字 (`GITHUB_WEBHOOK_SECRET` 与 App 三件套) 只有
 `.env.example` 在声明, compose 一个都不插值, 于是本节读起来像"配上就好", 实际却恒
 落在未配置那一列。现在 api 拿这四个、worker 拿 App 三件套, 载体为 `${X:-}` 空值透传
 (未设置时行为与改动前一致)。仍**没有**载体的三个名字, 不是遗漏而是登记:
 `SPECPROOF_SIGNING_KEY` / `SPECPROOF_SIGNING_KEY_FILE` (本表第 3 行的证书签名, 在
-`.env.example` 里连行都没有 —— 门 #246 D08 的 47 名欠账清单收着它们) 与
-`SPECPROOF_PUBLIC_URL` (三个读者两套默认值, #235 L10 钉住分歧, #246 因此判它
+`.env.example` 里连行都没有 —— 门 #257 D08 的 47 名欠账清单收着它们) 与
+`SPECPROOF_PUBLIC_URL` (三个读者两套默认值, #235 L10 钉住分歧, #257 因此判它
 "必须披露而非顺手交付")。逐名结论与原因由
 `tests/unit/test_env_knobs_reach_the_process_that_reads_them.py` 复核, 写错会红。
 

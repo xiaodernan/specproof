@@ -35,6 +35,26 @@
 半配置 (缺任一 App 变量) 会响亮报错并跳过发布; 完全不配置则静默跳过
 (验收结果不受影响)。
 
+### 2.1 这些名字要靠载体抵达容器 (#257)
+
+上面四个 GitHub 名字过去只有 `.env.example` 在 advertise, compose 一个都不插值——
+按本节在 `.env` 里填好之后, api 与 worker 进程仍然读不到它们 (webhook 恒 503,
+Check Run 恒跳过), 而本节读起来像是已经配好了。现在
+`compose.production.yml` 把它们带进容器: api 拿全部四个 (webhook secret 只有 api
+的 `integrations/github.py` 读), worker 拿 App 三件套 (终态发布在 worker)。
+载体一律是 `${X:-}` 空值透传: `GitHubAppConfig.from_env()` 与 webhook 校验都按
+**真值**判断, 空串等同未设置, 所以没填 `.env` 的栈与改动前逐字节同行为。
+这件事由 `tests/unit/test_env_knobs_reach_the_process_that_reads_them.py` 钉住
+(#257 D02: 清单声明的旋钮必须有抵达读它的进程的载体; D04: 空值透传的行必须是空行)。
+
+两个仍在平面外的选项, 不是笔误:
+- `GITHUB_APP_PRIVATE_KEY_FILE` 没有载体 (compose 不插值这个名字), 所以
+  "/run/secrets/github-app-key.pem" 这条路径只在宿主机/CLI 平面可用; 容器里请改用
+  `GITHUB_APP_PRIVATE_KEY` 内联 PEM (Secret Manager 注入)。
+- `SPECPROOF_PUBLIC_URL` 是刻意不交付的 (#257 D02 的登记项): 它的三个读者带着两套
+  默认值 (verify 命令与 webhook 路由回落空串, `api/routes/admin.py` 回落自己的
+  origin), 任何一个 fallback 都会改变某个未改动栈的行为。门 #235 L10 钉住这个分歧。
+
 ## 3. 验证 Check Run
 
 1. 向仓库开一个 PR -> webhook 建单 -> Check Run 显示
