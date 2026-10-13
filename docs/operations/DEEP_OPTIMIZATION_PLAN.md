@@ -4590,7 +4590,7 @@ Acceptance: INSUFFICIENT  （正例 1 < 10、负例 0 < 5 —— 样本不足，
 
 ## #246 case-17 单例评测读数：干净差分下 case-17 被真检出（UNIQUE-01，严重度一致）
 
-**起点。** #243 的「下一号队列」把 #244 定为「真跑 #237 四例评测、据日志给 Recall/Precision/Severity agreement 与 case-17 是否 PASS」，且当时已后台起了 `case-17` 单例。该后台运行现已完成：日志 `D:/面试项目/_eval_case17.log`、报告 `D:/面试项目/_eval_case17_report.html` 与 `.results.json`（均在仓库外，不入库）。占号前读 `git log --all` 与计划：`#246` 提交/文档均 0 命中（**#244 被两条并发车道各占一次**：`44e6578` 迁移 down 外键、`56db2a3` counterexample writer；#245 亦已被占），故本批认领 **#246**。
+**起点（独立复核，非首报）。** #243 的「下一号队列」把 #244 定为「真跑 #237 四例评测、据日志给 Recall/Precision/Severity agreement 与 case-17 是否 PASS」。该后台运行已完成：日志 `D:/面试项目/_eval_case17.log`、报告 `D:/面试项目/_eval_case17_report.html` 与 `.results.json`（均在仓库外，不入库）。**另一车道已先以 #244（提交 `1311a07`）记录同一次真跑的读数**；本号据同一份 log/json **独立复读一遍**作交叉核验，并补 #244 段未列的 `results.json` 级细节。占号前读 `git log --all` 与计划：`#246` 提交/文档均 0 命中（**#244 被三条并发车道按消息各自认领**：`1311a07`＝本次真跑、`44e6578` 迁移 down 外键、`56db2a3` counterexample writer；#245 亦已被占），故本批认领 **#246**。
 
 **命令与耗时。** `specproof eval --cases <case-17 单例目录> --repo . --no-llm`；案例 `case-17-logic-inversion`（base=base, head=case-17-head）；**duration_ms = 657534 ≈ 11 分钟**（实测，Phase 0 图不暴露分阶段时间戳，只有整段墙钟）。
 
@@ -4604,6 +4604,7 @@ Acceptance: INSUFFICIENT  （正例 1 < 10、负例 0 < 5 —— 样本不足，
 1. **case-17 在干净差分下被真检出**（UNIQUE-01，严重度也对）。这实证 #231 当年那次红是**构建缓存复用产物**，而非检测缺陷（#236 用胶囊差分已得出同向结论；本批是 `specproof eval` 官方路径的复证）。
 2. **单例 100% ≠ 质量达标**：`Acceptance` 判 INSUFFICIENT 正是因为样本不足——正例要 ≥10、负例要 ≥5。这与记忆里的「读数陷阱」一致：`Acceptance: PASS` 在阈值全 None 时只保证样本量，反过来本例是样本量本身不够。
 3. 要给可信的 Recall/Precision 结论，必须跑更大的正例集并**补齐 ≥5 个负例**；本地已备 `D:/面试项目/_eval_subset4`（12 个文件）可用作下一轮。
+4. **与 #244 交叉核验一致**：本号独立复读得到的 Precision/Recall/F1/Severity agreement/Severe precision（均 100%）、`contracts_found=UNIQUE-01`、`severity_match=true`、`Acceptance: INSUFFICIENT` 与 #244 段逐项聆合。`results.json` 另显 `floors_pinned=false`、`recall_any=0.0`、`detected_any=0`（因无负例）；`declared_but_absent` 列出 manifest 声明的 10 个案例不在本单例目录（故本轮只跑 1 例）。
 
 **边界（诚实交代）。**
 - 本批**只记录读数，零代码改动**；产物（log/html/json）全在 `D:/面试项目/` 仓库外，未入库、未提交。
@@ -4613,5 +4614,6 @@ Acceptance: INSUFFICIENT  （正例 1 < 10、负例 0 < 5 —— 样本不足，
 
 **下一号队列（#246 占号后重排）。**
 - **#247** 四例子集重跑：用 `D:/面试项目/_eval_subset4` 跑 `specproof eval --repo . --no-llm`，验证 Recall/Precision 是否随样本量保持；同时盘点可用**负例**（需 ≥5）以解除 INSUFFICIENT。
-- **#248 及以后**：原 #245/#247 队列项顺延——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
+- **编号冲突提醒**：#244 段的队列把 **#246 预留给 roadmap 3.1「实时进度与流式日志（SSE 节点级）」**。本号（#246）被本节占用，故 SSE 与其他后续项请从 **#247 起排**，勿再与本号撞车。
+- **#247 及以后**：原 #245/#247 队列项顺延——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
 - 另：#231 遗留的"case-17 红"疑点本批已实质关闭（缓存产物），但只在评测口径层面；若要写进 `docs/eval/` 需先看该目录是否被别的车道占用（git status 显示 `docs/eval/aider-results.md`、`docs/eval/attribution-results.json` 常脏）。
