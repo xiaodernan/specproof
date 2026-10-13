@@ -4638,3 +4638,26 @@ PermissionError: [Errno 13] Permission denied: '...case-21-auth-weakened-permita
 - **编号冲突提醒**：#244 段的队列把 **#246 预留给 roadmap 3.1「实时进度与流式日志（SSE 节点级）」**。本号（#246）被本节占用，故 SSE 与其他后续项请从 **#247 起排**，勿再与本号撞车。
 - **#247 及以后**：原 #245/#247 队列项顺延——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
 - 另：#231 遗留的"case-17 红"疑点本批已实质关闭（缓存产物），但只在评测口径层面；若要写进 `docs/eval/` 需先看该目录是否被别的车道占用（git status 显示 `docs/eval/aider-results.md`、`docs/eval/attribution-results.json` 常脏）。
+
+## #247 被跳过的案例必须进 `not_run` 列：容错修复留下的记账缺口
+
+**起点（一次真实崩溃的后续）。** 本仓四例子集评测（`D:/面试项目/_eval_subset4.log`）在 case-12/case-17 双双 PASS 后，case-21 抛 `PermissionError: [Errno 13] Permission denied: ...case-21-auth-weakened-permitall/ground-truth.json`（eval.py:257），**整轮中止**：case-56 未跑、无报告、~15 分钟白费。该文件随后实测可读（`-rw-r--r--`）→ 当时是**瞬时 Windows 文件锁**，不是永久权限问题。
+
+**另一车道已修容错（#246，提交 `fed32e0`）。** 新增 `_load_json()` 捕 `PermissionError/OSError/ValueError/FileNotFoundError` 与非 dict，返回 `(data, error)`；ground-truth / scenario 两个读取点改为「SKIP 该案例 + `echo` 原因 + `continue`」，并配 `tests/unit/test_eval_survives_an_unreadable_case_file.py`（2 案）。**本号不重复该工作**（先查在途改动），只补它留下的缺口。
+
+**缺口（已核实）。** 三个 SKIP 分支（`:275` no spec.md、`:285` ground-truth 不可读、`:291` scenario 不可读）都只 `echo + continue`，**没有一个递增 `not_run`**（`not_run` 仅在 `:342` 的"管线中止"分支递增）。于是被跳过的案例从记账里**彻底消失**：汇总仍印 `Not run: 0`、sidecar 的 `not_run` 仍为 0，而 `total_cases = len(results)` 也随之缩小——**分母被悄悄砍掉一块，小评测因此显得干净**。这正是本仓反复对抗的"假绿"形状。
+
+**修法（`cli/specproof/commands/eval.py`，两处 +2 行）。** 在 ground-truth / scenario 两个 SKIP 分支各加 `not_run += 1`，让"被选中但没测成"的案例进 `Not run:` 列与 sidecar 的 `not_run`。`no spec.md` 分支**未动**：那是"目录里根本没有案例"，与"案例存在却读不了"不同类，改动它属另一议题（已记为观察项）。
+
+**门证（实测）。** 新增 `tests/unit/test_eval_skipped_case_is_counted_not_run.py`（2 案：瞬时 `PermissionError` 与畸形 JSON，均断言汇总 `Not run:` 命中 1 且 sidecar `not_run == 1` 而 `total_cases == 1`）。
+- `pytest` 7 个 eval 相关文件 → **28 passed / 12.1s**（含 #246 那 2 案，未被本号破坏）。
+- **变异真红**（平面，未碰共享树）：`git archive HEAD`（含 #246 容错、不含本号补修）+ 本号 2 案 → **2 failed**（`Not run:\s+1` 匹配不到），证明是真回归测试；平面跑完即删。
+- `ruff check cli/specproof/commands/eval.py tests/unit/test_eval_skipped_case_is_counted_not_run.py` → **All checks passed**。
+- `mypy cli/specproof/commands/eval.py` → **本文件 0 错**（4 条报错全在 `experiments/adapters.py`，属另一车道在途的 Gradle profile 半成品，不碰不代修）。
+
+**诚实边界。** ① 本号只补**记账**，不改"跳过一个案例、继续跑其余"的容错语义（那是 #246）。② 未重跑四例子集：需等 #246 落地后的环境，且单例 ~11 分钟、四例 ~41 分钟，超出本会话可前台完成的边界；`_eval_subset4` 目录仍在，下轮直接可用。③ 本地领先 origin/master 140+ 提交（各车道累积），**本批仍只提交不 push**。
+
+**下一号队列（#247 占号后重排；注意 #246 已被三方按消息认领，后续请先查再占）。**
+- **#248** 重跑四例子集：修好后跑 `specproof eval --cases D:/面试项目/_eval_subset4 --repo . --no-llm`，给四例 Recall/Precision/Severity agreement（基线 2026-10-09：66.7% / 100% / 0.0% / 0.0%），重点是 case-21 的 AUTH-01 是否检出、case-56 的逐例 verdict。
+- **#249** 观察项：`no spec.md` 分支是否也该计入 `not_run`（当前不计，属分类问题而非崩溃）。
+- **#250 及以后**：原 #245/#247 队列项——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级，注意 #244 段曾把 #246 预留给它）、Go/Java-Gradle 适配器。

@@ -283,12 +283,18 @@ def eval_cmd(
                 # case is skipped with the reason stated, and the rest of the
                 # pool is still measured.
                 click.echo(f"  SKIP {case_dir.name}: ground-truth.json 无法读取 ({gt_error})")
+                # The case was selected but never measured, so it belongs in the
+                # not_run column (and the sidecar's not_run), not in nowhere: a
+                # silently shrinking denominator is what makes a small eval read
+                # as clean.
+                not_run += 1
                 continue
         scenario: dict[str, Any] = {}
         if sc_file.exists():
             scenario, sc_error = _load_json(sc_file)
             if sc_error:
                 click.echo(f"  SKIP {case_dir.name}: scenario.json 无法读取 ({sc_error})")
+                not_run += 1
                 continue
 
         base_ref = scenario.get("base_ref", "base")
