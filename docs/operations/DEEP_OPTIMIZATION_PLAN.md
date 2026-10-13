@@ -4714,3 +4714,33 @@ Acceptance: INSUFFICIENT  （正例 3<10、负例 1<5 —— 样本不足，诚�
 - **#250 证据捕获（真能力缺口，已量未修）**：让"回归效果被自身失败测试回滚吞掉"的数据完整性回归能产出 BLOCKER 所需的 DB/行为证据。可选方向（均需先量再选，不预设结论）：① 生成测试在断言失败**前**就把受影响行落库（不依赖回滚后的快照）；② 差分对 head 侧增加"回归测试响应期间库内计数"观测；③ 把 spec 的 `Severity:` 真正接上契约（当前它是全仓死数据，接上本身是独立且诚实的小改动）。**勿用"把差分 confidence 调到 0.90"糊过去**——那是凑门，不是取证据。
 - **#251 评测口径**：四例样本量仍不足（3 正 / 1 负 < 下限 10 / 5），`Acceptance` 停在 INSUFFICIENT；要拿可信结论需盘点并补足正例（≥10）与负例（≥5）。与 #250 可分头推进。
 - **#252 及以后**：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
+
+## #251 评测样本充分性：把「INSUFFICIENT」的成因钉成可执行算术（#250 仍空着，按队列留给证据捕获）
+
+**起点（#248/#249 留下的口径问题）。** #248 的四例读数三项满分却落 `Acceptance: INSUFFICIENT`（正例 3<10、负例 1<5）。这个 verdict 是对的，但它的成因是**结构性的、还是我们只挑了个小子集**？这个问题如果不钉死，最坏会发生两种误读：把四例的 100% 当成可信结论；或者反过来，认为"INSUFFICIENT = 工具坏了"，于是**把 floor 调小来换一个绿灯**。两者都是 eval 设计里要命的错误。
+
+**实测读数（全部从文件现算，不靠记忆）。**
+```
+golden-cases/ 全池：100 例，正例 63 / 负例 37，0 例缺 ground-truth，0 例缺 spec
+holdout 隔离后（默认 --cases golden-cases，隔离开）：90 例，正例 55 / 负例 35
+默认 floors（10 / 5）在隔离后池上：满足
+CI 四例子集（从 ci.yml 的 cp -r 行读出）：正例 3 / 负例 1
+CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**，不是默认值
+```
+
+**结论（三句话）。** ① CI 的四例子集**结构上永远无法满足默认 floors**（3/1 vs 10/5），CI 靠把 floors 调成 3/1 才能给出任何 verdict。② 所以 **CI 绿灯是「3 个正例下的绿灯」**，不是 10/5 背书的结论——读它时必须带这个统计边界，四例的 `Recall: 100%` 置信区间极宽。③ 可信结论的诚实路径是**跑全池**（隔离后 90 例，55 正 / 35 负，够 10/5），而不是把 floor 再调小。
+
+**修法（`tests/unit/test_eval_sample_adequacy_is_derived_from_the_files.py`，4 案）。** 把上面每条算术钉成断言，且**每一个数都从 `golden-cases/` 与 `.github/workflows/ci.yml` 现算**，池子或工作流一变这些断言自己重验：
+- `test_the_four_case_ci_subset_can_never_meet_the_default_floors`：子集组成断言 `== (3, 1)`，并断言其严格低于 10/5 默认 floor（子集变大时这条会提醒重判）。
+- `test_ci_weakens_its_floors_to_exactly_what_the_subset_can_meet`：CI 的 floors ≠ 默认值、且**恰好**被子集满足（若低于子集则是空洞门，若高于则永远红）；并断言 `ci_negative < 5`——4 例里只有 1 个负例，本就无从谈误报上限。
+- `test_the_shipped_golden_pool_can_meet_the_default_floors_after_isolation`：55/35 ≥ 10/5，钉住"可信结论的路径是全池"。
+- `test_a_perfect_three_positive_run_is_insufficient_not_a_vacuous_pass`：用 `evidence.acceptance.evaluate` 复算 #248 那次运行的输入（`should_detect=3, detected=3, false_positives=0, negative_cases=1` + `max_false_positives=0`）→ 断言 `status == "INSUFFICIENT"`、`recall == 100.0` 且 `passed is False`：**指标满分但样本不足时必须是 INSUFFICIENT，绝不是 vacuous PASS**。
+
+**门证（实测）。** `pytest tests/unit/test_eval_sample_adequacy_is_derived_from_the_files.py -q` → **4 passed**；连同其余 eval 测试 5 文件 → **23 passed**。`ruff check`（`--fix` 只动导入排序）→ **All checks passed**；`mypy` 本文件 **0 错**（修掉了 `re.search(...).group()` 的 union-attr：改为显式 `is None` → `AssertionError`，让"CI 不再显式传 floors"大声失败而不是 cryptic crash）。
+
+**诚实边界。** ① 本号**只做度量与钉子，不跑全池评测**（90 例 × 每例数分钟 = 小时级，非本会话可前台完成的边界；这条被明确记为未做）。② 本号**没有调整任何 floor**，也没有把"测评集应该多大"变成产品决策——它只是把现状的算术钉死。③ 引用这些数字时必须带着"`golden-cases` 当前状态"；池子变更后运行本测试即可重验，不要凭本文抄数。④ **#250 仍空着**：本号按 #248/#249 队列的顺序号取 #251（样本充分性），#250（证据捕获）仍留给那一项，未占用、未合并。
+
+**下一号队列（#251 占号后重排）。**
+- **#250** 证据捕获能力缺口（仍空、仍要做）：让"回归效果被自身失败测试回滚吞掉"的数据完整性回归能产出 BLOCKER 所需的 DB/行为证据；详见 #249 的三个候选方向，**勿用调高 confidence 糊过去**。
+- **#252** 跑一次**全池**评测取可信口径读数（隔离后 90 例：55 正 / 35 负，够默认 floors）；小时级，需拆分到多轮或长窗口后台跑，读数必须标注 `case_set` 与池快照。
+- **#253 及以后**：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
