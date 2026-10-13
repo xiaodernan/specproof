@@ -4661,3 +4661,35 @@ PermissionError: [Errno 13] Permission denied: '...case-21-auth-weakened-permita
 - **#248** 重跑四例子集：修好后跑 `specproof eval --cases D:/面试项目/_eval_subset4 --repo . --no-llm`，给四例 Recall/Precision/Severity agreement（基线 2026-10-09：66.7% / 100% / 0.0% / 0.0%），重点是 case-21 的 AUTH-01 是否检出、case-56 的逐例 verdict。
 - **#249** 观察项：`no spec.md` 分支是否也该计入 `not_run`（当前不计，属分类问题而非崩溃）。
 - **#250 及以后**：原 #245/#247 队列项——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级，注意 #244 段曾把 #246 预留给它）、Go/Java-Gradle 适配器。
+
+## #248 四例子集完整读数：**4/4 全 PASS**，Recall 100%（基线 66.7%），Severity agreement 66.7%，并暴露 case-17 一处真实 severity 下叫
+
+**起点与占号。#246** 修好「一个案例文件读不了杀死整轮」的容错、**#247** 补好「被跳过的案例不进 `not_run` 列」的记账缺口，两号都由本仓不同车道落地。本号接 #247 队列里明确预留的 **#248**——重跑四例子集拿完整读数。编号说明：#244–#247 被多条车道按消息认领（`44e6578`/`56db2a3` 占 #244、`d225ea6` 占 #245、本号与 `c3813bc` 撞 #246 后按路径提交、`ee873b9` 占 #247），故本号按「两份登记处并集下一空号」取 #248，不复用任何已见号。
+
+**执行（真跑，非伪造）。** `D:/面试项目/_eval_subset4`（`case-21-auth-weakened-permitall` / `case-12-add-javadoc` / `case-17-logic-inversion` / `case-56-redis-cache-eviction-removed`，均从 `golden-cases/` 原样复制），`--repo . --no-llm`；报告与 `results.json` 落**仓外**（`D:/面试项目/_eval_subset4_report.html` / `.results.json`，日志 `_eval_subset4.log`），**不污染 `docs/eval/`**。后台任务 `tETUtc`，**31m 14s**，EXIT=0，**4 例全跑完、0 `NOT_RUN`、0 `SKIP`**。#244 起的那一轮在 case-21 上带 traceback 崩掉、只产 2 例（case-56 未跑），#246 的容错修复在同场景真跑中被验证。
+
+**读数（实测，落盘可复核）。**
+```
+Total cases: 4 / Not run: 0 / Should detect: 3 / Detected: 3 / False positives: 0 / Negative cases: 1
+Precision: 100.0%   Recall: 100.0%   F1: 100.0%
+Severity agreement: 66.7% (3 matched positive cases)
+Severe precision: 66.7% (severe calls: 3 positive / 0 negative)
+Acceptance: INSUFFICIENT  （正例 3<10、负例 1<5 —— 样本不足，诚实记账，不默认满分）
+```
+逐例（取自 sidecar `results.json` 的 `cases[]`）：
+| 案例 | verdict | expected severity | 实测 | 结论 |
+|---|---|---|---|---|
+| case-12-add-javadoc | PASS | NONE（负例，0 findings） | — | ✅ 无误报 |
+| case-17-logic-inversion | PASS | **BLOCKER** | **MAJOR** | ⚠️ severity 下叫 |
+| case-21-auth-weakened-permitall | PASS | BLOCKER | BLOCKER | ✅ |
+| case-56-redis-cache-eviction-removed | PASS | MAJOR | MAJOR | ✅ |
+
+**对比 2026-10-09 基线（Recall 66.7% / Precision 100% / Sev-agree 0.0% / Severe-prec 0.0%）。** Recall **66.7%→100.0%**、Severity agreement **0.0%→66.7%**、Severe precision **0.0%→66.7%**、Precision 维持 100%。#231 的 precision 门 + #233 的 per-job 账本之后，四例读数三项齐升；**case-17 不再是 MISS**——#231/#237 悬置两轮的待核项由此彻底闭环（其 `MISS` 是构建缓存复用产物，与 #236 结论一致）。
+
+**诚实边界。** ① `Acceptance: INSUFFICIENT` 是 4 例样本不足以判定质量的诚实记账（3 正例 < 10 下限、1 负例 < 5 下限）——**不等于质量合格**，100% 只在本次这 4 例上成立。② Severity agreement 66.7% 的含义是"3 个正例里 1 例 severity 不符"；precision/recall 的 100% 说的是**检出**，不覆盖严重度标定，两者不可互相顶替。③ 本轮读数绑定当时的代码与环境（构建缓存预热、Maven 缓存卷、`--no-llm`），换 commit 必须重量，不可拿这组数字当永久结论。④ #247 的 `not_run` 记账修正正确；本轮 0 个被跳过案例，故该修正不影响本读数（不是"绕过它"）。
+
+**留下的真缺陷（#249 起点）。** **case-17 的 `UNIQUE-01` severity 被下叫：期望 `BLOCKER`、实测 `MAJOR`。** case-17 是「重复邮箱注册」唯一约束撤除，按 golden 标注是阻断级；而 case-21（`AUTH-01`，`permitAll`）同为 BLOCKER 且标对了——**所以这不是"全线下叫"，而是特定契约的严重度映射问题**，最可能在契约严重度声明或 review_court 的 severity 解析链上。
+
+**下一号队列（#248 占号后重排；编号仍按两本台账在提交时现算）。**
+- **#249** 查 case-17 的 `UNIQUE-01` 为何被标成 MAJOR 而非 BLOCKER：沿「契约声明 → 编译 → 差分产出 → review_court severity 解析」逐段量，定位下叫发生在第一段还是合并前；修好并把四例口径的 severity agreement 顶上 100%（4 例口径下即把 case-17 一例改对）。
+- **#250 及以后**：原队列项——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
