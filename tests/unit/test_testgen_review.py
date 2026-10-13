@@ -104,3 +104,89 @@ def test_import_not_in_workspace_flagged(tmp_path) -> None:
     assert not any(
         p["check"] == "unavailable_dependency" for p in review2["problems"]
     )
+
+
+# ── #255: the assertion family the "no assertion" rule recognises ──
+# _ASSERT_RE previously named only 8 of JUnit's assertion forms, so a
+# counterexample asserting with any of the rest was reported assertion-void.
+# Each of these IS a real assertion, and none may be flagged.
+ASSERTION_FORMS = [
+    "assertEquals(\"a\", got);",
+    "assertNotEquals(\"a\", got);",
+    "assertTrue(got != null);",
+    "assertFalse(got == null);",
+    "assertNull(got);",
+    "assertNotNull(got);",
+    "assertSame(expected, got);",
+    "assertNotSame(expected, got);",
+    "assertArrayEquals(new int[]{1}, xs);",
+    "assertIterableEquals(List.of(), ys);",
+    "assertInstanceOf(String.class, got);",
+    "assertLinesMatch(List.of(), zs);",
+    "assertTimeout(Duration.ofSeconds(5), () -> got);",
+    "assertTimeoutPreemptively(Duration.ofSeconds(5), () -> got);",
+    "assertDoesNotThrow(() -> got);",
+    "assertThrows(RuntimeException.class, () -> fail());",
+    "assertAll(() -> assertNotNull(got));",
+    "assertThat(got).isEqualTo(\"a\");",
+]
+
+
+def test_every_real_assertion_form_is_recognised() -> None:
+    """A method asserting via any JUnit form is not 'no assertion' (#255).
+
+    The false positive mattered: the review is what tells the reader whether
+    a generated counterexample is worth trusting, and calling a test that
+    does assert something assertion-void points the investigation at the
+    wrong defect.
+    """
+    for form in ASSERTION_FORMS:
+        code = (
+            "package p;\n"
+            "import org.junit.jupiter.api.Test;\n"
+            "class T {\n"
+            "  @Test void t() { Object got = null; Object expected = null;\n"
+            "    int[] xs = null; Iterable ys = List.of(); Iterable zs = ys;\n"
+            "    Duration d = Duration.ofSeconds(5);\n"
+            "    " + form + "\n"
+            "  }\n"
+            "}\n"
+        )
+        problems = _problems(code)
+        assert not any(
+            "no assertion" in p for p in problems
+        ), f"{form} was flagged as assertion-void"
+
+
+def test_assertion_void_method_is_still_flagged() -> None:
+    """The #255 widening must not blunt the rule it widened (#255).
+
+    Every form above is accepted; a method with no assertion at all must
+    still be reported, or the check stops meaning anything.
+    """
+    code = (
+        "package p;\n"
+        "import org.junit.jupiter.api.Test;\n"
+        "class T {\n"
+        "  @Test void t() { Object got = service.call(); }\n"
+        "}\n"
+    )
+    problems = _problems(code)
+    assert any("no assertion in test method" in p for p in problems)
+
+
+def test_non_assertion_call_is_not_mistaken_for_one() -> None:
+    """`assert` is a prefix, not a prefix-match on anything (#255).
+
+    The widened alternation must still require the `(` and a word boundary —
+    a helper named `assertionsFrom()` is not an assertion call.
+    """
+    code = (
+        "package p;\n"
+        "import org.junit.jupiter.api.Test;\n"
+        "class T {\n"
+        "  @Test void t() { assertionsFrom(service); }\n"
+        "}\n"
+    )
+    problems = _problems(code)
+    assert any("no assertion in test method" in p for p in problems)

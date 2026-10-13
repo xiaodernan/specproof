@@ -17,9 +17,25 @@ _PACKAGE_RE = re.compile(r"\bpackage\s+([\w.]+)\s*;")
 _CLASS_RE = re.compile(r"\bclass\s+(\w+)\b")
 _IMPORT_RE = re.compile(r"\bimport\s+([\w.]+)\s*;")
 _TEST_RE = re.compile(r"@Test\b")
-_ASSERT_RE = re.compile(
-    r"\bassert(?:True|False|Equals|NotEquals|Null|NotNull|Throws|DoesNotThrow)\s*\(",
+# The assertion family the review recognises. Every entry is a real JUnit
+# assertion method (``Assertions``/``AssertionsJUnit``/Hamcrest bridge), so a
+# method whose only assertion is one of them is NOT assertion-void.
+#
+# #255: this list used to be ``True|False|Equals|NotEquals|Null|NotNull|Throws|
+# DoesNotThrow`` — 8 of JUnit's ~17 forms. A counterexample asserting with
+# ``assertSame``/``assertArrayEquals``/``assertTimeout``/``assertAll``/
+# ``assertInstanceOf``/``assertLinesMatch``/``assertIterableEquals``/
+# ``assertNotSame``/``assertTimeoutPreemptively`` was reported as having "no
+# assertion in test method": 9 measured false positives, each one telling the
+# reader to distrust a test that does assert something. Order is irrelevant —
+# alternation backtracks, so the ``Timeout`` prefix still lets the longer
+# ``assertTimeoutPreemptively`` match.
+_ASSERT_NAMES = (
+    "All|ArrayEquals|DoesNotThrow|Equals|False|InstanceOf|IterableEquals|"
+    "LinesMatch|NotEquals|NotNull|NotSame|Null|Same|That|Throws|Timeout|"
+    "TimeoutPreemptively|True"
 )
+_ASSERT_RE = re.compile(r"\bassert(?:" + _ASSERT_NAMES + r")\s*\(")
 
 
 def _methods_with_test_annotations(code: str) -> list[str]:
