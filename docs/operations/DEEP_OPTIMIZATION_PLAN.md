@@ -4744,3 +4744,22 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - **#250** 证据捕获能力缺口（仍空、仍要做）：让"回归效果被自身失败测试回滚吞掉"的数据完整性回归能产出 BLOCKER 所需的 DB/行为证据；详见 #249 的三个候选方向，**勿用调高 confidence 糊过去**。
 - **#252** 跑一次**全池**评测取可信口径读数（隔离后 90 例：55 正 / 35 负，够默认 floors）；小时级，需拆分到多轮或长窗口后台跑，读数必须标注 `case_set` 与池快照。
 - **#253 及以后**：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
+
+## #250 证据捕获（行为回归被回滚吞掉）：先把"为什么没捕获到 DB 变异"钉成结构化信号
+
+**起点（#248/#249 留下的真能力缺口）。** #249 量清根因：case-17 的回归是"重复邮箱被接受"，head 上生成测试断言失败 → 事务回滚 → 两侧 H2 转储相同（DB_CONSISTENT）→ ADR-004 条件 4 不成 → 被 cap 成 MAJOR。这是一类"行为回归的持久化效果被自身失败的测试回滚吞掉"的数据完整性回归。**本号做"捕获"这一半**：把"head 侧生成测试断言了行为回归、但其失败把事务回滚了"这一事实，从一句散文 `combined_detail` 升级成机器可读的结构化 `behavioral_evidence`，让评审院/UI 能看懂"为什么没捕获到 DB 变异"，而不是误读成"没发生回归"。
+
+**实测读数（每段都有证据）。**
+1. 在 `agent/nodes/run_differential.py` 新增纯函数 `_behavioral_evidence(verdict, db_verdict, base_status, head_status, failing_method)`：返回 `{captured, head_test_failed, db_effect_rolled_back, failing_method, note}`。判定 `db_effect_rolled_back = (verdict=="REGRESSION") and (db_verdict=="DB_CONSISTENT")`——即 case-17 的精确形状。
+2. 在差分产出的两个入口（combined 整体路径 ~L611、`method_groups` 拆分路径 ~L521）都给 `primary_entries` 加上 `behavioral_evidence` 字段，值为该纯函数的输出。combined 路径的 `failing_method` 来自 `_failing_test_name(head_app)`（仅当 `base_pass and not head_pass`）。
+3. **刻意不改**：severity、confidence、ADR-004 六条件门、`evidence_digest`（sha256 仍只吃原有载荷，保证确定性）、`combined_detail` 文案一律不动。本号只做"捕获 + 结构化"，不做"升级成 BLOCKER"。
+
+**为什么这是诚实的一半（明确不糊）。** 让这类回归真正*挣到* BLOCKER 的诚实路径是"在 head 回归响应期间捕获库内计数/行"（#249 候选方向②），那是改动差分快照采集路径的大手术，且 `sandbox/runner.py`、`evidence/acceptance.py` 此刻正被别的车道改着——本号不动那条路径，避免与他人在途改动冲突、也避免静默绕过 ADR-004。**绝不用"把 confidence 调到 0.90"糊过去**（那是凑门，不是取证据）。
+
+**门证（实测）。** `pytest tests/unit/test_eval_behavioral_evidence_capture.py tests/unit/test_blocker_severity_requires_captured_db_evidence.py tests/unit/test_review_court_policy.py -q` → **47 passed**（新 6 + 既有 41）；再扩到差分条目结构相关 7 个文件（self_test_differential_entry / ambiguous / language_honesty / probe_differential / db_state / court_no_evidence / attribution_att08）→ **87 passed**，确认 `behavioral_evidence` 新键没有打破任何条目形状断言。`ruff check agent/nodes/run_differential.py tests/unit/test_eval_behavioral_evidence_capture.py` → **All checks passed**。`mypy agent/nodes/run_differential.py` → 仅 `experiments/adapters.py`（**别车道在途脏文件**，非本号引入）报 4 错，本文件 0 错。
+
+**诚实边界。** ① 本号只交付"捕获 + 结构化"，**没有**把任何回滚隐藏型回归的 severity 从 MAJOR 升到 BLOCKER——那需要 #249 候选② 的 in-flight DB 采集，是独立、需设计评审的下一步。② 新增字段是纯附加元数据，测试断言其 key 集合不含 severity/confidence，钉死"此字段不会被偷偷拿去扛门"。③ 读数必须带"当前 `run_differential.py` 实现"语境；采集路径若改，本测试可重验。
+
+**下一号队列（#250 占号后重排）。**
+- **#252** 跑一次**全池**评测取可信口径读数（隔离后 90 例：55 正 / 35 负，够默认 floors 10/5）；小时级，需拆分到多轮或长窗口后台跑，读数必须标注 `case_set` 与池快照。
+- **#253 及以后**：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。并把 #249 候选②（head 回归响应期间的 in-flight DB 计数采集）作为 #250 的"挣到 BLOCKER"后续，单独设计评审后做。

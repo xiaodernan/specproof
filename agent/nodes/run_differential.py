@@ -519,6 +519,9 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 "head_db_snapshot": head_snapshot,
                 "db_state_verdict": db_verdict,
                 "db_state_detail": db_detail,
+                "behavioral_evidence": _behavioral_evidence(
+                    verdict, db_verdict, base_status, head_status, method
+                ),
                 "base_run_seconds": base_seconds,
                 "head_run_seconds": head_seconds,
                 "base_cache_hit": base_cache_hit,
@@ -609,6 +612,13 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             "head_db_snapshot": head_snapshot,
             "db_state_verdict": db_verdict,
             "db_state_detail": db_detail,
+            "behavioral_evidence": _behavioral_evidence(
+                combined_verdict,
+                db_verdict,
+                "pass" if base_pass else "fail",
+                "pass" if head_pass else "fail",
+                _failing_test_name(head_app) if (base_pass and not head_pass) else None,
+            ),
             "base_run_seconds": base_seconds,
             "head_run_seconds": head_seconds,
             "base_cache_hit": base_cache_hit,
@@ -1340,6 +1350,56 @@ def _compare_db_state(
         return "DB_MUTATED", detail
 
     return "DB_CONSISTENT", "Base and Head DB dumps are identical"
+
+
+def _behavioral_evidence(
+    verdict: str,
+    db_verdict: str,
+    base_status: str,
+    head_status: str,
+    failing_method: str | None = None,
+) -> dict[str, Any]:
+    """Capture structured evidence for a behavioral regression whose DB
+    effect was rolled back by the failing head-side generated test.
+
+    #250 evidence-capture gap: when the head-side generated test asserts the
+    endpoint's *behavior* regressed (verdict == "REGRESSION") but the same
+    test's assertion failure rolls the transaction back, the post-run DB dump
+    is DB_CONSISTENT. ADR-004 condition 4 (db_behavior_evidence) then cannot
+    be satisfied from the post-rollback dump, so the finding is honestly
+    capped at MAJOR. This helper records that signal in machine-readable form
+    so reviewers/UI can see *why* no DB mutation was captured — instead of
+    misreading it as "no regression happened".
+
+    This is capture-only: it does NOT change severity, confidence, or the
+    ADR-004 gate. The in-flight DB-state capture that would let such a
+    regression legitimately earn BLOCKER is a separate, design-reviewed step
+    (tracked in the plan; deliberately not done here so the gate is not
+    bypassed by raising confidence to 0.90).
+    """
+    behavioral_regression = verdict == "REGRESSION"
+    head_test_failed = head_status == "fail" and base_status == "pass"
+    db_effect_rolled_back = behavioral_regression and db_verdict == "DB_CONSISTENT"
+    if db_effect_rolled_back:
+        note = (
+            "Head-side generated test asserted a behavioral regression; its "
+            "failure rolled the transaction back, so the post-run DB dump is "
+            "DB_CONSISTENT. ADR-004 condition 4 (captured DB behavior "
+            "evidence) cannot be met from the rolled-back dump, so the finding "
+            "is capped at MAJOR. The in-flight DB-state capture path is the "
+            "honest route to a BLOCKER verdict (#250, not yet wired)."
+        )
+    elif behavioral_regression:
+        note = "Behavioral regression with captured DB mutation."
+    else:
+        note = "No behavioral regression detected."
+    return {
+        "captured": behavioral_regression,
+        "head_test_failed": head_test_failed,
+        "db_effect_rolled_back": db_effect_rolled_back,
+        "failing_method": failing_method,
+        "note": note,
+    }
 
 
 def _check_http_diff(base_ws: str, head_ws: str) -> list[dict[str, Any]]:
