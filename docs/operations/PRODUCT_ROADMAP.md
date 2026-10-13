@@ -2452,3 +2452,37 @@ up 不可重跑意味着「成对」承诺的往返本身不存在。探针
   变成显式可审的集合，没有替产品决定。
 
 
+
+## 40. #255：反例审查把"用了 assertSame 的测试"判成"没有任何断言"（2026-10-14）
+
+- **缺陷（探针实测，非推断）**：`agent/testgen_review.py` 的 `_ASSERT_RE` 只列了 JUnit 断言族的 8 个
+  名字（`True|False|Equals|NotEquals|Null|NotNull|Throws|DoesNotThrow`），于是凡**只用其余形式**
+  断言的 `@Test` 方法一律被报 `no assertion in test method`。探针
+  `.scratch/probe_assert_regex.py`（调真函数 `review_generated_test`，非复制逻辑）实测 10 形：
+  `assertSame`/`assertNotSame`/`assertArrayEquals`/`assertTimeout`/`assertTimeoutPreemptively`/
+  `assertAll`/`assertInstanceOf`/`assertLinesMatch`/`assertIterableEquals` **共 9 形全部误报**，
+  `assertEquals` 作为对照组正确不报。
+- **改法**：把 JUnit 断言族的真实成员枚举成 `_ASSERT_NAMES`（含 Hamcrest 桥 `assertThat`），
+  `_ASSERT_RE` 仍要求 `\bassert` + 完整名字 + `\s*\(`，因此 `assertionsFrom(...)` 这类同名前缀的
+  辅助方法不会冒充断言。已在测试里用一条反例钉住这个边界。
+- **门禁**：focused `test_testgen_review.py` **10 passed**（原 7 + 新 3）；**变异臂 2/2 见红**——
+  臂 1 把 `_ASSERT_NAMES` 收窄回旧的 8 名 → `test_every_real_assertion_form_is_recognised` 红；
+  臂 2 反向放宽成 `assert\w*\(` → `test_non_assertion_call_is_not_mistaken_for_one` 红
+  （这条证明"放宽没有把检查本身放空"）。两臂 restore 后 sha256 与被改前**逐字节一致**；
+  `ruff` + `mypy` 对两个文件全绿。提交 `6dc4f29`（2 文件 / +104 −2）。
+- **诚实边界（重要，勿当已完成）**：这只是**降低误报**，**没有**把 4.2「counterexample 从『能编译』到
+  『真能复现回归』」推到完成。三个仍然成立的事实：
+  1. `review_generated_test` 的 docstring 自己写明"problems are recorded ... **The review is
+     evidence, not a gate**"，且 `generation_record.review` 至今**没有任何消费方**据此改判 verdict
+     （`git grep` 全仓确认：唯一调用方是 `generate_counterexamples.py:1400`，只写入不读回）。
+  2. 因此一个**真·无断言**的生成测试仍会走到 `http_verdict == "COMPLIANT"`（`run_differential.py:365-366`）
+     并在 `:668` 被映射成 `result = "PASS"` —— 一个**结构上不可能失败**的测试产出绿灯。
+     要堵这条必须动 `run_differential.py`，让 `review.problems` 里的 `assertion` 类问题把
+     `PASS` 降级为 `UNVERIFIED`（`contract_results.py:33` 已有 `UNVERIFIED` 这个秩，语义与
+     `matrix_policy` 的"禁止臆造 PASS"一致，改动面是安全的那一侧）。
+  3. 4.2 的真正完成还需要 2.1 的分语言可执行反例生成（见 §2.1 的实测结论：拦路在上游
+     `generate_counterexamples` 写死 JUnit/Spring/`com.specproof`，且必须接真实模型才能端到端验证）。
+- **为什么本轮不碰 `run_differential.py`**：另一条 lane 正在该文件上做 #254（`_db_violation_evidence`，
+  56 行未提交 WIP），本批提交前已发现它被对方 `git add` 进了索引，已 `git restore --staged` 放回
+  工作区，未夹带。抢写会双向丢失。
+
