@@ -72,6 +72,82 @@ def _load_json(path: Path) -> tuple[dict[str, Any], str]:
     return loaded, ""
 
 
+def _repo_head_sha(repo: str) -> str:
+    """Best-effort revision of the code under test; 'unknown' if not a git checkout.
+
+    The repo revision is part of the pool snapshot: a reading taken against one
+    commit is not comparable to a reading taken against another, and a sidecar
+    without it can be diffed against the wrong build (#77, #251).
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", repo, "rev-parse", "HEAD"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=10,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            return proc.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _pool_snapshot(
+    repo: str,
+    case_dirs: list[Path],
+    *,
+    min_recall: float | None,
+    min_precision: float | None,
+    min_f1: float | None,
+    max_false_positives: int | None,
+    min_positive_cases: int,
+    min_negative_cases: int,
+) -> dict[str, Any]:
+    """A fingerprint of exactly what a measurement run covered.
+
+    #252 requires every reading to be labelled with a pool snapshot so a 4-case
+    CI run can never be diffed against / read as a 90-case full-pool run. The
+    snapshot records the repo revision under test, the exact kept case list, the
+    positive/negative split (from each case's ground-truth ``should_detect``),
+    and the floors the verdict was judged against. A sidecar without this lets
+    two numbers from different pools look identical (#77, #251).
+
+    The split mirrors the run loop: a case with no / unreadable ground truth is
+    treated as negative (should_detect defaults to False), exactly as the loop
+    counts it after the run.
+    """
+    positive = 0
+    negative = 0
+    case_names: list[str] = []
+    for d in case_dirs:
+        case_names.append(d.name)
+        should_detect = False
+        gt_file = d / "ground-truth.json"
+        if gt_file.exists():
+            gt, gt_error = _load_json(gt_file)
+            if not gt_error:
+                should_detect = bool(gt.get("should_detect", False))
+        if should_detect:
+            positive += 1
+        else:
+            negative += 1
+    return {
+        "repo_sha": _repo_head_sha(repo),
+        "total_kept": len(case_dirs),
+        "positive_cases": positive,
+        "negative_cases": negative,
+        "case_names": sorted(case_names),
+        "floors": {
+            "min_recall": min_recall,
+            "min_precision": min_precision,
+            "min_f1": min_f1,
+            "max_false_positives": max_false_positives,
+            "min_positive_cases": min_positive_cases,
+            "min_negative_cases": min_negative_cases,
+        },
+    }
+
+
 def _ref_problems(repo: str, case_dirs: list[Path]) -> list[str]:
     """Scenario refs that do not resolve in `repo`, one line each.
 
@@ -238,6 +314,24 @@ def eval_cmd(
     case_dirs = plan.kept
     for line in plan.header_lines():
         click.echo(line)
+
+    snapshot = _pool_snapshot(
+        repo_resolved,
+        case_dirs,
+        min_recall=min_recall,
+        min_precision=min_precision,
+        min_f1=min_f1,
+        max_false_positives=max_false_positives,
+        min_positive_cases=min_positive_cases,
+        min_negative_cases=min_negative_cases,
+    )
+    click.echo(
+        f"池快照: repo={snapshot['repo_sha'][:12]} "
+        f"kept={snapshot['total_kept']} "
+        f"(正例 {snapshot['positive_cases']} / 负例 {snapshot['negative_cases']}) "
+        f"floors=召回{min_recall}/精确{min_precision}/F1{min_f1}/"
+        f"误报{max_false_positives}/正例≥{min_positive_cases}/负例≥{min_negative_cases}"
+    )
 
     if not case_dirs:
         # Zero measured cases never earns a green exit, whether the
@@ -513,6 +607,7 @@ def eval_cmd(
         json.dumps(
             {
                 "case_set": plan.as_json(),
+                "pool_snapshot": snapshot,
                 "total_cases": len(results),
                 "not_run": not_run,
                 "should_detect": total_should_detect,

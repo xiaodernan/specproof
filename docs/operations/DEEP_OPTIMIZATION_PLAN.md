@@ -4783,3 +4783,27 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **下一号队列（#252 占号后重排；注意 #250/#251 已被别的车道占）。**
 - **#253** 真跑定论 case-17 的"证据为何没进 DB dump"：在 head 侧测试运行期间加中途 DB 探针（或读 head 测试回读的 `emailAfter`），区分"回归效果被回滚"与"效果从未落库"。需 Maven 缓存卷，单例 ~11 分钟。
 - **#254 及以后**：原队列——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器；以及 #251 的评测样本充分性（正例 ≥10 / 负例 ≥5）。
+
+## #255 `specproof eval` 每次读数自带「池快照」：4 例 CI 跑与 90 例全池跑再也不会被误读成同一个东西
+
+**起点（原 #252「全池评测取可信读数」里的"读数必须标注 case_set 与池快照"一半）。** #252 现已被另一车道占作"`_compare_db_state` 比内容不比行数"，故把"池快照标注"单独成号，避免撞号也避免脏读。一个 sidecar 只记 case-set 的 *mode*（tuning / all_not_isolated / holdout_only）是不够的：4 例 CI 跑和 90 例全池跑都会长成"一次跑发生了"，数字可能被误 diff（#77、#251）。池快照要把"这次到底量了什么"钉成指纹。
+
+**改动（只加、不改既有语义）。**
+- `cli/specproof/commands/eval.py` 新增两个纯函数：
+  - `_repo_head_sha(repo)`：`git -C <repo> rev-parse HEAD`，失败/非 git 返回 `"unknown"`（10s 超时，绝不拖垮整轮）。
+  - `_pool_snapshot(repo, case_dirs, *, min_recall, min_precision, min_f1, max_false_positives, min_positive_cases, min_negative_cases)`：扫每个 `case-*/ground-truth.json`，按 `should_detect` 数出 positive/negative（读不了/缺文件 → 负，与跑循环一致），收集排序后的完整 `case_names`、`repo_sha`、以及本轮实际用的 floors。
+- `eval_cmd` 在 `case_dirs = plan.kept` 之后立即算 `snapshot`，表头打印一行 `INVOCATION POOL`，并把 `pool_snapshot` 写进 sidecar（与既有 `case_set` 并列，不覆盖）。
+
+**门证（实测）。**
+- 新测试 `tests/unit/test_eval_pool_snapshot_labeling.py` **5 passed**（缺 repo→unknown / 非空 repo→真实 sha / 非 git 目录→unknown / 缺 ground-truth→负 / 读不了 ground-truth→负 / floors 原样透传）。
+- `pytest tests/unit/test_eval_*.py -q` → **36 passed**（此前我一处 `gt` 绑定笔误红 11 个，已修；新键未破任何既有断言）。
+- `ruff check` → All checks passed；`mypy cli/specproof/commands/eval.py` → 本文件 0 错（4 错全在 `experiments/adapters.py`，别车道在途）。
+
+**诚实边界。**
+① 本号只"标注"，不跑全池、不改 floors、不改任何 verdict 语义——原 #252 队列的"跑一次 90 例全池取可信读数"仍未执行（小时级、越会话，需后台长跑 + 标注 case_set+池快照，本号已把标注基建就位）。
+② `repo_sha` 在 `--repo` 指演示子仓库或不可达时是 `"unknown"`，此时快照仍可区分池大小，但不可跨 commit 比较——这点已在字段注释写明。
+③ 本地领先 origin/master 140+ 提交，本批只提交不 push；提交走路径形式，未碰别车道在途改动。
+
+**下一号队列（接 #252 原意 + 既有 #253/#254 规划）。**
+- **#253** 真跑定论 case-17"证据为何没进 DB dump"（中途 DB 探针），本环境 Maven 缓存卷已播种，单例 ~11 分钟。
+- **#254 及以后**：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用本号就位后的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数。
