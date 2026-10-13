@@ -4693,3 +4693,24 @@ Acceptance: INSUFFICIENT  （正例 3<10、负例 1<5 —— 样本不足，诚�
 **下一号队列（#248 占号后重排；编号仍按两本台账在提交时现算）。**
 - **#249** 查 case-17 的 `UNIQUE-01` 为何被标成 MAJOR 而非 BLOCKER：沿「契约声明 → 编译 → 差分产出 → review_court severity 解析」逐段量，定位下叫发生在第一段还是合并前；修好并把四例口径的 severity agreement 顶上 100%（4 例口径下即把 case-17 一例改对）。
 - **#250 及以后**：原队列项——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
+
+## #249 case-17 severity 下叫根因：不是映射错，是「回滚吞掉了回归的持久化证据」——BLOCKER 门没被绕过，正是它在拦
+
+**起点（#248 队列第一件）。** #248 量到 case-17 的 `UNIQUE-01` 实测 MAJOR 而 golden 期望 BLOCKER。本号沿「契约声明 → 编译 → 差分产出 → review_court severity 解析」逐段量。
+
+**逐段量（结论，每段都有读码/实测证据）。**
+1. **契约声明段：spec 里的 `Severity: BLOCKER` 是全仓死数据。** `agent/` 全量 grep `expected_severity|Severity:` 找不到任何解析点：`agent/contracts/compiler.py` 的 `family_id_for()` 只按 (`checker_type`, behavior) 映射**契约族 ID**（`sql`/`constitution` 无 auth/transaction 关键词 → `UNIQUE-01`），**从不读 spec 的严重度行**。所以 finding 的 severity 不可能来自 spec 声明。
+2. **契约 ID 段：case-17 的契约族 `UNIQUE-01` 正确。** `run_differential.py:571-574` 的注释即写明"a one-size AUTH-01 label would misattribute the case-17 inversion to the auth contract"——**归因本身是对的**（检出 `UNIQUE-01`，没被误标成 `AUTH-01`）。
+3. **差分产出段：severity 由 DB 快照决定且硬编码。** `run_differential.py` combined-verdict 路径：`http_verdict == "REGRESSION"` 且 `db_verdict ∈ {DB_MUTATED_ON_UNAUTH, DB_MUTATED}` → `combined_severity = "BLOCKER"`；**否则（含 `DB_CONSISTENT`）→ `"MAJOR"`**。`_compare_db_state()` 只比较 H2 文件转储的 `users/products/orders` 三张表。
+4. **评审院段：BLOCKER 另有六条件门（ADR-004），其中两条卡死 case-17。** `_check_blocker_conditions()` 的 `4_db_behavior_evidence` 要求 `db_state_verdict ∈ {DB_MUTATED_ON_UNAUTH, DB_MUTATED}`；`6_confidence_090` 要求 confidence ≥ 0.90，而差分 REGRESSION 分支硬编码 `confidence = 0.88`。
+
+**根因（一句话）。** case-17 的回归是「重复邮箱被接受」：head 上生成测试**断言失败**，而失败的断言把事务**回滚**了，于是两侧 H2 转储完全相同（`DB_CONSISTENT`）；BLOCKER 门问的恰恰是"被捕获的 DB/行为差异"，回滚把这个证据藏起来了。case-21 是 `permitAll` 撤除：未认证写入**提交成功**，`users` 表两侧不同 → `DB_MUTATED_ON_UNAUTH` → BLOCKER。**所以这不是"severity 映射表漏了 UNIQUE-01"，而是一类数据完整性回归的持久化效果被自身失败的测试回滚吞掉。**
+
+**修了什么 / 没修什么（诚实边界，写明不糊）。** ① **没改 severity 解析**：ADR-004 的门是刻意设计（BLOCKER 要真实执行证据），绕过它会削弱评审院的价值。② **没改 golden 期望值**：那是"挪球门让指标好看"，eval 设计的大忌。③ **没改读数**：四例 severity agreement 仍是 66.7%，本号不把它刷成 100%。④ 本号交付的是**把这个不对称钉成可执行证据**：新增 `tests/unit/test_blocker_severity_requires_captured_db_evidence.py`（3 案）——双向钉住"回滚吞证据 → 条件 4/6 皆假 → BLOCKER 被 cap 成 MAJOR"与反向对照"捕获到 DB 变异 + confidence ≥ 0.90 → BLOCKER 保住"，并钉住 `_compare_db_state()` 的三态映射与 `DB_NO_EVIDENCE ≠ DB_CONSISTENT`。
+
+**门证（实测）。** `pytest tests/unit/test_blocker_severity_requires_captured_db_evidence.py tests/unit/test_review_court_policy.py -q` → **41 passed**（新 3 + 既有 38）；`ruff check` → **All checks passed**（`--fix` 修了 I001 导入排序，无源码改动）；`mypy` 上新文件 0 错（4 条全在另一车道在途的 `experiments/adapters.py`）。
+
+**下一号队列（#249 占号后重排）。**
+- **#250 证据捕获（真能力缺口，已量未修）**：让"回归效果被自身失败测试回滚吞掉"的数据完整性回归能产出 BLOCKER 所需的 DB/行为证据。可选方向（均需先量再选，不预设结论）：① 生成测试在断言失败**前**就把受影响行落库（不依赖回滚后的快照）；② 差分对 head 侧增加"回归测试响应期间库内计数"观测；③ 把 spec 的 `Severity:` 真正接上契约（当前它是全仓死数据，接上本身是独立且诚实的小改动）。**勿用"把差分 confidence 调到 0.90"糊过去**——那是凑门，不是取证据。
+- **#251 评测口径**：四例样本量仍不足（3 正 / 1 负 < 下限 10 / 5），`Acceptance` 停在 INSUFFICIENT；要拿可信结论需盘点并补足正例（≥10）与负例（≥5）。与 #250 可分头推进。
+- **#252 及以后**：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
