@@ -4588,6 +4588,27 @@ Acceptance: INSUFFICIENT  （正例 1 < 10、负例 0 < 5 —— 样本不足，
 - **#249** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
 - **#250** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
 
+## #246 `specproof eval` 案例文件读取容错：一个文件读不了只废一个案例，不再带 traceback 崩掉整轮
+
+**起点（真跑出来的缺陷）。** #244 起 CI 四例子集评测（`case-21/case-12/case-17/case-56`）时，跑到 case-21 整个 run **带原始 traceback 崩掉**：
+```
+File ".../cli/specproof/commands/eval.py", line 257, in eval_cmd
+PermissionError: [Errno 13] Permission denied: '...case-21-auth-weakened-permitall\ground-truth.json'
+```
+事后实测该文件**现在可读、权限正常（rw-r--r--）**，故这是一次**瞬时**失败（Windows 文件锁/AV 扫描新复制的文件）。但**eval 的脆弱是真缺陷**：案例循环里 `json.loads(gt_file.read_text(...))` / `scenario.json` 同样裸读，一个文件读不到（或 JSON 解析失败）就让 4 例评测只产出 2 例（case-12 PASS / case-17 PASS），第 4 例 case-56 根本没跑，**一个数字都没留下**。这正是"一次基础设施抖动吃掉整轮验收读数"。
+
+**修法（`cli/specproof/commands/eval.py`）。** 新增 `_load_json(path) -> (data, error)`：捕获 `FileNotFoundError`/`PermissionError`/`OSError`/`ValueError`（JSON 解析错是 `ValueError` 子类）与非 dict 结果，返回空错误表示成功。案例循环改用 `_load_json`：`ground-truth.json` 或 `scenario.json` 读不了 → `click.echo("  SKIP {案例}: xxx.json 无法读取 ({原因})")` 后 `continue`，**不计数、不进比例**，其余案例照常量。
+
+**门证（实测）。** `pytest` → **19 passed**（新文件 2 案 + #243 三案 + aborted 3 案 + holdout 11 案）：① `Path.read_text` 打桩对 case-b 的 `ground-truth.json` 抛 `PermissionError` → 全 run **exit 0、无 Traceback**、`SKIP case-b` + `permission denied` 见于输出、case-a 仍被量到（`Should detect: 1` + `MISS`）；② ground-truth 是坏 JSON（`{not json`）→ 同样只废这一案例。`ruff check cli/specproof/commands/eval.py tests/unit/test_eval_survives_an_unreadable_case_file.py` → **All checks passed**；`mypy cli/specproof/commands/eval.py` → **本文件 0 错**（4 条全在另一车道的 `experiments/adapters.py`）。
+
+**诚实边界。** ① 本号不修那次瞬时锁本身（那是环境问题，本机已不复现），只修"一个文件读不了杀死整轮"的脆弱——这是评测读数可信度的前提。② 跳过的案例**不进报告**（与既有 `no spec.md` SKIP 一致）；样本不足由 `--min-positive-cases/--min-negative-cases` 的 INSUFFICIENT 兜住，不会把少测的池子当合格。③ #243 的 `_ref_problems` 读 scenario.json 的容错是**上一号已做**的，本号补的正是**主循环**里那两个裸读。
+
+**下一号队列（#246 占号后重排）。**
+- **#247** 四例评测完整读数：case-21/case-56 用修好的 eval 重跑（case-12/case-17 已有 PASS），汇总四例 Recall/Precision/Severity agreement（基线 2026-10-09：66.7%/100%/0.0%/0.0%）。
+- **#248** roadmap 1.6：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）。
+- **#249** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
+- **#250** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
+
 ## #246 case-17 单例评测读数：干净差分下 case-17 被真检出（UNIQUE-01，严重度一致）
 
 **起点（独立复核，非首报）。** #243 的「下一号队列」把 #244 定为「真跑 #237 四例评测、据日志给 Recall/Precision/Severity agreement 与 case-17 是否 PASS」。该后台运行已完成：日志 `D:/面试项目/_eval_case17.log`、报告 `D:/面试项目/_eval_case17_report.html` 与 `.results.json`（均在仓库外，不入库）。**另一车道已先以 #244（提交 `1311a07`）记录同一次真跑的读数**；本号据同一份 log/json **独立复读一遍**作交叉核验，并补 #244 段未列的 `results.json` 级细节。占号前读 `git log --all` 与计划：`#246` 提交/文档均 0 命中（**#244 被三条并发车道按消息各自认领**：`1311a07`＝本次真跑、`44e6578` 迁移 down 外键、`56db2a3` counterexample writer；#245 亦已被占），故本批认领 **#246**。

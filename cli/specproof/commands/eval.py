@@ -49,6 +49,29 @@ def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
             )
 
 
+def _load_json(path: Path) -> tuple[dict[str, Any], str]:
+    """Read a case JSON file, returning (data, error). An EMPTY error means OK.
+
+    A case file that cannot be read is NOT a crash: a real four-case eval died
+    with a raw `PermissionError` traceback when one `ground-truth.json` hit a
+    transient Windows file lock, and every case after it never ran. The eval
+    measures many cases, so one unreadable file must cost that case, not the
+    whole run. The caller turns the error into a per-case skip with the reason
+    stated out loud.
+    """
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}, "file not found"
+    except PermissionError as exc:
+        return {}, f"permission denied: {exc}"
+    except (OSError, ValueError) as exc:
+        return {}, f"cannot read: {exc}"
+    if not isinstance(loaded, dict):
+        return {}, "not a JSON object"
+    return loaded, ""
+
+
 def _ref_problems(repo: str, case_dirs: list[Path]) -> list[str]:
     """Scenario refs that do not resolve in `repo`, one line each.
 
@@ -254,10 +277,19 @@ def eval_cmd(
 
         gt: dict[str, Any] = {}
         if gt_file.exists():
-            gt = json.loads(gt_file.read_text(encoding="utf-8"))
+            gt, gt_error = _load_json(gt_file)
+            if gt_error:
+                # An unreadable ground truth costs THIS case, not the run: the
+                # case is skipped with the reason stated, and the rest of the
+                # pool is still measured.
+                click.echo(f"  SKIP {case_dir.name}: ground-truth.json 无法读取 ({gt_error})")
+                continue
         scenario: dict[str, Any] = {}
         if sc_file.exists():
-            scenario = json.loads(sc_file.read_text(encoding="utf-8"))
+            scenario, sc_error = _load_json(sc_file)
+            if sc_error:
+                click.echo(f"  SKIP {case_dir.name}: scenario.json 无法读取 ({sc_error})")
+                continue
 
         base_ref = scenario.get("base_ref", "base")
         head_ref = scenario.get("head_ref", "head-v1")
