@@ -17,7 +17,16 @@ per-metric totals under the same matrix. Still deferred to the UI phase:
 the dashboards themselves (wiring the job detail page to that endpoint)
 and the monthly invoice cron — GET /billing/invoices generates the
 draft invoice on demand so the data model and reconciliation are fully
-exercised by tests.
+exercised by tests. POST /billing/invoices/{period}/status drives the
+draft→issued→paid walk for the caller tenant: admin-only on top of
+billing:read (the same route-level role assertion GET /subscriptions
+uses - the §2 matrix stays read-only for billing, so no new matrix cell
+or scope is invented), a refused step answers 409 STATE_CONFLICT naming
+current and requested, a missing invoice answers 404 INVOICE_NOT_FOUND
+indistinguishably across tenants, and re-asking the status already held
+is the state machine's own crash-retry noop. Automated issuance (a
+cron issuing every draft) and the UI button remain outside this
+endpoint on purpose.
 """
 
 from __future__ import annotations
@@ -27,25 +36,30 @@ import io
 import logging
 import os
 import time
-from typing import Any, cast
+from typing import Any, Literal, cast
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from api.auth import enforce_rate_limit
 from api.data_paths import BILLING_DB_FILENAME, default_sqlite_url
 from api.errors import (
     AUTH_REQUIRED,
+    INVOICE_NOT_FOUND,
     JOB_NOT_FOUND,
     PROVIDER_UNAVAILABLE,
+    STATE_CONFLICT,
     TENANT_FORBIDDEN,
     VALIDATION_FAILED,
     ApiError,
 )
 from api.identity.config import auth_enabled
 from api.identity.principal import Principal, principal_allowed
+from observability.metrics import incr
 from storage.billing import (
     BillingStore,
+    InvalidInvoiceTransitionError,
     Invoice,
     Plan,
     Subscription,
@@ -307,6 +321,67 @@ async def list_invoices(
         "invoices": [_invoice_dict(inv) for inv in invoices],
         "count": len(invoices),
     }
+
+
+class InvoiceStatusRequest(BaseModel):
+    """Issuance target: the two forward steps of the invoice walk.
+
+    Anything else (a backwards step like draft, or an invented status
+    like refund) is refused by validation with 422 before the state
+    machine is consulted.
+    """
+
+    status: Literal["issued", "paid"]
+
+
+@router.post("/invoices/{period}/status")
+async def transition_invoice_status(
+    request: Request,
+    payload: InvoiceStatusRequest,
+    period: str = Path(pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+) -> dict[str, Any]:
+    """Drive one invoice state step for the caller tenant (#244).
+
+    billing:read opens the route; only admin may move money, enforced
+    here exactly like GET /subscriptions' cross-tenant audit view. The
+    write itself is the store's transition_invoice: the refused step
+    (skipping issued, stepping back from paid) raises
+    InvalidInvoiceTransitionError and is reported as 409 STATE_CONFLICT
+    with the exact current→requested pair; the row is left untouched.
+    A period with no invoice in this tenant is 404 INVOICE_NOT_FOUND -
+    never generated and another tenant's invoice answer the same, so
+    the response cannot confirm an invoice exists elsewhere.
+    """
+    _require_tenant_mode()
+    principal = _principal(request)
+    _require_billing_read(principal)
+    _assert_role(principal, frozenset({"admin"}))
+    store = get_billing_store()
+    before = store.get_invoice(principal.tenant_id, period)
+    if before is None:
+        raise ApiError(
+            status_code=404,
+            code=INVOICE_NOT_FOUND,
+            detail=f"no invoice for period {period!r}",
+        )
+    try:
+        invoice = store.transition_invoice(
+            principal.tenant_id, period, payload.status,
+        )
+    except InvalidInvoiceTransitionError as exc:
+        raise ApiError(
+            status_code=409,
+            code=STATE_CONFLICT,
+            detail=(
+                f"invoice {period!r} is {exc.current}; requesting "
+                f"{exc.requested!r} is not a step the walk allows "
+                f"(asking for the status already held is the "
+                f"crash-retry noop)"
+            ),
+        ) from exc
+    if before.status != invoice.status:
+        incr("invoice_status_transitions_total")
+    return {"invoice": _invoice_dict(invoice)}
 
 
 @router.get("/jobs/{job_id}")

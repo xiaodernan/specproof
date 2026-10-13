@@ -56,6 +56,12 @@ STATE_CONFLICT = "STATE_CONFLICT"
 #: the wire (no existence leak), but admin endpoints may name the missing
 #: resource for their own authenticated callers.
 USER_NOT_FOUND = "USER_NOT_FOUND"
+#: HTTP 404 for the invoice issuance entry point: the caller asked to
+#: move an invoice that does not exist in their tenant (never generated,
+#: or another tenant's - the 404 must not tell the two apart). "JOB_NOT_
+#: FOUND" would name the wrong resource on the wire, so the issuance path
+#: carries its own stable code like the other documented extensions.
+INVOICE_NOT_FOUND = "INVOICE_NOT_FOUND"
 #: HTTP 503 when the Ed25519 signing capability is not configured. A
 #: revocation that cannot be signed is never written (fail-closed), so the
 #: caller gets its own stable code instead of PROVIDER_UNAVAILABLE — "model
@@ -76,6 +82,7 @@ ERROR_CODES: dict[str, int] = {
     INTERNAL: 500,
     STATE_CONFLICT: 409,
     USER_NOT_FOUND: 404,
+    INVOICE_NOT_FOUND: 404,
     SIGNING_UNAVAILABLE: 503,
 }
 
@@ -112,6 +119,7 @@ ERROR_CLASS_BY_CODE: dict[str, str] = {
     INTERNAL: "internal",
     STATE_CONFLICT: "conflict",
     USER_NOT_FOUND: "not-found",
+    INVOICE_NOT_FOUND: "not-found",
     # A missing signing key may be fixed by ops and then succeed, so it
     # rides the documented "degrade" class like PROVIDER_UNAVAILABLE.
     SIGNING_UNAVAILABLE: "degrade",

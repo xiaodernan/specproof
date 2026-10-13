@@ -964,3 +964,245 @@ def test_job_endpoint_aggregates_lifecycle_and_llm_rows(
     assert body["count"] == 2
     assert body["totals"] == {"job_verify": 1.0, "llm_tokens_in": 120.0}
     assert {row["job_id"] for row in body["usage"]} == {"job-a-2"}
+
+
+# ── Invoice issuance entry point (#244) ────────────────────────────────
+
+
+def _draft_for(
+    store: Any, tenant_id: str, period: str = "2026-08",
+) -> Any:
+    invoice = ensure_invoice(store, tenant_id, period, now_fn=lambda: 1_000_000.0)
+    assert invoice.status == "draft"
+    return invoice
+
+
+def test_admin_walks_draft_issued_paid(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    from api.routes.billing import get_billing_store
+
+    store = get_billing_store()
+    draft = _draft_for(store, seeded_billing["tenant_a"])
+    client = TestClient(app)
+    headers = bearer(seeded_billing["tokens"]["admin"])
+
+    issued = client.post(
+        "/api/v1/billing/invoices/2026-08/status",
+        json={"status": "issued"}, headers=headers,
+    )
+    assert issued.status_code == 200
+    body = issued.json()["invoice"]
+    assert body["status"] == "issued"
+    # Money fields are carried, never re-derived on the way out.
+    assert body["id"] == draft.id
+    assert body["total"] == draft.total
+    assert body["line_items"] == draft.line_items
+
+    paid = client.post(
+        "/api/v1/billing/invoices/2026-08/status",
+        json={"status": "paid"}, headers=headers,
+    )
+    assert paid.status_code == 200
+    assert paid.json()["invoice"]["status"] == "paid"
+
+
+def test_reasking_the_held_status_is_an_idempotent_noop(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    from api.routes.billing import get_billing_store
+
+    store = get_billing_store()
+    _draft_for(store, seeded_billing["tenant_a"])
+    client = TestClient(app)
+    headers = bearer(seeded_billing["tokens"]["admin"])
+    first = client.post(
+        "/api/v1/billing/invoices/2026-08/status",
+        json={"status": "issued"}, headers=headers,
+    )
+    again = client.post(
+        "/api/v1/billing/invoices/2026-08/status",
+        json={"status": "issued"}, headers=headers,
+    )
+    assert first.status_code == 200
+    assert again.status_code == 200
+    assert again.json()["invoice"]["id"] == first.json()["invoice"]["id"]
+    assert again.json()["invoice"]["status"] == "issued"
+
+
+def test_skipping_issued_is_refused_and_names_the_step(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    from api.routes.billing import get_billing_store
+
+    store = get_billing_store()
+    _draft_for(store, seeded_billing["tenant_a"])
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/billing/invoices/2026-08/status",
+        json={"status": "paid"},
+        headers=bearer(seeded_billing["tokens"]["admin"]),
+    )
+    assert resp.status_code == 409
+    body = resp.json()
+    assert body["error"]["code"] == "STATE_CONFLICT"
+    assert body["schema_version"] == 1
+    detail = body["detail"]
+    assert "draft" in detail and "paid" in detail
+    # The refused step left the invoice where it was.
+    still = store.get_invoice(seeded_billing["tenant_a"], "2026-08")
+    assert still is not None and still.status == "draft"
+
+
+def test_paid_is_terminal_but_replay_safe(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    from api.routes.billing import get_billing_store
+
+    store = get_billing_store()
+    _draft_for(store, seeded_billing["tenant_a"])
+    client = TestClient(app)
+    headers = bearer(seeded_billing["tokens"]["admin"])
+    for status in ("issued", "paid"):
+        assert client.post(
+            "/api/v1/billing/invoices/2026-08/status",
+            json={"status": status}, headers=headers,
+        ).status_code == 200
+    # Backwards from paid is refused with the step named.
+    back = client.post(
+        "/api/v1/billing/invoices/2026-08/status",
+        json={"status": "issued"}, headers=headers,
+    )
+    assert back.status_code == 409
+    assert "paid" in back.json()["detail"]
+    # Re-asking the status already held is a crash-retry noop, not a conflict.
+    replay = client.post(
+        "/api/v1/billing/invoices/2026-08/status",
+        json={"status": "paid"}, headers=headers,
+    )
+    assert replay.status_code == 200
+    assert replay.json()["invoice"]["status"] == "paid"
+
+
+def test_only_admin_may_issue_invoices(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    from api.routes.billing import get_billing_store
+
+    store = get_billing_store()
+    _draft_for(store, seeded_billing["tenant_a"])
+    client = TestClient(app)
+    for role in ("operator", "auditor", "viewer"):
+        resp = client.post(
+            "/api/v1/billing/invoices/2026-08/status",
+            json={"status": "issued"},
+            headers=bearer(seeded_billing["tokens"][role]),
+        )
+        assert resp.status_code == 403, role
+        assert resp.json()["error"]["code"] == "TENANT_FORBIDDEN"
+
+
+def test_unknown_period_is_404(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/billing/invoices/1999-01/status",
+        json={"status": "issued"},
+        headers=bearer(seeded_billing["tokens"]["admin"]),
+    )
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "INVOICE_NOT_FOUND"
+
+
+def test_cross_tenant_issuance_is_indistinguishable_and_harmless(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    from api.routes.billing import get_billing_store
+
+    store = get_billing_store()
+    _draft_for(store, seeded_billing["tenant_b"])
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/billing/invoices/2026-08/status",
+        json={"status": "issued"},
+        headers=bearer(seeded_billing["tokens"]["admin"]),
+    )
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "INVOICE_NOT_FOUND"
+    # The other tenant's invoice is exactly where it was.
+    other = store.get_invoice(seeded_billing["tenant_b"], "2026-08")
+    assert other is not None and other.status == "draft"
+
+
+def test_issuance_needs_tenant_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Legacy mode answers 503 before any query (like every other endpoint)."""
+    monkeypatch.delenv("SPECPROOF_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("OIDC_ISSUER", raising=False)
+    from api.identity.oidc import reset_oidc_validator
+    from api.identity.store import reset_identity_store
+    from api.routes.billing import reset_billing_store
+
+    reset_identity_store()
+    reset_oidc_validator()
+    reset_billing_store()
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/billing/invoices/2026-08/status", json={"status": "issued"},
+    )
+    assert resp.status_code == 503
+    assert resp.json()["error"]["code"] == "PROVIDER_UNAVAILABLE"
+    reset_billing_store()
+
+
+def test_a_malformed_period_is_422(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/billing/invoices/2026-13/status",
+        json={"status": "issued"},
+        headers=bearer(seeded_billing["tokens"]["admin"]),
+    )
+    assert resp.status_code == 422
+    assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+def test_a_target_outside_the_walk_is_422(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    client = TestClient(app)
+    for status in ("draft", "refund", "void"):
+        resp = client.post(
+            "/api/v1/billing/invoices/2026-08/status",
+            json={"status": status},
+            headers=bearer(seeded_billing["tokens"]["admin"]),
+        )
+        assert resp.status_code == 422, status
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+def test_the_transition_counter_counts_advances_only(
+    billing_tenant_env: None, seeded_billing: dict[str, Any],
+) -> None:
+    from api.routes.billing import get_billing_store
+
+    store = get_billing_store()
+    _draft_for(store, seeded_billing["tenant_a"])
+    client = TestClient(app)
+    headers = bearer(seeded_billing["tokens"]["admin"])
+    before = snapshot_counters()
+    for status in ("issued", "issued", "paid", "paid"):
+        client.post(
+            "/api/v1/billing/invoices/2026-08/status",
+            json={"status": status}, headers=headers,
+        )
+    after = snapshot_counters()
+    # issued/issued/paid/paid: exactly two advances (and two refused noops).
+    assert after - before == 2.0
+
+
+def snapshot_counters() -> float:
+    from observability.metrics import snapshot
+
+    return snapshot()["counters"].get("invoice_status_transitions_total", 0.0)

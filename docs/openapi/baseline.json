@@ -169,6 +169,10 @@
       "200",
       "422"
     ],
+    "POST /api/v1/billing/invoices/{period}/status": [
+      "200",
+      "422"
+    ],
     "POST /api/v1/demo/prepare": [
       "200"
     ],
