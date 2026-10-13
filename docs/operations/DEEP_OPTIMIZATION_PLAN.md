@@ -4763,3 +4763,23 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **下一号队列（#250 占号后重排）。**
 - **#252** 跑一次**全池**评测取可信口径读数（隔离后 90 例：55 正 / 35 负，够默认 floors 10/5）；小时级，需拆分到多轮或长窗口后台跑，读数必须标注 `case_set` 与池快照。
 - **#253 及以后**：Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。并把 #249 候选②（head 回归响应期间的 in-flight DB 计数采集）作为 #250 的"挣到 BLOCKER"后续，单独设计评审后做。
+
+## #252 `_compare_db_state` 比的是**内容**不是行数：给证据比较补栅栏（#250 的测量副产物）
+
+**起点（#250 队列「证据捕获」的先量后选）。** #250 已由另一车道以结构化 `behavioral_evidence` 落地（提交 `ef0d08f`，走"为什么没捕获到 DB 变异"的方向②）。本号是该主题下**先量再选**阶段顺带量出的一处**未被测的契约**：`_compare_db_state` 的内容比较没有任何直接单测（`tests/unit/` 里只有 #249 的 `test_blocker_severity_requires_captured_db_evidence.py` 触及它，且是从评审院那一侧）。
+
+**测量（读源，逐条，含对 #249 一处机制描述的技术性修正）。**
+1. `_compare_db_state`（`run_differential.py:1298`）**按内容比较**：`_DB_CHECK_JAVA` 导出 `users:<id>=<email>`（products/orders 同理），解析成 `rows = {"users:1": "a@x.com"}`，然后 `base_table[key] != head_table[key]` 逐行比。**不是**只比行数。
+2. 因此"行数不变、内容变了"（case-17 的"邮箱被改成重复值"正是这一类）**本应**被捕获为 `DB_MUTATED_ON_UNAUTH`。
+3. 生成的 UNIQUE 测试（`generate_counterexamples.py:458` `_UNIQUE_TEST_TEMPLATE`）**不是** `@Transactional`（类 `:327` 与方法均无该注解），且 legacy 路径**已记录** `head_output`（`:607`，含断言消息"DB STATE VIOLATION … persisted"）。→ 故 #249 那句"失败的断言把事务回滚了"**不是**字面机制（非事务方法里断言失败不会回滚）；head 库为何与 base 一致，读码定不了，需真跑加中途探针才能定论。这是本号对 #249 的**技术性修正**，不动其结论（severity 下叫根因）与修复。
+4. **事实基础**：BLOCKER 门依赖的正是这份"内容级"证据；若哪天被弱化成行数比较，case-17 这类回归会**静默丢失证据**并读成 `DB_CONSISTENT`→MAJOR——正是本仓反复对抗的"假绿"。
+
+**改动（只新增测试，零生产码）。** 新建 `tests/unit/test_db_state_compares_content_not_counts.py`（7 案）：① 同行数、改内容（case-17 形状）→ `DB_MUTATED_ON_UNAUTH` 且 detail 含新值；② users 行数变化 → 同上；③ 非 users 内容变化 → `DB_MUTATED`；④ 完全相同 → `DB_CONSISTENT`；⑤ users 与 products 同时不同 → users 胜（`DB_MUTATED_ON_UNAUTH`，其 verdict 名是策略）；⑥ 一侧无 dump → `DB_NO_EVIDENCE` 且 detail 不含 `DB_CONSISTENT`；⑦ 两侧都缺某表 → 不算差异。
+
+**门证（实测）。** `pytest tests/unit/test_db_state_compares_content_not_counts.py -q` → **7 passed / 7.4s**；`ruff check` → **All checks passed**；`mypy` 本文件 **0 错**（4 条全在 `experiments/adapters.py`，另一车道在途的 Gradle profile 半成品）。**变异真红**（平面，未碰共享树）：`git archive HEAD` 平面把 `if base_table == head_table` 弱化成 `if len(base_table) == len(head_table)` → **3 failed / 4 passed**（失败的正是"改内容"那 3 案）；平面跑完即删。
+
+**诚实边界。** ① 本号只加栅栏，**不改** `_compare_db_state`、不改 severity、不改 golden（与 #249 同纪律）。② 想跑 `tests/unit/test_review_court_policy.py`/`tests/integration/test_differential.py` 等**需要 MySQL 隔离 schema** 的文件时，本环境当前被 conftest 安全护栏拦下（`exit=4`：测试不得写产品 schema、隔离 schema 不可用）——故这些文件本轮未跑；本号新文件是**纯 Python**、不依赖 MySQL，7 passed 已单独验证。③ 本地领先 origin/master 140+ 提交，**本批只提交不 push**。
+
+**下一号队列（#252 占号后重排；注意 #250/#251 已被别的车道占）。**
+- **#253** 真跑定论 case-17 的"证据为何没进 DB dump"：在 head 侧测试运行期间加中途 DB 探针（或读 head 测试回读的 `emailAfter`），区分"回归效果被回滚"与"效果从未落库"。需 Maven 缓存卷，单例 ~11 分钟。
+- **#254 及以后**：原队列——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器；以及 #251 的评测样本充分性（正例 ≥10 / 负例 ≥5）。
