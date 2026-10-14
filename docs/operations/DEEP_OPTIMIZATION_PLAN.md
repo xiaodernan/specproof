@@ -4867,16 +4867,17 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - `agent/nodes/run_differential.py` 新增纯函数 `_apply_inflight_db_evidence(db_verdict, db_detail, head_only_violation)`：仅当 `db_verdict == "DB_CONSISTENT"` 且 `head_only_violation` 时升为 `DB_MUTATED_ON_UNAUTH`（detail 注明 marker + `@BeforeEach deleteAll` 擦除机制）；`DB_NO_EVIDENCE`（无 dump）**绝不**升（#249 纪律：没 dump 不等于没变异）；已变异 verdict 幂等不动。
 - 在 `_compare_db_state` 之后立刻算 `_base_fail_text`/`_head_fail_text` → `_db_violation_evidence` → `_apply_inflight_db_evidence` 升级 `db_verdict`/`db_detail`（合并路径与拆分路径的 entry 都读这个升级后的 `db_verdict`）。合并路径 entry 原先在此重算的 fail-text 改用已算好的（单源，省一次 `_test_failure_details`）。
 
-**门证（实测）。** 新增 `tests/unit/test_eval_inflight_db_evidence_promotes_verdict.py` **5 案**（CONSISTENT+head_only→升 / CONSISTENT 无 head_only→不动 / 已变异幂等 / NO_EVIDENCE 绝不升 / 不偷塞 severity·confidence）。连同 #249(cap) / #250 / #253 / #254 capture 共 **22 passed**（#249 仍通过，证明本号不破坏"无 in-flight 证据时 DB_CONSISTENT 仍被 cap 成 MAJOR"）。`ruff` 干净；`mypy` 本文件 0 错（4 错全在 `experiments/adapters.py` 别车道在途）。
+**门证（实测）。** 新增 `tests/unit/test_eval_inflight_db_evidence_promotes_verdict.py` **5 案**（CONSISTENT+head_only→升 / CONSISTENT 无 head_only→不动 / 已变异幂等 / NO_EVIDENCE 绝不升 / 不偷塞 severity·confidence）；另新增 `tests/unit/test_case17_earns_blocker_through_court.py` **2 案**（court 层面钉死：case-17 经本号后产出的 `db_state_verdict=DB_MUTATED_ON_UNAUTH` / `severity=BLOCKER` / `confidence=0.95` 被 court 确认为 BLOCKER 且匹配 golden `expected_severity`；以及 court **只 gate 不 promote** 的契约）。连同 #249(cap) / #250 / #253 / #254 capture 共 **24 passed**（#249 仍通过，证明本号不破坏"无 in-flight 证据时 DB_CONSISTENT 仍被 cap 成 MAJOR"）。`ruff` 干净；`mypy` 本文件 0 错（4 错全在 `experiments/adapters.py` 别车道在途）。
 
 **诚实边界与剩余风险。**
-① 本号静态确认了生成测试断言文本含 `DB STATE VIOLATION`（generate_counterexamples.py:370/394/420/492/917），故 head 测试失败（回归持久化被其断言拒绝）时 surefire 失败消息必带该 marker，capture 前提成立。但**仍未跑一次 case-17 端到端**真实验证 surefire 文本在 Maven 实际跑里确实携带该 marker（~11 分钟，Maven 缓存卷已播种）——列为待办确认项。
+① 本号静态确认了生成测试断言文本含 `DB STATE VIOLATION`（generate_counterexamples.py:370/394/420/492/917），故 head 测试失败（回归持久化被其断言拒绝）时 surefire 失败消息必带该 marker，capture 前提成立。但**仍未跑一次 case-17 端到端**真实验证 surefire 文本在 Maven 实际跑里确实携带该 marker（~11 分钟，Maven 缓存卷已播种）——列为待办确认项（见 #254c 的环境 blocker）。
 ② 升级范围被钉死在"`DB_CONSISTENT` + 头侧独有违反"：正常合规案例（head_only=False）不升；噪声风险是 head 测试因无关原因失败且消息恰含该 marker，但生成测试只在 DB 不变量断言里发该 marker，误报面窄。
 ③ 提交走路径形式，未碰别车道在途改动（`eval.py`/`sandbox/runner.py`/`evidence/acceptance.py`/`experiments/adapters.py` 等仍为 M）；本地领先 origin/master 较多，只提交不 push。
+④ **court 契约澄清（policy.py:606，实测调出来的）**：court 只**降级**一个被提议的 BLOCKER，**绝不**把 MAJOR promote 成 BLOCKER。所以 BLOCKER 的触发点是 `run_differential` 在 db_verdict 升为 `DB_MUTATED_ON_UNAUTH` 后走 539 分支、把 `combined_severity` 设成 `BLOCKER`（配 `confidence=0.95`）——这一候选带着 `db_state_verdict` 进 court，条件 4 真实成立，于是被确认。换言之：本号的 promotion 是"让 run_differential 给出 BLOCKER 候选"，court 只是闸门；验证见 `test_case17_earns_blocker_through_court.py`。
 
 **下一号队列（#254b 已落，余下接续）。**
-- **#254c**（建议）跑一次 case-17 端到端确认 surefire 文本带 marker，并验证本报告链路下 case-17 实测落到 BLOCKER、Severity agreement 从 66.7% 提升。
-- **#255 及以后**（原 #254）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数。
+- **#254c** 跑 case-17 端到端确认 surefire 文本带 marker，并验证本报告链路下 case-17 实测落到 BLOCKER、Severity agreement 从 66.7% 提升。**环境 blocker（2026-10-14 实测）：Docker 在本环境不可用**，`specproof-maven-cache-1000` 卷随 Docker 一并消失，而 case-17 差分在容器里跑 Maven——故所有 Maven 类案例（含 case-17、全池 90 例中的 Maven 子集）**当前无法端到端跑**，`maven-wrapper.jar` 仍在但不救不了。`#254c` 与全池评测在 Docker 恢复前只能靠 court/diff 层面的单测闭环（已做），不能靠实跑读数。
+- **#255 及以后**（原 #254）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数（同样受 Docker blocker 影响，Maven 子集暂不可跑）。
 
 ## #256 `specproof eval` 每份案例记录自带 `finding_evidence`：severity 失配从报告本身即可诊断
 
