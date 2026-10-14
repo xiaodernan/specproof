@@ -49,6 +49,39 @@ def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
             )
 
 
+_EVIDENCE_FIELDS = (
+    "contract_id",
+    "severity",
+    "confidence",
+    "evidence_type",
+    "db_state_verdict",
+)
+
+
+def _finding_evidence(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Compact evidence per finding, for the report the reader actually gets.
+
+    A severity mismatch must be diagnosable from the report alone. The matched
+    finding already carries the reason its severity is what it is -- most
+    sharply ``db_state_verdict`` (did the differential capture a DB mutation, or
+    none at all?) and ``confidence``. Without it the report says "MAJOR where
+    BLOCKER was expected" and leaves the reader to re-run the pipeline to learn
+    why. No new claims: only fields the finding already set are copied.
+    """
+    out: list[dict[str, Any]] = []
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        summary = {
+            key: finding[key]
+            for key in _EVIDENCE_FIELDS
+            if finding.get(key) is not None
+        }
+        if summary:
+            out.append(summary)
+    return out
+
+
 def _load_json(path: Path) -> tuple[dict[str, Any], str]:
     """Read a case JSON file, returning (data, error). An EMPTY error means OK.
 
@@ -454,6 +487,7 @@ def eval_cmd(
                 "contracts_found": "",
                 "expected_contract": expected_contract or "—",
                 "errors": "; ".join(str(e) for e in pipeline_errors),
+                "finding_evidence": [],
             }
             record["severity_match"] = severity_match_of(record)
             results.append(record)
@@ -526,6 +560,10 @@ def eval_cmd(
             "contracts_found": ", ".join(contracts_found),
             "expected_contract": expected_contract or "—",
         }
+        # The finding's own evidence, so a severity mismatch is diagnosable
+        # from the report alone (see _finding_evidence). When nothing matched,
+        # fall back to every finding so a MISS is diagnosable too.
+        record["finding_evidence"] = _finding_evidence(matched or findings)
         # Ground-truth level call: True = exact match, False = drift,
         # None = no level call (recall miss or negative case).
         record["severity_match"] = severity_match_of(record)
