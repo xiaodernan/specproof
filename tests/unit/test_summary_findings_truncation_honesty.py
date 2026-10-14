@@ -16,7 +16,12 @@ count, truncated True; <=cap -> truncated False; empty -> all zero/false.
 
 Offline: _state_summary is a pure function of its args.
 """
-from agent.worker import SUMMARY_FINDINGS_CAP, _state_summary
+from agent.worker import (
+    SUMMARY_CAPSULES_CAP,
+    SUMMARY_ERRORS_CAP,
+    SUMMARY_FINDINGS_CAP,
+    _state_summary,
+)
 
 
 def _finding(i: int) -> dict:
@@ -66,3 +71,45 @@ class TestFindingsTruncationIsHonest:
         assert summary["findings"] == []
         assert summary["findings_total"] == 0
         assert summary["findings_truncated"] is False
+
+
+def _summary_aux(capsules: list, errors: list) -> dict:
+    state = {
+        "matrix": {},
+        "contracts": [],
+        "confirmed_findings": [],
+        "capsules": list(capsules),
+        "errors": list(errors),
+    }
+    return _state_summary(state, "FAILED")
+
+
+class TestCapsulesTruncationIsHonest:
+    """#265: the capsules list is capped, so its total + truncation are reported."""
+
+    def test_over_cap_reports_total_and_flags_truncation(self) -> None:
+        summary = _summary_aux([f"c{i}.zip" for i in range(SUMMARY_CAPSULES_CAP + 3)], [])
+        assert len(summary["capsules"]) == SUMMARY_CAPSULES_CAP
+        assert summary["capsules_total"] == SUMMARY_CAPSULES_CAP + 3
+        assert summary["capsules_truncated"] is True
+
+    def test_at_cap_is_not_flagged_truncated(self) -> None:
+        summary = _summary_aux([f"c{i}.zip" for i in range(SUMMARY_CAPSULES_CAP)], [])
+        assert summary["capsules_total"] == SUMMARY_CAPSULES_CAP
+        assert summary["capsules_truncated"] is False
+
+
+class TestErrorsTruncationIsHonest:
+    """#265: the errors list is capped, so its total + truncation are reported."""
+
+    def test_over_cap_reports_total_and_flags_truncation(self) -> None:
+        summary = _summary_aux([], [f"err {i}" for i in range(SUMMARY_ERRORS_CAP + 4)])
+        assert len(summary["errors"]) == SUMMARY_ERRORS_CAP
+        assert summary["errors_total"] == SUMMARY_ERRORS_CAP + 4
+        assert summary["errors_truncated"] is True
+
+    def test_under_cap_is_not_flagged_truncated(self) -> None:
+        summary = _summary_aux([], ["err a", "err b"])
+        assert summary["errors"] == ["err a", "err b"]
+        assert summary["errors_total"] == 2
+        assert summary["errors_truncated"] is False

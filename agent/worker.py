@@ -1044,6 +1044,14 @@ SUMMARY_MATRIX_ROW_CAP = 60
 #: masquerade" rule, #264).
 SUMMARY_FINDINGS_CAP = 20
 
+#: Capsules / errors carried per job in the summary. Same "don't masquerade"
+#: rule as the findings cap (#264): the shown list is bounded, but the total is
+#: reported (``capsules_total`` / ``errors_total``) and ``*_truncated`` says
+#: whether there are more, so a truncated aux list can never pass for the whole
+#: set (#265).
+SUMMARY_CAPSULES_CAP = 10
+SUMMARY_ERRORS_CAP = 10
+
 #: Truncation ceiling for free-text cells inside a persisted matrix row.
 _SUMMARY_TEXT_LIMIT = 400
 
@@ -1174,6 +1182,16 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
         for f in findings[:SUMMARY_FINDINGS_CAP]
     ]
     findings_total = len(findings)
+    # #265: same honest-cap treatment for capsules and errors — the shown lists
+    # are bounded (SUMMARY_CAPSULES_CAP / SUMMARY_ERRORS_CAP) but the totals are
+    # reported and *_truncated says whether there are more, so a truncated aux
+    # list can never masquerade as the whole set.
+    _capsules = list(state.get("capsules", []))
+    kept_capsules = [str(c) for c in _capsules[:SUMMARY_CAPSULES_CAP]]
+    _errors = list(state.get("errors", []))
+    # Errors keep their element types (they are not stringified, matching the
+    # pre-#265 projection); only the list is bounded.
+    kept_errors = _errors[:SUMMARY_ERRORS_CAP]
     summary: dict[str, Any] = {
         "verdict": verdict,
         "contracts_total": len(state.get("contracts", [])),
@@ -1185,12 +1203,20 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
         # count is not). Together "findings" is "showing N of M".
         "findings_total": findings_total,
         "findings_truncated": findings_total > len(kept_findings),
-        "capsules": [str(c) for c in state.get("capsules", [])[:10]],
+        "capsules": kept_capsules,
+        # #265: honest total + truncation for the capsules list.
+        "capsules_total": len(_capsules),
+        "capsules_truncated": len(_capsules) > len(kept_capsules),
         **_matrix_rows_for_summary(matrix),
         "report_path": state.get("report_path", ""),
         "retrieval_note": state.get("retrieval_note", ""),
         "coverage_reason": decision.reason,
-        "errors": list(state.get("errors", []))[:10],
+        "errors": kept_errors,
+        # #265: honest total + truncation for the errors list (a FAILED job with
+        # more than SUMMARY_ERRORS_CAP errors says so instead of looking like it
+        # only had that many).
+        "errors_total": len(_errors),
+        "errors_truncated": len(_errors) > len(kept_errors),
         # Phase 1.4: structured toolchain probes (checks/warnings/skipped).
         # Kept separate from `errors` so the UI can render "what we checked"
         # rather than only "what went wrong".

@@ -5082,3 +5082,24 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **下一号队列（接 #263）。**
 - 前端渲染验证：`apps/web`（`JobDetail.tsx`/`api.ts`）渲染 in-flight 证据 + findings 截断提示（别车道在途，须等让出）。
 - #254c / 90 例全池（Docker 阻塞）/ #257 队列（碰在途文件须等让出）。
+
+## #265 job summary 的 `errors`/`capsules` 截断同样补齐诚实投影：`_state_summary` 的全"cap 不许假报"不变量闭合
+
+**起点（#264 只补了 findings，另两个 cap 仍是静默截断）。** #264 给 `findings` 加了 `*_total`/`*_truncated`，但 `_state_summary` 里另有 `capsules[:10]` 与 `errors[:10]` 两个 cap 仍是**只给截断后 list、无 total/无截断标志**。若一个 FAILED 作业有 20 条 errors、或某作业有 15 个 capsule，summary 会把它们分别呈现成"只有 10 条"/"只有 10 个"——静默少报，同一类。#264 只补一半等于迟早被质疑"为何只 findings 讲、capsules/errors 不讲"，本号把 `_state_summary` 的"每个 cap 都报 total + truncated"不变量闭合。
+
+**改动（只加诚实投影 + 常量，零语义改动）。** `worker.py`：新增 `SUMMARY_CAPSULES_CAP=10`/`SUMMARY_ERRORS_CAP=10`（镜像 `SUMMARY_FINDINGS_CAP`/`SUMMARY_MATRIX_ROW_CAP`），把 inline `capsules[:10]`/`errors[:10]` 提为 `kept_capsules`/`kept_errors`，summary 加 `capsules_total`/`capsules_truncated` 与 `errors_total`/`errors_truncated`。其中 **errors 元素类型保持原样**（原投影就不 stringify，本号也不 stringify，纯列表截断）；capsules 沿原逻辑 `str(c)`。
+
+**门证（实测）。**
+- 扩展 `tests/unit/test_summary_findings_truncation_honesty.py`（+4 案：capsules >cap/恰好 cap、errors >cap/<cap）→ 该文件 **8 PASSED / ALL PASS**。
+- 回归：`test_worker_summary_deep_disclosure`(4)+`test_contract_counts`(11)+`test_web_api`(46)+`test_worker_github_checks`(10) = **79 PASSED**（加键未破任何既有断言）。
+- `ruff check agent/worker.py` + 测试 **All checks passed**；`mypy agent/worker.py` 本文件 **no issues**（`experiments/adapters.py` 的 4 个既有错是别车道的）。
+
+**诚实边界。**
+① 纯投影：只加 total/truncated + 常量，不改 verdict/severity/ADR-④/任何门。
+② errors 元素类型**保持原样**（不 stringify），避免把 dict 形态的 error 变成 repr——这是本号唯一刻意保留的旧行为，注释已钉。
+③ 加键向后兼容，79 集证明；consumer 是否画"还有 N 条"不在本号范围，本号只保证 summary 端诚实。
+④ 本号只碰 `agent/worker.py` + 扩测试 + plan，路径形式提交，未碰别车道在途改动。
+
+**下一号队列（接 #264/#265）。**
+- 前端渲染验证：`apps/web`（`JobDetail.tsx`/`api.ts`）消费 `findings_total`/`errors_total`/`capsules_total` 隐式截断提示 + in-flight 证据（别车道在途，须等让出）。
+- #254c / 90 例全池（Docker 阻塞）/ #257 队列（碰在途文件须等让出）。
