@@ -2486,3 +2486,43 @@ up 不可重跑意味着「成对」承诺的往返本身不存在。探针
   56 行未提交 WIP），本批提交前已发现它被对方 `git add` 进了索引，已 `git restore --staged` 放回
   工作区，未夹带。抢写会双向丢失。
 
+
+## 41. #262：审查早就知道「这测试不会失败」，但 verdict 一行也没读它（2026-10-14）
+
+- **缺陷（真函数实测）**：`agent/testgen_review.py`（§14.1）会把「无断言的 `@Test` 方法」报成
+  `no assertion in test method`，结果写进 `generation_record.review` 后**全仓无人消费**
+  （`git grep` 唯一调用点 `generate_counterexamples.py:1402/1400` 只写不读）。于是
+  `run_differential.py` 对两侧都 exit 0 给出 `http_verdict == "COMPLIANT"`（"Test passes in both
+  Base and Head"），并在 contract 循环映射成 `result = "PASS"`。探针
+  `.scratch/probe262_toothless_pass.py` 调真 `run_differential_node`（仅 stub
+  `run_with_cancel_checks`）+ 真 `review_generated_test`：修复前同一 review 报着
+  `no assertion in test method`，行却是 `{'result': 'PASS'}` —— **结构上不可能失败的测试产出绿灯**。
+- **改法两半**：(1) review 新增精确判定 `_assertion_vacuous()`（无断言，或全部断言都是无条件通过的
+  `assertTrue(true)`/`assertEquals(x,x)`），暴露为 `checks.vacuous` + `checks.vacuous_methods`；
+  (2) `run_differential` 在 `COMPLIANT` 且 `not counterexample_can_fail` 时把契约结果降级
+  `UNVERIFIED` 并带 `details` 说明（沿用 `java_source` 已有的 `details` 键），`matrix_policy`
+  自动补 `UNVERIFIED_INCONCLUSIVE_REASON` + `NEXT_ACTION_UNVERIFIED`。
+- **刻意不做的**：**不改 verdict 本身** —— `COMPLIANT` 对「差分问题」是如实回答，改它等于改事实；
+  降级的是**契约结果**（"验证通过" → "证据不足"）。**缺 review 不降级**（无 review ≠ 证明有缺陷，
+  否则无证据吊销所有历史运行的 PASS）。**单方法 vacuous 不降级整类**（`vacuous_methods` 照实上报，
+  verdict 不过度反应）。
+- **门禁**：新文件 **18 passed**；`test_testgen_review.py` 10；两者合计 **28 passed**；
+  `test_differential_execution_is_observable.py` **10 passed**（既有 COMPLIANT→PASS 路径未破）、
+  `test_differential_language_honesty.py` **15 passed**。**变异臂 3/3 见红**且每次 restore 的 sha256
+  逐字节一致：臂1 去掉降级、臂2 `vacuous` 恒 False、臂3 `vacuous` 恒 True（臂3 由
+  `test_genuinely_asserting_..._still_passes` 接住）。`ruff` 四文件全绿；`mypy` 对
+  `agent/testgen_review.py` **Success**。提交 `12edab9`（3 文件 / +368 −3）。
+- **mypy 的 4 个错不在本批**：同时跑 `run_differential.py` 时报的 4 错**全部位于
+  `experiments/adapters.py`**，那是另一条 lane **未提交**的 Gradle 适配器 WIP
+  （`git diff` 内可见 `+profile=GRADLE_PROFILE,`，该名尚未定义）。非本批引入。
+- **诚实边界（§4.2 仍未完成）**：本轮只是**让已有的探测生效**。4.2 剩下的两半：
+  ① 分语言可执行反例生成（2.1 的上游阻塞，需真实模型端到端验证）；
+  ② 反例「真能复现回归」还需要 base/head 两侧的**行为差异**证据，本轮只挡住了"不可能失败"这一类假绿。
+- **⚠️ 本轮发生两起 issue 号撞车（多 lane 并发的已知陷阱，此前已撞过 #230/#231/#244）**：
+  - `#255`：本 lane 的反例断言族误报（`6dc4f29` 代码 + `d563921` 本 §40）vs
+    另一 lane 的「eval 每次读数自带池快照」（`0bd5ba7`）。
+  - `#262`：本 lane 的「审查结果无人消费」（`12edab9`，即本节）vs
+    另一 lane 的「in-flight 证据穿透矩阵/汇总投影」（`ab808e5`）；且对方 `2198581 #263` 提交里
+    写的「更正 #262」指的是**他们的** #262，不是本节。
+  - 未做历史改写（并发 lane 下 rebase 会双向丢失）；**按 commit hash 区分，勿按号引用**。
+
