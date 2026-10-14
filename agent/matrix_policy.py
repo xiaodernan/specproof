@@ -53,6 +53,14 @@ COURT_ROW_FIELDS: tuple[str, ...] = (
     "location",
     "evidence_digest",
     "finding_id",
+    # #261/#262: the in-flight evidence run_differential captures (#250/#253/
+    # #254). Carried through the merge so the per-contract row (and every
+    # projection that reads it, incl. the job summary the UI reads) can
+    # explain a possibly scaffold-wiped verdict. The first is human-readable;
+    # the latter two are structured dicts, so they are never stringified.
+    "db_state_detail",
+    "db_violation_evidence",
+    "behavioral_evidence",
 )
 
 #: The §14.1 canonical row fields. merge_contract_results guarantees every
@@ -174,7 +182,18 @@ def _court_fields_of(entry: dict[str, Any]) -> dict[str, Any] | None:
         "location": location,
         "evidence_digest": evidence_digest,
         "finding_id": finding_id,
+        # #261/#262: carry the in-flight evidence verbatim. Structured dicts are
+        # kept as dicts (never stringified); a non-dict value (stale string,
+        # garbage) is coerced to {} so one malformed field can't poison a row.
+        "db_state_detail": str(entry.get("db_state_detail") or "").strip(),
+        "db_violation_evidence": _evidence_or_empty(entry.get("db_violation_evidence")),
+        "behavioral_evidence": _evidence_or_empty(entry.get("behavioral_evidence")),
     }
+
+
+def _evidence_or_empty(value: Any) -> dict[str, Any]:
+    """Return a captured evidence dict as-is, else {} (never stringified)."""
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _court_sort_key(court: dict[str, Any]) -> tuple[int, float, str]:

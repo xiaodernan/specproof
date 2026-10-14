@@ -101,6 +101,13 @@ def _court_fields_of_finding(finding: dict[str, Any]) -> dict[str, Any]:
     Names follow the matrix row contract (backlog #2): "verdict" is the
     court's diff_verdict value, "detail" the finding description and
     "finding_id" the finding id. Missing values stay neutral ("", 0.0).
+
+    #261/#262: the in-flight evidence run_differential captures
+    (behavioral_evidence / db_violation_evidence / db_state_detail) rides
+    along verbatim so the matrix row — and every downstream projection that
+    reads it — can explain *why* a (possibly scaffold-wiped) verdict was
+    reached. The evidence fields are structured dicts, so they are carried
+    as-is (never stringified); missing evidence stays a neutral empty dict.
     """
     return {
         "severity": str(finding.get("severity") or "").strip(),
@@ -114,7 +121,22 @@ def _court_fields_of_finding(finding: dict[str, Any]) -> dict[str, Any]:
         "location": str(finding.get("location") or "").strip(),
         "evidence_digest": str(finding.get("evidence_digest") or "").strip(),
         "finding_id": str(finding.get("id") or "").strip(),
+        "db_state_detail": str(finding.get("db_state_detail") or "").strip(),
+        "db_violation_evidence": _evidence_dict(finding.get("db_violation_evidence")),
+        "behavioral_evidence": _evidence_dict(finding.get("behavioral_evidence")),
     }
+
+
+def _evidence_dict(value: Any) -> dict[str, Any]:
+    """Coerce a captured evidence field to a JSON-safe dict (else {}).
+
+    The in-flight evidence run_differential emits (#250/#253/#254) is a
+    structured dict; carrying it through the string-bound projections means it
+    must never be stringified or dropped. Anything that is not already a dict
+    (None, a stale string, garbage) becomes an empty dict so a row is never
+    poisoned by one malformed field.
+    """
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def build_matrix_node(state: Phase0State) -> dict[str, Any]:

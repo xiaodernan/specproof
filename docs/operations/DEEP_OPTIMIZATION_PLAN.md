@@ -5015,3 +5015,29 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - #254c（**被 Docker 阻塞**：本环境无 Docker、`specproof-maven-cache-1000` 卷消失，101 个 golden case 全走 Java/Maven spring-backend，须 Docker，故端到端跑 case-17 确认 surefire 文本带 `DB STATE VIOLATION` marker、Severity agreement 从 66.7% 提升这一步暂不能实跑；Docker 回来后第一优先）。
 - 隔离后 90 例全池评测（55 正 / 35 负，够默认 floors 10/5，需后台长跑 + #255 的 `pool_snapshot` 标注，本环境长跑会被回收须拆多会话）。
 - 或回到 #257 队列：Verify 可插拔存储、进程内执行器/进度通道、SSE 实时进度与流式日志（节点级）、Go/Java-Gradle 适配器（这些碰在途文件，须等别车道让出再动）。
+
+## #262 in-flight 证据穿透全部矩阵/汇总投影：#261 采集的证据真正抵达 UI 读的 job summary
+
+**起点（#261 只到 `confirmed_findings` + HTML 文件，没到 UI 读的 summary）。** #261 让 `behavioral_evidence` / `db_violation_evidence` / `db_state_detail` 抵达 `confirmed_findings` + `court_audit` + pipeline 写的 HTML 文件。但 API/前端**不读 HTML 文件**，读的是 `agent/worker.py::_state_summary` 持久化的 job summary（存 MySQL、经 `/api/v1/jobs/<id>` 与 `/findings` 下发）。从 `confirmed_findings` 到 summary 之间是**四道固定键投影**，每道都静默丢掉新字段：① `build_matrix._court_fields_of_finding`（33→11 固定键）；② `matrix_policy._merge_group`/`_court_fields_of`（`COURT_ROW_FIELDS` 固定键）；③ `worker._matrix_rows_for_summary`（`_SUMMARY_MATRIX_ROW_KEYS` 固定键）；④ `_state_summary` 的 `findings` 硬编码 8 键投影。这正是设计原则 #6 反复踩的坑——`_merge_group` 是固定键字面量，上游新键被静默丢弃。
+
+**改动（纯透传，零语义改动；四文件同属本车道，全干净）。**
+- `agent/nodes/build_matrix.py`：`_court_fields_of_finding` 补 `db_state_detail` + `_evidence_dict(db_violation_evidence)` + `_evidence_dict(behavioral_evidence)`（新增 `_evidence_dict`：非 dict 值统一转 `{}`，绝不 stringify）。
+- `agent/matrix_policy.py`：`COURT_ROW_FIELDS` 追加三键；`_court_fields_of` 现解三字段（新增 `_evidence_or_empty`），**不含**进"是否 court 元数据"的 guard（单有证据不算 finding）。
+- `agent/worker.py`：`_SUMMARY_MATRIX_ROW_KEYS` 追加三键（dict 原样透传，string 走 `_SUMMARY_TEXT_LIMIT`）；`_state_summary` 的 findings 投影补三键（`db_state_detail` 截 400，新增 `_carry_evidence`）。
+- 结构化 dict **全程按 dict 透传**，绝不 stringify；非 dict 值（None/残留 string/垃圾）统一转 `{}`，一个畸形字段不污染 row/summary。
+
+**门证（实测）。**
+- 新增 `tests/unit/test_summary_carries_inflight_evidence.py`（6 案）：merged row / summary matrix_rows / summary findings 三处均带三字段（verbatim）；非 dict → `{}`；缺字段 → `""`/`{}` → **6 PASSED / ALL PASS**。
+- 回归矩阵/汇总/API/verdict：`test_matrix_pure`(18)+`test_matrix_policy`(23)+`test_summary_matrix_rows`(9)+`test_build_matrix_node...`(4)+`test_matrix_result_vocab_parity`(7)+`test_worker_summary_deep_disclosure`(4)+`test_contract_counts`(11)+`test_verdict_policy`(38) = 117 PASSED；`test_web_api`(44)+`test_release_gates_veto_the_job`(7)+`test_verification_coverage`(10) = 61 PASSED。
+- `ruff check` 四文件 + 测试全过；`mypy` 我的三生产源文件 no issues（`experiments/adapters.py` 的 4 个既有 mypy 错是别车道的，非本号引入）。
+
+**诚实边界。**
+① 仍属 capture-only 链：三字段只让已采集信号抵达 summary，**不改** severity/confidence/ADR-004 门。
+② **未触及** MySQL `findings` 表（其列是固定 schema：id/job_id/contract_id/severity/confidence/evidence_type/impact_path/capsule_path）——要让持久化 findings 表也带证据需 schema 迁移，那是独立、更大的一号（且多半是别车道），本号明确不声称它。
+③ 这是 #261 → #262 两号合起来才闭环的"产出→合并→投影→API→前端"：HTML 文件由 pipeline 写（#261 覆盖），UI 读的 summary 由 worker 写（#262 覆盖）。
+④ 本批只改 `build_matrix.py` / `matrix_policy.py` / `worker.py` + 新增测试 + plan，路径形式提交，未碰别车道在途改动。
+
+**下一号队列（接 #261/#262）。**
+- 持久化 `findings` 表的 in-flight 证据列（schema 迁移，独立号；hooks 会重放历史 umb 导入行，迁移须幂等）——把"到达 durable findings 表"这最后一跳补齐。
+- 前端展示层：`apps/web` 的 `JobDetail.tsx` / `api.ts` 渲染 `db_violation_evidence`/`behavioral_evidence`/`db_state_detail`（这两个文件当前是别车道在途，须等让出再动）。
+- #254c（**被 Docker 阻塞**）/ 90 例全池评测（Docker + 长跑回收双阻塞）/ #257 队列的 Verify 可插拔存储·SSE·Go-Java-Gradle 适配器（碰在途文件须等让出）。

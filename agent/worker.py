@@ -1023,6 +1023,14 @@ _SUMMARY_MATRIX_ROW_KEYS: tuple[str, ...] = (
     # seeded cache / skipped / host flow) — the provenance sibling of
     # execution_surface (#56/#26 disclosure).
     "dependency_install",
+    # #261/#262: the in-flight evidence run_differential captures (#250/#253/
+    # #254). Carried so the persisted job summary (what the API/UI reads) can
+    # explain a possibly scaffold-wiped verdict, matching confirmed_findings
+    # and the HTML report. db_state_detail is human-readable (text-limited by
+    # the caller); the other two are structured dicts, passed through verbatim.
+    "db_state_detail",
+    "db_violation_evidence",
+    "behavioral_evidence",
 )
 
 #: Rows carried per job. The pipeline counts stay authoritative regardless, so
@@ -1101,6 +1109,18 @@ def _failure_summary(
     return summary
 
 
+def _carry_evidence(value: Any) -> dict[str, Any]:
+    """Return a captured in-flight evidence dict verbatim, else {}.
+
+    #261/#262: the evidence run_differential emits (#250/#253/#254) is a
+    structured dict; the job-summary projection keeps it as a JSON-safe dict
+    rather than stringifying or dropping it. Anything that is not a dict
+    (None, a stale string, garbage) becomes an empty dict so one malformed
+    field never poisons the persisted summary.
+    """
+    return dict(value) if isinstance(value, dict) else {}
+
+
 def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
     """Compact pipeline summary persisted for the dashboard/audit view.
 
@@ -1137,6 +1157,14 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
                 "type": f.get("type", ""),
                 "location": f.get("location", ""),
                 "description": (f.get("description") or "")[:400],
+                # #261/#262: carry the in-flight evidence (#250/#253/#254) into
+                # the persisted summary the API/UI reads, so a possibly
+                # scaffold-wiped verdict is explainable — not only visible in
+                # confirmed_findings / the HTML file the pipeline writes.
+                # Structured dicts stay verbatim; anything non-dict -> {}.
+                "db_state_detail": (f.get("db_state_detail") or "")[:400],
+                "db_violation_evidence": _carry_evidence(f.get("db_violation_evidence")),
+                "behavioral_evidence": _carry_evidence(f.get("behavioral_evidence")),
             }
             for f in findings[:20]
         ],
