@@ -522,6 +522,9 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 "behavioral_evidence": _behavioral_evidence(
                     verdict, db_verdict, base_status, head_status, method
                 ),
+                "db_violation_evidence": _db_violation_evidence(
+                    base_failure, head_failure
+                ),
                 "base_run_seconds": base_seconds,
                 "head_run_seconds": head_seconds,
                 "base_cache_hit": base_cache_hit,
@@ -587,6 +590,19 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             )
             attributed_contracts.add(attributed_contract)
 
+        # In-flight DB-violation signal (#254): the generated test's own
+        # DB-invariant assertion text, read from the surefire failure details
+        # (uncapped, per-method). The post-run dump can read DB_CONSISTENT even
+        # when the mutation was committed (case-17: a later @BeforeEach
+        # deleteAll wipes it), so this is the in-flight evidence that would
+        # otherwise be lost. Capture-only; it does not feed severity.
+        base_fail_text = " | ".join(
+            _test_failure_details(base_app, test_class).values()
+        )
+        head_fail_text = " | ".join(
+            _test_failure_details(head_app, test_class).values()
+        )
+
         primary_entries = [{
             # The experiment id is DIFF-01; the CONTRACT it verified is the one
             # the failing test exercises. The Review Court requires an approved
@@ -618,6 +634,9 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 "pass" if base_pass else "fail",
                 "pass" if head_pass else "fail",
                 _failing_test_name(head_app) if (base_pass and not head_pass) else None,
+            ),
+            "db_violation_evidence": _db_violation_evidence(
+                base_fail_text, head_fail_text
             ),
             "base_run_seconds": base_seconds,
             "head_run_seconds": head_seconds,
@@ -1399,6 +1418,43 @@ def _behavioral_evidence(
         "db_effect_rolled_back": db_effect_rolled_back,
         "failing_method": failing_method,
         "note": note,
+    }
+
+
+_DB_VIOLATION_MARKER = "DB STATE VIOLATION"
+
+
+def _db_violation_evidence(
+    base_failure_text: str, head_failure_text: str,
+) -> dict[str, Any]:
+    """In-flight DB-mutation evidence from the generated test's own failure text.
+
+    #253/#254: a regression's persisted effect can be wiped by the test scaffold
+    before the post-run H2 dump. case-17 is the canonical shape - the regressed
+    ``changeEmail`` accepts a duplicate and (being @Transactional) COMMITS it,
+    but a later test method's ``@BeforeEach deleteAll()`` erases the row before
+    the differential's dump is taken, so the dump reads DB_CONSISTENT. The
+    generated test's DB-invariant assertion fires at the moment it OBSERVES the
+    mutated row, and its message carries the ``DB STATE VIOLATION`` marker
+    (e.g. "duplicate email change was accepted and persisted") - in-flight
+    evidence the post-run dump cannot see.
+
+    The text comes from the surefire failure details (uncapped, per-method) so
+    it survives even when the 2000-char whole-run output would truncate it.
+
+    Capture-only: this does NOT change db_verdict, severity, confidence, or the
+    ADR-004 gate. It records that a DB-invariant assertion fired on the head
+    side and whether the base side fired the same one - the raw signal the
+    BLOCKER-wiring design review (#254) needs, deliberately not wired to
+    severity here so the gate is not bypassed.
+    """
+    head_hit = _DB_VIOLATION_MARKER in (head_failure_text or "")
+    base_hit = _DB_VIOLATION_MARKER in (base_failure_text or "")
+    return {
+        "marker": _DB_VIOLATION_MARKER,
+        "head_observed": head_hit,
+        "base_observed": base_hit,
+        "head_only": head_hit and not base_hit,
     }
 
 

@@ -4834,6 +4834,53 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - **#254** 实施 in-flight DB 采集：在 head 回归响应期间抓取 DB mid-state（或读 head 测试回读的 `emailAfter`），让"回归效果被测试脚手架擦除"的 case 也能产出 BLOCKER 所需的 `DB_MUTATED_ON_UNAUTH` 证据；需碰差分快照/沙箱路径，且要绕开别车道在途文件。
 - **#255 及以后**（原 #254）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数。
 
+## #254 in-flight DB 证据采集（capture 半）：把"被测试脚手架擦掉的变异"重新捞回差分产出
+
+**起点（接 #253 的定论）。** #253 已用读码钉死：case-17 的回归把 bob 邮箱**确实**落库（changeEmail 是 @Transactional，接受重名即 COMMIT），但生成测试类非事务、且 `@BeforeEach deleteAll()` 在差分 dump 之前把这条变异擦掉，于是 post-run H2 dump 读成 `DB_CONSISTENT` —— 这是**脚手架假象**，不是"无变异"。而生成测试自己的 DB 不变量断言（`DB STATE VIOLATION: ... accepted and persisted`）在它*观测到*变异行的那一刻就触发了，消息里带着这个 marker —— 这是 post-run dump 看不到的 **in-flight 证据**。本号把这段证据从 `head_output` 里捞回差分产出（capture-only，不动 severity/verdict）。
+
+**改动（只加、不改 verdict 语义）。**
+- `agent/nodes/run_differential.py` 新增纯函数 `_db_violation_evidence(base_failure_text, head_failure_text)`：扫头部/基线两侧的 surefire failure 文本里是否含 marker `"DB STATE VIOLATION"`，返回 `{marker, head_observed, base_observed, head_only}`。head 侧有、base 侧无 → `head_only=True`（head 独有的 DB 不变量违反）。
+- 文本来源走 `_test_failure_details(app, test_class)`（surefire 逐方法失败摘要，**不截断**，比 2000 字符的 whole-run output 更稳），在两条 entry 发射路径都挂上：
+  - 合并路径（combined，case-17 走这条：base pass / head fail）：在 `primary_entries = [{` 之前算 `base_fail_text`/`head_fail_text`，entry 里加 `"db_violation_evidence"`。
+  - 拆分路径（split，both-fail）：用既有的 `base_failure`/`head_failure` 挂上同一字段。
+
+**门证（实测）。**
+- 新测试 `tests/unit/test_eval_db_violation_evidence_capture.py` **5 passed**（head-only / 双侧 / 无 / 空输入不抛 / key 集合不含 severity·confidence）。
+- `ruff check` → All checks passed；`mypy agent/nodes/run_differential.py` → 本文件 0 错（4 错全在 `experiments/adapters.py`，别车道在途 Gradle profile 半成品）。
+
+**诚实边界。**
+① 本号是 **capture 半**，不是 verdict 半。它**只**把"head-only DB 不变量违反"这条原始信号钉进产出，**不**改 `db_state_verdict`、不调 severity、不调 confidence、不碰 ADR-004 六条件门。case-17 现在仍是 MAJOR（与 #248/#249/#253 一致），但产出里多了一条"head 测试观测到 persisted 变异"的机器可读证据，UI/评审一眼可见*为什么*没捞到 BLOCKER 级 dump 证据。
+② 让这条证据**真正*挣到* BLOCKER** 的诚实路径是下一步：把 `head_only` 信号喂回 `db_verdict`（当 post-run dump 为 `DB_CONSISTENT` 但 in-flight 观测到 head-only 违反时判 `DB_MUTATED_ON_UNAUTH`），那是**设计评审过的 verdict 改动**，且`run_differential.py` 现有 BLOCKER 分支在 `db_verdict in (DB_MUTATED_ON_UNAUTH, DB_MUTATED)` 时本就给 `combined_confidence=0.95` / `BLOCKER` —— 一旦接上会自然满足 ADR-004 条件 4，**不必**把 confidence 调到 0.90 硬凑。该 wiring 列为下一步，**不在此号做**（避免未评审就动 verdict 门）。
+③ 本地领先 origin/master 140+ 提交，本批只提交不 push；提交走路径形式，未碰别车道在途改动（`sandbox/runner.py`、`evidence/acceptance.py`、`experiments/adapters.py` 等仍为 M）。
+
+**下一号队列（#254 capture 已落，verdict wiring 留作 #254b；其余接续）。**
+- **#254b** 设计评审后把 `db_violation_evidence.head_only` 接回 `db_verdict`：post-run `DB_CONSISTENT` 但 head-only 违反 → `DB_MUTATED_ON_UNAUTH`，借现有 BLOCKER 分支自然给 BLOCKER；需先确认 surefire failure 文本在本环境确实携带 `DB STATE VIOLATION`（跑一次 case-17 端到端验证，~11 分钟，Maven 缓存卷已播种）。
+- **#255 及以后**（原 #254）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数。
+
+## #256 `specproof eval` 每份案例记录自带 `finding_evidence`：severity 失配从报告本身即可诊断
+
+**起点（#248/#253 暴露的"读得见 verdict、读不到 why"）。** case-17 真跑评测测得 MAJOR、而 golden 期望 BLOCKER（`#248`/`#253`）。报告确实写了这个差异，但**没写为什么**：每份 per-case 记录把 finding 自身的证据丢掉了，读者无法区分"差分捕获到 DB 一致（即回归效果被回滚/从未落库）"与"差分根本没有拿到 DB dump（采集失败）"——这两者的修复路径完全不同。报告还把差分的 `confidence` 也一起丢了。结论：verdict 看见了，但诊断所需的证据没有随报告走，等于逼读者重跑整条 pipeline 才能知道 why。
+
+**改动（只加、不改任何 verdict 语义）。** `cli/specproof/commands/eval.py`：
+- 新增 `_EVIDENCE_FIELDS`（`:52`）：`(contract_id, severity, confidence, evidence_type, db_state_verdict)`。
+- 新增 `_finding_evidence(findings)`（`:61`）：把这些字段**逐字拷贝**（仅当非 None）——**不新增任何 claim**，只搬运 finding 已经设好的字段。
+- 正常记录：`record["finding_evidence"] = _finding_evidence(matched or findings)`（`:566`）——有匹配就用匹配 finding 的证据；**什么都没匹配到（MISS）就退回到所有 finding**，让 MISS 同样可诊断。
+- NOT_RUN 记录：`"finding_evidence": []`（`:490`）。
+
+**门证（实测）。**
+- 新测试 `tests/unit/test_eval_report_carries_finding_evidence.py`（3 案）：① severity 失配携出 `db_state_verdict`/`confidence`（足以在报告里区分"DB 一致"与"无证据"）；② MISS 仍携出兜底证据；③ NOT_RUN 为 `[]`。直接经模块调用运行（绕过本环境 pytest 收尾 safe-delete 护栏卡顿）→ **3 passed / ALL PASS**。
+- `ruff check cli/specproof/commands/eval.py tests/unit/test_eval_report_carries_finding_evidence.py` → **All checks passed**。
+- `mypy cli/specproof/commands/eval.py` → 本文件 **0 错**（4 错全在 `experiments/adapters.py`，别车道在途的 Gradle profile 半成品）。
+
+**诚实边界。**
+① 本号只"搬运证据到读者能看到的报告"，不新增任何 verdict/severity 语义变更；字段是 finding 已设字段的逐字拷贝，零新增 claim——且 `_finding_evidence` 仅取 `_EVIDENCE_FIELDS` 子集，与 #249/`behavioral_evidence` 同纪律（附加元数据不扛门）。
+② 与 #253（case-17 真因钉成"脚手架擦除"）→ #255（读数带池快照）同源但独立：#253 解决"为什么没证据"，本号解决"既然拿到证据，就让它出现在报告里"，二者不冲突、且都只加不改。
+③ 本地领先 origin/master 140+ 提交，本批只提交不 push；提交走路径形式，未碰别车道在途改动（`sandbox/runner.py`、`evidence/acceptance.py`、`experiments/adapters.py` 等仍为 M）。
+
+**下一号队列（接 #253 已落诊断）。**
+- **#254** 实施 in-flight DB 采集：在 head 回归响应期间抓取 DB mid-state（或读 head 测试回读的 `emailAfter`），让"回归效果被测试脚手架擦除"的 case 也能产出 BLOCKER 所需的 `DB_MUTATED_ON_UNAUTH` 证据；需碰差分快照/沙箱路径，且要绕开别车道在途文件。本号已让"若拿到证据就能看见"，#254 是把证据真正补回来的诚实修复。
+- **#257 及以后**（原 #254 队列）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数。
+
 ## #257 交付载体门：`.env.example` 声明的旋钮必须有抵达读它那个进程的载体（8 案 D01-D08 + 10 臂）
 
 **起点（先量，只读）。** 声明面已经有两道门了：#235 钉住"模板每一行都能在 compose 的插值里找到载体"，#242 钉住"compose 的 `${X:?}` 必填件必须出现在运维清单里"。两道门都只回答"这个名字写进文件了吗"，没有一道回答操作者真正依赖的那句：**我按清单在 `.env` 里填的值，最后出现在读它的那个进程的环境里了吗**。本号先量这个差，再把它变成门。
