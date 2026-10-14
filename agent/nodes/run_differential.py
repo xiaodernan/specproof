@@ -689,6 +689,23 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # proves the contract its failing method exercises. After the P2
     # both-fail split, the head-only failing methods are the attributed
     # contracts; base-only failures stay UNVERIFIED (never attributed).
+    #
+    # #262: a counterexample whose every assertion passes unconditionally
+    # cannot fail, so "Test passes in both Base and Head" carries no
+    # information about the contract it was written to test. The §14.1 review
+    # already detects exactly this (checks["vacuous"]) and it was recorded
+    # into generation_record and then never read — so a PASS the review had
+    # already disproven still reached the matrix. Demote it: a gap the reader
+    # can act on, never a green we cannot support. Absence of a review is
+    # unchanged (no positive evidence of vacuousness, so no demotion).
+    _review_checks = (generation_record.get("review") or {}).get("checks") or {}
+    counterexample_can_fail = not bool(_review_checks.get("vacuous"))
+    _toothless_reason = (
+        "generated counterexample declares no assertion that can fail "
+        "(checks.vacuous) — a both-sides-green run proves nothing about "
+        "this contract"
+    )
+
     contract_results: list[dict[str, Any]] = []
     for c in contracts:
         cid = c.get("id", "")
@@ -696,15 +713,20 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         is_unique = cid == "UNIQUE-01"
         is_attributed = cid in attributed_contracts
         if is_auth or is_unique or is_attributed:
+            demoted = False
             if http_verdict == "COMPLIANT":
-                result = "PASS"
+                if counterexample_can_fail:
+                    result = "PASS"
+                else:
+                    result = "UNVERIFIED"
+                    demoted = True
             elif cid in attributed_contracts and (
                 method_groups is not None or http_verdict == "REGRESSION"
             ):
                 result = "FAIL"
             else:
                 result = "UNVERIFIED"
-            contract_results.append({
+            row: dict[str, Any] = {
                 "contract_id": cid,
                 "result": result,
                 "experiment": "generated_test_differential",
@@ -713,7 +735,13 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                     if method_groups is not None
                     else f"sha256:{evidence_digest}"
                 ),
-            })
+            }
+            if demoted:
+                # Carry WHY the green was withheld, on the same `details` key
+                # java_source rows already use — otherwise the demotion reads
+                # as an unexplained gap.
+                row["details"] = _toothless_reason
+            contract_results.append(row)
 
     # Probe experiment contract result (only what the probe actually judged).
     if probe_results:

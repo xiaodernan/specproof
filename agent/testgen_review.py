@@ -67,6 +67,35 @@ def _trivial_assertions(method_body: str) -> list[str]:
     return problems
 
 
+# Assertion calls that PASS whatever the code under test does: the right-hand
+# side repeats the left-hand, or it is a compile-time constant. Counting them
+# is what lets the review tell "has a trivial assertion AND a real one" apart
+# from "only ever had trivial ones" — the difference decides whether a passing
+# run can be trusted at all (#262).
+_TRIVIAL_PATTERNS = (
+    re.compile(r"assertTrue\(\s*true\s*\)"),
+    re.compile(r"assertFalse\(\s*false\s*\)"),
+)
+_SELF_COMPARE_RE = re.compile(
+    r"assert(?:Equals|NotEquals)\(([^,()]*(?:\([^()]*\))?[^,()]*),\s*\1\s*\)",
+)
+
+
+def _assertion_vacuous(method_body: str) -> bool:
+    """True when this @Test method can never fail.
+
+    No recognised assertion at all, or every recognised assertion is one that
+    passes unconditionally (``assertTrue(true)`` / ``assertEquals(x, x)``).
+    """
+    total = len(_ASSERT_RE.findall(method_body))
+    if total == 0:
+        return True
+    trivial = sum(
+        len(p.findall(method_body)) for p in _TRIVIAL_PATTERNS
+    ) + len(_SELF_COMPARE_RE.findall(method_body))
+    return trivial >= total
+
+
 def _class_names_in(workspace: str) -> set[str]:
     """All top-level class names declared in the workspace's Java sources."""
     names: set[str] = set()
@@ -134,6 +163,21 @@ def review_generated_test(code: str, head_workspace: str) -> dict[str, Any]:
                 "check": "assertion",
                 "problem": "test method " + str(index + 1) + ": " + problem,
             })
+
+    # #262: whether a PASS is even expressible. A @Test method whose every
+    # assertion passes unconditionally cannot fail, so a run where both sides
+    # are green says nothing about the contract — recorded here (where the
+    # method bodies are in hand) so run_differential can demote PASS to
+    # UNVERIFIED instead of manufacturing a green it cannot support.
+    # ``all`` over an empty list is True on purpose: a class declaring no
+    # @Test method at all is equally unable to fail.
+    methods = _methods_with_test_annotations(code)
+    checks["vacuous"] = all(_assertion_vacuous(body) for body in methods)
+    checks["vacuous_methods"] = [
+        str(i + 1)
+        for i, body in enumerate(methods)
+        if _assertion_vacuous(body)
+    ]
 
     workspace_names = _class_names_in(head_workspace)
     for import_name in _IMPORT_RE.findall(code):
