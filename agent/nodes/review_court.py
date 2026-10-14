@@ -233,6 +233,18 @@ def _build_candidates(state: Phase0State) -> list[dict[str, Any]]:
             "status": "candidate",
             "diff_verdict": dr.get("verdict"),
             "db_state_verdict": dr.get("db_state_verdict", ""),
+            "db_state_detail": dr.get("db_state_detail", ""),
+            # In-flight evidence copy (#250 / #253 / #254): run_differential
+            # emits structured confirmation that a regression's DB effect was
+            # observed in-flight (e.g. the generated test's "DB STATE VIOLATION"
+            # assertion firing on head but not base) even when the post-run dump
+            # reads DB_CONSISTENT because the scaffold rolled it back or wiped it.
+            # Without copying these fields the court and report never see the
+            # captured signal, which defeats the purpose of #250/#254. The fields
+            # are capture-only here — they do NOT change severity/confidence or
+            # the ADR-004 gate; they only make the evidence visible downstream.
+            "behavioral_evidence": dr.get("behavioral_evidence") or {},
+            "db_violation_evidence": dr.get("db_violation_evidence") or {},
             "location": dr.get("location", ""),
             "evidence_digest": dr.get("evidence_digest", ""),
             # Runtime evidence copy — the policy layer compares Base/Head

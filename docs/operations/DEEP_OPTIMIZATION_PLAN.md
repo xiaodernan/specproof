@@ -4990,3 +4990,28 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **下一号队列（eval.py 稳定纯函数栅栏到此补齐）。**
 - 至此 `eval.py` 的全部稳定纯函数——`_finding_evidence`(#256)、`_load_json`(#259)、`_ref_problems`/`_ensure_scenario_refs`(#258)、`_repo_head_sha`/`_pool_snapshot`(#255)、`_cleanup_worktrees`(#260)——**均已带栅栏测试**。
 - 下一批转向：#254c（跑 case-17 端到端确认 surefire 文本带 marker、Severity agreement 提升）/ 隔离后 90 例全池评测（55 正 / 35 负，够默认 floors 10/5，需后台长跑 + #255 的 `pool_snapshot` 标注，本环境长跑会被回收须拆多会话）/ 或回到 #257 队列的 Verify 可插拔存储、SSE 实时进度、Go·Java-Gradle 适配器（这些碰在途文件，须等别车道让出再动）。
+
+## #261 Review Court 透传 in-flight 证据：`run_differential` 采到却在中途被丢弃的信号重新可见
+
+**起点（#250/#253/#254 的采集信号到不了 court/report）。** `run_differential` 在每条 `diff_result` 上都会发出三类运行时证据：① `#250` 的 `behavioral_evidence`（结构化记录"head 侧生成测试断言了行为回归、但其失败把事务回滚、故 post-run dump 是 DB_CONSISTENT"）；② `#253/#254` 的 `db_violation_evidence`（head 侧生成测试的 `DB STATE VIOLATION` 断言在 base 侧没触发 → `head_only: True` 的 in-flight 证据）；③ 人类可读的 `db_state_detail`。但 `review_court.py::_build_candidates` 用**显式枚举字段集**拼装候选（只有 `db_state_verdict`，没有 `db_state_detail`，更没有那两个 dict），导致这三类证据在到达 `confirmed_findings` 与报告前**被静默丢弃**——`#254` 的采集等于白做，case-17 那种"被脚手架擦掉的变异"在 court/UI 里依然看不见。这是本车道文件（干净），不是别车道在途改动。
+
+**改动（只扩充字段拷贝，零语义改动）。**
+- `agent/nodes/review_court.py::_build_candidates`：在运行时证据拷贝块补上 `db_state_detail`、`behavioral_evidence`（`dr.get(...) or {}`）、`db_violation_evidence`（`dr.get(...) or {}`）。字段源是 `run_differential` 两条产出路径（split 与 combined）都已发出的同名字段，键名对得上。
+- `agent/review_court/policy.py`：在 `policy_recalculate` 的 `audit` 字典基础项也补上这三字段（`cf.get(...)` 同默认），使 human-facing 的 `court_audit` 记录也能显示" verdict 为何这么定"，而不是在 candidate→audit 投影边界处消失。
+- `evidence/report.py`：`render_verification_report` 在每条 finding 块渲染这三字段（仅当字段存在时输出对应 HTML，向后兼容——无这些字段的 finding 渲染结果不变），使 user-facing HTML 报告也能解释 verdict 为何这么定，而不是只在内部 court 结构里可见。
+
+**门证（实测）。**
+- 新增 `tests/unit/test_court_propagates_inflight_evidence.py`（5 案）：`_build_candidates` 拷贝三字段 / `db_violation_evidence.head_only` 透传 / 缺字段回退空 dict / `run_review_court` 经 `confirmed_findings` 与 `court_audit` 双通道透传 → **5 PASSED / ALL PASS**。
+- 新增 `tests/unit/test_report_renders_inflight_evidence.py`（4 案）：HTML 报告渲染 `db_state_detail` / `db_violation_evidence`(marker + head-only) / `behavioral_evidence`(note)，且缺字段时不输出 → **4 PASSED / ALL PASS**。
+- 回归：`tests/unit/test_court_no_evidence_blocker.py`(19) + `test_review_court_policy.py`(32) + `test_attribution_att08.py`(15) + `test_ambiguous_differential_is_not_minor.py`(5) = **77 PASSED / ALL PASS**（audit 字典加键未破任何既有断言）；report 子集 `test_verification_coverage`(10)+`test_report_deep_section`(7)+`test_report_preflight`(10)+`test_release_gates_reach_the_report`(12)+`test_matrix_pure`(18)+`test_matrix_policy`(23)+`test_verdict_policy`(38) = **118 PASSED**（report HTML 断言不受新增字段影响）。
+- `ruff check agent/nodes/review_court.py agent/review_court/policy.py tests/unit/test_court_propagates_inflight_evidence.py` → **All checks passed**；`mypy agent/nodes/review_court.py agent/review_court/policy.py` → **Success: no issues found**。
+
+**诚实边界。**
+① 纯透传：三字段**不改** severity / confidence / ADR-004 六条件门——它们只让"已被采集的信号"在 court 与报告里可见，从不偷偷抬高判定。这与 #250/#254 的 capture-only 契约一致。
+② 这是 #254b 线程的收口：#254b 已让 verdict 在 `run_differential` 层面被正确接回 BLOCKER，但证据若到不了 `confirmed_findings`/`court_audit`/HTML 报告，UI 仍看不到"为何判定"——本号补上这最后一跳（court + court_audit + HTML 报告三处均可见）。
+③ 本批只改动 `review_court.py` / `policy.py` / 新增测试，未碰别车道在途文件（`sandbox/runner.py`、`evidence/acceptance.py`、`experiments/adapters.py`、`apps/web/*`、`docs/operations/*` 等仍为 M）。
+
+**下一号队列（接 #254b）。**
+- #254c（**被 Docker 阻塞**：本环境无 Docker、`specproof-maven-cache-1000` 卷消失，101 个 golden case 全走 Java/Maven spring-backend，须 Docker，故端到端跑 case-17 确认 surefire 文本带 `DB STATE VIOLATION` marker、Severity agreement 从 66.7% 提升这一步暂不能实跑；Docker 回来后第一优先）。
+- 隔离后 90 例全池评测（55 正 / 35 负，够默认 floors 10/5，需后台长跑 + #255 的 `pool_snapshot` 标注，本环境长跑会被回收须拆多会话）。
+- 或回到 #257 队列：Verify 可插拔存储、进程内执行器/进度通道、SSE 实时进度与流式日志（节点级）、Go/Java-Gradle 适配器（这些碰在途文件，须等别车道让出再动）。

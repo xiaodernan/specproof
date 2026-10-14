@@ -483,6 +483,13 @@ def policy_recalculate(
             "model_error": model_error,
             "defense_argument": defense_argument,
             "policy_version": POLICY_VERSION,
+            # #258: surface the in-flight runtime evidence on the audit record
+            # so the human-facing court_audit shows *why* a (possibly
+            # scaffold-wiped) verdict was reached, instead of it vanishing at
+            # the candidate->audit projection boundary.
+            "db_state_detail": cf.get("db_state_detail", ""),
+            "behavioral_evidence": cf.get("behavioral_evidence") or {},
+            "db_violation_evidence": cf.get("db_violation_evidence") or {},
         }
         if material is not None and material.get("is_false_positive") is not None:
             audit["model_advisory_false_positive"] = material.get(

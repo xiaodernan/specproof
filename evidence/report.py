@@ -348,12 +348,40 @@ def render_verification_report(
 
     findings_html = ""
     for f in findings:
-        findings_html += f"""<div class="finding {safe(f.get("severity", "").lower())}">
-            <h3>[{safe(f.get("severity", ""))}] {safe(f.get("contract_id", ""))}</h3>
-            <p>{safe(f.get("description", ""))}</p>
-            <p>Confidence: {f.get("confidence", 0):.0%} |
-            Type: {safe(f.get("evidence_type", ""))}</p>
-        </div>"""
+        # #261: render the in-flight evidence run_differential captures
+        # (behavioral_evidence / db_violation_evidence / db_state_detail) so the
+        # user-facing report explains *why* a (possibly scaffold-wiped) verdict
+        # was reached. Capture-only: these never change the verdict, they only
+        # make the already-captured signal visible. Emitted only when present.
+        detail_bits: list[str] = []
+        db_detail = f.get("db_state_detail")
+        if db_detail:
+            detail_bits.append(
+                f'<p class="finding-detail">DB state: {safe(db_detail)}</p>'
+            )
+        db_v = f.get("db_violation_evidence") or {}
+        if db_v.get("head_observed"):
+            detail_bits.append(
+                '<p class="finding-detail">In-flight DB-state violation observed '
+                f'(marker: {safe(db_v.get("marker", ""))}, '
+                f'head-only: {safe(str(db_v.get("head_only", False)))})</p>'
+            )
+        beh = f.get("behavioral_evidence") or {}
+        if beh.get("captured"):
+            detail_bits.append(
+                '<p class="finding-detail">Behavioral regression captured '
+                f'in-flight: {safe(beh.get("note", ""))}</p>'
+            )
+        detail_html = "".join(detail_bits)
+        findings_html += (
+            f'<div class="finding {safe(f.get("severity", "").lower())}">'
+            f'<h3>[{safe(f.get("severity", ""))}] {safe(f.get("contract_id", ""))}</h3>'
+            f'<p>{safe(f.get("description", ""))}</p>'
+            f'<p>Confidence: {f.get("confidence", 0):.0%} | '
+            f'Type: {safe(f.get("evidence_type", ""))}</p>'
+            f'{detail_html}'
+            f'</div>'
+        )
 
     error_list = errors or []
     decision = evaluate_verification(matrix, findings=findings, errors=error_list)
