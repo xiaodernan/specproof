@@ -4921,3 +4921,24 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **诚实边界。** ① 全部结论是**静态**交付：没有跑过 `docker compose up`，"抵达"由 compose 解析 + 入口可达图 + 代码默认值三者对齐得出。② 不新增 `${X:?}`：给旋钮装开机拒绝属于改变部署行为，需批准（#242 R03 的钉）。③ mypy 的 `exclude` 含 `tests/`，本门文件不进类型检查；CI 的 `ruff check .` 在本 diff 之外已红——#235 的门文件在 HEAD 就带 28 个 ruff 错（用 `git show HEAD:<path> | ruff --stdin-filename` 证其先于本号存在），本号只保证自己的文件 `All checks passed!`。④ 兄弟门 `test_listen_port_knobs_bind_the_scrape_roster.py` 的一条红是并发车道落 `storage/invoice_cron.py` 后 `_KNOB_SITES` 没跟上，与本号无关，已列为下一号。⑤ D08 的 47 名是对工作树的快照：外来未提交代码可以让它增减，所以两条红话分别说"账里有个名字树不再读"和"树读到账外"，而不是同一句"集合不等"。
 
 **下一号队列。** #258 `_KNOB_SITES` 补 `storage/invoice_cron.py`（现为 HEAD 红，非本号造成）；#259 #235 门文件的 28 个 ruff 错（HEAD 即红，CI lint 腿）；#260 `GITHUB_APP_PRIVATE_KEY_FILE` 的载体（`integrations/github_checks.py` 对它按真值判断，可安全空透传，目前只有注释行）。
+
+## #258 `specproof eval` 的场景 ref 前置校验（`_ref_problems`/`_ensure_scenario_refs`）补栅栏测试：#243 的契约被钉死
+
+**起点（#243 落地但核心函数零单测）。** #243 把"场景 ref 前置校验"做了出来：缺 ref 从"跑一半才报错"变成"起跑前指名报错"。但 `_ref_problems` 与 `_ensure_scenario_refs`（`eval.py:184` / `:225`）这两个承载契约的函数**没有任何直接单测**——"什么算 problem、无 `spec.md` 的案例是否被跳过、非 git 仓库是否静默返回、缺 ref 是否抛 `ClickException`"只停在读码描述层面，回归时可能无声漂移成"又变回跑一半才报"。
+
+**改动（只新增测试，零生产码）。** 新建 `tests/unit/test_eval_scenario_ref_preflight.py`（8 案，行为级、非 mock）：
+- `_ref_problems`：`base`/`head-v1` 都能解析 → `[]`；某 ref 解析不到 → 问题行含**案例名 + key + ref**；无 `spec.md` 的案例被跳过（即便 `scenario.json` 写了坏 ref 也不报）；损坏的 `scenario.json` 不算 ref 问题（fallback 到默认 `base`/`head-v1` 且能解析 → `[]`）；无 `scenario.json` 用默认 refs 且能解析 → `[]`。
+- `_ensure_scenario_refs`：`--repo` 不是 git 仓库 → 静默返回不抛；所有 ref 能解析 → 不抛；有 ref 解析不到 → 抛 `click.ClickException` 且消息含案例名与 ref。
+
+**门证（实测）。**
+- 直接模块调用（绕过本环境 pytest 收尾 safe-delete 护栏）→ **8 PASSED / ALL PASS**。
+- `ruff check tests/unit/test_eval_scenario_ref_preflight.py` → **All checks passed**（初版多一个未用 `import importlib`，已删）。
+- 本批次**未改动** `eval.py`（保持 #256 后该文件 0 错）。
+
+**诚实边界。**
+① 只加测试，不改生产码，不新增任何 ref 解析语义——与 #243 同纪律（只钉契约）。
+② 测试用**真实临时 git 仓库**（`base`/`head-v1` 分支）跑 `rev-parse --verify`，是行为级而非 mock；临时目录刻意**不删**（避开本环境 safe-delete 全局护栏在清理时的卡顿）。
+③ 本地领先 origin/master 155+ 提交，本批只提交不 push；提交走路径形式，未碰别车道在途改动（`sandbox/runner.py`、`evidence/acceptance.py`、`experiments/adapters.py` 等仍为 M）。
+
+**下一号队列（接 #256/#255）。**
+- **#259 及以后**（原 #254 队列）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数——但本环境 60+ 分钟全量门会被回收，须拆到多会话或长窗口后台，且池快照已就位可避免被误读成 CI 4 例跑。
