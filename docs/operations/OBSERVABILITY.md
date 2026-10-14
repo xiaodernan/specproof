@@ -55,7 +55,7 @@ PROMETHEUS_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边�
 发布端口: 容器内监听端口不变, Prometheus 走服务名 DNS 抓取也就跟着不变, 只有
 §3 的 http://localhost:9090 与 Grafana 3000 要按新值访问。冲突时改左边值即可。
 
-另有三处不属于这种, 照上面那句做会改错:
+另有四处不属于这种, 照上面那句做会改错:
 
   - WORKER_METRICS_PORT (agent/worker.py, 代码默认 9100): compose 未设这个键,
     .env 改得动。它移的是 worker 进程自己的监听端口, 而 roster 写死抓
@@ -70,6 +70,12 @@ PROMETHEUS_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边�
     字面量是 http://localhost:4318/v1/traces。覆盖 OTEL_OTLP_HTTP_PORT 后宿主机
     上不再有人在 4318 监听, 这个字面值就指不到 collector, 要同时设
     OTEL_EXPORTER_OTLP_ENDPOINT (容器内跑 api 本来也要设成服务名地址, 见 §1)。
+  - INVOICE_CRON_METRICS_PORT (storage/invoice_cron.py, 代码默认 9103): compose
+    未设这个键, 所以 .env 改得动; 但月账单进程尚无部署入口 — compose、两个
+    Dockerfile、本机启动脚本与 CI workflow 都不起它, 改端口改的是一个没有进程
+    绑定的数。同时 infra/prometheus/prometheus.yml 的名册没有作业抓 9103, 于是
+    specproof_invoice_cron_* 那一族序列即使进程跑起来也从不会被读; 要读到它,
+    同一次改动里既要把进程起起来, 也要在那份名册加一行 targets。
 
 本次实测主机上这些端口全部空闲, 未发生冲突, 使用默认端口 (实测记录见 §7)。
 

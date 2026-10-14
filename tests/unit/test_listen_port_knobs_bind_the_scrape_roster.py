@@ -67,6 +67,25 @@ Case map (used by .scratch/arm232-port-arms.py):
   L13 image-default jobs: declared image string == compose, no flag overrides it
   L14 #220's roster parse and this gate's agree on the population and on which
       jobs our code serves
+  L15 a listener the roster scrapes for NOBODY: its port collides with no job,
+      no deploy file starts its module (over a population whose two armed
+      controls prove the scan reads), the exemption is declared in both
+      directions, and §2's bullet for it carries the code's own default, the
+      roster file, the movability its compose state earns and both gap phrases
+  L16 an ops/architecture doc that promises 「独立进程 python -m <module>」 either
+      shows a deploy carrier for that module in the same line or says out loud
+      that nothing arms it — so a parity claim like 「部署形式同 outbox-relay」
+      is graded against the carrier census and cannot be inherited silently
+
+#268 grew L15/L16 because the census behind this unit's queued line
+(``_KNOB_SITES`` was missing a third listener) is itself a measurement, and
+measuring it found two more things. ``storage/invoice_cron.py`` binds
+INVOICE_CRON_METRICS_PORT (code default 9103) through ``self.metrics_port``, a
+shape the old resolver could not read at all — the site was invisible twice over.
+And once it was readable: 9103 sits in no scrape job, and no compose file,
+Dockerfile, host script or CI workflow names ``storage.invoice_cron`` anywhere,
+while RUNBOOK.md and DRILLS.md both asserted its 「部署形式同 outbox-relay」 —
+outbox-relay being armed by compose.production.yml:183 and start_local.ps1:300.
 """
 
 from __future__ import annotations
@@ -99,10 +118,19 @@ _LISTEN_PORT_KNOBS = {
     "OUTBOX_RELAY_METRICS_PORT": "outbox-relay",
 }
 
+#: env name -> (declaring file, dotted module a deploy file would name) for a
+#: metrics server this repo builds but the roster scrapes for nobody. L15 keeps
+#: the exemption honest in both directions: it re-reads the deploy census and the
+#: roster, and either fact changing means the entry leaves this table and joins
+#: ``_LISTEN_PORT_KNOBS`` with its job, evidence class and path source.
+_UNROSTERED_LISTENERS: dict[str, tuple[str, str]] = {
+    "INVOICE_CRON_METRICS_PORT": ("storage/invoice_cron.py", "storage.invoice_cron"),
+}
+
 #: Files allowed to start a metrics HTTP server. L2 re-derives this from a
 #: repo-wide call-site census, so a third process must be declared here — with
 #: its knob, its bullet in §2 and its evidence class — before it can pass.
-_KNOB_SITES = ("agent/worker.py", "storage/outbox_relay.py")
+_KNOB_SITES = ("agent/worker.py", "storage/outbox_relay.py", "storage/invoice_cron.py")
 
 #: The module that DEFINES serve_metrics_in_thread. L2's census must SEE this
 #: file and must never list it as a listener: separating a definition from a
@@ -161,6 +189,30 @@ _IMAGE_DEFAULTS: dict[str, dict[str, Any]] = {
 _MOVABLE_MARKER = "改得动"
 _PINNED_MARKER = "改不动"
 _ROSTER_FILE = "infra/prometheus/prometheus.yml"
+
+#: L15/L16's two gap phrases, spelled once here and required verbatim in the
+#: doc. A bullet or a doc line that hedges — 「可能没起」「属部署侧事项」 — says
+#: nothing a reader can act on, and reds.
+_UNARMED_PHRASE = "尚无部署入口"
+_UNSCRAPED_PHRASE = "名册没有作业"
+
+#: Tracked files that could start a process. Written as a pattern over git's own
+#: listing, not as a fixed list, so a new Dockerfile or a new host script joins
+#: the census by itself; bench/, artifacts/ and demo/ are other people's
+#: repositories (evaluation fixtures and the Java demo) and cannot arm our code.
+_DEPLOY_POP_RE = re.compile(
+    r"^(compose[^/]*\.yml|docker/Dockerfile[^/]*|scripts/[^/]+\.(sh|ps1)|"
+    r"[^/]+\.(sh|ps1)|Makefile|\.github/workflows/[^/]+\.yml)$"
+)
+_NOT_OURS_RE = re.compile(r"^(bench/|artifacts/|demo/|tests/)")
+
+#: docs that make operator-facing promises. The optimization ledger is excluded
+#: because it is an append-only record of what was true when each section was
+#: written — grading it would force history rewrites — and that exclusion is
+#: guarded below by requiring the excluded file really is the ledger.
+_LEDGER_MD = "docs/operations/DEEP_OPTIMIZATION_PLAN.md"
+_DOC_GLOBS = ("docs/operations", "docs/architecture")
+_PROCESS_CLAIM_RE = re.compile(r"独立进程[^。\n]{0,60}?python -m ([a-z0-9_.]+)")
 
 _CN_NUMBERS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7}
 
@@ -299,6 +351,48 @@ def _publish_knobs() -> dict[str, str]:
     return out
 
 
+# ───────────────────────────────────────── deploy ─────────────────────────────────────────
+def _deploy_files() -> list[str]:
+    """Tracked files that could start one of our processes.
+
+    A pattern over ``git ls-files`` rather than a fixed tuple: a new Dockerfile or
+    host script joins the census by itself. Floored because L15's headline is a
+    「0 hits」 claim — an empty population would make every module unarmed.
+    """
+    listing = subprocess.run(
+        ["git", "ls-files"],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+        timeout=180,
+    ).stdout.decode("utf-8")
+    files = [
+        rel
+        for rel in listing.splitlines()
+        if rel and _DEPLOY_POP_RE.match(rel) and not _NOT_OURS_RE.match(rel)
+    ]
+    assert len(files) >= 15, f"deploy census collapsed: {files}"
+    gone = [rel for rel in files if not (ROOT / rel).is_file()]
+    assert not gone, f"git lists these but they are not on disk: {gone}"
+    return files
+
+
+def _module_carriers(module: str) -> list[str]:
+    """``file:line`` rows of the deploy census that start ``module``.
+
+    Substring match on purpose: the carriers spell the same entry point three
+    different ways — ``CMD ["python", "-m", "agent.worker"]`` in a Dockerfile,
+    ``-Arguments @("-m", "agent.worker")`` in a host script, and a list-form
+    ``command:`` in compose. A word-boundary regex would have to know each.
+    """
+    rows: list[str] = []
+    for rel in _deploy_files():
+        for n, line in enumerate(_lf(rel).splitlines(), 1):
+            if module in line:
+                rows.append(f"{rel}:{n}")
+    return rows
+
+
 # ────────────────────────────────────────── code ──────────────────────────────────────────
 def _call_name(node: ast.Call) -> str | None:
     """The bare callee of a call: ``f(...)`` or ``mod.f(...)``."""
@@ -389,14 +483,148 @@ def _metrics_scan() -> dict[str, dict[str, Any]]:
     return out
 
 
+def _module_int_constants(tree: ast.Module) -> dict[str, int]:
+    """Module-level ``NAME = <int literal>`` bindings, for default resolution."""
+    out: dict[str, int] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if (
+            isinstance(target, ast.Name)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, int)
+        ):
+            out[target.id] = node.value.value
+    return out
+
+
+def _env_pair(read: ast.expr, consts: dict[str, int], where: str) -> tuple[str, int]:
+    """``os.getenv(NAME, DEFAULT)`` as (env name, literal default).
+
+    The default is accepted as a string literal (``"9100"``) or as
+    ``str(MODULE_CONST)`` — the shape ``storage/invoice_cron.py`` ships — and a
+    constant reference resolves to that module's own literal, so the number this
+    gate compares is the number the process binds rather than a copy of it.
+    """
+    assert isinstance(read, ast.Call) and _call_name(read) == "getenv", (
+        f"{where}: expected os.getenv(NAME, DEFAULT), found {_describe(read)} — "
+        f"the listen port stopped being an env knob"
+    )
+    assert len(read.args) == 2 and not read.keywords, (
+        f"{where}: getenv needs exactly (name, default), got "
+        f"{[_describe(a) for a in read.args]} plus keywords "
+        f"{[kw.arg for kw in read.keywords]}"
+    )
+    name = read.args[0]
+    assert isinstance(name, ast.Constant) and isinstance(name.value, str), (
+        f"{where}: the env NAME is {_describe(name)}, not a string literal — a "
+        f"computed name is a knob no operator can put in .env"
+    )
+    default = read.args[1]
+    text: str | None = None
+    if isinstance(default, ast.Constant) and isinstance(default.value, str):
+        text = default.value
+    elif isinstance(default, ast.Call) and _call_name(default) == "str" and len(default.args) == 1:
+        inner = default.args[0]
+        assert isinstance(inner, ast.Name) and inner.id in consts, (
+            f"{where}: getenv's default is str({_describe(inner)}) and "
+            f"{getattr(inner, 'id', '?')!r} is not a module-level int literal — "
+            f"the port the process binds has no readable number behind it"
+        )
+        text = str(consts[inner.id])
+    assert text is not None and text.isdigit(), (
+        f"{where}: the default reads {text!r}, not a port number — L3 and L7 "
+        f"compare it against the roster and the doc, so it must stay literal"
+    )
+    return str(name.value), int(text)
+
+
+def _port_env_pair(expr: ast.expr, tree: ast.Module, where: str) -> tuple[str, int]:
+    """Resolve a ``port=`` expression to (env name, literal default).
+
+    Shape A — ``int(os.getenv(NAME, "9100"))``, what agent/worker.py and
+    storage/outbox_relay.py do.
+    Shape B — an attribute the same class assigned once from
+    ``int(<param> if <param> is not None else os.getenv(NAME, str(CONST)))``,
+    what storage/invoice_cron.py does. Shape B is the one this gate used to be
+    blind to: the census saw the file and reported its port expression as
+    ``other``, which is how a third listener hid in a gate whose whole job is
+    counting listeners. The ctor parameter must be the same name in the guard
+    and in the taken branch, so a class that reads the env unconditionally (or
+    ignores its injected port) does not pass.
+    """
+    consts = _module_int_constants(tree)
+    unwrapped = _unwrap_int(expr)
+    if isinstance(unwrapped, ast.Call):
+        return _env_pair(unwrapped, consts, where)
+    candidate = expr if unwrapped is None else unwrapped
+    assert isinstance(candidate, ast.Attribute), (
+        f"{where}: port= is {_describe(expr)}, expected either "
+        f"int(os.getenv(NAME, DEFAULT)) or self.<attr> assigned from "
+        f"int(<param> if <param> is not None else os.getenv(NAME, DEFAULT)) — an "
+        f"unwrapped os.getenv(...) is a string, not a port this census can read"
+    )
+    attr = candidate.attr
+    assigns = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(t, ast.Attribute)
+            and t.attr == attr
+            and isinstance(t.value, ast.Name)
+            and t.value.id == "self"
+            for t in node.targets
+        )
+    ]
+    assert len(assigns) == 1, (
+        f"{where}: self.{attr} is assigned {len(assigns)} times in this "
+        f"file — the gate needs exactly one declaration to read the port from"
+    )
+    inner = _unwrap_int(assigns[0].value)
+    assert inner is not None and isinstance(inner, ast.IfExp), (
+        f"{where}: self.{attr} = {_describe(assigns[0].value)}, not "
+        f"int(<param> if <param> is not None else os.getenv(NAME, DEFAULT))"
+    )
+    guard = inner.test
+    assert (
+        isinstance(guard, ast.Compare)
+        and len(guard.ops) == 1
+        and isinstance(guard.ops[0], ast.IsNot)
+        and isinstance(guard.comparators[0], ast.Constant)
+        and guard.comparators[0].value is None
+        and isinstance(guard.left, ast.Name)
+        and isinstance(inner.body, ast.Name)
+        and inner.body.id == guard.left.id
+    ), (
+        f"{where}: the guard reads {_describe(guard)} and the taken branch "
+        f"{_describe(inner.body)} — an injected port must win over the env, "
+        f"under the same parameter name, or the env is not the knob it claims"
+    )
+    return _env_pair(inner.orelse, consts, f"{where} (self.{attr})")
+
+
+def _unwrap_int(node: ast.expr) -> ast.expr | None:
+    """``int(x)`` -> ``x``; anything else -> None (the caller says what it saw)."""
+    if (
+        isinstance(node, ast.Call)
+        and _call_name(node) == "int"
+        and len(node.args) == 1
+        and not node.keywords
+    ):
+        return node.args[0]
+    return None
+
+
 def _knob_defaults() -> dict[str, tuple[str, int]]:
     """env name -> (declaring file, literal default) for metrics-server calls.
 
-    Each declared site must contain exactly one call whose ``port=`` is
-    ``int(os.getenv(NAME, DEFAULT))`` with two literals: the env name and the
-    default are the two things a port knob moves, so a comment, a log line or a
-    differently-wrapped expression cannot satisfy the census — and the failure
-    message names the shape it actually found.
+    Each declared site must contain exactly one call whose ``port=`` resolves to
+    an env read with a literal default (see ``_port_env_pair`` for the two
+    accepted shapes): the env name and the default are the two things a port knob
+    moves, so a comment, a log line or a differently-wrapped expression cannot
+    satisfy the census — and the failure message names the shape it found.
     """
     out: dict[str, tuple[str, int]] = {}
     for rel in _KNOB_SITES:
@@ -410,28 +638,10 @@ def _knob_defaults() -> dict[str, tuple[str, int]]:
                 f"{rel}:{node.lineno}: serve_metrics_in_thread call needs one "
                 f"port= keyword, got keywords {[kw.arg for kw in node.keywords]}"
             )
-            wrapper = ports[0]
-            assert isinstance(wrapper, ast.Call) and _call_name(wrapper) == "int", (
-                f"{rel}:{node.lineno}: port= is {_describe(wrapper)}, not "
-                f"int(os.getenv(NAME, DEFAULT)) — the listen port stopped being "
-                f"an env knob"
+            name, default = _port_env_pair(
+                ports[0], tree, f"{rel}:{node.lineno}: port={_describe(ports[0])}"
             )
-            assert len(wrapper.args) == 1, (
-                f"{rel}:{node.lineno}: int() wraps "
-                f"{[_describe(a) for a in wrapper.args]}, expected one argument"
-            )
-            read = wrapper.args[0]
-            assert isinstance(read, ast.Call) and _call_name(read) == "getenv", (
-                f"{rel}:{node.lineno}: int() wraps {_describe(read)}, not "
-                f"os.getenv(...) — the env name and default have to be literal"
-            )
-            assert len(read.args) == 2 and all(
-                isinstance(a, ast.Constant) for a in read.args
-            ), (
-                f"{rel}:{node.lineno}: getenv needs two literals (name, default), "
-                f"got {[_describe(a) for a in read.args]}"
-            )
-            found.append((str(read.args[0].value), int(str(read.args[1].value))))
+            found.append((name, default))
         assert len(found) == 1, f"{rel}: expected one env-driven metrics call, got {found}"
         out[found[0][0]] = (rel, found[0][1])
     assert out, "_KNOB_SITES declare no metrics server at all"
@@ -523,6 +733,79 @@ def _otel_endpoints() -> dict[str, str]:
 
 
 # ────────────────────────────────────────── docs ──────────────────────────────────────────
+def _compose_knob_state(knob: str) -> tuple[str, str]:
+    """(state, value) for ``knob`` across EVERY service in the compose files.
+
+    L15 needs the movability of a knob that serves no roster job, so there is no
+    service name to look it up by; this asks the same literal-or-templated
+    question over the whole deploy set instead.
+    """
+    seen: list[tuple[str, str, str]] = []
+    for rel in COMPOSE_FILES:
+        services = _yaml(rel).get("services") or {}
+        for name, svc in services.items():
+            for key, value in (svc.get("environment") or {}).items():
+                if str(key) == knob:
+                    seen.append((rel, str(name), str(value)))
+    if not seen:
+        return "absent", ""
+    assert len(seen) == 1, f"{knob} is set in more than one place: {seen}"
+    value = seen[0][2]
+    return ("literal", value) if value.isdigit() else ("templated", value)
+
+
+# ────────────────────────────────────────── docs ──────────────────────────────────────────
+def _doc_files() -> list[str]:
+    """Operator-facing docs whose promises L16 grades, ledger excluded.
+
+    The exclusion needs a guard, not a name: DEEP_OPTIMIZATION_PLAN.md is an
+    append-only record of what was true at writing time, and grading a history
+    entry would force a rewrite. So the clause asserts the excluded file really
+    is that ledger, and that nothing else in the tree was quietly dropped.
+    """
+    listing = subprocess.run(
+        ["git", "ls-files"],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+        timeout=180,
+    ).stdout.decode("utf-8")
+    docs = [
+        rel
+        for rel in listing.splitlines()
+        if rel.startswith(tuple(f"{g}/" for g in _DOC_GLOBS)) and rel.endswith(".md")
+    ]
+    assert len(docs) >= 20, f"doc census collapsed: {len(docs)} files"
+    assert _LEDGER_MD in docs, f"{_LEDGER_MD} is no longer tracked — the exclusion hides nothing"
+    headings = len(re.findall(r"^## #\d+", _lf(_LEDGER_MD), re.M))
+    assert headings >= 50, (
+        f"{_LEDGER_MD} carries {headings} '## #NNN' sections, so it is not the "
+        f"optimization ledger this clause exempts — a renamed or replaced ledger "
+        f"must not inherit the exemption"
+    )
+    return [rel for rel in docs if rel != _LEDGER_MD]
+
+
+def _process_claims() -> list[dict[str, str]]:
+    """Doc lines promising an independent process: ``独立进程 … python -m <module>``.
+
+    Keyed on the claim's own wording rather than on the module, because the same
+    ``python -m`` spelling legitimately documents a host CLI (``api.identity.cli``)
+    that no deployment is supposed to start. #88's rule, inherited here: a claim
+    only counts when the doc states it in a form a machine can match.
+    """
+    out: list[dict[str, str]] = []
+    for rel in _doc_files():
+        for n, line in enumerate(_lf(rel).splitlines(), 1):
+            match = _PROCESS_CLAIM_RE.search(line)
+            if match:
+                out.append(
+                    {"file": rel, "line": str(n), "module": match.group(1), "text": line}
+                )
+    assert len(out) >= 3, f"process-claim census collapsed: {len(out)} rows"
+    return out
+
+
 def _section(start: str, stop: str) -> str:
     body = _lf(OBS_MD)
     assert start in body and stop in body, f"missing section markers {start!r}/{stop!r}"
@@ -664,9 +947,17 @@ def test_the_listen_port_knobs_are_exactly_what_the_code_reads() -> None:
                 f"tests/** exclusion is false and this file needs declaring"
             )
     derived = set(_knob_defaults())
-    assert derived == set(_LISTEN_PORT_KNOBS), (
-        f"the code reads {sorted(derived)} as listen-port knobs but the table "
-        f"declares {sorted(_LISTEN_PORT_KNOBS)}"
+    declared = set(_LISTEN_PORT_KNOBS) | set(_UNROSTERED_LISTENERS)
+    assert derived == declared, (
+        f"the code reads {sorted(derived)} as listen-port knobs but the tables "
+        f"declare {sorted(declared)} (rostered {sorted(_LISTEN_PORT_KNOBS)}, "
+        f"unrostered {sorted(_UNROSTERED_LISTENERS)})"
+    )
+    overlap = set(_LISTEN_PORT_KNOBS) & set(_UNROSTERED_LISTENERS)
+    assert not overlap, (
+        f"{sorted(overlap)} is declared both as a knob a roster job reads and as "
+        f"one nobody scrapes — L15's exemption only means something if a name "
+        f"lives in exactly one table"
     )
 
 
@@ -718,13 +1009,14 @@ def test_observability_doc_environment_inventory_partitions_the_knobs() -> None:
     named = _doc_envs()
     publish = set(_publish_knobs())
     listen = set(_LISTEN_PORT_KNOBS)
+    unrostered = set(_UNROSTERED_LISTENERS)
     client = {_client_endpoint()[0]}
-    known = publish | listen | client
+    known = publish | listen | unrostered | client
     assert named == known, (
         f"§2 names {sorted(named - known)} that no deploy file or default "
         f"declares, and never names {sorted(known - named)} "
-        f"(publish: {sorted(publish)}; listen: {sorted(listen)}; client: "
-        f"{sorted(client)})"
+        f"(publish: {sorted(publish)}; listen: {sorted(listen)}; unrostered: "
+        f"{sorted(unrostered)}; client: {sorted(client)})"
     )
 
 
@@ -994,3 +1286,162 @@ def test_the_roster_gate_and_this_gate_read_one_population() -> None:
         f"sources are {sorted(served)} — one of the two is certifying a family "
         f"nobody publishes"
     )
+
+
+# ────────────────────────────────────────── L15 ──────────────────────────────────────────
+def test_an_unrostered_listener_earns_its_exemption_and_discloses_it() -> None:
+    """The census that found this unit says what it did NOT find, in numbers.
+
+    ``storage/invoice_cron.py`` binds a metrics port, so it had to be declared —
+    but declaring it in ``_LISTEN_PORT_KNOBS`` would have been the lie, because
+    that table means "a roster job reads this port". The honest slot is this one,
+    and L15 keeps it honest from both sides:
+
+    * the exemption must still be true — no job scrapes the port, and no deploy
+      file starts the module. Either fact flipping means the entry leaves this
+      table and the knob joins the rostered ones with its job and evidence;
+    * the gap must be readable — §2 carries one bullet per entry, quoting the
+      code's own default, the roster file to edit, the movability compose's own
+      state earns, and both gap phrases;
+    * the scan must still be able to say 「0 hits」 — the two rostered listeners
+      are re-read from the same deploy population as controls, so an empty result
+      for the third module is evidence, not a census that lost its population.
+    """
+    jobs = _roster()
+    roster_ports = {info["port"] for info in jobs.values()}
+    defaults = _knob_defaults()
+
+    for knob, job in sorted(_LISTEN_PORT_KNOBS.items()):
+        site = defaults[knob][0]
+        module = site.removesuffix(".py").replace("/", ".")
+        rows = _module_carriers(module)
+        assert rows, (
+            f"{job}'s own process is now started by nothing: no compose file, "
+            f"Dockerfile, host script or CI workflow names {module}, yet the "
+            f"roster scrapes {jobs[job]['target']} — the armed control this "
+            f"clause depends on went unarmed"
+        )
+
+    for knob, (site, module) in sorted(_UNROSTERED_LISTENERS.items()):
+        assert site in _KNOB_SITES, (
+            f"{knob}'s exemption names {site} as its listener, but that file is "
+            f"not in _KNOB_SITES, so L2's census never reads it"
+        )
+        assert knob in defaults, (
+            f"the exemption declares {knob} read at {site}, but the AST census "
+            f"finds no env-driven metrics call there any more"
+        )
+        rel, default = defaults[knob]
+        assert rel == site, f"{knob} is now read at {rel}, the table says {site}"
+        carriers = _module_carriers(module)
+        assert not carriers, (
+            f"{knob}'s exemption says nothing starts {module}, but the deploy "
+            f"census now reads {carriers}: the process is armed, so its metrics "
+            f"port needs a real scrape job — move the knob into "
+            f"_LISTEN_PORT_KNOBS with its job, evidence class and path source"
+        )
+        assert default not in roster_ports, (
+            f"{site} binds {default} and the roster already scrapes that port "
+            f"({sorted(roster_ports)}): two listeners claim one socket, so "
+            f"whichever the container wins, one job reads the other's metrics"
+        )
+        scraped = [job for job, info in jobs.items() if info["port"] == default]
+        assert not scraped, (
+            f"{knob} is now scraped by {scraped} — the unrostered exemption is "
+            f"stale; declare the job in _LISTEN_PORT_KNOBS instead"
+        )
+
+        hits = [b for b in _sec2_bullets() if knob in b]
+        assert len(hits) == 1, (
+            f"§2 must carry exactly one bullet naming {knob}, found {len(hits)}"
+        )
+        bullet = hits[0]
+        assert _ROSTER_FILE in bullet, (
+            f"{knob}'s metrics are read only once a job exists: the bullet must "
+            f"name {_ROSTER_FILE} as the file to change"
+        )
+        assert _UNARMED_PHRASE in bullet, (
+            f"{knob}'s bullet must state that {_UNARMED_PHRASE} — a knob nobody "
+            f"can set is not a knob, and an operator tuning it would be editing "
+            f"a port no process binds"
+        )
+        assert _UNSCRAPED_PHRASE in bullet, (
+            f"{knob}'s bullet must state that {_UNSCRAPED_PHRASE} for port "
+            f"{default}, or the reader cannot tell a live endpoint from an "
+            f"unread one"
+        )
+        quoted = re.search(r"代码默认 (\d{2,5})", bullet)
+        assert quoted is not None, (
+            f"{knob}'s bullet quotes no 代码默认, so the number it warns about "
+            f"cannot be compared against {site}'s own literal"
+        )
+        assert int(quoted.group(1)) == default, (
+            f"{knob}'s bullet says 代码默认 {quoted.group(1)} while {site} now "
+            f"binds {default} — the doc and the code stopped saying one number"
+        )
+        state, _value = _compose_knob_state(knob)
+        assert state != "templated", (
+            f"{site} now takes {knob} from a templated compose value ({_value!r}): "
+            f"an operator's .env would move an unscraped port, and the bullet's "
+            f"whole framing (edit the roster) stops being the fix"
+        )
+        want, forbid = (
+            (_MOVABLE_MARKER, _PINNED_MARKER)
+            if state == "absent"
+            else (_PINNED_MARKER, _MOVABLE_MARKER)
+        )
+        assert want in bullet, (
+            f"compose sets no {knob} ({state}), so a host run of {module} does "
+            f"answer {want} — the bullet has to say it"
+        )
+        assert forbid not in bullet, (
+            f"{knob}'s bullet says {forbid!r} while compose says otherwise "
+            f"(state {state!r})"
+        )
+
+
+# ────────────────────────────────────────── L16 ──────────────────────────────────────────
+def test_a_promised_independent_process_shows_its_carrier_or_says_it_has_none() -> None:
+    """「独立进程 python -m X」 is a deployment promise, and for X =
+    ``storage.invoice_cron`` the plane had nothing: RUNBOOK.md and DRILLS.md both
+    wrote 「部署形式同 outbox-relay」, outbox-relay being armed by
+    compose.production.yml's ``command:`` and by start_local.ps1 — the parity was
+    with a shape X does not have.
+
+    The rule is disjunctive on purpose, so it grades docs without inventing
+    obligations: a claim is fine if a deploy file really starts the module, and
+    fine if the doc says in the same breath that nothing does. What is not fine
+    is the third state — a confident sentence about a process no entry point
+    arms, disclosed nowhere.
+    """
+    claims = _process_claims()
+    disclosed: list[str] = []
+    carried: list[str] = []
+    for claim in claims:
+        module = claim["module"]
+        if _module_carriers(module):
+            carried.append(f"{claim['file']}:{claim['line']}")
+            continue
+        assert _UNARMED_PHRASE in claim["text"], (
+            f"{claim['file']}:{claim['line']} promises 独立进程 python -m {module} "
+            f"and no deploy file starts it — either add the entry point, or say "
+            f"{_UNARMED_PHRASE} in the same sentence so the reader knows the "
+            f"process is not shipped"
+        )
+        disclosed.append(f"{claim['file']}:{claim['line']}")
+    assert carried or disclosed, (
+        "the census walked every graded doc but found neither a carried nor a "
+        "disclosed claim — it read an empty population"
+    )
+    for knob, (_site, module) in sorted(_UNROSTERED_LISTENERS.items()):
+        rows = [
+            c for c in claims if c["module"] == module and _UNARMED_PHRASE in c["text"]
+        ]
+        assert rows, (
+            f"L15 exempts {knob} because nothing arms {module}, but no operator-"
+            f"facing doc now says {_UNARMED_PHRASE} about it — the table's reason "
+            f"has no disclosure behind it, which is how #246's placeholder secret "
+            f"read as configured"
+        )
+    print(f"[#268] process claims: {len(claims)} | carried {len(carried)} "
+          f"| disclosed {len(disclosed)}")

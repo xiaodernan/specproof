@@ -35,7 +35,7 @@
   (TokenBudget entry 固化 job_id 后投影落列) + GET /billing/jobs/{job_id}
   (单作业行+按 metric 汇总, billing:read, 跨租户 404); CSV 导出增 job_id 列;
   (job_id → tokens → 单价) 进 job 详情页的 UI 接线仍待 (W31 工作台扩展);
-- 账单周期任务 (#234 已落成): 月初生成 invoice — `storage/invoice_cron.py` (独立进程 `python -m storage.invoice_cron`), 只给**已关闭的上个月**生成草票 (previous_period_key, 跨年无分支), 按 tenant 循环、ensure_invoice 幂等重入、无订阅跳过并计数、单租户失败隔离; SPECPROOF_BILLING_URL 未设时启动即 no-op; 指标 specproof_invoice_cron_* (INVOICE_CRON_METRICS_PORT, 默认 9103); 状态机 draft→issued→paid 已在存储层 (transition_invoice), 操作入口与网页签发仍待。
+- 账单周期任务 (#234 已落成): 月初生成 invoice — `storage/invoice_cron.py` (独立进程 `python -m storage.invoice_cron`, 但本仓库尚无部署入口起它), 只给**已关闭的上个月**生成草票 (previous_period_key, 跨年无分支), 按 tenant 循环、ensure_invoice 幂等重入、无订阅跳过并计数、单租户失败隔离; SPECPROOF_BILLING_URL 未设时启动即 no-op; 指标 specproof_invoice_cron_* (INVOICE_CRON_METRICS_PORT, 默认 9103); 状态机 draft→issued→paid 已在存储层 (transition_invoice), 操作入口与网页签发仍待。
 
 ## 5. 测试
 

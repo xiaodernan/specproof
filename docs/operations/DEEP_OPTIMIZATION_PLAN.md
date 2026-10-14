@@ -5143,3 +5143,37 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **下一号队列（证据可见性链已闭合；剩余项均受环境/车道约束）。**
 - 前端渲染验证（`apps/web` `JobDetail.tsx`/`api.ts`）——别车道在途，须等让出；证据链最后一环肉眼可见。
 - #254c / 90 例全池（Docker 阻塞）/ #257 队列 Verify 可插拔存储·SSE·Go-Java-Gradle 适配器（碰在途文件须等让出）。
+## #268 第三个监听者读得出来：shape B 的端口、没人起的进程、没人抓的端口
+
+**起点（#257 队列那句只是症状）。** #257 落库时在队列里写了「#258 `_KNOB_SITES` 补 `storage/invoice_cron.py`（现为 HEAD 红，非本号造成）」。先按只读测量走（`.scratch/m258_probe.py`），量出来的不是缺一个文件，而是三个缺陷叠在同一处：
+① 门看得见 `storage/invoice_cron.py`（AST 普查按 `git ls-files` 走），却读不出它的端口——`serve_metrics_in_thread(port=self.metrics_port)` 是「构造器参数与 env 二选一先赋给字段、再把字段传进去」的形状，旧解析器只认 `int(os.getenv(NAME, "9100"))`，于是同一文件被瞒两次：文件在普查里、端口表达式被报成 `other`；
+② 9103 由代码默认绑定，但名册 6 个作业抓的是 [8000, 8889, 9090, 9100, 9101, 15692]，9103 不在其中；改动前实测 `.env.example` 0 处、三个 compose 各 0 处、OBSERVABILITY §2 0 处（`git show HEAD:` 上数），也就是一个「改得动」的端口不在任何人的清点里；
+③ 部署人口扩到 20 个跟踪文件后（同一扫描里的对照：`agent.worker` 2 行载体、`storage.outbox_relay` 2 行载体），`storage.invoice_cron` 实测 0 行，而 RUNBOOK.md:38 与 DRILLS.md:489 都写着「部署形式同 outbox-relay」——把应当怎样部署写成了已经怎样部署；outbox-relay 有 compose.production.yml:183 的 `command:` 与 start_local.ps1:300 两处，它一处也没有。
+
+**改动（载体先修，门再钉，生产代码一行未动）。**
+1. `_port_env_pair` 学 shape B：两种形状都收，默认值经 `_module_int_constants` 从 `DEFAULT_METRICS_PORT = 9103` 这个模块字面量派生而不是抄；构造器参数必须在 guard（`is not None`）与取值分支同名，否则「env 是旋钮」这句不成立。同时把 shape A 收紧——`port=os.getenv(...)`（没 `int()`）是字符串不是端口，直接拒。
+2. 新表 `_UNROSTERED_LISTENERS`（1 条：`INVOICE_CRON_METRICS_PORT` → `storage/invoice_cron.py` / `storage.invoice_cron`），与 `_LISTEN_PORT_KNOBS` 分两个互斥槽：L2 双向派生并断言 overlap 为空，没名册作业的旋钮不能洗成在册。
+3. L15 双面守。豁免必须仍为真：名册没人抓 + 部署没人起，且两个已武装监听者从同一次扫描里作对照，所以「0 hits」是证据而不是空扫；缺口必须可读：§2 一条 bullet 带 代码默认 9103、`infra/prometheus/prometheus.yml`、compose 状态挣来的「改得动」、以及 `尚无部署入口` 与 `名册没有作业` 两个词，缺一红。
+4. L16 守承诺：文档写 `独立进程 … python -m X`，要么同一句里 X 真有部署载体，要么当场说 `尚无部署入口`。规则是析取式的，门不替读者发明义务——`api.identity.cli`、`sandbox.cache_verify` 这类宿主机 CLI 因形状不符不入门。
+5. 载体四处：OBSERVABILITY §2「另有三处」→「四处」并加 bullet；RUNBOOK:38 改写承诺句并记 2026-10-14 实测订正（2026-10-15 复跑仍为 0 载体）；DRILLS:489、BILLING_DESIGN:38 同。9103 仍不进 `.env.example`/compose——进程没有入口，写进清单等于广告一个没人绑的端口。
+
+**门证（实测，一条链 `bash .scratch/run268_legs.sh`）。**
+- 焦点门 16 例 2.48s 全绿；六个同级/声明门（#235 的 env↔compose、#242 的 required-knob、#88 的 RUNBOOK 承诺、#220 的名册↔告警、#208 的指标名册、`test_invoice_cron.py`）52 例 9.53s 全绿。
+- 15 臂全 MATCH，红集先写进 `.scratch/arm268_census.py` 再跑：A1 删 `_KNOB_SITES` 条目 {L2,L15}；A2 9103→9104 {L15}；A3 守卫取反 {L2,L3,L7,L15}；A4 旋钮洗进名册表 {L3,L7,L15}（连 L15 的武装对照一起红）；A5 bullet 与「四处」同删 {L5,L15}；A14 只删 bullet {L5,L6,L15}；A15 只把四改五 {L6}——三条合起来把「名字在册 / 计数相符 / 披露在场」各归各位；A6 换掉「名册没有作业」{L15}；A7 RUNBOOK 退回原句 {L16}；A8 CI 真起该进程 {L15}；A10 部署人口 20→7 触下限 {L15,L16}；A11 文档人口 30→14 触下限 {L16}；A12 摘掉 `int()` {L2,L3,L7,L15}；A13 名册凭空加一个抓 9103 的作业 {L1,L11,L15}；A9 反向控制——给真有载体的 `storage.outbox_relay` 写独立进程承诺——**绿**，证明 branch A 可达、L16 不是恒红门。每臂跑完按字节还原，末行 `tree at rest: True`，`agent/worker.py`、`storage/invoice_cron.py`、`infra/prometheus/prometheus.yml`、`.github/workflows/ci.yml` 四个非文档件对 HEAD 零 diff。
+- 反向控制：把 HEAD 的门字节（14 例、49000 B）落成**未跟踪**副本去跑我的新文档，红集恰为 {L2, L5}——读不出 shape B 的普查、加上没有表承认的 §2 名字；临时件跑完即删，所以它不会进任何按 `git ls-files` 走的普查。
+- `ruff check` 本门文件 All checks passed；全树 29 = 28（`test_env_template_binds_the_compose_knobs.py`，#259 在册）+ 1（`experiments/adapters.py`，别车道未提交）。`mypy .` 4 错全在 `experiments/adapters.py`（同一件未提交文件），本号只动 `tests/`（在 mypy `exclude` 里）与文档，未移动任何非在册读数。
+- 读数由门自身的扫描打印（`.scratch/m268_figures.py` 直接 import 门，不另抄一份正则）：部署人口 20、对照载体 2/2、`storage.invoice_cron` 0；名册 6 作业 6 端口且 9103 不在；三站端口默认 9100 / 9101 / 9103；§2 bullet 4、受评文档 30、进程承诺 3 条（carried 0 / disclosed 3）；本号追加前台账有 101 个 `## #` 节。
+
+**诚实边界。**
+① 只修披露与门，`storage/invoice_cron.py` 对 HEAD 零 diff：9103 今天仍是一个没有进程绑定的端口。门把这句钉成红灯，但没有替它补入口——起进程要改 compose/CI，属部署面，按规矩需批准。
+② L16 只裁「承诺 vs 载体」这一对，不裁反向：将来真给 `storage.invoice_cron` 加了入口，先红的是 L15（要求条目离开豁免表），三处文档里的「尚无部署入口」会随之变成谎；那次改动必须同批改文档，而条目离开表后 L16 的 discloses 腿自然不再要求它。
+③ shape B 的运行时语义（注入端口应压过 env）现在只有门的准入断言守着：实测 `tests/unit/test_invoice_cron.py` 里 `metrics_port` 出现 0 次。行为腿排 #269，别让一个形状只有门在认。
+④ A14/A15 划出 L6 的职责边界：它比的是「句子说的数」与「实际 bullet 数」之差；bullet 存在性归 L15，名字在册归 L5。下号别把 L6 当 bullet 存在门用。
+⑤ 本号只碰 5 个文件（门 + 4 文档）加本台账；别车道未提交的 `apps/web/*`、`evidence/acceptance.py`、`experiments/adapters.py`、`sandbox/runner.py`、`docs/eval/*`、`tests/unit/test_false_positive_ceiling_needs_negatives.py` 一律未动、未进索引。
+⑥ L16 裁的是句式，不是模块。实测 30 份受评文档里 `python -m` 出现 44 次，被判为承诺的只有 3 次（全是 `storage.invoice_cron`，三条都当场披露）；`api.identity.cli` 3 次、`cli.specproof.main` 6 次这类宿主 CLI，以及 `python -m agent.worker` / `storage.outbox_relay` / `api.server` 那些不带「独立进程」的裸运行行都不在裁范围内。今天没有一条裸行替 invoice_cron 说谎，但门不保将来：换一种句式写同样的承诺仍然能过——这是 #88 那条「按措辞裁、不按模块裁」规则的代价，记在这里免得下号把它当全量承诺门。
+
+**下一号队列。**
+- #269 `InvoiceCron(store, metrics_port=9999)` 必须真绑 9999（注入腿 + env 缺省腿两条），别让 shape B 只有门在守。
+- #259 清 `test_env_template_binds_the_compose_knobs.py` 的 28 个 ruff 错——CI 的 lint 腿现在被它占着，报不出别的东西。
+- #260 `GITHUB_APP_PRIVATE_KEY_FILE` 的 `${X:-}` 空透传载体（`integrations/github_checks.py:74` 读真假），把名字从 `_DEFERRED` 13 名变成交付。
+- #254c / 90 例全池（Docker 阻塞）与 #257 队列仍受环境与车道约束。
