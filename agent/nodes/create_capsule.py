@@ -33,6 +33,38 @@ CREATE_CAPSULE_OUTCOMES = frozenset({
 })
 
 
+def _inflight_evidence_md(finding: dict[str, Any]) -> str:
+    """Render a README section for the in-flight evidence run_differential
+    captures (#250/#253/#254), so a capsule reproduction explains *why* the
+    finding stands even when the post-run H2 dump reads DB_CONSISTENT (the
+    scaffold rolled the committed transaction back, or a later ``@BeforeEach``
+    wiped the row). The head-side generated test's head-only DB-state-violation
+    assertion is that captured evidence.
+
+    Capture-only: this renders what was recorded; it changes no verdict. Returns
+    "" when nothing was captured.
+    """
+    parts: list[str] = []
+    detail = str(finding.get("db_state_detail") or "")
+    if detail:
+        parts.append(f"**DB state:** {detail}")
+    dbv = finding.get("db_violation_evidence")
+    if isinstance(dbv, dict) and dbv.get("head_observed"):
+        head_only = " (head-only)" if dbv.get("head_only") else ""
+        parts.append(
+            "**In-flight DB-state violation:** the head-side generated test "
+            f"asserted `{dbv.get('marker', 'DB STATE VIOLATION')}`{head_only} "
+            "at the moment it observed the mutated state — evidence the "
+            "post-run dump cannot see when the effect was rolled back or wiped."
+        )
+    beh = finding.get("behavioral_evidence")
+    if isinstance(beh, dict) and beh.get("captured"):
+        parts.append(f"**Behavioral evidence:** {beh.get('note', '')}")
+    if not parts:
+        return ""
+    return "## In-flight Evidence\n" + "\n\n".join(parts) + "\n\n"
+
+
 def create_capsule_node(state: Phase0State) -> dict[str, Any]:
     """Create Bug Capsule zip files for each confirmed finding.
 
@@ -58,6 +90,8 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
         capsule_dir.mkdir(parents=True, exist_ok=True)
 
         # manifest.json (P0.5: evidence_digest, never "signature")
+        _dbv = finding.get("db_violation_evidence")
+        _beh = finding.get("behavioral_evidence")
         manifest = {
             "finding_id": fid,
             "severity": finding.get("severity"),
@@ -68,6 +102,16 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
             "evidence_digest": finding.get("evidence_digest", ""),
             "db_state_verdict": finding.get("db_state_verdict", ""),
             "blocker_check": finding.get("blocker_check", {}),
+            # #261/#267: surface the in-flight evidence run_differential captures
+            # (#250/#253/#254) in the restatable capsule manifest, so a replay
+            # states *why* the finding stands even when the post-run H2 dump
+            # reads DB_CONSISTENT (the scaffold rolled/wiped the committed row)
+            # — the head-side generated test's head-only DB-state-violation
+            # assertion is the captured evidence. Structured dicts kept verbatim;
+            # a non-dict value becomes {}.
+            "db_state_detail": finding.get("db_state_detail", ""),
+            "db_violation_evidence": dict(_dbv) if isinstance(_dbv, dict) else {},
+            "behavioral_evidence": dict(_beh) if isinstance(_beh, dict) else {},
         }
         # The digest is computed over the CANONICAL serialization of the
         # manifest WITHOUT the digest field (sorted keys, no whitespace) —
@@ -143,6 +187,7 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
             f"**Severity:** {finding.get('severity')}\n"
             f"**Confidence:** {finding.get('confidence')}\n\n"
             f"## Finding\n{finding.get('description', 'No description')}\n\n"
+            f"{_inflight_evidence_md(finding)}"
             f"## Replay\n```bash\ncd {capsule_dir} && bash run.sh\n```\n"
         )
         (capsule_dir / "README.md").write_text(readme, encoding="utf-8")

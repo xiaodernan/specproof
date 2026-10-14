@@ -5122,3 +5122,24 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **下一号队列（接 #261–#266；证据可见性链已全部闭合）。**
 - 前端渲染验证（`apps/web` `JobDetail.tsx`/`api.ts`）——别车道在途，须等让出；这是证据链的最后一环肉眼可见。
 - #254c / 90 例全池（Docker 阻塞）/ #257 队列 Verify 可插拔存储·SSE·Go-Java-Gradle 适配器（碰在途文件须等让出）。
+
+## #267 bug capsule 的 manifest + README 也带 in-flight 证据：「证据在每个证据工件里都可达」的最后一处
+
+**起点（capsule 是复现工件，却看不见"为何判定"）。** #261–#266 让 in-flight 证据进了 court audit/HTML/summary/`/findings`/血缘。但 **bug capsule**（`agent/nodes/create_capsule.py`，可重放复现工件）的 `manifest.json` 只 surfaced `severity`/`confidence`/`db_state_verdict`/`blocker_check`，`README.md` 只有 severity/confidence/description——**都没带** in-flight 证据。（`finding.json` 里存了全量 finding，含证据；但 manifest 是给人/工具的 restatable 摘要。）case-17 那种 capsule（post-run dump 因回滚读 DB_CONSISTENT）看起来像"没变异"，而 head 侧生成测试的 head-only `DB STATE VIOLATION` 断言才是铁证。
+
+**改动（capsule manifest + README 加证据，零 gate 改动）。** `create_capsule.py`：manifest 追 `db_state_detail`+`db_violation_evidence`(dict)+`behavioral_evidence`(dict)（缺/非 dict → `{}`）；新增 `_inflight_evidence_md(finding)` 在 README 生成"In-flight Evidence"小节（仅当有证据才写，绝不臆造）。
+
+**门证（实测）。**
+- 新增 `tests/unit/test_capsule_manifest_carries_inflight_evidence.py`（3 案）：manifest 带三字段（含 `head_only True`+`captured True`）且 `manifest_digest` 仍 `sha256:` 起 / README 含 `DB STATE VIOLATION` + head-only / 无证据时 manifest `""`/`{}` 且 README 不臆造 → **3 PASSED / ALL PASS**。
+- 回归：`test_create_capsule.py`+`test_create_capsule_node...observable`+`test_capsule_replay.py` = **15 PASSED**（manifest 断言只钉 finding_id/digest 前缀，加字段不破）。
+- `ruff check agent/nodes/create_capsule.py` + 新测试 **All checks passed**（两处 E501 长签名已折行）；`mypy agent/nodes/create_capsule.py` → **no issues**。
+
+**诚实边界。**
+① 纯记录：只把已采集的 in-flight 证据写进 manifest/README，不改 verdict/severity/ADR-004；无证据时写空、README 不臆造（capture-only）。
+② manifest 结构性变化：加了 3 键 → `manifest_digest` 对"同一 finding"仍确定性重算（canonical json 排序不变），但**新 capsule 的 digest 值会变**——这是加字段的必然，非回归；无测试钉死旧 digest 值（只验 `sha256:` 前缀）。
+③ 至此 in-flight 证据在 **court audit / HTML 报告 / job summary / `/findings` API / 血缘 DAG / bug capsule** 六处均可读，证据可见性链闭合。
+④ 只碰 `agent/nodes/create_capsule.py` + 新测试 + plan，路径形式提交，未碰别车道在途改动。
+
+**下一号队列（证据可见性链已闭合；剩余项均受环境/车道约束）。**
+- 前端渲染验证（`apps/web` `JobDetail.tsx`/`api.ts`）——别车道在途，须等让出；证据链最后一环肉眼可见。
+- #254c / 90 例全池（Docker 阻塞）/ #257 队列 Verify 可插拔存储·SSE·Go-Java-Gradle 适配器（碰在途文件须等让出）。
