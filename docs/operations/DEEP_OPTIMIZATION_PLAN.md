@@ -4967,3 +4967,26 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 
 **下一号队列（接 #258）。**
 - 继续补 `eval.py` 稳定函数的栅栏测试：`_cleanup_worktrees`（worktree 移除失败时 `suppress(Exception)` 静默）；或回到 #254c（跑 case-17 端到端确认 surefire 文本带 marker）/ 隔离后 90 例全池评测（55 正 / 35 负，够默认 floors 10/5，需后台长跑 + #255 的 pool_snapshot 标注，本环境长跑会被回收，须拆多会话）。
+
+## #260 `specproof eval` 的 `_cleanup_worktrees` 兜底测试：worktree 移除失败绝不崩整轮
+
+**起点（#246 时代遗留的健壮性兜底无单测）。** 差分留下的 git worktree 由 `_cleanup_worktrees`（`eval.py:38`）移除；移除失败（锁定的 worktree、路径已不存在、已被别的步骤清掉）绝不能变成 traceback 把 pipeline 已产出的结果弄丢，故每次 `git worktree remove --force` 都包在 `suppress(Exception)`。这个兜底一直没有单测，回归时可能无声漂回"移除失败→整轮崩溃"。
+
+**改动（只新增测试，零生产码）。** 新建 `tests/unit/test_eval_cleanup_worktrees.py`（3 案，行为级真实 worktree）：
+- 空 `base_workspace`/`head_workspace`（缺键）→ 跳过、根本不碰 git、返回 `None`；
+- 不存在的 ws 路径 → `git worktree remove` 失败，`suppress` 吞掉、**绝不抛**；
+- 真实 worktree → 被 `--force` 移除（工作目录消失）。
+
+**门证（实测）。**
+- 直接模块调用（绕过 pytest 收尾 safe-delete 护栏）→ **3 PASSED / ALL PASS**。
+- `ruff check` → **All checks passed**。
+- 本批次**未改动** `eval.py`（保持 #256/#258/#259 后该文件 0 错）。
+
+**诚实边界。**
+① 只加测试，不改生产码，不新增任何移除语义——与 #246 同纪律（只钉"失败不崩"兜底）。
+② 临时 git 仓库 / worktree 刻意**不删**（避开本环境 safe-delete 全局护栏卡顿）。
+③ 本地领先 origin/master 159+ 提交，本批只提交不 push；提交走路径形式，未碰别车道在途改动。
+
+**下一号队列（eval.py 稳定纯函数栅栏到此补齐）。**
+- 至此 `eval.py` 的全部稳定纯函数——`_finding_evidence`(#256)、`_load_json`(#259)、`_ref_problems`/`_ensure_scenario_refs`(#258)、`_repo_head_sha`/`_pool_snapshot`(#255)、`_cleanup_worktrees`(#260)——**均已带栅栏测试**。
+- 下一批转向：#254c（跑 case-17 端到端确认 surefire 文本带 marker、Severity agreement 提升）/ 隔离后 90 例全池评测（55 正 / 35 负，够默认 floors 10/5，需后台长跑 + #255 的 `pool_snapshot` 标注，本环境长跑会被回收须拆多会话）/ 或回到 #257 队列的 Verify 可插拔存储、SSE 实时进度、Go·Java-Gradle 适配器（这些碰在途文件，须等别车道让出再动）。
