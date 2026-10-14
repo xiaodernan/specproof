@@ -408,6 +408,8 @@ def build_lineage(
         contract_id = str(finding.get("contract_id") or "")
         node_id = f"finding:{finding_id}"
         digest = _item_digest(finding)
+        _dbv = finding.get("db_violation_evidence")
+        _beh = finding.get("behavioral_evidence")
         meta = {
             "contract_id": contract_id,
             "severity": str(finding.get("severity") or ""),
@@ -417,6 +419,15 @@ def build_lineage(
                 if str(finding.get("evidence_digest") or "")
                 else "computed"
             ),
+            # #261/#266: surface the in-flight evidence run_differential
+            # captures (#250/#253/#254) on the replayable lineage node, so the
+            # archived audit DAG explains *why* a (possibly scaffold-wiped)
+            # verdict was reached — matching the report / job summary. The node
+            # digest above already hashes the full finding, so this is a
+            # readable projection only; it does not affect the root hash.
+            "db_state_detail": str(finding.get("db_state_detail") or ""),
+            "db_violation_evidence": dict(_dbv) if isinstance(_dbv, Mapping) else {},
+            "behavioral_evidence": dict(_beh) if isinstance(_beh, Mapping) else {},
         }
         if not add_node(node_id, "finding", digest, meta):
             continue

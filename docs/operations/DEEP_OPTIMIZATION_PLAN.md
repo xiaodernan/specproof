@@ -5103,3 +5103,22 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **下一号队列（接 #264/#265）。**
 - 前端渲染验证：`apps/web`（`JobDetail.tsx`/`api.ts`）消费 `findings_total`/`errors_total`/`capsules_total` 隐式截断提示 + in-flight 证据（别车道在途，须等让出）。
 - #254c / 90 例全池（Docker 阻塞）/ #257 队列（碰在途文件须等让出）。
+
+## #266 可重放血缘 DAG 的 finding 节点也透出 in-flight 证据：#261→#266「证据在每个证据工件里都可达」闭合
+
+**起点（血缘是最后一个漏 in-flight 证据的证据工件）。** #261 把 `behavioral_evidence`/`db_violation_evidence`/`db_state_detail` 送到了 court audit、HTML 报告、job summary、`/findings` API。但 §18.1 的**可重放血缘 DAG**（`evidence/lineage.py`，被证书签名、被 `verify_lineage` 独立重放）里 finding 节点的 **digest 已含全量 finding**（`_item_digest(finding)`，含证据），可节点给人看的 **meta**（413-419）只存 `severity`/`evidence_type`/`digest_source`——重放血缘 JSON 的人看不到"为何判定 BLOCKER"。血缘是审计的归档工件，应与报告/summary 一致。
+
+**改动（只在 finding 节点 meta 加三字段，零语义/零 root 改动）。** `evidence/lineage.py`：finding 节点 meta 追 `db_state_detail` + `db_violation_evidence`(`dict(_dbv) if isinstance(_,Mapping) else {}`) + `behavioral_evidence`（同）。**关键安全性**：`_root_hash`（lineage.py:480）只吃 `node.id`/`kind`/`digest` 与 edge hash，**不含 meta**；node digest 是 `_item_digest(finding)`（与 meta 无关）→ 加 meta **不改 root hash、不改重放完整性、不加节点/边**。
+
+**门证（实测）。**
+- `tests/unit/test_lineage.py` +2 案：finding 节点 meta 带三字段（含 `head_only True`+`captured True`）且 `verify_lineage` 仍 ok；缺证据时 meta 为 `""`/`{}` → 全文件 **21 PASSED / ALL PASS**。
+- `ruff check evidence/lineage.py tests/unit/test_lineage.py` → **All checks passed**；`mypy evidence/lineage.py` → **no issues**。
+
+**诚实边界。**
+① 纯可读投影：只加 meta，不改 node digest、不改 `_root_hash`、不加节点/边；`test_root_hash_deterministic*`/tamper 21 集过证明重放未动。
+② 与 #262/#261 同链：证据在 court audit/HTML/summary/`/findings`/血缘五处均可读（本号补齐血缘这一处）。
+③ 前端是否画这些字段仍不在本号范围；本号只保证血缘 JSON 里证据可见、可重放。
+
+**下一号队列（接 #261–#266；证据可见性链已全部闭合）。**
+- 前端渲染验证（`apps/web` `JobDetail.tsx`/`api.ts`）——别车道在途，须等让出；这是证据链的最后一环肉眼可见。
+- #254c / 90 例全池（Docker 阻塞）/ #257 队列 Verify 可插拔存储·SSE·Go-Java-Gradle 适配器（碰在途文件须等让出）。

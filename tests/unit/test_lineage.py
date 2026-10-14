@@ -455,3 +455,37 @@ def test_publish_report_node_writes_lineage_and_attaches_to_certificate(tmp_path
     assert result["certificate"]["extension"]["lineage_root"] == result["lineage_root"]
     assert result["certificate"]["extension"]["lineage_nodes"] == result["lineage_nodes"]
     assert result["certificate"]["extension"]["lineage_edges"] == result["lineage_edges"]
+
+
+# #261/#266: the replayable lineage finding node surfaces the in-flight evidence ──
+
+
+def test_finding_node_surfaces_in_flight_evidence():
+    ctx = make_context()
+    ctx["confirmed_findings"][0].update({
+        "db_state_detail": "Head persisted a duplicate email; base did not.",
+        "db_violation_evidence": {"marker": "DB STATE VIOLATION",
+                                  "head_observed": True, "base_observed": False,
+                                  "head_only": True},
+        "behavioral_evidence": {"captured": True,
+                                "note": "Behavioral regression with captured DB mutation."},
+    })
+    dag, root = build_lineage(ctx, built_at=FIXED_TS)
+    # Adding the evidence to meta is a readable projection only — the node
+    # digest hashes the finding and the root hashes digests/edges, so replay
+    # integrity is unaffected.
+    ok, diffs = verify_lineage(dag, root)
+    assert ok and diffs == []
+    node = node_of(dag, "finding:F-1")
+    assert node["meta"]["db_state_detail"] == "Head persisted a duplicate email; base did not."
+    assert node["meta"]["db_violation_evidence"]["head_only"] is True
+    assert node["meta"]["behavioral_evidence"]["captured"] is True
+
+
+def test_finding_node_evidence_defaults_when_absent():
+    dag, root = build_lineage(make_context(), built_at=FIXED_TS)
+    node = node_of(dag, "finding:F-1")
+    assert node["meta"]["db_state_detail"] == ""
+    assert node["meta"]["db_violation_evidence"] == {}
+    assert node["meta"]["behavioral_evidence"] == {}
+    assert verify_lineage(dag, root)[0]
