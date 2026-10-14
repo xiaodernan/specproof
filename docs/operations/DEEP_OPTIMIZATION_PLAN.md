@@ -4857,6 +4857,27 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - **#254b** 设计评审后把 `db_violation_evidence.head_only` 接回 `db_verdict`：post-run `DB_CONSISTENT` 但 head-only 违反 → `DB_MUTATED_ON_UNAUTH`，借现有 BLOCKER 分支自然给 BLOCKER；需先确认 surefire failure 文本在本环境确实携带 `DB STATE VIOLATION`（跑一次 case-17 端到端验证，~11 分钟，Maven 缓存卷已播种）。
 - **#255 及以后**（原 #254）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数。
 
+## #254b in-flight DB 证据接回 verdict：case-17 的 BLOCKER 失配被诚实修掉
+
+**起点（接 #254 capture + #253 定论）。** #253 读码钉死：case-17 的回归把 bob 邮箱**确实**落库（changeEmail @Transactional COMMIT），但生成测试类非事务 + 逐测试 `@BeforeEach deleteAll` 在差分 dump 前把这条变异擦掉，于是 post-run H2 读成 `DB_CONSISTENT`。#254 已把生成测试自己的 `DB STATE VIOLATION` 断言（in-flight 证据）捞回产出（`db_violation_evidence.head_only`）。本号把这个信号**接回 verdict**，让 ADR-004 条件 4 被**真实满足**——不是把 confidence 调到 0.90 硬凑。
+
+**为什么这是诚实修复，不是绕过闸门。** 金标准 `golden-cases/case-17-logic-inversion/ground-truth.json` 明确写 `expected_severity: BLOCKER`。case-17 是**真·数据完整性回归**（重名邮箱被接受并持久化），本就该 BLOCKER。此前 #248/#249 测到的"MAJOR vs 预期 BLOCKER"失配，根因正是证据通道被脚手架擦掉；本号用更可靠的 in-flight 通道补回了"被捕获的 DB 变异证据"，于是现有 BLOCKER 分支（`run_differential.py:539` 当 `db_verdict in (DB_MUTATED_ON_UNAUTH, DB_MUTATED)` 时给 `combined_severity=BLOCKER` / `confidence=0.95`）**自然**命中。`policy.py:361` 的闸门也读产出的 `db_state_verdict`，条件 4 现在真实成立。这把 #248/#249 那条悬着的严重度失配闭环了。
+
+**改动（只加一个纯函数 + 接线，不动其他 verdict 语义）。**
+- `agent/nodes/run_differential.py` 新增纯函数 `_apply_inflight_db_evidence(db_verdict, db_detail, head_only_violation)`：仅当 `db_verdict == "DB_CONSISTENT"` 且 `head_only_violation` 时升为 `DB_MUTATED_ON_UNAUTH`（detail 注明 marker + `@BeforeEach deleteAll` 擦除机制）；`DB_NO_EVIDENCE`（无 dump）**绝不**升（#249 纪律：没 dump 不等于没变异）；已变异 verdict 幂等不动。
+- 在 `_compare_db_state` 之后立刻算 `_base_fail_text`/`_head_fail_text` → `_db_violation_evidence` → `_apply_inflight_db_evidence` 升级 `db_verdict`/`db_detail`（合并路径与拆分路径的 entry 都读这个升级后的 `db_verdict`）。合并路径 entry 原先在此重算的 fail-text 改用已算好的（单源，省一次 `_test_failure_details`）。
+
+**门证（实测）。** 新增 `tests/unit/test_eval_inflight_db_evidence_promotes_verdict.py` **5 案**（CONSISTENT+head_only→升 / CONSISTENT 无 head_only→不动 / 已变异幂等 / NO_EVIDENCE 绝不升 / 不偷塞 severity·confidence）。连同 #249(cap) / #250 / #253 / #254 capture 共 **22 passed**（#249 仍通过，证明本号不破坏"无 in-flight 证据时 DB_CONSISTENT 仍被 cap 成 MAJOR"）。`ruff` 干净；`mypy` 本文件 0 错（4 错全在 `experiments/adapters.py` 别车道在途）。
+
+**诚实边界与剩余风险。**
+① 本号静态确认了生成测试断言文本含 `DB STATE VIOLATION`（generate_counterexamples.py:370/394/420/492/917），故 head 测试失败（回归持久化被其断言拒绝）时 surefire 失败消息必带该 marker，capture 前提成立。但**仍未跑一次 case-17 端到端**真实验证 surefire 文本在 Maven 实际跑里确实携带该 marker（~11 分钟，Maven 缓存卷已播种）——列为待办确认项。
+② 升级范围被钉死在"`DB_CONSISTENT` + 头侧独有违反"：正常合规案例（head_only=False）不升；噪声风险是 head 测试因无关原因失败且消息恰含该 marker，但生成测试只在 DB 不变量断言里发该 marker，误报面窄。
+③ 提交走路径形式，未碰别车道在途改动（`eval.py`/`sandbox/runner.py`/`evidence/acceptance.py`/`experiments/adapters.py` 等仍为 M）；本地领先 origin/master 较多，只提交不 push。
+
+**下一号队列（#254b 已落，余下接续）。**
+- **#254c**（建议）跑一次 case-17 端到端确认 surefire 文本带 marker，并验证本报告链路下 case-17 实测落到 BLOCKER、Severity agreement 从 66.7% 提升。
+- **#255 及以后**（原 #254）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数。
+
 ## #256 `specproof eval` 每份案例记录自带 `finding_evidence`：severity 失配从报告本身即可诊断
 
 **起点（#248/#253 暴露的"读得见 verdict、读不到 why"）。** case-17 真跑评测测得 MAJOR、而 golden 期望 BLOCKER（`#248`/`#253`）。报告确实写了这个差异，但**没写为什么**：每份 per-case 记录把 finding 自身的证据丢掉了，读者无法区分"差分捕获到 DB 一致（即回归效果被回滚/从未落库）"与"差分根本没有拿到 DB dump（采集失败）"——这两者的修复路径完全不同。报告还把差分的 `confidence` 也一起丢了。结论：verdict 看见了，但诊断所需的证据没有随报告走，等于逼读者重跑整条 pipeline 才能知道 why。

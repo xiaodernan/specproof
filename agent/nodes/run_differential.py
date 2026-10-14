@@ -377,6 +377,25 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # ── DB state comparison ──
     db_verdict, db_detail = _compare_db_state(base_snapshot, head_snapshot)
 
+    # In-flight DB-violation signal (#254): the generated test's own DB-invariant
+    # assertion text, captured from the surefire failure details (uncapped,
+    # per-method). Computed once here and reused for the entry field below.
+    # A scaffold-wiped mutation (case-17: the regression commits the duplicate,
+    # then a later @BeforeEach deleteAll wipes it before the dump) reads
+    # DB_CONSISTENT, so promote the verdict to DB_MUTATED_ON_UNAUTH when the head
+    # test observed a violation the base did not - honest captured DB mutation
+    # evidence (ADR-004 condition 4), NOT a confidence bump.
+    _base_fail_text = " | ".join(
+        _test_failure_details(base_app, test_class).values()
+    )
+    _head_fail_text = " | ".join(
+        _test_failure_details(head_app, test_class).values()
+    )
+    _db_violation = _db_violation_evidence(_base_fail_text, _head_fail_text)
+    db_verdict, db_detail = _apply_inflight_db_evidence(
+        db_verdict, db_detail, _db_violation.get("head_only", False)
+    )
+
     test_sha = _sha256_file(Path(generated_tests_path)) if generated_tests_path else ""
 
     # ── P2 both-fail split (go-nogo #3 attribution fix) ──
@@ -590,18 +609,11 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             )
             attributed_contracts.add(attributed_contract)
 
-        # In-flight DB-violation signal (#254): the generated test's own
-        # DB-invariant assertion text, read from the surefire failure details
-        # (uncapped, per-method). The post-run dump can read DB_CONSISTENT even
-        # when the mutation was committed (case-17: a later @BeforeEach
-        # deleteAll wipes it), so this is the in-flight evidence that would
-        # otherwise be lost. Capture-only; it does not feed severity.
-        base_fail_text = " | ".join(
-            _test_failure_details(base_app, test_class).values()
-        )
-        head_fail_text = " | ".join(
-            _test_failure_details(head_app, test_class).values()
-        )
+        # In-flight DB-violation signal (#254): reuse the failure text computed
+        # once above - it already feeds the db_verdict promotion at the top of
+        # this function. The entry field below records the raw observation.
+        base_fail_text = _base_fail_text
+        head_fail_text = _head_fail_text
 
         primary_entries = [{
             # The experiment id is DIFF-01; the CONTRACT it verified is the one
@@ -1456,6 +1468,38 @@ def _db_violation_evidence(
         "base_observed": base_hit,
         "head_only": head_hit and not base_hit,
     }
+
+
+def _apply_inflight_db_evidence(
+    db_verdict: str, db_detail: str, head_only_violation: bool,
+) -> tuple[str, str]:
+    """Promote a scaffold-wiped DB verdict to a captured-mutation verdict.
+
+    #253/#254b: a regression's persisted effect can be wiped by a later
+    ``@BeforeEach deleteAll()`` before the post-run H2 dump is taken (case-17),
+    so the dump reads ``DB_CONSISTENT`` even though the mutation was committed.
+    When the head-side generated test observed a DB-state violation the base
+    side did not (``head_only_violation``), that in-flight assertion IS captured
+    DB mutation evidence - the same category the ADR-004 BLOCKER gate asks for
+    (condition 4). Promote the verdict so BLOCKER can fire honestly instead of
+    being capped at MAJOR.
+
+    Scope is deliberate: only a post-run ``DB_CONSISTENT`` verdict with a
+    head-only in-flight violation is promoted. ``DB_NO_EVIDENCE`` (no dump at
+    all) is never promoted - the absence of a dump is not evidence of no
+    mutation (#249). An already-mutated verdict is left untouched (idempotent).
+    """
+    if db_verdict == "DB_CONSISTENT" and head_only_violation:
+        return (
+            "DB_MUTATED_ON_UNAUTH",
+            f"Post-run H2 dumps are identical, but the head-side generated "
+            f"test observed a DB-state violation the base side did not "
+            f"({_DB_VIOLATION_MARKER}). The regression's persisted effect was "
+            f"wiped by a later test's @BeforeEach deleteAll before the dump "
+            f"was taken; the in-flight assertion is treated as captured DB "
+            f"mutation evidence (ADR-004 condition 4).",
+        )
+    return db_verdict, db_detail
 
 
 def _check_http_diff(base_ws: str, head_ws: str) -> list[dict[str, Any]]:
