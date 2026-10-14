@@ -5062,3 +5062,23 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 **下一号队列（接 #263）。**
 - 前端渲染验证：等 `apps/web/src/pages/JobDetail.tsx` + `api.ts` 别车道让出后，补「`db_violation_evidence`/`behavioral_evidence`/`db_state_detail` 在详情页可见」的测试（这才是 #261→#262→#263 数据链的最后一环肉眼可诊）。
 - #254c（**被 Docker 阻塞**）/ 90 例全池评测（Docker + 长跑回收双阻塞）/ #257 队列（碰在途文件须等让出）。
+
+## #264 job summary 的 findings 截断不再静默：补齐 `findings_total` / `findings_truncated`（对齐 matrix_rows 的"不许假报"）
+
+**起点（`_state_summary` 静默截断 findings）。** `agent/worker.py::_state_summary` 只带最多 `[:20]` 条 findings，但只暴露截断后的 list，**没有 total、没有截断标志**。任何下游（如 dashboard 把 `len(summary["findings"])` 当"findings total"）会把 40 条 BLOCKER 的作业报成只有 20 条——静默少报。这正是 #155（deep 结果不许空 dict 冒充没跑）与 #147（matrix_rows 有 `matrix_rows_truncated`/`matrix_rows_total`）立过的规矩，findings 这条漏了。
+
+**改动（只加诚实投影 + 常量，零语义改动）。** `worker.py`：新增常量 `SUMMARY_FINDINGS_CAP = 20`（对齐 `SUMMARY_MATRIX_ROW_CAP`），把 inline `findings[:20]` 提为 `kept_findings`，summary 加 `findings_total = len(findings)`（真实计数）与 `findings_truncated = findings_total > len(kept_findings)`。这样 summary["findings"] 读作"showing N of M"。
+
+**门证（实测）。**
+- 新增 `tests/unit/test_summary_findings_truncation_honesty.py`（4 案）：>cap → total 真实值 + truncated True / <cap → False / 恰好 cap → False / 空 → 0/False → **4 PASSED / ALL PASS**。
+- 回归：`test_worker_summary_deep_disclosure`(4)+`test_summary_carries_inflight_evidence`(6)+`test_contract_counts`(11)=25 PASSED；`test_web_api.py` 46 PASSED；summary/github_check/agent_console/worker 全 `-k` 集 **182 PASSED**（加键未破任何既有断言）。
+- `ruff check agent/worker.py` + 新测试 **All checks passed**；`mypy agent/worker.py` 本文件 **no issues**（`experiments/adapters.py` 的 4 个既有错是别车道的）。
+
+**诚实边界。**
+① 只加 `findings_total`/`findings_truncated` + 常量，纯投影，不改 severity/ADR-004/任何门。
+② 加键是向后兼容的：没有任何既有测试断言 summary 的**精确键集**（都是 subset/具体键断言），182 集过证明这点。
+③ 前端/consumer 是否已消费新键是另一回事——本号只保证 summary 不再静默截断、把"是否还有更多"这一事实交付出去；消费方（含别车道前端）要不要画"还有 N 条"不在本号范围，不声称。
+
+**下一号队列（接 #263）。**
+- 前端渲染验证：`apps/web`（`JobDetail.tsx`/`api.ts`）渲染 in-flight 证据 + findings 截断提示（别车道在途，须等让出）。
+- #254c / 90 例全池（Docker 阻塞）/ #257 队列（碰在途文件须等让出）。

@@ -1037,6 +1037,13 @@ _SUMMARY_MATRIX_ROW_KEYS: tuple[str, ...] = (
 #: a cap can never under-report totals — see ``matrix_rows_total``.
 SUMMARY_MATRIX_ROW_CAP = 60
 
+#: Findings carried per job in the summary. The authoritative count is reported
+#: separately (``findings_total``) and ``findings_truncated`` says whether the
+#: shown list is the whole set, so a job with 40 confirmed findings can never
+#: present as if it had 20 (the deep-disclosure / matrix_rows "don't
+#: masquerade" rule, #264).
+SUMMARY_FINDINGS_CAP = 20
+
 #: Truncation ceiling for free-text cells inside a persisted matrix row.
 _SUMMARY_TEXT_LIMIT = 400
 
@@ -1141,33 +1148,43 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
         errors=state.get("errors", []),
         release=state.get("release_results"),
     )
+    # #264: the summary shows at most SUMMARY_FINDINGS_CAP findings, so it must
+    # report the true total and whether the list is truncated — a dashboard
+    # that renders len(summary["findings"]) as "findings total" would otherwise
+    # report a job with 40 confirmed findings as having 20.
+    kept_findings = [
+        {
+            "id": f.get("id"),
+            "severity": f.get("severity"),
+            "contract_id": f.get("contract_id"),
+            "confidence": f.get("confidence"),
+            "evidence_type": f.get("evidence_type"),
+            "type": f.get("type", ""),
+            "location": f.get("location", ""),
+            "description": (f.get("description") or "")[:400],
+            # #261/#262: carry the in-flight evidence (#250/#253/#254) into
+            # the persisted summary the API/UI reads, so a possibly
+            # scaffold-wiped verdict is explainable — not only visible in
+            # confirmed_findings / the HTML file the pipeline writes.
+            # Structured dicts stay verbatim; anything non-dict -> {}.
+            "db_state_detail": (f.get("db_state_detail") or "")[:400],
+            "db_violation_evidence": _carry_evidence(f.get("db_violation_evidence")),
+            "behavioral_evidence": _carry_evidence(f.get("behavioral_evidence")),
+        }
+        for f in findings[:SUMMARY_FINDINGS_CAP]
+    ]
+    findings_total = len(findings)
     summary: dict[str, Any] = {
         "verdict": verdict,
         "contracts_total": len(state.get("contracts", [])),
         "matrix_passed": decision.passed,
         "matrix_failed": decision.failed,
         "matrix_unverified": decision.unverified,
-        "findings": [
-            {
-                "id": f.get("id"),
-                "severity": f.get("severity"),
-                "contract_id": f.get("contract_id"),
-                "confidence": f.get("confidence"),
-                "evidence_type": f.get("evidence_type"),
-                "type": f.get("type", ""),
-                "location": f.get("location", ""),
-                "description": (f.get("description") or "")[:400],
-                # #261/#262: carry the in-flight evidence (#250/#253/#254) into
-                # the persisted summary the API/UI reads, so a possibly
-                # scaffold-wiped verdict is explainable — not only visible in
-                # confirmed_findings / the HTML file the pipeline writes.
-                # Structured dicts stay verbatim; anything non-dict -> {}.
-                "db_state_detail": (f.get("db_state_detail") or "")[:400],
-                "db_violation_evidence": _carry_evidence(f.get("db_violation_evidence")),
-                "behavioral_evidence": _carry_evidence(f.get("behavioral_evidence")),
-            }
-            for f in findings[:20]
-        ],
+        "findings": kept_findings,
+        # #264: honest total + truncation flag (the shown list is capped; the
+        # count is not). Together "findings" is "showing N of M".
+        "findings_total": findings_total,
+        "findings_truncated": findings_total > len(kept_findings),
         "capsules": [str(c) for c in state.get("capsules", [])[:10]],
         **_matrix_rows_for_summary(matrix),
         "report_path": state.get("report_path", ""),
