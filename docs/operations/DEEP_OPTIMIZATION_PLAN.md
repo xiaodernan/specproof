@@ -4943,3 +4943,27 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 
 **下一号队列（接 #256/#255）。**
 - **#259 及以后**（原 #254 队列）：Verify 作业可插拔存储 + 进程内执行器/进度通道；实时进度与流式日志（SSE 节点级）；Go/Java-Gradle 适配器；以及用 #255 就位的 `pool_snapshot` 跑一次**隔离后 90 例全池评测**（55 正 / 35 负，够默认 floors 10/5）取可信读数——但本环境 60+ 分钟全量门会被回收，须拆到多会话或长窗口后台，且池快照已就位可避免被误读成 CI 4 例跑。
+
+## #259 `specproof eval` 的 `_load_json` 容错分支补栅栏测试：#246「一个文件读不了只废一个案例」被钉死
+
+**起点（#246 容错逻辑零单测）。** #246 把案例文件读取改容错：`_load_json` 返回 `(data, error)`、空 error 才算 OK，使"一个 `ground-truth.json` 读不了（如瞬态 Windows 文件锁 `PermissionError`）只废那一个案例，不再用裸 traceback 崩掉整轮"。但该函数的各分支——文件不存在 / 坏 JSON / 合法但非对象 / 读到目录——**没有任何单测**，契约易无声漂回"整轮崩溃"。
+
+**改动（只新增测试，零生产码）。** 新建 `tests/unit/test_eval_load_json_resilience.py`（5 案，行为级真实文件、非 mock）：
+- 合法 JSON 对象 → `(data, "")`；
+- 文件不存在 → `({}, "file not found")`；
+- 坏 JSON → `({}, "cannot read: …")`（不抛）；
+- 合法但非对象（如 JSON 数组）→ `({}, "not a JSON object")`；
+- 传入目录路径 → `({}, <非空错误>)`，且**绝不抛**（OSError 被吞）。
+
+**门证（实测）。**
+- 直接模块调用（绕过 pytest 收尾 safe-delete 护栏）→ **5 PASSED / ALL PASS**。
+- `ruff check` 初报 I001 导入排序（`import sys` 应在 `import tempfile` 前），`--fix` 后 **All checks passed**。
+- 本批次**未改动** `eval.py`（保持 #256/#258 后该文件 0 错）。
+
+**诚实边界。**
+① 只加测试，不改生产码，不新增任何读取语义——与 #246 同纪律（只钉容错契约）。
+② 临时文件刻意**不删**（避开本环境 safe-delete 全局护栏在清理时的卡顿）。
+③ 本地领先 origin/master 157+ 提交，本批只提交不 push；提交走路径形式，未碰别车道在途改动。
+
+**下一号队列（接 #258）。**
+- 继续补 `eval.py` 稳定函数的栅栏测试：`_cleanup_worktrees`（worktree 移除失败时 `suppress(Exception)` 静默）；或回到 #254c（跑 case-17 端到端确认 surefire 文本带 marker）/ 隔离后 90 例全池评测（55 正 / 35 负，够默认 floors 10/5，需后台长跑 + #255 的 pool_snapshot 标注，本环境长跑会被回收，须拆多会话）。
