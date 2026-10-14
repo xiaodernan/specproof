@@ -331,6 +331,64 @@ def test_findings_merge_summary_and_table(fakes: None) -> None:
     assert merged["capsule_path"] == "C:/caps/capsule-AUTH-01.zip"
 
 
+def test_findings_surface_in_flight_evidence_with_table_row(fakes: None) -> None:
+    """#262/#263: the in-flight evidence run_differential captures (#250/#253/
+    #254) rides the persisted summary and the /findings merge, so it reaches the
+    UI WITHOUT a findings-table schema migration.
+
+    When a durable findings-table row already exists, the merge keeps the table
+    fields and overlays the summary's non-None keys (web.py:562); the evidence
+    lands through that overlay.
+    """
+    _seed_job()
+    FakeMySQLStore.summaries[JOB_ID] = {
+        "findings": [
+            {"id": "f-1", "severity": "BLOCKER", "contract_id": "AUTH-01",
+             "description": "duplicate email persisted", "confidence": 0.95,
+             "db_state_detail": "Head persisted a duplicate email; base did not.",
+             "db_violation_evidence": {"marker": "DB STATE VIOLATION",
+                                       "head_observed": True, "base_observed": False,
+                                       "head_only": True},
+             "behavioral_evidence": {"captured": True,
+                                     "note": "Behavioral regression captured."}},
+        ],
+    }
+    FakeMySQLStore.findings_rows = [
+        {"id": "f-1", "contract_id": "AUTH-01", "severity": "BLOCKER",
+         "confidence": 0.95, "evidence_type": "differential_test",
+         "impact_path": "", "capsule_path": "", "created_at": None},
+    ]
+    client = TestClient(app)
+    resp = client.get(f"/api/v1/jobs/{JOB_ID}/findings", headers=_headers())
+    assert resp.status_code == 200
+    merged = next(f for f in resp.json()["findings"] if f["id"] == "f-1")
+    assert merged["db_state_detail"] == "Head persisted a duplicate email; base did not."
+    assert merged["db_violation_evidence"]["head_only"] is True
+    assert merged["behavioral_evidence"]["captured"] is True
+
+
+def test_findings_surface_evidence_without_table_row(fakes: None) -> None:
+    """#262/#263: a summary finding with no durable findings-table row still
+    surfaces its in-flight evidence (the web.py:564 ``dict(item)`` path)."""
+    _seed_job()
+    FakeMySQLStore.summaries[JOB_ID] = {
+        "findings": [
+            {"id": "f-2", "severity": "MAJOR", "contract_id": "TX-01",
+             "confidence": 0.8,
+             "db_violation_evidence": {"marker": "DB STATE VIOLATION",
+                                       "head_only": True},
+             "behavioral_evidence": {"captured": False}},
+        ],
+    }
+    FakeMySQLStore.findings_rows = []
+    client = TestClient(app)
+    resp = client.get(f"/api/v1/jobs/{JOB_ID}/findings", headers=_headers())
+    assert resp.status_code == 200
+    merged = next(f for f in resp.json()["findings"] if f["id"] == "f-2")
+    assert merged["db_violation_evidence"]["head_only"] is True
+    assert merged["behavioral_evidence"] == {"captured": False}
+
+
 def test_findings_empty_is_honest(fakes: None) -> None:
     _seed_job()
     client = TestClient(app)

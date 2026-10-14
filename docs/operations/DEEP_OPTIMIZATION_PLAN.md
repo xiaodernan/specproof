@@ -5041,3 +5041,24 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - 持久化 `findings` 表的 in-flight 证据列（schema 迁移，独立号；hooks 会重放历史 umb 导入行，迁移须幂等）——把"到达 durable findings 表"这最后一跳补齐。
 - 前端展示层：`apps/web` 的 `JobDetail.tsx` / `api.ts` 渲染 `db_violation_evidence`/`behavioral_evidence`/`db_state_detail`（这两个文件当前是别车道在途，须等让出再动）。
 - #254c（**被 Docker 阻塞**）/ 90 例全池评测（Docker + 长跑回收双阻塞）/ #257 队列的 Verify 可插拔存储·SSE·Go-Java-Gradle 适配器（碰在途文件须等让出）。
+
+## #263 端到端钉死 in-flight 证据经 `/findings` API 抵前端：顺带更正 #262「持久化 findings 表」是伪需求
+
+**起点（追一个问题：#261/#262 之后证据真的到前端了吗？）。** #262 让三字段抵达 `_state_summary` 的 summary JSON。但前端读的是 API `/api/v1/jobs/<id>/findings`，读的是 `api/routes/web.py::job_findings`——它把 summary findings 与 MySQL `findings` 表 merge。若 merge 只保留表行（表无证据）或只保留 summary 的旧字段，#262 仍到不了 UI。查证：`job_findings`（web.py:555-564）对 summary findings，有表行时 `by_id[fid].update({k:v for k,v in item.items() if v is not None})`（叠加 summary 的非空键），无表行时 `by_id[fid]=dict(item)`（整份 summary finding）。→ **summary 侧的 in-flight 证据已能经 merge 抵前端**，因此 #262 下一号队列里那句「持久化 findings 表 schema 迁移补齐最后一跳」是**伪需求**：唯一读 `findings` 表的下游（feedback / agent_console）不消费 in-flight 证据，且 `/findings` 已被 summary 补全。
+
+**改动（只补测试 + 计划更正，零生产码）。** 在 `tests/unit/test_web_api.py` 新增 2 案（用既有 FakeMySQLStore + TestClient，无 MySQL/Docker）：
+- `test_findings_surface_in_flight_evidence_with_table_row`：有 findings 表行时，summary 的三字段经 overlay 路径（web.py:562）抵达响应；
+- `test_findings_surface_evidence_without_table_row`：无表行时，summary finding 整份抵达（web.py:564）。
+
+**门证（实测）。**
+- `tests/unit/test_web_api.py` → **46 PASSED / ALL PASS**（原 44 + 新 2）。
+- `ruff check tests/unit/test_web_api.py` → **All checks passed**。
+
+**诚实边界。**
+① 只补测试 + 计划，零生产码——因为端到端链路已经在生产码里成立，#263 只是「证明」而不是「修」。
+② 更正 #262 下一号队列：持久化 `findings` 表的证据列**不是**抵达 UI 的必需（summary merge 已覆盖）；要动 `findings` 表 schema 需迁移，本环境 MySQL 不可达无法实测，且无真实消费方读它取 in-flight 证据 → 不做，也不声称它是缺口。
+③ 前端展示层（`JobDetail.tsx`/`api.ts`）是否真的把这三字段画出来仍未验——那是别车道在途文件；等让出后再补前端渲染测试。#261/#262/#263 三号合起来保证了 data 到 `/findings`，未保证 UI 已渲染。
+
+**下一号队列（接 #263）。**
+- 前端渲染验证：等 `apps/web/src/pages/JobDetail.tsx` + `api.ts` 别车道让出后，补「`db_violation_evidence`/`behavioral_evidence`/`db_state_detail` 在详情页可见」的测试（这才是 #261→#262→#263 数据链的最后一环肉眼可诊）。
+- #254c（**被 Docker 阻塞**）/ 90 例全池评测（Docker + 长跑回收双阻塞）/ #257 队列（碰在途文件须等让出）。
