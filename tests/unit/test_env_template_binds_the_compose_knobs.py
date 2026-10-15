@@ -184,8 +184,10 @@ def _literal(e: ast.expr | None, consts: dict[str, ast.expr]) -> str | None:
 
 def tracked(pattern: str = "") -> list[str]:
     cmd = ["git", "ls-files"] + ([pattern] if pattern else [])
-    out = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True)
-    return [l for l in out.stdout.splitlines() if l]
+    out = subprocess.run(
+        cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True
+    )
+    return [line for line in out.stdout.splitlines() if line]
 
 
 _ENV_NAME = re.compile(r"[A-Z][A-Z0-9_]{2,}")
@@ -202,7 +204,9 @@ def code_reads() -> dict[str, list[tuple[str, str | None]]]:
     """
     out: dict[str, list[tuple[str, str | None]]] = {}
     files = [f for f in tracked("*.py") if not f.startswith("tests/")]
-    assert len(files) > 100, f"AST walk saw only {len(files)} production files; the scan read nothing"
+    assert len(files) > 100, (
+        f"AST walk saw only {len(files)} production files; the scan read nothing"
+    )
     for rel in files:
         p = ROOT / rel
         if not p.is_file():
@@ -214,7 +218,11 @@ def code_reads() -> dict[str, list[tuple[str, str | None]]]:
         consts: dict[str, ast.expr] = {}
         env_field_dicts: set[str] = set()
         for node in tree.body:
-            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+            ):
                 consts[node.targets[0].id] = node.value
                 # A module-level dict whose values are all env-style strings is an
                 # env-field mapping (e.g. _ENV_FIELDS); os.environ[name] is driven
@@ -222,7 +230,11 @@ def code_reads() -> dict[str, list[tuple[str, str | None]]]:
                 # getenv at the call site. The `all(...)` guard keeps ordinary
                 # dicts (status codes, config blobs) out.
                 if isinstance(node.value, ast.Dict):
-                    vals = [v for v in node.value.values if isinstance(v, ast.Constant) and isinstance(v.value, str)]
+                    vals = [
+                        v
+                        for v in node.value.values
+                        if isinstance(v, ast.Constant) and isinstance(v.value, str)
+                    ]
                     if vals and all(_ENV_NAME.fullmatch(v.value) for v in vals):
                         env_field_dicts.add(node.targets[0].id)
         # env-field mapping dicts: every value is read (default unknown).
@@ -230,7 +242,11 @@ def code_reads() -> dict[str, list[tuple[str, str | None]]]:
             dval = consts.get(dname)
             if isinstance(dval, ast.Dict):
                 for v in dval.values:
-                    if isinstance(v, ast.Constant) and isinstance(v.value, str) and _ENV_NAME.fullmatch(v.value):
+                    if (
+                        isinstance(v, ast.Constant)
+                        and isinstance(v.value, str)
+                        and _ENV_NAME.fullmatch(v.value)
+                    ):
                         out.setdefault(v.value, []).append((rel, None))
         for node in ast.walk(tree):
             # os.environ["NAME"] subscript access carries no default; record it
@@ -254,7 +270,11 @@ def code_reads() -> dict[str, list[tuple[str, str | None]]]:
             if not isinstance(node, ast.Call):
                 continue
             f = node.func
-            if isinstance(f, ast.Attribute) and f.attr == "get" and isinstance(f.value, ast.Attribute):
+            if (
+                isinstance(f, ast.Attribute)
+                and f.attr == "get"
+                and isinstance(f.value, ast.Attribute)
+            ):
                 fname = f"{f.value.attr}.get"
             elif isinstance(f, ast.Attribute):
                 fname = f.attr
@@ -358,14 +378,18 @@ def test_L02_the_scanned_compose_set_is_the_whole_deployed_surface():
     Without this, dropping a file from COMPOSE_FILES would silently narrow every
     other clause in this file instead of going red.
     """
-    tracked_composes = {f for f in tracked("compose*.yml")}
+    tracked_composes = set(tracked("compose*.yml"))
     assert tracked_composes == set(COMPOSES), (
         f"deployed surface is {sorted(tracked_composes)} but this gate scans "
         f"{sorted(COMPOSES)}: a compose file outside the scan hides its knobs from L01/L03"
     )
     knobs = compose_knobs()
-    per_file = {c: sum(1 for v in knobs.values() if any(f == c for f, _ in v)) for c in COMPOSES}
-    assert all(n > 0 for n in per_file.values()), f"a scanned compose contributed no knob: {per_file}"
+    per_file = {
+        c: sum(1 for v in knobs.values() if any(f == c for f, _ in v)) for c in COMPOSES
+    }
+    assert all(n > 0 for n in per_file.values()), (
+        f"a scanned compose contributed no knob: {per_file}"
+    )
 
 
 def test_L03_non_credential_template_rows_equal_the_compose_fallback():
@@ -380,7 +404,9 @@ def test_L03_non_credential_template_rows_equal_the_compose_fallback():
         if knob.endswith(CRED_SUFFIXES):
             continue
         fallbacks = {f for _, f in uses}
-        assert len(fallbacks) == 1, f"{knob}: the composes give it different fallbacks {sorted(fallbacks)}"
+        assert len(fallbacks) == 1, (
+            f"{knob}: the composes give it different fallbacks {sorted(fallbacks)}"
+        )
         want = next(iter(fallbacks))
         got = env_rows().get(knob)
         if got != want:
@@ -394,7 +420,11 @@ def test_L03_non_credential_template_rows_equal_the_compose_fallback():
 def test_L04_every_credential_row_is_a_placeholder():
     """No real credential value may live in a file meant to be copied."""
     rows = env_rows()
-    offenders = {k: v for k, v in rows.items() if k.endswith(CRED_SUFFIXES) and v not in ("", "replace_me")}
+    offenders = {
+        k: v
+        for k, v in rows.items()
+        if k.endswith(CRED_SUFFIXES) and v not in ("", "replace_me")
+    }
     assert not offenders, f"credential rows carrying a value instead of replace_me: {offenders}"
 
 
@@ -429,12 +459,18 @@ def test_L06_no_template_row_is_a_fake_lever():
     """
     readers = {
         "compose": "".join(_text(c) for c in COMPOSES),
-        "code": {k for k in code_reads()},
+        "code": set(code_reads()),
         "script": "".join(
-            _text(f) for f in tracked() if f.endswith((".sh", ".ps1", ".bat")) or Path(f).name.startswith("Dockerfile")
+            _text(f)
+            for f in tracked()
+            if f.endswith((".sh", ".ps1", ".bat")) or Path(f).name.startswith("Dockerfile")
         ),
     }
-    orphans = sorted(k for k in env_rows() if k not in readers["code"] and k not in readers["compose"] and k not in readers["script"])
+    orphans = sorted(
+        k
+        for k in env_rows()
+        if k not in readers["code"] and k not in readers["compose"] and k not in readers["script"]
+    )
     assert not orphans, (
         f"template rows nothing in the shipped plane reads: {orphans}. Setting them "
         f"changes nothing while the operator believes it did."
@@ -536,10 +572,16 @@ def test_L10_multi_default_knobs_are_exactly_the_documented_table():
     )
     for knob, table in _DIVERGENT_DEFAULTS.items():
         got = measured[knob]
-        assert got == table["readings"], f"{knob}: files say {got}, table says {table['readings']}"
-        assert table["documented"] in got, f"{knob}: documented carrier {table['documented']} is not a reader"
+        assert got == table["readings"], (
+            f"{knob}: files say {got}, table says {table['readings']}"
+        )
+        assert table["documented"] in got, (
+            f"{knob}: documented carrier {table['documented']} is not a reader"
+        )
         declared = env_rows()[knob]
-        carrier_key = "compose" if table["documented"] == "compose" else table["documented"]
+        carrier_key = (
+        "compose" if table["documented"] == "compose" else table["documented"]
+    )
         assert declared == got[carrier_key], (
             f"{knob}: the template declares {declared!r} while the carrier it says it "
             f"documents ({table['documented']}) gives {got[carrier_key]!r}"
@@ -555,30 +597,52 @@ def test_L11_the_traces_pipeline_is_not_armed_by_the_shipped_images():
     """
     installs: dict[str, list[str]] = {}
     for df in DOCKERFILES:
-        lines = [l.strip() for l in _text(df).splitlines() if re.search(r"pip install|uv pip install|uv install", l)]
-        assert lines, f"{df}: no install line found - the scan read nothing and cannot claim 'no extras'"
+        lines = [
+            line.strip()
+            for line in _text(df).splitlines()
+            if re.search(r"pip install|uv pip install|uv install", line)
+        ]
+        assert lines, (
+            f"{df}: no install line found - the scan read nothing and cannot claim 'no extras'"
+        )
         installs[df] = lines
-    with_extras = {df: [l for l in ls if "[" in l.split("install")[-1]] for df, ls in installs.items()}
-    assert all(not v for v in with_extras.values()), f"a Dockerfile now installs an extra: {with_extras}"
+    with_extras = {
+        df: [line for line in ls if "[" in line.split("install")[-1]]
+        for df, ls in installs.items()
+    }
+    assert all(not v for v in with_extras.values()), (
+        f"a Dockerfile now installs an extra: {with_extras}"
+    )
 
     proj = tomllib.loads(_text("pyproject.toml"))
-    base_names = {re.split(r"[<>=!\[]", s.strip())[0].strip().lower() for s in proj["project"]["dependencies"]}
+    base_names = {
+        re.split(r"[<>=!\[]", s.strip())[0].strip().lower()
+        for s in proj["project"]["dependencies"]
+    }
     otel_extra = {
         re.split(r"[<>=!\[]", s.strip())[0].strip().lower()
         for s in proj["project"]["optional-dependencies"]["otel"]
     }
     assert not {n for n in base_names if n.startswith("opentelemetry")}, (
-        f"opentelemetry is in the base dependencies ({sorted(n for n in base_names if n.startswith('opentelemetry'))}) "
+        f"opentelemetry is in the base dependencies ("
+        f"{sorted(n for n in base_names if n.startswith('opentelemetry'))}) "
         f"- the pipeline is armed now, so L12's disclosure and this clause must be re-aimed"
     )
-    assert {n for n in otel_extra if n.startswith("opentelemetry")}, "the otel extra no longer holds opentelemetry"
-    assert not (base_names & {n for n in otel_extra if n.startswith("opentelemetry")}), "an otel package is in both sets"
+    assert (
+        {n for n in otel_extra if n.startswith("opentelemetry")}
+    ), "the otel extra no longer holds opentelemetry"
+    assert not (
+        base_names & {n for n in otel_extra if n.startswith("opentelemetry")}
+    ), "an otel package is in both sets"
 
 
 def test_L12_the_template_discloses_the_inert_traces_knob():
     """A documented knob that currently moves nothing has to say so where it is read."""
     text = _text(ENV)
-    row = next((l for l in text.splitlines() if l.startswith("OTEL_EXPORTER_OTLP_ENDPOINT=")), "")
+    row = next(
+        (line for line in text.splitlines() if line.startswith("OTEL_EXPORTER_OTLP_ENDPOINT=")),
+        "",
+    )
     assert row, "OTEL_EXPORTER_OTLP_ENDPOINT row disappeared from the template"
     block = text[: text.index(row)]
     window = block[-1200:]
@@ -618,9 +682,13 @@ def test_L14_worker_reclaim_default_resolves_through_the_constant():
     `getenv(` call sees no number and this clause silently compares nothing.
     """
     reads = code_reads().get("WORKER_RECLAIM_INTERVAL_SECONDS", [])
-    assert reads, "agent/worker.py no longer reads WORKER_RECLAIM_INTERVAL_SECONDS; re-aim this clause"
+    assert reads, (
+        "agent/worker.py no longer reads WORKER_RECLAIM_INTERVAL_SECONDS; re-aim this clause"
+    )
     worker_defaults = {d for rel, d in reads if rel == "agent/worker.py"}
-    assert len(worker_defaults) == 1, f"worker.py gives the reclaim interval several defaults: {worker_defaults}"
+    assert len(worker_defaults) == 1, (
+        f"worker.py gives the reclaim interval several defaults: {worker_defaults}"
+    )
     code_default = next(iter(worker_defaults))
     fallbacks = {f for _c, f in compose_knobs()["WORKER_RECLAIM_INTERVAL_SECONDS"]}
     assert fallbacks == {code_default}, (

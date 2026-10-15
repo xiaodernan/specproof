@@ -5174,6 +5174,27 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 
 **下一号队列。**
 - #269 `InvoiceCron(store, metrics_port=9999)` 必须真绑 9999（注入腿 + env 缺省腿两条），别让 shape B 只有门在守。
-- #259 清 `test_env_template_binds_the_compose_knobs.py` 的 28 个 ruff 错——CI 的 lint 腿现在被它占着，报不出别的东西。
+- #259（= #271）清 `test_env_template_binds_the_compose_knobs.py` 的 28 个 ruff 错 ✅ 已交付——见 #271。
 - #260 `GITHUB_APP_PRIVATE_KEY_FILE` 的 `${X:-}` 空透传载体（`integrations/github_checks.py:74` 读真假），把名字从 `_DEFERRED` 13 名变成交付。
 - #254c / 90 例全池（Docker 阻塞）与 #257 队列仍受环境与车道约束。
+
+## #271 #235 门文件的 28 个 ruff 错清零：CI 的 lint 腿不再被它占着
+
+**起点（#268 队列点名）。** `tests/unit/test_env_template_binds_the_compose_knobs.py`（#235 compose↔模板门）一直带着 28 个 ruff 错误：22× E501（行超 100）、4× E741（歧义变量名 `l`）、2× C416（多余集合推导）。CI 的 lint 腿被这 28 个错误占着，别的 lint 问题报不出来——这是 #268 队列明确点名的下一项。本次只做 lint 清理，零行为改动：门断言/阈值/被测关系一律不动。
+
+**改动（纯 lint，定点修复，不跑 `ruff format`）。** 22 处 E501 用括号/字符串拆行（断言消息、f-string、集合推导分别处理）；4 处 E741 把 `l` 重命名为 `line`；2 处 C416 把 `{x for x in ...}` 改写成 `set(...)`。刻意不用 `ruff format`：本项目 ruff 默认 `quote-style=double`，会一次性把全文件单引号翻转成双引号，diff 面远超 28 行、且会碰到一个共享门的每一行——对"只清 lint"这件事是过度改动。手工定点修复保持引号风格与语义逐字节不变。
+
+**门证（实测）。**
+- `.venv/Scripts/python -m ruff check tests/unit/test_env_template_binds_the_compose_knobs.py` → **All checks passed**（原 28 → 0）。
+- `ast.parse` 通过（无语法错误；中途一次编辑误留重复 `),` 已修）。
+- `pytest tests/unit/test_env_template_binds_the_compose_knobs.py -q` → **14 passed in 11.5s**（门断言全绿，证明拆行未改变任何被测关系）。
+
+**诚实边界。**
+① 纯 lint：未改任何断言逻辑、阈值、被测文件集合；门读的是 `.env.example`/compose 的静态内容，本次改动不影响这些被读文件。
+② 只碰一个测试文件 + 本台账；别车道在途的 `apps/web/*`、`evidence/acceptance.py`、`experiments/adapters.py`、`sandbox/runner.py`、`docs/eval/*`、`storage/invoice_cron.py` + 未跟踪 `tests/unit/test_invoice_cron_metrics_leg.py`（#269 在途）一律未动、未进索引。
+③ 没动 #269/#260 的活：invoice_cron 行为腿与 `GITHUB_APP_PRIVATE_KEY_FILE` 交付都仍受别车道在途约束，留给对应号。
+
+**下一号队列（接 #268；ruff 清零后 CI lint 腿可用）。**
+- #269 `InvoiceCron(store, metrics_port=9999)` 必须真绑 9999（注入腿 + env 缺省腿）——别车道在途（`storage/invoice_cron.py` M + 未跟踪 `test_invoice_cron_metrics_leg.py`），须等让出。
+- #260 `GITHUB_APP_PRIVATE_KEY_FILE` 的 `${X:-}` 空透传载体（#257 家族：碰 `.env.example`/compose/门表），须等让出。
+- #254c / 90 例全池（Docker 阻塞）仍受环境约束。
