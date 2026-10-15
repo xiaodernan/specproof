@@ -1215,6 +1215,32 @@ async def _generate_with_compile_loop(
     )
 
 
+def _inside_running_loop() -> bool:
+    """True only when called from a coroutine on a live event loop.
+
+    #270: this branch used `asyncio.get_event_loop()`, which RAISES
+    ``RuntimeError: There is no current event loop in thread ...`` on a thread
+    that has no current loop — and that is exactly how the API starts a job
+    (`api/agent_runtime.py` does ``copy_context()`` +
+    ``threading.Thread(target=context.run, ...)``; copying contextvars does
+    NOT install an event loop on the new thread). The raise was caught by the
+    bare ``except Exception`` around this branch and reported as
+    ``LLM generation failed: There is no current event loop ...`` with
+    ``source="deterministic_template"``, so the LLM path never ran at all on
+    the API and non-demo repos fell through to "No counterexample test
+    produced".
+
+    ``get_running_loop()`` answers False on such a thread instead of raising,
+    and it also avoids the DeprecationWarning ``get_event_loop()`` emits when
+    it has to synthesise a loop.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
 def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
     """Generate a JUnit counterexample test based on findings.
 
@@ -1289,14 +1315,13 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
     provider = _get_provider() if state.get("use_llm", True) else None
     if provider is not None:
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
+            if _inside_running_loop():
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     future = pool.submit(
                         asyncio.run,
                         _generate_with_compile_loop(
-                            head_workspace, all_findings or static_findings,
+                            app_workspace, all_findings or static_findings,
                             contracts, requirement_text, job_id=job_id,
                         ),
                     )

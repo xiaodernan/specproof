@@ -187,16 +187,18 @@ def test_llm_generated_counts_llm(
     fake = _FakeProvider(_LLM_CODE)
     monkeypatch.setattr(gen_module, "_get_provider", lambda: fake)
     monkeypatch.setattr(gen_module, "_compile_test", lambda ws, tf: (0, ""))
-    # Deterministic event-loop handle: report "not running" and run the
-    # coroutine on the real asyncio runner (no get_event_loop deprecation
-    # hazard under any Python 3.12+ policy).
+    # Deterministic branch selection: report "not inside a running loop" so
+    # the node runs the coroutine on the real asyncio runner. #265 replaced
+    # `asyncio.get_event_loop().is_running()` with `_inside_running_loop()`,
+    # because get_event_loop RAISES RuntimeError on the API's loop-less job
+    # thread and that raise fell into the node's bare except. Stub the helper
+    # itself — it is the seam — which also keeps this test independent of
+    # whichever asyncio accessor the node uses to answer the question.
+    monkeypatch.setattr(gen_module, "_inside_running_loop", lambda: False)
     monkeypatch.setattr(
         gen_module,
         "asyncio",
-        SimpleNamespace(
-            get_event_loop=lambda: SimpleNamespace(is_running=lambda: False),
-            run=real_asyncio.run,
-        ),
+        SimpleNamespace(run=real_asyncio.run),
     )
 
     before = _before()
