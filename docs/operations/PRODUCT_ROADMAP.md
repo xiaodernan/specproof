@@ -2526,3 +2526,52 @@ up 不可重跑意味着「成对」承诺的往返本身不存在。探针
     写的「更正 #262」指的是**他们的** #262，不是本节。
   - 未做历史改写（并发 lane 下 rebase 会双向丢失）；**按 commit hash 区分，勿按号引用**。
 
+
+## 42. #270：LLM 反例生成在 API 上一次都没跑（2026-10-14）
+
+- **两个独立缺陷，同一个症状**：非 demo 仓一律返回 `generated_tests_path=""` +
+  "No counterexample test produced"。§4.2 要的是"真能复现回归"，可 LLM 这条路
+  连跑都没跑起来。
+- **缺陷 A —— 同一个协程，两个 workspace**：节点调 `_generate_with_compile_loop`
+  两次（运行中 loop 分支 / 普通 `asyncio.run` 分支），1299 行传 `head_workspace`、
+  1307 行传 `app_workspace`。`_compile_test` 按 `Path(workspace)/"pom.xml"` 判断，
+  所以 `app_dir` 非空时 `head_workspace` 那侧必定返回 `(-1, "No pom.xml found")`
+  —— 一份正常 LLM 产物被当成编译失败丢掉。**决定性旁证**：函数内其余 8 处消费者
+  （`seed_head_build`/`test_dir`/`_is_demo_repo`/`_run_generated_test`）全用
+  `app_workspace`，只有这一处是异类。取证用 AST 读真实源码（`.scratch/probe265_ast.py`）。
+- **缺陷 B —— 分支判断在 API 线程上直接抛异常**：`asyncio.get_event_loop()` 在
+  无当前 loop 的线程上抛 `RuntimeError`；而 `api/agent_runtime.py:352-359` 每个 job
+  都用 `copy_context()` + `threading.Thread(target=context.run, ...)` 启动，
+  **copy_context 只复制 contextvars，不会在新线程上装 event loop**。于是 API 路径
+  100% 落在抛异常那侧，异常又被本分支外层裸 `except Exception` 吞成
+  `source="deterministic_template"`。改用 `_inside_running_loop()`
+  （内部 `get_running_loop()`）：无线程如实返回 False。
+- **改法**：两处统一传 `app_workspace`；新增 `_inside_running_loop()`。
+  两个缺陷都只影响"LLM 路径是否真跑起来"，**不触碰 verdict 语义**。
+- **连带改了既有测试的 stub**：`test_generate_counterexamples_node_execution_is_observable.py`
+  把 `gen_module.asyncio` 整个替换成 `SimpleNamespace(get_event_loop=..., run=...)`，
+  新实现调的 `get_running_loop()` 不在其上 → AttributeError → 落进裸 except → 变红。
+  这是**测试在绑定旧实现细节**，不是产品退化；改为直接 stub 新 seam
+  `gen_module._inside_running_loop`，意图不变且以后再换访问器不必再动。
+- **门禁**：新文件 12 passed；与既有 observable 合并 **20 passed**；相关差分链路
+  **43 passed**（toothless 18 + differential observable 10 + language honesty 15）。
+  **变异臂 2/2 见红且 restore 后 sha256 逐字节一致**（arm1 单侧改回
+  `head_workspace` → 2 failed；arm2 helper 改回 `get_event_loop()` → 3 failed）。
+  `ruff` 全绿；`mypy` 报的 4 错仍全在另一 lane 未提交的 `experiments/adapters.py`
+  Gradle WIP（`GRADLE_PROFILE` 未定义等），被检查文件自身零错。
+- **⚠️ 又一次 issue 号撞车，本次靠 amend 收场**：最初提交 `8e9b148 #265 ...`，
+  随后发现另一 lane 的 `d135afc #265 job summary 的 errors/capsules 截断…`
+  **已是本批祖先**。当时 HEAD 未被推进，故 amend 改号 **#270**（新 hash
+  `711cc0b`），并把源码 docstring + 新测试内 10 处 `#265` 一并改掉，
+  避免"注释说 #265、提交说 #270"的分裂。**引用仍按 hash，勿按号。**
+- **⚠️ 新陷阱：变异臂脚本被工具超时杀掉会留下半变异文件**。臂脚本原来一次跑两遍
+  pytest（clean + mutated），总耗时超 30s 工具上限 → python 被 SIGKILL →
+  `finally: restore()` 不执行 → **工作区文件留在变异态**。连续发生两次，第二次连
+  `.scratch` 备份都被覆盖成变异态、彻底失去恢复能力。现已固化只读基准副本
+  `.scratch/arm265_fixed.py`（脚本永不写它）+ 每次只跑一遍 pytest +
+  启动时先校验工作文件是否等于基准（不等则先自愈）。
+- **诚实边界：§4.2 仍未完成**。本轮只让"LLM 路径真的跑起来"。
+  剩下的仍是两半：① 分语言可执行反例生成（§2.1 上游阻塞，硬编码
+  JUnit/Spring/`com.specproof`）；② "真能复现回归"还需要 base/head 两侧
+  **行为差异**的证据，而不是只证明反例能编译。
+
