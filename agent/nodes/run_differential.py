@@ -600,12 +600,12 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         attributed_contract = "AUTH-01"
         if base_pass and not head_pass:
             attributed_contract = _contract_for_test_method(
-                _failing_test_name(head_app)
+                _failing_test_name(head_app, test_class)
             )
             attributed_contracts.add(attributed_contract)
         elif not base_pass and head_pass:
             attributed_contract = _contract_for_test_method(
-                _failing_test_name(base_app)
+                _failing_test_name(base_app, test_class)
             )
             attributed_contracts.add(attributed_contract)
 
@@ -645,7 +645,7 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 db_verdict,
                 "pass" if base_pass else "fail",
                 "pass" if head_pass else "fail",
-                _failing_test_name(head_app) if (base_pass and not head_pass) else None,
+                _failing_test_name(head_app, test_class) if (base_pass and not head_pass) else None,
             ),
             "db_violation_evidence": _db_violation_evidence(
                 base_fail_text, head_fail_text
@@ -766,7 +766,7 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     }
 
 
-def _failing_test_name(app_dir: str) -> str:
+def _failing_test_name(app_dir: str, test_class: str) -> str:
     """Return the first failing/erroring generated test method ('' when
     unavailable), parsed from the surefire XML left by the Maven run.
 
@@ -776,9 +776,9 @@ def _failing_test_name(app_dir: str) -> str:
     """
     import defusedxml.ElementTree as ElementTreeDefused
 
-    report = Path(app_dir) / "target" / "surefire-reports" / (
-        "TEST-com.specproof.demo.SpecProofGeneratedTest.xml"
-    )
+    report = _surefire_report(app_dir, test_class)
+    if report is None:
+        return ""
     try:
         root = ElementTreeDefused.parse(report).getroot()
     except (OSError, ElementTreeDefused.ParseError):
