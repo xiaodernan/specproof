@@ -137,7 +137,7 @@ Return a JSON array of objects, each with:
 - id: short unique id like REQ-AUTH-01
 - title: short title
 - statement: the requirement in one sentence
-- acceptance_criteria: array of {id, text, kind} — concrete testable conditions
+- acceptance_criteria: array of {{id, text, kind}} — concrete testable conditions
   (kind is one of behavioral/security/compatibility/performance)
 - forbidden_changes: array of strings — changes that must NOT happen
 - priority: P1 / P2 / P3
@@ -171,6 +171,27 @@ async def llm_enrich_requirements(text: str, provider: Any) -> list[Requirement]
         return []
 
 
+def _running_loop() -> Any | None:
+    """The running event loop, or None when outside async context.
+
+    #271: ``parse_with_llm_fallback`` used ``asyncio.get_event_loop()``,
+    which RAISES ``RuntimeError: There is no current event loop in thread ...``
+    on a thread that has no current loop — and ``api/agent_runtime.py`` starts
+    every job with ``copy_context()`` + ``threading.Thread(target=context.run,
+    ...)``, which copies contextvars but installs no event loop. The raise was
+    swallowed by this function's ``except Exception`` and surfaced as
+    ``"LLM requirement parse failed: There is no current event loop ..."``,
+    so LLM enrichment never even started on the API.
+
+    Same shape as ``agent.nodes.compile_contracts._running_loop``, which
+    already solved this the same way.
+    """
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+
+
 def parse_with_llm_fallback(
     text: str, provider: Any | None = None,
 ) -> ParseResult:
@@ -184,8 +205,7 @@ def parse_with_llm_fallback(
     if provider is None:
         return result
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
+        if _running_loop() is not None:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as pool:
