@@ -13,7 +13,6 @@ observability.metrics, so the process-local /metrics endpoint
 (observability.metrics_http) serves them to Prometheus.
 """
 
-import contextlib
 import json
 import logging
 import os
@@ -260,8 +259,15 @@ class OutboxRelay:
                 logger.exception("OutboxRelay drain cycle error")
 
             sleep_time = max(self.poll_interval, self._backoff)
-            with contextlib.suppress(Exception):
+            # Deliberately narrower than notify_relay's shared try: a stats blip
+            # freezes gauges, it must not put delivery on MAX_BACKOFF.
+            try:
                 self.refresh_metrics()
+            except Exception:
+                logger.exception(
+                    "OutboxRelay metrics refresh failed; specproof_outbox_* gauges keep "
+                    "their last good values"
+                )
             time.sleep(sleep_time)
 
         logger.info("OutboxRelay stopped")
