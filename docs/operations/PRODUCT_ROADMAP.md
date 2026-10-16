@@ -2575,3 +2575,38 @@ up 不可重跑意味着「成对」承诺的往返本身不存在。探针
   JUnit/Spring/`com.specproof`）；② "真能复现回归"还需要 base/head 两侧
   **行为差异**的证据，而不是只证明反例能编译。
 
+## 43. #274（源自 #271）：agent/contracts/parser.py LLM enrichment 在 loop-less 线程上从不运行，且 wrapper 至今 unwired（2026-10-16）
+
+- **缺陷 —— `asyncio.get_event_loop()` 在 API job 线程上直接抛异常**：`parse_with_llm_fallback`
+  原先用 `loop = asyncio.get_event_loop(); if loop.is_running():`。
+  `api/agent_runtime.py` 每个 job 用 `copy_context()` +
+  `threading.Thread(target=context.run, ...)` 启动，**copy_context 只复制 contextvars，
+  不在新线程上装 event loop**，所以 `get_event_loop()` 抛 `RuntimeError`；异常被本分支
+  外层裸 `except Exception` 吞成 `LLM requirement parse failed`，LLM enrichment 在 API
+  路径上 100% 不跑。同一缺陷也发生在任何 bare thread（无当前 loop）。
+- **修复**：新增 `_running_loop()` helper（内部 `get_running_loop()`，无线程如实返回
+  `None`），把分支改成 `if _running_loop() is not None:`。与
+  `agent/nodes/compile_contracts.py` 的已有做法同形。
+- **连带修复 —— `_LLM_PARSE_PROMPT` `str.format()` KeyError**：模板里写了
+  `array of {id, text, kind}`，`str.format(spec_text=...)` 会把 `{id, text, kind}` 读成
+  命名字段，缺少关键字即抛 `KeyError`，又被 `except Exception: return []` 吞掉，导致
+  `provider.chat` **从未被调用**（`calls == 0` 连主线程也不例外）。这是比
+  `get_event_loop()` 更隐蔽的第二个缺陷：即便 loop 问题修了，enrichment 仍产出 `[]`。
+  改为 `{{id, text, kind}}` 转义为字面量。
+- **更大的事实 —— wrapper 至今 unwired**：`git grep` 只在
+  `agent/contracts/parser.py` 内找到 `parse_with_llm_fallback` /
+  `llm_enrich_requirements`；pipeline 两个真实消费者
+  (`compile_contracts.py`, `cli/specproof/commands/contract.py`) 直接调用 `parse_requirements`。
+  所以 enrichment 对**任何**线程都不跑，不只是 API 的 loop-less 线程。新增测试文件
+  `tests/unit/test_requirement_enrichment_survives_loopless_thread.py` 中的
+  `test_llm_enrichment_wrapper_is_currently_unwired` 将此 pin 住：若日后把 wrapper
+  接进 pipeline，该测试会变红，届时应更新本节并移除 pin。
+- **门禁**：新文件 10 passed；`ruff` 全绿；`mypy` 对 `agent/contracts/parser.py` 零真错
+  (`--follow-imports=skip` 下的 3 条 `BaseModel` 为 skip 导致的假阳性)。变异臂：
+  将 `_running_loop()` 改回 `get_event_loop()` → 5 failed（含 AST 检测到 line 208 的
+  `get_event_loop()` 调用），restore 后逐字节一致。
+- **诚实边界：§4.2 仍未完成**。本轮只让 `agent/contracts/parser.py` 的 LLM 路径真的跑起来。
+  剩下的仍是两半：① 分语言可执行反例生成（§2.1 上游阻塞，硬编码 JUnit/Spring/
+  `com.specproof`）；② "真能复现回归"还需要 base/head 两侧行为差异的证据，而不是只
+  证明反例能编译。
+
