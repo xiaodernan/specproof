@@ -29,14 +29,15 @@ What it pins down honestly:
 Metrics: invoice_cron_invoices_total / invoice_cron_existing_total /
 invoice_cron_skipped_no_subscription_total / invoice_cron_failed_total and
 the gauge invoice_cron_last_success_ts, served on INVOICE_CRON_METRICS_PORT
-(default 9103) via observability.metrics_http — same shape as the outbox
-relay. Wiring the port into compose.observability.yml's scrape list stays
-with the deployment side, not faked here.
+(default 9103) via observability.metrics_http. A bind failure is disclosed in
+the startup line and the billing loop keeps running; the relay, which has no
+work of its own to lose, lets the same error end the process. Wiring the port
+into compose.observability.yml's scrape list stays with the deployment side,
+not faked here.
 """
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import os
 import signal
@@ -220,11 +221,14 @@ class InvoiceCron:
         self._running = True
         from observability.metrics_http import serve_metrics_in_thread
 
-        with contextlib.suppress(Exception):
+        metrics_state = "serving"
+        try:
             serve_metrics_in_thread(port=self.metrics_port)
+        except OSError as exc:
+            metrics_state = f"NOT serving ({exc})"
         logger.info(
-            "InvoiceCron started (interval=%.1fs, metrics port=%d)",
-            self.interval, self.metrics_port,
+            "InvoiceCron started (interval=%.1fs, metrics port=%d: %s)",
+            self.interval, self.metrics_port, metrics_state,
         )
         while self._running:
             try:
