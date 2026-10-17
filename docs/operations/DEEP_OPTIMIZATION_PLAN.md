@@ -5328,3 +5328,30 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - `demo.py`（`_ref_exists` 需真 git 仓库）、`probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
 - 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## #278 `archreview` 的 `--layer`/`--allow` 内联解析补栅栏测试
+
+**起因/占号。** #277 的诚实边界②把「`archreview_cmd` 里内联的 `--layer REGEX=NAME` / `--allow SRC>DST` 解析未覆盖」列为下批首选，并指出不必改生产码——`click.testing.CliRunner` 能直接驱动命令。占号前读账本最大值 277（`## #277`）与提交日志最大值 277（`9c72a01`），本号取 **#278**。
+
+**量到的缺陷（先量后写）。** `archreview_cmd` 把两个多值选项在回调里内联解析：`--layer` 缺 `=` 必须抛 `ClickException("invalid --layer: ...")`，`--allow` 缺 `>` 必须抛 `ClickException("invalid --allow: ...")`；合法时分别组成 `dict[str, str]` 与 `list[tuple[str, str]]`，空集合时前者传 `None`（`layer_rules or None`）、后者传 `[]`。**这三条都是「形状契约」而非「分析逻辑」**：一次 `split("=")` 改错，`--layer core=Core` 会被切成 `["core", "Core"]` 的错形状，或缺失分隔符被静默接受成一条永远不命中的规则——而没有任何测试在读它。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_devtools_archreview_args.py`（5 案，`CliRunner` 驱动真实 click 参数接线；`devtools.archreview.review` 用 monkeypatch 打桩，因为它要遍历真实 Python 源——本批只钉参数契约，不钉图分析）：
+- `--layer` 缺 `=` → 退出码非 0、输出含 `invalid --layer`。
+- `--allow` 缺 `>` → 退出码非 0、输出含 `invalid --allow`。
+- 合法 `--layer core=Core --layer ui=UI --allow Core>UI` → `review` 收到 `{"core":"Core","ui":"UI"}` 与 `[("Core","UI")]`。
+- 无规则 → `review` 收到 `layers is None`、`edges == []`（钉住 `layer_rules or None` 的空集合语义）。
+- 摘要行 → 输出含 `modules=3`/`edges=2`/`cycles=1`/`findings=2`（钉住 `len(report['cycles'])` 与 `len(report['findings'])` 的计数口径）。
+
+**门证（全在本批内亲手取）。** 沿用 #276/#277 的临时环境跑法：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_devtools_archreview_args.py -q` | 5 passed in 2.13s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_devtools_archreview_args.py` | 初报 F821（`__main__` 块里 `pytest` 未定义，因为我先删了顶部未用导入），在块内补 `import pytest` 后 **All checks passed** |
+| 复跑 | 同测试命令 | 5 passed in 1.85s |
+
+**诚实边界（明确不声称）。** ① 只加测试：`cli/specproof/commands/devtools.py` 生产码一字未动。② `review` 被打桩：本批证明「click 把三个参数交给了回调、回调把解析结果交给了 `review`」，**不**证明 `devtools.archreview.review` 的图层违规检测正确（那是另一层，需真源文件与独立单位）。③ 摘要行只钉四个计数的**出现**，未钉整行格式（行格式改动不该让本批红）。④ `CliRunner` 会真实解析 `click.Path(exists=True)`，故每个用例都建了临时目录。
+
+**下批候选（受本环境约束）。**
+- `demo.py`（`_ref_exists` 需真 git 仓库；`prepare_demo_repo` 会写文件，需在仓库外临时目录验证）。
+- `probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
+- 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
