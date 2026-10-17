@@ -5435,3 +5435,30 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - `demo.py` 控制器缺失 `FileNotFoundError` → `ClickException`（生产码小改，#280 已点名）。
 - 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑）。
+
+## #282 `commands/replay.py` 的 `_resolve_capsule` 存分支三态补栅栏测试
+
+**起因/占号。** #281 只盖了 `_resolve_capsule` 的 **legacy 回退分支**（存不可用时走普通路径），把「存可用」三态留作下批候选。这三条正是 replay 最易被静默翻错的边界：① 命中且 `path_hint` 指向的文件存在 → 返回 `(capsule_path, record)`（成功）；② 命中但 `path_hint` 指向的文件已失效 → 诚实报错 `SystemExit(1)`（存知道有这个胶囊、但载荷搬走了）；③ 存里无记录、且入参**像对象引用** → `SystemExit(1)`（不像路径、存里又查不到）。若回归把③误处理成「当路径找」，会吞掉一份本该报出的错误。本号用桩 `storage.object_metadata.resolve_object` + 非 None 的 `_open_store`，把三态确定化，无需 MySQL。
+
+**量到的边界（先量后写）。** 分类器 `_looks_like_object_reference` 只认 **32 位小写 hex** 或 **64 位小写 hex**（无连字符的 uuid4 形态，正则 `^[0-9a-f]{32}$`/`^[0-9a-f]{64}$`），不是带 `-` 的标准 uuid4——第一版用例用了带 `-` 的 uuid4 被分类器判否，实测暴露后改为 32-hex。`_resolve_capsule` 在 `store is not None` 时 `from storage.object_metadata import resolve_object` 现取于调用点，故桩 `storage.object_metadata.resolve_object` 即可；`_open_store` 是模块级函数，monkeypatch `replay._open_store` 返回哨兵对象即让存分支运行。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_replay_resolve_capsule_store_branch.py`（4 案，全用 `tmp_path` + monkeypatch，无网络 / 无 Docker / 无 DB）：
+- 命中且路径存在 1 案：`resolve_object` → 记录（`path_hint` 指向已写文件）→ 返回 `(Path, record)` 且 `record.path_hint` 等于该路径。
+- 命中但路径失效 1 案：`path_hint` 指向不存在文件 → `pytest.raises(SystemExit)` 且 `code==1`。
+- 存 miss + 像引用 1 案：`resolve_object` → `None`、入参 32-hex → `SystemExit` `code==1`（先断言 `_looks_like_object_reference(ref) is True`）。
+- 存 miss + 普通存在路径 1 案：`resolve_object` → `None`、入参是已存在的普通路径 → 落到 legacy 分支返回 `(path, None)`（证明「存 miss + 像引用」与「存 miss + 真路径」两条边界互不串）。
+
+**门证（全在本批内亲手取）。** 第一版 uuid4 用带 `-` 形态、`_looks_like_object_reference` 判否导致 1 红——改为 32-hex 后：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `.venv/Scripts/python.exe -m pytest tests/unit/test_replay_resolve_capsule_store_branch.py -q` | 4 passed in 1.91s（复跑同绿） |
+| ruff | `ruff check tests/unit/test_replay_resolve_capsule_store_branch.py` | All checks passed（首版 E501 长 docstring 行 + I001 已修） |
+
+**诚实边界（明确不声称）。** ① 只加测试：`cli/specproof/commands/replay.py` 生产码一字未动。② 三态覆盖的是「`_resolve_capsule` 的解析门面」；其下游（命中后的 payload digest 校验、`--run` 沙箱重放、`replay-report.json` 写入）仍属集成平面（`test_capsule_replay.py` 在做）。③ 桩 `resolve_object` 只验证回退逻辑，未走真 MySQL——真存记录的形状（含 `digests`/`path_hint` 字段）由 `storage.object_metadata` 单测兜，本批不重复。
+
+**下批候选（受本环境约束）。**
+- `ops.py` `_human_running`/`_human_provider_wait`/`_ids`/`_plan_ids` 输出格式（纯格式化，低风险；`_ids` 用 `.get(...) or 0` 而 `_plan_ids` 直接 `row[...]` 对 None 的鲁棒性不一致，值得钉一条「None retry 计数不崩」的腿）。
+- `contract.py` `_spec_digest`（spec 文本哈希）契约 + `propose`/`approve` 注册表交互（需注册表存）。
+- `demo.py` 控制器缺失 `FileNotFoundError` → `ClickException`（生产码小改，#280 已点名）。
+- 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑）。
