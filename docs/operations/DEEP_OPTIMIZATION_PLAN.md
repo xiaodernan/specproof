@@ -5409,3 +5409,29 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - `probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
 - 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+
+## #281 `commands/replay.py` 的引用分类契约补栅栏测试
+
+**起因/占号。** #280 下批候选点名 `probe.py`/`quickstart.py`/`mcp.py` 为「I/O 外壳、纯逻辑少」；扫一圈干净且**尚无栅栏**的命令文件（`baseline.py` 已有 `test_baseline.py` 全覆盖、`demo.py` 在途被 #280 占、`ops.py`/`craft.py` 主体依赖 MySQL/Redis、`quickstart.py` 纯 echo 无可测逻辑），`replay.py` 的 `_looks_like_object_reference` 是真正有价值的「参数分类」契约——它决定 capsule 走**元数据存**还是 **legacy 路径回退**，回归会静默翻转两条解析路径，而全仓此前零直接测试。本号钉它 + legacy 回退分支。
+
+**量到的边界（先量后写）。** `_looks_like_object_reference` 的契约：32-hex uuid4 / 64-hex sha256（可 `sha256:` 前缀）/ 大小写不敏感（先 `.lower()`）/ 去首尾空白后判定 / 长度不符（31/33/63/65 hex）一律否 / 纯路径（含反斜杠 Windows 路径、`sha256:not-a-hex`、空串、纯空白）一律否。`_resolve_capsule` 的 legacy 分支：当元数据存不可用时，存在的普通路径 → `(Path, None)`；不存在的普通路径 → `SystemExit(1)`（诚实报错，绝不静默吞）。存分支依赖 `storage.object_metadata`（需 DB），故用 `monkeypatch._open_store -> None` 把存隔离掉，确定性落到 legacy 分支。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_replay_reference_classification.py`（12 案，纯字符串/路径判定，无网络无 Docker 无 DB）：
+- 分类器 10 案：uuid4 32-hex、sha256 64-hex、`sha256:` 前缀、大小写不敏感、空白包裹、纯路径（含 `C:\...`）、前缀长度错（63/65）、非 hex 后缀、错长度（31/33）、空串/纯空白。
+- legacy 回退 2 案：现有路径 → `(Path, None)`；缺失路径 → `pytest.raises(SystemExit)` 且 `code==1`。
+
+**门证（全在本批内亲手取）。** 第一版 `from cli.specproof.commands.replay import (...)` 与 `import replay as replay_mod` 顺序触发 ruff I001；用全局 ruff（`AppData/Roaming/Python/Python311/Scripts/ruff`，当前 `.venv` 被别车道重建为 3.14 后未装 ruff）`--fix` 自动排序后：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `.venv/Scripts/python.exe -m pytest tests/unit/test_replay_reference_classification.py -q` | 12 passed in 4.83s（复跑 33.44s，MySQL 隔离 setup 抖动） |
+| ruff | `ruff check tests/unit/test_replay_reference_classification.py` | All checks passed |
+
+**诚实边界（明确不声称）。** ① 只加测试：`cli/specproof/commands/replay.py` 生产码一字未动。② 存的「成功命中 → 返回 `(hint, record)`」「命中但 `path_hint` 不存在 → `SystemExit(1)`」「像引用但无记录 → `SystemExit(1)`」三分支未在本批覆盖——它们依赖 `storage.object_metadata.resolve_object`（DB），属集成平面，留待有 DB 的会话或桩 `resolve_object` 的腿。③ `replay` 命令主体（`--run` 沙箱重放、`replay-report.json` 写入、`replay_report` 对象落存）未覆盖，需 Docker/沙箱，属集成平面（`test_capsule_replay.py` 已在做）。④ 全局 ruff 与项目 pyproject 配置一致（单文件检查沿用同配置），不是另起一套规则。
+
+**下批候选（受本环境约束）。**
+- `replay.py` 存分支三态（命中 / 命中但路径失效 / 像引用无记录）用桩 `resolve_object` 补腿；或等 DB 会话跑真分支。
+- `ops.py` `_human_running`/`_human_provider_wait`/`_ids`/`_plan_ids` 输出格式（纯格式化，低风险；`recover` 主体需 MySQL/Redis）。
+- `contract.py` `_spec_digest`（spec 文本哈希）契约 + `propose`/`approve` 注册表交互（需注册表存）。
+- `demo.py` 控制器缺失 `FileNotFoundError` → `ClickException`（生产码小改，#280 已点名）。
+- 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑）。
