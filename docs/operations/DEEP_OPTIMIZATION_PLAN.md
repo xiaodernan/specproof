@@ -5382,3 +5382,30 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - #277 新鲜度信号按 M1 形状实现（等 `observability/metrics_http.py` 车道让出）：从 `storage/outbox_relay.py` 上报 `specproof_outbox_pending_freshness` + 仪表盘一条线，**不配告警**。
 - 载体门（原 #275 队列 #276，排号已被消耗）：披露句的运维载体门，等运维文档车道让出。
 - 部署决策项（需批准，不擅自动）：Windows 同端口双进程假成功；9103 不在名册。
+## #280 `commands/demo.py` 的 ref 探针与演示仓库准备补栅栏测试
+
+**起因/占号。** #278 的下批候选首条点名 `demo.py`（`_ref_exists`/`prepare_demo_repo` 需真 git）。起草时账本最大 278，按 max+1 拟写 #279；落地前别车道把 `94bdc25`（`#279 多一个指标名会让几个消费者红：新鲜度信号（#275 队列 #277）的只读量种子`）投进历史，账本最大变 279，本号取 **#280**。
+
+**量到的缺陷（先量后写）。** `demo.py` 是「零配置体验」的入口：`_ref_exists` 用 `git rev-parse --verify --quiet` 做**幂等探针**（两个 ref 都在就跳过重建），`prepare_demo_repo` 依次做「init → 提交 base → 打 tag → 删权限注解 → 提交 head-v1 → 打 tag → 还原工作树」。三条契约零直接测试：
+1. 幂等：`base`/`head-v1` 都在时必须返回 `False` 且**不再动 git**；否则每次 `specproof demo` 都会重建历史。
+2. 还原：`finally` 里 `git checkout -- .` + `git checkout base` 必须把工作树还原成**原始实现**（带 `@PreAuthorize("isAuthenticated()")`），否则演示仓库被永久改成「无权限检查」。
+3. head-v1 的语义：那个 tag 的提交里**必须**没有权限注解（否则「演示回归」根本没发生，用户看到的 BLOCKED 是假的）。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_demo_prepare_contract.py`（7 案，全部在仓库外 temp git 仓库；**绝不碰真实 `demo/spring-backend`**）：
+- `_ref_exists` 1 案：非 git 目录 → `False`。
+- 错误路径 2 案：仓库目录不存在 → `ClickException`；控制器缺权限注解 → `ClickException` 且消息含「权限检查注解已不在源文件中」。
+- 正常路径 4 案（共享一个 fixture 仓库）：`prepare` 返回 `True` 且两个 ref 都存在；第二次调用返回 `False`（幂等）；工作树还原为原始内容且注解仍在；`git show head-v1:<controller>` 里**没有**注解。
+
+**门证（全在本批内亲手取）。** 第一版**没有**共享 fixture、也没关钩子，`pytest` 跑到 >300s 被 SIGTERM——本机每次 spawn git 1.6–3.4s，且机器级 pre-commit 钩子让每次 commit ~20s，而 3 个用例各 `prepare` 一遍（每遍 2 次 commit）就是 ~6×20s + ~30 次 spawn。改成**模块级 fixture 只 prepare 一次** + `GIT_CONFIG_COUNT=1 / GIT_CONFIG_KEY_0=core.hooksPath / GIT_CONFIG_VALUE_0=<不存在目录>`（命令行级配置压过机器级 `core.hooksPath`，只对临时仓库生效）后：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_demo_prepare_contract.py -q -p no:cacheprovider` | 7 passed in 25.88s（第一版 >300s SIGTERM） |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_demo_prepare_contract.py` | All checks passed |
+
+**诚实边界（明确不声称）。** ① 只加测试：`cli/specproof/commands/demo.py` 生产码一字未动。② **量到一处健壮性缺口但本批没有钉它**：`prepare_demo_repo` 在控制器文件**缺失**时走 `controller.read_text(...)` 会抛 `FileNotFoundError`（未包装成 `ClickException`），用户会看到裸 traceback 而不是可操作提示；把它改成 `ClickException` 是生产码改动，另开单位（本批不写「预期崩溃」的断言去把它固化成正确行为）。③ `demo(run=True)` 那条路径会 `ctx.invoke(verify, ...)` 跑真实编译，本批未覆盖（需 Docker/Maven，属集成平面）。④ 测试里的 `GIT_CONFIG_*` 只影响子进程继承的环境，不改任何仓库配置。
+
+**下批候选（受本环境约束）。**
+- `demo.py` 控制器缺失时的 `FileNotFoundError` → `ClickException`（生产码小改，需一条「缺文件时给可操作提示」的腿 + 变异验证）。
+- `probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
+- 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
