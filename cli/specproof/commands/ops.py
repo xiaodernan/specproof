@@ -44,11 +44,16 @@ def _ids(rows: list[dict[str, Any]], noun: str) -> str:
 
 
 def _plan_ids(rows: list[dict[str, Any]], verdict: str, noun: str) -> str:
-    """Render the plan rows for one verdict — same shape as `_ids`."""
+    """Render the plan rows for one verdict — same shape as `_ids`.
+
+    Mirrors `_ids`'s `None`-tolerant rendering: a row with a missing or
+    null `retry_count`/`max_retries` must not raise, it renders as 0/0.
+    """
     return " ".join(
-        f"{row['job_id']}({noun} {row['retry_count']}/{row['max_retries']})"
+        f"{row['job_id']}({noun} {int(row.get('retry_count') or 0)}/"
+        f"{int(row.get('max_retries') or 0)})"
         for row in rows
-        if row["verdict"] == verdict
+        if row.get("verdict") == verdict
     )
 
 

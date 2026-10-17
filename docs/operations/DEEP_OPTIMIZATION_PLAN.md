@@ -5462,3 +5462,35 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - `demo.py` 控制器缺失 `FileNotFoundError` → `ClickException`（生产码小改，#280 已点名）。
 - 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑）。
+
+## #283 `ops recover` 输出格式化：修掉 `_plan_ids` 对 None retry 计数的鲁棒性不一致 + 补栅栏
+
+**起因/占号。** #282 队列点名：`_ids` 用 `.get('retry_count') or 0` 兜底，而老版 `_plan_ids` 直接 `row['retry_count']`/`row['max_retries']`——对 DB 抖动时出现的 None/missing retry 计数，老版 `_plan_ids` 会抛 `KeyError`/`TypeError`，是一处**真实潜伏 bug**：运维命令在「某一行缺字段」时裸崩，反而说不出判定结论。本批把它修掉（与 `_ids` 同形态兜底），再补栅栏把契约钉死。
+
+**量到的边界（先量后写）。** 实测老版 `_plan_ids([{"job_id":"a","verdict":"RECLAIM","retry_count":None}])` 在 `int(row['retry_count'])` 处 `TypeError`；缺 `verdict` 键的 `row["verdict"]` 直接 `KeyError`。修复后两态都应安全：None/missing → `0/0`；缺 `verdict` 键的行被过滤而非崩溃。`_human_running` 取 `outcome.lease_probe_error`/`probed`/`candidates`/`reclaimed`/`exhausted`；`lease_probe_error is not None` → `judged=False` 且仍如实报告已抢回行（不因为后面的探针失败让前面的真实结果消失）。`_human_provider_wait([])` → `["  没有等待模型服务的作业"]`，含 `FAILED` 时补「转为 FAILED」提示。
+
+**落地（含一处生产码改动 + 新测试）。** 改 `cli/specproof/commands/ops.py` 的 `_plan_ids`：
+```python
+return " ".join(
+    f"{row['job_id']}({noun} {int(row.get('retry_count') or 0)}/"
+    f"{int(row.get('max_retries') or 0)})"
+    for row in rows
+    if row.get("verdict") == verdict
+)
+```
+（仅这一行的集合；格式字符串对正常 int 数据输出不变，故无回归。）新建 `tests/unit/test_ops_recover_output_format.py`（10 案：_ids/_plan_ids 的 None/missing 兜底 + verdict 过滤；_human_running 无候选/租约探针失败(unjudged)/抢回+耗尽；_human_provider_wait 空/含 FAILED）。
+
+**门证（全在本批内亲手取）。** 第一版断言「缺 verdict 键的行也渲染 `x(已用 0/0)`」是错的——缺键应被安全过滤返回 `""`；改断言后：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新测试 | `.venv/Scripts/python.exe -m pytest tests/unit/test_ops_recover_output_format.py -q` | 10 passed in 2.27s |
+| 回归 | `.venv/Scripts/python.exe -m pytest tests/unit/test_ops_recover_dry_run.py tests/unit/test_ops_recover_cli.py -q` | 27 passed（无回归） |
+| ruff | `ruff check tests/unit/test_ops_recover_output_format.py cli/specproof/commands/ops.py` | All checks passed |
+
+**诚实边界（明确不声称）。** ① 这是 #276–#282 序列里**首个含生产码改动**的项——此前全是「只加测试」。原因：那是个真实会崩的不一致，先修后测，否则测试只能把 bug 固化成正确行为；改动面仅 `_plan_ids` 一行集合（含 `row.get("verdict")` 的附带加固），`recover` 主体与 MySQL/Redis 交互未动。② `_human_running`/`_human_provider_wait` 仅纯格式化，无 DB 依赖；它们读取的 `outcome` 结构由 `agent/worker.py` 的 reclaim 产出，本批不重测产出侧。③ 修复不覆盖 `recover` 命令的「真连 MySQL 失败 → 诚实 `无法判定` 而非空结果」契约——那在 `test_ops_recover_dry_run.py` 已兜。
+
+**下批候选（受本环境约束）。**
+- `contract.py` `_spec_digest`（spec 文本哈希）契约 + `propose`/`approve` 注册表交互（需注册表存）。
+- `demo.py` 控制器缺失 `FileNotFoundError` → `ClickException`（生产码小改，#280 已点名；`demo.py` 当前在途，需等让出）。
+- 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑）。
