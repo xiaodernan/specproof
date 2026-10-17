@@ -13,18 +13,21 @@ Two facts measured on this host shape the legs:
 * ``serve_metrics_in_thread`` really does raise ``OSError`` when the OS refuses a
   bind — an unroutable TEST-NET-3 address gets here (``10049`` on Windows,
   ``EADDRNOTAVAIL`` on Linux), so the failure path needs no invented error class.
-* On Windows a second bind to an already-listening 127.0.0.1 port SUCCEEDS
-  (``SO_REUSEADDR`` semantics), so "port already taken" is NOT a locally portable
-  witness. The deployment plane (Linux containers) refuses it, which is the case
-  the production handler was written for; the refusal leg injects exactly the
-  ``OSError`` that plane raises, and the answering leg first asks the OS for a
-  free port on a throwaway socket, closes that socket, and hands the number it
-  was given to ``InvoiceCron`` — so the port the cron declares cannot be one
-  something else already holds.
+* On Windows a second bind to an already-listening 127.0.0.1 port USED to succeed
+  (``SO_REUSEADDR`` means "may share" there), which is why the refusal leg below
+  injects the ``OSError`` the Linux deployment plane raises. #284 measured the
+  consequence and fixed the endpoint: the bind now refuses a held port on both
+  planes, so ``test_a_real_port_holder_makes_the_cron_say_not_serving`` drives the
+  same branch with two live sockets and no invented error at all. The injected
+  leg stays, because it pins the reason text the container plane produces.
+* The answering leg first asks the OS for a free port on a throwaway socket,
+  closes that socket, and hands the number it was given to ``InvoiceCron`` — so
+  the port the cron declares cannot be one something else already holds.
 """
 
 from __future__ import annotations
 
+import errno
 import http.client
 import logging
 import re
@@ -214,13 +217,65 @@ def test_a_successful_bind_claims_serving_and_not_the_failure(
     assert "NOT serving" not in claim, f"the refusal wording leaked into the success arm: {claim!r}"
 
 
+def test_a_real_port_holder_makes_the_cron_say_not_serving(
+    store: SqliteBillingStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    """#284 — the refusal arm, produced by the OS holding the port.
+
+    ``test_a_refused_bind_is_disclosed_and_the_loop_survives`` injects the Linux
+    container's ``OSError(98)`` because on this host a second bind to a live port
+    used to succeed quietly. #284 made the endpoint refuse a stolen port, so the
+    disclosure branch can now be driven by a real collision instead of a
+    transcription of another platform's errno. The reason text is the OS's own
+    (localized on Windows), so the leg charges the claim and a non-empty reason,
+    not a spelling.
+    """
+    owner = metrics_http.serve_metrics_in_thread(host="127.0.0.1", port=0)
+    held = int(owner.server_address[1])
+    try:
+        with caplog.at_level(logging.INFO, logger="storage.invoice_cron"):
+            cycles = _run_one_cycle(InvoiceCron(store, interval=0.0, metrics_port=held))
+        claim = _startup_claim(caplog, held)
+        assert "NOT serving" in claim, (
+            f"another process answers port {held}, yet the cron's startup line reads "
+            f"{claim!r}. Its own gauges are unreachable from that moment and the line "
+            "is the only place the process says what it opened."
+        )
+        assert claim.index("NOT serving (") + len("NOT serving (") < len(claim) - 1, (
+            f"the refusal must carry the OS's reason inside the parentheses: {claim!r}"
+        )
+        assert cycles == 1, (
+            "a refused metrics port must still not stop the billing loop — the cron's "
+            "port is in no scrape roster, so continuing is the honest half of this shape"
+        )
+    finally:
+        owner.shutdown()
+        owner.server_close()
+
+
 def test_the_real_server_raises_oserror_when_the_os_refuses_the_bind() -> None:
-    """Why the handler catches OSError: the refusal is the OS's, not a fixture's."""
+    """Why the handler catches OSError: the refusal is the OS's, not a fixture's.
+
+    This leg refuses for the address reason (``EADDRNOTAVAIL``); the port-held
+    refusal — the case an operator actually hits — is ``test_L01`` in
+    ``tests/unit/test_metrics_port_ownership_leg.py``, and the disclosure it
+    produces in this process is the leg above. #284: before that, nothing in the
+    repository could make a bind fail for the collision reason on this host.
+    """
     with pytest.raises(OSError) as refused:
         metrics_http.serve_metrics_in_thread(host="203.0.113.42", port=0)
-    assert refused.value.errno is not None, (
-        "an unroutable TEST-NET-3 bind must fail with an errno the operator can read, "
-        f"got {refused.value!r}"
+    exc = refused.value
+    code = int(getattr(exc, "winerror", None) or exc.errno or 0)
+    # The code, not merely "an errno": #284's arm battery measured that arming
+    # SO_EXCLUSIVEADDRUSE while SO_REUSEADDR is still set makes THIS call fail too
+    # — with 10022 (invalid option), not 10049. A leg that accepted any errno
+    # would then stay green while the endpoint refuses every bind, which is the
+    # fail-closed outage #284's L03 exists to catch.
+    assert code == errno.EADDRNOTAVAIL, (
+        "an unroutable TEST-NET-3 bind must be refused BY THE ADDRESS "
+        f"(EADDRNOTAVAIL is {errno.EADDRNOTAVAIL} here), got {type(exc).__name__} "
+        f"code={code} ({exc!r}) — any other code means the socket options, not the "
+        "address, ended this bind"
     )
 
 

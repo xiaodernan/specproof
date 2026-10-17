@@ -43,6 +43,8 @@
   那一套变量集，包含 `SPECPROOF_BILLING_URL`; 未设置时启动即 no-op 而非猜库。只给
   已关闭月生成草票。指标端点 `INVOICE_CRON_METRICS_PORT` (默认 9103) 上的 /metrics
   目前没有任何抓取作业读它 (infra/prometheus/prometheus.yml 里没有 9103 这一行)。
+  端口已被别的进程回答时它不退出: 启动日志记 "NOT serving (原因)" 后照常按月开票 — 9103
+  不在名册上、开票按已关闭月份幂等, 这两条就是它与 outbox-relay 判决相反的原因 (2026-10-17 实测)。
 - **生产必须 SPECPROOF_ENV=production，而且这件事现在由部署文件本身做到** (#79, 2026-09-26 实测纠正):
   此前 config_guard 只在 `SPECPROOF_ENV=production` 时才拒绝默认口令，而**没有任何入口设置这个变量**
   —— compose 的两个文件、两个本机启动脚本都没有它，于是 `api/server.py` 那句
@@ -170,7 +172,10 @@
   outbox-relay 服务 (复用 worker 镜像, `python -m storage.outbox_relay`)
   把 MySQL outbox 表行中继到 RabbitMQ — 没有它 webhook 建单会一直
   QUEUED。它暴露 :9101 (OUTBOX_RELAY_METRICS_PORT, Prometheus 抓取
-  outbox-relay:9101/metrics)。api/worker 的 OTEL 链路经
+  outbox-relay:9101/metrics)。
+  这个端口只有一个属主: 端口已被别的进程回答时 outbox-relay 随绑定失败退出 (#284), 因为
+  名册上的 9101 读不到就不该装作在跑; 抓取之外的另一类失败是记 "metrics refresh failed" 并把
+  gauge 停在最后一次成功读数 (#275)。api/worker 的 OTEL 链路经
   OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 汇入观测栈
   (compose.observability.yml)。
 

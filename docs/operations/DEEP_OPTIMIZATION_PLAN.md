@@ -5494,3 +5494,90 @@ return " ".join(
 - `demo.py` 控制器缺失 `FileNotFoundError` → `ClickException`（生产码小改，#280 已点名；`demo.py` 当前在途，需等让出）。
 - 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑）。
+## #284 端口只有一个属主：Windows 让第二个进程 bind 成功，抓取永远读到第一个
+
+**起因/占号。** 本节做两件别车道明确让给这条车道的事。#279 在账本第 5383 行写
+「载体门（原 #275 队列 #276，排号已被消耗）：披露句的运维载体门，等运维文档车道让出。」；同一个部署决策项在账本里被抄了三号——#272 第 5234 行（原话就在本号下一段引用）、#275 第 5275 行多出「9103 也仍不在名册里」、#279 第 5384 行缩成「Windows 同端口双进程假成功；9103 不在名册」。本号领载体门那一条，并对这三行共同悬着的 read-back 问句给出决定（下一段末句与「修」段）。本弧起草时占的是 #275 队列给的 #276，落地前重测：账本最大 ## 节 283、
+提交标题最大 #283（HEAD 1e361e1），#276–#283 已被别车道按同一把尺消耗（`commands/fix.py`、
+`devtools`、`archreview`、指标名新鲜度只读量、`demo`、`replay`、`ops recover`）。按本账本的规矩取
+max+1 = **#284**，并把本弧六个文件里的 15 处 #276 占位引用一起改指本号——不改别人的号，
+教训与 #279 记下的一样：队列里的排号是愿望，不是保留。
+
+**先量旧行为（产物当场读，不在修完之后回想）。** 两支进程的同端口探针在 **HEAD 代码的平面副本**
+上重跑（`D:/面试项目/.m276-head-plane`，`observability/*` 取 `git show HEAD:` 的字节；产物
+`.scratch/m276_headplane_pre.log`）：父进程 bind 后 `allow_reuse_address=1`，子进程 bind 同一端口
+**没有 OSError**，随后 4 次抓取（READ 0..3）全部 `parent_marker=True child_marker=False`。
+不是"没有响应"，是"响应得很好，只是别人的数字"：子进程的 `specproof_*` 永远不可达，而它自己的
+registry 继续往一个没人能刮的 socket 里计数；同时第一个属主的序列被当成第二个进程的输出。
+同一支探针跑在修后的工作树上（`.scratch/m276_fixed_parent.log`）：`allow_reuse_address=0`，
+子进程 `WinError 10048`，探针自己的判决是「the OS refuses the second bind」。
+#272 当年记到的是「Windows 的 `SO_REUSEADDR` 让第二个 bind **直接成功**（探针里服务器拿到 61022），随后 GET 无响应而 Traceback 停在 `getresponse`…」（第 5208 行），并把要不要修放进队列
+（第 5234 行「往名册加 9103 之前值得先决定要不要在 `serve_metrics_in_thread` 里做一次 read-back；这属部署与 observability 侧，需要批准，不擅自动。」）。本号就是那份决定之后的落地：不靠 read-back，改端点本身。
+
+**选项矩阵（`.scratch/m276_option_matrix.py`，产物 `m276_option_matrix.log`：四种拼法 × 活冲突 /
+serve+close 后同端口重绑 / 带 linger 抓取后重绑）。** R 只设 SO_REUSEADDR（修前 shipped） → live STOLE IT；E 独占位且清 reuse（本号 shipped） → live refused(10048)；B 两个都设 → live first-bind-failed(10022)；N 两个都不设 → live refused(10048)；重绑一列
+R → rebind 1:ok 2:ok 3:ok；E → rebind 1:ok 2:ok 3:ok；B → rebind 1:FAILED(10022)；N → rebind 1:ok 2:ok 3:ok。`E`（独占位 + 清掉 `allow_reuse_address`）是 shipped 的形状；只设独占位而忘了
+清 reuse（`B`）不是"放松守护"而是**每次 bind 都 10022**，fail-closed 的 relay/worker 会死于一个
+它并没有占用的端口——这一行是 L03 存在的理由，也是电池 C 臂的实测。
+
+**修。** `observability/metrics_http.py` 用 `_MetricsServer(ThreadingHTTPServer)` 在
+`server_bind()` 里（仅当 `os.name == "nt"` 且平台给出 `SO_EXCLUSIVEADDRUSE`）先清
+`allow_reuse_address` 再设独占位，然后交给 `super()`；构造点从 `ThreadingHTTPServer(...)` 换成它，
+`serve_metrics_in_thread` 仍是唯一构造点，docstring 补一句「Raises OSError when the port is
+already being answered」。返回即"这个进程持有该端口"，于是三个调用方原有的分支差异第一次变成
+有内容的差异。observability/metrics_http.py 行数 85->114, 字节 +1576。
+
+**判决不对称，而这个不对称才是运维要读的。** `agent/worker.py` 与 `storage/outbox_relay.py`
+不吞这个失败（端口在 `infra/prometheus/prometheus.yml` 的名册上，抓不到的端点不该装作在跑）；
+`storage/invoice_cron.py` 记 `"NOT serving (原因)"` 后继续按月开票（9103 不在名册上、开票按已
+关闭月份幂等）。`docs/operations/DRILLS.md:489` 原先把 cron 写成「同 outbox relay 形状」——把
+两条相反的判决写成一条，本号订正，并让门禁止这个拼法。
+
+**门与腿（数字全部当场取）。**
+- 新增 `tests/unit/test_metrics_port_ownership_leg.py`：4 条（L01 活监听者拒第二次 bind 且端口仍回答属主、L02 第二个**进程**
+  同样被拒——把上面那次两进程读数做成在跑的腿、L03 释放后同一端口可重开三次、L04 端点模块只经
+  `_MetricsServer` 构造且 `server_bind` 带平台守护分支）。
+- 新增 `tests/unit/test_metrics_bind_fates_reach_the_ops_reader.py`：8 条（D1 普查必须两种判决都有、D2 载体名册显式且「排除账本」确实在
+  遮东西、D3 每个旋钮的判决与代码同词、D3b 引用披露句的句子只能挨着真写它的进程、D4 判决句子
+  还要带上代码默认端口、D5 「只有一个属主」必须挂在机制上、D6 禁止「同 outbox relay 形状」且
+  订正句必须引用代码的判决、D7 合成块的反向控制）。监听者普查不抄名单：`git ls-files *.py` +
+  一次 AST 走查得出进程/旋钮/默认端口/判决，披露短语从生产 handler 的字面量里读；只定义端点、
+  不调用端点的模块不算监听者，`len(definers) == 1` 钉住机制只有一个住所。分类器读的是 handler
+  里捕的类型（`_catches_refusal`），不是"有没有包在 try 里"——F 臂证明这一点。
+- 带外的两条：`tests/unit/test_outbox_relay_loop_leg.py` 的 L11（端口被别人回答时 relay 的循环根本不启动）与
+  `tests/unit/test_invoice_cron_metrics_leg.py` 的真实持有者腿（两进程、不发明异常）；两文件现有 11 / 9 条。
+- 载体分三平面读（承 #275 边界①）：读者文件集 3 个 + 只作声明的
+  `docs/operations/DRILLS.md`（1 个）、跟踪代码、账本自身。新句子在账本之外的读者文档
+  曾读 0 处，本号接进 OBSERVABILITY §8 / RUNBOOK / BILLING_DESIGN 并订正 DRILLS：
+  NOT serving 0->5; metrics refresh failed 0->2; 随绑定失败退出 0->2; 同 outbox relay 形状 1->0。句子留在 §8 而不是 §2——§2 的 `L5` 会把那一节里每个
+  `[A-Z][A-Z0-9_]{4,}` 记成旋钮词表，`SO_EXCLUSIVEADDRUSE`/`EADDRINUSE` 进去就红。
+- 文档改动量：docs/operations/OBSERVABILITY.md 行数 291->305, 字节 +1813；
+  docs/operations/RUNBOOK.md 行数 228->233, 字节 +772；docs/operations/DRILLS.md 行数 497->497, 字节 +884（单行订正，
+  行数不变）；docs/architecture/BILLING_DESIGN.md 行数 46->46, 字节 +146。
+
+**腿证（落地前后各一条链）。** 九文件链——两份新件（端口属主腿、运维载体门）、relay 的 L11 与 cron 的真实持有者两条带外腿、`test_metrics_http.py`、#268 的名册门、RUNBOOK 与 DRILLS 的声称门、存活探针↔名册门——在本节写进账本之前跑过一遍（四处文档改动与两份新件当时已在树里）：83 passed in 61.91s（`.scratch/m284_chain1.log`）；六个文件的 15 处 #276 占位改指本号、本节并入、再做两次句内订正（`.scratch/m284_repair.py`、`m284_repair2.py`）之后，同一批再跑：83 passed in 53.55s（`.scratch/m284_chain2.log`）。两次的案数与判决逐格一致，秒数差记在机器上而不是代码上——这条一致才是「账本里多了一节、六个文件里的引用换了号」不改变任何判决的证据。`ruff check` 我的四个测试件加四个生产件 All checks passed，`mypy` 四个生产源文件 0 错（`.scratch/m284_lint.log`）。
+
+**变异电池：8/8 臂命中预测红集，共 43 条红，跑在 56 条目标集上**
+（六文件的 `def test_` 之和与 runner 的 baseline 清点当场对账）。每臂从字节快照重基、跑完还原、
+终态 sha256 核对，`BATTERY: arms=8 problems=0 after_reds=0`。逐臂（预测/实测）：
+A_server_bind_asks_for_nothing:6/6, B_reinline_raw_server:5/5, C_keep_reuse_address:11/11, Da_swap_the_two_fates_in_the_doc:3/3, Db_cron_port_copy_edit:1/1, Dd_strip_the_mechanism_from_the_owner_claim:1/1, E_cron_rewords_the_disclosure:8/8, F_cron_catches_the_wrong_error:8/8。A/B 是专门做成一对的：两臂的预测红集只差一条——都是 L01、L02、L04、relay 的 L11 与 cron 的真实持有者腿，A 另加 D5。A 把 `server_bind` 的函数体换成 `pass`，模块里再没有独占位那个 token，「句子必须挂在机制上」当场火；B 只把构造点换回裸 `ThreadingHTTPServer`，类还带着 override 住在文件里，所以文档那一侧读得到、判不出。这条差别只有做成两臂才读得见，也是 D5 不是重复劳动的证明。
+C 臂（只留独占位、不清 reuse = 矩阵 `B` 行，红 11 条）第一轮让"不可路由
+地址"那条腿**保持绿色**：它只要求"有 errno"，而 10022 也有 errno——那条腿现在点名
+EADDRNOTAVAIL，并在此臂红（这是本弧被否证的第 1 号断言，记账）。F 臂（cron 的 `except OSError`
+换成 `except ValueError`）第一轮漏预测 D3b 与 D6：前者的非空洞钉在"所有旋钮只要一个短语"时自己
+火，后者要求订正句引用代码当下的判决——两者都是门拒绝担保一个它再也核不了的句子，属于预测集，
+不是要放宽的容差。
+
+**诚实边界。** ① 独占位是 Windows 特有的：POSIX 的 `SO_REUSEADDR` 本来就拒绝活冲突，容器平面靠
+的仍是那个已测行为，守护分支因此带平台条件——L04 断言机制在源码里，"无条件设位"会红。② 本机
+没跑过 compose/Linux 平面：两进程读数、4 次抓取、四种拼法 × 三个问句的矩阵全部在
+Windows 宿主机上取；跨平面复现留给抓取面那弧。③ 抓取侧新鲜度（冻结的 gauge 在序列上看不出来）
+本号不做，只在 OBSERVABILITY §8 留一句说明它仍未落地：#279 已把它的消费者代价量成 M1-M4 四个
+形状，实现按 #279 的判决走 M1 且不配告警。④ 三个监听者里只有 cron 的端口不在名册上，"9103 上
+没人抓"这件事仍由 #268 的豁免腿说，本号不重复裁定，也不动 `infra/prometheus/prometheus.yml`
+（那是部署面，不擅自动）。⑤ #279 边界②说过抓取面被本弧的在途件挡住：现在 `observability/
+metrics_http.py` 随本号落库，那一弧不再需要等。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 抓取侧新鲜度按 #279 的 M1 形状实现；② 账本编号
+唯一性（`## #144`/`## #145`/`## #246` 各有两节，「见 #246」不可判定）；③ #260
+`GITHUB_APP_PRIVATE_KEY_FILE` 的 `${X:-}` 空透传载体仍在 `_DEFERRED`。

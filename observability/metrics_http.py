@@ -13,6 +13,7 @@ host processes bind 127.0.0.1.
 from __future__ import annotations
 
 import os
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -64,6 +65,32 @@ def _resolve_bind_host() -> str:
     return "127.0.0.1"
 
 
+class _MetricsServer(ThreadingHTTPServer):
+    """A metrics endpoint that only reports a port it actually owns.
+
+    ``HTTPServer`` sets ``allow_reuse_address``, and on Windows ``SO_REUSEADDR``
+    means "this address may be shared": a second process binds a port another
+    process is already answering on, its thread serves nothing, and every scrape
+    keeps returning the first owner's exposition. The caller sees no error, so a
+    startup line saying the metrics port is serving is a lie about a socket
+    nobody can reach. ``SO_EXCLUSIVEADDRUSE`` makes a live collision fail with
+    ``OSError`` the way POSIX bind already does, so returning from the
+    constructor means this process holds the port.
+
+    Measured on a Windows host (the plane ``scripts/start_local.ps1`` runs):
+    exclusive + no reuse refuses a live listener with 10048, still rebinds the
+    same port right after a served request, and still rebinds after a scrape
+    whose connection lingered — so the fail-closed relay/worker do not die on
+    restart. Setting both options instead fails every bind with 10022.
+    """
+
+    def server_bind(self) -> None:
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.allow_reuse_address = False
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def serve_metrics_in_thread(
     host: str | None = None,
     port: int = 9100,
@@ -74,10 +101,12 @@ def serve_metrics_in_thread(
     METRICS_BIND_HOST override). The returned server can be shut down
     with server.shutdown() in tests; the daemon thread dies with the
     process, so production code can call this and forget about it.
+
+    Raises OSError when the port is already being answered by another process.
     """
     if host is None:
         host = _resolve_bind_host()
-    server = ThreadingHTTPServer((host, port), _MetricsHandler)
+    server = _MetricsServer((host, port), _MetricsHandler)
     thread = threading.Thread(
         target=server.serve_forever, daemon=True, name="metrics-http"
     )

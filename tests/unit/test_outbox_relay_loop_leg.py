@@ -19,10 +19,16 @@ failure, but its loop puts ``drain_pending`` and ``refresh_metrics`` in ONE try 
 ``MAX_BACKOFF`` on any exception, so a metrics blip stalls delivery there. The outbox
 relay deliberately keeps the narrower guard: disclose, keep the cadence (L07), and let
 anything else still escape the loop (L10).
+
+L11 belongs to #284 and charges the other half of the same loop: the startup bind. The
+metrics endpoint used to accept a port another process was already answering (Windows
+``SO_REUSEADDR``), so a host-run relay could deliver while its alert-carrier gauges were
+unreadable and Prometheus still saw a healthy ``outbox-relay:9101``.
 """
 
 from __future__ import annotations
 
+import errno
 import logging
 import time
 from collections.abc import Callable
@@ -404,3 +410,54 @@ def test_L10_an_error_before_the_loop_still_escapes(
         f"moving that arming after the bind breaks the order"
     )
     assert mysql.stats_calls == 0 and _freeze_claims(caplog) == []
+
+
+def test_L11_the_loop_never_starts_while_another_process_holds_its_scrape_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#284 — a squatted metrics port is a reason not to run, not a silent boot.
+
+    ``outbox-relay:9101`` is a DEPLOYED scrape target, and
+    ``infra/prometheus/alerts-slo.yml`` reads ``specproof_outbox_pending`` off it.
+    Before #284 the bind used Windows' ``SO_REUSEADDR`` meaning ("may share this
+    address"): on a host run — ``scripts/start_local.ps1`` starts this relay — the
+    second relay booted, drained, and its gauges went into a registry nobody could
+    scrape, while Prometheus kept reading the first owner and saw a healthy target.
+    That is the one failure mode an alert carrier must not have.
+
+    The container plane (Linux) already refused the bind and killed the boot, so
+    this leg is parity with what production does, not a new policy: the refusal
+    escapes ``run_forever`` before a single row is claimed. The invoice cron is
+    deliberately the opposite shape — its port is in no roster and its work is
+    idempotent per closed month, so it discloses "NOT serving" and keeps going.
+
+    The loop is entered through ``_drive``, not a bare ``run_forever()``: if the
+    bind ever stops refusing, the loop must terminate after one body so this leg
+    reads RED, not HUNG.
+    """
+    owner = metrics_http.serve_metrics_in_thread(host="127.0.0.1", port=0)
+    held = int(owner.server_address[1])
+    try:
+        monkeypatch.setenv("OUTBOX_RELAY_METRICS_PORT", str(held))
+        _record_sleeps(monkeypatch)
+        relay, mysql, events = _relay([_stats(0)])
+
+        with pytest.raises(OSError) as refused:
+            _drive(relay, 1)
+        code = int(getattr(refused.value, "winerror", None) or refused.value.errno or 0)
+        assert code == errno.EADDRINUSE, (
+            f"the relay did boot and then died of something else on port {held}: "
+            f"{type(refused.value).__name__} code={code}, expected EADDRINUSE "
+            f"({errno.EADDRINUSE})"
+        )
+        assert not any(event[0] in {"fetch", "stats"} for event in events), (
+            f"the loop started draining while its scrape port belonged to another "
+            f"process: {events}. A relay that delivers blind cannot be alerted on."
+        )
+        assert mysql.stats_calls == 0, (
+            f"gauges were refreshed on a port nobody can scrape: {mysql.stats_calls} calls"
+        )
+    finally:
+        owner.shutdown()
+        owner.server_close()
+

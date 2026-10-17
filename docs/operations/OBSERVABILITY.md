@@ -289,3 +289,17 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 - GF_SECURITY_ADMIN_PASSWORD 默认 specproof_admin 仅用于首次体验, 生产必须更换。
 - Trace 无持久后端 (debug exporter), 接 Tempo/Jaeger 时在
   infra/otel/otel-collector.yaml 的 traces pipeline 追加 otlphttp 转发即可。
+- 抓取端口只有一个属主 (#284): observability/metrics_http.py 向操作系统要求独占端口, 端口
+  已被别的进程回答时第二次绑定直接失败 (EADDRINUSE)。以前的 Windows 宿主机不是这样: 第二个
+  进程 bind 成功而抓取永远读到第一个进程的序列, 两边都自称 serving, Prometheus 看到的只是
+  一个人的数字 — scripts/start_local.ps1 在同一台机器上再起一份 worker 或 outbox-relay 就
+  是这条路。容器平面 (Linux) 一直会拒绝, 所以这是把宿主机补到与部署面同一个判决, 不是新政策。
+- WORKER_METRICS_PORT (代码默认 9100) 与 OUTBOX_RELAY_METRICS_PORT (代码默认 9101): 两个端口
+  都在 infra/prometheus/prometheus.yml 的名册上, 进程不吞这个失败, 随绑定失败退出 — 一个
+  抓不到的端点不该装作在跑。
+- INVOICE_CRON_METRICS_PORT (代码默认 9103): 名册上没有它, 月账单的工作按已关闭月份幂等, 所以
+  这个进程不因为指标端口而停: 启动日志记 "NOT serving (原因)" 并继续开票。读到 NOT serving
+  只表示这个进程的指标抓不到, 不表示发票没生成。
+- 指标刷新的失败同样只在日志里: storage/outbox_relay.py 记 "metrics refresh failed" 之后,
+  specproof_outbox_* 的 gauge 停在最后一次成功读数, 抓取面上看不出它冻结了 (抓取侧新鲜度信号的
+  消费者代价已由 #279 只读量过, 实现仍未落地 — 本仓库目前没有这个信号)。
