@@ -5302,3 +5302,29 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - 其余零覆盖命令模块：`devtools.py`（`_resolve`/`_emit` 的路径与输出契约）、`demo.py`（`_ref_exists` 需真 git）、`probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
 - 账本自身的可引用性缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）：编号复用会让「引用 #246」指向两处，需要一次去重/加子号。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## #277 `commands/devtools.py` 的路径门与报告发射器补栅栏测试
+
+**起因/占号。** #276 把 `commands/fix.py` 的四个数据契约函数补齐后，同一把尺继续量：`devtools.py` 在 `tests/unit/` 里直接引用数为 0。它的 `_resolve` 是三个子命令（quality/docs/archreview）共用的**唯一存在性门**，`_emit` 是报告变成「文件或 stdout」的**唯一出口**——一处回归会静默改变输出落点、或让不存在的路径混过去。占号前读账本最大值 276（`## #276`）与提交日志最大值 276（`8979671`），本号取 **#277**。
+
+**量到的缺陷（先量后写）。**
+- `_resolve(path)`：`Path(path).exists()` 为真才返回，否则 `ClickException`。这是三个子命令共同的入口；若被改成「直接返回 Path」，缺失路径会被下游 `analyze`/`generate`/`review` 以更难读的 `FileNotFoundError` 抛出。
+- `_emit(report, output, as_json)`：`output` 非空 → 建父目录、写 `json.dumps(ensure_ascii=False, indent=2) + "\n"`、回显 `report written to: <path>` 并 return；否则 `as_json` → `click.echo(payload, nl=False)`，再否则 `click.echo(json.dumps(...))`。两条 stdout 分支的**字节应相同**，且中文必须原样（`ensure_ascii=False`），否则报告里的中文会变成 `\u4e2d` 转义。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_devtools_emit_contract.py`（7 案，文件系统活动全在仓库外 tempfile；**刻意不用 pytest 的 `tmp_path`**，本机 safe-delete 护栏会卡它的清理）：
+- `_resolve` 2 案：存在路径→`Path`；缺失→`ClickException`。
+- `_emit` 5 案：写文件并自动建多级父目录且内容逐字节等于 `dumps+换行`；写文件时回显路径；`as_json=True` 走 stdout 且字节等于 payload；默认分支走 stdout 且字节相同；非 ASCII 不被转义（`中文说明` 在、`\\u4e2d` 不在）。
+
+**门证（全在本批内亲手取）。** 沿用 #276 记下的临时环境跑法（共享 venv 已是 uv 管理的 3.14.8、缺 click）：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_devtools_emit_contract.py -q` | 7 passed in 2.36s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_devtools_emit_contract.py` | 初报 2 错（I001 导入排序、E501 第 45 行 108>100）；`--fix` 修 I001 + 手动拆行后 **All checks passed** |
+| 复跑 | 同测试命令 | 7 passed in 6.16s |
+
+**诚实边界（明确不声称）。** ① 只加测试：`cli/specproof/commands/devtools.py` 生产码一字未动。② `archreview_cmd` 里内联的 `--layer REGEX=NAME` / `--allow SRC>DST` 解析（缺 `=`/`>` 时抛 `ClickException`）**未**覆盖——它是内联在 click 回调里的，要覆盖得走 `CliRunner` 或把它抽成函数；抽函数是生产码改动，另开单位。③ `quality/docs/archreview` 三个子命令本身调用 `devtools.quality.analyze` / `devtools.docs.generate` / `devtools.archreview.review`，那是另一层模块，不在本批射程。④ 断言是行为级表征；`ensure_ascii=False` 或 stdout 字节若变会先红。
+
+**下批候选（受本环境约束）。**
+- `archreview_cmd` 的 `--layer`/`--allow` 解析：可用 `click.testing.CliRunner` 直接驱动命令，不必改生产码（下一号首选）。
+- `demo.py`（`_ref_exists` 需真 git 仓库）、`probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
+- 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
