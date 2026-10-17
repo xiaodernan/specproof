@@ -5273,3 +5273,32 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - **账本自身的编号唯一性**（本号量到的，成本极低）：`## #246` 在本账本出现 2 次、且是两个不同单元（`specproof eval` 案例容错与 case-17 单例读数），于是「见 #246」这种引用不可判定；`## #144`/`## #145` 各 2 次是「待办配方」+「落地」同单元两节，`## #173-1`/`## #173-2` 是子号。一条门可以只做一件事：名册化每个节号→单元标题，并禁止一个新节复用另一单元已经用过的号（配方/落地同号要显式带后缀）。排在 #276 之后，因为它要求先有一个稳定的落地号规则——本号恰好演示了让位会产生空号（#273）。
 - #260 `GITHUB_APP_PRIVATE_KEY_FILE` 的 `${X:-}` 空透传仍在 `_DEFERRED` 里，未动。
 - 部署决策项（需要批准，不擅自动）：Windows 宿主机上两个进程可以声称同一个抓取端口（实测 bind 成功、GET 无响应），症状是「抓取超时」而不是「端口冲突」；9103 也仍不在名册里，#268 的 L15 继续要求那条豁免带两处缺口短语。
+## #276 `commands/fix.py` 的 fix/approve 数据契约补栅栏测试
+
+**起因/占号。** 前一弧把 `commands/eval.py` 的稳定纯函数全部补齐栅栏（#256/#258/#259/#260），本号按同一把尺量其余命令模块：`demo`/`devtools`/`fix`/`mcp`/`probe`/`quickstart` 六个模块在 `tests/unit/` 里直接引用数均为 0。`fix.py`（434 行）的四个数据契约函数 `_load_findings` / `_load_requests` / `_write_requests_file` / `_write_pr_payload` 是 fix 与 approve 两条命令交换 JSON 的**生产者与消费者**，一处形状回归会让修复器拿到错字段、或让 PR payload 少掉补丁——却零直接测试。占号前读账本最大值 275（`## #275`）与提交日志最大值 275（`fb74ef7`），本号取 **#276**。
+
+**量到的缺陷（先量后写，全部亲手跑）。** 四个函数的契约各有独立边界，且都不在其它测试的射程内：
+- `_load_findings`：接受「含 `findings` 键的对象」或「裸列表」两种形状；非 dict 条目被静默过滤；非 list/dict 的顶层（字符串/数字）必须抛 `ClickException`；缺文件、坏 JSON 同样抛。**「过滤非 dict」这条最容易在被改成 `list(data)` 时静默丢失**，然后一个字符串条目会带着 `f["id"]` 的 `TypeError` 在更远处炸。
+- `_load_requests`：只接受 JSON 对象，列表必须抛（approve 读的是 `{"proposals": [...]}`，一个裸列表会被当成 `data["proposals"]` 的 KeyError）。
+- `_write_requests_file`：`github_context.repo_path` 必须是 `repo.resolve()` 后的绝对路径，`base_ref`/`head_ref` 原样透传，`proposals` 走 `FixProposal.to_dict()`，`skipped` 原样；目录不存在要自动建。
+- `_write_pr_payload`：文件名是 `fix-pr-{fix_id.lower()}.json`（大小写必须归一，否则 approve 按 `fix_id` 找文件会漏），title 形如 `SpecProof fix {fix_id}: {rationale}`，body 必须含 `finding_id`、`contract_id` 与 diff 围栏。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_fix_requests_contract.py`（15 案，全部文件系统活动在仓库外 tempfile）：
+- `_load_findings` 7 案：对象形状、裸列表、非 dict 过滤（`[{"id":"a"}, "junk", 3, None]` → 只剩 dict）、空对象→`[]`、非 list/dict→`ClickException`、缺文件→抛、坏 JSON→抛。
+- `_load_requests` 4 案：对象 ok、列表→抛、缺文件→抛、坏 JSON→抛。
+- `_write_requests_file` 2 案：payload 形状（`generated_at` 非空字符串、`github_context` 三字段、`proposals[0].fix_id`、`skipped` 原样）、输出目录自动创建。
+- `_write_pr_payload` 2 案：文件名 `fix-pr-fix-1.json`、repo/base/head/title/body（含 `FIND-1`、`UNIQUE-01`、diff 围栏与补丁首行）、嵌套输出目录自动创建。
+
+**门证（全在本批内亲手取）。** 本机环境在本会话内变过：`specproof-reference/.venv` 已是 **uv 0.11.19 管理的 Python 3.14.8**、`pip list` 报 `No module named pip`、`import click` 报 `ModuleNotFoundError`（不是记忆里那套 3.12.14 带依赖的 venv）。为不污染共享 venv、也不触发整项目 `uv sync`，门跑在**临时环境**里：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_fix_requests_contract.py -q` | 15 passed in 2.68s（装 7 包 1.78s） |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_fix_requests_contract.py` | 初报 3 个 SIM117，`--fix` 修 2、剩 1 个 C408（`dict(...)`），手改为字面量后 **All checks passed** |
+| 复跑 | 同测试命令 | 15 passed in 2.02s |
+
+**诚实边界（明确不声称）。** ① 只加测试：`cli/specproof/commands/fix.py` 生产码一字未动。② `_materialize_worktrees`/`_cleanup_worktrees`/`_find_maven_project`/`_compile_verify`/`_run` 这些需真 git worktree 或真 Maven 的路径未在本批覆盖（其中 `_cleanup_worktrees` 的同类兜底已在 #260 覆盖 `eval.py` 的那一份，两份不是同一实现）。③ `FixProposal.to_dict()` 用的是 `asdict`，本批只断言 `fix_id` 一个字段，没有把 10 个字段逐一钉死——`asdict` 的深拷贝语义由 dataclass 自身保证，重复钉它只是把实现抄一遍。④ 门跑在临时 uv 环境而非共享 venv：这证明测试与 ruff 在**干净依赖**下通过，不证明共享 venv 此刻可运行（它缺 click 是另一件事，已在上面记下）。
+
+**下批候选（受本环境约束）。**
+- 其余零覆盖命令模块：`devtools.py`（`_resolve`/`_emit` 的路径与输出契约）、`demo.py`（`_ref_exists` 需真 git）、`probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
+- 账本自身的可引用性缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）：编号复用会让「引用 #246」指向两处，需要一次去重/加子号。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
