@@ -5355,3 +5355,30 @@ CI 实际传的 floors（从 ci.yml 读出）：3 / 1 —— 即**刻意调弱**
 - `probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
 - 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+
+## #279 多一个指标名会让几个消费者红：新鲜度信号（#275 队列 #277）的只读量种子
+
+**起点（#275 队列的 #277 条目）。** #275 边界②给 #277 定了范围：在抓取面加一个新鲜度信号，让冻结的 gauge 可与健康的区分，「牵动名册、仪表盘、告警表与 #208/#216/#218/#220 四道门」，并要求「先只读量『几个消费者会因为多一个指标名而红』」。本号做这个只读量：在 HEAD 的平面副本上对六个指标名消费者门做变异，量出每个形状的红集。共享工作树全程未动——变异只落在 `D:\面试项目\_plane277`（`git archive HEAD | tar -x` 建），每臂从字节快照重基、跑完还原、终态 sha256 核对。注：#275 队列里的 #276（载体门）与 #277（新鲜度门）两个排号已被别车道的 #276（fix.py 契约门）/ #277（devtools 门）/ #278（archreview 门）消耗；本号按落地时点 max+1 取 #279，载体门与新鲜度门排号顺延至后续可用号。
+
+**六个消费者门（基线 39 passed，平面副本 30.3s）。** #161 parity（`test_observability_metric_parity.py`，含 concatenated-family 词表腿）、#217 清单（`test_metric_inventory_lists_every_emission_site.py`）、#216 告警↔阈值（`test_alert_rules_bind_their_own_threshold_table.py`）、#219 告警表（`test_alert_table_matches_the_deployed_rules.py`）、#218 仪表盘数字（`test_dashboard_slo_figures_bind_their_declarations.py`）、#220/#232 名册↔存活（`test_scrape_roster_binds_the_liveness_probes.py`）。
+
+**变异臂（4 臂 + 对照，红集从 junit 读，脚本 `D:\面试项目\m277_mutate.py`）。** 新指标名取 `specproof_outbox_pending_freshness`（挂 outbox relay 这条被部署读者抓、被 critical 告警判的线，与 #275 同一条）。
+- C0 对照（无变异）：39 passed，0 红。
+- M1 新名进仪表盘 + 从**已登记**文件 `storage/outbox_relay.py` 的 `refresh_metrics` 上报：**0 红**。最省形状免费——emit 点已在 #217 清单里、名字能追溯到 emission site、无告警。
+- M2 新名只进仪表盘、**无 emission site**：1 红 → `parity::test_every_referenced_metric_name_traces_to_an_emission_site`（#161）。
+- M3 新名从**新文件**上报：1 红 → `inventory::test_the_inventory_names_every_emission_site`（#217，新文件要 bullet + 手写计数重数）。
+- M4 新名配**告警规则**（`expr: specproof_outbox_pending_freshness > 1000000000`）：**16 红**，级联四个门——#216 两条、#219 两条、#218 五条（含 `test_outbox_panel_declares_its_early_warning_band_below_the_alarm`）、#220/#232 七条（新规则读的族要 provider job + liveness probe）。
+
+**结论（#277 的判决输入）。** 新鲜度信号按 M1 形状落地 = **0 消费者红**：从 `storage/outbox_relay.py`（已在清单）上报一个 `specproof_outbox_pending_freshness` gauge + 在仪表盘画一条线即可，**不需要告警规则**。绝不能走 M4 的告警路径（16 红级联，要同批改阈值表、告警表、仪表盘数字、名册↔存活四个门）。M2/M3 是两个「便宜陷阱」：名字只进仪表盘不 emit 会红 #161；从新文件 emit 会红 #217——emit 点必须选已在清单的文件。
+
+**诚实边界。**
+① 只读量，未落任何生产字节：本号不实现 #277，只量它的消费者代价；共享工作树零改动（`git status` 里 `observability/metrics_http.py` 等别车道在途件一律未动）。
+② #277 实现仍被车道挡着：新鲜度信号的载体是抓取面 `observability/metrics_http.py`，它此刻带着别车道的 `SO_EXCLUSIVEADDRUSE` 端口冲突修复（在途未提交，实测是端口归属不是新鲜度信号）；等那个让出，#277 按 M1 形状实现。
+③ 平面副本依赖：本号把缺的全量依赖（pyproject 声明的 langgraph/fastapi/httpx/cryptography/elasticsearch/pika 等，共 ~70 包）装进了 `.venv`——那之前 venv 只有 pytest 家族，连 parity 门都 import 不动（5 个失败全是 ModuleNotFoundError）。这是 venv 状态修复、不是代码改动，对后续所有轮次有效。
+④ 变异只覆盖四个形状（M1–M4）；parity 的 concatenated-family 词表腿（`test_concatenated_families_track_their_vocabularies`）未单独变——新名若长得像某个族模式（如 `jobs_<word>_total`）却不在词表里会红那条；#277 的新鲜度名不匹配任何族模式，故不触发，这条留给实现号确认。
+⑤ 本号只碰账本一个文件；别车道在途的 `apps/web/*`、`docs/eval/*`、`evidence/acceptance.py`、`experiments/adapters.py`、`sandbox/runner.py`、`observability/metrics_http.py`、`storage/invoice_cron.py` 等一律未动、未进索引。
+
+**下一号队列。**
+- #277 新鲜度信号按 M1 形状实现（等 `observability/metrics_http.py` 车道让出）：从 `storage/outbox_relay.py` 上报 `specproof_outbox_pending_freshness` + 仪表盘一条线，**不配告警**。
+- 载体门（原 #275 队列 #276，排号已被消耗）：披露句的运维载体门，等运维文档车道让出。
+- 部署决策项（需批准，不擅自动）：Windows 同端口双进程假成功；9103 不在名册。
