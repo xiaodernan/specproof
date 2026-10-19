@@ -5639,3 +5639,31 @@ if not controller.is_file():
 - `probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
 - 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## #287 账本节号不许再新增重复：一道单向棘轮门（含变异验证）
+
+**起因/占号。** #275 的诚实边界里量到「账本自己有两处编号复用（`## #246` 两节、`## #144`/`## #145` 各是「待办配方」+「落地」两节），这是账本的可引用性缺陷，记进下面的队列」；#286 的下批候选把这条排进来。占号前读账本最大值 286（`## #286`）与提交日志最大值 286（`b7a7f1e`），本号取 **#287**。
+
+**量到的缺陷（先量后写，含一次自我纠错）。** 第一遍用 `grep -oE "^## #[0-9]+"` 普查，得到 6 个「重复」：144/145/173/241/246/254。**这个读数是错的**——`#254b`、`#241b`、`#173-1`、`#173-2` 是**子号**，被宽松正则截成了 `#254`/`#241`/`#173`。改用严格 token（`^## #(\S+)`）重量：**116 节、113 个不同 token，真重复只有 144、145、246**，与 #275 当时的记录一致。这次纠错本身也写进本节：普查正则的松紧会改变「重复」的定义。
+
+**为什么不是改名（关键判断）。** 改历史节名看起来最直接，但账本**自己的契约**不允许：`tests/unit/test_listen_port_knobs_bind_the_scrape_roster.py:761` 与 `tests/unit/test_metrics_bind_fates_reach_the_ops_reader.py:64` 都把 `DEEP_OPTIMIZATION_PLAN.md` **显式排除在评分外**，理由写在注释里——「append-only record of what was true at writing time，grading a history entry would force a rewrite」。所以正确做法不是重写历史，而是**给未来加一道单向棘轮**：历史重复原样保留，新重复一律拒绝。
+
+**落地（只加测试，生产码与账本历史一字未动）。** 新建 `tests/unit/test_ledger_section_numbers_are_unique.py`（4 案）：
+1. `test_ledger_exists_and_has_sections`：账本存在且 `>= 100` 节（空集不算干净的分母下限）。
+2. `test_no_new_duplicate_section_numbers`：重复 token 集合必须 ⊆ `{144, 145, 246}`。
+3. `test_known_duplicates_keep_their_count`：每个已知重复**恰好 2 次**——否则「给 #246 再加一节」这种「已知重复再长一份」会从第 2 条的集合判断里溜过去。
+4. `test_sub_numbers_are_not_counted_as_duplicates`：`254`/`241`/`173` 不得被判为重复，钉住「子号不是重复」这条解析语义。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with pytest python -m pytest tests/unit/test_ledger_section_numbers_are_unique.py -q -p no:cacheprovider` | 4 passed in 2.48s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_ledger_section_numbers_are_unique.py` | All checks passed |
+| **变异臂**（给账本追加 `## #999` 两节 + 第三份 `## #144`） | 先预测：第 2 条（新重复）与第 3 条（已知计数变 3）必红，第 1、4 条仍绿 | 实测 **2 failed, 2 passed**，失败逐名命中，`#144 appears 3 times, expected 2` |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `diff` 与变异前备份逐字节一致、无 `#999` 残留；复跑 4 passed in 2.01s |
+
+**诚实边界（明确不声称）。** ① 本批**没有修历史重复**（144/145/246 仍在），这是有意的：账本是 append-only，重写历史违反它自己的契约，也是另外两条腿显式排除它的原因。② 棘轮只防「新增重复」；若将来真要消除某个历史重复，得同时把白名单收缩（第 2 条会自动允许，第 3 条会红，提示改白名单）。③ 本门只读账本自身的 `## #` 标题，不检查**跨文件引用**（别处按编号引用账本时的歧义不在射程内）。④ 白名单里的三个数是**写死的历史事实**，不是可推导的规则——这是「一次性例外」的正当形态，注释写明了每一处的来历。
+
+**下批候选（受本环境约束）。**
+- 跨文件引用歧义：若 `docs/` 其它文件按 `#246` 引用账本，本门看不到；可加一条「引用必须带节标题片段」的检查（需先量清有多少处按编号引用）。
+- `probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
