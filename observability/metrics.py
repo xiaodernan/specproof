@@ -94,6 +94,20 @@ def snapshot() -> dict[str, Any]:
         }
 
 
+def sanitize_metric_name(name: str) -> str:
+    """Mangle a metric name into a Prometheus-legal identifier.
+
+    Prometheus metric names must match ``[a-zA-Z_][a-zA-Z0-9_]*``. A name that
+    keeps a ``-`` or ``.`` (both common in spec/feature slugs) produces an
+    illegal line that the scrape side silently drops — the exact "skip ≠ pass"
+    failure this whole observability surface exists to make visible. We collapse
+    the two characters we know appear in real slugs; anything else is passed
+    through unchanged so a *new* illegal character surfaces as a real render
+    difference rather than being hidden by an over-broad substitution.
+    """
+    return name.replace("-", "_").replace(".", "_")
+
+
 def render_text() -> str:
     snap = snapshot()
     lines = [
@@ -102,15 +116,15 @@ def render_text() -> str:
         f"specproof_up {snap['uptime_seconds']:.1f}",
     ]
     for name, value in sorted(snap["counters"].items()):
-        safe = name.replace("-", "_").replace(".", "_")
+        safe = sanitize_metric_name(name)
         lines.append(f"# TYPE specproof_{safe} counter")
         lines.append(f"specproof_{safe} {int(value)}")
     for name, value in sorted(snap["gauges"].items()):
-        safe = name.replace("-", "_").replace(".", "_")
+        safe = sanitize_metric_name(name)
         lines.append(f"# TYPE specproof_{safe} gauge")
         lines.append(f"specproof_{safe} {value}")
     for name, hist in sorted(snap["histograms"].items()):
-        safe = name.replace("-", "_").replace(".", "_")
+        safe = sanitize_metric_name(name)
         lines.append(f"# HELP specproof_{safe} Duration histogram (seconds).")
         lines.append(f"# TYPE specproof_{safe} histogram")
         bounds: list[float] = hist["bounds"]

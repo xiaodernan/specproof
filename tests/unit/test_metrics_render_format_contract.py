@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from observability import metrics
+from observability.metrics import sanitize_metric_name
 
 
 def test_counter_renders_type_and_integer_value() -> None:
@@ -70,3 +71,12 @@ def test_snapshot_structure_is_stable() -> None:
         metrics._counters.clear()
         metrics._gauges.clear()
         metrics._histograms.clear()
+
+
+def test_sanitize_metric_name_collapses_dash_and_dot() -> None:
+    # 清洗契约：slug 里的 - 与 . 必须压成 _，否则产出非法指标名、被抓取端静默丢弃
+    assert sanitize_metric_name("webhook-github.handling") == "webhook_github_handling"
+    assert sanitize_metric_name("foo.bar-baz") == "foo_bar_baz"
+    assert sanitize_metric_name("already_clean") == "already_clean"
+    # 其余字符透传：若将来出现新的非法字符，应作为真实渲染差异浮出来，而不是被过度替换藏掉
+    assert sanitize_metric_name("ns:name") == "ns:name"
