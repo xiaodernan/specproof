@@ -237,7 +237,7 @@ def _metric_failures(
     return reasons
 
 
-def _no_negatives_ceiling_reason(ceiling: int) -> str:
+def _no_negatives_ceiling_reason(ceiling: int, negative_cases: int) -> str:
     """Why a requested false-positive ceiling cannot be honoured.
 
     A ceiling can only be breached by a negative case, so honouring one
@@ -245,10 +245,17 @@ def _no_negatives_ceiling_reason(ceiling: int) -> str:
     (#225). Returned as INSUFFICIENT rather than PASS: the floors cannot
     raise this, because ``min_negative_cases`` defaults to 0 precisely so
     a positive-only set stays gradeable.
+
+    The wording must not report a breach. Nothing was measured against
+    the ceiling -- that absence of measurement IS this verdict -- so a
+    reason reading "误报 超过上限 N" would announce a failure the run did
+    not produce, which is the exact dishonesty #225 removed and the one
+    #226's own wording edit put back. It reports the bound as unexercised.
     """
     return (
-        f"负例样本 0 < 1（上限 {ceiling} 只可能由负例触发，"
-        f"无负例时误报上限无从验证，故判样本不足而非通过）"
+        f"负例样本 {negative_cases}，误报上限 {ceiling} 无从验证"
+        f"（误报只可能由负例触发；无负例时该上限不构成任何约束，"
+        f"既未达标也未超限，故判样本不足而非通过）"
     )
 
 def evaluate(
@@ -280,7 +287,9 @@ def evaluate(
         # this -- min_negative_cases defaults to 0 precisely so a positive-only
         # set stays gradeable -- so the ceiling itself has to insist.
         insufficient.append(
-            _no_negatives_ceiling_reason(criteria.max_false_positives)
+            _no_negatives_ceiling_reason(
+                criteria.max_false_positives, counts.negative_cases
+            )
         )
 
     if insufficient:

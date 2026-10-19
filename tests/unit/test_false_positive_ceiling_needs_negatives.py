@@ -76,6 +76,71 @@ def test_the_reason_names_the_ceiling_value_and_the_absent_negatives() -> None:
     assert "负例" in joined, f"missing negatives not named in {joined!r}"
 
 
+def test_the_reason_states_the_observed_count_not_a_hardcoded_one() -> None:
+    """The first committed version read "负例样本 0 < 1".
+
+    That asserts a comparison the run never made: the count *is* 0, it is not
+    less than 1, and the `1` was the caller's ``min_negative_cases`` rather
+    than anything this guard measured. A reason naming a number nobody asked
+    for is the defect class #224 removed, so the assertion below pins the
+    count that actually arrived.
+    """
+    criteria = AcceptanceCriteria(
+        min_positive_cases=10, min_negative_cases=0, max_false_positives=3,
+    )
+    joined = " ".join(evaluate(_counts(negative_cases=0), criteria).insufficient)
+    assert "负例样本 0" in joined, (
+        f"must report the observed negative count plainly; got {joined!r}"
+    )
+    assert "< 1" not in joined, f"hardcoded comparison survived: {joined!r}"
+    assert "3" in joined, f"ceiling value missing from {joined!r}"
+
+
+def test_the_reason_never_claims_a_breach_that_did_not_happen() -> None:
+    """#226's own wording edit put #225's defect back.
+
+    #225 landed with the subject "its reason no longer names a breach that
+    did not happen". The reason then became
+
+        负例样本 0 = 0，误报 超过上限 N
+
+    which announces a false-positive count *exceeding* the ceiling. With
+    ``negative_cases == 0`` nothing was measured against the ceiling at all:
+    no false positive exists to breach it, and 0 > 0 is not a breach. The
+    legitimate breach string lives in ``failures`` (acceptance.py:234), never
+    here — so this asserts the insufficient reason carries no breach claim,
+    and says the bound was unverifiable instead.
+    """
+    for ceiling in (0, 1, 5):
+        criteria = AcceptanceCriteria(
+            min_positive_cases=10, min_negative_cases=0,
+            max_false_positives=ceiling,
+        )
+        result = evaluate(
+            _counts(false_positives=0, negative_cases=0), criteria,
+        )
+        joined = " ".join(result.insufficient)
+        assert "超过" not in joined, (
+            f"ceiling {ceiling}: the reason claims a breach that did not "
+            f"happen — got {joined!r}"
+        )
+        assert "无从验证" in joined, (
+            f"ceiling {ceiling}: the bound must be reported as "
+            f"unexercised, not as breached — got {joined!r}"
+        )
+
+
+@pytest.mark.parametrize("ceiling", [0, 1, 2, 7])
+def test_the_named_ceiling_follows_the_criteria(ceiling: int) -> None:
+    """The ceiling in the reason is the configured one, not a constant."""
+    criteria = AcceptanceCriteria(
+        min_positive_cases=10, min_negative_cases=0,
+        max_false_positives=ceiling,
+    )
+    joined = " ".join(evaluate(_counts(negative_cases=0), criteria).insufficient)
+    assert str(ceiling) in joined, f"ceiling {ceiling} not named in {joined!r}"
+
+
 def test_no_ceiling_requested_leaves_a_negative_free_set_gradeable() -> None:
     """The guard must not fire when nobody asked for a false-positive bound."""
     criteria = AcceptanceCriteria(min_positive_cases=10, min_negative_cases=0)
