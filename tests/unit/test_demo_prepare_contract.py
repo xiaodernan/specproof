@@ -90,6 +90,18 @@ def test_prepare_missing_guard_raises():
         assert "权限检查注解已不在源文件中" in str(exc.value)
 
 
+def test_prepare_missing_controller_raises_click_exception():
+    # A trimmed tree must yield an actionable ClickException, not a bare
+    # FileNotFoundError traceback. A README keeps the initial commit valid so
+    # the run reaches the controller check (an empty repo would fail at tag).
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / "README.md").write_text("x", encoding="utf-8")
+        with pytest.raises(click.ClickException) as exc:
+            prepare_demo_repo(root)
+        assert "未找到演示控制器文件" in str(exc.value)
+
+
 # --- prepare_demo_repo: happy path (shared repo) ---------------------------
 
 def test_prepare_creates_base_and_head_refs(prepared):

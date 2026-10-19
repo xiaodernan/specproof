@@ -5598,3 +5598,44 @@ metrics_http.py` 随本号落库，那一弧不再需要等。
 上已基本耗尽（demo/devtools/fix/probe/quickstart/mcp/verify/review/matrix/eval/report/ops/contract/
 replay 均已有），下一个纯逻辑候选落在 `ops.py` `_human_running`/`_human_provider_wait` 的边界值或
 `contract.py` 的 `propose`/`approve` 注册表交互（需注册表存，宜走桩）。
+## #286 `demo.py` 控制器缺失时的裸 `FileNotFoundError` 收口成可操作提示（含变异验证）
+
+**起因/占号。** #280 的诚实边界②量到一处健壮性缺口并列为下批候选首条：`prepare_demo_repo` 在演示控制器文件**缺失**时直接 `controller.read_text(...)`，抛裸 `FileNotFoundError`（不是 `ClickException`），用户看到的是 traceback 而不是「该做什么」。`demo` 的全部卖点是零配置，这个形态与卖点相反。起草时账本最大 280；落地前别车道把 #282/#283/#284/#285 投进历史（最新 `4c18232`），账本最大变 285，本号取 **#286**。
+
+**量到的缺陷（先量后写）。** 原代码：
+```
+controller = repo / _CONTROLLER
+content = controller.read_text(encoding="utf-8")   # <- 文件缺失时 FileNotFoundError
+if _GUARD_ANCHOR not in content:
+    raise click.ClickException("权限检查注解已不在源文件中 ...")
+```
+注解缺失有可操作提示，**文件缺失却没有**——同一类「演示仓库不完整」，两种提示质量。
+
+**落地（生产码 +8/−0，一个文件）。** 在 `read_text` 之前加存在性门：
+```
+if not controller.is_file():
+    raise click.ClickException(
+        f"未找到演示控制器文件: {controller}\n"
+        "请确认演示仓库结构完整 (demo/spring-backend 未被裁剪或改名)。"
+    )
+```
+注释写清为什么要有这一门（旧路径会漏出裸 traceback，与零配置承诺相反）。消息里带**具体路径**，用户能直接判断是裁剪还是改名。
+
+**配套腿（`tests/unit/test_demo_prepare_contract.py` 追加 1 案，+12/−0）。** `test_prepare_missing_controller_raises_click_exception`：建一个只有 `README.md` 的临时仓库（保证首次 commit 成立、不会在 `git tag` 先失败），`prepare_demo_repo` 必须抛 `ClickException` 且消息含「未找到演示控制器文件」。
+
+**门证（全在本批内亲手取）。** 沿用临时环境跑法（共享 venv 是 uv 管理的 3.14.8、缺 click）：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 编译 | `.venv/Scripts/python -m py_compile cli/specproof/commands/demo.py` | ok |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_demo_prepare_contract.py -q -p no:cacheprovider` | 8 passed in 17.18s |
+| ruff | `uv run --no-project --with ruff ruff check cli/specproof/commands/demo.py tests/unit/test_demo_prepare_contract.py` | All checks passed |
+| **变异臂**（把 `if not controller.is_file():` 改成 `if False and not controller.is_file():`，即撤掉这一门） | 先预测：新腿必红，且失败形态应是 `FileNotFoundError` 而不是断言不成立 | 实测 **1 failed**，traceback 落在 `pathlib.read_text` → `FileNotFoundError: ...UserController.java`，与预测一致 |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `diff` 与变异前备份逐字节一致；全套复跑 8 passed in 22.47s |
+
+**诚实边界（明确不声称）。** ① 本批**改了生产码**（`demo.py`），按纪律做了「先预测后跑」的变异验证，并用 trap 保护变异臂（#261 那次 SIGTERM 留下变异的教训）。② 这一门只覆盖「文件不存在」；`read_text` 仍可能因**权限不足/编码问题**抛 `PermissionError`/`UnicodeDecodeError`——那是另一类故障，未在本批收口（需要单独的 `except OSError` 包装，且要决定哪些算「可操作」）。③ `demo(run=True)` 会 `ctx.invoke(verify, ...)` 跑真实编译，仍未覆盖（需 Docker/Maven，属集成平面）。④ 测试的 `GIT_CONFIG_*` 只影响子进程环境，不改仓库配置。
+
+**下批候选（受本环境约束）。**
+- `demo.py` 的 `read_text` 其它故障（`PermissionError`/`UnicodeDecodeError`）是否也该收成 `ClickException`——需先量清「哪些异常算用户可操作」。
+- `probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
+- 账本自身编号复用缺陷（#275 记下的 `## #246` 两节、`#144`/`#145` 各两节）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。

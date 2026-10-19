@@ -74,6 +74,14 @@ def prepare_demo_repo(repo: Path = DEMO_REPO) -> bool:
 
     # head: remove the permission guard from changeEmail
     controller = repo / _CONTROLLER
+    if not controller.is_file():
+        # A trimmed/renamed demo tree used to reach read_text() and surface a
+        # bare FileNotFoundError traceback. The demo's whole promise is
+        # zero-config, so a missing controller must be an actionable message.
+        raise click.ClickException(
+            f"未找到演示控制器文件: {controller}\n"
+            "请确认演示仓库结构完整 (demo/spring-backend 未被裁剪或改名)。"
+        )
     content = controller.read_text(encoding="utf-8")
     if _GUARD_ANCHOR not in content:
         raise click.ClickException(
