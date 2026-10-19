@@ -5695,3 +5695,22 @@ env 旋钮的同款「缺失文件/空值诚实性」普查（metrics_http / s3 
 - 跨文件引用歧义：若 `docs/` 其它文件按 `#246` 引用账本，本门看不到；可加一条「引用必须带节标题片段」的检查（需先量清有多少处按编号引用）。
 - `probe.py`/`quickstart.py`/`mcp.py`（多为 I/O 外壳，纯逻辑少，优先级低）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+
+## #291 `observability/metrics.py` 的 exposition 格式契约栅栏 + env 旋钮诚实性普查（负结果）
+- 实测：`tests/unit/test_metrics_render_format_contract.py` 4 passed，ruff 干净；`metrics.py` 未改（纯测试）。
+- 锁死的契约：`render_text` 产出的 Prometheus 文本是抓取端唯一依赖——每类指标必须带正确的
+  `# TYPE specproof_<name> <type>` 行；指标名里的 `-`/`.` 必须清洗成 `_`（否则产生非法名、整段被抓取端
+  静默丢弃，典型的「跳过 ≠ 通过」式失效）；整数计数原样出现、量规浮点值透传、snapshot 三类顶层键齐全。
+  这些是 #279/#284 抓取面赖以成立的底座，此前只有 histogram 路径被 `test_metrics_http.py` 覆盖，counter/gauge
+  行格式未独立锁定。
+- **env 旋钮诚实性普查（#290 队列③的收口）**：系统性审计了从 env 读凭据/文件路径与缺省处理的站点——
+  `github_checks.from_env`（#287 已修：缺失文件曾泄露裸 `FileNotFoundError`）、`metrics_http._resolve_bind_host`
+  （空 `METRICS_BIND_HOST` 落到 127.0.0.1/0.0.0.0 默认、端口冲突 `OSError` fail-closed，诚实）、
+  `config_guard`（生产缺 API key/默认凭据 `ProductionConfigError` fail-fast，诚实）、`tracing`（tri-state `_flag`、
+  OTel 初始化整体 try/except 降级 NoOp，诚实）。**结论：除已修的 github_checks 外，其余 env 处理均诚实**，
+  无同类 bug 可修；此普查为终态，后续车道无需重做。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 抓取侧新鲜度按 #279 M1 实现（outbox_relay.py 与 grafana
+仪表盘当前在途，仍须等让出）；② #260 的载体交付（属 #257 共享基础设施，待让出）；③ 命令栅栏/指标契约类
+纯逻辑栅栏在干净文件上已基本耗尽，下一批纯逻辑候选落在注册表交互类（宜走桩）或抓取面其它未被覆盖的纯函数；
+④ 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
