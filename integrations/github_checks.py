@@ -89,9 +89,9 @@ class GitHubAppConfig:
                 "incomplete GitHub App config, missing: " + ", ".join(missing)
             )
         pem = key
-        if not pem and key_file:
-            pem = Path(key_file).read_text(encoding="utf-8")
         try:
+            if not pem and key_file:
+                pem = Path(key_file).read_text(encoding="utf-8")
             return cls(
                 app_id=int(app_id_raw),
                 private_key_pem=pem,
