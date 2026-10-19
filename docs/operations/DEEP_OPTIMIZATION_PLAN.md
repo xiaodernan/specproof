@@ -5581,3 +5581,20 @@ metrics_http.py` 随本号落库，那一弧不再需要等。
 **下一号队列（取号时按落地时点 max+1）。** ① 抓取侧新鲜度按 #279 的 M1 形状实现；② 账本编号
 唯一性（`## #144`/`## #145`/`## #246` 各有两节，「见 #246」不可判定）；③ #260
 `GITHUB_APP_PRIVATE_KEY_FILE` 的 `${X:-}` 空透传载体仍在 `_DEFERRED`。
+
+## #285 `contract.py` 的 `_spec_digest`（CLI 提案追踪键）补栅栏测试
+- 实测：`tests/unit/test_contract_spec_digest.py` 5 passed，ruff clean；`contract.py` 未改（纯测试）。
+- 钉死的契约：`_spec_digest(text) = sha256(text)[:16]`（**16 位小写 hex**，与 `agent.jobs.compute_spec_digest`
+  的 64 位全量 sha256 **不是一回事**——CLI 提案追踪键故意截断）。断言覆盖：sha256 来源、截断长度
+  16、全小写 hex、同输入稳定、空串与单空格各自确定且互不相同、近义 spec 文本（"must" vs "must not"）
+  得到不同键。
+- 为何值得钉：propose/approve 用它对齐同一条契约，截断长度或哈希源一改就会静默错配，且无报错。
+- 取号说明：本号在我写测试时仍记 #284 的「下一号队列」；落地时 max 已是 #284，故取 #285。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 抓取侧新鲜度按 #279 的 M1 形状实现（#284 边界⑤：
+`observability/metrics_http.py` 已随 #284 落库，那一弧不再需要等）；② 账本编号唯一性门
+（`## #144`/`## #145`/`## #246` 各有两节，「见 #246」不可判定）；③ #260
+`GITHUB_APP_PRIVATE_KEY_FILE` 的 `${X:-}` 空透传载体仍在 `_DEFERRED`；④ 命令栅栏测试主题在干净文件
+上已基本耗尽（demo/devtools/fix/probe/quickstart/mcp/verify/review/matrix/eval/report/ops/contract/
+replay 均已有），下一个纯逻辑候选落在 `ops.py` `_human_running`/`_human_provider_wait` 的边界值或
+`contract.py` 的 `propose`/`approve` 注册表交互（需注册表存，宜走桩）。
