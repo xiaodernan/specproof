@@ -47,11 +47,12 @@ def test_no_new_duplicate_section_numbers():
     assert not new, f"new duplicate section numbers: {sorted(new)}"
 
 
-def test_known_duplicates_keep_their_count():
+def test_known_duplicates_never_grow_a_third_copy():
     counts = collections.Counter(_tokens())
     for token in _KNOWN_DUPLICATES:
-        # a third copy of an already-known duplicate is still a new duplicate
-        assert counts[token] == 2, f"#{token} appears {counts[token]} times, expected 2"
+        # 2 = still duplicated (historical); 1 = since fixed (e.g. renamed to
+        # #144b/#145b/#246b); 3+ = a new copy of an already-known duplicate.
+        assert counts[token] <= 2, f"#{token} appears {counts[token]} times (max 2)"
 
 
 def test_sub_numbers_are_not_counted_as_duplicates():
