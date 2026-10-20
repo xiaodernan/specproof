@@ -29,6 +29,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 MYSQL = REPO / "storage" / "mysql.py"
 ROUTE = REPO / "api" / "routes" / "jobs.py"
+SERVICE = REPO / "api" / "services" / "verification_service.py"
 API = REPO / "apps" / "web" / "src" / "api.ts"
 PAGE = REPO / "apps" / "web" / "src" / "pages" / "Jobs.tsx"
 
@@ -63,14 +64,20 @@ def test_the_store_computes_the_total_with_a_count() -> None:
 
 
 def test_the_route_returns_the_stores_answer_verbatim() -> None:
-    """`list_jobs` must hand back the store's dict, not build its own response."""
-    text = _source(ROUTE)
-    match = re.search(r"def list_jobs\b.*?\n(?=@|\Z)", text, re.S)
-    assert match, "list_jobs moved — probe broken"
+    """`list_jobs` must hand back the store's dict, not build its own response.
+
+    The store call moved to the application service (Phase 1 put the route
+    on it), so the witness is now the service — the property is the same:
+    nothing between the store and the page may build its own response, or a
+    field the store adds/drops stops reaching the page.
+    """
+    text = _source(SERVICE)
+    match = re.search(r"def list_jobs\b.*?\n(?=    def |\Z)", text, re.S)
+    assert match, "the service's list_jobs moved — probe broken"
     body = match.group(0)
-    assert "return store.search_jobs(" in body, (
-        "list_jobs builds its own response; a field added or dropped by the store "
-        "would no longer reach the page"
+    assert "return self._store.search_jobs(" in body, (
+        "the service builds its own response; a field added or dropped by the "
+        "store would no longer reach the page"
     )
 
 

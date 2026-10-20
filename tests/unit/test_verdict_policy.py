@@ -25,12 +25,20 @@ def test_incomplete_rows_never_verify_across_consumers(changes):
     row = passing_row() | changes
     matrix = {"rows": [row]}
     state = {"matrix": matrix, "contracts": [{"id": "C-1"}]}
-    assert evaluate_verification(matrix).status == "BLOCKED"
-    assert _terminal_status_from_state(state) == "BLOCKED"
-    assert _verification_summary(state)["verdict"] == "BLOCKED"
+    decision = evaluate_verification(matrix)
+    # The invariant this file exists for: an unjudgeable row must never
+    # ACCEPT the change. The WORD depends on whether anything is proven
+    # wrong: a contract that FAILED is BLOCKED (fix the code), an
+    # incomplete row is not (a human has to look) — so the word is
+    # asserted, not just "not VERIFIED".
+    expected = "BLOCKED" if changes.get("result") == "FAIL" else "NEEDS_REVIEW"
+    assert decision.status == expected
+    assert decision.status != "VERIFIED"
+    assert _terminal_status_from_state(state) == expected
+    assert _verification_summary(state)["verdict"] == expected
     html = render_verification_report("r", "b", "h", matrix, [])
     assert '<div class="verdict verified">' not in html
-    assert _state_summary(state, "BLOCKED")["coverage_reason"]
+    assert _state_summary(state, expected)["coverage_reason"]
 
 
 @pytest.mark.parametrize("matrix", [
@@ -47,7 +55,66 @@ def test_incomplete_rows_never_verify_across_consumers(changes):
     {"rows": [passing_row()], "contract_ids": ["C-1", "C-2"]},
 ])
 def test_contradictory_or_incomplete_matrices_are_blocked(matrix):
-    assert evaluate_verification(matrix).status == "BLOCKED"
+    decision = evaluate_verification(matrix)
+    assert decision.status != "VERIFIED"
+    # Only a matrix that PROVES something is wrong is BLOCKED; the rest
+    # are evidence gaps and say so.
+    has_failed_row = any(
+        isinstance(row, dict) and row.get("result") == "FAIL"
+        for row in (matrix.get("rows") or [])
+        if row is not None
+    )
+    expected = "BLOCKED" if has_failed_row else "NEEDS_REVIEW"
+    assert decision.status == expected
+
+
+def test_the_two_middle_verdicts_say_different_things():
+    """BLOCKED and NEEDS_REVIEW are both fail-closed, and they differ.
+
+    A contract that FAILED is a real problem: the change is wrong, and
+    the answer is "fix it and re-verify". A contract with no decidable
+    result proves nothing either way: the answer is "a human has to
+    look". Sending both to the same reader is how a reader learns to
+    ignore the word.
+    """
+    failed = evaluate_verification({"rows": [passing_row() | {"result": "FAIL"}]})
+    unjudged = evaluate_verification({"rows": [passing_row() | {"evidence": ""}]})
+
+    assert failed.status == "BLOCKED"
+    assert unjudged.status == "NEEDS_REVIEW"
+    # The decision says WHICH of its reasons are the blocking ones, so a
+    # consumer can tell "the bytes differ" from "the bytes are missing".
+    assert failed.blocking
+    assert not unjudged.blocking
+    assert set(failed.blocking) <= set(failed.reasons)
+
+
+def test_a_refused_release_gate_is_a_blocking_reason():
+    """A gate that REFUSED is a real problem; one that could not be
+    judged is an evidence gap. The decision says which."""
+    from evidence.verdict import evaluate_acceptance
+
+    refused = evaluate_acceptance(
+        {"rows": [passing_row()]},
+        contracts=[{"id": "C-1"}],
+        release={
+            "passed": False,
+            "gates": {"reproducibility": {"passed": False}},
+        },
+    )
+    unjudged = evaluate_acceptance(
+        {"rows": [passing_row()]},
+        contracts=[{"id": "C-1"}],
+        release={
+            "passed": False,
+            "gates": {"reproducibility": {"first_head_pass": False}},
+        },
+    )
+
+    assert refused.status == "BLOCKED"
+    assert refused.blocking, "a refused gate is a real problem"
+    assert unjudged.status == "NEEDS_REVIEW"
+    assert not unjudged.blocking, "an unjudged gate is an evidence gap"
 
 
 def test_coverage_compares_ids_not_only_counts():
@@ -55,7 +122,9 @@ def test_coverage_compares_ids_not_only_counts():
         {"rows": [passing_row("C-1"), passing_row("OTHER")]},
         contracts=[{"id": "C-1"}, {"id": "C-2"}],
     )
-    assert decision.status == "BLOCKED"
+    # A missing contract is an evidence gap, not a proven defect: the
+    # change may be fine, the evidence is not there.
+    assert decision.status == "NEEDS_REVIEW"
     assert "C-2" in decision.reason
     assert decision.unverified == 1
 

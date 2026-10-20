@@ -980,7 +980,7 @@ class Worker:
         Runs inside the same best-effort envelope as the Check Run update:
         any failure is logged, never raised.
         """
-        if verdict != "BLOCKED" or final_state is None:
+        if verdict not in ("BLOCKED", "NEEDS_REVIEW") or final_state is None:
             return
         pull_number = meta.get("pull_number")
         if not pull_number:

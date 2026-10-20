@@ -192,10 +192,26 @@ class TestEvidenceDigests:
             _document(), known_evidence_digests=["sha256:ev1"]
         )
         assert report.missing_evidence == ["sha256:ev2"]
-        assert report.mismatched_evidence == []
         check = next(c for c in report.evidence_checks if c.digest == "sha256:ev2")
         assert check.present is False
         assert check.matches is None
+
+    def test_the_vocabulary_carries_no_unreachable_verdict(self) -> None:
+        """A word the check cannot produce is a promise the module breaks.
+
+        The verifier holds a FLAT set of digests, so "held but different"
+        is not detectable: a digest it does not hold is missing, and
+        there is no third case. An earlier design carried a
+        `digest_mismatch` verdict and a `mismatched_evidence` field;
+        nothing ever set them, so a certificate whose evidence bytes
+        differed would have been reported as `valid`.
+        """
+        from evidence.offline_verify import VERDICTS
+
+        assert "digest_mismatch" not in VERDICTS
+        assert not hasattr(verify_certificate_offline(
+            _document(), known_evidence_digests=["sha256:ev1"]
+        ), "mismatched_evidence")
 
     def test_bare_hex_digest_is_accepted(self) -> None:
         report = verify_certificate_offline(

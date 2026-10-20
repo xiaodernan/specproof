@@ -29,6 +29,52 @@ def evidence_references(row: Mapping[str, Any]) -> list[str]:
     return references(row, "evidence_refs", "evidence_ref", "evidence", "evidence_digest")
 
 
+#: The verdict vocabulary, in one place. Four words, and the difference
+#: between the two middle ones is the point:
+#:
+#: VERIFIED       every contract passed with evidence
+#: BLOCKED        something IS wrong — a contract FAILED, or a finding
+#:                was confirmed. The change is bad; fix it and re-verify.
+#: NEEDS_REVIEW   nothing is proven wrong, but the evidence is insufficient
+#:                — a contract with no decidable result, a missing
+#:                experiment, an incomplete coverage range. A human has
+#:                to judge. (It used to be BLOCKED, which sent the
+#:                reader after a bug that may not exist.)
+#: FAILED         the run recorded errors — no conclusion was reached.
+#:
+#: Both BLOCKED and NEEDS_REVIEW are fail-closed: neither accepts the
+#: change. They differ in WHO has to act.
+VERDICT_VERIFIED = "VERIFIED"
+VERDICT_BLOCKED = "BLOCKED"
+VERDICT_NEEDS_REVIEW = "NEEDS_REVIEW"
+VERDICT_FAILED = "FAILED"
+
+#: Every word the acceptance policy can produce.
+VERDICT_VOCABULARY: frozenset[str] = frozenset({
+    VERDICT_VERIFIED, VERDICT_BLOCKED, VERDICT_NEEDS_REVIEW, VERDICT_FAILED,
+})
+
+
+def _status_for(
+    *, errors: Sequence[Any], blocking: Sequence[str], reasons: Sequence[str],
+) -> str:
+    """The verdict word for this set of reasons.
+
+    - errors → FAILED: the run could not reach a conclusion at all;
+    - a blocking reason → BLOCKED: a real problem exists;
+    - only gaps → NEEDS_REVIEW: nothing is proven wrong and nothing is
+      proven right, so a human has to judge;
+    - no reasons → VERIFIED.
+    """
+    if errors:
+        return VERDICT_FAILED
+    if blocking:
+        return VERDICT_BLOCKED
+    if reasons:
+        return VERDICT_NEEDS_REVIEW
+    return VERDICT_VERIFIED
+
+
 @dataclass(frozen=True)
 class VerificationDecision:
     status: str
@@ -37,6 +83,16 @@ class VerificationDecision:
     failed: int
     unverified: int
     total: int
+    #: The reasons that mean "a real problem exists" — a contract that
+    #: FAILED, or a confirmed finding — as opposed to the reasons that
+    #: mean "the evidence is insufficient" (a contract with no decidable
+    #: result, a missing experiment, an incomplete coverage range).
+    #:
+    #: The split is what lets the verdict say NEEDS_REVIEW instead of
+    #: BLOCKED when nothing is proven wrong: both are fail-closed, but
+    #: they call for different people to act. A consumer that only knows
+    #: the status cannot tell them apart; this field can.
+    blocking: tuple[str, ...] = ()
 
     @property
     def reason(self) -> str:
@@ -88,8 +144,12 @@ def release_gate_veto(release: Mapping[str, Any] | None) -> tuple[str, tuple[str
     an unchecked gate may block an acceptance, it may never support one. The
     returns stay ``(status, reasons)``, and ``("", ())`` means there was no gate
     verdict to listen to at all (a FAST/DEEP job, or a caller that never ran the
-    node). The status stays inside this module's existing vocabulary: a gate
-    refusal blocks acceptance, it does not invent a fourth state.
+    node).
+
+    The two refusals are told apart, because they call for different people to
+    act: a gate that **refused** (``未通过``) is a real problem → BLOCKED; a
+    gate that **could not be judged** (``未判定``) is an evidence gap →
+    NEEDS_REVIEW. A refusal wins when both kinds are present.
     """
     payload = release if isinstance(release, Mapping) else {}
     gates = payload.get("gates")
@@ -111,7 +171,13 @@ def release_gate_veto(release: Mapping[str, Any] | None) -> tuple[str, tuple[str
         reasons += (
             f"{RELEASE_GATE_REASON_PREFIX} 总判定: 未通过（节点汇总旗标拒绝）",
         )
-    return "BLOCKED", reasons
+        return VERDICT_BLOCKED, reasons
+    if any(word.startswith("未通过") for word in words.values()):
+        return VERDICT_BLOCKED, reasons
+    # Every non-passing row is 未判定: the gate could not be judged. That is an
+    # evidence gap, not a refusal — a human has to look, rather than go hunting
+    # for a bug that may not exist.
+    return VERDICT_NEEDS_REVIEW, reasons
 
 
 def evaluate_acceptance(
@@ -138,6 +204,13 @@ def evaluate_acceptance(
         decision,
         status=status,
         reasons=tuple(dict.fromkeys(decision.reasons + reasons)),
+        # A gate that REFUSED is a real problem, so its reasons are the
+        # blocking ones; a gate that could not be judged is an evidence
+        # gap, so its reasons are not. The decision says which — a consumer
+        # must not have to re-parse the prose to know.
+        blocking=(
+            reasons if status == VERDICT_BLOCKED else decision.blocking
+        ),
     )
 
 
@@ -160,6 +233,11 @@ def evaluate_verification(
     raw_rows = matrix.get("rows")
     rows = raw_rows if isinstance(raw_rows, (list, tuple)) else []
     reasons: list[str] = []
+    #: The subset of reasons that means "a real problem exists" (a
+    #: contract that FAILED, a confirmed finding). Everything else means
+    #: "the evidence is insufficient" — nothing is proven wrong, but
+    #: nothing is proven right either, and a human has to look.
+    blocking: list[str] = []
     passed = failed = unverified = 0
     ids: set[str] = set()
     if not rows:
@@ -181,7 +259,11 @@ def evaluate_verification(
         result = row.get("result")
         if result == "FAIL":
             failed += 1
-            reasons.append(f"{label}检查失败")
+            reason = f"{label}检查失败"
+            reasons.append(reason)
+            # A contract that FAILED is a real problem: something IS
+            # wrong, and the answer is "fix it and re-verify".
+            blocking.append(reason)
         elif result != "PASS":
             unverified += 1
             reasons.append(f"{label}尚未得到可判定结果")
@@ -238,13 +320,17 @@ def evaluate_verification(
         if type(count) is not int or count <= 0 or count > len(ids):
             reasons.append("契约总数与检查覆盖不一致")
     if findings:
-        reasons.append(f"存在 {len(findings)} 项已确认问题，需要处理后重新验收")
+        reason = f"存在 {len(findings)} 项已确认问题，需要处理后重新验收"
+        reasons.append(reason)
+        # A confirmed finding is a real problem — the change is wrong.
+        blocking.append(reason)
     if errors:
         reasons.append("执行过程有错误，无法形成有效验收结论")
     return VerificationDecision(
-        "FAILED" if errors else "BLOCKED" if reasons else "VERIFIED",
+        _status_for(errors=errors, blocking=blocking, reasons=reasons),
         tuple(dict.fromkeys(reasons)), passed, failed, unverified,
         max(len(rows), passed + failed + unverified),
+        tuple(dict.fromkeys(blocking)),
     )
 
 

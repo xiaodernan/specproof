@@ -222,6 +222,7 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 | `job_cancelled_at_checkpoint` | `agent/worker.py` | 在断点处响应取消 |
 | `job_reclaimed_stale_running` | `reclaim_stale_running` | 租约过期, RUNNING→QUEUED 回收 (#68/#71) |
 | `job_stale_running_reclaim_exhausted` | `reclaim_stale_running` | 回收时发现重试预算已尽, 改判 FAILED (#71) |
+| `job_expired_execution_budget` | `expire_overdue_jobs` | 作业超过执行期限预算 (从 created_at 起算), 置为 EXPIRED 终态 (#299) |
 | `job_provider_wait_entered` | `recover_provider_wait` | 进入/离开供应商等待的处置记录 |
 | `tenant_isolation_blocked` | `api/middleware.py`, `storage/mysql.py` | 跨租户读取被拒 (attempted_tenant 取证) |
 | `job_records_deleted` | `delete_job_records` | 该 job 的记录已按 DATA_LIFECYCLE §3 显式删除; audit_logs 有意保留 |

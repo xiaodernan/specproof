@@ -49,7 +49,13 @@ def test_exit_code_mapping_is_fail_closed():
     assert exit_code_for("VERIFIED") == 0
     assert exit_code_for("BLOCKED") == 1
     assert exit_code_for("FAILED") == 2
+    # NEEDS_REVIEW is its own code: the run reached a verdict, but the
+    # verdict is «the evidence does not settle this». 1 would relabel it
+    # as a proven defect; 2 would claim no verdict was reached at all.
+    assert exit_code_for("NEEDS_REVIEW") == 3
     # A word this module never writes is "no verdict", not a guess.
+    # "NEEDS REVIEW" (with a space) is the REPORT channel's spelling —
+    # the CLI writes the underscore form.
     assert exit_code_for("NEEDS REVIEW") == 2
     assert exit_code_for("") == 2
 

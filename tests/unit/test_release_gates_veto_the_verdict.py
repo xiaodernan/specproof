@@ -285,9 +285,15 @@ def test_5_the_veto_never_rewrites_a_job_that_is_already_failing() -> None:
 
 
 def test_6_a_gate_without_a_passed_flag_is_unjudged_not_passed() -> None:
+    """A gate that COULD NOT BE JUDGED is an evidence gap, not a refusal.
+
+    It still refuses the acceptance — an unchecked gate may block an
+    acceptance, it may never support one — but the word says what kind
+    of refusal it is: nothing is proven wrong, so a human has to look.
+    """
     release = {"passed": False, "gates": {"reproducibility": _REPRO_NO_FLAG}}
     decision = _accept(release)
-    assert decision.status == "BLOCKED"
+    assert decision.status == "NEEDS_REVIEW"
     assert "未判定" in decision.reason
     assert "通过" not in decision.reason.replace("未通过", "").replace("未判定", "")
 
@@ -295,7 +301,7 @@ def test_6_a_gate_without_a_passed_flag_is_unjudged_not_passed() -> None:
 def test_7_an_empty_capsule_roster_is_not_a_pass() -> None:
     release = {"passed": False, "gates": {"capsule_integrity": []}}
     decision = _accept(release)
-    assert decision.status == "BLOCKED"
+    assert decision.status == "NEEDS_REVIEW"
     assert "没有条目可校验" in decision.reason
 
 
@@ -389,13 +395,19 @@ def test_12_the_published_check_carries_the_vetoed_verdict(
 
 
 def test_13_an_unchecked_roster_cannot_certify_even_when_the_flag_says_passed() -> None:
-    """#152: this is exactly what `run_release_checks` writes for a capsule-free run."""
+    """#152: this is exactly what `run_release_checks` writes for a capsule-free run.
+
+    The tier's own flag says passed, but one roster has nothing in it: the
+    gate could not be judged. That is an evidence gap — the acceptance is
+    still refused, but the word says a human has to look, not that the
+    change is broken.
+    """
     release = {
         "passed": True,
         "gates": {"reproducibility": _REPRO_PASSED, "capsule_integrity": []},
     }
     decision = _accept(release)
-    assert decision.status == "BLOCKED"
+    assert decision.status == "NEEDS_REVIEW"
     assert "没有条目可校验" in decision.reason
     assert "reproducibility: 通过" in decision.reason, "the gate that did work stays credited"
 
@@ -403,7 +415,7 @@ def test_13_an_unchecked_roster_cannot_certify_even_when_the_flag_says_passed() 
 def test_14_a_gate_without_a_flag_cannot_certify_even_when_the_flag_says_passed() -> None:
     release = {"passed": True, "gates": {"reproducibility": _REPRO_NO_FLAG}}
     decision = _accept(release)
-    assert decision.status == "BLOCKED"
+    assert decision.status == "NEEDS_REVIEW"
     assert "未判定" in decision.reason
 
 

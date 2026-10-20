@@ -100,19 +100,77 @@ def _literal(node: ast.AST) -> str | None:
 ABSENT = ("", None)
 
 
-def _string_branches(node: ast.AST) -> set[str]:
+def _string_branches(node: ast.AST, constants: dict[str, str] | None = None) -> set[str]:
     """Every string literal a conditional/ternary value can take.
 
     `verdict = "A" if x else "B" if y else "C"` is a producer of three words,
     none of which is a plain `ast.Constant`; without this the scanner would
     report a channel whose words are "declared but never written".
+
+    `constants` resolves the module's own named string constants
+    (`VERDICT_BLOCKED = "BLOCKED"`), so a producer that names its words
+    instead of spelling them inline is read just as faithfully. Without it
+    the probe would punish a refactor that made the code clearer.
     """
     found: set[str] = set()
     for sub in ast.walk(node):
         value = _literal(sub)
         if value is not None and value not in ABSENT:
             found.add(value)
+        if constants and isinstance(sub, ast.Name):
+            named = constants.get(sub.id)
+            if named is not None and named not in ABSENT:
+                found.add(named)
     return found
+
+
+def _module_constants(tree: ast.Module) -> dict[str, str]:
+    """The module's own string constants, by name."""
+    out: dict[str, str] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            out[target.id] = node.value.value
+    return out
+
+
+def _module_functions(tree: ast.Module) -> dict[str, ast.FunctionDef]:
+    """The module's own functions, by name."""
+    return {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+
+
+def _returned_words(
+    function: ast.FunctionDef, constants: dict[str, str],
+    functions: dict[str, ast.FunctionDef], depth: int = 3,
+) -> set[str]:
+    """The words a function can return.
+
+    The status expression is not necessarily spelled in the caller: it may
+    be computed by a helper. A probe that only read the call site would
+    find nothing and report the channel as "moved" — so it FOLLOWS the
+    call, and reads the helper's own return values.
+    """
+    if depth <= 0:
+        return set()
+    words: set[str] = set()
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Return) or node.value is None:
+            continue
+        words |= _string_branches(node.value, constants)
+        # A returned call may itself pick the words.
+        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+            called = functions.get(node.value.func.id)
+            if called is not None:
+                words |= _returned_words(called, constants, functions, depth - 1)
+    return words
 
 
 def scan_source(text: str, path: str) -> list[Hit]:
@@ -123,11 +181,29 @@ def scan_source(text: str, path: str) -> list[Hit]:
     """
     hits: list[Hit] = []
 
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return hits
+
+    # The module's own string constants, so a producer that NAMES its
+    # words (`VERDICT_REVOKED = "revoked"`) is read as faithfully as one
+    # that spells them inline. Without this the scanner would report a
+    # channel as "declared but never written" for a file that writes every
+    # one of its words — the words just happen to be spelled one line
+    # away from the write.
+    constants = _module_constants(tree)
+
     def write(line: int, shape: str, node: ast.AST) -> None:
         if isinstance(node, ast.Constant):
             if isinstance(node.value, str) and node.value not in ABSENT:
                 hits.append(Hit(path, line, shape, node.value))
             return  # None / "" write no word at all
+        if isinstance(node, ast.Name):
+            named = constants.get(node.id)
+            if named is not None and named not in ABSENT:
+                hits.append(Hit(path, line, shape, named))
+                return
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
             for elt in node.elts:
                 if (
@@ -141,11 +217,6 @@ def scan_source(text: str, path: str) -> list[Hit]:
         # decision: what gets written depends on data this gate does not have,
         # so it is recorded as an opaque write, never as two fixed words.
         hits.append(Hit(path, line, shape, None))
-
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        return hits
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Dict):
@@ -182,6 +253,15 @@ def scan_source(text: str, path: str) -> list[Hit]:
                     and _literal(target.slice) == "verdict"
                 ):
                     write(node.lineno, "subscript-write", value)
+                elif (
+                    isinstance(target, ast.Attribute)
+                    and target.attr == "verdict"
+                ):
+                    # `report.verdict = X` writes the field just as a plain
+                    # assignment does. The scanner read `x.verdict` in
+                    # COMPARISONS but not in assignments, so a producer that
+                    # fills a record's verdict field was invisible.
+                    write(node.lineno, "attribute-write", value)
         elif isinstance(node, ast.Compare):
             # A comparison against a variable names no word; only a literal can
             # be checked against a declared scale, so only literals are recorded.
@@ -392,8 +472,10 @@ def test_the_headline_gloss_is_exactly_the_words_the_worker_writes() -> None:
 
 
 def test_the_worker_can_only_choose_words_this_channel_declares() -> None:
-    """`evidence/verdict.py` names the three words without ever saying verdict."""
+    """`evidence/verdict.py` names the four words without ever saying verdict."""
     tree = ast.parse((REPO / "evidence/verdict.py").read_text(encoding="utf-8"))
+    constants = _module_constants(tree)
+    functions = _module_functions(tree)
     chosen: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -401,7 +483,15 @@ def test_the_worker_can_only_choose_words_this_channel_declares() -> None:
         if getattr(node.func, "id", "") != "VerificationDecision":
             continue
         if node.args:
-            chosen |= _string_branches(node.args[0])
+            chosen |= _string_branches(node.args[0], constants)
+            # The status may be computed by a helper rather than spelled at
+            # the call site — follow it, so the channel still follows the
+            # words the decision can actually carry.
+            first = node.args[0]
+            if isinstance(first, ast.Call) and isinstance(first.func, ast.Name):
+                called = functions.get(first.func.id)
+                if called is not None:
+                    chosen |= _returned_words(called, constants, functions)
     declared = set(CHANNELS["job_summary"].scale)
     assert chosen == declared, (
         f"evaluate_verification returns {sorted(chosen)}, job_summary declares "

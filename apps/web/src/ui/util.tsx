@@ -21,6 +21,11 @@ export type StatTone = "ok" | "bad" | "warn" | "mute";
 export function verdictTone(v: string | undefined): StatTone {
   if (v === "VERIFIED") return "ok";
   if (v === "BLOCKED" || v === "FAILED") return "bad";
+  // NEEDS_REVIEW is neither: nothing is proven wrong, and nothing is
+  // proven right. "warn" is the honest tone — "bad" would send the reader
+  // after a defect that may not exist, "mute" would hide a verdict that
+  // still refuses the change.
+  if (v === "NEEDS_REVIEW") return "warn";
   return "mute";
 }
 
@@ -34,6 +39,7 @@ export function verdictTone(v: string | undefined): StatTone {
 const VERDICT_LABELS: Record<string, string> = {
   VERIFIED: "通过",
   BLOCKED: "受阻",
+  NEEDS_REVIEW: "待人工判断",
   FAILED: "执行失败",
 };
 

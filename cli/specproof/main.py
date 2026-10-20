@@ -57,8 +57,10 @@ HELP_EPILOG = """\b
 
 \b
 结果怎么读 Reading the verdict
-  VERIFIED   检查全部通过且有覆盖    BLOCKED  发现风险/回归, 需看证据
-  FAILED     执行环境出错 (不代表代码对错)   UNVERIFIED  证据不足
+  VERIFIED       检查全部通过且有覆盖
+  BLOCKED        发现风险/回归 (确有问题), 需看证据
+  NEEDS_REVIEW   证据不足以判定 (既未证明有问题, 也未证明没问题), 需人工判断
+  FAILED         执行环境出错 (不代表代码对错)   UNVERIFIED  证据不足
 """
 
 

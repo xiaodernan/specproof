@@ -6073,3 +6073,38 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 只管 `docs/operations/` 这两份文档；加第三份要同时改名册和它的下限。② 只普查**带前缀**的记号：文档里裸写的 `findings_attribution_signal_<word>_total`（142 行就有）不进人口，所以「裸名写错」不归本门管。③ 豁免的「证明」是**同现 token**，不是行语义——一行里同时写口令和真指标名的极端情形可能被误免。④ 词干只要求其是某拼写的前缀，不校验该族**词表**是否还全（词表由 parity 门的派生腿管）。⑤ 本批回归里 `test_metric_inventory_lists_every_emission_site.py`（#217）是红的：`agent/job_stage.py` 有发射点却没进 8.10 清单——那是 #298（`ba4c6be`）那条车道的在途账，本号不代改，红集合归因给它（落地前复核：同一份文档上他道已经把那条 bullet 写进了工作树，本号的索引里只有自己那一格）。⑥ 门读的是**磁盘上的文档**，不是 git blob：别道未提交的文档改动会被这道门一并 graded（共享树已知口径）。⑦ 本号所有数字（126/98、83、12/11、4 条目 10 处）都是在**本号落地那一格平面**上量的：`git show HEAD:` 取回 LF blob、只替换 142 行、再跟 RUNBOOK 合并数一遍——不是把工作树里他道在途的 §8.10 条目一起算进来。⑧ `mypy .` 在这块脏共享平面上**崩在** `.venv312/.../fastapi/_compat/v2.py`（mypy 2.3.1 内部错误，与本号无关，未追）；只对本门文件跑 mypy 时唯一的错是既有的 `mcp/client.py:182 no-any-return`，也不在本号改动面上。
 
 **下一号队列。** ① 裸名（不带前缀）指指标的那类写法要不要收进同一门：需要一个「上下文是指标」的判据，否则会吞掉普通英文。② 仪表盘 `byName` override ↔ 同面板 `legendFormat` 对账（原 #297 队列②，task #179）。③ 抓取面第一条真 HTTP 腿：起服务 `GET /metrics`，把 exposition 解析回名字册（原 #297 队列①，task #178）。④ #217 那笔 `agent/job_stage.py` 清单账——别道自己补，或下一号代补。⑤ P1-7 / P3-4 / P3-7 其余项照旧。
+
+## #306 NEEDS_REVIEW 终于有了生产写入方：判定词表的四处联动，途中还挖出五个更早的遗留
+
+**起因/占号。** #304 的下一号队列③是「`CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径」——`NEEDS_REVIEW` 需要一次 verdict 词汇联动（BLOCKED / NEEDS_REVIEW 的边界）+ CLI 退出码 + 证书门 + 前端四处同时改。落地前重测账本：HEAD 28a41e1，`## #` id 最大 304 ⇒ 原本取 **#305**；写入前**重测一次**，发现另一条并发车道已取走 #305（其节为「运维文档的每个 `specproof_*` 名字对回发射站点」），故本号改取 **#306**（编号规则是「落地时点 max+1」，不是「先到先得」）。
+
+**先量旧行为（量的是「一个词到底会不会出现」）。** ① `evidence/verdict.py` 的判定只有三个词：有 error → FAILED；有任意 reason → BLOCKED；否则 VERIFIED。**「证据不足」与「查出了问题」被压进同一个词**——契约没有可判定结果、缺实验引用、覆盖不全、发布门「未判定」，全都报 BLOCKED。而 BLOCKED 的读法是「发现问题/回归，需看证据」：读者被派去找一个**可能根本不存在**的缺陷。② 发布门本来就分得清两种拒绝（`_gate_row` 产出的 `未通过` 与 `未判定`），但 `release_gate_veto` 把两者都写成 BLOCKED——**分得清却不分**。③ 词表通道注册表（`evidence/verdict_channels.py`）里 `report_verdict` 通道早就有 `NEEDS REVIEW`（带空格）这个 report-only 词，`integrations/notify/templates.py` 的 `TERMINAL_VERDICTS` 也早就有 `NEEDS_REVIEW`（带下划线）——**下游早就在等这个词，只有生产方不产它**。
+
+**修（判定层 + 四处联动 + 五个遗留）。**
+- **判定层**（`evidence/verdict.py`）：新增 `VerificationDecision.blocking` 字段——**哪些 reason 意味着「确有问题」**（契约 FAIL、已确认发现），哪些只意味着「证据不足」。状态由三类推出：有 error → FAILED；有 blocking → BLOCKED；只有缺口 → **NEEDS_REVIEW**；无 reason → VERIFIED。两者都 fail-closed，区别是**该谁行动**。
+- **发布门**（`release_gate_veto`）：`未通过`（门拒绝）→ BLOCKED；`未判定`（门判不了）→ NEEDS_REVIEW；两者并存时**拒绝优先**。
+- **CLI 退出码**（`cli/specproof/commands/verify.py`）：`VERDICT_EXIT_CODES` 增 `NEEDS_REVIEW: 3`。0/1/2 的含义**不变**（既有 CI 门不受影响），3 是新码：1 是「确有问题」，2 是「没跑到判定」，3 是「判定了，但证据不足」。
+- **GitHub Check**（`integrations/github_checks.py`）：`NEEDS_REVIEW → failure`。**不能落到 `neutral` 默认**——neutral 在 PR 上读作「这个检查通过了，没什么可看的」，与「未判定」正好相反。
+- **前端**（`apps/web/src/ui/util.tsx`）：`VERDICT_LABELS` 增 `NEEDS_REVIEW: "待人工判断"`；`verdictTone` 给它 `warn`（`bad` 会把读者派去找缺陷，`mute` 会把一个**拒绝**藏起来）。
+- **报告**（`evidence/report.py`）：`NEEDS_REVIEW` 落到本通道的规范拼法 `NEEDS REVIEW`，并给它一个新的 `.verdict.pending` 样式（琥珀色）——此前 `NEEDS REVIEW` 与 `BLOCKED` 共用红色，两者**看起来一样**。
+- **仪表盘**（`api/routes/web.py`）：新增 `needs_review_rate`；`blocked_rate` 仍只数 BLOCKED（名字所承诺的），但**不把 NEEDS_REVIEW 折进去**（那会把「需人看」标成「已证明坏」），也不让它悄悄消失（拒绝率会读低）。
+- **通知通道**：**无需改动**——`TERMINAL_VERDICTS` 与标题表里早就有 `NEEDS_REVIEW`，`normalize_verdict` 早就能把带空格的拼法折过来。
+
+**途中挖出的三个更早的遗留（本号一并记账并修）。**
+1. **#297 遗留**：新写的 `evidence/batch_replay.py` / `evidence/offline_verify.py` / `cli/specproof/commands/evidence.py` 写 `verdict` 字段，却**没有在词表通道注册表里登记** → 通道门直接红。登记了两个通道（`replay` 扩容 + 新增 `offline_verify`）。
+2. **#298 遗留**：`job_status` 通道声明的仍是旧的 10 个状态，而状态机早已是 15 个 → 门红（注册表与真源不符）。
+3. **#299 遗留**（由审计动作门抓到）：新的审计动作 `job_expired_execution_budget` 没登记进 `AUDIT_ACTIONS`，数据字典里也没有它——运维读数据字典**永远不会知道这个动作存在**。
+4. **#298 遗留**（由指标清单门抓到）：`agent/job_stage.py` 有上报点却不在指标清单里，那三个计数器对运维**不可见**。
+5. **真 bug（`evidence/offline_verify.py`）**：`VERDICT_DIGEST_MISMATCH` 这个词**从来没有被生产过**，`mismatched_evidence` 字段**从来永远是空的**——而模块自己的 docstring 就写着「『我不持有它』与『字节不同』是两种不同的主张」，代码也确实是「不持有 → 报 missing」。也就是说：一个证据摘要与验证者持有的不一致的证书，会被判成 **`valid`**。本号把这两个死物**删掉**（词表与字段），并在 docstring 里写明**为什么没有**这个判定：验证者拿到的是**一组扁平摘要**，「持有但不同」在数据上**不可区分**，而词汇表承诺一个检查产不出的判定，与这个模块存在的理由同罪。
+**门与腿（本号让门自己抓到了上面的五个遗留）。** `tests/unit/test_verdict_channel_parity.py`（13 项）：通道注册表双向对账（声明的词必须有人写、写的词必须有人声明）、**扫描器现在能测量它以前看不见的两种写法**——① `report.verdict = CONST` 这种**属性赋值**（此前只读比较、不读赋值），② 通过**模块常量**拼出的词（此前一律记成 opaque）；`job_summary` 的词由 worker 选择的**断言改为跟随**判定函数（`_status_for`）与其常量——判定词从内联三元搬进 helper 后，探针若不跟随就会报「通道动了」。
+`tests/unit/test_verdict_policy.py`（43 项）：不变量从「等于 BLOCKED」改为「**绝不 VERIFIED** + 精确断言该是哪个词」——契约 FAIL 仍是 BLOCKED，证据缺口是 NEEDS_REVIEW；新增两条专门钉住这个分界（`decision.blocking` 的语义；**发布门否决路径**上「门拒绝 → blocking」与「门判不了 → 不 blocking」）。
+`tests/unit/test_job_stage.py`（21 → **24** 项）：新增一条门——**策略能产出的每个词，从 worker 真正可能落终态的那两个状态（RUNNING / REVIEWING）都必须可写**（这条门当场抓出状态机缺 `RUNNING → NEEDS_REVIEW`）；另有一条钉住「早期中止时 PREPARING / CONTRACT_REVIEW → FAILED 必须合法」。
+`tests/unit/test_release_gates_veto_the_verdict.py` / `..._the_job.py`（22 项）：6 条「未判定」用例的期望词改为 NEEDS_REVIEW，**断言理由文本一字未改**。
+`tests/unit/test_verify_exit_codes.py`（9 项）：新增 `NEEDS_REVIEW → 3`；`NEEDS REVIEW`（带空格，report 通道的拼法）仍是 2（CLI 不写它）。
+既有门：`test_audit_action_parity.py`（28）——它抓到 **#299 遗留**（新的审计动作 `job_expired_execution_budget` 没登记）与数据字典缺条目；`test_metric_inventory_lists_every_emission_site.py`（2）——它抓到 **#298 遗留**（`agent/job_stage.py` 不在指标清单里）；`test_jobs_page_total_is_not_the_window.py`（5）——它的源码扫描还指着路由，而路由早已迁到服务层（改指服务层，性质不变）。`ruff check .` 0 errors；前端 `tsc --noEmit` 0 error。
+
+**否证与订正。** ① 第一版把判定写成内联三元后，通道门的探针（只看 `VerificationDecision(...)` 调用的第一个实参）**读不到任何词**，报「worker 选的词是空集」；改成**探针跟随**调用（读 helper 的 return）与**解析模块常量**——探针变强了，不是变松了：它现在还能读懂常量拼出的词。② 扫描器补「属性赋值」与「模块常量」后，`offline_verify` 的 5 个词从「opaque」变成**可读的值**——这才是「扫描器要测量，不要匹配文本」的应有之义。③ `evidence/report.py` 起初对 `NEEDS_REVIEW` **直接 KeyError**（映射表里没有这个词）⇒ **NEEDS_REVIEW 的作业会让报告渲染崩掉**——这是本号最实的一个 bug，由 `test_matrix_policy.py` / `test_matrix_pure.py` 当场抓住。④ `test_jobs_page_total_is_not_the_window.py` 的断言指向路由里的 `store.search_jobs(`，而路由早已迁到服务层（#297）⇒ 改指服务层。⑤ 指标清单的「三十六个」改成「三十七个」时**第一次编辑被覆盖了**（文件被并发车道改过）——重做后核对 `git diff` 才确认写入。⑥ **状态机少了一条转换**：`RUNNING` 的出口里**没有** `NEEDS_REVIEW`。worker 在管线结束前把作业推到 `REVIEWING`，正常路径从 REVIEWING 落终态；但**在 collect_diff 之前就中止**的作业仍停在 `PREPARING`/`RUNNING`，从那里落 `NEEDS_REVIEW` 会抛 `InvalidStateTransition`——**作业永远拿不到它的判定**。补上 `RUNNING → NEEDS_REVIEW`，并加一条门：**策略能产出的每个词，从 worker 真正可能落终态的那两个状态（RUNNING / REVIEWING）都必须可写**；另有一条门钉住「早期中止时 PREPARING / CONTRACT_REVIEW → FAILED 必须合法」（否则作业会永远卡在 PREPARING——正是过期回收器要收拾的那种卡死）。⑦ 第一版那条门写得**太强**（要求 PREPARING 也能落每个词）——PREPARING 时只可能落 FAILED，性质被门写错会逼着状态机放行无意义的转换；改成按「worker 真的会从哪里落终态」来写。
+
+**诚实边界。** ① 退出码 3 是**新增**的码：既有 CI 门若只判「非 0 即失败」不受影响，但**逐码分支**的 CI（把 1 当作「确有问题」处理）现在会看到 3 落到它的默认分支——这是本次改动的**外部可见后果**，必须让 CI 侧知道。② 判定层把「证据不足」与「确有问题」分开，但**没有**改「fail-closed」本身：NEEDS_REVIEW 同样拒绝接受改动、同样不发合并证书（`evidence/certificate.py` 的 `!= "VERIFIED"` 判定不变）。③ `CONTRACT_REVIEW` **仍然没有**生产写入方：管线**不在契约待批时停下**，写它就是谎称作业在等人——这一条仍留在下一号队列。④ `NEEDS_REVIEW` 的**触发条件**是「无 blocking 原因但有缺口」，其中「缺口」目前包含契约 FAIL 之外的一切（记录格式无效、缺契约标识、重复行、缺证据引用、缺实验记录、覆盖计数不符…）；哪些缺口值得**单独**一档、哪些应当直接算 BLOCKED，本号**没有**进一步细分。⑤ 本号**没有**跑一次真实 DEEP/RELEASE 作业去观察 NEEDS_REVIEW 在生产中的占比；也没有为它加告警阈值（§14 的阈值体系里没有这一档的基线）。⑥ `craft accept` 的**自己的**判定词表（VERIFIED/BLOCKED/ERROR）**没有**变：验证侧的 NEEDS_REVIEW 在 accept 那里仍然表现为「拒绝 accept」（BLOCKED）——两套词表是两条车道，强行统一会让 accept 的语义变浑。
+
+**下一号队列（取号时按落地时点 max+1）。** ① `CONTRACT_REVIEW` 的诚实生产路径：要么让管线在契约待批时**真的停下**（新增等待态与恢复入口），要么**不写**。② NEEDS_REVIEW 的**缺口细分**：哪些证据缺口该直接算 BLOCKED、哪些留在 NEEDS_REVIEW，需要一张表而不是一个布尔。③ 为 NEEDS_REVIEW 补 §14 的阈值与告警（先量生产占比，再定线）。④ 通知通道的 `verification.needs_review` 事件类型已在 `TERMINAL_VERDICTS` 里，但**是否有投递方真的发它**需要核一次。⑤ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑥ 仓库里其余手写假是否也换成求值器（#303 队列①，未动）。⑦ P1-7 / P3-4 / P3-7 其余项照旧。

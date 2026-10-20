@@ -646,7 +646,7 @@ def craft_accept(
                 _finding(
                     "verify_blocked",
                     "SpecProof 判定 " + repr(verification_verdict)
-                    + " (UNVERIFIED 政策 fail-closed), 回滚",
+                    + " (fail-closed 政策: 非 VERIFIED 一律拒绝 accept), 回滚",
                 )
             )
         rolled = _rollback_to(repo_path, base_sha)

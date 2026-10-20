@@ -26,6 +26,16 @@ Every check is reported separately so a reader can see WHICH part failed:
 a revoked certificate with a valid signature is a different situation from
 a certificate whose evidence digests do not match, and both are different
 from one that was never signed.
+
+There is deliberately NO ``digest_mismatch`` verdict. The verifier is
+handed a flat set of digests it holds; a digest the certificate names but
+the verifier does not hold is reported as MISSING, and "I do not have it"
+and "the bytes differ" are different claims — and with a flat set of held
+digests the second one is not even detectable. An earlier design of this
+module carried a ``digest_mismatch`` word and a ``mismatched_evidence``
+field; both were unreachable (nothing ever set them), and a vocabulary that
+promises a verdict the check cannot produce is the same kind of lie this
+module exists to avoid.
 """
 
 from __future__ import annotations
@@ -51,10 +61,13 @@ ATTESTATION_LEVELS: tuple[str, ...] = (
 )
 
 #: Overall verification verdicts.
+#:
+#: No ``digest_mismatch`` — see the module docstring: the verifier holds a
+#: flat set of digests, so "held but different" is not detectable, and a
+#: digest it does not hold is reported as MISSING.
 VERDICT_VALID = "valid"
 VERDICT_INVALID_SIGNATURE = "invalid_signature"
 VERDICT_REVOKED = "revoked"
-VERDICT_DIGEST_MISMATCH = "digest_mismatch"
 VERDICT_MALFORMED = "malformed"
 VERDICT_UNVERIFIED = "unverified"
 
@@ -62,7 +75,6 @@ VERDICTS: tuple[str, ...] = (
     VERDICT_VALID,
     VERDICT_INVALID_SIGNATURE,
     VERDICT_REVOKED,
-    VERDICT_DIGEST_MISMATCH,
     VERDICT_MALFORMED,
     VERDICT_UNVERIFIED,
 )
@@ -124,7 +136,6 @@ class VerificationReport:
     revocation_reason: str = ""
     evidence_checks: list[EvidenceDigestCheck] = field(default_factory=list)
     missing_evidence: list[str] = field(default_factory=list)
-    mismatched_evidence: list[str] = field(default_factory=list)
     subject_repository: str = ""
     subject_commit_sha: str = ""
     issued_at: str = ""
@@ -143,7 +154,6 @@ class VerificationReport:
             "revocation_reason": self.revocation_reason,
             "evidence_checks": [c.to_dict() for c in self.evidence_checks],
             "missing_evidence": list(self.missing_evidence),
-            "mismatched_evidence": list(self.mismatched_evidence),
             "subject_repository": self.subject_repository,
             "subject_commit_sha": self.subject_commit_sha,
             "issued_at": self.issued_at,
@@ -341,7 +351,6 @@ __all__ = [
     "LEVEL_UNVERIFIED",
     "STATEMENT_TYPE",
     "VERDICTS",
-    "VERDICT_DIGEST_MISMATCH",
     "VERDICT_INVALID_SIGNATURE",
     "VERDICT_MALFORMED",
     "VERDICT_REVOKED",

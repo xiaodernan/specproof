@@ -389,7 +389,13 @@ def render_verification_report(
         decision.passed, decision.failed, decision.unverified, decision.total,
     )
     verdict = decision.status
-    if verdict == "BLOCKED" and not findings and not failed:
+    if verdict == "NEEDS_REVIEW":
+        # The policy now says NEEDS_REVIEW in its own spelling; THIS
+        # channel's canonical spelling has a space (the notify channel
+        # folds it to the underscore form on read). One spelling per
+        # channel — that is the whole point of the channel registry.
+        verdict = "NEEDS REVIEW"
+    elif verdict == "BLOCKED" and not findings and not failed:
         verdict = "NEEDS REVIEW"
     coverage_html = (
         '<section><h2>验收结论说明</h2><ul>'
@@ -401,7 +407,8 @@ def render_verification_report(
     verdict_class = {
         "FAILED": "blocked",
         "BLOCKED": "blocked",
-        "NEEDS REVIEW": "blocked",
+        "NEEDS REVIEW": "pending",
+        "NEEDS_REVIEW": "pending",
         "VERIFIED": "verified",
     }[verdict]
 
@@ -436,6 +443,7 @@ def render_verification_report(
         .verdict {{ font-size: 18px; font-weight: 700; padding: 10px 20px; border-radius: 6px;
                     display: inline-block; }}
         .verdict.blocked {{ background: #490202; color: #ff7b72; border: 1px solid #ff7b72; }}
+        .verdict.pending {{ background: #3d2e00; color: #e3b341; border: 1px solid #e3b341; }}
         .verdict.verified {{ background: #04260f; color: #7ee787; border: 1px solid #7ee787; }}
         table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
         th, td {{ padding: 10px 12px; text-align: left; border-bottom: 1px solid #30363d; }}

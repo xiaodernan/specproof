@@ -210,3 +210,57 @@ def test_the_finer_states_are_reachable_from_running(status: str) -> None:
     from storage.mysql import _VALID_TRANSITIONS
 
     assert status in _VALID_TRANSITIONS["RUNNING"]
+
+
+class TestEveryVerdictIsReachable:
+    """A verdict the policy can produce must be writable from wherever
+    the worker happens to be.
+
+    The worker writes the terminal status from the status its last
+    stage left behind. A job whose graph failed before the court phase
+    is still RUNNING when the verdict lands — so if the policy can say
+    NEEDS_REVIEW but the state machine cannot accept it from RUNNING,
+    that job's terminal write raises InvalidStateTransition and the job
+    never gets its verdict at all.
+    """
+
+    def test_every_verdict_is_writable_from_the_statuses_a_job_ends_in(
+        self,
+    ) -> None:
+        from evidence.verdict import VERDICT_VOCABULARY
+        from storage.mysql import _VALID_TRANSITIONS
+
+        # A job that reached the end of the pipeline is RUNNING or
+        # REVIEWING when its verdict lands — the stage progression moves
+        # it to REVIEWING before the court rules. From either of those,
+        # EVERY word the policy can produce must be writable.
+        for from_status in ("RUNNING", "REVIEWING"):
+            for verdict in VERDICT_VOCABULARY:
+                assert verdict in _VALID_TRANSITIONS[from_status], (
+                    f"{from_status} -> {verdict} is not a legal transition, but "
+                    f"the policy can produce {verdict}"
+                )
+
+    def test_an_early_abort_is_writable_from_the_preparation_states(self) -> None:
+        """A graph that dies before collect_diff leaves the job PREPARING.
+
+        Its terminal write is FAILED, and that transition has to be legal
+        or the job never gets a verdict at all — it would sit in
+        PREPARING forever, which is exactly the stuck shape the expiry
+        reaper was written for.
+        """
+        from storage.mysql import _VALID_TRANSITIONS
+
+        for from_status in ("PREPARING", "CONTRACT_REVIEW"):
+            assert "FAILED" in _VALID_TRANSITIONS[from_status], from_status
+
+    def test_the_job_status_channel_declares_the_same_word(self) -> None:
+        """The channel registry and the policy must agree on the words."""
+        from evidence.verdict import VERDICT_VOCABULARY
+        from evidence.verdict_channels import CHANNELS
+
+        declared = set(CHANNELS["job_summary"].scale)
+        assert VERDICT_VOCABULARY == declared, (
+            f"the policy produces {sorted(VERDICT_VOCABULARY)} but the "
+            f"job_summary channel declares {sorted(declared)}"
+        )

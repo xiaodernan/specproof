@@ -459,6 +459,10 @@ export interface DashboardData {
     by_status: Record<string, number>;
     failure_rate: number | null;
     blocked_rate: number | null;
+    // The share of jobs that were refused because the evidence does not
+    // settle them — a separate refusal from "proven bad", so it is a
+    // separate rate.
+    needs_review_rate: number | null;
   };
   timeline_24h: { hour: string; count: number; failed: number }[];
   timeline_timezone: string;

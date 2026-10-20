@@ -77,7 +77,8 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "ops/drills.py",
             "scripts/seed_demo.py",
         ),
-        scale=frozenset({"VERIFIED", "BLOCKED", "FAILED"}),
+        scale=frozenset({"VERIFIED", "BLOCKED", "NEEDS_REVIEW", "FAILED"}),
+        witnesses={"NEEDS_REVIEW": "integrations/notify/templates.py:23"},
         opaque=(
             "agent/worker.py",
             "integrations/notify/templates.py",
@@ -88,11 +89,16 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "The 验证结论 headline. `_terminal_status_from_state` returns "
             "`evaluate_acceptance(...).status` — the shared policy plus the "
             "RELEASE gate veto (#154), so this field and the job's "
-            "terminal status are the same three words in the same write "
+            "terminal status are the same four words in the same write "
             "(worker.py `transition_job_status_with_notify`). "
-            "`evidence/verdict.py` is where those three words "
+            "`evidence/verdict.py` is where those four words "
             "are chosen; it never names the field `verdict`, which is why the "
-            "parity test reads its `VerificationDecision(...)` call directly."
+            "parity test reads its `VerificationDecision(...)` call directly. "
+            "NEEDS_REVIEW joined the scale when the policy learned to tell "
+            "「something IS wrong」 from 「the evidence does not settle it」 — "
+            "both are fail-closed, but they call for different people to act, "
+            "and the headline must not send a reader hunting for a bug that may "
+            "not exist."
         ),
     ),
     "report_verdict": VerdictChannel(
@@ -226,9 +232,27 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
     "replay": VerdictChannel(
         key="replay",
         field="scripts/bench_replay.py replay report verdict",
-        owners=("scripts/bench_replay.py", "evidence/capsule_replay.py"),
+        owners=(
+            "scripts/bench_replay.py",
+            "evidence/capsule_replay.py",
+            "evidence/batch_replay.py",
+        ),
         scale=frozenset({"COMPLIANT", "REGRESSION", "NON_REPRODUCIBLE"}),
-        opaque=("scripts/bench_replay.py", "evidence/capsule_replay.py"),
+        opaque=(
+            "scripts/bench_replay.py",
+            "evidence/capsule_replay.py",
+            "evidence/batch_replay.py",
+        ),
+        note=(
+            "The per-capsule replay outcome. `evidence/batch_replay.py` "
+            "RE-STATES this scale (it classifies a batch of capsules by the "
+            "verdict each one produced) and adds its OWN outcome vocabulary "
+            "(`reproduced` / `diverged` / `environment_failure` / …) — the "
+            "outcome is a different field from the verdict, and the two must "
+            "not be confused: a batch that produced six verdicts and called "
+            "them all `diverged` is a different statement from a batch whose "
+            "verdicts were COMPLIANT."
+        ),
     ),
     # ── local classifications and standalone reports ────────────────────────
     "cache_check": VerdictChannel(
@@ -301,6 +325,35 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "verdicts (crash-window detail, final PASS/FAIL) stay opaque here."
         ),
     ),
+    "offline_verify": VerdictChannel(
+        key="offline_verify",
+        field="offline certificate verification report verdict",
+        owners=(
+            "evidence/offline_verify.py",
+            "cli/specproof/commands/evidence.py",
+        ),
+        scale=frozenset({
+            "valid", "invalid_signature", "revoked", "malformed", "unverified",
+        }),
+        source="evidence.offline_verify::VERDICTS",
+        opaque=(
+            "evidence/offline_verify.py",
+            "cli/specproof/commands/evidence.py",
+        ),
+        note=(
+            "Whether a certificate's BYTES check out offline — a different "
+            "question from whether the change it certifies is acceptable, so "
+            "its words are deliberately not the verification lane's. "
+            "`unverified` here means «not checked» (no public key was given); "
+            "it is NOT the matrix's UNVERIFIED and NOT the job's "
+            "NEEDS_REVIEW. The CLI reads the verdict and exits 0 only on "
+            "`valid`. There is deliberately NO `digest_mismatch` word: the "
+            "verifier holds a flat set of digests, so «held but different» is "
+            "not detectable, and a digest it does not hold is reported as "
+            "missing — a vocabulary that promises a verdict the check cannot "
+            "produce is the same lie the module exists to avoid."
+        ),
+    ),
     # ── channels whose authority lives elsewhere ────────────────────────────
     "feedback": VerdictChannel(
         key="feedback",
@@ -328,8 +381,9 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         field="jobs.status (the state machine, not a verdict)",
         owners=(),
         scale=frozenset({
-            "PENDING", "QUEUED", "RUNNING", "WAITING_FOR_PROVIDER", "FAILED",
-            "STALE", "VERIFIED", "BLOCKED", "CANCELLED", "ERROR",
+            "PENDING", "QUEUED", "PREPARING", "CONTRACT_REVIEW", "RUNNING",
+            "REVIEWING", "WAITING_FOR_PROVIDER", "VERIFIED", "BLOCKED",
+            "NEEDS_REVIEW", "FAILED", "CANCELLED", "STALE", "EXPIRED", "ERROR",
         }),
         source="storage.mysql::_VALID_TRANSITIONS",
         note=(
@@ -338,7 +392,11 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "verdict vocabulary. `STATUS_HELP` in JobDetail.tsx and the "
             "`?status=` filter in api/routes/jobs.py are still checked against "
             "this channel by hand — see DRILLS for the three words they disagree "
-            "on (UNVERIFIED, INCONCLUSIVE, STALE)."
+            "on (UNVERIFIED, INCONCLUSIVE, STALE). The scale is the frozen "
+            "state machine's own set: the five states Phase 1 added "
+            "(PREPARING / CONTRACT_REVIEW / REVIEWING / NEEDS_REVIEW / "
+            "EXPIRED) are jobs' statuses, so they belong here as much as "
+            "STALE does."
         ),
     ),
 }

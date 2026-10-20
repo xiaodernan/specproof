@@ -256,7 +256,8 @@
 - EXPIRED 生产写入方 ✅（迁移 0016 加 `max_execution_seconds`；`expire_overdue_jobs` 把超期作业置为 EXPIRED；回收 tick 在同一把 scope 锁内调用）
 - 人工路径与自动路径对齐 ✅（`specproof ops recover` 第三步做过期扫描；`--dry-run` 只读预览超期作业；步骤编号按实际执行的步骤计算）
 - 执行预算按档位 ✅（FAST 3600 / DEEP 7200 / RELEASE 10800，逐作业可覆盖；DEEP 的数值待生产数据校准）
-- CONTRACT_REVIEW / NEEDS_REVIEW 的诚实生产路径（待开始，见账本 #300 下一号队列）
+- CONTRACT_REVIEW / NEEDS_REVIEW 的诚实生产路径 ✅（#306：NEEDS_REVIEW 有了生产写入方——判定层分出「确有问题」与「证据不足」，CLI 退出码 3、GitHub Check failure、前端 warn 色调、报告 pending 样式、仪表盘 needs_review_rate；CONTRACT_REVIEW 仍**不写**，管线不在那里停）
+- CONTRACT_REVIEW 的诚实生产路径（待开始，见账本 #306 下一号队列）
 
 ### 阶段 3 新增文件清单
 

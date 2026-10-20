@@ -143,10 +143,17 @@ def conclusion_for_verdict(verdict: str) -> str:
 
     BLOCKED carries findings — from GitHub's merge-protection perspective
     that is a failed check (it should block merge until reviewed).
+
+    NEEDS_REVIEW is a failure too, but for a different reason: nothing is
+    proven wrong and nothing is proven right, so a human has to look. It
+    must NOT fall through to the `neutral` default — a neutral conclusion
+    reads on a PR as "this check passed, nothing to see", which is the
+    opposite of what an unjudged run means.
     """
     return {
         "VERIFIED": "success",
         "BLOCKED": "failure",
+        "NEEDS_REVIEW": "failure",
         "FAILED": "failure",
         "CANCELLED": "neutral",
         "STALE": "neutral",

@@ -2,15 +2,19 @@
 
 Honesty contract (v2):
 - VERDICT FAILED    when the pipeline recorded errors
-- VERDICT BLOCKED   when findings, failures, incomplete coverage or a
-                    refused RELEASE-tier gate require review
+- VERDICT BLOCKED   when findings or failures require a code fix
+- VERDICT NEEDS_REVIEW
+                    when nothing is proven wrong but the evidence is
+                    insufficient — a human has to judge
 - VERDICT VERIFIED  only when every contract passed with evidence
 - A Merge Certificate is issued only for VERIFIED; otherwise a Rejection
   Notice JSON is written alongside the HTML report.
 - The process exit code mirrors the verdict vocabulary (#153): 0 = VERIFIED,
   1 = BLOCKED, 2 = no verdict was reached (FAILED, preflight not ready, bad
-  paths). "1" therefore always means a real verdict refused the change —
-  never "the tool could not run".
+  paths), 3 = NEEDS_REVIEW. "1" therefore always means a real verdict refused
+  the change — never "the tool could not run" — and "3" means the tool reached
+  a verdict but the evidence does not settle it. Codes 0/1/2 keep their
+  meanings, so a CI gate that already reads them is unaffected.
 """
 import os
 import subprocess
@@ -22,15 +26,25 @@ import click
 
 #: Exit codes by verdict word (#153). Anything outside the vocabulary is a
 #: word this module never writes, and maps to "no verdict" — fail-closed.
-VERDICT_EXIT_CODES = {"VERIFIED": 0, "BLOCKED": 1, "FAILED": 2}
+#:
+#: 3 is NEEDS_REVIEW: the run reached a conclusion, but the conclusion is
+#: "the evidence does not settle this". It is deliberately NOT 1 (BLOCKED
+#: means something IS wrong) and deliberately NOT 2 (2 means no verdict at
+#: all) — a CI gate that wants to fail on a real defect must not fail on a
+#: coverage gap, and a gate that wants to know the difference needs the
+#: difference to be visible.
+VERDICT_EXIT_CODES = {
+    "VERIFIED": 0, "BLOCKED": 1, "FAILED": 2, "NEEDS_REVIEW": 3,
+}
 
 
 def exit_code_for(verdict: str) -> int:
     """Map the verdict word onto the process exit code (#153).
 
     ``0`` = VERIFIED, ``1`` = BLOCKED, ``2`` = no verdict (FAILED or an
-    unexpected word). CI can trust the code alone; the stdout VERDICT line
-    remains the human-readable half of the same statement.
+    unexpected word), ``3`` = NEEDS_REVIEW. CI can trust the code alone;
+    the stdout VERDICT line remains the human-readable half of the same
+    statement.
     """
     return VERDICT_EXIT_CODES.get(verdict, 2)
 

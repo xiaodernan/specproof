@@ -187,7 +187,7 @@ class TestRefusesWhatItCannotModel:
         table = _table()
         cursor = SqlFakeCursor(table)
         with pytest.raises(UnsupportedSqlError):
-            cursor.execute("DELETE FROM verification_jobs WHERE id = %s", ["j-stale"])
+            cursor.execute("SHOW TABLES", [])
 
     def test_an_unknown_condition_raises(self) -> None:
         table = _table()

@@ -282,8 +282,9 @@ def _tool_verify(arguments: dict[str, Any]) -> dict[str, Any]:
                 f"{_tail(proc.stderr or proc.stdout)}"
             )
         # A non-zero exit with a parsed verdict is the tool's honest answer,
-        # not a tool failure (#153): the CLI exits 1 exactly when the change
-        # is BLOCKED and 2 when it could not reach a verdict. Dropping the
+        # not a tool failure (#153): the CLI exits 1 when the change is
+        # BLOCKED, 3 when the verdict is NEEDS_REVIEW (the evidence does not
+        # settle it) and 2 when it could not reach a verdict. Dropping the
         # summary here used to discard the BLOCKER findings the caller asked
         # for; the exit code rides along as `cli_exit_code`.
         summary["cli_exit_code"] = proc.returncode

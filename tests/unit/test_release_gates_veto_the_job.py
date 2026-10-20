@@ -82,15 +82,22 @@ def test_refused_release_gate_blocks_the_job_summary_and_names_itself():
 
 
 def test_an_unjudged_gate_row_blocks_the_job_too():
+    """The job still ends — as NEEDS_REVIEW, not BLOCKED.
+
+    A gate that could not be judged refuses the acceptance (an unchecked
+    gate may never support one), but nothing is proven wrong: the job
+    ends in the state that says a human has to look.
+    """
     entry = refused_release()
     entry["gates"]["reproducibility"] = {"first_head_pass": False}  # no flag
     entry["passed"] = True  # the node's own summary believed it passed
-    assert _terminal_status_from_state(passing_state(entry)) == "BLOCKED"
+    assert _terminal_status_from_state(passing_state(entry)) == "NEEDS_REVIEW"
 
 
 def test_an_empty_gate_roster_blocks_the_job_too():
     # #152's second口径 at the job level: a flag alone cannot support an
-    # acceptance, and "校验了空集合" is 未判定, which refuses.
+    # acceptance, and "校验了空集合" is 未判定, which refuses — as an
+    # evidence gap, not as a proven defect.
     entry = {
         "gates": {
             "reproducibility": {"passed": True, "first_head_pass": False,
@@ -99,7 +106,7 @@ def test_an_empty_gate_roster_blocks_the_job_too():
         },
         "passed": True,
     }
-    assert _terminal_status_from_state(passing_state(entry)) == "BLOCKED"
+    assert _terminal_status_from_state(passing_state(entry)) == "NEEDS_REVIEW"
 
 
 def test_jobs_without_a_release_verdict_keep_their_verdicts():

@@ -94,6 +94,7 @@ AUDIT_ACTIONS: Final[frozenset[str]] = frozenset({
     "job_cancelled_at_checkpoint",
     "job_reclaimed_stale_running",
     "job_stale_running_reclaim_exhausted",
+    "job_expired_execution_budget",
     "job_provider_wait_entered",
     "tenant_isolation_blocked",
     JOB_RECORDS_DELETED_ACTION,
@@ -131,8 +132,8 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
     },
     "RUNNING": {
         "PREPARING", "CONTRACT_REVIEW", "REVIEWING", "VERIFIED", "BLOCKED",
-        "QUEUED", "FAILED", "ERROR", "CANCELLED", "STALE", "EXPIRED",
-        "WAITING_FOR_PROVIDER",
+        "NEEDS_REVIEW", "QUEUED", "FAILED", "ERROR", "CANCELLED", "STALE",
+        "EXPIRED", "WAITING_FOR_PROVIDER",
     },
     "REVIEWING": {
         "VERIFIED", "BLOCKED", "NEEDS_REVIEW", "QUEUED", "FAILED", "ERROR",

@@ -287,7 +287,16 @@ def dashboard() -> dict[str, Any]:
             "total": total,
             "by_status": by_status,
             "failure_rate": _percent_rate(failed, total),
+            # blocked_rate counts BLOCKED only — the jobs that were proven
+            # bad. NEEDS_REVIEW is a SEPARATE refusal (the evidence does
+            # not settle it), so it gets its own rate: folding it in here
+            # would relabel "needs a human" as "proven bad", and leaving
+            # it out silently would make the refusal rate read lower than
+            # the number of jobs that were actually refused.
             "blocked_rate": _percent_rate(by_status.get("BLOCKED", 0), total),
+            "needs_review_rate": _percent_rate(
+                by_status.get("NEEDS_REVIEW", 0), total
+            ),
         },
         "timeline_24h": timeline,
         "timeline_timezone": "server-local",
