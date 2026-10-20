@@ -10,7 +10,6 @@ configured) without needing a live database.
 import pytest
 from fastapi.testclient import TestClient
 
-import api.routes.jobs as jobs_module
 from api.server import app
 from storage.mysql import ALL_STATUSES
 
@@ -74,7 +73,12 @@ class FakeMySQLStore:
 def fake_mysql(monkeypatch):
     FakeMySQLStore.rows = {}
     FakeMySQLStore.fail_next = False
-    monkeypatch.setattr(jobs_module, "MySQLStore", FakeMySQLStore)
+    # The route reaches the store through the application service
+    # (api/services/verification_service.py), so the seam is there — not in
+    # the route module, which no longer constructs a store itself.
+    monkeypatch.setattr(
+        "api.services.verification_service.MySQLStore", FakeMySQLStore
+    )
     # Rate limiter imports RedisStore at call time from storage.redis;
     # fake it there so tests don't need a live instance.
     monkeypatch.setattr("storage.redis.RedisStore", FakeRedisRateLimit)

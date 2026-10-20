@@ -122,13 +122,26 @@ def test_stale_is_a_status_and_the_ghosts_are_not() -> None:
 
 
 def test_the_route_derives_its_filter_set_instead_of_re_typing_it() -> None:
-    """The route must consume ALL_STATUSES; a literal list here is the drift."""
-    source = JOBS_ROUTE.read_text(encoding="utf-8")
-    assert "ALL_STATUSES" in source
-    for ghost in _NOT_STATUSES:
-        assert f'"{ghost}"' not in source, (
-            f"api/routes/jobs.py re-typed {ghost} into the status filter"
-        )
+    """The filter set must be DERIVED, never a literal list.
+
+    The derivation lives in the application service since the route was
+    moved onto it (Phase 1); the route itself must not re-type the set
+    either. Both files are checked: a literal list anywhere in the chain
+    is the drift this gate exists to catch.
+    """
+    route_source = JOBS_ROUTE.read_text(encoding="utf-8")
+    service_source = (
+        REPO / "api" / "services" / "verification_service.py"
+    ).read_text(encoding="utf-8")
+    assert "ALL_STATUSES" in service_source, (
+        "the application service must derive the accepted status set from "
+        "the state machine (storage/mysql.py::ALL_STATUSES)"
+    )
+    for source in (route_source, service_source):
+        for ghost in _NOT_STATUSES:
+            assert f'"{ghost}"' not in source, (
+                f"the job API re-typed {ghost} into the status filter"
+            )
 
 
 def test_frontend_status_vocabulary_matches_the_state_machine() -> None:

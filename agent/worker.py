@@ -38,6 +38,7 @@ from agent.job_control import (
     classify_job_error,
     is_cancelled,
 )
+from agent.job_stage import advance_for_stage
 from agent.mongo_saver import MongoDBSaver
 from agent.state import initial_state
 from agent.worktree_reclaimer import reclaim_orphans
@@ -593,6 +594,16 @@ class Worker:
                 # Stage boundary: cancel checkpoint first (a cancelled job
                 # must not keep renewing its lease), then lease renewal.
                 self._check_stage_boundary(job_id, renew_lease=True)
+                # The job's own status follows the pipeline: PREPARING
+                # while the worktrees are built, REVIEWING while the court
+                # decides. AFTER the cancel checkpoint on purpose — a job
+                # cancelled a moment ago must not be resurrected by a
+                # stage that finished after the cancel. The advance is
+                # refused when the transition is not legal (see
+                # agent/job_stage.py).
+                advance_for_stage(
+                    self.mysql, job_id, stage, worker_id=self.worker_id,
+                )
             elif mode == "values":
                 final_state = chunk
 

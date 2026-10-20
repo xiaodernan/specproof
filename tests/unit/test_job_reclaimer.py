@@ -1177,9 +1177,13 @@ def test_both_cas_statement_shapes_are_what_the_budget_branch_needs() -> None:
     assert "retry_count = retry_count + 1" in queued[0]
     assert "retry_count" not in failed[0]
     # Both branches keep the same double guard, or a pass could move a row that
-    # a live worker just refreshed.
+    # a live worker just refreshed. The status guard is a PLACEHOLDER, not a
+    # literal: the reclaimer now takes back any in-flight state (a job that
+    # crashed while its status said PREPARING must be reclaimable too), and a
+    # hardcoded 'RUNNING' would silently skip the other states.
     for stmt in (queued[0], failed[0]):
-        assert "status = 'RUNNING'" in stmt
+        assert "status = %s" in stmt
+        assert "status = 'RUNNING'" not in stmt
         assert "updated_at < (NOW(3) - INTERVAL %s SECOND)" in stmt
 
 

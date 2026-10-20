@@ -19,7 +19,6 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-import api.routes.jobs as jobs_module
 from api.server import app
 
 API_KEY = "test-api-key-123456"
@@ -68,7 +67,11 @@ class FakeSearchStore:
 @pytest.fixture()
 def store(monkeypatch: pytest.MonkeyPatch) -> FakeSearchStore:
     fake = FakeSearchStore()
-    monkeypatch.setattr(jobs_module, "MySQLStore", lambda *a, **kw: fake)
+    # The route reaches the store through the application service, so the
+    # seam is there — the route module no longer constructs a store.
+    monkeypatch.setattr(
+        "api.services.verification_service.MySQLStore", lambda *a, **kw: fake
+    )
     yield fake
 
 

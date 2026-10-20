@@ -252,6 +252,8 @@
 - P3-5 统一状态快照 ✅（`experiments/db_snapshot.py`：分表 DbSnapshot 模型、表无关比较、可插拔采集器协议；线格式向后兼容）
 - P3-4 事务回滚/并发/唯一约束/幂等/缓存一致性/OpenAPI schema diff 模板（待开始）
 - P3-7 其余故障注入：服务崩溃/超时/网络断开/消息重投/DB 锁等待（待开始）
+- 状态机生产写入方 ✅（`agent/job_stage.py`：PREPARING/REVIEWING 由管线阶段推进；迁移 0015 把 ENUM 扩到 15 态；回收器覆盖全部在途状态）
+- CONTRACT_REVIEW / NEEDS_REVIEW / EXPIRED 的诚实生产路径（待开始，见账本 #298 下一号队列）
 
 ### 阶段 3 新增文件清单
 
@@ -260,6 +262,7 @@
 | `experiments/collectors.py` | Redis 状态采集器 + RabbitMQ 发布探针 → Evidence Fragment | `tests/unit/test_dynamic_collectors.py` (23) |
 | `storage/artifact_store.py` | 对象上传 + 索引的诚实失败处理（两存储一致性缺口） | `tests/fault/test_artifact_store_faults.py` (10) |
 | `experiments/db_snapshot.py` | 统一状态快照：分表模型 + 表无关比较 + 采集器协议 | `tests/unit/test_db_snapshot.py` (28) |
+| `agent/job_stage.py` | 阶段→状态推进（PREPARING/REVIEWING 的生产写入方） | `tests/unit/test_job_stage.py` (21) |
 | `agent/nodes/run_differential.py` | 跳过的差分实验归属到真实契约（修改） | `tests/unit/test_contract_id_attribution.py` (13) |
 | `agent/matrix_policy.py` | 具体未验证原因优先于通用兜底（修改） | 同上 |
 | `agent/nodes/build_matrix.py` | 原因透传到矩阵行（修改） | 同上 |

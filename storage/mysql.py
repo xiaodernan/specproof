@@ -120,20 +120,22 @@ AUDIT_ACTIONS: Final[frozenset[str]] = frozenset({
 #
 _VALID_TRANSITIONS: dict[str, set[str]] = {
     "QUEUED": {
-        "PREPARING", "CANCELLED", "STALE", "EXPIRED",
+        "PREPARING", "RUNNING", "CANCELLED", "STALE", "EXPIRED",
     },
     "PREPARING": {
-        "CONTRACT_REVIEW", "RUNNING", "FAILED", "CANCELLED", "EXPIRED",
+        "CONTRACT_REVIEW", "RUNNING", "QUEUED", "FAILED", "CANCELLED", "EXPIRED",
     },
     "CONTRACT_REVIEW": {
-        "RUNNING", "NEEDS_REVIEW", "CANCELLED", "EXPIRED",
+        "RUNNING", "NEEDS_REVIEW", "QUEUED", "FAILED", "CANCELLED", "EXPIRED",
     },
     "RUNNING": {
-        "REVIEWING", "QUEUED", "FAILED", "CANCELLED", "STALE", "EXPIRED",
+        "PREPARING", "CONTRACT_REVIEW", "REVIEWING", "VERIFIED", "BLOCKED",
+        "QUEUED", "FAILED", "ERROR", "CANCELLED", "STALE", "EXPIRED",
         "WAITING_FOR_PROVIDER",
     },
     "REVIEWING": {
-        "VERIFIED", "BLOCKED", "NEEDS_REVIEW", "FAILED", "CANCELLED", "EXPIRED",
+        "VERIFIED", "BLOCKED", "NEEDS_REVIEW", "QUEUED", "FAILED", "ERROR",
+        "CANCELLED", "EXPIRED",
     },
     # FAILED is recoverable by explicit retry (→QUEUED); otherwise terminal.
     "FAILED": {"QUEUED", "CANCELLED", "EXPIRED"},
@@ -149,6 +151,26 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
     "EXPIRED":     set(),
     "ERROR":       set(),
 }
+
+#: The statuses a job holds while a worker is working on it. Every one of
+#: them is IN FLIGHT: the crash reclaimer must be able to take such a row
+#: back, and the API's status filter must be able to name it. A status
+#: that is in flight for the worker but invisible to the reclaimer would
+#: strand a job forever after a crash — which is why this set exists
+#: rather than a hardcoded 'RUNNING' in three places.
+IN_FLIGHT_STATUSES: frozenset[str] = frozenset({
+    "RUNNING", "PREPARING", "CONTRACT_REVIEW", "REVIEWING",
+    "WAITING_FOR_PROVIDER",
+})
+
+#: The in-flight set in a DETERMINISTIC order (the SQL placeholder list and
+#: the bound parameters must agree, and a frozenset's order is not stable
+#: across runs).
+_IN_FLIGHT_STATUS_ORDER: tuple[str, ...] = tuple(sorted(IN_FLIGHT_STATUSES))
+
+#: Placeholder list for the in-flight statuses. The values travel through
+#: placeholders (bandit B608), never through SQL text.
+_IN_FLIGHT_SQL_LIST = ", ".join(["%s"] * len(_IN_FLIGHT_STATUS_ORDER))
 
 TERMINAL_STATUSES = {
     "VERIFIED", "BLOCKED", "NEEDS_REVIEW", "CANCELLED", "STALE", "EXPIRED", "ERROR",
@@ -1340,22 +1362,29 @@ class MySQLStore:
             )
             with self.connection() as conn:
                 cursor = conn.cursor()
+                # The CAS names the row's CURRENT status: a job that crashed
+                # in PREPARING or REVIEWING is reclaimed by the same rule as
+                # one that crashed in RUNNING, and a row that moved on since
+                # the candidate query is left alone.
+                current_status = str(row.get("status") or "RUNNING")
                 if budget_spent:
                     cursor.execute(
                         "UPDATE verification_jobs SET status = 'FAILED', "
                         "worker_id = NULL, last_error = %s "
-                        "WHERE id = %s AND status = 'RUNNING' AND "
-                        "updated_at < (NOW(3) - INTERVAL %s SECOND)",
-                        (reason, job_id, lease_ttl_seconds),
+                        "WHERE id = %s "
+                        "AND updated_at < (NOW(3) - INTERVAL %s SECOND) "
+                        "AND status = %s",
+                        (reason, job_id, lease_ttl_seconds, current_status),
                     )
                 else:
                     cursor.execute(
                         "UPDATE verification_jobs SET status = 'QUEUED', "
                         "worker_id = NULL, retry_count = retry_count + 1, "
                         "last_error = %s "
-                        "WHERE id = %s AND status = 'RUNNING' AND "
-                        "updated_at < (NOW(3) - INTERVAL %s SECOND)",
-                        (reason, job_id, lease_ttl_seconds),
+                        "WHERE id = %s "
+                        "AND updated_at < (NOW(3) - INTERVAL %s SECOND) "
+                        "AND status = %s",
+                        (reason, job_id, lease_ttl_seconds, current_status),
                     )
                 changed = bool(cursor.rowcount == 1)
             if not changed:
@@ -1368,7 +1397,7 @@ class MySQLStore:
                 ),
                 actor="reclaimer",
                 job_id=job_id,
-                from_status="RUNNING",
+                from_status=str(row.get("status") or "RUNNING"),
                 to_status=to_status,
                 detail=reason,
             )
@@ -1396,10 +1425,10 @@ class MySQLStore:
                 "SELECT id, repo_path, base_ref, head_ref, spec_path, depth, "
                 "retry_count, max_retries, worker_id, status, updated_at "
                 "FROM verification_jobs "
-                "WHERE status = 'RUNNING' AND "
-                "updated_at < (NOW(3) - INTERVAL %s SECOND) "
+                "WHERE updated_at < (NOW(3) - INTERVAL %s SECOND) "
+                f"AND status IN ({_IN_FLIGHT_SQL_LIST}) "
                 "ORDER BY updated_at, id",
-                (lease_ttl_seconds,),
+                (lease_ttl_seconds, *_IN_FLIGHT_STATUS_ORDER),
             )
             return cast(list[dict[str, Any]], cur.fetchall())
 

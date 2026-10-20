@@ -19,14 +19,19 @@
 export const STATUS_LABELS: Record<string, string> = {
   PENDING: "等待处理",
   QUEUED: "等待执行",
+  PREPARING: "准备环境",
+  CONTRACT_REVIEW: "等待契约审批",
   RUNNING: "正在验收",
+  REVIEWING: "评审裁决中",
   WAITING_FOR_PROVIDER: "等待模型服务",
   VERIFIED: "验收通过",
   BLOCKED: "发现风险",
+  NEEDS_REVIEW: "需要人工判断",
   FAILED: "执行失败",
   ERROR: "执行出错",
   CANCELLED: "已取消",
   STALE: "已过期",
+  EXPIRED: "已超时",
   // Progress-stream stage rows carry "completed" for every finished stage;
   // without a label the timeline showed the raw token on every row. This is a
   // STREAM word, not a job status — it is deliberately absent from JOB_STATUSES.
@@ -34,19 +39,24 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 //: The job statuses, in lifecycle order — what a status FILTER may offer.
-//: Same ten words the API accepts, ordered for a human reading the dropdown
+//: Same words the API accepts, ordered for a human reading the dropdown
 //: rather than alphabetically.
 export const JOB_STATUSES: readonly string[] = [
   "PENDING",
   "QUEUED",
+  "PREPARING",
+  "CONTRACT_REVIEW",
   "RUNNING",
+  "REVIEWING",
   "WAITING_FOR_PROVIDER",
   "VERIFIED",
   "BLOCKED",
+  "NEEDS_REVIEW",
   "FAILED",
   "ERROR",
   "CANCELLED",
   "STALE",
+  "EXPIRED",
 ];
 
 export function statusLabel(status?: string | null): string {

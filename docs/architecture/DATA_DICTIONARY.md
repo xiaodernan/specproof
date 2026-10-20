@@ -1,7 +1,7 @@
 # 数据字典 (DATA_DICTIONARY) — SpecProof 全存储字段级说明
 
 > 口径与出处: 本文逐字段登记 SpecProof 的全部持久化状态。MySQL 表结构以
-> `infra/mysql/migrations/0001_init.sql` 至 `0014_usage_ledger_job_id.sql` 十四个版本化迁移为准,
+> `infra/mysql/migrations/0001_init.sql` 至 `0015_job_state_vocabulary.sql` 十五个版本化迁移为准,
 > 并与代码内幂等 DDL (`storage/identity.py` / `storage/billing.py` / `storage/agent_jobs.py` /
 > `storage/object_metadata.py` / `storage/migrations.py`) 逐表核对; MongoDB/MinIO/ES/Redis/RabbitMQ
 > 以对应 `storage/*` 适配器为准。
@@ -23,9 +23,10 @@
 
 ## 1. MySQL — 数据库 `specproof_phase0` (compose 服务 mysql:8.4)
 
-共 19 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测; 0014 落库后仍为 19):
-18 张来自版本化迁移 0001-0014 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0014 只给
-`usage_ledger` 加 `job_id` 列不建新表; 0013 建
+共 19 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测; 0014/0015 落库后仍为 19):
+18 张来自版本化迁移 0001-0015 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0014 只给
+`usage_ledger` 加 `job_id` 列不建新表; 0015 只扩 `verification_jobs.status` 的 ENUM 不建新表;
+0013 建
 `notify_outbox`, 见 §1.21), 1 张
 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
 本文 §1.18 / §1.19 两张对象元数据表**不在这 18 张里** —— 它们只在显式选择 MySQL 对象元数据后端时
@@ -36,7 +37,8 @@
 
 ### 1.1 verification_jobs — 验证任务 (业务事实源)
 
-来源: `0001_init.sql` (+ `0002` 状态枚举, `0003` summary, `0004` github_check_json, `0005` tenant_id)
+来源: `0001_init.sql` (+ `0002` 状态枚举, `0003` summary, `0004` github_check_json, `0005` tenant_id,
+`0015` 状态词表扩展)
 
 | 列 | 类型 | 说明 |
 |---|---|---|
@@ -44,7 +46,7 @@
 | repo_path | VARCHAR(512) NOT NULL | 仓库路径/URL |
 | base_ref / head_ref | VARCHAR(255) NOT NULL | Base/Head 引用 (branch/tag/sha) |
 | spec_path | VARCHAR(1024) NOT NULL | 需求文件路径 (webhook 建单时为空, worker 从仓库 constitution 补) |
-| status | ENUM (0002 后 10 态): PENDING, QUEUED, RUNNING, WAITING_FOR_PROVIDER, VERIFIED, BLOCKED, STALE, FAILED, CANCELLED, ERROR | 状态机白名单见 `docs/architecture/STATE_MACHINES.md` |
+| status | ENUM (0015 后 15 态): PENDING, QUEUED, RUNNING, WAITING_FOR_PROVIDER, VERIFIED, BLOCKED, STALE, FAILED, CANCELLED, ERROR, PREPARING, CONTRACT_REVIEW, REVIEWING, NEEDS_REVIEW, EXPIRED | 状态机白名单见 `docs/architecture/STATE_MACHINES.md`; 新作业的缺省状态自 0015 起是 `QUEUED` (`PENDING` 仅作兼容名保留) |
 | depth | VARCHAR(16) DEFAULT 'FAST' | API 当前只接受 FAST |
 | retry_count / max_retries | INT DEFAULT 0 / 3 | 预留 (当前无生产重试调用点, 重试在 RabbitMQ 传输层) |
 | stale_replaced_by | CHAR(36) NULL | 取代本 Job 的新 Job id |
@@ -57,8 +59,11 @@
 
 索引: idx_status, idx_worker, idx_jobs_tenant。
 - **写入方**: `api/routes/jobs.py` POST /jobs 与 `api/routes/webhooks.py` (GitHub PR) 经
-  `storage/mysql.py` `create_job_with_outbox` (Job 行 + Outbox 行同一事务, 事务内 PENDING→QUEUED);
-  `agent/worker.py` 状态转换 (RUNNING/终态); `api/routes/jobs.py` POST /jobs/{id}/cancel (CANCELLED)。
+  `storage/mysql.py` `create_job_with_outbox` (Job 行 + Outbox 行同一事务, 事务内建行即为 `QUEUED`);
+  `agent/worker.py` 状态转换 (认领 RUNNING / 阶段推进 / 终态);
+  `agent/job_stage.py` 按管线阶段推进 (`PREPARING` 建 worktree 期间, `REVIEWING` 评审门裁决期间;
+  仅当转换在当前状态下合法才写, 否则跳过并计数, 绝不强行改写);
+  `api/routes/jobs.py` POST /jobs/{id}/cancel (CANCELLED)。
 - **租户作用域**: T (读取端仓库层过滤, 越权读取返回 404 + attempted_tenant 审计)。
 - **TTL/保留**: 永久; 无自动清理 (收缩规则见 DATA_LIFECYCLE §2.1)。
 

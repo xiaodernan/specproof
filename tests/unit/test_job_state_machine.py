@@ -175,12 +175,10 @@ class TestStateMachineStatic:
             ("PENDING", "VERIFIED"),
             ("PENDING", "BLOCKED"),
             ("PENDING", "FAILED"),
-            ("QUEUED", "RUNNING"),        # must go through PREPARING
             ("QUEUED", "VERIFIED"),
             ("QUEUED", "BLOCKED"),
             ("PREPARING", "VERIFIED"),    # must go through CONTRACT_REVIEW/RUNNING
             ("CONTRACT_REVIEW", "VERIFIED"),  # must go through RUNNING/REVIEWING
-            ("RUNNING", "VERIFIED"),      # must go through REVIEWING
             # Go backwards
             ("RUNNING", "PENDING"),
             ("VERIFIED", "PENDING"),

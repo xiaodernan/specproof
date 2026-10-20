@@ -1,19 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  apiGet, CertificateData, downloadCapsule, Finding, FindingsData, Job, openProgressStream,
+  apiGet, CertificateData, downloadCapsule, Finding, FindingsData, Invoice, Job, openProgressStream,
   ProgressEvent, StagesData,
   // #245: invoice status transition
   getInvoiceByPeriod, transitionInvoiceStatus,
 } from "../api";
-import { Invoice } from "../pages/Billing";
 import {
   Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, PreflightCard, Progress, Spinner, StatCard, StatusPill, Table, Term,
-  fmtTime, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
+  fmtPct, fmtTime, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
   type Column, type PreflightResult,
 } from "../ui";
-import { fmtPct } from "../ui";
 import { SameRepoCraftPanel } from "./SameRepoCraftPanel";
-import { describePipelineError, terminalStageNote } from "../ui/errorHints";
+import { recordRecentJob } from "../ui/recentJobs";
+import { describePipelineError, loadFailed, terminalStageNote } from "../ui/errorHints";
 import "../styles/verification.css";
 
 // DEEP tier disclosure (#155): shape written by run_deep_experiments_node.
@@ -44,19 +43,40 @@ interface Summary {
 }
 
 type Tab = "overview" | "stages" | "findings" | "certificate" | "invoice" | "capsule";
-const ACTIVE = new Set(["QUEUED", "RUNNING", "PENDING", "WAITING_FOR_PROVIDER"]);
-const TERMINAL = new Set(["VERIFIED", "BLOCKED", "STALE", "CANCELLED", "ERROR"]);
+const ACTIVE = new Set([
+  "QUEUED",
+  "PREPARING",
+  "CONTRACT_REVIEW",
+  "RUNNING",
+  "REVIEWING",
+  "PENDING",
+  "WAITING_FOR_PROVIDER",
+]);
+const TERMINAL = new Set([
+  "VERIFIED",
+  "BLOCKED",
+  "NEEDS_REVIEW",
+  "STALE",
+  "CANCELLED",
+  "EXPIRED",
+  "ERROR",
+]);
 
 const STATUS_HELP: Record<string, [string, string]> = {
   PENDING: ["验证已创建，正在排队", "系统已受理，等待执行服务接手。进度会自动出现在这里，可以先离开。"],
   QUEUED: ["验证已创建，等待执行", "执行服务接手后，进度会自动出现在这里。可以先离开，稍后从验证记录继续查看。"],
+  PREPARING: ["正在准备验证环境", "正在准备 Base/Head 工作区与依赖，尚未开始执行检查。准备完成后会自动进入验收。"],
+  CONTRACT_REVIEW: ["等待契约审批", "需求契约已编译出来，等待人工批准。批准后本次验证继续执行；未批准的契约不能支撑阻断级结论。"],
   RUNNING: ["正在检查代码与需求", "系统正在分析改动、收集证据并核对需求。完成后会自动更新结论。"],
+  REVIEWING: ["评审裁决中", "差分实验已完成，正在由评审庭按证据政策裁决结论。裁决完成后会自动更新结论。"],
   WAITING_FOR_PROVIDER: ["正在等待模型服务", "任务已保存，模型服务恢复可用后将继续处理。"],
   VERIFIED: ["本次验证通过", "已验证的需求具备支持证据。合并前建议确认需求覆盖范围，以及是否仍有未验证项。"],
   BLOCKED: ["发现需要处理的问题", "先查看风险发现及其证据，再决定如何修改代码。需求矩阵可帮助定位受影响的验收条件。"],
+  NEEDS_REVIEW: ["需要人工判断", "证据不足以自动下结论：既没有确认回归，也没有证明通过。请查看需求矩阵与未验证项后人工判断。"],
   FAILED: ["本次验证未能完成", "执行失败不代表代码有问题。请查看任务信息中的错误原因，处理环境或服务问题后重新验证。"],
   CANCELLED: ["验证已取消", "本次执行已停止，需要继续时可以创建新的验证任务。"],
   STALE: ["本次验证已过期", "代码版本可能已变化，请基于最新提交重新验证。"],
+  EXPIRED: ["本次验证已超时", "执行超过了允许的时限，已被回收。请缩小范围或调整环境后重新验证。"],
   ERROR: ["执行遇到错误", "请查看错误原因，处理执行环境或服务问题后重新验证。"],
 };
 
@@ -159,6 +179,10 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   const [findings, setFindings] = useState<FindingsData | null>(null);
   const [cert, setCert] = useState<CertificateData | null>(null);
   const [certError, setCertError] = useState<string | null>(null);
+  // The job read itself can fail (network / 404). It is kept apart from
+  // artifactError because a failed JOB read means there is nothing to show
+  // at all, while a failed artifact read still leaves the job readable.
+  const [error, setError] = useState<Error | string | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
@@ -172,10 +196,123 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   const [sseState, setSseState] = useState<string>("closed");
   const [refresh, setRefresh] = useState(0);
 
-  // #245: derive the billing period from the job's created_at (YYYY-MM)
+  // #245: derive the billing period from the job's created_at (YYYY-MM).
+  // Declared BEFORE the effects below: the invoice effect lists it in its
+  // dependency array, and a `const` read before its declaration is a
+  // temporal-dead-zone ReferenceError, not a hoisted value.
   const jobPeriod = job?.created_at
     ? new Date(job.created_at).toISOString().slice(0, 7)
     : new Date().toISOString().slice(0, 7);
+
+  useEffect(() => {
+    let alive = true;
+    let inFlight = false;
+    let terminal = false;
+    let previousStatus = "";
+    let closeStream: (() => void) | undefined;
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const jobPath = "/jobs/" + encodeURIComponent(jobId);
+    const artifactPath = "/api/v1" + jobPath;
+    setLoading(true); setJob(null); setSummary(null); setStages(null); setFindings(null);
+    setLive([]); setError(null); setArtifactError(null); setSummaryLoadFailed(false); setFindingsLoadFailed(false); setCert(null); setCertError(null); setTab("overview");
+
+    const loadArtifacts = async () => {
+      const results = await Promise.allSettled([
+        apiGet<{ summary: Summary }>(jobPath + "/summary", signal),
+        apiGet<StagesData>(artifactPath + "/stages", signal),
+        apiGet<FindingsData>(artifactPath + "/findings", signal),
+      ]);
+      if (!alive) return;
+      const [s, st, f] = results;
+      if (s.status === "fulfilled") setSummary(Object.keys(s.value.summary || {}).length ? s.value.summary : null);
+      if (st.status === "fulfilled") setStages(st.value);
+      if (f.status === "fulfilled") setFindings(f.value);
+      setSummaryLoadFailed(s.status === "rejected" && loadFailed(s.reason));
+      setFindingsLoadFailed(f.status === "rejected" && loadFailed(f.reason));
+      const failed = results.filter((result) => result.status === "rejected");
+      setArtifactError(failed.length ? "部分验证结果暂时无法读取，任务状态仍可查看。点击刷新可重试。" : null);
+    };
+
+    const load = async (initial = false) => {
+      if (inFlight || !alive) return;
+      inFlight = true;
+      try {
+        const { job: current } = await apiGet<{ job: Job }>(jobPath, signal);
+        if (!alive) return;
+        setJob(current);
+        setError(null);
+        const currentStatus = (current.status || "").toUpperCase();
+        terminal = TERMINAL.has(currentStatus);
+        if (terminal) { closeStream?.(); closeStream = undefined; }
+        else if (!closeStream) {
+          closeStream = openProgressStream(jobId, (event) => {
+            if (!alive) return;
+            setLive((events) => {
+              if (event.sequence !== undefined && events.some((item) => item.sequence === event.sequence)) return events;
+              return [...events.slice(-199), event];
+            });
+            const node = event.stage || event.node;
+            if (node) setStages((currentStages) => {
+              const stage = { node, status: event.status || "", percent: event.percentage ?? event.percent ?? 0, message: event.summary || event.message || "", at: event.ts || "", event_id: String(event.sequence ?? event.seq ?? "") };
+              const rows = currentStages?.stages || [];
+              return { job_id: jobId, stages: rows.some((row) => row.node === node) ? rows.map((row) => row.node === node ? stage : row) : [...rows, stage], event_count: (currentStages?.event_count || 0) + 1, degraded: false, degraded_reason: null };
+            });
+          }, (state) => { if (alive) setSseState(state); });
+        }
+        if (initial || (terminal && currentStatus !== previousStatus)) await loadArtifacts();
+        previousStatus = currentStatus;
+        if (initial) recordRecentJob("#/jobs/" + encodeURIComponent(jobId), (current.repo_path || "验证") + " · " + shortId(current.id));
+      } catch (e) {
+        if (alive) setError(e as Error);
+      } finally {
+        inFlight = false;
+        if (alive) setLoading(false);
+      }
+    };
+    void load(true);
+    const poll = window.setInterval(() => {
+      if (!terminal && document.visibilityState === "visible") void load();
+    }, 5000);
+    return () => {
+      alive = false;
+      controller.abort();
+      closeStream?.();
+      window.clearInterval(poll);
+    };
+  }, [jobId, refresh]);
+
+  useEffect(() => {
+    if (tab !== "certificate") return;
+    const controller = new AbortController();
+    let alive = true;
+    setCertError(null);
+    apiGet<CertificateData>("/api/v1/jobs/" + encodeURIComponent(jobId) + "/certificate", controller.signal)
+      .then((data) => { if (alive) setCert(data); })
+      .catch((e: { status?: number; message?: string }) => {
+        if (alive) setCertError(e.status === 404 ? "暂未生成验证报告，任务完成后可再次查看。" : e.message || "报告读取失败");
+      });
+    return () => { alive = false; controller.abort(); };
+  }, [tab, jobId, job?.status]);
+
+  // #245: the invoice belongs to the billing PERIOD, not to the job, so it is
+  // read when the tab is opened rather than with the job. A read failure is
+  // reported in the tab — the job's own conclusion is unaffected by it.
+  useEffect(() => {
+    if (tab !== "invoice") return;
+    let alive = true;
+    setInvoiceLoading(true);
+    setInvoiceError(null);
+    getInvoiceByPeriod(jobPeriod)
+      .then((data) => { if (alive) setInvoice(data); })
+      .catch((e: { message?: string }) => {
+        if (alive) setInvoiceError(e.message || "发票读取失败");
+      })
+      .finally(() => { if (alive) setInvoiceLoading(false); });
+    return () => { alive = false; };
+  }, [tab, jobPeriod]);
+
+  // ... end of the component's effects
 
   // #245: render invoice tab content (extracted to avoid nested ternary parsing issues)
   const renderInvoiceContent = () => {
@@ -202,7 +339,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
                 { key: "amount_total", header: "金额 Amount", align: "right" as const },
               ]}
               rows={invoice.line_items}
-              rowKey={(item, i) => String(i)}
+              rowKey={(_item, i) => String(i)}
               emptyTitle="无行项目"
             />
           ) : (
@@ -251,7 +388,20 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
     }
   };
 
-  // ... rest of the component (useEffect, render, etc.)
+  // Guard clause: the job read itself can fail (network / 404). The error
+  // is SHOWN here — a silent "加载中" would leave a reader staring at a
+  // spinner over a job that does not exist. It sits BEFORE the reads below
+  // so TypeScript narrows `job` to non-null for them.
+  if (loading) return <Spinner />;
+  if (!job) {
+    return (
+      <div>
+        <ErrorBox error={error || "任务不存在 (404)"} />
+        <Button onClick={() => setRefresh((value) => value + 1)}>重试</Button>{" "}
+        <a href="#/jobs">← 返回任务列表</a>
+      </div>
+    );
+  }
 
   const s = summary;
   const status = (job.status || "").toUpperCase();
@@ -286,12 +436,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   (s && s.capsules ? s.capsules : []).forEach((c) => {
     const name = String(c).split("/").pop() || String(c);
     if (!caps.includes(name)) caps.push(name);
-  }
-
-  // Guard clause: return early if job is null (after loading)
-  if (!job) {
-    return <div className="verification-page">加载中...</div>;
-  }
+  });
 
   const tabBtn = (t: Tab, label: string) => (
     <button type="button" role="tab" aria-selected={tab === t} className={"tab" + (tab === t ? " tab-active" : "")} onClick={() => setTab(t)}>
@@ -310,7 +455,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
           {(job.base_ref || "—") + " → " + (job.head_ref || "—") + " · " + (job.repo_path || "—")}
         </div>
       </div>
-      <ErrorBox error={artifactError} />
+      <ErrorBox error={error || artifactError} />
       {summary?.coverage_reason && <div className="degraded" role="status"><strong>本次验收结论未能确认</strong><p>{summary.coverage_reason}</p>{rowsTotal === 0 ? <a href="#/guide">了解支持的验收方式 →</a> : <a href="#/matrix">逐项查看未确认的验收条件 →</a>}</div>}
       <div className="verification-detail-banner" aria-live="polite"><h2>{summary?.coverage_reason ? rowsTotal === 0 ? "覆盖不足，暂不能确认验收通过" : "本次不能确认验收通过" : statusHelp[0]}</h2><p>{summary?.coverage_reason ? rowsTotal === 0 ? "本次没有形成可执行的检查项。请完善验收条件，或接入对应检查器后重新验收。" : rowsTotal === null ? "请查看上方原因，并结合需求覆盖与风险证据判断本次结论。" : "本次已形成 " + rowsTotal + " 项检查，结论仍不能确认为通过。请查看上方原因，并结合需求覆盖与风险证据判断。" : statusHelp[1]}</p>
       {ACTIVE.has(status) ? <Progress value={latest?.percentage ?? latest?.percent ?? 0} label={latest?.summary || latest?.message || "等待执行进度"} showValue /> : null}
@@ -324,6 +469,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
         {tabBtn("findings", "风险发现 (" + (findings ? findings.count : 0) + ")")}
         {tabBtn("certificate", "验证报告")}
         {tabBtn("invoice", "发票")}
+        {tabBtn("capsule", "复现包")}
       </div>
 
       {tab === "overview" ? (
