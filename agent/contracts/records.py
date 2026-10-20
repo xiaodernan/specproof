@@ -71,7 +71,13 @@ def checker_version_for(checker_type: str) -> str:
 
 @dataclass(frozen=True)
 class ContractRecord:
-    """Durable, immutable projection of one stored contract version."""
+    """Durable, immutable projection of one stored contract version.
+
+    Phase 1 extensions (P1-3): certificate/capsule/evidence references,
+    lineage bloodline, evidence minimum, and waiver fields. These are
+    *metadata* (not content-equality fields) except ``evidence_minimum``
+    and ``supersedes``/``parent_version`` which affect content identity.
+    """
 
     contract_id: str
     version: int = 1
@@ -87,6 +93,22 @@ class ContractRecord:
     repo_path: str = ""
     created_at: str = ""
     updated_at: str = ""
+    # ── Phase 1: certificate / capsule / evidence references ──
+    certificate_digest: str = ""       # sha256 of the issued Merge Certificate
+    capsule_ref: str = ""              # MinIO object reference for the Bug Capsule
+    evidence_pack_ref: str = ""        # MinIO/DB reference for the Evidence Pack
+    # ── Phase 1: lineage bloodline ──
+    supersedes: str = ""               # contract_id this version replaces
+    parent_version: int = 0            # version number of the parent contract
+    lineage_root: str = ""             # digest root of the evidence DAG
+    # ── Phase 1: evidence policy ──
+    evidence_minimum: str = "STATIC"   # STATIC | DYNAMIC | DB_STATE
+    # ── Phase 1: waiver ──
+    waiver: bool = False
+    waiver_reason: str = ""
+    waived_by: str = ""
+    waived_at: str = ""
+    waiver_expires_at: str = ""
 
     def __post_init__(self) -> None:
         if self.version < 1:
@@ -103,7 +125,12 @@ class ContractRecord:
 
     def content_fields(self) -> dict[str, Any]:
         """The immutable content of this version (everything but status/
-        timestamps). Content equality is defined over exactly this dict."""
+        timestamps). Content equality is defined over exactly this dict.
+
+        Phase 1: ``evidence_minimum``, ``supersedes``, ``parent_version``
+        are content fields — changing them creates a new version.
+        Certificate/capsule/evidence/waiver fields are metadata only.
+        """
         return {
             "contract_id": self.contract_id,
             "version": self.version,
@@ -115,6 +142,9 @@ class ContractRecord:
             "forbidden_changes": list(self.forbidden_changes),
             "source": self.source,
             "spec_digest": self.spec_digest,
+            "evidence_minimum": self.evidence_minimum,
+            "supersedes": self.supersedes,
+            "parent_version": self.parent_version,
         }
 
     def content_key(self) -> str:
@@ -152,6 +182,19 @@ class ContractRecord:
             repo_path=str(row.get("repo_path") or ""),
             created_at=str(row.get("created_at") or ""),
             updated_at=str(row.get("updated_at") or ""),
+            # Phase 1 fields
+            certificate_digest=str(row.get("certificate_digest") or ""),
+            capsule_ref=str(row.get("capsule_ref") or ""),
+            evidence_pack_ref=str(row.get("evidence_pack_ref") or ""),
+            supersedes=str(row.get("supersedes") or ""),
+            parent_version=int(row.get("parent_version") or 0),
+            lineage_root=str(row.get("lineage_root") or ""),
+            evidence_minimum=str(row.get("evidence_minimum") or "STATIC"),
+            waiver=bool(row.get("waiver") or False),
+            waiver_reason=str(row.get("waiver_reason") or ""),
+            waived_by=str(row.get("waived_by") or ""),
+            waived_at=str(row.get("waived_at") or ""),
+            waiver_expires_at=str(row.get("waiver_expires_at") or ""),
         )
 
     def to_candidate(self) -> Any:
@@ -192,6 +235,19 @@ class ContractRecord:
             "repo_path": self.repo_path,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            # Phase 1 fields
+            "certificate_digest": self.certificate_digest,
+            "capsule_ref": self.capsule_ref,
+            "evidence_pack_ref": self.evidence_pack_ref,
+            "supersedes": self.supersedes,
+            "parent_version": self.parent_version,
+            "lineage_root": self.lineage_root,
+            "evidence_minimum": self.evidence_minimum,
+            "waiver": self.waiver,
+            "waiver_reason": self.waiver_reason,
+            "waived_by": self.waived_by,
+            "waived_at": self.waived_at,
+            "waiver_expires_at": self.waiver_expires_at,
         }
 
 

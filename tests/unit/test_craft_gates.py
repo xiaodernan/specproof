@@ -247,10 +247,15 @@ def test_run_build_gate_skipped_without_build_config(tmp_path: Path) -> None:
 
 def test_run_typecheck_gate_mypy_on_changed_py_files(tmp_path: Path) -> None:
     write_python_repo(tmp_path)
-    runner = FakeRunner([(1, "calc.py:1: error: Function is missing a return type annotation")])
+    # Two calls: probe (mypy --version) + actual mypy run
+    runner = FakeRunner(
+        [(0, "mypy 1.13.0"), (1, "calc.py:1: error: Function is missing a return type annotation")]
+    )
     result = run_typecheck_gate(["calc.py", "notes.md"], tmp_path, executor=runner)
     assert result.status == "failed"
-    assert runner.calls == [["python", "-m", "mypy", "calc.py"]]
+    # First call is the probe, second is the actual mypy run
+    assert runner.calls[0] == ["python", "-m", "mypy", "--version"]
+    assert runner.calls[1] == ["python", "-m", "mypy", "calc.py"]
     assert result.findings[0]["kind"] == "run_typecheck"
 
 
@@ -500,12 +505,19 @@ def test_pipeline_gate_exception_becomes_error_entry(
 
 def test_pipeline_changed_files_override_reaches_typecheck(tmp_path: Path) -> None:
     write_python_repo(tmp_path)
-    runner = FakeRunner([(0, ""), (0, ""), (0, "")])
+    # Five calls: test + build + probe + typecheck + security + self_verify
+    # (actually test+build+probe+typecheck+security+self_verify = 6)
+    runner = FakeRunner(
+        [(0, ""), (0, ""), (0, "mypy 1.13.0"), (0, ""), (0, ""), (0, "")]
+    )
     report = clean_pipeline(tmp_path, runner).run(
         make_bundle(["notes.md"]), changed_files=["calc.py", "test_calc.py"]
     )
     assert report.overall == "passed"
-    typecheck_call = runner.calls[2]
+    # Gate 3 (typecheck) is at index 2, but with probe it's now two calls
+    # Calls: [0]=pytest, [1]=mvn, [2]=mypy --version,
+    # [3]=mypy calc.py, [4]=security, [5]=self_verify
+    typecheck_call = runner.calls[3]
     assert typecheck_call[0] == "python"
     assert "mypy" in typecheck_call
     assert "calc.py" in typecheck_call

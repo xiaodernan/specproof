@@ -48,7 +48,7 @@ interface UsageRow {
   happened_at: number;
 }
 
-interface Invoice {
+export interface Invoice {
   id: string;
   tenant_id: string;
   period: string;

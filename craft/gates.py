@@ -284,13 +284,35 @@ def run_typecheck_gate(
     *,
     executor: ExecRunner | None = None,
 ) -> GateResult:
-    """Gate 3: typecheck the changed Python files; Java has no separate lane."""
+    """Gate 3: typecheck the changed Python files; Java has no separate lane.
+
+    If the typechecker (mypy) is not installed in the environment, the gate
+    reports skipped with an honest note — a missing tool must never be
+    confused with a code problem and must never fail a delivery.
+    """
     changed_py = sorted({str(rel) for rel in changed_files if str(rel).endswith(".py")})
     if changed_py:
+        runner = _resolve_executor(workspace, executor)
+        try:
+            probe = runner.run(["python", "-m", "mypy", "--version"])
+        except Exception as exc:  # noqa: BLE001 — tool probe failure ⇒ skipped
+            return GateResult(
+                "run_typecheck", "skipped",
+                "mypy 不可用 (执行异常: " + str(exc) + "), 无类型检查器可运行, "
+                "按 skipped 处理 (不伪造通过)",
+                [], 0,
+            )
+        if probe.exit_code != 0:
+            return GateResult(
+                "run_typecheck", "skipped",
+                "mypy 不可用 (退出码 " + str(probe.exit_code) + "), 无类型检查器可运行, "
+                "按 skipped 处理 (不伪造通过)",
+                [], 0,
+            )
         return _run_commands(
             "run_typecheck",
             [["python", "-m", "mypy", *changed_py]],
-            _resolve_executor(workspace, executor),
+            runner,
         )
     if (workspace / "pom.xml").is_file() or (workspace / "build.gradle").is_file():
         return GateResult(

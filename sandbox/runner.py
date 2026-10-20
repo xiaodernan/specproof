@@ -73,6 +73,14 @@ DEFAULT_PYTHON_IMAGE = "python:3.12-slim"
 # one — those projects fail honestly instead of pretending support.
 DEFAULT_GO_IMAGE = "golang:1.23-alpine"
 
+# Gradle toolchain image (#232). The JDK tag is pinned for the same reason the
+# other profiles pin one: this image is what the offline GRADLE_USER_HOME volume
+# was seeded against. Verified on this image: it is Ubuntu-based (no
+# gradle:8.10-jdk21-alpine tag exists to try instead), and libnative-platform.so
+# is NOT in the image — Gradle unpacks it into GRADLE_USER_HOME at first run,
+# which is what makes finding 1 below load-bearing.
+DEFAULT_GRADLE_IMAGE = "gradle:8.10-jdk21"
+
 # §12 sandbox hardening (P6): workloads run as uid/gid 1000, never root.
 # The maven image ships no dedicated user, but docker auto-creates the
 # /home/maven/.m2 volume mountpoint at container start.
@@ -290,6 +298,50 @@ GO_PROFILE = SandboxProfile(
     writable_submounts=(
         (".gocache", "/work/.gocache"),
         (".gocache/tmp", "/work/.gocache/tmp"),
+    ),
+)
+
+
+# Gradle profile (#232): `gradle --no-daemon --offline test`. Two findings from
+# .scratch/gradle_findings.py drive the two choices that are NOT obvious:
+#
+# 1. GRADLE_USER_HOME must point somewhere writable. Gradle unpacks
+#    libnative-platform.so into it at startup, and it defaults to $HOME. As
+#    uid 1000 that extraction fails and the build dies with "Could not
+#    initialize native services" BEFORE any task runs — which reads like a
+#    broken sandbox, not a permissions problem. Verified: same isolation block
+#    as root reaches :compileTestJava, and as uid 1000 it does not.
+# 2. /work/.gradle must be a writable sub-mount owned by the same uid, or the
+#    build dies on "fileHashes.lock (Permission denied)" — a second, distinct
+#    failure that is easy to mistake for (1).
+#
+# Dependencies come from the seeded GRADLE_USER_HOME volume (no --network, no
+# remote repositories), mounted rw like Maven's cache: Gradle writes lock files
+# and verification metadata there, so it cannot be read-only.
+GRADLE_PROFILE = SandboxProfile(
+    name="gradle",
+    image=DEFAULT_GRADLE_IMAGE,
+    image_env="SPECPROOF_SANDBOX_GRADLE_IMAGE",
+    env=(
+        # See finding 1 above — this is the load-bearing line.
+        ("GRADLE_USER_HOME", "/gradle-home"),
+        # One key, space-joined: build_docker_argv emits a "-e KEY=VALUE" pair
+        # per entry, and docker applies only the LAST of a repeated key, so a
+        # second GRADLE_OPTS entry would silently drop the first.
+        # - daemon=false: a daemon is a second JVM that would outlive this
+        #   container invocation.
+        # - auto-download=false: a project asking for a JDK this image lacks
+        #   must fail loudly, never fetch one (there is no network to fetch
+        #   from, so the only outcome would be a confusing timeout).
+        ("GRADLE_OPTS",
+         "-Dorg.gradle.daemon=false"
+         " -Dorg.gradle.java.installations.auto-download=false"),
+    ),
+    cache_volume_env="SPECPROOF_SANDBOX_GRADLE_HOME_VOLUME",
+    cache_volume_default="specproof-gradle-home-1000",
+    cache_mount="/gradle-home",
+    writable_submounts=(
+        (".gradle", "/work/.gradle"),
     ),
 )
 

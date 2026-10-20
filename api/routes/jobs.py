@@ -12,19 +12,18 @@ parameters are refused with 422 VALIDATION_FAILED.
 import asyncio
 import json
 import logging
-import uuid
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from api.auth import enforce_rate_limit, require_api_key
-from api.errors import JOB_NOT_FOUND, PROVIDER_UNAVAILABLE, STATE_CONFLICT, ApiError
+from api.errors import PROVIDER_UNAVAILABLE, ApiError
+from api.services.verification_service import VerificationApplicationService
 from observability.metrics import observe_duration
-from storage.mysql import ALL_STATUSES, MySQLStore
 from storage.redis import RedisStore
 
 logger = logging.getLogger(__name__)
@@ -141,17 +140,17 @@ def create_job(payload: JobCreateRequest) -> dict[str, Any]:
     Returns 202 with job_id. A real 503 when MySQL is unreachable — the API
     never pretends a job was accepted when nothing was persisted.
     """
-    job = {
-        "id": str(uuid.uuid4()),
-        "repo_path": payload.repo_path,
-        "base_ref": payload.base_ref,
-        "head_ref": payload.head_ref,
-        "spec_path": payload.spec_path,
-        "depth": payload.depth,
-    }
+    service = VerificationApplicationService()
     try:
-        store = MySQLStore()
-        job_id = store.create_job_with_outbox(job)
+        created = service.create_job(
+            repo_path=payload.repo_path,
+            base_ref=payload.base_ref,
+            head_ref=payload.head_ref,
+            spec_path=payload.spec_path,
+            depth=payload.depth,
+        )
+    except ApiError:
+        raise
     except Exception as exc:  # noqa: BLE001 — MySQL down / schema missing
         logger.exception("Failed to persist job via outbox")
         raise ApiError(
@@ -164,40 +163,16 @@ def create_job(payload: JobCreateRequest) -> dict[str, Any]:
                 "(`specproof verify`) instead, or start the services."
             ),
         ) from exc
-    return {"job_id": job_id, "status": "QUEUED"}
+    return {"job_id": created["job_id"], "status": created["status"]}
 
 
 @router.post("/{job_id}/cancel", status_code=202)
 def cancel_job(job_id: str) -> dict[str, Any]:
     """Cancel a QUEUED/RUNNING job (CAS; terminal jobs are immutable)."""
+    service = VerificationApplicationService()
     try:
-        store = MySQLStore()
-        job = store.get_job(job_id)
-        if job is None:
-            raise ApiError(
-                status_code=404, code=JOB_NOT_FOUND, detail=f"Job {job_id} not found",
-            )
-        status = str(job.get("status", ""))
-        if status not in ("QUEUED", "RUNNING", "WAITING_FOR_PROVIDER", "FAILED"):
-            raise ApiError(
-                status_code=409,
-                code=STATE_CONFLICT,
-                detail=f"Job {job_id} is {status} — cannot cancel a terminal job",
-            )
-        cancelled = store.transition_job_status(
-            job_id, "CANCELLED", from_status=status, error_msg="Cancelled by user"
-        )
-        if not cancelled:
-            raise ApiError(
-                status_code=409,
-                code=STATE_CONFLICT,
-                detail="Cancel failed (concurrent change)",
-            )
-        store.record_audit(
-            action="job_cancelled", actor="api", job_id=job_id,
-            from_status=status, to_status="CANCELLED",
-        )
-    except HTTPException:
+        return service.cancel_job(job_id)
+    except ApiError:
         raise
     except Exception as exc:  # noqa: BLE001
         raise ApiError(
@@ -205,7 +180,6 @@ def cancel_job(job_id: str) -> dict[str, Any]:
             code=PROVIDER_UNAVAILABLE,
             detail=f"MySQL unavailable: {exc}",
         ) from exc
-    return {"job_id": job_id, "status": "CANCELLED"}
 
 
 @router.get("")
@@ -216,23 +190,10 @@ def list_jobs(
     q: str = Query(default="", max_length=256),
 ) -> dict[str, Any]:
     """List the most recent verification jobs."""
+    service = VerificationApplicationService()
     try:
-        store = MySQLStore()
-        # The accepted set is DERIVED from the state machine, not re-typed.
-        # A hand-written copy here had drifted both ways: it accepted
-        # UNVERIFIED/INCONCLUSIVE (never job statuses ⇒ the filter silently
-        # matched nothing while the page reported "no results") and rejected
-        # STALE with a 422 — STALE being a real terminal status this system
-        # writes. Rejecting an unknown word loudly is the point: a filter that
-        # cannot match must fail, not answer "nothing found".
-        if status is not None and status not in ALL_STATUSES:
-            raise HTTPException(422, "Unknown job status filter")
-        # One query shape for every caller. The old fork answered a bare
-        # GET /jobs from a SELECT with no COUNT, so that response had no
-        # `total` and any consumer asking "how many verifications exist"
-        # could only report the size of the window it happened to fetch.
-        return store.search_jobs(limit, offset or 0, status, q.strip())
-    except HTTPException:
+        return service.list_jobs(limit=limit, offset=offset or 0, status=status, q=q)
+    except ApiError:
         raise
     except Exception as exc:  # noqa: BLE001
         raise ApiError(
@@ -245,34 +206,10 @@ def list_jobs(
 @router.get("/{job_id}")
 def get_job(job_id: str) -> dict[str, Any]:
     """Return one job's status from MySQL (the business source of truth)."""
+    service = VerificationApplicationService()
     try:
-        store = MySQLStore()
-        job = store.get_job(job_id)
-    except Exception as exc:  # noqa: BLE001
-        raise ApiError(
-            status_code=503,
-            code=PROVIDER_UNAVAILABLE,
-            detail=f"MySQL unavailable: {exc}",
-        ) from exc
-    if job is None:
-        raise ApiError(
-            status_code=404, code=JOB_NOT_FOUND, detail=f"Job {job_id} not found",
-        )
-    return {"job": job}
-
-
-@router.get("/{job_id}/summary")
-def get_job_summary(job_id: str) -> dict[str, Any]:
-    """Return the persisted pipeline summary (matrix/findings/capsules)."""
-    try:
-        store = MySQLStore()
-        job = store.get_job(job_id)
-        if job is None:
-            raise ApiError(
-                status_code=404, code=JOB_NOT_FOUND, detail=f"Job {job_id} not found",
-            )
-        summary = store.get_job_summary(job_id)
-    except HTTPException:
+        job = service.require_job(job_id)
+    except ApiError:
         raise
     except Exception as exc:  # noqa: BLE001
         raise ApiError(
@@ -280,7 +217,23 @@ def get_job_summary(job_id: str) -> dict[str, Any]:
             code=PROVIDER_UNAVAILABLE,
             detail=f"MySQL unavailable: {exc}",
         ) from exc
-    return {"job_id": job_id, "summary": summary or {}}
+    return {"job": job}
+
+
+@router.get("/{job_id}/summary")
+def get_job_summary(job_id: str) -> dict[str, Any]:
+    """Return the persisted pipeline summary (matrix/findings/capsules)."""
+    service = VerificationApplicationService()
+    try:
+        return service.get_job_summary(job_id)
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=f"MySQL unavailable: {exc}",
+        ) from exc
 
 
 class _DisconnectProbe(Protocol):

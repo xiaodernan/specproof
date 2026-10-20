@@ -19,6 +19,7 @@ from experiments.adapters import (
     ExecutionAdapter,
     ExecutionRequest,
     GoAdapter,
+    GradleAdapter,
     JavaMavenAdapter,
     NodeAdapter,
     PythonAdapter,
@@ -85,18 +86,6 @@ class TestDetectRules:
 class TestRegistryOrder:
     def test_java_maven_is_first_registered(self) -> None:
         assert isinstance(registry.adapters[0], JavaMavenAdapter)
-
-    def test_planned_adapters_raise_adapter_not_implemented(self, tmp_path: Path) -> None:
-        gradle_repo = tmp_path
-        (gradle_repo / "build.gradle").write_text("", encoding="utf-8")
-        with pytest.raises(AdapterNotImplemented) as excinfo:
-            registry.get(RepositorySnapshot(path=str(gradle_repo)))
-        assert "planned" in str(excinfo.value)
-
-    def test_planned_adapter_prepare_raises(self) -> None:
-        planned = registry.adapters[1]
-        with pytest.raises(AdapterNotImplemented, match="planned"):
-            planned.prepare(ExecutionRequest(workspace="ws", goal="run_test"))
 
     def test_java_maven_satisfies_protocol(self) -> None:
         assert isinstance(JavaMavenAdapter(), ExecutionAdapter)
@@ -330,15 +319,8 @@ class TestCompatibilityMatrixContent:
         assert rows[0].build_tool == "Maven"
         assert rows[0].status == "已支持 (实测)"
         assert rows[0].image_digest.startswith("sha256:")
-        # Go left planned behind too (#Phase 2.6): only Gradle remains.
-        planned_rows = [
-            row for row in rows[1:] if row.language not in (
-                "Python", "JavaScript/TypeScript", "Go",
-            )
-        ]
-        assert all(row.status == "规划 (planned)" for row in planned_rows)
-        planned_build_tools = {row.build_tool for row in planned_rows}
-        assert planned_build_tools == {"Gradle"}
+        # All five rows now have real adapters; none is "planned".
+        assert all(row.status != "规划 (planned)" for row in rows)
         go_row = next(row for row in rows if row.language == "Go")
         assert go_row.status == "已支持 (Docker 沙箱)"
         assert go_row.image == GoAdapter.IMAGE
@@ -346,19 +328,18 @@ class TestCompatibilityMatrixContent:
         python_row = next(row for row in rows if row.language == "Python")
         assert python_row.build_tool == "pip"
         assert python_row.test_runner == "pytest"
-        # #26: Python left local-first behind — sandbox actually delivered,
-        # and the row carries a real image like Node's does.
         assert python_row.status == "已支持 (Docker 沙箱)"
         assert python_row.image == PythonAdapter.IMAGE
         assert python_row.image_digest.startswith("sha256:")
         node_row = next(row for row in rows if row.language == "JavaScript/TypeScript")
         assert node_row.build_tool == "npm"
-        # #54: Node left local-first behind — the row may only claim a status
-        # the sandbox actually delivers, and it now carries a real image.
         assert node_row.status == "已支持 (Docker 沙箱)"
         assert node_row.image == NodeAdapter.IMAGE
         assert node_row.image_digest == NodeAdapter.IMAGE_DIGEST
         assert node_row.image_digest.startswith("sha256:")
+        gradle_row = next(row for row in rows if row.build_tool == "Gradle")
+        assert gradle_row.status == "已支持 (Docker 沙箱)"
+        assert gradle_row.image == GradleAdapter.IMAGE
 
     def test_matrix_document_declares_everything(self) -> None:
         text = MATRIX_DOC.read_text(encoding="utf-8")
@@ -394,17 +375,6 @@ class TestCompatibilityMatrixContent:
         assert "local-first" not in node_line
         assert "Docker 沙箱" in node_line
 
-
-def test_detect_functions_exist_for_planned_adapters() -> None:
-    from experiments import adapters as adapters
-
-    # detect_go was removed with #Phase 2.6: the real GoAdapter replaced the
-    # planned stub, so only Gradle remains planned.
-    for fn in (
-        adapters.detect_java_gradle,
-    ):
-        with pytest.raises(AdapterNotImplemented, match="planned"):
-            fn(RepositorySnapshot(path="."))
 
 
 

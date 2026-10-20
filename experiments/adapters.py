@@ -50,11 +50,13 @@ from typing import Any, Protocol, runtime_checkable
 from observability.metrics import incr
 from sandbox.runner import (
     DEFAULT_GO_IMAGE,
+    DEFAULT_GRADLE_IMAGE,
     DEFAULT_M2_VOLUME,
     DEFAULT_NODE_IMAGE,
     DEFAULT_PIDS_LIMIT,
     DEFAULT_PYTHON_IMAGE,
     GO_PROFILE,
+    GRADLE_PROFILE,
     NODE_INSTALL_PROFILE,
     NODE_PROFILE,
     PYTHON_PROFILE,
@@ -294,6 +296,45 @@ def parse_go_test_summary(text: str) -> dict[str, int]:
         "failed": failed,
         "errors": errors,
     }
+
+
+def parse_gradle_test_summary(text: str) -> dict[str, int]:
+    """Parse Gradle's ``BUILD SUCCESSFUL``/``BUILD FAILED`` block into counts.
+
+    ``--console=plain`` prints one summary line::
+
+        BUILD SUCCESSFUL in 4s
+        3 actionable tasks: 3 executed
+
+    which carries NO test counts — unlike pytest or ``go test -json``, plain
+    Gradle output does not say how many tests ran. Two consequences that this
+    parser encodes rather than hides:
+
+    * A passing run reports ``tests: 0``. That is honest no-evidence: the
+      verdict is the exit code, and ``test_report_refs`` points at the JUnit
+      XML instead. Inventing a count from the task line would be fabrication.
+    * The ``> N test completed`` / ``> N tests completed`` line that a failed
+      run sometimes prints IS a real count, so a failing build still reports
+      how many ran before the failure.
+
+    A build that never ran tests (offline dependency miss) therefore reports
+    zero tests with a non-zero exit code — which is exactly the shape that
+    stops "could not resolve junit" from being read as "0 tests passed".
+    """
+    counts = {"tests": 0, "passed": 0, "failed": 0, "errors": 0}
+    if "BUILD SUCCESSFUL" in text:
+        return counts
+    # Only reached on a failure/error build; the completed-count line is
+    # Gradle's own, printed when at least one test ran before the failure.
+    match = re.search(r">\s*(\d+)\s+tests?\s+completed", text)
+    if match:
+        counts["tests"] = int(match.group(1))
+        counts["failed"] = counts["tests"]
+    if "FAILURE:" in text:
+        # A configuration/dependency failure has no test counts at all, and
+        # must not be reported as "0 failed": it is an error, not a clean run.
+        counts["errors"] = 1
+    return counts
 
 
 def parse_pytest_summary(text: str) -> dict[str, int]:
@@ -1337,14 +1378,198 @@ class NodeAdapter:
         return None
 
 
-# ── Planned adapters (matrix only; detect raises, per guide §14 task 10) ──
+# ── Gradle adapter (#232) ────────────────────────────────────────────────
 
 
-def detect_java_gradle(repo: RepositorySnapshot) -> RuntimeProfile:
-    raise AdapterNotImplemented(
-        "Java/Gradle adapter is planned (compatibility matrix status=planned); "
-        "no executor is wired"
+def _gradle_image() -> str:
+    return os.getenv("SPECPROOF_SANDBOX_GRADLE_IMAGE", "").strip() or DEFAULT_GRADLE_IMAGE
+
+
+def parse_gradle_dependencies(build_file: str) -> list[str]:
+    """Dependency coordinates declared in a build.gradle(.kts) file.
+
+    Deliberately conservative: only a ``group:name:version`` triple written
+    literally on one line is recognised. A version coming from a version
+    catalog, a variable or a BOM-managed platform is NOT recognised — and
+    returning a silently incomplete list would be worse than returning nothing,
+    because the seed script would then report a cache as complete when it is
+    not. Unrecognised syntax is left for the caller to report honestly.
+    """
+    coords: list[str] = []
+    for match in re.finditer(r"""["']([\w.-]+):([\w.-]+):([\w.+-]+)["']""", build_file):
+        group, name, version = match.groups()
+        if group in {"org.gradle", "gradle.plugin"}:
+            continue  # a plugin id, not a dependency
+        coords.append(f"{group}:{name}:{version}")
+    return sorted(set(coords))
+
+
+class GradleAdapter:
+    """Java/Gradle via the project's own `gradle test` (Docker sandbox, #232).
+
+    Dependency resolution happens OFFLINE from a seeded GRADLE_USER_HOME volume.
+    The seed script (scripts/seed_gradle_home.ps1) runs a real Gradle build
+    ONLINE once; the sandbox then re-runs it with ``--offline`` and
+    ``--network none``. A cache miss stops the run before the tests execute, so
+    "could not resolve junit" can never be confused with "tests ran and passed".
+    """
+
+    TOOLCHAIN = "Gradle (docker sandbox) / gradle --no-daemon --offline test"
+    IMAGE = DEFAULT_GRADLE_IMAGE
+
+    # ``--console=plain`` is required for a parseable summary; the rich console
+    # emits ANSI/redraw noise that the parser cannot read.
+    TEST_COMMAND = (
+        "gradle", "--no-daemon", "--offline",
+        "--console=plain", "test",
     )
+    # Forces the test classpath to resolve without running tests: a cheaper,
+    # louder fail-fast phase than discovering a cache miss after a full run.
+    OFFLINE_DOWNLOAD_COMMAND = (
+        "gradle", "--no-daemon", "--offline",
+        "--console=plain", "compileTestJava",
+    )
+    OFFLINE_POLICY = (
+        "所有依赖来自已播种的 GRADLE_USER_HOME 卷 "
+        "(scripts/seed_gradle_home.ps1): 无网络, 缺失即停在本阶段, "
+        "不会把「解析不到 junit」说成「0 个测试通过」"
+    )
+
+    KNOWN_LIMITS: tuple[str, ...] = (
+        "Gradle 只跑项目自己的 test 任务; 与 Maven 一样拒绝 sandbox_mode=local。",
+        "依赖坐标必须是 build.gradle(.kts) 里字面写的 group:name:version, "
+        "用版本目录或 BOM 管理的坐标不会被播种脚本识别 (诚实报缺)。",
+    )
+
+    def detect(self, repo: RepositorySnapshot) -> RuntimeProfile:
+        if repo.has("build.gradle") or repo.has("build.gradle.kts"):
+            return RuntimeProfile(
+                language="java",
+                build_tool="gradle",
+                test_runner="gradle test",
+                known_limits=self.KNOWN_LIMITS,
+            )
+        raise AdapterNotImplemented(
+            "Gradle detect rule (build.gradle / build.gradle.kts) does not match"
+        )
+
+    def prepare(self, request: ExecutionRequest) -> PreparedExecution:
+        if request.goal != "run_test":
+            raise AdapterNotImplemented(
+                f"unsupported Gradle goal: {request.goal} "
+                "(GradleAdapter supports run_test only)"
+            )
+        command = list(self.TEST_COMMAND)
+        if request.test_class:
+            command += ["--tests", request.test_class]
+        image = _gradle_image()
+        return PreparedExecution(
+            workdir=request.workspace,
+            command=command,
+            local_command=list(command),
+            image=image,
+            # Gradle image is not digest-pinned yet: report it as unidentified
+            # rather than invent a fingerprint this adapter never verified.
+            image_digest="—",
+            offline_policy=self.OFFLINE_POLICY,
+            timeout=request.timeout,
+            sandbox_mode=request.sandbox_mode,
+        )
+
+    def _gradle_sandbox_resources(self, note: str) -> dict[str, str]:
+        """Resource disclosure for the sandboxed Gradle phases (§12 hardening)."""
+        return {
+            "user": SANDBOX_USER,
+            "network": "none (Gradle resolves offline from the seeded home)",
+            "capabilities": "drop ALL",
+            "no_new_privileges": "true",
+            "pids_limit": os.getenv("SPECPROOF_SANDBOX_PIDS", DEFAULT_PIDS_LIMIT),
+            "image": _gradle_image(),
+            "workspace_mount": "ro (.gradle sub-mount writable: fileHashes lock)",
+            "gradle_home_volume": (
+                "specproof-gradle-home-1000 "
+                "(override: SPECPROOF_SANDBOX_GRADLE_HOME_VOLUME), mounted rw"
+            ),
+            "setup_phase": note,
+        }
+
+    def run(self, prepared: PreparedExecution) -> ExecutionResult:
+        # mode="docker" only: there is no host lane. Untrusted Gradle test code
+        # with host privileges is exactly what the red line forbids, so a
+        # "local" request is refused rather than silently honored.
+        if prepared.sandbox_mode == "local":
+            raise AdapterNotImplemented(
+                "GradleAdapter has no host lane: untrusted Gradle test code "
+                "must run in the container sandbox (omit sandbox_mode)"
+            )
+        # Fail-fast: dependency resolution (compileTestJava forces the test
+        # classpath to resolve) BEFORE the tests. The tests never start on a
+        # cache miss, so a zero-test run can never be read as a pass.
+        phases: list[tuple[str, list[str]]] = [
+            ("compile_test_java", list(self.OFFLINE_DOWNLOAD_COMMAND)),
+            ("gradle_test", list(prepared.command)),
+        ]
+        result: SandboxResult | None = None
+        for name, command in phases:
+            result = run_sandboxed(
+                command,
+                workspace=prepared.workdir,
+                timeout=prepared.timeout,
+                mode="docker",
+                profile=GRADLE_PROFILE,
+            )
+            if result.exit_code != 0 and name != "gradle_test":
+                prepared.result = ExecutionResult(
+                    exit_code=result.exit_code,
+                    stdout_tail=_tail(result.stdout),
+                    stderr_tail=_tail(result.stderr),
+                    mode=result.mode,
+                    sandbox_resources=self._gradle_sandbox_resources(
+                        f"{name} failed — tests not run"
+                    ),
+                    error=(
+                        f"offline dependency resolution failed at '{name}' — "
+                        "tests were not run"
+                        + (f": {result.error}" if result.error else "")
+                    ),
+                )
+                return prepared.result
+        assert result is not None, "sandbox phases loop must produce a result"
+        # The gradle exit code IS the verdict (pass or real regression) —
+        # reported as-is, never rewritten.
+        prepared.result = ExecutionResult(
+            exit_code=result.exit_code,
+            stdout_tail=_tail(result.stdout),
+            stderr_tail=_tail(result.stderr),
+            mode=result.mode,
+            sandbox_resources=self._gradle_sandbox_resources("completed"),
+            error=result.error,
+        )
+        return prepared.result
+
+    def collect(self, prepared: PreparedExecution) -> EvidenceFragment:
+        result = prepared.result
+        if result is None:
+            return EvidenceFragment(
+                test_report_refs=(),
+                exit_evidence={"exit_code": None, "collected": False},
+            )
+        combined = result.stdout_tail + result.stderr_tail
+        return EvidenceFragment(
+            test_report_refs=(),
+            exit_evidence={
+                "exit_code": result.exit_code,
+                "mode": result.mode,
+                "sandbox_resources": dict(result.sandbox_resources),
+                "test_counts": parse_gradle_test_summary(combined),
+            },
+        )
+
+    def cleanup(self, prepared: PreparedExecution) -> None:
+        """Cleanup boundary: a no-op. Gradle's build/ output is pipeline-owned
+        and the seeded home is a named volume — neither is deleted here."""
+        return None
+
 
 
 class _PlannedAdapter:
@@ -1583,12 +1808,12 @@ COMPATIBILITY_MATRIX: tuple[MatrixRow, ...] = (
         language="Java",
         build_tool="Gradle",
         test_runner="JUnit 5 (Gradle Test)",
-        status="规划 (planned)",
-        image="—",
+        status="已支持 (Docker 沙箱)",
+        image=GradleAdapter.IMAGE,
         image_digest="—",
-        toolchain="待定 (随实现声明)",
-        offline_policy="待定 (离线缓存策略随实现声明)",
-        known_limits=("detect 抛 AdapterNotImplemented; 无执行器",),
+        toolchain=GradleAdapter.TOOLCHAIN,
+        offline_policy=GradleAdapter.OFFLINE_POLICY,
+        known_limits=GradleAdapter.KNOWN_LIMITS,
     ),
     MatrixRow(
         language="JavaScript/TypeScript",
@@ -1635,7 +1860,7 @@ class ExecutionAdapterRegistry:
     def __init__(self) -> None:
         self._adapters: list[ExecutionAdapter] = [
             JavaMavenAdapter(),
-            _PlannedAdapter("Java/Gradle", detect_java_gradle),
+            GradleAdapter(),
             NodeAdapter(),
             PythonAdapter(),
             GoAdapter(),

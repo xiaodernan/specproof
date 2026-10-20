@@ -1173,3 +1173,42 @@ export function revokeToken(tokenId: string): Promise<{ revoked: boolean; token_
   );
 }
 
+export interface Invoice {
+  id: string;
+  tenant_id: string;
+  period: string;
+  line_items: Array<Record<string, unknown>>;
+  total: number;
+  currency: string;
+  status: string;
+}
+
+// Invoice status request/response
+export interface InvoiceStatusRequest {
+  status: "issued" | "paid";
+}
+
+export interface InvoiceStatusResponse {
+  invoice: Invoice;
+}
+
+// Get the invoice for a given period (returns null if not yet generated).
+export async function getInvoiceByPeriod(period: string): Promise<Invoice | null> {
+  const resp = await apiGet<{ invoices: Invoice[]; count: number }>(
+    "/api/v1/billing/invoices?period=" + encodeURIComponent(period)
+  );
+  return resp.invoices[0] ?? null;
+}
+
+// Transition invoice status: draft→issued→paid (no-op if status unchanged,
+// 409 STATE_CONFLICT on illegal step, 404 INVOICE_NOT_FOUND if no draft).
+export async function transitionInvoiceStatus(
+  period: string,
+  status: "issued" | "paid"
+): Promise<Invoice> {
+  return apiPost<Invoice>(
+    "/api/v1/billing/invoices/" + encodeURIComponent(period) + "/status",
+    { status }
+  );
+}
+

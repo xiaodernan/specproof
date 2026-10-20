@@ -37,7 +37,7 @@ _JOB_INSERT_TENANT_SQL = (
     "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
     "github_check_json, tenant_id) "
     "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
-    "%(head_ref)s, %(spec_path)s, 'PENDING', %(depth)s, "
+    "%(head_ref)s, %(spec_path)s, 'QUEUED', %(depth)s, "
     "%(github_check_json)s, %(tenant_id)s)"
 )
 
@@ -99,25 +99,65 @@ AUDIT_ACTIONS: Final[frozenset[str]] = frozenset({
 })
 
 # ── State machine ──────────────────────────────────────────────
-
+#
+# Phase 1 frozen state machine (industrialization §1):
+#
+#   QUEUED → PREPARING → CONTRACT_REVIEW → RUNNING → REVIEWING →
+#   VERIFIED | BLOCKED | NEEDS_REVIEW | FAILED | CANCELLED | STALE | EXPIRED
+#
+# Legacy/transit statuses kept for worker compatibility:
+#   PENDING   → QUEUED  (initial submit, legacy name)
+#   ERROR     → terminal  (legacy failure bucket)
+#   WAITING_FOR_PROVIDER → QUEUED / RUNNING / FAILED  (provider outage recovery)
+#
+# Non-terminal: QUEUED, PREPARING, CONTRACT_REVIEW, RUNNING, REVIEWING,
+#   FAILED, WAITING_FOR_PROVIDER, PENDING
+# Terminal:     VERIFIED, BLOCKED, NEEDS_REVIEW, CANCELLED, STALE, EXPIRED, ERROR
+#
+# Invariant: every transition is audited (record_audit). A terminal job
+# accepts only its own status (idempotent no-op); any other target raises
+# InvalidStateTransition — use cancel() for the deliberate override.
+#
 _VALID_TRANSITIONS: dict[str, set[str]] = {
-    "PENDING":  {"QUEUED", "ERROR"},
-    "QUEUED":   {"RUNNING", "CANCELLED", "STALE", "ERROR"},
-    "RUNNING":  {
-        "VERIFIED", "BLOCKED", "FAILED", "CANCELLED", "STALE",
-        "WAITING_FOR_PROVIDER", "ERROR",
+    "QUEUED": {
+        "PREPARING", "CANCELLED", "STALE", "EXPIRED",
     },
+    "PREPARING": {
+        "CONTRACT_REVIEW", "RUNNING", "FAILED", "CANCELLED", "EXPIRED",
+    },
+    "CONTRACT_REVIEW": {
+        "RUNNING", "NEEDS_REVIEW", "CANCELLED", "EXPIRED",
+    },
+    "RUNNING": {
+        "REVIEWING", "QUEUED", "FAILED", "CANCELLED", "STALE", "EXPIRED",
+        "WAITING_FOR_PROVIDER",
+    },
+    "REVIEWING": {
+        "VERIFIED", "BLOCKED", "NEEDS_REVIEW", "FAILED", "CANCELLED", "EXPIRED",
+    },
+    # FAILED is recoverable by explicit retry (→QUEUED); otherwise terminal.
+    "FAILED": {"QUEUED", "CANCELLED", "EXPIRED"},
     # Provider outage: recoverable — either retry (QUEUED) or give up.
-    "WAITING_FOR_PROVIDER": {"QUEUED", "RUNNING", "FAILED", "CANCELLED", "ERROR"},
-    "FAILED":   {"QUEUED", "CANCELLED", "ERROR"},
-    "STALE":    set(),
-    "VERIFIED": set(),
-    "BLOCKED":  set(),
-    "CANCELLED": set(),
-    "ERROR":    set(),
+    "WAITING_FOR_PROVIDER": {"QUEUED", "RUNNING", "FAILED", "CANCELLED", "EXPIRED"},
+    # Legacy initial submit.
+    "PENDING": {"QUEUED", "ERROR"},
+    "VERIFIED":    set(),
+    "BLOCKED":     set(),
+    "NEEDS_REVIEW":set(),
+    "CANCELLED":   set(),
+    "STALE":       set(),
+    "EXPIRED":     set(),
+    "ERROR":       set(),
 }
 
-TERMINAL_STATUSES = {"VERIFIED", "BLOCKED", "STALE", "CANCELLED", "ERROR"}
+TERMINAL_STATUSES = {
+    "VERIFIED", "BLOCKED", "NEEDS_REVIEW", "CANCELLED", "STALE", "EXPIRED", "ERROR",
+}
+
+#: Legacy statuses no longer used for new submissions (kept for backward
+#: compat: PENDING is legacy initial name, ERROR is legacy failure bucket,
+#: WAITING_FOR_PROVIDER is kept for the worker provider-outage lane).
+RETIRED_STATUSES = frozenset({"PENDING", "ERROR"})
 
 #: Every status this state machine can name: the keys of _VALID_TRANSITIONS
 #: (states a row can hold) plus every value (states reachable from one).
@@ -198,7 +238,7 @@ def _job_row(job: dict[str, Any]) -> dict[str, Any]:
         "base_ref": job.get("base_ref", ""),
         "head_ref": job.get("head_ref", ""),
         "spec_path": job.get("spec_path", ""),
-        "status": job.get("status", "PENDING"),
+        "status": job.get("status", "QUEUED"),
         "depth": job.get("depth", "FAST"),
         "github_check_json": json.dumps(check) if check else None,
         # Multi-tenant: stamped from the request-scoped tenant context by the
@@ -407,7 +447,7 @@ class MySQLStore:
                 "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
                 "github_check_json) "
                 "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
-                "%(head_ref)s, %(spec_path)s, 'PENDING', %(depth)s, "
+                "%(head_ref)s, %(spec_path)s, 'QUEUED', %(depth)s, "
                 "%(github_check_json)s)"
             )
         )

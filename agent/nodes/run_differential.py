@@ -47,6 +47,12 @@ from agent.preflight import (
 )
 from agent.self_test_diff import self_test_execution_allowed, self_test_verdict
 from agent.state import Phase0State
+from experiments.db_snapshot import (
+    METHOD_H2_FILE_DUMP,
+    DbSnapshot,
+    compare_snapshots,
+    parse_dump_rows,
+)
 from observability.metrics import incr
 
 # Java source for the post-mortem DB dump helper. It opens the file-based
@@ -128,6 +134,39 @@ DIFF_OUTCOMES: frozenset[str] = frozenset({
 })
 
 
+def _not_verified_contract_results(
+    contracts: list[dict[str, Any]],
+    *,
+    experiment: str,
+    detail: str,
+) -> list[dict[str, Any]]:
+    """UNVERIFIED rows for every contract the differential could not judge.
+
+    P3-6 (contract_id 一贯传递): when the experiment never ran, every
+    contract it was supposed to verify must carry an explicit UNVERIFIED
+    row WITH THE REASON. Without this the differential's absence is
+    invisible: the matrix shows a contract with no result, which reads
+    as "nothing was found" instead of "the experiment could not run" —
+    and a reader who cannot tell those apart cannot trust the matrix.
+
+    The reason rides on ``details`` — the same key the java_source rows
+    already use for their "why is this not a pass" note.
+    """
+    rows: list[dict[str, Any]] = []
+    for contract in contracts:
+        cid = str(contract.get("id") or "")
+        if not cid:
+            continue
+        rows.append({
+            "contract_id": cid,
+            "result": "UNVERIFIED",
+            "experiment": experiment,
+            "evidence_ref": "",
+            "details": detail,
+        })
+    return rows
+
+
 def run_differential_node(state: Phase0State) -> dict[str, Any]:
     """Run the generated counterexample test on Base and Head workspaces."""
     base_workspace = state.get("base_workspace", "")
@@ -139,13 +178,23 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     generated_tests_path = state.get("generated_tests_path", "")
     job_id = state.get("job_id")
 
+    not_prepared_detail = (
+        "Workspace not prepared — cannot run differential execution"
+    )
     empty_result: dict[str, Any] = {
         "diff_results": [{
             "contract_id": "DIFF-01",
             "verdict": "NON_REPRODUCIBLE",
-            "detail": "Workspace not prepared — cannot run differential execution",
+            "detail": not_prepared_detail,
         }],
-        "contract_results": [],
+        # P3-6: the contracts this run was supposed to verify are named as
+        # UNVERIFIED, so the matrix shows "not verified (no workspace)"
+        # instead of showing nothing at all.
+        "contract_results": _not_verified_contract_results(
+            contracts,
+            experiment="generated_test_differential",
+            detail=not_prepared_detail,
+        ),
     }
     if not base_workspace or not head_workspace:
         # #185: count skipped differential runs (no workspaces)
@@ -336,15 +385,23 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         # #185b: execution errors get their own counter — outcomes_ambiguous
         # keeps its declared meaning (base_fail + head_fail).
         incr("differential_errors_total")
+        error_detail = f"Maven execution error: {err_detail}"
         return {
             "diff_results": source_diff_results + [{
                 "contract_id": "DIFF-01",
                 "verdict": "NON_REPRODUCIBLE",
-                "detail": f"Maven execution error: {err_detail}",
+                "detail": error_detail,
                 "base_exit_code": base_result.get("exit_code"),
                 "head_exit_code": head_result.get("exit_code"),
                 "changed_symbols": changed_symbols,
             }] + probe_results,
+            # P3-6: the experiment failed to run — every contract it was
+            # meant to verify is UNVERIFIED with the reason, not absent.
+            "contract_results": _not_verified_contract_results(
+                contracts,
+                experiment="generated_test_differential",
+                detail=error_detail,
+            ),
         }
 
     base_pass = base_result.get("exit_code") == 0
@@ -1354,12 +1411,18 @@ def _capture_db_snapshot(workspace: str) -> dict[str, Any]:
                 if "=" in line:
                     k, _, v = line.partition("=")
                     rows[k.strip()] = v.strip()
-            return {
-                "method": "h2_file_dump",
-                "rows": rows,
-                "db_file": str(db_file),
-                "note": "",
-            }
+            # P3-5: emit the per-table breakdown alongside the legacy flat
+            # map, so a consumer that knows the new shape does not have to
+            # re-parse the "table:rowid" prefixes.
+            snapshot = DbSnapshot(
+                method=METHOD_H2_FILE_DUMP,
+                tables=parse_dump_rows(rows),
+                note="",
+                source=str(db_file),
+            )
+            payload = snapshot.to_dict()
+            payload["db_file"] = str(db_file)
+            return payload
         except Exception as e:  # noqa: BLE001
             return {"method": "none", "rows": {}, "note": str(e)}
 
@@ -1376,39 +1439,31 @@ def _compare_db_state(
       same "the regression mutated persisted data" evidence, P6.
     - DB_CONSISTENT: every dumped table is identical.
     - DB_NO_EVIDENCE: no dump available.
+
+    P3-5: the COMPARISON is table-agnostic (experiments/db_snapshot.py
+    discovers the tables from the two snapshots), so a domain nobody
+    listed is still compared. The verdict NAMES stay here because they
+    are policy — "a users-table change is the unauthenticated-mutation
+    evidence" is a decision, not an observation.
     """
-    base_method = base_snapshot.get("method")
-    head_method = head_snapshot.get("method")
-    if base_method != "h2_file_dump" or head_method != "h2_file_dump":
-        note = base_snapshot.get("note") or head_snapshot.get("note")
+    base = DbSnapshot.from_dict(base_snapshot)
+    head = DbSnapshot.from_dict(head_snapshot)
+    if not base.has_evidence() or not head.has_evidence():
+        note = base.note or head.note
         return "DB_NO_EVIDENCE", f"No H2 dump available: {note}"
 
-    base_rows = base_snapshot.get("rows", {})
-    head_rows = head_snapshot.get("rows", {})
+    differences = compare_snapshots(base, head)
+    if not differences:
+        return "DB_CONSISTENT", "Base and Head DB dumps are identical"
 
-    def _table(table: str) -> tuple[dict[str, str], dict[str, str]]:
-        prefix = table + ":"
-        base_table = {k: v for k, v in base_rows.items() if k.startswith(prefix)}
-        head_table = {k: v for k, v in head_rows.items() if k.startswith(prefix)}
-        return base_table, head_table
-
-    for table in ("users", "products", "orders"):
-        base_table, head_table = _table(table)
-        if base_table == head_table:
-            continue
-        if not base_table and not head_table:
-            continue
-        changed = [
-            f"row {key}: '{base_table[key]}' -> '{head_table[key]}'"
-            for key in base_table
-            if key in head_table and base_table[key] != head_table[key]
-        ] or [f"{table} row set differs: base={base_table}, head={head_table}"]
-        detail = "Real H2 dump comparison — " + "; ".join(changed[:6])
-        if table == "users":
-            return "DB_MUTATED_ON_UNAUTH", detail
-        return "DB_MUTATED", detail
-
-    return "DB_CONSISTENT", "Base and Head DB dumps are identical"
+    for difference in differences:
+        if difference.table == "users":
+            return (
+                "DB_MUTATED_ON_UNAUTH",
+                "Real H2 dump comparison — " + difference.detail,
+            )
+    first = differences[0]
+    return "DB_MUTATED", "Real H2 dump comparison — " + first.detail
 
 
 def _behavioral_evidence(

@@ -38,7 +38,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import TracebackType
-from typing import IO, Any, Protocol, cast
+from typing import Any, Protocol, cast
 
 logger = logging.getLogger(__name__)
 
@@ -166,14 +166,14 @@ class StdioTransport:
 
     def send(self, line: str) -> None:
         proc = self._proc
-        stdin = cast(IO[str] | None, proc.stdin)
+        stdin = proc.stdin
         if stdin is None or proc.poll() is not None:
             raise EOFError(f"MCP server exited early with code {proc.returncode}")
         stdin.write(line + "\n")
         stdin.flush()
 
     def recv(self) -> str:
-        stdout = cast(IO[str] | None, self._proc.stdout)
+        stdout = self._proc.stdout
         if stdout is None:
             raise EOFError("MCP server stdout is unavailable")
         line = stdout.readline()

@@ -977,7 +977,7 @@ JSON Action Envelope 块；再补一臂 M6＝自检腿改成自己拼 sections�
 **为什么现在不落。** 本批只剩记档的回合预算；一个没有见证的新例不如一条写清范围与预测的配方。
 按测量走，不按名字走。
 
-## #144 落地：自检提示词的执行面披露现在有证人，而它先抓到我自己的三条假预测
+## #144b 落地：自检提示词的执行面披露现在有证人，而它先抓到我自己的三条假预测
 
 **做了什么（只动测试）。** `tests/unit/test_diagnose_prompt_names_the_plane.py` 加第 6 例：
 不再从外面拼提示词，而是把 W44 自检腿 `_llm_fix_envelope` 真的驱动起来——第一份信封故意版本号
@@ -1139,7 +1139,7 @@ baseline 的形式被测到了（修复前同一条断言报 `the page never sen
 
 **仍未做。** 本弧（#140–#147）的可归因干净平面全量门还没跑——见下一条。
 
-## #145 落地：缓存披露从原始 JSON dump 里提出来，放到有中文标签的面板上——先量再动手，量的结果改写了任务本身
+## #145b 落地：缓存披露从原始 JSON dump 里提出来，放到有中文标签的面板上——先量再动手，量的结果改写了任务本身
 
 **先量，任务的前提被改写了一半。** #145 的配方写「step 证据里的缓存披露在前端**一个读者都没有**」。实测：
 `craft/gates.py:189` 早就把 `缓存={result.cache_note}` 拼进**门禁 note**，而
@@ -4609,9 +4609,9 @@ PermissionError: [Errno 13] Permission denied: '...case-21-auth-weakened-permita
 - **#249** roadmap 3.1：实时进度与流式日志（SSE 节点级粒度）。
 - **#250** roadmap 2.6：Go / Java-Gradle 适配器（矩阵 planned 行）。
 
-## #246 case-17 单例评测读数：干净差分下 case-17 被真检出（UNIQUE-01，严重度一致）
+## #246b case-17 单例评测读数：干净差分下 case-17 被真检出（UNIQUE-01，严重度一致）
 
-**起点（独立复核，非首报）。** #243 的「下一号队列」把 #244 定为「真跑 #237 四例评测、据日志给 Recall/Precision/Severity agreement 与 case-17 是否 PASS」。该后台运行已完成：日志 `D:/面试项目/_eval_case17.log`、报告 `D:/面试项目/_eval_case17_report.html` 与 `.results.json`（均在仓库外，不入库）。**另一车道已先以 #244（提交 `1311a07`）记录同一次真跑的读数**；本号据同一份 log/json **独立复读一遍**作交叉核验，并补 #244 段未列的 `results.json` 级细节。占号前读 `git log --all` 与计划：`#246` 提交/文档均 0 命中（**#244 被三条并发车道按消息各自认领**：`1311a07`＝本次真跑、`44e6578` 迁移 down 外键、`56db2a3` counterexample writer；#245 亦已被占），故本批认领 **#246**。
+**起点（独立复核，非首报）。** #243 的「下一号队列」把 #244 定为「真跑 #237 四例评测、据日志给 Recall/Precision/Severity agreement 与 case-17 是否 PASS」。该后台运行已完成：日志 `D:/面试项目/_eval_case17.log`、报告 `D:/面试项目/_eval_case17_report.html` 与 `.results.json`（均在仓库外，不入库）。**另一车道已先以 #244（提交 `1311a07`）记录同一次真跑的读数**；本号据同一份 log/json **独立复读一遍**作交叉核验，并补 #244 段未列的 `results.json` 级细节。占号前读 `git log --all` 与计划：`#246` 提交/文档均 0 命中（**#244 被三条并发车道按消息各自认领**：`1311a07`＝本次真跑、`44e6578` 迁移 down 外键、`56db2a3` counterexample writer；#245 亦已被占），故本批认领 **#246**（本节落地后由 #292 改判为 `#246b`：#246 已被另一单元占用，见 `## #246`）。
 
 **命令与耗时。** `specproof eval --cases <case-17 单例目录> --repo . --no-llm`；案例 `case-17-logic-inversion`（base=base, head=case-17-head）；**duration_ms = 657534 ≈ 11 分钟**（实测，Phase 0 图不暴露分阶段时间戳，只有整段墙钟）。
 
@@ -4633,9 +4633,9 @@ PermissionError: [Errno 13] Permission denied: '...case-21-auth-weakened-permita
 - 未跑四例子集（41 分钟级，前台 Bash 有 10 分钟上限、后台随会话死），也未补负例——故 Recall/Precision 的**总体**口径仍缺样本，本轮只回答"case-17 是否 PASS"（是）与"干净差分下检出形状"（UNIQUE-01 + BLOCKER，一致）。
 - 计划文件提交只用路径形式，未碰其它车道在途的 12 个脏文件。
 
-**下一号队列（#246 占号后重排）。**
+**下一号队列（#246b 占号后重排）。**
 - **#247** 四例子集重跑：用 `D:/面试项目/_eval_subset4` 跑 `specproof eval --repo . --no-llm`，验证 Recall/Precision 是否随样本量保持；同时盘点可用**负例**（需 ≥5）以解除 INSUFFICIENT。
-- **编号冲突提醒**：#244 段的队列把 **#246 预留给 roadmap 3.1「实时进度与流式日志（SSE 节点级）」**。本号（#246）被本节占用，故 SSE 与其他后续项请从 **#247 起排**，勿再与本号撞车。
+- **编号冲突提醒**：#244 段的队列把 **#246 预留给 roadmap 3.1「实时进度与流式日志（SSE 节点级）」**。本号（#246b）被本节占用，故 SSE 与其他后续项请从 **#247 起排**，勿再与本号撞车。
 - **#247 及以后**：原 #245/#247 队列项顺延——Verify 作业可插拔存储 + 进程内执行器/进度通道（较大重构）、实时进度与流式日志（SSE 节点级）、Go/Java-Gradle 适配器。
 - 另：#231 遗留的"case-17 红"疑点本批已实质关闭（缓存产物），但只在评测口径层面；若要写进 `docs/eval/` 需先看该目录是否被别的车道占用（git status 显示 `docs/eval/aider-results.md`、`docs/eval/attribution-results.json` 常脏）。
 
@@ -5715,6 +5715,99 @@ env 旋钮的同款「缺失文件/空值诚实性」普查（metrics_http / s3 
 纯逻辑栅栏在干净文件上已基本耗尽，下一批纯逻辑候选落在注册表交互类（宜走桩）或抓取面其它未被覆盖的纯函数；
 ④ 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
 
+## #292 账本自身的编号唯一性门：三个被复用的号让「见 #246」指向三处
+
+**起因/占号。** 这是本账本排得最久的一件欠账。#275 量到并写下了它（"账本自身的编号唯一性"），
+此后 #276 / #277 / #278 / #280 / #281 / #282 / #284 / #285 / #286 每一节的「下一号队列」都把它
+抄了一遍——同一句缺陷描述在本账本里出现 7 次。落地时账本最大节号 290、提交日志最大 284
+（#285–#290 由并发车道在途），按本账本「落地那一刻 max+1」的规矩取 **#292**。
+
+**量到的缺陷（先量后写，数字全部现读，非估计）。**
+- 账本 `## #` 节 **112** 个，**109** 个不同 id token；**3** 个 id 被用了两次：`#144`、`#145`、`#246`。
+- 账本早就在用「显式后缀」这个合法形状，只是没有门守：**4** 个已带后缀的 id——`#173-1`/`#173-2`
+  （一个单元的两个子单元）、`#241`/`#241b`（后端半/前端半）、`#254`/`#254b`（capture 半/接回 verdict 半）。
+- 三个复用号被 **80** 行正文引用。`#246` 的引用分**三类**：容错单元 9 行（含 #247 段的
+  「另一车道已修容错（#246，提交 `fed32e0`）」）、case-17 读数单元 4 行（全在本节内）、
+  roadmap 队列预留 4 行（「roadmap 2.6 / 3.1」）。所以「见 #246」今天可能指三件事。
+- 第一次测量**是错的**，已更正：最初的探针用 `## #(\d+)(-\d+)?`，漏掉了账本早已在用的
+  **字母后缀**形状，于是把 `#241`/`#254` 误报成复用号。改正为「数字 + 可选后缀，到第一个空白为止」
+  之后，真实复用号是 3 个而不是 6 个。**这个更正记在这里，因为它是本号的教训**：
+  照着错误测量去写门，写出来的门会守着一个不存在的缺陷。
+
+**修法（账本侧，六行，均以精确字符串为锚、每条必须恰好命中一次）。**
+裸号留给**正文真正指的那个单元**（同样是量出来的，不是猜的）：`#144`/`#145` 的正文全部指向**配方**节
+（其落地节自己写着「§#144 配方里那句…」），`#246` 最大的引用簇指向**容错**单元。故：
+
+| 号 | 配方/主节（留裸号） | 另一节（加后缀） |
+|---|---|---|
+| 144 | `## #144`（配方） | `## #144b`（落地） |
+| 145 | `## #145`（配方） | `## #145b`（落地） |
+| 246 | `## #246`（eval 容错） | `## #246b`（case-17 读数） |
+
+`#246b` 那一节自己那句占号记录**保留原文并加注**（「本节落地后由 #292 改判为 `#246b`」），而不是
+改写成从未发生过的样子。节内另外两处提到本号的行同步改指 `#246b`。
+
+**门（新文件 `tests/unit/test_ledger_section_ids_are_unique.py`，12 例）。** 五条规则：
+L1 每个 id token 唯一；L2 **一个裸号最多承载一节**（这条才让「见 #246」可判定）；L3 同族的
+后缀互不重复；L4 每节都要有标题（名册要能命名它）；L5 **文档顺序跟随编号**（`#241b` 必须在
+`#241` 之后；`#173-1`/`#173-2` 那种无裸号的族不受此约束）。外加合成输入上的反向对照：
+重复 id 必须被抓、裸号一族两节必须被抓、无标题必须被抓、`## #241b` 必须被读成 id「241b」
+而不是 id「241」加一个以「b」开头的标题。
+
+**⚠️ 本号在落地当天就撞上了它自己要治的病，这是本节最该被记住的一条。** 本号按「落地那一刻
+max+1」取 #291 写进账本，**同一分钟**就有并发车道追加了它自己的 `## #291`；本号改判 #292 之后，
+另一条车道又追加了 `## #292`（`quickstart` 那节）。**新门在修好的账本上第一次跑，就把这两次活撞车
+当场抓住**（L2：#292 有 2 个裸节），而它抓的不是合成输入、是真的账本。本号最终落在 **#292**，
+另一车道的节是 #294，#293 空着（队列里的号是愿望、不是保留——#279 记过同一课）。
+本节因此把「落地那一刻取号」补成「**落地那一刻取号，且每次写完要重测一次**」：写门的人若不回头
+跑一次自己的门，他连自己刚写的号都保不住。
+
+**⚠️ 我自己第一版的 L5 是错的，是合成对照先抓到的。** 初版写「最高号只能属于一节」，它在账本
+**自己的合法形状** `#241`/`#241b` 上就红了——一条会拒绝本项目既有先例的门，是有 bug 的门。
+L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：改后的规则仍会拒绝顺序颠倒的族。
+另外本号第一版探针的正则太窄（漏字母后缀），已按上面的教训更正。
+
+**门证（全部实读）。** 新门首跑 **2 failed / 10 passed**——红的两条正是真实账本的 L1+L2
+（`#144`/`#145`/`#246` 各报一次，别的都不报）；修完账本后 **12 passed**。变异臂
+（`.scratch/arm291_ledger_id_arms.py`）5 臂见下表。
+
+**诚实边界。** ① 本门管的是**节号**（section id），不是 roadmap 队列的**预留号**：实测
+**17** 个队列预留号与已落地节号相撞（`#237`–`#250`、`#252`–`#254`、`#277` 等），那是另一套命名
+空间，本号只改了那三处会让读者「见 #246 落到另一节」的，其余 14 处按队列语义留着——改其中
+3 处而放过 14 处是任意的。② 本门不校验**正文引用**是否与节号匹配（正文里的「#144」既可能指配方
+也可能指落地，账本无法从文本判定）；它保证的是**节号本身唯一**，从而「裸号 → 唯一一节」可判定。
+③ 名册是**失败时**打印的（id → 标题 → 行号），不是常驻表：常驻表 112 行要自己维护，是新的
+漂移源。④ 文档纯 LF 平面（CRLF 0），本号的六处改动与新节都写在这个平面上。⑤ 本号只改
+**账本文档 + 一个新门文件**，不碰生产代码，不碰其它车道在途的 13 个脏文件。⑥ 本仓库不可推，
+只做本地提交。
+## #294 `quickstart` 指南里点名的命令必须真实存在（含变异验证）
+
+**起因/占号（含一条被量掉的伪需求）。** #289 的下批候选首条是「跨文件引用歧义：`docs/` 里按裸编号引用账本时 `#246` 指向两处」。本号先量它：用 `(账本|DEEP_OPTIMIZATION_PLAN)[^。\n]{0,30}#[0-9]{2,3}` 扫 `docs/`，命中几乎全在账本**自身**；唯一一处非账本引用是 `docs/operations/DRILLS.md:302` 的「成因见 DEEP_OPTIMIZATION_PLAN.md 的「更正 #146」」——**用的是带标题片段的引用，本就无歧义**；`docs/architecture/GUIDE_GAP_AUDIT.md` 里的 `#233` 是另一套编号（roadmap 的 W 号族），不是账本号。**结论：这条候选是伪需求，不做**，量到的负数结果记在这里，免得下一个号再花一遍力气。
+
+于是转向真正的「声称 ≠ 使用」缺口：`commands/quickstart.py` 的 `_GUIDE` 是**手写**的一段引导，里面列了 7 条 `specproof <cmd>` 行；命令一旦改名或退役，指南就会让新用户去跑一个不存在的命令。占号前读账本最大 290，`291`/`292`/`293` 在落地窗口内先后被并发车道占用（`#292` 是另一条同题材的「账本编号唯一性门」），本号取 **#294**。
+
+**量到的缺陷（先量后写）。** `_GUIDE` 里点名的命令集实测是 `{demo, verify, fix, craft, probe, eval, replay}`（7 个，`demo` 出现 3 次）；真实注册表 `cli.commands` 有 14 个（多出 `approve/baseline/contract/devtools/mcp/ops/quickstart`）。**没有任何一条腿**把这两者对上——`quickstart.py` 在 `tests/unit/` 的直接引用数为 0。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_quickstart_guide_names_real_commands.py`（3 案）：
+1. `test_guide_mentions_only_registered_commands`：用 `^\s+specproof\s+([a-z][a-z0-9-]*)\s` 抽出被点名命令，要求 `>= 5`（空集不算干净），且 `mentioned - set(cli.commands)` 为空。
+2. `test_guide_mentions_the_core_flow`：30 秒路径依赖的 7 个命令必须仍在指南里（防止「把指南删空」这种假绿）。
+3. `test_quickstart_prints_banner_and_guide`：`CliRunner` 跑 `quickstart`，退出码 0、输出含 `SpecProof` 与 `specproof demo`。
+
+**门证（全在本批内亲手取）。** 临时环境只需 click（`cli.specproof.main` 的命令模块都把重依赖延迟到函数内，实测 `from cli.specproof.main import cli` 只依赖 click）：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_quickstart_guide_names_real_commands.py -q -p no:cacheprovider` | 3 passed in 11.79s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_quickstart_guide_names_real_commands.py` | All checks passed |
+| **变异臂**（把指南里的 `specproof craft` 改成 `specproof craftx`） | 先预测：第 1 条（未注册命令）与第 2 条（核心 7 命令缺 craft）必红，第 3 条（打印）仍绿 | 实测 **2 failed, 1 passed**，失败逐名命中（`Extra items in the left set: 'craft'`） |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `diff` 与变异前备份逐字节一致、`specproof craft ` 回到 1 处；复跑 3 passed in 15.97s |
+
+**诚实边界（明确不声称）。** ① 只加测试：`quickstart.py` 生产码一字未动。② 只检查 `_GUIDE` 这一个载体；`README.md`、`docs/operations/LOCAL_EXPERIENCE.md` 里的命令清单**未**纳入（它们的格式与引用方式不同，需要各自的口径，另开单位）。③ **不要求**「每个注册命令都必须出现在指南里」——指南是**精选子集**，`approve/mcp/devtools/ops` 等刻意不列，这条区别写在这里免得下一个号把它当欠账。④ 抽取正则要求「行首缩进 + `specproof <cmd>` + 空白」，换个格式的提法（例如行内反引号 `` `specproof eval` ``）不会被本门看到——这是口径而非漏洞。
+
+**下批候选（受本环境约束）。**
+- `README.md` / `docs/operations/LOCAL_EXPERIENCE.md` 的命令清单是否与 `cli.commands` 一致（同一缺陷类的另两个载体，需先量清各自格式）。
+- `probe.py`/`mcp.py`（I/O 外壳，纯逻辑少，优先级低）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+
 ## #295 冻结的读数要有序列形状：抓取侧新鲜度按 #279 的 M1 形状落地
 
 **起因/占号。** #284 下一号队列第①项是「① 抓取侧新鲜度按 #279 的 M1 形状实现；」，而同一号的边界③当年只肯把它写成一句「本号不做」：「③ 抓取侧新鲜度（冻结的 gauge 在序列上看不出来） 本号不做，只在 OBSERVABILITY §8 留一句说明它仍未落地：#279 已把它的消费者代价量成 M1-M4 四个 形状，实现按 #279 的判决走 M1 且不配告警。」。#279 则量出了它的消费者代价并给了判决：新名从已登记的 `storage/outbox_relay.py` 上报 + 仪表盘画一条线（M1）= **0 消费者红**；只进仪表盘不 emit（M2）红 #161；从新文件 emit（M3）红 #217；配一条告警规则（M4）实测 16 条红、级联四道门。本号按 M1 落地、不配告警，一次还清这三笔。起草时占的是 #285——落地前重测账本：HEAD 88170f2 上 `## #` 标题 119 行、其中两把门的 id 正则读到 113 条（6 条形如「## #163：Wor, ## #164：Das, ## #165：Que, ## #166：各阶段, ## #167：sta, ## #168：LLM」的冒号标题它读不到，见否证⑥），id token 最大 291，工作树（含别车道**未提交**的 292, 294 两节与 144b, 145b, 246b 三个改名，HEAD 读不到的 id 共 5 个）与 HEAD 合起来最大 294，提交标题最大 294。#285 已被别车道领走，账本里就摆着讲「`contract.py` 的 `_spec_digest`（CLI 提案追踪键）补栅栏测试」的 `## #285`。取号尺因此是「HEAD 与工作树一起量」的 max+1 = **#295**（只按 HEAD 会取到 292，正撞在别车道那节还没提交的 #292 上）；五个载体里 13 处占位（分布在 12 行）一起改指本号，改完仍写 #285 的载体 0 件。本弧第二次为「队列里的排号是愿望，不是保留」付账。
@@ -5771,3 +5864,35 @@ env 旋钮的同款「缺失文件/空值诚实性」普查（metrics_http / s3 
 **落地方式（共享账本）。** 工作树账本带着别车道未提交的 #292/#294 等节（`git diff` +99/−6），所以不 `git add` 账本：先把本节拼进磁盘账本跑编号门，再用 `git hash-object -w` 造「HEAD 账本 + 本节」的 blob，`update-index --cacheinfo` 只把该 blob 放进索引；断言 staged 恰为本号两条路径（parity 测试 + 账本），`git commit -F` 后核 `HEAD:账本` 等于该 blob、磁盘仍保留外来节、本节不再是对 HEAD 的新增行。本节文字一旦改动，本节引用的门案数/红数不受影响，时长只留在日志里。
 
 **下一号队列（取号时按落地时点 max+1）。** ① 两道全库门 + §142 文档订正（探针基线：51 面板 / 1 override 载体 / 1 条 byName / 0 孤儿；文档 92+5 名、4 个非指标 token 按身份豁免、占位词干按形状豁免）；② 抓取面第一条真 HTTP 腿（起服务、GET `/metrics`、exposition 解析回读、与端口名册对账，带反向控制）；③ #295 队列④ 账本编号门的三种标题形状；④ #295 队列⑤ §6 重数链可执行化；⑤ #260 `${X:-}` 空透传载体。
+
+## #297 证据链三处「静默」缺陷：跳过的实验、没被列出的表、没有索引的产物
+
+**起因/占号。** #296 的下一号队列与本号无关（它排的是指标门与抓取腿）。本号来自另一条线：把 `docs/持续演进终极目标与链路计划.md` 的阶段 1–3 拆成可执行任务后，动手前先量旧行为，量出三处「读者看不出真相」的地方。落地前重测账本：HEAD 23f9cdd，`## #` id 最大 296，`## #297` 计数 0 ⇒ 取 **#297**。
+
+**先量旧行为（三处探针，产物当场写）。**
+① 差分实验的跳过路径：`agent/nodes/run_differential.py` 在工作区未就绪时返回 `contract_results: []`，而 `agent/nodes/build_matrix.py` 只收 `contract_id` 命中已编译契约的结果 ⇒ 跳过的实验在矩阵里**一行都不留**，契约行看起来像「什么都没发现」而不是「实验没能跑」。
+② DB 状态比较：`agent/nodes/run_differential.py` 的 `_compare_db_state` 写死 `for table in ("users", "products", "orders")` ⇒ 不在这三个名字里的表，其差异**完全不可见**：dump 明明不同，判定却是「Base 和 Head 的 DB dumps are identical」。
+③ 对象存储：上传成功、元数据写库失败时没有补偿也没有上报 ⇒ 产物成为**幽灵**（字节在对象存储里可被摘要校验，但没有任何索引指向它）。
+
+**修（三个缺陷各自落在自己的层）。**
+① **跳过/失败的差分实验必须归属到真实契约**。新增 `agent/nodes/run_differential.py` 的 `_not_verified_contract_results()`：为每个已编译契约产生一行 `UNVERIFIED`，`details` 带上原因（"Workspace not prepared …" / "Maven execution error: …"）。`agent/nodes/build_matrix.py` 把 `details` 透传进矩阵条目；`agent/matrix_policy.py` 新增 `_merged_unverified_reason()`：**具体原因优先于通用兜底**（"该契约没有任何实验产出结果"），取最长者、字典序破平，绝不按条目顺序。通用兜底仍保留，且只在**没有任何具体原因**时使用。
+② **比较表无关，判定名留在策略层**。新增 `experiments/db_snapshot.py`：`DbSnapshot`（分表模型）、`parse_dump_rows()`（一套解析）、`compare_snapshots()`（**从快照里发现表**）。`DbSnapshot.to_dict()` 同时输出既有的扁平 `rows` 映射与新的 `tables` 分表结构 ⇒ 既有消费者一字不改。`run_differential.py` 的 `_compare_db_state` 改为驱动新比较，但**判定名**（`DB_MUTATED_ON_UNAUTH` / `DB_MUTATED`）留在节点里：「users 表变了意味着什么」是政策（Review Court 侧），不是观测。
+③ **两存储之间的诚实失败**。新增 `storage/artifact_store.py`：`ArtifactResult` 永远说明 `metadata_recorded` / `metadata_error` / `compensated` / `compensation_error`。`strict=True` 时元数据写失败即做补偿删除（**删除也失败则如实报告**，产物仍在，必须被对账扫描找到）；`strict=False` 时保留产物并给出对账线索 `orphan_candidates()`，与本号新增的 `evidence/orphan_scan.py`（悬挂引用 / 孤儿载荷 / 摘要不符，**只报告不删除**）形成闭环。
+
+**顺带修的既有缺陷。** `craft/gates.py` 的 `run_typecheck_gate` 直接跑 `python -m mypy` 而**不检查 mypy 是否装了**：工具缺失被报成 `failed`，让 demo 任务的五道门整体 `failed`（`test_agent_runtime.py::test_demo_job_full_lifecycle` 长期红）。现在先探测 mypy 可用性，不可用时诚实返回 `skipped`。
+
+**状态机冻结（同一批）。** `storage/mysql.py` 的 `_VALID_TRANSITIONS` 从 10 态扩到 15 态：`QUEUED → PREPARING → CONTRACT_REVIEW → RUNNING → REVIEWING →` 终态 `VERIFIED | BLOCKED | NEEDS_REVIEW | FAILED | CANCELLED | STALE | EXPIRED`，并保留 `PENDING` / `ERROR` / `WAITING_FOR_PROVIDER` 三个兼容态（worker 与 provider 恢复路径依赖它们）。`RUNNING → QUEUED`（reclaim）与 `FAILED → QUEUED`（重试）两条恢复路径**必须保留**，否则回收器与重试逻辑断裂。新建插入语句的缺省状态从 `'PENDING'` 改为 `'QUEUED'`。
+
+**应用服务层（同一批）。** 新增 `api/services/verification_service.py`（`VerificationApplicationService`），`api/routes/jobs.py` 的 `create_job` / `cancel_job` / `list_jobs` / `get_job` / `get_job_summary` 五条路由改为调用它，不再各自 `MySQLStore()`。状态过滤的合法集合从 `ALL_STATUSES` 派生（唯一真源），不再手抄。
+
+**证据链新能力（同一批）。** `evidence/fragments.py`（8 种 Evidence Fragment）、`evidence/batch_replay.py`（批量回放 + 四类失败分类）、`evidence/offline_verify.py`（离线证书验证）、`evidence/orphan_scan.py`（对象链完整性）、`experiments/collectors.py`（Redis 状态采集器 + RabbitMQ 发布探针）、`experiments/db_snapshot.py`（统一状态快照），以及 CLI `specproof evidence replay-batch|verify-cert|scan`。
+
+**诚实边界。** ① 本号**没有**跑一次真实 Docker 沙箱、真实 Redis、真实 RabbitMQ、真实 MySQL 的端到端：新能力全部在依赖注入下测（`tests/unit/test_dynamic_collectors.py` 用假 Redis/假 publisher，`tests/fault/test_artifact_store_faults.py` 用假对象存储与假元数据存储）。② 离线证书验证只验 **Ed25519 签名 + 摘要 + 撤销**，**没有** KMS/HSM；未签名文档一律称 `digest_attestation`（`describe_attestation_level()` 是唯一措辞真源），绝不称「已签名证书」。③ 批量回放的成功率**分母是「已判定」的数量**，不是批次大小——环境故障不是「没能复现」，它根本没回放。④ `db_snapshot` 的比较覆盖任意表，但**判定名**仍只认识 `users`；新表域要进 BLOCKER 政策需要另开一号。⑤ `artifact_store` 的补偿删除只在本进程内尽力而为，没有跨进程的补偿账本。⑥ 状态机新增的 5 个状态（`PREPARING` / `CONTRACT_REVIEW` / `REVIEWING` / `NEEDS_REVIEW` / `EXPIRED`）**目前只有定义，没有生产写入方**——它们是给后续节点用的契约位，本号不假装它们已被使用。⑦ 阶段 0/1/2/3 的其余任务（P1-7 对象元数据接入 MinIO、P3-4 实验模板、P3-5 其余采集器、P3-7 其余故障注入）**未做**。
+
+**门与腿（本号新增）。** `tests/unit/test_batch_replay.py`（22）、`tests/unit/test_evidence_fragments.py`（18）、`tests/unit/test_offline_verify.py`（21）、`tests/unit/test_orphan_scan.py`（10）、`tests/unit/test_evidence_cli.py`（10）、`tests/unit/test_dynamic_collectors.py`（23）、`tests/unit/test_contract_id_attribution.py`（13）、`tests/unit/test_db_snapshot.py`（28）、`tests/fault/test_artifact_store_faults.py`（10）——共 **155 项**，本号新增测试与既有 capsule 回放测试合计 **94/94 通过**，受影响模块回归 **159/159 通过**，故障套件 **100/100 通过**；`ruff check .` 0 errors（228 个源文件）、`mypy .` 0 errors。
+
+**否证与订正。** ① 第一版 `run_typecheck_gate` 的探测会让既有测试的 FakeRunner 脚本错位（探测调用吃掉了第一条脚本），两处断言因此失败——**测试要跟着诚实行为改**，不是把实现改回骗测试。② `batch_replay` 的 `by_outcome` 最初写成 `counts[outcome] = …`（把 `CapsuleOutcome` 当键），ruff 的 `C420` 自动修复把这一行改得更糟；重写为 `counts[entry.outcome]`。③ `orphan_scan` 的「无基线」判定最初把 `evidence_digests: []`（空列表）当成「有字段但为空」而不加说明，改成空列表也走「没有证据摘要」说明。④ `offline_verify` 最初把「有签名但没给公钥」判成 `invalid_signature`——**未检查 ≠ 无效**，那是在对产物说谎；改为 `unverified`（`signature_present` 为真但 `signature_valid` 为假时，判定必须区分「查过且不对」与「没查」）。⑤ `db_snapshot` 的 `_unattributed` 兜底：没有表前缀的行**不能丢**（丢行就是丢证据），落进 `_unattributed` 表。⑥ `test_contract_id_attribution` 最初断言通用兜底文案，发现有 `experiment` 名时正确文案是 `INCONCLUSIVE`（实验已调度但无可判定证据），不是 `NO_EXPERIMENT`；两条文案都补了腿。⑦ 提交前 `ruff check .` 曾在 `api/routes/jobs.py` 报 `F821 Undefined name incr`——查 `git show HEAD:` 证明那是**共享工作树里并发车道**的瞬时状态（本车道未改该函数），复查时已消失；本号不把它记成自己的证据。
+
+**落地方式。** 本批把工作树**全部**变更一次提交并推送（`master` 此前领先 `origin/master` 200 个提交）：`.scratch/`、`.workbuddy-ai/`、`None`、`build_result.txt`、`test_output.txt`、`apps/web/out.js`、`apps/web/vite.demo.config.mjs` 先写进 `.gitignore`（前者两个是交互式会话的临时目录，ruff 早已排除 `.scratch`；后几个是仓库根的一次性产物，`vite.demo.config.mjs` 全库无引用）；`uv.lock` 是新的依赖锁文件，随 `pyproject.toml` 一并入库。推送前对**已暂存的 46 个文件**做定向密钥扫描（`sk-` / `ghp_` / `github_pat_` / `AKIA` / PEM 私钥 / JWT / `xox*` / `AIza` 七类），0 命中。
+
+**下一号队列（取号时按落地时点 max+1）。** ① P1-7：MinIO 可用时把 `craft/accept.py` 的证书写入改为同时上传对象并返回对象引用（文件系统保留为 fallback）。② P3-4：事务回滚 / 并发 / 唯一约束 / 幂等 / 缓存一致性 / OpenAPI schema diff 六类实验模板，每类先有正样本、负样本、holdout。③ P3-7 其余故障注入：服务崩溃 / 超时 / 网络断开 / 消息重投 / DB 锁等待。④ 状态机新增的 5 个状态要有生产写入方（`PREPARING` / `CONTRACT_REVIEW` / `REVIEWING` / `NEEDS_REVIEW` / `EXPIRED`），否则它们只是定义。⑤ 批量回放与对象链扫描接进 `specproof ops` 的运维面。⑥ `db_snapshot` 的判定名扩到新表域（需要先有表→严重度的策略表，而不是把 `users` 换成别的名字）。

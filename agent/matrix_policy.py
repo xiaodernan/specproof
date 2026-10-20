@@ -361,6 +361,30 @@ def _merged_dependency_install(group: list[dict[str, Any]]) -> str:
     return "; ".join(seen)
 
 
+def _merged_unverified_reason(group: list[dict[str, Any]]) -> str:
+    """The most specific reason the group carries, or "" when it carries none.
+
+    P3-6: a row that says only "该契约没有任何实验产出结果" tells the
+    reader nothing about WHY. An experiment that ran and could not judge
+    ("Maven execution error: ...", "Workspace not prepared ...") states
+    its own reason on the entry's ``details``; that reason is strictly
+    more useful than the generic fallback, so it wins.
+
+    Deterministic pick: the longest reason (most informative), ties
+    broken lexicographically — never the entry order.
+    """
+    reasons: list[str] = []
+    for entry in group:
+        if not isinstance(entry, dict):
+            continue
+        value = str(entry.get("details") or "").strip()
+        if value and value not in reasons:
+            reasons.append(value)
+    if not reasons:
+        return ""
+    return sorted(reasons, key=lambda text: (-len(text), text))[0]
+
+
 def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any]:
     """Merge every entry of one contract into its canonical row."""
     verdict = _merge_verdict(
@@ -442,7 +466,7 @@ def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any
         min_evidence_level = _NONE_LEVEL
 
     if verdict == "UNVERIFIED":
-        unverified_reason = (
+        unverified_reason = _merged_unverified_reason(group) or (
             UNVERIFIED_INCONCLUSIVE_REASON if experiment_ids else UNVERIFIED_NO_EXPERIMENT_REASON
         )
         next_action = NEXT_ACTION_UNVERIFIED

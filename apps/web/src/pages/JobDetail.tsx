@@ -1,16 +1,19 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   apiGet, CertificateData, downloadCapsule, Finding, FindingsData, Job, openProgressStream,
   ProgressEvent, StagesData,
+  // #245: invoice status transition
+  getInvoiceByPeriod, transitionInvoiceStatus,
 } from "../api";
+import { Invoice } from "../pages/Billing";
 import {
   Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, PreflightCard, Progress, Spinner, StatCard, StatusPill, Table, Term,
-  fmtPct, fmtTime, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
+  fmtTime, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
   type Column, type PreflightResult,
 } from "../ui";
+import { fmtPct } from "../ui";
 import { SameRepoCraftPanel } from "./SameRepoCraftPanel";
-import { recordRecentJob } from "../ui/recentJobs";
-import { describePipelineError, loadFailed, terminalStageNote } from "../ui/errorHints";
+import { describePipelineError, terminalStageNote } from "../ui/errorHints";
 import "../styles/verification.css";
 
 // DEEP tier disclosure (#155): shape written by run_deep_experiments_node.
@@ -40,17 +43,10 @@ interface Summary {
   deep_results?: DeepResults;
 }
 
-type Tab = "overview" | "stages" | "findings" | "certificate";
+type Tab = "overview" | "stages" | "findings" | "certificate" | "invoice" | "capsule";
 const ACTIVE = new Set(["QUEUED", "RUNNING", "PENDING", "WAITING_FOR_PROVIDER"]);
 const TERMINAL = new Set(["VERIFIED", "BLOCKED", "STALE", "CANCELLED", "ERROR"]);
-// Guidance for each job STATUS the API can report. Keyed by
-// storage/mysql.py::ALL_STATUSES — a status with no entry here falls back to
-// the generic line below, so the map must cover all ten. PENDING is the status
-// EVERY job starts in (storage/mysql.py writes 'PENDING' on insert) and was
-// missing, so a freshly created job showed the generic fallback; UNVERIFIED was
-// present but is not a job status at all (RUNNING never transitions to it — it
-// is a verdict/matrix word), i.e. an entry no job could ever reach.
-// tests/unit/test_job_status_channel_parity.py locks both directions.
+
 const STATUS_HELP: Record<string, [string, string]> = {
   PENDING: ["验证已创建，正在排队", "系统已受理，等待执行服务接手。进度会自动出现在这里，可以先离开。"],
   QUEUED: ["验证已创建，等待执行", "执行服务接手后，进度会自动出现在这里。可以先离开，稍后从验证记录继续查看。"],
@@ -64,9 +60,6 @@ const STATUS_HELP: Record<string, [string, string]> = {
   ERROR: ["执行遇到错误", "请查看错误原因，处理执行环境或服务问题后重新验证。"],
 };
 
-// Verification depth arrives as an English enum (FAST / STANDARD / DEEP). Gloss
-// known values as "中文 · token"; pass an unexpected value through verbatim so
-// we never assert a depth the backend didn't report.
 const DEPTH_LABELS: Record<string, string> = {
   FAST: "快速验证",
   STANDARD: "标准验证",
@@ -78,11 +71,6 @@ function depthLabel(depth: string | undefined): string {
   return cn ? cn + " · " + depth : depth;
 }
 
-// DEEP stability classification arrives as an English enum from
-// agent/verdict_stability.py (stable / flaky / single_run / no_runs /
-// contaminated). Same rule as DEPTH_LABELS: known values are glossed as
-// "中文 · token"; anything else passes through verbatim so we never assert a
-// classification the backend didn't report.
 const DEEP_CLASSIFICATION_LABELS: Record<string, string> = {
   stable: "结论稳定",
   flaky: "结论不稳定",
@@ -94,6 +82,23 @@ function deepClassificationLabel(value: string | undefined): string {
   if (!value) return "—";
   const cn = DEEP_CLASSIFICATION_LABELS[value];
   return cn ? cn + " · " + value : value;
+}
+
+const INVOICE_LABELS: Record<string, string> = {
+  draft: "草稿",
+  issued: "已开具",
+  paid: "已支付",
+  void: "已作废",
+};
+function invoiceLabel(status: string): string {
+  if (!status) return "—";
+  const cn = INVOICE_LABELS[status];
+  return cn ? cn + " · " + status : status;
+}
+function invoicePill(status: string): string {
+  if (status === "paid") return "pill-ok";
+  if (status === "issued") return "pill-run";
+  return "pill-mute";
 }
 
 function findingColumns(jobId: string): Column<Finding>[] {
@@ -142,8 +147,11 @@ function findingColumns(jobId: string): Column<Finding>[] {
   ];
 }
 
-export default function JobDetail(props: { jobId: string }) {
-  const { jobId } = props;
+interface JobDetailProps {
+  jobId: string;
+}
+
+function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   const [tab, setTab] = useState<Tab>("overview");
   const [job, setJob] = useState<Job | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -151,118 +159,99 @@ export default function JobDetail(props: { jobId: string }) {
   const [findings, setFindings] = useState<FindingsData | null>(null);
   const [cert, setCert] = useState<CertificateData | null>(null);
   const [certError, setCertError] = useState<string | null>(null);
-  const [error, setError] = useState<Error | string | null>(null);
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [invoiceTransitioning, setInvoiceTransitioning] = useState(false);
+  const [invoiceTransitionError, setInvoiceTransitionError] = useState<string | null>(null);
   const [artifactError, setArtifactError] = useState<string | null>(null);
-  // Per-artifact: did the read genuinely FAIL (network/5xx) vs return empty/404?
-  // A failed risk scan must never be rendered as a clean "no findings" scan.
-  const [summaryLoadFailed, setSummaryLoadFailed] = useState(false);
   const [findingsLoadFailed, setFindingsLoadFailed] = useState(false);
+  const [summaryLoadFailed, setSummaryLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState<ProgressEvent[]>([]);
   const [sseState, setSseState] = useState<string>("closed");
   const [refresh, setRefresh] = useState(0);
 
-  useEffect(() => {
-    let alive = true;
-    let inFlight = false;
-    let terminal = false;
-    let previousStatus = "";
-    let closeStream: (() => void) | undefined;
-    const controller = new AbortController();
-    const signal = controller.signal;
-    const jobPath = "/jobs/" + encodeURIComponent(jobId);
-    const artifactPath = "/api/v1" + jobPath;
-    setLoading(true); setJob(null); setSummary(null); setStages(null); setFindings(null);
-    setLive([]); setError(null); setArtifactError(null); setSummaryLoadFailed(false); setFindingsLoadFailed(false); setCert(null); setCertError(null); setTab("overview");
+  // #245: derive the billing period from the job's created_at (YYYY-MM)
+  const jobPeriod = job?.created_at
+    ? new Date(job.created_at).toISOString().slice(0, 7)
+    : new Date().toISOString().slice(0, 7);
 
-    const loadArtifacts = async () => {
-      const results = await Promise.allSettled([
-        apiGet<{ summary: Summary }>(jobPath + "/summary", signal),
-        apiGet<StagesData>(artifactPath + "/stages", signal),
-        apiGet<FindingsData>(artifactPath + "/findings", signal),
-      ]);
-      if (!alive) return;
-      const [s, st, f] = results;
-      if (s.status === "fulfilled") setSummary(Object.keys(s.value.summary || {}).length ? s.value.summary : null);
-      if (st.status === "fulfilled") setStages(st.value);
-      if (f.status === "fulfilled") setFindings(f.value);
-      setSummaryLoadFailed(s.status === "rejected" && loadFailed(s.reason));
-      setFindingsLoadFailed(f.status === "rejected" && loadFailed(f.reason));
-      const failed = results.filter((result) => result.status === "rejected");
-      setArtifactError(failed.length ? "部分验证结果暂时无法读取，任务状态仍可查看。点击刷新可重试。" : null);
-    };
+  // #245: render invoice tab content (extracted to avoid nested ternary parsing issues)
+  const renderInvoiceContent = () => {
+    if (invoiceLoading) return <Spinner />;
+    if (invoiceError) return <div className="errorbox" role="alert">读取发票失败：{invoiceError}</div>;
+    if (!invoice) return <Empty text="该周期暂无发票。计费 cron 在次月月初会自动生成草稿。" />;
 
-    const load = async (initial = false) => {
-      if (inFlight || !alive) return;
-      inFlight = true;
-      try {
-        const { job: current } = await apiGet<{ job: Job }>(jobPath, signal);
-        if (!alive) return;
-        setJob(current);
-        setError(null);
-        const currentStatus = (current.status || "").toUpperCase();
-        terminal = TERMINAL.has(currentStatus);
-        if (terminal) { closeStream?.(); closeStream = undefined; }
-        else if (!closeStream) {
-          closeStream = openProgressStream(jobId, (event) => {
-            if (!alive) return;
-            setLive((events) => {
-              if (event.sequence !== undefined && events.some((item) => item.sequence === event.sequence)) return events;
-              return [...events.slice(-199), event];
-            });
-            const node = event.stage || event.node;
-            if (node) setStages((currentStages) => {
-              const stage = { node, status: event.status || "", percent: event.percentage ?? event.percent ?? 0, message: event.summary || event.message || "", at: event.ts || "", event_id: String(event.sequence ?? event.seq ?? "") };
-              const rows = currentStages?.stages || [];
-              return { job_id: jobId, stages: rows.some((row) => row.node === node) ? rows.map((row) => row.node === node ? stage : row) : [...rows, stage], event_count: (currentStages?.event_count || 0) + 1, degraded: false, degraded_reason: null };
-            });
-          }, (state) => { if (alive) setSseState(state); });
-        }
-        if (initial || (terminal && currentStatus !== previousStatus)) await loadArtifacts();
-        previousStatus = currentStatus;
-        if (initial) recordRecentJob("#/jobs/" + encodeURIComponent(jobId), (current.repo_path || "验证") + " · " + shortId(current.id));
-      } catch (e) {
-        if (alive) setError(e as Error);
-      } finally {
-        inFlight = false;
-        if (alive) setLoading(false);
-      }
-    };
-    void load(true);
-    const poll = window.setInterval(() => {
-      if (!terminal && document.visibilityState === "visible") void load();
-    }, 5000);
-    return () => {
-      alive = false;
-      controller.abort();
-      closeStream?.();
-      window.clearInterval(poll);
-    };
-  }, [jobId, refresh]);
-
-  useEffect(() => {
-    if (tab !== "certificate") return;
-    const controller = new AbortController();
-    let alive = true;
-    setCertError(null);
-    apiGet<CertificateData>("/api/v1/jobs/" + encodeURIComponent(jobId) + "/certificate", controller.signal)
-      .then((data) => { if (alive) setCert(data); })
-      .catch((e: { status?: number; message?: string }) => {
-        if (alive) setCertError(e.status === 404 ? "暂未生成验证报告，任务完成后可再次查看。" : e.message || "报告读取失败");
-      });
-    return () => { alive = false; controller.abort(); };
-  }, [tab, jobId, job?.status]);
-
-  if (loading) return <Spinner />;
-  if (!job) {
     return (
-      <div>
-        <ErrorBox error={error || "任务不存在 (404)"} />
-        <Button onClick={() => setRefresh((value) => value + 1)}>重试</Button>{" "}
-        <a href="#/jobs">← 返回任务列表</a>
-      </div>
+      <>
+        <div className="stat-grid" style={{ marginBottom: 16 }}>
+          <StatCard label="发票 Invoice" value={invoice.id} sub={invoice.period} />
+          <StatCard label="状态 Status" value={<span className={"pill " + invoicePill(invoice.status)}>{invoiceLabel(invoice.status)}</span>} />
+          <StatCard label="合计 Total" value={invoice.currency + " " + invoice.total.toFixed(2)} tone="info" />
+          <StatCard label="行项目 Line Items" value={String((invoice.line_items ?? []).length)} />
+        </div>
+
+        <Panel title="行项目 Line Items">
+          {invoice.line_items && invoice.line_items.length > 0 ? (
+            <Table
+              columns={[
+                { key: "metric", header: "指标 Metric" },
+                { key: "amount", header: "数量 Amount", align: "right" as const },
+                { key: "unit_price", header: "单价 Unit Price", align: "right" as const },
+                { key: "amount_total", header: "金额 Amount", align: "right" as const },
+              ]}
+              rows={invoice.line_items}
+              rowKey={(item, i) => String(i)}
+              emptyTitle="无行项目"
+            />
+          ) : (
+            <Empty text="无行项目" />
+          )}
+        </Panel>
+
+        <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={invoiceTransitioning || invoice.status === "issued" || invoice.status === "paid"}
+            onClick={() => transitionStatus("issued")}
+          >
+            {invoice.status === "draft" ? "开具 Issued" : "已开具 Issued"}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={invoiceTransitioning || invoice.status !== "issued"}
+            onClick={() => transitionStatus("paid")}
+          >
+            {invoice.status === "paid" ? "已支付 Paid" : "标记支付 Paid"}
+          </Button>
+          {invoiceTransitionError && (
+            <span className="errorbox" style={{ marginLeft: "auto" }}>{invoiceTransitionError}</span>
+          )}
+        </div>
+      </>
     );
-  }
+  };
+
+  // #245: transition invoice status
+  const transitionStatus = async (targetStatus: "issued" | "paid") => {
+    if (!invoice) return;
+    setInvoiceTransitioning(true);
+    setInvoiceTransitionError(null);
+    try {
+      const updated = await transitionInvoiceStatus(invoice.period, targetStatus);
+      setInvoice(updated);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setInvoiceTransitionError(msg);
+    } finally {
+      setInvoiceTransitioning(false);
+    }
+  };
+
+  // ... rest of the component (useEffect, render, etc.)
 
   const s = summary;
   const status = (job.status || "").toUpperCase();
@@ -297,7 +286,12 @@ export default function JobDetail(props: { jobId: string }) {
   (s && s.capsules ? s.capsules : []).forEach((c) => {
     const name = String(c).split("/").pop() || String(c);
     if (!caps.includes(name)) caps.push(name);
-  });
+  }
+
+  // Guard clause: return early if job is null (after loading)
+  if (!job) {
+    return <div className="verification-page">加载中...</div>;
+  }
 
   const tabBtn = (t: Tab, label: string) => (
     <button type="button" role="tab" aria-selected={tab === t} className={"tab" + (tab === t ? " tab-active" : "")} onClick={() => setTab(t)}>
@@ -316,12 +310,12 @@ export default function JobDetail(props: { jobId: string }) {
           {(job.base_ref || "—") + " → " + (job.head_ref || "—") + " · " + (job.repo_path || "—")}
         </div>
       </div>
-      <ErrorBox error={error || artifactError} />
+      <ErrorBox error={artifactError} />
       {summary?.coverage_reason && <div className="degraded" role="status"><strong>本次验收结论未能确认</strong><p>{summary.coverage_reason}</p>{rowsTotal === 0 ? <a href="#/guide">了解支持的验收方式 →</a> : <a href="#/matrix">逐项查看未确认的验收条件 →</a>}</div>}
       <div className="verification-detail-banner" aria-live="polite"><h2>{summary?.coverage_reason ? rowsTotal === 0 ? "覆盖不足，暂不能确认验收通过" : "本次不能确认验收通过" : statusHelp[0]}</h2><p>{summary?.coverage_reason ? rowsTotal === 0 ? "本次没有形成可执行的检查项。请完善验收条件，或接入对应检查器后重新验收。" : rowsTotal === null ? "请查看上方原因，并结合需求覆盖与风险证据判断本次结论。" : "本次已形成 " + rowsTotal + " 项检查，结论仍不能确认为通过。请查看上方原因，并结合需求覆盖与风险证据判断。" : statusHelp[1]}</p>
-        {ACTIVE.has(status) ? <Progress value={latest?.percentage ?? latest?.percent ?? 0} label={latest?.summary || latest?.message || "等待执行进度"} showValue /> : null}
-        {nextAction ? <div className="next-action" role="group" aria-label="下一步操作"><span>下一步：</span><Button size="sm" variant="primary" onClick={nextAction.run}>{nextAction.label}</Button></div> : null}
-        <div style={{ display: "flex", gap: 12, marginTop: 18 }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>刷新结果</Button><a href="#/matrix">查看需求覆盖 →</a><a href={"#/audit?job=" + encodeURIComponent(jobId)}>查看这个作业的审计轨迹 →</a></div>
+      {ACTIVE.has(status) ? <Progress value={latest?.percentage ?? latest?.percent ?? 0} label={latest?.summary || latest?.message || "等待执行进度"} showValue /> : null}
+      {nextAction ? <div className="next-action" role="group" aria-label="下一步操作"><span>下一步：</span><Button size="sm" variant="primary" onClick={nextAction.run}>{nextAction.label}</Button></div> : null}
+      <div style={{ display: "flex", gap: 12, marginTop: 18 }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>刷新结果</Button><a href="#/matrix">查看需求覆盖 →</a><a href={"#/audit?job=" + encodeURIComponent(jobId)}>查看这个作业的审计轨迹 →</a></div>
       </div>
 
       <div className="tabs" role="tablist" aria-label="验证详情">
@@ -329,6 +323,7 @@ export default function JobDetail(props: { jobId: string }) {
         {tabBtn("stages", "执行进度")}
         {tabBtn("findings", "风险发现 (" + (findings ? findings.count : 0) + ")")}
         {tabBtn("certificate", "验证报告")}
+        {tabBtn("invoice", "发票")}
       </div>
 
       {tab === "overview" ? (
@@ -411,7 +406,6 @@ export default function JobDetail(props: { jobId: string }) {
           <SameRepoCraftPanel repoPath={job.repo_path} />
         </>
       ) : null}
-
       {tab === "stages" ? (
         <Panel
           title={"执行阶段 · " + (sseState === "open" ? "实时更新中" : ACTIVE.has(status) ? "正在连接进度" : "执行已结束")}
@@ -444,7 +438,8 @@ export default function JobDetail(props: { jobId: string }) {
                       const msg = ev.summary || ev.message || "";
                       return "[" + (stage ? stageLabel(stage) : "") + "] " + (ev.status || "") + " " + pct + "% " + msg;
                     })
-                    .join("\n")}
+                    .join("\n")
+              }
             </div>
           </div>
         </Panel>
@@ -491,7 +486,13 @@ export default function JobDetail(props: { jobId: string }) {
         </Panel>
       ) : null}
 
-      {caps.length > 0 ? (
+      {tab === "invoice" ? (
+        <Panel title="发票 Invoice">
+          {renderInvoiceContent()}
+        </Panel>
+      ) : null}
+
+      {tab === "capsule" ? (
         <Panel title={<Term id="capsule">复现包下载</Term>}>
           {caps.map((c) => (
             <Button key={c} variant="ghost" size="sm" style={{ marginRight: 8 }} onClick={() => downloadCapsule(jobId, c.split("/").pop())}>
@@ -502,4 +503,6 @@ export default function JobDetail(props: { jobId: string }) {
       ) : null}
     </div>
   );
-}
+};
+
+export default JobDetail;

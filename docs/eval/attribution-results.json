@@ -4,11 +4,11 @@
   "cases": 8,
   "head_defects": 7,
   "base_defects": 2,
-  "correctly_attributed": 7,
-  "missed_attribution": 0,
+  "correctly_attributed": 0,
+  "missed_attribution": 7,
   "misattributed_to_head": 0,
   "correctly_not_attributed": 2,
-  "attribution_accuracy_pct": 100.0,
+  "attribution_accuracy_pct": 22.2,
   "formula": "attribution_accuracy_pct = 100 * (correctly_attributed + correctly_not_attributed) / (head_defects + base_defects)",
   "rows": [
     {
@@ -21,25 +21,18 @@
         "AUTH-01"
       ],
       "base_defects": [],
-      "correctly_attributed": 1,
-      "missed_attribution": 0,
-      "missed_detail": [],
+      "correctly_attributed": 0,
+      "missed_attribution": 1,
+      "missed_detail": [
+        "AUTH-01: no finding produced"
+      ],
       "misattributed_to_head": 0,
       "misattributed_contracts": [],
       "correctly_not_attributed": 0,
-      "confirmed_contracts": [
-        "AUTH-01"
-      ],
+      "confirmed_contracts": [],
       "not_attributed_contracts": [],
-      "diff_results": [
-        {
-          "contract_id": "AUTH-01",
-          "verdict": "REGRESSION",
-          "base_exit_code": 0,
-          "head_exit_code": 1
-        }
-      ],
-      "duration_ms": 129950,
+      "diff_results": [],
+      "duration_ms": 396901,
       "pipeline_error": ""
     },
     {
@@ -52,25 +45,18 @@
         "UNIQUE-01"
       ],
       "base_defects": [],
-      "correctly_attributed": 1,
-      "missed_attribution": 0,
-      "missed_detail": [],
+      "correctly_attributed": 0,
+      "missed_attribution": 1,
+      "missed_detail": [
+        "UNIQUE-01: no finding produced"
+      ],
       "misattributed_to_head": 0,
       "misattributed_contracts": [],
       "correctly_not_attributed": 0,
-      "confirmed_contracts": [
-        "UNIQUE-01"
-      ],
+      "confirmed_contracts": [],
       "not_attributed_contracts": [],
-      "diff_results": [
-        {
-          "contract_id": "UNIQUE-01",
-          "verdict": "REGRESSION",
-          "base_exit_code": 0,
-          "head_exit_code": 1
-        }
-      ],
-      "duration_ms": 123671,
+      "diff_results": [],
+      "duration_ms": 280843,
       "pipeline_error": ""
     },
     {
@@ -83,25 +69,18 @@
         "EVENT_ONCE-01"
       ],
       "base_defects": [],
-      "correctly_attributed": 1,
-      "missed_attribution": 0,
-      "missed_detail": [],
+      "correctly_attributed": 0,
+      "missed_attribution": 1,
+      "missed_detail": [
+        "EVENT_ONCE-01: no finding produced"
+      ],
       "misattributed_to_head": 0,
       "misattributed_contracts": [],
       "correctly_not_attributed": 0,
-      "confirmed_contracts": [
-        "EVENT_ONCE-01"
-      ],
+      "confirmed_contracts": [],
       "not_attributed_contracts": [],
-      "diff_results": [
-        {
-          "contract_id": "EVENT_ONCE-01",
-          "verdict": "REGRESSION",
-          "base_exit_code": 0,
-          "head_exit_code": 1
-        }
-      ],
-      "duration_ms": 114667,
+      "diff_results": [],
+      "duration_ms": 222444,
       "pipeline_error": ""
     },
     {
@@ -114,25 +93,18 @@
         "CACHE-01"
       ],
       "base_defects": [],
-      "correctly_attributed": 1,
-      "missed_attribution": 0,
-      "missed_detail": [],
+      "correctly_attributed": 0,
+      "missed_attribution": 1,
+      "missed_detail": [
+        "CACHE-01: no finding produced"
+      ],
       "misattributed_to_head": 0,
       "misattributed_contracts": [],
       "correctly_not_attributed": 0,
-      "confirmed_contracts": [
-        "CACHE-01"
-      ],
+      "confirmed_contracts": [],
       "not_attributed_contracts": [],
-      "diff_results": [
-        {
-          "contract_id": "CACHE-01",
-          "verdict": "REGRESSION",
-          "base_exit_code": 0,
-          "head_exit_code": 1
-        }
-      ],
-      "duration_ms": 113563,
+      "diff_results": [],
+      "duration_ms": 184619,
       "pipeline_error": ""
     },
     {
@@ -145,25 +117,18 @@
         "CONCURRENCY-01"
       ],
       "base_defects": [],
-      "correctly_attributed": 1,
-      "missed_attribution": 0,
-      "missed_detail": [],
+      "correctly_attributed": 0,
+      "missed_attribution": 1,
+      "missed_detail": [
+        "CONCURRENCY-01: no finding produced"
+      ],
       "misattributed_to_head": 0,
       "misattributed_contracts": [],
       "correctly_not_attributed": 0,
-      "confirmed_contracts": [
-        "CONCURRENCY-01"
-      ],
+      "confirmed_contracts": [],
       "not_attributed_contracts": [],
-      "diff_results": [
-        {
-          "contract_id": "CONCURRENCY-01",
-          "verdict": "REGRESSION",
-          "base_exit_code": 0,
-          "head_exit_code": 1
-        }
-      ],
-      "duration_ms": 110518,
+      "diff_results": [],
+      "duration_ms": 157810,
       "pipeline_error": ""
     },
     {
@@ -176,25 +141,18 @@
         "TRANSACTION-01"
       ],
       "base_defects": [],
-      "correctly_attributed": 1,
-      "missed_attribution": 0,
-      "missed_detail": [],
+      "correctly_attributed": 0,
+      "missed_attribution": 1,
+      "missed_detail": [
+        "TRANSACTION-01: no finding produced"
+      ],
       "misattributed_to_head": 0,
       "misattributed_contracts": [],
       "correctly_not_attributed": 0,
-      "confirmed_contracts": [
-        "TRANSACTION-01"
-      ],
+      "confirmed_contracts": [],
       "not_attributed_contracts": [],
-      "diff_results": [
-        {
-          "contract_id": "AUTH-01",
-          "verdict": "COMPLIANT",
-          "base_exit_code": 0,
-          "head_exit_code": 0
-        }
-      ],
-      "duration_ms": 110128,
+      "diff_results": [],
+      "duration_ms": 179794,
       "pipeline_error": ""
     },
     {
@@ -215,15 +173,8 @@
       "correctly_not_attributed": 1,
       "confirmed_contracts": [],
       "not_attributed_contracts": [],
-      "diff_results": [
-        {
-          "contract_id": "UNIQUE-01",
-          "verdict": "UNEXPECTED_FIX",
-          "base_exit_code": 1,
-          "head_exit_code": 0
-        }
-      ],
-      "duration_ms": 114627,
+      "diff_results": [],
+      "duration_ms": 133925,
       "pipeline_error": ""
     },
     {
@@ -238,31 +189,18 @@
       "base_defects": [
         "UNIQUE-01"
       ],
-      "correctly_attributed": 1,
-      "missed_attribution": 0,
-      "missed_detail": [],
+      "correctly_attributed": 0,
+      "missed_attribution": 1,
+      "missed_detail": [
+        "EVENT_ONCE-01: no finding produced"
+      ],
       "misattributed_to_head": 0,
       "misattributed_contracts": [],
       "correctly_not_attributed": 1,
-      "confirmed_contracts": [
-        "EVENT_ONCE-01"
-      ],
+      "confirmed_contracts": [],
       "not_attributed_contracts": [],
-      "diff_results": [
-        {
-          "contract_id": "UNIQUE-01",
-          "verdict": "UNEXPECTED_FIX",
-          "base_exit_code": 1,
-          "head_exit_code": 0
-        },
-        {
-          "contract_id": "EVENT_ONCE-01",
-          "verdict": "AMBIGUOUS",
-          "base_exit_code": 1,
-          "head_exit_code": 1
-        }
-      ],
-      "duration_ms": 111570,
+      "diff_results": [],
+      "duration_ms": 137747,
       "pipeline_error": ""
     }
   ]

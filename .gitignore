@@ -78,3 +78,20 @@ output/playwright/
 # Vite/vitest transient config-load artifacts (one per config file, per run)
 apps/web/vitest.config.ts.timestamp-*.mjs
 apps/web/vite.config.ts.timestamp-*.mjs
+
+# Interactive-session scratch directories. Both hold hundreds of transient
+# probe scripts, run logs and half-finished patches; ruff already excludes
+# .scratch, and neither belongs in the product tree.
+.scratch/
+.workbuddy-ai/
+
+# One-off run artifacts written next to the process CWD.
+# `None` is what a shell redirect creates when the target name is empty
+# (2>NONE) — a literal file, not a placeholder.
+None
+build_result.txt
+test_output.txt
+apps/web/out.js
+# An unreferenced one-off dev-server config (proxy to a local API on
+# 5188); nothing in scripts/ or docs/ points at it.
+apps/web/vite.demo.config.mjs

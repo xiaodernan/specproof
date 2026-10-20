@@ -57,7 +57,7 @@ class TestTerminalWriteIsOneStatement:
         store, conn = self._store()
         summary = {"verdict": "VERIFIED", "matrix_passed": 3}
         ok = store.transition_job_status(
-            "job-1", "VERIFIED", from_status="RUNNING", summary=summary
+            "job-1", "VERIFIED", from_status="REVIEWING", summary=summary
         )
         assert ok
         statements = conn.cursor_obj.statements
@@ -71,7 +71,7 @@ class TestTerminalWriteIsOneStatement:
         # Positional order is part of the contract: the WHERE pair is last.
         assert params[0] == "VERIFIED"
         assert params[-2] == "job-1"
-        assert params[-1] == "RUNNING"
+        assert params[-1] == "REVIEWING"
         assert json.loads(params[1]) == summary
 
     def test_no_summary_quietly_clears_an_existing_one(self):
@@ -84,11 +84,11 @@ class TestTerminalWriteIsOneStatement:
         for kwargs in ({}, {"summary": None}):
             store, conn = self._store()
             assert store.transition_job_status(
-                "job-2", "VERIFIED", from_status="RUNNING", **kwargs
+                "job-2", "VERIFIED", from_status="REVIEWING", **kwargs
             )
             sql, params = conn.cursor_obj.statements[0]
             assert "summary" not in sql, sql
-            assert params == ["VERIFIED", "job-2", "RUNNING"]
+            assert params == ["VERIFIED", "job-2", "REVIEWING"]
 
 
 class TestStateMachineStatic:
@@ -97,12 +97,20 @@ class TestStateMachineStatic:
     ALL_STATUSES = list(_VALID_TRANSITIONS.keys())
 
     def test_all_ten_statuses_defined(self):
-        assert len(_VALID_TRANSITIONS) == 10
+        """All Phase 1 statuses plus legacy compat statuses are defined."""
         all_statuses = [
-            "PENDING", "QUEUED", "RUNNING", "WAITING_FOR_PROVIDER",
-            "VERIFIED", "BLOCKED", "STALE", "FAILED", "CANCELLED",
-            "ERROR",
+            # Phase 1 statuses
+            "QUEUED", "PREPARING", "CONTRACT_REVIEW", "RUNNING", "REVIEWING",
+            "VERIFIED", "BLOCKED", "NEEDS_REVIEW", "FAILED", "CANCELLED",
+            "STALE", "EXPIRED",
+            # Legacy compat statuses
+            "PENDING", "ERROR",
+            "WAITING_FOR_PROVIDER",
         ]
+        assert len(_VALID_TRANSITIONS) == len(all_statuses), (
+            f"expected {len(all_statuses)} statuses, got "
+            f"{len(_VALID_TRANSITIONS)}: {sorted(_VALID_TRANSITIONS)}"
+        )
         for s in all_statuses:
             assert s in _VALID_TRANSITIONS, f"Missing status: {s}"
 
@@ -113,24 +121,46 @@ class TestStateMachineStatic:
     def test_valid_transitions_are_recognized(self):
         """Legitimate transitions must all return True."""
         legitimate = [
+            # Legacy
             ("PENDING", "QUEUED"),
             ("PENDING", "ERROR"),
-            ("QUEUED", "RUNNING"),
-            ("QUEUED", "STALE"),
-            ("QUEUED", "ERROR"),
+            # Phase 1 happy path
+            ("QUEUED", "PREPARING"),
             ("QUEUED", "CANCELLED"),
-            ("RUNNING", "VERIFIED"),
-            ("RUNNING", "BLOCKED"),
+            ("QUEUED", "STALE"),
+            ("QUEUED", "EXPIRED"),
+            ("PREPARING", "CONTRACT_REVIEW"),
+            ("PREPARING", "RUNNING"),
+            ("PREPARING", "FAILED"),
+            ("PREPARING", "CANCELLED"),
+            ("PREPARING", "EXPIRED"),
+            ("CONTRACT_REVIEW", "RUNNING"),
+            ("CONTRACT_REVIEW", "NEEDS_REVIEW"),
+            ("CONTRACT_REVIEW", "CANCELLED"),
+            ("CONTRACT_REVIEW", "EXPIRED"),
+            ("RUNNING", "REVIEWING"),
+            ("RUNNING", "QUEUED"),       # reclaim
             ("RUNNING", "FAILED"),
-            ("RUNNING", "STALE"),
-            ("RUNNING", "ERROR"),
             ("RUNNING", "CANCELLED"),
+            ("RUNNING", "STALE"),
+            ("RUNNING", "EXPIRED"),
             ("RUNNING", "WAITING_FOR_PROVIDER"),
+            ("REVIEWING", "VERIFIED"),
+            ("REVIEWING", "BLOCKED"),
+            ("REVIEWING", "NEEDS_REVIEW"),
+            ("REVIEWING", "FAILED"),
+            ("REVIEWING", "CANCELLED"),
+            ("REVIEWING", "EXPIRED"),
+            # Provider outage recovery
             ("WAITING_FOR_PROVIDER", "QUEUED"),
+            ("WAITING_FOR_PROVIDER", "RUNNING"),
             ("WAITING_FOR_PROVIDER", "FAILED"),
+            ("WAITING_FOR_PROVIDER", "CANCELLED"),
+            ("WAITING_FOR_PROVIDER", "EXPIRED"),
+            # Failed retry
             ("FAILED", "QUEUED"),
-            ("FAILED", "ERROR"),
             ("FAILED", "CANCELLED"),
+            ("FAILED", "EXPIRED"),
         ]
         for from_s, to_s in legitimate:
             assert MySQLStore.is_valid_transition(from_s, to_s), (
@@ -145,11 +175,14 @@ class TestStateMachineStatic:
             ("PENDING", "VERIFIED"),
             ("PENDING", "BLOCKED"),
             ("PENDING", "FAILED"),
+            ("QUEUED", "RUNNING"),        # must go through PREPARING
             ("QUEUED", "VERIFIED"),
             ("QUEUED", "BLOCKED"),
+            ("PREPARING", "VERIFIED"),    # must go through CONTRACT_REVIEW/RUNNING
+            ("CONTRACT_REVIEW", "VERIFIED"),  # must go through RUNNING/REVIEWING
+            ("RUNNING", "VERIFIED"),      # must go through REVIEWING
             # Go backwards
             ("RUNNING", "PENDING"),
-            ("RUNNING", "QUEUED"),
             ("VERIFIED", "PENDING"),
             ("VERIFIED", "RUNNING"),
             ("BLOCKED", "PENDING"),
@@ -167,6 +200,10 @@ class TestStateMachineStatic:
             ("FAILED", "VERIFIED"),
             ("FAILED", "BLOCKED"),
             ("FAILED", "RUNNING"),
+            # New statuses cannot be skipped
+            ("QUEUED", "CONTRACT_REVIEW"),
+            ("QUEUED", "REVIEWING"),
+            ("PREPARING", "REVIEWING"),
         ]
         for from_s, to_s in illegal:
             assert not MySQLStore.is_valid_transition(from_s, to_s), (
@@ -176,7 +213,8 @@ class TestStateMachineStatic:
     def test_is_terminal(self):
         for s in TERMINAL_STATUSES:
             assert MySQLStore.is_terminal(s)
-        for s in ["PENDING", "QUEUED", "RUNNING", "WAITING_FOR_PROVIDER", "FAILED"]:
+        for s in ["PENDING", "QUEUED", "RUNNING", "WAITING_FOR_PROVIDER",
+                  "FAILED", "PREPARING", "CONTRACT_REVIEW", "REVIEWING"]:
             assert not MySQLStore.is_terminal(s)
 
 
@@ -433,7 +471,7 @@ class TestNotifyIntentRidesTheTerminalWrite:
         before = metrics_module.snapshot()
         store, conn = self._store()
         ok = store.transition_job_status_with_notify(
-            "job-n1", "VERIFIED", from_status="RUNNING",
+            "job-n1", "VERIFIED", from_status="REVIEWING",
             summary={"verdict": "VERIFIED"}, notify_payload=self.PAYLOAD,
         )
         after = metrics_module.snapshot()
@@ -455,7 +493,7 @@ class TestNotifyIntentRidesTheTerminalWrite:
     def test_no_payload_emits_no_insert(self):
         store, conn = self._store()
         assert store.transition_job_status_with_notify(
-            "job-n2", "VERIFIED", from_status="RUNNING", notify_payload=None,
+            "job-n2", "VERIFIED", from_status="REVIEWING", notify_payload=None,
         )
         assert len(conn.cursor_obj.statements) == 1
 
@@ -470,7 +508,7 @@ class TestNotifyIntentRidesTheTerminalWrite:
 
         conn.cursor_obj.execute = failing_on_notify  # type: ignore[method-assign]
         ok = store.transition_job_status_with_notify(
-            "job-n3", "BLOCKED", from_status="RUNNING",
+            "job-n3", "BLOCKED", from_status="REVIEWING",
             summary={"verdict": "BLOCKED"}, notify_payload=self.PAYLOAD,
         )
         assert ok, "the verdict must stand when the intent insert fails"

@@ -7,6 +7,7 @@ Commands:
     specproof craft      SpecCraft autonomous coding agent (M1 deterministic)
     specproof verify     Run a verification job
     specproof replay     Replay a bug capsule
+    specproof evidence   Evidence-chain ops: batch replay / cert verify / chain scan
     specproof eval       Run evaluation across golden cases
 """
 
@@ -26,6 +27,7 @@ from cli.specproof.commands.craft import craft_cmd  # noqa: E402
 from cli.specproof.commands.demo import demo  # noqa: E402
 from cli.specproof.commands.devtools import devtools_cmd  # noqa: E402
 from cli.specproof.commands.eval import eval_cmd  # noqa: E402
+from cli.specproof.commands.evidence import evidence_cmd  # noqa: E402
 from cli.specproof.commands.fix import approve_cmd, fix_cmd  # noqa: E402
 from cli.specproof.commands.mcp import mcp_cmd  # noqa: E402
 from cli.specproof.commands.ops import ops_cmd  # noqa: E402
@@ -83,6 +85,7 @@ cli.add_command(approve_cmd)
 cli.add_command(mcp_cmd)
 cli.add_command(devtools_cmd)
 cli.add_command(ops_cmd)
+cli.add_command(evidence_cmd)
 
 
 if __name__ == "__main__":

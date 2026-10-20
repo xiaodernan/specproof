@@ -177,12 +177,19 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
             # Wire-compat: results for contracts the pipeline never compiled
             # never entered the matrix before and still do not.
             continue
-        entries.append({
+        result_entry = {
             "contract_id": cid,
             "result": result.get("result", "UNVERIFIED"),
             "experiment": result.get("experiment", ""),
             "evidence_ref": result.get("evidence_ref", ""),
-        })
+        }
+        # P3-6: the reason a contract is UNVERIFIED rides along. Without it
+        # the row says only "no result" and the reader cannot tell "the
+        # experiment never ran" from "the experiment ran and found nothing".
+        details = str(result.get("details") or "").strip()
+        if details:
+            result_entry["details"] = details
+        entries.append(result_entry)
 
     for diff in diff_results:
         cid = diff.get("contract_id", "")
