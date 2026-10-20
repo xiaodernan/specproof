@@ -88,6 +88,31 @@ class TestTheDashboardShowsEveryVerdict:
         ]
         assert any("NEEDS_REVIEW" in title for title in titled), titled
 
+    def test_the_needs_review_share_has_a_denominator(self) -> None:
+        """A count alone cannot be judged; a share needs its denominator.
+
+        "12 jobs needed review" reads very differently from "12% of the
+        jobs needed review" — and only the second one can be compared
+        against anything. The share is what a threshold would be written
+        against, so the denominator has to be on the panel.
+        """
+        raw = DASHBOARD.read_text(encoding="utf-8")
+        data = json.loads(raw)
+        shares = [
+            str(target.get("expr") or "")
+            for panel in data.get("panels", [])
+            for target in panel.get("targets", []) or []
+            if "jobs_needs_review_total" in str(target.get("expr") or "")
+            and "/" in str(target.get("expr") or "")
+        ]
+        assert shares, (
+            "no NEEDS_REVIEW share on the dashboard — a bare count cannot "
+            "be judged against anything"
+        )
+        assert any(
+            "jobs_completed_total" in expr for expr in shares
+        ), f"the share has no denominator: {shares}"
+
 
 @pytest.mark.parametrize("verdict", sorted(VERDICT_VOCABULARY))
 def test_each_verdict_has_its_own_expression(verdict: str) -> None:

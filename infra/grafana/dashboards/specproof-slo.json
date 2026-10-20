@@ -508,7 +508,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "worker 进程内计数器 (agent/worker.py)。worker 未启动时无数据属正常。四个判定词各占一格：BLOCKED = 查出了问题；NEEDS_REVIEW = 证据不足以判定（既未证明有问题，也未证明没问题），与 BLOCKED 分开计数，否则「需人看」会被读成「已证明坏」。",
+      "description": "worker 进程内计数器 (agent/worker.py)。worker 未启动时无数据属正常。四个判定词各占一格：BLOCKED = 查出了问题；NEEDS_REVIEW = 证据不足以判定（既未证明有问题，也未证明没问题），与 BLOCKED 分开计数，否则「需人看」会被读成「已证明坏」。末格是 NEEDS_REVIEW 的**占比**（分母为同期完成总数）——有了它才能谈「这个比例是否可接受」；**阈值仍未定**（§14 无对应目标，且需生产基线，见 OBSERVABILITY.md §5/§6）。",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -610,6 +610,25 @@
           "range": false,
           "instant": true,
           "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(specproof_jobs_needs_review_total) / sum(specproof_jobs_completed_total)",
+          "legendFormat": "NEEDS_REVIEW 占比",
+          "range": false,
+          "instant": true,
+          "refId": "F",
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 1
+            },
+            "overrides": []
+          }
         }
       ]
     },
