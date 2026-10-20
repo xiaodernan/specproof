@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "note": "Retroactive partial isolation (honest caveat): this candidate set was declared AFTER earlier evaluation rounds already ran against these cases (W-series eval reports and the 10-case Recall/Precision runs recorded in CLAUDE.md). Holdout metrics computed on them must therefore be labelled 'retroactive holdout candidates' — they do not constitute a clean prospective holdout. A clean split requires case ids that no earlier round ever saw. Status transitions: candidate -> active (frozen for future eval only) or released (returned to the training pool).",
+  "note": "Retroactive partial isolation (honest caveat): this candidate set was declared AFTER earlier evaluation rounds already ran against these cases (W-series eval reports and the 10-case Recall/Precision runs recorded in CLAUDE.md). Holdout metrics computed on them must therefore be labelled 'retroactive holdout candidates' — they do not constitute a clean prospective holdout. A clean split requires case ids that no earlier round ever saw. Status transitions: candidate -> active (frozen for future eval only) or released (returned to the training pool). 词汇说明 (#311): 早期条目的 `family` 用的是旧的 P6 分组名(authnz / transaction / uniqueness / …), 2026-10-21 新增的条目用**契约家族 id**(ATOMICITY-01 / IDEMPOTENT-01 / CACHE-01)——两套词表并存是一个已知的不一致, 统一它是一次独立的清理。本清单的 `family` 只用于统计分组, 判定依据是 `status`。",
   "integration_note": "RESOLVED (#77/#78, 2026-09-26): specproof eval and specproof baseline both select their case set through cli/specproof/case_set.py. Isolation is on by default (declared cases leave the pool), --only-holdout runs just them, --include-holdout merges them back and labels the run 'all_not_isolated'. Both commands write the case-set label into their sidecars, and baseline refuses to print a Go/No-Go gain when the two pools disagree or the SpecProof sidecar is unlabelled. The earlier text below is kept as history: eval.py integration deferred: at commit time cli/specproof/commands/eval.py was already modified by another lane (git status: M cli/specproof/commands/eval.py), so the --exclude-holdout flag was deliberately NOT added in this lane to avoid a write conflict. Wiring when that lane clears: in eval_cmd, after case_dirs is computed, load agent.holdout.HoldoutRegistry (default manifest docs/eval/holdout-manifest.json) and drop every directory whose name satisfies registry.is_holdout(name) unless an --include-holdout flag is passed, then print the skipped-case count in the run summary header.",
   "cases": [
     {
@@ -61,6 +61,24 @@
       "case_id": "case-10-comment-only",
       "family": "negative-control",
       "added_at": "2026-08-19",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-39-tx-cancel-no-restock",
+      "family": "ATOMICITY-01",
+      "added_at": "2026-10-21",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-35-tx-stock-decrement-off-by-one",
+      "family": "IDEMPOTENT-01",
+      "added_at": "2026-10-21",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-58-redis-cache-writeback-removed",
+      "family": "CACHE-01",
+      "added_at": "2026-10-21",
       "status": "candidate"
     }
   ]

@@ -192,7 +192,15 @@ def test_default_manifest_marks_existing_golden_cases() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     golden_dir = repo_root / "golden-cases"
     entries = registry.cases()
-    assert len(entries) == 10
+    # The count is not a constant to keep in step by hand: it is the
+    # number of entries the manifest declares, and every one of them
+    # must point at a case that exists.
+    declared = len(json.loads(
+        (repo_root / "docs" / "eval" / "holdout-manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )["cases"])
+    assert len(entries) == declared
     for entry in entries:
         assert (golden_dir / entry.case_id).is_dir(), (
             f"manifest 引用了不存在的 golden case: {entry.case_id}"
