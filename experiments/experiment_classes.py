@@ -98,9 +98,16 @@ EXPERIMENT_CLASSES: tuple[ExperimentClass, ...] = (
         positive_sample="case-29-tx-optimistic-lock-removed",
         negative_sample="case-30-tx-version-guard-moved-to-getter",
         # GAP: the family has exactly ONE case of its kind, and a case
-        # cannot be both the tuning sample and the holdout. Recorded here
-        # rather than papered over — a second concurrency case has to be
-        # BUILT for this to close.
+        # cannot be both the tuning sample and the holdout.
+        #
+        # Why a second case is not simply "another one": the generated
+        # stale-write test drives the REPOSITORY, not the service — so
+        # every mutation it can see is at the ENTITY level (the @Version
+        # annotation), and a second entity-level mutation would replay
+        # case-29's defect with a different spelling. A second, genuinely
+        # different sample needs the template to drive the SERVICE path
+        # (a stale read through the order flow), which is the next thing
+        # to build — it is recorded here rather than faked.
         holdout_sample="",
     ),
     ExperimentClass(
