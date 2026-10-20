@@ -189,12 +189,13 @@ def test_terminal_status_mapping():
     assert _terminal_status_from_state(
         {"errors": [], "confirmed_findings": [{"severity": "BLOCKER"}]}
     ) == "BLOCKED"
-    # An unverified row with nothing proven wrong: the job still ends
-    # (never VERIFIED), but it ends in NEEDS_REVIEW — the evidence does
-    # not settle the question, and a human has to look.
+    # A row that carries no verdict and no contract id: the evidence is
+    # missing (NEEDS_REVIEW), and the declared unverified count does not
+    # match the rows (a contradiction), so the word is BLOCKED — the two
+    # records disagree about what was measured.
     assert _terminal_status_from_state(
         {"errors": [], "confirmed_findings": [], "matrix": {"unverified": 1, "rows": [{}]}}
-    ) == "NEEDS_REVIEW"
+    ) == "BLOCKED"
     assert _terminal_status_from_state(
         {"errors": [], "confirmed_findings": [], "matrix": {"unverified": 0, "passed": 1,
          "rows": [{"contract_id": "C-1", "result": "PASS", "experiment": "check",

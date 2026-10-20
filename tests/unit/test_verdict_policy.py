@@ -41,31 +41,45 @@ def test_incomplete_rows_never_verify_across_consumers(changes):
     assert _state_summary(state, expected)["coverage_reason"]
 
 
-@pytest.mark.parametrize("matrix", [
-    {"rows": []}, {"rows": None}, {"rows": [None]},
-    {"rows": [passing_row()], "failed": 1},
-    {"rows": [passing_row()], "passed": 0},
-    {"rows": [passing_row()], "passed": True},
-    {"rows": [passing_row()], "unverified": "0"},
-    {"rows": [passing_row()], "total_rows": 2},
-    {"rows": [passing_row()], "total_contracts": 2},
-    {"rows": [passing_row()], "total_contracts": 0},
-    {"rows": [passing_row(), passing_row()]},
-    {"rows": [passing_row(), passing_row() | {"result": "FAIL"}]},
-    {"rows": [passing_row()], "contract_ids": ["C-1", "C-2"]},
+@pytest.mark.parametrize("matrix,expected", [
+    # No checks at all: nothing was measured, so nothing is proven wrong.
+    ({"rows": []}, "NEEDS_REVIEW"),
+    ({"rows": None}, "NEEDS_REVIEW"),
+    # A row that is not even a mapping: the run produced garbage.
+    ({"rows": [None]}, "BLOCKED"),
+    # The summary claims one failure; no row is one. The two records
+    # contradict each other — a reader cannot tell which is the truth.
+    ({"rows": [passing_row()], "failed": 1}, "BLOCKED"),
+    ({"rows": [passing_row()], "passed": 0}, "BLOCKED"),
+    ({"rows": [passing_row()], "passed": True}, "BLOCKED"),
+    ({"rows": [passing_row()], "unverified": "0"}, "BLOCKED"),
+    ({"rows": [passing_row()], "total_rows": 2}, "BLOCKED"),
+    ({"rows": [passing_row()], "total_contracts": 2}, "BLOCKED"),
+    ({"rows": [passing_row()], "total_contracts": 0}, "BLOCKED"),
+    # Two rows for one contract: they disagree, and a reader cannot pick
+    # one — the evidence contradicts itself.
+    ({"rows": [passing_row(), passing_row()]}, "BLOCKED"),
+    ({"rows": [passing_row(), passing_row() | {"result": "FAIL"}]}, "BLOCKED"),
+    # A row for a contract that does not exist is a contradiction; a
+    # contract with no row is a coverage gap. Here only the gap is
+    # present, so the word is NEEDS_REVIEW.
+    ({"rows": [passing_row()], "contract_ids": ["C-1", "C-2"]}, "NEEDS_REVIEW"),
 ])
-def test_contradictory_or_incomplete_matrices_are_blocked(matrix):
+def test_contradictory_or_incomplete_matrices_say_which_one_they_are(matrix, expected):
+    """The reason table decides the word, and this pins it row by row.
+
+    A matrix that contradicts itself is BLOCKED (something is wrong, or
+    the two records disagree); a matrix that merely lacks evidence is
+    NEEDS_REVIEW (nothing is proven either way). Both are fail-closed;
+    they differ in what the reader is sent to do.
+    """
     decision = evaluate_verification(matrix)
-    assert decision.status != "VERIFIED"
-    # Only a matrix that PROVES something is wrong is BLOCKED; the rest
-    # are evidence gaps and say so.
-    has_failed_row = any(
-        isinstance(row, dict) and row.get("result") == "FAIL"
-        for row in (matrix.get("rows") or [])
-        if row is not None
-    )
-    expected = "BLOCKED" if has_failed_row else "NEEDS_REVIEW"
     assert decision.status == expected
+    assert decision.status != "VERIFIED"
+    if expected == "BLOCKED":
+        assert decision.blocking, decision.reasons
+    else:
+        assert not decision.blocking, decision.reasons
 
 
 def test_the_two_middle_verdicts_say_different_things():
@@ -122,11 +136,28 @@ def test_coverage_compares_ids_not_only_counts():
         {"rows": [passing_row("C-1"), passing_row("OTHER")]},
         contracts=[{"id": "C-1"}, {"id": "C-2"}],
     )
-    # A missing contract is an evidence gap, not a proven defect: the
-    # change may be fine, the evidence is not there.
+    # Two gaps here: C-2 has no row (a coverage gap), and OTHER is a row
+    # for a contract that does not exist (a self-contradiction). The
+    # contradiction decides the word.
+    assert decision.status == "BLOCKED"
+    assert "C-2" in decision.reason
+    assert decision.unverified == 1
+
+
+def test_a_missing_contract_alone_is_a_coverage_gap():
+    """No row for a contract, and nothing that contradicts anything.
+
+    This is the shape a reader must be able to recognise as "the
+    evidence is missing", not "the change is bad".
+    """
+    decision = evaluate_verification(
+        {"rows": [passing_row("C-1")]},
+        contracts=[{"id": "C-1"}, {"id": "C-2"}],
+    )
     assert decision.status == "NEEDS_REVIEW"
     assert "C-2" in decision.reason
     assert decision.unverified == 1
+    assert not decision.blocking
 
 
 def test_matrix_downgrades_unsupported_pass_before_consumers_render_it():

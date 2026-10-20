@@ -5,25 +5,28 @@ from agent.worker import _state_summary, _terminal_status_from_state
 from evidence.report import render_verification_report
 
 
-@pytest.mark.parametrize("matrix", [
-    {}, {"passed": 0, "failed": 0, "unverified": 0, "rows": []},
-    {"rows": [{}]}, {"rows": [{"result": "FAIL"}], "failed": 0},
-    {"rows": [{"result": "PASS"}], "failed": 1},
+@pytest.mark.parametrize("matrix,expected", [
+    # Nothing was measured at all: a coverage gap, not a defect.
+    ({}, "NEEDS_REVIEW"),
+    ({"passed": 0, "failed": 0, "unverified": 0, "rows": []}, "NEEDS_REVIEW"),
+    # A row that is not a mapping: the run produced garbage.
+    ({"rows": [{}]}, "NEEDS_REVIEW"),
+    # A contract that FAILED: a defect.
+    ({"rows": [{"result": "FAIL"}], "failed": 0}, "BLOCKED"),
+    # The summary claims one failure; no row is one. The two records
+    # contradict each other.
+    ({"rows": [{"result": "PASS"}], "failed": 1}, "BLOCKED"),
 ])
-def test_incomplete_or_failed_checks_never_pass(matrix):
+def test_incomplete_or_failed_checks_never_pass(matrix, expected):
     """The invariant: an unjudgeable matrix never VERIFIES.
 
-    The WORD depends on what it proves: a row that FAILED is BLOCKED
-    (the change is wrong); an empty or unjudgeable matrix is
-    NEEDS_REVIEW (nothing was proven, so a human has to look).
+    The WORD follows the reason table: a contract that FAILED, or a
+    summary that contradicts its own rows, is BLOCKED (something is
+    wrong); an empty matrix is NEEDS_REVIEW (nothing was measured, so
+    nothing is proven).
     """
     status = _terminal_status_from_state({"matrix": matrix})
     assert status != "VERIFIED"
-    has_failed_row = any(
-        isinstance(row, dict) and row.get("result") == "FAIL"
-        for row in (matrix.get("rows") or [])
-    )
-    expected = "BLOCKED" if has_failed_row else "NEEDS_REVIEW"
     assert status == expected
 
 

@@ -260,7 +260,7 @@ class TestEveryVerdictIsReachable:
         from evidence.verdict_channels import CHANNELS
 
         declared = set(CHANNELS["job_summary"].scale)
-        assert VERDICT_VOCABULARY == declared, (
+        assert declared == VERDICT_VOCABULARY, (
             f"the policy produces {sorted(VERDICT_VOCABULARY)} but the "
             f"job_summary channel declares {sorted(declared)}"
         )
