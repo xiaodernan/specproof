@@ -6357,3 +6357,22 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① **可移植的只是名字**：模板的**逻辑**仍是这个域的（「订单失败不得泄漏库存扣减」是关于订单的断言）；换一个域（没有订单/库存的仓库）需要**自己的模板**，不是换个拼写。门里那条「断言一字不动」正是在说这件事。② 模板里的**局部变量名**（`product` / `user`）**没有**参数化——它们是模板逻辑的一部分（`product.getId()` 读的是被测实体的属性名，那属于「这个域叫什么」的**一半**，本号只参数化了类型名）。这是本层最明确的一条**未竟**边界。③ 端点值携带的是**表达式**（可能是拼接）而不是「路径」——这是为了逐字节不变；换句话说，profile 描述的是「这个域的测试怎么写」，不只是「路径是什么」。④ 63 处替换是**机械**的，真正的风险在**漏网**：本号靠 golden 兜住了（漏一处 ⇒ golden 红）——这正是 golden 存在的理由。⑤ 本号**没有**让 `experiment_classes` 的模板名指向新层（模板体仍在 `generate_counterexamples.py`，只是它们现在是 profile 驱动的）；把模板**搬进** `agent/experiments/` 是下一次独立的整理。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（先让模板驱动 service，再写案例）——#314 的结论。② 模板**搬进** `agent/experiments/`，让 `experiment_classes` 的模板名指向新层（#319 的诚实边界⑤）。③ 局部变量名是否也该进 profile（本号的边界②）。④ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 仓库里其余手写假**逐份评估**——实测多数是**方法级鸭子类型**（不是 SQL 假），把它们换成求值器等于把它们变成真 store，是**另一类**改动；#303 的队列项④「其余手写假换成求值器」这个框法**不准**，下一号应先逐份判断「它到底是不是 SQL 假」。⑥ P1-7 / P3-7 其余项照旧。
+
+## #320 模板搬进自己的层：节点做管线，模板做库，注册表指向新层
+
+**起因/占号。** #319 的下一号队列②是「模板**搬进** `agent/experiments/`，让 `experiment_classes` 的模板名指向新层」（#319 的诚实边界⑤）。落地前重测账本：HEAD ccb46a1（`## #` id 最大 319）⇒ 取 **#320**。
+
+**先量旧行为。** `agent/nodes/generate_counterexamples.py` 在做**两件事**：① 管线（问模型 → 校验 schema → 编译 → 跑 → 记录）；② **库**（它写的那 24 个 JUnit 模板常量）。模板是库——它们被实验类注册表点名，也是**别的仓库**想复用的一层；而它们住在**节点**里，于是「库」依赖「管线」的方向是反的，节点文件也长到 1000 行上下、模板与流程互相淹没。
+
+**修。**
+- **新层**（`agent/experiments/templates.py`）：24 个模板常量**逐字**搬过去（`_GENERATED_TEST_HEADER` / `_AUTH_TEST_TEMPLATE` / … / `_EVENT_PAYLOAD_TEST_TEMPLATE`，外加 `_DOMAIN_IMPORTS` / `_DOMAIN_FIELDS` / `_SEED_USER_PRODUCT` 三个共享块）。文件带自己的 docstring，说清「LOGIC 在这里、NAMES 来自 profile」。
+- **节点变薄**：`generate_counterexamples.py` 改为 `from agent.experiments.templates import (...)`——**管线依赖库**，方向对了。节点里剩下的是管线本身。
+- **注册表的门指向新层**（`tests/unit/test_experiment_class_samples.py`）：模板名的存在性检查现在读 `agent/experiments/templates.py`（不是节点）——门查的是「模板**在哪**」，所以它得知道模板在哪。
+
+**门与腿。** 既有门 `test_generated_test_source_is_pinned.py`（**17** 项，golden 逐字节比对）**没改一个字就绿了**——这正是它存在的意义：搬移是**行为保持**的，它被证明，而不是被声称。`test_experiment_class_samples.py`（57）、`test_generate_counterexamples_node_execution_is_observable.py`、`test_llm_counterexample_path_actually_runs.py`——**94 passed**。相关回归 `test_matrix_policy.py`、`test_matrix_pure.py`、`test_contract_id_attribution.py`、`test_differential_execution_is_observable.py`、`test_build_matrix_exit_verdict.py`、`test_matrix_result_vocabulary_parity.py`——**84 passed**。`ruff check .`（除并发车道在途文件外）0 errors、`mypy .` 0 errors（**231** 源文件，较上批 +1）。
+
+**否证与订正。** ① 搬移后 ruff 报 `I001`（导入块未排序）——24 个模板名逐个列进 `import (...)` 自然不排序；`ruff --fix` 排好了（**自动修复**，不是手排）。② 搬移前先确认**没有别处从节点导入模板常量**（全仓 grep `_TEST_TEMPLATE` / `_DOMAIN_IMPORTS` / … 在 `tests/` 下**零命中**）——若有人从节点导入，这次搬移会静默改他们的依赖方向。③ 节点里的 `GENERATE_TEST_OUTCOMES`（指标的闭合词表）与 `_is_demo_repo` / `_compile_test` 等**函数**留在节点：它们是**管线**的一部分，不是模板库。
+
+**诚实边界。** ① 搬的是**模板常量**，**逻辑函数**（`_build_deterministic_test` 的家族分发、`_has_family` / `_spec_mentions` 等）**仍在节点**——那是管线的判断（哪些契约要哪种实验），不是模板库的一部分。要不要再搬是一次独立的判断。② 本号**没有**改变任何模板的**内容**（逐字搬移），也没有改 profile 的字段；变化只有**它们住在哪**。③ 「别的仓库能复用」目前只是**结构上**成立（名字进 profile、逻辑在模板里、源码被 golden 钉住）；**没有一个真实的第二个仓库**用它跑过——那是下一号之后才能验证的断言。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（先让模板驱动 service，再写案例）——#314 的结论。③ 局部变量名是否也该进 profile（#319 的边界②）。④ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 队列项④的**框法要改**（#319 队列⑤）：实测多数手写假是**方法级鸭子类型**（不是 SQL 假），换成求值器等于把它们变成真 store；下一号先逐份判断「它到底是不是 SQL 假」。⑥ 模板的**分发逻辑**（`_build_deterministic_test` 里的家族→模板映射）是否也该进 `agent/experiments/`（本号的边界①）。⑦ P1-7 / P3-7 其余项照旧。

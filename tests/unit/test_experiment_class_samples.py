@@ -50,7 +50,7 @@ REPO = Path(__file__).resolve().parents[2]
 GOLDEN = REPO / "golden-cases"
 MANIFEST = REPO / "docs" / "eval" / "holdout-manifest.json"
 CI = REPO / ".github" / "workflows" / "ci.yml"
-TEMPLATES_MODULE = REPO / "agent" / "nodes" / "generate_counterexamples.py"
+TEMPLATES_MODULE = REPO / "agent" / "experiments" / "templates.py"
 CHECKERS_MODULE = REPO / "agent" / "checkers" / "java_source.py"
 COVERAGE_REPORT = REPO / "docs" / "eval" / "experiment-class-coverage.md"
 
@@ -160,6 +160,12 @@ class TestTheRegistryIsTrue:
         )
 
     def test_the_named_templates_exist(self, entry: ExperimentClass) -> None:
+        """The templates live in the experiments LAYER, not in the node.
+
+        The node (the pipeline) depends on the library (the templates);
+        the other way round would be a cycle, and the registry has to
+        name the layer the templates actually live in.
+        """
         source = TEMPLATES_MODULE.read_text(encoding="utf-8")
         for name in entry.templates:
             assert re.search(
