@@ -6049,3 +6049,27 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 工具**只**认「迁移建的表 + `schema_migrations`」为 owned；`object_metadata` / `object_contracts`（显式选择 MySQL 对象元数据后端时才建的表）**不在** owned 集合里——若那个后端在测试库里开过，工具会把它当残留删掉。这是有意的（产品库里也没有它们，见数据字典 §1.18 的口径），但**运维要知道**：在那个后端开着的环境里别盲跑 `--drop`。② 工具**不**检查列/索引，只按表名判断归属。③ 它**不**清理**行**——只处理表；测试留下的行由各测试自己清（conftest 的隔离机制管这个）。④ 本号只把工具挂进了数据字典的说明，**没有**把它接进任何 CI 步骤或钩子——「每次测试前自动清」会掩盖「谁留了表」这个信息，所以刻意做成**手动**工具。⑤ 工具本身有 9 项门，但它**没有**被测「目标库存在但连不上」的路径（那会走 `ABORT: cannot connect` 分支，退出码 2，未测）。
 
 **下一号队列（取号时按落地时点 max+1）。** ① 仓库里其余手写假（`test_api_jobs.py` 的 `FakeMySQLStore` 等）是否也换成求值器（#303 队列①，未动）。② 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）（#300 队列①，未动）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）——`NEEDS_REVIEW` 需要一次 verdict 词汇联动（BLOCKED / NEEDS_REVIEW 的边界）+ CLI 退出码 + 证书门 + 前端四处同时改；`CONTRACT_REVIEW` 要么让管线在契约待批时**真的停下**，要么**不写**。④ P1-7 / P3-4 / P3-7 其余项照旧。
+## #305 运维文档的每个 `specproof_*` 名字对回发射站点（并修一处三兄弟压缩）
+
+**起因/占号。** 队列里那道「运维文档指标名 ↔ emit 站点」全库门。落地前重测账本：HEAD `28a41e1`（#304），`## #` 最大 304，`## #305` 计数 0 ⇒ 取 **#305**（本号原先排在 #297 那道队列里，#297..#304 已被别车道同期落地，号按落地时点 max+1 重取）。
+
+**先量旧行为。** 两份读者文档 `docs/operations/OBSERVABILITY.md` + `RUNBOOK.md` 里的 `specproof_*` 记号：**123 处 / 95 个不同名字，一个都没人核对**。#161（#296 修的那道）只管**代码引用**的名字，#217 只管 §8.10 的**文件清单**，这两份文档其余正文是自由文本。唯一真缺陷实测在 OBSERVABILITY.md:142：那一格把三个兄弟计数器压成 `specproof_findings_attribution_compared/kept/rejected_total`——斜杠后面两截不带前缀，根本不在普查的 token 形状里，于是读者能照抄的只有第一个名字 `specproof_findings_attribution_compared`，而发射点写的是 `incr("findings_attribution_compared_total")`（`agent/nodes/review_court.py:392`）。照文档去 Grafana 画这条，序列永远是空的。
+
+**修。** ① 文档：142 行三个兄弟改写成三个完整名，并在同一格记下「#305 起三名分写」的来历——压缩写法本身从此由门拒绝，不靠自觉。② 新增 `tests/unit/test_ops_docs_metric_names_trace_to_emission_sites.py`（6 条腿）。
+
+**门与腿**（每个下限都取自这条门自己那次扫描，修复后的读数）：
+- 腿1 普查完整性：≥100 处 / ≥80 个不同名（实测 **126 处 / 98 名**；修复前 123/95）——正则读不到时必须读成「探针坏了」，不是「没问题」。
+- 腿2 每个文档名都要追得到一个发射站点产出的拼写。
+- 腿3 拒绝 `specproof_a_total/b_total` 这类**斜杠压缩**拼写：被压掉的兄弟是这道门唯一无法作证的形状。
+- 腿4 词干（`specproof_xxx_` 结尾）必须是某个**可产出拼写**的前缀（实测 12 处词干 / 11 个不同词干，下限 ≥8）。
+- 腿5 两个命名平面只差 `specproof_` 这一件事：≥75 个文档名「削掉前缀才算数」（实测 **83**）、且没有一个「带着前缀才算数」；再补一条**代码侧**证据——普查里没有任何拼写自带 `specproof_`，否则 /metrics 会渲染成 `specproof_specproof_*`。
+- 腿6 豁免表按**身份**键控：`(文档, 名字)` + 同一行必须出现证明 token；三条腐烂路径各自拒绝（豁免覆盖了真指标 / 用了豁免却没带证明 / 条目已无人用）。现 4 条目覆盖 10 处（`specproof_admin`×3、`specproof_pass`、`specproof_phase0`×3、`specproof_test`×3——一个 Grafana 口令和三个 MySQL 库名，跟指标同形状）。
+同批邻居回归：#217 清单门 + #216 告警表门 + #218 看板数字门合计 **15 passed / 1 failed**（那 1 红归因见边界⑤）。
+
+**否证与订正（写门时自己的三个错）。** ① 第一版腿4 只读 `_emitted_names()`，把 **6 个词干判成死名**：`es_request_seconds_`、`redis_request_seconds_`、`tool_run_seconds_`、`jobs_duration_seconds_`、`capsule_replay_verdict_`、`mcp_tool_errors_`——它们是运行时拼接的族，字面普查本来就不含（**假红**）。修法是把族的字面前缀从 parity 门自己的两处真源派生：`concatenated_prefix_types()` 的键 + 每条 `CONCATENATED_FAMILIES` 正则的固定前缀（扫到第一个元字符为止），**不手抄族名表**。② 第一版腿5 的消息写着「baseline is 86」，那是我**没量就写进断言的数**；实测 80（文档修复后 83）。同理模块文档字符串里「97 unique」是旧探针读数，实测 95。③ 第一版「带前缀也算数」的反向对照只挂在文档人口上——代码里没有任何带前缀拼写时它**恒绿**（不可达的红），改成第三条子句直读普查，可达性由臂 A5 现证。
+
+**臂（7 条；预测先落盘 `.scratch/m305_predictions.json` 再跑，每条改真载体字节 → 子进程跑门 → 按 sha256 验还原）。** A1 文档名少一个 `s` ⇒ {腿2}。A2 把 142 行改回压缩写法（= 已 shipped 缺陷复现）⇒ {腿2, 腿3}。A3 词干多一个 `s` ⇒ {腿4}。A4 给一个真指标加豁免条目 ⇒ {腿6}（腿2 仍绿：豁免把红咽下去了，这正是危险形状）。A5 在 `observability/` 种一条 `incr("specproof_planted_total")` ⇒ {腿5}。A6 删掉 `specproof_admin` 的豁免 ⇒ {腿2}。A7 把文档目录改名 ⇒ {6 条腿全红}（没有一条腿可以靠缓存读数或 fixture 过关）。实测 **7/7 MATCH**，基线绿。
+
+**诚实边界。** ① 只管 `docs/operations/` 这两份文档；加第三份要同时改名册和它的下限。② 只普查**带前缀**的记号：文档里裸写的 `findings_attribution_signal_<word>_total`（142 行就有）不进人口，所以「裸名写错」不归本门管。③ 豁免的「证明」是**同现 token**，不是行语义——一行里同时写口令和真指标名的极端情形可能被误免。④ 词干只要求其是某拼写的前缀，不校验该族**词表**是否还全（词表由 parity 门的派生腿管）。⑤ 本批回归里 `test_metric_inventory_lists_every_emission_site.py`（#217）是红的：`agent/job_stage.py` 有发射点却没进 8.10 清单——那是 #298（`ba4c6be`）那条车道的在途账，本号不代改，红集合归因给它（落地前复核：同一份文档上他道已经把那条 bullet 写进了工作树，本号的索引里只有自己那一格）。⑥ 门读的是**磁盘上的文档**，不是 git blob：别道未提交的文档改动会被这道门一并 graded（共享树已知口径）。⑦ 本号所有数字（126/98、83、12/11、4 条目 10 处）都是在**本号落地那一格平面**上量的：`git show HEAD:` 取回 LF blob、只替换 142 行、再跟 RUNBOOK 合并数一遍——不是把工作树里他道在途的 §8.10 条目一起算进来。⑧ `mypy .` 在这块脏共享平面上**崩在** `.venv312/.../fastapi/_compat/v2.py`（mypy 2.3.1 内部错误，与本号无关，未追）；只对本门文件跑 mypy 时唯一的错是既有的 `mcp/client.py:182 no-any-return`，也不在本号改动面上。
+
+**下一号队列。** ① 裸名（不带前缀）指指标的那类写法要不要收进同一门：需要一个「上下文是指标」的判据，否则会吞掉普通英文。② 仪表盘 `byName` override ↔ 同面板 `legendFormat` 对账（原 #297 队列②，task #179）。③ 抓取面第一条真 HTTP 腿：起服务 `GET /metrics`，把 exposition 解析回名字册（原 #297 队列①，task #178）。④ #217 那笔 `agent/job_stage.py` 清单账——别道自己补，或下一号代补。⑤ P1-7 / P3-4 / P3-7 其余项照旧。
