@@ -93,7 +93,7 @@ CP (Spring Boot): webhook 验签 ✓ / 审计 ✓ / outbox ✓。
 |---|---|---|---|
 | 单元测试 | 504 passed | 1000+ | 每新特性强制新测试; 属性测试 (hypothesis) 用于 checker/editor/parser 核心 |
 | 安全测试 | 13 (密钥/脱敏) | 30+ | 注入矩阵 (README/注释/spec/分支名/commit message)、越权矩阵 |
-| 故障注入 | 10 场景 (MQ/worker/outbox) | 30 | 网关故障 (429/超时/空 JSON)、磁盘满、僵尸租约、时钟回拨 |
+| 故障注入 | 16 场景 (MQ/worker/outbox + 网关超时/断连 + 事务中断连/锁等待) | 30 | 空 JSON 响应、磁盘满、僵尸租约 (已覆盖的其余动作继续) |
 | 集成测试 | 112 (真基础设施) | 150 | 三服务 compose 组合、CP×Runtime E2E 矩阵 |
 | 金案例 | 100 (63正/37负) | 200 | 序列化状态机案例、更多注入负样本、跨契约组合案例 |
 | 前端测试 | 33 (web_api) | 60+ | SPA 路由/降级视图断言 |

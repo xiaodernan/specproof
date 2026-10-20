@@ -1,6 +1,6 @@
 """Fault-injection matrix (AGENT_STATE_OF_ART.md §9 故障注入行).
 
-Three fault families, mocked at the dependency boundary (no live infra):
+Four fault families, mocked at the dependency boundary (no live infra):
 
   1. Gateway 429 x3        -> providers retry semantics: bounded retries,
      then the raw failure propagates honestly — no fabricated LLMResponse.
@@ -14,6 +14,14 @@ Three fault families, mocked at the dependency boundary (no live infra):
      tests pin the current honest behaviour and are annotated; when M4
      adds the guard, test_checkpoint_resume_accepts_future_timestamps_today
      must be flipped to assert rejection.
+  4. Timeout / network drop -> the provider must treat a DEAD gateway the
+     same way it treats a throttled one: retry inside the budget, then
+     surface the raw failure. A timeout that silently became an empty
+     answer would turn a dead gateway into a plausible-looking verdict.
+
+The database-side faults (network drop, lock wait) live in
+tests/integration/test_transaction_faults.py — they need a real
+transaction to prove the rollback against.
 
 Mocked dependencies only — no Docker, no network, no real keys.
 """
@@ -26,7 +34,12 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from openai import InternalServerError, RateLimitError
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    InternalServerError,
+    RateLimitError,
+)
 
 from craft.editor import EditError, Editor
 from craft.loop import CraftLoop, CraftLoopError
@@ -146,6 +159,78 @@ class TestGateway429HonestFailure:
         with pytest.raises(ValueError):
             await provider.chat(messages=[LLMMessage(role="user", content="ping")])
         assert fake.attempts == 1
+
+
+# ══════════════════════════════════════════════════════════════════
+# Scenario 4: a DEAD gateway (timeout / connection drop)
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestDeadGatewayHonestFailure:
+    """A timeout or a dropped connection is a dead gateway, not a verdict.
+
+    The retryable set names both (`APITimeoutError`, `APIConnectionError`),
+    so the question is not whether they are retried — it is what the caller
+    ends up holding when the budget runs out. A timeout that came back as
+    an empty answer would be the worst outcome of the three: a
+    plausible-looking verdict for a gateway that never answered.
+    """
+
+    @pytest.mark.parametrize(
+        "error_factory,label",
+        [
+            (lambda: APITimeoutError(request=SimpleNamespace(
+                method="POST", url="http://llm.test/v1/chat/completions"
+            )), "timeout"),
+            (lambda: APIConnectionError(request=SimpleNamespace(
+                method="POST", url="http://llm.test/v1/chat/completions"
+            )), "connection drop"),
+        ],
+    )
+    async def test_a_dead_gateway_surfaces_its_raw_error(
+        self, error_factory: Any, label: str,
+    ) -> None:
+        def responder(attempt: int) -> Any:
+            raise error_factory()
+
+        provider, fake = _make_provider(responder, max_retries=2)
+        with pytest.raises((APITimeoutError, APIConnectionError)):
+            await provider.chat(messages=[LLMMessage(role="user", content="ping")])
+        # The budget was spent retrying the dead gateway …
+        assert fake.attempts == 3, label
+        # … and the caller got the failure, not an invented answer.
+        assert "content" not in dir(provider)
+
+    async def test_a_dead_gateway_recovers_within_the_budget(self) -> None:
+        """A timeout followed by a healthy answer must reach the caller."""
+
+        def responder(attempt: int) -> Any:
+            if attempt == 1:
+                raise APITimeoutError(request=SimpleNamespace(
+                    method="POST", url="http://llm.test/v1/chat/completions"
+                ))
+            return _fake_response(content="recovered")
+
+        provider, fake = _make_provider(responder, max_retries=2)
+        result = await provider.chat(messages=[LLMMessage(role="user", content="ping")])
+        assert result.content == "recovered"
+        assert fake.attempts == 2
+
+    async def test_a_timeout_is_not_a_non_retryable_error(self) -> None:
+        """The retryable set must actually contain the timeout type.
+
+        A timeout that fell out of the retryable set would fail on the
+        first attempt — a single slow gateway would look like a broken
+        one, and the caller would give up far too early.
+        """
+        from providers.openai_compatible import _is_retryable
+
+        assert _is_retryable(APITimeoutError(request=SimpleNamespace(
+            method="POST", url="http://llm.test/v1/chat/completions"
+        )))
+        assert _is_retryable(APIConnectionError(request=SimpleNamespace(
+            method="POST", url="http://llm.test/v1/chat/completions"
+        )))
 
 
 # ══════════════════════════════════════════════════════════════════
