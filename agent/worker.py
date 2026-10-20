@@ -1344,6 +1344,11 @@ class ReclaimPass:
     reclaimed: list[str] = field(default_factory=list)
     exhausted: list[str] = field(default_factory=list)
     provider_recovered: list[tuple[str, str]] = field(default_factory=list)
+    #: Jobs moved to EXPIRED because they blew their execution budget.
+    #: Distinct from `reclaimed` (the worker's lease died) and from
+    #: `exhausted` (the retry budget ran out): this one is about the JOB's
+    #: own deadline, and the job is terminal — it is not re-delivered.
+    expired: list[str] = field(default_factory=list)
 
     def ran(self) -> bool:
         return self.lock_state == "acquired"
@@ -1354,13 +1359,15 @@ class ReclaimPass:
         return (
             f"reclaimed={len(self.reclaimed)} "
             f"budget_exhausted={len(self.exhausted)} "
-            f"provider_recovered={len(self.provider_recovered)}"
+            f"provider_recovered={len(self.provider_recovered)} "
+            f"expired={len(self.expired)}"
             + (f" ids={','.join(self.reclaimed)}" if self.reclaimed else "")
             + (
                 f" failed_ids={','.join(self.exhausted)}"
                 if self.exhausted
                 else ""
             )
+            + (f" expired_ids={','.join(self.expired)}" if self.expired else "")
         )
 
 
@@ -1443,6 +1450,21 @@ def run_reclaim_pass(
             return ReclaimPass(lock_state="held_by_other")
 
         outcome = reclaim_stale_running_jobs(lease_ttl_seconds)
+        # The EXPIRED sweep runs inside the same scope lock, so exactly one
+        # replica expires a given job. It is a different question from the
+        # reclaim: the reclaim answers "the worker died", this answers "the
+        # job outlived its budget" — and it ends the job, it does not
+        # re-deliver it.
+        expired: list[str] = []
+        try:
+            expired = MySQLStore().expire_overdue_jobs()
+        except Exception as exc:  # noqa: BLE001 — a broken sweep must not end the pass
+            incr("worker_expire_pass_error_total")
+            logger.warning("Expire pass raised; the reclaim result still stands: %s", exc)
+        if expired:
+            incr("worker_jobs_expired_total", float(len(expired)))
+            logger.info("Expired %d job(s) that exceeded their budget: %s",
+                        len(expired), ",".join(expired))
         provider: list[tuple[str, str]] = []
         if min_parked_seconds > 0:
             probe = provider_ready
@@ -1461,6 +1483,7 @@ def run_reclaim_pass(
             reclaimed=[str(row["id"]) for row in outcome.reclaimed],
             exhausted=[str(row["id"]) for row in outcome.exhausted],
             provider_recovered=provider,
+            expired=expired,
         )
     finally:
         if token is not None:

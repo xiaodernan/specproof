@@ -5917,3 +5917,25 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① **只有 3 个新状态有生产写入方**（PREPARING / REVIEWING，以及经由 REVIEWING 的终态路径）；`CONTRACT_REVIEW` **没有**——管线不在那里停，写它就是谎称作业在等人；`NEEDS_REVIEW` **没有**——它的生产者是 verdict 词汇的改动（把「有 finding」判 BLOCKED、「无 finding 但覆盖不足」判 NEEDS_REVIEW），那是 CLI 退出码 + 证书 + 前端三处的联动，不能夹带在「给状态加写入方」里。`EXPIRED` **没有**——它需要「作业执行期限」这个尚不存在的字段。② 本号**没有**跑一次真实 Docker/Redis/RabbitMQ/MySQL 端到端：状态推进在注入的假 store 下测，迁移在真实 MySQL 上应用并核对了 ENUM 与 `schema_migrations`。③ 迁移 0015 在**首次测试运行**时曾出现「版本已记录但 ENUM 未变」的现象（重跑后正常），成因未查清；`down/` 的折叠逻辑与 `up/` 的幂等性因此都需要在干净库上再验一次。④ 并发车道的前端在途改动被本车道**修复并完成**（不是回滚），其作者若再接手需知道发票页已可用。⑤ `test_job_reclaimer.py` 的假 cursor 仍是按旧参数顺序写的假，本号只调了 SQL 顺序去迎合它——**这说明该假与真 SQL 的耦合没有被真正拆开**，是下一号该收的债。
 
 **下一号队列（取号时按落地时点 max+1）。** ① `CONTRACT_REVIEW` 与 `NEEDS_REVIEW` 的诚实生产路径：前者要么让管线在契约待批时**真的停下**（新增等待态与恢复入口），要么**不写**；后者需要一次 verdict 词汇联动（BLOCKED / NEEDS_REVIEW 的边界）+ CLI 退出码 + 证书门 + 前端四处同时改。② `EXPIRED` 需要「作业执行期限」字段与一个回收器（`created_at + max_execution_seconds`）。③ 迁移 0015 在**空库**上的 up/down 往返验证（当前只在已有库上验过 up）。④ 回收器的假 cursor 与真 SQL 的耦合要拆开（假库按 SQL 语义求值，而不是按参数下标）。⑤ `test_job_reclaimer.py` 的 `arm_probe` 垃圾表问题在别的车道复发时，要有一个「测试库卫生」的一次性清理脚本。⑥ P1-7 / P3-4 / P3-7 其余项照旧。
+
+## #299 EXPIRED 长出生产写入方：执行期限列 + 过期回收；顺带把 0015 的 down 真正跑一遍
+
+**起因/占号。** #298 的下一号队列②是「`EXPIRED` 需要「作业执行期限」字段与一个回收器」，③是「迁移 0015 在**空库**上的 up/down 往返验证（当前只在已有库上验过 up）」。落地前重测账本：HEAD ba4c6be，`## #` id 最大 298，`## #299` 计数 0 ⇒ 取 **#299**。
+
+**先量旧行为（探针当场写）。** ① `EXPIRED` 状态在 0015 里进了 ENUM，但**没有生产写入方**：回收器只处理「worker 死了」（租约 TTL 过期），而「worker 还活着但作业永远不会结束」（沙箱不返回、测试挂死）这个形状**没有任何期限**，作业会一直停在在途状态直到有人手工发现。② 迁移 0015 的 **down 从未被执行过**——它声明「先把新状态折叠回旧 ENUM 认得的态，再收窄 ENUM」，但折叠逻辑一行没跑过；而这正是最危险的一段：直接收窄时非严格 MySQL 会把持新值的行**截断成空串**（静默损坏，不是报错）。③ 探针还量出一件与本号无关但必须记账的事：`verification_jobs` **没有** `finished_at` 列（那是 `agent_jobs` 的），按记忆写 UPDATE 会得到 `Unknown column 'finished_at' in 'field list'`。
+
+**修。**
+- **迁移 0016**（`infra/mysql/migrations/0016_job_execution_deadline.sql` + `down/`）：`verification_jobs` 加 `max_execution_seconds INT NOT NULL DEFAULT 3600`。逐作业（不是全局常量）——DEEP 档可以给更长时间，一个卡住的作业也可以被单独放宽；NOT NULL + 缺省，让**不认识该列的旧 worker** 写入的行也带着可用预算，而不是 NULL（「没有期限」与「期限还很远」必须看起来不一样）。
+- **过期回收**（`storage/mysql.py::expire_overdue_jobs`）：按 `TIMESTAMPDIFF(SECOND, created_at, NOW(3)) > max_execution_seconds` 找超预算的行，逐行 CAS 到 `EXPIRED`（`status` 参与 CAS，避免与并发的取消/终态写互相覆盖），原因写进 `last_error`（含预算秒数与到期时的状态），每个都写审计（`job_expired_execution_budget`）。
+- **可过期集合与在途集合分开**（`IN_FLIGHT_STATUSES` vs `EXPIRABLE_STATUSES`）：「在途」回答的是「worker 死了吗」（回收器的问题），「可过期」回答的是「作业超预算了吗」——预算是**从创建起算的总时长**，所以**在队列里等太久的作业同样超预算**；而且一个只能在预算耗尽后才被领走的作业，会在开跑瞬间就被杀掉。两集合必须分开，否则排队超时的作业永远拿不到执行时间。
+- **接入回收循环**（`agent/worker.py::run_reclaim_pass`）：过期扫描跑在**同一把 scope 锁内**（多副本下只有一个会过期某个作业），且**不结束这一趟回收**（过期扫描抛错只计数，回收结果照常成立）。
+
+**迁移 0015 的 down 真的跑了一遍。** 新增 `tests/integration/test_migration_0015_roundtrip.py`（4 项）：在一张**形状相同的临时表**上执行真实的 up → 写入持有 5 个新状态的行 → 执行真实的 down → 断言 ENUM 回到 10 态、**5 行全部存活且状态被折叠正确**（PREPARING/CONTRACT_REVIEW/REVIEWING → RUNNING，NEEDS_REVIEW/EXPIRED → FAILED）、**没有任何一行被截断成空串**；再 up → down → up 仍然成立。**诚实边界**：这不是**空库**——测试用户没有 `CREATE DATABASE` 权限（探针实测：errno 1044），所以「空库」这一层没验；但真正会坏的那一段（ENUM 加宽 / 折叠 / 收窄 / 再加宽）在真实 MySQL 引擎上跑通了。
+
+**门与腿。** 新增 `tests/integration/test_job_expiry.py`（8 项）：超预算 → EXPIRED；原因写明预算；**未超预算 → 不动**（期限不是「把一切都过期」的清扫）；已终态 → 不动；**每个在途态都受期限约束**（在 PREPARING 崩的作业和在 RUNNING 崩的一样卡）；每个过期都写审计；过期两次不重复；**不写该列的行也带着可用预算**（否则 NULL 会让检查永远跳过它）。既有门：`test_job_reclaimer.py`（35）、`test_reclaim_tick.py`（21）、`test_job_state_machine.py`（26）、`test_job_stage.py`（21）、`test_worker_cancel_points.py`（25）——合计 **128 passed**；迁移相关 `test_migrations.py`（10）、`test_migration_pairing_reverses.py`（4）、`test_data_dictionary_covers_migrations.py`（5）+ 新增往返（4）**23 passed**。`ruff check .` 0 errors、`mypy .` 0 errors（229 源文件）。
+
+**否证与订正。** ① 第一次写 UPDATE 时按记忆用了 `finished_at` 列 → 真实 MySQL 报 `Unknown column`：**`verification_jobs` 没有这一列**（`agent_jobs` 才有），改用 `updated_at`。② 第一版 `EXPIRABLE` 直接复用 `IN_FLIGHT`，结果「QUEUED 的作业不过期」——这不是实现 bug 而是**模型 bug**：预算是从创建起算的总时长，排队超时的作业同样超预算，于是拆成两个集合（并写明为什么不合并）。③ 探针一度**误报迁移器有 bug**（「版本已记录但列不存在」）：根因是探针脚本自己 `MySQLStore()` **没传 config**（无参时读 `from_env()`），于是所有「针对 specproof_phase0」的操作其实都落在 `specproof_test`。**迁移器没有这个 bug**；记在这里是因为「迁移没生效」的第一反应应当是**先确认自己连的是哪个库**。④ 试过用 `CREATE DATABASE` 做真正的空库往返，被 errno 1044 拒绝（测试用户无此权限）——改为同形状临时表，并把「不是空库」写进诚实边界，而不是把临时表说成空库。
+
+**诚实边界。** ① 预算是**从创建起算**的，作业在队列里等待的时间也算在内；DEEP 档目前继承同一个 3600 秒缺省，要给更多时间需要提交方显式写该列（列已存在，路径是通的，但还没有提交方去写它）。② 过期**不重投**作业（它是终态，与回收的 QUEUED 语义相反）。③ 期限检查用**数据库时钟**（`TIMESTAMPDIFF` 对 `NOW(3)`），所以测试宿主的时钟偏差不会让作业看起来过期或未过期。④ 过期扫描只在**回收 tick 开着**时跑（`reclaim_interval <= 0` 时只有人工 `specproof ops recover`，而那条命令不调用过期扫描——下一号要么接上，要么明说）。⑤ 迁移 0016 的 down 只是删列（值是「作业的预算」，删掉后作业回到 0016 之前「不会过期」的行为，即 up 想要改善的那个行为）。
+
+**下一号队列（取号时按落地时点 max+1）。** ① `specproof ops recover` 要不要也做过期扫描（人工路径与自动路径的覆盖差）。② DEEP 档的提交方要显式写 `max_execution_seconds`（否则 DEEP 与 FAST 同预算，可能误杀）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 回收器的假 cursor 与真 SQL 的耦合要拆开（#298 队列④，未动）。⑤ 「测试库卫生」一次性清理脚本（`arm_probe` 之类的变异臂遗留表）（#298 队列⑤，未动）。⑥ P1-7 / P3-4 / P3-7 其余项照旧。

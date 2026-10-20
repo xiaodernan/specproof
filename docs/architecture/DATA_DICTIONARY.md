@@ -1,7 +1,7 @@
 # 数据字典 (DATA_DICTIONARY) — SpecProof 全存储字段级说明
 
 > 口径与出处: 本文逐字段登记 SpecProof 的全部持久化状态。MySQL 表结构以
-> `infra/mysql/migrations/0001_init.sql` 至 `0015_job_state_vocabulary.sql` 十五个版本化迁移为准,
+> `infra/mysql/migrations/0001_init.sql` 至 `0016_job_execution_deadline.sql` 十六个版本化迁移为准,
 > 并与代码内幂等 DDL (`storage/identity.py` / `storage/billing.py` / `storage/agent_jobs.py` /
 > `storage/object_metadata.py` / `storage/migrations.py`) 逐表核对; MongoDB/MinIO/ES/Redis/RabbitMQ
 > 以对应 `storage/*` 适配器为准。
@@ -23,9 +23,10 @@
 
 ## 1. MySQL — 数据库 `specproof_phase0` (compose 服务 mysql:8.4)
 
-共 19 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测; 0014/0015 落库后仍为 19):
-18 张来自版本化迁移 0001-0015 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0014 只给
+共 19 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测; 0014/0015/0016 落库后仍为 19):
+18 张来自版本化迁移 0001-0016 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0014 只给
 `usage_ledger` 加 `job_id` 列不建新表; 0015 只扩 `verification_jobs.status` 的 ENUM 不建新表;
+0016 只给 `verification_jobs` 加 `max_execution_seconds` 列不建新表;
 0013 建
 `notify_outbox`, 见 §1.21), 1 张
 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
@@ -38,7 +39,7 @@
 ### 1.1 verification_jobs — 验证任务 (业务事实源)
 
 来源: `0001_init.sql` (+ `0002` 状态枚举, `0003` summary, `0004` github_check_json, `0005` tenant_id,
-`0015` 状态词表扩展)
+`0015` 状态词表扩展, `0016` 执行期限列)
 
 | 列 | 类型 | 说明 |
 |---|---|---|
@@ -52,6 +53,7 @@
 | stale_replaced_by | CHAR(36) NULL | 取代本 Job 的新 Job id |
 | last_error | TEXT NULL | 终态错误/原因 (统一错误分类 JSON) |
 | worker_id | CHAR(36) NULL | 认领 worker |
+| max_execution_seconds | INT NOT NULL DEFAULT 3600 (0016) | 本次执行的**总时长预算**（从 created_at 起算）；超时的在途作业被回收器置为 EXPIRED。逐作业可调（DEEP 档可给更长时间），不是全局常量 |
 | summary | JSON NULL (0003) | 管线结果摘要 (verdict/matrix/findings/capsules)。matrix 部分自 2026-09-23 起**同时含计数与逐条行**: `matrix_passed/failed/unverified` + `matrix_rows[]`(定形 15 键投影, 含 `attribution`/`base_result`/`head_result`/`next_action`) + `matrix_rows_total`/`matrix_rows_truncated`(行上限 60, 截断如实标注)。**真实任务的逐条结果只有这一条通路** —— `contracts`/`findings` 表的生产写入方仅 `scripts/seed_demo.py` |
 | github_check_json | JSON NULL (0004) | GitHub Check Run 簿记; NULL=非 PR 来源 |
 | tenant_id | CHAR(36) NULL (0005) | NULL=单租户兼容/旧数据/webhook 来源 |

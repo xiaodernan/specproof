@@ -163,6 +163,19 @@ IN_FLIGHT_STATUSES: frozenset[str] = frozenset({
     "WAITING_FOR_PROVIDER",
 })
 
+#: The statuses a job may EXPIRE from — the in-flight ones plus QUEUED.
+#:
+#: The two sets differ on purpose. "In flight" means a worker is working
+#: on the job (the reclaim's question: did the worker die?). "Expirable"
+#: means the job's own budget is measured from its CREATION, so a job
+#: that sat in the queue longer than its budget is over budget too — and
+#: a job that could only start after the budget was already spent would
+#: be killed the moment it began.
+#:
+#: PENDING is NOT here: it is the retired legacy initial name, and no new
+#: submission creates it.
+EXPIRABLE_STATUSES: frozenset[str] = IN_FLIGHT_STATUSES | {"QUEUED"}
+
 #: The in-flight set in a DETERMINISTIC order (the SQL placeholder list and
 #: the bound parameters must agree, and a frozenset's order is not stable
 #: across runs).
@@ -171,6 +184,10 @@ _IN_FLIGHT_STATUS_ORDER: tuple[str, ...] = tuple(sorted(IN_FLIGHT_STATUSES))
 #: Placeholder list for the in-flight statuses. The values travel through
 #: placeholders (bandit B608), never through SQL text.
 _IN_FLIGHT_SQL_LIST = ", ".join(["%s"] * len(_IN_FLIGHT_STATUS_ORDER))
+
+#: The same, for the expirable set (the in-flight ones plus QUEUED).
+_EXPIRABLE_STATUS_ORDER: tuple[str, ...] = tuple(sorted(EXPIRABLE_STATUSES))
+_EXPIRABLE_SQL_LIST = ", ".join(["%s"] * len(_EXPIRABLE_STATUS_ORDER))
 
 TERMINAL_STATUSES = {
     "VERIFIED", "BLOCKED", "NEEDS_REVIEW", "CANCELLED", "STALE", "EXPIRED", "ERROR",
@@ -196,6 +213,11 @@ RETIRED_STATUSES = frozenset({"PENDING", "ERROR"})
 ALL_STATUSES: Final[frozenset[str]] = frozenset(_VALID_TRANSITIONS) | frozenset(
     set().union(*_VALID_TRANSITIONS.values())
 )
+
+#: Audit action written when a job that blew its execution budget is moved
+#: to EXPIRED. Distinct from the reclaim actions: the reclaim means "the
+#: worker died", this means "the job ran past the time it was allowed".
+EXPIRE_OVERDUE_JOB_ACTION = "job_expired_execution_budget"
 
 #: Audit action written when the stale-RUNNING reclaimer returns a job to QUEUED.
 RECLAIM_STALE_RUNNING_ACTION = "job_reclaimed_stale_running"
@@ -1415,6 +1437,69 @@ class MySQLStore:
             candidates=len(candidates),
             probed=len(candidates),
         )
+
+    def expire_overdue_jobs(self) -> list[str]:
+        """Move jobs that blew their execution budget to EXPIRED.
+
+        The reclaim pass answers "the worker died" (the lease TTL expired).
+        This answers the OTHER stuck shape: the worker is alive but the
+        job will never finish — a sandbox that never returns, a test
+        that hangs. Without a deadline such a job sits in an in-flight
+        status until a human notices by hand.
+
+        The budget is PER ROW (``max_execution_seconds``, migration 0016),
+        measured from the job's creation. A job that already reached a
+        terminal state is not touched, and a job whose budget is not yet
+        spent is not touched.
+
+        Returns the ids that were expired. Each one is audited.
+        """
+        expired: list[str] = []
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, status, max_execution_seconds, created_at "
+                "FROM verification_jobs "
+                f"WHERE status IN ({_EXPIRABLE_SQL_LIST}) "
+                "AND TIMESTAMPDIFF(SECOND, created_at, NOW(3)) "
+                "> max_execution_seconds "
+                "ORDER BY created_at, id",
+                _EXPIRABLE_STATUS_ORDER,
+            )
+            candidates = cast(list[dict[str, Any]], cur.fetchall())
+            for row in candidates:
+                job_id = str(row["id"])
+                current = str(row["status"])
+                budget = int(row["max_execution_seconds"] or 0)
+                reason = json.dumps(
+                    {
+                        "reason": "execution_budget_exhausted",
+                        "max_execution_seconds": budget,
+                        "status_at_expiry": current,
+                    },
+                    ensure_ascii=False,
+                )
+                cur.execute(
+                    "UPDATE verification_jobs SET status = 'EXPIRED', "
+                    "worker_id = NULL, last_error = %s, "
+                    "updated_at = NOW(3) "
+                    "WHERE id = %s AND status = %s",
+                    (reason, job_id, current),
+                )
+                if cur.rowcount != 1:
+                    # The row moved on between the SELECT and the UPDATE
+                    # (a cancel, a terminal write). Not expired.
+                    continue
+                expired.append(job_id)
+        for job_id in expired:
+            self.record_audit(
+                action=EXPIRE_OVERDUE_JOB_ACTION,
+                actor="reclaimer",
+                job_id=job_id,
+                to_status="EXPIRED",
+                detail="execution budget exhausted",
+            )
+        return expired
 
     def _stale_running_candidates(
         self, lease_ttl_seconds: int,
