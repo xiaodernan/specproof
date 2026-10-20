@@ -21,6 +21,13 @@ Every sample is a REAL golden case, and the ground truth inside each
 case is what the registry asserts — so an entry that drifts from the
 case it names is caught by a gate, not by a reader's trust.
 
+The templates each class names are **profile-driven** (the domain
+NAMES come from `agent/experiments/profile.py`, not from the template
+text), and the source they produce is pinned byte-for-byte by
+`tests/unit/test_generated_test_source_is_pinned.py` — so a template
+edit shows up as a diff in the generated Java, which is what the
+pipeline actually runs.
+
 The holdout is the one that can be MISSING, and that is recorded
 rather than faked: ``holdout_sample`` is ``None`` when the family has
 no second case of its own kind, and :func:`sample_coverage` says so

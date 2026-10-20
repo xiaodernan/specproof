@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from agent.experiments.profile import DEMO_PROFILE, TemplateProfile, render
 from agent.job_control import (
     JobCancelledError,
     check_cancelled,
@@ -111,13 +112,13 @@ modify database state.
 
 REQUIREMENTS:
 1. Use @SpringBootTest + @AutoConfigureMockMvc + @ActiveProfiles("test")
-2. Import TestMockBeansConfig with @Import
-3. Inject MockMvc and UserRepository
+2. Import @@test_config_class@@ with @Import
+3. Inject MockMvc and @@user_repo_class@@
 4. In @BeforeEach, clean DB and create a test user
 5. Write ONE test that sends an UNAUTHENTICATED PUT to the endpoint
 6. Use andReturn() and assertAll(): status must be 401/403 AND the DB row
    must be unchanged afterwards (no short-circuit - both assertions run)
-7. Full package: com.specproof.demo
+7. Full package: @@java_package@@
 8. Class name: SpecProofGeneratedTest
 
 Return ONLY the Java source code. No markdown fences, no explanation."""
@@ -270,14 +271,14 @@ async def _llm_generate_junit(
 
 
 _GENERATED_TEST_HEADER = """\
-package com.specproof.demo;
+package @@java_package@@;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.specproof.demo.config.TestMockBeansConfig;
-import com.specproof.demo.dto.ChangeEmailRequest;
-import com.specproof.demo.entity.User;
-import com.specproof.demo.event.EmailChangedEvent;
-import com.specproof.demo.repository.UserRepository;
+import @@java_package@@.config.@@test_config_class@@;
+import @@java_package@@.dto.@@change_email_request@@;
+import @@java_package@@.entity.@@user@@;
+import @@java_package@@.event.@@email_event@@;
+import @@java_package@@.repository.@@user_repo_class@@;
 // @P6_DOMAIN_IMPORTS@
 import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.ServletException;
@@ -323,14 +324,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(TestMockBeansConfig.class)
+@Import(@@test_config_class@@.class)
 public class SpecProofGeneratedTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
-    private UserRepository userRepository;
+    private @@user_repo_class@@ @@user_repo@@;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -340,28 +341,28 @@ public class SpecProofGeneratedTest {
 
     @BeforeEach
     void setUp() {
-        userRepository.deleteAll();
-        User user = new User("specproof", "specproof@example.com");
+        @@user_repo@@.deleteAll();
+        @@user@@ user = new @@user@@("specproof", "specproof@example.com");
         user.setPasswordHash("hash");
-        userRepository.save(user);
+        @@user_repo@@.save(user);
     }
 
 """
 
 _AUTH_TEST_TEMPLATE = """    @Test
     void unauthenticatedEmailChangeMustBeRejected() throws Exception {
-        User user = userRepository.findAll().get(0);
+        @@user@@ user = @@user_repo@@.findAll().get(0);
         String emailBefore = user.getEmail();
-        ChangeEmailRequest req = new ChangeEmailRequest("attacker@evil.com");
+        @@change_email_request@@ req = new @@change_email_request@@("attacker@evil.com");
 
-        MvcResult result = mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+        MvcResult result = mockMvc.perform(put(@@user_email_path@@, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andReturn();
 
         int status = result.getResponse().getStatus();
-        String emailAfter = userRepository.findById(user.getId())
-                .map(User::getEmail).orElse("NOT_FOUND");
+        String emailAfter = @@user_repo@@.findById(user.getId())
+                .map(@@user@@::getEmail).orElse("NOT_FOUND");
 
         assertAll(
             () -> assertEquals(401, status,
@@ -378,18 +379,18 @@ _AUTH_TEST_TEMPLATE = """    @Test
 _FRESH_TEST_TEMPLATE = """    @Test
     @WithMockUser
     void freshEmailChangeMustSucceed() throws Exception {
-        User user = userRepository.findAll().get(0);
-        ChangeEmailRequest req = new ChangeEmailRequest("fresh@example.com");
+        @@user@@ user = @@user_repo@@.findAll().get(0);
+        @@change_email_request@@ req = new @@change_email_request@@("fresh@example.com");
 
-        mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+        mockMvc.perform(put(@@user_email_path@@, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
         // The response echoes the REQUEST value, so silent corruption
         // (case-19) is only observable in the STORED row.
-        String stored = userRepository.findById(user.getId())
-                .map(User::getEmail).orElse("NOT_FOUND");
+        String stored = @@user_repo@@.findById(user.getId())
+                .map(@@user@@::getEmail).orElse("NOT_FOUND");
         assertEquals("fresh@example.com", stored,
             "DB STATE VIOLATION: stored email does not equal the requested "
             + "value");
@@ -400,19 +401,19 @@ _FRESH_TEST_TEMPLATE = """    @Test
 _BLANK_TEST_TEMPLATE = """    @Test
     @WithMockUser
     void blankEmailChangeMustBeRejected() throws Exception {
-        User user = userRepository.findAll().get(0);
-        ChangeEmailRequest req = new ChangeEmailRequest("");
+        @@user@@ user = @@user_repo@@.findAll().get(0);
+        @@change_email_request@@ req = new @@change_email_request@@("");
 
         // Validation failures are HANDLED by Spring MVC (400), unlike the
         // unhandled RuntimeException, so the raw status is asserted here.
-        MvcResult result = mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+        MvcResult result = mockMvc.perform(put(@@user_email_path@@, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andReturn();
 
         int status = result.getResponse().getStatus();
-        String emailAfter = userRepository.findById(user.getId())
-                .map(User::getEmail).orElse("NOT_FOUND");
+        String emailAfter = @@user_repo@@.findById(user.getId())
+                .map(@@user@@::getEmail).orElse("NOT_FOUND");
         assertAll(
             () -> assertTrue(status >= 400,
                 "Blank email was ACCEPTED: got " + status),
@@ -427,8 +428,8 @@ _BLANK_TEST_TEMPLATE = """    @Test
 _EVENT_TEST_TEMPLATE = """    @Test
     @WithMockUser
     void emailChangeEventMustGoToExpectedRoutingKey() throws Exception {
-        User user = userRepository.findAll().get(0);
-        ChangeEmailRequest req = new ChangeEmailRequest("fresh@example.com");
+        @@user@@ user = @@user_repo@@.findAll().get(0);
+        @@change_email_request@@ req = new @@change_email_request@@("fresh@example.com");
 
         // The test profile wires a MOCK RabbitTemplate (@Primary): the
         // only way to verify delivery semantics is the invocation itself.
@@ -441,9 +442,9 @@ _EVENT_TEST_TEMPLATE = """    @Test
             return null;
         }).when(rabbitTemplate).convertAndSend(
                 eq("specproof.demo.events"), eq("email.changed"),
-                any(EmailChangedEvent.class));
+                any(@@email_event@@.class));
 
-        mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+        mockMvc.perform(put(@@user_email_path@@, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
@@ -458,32 +459,32 @@ _EVENT_TEST_TEMPLATE = """    @Test
 _UNIQUE_TEST_TEMPLATE = """    @Test
     @WithMockUser
     void duplicateEmailChangeMustBeRejected() throws Exception {
-        User alice = new User("alice", "alice@example.com");
+        @@user@@ alice = new @@user@@("alice", "alice@example.com");
         alice.setPasswordHash("hash");
         // Explicit flush: the duplicate must be visible to the derived
         // existsByEmail query even when the test-managed transaction has
         // not committed yet.
-        userRepository.saveAndFlush(alice);
+        @@user_repo@@.saveAndFlush(alice);
 
-        User bob = userRepository.findAll().stream()
+        @@user@@ bob = @@user_repo@@.findAll().stream()
                 .filter(u -> "specproof@example.com".equals(u.getEmail()))
                 .findFirst().orElseThrow();
-        ChangeEmailRequest req = new ChangeEmailRequest("alice@example.com");
+        @@change_email_request@@ req = new @@change_email_request@@("alice@example.com");
 
         // MockMvc RETHROWS unhandled controller exceptions out of
         // perform() (the demo app has no global exception handler) - the
         // duplicate rejection surfaces exactly this way.
         final boolean[] rejected = {false};
         try {
-            mockMvc.perform(put("/api/users/" + "{id}" + "/email", bob.getId())
+            mockMvc.perform(put(@@user_email_path@@, bob.getId())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)));
         } catch (ServletException e) {
             rejected[0] = e.getCause() instanceof RuntimeException;
         }
 
-        String emailAfter = userRepository.findById(bob.getId())
-                .map(User::getEmail).orElse("NOT_FOUND");
+        String emailAfter = @@user_repo@@.findById(bob.getId())
+                .map(@@user@@::getEmail).orElse("NOT_FOUND");
         assertAll(
             () -> assertTrue(rejected[0],
                 "Duplicate email was ACCEPTED: no rejection exception "
@@ -502,47 +503,47 @@ _UNIQUE_TEST_TEMPLATE = """    @Test
 # case-01..20 specs never compile, so the pre-P6 cases keep exactly the
 # generated test they had (their measured behavior is untouched).
 
-_DOMAIN_IMPORTS = """import com.specproof.demo.dto.CancelOrderRequest;
-import com.specproof.demo.dto.PlaceOrderRequest;
-import com.specproof.demo.entity.CustomerOrder;
-import com.specproof.demo.entity.Product;
-import com.specproof.demo.event.OrderCreatedEvent;
-import com.specproof.demo.instrument.SqlQueryCounter;
-import com.specproof.demo.repository.CustomerOrderRepository;
-import com.specproof.demo.repository.ProductRepository;
+_DOMAIN_IMPORTS = """import @@java_package@@.dto.@@cancel_order_request@@;
+import @@java_package@@.dto.@@place_order_request@@;
+import @@java_package@@.entity.@@order@@;
+import @@java_package@@.entity.@@product@@;
+import @@java_package@@.event.@@order_event@@;
+import @@java_package@@.instrument.@@sql_query_counter@@;
+import @@java_package@@.repository.@@order_repo_class@@;
+import @@java_package@@.repository.@@product_repo_class@@;
 """
 
 _DOMAIN_FIELDS = """    @Autowired
-    private CustomerOrderRepository orderRepository;
+    private @@order_repo_class@@ @@order_repo@@;
 
     @Autowired
-    private ProductRepository productRepository;
+    private @@product_repo_class@@ @@product_repo@@;
 
     @Autowired
-    private SqlQueryCounter sqlQueryCounter;
+    private @@sql_query_counter@@ @@sql_query_counter_field@@;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
 """
 
-_SEED_USER_PRODUCT = """        orderRepository.deleteAll();
-        productRepository.deleteAll();
-        userRepository.deleteAll();
-        User user = new User("specproof", "specproof@example.com");
+_SEED_USER_PRODUCT = """        @@order_repo@@.deleteAll();
+        @@product_repo@@.deleteAll();
+        @@user_repo@@.deleteAll();
+        @@user@@ user = new @@user@@("specproof", "specproof@example.com");
         user.setPasswordHash("hash");
-        userRepository.saveAndFlush(user);
-        Product product = new Product("widget", 10, new BigDecimal("10.00"));
-        productRepository.saveAndFlush(product);
+        @@user_repo@@.saveAndFlush(user);
+        @@product@@ product = new @@product@@("widget", 10, new BigDecimal("10.00"));
+        @@product_repo@@.saveAndFlush(product);
 """
 
 _CACHE_EVICT_TEST_TEMPLATE = """    @Test
     @WithMockUser
     void emailChangeMustEvictUserCache() throws Exception {
-        User user = userRepository.findAll().get(0);
-        String cacheKey = "user:cache:" + user.getId();
-        String tokenPattern = "token:user:" + user.getId() + ":*";
-        ChangeEmailRequest req = new ChangeEmailRequest("fresh@example.com");
+        @@user@@ user = @@user_repo@@.findAll().get(0);
+        String cacheKey = "@@user_cache_key@@" + user.getId();
+        String tokenPattern = "@@user_token_key@@" + user.getId() + ":*";
+        @@change_email_request@@ req = new @@change_email_request@@("fresh@example.com");
 
         // The test profile wires a MOCK StringRedisTemplate (@Primary): the
         // only way to verify invalidation semantics is the invocation itself.
@@ -553,12 +554,12 @@ _CACHE_EVICT_TEST_TEMPLATE = """    @Test
         // shared mock cannot interfere.
         AtomicReference<String> storedAtEvict = new AtomicReference<>();
         doAnswer(invocation -> {
-            storedAtEvict.set(userRepository.findById(user.getId())
-                    .map(User::getEmail).orElse("NOT_FOUND"));
+            storedAtEvict.set(@@user_repo@@.findById(user.getId())
+                    .map(@@user@@::getEmail).orElse("NOT_FOUND"));
             return null;
         }).when(stringRedisTemplate).delete(eq(cacheKey));
 
-        mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+        mockMvc.perform(put(@@user_email_path@@, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
@@ -574,20 +575,20 @@ _CACHE_EVICT_TEST_TEMPLATE = """    @Test
 _CACHE_ASIDE_TEST_TEMPLATE = """    @Test
     @WithMockUser
     void getUserMustUseCacheAside() throws Exception {
-        User user = userRepository.findAll().get(0);
-        String cacheKey = "user:cache:" + user.getId();
+        @@user@@ user = @@user_repo@@.findAll().get(0);
+        String cacheKey = "@@user_cache_key@@" + user.getId();
         String cachedJson = "{\\"id\\":" + user.getId()
                 + ",\\"username\\":\\"specproof\\",\\"email\\":\\"specproof@example.com\\","
                 + "\\"orderCount\\":0}";
         var valueOps = stringRedisTemplate.opsForValue();
         when(valueOps.get(cacheKey)).thenReturn(null, cachedJson);
 
-        sqlQueryCounter.reset();
-        mockMvc.perform(get("/api/users/" + "{id}", user.getId()))
+        @@sql_query_counter_field@@.reset();
+        mockMvc.perform(get(@@user_detail_path@@, user.getId()))
                 .andExpect(status().isOk());
-        mockMvc.perform(get("/api/users/" + "{id}", user.getId()))
+        mockMvc.perform(get(@@user_detail_path@@, user.getId()))
                 .andExpect(status().isOk());
-        long queries = sqlQueryCounter.getCount();
+        long queries = @@sql_query_counter_field@@.getCount();
 
         // Base: first read misses the cache (2 queries: user + order count),
         // second read is served from the cache (0 queries). A head that
@@ -604,24 +605,24 @@ _CACHE_ASIDE_TEST_TEMPLATE = """    @Test
 
 _STALE_STOCK_TEST_TEMPLATE = """    @Test
     void staleStockWriteMustBeRejected() throws Exception {
-        productRepository.deleteAll();
-        Product product = new Product("widget", 10, new BigDecimal("10.00"));
-        productRepository.saveAndFlush(product);
+        @@product_repo@@.deleteAll();
+        @@product@@ product = new @@product@@("widget", 10, new BigDecimal("10.00"));
+        @@product_repo@@.saveAndFlush(product);
 
-        Product snapshotA = productRepository.findById(product.getId()).orElseThrow();
-        Product snapshotB = productRepository.findById(product.getId()).orElseThrow();
+        @@product@@ snapshotA = @@product_repo@@.findById(product.getId()).orElseThrow();
+        @@product@@ snapshotB = @@product_repo@@.findById(product.getId()).orElseThrow();
         snapshotA.setStock(snapshotA.getStock() - 3);
-        productRepository.saveAndFlush(snapshotA);
+        @@product_repo@@.saveAndFlush(snapshotA);
 
         final boolean[] rejected = {false};
         try {
             snapshotB.setStock(snapshotB.getStock() - 4);
-            productRepository.saveAndFlush(snapshotB);
+            @@product_repo@@.saveAndFlush(snapshotB);
         } catch (ObjectOptimisticLockingFailureException | OptimisticLockException e) {
             rejected[0] = true;
         }
 
-        Integer finalStock = productRepository.findById(product.getId())
+        Integer finalStock = @@product_repo@@.findById(product.getId())
                 .orElseThrow().getStock();
         assertAll(
             () -> assertTrue(rejected[0],
@@ -636,19 +637,19 @@ _STALE_STOCK_TEST_TEMPLATE = """    @Test
 _IDEMPOTENT_TEST_TEMPLATE = """    @Test
     void duplicateOrderRequestMustBeDeduped() throws Exception {
 """ + _SEED_USER_PRODUCT + """
-        PlaceOrderRequest req = new PlaceOrderRequest(
+        @@place_order_request@@ req = new @@place_order_request@@(
                 user.getId(), product.getId(), 3, "req-dedup-1");
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post(@@place_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post(@@place_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
-        int orderRows = orderRepository.findAll().size();
-        Integer stock = productRepository.findById(product.getId())
+        int orderRows = @@order_repo@@.findAll().size();
+        Integer stock = @@product_repo@@.findById(product.getId())
                 .orElseThrow().getStock();
         assertAll(
             () -> assertEquals(1, orderRows,
@@ -663,27 +664,27 @@ _IDEMPOTENT_TEST_TEMPLATE = """    @Test
 _ROLLBACK_TEST_TEMPLATE = """    @Test
     void orderPlacementFailureMustNotLoseStock() throws Exception {
 """ + _SEED_USER_PRODUCT + """
-        PlaceOrderRequest ok = new PlaceOrderRequest(
+        @@place_order_request@@ ok = new @@place_order_request@@(
                 user.getId(), product.getId(), 3, "req-ok-1");
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post(@@place_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(ok)))
                 .andExpect(status().isOk());
 
-        PlaceOrderRequest over = new PlaceOrderRequest(
+        @@place_order_request@@ over = new @@place_order_request@@(
                 user.getId(), product.getId(), 99, "req-over-1");
         final boolean[] rejected = {false};
         try {
-            mockMvc.perform(post("/api/orders")
+            mockMvc.perform(post(@@place_order_path@@)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(over)));
         } catch (ServletException e) {
             rejected[0] = e.getCause() instanceof RuntimeException;
         }
 
-        Integer stock = productRepository.findById(product.getId())
+        Integer stock = @@product_repo@@.findById(product.getId())
                 .orElseThrow().getStock();
-        long orderRows = orderRepository.findAll().size();
+        long orderRows = @@order_repo@@.findAll().size();
         assertAll(
             () -> assertTrue(rejected[0], "Oversized order was accepted"),
             () -> assertEquals(7, stock,
@@ -698,22 +699,22 @@ _ROLLBACK_TEST_TEMPLATE = """    @Test
 _CANCEL_RESTOCK_TEST_TEMPLATE = """    @Test
     void cancelOrderMustRestock() throws Exception {
 """ + _SEED_USER_PRODUCT + """
-        PlaceOrderRequest place = new PlaceOrderRequest(
+        @@place_order_request@@ place = new @@place_order_request@@(
                 user.getId(), product.getId(), 3, "req-cancel-1");
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post(@@place_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(place)))
                 .andExpect(status().isOk());
 
-        CancelOrderRequest cancel = new CancelOrderRequest("req-cancel-1");
-        mockMvc.perform(post("/api/orders/cancel")
+        @@cancel_order_request@@ cancel = new @@cancel_order_request@@("req-cancel-1");
+        mockMvc.perform(post(@@cancel_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(cancel)))
                 .andExpect(status().isOk());
 
-        Integer stock = productRepository.findById(product.getId())
+        Integer stock = @@product_repo@@.findById(product.getId())
                 .orElseThrow().getStock();
-        String status = orderRepository.findByRequestId("req-cancel-1")
+        String status = @@order_repo@@.findByRequestId("req-cancel-1")
                 .orElseThrow().getStatus();
         assertAll(
             () -> assertEquals(10, stock,
@@ -728,14 +729,14 @@ _CANCEL_RESTOCK_TEST_TEMPLATE = """    @Test
 _FULL_STOCK_TEST_TEMPLATE = """    @Test
     void fullStockOrderMustBeAllowed() throws Exception {
 """ + _SEED_USER_PRODUCT + """
-        PlaceOrderRequest req = new PlaceOrderRequest(
+        @@place_order_request@@ req = new @@place_order_request@@(
                 user.getId(), product.getId(), 10, "req-full-1");
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post(@@place_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
-        Integer stock = productRepository.findById(product.getId())
+        Integer stock = @@product_repo@@.findById(product.getId())
                 .orElseThrow().getStock();
         assertEquals(0, stock,
             "Ordering exactly the available stock must succeed (stock 0), got " + stock);
@@ -743,9 +744,9 @@ _FULL_STOCK_TEST_TEMPLATE = """    @Test
         // Boundary sibling: a non-positive quantity must be rejected with
         // 4xx and must not create an order row (validation failures are
         // HANDLED by Spring MVC, so the raw status is asserted here).
-        PlaceOrderRequest zero = new PlaceOrderRequest(
+        @@place_order_request@@ zero = new @@place_order_request@@(
                 user.getId(), product.getId(), 0, "req-zero-1");
-        MvcResult zeroResult = mockMvc.perform(post("/api/orders")
+        MvcResult zeroResult = mockMvc.perform(post(@@place_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(zero)))
                 .andReturn();
@@ -761,14 +762,14 @@ _FULL_STOCK_TEST_TEMPLATE = """    @Test
 _ORDER_AMOUNT_TEST_TEMPLATE = """    @Test
     void orderAmountMustEqualUnitPriceTimesQuantity() throws Exception {
 """ + _SEED_USER_PRODUCT + """
-        PlaceOrderRequest req = new PlaceOrderRequest(
+        @@place_order_request@@ req = new @@place_order_request@@(
                 user.getId(), product.getId(), 3, "req-amt-1");
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post(@@place_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
-        BigDecimal amount = orderRepository.findByRequestId("req-amt-1")
+        BigDecimal amount = @@order_repo@@.findByRequestId("req-amt-1")
                 .orElseThrow().getAmount();
         assertEquals(0, new BigDecimal("30.00").compareTo(amount),
             "Order amount must be 30.00 (price 10 x qty 3), got " + amount);
@@ -778,26 +779,26 @@ _ORDER_AMOUNT_TEST_TEMPLATE = """    @Test
 
 _NPLUSONE_TEST_TEMPLATE = """    @Test
     void listUsersMustNotUseNPlusOneQueries() throws Exception {
-        orderRepository.deleteAll();
-        userRepository.deleteAll();
+        @@order_repo@@.deleteAll();
+        @@user_repo@@.deleteAll();
         for (int i = 0; i < 10; i++) {
-            User u = new User("bulk" + i, "bulk" + i + "@example.com");
+            @@user@@ u = new @@user@@("bulk" + i, "bulk" + i + "@example.com");
             u.setPasswordHash("hash");
-            userRepository.saveAndFlush(u);
-            orderRepository.saveAndFlush(new CustomerOrder(
+            @@user_repo@@.saveAndFlush(u);
+            @@order_repo@@.saveAndFlush(new @@order@@(
                     u.getId(), 1L, 1, new BigDecimal("10.00"),
                     "req-bulk-" + i + "-1", "CREATED"));
-            orderRepository.saveAndFlush(new CustomerOrder(
+            @@order_repo@@.saveAndFlush(new @@order@@(
                     u.getId(), 1L, 1, new BigDecimal("10.00"),
                     "req-bulk-" + i + "-2", "CREATED"));
         }
 
-        sqlQueryCounter.reset();
+        @@sql_query_counter_field@@.reset();
         mockMvc.perform(get("/api/users"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(10)))
                 .andExpect(jsonPath("$[0].orderCount").value(2));
-        long queries = sqlQueryCounter.getCount();
+        long queries = @@sql_query_counter_field@@.getCount();
 
         assertTrue(queries <= 3,
             "GET /api/users used " + queries + " queries; expected <= 3 "
@@ -819,11 +820,11 @@ _ORDER_EVENT_TEST_TEMPLATE = """    @Test
             return null;
         }).when(rabbitTemplate).convertAndSend(
                 eq("specproof.demo.events"), eq("order.created"),
-                any(OrderCreatedEvent.class));
+                any(@@order_event@@.class));
 
-        PlaceOrderRequest req = new PlaceOrderRequest(
+        @@place_order_request@@ req = new @@place_order_request@@(
                 user.getId(), product.getId(), 2, "req-ev-1");
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post(@@place_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
@@ -844,11 +845,11 @@ _ORDER_EVENT_ONCE_TEST_TEMPLATE = """    @Test
             return null;
         }).when(rabbitTemplate).convertAndSend(
                 eq("specproof.demo.events"), eq("order.created"),
-                any(OrderCreatedEvent.class));
+                any(@@order_event@@.class));
 
-        PlaceOrderRequest req = new PlaceOrderRequest(
+        @@place_order_request@@ req = new @@place_order_request@@(
                 user.getId(), product.getId(), 2, "req-once-1");
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post(@@place_order_path@@)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
@@ -870,14 +871,14 @@ _ORDER_RETRY_TEST_TEMPLATE = """    @Test
                 })
                 .when(rabbitTemplate).convertAndSend(
                         eq("specproof.demo.events"), eq("order.created"),
-                        org.mockito.ArgumentMatchers.<OrderCreatedEvent>argThat(event ->
+                        org.mockito.ArgumentMatchers.<@@order_event@@>argThat(event ->
                                 event.getRequestId().equals("req-retry-1")));
 
-        PlaceOrderRequest req = new PlaceOrderRequest(
+        @@place_order_request@@ req = new @@place_order_request@@(
                 user.getId(), product.getId(), 2, "req-retry-1");
         final boolean[] rejected = {false};
         try {
-            mockMvc.perform(post("/api/orders")
+            mockMvc.perform(post(@@place_order_path@@)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(req)));
         } catch (ServletException e) {
@@ -899,17 +900,17 @@ _ORDER_RETRY_TEST_TEMPLATE = """    @Test
 _INVALID_EMAIL_TEST_TEMPLATE = """    @Test
     @WithMockUser
     void invalidEmailChangeMustBeRejected() throws Exception {
-        User user = userRepository.findAll().get(0);
-        ChangeEmailRequest req = new ChangeEmailRequest("not-an-email");
+        @@user@@ user = @@user_repo@@.findAll().get(0);
+        @@change_email_request@@ req = new @@change_email_request@@("not-an-email");
 
-        MvcResult result = mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+        MvcResult result = mockMvc.perform(put(@@user_email_path@@, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andReturn();
 
         int status = result.getResponse().getStatus();
-        String emailAfter = userRepository.findById(user.getId())
-                .map(User::getEmail).orElse("NOT_FOUND");
+        String emailAfter = @@user_repo@@.findById(user.getId())
+                .map(@@user@@::getEmail).orElse("NOT_FOUND");
         assertAll(
             () -> assertTrue(status >= 400,
                 "Malformed email was ACCEPTED: got " + status),
@@ -923,8 +924,8 @@ _INVALID_EMAIL_TEST_TEMPLATE = """    @Test
 _SPURIOUS_EVENT_TEST_TEMPLATE = """    @Test
     @WithMockUser
     void emailChangeMustNotPublishSpuriousEvent() throws Exception {
-        User user = userRepository.findAll().get(0);
-        ChangeEmailRequest req = new ChangeEmailRequest(user.getEmail());
+        @@user@@ user = @@user_repo@@.findAll().get(0);
+        @@change_email_request@@ req = new @@change_email_request@@(user.getEmail());
 
         AtomicInteger publishes = new AtomicInteger();
         doAnswer(invocation -> {
@@ -932,9 +933,9 @@ _SPURIOUS_EVENT_TEST_TEMPLATE = """    @Test
             return null;
         }).when(rabbitTemplate).convertAndSend(
                 eq("specproof.demo.events"), eq("email.changed"),
-                any(EmailChangedEvent.class));
+                any(@@email_event@@.class));
 
-        mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+        mockMvc.perform(put(@@user_email_path@@, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
@@ -949,27 +950,27 @@ _SPURIOUS_EVENT_TEST_TEMPLATE = """    @Test
 _EVENT_PAYLOAD_TEST_TEMPLATE = """    @Test
     @WithMockUser
     void emailChangeEventPayloadMustBeIntact() throws Exception {
-        User user = userRepository.findAll().get(0);
+        @@user@@ user = @@user_repo@@.findAll().get(0);
         String oldEmail = user.getEmail();
-        ChangeEmailRequest req = new ChangeEmailRequest("fresh@example.com");
+        @@change_email_request@@ req = new @@change_email_request@@("fresh@example.com");
 
         // Captured via doAnswer instead of verify+captor: the RabbitTemplate
         // mock is shared across tests, so a verify() would count other
         // tests' email publishes and fail spuriously on the honest base.
-        AtomicReference<EmailChangedEvent> captured = new AtomicReference<>();
+        AtomicReference<@@email_event@@> captured = new AtomicReference<>();
         doAnswer(invocation -> {
-            captured.set((EmailChangedEvent) invocation.getArgument(2));
+            captured.set((@@email_event@@) invocation.getArgument(2));
             return null;
         }).when(rabbitTemplate).convertAndSend(
                 eq("specproof.demo.events"), eq("email.changed"),
-                any(EmailChangedEvent.class));
+                any(@@email_event@@.class));
 
-        mockMvc.perform(put("/api/users/" + "{id}" + "/email", user.getId())
+        mockMvc.perform(put(@@user_email_path@@, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
-        EmailChangedEvent event = captured.get();
+        @@email_event@@ event = captured.get();
         assertNotNull(event, "email.changed was not published to the documented key");
         assertAll(
             () -> assertEquals("fresh@example.com", event.getNewEmail(),
@@ -983,7 +984,10 @@ _EVENT_PAYLOAD_TEST_TEMPLATE = """    @Test
 
 """
 
-def _build_deterministic_test(contracts: list[dict[str, Any]]) -> str:
+def _build_deterministic_test(
+    contracts: list[dict[str, Any]],
+    profile: TemplateProfile = DEMO_PROFILE,
+) -> str:
     """Deterministic differential tests for the demo repository.
 
     Always: unauthenticated PUT -> 401 AND DB row unchanged (AUTH family).
@@ -1034,7 +1038,7 @@ def _build_deterministic_test(contracts: list[dict[str, Any]]) -> str:
     if _has_family(contracts, "ORDER_AMOUNT-01"):
         body += _ORDER_AMOUNT_TEST_TEMPLATE
     if _has_family(contracts, "NPLUSONE-01"):
-        # Query-count assertion via SqlQueryCounter: the honest base serves
+        # Query-count assertion via @@sql_query_counter@@: the honest base serves
         # the list in 2 queries; per-user loops blow the bound (cases
         # 79/80/82/83/85/86).
         body += _NPLUSONE_TEST_TEMPLATE
@@ -1073,7 +1077,11 @@ def _build_deterministic_test(contracts: list[dict[str, Any]]) -> str:
         "// @P6_DOMAIN_IMPORTS@",
         _DOMAIN_IMPORTS if needs_domain else "",
     )
-    return source
+    # The domain NAMES come from a profile, so the templates are not
+    # welded to the demo's vocabulary. Rendering happens ONCE, on the
+    # assembled source: the templates are concatenated as Python strings,
+    # so a placeholder inside any of them resolves here.
+    return render(source, profile)
 
 
 def _has_family(contracts: list[dict[str, Any]], family_id: str) -> bool:

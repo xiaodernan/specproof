@@ -6334,3 +6334,26 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 占比是**累计**比率（两个累计计数器相除），不是**时间窗**比率——它回答「到目前为止，有多大比例的作业需要人看」，不回答「最近一小时的比例」。时间窗比率需要 `rate()`/`increase()`，而累计比率更贴近「这个比例可不可接受」这个判断（它不随窗口长度抖动）✓，但**它不告诉你最近的倾向**。② 分母为零时（worker 从未跑完过一个作业）Grafana 显示 No data ✓ 不会显示 0%（0% 会被读成「没有问题」）。③ 阈值**仍未定**（#317 已记）：本号只把**分母**补上，让定线这件事有了可读的输入，**没有**顺手定一个数。④ 本号**没有**加告警规则（理由同 #317：§14 无出处 + 无基线）。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（先让模板驱动 service，再写案例）——#314 的结论。② 六类的**模板体抽成与仓库无关的可移植模板**。③ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。④ 仓库里其余手写假是否也换成求值器（#303 队列①，未动）。⑤ P1-7 / P3-7 其余项照旧。
+
+## #319 生成的实验源码不再焊死在 demo 词汇上：域**名字**进 profile，源码被 golden 逐字节钉住
+
+**起因/占号。** #318 的下一号队列②是「六类的**模板体抽成与仓库无关的可移植模板**（当前是 demo 专用字符串），并让 `experiment_classes` 的模板名指向那个新层」。落地前重测账本：HEAD 14bc2f7（`## #` id 最大 318）⇒ 取 **#319**。
+
+**先量旧行为（量的是「模板到底有多少是 demo 专用」）。** `agent/nodes/generate_counterexamples.py` 里 20 个 JUnit 模板把 demo 的词汇**焊死**了：`Product` / `productRepository` / `PlaceOrderRequest` / `CustomerOrder` / `OrderCreatedEvent` / `EmailChangedEvent` / `UserRepository` / `ProductRepository` / `CustomerOrderRepository` / `SqlQueryCounter` / `TestMockBeansConfig` / `com.specproof.demo` / `/api/orders` / `/api/orders/cancel` / `/api/users/{id}` / `/api/users/{id}/email` / `user:cache:` / `token:user:`。要换一个域的仓库，**只能整段抄走**——抄走之后每份各自分叉。实测替换点共 **63 处**（按最长优先、词边界替换，避免 `User` 命中 `WithMockUser` / `getUser`）。
+
+**修（名字与逻辑分层 + 源码被钉住）。**
+- **新层**（`agent/experiments/profile.py`）：`TemplateProfile` 持有一份仓库的**域名字**（实体类、仓储字段与类、请求 DTO、事件、端点表达式、缓存键前缀、Java 包名），`DEMO_PROFILE` 是 demo 的那一套。占位符语法用 `@@name@@`（**不是** `{name}`）——模板是 **Java**，每个方法体都是大括号，`str.format` 会被撑爆。
+- **模板改名**：`generate_counterexamples.py` 里那 63 处 demo 词汇改成占位符；组装末尾**整体渲染一次**（模板是 Python 字符串拼接，渲染必须发生在拼接之后）。
+- **profile 可注入**：`build_deterministic_test(contracts, profile=DEMO_PROFILE)`——别的仓库要用这一层，入口就在这里。
+- **源码被 golden 钉住**（新建 `tests/unit/golden/generated_test_demo.java` + `tests/unit/test_generated_test_source_is_pinned.py`，**17** 项）：demo profile 产出的源码必须与 golden **逐字节相同**；**任何一个占位符没被解析**都不许留在输出里；**换一个 profile** 时类名/包名跟着换、**断言一字不动**（这就是这一层的诚实边界：逻辑仍是这个域的）；每个被分发的家族都要真的出现在源码里。
+
+**门与腿。** 新增 `tests/unit/test_generated_test_source_is_pinned.py`（17 项）；相关回归 `test_generate_counterexamples_node_execution_is_observable.py`、`test_llm_counterexample_path_actually_runs.py`、`test_matrix_policy.py`、`test_matrix_pure.py`、`test_experiment_class_samples.py`——**118 passed**。`ruff check .`（除并发车道在途文件外）0 errors、`mypy .` 0 errors（**230** 源文件，较上批 +1）。
+
+**否证与订正（本号最重要的一条：**改一个字都可能改掉生成的 Java**）。**
+① 重构的**唯一**证据是「改前改后逐字节相同」：本号把 `git show HEAD:` 的旧模块与新模块**并排加载**，对同一组（12 个家族各一条）契约各生成一次源码并比对——**IDENTICAL**。中间它**抓到过一处真差异**：邮箱路径原本是 Java 字符串**拼接**（`"/api/users/" + "{id}" + "/email"`），我第一版改成了单个字符串——语义等价但**不是逐字节**，于是改回：profile 的值改为携带**原样的表达式**（含自己的引号），模板的占位符**不带**外层引号。**「等价」不等于「没变」**——生成的 Java 是管线的产物，它变了就是 SpecProof 证明了别的东西。
+② 占位符太长（`@@product_repository@@` 21 字符）把两行模板顶过了行宽 ⇒ 统一**缩短实体/仓储族**的占位符（`@@product@@` / `@@product_repo@@`），并同步 profile 的字段名与键名。缩短后又踩了一次**键名不同步**（模板写 `@@user_repository_class@@`、profile 的键叫 `user_repo_class`）——渲染不出来，golden 立刻红。**占位符与键是一个契约，两边必须一起改。**
+③ golden 一开始是「用新代码生成的」——那只能证明**此后**不再变，不能证明**重构没变**。所以 golden 是用**旧模块**的输出写的，而新旧比对是**单独一次**的验证。
+
+**诚实边界。** ① **可移植的只是名字**：模板的**逻辑**仍是这个域的（「订单失败不得泄漏库存扣减」是关于订单的断言）；换一个域（没有订单/库存的仓库）需要**自己的模板**，不是换个拼写。门里那条「断言一字不动」正是在说这件事。② 模板里的**局部变量名**（`product` / `user`）**没有**参数化——它们是模板逻辑的一部分（`product.getId()` 读的是被测实体的属性名，那属于「这个域叫什么」的**一半**，本号只参数化了类型名）。这是本层最明确的一条**未竟**边界。③ 端点值携带的是**表达式**（可能是拼接）而不是「路径」——这是为了逐字节不变；换句话说，profile 描述的是「这个域的测试怎么写」，不只是「路径是什么」。④ 63 处替换是**机械**的，真正的风险在**漏网**：本号靠 golden 兜住了（漏一处 ⇒ golden 红）——这正是 golden 存在的理由。⑤ 本号**没有**让 `experiment_classes` 的模板名指向新层（模板体仍在 `generate_counterexamples.py`，只是它们现在是 profile 驱动的）；把模板**搬进** `agent/experiments/` 是下一次独立的整理。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（先让模板驱动 service，再写案例）——#314 的结论。② 模板**搬进** `agent/experiments/`，让 `experiment_classes` 的模板名指向新层（#319 的诚实边界⑤）。③ 局部变量名是否也该进 profile（本号的边界②）。④ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 仓库里其余手写假**逐份评估**——实测多数是**方法级鸭子类型**（不是 SQL 假），把它们换成求值器等于把它们变成真 store，是**另一类**改动；#303 的队列项④「其余手写假换成求值器」这个框法**不准**，下一号应先逐份判断「它到底是不是 SQL 假」。⑥ P1-7 / P3-7 其余项照旧。

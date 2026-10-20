@@ -251,7 +251,8 @@
 - P3-7 故障注入 ✅（`storage/artifact_store.py`：对象上传成功但写库失败的诚实处理 —— 报告 `metadata_recorded=False` + 原因；strict 模式补偿删除（失败也报告）；非 strict 模式保留对象并给出对账线索）
 - P3-5 统一状态快照 ✅（`experiments/db_snapshot.py`：分表 DbSnapshot 模型、表无关比较、可插拔采集器协议；线格式向后兼容）
 - P3-4 六类实验模板 ✅（#312：`experiments/experiment_classes.py` 把六类实验做成可复用协议（家族/机制/模板/正负/holdout 样本）；门逐条核验样本的 ground truth；覆盖报告记录缺口——CONCURRENCY-01 的 holdout 仍缺，需新建案例）
-- P3-4 模板体抽成与仓库无关的可移植模板（待开始，见账本 #312 下一号队列）
+- P3-4 模板体抽成与仓库无关的可移植模板 ✅（#319：域**名字**进 `agent/experiments/profile.py`（实体/仓储/DTO/端点/包名），模板的**逻辑**留在原处；生成的源码被 golden **逐字节**钉住，profile 可注入）
+- 模板搬进 `agent/experiments/` 并让 `experiment_classes` 指向新层（待开始，见账本 #319 下一号队列）
 - P3-7 其余故障注入：服务崩溃/超时/网络断开/消息重投/DB 锁等待（待开始）
 - 状态机生产写入方 ✅（`agent/job_stage.py`：PREPARING/REVIEWING 由管线阶段推进；迁移 0015 把 ENUM 扩到 15 态；回收器覆盖全部在途状态）
 - EXPIRED 生产写入方 ✅（迁移 0016 加 `max_execution_seconds`；`expire_overdue_jobs` 把超期作业置为 EXPIRED；回收 tick 在同一把 scope 锁内调用）
