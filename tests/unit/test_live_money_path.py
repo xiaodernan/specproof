@@ -29,7 +29,6 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-import api.routes.jobs as jobs_module
 from api.identity.tokens import mint_token
 from api.server import app
 from storage.billing import (
@@ -122,7 +121,7 @@ def money_env(
     reset_billing_store()
     reset_billing_writer()
     _ScopeStampingMySQL.reset()
-    monkeypatch.setattr(jobs_module, "MySQLStore", _ScopeStampingMySQL)
+    monkeypatch.setattr("api.services.verification_service.MySQLStore", _ScopeStampingMySQL)
     monkeypatch.setattr("storage.redis.RedisStore", _FakeRateLimitRedis)
     yield
     reset_identity_store()

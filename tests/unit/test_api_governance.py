@@ -100,7 +100,11 @@ class FakeMySQLStore:
 def fake_mysql(monkeypatch: pytest.MonkeyPatch) -> FakeMySQLStore:
     FakeMySQLStore.rows = {}
     FakeMySQLStore.fail_next = False
-    monkeypatch.setattr(jobs_module, "MySQLStore", FakeMySQLStore)
+    # The route reaches the store through the application service, so the
+    # seam is there — the route module no longer constructs a store.
+    monkeypatch.setattr(
+        "api.services.verification_service.MySQLStore", FakeMySQLStore
+    )
     monkeypatch.setattr("storage.redis.RedisStore", FakeRedisRateLimit)
     return FakeMySQLStore()
 

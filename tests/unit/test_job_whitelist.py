@@ -96,7 +96,7 @@ class FakeMySQLStore:
 @pytest.fixture()
 def fake_mysql(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     FakeMySQLStore.rows = {}
-    monkeypatch.setattr(jobs_module, "MySQLStore", FakeMySQLStore)
+    monkeypatch.setattr("api.services.verification_service.MySQLStore", FakeMySQLStore)
     yield
     FakeMySQLStore.rows = {}
 

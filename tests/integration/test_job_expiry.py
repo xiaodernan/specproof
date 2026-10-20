@@ -177,3 +177,84 @@ class TestExpireOverdueJobs:
         assert row is not None
         value = row["max_execution_seconds"] if isinstance(row, dict) else row[0]
         assert int(value) > 0
+
+
+class TestDepthBudget:
+    """Each depth gets the budget its WORK needs.
+
+    DEEP re-runs the generated test for reproducibility and recomputes
+    every capsule digest; RELEASE adds the release gates. Giving them the
+    FAST budget would let the expiry reaper kill a job that was still
+    doing honest work.
+    """
+
+    def test_the_depth_budgets_are_ordered_by_the_work_they_do(self) -> None:
+        from storage.mysql import DEPTH_EXECUTION_BUDGET_SECONDS
+
+        assert (
+            DEPTH_EXECUTION_BUDGET_SECONDS["FAST"]
+            < DEPTH_EXECUTION_BUDGET_SECONDS["DEEP"]
+            < DEPTH_EXECUTION_BUDGET_SECONDS["RELEASE"]
+        )
+
+    def test_an_unknown_depth_gets_the_default(self) -> None:
+        from storage.mysql import (
+            DEFAULT_EXECUTION_BUDGET_SECONDS,
+            execution_budget_for,
+        )
+
+        assert execution_budget_for("SOMETHING_ELSE") == (
+            DEFAULT_EXECUTION_BUDGET_SECONDS
+        )
+
+    def test_a_submitted_job_carries_its_depth_budget(
+        self, store: MySQLStore,
+    ) -> None:
+        from storage.mysql import DEPTH_EXECUTION_BUDGET_SECONDS
+
+        job_id = str(uuid.uuid4())
+        store.insert_job({
+            "id": job_id,
+            "repo_path": "/test/repo",
+            "base_ref": "base",
+            "head_ref": "head",
+            "spec_path": "/test/spec.md",
+            "status": "QUEUED",
+            "depth": "DEEP",
+        })
+        with store.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT max_execution_seconds FROM verification_jobs WHERE id = %s",
+                (job_id,),
+            )
+            row = cur.fetchone()
+        assert row is not None
+        value = row["max_execution_seconds"] if isinstance(row, dict) else row[0]
+        assert int(value) == DEPTH_EXECUTION_BUDGET_SECONDS["DEEP"]
+
+    def test_a_caller_may_state_its_own_budget(
+        self, store: MySQLStore,
+    ) -> None:
+        """One stuck job can be widened without touching the others."""
+        job_id = str(uuid.uuid4())
+        store.insert_job({
+            "id": job_id,
+            "repo_path": "/test/repo",
+            "base_ref": "base",
+            "head_ref": "head",
+            "spec_path": "/test/spec.md",
+            "status": "QUEUED",
+            "depth": "FAST",
+            "max_execution_seconds": 99999,
+        })
+        with store.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT max_execution_seconds FROM verification_jobs WHERE id = %s",
+                (job_id,),
+            )
+            row = cur.fetchone()
+        assert row is not None
+        value = row["max_execution_seconds"] if isinstance(row, dict) else row[0]
+        assert int(value) == 99999

@@ -35,9 +35,10 @@ logger = logging.getLogger(__name__)
 _JOB_INSERT_TENANT_SQL = (
     "INSERT INTO verification_jobs "
     "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
-    "github_check_json, tenant_id) "
+    "max_execution_seconds, github_check_json, tenant_id) "
     "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
     "%(head_ref)s, %(spec_path)s, 'QUEUED', %(depth)s, "
+    "%(max_execution_seconds)s, "
     "%(github_check_json)s, %(tenant_id)s)"
 )
 
@@ -138,7 +139,8 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
         "CANCELLED", "EXPIRED",
     },
     # FAILED is recoverable by explicit retry (→QUEUED); otherwise terminal.
-    "FAILED": {"QUEUED", "CANCELLED", "EXPIRED"},
+    # ERROR is the legacy "permanent failure" bucket a retry loop lands in.
+    "FAILED": {"QUEUED", "CANCELLED", "EXPIRED", "ERROR"},
     # Provider outage: recoverable — either retry (QUEUED) or give up.
     "WAITING_FOR_PROVIDER": {"QUEUED", "RUNNING", "FAILED", "CANCELLED", "EXPIRED"},
     # Legacy initial submit.
@@ -269,6 +271,40 @@ class InvalidStateTransition(Exception):  # noqa: N818 — domain term, public A
     """Raised when a job status transition is not allowed."""
 
 
+#: The execution budget each verification depth gets, in seconds.
+#:
+#: The budget is measured from the job's creation, so it covers the whole
+#: attempt — queue wait included — and it is what the expiry reaper
+#: measures against (see ``expire_overdue_jobs``).
+#:
+#: The tiers differ because the WORK differs: DEEP re-runs the generated
+#: test for reproducibility and recomputes every capsule digest; RELEASE
+#: adds the release gates on top. Giving them the FAST budget would let
+#: the expiry reaper kill a job that was still doing honest work.
+#:
+#: A caller may override the budget per job (``max_execution_seconds`` in
+#: the job dict) — one stuck job can be widened without touching the
+#: others.
+DEPTH_EXECUTION_BUDGET_SECONDS: dict[str, int] = {
+    "FAST": 3600,      # 1 hour
+    "DEEP": 7200,      # 2 hours
+    "RELEASE": 10800,  # 3 hours
+}
+
+#: The budget a depth that is not in the table gets. The same number the
+#: column's DEFAULT carries, so a row written by an older worker (which
+#: does not know the column) lands with the same budget a FAST job would
+#: have had.
+DEFAULT_EXECUTION_BUDGET_SECONDS = 3600
+
+
+def execution_budget_for(depth: str) -> int:
+    """The execution budget (seconds) a job of this depth gets."""
+    return DEPTH_EXECUTION_BUDGET_SECONDS.get(
+        str(depth).upper(), DEFAULT_EXECUTION_BUDGET_SECONDS
+    )
+
+
 def _job_row(job: dict[str, Any]) -> dict[str, Any]:
     """Normalize a job dict onto the verification_jobs column set.
 
@@ -276,6 +312,8 @@ def _job_row(job: dict[str, Any]) -> dict[str, Any]:
     do not carry GitHub metadata leave the column NULL.
     """
     check = job.get("github_check")
+    depth = str(job.get("depth", "FAST"))
+    budget = job.get("max_execution_seconds")
     return {
         "id": job["id"],
         "repo_path": job.get("repo_path", ""),
@@ -283,7 +321,12 @@ def _job_row(job: dict[str, Any]) -> dict[str, Any]:
         "head_ref": job.get("head_ref", ""),
         "spec_path": job.get("spec_path", ""),
         "status": job.get("status", "QUEUED"),
-        "depth": job.get("depth", "FAST"),
+        "depth": depth,
+        # The per-job budget: the depth's default, unless the caller
+        # stated one. The expiry reaper measures against this column.
+        "max_execution_seconds": int(
+            budget if budget is not None else execution_budget_for(depth)
+        ),
         "github_check_json": json.dumps(check) if check else None,
         # Multi-tenant: stamped from the request-scoped tenant context by the
         # insert paths below; NULL for single-tenant / webhook-created jobs.
@@ -436,9 +479,10 @@ class MySQLStore:
         _sql = (
             "INSERT INTO verification_jobs "
             "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
-            "github_check_json) "
+            "max_execution_seconds, github_check_json) "
             "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
             "%(head_ref)s, %(spec_path)s, %(status)s, %(depth)s, "
+            "%(max_execution_seconds)s, "
             "%(github_check_json)s)"
         )
         row = _job_row(job)
@@ -489,9 +533,10 @@ class MySQLStore:
             else (
                 "INSERT INTO verification_jobs "
                 "(id, repo_path, base_ref, head_ref, spec_path, status, depth, "
-                "github_check_json) "
+                "max_execution_seconds, github_check_json) "
                 "VALUES (%(id)s, %(repo_path)s, %(base_ref)s, "
                 "%(head_ref)s, %(spec_path)s, 'QUEUED', %(depth)s, "
+                "%(max_execution_seconds)s, "
                 "%(github_check_json)s)"
             )
         )

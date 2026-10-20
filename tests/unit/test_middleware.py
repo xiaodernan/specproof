@@ -74,7 +74,7 @@ class _FakeMySQLStore:
 
 @pytest.fixture()
 def fake_stores(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(jobs_module, "MySQLStore", _FakeMySQLStore)
+    monkeypatch.setattr("api.services.verification_service.MySQLStore", _FakeMySQLStore)
     monkeypatch.setattr("storage.redis.RedisStore", _FakeRedisRateLimit)
     monkeypatch.setattr(jobs_module, "_redis", _FakeRedisStream())
 

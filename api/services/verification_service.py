@@ -78,15 +78,11 @@ class VerificationApplicationService:
                     "(`specproof verify`) instead, or start the services."
                 ),
             ) from exc
-        # The service returns the CREATE RESPONSE shape, not the job row:
-        # the row's own id field is named "id", and the API contract names
-        # it "job_id" on the wire. Returning the row here would make the
-        # route read a key that does not exist.
-        row = self.get_job(created_id)
-        return {
-            "job_id": created_id,
-            "status": str((row or {}).get("status") or "QUEUED"),
-        }
+        # The status is KNOWN here, not read back: the row was inserted as
+        # QUEUED by the same statement. Reading it again would cost a
+        # query and — worse — make a store that cannot read rows back fail
+        # a creation that already happened.
+        return {"job_id": created_id, "status": "QUEUED"}
 
     # ── Job query ─────────────────────────────────────────────────
 

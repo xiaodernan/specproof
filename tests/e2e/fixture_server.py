@@ -352,6 +352,7 @@ def _install_fakes() -> None:
     import api.routes.feedback as feedback_module
     import api.routes.jobs as jobs_module
     import api.routes.web as web_module
+    import api.services.verification_service as verification_service_module
     import storage.mysql as mysql_module
     import storage.redis as redis_module
 
@@ -363,7 +364,7 @@ def _install_fakes() -> None:
     patch.object(feedback_module, "MySQLStore", FakeMySQLStore).start()
     patch.object(mysql_module, "MySQLStore", FakeMySQLStore).start()
     patch.object(redis_module, "RedisStore", FakeRedisStore).start()
-    patch.object(jobs_module, "MySQLStore", FakeMySQLStore).start()
+    patch.object(verification_service_module, "MySQLStore", FakeMySQLStore).start()
     patch.object(jobs_module, "RedisStore", FakeRedisStore).start()
     patch.object(web_module, "MySQLStore", FakeMySQLStore).start()
     patch.object(web_module, "RedisStore", FakeRedisStore).start()

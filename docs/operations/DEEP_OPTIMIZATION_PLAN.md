@@ -5939,3 +5939,22 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 预算是**从创建起算**的，作业在队列里等待的时间也算在内；DEEP 档目前继承同一个 3600 秒缺省，要给更多时间需要提交方显式写该列（列已存在，路径是通的，但还没有提交方去写它）。② 过期**不重投**作业（它是终态，与回收的 QUEUED 语义相反）。③ 期限检查用**数据库时钟**（`TIMESTAMPDIFF` 对 `NOW(3)`），所以测试宿主的时钟偏差不会让作业看起来过期或未过期。④ 过期扫描只在**回收 tick 开着**时跑（`reclaim_interval <= 0` 时只有人工 `specproof ops recover`，而那条命令不调用过期扫描——下一号要么接上，要么明说）。⑤ 迁移 0016 的 down 只是删列（值是「作业的预算」，删掉后作业回到 0016 之前「不会过期」的行为，即 up 想要改善的那个行为）。
 
 **下一号队列（取号时按落地时点 max+1）。** ① `specproof ops recover` 要不要也做过期扫描（人工路径与自动路径的覆盖差）。② DEEP 档的提交方要显式写 `max_execution_seconds`（否则 DEEP 与 FAST 同预算，可能误杀）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 回收器的假 cursor 与真 SQL 的耦合要拆开（#298 队列④，未动）。⑤ 「测试库卫生」一次性清理脚本（`arm_probe` 之类的变异臂遗留表）（#298 队列⑤，未动）。⑥ P1-7 / P3-4 / P3-7 其余项照旧。
+
+## #300 按档位给执行预算；把 8 个测试的打桩接缝从路由挪到服务层
+
+**起因/占号。** #299 的下一号队列②是「DEEP 档的提交方要显式写 `max_execution_seconds`（否则 DEEP 与 FAST 同预算，可能误杀）」。落地前重测账本：HEAD 1b91afd，`## #` id 最大 299，`## #300` 计数 0 ⇒ 取 **#300**。
+
+**先量旧行为。** ① #299 给 `verification_jobs` 加了 `max_execution_seconds`，但**四��� INSERT 语句都没有写这一列**：缺省 3600 对所有档位一样，于是 DEEP（重跑生成测试做可复现性 + 重算 capsule 摘要）和 RELEASE（再叠加发布门）拿到的是 FAST 的预算——过期回收器会杀掉仍在诚实干活的作业。② 服务层 `create_job` 建单后**回读**作业行只为取状态；状态在建单时已确定（同一语句插入为 QUEUED），回读是多余的一次查询。③ #297 把路由挪到应用服务层后，**8 个测试文件仍在打桩 `jobs_module.MySQLStore`**——那个名字已经不存在了，每个都在 setup 阶段同一个 AttributeError 崩掉。
+
+**修。**
+- **按档位的预算**（`storage/mysql.py`）：`DEPTH_EXECUTION_BUDGET_SECONDS = {FAST: 3600, DEEP: 7200, RELEASE: 10800}`，缺省 `DEFAULT_EXECUTION_BUDGET_SECONDS = 3600`（与列的 DEFAULT 一致，让不认识该列的旧 worker 写出的行与 FAST 作业同预算）。档位表按**它们要干的活**排：DEEP 要重跑测试并重算摘要，RELEASE 再叠加发布门。四条 INSERT（tenant / 非 tenant × insert_job / create_job_with_outbox）全部带上该列，预算由 `_job_row` 统一计算，调用方可逐作业覆盖（一个卡住的作业可以单独放宽，不动其他行）。
+- **服务层不回头读**（`api/services/verification_service.py`）：`create_job` 直接返回 `{"job_id": ..., "status": "QUEUED"}`——状态是**已知的**，不是读来的；回读既多一次查询，更会让**读不回行的 store 把一次已经发生的建单报成失败**。
+- **打桩接缝一次迁完**（8 个文件）：`jobs_module.MySQLStore` → `api.services.verification_service.MySQLStore`（`patch.object` 那一处改为打 `verification_service_module`）。接缝搬家是 #297 遗留的债：路由不再构造 store，接缝就在服务层。
+
+**门与腿。** 新增/扩写 `tests/integration/test_job_expiry.py`（8 → **12** 项）：档位预算按干活量排序；未知档位拿缺省；提交的作业带着**自己档位**的预算；**调用方可显式写自己的预算**（一个卡住的作业放宽不动其他行）。既有门：`test_job_lifecycle.py`（9）、`test_api_jobs.py`（38）、`test_api_jobs_total.py`（5）、`test_api_governance.py`（25）、`test_api_errors.py`（15）、`test_dashboard_api.py`（5）、`test_envelope_retryable.py`（34）、`test_job_whitelist.py`（45）、`test_live_money_path.py`（4）、`test_middleware.py`（15）、`test_tenant_auth.py`（53）、`test_job_state_machine.py`（26）、`test_job_stage.py`（21）——**175 passed**。`ruff check .` 0 errors、`mypy .` 0 errors（229 源文件）。
+
+**否证与订正。** ① 第一次改预算时只改了 `_job_row`，忘了**四条 INSERT 语句的列清单**——列不在清单里，`%(max_execution_seconds)s` 就没有占位符与之对应，建单会静默丢预算；四条语句一起改。② 服务层回读作业行时，5 个测试 503：根因是**假 store 没有 `get_job` 方法**，而 `create_job` 在建单后回读只为取一个它已经知道的状态。去掉回读既修了测试，也去掉了「读不回行就算建单失败」这个更糟的语义。③ 第一次打桩迁移的脚本把 e2e fixture 的 import 插到了**函数体外的缩进**上，ruff 报 `Unexpected indentation`——插在原 import 之后、原缩进之内才对；`ruff --fix` 随后清掉了 4 个已无用的 `jobs_module` 导入。
+
+**诚实边界。** ① 预算是**从创建起算**的（排队等待也算在内），DEEP 的 7200 秒是**按活量估的**，没有实测支撑——真实 DEEP 作业的耗时分布需要用生产数据校准（下一号该做：量一遍 DEEP 的 p95，再回头改这张表）。② 档位预算只作用于**新建**的作业；已存在的行保留自己的 `max_execution_seconds`（列的缺省），不追溯改写。③ 过期扫描目前只在 worker 的回收 tick 里跑（`reclaim_interval > 0`）；`specproof ops recover` 这条人工路径**不**调过期扫描（#299 队列①未做）。④ 本号没有跑一次真实 DEEP 作业去验证 7200 秒是否够——只是把预算按活量分了档。⑤ 打桩接缝的迁移是**机械替换**：8 个文件的假 store 行为未变，只是打桩的位置从路由换到了服务。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）。② `specproof ops recover` 也接过期扫描（人工路径与自动路径覆盖一致）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 回收器的假 cursor 与真 SQL 的耦合要拆开（#298 队列④，未动）。⑤ 「测试库卫生」一次性清理脚本（#298 队列⑤，未动）。⑥ P1-7 / P3-4 / P3-7 其余项照旧。

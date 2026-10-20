@@ -356,11 +356,10 @@ class FakeRedisStore:
 @pytest.fixture()
 def fakes(monkeypatch: pytest.MonkeyPatch) -> FakeJobStore:
     fake = FakeJobStore()
-    import api.routes.jobs as jobs_module
     import api.routes.web as web_module
 
     monkeypatch.setattr("storage.mysql.MySQLStore", lambda: fake)
-    monkeypatch.setattr(jobs_module, "MySQLStore", lambda: fake)
+    monkeypatch.setattr("api.services.verification_service.MySQLStore", lambda: fake)
     monkeypatch.setattr(web_module, "MySQLStore", lambda: fake)
     monkeypatch.setattr("storage.redis.RedisStore", FakeRedisStore)
     return fake

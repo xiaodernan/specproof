@@ -15,7 +15,6 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-import api.routes.jobs as jobs_module
 from api.errors import (
     AUTH_REQUIRED,
     DEFAULT_CODE_BY_STATUS,
@@ -102,7 +101,7 @@ class FakeMySQLStore:
 def fake_mysql(monkeypatch: pytest.MonkeyPatch) -> FakeMySQLStore:
     FakeMySQLStore.rows = {}
     FakeMySQLStore.fail_next = False
-    monkeypatch.setattr(jobs_module, "MySQLStore", FakeMySQLStore)
+    monkeypatch.setattr("api.services.verification_service.MySQLStore", FakeMySQLStore)
     monkeypatch.setattr("storage.redis.RedisStore", FakeRedisRateLimit)
     return FakeMySQLStore()
 

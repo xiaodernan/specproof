@@ -3,7 +3,6 @@
 import pytest
 from fastapi.testclient import TestClient
 
-import api.routes.jobs as jobs_module
 from api.server import app
 
 API_KEY = "dash-test-key"
@@ -51,7 +50,7 @@ class FakeMySQLStore:
 def fakes(monkeypatch):
     FakeMySQLStore.rows = {}
     FakeMySQLStore.summaries = {}
-    monkeypatch.setattr(jobs_module, "MySQLStore", FakeMySQLStore)
+    monkeypatch.setattr("api.services.verification_service.MySQLStore", FakeMySQLStore)
     monkeypatch.setattr("storage.redis.RedisStore", FakeRedisRateLimit)
     yield
 

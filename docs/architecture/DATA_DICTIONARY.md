@@ -53,7 +53,7 @@
 | stale_replaced_by | CHAR(36) NULL | 取代本 Job 的新 Job id |
 | last_error | TEXT NULL | 终态错误/原因 (统一错误分类 JSON) |
 | worker_id | CHAR(36) NULL | 认领 worker |
-| max_execution_seconds | INT NOT NULL DEFAULT 3600 (0016) | 本次执行的**总时长预算**（从 created_at 起算）；超时的在途作业被回收器置为 EXPIRED。逐作业可调（DEEP 档可给更长时间），不是全局常量 |
+| max_execution_seconds | INT NOT NULL DEFAULT 3600 (0016) | 本次执行的**总时长预算**（从 created_at 起算，含排队等待）；超时的在途作业被回收器置为 EXPIRED。**按档位缺省**：FAST 3600 / DEEP 7200 / RELEASE 10800（DEEP 要重跑生成测试做可复现性并重算 capsule 摘要，RELEASE 再叠加发布门；给它们 FAST 的预算会让过期回收器杀掉仍在诚实干活的作业）。逐作业可覆盖（提交时写 `max_execution_seconds`），不是全局常量 |
 | summary | JSON NULL (0003) | 管线结果摘要 (verdict/matrix/findings/capsules)。matrix 部分自 2026-09-23 起**同时含计数与逐条行**: `matrix_passed/failed/unverified` + `matrix_rows[]`(定形 15 键投影, 含 `attribution`/`base_result`/`head_result`/`next_action`) + `matrix_rows_total`/`matrix_rows_truncated`(行上限 60, 截断如实标注)。**真实任务的逐条结果只有这一条通路** —— `contracts`/`findings` 表的生产写入方仅 `scripts/seed_demo.py` |
 | github_check_json | JSON NULL (0004) | GitHub Check Run 簿记; NULL=非 PR 来源 |
 | tenant_id | CHAR(36) NULL (0005) | NULL=单租户兼容/旧数据/webhook 来源 |

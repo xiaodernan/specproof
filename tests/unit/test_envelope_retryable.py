@@ -198,7 +198,7 @@ class FakeMySQLStore:
 def fake_mysql(monkeypatch: pytest.MonkeyPatch) -> FakeMySQLStore:
     FakeMySQLStore.rows = {}
     FakeMySQLStore.fail_next = False
-    monkeypatch.setattr(jobs_module, "MySQLStore", FakeMySQLStore)
+    monkeypatch.setattr("api.services.verification_service.MySQLStore", FakeMySQLStore)
     monkeypatch.setattr("storage.redis.RedisStore", FakeRedisRateLimit)
     return FakeMySQLStore()
 
