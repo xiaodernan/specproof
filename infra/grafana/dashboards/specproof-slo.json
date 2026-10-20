@@ -1484,7 +1484,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "未投递 outbox 事件数 (relay 每轮轮询刷新)。",
+      "description": "未投递 outbox 事件数 (specproof_outbox_pending, storage/outbox_relay.py)。第二条 specproof_outbox_pending_freshness 是这组 gauge 的年龄 (秒): 每轮刷新成功就归零, 刷新失败而循环仍在跑时逐轮增长 (#275 的披露句「gauges keep their last good values」说的就是这个状态, #295 把它变成序列上可读的信号)。读法: pending 平 + 年龄贴近零 = 队列安静; pending 平 + 年龄一路涨 = 这个积压数字已经冻结, 不是当前值。边界: 年龄只能证明循环还在转, 循环整个停摆归 up{job=\"outbox-relay\"} 判, 不归本面板。",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1532,7 +1532,22 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "id": "byName",
+            "options": "gauge 年龄 (秒)",
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -1564,6 +1579,18 @@
           "range": true,
           "instant": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "specproof_outbox_pending_freshness",
+          "legendFormat": "gauge 年龄 (秒)",
+          "range": true,
+          "instant": false,
+          "refId": "B"
         }
       ]
     },

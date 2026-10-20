@@ -10,7 +10,11 @@ max_retries instead of retrying them forever. The six required relay
 metrics (pending count, oldest event age, failure rate, retry count,
 dead-letter count, last success ts) are exposed as gauges in
 observability.metrics, so the process-local /metrics endpoint
-(observability.metrics_http) serves them to Prometheus.
+(observability.metrics_http) serves them to Prometheus. A seventh gauge,
+``specproof_outbox_pending_freshness``, ages those readings (#295): the
+refresh guard keeps the six at their last good values when the stats read
+fails, and without an age on the same scrape surface a frozen backlog
+number is indistinguishable from a queue that is simply quiet.
 """
 
 import json
@@ -38,6 +42,10 @@ METRIC_FAILURE_RATE = "outbox_failure_rate"
 METRIC_RETRY_COUNT = "outbox_retry_count"
 METRIC_DEAD_LETTERS = "outbox_dead_letters"
 METRIC_LAST_SUCCESS_TS = "outbox_last_success_ts"
+#: Age (seconds) of the reading above — how long ago the six §14.2 gauges were
+#: last recomputed from the outbox table. #295: without it a frozen gauge is
+#: indistinguishable on /metrics from a quiet queue.
+METRIC_PENDING_FRESHNESS = "outbox_pending_freshness"
 COUNTER_PUBLISHED = "outbox_published_total"
 COUNTER_FAILED = "outbox_publish_failed_total"
 COUNTER_DEAD_LETTERED = "outbox_dead_lettered_total"
@@ -83,6 +91,10 @@ class OutboxRelay:
         self._attempts = 0
         self._failures = 0
         self._last_success_ts = 0.0
+        #: The instant the §14.2 gauges were last recomputed successfully. It
+        #: starts at construction, before any read has ever happened, so the
+        #: freshness meter has a bound to age against on the first cycle.
+        self._last_metrics_ts: float = self._now()
 
     def failure_rate(self) -> float:
         """Failed fraction of all publish attempts in this relay process."""
@@ -162,6 +174,25 @@ class OutboxRelay:
             METRIC_LAST_SUCCESS_TS,
             last_success if last_success is not None else self._last_success_ts,
         )
+        # Only a refresh that reached the end of its own writes may claim the
+        # gauges are current — a partial one leaves the bound where it was.
+        self._last_metrics_ts = self._now()
+
+    def emit_metrics_freshness(self) -> None:
+        """Publish how many seconds old the specproof_outbox_* gauges are.
+
+        The loop body calls this OUTSIDE the guard that swallows refresh
+        failures: a meter only a successful refresh can move would sit frozen
+        at its last small value exactly when the refresh stops, which is the
+        one state the signal exists to reveal. A reader can now tell a frozen
+        relay (``specproof_outbox_pending`` flat while this age grows) from a
+        quiet queue (``pending`` equally flat, this age near zero).
+
+        Boundary: the age can only move while the loop moves. A relay that
+        stopped looping altogether freezes this meter too — that fate belongs
+        to ``up{job="outbox-relay"}``, not to this gauge.
+        """
+        set_gauge(METRIC_PENDING_FRESHNESS, max(0.0, self._now() - self._last_metrics_ts))
 
     @staticmethod
     def _to_epoch(value: Any) -> float | None:
@@ -268,6 +299,9 @@ class OutboxRelay:
                     "OutboxRelay metrics refresh failed; specproof_outbox_* gauges keep "
                     "their last good values"
                 )
+            # Outside the guard above on purpose: this meter is what tells a
+            # scrape that the values it just read are no longer current.
+            self.emit_metrics_freshness()
             time.sleep(sleep_time)
 
         logger.info("OutboxRelay stopped")

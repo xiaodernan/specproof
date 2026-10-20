@@ -194,6 +194,7 @@
 | 症状 | 判断 | 处置 |
 |---|---|---|
 | 建单后一直 QUEUED | outbox_pending 高 / relay 退避 | 查 RabbitMQ; 恢复后 relay 自动续发 (at-least-once) |
+| 分不清「没排队」还是「读数冻住」 | 同一份 /metrics 上 specproof_outbox_pending 平 + specproof_outbox_pending_freshness (秒) 一路涨 = 六个 §14.2 gauge 冻在最后一次成功读数 (#295); 年龄贴近零 = 队列真的安静 | 冻结只发生在 stats 读失败而循环仍在跑的时候 (relay 照旧投递), 查 MySQL 连通性; 恢复后下一轮年龄归零。整条序列都不再变化才是进程停了, 那归 up{job="outbox-relay"} 判, 不归本行 |
 | job 停在 WAITING_FOR_PROVIDER | LLM 网关不可用 | 修网关后转 QUEUED 重试, 或人工 FAILED; job 不丢失 |
 | MySQL 不可达 | API 503 | 恢复数据库; Outbox 保证已提交任务不丢 |
 | 报错停在 `InterfaceError: (0, '')` 的 rollback/close 上 | 连接在语句执行期间被丢, 归还动作自己又失败了一次 —— 真因是"连接没了", 不是"回滚坏了" | 看同一时刻 logger=`storage.unit_of_work` 的 WARNING (它明说"调用方看到的那个才是真因"); MySQL 侧 `Aborted_clients` 只证明客户端先走, 不等于服务端故障 (#83) |
