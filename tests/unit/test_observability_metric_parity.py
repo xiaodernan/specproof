@@ -33,6 +33,25 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 
+
+def _verdict_tokens() -> str:
+    """The closed verdict vocabulary, as a regex alternation.
+
+    Derived from the code (`evidence.verdict.VERDICT_VOCABULARY`) so the
+    family cannot drift from the words the policy can actually produce —
+    and so a NEW verdict word is covered the moment it exists, instead of
+    needing this file to be edited by hand.
+    """
+    from evidence.verdict import VERDICT_VOCABULARY
+
+    words = sorted(word.lower() for word in VERDICT_VOCABULARY)
+    assert words, "the verdict vocabulary is empty — the pattern would match "
+    "nothing at all"
+    return "|".join(words)
+
+
+_VERDICT_TOKENS = _verdict_tokens()
+
 #: Trees scanned for emission sites (mirrors OBSERVABILITY.md's method note).
 #: providers/ joined in #168 (LLM token/charge meters in
 #: providers/budget.py, the same choke point the billing listener reads);
@@ -93,9 +112,11 @@ _HISTOGRAM_SUFFIXES = ("_bucket", "_sum", "_count")
 #: the code instead of drifting apart from a copy.
 CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
     "verdict": (
-        re.compile(r"^jobs_[a-z]+_total$"),
+        re.compile(rf"^jobs_(?:{_VERDICT_TOKENS})_total$"),
         "agent/worker.py: incr(\"jobs_\" + verdict.lower() + \"_total\") — "
-        "verdict words are single lowercase tokens",
+        "the closed verdict vocabulary comes from evidence/verdict.py::"
+        "VERDICT_VOCABULARY; a word may contain an underscore (needs_review), "
+        "so the pattern is derived from the code rather than hand-written",
     ),
     "stage": (
         re.compile(r"^worker_stage_duration_seconds_[a-z0-9_]+$"),
@@ -135,7 +156,7 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "new Redis op forces this gate and the family to move together",
     ),
     "tool_stem": (
-        re.compile(r"^tool_run_seconds_(cargo|gradle|mvn|npm|pytest|python)$"),
+        re.compile(r"^tool_run_seconds_(cargo|go|gradle|mvn|npm|pytest|python)$"),
         "craft/executor.py #178: _timed_tool(<stem>) inside Executor.run — "
         "stem words are the ALLOWED_COMMANDS whitelist; the vocabulary is "
         "imported from craft.executor by the derivation test, so a new "

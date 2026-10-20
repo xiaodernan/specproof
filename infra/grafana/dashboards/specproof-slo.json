@@ -503,12 +503,12 @@
     {
       "id": 8,
       "type": "stat",
-      "title": "累计 Job 完成/失败/判定",
+      "title": "累计 Job 完成/失败/判定（VERIFIED / BLOCKED / NEEDS_REVIEW / FAILED）",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "worker 进程内计数器 (agent/worker.py)。worker 未启动时无数据属正常。",
+      "description": "worker 进程内计数器 (agent/worker.py)。worker 未启动时无数据属正常。四个判定词各占一格：BLOCKED = 查出了问题；NEEDS_REVIEW = 证据不足以判定（既未证明有问题，也未证明没问题），与 BLOCKED 分开计数，否则「需人看」会被读成「已证明坏」。",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -598,6 +598,18 @@
           "range": false,
           "instant": true,
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(specproof_jobs_needs_review_total)",
+          "legendFormat": "NEEDS_REVIEW",
+          "range": false,
+          "instant": true,
+          "refId": "E"
         }
       ]
     },

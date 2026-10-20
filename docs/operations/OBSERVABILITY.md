@@ -125,6 +125,12 @@ PROMETHEUS_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边�
 | SpecproofNoEvidenceSevereComment | 无证据严重评论计数 > 0 (阈值内联; 评论已被拒发, 排查上游产出) | 1m | NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD=0 | §14 质量目标 (无证据严重评论 = 0; #182 接线 — 计数器只增不减, 一次违规永久可见) |
 | SpecproofCapsuleReplayRateLow | replay 成功率 < 95% (15m 窗口 confirmed/runs rate 比) | 15m | REPLAY_RATE_THRESHOLD=0.95 | §14 质量目标 (Capsule Replay >= 95%; #183 接线 — 没人用不算违规, 用了才谈成功率) |
 
+**为什么没有 NEEDS_REVIEW 的告警**（#317）：判定词族里 `jobs_needs_review_total` **早就在发**
+（判定词小写拼名），看板也补上了那一格，但**阈值没有定**——§14 的质量目标里没有
+「判定必须可落定」这一条，而本部署**没有生产基线**可量这个占比。按项目一贯的
+「先量占比，再定线」：读数先接线，阈值留给维护者从全量跑数 pin（与 §14 的
+BLOCKER Precision 90% 同样的处理）。**没有**为了让表格好看而写一个数进去。
+
 ## 6. SLO 接线状态 (§14 各指标, 诚实标注)
 
 | §14 指标 | 测量方式 | 状态 |
@@ -140,6 +146,7 @@ PROMETHEUS_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边�
 | Capsule Replay>=95% | specproof_capsule_replay_runs_total / specproof_capsule_replay_verdict_<word>_total 四词族 / exec_errors、timeouts (evidence/capsule_replay.py: --run 显式 opt-in, run.sh 在沙箱内执行, verdict 词表 = create_capsule 模板) | ✅ 已接线 (#183: 成功率 = confirmed/runs, <95% 告警 SpecproofCapsuleReplayRateLow; git/依赖离线不可解是真实失败计 exec_errors, 非环境借口) |
 | 无证据严重评论=0 | specproof_severe_comments_without_evidence_total 拒发计数 (integrations/inline_comments.py build_review_comments 证据门: BLOCKER/MAJOR 无 evidence_type 在锚定前拒发) | ✅ 已接线 (#182: SLO=计数恒 0, >0 即 critical 告警 SpecproofNoEvidenceSevereComment) |
 | PR 归因准确率>=90% | specproof_findings_attribution_compared_total / specproof_findings_attribution_kept_total / specproof_findings_attribution_rejected_total + specproof_findings_attribution_signal_<word>_total 词族 (review_court 节点边界: 双侧同败的归因判定分布——kept=Head 行为差异保留归因, rejected=既有缺陷拒归因, 信号词族携带 WHY; #305 起三名分写, 早前一版把三个兄弟压成 compared/kept/rejected_total, 读者照抄第一个名字永远等不到序列) | 🟡 归因判定分布已接线 (#184: kept/compared 可算, 拒归因保护可见); 真准确率需 ground truth 且评测集无 base-已含缺陷探针 (#188 勘察: 100 case 全是 head 引入, 对账在现评测集上不可测), §14 的 90% 阈值不做告警 |
+| 判定可落定 (NEEDS_REVIEW 占比) | specproof_jobs_needs_review_total (worker 终态判定族, 判定词小写拼名) + 看板面板 8 的 NEEDS_REVIEW 一格 | 🟡 **读数已接线, 阈值刻意未定** (#317: 计数器早就在发 (判定词拼名), 本号把看板那一格补上, 并加门保证「策略能产出的每个判定词都在看板上」——否则「需人看」这一桶**隐形**, 而旁边的 BLOCKED 写着 0, 读者会以为没事)。**阈值为什么没有**: §14 的质量目标里**没有**「判定必须可落定」这一条, 且本部署**没有生产基线**可量占比——按「先量占比, 再定线」, 不凭空造一个数 (与 §14 的 BLOCKER Precision 90% 同样的处理: 阈值由维护者从全量跑数 pin) |
 
 §8.10 指标清单中未接线的: Redis 命中
 （#168 判定诚实不接线——storage/redis.py 的 LLM 缓存零调用点）。
@@ -255,7 +262,7 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 
 另有一类**第三方指标**不在本对账内：`rabbitmq_*`（RabbitMQ 自带插件 rabbitmq_prometheus 的输出，#165 起 prometheus.yml 的 rabbitmq 抓取任务经 /metrics/per-object 供给；队列级深度 rabbitmq_queue_messages / _ready / _unacked 带 vhost/queue label）。对账门的 specproof_* regex 天然扫不到它们——第三方名的真伪只能靠抓取目标 up 与实际查询验证（#165 已实测 15692 存活、per-queue 序列与 rabbitmqctl 对数一致）。
 
-三个**名字由代码拼接**的族不能列举，看板/告警要用正则匹配：`jobs_<verdict>_total`（verdict 取小写，所以旧清单里的 specproof_jobs_verified_total / _blocked_total / _failed_total 只是它的三个实例）、`worker_stage_duration_seconds_<node>`（graph 节点名拼进指标名，每个节点一条直方图，#167 起定制梯度 0.25..1800s）、`jobs_duration_seconds_<depth>`（#161 起 depth 小写拼进名字：specproof_jobs_duration_seconds_fast / _deep / _release，词表封闭见三个入口的校验）与 `notify_<status>_total`（`SendStatus` 的三个成员小写拼进名字：specproof_notify_sent_total / _disabled_total / _failed_total）。
+四个**名字由代码拼接**的族不能列举，看板/告警要用正则匹配：`jobs_<verdict>_total`（verdict 取小写，所以旧清单里的 specproof_jobs_verified_total / _blocked_total / _failed_total 只是它的三个实例；#306 起判定词多了 NEEDS_REVIEW，于是这个族**现在有四个实例**（specproof_jobs_needs_review_total），#317 起看板为它单列一格，并有门保证「策略能产出的每个判定词都在看板上」——否则「需人看」这一桶会**隐形**，而旁边的 BLOCKED 写着 0，读者会以为没事）、`worker_stage_duration_seconds_<node>`（graph 节点名拼进指标名，每个节点一条直方图，#167 起定制梯度 0.25..1800s）、`jobs_duration_seconds_<depth>`（#161 起 depth 小写拼进名字：specproof_jobs_duration_seconds_fast / _deep / _release，词表封闭见三个入口的校验）与 `notify_<status>_total`（`SendStatus` 的三个成员小写拼进名字：specproof_notify_sent_total / _disabled_total / _failed_total）。
 
 `notify_*` 一族的读法（#65 接线后的实测语义）：一次终态宣告最多产生一个 notify 计数，五个名字互斥且互补——`skipped` 说"这个 verdict 没有模板，所以什么都没发"（CANCELLED/ERROR/STALE 都是真实终态，不是假设），`sent` 说对端 2xx，`failed` 说对端给了不可重试或重试耗尽的答复，`error` 说连接器自己炸了（工厂构造或 send 抛异常，worker 吞掉以保住已落库的终态），`disabled` 说**根本没有人配置通知**。最后一条是这组计数里唯一会被误读成好消息的：`notify_sent_total` 长期为 0 只说明没发出去，而 `notify_disabled_total` 非 0 才说明"看起来已通、其实一条也没通"——接线与未接线的区别全在这两个名字上，所以部署后先看 disabled 是否在涨。
 

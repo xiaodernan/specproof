@@ -6298,3 +6298,23 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 文档是**投影**：它由脚本生成，**不能手改**（手改会在下次生成时被覆盖，且门会立刻发现不一致）——这一点写在了文档开头。② 归属的**判断**仍然是人的（#315 已记）：本号只把它**变得可见**，没有把它自动化。③ 文档覆盖的是**判定层的理由表**与**行理由的措辞表**两处；**矩阵行**自身的 `unverified_reason` 散文（节点的自由文本）**仍然不在表里**——那是行级视图的事，不该被一张「对外措辞表」收编。④ 本号**没有**把这份文档接进任何索引（`docs/architecture/` 下没有目录页），读者要靠搜索找到它——接进索引是一次独立的文档整理。
 
 **下一号队列（取号时按落地时点 max+1）。** ① 给并发类补一个**服务路径**的陈旧读样本（先让模板驱动 service，再写案例）——#314 的结论。② 六类的**模板体抽成与仓库无关的可移植模板**。③ 为 NEEDS_REVIEW 补 §14 的阈值与告警（先量生产占比，再定线）。④ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 仓库里其余手写假是否也换成求值器（#303 队列①，未动）。⑥ 把 `VERDICT_REASON_TABLE.md` 与 `experiment-class-coverage.md` 接进 `docs/architecture/` 的索引（若存在）或数据字典的引用段。⑦ P1-7 / P3-7 其余项照旧。
+
+## #317 NEEDS_REVIEW 的读数接上看板，阈值**刻意不定**：没有 §14 出处就不编一个数
+
+**起因/占号。** #316 的下一号队列③是「为 NEEDS_REVIEW 补 §14 的阈值与告警（**先量生产占比，再定线**）」。落地前重测账本：HEAD 55781e5（`## #` id 最大 316）⇒ 取 **#317**。
+
+**先量旧行为（量的是「这个词在运维面上到底看不看得见」）。** ① 计数器**早就在发**：`agent/worker.py` 的终态写是 `incr("jobs_" + verdict.lower() + "_total")`——判定词拼进名字，所以 `specproof_jobs_needs_review_total` 一直存在。② 但 Grafana SLO 看板的判定面板**只有两格判定**（`jobs_verified_total` / `jobs_blocked_total`，另两格是 completed / failed）——**「需人看」那一桶在看板上根本不存在**。而它旁边的 BLOCKED 写着 0：读者看到「BLOCKED 0」会以为**没事**，而实际上有一堆作业在等人看。③ §14 的质量目标里**没有**「判定必须可落定」这一条（只有 BLOCKER/MAJOR Precision、Capsule Replay、无证据严重评论、PR 归因准确率），告警规则文件的门要求**每个阈值都要有 §14 出处**（推导或前置）。④ 本部署**没有生产基线**可量 NEEDS_REVIEW 的占比。
+
+**修（把能做的做完，把不能做的说清）。**
+- **看板补一格**（`infra/grafana/dashboards/specproof-slo.json`）：面板 8 的标题改为「累计 Job 完成/失败/判定（VERIFIED / BLOCKED / NEEDS_REVIEW / FAILED）」，说明里写明两桶的**读法差别**（BLOCKED = 查出了问题；NEEDS_REVIEW = 证据不足以判定），并加 `sum(specproof_jobs_needs_review_total)`。
+- **一道不会再失效的门**（新建 `tests/unit/test_slo_dashboard_covers_every_verdict.py`，**8** 项）：**策略能产出的每个判定词都必须有看板表达式**；看板**不得**画策略产不出的词（否则那格永远是 0）；面板标题**必须点名** NEEDS_REVIEW（四个数字没有标签，读者分不清「已证明坏」与「需人看」）。**以后再加一个判定词，它不可能在看板上隐形。**
+- **阈值刻意不定，并把这个「不定」写进三处**（`docs/operations/OBSERVABILITY.md`）：§5 告警表下说明「为什么没有 NEEDS_REVIEW 的告警」（§14 无对应目标 + 无生产基线 + 先量占比再定线）、§6 接线状态表加一行（读数 ✅ / 阈值 🟡 刻意未定）、指标清单的拼接族说明从「三个实例」改为「**四个实例**」并点名 `specproof_jobs_needs_review_total`。
+- **拼接族的正则从代码推导**（`tests/unit/test_observability_metric_parity.py`）：原来写死 `^jobs_[a-z]+_total$`——那假设判定词是**单个**小写词，而 `needs_review` **含下划线**，所以新提到这个名字时门立刻红。改成从 `evidence.verdict.VERDICT_VOCABULARY` **推导**闭集正则。
+
+**门与腿。** 新增 `tests/unit/test_slo_dashboard_covers_every_verdict.py`（8 项）；既有门 `test_observability_metric_parity.py`（7）、`test_metric_inventory_lists_every_emission_site.py`（2）、`test_alert_rules_bind_their_own_threshold_table.py`（12）、`test_metrics_render_format_contract.py`（5）、`test_metrics_http.py`（8）——**42 passed**。`ruff check .`（除并发车道在途文件外）0 errors、`mypy .` 0 errors（230 源文件）。
+
+**否证与订正。** ① 第一版想把 NEEDS_REVIEW 的阈值也定下来（比如「占比 > X%」）——**没有 §14 出处，也没有基线**，那就是一个编出来的数；告警规则文件的门本来就要求出处，所以**不改**。本号做的是**让读数先到位**（看板 + 门），把「定线」留成一件有据可依的事。② 指标一致性门抓到「`jobs_needs_review_total` 没有发射站点」——因为族的正则太窄；修法**不是**放宽正则（`[a-z_]+` 会把任何乱写的名字都放行），而是**从代码的词表推导闭集**（顺带让门更严：词表外的名字现在会**被算作无出处**）。③ 指标清单的族说明写的是「三个实例」——加了第四个判定词之后那句话就成了**假话**（读者会以为词表封闭在三个），一并改掉。
+
+**诚实边界。** ① **阈值仍未定**（这是本号**故意**留下的空缺）：§14 没有对应目标，本部署没有生产基线；「先量占比，再定线」意味着定线的人需要**真实跑数**。② 看板这一格是**累计计数**，不是**占比**——占比的分母（同期完成总数）没有单独的面板，读者要自己算。③ 拼接族的正则**只**认 `evidence.verdict.VERDICT_VOCABULARY` 里的词——若将来某个判定词带**大写**或**其它符号**，族会失配（那时门会红，而不是静默放过）✓。④ 本号**没有**加告警规则（`infra/prometheus/alerts-slo.yml` 未动）——加一条没有出处的规则会被那道门直接拒绝，而那正是它该做的。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（先让模板驱动 service，再写案例）——#314 的结论。② 六类的**模板体抽成与仓库无关的可移植模板**。③ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。④ 仓库里其余手写假是否也换成求值器（#303 队列①，未动）。⑤ NEEDS_REVIEW 的**占比**面板（分母是同期完成总数）——有了它才能谈「占比」。⑥ P1-7 / P3-7 其余项照旧。
