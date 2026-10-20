@@ -1483,6 +1483,27 @@ class MySQLStore:
             probed=len(candidates),
         )
 
+    def list_overdue_jobs(self) -> list[dict[str, Any]]:
+        """The read-only sibling of `expire_overdue_jobs`.
+
+        `specproof ops recover --dry-run` must enumerate the SAME rows the
+        mutating sweep would touch, so there is exactly one definition of
+        "over budget" in the codebase: the query below and the sweep's
+        query are the same predicate, not two that happen to agree today.
+        """
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, status, max_execution_seconds, created_at "
+                "FROM verification_jobs "
+                f"WHERE status IN ({_EXPIRABLE_SQL_LIST}) "
+                "AND TIMESTAMPDIFF(SECOND, created_at, NOW(3)) "
+                "> max_execution_seconds "
+                "ORDER BY created_at, id",
+                _EXPIRABLE_STATUS_ORDER,
+            )
+            return cast(list[dict[str, Any]], cur.fetchall())
+
     def expire_overdue_jobs(self) -> list[str]:
         """Move jobs that blew their execution budget to EXPIRED.
 

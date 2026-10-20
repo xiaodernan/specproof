@@ -1661,6 +1661,42 @@ def preview_stale_running_jobs(
             store.close()
 
 
+def expire_overdue_jobs() -> list[str]:
+    """Move jobs past their execution budget to EXPIRED; returns their ids.
+
+    The sibling of the two reclaimers above, and the same shape so the
+    operator command and the periodic tick drive it the same way: the
+    store does the work, this function is the seam.
+
+    Unlike the reclaimers, an expired job is TERMINAL — it is not
+    re-queued and not re-delivered. The budget is measured from the job's
+    creation, so a job that waited too long in the queue is over budget
+    too (see MySQLStore.EXPIRABLE_STATUSES).
+    """
+    store = MySQLStore()
+    try:
+        return store.expire_overdue_jobs()
+    finally:
+        with contextlib.suppress(Exception):
+            store.close()
+
+
+def preview_overdue_jobs() -> list[dict[str, Any]]:
+    """The read-only sibling of `expire_overdue_jobs`.
+
+    Lists the jobs that are past their execution budget — the rows the
+    sweep WOULD expire, with the budget each one blew. It is the same
+    reader the mutating sweep uses, so a dry-run that says "会过期 N 个"
+    is a promise the real run keeps.
+    """
+    store = MySQLStore()
+    try:
+        return store.list_overdue_jobs()
+    finally:
+        with contextlib.suppress(Exception):
+            store.close()
+
+
 def preview_waiting_for_provider_jobs() -> list[dict[str, Any]]:
     """Read-only sibling of `recover_waiting_for_provider_jobs` (#74).
 

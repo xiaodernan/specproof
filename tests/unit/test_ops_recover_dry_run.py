@@ -54,6 +54,16 @@ def _row(
     }
 
 
+def _overdue_row(job_id: str, *, budget: int = 3600) -> dict[str, Any]:
+    """A row past its execution budget — the shape the expiry sweep reads."""
+    return {
+        "id": job_id,
+        "status": "RUNNING",
+        "max_execution_seconds": budget,
+        "created_at": None,
+    }
+
+
 class RecordingStore:
     """A store that logs SQL and refuses to be the one that writes.
 
@@ -68,9 +78,11 @@ class RecordingStore:
         *,
         stale: list[dict[str, Any]] | None = None,
         waiting: list[dict[str, Any]] | None = None,
+        overdue: list[dict[str, Any]] | None = None,
     ) -> None:
         self.stale = [copy.deepcopy(r) for r in (stale or [])]
         self.waiting = [copy.deepcopy(r) for r in (waiting or [])]
+        self.overdue = [copy.deepcopy(r) for r in (overdue or [])]
         self.statements: list[str] = []
         self.audits: list[dict[str, Any]] = []
         self.reclaims_called = 0
@@ -90,6 +102,10 @@ class RecordingStore:
         self.statements.append(f"SELECT {status}")
         return copy.deepcopy(self.waiting)
 
+    def list_overdue_jobs(self) -> list[dict[str, Any]]:
+        self.statements.append("SELECT over-budget jobs")
+        return copy.deepcopy(self.overdue)
+
     # ── writes: recorded, never silently allowed ─────────────────
     def reclaim_stale_running(self, *_a: Any, **_k: Any) -> ReclaimOutcome:
         self.reclaims_called += 1
@@ -97,6 +113,9 @@ class RecordingStore:
 
     def recover_provider_wait(self, *_a: Any, **_k: Any) -> tuple[bool, str | None]:
         raise AssertionError("dry-run must not call the mutating provider pass")
+
+    def expire_overdue_jobs(self) -> list[str]:
+        raise AssertionError("dry-run must not call the mutating expiry sweep")
 
     def record_audit(self, **kwargs: Any) -> None:
         self.audits.append(kwargs)
@@ -144,6 +163,7 @@ def _wire(
     monkeypatch.setattr(
         worker, "recover_waiting_for_provider_jobs", _never("recover")
     )
+    monkeypatch.setattr(worker, "expire_overdue_jobs", _never("expire"))
     return store
 
 
@@ -178,6 +198,42 @@ def test_preview_emits_no_write_statement_and_no_audit(
     assert not [s for s in store.statements if s.upper().startswith(WRITE_KEYWORDS)]
     assert store.audits == []
     assert store.reclaims_called == 0
+
+
+def test_the_expiry_preview_shares_the_sweeps_predicate() -> None:
+    """The over-budget candidate set must not be a second opinion.
+
+    `expire_overdue_jobs` and `list_overdue_jobs` are two queries; if they
+    drift, the dry-run describes a sweep that never happens. The gate
+    here is structural: both must carry the SAME predicate, so a change
+    to one that is not made to the other is visible here.
+    """
+    src = (REPO / "storage" / "mysql.py").read_text(encoding="utf-8")
+    sweep = src.split("def expire_overdue_jobs", 1)[1]
+    sweep = sweep.split("\n    def ", 1)[0]
+    preview = src.split("def list_overdue_jobs", 1)[1]
+    preview = preview.split("\n    def ", 1)[0]
+
+    for body in (sweep, preview):
+        assert "TIMESTAMPDIFF(SECOND, created_at, NOW(3))" in body, body
+        assert "> max_execution_seconds" in body, body
+        assert "_EXPIRABLE_SQL_LIST" in body, body
+    assert "UPDATE " not in preview.upper(), preview
+
+
+def test_the_expiry_preview_is_read_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _wire(
+        monkeypatch,
+        RecordingStore(overdue=[_overdue_row("j-over")]),
+    )
+
+    rows = worker.preview_overdue_jobs()
+
+    assert [str(r["id"]) for r in rows] == ["j-over"]
+    assert not [s for s in store.statements if s.upper().startswith(WRITE_KEYWORDS)]
+    assert store.audits == []
 
 
 # ── the plan agrees with the mutating pass ───────────────────────

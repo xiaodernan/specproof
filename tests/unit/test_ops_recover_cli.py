@@ -60,33 +60,104 @@ class Recorder:
 def patched(monkeypatch: pytest.MonkeyPatch) -> dict[str, Recorder]:
     reclaim = Recorder(_outcome(reclaimed=[dict(_RECLAIMED_ROW)], candidates=2))
     recover = Recorder([("j-parked", "QUEUED")])
+    # The expiry is a third seam (the execution-budget sweep). It is
+    # patched here for the same reason as the other two: a test that
+    # drives the CLI must not reach the REAL database — the test
+    # database holds rows the sweep would expire, and the counts would
+    # then depend on what other tests left behind.
+    expire = Recorder([])
     monkeypatch.setattr(worker_module, "reclaim_stale_running_jobs", reclaim)
     monkeypatch.setattr(worker_module, "recover_waiting_for_provider_jobs", recover)
-    return {"reclaim": reclaim, "recover": recover}
+    monkeypatch.setattr(worker_module, "expire_overdue_jobs", expire)
+    return {"reclaim": reclaim, "recover": recover, "expire": expire}
 
 
 def _invoke(args: list[str]) -> Any:
     return CliRunner().invoke(ops_cmd, args)
 
 
-def test_recover_invokes_both_worker_reclaimers(patched: dict[str, Recorder]) -> None:
+def test_recover_invokes_every_worker_reclaimer(
+    patched: dict[str, Recorder],
+) -> None:
     result = _invoke(["recover"])
 
     assert result.exit_code == 0, result.output
     assert len(patched["reclaim"].calls) == 1
     assert len(patched["recover"].calls) == 1
+    assert len(patched["expire"].calls) == 1
     assert "j-stale" in result.output
     assert "j-parked→QUEUED" in result.output
     assert "本轮改动了 2 个作业" in result.output
 
 
-def test_flags_select_single_pass(patched: dict[str, Recorder]) -> None:
+def test_the_flags_select_single_pass(patched: dict[str, Recorder]) -> None:
+    """Both flags say "only" — so neither may drag the expiry in.
+
+    The expiry answers a different question ("is anything over
+    budget?") from the two reclaimers, and a flag that says "only
+    the RUNNING jobs" must not end a job that was over budget.
+    """
     assert _invoke(["recover", "--running-only"]).exit_code == 0
     assert len(patched["recover"].calls) == 0
+    assert len(patched["expire"].calls) == 0
 
     fresh = _invoke(["recover", "--provider-wait-only"])
     assert fresh.exit_code == 0
     assert len(patched["reclaim"].calls) == 1  # --provider-wait-only skips pass 1
+    assert len(patched["expire"].calls) == 0
+
+
+def test_the_step_numbers_follow_the_steps_that_ran(
+    patched: dict[str, Recorder],
+) -> None:
+    """A run that skips a step must not print a number for it.
+
+    The numbering is computed from the steps that run, so "--running-only"
+    says "[1/1]" and the full sweep says "[1/3] … [3/3]".
+    """
+    only = _invoke(["recover", "--running-only"])
+    assert only.exit_code == 0
+    assert "[1/1]" in only.output
+
+    full = _invoke(["recover"])
+    assert full.exit_code == 0
+    assert "[1/3]" in full.output
+    assert "[2/3]" in full.output
+    assert "[3/3]" in full.output
+
+
+def test_the_expired_jobs_are_named_and_counted(
+    patched: dict[str, Recorder], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An expired job is TERMINAL — it is counted as acted, and said so."""
+    monkeypatch.setattr(
+        worker_module, "expire_overdue_jobs", Recorder(["j-over", "j-over2"]),
+    )
+
+    result = _invoke(["recover"])
+
+    assert result.exit_code == 0, result.output
+    assert "j-over,j-over2" in result.output
+    assert "EXPIRED" in result.output
+    assert "本轮改动了 4 个作业" in result.output
+
+
+def test_an_unjudgeable_expiry_does_not_hide_the_other_passes(
+    patched: dict[str, Recorder], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """"Could not judge" is not "nothing was expired"."""
+    monkeypatch.setattr(
+        worker_module,
+        "expire_overdue_jobs",
+        Recorder(RuntimeError("mysql down")),
+    )
+
+    result = _invoke(["recover"])
+
+    assert result.exit_code == 1
+    assert "无法判定" in result.output
+    assert "j-stale" in result.output  # the other pass still reported
+    assert "j-parked→QUEUED" in result.output
 
 
 def test_mutually_exclusive_flags_are_rejected(patched: dict[str, Recorder]) -> None:

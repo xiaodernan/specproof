@@ -5958,3 +5958,22 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 预算是**从创建起算**的（排队等待也算在内），DEEP 的 7200 秒是**按活量估的**，没有实测支撑——真实 DEEP 作业的耗时分布需要用生产数据校准（下一号该做：量一遍 DEEP 的 p95，再回头改这张表）。② 档位预算只作用于**新建**的作业；已存在的行保留自己的 `max_execution_seconds`（列的缺省），不追溯改写。③ 过期扫描目前只在 worker 的回收 tick 里跑（`reclaim_interval > 0`）；`specproof ops recover` 这条人工路径**不**调过期扫描（#299 队列①未做）。④ 本号没有跑一次真实 DEEP 作业去验证 7200 秒是否够——只是把预算按活量分了档。⑤ 打桩接缝的迁移是**机械替换**：8 个文件的假 store 行为未变，只是打桩的位置从路由换到了服务。
 
 **下一号队列（取号时按落地时点 max+1）。** ① 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）。② `specproof ops recover` 也接过期扫描（人工路径与自动路径覆盖一致）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 回收器的假 cursor 与真 SQL 的耦合要拆开（#298 队列④，未动）。⑤ 「测试库卫生」一次性清理脚本（#298 队列⑤，未动）。⑥ P1-7 / P3-4 / P3-7 其余项照旧。
+
+## #301 人工恢复路径与自动路径对齐：过期扫描进 `ops recover`，步骤编号按实际执行计算
+
+**起因/占号。** #300 的下一号队列②是「`specproof ops recover` 也接过期扫描（人工路径与自动路径覆盖一致）」。落地前重测账本：HEAD 8404695，`## #` id 最大 300，`## #301` 计数 0 ⇒ 取 **#301**。
+
+**先量旧行为。** ① 过期扫描只在 worker 的**回收 tick** 里跑（`reclaim_interval > 0`）；`specproof ops recover` 这条**人工**路径不调用它 ⇒ 人工与自动回答的是**不同的问题**：自动路径问「有没有超预算的」，人工路径只问「有没有卡住的」。一个超期卡死的作业，人工跑 `ops recover` 会得到「没有卡住的作业」——**不全面的结论比没有结论更坏**。② `ops recover` 的步骤编号写死成 `[1/2]`、`[2/2]`；加一步就得改两个字符串，而 `--running-only` 之类只跑其中一步的场合，编号会指向一个**没发生的步骤**。③ 过期扫描需要一个**只读**兄弟方法供 `--dry-run` 预览（否则「只判定」会漏掉超期作业这一类，而真跑会动它们）。
+
+**修。**
+- **第三步：超期作业清理**（`cli/specproof/commands/ops.py`）：过期扫描成为 `ops recover` 的第三步。走 `agent.worker.expire_overdue_jobs()` 这个**函数接缝**（与另外两个回收器同形），因此测试可以打桩它；这一步**只在完整清扫时跑**——两个 flag 都写着「只」，而过期扫描回答的是另一个问题（「有没有超预算的」），把它塞进 `--running-only` 会让 flag 谎报自己做了什么。判定失败与「没有超期作业」严格分开（前者 `judged=False` + 退出码 1，后者照常报 0）。
+- **步骤编号按实际执行的步骤计算**（`step_names` / `step_no`）：`--running-only` 打印 `[1/1]`，完整清扫打印 `[1/3] … [3/3]`。写死的编号在只跑一步时会说出一个**没发生的步骤**。
+- **只读预览**（`storage/mysql.py::list_overdue_jobs` + `agent/worker.py::preview_overdue_jobs`）：`--dry-run` 现在也会列出超期作业（会置为 EXPIRED 的 id、各自的预算秒数与当前状态）。预览与清扫用**同一条谓词**（`TIMESTAMPDIFF(SECOND, created_at, NOW(3)) > max_execution_seconds` + 同一组可过期状态），并有结构性门把两者锁在一起——漂移会在这里红。
+
+**门与腿。** `tests/unit/test_ops_recover_cli.py`：新增 4 项——**两个 flag 都不许把过期扫描拖进来**、**步骤编号跟随实际执行的步骤**（`[1/1]` vs `[1/3]`/`[2/3]`/`[3/3]`）、过期作业被点名并计入 `acted`（终态不重投）、**过期扫描无法判定时不掩盖其他两趟**（其他两趟仍照常报告，退出码 1）。`tests/unit/test_ops_recover_dry_run.py`：新增 3 项——**过期预览与清扫共用同一条谓词**（结构性门）、**过期预览只读**（无写语句、无审计）、假 store 登记 `list_overdue_jobs` 为只读成员并把 `expire_overdue_jobs` 记为**写路径绊线**。既有门：`test_ops_recover_output_format.py`（10）——合计 **42 passed**。相关回归：`test_job_reclaimer.py`（35）、`test_reclaim_tick.py`（21）、`test_job_state_machine.py`（26）、`test_job_stage.py`（21）、`test_job_expiry.py`（12）、`test_worker_cancel_points.py`（25）、`test_worker_notify_terminal.py`（21）——**161 passed**。`ruff check .` 0 errors、`mypy .` 0 errors（229 源文件）。
+
+**否证与订正。** ① 第一版把第 2 步（WAITING_FOR_PROVIDER 恢复）的条件**误抄成** `if not provider_wait_only`（应为 `if not running_only`），`test_flags_select_single_pass` 当场红（`--running-only` 下 provider 那趟也被跑了）——**这是我引入的回归**，改回。② 第一次过期步骤直接 `MySQLStore().expire_overdue_jobs()`，绕过了测试的打桩，于是 4 个既有测试的 `acted` 计数被**真实数据库里被过期的行**污染（1 变 2）；改成与另外两个步骤同形的函数接缝后，测试能打桩它。③ 步骤编号从写死的 `[1/2]`/`[2/2]` 改成计算值后，第一版仍写死 `[1/3]`/`[2/3]`/`[3/3]`——只跑一步时会打出「[3/3]」这种不存在的分母，改为按实际步骤计算。④ dry-run 的测试**没有**因为新加的读方法而变绿，而是**红**了：它的假 store 用 `__getattr__` 把任何未登记的成员访问变成 AssertionError（「dry-run 碰了意外的 store 成员」）。这正是那道门存在的意义——新读方法必须**显式登记为只读**，写方法必须**显式登记为绊线**。
+
+**诚实边界。** ① 过期扫描**只**在完整清扫里跑；`--running-only` / `--provider-wait-only` 都不含它（这与两个 flag 的字面语义一致，但运维要知道「只跑 RUNNING」不等于「也清了超期」）。② `--dry-run` 预览的超期作业**不含租约存活判断**——租约是回收器的概念，过期是**预算**的概念，混用会让「没到期」与「租约还在」互相掩盖。③ 预览与清扫共享谓词是靠**结构性门**（断言两段源码都带同一谓词字符串）锁住的，不是靠一个共享函数——真要收敛成同一份 SQL，应该在下一号把两段查询合成一个。④ 本号没有跑一次真实的超期作业去验证「人工路径与自动路径给出同一结论」——两者共用同一个 store 方法是结构上的保证，但没做端到端对照。
+
+**下一号队列（取号时按落地时点 max+1）。** ① `list_overdue_jobs` 与 `expire_overdue_jobs` 的查询合成一份（消除「结构性门代替真共享」的债）。② 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）（#300 队列①，未动）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 回收器的假 cursor 与真 SQL 的耦合要拆开（#298 队列④，未动）。⑤ 「测试库卫生」一次性清理脚本（`arm_probe` 之类的变异臂遗留表）（#298 队列⑤，未动）。⑥ P1-7 / P3-4 / P3-7 其余项照旧。

@@ -134,11 +134,12 @@ def recover_cmd(
 
     \b
     specproof ops recover --dry-run        只判定：这轮会动哪些作业，不做任何改动
-    specproof ops recover                  两轮都跑
+    specproof ops recover                  三步都跑（含超期作业清理）
     specproof ops recover --running-only   只救 worker 崩掉后留在 RUNNING 的作业
     specproof ops recover --lease-ttl 120  与自定义租约 TTL 的 worker 对齐
     """
     from agent.worker import (
+        expire_overdue_jobs,
         reclaim_stale_running_jobs,
         recover_waiting_for_provider_jobs,
     )
@@ -160,8 +161,33 @@ def recover_cmd(
     lines: list[str] = []
     acted = 0
 
+    # The steps that will actually run, and their numbering.
+    #
+    # The numbering is COMPUTED from the steps that run, not hardcoded: a
+    # run with --running-only must not print a "[2/3]" for a step that
+    # never happens, and a skipped step must not steal a number from the
+    # ones that do run.
+    #
+    # The expiry runs in the FULL sweep only. Both flags say "only": the
+    # expiry answers a different question ("is anything over budget?")
+    # from the two reclaimers ("did the worker die?" / "is the provider
+    # back?"), so running it under --running-only would make the flag
+    # lie about what it did.
+    step_names: list[str] = []
     if not provider_wait_only:
-        lines.append(f"[1/2] 过期 RUNNING 回收（租约 TTL {lease_ttl_seconds}s）")
+        step_names.append("running")
+    if not running_only:
+        step_names.append("provider_wait")
+    if not running_only and not provider_wait_only:
+        step_names.append("expired")
+    step_total = len(step_names)
+    step_no = {name: i + 1 for i, name in enumerate(step_names)}
+
+    if not provider_wait_only:
+        lines.append(
+            f"[{step_no['running']}/{step_total}] 过期 RUNNING 回收"
+            f"（租约 TTL {lease_ttl_seconds}s）"
+        )
         try:
             outcome = reclaim_stale_running_jobs(lease_ttl_seconds=lease_ttl_seconds)
         except Exception as exc:  # noqa: BLE001 — 运维命令要说出判定失败的原因
@@ -185,7 +211,9 @@ def recover_cmd(
             lines.extend(running_lines)
 
     if not running_only:
-        lines.append("[2/2] WAITING_FOR_PROVIDER 恢复")
+        lines.append(
+            f"[{step_no['provider_wait']}/{step_total}] WAITING_FOR_PROVIDER 恢复"
+        )
         try:
             results = recover_waiting_for_provider_jobs()
         except Exception as exc:  # noqa: BLE001 — 同上
@@ -204,6 +232,38 @@ def recover_cmd(
             }
             acted += len(results)
             lines.extend(_human_provider_wait(results))
+
+    # The execution-budget expiry. The worker's reclaim tick runs it
+    # automatically; an operator running this command by hand must reach
+    # the same conclusion, or the manual path would answer a DIFFERENT
+    # question than the automatic one ("is anything stuck?" vs "is
+    # anything over budget?"). A job that is expired is TERMINAL — it is
+    # not re-queued and not re-delivered.
+    if "expired" in step_no:
+        lines.append(
+            f"[{step_no['expired']}/{step_total}] 超期作业清理（执行期限预算）"
+        )
+        try:
+            expired_ids = expire_overdue_jobs()
+        except Exception as exc:  # noqa: BLE001 — 同上
+            report["judged"] = False
+            report["expired"] = {
+                "error": f"{type(exc).__name__}: {str(exc)[:300]}",
+            }
+            lines.append(
+                f"  无法判定：数据库查询失败（{type(exc).__name__}: "
+                f"{str(exc)[:200]}）—— 这不等于没有超期作业"
+            )
+        else:
+            report["expired"] = {"job_ids": expired_ids}
+            acted += len(expired_ids)
+            if expired_ids:
+                lines.append(
+                    f"  {len(expired_ids)} 个作业超过执行期限预算，已置为 EXPIRED"
+                    "（终态，不重投）: " + ",".join(expired_ids)
+                )
+            else:
+                lines.append("  没有超期作业")
 
     report["acted"] = acted
     if as_json:
@@ -236,6 +296,7 @@ def _recover_dry_run(
     per-process and default-off, so claiming it would be an invented verdict.
     """
     from agent.worker import (
+        preview_overdue_jobs,
         preview_stale_running_jobs,
         preview_waiting_for_provider_jobs,
     )
@@ -255,9 +316,22 @@ def _recover_dry_run(
     lines: list[str] = []
     would = 0
 
+    # The same computed numbering the mutating path uses, so a dry-run
+    # and the real run name the same steps the same way.
+    step_names: list[str] = []
+    if not provider_wait_only:
+        step_names.append("running")
+    if not running_only:
+        step_names.append("provider_wait")
+    if not running_only and not provider_wait_only:
+        step_names.append("expired")
+    step_total = len(step_names)
+    step_no = {name: i + 1 for i, name in enumerate(step_names)}
+
     if not provider_wait_only:
         lines.append(
-            f"[1/2] 过期 RUNNING 回收判定（租约 TTL {lease_ttl_seconds}s，只读）"
+            f"[{step_no['running']}/{step_total}] 过期 RUNNING 回收判定"
+            f"（租约 TTL {lease_ttl_seconds}s，只读）"
         )
         try:
             plan = preview_stale_running_jobs(
@@ -315,7 +389,10 @@ def _recover_dry_run(
                 lines.append(f"  {len(alive)} 个租约仍在续：不会改动")
 
     if not running_only:
-        lines.append("[2/2] WAITING_FOR_PROVIDER 恢复判定（只读）")
+        lines.append(
+            f"[{step_no['provider_wait']}/{step_total}] WAITING_FOR_PROVIDER "
+            "恢复判定（只读）"
+        )
         try:
             parked = preview_waiting_for_provider_jobs()
         except Exception as exc:  # noqa: BLE001 — 同上
@@ -359,6 +436,37 @@ def _recover_dry_run(
                 lines.append(
                     "  注：模型服务是否已恢复不在判定范围内（熔断器是进程内的），"
                     "真跑时服务未恢复则这些作业继续搁置"
+                )
+
+    if not running_only and not provider_wait_only:
+        lines.append("[3/3] 超期作业清理判定（执行期限预算，只读）")
+        try:
+            overdue = preview_overdue_jobs()
+        except Exception as exc:  # noqa: BLE001 — 同上
+            report["judged"] = False
+            report["expired"] = {
+                "error": f"{type(exc).__name__}: {str(exc)[:300]}",
+            }
+            lines.append(
+                f"  无法判定：数据库查询失败（{type(exc).__name__}: "
+                f"{str(exc)[:200]}）—— 这不等于没有超期作业"
+            )
+        else:
+            report["expired"] = {
+                "overdue": len(overdue),
+                "would_expire_job_ids": [str(r["id"]) for r in overdue],
+            }
+            would += len(overdue)
+            if not overdue:
+                lines.append("  没有超期作业")
+            else:
+                lines.append(
+                    f"  会置为 EXPIRED {len(overdue)} 个（终态，不重投）: "
+                    + " ".join(
+                        f"{r['id']}(预算 {int(r.get('max_execution_seconds') or 0)}s"
+                        f"，当前 {r.get('status')}）"
+                        for r in overdue
+                    )
                 )
 
     report["would_act"] = would
