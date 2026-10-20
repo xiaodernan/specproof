@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -56,16 +57,31 @@ REFERENCE_FILES = (
     Path("infra/grafana/dashboards/specproof-slo.json"),
 )
 
-#: First-arg literal (``incr("x")``) or module constant (``incr(METRIC_X)``).
+#: First-arg literal (``incr("x")``) or module constant (``incr(METRIC_X)``),
+#: captured WITH the call that owns it — the call is the name's type:
+#: incr → counter, set_gauge → gauge, observe_duration → histogram. The type is
+#: what decides whether a ``_bucket/_sum/_count`` tail on a referenced name is a
+#: legal exposition suffix or a name nobody produces (#296).
 _EMIT_CALL = re.compile(
-    r"\b(?:incr|set_gauge|observe_duration)\(\s*"
-    r"(?:['\"]([a-z0-9_]+)['\"]|([A-Z][A-Z0-9_]*))"
+    r"\b(incr|set_gauge|observe_duration)\(\s*"
+    r"(?:['\"]([a-z0-9_]+)['\"]\s*[,)]|([A-Z][A-Z0-9_]*)\s*[,)])"
 )
+#: Same entry points when the name is CONCATENATED at runtime:
+#: ``observe_duration("jobs_duration_seconds_" + depth.lower(), …)``. The literal
+#: is the family's prefix, so it carries that family's type too — read here
+#: instead of being written into each CONCATENATED_FAMILIES entry, which would
+#: be a second copy of a fact the call site already states.
+_CONCAT_CALL = re.compile(
+    r"\b(incr|set_gauge|observe_duration)\(\s*"
+    r"([\"'][a-z0-9_]+[\"'])\s*(?:\+|\")"
+)
+_EMIT_KINDS = {"incr": "counter", "set_gauge": "gauge", "observe_duration": "histogram"}
 #: Module-level string constant usable as a metric name.
 _MODULE_CONST = re.compile(r"^([A-Z][A-Z0-9_]*)\s*=\s*['\"]([a-z0-9_]+)['\"]", re.M)
 _REFERENCE = re.compile(r"specproof_([a-z0-9_]+)")
 #: Histogram exposition adds these to the base name; queries must be reduced
-#: back to the base before matching (e.g. ..._fast_bucket → ..._fast).
+#: back to the base before matching (e.g. ..._fast_bucket → ..._fast). The
+#: reduction is only legal when the base IS a histogram — see account_name.
 _HISTOGRAM_SUFFIXES = ("_bucket", "_sum", "_count")
 
 #: Names the code concatenates at runtime — unlistable, so pattern-matched.
@@ -488,27 +504,47 @@ def _referenced_names() -> set[str]:
     return {n for n in names if not n.endswith("_")}
 
 
-def _emitted_names() -> set[str]:
-    names = {"up"}  # observability/metrics.py::render_text, unconditional
+@lru_cache(maxsize=1)
+def _emission_sites() -> tuple[tuple[str, str, str, bool], ...]:
+    """(repo-relative file, emit call, resolved name) for every scanned site.
+
+    One walk, three readers (#296): ``_emitted_names``, ``emission_files`` and
+    ``emitted_types`` all used to re-implement this scan, which is how the
+    suffix rule drifted from the call shapes it is supposed to follow. Cached
+    because the accounting helper asks per referenced name; a mutated tree is
+    measured in a fresh process, never by re-reading through this cache.
+    """
+    found: list[tuple[str, str, str, bool]] = []
     for emit_dir in EMIT_DIRS:
         for path in sorted((ROOT / emit_dir).rglob("*.py")):
             text = path.read_text(encoding="utf-8")
             constants = dict(_MODULE_CONST.findall(text))
-            for literal, const in _EMIT_CALL.findall(text):
+            rel = path.relative_to(ROOT).as_posix()
+            for call, literal, const in _EMIT_CALL.findall(text):
                 if literal:
-                    names.add(literal)
+                    found.append((rel, call, literal, False))
                 elif const in constants:
-                    names.add(constants[const])
+                    found.append((rel, call, constants[const], False))
+            for call, raw in _CONCAT_CALL.findall(text):
+                found.append((rel, call, raw.strip("\"'"), True))
+    return tuple(found)
+
+
+def _emitted_names() -> set[str]:
+    names = {"up"}  # observability/metrics.py::render_text, unconditional
+    names.update(n for _, _, n, concat in _emission_sites() if not concat)
     return names
 
 
 def emission_files() -> set[str]:
     """Repo-relative paths of the modules that own an emission site (#217).
 
-    Same scan as ``_emitted_names`` — same EMIT_DIRS, same call shapes — but
+    Same scan as ``_emitted_names`` — the shared ``_emission_sites`` walk — but
     returns the owning FILES instead of the metric names, so a caller can
     reconcile a per-file inventory (OBSERVABILITY.md 8.10 calls the emission
     sites its only legal source, so its list and this census must be equal).
+    A runtime-concatenated emission (``observe_duration("es_request_seconds_"
+    + op, …)``) owns its file too: the name is unlistable, the site is not.
 
     ``observability/metrics.py`` is added explicitly: ``render_text`` emits
     ``up`` unconditionally rather than through incr/set_gauge/
@@ -516,32 +552,99 @@ def emission_files() -> set[str]:
     render_text 自己的条目").
     """
     files = {"observability/metrics.py"}
-    for emit_dir in EMIT_DIRS:
-        for path in sorted((ROOT / emit_dir).rglob("*.py")):
-            text = path.read_text(encoding="utf-8")
-            constants = dict(_MODULE_CONST.findall(text))
-            for literal, const in _EMIT_CALL.findall(text):
-                if literal or const in constants:
-                    files.add(path.relative_to(ROOT).as_posix())
-                    break
+    for rel, _, _, _ in _emission_sites():
+        files.add(rel)
     return files
+
+
+@lru_cache(maxsize=1)
+def emitted_types() -> dict[str, str]:
+    """Metric name -> the exposition type its own call site gives it.
+
+    ``incr`` makes a counter, ``set_gauge`` a gauge, ``observe_duration`` a
+    histogram (observability/metrics.py keeps three separate stores). Only
+    histograms get ``_bucket/_sum/_count`` siblings, so this is what makes the
+    suffix reduction in account_name legal or illegal. Runtime-concatenated
+    prefixes are NOT names: they are read from concatenated_prefix_types().
+    """
+    types = {"up": "gauge"}
+    for _, call, name, concat in _emission_sites():
+        if not concat:
+            types[name] = _EMIT_KINDS[call]
+    return types
+
+
+@lru_cache(maxsize=1)
+def concatenated_prefix_types() -> dict[str, str]:
+    """Runtime name prefixes -> the type of the call that builds them.
+
+    ``observe_duration("jobs_duration_seconds_" + depth.lower(), …)`` gives
+    every name in that family a histogram's siblings; ``incr("notify_" + …)``
+    gives its names none. Derived from the same walk as emitted_types so a
+    family never carries a hand-written type.
+    """
+    kinds: dict[str, str] = {}
+    for _, call, prefix, concat in _emission_sites():
+        if concat:
+            kinds[prefix] = _EMIT_KINDS[call]
+    return kinds
+
+
+def base_type(name: str) -> str | None:
+    """The exposition type of a bare (no-suffix) metric name, or None.
+
+    Literal names read emitted_types(); a runtime-concatenated name reads the
+    LONGEST matching prefix from concatenated_prefix_types() — ``jobs_`` (a
+    counter family) and ``jobs_duration_seconds_`` (a histogram family) are both
+    prefixes of ``jobs_duration_seconds_fast``, and only the longer one owns it.
+    """
+    types = emitted_types()
+    if name in types:
+        return types[name]
+    prefixes = concatenated_prefix_types()
+    owner = max(
+        (p for p in prefixes if name.startswith(p)),
+        key=len,
+        default=None,
+    )
+    return prefixes[owner] if owner else None
+
+
+def account_name(name: str) -> str:
+    """Why a scraped spelling is (or is not) produced by this codebase.
+
+    Verdicts: ``counter``/``gauge``/``histogram`` for a name an emit site owns
+    directly, ``family`` for a runtime-concatenated name, ``histogram-<suffix>``
+    for an exposition sibling of a histogram base, ``placeholder`` for the
+    ``specproof_x_`` stems the docs quote before a ``<word>``/``*`` wildcard,
+    ``unaccounted`` otherwise.
+
+    #296: the suffix reduction used to run UNCONDITIONALLY, so any name ending in
+    ``_count`` was matched as if it had lost a histogram sibling. That made
+    ``outbox_retry_count`` (a gauge that really is named that) read dead, and
+    ``outbox_published_total_count`` (a name no emitter produces) read alive.
+    """
+    if name.endswith("_"):
+        return "placeholder"
+    if name in _emitted_names():
+        return emitted_types()[name]
+    if any(pattern.match(name) for pattern, _ in CONCATENATED_FAMILIES.values()):
+        return "family"
+    for suffix in _HISTOGRAM_SUFFIXES:
+        if not name.endswith(suffix):
+            continue
+        base = name[: -len(suffix)]
+        if base_type(base) == "histogram":
+            return f"histogram{suffix}"
+    return "unaccounted"
 
 
 def test_every_referenced_metric_name_traces_to_an_emission_site() -> None:
     referenced = _referenced_names()
-    emitted = _emitted_names()
 
     unaccounted: list[str] = []
     for name in sorted(referenced):
-        base = name
-        for suffix in _HISTOGRAM_SUFFIXES:
-            if base.endswith(suffix):
-                base = base[: -len(suffix)]
-        if base in emitted:
-            continue
-        if any(
-            pattern.match(base) for pattern, _ in CONCATENATED_FAMILIES.values()
-        ):
+        if account_name(name) != "unaccounted":
             continue
         unaccounted.append(name)
 
@@ -551,6 +654,102 @@ def test_every_referenced_metric_name_traces_to_an_emission_site() -> None:
         "Either the reference is stale (fix the alert/dashboard), or the name "
         "is a new concatenated family (register it in CONCATENATED_FAMILIES "
         "with its emission-site pointer and vocabulary derivation)."
+    )
+
+
+def test_every_emitted_name_has_exactly_one_kind() -> None:
+    """A name emitted through two stores is two series with one spelling."""
+    kinds: dict[str, set[str]] = {}
+    for _, call, name, concat in _emission_sites():
+        if not concat:
+            kinds.setdefault(name, set()).add(call)
+    assert len(kinds) >= 100, f"emission scan collapsed: {len(kinds)} names"
+    mixed = {n: sorted(k) for n, k in kinds.items() if len(k) > 1}
+    assert not mixed, (
+        "the same metric name is emitted through more than one entry point "
+        f"(counter/gauge/histogram keep separate stores): {mixed}"
+    )
+
+
+def test_suffix_permission_follows_the_emit_call_kind() -> None:
+    """#296: ``_bucket/_sum/_count`` is legal only on a histogram base.
+
+    Before #296 the reduction ran unconditionally, which made a real gauge
+    (``outbox_retry_count``) read dead and a name no emitter produces
+    (``outbox_published_total_count``) read alive. Both directions are measured
+    here from the scanned call shapes, not from a hand list.
+    """
+    types = emitted_types()
+    histogram_bases = sorted(n for n, kind in types.items() if kind == "histogram")
+    assert len(histogram_bases) >= 5, (
+        f"histogram scan collapsed: {len(histogram_bases)} bases"
+    )
+    # A concatenation prefix must never be read as a complete name: the
+    # literal alternative in _EMIT_CALL requires a closing `,`/`)` exactly so
+    # observe_duration("jobs_duration_seconds_" + depth… ) stays a prefix.
+    leaked_prefixes = sorted(n for n in types if n.endswith("_"))
+    assert not leaked_prefixes, (
+        f"emit scan read runtime prefixes as whole names: {leaked_prefixes}"
+    )
+    for base in histogram_bases:
+        for suffix in _HISTOGRAM_SUFFIXES:
+            assert account_name(f"{base}{suffix}") == f"histogram{suffix}", (
+                f"{base} is emitted by observe_duration, so {base}{suffix} "
+                "must be accepted as an exposition sibling"
+            )
+
+    # Runtime-concatenated histogram families get the same permission through
+    # their prefix's call kind, and only through it. Probed on the names the
+    # shipped references actually quote, so the leg cannot pass on a made-up
+    # word no family accepts.
+    histogram_prefixes = sorted(
+        p for p, kind in concatenated_prefix_types().items() if kind == "histogram"
+    )
+    assert histogram_prefixes, "no concatenated histogram family found"
+    exercised = 0
+    for prefix in histogram_prefixes:
+        for member in sorted(n for n in _referenced_names() if n.startswith(prefix)):
+            assert account_name(f"{member}_bucket") == "histogram_bucket", (
+                f"family {prefix}* is built by observe_duration, so "
+                f"{member}_bucket must be accepted as an exposition sibling"
+            )
+            exercised += 1
+    assert exercised >= 2, (
+        f"only {exercised} concatenated histogram reference(s) found — the "
+        "family half of the rule is barely exercised"
+    )
+
+    # The false-red shape: a name whose own spelling ends in a histogram
+    # suffix but whose call is NOT observe_duration. It must be accepted as
+    # itself, and the same tail ADDED to it must be refused.
+    suffix_tailed_non_histograms = sorted(
+        n for n, kind in types.items()
+        if kind != "histogram" and n.endswith(_HISTOGRAM_SUFFIXES)
+    )
+    assert suffix_tailed_non_histograms, (
+        "no non-histogram metric ends in a histogram suffix — this leg's "
+        "false-red half is vacuous; pick another witness or delete the half"
+    )
+    for name in suffix_tailed_non_histograms:
+        assert account_name(name) != "unaccounted", (
+            f"{name} is emitted as a {types[name]} but reads dead: the suffix "
+            "reduction is running before the name is looked up"
+        )
+        for suffix in _HISTOGRAM_SUFFIXES:
+            assert account_name(f"{name}{suffix}") == "unaccounted", (
+                f"{name} is a {types[name]}; {name}{suffix} is not a series "
+                "anyone produces and must not be excused as a sibling"
+            )
+
+
+def test_references_actually_exercise_the_histogram_rule() -> None:
+    """Vacuity floor: some shipped reference must need the suffix reduction."""
+    exercised = [
+        n for n in sorted(_referenced_names()) if account_name(n).startswith("histogram")
+    ]
+    assert exercised, (
+        "no alerts/dashboard reference resolves through the histogram rule — "
+        "the rule is untested by the shipped combat surface"
     )
 
 
