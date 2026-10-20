@@ -6025,3 +6025,27 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 求值器仍**不是** SQL 引擎：只覆盖本仓库实际发出的语句形状，不实现 JOIN/子查询/函数/类型转换；`ORDER BY` 按**字符串**排（生产 SQL 只用它定序）。② 假库用 `NOW` 这个**固定时钟**，而真实 MySQL 用数据库时钟；真值仍由 `tests/integration/test_job_expiry.py`（真实 MySQL）守。③ 本号只换了 `test_ops_recover_dry_run.py` 一份假；仓库里**还有**若干测试用各写各的手写假（`test_api_jobs.py` 的 `FakeMySQLStore`、`test_job_reclaimer.py` 之外的若干），它们**尚未**换成求值器——换过去是独立工作，且每份假的形状不同，不能机械套用。④ 断言「计划只点陈旧的 RUNNING」这一条**依赖生产查询的状态集**——如果生产把某个状态加进在途集，这条断言的期望会随之变化（这是**应该**的：计划跟着生产走）。⑤ 本号没有为「假库时钟」与「数据库时钟」的差异写差值测试（真实 MySQL 那侧已覆盖）。
 
 **下一号队列（取号时按落地时点 max+1）。** ① 仓库里其余手写假（`test_api_jobs.py` 的 `FakeMySQLStore` 等）是否也换成求值器——逐份评估形状，不机械套用。② 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）（#300 队列①，未动）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 「测试库卫生」一次性清理脚本（`arm_probe` 之类的变异臂遗留表）（#298 队列⑤，未动）。⑤ P1-7 / P3-4 / P3-7 其余项照旧。
+
+## #304 测试库卫生工具：残留表可被列出与清除，产品库不可被指向
+
+**起因/占号。** #303 的下一号队列④是「『测试库卫生』一次性清理脚本（`arm_probe` 之类的变异臂遗留表）」。落地前重测账本：HEAD eeb68b9，`## #` id 最大 303，`## #304` 计数 0 ⇒ 取 **#304**。
+
+**先量旧行为。** #298 时查出来的漂移是：`specproof_test` 有 20 张表、`specproof_phase0` 有 19 张，多出来的那张是 `arm_probe`——**2026-10-12 遗留的变异臂探针表**（八天前）。当时是手工 `DROP TABLE` 掉的，于是：① 下次别的车道再留一张，同样的漂移会**重演**，而查它的人得知道「去 information_schema 里数表」；② 数据字典的表数门（`test_data_dictionary_covers_migrations.py` 拿**实测表数**对**文档声明**）会因为一张**与 schema 无关**的表而红——**一个真门被一个假原因弄红**，比没有门更坏。
+
+**修。** 新增 `scripts/clean_test_database.py`：
+- **期望集合从真源派生**：把每个版本化迁移里的 `CREATE TABLE` 解析出来，再加代码 DDL 建的 `schema_migrations`——**不在脚本里手抄表名**。迁移加表，工具自动跟上。
+- **默认只报告**：不带 `--drop` 时只列出残留并说明「没动任何东西」；加 `--drop` 才真删。
+- **拒绝任何不是 `specproof_test*` 的目标**（退出码 2）：产品库 `specproof_phase0` 与其它任何库都进不去。**拒绝是安全属性，不是命名习惯**——所以它有门。
+- **缺失的 owned 表会被点名**：如果迁移没跑完，报告会说「有 N 张 owned 表不在」，而不是把「表比文档多」当成唯一结论。
+
+**门与腿。** 新增 `tests/integration/test_clean_test_database_script.py`（9 项）：
+- **产品库被拒**（`specproof_phase0` → 退出码 2）；**别的库也被拒**（`production` / `specproof` / `test` / `specproof_phase0_test` 四个都试）；`specproof_test` / `specproof_test_2` 被允许。
+- **期望集合从迁移派生**（15 张关键表都在）；**只出现在注释里的表不算 owned**——`0011` 的注释写着「runtime `CREATE TABLE IF NOT EXISTS` in storage/agent_jobs.py」、`0014` 的注释写着「storage/billing.py's CREATE TABLE covers fresh ones」，若把注释当 DDL 读，会凭空多出 `IF` 与 `covers` 两张表，然后报告会把**真的表**说成缺失。
+- **报告模式不删、删除模式删干净、干净库报无残留**（真实 MySQL 上跑完整闭环）。
+既有门 `test_data_dictionary_covers_migrations.py`（5）——合计 **30 passed**（含 `test_job_expiry.py` 12 与 `test_migration_0015_roundtrip.py` 4 的同批回归）。`ruff check .` 0 errors、`mypy .` 0 errors（229 源文件）。
+
+**否证与订正。** ① 第一版解析迁移时**没有先剥掉注释行**，`owned` 集合里混进了 `IF` 与 `covers`（正是上面那两条注释），报告因此说「2 张 owned 表缺失」——**假警报**。修法与迁移器本身一致：先按行剥 `--` 开头的内容再扫。② 脚本第一版用 `MySQLStore()`（不带 config）连接，而 `MySQLStore()` 无参时读 `from_env()`——那正是 #299 记过的那类「以为连的是 A、其实连的是 B」的坑；本脚本**显式**传 `config.database`，并在守卫不通过时**先退出再连接**。
+
+**诚实边界。** ① 工具**只**认「迁移建的表 + `schema_migrations`」为 owned；`object_metadata` / `object_contracts`（显式选择 MySQL 对象元数据后端时才建的表）**不在** owned 集合里——若那个后端在测试库里开过，工具会把它当残留删掉。这是有意的（产品库里也没有它们，见数据字典 §1.18 的口径），但**运维要知道**：在那个后端开着的环境里别盲跑 `--drop`。② 工具**不**检查列/索引，只按表名判断归属。③ 它**不**清理**行**——只处理表；测试留下的行由各测试自己清（conftest 的隔离机制管这个）。④ 本号只把工具挂进了数据字典的说明，**没有**把它接进任何 CI 步骤或钩子——「每次测试前自动清」会掩盖「谁留了表」这个信息，所以刻意做成**手动**工具。⑤ 工具本身有 9 项门，但它**没有**被测「目标库存在但连不上」的路径（那会走 `ABORT: cannot connect` 分支，退出码 2，未测）。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 仓库里其余手写假（`test_api_jobs.py` 的 `FakeMySQLStore` 等）是否也换成求值器（#303 队列①，未动）。② 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）（#300 队列①，未动）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）——`NEEDS_REVIEW` 需要一次 verdict 词汇联动（BLOCKED / NEEDS_REVIEW 的边界）+ CLI 退出码 + 证书门 + 前端四处同时改；`CONTRACT_REVIEW` 要么让管线在契约待批时**真的停下**，要么**不写**。④ P1-7 / P3-4 / P3-7 其余项照旧。

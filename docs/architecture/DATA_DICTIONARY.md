@@ -32,6 +32,9 @@
 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
 本文 §1.18 / §1.19 两张对象元数据表**不在这 18 张里** —— 它们只在显式选择 MySQL 对象元数据后端时
 由 `ensure_schema()` 现建, 默认后端是 SQLite (见 §1.18 的口径说明)。
+**表数与实测不符时**: 测试库可能被变异臂的探针留下不属于 schema 的表 (2026-10-20 实测到一张
+2026-10-12 遗留的 `arm_probe`)。用 `python scripts/clean_test_database.py` 列出并清除它们 ——
+该脚本只允许指向 `specproof_test*` 模式, 拒绝产品库, 默认只报告不删, 加 `--drop` 才动手。
 时间戳约定: 迁移 0001-0004/0006/0008/0009 用 MySQL TIMESTAMP; 0005/0007 与 0011 的 `agent_jobs`
 用 epoch 秒 DOUBLE/REAL (`agent_jobs` 走的是 `storage/identity.py` / `storage/billing.py` 那条
 可移植时间戳约定, 不是 TIMESTAMP —— 这正是 0011 必须与代码 DDL 逐列对齐的原因之一)。
