@@ -72,15 +72,28 @@ class TestTheVerdictCarriesIt:
         # evidence simply cannot be trusted until a human approves.
         assert not decision.blocking
 
-    def test_the_generic_reason_is_used_when_there_is_no_specific_one(
-        self,
-    ) -> None:
-        """A row with no reason of its own still gets the generic one."""
+    def test_a_row_with_no_label_still_gets_a_derived_reason(self) -> None:
+        """The verdict derives the reason; a missing label is not a blank.
+
+        The row's experiment record says whether an experiment ran, so
+        the verdict can name the reason without the node's help.
+        """
         decision = evaluate_verification({
             "rows": [{"contract_id": "C-1", "result": "UNVERIFIED"}],
         })
         assert decision.status == "NEEDS_REVIEW"
-        assert "尚未得到可判定结果" in decision.reason
+        assert "没有任何实验产出结果" in decision.reason
+
+    def test_a_row_that_ran_an_experiment_says_so(self) -> None:
+        decision = evaluate_verification({
+            "rows": [{
+                "contract_id": "C-1",
+                "result": "UNVERIFIED",
+                "experiment_ids": ["STATIC-01"],
+            }],
+        })
+        assert decision.status == "NEEDS_REVIEW"
+        assert "实验已运行但未得到可判定证据" in decision.reason
 
 
 class TestTheOutwardReasonIsAControlledVocabulary:
@@ -104,7 +117,9 @@ class TestTheOutwardReasonIsAControlledVocabulary:
         })
         assert decision.status == "NEEDS_REVIEW"
         assert "Maven execution error" not in decision.reason
-        assert "尚未得到可判定结果" in decision.reason
+        # The verdict's own sentence, derived from the row's experiment
+        # record — not the node's prose, and not a blank.
+        assert "没有任何实验产出结果" in decision.reason
 
     def test_a_controlled_code_is_quoted(self) -> None:
         """The code is how a row says WHICH controlled sentence applies."""
@@ -120,7 +135,7 @@ class TestTheOutwardReasonIsAControlledVocabulary:
         assert decision.status == "NEEDS_REVIEW"
         assert "未获批准" in decision.reason
 
-    def test_an_unknown_code_falls_back_to_the_generic_sentence(self) -> None:
+    def test_an_unknown_code_falls_back_to_a_derived_sentence(self) -> None:
         """A code nobody declared must not invent a sentence."""
         decision = evaluate_verification({
             "rows": [{
@@ -130,7 +145,8 @@ class TestTheOutwardReasonIsAControlledVocabulary:
             }],
         })
         assert decision.status == "NEEDS_REVIEW"
-        assert "尚未得到可判定结果" in decision.reason
+        assert "something_a_node_made_up" not in decision.reason
+        assert "没有任何实验产出结果" in decision.reason
 
 
 class TestTheVerdictDerivesWhatItCanCompute:
@@ -191,7 +207,74 @@ class TestTheVerdictDerivesWhatItCanCompute:
         assert "没有任何实验产出结果" in decision.reason
 
 
-class TestTheJobDoesNotParkOnContractReview:
+class TestTheRowNeverContradictsTheFacts:
+    """A row's code must agree with the facts the row-level view shows.
+
+    The verdict layer OVERRIDES a wrong label (#310), so a mislabelled
+    row would still produce a correct outward conclusion — and the row
+    itself would still DISPLAY the wrong reason. Silence is not a
+    gate: this checks the row against the facts it was built from, so a
+    future change that lets a row claim "never approved" for an
+    approved contract goes red HERE rather than being quietly corrected
+    somewhere downstream.
+    """
+
+    def _matrix(self, approvals: dict[str, bool]) -> dict[str, Any]:
+        contracts = [
+            {
+                "id": cid,
+                "requirement": f"要求 {cid}",
+                "checker_type": "http",
+                "version": 1,
+                "approved": approved,
+                "result": "UNVERIFIED",
+            }
+            for cid, approved in approvals.items()
+        ]
+        return build_matrix_node({
+            "contracts": contracts,
+            "contract_results": [],
+            "diff_results": [],
+            "findings": [],
+        })["matrix"]
+
+    def test_the_approval_code_agrees_with_the_approval_fact(self) -> None:
+        from evidence.verdict import ROW_REASON_CONTRACT_NOT_APPROVED
+
+        matrix = self._matrix({"A-1": True, "B-1": False, "C-1": True})
+        approvals = {"A-1": True, "B-1": False, "C-1": True}
+        for row in matrix["rows"]:
+            cid = row["contract_id"]
+            code = str(row.get("unverified_reason_code") or "")
+            if approvals[cid]:
+                assert code != ROW_REASON_CONTRACT_NOT_APPROVED, (
+                    f"{cid} is approved, so its row must not claim it was not"
+                )
+            else:
+                assert code == ROW_REASON_CONTRACT_NOT_APPROVED, (
+                    f"{cid} was never approved, so its row must say so"
+                )
+
+    def test_the_row_and_the_verdict_agree_on_the_approval_fact(self) -> None:
+        """The row-level view and the outward conclusion must not differ."""
+        from evidence.verdict import ROW_REASON_CONTRACT_NOT_APPROVED
+
+        matrix = self._matrix({"A-1": True, "B-1": False})
+        decision = evaluate_verification(
+            matrix, contracts=[
+                {"id": "A-1", "approved": True},
+                {"id": "B-1", "approved": False},
+            ],
+        )
+        unapproved_rows = [
+            row for row in matrix["rows"]
+            if row.get("unverified_reason_code") == ROW_REASON_CONTRACT_NOT_APPROVED
+        ]
+        assert [row["contract_id"] for row in unapproved_rows] == ["B-1"]
+        assert "未获批准" in decision.reason
+        # The approved contract's row does NOT claim otherwise, so the
+        # outward reason mentions only the one that is really unapproved.
+        assert decision.reason.count("未获批准") == 1
     """Why there is no CONTRACT_REVIEW producer — pinned as behaviour.
 
     The frozen state machine has a CONTRACT_REVIEW status, and the

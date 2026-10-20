@@ -346,11 +346,22 @@ def evaluate_verification(
             #
             # What the verdict layer can COMPUTE wins over what a node
             # LABELLED: an unapproved contract is unapproved whatever the
-            # row says about it.
+            # row says about it, and a row that ran no experiment says so
+            # in its own experiment record.
             code = (
                 ROW_REASON_CONTRACT_NOT_APPROVED if cid in unapproved
                 else str(row.get("unverified_reason_code") or "").strip()
             )
+            if code not in _ROW_REASON_TEXT:
+                # No usable label: derive it from the row's experiment
+                # record — the row knows whether an experiment ran.
+                experiment_ids = row.get("experiment_ids")
+                ran = bool(
+                    isinstance(experiment_ids, (list, tuple)) and experiment_ids
+                )
+                code = (
+                    ROW_REASON_INCONCLUSIVE if ran else ROW_REASON_NO_EXPERIMENT
+                )
             text = _ROW_REASON_TEXT.get(code)
             if text:
                 gap(f"{label}：{text}")

@@ -68,7 +68,7 @@ SCENARIOS: list[
     ),
     (
         "a contract with no decidable result",
-        {"rows": [_row(result="UNVERIFIED")]}, None, "尚未得到可判定结果",
+        {"rows": [_row(result="UNVERIFIED")]}, None, "没有任何实验产出结果",
         REASON_GAP, "NEEDS_REVIEW",
     ),
     (
