@@ -92,6 +92,9 @@ None
 build_result.txt
 test_output.txt
 apps/web/out.js
+# The commit-message scratch file (a Chinese message is safer written to a
+# file than passed through a shell's argument encoding).
+_commit_msg.txt
 # An unreferenced one-off dev-server config (proxy to a local API on
 # 5188); nothing in scripts/ or docs/ points at it.
 apps/web/vite.demo.config.mjs
