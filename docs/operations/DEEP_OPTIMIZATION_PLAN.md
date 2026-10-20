@@ -6149,3 +6149,22 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 本号**没有**让管线真的等待批准——那是一条产品特性（等待态 + 恢复入口 + 超时策略），不是本号的范围；本号做的是**把「没批准」这件事说清楚**。② `unverified_reason` 现在会被判定层引用，于是**行里的散文会进入判定的 `reason` 字段**——这让判定理由更具体，但也让判定层对行内容的依赖更深了一步（行是节点写的散文，不是受控词表）。③ 契约的审批状态来自 `compile_contracts` 的 `approved` 标记；本号**没有**追查「标记为 False 的契约是否真的都在注册表里查过」——那是 `compile_contracts` 的既有语义。④ 「未获批准」是**GAP**：没有东西被证明是坏的。但一个**从未获批**的契约其实也可以论证成「证据不足到不能作数」之外的另一回事——本号选了 GAP，与它计入 `unverified` 计数保持一致。⑤ 本号**没有**改任何消费者（CLI/前端/报告在 #306 已就位）——改的是**理由的来源**。
 
 **下一号队列（取号时按落地时点 max+1）。** ① 为 NEEDS_REVIEW 补 §14 的阈值与告警（先量生产占比，再定线）。② 分类表要不要改成**数据驱动**（文本模板 → 种类），让「表」成为一份可读、可审计的文件而不是散在代码里的选择。③ `unverified_reason` 进入判定理由之后，是否需要一个**受控词表**（现在行里的散文会直接成为对外的理由文本）。④ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 仓库里其余手写假是否也换成求值器（#303 队列①，未动）。⑥ 如果产品决定让管线真的等待契约批准：需要等待态、恢复入口、超时策略，以及「等待中」与「已过期」的关系——那是一条独立的需求。⑦ P1-7 / P3-4 / P3-7 其余项照旧。
+
+## #309 对外理由改用受控词表：行用「代码」说原因，判定层拥有措辞
+
+**起因/占号。** #308 的下一号队列③是「`unverified_reason` 进入判定理由之后，是否需要一个**受控词表**（现在行里的散文会直接成为对外的理由文本）」——这正是 #308 自己引入的隐患。落地前重测账本：HEAD a498df0（`## #` id 最大 308）⇒ 取 **#309**。
+
+**先量旧行为。** ① 判定理由（`decision.reason`）是**对外引用**的文本：HTML 报告、CLI 输出、通知正文都直接印它。② #308 让判定层**优先采用行自带的 `unverified_reason`**——而行里的 `unverified_reason` 有三种来源：受控常量（`agent/matrix_policy.py` 的两句）、**节点写的自由散文**（`_merged_unverified_reason` 取的是 entry 的 `details`，例如「Maven execution error: exit code 1」），以及本号新增的「契约未获批准」。③ 于是**任何一个节点都能决定产品对外说什么它的结论是**——那是一条**措辞主权**的漏洞：节点知道的是「我这一步出了什么错」，产品要说的是「这次验收的结论是什么」。
+
+**修（代码 + 措辞主权分层）。**
+- **行用代码说原因**（`agent/matrix_policy.py` / `agent/nodes/build_matrix.py`）：矩阵行新增 `unverified_reason_code`，取值来自 `evidence/verdict.py` 的三个受控代码（`no_experiment` / `inconclusive` / `contract_not_approved`）。**行里原有的散文 `unverified_reason` 保留不动**——行级视图继续显示它，那比任何摘要都具体。
+- **判定层拥有措辞**（`evidence/verdict.py`）：`_ROW_REASON_TEXT` 把代码映射成对外句子；**只有受控代码**才会被引用，**自由散文一律不被引用**（走通用那句「尚未得到可判定结果」）。行里带散文时**不给代码**——这是刻意的：判定层宁可用自己的通用句，也不替节点说话。
+- **报告复用策略的常量**（`evidence/report.py`）：`verdict == VERDICT_NEEDS_REVIEW` 而不是重拼字面量；顺带删掉映射表里那个**永远命不中的下划线键**（报告通道的规范拼法带空格）。
+
+**门与腿。** `tests/unit/test_unapproved_contract_reason.py`（5 → **8** 项）：新增三条——**节点的自由散文不得出现在对外理由里**（`"Maven execution error"` 不进 `decision.reason`）、**受控代码会被引用**（`contract_not_approved` → 理由里出现「未获批准」）、**没人声明过的代码不得凭空造句**（落到通用句）。相关回归：`test_matrix_pure.py`、`test_matrix_policy.py`、`test_verdict_policy.py`、`test_verdict_reason_table.py`、`test_verification_coverage.py`、`test_contract_id_attribution.py`、`test_build_matrix_node_execution_is_observable.py`、`test_matrix_result_vocabulary_parity.py`、`test_checker_fixes.py`、`test_release_gates_veto_the_verdict.py`、`..._the_job.py`、`test_job_stage.py`、`test_craft_accept.py`、`test_verdict_channel_parity.py`、`test_dashboard_api.py`、`test_agent_console_api.py`——**287 passed**。`ruff check .`（除并发车道在途文件外）0 errors、`mypy .` 0 errors（229 源文件）。
+
+**否证与订正。** ① 词表通道门抓到「`report_verdict: written but never declared: NEEDS_REVIEW`」——报告源码里**重新拼**了策略的那个词。第一版以为删掉映射表里的下划线键就够了，删完仍红：门扫的是**比较**（`verdict == "NEEDS_REVIEW"`）也算一次「写」。正确做法是让报告**引用策略的常量**（`VERDICT_NEEDS_REVIEW`），既消掉了重拼的词，也让两处共用同一个真源。② 「行里带散文时不给代码」这条是设计选择，不是疏漏：给代码就得编一个受控句子去概括一段散文，而概括会**丢掉**信息——不如让行级视图说细节、判定层用自己的句子。③ `agent/matrix_policy.py` 原本是**纯模块**（不 import 任何东西）；本号让它 `from evidence.verdict import ...` 两个代码常量——方向是 agent → evidence，与仓库既有分层一致（`agent/nodes/build_matrix.py` 本来就 import `evidence.verdict`），且 evidence 层**不**反向依赖 agent。
+
+**诚实边界。** ① 受控词表目前只有**三个**代码；节点若要新增一种「无法判定」的原因，得先在 `evidence/verdict.py` 声明代码与句子——这是**刻意的摩擦**（新增对外措辞必须过一次判定层的审），但也意味着节点作者要多走一步。② 带自由散文的行，其**对外**理由是通用句，**具体**原因只在矩阵行里——一个只读 CLI 摘要的人会看到「尚未得到可判定结果」而看不到「Maven 挂了」。这是本号**明确选择**的取舍（措辞主权 > 摘要完整），代价写在这里。③ 三个代码的**句子**由判定层拥有，但**行里的散文**与**句子的对应关系**仍靠节点自觉（节点选代码，判定层选句子）——节点若把「契约未获批」标成 `no_experiment`，对外就会说错。④ 本号**没有**做代码与句子的**自动**校验（那需要节点侧的意图声明）；③ 是留给下一号的。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 代码与句子的**自动**校验：节点的代码标注若与事实不符（把「未获批」标成 `no_experiment`），目前**没有**门能发现——要么让节点在构造行时**同时**给出受控代码与散文（判定层校验二者不冲突），要么让判定层自己从契约的审批标记推导代码。② 为 NEEDS_REVIEW 补 §14 的阈值与告警（先量生产占比，再定线）。③ 分类表要不要改成**数据驱动**（文本模板 → 种类），让「表」成为一份可读、可审计的文件而不是散在代码里的选择。④ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 仓库里其余手写假是否也换成求值器（#303 队列①，未动）。⑥ P1-7 / P3-4 / P3-7 其余项照旧。

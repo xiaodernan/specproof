@@ -26,6 +26,11 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from evidence.verdict import (
+    ROW_REASON_INCONCLUSIVE,
+    ROW_REASON_NO_EXPERIMENT,
+)
+
 #: Verdict priority: FAIL(3) > PASS(2) > UNVERIFIED(1); anything else ranks 0
 #: and therefore never beats a real UNVERIFIED record.
 _RESULT_PRIORITY: dict[str, int] = {"FAIL": 3, "PASS": 2, "UNVERIFIED": 1}
@@ -466,15 +471,30 @@ def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any
         min_evidence_level = _NONE_LEVEL
 
     if verdict == "UNVERIFIED":
-        unverified_reason = _merged_unverified_reason(group) or (
+        merged_reason = _merged_unverified_reason(group)
+        unverified_reason = merged_reason or (
             UNVERIFIED_INCONCLUSIVE_REASON if experiment_ids else UNVERIFIED_NO_EXPERIMENT_REASON
+        )
+        # The CODE names the reason for the verdict layer, which owns the
+        # outward words. A merged free-prose reason (a node's `details`)
+        # gets NO code on purpose: the row shows the prose, and the
+        # verdict falls back to its own generic sentence rather than
+        # quoting a node's free text as the product's conclusion.
+        unverified_reason_code = (
+            "" if merged_reason
+            else (
+                ROW_REASON_INCONCLUSIVE if experiment_ids
+                else ROW_REASON_NO_EXPERIMENT
+            )
         )
         next_action = NEXT_ACTION_UNVERIFIED
     elif verdict == "FAIL":
         unverified_reason = ""
+        unverified_reason_code = ""
         next_action = NEXT_ACTION_FAIL
     else:
         unverified_reason = ""
+        unverified_reason_code = ""
         next_action = NEXT_ACTION_PASS
 
     # ── Review-court row fields (backlog #2) ────────────────────
@@ -507,6 +527,7 @@ def _merge_group(contract_id: str, group: list[dict[str, Any]]) -> dict[str, Any
         "evidence_refs": evidence_refs,
         "min_evidence_level": min_evidence_level,
         "unverified_reason": unverified_reason,
+        "unverified_reason_code": unverified_reason_code,
         "next_action": next_action,
         # Legacy consumers (HTML report, worker counts, CLI summary) read
         # one merged verdict field; keep it derived from the same priority

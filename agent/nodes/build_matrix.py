@@ -43,7 +43,10 @@ from agent.matrix_policy import (
     merge_contract_results,
 )
 from agent.state import Phase0State
-from evidence.verdict import evaluate_verification
+from evidence.verdict import (
+    ROW_REASON_CONTRACT_NOT_APPROVED,
+    evaluate_verification,
+)
 from observability.metrics import incr
 
 #: Why a row for a never-approved contract is UNVERIFIED. The reader's
@@ -292,6 +295,7 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
                 pass_downgraded = True
         elif legacy["result"] == "UNVERIFIED" and legacy["contract_id"] in unapproved:
             legacy["unverified_reason"] = UNAPPROVED_CONTRACT_REASON
+            legacy["unverified_reason_code"] = ROW_REASON_CONTRACT_NOT_APPROVED
             legacy["next_action"] = NEXT_ACTION_UNVERIFIED
         matrix_rows.append(legacy)
 

@@ -83,6 +83,56 @@ class TestTheVerdictCarriesIt:
         assert "尚未得到可判定结果" in decision.reason
 
 
+class TestTheOutwardReasonIsAControlledVocabulary:
+    """A node's free prose must not become the product's conclusion.
+
+    A matrix row may carry whatever prose its node wrote ("Maven
+    execution error: …") — the row-level view shows it, and it is more
+    informative than any summary. But the verdict's ``reason`` is QUOTED
+    OUTWARD (the HTML report, the CLI output, the notification body), and
+    letting a node choose the product's outward wording is not something
+    the verdict layer should hand out.
+    """
+
+    def test_a_rows_free_prose_is_not_quoted_by_the_verdict(self) -> None:
+        decision = evaluate_verification({
+            "rows": [{
+                "contract_id": "C-1",
+                "result": "UNVERIFIED",
+                "unverified_reason": "Maven execution error: exit code 1",
+            }],
+        })
+        assert decision.status == "NEEDS_REVIEW"
+        assert "Maven execution error" not in decision.reason
+        assert "尚未得到可判定结果" in decision.reason
+
+    def test_a_controlled_code_is_quoted(self) -> None:
+        """The code is how a row says WHICH controlled sentence applies."""
+        from evidence.verdict import ROW_REASON_CONTRACT_NOT_APPROVED
+
+        decision = evaluate_verification({
+            "rows": [{
+                "contract_id": "C-1",
+                "result": "UNVERIFIED",
+                "unverified_reason_code": ROW_REASON_CONTRACT_NOT_APPROVED,
+            }],
+        })
+        assert decision.status == "NEEDS_REVIEW"
+        assert "未获批准" in decision.reason
+
+    def test_an_unknown_code_falls_back_to_the_generic_sentence(self) -> None:
+        """A code nobody declared must not invent a sentence."""
+        decision = evaluate_verification({
+            "rows": [{
+                "contract_id": "C-1",
+                "result": "UNVERIFIED",
+                "unverified_reason_code": "something_a_node_made_up",
+            }],
+        })
+        assert decision.status == "NEEDS_REVIEW"
+        assert "尚未得到可判定结果" in decision.reason
+
+
 class TestTheJobDoesNotParkOnContractReview:
     """Why there is no CONTRACT_REVIEW producer — pinned as behaviour.
 

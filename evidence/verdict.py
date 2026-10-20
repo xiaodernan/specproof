@@ -238,6 +238,35 @@ def evaluate_acceptance(
 REASON_BLOCKING = "blocking"
 REASON_GAP = "gap"
 
+#: The controlled reasons a matrix row may carry, and the outward
+#: sentence the verdict quotes for each.
+#:
+#: A row may ALSO carry free prose (a node's ``details`` — "Maven
+#: execution error: …"). That prose is the ROW's business: it is more
+#: informative than any summary, and the row-level view shows it. But
+#: the verdict's ``reason`` is QUOTED OUTWARD (the HTML report, the CLI
+#: output, the notification body), and a node's free text is not a
+#: controlled vocabulary — quoting it would let any node decide what
+#: the product says its conclusion was.
+#:
+#: So the row names its reason by CODE, and the verdict owns the words.
+ROW_REASON_NO_EXPERIMENT = "no_experiment"
+ROW_REASON_INCONCLUSIVE = "inconclusive"
+ROW_REASON_CONTRACT_NOT_APPROVED = "contract_not_approved"
+
+#: code -> the sentence the verdict quotes. The verdict's own vocabulary.
+_ROW_REASON_TEXT: dict[str, str] = {
+    ROW_REASON_NO_EXPERIMENT: (
+        "该契约没有任何实验产出结果; 禁止臆造 PASS/FAIL"
+    ),
+    ROW_REASON_INCONCLUSIVE: (
+        "实验已运行但未得到可判定证据, 保持 UNVERIFIED"
+    ),
+    ROW_REASON_CONTRACT_NOT_APPROVED: (
+        "契约未获批准: 需人工批准后方可作为验收依据"
+    ),
+}
+
 
 def evaluate_verification(
     matrix: Mapping[str, Any] | None,
@@ -296,13 +325,15 @@ def evaluate_verification(
             blocking(f"{label}检查失败")
         elif result != "PASS":
             unverified += 1
-            # The node that produced the row knows WHY it could not decide
-            # — "契约未获批准" is a different next action from "缺少证据
-            # 引用" — and that reason is more specific than the generic
-            # one. Use the row's own when it has one.
-            own = str(row.get("unverified_reason") or "").strip()
-            if own:
-                gap(f"{label}：{own}")
+            # The row names its reason by CODE; the verdict owns the words.
+            # A row carrying free prose (a node's `details`) still gets the
+            # generic sentence here — the prose is quoted by the row-level
+            # view, and letting a node choose the product's outward
+            # conclusion is not something the verdict layer should allow.
+            code = str(row.get("unverified_reason_code") or "").strip()
+            text = _ROW_REASON_TEXT.get(code)
+            if text:
+                gap(f"{label}：{text}")
             else:
                 gap(f"{label}尚未得到可判定结果")
         else:

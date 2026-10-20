@@ -10,7 +10,7 @@ from evidence.acceptance import (
     score,
     severity_reconciliation,
 )
-from evidence.verdict import evaluate_verification
+from evidence.verdict import VERDICT_NEEDS_REVIEW, evaluate_verification
 
 
 def _render_preflight(preflight: dict[str, Any] | None, safe: Any) -> str:
@@ -389,7 +389,7 @@ def render_verification_report(
         decision.passed, decision.failed, decision.unverified, decision.total,
     )
     verdict = decision.status
-    if verdict == "NEEDS_REVIEW":
+    if verdict == VERDICT_NEEDS_REVIEW:
         # The policy now says NEEDS_REVIEW in its own spelling; THIS
         # channel's canonical spelling has a space (the notify channel
         # folds it to the underscore form on read). One spelling per
@@ -407,8 +407,11 @@ def render_verification_report(
     verdict_class = {
         "FAILED": "blocked",
         "BLOCKED": "blocked",
+        # The report channel's spelling has a SPACE (the notify channel
+        # folds it to the underscore form on read) — the verdict is
+        # normalised to it above, so the underscore spelling is deliberately
+        # NOT a key here: a key nothing can reach is a dead word.
         "NEEDS REVIEW": "pending",
-        "NEEDS_REVIEW": "pending",
         "VERIFIED": "verified",
     }[verdict]
 
