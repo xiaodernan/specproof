@@ -133,6 +133,64 @@ class TestTheOutwardReasonIsAControlledVocabulary:
         assert "尚未得到可判定结果" in decision.reason
 
 
+class TestTheVerdictDerivesWhatItCanCompute:
+    """A node's LABEL is a hint; the verdict layer computes what it can.
+
+    The verdict layer holds the contracts, and a contract's approval
+    flag is a fact it can read for itself. If it trusted the row's
+    label instead, a node that mislabelled an unapproved contract as
+    "no experiment" would make the product say the wrong thing about
+    its own conclusion — and the reader would go looking for evidence
+    that is not the missing piece.
+    """
+
+    def test_a_mislabelled_row_cannot_hide_the_approval_gap(self) -> None:
+        from evidence.verdict import ROW_REASON_NO_EXPERIMENT
+
+        decision = evaluate_verification(
+            {"rows": [{
+                "contract_id": "C-1",
+                "result": "UNVERIFIED",
+                # The node says "no experiment ran" …
+                "unverified_reason_code": ROW_REASON_NO_EXPERIMENT,
+            }]},
+            contracts=[{"id": "C-1", "approved": False}],
+        )
+        # … but the contract says it was never approved, and that is what
+        # the reader is told.
+        assert decision.status == "NEEDS_REVIEW"
+        assert "未获批准" in decision.reason
+        assert "没有任何实验产出结果" not in decision.reason
+
+    def test_an_approved_contract_keeps_the_nodes_own_label(self) -> None:
+        """The derivation only OVERRIDES the label when the fact says so."""
+        from evidence.verdict import ROW_REASON_NO_EXPERIMENT
+
+        decision = evaluate_verification(
+            {"rows": [{
+                "contract_id": "C-1",
+                "result": "UNVERIFIED",
+                "unverified_reason_code": ROW_REASON_NO_EXPERIMENT,
+            }]},
+            contracts=[{"id": "C-1", "approved": True}],
+        )
+        assert decision.status == "NEEDS_REVIEW"
+        assert "没有任何实验产出结果" in decision.reason
+
+    def test_without_the_contracts_the_label_is_all_there_is(self) -> None:
+        """The certificate path has no contract list — the label still works."""
+        from evidence.verdict import ROW_REASON_NO_EXPERIMENT
+
+        decision = evaluate_verification({
+            "rows": [{
+                "contract_id": "C-1",
+                "result": "UNVERIFIED",
+                "unverified_reason_code": ROW_REASON_NO_EXPERIMENT,
+            }],
+        })
+        assert "没有任何实验产出结果" in decision.reason
+
+
 class TestTheJobDoesNotParkOnContractReview:
     """Why there is no CONTRACT_REVIEW producer — pinned as behaviour.
 

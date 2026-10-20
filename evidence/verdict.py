@@ -301,6 +301,19 @@ def evaluate_verification(
 
     passed = failed = unverified = 0
     ids: set[str] = set()
+    # The contracts that were NEVER APPROVED, derived HERE from the
+    # contracts themselves rather than taken from a row's label. The
+    # verdict layer can compute this fact, so it computes it: a node that
+    # mislabels an unapproved contract as "no experiment" would otherwise
+    # make the product say the wrong thing about its own conclusion.
+    unapproved: set[str] = set()
+    for contract in contracts or ():
+        if not isinstance(contract, Mapping):
+            continue
+        if contract.get("approved") is False:
+            cid = str(contract.get("id") or contract.get("contract_id") or "").strip()
+            if cid:
+                unapproved.add(cid)
     if not rows:
         gap("零检查不能判定验收通过：请补充验收条件并接入适用检查器")
     for index, row in enumerate(rows, 1):
@@ -330,7 +343,14 @@ def evaluate_verification(
             # generic sentence here — the prose is quoted by the row-level
             # view, and letting a node choose the product's outward
             # conclusion is not something the verdict layer should allow.
-            code = str(row.get("unverified_reason_code") or "").strip()
+            #
+            # What the verdict layer can COMPUTE wins over what a node
+            # LABELLED: an unapproved contract is unapproved whatever the
+            # row says about it.
+            code = (
+                ROW_REASON_CONTRACT_NOT_APPROVED if cid in unapproved
+                else str(row.get("unverified_reason_code") or "").strip()
+            )
             text = _ROW_REASON_TEXT.get(code)
             if text:
                 gap(f"{label}：{text}")
