@@ -238,6 +238,77 @@ def evaluate_acceptance(
 REASON_BLOCKING = "blocking"
 REASON_GAP = "gap"
 
+#: EVERY reason the acceptance policy can produce, with the text it is
+#: spelled with and the side of the table it sits on.
+#:
+#: The table is the authority for BOTH halves: a production site names
+#: the reason and the table says what it means. Before this, the kind was
+#: decided at each call site, so "which reasons are blocking" could only
+#: be answered by reading the code — and the answer was spread over
+#: fifteen branches. Now it is one readable list, and the kind is stated
+#: exactly once per reason.
+#:
+#: The templates use ``str.format`` fields; a site passes them by name.
+REASON_TABLE: dict[str, tuple[str, str]] = {
+    # key: (text template, kind)
+    "zero_checks": (
+        "零检查不能判定验收通过：请补充验收条件并接入适用检查器", REASON_GAP,
+    ),
+    "row_malformed": ("第 {index} 条检查记录格式无效", REASON_BLOCKING),
+    "row_without_contract_id": ("{label}缺少契约标识", REASON_GAP),
+    "duplicate_rows": (
+        "契约 {cid} 存在重复检查行，需合并冲突证据", REASON_BLOCKING,
+    ),
+    "contract_failed": ("{label}检查失败", REASON_BLOCKING),
+    "row_unverifiable": ("{label}：{text}", REASON_GAP),
+    "pass_without_evidence": ("{label}标记通过但缺少证据引用", REASON_GAP),
+    "pass_without_experiment": ("{label}标记通过但缺少实验记录", REASON_GAP),
+    "contract_set_broken": (
+        "验收契约标识缺失或重复，无法确定完整覆盖范围", REASON_BLOCKING,
+    ),
+    "missing_contract_result": (
+        "缺少契约检查结果：{ids}", REASON_GAP,
+    ),
+    "row_without_contract": (
+        "检查记录没有对应验收契约：{ids}", REASON_BLOCKING,
+    ),
+    "no_valid_contract": (
+        "没有有效的验收契约，无法确认需求覆盖", REASON_GAP,
+    ),
+    "summary_mismatch": (
+        "检查汇总 {key} 与实际检查记录不一致", REASON_BLOCKING,
+    ),
+    "contract_total_mismatch": (
+        "契约总数与检查覆盖不一致", REASON_BLOCKING,
+    ),
+    "findings_present": (
+        "存在 {count} 项已确认问题，需要处理后重新验收", REASON_BLOCKING,
+    ),
+    "pipeline_errors": (
+        "执行过程有错误，无法形成有效验收结论", REASON_GAP,
+    ),
+}
+
+
+def reason_text(reason_key: str, /, **fields: Any) -> tuple[str, str]:
+    """The (text, kind) of a declared reason.
+
+    The only way a reason enters the policy: a reason that is not in the
+    table cannot be produced, and a table entry nobody uses is a dead
+    word (the gate says so).
+
+    The reason key is positional-only, so a reason whose text has a
+    ``{key}`` field (the summary's counter name) can still be spelled.
+    """
+    try:
+        template, kind = REASON_TABLE[reason_key]
+    except KeyError:
+        raise KeyError(
+            f"{reason_key!r} is not a declared reason — add it to "
+            "REASON_TABLE with the side of the table it belongs to"
+        ) from None
+    return template.format(**fields), kind
+
 #: The controlled reasons a matrix row may carry, and the outward
 #: sentence the verdict quotes for each.
 #:
@@ -293,11 +364,10 @@ def evaluate_verification(
     #: (text, kind) — the reason and what it means.
     filed: list[tuple[str, str]] = []
 
-    def blocking(text: str) -> None:
-        filed.append((text, REASON_BLOCKING))
-
-    def gap(text: str) -> None:
-        filed.append((text, REASON_GAP))
+    def file_reason(reason_key: str, /, **fields: Any) -> None:
+        """File a DECLARED reason; the table says which side it is on."""
+        text, kind = reason_text(reason_key, **fields)
+        filed.append((text, kind))
 
     passed = failed = unverified = 0
     ids: set[str] = set()
@@ -315,19 +385,19 @@ def evaluate_verification(
             if cid:
                 unapproved.add(cid)
     if not rows:
-        gap("零检查不能判定验收通过：请补充验收条件并接入适用检查器")
+        file_reason("zero_checks")
     for index, row in enumerate(rows, 1):
         if not isinstance(row, Mapping):
             unverified += 1
-            blocking(f"第 {index} 条检查记录格式无效")
+            file_reason("row_malformed", index=index)
             continue
         cid = str(row.get("contract_id") or row.get("id") or "").strip()
         label = cid or f"第 {index} 条检查"
         duplicate = bool(cid and cid in ids)
         if not cid:
-            gap(f"{label}缺少契约标识")
+            file_reason("row_without_contract_id", label=label)
         elif duplicate:
-            blocking(f"契约 {cid} 存在重复检查行，需合并冲突证据")
+            file_reason("duplicate_rows", cid=cid)
         if cid:
             ids.add(cid)
         result = row.get("result")
@@ -335,14 +405,14 @@ def evaluate_verification(
             failed += 1
             # A contract that FAILED is a real problem: something IS
             # wrong, and the answer is "fix it and re-verify".
-            blocking(f"{label}检查失败")
+            file_reason("contract_failed", label=label)
         elif result != "PASS":
             unverified += 1
             # The row names its reason by CODE; the verdict owns the words.
-            # A row carrying free prose (a node's `details`) still gets the
-            # generic sentence here — the prose is quoted by the row-level
-            # view, and letting a node choose the product's outward
-            # conclusion is not something the verdict layer should allow.
+            # A row carrying free prose (a node's `details`) is NOT quoted
+            # here — the prose is shown by the row-level view, and letting a
+            # node choose the product's outward conclusion is not something
+            # the verdict layer should allow.
             #
             # What the verdict layer can COMPUTE wins over what a node
             # LABELLED: an unapproved contract is unapproved whatever the
@@ -362,20 +432,20 @@ def evaluate_verification(
                 code = (
                     ROW_REASON_INCONCLUSIVE if ran else ROW_REASON_NO_EXPERIMENT
                 )
-            text = _ROW_REASON_TEXT.get(code)
-            if text:
-                gap(f"{label}：{text}")
-            else:
-                gap(f"{label}尚未得到可判定结果")
+            # The derived code is always a declared one, so there is no
+            # generic fallback left to reach for: the verdict can always
+            # name WHICH reason applies.
+            text = _ROW_REASON_TEXT[code]
+            file_reason("row_unverifiable", label=label, text=text)
         else:
             has_evidence = bool(evidence_references(row))
             has_experiment = not require_experiment or bool(
                 references(row, "experiment_ids", "experiment_id", "experiment")
             )
             if not has_evidence:
-                gap(f"{label}标记通过但缺少证据引用")
+                file_reason("pass_without_evidence", label=label)
             if not has_experiment:
-                gap(f"{label}标记通过但缺少实验记录")
+                file_reason("pass_without_experiment", label=label)
             if has_evidence and has_experiment and cid and not duplicate:
                 passed += 1
             else:
@@ -392,7 +462,7 @@ def evaluate_verification(
                 # the same contract, or one has no id at all. The coverage
                 # map cannot be read, so this is self-contradiction, not a
                 # missing measurement.
-                blocking("验收契约标识缺失或重复，无法确定完整覆盖范围")
+                file_reason("contract_set_broken")
             if cid:
                 expected.add(cid)
         missing = sorted(expected - ids)
@@ -400,16 +470,16 @@ def evaluate_verification(
             # Coverage gap: the contract is known and nothing was measured
             # for it. Nothing is proven wrong — the evidence is simply not
             # there.
-            gap("缺少契约检查结果：" + ", ".join(missing))
+            file_reason("missing_contract_result", ids=", ".join(missing))
             unverified += len(missing)
         unexpected = sorted(ids - expected)
         if unexpected:
             # A check for a contract that does not exist: the two records
             # contradict each other, and a reader cannot tell which is
             # the truth.
-            blocking("检查记录没有对应验收契约：" + ", ".join(unexpected))
+            file_reason("row_without_contract", ids=", ".join(unexpected))
         if not expected:
-            gap("没有有效的验收契约，无法确认需求覆盖")
+            file_reason("no_valid_contract")
 
     # Compare declared counts to the original row verdicts. Effective counts
     # above additionally downgrade PASS without evidence to unverified.
@@ -426,16 +496,16 @@ def evaluate_verification(
             if type(count) is not int or count != expected_count:
                 # The summary contradicts the rows it summarises: one of
                 # the two is wrong, and a reader cannot tell which.
-                blocking(f"检查汇总 {key} 与实际检查记录不一致")
+                file_reason("summary_mismatch", key=key)
     if "total_contracts" in matrix:
         count = matrix["total_contracts"]
         if type(count) is not int or count <= 0 or count > len(ids):
-            blocking("契约总数与检查覆盖不一致")
+            file_reason("contract_total_mismatch")
     if findings:
         # A confirmed finding is a real problem — the change is wrong.
-        blocking(f"存在 {len(findings)} 项已确认问题，需要处理后重新验收")
+        file_reason("findings_present", count=len(findings))
     if errors:
-        filed.append(("执行过程有错误，无法形成有效验收结论", REASON_GAP))
+        file_reason("pipeline_errors")
     reasons = tuple(dict.fromkeys(text for text, _kind in filed))
     blocking_reasons = tuple(
         dict.fromkeys(text for text, kind in filed if kind == REASON_BLOCKING)

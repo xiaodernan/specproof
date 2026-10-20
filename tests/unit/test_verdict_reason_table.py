@@ -20,6 +20,7 @@ reason it triggers and the word the policy must answer with.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
@@ -27,6 +28,7 @@ import pytest
 from evidence.verdict import (
     REASON_BLOCKING,
     REASON_GAP,
+    REASON_TABLE,
     evaluate_verification,
 )
 
@@ -185,6 +187,67 @@ class TestTheTableIsConsistent:
             decision = evaluate_verification(matrix, contracts=contracts)
             assert not (decision.blocking and len(decision.blocking) == len(decision.reasons)
                         and decision.status == "NEEDS_REVIEW"), name
+
+
+class TestTheReasonTable:
+    """The table is the authority: one place says every reason and its side.
+
+    Three failure modes, one gate each:
+
+    * a declared reason nobody produces is a DEAD WORD — it would be
+      quoted as coverage of a case that cannot happen;
+    * a reason produced without being declared would escape the table
+      entirely — the table would be a partial picture, and the next
+      reader would trust it;
+    * a reason filed with a kind outside the two would make the verdict
+      word arbitrary.
+    """
+
+    def test_every_declared_reason_is_actually_produced(self) -> None:
+        import inspect
+
+        import evidence.verdict as verdict_module
+
+        source = inspect.getsource(verdict_module.evaluate_verification)
+        produced = set(re.findall(r'file_reason\(\s*"([^"]+)"', source))
+        declared = set(REASON_TABLE)
+        assert declared == produced, (
+            "the declared reasons and the produced reasons differ: "
+            f"declared-only={sorted(declared - produced)}, "
+            f"produced-only={sorted(produced - declared)}"
+        )
+
+    def test_every_kind_is_one_of_the_two(self) -> None:
+        for key, (_text, kind) in REASON_TABLE.items():
+            assert kind in (REASON_BLOCKING, REASON_GAP), (key, kind)
+
+    def test_a_reason_can_only_enter_through_the_table(self) -> None:
+        """The table is the ONLY way in — otherwise it is a partial picture."""
+        import inspect
+
+        import evidence.verdict as verdict_module
+
+        source = inspect.getsource(verdict_module.evaluate_verification)
+        appends = [
+            line.strip() for line in source.splitlines()
+            if "filed.append" in line
+        ]
+        assert len(appends) == 1, appends
+        # The single append must live inside the file_reason helper, which
+        # is the only thing that consults the table.
+        helper = source.split("def file_reason", 1)[1].split("\n    passed", 1)[0]
+        assert "filed.append" in helper
+        assert "reason_text(" in helper
+        # …and the helper is the ONLY place that consults the table.
+        assert source.count("reason_text(") == 1, (
+            "a reason must reach the table through the helper only"
+        )
+
+    def test_an_undeclared_reason_raises(self) -> None:
+        from evidence.verdict import reason_text
+
+        with pytest.raises(KeyError, match="not a declared reason"):
+            reason_text("no_such_reason")
 
     def test_a_gap_reason_can_coexist_with_a_blocking_one(self) -> None:
         """The table classifies REASONS; the verdict follows from the kinds.
