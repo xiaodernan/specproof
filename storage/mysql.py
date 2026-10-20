@@ -1484,12 +1484,13 @@ class MySQLStore:
         )
 
     def list_overdue_jobs(self) -> list[dict[str, Any]]:
-        """The read-only sibling of `expire_overdue_jobs`.
+        """The jobs that are past their execution budget — the ONE query.
 
-        `specproof ops recover --dry-run` must enumerate the SAME rows the
-        mutating sweep would touch, so there is exactly one definition of
-        "over budget" in the codebase: the query below and the sweep's
-        query are the same predicate, not two that happen to agree today.
+        Both the read-only preview (`specproof ops recover --dry-run`) and
+        the mutating sweep read their candidates HERE, so there is exactly
+        one definition of "over budget" in the codebase. A second
+        hand-written WHERE clause would let the two drift, and the plan
+        would describe a sweep that never happens.
         """
         with self.connection() as conn:
             cur = conn.cursor()
@@ -1518,33 +1519,28 @@ class MySQLStore:
         terminal state is not touched, and a job whose budget is not yet
         spent is not touched.
 
+        The candidates come from :meth:`list_overdue_jobs` — the same
+        reader the dry-run uses — so the plan and the sweep cannot
+        disagree about what "over budget" means.
+
         Returns the ids that were expired. Each one is audited.
         """
         expired: list[str] = []
-        with self.connection() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT id, status, max_execution_seconds, created_at "
-                "FROM verification_jobs "
-                f"WHERE status IN ({_EXPIRABLE_SQL_LIST}) "
-                "AND TIMESTAMPDIFF(SECOND, created_at, NOW(3)) "
-                "> max_execution_seconds "
-                "ORDER BY created_at, id",
-                _EXPIRABLE_STATUS_ORDER,
+        candidates = self.list_overdue_jobs()
+        for row in candidates:
+            job_id = str(row["id"])
+            current = str(row["status"])
+            budget = int(row["max_execution_seconds"] or 0)
+            reason = json.dumps(
+                {
+                    "reason": "execution_budget_exhausted",
+                    "max_execution_seconds": budget,
+                    "status_at_expiry": current,
+                },
+                ensure_ascii=False,
             )
-            candidates = cast(list[dict[str, Any]], cur.fetchall())
-            for row in candidates:
-                job_id = str(row["id"])
-                current = str(row["status"])
-                budget = int(row["max_execution_seconds"] or 0)
-                reason = json.dumps(
-                    {
-                        "reason": "execution_budget_exhausted",
-                        "max_execution_seconds": budget,
-                        "status_at_expiry": current,
-                    },
-                    ensure_ascii=False,
-                )
+            with self.connection() as conn:
+                cur = conn.cursor()
                 cur.execute(
                     "UPDATE verification_jobs SET status = 'EXPIRED', "
                     "worker_id = NULL, last_error = %s, "
@@ -1552,11 +1548,12 @@ class MySQLStore:
                     "WHERE id = %s AND status = %s",
                     (reason, job_id, current),
                 )
-                if cur.rowcount != 1:
-                    # The row moved on between the SELECT and the UPDATE
-                    # (a cancel, a terminal write). Not expired.
-                    continue
-                expired.append(job_id)
+                changed = bool(cur.rowcount == 1)
+            if not changed:
+                # The row moved on between the SELECT and the UPDATE
+                # (a cancel, a terminal write). Not expired.
+                continue
+            expired.append(job_id)
         for job_id in expired:
             self.record_audit(
                 action=EXPIRE_OVERDUE_JOB_ACTION,

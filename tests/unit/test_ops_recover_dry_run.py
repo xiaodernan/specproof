@@ -203,10 +203,11 @@ def test_preview_emits_no_write_statement_and_no_audit(
 def test_the_expiry_preview_shares_the_sweeps_predicate() -> None:
     """The over-budget candidate set must not be a second opinion.
 
-    `expire_overdue_jobs` and `list_overdue_jobs` are two queries; if they
-    drift, the dry-run describes a sweep that never happens. The gate
-    here is structural: both must carry the SAME predicate, so a change
-    to one that is not made to the other is visible here.
+    `expire_overdue_jobs` and `list_overdue_jobs` were two queries; if
+    they drift, the dry-run describes a sweep that never happens. The
+    sweep now READS its candidates through the same reader the preview
+    uses — so the gate is structural: the sweep must call the reader,
+    and the reader must carry the predicate exactly once.
     """
     src = (REPO / "storage" / "mysql.py").read_text(encoding="utf-8")
     sweep = src.split("def expire_overdue_jobs", 1)[1]
@@ -214,10 +215,15 @@ def test_the_expiry_preview_shares_the_sweeps_predicate() -> None:
     preview = src.split("def list_overdue_jobs", 1)[1]
     preview = preview.split("\n    def ", 1)[0]
 
-    for body in (sweep, preview):
-        assert "TIMESTAMPDIFF(SECOND, created_at, NOW(3))" in body, body
-        assert "> max_execution_seconds" in body, body
-        assert "_EXPIRABLE_SQL_LIST" in body, body
+    # The sweep must not carry its own WHERE clause any more.
+    assert "TIMESTAMPDIFF" not in sweep, sweep
+    assert "max_execution_seconds >" not in sweep, sweep
+    # It must go through the one reader.
+    assert "self.list_overdue_jobs()" in sweep, sweep
+    # And that reader carries the predicate — once.
+    assert "TIMESTAMPDIFF(SECOND, created_at, NOW(3))" in preview, preview
+    assert "> max_execution_seconds" in preview, preview
+    assert "_EXPIRABLE_SQL_LIST" in preview, preview
     assert "UPDATE " not in preview.upper(), preview
 
 

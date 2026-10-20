@@ -27,105 +27,26 @@ from storage.mysql import (
     MySQLStore,
     ReclaimOutcome,
 )
+from tests.unit.fake_sql_engine import SqlFakeCursor, SqlFakeTable
 
 NOW = datetime(2026, 8, 20, 12, 0, 0)
 
 
-class FakeJobTable:
-    """verification_jobs rows + the exact reclaim CAS predicate semantics."""
+class FakeJobTable(SqlFakeTable):
+    """verification_jobs rows + the reclaim CAS semantics.
 
-    def __init__(self, rows: list[dict[str, Any]], now: datetime) -> None:
-        self.now = now
-        # The SQL strings the production code actually sent. The in-memory
-        # semantics below cannot catch a wrong clause in the statement text,
-        # and MySQL runs that text verbatim, so the text is asserted too.
-        self.statements: list[str] = []
-        self.rows: dict[str, dict[str, Any]] = {
-            str(row["id"]): dict(row) for row in rows
-        }
-
-    def cutoff(self, ttl_seconds: int) -> datetime:
-        return self.now - timedelta(seconds=ttl_seconds)
-
-    def stale_running_candidates(self, ttl_seconds: int) -> list[dict[str, Any]]:
-        cutoff = self.cutoff(ttl_seconds)
-        candidates = [
-            dict(row)
-            for row in self.rows.values()
-            if row["status"] == "RUNNING" and row["updated_at"] < cutoff
-        ]
-        candidates.sort(key=lambda row: (row["updated_at"], str(row["id"])))
-        return candidates
-
-    def _stale_match(self, job_id: str, ttl_seconds: int) -> dict[str, Any] | None:
-        row = self.rows.get(job_id)
-        if row is None:
-            return None
-        if row["status"] != "RUNNING" or row["updated_at"] >= self.cutoff(
-            ttl_seconds
-        ):
-            return None
-        return row
-
-    def reclaim_cas(self, job_id: str, ttl_seconds: int, reason: str) -> int:
-        """Apply the reclaim UPDATE; returns the matched row count (0 or 1)."""
-        row = self._stale_match(job_id, ttl_seconds)
-        if row is None:
-            return 0
-        row["status"] = "QUEUED"
-        row["worker_id"] = None
-        row["retry_count"] = int(row.get("retry_count") or 0) + 1
-        row["last_error"] = reason
-        row["updated_at"] = self.now
-        return 1
-
-    def fail_cas(self, job_id: str, ttl_seconds: int, reason: str) -> int:
-        """Apply the budget-exhausted UPDATE (no retry_count bump)."""
-        row = self._stale_match(job_id, ttl_seconds)
-        if row is None:
-            return 0
-        row["status"] = "FAILED"
-        row["worker_id"] = None
-        row["last_error"] = reason
-        row["updated_at"] = self.now
-        return 1
+    The semantics are NOT hand-written here any more: the statements are
+    EVALUATED by the shared SQL engine (tests/unit/fake_sql_engine.py),
+    so the fake's idea of "stale" is whatever the production WHERE
+    clause says it is. The old version compared ``status == "RUNNING"``
+    itself — a second opinion that stayed true while the production
+    query widened to every in-flight state, which is exactly the kind of
+    drift that makes a test measure the fake instead of the code.
+    """
 
 
-class FakeCursor:
-    """Cursor that evaluates only the two reclaimer statements."""
-
-    def __init__(self, table: FakeJobTable) -> None:
-        self.table = table
-        self.sql = ""
-        self.params: list[Any] = []
-        self._select_rows: list[dict[str, Any]] = []
-        self.rowcount = 0
-
-    def execute(
-        self, sql: str, params: tuple[Any, ...] | list[Any] | None = None,
-    ) -> None:
-        self.sql = sql
-        self.table.statements.append(sql)
-        self.params = list(params or [])
-        self._select_rows = []
-        self.rowcount = 0
-        if sql.startswith("SELECT id, repo_path"):
-            self._select_rows = self.table.stale_running_candidates(
-                int(self.params[0])
-            )
-        elif sql.startswith("UPDATE verification_jobs SET status = 'QUEUED'"):
-            reason = str(self.params[0])
-            job_id = str(self.params[1])
-            ttl = int(self.params[2])
-            self.rowcount = self.table.reclaim_cas(job_id, ttl, reason)
-        elif sql.startswith("UPDATE verification_jobs SET status = 'FAILED'"):
-            reason = str(self.params[0])
-            job_id = str(self.params[1])
-            ttl = int(self.params[2])
-            self.rowcount = self.table.fail_cas(job_id, ttl, reason)
-
-    def fetchall(self) -> list[dict[str, Any]]:
-        return self._select_rows
+class FakeCursor(SqlFakeCursor):
+    """Cursor that evaluates the statements; the race seam is on the table."""
 
 
 class FakeConn:
@@ -283,15 +204,14 @@ def test_reclaim_cas_lost_race_is_not_counted() -> None:
     store, audits = _store_with_fake_db(table)
 
     # Another reclaimer wins between our SELECT and our UPDATE: the row is
-    # already QUEUED when our CAS runs, so it matches 0 rows.
-    original = table.reclaim_cas
+    # already QUEUED when our CAS runs, so it matches 0 rows. The hook
+    # fires just before the UPDATE is applied — the seam the evaluated
+    # fake offers in place of a hand-written "another writer won" path.
+    def win_race(sql: str, table: FakeJobTable) -> None:
+        if table.rows["j-stale"]["status"] == "RUNNING":
+            table.rows["j-stale"]["status"] = "QUEUED"
 
-    def win_race(job_id: str, ttl_seconds: int, reason: str) -> int:
-        if table.rows[job_id]["status"] == "RUNNING":
-            table.rows[job_id]["status"] = "QUEUED"
-        return original(job_id, ttl_seconds, reason)
-
-    table.reclaim_cas = win_race  # type: ignore[method-assign]
+    table.before_update = win_race
 
     reclaimed = store.reclaim_stale_running(30, lease_alive=_never_alive).reclaimed
 
@@ -1067,14 +987,13 @@ def test_failed_cas_lost_race_is_not_reported_as_exhausted() -> None:
     )
     store, audits = _store_with_fake_db(table)
 
-    original = table.fail_cas
+    # Another writer wins between our SELECT and our UPDATE: the row is
+    # CANCELLED when our CAS runs, so it matches 0 rows.
+    def win_race(sql: str, table: FakeJobTable) -> None:
+        if table.rows["j-race"]["status"] == "RUNNING":
+            table.rows["j-race"]["status"] = "CANCELLED"
 
-    def win_race(job_id: str, ttl_seconds: int, reason: str) -> int:
-        if table.rows[job_id]["status"] == "RUNNING":
-            table.rows[job_id]["status"] = "CANCELLED"
-        return original(job_id, ttl_seconds, reason)
-
-    table.fail_cas = win_race  # type: ignore[method-assign]
+    table.before_update = win_race
 
     outcome = store.reclaim_stale_running(30, lease_alive=_never_alive)
 

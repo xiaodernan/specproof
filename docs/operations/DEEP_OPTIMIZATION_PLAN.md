@@ -5977,3 +5977,27 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 过期扫描**只**在完整清扫里跑；`--running-only` / `--provider-wait-only` 都不含它（这与两个 flag 的字面语义一致，但运维要知道「只跑 RUNNING」不等于「也清了超期」）。② `--dry-run` 预览的超期作业**不含租约存活判断**——租约是回收器的概念，过期是**预算**的概念，混用会让「没到期」与「租约还在」互相掩盖。③ 预览与清扫共享谓词是靠**结构性门**（断言两段源码都带同一谓词字符串）锁住的，不是靠一个共享函数——真要收敛成同一份 SQL，应该在下一号把两段查询合成一个。④ 本号没有跑一次真实的超期作业去验证「人工路径与自动路径给出同一结论」——两者共用同一个 store 方法是结构上的保证，但没做端到端对照。
 
 **下一号队列（取号时按落地时点 max+1）。** ① `list_overdue_jobs` 与 `expire_overdue_jobs` 的查询合成一份（消除「结构性门代替真共享」的债）。② 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）（#300 队列①，未动）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 回收器的假 cursor 与真 SQL 的耦合要拆开（#298 队列④，未动）。⑤ 「测试库卫生」一次性清理脚本（`arm_probe` 之类的变异臂遗留表）（#298 队列⑤，未动）。⑥ P1-7 / P3-4 / P3-7 其余项照旧。
+
+## #302 假不再自说自话：回收器的假 cursor 改成按 SQL 语义求值；过期预览与清扫共用一个查询
+
+**起因/占号。** #301 的下一号队列①是「`list_overdue_jobs` 与 `expire_overdue_jobs` 的查询合成一份（消除『结构性门代替真共享』的债）」，④是「回收器的假 cursor 与真 SQL 的耦合要拆开」。落地前重测账本：HEAD d66c653，`## #` id 最大 301，`## #302` 计数 0 ⇒ 取 **#302**。
+
+**先量旧行为（这次量的是**测试**本身）。** ① `tests/unit/test_job_reclaimer.py` 的假 cursor 按**语句文本前缀**分派（`sql.startswith("UPDATE verification_jobs SET status = 'QUEUED'")`），并按**参数下标**取参（`params[0]` 是 TTL、`params[1]` 是 job id、`params[2]` 是租约）。② 更要紧的是：假表**自己判断「过期」**——`row["status"] == "RUNNING" and row["updated_at"] < cutoff`，那是**一份手写的第二意见**。#298 把回收器的状态集从「只有 RUNNING」放宽到「全部在途状态」时，生产 SQL 已经变了，**假表却还写着老规则，而测试照样全绿**——它量的是假，不是代码。③ 假 cursor 与真 SQL 的耦合还有一个具体后果：#298 为了保住「TTL 在 `params[0]`」这个契约而调整了生产 SQL 的占位符顺序；**测试逼着生产代码迁就测试**，方向反了。
+
+**修。**
+
+- **真共享**（`storage/mysql.py`）：`expire_overdue_jobs` 的候选行改从 `list_overdue_jobs()` 读——**一份查询**，预览与清扫不可能对「什么叫超预算」有分歧。#301 那道结构性门（断言两段源码都带同一谓词字符串）随之升级为断言「清扫**调用**读取器，且清扫自己不再带 WHERE 子句」。
+- **按 SQL 语义求值的假**（新建 `tests/unit/fake_sql_engine.py`）：一个小型求值器，读出语句里的条件与赋值，按**占位符在语句中出现的顺序**绑定参数，再用这些条件过滤/更新行。
+  - 条件支持：`col = %s`、`col = 'literal'`、`col IN (%s, …)`、`col < (NOW(3) - INTERVAL %s SECOND)`、`col IS [NOT] NULL`。
+  - 赋值支持：`col = %s`、`col = 'literal'`、`col = NULL`、`col = col + 1`。
+  - **不认识的语句形状直接抛 `UnsupportedSqlError`**——一个对陌生语句耸耸肩的假，等于不再测试。
+  - 竞态接缝从「替换假表的方法」换成 `table.before_update` 钩子（在 UPDATE 落地前触发）。
+
+**门与腿。** 新增 `tests/unit/test_fake_sql_engine.py`（12 项）——**这个门是给门本身上的**：① 去掉新鲜度守卫后，假选出的行**必须变多**（否则假分不清两条语句，生产 SQL 掉了守卫测试照样绿）；② 状态集**从语句里读**（把 QUEUED 放进 IN 列表，QUEUED 的老行就该被选中；假有自己的一套就做不到）；③ 参数**按语句里的出现顺序**绑定（TTL 调小窗口变宽、调大窗口变窄）；④ 去掉 CAS 的状态守卫后，被别人改过的行**必须被覆盖**（否则假看不见 CAS 变不安全了）；⑤ 未知语句 / 未知条件 / 未知赋值 / 参数不够，**四种都抛错**。
+既有门 `test_job_reclaimer.py`（35）——**未改一条断言**，只是把脚下的地板换成了会读 SQL 的那一种——**47 passed**。相关回归：`test_reclaim_tick.py`（21）、`test_job_state_machine.py`（26）、`test_job_stage.py`（21）、`test_job_expiry.py`（12）、`test_ops_recover_cli.py`（18）、`test_ops_recover_dry_run.py`（14）、`test_ops_recover_output_format.py`（10）、`test_worker_cancel_points.py`（25）、`test_concurrency_ha.py`（3）——**150 passed**。`ruff check .` 0 errors、`mypy .` 0 errors（229 源文件）。
+
+**否证与订正。** ① 第一版求值器**每行**重新绑定一次参数 ⇒ 第二行开始参数就错位（报「asked 7, bound 6」）；谓词必须**先编译一次**再逐行应用——参数属于语句，不属于行。② `_split_top_level` 只支持**单字符**分隔符，传「 AND 」（五字符）不生效 → 条件没被拆开，整个 WHERE 被当成一条不认识的条件。③ 引擎的 `UnsupportedSql` 命名违反 `N818`（异常名要带 Error 后缀）→ 改名 `UnsupportedSqlError`。④ 新写的引擎门里有一条把「TTL 调大」当成「窗口变宽」⇒ 实测 TTL 越大**截止点越早**、能选中的行**越少**；写反了。⑤ 假表原本的「过期」判断被引擎接管后，两处**竞态测试**（`reclaim_cas` / `fail_cas` 被替换）失去了可替换的方法 ⇒ 改用 `before_update` 钩子。
+
+**诚实边界。** ① 求值器只覆盖本仓库**实际发出**的语句形状（SELECT 带 WHERE、UPDATE 带 SET+WHERE，以及上面列出的算子）；**不是** SQL 引擎，碰见不认识的就抛错而不是假装算过。② 它不实现 JOIN、子查询、函数调用、`LIMIT`、类型转换；`ORDER BY` 按**字符串**排序（生产 SQL 只用它定序，不依赖其顺序的正确性）。③ 假表现在**不再**自带「过期」规则 ⇒ `test_job_reclaimer.py` 里那些「非 RUNNING 的行不被回收」之类的断言，量的已经是**生产 SQL 的状态集**而不是假表写死的常量——这正是本号想要的，但**断言的语义变了**（断言文本没变，量的对象变了）。④ 真实 MySQL 的 `NOW(3)`、时区、`TIMESTAMPDIFF` 的取整行为与假引擎不完全一致；真值仍由 `tests/integration/test_job_expiry.py`（真实 MySQL）守。⑤ 本号没有把**其它**测试文件里的同类假（`test_ops_recover_dry_run.py` 的 `RecordingStore` 等）一并换成引擎——它们各有自己的形状，换过来是独立工作。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 其它测试里的手写假（`test_ops_recover_dry_run.py` 的 `RecordingStore` 等）是否也换成求值器——换掉之后，那些假里手写的「过期」规则同样会变成量生产 SQL 而不是量假。② 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）（#300 队列①，未动）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 「测试库卫生」一次性清理脚本（`arm_probe` 之类的变异臂遗留表）（#298 队列⑤，未动）。⑤ P1-7 / P3-4 / P3-7 其余项照旧。
