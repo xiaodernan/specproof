@@ -6001,3 +6001,27 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 求值器只覆盖本仓库**实际发出**的语句形状（SELECT 带 WHERE、UPDATE 带 SET+WHERE，以及上面列出的算子）；**不是** SQL 引擎，碰见不认识的就抛错而不是假装算过。② 它不实现 JOIN、子查询、函数调用、`LIMIT`、类型转换；`ORDER BY` 按**字符串**排序（生产 SQL 只用它定序，不依赖其顺序的正确性）。③ 假表现在**不再**自带「过期」规则 ⇒ `test_job_reclaimer.py` 里那些「非 RUNNING 的行不被回收」之类的断言，量的已经是**生产 SQL 的状态集**而不是假表写死的常量——这正是本号想要的，但**断言的语义变了**（断言文本没变，量的对象变了）。④ 真实 MySQL 的 `NOW(3)`、时区、`TIMESTAMPDIFF` 的取整行为与假引擎不完全一致；真值仍由 `tests/integration/test_job_expiry.py`（真实 MySQL）守。⑤ 本号没有把**其它**测试文件里的同类假（`test_ops_recover_dry_run.py` 的 `RecordingStore` 等）一并换成引擎——它们各有自己的形状，换过来是独立工作。
 
 **下一号队列（取号时按落地时点 max+1）。** ① 其它测试里的手写假（`test_ops_recover_dry_run.py` 的 `RecordingStore` 等）是否也换成求值器——换掉之后，那些假里手写的「过期」规则同样会变成量生产 SQL 而不是量假。② 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）（#300 队列①，未动）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 「测试库卫生」一次性清理脚本（`arm_probe` 之类的变异臂遗留表）（#298 队列⑤，未动）。⑤ P1-7 / P3-4 / P3-7 其余项照旧。
+
+## #303 dry-run 的假也改口径：生产查询跑在求值器上，计划点名的行由生产 WHERE 决定
+
+**起因/占号。** #302 的下一号队列①是「其它测试里的手写假（`test_ops_recover_dry_run.py` 的 `RecordingStore` 等）是否也换成求值器」。落地前重测账本：HEAD 1285797，`## #` id 最大 302，`## #303` 计数 0 ⇒ 取 **#303**。
+
+**先量旧行为。** `tests/unit/test_ops_recover_dry_run.py` 的 `RecordingStore` 是一份**手写的第二意见**：
+- `list_stale_running_candidates(lease_ttl_seconds)` 直接返回假自己塞进来的 `stale` 列表——**生产 SQL 一行没跑**；
+- `get_jobs_by_status(status)` 断言 `status == "WAITING_FOR_PROVIDER"` 后返回假塞进来的 `waiting` 列表；
+- `list_overdue_jobs()` 同理。
+
+也就是说：dry-run 的计划点名的行，是**测试自己决定**的，生产查询改了什么（状态集、时效门槛、预算谓词）这份测试都**不会知道**。#298 把回收器的状态集放宽到「全部在途状态」时，这个假依然按「只有 RUNNING」作答——它量的是自己。
+
+**修。**
+- **`RecordingStore` 变成 `MySQLStore` 的子类，只覆写 `connection()`**：生产方法（`list_stale_running_candidates` / `get_jobs_by_status` / `list_overdue_jobs`）**跑它们自己的 SQL**，求值器在内存表上求值。假保留的东西只有三样，而且是它该保留的：**绊线**（`reclaim_stale_running` / `recover_provider_wait` / `expire_overdue_jobs` 一律抛错）、**语句日志**（用来断言这一趟只读）、**审计日志**（dry-run 不得声称发生过迁移）。
+- **求值器加一条形状**：`TIMESTAMPDIFF(SECOND, created_at, NOW(3)) > max_execution_seconds`（过期预算的谓词）。不认识就抛错的规矩不变。
+- **测试数据的形状跟着口径变**：`_row()` 过去给的是 `updated_at: None`——在旧假里无所谓（假不看它），在生产查询里就是「不陈旧、不入选」。现在 `_row()` 给真实的时间戳（默认比 `NOW` 老 120 秒），**由生产 WHERE 决定谁入选**。
+
+**门与腿。** `tests/unit/test_ops_recover_dry_run.py`（14 → **15** 项）：新增一项——**计划点名的行就是生产查询选出的行**：同一批种子里放三行（陈旧的 RUNNING、**新鲜的** RUNNING、**不在在途集里的** QUEUED），计划必须只点第一行。既有 14 项**断言文本未改**（只有一条断言的对象从「假写的语句串」换成「生产语句串」——断言现在检查的是真 SQL 里有没有 `INTERVAL %s SECOND`）。`test_fake_sql_engine.py`（12）、`test_job_reclaimer.py`（35）、`test_ops_recover_cli.py`（18）——**79 passed**。相关回归：`test_reclaim_tick.py`（21）、`test_job_state_machine.py`（26）、`test_job_stage.py`（21）、`test_job_expiry.py`（12）、`test_ops_recover_output_format.py`（10）、`test_worker_cancel_points.py`（25）、`test_concurrency_ha.py`（3）、`test_worker_notify_terminal.py`（21）、`test_api_jobs.py`（38）——**195 passed**。`ruff check .` 0 errors、`mypy .` 0 errors（229 源文件）。
+
+**否证与订正。** ① `RecordingStore` 改继承 `MySQLStore` 后，`__getattr__` 绊线**不再**能拦住「生产方法」——因为那些方法现在**真的存在**于基类上：绊线必须改成**逐个覆写**三个写路径并抛错，否则 dry-run 真的会去改数据。② `RecordingStore.__init__` 调 `super().__init__()` 会走 `MySQLConfig.from_env()`——只读环境变量、**不连接**，所以测试仍然离线。③ 断言 `store.statements == ["SELECT stale RUNNING ttl=30"]` 红了：那是**假自己写的**语句串；现在跑的是生产 SQL，断言改为「只有一条语句、以 SELECT 开头、带 `INTERVAL %s SECOND`」——比原来更贴切（原来断言的是假自己编的字符串）。④ 引擎不认识 `TIMESTAMPDIFF` ⇒ 抛 `UnsupportedSqlError`（这正是「不认识的形状就抛错」该有的表现），补上该形状后通过。
+
+**诚实边界。** ① 求值器仍**不是** SQL 引擎：只覆盖本仓库实际发出的语句形状，不实现 JOIN/子查询/函数/类型转换；`ORDER BY` 按**字符串**排（生产 SQL 只用它定序）。② 假库用 `NOW` 这个**固定时钟**，而真实 MySQL 用数据库时钟；真值仍由 `tests/integration/test_job_expiry.py`（真实 MySQL）守。③ 本号只换了 `test_ops_recover_dry_run.py` 一份假；仓库里**还有**若干测试用各写各的手写假（`test_api_jobs.py` 的 `FakeMySQLStore`、`test_job_reclaimer.py` 之外的若干），它们**尚未**换成求值器——换过去是独立工作，且每份假的形状不同，不能机械套用。④ 断言「计划只点陈旧的 RUNNING」这一条**依赖生产查询的状态集**——如果生产把某个状态加进在途集，这条断言的期望会随之变化（这是**应该**的：计划跟着生产走）。⑤ 本号没有为「假库时钟」与「数据库时钟」的差异写差值测试（真实 MySQL 那侧已覆盖）。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 仓库里其余手写假（`test_api_jobs.py` 的 `FakeMySQLStore` 等）是否也换成求值器——逐份评估形状，不机械套用。② 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（现在的 7200 是估的）（#300 队列①，未动）。③ `CONTRACT_REVIEW` / `NEEDS_REVIEW` 的诚实生产路径（#298 队列①，未动）。④ 「测试库卫生」一次性清理脚本（`arm_probe` 之类的变异臂遗留表）（#298 队列⑤，未动）。⑤ P1-7 / P3-4 / P3-7 其余项照旧。

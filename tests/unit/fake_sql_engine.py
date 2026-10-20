@@ -81,6 +81,11 @@ _EQ_LITERAL_RE = re.compile(r"^(\w+)\s*=\s*'([^']*)'$")
 _IN_RE = re.compile(r"^(\w+)\s+IN\s*\((.*)\)$", re.IGNORECASE)
 #: ``col IS NULL`` / ``col IS NOT NULL``
 _IS_RE = re.compile(r"^(\w+)\s+IS\s+(NOT\s+)?NULL$", re.IGNORECASE)
+#: ``TIMESTAMPDIFF(SECOND, col, NOW(3)) > col2`` — the budget guard.
+_TIMESTAMPDIFF_RE = re.compile(
+    r"^TIMESTAMPDIFF\s*\(\s*SECOND\s*,\s*(\w+)\s*,\s*NOW\(3\)\s*\)\s*>\s*(\w+)$",
+    re.IGNORECASE,
+)
 #: ``col = col + 1``
 _INCREMENT_RE = re.compile(r"^(\w+)\s*=\s*(\w+)\s*\+\s*(\d+)$")
 #: ``col = NULL``
@@ -291,6 +296,16 @@ class SqlFakeCursor:
                 else:
                     wanted_set.append(item.strip().strip("'"))
             return lambda row: str(row.get(column)) in wanted_set
+
+        match = _TIMESTAMPDIFF_RE.match(condition)
+        if match:
+            age_column, limit_column = match.group(1), match.group(2)
+            now = self.table.now
+            return lambda row: (
+                row.get(age_column) is not None
+                and (now - row.get(age_column)).total_seconds()
+                > float(row.get(limit_column) or 0)
+            )
 
         match = _IS_RE.match(condition)
         if match:

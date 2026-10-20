@@ -12,7 +12,9 @@ real CAS path.
 
 from __future__ import annotations
 
-import copy
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -25,10 +27,15 @@ from storage.mysql import (
     ReclaimOutcome,
     retry_budget_spent,
 )
+from tests.unit.fake_sql_engine import SqlFakeCursor, SqlFakeTable
 
 REPO = Path(__file__).resolve().parents[2]
 
 WRITE_KEYWORDS = ("UPDATE", "INSERT", "DELETE", "REPLACE")
+
+#: The clock the fake's database runs on. The production queries compare
+#: against NOW(3), so the fake needs a clock to compare against too.
+NOW = datetime(2026, 8, 20, 12, 0, 0)
 
 
 def _row(
@@ -38,7 +45,14 @@ def _row(
     max_retries: int = 3,
     status: str = "RUNNING",
     repo_path: str = "/repo/app",
+    age_seconds: int = 120,
 ) -> dict[str, Any]:
+    """A job row aged *age_seconds* — old enough to be a stale candidate.
+
+    The age matters now that the PRODUCTION query filters the rows: a
+    row with no timestamp is not stale, whatever the fake used to say.
+    """
+    stamp = NOW - timedelta(seconds=age_seconds)
     return {
         "id": job_id,
         "repo_path": repo_path,
@@ -50,27 +64,48 @@ def _row(
         "max_retries": max_retries,
         "worker_id": "worker-1" if status == "RUNNING" else None,
         "status": status,
-        "updated_at": None,
+        "updated_at": stamp,
+        "created_at": stamp,
+        "max_execution_seconds": 3600,
     }
 
 
 def _overdue_row(job_id: str, *, budget: int = 3600) -> dict[str, Any]:
     """A row past its execution budget — the shape the expiry sweep reads."""
+    stamp = NOW - timedelta(seconds=budget + 60)
     return {
         "id": job_id,
         "status": "RUNNING",
         "max_execution_seconds": budget,
-        "created_at": None,
+        "created_at": stamp,
+        "updated_at": stamp,
     }
 
 
-class RecordingStore:
-    """A store that logs SQL and refuses to be the one that writes.
+class _EngineConn:
+    """A connection whose cursor evaluates statements on the fake table."""
 
-    Every read the dry-run needs is served; every write shape records the
-    statement so a test can assert the log is read-only. `record_audit` is a
-    tripwire: dry-run must never produce an audit row, because an audit row
-    means a transition was claimed.
+    def __init__(self, table: SqlFakeTable) -> None:
+        self.table = table
+
+    def cursor(self) -> SqlFakeCursor:
+        return SqlFakeCursor(self.table)
+
+
+class RecordingStore(MySQLStore):
+    """A store whose READS run the PRODUCTION SQL against an in-memory table.
+
+    The fake used to answer "which rows are stale" with its own
+    hand-written rule and the tests asserted on that rule — so the test
+    measured the fake, not the code. Now the production methods run
+    their real queries and the shared SQL engine evaluates them; the
+    rows this store is seeded with are filtered by the production WHERE
+    clause, not by a second opinion.
+
+    What the fake still owns:
+    * the tripwires — the mutating passes must never be reached;
+    * the statement log — so a test can assert the run was read-only;
+    * the audit log — a dry-run must not claim a transition.
     """
 
     def __init__(
@@ -80,33 +115,21 @@ class RecordingStore:
         waiting: list[dict[str, Any]] | None = None,
         overdue: list[dict[str, Any]] | None = None,
     ) -> None:
-        self.stale = [copy.deepcopy(r) for r in (stale or [])]
-        self.waiting = [copy.deepcopy(r) for r in (waiting or [])]
-        self.overdue = [copy.deepcopy(r) for r in (overdue or [])]
-        self.statements: list[str] = []
+        super().__init__()
+        self.table = SqlFakeTable(
+            rows=[*(stale or []), *(waiting or []), *(overdue or [])], now=NOW
+        )
+        self.statements: list[str] = self.table.statements
         self.audits: list[dict[str, Any]] = []
         self.reclaims_called = 0
         self.closed = 0
 
-    # ── reads ────────────────────────────────────────────────────
-    def list_stale_running_candidates(
-        self, lease_ttl_seconds: int
-    ) -> list[dict[str, Any]]:
-        self.statements.append(
-            f"SELECT stale RUNNING ttl={lease_ttl_seconds}"
-        )
-        return copy.deepcopy(self.stale)
+    # ── the connection the production SQL runs against ────────────
+    @contextmanager
+    def connection(self) -> Iterator[Any]:
+        yield _EngineConn(self.table)
 
-    def get_jobs_by_status(self, status: str) -> list[dict[str, Any]]:
-        assert status == "WAITING_FOR_PROVIDER"
-        self.statements.append(f"SELECT {status}")
-        return copy.deepcopy(self.waiting)
-
-    def list_overdue_jobs(self) -> list[dict[str, Any]]:
-        self.statements.append("SELECT over-budget jobs")
-        return copy.deepcopy(self.overdue)
-
-    # ── writes: recorded, never silently allowed ─────────────────
+    # ── tripwires: the mutating passes must never be reached ──────
     def reclaim_stale_running(self, *_a: Any, **_k: Any) -> ReclaimOutcome:
         self.reclaims_called += 1
         raise AssertionError("dry-run must not call the mutating reclaim pass")
@@ -123,8 +146,9 @@ class RecordingStore:
     def close(self) -> None:
         self.closed += 1
 
-    # A real store exposes connection(); if dry-run reaches for it we want the
-    # AttributeError to surface as a red, not as an untested pass.
+    # A real store exposes members the dry-run has no business touching;
+    # if dry-run reaches for one we want the AttributeError to surface as
+    # a red, not as an untested pass.
     def __getattr__(self, name: str) -> Any:
         raise AssertionError(f"dry-run touched an unexpected store member: {name}")
 
@@ -200,6 +224,34 @@ def test_preview_emits_no_write_statement_and_no_audit(
     assert store.reclaims_called == 0
 
 
+def test_the_plan_names_the_rows_the_production_query_selects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The production WHERE clause decides — not the fake's rows.
+
+    The fake used to hand the plan whatever it was seeded with, so a
+    fresh row or a row outside the in-flight set would have been
+    reported as a stuck job. Now the production query filters, and the
+    plan's rows are exactly the ones it selected.
+    """
+    store = _wire(
+        monkeypatch,
+        RecordingStore(
+            stale=[
+                _row("j-stale", age_seconds=200),
+                _row("j-fresh", age_seconds=1),
+                _row("j-other", status="QUEUED", age_seconds=200),
+            ]
+        ),
+    )
+
+    rows = worker.preview_stale_running_jobs(lease_ttl_seconds=30).rows
+
+    assert [r["job_id"] for r in rows] == ["j-stale"]
+    # And the query that produced them is the production one.
+    assert "INTERVAL %s SECOND" in store.statements[0], store.statements
+
+
 def test_the_expiry_preview_shares_the_sweeps_predicate() -> None:
     """The over-budget candidate set must not be a second opinion.
 
@@ -263,8 +315,13 @@ def test_plan_verdicts_split_on_the_same_budget_rule_the_cas_uses(
         for row in worker.preview_stale_running_jobs(lease_ttl_seconds=30).rows
     }
 
-    # One read, no writes: the plan asks the candidate question and nothing else.
-    assert store.statements == ["SELECT stale RUNNING ttl=30"], store.statements
+    # One read, no writes: the plan asks the candidate question and
+    # nothing else — and the statement it asked is the PRODUCTION one
+    # (the fake evaluates it; it does not answer with its own rows).
+    assert len(store.statements) == 1, store.statements
+    statement = store.statements[0]
+    assert statement.upper().startswith("SELECT")
+    assert "INTERVAL %s SECOND" in statement, statement
     assert store.audits == []
 
     assert verdicts == {
