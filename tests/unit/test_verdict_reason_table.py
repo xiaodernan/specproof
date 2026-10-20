@@ -21,6 +21,7 @@ reason it triggers and the word the policy must answer with.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -30,6 +31,11 @@ from evidence.verdict import (
     REASON_GAP,
     REASON_TABLE,
     evaluate_verification,
+)
+
+#: The exported, human-readable projection of the table.
+DOC = Path(__file__).resolve().parents[2] / "docs" / "architecture" / (
+    "VERDICT_REASON_TABLE.md"
 )
 
 PASSING_ROW: dict[str, Any] = {
@@ -248,6 +254,64 @@ class TestTheReasonTable:
 
         with pytest.raises(KeyError, match="not a declared reason"):
             reason_text("no_such_reason")
+
+
+class TestTheExportedTable:
+    """The document is a PROJECTION of the code, and must stay one.
+
+    A reader who does not read Python still has to be able to see the
+    whole vocabulary — and the document must not be able to drift from
+    the code it describes, or it becomes a second source of truth.
+    """
+
+    def test_the_document_exists(self) -> None:
+        assert DOC.is_file(), (
+            f"{DOC} is missing — the reason vocabulary has to be readable "
+            "without reading the module"
+        )
+
+    def test_the_document_matches_the_code(self) -> None:
+        text = DOC.read_text(encoding="utf-8")
+        # The document spells the kinds in the reader's words; the gate
+        # maps the code's word to the label rather than making the
+        # document carry the code's vocabulary.
+        labels = {
+            REASON_BLOCKING: "阻断",
+            REASON_GAP: "缺口",
+        }
+        for key, (template, kind) in REASON_TABLE.items():
+            row = next(
+                (
+                    line for line in text.splitlines()
+                    if line.strip().startswith(f"| `{key}` |")
+                ),
+                None,
+            )
+            assert row is not None, f"the document has no row for {key!r}"
+            assert template in row, (
+                f"the document's row for {key!r} does not carry the code's "
+                f"wording {template!r}"
+            )
+            assert labels[kind] in row, (
+                f"the document's row for {key!r} does not carry the code's "
+                f"kind {kind!r}"
+            )
+
+    def test_the_document_names_no_reason_the_code_does_not_have(self) -> None:
+        text = DOC.read_text(encoding="utf-8")
+        # The reason table has THREE columns; the row-reason table below it
+        # has two. Only the reason table is compared — the row codes are a
+        # different vocabulary (owned by _ROW_REASON_TEXT).
+        documented = {
+            match.group(1)
+            for match in re.finditer(
+                r"^\| `([a-z_]+)` \|[^\n|]*\|[^\n|]*\|", text, re.M
+            )
+        }
+        assert documented == set(REASON_TABLE), (
+            "the document names reasons the code does not have: "
+            f"{sorted(documented - set(REASON_TABLE))}"
+        )
 
     def test_a_gap_reason_can_coexist_with_a_blocking_one(self) -> None:
         """The table classifies REASONS; the verdict follows from the kinds.
