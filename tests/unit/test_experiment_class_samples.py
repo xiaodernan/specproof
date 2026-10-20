@@ -76,9 +76,21 @@ def _ci_eval_subset() -> set[str]:
     point of the check is that the CI's subset and the holdout set stay
     disjoint, and a list copied by hand is exactly how they would stop
     being disjoint.
+
+    An EMPTY result is an error, not "no subset": the pattern not
+    matching anything means the workflow changed its wording — and a
+    gate that silently checks nothing is worse than no gate.
     """
     text = CI.read_text(encoding="utf-8")
-    return set(re.findall(r"golden-cases/([a-z0-9-]+)\s+eval-subset/", text))
+    found = set(re.findall(r"golden-cases/([a-z0-9-]+)\s+eval-subset/", text))
+    assert found, (
+        "the CI evaluation subset could not be read from "
+        f"{CI.name} — the pattern found no cases. Either the workflow "
+        "changed its wording, or the subset is genuinely empty; both need "
+        "a human, because a check that silently looks at nothing is not a "
+        "check."
+    )
+    return found
 
 
 ALL = list(EXPERIMENT_CLASSES)
@@ -202,12 +214,81 @@ class TestTheRegistryItself:
             assert entry.subject.strip(), entry.key
 
 
+class TestTheManifestVocabularyIsClosed:
+    """The manifest must speak the same words as the cases it holds.
+
+    It used to carry the legacy P6 group names (`authnz`, `transaction`,
+    `uniqueness`, …) while the golden cases' ground truth and the
+    registry speak CONTRACT FAMILY IDS. Two vocabularies in one file is
+    how a case ends up in the wrong group — so the vocabulary is now
+    closed, and this keeps it closed.
+    """
+
+    def test_every_declared_family_is_a_real_contract_family(self) -> None:
+        known = self._contract_families()
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        for case in manifest["cases"]:
+            family = str(case.get("family") or "")
+            assert family == "none" or family in known, (
+                f"{case['case_id']}: the manifest declares family "
+                f"{family!r}, which is not a contract family any golden case "
+                f"expects. The vocabulary is: {sorted(known)} (or 'none')."
+            )
+
+    def test_a_manifest_family_matches_the_case_ground_truth(self) -> None:
+        """The declared family must be the case's OWN family.
+
+        A holdout declared under the wrong family would make the family's
+        holdout count wrong — and the count is what an evaluation
+        reports.
+        """
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        for case in manifest["cases"]:
+            family = str(case.get("family") or "")
+            if family == "none":
+                continue
+            truth = _truth(case["case_id"])
+            assert truth.get("expected_contract") == family, (
+                f"{case['case_id']}: the manifest says {family!r} but the "
+                f"case's ground truth says "
+                f"{truth.get('expected_contract')!r}"
+            )
+
+    def _contract_families(self) -> set[str]:
+        families: set[str] = set()
+        for case in sorted(GOLDEN.iterdir()):
+            truth_path = case / "ground-truth.json"
+            if not truth_path.is_file():
+                continue
+            truth = json.loads(truth_path.read_text(encoding="utf-8"))
+            family = str(truth.get("expected_contract") or "")
+            if family:
+                families.add(family)
+        assert families, "no golden case declares a contract family"
+        return families
+
+
 class TestTheCoverageReport:
     def test_the_report_exists(self) -> None:
         assert COVERAGE_REPORT.is_file(), (
             f"the coverage report {COVERAGE_REPORT} is missing — the gap it "
             "records has to be visible in the tree, not only in a test"
         )
+
+    def test_the_ci_subset_is_readable(self) -> None:
+        """The check above is only as good as what it reads.
+
+        If the workflow's wording changes, the pattern finds nothing and
+        the holdout-disjointness check would pass vacuously. So the
+        read itself is asserted — a gate that looks at nothing must say
+        so.
+        """
+        subset = _ci_eval_subset()
+        assert len(subset) >= 2, subset
+        for case_id in subset:
+            assert (GOLDEN / case_id).is_dir(), (
+                f"the CI evaluates {case_id!r}, which is not a golden case"
+            )
 
     def test_the_report_matches_what_the_registry_says(self) -> None:
         """The recorded gap must not rot.

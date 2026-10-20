@@ -1,65 +1,65 @@
 {
   "schema_version": 1,
-  "note": "Retroactive partial isolation (honest caveat): this candidate set was declared AFTER earlier evaluation rounds already ran against these cases (W-series eval reports and the 10-case Recall/Precision runs recorded in CLAUDE.md). Holdout metrics computed on them must therefore be labelled 'retroactive holdout candidates' — they do not constitute a clean prospective holdout. A clean split requires case ids that no earlier round ever saw. Status transitions: candidate -> active (frozen for future eval only) or released (returned to the training pool). 词汇说明 (#311): 早期条目的 `family` 用的是旧的 P6 分组名(authnz / transaction / uniqueness / …), 2026-10-21 新增的条目用**契约家族 id**(ATOMICITY-01 / IDEMPOTENT-01 / CACHE-01)——两套词表并存是一个已知的不一致, 统一它是一次独立的清理。本清单的 `family` 只用于统计分组, 判定依据是 `status`。",
+  "note": "Retroactive partial isolation (honest caveat): this candidate set was declared AFTER earlier evaluation rounds already ran against these cases (W-series eval reports and the 10-case Recall/Precision runs recorded in CLAUDE.md). Holdout metrics computed on them must therefore be labelled 'retroactive holdout candidates' — they do not constitute a clean prospective holdout. A clean split requires case ids that no earlier round ever saw. Status transitions: candidate -> active (frozen for future eval only) or released (returned to the training pool). 词汇说明 (#313): `family` 统一为**契约家族 id**(AUTH-01 / TRANSACTION-01 / UNIQUE-01 / TOKEN_INVALIDATION-01 / BACKWARD_COMPATIBLE-01 / EVENT_ONCE-01 / ATOMICITY-01 / IDEMPOTENT-01 / CACHE-01), 与 golden case 的 `expected_contract`、`experiments/experiment_classes.py` 的注册表**同一个词**;不属于任何家族的案例写 `none`。旧的 P6 分组名(authnz / transaction / uniqueness / …) 已于 #313 全部换掉——一个文件里两套词表, 迟早会有案例进错组。",
   "integration_note": "RESOLVED (#77/#78, 2026-09-26): specproof eval and specproof baseline both select their case set through cli/specproof/case_set.py. Isolation is on by default (declared cases leave the pool), --only-holdout runs just them, --include-holdout merges them back and labels the run 'all_not_isolated'. Both commands write the case-set label into their sidecars, and baseline refuses to print a Go/No-Go gain when the two pools disagree or the SpecProof sidecar is unlabelled. The earlier text below is kept as history: eval.py integration deferred: at commit time cli/specproof/commands/eval.py was already modified by another lane (git status: M cli/specproof/commands/eval.py), so the --exclude-holdout flag was deliberately NOT added in this lane to avoid a write conflict. Wiring when that lane clears: in eval_cmd, after case_dirs is computed, load agent.holdout.HoldoutRegistry (default manifest docs/eval/holdout-manifest.json) and drop every directory whose name satisfies registry.is_holdout(name) unless an --include-holdout flag is passed, then print the skipped-case count in the run summary header.",
   "cases": [
     {
       "case_id": "case-01-auth-bypass",
-      "family": "authnz",
+      "family": "AUTH-01",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
     {
       "case_id": "case-02-transactional-removal",
-      "family": "transaction",
+      "family": "TRANSACTION-01",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
     {
       "case_id": "case-03-clean-pr",
-      "family": "negative-control",
+      "family": "none",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
     {
       "case_id": "case-04-duplicate-email",
-      "family": "uniqueness",
+      "family": "UNIQUE-01",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
     {
       "case_id": "case-05-token-invalidation",
-      "family": "token-cache",
+      "family": "TOKEN_INVALIDATION-01",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
     {
       "case_id": "case-06-schema-break",
-      "family": "schema-compat",
+      "family": "BACKWARD_COMPATIBLE-01",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
     {
       "case_id": "case-07-duplicate-event",
-      "family": "event-consistency",
+      "family": "EVENT_ONCE-01",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
     {
       "case_id": "case-08-transaction-split",
-      "family": "transaction",
+      "family": "TRANSACTION-01",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
     {
       "case_id": "case-09-multi-security",
-      "family": "authnz",
+      "family": "TRANSACTION-01",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
     {
       "case_id": "case-10-comment-only",
-      "family": "negative-control",
+      "family": "none",
       "added_at": "2026-08-19",
       "status": "candidate"
     },
