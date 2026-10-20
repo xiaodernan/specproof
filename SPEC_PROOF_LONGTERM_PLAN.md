@@ -258,6 +258,7 @@
 - 执行预算按档位 ✅（FAST 3600 / DEEP 7200 / RELEASE 10800，逐作业可覆盖；DEEP 的数值待生产数据校准）
 - CONTRACT_REVIEW / NEEDS_REVIEW 的诚实生产路径 ✅（#306：NEEDS_REVIEW 有了生产写入方——判定层分出「确有问题」与「证据不足」，CLI 退出码 3、GitHub Check failure、前端 warn 色调、报告 pending 样式、仪表盘 needs_review_rate；CONTRACT_REVIEW 仍**不写**，管线不在那里停）
 - 判定理由分级表 ✅（#307：BLOCKED 只留给「确有问题」与「记录自相矛盾」；「取不到证据」一律 NEEDS_REVIEW；逐场景门固定这张表）
+- 未获批准契约说清原因 ✅（#308：矩阵行记「契约未获批准」，判定理由优先用行自带的具体理由；CONTRACT_REVIEW 的「不写」写进状态机注释，成为记录在案的决定）
 - CONTRACT_REVIEW 的诚实生产路径（待开始，见账本 #306 下一号队列）
 
 ### 阶段 3 新增文件清单

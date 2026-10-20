@@ -296,7 +296,15 @@ def evaluate_verification(
             blocking(f"{label}检查失败")
         elif result != "PASS":
             unverified += 1
-            gap(f"{label}尚未得到可判定结果")
+            # The node that produced the row knows WHY it could not decide
+            # — "契约未获批准" is a different next action from "缺少证据
+            # 引用" — and that reason is more specific than the generic
+            # one. Use the row's own when it has one.
+            own = str(row.get("unverified_reason") or "").strip()
+            if own:
+                gap(f"{label}：{own}")
+            else:
+                gap(f"{label}尚未得到可判定结果")
         else:
             has_evidence = bool(evidence_references(row))
             has_experiment = not require_experiment or bool(

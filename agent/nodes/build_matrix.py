@@ -46,6 +46,11 @@ from agent.state import Phase0State
 from evidence.verdict import evaluate_verification
 from observability.metrics import incr
 
+#: Why a row for a never-approved contract is UNVERIFIED. The reader's
+#: next action is to APPROVE the contract, not to go looking for missing
+#: evidence — and a bare "UNVERIFIED" does not say which.
+UNAPPROVED_CONTRACT_REASON = "契约未获批准：需人工批准后方可作为验收依据"
+
 #: diff_results verdict -> row attribution (Review Court vocabulary).
 _ATTRIBUTION_BY_VERDICT: dict[str, str] = {
     "REGRESSION": "head",
@@ -263,6 +268,15 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
     # ── Legacy row shape for existing consumers ───────────────────────
     matrix_rows: list[dict[str, Any]] = []
     pass_downgraded = False
+    # A contract that was never approved cannot back an acceptance — the
+    # Review Court's condition 1 refuses to certify on it. The row must
+    # SAY so: a bare "UNVERIFIED" sends the reader after missing
+    # evidence, while the next action is "approve the contract".
+    unapproved = {
+        str(c.get("id") or "")
+        for c in contracts
+        if c.get("approved") is False
+    }
     for row in rows:
         legacy = dict(row)
         legacy["requirement"] = row["requirement_summary"]
@@ -276,6 +290,9 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
                 legacy["unverified_reason"] = decision.reason
                 legacy["next_action"] = NEXT_ACTION_UNVERIFIED
                 pass_downgraded = True
+        elif legacy["result"] == "UNVERIFIED" and legacy["contract_id"] in unapproved:
+            legacy["unverified_reason"] = UNAPPROVED_CONTRACT_REASON
+            legacy["next_action"] = NEXT_ACTION_UNVERIFIED
         matrix_rows.append(legacy)
 
     # Preserve the pre-policy row order: compiled contracts in order, then

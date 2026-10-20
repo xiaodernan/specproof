@@ -116,6 +116,18 @@ AUDIT_ACTIONS: Final[frozenset[str]] = frozenset({
 #   FAILED, WAITING_FOR_PROVIDER, PENDING
 # Terminal:     VERIFIED, BLOCKED, NEEDS_REVIEW, CANCELLED, STALE, EXPIRED, ERROR
 #
+# CONTRACT_REVIEW has NO producer, and that is a decision rather than an
+# omission (#308). The obvious use would be "the job waits while a human
+# approves the contracts" — but the pipeline never waits: with
+# `require_approved_contracts` it runs the experiments against the
+# unapproved contracts and lets the Review Court refuse to certify on
+# them (its condition 1). The job therefore ENDS, in NEEDS_REVIEW, with
+# the row saying why ("契约未获批准") — a reader is told the approval is
+# the missing piece, instead of a status claiming someone is working on
+# it when nobody is. If the pipeline ever really parks, this status
+# becomes reachable and the waiting path must bring its own resume
+# entry point.
+#
 # Invariant: every transition is audited (record_audit). A terminal job
 # accepts only its own status (idempotent no-op); any other target raises
 # InvalidStateTransition — use cancel() for the deliberate override.
