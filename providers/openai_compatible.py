@@ -632,6 +632,15 @@ class OpenAICompatibleProvider(ModelProvider):
         return result
 
     def _to_llm_response(self, response: Any) -> LLMResponse:
+        # An empty choices list is the GATEWAY's fault, not the model's: a
+        # completion that was never sent. The responses protocol already
+        # refuses this shape ("no text or tool calls"); the chat path used
+        # to raise a bare IndexError, which says nothing about what
+        # happened and reads like a bug in our own code.
+        if not response.choices:
+            raise RuntimeError(
+                "The gateway returned no choices; no result was produced"
+            )
         choice = response.choices[0]
         msg = choice.message
         reasoning = getattr(msg, "reasoning_content", None)
@@ -640,24 +649,33 @@ class OpenAICompatibleProvider(ModelProvider):
             # of the message. Either way it stays OUT of content and the
             # tool-call/JSON parsing path (ADR-017: in-memory only).
             reasoning = getattr(choice, "reasoning_content", None)
+        tool_calls = (
+            [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in msg.tool_calls
+            ]
+            if msg.tool_calls
+            else []
+        )
+        # Same refusal as the responses protocol, same words: an answer
+        # with neither text nor a tool call is not an answer. Returning
+        # ``content=None`` let every caller's ``content or ""`` turn it
+        # into an empty string, which surfaced later as "invalid JSON" —
+        # a defect blamed on the model's output instead of on a gateway
+        # that never answered.
+        if not (msg.content and msg.content.strip()) and not tool_calls:
+            raise RuntimeError("The model returned no text or tool calls")
         return LLMResponse(
             content=msg.content,
             reasoning_content=reasoning,
-            tool_calls=(
-                [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
-                        },
-                    }
-                    for tc in msg.tool_calls
-                ]
-                if msg.tool_calls
-                else []
-            ),
+            tool_calls=tool_calls,
             usage=_parse_usage(response.usage),
             finish_reason=choice.finish_reason or "stop",
             model=response.model,

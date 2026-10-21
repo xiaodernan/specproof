@@ -6400,3 +6400,29 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① 数据库侧的故障是**注入**的（`OperationalError` 由假游标抛出），**不是**真的把网线拔了或真的让一个事务等锁超时——但事务、锁与回滚都是**真的**（真 MySQL、真 `unit_of_work`、真 rollback），这比「在假里模拟假」强得多。② 覆盖表里的「16 场景」是**故障族**的计数口径（`test_all_scenarios` 的 10 + 故障矩阵 4 + 事务故障 2），不是「测试函数个数」——两个口径都写着，免得读者按其中一个去数对不上。③ **空 JSON 响应**这一类**没做**：provider 收到一个空 body 时会怎样，本号**没有**量过，不能替它声称。④ 本号**没有**碰 provider 的**重试参数**（`max_retries` 的默认值），只证明了「超时与断连在预算内被重试、预算耗尽后原样抛出」。⑤ 全量套件在本机**仍未跑完**（并发车道占满 CPU）；本号跑的是**受影响**的故障文件 + 真库集成文件。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（先让模板驱动 service，再写案例）——#314 的结论。② provider 收到**空 JSON 响应**时怎么办（故障矩阵剩下的那一类，先量再写）。③ 局部变量名是否也该进 profile（#319 的边界②）。④ 用生产数据量 DEEP 作业的真实耗时分布，回头校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 队列项④的**框法要改**（#319 队列⑤）：多数手写假是**方法级鸭子类型**，换成求值器等于把它们变成真 store。⑥ P1-7（MinIO 对象引用）照旧。
+
+## #322 空回答不是回答：chat 与 responses 用同一句话拒绝（故障场景 16 → 17）
+
+**起因/占号。** #321 的下一号队列②是「provider 收到空 JSON 响应时怎么办——先量再写」。落地前重测账本：HEAD eca18ad（`## #` id 最大 321）⇒ 取 **#322**。
+
+**先量旧行为（探针，四个形状）。**
+- `chat` + `choices=[]` → **`IndexError: list index out of range`**。这条错误什么都没说：它读起来像**我们自己代码里的 bug**，而不是「网关没给补全」。
+- `chat` + `content=None` 且无 tool_calls → **返回了一个 `LLMResponse(content=None, tool_calls=[])`**。这是最坏的一种：它**看起来像一个正常的答案**。而每个调用方都写着 `response.content or ""`（实测 25 处），于是 `None` 变成空串，故障一路漂到下游，最后以「invalid JSON」的样子爆出来——**让模型的输出背了网关从没答话的锅**。
+- `responses` + `output=[]` → `RuntimeError: The model returned no text or tool calls` ✓（早就拒绝了）。
+- 流式路径另有一套（`Model stream ended before a completed response`）✓，不在本号范围。
+
+结论：**同一个网关故障，行为取决于配置的是哪个协议**——一个拒绝，一个把空回答当答案收下。
+
+**修。**
+- `choices` 为空 ⇒ `RuntimeError("The gateway returned no choices; no result was produced")`。措辞点名**网关**而不是模型：一份从未发出的补全，不是模型在说「我没什么可说的」。
+- 既无文本也无 tool_call ⇒ `RuntimeError("The model returned no text or tool calls")`——与 responses 协议**一字不差**。
+- **只有 tool_call、没有正文**的回复**照常放行**：那是 craft 循环的正常形状，把它一起拒掉等于修好空路径的同时打断了工具路径。
+- 纯空白（`"   "`）也算没有文本（`strip()`）。
+
+**门与腿。** 故障矩阵新增第 5 类「空回答」（`tests/fault/test_fault_matrix.py`：13 → **19** 项）：空 `choices` 被点名成网关故障、且**第一次尝试就拒绝**（不烧重试预算）；`None` / `""` / `"   "` 三种空文本都被拒；只有 tool_call 的回复仍被接受；**两个协议对同一故障说同一句话**（把两条路径的消息抓出来逐字比对）。provider 相关回归（`test_providers` / `_dsv4` / `_net` / `_hold_probe` / `_accounting` / `_request_metrics` / `test_llm_counterexample_path_actually_runs`）**98 passed**。`ruff check` 0 errors、`mypy providers/` 0 errors（18 源文件）。故障覆盖表同步为 **17 场景**。
+
+**否证与订正。** ① 我第一版探针**测错了**：为了绕开凭据探测，把 `_ensure_probed` monkeypatch 成返回 `None`，于是流式那一路报 `AttributeError: 'NoneType' object has no attribute 'capabilities'`——那是**探针的 bug**，不是产品的 bug（产品在流式空包时抛的是 `Model stream ended before a completed response`）。探针错了就重测，不能把探针的错记成产品的缺陷。② 覆盖表原来把**僵尸租约**列在待办里——实测 `tests/unit/test_job_reclaimer.py` 早就覆盖了（`reclaim_stale_running` 有 **11** 处断言）。已订正：待办只剩**磁盘满**。把已覆盖的写成未覆盖，和把未覆盖的写成已覆盖一样是在骗读者。③ 只在 `chat` 路径加门会不会误伤？先查了两处「期待 `content is None`」的测试：一处是**dataclass 默认值**（不经本路径），一处是**带 tool_calls** 的 None（本号的守卫明确放行）——98 项回归全绿证实了。
+
+**诚实边界。** ① **空回答不重试**：它在第一次尝试就失败（不在 SDK 的可重试集合里）。理由：`RuntimeError` 同时装着「模型拒绝」和「网关空包」，把整类变可重试会在一个**明确拒绝**的模型上白烧预算。但**空包究竟有多少是瞬时故障**，本号**没有量过**——所以这不是「测得的最优」，是「选定的策略」。② 守卫的口径是「无文本**且**无 tool_call」；有 tool_call 时空正文一律放行。③ 本号改的是**每个调用方都会走**的路径，跑的是 provider 全套 + counterexample 路径（98 项），**不是**全量套件（本机仍跑不完）。④ 故障矩阵的计数口径仍是「故障族」：17 = `test_all_scenarios` 的 10 + 故障矩阵 5 + 事务故障 2。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（#314 的结论，仍未动）。② 局部变量名是否也该进 profile（#319 的边界②）。③ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。④ 队列项④的**框法要改**（#319 队列⑤）：多数手写假是**方法级鸭子类型**，换成求值器等于把它们变成真 store。⑤ P1-7（MinIO 对象引用）。⑥ 故障覆盖表最后一个待办：**磁盘满**（ENOSPC）。

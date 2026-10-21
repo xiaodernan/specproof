@@ -234,6 +234,108 @@ class TestDeadGatewayHonestFailure:
 
 
 # ══════════════════════════════════════════════════════════════════
+# Scenario 5: an EMPTY answer (the fault that looks like a success)
+# ══════════════════════════════════════════════════════════════════
+
+
+def _empty_choices_response() -> Any:
+    return SimpleNamespace(choices=[], usage=None, model="deepseek-v4-pro")
+
+
+def _textless_response(
+    *, content: Any = None, tool_calls: Any = None, finish_reason: str = "stop",
+) -> Any:
+    choice = SimpleNamespace(
+        message=SimpleNamespace(
+            content=content, tool_calls=tool_calls, reasoning_content=None
+        ),
+        finish_reason=finish_reason,
+    )
+    return SimpleNamespace(choices=[choice], usage=None, model="deepseek-v4-pro")
+
+
+class TestAnEmptyAnswerIsRefused:
+    """An answer with no text and no tool call is not an answer.
+
+    This is the fault that does NOT look like one: every caller writes
+    ``response.content or ""``, so a ``None`` content becomes ``""`` and
+    the failure surfaces later as "invalid JSON" — a defect blamed on the
+    model's output instead of on a gateway that never answered. The
+    responses protocol already refused this shape; the chat protocol used
+    to hand the caller a plausible-looking empty answer.
+    """
+
+    async def test_no_choices_is_named_as_a_gateway_fault(self) -> None:
+        provider, fake = _make_provider(lambda attempt: _empty_choices_response())
+        with pytest.raises(RuntimeError) as caught:
+            await provider.chat(messages=[LLMMessage(role="user", content="ping")])
+        assert "no choices" in str(caught.value)
+        # Refused on the FIRST attempt: an empty body is not in the
+        # retryable set, so it must not burn the budget pretending to.
+        assert fake.attempts == 1
+
+    @pytest.mark.parametrize("content", [None, "", "   "])
+    async def test_no_text_and_no_tool_call_is_refused(self, content: Any) -> None:
+        provider, fake = _make_provider(
+            lambda attempt: _textless_response(content=content)
+        )
+        with pytest.raises(RuntimeError) as caught:
+            await provider.chat(messages=[LLMMessage(role="user", content="ping")])
+        assert "no text or tool calls" in str(caught.value)
+        assert fake.attempts == 1
+
+    async def test_a_tool_call_with_no_text_is_still_an_answer(self) -> None:
+        """The guard must not refuse the legitimate tool-call-only reply.
+
+        A model that answers with a tool call and no prose is the normal
+        shape of the craft loop — refusing it would break the tool path
+        while fixing the empty path.
+        """
+        tool_call = SimpleNamespace(
+            id="call-1",
+            function=SimpleNamespace(name="report", arguments='{"a": 1}'),
+        )
+        provider, fake = _make_provider(
+            lambda attempt: _textless_response(tool_calls=[tool_call])
+        )
+        result = await provider.chat(
+            messages=[LLMMessage(role="user", content="ping")]
+        )
+        assert result.content is None
+        assert result.tool_calls[0]["function"]["name"] == "report"
+        assert fake.attempts == 1
+
+    def test_both_protocols_use_the_same_refusal_words(self) -> None:
+        """The same gateway fault must read the same way on both paths.
+
+        Two protocols with two different messages for "nothing came back"
+        means whoever reads an incident has to know which protocol was
+        configured before they can tell what happened.
+        """
+        from providers.responses_protocol import parse_response
+
+        chat_message = ""
+        provider, _ = _make_provider(lambda attempt: _textless_response())
+        try:
+            provider._to_llm_response(_textless_response())
+        except RuntimeError as exc:
+            chat_message = str(exc)
+
+        responses_message = ""
+        try:
+            parse_response(
+                SimpleNamespace(status="completed", output=[], usage=None,
+                                model="deepseek-v4-pro")
+            )
+        except RuntimeError as exc:
+            responses_message = str(exc)
+
+        assert chat_message == responses_message == (
+            "The model returned no text or tool calls"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════
 # Scenario 2: disk write failure -> editor atomic rollback
 # ══════════════════════════════════════════════════════════════════
 
