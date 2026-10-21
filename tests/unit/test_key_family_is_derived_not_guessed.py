@@ -160,3 +160,68 @@ def test_a_scan_that_fails_observes_nothing() -> None:
 
     collector = RedisStateCollector(_BrokenScan())
     assert collector.snapshot_by_pattern(["token:user:*"]) == {}
+
+
+def test_a_capped_family_is_ANNOUNCED() -> None:
+    """A cap that is not announced is a reader believing they saw all.
+
+    A family with a thousand keys would otherwise fill the evidence
+    pack; so it is capped — and the truncation travels with the
+    observation, because a silent cap is a lie by omission.
+    """
+    client = _ScanningRedis({f"token:user:{i}": "v" for i in range(10)})
+    collector = RedisStateCollector(client)
+
+    states = collector.snapshot_by_pattern(["token:user:*"], max_keys=4)
+
+    assert len(states) == 4
+    assert collector.truncated is True
+    assert collector.truncated_patterns == ["token:user:*"]
+
+
+def test_a_family_under_the_cap_is_not_truncated() -> None:
+    client = _ScanningRedis({f"token:user:{i}": "v" for i in range(3)})
+    collector = RedisStateCollector(client)
+
+    collector.snapshot_by_pattern(["token:user:*"], max_keys=10)
+
+    assert collector.truncated is False
+    assert collector.truncated_patterns == []
+
+
+def test_the_snapshot_carries_the_truncation() -> None:
+    """The truncation has to travel to the evidence, not stay in memory."""
+    from experiments.external_state import capture_redis_state
+
+    client = _ScanningRedis({f"token:user:{i}": "v" for i in range(10)})
+    truncated: list[str] = []
+
+    snapshot = capture_redis_state(
+        client, keys=(), patterns=["token:user:*"], max_keys=3,
+        truncated_out=truncated,
+    )
+
+    assert len(snapshot) == 3
+    assert truncated == ["token:user:*"]
+
+
+def test_the_fragment_says_the_observation_was_partial() -> None:
+    """The reader of the evidence must see that the view was capped."""
+    from experiments.collectors import redis_fragment_from_snapshots
+
+    fragment = redis_fragment_from_snapshots(
+        "job-1", {}, {},
+        truncated_patterns=["token:user:*"],
+    )
+
+    assert fragment.extension["observation_complete"] is False
+    assert fragment.extension["truncated_patterns"] == ["token:user:*"]
+
+
+def test_a_complete_observation_says_it_is_complete() -> None:
+    from experiments.collectors import redis_fragment_from_snapshots
+
+    fragment = redis_fragment_from_snapshots("job-1", {}, {})
+
+    assert fragment.extension["observation_complete"] is True
+    assert fragment.extension["truncated_patterns"] == []

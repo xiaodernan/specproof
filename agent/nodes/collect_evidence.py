@@ -11,6 +11,7 @@ the Review Court and the lineage builder will later interpret.
 
 from __future__ import annotations
 
+import fnmatch
 from contextlib import suppress
 from typing import Any, cast
 
@@ -89,6 +90,11 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
 
             base_states = redis_states_from_dicts(base_snapshot)
             head_states = redis_states_from_dicts(head_snapshot)
+            truncated = list(base_snapshot.get("truncated_patterns") or [])
+            truncated += [
+                p for p in (head_snapshot.get("truncated_patterns") or [])
+                if p not in truncated
+            ]
             for contract in raw_state.get("contracts") or []:
                 if not isinstance(contract, dict) or not contract.get("id"):
                     continue
@@ -103,6 +109,10 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
                         experiment_id=raw_state.get("job_id", "unknown"),
                         base=_states_matching(base_states, patterns),
                         head=_states_matching(head_states, patterns),
+                        truncated_patterns=[
+                            p for p in truncated
+                            if any(fnmatch.fnmatch(p, pattern) for pattern in patterns)
+                        ],
                     )
                 )
             if redis_fragments:

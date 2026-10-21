@@ -103,6 +103,11 @@ class RedisStateCollector:
 
     client: RedisLike
     collector_version: str = COLLECTOR_VERSION
+    #: Set when a family had more keys than the cap allowed. A cap that
+    #: is not announced is a reader believing they saw everything, so the
+    #: truncation travels with the observation.
+    truncated: bool = False
+    truncated_patterns: list[str] = field(default_factory=list)
 
     def snapshot(self, keys: Iterable[str]) -> dict[str, KeyState]:
         """Read every key once; one unreadable key does not abort the rest."""
@@ -112,7 +117,7 @@ class RedisStateCollector:
         return states
 
     def snapshot_by_pattern(
-        self, patterns: Iterable[str],
+        self, patterns: Iterable[str], *, max_keys: int = 200,
     ) -> dict[str, KeyState]:
         """Read every key matching the given patterns.
 
@@ -123,6 +128,10 @@ class RedisStateCollector:
         A client that cannot scan yields an empty observation — the
         caller reports NO_EVIDENCE, which is honest ("we could not look
         at that family"), rather than pretending the family was empty.
+
+        A family with MANY keys is truncated at ``max_keys`` — and the
+        truncation is REPORTED (``truncated``), because a cap that is
+        not announced is a reader believing they saw everything.
         """
         states: dict[str, KeyState] = {}
         scanner = getattr(self.client, "scan_iter", None)
@@ -133,6 +142,10 @@ class RedisStateCollector:
                 found = list(scanner(match=pattern))
             except Exception:  # noqa: BLE001 — an unscanable family is unseen
                 continue
+            if len(found) > max_keys:
+                self.truncated = True
+                self.truncated_patterns.append(pattern)
+                found = found[:max_keys]
             for key in found:
                 name = key.decode("utf-8") if isinstance(key, bytes) else str(key)
                 if name not in states:
@@ -256,6 +269,7 @@ def redis_fragment_from_snapshots(
     head: Mapping[str, KeyState],
     *,
     collector_version: str = COLLECTOR_VERSION,
+    truncated_patterns: Iterable[str] = (),
 ) -> RedisObservation:
     """Build the fragment from TWO snapshots that were taken at two moments.
 
@@ -264,6 +278,10 @@ def redis_fragment_from_snapshots(
     useless. This entry point takes the two snapshots the pipeline
     actually captured (after the Base run and after the Head run) and
     compares THOSE.
+
+    ``truncated_patterns`` says a key family had more keys than the cap
+    allowed: the observation is PARTIAL, and a reader must be able to
+    see that rather than believe they saw every key.
     """
     observed = any(
         state.present for state in list(base.values()) + list(head.values())
@@ -275,6 +293,7 @@ def redis_fragment_from_snapshots(
         status = STATUS_COMPLIANT
     else:
         status = STATUS_AMBIGUOUS
+    truncated = list(truncated_patterns)
     return RedisObservation(
         experiment_id=experiment_id,
         fragment_type="redis",
@@ -291,7 +310,11 @@ def redis_fragment_from_snapshots(
         confidence=1.0 if observed else 0.0,
         evidence_ref=None,
         reproducibility="reproducible",
-        extension={"observed_any_key": observed},
+        extension={
+            "observed_any_key": observed,
+            "truncated_patterns": truncated,
+            "observation_complete": not truncated,
+        },
     )
 
 

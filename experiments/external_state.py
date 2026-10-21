@@ -160,6 +160,9 @@ def capture_redis_state(
     client: RedisLike | None,
     keys: tuple[str, ...] | list[str] = DEFAULT_REDIS_KEYS,
     patterns: tuple[str, ...] | list[str] = (),
+    *,
+    max_keys: int = 200,
+    truncated_out: list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """One Redis snapshot, as plain dicts.
 
@@ -170,14 +173,22 @@ def capture_redis_state(
     ``patterns`` are the key FAMILIES the contracts declared (e.g.
     "token:user:*"); they are scanned, because the ids inside a family
     belong to the domain and cannot be guessed.
+
+    A family with more keys than ``max_keys`` is CAPPED, and the
+    pattern is appended to ``truncated_out`` — a cap that is not
+    announced is a reader believing they saw every key.
     """
     if client is None:
         return {}
     collector = RedisStateCollector(client)
     states = dict(collector.snapshot(keys))
     if patterns:
-        for key, state in collector.snapshot_by_pattern(patterns).items():
+        for key, state in collector.snapshot_by_pattern(
+            patterns, max_keys=max_keys
+        ).items():
             states.setdefault(key, state)
+    if truncated_out is not None:
+        truncated_out.extend(collector.truncated_patterns)
     return {key: state.to_dict() for key, state in states.items()}
 
 
@@ -203,6 +214,7 @@ def capture_external_state(
     redis_keys: tuple[str, ...] | list[str] = DEFAULT_REDIS_KEYS,
     object_refs: tuple[str, ...] | list[str] = (),
     redis_patterns: tuple[str, ...] | list[str] = (),
+    max_keys: int = 200,
 ) -> dict[str, Any]:
     """One snapshot of everything observable outside the workspaces.
 
@@ -211,13 +223,28 @@ def capture_external_state(
     collection:
 
         {"redis": {key: {...}}, "objects": {ref: {...}}}
+
+    ``truncated_patterns`` says a key family had more keys than the cap
+    allowed. A cap that is not announced is a reader believing they saw
+    every key — so the truncation travels with the observation, at the
+    TOP level (inside the key map it would be mistaken for a key).
     """
-    return {
-        "redis": capture_redis_state(
-            redis_client, redis_keys, patterns=redis_patterns
-        ),
+    snapshot: dict[str, Any] = {
+        "redis": {},
         "objects": capture_object_state(object_store, object_refs),
     }
+    truncated: list[str] = []
+    snapshot["redis"] = capture_redis_state(
+        redis_client, redis_keys, patterns=redis_patterns,
+        max_keys=max_keys, truncated_out=truncated,
+    )
+    if truncated:
+        # The observation was CAPPED. A cap that is not announced is a
+        # reader believing they saw every key of the family — so the
+        # truncation travels with the observation, at the TOP level
+        # (inside the key map it would be mistaken for a key).
+        snapshot["truncated_patterns"] = truncated
+    return snapshot
 
 
 def redis_states_from_dicts(
