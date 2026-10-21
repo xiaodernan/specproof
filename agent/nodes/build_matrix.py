@@ -39,7 +39,7 @@ from typing import Any
 from agent.external_observation import (
     observation_limits,
     observation_status,
-    observations,
+    observations_and_decidability,
 )
 from agent.matrix_policy import (
     CANONICAL_FIELDS,
@@ -50,6 +50,7 @@ from agent.matrix_policy import (
 from agent.state import Phase0State
 from evidence.verdict import (
     ROW_REASON_CONTRACT_NOT_APPROVED,
+    ROW_REASON_EXTERNAL_NOT_OBSERVED,
     evaluate_verification,
 )
 from observability.metrics import incr
@@ -77,14 +78,19 @@ LEGACY_ROW_FIELDS: tuple[str, ...] = (
 
 #: The row fields that carry what the EXTERNAL observation could not say
 #: (#365). The row's verdict still comes only from a real experiment;
-#: these two fields say how far the outside-of-the-JVM observation can
+#: these fields say how far the outside-of-the-JVM observation can
 #: vouch for that verdict. ``observation_status`` is the observation's
 #: own status word ("" when there was no observation at all) and
 #: ``observation_limits`` are the disclosed limits (empty when the
 #: observation had none). Both are always present: "blank, not missing".
+#: ``observation_decidable`` (#379) says whether the comparison could
+#: DECIDE anything at all: False means the surface this contract is
+#: about was never looked at, so a PASS on it cannot back an
+#: acceptance. It is the one field here the verdict layer reads.
 OBSERVATION_ROW_FIELDS: tuple[str, ...] = (
     "observation_status",
     "observation_limits",
+    "observation_decidable",
 )
 
 #: The row fields that carry WHERE the evidence for this contract is,
@@ -310,10 +316,15 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
     # is never fatal to the matrix: the matrix is the verdict layer, and
     # an unreadable observation must not become a verdict.
     contract_observations: dict[str, Any] = {}
+    observation_decidable_by_contract: dict[str, bool] = {}
     try:
-        contract_observations = observations(state)
+        (
+            contract_observations,
+            observation_decidable_by_contract,
+        ) = observations_and_decidability(state)
     except Exception:  # noqa: BLE001 — degraded, not fatal
         contract_observations = {}
+        observation_decidable_by_contract = {}
     # WHERE the evidence for a contract is, and in what state: the
     # records of the capsules that carry it (#366b / #367). The capsules
     # are packaged BEFORE this node runs (the graph order), so the
@@ -346,6 +357,14 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
         observation = contract_observations.get(str(row.get("contract_id") or ""))
         legacy["observation_status"] = observation_status(observation)
         legacy["observation_limits"] = observation_limits(observation)
+        # Whether the external comparison for THIS contract could decide
+        # anything (#379). "We did not look there" is a different fact from
+        # "we looked and found nothing" — and the first one means a PASS
+        # on this contract says nothing about the surface the contract is
+        # about. The verdict layer reads this field (it does no I/O).
+        legacy["observation_decidable"] = observation_decidable_by_contract.get(
+            str(row.get("contract_id") or ""), True
+        )
         # Where the evidence for this contract can be fetched from, and
         # in what state. The verdict is untouched: this is an address
         # and a digest, not a reason.
@@ -359,6 +378,14 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
             if decision.status != "VERIFIED":
                 legacy["result"] = "UNVERIFIED"
                 legacy["unverified_reason"] = decision.reason
+                if legacy.get("observation_decidable") is False:
+                    # Name the real cause (#379): the surface this contract
+                    # is about was never looked at, so the reader's next
+                    # action is to make the run observe it — not to go
+                    # looking for a missing experiment.
+                    legacy["unverified_reason_code"] = (
+                        ROW_REASON_EXTERNAL_NOT_OBSERVED
+                    )
                 legacy["next_action"] = NEXT_ACTION_UNVERIFIED
                 pass_downgraded = True
         elif legacy["result"] == "UNVERIFIED" and legacy["contract_id"] in unapproved:

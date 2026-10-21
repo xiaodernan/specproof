@@ -80,6 +80,24 @@ def observations(
     are rebuilt from them a single time, so a matrix with a hundred
     contracts does not rebuild the same hundred keys a hundred times.
     """
+    return observations_and_decidability(state, contracts)[0]
+
+
+def observations_and_decidability(
+    state: Mapping[str, Any],
+    contracts: list[Mapping[str, Any]] | None = None,
+) -> tuple[dict[str, Any], dict[str, bool]]:
+    """The per-contract observations AND whether each could decide anything.
+
+    ONE pass, two views. The two views cannot disagree about the same
+    contract, because they are read off the same comparison — and the
+    comparison is made once, so a matrix with a hundred contracts does
+    not rebuild the same hundred keys a hundred times.
+
+    The second view is the one the verdict layer needs: a contract whose
+    external surface was never looked at cannot be certified by a PASS
+    that says nothing about that surface.
+    """
     from experiments.external_state import redis_states_from_dicts
 
     base_snapshot = state.get("external_state_base") or {}
@@ -102,6 +120,7 @@ def observations(
     store_reachable = bool(base_snapshot.get("redis_observed", True))
 
     observations_by_contract: dict[str, Any] = {}
+    decidable_by_contract: dict[str, bool] = {}
     chosen = state.get("contracts") if contracts is None else contracts
     for contract in chosen or []:
         if not isinstance(contract, Mapping):
@@ -115,7 +134,63 @@ def observations(
         )
         if observation is not None:
             observations_by_contract[contract_id] = observation
-    return observations_by_contract
+        decidable_by_contract[contract_id] = _decidable(contract, observation)
+    return observations_by_contract, decidable_by_contract
+
+
+def observation_decidable(observation: Any | None) -> bool:
+    """Could this observation DECIDE anything about its contract?
+
+    An observation that was made and could not decide — the store was
+    unreachable, or the two moments are not comparable — means the
+    contract's external surface was NOT looked at. A PASS on that
+    contract then says nothing about that surface, and must not be
+    accepted as if it did.
+
+    ``None`` means "there was no observation at all", which is NOT the
+    same question: the caller decides that one per contract, because
+    only the contract can tell "this contract names no external surface"
+    from "this contract is about the store and we never looked".
+    """
+    if observation is None:
+        return True
+    extension = getattr(observation, "extension", {}) or {}
+    # The store was down (#369), or only one side was captured: we did
+    # not look, so the observation cannot decide anything.
+    return bool(
+        extension.get("store_reachable", True)
+        and extension.get("moments_comparable", True)
+    )
+
+
+def _decidable(
+    contract: Mapping[str, Any],
+    observation: Any | None,
+) -> bool:
+    """Could the external comparison for THIS contract decide anything?
+
+    The contract is what tells the two "no observation" cases apart: a
+    contract that names no external surface has nothing to look at (so
+    nothing is missing), while a contract that IS about the store and
+    has no observation is a contract we did not look at.
+    """
+    if observation is not None:
+        return observation_decidable(observation)
+    surface = _SURFACE_BY_CHECKER.get(str(contract.get("checker_type") or ""))
+    if surface == "redis":
+        from experiments.external_state import key_patterns_for
+
+        # The contract names no key family: there was nothing to observe,
+        # and nothing is missing. Otherwise the contract IS about the
+        # store and there is no observation: the two moments were never
+        # captured, or the store was down. Either way: we did not look.
+        return not key_patterns_for(dict(contract))
+    if surface == "mq":
+        # The MQ observation always exists; its permanent limit (the
+        # broker side is not visible from out here) is disclosed on the
+        # row, and it is a limit of the product, not a failure to look.
+        return True
+    return True
 
 
 def observation_for(

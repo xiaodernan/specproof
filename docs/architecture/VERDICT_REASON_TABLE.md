@@ -21,6 +21,7 @@
 | `row_unverifiable` | {label}：{text} | 缺口（证据不足） |
 | `pass_without_evidence` | {label}标记通过但缺少证据引用 | 缺口（证据不足） |
 | `pass_without_experiment` | {label}标记通过但缺少实验记录 | 缺口（证据不足） |
+| `external_observation_missing` | {label}的外部观测面未被观测（存储不可达或两个时刻不可比），此通过不能作为验收依据 | 缺口（证据不足） |
 | `contract_set_broken` | 验收契约标识缺失或重复，无法确定完整覆盖范围 | 阻断（确有问题） |
 | `missing_contract_result` | 缺少契约检查结果：{ids} | 缺口（证据不足） |
 | `row_without_contract` | 检查记录没有对应验收契约：{ids} | 阻断（确有问题） |
@@ -30,7 +31,7 @@
 | `findings_present` | 存在 {count} 项已确认问题，需要处理后重新验收 | 阻断（确有问题） |
 | `pipeline_errors` | 执行过程有错误，无法形成有效验收结论 | 缺口（证据不足） |
 
-共 16 条：阻断 8 条、缺口 8 条。
+共 17 条：阻断 8 条、缺口 9 条。
 
 ## 行的理由（矩阵行 → 对外措辞）
 
@@ -42,5 +43,6 @@
 | `no_experiment` | 该契约没有任何实验产出结果; 禁止臆造 PASS/FAIL |
 | `inconclusive` | 实验已运行但未得到可判定证据, 保持 UNVERIFIED |
 | `contract_not_approved` | 契约未获批准: 需人工批准后方可作为验收依据 |
+| `external_not_observed` | 该契约的外部观测面未被观测（存储不可达或两个时刻不可比）; 此通过不能作为验收依据 |
 
-（这三句由 `evidence/verdict.py::_ROW_REASON_TEXT` 拥有；上表是它的投影。）
+（这 4 句由 `evidence/verdict.py::_ROW_REASON_TEXT` 拥有；上表是它的投影。）

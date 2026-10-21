@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from evidence.verdict import (  # noqa: E402
+    _ROW_REASON_TEXT,
     REASON_BLOCKING,
     REASON_GAP,
     REASON_TABLE,
@@ -73,11 +74,13 @@ def main() -> int:
         "",
         "| 行代码 | 对外措辞 |",
         "|---|---|",
-        "| `no_experiment` | 该契约没有任何实验产出结果; 禁止臆造 PASS/FAIL |",
-        "| `inconclusive` | 实验已运行但未得到可判定证据, 保持 UNVERIFIED |",
-        "| `contract_not_approved` | 契约未获批准: 需人工批准后方可作为验收依据 |",
+    ]
+    for code, text in _ROW_REASON_TEXT.items():
+        lines.append(f"| `{code}` | {text} |")
+    lines += [
         "",
-        "（这三句由 `evidence/verdict.py::_ROW_REASON_TEXT` 拥有；"
+        f"（这 {len(_ROW_REASON_TEXT)} 句由 "
+        "`evidence/verdict.py::_ROW_REASON_TEXT` 拥有；"
         "上表是它的投影。）",
     ]
 

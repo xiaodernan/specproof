@@ -263,6 +263,11 @@ REASON_TABLE: dict[str, tuple[str, str]] = {
     "row_unverifiable": ("{label}：{text}", REASON_GAP),
     "pass_without_evidence": ("{label}标记通过但缺少证据引用", REASON_GAP),
     "pass_without_experiment": ("{label}标记通过但缺少实验记录", REASON_GAP),
+    "external_observation_missing": (
+        "{label}的外部观测面未被观测（存储不可达或两个时刻不可比），"
+        "此通过不能作为验收依据",
+        REASON_GAP,
+    ),
     "contract_set_broken": (
         "验收契约标识缺失或重复，无法确定完整覆盖范围", REASON_BLOCKING,
     ),
@@ -324,6 +329,10 @@ def reason_text(reason_key: str, /, **fields: Any) -> tuple[str, str]:
 ROW_REASON_NO_EXPERIMENT = "no_experiment"
 ROW_REASON_INCONCLUSIVE = "inconclusive"
 ROW_REASON_CONTRACT_NOT_APPROVED = "contract_not_approved"
+#: The contract lives on a surface outside the JVM and the run did not
+#: look at it (#379). A PASS on such a contract says nothing about that
+#: surface, so it cannot back an acceptance.
+ROW_REASON_EXTERNAL_NOT_OBSERVED = "external_not_observed"
 
 #: code -> the sentence the verdict quotes. The verdict's own vocabulary.
 _ROW_REASON_TEXT: dict[str, str] = {
@@ -335,6 +344,10 @@ _ROW_REASON_TEXT: dict[str, str] = {
     ),
     ROW_REASON_CONTRACT_NOT_APPROVED: (
         "契约未获批准: 需人工批准后方可作为验收依据"
+    ),
+    ROW_REASON_EXTERNAL_NOT_OBSERVED: (
+        "该契约的外部观测面未被观测（存储不可达或两个时刻不可比）; "
+        "此通过不能作为验收依据"
     ),
 }
 
@@ -442,11 +455,21 @@ def evaluate_verification(
             has_experiment = not require_experiment or bool(
                 references(row, "experiment_ids", "experiment_id", "experiment")
             )
+            # Did the run LOOK at the surface this contract is about?
+            # The matrix row carries the answer (#379); the verdict layer
+            # reads it and does no I/O of its own. A row that says the
+            # surface was never observed cannot be certified by a PASS
+            # that says nothing about that surface — the evidence is
+            # missing, not the defect, so this is a GAP and not a
+            # blocking reason.
+            observed = row.get("observation_decidable") is not False
+            if not observed:
+                file_reason("external_observation_missing", label=label)
             if not has_evidence:
                 file_reason("pass_without_evidence", label=label)
             if not has_experiment:
                 file_reason("pass_without_experiment", label=label)
-            if has_evidence and has_experiment and cid and not duplicate:
+            if has_evidence and has_experiment and observed and cid and not duplicate:
                 passed += 1
             else:
                 unverified += 1
