@@ -44,6 +44,15 @@ DEFAULT_MQ_ROUTING_KEYS: tuple[str, ...] = ("order.created", "email.changed")
 def build_redis_client() -> Any | None:
     """Build a Redis client from the environment. None when unreachable.
 
+    Two forms are accepted, and the URL one comes FIRST because it is
+    the only form that survives a test harness that strips credentials
+    from the environment (the repo's conftest removes REDIS_PASSWORD on
+    purpose, so an integration leg has to carry the credential in a URL
+    the way MYSQL_URL does):
+
+    - ``REDIS_URL`` — a full ``redis://[:password@]host:port/db`` URL;
+    - ``REDIS_HOST`` / ``REDIS_PORT`` / ``REDIS_PASSWORD`` — the parts.
+
     A client that cannot be built is a fact about the world ("we could
     not look"), and it is reported as such by the caller — never as an
     empty-but-present observation.
@@ -53,14 +62,23 @@ def build_redis_client() -> Any | None:
     except Exception:  # noqa: BLE001 — the driver is optional
         return None
     try:
-        host = os.getenv("REDIS_HOST", "localhost")
-        port = int(os.getenv("REDIS_PORT", "6379"))
-        password = os.getenv("REDIS_PASSWORD", None)
-        client = redis.Redis(
-            host=host, port=port, password=password,
-            socket_connect_timeout=2, socket_timeout=2,
-            decode_responses=True,
-        )
+        url = os.getenv("REDIS_URL", "").strip()
+        if url:
+            client = redis.Redis.from_url(
+                url,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+                decode_responses=True,
+            )
+        else:
+            host = os.getenv("REDIS_HOST", "localhost")
+            port = int(os.getenv("REDIS_PORT", "6379"))
+            password = os.getenv("REDIS_PASSWORD", None)
+            client = redis.Redis(
+                host=host, port=port, password=password,
+                socket_connect_timeout=2, socket_timeout=2,
+                decode_responses=True,
+            )
         client.ping()
         return client
     except Exception:  # noqa: BLE001 — unreachable is a fact, not a crash
