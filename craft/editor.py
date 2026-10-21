@@ -51,6 +51,30 @@ class EditError(RuntimeError):
     """An edit could not be applied (and nothing was written)."""
 
 
+class AuditError(RuntimeError):
+    """The change LANDED, but its audit entry did not.
+
+    Deliberately NOT an EditError: EditError promises "nothing was
+    written", and this is the opposite — the file changed. A caller that
+    read this as a failed edit would retry the same write and be told its
+    context is stale, leaving the model stuck with a file it believes it
+    never wrote (measured: disk full on the audit append, then
+    STALE_CONTEXT on the retry).
+
+    The disk is full when this happens, so the audit cannot be retried
+    here; the only honest thing left is to say what is true.
+    """
+
+    landed = True
+
+    def __init__(self, path: str, cause: BaseException) -> None:
+        super().__init__(
+            f"写入已落地，但审计未写入 ({path}): {cause}；"
+            "文件已经改变（用旧 digest 重试会被 STALE_CONTEXT 拒绝）"
+        )
+        self.path = path
+
+
 class StaleContextError(EditError):
     """expected_digest mismatch: the file changed under the agent.
 
@@ -198,7 +222,15 @@ class Editor:
         *,
         before_digest: str = "",
         after_digest: str = "",
+        landed: bool = False,
     ) -> None:
+        """Record an action; `landed` says whether the disk already changed.
+
+        The difference is not cosmetic. When a mutation has already
+        happened, an audit failure must not read as "the edit failed" —
+        the caller would retry a write that did land and be told its
+        context is stale, stuck with a file it believes it never wrote.
+        """
         entry = AuditEntry(
             timestamp=self._clock(),
             action=action,
@@ -215,6 +247,8 @@ class Editor:
             with self.audit_path.open("a", encoding="utf-8", newline="\n") as handle:
                 handle.write(json.dumps(entry.to_dict(), ensure_ascii=False) + "\n")
         except OSError as exc:
+            if landed:
+                raise AuditError(str(path), exc) from exc
             raise EditError(f"审计写入失败 ({self.audit_path}): {exc}") from exc
 
     def _backup(self, target: Path) -> None:
@@ -392,6 +426,7 @@ class Editor:
             detail,
             before_digest=before,
             after_digest=sha256_digest(normalized.encode("utf-8")),
+            landed=True,
         )
 
     def write_file(
@@ -422,6 +457,7 @@ class Editor:
             f"{len(content)} chars",
             before_digest=before,
             after_digest=after,
+            landed=True,
         )
 
     def apply_edit(
@@ -504,7 +540,7 @@ class Editor:
             os.replace(source, destination)
         except OSError as exc:
             raise EditError(f"移动失败 ({src} → {dst}): {exc}") from exc
-        self._audit("move", src, f"→ {dst}", before_digest=before)
+        self._audit("move", src, f"→ {dst}", before_digest=before, landed=True)
 
     def delete(self, path: str) -> None:
         target = self._resolve(path)
@@ -516,7 +552,7 @@ class Editor:
             target.unlink()
         except OSError as exc:
             raise EditError(f"删除失败 ({path}): {exc}") from exc
-        self._audit("delete", path, "", before_digest=before)
+        self._audit("delete", path, "", before_digest=before, landed=True)
 
 def classify_workspace_changes(
     status_output: str, *, agent_paths: Iterable[str] = ()

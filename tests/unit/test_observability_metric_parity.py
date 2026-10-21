@@ -466,7 +466,8 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
     "tool_error": (
         re.compile(
             r"^tool_errors_"
-            r"(ast_parse_failed|edit_rejected|execution_failed|file_not_found"
+            r"(ast_parse_failed|edit_landed_audit_failed|edit_rejected"
+            r"|execution_failed|file_not_found"
             r"|invalid_arguments|not_a_git_repo|stale_context"
             r"|tool_version_mismatch|unknown_tool)_total$"
         ),
@@ -475,7 +476,8 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
         "every error ToolResult — the code words are the closed "
         "ERROR_CODES set (unknown tool / version mismatch / argument "
         "validation / missing file / not-a-git-repo / stale context / "
-        "rejected edit / AST parse failure / handler crash). The "
+        "rejected edit / a landed write whose audit failed / AST parse "
+        "failure / handler crash). The "
         "vocabulary is imported from craft.tools (ERROR_CODES) by the "
         "derivation test, so a new error code forces this gate and the "
         "family to move together",

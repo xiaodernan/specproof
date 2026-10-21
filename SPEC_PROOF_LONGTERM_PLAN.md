@@ -255,7 +255,7 @@
 - 模板搬进 `agent/experiments/` 并让 `experiment_classes` 指向新层 ✅（#320：24 个模板常量逐字搬进 `agent/experiments/templates.py`；节点只做管线，golden 未改一字即绿）
 - P3-7 其余故障注入：服务崩溃/超时/网络断开/消息重投/DB 锁等待 ✅（#321：补上**超时**与**网络断开**（provider 侧重试预算内、原样抛出、绝不编造答案）与**网络断开/DB 锁等待**（数据库侧：中途故障 ⇒ 作业行与 outbox 行都不落地，真库真事务证明原子性））
 - P3-7 剩余项：provider 收到**空 JSON 响应** ✅（#322：`chat` 空 `choices` 点名网关故障、无文本且无 tool_call 时与 responses 协议**一字不差**地拒绝；只有 tool_call 的回复照常放行；故障场景 16 → 17）
-- P3-7 剩余项：**磁盘满**（ENOSPC，待开始，见账本 #322 下一号队列）
+- P3-7 剩余项：**磁盘满**（ENOSPC） ✅（#330：四个故障点逐一实测——临时写/备份/首次审计都**如实**报「没写」；只有**写入之后**那次审计失败会说谎（文件已落地却报「写入失败」），已改为 `AuditError` + 独立错误码 `EDIT_LANDED_AUDIT_FAILED`，模型不会去重试一个已经落地的写入）
 - 状态机生产写入方 ✅（`agent/job_stage.py`：PREPARING/REVIEWING 由管线阶段推进；迁移 0015 把 ENUM 扩到 15 态；回收器覆盖全部在途状态）
 - EXPIRED 生产写入方 ✅（迁移 0016 加 `max_execution_seconds`；`expire_overdue_jobs` 把超期作业置为 EXPIRED；回收 tick 在同一把 scope 锁内调用）
 - 人工路径与自动路径对齐 ✅（`specproof ops recover` 第三步做过期扫描；`--dry-run` 只读预览超期作业；步骤编号按实际执行的步骤计算）

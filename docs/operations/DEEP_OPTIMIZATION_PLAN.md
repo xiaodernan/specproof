@@ -6530,3 +6530,26 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 （#296 队列①；当前 `specproof-slo.json` 在途，须等让出）；② `probe.py`/`mcp.py` 的纯逻辑补栅栏（低优先）；
 ③ #322/#326 队列里被 craft/Docker/生产数据阻塞的项照旧（并发服务路径陈旧读样本、ENOSPC 磁盘满、DEEP
 耗时校准、P1-7 MinIO 对象引用）；④ 各子命令自身 `--help` 文本与真实选项集的一致性（本号未覆盖）。
+
+## #330 磁盘满（ENOSPC）：改的四个故障点里，有一个会让调用方相信「没写」而实际写了
+
+**起因/占号。** #322 的下一号队列⑥是「故障覆盖表最后一个待办：**磁盘满**（ENOSPC）」。开始时量得 HEAD a15b34e、`## #` id 最大 322 ⇒ 本打算用 #323；**但在本号工作期间账本被别人推进到了 329**（#325 / #326 / #328 / #329），追加脚本的守卫按「落地时点 max+1」**拒写 #323** ⇒ 本号如实记为 **#330**。号跟着**落地时点**走，不跟着我开始写的时点走——否则我提交的号会和别人已经推上去的号撞。
+
+**先量旧行为（四个故障点，逐个实测）。** 磁盘满不会打在 `os.replace` 上（既有故障测试只打了那里），它打在**写临时文件**、**备份**、或**审计追加**上——三处不同的事实。
+- 临时文件写入 ENOSPC ⇒ `EditError`，原文件完好，**无 `.tmp` 残留** ✓
+- 备份 `copy2` ENOSPC ⇒ `EditError`，原文件完好 ✓
+- **第一次**审计（备份那条，在任何写入之前）ENOSPC ⇒ `EditError`，文件未变 ✓（此刻「什么也没写」是真话）
+- **第二次**审计（写入**之后**那条）ENOSPC ⇒ `EditError: 审计写入失败`——**而文件已经被替换了**。审计日志只记下备份那一行，写入那一行没有；模型按「写入失败」用**旧 digest** 重试 ⇒ **`STALE_CONTEXT`**。它**以为文件没动，实际动了，还被自己的下一次尝试挡在门外**。
+
+**修。**
+- **`AuditError(RuntimeError)`**（`craft/editor.py`）：**故意不是 `EditError`**——`EditError` 的契约是「什么也没写」（它的 docstring 就是这么写的），而这件事正相反。异常带 `landed = True`，消息直接说事实：`写入已落地，但审计未写入 (…)：<原因>；文件已经改变（用旧 digest 重试会被 STALE_CONTEXT 拒绝）`。
+- **`_audit(..., landed: bool = False)`**：只有**改动已落地**的四个调用点传 `landed=True`（`_apply_span` / `write_file` / `move` / `delete`）；备份、读取、各类**拒绝**仍抛普通 `EditError`（那几处「什么也没写」是真话）。
+- **工具层给独立错误码 `EDIT_LANDED_AUDIT_FAILED`**（`craft/tools.py`，进 `ERROR_CODES` 闭合集）：`AuditError` 在 `EditError` **之前**被接住。模型收到的不是 `EDIT_REJECTED`（那会把它推去重试一个已经落地的写入）。
+
+**门与腿。** 新建 `tests/fault/test_disk_full.py`（**10** 项）：三个「未落地」故障点各自保持原文件与无残留、且都**不是** `AuditError`；落地点则断言四点——文件**确实**被替换、错误里写着「已落地」「文件已经改变」、`isinstance(..., EditError)` **为假**、内存审计记着 `['backup', 'write']` 而落盘日志只有 1 行；外加一条**因果**测试：按旧 digest 重试**确实**会被 `STALE_CONTEXT` 拒（这不是缺陷，正是「消息必须说真话」的理由）；以及工具层那条——同一个故障经 `ToolRegistry.dispatch` 出来**带的是新码**、文件同样已变。相关回归：`test_craft_tools` / `test_craft_tool_errors_are_observable` / 故障矩阵 / 新文件 **83 passed**；编辑器族（`test_craft_editor` / `_stale` / `_drops_stale_bytecode` / `test_ast_edit` / `test_audit_action_parity` / `test_envelope_retryable`）**130 passed**；观测对账（`test_observability_metric_parity`）**7 passed**。`ruff` 0 errors、`mypy craft/` 0 errors（22 源文件）。
+
+**否证与订正。** ① **我的第一个探针测错了窗口**：它让**第一次**审计失败（备份那条），此时文件还没写，于是打印出「文件没变」——如果就此收工，这个缺陷会被探针**亲手藏起来**。改成「第一次成功、第二次才失败」（`fail_from=2`）之后才看见真相。② 测试里我断言消息含「已改变」，实际消息是「文件**已经**改变」——断言写窄了，改成「文件已经改变」。③ 我按印象写了 `EditorToolbox` 和工具名 `write_file`，两个都错（真实是 `ToolRegistry` + `create_file`）——`ImportError` / `Unknown tool` 把我按回源码，逐个读对了。④ 新增错误码牵动**三处**必须同步的登记：`ERROR_CODES` 闭合集、Grafana 面板描述（对账门要求每个错误词**小写**出现在描述里）、以及 `CONCATENATED_FAMILIES` 里的族正则。漏一处就是 `test_observability_metric_parity` 红——它红过，改完才绿。
+
+**诚实边界。** ① ENOSPC 是**注入**的（句柄的 `write` 抛 errno 28），不是真把盘写满；文件 IO、备份、审计、`os.replace` 全是真路径，被注入的只有那个错误。② `move` / `delete` 也传了 `landed=True`，但**只对 `write_file` 写了工具层逐条测试**——它们走同一个 `_audit`，路径是共享的，但「移动后审计失败」与「删除后审计失败」**没有**各自的断言。③ 落盘日志少的那一行**没有被补写**（盘满时补写是无解的）；内存审计与落盘日志的这份不对称是**记录**下来的，不是**修复**了的。④ 新增的 `tool_errors_edit_landed_audit_failed_total` 是一条**新指标族**，本号只保证它被词表/面板**登记**了；它有没有**真实流量**，要等真出现磁盘满的部署才知道。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（#314 的结论，仍未动）。② `move` / `delete` 的落地后审计故障各自补一条（本号边界②）。③ 局部变量名是否也该进 profile（#319 的边界②）。④ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 队列项④的**框法要改**（#319 队列⑤）：多数手写假是**方法级鸭子类型**，换成求值器等于把它们变成真 store。⑥ P1-7（MinIO 对象引用）。

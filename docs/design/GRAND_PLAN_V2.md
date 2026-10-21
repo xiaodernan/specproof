@@ -807,10 +807,12 @@ ruff/mypy/bandit 门禁全绿; 实测见 21.4。
   executor 白名单) | high 0 内建 (shell/network/git_push 预留, 默认需审批);
 - dispatch 门链顺序: 未知工具 → 版本 → 参数 (类型/长度/范围) → 审批 →
   路径 → 执行 — 参数非法实测不执行;
-- 12 稳定错误码 ([CODE] 前缀, 机器可 grep): UNKNOWN_TOOL /
+- 13 稳定错误码 ([CODE] 前缀, 机器可 grep): UNKNOWN_TOOL /
   TOOL_VERSION_MISMATCH / INVALID_ARGUMENTS / PATH_ESCAPE / PATH_OUT_OF_RANGE
   / APPROVAL_REQUIRED / FILE_NOT_FOUND / NOT_A_GIT_REPO / COMMAND_NOT_ALLOWED
-  / STALE_CONTEXT / EDIT_REJECTED / EXECUTION_FAILED;
+  / STALE_CONTEXT / EDIT_REJECTED / EDIT_LANDED_AUDIT_FAILED /
+  EXECUTION_FAILED (后者的语义: 改动**已落地**、审计未写入 —— 与「被拒绝」是
+  两件事, 模型不能把它读成「没写」);
 - 结果截断 + 秘密脱敏 (sk- / Bearer / 私钥头) + untrusted 标签; envelope
   版本化且结果零泄漏; 审批判定 = risk 默认或 approval_policy (只能更严,
   故障 fail-closed); grant/revoke 内存态 (持久化归任务 3/8)。

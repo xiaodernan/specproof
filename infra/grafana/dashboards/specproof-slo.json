@@ -5001,7 +5001,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "craft 工具门的错误计数 (craft/tools.py #209): calls/s 是 ToolRegistry.dispatch 入口的每次调用速率 (与 #208 拒绝面板共享同一诚实分母); tool_errors_<code>/s 按错误码分列, 由 _error() 计数——它是每个 status=error ToolResult 的唯一构造点: unknown_tool (未注册工具) / version_mismatch 见下 (版本不匹配) / tool_version_mismatch (版本不匹配) / invalid_arguments (参数校验失败, 含 handler 晚抛的一支) / file_not_found (文件或目录不存在) / not_a_git_repo (工作区无 .git) / stale_context (expected_digest 已过期) / edit_rejected (old 未命中或不唯一) / ast_parse_failed (源码不解析) / execution_failed (handler 未预期异常兜底)。九词词表封闭 (ERROR_CODES), 由对账门 import 钉死, 源内 AST 语料门把每个 _error() 调用点与词表对齐 (动态首参不过门)。读法: status=denied 不进这组 (拒绝见 #208 面板——两种状态不混计); 命令非零退出码不是错误 (run_test 返回 ok+exit_code); 外部 mcp.* 工具的错误不经 _error() (providers/mcp_bridge 构造直通), 不在本计数内。无工具调用前无序列, 面板为空属正常。",
+      "description": "craft 工具门的错误计数 (craft/tools.py #209): calls/s 是 ToolRegistry.dispatch 入口的每次调用速率 (与 #208 拒绝面板共享同一诚实分母); tool_errors_<code>/s 按错误码分列, 由 _error() 计数——它是每个 status=error ToolResult 的唯一构造点: unknown_tool (未注册工具) / version_mismatch 见下 (版本不匹配) / tool_version_mismatch (版本不匹配) / invalid_arguments (参数校验失败, 含 handler 晚抛的一支) / file_not_found (文件或目录不存在) / not_a_git_repo (工作区无 .git) / stale_context (expected_digest 已过期) / edit_rejected (old 未命中或不唯一) / edit_landed_audit_failed (改动已落地但审计未写入——不是被拒绝) / ast_parse_failed (源码不解析) / execution_failed (handler 未预期异常兜底)。十词词表封闭 (ERROR_CODES), 由对账门 import 钉死, 源内 AST 语料门把每个 _error() 调用点与词表对齐 (动态首参不过门)。读法: status=denied 不进这组 (拒绝见 #208 面板——两种状态不混计); 命令非零退出码不是错误 (run_test 返回 ok+exit_code); 外部 mcp.* 工具的错误不经 _error() (providers/mcp_bridge 构造直通), 不在本计数内。无工具调用前无序列, 面板为空属正常。",
       "fieldConfig": {
         "defaults": {
           "color": {

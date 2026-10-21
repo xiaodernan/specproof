@@ -25,7 +25,8 @@ Stable error codes live as a "[CODE]" prefix in ToolResult.summary:
 UNKNOWN_TOOL / TOOL_VERSION_MISMATCH / INVALID_ARGUMENTS / PATH_ESCAPE /
 PATH_OUT_OF_RANGE / APPROVAL_REQUIRED / FILE_NOT_FOUND / NOT_A_GIT_REPO /
 COMMAND_NOT_ALLOWED / PLANE_TOOLCHAIN_MISSING / STALE_CONTEXT /
-EDIT_REJECTED / AST_PARSE_FAILED / EXECUTION_FAILED. The denied-status
+EDIT_REJECTED / EDIT_LANDED_AUDIT_FAILED / AST_PARSE_FAILED /
+EXECUTION_FAILED. The denied-status
 subset is closed in DENIAL_CODES: every denied result is built by
 _denied(), which counts it (tool_denials_<code>_total, #208), and
 dispatch() counts every call (tool_calls_total) as the refusal-rate
@@ -59,7 +60,7 @@ from typing import Any, Literal
 from observability.metrics import incr
 
 from .ast_edit import AstEditor, AstParseError
-from .editor import EditError, Editor, StaleContextError
+from .editor import AuditError, EditError, Editor, StaleContextError
 from .executor import CommandNotAllowedError, Executor, PlaneToolchainMissingError
 from .schemas import Approval, ToolCall, ToolResult
 
@@ -90,6 +91,7 @@ CODE_COMMAND_NOT_ALLOWED = "COMMAND_NOT_ALLOWED"
 CODE_PLANE_TOOLCHAIN_MISSING = "PLANE_TOOLCHAIN_MISSING"
 CODE_STALE_CONTEXT = "STALE_CONTEXT"
 CODE_EDIT_REJECTED = "EDIT_REJECTED"
+CODE_EDIT_LANDED_AUDIT_FAILED = "EDIT_LANDED_AUDIT_FAILED"
 CODE_AST_PARSE_FAILED = "AST_PARSE_FAILED"
 CODE_EXECUTION_FAILED = "EXECUTION_FAILED"
 
@@ -124,6 +126,7 @@ ERROR_CODES: frozenset[str] = frozenset(
         CODE_NOT_A_GIT_REPO,
         CODE_STALE_CONTEXT,
         CODE_EDIT_REJECTED,
+        CODE_EDIT_LANDED_AUDIT_FAILED,
         CODE_AST_PARSE_FAILED,
         CODE_EXECUTION_FAILED,
     }
@@ -489,6 +492,10 @@ class ToolRegistry:
             return _error(CODE_AST_PARSE_FAILED, str(exc))
         except StaleContextError as exc:
             return _error(CODE_STALE_CONTEXT, str(exc))
+        except AuditError as exc:
+            # Not an EDIT_REJECTED: the change is ON DISK. Telling the
+            # model otherwise makes it retry a write that already landed.
+            return _error(CODE_EDIT_LANDED_AUDIT_FAILED, str(exc))
         except EditError as exc:
             return _error(CODE_EDIT_REJECTED, str(exc))
         except CommandNotAllowedError as exc:
@@ -1037,6 +1044,7 @@ __all__ = [
     "CODE_AST_PARSE_FAILED",
     "CODE_COMMAND_NOT_ALLOWED",
     "CODE_EDIT_REJECTED",
+    "CODE_EDIT_LANDED_AUDIT_FAILED",
     "CODE_EXECUTION_FAILED",
     "CODE_FILE_NOT_FOUND",
     "CODE_INVALID_ARGUMENTS",
