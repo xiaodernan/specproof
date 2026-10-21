@@ -127,3 +127,29 @@ README/注释/requirement.txt/schema.sql/pom.xml 的沙箱语义案例)。
   1 执行级 + 1 Redis 执行级 (case-01/10/17/56)。
 - CI 的 eval-golden-cases job 文本 ("20 golden cases", 90 分钟 timeout)
   需在阶段二前由队长同步更新 (.github/ 不在本子代理范围)。
+
+## 本地重跑记录（#373，2026-10-22）
+
+在 **JDK 17** 上用本机跑的一次**抽样**评测（CI 那个 4 案例子集：3 正 + 1 负）：
+
+| 案例 | 期望 | 实测 | 命中 | 耗时 |
+|---|---|---|---|---|
+| case-12-add-javadoc | 不该报 | 无发现 | — | 358.6 s |
+| case-17-logic-inversion | 该报（UNIQUE-01） | 命中 1 条（UNIQUE-01） | ✅ | 882.1 s |
+| case-21-auth-weakened-permitall | 该报（AUTH-01） | 命中 1 条（AUTH-01） | ✅ | 493.3 s |
+| case-56-redis-cache-eviction-removed | 该报（CACHE-01） | 命中 1 条（CACHE-01） | ✅ | 270.8 s |
+
+**Recall 100.0% / Precision 100.0% / F1 100.0% / 假阳性 0 / Acceptance: PASS**
+（严重度一致率 66.7%：case-17 期望 BLOCKER、实测 MAJOR ⇒ 已知的老问题，未在本号处理。）
+
+**这份记录能说明什么、不能说明什么。**
+- **能说明**：整条链路在本机**真的跑得通**（差分 → 复核 → 矩阵 → 胶囊 → 证据包 → 评测计分），
+  且**缺陷被找到了**（3/3 命中）；此前本机连编译都过不去（#370/#371 之后才通）。
+- **不能说明**：这不是 101 个案例的**全量**结果 ⇒ 上面那些「100 / 63-63 / Recall 100%」仍然是**历史
+  记录**，没有被本号重测（全量要 ~6–15 分钟/案例 ⇒ 十小时量级 ⇒ 它的位置仍是 CI 的 nightly job，
+  而那个 job **还不存在** ⇒ workflow 改动**推不动**：token 缺 `workflow` scope）。
+- **耗时是本机的**：4 个案例 270–882 秒（均值 501 秒）⇒ 这是 **FAST** 档、demo 规模、且本机当时
+  还在跑别的作业 ⇒ ⇒ 只能当**量级**看，不能当分布 ⇒ ⇒ `DEPTH_EXECUTION_BUDGET_SECONDS` 的
+  7200 秒（DEEP 档）**没有**因此改动（DEEP 档还要加突变战役，量级不同 ⇒ 需要真的 DEEP 作业的分布，
+  见账本 #373 队列）。
+- 评测**写在测试库**（`SPECPROOF_TEST_MYSQL_DATABASE`）⇒ 产品库没被撒 `eval-*` 的行（#370）。
