@@ -1433,7 +1433,17 @@ def _capture_external_state(state: Any) -> dict[str, Any]:
             capture_external_state,
         )
     except Exception:  # noqa: BLE001 — evidence collection is best effort
-        return {"redis": {}, "objects": {}, "note": "collector unavailable"}
+        # The collector itself is unavailable: we did not look at
+        # anything, and the snapshot says so (#369) — an empty map
+        # without that flag would read as "we looked and there was
+        # nothing".
+        return {
+            "redis": {},
+            "objects": {},
+            "redis_observed": False,
+            "objects_observed": False,
+            "note": "collector unavailable",
+        }
 
     redis_client = build_redis_client()
     object_store = build_object_store()

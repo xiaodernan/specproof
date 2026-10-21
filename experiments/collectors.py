@@ -271,6 +271,7 @@ def redis_fragment_from_snapshots(
     collector_version: str = COLLECTOR_VERSION,
     truncated_patterns: Iterable[str] = (),
     world_reset: Mapping[str, Any] | None = None,
+    store_reachable: bool = True,
 ) -> RedisObservation:
     """Build the fragment from TWO snapshots that were taken at two moments.
 
@@ -288,6 +289,10 @@ def redis_fragment_from_snapshots(
     runs. That is what makes the comparison mean "what the Head run did
     from a clean start"; without it, a key the Base created and the Head
     never touched would read as "unchanged" — a different fact.
+
+    ``store_reachable`` says whether the collector could reach the store
+    at all. It separates the two absences that look alike: "we did not
+    look" (the store was down) and "we looked and the family was empty".
     """
     observed = any(
         state.present for state in list(base.values()) + list(head.values())
@@ -330,6 +335,10 @@ def redis_fragment_from_snapshots(
             "moments_comparable": bool(reset.get("reset")),
             "value_level_leftovers": value_leftovers,
             "value_level_leftover_count": len(value_leftovers),
+            # Whether the collector could reach the store at all: "we did
+            # not look" is a different fact from "we looked and the
+            # family was empty" (#369).
+            "store_reachable": store_reachable,
         },
     )
 
@@ -694,11 +703,16 @@ def object_fragment_from_snapshots(
     head: Mapping[str, ObjectState],
     *,
     collector_version: str = COLLECTOR_VERSION,
+    store_reachable: bool = True,
 ) -> ObjectObservation:
     """Build the object fragment from TWO snapshots taken at two moments.
 
     See redis_fragment_from_snapshots: comparing a snapshot with itself
     always says "nothing changed" — the two moments have to be real.
+
+    ``store_reachable`` says whether the collector could reach the store
+    at all: "we did not look" and "we looked and the object is not
+    there" are different facts (#369).
     """
     observed = any(
         state.present for state in list(base.values()) + list(head.values())
@@ -727,7 +741,12 @@ def object_fragment_from_snapshots(
         confidence=1.0 if observed else 0.0,
         evidence_ref=None,
         reproducibility="reproducible",
-        extension={"observed_any_object": observed},
+        extension={
+            "observed_any_object": observed,
+            # "we did not look" is a different fact from "we looked and
+            # the object is not there" (#369).
+            "store_reachable": store_reachable,
+        },
     )
 
 

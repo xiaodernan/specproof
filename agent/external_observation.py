@@ -31,8 +31,12 @@ from typing import Any
 #: codes). They are the row's own prose about the LIMITS of what was
 #: observed on the outside of the JVM.
 LIMIT_NOT_OBSERVED = (
-    "外部状态没有被观测到: 该契约声明的键族里没有任何键可见"
-    "(存储不可达, 或那一族是空的)——本行的判定只来自测试自身的断言"
+    "外部存储答了, 但这一族里什么也没有"
+    "——本行的判定只来自测试自身的断言"
+)
+LIMIT_STORE_UNREACHABLE = (
+    "外部存储不可达: 这一面**没有去看**"
+    "——「没看」不等于「看了没有」"
 )
 LIMIT_MOMENTS_NOT_COMPARABLE = (
     "两个时刻不可比: 两次运行之间没有把外部世界放回去,"
@@ -91,6 +95,11 @@ def observations(
         redis_states_from_dicts(dict(head_snapshot)) if head_snapshot else {}
     )
     truncated = _truncated_patterns(base_snapshot, head_snapshot)
+    # Whether the collector could reach the store when it took those
+    # moments (#369). A snapshot taken while the store was down carries
+    # the flag; a snapshot without it predates the flag and is treated
+    # as "we looked" (the old behaviour).
+    store_reachable = bool(base_snapshot.get("redis_observed", True))
 
     observations_by_contract: dict[str, Any] = {}
     chosen = state.get("contracts") if contracts is None else contracts
@@ -102,6 +111,7 @@ def observations(
             continue
         observation = _observe(
             state, contract, base_states, head_states, truncated, separated,
+            store_reachable,
         )
         if observation is not None:
             observations_by_contract[contract_id] = observation
@@ -130,6 +140,7 @@ def _observe(
     head_states: Mapping[str, Any],
     truncated: list[str],
     separated: bool,
+    store_reachable: bool,
 ) -> Any | None:
     """The observation for one contract, on the surface it is about."""
     surface = _SURFACE_BY_CHECKER.get(str(contract.get("checker_type") or ""))
@@ -141,6 +152,7 @@ def _observe(
             return None
         return _redis_observation(
             state, contract, base_states, head_states, truncated,
+            store_reachable,
         )
     if surface == "mq":
         return _mq_observation(state, contract)
@@ -153,6 +165,7 @@ def _redis_observation(
     base_states: Mapping[str, Any],
     head_states: Mapping[str, Any],
     truncated: list[str],
+    store_reachable: bool = True,
 ) -> Any | None:
     """The redis observation: the two moments, on this contract's family."""
     from experiments.external_state import key_patterns_for
@@ -172,6 +185,11 @@ def _redis_observation(
             if any(fnmatch.fnmatch(pattern, family) for family in patterns)
         ],
         world_reset=state.get("external_reset") or {},
+        # Whether the collector could reach the store at all (#369): a
+        # snapshot taken while the store was down carries the flag, and
+        # the fragment then says "we did not look" instead of "the
+        # family was empty".
+        store_reachable=store_reachable,
     )
 
 
@@ -281,7 +299,13 @@ def observation_limits(observation: Any | None) -> list[str]:
             limits.append(LIMIT_MQ_ONE_SIDE)
         return limits
     if str(getattr(observation, "status", "") or "") == STATUS_NO_EVIDENCE:
-        limits.append(LIMIT_NOT_OBSERVED)
+        if extension.get("store_reachable", True):
+            limits.append(LIMIT_NOT_OBSERVED)
+        else:
+            # The store was unreachable: we did not look. Saying "the
+            # family was empty" here would be a claim we cannot make
+            # (#369).
+            limits.append(LIMIT_STORE_UNREACHABLE)
     if not extension.get("moments_comparable", True):
         limits.append(LIMIT_MOMENTS_NOT_COMPARABLE)
     leftover_count = int(extension.get("value_level_leftover_count") or 0)

@@ -334,11 +334,18 @@ def capture_external_state(
     allowed. A cap that is not announced is a reader believing they saw
     every key — so the truncation travels with the observation, at the
     TOP level (inside the key map it would be mistaken for a key).
+
+    ``redis_observed`` / ``objects_observed`` say whether each store
+    could be reached AT ALL (#369). Without them, "we did not look" and
+    "we looked and there was nothing" travel as the same empty map —
+    and only the first one is a fact about the pipeline.
     """
     limit = max_scanned_keys() if max_keys is None else max_keys
     snapshot: dict[str, Any] = {
         "redis": {},
         "objects": capture_object_state(object_store, object_refs),
+        "redis_observed": redis_client is not None,
+        "objects_observed": object_store is not None,
     }
     truncated: list[str] = []
     snapshot["redis"] = capture_redis_state(

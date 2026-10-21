@@ -7507,3 +7507,26 @@ capsule_replay 抵达，不代表 craft 该用它们。④ 本号取号 max+1 �
 - **关键词猜测仍在最后兜底**（profile 的词表）⇒ 它本来就是**猜** ⇒ 本号没有削弱它，只是把**声明**放在了它前面 ⇒ 声明与猜测的优先级不变（声明 > 猜测）。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **注册表把 `observes_keys` 存下来**（加一列 + 变更检测要不要算它，是个真问题 ⇒ 需要一次决定）；② **对象观测也进判定层**（要 I/O ⇒ 需要把「矩阵是纯函数」与「判定层看见对象观测」这两件事分开设计）；③ **101 个案例的全量重跑评测**（CI 里**没有** nightly job ⇒ workflow 改动**推不动**：token 缺 `workflow` scope ⇒ 留在工作区等人工提交）；④ **CI 里的集成腿 URL**（同上）；⑤ **DEEP 校准**（#300 队列①，未动）；⑥ demo 在**默认 JDK 25** 上跑不起来（单独解决）；⑦ 局部变量名（**已关闭**，#358）；⑧ 帧修队列项（**已关闭**，#364）。
+
+## #369 「没看」与「看了没有」必须分开说：快照带上「是否看得见」，片段与行都照实说
+
+**起因/占号**。#365 起的披露链路上留着一个**同形不同事**的洞：外部存储**不可达**与**那一族是空的**，都表现为**同一张空表** ⇒ 片段只能说 NO_EVIDENCE ⇒ 行只能说「没观测到」⇒ 读者分不出「我们没去看」与「我们看了，那里什么都没有」⇒ 而这是两件完全不同的事。落地前重测账本：HEAD 804c3f4、`## #` id 最大 **368** ⇒ 取 **#369**。
+
+**做法。**
+- **快照带上「是否看得见」**（`experiments/external_state.py`）：`capture_external_state` 多两个标记 `redis_observed` / `objects_observed` ⇒ 采集器够不着存储时，那张空表现在**说的是「没看」**。
+- **差分的兜底分支也照实说**（`agent/nodes/run_differential.py`）：采集器**根本导不进来**时（依赖缺失），快照带 `note: collector unavailable` + 两个标记为假 ⇒ 此前那张空表读起来像「看了没有」。
+- **片段带上这个事实**（`experiments/collectors.py`）：`redis_fragment_from_snapshots` / `object_fragment_from_snapshots` 多一个 `store_reachable` ⇒ 片段的 `extension` 里写着「存储够不够得着」。
+- **行上分成两条披露**（`agent/external_observation.py`）：`LIMIT_STORE_UNREACHABLE`（「**没有去看**」——「没看」不等于「看了没有」）与 `LIMIT_NOT_OBSERVED`（「存储答了，但这一族里什么也没有」）⇒ 两条**互斥**，各说各的事。
+
+**可执行的证据。**
+- `tests/unit/test_not_looked_is_not_absent.py` **6 passed**：① 快照说得出每个存储够不够得着；② 存储不可达 ⇒ 记成「没看」；③ 采集器**导不进来**时快照也这么说（`note: collector unavailable`）；④ 片段带着 `store_reachable`；⑤ 行在「没看」时披露的是**不可达**那一条、**不是**「那一族是空的」；⑥ 行在「存储答了但一族是空」时披露的是**空**那一条、**不是**不可达。
+- 既有族全绿（`test_external_observation` / `test_external_state_is_observed_at_two_moments` / `test_collect_evidence_node_execution_is_observable` …）。
+- `ruff check agent/ experiments/ evidence/` **0 errors**；`mypy agent/ experiments/ --exclude tests` **Success**（72 files）。
+
+**诚实边界。**
+- **只覆盖 redis 与对象两面**：MQ 那一面**结构上观测不到**（#354）⇒ 它的「没看」是**恒真的事实**，不靠这次的可达性标记。
+- **「够不着」= 客户端建不起来**（`build_redis_client` / `build_object_store` 返回 None）⇒ 也就是「连接失败 / 客户端不可用」这一类；**连上了但某次查询失败**的情形，采集器会把那个键记成 `present=false` ⇒ 那种情况下片段说「一族是空」⇒ **仍不是**「没看」⇒ 这是采集器现有的降级口径，本号**没有**改它（改它要动采集器的语义，另有其号）。
+- **快照没有这个标记时**（早于本号的快照）⇒ 按「看过」处理（旧行为）⇒ 宁可不说，也不替采集器说它没说过的话。
+- **没有改判定**：披露仍然只影响行上那两句说明，`result` 与 `unverified_reason` 一个字没动。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **注册表把 `observes_keys` 存下来**（加一列；它算不算「内容变更」是个真问题 ⇒ 需要一次决定）；② **对象观测也进判定层**（要 I/O ⇒ 需要把「矩阵是纯函数」与「判定层看见对象观测」这两件事分开设计）；③ **101 个案例的全量重跑评测**（CI 里**没有** nightly job ⇒ workflow 改动**推不动**：token 缺 `workflow` scope ⇒ 留在工作区等人工提交）；④ **CI 里的集成腿 URL**（同上）；⑤ **DEEP 校准**（#300 队列①，未动）；⑥ demo 在**默认 JDK 25** 上跑不起来（单独解决）；⑦ 局部变量名（**已关闭**，#358）；⑧ 帧修队列项（**已关闭**，#364）。
