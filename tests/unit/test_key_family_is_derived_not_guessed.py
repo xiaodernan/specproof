@@ -133,38 +133,59 @@ class _ScanningRedis:
         return removed
 
 
-def test_a_reset_only_touches_the_named_families() -> None:
-    """Clearing the WHOLE store would be destructive to other tenants.
+def test_the_reset_removes_exactly_what_the_base_run_created(
+    monkeypatch: Any,
+) -> None:
+    """The difference, not the family.
 
-    The reset is scoped to the families the contracts declared — the
-    ones this observation is about.
+    (after base) − (before base) is what the Base run added. Deleting
+    exactly those puts the world back AND leaves everything else alone:
+    a key that was already there, another tenant's key, a key of a family
+    we merely observe. Clearing a whole key FAMILY would delete other
+    tenants' data — the observation surface is usually a shared store.
     """
-    client = _ScanningRedis({
-        "token:user:1": "a",
-        "user:cache:1": "b",
-        "other:key": "c",
-    })
-    collector = RedisStateCollector(client)
+    from agent.nodes.run_differential import _reset_external_state
 
-    removed = collector.reset_family(["token:user:*"])
+    class _Redis:
+        def __init__(self) -> None:
+            self.deleted: list[str] = []
 
-    assert removed == 1
-    assert client.deleted == ["token:user:1"]
-    # The other families and keys are untouched.
-    assert "user:cache:1" in client.keys
-    assert "other:key" in client.keys
+        def delete(self, name: str) -> int:
+            self.deleted.append(name)
+            return 1
+
+    redis = _Redis()
+    monkeypatch.setattr(
+        "experiments.external_state.build_redis_client", lambda: redis
+    )
+    baseline = {"redis": {"pre-existing": {}, "other:key": {}}}
+    after_base = {
+        "redis": {
+            "pre-existing": {},
+            "other:key": {},
+            "created-by-base": {},
+        }
+    }
+
+    result = _reset_external_state(baseline, after_base)
+
+    assert result["reset"] is True
+    assert result["keys_removed"] == 1
+    assert result["keys_created_by_base"] == ["created-by-base"]
+    # The pre-existing key and the other tenant's key are NOT touched.
+    assert redis.deleted == ["created-by-base"]
 
 
-def test_a_reset_of_an_unscannable_client_removes_nothing() -> None:
-    class _NoScan:
-        def get(self, name: str) -> Any:
-            return None
+def test_nothing_to_reset_is_reported_as_such() -> None:
+    """No keys created ⇒ no reset — and the reason says so."""
+    from agent.nodes.run_differential import _reset_external_state
 
-        def ttl(self, name: str) -> int:
-            return -2
+    result = _reset_external_state(
+        {"redis": {"a": {}}}, {"redis": {"a": {}}},
+    )
 
-    collector = RedisStateCollector(_NoScan())
-    assert collector.reset_family(["token:user:*"]) == 0
+    assert result["reset"] is False
+    assert "created no observed key" in result["reason"]
 
 
 def test_the_fragment_says_whether_the_moments_are_comparable() -> None:

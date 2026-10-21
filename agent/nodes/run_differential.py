@@ -340,6 +340,14 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # #185: count every differential execution that reaches this point
     incr("differential_runs_total")
 
+    # ── External state, moment 0: BEFORE the Base run ──────────────
+    # The baseline. It is what makes the reset SAFE: the keys the Base
+    # run CREATED are (after base) − (before base), so the reset can
+    # delete exactly those — and leave everything else (another tenant's
+    # keys, a key that was already there) alone. Clearing a whole key
+    # FAMILY would delete other tenants' data.
+    baseline_external = _capture_external_state(state)
+
     base_start = time.monotonic()
     base_result = run_with_cancel_checks(
         job_id, "maven_base", _run_generated_test,
@@ -363,10 +371,10 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # leftovers, and the two snapshots would stop being comparable: a
     # key the Base created and the Head never touched reads as
     # "unchanged" — which is NOT the same fact as "the Head produced it
-    # too". The reset is scoped to the observed families (clearing the
-    # whole store would be destructive to whatever else lives there) and
+    # too". The reset removes exactly the keys the Base run created
+    # (not the whole family: that would delete other tenants' data), and
     # it is RECORDED, so the reader knows the world was put back.
-    reset = _reset_external_state(state)
+    reset = _reset_external_state(baseline_external, base_external)
 
     if head_reused:
         head_result = {
@@ -1442,37 +1450,49 @@ def _capture_external_state(state: Any) -> dict[str, Any]:
     return snapshot
 
 
-def _reset_external_state(state: Any) -> dict[str, Any]:
-    """Put the observed key families back between the two runs.
+def _reset_external_state(
+    baseline: dict[str, Any], after_base: dict[str, Any],
+) -> dict[str, Any]:
+    """Delete exactly the keys the Base run CREATED.
 
-    Scoped to the families the contracts declared (clearing the whole
-    store would be destructive to whatever else lives there) and
+    (after base) − (before base) is what the Base run added. Deleting
+    exactly those puts the world back AND leaves everything else alone:
+    a key that was already there, another tenant's key, a key of a family
+    we merely observe. Clearing a whole key FAMILY would delete other
+    tenants' data — and the observation surface is usually a shared
+    store.
+
     RECORDED: a reader of the evidence must know the world was put
     back, otherwise "the Head run left nothing behind" and "the Head run
     started from a clean world" read the same.
     """
-    patterns = _redis_patterns_for(state)
-    if not patterns:
-        return {"reset": False, "reason": "no key family was observed"}
+    created = sorted(
+        set(after_base.get("redis") or {})
+        - set(baseline.get("redis") or {})
+    )
+    if not created:
+        return {
+            "reset": False,
+            "reason": "the base run created no observed key",
+        }
     try:
-        from experiments.collectors import RedisStateCollector
         from experiments.external_state import build_redis_client
     except Exception:  # noqa: BLE001 — evidence collection is best effort
         return {"reset": False, "reason": "collector unavailable"}
     client = build_redis_client()
     if client is None:
         return {"reset": False, "reason": "redis unreachable"}
-    try:
-        removed = RedisStateCollector(client).reset_family(patterns)
-    except Exception as exc:  # noqa: BLE001 — a failed reset is reported
-        return {
-            "reset": False,
-            "reason": f"reset failed: {type(exc).__name__}",
-        }
+    removed = 0
+    for key in created:
+        try:
+            client.delete(key)
+            removed += 1
+        except Exception:  # noqa: BLE001 — a key we cannot delete stays
+            continue
     return {
         "reset": True,
-        "patterns": list(patterns),
         "keys_removed": removed,
+        "keys_created_by_base": created,
     }
 
 

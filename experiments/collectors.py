@@ -152,38 +152,6 @@ class RedisStateCollector:
                     states[name] = self._read_one(name)
         return states
 
-    def reset_family(self, patterns: Iterable[str]) -> int:
-        """Delete the keys of the given families; return how many went.
-
-        The differential run uses this to put the world back between the
-        Base run and the Head run. Without it, the Head run starts on top
-        of the Base run's leftovers, and the two snapshots stop being
-        comparable: a key the Base created and the Head never touched
-        reads as "unchanged" — which is not the same fact as "the Head
-        produced it too".
-
-        Scoped to the named families on purpose: clearing the WHOLE store
-        would be destructive to whatever else lives there.
-        """
-        scanner = getattr(self.client, "scan_iter", None)
-        deleter = getattr(self.client, "delete", None)
-        if scanner is None or deleter is None:
-            return 0
-        removed = 0
-        for pattern in patterns:
-            try:
-                found = list(scanner(match=pattern))
-            except Exception:  # noqa: BLE001 — an unscanable family is untouched
-                continue
-            for key in found:
-                name = key.decode("utf-8") if isinstance(key, bytes) else str(key)
-                try:
-                    deleter(name)
-                    removed += 1
-                except Exception:  # noqa: BLE001 — a key we cannot delete stays
-                    continue
-        return removed
-
     def _read_one(self, key: str) -> KeyState:
         try:
             raw = self.client.get(key)

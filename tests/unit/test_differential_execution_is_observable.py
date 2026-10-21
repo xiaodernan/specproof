@@ -154,13 +154,18 @@ def test_the_external_world_is_captured_after_each_run(
 
     result = run_differential_node(_make_state(tmp_path))
 
-    # Two captures, and the second one happened AFTER the head run.
-    assert len(snapshots) == 2
-    assert snapshots[0]["stage"] == "maven_base"
-    assert snapshots[1]["stage"] == "maven_head"
-    # And both travel with the result for the evidence collector.
-    assert result["external_state_base"]["moment"] == 1
-    assert result["external_state_head"]["moment"] == 2
+    # THREE captures: the baseline (before the Base run), the Base
+    # moment, and the Head moment. The baseline is what makes the reset
+    # safe — it is the difference that says which keys the Base run
+    # created.
+    assert len(snapshots) == 3
+    assert snapshots[0]["stage"] == "none", "the baseline is taken BEFORE the runs"
+    assert snapshots[1]["stage"] == "maven_base"
+    assert snapshots[2]["stage"] == "maven_head"
+    # And the two that travel with the result are the Base and Head
+    # moments — the collector compares THESE.
+    assert result["external_state_base"]["moment"] == 2
+    assert result["external_state_head"]["moment"] == 3
 
 
 def test_an_unreachable_external_store_captures_nothing(
@@ -223,7 +228,10 @@ def test_the_external_world_is_reset_between_the_two_runs(
     )
     monkeypatch.setattr(
         "agent.nodes.run_differential._reset_external_state",
-        lambda state: (events.append("reset"), {"reset": True, "keys_removed": 3})[1],
+        lambda baseline, after_base: (
+            events.append("reset"),
+            {"reset": True, "keys_removed": 3},
+        )[1],
     )
 
     result = run_differential_node(_make_state(tmp_path))
