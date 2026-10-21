@@ -18,6 +18,7 @@ rebooted) leaves NOTHING behind - the hours it measured are gone and
 the only way to learn them is to run them again. The JSONL is written
 and flushed per case, so what was measured survives the kill.
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -83,6 +84,87 @@ def read_incremental_results(path: str | Path) -> list[dict[str, Any]]:
             records.append(parsed)
     return records
 
+
+def case_fingerprint(case_dir: str | Path) -> str:
+    """What a measurement of this case depended on, as one hash.
+
+    A record is only worth re-using if the case it measured is still the
+    SAME case: the same spec, the same ground truth, the same scenario
+    refs. The fingerprint is a hash of exactly those three files, so a
+    ground truth that was corrected between two runs makes the old record
+    stale instead of silently wrong. A missing file and an empty file hash
+    differently, so "the scenario appeared" is also a change.
+    """
+    directory = Path(case_dir)
+    digest = hashlib.sha256()
+    for name in ("spec.md", "ground-truth.json", "scenario.json"):
+        digest.update(name.encode("utf-8"))
+        path = directory / name
+        try:
+            digest.update(path.read_bytes() if path.exists() else b"<absent>")
+        except OSError:
+            digest.update(b"<unreadable>")
+    return digest.hexdigest()
+
+
+def resume_index(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """The newest record per case.
+
+    The sidecar is append-only, so a case that was measured twice (the
+    ground truth was corrected, the case was re-run) has two lines. The
+    later line is the one that describes the case as it is now, so the
+    later line wins.
+    """
+    index: dict[str, dict[str, Any]] = {}
+    for record in records:
+        name = record.get("case")
+        if isinstance(name, str) and name:
+            index[name] = record
+    return index
+
+
+def select_resumable(
+    records: list[dict[str, Any]],
+    fingerprints: dict[str, str],
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Split a previous run's records into re-usable and stale.
+
+    A record is re-usable only when it carries a fingerprint that still
+    matches the case on disk. A record WITHOUT a fingerprint - written by
+    an older build, before the fingerprint existed - is NOT re-usable: we
+    cannot prove it measured this case as it is now, so the case is
+    measured again. Guessing "probably the same" is how a stale number
+    becomes a fresh number.
+    """
+    reusable: dict[str, dict[str, Any]] = {}
+    stale: list[str] = []
+    for name, record in resume_index(records).items():
+        current = fingerprints.get(name)
+        if current and record.get("fingerprint") == current:
+            reusable[name] = record
+        else:
+            stale.append(name)
+    return reusable, sorted(stale)
+
+
+def counter_deltas(record: dict[str, Any]) -> tuple[int, int, int, int, int]:
+    """What one case record contributes to the run's counters.
+
+    (detected, should_detect, false_positives, negative_cases, not_run)
+
+    The counting rules are the ones the run loop applies to a fresh
+    measurement, written down once so a re-used record is counted exactly
+    like a re-measured one. A case whose pipeline aborted belongs to
+    neither side of the ratio: it is not_run, and it is not a miss.
+    """
+    verdict = str(record.get("verdict") or "")
+    if verdict == "NOT_RUN":
+        return (0, 0, 0, 0, 1)
+    if record.get("should_detect"):
+        detected = 1 if verdict in ("PASS", "PARTIAL") else 0
+        return (detected, 1, 0, 0, 0)
+    false_positive = 1 if verdict == "FALSE_POSITIVE" else 0
+    return (0, 0, false_positive, 1, 0)
 
 
 def _schema_reachable(database: str) -> bool:
@@ -403,6 +485,13 @@ def _ensure_scenario_refs(repo: str, case_dirs: list[Path]) -> None:
               help="只跑 manifest 声明的 holdout 案例，单独报告隐藏集上的指标")
 @click.option("--holdout-manifest", default=None,
               help="holdout manifest 路径（默认 docs/eval/holdout-manifest.json）")
+@click.option(
+    "--resume",
+    is_flag=True,
+    default=False,
+    help="接着上次已量过的案例继续：读回上次落盘的逐案例记录，"
+         "输入未变的案例直接复用，只重测变了的和新出现的",
+)
 def eval_cmd(
     cases_dir: str,
     repo_path: str | None,
@@ -418,6 +507,7 @@ def eval_cmd(
     include_holdout: bool,
     only_holdout: bool,
     holdout_manifest: str | None,
+    resume: bool,
 ) -> None:
     """Evaluate SpecProof against golden cases.
 
@@ -519,8 +609,28 @@ def eval_cmd(
     # is the evidence, and it survives a run that is killed half way.
     incremental_path = incremental_results_path(output)
     incremental_path.parent.mkdir(parents=True, exist_ok=True)
-    incremental_handle = incremental_path.open("w", encoding="utf-8")
+
+    # What a previous run already measured. Read BEFORE the sidecar is
+    # opened: a resumed run appends to the same file, so the records
+    # already in it are the ones worth re-using.
+    reusable: dict[str, dict[str, Any]] = {}
+    stale_cases: list[str] = []
+    if resume:
+        prior_records = read_incremental_results(incremental_path)
+        fingerprints = {d.name: case_fingerprint(d) for d in case_dirs}
+        reusable, stale_cases = select_resumable(prior_records, fingerprints)
+        click.echo(
+            f"续跑：读回 {incremental_path}（{len(prior_records)} 条记录），"
+            f"可复用 {len(reusable)} 个案例"
+            + (f"，{len(stale_cases)} 个案例的输入变了，要重测" if stale_cases else "")
+        )
+    # A resumed run APPENDS: the records it re-uses are part of the
+    # evidence of the whole pool, and the file is the audit trail.
+    incremental_handle = incremental_path.open(
+        "a" if resume else "w", encoding="utf-8"
+    )
     click.echo(f"Incremental per-case results: {incremental_path}")
+    reused_cases = 0
 
     for case_dir in case_dirs:
         spec_file = case_dir / "spec.md"
@@ -559,6 +669,34 @@ def eval_cmd(
         expected_contract = gt.get("expected_contract")
         expected_evidence = gt.get("expected_evidence_type", "UNKNOWN")
         min_findings = gt.get("expected_min_findings", 1)
+
+        # What this measurement depends on. A previous run's record for
+        # this case is re-used ONLY if this fingerprint still matches.
+        fingerprint = case_fingerprint(case_dir)
+        prior = reusable.get(case_dir.name)
+        if prior is not None:
+            # The case was already measured against exactly these inputs.
+            # The record is re-used as it was written - the same counting
+            # rules a fresh measurement gets - and the run says so.
+            results.append(prior)
+            (
+                delta_detected,
+                delta_should,
+                delta_false_positives,
+                delta_negative,
+                delta_not_run,
+            ) = counter_deltas(prior)
+            detected += delta_detected
+            total_should_detect += delta_should
+            false_positives += delta_false_positives
+            negative_cases += delta_negative
+            not_run += delta_not_run
+            reused_cases += 1
+            click.echo(
+                f"  REUSE {case_dir.name}: {prior.get('verdict')} "
+                f"（上次已量过，输入未变）"
+            )
+            continue
 
         # NOTE: should_detect / negative_cases are counted AFTER the run, not
         # here. A case whose pipeline aborted never compared anything, so it
@@ -623,6 +761,8 @@ def eval_cmd(
                 "verdict": "NOT_RUN",
                 "should_detect": should_detect,
                 "duration_ms": duration_ms,
+                "fingerprint": fingerprint,
+                "repo_sha": snapshot["repo_sha"],
                 "expected_severity": gt.get("expected_severity"),
                 "expected_evidence": expected_evidence,
                 "matched_findings": 0,
@@ -714,6 +854,8 @@ def eval_cmd(
             "verdict": verdict,
             "should_detect": should_detect,
             "duration_ms": duration_ms,
+            "fingerprint": fingerprint,
+            "repo_sha": snapshot["repo_sha"],
             "expected_severity": gt.get("expected_severity"),
             "expected_evidence": expected_evidence,
             "matched_findings": len(matched),
@@ -761,6 +903,14 @@ def eval_cmd(
     click.echo("Evaluation Results")
     click.echo(f"{'=' * 50}")
     click.echo(f"Total cases:        {len(results)}")
+    if reused_cases:
+        reused_shas = sorted({
+            str(rec.get("repo_sha") or "")
+            for rec in reusable.values()
+            if rec.get("repo_sha")
+        })
+        click.echo(f"Reused from earlier: {reused_cases} (measured under "
+                   f"{', '.join(s[:12] for s in reused_shas) or 'unknown'})")
     click.echo(f"Not run:            {not_run}")
     click.echo(f"Should detect:      {total_should_detect}")
     click.echo(f"Detected:           {detected}")
@@ -833,8 +983,18 @@ def eval_cmd(
                 # where to look.
                 "incremental_results": str(incremental_path),
                 "incremental_cases": len(
-                    read_incremental_results(incremental_path)
+                    resume_index(read_incremental_results(incremental_path))
                 ),
+                # A resumed run is a mix of two builds' measurements. The
+                # sidecar says which sha each part was measured under, so
+                # a reader never has to guess whether the number is
+                # comparable with the one before it.
+                "resumed_cases": reused_cases,
+                "resumed_repo_shas": sorted({
+                    str(r.get("repo_sha") or "")
+                    for r in results
+                    if r.get("repo_sha") and r.get("case") in reusable
+                }),
                 "cases": results,
             },
             indent=2,
