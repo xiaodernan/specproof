@@ -104,6 +104,8 @@ class TestTheProfile:
             user_detail_path='"/api/users/" + "{id}"',
             user_cache_key="user:cache:",
             user_token_key="token:user:",
+            user_cache_words=("cache",),
+            user_token_words=("token", "session"),
         )
         source = _build_deterministic_test(
             [dict(c) for c in CONTRACTS], other

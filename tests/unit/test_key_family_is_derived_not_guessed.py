@@ -83,6 +83,8 @@ def test_the_address_comes_from_the_profile() -> None:
         user_detail_path='"/api/users/" + "{id}"',
         user_cache_key="shopper:cache:",
         user_token_key="shopper:token:",
+        user_cache_words=("cache",),
+        user_token_words=("token", "session"),
     )
     assert key_patterns_for(_contract(), other) == ["shopper:token:*"]
     # And the demo's own names are not in there.

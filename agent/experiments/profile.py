@@ -78,6 +78,14 @@ class TemplateProfile:
     #: The cache key prefixes the cache experiments assert on.
     user_cache_key: str
     user_token_key: str
+    #: The WORDS that name those key families in a requirement. They live
+    #: next to the prefixes they name, because a prefix without the words
+    #: that introduce it is an address nobody can look up: the contract
+    #: says "session tokens ... in Redis" (words), and the profile says
+    #: that family is called "token:user:" (address). Both halves have to
+    #: come from the same place, or the two drift apart.
+    user_cache_words: tuple[str, ...]
+    user_token_words: tuple[str, ...]
 
     def placeholders(self) -> dict[str, str]:
         """The placeholder -> literal mapping the renderer applies."""
@@ -108,7 +116,6 @@ class TemplateProfile:
             "user_token_key": self.user_token_key,
         }
 
-
 #: The demo application's domain — the values the templates used to
 #: hardcode. Rendering with this profile must produce EXACTLY the same
 #: source as before the templates became profile-driven; the golden
@@ -138,6 +145,8 @@ DEMO_PROFILE = TemplateProfile(
     user_detail_path='"/api/users/" + "{id}"',
     user_cache_key="user:cache:",
     user_token_key="token:user:",
+    user_cache_words=("cache",),
+    user_token_words=("token", "session"),
 )
 
 

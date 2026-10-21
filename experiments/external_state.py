@@ -40,18 +40,15 @@ DEFAULT_REDIS_KEYS: tuple[str, ...] = ("user:cache:1", "user:cache:2")
 #: The routing keys the demo publishes on.
 DEFAULT_MQ_ROUTING_KEYS: tuple[str, ...] = ("order.created", "email.changed")
 
-#: The profile's key families and the words that NAME them in a
-#: requirement. A contract's own text says which family of keys it is
-#: about ("session tokens ... invalidated in Redis"), and the PROFILE
-#: says what that family is called in this domain ("token:user:").
-#:
-#: The two halves must meet: the text names a family, the profile gives
-#: its address. A contract that names neither is observed on NOTHING —
-#: which is honest, and reports NO_EVIDENCE. Guessing keys for it would
-#: be inventing evidence.
-_KEY_FAMILY_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("token", ("token", "session")),
-    ("cache", ("cache",)),
+#: The key families the profile knows, and the words that NAME them.
+#: Both halves come from the profile: the words are what a requirement
+#: says, the prefix is what the family is called in this domain. A prefix
+#: without the words that introduce it is an address nobody can look up.
+_KEY_FAMILIES: tuple[tuple[str, str, str], ...] = (
+    # (family name, profile attribute for the prefix, profile attribute
+    #  for the words)
+    ("token", "user_token_key", "user_token_words"),
+    ("cache", "user_cache_key", "user_cache_words"),
 )
 
 
@@ -63,25 +60,26 @@ def key_patterns_for(
     Derived from TWO facts that already exist: the contract's own text
     (which names the family) and the profile (which says what that
     family is called in this domain).
+
+    A contract that names no family gets NOTHING observed — an empty
+    pattern list, which the collector reports as NO_EVIDENCE. Guessing
+    keys for it would be inventing evidence.
     """
     if profile is None:
         from agent.experiments.profile import DEMO_PROFILE
 
         profile = DEMO_PROFILE
-    prefixes = {
-        "token": getattr(profile, "user_token_key", ""),
-        "cache": getattr(profile, "user_cache_key", ""),
-    }
     text = " ".join(
         str(contract.get(field) or "")
         for field in ("requirement", "expected_behavior", "forbidden_changes")
     ).lower()
     patterns: list[str] = []
-    for family, words in _KEY_FAMILY_WORDS:
-        prefix = prefixes.get(family) or ""
-        if not prefix:
+    for _family, prefix_attr, words_attr in _KEY_FAMILIES:
+        prefix = getattr(profile, prefix_attr, "") or ""
+        words = getattr(profile, words_attr, ()) or ()
+        if not prefix or not words:
             continue
-        if any(word in text for word in words):
+        if any(str(word).lower() in text for word in words):
             pattern = f"{prefix}*"
             if pattern not in patterns:
                 patterns.append(pattern)
