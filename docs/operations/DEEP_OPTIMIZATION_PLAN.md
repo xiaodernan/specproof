@@ -6457,3 +6457,28 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 - `CasePlan.header_lines`（`all_not_isolated` 时那句「这些数字不是未见过案例上的指标」）与 `as_json`（`excluded_holdout_cases` / `declared_but_absent` 的排序）各补一条。
 - `probe.py`/`mcp.py`（I/O 外壳，纯逻辑少，优先级低）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+
+## #326 抓取面第一条真 HTTP 腿：真起服务、真 GET `/metrics`、exposition 解析回读（带反向控制）
+- 起因/占号：#295 队列②（原 #297 队列①）——「抓取面第一条真 HTTP 腿：起服务、GET `/metrics`、
+  exposition 解析回读、与名字册对账，带反向控制」。#295 边界⑥ 明说「本号的门仍是源码/产物对账，
+  没有一次真实 HTTP 抓取」。落地前重测账本：`## #` id 最大 325 ⇒ 取 **#326**。
+- 实测：`tests/unit/test_metrics_scrape_leg_parses_exposition_back.py` **3 passed**，ruff 干净。
+- 做了什么：把指标注册进进程内注册表 → 起真实 `ThreadingHTTPServer`（端口 0 由内核分配）→ 用
+  `http.client` 发 GET `/metrics` → 把响应的 Prometheus 文本**解析回** `name -> {type, samples,
+  buckets}` 的字典，逐格对账。三条腿：① counter/gauge/histogram 的类型与值原样往返（`4`、`7.5`、
+  `+Inf` 桶、`_sum`/`_count`）；② 名字里的 `-`/`.` 在**线上字节**被清洗（`scrape-leg.dotted` →
+  `scrape_leg_dotted`，原始非法名不得出现在 body 里）；③ **反向控制**——没注册的名字必须缺席、
+  未知路径必须 404（否则「解析回读」可能在读一个恒真的空集而不自知）。
+- 为什么值得单独一条腿：`render_text` 的子串断言（`test_metrics_http.py`）能过，但「线上真的把这个
+  名字/类型/值发出来了」隔着 HTTP 头、Content-Length、分块与抓取端真正读到的字节——子串命中不等于
+  往返忠实。
+- 诚实边界：① 本号只验**进程内注册表 → 真实 HTTP 响应**这一段，不验 Prometheus 服务端真去刮；
+  ② 与「名字册」（OBSERVABILITY §8.10 / parity 词表）的全量对账**未做**——本号对的是「我注册的
+  名字 == 我解析回来的名字」，名字册对账是更宽的一道门（#217/#161 已在源码侧做，线上侧待另开一号）；
+  ③ 端口名册对账（#268/#232）不在本号，本号只证明「这个端口上真的有一个能答 /metrics 的服务」。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 把「线上解析回读的名字集」与 #217/#161 的名字册
+（OBSERVABILITY §8.10 + parity 词表）做一次全量对账（本号只做了注册集 == 解析集）；② 仪表盘
+`byName` override ↔ 同面板 `legendFormat` 对账（#296 队列①，探针基线已留档）；③ 抓取面其余未覆盖的
+纯函数/端口名册对账；④ #322 队列里被 craft/Docker/生产数据阻塞的项照旧（并发服务路径陈旧读样本、
+ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
