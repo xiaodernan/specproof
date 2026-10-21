@@ -153,15 +153,18 @@ def _write_requests_file(
 @click.command("fix")
 @click.option("--repo", default=".", type=click.Path(exists=True, file_okay=False),
               help="Path to the git repository")
-@click.option("--base", "base_ref", default="base", show_default=True)
-@click.option("--head", "head_ref", default="HEAD", show_default=True)
+@click.option("--base", "base_ref", default="base", show_default=True,
+              help="Base revision the change is diffed against")
+@click.option("--head", "head_ref", default="HEAD", show_default=True,
+              help="Head revision carrying the change under review")
 @click.option("--findings", required=True,
               type=click.Path(exists=True, dir_okay=False),
               help="JSON file with the verification's findings "
                    "(list, or object with a 'findings' key)")
 @click.option("--app-dir", default="", show_default=True,
               help="Subdirectory of the Maven app (compile verification)")
-@click.option("--output-dir", default="fixes", show_default=True)
+@click.option("--output-dir", default="fixes", show_default=True,
+              help="Directory to write the fix-requests JSON into")
 @click.option("--apply", is_flag=True,
               help="Apply every proposed fix to the Head worktree and record "
                    "the compile verification result")
@@ -259,14 +262,17 @@ def _write_pr_payload(
 @click.command("approve")
 @click.argument("fix_id")
 @click.option("--requests", "requests_path", default="fixes/fix-requests.json",
-              type=click.Path(exists=True, dir_okay=False))
+              type=click.Path(exists=True, dir_okay=False),
+              help="Fix-requests JSON written by `specproof fix`")
 @click.option("--repo", default=".", type=click.Path(exists=True, file_okay=False),
               help="Path to the git repository (defaults to github_context)")
-@click.option("--app-dir", default="", show_default=True)
+@click.option("--app-dir", default="", show_default=True,
+              help="Subdirectory of the Maven app (compile verification)")
 @click.option("--github", is_flag=True,
               help="After a successful verification, push the fix branch and "
                    "open the fix PR via the GitHub App (best-effort)")
-@click.option("--remote", default="origin", show_default=True)
+@click.option("--remote", default="origin", show_default=True,
+              help="Git remote to push the fix branch to")
 def approve_cmd(
     fix_id: str,
     requests_path: str,
