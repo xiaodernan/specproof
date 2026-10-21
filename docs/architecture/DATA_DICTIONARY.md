@@ -23,15 +23,23 @@
 
 ## 1. MySQL — 数据库 `specproof_phase0` (compose 服务 mysql:8.4)
 
-共 19 张表 (2026-09-26 于 `specproof_phase0` 与 `specproof_test` 双双实测; 0014/0015/0016 落库后仍为 19):
+共 19 张表 (2026-10-21 于 `specproof_phase0` 与 `specproof_test` 双双实测; 此前记 19, 数字未变):
 18 张来自版本化迁移 0001-0016 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0014 只给
 `usage_ledger` 加 `job_id` 列不建新表; 0015 只扩 `verification_jobs.status` 的 ENUM 不建新表;
 0016 只给 `verification_jobs` 加 `max_execution_seconds` 列不建新表;
 0013 建
 `notify_outbox`, 见 §1.21), 1 张
 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
-本文 §1.18 / §1.19 两张对象元数据表**不在这 18 张里** —— 它们只在显式选择 MySQL 对象元数据后端时
-由 `ensure_schema()` 现建, 默认后端是 SQLite (见 §1.18 的口径说明)。
+**§1.18 / §1.19 那两张对象元数据表不在这 19 张里** —— 默认后端是 SQLite, 它们只在显式选择
+MySQL 对象元数据后端时由 `ensure_schema()` 现建; 显式用过之后真实 schema 里会多出这 2 张
+(计表数的门会把「在场的条件表」减掉再比, 见 `tests/unit/test_data_dictionary_covers_migrations.py`)。
+**为什么这个数字一直没动 (#336)**: 这两张表一直**写在本文里**, 但在 MySQL 上**从来没被真正建出来**
+—— `storage/object_metadata.py` 把 SQLite 的 DDL 原样翻译给 MySQL, 而 MySQL 不允许 TEXT 列带
+DEFAULT (`BLOB, TEXT, GEOMETRY or JSON column can't have a default value`), 于是
+`ensure_schema()` 每次都失败, 表不存在, 于是**实测的表数少 2 张**, 而门控集成测试又一直因为缺
+`MYSQL_URL` 被跳过 ⇒ 没人看见。修法: 两套 DDL 各写各的 (MySQL 版把 JSON 列改成 VARCHAR), 并补上
+`object_ref` 列的迁移 (见 §1.18)。**本文的表数是实测值, 不是登记值** —— 登记的表和实测的表不一致时,
+以实测为准并回来改这里。
 **表数与实测不符时**: 测试库可能被变异臂的探针留下不属于 schema 的表 (2026-10-20 实测到一张
 2026-10-12 遗留的 `arm_probe`)。用 `python scripts/clean_test_database.py` 列出并清除它们 ——
 该脚本只允许指向 `specproof_test*` 模式, 拒绝产品库, 默认只报告不删, 加 `--drop` 才动手。
@@ -386,22 +394,28 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 > **口径 (2026-09-26 实测补充)**: 本节和 §1.19 描述的是 **MySQL 后端**的表, 而
 > `default_object_metadata_store()` 的默认后端是 **SQLite** (`~/.specproof/object-metadata.sqlite3`),
 > MySQL 只在显式给出 `MYSQL_URL` 并构造 `MySQLObjectMetadataStore` 时启用, 且表要由
-> `ensure_schema()` 现建 —— 因此 `specproof_phase0` / `specproof_test` 两个真实 schema 里
-> **都没有这两张表** (已在 §1 表数中排除)。本节列的是 SQLite 方言 (REAL/TEXT),
-> MySQL 方言由 `_to_mysql()` 转换。
+> `ensure_schema()` 现建 —— 因此默认跑法的 `specproof_phase0` 里**没有这两张表** (默认后端是
+> SQLite); 显式用过 MySQL 后端之后它们就在了 (2026-10-21 实测: `specproof_test` 里两张都在,
+> 因为那套 DDL 之前是坏的, 见 §1 表数)。本节列的是 **SQLite 方言** (REAL/TEXT);
+> **MySQL 方言是另一套 DDL** (`_MYSQL_SCHEMA_SQL`: JSON 列用 VARCHAR, 因为 MySQL 不允许
+> TEXT 列带 DEFAULT) —— 两套方言各写各的, 别再共用一份。
 
 | 列 | 类型 | 说明 |
 |---|---|---|
 | object_id | VARCHAR(32) PK | uuid4().hex, 稳定身份 (绝不等于路径) |
 | kind | VARCHAR(32) | certificate / capsule / replay_report |
 | payload_sha256 | VARCHAR(64) DEFAULT '' | 载荷 sha256 |
-| digests_json | TEXT | 摘要集 JSON |
+| digests_json | TEXT | 摘要集 JSON (MySQL: VARCHAR(4096)) |
 | job_id | VARCHAR(128) DEFAULT '' | 所属验证任务 (未知为 "") |
-| contract_ids_json | TEXT DEFAULT '[]' | 关联契约 id 列表 |
-| created_at | REAL | epoch 秒 |
+| contract_ids_json | TEXT DEFAULT '[]' | 关联契约 id 列表 (MySQL: VARCHAR(4096) 无 DEFAULT) |
+| created_at | REAL | epoch 秒 (MySQL: DOUBLE) |
 | path_hint | TEXT DEFAULT '' | 记录时路径 (仅提示, 解析失败回退旧路径查找) |
+| object_ref | VARCHAR(255) DEFAULT '' | **对象存储坐标** `bucket/object-name` (#336) —— 字节**现在**在哪; `path_hint` 是文件**当时**在哪。空 = 只描述文件、不描述对象 |
 
-- **写入方**: `storage/object_metadata.py` `record_file_object` (证据管线, best-effort 永不阻断产物落盘)。
+- **写入方**: `storage/object_metadata.py` `record_file_object` (证据管线, best-effort 永不阻断产物落盘)
+  与 `storage/artifact_store.py` `ArtifactStore.put_file` (对象坐标, 见上)。
+- **迁移**: `object_ref` 是后加的列; 老库由 `ensure_schema()` 里的 `ALTER TABLE ... ADD COLUMN`
+  补上 (SQLite 与 MySQL 各一份), 否则第一次点名该列的 SELECT 会报一个看起来像损坏的列错误。
 - **租户作用域**: J。**TTL/保留**: 与 MinIO 对象同生共死 (digest 校验依据)。
 
 ### 1.19 object_contracts — 对象×契约关联 (代码 DDL: `storage/object_metadata.py`)

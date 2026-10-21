@@ -164,6 +164,13 @@ class ArtifactStore:
             self._bucket, object_name, data, content_type, version
         )
 
+        # The coordinate the bucket understands (P1-7): the record
+        # must say where the bytes ARE, not only where the file was
+        # when it was uploaded. A path hint alone cannot be
+        # resolved on the machine that holds the bucket.
+        stored_bucket = str(uploaded.get("bucket") or self._bucket)
+        stored_name = str(uploaded.get("object_name") or object_name)
+
         try:
             record = self._metadata.record(
                 new_metadata(
@@ -172,6 +179,7 @@ class ArtifactStore:
                     job_id=job_id,
                     contract_ids=contract_ids,
                     path_hint=str(source),
+                    object_ref=f"{stored_bucket}/{stored_name}",
                 )
             )
         except Exception as exc:  # noqa: BLE001 — reported, never swallowed

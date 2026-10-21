@@ -49,6 +49,14 @@ _RANGE_RE = re.compile(r"至\s*`([0-9]{4}_[a-z_]+\.sql)`")
 #: is the lie that was measured here.
 _ABSENT_RE = re.compile(r"没有这两张表")
 
+#: The object-metadata tables exist only where the MySQL object-metadata
+#: backend was used (the default backend is SQLite). They are documented
+#: but they are not part of the always-present schema, so the table-count
+#: gate subtracts the ones actually in front of it.
+_CONDITIONAL_TABLES: frozenset[str] = frozenset(
+    {"object_metadata", "object_contracts"}
+)
+
 
 def _registered_tables(doc: str) -> set[str]:
     return set(_SECTION_RE.findall(doc))
@@ -135,16 +143,37 @@ def test_documented_table_count_matches_the_live_schema() -> None:
         with store.connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT COUNT(*) AS n FROM information_schema.tables "
+                # LOWER(): information_schema's column names come back
+                # UPPERCASE on MySQL 8, and a row["table_name"] would
+                # raise KeyError — which the skip below would report as
+                # "MySQL is not reachable", i.e. a lie about why.
+                "SELECT LOWER(table_name) AS table_name "
+                "FROM information_schema.tables "
                 "WHERE table_schema = %s",
                 (config.database,),
             )
-            row = cursor.fetchone()
-    except Exception:  # noqa: BLE001 — no MySQL here is a coverage fact, not a bug
-        pytest.skip(f"MySQL at {config.host}:{config.port} is not reachable")
-    values = tuple(row.values()) if isinstance(row, dict) else tuple(row)
-    assert documented == int(values[0]), (
-        f"DATA_DICTIONARY says {documented} tables, {config.database} has {values[0]}"
+            names = {
+                str(row["table_name"]) if isinstance(row, dict) else str(row[0])
+                for row in cursor.fetchall()
+            }
+    except Exception as exc:  # noqa: BLE001 — no MySQL here is a coverage fact
+        pytest.skip(
+            f"MySQL at {config.host}:{config.port} is not usable here "
+            f"({type(exc).__name__}: {exc})"
+        )
+
+    # The object-metadata tables are CONDITIONAL: the default backend is
+    # SQLite, so they exist only where the MySQL object-metadata backend
+    # was used. They are documented (§1.18/§1.19) but they are not part
+    # of the always-present schema, so the count subtracts the ones that
+    # are actually in front of it — otherwise the gate would depend on
+    # whether some other test ran first.
+    conditional = _CONDITIONAL_TABLES & names
+    present = len(names) - len(conditional)
+    assert documented == present, (
+        f"DATA_DICTIONARY says {documented} tables, {config.database} has "
+        f"{present} ({len(conditional)} conditional object tables excluded: "
+        f"{sorted(conditional)})"
     )
 
 

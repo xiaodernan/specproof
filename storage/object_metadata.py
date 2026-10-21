@@ -21,6 +21,12 @@ Record shape (ObjectMetadata):
   path_hint     where the payload lived when recorded (advisory only —
                 resolution must fall back to legacy lookup when the
                 hint no longer exists)
+  object_ref    the OBJECT-STORE coordinate ("bucket/object-name") — where
+                the bytes actually live when they were uploaded (P1-7).
+                A record carrying only a local path cannot be resolved
+                on the machine that holds the bucket: the path is where
+                the file WAS, the object ref is where the bytes ARE.
+                Empty for file-only records.
 
 Queries: by_job / by_kind / by_digest / by_contract. resolve_object()
 tries the store FIRST (object id, digest, path hint); callers fall back
@@ -86,6 +92,8 @@ class ObjectMetadata:
     contract_ids: tuple[str, ...]
     created_at: float
     path_hint: str
+    #: "bucket/object-name" — the object-store coordinate (P1-7).
+    object_ref: str = ""
 
 
 def new_object_id() -> str:
@@ -99,6 +107,33 @@ def normalize_payload_digest(value: str) -> str:
     if stripped.startswith("sha256:"):
         stripped = stripped[len("sha256:"):]
     return stripped
+
+
+def normalize_object_ref(value: str) -> str:
+    """Normalize an object-store reference: "bucket/object-name".
+
+    A reference is only useful if it names a bucket AND an object, so
+    a half-written reference is rejected instead of being stored as
+    something that can never resolve. An empty value means "this
+    record describes a file, not an object".
+    """
+    ref = value.strip()
+    if not ref:
+        return ""
+    if ref.startswith("/"):
+        raise ObjectMetadataError(
+            f"object_ref must not start with '/': {value!r}"
+        )
+    bucket, sep, name = ref.partition("/")
+    if not sep or not bucket or not name:
+        raise ObjectMetadataError(
+            f"object_ref must be 'bucket/object-name', got {value!r}"
+        )
+    if name.startswith("/") or name.endswith("/") or "//" in name:
+        raise ObjectMetadataError(
+            f"object_ref must not contain an empty path segment: {value!r}"
+        )
+    return f"{bucket}/{name}"
 
 
 def sha256_hex(data: bytes) -> str:
@@ -118,6 +153,7 @@ def new_metadata(
     job_id: str = "",
     contract_ids: Iterable[str] = (),
     path_hint: str = "",
+    object_ref: str = "",
     object_id: str | None = None,
     now: Callable[[], float] | None = None,
 ) -> ObjectMetadata:
@@ -148,6 +184,7 @@ def new_metadata(
         contract_ids=tuple(dict.fromkeys(str(c) for c in contract_ids if c)),
         created_at=clock(),
         path_hint=path_hint,
+        object_ref=normalize_object_ref(object_ref),
     )
 
 
@@ -216,6 +253,12 @@ def resolve_object(
     if _HEX64_RE.fullmatch(digest):
         matches = store.by_digest(digest)
         return matches[0] if matches else None
+    # The object-store coordinate ("bucket/object-name", P1-7): the
+    # reference the bucket actually understands, and the only one a
+    # different machine can resolve.
+    for record in store.list():
+        if record.object_ref and record.object_ref == ref:
+            return record
     normalized_path = str(Path(ref))
     records = store.list()
     for record in records:
@@ -318,7 +361,8 @@ _SCHEMA_SQL = (
     "job_id VARCHAR(128) NOT NULL DEFAULT '', "
     "contract_ids_json TEXT NOT NULL DEFAULT '[]', "
     "created_at REAL NOT NULL, "
-    "path_hint TEXT NOT NULL DEFAULT '')"
+    "path_hint TEXT NOT NULL DEFAULT '', "
+    "object_ref VARCHAR(255) NOT NULL DEFAULT '')"
 )
 
 _CONTRACTS_SCHEMA_SQL = (
@@ -328,11 +372,35 @@ _CONTRACTS_SCHEMA_SQL = (
     "PRIMARY KEY (object_id, contract_id))"
 )
 
+#: MySQL refuses a DEFAULT on a TEXT/BLOB/JSON column, so the
+#: production DDL is its own: the same columns, typed VARCHAR.
+#: Reusing the SQLite DDL here is what made ensure_schema() fail on
+#: MySQL — the table was never created and the backend was dead.
+_MYSQL_SCHEMA_SQL = (
+    "CREATE TABLE IF NOT EXISTS object_metadata ("
+    "object_id VARCHAR(32) PRIMARY KEY, "
+    "kind VARCHAR(32) NOT NULL, "
+    "payload_sha256 VARCHAR(64) NOT NULL DEFAULT '', "
+    "digests_json VARCHAR(4096) NOT NULL, "
+    "job_id VARCHAR(128) NOT NULL DEFAULT '', "
+    "contract_ids_json VARCHAR(4096) NOT NULL, "
+    "created_at DOUBLE NOT NULL, "
+    "path_hint VARCHAR(1024) NOT NULL DEFAULT '', "
+    "object_ref VARCHAR(255) NOT NULL DEFAULT '')"
+)
+
+_MYSQL_CONTRACTS_SCHEMA_SQL = (
+    "CREATE TABLE IF NOT EXISTS object_contracts ("
+    "object_id VARCHAR(32) NOT NULL, "
+    "contract_id VARCHAR(128) NOT NULL, "
+    "PRIMARY KEY (object_id, contract_id))"
+)
+
 _INSERT_SQL = (
     "INSERT INTO object_metadata "
     "(object_id, kind, payload_sha256, digests_json, job_id, "
-    "contract_ids_json, created_at, path_hint) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    "contract_ids_json, created_at, path_hint, object_ref) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 _INSERT_CONTRACT_SQL = (
@@ -341,30 +409,30 @@ _INSERT_CONTRACT_SQL = (
 
 _SELECT_BY_ID_SQL = (
     "SELECT object_id, kind, digests_json, job_id, contract_ids_json, "
-    "created_at, path_hint FROM object_metadata WHERE object_id = ?"
+    "created_at, path_hint, object_ref FROM object_metadata WHERE object_id = ?"
 )
 
 _SELECT_BY_JOB_SQL = (
     "SELECT object_id, kind, digests_json, job_id, contract_ids_json, "
-    "created_at, path_hint FROM object_metadata WHERE job_id = ? "
+    "created_at, path_hint, object_ref FROM object_metadata WHERE job_id = ? "
     "ORDER BY created_at DESC, object_id"
 )
 
 _SELECT_BY_KIND_SQL = (
     "SELECT object_id, kind, digests_json, job_id, contract_ids_json, "
-    "created_at, path_hint FROM object_metadata WHERE kind = ? "
+    "created_at, path_hint, object_ref FROM object_metadata WHERE kind = ? "
     "ORDER BY created_at DESC, object_id"
 )
 
 _SELECT_BY_DIGEST_SQL = (
     "SELECT object_id, kind, digests_json, job_id, contract_ids_json, "
-    "created_at, path_hint FROM object_metadata WHERE payload_sha256 = ? "
+    "created_at, path_hint, object_ref FROM object_metadata WHERE payload_sha256 = ? "
     "ORDER BY created_at DESC, object_id"
 )
 
 _SELECT_BY_CONTRACT_SQL = (
     "SELECT m.object_id, m.kind, m.digests_json, m.job_id, "
-    "m.contract_ids_json, m.created_at, m.path_hint "
+    "m.contract_ids_json, m.created_at, m.path_hint, m.object_ref "
     "FROM object_metadata m "
     "JOIN object_contracts c ON c.object_id = m.object_id "
     "WHERE c.contract_id = ? "
@@ -373,9 +441,46 @@ _SELECT_BY_CONTRACT_SQL = (
 
 _SELECT_ALL_SQL = (
     "SELECT object_id, kind, digests_json, job_id, contract_ids_json, "
-    "created_at, path_hint FROM object_metadata "
+    "created_at, path_hint, object_ref FROM object_metadata "
     "ORDER BY created_at DESC, object_id LIMIT ?"
 )
+
+
+def _migrate_object_ref_sqlite(conn: Any) -> None:
+    """Add object_ref to a store created before P1-7.
+
+    CREATE TABLE IF NOT EXISTS never touches an existing table,
+    so a store written by an older build would keep working until
+    the first SELECT that names the new column — and then fail
+    with a column error that looks like corruption. The column
+    is added here instead, with the same default the schema
+    declares.
+    """
+    columns = {row[1] for row in conn.execute(
+        "PRAGMA table_info(object_metadata)"
+    )}
+    if "object_ref" not in columns:
+        conn.execute(
+            "ALTER TABLE object_metadata ADD COLUMN object_ref "
+            "VARCHAR(255) NOT NULL DEFAULT ''"
+        )
+
+
+def _migrate_object_ref_mysql(cursor: Any) -> None:
+    """Add object_ref to a MySQL table created before P1-7."""
+    cursor.execute(
+        "SELECT COUNT(*) FROM information_schema.columns "
+        "WHERE table_schema = DATABASE() "
+        "AND table_name = 'object_metadata' "
+        "AND column_name = 'object_ref'"
+    )
+    row = cursor.fetchone()
+    present = int(row["COUNT(*)"] if isinstance(row, dict) else row[0])
+    if not present:
+        cursor.execute(
+            "ALTER TABLE object_metadata ADD COLUMN object_ref "
+            "VARCHAR(255) NOT NULL DEFAULT ''"
+        )
 
 
 def _to_mysql(sql: str) -> str:
@@ -410,6 +515,7 @@ def _row_to_metadata(row: Any) -> ObjectMetadata:
         contract_ids=tuple(str(c) for c in contract_ids),
         created_at=float(row["created_at"]),
         path_hint=cast(str, row["path_hint"] or ""),
+        object_ref=cast(str, row["object_ref"] or ""),
     )
 
 
@@ -502,6 +608,7 @@ class SQLiteObjectMetadataStore:
         with self._lock, self._conn:
             self._conn.execute(_SCHEMA_SQL)
             self._conn.execute(_CONTRACTS_SCHEMA_SQL)
+            _migrate_object_ref_sqlite(self._conn)
 
     def close(self) -> None:
         with self._lock:
@@ -523,6 +630,7 @@ class SQLiteObjectMetadataStore:
                         json.dumps(list(metadata.contract_ids)),
                         metadata.created_at,
                         metadata.path_hint,
+                        metadata.object_ref,
                     ),
                 )
                 for contract_id in metadata.contract_ids:
@@ -627,8 +735,9 @@ class MySQLObjectMetadataStore:
     def ensure_schema(self) -> None:
         with self.connection() as conn:
             cur = conn.cursor()
-            cur.execute(_to_mysql(_SCHEMA_SQL))
-            cur.execute(_to_mysql(_CONTRACTS_SCHEMA_SQL))
+            cur.execute(_MYSQL_SCHEMA_SQL)
+            cur.execute(_MYSQL_CONTRACTS_SCHEMA_SQL)
+            _migrate_object_ref_mysql(cur)
 
     def record(self, metadata: ObjectMetadata) -> ObjectMetadata:
         import json
@@ -647,6 +756,7 @@ class MySQLObjectMetadataStore:
                         json.dumps(list(metadata.contract_ids)),
                         metadata.created_at,
                         metadata.path_hint,
+                        metadata.object_ref,
                     ),
                 )
                 for contract_id in metadata.contract_ids:
@@ -729,6 +839,7 @@ __all__ = [
     "SQLiteObjectMetadataStore",
     "default_object_metadata_store",
     "new_metadata",
+    "normalize_object_ref",
     "new_object_id",
     "normalize_payload_digest",
     "payload_sha256_of_file",

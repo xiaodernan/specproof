@@ -6653,3 +6653,52 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 **诚实边界。** ① **101 个案例没有全量重跑评测**（那要跑整条评测流水线，本号没做）；本号验的是**这一个案例**的诚实性 + 集合登记的一致性（门都绿）。② `case-101` 的变异是**服务级**的，但它**仍然依赖实体上的 `@Version` 存在**——缺陷是「**绕过**了它」，不是「它没了」。⇒ 它与 case-29 是**不同的缺陷**（一个动注解，一个动写路径），但**不是**与版本机制无关的缺陷；这个界线不夸大。③ `verify_case_tags.py` 需要 **JDK ≤ 21**（demo 的 Mockito inline mock maker 在 JDK 25 上**根本起不来**，demo 自己的用例也一样）——这是**既有环境限制**，本号只是绕开了它，没有解决它。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **demo 的测试在默认 JDK 25 上跑不起来**（Mockito inline mock maker）——单独解决，别让「本机能跑」成为一条隐藏前提。② `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。③ 局部变量名是否也该进 profile（#319 的边界②）。④ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 队列项④的**框法要改**（#319 队列⑤）。⑥ P1-7（MinIO 对象引用）。⑦ 101 个案例的**全量重跑评测**（真正的 Recall/Precision/F1 该重测了）。
+## #335 `--help` epilog 里点名的「二级命令」必须真实存在（无幽灵子命令）
+
+**起因/占号。** #332 的下一号队列首条：「子命令层：`ops recover` / `craft run` 等子命令名是否仍存在（需遍历 `cli.commands[name].commands`）」。占号前重测账本：本地与 `origin/master` 0 ahead / 0 behind，远端/本地 HEAD `f47a77d`（`## #334`）。334 已被 #334 占位 ⇒ 本号取 **#335**。
+
+**先量后写（量的是「旧尺子漏掉了什么」）。** #332 的 `_MENTION_RE` 只核对 `specproof <cmd>` 的**第一个** token，epilog / 模块 docstring 里出现过的二级命令提及被整段略过。重读 `HELP_EPILOG` 实测：
+- `specproof craft run --repo . --spec-file requirement.txt` ⇒ `(craft, run)`，`craft` 是 `click.Group`；
+- `specproof ops recover` ⇒ `(ops, recover)`，`ops` 是 `click.Group`；
+- `specproof demo --run` ⇒ `--run` 以 `-` 开头，**不当**子命令；
+- `specproof verify --repo …` / `specproof probe` ⇒ 无二级 token。
+⇒ epilog 里带二级命令的提及**恰好 2 个**：`craft run` / `ops recover`。而模块 docstring 的 `Commands:` 块是「顶层命令 + 描述」的扁平索引（如 `specproof quickstart  print the zero-config …`），那里若被当二级命令扫会把描述句首词（`print` / `zero-config`）误判成幽灵子命令——所以本批**不扫 docstring**（它已在 #332 顶层钉住），只扫 epilog 的调用式二级命令。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_cli_help_subcommand_names_exist.py`（2 案）：
+1. `test_help_epilog_subcommand_names_exist`：`_MENTION_RE` 抽 epilog 的 `(cmd, sub)`；对每个 `sub≠None` 要求 `cli.commands[cmd]` 是 `click.Group` 且 `sub ∈ .commands`；**真空保护** `subs` 必须含 `run` 与 `recover`（防「把 epilog 里二级命令整段删掉」假绿）；`phantom == []`。
+2. `test_cli_help_renders_subcommand_mentions`：`CliRunner` 跑 `cli --help`，退出码 0、输出含 `craft run` 与 `ops recover`；**反向控制**——`craft` / `ops` 确实是 Group 且分别含 `run` / `recover`（epilog 写出来的二级命令在真实命令树里接得住；若有人把 `run` 改名为 `execute` 却忘改 epilog，这把尺 + 渲染断言一起红）。
+
+**门证（全在本批内亲手取）。** 临时环境只需 click：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_cli_help_subcommand_names_exist.py -q -p no:cacheprovider` | 2 passed in 4.63s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_cli_help_subcommand_names_exist.py` | All checks passed |
+| **变异臂**（epilog 的 `specproof craft run` → `specproof craft runx`） | 预测：`test_help_epilog_subcommand_names_exist` 必红 | 实测 **1 failed, 1 passed**：`assert ('run' in ['runx', 'recover'])` 命中；`test_cli_help_renders_subcommand_mentions` 因 `"craft run" in "craft runx"` 前缀子串仍为真而保持通过——但真空保护已独立抓到破坏。`trap EXIT TERM INT` 还原 `main.py` 与变异前逐字节一致，复跑 2 passed in 4.99s |
+
+**否证与订正。** ① 第一版把**模块 docstring 也**扫了二级命令，立刻红在 `quickstart (not a Group, so 'print' cannot be its subcommand)`——原来 docstring 的 `Commands:` 块是「命令 + 描述」扁平索引，描述句首词被误判成子命令。改成**只扫 epilog 的调用式二级命令**，docstring 由 #332 在顶层管，红转绿。② 变异臂把 `craft run` 改成 `craft runx`：`"craft run"` 是 `"craft runx"` 的前缀子串，渲染断言的 `"craft run" in output` 仍为真，所以该断言**未独立**抓到；但 `test_help_epilog_subcommand_names_exist` 的真空保护（`"run" in subs`）与 `phantom` 检查**独立**抓到——证明门非假绿。若要更硬，可把渲染断言改成「整词边界匹配」，留作边界。
+
+**诚实边界。** ① 只加测试：`main.py` 生产码一字未动。② 只查 epilog 的调用式二级命令；模块 docstring 扁平索引不扫。③ 不要求「每个 Group 子命令都出现在 epilog」——epilog 精选，`approve` / `evidence` 等的子命令刻意不列。④ 变异臂只改了文本常量（`HELP_EPILOG`），没碰命令注册树；若缺陷出在「注册树删了 `run` 但 epilog 没改」，反向控制那条（`"run" in craft.commands`）会红，本门同样抓得到。
+
+**下一号队列（受本环境约束，取号按落地时点 max+1）。** ① 各子命令自身的 `--help` 文本与**真实选项集**一致性（如 help 里列了某选项但该选项已被移除）——#334 查了「每个旋钮都有 help」，本号是该支的下一步对称面。② `probe.py` / `mcp.py` 纯逻辑补栅栏（低优先）。③ #333 队列①（建并发家族金案例 `case-101`——当前 `golden-cases/case-101-…/` 与 `scripts/verify_case_tags.py` 仍在本机在途，等让出）。④ #333 队列②（demo 测试在默认 JDK 25 上跑不起来）。⑤ #330 边界②（`move` / `delete` 落地后审计故障各补一条）。
+
+## #336 P1-7 接入对象坐标；顺带发现一个**既有**缺陷：MySQL 对象元数据后端**从来没建过表**
+
+**起因/占号。** 队列⑥「P1-7（MinIO 对象引用）」。落地前重测账本：HEAD 592b158；`## #` id 最大 **335**，但**并发车道也占了 335**（他们的节在我提交之后才落盘 ⇒ 账本里现在有两个 `## #335`；**我不动他们在途的文本**，本号按 max+1 取 **336**）。
+
+**先量旧行为（量的是「对象元数据到底记了什么」）。** `storage/object_metadata.py` 的记录形状里**没有对象坐标**：只有 `path_hint`（记录时**文件**在哪）。而字节在**对象存储**里，坐标是 `bucket/object-name`。⇒ 一条只带本地路径的记录，在**持有桶的那台机器上根本解析不出来** —— 路径是文件**当时**在哪，对象坐标是字节**现在**在哪。`ArtifactStore.put_file` 记的也正是 `path_hint=str(source)`（本地路径）⇒ 「MinIO 基础设施就绪，待接入」这句话是准确的：**没接**。
+
+**修。**
+- **记录加一列** `object_ref`（`bucket/object-name`；文件型记录留空）。`new_metadata(..., object_ref=...)` 带校验：**写了一半的坐标**（没有桶、没有对象、空路径段）**直接拒收** —— 存一个永远解析不出来的坐标，比不存更坏：行看起来已登记，而每次查都空手而归。
+- **解析顺序**加一档：object_id → digest → **object_ref** → path_hint。对象坐标排在路径提示**前面**（路径是提示，坐标是地址）。
+- **迁移**：SQLite 与 MySQL 各一份 `ALTER TABLE ... ADD COLUMN` —— `CREATE TABLE IF NOT EXISTS` 不会碰已存在的表，老库会在第一次点名该列的 SELECT 上炸出一个**看起来像损坏**的列错误。
+- **接线**：`ArtifactStore.put_file` 记的是**上传实际回报的**坐标（桶可能改名/换桶；记「请求的名字」会指向一个不存在的东西）。
+- **顺带修一个既有缺陷（本号真正的收获）**：MySQL 后端把 **SQLite 的 DDL 原样翻译**过去（`_to_mysql()`），而 MySQL 不允许 TEXT 列带 DEFAULT（`BLOB, TEXT, GEOMETRY or JSON column can't have a default value`）⇒ `ensure_schema()` **每次都失败** ⇒ 那两张表**从来没被建出来** ⇒ **这个生产后端一直是死的**。而它的门控集成测试因为缺 `MYSQL_URL` 一直**被跳过** ⇒ 没人看见。修法：两套方言各写各的（MySQL 版把 JSON 列改成 `VARCHAR(4096)`）。**一个「后端」可以是绿的——只要没人真的连过它。**
+- **数据字典**：§1 的表数是**实测值**（19；那两张对象表是**条件表**，默认后端是 SQLite，不在 19 里）。字典里 §1.18/§1.19 早就写了那两张表，**但实测表数一直少 2 张** —— 因为它们建不出来。现在建得出来了，字典的「为什么这个数字一直没动」也写清了。
+
+**门与腿。** 新增 `tests/unit/test_object_metadata_carries_the_object_reference.py`（**14** 项）：记录带坐标、半个坐标被拒、坐标**能解析出记录**（新能力）、SQLite 往返、老库**自动补列**（迁移）、ArtifactStore 记的是**上传回报的**坐标（桶改名时记的是新坐标，且**能按新坐标找到**）。MySQL 侧（`tests/integration/test_object_metadata_mysql.py`，**6** 项，**真库**）：坐标往返与解析、**迁移**（`DROP COLUMN` → `ensure_schema()` → 列回来）、`ensure_schema()` 幂等 —— **真 MySQL 上 6/6 通过**（该模块此前从未真跑过）。存储层回归（对象元数据 ×2、故障注入、数据字典、orphan 扫描、证据 CLI、bench 回放、胶囊清单、胶囊节点）**107 passed**；`ruff` 0 errors、`mypy storage/` 0 errors（**20** 源文件）。表数门（`test_data_dictionary_covers_migrations`）**5 passed**（19 与 21 两种现场都过：条件表会被减掉）。
+
+**否证与订正。** ① 我把「MySQL 后端是死的」当成**推测**写进了字典（还没验）—— 写完立刻用真库跑门控集成测试，结果**整模块报错**：`(1101, "BLOB, TEXT, GEOMETRY or JSON column 'contract_ids_json' can't have a default value")` ⇒ **推测被证实**，而且证实它的正是那个「一直跳过」的测试 ⇒ 门控测试**跑一次**的价值，比它一直绿的价值大。② 表数门从「19 = 实测」变成「21 ≠ 19」——第一反应是「字典写错了」，其实是我**跑测试时把表建了出来**。⇒ 结论不是「改数字」，而是：字典的表数是**实测值**，条件表要在比较时**减掉**（否则这个门会依赖「谁先跑」）。③ 我新写的表名查询 `row["table_name"]` 在 MySQL 8 上抛 **`KeyError`**（information_schema 的列名是**大写**的）⇒ 被那段 `except Exception` 吞成「MySQL 不可达」——**一句关于原因的假话**。修法两处：查询加 `LOWER(table_name) AS table_name` 别名，except **说出真正的错**。**「跳过」的理由必须是真的理由**，否则它会把一个代码缺陷伪装成环境缺陷。
+
+**诚实边界。** ① 坐标只解决了**对象存储**这一条线；`record_file_object`（文件型记录）仍然只带路径 —— 那是对的，文件型产物本来就在文件系统里。② 迁移是**加列**，不是**改语义**；老记录的新列是空串 ⇒ 它们仍然只能按路径/摘要找到（**不会**因为这次改动就变得可按坐标找到）。③ 坐标的**桶权限/租户前缀**校验在 `storage/minio.py::validate_object_path` 那一层，元数据这一层**只做形状校验**（桶/对象非空、无空路径段）—— 两者不是同一件事，没有合并。④ 本号**没有**把对象坐标接进 `evidence/fragments.py` 的 Fragment 类型（那里仍只有 http/db/redis/mq/schema/perf/static/build 八种，没有 object）—— 那是**另一个**接线点，未做。⑤ MySQL 的门控测试在 CI 里仍会**被跳过**（没有 `MYSQL_URL`）—— 本号在本机用真库跑通了，但**CI 依然不会跑它**；这仍是那条「后端可以是绿的，只要没人连过它」的教训。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **把对象坐标接进证据 Fragment**（`evidence/fragments.py` 加 `ObjectObservation`：bucket/object_name/etag/size/content_type/version）—— #336 边界④。② **CI 跑 MySQL 门控测试**（`MYSQL_URL` 在 CI 里可用）—— 否则那个后端还是「没人连过」。③ `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。④ demo 的测试在**默认 JDK 25** 上跑不起来（Mockito inline mock maker）—— 单独解决。⑤ 局部变量名是否也该进 profile（#319 的边界②）。⑥ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑦ 队列项④的**框法要改**（#319 队列⑤）。⑧ 101 个案例的**全量重跑评测**。
