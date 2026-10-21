@@ -248,6 +248,7 @@ class FakeMinio:
         self.objects: dict[str, bytes] = {}
         self.metadata: dict[str, dict[str, str]] = {}
         self.calls: list[tuple[str, str]] = []
+        self.buckets: set[str] = set(MinIOClient.BUCKETS)
 
     def put_object(
         self,
@@ -282,6 +283,20 @@ class FakeMinio:
             close=lambda: None,
         )
 
+    def remove_object(self, bucket_name: str, object_name: str) -> None:
+        self.calls.append(("remove", object_name))
+        if object_name not in self.objects:
+            raise FileNotFoundError(object_name)
+        del self.objects[object_name]
+
+    def bucket_exists(self, bucket_name: str) -> bool:
+        self.calls.append(("bucket_exists", bucket_name))
+        return bucket_name in self.buckets
+
+    def make_bucket(self, bucket_name: str) -> None:
+        self.calls.append(("make_bucket", bucket_name))
+        self.buckets.add(bucket_name)
+
 
 @pytest.fixture()
 def minio_client() -> tuple[MinIOClient, FakeMinio]:
@@ -296,6 +311,46 @@ def test_object_path_builds_governed_name() -> None:
         object_path("tenant-a", "repo-x", "job-9", "report", "v2")
         == "tenant-a/repo-x/job-9/report/v2"
     )
+
+
+def test_remove_object_deletes_it(
+    minio_client: tuple[MinIOClient, FakeMinio],
+) -> None:
+    """The ArtifactStore's compensation path needs this method.
+
+    Without it, a strict-mode compensation would fail against the
+    PRODUCTION client — and a failed compensation is reported (the
+    object stays, to be found by a reconciliation scan), so the ghost
+    would be the normal outcome instead of the rare one.
+    """
+    client, fake = minio_client
+    client.put_object_with_digest(
+        "specproof-tool-reports", "jobs/j-1/capsule.zip", b"bytes",
+    )
+    assert fake.objects["jobs/j-1/capsule.zip"] == b"bytes"
+
+    client.remove_object("specproof-tool-reports", "jobs/j-1/capsule.zip")
+
+    assert "jobs/j-1/capsule.zip" not in fake.objects
+    assert ("remove", "jobs/j-1/capsule.zip") in fake.calls
+
+
+def test_is_ready_says_no_when_the_bucket_is_missing(
+    minio_client: tuple[MinIOClient, FakeMinio],
+) -> None:
+    """A readiness probe that cannot say "not ready" is a probe that lies.
+
+    The old expression was ``bucket_exists(...) or True`` — it answered
+    True for every outcome except an exception, so a store without the
+    bucket reported itself ready.
+    """
+    client, fake = minio_client
+    fake.buckets.clear()
+
+    assert client.is_ready() is False
+
+    fake.buckets.add(MinIOClient.BUCKETS[0])
+    assert client.is_ready() is True
 
 
 def test_object_path_rejects_traversal_and_unsafe_segments() -> None:

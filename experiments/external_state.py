@@ -86,18 +86,24 @@ def build_redis_client() -> Any | None:
 
 
 def build_object_store() -> Any | None:
-    """Build a MinIO client from the environment. None when unreachable."""
+    """Build the object-store client from the environment. None when unreachable.
+
+    The client is the PRODUCTION one (``storage.minio.MinIOClient``), and
+    the configuration comes from ``storage.minio.MinIOConfig`` — the SAME
+    source the product uses. Two sets of environment variable names for
+    "how do I reach the object store" would be two truths, and the second
+    one would silently point somewhere else. A raw ``Minio`` handle would
+    also be the wrong SHAPE: the collector speaks
+    ``object_exists``/``object_stat``, which only the wrapper speaks.
+    """
     try:
-        from minio import Minio
+        from storage.minio import MinIOClient
     except Exception:  # noqa: BLE001 — the driver is optional
         return None
     try:
-        endpoint = os.getenv("MINIO_ENDPOINT", "localhost:9000")
-        access = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-        secret = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-        secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
-        client = Minio(endpoint, access_key=access, secret_key=secret, secure=secure)
-        list(client.list_buckets())  # cheap liveness check
+        client = MinIOClient()
+        if not client.is_ready():
+            return None
         return client
     except Exception:  # noqa: BLE001 — unreachable is a fact, not a crash
         return None

@@ -349,6 +349,20 @@ class MinIOClient:
                 )
         return data
 
+    def remove_object(self, bucket: str, object_name: str) -> None:
+        """Delete one object.
+
+        The ArtifactStore's compensation path needs this: when the index
+        write fails in strict mode, the uploaded object has to be removed
+        again so the store keeps no ghost. Without this method the
+        compensation would fail on the production client — and a
+        compensation that fails is REPORTED (the object stays and must be
+        found by a reconciliation scan), so the ghost would be the
+        normal outcome rather than the rare one.
+        """
+        name = validate_object_path(object_name)
+        self.client.remove_object(bucket_name=bucket, object_name=name)
+
     def object_exists(self, bucket: str, object_name: str) -> bool:
         try:
             self.client.stat_object(bucket_name=bucket, object_name=object_name)
@@ -383,7 +397,16 @@ class MinIOClient:
         return found
 
     def is_ready(self) -> bool:
+        """True when the store answers.
+
+        The old expression was ``bucket_exists(...) or True`` — it made
+        this method answer True for ANY outcome, including "the store is
+        down" (the exception path returned False, but a store that
+        answered "no such bucket" answered True). A readiness probe that
+        cannot say "not ready" is a probe that lies, and every caller
+        downstream inherits the lie.
+        """
         try:
-            return self.client.bucket_exists(self.BUCKETS[0]) or True
-        except Exception:
+            return bool(self.client.bucket_exists(self.BUCKETS[0]))
+        except Exception:  # noqa: BLE001 — unreachable is not ready
             return False
