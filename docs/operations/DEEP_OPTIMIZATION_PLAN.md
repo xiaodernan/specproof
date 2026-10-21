@@ -6508,3 +6508,25 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 - `probe.py`/`mcp.py`（I/O 外壳，纯逻辑少，优先级低）。
 - `cli/specproof/main.py` 的 `HELP_EPILOG` 与真实命令集是否一致（与 #294 的指南漂移同类，但载体是 `--help` 的 epilog）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+
+## #329 `--help` 的 epilog / 模块 docstring 只能点名真实存在的子命令（无幽灵命令）
+- 起因/占号：#328 的下批候选②——「`cli/specproof/main.py` 的 `HELP_EPILOG` 与真实命令集是否一致」。
+  落地前重测账本：`## #` id 最大 328 ⇒ 取 **#329**。
+- 实测：`tests/unit/test_cli_help_epilog_names_real_commands.py` **3 passed**，ruff 干净。
+- 量到的现状：`cli.commands` 注册 **15** 个命令（approve/baseline/contract/craft/demo/devtools/eval/
+  evidence/fix/mcp/ops/probe/quickstart/replay/verify）；`HELP_EPILOG` 点名 6 个（craft/demo/ops/
+  probe/quickstart/verify），模块 docstring 的 `Commands:` 块点名 8 个——**当前均无幽灵命令**。
+- 门只钉**一个方向**：清单里出现的 `specproof <cmd>` 必须 ∈ `cli.commands`（无幽灵）。反方向（每个
+  注册命令都必须在清单里）**故意不钉**——epilog 是「常用任务」精选而非全量清单，硬要求每个命令都出现
+  会把文档变成噪声。理由：一句 `specproof foo` 写在 `--help` 里，用户敲下去得到 "No such command"，
+  这比「某命令没被介绍」伤得多——它把帮助文本本身变成错误信息源。
+- **门会红的证据（变异）**：给 `HELP_EPILOG` 末尾模拟加一行 `specproof nonexistentcmd`，对账立刻得到
+  `phantom(fake) = ['nonexistentcmd']`；真实 epilog 的 `phantom` 为空。正向控制（`len(mentioned)>=3` +
+  `"craft" in mentioned`）防止解析器坏掉时断言恒真。
+- 诚实边界：① 只加测试，`main.py` 一字未动；② 只查 epilog 与模块 docstring 两处手写清单，不查各子命令
+  自身的 `--help` 文本；③ 不跑真实 `CliRunner --help` 渲染（静态文本对账已够，渲染层属另一平面）。
+
+**下一号队列（取号时按落地时点 max+1）。** ① 仪表盘 `byName` override ↔ 同面板 `legendFormat` 对账
+（#296 队列①；当前 `specproof-slo.json` 在途，须等让出）；② `probe.py`/`mcp.py` 的纯逻辑补栅栏（低优先）；
+③ #322/#326 队列里被 craft/Docker/生产数据阻塞的项照旧（并发服务路径陈旧读样本、ENOSPC 磁盘满、DEEP
+耗时校准、P1-7 MinIO 对象引用）；④ 各子命令自身 `--help` 文本与真实选项集的一致性（本号未覆盖）。
