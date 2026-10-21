@@ -23,6 +23,7 @@ an unreachable service yields an empty snapshot — never an invented one.
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 from experiments.collectors import (
@@ -52,19 +53,69 @@ _KEY_FAMILIES: tuple[tuple[str, str, str], ...] = (
 )
 
 
+#: An EXPLICIT declaration of the key families a requirement is about.
+#: The syntax is a line in the requirement text:
+#:
+#:     observes keys: token:user:*, user:cache:*
+#:
+#: It wins over the keyword heuristic, because a requirement that SAYS
+#: which keys it is about cannot be mis-guessed. The heuristic stays as
+#: the fallback for requirements that do not declare it.
+_KEY_DECLARATION_RE = re.compile(
+    r"(?im)^[^\n]*?\bobserve[sd]?\b[^\n:]*:\s*(?P<patterns>[^\n]+)$"
+)
+
+
+def declared_key_patterns(contract: dict[str, Any]) -> list[str]:
+    """The key families the requirement DECLARES it is about.
+
+    A requirement can name them outright ("observes keys: token:user:*").
+    That is stronger than any heuristic: it cannot be mis-guessed, and it
+    says what a requirement that uses other words ("credentials",
+    "session store") could never match.
+
+    Only the patterns are taken, and only the ones that look like key
+    patterns (they contain a colon or a star) — a declaration line that
+    names no pattern is treated as no declaration at all, rather than as
+    a pattern that matches nothing.
+    """
+    text = " ".join(
+        str(contract.get(field) or "")
+        for field in ("requirement", "expected_behavior")
+    )
+    patterns: list[str] = []
+    for found in _KEY_DECLARATION_RE.finditer(text):
+        for part in found.group("patterns").split(","):
+            candidate = part.strip()
+            if not candidate:
+                continue
+            if ":" not in candidate and "*" not in candidate:
+                continue
+            if candidate not in patterns:
+                patterns.append(candidate)
+    return patterns
+
+
 def key_patterns_for(
     contract: dict[str, Any], profile: Any | None = None,
 ) -> list[str]:
     """The Redis key patterns a contract is about.
 
-    Derived from TWO facts that already exist: the contract's own text
-    (which names the family) and the profile (which says what that
-    family is called in this domain).
+    Two sources, in order of strength:
+
+    1. what the requirement DECLARES ("observes keys: …") — a
+       requirement that says which keys it is about cannot be mis-guessed;
+    2. otherwise, the family is derived from the contract's own text
+       (which names the family) and the profile (which says what that
+       family is called in this domain).
 
     A contract that names no family gets NOTHING observed — an empty
     pattern list, which the collector reports as NO_EVIDENCE. Guessing
     keys for it would be inventing evidence.
     """
+    declared = declared_key_patterns(contract)
+    if declared:
+        return declared
     if profile is None:
         from agent.experiments.profile import DEMO_PROFILE
 

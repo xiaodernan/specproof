@@ -36,6 +36,54 @@ def _contract(**overrides: Any) -> dict[str, Any]:
     return contract
 
 
+def test_a_declared_family_wins_over_the_heuristic() -> None:
+    """A requirement that SAYS which keys it is about cannot be mis-guessed.
+
+    The keyword heuristic reads "token"/"session" ⇒ the token family. A
+    declaration says exactly which keys, and it wins — including when it
+    names a family the heuristic would never have found.
+    """
+    from experiments.external_state import key_patterns_for
+
+    contract = _contract(
+        requirement=(
+            "the credentials store must be cleared on password change\n"
+            "observes keys: credentials:user:*"
+        )
+    )
+    assert key_patterns_for(contract) == ["credentials:user:*"]
+
+
+def test_a_declaration_may_name_several_families() -> None:
+    from experiments.external_state import key_patterns_for
+
+    contract = _contract(
+        requirement=(
+            "the session tokens and the cache must both be cleared\n"
+            "observes keys: token:user:*, user:cache:*"
+        )
+    )
+    assert key_patterns_for(contract) == ["token:user:*", "user:cache:*"]
+
+
+def test_a_declaration_without_a_pattern_is_no_declaration() -> None:
+    """A line that names no pattern is not a pattern that matches nothing.
+
+    Treating it as a declaration would silently blind the collector to a
+    family the heuristic could still have found.
+    """
+    from experiments.external_state import key_patterns_for
+
+    contract = _contract(
+        requirement=(
+            "the session tokens must be invalidated\n"
+            "observes keys: (none specified)"
+        )
+    )
+    # The heuristic still finds the token family.
+    assert key_patterns_for(contract) == ["token:user:*"]
+
+
 def test_the_family_comes_from_the_contract_text() -> None:
     assert key_patterns_for(_contract()) == ["token:user:*"]
 
