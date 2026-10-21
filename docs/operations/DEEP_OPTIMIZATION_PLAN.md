@@ -7348,3 +7348,81 @@ to create or update workflow ... without 'workflow' scope`）⇒ 我把 ci.yml *
 - **空列表不等于「没有盲区」**，而是「这一面没有观测可比」——两者的区别由 `observation_status` 是不是空串承担。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **对象那一面也进判定层**（胶囊坐标 + 对象观测）⇒ 需要改**图顺序**（矩阵在胶囊之前），不是本号能顺手做的；② **键族声明进规范语言**（parser + 编译器 + 注册表迁移）⇒ 需要一个**迁移窗口**（重写 101 个案例的 tag ⇒ 记不可回放）；③ **CI 里的集成腿 URL**（#340 边界②；token 缺 `workflow` scope，推不动，**留在工作区**）；④ **101 个案例的全量重跑评测**（CI nightly）；⑤ **DEEP 校准**（#300 队列①，未动）；⑥ demo 在**默认 JDK 25** 上跑不起来（单独解决）；⑦ 局部变量名是否也该进 profile（**已关闭**，#358）；⑧ 帧修队列项（**已关闭**，#364）。
+
+## #366 craft 的词干白名单 ↔ sandbox 的镜像名册：gradle/go 两处发散，其中一处的拒绝理由被同棵树否证
+
+**缺陷。** `compose.production.yml` 把 worker 钉在 `SPECPROOF_SANDBOX=docker` 上，`craft/executor.py`
+的 `ALLOWED_COMMANDS` 有 6 个词干（mvn/gradle/npm/pytest/python/cargo），而 `PROFILE_BY_STEM` 只路由
+4 个（mvn/npm/pytest/python）。被 `craft/gates.py` 的 `run_build_gate` 对每一个含 `build.gradle` 的仓库
+发出的 `["gradle", "-q", "compileJava"]`，在钉面上走 `PlaneToolchainMissingError`，理由写的是
+「命令词干 'gradle' 没有容器镜像」。**这条理由是假的**：`sandbox/runner.py` 的模块级
+`SandboxProfile` 对象有 7 个（含 `GRADLE_PROFILE`、`GO_PROFILE`），而 `experiments/adapters.py:1519`
+和 `:1739` 一直把这两个 profile 传给同一个 runner，跑在 craft 也在钉的那条面上。差分/验收那条路
+用得上 Gradle 与 Go 的镜像，改代码这条路却告诉用户「没有镜像」。`go` 更彻底：词干压根不在白名单里，
+作业连请求都发不出来，尽管 `GoAdapter` 早就存在。
+
+**测量（修前，只读探针 `.scratch/m308_probe.py`、`.scratch/m308_probe2.py`）。** ① 在钉面上对
+`gradle` 调 `Executor.run` ⇒ `PlaneToolchainMissingError`，reason 点名「没有容器镜像」；② 对真实 tmp
+工作区（一个 `build.gradle`）调 `run_build_gate` ⇒ `status=error`，也就是说这条缺陷的载体不是注释
+而是门状态；③ 派生的缺口集合 `stems_without_profile()` = `['cargo', 'gradle']`，而 `#128` 的作业日志
+note 与 `THREAT_TESTING.md` §1 都把 gradle 写进「无镜像」的名单里。
+
+**修。** `ALLOWED_COMMANDS` 补 `go`；`PROFILE_BY_STEM` 补 `gradle→GRADLE_PROFILE`、`go→GO_PROFILE`；
+白名单的运算符扩展 `CRAFT_EXTRA_COMMANDS` 收进 `effective_allowed_commands()` 这唯一一处读取点，
+`stems_without_profile()` 改由它派生 —— 运营者追加的词干从此同时出现在拒绝理由与作业日志 note 里，
+不再「可以请求、但无人承认它不可服务」。同一份派生集合也喂给 note，所以文档里那句「唯一无镜像的
+白名单词干只剩 cargo」不再是手抄。修后复测：`run_build_gate` ⇒ `status=passed`，缺口集合 ⇒ `['cargo']`，
+`go test ./...` 落到 `profile=go`。
+
+**落地时点的同一份扫描（所有数字来自这一个进程，门文件的 helper 即读者）。** runner 名册 7 个镜像：
+GO / GRADLE / MAVEN / NODE_INSTALL / NODE / PYTHON / REPLAY；产品文件 282 个；`profile=` 调用点 6 个常量
+（`experiments/adapters.py` 的 1039 / 1308 / 1334 / 1519 / 1739 与 `evidence/capsule_replay.py:126`）；
+craft 命令字面量交出的词干 3 个（python 6 处、mvn 2 处、gradle 1 处）；白名单 7、路由 6、缺口 1。
+后一个 1 是 `cargo`：runner 里唯一没有镜像的白名单词干，note 现在自己这么说。
+
+**门与腿。** `tests/unit/test_craft_routes_every_sandbox_profile.py`（新增，8 例）：L1 名册 ≥7 且 profile
+名唯一（防瞎普查）；L2 被拒绝的每个词干既不得有 `{STEM}_PROFILE` 也不得 `DEFAULT_{STEM}_IMAGE` 存在
+（这一条把「理由被同棵树否证」钉死），并要求路由表 ⊆ 白名单（反向：不得有不可达路由）；L3 名册里每个
+镜像必须经路由表 / 产品 `profile=` 调用点 / 默认选择器三者之一抵达，且三条非盲断言各自成立；L4  shipped
+craft 代码交出的每个词干既合法又可路由；L5 真调用方在钉面上的行为腿——`build.gradle` 仓库的
+`run_build_gate` 必须 `status=passed` 且 `profile is GRADLE_PROFILE`，随后 `go` 必须落 `GO_PROFILE`；
+L6 反空转：无标记工作区仍须 `skipped` 且零子进程；L7 `CRAFT_EXTRA_COMMANDS="Rust, cargo-c"` 两名合法、
+同时进缺口集合、同时被 note 与拒绝理由点名；L8 `THREAT_TESTING.md` §1 的路线对 ↔ 代码路由表**双向**
+相等，「只剩 …」那句的令牌集 ↔ 派生缺口集合相等。六门（新门 + `#128` note 门 + `test_craft_gates` +
+`test_craft_tools` + `test_craft_whitelist_judges_the_requested_command` + 指标 parity）合计
+**111 passed / 52.19s**；新门单独 8 passed / 8.28s；改号后复跑 24 passed / 34.60s。`ruff` 0（一处 I001
+自动修复）、`mypy` Success。
+
+**臂（6 缺陷臂 + 2 控制臂，预测先写盘 `.scratch/m308_predictions.json`，任何一臂未跑之前）。**
+A1 gradle 退回未路由→{L2,L4,L5,L8}；A2 go 退回不在白名单→{L2,L5}（L4 绿：没有 shipped 门发出 go）；
+A3 门改发 `sbt`→{L4,L5}；A4 给 runner 追加一个没人路由的 `CARGO_PROFILE`→{L2,L3}（L1 仍绿：名册是
+下限而非手钉，8 ≥ 7）；A5 `stems_without_profile` 退回只读 `ALLOWED_COMMANDS`→{L7}；A6 文档少一对
+路线→{L8}；C1 纯注释、C2 同段落改措辞→各自 0 红。**第一跑作废**：A1 与 A6 的替换串是
+空字节，而反向拼接靠「替换串在当前字节里恰好出现一次」来判定归位，`data.count(b"")` 恒为
+`len(data)+1`，两臂因此报 INTERFERED 并把缺陷留在盘上——其余六臂跑在一个已经 gradle 未路由、
+文档又少一对的平面上，六条 MISMATCH 全是它们自己的红叠着 A1+A6 的形状，一条证据也不是。修平面：
+`craft/executor.py` 反插那一行；`THREAT_TESTING.md` 不靠猜测重排，而是从 HEAD blob 起把这个文件本轮的
+9 次编辑按序重放，复现出记录在案的 md5 `5406277f…` 后才落回磁盘。臂脚本随后加了结构性约束：任何臂
+的替换串都必须非空且**改完后**在字节里恰好出现一次（否则改前不成立、改后无法归位，直接
+SKIPPED），每臂前后各比一次 at-rest 哈希，归位失败即终止整个电池而不是继续。**第二跑
+MATCHED=8 / MISMATCH=0 / INTERFERED=0**，postflight 五个文件哈希全部回到快照。
+
+**否证与订正。** ① `#128` 当初把缺口写成「gradle 与 cargo 都没有镜像」——是推断，不是测量；镜像一直
+存在，缺的只是路由。所以本号把这两句都改成从 `stems_without_profile()` 派生，措辞不再是事实来源，
+L8 也不再允许手抄。② 「词干表补满」这件事在 `#129` 之后被普遍认为已完成；本轮证明它只覆盖了发出
+命令的那三个词干里的一部分。③ 控制臂 C1/C2 0 红，证明腿是对语义起反应，而不是对「carrier 变了」起
+反应；A4 反证了 L1 的「≥7」写法：若把它钉成 `==7`，那臂会多红一条 L1，看着像更强的门，其实只是在
+手抄一个数。
+
+**诚实边界。** ① 本号的腿证明 craft **选对了镜像**，不证明容器里 gradle/go 真能构建——真镜像执行是
+`experiments/adapters.py` 那条路的既有证据，臂电池用 stub 记录 `profile=`，不启动容器。② `cargo` 仍在
+白名单里而没有镜像，craft 路径仍故意留在 local 面（`#128` 的缺口未消除，只是被如实披露）；把 craft
+也交回钉值，前置是词干表覆盖全部白名单词干且 `PlaneToolchainMissingError` 不再打断合法步骤。
+③ L3 只断言镜像「抵达某个 shipped 调用点」，`NODE_INSTALL_PROFILE` / `REPLAY_PROFILE` 经 adapters 与
+capsule_replay 抵达，不代表 craft 该用它们。④ 本号取号 max+1 时 HEAD 已到 `#365`；并发车道若先落
+`#366`，本号会被 `tests/unit/test_ledger_section_numbers_are_unique.py` 当场拦下，不是静默重号。
+
+**下一号队列（取号时按落地时点 max+1）。** ① `craft/gates.py` 的测试/构建标记检测不认识 Go 与 Node：
+`_TEST_GLOBSS` 无 `*_test.go`、无 `*.test.ts`/`*.spec.js`，构建标记无 `go.mod`、`package.json`，于是这两族
+仓库拿到「未检测到测试文件」/「未检测到构建配置」的假结论——本号把 gradle 接上后，这条路只剩这一处
+同类缺陷。② 让 craft 路径本身尊重部署钉值（前置见③）。③ 抓取面第一条真 HTTP 腿（原队列 #297）。

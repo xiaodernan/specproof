@@ -1,9 +1,13 @@
 """M1 executor (design doc §4.4): whitelisted commands through
 sandbox.run_sandboxed, with honest truncation and JUnit/surefire parsing.
 
-- command whitelist: mvn / gradle / npm / pytest / python / cargo (default
-  deny for everything else; CRAFT_EXTRA_COMMANDS appends comma-separated
-  names for experiments);
+- command whitelist: ALLOWED_COMMANDS (mvn / gradle / npm / pytest / python /
+  go / cargo; default deny for everything else; CRAFT_EXTRA_COMMANDS appends
+  comma-separated names for experiments). Each stem that has a container image
+  is routed to it by PROFILE_BY_STEM — the roster of images lives in
+  sandbox/runner.py, and #366's gate reads both sides together, because a
+  whitelisted stem that is missing from the table is refused with a reason
+  ("没有容器镜像") the runner contradicts;
 - every command runs through sandbox.run_sandboxed; the returned mode
   (docker | local_fallback | local) is recorded verbatim on the result;
 - timeout and output truncation: the combined output keeps its tail 4000
@@ -27,6 +31,8 @@ import defusedxml.ElementTree as SafeET
 
 from observability.metrics import incr, observe_duration
 from sandbox.runner import (
+    GO_PROFILE,
+    GRADLE_PROFILE,
     ISOLATION_PLANES,
     MAVEN_PROFILE,
     NODE_PROFILE,
@@ -38,7 +44,13 @@ from sandbox.runner import (
     run_sandboxed,
 )
 
-ALLOWED_COMMANDS: frozenset[str] = frozenset({"mvn", "gradle", "npm", "pytest", "python", "cargo"})
+ALLOWED_COMMANDS: frozenset[str] = frozenset(
+    {"mvn", "gradle", "npm", "pytest", "python", "go", "cargo"}
+)
+#: The operator-side extension knob (#131's family): names appended to the
+#: shipped whitelist at runtime. Read in ONE place so a refusal, the plane note
+#: and this module's own gap set all describe the same population.
+EXTRA_COMMANDS_ENV = "CRAFT_EXTRA_COMMANDS"
 OUTPUT_TAIL_CHARS = 4000
 STACK_LINE_LIMIT = 5
 DEFAULT_TIMEOUT = 600
@@ -63,10 +75,10 @@ def _timed_tool(stem: str) -> Iterator[None]:
     """Time one whitelisted tool execution into tool_run_seconds_<stem> (#178).
 
     The stem word is appended to the metric name (concatenated family, same
-    shape as the worker stage / ES op families): the whitelist vocabulary
-    mvn / gradle / npm / pytest / python / cargo (CRAFT_EXTRA_COMMANDS may
-    extend it at runtime). First use pins the ladder. finally semantics: a
-    run that dies inside the sandbox still records its wall time.
+    shape as the worker stage / ES op families): the vocabulary is
+    ``allowed_commands()`` — the shipped whitelist plus whatever
+    CRAFT_EXTRA_COMMANDS appends at runtime. First use pins the ladder. finally
+    semantics: a run that dies inside the sandbox still records its wall time.
     """
     started = time.perf_counter()
     try:
@@ -81,20 +93,46 @@ def _timed_tool(stem: str) -> Iterator[None]:
 #: table craft commands reached ``run_sandboxed`` with no ``profile=``, whose
 #: default is Maven-only, so a plane pinned to docker executed ``pytest`` /
 #: ``npm test`` inside the java image and failed for the wrong reason.
+#:
+#: #366 adds ``gradle`` and ``go``, and they are not new toolchains: the images
+#: ``GRADLE_PROFILE`` / ``GO_PROFILE`` already existed in sandbox/runner.py and
+#: ``experiments/adapters.py`` was running both languages in them on the very
+#: plane craft pins in production (compose.production.yml
+#: ``SPECPROOF_SANDBOX=docker``). A stem missing from THIS table was therefore
+#: refused with 「没有容器镜像」 — a reason the runner contradicts — and
+#: ``craft/gates.py``'s ``run_build_gate`` asks for exactly that command for
+#: every ``build.gradle`` repository, so the refusal arrived as a gate in
+#: ``error`` state. ``tests/unit/test_craft_routes_every_sandbox_profile.py``
+#: reads the runner's profile roster against this table so the two cannot
+#: diverge again.
 PROFILE_BY_STEM: dict[str, SandboxProfile] = {
     "mvn": MAVEN_PROFILE,
+    "gradle": GRADLE_PROFILE,
     "npm": NODE_PROFILE,
     "pytest": PYTHON_PROFILE,
     "python": PYTHON_PROFILE,
+    "go": GO_PROFILE,
 }
+
 
 class PlaneToolchainMissingError(RuntimeError):
     """The pinned container plane has no toolchain image for this command."""
 
 
+def effective_allowed_commands() -> set[str]:
+    """The whitelist a command is actually judged against: the shipped table
+    plus ``CRAFT_EXTRA_COMMANDS``. ``Executor`` and the two disclosures below
+    must read this, not ``ALLOWED_COMMANDS`` alone, or an operator-appended
+    stem is legal to ask for and absent from every list of what cannot run."""
+    extra = os.getenv(EXTRA_COMMANDS_ENV, "")
+    return set(ALLOWED_COMMANDS) | {
+        token.strip().lower() for token in extra.split(",") if token.strip()
+    }
+
+
 def stems_without_profile() -> set[str]:
     """Whitelisted stems that have no container image — derived, never typed."""
-    return set(ALLOWED_COMMANDS) - set(PROFILE_BY_STEM)
+    return effective_allowed_commands() - set(PROFILE_BY_STEM)
 
 
 def craft_plane_decision() -> tuple[str, str]:
@@ -104,11 +142,15 @@ def craft_plane_decision() -> tuple[str, str]:
     docker plane runs each language in its own image. That is still not enough
     to move THIS path onto the pinned plane, and the note says why instead of
     letting it read as covered: the repair loop's commands are the model's
-    choice, and every whitelisted stem in ``stems_without_profile()`` (today
-    ``gradle``/``cargo`` — no image exists) would be refused on a pinned plane.
-    A craft job could then die on a step the sandbox cannot serve at all, so
-    craft stays on the host plane ON PURPOSE and the disclosure rides the job
-    log, keeping THREAT_TESTING.md §1's "缓解事实" honest about this path.
+    choice, and every whitelisted stem in ``stems_without_profile()`` would be
+    refused on a pinned plane — today that is ``cargo``, whose Rust toolchain no
+    image here carries. A craft job could then die on a step the sandbox cannot
+    serve at all, so craft stays on the host plane ON PURPOSE and the disclosure
+    rides the job log, keeping THREAT_TESTING.md §1's "缓解事实" honest about
+    this path. #366: the set used to name ``gradle`` too, and that half of the
+    claim was false — the runner has run Gradle in ``GRADLE_PROFILE`` all along.
+    The note quotes the derived set verbatim and the gate refuses to let it name
+    a stem for which sandbox/runner.py defines a same-named profile.
     """
     pinned = deployment_plane_pin()
     if not pinned or pinned == "local":
@@ -225,8 +267,7 @@ class Executor:
         self.python = python or (sys.executable if effective_mode == "local" else None)
 
     def allowed_commands(self) -> set[str]:
-        extra = os.getenv("CRAFT_EXTRA_COMMANDS", "")
-        return set(ALLOWED_COMMANDS) | {t.strip().lower() for t in extra.split(",") if t.strip()}
+        return effective_allowed_commands()
 
     def _resolve_command(self, command: list[str]) -> list[str]:
         """Substitute the configured interpreter for the bare python/pytest

@@ -18,7 +18,7 @@ Measured, not assumed:
   (``craft.executor.PROFILE_BY_STEM``), so a pinned docker plane no longer runs
   ``pytest``/``npm test`` inside the java image. Craft still keeps the host
   plane ON PURPOSE: the repair loop's commands are the model's choice, and the
-  whitelisted stems that have no image at all (``gradle``/``cargo``, derived as
+  whitelisted stems that have no image at all (``cargo`` since #366, derived as
   ``ALLOWED_COMMANDS - PROFILE_BY_STEM``) would be refused on a pinned plane —
   a craft job could die on a step the sandbox cannot serve. So what lands is
   the disclosure: the job log states that the mitigation is not in effect on
@@ -142,9 +142,12 @@ def test_a_pinned_sandbox_is_disclosed_as_not_in_effect(
 def test_the_note_blames_a_prerequisite_that_really_holds() -> None:
     """The note asserts two facts about the shipped source and both must hold:
     craft DOES name a profile on its way to the sandbox (so the pin is no longer
-    defeated by the Maven-only default), and the runner's default selector is
-    still a no-argument Maven constant (so a stem outside the table genuinely
-    has no image to fall back to)."""
+    defeated by the Maven-only default — #129), and a stem outside the table
+    genuinely has no image to fall back to. #366 re-measured the second half and
+    found it false for gradle: GRADLE_PROFILE existed in sandbox/runner.py and
+    experiments/adapters.py was running Gradle in it on the very plane the note
+    said had no image. That leg is tests/unit/test_craft_routes_every_sandbox_
+    profile.py; this one keeps the profile-passing half."""
     run_sandboxed_calls = [
         node
         for node in ast.walk(_tree(EXECUTOR_SOURCE))
@@ -274,6 +277,12 @@ def test_a_stem_gets_the_image_its_language_is_pinned_by() -> None:
     from the runner's own profile objects instead.
     """
     from sandbox.runner import (
+        GO_PROFILE as RUNNER_GO,
+    )
+    from sandbox.runner import (
+        GRADLE_PROFILE as RUNNER_GRADLE,
+    )
+    from sandbox.runner import (
         MAVEN_PROFILE as RUNNER_MAVEN,
     )
     from sandbox.runner import (
@@ -285,9 +294,11 @@ def test_a_stem_gets_the_image_its_language_is_pinned_by() -> None:
 
     expected = {
         "mvn": RUNNER_MAVEN,
+        "gradle": RUNNER_GRADLE,
         "npm": RUNNER_NODE,
         "pytest": RUNNER_PYTHON,
         "python": RUNNER_PYTHON,
+        "go": RUNNER_GO,
     }
     assert set(expected) == set(PROFILE_BY_STEM), (
         f"the two declarations cover different stems: {sorted(expected)} vs "
