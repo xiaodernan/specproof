@@ -6815,3 +6815,22 @@ to create or update workflow ... without 'workflow' scope`）⇒ 我把 ci.yml *
 **诚实边界。** ① 这条线**在 CI 上仍然不会跑**（#340 的 CI 改动被 token 权限挡住，且本机 compose 的对象存储服务在 CI 的 `docker compose up` 里**会**被起——前提是那个改动落地 ⇒ 仍待人工提交）。② 本号**只**验了采集与比较这条链，**没有**跑完整差分作业（作业级的验证仍未做，#339 边界③未变）。③ `build_object_store()` 现在依赖 `MinIOClient.is_ready()`，而 `is_ready` 只查**第一个桶**存在与否 ⇒ 一个「桶没建但服务活着」的情况会被当成「不可达」⇒ 报成 `unavailable` 而不是「reachable but empty」——**诚实的降级，但粒度不够**（该由采集器区分，本号未做）。④ 采集的**对象引用仍是空列表**（#338 边界①未变）——本号验的是「给定引用能不能采到」，不是「引用从哪来」。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **回来看第一次 CI 跑的结果**（#340 边界②，配置改了不等于生效了）。② **把 CI 里的 compose 对象存储也用上**（待 ci.yml 改动落地）。③ **跑一次完整的差分作业**，看两个时刻在**作业级**真的有差异（#339 边界③）。④ **两次运行之间重置外部服务**（#339 边界③）。⑤ **对象引用的真实来源**（胶囊/产物上传后由 `ArtifactStore` 回报坐标）——这会让采集器真的有事可采。⑥ **RabbitMQ 的生产接线**（活连接 + 真实路由键）。⑦ `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。⑧ demo 的测试在**默认 JDK 25** 上跑不起来（Mockito inline mock maker）—— 单独解决。⑨ 局部变量名是否也该进 profile（#319 的边界②）。⑩ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑪ 队列项④的**框法要改**（#319 队列⑤）。⑫ 101 个案例的**全量重跑评测**。
+
+## #342 胶囊真的进对象存储：坐标回来了（此前 `ArtifactStore` **零生产调用方**）
+
+**起因/占号。** #341 的下一号队列⑤：「**对象引用的真实来源**（胶囊/产物上传后由 `ArtifactStore` 回报坐标）—— 这会让采集器真的有事可采」。落地前重测账本：HEAD 50128d6、`## #` id 最大 **341** ⇒ 取 **#342**。
+
+**先量旧行为（量的是「对象坐标从哪来」）。** 全仓搜 `ArtifactStore(` / `put_object_with_digest(` / `.put_file(` / `.put_bytes(`：**生产代码里零调用方** ⇒ 胶囊一直只落在**本地磁盘**上 ⇒ 证据链**没有任何地址**指向它们 ⇒ 而 `ContractRecord.capsule_ref` 这个字段（Phase 1 就为「胶囊的 MinIO 引用」而设）**永远是空的**。⇒ 对象采集器的「待观测对象清单」为空，**不是因为找不到，而是因为压根没有对象**。
+
+**修。**
+- **胶囊节点上传胶囊**（`agent/nodes/create_capsule.py`）：打包成 zip 之后，用**生产客户端** `MinIOClient.put_object_with_digest` 传到 `specproof-bug-capsules` 桶，坐标是 `jobs/<job_id>/capsule-<finding_id>.zip` ⇒ 回报的坐标是 `bucket/object-name`（**字节现在在哪**，不是本地文件当时在哪）。
+- **坐标进 state**（`capsule_refs` 通道，`agent/state.py` + `initial_state`）⇒ 下游（采集器、报告）都能拿到它。
+- **best effort，但绝不静默**：对象存储挂掉 ⇒ 胶囊**仍是本地产物**（zip 没丢），但**没有地址**，于是两个计数器分别记账：`create_capsule_upload_succeeded_total` / `create_capsule_upload_failed_total`（外加驱动缺失时的 `..._unavailable_total`）。**降级的运行不能长得像干净的运行。**
+
+**门与腿。** `tests/unit/test_create_capsule_node_execution_is_observable.py` 新增 **3** 项（该文件 **7 passed**）：**胶囊真的到了对象存储**（桶、对象名、字节数都对）且**坐标随结果回来**；**上传失败被计数**且**胶囊仍在本地**且**没有坐标**（没有可指的东西）；成功也被计数。既有胶囊/报告/证据/存储治理回归 **51 passed**；`ruff` 0 errors、`mypy agent/` 0 errors（**57** 源文件）。
+
+**否证与订正。** ① 我在编辑时**手误**把指标名 `create_capsule_outcomes_filtered_out_total` 写成了 `..._filtered_total` ⇒ 指标词表被悄悄改了 ⇒ 立刻改回（指标名是**对外契约**，改它等于改产品说的话）。**改指标名时手比眼快，是最容易悄悄改掉契约的地方。** ② 第一版测试里我**没给**对象存储打桩 ⇒ 真去连了本机 SeaweedFS ⇒ 计数不隔离 ⇒ 补了双测替身（`_FakeMinIOClient`）✓。
+
+**诚实边界。** ① **采集器还没用上这些坐标**——`collect_evidence` 节点仍然采的是差分时刻的快照（那两次里**没有**胶囊，因为胶囊是差分**之后**才产生的）⇒ 对象坐标进了 state，但**还没有被观测**；这是**下一号**的事（图顺序要挪 + 采集器要采 `capsule_refs`）。② 上传**目前不走 `ArtifactStore`**（那条路有「上传成功但写库失败」的补偿语义），我用的是**更简单的直接上传 + 单独记坐标** ⇒ 与 `ArtifactStore` 的关系**尚未统一**（`ArtifactStore` 仍无生产调用方）。③ 对象名里的 `job_id` 可能为空 ⇒ 落成 `jobs/unknown/...`（诚实但粗）。④ 本号**没有**在真对象存储上跑过胶囊节点（测试用替身）⇒ 真服务那条腿（#341）验的是**采集与比较**，不是**上传**。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **让采集器真的观测 `capsule_refs`**（图顺序挪到 `create_capsule` 之后 + 对象片段的 head 取「现在」）⇒ 对象坐标**被观测**，「证据链带着地址走」才成立。② **统一上传路径**（胶囊走 `ArtifactStore`，把「上传成功但写库失败」的补偿语义也带上）。③ **回来看第一次 CI 跑的结果**（#340 边界②）。④ **跑一次完整的差分作业**（#339 边界③）。⑤ **两次运行之间重置外部服务**（#339 边界③）。⑥ **RabbitMQ 的生产接线**。⑦ `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。⑧ demo 的测试在**默认 JDK 25** 上跑不起来 —— 单独解决。⑨ 局部变量名是否也该进 profile（#319 的边界②）。⑩ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑪ 队列项④的**框法要改**（#319 队列⑤）。⑫ 101 个案例的**全量重跑评测**。

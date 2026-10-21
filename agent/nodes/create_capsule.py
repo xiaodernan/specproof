@@ -76,6 +76,9 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
     requirement_text = state.get("requirement_text", "")
     generated_tests_path = state.get("generated_tests_path", "")
     capsules: list[str] = []
+    #: The object-store coordinates of the capsules ("bucket/object-name")
+    #: — where the bytes ARE, not where the local file was.
+    capsule_refs: list[str] = []
 
     incr("create_capsule_runs_total")
     output_dir = Path("capsules")
@@ -211,6 +214,22 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
             contract_id=str(finding.get("contract_id") or ""),
         )
 
+        # The capsule also goes to the OBJECT STORE, and its coordinate
+        # comes back. Without this the object store is never written by
+        # the pipeline at all: the bytes live on a local disk, the
+        # evidence chain has no address for them, and every "where is
+        # this artifact" question can only be answered by guessing a
+        # path. The upload is best-effort (a store that is down must not
+        # cost us the capsule) but it is NOT silent — the outcome is
+        # counted and the coordinate travels in the state either way.
+        coordinate = _upload_capsule(
+            zip_path=zip_path,
+            finding_id=fid,
+            job_id=str(state.get("job_id") or ""),
+        )
+        if coordinate:
+            capsule_refs.append(coordinate)
+
     if capsules:
         incr("create_capsule_outcomes_packed_total")
     elif not confirmed_findings:
@@ -218,7 +237,52 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
     else:
         incr("create_capsule_outcomes_filtered_out_total")
 
-    return {"capsules": capsules}
+    return {"capsules": capsules, "capsule_refs": capsule_refs}
+
+
+def _upload_capsule(
+    zip_path: Path, finding_id: str, job_id: str,
+) -> str:
+    """Upload the capsule to the object store; return its coordinate.
+
+    The coordinate is "bucket/object-name" — where the bytes ARE. A
+    local path is where the file WAS, on the machine that made it.
+
+    Best effort, but never silent: a store that is down leaves the
+    capsule a local artifact and the coordinate empty, and both outcomes
+    are counted. A capsule whose upload failed is not a lost capsule —
+    the zip is still on disk — but the evidence chain cannot point at
+    it, and the counters have to say so.
+    """
+    try:
+        from storage.minio import MinIOClient
+    except Exception:  # noqa: BLE001 — the driver is optional
+        incr("create_capsule_upload_unavailable_total")
+        return ""
+    try:
+        client = MinIOClient()
+        bucket = "specproof-bug-capsules"
+        name = f"jobs/{job_id or 'unknown'}/capsule-{finding_id}.zip"
+        uploaded = client.put_object_with_digest(
+            bucket, name, zip_path.read_bytes(),
+            content_type="application/zip",
+        )
+        coordinate = (
+            f"{uploaded.get('bucket') or bucket}/"
+            f"{uploaded.get('object_name') or name}"
+        )
+        incr("create_capsule_upload_succeeded_total")
+        return coordinate
+    except Exception as exc:  # noqa: BLE001 — the capsule survives locally
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "capsule upload failed (%s: %s) — the capsule stays a local "
+            "artifact and the evidence chain cannot address it",
+            type(exc).__name__, exc,
+        )
+        incr("create_capsule_upload_failed_total")
+        return ""
 
 
 def _record_capsule_metadata(

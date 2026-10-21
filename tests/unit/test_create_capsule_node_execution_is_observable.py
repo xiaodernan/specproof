@@ -84,6 +84,42 @@ def _stub_metadata(monkeypatch: pytest.MonkeyPatch) -> _Recorder:
     return recorder
 
 
+class _FakeMinIOClient:
+    """An object-store double: records the uploads it was asked to make."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.uploads: list[tuple[str, str, int]] = []
+
+    def put_object_with_digest(
+        self,
+        bucket: str,
+        object_name: str,
+        data: bytes,
+        content_type: str = "application/octet-stream",
+        version: str | None = None,
+    ) -> dict[str, Any]:
+        if self.fail:
+            raise RuntimeError("object store unreachable")
+        self.uploads.append((bucket, object_name, len(data)))
+        return {
+            "bucket": bucket,
+            "object_name": object_name,
+            "sha256": "a" * 64,
+            "size_bytes": len(data),
+            "content_type": content_type,
+            "version": version,
+        }
+
+
+def _stub_object_store(
+    monkeypatch: pytest.MonkeyPatch, *, fail: bool = False
+) -> _FakeMinIOClient:
+    fake = _FakeMinIOClient(fail=fail)
+    monkeypatch.setattr("storage.minio.MinIOClient", lambda *a, **k: fake)
+    return fake
+
+
 def _state(tmp_path: Path, findings: list[dict[str, Any]]) -> dict[str, Any]:
     tests = tmp_path / "SpecProofGeneratedTest.java"
     tests.write_text("class SpecProofGeneratedTest {}", encoding="utf-8")
@@ -96,6 +132,82 @@ def _state(tmp_path: Path, findings: list[dict[str, Any]]) -> dict[str, Any]:
         "head_ref": "head-v1",
         "job_id": "job-200",
     }
+
+
+# ── the object store: where the bytes ARE ───────────────────────────────────
+
+
+def _one_finding() -> list[dict[str, Any]]:
+    return [{
+        "id": "F1",
+        "severity": "BLOCKER",
+        "confidence": 0.9,
+        "contract_id": "AUTH-01",
+        "description": "guard removed",
+    }]
+
+
+def test_the_capsule_reaches_the_object_store_and_its_coordinate_comes_back(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The capsule is uploaded and the coordinate travels with the result.
+
+    A local path says where the file WAS, on the machine that made it.
+    The coordinate says where the bytes ARE — and it is the only thing
+    that lets the evidence chain (or another machine) find the capsule.
+    """
+    monkeypatch.chdir(tmp_path)
+    _stub_metadata(monkeypatch)
+    store = _stub_object_store(monkeypatch)
+
+    out = create_capsule_node(_state(tmp_path, _one_finding()))  # type: ignore[arg-type]
+
+    assert len(store.uploads) == 1
+    bucket, name, size = store.uploads[0]
+    assert bucket == "specproof-bug-capsules"
+    assert name == "jobs/job-200/capsule-F1.zip"
+    assert size > 0
+    # The coordinate is "bucket/object-name" — the address the store
+    # understands.
+    assert out["capsule_refs"] == [f"{bucket}/{name}"]
+
+
+def test_a_failed_upload_is_counted_and_the_capsule_stays_local(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An object store that is down must not cost us the capsule — but it
+    must not be silent either.
+
+    The zip is still on disk (the artifact is real); what is missing is
+    the ADDRESS. A degraded run that looks like a clean one is worse
+    than a run that says it could not upload.
+    """
+    monkeypatch.chdir(tmp_path)
+    _stub_metadata(monkeypatch)
+    _stub_object_store(monkeypatch, fail=True)
+    before = _counter("create_capsule_upload_failed_total")
+
+    out = create_capsule_node(_state(tmp_path, _one_finding()))  # type: ignore[arg-type]
+
+    assert _counter("create_capsule_upload_failed_total") == before + 1
+    # The capsule itself is intact.
+    assert len(out["capsules"]) == 1
+    assert Path(out["capsules"][0]).is_file()
+    # And there is no coordinate — nothing to point at.
+    assert out["capsule_refs"] == []
+
+
+def test_a_successful_upload_is_counted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _stub_metadata(monkeypatch)
+    _stub_object_store(monkeypatch)
+    before = _counter("create_capsule_upload_succeeded_total")
+
+    create_capsule_node(_state(tmp_path, _one_finding()))  # type: ignore[arg-type]
+
+    assert _counter("create_capsule_upload_succeeded_total") == before + 1
 
 
 def test_packed_counts_packed(

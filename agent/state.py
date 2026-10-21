@@ -92,6 +92,10 @@ class Phase0State(MessagesState):
     # ── Output ──
     matrix: dict[str, Any]
     capsules: list[str]
+    # The object-store coordinates of the capsules ("bucket/object-name").
+    # Where the bytes ARE — a capsule path says only where the local
+    # file was, on the machine that made it.
+    capsule_refs: list[str]
     certificate: dict[str, Any] | None
     report_path: str
 
@@ -149,6 +153,7 @@ def initial_state(
         "court_audit": [],
         "matrix": {},
         "capsules": [],
+        "capsule_refs": [],
         "certificate": None,
         "report_path": "",
         "errors": [],
