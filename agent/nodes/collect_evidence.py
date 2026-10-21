@@ -153,32 +153,65 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
         incr("collect_evidence_object_failed_total")
         pass
 
-    # Assemble and persist the evidence pack
+    # Assemble and persist the evidence pack.
+    #
+    # The pack is filed per CONTRACT: the collection carries a unique
+    # index on (job_id, contract_id), and a pack is "the evidence for
+    # this contract". Every contract of this job gets one, carrying the
+    # fragments this run observed. (Which fragments BEAR on which
+    # contract — the spec-declared keys per contract — is the wiring
+    # still to come; until then every pack carries the whole
+    # observation set, which is honest and addressable, just not yet
+    # narrowed.)
     if fragments:
-        pack = {
-            "job_id": raw_state.get("job_id", ""),
-            "created_at": __import__("datetime").datetime.now(
-                __import__("datetime").UTC
-            ).isoformat(),
-            "fragments": [f.to_dict() for f in fragments],
-        }
-        try:
-            from storage.mongodb import MongoDBStore
-            mongo = MongoDBStore()
-            mongo.save_evidence_pack(pack)
+        contract_ids = [
+            str(c.get("id"))
+            for c in (raw_state.get("contracts") or [])
+            if isinstance(c, dict) and c.get("id")
+        ]
+        if not contract_ids:
+            incr("collect_evidence_no_fragments_total")
+            return {
+                "evidence_pack_saved": False,
+                "evidence_pack_error": (
+                    "no contract to file the pack under — a pack is keyed by "
+                    "(job_id, contract_id)"
+                ),
+                "fragments_collected": collected,
+            }
+        from datetime import UTC, datetime
+
+        from storage.mongodb import MongoDBStore
+
+        mongo = MongoDBStore()
+        saved = 0
+        failure = ""
+        for contract_id in contract_ids:
+            pack = {
+                "job_id": raw_state.get("job_id", ""),
+                "contract_id": contract_id,
+                "created_at": datetime.now(UTC).isoformat(),
+                "fragments": [f.to_dict() for f in fragments],
+            }
+            try:
+                mongo.save_evidence_pack(pack)
+                saved += 1
+            except Exception as exc:  # noqa: BLE001 — reported, not swallowed
+                failure = f"mongo save: {exc}"
+                break
+        if saved:
             incr("collect_evidence_pack_saved_total")
             return {
                 "evidence_pack_saved": True,
-                "evidence_pack_error": None,
+                "evidence_pack_error": failure or None,
                 "fragments_collected": collected,
             }
-        except Exception as exc:  # noqa: BLE001
-            incr("collect_evidence_pack_failed_total")
-            return {
-                "evidence_pack_saved": False,
-                "evidence_pack_error": f"mongo save: {exc}",
-                "fragments_collected": collected,
-            }
+        incr("collect_evidence_pack_failed_total")
+        return {
+            "evidence_pack_saved": False,
+            "evidence_pack_error": failure or "no pack was written",
+            "fragments_collected": collected,
+        }
     else:
         incr("collect_evidence_no_fragments_total")
         return {

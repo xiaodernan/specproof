@@ -60,6 +60,14 @@ class Phase0State(MessagesState):
     # changed". Channel, not a transient: the collector node runs later.
     external_state_base: dict[str, Any]
     external_state_head: dict[str, Any]
+    # The evidence pack's outcome. LangGraph keeps ONLY the channels the
+    # state schema declares — a node that returns an undeclared key has
+    # it SILENTLY DROPPED, so "the pack was not written" would have no
+    # way to reach the reader. Every key a node returns must be declared
+    # here, or it does not exist.
+    evidence_pack_saved: bool
+    evidence_pack_error: str
+    fragments_collected: int
     # P5: RELEASE tier gates (reproducibility + capsule integrity)
     release_results: dict[str, Any]
     release_note: str
@@ -140,6 +148,9 @@ def initial_state(
         "deep_note": "",
         "external_state_base": {},
         "external_state_head": {},
+        "evidence_pack_saved": False,
+        "evidence_pack_error": "",
+        "fragments_collected": 0,
         "release_results": {},
         "release_note": "",
         "static_findings": [],

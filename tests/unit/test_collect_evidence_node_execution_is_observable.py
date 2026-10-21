@@ -86,6 +86,7 @@ def _state(
         "base_ref": "base",
         "head_ref": "head",
         "capsules": [],
+        "contracts": [{"id": "AUTH-01"}],
     }
     if base is not None:
         state["external_state_base"] = base
@@ -274,6 +275,9 @@ def test_the_pack_carries_the_fragments_with_their_honest_status(
     assert len(mongo.packs) == 1
     pack = mongo.packs[0]
     assert pack["job_id"] == "job-339-0001"
+    # A pack is keyed by (job_id, contract_id) — the collection carries a
+    # unique index on exactly that pair.
+    assert pack["contract_id"] == "AUTH-01"
     assert pack["created_at"]
     fragments = pack["fragments"]
     assert fragments
@@ -333,6 +337,56 @@ def test_the_capsule_coordinates_are_observed(
     assert changed["ref"] == ref
     # And the coordinate is IN the evidence — the address, not a path.
     assert ref in objects["head"]
+
+
+def test_each_contract_gets_its_own_pack(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pack is filed per CONTRACT.
+
+    The collection carries a unique index on (job_id, contract_id) and
+    a pack IS "the evidence for this contract" — one pack per contract,
+    each carrying the fragments this run observed. (Which fragments BEAR
+    on which contract is the wiring still to come; until then every
+    pack carries the whole observation set — honest and addressable,
+    just not yet narrowed.)
+    """
+    mongo = _stub_mongo(monkeypatch)
+    state = _state(
+        base=_moment(key_present=False, object_present=False),
+        head=_moment(key_present=True, object_present=True),
+    )
+    state["contracts"] = [{"id": "AUTH-01"}, {"id": "CACHE-01"}]
+
+    result = collect_evidence_node(state)
+
+    assert result["evidence_pack_saved"] is True
+    assert [p["contract_id"] for p in mongo.packs] == ["AUTH-01", "CACHE-01"]
+    for pack in mongo.packs:
+        assert pack["job_id"] == "job-339-0001"
+        assert pack["fragments"]
+
+
+def test_a_run_with_no_contract_files_no_pack(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pack needs a contract to be filed under — and says so.
+
+    Without one there is no address: a pack keyed by nothing could not
+    be found by `get_evidence_pack(job_id, contract_id)`.
+    """
+    mongo = _stub_mongo(monkeypatch)
+    state = _state(
+        base=_moment(key_present=False, object_present=False),
+        head=_moment(key_present=True, object_present=True),
+    )
+    state["contracts"] = []
+
+    result = collect_evidence_node(state)
+
+    assert result["evidence_pack_saved"] is False
+    assert "no contract" in str(result["evidence_pack_error"])
+    assert mongo.packs == []
 
 
 def test_the_graph_runs_the_node_after_the_capsules_exist() -> None:

@@ -450,6 +450,12 @@ def eval_cmd(
         state["use_llm"] = use_llm
         state["output_dir"] = str(Path("reports").resolve())
         state["app_dir"] = "demo/spring-backend"
+        # §A task 7: every artifact this job writes is recorded under
+        # this job id — and the evidence pack is keyed by it too. Without
+        # a job id the collector refuses to write a pack (a pack nobody
+        # could find later is worse than no pack), so an evaluation
+        # without one silently produced NO evidence chain at all.
+        state["job_id"] = f"eval-{case_dir.name}"
 
         final: dict[str, Any] = {}
         # Case-level timing: wall clock around the whole pipeline. The graph
@@ -504,6 +510,23 @@ def eval_cmd(
             negative_cases += 1
 
         findings = final.get("confirmed_findings", [])
+
+        # The evidence chain is part of what this run produced. If the
+        # pack was not written, the run has NO archived evidence — and
+        # saying nothing about it would let a broken chain look like a
+        # clean one. The state is reported per case, with the reason.
+        pack_state = final.get("evidence_pack_saved")
+        pack_error = final.get("evidence_pack_error") or ""
+        if pack_state is True:
+            click.echo(
+                f"  evidence pack: saved ({final.get('fragments_collected', 0)} "
+                f"fragment(s))"
+            )
+        else:
+            click.echo(
+                "  evidence pack: NOT SAVED"
+                + (f" — {pack_error}" if pack_error else "")
+            )
 
         matched: list[dict[str, Any]] = []
         seen_ids: set[str] = set()
