@@ -6426,3 +6426,34 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 **诚实边界。** ① **空回答不重试**：它在第一次尝试就失败（不在 SDK 的可重试集合里）。理由：`RuntimeError` 同时装着「模型拒绝」和「网关空包」，把整类变可重试会在一个**明确拒绝**的模型上白烧预算。但**空包究竟有多少是瞬时故障**，本号**没有量过**——所以这不是「测得的最优」，是「选定的策略」。② 守卫的口径是「无文本**且**无 tool_call」；有 tool_call 时空正文一律放行。③ 本号改的是**每个调用方都会走**的路径，跑的是 provider 全套 + counterexample 路径（98 项），**不是**全量套件（本机仍跑不完）。④ 故障矩阵的计数口径仍是「故障族」：17 = `test_all_scenarios` 的 10 + 故障矩阵 5 + 事务故障 2。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（#314 的结论，仍未动）。② 局部变量名是否也该进 profile（#319 的边界②）。③ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。④ 队列项④的**框法要改**（#319 队列⑤）：多数手写假是**方法级鸭子类型**，换成求值器等于把它们变成真 store。⑤ P1-7（MinIO 对象引用）。⑥ 故障覆盖表最后一个待办：**磁盘满**（ENOSPC）。
+## #325 `case_set.empty_pool_message` 必须说出「是哪一条决定把案例池清空了」
+
+**起因/占号（又量掉一条伪需求）。** #294 的下批候选首条是「`README.md` / `LOCAL_EXPERIENCE.md` 的命令清单是否与 `cli.commands` 一致」。本号先量：`LOCAL_EXPERIENCE.md` 里 `specproof [a-z]` **0 处**；`README.md` 只有 1 处 `specproof craft accept --job <任务号>`，那是 `craft` 的**子命令用法示例**，不是顶层命令清单。**结论：没有可校对的清单，这条候选不成立**，负数结果记在这里。
+
+于是按「零直接引用」的同一把尺继续扫：`cli/specproof/case_set.py` 被两个测试文件引用，但函数级覆盖并不均匀——`plan_case_dirs` 有 3 处、`pool_mismatch` 有 1 处，**`empty_pool_message` 是 0 处**。它恰好是项目最在意的那类「诚实」代码：把「0 个案例」拆成两种完全不同的原因。占号前读账本最大 322（`## #322`），本号取 **#325**（323/324 留作并发缓冲，未使用）。
+
+**量到的缺陷（先量后写）。** `empty_pool_message(discovered, plan, cases_path)` 有两条分支：
+- `discovered` 真：`本轮没有可跑案例：{n} 个案例在 {path} 目录下，被案例集选择（模式 {mode}）全部排除。要跑全部案例请显式传 --include-holdout。`——这是**策略**的结果；
+- `discovered` 假：`No case directories found in {path}`——这是**路径错**。
+
+两条一旦被合并成一句，用户会把「holdout 隔离把 12 个案例全排除了」误读成「目录是空的」，而且调用方会 `exit 0`，等于在什么都没测的情况下宣布了一个结论。函数零直接测试。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_empty_pool_message_names_the_decision.py`（3 案，纯字符串，无文件系统）：
+1. `test_isolation_explained_when_cases_were_discovered`：`discovered=5` 时消息含 `5`、路径、`mode`、`--include-holdout`，且**不含** `No case directories found`。
+2. `test_wrong_path_blamed_when_none_were_discovered`：`discovered=0` 时消息**逐字等于** `No case directories found in {path}`，且**不含** `--include-holdout`。
+3. `test_the_two_branches_never_collapse`：两条消息必须不同（把「拆开」这件事本身钉住）。
+
+**门证（全在本批内亲手取）。** 临时环境只需 click（`case_set` 的 `agent.holdout` 依赖在最小环境里可导入）：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_empty_pool_message_names_the_decision.py -q -p no:cacheprovider` | 3 passed in 4.72s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_empty_pool_message_names_the_decision.py` | All checks passed |
+| **变异臂**（`if discovered:` → `if False:`，即把两种原因合并成「路径错」那一句） | 先预测：第 1、3 条必红，第 2 条仍绿 | 实测 **2 failed, 1 passed**，`assert 'No case directories found in cases' != 'No case directories found in cases'` |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `diff` 与变异前备份逐字节一致、`if discovered:` 回到 1 处；复跑 3 passed in 1.06s |
+
+**诚实边界（明确不声称）。** ① 只加测试：`case_set.py` 生产码一字未动。② 只钉 `empty_pool_message`；同模块的 `pool_mismatch` 已有 1 处测试引用、`CasePlan.header_lines`/`as_json` 未在本批覆盖（`header_lines` 的 `--include-holdout` 警告文案与 `as_json` 的排序口径是另外两条可钉项）。③ 断言是行为级表征：只钉「说了哪件事」与「两条不许合并」，不钉整句标点。
+
+**下批候选（受本环境约束）。**
+- `CasePlan.header_lines`（`all_not_isolated` 时那句「这些数字不是未见过案例上的指标」）与 `as_json`（`excluded_holdout_cases` / `declared_but_absent` 的排序）各补一条。
+- `probe.py`/`mcp.py`（I/O 外壳，纯逻辑少，优先级低）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
