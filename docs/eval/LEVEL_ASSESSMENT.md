@@ -11,7 +11,7 @@
 | tests/security | 36 | 密钥 0 泄漏 (含注入矩阵 24) |
 | tests/fault | 45 | MQ/worker/网关 429/磁盘/时钟 故障注入 |
 | tests/integration | 79 | 真实 MySQL/Redis/RabbitMQ/Mongo/ES/MinIO |
-| golden-cases | 100 | 验证能力基准 (63 正 / 37 负) |
+| golden-cases | 101 | 验证能力基准 (64 正 / 37 负) |
 | bench 微基准 | 10 | SpecCraft 开发能力基准 (含 1 陷阱) |
 | 合计 | ≈867 | 机器可判用例 |
 

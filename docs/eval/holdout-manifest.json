@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "note": "Retroactive partial isolation (honest caveat): this candidate set was declared AFTER earlier evaluation rounds already ran against these cases (W-series eval reports and the 10-case Recall/Precision runs recorded in CLAUDE.md). Holdout metrics computed on them must therefore be labelled 'retroactive holdout candidates' — they do not constitute a clean prospective holdout. A clean split requires case ids that no earlier round ever saw. Status transitions: candidate -> active (frozen for future eval only) or released (returned to the training pool). 词汇说明 (#313): `family` 统一为**契约家族 id**(AUTH-01 / TRANSACTION-01 / UNIQUE-01 / TOKEN_INVALIDATION-01 / BACKWARD_COMPATIBLE-01 / EVENT_ONCE-01 / ATOMICITY-01 / IDEMPOTENT-01 / CACHE-01), 与 golden case 的 `expected_contract`、`experiments/experiment_classes.py` 的注册表**同一个词**;不属于任何家族的案例写 `none`。旧的 P6 分组名(authnz / transaction / uniqueness / …) 已于 #313 全部换掉——一个文件里两套词表, 迟早会有案例进错组。",
+  "note": "Retroactive partial isolation (honest caveat): this candidate set was declared AFTER earlier evaluation rounds already ran against these cases (W-series eval reports and the 10-case Recall/Precision runs recorded in CLAUDE.md). Holdout metrics computed on them must therefore be labelled 'retroactive holdout candidates' — they do not constitute a clean prospective holdout. A clean split requires case ids that no earlier round ever saw. Status transitions: candidate -> active (frozen for future eval only) or released (returned to the training pool). 词汇说明 (#313): `family` 统一为**契约家族 id**(AUTH-01 / TRANSACTION-01 / UNIQUE-01 / TOKEN_INVALIDATION-01 / BACKWARD_COMPATIBLE-01 / EVENT_ONCE-01 / ATOMICITY-01 / IDEMPOTENT-01 / CACHE-01), 与 golden case 的 `expected_contract`、`experiments/experiment_classes.py` 的注册表**同一个词**;不属于任何家族的案例写 `none`。旧的 P6 分组名(authnz / transaction / uniqueness / …) 已于 #313 全部换掉——一个文件里两套词表, 迟早会有案例进错组。 #334 新增: 并发家族的 CONCURRENCY-01 进入这份清单(case-101, 服务级缺陷)。注意: case-101 是**新**案例, 从没被任何一轮评测跑过——它是**干净的前瞻 holdout**, 与上面那些 retroactively 声明的候选案例性质不同;它的诚实性由 `scripts/verify_case_tags.py --case case-101` 在真正的 tag 上单独验证过(base 通过 / head 失败)。",
   "integration_note": "RESOLVED (#77/#78, 2026-09-26): specproof eval and specproof baseline both select their case set through cli/specproof/case_set.py. Isolation is on by default (declared cases leave the pool), --only-holdout runs just them, --include-holdout merges them back and labels the run 'all_not_isolated'. Both commands write the case-set label into their sidecars, and baseline refuses to print a Go/No-Go gain when the two pools disagree or the SpecProof sidecar is unlabelled. The earlier text below is kept as history: eval.py integration deferred: at commit time cli/specproof/commands/eval.py was already modified by another lane (git status: M cli/specproof/commands/eval.py), so the --exclude-holdout flag was deliberately NOT added in this lane to avoid a write conflict. Wiring when that lane clears: in eval_cmd, after case_dirs is computed, load agent.holdout.HoldoutRegistry (default manifest docs/eval/holdout-manifest.json) and drop every directory whose name satisfies registry.is_holdout(name) unless an --include-holdout flag is passed, then print the skipped-case count in the run summary header.",
   "cases": [
     {
@@ -78,6 +78,12 @@
     {
       "case_id": "case-58-redis-cache-writeback-removed",
       "family": "CACHE-01",
+      "added_at": "2026-10-21",
+      "status": "candidate"
+    },
+    {
+      "case_id": "case-101-tx-bulk-update-bypasses-version-guard",
+      "family": "CONCURRENCY-01",
       "added_at": "2026-10-21",
       "status": "candidate"
     }

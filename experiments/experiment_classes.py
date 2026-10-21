@@ -107,23 +107,20 @@ EXPERIMENT_CLASSES: tuple[ExperimentClass, ...] = (
         ),
         positive_sample="case-29-tx-optimistic-lock-removed",
         negative_sample="case-30-tx-version-guard-moved-to-getter",
-        # GAP: the family has exactly ONE case of its kind, and a case
-        # cannot be both the tuning sample and the holdout.
+        # The GAP is closed (#334): the family now has a SECOND case of
+        # its own kind, and a case cannot be both the tuning sample and
+        # the holdout.
         #
-        # The TEMPLATE half of the gap is closed (#331): the family now has
-        # a service-path template that drives the ORDER FLOW against a
-        # stale read, so a defect in the service's own write path (a bulk
-        # UPDATE that computes the new stock from its own read) is
-        # visible — the repository-level template cannot see it, because
-        # the repository is never asked to do the write. Measured on the
-        # demo: the base passes (18/18) and the service-level mutant
-        # fails with "the other writer's stock (5) must survive, got 7",
-        # while the other 17 generated tests still pass on that mutant.
-        #
-        # What is still missing is the CASE: a golden case (with its own
-        # tag) has to carry that mutation, plus a negative twin that
-        # keeps the version guard. Until then the family has no holdout.
-        holdout_sample="",
+        # case-101 is a SERVICE-level defect, not a second spelling of
+        # case-29: the stock decrement is written by a bulk UPDATE that
+        # carries no version predicate, so the service writes back the
+        # value it read and the other writer's decrement is lost. The
+        # repository-level template cannot see it — the repository is
+        # never asked to do the write. Measured on the demo: the base
+        # passes (18/18) and the mutant fails with "the other writer's
+        # stock (5) must survive, got 7", while the other 17 generated
+        # tests still pass on that mutant.
+        holdout_sample="case-101-tx-bulk-update-bypasses-version-guard",
     ),
     ExperimentClass(
         key="unique_constraint",

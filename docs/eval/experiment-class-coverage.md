@@ -16,7 +16,7 @@ holdout 缺失是真的缺口，不是格式问题：一个案例不能既是调
 | 实验类 | 契约家族 | 机制 | 正样本 | 负样本 | holdout |
 |---|---|---|---|---|---|
 | transaction_rollback | ATOMICITY-01 | 生成式差分测试 | ✅ case-31-tx-decrement-committed-before-validation | ✅ case-34-tx-equivalent-dedup-lookup | ✅ case-39-tx-cancel-no-restock |
-| concurrency | CONCURRENCY-01 | 生成式差分测试 | ✅ case-29-tx-optimistic-lock-removed | ✅ case-30-tx-version-guard-moved-to-getter | — |
+| concurrency | CONCURRENCY-01 | 生成式差分测试 | ✅ case-29-tx-optimistic-lock-removed | ✅ case-30-tx-version-guard-moved-to-getter | ✅ case-101-tx-bulk-update-bypasses-version-guard |
 | unique_constraint | UNIQUE-01 | 生成式差分测试 | ✅ case-19-email-corruption | ✅ case-78-logic-email-input-trimmed | ✅ case-04-duplicate-email |
 | idempotency | IDEMPOTENT-01 | 生成式差分测试 | ✅ case-33-tx-order-idempotency-dedup-removed | ✅ case-36-tx-new-order-lookup-endpoint | ✅ case-35-tx-stock-decrement-off-by-one |
 | cache_consistency | CACHE-01 | 生成式差分测试 | ✅ case-57-redis-cache-ttl-removed | ✅ case-59-redis-cache-helpers-extracted | ✅ case-58-redis-cache-writeback-removed |
@@ -24,8 +24,4 @@ holdout 缺失是真的缺口，不是格式问题：一个案例不能既是调
 
 ## 缺口
 
-- **concurrency**（CONCURRENCY-01）缺：holdout
-
-补一个案例需要走 `scripts/build_golden_scenarios.py` 的数据定义（`_case(...)` 一条），并在 `docs/eval/holdout-manifest.json` 登记（注意：该清单的 `family` 字段有新旧两套词表并存，见其 `note`）。
-
-**并发类为什么不能随手补一个**：生成的 stale-write 测试驱动的是**repository** 而不是 service，所以它能看见的突变**全在实体层**（`@Version` 注解）；再造一个实体层突变，就是把 case-29 的缺陷换个说法再演一遍。真正不同的第二个样本，需要模板去驱动**服务路径**（经由下单流程的陈旧读）——那是下一步要造的东西。
+无：六类都齐了正样本、负样本与 holdout。

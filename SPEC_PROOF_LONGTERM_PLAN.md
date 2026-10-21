@@ -254,6 +254,7 @@
 - P3-4 模板体抽成与仓库无关的可移植模板 ✅（#319：域**名字**进 `agent/experiments/profile.py`（实体/仓储/DTO/端点/包名），模板的**逻辑**留在原处；生成的源码被 golden **逐字节**钉住，profile 可注入）
 - 模板搬进 `agent/experiments/` 并让 `experiment_classes` 指向新层 ✅（#320：24 个模板常量逐字搬进 `agent/experiments/templates.py`；节点只做管线，golden 未改一字即绿）
 - 并发类的**服务路径陈旧读模板** ✅（#333：模板**驱动服务**（仓储接缝喂陈旧快照 → 下单服务拿它去写）；基线 **18/18 通过**，服务级缺陷（批量 UPDATE 绕过版本守卫）**失败并指出「另一个写者的 5 被吞成 7」**，而同一次变异下其余 17 个用例照常通过 ⇒ 新增探测能力；golden 纯增量 +109/-0）
+- 并发家族的金案例与 holdout ✅（#335：`case-101-tx-bulk-update-bypasses-version-guard`（**服务级**缺陷：批量 UPDATE 的 WHERE 里没有版本谓词）；在**真正的 tag** 上验证过（`scripts/verify_case_tags.py`：`base` 绿 / `head` 红 ⇒ `base_pass_head_fail` 成立）；**六类实验第一次全部齐了正样本、负样本与 holdout**）
 - P3-7 其余故障注入：服务崩溃/超时/网络断开/消息重投/DB 锁等待 ✅（#321：补上**超时**与**网络断开**（provider 侧重试预算内、原样抛出、绝不编造答案）与**网络断开/DB 锁等待**（数据库侧：中途故障 ⇒ 作业行与 outbox 行都不落地，真库真事务证明原子性））
 - P3-7 剩余项：provider 收到**空 JSON 响应** ✅（#322：`chat` 空 `choices` 点名网关故障、无文本且无 tool_call 时与 responses 协议**一字不差**地拒绝；只有 tool_call 的回复照常放行；故障场景 16 → 17）
 - P3-7 剩余项：**磁盘满**（ENOSPC） ✅（#330：四个故障点逐一实测——临时写/备份/首次审计都**如实**报「没写」；只有**写入之后**那次审计失败会说谎（文件已落地却报「写入失败」），已改为 `AuditError` + 独立错误码 `EDIT_LANDED_AUDIT_FAILED`，模型不会去重试一个已经落地的写入）

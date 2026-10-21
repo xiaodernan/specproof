@@ -6633,3 +6633,23 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 **诚实边界。** ① 只补 help 文本：默认值、类型、行为**一字未改**，用户可见旋钮的语义现在能 `--help` 看到，但开关本身从一开始就存在。② 门只查「非空 help」——help 文本**是否准确描述行为**不在射程（那是人工审阅项）。③ 只覆盖 `cli_main.cli` 注册树；若未来有新命令未在注册表而只出现在 epilog / docstring，由 #332 那把尺管。④ 变红先判断是「回归」还是「旧断言写错」：本次无旧断言被改，纯增量。
 
 **下批候选。** ① 各子命令自身的 `--help` 文本与**真实选项集**一致性（如 help 里列了某选项但该选项已被移除）。② `probe.py` / `mcp.py` 纯逻辑补栅栏（低优先）。③ #333 队列①（建并发家族金案例 `case-101`）。
+
+## #335 并发家族的金案例：case-101（服务级缺陷）——在**真正的 tag** 上证明它诚实，家族缺口关闭
+
+**起因/占号。** #333 的下一号队列①是「建并发家族的金案例（`case-101` + 负样本孪生），并把它登记为该家族的 holdout」。落地前重测账本：HEAD f47a77d、`## #` id 最大 **334** ⇒ 取 **#335**。
+
+**修。**
+- **案例定义**（`scripts/build_golden_scenarios.py` 的数据表）：新增 `PRODUCT_REPO` 常量与一条 `_case("101", "tx-bulk-update-bypasses-version-guard", …)` 记录。变异是**服务级**的：把 `product.setStock(...); productRepository.saveAndFlush(product);` 换成 `productRepository.setStock(product.getId(), product.getStock())`——一次**批量 UPDATE**，**WHERE 子句里没有版本谓词**，写回的是服务**自己读到的那个值**。⇒ 并发扣减被**静默吞掉**。
+- **tag**：`--only case-101` 跑出 `case-101-head`，**父提交是 base** ⇒ `git diff base..case-101-head` 只有这一个案例的变异（**2 个文件、+8/-1**）✓。
+- **案例目录** `golden-cases/case-101-tx-bulk-update-bypasses-version-guard/`：`spec.md` / `scenario.json` / `ground-truth.json`（`expected_contract: CONCURRENCY-01`、`expected_evidence_type: base_pass_head_fail`）。
+- **集合登记**：`golden-cases/split.json`（registry + `adversarial` 分组 + 计数 100 → **101**）；`docs/eval/holdout-manifest.json`（登记为 CONCURRENCY-01 的 holdout，**14** 个）。
+- **家族表**：`experiments/experiment_classes.py` 的 `holdout_sample` 填上 ⇒ **GAP 关闭**；覆盖报告重生成后，缺口一节从「并发类缺 holdout」变成「**无：六类都齐了正样本、负样本与 holdout**」。
+- **新脚本 `scripts/verify_case_tags.py`**：在**已提交的 tag** 上验证一个案例的诚实性——渲染生成源码 → 把 `base` 与案例 head 各签出一棵临时 worktree → 把生成测试丢进 demo 的测试树 → 两边各跑一次 maven → 报「base 绿 / head 红」才算成立。
+
+**门与腿。** `scripts/verify_case_tags.py --case case-101` ⇒ **`VERDICT: case-101 base_pass_head_fail HOLDS`**：`base` **18 run, 0 failures**（基线通过）✓；`case-101-head` **18 run, 1 failure**——失败的正��是新用例，报出两条精确的话：`The service accepted an order against a stale product read (status 200)` 与 **`The other writer's stock (5) must survive the service's write, got 7`** ⇒ 服务返回了 200，另一个写者的扣减**真的被吞了**。Python 侧：holdout 门 + 实验类门 + 评测隔离门 **82 passed**；评测相关（样本充分性/引用预检/case17/评测子集）**21 passed**；`ruff`、`mypy` 0 errors。
+
+**否证与订正。** ① 验证脚本第一版在**我自己拼的受限 env**（手写 PATH）里跑 ⇒ 上下文起不来（`Could not initialize plugin: MockMaker`），报出的「循环依赖」是**下游症状**不是真因。改用**完整环境**（直接进 worktree 跑 maven）⇒ base 18/18 通过 ⇒ **是 env 的问题，不是接缝的问题**。教训：**自己拼的 env 会骗人**。② 案例的诚实性**不能**靠「我本地改过代码所以能复现」——那只证明方向对；必须**在已提交的 tag** 上验：base 绿、head 红、diff 里只有这一个变异。③ 案例集合的**历史评测数字**（63/63、Recall 100%）**没有**改写：那是当时跑 100 个案例的**测量结果**；新案例**没有**被全量重跑，也不假装被跑过——只更新了「当前构成」的表述，并写明差在哪（`docs/eval/p6-100-case-eval.md` 加了一段显式说明）。
+
+**诚实边界。** ① **101 个案例没有全量重跑评测**（那要跑整条评测流水线，本号没做）；本号验的是**这一个案例**的诚实性 + 集合登记的一致性（门都绿）。② `case-101` 的变异是**服务级**的，但它**仍然依赖实体上的 `@Version` 存在**——缺陷是「**绕过**了它」，不是「它没了」。⇒ 它与 case-29 是**不同的缺陷**（一个动注解，一个动写路径），但**不是**与版本机制无关的缺陷；这个界线不夸大。③ `verify_case_tags.py` 需要 **JDK ≤ 21**（demo 的 Mockito inline mock maker 在 JDK 25 上**根本起不来**，demo 自己的用例也一样）——这是**既有环境限制**，本号只是绕开了它，没有解决它。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **demo 的测试在默认 JDK 25 上跑不起来**（Mockito inline mock maker）——单独解决，别让「本机能跑」成为一条隐藏前提。② `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。③ 局部变量名是否也该进 profile（#319 的边界②）。④ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 队列项④的**框法要改**（#319 队列⑤）。⑥ P1-7（MinIO 对象引用）。⑦ 101 个案例的**全量重跑评测**（真正的 Recall/Precision/F1 该重测了）。

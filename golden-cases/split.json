@@ -1,7 +1,7 @@
 {
   "version": "0.6.0",
   "created": "2026-07-10",
-  "description": "P6 Golden Case Split (100 cases) — Holdout / Negative / Adversarial / Train",
+  "description": "P6 Golden Case Split (101 cases) — Holdout / Negative / Adversarial / Train",
   "splits": {
     "holdout": {
       "description": "Final evaluation set. NEVER used during development or tuning. Used only for acceptance gate.",
@@ -127,7 +127,8 @@
         "case-85-perf-silent-result-limit",
         "case-86-perf-users-requeried-per-user",
         "case-97-rel-broker-failure-retried-into-duplicate",
-        "case-98-rel-noop-email-change-publishes-event"
+        "case-98-rel-noop-email-change-publishes-event",
+        "case-101-tx-bulk-update-bypasses-version-guard"
       ],
       "success_criteria": {
         "min_recall": 0.85,
@@ -1022,6 +1023,17 @@
       "note": "execution-only: captured-payload assertion",
       "requires": [
         "differential_execution"
+      ]
+    },
+    "case-101-tx-bulk-update-bypasses-version-guard": {
+      "category": "adversarial",
+      "type": "positive",
+      "risk": "replace the versioned entity save with a bulk UPDATE that writes back the stock the service read (execution-only)",
+      "expected_severity": "BLOCKER",
+      "note": "execution-only: service-path stale-read differential test + products-table dump",
+      "requires": [
+        "differential_execution",
+        "db_state_verification"
       ]
     }
   },

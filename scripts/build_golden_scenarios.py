@@ -46,6 +46,7 @@ SECURITY = DEMO + "/config/SecurityConfig.java"
 ORDER_CONTROLLER = DEMO + "/controller/OrderController.java"
 ORDER_SERVICE = DEMO + "/service/OrderService.java"
 ORDER_REPO = DEMO + "/repository/CustomerOrderRepository.java"
+PRODUCT_REPO = DEMO + "/repository/ProductRepository.java"
 PRODUCT_ENTITY = DEMO + "/entity/Product.java"
 USER_ENTITY = DEMO + "/entity/User.java"
 DTO_ORDER_REQ = DEMO + "/dto/PlaceOrderRequest.java"
@@ -1897,6 +1898,44 @@ P6_CASES: list[dict[str, Any]] = [
                 "payload timestamps are non-null"
             ),
         }),
+    _case("101", "tx-bulk-update-bypasses-version-guard", True,
+        "Tx/Concurrency", "adversarial",
+        "Stock Decrement Written By A Bulk Update",
+        "replace the versioned entity save with a bulk UPDATE that writes "
+        "back the stock the service read (execution-only)",
+        [
+            (PRODUCT_REPO,
+             "import org.springframework.data.jpa.repository.JpaRepository;\n",
+             "import org.springframework.data.jpa.repository.JpaRepository;\n"
+             "import org.springframework.data.jpa.repository.Modifying;\n"
+             "import org.springframework.data.jpa.repository.Query;\n"
+             "import org.springframework.data.repository.query.Param;\n"),
+            (PRODUCT_REPO,
+             "    Optional<Product> findByName(String name);\n",
+             "    Optional<Product> findByName(String name);\n\n"
+             "    @Modifying\n"
+             "    @Query(\"update Product p set p.stock = :stock "
+             "where p.id = :id\")\n"
+             "    int setStock(@Param(\"id\") Long id, "
+             "@Param(\"stock\") Integer stock);\n"),
+            (ORDER_SERVICE,
+             "        product.setStock(product.getStock() - request.getQuantity());\n"
+             "        productRepository.saveAndFlush(product);\n",
+             "        product.setStock(product.getStock() - request.getQuantity());\n"
+             "        productRepository.setStock(product.getId(), product.getStock());\n"),
+        ],
+        _spec("Case 101: Stock Decrement Written By A Bulk Update",
+            "A concurrent stock decrement must not be lost. The service's "
+            "write must go through the versioned entity, so that a stale "
+            "read is rejected instead of silently overwriting the other "
+            "writer's change. A bulk UPDATE that writes back the value the "
+            "service read carries no version predicate: the lost update "
+            "lands.",
+            ["A stale stock read must not overwrite the other writer's value.",
+             "The service must reject the stale write, not silently accept it."]),
+        "CONCURRENCY-01", "BLOCKER", "base_pass_head_fail",
+        note="execution-only: service-path stale-read differential test + "
+             "products-table dump"),
 ]
 
 
