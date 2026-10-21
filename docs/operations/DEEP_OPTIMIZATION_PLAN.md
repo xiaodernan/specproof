@@ -6482,3 +6482,29 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 `byName` override ↔ 同面板 `legendFormat` 对账（#296 队列①，探针基线已留档）；③ 抓取面其余未覆盖的
 纯函数/端口名册对账；④ #322 队列里被 craft/Docker/生产数据阻塞的项照旧（并发服务路径陈旧读样本、
 ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
+## #328 `CasePlan.header_lines` / `as_json` 的承诺逐条钉住
+
+**起因/占号。** #325 的下批候选首条：「`CasePlan.header_lines`（`all_not_isolated` 时那句「这些数字不是未见过案例上的指标」）与 `as_json`（`excluded_holdout_cases` / `declared_but_absent` 的排序）各补一条」。占号前读账本最大 326（`## #326`），327/328 里 327 在落地窗口内被占，本号取 **#328**。
+
+**量到的缺陷（先量后写）。** 两个方法各有一组「只在适用时出现」的承诺，且都零直接测试：
+- `header_lines()`：首行必须说 `mode` 与 `len(kept)`；`excluded` 非空才追加「，排除 N 个」；**只有** `mode == all_not_isolated` 才追加「未做 holdout 隔离（--include-holdout）：这些数字不是未见过案例上的指标」；`unknown_declared` 非空才追加那行且名字**排序**；`note` 非空才追加 `manifest note:`。少一条 → 用户不知道这批数字的适用范围；多一条 → 恒真的警告等于没警告。
+- `as_json()`：`excluded_holdout_cases` 与 `declared_but_absent` 必须**排序**（两次运行的 sidecar 要能逐字节比较），键名与嵌套形状固定。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_case_plan_header_and_json.py`（8 案，纯对象，无文件系统）：
+- `header_lines` 6 案：mode+kept 计数且无「排除」；有 excluded 时「，排除 2 个」；**仅** `all_not_isolated` 出现 holdout 警告（holdout_only 时不得出现）；`unknown_declared` 排序出现（alpha 在 zeta 前）；`note` 出现；全空时**只有一行**。
+- `as_json` 2 案：形状与排序（`["b","a"]`→`["a","b"]`、`["z","y"]`→`["y","z"]`）；空列表。
+
+**门证（全在本批内亲手取）。** 临时环境只需 click：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_case_plan_header_and_json.py -q -p no:cacheprovider` | 8 passed in 1.22s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_case_plan_header_and_json.py` | All checks passed |
+| **变异臂**（把 `sorted(self.excluded)` / `sorted(self.unknown_declared)` 全改成 `list(...)`，即丢掉排序承诺） | 先预测：`test_header_reports_declared_but_absent_sorted` 与 `test_as_json_shape_and_sorting` 必红，其余 6 条绿 | 实测 **2 failed, 6 passed**，失败逐名命中 |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `diff` 与变异前备份逐字节一致、`sorted(self.excluded)` 回到 1 处；复跑 8 passed in 2.38s |
+
+**诚实边界（明确不声称）。** ① 只加测试：`case_set.py` 生产码一字未动。② 只钉这两个方法；`plan_case_dirs` 已有 3 处测试引用、`empty_pool_message` 已由 #325 钉住。③ 不测调用方（`eval`/`baseline`）拿到这两份输出后的退出码行为——那是命令层，属另一平面。④ 断言是行为级表征：排序只钉「alpha 在 zeta 前」与列表逐项相等，不钉整句标点。
+
+**下批候选（受本环境约束）。**
+- `probe.py`/`mcp.py`（I/O 外壳，纯逻辑少，优先级低）。
+- `cli/specproof/main.py` 的 `HELP_EPILOG` 与真实命令集是否一致（与 #294 的指南漂移同类，但载体是 `--help` 的 epilog）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
