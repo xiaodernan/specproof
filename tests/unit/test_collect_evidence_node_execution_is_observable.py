@@ -459,7 +459,8 @@ def test_the_mq_surface_says_why_it_cannot_be_observed(
     assert mq["status"] == "NO_EVIDENCE"
     assert mq["confidence"] == 0.0
     assert mq["extension"]["observed_any_publish"] is False
-    assert "test's JVM" in mq["extension"]["not_observable_reason"]
+    assert "in-process" in mq["extension"]["not_observable_reason"]
+    assert "surefire" in mq["normalization"]["publish_count"]
 
 
 def test_a_contract_that_names_no_key_family_gets_no_redis_fragment(

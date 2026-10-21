@@ -129,11 +129,12 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
 
     # RabbitMQ — the surface the pipeline CANNOT observe, said out loud.
     #
-    # The publish happens INSIDE the test's JVM (the generated test
-    # drives the application in-process), so the pipeline cannot see the
-    # publishes from out here: there is no broker-side view of what a
-    # test published, and the evidence that DOES exist is the test's own
-    # assertion (its routing key and publish count).
+    # The publish happens INSIDE the test's JVM: the pipeline runs the
+    # generated test with Maven surefire, so the Spring context — and the
+    # publish — live in the test's process. From out here there is no
+    # broker-side view of what a test published, and the evidence that
+    # DOES exist is the test's own assertion (its routing key and publish
+    # count).
     #
     # So instead of a silent gap, every rabbitmq-checked contract gets an
     # explicit NO_EVIDENCE fragment that says WHY. A missing observation
@@ -161,8 +162,9 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
                 normalization={
                     "publish_count": (
                         "the publishes the generated test asserted, recorded by "
-                        "the test itself — the pipeline cannot observe an "
-                        "in-process publish from outside the test's JVM"
+                        "the test itself — the pipeline runs the test IN-PROCESS "
+                        "(surefire), so the publish happens inside the test's "
+                        "JVM and cannot be observed from out here"
                     ),
                 },
                 comparison={"changed": [], "changed_count": 0},
@@ -173,8 +175,9 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
                 extension={
                     "observed_any_publish": False,
                     "not_observable_reason": (
-                        "publishes happen inside the test's JVM; the evidence "
-                        "is the test's own assertion"
+                        "the generated test runs in-process (Maven surefire), "
+                        "so the publish happens inside the test's JVM; the "
+                        "evidence is the test's own assertion"
                     ),
                 },
             )

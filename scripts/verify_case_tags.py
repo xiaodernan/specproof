@@ -104,6 +104,39 @@ def _check_side(ref: str, source: str, keep: bool) -> tuple[int, str]:
     return code, out
 
 
+def _jdk_note() -> str:
+    """A human sentence about the JDK, or "" when the JDK is fine.
+
+    The demo's tests need a JDK the inline mock maker can instrument.
+    On a newer JDK the failure reads "Mockito cannot mock this class:
+    RabbitTemplate" — a sentence about the mock maker, not about what
+    to do. The tool that runs the demo's tests should say the thing the
+    reader can act on.
+    """
+    import re
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["java", "-version"], capture_output=True, text=True, timeout=15,
+        ).stderr
+    except Exception:  # noqa: BLE001 — no java, the build will say so
+        return ""
+    found = re.search(r'version "(\d+)', out)
+    if not found:
+        return ""
+    major = int(found.group(1))
+    if major <= 21:
+        return ""
+    return (
+        f"NOTE: this JDK is {major}. The demo's tests need JDK 21 or lower — "
+        f"the inline mock maker cannot instrument RabbitTemplate on a newer "
+        f"JDK, and the failure reads 'Mockito cannot mock this class' "
+        f"rather than anything actionable. Set JAVA_HOME to a JDK 17/21 "
+        f"install and retry."
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", required=True,
@@ -117,6 +150,10 @@ def main() -> int:
 
     head = args.head or (args.case + "-head")
     source = _generated_source()
+
+    note = _jdk_note()
+    if note:
+        print(note)
 
     print(f"=== {args.base} ===")
     base_code, base_out = _check_side(args.base, source, args.keep)
