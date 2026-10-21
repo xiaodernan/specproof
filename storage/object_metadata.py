@@ -229,6 +229,31 @@ class ObjectMetadataStore(Protocol):
         ...
 
 
+def _same_file(left: str, right: str) -> bool:
+    """True when two path spellings name the same file.
+
+    A record may spell its path absolutely while the reference spells
+    it relative - the same file, two spellings. Comparing the strings
+    would call them different files, and the lookup would then land on
+    an OLDER record for the same file, whose digest describes bytes
+    that are long gone. The digest check would then report a mismatch
+    for a file that is perfectly intact (a false alarm trains people
+    to ignore the real ones).
+    """
+    try:
+        return Path(left).resolve() == Path(right).resolve()
+    except OSError:  # pragma: no cover - resolve() is total on CPython
+        return False
+
+
+def _payload_digest_if_readable(path: str) -> str:
+    """The file's payload digest, or "" when the file cannot be read."""
+    try:
+        return payload_sha256_of_file(path)
+    except OSError:
+        return ""
+
+
 def resolve_object(
     store: ObjectMetadataStore, reference: str,
 ) -> ObjectMetadata | None:
@@ -237,8 +262,16 @@ def resolve_object(
     Accepted references:
       - object_id (32-hex uuid4);
       - payload digest (64-hex, optionally sha256:-prefixed);
-      - a path — matched against recorded path_hint (exact, then suffix
-        match so absolute recorded hints resolve from relative cwd).
+      - a path - matched against recorded path_hint (exact, then the
+        same file spelled differently, then suffix match so absolute
+        recorded hints resolve from relative cwd).
+
+    A path resolves to the record that describes the bytes that are
+    there NOW: the same path is written again by every run, so the
+    store holds one record per version, and the digest is what tells
+    the versions apart. When no recorded version matches the bytes on
+    disk, the NEWEST record for that path is returned, so the caller
+    can report the truth ("this file is not the one we recorded").
 
     Returns None when the store has no record — callers then fall back to
     the legacy path-based lookup, which keeps pre-existing artifacts
@@ -261,9 +294,48 @@ def resolve_object(
             return record
     normalized_path = str(Path(ref))
     records = store.list()
+    # A path resolves to the record that describes the bytes that are
+    # there NOW. The same path is written again by every run, so the
+    # store holds one record per version; picking the first spelling
+    # that matches made the digest check compare the current file
+    # against a record for bytes that no longer exist.
+    actual = _payload_digest_if_readable(ref)
+    wanted_name = Path(normalized_path).name
+
+    def _describes(record: ObjectMetadata) -> bool:
+        if not actual:
+            return False
+        return normalize_payload_digest(
+            record.digests.get("payload_sha256", "")
+        ) == actual
+
+    # Candidates, newest first (store.list() is newest-first): the
+    # same file spelled exactly as the reference, or spelled
+    # differently (absolute vs relative).
+    candidates: list[ObjectMetadata] = []
     for record in records:
-        if record.path_hint == ref or record.path_hint == normalized_path:
+        hint = record.path_hint
+        if not hint:
+            continue
+        if hint in (ref, normalized_path):
+            candidates.append(record)
+            continue
+        if wanted_name and not hint.replace("\\", "/").endswith(
+            "/" + wanted_name
+        ):
+            continue
+        if _same_file(hint, ref):
+            candidates.append(record)
+    for record in candidates:
+        if _describes(record):
             return record
+    if candidates:
+        # No recorded version describes the bytes on disk: the NEWEST
+        # record for that path, so the caller can say the truth
+        # ("this file is not the one we recorded").
+        return candidates[0]
+    # Suffix match: a recorded hint that ends with the reference (the
+    # pre-store artifacts live under paths the caller knows partially).
     for record in records:
         hint = record.path_hint.replace("\\", "/")
         wanted = normalized_path.replace("\\", "/")

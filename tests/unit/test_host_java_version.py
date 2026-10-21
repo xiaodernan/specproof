@@ -19,11 +19,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from experiments.adapters import (
+    ExecutionRequest,
+    JavaMavenAdapter,
+    RepositorySnapshot,
     _host_java_major,
     _host_java_version_flag,
-    JavaMavenAdapter,
 )
-from experiments.adapters import ExecutionRequest, RepositorySnapshot
 
 
 def _request(goal: str = "run_test") -> ExecutionRequest:

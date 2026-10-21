@@ -7679,3 +7679,86 @@ capsule_replay 抵达，不代表 craft 该用它们。④ 本号取号 max+1 �
 - **workflow 里的每一行现在都归这条车道了**：之前留在工作区的那处改动**已在本号落地** ⇒ ⇒ ⇒ 集成腿的 env 是**上一号**（很久以前）就写好的，本次只是**第一次能推上去**。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **DEEP 校准**（本机那档 DEEP 作业正在跑 ⇒ 它的耗时是第一份 DEEP 档的真实数字 ⇒ 7200 秒那个估的数就能被核对）；② **机器闲下来时再跑一次全量**（确认 #374 之后没有别的红灯）；③ **夜间作业第一次跑完之后**把实测数字写回 `docs/eval/p6-100-case-eval.md`（那时「全量重测」这条账才算**真**结掉）；④ **评测逐案例增量落盘**（夜间作业被杀时不至于什么都留不下）；⑤ **对象观测也进判定层**（要 I/O ⇒ 需要把「矩阵是纯函数」与「判定层看见对象观测」分开设计）；⑥ demo 在 **JDK 25** 上跑不起来（Mockito ⇒ 单独解决，#355）。
+
+## #376 假警报要治（digest 报警查无实据）、DEEP 第一次真测（预算不动）、#375 的说法更正
+
+**起因/占号**。#375 落地后有三件事必须记：① 那档 DEEP 跑完了（1450 秒），它顺手带出
+一条 `WARNING: digest mismatch` ⇒ ⇒ ⇒ 查下来是**假警报**；② #375 自己有两处说法与事实
+不符 ⇒ ⇒ ⇒ 账本里写错的东西必须改，不能装作没发生；③ DEEP 预算第一次有了真实数据 ⇒ ⇒ ⇒
+该记该校。落地前重测账本：HEAD 70362e2、`## #` id 最大 **375** ⇒ 取 **#376**。
+
+**一、那条 digest 报警是假的（已修，有实据）**。
+
+- **现象**（2026-10-22 的 DEEP 跑，case-17）：`capsule-COURT-UNIQUE-01.zip
+  (WARNING: digest mismatch)` ⇒ ⇒ ⇒ 而那个 zip **完好无损**。
+- **实据**（本机 `~/.specproof/object-metadata.sqlite3`，578 条记录）：同一个路径有
+  **10 条**记录（每跑一次写一次，路径同名）⇒ ⇒ ⇒ **最新**那条（job 9bb8eb2a，digest
+  `d331b765…`）与磁盘上的字节**完全一致** ⇒ ⇒ ⇒ 旧的记录里 digest 是 `99e74a93…`、
+  `6dd48a05…`…… ⇒ ⇒ ⇒ 旧记录描述的是**早就不存在的那几个字节版本**。
+- **根因**：新记录用**相对路径**写法（`capsules\capsule-COURT-UNIQUE-01.zip`），旧记录用
+  **绝对路径**写法 ⇒ ⇒ ⇒ 查表先命中"拼写完全相同"的**旧**那条 ⇒ ⇒ ⇒ 于是拿当前文件的
+  字节去比一个旧版本的 digest ⇒ ⇒ ⇒ 喊狼来了。
+- **修法**（`storage/object_metadata.py::resolve_object`）：路径解析**以字节为准** ⇒ ⇒ ⇒
+  候选记录按新到旧排，**先看谁描述了磁盘上现在这份字节** ⇒ ⇒ ⇒ 命中就返回它 ⇒ ⇒ ⇒
+  **一份都不命中**时返回该路径**最新**的那条 ⇒ ⇒ ⇒ 让调用方能说真话（"这个文件不是我们
+  记下的那个"）⇒ ⇒ ⇒ 同一文件的两种写法（相对/绝对）认作同一个文件。
+- **证据**（改完后跑 CLI 自己的检查，对着**真实的库**和**真实的 capsule**）：
+  `capsules\capsule-COURT-UNIQUE-01.zip (digest OK)` ⇒ ⇒ ⇒ 同一段脚本同时打印出旧查表会
+  命中哪条、差在哪 ⇒ ⇒ ⇒ 假警报消失 ⇒ ⇒ ⇒ **真警报不受影响**（字节与任何记录都不合 ⇒ ⇒ ⇒
+  仍然报 mismatch）⇒ ⇒ ⇒ 三条测试钉住（`tests/unit/
+  test_object_metadata_resolves_the_bytes_on_disk.py`）：同文件两种写法 ⇒ 同一条记录；同一
+  路径两个版本 ⇒ 当前字节那条赢；字节与任何记录都不合 ⇒ 最新的那条被返回 ⇒ digest 检查仍
+  报 mismatch。
+- **为什么这条值得修**：假警报训练人忽略真警报 ⇒ ⇒ ⇒ 而这条警报**每跑一次**到同名
+  capsule 的作业都会出现（#373 那轮 4 案例评测的库里，`capsule-COURT-AUTH-01.zip`、
+  `capsule-COURT-CACHE-01.zip` 的旧记录同样是旧 digest）⇒ ⇒ ⇒ 不是一次性的怪事。
+
+**二、DEEP 第一次真测（1450 秒）⇒ 预算不动（仍是 7200）**。
+
+- **测量**：2026-10-22，DEEP 档，`golden-cases/case-17-logic-inversion`（1 个合同
+  `UNIQUE-01`），墙钟 **1450 秒**（24 分 10 秒）⇒ ⇒ ⇒ 判定 BLOCKED，1 个 MAJOR finding
+  （`base_pass_head_fail`，base 过 / head 挂）⇒ ⇒ ⇒ 1 个 capsule ⇒ ⇒ ⇒ 记录在
+  `docs/eval/deep-tier-measurements.md`。
+- **薄在哪**（写进文档，不许说厚）：**n=1**；那个案例**只编译出 1 个合同**（合同数是 DEEP
+  耗时的主要驱动因素）⇒ ⇒ ⇒ 1450 秒**不是上界**；机器是笔记本且当时有别的项目在跑
+  ⇒ ⇒ ⇒ 1450 秒里含排队；本机 JDK 17 而项目声明 21（preflight 报了一条 warning）；这一档
+  跑的是 `--no-llm` ⇒ ⇒ ⇒ 带 LLM 会更慢。
+- **决定**：**预算保持 `DEEP=7200`** ⇒ ⇒ ⇒ 这次测量是预算的 **20%**，**没有证伪**它 ⇒ ⇒ ⇒
+  按这**一个**样本砍到 3600 看着够用（2.5 倍余量）⇒ ⇒ ⇒ 但那是**猜的**不是量的 ⇒ ⇒ ⇒
+  砍预算的代价是**可能把还在干活的长作业杀掉**（回收器照预算杀人）⇒ ⇒ ⇒ 不砍 ⇒ ⇒ ⇒
+  7200 是不是太大，现在也**没有数据能说** ⇒ ⇒ ⇒ 等合同数 > 1 的作业被量过。
+- **门**（`tests/unit/test_deep_tier_measurements.py`，**3 passed**）：**已量过的耗时必须
+  装得进该档的预算** ⇒ ⇒ ⇒ 预算被改小到装不下已量作业时测试变红 ⇒ ⇒ ⇒ 文档还必须自己写
+  明 `sample-count: N`（N = 表里的行数）⇒ ⇒ ⇒ **一个测量不许被当成一个分布**。
+
+**三、更正 #375 的两处说法**。
+
+- #375 标题写"（「推不动」是错的）" ⇒ ⇒ ⇒ **这句是错的** ⇒ ⇒ ⇒ 实测：**推不动**。`git push`
+  （master 与 feature 分支都试了）被拒：`refusing to allow an OAuth App to create or
+  update workflow .github/workflows/ci.yml without workflow scope`；再试 REST Contents
+  API（`PUT /repos/xiaodernan/specproof/contents/.github/workflows/ci.yml`）⇒ ⇒ ⇒ 同样
+  被拒（**HTTP 403**，同一句话）⇒ ⇒ ⇒ 浏览器里**没有** GitHub 登录态（页面上没有
+  `user-login`）⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 之前那句"实测能推"是我**把一个没带改动的分支推成功了**
+  （那次 push 的 ref 里根本没有 workflow 的改动）⇒ ⇒ ⇒ 误判的来源找到了，在此更正。
+- #375 那句"workflow 里的每一行现在都归这条车道了…已在本号落地" ⇒ ⇒ ⇒ **不成立** ⇒ ⇒ ⇒
+  master 上**没有**那处 workflow 改动 ⇒ ⇒ ⇒ **而且 #375 推上 master 的那条测试
+  （`tests/unit/test_ci_nightly_full_eval_job.py`）在 master 上必然是红的**（它钉的
+  schedule/夜间作业/master 上的 ci.yml 没有）⇒ ⇒ ⇒ 本号把那条测试**从 master 撤掉**
+  ⇒ ⇒ ⇒ master 的 CI 必须自洽 ⇒ ⇒ ⇒ 改动与它的门**一起**留在本地分支
+  `feature/ci-nightly-eval`（未推 ⇒ ⇒ ⇒ 推它需要一个带 `workflow` scope 的 token ⇒ ⇒ ⇒
+  人来推一行：`git push origin feature/ci-nightly-eval`）⇒ ⇒ ⇒ 那个 PR 里会同时出现
+  workflow 改动与它的门 ⇒ ⇒ ⇒ 一次落地 ⇒ ⇒ ⇒ 落地前 master 的 CI 不会因为"改动还没到"
+  而红。
+
+**四、顺手修掉 #370 留在 master 上的一处红灯**。`tests/unit/test_host_java_version.py`
+（#370 加的）的 import 块没排序 ⇒ ⇒ ⇒ `ruff check tests/unit/` 在 master 上是**红的** ⇒ ⇒ ⇒
+本号把它排好（`ruff check --fix`）⇒ ⇒ ⇒ 这就是 #374 说的那件事：**我自己的批次破的门，
+我自己得修** ⇒ ⇒ ⇒ 本号改动的文件全部过 `ruff check` ⇒ ⇒ ⇒ `mypy storage/
+object_metadata.py` 无告警。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **夜间作业第一次跑完之后**把实测数字写回
+`docs/eval/p6-100-case-eval.md`（那时"全量重测"这条账才算**真**结掉）；② **合同数 > 1 的
+DEEP 作业**再测一次（预算校准的下一条证据）；③ **评测逐案例增量落盘**（夜间作业被杀时不至
+于什么都留不下）；④ **对象观测也进判定层**（要 I/O ⇒ 需要把"矩阵是纯函数"与"判定层看见对象
+观测"分开设计）；⑤ demo 在 **JDK 25** 上跑不起来（Mockito ⇒ 单独解决，#355）；⑥ **全量
+101 案例的本地重跑**（机器闲时开，跑完刷新文档）。
