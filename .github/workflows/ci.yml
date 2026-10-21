@@ -4,6 +4,17 @@ on:
   push:
     branches: [main, master, "feature/**"]
   pull_request:
+  # The FULL golden-case evaluation is a multi-hour gate: locally one case
+  # costs 3-15 minutes (#373 measured 271-882 s per case on a laptop), so
+  # it belongs to a schedule, not to every push. The per-push
+  # `eval-golden-cases` job stays the fast subset gate; this trigger gives
+  # the whole set a home, and `workflow_dispatch` lets a human start it
+  # without waiting for the cron.
+  schedule:
+    # 03:17 UTC daily — deliberately off the hour: the top of the hour is
+    # when every scheduled job on the planet fires.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
 
 jobs:
   lint-type:
@@ -72,6 +83,13 @@ jobs:
 
   tests-with-infra:
     runs-on: ubuntu-latest
+    # The compose services need credentials, and the test harness strips
+    # the password variables on purpose (no real credentials in unit
+    # tests). The integration legs take the credential through a URL
+    # instead — the same shape MYSQL_URL already has.
+    env:
+      REDIS_URL: redis://:specproof_pass@localhost:6379/0
+      MYSQL_URL: mysql://specproof:specproof_pass@localhost:3306/specproof_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -215,3 +233,86 @@ jobs:
         with:
           name: eval-report
           path: docs/eval/eval-report.html
+
+  # #375: the FULL golden-case evaluation finally has a home.
+  #
+  # It is a multi-hour gate, so it runs on the schedule (or on demand),
+  # never on every push. What it adds over the per-push subset job:
+  #
+  # - the WHOLE set, so the Recall/Precision numbers in the docs are
+  #   MEASURED numbers again instead of a historical record nobody has
+  #   re-measured since the case set grew;
+  # - the per-case durations (the results JSON carries duration_ms per
+  #   case), which is the first real DISTRIBUTION of how long a
+  #   verification case takes — the input `DEPTH_EXECUTION_BUDGET_SECONDS`
+  #   has been guessing at since #300;
+  # - the report as an artifact, so a run that failed can be read
+  #   instead of re-run.
+  #
+  # The floors are the anti-collapse guard (the set has 63 positive and
+  # 37 negative cases once the holdout is excluded): a run that quietly
+  # measured four cases must FAIL, not read as "Recall 100%".
+  eval-full-golden-cases:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Seed sandbox Maven cache (non-root, --network none)
+        run: |
+          docker volume create specproof-maven-cache-1000
+          # volume root must be uid-1000-owned for the non-root sandbox
+          docker run --rm -v specproof-maven-cache-1000:/m2 \
+            maven:3.9-eclipse-temurin-21 sh -c "chown -R 1000:1000 /m2"
+          # dependencies land in the cache volume (network available here)
+          docker run --rm --user 1000:1000 \
+            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
+            -v specproof-maven-cache-1000:/home/maven/.m2 \
+            -v $PWD/demo/spring-backend:/work:ro -w /work \
+            maven:3.9-eclipse-temurin-21 mvn -q -DskipTests dependency:go-offline
+          # wrapper jar is git-ignored (*.jar); fetch it so mvnw can place
+          # the wrapper distribution in the cache volume
+          curl -fsSL -o demo/spring-backend/.mvn/wrapper/maven-wrapper.jar \
+            https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/3.3.2/maven-wrapper-3.3.2.jar
+          docker run --rm --user 1000:1000 \
+            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
+            -v specproof-maven-cache-1000:/home/maven/.m2 \
+            -v $PWD/demo/spring-backend:/work:ro -w /work \
+            # #159: CI exit 126 — mvnw is committed 100644 (Windows drops the
+            # exec bit), so `./mvnw` cannot exec as the non-root sandbox user.
+            # Invoke it through sh, which needs no exec bit.
+            maven:3.9-eclipse-temurin-21 sh mvnw -q -v
+      - name: Evaluate ALL golden cases (the whole set, not a subset)
+        run: |
+          # The holdout cases stay OUT (isolation is on by default): a
+          # metric computed while the hidden cases sit in the pool is not
+          # a held-out metric (#77).
+          python -m cli.specproof.main eval \
+            --cases golden-cases --repo . --no-llm \
+            --gate --min-recall 100 --min-precision 100 --max-false-positives 0 \
+            --min-positive-cases 40 --min-negative-cases 20 \
+            --output docs/eval/eval-report.html | tee eval-full-run.log
+      - name: Upload the full evaluation report (with every case's duration)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-full-report
+          path: |
+            docs/eval/eval-report.html
+            docs/eval/eval-report.results.json
+            eval-full-run.log
