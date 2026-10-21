@@ -79,11 +79,14 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
     #: The object-store coordinates of the capsules ("bucket/object-name")
     #: — where the bytes ARE, not where the local file was.
     capsule_refs: list[str] = []
-    #: The same coordinates, keyed by the contract the capsule belongs to.
-    #: A row of the matrix has to be able to say WHERE the evidence for
-    #: THAT requirement is; a flat list of addresses cannot be attributed
-    #: to a contract without guessing.
-    capsule_refs_by_contract: dict[str, list[str]] = {}
+    #: What happened to each capsule, keyed by the contract it belongs
+    #: to: the address, the digest, whether an index row points at it,
+    #: and whether it reached the store at all. A row of the matrix has
+    #: to be able to say WHERE the evidence is AND whether that address
+    #: is a live, findable object — a durable-but-unindexed capsule is
+    #: a different fact from a missing one, and only the record tells
+    #: them apart.
+    artifact_records_by_contract: dict[str, list[dict[str, Any]]] = {}
 
     incr("create_capsule_runs_total")
     output_dir = Path("capsules")
@@ -209,27 +212,35 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
 
         capsules.append(str(zip_path.resolve()))
 
-        # The capsule goes to the OBJECT STORE, and its coordinate comes
-        # back. Without this the object store is never written by the
-        # pipeline at all: the bytes live on a local disk, the evidence
-        # chain has no address for them, and every "where is this
-        # artifact" question can only be answered by guessing a path. The
-        # upload is best-effort (a store that is down must not cost us
-        # the capsule) but it is NOT silent — the outcome is counted and
-        # the coordinate travels in the state either way.
-        coordinate = _upload_capsule(
+        # The capsule goes to the OBJECT STORE, and its facts come back.
+        # Without this the object store is never written by the pipeline
+        # at all: the bytes live on a local disk, the evidence chain has
+        # no address for them, and every "where is this artifact"
+        # question can only be answered by guessing a path. The upload is
+        # best-effort (a store that is down must not cost us the capsule)
+        # but it is NOT silent — the outcome is counted, and the RECORD
+        # travels in the state either way: the address, the digest, and
+        # whether an index row points at it.
+        #
+        # The record says what happened, not what "should" have: a
+        # capsule that reached the store but got no index row is a
+        # DURABLE GHOST, and saying so is the point (#367) — a row that
+        # reads "no capsule" while the bytes sit in the bucket is a
+        # different (and false) story.
+        record = _upload_capsule(
             zip_path=zip_path,
             finding_id=fid,
             job_id=str(state.get("job_id") or ""),
             contract_id=str(finding.get("contract_id") or ""),
         )
-        if coordinate:
-            capsule_refs.append(coordinate)
-            contract_id = str(finding.get("contract_id") or "")
-            if contract_id:
-                capsule_refs_by_contract.setdefault(contract_id, []).append(
-                    coordinate
-                )
+        record["local_path"] = str(zip_path.resolve())
+        if record.get("ref"):
+            capsule_refs.append(str(record["ref"]))
+        contract_id = str(finding.get("contract_id") or "")
+        if contract_id:
+            artifact_records_by_contract.setdefault(contract_id, []).append(
+                record
+            )
 
         # §A task 7: the capsule becomes locatable through the object
         # metadata store (query by job_id / kind / digest / contract_id)
@@ -241,11 +252,11 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
         # indexing it a second time by path would leave TWO records for
         # ONE artifact — the same bytes under two identities, and a
         # query by digest would answer with either of them.
-        if not coordinate:
+        if not record.get("indexed"):
             _record_capsule_metadata(
                 zip_path=zip_path,
                 job_id=str(state.get("job_id") or ""),
-                contract_id=str(finding.get("contract_id") or ""),
+                contract_id=contract_id,
             )
 
     if capsules:
@@ -258,17 +269,21 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
     return {
         "capsules": capsules,
         "capsule_refs": capsule_refs,
-        "capsule_refs_by_contract": capsule_refs_by_contract,
+        "artifact_records_by_contract": artifact_records_by_contract,
     }
 
 
 def _upload_capsule(
     zip_path: Path, finding_id: str, job_id: str, contract_id: str = "",
-) -> str:
-    """Upload the capsule to the object store; return its coordinate.
+) -> dict[str, Any]:
+    """Upload the capsule to the object store; return WHAT HAPPENED.
 
-    The coordinate is "bucket/object-name" — where the bytes ARE. A
-    local path is where the file WAS, on the machine that made it.
+    The record says four things, and each is a fact a reader needs:
+    the address ("bucket/object-name" — where the bytes ARE; a local path
+    is where the file WAS), the digest (so the bytes can be checked
+    against what the reader fetches), whether an index row points at it
+    (the two-store hole: the bytes are durable but nothing makes them
+    findable), and whether the upload happened at all.
 
     The upload goes through ``storage.artifact_store.ArtifactStore`` —
     the SAME path every other artifact takes. That path knows about the
@@ -280,18 +295,31 @@ def _upload_capsule(
     path with none of that.
 
     Best effort, but never silent: a store that is down leaves the
-    capsule a local artifact and the coordinate empty, and every outcome
-    has its own counter. A capsule whose upload failed is not a lost
-    capsule — the zip is still on disk — but the evidence chain cannot
-    point at it, and the counters have to say so.
+    capsule a local artifact, and every outcome has its own counter. A
+    capsule whose upload failed is not a lost capsule — the zip is still
+    on disk — but the evidence chain cannot point at it, and the record
+    says exactly that.
     """
+    record: dict[str, Any] = {
+        "ref": "",
+        "uploaded": False,
+        "indexed": False,
+        "sha256": "",
+        "size_bytes": 0,
+        "content_type": "",
+        "note": "",
+    }
     try:
         from storage.artifact_store import ArtifactStore
         from storage.minio import MinIOClient
         from storage.object_metadata import default_object_metadata_store
     except Exception:  # noqa: BLE001 — the driver is optional
         incr("create_capsule_upload_unavailable_total")
-        return ""
+        record["note"] = (
+            "the object-store driver could not be built — the capsule stays "
+            "a local artifact and the evidence chain cannot address it"
+        )
+        return record
     try:
         store = ArtifactStore(
             MinIOClient(),
@@ -316,11 +344,23 @@ def _upload_capsule(
             type(exc).__name__, exc,
         )
         incr("create_capsule_upload_failed_total")
-        return ""
+        record["note"] = (
+            f"the upload failed ({type(exc).__name__}: {exc}) — the capsule "
+            "stays a local artifact and the evidence chain cannot address it"
+        )
+        return record
 
+    record["ref"] = f"{result.bucket}/{result.object_name}"
+    record["uploaded"] = True
+    record["sha256"] = str(result.sha256 or "")
+    record["size_bytes"] = int(result.size_bytes or 0)
+    record["content_type"] = str(result.content_type or "")
     if not result.metadata_recorded:
         # The bytes are durable, but nothing points at them: a ghost
-        # until the reconciliation scan finds it. Reported, not hidden.
+        # until the reconciliation scan finds it. Reported, not hidden —
+        # and the address is STILL reported, because the object IS there
+        # (#367: a row that reads "no capsule" while the bytes sit in
+        # the bucket would be a different, and false, story).
         import logging
 
         logging.getLogger(__name__).warning(
@@ -329,9 +369,15 @@ def _upload_capsule(
             result.metadata_error, result.bucket, result.object_name,
         )
         incr("create_capsule_upload_unindexed_total")
-        return ""
+        record["note"] = (
+            "uploaded but NOT indexed — the bytes are durable and the "
+            "address is real, but no index row points at them (a "
+            "reconciliation scan will find it as an orphan)"
+        )
+        return record
+    record["indexed"] = True
     incr("create_capsule_upload_succeeded_total")
-    return f"{result.bucket}/{result.object_name}"
+    return record
 
 
 def _record_capsule_metadata(

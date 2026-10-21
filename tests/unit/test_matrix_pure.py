@@ -191,9 +191,9 @@ def test_every_row_carries_complete_field_set() -> None:
         # never with a fabricated one.
         assert isinstance(row["observation_status"], str)
         assert isinstance(row["observation_limits"], list)
-        # The artifact addresses: a list, empty when this contract has
-        # no capsule — "nothing was packaged for it", not a missing key.
-        assert isinstance(row["artifact_refs"], list)
+        # The artifact records: a list, empty when this contract has no
+        # capsule — "nothing was packaged for it", not a missing key.
+        assert isinstance(row["artifact_records"], list)
 
 
 # ── purity: same input -> same output, no side effects ──────────────────

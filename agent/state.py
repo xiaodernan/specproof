@@ -114,11 +114,13 @@ class Phase0State(MessagesState):
     # Where the bytes ARE — a capsule path says only where the local
     # file was, on the machine that made it.
     capsule_refs: list[str]
-    # The same coordinates, keyed by the contract they belong to. A row
-    # of the matrix must be able to say WHERE the evidence for THAT
-    # contract is — a flat list of addresses cannot be attributed to a
-    # requirement without guessing.
-    capsule_refs_by_contract: dict[str, list[str]]
+    # What happened to each capsule, keyed by the contract it belongs
+    # to: the address, the digest, whether an index row points at it,
+    # and whether it reached the store at all. A matrix row has to be
+    # able to say WHERE the evidence for THAT requirement is — and
+    # whether that address is a live, findable object. A durable but
+    # unindexed capsule is a different fact from a missing one.
+    artifact_records_by_contract: dict[str, list[dict[str, Any]]]
     certificate: dict[str, Any] | None
     report_path: str
 
@@ -182,7 +184,7 @@ def initial_state(
         "matrix": {},
         "capsules": [],
         "capsule_refs": [],
-        "capsule_refs_by_contract": {},
+        "artifact_records_by_contract": {},
         "certificate": None,
         "report_path": "",
         "errors": [],

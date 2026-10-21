@@ -87,14 +87,16 @@ OBSERVATION_ROW_FIELDS: tuple[str, ...] = (
     "observation_limits",
 )
 
-#: The row fields that carry WHERE the evidence for this contract is
-#: (#366). The capsules are packaged BEFORE the matrix is built (the
-#: graph order), so the object-store coordinates exist by the time the
-#: row is written. ``artifact_refs`` is a list: one contract may have
-#: several capsules (one per confirmed finding), and an empty list says
-#: "this contract has no capsule" — never a missing field.
+#: The row fields that carry WHERE the evidence for this contract is,
+#: and in what state (#366b / #367). The capsules are packaged BEFORE
+#: the matrix is built (the graph order), so the records exist by the
+#: time the row is written. ``artifact_records`` is a LIST: one contract
+#: may have several capsules (one per confirmed finding), and each record
+#: says the address, the digest, whether an index row points at it and
+#: whether it reached the store at all. An empty list says "this
+#: contract has no capsule" — never a missing field.
 ARTIFACT_ROW_FIELDS: tuple[str, ...] = (
-    "artifact_refs",
+    "artifact_records",
 )
 
 #: The complete matrix row field set (backlog #2): the canonical §14.1
@@ -312,13 +314,15 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
         contract_observations = observations(state)
     except Exception:  # noqa: BLE001 — degraded, not fatal
         contract_observations = {}
-    # WHERE the evidence for a contract is: the object-store coordinates
-    # of the capsules that carry it (#366). The capsules are packaged
-    # BEFORE this node runs (the graph order), so the addresses exist by
-    # the time the row is written. A contract with no capsule gets an
-    # empty list — "nothing was packaged for this contract", which is
-    # different from a missing field.
-    artifact_refs_by_contract = state.get("capsule_refs_by_contract") or {}
+    # WHERE the evidence for a contract is, and in what state: the
+    # records of the capsules that carry it (#366b / #367). The capsules
+    # are packaged BEFORE this node runs (the graph order), so the
+    # records exist by the time the row is written. A contract with no
+    # capsule gets an empty list — "nothing was packaged for this
+    # contract", which is different from a missing field.
+    artifact_records_by_contract = (
+        state.get("artifact_records_by_contract") or {}
+    )
     # A contract that was never approved cannot back an acceptance — the
     # Review Court's condition 1 refuses to certify on it. The row must
     # SAY so: a bare "UNVERIFIED" sends the reader after missing
@@ -342,10 +346,13 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
         observation = contract_observations.get(str(row.get("contract_id") or ""))
         legacy["observation_status"] = observation_status(observation)
         legacy["observation_limits"] = observation_limits(observation)
-        # Where the evidence for this contract can be fetched from. The
-        # verdict is untouched: this is an address, not a reason.
-        legacy["artifact_refs"] = list(
-            artifact_refs_by_contract.get(str(row.get("contract_id") or "")) or []
+        # Where the evidence for this contract can be fetched from, and
+        # in what state. The verdict is untouched: this is an address
+        # and a digest, not a reason.
+        legacy["artifact_records"] = list(
+            artifact_records_by_contract.get(
+                str(row.get("contract_id") or "")
+            ) or []
         )
         if legacy["result"] == "PASS":
             decision = evaluate_verification({"rows": [legacy]})

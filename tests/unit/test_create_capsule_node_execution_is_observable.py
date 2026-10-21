@@ -208,12 +208,14 @@ def test_a_capsule_uploaded_but_not_indexed_is_reported(
     """The two-store hole: the bytes are durable, but nothing points at them.
 
     That is a ghost until the reconciliation scan finds it. The capsule
-    itself is NOT lost (the zip is on disk), but the evidence chain
-    cannot address it — and the run has to say so.
+    itself is NOT lost (the zip is on disk) — and since #367 the ADDRESS
+    is reported too, because the object IS there: a row that reads "no
+    capsule" while the bytes sit in the bucket would be a different (and
+    false) story. What the record says is that the object is unindexed.
     """
     monkeypatch.chdir(tmp_path)
     _stub_metadata(monkeypatch)
-    _stub_object_store(monkeypatch, index_fails=True)
+    objects, _metadata = _stub_object_store(monkeypatch, index_fails=True)
     before = _counter("create_capsule_upload_unindexed_total")
 
     out = create_capsule_node(_state(tmp_path, _one_finding()))  # type: ignore[arg-type]
@@ -222,8 +224,15 @@ def test_a_capsule_uploaded_but_not_indexed_is_reported(
     # The capsule is intact...
     assert len(out["capsules"]) == 1
     assert Path(out["capsules"][0]).is_file()
-    # ...but there is no address, so there is no coordinate.
-    assert out["capsule_refs"] == []
+    # ...and the object IS in the store, so the address is real.
+    bucket, name, _size = objects.uploads[0]
+    assert out["capsule_refs"] == [f"{bucket}/{name}"]
+    # But nothing points at it, and the record says so.
+    record = out["artifact_records_by_contract"]["AUTH-01"][0]
+    assert record["ref"] == f"{bucket}/{name}"
+    assert record["uploaded"] is True
+    assert record["indexed"] is False
+    assert "NOT indexed" in record["note"]
 
 
 def test_a_failed_upload_is_counted_and_the_capsule_stays_local(

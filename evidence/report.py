@@ -349,17 +349,39 @@ def render_verification_report(
                     '<br /><small class="surface">'
                     f"{safe(limit)}</small>"
                 )
-        # WHERE the evidence for this contract can be fetched from (#366).
-        # The row's verdict says what was decided; this says where the
-        # bytes that back it live. Emitted only when there is an address:
-        # a row without a capsule has nothing to point at.
-        artifact_refs = r.get("artifact_refs") or []
-        if isinstance(artifact_refs, (list, tuple)):
-            for ref in artifact_refs:
-                differential += (
-                    '<br /><small class="surface">'
-                    f"artifact: {safe(ref)}</small>"
-                )
+        # WHERE the evidence for this contract can be fetched from, and in
+        # what state (#366b / #367). The row's verdict says what was
+        # decided; this says where the bytes that back it live, what
+        # their digest is, and whether an index row points at them. A
+        # durable-but-unindexed capsule is rendered as the ghost it is.
+        artifact_records = r.get("artifact_records") or []
+        if isinstance(artifact_records, (list, tuple)):
+            for record in artifact_records:
+                if not isinstance(record, dict):
+                    continue
+                ref = str(record.get("ref") or "")
+                digest = str(record.get("sha256") or "")
+                size = int(record.get("size_bytes") or 0)
+                if ref:
+                    detail = f"artifact: {ref}"
+                    if digest:
+                        detail += f" (sha256 {digest[:16]}…, {size} bytes)"
+                    differential += (
+                        '<br /><small class="surface">'
+                        f"{safe(detail)}</small>"
+                    )
+                else:
+                    differential += (
+                        '<br /><small class="surface">'
+                        "artifact: not uploaded — the capsule is a local file "
+                        "only</small>"
+                    )
+                note = str(record.get("note") or "")
+                if note:
+                    differential += (
+                        '<br /><small class="surface">'
+                        f"{safe(note)}</small>"
+                    )
         rows_html += f"""<tr class="{result_class}">
             <td>{safe(r.get("contract_id", ""))}</td>
             <td class="req">{safe(r.get("requirement", ""))}</td>

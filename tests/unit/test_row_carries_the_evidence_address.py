@@ -1,4 +1,4 @@
-"""The row must say WHERE the evidence for that requirement is (#366).
+"""The row must say WHERE the evidence for that requirement is (#366b).
 
 The evidence chain has an address — the object-store coordinate of the
 capsule ("bucket/object-name"), where the bytes ARE, not where the
@@ -14,7 +14,7 @@ so the order costs nothing.
 What is asserted here:
 - the capsule node records the coordinate against the contract it
   belongs to (a flat list of addresses cannot be attributed);
-- the row carries those addresses — an empty list when the contract has
+- the row carries those records — an empty list when the contract has
   no capsule, never a missing field;
 - the row's verdict is untouched: an address is not a reason;
 - the address reaches the reader (the HTML report, the job summary).
@@ -65,24 +65,30 @@ class _FakeMinIOClient:
 
 
 class _FakeMetadataStore:
-    """An index double: records what was indexed."""
+    """An index double: records what was indexed, and can refuse."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
         self.recorded: list[Any] = []
 
     def record(self, metadata: Any) -> Any:
+        if self.fail:
+            raise RuntimeError("index unavailable")
         self.recorded.append(metadata)
         return metadata
 
 
-def _stub_stores(monkeypatch: pytest.MonkeyPatch) -> None:
+def _stub_stores(
+    monkeypatch: pytest.MonkeyPatch, *, index_fails: bool = False,
+) -> _FakeMinIOClient:
     objects = _FakeMinIOClient()
-    metadata = _FakeMetadataStore()
+    metadata = _FakeMetadataStore(fail=index_fails)
     monkeypatch.setattr("storage.minio.MinIOClient", lambda *a, **k: objects)
     monkeypatch.setattr(
         "storage.object_metadata.default_object_metadata_store",
         lambda: metadata,
     )
+    return objects
 
 
 def _finding(contract_id: str = "AUTH-01") -> dict[str, Any]:
@@ -133,7 +139,13 @@ def test_the_capsule_node_records_the_address_against_its_contract(
     out = create_capsule_node(_capsule_state(tmp_path, [_finding()]))  # type: ignore[arg-type]
 
     assert out["capsule_refs"] == [REF]
-    assert out["capsule_refs_by_contract"] == {"AUTH-01": [REF]}
+    records = out["artifact_records_by_contract"]["AUTH-01"]
+    assert [record["ref"] for record in records] == [REF]
+    # The digest travels with the address: the reader can check the
+    # bytes they fetch against what the row says.
+    assert records[0]["sha256"] == "a" * 64
+    assert records[0]["size_bytes"] > 0
+    assert records[0]["indexed"] is True
 
 
 def test_a_capsule_without_a_contract_is_not_attributed_to_one(
@@ -147,30 +159,76 @@ def test_a_capsule_without_a_contract_is_not_attributed_to_one(
     out = create_capsule_node(_capsule_state(tmp_path, [_finding("")]))  # type: ignore[arg-type]
 
     assert out["capsule_refs"] == [REF]
-    assert out["capsule_refs_by_contract"] == {}
+    assert out["artifact_records_by_contract"] == {}
 
 
-# ── the row carries the address ──────────────────────────────────────────
+def test_an_uploaded_but_unindexed_capsule_is_recorded_as_a_ghost(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """The bytes are in the store, but no index row points at them. The
+    record says exactly that — a row that reads "no capsule" while the
+    object sits in the bucket would be a different, and false, story."""
+    _stub_stores(monkeypatch, index_fails=True)
+    monkeypatch.chdir(tmp_path)
+
+    out = create_capsule_node(_capsule_state(tmp_path, [_finding()]))  # type: ignore[arg-type]
+
+    record = out["artifact_records_by_contract"]["AUTH-01"][0]
+    assert record["ref"] == REF
+    assert record["uploaded"] is True
+    assert record["indexed"] is False
+    assert "NOT indexed" in record["note"]
 
 
-def test_the_row_carries_the_address_of_its_own_capsule(
+def test_a_capsule_that_never_reached_the_store_says_so(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """The store is down: the zip is on disk, the address is empty, and
+    the record says which."""
+
+    def _boom(*_a: Any, **_k: Any) -> Any:
+        raise RuntimeError("object store unreachable")
+
+    monkeypatch.setattr("storage.minio.MinIOClient", _boom)
+    monkeypatch.chdir(tmp_path)
+
+    out = create_capsule_node(_capsule_state(tmp_path, [_finding()]))  # type: ignore[arg-type]
+
+    assert out["capsule_refs"] == []
+    record = out["artifact_records_by_contract"]["AUTH-01"][0]
+    assert record["ref"] == ""
+    assert record["uploaded"] is False
+    assert "upload failed" in record["note"]
+
+
+# ── the row carries the records ──────────────────────────────────────────
+
+
+def _state_with_capsule(
+    tmp_path: Path, contracts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    capsule = create_capsule_node(_capsule_state(tmp_path, [_finding()]))  # type: ignore[arg-type]
+    return {
+        **_capsule_state(tmp_path, [_finding()]),
+        "capsule_refs": capsule["capsule_refs"],
+        "artifact_records_by_contract": capsule["artifact_records_by_contract"],
+        "contracts": contracts,
+    }
+
+
+def test_the_row_carries_the_records_of_its_own_capsule(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
     _stub_stores(monkeypatch)
     monkeypatch.chdir(tmp_path)
 
-    capsule = create_capsule_node(_capsule_state(tmp_path, [_finding()]))  # type: ignore[arg-type]
-    state = {
-        **_capsule_state(tmp_path, [_finding()]),
-        "capsule_refs": capsule["capsule_refs"],
-        "capsule_refs_by_contract": capsule["capsule_refs_by_contract"],
-        "contracts": [
-            {"id": "AUTH-01", "checker_type": "http"},
-            {"id": "TX-01", "checker_type": "http"},
-        ],
-    }
+    state = _state_with_capsule(tmp_path, [
+        {"id": "AUTH-01", "checker_type": "http"},
+        {"id": "TX-01", "checker_type": "http"},
+    ])
     row = _row(_matrix(state))
-    assert row["artifact_refs"] == [REF]
+    assert [record["ref"] for record in row["artifact_records"]] == [REF]
+    assert row["artifact_records"][0]["sha256"] == "a" * 64
 
 
 def test_a_contract_without_a_capsule_gets_an_empty_list(
@@ -181,48 +239,39 @@ def test_a_contract_without_a_capsule_gets_an_empty_list(
     _stub_stores(monkeypatch)
     monkeypatch.chdir(tmp_path)
 
-    capsule = create_capsule_node(_capsule_state(tmp_path, [_finding()]))  # type: ignore[arg-type]
-    state = {
-        **_capsule_state(tmp_path, [_finding()]),
-        "capsule_refs": capsule["capsule_refs"],
-        "capsule_refs_by_contract": capsule["capsule_refs_by_contract"],
-        "contracts": [
-            {"id": "AUTH-01", "checker_type": "http"},
-            {"id": "TX-01", "checker_type": "http"},
-        ],
-    }
+    state = _state_with_capsule(tmp_path, [
+        {"id": "AUTH-01", "checker_type": "http"},
+        {"id": "TX-01", "checker_type": "http"},
+    ])
     row = _row(_matrix(state), "TX-01")
-    assert row["artifact_refs"] == []
+    assert row["artifact_records"] == []
 
 
-def test_the_address_never_changes_the_verdict(
+def test_the_records_never_change_the_verdict(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
-    """An address is not a reason: the row's result is decided by the
-    experiments, and the address only says where the bytes are."""
+    """An address and a digest are not reasons: the row's result is
+    decided by the experiments."""
     _stub_stores(monkeypatch)
     monkeypatch.chdir(tmp_path)
 
-    capsule = create_capsule_node(_capsule_state(tmp_path, [_finding()]))  # type: ignore[arg-type]
     base_state = {
         **_capsule_state(tmp_path, [_finding()]),
         "contracts": [{"id": "AUTH-01", "checker_type": "http"}],
     }
     without = _row(_matrix(base_state))
-    with_address = _row(_matrix({
-        **base_state,
-        "capsule_refs": capsule["capsule_refs"],
-        "capsule_refs_by_contract": capsule["capsule_refs_by_contract"],
-    }))
-    assert with_address["artifact_refs"] == [REF]
-    assert with_address["result"] == without["result"]
-    assert with_address["unverified_reason"] == without["unverified_reason"]
+    with_records = _row(_matrix(_state_with_capsule(
+        tmp_path, [{"id": "AUTH-01", "checker_type": "http"}],
+    )))
+    assert with_records["artifact_records"]
+    assert with_records["result"] == without["result"]
+    assert with_records["unverified_reason"] == without["unverified_reason"]
 
 
 # ── the address reaches the reader ───────────────────────────────────────
 
 
-def test_the_report_shows_the_address() -> None:
+def test_the_report_shows_the_address_and_the_digest() -> None:
     from evidence.report import render_verification_report
 
     matrix = {
@@ -232,7 +281,15 @@ def test_the_report_shows_the_address() -> None:
             "result": "FAIL",
             "experiment": "DIFF-01",
             "evidence": "sha256:abc",
-            "artifact_refs": [REF],
+            "artifact_records": [{
+                "ref": REF,
+                "uploaded": True,
+                "indexed": True,
+                "sha256": "b" * 64,
+                "size_bytes": 2048,
+                "content_type": "application/zip",
+                "note": "",
+            }],
         }],
         "passed": 0,
         "failed": 1,
@@ -242,21 +299,49 @@ def test_the_report_shows_the_address() -> None:
         "repo", "base", "head", matrix, [], generated_at="2026-01-01 00:00:00 UTC",
     )
     assert REF in html
+    assert "bbbbbbbbbbbbbbbb" in html
 
 
-def test_the_summary_carries_the_address_to_the_api() -> None:
+def test_the_report_says_a_capsule_that_never_reached_the_store() -> None:
+    from evidence.report import render_verification_report
+
+    matrix = {
+        "rows": [{
+            "contract_id": "AUTH-01",
+            "result": "FAIL",
+            "artifact_records": [{
+                "ref": "",
+                "uploaded": False,
+                "indexed": False,
+                "sha256": "",
+                "size_bytes": 0,
+                "content_type": "",
+                "note": "the upload failed — the capsule stays a local artifact",
+            }],
+        }],
+        "passed": 0,
+        "failed": 1,
+        "unverified": 0,
+    }
+    html = render_verification_report(
+        "repo", "base", "head", matrix, [], generated_at="2026-01-01 00:00:00 UTC",
+    )
+    assert "not uploaded" in html
+
+
+def test_the_summary_carries_the_records_to_the_api() -> None:
     from agent.worker import _matrix_rows_for_summary
 
     matrix = {
         "rows": [{
             "contract_id": "AUTH-01",
             "result": "FAIL",
-            "artifact_refs": [REF],
+            "artifact_records": [{"ref": REF, "indexed": True}],
         }],
         "total_rows": 1,
     }
     summary = _matrix_rows_for_summary(matrix)
-    assert summary["matrix_rows"][0]["artifact_refs"] == [REF]
+    assert summary["matrix_rows"][0]["artifact_records"][0]["ref"] == REF
 
 
 def test_the_capsules_are_packaged_before_the_matrix_is_built() -> None:
