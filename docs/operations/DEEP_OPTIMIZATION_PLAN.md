@@ -6776,6 +6776,13 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 - **生产代码加 `REDIS_URL`**（`experiments/external_state.py::build_redis_client`）：URL 形态**优先**于 host/port/password 形态。**为什么优先**：`tests/conftest.py` 的 `clean_env` fixture **故意剥掉** `REDIS_PASSWORD`（防真凭证泄漏进测试）⇒ 集成腿若只靠环境变量就**永远连不上**。⇒ URL 是唯一能带着凭证穿过那层防线的形态（与 `MYSQL_URL` 同一个先例 ✓）。**这不是为测试开的后门**：URL 形态在生产里同样成立，而且它是**先**被试的。
 - **新的集成腿**（`tests/integration/test_external_state_against_real_redis.py`，**5** 项）：客户端**真的连得上**；**两个时刻真的看得到差异**（第一个时刻键不存在 → 中间 `SET` → 第二个时刻存在 ⇒ 片段报 `appeared` / `AMBIGUOUS`）；**不存在的键是「缺席」而不是「存在但为空」**（这正是「token 被注销」与「token 从来没存在过」的分界）；**存在但为空的键是「存在」**（报成缺席是撒谎）；**两个时刻真的一样时**确实说「没变」（**不变的那一case 也被测了**——只测有意思的那一半，等于只测自己想看见的）。
 
+**追加（同一号的收尾，如实记）。** 上面的 CI 改动**没能推上去**：本机使用的 OAuth App token
+**没有 `workflow` scope** ⇒ GitHub 拒绝更新 `.github/workflows/*`（`refusing to allow an OAuth App
+to create or update workflow ... without 'workflow' scope`）⇒ 我把 ci.yml **从提交里摘掉**，
+其余内容正常推送；**ci.yml 的改动仍留在工作树里**（`M .github/workflows/ci.yml`），等一个有
+`workflow` 权限的 token 或人工提交。⇒ **「compose 已经在跑，只差两个环境变量」这个发现是真的，
+但把它落到 CI 这一步被凭证权限挡住了** —— 记下来，别让人以为 CI 里那两个腿已经在跑了。
+
 **顺带（同一件事的另一面）：CI 里这两个门控腿现在**真跑**。** `tests-with-infra` 这个 job 已经在起 compose（Redis / MySQL / RabbitMQ / Mongo / ES 都在跑），但**没有设任何凭证变量** ⇒ 所有门控集成测试在 CI 上**全部跳过** ⇒ 「后端可以是绿的，只要没人连过它」这条教训在 CI 上天天重演。本号给该 job 加了两个环境变量：
 - `REDIS_URL` ⇒ 对象采集的集成腿**在 CI 上真跑**（本机 5/5 通过）；
 - `MYSQL_URL` ⇒ **对象元数据的 MySQL 门控测试在 CI 上真跑**（本机 6/6 通过，真库真迁移）。
