@@ -109,12 +109,38 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
 
     # Object storage
     try:
-        if separated:
+        # The capsule coordinates are the pipeline's OWN objects — the
+        # capsules the run produced (#342). The differential run's
+        # snapshots cannot contain them (the capsules are made AFTER the
+        # differential run), so the HEAD side of the object comparison is
+        # taken NOW: "before the run there was no capsule object; after
+        # it there is". The BASE side stays the differential's base
+        # moment — a truthful empty-at-that-time view.
+        capsule_refs = [
+            str(ref) for ref in (raw_state.get("capsule_refs") or []) if ref
+        ]
+        if separated or capsule_refs:
             from experiments.collectors import object_fragment_from_snapshots
-            from experiments.external_state import object_states_from_dicts
+            from experiments.external_state import (
+                build_object_store,
+                capture_object_state,
+                object_states_from_dicts,
+            )
 
             base_states = object_states_from_dicts(base_snapshot)
             head_states = object_states_from_dicts(head_snapshot)
+            if capsule_refs:
+                store = build_object_store()
+                fresh = capture_object_state(store, capsule_refs)
+                # The freshly captured snapshot is plain dicts; the
+                # states from the differential run are typed. Merging
+                # the two shapes would produce a mapping whose values
+                # are sometimes dicts and sometimes states — and the
+                # first `.present` would raise.
+                head_states = {
+                    **head_states,
+                    **object_states_from_dicts({"objects": fresh}),
+                }
             fragments.append(object_fragment_from_snapshots(
                 experiment_id=raw_state.get("job_id", "unknown"),
                 base=base_states,

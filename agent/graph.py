@@ -118,11 +118,16 @@ def build_phase0_graph(checkpointer: Any = None) -> Any:
     builder.add_edge("run_static_checks", "generate_counterexamples")
     builder.add_edge("generate_counterexamples", "run_differential")
     builder.add_edge("run_differential", "run_deep_experiments")
-    builder.add_edge("run_deep_experiments", "collect_evidence")
-    builder.add_edge("collect_evidence", "review_court")
+    builder.add_edge("run_deep_experiments", "review_court")
     builder.add_edge("review_court", "build_matrix")
     builder.add_edge("build_matrix", "create_capsule")
-    builder.add_edge("create_capsule", "run_release_checks")
+    # The evidence pack must be assembled AFTER the capsules exist: the
+    # capsule object coordinates are the pipeline's own objects, and they
+    # only come into being when the capsules are created. Assembling the
+    # pack before that would observe a world in which the run's own
+    # artifacts do not exist yet.
+    builder.add_edge("create_capsule", "collect_evidence")
+    builder.add_edge("collect_evidence", "run_release_checks")
     builder.add_edge("run_release_checks", "publish_report")
     builder.add_edge("publish_report", END)
 

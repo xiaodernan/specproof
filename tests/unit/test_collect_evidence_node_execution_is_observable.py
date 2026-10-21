@@ -290,11 +290,61 @@ def test_the_pack_carries_the_fragments_with_their_honest_status(
         assert fragment["experiment_id"] == "job-339-0001"
 
 
-def test_the_graph_runs_the_node_between_deep_and_court() -> None:
-    """The node must be IN the pipeline, not merely importable.
+def test_the_capsule_coordinates_are_observed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pipeline's OWN objects must appear in the evidence.
+
+    The capsule coordinates are the run's own artifacts. Before the
+    capsules existed there was no such object; after, there is. The
+    object fragment must say so — that is what "the evidence chain
+    carries the address" means in practice.
+    """
+    mongo = _stub_mongo(monkeypatch)
+    ref = f"{BUCKET}/jobs/job-339-0001/capsule-F1.zip"
+
+    class _FakeStore:
+        def object_exists(self, bucket: str, object_name: str) -> bool:
+            return f"{bucket}/{object_name}" == ref
+
+        def object_stat(self, bucket: str, object_name: str) -> dict[str, Any]:
+            return {
+                "size_bytes": 42,
+                "content_type": "application/zip",
+                "sha256": "a" * 64,
+            }
+
+    monkeypatch.setattr(
+        "experiments.external_state.build_object_store", lambda: _FakeStore()
+    )
+
+    state = _state(
+        base=_moment(key_present=False, object_present=False),
+        head=_moment(key_present=False, object_present=False),
+    )
+    state["capsule_refs"] = [ref]
+    collect_evidence_node(state)
+
+    fragments = mongo.packs[0]["fragments"]
+    objects = next(f for f in fragments if f["fragment_type"] == "object")
+    assert objects["comparison"]["changed_count"] == 1
+    changed = objects["comparison"]["changed"][0]
+    assert changed["change"] == "appeared"
+    assert changed["ref"] == ref
+    # And the coordinate is IN the evidence — the address, not a path.
+    assert ref in objects["head"]
+
+
+def test_the_graph_runs_the_node_after_the_capsules_exist() -> None:
+    """The node must be IN the pipeline, not merely importable — and it
+    must run AFTER the capsules are created.
 
     A collector that no graph edge reaches is a library, and the evidence
-    pack would never be produced by a real run.
+    pack would never be produced by a real run. And a pack assembled
+    BEFORE the capsules exist would observe a world in which the run's
+    own artifacts do not exist yet — the capsule object coordinates are
+    the pipeline's own objects, and they come into being with the
+    capsules.
     """
     from agent.graph import build_phase0_graph
 
@@ -306,5 +356,9 @@ def test_the_graph_runs_the_node_between_deep_and_court() -> None:
         (e.source, e.target)
         for e in graph.get_graph().edges
     }
-    assert ("run_deep_experiments", "collect_evidence") in edges
-    assert ("collect_evidence", "review_court") in edges
+    assert ("create_capsule", "collect_evidence") in edges
+    assert ("collect_evidence", "run_release_checks") in edges
+    # And the differential's two moments still reach the collector.
+    assert ("run_deep_experiments", "review_court") in edges
+    assert ("review_court", "build_matrix") in edges
+    assert ("build_matrix", "create_capsule") in edges
