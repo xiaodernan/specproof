@@ -26,6 +26,7 @@ from agent.matrix_policy import (
     merge_contract_results,
 )
 from agent.nodes.build_matrix import (
+    ARTIFACT_ROW_FIELDS,
     COMPLETE_ROW_FIELDS,
     LEGACY_ROW_FIELDS,
     OBSERVATION_ROW_FIELDS,
@@ -156,10 +157,14 @@ def _projection(row: dict[str, Any]) -> dict[str, Any]:
 
 def test_complete_field_set_constant_covers_every_contract() -> None:
     """COMPLETE_ROW_FIELDS = canonical (§14.1 + court) + result + legacy
-    + the external-observation disclosure (#365)."""
+    + the external-observation disclosure + the artifact addresses."""
     assert CANONICAL_FIELDS[-len(COURT_ROW_FIELDS):] == COURT_ROW_FIELDS
     assert COMPLETE_ROW_FIELDS == (
-        CANONICAL_FIELDS + ("result",) + LEGACY_ROW_FIELDS + OBSERVATION_ROW_FIELDS
+        CANONICAL_FIELDS
+        + ("result",)
+        + LEGACY_ROW_FIELDS
+        + OBSERVATION_ROW_FIELDS
+        + ARTIFACT_ROW_FIELDS
     )
 
 
@@ -186,6 +191,9 @@ def test_every_row_carries_complete_field_set() -> None:
         # never with a fabricated one.
         assert isinstance(row["observation_status"], str)
         assert isinstance(row["observation_limits"], list)
+        # The artifact addresses: a list, empty when this contract has
+        # no capsule — "nothing was packaged for it", not a missing key.
+        assert isinstance(row["artifact_refs"], list)
 
 
 # ── purity: same input -> same output, no side effects ──────────────────

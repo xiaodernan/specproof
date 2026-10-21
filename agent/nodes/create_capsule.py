@@ -79,6 +79,11 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
     #: The object-store coordinates of the capsules ("bucket/object-name")
     #: — where the bytes ARE, not where the local file was.
     capsule_refs: list[str] = []
+    #: The same coordinates, keyed by the contract the capsule belongs to.
+    #: A row of the matrix has to be able to say WHERE the evidence for
+    #: THAT requirement is; a flat list of addresses cannot be attributed
+    #: to a contract without guessing.
+    capsule_refs_by_contract: dict[str, list[str]] = {}
 
     incr("create_capsule_runs_total")
     output_dir = Path("capsules")
@@ -220,6 +225,11 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
         )
         if coordinate:
             capsule_refs.append(coordinate)
+            contract_id = str(finding.get("contract_id") or "")
+            if contract_id:
+                capsule_refs_by_contract.setdefault(contract_id, []).append(
+                    coordinate
+                )
 
         # §A task 7: the capsule becomes locatable through the object
         # metadata store (query by job_id / kind / digest / contract_id)
@@ -245,7 +255,11 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
     else:
         incr("create_capsule_outcomes_filtered_out_total")
 
-    return {"capsules": capsules, "capsule_refs": capsule_refs}
+    return {
+        "capsules": capsules,
+        "capsule_refs": capsule_refs,
+        "capsule_refs_by_contract": capsule_refs_by_contract,
+    }
 
 
 def _upload_capsule(

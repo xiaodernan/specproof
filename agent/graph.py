@@ -7,7 +7,14 @@ Pipeline:
   → guard_errors (conditional) → collect_diff
   → retrieve_repository_context → run_static_checks
   → generate_counterexamples → run_differential → review_court
-  → build_matrix → create_capsule → publish_report → END
+  → create_capsule → build_matrix → collect_evidence → publish_report → END
+
+The capsules are packaged BEFORE the matrix is built (#366): the matrix
+row must be able to say WHERE the evidence for that requirement is, and
+the address of the bytes only exists once the capsules have been
+uploaded. The capsules do not read the matrix — they package the
+Review Court's confirmed findings — so the order costs nothing and buys
+the row its address.
 
 If any node recorded an error in state["errors"], guard_errors routes
 straight to publish_report so the pipeline can never fabricate a
@@ -119,8 +126,8 @@ def build_phase0_graph(checkpointer: Any = None) -> Any:
     builder.add_edge("generate_counterexamples", "run_differential")
     builder.add_edge("run_differential", "run_deep_experiments")
     builder.add_edge("run_deep_experiments", "review_court")
-    builder.add_edge("review_court", "build_matrix")
-    builder.add_edge("build_matrix", "create_capsule")
+    builder.add_edge("review_court", "create_capsule")
+    builder.add_edge("create_capsule", "build_matrix")
     # The evidence pack must be assembled AFTER the capsules exist: the
     # capsule object coordinates are the pipeline's own objects, and they
     # only come into being when the capsules are created. Assembling the

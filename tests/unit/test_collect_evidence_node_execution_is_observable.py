@@ -570,5 +570,8 @@ def test_the_graph_runs_the_node_after_the_capsules_exist() -> None:
     assert ("collect_evidence", "run_release_checks") in edges
     # And the differential's two moments still reach the collector.
     assert ("run_deep_experiments", "review_court") in edges
-    assert ("review_court", "build_matrix") in edges
-    assert ("build_matrix", "create_capsule") in edges
+    # The capsules are packaged BEFORE the matrix (#366): the matrix row
+    # has to be able to say where the evidence for that requirement is,
+    # and the address exists only once the capsules are uploaded.
+    assert ("review_court", "create_capsule") in edges
+    assert ("create_capsule", "build_matrix") in edges

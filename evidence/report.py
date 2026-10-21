@@ -349,6 +349,17 @@ def render_verification_report(
                     '<br /><small class="surface">'
                     f"{safe(limit)}</small>"
                 )
+        # WHERE the evidence for this contract can be fetched from (#366).
+        # The row's verdict says what was decided; this says where the
+        # bytes that back it live. Emitted only when there is an address:
+        # a row without a capsule has nothing to point at.
+        artifact_refs = r.get("artifact_refs") or []
+        if isinstance(artifact_refs, (list, tuple)):
+            for ref in artifact_refs:
+                differential += (
+                    '<br /><small class="surface">'
+                    f"artifact: {safe(ref)}</small>"
+                )
         rows_html += f"""<tr class="{result_class}">
             <td>{safe(r.get("contract_id", ""))}</td>
             <td class="req">{safe(r.get("requirement", ""))}</td>

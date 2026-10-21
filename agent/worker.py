@@ -1049,6 +1049,11 @@ _SUMMARY_MATRIX_ROW_KEYS: tuple[str, ...] = (
     # state was actually compared, and where that comparison stopped.
     "observation_status",
     "observation_limits",
+    # WHERE the evidence for this contract is: the object-store
+    # coordinates of the capsules that carry it (#366). Carried so the
+    # coverage page can hand the reader the address of the bytes, not
+    # only a digest.
+    "artifact_refs",
 )
 
 #: Rows carried per job. The pipeline counts stay authoritative regardless, so
