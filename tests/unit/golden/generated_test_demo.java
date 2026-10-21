@@ -323,6 +323,115 @@ public class SpecProofGeneratedTest {
         );
     }
 
+    /**
+     * The service-path stale read.
+     *
+     * The repository-level stale-write test above drives the REPOSITORY,
+     * so it can only see defects that live in an entity annotation. This
+     * one drives the SERVICE: the product is read through a seam that
+     * serves the snapshot taken before another writer moved the row on,
+     * and the service is asked to place an order against it.
+     *
+     * The invariant is the same one the entity's @Version upholds, but
+     * the actor is the service: if the service's write path stops going
+     * through the versioned entity (a bulk UPDATE that computes the new
+     * stock from its own read), the concurrent decrement is silently
+     * lost — and NO repository-level template can see it, because the
+     * repository is never asked to do the write.
+     */
+    @org.springframework.boot.test.context.TestConfiguration
+    static class StaleProductReadConfig {
+
+        /** The snapshot the service is served; null disarms the seam. */
+        static Product stale;
+
+        @org.springframework.context.annotation.Bean
+        @org.springframework.context.annotation.Primary
+        ProductRepository staleProductRepository(
+                org.springframework.context.ApplicationContext context) {
+            return (ProductRepository) java.lang.reflect.Proxy.newProxyInstance(
+                    ProductRepository.class.getClassLoader(),
+                    new Class<?>[] { ProductRepository.class },
+                    (proxy, method, args) -> {
+                        if ("findById".equals(method.getName()) && stale != null) {
+                            return java.util.Optional.of(stale);
+                        }
+                        try {
+                            return method.invoke(realBehind(context, proxy), args);
+                        } catch (java.lang.reflect.InvocationTargetException e) {
+                            throw e.getCause();
+                        }
+                    });
+        }
+
+        /** The REAL repository — the seam is a decorator, not a replacement. */
+        static ProductRepository realBehind(
+                org.springframework.context.ApplicationContext context, Object seam) {
+            for (Object candidate
+                    : context.getBeansOfType(ProductRepository.class).values()) {
+                if (candidate != seam) {
+                    return (ProductRepository) candidate;
+                }
+            }
+            throw new IllegalStateException(
+                    "no real repository behind the stale-read seam");
+        }
+    }
+
+    @Test
+    void concurrentStockDecrementMustNotLoseTheOtherWritersChange() throws Exception {
+        orderRepository.deleteAll();
+        productRepository.deleteAll();
+        userRepository.deleteAll();
+        User user = new User("specproof", "specproof@example.com");
+        user.setPasswordHash("hash");
+        userRepository.saveAndFlush(user);
+        Product product = new Product("widget", 10, new BigDecimal("10.00"));
+        productRepository.saveAndFlush(product);
+
+        // The snapshot the SERVICE will read: taken before the other
+        // writer moves the row on.
+        Product stale = productRepository.findById(product.getId()).orElseThrow();
+        // The other writer: the same row, one decrement deeper. The row
+        // now carries version N+1; the snapshot still carries version N.
+        Product other = productRepository.findById(product.getId()).orElseThrow();
+        other.setStock(5);
+        productRepository.saveAndFlush(other);
+
+        StaleProductReadConfig.stale = stale;
+        final boolean[] rejected = {false};
+        final int[] status = {0};
+        try {
+            PlaceOrderRequest request = new PlaceOrderRequest(
+                    user.getId(), product.getId(), 3, "req-stale-service-1");
+            MvcResult result = mockMvc.perform(post("/api/orders")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andReturn();
+            status[0] = result.getResponse().getStatus();
+        } catch (ServletException e) {
+            rejected[0] = true;
+        } finally {
+            // Disarm the seam BEFORE reading the row back: the assertion
+            // must see the database, not the snapshot it planted.
+            StaleProductReadConfig.stale = null;
+        }
+
+        Integer stock = productRepository.findById(product.getId())
+                .orElseThrow().getStock();
+        long orders = orderRepository.count();
+        assertAll(
+            () -> assertTrue(rejected[0] || status[0] >= 400,
+                "The service accepted an order against a stale product read "
+                + "(status " + status[0] + ")"),
+            () -> assertEquals(5, stock,
+                "The other writer's stock (5) must survive the service's "
+                + "write, got " + stock),
+            () -> assertEquals(0L, orders,
+                "A rejected order must not leave an order row behind")
+        );
+    }
+
     @Test
     void duplicateOrderRequestMustBeDeduped() throws Exception {
         orderRepository.deleteAll();

@@ -6583,3 +6583,29 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 - 子命令层：`ops recover` / `craft run` 等子命令名是否仍存在（需遍历 `cli.commands[name].commands`）。
 - `probe.py`/`mcp.py`（I/O 外壳，纯逻辑少，优先级低）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+
+## #333 服务路径的陈旧读模板：基线通过、服务级缺陷失败、其余 17 个测试看不见它
+
+**起因/占号。** 队列①（从 #314 起一直挂着的那个）：**给并发类补一个服务路径的陈旧读样本**——先让模板驱动 service，再写案例。本号做的是**模板那半**：账本原话「A second, genuinely different sample needs the template to drive the SERVICE path (a stale read through the order flow), which is the next thing to build」。落地前重测账本：HEAD 9df4a0f、`## #` id 最大 **332**（#331/#332 已被并发车道取走）⇒ 本号取 **#333**。
+
+**先量旧行为（量的是「旧模板能看见什么」）。** 既有 `_STALE_STOCK_TEST_TEMPLATE` 驱动**仓储**：取两个快照、先存的那个赢、后存的必须抛乐观锁失败。它是**正确的**，但它驱动的是仓储 ⇒ 缺陷必须在**实体注解**上才看得见。账本当时的结论是「第二个实体级变异只是把 case-29 的缺陷换个说法重演」——**这个判断是对的**，直到模板换成驱动**服务**。
+
+**修（模板这一半）。**
+- **新模板** `_SERVICE_STALE_STOCK_TEST_TEMPLATE`（`agent/experiments/templates.py`）：产品通过一个**仓储接缝**被喂成「另一个写者改过之前」的快照，然后让**下单服务**拿着这个陈旧读去写。接缝是一个 JDK 动态代理（`@Primary` 装饰器，不是替换：真正的仓储仍在其后），只在 `findById` 且「已上膛」时返回快照，**读回行之前先解除上膛**（否则断言读到的是自己埋的快照，不是数据库）。
+- **不变式与仓储版相同**（并发写必须有一方失败，不得静默覆盖），**演员不同**：服务。如果服务的写路径不再经过带版本号的实体（自己读出来的数直接批量 UPDATE 回去），并发扣减就被**静默吞掉**——而仓储级模板**看不见**它，因为仓储根本没被要求去写。
+- **派发**：CONCURRENCY-01 现在带两个模板（仓储级 + 服务级）。
+- **golden 逐字节重钉**：生成源码 **27160 → 32272 字符（+5112）**，diff **109 行新增、0 行删除**——**纯增量**，既有生成源码一个字没动。
+- **注册表**：CONCURRENCY-01 的 `templates` 加上新模板；GAP 注释改成实话：**模板那半已关**（并写下实测数字），**案例那半还开着**（金案例与它的 tag 还没建 ⇒ 家族仍无 holdout）。
+- **新门**（`test_generated_test_source_is_pinned.py`）：并发家族必须**同时**带两种写法；服务级模板的**接缝必须真的在生成源码里**（`StaleProductReadConfig`、`"findById".equals(...)`、上膛与解除上膛）——接缝丢了的话，模板照样编译、照样通过，只是**什么都不再测**。
+
+**门与腿（这一号的腿是**真 Java 执行**，不是 Python 断言）。** 把生成的源码放进 demo 的测试树，用 maven 真跑：
+- **基线**：`SpecProofGeneratedTest` **18 run, 0 failures, 0 errors** ✓（新增的那个服务路径用例在基线上**通过**）。
+- **服务级变异**（把 `product.setStock(...); saveAndFlush(product)` 换成 `productRepository.setStock(id, product.getStock())`——批量 UPDATE，**不带版本守卫**，正是「拿自己读出来的数直接写回去」）：新用例**失败**，报出两条精确的话：`The service accepted an order against a stale product read (status 200)` 与 **`The other writer's stock (5) must survive the service's write, got 7`**（另一个写者的 5 被吞成 7 ⇒ 丢失更新真的发生了）✓✓。
+- **同一次变异下，其余 17 个生成用例照常通过** ⇒ 既有模板确实看不见这个缺陷 ⇒ **这是新增的探测能力，不是把 case-29 换个说法重演** ✓✓✓。
+- Python 侧：golden 门 **19 passed**、实验类门 **57 passed**、相关回归（golden + 样本门 + 节点可观测 + LLM 路径）**96 passed**；`ruff` 0 errors、`mypy agent/ experiments/` 0 errors（**68** 源文件）。覆盖报告重生成后**内容未变**（它统计的是样本，不是模板）✓。
+
+**否证与订正。** ① 第一版编译就挂：`mockMvc.perform` 返回的是 `ResultActions` 不是 `MvcResult` ⇒ 加 `.andReturn()`。② 第二次跑，**整个 Spring 上下文起不来**：`Mockito cannot mock this class: RabbitTemplate`。查下去发现**demo 自己的测试也一样失败** ⇒ 这是**既有的环境限制**（本机默认 JDK 25 上 Mockito 的 inline mock maker 插不了桩），**不是**我的模板造成的。⇒ 换腿：**JDK 17 + `-Djava.version=17` + 先 `clean`**（旧的 class 是 JDK 25 编的，class file 65 在 JDK 17 上不认）——demo 自己的 9 个用例与生成的 18 个用例一起全绿 ✓。③ 我为变异写的**第一版**是 `stock = stock - qty` 的批量 UPDATE——**那种写法其实抓不到**：批量减法是原子的，丢的不是它。真正丢更新的是「**用自己读出来的绝对值写回去**」，也就是我最后采用的那版。**在跑之前先想清楚缺陷是什么，比跑完再解释省事**。
+
+**诚实边界。** ① **金案例还没建**：本号只交付模板与它的**能力证明**；`case-101`（含 tag、spec、ground-truth）与它的负样本孪生是下一号的事 ⇒ 并发家族**仍然没有 holdout**，注册表里照实写着。② 接缝是**JDK 动态代理**，只拦 `findById`：如果某个服务是用别的方法读产品（`findByName` 之类），它拿不到陈旧读——模板覆盖的是**读法**的一种，不是全部。③ 接缝以 `@Primary` 装饰器的身份进入**整个测试类**的上下文（未上膛时是纯转发，对其它用例透明）✓。④ 那条 JDK 腿是**本机环境事实**，不是仓库事实：默认 JDK 25 上 demo 的测试**跑不起来**（它自己的用例也一样）。这值得单独一号把「demo 的测试在现代 JDK 上可跑」这件事解决掉。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **建并发家族的金案例**（`case-101`：服务级批量 UPDATE 绕过版本守卫 + 负样本孪生：把版本守卫放进 WHERE 子句的等价写法），并把它登记为该家族的 **holdout**（`docs/eval/holdout-manifest.json` + 家族表）。② demo 的测试在**默认 JDK 25** 上跑不起来（Mockito inline mock maker）——单独解决。③ `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。④ 局部变量名是否也该进 profile（#319 的边界②）。⑤ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑥ 队列项④的**框法要改**（#319 队列⑤）。⑦ P1-7（MinIO 对象引用）。

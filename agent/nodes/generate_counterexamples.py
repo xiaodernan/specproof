@@ -60,6 +60,7 @@ from agent.experiments.templates import (
     _ORDER_EVENT_TEST_TEMPLATE,
     _ORDER_RETRY_TEST_TEMPLATE,
     _ROLLBACK_TEST_TEMPLATE,
+    _SERVICE_STALE_STOCK_TEST_TEMPLATE,
     _SPURIOUS_EVENT_TEST_TEMPLATE,
     _STALE_STOCK_TEST_TEMPLATE,
     _UNIQUE_TEST_TEMPLATE,
@@ -339,7 +340,14 @@ def _build_deterministic_test(
         # Deterministic stale-write: two snapshots of the same row, first
         # save wins, the second must raise an optimistic-lock failure
         # (cases 29/30). No threads, no timing - fully deterministic.
-        body += _STALE_STOCK_TEST_TEMPLATE
+        #
+        # The service-path sibling drives the SERVICE, not the repository:
+        # the product is served through a stale-read seam and the order
+        # flow is asked to write against it. A defect in the service's
+        # own write path (a bulk UPDATE that computes the new stock from
+        # its own read) is invisible to the repository-level test, because
+        # the repository is never asked to do the write.
+        body += _STALE_STOCK_TEST_TEMPLATE + _SERVICE_STALE_STOCK_TEST_TEMPLATE
     if _has_family(contracts, "IDEMPOTENT-01"):
         body += _IDEMPOTENT_TEST_TEMPLATE
     if _has_family(contracts, "ATOMICITY-01"):

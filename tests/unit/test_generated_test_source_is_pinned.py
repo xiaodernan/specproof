@@ -144,3 +144,39 @@ def test_each_family_reaches_the_source(contract_id: str) -> None:
     )
     assert "@@" not in source
     assert "void " in source, contract_id
+
+
+def test_the_concurrency_family_carries_both_spellings() -> None:
+    """The repository-level AND the service-path stale read.
+
+    The repository-level template drives the repository, so it can only
+    see defects that live in an entity annotation. The service-path one
+    drives the order flow against a stale read, so it can also see a
+    defect in the service's own write path. One spelling of the family
+    would leave it able to hold only one kind of defect, and the second
+    kind would be invisible rather than absent.
+    """
+    source = _build_deterministic_test(
+        [{"id": "CONCURRENCY-01", "expected_behavior": "x"}]
+    )
+    assert "void staleStockWriteMustBeRejected()" in source
+    assert "void concurrentStockDecrementMustNotLoseTheOtherWritersChange()" in source
+
+
+def test_the_service_path_template_still_injects_a_stale_read() -> None:
+    """The seam must be IN the generated source, not only in the template.
+
+    A template that lost its seam would still compile and would still
+    pass — it would just stop testing anything. The seam is the whole
+    point, so its presence is pinned.
+    """
+    source = _build_deterministic_test(
+        [{"id": "CONCURRENCY-01", "expected_behavior": "x"}]
+    )
+    assert "StaleProductReadConfig" in source
+    assert '"findById".equals(method.getName())' in source
+    assert "StaleProductReadConfig.stale = stale" in source
+    # And it must be DISARMED before the row is read back, or the
+    # assertion would read the snapshot it planted instead of the
+    # database.
+    assert "StaleProductReadConfig.stale = null" in source
