@@ -192,6 +192,52 @@ def test_an_unreachable_external_store_captures_nothing(
     assert any(r.get("verdict") == "COMPLIANT" for r in result["diff_results"])
 
 
+def test_the_external_world_is_reset_between_the_two_runs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """The reset must straddle the Head run.
+
+    Two captures taken after both runs compare the same instant with
+    itself; a reset taken before the Base run would be undone by the
+    Base run itself. The only placement that makes the two snapshots
+    comparable is: capture → reset → Head run → capture.
+    """
+    from agent.nodes.run_differential import run_differential_node
+
+    events: list[str] = []
+
+    def fake_run(job_id: object, stage: str, fn: object, *args: object, **kwargs: object) -> Any:  # noqa: ARG001
+        events.append(stage)
+        if stage == "maven_base":
+            return dict(_OK_RESULT)
+        if stage == "maven_head":
+            return dict(_OK_RESULT)
+        return []
+
+    monkeypatch.setattr(
+        "agent.nodes.run_differential.run_with_cancel_checks", fake_run
+    )
+    monkeypatch.setattr(
+        "agent.nodes.run_differential._capture_external_state",
+        lambda state: {"redis": {}, "objects": {}, "moment": len(events)},
+    )
+    monkeypatch.setattr(
+        "agent.nodes.run_differential._reset_external_state",
+        lambda state: (events.append("reset"), {"reset": True, "keys_removed": 3})[1],
+    )
+
+    result = run_differential_node(_make_state(tmp_path))
+
+    # The reset happened after the Base run and before the Head run.
+    assert result["external_reset"]["reset"] is True
+    assert events.index("maven_base") < events.index("reset") < events.index(
+        "maven_head"
+    )
+    # And it travels with the result, so the evidence can say the two
+    # moments are comparable.
+    assert result["external_reset"]["keys_removed"] == 3
+
+
 def test_workspace_not_prepared_counts_skipped(tmp_path: Path) -> None:
     """Missing workspaces: the attempt is counted, skipped, and honest."""
     from agent.nodes.run_differential import run_differential_node

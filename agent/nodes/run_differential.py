@@ -357,6 +357,17 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # "nothing changed". A snapshot that could not be taken stays empty
     # (we did not look) — it is never filled in with an assumption.
     base_external = _capture_external_state(state)
+
+    # ── Put the world back before the Head run ────────────────────
+    # The Head run would otherwise start on top of the Base run's
+    # leftovers, and the two snapshots would stop being comparable: a
+    # key the Base created and the Head never touched reads as
+    # "unchanged" — which is NOT the same fact as "the Head produced it
+    # too". The reset is scoped to the observed families (clearing the
+    # whole store would be destructive to whatever else lives there) and
+    # it is RECORDED, so the reader knows the world was put back.
+    reset = _reset_external_state(state)
+
     if head_reused:
         head_result = {
             "exit_code": recorded_run.get("exit_code"),
@@ -383,7 +394,6 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     # after the Base run, this is what lets a collector say "the Head
     # run left the cache key behind" instead of "nothing changed".
     head_external = _capture_external_state(state)
-
     # ── Execution-time reliability probes (阶段4, cases 97/98/100) ──
     # Independent of the generated-test verdict: the probe scaffolding rides
     # the case-head ref and gets copied into the base workspace here.
@@ -422,6 +432,7 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             # must be able to see it.
             "external_state_base": base_external,
             "external_state_head": head_external,
+            "external_reset": reset,
         }
 
     base_pass = base_result.get("exit_code") == 0
@@ -845,6 +856,11 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
         # itself would say "nothing changed" forever.
         "external_state_base": base_external,
         "external_state_head": head_external,
+        # Whether the world was put back between the two runs, and how
+        # many keys went. A reader of the evidence needs this: without it,
+        # "the Head run left nothing behind" and "the Head run started
+        # from a clean world" read the same.
+        "external_reset": reset,
     }
 
 
@@ -1424,6 +1440,40 @@ def _capture_external_state(state: Any) -> dict[str, Any]:
     if redis_client is None and object_store is None:
         snapshot["note"] = "no external store was reachable"
     return snapshot
+
+
+def _reset_external_state(state: Any) -> dict[str, Any]:
+    """Put the observed key families back between the two runs.
+
+    Scoped to the families the contracts declared (clearing the whole
+    store would be destructive to whatever else lives there) and
+    RECORDED: a reader of the evidence must know the world was put
+    back, otherwise "the Head run left nothing behind" and "the Head run
+    started from a clean world" read the same.
+    """
+    patterns = _redis_patterns_for(state)
+    if not patterns:
+        return {"reset": False, "reason": "no key family was observed"}
+    try:
+        from experiments.collectors import RedisStateCollector
+        from experiments.external_state import build_redis_client
+    except Exception:  # noqa: BLE001 — evidence collection is best effort
+        return {"reset": False, "reason": "collector unavailable"}
+    client = build_redis_client()
+    if client is None:
+        return {"reset": False, "reason": "redis unreachable"}
+    try:
+        removed = RedisStateCollector(client).reset_family(patterns)
+    except Exception as exc:  # noqa: BLE001 — a failed reset is reported
+        return {
+            "reset": False,
+            "reason": f"reset failed: {type(exc).__name__}",
+        }
+    return {
+        "reset": True,
+        "patterns": list(patterns),
+        "keys_removed": removed,
+    }
 
 
 def _redis_patterns_for(state: Any) -> list[str]:

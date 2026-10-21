@@ -94,6 +94,7 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
                 p for p in (head_snapshot.get("truncated_patterns") or [])
                 if p not in truncated
             ]
+            world_reset = raw_state.get("external_reset") or {}
             for contract in raw_state.get("contracts") or []:
                 if not isinstance(contract, dict) or not contract.get("id"):
                     continue
@@ -112,6 +113,7 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
                             p for p in truncated
                             if any(fnmatch.fnmatch(p, pattern) for pattern in patterns)
                         ],
+                        world_reset=world_reset,
                     )
                 )
             if redis_fragments:

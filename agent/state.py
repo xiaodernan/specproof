@@ -60,6 +60,10 @@ class Phase0State(MessagesState):
     # changed". Channel, not a transient: the collector node runs later.
     external_state_base: dict[str, Any]
     external_state_head: dict[str, Any]
+    # Whether the external world was put back between the two runs, and
+    # how many keys went. Without it, "the Head run left nothing behind"
+    # and "the Head run started from a clean world" read the same.
+    external_reset: dict[str, Any]
     # The evidence pack's outcome. LangGraph keeps ONLY the channels the
     # state schema declares — a node that returns an undeclared key has
     # it SILENTLY DROPPED, so "the pack was not written" would have no
@@ -154,6 +158,7 @@ def initial_state(
         "deep_note": "",
         "external_state_base": {},
         "external_state_head": {},
+        "external_reset": {},
         "evidence_pack_saved": False,
         "evidence_pack_error": "",
         "fragments_collected": 0,

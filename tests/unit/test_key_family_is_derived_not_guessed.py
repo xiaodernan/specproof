@@ -101,11 +101,12 @@ def test_the_demo_profile_is_the_default() -> None:
 
 
 class _ScanningRedis:
-    """A Redis double that can enumerate a family."""
+    """A Redis double that can enumerate a family — and delete from it."""
 
     def __init__(self, keys: dict[str, str] | None = None) -> None:
         self.keys = keys or {}
         self.scanned: list[str] = []
+        self.deleted: list[str] = []
 
     def get(self, name: str) -> Any:
         return self.keys.get(name)
@@ -121,6 +122,65 @@ class _ScanningRedis:
             key for key in self.keys
             if match is None or fnmatch.fnmatch(key, match)
         ]
+
+    def delete(self, *names: str) -> int:
+        removed = 0
+        for name in names:
+            if name in self.keys:
+                del self.keys[name]
+                removed += 1
+            self.deleted.append(name)
+        return removed
+
+
+def test_a_reset_only_touches_the_named_families() -> None:
+    """Clearing the WHOLE store would be destructive to other tenants.
+
+    The reset is scoped to the families the contracts declared — the
+    ones this observation is about.
+    """
+    client = _ScanningRedis({
+        "token:user:1": "a",
+        "user:cache:1": "b",
+        "other:key": "c",
+    })
+    collector = RedisStateCollector(client)
+
+    removed = collector.reset_family(["token:user:*"])
+
+    assert removed == 1
+    assert client.deleted == ["token:user:1"]
+    # The other families and keys are untouched.
+    assert "user:cache:1" in client.keys
+    assert "other:key" in client.keys
+
+
+def test_a_reset_of_an_unscannable_client_removes_nothing() -> None:
+    class _NoScan:
+        def get(self, name: str) -> Any:
+            return None
+
+        def ttl(self, name: str) -> int:
+            return -2
+
+    collector = RedisStateCollector(_NoScan())
+    assert collector.reset_family(["token:user:*"]) == 0
+
+
+def test_the_fragment_says_whether_the_moments_are_comparable() -> None:
+    """Without the reset, "the Head left nothing" and "the Head never
+    touched it" read the same."""
+    from experiments.collectors import redis_fragment_from_snapshots
+
+    reset = redis_fragment_from_snapshots(
+        "job-1", {}, {}, world_reset={"reset": True, "keys_removed": 3},
+    )
+    assert reset.extension["world_reset"]["reset"] is True
+    assert reset.extension["moments_comparable"] is True
+
+    not_reset = redis_fragment_from_snapshots("job-1", {}, {})
+    assert not_reset.extension["world_reset"] == {}
+    assert not_reset.extension["moments_comparable"] is False
 
 
 def test_the_scan_reads_the_keys_the_family_contains() -> None:
