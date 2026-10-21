@@ -6609,3 +6609,27 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 **诚实边界。** ① **金案例还没建**：本号只交付模板与它的**能力证明**；`case-101`（含 tag、spec、ground-truth）与它的负样本孪生是下一号的事 ⇒ 并发家族**仍然没有 holdout**，注册表里照实写着。② 接缝是**JDK 动态代理**，只拦 `findById`：如果某个服务是用别的方法读产品（`findByName` 之类），它拿不到陈旧读——模板覆盖的是**读法**的一种，不是全部。③ 接缝以 `@Primary` 装饰器的身份进入**整个测试类**的上下文（未上膛时是纯转发，对其它用例透明）✓。④ 那条 JDK 腿是**本机环境事实**，不是仓库事实：默认 JDK 25 上 demo 的测试**跑不起来**（它自己的用例也一样）。这值得单独一号把「demo 的测试在现代 JDK 上可跑」这件事解决掉。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **建并发家族的金案例**（`case-101`：服务级批量 UPDATE 绕过版本守卫 + 负样本孪生：把版本守卫放进 WHERE 子句的等价写法），并把它登记为该家族的 **holdout**（`docs/eval/holdout-manifest.json` + 家族表）。② demo 的测试在**默认 JDK 25** 上跑不起来（Mockito inline mock maker）——单独解决。③ `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。④ 局部变量名是否也该进 profile（#319 的边界②）。⑤ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑥ 队列项④的**框法要改**（#319 队列⑤）。⑦ P1-7（MinIO 对象引用）。
+
+## #334 每个 CLI 选项都必须有 `--help` 文本
+
+**起因/占号。** #294/#332 那一支的延伸：#332 钉住了「epilog / 模块 docstring 点名的命令必须真实存在」，但**选项层**还没被量过——`--help` 里出现一个**没有说明文字**的旋钮（`--base`、`--head` 等），用户根本不知道它干嘛。占号前 `git fetch` 同步：本地与 `origin/master` 0 ahead / 0 behind，远端 HEAD `4d86be0`（`## #333`）。332/333 已被占 ⇒ 本号取 **#334**。
+
+**先量后写（探针先跑，再决定改哪）。** 递归遍历 `cli_main.cli` 的全部 click 命令（含 Group 子命令 `craft run` / `ops recover` 等），实测：
+- 命令总数 **≥ 10**（满足门控分母下限）；
+- 选项总数 **55**，其中 **6 个**无 `help=`：`approve --requests` / `--app-dir` / `--remote`、`fix --base` / `--head` / `--output-dir`；其余 49 个都带 help。
+
+**落地（改生产码 + 加门）。**
+- `cli/specproof/commands/fix.py`：给 6 个裸选项补 `help=` 文本（每个旋钮一句话说清语义，如 `--base` = "Base revision the change is diffed against"）。生产码**只增 help 字符串，不改任何默认值、类型与行为**。
+- 新建 `tests/unit/test_cli_options_all_have_help.py`：递归遍历**所有**命令（含 Group 子命令），断言每个 `click.Option` 有非空 `help`；带正向控制——命令数 ≥10、选项数 ≥40、必须扫到 `fix --repo`（防「测试空跑」假绿）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `python -m pytest tests/unit/test_cli_options_all_have_help.py -q` | 1 passed in 8.85s |
+| ruff | `ruff check tests/unit/test_cli_options_all_have_help.py` | 初报 UP035（`typing.Iterator`→`collections.abc.Iterator`），改后 **All checks passed** |
+| 回归 | `test_fix_requests_contract.py` + `test_cli_help_epilog_names_real_commands.py` | 18 passed |
+| 探针复测 | 遍历 55 选项 | **0 缺失**（修复后） |
+
+**诚实边界。** ① 只补 help 文本：默认值、类型、行为**一字未改**，用户可见旋钮的语义现在能 `--help` 看到，但开关本身从一开始就存在。② 门只查「非空 help」——help 文本**是否准确描述行为**不在射程（那是人工审阅项）。③ 只覆盖 `cli_main.cli` 注册树；若未来有新命令未在注册表而只出现在 epilog / docstring，由 #332 那把尺管。④ 变红先判断是「回归」还是「旧断言写错」：本次无旧断言被改，纯增量。
+
+**下批候选。** ① 各子命令自身的 `--help` 文本与**真实选项集**一致性（如 help 里列了某选项但该选项已被移除）。② `probe.py` / `mcp.py` 纯逻辑补栅栏（低优先）。③ #333 队列①（建并发家族金案例 `case-101`）。
