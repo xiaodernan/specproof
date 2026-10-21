@@ -6553,3 +6553,33 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 **诚实边界。** ① ENOSPC 是**注入**的（句柄的 `write` 抛 errno 28），不是真把盘写满；文件 IO、备份、审计、`os.replace` 全是真路径，被注入的只有那个错误。② `move` / `delete` 也传了 `landed=True`，但**只对 `write_file` 写了工具层逐条测试**——它们走同一个 `_audit`，路径是共享的，但「移动后审计失败」与「删除后审计失败」**没有**各自的断言。③ 落盘日志少的那一行**没有被补写**（盘满时补写是无解的）；内存审计与落盘日志的这份不对称是**记录**下来的，不是**修复**了的。④ 新增的 `tool_errors_edit_landed_audit_failed_total` 是一条**新指标族**，本号只保证它被词表/面板**登记**了；它有没有**真实流量**，要等真出现磁盘满的部署才知道。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **给并发类补一个服务路径的陈旧读样本**（#314 的结论，仍未动）。② `move` / `delete` 的落地后审计故障各自补一条（本号边界②）。③ 局部变量名是否也该进 profile（#319 的边界②）。④ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑤ 队列项④的**框法要改**（#319 队列⑤）：多数手写假是**方法级鸭子类型**，换成求值器等于把它们变成真 store。⑥ P1-7（MinIO 对象引用）。
+## #332 CLI 的 `--help` epilog 与模块 docstring 里点名的命令必须真实存在
+
+**起因/占号。** #328 的下批候选首条：「`cli/specproof/main.py` 的 `HELP_EPILOG` 与真实命令集是否一致（与 #294 的指南漂移同类，但载体是 `--help` 的 epilog）」。占号前读账本最大 330（`## #330`），329/330 已被占，本号取 **#332**（331 留作并发缓冲）。
+
+**量到的缺陷（先量后写）。** `main.py` 里有**两份**手写的命令清单，都不是从 click 注册表生成的：
+1. 模块 docstring（文件开头 `Commands:` 段）列了 `quickstart/demo/probe/craft/verify/replay/evidence/eval`；
+2. `HELP_EPILOG`（`specproof --help` 末尾那一段）列了 `quickstart/demo/demo --run/craft run/verify/probe/ops recover`。
+
+命令一旦改名或退役，用户敲 `--help` 看到的就是一个不存在的命令（「声称 ≠ 使用」漂移类，与 #294 的 `_GUIDE` 同族，但载体不同、各要一把尺）。两者都零直接测试。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_cli_help_names_real_commands.py`（4 案）：
+1. `test_help_epilog_names_only_registered_commands`：`^\s+specproof\s+([a-z][a-z0-9-]*)\s` 抽取，`>= 3`（分母下限），`mentioned - set(cli.commands)` 为空。
+2. `test_module_docstring_names_only_registered_commands`：同一把尺量 `main.__doc__`。
+3. `test_help_epilog_covers_the_first_run_path`：`{quickstart, demo}` 必须仍在 epilog 里（防「删空」假绿）。
+4. `test_cli_help_renders_the_epilog`：`CliRunner` 跑 `cli --help`，退出码 0、输出含 `第一次使用` 与 `specproof quickstart`（证明 epilog 真的被 click 渲染出来，而不只是模块里的一段字符串）。
+
+**门证（全在本批内亲手取）。** 临时环境只需 click（`main.py` 把命令模块的重依赖延迟到函数内）：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with click --with pytest python -m pytest tests/unit/test_cli_help_names_real_commands.py -q -p no:cacheprovider` | 4 passed in 11.07s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_cli_help_names_real_commands.py` | 初报 1 个 I001（导入排序），`--fix` 后 **All checks passed** |
+| **变异臂**（epilog 的 `specproof verify` → `verifyy`；docstring 的 `specproof eval` → `evalx`） | 先预测：第 1、2 条必红，第 3、4 条仍绿 | 实测 **2 failed, 2 passed**，`assert not {'evalx'}` |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `diff` 与变异前备份逐字节一致、`specproof verify --repo` 回到 1 处；复跑 4 passed in 7.74s |
+
+**诚实边界（明确不声称）。** ① 只加测试：`main.py` 生产码一字未动。② 只检查 `specproof` 后的**第一个 token**；`specproof ops recover` 里的子命令 `recover` 是否存在不在本批射程（子命令层要另一把尺）。③ 只覆盖这两个载体；`quickstart` 的 `_GUIDE` 已由 #294 钉住，`README.md`/`LOCAL_EXPERIENCE.md` 经 #325 实测没有命令清单。④ 不要求「每个注册命令都必须出现在 epilog 里」——epilog 是精选，`approve/mcp/devtools/contract/baseline` 等刻意不列。
+
+**下批候选（受本环境约束）。**
+- 子命令层：`ops recover` / `craft run` 等子命令名是否仍存在（需遍历 `cli.commands[name].commands`）。
+- `probe.py`/`mcp.py`（I/O 外壳，纯逻辑少，优先级低）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
