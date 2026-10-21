@@ -10,13 +10,20 @@ Each case record carries duration_ms: whole-pipeline wall clock measured
 around the graph invocation. The Phase 0 graph exposes no per-stage
 timestamps, so timings are honest at the case level only (SLO stats are
 computed by scripts/bench_latency.py).
+
+Every case is ALSO appended to an incremental JSONL sidecar the moment
+it finishes. The full report is written at the END of the run, so a run
+that is killed (a CI job that hits its timeout, a machine that is
+rebooted) leaves NOTHING behind - the hours it measured are gone and
+the only way to learn them is to run them again. The JSONL is written
+and flushed per case, so what was measured survives the kill.
 """
 import json
 import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import click
 
@@ -34,6 +41,48 @@ from evidence.acceptance import (
     severity_reconciliation,
 )
 from evidence.report import render_eval_report
+
+
+def incremental_results_path(output: str | Path) -> Path:
+    """Where the per-case records of a run are appended as they finish."""
+    return Path(output).with_suffix(".results.jsonl")
+
+
+def append_incremental_result(handle: TextIO, record: dict[str, Any]) -> None:
+    """Append one case record and make it durable immediately.
+
+    The flush and the fsync are the point: a record that only sits in
+    the buffer is a record that a kill takes away.
+    """
+    handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def read_incremental_results(path: str | Path) -> list[dict[str, Any]]:
+    """Read the records a (possibly killed) run left behind.
+
+    A torn last line - the run was killed in the middle of a write - is
+    SKIPPED, not fatal: half a record is not a record, and the cases
+    before it are still worth having. Unreadable lines in the middle
+    are skipped for the same reason.
+    """
+    target = Path(path)
+    if not target.exists():
+        return []
+    records: list[dict[str, Any]] = []
+    for line in target.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            records.append(parsed)
+    return records
+
 
 
 def _schema_reachable(database: str) -> bool:
@@ -465,6 +514,14 @@ def eval_cmd(
     negative_cases = 0
     not_run = 0
 
+    # The incremental sidecar: one line per case, written the moment the
+    # case finishes. The report at the end of the run is the summary; this
+    # is the evidence, and it survives a run that is killed half way.
+    incremental_path = incremental_results_path(output)
+    incremental_path.parent.mkdir(parents=True, exist_ok=True)
+    incremental_handle = incremental_path.open("w", encoding="utf-8")
+    click.echo(f"Incremental per-case results: {incremental_path}")
+
     for case_dir in case_dirs:
         spec_file = case_dir / "spec.md"
         gt_file = case_dir / "ground-truth.json"
@@ -577,6 +634,7 @@ def eval_cmd(
             }
             record["severity_match"] = severity_match_of(record)
             results.append(record)
+            append_incremental_result(incremental_handle, record)
             click.echo(
                 f"  [NOT_RUN] pipeline aborted before any comparison "
                 f"({duration_ms} ms) — excluded from recall, not counted as a miss"
@@ -671,12 +729,15 @@ def eval_cmd(
         # None = no level call (recall miss or negative case).
         record["severity_match"] = severity_match_of(record)
         results.append(record)
+        append_incremental_result(incremental_handle, record)
         click.echo(
             f"  [{verdict}] matched {len(matched)} finding(s), "
             f"contracts found: {contracts_found} ({duration_ms} ms)"
         )
 
         _cleanup_worktrees(repo_resolved, final)
+
+    incremental_handle.close()
 
     # ── Summary statistics (single honest source: evidence.acceptance) ──
     counts = MetricCounts(
@@ -764,6 +825,15 @@ def eval_cmd(
                     "Per-case duration_ms is whole-pipeline wall clock measured "
                     "around the graph invocation; the Phase 0 graph exposes no "
                     "per-stage timestamps, so stage-level timings are not available."
+                ),
+                # The per-case records were ALSO written incrementally, one
+                # line per case, as the run went: a run that was killed
+                # leaves that file behind, so the hours it measured are
+                # still readable. The pointer is here so a reader knows
+                # where to look.
+                "incremental_results": str(incremental_path),
+                "incremental_cases": len(
+                    read_incremental_results(incremental_path)
                 ),
                 "cases": results,
             },
