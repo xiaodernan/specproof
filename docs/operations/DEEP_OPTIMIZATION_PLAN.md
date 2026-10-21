@@ -7530,3 +7530,27 @@ capsule_replay 抵达，不代表 craft 该用它们。④ 本号取号 max+1 �
 - **没有改判定**：披露仍然只影响行上那两句说明，`result` 与 `unverified_reason` 一个字没动。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **注册表把 `observes_keys` 存下来**（加一列；它算不算「内容变更」是个真问题 ⇒ 需要一次决定）；② **对象观测也进判定层**（要 I/O ⇒ 需要把「矩阵是纯函数」与「判定层看见对象观测」这两件事分开设计）；③ **101 个案例的全量重跑评测**（CI 里**没有** nightly job ⇒ workflow 改动**推不动**：token 缺 `workflow` scope ⇒ 留在工作区等人工提交）；④ **CI 里的集成腿 URL**（同上）；⑤ **DEEP 校准**（#300 队列①，未动）；⑥ demo 在**默认 JDK 25** 上跑不起来（单独解决）；⑦ 局部变量名（**已关闭**，#358）；⑧ 帧修队列项（**已关闭**，#364）。
+
+## #370 让本地能跑一次完整评测：宿主 JDK 的版本告诉 Maven，评测说清楚往哪个库写
+
+**起因/占号**。#355 的边界与 #339/#345 的实践：**本机跑不出一条完整差分作业** ⇒ 差分要用 Maven 编译 demo，而 demo 的 pom 把 `<java.version>` 钉在 **21**；本机只有 **17** 与 **25**（17 能编译、25 连 demo 自己的用例都起不来——Mockito inline mock maker）⇒ 差分那一步在本地**根本编译不过** ⇒ 于是「作业级」的任何验证都只能在 CI 上做，而 CI 的 workflow 改动**推不动**（token 缺 `workflow` scope）⇒ ⇒ 本号把**本地这条路**修通：① 宿主构建被告知**它自己的 JDK 版本**；② 评测说清楚**往哪个库写**（默认测试库，不往产品库里撒 `eval-*` 的行）。落地前重测账本：HEAD 6460d76、`## #` id 最大 **369** ⇒ 取 **#370**。
+
+**做法。**
+- **宿主构建知道自己的 JDK 是哪个**（`experiments/adapters.py`）：读 `java -version`（优先 `JAVA_HOME` 里那个，与 Maven 取的一致）⇒ 拿 major 版本 ⇒ **宿主那条** maven 命令（`test-compile` 与 `test` 两条都）带上 `-Djava.version=<major>`。⇒ demo 的 pom 钉的 21 与本机的 17 不再打架 ⇒ **编译这一关**在本机过得去。容器里那条命令**不带**这个参数（容器是 JDK 21，与 pom 一致）⇒ ⇒ 沙箱里的行为一个字没变。
+- **评测说清楚往哪个库写**（`cli/specproof/commands/eval.py`）：评测是一次**测量**，它写的对象元数据行是 `eval-*` 的记录，落在产品库里没人会去看 ⇒ ⇒ 配了 `SPECPROOF_TEST_MYSQL_DATABASE`（且那个 schema **够得着**）就写那儿 ⇒ 没配就写环境里那个 ⇒ 配了却**够不着**就**不用**它（一个连不上的 schema 写不了东西）⇒ ⇒ 三种情况**都打印出来**（不藏）。
+
+**可执行的证据。**
+- `tests/unit/test_host_java_version.py` **4 passed**：① 宿主 JDK 的 major 版本**测得出来**（测不出就返回 None ⇒ **不加**那个参数 ⇒ 不编一个版本号）；② **宿主那条**命令带 `-Djava.version=`、**容器那条不带**；③ `test-compile` 那条**也带**（编译在前，只给测试命令带 ⇒ 编译仍然先挂）；④ 检测没有动到仓库识别。
+- `tests/unit/test_eval_says_where_it_writes.py` **4 passed**：① 配了且够得着 ⇒ 选测试库；② 没配 ⇒ 用环境里那个并说明；③ 配了但**够不着** ⇒ 不用它并说明；④ 把同一个 schema 配两遍**不算**「配了测试库」（也不去探它）。
+- **真的按管线那条命令跑了一遍 demo**（JDK 17，wrapper `mvnw.cmd -o -B test -Dtest=SpecProofGeneratedTest -DfailIfNoTests=false -Djava.version=17`）⇒ `Tests run: 18, Failures: 0, Errors: 0` ⇒ **本机第一次能把 demo 编译并跑起来**（此前连编译都过不去）。
+- `ruff check agent/ experiments/ evidence/ cli/` **0 errors**；`mypy agent/ experiments/ --exclude tests` **Success**（72 files）。
+
+**诚实边界。**
+- **JDK 25 仍然跑不了 demo 的用例**（Mockito inline mock maker 在 25 上起不来）⇒ 本号修的是**编译**这一关，不是测试那一关 ⇒ ⇒ 本机可用的 JDK 是 **17**（能编译、也能跑）⇒ 这一点写进文档，不靠「本机能跑」当隐藏前提。
+- **用哪个 JDK 由 `JAVA_HOME` 决定**（与 Maven 自己取 JDK 的规则一致）⇒ ⇒ 宿主那条命令**跟着 `JAVA_HOME` 走**（检测优先 `JAVA_HOME` 里的 `java`）⇒ 换 JDK 不用改代码。
+- **`-Djava.version` 覆盖的是 pom 里的那个属性** ⇒ 一个用别的属性名（`maven.compiler.release` 之类）的项目**不受影响**（那个参数对它无效）⇒ ⇒ 本号不解析 pom、不猜项目的构建配置 ⇒ ⇒ 猜错就编译不过，**不猜**更安全。
+- **评测写测试库是「有则用之」**：CI 的 MySQL 里没有测试 schema ⇒ CI 的评测**仍然**写它自己那个 schema ⇒ ⇒ 打印的那句话会说清是哪一个 ⇒ 本号不改 CI 的行为。
+- **MongoDB 那一侧没动**：评测的证据包**本来**就只在显式配了 `MONGODB_DATABASE` 时才写（#346）⇒ ⇒ 那是显式选择，不是默认值。
+- **本号没有跑完整的 101 个案例评测**（本机 ~3–13 分钟/个 ⇒ 那是几小时）⇒ ⇒ 下一号去跑**抽样**（并写下实测数字与耗时 ⇒ 那是 DEEP 校准的第一块真实数据）。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **跑一次本地抽样评测**（本号把路修通了 ⇒ 下一号去跑，并写下**实测**的数字与耗时）；② **注册表把 `observes_keys` 存下来**（加一列；它算不算「内容变更」是个真问题 —— 规范摘要已经覆盖了「规范变了」，所以**不算**）；③ **对象观测也进判定层**（要 I/O ⇒ 需要把「矩阵是纯函数」与「判定层看见对象观测」分开设计）；④ **101 个案例的全量重跑评测**（CI 里**没有** nightly job ⇒ workflow 改动**推不动**：token 缺 `workflow` scope ⇒ 留在工作区等人工提交）；⑤ **DEEP 校准**（#300 队列①，未动）；⑥ 局部变量名（**已关闭**，#358）；⑦ 帧修队列项（**已关闭**，#364）。

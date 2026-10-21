@@ -34,6 +34,7 @@ deciding whether running untrusted repo tests is allowed at all.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import platform
@@ -447,6 +448,59 @@ def _maven_wrapper(workspace: str) -> str:
     return os.path.join(workspace, script)
 
 
+@functools.lru_cache(maxsize=1)
+def _host_java_major() -> int | None:
+    """The major version of the JDK this HOST would build with.
+
+    The demo's pom pins ``<java.version>21</java.version>``: on a host
+    whose JDK is 17, the build stops with "release version 21 not
+    supported" — and a build that cannot START is a blocked
+    verification, not a verdict. So the host build is told which
+    version it actually is.
+
+    ``None`` means "we could not tell" (no java on PATH, a JDK whose
+    version line looks unfamiliar, a timeout) ⇒ then the flag is
+    simply NOT added: guessing a version would be inventing a build.
+    """
+    import subprocess
+
+    java = "java"
+    java_home = os.environ.get("JAVA_HOME", "").strip()
+    if java_home:
+        name = "java.exe" if platform.system() == "Windows" else "java"
+        candidate = os.path.join(java_home, "bin", name)
+        if os.path.exists(candidate):
+            java = candidate
+    try:
+        proc = subprocess.run(
+            [java, "-version"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=15, check=False,
+        )
+    except Exception:  # noqa: BLE001 — no java, no answer
+        return None
+    text = f"{proc.stderr or ''}\n{proc.stdout or ''}"
+    match = re.search(r'version "(\d+)(?:\.(\d+))?', text)
+    if not match:
+        return None
+    major = int(match.group(1))
+    if major < 9:
+        # 1.x is a different numbering scheme; we do not translate it.
+        return None
+    return major
+
+
+def _host_java_version_flag() -> list[str]:
+    """The ``-Djava.version=`` flag for the HOST build (empty if unknown).
+
+    Only the host command carries it: the container runs the JDK the
+    image ships, which is the one the pom targets — so the sandbox's
+    behaviour is unchanged.
+    """
+    major = _host_java_major()
+    return [f"-Djava.version={major}"] if major else []
+
+
 # ── Execution-time probe artifacts (fault-injection roadmap, 阶段4) ─────
 #
 # The demo's test-scoped probe scaffolding (injected into the case refs by
@@ -580,7 +634,9 @@ class JavaMavenAdapter:
         wrapper = _maven_wrapper(workspace)
         if request.goal == "test_compile":
             command = ["mvn", "-o", "test-compile", "-q", "-f", "/work/pom.xml"]
-            local_command = [wrapper, "test-compile", "-q"]
+            local_command = [
+                wrapper, "test-compile", "-q",
+            ] + _host_java_version_flag()
         elif request.goal == "run_test":
             command = [
                 "mvn", "-o", "test", "-q",
@@ -592,7 +648,8 @@ class JavaMavenAdapter:
                 wrapper, "test", "-q",
                 f"-Dtest={request.test_class}",
                 "-DfailIfNoTests=false",
-            ] + (["-Dmaven.main.skip=true"] if request.skip_main else [])
+            ] + (["-Dmaven.main.skip=true"] if request.skip_main else []) \
+                + _host_java_version_flag()
         else:
             raise AdapterNotImplemented(f"unsupported Maven goal: {request.goal}")
         return PreparedExecution(

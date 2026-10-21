@@ -36,6 +36,67 @@ from evidence.acceptance import (
 from evidence.report import render_eval_report
 
 
+def _schema_reachable(database: str) -> bool:
+    """Can this schema be written? A read-only probe: it never creates
+    anything and never touches a row."""
+    if not database:
+        return False
+    try:
+        import pymysql
+
+        from storage.mysql import MySQLConfig
+
+        config = MySQLConfig.from_env()
+        connection = pymysql.connect(
+            host=config.host,
+            port=config.port,
+            user=config.user,
+            password=config.password,
+            database=database,
+            charset="utf8mb4",
+            connect_timeout=3,
+        )
+        connection.close()
+        return True
+    except Exception:  # noqa: BLE001 — unreachable is a fact, not a crash
+        return False
+
+
+def _choose_write_schema(
+    env: dict[str, str], probe: Any,
+) -> tuple[str, str]:
+    """Where this evaluation's rows go — and why.
+
+    An evaluation is a MEASUREMENT: what it writes (object-metadata
+    rows keyed ``eval-*``) belongs in the TEST schema, not in the
+    product's. When a test schema is configured AND reachable, that is
+    where the rows go; otherwise the ambient schema is used — and the
+    caller SAYS which one it used, because a run that writes into the
+    product's tables without saying so is a hygiene problem nobody
+    sees.
+
+    A test schema that is configured but NOT reachable is not used: a
+    run that cannot write anywhere must say so, not pretend.
+    """
+    ambient = (env.get("MYSQL_DATABASE") or "").strip()
+    test_schema = (env.get("SPECPROOF_TEST_MYSQL_DATABASE") or "").strip()
+    if test_schema and test_schema != ambient:
+        if probe(test_schema):
+            return test_schema, (
+                "the evaluation writes to the TEST schema — its rows are "
+                "measurements, not production records"
+            )
+        return ambient, (
+            f"the configured test schema {test_schema!r} is NOT reachable "
+            f"— the evaluation writes to {ambient or 'the ambient schema'} "
+            "instead, and says so"
+        )
+    return ambient, (
+        "no test schema is configured (SPECPROOF_TEST_MYSQL_DATABASE) — "
+        f"the evaluation writes to {ambient or 'the ambient schema'}"
+    )
+
+
 def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
     from contextlib import suppress
 
@@ -333,6 +394,16 @@ def eval_cmd(
         click.echo("ERROR: --repo is required for pipeline evaluation", err=True)
         raise SystemExit(1)
     repo_resolved = str(Path(repo_path).resolve())
+
+    # Where this run's rows go — said out loud, before anything is
+    # written (#370). An evaluation's records are measurements; they
+    # belong in the test schema when there is one.
+    schema, schema_reason = _choose_write_schema(
+        dict(os.environ), _schema_reachable,
+    )
+    if schema:
+        os.environ["MYSQL_DATABASE"] = schema
+    click.echo(f"Evaluation schema: {schema or '(unset)'} — {schema_reason}")
 
     discovered = sorted(
         d for d in cases_path.iterdir()
