@@ -1413,15 +1413,41 @@ def _capture_external_state(state: Any) -> dict[str, Any]:
 
     redis_client = build_redis_client()
     object_store = build_object_store()
+    patterns = _redis_patterns_for(state)
     snapshot = capture_external_state(
         redis_client=redis_client,
         object_store=object_store,
         redis_keys=list(DEFAULT_REDIS_KEYS),
         object_refs=(),
+        redis_patterns=patterns,
     )
     if redis_client is None and object_store is None:
         snapshot["note"] = "no external store was reachable"
     return snapshot
+
+
+def _redis_patterns_for(state: Any) -> list[str]:
+    """The Redis key FAMILIES this job's contracts are about.
+
+    Derived from the contracts' own text (which names the family) and
+    the profile (which says what that family is called here). The ids
+    inside a family belong to the domain, so the family is SCANNED —
+    guessing a list of keys would be inventing evidence about keys that
+    may never have existed.
+    """
+    try:
+        from experiments.external_state import key_patterns_for
+    except Exception:  # noqa: BLE001 — evidence collection is best effort
+        return []
+    contracts = state.get("contracts") or []
+    patterns: list[str] = []
+    for contract in contracts:
+        if not isinstance(contract, dict):
+            continue
+        for pattern in key_patterns_for(contract):
+            if pattern not in patterns:
+                patterns.append(pattern)
+    return patterns
 
 
 def _capture_db_snapshot(workspace: str) -> dict[str, Any]:

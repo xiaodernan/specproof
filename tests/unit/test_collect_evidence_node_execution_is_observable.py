@@ -86,7 +86,14 @@ def _state(
         "base_ref": "base",
         "head_ref": "head",
         "capsules": [],
-        "contracts": [{"id": "AUTH-01", "checker_type": "http"}],
+        # The contract NAMES its key family in its own text — that is
+        # where the family comes from (the profile says what the family
+        # is called in this domain).
+        "contracts": [{
+            "id": "CACHE-01",
+            "checker_type": "redis",
+            "requirement": "the cached user entry must be evicted on write",
+        }],
     }
     if base is not None:
         state["external_state_base"] = base
@@ -217,7 +224,11 @@ def test_the_pack_compares_the_two_moments_not_one_moment_twice(
     )
     # A redis-checked contract: its pack is the one that carries the
     # redis observation.
-    state["contracts"] = [{"id": "CACHE-01", "checker_type": "redis"}]
+    state["contracts"] = [{
+        "id": "CACHE-01",
+        "checker_type": "redis",
+        "requirement": "the cached user entry must be evicted on write",
+    }]
 
     result = collect_evidence_node(state)
 
@@ -277,7 +288,11 @@ def test_the_pack_carries_the_fragments_with_their_honest_status(
         base=_moment(key_present=False, object_present=False),
         head=_moment(key_present=True, object_present=True),
     )
-    state["contracts"] = [{"id": "CACHE-01", "checker_type": "redis"}]
+    state["contracts"] = [{
+        "id": "CACHE-01",
+        "checker_type": "redis",
+        "requirement": "the cached user entry must be evicted on write",
+    }]
     collect_evidence_node(state)
 
     assert len(mongo.packs) == 1
@@ -389,8 +404,16 @@ def test_each_contract_gets_only_the_fragments_that_bear_on_it(
         head=_moment(key_present=True, object_present=True),
     )
     state["contracts"] = [
-        {"id": "CACHE-01", "checker_type": "redis"},
-        {"id": "AUTH-01", "checker_type": "http"},
+        {
+            "id": "CACHE-01",
+            "checker_type": "redis",
+            "requirement": "the cached user entry must be evicted on write",
+        },
+        {
+            "id": "AUTH-01",
+            "checker_type": "http",
+            "requirement": "unauthenticated requests must receive 401",
+        },
     ]
 
     result = collect_evidence_node(state)
@@ -403,6 +426,33 @@ def test_each_contract_gets_only_the_fragments_that_bear_on_it(
     auth_kinds = {f["fragment_type"] for f in packs["AUTH-01"]["fragments"]}
     assert cache_kinds == {"redis", "object"}
     assert auth_kinds == {"object"}
+
+
+def test_a_contract_that_names_no_key_family_gets_no_redis_fragment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No family named ⇒ nothing observed for it — and nothing invented.
+
+    A contract that does not say which keys it is about cannot have its
+    keys guessed: the ids belong to the domain. Guessing would put
+    observations in the pack that were never asked for.
+    """
+    mongo = _stub_mongo(monkeypatch)
+    state = _state(
+        base=_moment(key_present=True, object_present=False),
+        head=_moment(key_present=True, object_present=True),
+    )
+    state["contracts"] = [
+        {"id": "AUTH-01", "checker_type": "http",
+         "requirement": "unauthenticated requests must receive 401"},
+    ]
+
+    collect_evidence_node(state)
+
+    kinds = {f["fragment_type"] for f in mongo.packs[0]["fragments"]}
+    assert kinds == {"object"}
+    # And the key that WAS observed for another contract is not in here.
+    assert "user:cache:1" not in str(mongo.packs[0]["fragments"])
 
 
 def test_each_contract_gets_its_own_pack(
@@ -422,7 +472,12 @@ def test_each_contract_gets_its_own_pack(
         base=_moment(key_present=False, object_present=False),
         head=_moment(key_present=True, object_present=True),
     )
-    state["contracts"] = [{"id": "AUTH-01"}, {"id": "CACHE-01"}]
+    state["contracts"] = [
+        {"id": "AUTH-01", "checker_type": "http",
+         "requirement": "unauthenticated requests must receive 401"},
+        {"id": "CACHE-01", "checker_type": "redis",
+         "requirement": "the cached user entry must be evicted on write"},
+    ]
 
     result = collect_evidence_node(state)
 

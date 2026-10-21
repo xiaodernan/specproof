@@ -74,20 +74,39 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
     fragments: list[Any] = []
     collected = 0
 
-    # Redis
+    # The redis observation is PER CONTRACT: a contract says which key
+    # family it is about, and only THAT family's keys belong in its
+    # evidence. The two moments are the differential run's; the keys are
+    # this contract's.
+    redis_fragments: dict[str, Any] = {}
     try:
         if separated:
             from experiments.collectors import redis_fragment_from_snapshots
-            from experiments.external_state import redis_states_from_dicts
+            from experiments.external_state import (
+                key_patterns_for,
+                redis_states_from_dicts,
+            )
 
             base_states = redis_states_from_dicts(base_snapshot)
             head_states = redis_states_from_dicts(head_snapshot)
-            fragments.append(redis_fragment_from_snapshots(
-                experiment_id=raw_state.get("job_id", "unknown"),
-                base=base_states,
-                head=head_states,
-            ))
-            collected += 1
+            for contract in raw_state.get("contracts") or []:
+                if not isinstance(contract, dict) or not contract.get("id"):
+                    continue
+                patterns = key_patterns_for(contract)
+                if not patterns:
+                    # This contract names no key family: there is nothing
+                    # to observe FOR IT, and inventing keys would be
+                    # inventing evidence.
+                    continue
+                redis_fragments[str(contract["id"])] = (
+                    redis_fragment_from_snapshots(
+                        experiment_id=raw_state.get("job_id", "unknown"),
+                        base=_states_matching(base_states, patterns),
+                        head=_states_matching(head_states, patterns),
+                    )
+                )
+            if redis_fragments:
+                collected += 1
         else:
             # The store could not be reached, or the differential run did
             # not capture the two moments. That is a DIFFERENT fact from
@@ -203,7 +222,7 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
         failure = ""
         for contract in contracts:
             contract_id = str(contract.get("id"))
-            relevant = _fragments_for(contract, fragments)
+            relevant = _fragments_for(contract, fragments, redis_fragments)
             pack = {
                 "job_id": raw_state.get("job_id", ""),
                 "contract_id": contract_id,
@@ -251,14 +270,20 @@ _SURFACE_BY_CHECKER: dict[str, str] = {
 _ALWAYS_RELEVANT = ("object",)
 
 
-def _fragments_for(contract: dict[str, Any], fragments: list[Any]) -> list[Any]:
+def _fragments_for(
+    contract: dict[str, Any],
+    fragments: list[Any],
+    redis_fragments: dict[str, Any] | None = None,
+) -> list[Any]:
     """The fragments that bear on this contract.
 
     A pack is "the evidence for this contract" — so it carries what was
     observed about THAT contract's surface, not everything the run
     happened to observe. The object fragment is in every pack (the
     capsule coordinates are where this contract's evidence was filed);
-    the rest is selected by the contract's own checker family.
+    the redis fragment is the one built FOR this contract (its own key
+    family), and the mq fragment belongs to the rabbitmq-checked
+    contracts.
 
     A contract whose family names no surface keeps the object fragment
     only — not "everything", because a pack full of unrelated
@@ -266,12 +291,34 @@ def _fragments_for(contract: dict[str, Any], fragments: list[Any]) -> list[Any]:
     checked.
     """
     surface = _SURFACE_BY_CHECKER.get(str(contract.get("checker_type") or ""))
+    contract_id = str(contract.get("id") or "")
     keep: list[Any] = []
     for fragment in fragments:
         kind = str(getattr(fragment, "fragment_type", "") or "")
         if kind in _ALWAYS_RELEVANT or (surface and kind == surface):
             keep.append(fragment)
+    if redis_fragments and contract_id in redis_fragments:
+        keep.append(redis_fragments[contract_id])
     return keep
+
+
+def _states_matching(
+    states: dict[str, Any], patterns: list[str],
+) -> dict[str, Any]:
+    """The states whose key matches one of the patterns.
+
+    Redis' MATCH is a glob: "token:user:*" means "that family". The
+    comparison here is the same idea, done on the key we already have.
+    """
+    if not patterns:
+        return {}
+    import fnmatch
+
+    return {
+        key: state
+        for key, state in states.items()
+        if any(fnmatch.fnmatch(key, pattern) for pattern in patterns)
+    }
 
 
 def _derive_redis_keys(state: dict[str, Any]) -> list[str]:

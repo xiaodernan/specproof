@@ -40,6 +40,53 @@ DEFAULT_REDIS_KEYS: tuple[str, ...] = ("user:cache:1", "user:cache:2")
 #: The routing keys the demo publishes on.
 DEFAULT_MQ_ROUTING_KEYS: tuple[str, ...] = ("order.created", "email.changed")
 
+#: The profile's key families and the words that NAME them in a
+#: requirement. A contract's own text says which family of keys it is
+#: about ("session tokens ... invalidated in Redis"), and the PROFILE
+#: says what that family is called in this domain ("token:user:").
+#:
+#: The two halves must meet: the text names a family, the profile gives
+#: its address. A contract that names neither is observed on NOTHING —
+#: which is honest, and reports NO_EVIDENCE. Guessing keys for it would
+#: be inventing evidence.
+_KEY_FAMILY_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("token", ("token", "session")),
+    ("cache", ("cache",)),
+)
+
+
+def key_patterns_for(
+    contract: dict[str, Any], profile: Any | None = None,
+) -> list[str]:
+    """The Redis key patterns a contract is about.
+
+    Derived from TWO facts that already exist: the contract's own text
+    (which names the family) and the profile (which says what that
+    family is called in this domain).
+    """
+    if profile is None:
+        from agent.experiments.profile import DEMO_PROFILE
+
+        profile = DEMO_PROFILE
+    prefixes = {
+        "token": getattr(profile, "user_token_key", ""),
+        "cache": getattr(profile, "user_cache_key", ""),
+    }
+    text = " ".join(
+        str(contract.get(field) or "")
+        for field in ("requirement", "expected_behavior", "forbidden_changes")
+    ).lower()
+    patterns: list[str] = []
+    for family, words in _KEY_FAMILY_WORDS:
+        prefix = prefixes.get(family) or ""
+        if not prefix:
+            continue
+        if any(word in text for word in words):
+            pattern = f"{prefix}*"
+            if pattern not in patterns:
+                patterns.append(pattern)
+    return patterns
+
 
 def build_redis_client() -> Any | None:
     """Build a Redis client from the environment. None when unreachable.
@@ -112,19 +159,26 @@ def build_object_store() -> Any | None:
 def capture_redis_state(
     client: RedisLike | None,
     keys: tuple[str, ...] | list[str] = DEFAULT_REDIS_KEYS,
+    patterns: tuple[str, ...] | list[str] = (),
 ) -> dict[str, dict[str, Any]]:
     """One Redis snapshot, as plain dicts.
 
     An unreachable client yields an EMPTY snapshot — the caller decides
     what that means (nothing was observed), and the empty dict cannot be
     mistaken for "every key is absent".
+
+    ``patterns`` are the key FAMILIES the contracts declared (e.g.
+    "token:user:*"); they are scanned, because the ids inside a family
+    belong to the domain and cannot be guessed.
     """
     if client is None:
         return {}
     collector = RedisStateCollector(client)
-    return {
-        key: state.to_dict() for key, state in collector.snapshot(keys).items()
-    }
+    states = dict(collector.snapshot(keys))
+    if patterns:
+        for key, state in collector.snapshot_by_pattern(patterns).items():
+            states.setdefault(key, state)
+    return {key: state.to_dict() for key, state in states.items()}
 
 
 def capture_object_state(
@@ -148,6 +202,7 @@ def capture_external_state(
     object_store: Any | None = None,
     redis_keys: tuple[str, ...] | list[str] = DEFAULT_REDIS_KEYS,
     object_refs: tuple[str, ...] | list[str] = (),
+    redis_patterns: tuple[str, ...] | list[str] = (),
 ) -> dict[str, Any]:
     """One snapshot of everything observable outside the workspaces.
 
@@ -158,7 +213,9 @@ def capture_external_state(
         {"redis": {key: {...}}, "objects": {ref: {...}}}
     """
     return {
-        "redis": capture_redis_state(redis_client, redis_keys),
+        "redis": capture_redis_state(
+            redis_client, redis_keys, patterns=redis_patterns
+        ),
         "objects": capture_object_state(object_store, object_refs),
     }
 

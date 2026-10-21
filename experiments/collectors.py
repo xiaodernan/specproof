@@ -61,6 +61,18 @@ class RedisLike(Protocol):
     def ttl(self, name: str) -> int: ...
 
 
+class RedisScannerLike(Protocol):
+    """A client that can enumerate a key family.
+
+    Optional: a client that cannot scan is still usable for EXACT keys.
+    The difference matters because "the keys of this family" is not a
+    list somebody can guess — the ids are the domain's, and the contract
+    only says which FAMILY it is about.
+    """
+
+    def scan_iter(self, match: str | None = None, count: int | None = None) -> Any: ...
+
+
 @dataclass(frozen=True)
 class KeyState:
     """One key's observed state at one point in time."""
@@ -97,6 +109,34 @@ class RedisStateCollector:
         states: dict[str, KeyState] = {}
         for key in keys:
             states[key] = self._read_one(key)
+        return states
+
+    def snapshot_by_pattern(
+        self, patterns: Iterable[str],
+    ) -> dict[str, KeyState]:
+        """Read every key matching the given patterns.
+
+        A contract says which FAMILY of keys it is about; the ids inside
+        that family belong to the domain and cannot be guessed. So the
+        family is SCANNED, and the keys found are read one by one.
+
+        A client that cannot scan yields an empty observation — the
+        caller reports NO_EVIDENCE, which is honest ("we could not look
+        at that family"), rather than pretending the family was empty.
+        """
+        states: dict[str, KeyState] = {}
+        scanner = getattr(self.client, "scan_iter", None)
+        if scanner is None:
+            return states
+        for pattern in patterns:
+            try:
+                found = list(scanner(match=pattern))
+            except Exception:  # noqa: BLE001 — an unscanable family is unseen
+                continue
+            for key in found:
+                name = key.decode("utf-8") if isinstance(key, bytes) else str(key)
+                if name not in states:
+                    states[name] = self._read_one(name)
         return states
 
     def _read_one(self, key: str) -> KeyState:
