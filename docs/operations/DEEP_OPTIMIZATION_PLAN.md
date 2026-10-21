@@ -8047,3 +8047,48 @@ ApplicationContext" ⇒ ⇒ ⇒ 报错**看起来**像 demo 的测试坏了，�
 拿掉）；③ CI 夜间作业的 workflow + 门一起落地（需要带 `workflow` 权限的令牌）；
 ④ **MQ 面**要不要也按"没看"算成缺口（产品决策，不是缺陷）；⑤ 把 Mockito 装成
 javaagent（消掉那句自附加的警告）。
+
+## #382 把 Mockito 装成 javaagent：试过了，**这一号不改**（记下来，省得再试一遍）
+
+**问题/症状**：#381 之后，demo 的测试在 JDK 25 上跑得起来了，但 Mockito 会打印一句
+"Mockito is currently self-attaching to enable the inline-mock-maker. **This will
+no longer work in future releases of the JDK.** Please add Mockito as an agent to
+your build" ⇒ ⇒ ⇒ 这是**警告**不是失败 ⇒ ⇒ ⇒ 但它指向一个**将来**会断的地方
+⇒ ⇒ ⇒ 而且去掉它有一个**官方**做法 ⇒ ⇒ ⇒ 那一号就试了。
+
+**试了什么**（`demo/spring-backend/pom.xml` 的 surefire `argLine`）。
+
+1. 官方写法 `-javaagent:${org.mockito:mockito-core:jar}` ⇒ ⇒ ⇒ **fork 出来的 JVM 直接
+   起不来**：`Error occurred during initialization of VM`，
+   surefire 的 dumpstream 里写着 `agent library failed Agent_OnLoad: instrument`
+   ⇒ ⇒ ⇒ 而且 `${org.mockito:mockito-core:jar}` 这个属性在 surefire 的插件配置里
+   **没有**被解析（补了显式的 `mockito-core` 依赖也一样）⇒ ⇒ ⇒ 那一行是坏的。
+2. 把 agent 换成**绝对 ASCII 路径**
+   （`-javaagent:C:/Users/.../mockito-core-5.17.0.jar`）⇒ ⇒ ⇒ **跑通了**：
+   JDK 25 上 9 tests / 0 failures / 0 errors，BUILD SUCCESS，**而且那句自附加的警告
+   消失了** ⇒ ⇒ ⇒ 所以 **agent 本身没问题** ⇒ ⇒ ⇒ 问题在 surefire 怎么把 classpath
+   交给 fork 出来的 JVM：默认是"manifest-only jar"（应用类在 manifest 的 Class-Path
+   里），而 agent 的 premain 跑在那个 manifest classpath 生效**之前** ⇒ ⇒ ⇒ agent
+   看不见 `mockito-core` ⇒ ⇒ ⇒ 于是 `Agent_OnLoad: instrument` 失败。
+
+**结论**：这一号**没有**改 pom（`git diff demo/spring-backend/pom.xml` 为空）
+⇒ ⇒ ⇒ #381 的版本钉子原样保留、它的证据不受影响 ⇒ ⇒ ⇒ 自附加继续 ⇒ ⇒ ⇒ 那句警告
+继续 ⇒ ⇒ ⇒ 它是**警告**⇒ ⇒ ⇒ 真正的解法是改 surefire 的类加载语义
+（`useSystemClassLoader=false` 之类）⇒ ⇒ ⇒ 那是**动测试隔离语义**的改动
+⇒ ⇒ ⇒ 风险大于"少一句警告"的收益 ⇒ ⇒ ⇒ 留给需要它的那一号，不在这里顺手做。
+
+**诚实边界**。
+
+- 这一号**没有代码改动** ⇒ ⇒ ⇒ 只有这一段账本和它引用的两次真实构建输出
+  ⇒ ⇒ ⇒ 账本里说的话都是**跑出来的**，不是推断的。
+- 试出来的**不是**"javaagent 不行"，而是"**在 surefire 默认的 manifest-only jar
+  模式下** javaagent 不行" ⇒ ⇒ ⇒ 换个 surefire 配置可能就行 ⇒ ⇒ ⇒ 这一号**没有**去
+  试那个 ⇒ ⇒ ⇒ 别把这一号读成"javaagent 这条路走不通"。
+- JDK 25 上那句"将来会不行"的警告**仍然在** ⇒ ⇒ ⇒ JDK 目前还允许自附加
+  ⇒ ⇒ ⇒ 现在**不影响**任何结果 ⇒ ⇒ ⇒ 但它记在这里，是因为将来会。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **全量 87 案例评测**跑完之后把实测
+数字写回 `docs/eval/p6-100-case-eval.md`；② **独占机器**时再量一次 DEEP（把争用
+拿掉）；③ CI 夜间作业的 workflow + 门一起落地（需要带 `workflow` 权限的令牌）；
+④ **MQ 面**要不要也按"没看"算成缺口（产品决策，不是缺陷）；⑤ **Mockito 的
+javaagent**（要动 surefire 的类加载语义 ⇒ ⇒ ⇒ 单独一号，不夹带）。
