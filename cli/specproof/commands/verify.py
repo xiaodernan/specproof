@@ -85,6 +85,10 @@ def _load_approved_contracts(
             "checker_type": c.checker_type,
             "requirement": c.requirement,
             "expected_behavior": c.expected_behavior,
+            # The key families the APPROVED version declared (#372): the
+            # approved contract keeps the declaration it was approved
+            # with, instead of having it re-derived from today's spec.
+            "observes_keys": list(c.observes_keys),
             "approved": True,
             "registry_ids": [],
             # §A task 6: the newest approved version wins; the contract
@@ -97,6 +101,9 @@ def _load_approved_contracts(
         if c.version > int(row.get("version") or 0):
             row["version"] = c.version
             row["checker_version"] = c.checker_version
+        for pattern in c.observes_keys:
+            if pattern not in row["observes_keys"]:
+                row["observes_keys"].append(pattern)
         if c.expected_behavior not in row["expected_behavior"]:
             row["expected_behavior"] += " AND " + c.expected_behavior
     if merged:

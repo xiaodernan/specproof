@@ -103,6 +103,33 @@ def test_revoke_approved(registry):
     assert registry.get_approved_for_repo(REPO, digest) == []
 
 
+def test_the_approved_version_keeps_its_declared_key_families(registry):
+    """#372: the declaration travels WITH the version, so an approved
+    contract keeps what it was approved with (and not what today's spec
+    happens to say)."""
+    digest = hashlib.sha256(b"spec-keys").hexdigest()[:16]
+    written = registry.upsert_candidates(REPO, digest, [_candidate(
+        id="test-CACHE-01",
+        checker_type="redis",
+        requirement="the cached entry must be evicted",
+        expected_behavior="the cache key is gone after the write",
+        observes_keys=["user:cache:*"],
+    )])
+    assert written == 1
+    registry.approve("test-CACHE-01", "alice")
+    approved = registry.get_approved_for_repo(REPO, digest)
+    assert len(approved) == 1
+    assert approved[0].observes_keys == ["user:cache:*"]
+
+
+def test_a_version_that_declared_no_key_families_stores_nothing(registry):
+    digest = hashlib.sha256(b"spec-nokeys").hexdigest()[:16]
+    registry.upsert_candidates(REPO, digest, [_candidate()])
+    registry.approve("test-HTTP-01", "alice")
+    approved = registry.get_approved_for_repo(REPO, digest)
+    assert approved[0].observes_keys == []
+
+
 def test_approval_binds_exact_version_in_audit_table(registry):
     digest = hashlib.sha256(b"spec-v1").hexdigest()[:16]
     registry.upsert_candidates(REPO, digest, [_candidate()])

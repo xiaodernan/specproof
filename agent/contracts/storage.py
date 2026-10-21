@@ -18,6 +18,7 @@ at this seam and raises ContractVersionError at the registry seam.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from threading import RLock
@@ -33,7 +34,11 @@ class DuplicateVersionError(RuntimeError):
 #: Persisted content columns of one stored version. These columns — and
 #: only these — participate in change detection; forbidden_changes is
 #: pipeline-local data compiled from the spec each run, never registry
-#: content.
+#: content. ``observes_keys`` rides the same way: the spec digest
+#: already covers "the spec changed" (a changed spec already creates a
+#: new version), so the declaration is not a change-detection column —
+#: but it IS stored, because an APPROVED version must keep the
+#: declaration it was approved with.
 PERSISTED_CONTENT_COLUMNS = (
     "checker_type",
     "requirement",
@@ -42,6 +47,32 @@ PERSISTED_CONTENT_COLUMNS = (
     "checker_version",
     "spec_digest",
 )
+
+
+def _observes_keys_json(value: Any) -> str | None:
+    """The declared key families as the JSON the column holds.
+
+    ``None`` when the version declared nothing: "this version declared
+    no key families" is a real state, and it is different from "this
+    version declared keys we lost".
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            parsed = json.loads(text)
+        except ValueError:
+            return text
+        value = parsed
+    if not isinstance(value, (list, tuple)):
+        return None
+    patterns = [str(item) for item in value if str(item).strip()]
+    if not patterns:
+        return None
+    return json.dumps(patterns, ensure_ascii=False)
 
 
 class ContractStorage(Protocol):
@@ -104,8 +135,8 @@ _INSERT_VERSION_SQL = (
     "INSERT INTO contract_registry "
     "(id, repo_path, requirement_ref, requirement, checker_type, "
     "expected_behavior, source, version, status, spec_digest, "
-    "checker_version) "
-    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+    "checker_version, observes_keys) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
 )
 
 _LIST_ROWS_SQL = (
@@ -185,6 +216,7 @@ class MySQLContractStorage:
             str(row.get("status") or "PROPOSED"),
             str(row.get("spec_digest") or ""),
             str(row.get("checker_version") or ""),
+            _observes_keys_json(row.get("observes_keys")),
         )
         try:
             with self.store.connection() as conn:

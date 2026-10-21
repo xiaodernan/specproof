@@ -22,7 +22,12 @@ from __future__ import annotations
 from typing import Any
 
 from agent.contracts.compiler import ContractCandidate
-from agent.contracts.records import ContractRecord, ContractVersionError, checker_version_for
+from agent.contracts.records import (
+    ContractRecord,
+    ContractVersionError,
+    checker_version_for,
+    patterns_from_cell,
+)
 from agent.contracts.storage import (
     PERSISTED_CONTENT_COLUMNS,
     ContractStorage,
@@ -110,6 +115,10 @@ class ContractRegistry:
             "requirement": candidate.requirement,
             "checker_type": candidate.checker_type,
             "expected_behavior": candidate.expected_behavior,
+            # The declared key families travel with the version (#372):
+            # an approved contract must keep the declaration it was
+            # approved with.
+            "observes_keys": list(candidate.observes_keys),
             "source": candidate.source,
             "spec_digest": spec_digest,
             "checker_version": (
@@ -261,6 +270,10 @@ class ContractRegistry:
                 requirement=str(r["requirement"] or ""),
                 requirement_ref=str(r["requirement_ref"] or ""),
                 expected_behavior=str(r["expected_behavior"] or ""),
+                # The declaration the APPROVED version was written with
+                # (#372): the pipeline must observe the family the human
+                # approved, not whatever today's spec happens to say.
+                observes_keys=list(patterns_from_cell(r.get("observes_keys"))),
                 source=str(r["source"] or "registry"),
                 result="UNVERIFIED",
                 approved=True,

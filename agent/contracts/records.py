@@ -69,6 +69,29 @@ def checker_version_for(checker_type: str) -> str:
     return str(declared) if declared else DEFAULT_CHECKER_VERSION
 
 
+def patterns_from_cell(value: Any) -> tuple[str, ...]:
+    """The declared key families as they come back from storage.
+
+    The column is JSON, but a driver may hand it back as a string, and a
+    hand-made row may carry a plain list — all three say the same thing.
+    A value that cannot be read yields an EMPTY tuple: "this version
+    declared nothing we can see" is not "it declared keys".
+    """
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return ()
+        try:
+            value = json.loads(text)
+        except ValueError:
+            return (text,)
+    if isinstance(value, (list, tuple)):
+        return tuple(str(item) for item in value if str(item).strip())
+    return ()
+
+
 @dataclass(frozen=True)
 class ContractRecord:
     """Durable, immutable projection of one stored contract version.
@@ -87,6 +110,11 @@ class ContractRecord:
     requirement_ref: str = ""
     expected_behavior: str = ""
     forbidden_changes: tuple[str, ...] = ()
+    #: The key families this version DECLARED ("observes keys: …"), kept
+    #: with the version so an APPROVED contract keeps the declaration it
+    #: was approved with (the spec digest already covers "the spec
+    #: changed", so this is not a change-detection column).
+    observes_keys: tuple[str, ...] = ()
     source: str = "spec"
     spec_digest: str = ""
     status: str = "PROPOSED"
@@ -176,6 +204,7 @@ class ContractRecord:
             requirement_ref=str(row.get("requirement_ref") or ""),
             expected_behavior=str(row.get("expected_behavior") or ""),
             forbidden_changes=tuple(str(c) for c in forbidden),
+            observes_keys=patterns_from_cell(row.get("observes_keys")),
             source=str(row.get("source") or "spec"),
             spec_digest=str(row.get("spec_digest") or ""),
             status=str(row.get("status") or "PROPOSED"),
@@ -211,6 +240,7 @@ class ContractRecord:
             requirement_ref=self.requirement_ref,
             expected_behavior=self.expected_behavior,
             forbidden_changes=list(self.forbidden_changes),
+            observes_keys=list(self.observes_keys),
             source=self.source,
             result="UNVERIFIED",
             approved=self.status == "APPROVED",
@@ -229,6 +259,7 @@ class ContractRecord:
             "requirement_ref": self.requirement_ref,
             "expected_behavior": self.expected_behavior,
             "forbidden_changes": list(self.forbidden_changes),
+            "observes_keys": list(self.observes_keys),
             "source": self.source,
             "spec_digest": self.spec_digest,
             "status": self.status,
