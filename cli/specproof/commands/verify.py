@@ -365,6 +365,15 @@ def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
     "GitHub App credentials from the environment; skipped with a warning "
     "when not configured (best-effort, never fails the run)",
 )
+@click.option(
+    "--no-evidence-pack",
+    is_flag=True,
+    default=False,
+    help="Do not write the evidence pack into the MongoDB audit trail. The "
+    "pack is the audit trail of a REAL verification job; a run against a "
+    "test environment (or a rehearsal) would leave packs that no job id "
+    "can clean up. The observations are still made and still reported.",
+)
 def verify(
     repo: str,
     base_ref: str,
@@ -377,6 +386,7 @@ def verify(
     keep_worktrees: bool,
     use_approved_contracts: bool,
     publish_check: bool,
+    no_evidence_pack: bool,
 ) -> None:
     """Run a verification job on a PR / branch pair.
 
@@ -425,6 +435,11 @@ def verify(
     # §A task 7: every artifact this job writes is recorded under this
     # job id in the object metadata store.
     state["job_id"] = job_id
+    # The evidence pack is the audit trail of a REAL job. A run against a
+    # test environment (or a rehearsal) would leave packs that no job id
+    # can clean up — so writing them is opt-out, and the observations are
+    # still made and still reported either way.
+    state["write_evidence_pack"] = not no_evidence_pack
     state["require_approved_contracts"] = use_approved_contracts
     state["approved_contracts"] = (
         _load_approved_contracts(

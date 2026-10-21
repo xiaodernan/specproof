@@ -155,6 +155,81 @@ def test_verified_run_exits_zero(tmp_path: Path, fast_pipeline):
     assert result.exit_code == 0
 
 
+def test_the_evidence_pack_is_written_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+):
+    """A real verification job's audit trail is written by default."""
+    seen: dict[str, Any] = {}
+
+    class _FakeGraph:
+        def invoke(self, state: dict[str, Any]) -> dict[str, Any]:
+            seen.update(state)
+            return _fake_state()
+
+    monkeypatch.setattr("agent.graph.build_phase0_graph", lambda: _FakeGraph())
+    monkeypatch.setattr("agent.preflight.detect_language", lambda *_a, **_k: "python")
+    monkeypatch.setattr(
+        "agent.preflight.run_preflight",
+        lambda *_a, **_k: type("P", (), {"passed": True})(),
+    )
+    monkeypatch.setattr(
+        "agent.preflight.format_preflight_report", lambda *_a, **_k: "preflight ok"
+    )
+    spec = tmp_path / "spec.txt"
+    spec.write_text("要求: 邮箱变更需要认证\n", encoding="utf-8")
+
+    result = CliRunner().invoke(verify, [
+        "--repo", str(tmp_path),
+        "--base", "base", "--head", "head",
+        "--spec", str(spec),
+        "--output-dir", str(tmp_path / "out"),
+        "--no-llm",
+    ])
+
+    assert result.exit_code == 0
+    assert seen.get("write_evidence_pack") is True
+
+
+def test_the_evidence_pack_can_be_turned_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+):
+    """A run against a test environment must not pollute the trail.
+
+    The packs are keyed by job id, and a rehearsal's job id belongs to no
+    job — so its packs would never be cleaned up.
+    """
+    seen: dict[str, Any] = {}
+
+    class _FakeGraph:
+        def invoke(self, state: dict[str, Any]) -> dict[str, Any]:
+            seen.update(state)
+            return _fake_state()
+
+    monkeypatch.setattr("agent.graph.build_phase0_graph", lambda: _FakeGraph())
+    monkeypatch.setattr("agent.preflight.detect_language", lambda *_a, **_k: "python")
+    monkeypatch.setattr(
+        "agent.preflight.run_preflight",
+        lambda *_a, **_k: type("P", (), {"passed": True})(),
+    )
+    monkeypatch.setattr(
+        "agent.preflight.format_preflight_report", lambda *_a, **_k: "preflight ok"
+    )
+    spec = tmp_path / "spec.txt"
+    spec.write_text("要求: 邮箱变更需要认证\n", encoding="utf-8")
+
+    result = CliRunner().invoke(verify, [
+        "--repo", str(tmp_path),
+        "--base", "base", "--head", "head",
+        "--spec", str(spec),
+        "--output-dir", str(tmp_path / "out"),
+        "--no-llm",
+        "--no-evidence-pack",
+    ])
+
+    assert result.exit_code == 0
+    assert seen.get("write_evidence_pack") is False
+
+
 def test_blocked_run_exits_one(tmp_path: Path, fast_pipeline):
     blocked = _fake_state(
         confirmed_findings=[{
