@@ -33,7 +33,7 @@
     cd services/control-plane && ./mvnw spring-boot:run
 
 - 数据库迁移在应用启动时自动执行 (infra/mysql/migrations/*.sql,
-  schema_migrations 记录版本; 当前 0001-0014, 见 docs/architecture/DATA_DICTIONARY.md
+  schema_migrations 记录版本; 当前 0001-0017, 见 docs/architecture/DATA_DICTIONARY.md
   的逐字段登记与 `tests/unit/test_data_dictionary_covers_migrations.py`)。
 - 月账单生成 (#234): 独立进程 `python -m storage.invoice_cron`，本仓库尚无部署入口起它
   (2026-10-14 实测订正: 三个 compose 文件、两个 Dockerfile、scripts 下的启动脚本与

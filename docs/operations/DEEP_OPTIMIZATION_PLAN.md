@@ -7638,3 +7638,24 @@ capsule_replay 抵达，不代表 craft 该用它们。④ 本号取号 max+1 �
 - **本号没有动 CI**：全量 101 案例的 nightly job **仍然不存在**（workflow 改动推不动：token 缺 `workflow` scope）⇒ ⇒ 全量重测这件事**仍然欠着**，只是现在**本机也能跑**了 ⇒ ⇒ 欠账的形状变了：不再是「跑不了」，而是「还没人排上」。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **DEEP 校准**（现在有 FAST 档的量级了 ⇒ 下一步是**真的跑一个 DEEP 作业**量它的耗时 ⇒ 7200 秒是估的这件事才能有依据）；② **CI 的 nightly job**（101 案例全量 + DEEP 分布 ⇒ 需要一个能改 workflow 的 token 或人工提交）；③ **对象观测也进判定层**（要 I/O ⇒ 需要把「矩阵是纯函数」与「判定层看见对象观测」分开设计）；④ **demo 在 JDK 25 上跑不起来**（Mockito ⇒ 单独解决，#355）；⑤ 局部变量名（**已关闭**，#358）；⑥ 帧修队列项（**已关闭**，#364）。
+
+## #374 把 #365–#373 引入的**门**与**账**修齐（形状变了，钉子也得跟着变）
+
+**起因/占号**。#373 那次**全量**跑测试（1:35:34，4632 passed / 26 failed）把这几号引入的**陈旧钉子**全抖出来了 ⇒ ⇒ 本号把它们一条条对齐（**改的是钉子与账，不是把门放松**）。落地前重测账本：HEAD 8bd2509、`## #` id 最大 **373** ⇒ 取 **#374**。
+
+**谁的钉子，谁的账。**
+- **命令形状**（`tests/unit/test_adapters.py`）：#370 给**宿主**那条 maven 命令加了 `-Djava.version=<宿主自己的 JDK>` ⇒ ⇒ 钉住「skip_main 旗标落在最后」的断言仍然成立（旗标加在 skip 之前）⇒ ⇒ **另加一条**新断言：宿主那条**带**版本、**容器那条不带**（容器镜像里的 JDK 就是 pom 钉的那个）⇒ ⇒ 钉的是**新行为**，不是把旧的删掉。
+- **契约字典的形状**（`tests/unit/test_compile_report.py` ×3、`tests/unit/test_judge_persona_wiring.py` ×1）：#368 给**每一条**编译出来的契约加了 `observes_keys` ⇒ ⇒ 那些逐字比较契约字典的断言要跟着长一个字段（`[]`）⇒ ⇒ 断言仍然是**逐字**的（不是「差不多」）⇒ ⇒ 新的字段也在被逐字钉住。
+- **迁移区间**（`tests/unit/test_data_dictionary_covers_migrations.py`、`tests/unit/test_runbook_claims_hold.py`）：#372 加了 0017 ⇒ ⇒ 字典与 RUNBOOK 写的区间要跟着走（0014 → **0017**；顺带把 0015/0016 那段欠账也补上）⇒ ⇒ 门继续钉着「文档说的区间 == 最新的迁移」。
+- **假清单的数字**（`tests/unit/test_fake_inventory_stays_measured.py` ×2 + `docs/architecture/FAKE_INVENTORY.md`）：#369 的测试里有一个**假的 Redis 客户端**（采集探针要一个能返回键值的替身）⇒ ⇒ 「仓库鸭子类型」42 → **43**；另一条车道的 craft 门测试带来两个普通替身 ⇒ ⇒ 190 → **192**；合计 252 → **255** ⇒ ⇒ 清单是**测出来的**，数字跟着动 ⇒ ⇒ 门继续钉着「文档引用的数字 == 实测的数字」。
+
+**可执行的证据。**
+- 复跑刚才红的每一族：`test_adapters` / `test_compile_report` / `test_judge_persona_wiring` / `test_data_dictionary_covers_migrations` / `test_runbook_claims_hold` / `test_fake_inventory_stays_measured` / `test_agent_runtime` / `test_feedback_store_read` / `test_job_state_machine` ⇒ ⇒ **全部绿**（`test_feedback_store_read` 那条是**我自己**把 `SPECPROOF_TEST_MYSQL_DATABASE` 指到 `specproof_test2` 引起的（它把 schema 名写死了）⇒ ⇒ 在默认的 `specproof_test` 上绿 ⇒ ⇒ 不是缺陷）。
+- `ruff check agent/ cli/` **0 errors**；`mypy agent/ --exclude tests` **Success**。
+
+**诚实边界。**
+- **本号只改钉子与账，没有改门**：每一个被改的断言，**新的形状也被钉住了**（新字段逐字比较、命令形状两条都断言、迁移区间仍然被门比、清单数字仍然被门比）⇒ ⇒ ⇒ 改钉子 ≠ 放松门。
+- **剩下的红灯不在本号范围**：`test_craft_*` / `test_env_*` / `test_sql_text_static` / `test_requirement_enrichment_survives_loopless_thread` 那几族是**另一条车道**的在飞改动（craft 门、compose 旋钮、路线图文档），⇒ ⇒ 本号不碰它们 ⇒ ⇒ 它们要么由那条车道自己收尾，要么由**下一次全量跑**确认。
+- **全量跑本身是 1:35:34**（本机同时还有别的车道在跑）⇒ ⇒ 「全量绿」这件事**还没有**在本号拿到 ⇒ ⇒ 本号拿到的是**逐族复跑绿** ⇒ ⇒ 全量那一次留到机器闲下来再跑（队列里写着）。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **DEEP 校准**（#373 的队列①：现在有一档 DEEP 作业在本机跑 ⇒ 它的耗时是**第一份 DEEP 档的真实数字** ⇒ 7200 秒那个估的数就能被核对）；② **机器闲下来时再跑一次全量**（把 #374 收尾后的树一次跑完 ⇒ 确认没有别的红灯）；③ **CI 的 nightly job**（101 案例全量 + DEEP 分布 ⇒ 需要能改 workflow 的 token 或人工提交）；④ **对象观测也进判定层**（要 I/O ⇒ 需要把「矩阵是纯函数」与「判定层看见对象观测」分开设计）；⑤ demo 在 **JDK 25** 上跑不起来（Mockito ⇒ 单独解决，#355）。

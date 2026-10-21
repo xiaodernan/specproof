@@ -123,6 +123,23 @@ class TestPrepareCommandShape:
         assert prepared.command[-1] == "-Dmaven.main.skip=true"
         assert prepared.local_command[-1] == "-Dmaven.main.skip=true"
 
+    def test_the_host_build_is_told_the_host_jdk_version(self, tmp_path: Path) -> None:
+        """#370: the host build is told which JDK it actually is, so a
+        project that targets a newer Java than the host has still compiles
+        (the demo's own tests pass on 17). The SANDBOX command does not
+        carry it — the image ships the JDK the pom targets."""
+        from experiments.adapters import _host_java_major
+
+        prepared = self._prepared(
+            tmp_path, goal="run_test", test_class="SpecProofGeneratedTest"
+        )
+        major = _host_java_major()
+        if major is None:
+            assert not any("-Djava.version=" in a for a in prepared.local_command)
+        else:
+            assert f"-Djava.version={major}" in prepared.local_command
+        assert "-Djava.version=" not in " ".join(prepared.command)
+
     def test_test_compile_command_shape(self, tmp_path: Path) -> None:
         prepared = self._prepared(tmp_path, goal="test_compile")
         assert prepared.command == ["mvn", "-o", "test-compile", "-q", "-f", "/work/pom.xml"]

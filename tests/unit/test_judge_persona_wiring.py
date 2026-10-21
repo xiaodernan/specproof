@@ -188,6 +188,8 @@ class TestDeterministicPathsUnchanged:
             "approved": True,
             "version": 1,
             "checker_version": checker_version_for("http"),
+            # #368: the declared key families ride on every contract.
+            "observes_keys": [],
         }]
         dumped = json.dumps(result, sort_keys=True)
         assert "JUDGE INTEGRITY PERSONA" not in dumped

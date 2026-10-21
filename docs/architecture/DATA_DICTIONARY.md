@@ -1,7 +1,7 @@
 # 数据字典 (DATA_DICTIONARY) — SpecProof 全存储字段级说明
 
 > 口径与出处: 本文逐字段登记 SpecProof 的全部持久化状态。MySQL 表结构以
-> `infra/mysql/migrations/0001_init.sql` 至 `0016_job_execution_deadline.sql` 十六个版本化迁移为准,
+> `infra/mysql/migrations/0001_init.sql` 至 `0017_contract_observes_keys.sql` 十七个版本化迁移为准,
 > 并与代码内幂等 DDL (`storage/identity.py` / `storage/billing.py` / `storage/agent_jobs.py` /
 > `storage/object_metadata.py` / `storage/migrations.py`) 逐表核对; MongoDB/MinIO/ES/Redis/RabbitMQ
 > 以对应 `storage/*` 适配器为准。
@@ -24,9 +24,10 @@
 ## 1. MySQL — 数据库 `specproof_phase0` (compose 服务 mysql:8.4)
 
 共 19 张表 (2026-10-21 于 `specproof_phase0` 与 `specproof_test` 双双实测; 此前记 19, 数字未变):
-18 张来自版本化迁移 0001-0016 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0014 只给
+18 张来自版本化迁移 0001-0017 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0014 只给
 `usage_ledger` 加 `job_id` 列不建新表; 0015 只扩 `verification_jobs.status` 的 ENUM 不建新表;
-0016 只给 `verification_jobs` 加 `max_execution_seconds` 列不建新表;
+0016 只给 `verification_jobs` 加 `max_execution_seconds` 列不建新表; 0017 只给
+`contract_registry` 加 `observes_keys` 列不建新表;
 0013 建
 `notify_outbox`, 见 §1.21), 1 张
 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。

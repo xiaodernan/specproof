@@ -197,6 +197,9 @@ def test_deterministic_node_fills_report_and_keeps_contracts_identical():
             "approved": True,
             "version": 1,
             "checker_version": checker_version_for("http"),
+            # #368: the declared key families ride on every compiled
+            # contract (empty when the spec declares none).
+            "observes_keys": [],
         },
         {
             "id": "UNIQUE-01",
@@ -211,6 +214,7 @@ def test_deterministic_node_fills_report_and_keeps_contracts_identical():
             "approved": True,
             "version": 1,
             "checker_version": checker_version_for("sql"),
+            "observes_keys": [],
         },
     ]
 
@@ -251,6 +255,7 @@ def test_registry_approved_path_reports_without_compiling():
         "approved": True,
         "version": 1,
         "checker_version": checker_version_for("http"),
+        "observes_keys": [],
     }]
 
 
@@ -281,6 +286,7 @@ def test_fake_llm_path_marks_llm_used_and_replaces_candidates(monkeypatch):
         "approved": True,
         "version": 1,
         "checker_version": checker_version_for("http"),
+        "observes_keys": [],
     }]
 
 

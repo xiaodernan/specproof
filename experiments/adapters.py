@@ -648,8 +648,8 @@ class JavaMavenAdapter:
                 wrapper, "test", "-q",
                 f"-Dtest={request.test_class}",
                 "-DfailIfNoTests=false",
-            ] + (["-Dmaven.main.skip=true"] if request.skip_main else []) \
-                + _host_java_version_flag()
+            ] + _host_java_version_flag() \
+                + (["-Dmaven.main.skip=true"] if request.skip_main else [])
         else:
             raise AdapterNotImplemented(f"unsupported Maven goal: {request.goal}")
         return PreparedExecution(

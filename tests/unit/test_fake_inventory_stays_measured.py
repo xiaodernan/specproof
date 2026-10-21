@@ -60,8 +60,11 @@ def test_the_counts_are_pinned() -> None:
         "the SQL-fake count moved; the inventory must be updated with the "
         "reason (see docs/architecture/FAKE_INVENTORY.md)"
     )
-    assert buckets["store-duck-type"] == 42
-    assert sum(buckets.values()) == 252
+    # #369 added one store duck type (the fake Redis the capture probe
+    # drives); the other lane's craft-gate tests added two plain
+    # doubles. The inventory is a MEASUREMENT, so it moved with them.
+    assert buckets["store-duck-type"] == 43
+    assert sum(buckets.values()) == 255
 
 
 def test_the_inventory_quotes_the_measured_numbers() -> None:
