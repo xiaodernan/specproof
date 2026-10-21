@@ -20,6 +20,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "classify_test_fakes.py"
+RULE_SCRIPT = REPO_ROOT / "scripts" / "find_rule_shaped_sql_fakes.py"
 INVENTORY = REPO_ROOT / "docs" / "architecture" / "FAKE_INVENTORY.md"
 
 
@@ -76,3 +77,40 @@ def test_the_inventory_quotes_the_measured_numbers() -> None:
     assert f"| 仓储鸭子类型 | {stores} |" in text
     assert f"| 普通替身 | {plain} |" in text
     assert f"一共 {len(fakes)} 个" in text
+
+
+def test_no_sql_fake_decides_by_the_statement_text() -> None:
+    """A fake that DECIDES by the SQL text is a second opinion.
+
+    That is the shape a query evaluator replaces — the fake decides what
+    the statement means, and the production WHERE clause never has to
+    agree with it. The measurement found exactly two, and both dispatch
+    on the QUESTION ("is this a COUNT? an existence probe?"), not on a
+    rule about the data — so replacing them would change what the test
+    measures.
+
+    If this gate goes red, a fake started deciding by the statement's
+    meaning: either it becomes the evaluator's job, or the reason it
+    genuinely needs its own rule is written down here.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "find_rule_shaped_sql_fakes", RULE_SCRIPT
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    found = module.collect()
+    assert len(found) == 2, (
+        "the set of SQL fakes that decide by the statement text moved: "
+        + "; ".join(f"{f.path}:{f.line} {f.name}" for f in found)
+    )
+    # And the two that remain are the ones the inventory names, with the
+    # reason they stay.
+    names = {f.name for f in found}
+    assert names == {"_FakeCursor", "FakeCursor"}
+    text = INVENTORY.read_text(encoding="utf-8")
+    assert "test_audit_action_parity.py::_FakeCursor" in text
+    assert "test_web_api.py::FakeCursor" in text
+    assert "不换" in text
