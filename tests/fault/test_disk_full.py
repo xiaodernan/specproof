@@ -258,6 +258,95 @@ class TestAFullDiskAfterTheWriteSaysSo:
 
 
 # ══════════════════════════════════════════════════════════════════
+# The same truth, for the other two mutations that land
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestAMoveThatLandsButCannotBeAudited:
+    """A move that lands and then cannot be audited must SAY it landed.
+
+    The file is already at its destination when the audit append fails.
+    An "edit failed" message would make the caller believe the file is
+    still at the source — and it would try to move it again, or look for
+    it in the wrong place.
+    """
+
+    def test_the_file_really_moved(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        source = tmp_path / "src.txt"
+        source.write_text("original\n", encoding="utf-8")
+        _fail_writes_to(monkeypatch, "audit.log", fail_from=2)
+
+        with pytest.raises(AuditError):
+            Editor(str(tmp_path), audit_path=str(tmp_path / "audit.log")).move(
+                "src.txt", "dst.txt"
+            )
+
+        assert not (tmp_path / "src.txt").exists(), "the file really moved"
+        assert (tmp_path / "dst.txt").read_text(encoding="utf-8") == "original\n"
+
+    def test_the_error_says_the_move_landed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        source = tmp_path / "src.txt"
+        source.write_text("original\n", encoding="utf-8")
+        _fail_writes_to(monkeypatch, "audit.log", fail_from=2)
+
+        with pytest.raises(AuditError) as caught:
+            Editor(str(tmp_path), audit_path=str(tmp_path / "audit.log")).move(
+                "src.txt", "dst.txt"
+            )
+
+        message = str(caught.value)
+        assert "已落地" in message
+        assert "文件已经改变" in message
+        assert caught.value.landed is True
+        assert not isinstance(caught.value, EditError)
+
+
+class TestADeleteThatLandsButCannotBeAudited:
+    """A delete that lands and then cannot be audited must SAY it landed.
+
+    The file is already gone when the audit append fails. An "edit
+    failed" message would leave the caller believing the file is still
+    there — and it would never learn that the delete actually happened.
+    """
+
+    def test_the_file_really_is_gone(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        target = tmp_path / "src.txt"
+        target.write_text("original\n", encoding="utf-8")
+        _fail_writes_to(monkeypatch, "audit.log", fail_from=2)
+
+        with pytest.raises(AuditError):
+            Editor(str(tmp_path), audit_path=str(tmp_path / "audit.log")).delete(
+                "src.txt"
+            )
+
+        assert not target.exists(), "the file really was deleted"
+
+    def test_the_error_says_the_delete_landed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        target = tmp_path / "src.txt"
+        target.write_text("original\n", encoding="utf-8")
+        _fail_writes_to(monkeypatch, "audit.log", fail_from=2)
+
+        with pytest.raises(AuditError) as caught:
+            Editor(str(tmp_path), audit_path=str(tmp_path / "audit.log")).delete(
+                "src.txt"
+            )
+
+        message = str(caught.value)
+        assert "已落地" in message
+        assert "文件已经改变" in message
+        assert caught.value.landed is True
+        assert not isinstance(caught.value, EditError)
+
+
+# ══════════════════════════════════════════════════════════════════
 # What the MODEL sees: a distinct tool code, not EDIT_REJECTED
 # ══════════════════════════════════════════════════════════════════
 
