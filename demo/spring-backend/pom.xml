@@ -20,6 +20,16 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- The demo's tests must also run on JDK 25 (#381).
+             Spring Boot 3.4.3 manages Byte Buddy 1.15.11, which cannot
+             read JDK 25's class files (major version 69): the inline mock
+             maker fails with "Mockito cannot mock this class:
+             org.springframework.amqp.rabbit.core.RabbitTemplate", and
+             every test then dies with "Failed to load ApplicationContext".
+             Byte Buddy 1.17.x reads them, and Mockito 5.17.0 is the
+             release that ships it. -->
+        <byte-buddy.version>1.17.8</byte-buddy.version>
+        <mockito.version>5.17.0</mockito.version>
     </properties>
 
     <dependencies>

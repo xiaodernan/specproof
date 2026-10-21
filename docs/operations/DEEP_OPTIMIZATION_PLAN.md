@@ -7991,3 +7991,59 @@ Redis**"的行，照样是 PASS ⇒ ⇒ ⇒ 判定层照样给 VERIFIED ⇒ ⇒ 
 掉）；③ CI 夜间作业的 workflow + 门一起落地（需要带 `workflow` 权限的令牌）；④ demo
 在 **JDK 25** 上跑不起来（Mockito ⇒ 单独解决，#355）；⑤ **MQ 面**要不要也按"没看"
 算成缺口（产品决策，不是缺陷）。
+
+## #381 demo 在 JDK 25 上跑起来了：Byte Buddy 读不懂 JDK 25 的 class 文件
+
+**问题/症状**：本机装了 JDK 17 和 JDK 25 ⇒ ⇒ ⇒ demo 的测试**在 JDK 25 上一个都跑
+不起来**：9 个测试 9 个 error ⇒ ⇒ ⇒ 根因是 `Mockito cannot mock this class:
+org.springframework.amqp.rabbit.core.RabbitTemplate` ⇒ ⇒ ⇒ 那个 mock 是 @MockBean
+⇒ ⇒ ⇒ 整个 Spring 上下文起不来 ⇒ ⇒ ⇒ 所有测试都死在 "Failed to load
+ApplicationContext" ⇒ ⇒ ⇒ 报错**看起来**像 demo 的测试坏了，其实是 **Byte Buddy
+读不了 JDK 25 的 class 文件**（major version 69）⇒ ⇒ ⇒ 而 Spring Boot 3.4.3 锁的
+是 Byte Buddy 1.15.11。
+
+**做法**：`demo/spring-backend/pom.xml` 钉两个版本（**只动 mock maker，不动编译
+目标**）。
+
+- `<byte-buddy.version>1.17.8</byte-buddy.version>`（1.17.x 是能读 JDK 25 class
+  文件的那条线）
+- `<mockito.version>5.17.0</mockito.version>`（5.17.0 是带着这条 Byte Buddy 的
+  那一版）
+- `<java.version>` **不动**（还是 21）⇒ ⇒ ⇒ demo 仍然编译成项目声明的那个 JDK
+  ⇒ ⇒ ⇒ 流水线"用宿主的版本编译"的做法（`-Djava.version=<host>`）也不受影响。
+
+**证据**（真的跑了，不是推断）。
+
+| JDK | 改之前 | 改之后 |
+|---|---|---|
+| 25 | 9 tests, **9 errors**（`Mockito cannot mock this class` ⇒ `Failed to load ApplicationContext`） | 9 tests, **0 failures / 0 errors**，BUILD SUCCESS |
+| 17 | — | 9 tests, **0 failures / 0 errors**，BUILD SUCCESS（`-Djava.version=17`，和流水线给宿主的那个 flag 一样） |
+
+命令：`cd demo\spring-backend` 之后 `\.\mvnw.cmd -o test`（JDK 25）；
+`\.\mvnw.cmd -o clean "-Djava.version=17" test`（JDK 17）。
+门：`tests/unit/test_demo_runs_on_jdk25.py`（**3 passed**）—— 钉住这两个版本 ⇒ ⇒ ⇒
+下次 Spring Boot 升级把旧 Byte Buddy 带回来时，这里会红。
+
+**诚实边界**。
+
+- **CI 还跑不了这条**：CI 用 JDK 21 ⇒ ⇒ ⇒ 这道门在 CI 上只能验"版本钉住了"，
+  验不了"在 25 上真的跑通了" ⇒ ⇒ ⇒ 真跑通的那次是**本机**（2026-10-22，
+  JDK 25.0.1.8）⇒ ⇒ ⇒ 别把它说成"CI 证明了"。
+- **只动了 demo 的 pom** ⇒ ⇒ ⇒ golden 池里 `base` / `case-*-head` 标签中的 demo
+  **还是旧 pom**（标签指向旧提交）⇒ ⇒ ⇒ 流水线跑的那些案例**行为不变**
+  ⇒ ⇒ ⇒ 要让池子里的 demo 也用上新 Byte Buddy，得**重建**那些标签
+  （`scripts/build_golden_scenarios.py`）⇒ ⇒ ⇒ 那是另一次大动作，这一号没做。
+- JDK 17 那次必须 `clean`（JDK 25 编出来的 class 文件留在 `target/` 里，JDK 17
+  读不了）⇒ ⇒ ⇒ "换 JDK 不 clean" 这个坑**本来就在**，这一号没有改变它
+  ⇒ ⇒ ⇒ 但它值得写下来。
+- Mockito 5.17 会打印一句 "self-attaching will not work in future JDKs" 的警告
+  ⇒ ⇒ ⇒ 那是**警告**，不是失败 ⇒ ⇒ ⇒ 真正要做的是把 Mockito 装成 javaagent，
+  那是另一件事。
+- 这一号**没有**动 demo 的**源码**、**没有**动流水线、**没有**动 golden 池
+  ⇒ ⇒ ⇒ 它的全部作用是"demo 的测试在本机的两个 JDK 上都能跑"。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **全量 87 案例评测**跑完之后把实测
+数字写回 `docs/eval/p6-100-case-eval.md`；② **独占机器**时再量一次 DEEP（把争用
+拿掉）；③ CI 夜间作业的 workflow + 门一起落地（需要带 `workflow` 权限的令牌）；
+④ **MQ 面**要不要也按"没看"算成缺口（产品决策，不是缺陷）；⑤ 把 Mockito 装成
+javaagent（消掉那句自附加的警告）。
