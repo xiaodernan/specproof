@@ -22,6 +22,7 @@ from langgraph.graph import END, StateGraph
 
 from agent.nodes.build_matrix import build_matrix_node
 from agent.nodes.collect_diff import collect_diff_node
+from agent.nodes.collect_evidence import collect_evidence_node
 from agent.nodes.compile_contracts import compile_contracts_node
 from agent.nodes.create_capsule import create_capsule_node
 from agent.nodes.generate_counterexamples import generate_counterexamples_node
@@ -84,6 +85,7 @@ def build_phase0_graph(checkpointer: Any = None) -> Any:
     builder.add_node("generate_counterexamples", generate_counterexamples_node)
     builder.add_node("run_differential", run_differential_node)
     builder.add_node("run_deep_experiments", run_deep_experiments_node)
+    builder.add_node("collect_evidence", collect_evidence_node)
     builder.add_node("review_court", review_court_node)
     builder.add_node("build_matrix", build_matrix_node)
     builder.add_node("create_capsule", create_capsule_node)
@@ -116,7 +118,8 @@ def build_phase0_graph(checkpointer: Any = None) -> Any:
     builder.add_edge("run_static_checks", "generate_counterexamples")
     builder.add_edge("generate_counterexamples", "run_differential")
     builder.add_edge("run_differential", "run_deep_experiments")
-    builder.add_edge("run_deep_experiments", "review_court")
+    builder.add_edge("run_deep_experiments", "collect_evidence")
+    builder.add_edge("collect_evidence", "review_court")
     builder.add_edge("review_court", "build_matrix")
     builder.add_edge("build_matrix", "create_capsule")
     builder.add_edge("create_capsule", "run_release_checks")

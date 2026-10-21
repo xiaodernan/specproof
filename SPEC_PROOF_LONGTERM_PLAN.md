@@ -244,8 +244,9 @@
 - 新增测试 94 项全部通过
 
 ### 阶段 3（动态实验室扩展）🔄 进行中
-- P3-2 Redis 状态采集器 ✅（experiments/collectors.py：键存在性/值/TTL 快照 + 描述性对比）
-- P3-3 RabbitMQ 发布探针 ✅（experiments/collectors.py：实际发布计数/routing key/payload 摘要 + 失败也记录）
+- P3-1 Redis 状态采集器 ✅（experiments/collectors.py：键存在性/值/TTL 快照 + 描述性对比）
+- P3-2 RabbitMQ 发布探针 ✅（experiments/collectors.py：实际发布计数/routing key/payload 摘要 + 失败也记录）
+- P3-3 对象存储采集器 ✅（experiments/collectors.py：bucket/object-name/存在性/size/sha256/content-type/version + 描述性对比）
 - P3-6 contract_id 一贯传递 ✅（agent/nodes/run_differential.py：跳过的差分实验为每个真实契约产生 UNVERIFIED 行并带原因；agent/matrix_policy.py：具体原因优先于通用兜底）
 - 关键设计：采集器**不判定严重度**（归 Review Court），未观测到状态一律 NO_EVIDENCE
 - P3-7 故障注入 ✅（`storage/artifact_store.py`：对象上传成功但写库失败的诚实处理 —— 报告 `metadata_recorded=False` + 原因；strict 模式补偿删除（失败也报告）；非 strict 模式保留对象并给出对账线索）
@@ -258,6 +259,7 @@
 - P3-7 其余故障注入：服务崩溃/超时/网络断开/消息重投/DB 锁等待 ✅（#321：补上**超时**与**网络断开**（provider 侧重试预算内、原样抛出、绝不编造答案）与**网络断开/DB 锁等待**（数据库侧：中途故障 ⇒ 作业行与 outbox 行都不落地，真库真事务证明原子性））
 - P3-7 剩余项：provider 收到**空 JSON 响应** ✅（#322：`chat` 空 `choices` 点名网关故障、无文本且无 tool_call 时与 responses 协议**一字不差**地拒绝；只有 tool_call 的回复照常放行；故障场景 16 → 17）
 - P3-7 剩余项：**磁盘满**（ENOSPC） ✅（#330：四个故障点逐一实测——临时写/备份/首次审计都**如实**报「没写」；只有**写入之后**那次审计失败会说谎（文件已落地却报「写入失败」），已改为 `AuditError` + 独立错误码 `EDIT_LANDED_AUDIT_FAILED`，模型不会去重试一个已经落地的写入）
+- **证据包生产路径** ✅（#338：`collect_evidence` 节点入图，在 `run_deep_experiments` 之后、`review_court` 之前运行所有动态采集器，拼装 Fragment 入 MongoDB）
 - 状态机生产写入方 ✅（`agent/job_stage.py`：PREPARING/REVIEWING 由管线阶段推进；迁移 0015 把 ENUM 扩到 15 态；回收器覆盖全部在途状态）
 - EXPIRED 生产写入方 ✅（迁移 0016 加 `max_execution_seconds`；`expire_overdue_jobs` 把超期作业置为 EXPIRED；回收 tick 在同一把 scope 锁内调用）
 - 人工路径与自动路径对齐 ✅（`specproof ops recover` 第三步做过期扫描；`--dry-run` 只读预览超期作业；步骤编号按实际执行的步骤计算）
