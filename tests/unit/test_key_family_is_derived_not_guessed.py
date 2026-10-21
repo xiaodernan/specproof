@@ -185,7 +185,60 @@ def test_nothing_to_reset_is_reported_as_such() -> None:
     )
 
     assert result["reset"] is False
-    assert "created no observed key" in result["reason"]
+    assert "changed no observed key" in result["reason"]
+
+
+def test_a_key_the_base_run_only_CHANGED_is_reported_not_restored(
+    monkeypatch: Any,
+) -> None:
+    """A value cannot be safely put back in a shared store.
+
+    Writing the old value over it would clobber whatever another writer
+    changed since our baseline. So the leftover is COUNTED and REPORTED
+    — the reader needs to know the Head snapshot still carries the Base
+    run's value for those keys.
+    """
+    from agent.nodes.run_differential import _reset_external_state
+
+    class _Redis:
+        def __init__(self) -> None:
+            self.deleted: list[str] = []
+
+        def delete(self, name: str) -> int:
+            self.deleted.append(name)
+            return 1
+
+    redis = _Redis()
+    monkeypatch.setattr(
+        "experiments.external_state.build_redis_client", lambda: redis
+    )
+    baseline = {"redis": {"kept": {"value": "before", "present": True}}}
+    after_base = {"redis": {"kept": {"value": "after", "present": True}}}
+
+    result = _reset_external_state(baseline, after_base)
+
+    assert result["keys_modified_by_base"] == ["kept"]
+    assert result["value_level_restore"] is False
+    assert "clobber" in result["value_level_restore_reason"]
+    # And nothing was deleted: the key was not created by the Base run.
+    assert redis.deleted == []
+    assert result["reset"] is False
+
+
+def test_the_fragment_reports_the_value_level_leftovers() -> None:
+    """The limit of the comparison is stated where the comparison is read."""
+    from experiments.collectors import redis_fragment_from_snapshots
+
+    fragment = redis_fragment_from_snapshots(
+        "job-1", {}, {},
+        world_reset={
+            "reset": True,
+            "keys_modified_by_base": ["user:cache:1"],
+        },
+    )
+
+    assert fragment.extension["value_level_leftovers"] == ["user:cache:1"]
+    assert fragment.extension["value_level_leftover_count"] == 1
 
 
 def test_the_fragment_says_whether_the_moments_are_comparable() -> None:

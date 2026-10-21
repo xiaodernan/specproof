@@ -301,6 +301,11 @@ def redis_fragment_from_snapshots(
         status = STATUS_AMBIGUOUS
     truncated = list(truncated_patterns)
     reset = dict(world_reset or {})
+    # The limits of the comparison, stated where the comparison is read:
+    # the world was put back for the keys the Base run CREATED, and the
+    # keys it only CHANGED still carry the Base run's value (putting those
+    # back would clobber another writer's change in a shared store).
+    value_leftovers = list(reset.get("keys_modified_by_base") or [])
     return RedisObservation(
         experiment_id=experiment_id,
         fragment_type="redis",
@@ -323,6 +328,8 @@ def redis_fragment_from_snapshots(
             "observation_complete": not truncated,
             "world_reset": reset,
             "moments_comparable": bool(reset.get("reset")),
+            "value_level_leftovers": value_leftovers,
+            "value_level_leftover_count": len(value_leftovers),
         },
     )
 

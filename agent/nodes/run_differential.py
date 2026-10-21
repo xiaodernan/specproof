@@ -1470,10 +1470,21 @@ def _reset_external_state(
         set(after_base.get("redis") or {})
         - set(baseline.get("redis") or {})
     )
-    if not created:
+    # Keys the Base run only CHANGED the value of. They cannot be put
+    # back safely: writing the old value over a shared store would clobber
+    # whatever another writer changed since our baseline. So they are
+    # COUNTED and REPORTED — the reader needs to know that the Head
+    # snapshot still carries the Base run's value for these keys.
+    modified = sorted(
+        key
+        for key in set(after_base.get("redis") or {})
+        & set(baseline.get("redis") or {})
+        if _value_of(after_base, key) != _value_of(baseline, key)
+    )
+    if not created and not modified:
         return {
             "reset": False,
-            "reason": "the base run created no observed key",
+            "reason": "the base run changed no observed key",
         }
     try:
         from experiments.external_state import build_redis_client
@@ -1490,10 +1501,23 @@ def _reset_external_state(
         except Exception:  # noqa: BLE001 — a key we cannot delete stays
             continue
     return {
-        "reset": True,
+        "reset": bool(created),
         "keys_removed": removed,
         "keys_created_by_base": created,
+        # The value-level leftovers: reported, not silently carried.
+        "keys_modified_by_base": modified,
+        "value_level_restore": False,
+        "value_level_restore_reason": (
+            "writing the old value back would clobber another writer's "
+            "change in a shared store — so the Base run's value stands for "
+            "these keys in the Head snapshot"
+        ),
     }
+
+
+def _value_of(snapshot: dict[str, Any], key: str) -> Any:
+    """The observed value of one key in a snapshot."""
+    return (snapshot.get("redis") or {}).get(key, {}).get("value")
 
 
 def _redis_patterns_for(state: Any) -> list[str]:
