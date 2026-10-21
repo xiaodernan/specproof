@@ -478,6 +478,10 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
     # P2: registry-approved contracts take precedence over implicit
     # compilation (they were explicitly approved by a human).
     approved_loaded = state.get("approved_contracts", [])
+    # The key families the SPEC declares, read by the spec language
+    # (#368). Every contract then carries the ones that belong to ITS
+    # family — whichever path it came from.
+    declared_keys = _declared_key_patterns(text)
     if approved_loaded:
         # #192: human-approved registry rows take precedence over any compilation
         incr("compile_contracts_outcomes_approved_loaded_total")
@@ -491,6 +495,7 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
             c.setdefault("version", 1)
             if not c.get("checker_version"):
                 c["checker_version"] = checker_version_for(c.get("checker_type", ""))
+        _apply_observes_keys(approved_loaded, declared_keys)
         report = CompileReport(
             parser_rule_version=PARSER_RULE_VERSION,
             llm_used=False,
@@ -599,6 +604,12 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
         cid = c.get("id", "")
         if cid in forbidden_by_id:
             c["forbidden_changes"] = forbidden_by_id[cid]
+    # The key families this contract is about, as a FIELD (#368). The
+    # syntax belongs to the spec language; the collector reads the field
+    # and never re-parses prose. A contract that declares nothing gets an
+    # empty list — "this contract names no key family", which is not the
+    # same as "no keys exist".
+    _apply_observes_keys(contracts, declared_keys)
 
     report = merge_reports(
         [rule_report, llm_report] if llm_report is not None else [rule_report]
@@ -609,6 +620,55 @@ def compile_contracts_node(state: Phase0State) -> dict[str, Any]:
         "errors": errors,
         "compile_report": report.to_dict(),
     }
+
+
+def _declared_key_patterns(text: str) -> list[str]:
+    """The key families the text DECLARES, read by the spec language.
+
+    The syntax lives in ``agent.contracts.parser`` (#368): the spec
+    language owns "observes keys: …", and every consumer asks it rather
+    than keeping its own copy of the pattern.
+    """
+    from agent.contracts.parser import declared_key_patterns
+
+    return declared_key_patterns(text)
+
+
+def _declared_key_patterns_for_contract(
+    contract_id: str, declared: list[str],
+) -> list[str]:
+    """The declared key families that belong to THIS contract.
+
+    A declaration names keys; the contract that owns them is the one in
+    that key family (the profile says what each family is called in
+    this domain). A declaration that belongs to no family here is not
+    attached to a guess — it simply reaches no contract.
+    """
+    from experiments.external_state import (
+        key_family_of_contract,
+        key_patterns_for_family,
+    )
+
+    return key_patterns_for_family(
+        key_family_of_contract(contract_id), declared,
+    )
+
+
+def _apply_observes_keys(
+    contracts: list[dict[str, Any]], declared: list[str],
+) -> None:
+    """Give every contract the key families it declared.
+
+    A contract that already carries the field keeps it (the registry
+    path may know better than the spec text does); a contract that does
+    not gets the declarations that belong to its family.
+    """
+    for c in contracts:
+        if "observes_keys" in c:
+            continue
+        c["observes_keys"] = _declared_key_patterns_for_contract(
+            str(c.get("id") or ""), declared,
+        )
 
 
 def _forbidden_changes_by_family(text: str) -> dict[str, list[str]]:

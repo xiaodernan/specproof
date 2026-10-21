@@ -23,7 +23,6 @@ an unreachable service yields an empty snapshot — never an invented one.
 from __future__ import annotations
 
 import os
-import re
 from typing import Any
 
 from experiments.collectors import (
@@ -53,47 +52,66 @@ _KEY_FAMILIES: tuple[tuple[str, str, str], ...] = (
 )
 
 
-#: An EXPLICIT declaration of the key families a requirement is about.
-#: The syntax is a line in the requirement text:
-#:
-#:     observes keys: token:user:*, user:cache:*
-#:
-#: It wins over the keyword heuristic, because a requirement that SAYS
-#: which keys it is about cannot be mis-guessed. The heuristic stays as
-#: the fallback for requirements that do not declare it.
-_KEY_DECLARATION_RE = re.compile(
-    r"(?im)^[^\n]*?\bobserve[sd]?\b[^\n:]*:\s*(?P<patterns>[^\n]+)$"
-)
-
-
 def declared_key_patterns(contract: dict[str, Any]) -> list[str]:
     """The key families the requirement DECLARES it is about.
+
+    The SYNTAX lives in the spec language
+    (``agent.contracts.parser.declared_key_patterns``) — this is the
+    adapter that feeds it the contract's own text, for the contracts
+    that do not carry the structured field yet.
 
     A requirement can name them outright ("observes keys: token:user:*").
     That is stronger than any heuristic: it cannot be mis-guessed, and it
     says what a requirement that uses other words ("credentials",
     "session store") could never match.
-
-    Only the patterns are taken, and only the ones that look like key
-    patterns (they contain a colon or a star) — a declaration line that
-    names no pattern is treated as no declaration at all, rather than as
-    a pattern that matches nothing.
     """
+    from agent.contracts.parser import declared_key_patterns as _declared
+
     text = " ".join(
         str(contract.get(field) or "")
         for field in ("requirement", "expected_behavior")
     )
-    patterns: list[str] = []
-    for found in _KEY_DECLARATION_RE.finditer(text):
-        for part in found.group("patterns").split(","):
-            candidate = part.strip()
-            if not candidate:
-                continue
-            if ":" not in candidate and "*" not in candidate:
-                continue
-            if candidate not in patterns:
-                patterns.append(candidate)
-    return patterns
+    return _declared(text)
+
+
+def key_family_of_contract(contract_id: str) -> str:
+    """The profile key family this contract belongs to ("" when unknown).
+
+    The contract id carries the family in its stem ("CACHE-01" ⇒ cache,
+    "TOKEN_INVALIDATION-01" ⇒ token) and the profile says what each
+    family is called in this domain. A contract of another family (an
+    HTTP or SQL one) belongs to no key family ⇒ "".
+    """
+    stem = str(contract_id or "").split("-")[0].lower()
+    if not stem:
+        return ""
+    for family, _prefix_attr, _words_attr in _KEY_FAMILIES:
+        if stem.startswith(family) or family.startswith(stem):
+            return family
+    return ""
+
+
+def key_patterns_for_family(family: str, patterns: list[str]) -> list[str]:
+    """The declared patterns that belong to this family.
+
+    A declaration names KEYS; the family that owns them is the one whose
+    PROFILE PREFIX matches (the profile says what each family is called
+    in this domain — a prefix without the family is an address nobody
+    can look up). A pattern that matches no family belongs to no
+    contract here: it is not attached to a guess.
+    """
+    if not family or not patterns:
+        return []
+    from agent.experiments.profile import DEMO_PROFILE
+
+    prefix = ""
+    for name, prefix_attr, _words_attr in _KEY_FAMILIES:
+        if name == family:
+            prefix = str(getattr(DEMO_PROFILE, prefix_attr, "") or "")
+            break
+    if not prefix:
+        return []
+    return [pattern for pattern in patterns if pattern.startswith(prefix)]
 
 
 def key_patterns_for(
@@ -101,11 +119,15 @@ def key_patterns_for(
 ) -> list[str]:
     """The Redis key patterns a contract is about.
 
-    Two sources, in order of strength:
+    Three sources, in order of strength:
 
-    1. what the requirement DECLARES ("observes keys: …") — a
-       requirement that says which keys it is about cannot be mis-guessed;
-    2. otherwise, the family is derived from the contract's own text
+    1. the contract's STRUCTURED field (``observes_keys``) — the spec
+       language owns that syntax now (#368), and a contract that carries
+       the field does not have to say the keys in prose at all;
+    2. what the requirement DECLARES in its text ("observes keys: …") —
+       the same declaration, read through the spec language for the
+       contracts that do not carry the field yet;
+    3. otherwise, the family is derived from the contract's own text
        (which names the family) and the profile (which says what that
        family is called in this domain).
 
@@ -113,6 +135,12 @@ def key_patterns_for(
     pattern list, which the collector reports as NO_EVIDENCE. Guessing
     keys for it would be inventing evidence.
     """
+    structured = [
+        str(pattern) for pattern in (contract.get("observes_keys") or [])
+        if str(pattern)
+    ]
+    if structured:
+        return structured
     declared = declared_key_patterns(contract)
     if declared:
         return declared

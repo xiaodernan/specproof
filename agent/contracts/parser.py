@@ -35,6 +35,12 @@ class Requirement(BaseModel):
     statement: str
     acceptance_criteria: list[AcceptanceCriterion] = Field(default_factory=list)
     forbidden_changes: list[str] = Field(default_factory=list)
+    #: The Redis key families this requirement is about, declared in the
+    #: spec itself ("observes keys: user:cache:*"). A structured field
+    #: rather than prose the collectors have to re-parse: the syntax
+    #: lives HERE, in the spec language, and everything downstream reads
+    #: the field.
+    observes_keys: list[str] = Field(default_factory=list)
     priority: str = "P1"  # P1 (must) | P2 (should) | P3 (nice)
     source: str = "spec"
 
@@ -65,6 +71,40 @@ _FORBIDDEN_RE = re.compile(
 )
 
 _PRIORITY_RE = re.compile(r"(?i)\b(must|mandatory|required|critical)\b")
+
+#: An EXPLICIT declaration of the key families a requirement is about.
+#: The syntax is a line in the requirement text:
+#:
+#:     observes keys: token:user:*, user:cache:*
+#:
+#: It wins over any keyword heuristic, because a requirement that SAYS
+#: which keys it is about cannot be mis-guessed — and because the syntax
+#: lives here, in the spec language, the collectors downstream read a
+#: FIELD instead of re-parsing prose.
+_KEY_DECLARATION_RE = re.compile(
+    r"(?im)^[^\n]*?\bobserve[sd]?\b[^\n:]*:\s*(?P<patterns>[^\n]+)$"
+)
+
+
+def declared_key_patterns(text: str) -> list[str]:
+    """The key families the text DECLARES it is about.
+
+    Only the patterns are taken, and only the ones that look like key
+    patterns (they contain a colon or a star) — a declaration line that
+    names no pattern is treated as no declaration at all, rather than as
+    a pattern that matches nothing.
+    """
+    patterns: list[str] = []
+    for found in _KEY_DECLARATION_RE.finditer(text or ""):
+        for part in found.group("patterns").split(","):
+            candidate = part.strip()
+            if not candidate:
+                continue
+            if ":" not in candidate and "*" not in candidate:
+                continue
+            if candidate not in patterns:
+                patterns.append(candidate)
+    return patterns
 
 
 def _normalize_id(title: str, index: int) -> str:
@@ -124,6 +164,7 @@ def parse_requirements(text: str) -> ParseResult:
             statement=statement,
             acceptance_criteria=criteria,
             forbidden_changes=forbidden,
+            observes_keys=declared_key_patterns(body),
             priority=priority,
         ))
 

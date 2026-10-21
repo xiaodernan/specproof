@@ -52,6 +52,11 @@ class ContractCandidate(BaseModel):
     requirement_ref: str
     expected_behavior: str
     forbidden_changes: list[str] = Field(default_factory=list)
+    #: The key families the requirement DECLARED ("observes keys: …"),
+    #: carried from the parsed requirement. The declaration is part of
+    #: the spec language now (#368), so the candidate carries it as a
+    #: field instead of leaving every consumer to re-read the prose.
+    observes_keys: list[str] = Field(default_factory=list)
     source: str  # spec | constitution | tests | docs
     evidence: str = ""
     result: str = "UNVERIFIED"
@@ -138,6 +143,7 @@ def compile_candidates(requirements: list[Requirement]) -> list[ContractCandidat
                 requirement_ref=req.id,
                 expected_behavior=behavior,
                 forbidden_changes=req.forbidden_changes,
+                observes_keys=req.observes_keys,
                 source="spec",
                 evidence="; ".join(matching_criteria[:3]),
                 checker_version=checker_version_for(checker_type),
