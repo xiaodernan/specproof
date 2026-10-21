@@ -86,7 +86,7 @@ def _state(
         "base_ref": "base",
         "head_ref": "head",
         "capsules": [],
-        "contracts": [{"id": "AUTH-01"}],
+        "contracts": [{"id": "AUTH-01", "checker_type": "http"}],
     }
     if base is not None:
         state["external_state_base"] = base
@@ -211,11 +211,17 @@ def test_the_pack_compares_the_two_moments_not_one_moment_twice(
     cache key behind; the fragment must say so.
     """
     mongo = _stub_mongo(monkeypatch)
-    collect_evidence_node(_state(
+    state = _state(
         base=_moment(key_present=False, object_present=False),
         head=_moment(key_present=True, object_present=True),
-    ))
+    )
+    # A redis-checked contract: its pack is the one that carries the
+    # redis observation.
+    state["contracts"] = [{"id": "CACHE-01", "checker_type": "redis"}]
 
+    result = collect_evidence_node(state)
+
+    assert result["evidence_pack_saved"] is True
     fragments = mongo.packs[0]["fragments"]
     redis = next(f for f in fragments if f["fragment_type"] == "redis")
     objects = next(f for f in fragments if f["fragment_type"] == "object")
@@ -267,17 +273,19 @@ def test_the_pack_carries_the_fragments_with_their_honest_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mongo = _stub_mongo(monkeypatch)
-    collect_evidence_node(_state(
+    state = _state(
         base=_moment(key_present=False, object_present=False),
         head=_moment(key_present=True, object_present=True),
-    ))
+    )
+    state["contracts"] = [{"id": "CACHE-01", "checker_type": "redis"}]
+    collect_evidence_node(state)
 
     assert len(mongo.packs) == 1
     pack = mongo.packs[0]
     assert pack["job_id"] == "job-339-0001"
     # A pack is keyed by (job_id, contract_id) — the collection carries a
     # unique index on exactly that pair.
-    assert pack["contract_id"] == "AUTH-01"
+    assert pack["contract_id"] == "CACHE-01"
     assert pack["created_at"]
     fragments = pack["fragments"]
     assert fragments
@@ -362,6 +370,39 @@ def test_a_run_that_may_not_write_the_trail_does_not(
     # The observation still happened — the count says so.
     assert result["fragments_collected"] == 2
     assert mongo.packs == []
+
+
+def test_each_contract_gets_only_the_fragments_that_bear_on_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pack is the evidence for ONE contract.
+
+    A contract checked by the redis checker is about the redis state; the
+    object coordinates are where its evidence was filed. The rabbitmq
+    observation says nothing about it — and a pack full of unrelated
+    observations is how a reader ends up believing the wrong thing was
+    checked.
+    """
+    mongo = _stub_mongo(monkeypatch)
+    state = _state(
+        base=_moment(key_present=False, object_present=False),
+        head=_moment(key_present=True, object_present=True),
+    )
+    state["contracts"] = [
+        {"id": "CACHE-01", "checker_type": "redis"},
+        {"id": "AUTH-01", "checker_type": "http"},
+    ]
+
+    result = collect_evidence_node(state)
+
+    assert result["evidence_pack_saved"] is True
+    packs = {p["contract_id"]: p for p in mongo.packs}
+    cache_kinds = {
+        f["fragment_type"] for f in packs["CACHE-01"]["fragments"]
+    }
+    auth_kinds = {f["fragment_type"] for f in packs["AUTH-01"]["fragments"]}
+    assert cache_kinds == {"redis", "object"}
+    assert auth_kinds == {"object"}
 
 
 def test_each_contract_gets_its_own_pack(

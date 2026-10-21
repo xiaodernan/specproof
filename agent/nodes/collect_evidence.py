@@ -157,19 +157,20 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
     #
     # The pack is filed per CONTRACT: the collection carries a unique
     # index on (job_id, contract_id), and a pack is "the evidence for
-    # this contract". Every contract of this job gets one, carrying the
-    # fragments this run observed. (Which fragments BEAR on which
-    # contract — the spec-declared keys per contract — is the wiring
-    # still to come; until then every pack carries the whole
-    # observation set, which is honest and addressable, just not yet
-    # narrowed.)
+    # this contract".
+    #
+    # WHICH fragments bear on a contract is decided by the contract's
+    # own checker family: a contract checked by the redis checker is
+    # about the redis state, so the redis fragment belongs in its pack
+    # and the rabbitmq fragment does not. The OBJECT fragment is in
+    # every pack: the capsule coordinates are the artifact that
+    # contract's evidence was filed into.
     if fragments:
-        contract_ids = [
-            str(c.get("id"))
-            for c in (raw_state.get("contracts") or [])
+        contracts = [
+            c for c in (raw_state.get("contracts") or [])
             if isinstance(c, dict) and c.get("id")
         ]
-        if not contract_ids:
+        if not contracts:
             incr("collect_evidence_no_fragments_total")
             return {
                 "evidence_pack_saved": False,
@@ -200,12 +201,14 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
         mongo = MongoDBStore()
         saved = 0
         failure = ""
-        for contract_id in contract_ids:
+        for contract in contracts:
+            contract_id = str(contract.get("id"))
+            relevant = _fragments_for(contract, fragments)
             pack = {
                 "job_id": raw_state.get("job_id", ""),
                 "contract_id": contract_id,
                 "created_at": datetime.now(UTC).isoformat(),
-                "fragments": [f.to_dict() for f in fragments],
+                "fragments": [f.to_dict() for f in relevant],
             }
             try:
                 mongo.save_evidence_pack(pack)
@@ -233,6 +236,42 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
             "evidence_pack_error": "no fragments collected",
             "fragments_collected": 0,
         }
+
+
+#: The contract's checker family -> the observation surface that bears on
+#: it. A contract checked by the redis checker is about the redis state;
+#: the rabbitmq observation says nothing about it.
+_SURFACE_BY_CHECKER: dict[str, str] = {
+    "redis": "redis",
+    "rabbitmq": "mq",
+}
+
+#: The object fragment belongs to EVERY pack: the capsule coordinates are
+#: the artifact the contract's evidence was filed into.
+_ALWAYS_RELEVANT = ("object",)
+
+
+def _fragments_for(contract: dict[str, Any], fragments: list[Any]) -> list[Any]:
+    """The fragments that bear on this contract.
+
+    A pack is "the evidence for this contract" — so it carries what was
+    observed about THAT contract's surface, not everything the run
+    happened to observe. The object fragment is in every pack (the
+    capsule coordinates are where this contract's evidence was filed);
+    the rest is selected by the contract's own checker family.
+
+    A contract whose family names no surface keeps the object fragment
+    only — not "everything", because a pack full of unrelated
+    observations is how a reader ends up believing the wrong thing was
+    checked.
+    """
+    surface = _SURFACE_BY_CHECKER.get(str(contract.get("checker_type") or ""))
+    keep: list[Any] = []
+    for fragment in fragments:
+        kind = str(getattr(fragment, "fragment_type", "") or "")
+        if kind in _ALWAYS_RELEVANT or (surface and kind == surface):
+            keep.append(fragment)
+    return keep
 
 
 def _derive_redis_keys(state: dict[str, Any]) -> list[str]:
