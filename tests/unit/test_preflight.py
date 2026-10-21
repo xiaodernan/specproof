@@ -180,17 +180,99 @@ def test_wrapperless_maven_repo_fails_when_no_mvn_either(
     assert any("Maven" in e for e in result.errors)
 
 
-def test_old_jdk_is_blocking(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+def _java_workspace(tmp_path: Path, pom: str) -> None:
+    """A Java workspace whose wrapper check passes (so the JDK check is
+    the only thing under test)."""
+    (tmp_path / "pom.xml").write_text(pom, encoding="utf-8")
     (tmp_path / "mvnw").write_text("#!/bin/sh", encoding="utf-8")
+    (tmp_path / ".mvn").mkdir(exist_ok=True)
+    (tmp_path / ".mvn" / "wrapper").mkdir(exist_ok=True)
+    (tmp_path / ".mvn" / "wrapper" / "maven-wrapper.properties").write_text(
+        "distributionUrl=https://repo.maven.apache.org/x\n"
+        "distributionSha256Sum=abc",
+        encoding="utf-8",
+    )
+
+
+def test_a_version_mismatch_is_a_warning_not_a_blocker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A JDK older than the project declares is NOT a certainty.
+
+    The preflight's own contract: `errors` are for what "physically
+    cannot produce real evidence"; `warnings` are "degraded but still
+    able to run". A version mismatch is the second kind — the demo's
+    own tests pass on 17 (measured: 18/18) — so blocking here would
+    refuse a run that works.
+    """
+    _java_workspace(
+        tmp_path,
+        "<project><properties><java.version>21</java.version></properties></project>",
+    )
     monkeypatch.setattr(
         pf, "_probe", lambda cmd, timeout=0: (0, 'openjdk version "17.0.9"')
+    )
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    monkeypatch.delenv(pf.ENV_REQUIRE_JDK, raising=False)
+
+    result = pf.run_preflight(str(tmp_path))
+    assert result.passed is True
+    assert not any("JDK" in e for e in result.errors)
+    assert any("declares JDK 21" in w for w in result.warnings)
+    java = next(c for c in result.checks if c["check"] == "java")
+    assert java["status"] == "WARN"
+
+
+def test_the_operator_can_demand_the_declared_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The knob: an operator who needs the declared version exactly says
+    so, and the preflight then blocks."""
+    _java_workspace(
+        tmp_path,
+        "<project><properties><java.version>21</java.version></properties></project>",
+    )
+    monkeypatch.setattr(
+        pf, "_probe", lambda cmd, timeout=0: (0, 'openjdk version "17.0.9"')
+    )
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    monkeypatch.setenv(pf.ENV_REQUIRE_JDK, "21")
+
+    result = pf.run_preflight(str(tmp_path))
+    assert result.passed is False
+    assert any("declares JDK 21" in e for e in result.errors)
+
+
+def test_a_project_that_declares_no_jdk_is_not_blocked_on_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nobody asked for a version ⇒ none is required. (The old rule
+    demanded 21 of every Java project on earth.)"""
+    _java_workspace(tmp_path, "<project/>")
+    monkeypatch.setattr(
+        pf, "_probe", lambda cmd, timeout=0: (0, 'openjdk version "17.0.9"')
+    )
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    monkeypatch.delenv(pf.ENV_REQUIRE_JDK, raising=False)
+
+    result = pf.run_preflight(str(tmp_path))
+    assert result.passed is True
+    assert not any("declares JDK" in w for w in result.warnings)
+
+
+def test_a_missing_jdk_is_still_blocking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No JDK at all IS "physically cannot produce evidence"."""
+    _java_workspace(tmp_path, "<project/>")
+    monkeypatch.setattr(
+        pf, "_probe", lambda cmd, timeout=0: (pf.EXIT_NOT_FOUND, "")
     )
     monkeypatch.delenv("JAVA_HOME", raising=False)
 
     result = pf.run_preflight(str(tmp_path))
     assert result.passed is False
-    assert any("JDK 21 required" in e for e in result.errors)
+    assert any("Java not found" in e for e in result.errors)
 
 
 # ── result shape ────────────────────────────────────────────────────────
