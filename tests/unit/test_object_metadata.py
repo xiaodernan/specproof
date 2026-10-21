@@ -246,6 +246,28 @@ def shared_store(monkeypatch) -> InMemoryObjectMetadataStore:
 def test_create_capsule_node_records_capsule_metadata(shared_store, tmp_path, monkeypatch):
     from agent.nodes.create_capsule import create_capsule_node
 
+    class _FakeObjects:
+        """The object store is stubbed: a test must not write to the real
+        bucket — and the capsule's index row now carries the object
+        coordinate, not a local path."""
+
+        def put_object_with_digest(
+            self, bucket, object_name, data, content_type="application/zip",
+            version=None,
+        ):
+            return {
+                "bucket": bucket,
+                "object_name": object_name,
+                "sha256": "b" * 64,
+                "size_bytes": len(data),
+                "content_type": content_type,
+                "version": version,
+            }
+
+        def remove_object(self, bucket, object_name):
+            pass
+
+    monkeypatch.setattr("storage.minio.MinIOClient", lambda *a, **k: _FakeObjects())
     monkeypatch.chdir(tmp_path)
     state: dict[str, object] = {
         "confirmed_findings": [{
@@ -275,7 +297,11 @@ def test_create_capsule_node_records_capsule_metadata(shared_store, tmp_path, mo
     record = records[0]
     assert record.job_id == "job-capsule-1"
     assert record.contract_ids == ("AUTH-01",)
-    assert record.path_hint == capsule_paths[0]
+    # The uploaded capsule is indexed by its OBJECT COORDINATE — where the
+    # bytes are — not by the local path it was built at.
+    assert record.object_ref == (
+        "specproof-bug-capsules/jobs/job-capsule-1/capsule-F-9.zip"
+    )
     expected = payload_sha256_of_file(capsule_paths[0])
     assert record.digests["payload_sha256"] == expected
     assert shared_store.by_digest(expected) == [record]

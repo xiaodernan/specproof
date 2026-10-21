@@ -111,13 +111,39 @@ class _FakeMinIOClient:
             "version": version,
         }
 
+    def remove_object(self, bucket: str, object_name: str) -> None:
+        self.removed.append((bucket, object_name))
+
+
+class _FakeMetadataStore:
+    """An index double: records what was indexed, and can refuse."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.recorded: list[Any] = []
+
+    def record(self, metadata: Any) -> Any:
+        if self.fail:
+            raise RuntimeError("index unavailable")
+        self.recorded.append(metadata)
+        return metadata
+
 
 def _stub_object_store(
-    monkeypatch: pytest.MonkeyPatch, *, fail: bool = False
-) -> _FakeMinIOClient:
-    fake = _FakeMinIOClient(fail=fail)
-    monkeypatch.setattr("storage.minio.MinIOClient", lambda *a, **k: fake)
-    return fake
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    fail: bool = False,
+    index_fails: bool = False,
+) -> tuple[_FakeMinIOClient, _FakeMetadataStore]:
+    """Stub the two stores the ArtifactStore writes through."""
+    objects = _FakeMinIOClient(fail=fail)
+    metadata = _FakeMetadataStore(fail=index_fails)
+    monkeypatch.setattr("storage.minio.MinIOClient", lambda *a, **k: objects)
+    monkeypatch.setattr(
+        "storage.object_metadata.default_object_metadata_store",
+        lambda: metadata,
+    )
+    return objects, metadata
 
 
 def _state(tmp_path: Path, findings: list[dict[str, Any]]) -> dict[str, Any]:
@@ -158,18 +184,46 @@ def test_the_capsule_reaches_the_object_store_and_its_coordinate_comes_back(
     """
     monkeypatch.chdir(tmp_path)
     _stub_metadata(monkeypatch)
-    store = _stub_object_store(monkeypatch)
+    objects, metadata = _stub_object_store(monkeypatch)
 
     out = create_capsule_node(_state(tmp_path, _one_finding()))  # type: ignore[arg-type]
 
-    assert len(store.uploads) == 1
-    bucket, name, size = store.uploads[0]
+    assert len(objects.uploads) == 1
+    bucket, name, size = objects.uploads[0]
     assert bucket == "specproof-bug-capsules"
     assert name == "jobs/job-200/capsule-F1.zip"
     assert size > 0
     # The coordinate is "bucket/object-name" — the address the store
     # understands.
     assert out["capsule_refs"] == [f"{bucket}/{name}"]
+    # And the object was INDEXED too — the two-store path, not a thinner
+    # hand-written upload.
+    assert len(metadata.recorded) == 1
+    assert metadata.recorded[0].object_ref == f"{bucket}/{name}"
+
+
+def test_a_capsule_uploaded_but_not_indexed_is_reported(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The two-store hole: the bytes are durable, but nothing points at them.
+
+    That is a ghost until the reconciliation scan finds it. The capsule
+    itself is NOT lost (the zip is on disk), but the evidence chain
+    cannot address it — and the run has to say so.
+    """
+    monkeypatch.chdir(tmp_path)
+    _stub_metadata(monkeypatch)
+    _stub_object_store(monkeypatch, index_fails=True)
+    before = _counter("create_capsule_upload_unindexed_total")
+
+    out = create_capsule_node(_state(tmp_path, _one_finding()))  # type: ignore[arg-type]
+
+    assert _counter("create_capsule_upload_unindexed_total") == before + 1
+    # The capsule is intact...
+    assert len(out["capsules"]) == 1
+    assert Path(out["capsules"][0]).is_file()
+    # ...but there is no address, so there is no coordinate.
+    assert out["capsule_refs"] == []
 
 
 def test_a_failed_upload_is_counted_and_the_capsule_stays_local(
@@ -215,6 +269,7 @@ def test_packed_counts_packed(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     recorder = _stub_metadata(monkeypatch)
+    _stub_object_store(monkeypatch)
     findings = [
         {
             "id": "F1",
@@ -246,11 +301,13 @@ def test_packed_counts_packed(
     assert manifest["finding_id"] == "F1"
     assert manifest["manifest_digest"].startswith("sha256:")
 
-    assert len(recorder.calls) == 1
-    (args, kwargs) = recorder.calls[0]
-    assert args[0] == "capsule"
-    assert kwargs["job_id"] == "job-200"
-    assert kwargs["contract_ids"] == ("AUTH-01",)
+    # The capsule was UPLOADED, so it is indexed by its object coordinate
+    # and NOT by its local path: indexing it twice would leave one
+    # artifact under two identities.
+    assert recorder.calls == [], (
+        "an uploaded capsule is indexed by the object store — the file-path "
+        "record is for the capsules that could NOT be uploaded"
+    )
     assert _deltas(before) == _only("packed")
 
 
