@@ -6702,3 +6702,24 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 **诚实边界。** ① 坐标只解决了**对象存储**这一条线；`record_file_object`（文件型记录）仍然只带路径 —— 那是对的，文件型产物本来就在文件系统里。② 迁移是**加列**，不是**改语义**；老记录的新列是空串 ⇒ 它们仍然只能按路径/摘要找到（**不会**因为这次改动就变得可按坐标找到）。③ 坐标的**桶权限/租户前缀**校验在 `storage/minio.py::validate_object_path` 那一层，元数据这一层**只做形状校验**（桶/对象非空、无空路径段）—— 两者不是同一件事，没有合并。④ 本号**没有**把对象坐标接进 `evidence/fragments.py` 的 Fragment 类型（那里仍只有 http/db/redis/mq/schema/perf/static/build 八种，没有 object）—— 那是**另一个**接线点，未做。⑤ MySQL 的门控测试在 CI 里仍会**被跳过**（没有 `MYSQL_URL`）—— 本号在本机用真库跑通了，但**CI 依然不会跑它**；这仍是那条「后端可以是绿的，只要没人连过它」的教训。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **把对象坐标接进证据 Fragment**（`evidence/fragments.py` 加 `ObjectObservation`：bucket/object_name/etag/size/content_type/version）—— #336 边界④。② **CI 跑 MySQL 门控测试**（`MYSQL_URL` 在 CI 里可用）—— 否则那个后端还是「没人连过」。③ `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。④ demo 的测试在**默认 JDK 25** 上跑不起来（Mockito inline mock maker）—— 单独解决。⑤ 局部变量名是否也该进 profile（#319 的边界②）。⑥ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑦ 队列项④的**框法要改**（#319 队列⑤）。⑧ 101 个案例的**全量重跑评测**。
+
+## #337 对象坐标进证据链：Fragment 多一种类型，采集器只描述**观测到**的
+
+**起因/占号。** #336 的下一号队列①：「把对象坐标接进证据 Fragment（`evidence/fragments.py` 加 `ObjectObservation`：bucket/object_name/etag/size/content_type/version）」。落地前重测账本：HEAD 7125e6e、`## #` id 最大 **336** ⇒ 取 **#337**。（账本里有两个 `## #335` —— 并发车道在我落号之后才写 theirs；两个节都在，内容都没丢。）
+
+**先量旧行为。** `evidence/fragments.py` 有**八**种 Fragment：http / db / redis / mq / schema / perf / static / build —— **没有 object**。⇒ 对象存储在证据链里**没有位置**：证据包与胶囊的字节是耐久的，但链上没有它们的**地址**。#336 把坐标记进了**索引行**（可检索），本号把坐标**带进证据**（可核验）——两件事，不是一件事。
+
+**修。**
+- **新 Fragment 类型** `ObjectObservation`（`evidence/fragments.py`）：与其它八种同一套契约（同一份字段、同一套 digest、同一套 round trip）✓。
+- **新采集器** `ObjectStateCollector`（`experiments/collectors.py`），与 Redis / RabbitMQ 采集器**同形**：
+  - `ObjectState`（bucket / object_name / present / size_bytes / content_type / sha256 / version）；
+  - `snapshot(refs)` 观测 `"bucket/object-name"` 列表；`compare(base, head)` 逐对象报 **appeared / disappeared / content_changed / content_type_changed**；`fragment(...)` 出 `fragment_type="object"` 的 Fragment。
+  - 三条规矩照抄同门：**缺席是事实、不是被发明的值**（不存在 ⇒ `present: false`，不写空值、不写「已删除」）；**调用方不许提供判定**（变了 ⇒ `AMBIGUOUS`，严不严重是 Review Court 的事）；依赖从参数进来 ⇒ **不需要 MinIO 就能跑**。
+
+**门与腿。** 新增 `tests/unit/test_object_state_collector.py`（**12** 项）：在场对象的元数据被观测到；**缺席**被记成 `present: false`（不是被发明）；**存储不可达**被记成「没观测到」而不是崩（然后 Fragment 如实是 `NO_EVIDENCE`）；没有桶的引用被跳过；比较报出三种变化 + content_type 单独一种；**两个都不在场不算「变化」**；`NO_EVIDENCE` / `COMPLIANT` / `AMBIGUOUS` 三态各钉一处；Fragment 经 schema 往返不变、digest 稳定；Fragment 里带的是**桶能懂的地址**（bucket + object_name）。`test_evidence_fragments.py` 的「九种观测类型都是合法 Fragment」参数化表加上 `ObjectObservation` ✓。相关回归（fragments + 新采集器 + 动态采集器 + 证据 CLI）**64 passed**；`ruff` 0 errors、`mypy evidence/ experiments/` 0 errors（**27** 源文件）。
+
+**否证与订正。** ① 我把 `ObjectObservation` 加进参数化表后，测试**收集期**就炸了：`NameError: name 'ObjectObservation' is not defined` —— 参数化列表里加名字容易，**import** 那行也得加 ✓（门自己抓到的，没混过去）。② 「存储不可达」这一条我一开始想写成「抛出去」——那会让整个采集崩掉，而不是让证据说「我没看到」⇒ 改成**记成缺席**，Fragment 因此是 `NO_EVIDENCE`：**一个够不着的事实，和一个不存在的事实，在证据里必须长得不一样**（前者是「没看到」，后者是「看到它不在」）。③ `etag` 没有进 Fragment：MinIO 的 ETag 对分片上传**不是**内容的 sha256，拿它当摘要会**骗人** ⇒ 只用 `sha256`（由 `object_stat` 给出）✓。这是本号**故意不**加的字段。
+
+**诚实边界。** ① 这个采集器**还没有被任何管线调用** —— 它是一个可用、可测的采集器，证据包的生产路径**还没**去调它（接线是下一步的事，本号没做）。② `ObjectState.version` 取自 `object_stat` 的返回，而 MinIO 客户端的 `object_stat` **目前不返回 version**（`put_object_with_digest` 才返回）⇒ 该字段**实际恒为空串**；它在结构里留着，是为了不把「版本」这个概念从证据里删掉。③ `ObjectStoreLike` 协议要求 `object_exists` + `object_stat` 两个方法；生产客户端都有 ✓，但**签名不同**（`object_stat` 抛异常而不是返回 None）⇒ 采集器**捕获**了异常并记成缺席 ✓（而不是让它冒出去）。④ 摘要/大小相同但**版本**不同的对象，比较里**看不出**差别（`version` 不参与比较）—— 那是「同内容被重写」的情形，本号**没有**为它设计状态。⑤ 账本里那两个 `## #335` 仍然在（并发车道与我各占一个）；本号只**记录**了这个事实，**没有**去动他们在途的文本。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **把对象采集器接进证据包的生产路径**（本号边界①）—— 让链条真的带着地址走。② **CI 跑 MySQL 门控测试**（`MYSQL_URL` 在 CI 里可用）—— 否则那个后端还是「没人连过」。③ `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。④ demo 的测试在**默认 JDK 25** 上跑不起来（Mockito inline mock maker）—— 单独解决。⑤ 局部变量名是否也该进 profile（#319 的边界②）。⑥ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑦ 队列项④的**框法要改**（#319 队列⑤）。⑧ 101 个案例的**全量重跑评测**。

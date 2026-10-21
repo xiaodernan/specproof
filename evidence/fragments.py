@@ -42,7 +42,7 @@ class EvidenceFragment:
 
     # ── 标识 ──────────────────────────────────────────────────────
     experiment_id: str          # 关联的实验 ID
-    fragment_type: str  # http | db | redis | mq | schema | perf | static | build
+    fragment_type: str  # http | db | redis | mq | schema | perf | static | build | object
     collector_version: str      # 采集器版本，用于回放时验证兼容性
     collected_at: str           # 采集时间 (ISO-8601)
 
@@ -146,6 +146,17 @@ class BuildObservation(EvidenceFragment):
     """构建观测：编译退出码、构建时间、工具链版本."""
 
 
+@dataclass(frozen=True)
+class ObjectObservation(EvidenceFragment):
+    """对象存储观测：bucket/object-name、size、content_type、sha256、version.
+
+    The object store is where the evidence pack and the capsules live.
+    Until this type existed, an object could be written and nothing in
+    the evidence chain could say WHERE it is — the bytes were durable
+    and the chain had no address for them (P1-7).
+    """
+
+
 __all__ = [
     "EvidenceFragment",
     "HttpObservation",
@@ -156,6 +167,7 @@ __all__ = [
     "PerformanceObservation",
     "StaticObservation",
     "BuildObservation",
+    "ObjectObservation",
     "FragmentStatus",
     "_digest",
 ]

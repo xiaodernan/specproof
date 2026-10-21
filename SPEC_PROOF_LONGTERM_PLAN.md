@@ -236,7 +236,7 @@
 - P1-7 对象元数据 ✅（#336：记录**对象坐标** `bucket/object-name`（`object_ref`）并**按它解析** —— 路径是文件**当时**在哪，对象坐标是字节**现在**在哪；SQLite/MySQL 各有 DDL 与 `ALTER TABLE` 迁移；顺带发现并修掉一个**既有**缺陷：MySQL 后端把 SQLite 的 DDL 原样翻译过去（TEXT 列带 DEFAULT，MySQL 拒绝）⇒ `ensure_schema()` 每次都失败、**这个生产后端从来没建过表**，而门控测试一直被跳过）
 
 ### 阶段 2（证据链和回放闭环）✅ 100% 完成
-- P2-1 Evidence Fragment schema ✅（evidence/fragments.py，8 种 Fragment 类型 + collector_version + 规范化 + 摘要）
+- P2-1 Evidence Fragment schema ✅（evidence/fragments.py，9 种 Fragment 类型 + collector_version + 规范化 + 摘要）
 - P2-2 Capsule 批量回放 runner ✅（evidence/batch_replay.py，失败分类：environment/artifact/script/diverged；成功率分母是「已判定」数量）
 - P2-3 证书离线验证 ✅（evidence/offline_verify.py，诚实区分 signature / digest_attestation / unverified；撤销日志不可读时 fail-closed）
 - P2-4 orphan 对象与悬挂引用扫描 ✅（evidence/orphan_scan.py，只报告不删除）

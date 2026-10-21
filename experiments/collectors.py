@@ -35,7 +35,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from evidence.fragments import MqObservation, RedisObservation
+from evidence.fragments import MqObservation, ObjectObservation, RedisObservation
 
 #: Collector version stamped on every fragment. A collector whose
 #: semantics change MUST bump this: the version is what tells a reader
@@ -377,6 +377,191 @@ def compare_publish_observations(
             "head": head_digests,
         })
     return {"changed": changes, "changed_count": len(changes)}
+
+
+# ── Object storage ──────────────────────────────────────────────────────────
+
+
+class ObjectStoreLike(Protocol):
+    """The stat surface an object probe reads through."""
+
+    def object_exists(self, bucket: str, object_name: str) -> bool: ...
+
+    def object_stat(self, bucket: str, object_name: str) -> dict[str, Any]: ...
+
+
+@dataclass(frozen=True)
+class ObjectState:
+    """One object, as it was OBSERVED.
+
+    Absence is a fact, not an empty value: an object that is not there
+    is reported as ``present: false``. A missing object must never read
+    as "the artifact was deleted" — that is a conclusion, and this
+    collector does not draw conclusions.
+    """
+
+    bucket: str
+    object_name: str
+    present: bool
+    size_bytes: int = 0
+    content_type: str = ""
+    sha256: str = ""
+    version: str = ""
+
+    @property
+    def ref(self) -> str:
+        return f"{self.bucket}/{self.object_name}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "bucket": self.bucket,
+            "object_name": self.object_name,
+            "present": self.present,
+            "size_bytes": self.size_bytes,
+            "content_type": self.content_type,
+            "sha256": self.sha256,
+            "version": self.version,
+        }
+
+
+class ObjectStateCollector:
+    """Collect what the object store ACTUALLY holds (P1-7).
+
+    Same contract as the Redis and RabbitMQ collectors: absence is
+    recorded, the caller may not supply the verdict, and the
+    dependencies arrive as arguments so the whole thing runs without
+    MinIO.
+    """
+
+    def __init__(
+        self,
+        objects: ObjectStoreLike,
+        *,
+        collector_version: str = COLLECTOR_VERSION,
+    ) -> None:
+        self._objects = objects
+        self.collector_version = collector_version
+
+    def snapshot(self, refs: Iterable[str]) -> dict[str, ObjectState]:
+        """Observe each "bucket/object-name" reference."""
+        states: dict[str, ObjectState] = {}
+        for ref in refs:
+            bucket, _, name = str(ref).partition("/")
+            if not bucket or not name:
+                continue
+            try:
+                present = bool(self._objects.object_exists(bucket, name))
+            except Exception:  # noqa: BLE001 — an unreachable store is absence
+                present = False
+            if not present:
+                states[str(ref)] = ObjectState(
+                    bucket=bucket, object_name=name, present=False,
+                )
+                continue
+            try:
+                stat = self._objects.object_stat(bucket, name)
+            except Exception:  # noqa: BLE001 — raced away between the calls
+                states[str(ref)] = ObjectState(
+                    bucket=bucket, object_name=name, present=False,
+                )
+                continue
+            states[str(ref)] = ObjectState(
+                bucket=bucket,
+                object_name=name,
+                present=True,
+                size_bytes=int(stat.get("size_bytes") or 0),
+                content_type=str(stat.get("content_type") or ""),
+                sha256=str(stat.get("sha256") or ""),
+                version=str(stat.get("version") or ""),
+            )
+        return states
+
+    def compare(
+        self,
+        base: Mapping[str, ObjectState],
+        head: Mapping[str, ObjectState],
+    ) -> dict[str, Any]:
+        """What changed between the two snapshots, per object.
+
+        DESCRIPTIVE, like every other comparison here: which objects
+        appeared, disappeared, or carry different bytes. Whether that is
+        bad is the Review Court's call, not this module's.
+        """
+        changed: list[dict[str, Any]] = []
+        for ref in sorted(set(base) | set(head)):
+            before = base.get(ref)
+            after = head.get(ref)
+            if before is None or after is None:
+                changed.append({
+                    "ref": ref,
+                    "change": "appeared" if before is None else "disappeared",
+                    "base": before.to_dict() if before else None,
+                    "head": after.to_dict() if after else None,
+                })
+                continue
+            if before.present != after.present:
+                changed.append({
+                    "ref": ref,
+                    "change": "appeared" if after.present else "disappeared",
+                    "base": before.to_dict(),
+                    "head": after.to_dict(),
+                })
+                continue
+            if not before.present:
+                continue
+            if before.sha256 != after.sha256 or before.size_bytes != after.size_bytes:
+                changed.append({
+                    "ref": ref,
+                    "change": "content_changed",
+                    "base": before.to_dict(),
+                    "head": after.to_dict(),
+                })
+                continue
+            if before.content_type != after.content_type:
+                changed.append({
+                    "ref": ref,
+                    "change": "content_type_changed",
+                    "base": before.to_dict(),
+                    "head": after.to_dict(),
+                })
+        return {"changed": changed, "changed_count": len(changed)}
+
+    def fragment(
+        self,
+        experiment_id: str,
+        base: Mapping[str, ObjectState],
+        head: Mapping[str, ObjectState],
+    ) -> ObjectObservation:
+        """Build the observation for one experiment."""
+        observed = any(
+            state.present for state in list(base.values()) + list(head.values())
+        )
+        comparison = self.compare(base, head)
+        if not observed:
+            status = STATUS_NO_EVIDENCE
+        elif comparison["changed_count"] == 0:
+            status = STATUS_COMPLIANT
+        else:
+            status = STATUS_AMBIGUOUS
+        return ObjectObservation(
+            experiment_id=experiment_id,
+            fragment_type="object",
+            collector_version=self.collector_version,
+            collected_at=_now_iso(),
+            base={ref: state.to_dict() for ref, state in base.items()},
+            head={ref: state.to_dict() for ref, state in head.items()},
+            normalization={
+                "ref": "bucket/object-name",
+                "sha256": "the payload digest reported by the object store",
+                "presence": "an object that is not there is reported as present=false",
+            },
+            comparison=comparison,
+            status=status,
+            confidence=1.0 if observed else 0.0,
+            evidence_ref=None,
+            reproducibility="reproducible",
+            extension={"observed_any_object": observed},
+        )
 
 
 def _payload_digest(payload: Mapping[str, Any]) -> str:

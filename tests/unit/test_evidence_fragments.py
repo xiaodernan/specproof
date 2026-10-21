@@ -23,6 +23,7 @@ from evidence.fragments import (
     EvidenceFragment,
     HttpObservation,
     MqObservation,
+    ObjectObservation,
     PerformanceObservation,
     RedisObservation,
     SchemaObservation,
@@ -143,6 +144,7 @@ def test_extension_is_carried_verbatim() -> None:
         PerformanceObservation,
         StaticObservation,
         BuildObservation,
+        ObjectObservation,
     ],
 )
 def test_observation_types_are_usable_fragments(cls: type) -> None:
