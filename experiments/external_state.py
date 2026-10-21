@@ -86,6 +86,34 @@ def key_patterns_for(
     return patterns
 
 
+#: The cap on how many keys one family contributes to a snapshot.
+#:
+#: It is a GUESS, not a measurement: the real distribution of a family's
+#: key count is not known here (the same gap as the DEEP execution
+#: budget). Two things keep the guess honest: the cap is configurable
+#: (an operator with a real distribution can set it), and a truncated
+#: observation SAYS it was truncated — a cap that is not announced is a
+#: reader believing they saw every key.
+DEFAULT_MAX_SCANNED_KEYS = 200
+
+#: The environment variable that overrides the cap.
+MAX_SCANNED_KEYS_ENV = "SPECPROOF_REDIS_SCAN_MAX_KEYS"
+
+
+def max_scanned_keys() -> int:
+    """The cap, from the environment when the operator named one."""
+    import os
+
+    raw = os.getenv(MAX_SCANNED_KEYS_ENV, "").strip()
+    if not raw:
+        return DEFAULT_MAX_SCANNED_KEYS
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_SCANNED_KEYS
+    return value if value > 0 else DEFAULT_MAX_SCANNED_KEYS
+
+
 def build_redis_client() -> Any | None:
     """Build a Redis client from the environment. None when unreachable.
 
@@ -159,7 +187,7 @@ def capture_redis_state(
     keys: tuple[str, ...] | list[str] = DEFAULT_REDIS_KEYS,
     patterns: tuple[str, ...] | list[str] = (),
     *,
-    max_keys: int = 200,
+    max_keys: int | None = None,
     truncated_out: list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """One Redis snapshot, as plain dicts.
@@ -178,11 +206,12 @@ def capture_redis_state(
     """
     if client is None:
         return {}
+    limit = max_scanned_keys() if max_keys is None else max_keys
     collector = RedisStateCollector(client)
     states = dict(collector.snapshot(keys))
     if patterns:
         for key, state in collector.snapshot_by_pattern(
-            patterns, max_keys=max_keys
+            patterns, max_keys=limit
         ).items():
             states.setdefault(key, state)
     if truncated_out is not None:
@@ -212,7 +241,7 @@ def capture_external_state(
     redis_keys: tuple[str, ...] | list[str] = DEFAULT_REDIS_KEYS,
     object_refs: tuple[str, ...] | list[str] = (),
     redis_patterns: tuple[str, ...] | list[str] = (),
-    max_keys: int = 200,
+    max_keys: int | None = None,
 ) -> dict[str, Any]:
     """One snapshot of everything observable outside the workspaces.
 
@@ -227,6 +256,7 @@ def capture_external_state(
     every key — so the truncation travels with the observation, at the
     TOP level (inside the key map it would be mistaken for a key).
     """
+    limit = max_scanned_keys() if max_keys is None else max_keys
     snapshot: dict[str, Any] = {
         "redis": {},
         "objects": capture_object_state(object_store, object_refs),
@@ -234,7 +264,7 @@ def capture_external_state(
     truncated: list[str] = []
     snapshot["redis"] = capture_redis_state(
         redis_client, redis_keys, patterns=redis_patterns,
-        max_keys=max_keys, truncated_out=truncated,
+        max_keys=limit, truncated_out=truncated,
     )
     if truncated:
         # The observation was CAPPED. A cap that is not announced is a

@@ -220,6 +220,52 @@ def test_the_fragment_says_the_observation_was_partial() -> None:
     assert fragment.extension["truncated_patterns"] == ["token:user:*"]
 
 
+def test_the_cap_is_configurable(monkeypatch: Any) -> None:
+    """The cap is a GUEST until a real distribution says otherwise.
+
+    An operator who knows their key families can raise it — but the
+    default stays the guess, and it stays NAMED as a guess.
+    """
+    from experiments.external_state import (
+        DEFAULT_MAX_SCANNED_KEYS,
+        MAX_SCANNED_KEYS_ENV,
+        max_scanned_keys,
+    )
+
+    monkeypatch.delenv(MAX_SCANNED_KEYS_ENV, raising=False)
+    assert max_scanned_keys() == DEFAULT_MAX_SCANNED_KEYS
+
+    monkeypatch.setenv(MAX_SCANNED_KEYS_ENV, "5000")
+    assert max_scanned_keys() == 5000
+
+    # A nonsense value falls back to the default rather than scanning
+    # everything (or nothing).
+    monkeypatch.setenv(MAX_SCANNED_KEYS_ENV, "not-a-number")
+    assert max_scanned_keys() == DEFAULT_MAX_SCANNED_KEYS
+    monkeypatch.setenv(MAX_SCANNED_KEYS_ENV, "0")
+    assert max_scanned_keys() == DEFAULT_MAX_SCANNED_KEYS
+
+
+def test_the_cap_from_the_environment_reaches_the_snapshot(
+    monkeypatch: Any,
+) -> None:
+    from experiments.external_state import (
+        MAX_SCANNED_KEYS_ENV,
+        capture_redis_state,
+    )
+
+    client = _ScanningRedis({f"token:user:{i}": "v" for i in range(10)})
+    truncated: list[str] = []
+    monkeypatch.setenv(MAX_SCANNED_KEYS_ENV, "2")
+
+    snapshot = capture_redis_state(
+        client, keys=(), patterns=["token:user:*"], truncated_out=truncated,
+    )
+
+    assert len(snapshot) == 2
+    assert truncated == ["token:user:*"]
+
+
 def test_a_complete_observation_says_it_is_complete() -> None:
     from experiments.collectors import redis_fragment_from_snapshots
 
