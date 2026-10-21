@@ -428,6 +428,40 @@ def test_each_contract_gets_only_the_fragments_that_bear_on_it(
     assert auth_kinds == {"object"}
 
 
+def test_the_mq_surface_says_why_it_cannot_be_observed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing observation and an UNOBSERVABLE one are different facts.
+
+    The publish happens inside the test's JVM, so the pipeline cannot
+    see it from out here. Instead of a silent gap, the rabbitmq-checked
+    contract gets an explicit NO_EVIDENCE fragment that says why — so a
+    reader of the pack does not have to guess which kind of absence they
+    are looking at.
+    """
+    mongo = _stub_mongo(monkeypatch)
+    state = _state(
+        base=_moment(key_present=False, object_present=False),
+        head=_moment(key_present=True, object_present=True),
+    )
+    state["contracts"] = [
+        {
+            "id": "EVENT-01",
+            "checker_type": "rabbitmq",
+            "requirement": "the event must be published exactly once",
+        },
+    ]
+
+    collect_evidence_node(state)
+
+    fragments = mongo.packs[0]["fragments"]
+    mq = next(f for f in fragments if f["fragment_type"] == "mq")
+    assert mq["status"] == "NO_EVIDENCE"
+    assert mq["confidence"] == 0.0
+    assert mq["extension"]["observed_any_publish"] is False
+    assert "test's JVM" in mq["extension"]["not_observable_reason"]
+
+
 def test_a_contract_that_names_no_key_family_gets_no_redis_fragment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

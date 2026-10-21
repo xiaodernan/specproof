@@ -12,7 +12,6 @@ the Review Court and the lineage builder will later interpret.
 from __future__ import annotations
 
 import fnmatch
-from contextlib import suppress
 from typing import Any, cast
 
 from agent.state import Phase0State
@@ -128,13 +127,61 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
         # Degraded, not fatal — evidence is best-effort
         pass
 
-    # RabbitMQ (mock publisher recording)
-    with suppress(Exception):  # noqa: BLE001
-        # The PublisherLike is a mock that records publishes; the real
-        # wiring comes from the test harness. For production, we would
-        # need a live RabbitMQ connection which we don't have here.
-        # Skipped in this first pass — backlog item.
-        pass
+    # RabbitMQ — the surface the pipeline CANNOT observe, said out loud.
+    #
+    # The publish happens INSIDE the test's JVM (the generated test
+    # drives the application in-process), so the pipeline cannot see the
+    # publishes from out here: there is no broker-side view of what a
+    # test published, and the evidence that DOES exist is the test's own
+    # assertion (its routing key and publish count).
+    #
+    # So instead of a silent gap, every rabbitmq-checked contract gets an
+    # explicit NO_EVIDENCE fragment that says WHY. A missing observation
+    # and an unobservable one are different facts, and a reader of the
+    # pack must not have to guess which one they are looking at.
+    mq_fragments: dict[str, Any] = {}
+    try:
+        from datetime import UTC, datetime
+
+        from evidence.fragments import MqObservation
+        from experiments.collectors import STATUS_NO_EVIDENCE
+
+        for contract in raw_state.get("contracts") or []:
+            if not isinstance(contract, dict) or not contract.get("id"):
+                continue
+            if str(contract.get("checker_type") or "") != "rabbitmq":
+                continue
+            mq_fragments[str(contract["id"])] = MqObservation(
+                experiment_id=raw_state.get("job_id", "unknown"),
+                fragment_type="mq",
+                collector_version="1.0.0",
+                collected_at=datetime.now(UTC).isoformat(),
+                base={},
+                head={},
+                normalization={
+                    "publish_count": (
+                        "the publishes the generated test asserted, recorded by "
+                        "the test itself — the pipeline cannot observe an "
+                        "in-process publish from outside the test's JVM"
+                    ),
+                },
+                comparison={"changed": [], "changed_count": 0},
+                status=STATUS_NO_EVIDENCE,
+                confidence=0.0,
+                evidence_ref=None,
+                reproducibility="reproducible",
+                extension={
+                    "observed_any_publish": False,
+                    "not_observable_reason": (
+                        "publishes happen inside the test's JVM; the evidence "
+                        "is the test's own assertion"
+                    ),
+                },
+            )
+        if mq_fragments:
+            collected += 1
+    except Exception:  # noqa: BLE001
+        incr("collect_evidence_mq_failed_total")
 
     # Object storage
     try:
@@ -232,7 +279,9 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
         failure = ""
         for contract in contracts:
             contract_id = str(contract.get("id"))
-            relevant = _fragments_for(contract, fragments, redis_fragments)
+            relevant = _fragments_for(
+                contract, fragments, redis_fragments, mq_fragments
+            )
             pack = {
                 "job_id": raw_state.get("job_id", ""),
                 "contract_id": contract_id,
@@ -284,6 +333,7 @@ def _fragments_for(
     contract: dict[str, Any],
     fragments: list[Any],
     redis_fragments: dict[str, Any] | None = None,
+    mq_fragments: dict[str, Any] | None = None,
 ) -> list[Any]:
     """The fragments that bear on this contract.
 
@@ -309,6 +359,8 @@ def _fragments_for(
             keep.append(fragment)
     if redis_fragments and contract_id in redis_fragments:
         keep.append(redis_fragments[contract_id])
+    if mq_fragments and contract_id in mq_fragments:
+        keep.append(mq_fragments[contract_id])
     return keep
 
 
