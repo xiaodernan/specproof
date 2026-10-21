@@ -6742,3 +6742,26 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 **诚实边界。** ① **采集的键/路由键/对象引用是硬编码的最小集合**（`user:cache:1`、`user:cache:2`、`order.created`、`email.changed`；对象引用**目前是空列表**）—— 完整接线要等「规范声明了它用哪些键/路径/对象」，这是**明确记录的待办**，不是完成的接线。② **RabbitMQ 采集这一段是空的**（`with suppress(Exception): pass`）—— 生产环境需要一个活的 RabbitMQ 连接，测试里只有 mock 发布探针；本号**没有**假装它被接上了。③ **base 与 head 用同一份 state 快照**（同一个 `snapshot()` 调两次）—— 所以片段的 base/head 此刻**必然相同**，比较永远是「没变」；真正的 base/head 分离需要两次真实运行之间的状态，**那是一个远 bigger 的工程**（本号只是把**路径**接通，不是把**语义**接通）。④ `ObjectState.version` 仍是空串（`object_stat` 不返回它）—— 见 #337 边界②，未变。⑤ Mongo 写失败时**片段丢失**（只存在于内存里，没有落盘）：节点报告了失败，但观测本身没被持久化 ⇒ 这是已知的缺口。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **base/head 的真实分离**：采集器要能采「上一次运行」与「这一次运行」两个时刻的状态，而不是同一份快照采两遍 —— 否则片段永远说「没变」。② **对象引用的真实来源**：胶囊/产物上传后由 `ArtifactStore` 回报坐标，采集器照着采（现在返回空列表）。③ **RabbitMQ 的生产接线**（活连接 + 真实路由键）。④ **CI 跑 MySQL 门控测试**（`MYSQL_URL` 在 CI 里可用）—— 否则那个后端还是「没人连过」。⑤ `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。⑥ demo 的测试在**默认 JDK 25** 上跑不起来（Mockito inline mock maker）—— 单独解决。⑦ 局部变量名是否也该进 profile（#319 的边界②）。⑧ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑨ 队列项④的**框法要改**（#319 队列⑤）。⑩ 101 个案例的**全量重跑评测**。
+
+## #339 真实的 base/head 分离：在**两次运行之间**采两次外部状态（否则片段永远说「没变」）
+
+**起因/占号。** #338 的下一号队列①：「base/head 的真实分离 —— 采集器要能采『上一次运行』与『这一次运行』两个时刻的状态，而不是同一份快照采两遍」。落地前重测账本：HEAD c56ebba、`## #` id 最大 **338** ⇒ 取 **#339**。
+
+**先量旧行为（量的是「那两次快照从哪来」）。** #338 的采集器是**现场**采两次的：`collector.snapshot(keys)` 调两遍。⇒ 两次采的是**同一刻** ⇒ 比较结果**永远**是「没变」⇒ 片段要么 COMPLIANT（自欺），要么 NO_EVIDENCE（没信息）。**诚实且无用**——这是本号要解决的。
+
+**真相当哪。** Base 与 Head 是**两个工作区目录**，但它们连的是**同一批外部服务**（同一个 Redis / 同一个 MinIO）。⇒ 外部世界的**两个时刻**天然存在：**Base 跑完之后**、**Head 跑完之后**。两次采样的差 = Head 代码在外部世界里留下的差 = base/head 比较**唯一能是的东西**。
+
+**修。**
+- **新共享层** `experiments/external_state.py`：建客户端（从环境）+ 采一次快照（**纯 dict**，能穿过管线 state）+ 从 dict 重建类型化状态。快照是 **JSON 安全**的（state 会被序列化）。
+- **差分节点采两次**（`agent/nodes/run_differential.py`）：Base 跑完 → `base_external`；Head 跑完 → `head_external`；两份随节点返回值进 state（`external_state_base` / `external_state_head`）。
+- **采集器新增「从已存快照建片段」入口**（`redis_fragment_from_snapshots` / `object_fragment_from_snapshots`）：比较**两个时刻**，而不是现场采两次。`compare` 改成 `@staticmethod`（它不用 self）。
+- **证据节点改用这两份快照**（`agent/nodes/collect_evidence.py`）：不再自建客户端（**采什么**是差分节点的业务，**比较什么**是本节点的职责——单一事实源）。
+- **state 加两个通道**（`agent/state.py` + `initial_state`）：它们是**通道不是临时量**——采集节点在后面跑。
+
+**门与腿。** 新增 `tests/unit/test_external_state_is_observed_at_two_moments.py`（**10** 项）：两个时刻有差异 ⇒ 报为「appeared」；两个时刻相同 ⇒ COMPLIANT；**没观测到 ⇒ NO_EVIDENCE**（不是编造的 COMPLIANT）；对象片段同样比两个时刻；采集**真的看见了什么**；**够不着的存储 ⇒ 空快照**（空 = 「没看」，与「看了、都不在」是相反的两件事）；快照能 JSON 往返；缺失快照 ⇒ 无状态。`tests/unit/test_collect_evidence_node_execution_is_observable.py` **重写**（**9** 项，现在测的是新职责边界）：包里的片段**比较的是两个时刻**（Head 留下了键 ⇒ 报 appeared/AMBIGUOUS）；两个时刻相同 ⇒ COMPLIANT；**空快照 ⇒ NO_EVIDENCE**（不是 COMPLIANT）；无快照 ⇒ 不写包并说清理由；Mongo 写失败 ⇒ 报告而不抛；job id 缺失 ⇒ 跳过。`tests/unit/test_differential_execution_is_observable.py` **加 2 项**（**端到端**）：**两次采样必须夹住 Head 运行**（断言第一次在 `maven_base` 之后、第二次在 `maven_head` 之后——两次都在最后采 = 同一刻自比，两次都在最前采 = 漏掉 Head 运行）；**够不着的存储 ⇒ 空采集，且差分运行本身照常出判定**。相关回归（动态采集器 + 对象采集器 + fragments + mongodb + 图）**66 passed**；`ruff` 0 errors、`mypy agent/ experiments/` 0 errors（**70** 源文件）。
+
+**否证与订正。** ① 我第一版把 `_get_collectors()` 与客户端构造留在证据节点里，于是**采什么**（键/对象清单）有两处来源 ⇒ 同一份事实两个定义。改法不是「挑一个」，而是**分清职责**：差分节点知道这次运行碰到了什么（**采什么**），证据节点只负责**比较什么** ⇒ 键清单归 `experiments/external_state` 一处 ✓。② 旧的节点测试**全部红**了（8 项）——因为它们假设节点自建客户端。这不是「测试要改」，是**职责真的变了** ⇒ 我重写了它们，让它们测**新**的边界（两个时刻的语义），而不是把新行为硬塞进旧断言。③ `compare` 原本是实例方法却不用 self，模块级入口调不动 ⇒ 改成 `@staticmethod`（与 Redis 侧一致）✓。
+
+**诚实边界。** ① **采的键仍是硬编码的最小集合**（`user:cache:1` / `user:cache:2`），**对象引用仍是空列表** —— 完整接线要等「规范声明了它用哪些键/路径/对象」，见 #338 边界①（未变）。② **RabbitMQ 仍然没接**（那一段还是空的）—— 生产需要活连接，测试里只有 mock 发布探针。③ 两次快照之间**只隔着 Head 那一跑**（Base 的跑在第一次采样之前）⇒ 快照里含 Base 运行留下的痕迹 ⇒ 「差异」严格说是「Head 运行后的世界 vs Base 运行后的世界」，**不是**「纯 Base 世界 vs 纯 Head 世界」——要后者需要两次运行之间**重置**外部服务，那是一次更大的工程（**明确记下，不假装已经做到**）。④ 差分运行的**早退路径**（无工作区）**不产快照**（压根没跑）⇒ 证据节点看到「没有时刻」⇒ NO_EVIDENCE ✓ 正确。⑤ 这条线**没有**真连过 Redis/MinIO 跑过端到端（本机无服务）——快照逻辑有测试覆盖，但**没有**在真服务上验过。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **在真服务上端到端验一次**（compose 起 Redis/MinIO，跑一次差分，看两个时刻真的有差异）—— 本号的逻辑有测试，但没在真服务上跑过。② **两次运行之间重置外部服务**，让 base/head 快照是「纯 Base 世界 vs 纯 Head 世界」（本号边界③）。③ **对象引用的真实来源**（胶囊/产物上传后由 `ArtifactStore` 回报坐标）。④ **RabbitMQ 的生产接线**（活连接 + 真实路由键）。⑤ **CI 跑 MySQL 门控测试**（`MYSQL_URL` 在 CI 里可用）—— 否则那个后端还是「没人连过」。⑥ `move` / `delete` 的落地后审计故障各自补一条（#330 边界②）。⑦ demo 的测试在**默认 JDK 25** 上跑不起来（Mockito inline mock maker）—— 单独解决。⑧ 局部变量名是否也该进 profile（#319 的边界②）。⑨ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑩ 队列项④的**框法要改**（#319 队列⑤）。⑪ 101 个案例的**全量重跑评测**。

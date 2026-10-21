@@ -53,6 +53,13 @@ class Phase0State(MessagesState):
     # P3/P4: DEEP tier experiment results (mutation + full-stack deltas)
     deep_results: dict[str, Any]
     deep_note: str
+    # The external world (Redis / MinIO) as observed at TWO moments:
+    # after the Base run and after the Head run. The differential run
+    # captures them; the evidence collector compares them. Two moments,
+    # because one moment compared with itself always says "nothing
+    # changed". Channel, not a transient: the collector node runs later.
+    external_state_base: dict[str, Any]
+    external_state_head: dict[str, Any]
     # P5: RELEASE tier gates (reproducibility + capsule integrity)
     release_results: dict[str, Any]
     release_note: str
@@ -127,6 +134,8 @@ def initial_state(
         "require_approved_contracts": False,
         "deep_results": {},
         "deep_note": "",
+        "external_state_base": {},
+        "external_state_head": {},
         "release_results": {},
         "release_note": "",
         "static_findings": [],

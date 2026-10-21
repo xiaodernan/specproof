@@ -348,6 +348,15 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     base_seconds = round(time.monotonic() - base_start, 1)
     if cache_dir is not None and base_result.get("exit_code") == 0:
         save_base_build(cache_dir, base_app)
+
+    # ── External state, moment 1: AFTER the Base run ────────────────
+    # The Base and Head workspaces are two directories that talk to the
+    # SAME Redis / MinIO. A snapshot taken here and another taken after
+    # the Head run are the two moments that make a base/head comparison
+    # mean anything: a snapshot compared with ITSELF always says
+    # "nothing changed". A snapshot that could not be taken stays empty
+    # (we did not look) — it is never filled in with an assumption.
+    base_external = _capture_external_state(state)
     if head_reused:
         head_result = {
             "exit_code": recorded_run.get("exit_code"),
@@ -368,6 +377,12 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             job_id, "maven_head", _run_generated_test, head_app, test_class,
         )
         head_seconds = round(time.monotonic() - head_start, 1)
+
+    # ── External state, moment 2: AFTER the Head run ────────────────
+    # The other half of the pair. Together with the snapshot taken
+    # after the Base run, this is what lets a collector say "the Head
+    # run left the cache key behind" instead of "nothing changed".
+    head_external = _capture_external_state(state)
 
     # ── Execution-time reliability probes (阶段4, cases 97/98/100) ──
     # Independent of the generated-test verdict: the probe scaffolding rides
@@ -402,6 +417,11 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
                 experiment="generated_test_differential",
                 detail=error_detail,
             ),
+            # The snapshots taken so far still travel with the result: a
+            # failed run may have left a real trace, and the collector
+            # must be able to see it.
+            "external_state_base": base_external,
+            "external_state_head": head_external,
         }
 
     base_pass = base_result.get("exit_code") == 0
@@ -820,6 +840,11 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
     return {
         "diff_results": diff_results,
         "contract_results": merged_contract_results,
+        # The two moments of the external world. The evidence collector
+        # compares THESE — a snapshot taken once and compared with
+        # itself would say "nothing changed" forever.
+        "external_state_base": base_external,
+        "external_state_head": head_external,
     }
 
 
@@ -1362,6 +1387,41 @@ def _find_h2_jar() -> Path | None:
         return None
     jars = sorted(m2.glob("*/h2-*.jar"), reverse=True)
     return jars[0] if jars else None
+
+
+def _capture_external_state(state: Any) -> dict[str, Any]:
+    """One snapshot of the external world (Redis / MinIO) as it is NOW.
+
+    Taken twice per differential run — after the Base run and after the
+    Head run — because the two workspaces share the same services and
+    the difference between the two moments is the only thing a
+    base/head comparison can be about.
+
+    A store that cannot be reached yields an EMPTY snapshot: we did not
+    look, and an empty snapshot cannot be mistaken for "everything is
+    absent" (that is what a snapshot with present=false entries says).
+    """
+    try:
+        from experiments.external_state import (
+            DEFAULT_REDIS_KEYS,
+            build_object_store,
+            build_redis_client,
+            capture_external_state,
+        )
+    except Exception:  # noqa: BLE001 — evidence collection is best effort
+        return {"redis": {}, "objects": {}, "note": "collector unavailable"}
+
+    redis_client = build_redis_client()
+    object_store = build_object_store()
+    snapshot = capture_external_state(
+        redis_client=redis_client,
+        object_store=object_store,
+        redis_keys=list(DEFAULT_REDIS_KEYS),
+        object_refs=(),
+    )
+    if redis_client is None and object_store is None:
+        snapshot["note"] = "no external store was reachable"
+    return snapshot
 
 
 def _capture_db_snapshot(workspace: str) -> dict[str, Any]:

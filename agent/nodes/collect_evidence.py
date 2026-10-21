@@ -59,33 +59,40 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
     # preflight / repo context. The full wiring (spec-declared keys) is
     # tracked as backlog.
 
-    # For now, construct minimal observation refs from state.
-    # Real wiring will come when spec declares the keys/routing keys/paths.
-    redis_keys = _derive_redis_keys(raw_state)
-    _mq_routing_keys = _derive_mq_routing_keys(raw_state)
-    object_refs = _derive_object_refs(raw_state)
+    # The two moments. The differential run captured the external world
+    # AFTER the Base run and AFTER the Head run — the only two moments
+    # that make a base/head comparison mean anything. A snapshot taken
+    # once and compared with itself always says "nothing changed".
+    #
+    # The KEYS and OBJECTS to look at are the differential run's
+    # business (it knows what the run touched); this node only reads
+    # what was captured. One source of truth for "what to look at".
+    base_snapshot = raw_state.get("external_state_base") or {}
+    head_snapshot = raw_state.get("external_state_head") or {}
+    separated = bool(base_snapshot) and bool(head_snapshot)
 
-    fragments = []
+    fragments: list[Any] = []
     collected = 0
 
     # Redis
     try:
-        redis = _build_redis_client()
-        if redis:
-            redis_state_collector, _object_collector, _publisher = _get_collectors()
-            collector = redis_state_collector(redis, collector_version="1.0.0")
-            base = collector.snapshot(redis_keys)
-            head = collector.snapshot(redis_keys)  # same keys; diff will catch changes
-            fragments.append(collector.fragment(
+        if separated:
+            from experiments.collectors import redis_fragment_from_snapshots
+            from experiments.external_state import redis_states_from_dicts
+
+            base_states = redis_states_from_dicts(base_snapshot)
+            head_states = redis_states_from_dicts(head_snapshot)
+            fragments.append(redis_fragment_from_snapshots(
                 experiment_id=raw_state.get("job_id", "unknown"),
-                base=base,
-                head=head,
+                base=base_states,
+                head=head_states,
             ))
             collected += 1
         else:
-            # The store could not be reached. That is a DIFFERENT fact
-            # from "the collector ran and found nothing" — a run that
-            # could not look must not look like a run that looked.
+            # The store could not be reached, or the differential run did
+            # not capture the two moments. That is a DIFFERENT fact from
+            # "the collector ran and found nothing" — a run that could
+            # not look must not look like a run that looked.
             incr("collect_evidence_redis_unavailable_total")
     except Exception:  # noqa: BLE001
         incr("collect_evidence_redis_failed_total")
@@ -102,16 +109,16 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
 
     # Object storage
     try:
-        object_store = _build_object_store()
-        if object_store:
-            _redis_collector, object_state_collector, _publisher = _get_collectors()
-            collector = object_state_collector(object_store, collector_version="1.0.0")
-            base = collector.snapshot(object_refs)
-            head = collector.snapshot(object_refs)
-            fragments.append(collector.fragment(
+        if separated:
+            from experiments.collectors import object_fragment_from_snapshots
+            from experiments.external_state import object_states_from_dicts
+
+            base_states = object_states_from_dicts(base_snapshot)
+            head_states = object_states_from_dicts(head_snapshot)
+            fragments.append(object_fragment_from_snapshots(
                 experiment_id=raw_state.get("job_id", "unknown"),
-                base=base,
-                head=head,
+                base=base_states,
+                head=head_states,
             ))
             collected += 1
         else:
@@ -156,63 +163,20 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
 
 
 def _derive_redis_keys(state: dict[str, Any]) -> list[str]:
-    """Derive Redis keys to observe from the contract specs / preflight.
+    """The Redis keys the collector looks at.
 
-    Currently returns a minimal fixed set. Full wiring (spec-declared keys)
-    is a backlog item.
+    The differential run is what CAPTURES the snapshots now, and it
+    uses the same default set from `experiments.external_state` — one
+    source of truth for "what to look at".
     """
-    # Cache-aside user keys are the main known pattern
-    return ["user:cache:1", "user:cache:2"]
+    from experiments.external_state import DEFAULT_REDIS_KEYS
+
+    return list(DEFAULT_REDIS_KEYS)
 
 
 def _derive_mq_routing_keys(state: dict[str, Any]) -> list[str]:
     """Derive RabbitMQ routing keys to observe from contract specs."""
     # order.created and email.changed are the known ones
-    return ["order.created", "email.changed"]
+    from experiments.external_state import DEFAULT_MQ_ROUTING_KEYS
 
-
-def _derive_object_refs(state: dict[str, Any]) -> list[str]:
-    """Derive object storage references from capsules / artifacts."""
-    # The capsules created in this job are the primary objects.
-    # We don't know the bucket here; the object metadata store records the ref.
-    # For now, skip — the object collector will be wired properly when
-    # the artifact store calls back.
-    return []
-
-
-def _build_redis_client() -> Any | None:
-    """Build a Redis client from environment. Returns None if unavailable."""
-    try:
-        import os
-
-        import redis
-        host = os.getenv("REDIS_HOST", "localhost")
-        port = int(os.getenv("REDIS_PORT", "6379"))
-        password = os.getenv("REDIS_PASSWORD", None)
-        client = redis.Redis(
-            host=host, port=port, password=password,
-            socket_connect_timeout=2, socket_timeout=2,
-            decode_responses=True,
-        )
-        client.ping()
-        return client
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _build_object_store() -> Any | None:
-    """Build a MinIO client from environment. Returns None if unavailable."""
-    try:
-        import os
-
-        from minio import Minio
-        endpoint = os.getenv("MINIO_ENDPOINT", "localhost:9000")
-        access = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-        secret = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-        secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
-        client = Minio(endpoint, access_key=access, secret_key=secret, secure=secure)
-        # Cheap liveness check
-        list(client.list_buckets())
-        return client
-    except Exception:  # noqa: BLE001
-        return None
+    return list(DEFAULT_MQ_ROUTING_KEYS)

@@ -111,6 +111,87 @@ def test_run_differential_counts_total_runs(
     assert any(r.get("verdict") == "COMPLIANT" for r in result["diff_results"])
 
 
+# ── the external world, observed at TWO moments ─────────────────────────────
+
+
+def test_the_external_world_is_captured_after_each_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """The two snapshots must be taken BETWEEN the two runs.
+
+    Base and Head are two directories that talk to the SAME services.
+    The only thing a base/head comparison of the external world can be
+    about is the difference between "after the Base run" and "after the
+    Head run" — so the captures have to straddle the Head run. Two
+    captures taken after both runs would compare the same instant with
+    itself, and two taken before both would miss the Head run entirely.
+    """
+    from agent.nodes.run_differential import run_differential_node
+
+    events: list[str] = []
+
+    def fake_run(job_id: object, stage: str, fn: object, *args: object, **kwargs: object) -> Any:  # noqa: ARG001
+        events.append(stage)
+        if stage == "maven_base":
+            return dict(_OK_RESULT)
+        if stage == "maven_head":
+            return dict(_OK_RESULT)
+        return []
+
+    monkeypatch.setattr(
+        "agent.nodes.run_differential.run_with_cancel_checks", fake_run
+    )
+
+    snapshots: list[dict[str, Any]] = []
+
+    def fake_capture(state: Any) -> dict[str, Any]:
+        snapshots.append({"stage": events[-1] if events else "none"})
+        return {"redis": {}, "objects": {}, "moment": len(snapshots)}
+
+    monkeypatch.setattr(
+        "agent.nodes.run_differential._capture_external_state", fake_capture
+    )
+
+    result = run_differential_node(_make_state(tmp_path))
+
+    # Two captures, and the second one happened AFTER the head run.
+    assert len(snapshots) == 2
+    assert snapshots[0]["stage"] == "maven_base"
+    assert snapshots[1]["stage"] == "maven_head"
+    # And both travel with the result for the evidence collector.
+    assert result["external_state_base"]["moment"] == 1
+    assert result["external_state_head"]["moment"] == 2
+
+
+def test_an_unreachable_external_store_captures_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """A store that cannot be reached yields an EMPTY capture.
+
+    Empty means "we did not look" — it must never be filled in with an
+    assumption, and it must never abort the differential run.
+    """
+    from agent.nodes.run_differential import run_differential_node
+
+    _stub_execution(monkeypatch, {
+        "maven_base": dict(_OK_RESULT),
+        "maven_head": dict(_OK_RESULT),
+        "maven_probe": [],
+    })
+    monkeypatch.setattr(
+        "agent.nodes.run_differential._capture_external_state",
+        lambda state: {"redis": {}, "objects": {}, "note": "no store reachable"},
+    )
+
+    result = run_differential_node(_make_state(tmp_path))
+
+    assert result["external_state_base"] == {
+        "redis": {}, "objects": {}, "note": "no store reachable",
+    }
+    # The run itself still produced its verdict.
+    assert any(r.get("verdict") == "COMPLIANT" for r in result["diff_results"])
+
+
 def test_workspace_not_prepared_counts_skipped(tmp_path: Path) -> None:
     """Missing workspaces: the attempt is counted, skipped, and honest."""
     from agent.nodes.run_differential import run_differential_node

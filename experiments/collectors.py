@@ -210,6 +210,51 @@ class RedisStateCollector:
         )
 
 
+def redis_fragment_from_snapshots(
+    experiment_id: str,
+    base: Mapping[str, KeyState],
+    head: Mapping[str, KeyState],
+    *,
+    collector_version: str = COLLECTOR_VERSION,
+) -> RedisObservation:
+    """Build the fragment from TWO snapshots that were taken at two moments.
+
+    The instance method samples both sides at the SAME instant, which
+    makes the comparison permanently say "nothing changed" — honest and
+    useless. This entry point takes the two snapshots the pipeline
+    actually captured (after the Base run and after the Head run) and
+    compares THOSE.
+    """
+    observed = any(
+        state.present for state in list(base.values()) + list(head.values())
+    )
+    comparison = RedisStateCollector.compare(base, head)
+    if not observed:
+        status = STATUS_NO_EVIDENCE
+    elif comparison["changed_count"] == 0:
+        status = STATUS_COMPLIANT
+    else:
+        status = STATUS_AMBIGUOUS
+    return RedisObservation(
+        experiment_id=experiment_id,
+        fragment_type="redis",
+        collector_version=collector_version,
+        collected_at=_now_iso(),
+        base=RedisStateCollector._states_to_dict(base),
+        head=RedisStateCollector._states_to_dict(head),
+        normalization={
+            "value": "read as UTF-8 text; non-text values are reported as a byte count",
+            "ttl_seconds": "Redis TTL in seconds; None means no expiry or absent",
+        },
+        comparison=comparison,
+        status=status,
+        confidence=1.0 if observed else 0.0,
+        evidence_ref=None,
+        reproducibility="reproducible",
+        extension={"observed_any_key": observed},
+    )
+
+
 # ── RabbitMQ ───────────────────────────────────────────────────────────────
 
 
@@ -476,8 +521,8 @@ class ObjectStateCollector:
             )
         return states
 
+    @staticmethod
     def compare(
-        self,
         base: Mapping[str, ObjectState],
         head: Mapping[str, ObjectState],
     ) -> dict[str, Any]:
@@ -562,6 +607,49 @@ class ObjectStateCollector:
             reproducibility="reproducible",
             extension={"observed_any_object": observed},
         )
+
+
+def object_fragment_from_snapshots(
+    experiment_id: str,
+    base: Mapping[str, ObjectState],
+    head: Mapping[str, ObjectState],
+    *,
+    collector_version: str = COLLECTOR_VERSION,
+) -> ObjectObservation:
+    """Build the object fragment from TWO snapshots taken at two moments.
+
+    See redis_fragment_from_snapshots: comparing a snapshot with itself
+    always says "nothing changed" — the two moments have to be real.
+    """
+    observed = any(
+        state.present for state in list(base.values()) + list(head.values())
+    )
+    comparison = ObjectStateCollector.compare(base, head)
+    if not observed:
+        status = STATUS_NO_EVIDENCE
+    elif comparison["changed_count"] == 0:
+        status = STATUS_COMPLIANT
+    else:
+        status = STATUS_AMBIGUOUS
+    return ObjectObservation(
+        experiment_id=experiment_id,
+        fragment_type="object",
+        collector_version=collector_version,
+        collected_at=_now_iso(),
+        base={ref: state.to_dict() for ref, state in base.items()},
+        head={ref: state.to_dict() for ref, state in head.items()},
+        normalization={
+            "ref": "bucket/object-name",
+            "sha256": "the payload digest reported by the object store",
+            "presence": "an object that is not there is reported as present=false",
+        },
+        comparison=comparison,
+        status=status,
+        confidence=1.0 if observed else 0.0,
+        evidence_ref=None,
+        reproducibility="reproducible",
+        extension={"observed_any_object": observed},
+    )
 
 
 def _payload_digest(payload: Mapping[str, Any]) -> str:
