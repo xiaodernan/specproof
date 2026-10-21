@@ -179,6 +179,20 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
                 ),
                 "fragments_collected": collected,
             }
+        if not raw_state.get("write_evidence_pack", True):
+            # The pack was observed but NOT written. The audit trail
+            # belongs to real verification jobs; a measurement's packs
+            # would be junk nobody can delete by job id. The fragments
+            # are still counted, so the run says what it observed.
+            incr("collect_evidence_pack_not_written_total")
+            return {
+                "evidence_pack_saved": False,
+                "evidence_pack_error": (
+                    "not written: this run may not write the audit trail "
+                    "(the caller opted out)"
+                ),
+                "fragments_collected": collected,
+            }
         from datetime import UTC, datetime
 
         from storage.mongodb import MongoDBStore

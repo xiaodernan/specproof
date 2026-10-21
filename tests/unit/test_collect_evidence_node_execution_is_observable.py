@@ -339,6 +339,31 @@ def test_the_capsule_coordinates_are_observed(
     assert ref in objects["head"]
 
 
+def test_a_run_that_may_not_write_the_trail_does_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The audit trail belongs to real verification jobs.
+
+    A measurement's packs would be `eval-*` rows in the product's
+    MongoDB that nobody can delete by job id. The fragments were still
+    OBSERVED — the run says so — they were just not filed.
+    """
+    mongo = _stub_mongo(monkeypatch)
+    state = _state(
+        base=_moment(key_present=False, object_present=False),
+        head=_moment(key_present=True, object_present=True),
+    )
+    state["write_evidence_pack"] = False
+
+    result = collect_evidence_node(state)
+
+    assert result["evidence_pack_saved"] is False
+    assert "may not write" in str(result["evidence_pack_error"])
+    # The observation still happened — the count says so.
+    assert result["fragments_collected"] == 2
+    assert mongo.packs == []
+
+
 def test_each_contract_gets_its_own_pack(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

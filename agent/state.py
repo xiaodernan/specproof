@@ -68,6 +68,12 @@ class Phase0State(MessagesState):
     evidence_pack_saved: bool
     evidence_pack_error: str
     fragments_collected: int
+    # Whether this run may write the evidence pack into the MongoDB audit
+    # trail. The trail belongs to REAL verification jobs; an evaluation is
+    # a MEASUREMENT, and its packs would be `eval-*` junk nobody can
+    # delete by job id. So the default is "do not write", and the
+    # operator opts in by naming the database.
+    write_evidence_pack: bool
     # P5: RELEASE tier gates (reproducibility + capsule integrity)
     release_results: dict[str, Any]
     release_note: str
@@ -151,6 +157,7 @@ def initial_state(
         "evidence_pack_saved": False,
         "evidence_pack_error": "",
         "fragments_collected": 0,
+        "write_evidence_pack": True,
         "release_results": {},
         "release_note": "",
         "static_findings": [],

@@ -12,6 +12,7 @@ timestamps, so timings are honest at the case level only (SLO stats are
 computed by scripts/bench_latency.py).
 """
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -456,6 +457,14 @@ def eval_cmd(
         # could find later is worse than no pack), so an evaluation
         # without one silently produced NO evidence chain at all.
         state["job_id"] = f"eval-{case_dir.name}"
+        # The evidence pack is the AUDIT TRAIL of a real verification job.
+        # An evaluation is a measurement: its packs would be `eval-*` rows
+        # in the product's MongoDB that nobody can delete by job id. So
+        # the evaluation writes them ONLY when the environment names a
+        # database explicitly (the operator then chose where they go).
+        state["write_evidence_pack"] = bool(
+            os.getenv("MONGODB_DATABASE", "").strip()
+        )
 
         final: dict[str, Any] = {}
         # Case-level timing: wall clock around the whole pipeline. The graph
