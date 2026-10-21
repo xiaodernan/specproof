@@ -28,6 +28,7 @@ from agent.matrix_policy import (
 from agent.nodes.build_matrix import (
     COMPLETE_ROW_FIELDS,
     LEGACY_ROW_FIELDS,
+    OBSERVATION_ROW_FIELDS,
     build_matrix_node,
 )
 from evidence.report import render_verification_report
@@ -154,9 +155,12 @@ def _projection(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def test_complete_field_set_constant_covers_every_contract() -> None:
-    """COMPLETE_ROW_FIELDS = canonical (§14.1 + court) + result + legacy."""
+    """COMPLETE_ROW_FIELDS = canonical (§14.1 + court) + result + legacy
+    + the external-observation disclosure (#365)."""
     assert CANONICAL_FIELDS[-len(COURT_ROW_FIELDS):] == COURT_ROW_FIELDS
-    assert COMPLETE_ROW_FIELDS == CANONICAL_FIELDS + ("result",) + LEGACY_ROW_FIELDS
+    assert COMPLETE_ROW_FIELDS == (
+        CANONICAL_FIELDS + ("result",) + LEGACY_ROW_FIELDS + OBSERVATION_ROW_FIELDS
+    )
 
 
 def test_every_row_carries_complete_field_set() -> None:
@@ -177,6 +181,11 @@ def test_every_row_carries_complete_field_set() -> None:
         assert isinstance(row["location"], str)
         assert isinstance(row["evidence_digest"], str)
         assert isinstance(row["finding_id"], str)
+        # The external-observation disclosure: blank, not missing. A row
+        # whose observation never happened says so with an empty status —
+        # never with a fabricated one.
+        assert isinstance(row["observation_status"], str)
+        assert isinstance(row["observation_limits"], list)
 
 
 # ── purity: same input -> same output, no side effects ──────────────────

@@ -191,6 +191,13 @@ _EVENT_TEST_TEMPLATE = """    @Test
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
+        // The pipeline cannot see the broker side of this publish (the
+        // publish happens inside this JVM), so the test REPORTS what it
+        // counted, in a line the pipeline can read. Printed BEFORE the
+        // assertion: a test that fails must still say what it saw.
+        System.out.println("SPECPROOF_MQ routing_key=email.changed "
+            + "exchange=specproof.demo.events publishes=" + publishes.get());
+
         assertTrue(publishes.get() >= 1,
             "email.changed was not published to the documented exchange "
             + "and routing key");
@@ -674,6 +681,13 @@ _ORDER_EVENT_TEST_TEMPLATE = """    @Test
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
+        // The pipeline cannot see the broker side of this publish (the
+        // publish happens inside this JVM), so the test REPORTS what it
+        // counted, in a line the pipeline can read. Printed BEFORE the
+        // assertion: a test that fails must still say what it saw.
+        System.out.println("SPECPROOF_MQ routing_key=order.created "
+            + "exchange=specproof.demo.events publishes=" + publishes.get());
+
         assertTrue(publishes.get() >= 1,
             "order.created was not published to the documented exchange "
             + "and routing key");
@@ -698,6 +712,13 @@ _ORDER_EVENT_ONCE_TEST_TEMPLATE = """    @Test
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
+
+        // The pipeline cannot see the broker side of this publish (the
+        // publish happens inside this JVM), so the test REPORTS what it
+        // counted, in a line the pipeline can read. Printed BEFORE the
+        // assertion: a test that fails must still say what it saw.
+        System.out.println("SPECPROOF_MQ routing_key=order.created "
+            + "exchange=specproof.demo.events publishes=" + publishes.get());
 
         assertEquals(1, publishes.get(),
             "order.created must be published exactly once, got " + publishes.get());
@@ -729,6 +750,14 @@ _ORDER_RETRY_TEST_TEMPLATE = """    @Test
         } catch (ServletException e) {
             rejected[0] = e.getCause() instanceof RuntimeException;
         }
+
+        // The pipeline cannot see the broker side of this publish (the
+        // publish happens inside this JVM), so the test REPORTS what it
+        // counted, in a line the pipeline can read. Printed BEFORE the
+        // assertion: a test that fails must still say what it saw. The
+        // count here is PUBLISH ATTEMPTS — the broker rejected this one.
+        System.out.println("SPECPROOF_MQ routing_key=order.created "
+            + "exchange=specproof.demo.events publishes=" + publishes.get());
 
         assertAll(
             () -> assertTrue(rejected[0],
@@ -785,6 +814,15 @@ _SPURIOUS_EVENT_TEST_TEMPLATE = """    @Test
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
+        // The pipeline cannot see the broker side of this publish (the
+        // publish happens inside this JVM), so the test REPORTS what it
+        // counted, in a line the pipeline can read. Printed BEFORE the
+        // assertion: a test that fails must still say what it saw. Zero
+        // here is the POINT of this test — a no-op change must publish
+        // nothing, and the report says so.
+        System.out.println("SPECPROOF_MQ routing_key=email.changed "
+            + "exchange=specproof.demo.events publishes=" + publishes.get());
+
         assertEquals(0, publishes.get(),
             "A no-op email change must not publish an event, got "
             + publishes.get() + " publishes");
@@ -816,6 +854,13 @@ _EVENT_PAYLOAD_TEST_TEMPLATE = """    @Test
                 .andExpect(status().isOk());
 
         @@email_event@@ event = captured.get();
+        // The pipeline cannot see the broker side of this publish (the
+        // publish happens inside this JVM), so the test REPORTS what it
+        // saw, in a line the pipeline can read. Printed BEFORE the
+        // assertion: a test that fails must still say what it saw.
+        System.out.println("SPECPROOF_MQ routing_key=email.changed "
+            + "exchange=specproof.demo.events publishes="
+            + (event == null ? 0 : 1));
         assertNotNull(event, "email.changed was not published to the documented key");
         assertAll(
             () -> assertEquals("fresh@example.com", event.getNewEmail(),

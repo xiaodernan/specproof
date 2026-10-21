@@ -36,6 +36,11 @@ jobs and the refusal events.
 """
 from typing import Any
 
+from agent.external_observation import (
+    observation_limits,
+    observation_status,
+    observations,
+)
 from agent.matrix_policy import (
     CANONICAL_FIELDS,
     NEXT_ACTION_UNVERIFIED,
@@ -70,14 +75,27 @@ LEGACY_ROW_FIELDS: tuple[str, ...] = (
     "evidence",
 )
 
+#: The row fields that carry what the EXTERNAL observation could not say
+#: (#365). The row's verdict still comes only from a real experiment;
+#: these two fields say how far the outside-of-the-JVM observation can
+#: vouch for that verdict. ``observation_status`` is the observation's
+#: own status word ("" when there was no observation at all) and
+#: ``observation_limits`` are the disclosed limits (empty when the
+#: observation had none). Both are always present: "blank, not missing".
+OBSERVATION_ROW_FIELDS: tuple[str, ...] = (
+    "observation_status",
+    "observation_limits",
+)
+
 #: The complete matrix row field set (backlog #2): the canonical §14.1
 #: fields (including the review-court row fields) + the derived "result" +
-#: the legacy renderer keys. Every row returned by build_matrix_node
-#: carries all of these.
+#: the legacy renderer keys + the external-observation disclosure. Every
+#: row returned by build_matrix_node carries all of these.
 COMPLETE_ROW_FIELDS: tuple[str, ...] = (
     *CANONICAL_FIELDS,
     "result",
     *LEGACY_ROW_FIELDS,
+    *OBSERVATION_ROW_FIELDS,
 )
 
 #: The closed set of ways a matrix build can end (#199). Mirrored by the
@@ -271,6 +289,17 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
     # ── Legacy row shape for existing consumers ───────────────────────
     matrix_rows: list[dict[str, Any]] = []
     pass_downgraded = False
+    # What the outside of the JVM actually showed for each contract
+    # (#365). The comparison lives in ONE place (agent.external_observation)
+    # — the same builder the evidence pack files — so the row and the
+    # pack cannot disagree about what was observed. A failure to observe
+    # is never fatal to the matrix: the matrix is the verdict layer, and
+    # an unreadable observation must not become a verdict.
+    contract_observations: dict[str, Any] = {}
+    try:
+        contract_observations = observations(state)
+    except Exception:  # noqa: BLE001 — degraded, not fatal
+        contract_observations = {}
     # A contract that was never approved cannot back an acceptance — the
     # Review Court's condition 1 refuses to certify on it. The row must
     # SAY so: a bare "UNVERIFIED" sends the reader after missing
@@ -286,6 +315,14 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
         legacy["checker_type"] = checker_types.get(row["contract_id"], "")
         legacy["experiment"] = row["experiment_ids"][0] if row["experiment_ids"] else "none"
         legacy["evidence"] = row["evidence_refs"][0] if row["evidence_refs"] else "—"
+        # What the external observation could and could not say about this
+        # contract. A reader who sees PASS must be able to tell whether
+        # the outside of the JVM was actually compared — and where that
+        # comparison stopped. The verdict itself is untouched: these two
+        # fields disclose, they do not decide.
+        observation = contract_observations.get(str(row.get("contract_id") or ""))
+        legacy["observation_status"] = observation_status(observation)
+        legacy["observation_limits"] = observation_limits(observation)
         if legacy["result"] == "PASS":
             decision = evaluate_verification({"rows": [legacy]})
             if decision.status != "VERIFIED":

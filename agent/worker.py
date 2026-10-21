@@ -1042,6 +1042,13 @@ _SUMMARY_MATRIX_ROW_KEYS: tuple[str, ...] = (
     "db_state_detail",
     "db_violation_evidence",
     "behavioral_evidence",
+    # What the external observation could and could not say for this
+    # contract (#365). Carried so the requirement-coverage page can say
+    # how far the outside-of-the-JVM comparison backs the row's verdict —
+    # a reader who sees PASS must be able to tell whether the external
+    # state was actually compared, and where that comparison stopped.
+    "observation_status",
+    "observation_limits",
 )
 
 #: Rows carried per job. The pipeline counts stay authoritative regardless, so

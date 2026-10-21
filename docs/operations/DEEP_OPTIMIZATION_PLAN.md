@@ -7310,3 +7310,41 @@ to create or update workflow ... without 'workflow' scope`）⇒ 我把 ci.yml *
 **诚实边界。** ① **一个替身都没换**（结论是**不需要换** ✓）⇒ ⇒ 回收器那条用例**早就**用的是求值器 ✓（`fake_sql_engine.py` ✓）⇒ ⇒ 「把其余的也换掉」这件事**本来就没有剩余** ✓。② 「按文本派发」的判据是**机械**的（`startswith`/`split`/`partition` 作用在 SQL 上 ✓）⇒ ⇒ 一个用别的方式读语句的假**可能漏掉** ⇒ ⇒ **2 是下界**（不是上界 ✓）⇒ ⇒ 文档里写明了 ✓。③ 本号**没有**评估「换掉之后测试会快多少/稳多少」⇒ ⇒ 因为结论是**不换** ⇒ ⇒ 那个问题**不成立** ✓。
 
 **下一号队列（取号时按落地时点 max+1）。** ① **101 个案例的全量重跑评测**（CI 的 nightly job 才是它的位置 ⇒ #356 给了答案 ✓）。② **把声明变成规范语言的一部分**（parser 加字段 ⇒ 编译器带上 ⇒ 注册表迁移 ⇒ 需要一次**有计划的**重建 101 个案例 tag 的窗口 ⇒ **未做** ✓）。③ **对象侧是否也该复位**（#360 边界④）。④ **值层面的漏报面**能否在**判定层**标出来（片段已说 ⇒ 判定层要不要据此降级置信度 ⇒ 未做 ✓）。⑤ **CI 里给集成腿设 `REDIS_URL`/`MYSQL_URL`**（#340 边界② ⇒ 改动仍在本机工作树里 ⇒ 等有 `workflow` scope 的 token 或人工提交 ✓）。⑥ **按测试形态区分**「观测不到」的措辞（若将来有进程外执行）。⑦ **上限的依据**（仍缺真实分布 ⇒ 与 DEEP 校准一起等生产数据 ✓ ⇒ 但**可调**了 ✓）。⑧ 用生产数据量 DEEP 作业的真实耗时分布校准 `DEPTH_EXECUTION_BUDGET_SECONDS`（#300 队列①，未动）。⑨ ~~「其余手写假换成求值器」~~ ✅ **已关闭**（#364 ⇒ 0 处需要换 ⇒ 理由是「换掉会改测的东西」✓）。
+
+## #365 判定层要能看见「外部观测看不到什么」：矩阵行披露盲区；并让 MQ 那一面说真话（测试自己的报告）
+
+**起因/占号**。#343 的边界④：「若将来要『判定层自己算事实』，得让 Court 之后能取到证据包」；#359 把「值层面的残留」写进了**片段**，但片段住在证据包里，而证据包是差分与胶囊**之后**才写的 ⇒ **判定层（矩阵）看不到它**。另一半起因是 **#354 自己留下的谎**：MQ 片段的 `normalization` 写着「the publishes the generated test asserted, recorded by the test itself」——**但管线从来没有读过那句话** ⇒ 片段宣称的那份证据并不存在。落地前重测账本：HEAD 61cf92f、`## #` id 最大 **364** ⇒ 取 **#365**。
+
+**问题是两处，不是一处。** ① 外部观测的**比较**住在 `collect_evidence` 节点里（#338–#360 一路加的代码都在那儿）⇒ 判定层**拿不到**它 ⇒ 想在行上写一句「值层面没比」，就只能**再写一遍比较** ⇒ 两处比较会漂 ⇒ 读者手里会有两个版本的真相。② 证据包是**差分之后、胶囊之后**才写的 ⇒ 判定层**读不到**已经写好的包 ⇒ 「让判定层取到证据包」这条路在当前图顺序下走不通（矩阵在胶囊之前，而对象观测要等胶囊，见 #343）。
+
+**A. 比较只有一处，两个读者。**
+- **新模块** `agent/external_observation.py`：把「两个时刻 + 契约自己的键族 ⇒ 一次观测」搬出来（`observations` / `observation_for`），并把**采集器自己的事实**（`extension` 里那几条：没观测到 / 两个时刻不可比 / 值层面残留 / 扫描被截断）翻译成读者的话（`observation_limits`）。它**不碰存储**：两个时刻来自差分（`external_state_base` / `external_state_head`），键族来自契约声明 ⇒ **观测是 state 的纯函数** ⇒ 这正是判定层不用等证据包也能读它的原因。
+- `agent/nodes/collect_evidence.py`：**不再自己比较**，改为调用同一个 builder ⇒ 包里的片段与行上的披露**不可能不一致**（同一份比较，而不是两份今天恰好相同的代码）。
+- `agent/nodes/build_matrix.py`：每行加两个字段 —— `observation_status`（观测自己的状态词；没有观测就是**空串**）与 `observation_limits`（披露的边界；没有就是**空列表**）⇒ **空，而不是缺**（矩阵行的既有规矩）。行的 `result` **一个字都没改**。
+- `agent/worker.py`：这两个字段进 `_SUMMARY_MATRIX_ROW_KEYS` ⇒ 覆盖页/API 读得到（只投影这两个键，不把整个行塞进摘要）。
+- `evidence/report.py`：HTML 报告在行里渲染这些披露（`small.surface`，与 `execution_surface` 同款）。
+
+**B. MQ 那一面：broker 观测不到，测试自己的报告读得到。**
+- **生成的测试现在会说自己看到了什么**：MQ 相关的模板在**断言之前**打印一行机器可读的报告（`SPECPROOF_MQ routing_key=… exchange=… publishes=N`）⇒ 断言失败的那一侧**也**说得出来（打印在断言前）。打印在断言之前是关键：失败的一侧若什么都不说，片段就只能说「它没说」。
+- **新模块** `experiments/mq_report.py`：从捕获到的测试输出里读这些行 ⇒ 解析出的形状**就是采集器自己的词汇**（`publish_count` / `routing_keys` / `exchanges`）⇒ 两侧用**同一个比较**（`compare_publish_observations`）⇒ 不再写第二套比较。
+- 片段现在记的是**测试自己的报告**：`extension.observed_via` 说清楚这一点，`extension.not_observable_reason` **仍然**说 broker 那一面观测不到 ⇒ **两句话都在**，读者不必猜自己看的是哪一份。
+- **空的 payload 维度**：测试报的是 routing key 与次数，**不是** payload 的字节 ⇒ 两侧的 `payload_digests` 都是空 ⇒ 比较的 payload 维度**什么也不说**，而不是假装两边相等。
+
+**可执行的证据。**
+- `tests/unit/test_external_observation.py` **22 passed**：① 没有两个时刻 ⇒ **没有观测**（不是「没变化」）；② 契约不声明键族 ⇒ **不观测**（不臆造键）；③ 四种边界的措辞（值层面残留**带个数**、两个时刻不可比、扫描被截断、没观测到）；④ 矩阵行带上披露；⑤ 没有观测时行上是**空**不是伪造；⑥ **包与行说同一件事**（片段与行的状态/披露一致）；⑦ 披露**不改判定**（`result` 不受影响）；⑧ 披露**走到读者那里**（summary 投影 + HTML 报告里能搜到「值层面无法区分」）；⑨ MQ：测试的报告被记成观测、两侧不同 ⇒ AMBIGUOUS、两侧都没说 ⇒ NO_EVIDENCE、**broker 那一面的缺口每次都在**、只有一侧说了 ⇒ 单侧披露。
+- `tests/unit/test_mq_report.py` **8 passed**：报告行的解析、**没有**报告行 ⇒ `observed False`（「测试没说话」≠「测试观测到没有发布」）、应用自己的日志行不会被误读、次数读不出来时**不编一个数字**、解析出的形状能与采集器的比较对话。
+- **真的跑了一遍 demo 的 Java 测试**（JDK 17，`mvn -o -B clean test "-Djava.version=17"`）：`Tests run: 18, Failures: 0, Errors: 0, Skipped: 0`（`SpecProofGeneratedTest`）⇒ 新打印的报告行**确实出现在输出里**：`SPECPROOF_MQ routing_key=order.created exchange=specproof.demo.events publishes=1` 与 `SPECPROOF_MQ routing_key=email.changed exchange=specproof.demo.events publishes=1` ⇒ 模板改动**编译得过、跑得过、说得出话**。golden 同步重生成（`tests/unit/golden/generated_test_demo.java`，逐字节钉住）。
+- `tests/unit/test_matrix_pure.py` 的字段集契约随行形状一起更新（`COMPLETE_ROW_FIELDS` 多了 `observation_status` / `observation_limits`，每行都断言「空，不是缺」）。
+- `ruff check agent/ experiments/ evidence/` **0 errors**；`mypy agent/ experiments/ --exclude tests` **Success**（72 files）。
+- **顺手补上一枚陈旧的钉子**：全量跑测试时暴露出 `tests/unit/test_case17_regression_is_a_logic_inversion.py` 那条钉子**从 HEAD 起就是红的** —— 它还在读**节点**里的生成源码，而 #319 已把生成源码搬进**模板层** ⇒ `src.index("public class SpecProofGeneratedTest")` 直接抛 `ValueError` ⇒ 钉子改读**模板层**（源码从哪儿来）与 **golden 产物**（逐字节钉住、真正被编译运行的那份），并**新增一条**断言模板与产物说的是同一件事 ⇒ 诊断本身（非事务类 + 每个方法前清库）**一个字都没改**。
+
+**诚实边界。**
+- **矩阵行上只有 redis 与 mq 两面**。**对象**那一面**要等胶囊**（#343）⇒ 胶囊在矩阵**之后** ⇒ 矩阵行上**没有**对象观测 ⇒ 本号的披露不覆盖对象。
+- **broker 那一面仍然观测不到**（#354 的结构性事实没变）：发布发生在测试自己的 JVM 里 ⇒ 片段里记的是**测试自己的报告**，不是 broker 侧的视图 ⇒ `not_observable_reason` 一直在说这件事。
+- **判定层算的是「观测的边界」，不是「观测的结果」**。行的 `result` 仍只来自真实实验（`merge_contract_results` 与 `evaluate_verification` 的闸门没动）⇒ 披露**不参与**判定，也不会被判定层引用（`evidence/verdict.py` 只引用受控码，行上的自由文本不会被引用出去）。
+- **矩阵是纯函数**这条规矩保住了：披露里**没有**时间戳（片段有 `collected_at`，但行不抄它）⇒ 同一份 state 两次建出来的矩阵**逐字节相同**（`test_matrix_pure.py` 的纯度测试绿）。
+- **键族靠契约自己声明**（`observes keys: …`，#362）⇒ 契约不声明 ⇒ 没有观测 ⇒ 披露的第一条就是「没观测到」；这不是缺陷，是**不臆造**。
+- **MQ 的报告数是「测试数到的发布次数」**，重试那条模板数的是**尝试次数**（broker 拒了的那次也算）⇒ 片段的 `normalization` 里写着这一句。
+- **空列表不等于「没有盲区」**，而是「这一面没有观测可比」——两者的区别由 `observation_status` 是不是空串承担。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **对象那一面也进判定层**（胶囊坐标 + 对象观测）⇒ 需要改**图顺序**（矩阵在胶囊之前），不是本号能顺手做的；② **键族声明进规范语言**（parser + 编译器 + 注册表迁移）⇒ 需要一个**迁移窗口**（重写 101 个案例的 tag ⇒ 记不可回放）；③ **CI 里的集成腿 URL**（#340 边界②；token 缺 `workflow` scope，推不动，**留在工作区**）；④ **101 个案例的全量重跑评测**（CI nightly）；⑤ **DEEP 校准**（#300 队列①，未动）；⑥ demo 在**默认 JDK 25** 上跑不起来（单独解决）；⑦ 局部变量名是否也该进 profile（**已关闭**，#358）；⑧ 帧修队列项（**已关闭**，#364）。

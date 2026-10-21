@@ -227,6 +227,13 @@ public class SpecProofGeneratedTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
+        // The pipeline cannot see the broker side of this publish (the
+        // publish happens inside this JVM), so the test REPORTS what it
+        // counted, in a line the pipeline can read. Printed BEFORE the
+        // assertion: a test that fails must still say what it saw.
+        System.out.println("SPECPROOF_MQ routing_key=email.changed "
+            + "exchange=specproof.demo.events publishes=" + publishes.get());
+
         assertTrue(publishes.get() >= 1,
             "email.changed was not published to the documented exchange "
             + "and routing key");
@@ -663,6 +670,13 @@ public class SpecProofGeneratedTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
+        // The pipeline cannot see the broker side of this publish (the
+        // publish happens inside this JVM), so the test REPORTS what it
+        // counted, in a line the pipeline can read. Printed BEFORE the
+        // assertion: a test that fails must still say what it saw.
+        System.out.println("SPECPROOF_MQ routing_key=order.created "
+            + "exchange=specproof.demo.events publishes=" + publishes.get());
+
         assertTrue(publishes.get() >= 1,
             "order.created was not published to the documented exchange "
             + "and routing key");
@@ -693,6 +707,13 @@ public class SpecProofGeneratedTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
+
+        // The pipeline cannot see the broker side of this publish (the
+        // publish happens inside this JVM), so the test REPORTS what it
+        // counted, in a line the pipeline can read. Printed BEFORE the
+        // assertion: a test that fails must still say what it saw.
+        System.out.println("SPECPROOF_MQ routing_key=order.created "
+            + "exchange=specproof.demo.events publishes=" + publishes.get());
 
         assertEquals(1, publishes.get(),
             "order.created must be published exactly once, got " + publishes.get());

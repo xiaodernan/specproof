@@ -11,7 +11,6 @@ the Review Court and the lineage builder will later interpret.
 
 from __future__ import annotations
 
-import fnmatch
 from typing import Any, cast
 
 from agent.state import Phase0State
@@ -74,51 +73,37 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
     fragments: list[Any] = []
     collected = 0
 
-    # The redis observation is PER CONTRACT: a contract says which key
-    # family it is about, and only THAT family's keys belong in its
-    # evidence. The two moments are the differential run's; the keys are
-    # this contract's.
+    # The observations are PER CONTRACT: a contract says which surface it
+    # is about (its checker family), and only THAT surface's observation
+    # belongs in its evidence. The SAME builder the verdict layer reads
+    # (#365): one comparison, two readers — the pack and the matrix row
+    # cannot disagree about what was observed, because there is only one
+    # place that observes.
+    #
+    # On RabbitMQ the broker side is NOT observable: the publish happens
+    # inside the test's JVM (Maven surefire runs it in-process), so from
+    # out here there is no broker-side view. What the pipeline CAN read
+    # is the test's own report — the generated test prints what it
+    # counted (the SPECPROOF_MQ line) and the differential captured that
+    # output with the run. The fragment records the test's report and
+    # says so in its extension; the broker-side gap is still stated.
     redis_fragments: dict[str, Any] = {}
+    mq_fragments: dict[str, Any] = {}
     try:
-        if separated:
-            from experiments.collectors import redis_fragment_from_snapshots
-            from experiments.external_state import (
-                key_patterns_for,
-                redis_states_from_dicts,
-            )
+        from agent.external_observation import observations
 
-            base_states = redis_states_from_dicts(base_snapshot)
-            head_states = redis_states_from_dicts(head_snapshot)
-            truncated = list(base_snapshot.get("truncated_patterns") or [])
-            truncated += [
-                p for p in (head_snapshot.get("truncated_patterns") or [])
-                if p not in truncated
-            ]
-            world_reset = raw_state.get("external_reset") or {}
-            for contract in raw_state.get("contracts") or []:
-                if not isinstance(contract, dict) or not contract.get("id"):
-                    continue
-                patterns = key_patterns_for(contract)
-                if not patterns:
-                    # This contract names no key family: there is nothing
-                    # to observe FOR IT, and inventing keys would be
-                    # inventing evidence.
-                    continue
-                redis_fragments[str(contract["id"])] = (
-                    redis_fragment_from_snapshots(
-                        experiment_id=raw_state.get("job_id", "unknown"),
-                        base=_states_matching(base_states, patterns),
-                        head=_states_matching(head_states, patterns),
-                        truncated_patterns=[
-                            p for p in truncated
-                            if any(fnmatch.fnmatch(p, pattern) for pattern in patterns)
-                        ],
-                        world_reset=world_reset,
-                    )
-                )
-            if redis_fragments:
-                collected += 1
-        else:
+        built = observations(raw_state)
+        for contract_id, observation in built.items():
+            kind = str(getattr(observation, "fragment_type", "") or "")
+            if kind == "redis":
+                redis_fragments[contract_id] = observation
+            elif kind == "mq":
+                mq_fragments[contract_id] = observation
+        if redis_fragments:
+            collected += 1
+        if mq_fragments:
+            collected += 1
+        if not separated:
             # The store could not be reached, or the differential run did
             # not capture the two moments. That is a DIFFERENT fact from
             # "the collector ran and found nothing" — a run that could
@@ -126,67 +111,8 @@ def collect_evidence_node(state: Phase0State) -> dict[str, Any]:
             incr("collect_evidence_redis_unavailable_total")
     except Exception:  # noqa: BLE001
         incr("collect_evidence_redis_failed_total")
-        # Degraded, not fatal — evidence is best-effort
-        pass
-
-    # RabbitMQ — the surface the pipeline CANNOT observe, said out loud.
-    #
-    # The publish happens INSIDE the test's JVM: the pipeline runs the
-    # generated test with Maven surefire, so the Spring context — and the
-    # publish — live in the test's process. From out here there is no
-    # broker-side view of what a test published, and the evidence that
-    # DOES exist is the test's own assertion (its routing key and publish
-    # count).
-    #
-    # So instead of a silent gap, every rabbitmq-checked contract gets an
-    # explicit NO_EVIDENCE fragment that says WHY. A missing observation
-    # and an unobservable one are different facts, and a reader of the
-    # pack must not have to guess which one they are looking at.
-    mq_fragments: dict[str, Any] = {}
-    try:
-        from datetime import UTC, datetime
-
-        from evidence.fragments import MqObservation
-        from experiments.collectors import STATUS_NO_EVIDENCE
-
-        for contract in raw_state.get("contracts") or []:
-            if not isinstance(contract, dict) or not contract.get("id"):
-                continue
-            if str(contract.get("checker_type") or "") != "rabbitmq":
-                continue
-            mq_fragments[str(contract["id"])] = MqObservation(
-                experiment_id=raw_state.get("job_id", "unknown"),
-                fragment_type="mq",
-                collector_version="1.0.0",
-                collected_at=datetime.now(UTC).isoformat(),
-                base={},
-                head={},
-                normalization={
-                    "publish_count": (
-                        "the publishes the generated test asserted, recorded by "
-                        "the test itself — the pipeline runs the test IN-PROCESS "
-                        "(surefire), so the publish happens inside the test's "
-                        "JVM and cannot be observed from out here"
-                    ),
-                },
-                comparison={"changed": [], "changed_count": 0},
-                status=STATUS_NO_EVIDENCE,
-                confidence=0.0,
-                evidence_ref=None,
-                reproducibility="reproducible",
-                extension={
-                    "observed_any_publish": False,
-                    "not_observable_reason": (
-                        "the generated test runs in-process (Maven surefire), "
-                        "so the publish happens inside the test's JVM; the "
-                        "evidence is the test's own assertion"
-                    ),
-                },
-            )
-        if mq_fragments:
-            collected += 1
-    except Exception:  # noqa: BLE001
         incr("collect_evidence_mq_failed_total")
+        # Degraded, not fatal — evidence is best-effort
 
     # Object storage
     try:
@@ -367,25 +293,6 @@ def _fragments_for(
     if mq_fragments and contract_id in mq_fragments:
         keep.append(mq_fragments[contract_id])
     return keep
-
-
-def _states_matching(
-    states: dict[str, Any], patterns: list[str],
-) -> dict[str, Any]:
-    """The states whose key matches one of the patterns.
-
-    Redis' MATCH is a glob: "token:user:*" means "that family". The
-    comparison here is the same idea, done on the key we already have.
-    """
-    if not patterns:
-        return {}
-    import fnmatch
-
-    return {
-        key: state
-        for key, state in states.items()
-        if any(fnmatch.fnmatch(key, pattern) for pattern in patterns)
-    }
 
 
 def _derive_redis_keys(state: dict[str, Any]) -> list[str]:

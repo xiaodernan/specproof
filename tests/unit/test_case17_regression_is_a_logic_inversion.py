@@ -36,7 +36,12 @@ USER_SERVICE = (
     "demo/spring-backend/src/main/java/com/specproof/demo/service/"
     "UserService.java"
 )
-GEN_SRC = REPO / "agent" / "nodes" / "generate_counterexamples.py"
+#: The generated source moved into the TEMPLATE layer (#319: the node
+#: became pipeline, the template became the library), so the pin reads
+#: the template that writes the class AND the rendered golden artifact —
+#: the byte-for-byte copy of what actually gets compiled and run.
+TEMPLATE_SRC = REPO / "agent" / "experiments" / "templates.py"
+GOLDEN_SRC = REPO / "tests" / "unit" / "golden" / "generated_test_demo.java"
 
 
 def _git_show(repo: Path, ref: str, path: str) -> str | None:
@@ -76,9 +81,9 @@ def test_changeemail_is_transactional_so_acceptance_commits():
 
 
 def test_generated_test_class_is_non_transactional_but_resets_db():
-    if not GEN_SRC.exists():
-        pytest.skip("generator source not present")
-    src = GEN_SRC.read_text(encoding="utf-8")
+    if not GOLDEN_SRC.exists():
+        pytest.skip("generated source not present")
+    src = GOLDEN_SRC.read_text(encoding="utf-8")
     # The generated test class header carries NO @Transactional — so a failed
     # assertion does NOT roll anything back (this is exactly why #252 rejected
     # the "rollback" explanation).
@@ -90,3 +95,19 @@ def test_generated_test_class_is_non_transactional_but_resets_db():
     # persisted duplicate before the differential's dump is taken.
     assert "@BeforeEach" in src
     assert "userRepository.deleteAll()" in src
+
+
+def test_the_template_that_writes_the_class_keeps_that_shape():
+    """The golden artifact pins what is COMPILED; the template pins where
+    it comes from. Both must say the same thing — or the diagnosis this
+    file pins (non-transactional class, wiped DB before every method)
+    drifts silently away from the code that is actually generated."""
+    if not TEMPLATE_SRC.exists():
+        pytest.skip("template source not present")
+    src = TEMPLATE_SRC.read_text(encoding="utf-8")
+    header_start = src.index("@SpringBootTest")
+    header_end = src.index("public class SpecProofGeneratedTest")
+    header = src[header_start:header_end]
+    assert "@Transactional" not in header
+    assert "@BeforeEach" in src
+    assert "@@user_repo@@.deleteAll()" in src

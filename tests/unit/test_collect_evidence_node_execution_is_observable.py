@@ -434,10 +434,10 @@ def test_the_mq_surface_says_why_it_cannot_be_observed(
     """A missing observation and an UNOBSERVABLE one are different facts.
 
     The publish happens inside the test's JVM, so the pipeline cannot
-    see it from out here. Instead of a silent gap, the rabbitmq-checked
-    contract gets an explicit NO_EVIDENCE fragment that says why — so a
-    reader of the pack does not have to guess which kind of absence they
-    are looking at.
+    see it from out here. What the fragment CAN carry is the test's own
+    report — and when the test reported nothing, the fragment says
+    NO_EVIDENCE and says why, so a reader of the pack does not have to
+    guess which kind of absence they are looking at.
     """
     mongo = _stub_mongo(monkeypatch)
     state = _state(

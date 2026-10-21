@@ -336,6 +336,19 @@ def render_verification_report(
                 )
         else:
             differential = '<span class="muted">not run</span>'
+        # What the external observation could NOT say for this contract
+        # (#365). Rendered under the row, because it qualifies what the
+        # verdict rests on: a reader who sees PASS must be able to tell
+        # whether the outside of the JVM was compared at all, and where
+        # that comparison stopped. Capture-only — it never changes the
+        # result word.
+        limits = r.get("observation_limits") or []
+        if isinstance(limits, (list, tuple)):
+            for limit in limits:
+                differential += (
+                    '<br /><small class="surface">'
+                    f"{safe(limit)}</small>"
+                )
         rows_html += f"""<tr class="{result_class}">
             <td>{safe(r.get("contract_id", ""))}</td>
             <td class="req">{safe(r.get("requirement", ""))}</td>
