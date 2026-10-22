@@ -193,8 +193,17 @@ def test_severity_agreement_is_exact_level_match_share() -> None:
     assert rec["severity_agreement"] == 75.0
     assert rec["matched_positive_cases"] == 4
     assert rec["severity_mismatch_cases"] == 1
+    # The drift entry carries the level it was judged on and the evidence
+    # that produced it (#395): a bare "expected X, got Y" reads like a
+    # guess, and the level comes from the evidence path (ADR-004).
     assert rec["mismatches"] == [
-        {"case": "d", "expected": "MAJOR", "actual": "MINOR"}
+        {
+            "case": "d",
+            "expected": "MAJOR",
+            "actual": "MINOR",
+            "strongest": "MINOR",
+            "evidence_kinds": "",
+        }
     ]
 
 
@@ -371,4 +380,15 @@ def test_perfect_level_calls_score_exactly_hundred() -> None:
 
 
 def test_multi_value_severities_count_as_drift_not_crash() -> None:
-    assert severity_match_of(_case(matched_severities="BLOCKER, MAJOR")) is False
+    """A record with several levels is judged on its STRONGEST one (#395).
+
+    The old rule ("the whole list must equal exactly one value") called a
+    correct BLOCKER a drift whenever a weaker duplicate existed for the
+    same contract — the contract's level IS the strongest one, which is
+    what the matrix policy already shows a reader. A list whose strongest
+    level is NOT the expected one is still a drift, and still no crash.
+    """
+    assert severity_match_of(_case(matched_severities="BLOCKER, MAJOR")) is True
+    assert severity_match_of(
+        _case(matched_severities="MAJOR, MINOR", expected_severity="BLOCKER")
+    ) is False

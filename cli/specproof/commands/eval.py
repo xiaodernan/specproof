@@ -1081,6 +1081,15 @@ def eval_cmd(
             f"  ! severity drift: {m['case']} "
             f"expected {m['expected']}, got {m['actual']}"
         )
+        # The level comes from the EVIDENCE the tool took (ADR-004: BLOCKER
+        # needs execution + DB evidence), so a drift is a statement about
+        # the evidence, not a wrong guess about the defect. Say which
+        # evidence it was, or the reader can only see a bare mismatch.
+        if m.get("evidence_kinds"):
+            click.echo(
+                f"      (strongest level {m.get('strongest') or '—'}; "
+                f"evidence: {m['evidence_kinds']})"
+            )
     click.echo(f"Acceptance:         {acceptance_verdict_text(acceptance)}")
     for line in acceptance.insufficient:
         click.echo(f"  ! 样本不足: {line}")

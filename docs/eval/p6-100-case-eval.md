@@ -165,7 +165,7 @@ README/注释/requirement.txt/schema.sql/pom.xml 的沙箱语义案例)。
 | 检出 | **51 / 52** 个正例 | **Recall 98.1%** |
 | 误报 | **0** / 35 个负例 | **Precision 100.0%** |
 | F1 | **99.0%** | |
-| 严重度一致 | **88.2%**（51 个命中正例） | 6 处漂移，见下 |
+| 严重度一致 | **90.2%**（51 个命中正例） | 5 处漂移，见下（这一轮**跑出来**时是 88.2% / 6 处：#395 发现其中 1 处是**度量**把一次正确的 BLOCKER 记成了漂移 ⇒ ⇒ ⇒ **用同一批记录**按修好的度量重新计分 ⇒ ⇒ ⇒ **88.2% → 90.2%**） |
 | Acceptance | **PASS**（未设门槛） | 门槛没钉 ⇒ 只报数字，不判合格 |
 | 墙钟 | **29 337 秒 ≈ 8.15 小时** | 本机、**有争用**（同时在跑别的作业） |
 | 单案例耗时 | 最短 **160 秒** / 中位 **237 秒** / 最长 **1022 秒** / 均值 **330 秒** | 管线时间合计 7.99 小时 |
@@ -182,20 +182,44 @@ README/注释/requirement.txt/schema.sql/pom.xml 的沙箱语义案例)。
   下一轮**必须**用 `--attempts`（见下一节）⇒ ⇒ ⇒ 两个数（能不能检出 / 第一次有没有
   检出）**并排**报出来。
 
-**6 处严重度漂移**（命中了但定级不同，**不是**漏检）：
+**严重度那 88.2% 是什么**（账本 #395 把它逐条拆开过）：
 
-| 案例 | 期望 | 实测 |
+工具的定级是**「证据的路」的函数**，不是它对缺陷的猜测（ADR-004：BLOCKER 要真实执行 +
+DB/行为证据 + confidence ≥ 0.90；静态分析封顶 MAJOR）⇒ ⇒ ⇒ 那一轮 **54 条命中发现，
+一条不差**都落在这条规则上：
+
+| 证据的路 | 定级 | 条数 |
 |---|---|---|
-| case-17-logic-inversion | BLOCKER | MAJOR |
-| case-19-email-corruption | MAJOR | BLOCKER |
-| case-20-validation-removed | MAJOR | BLOCKER |
-| case-22-auth-guard-moved-to-dead-helper | BLOCKER | BLOCKER, MAJOR |
-| case-33-tx-order-idempotency-dedup-removed | BLOCKER | MAJOR |
-| case-97-rel-broker-failure-retried-into-duplicate | BLOCKER | MAJOR |
+| `base_pass_head_fail` + `DB_CONSISTENT` | MAJOR | 20 |
+| `java_source_diff`（静态） | MAJOR | 20 |
+| `base_pass_head_fail` + `DB_MUTATED_ON_UNAUTH` | BLOCKER | 7 |
+| `base_pass_head_fail` + `DB_MUTATED` | BLOCKER | 5 |
+| `probe_differential` | MAJOR | 2 |
 
-（严重度一致率 88.2% ⇒ 5/6 是「定得偏轻」，1/6 是「定得偏重」。这一条是**已知的
-老问题**，#373 就记过 case-17 那一处；**这一号没有处理**它 ⇒ ⇒ ⇒ 记在这里，别让它
-被读成「全绿」。）
+而池子里的 `expected_severity` 是**按缺陷写的** ⇒ ⇒ ⇒ 两套坐标系 ⇒ ⇒ ⇒ 于是 6 处漂移里
+**有 1 处是度量自己算错了**（`case-22`：`AUTH-01` 这**一个合同**被报了 MAJOR **和**
+BLOCKER 两个等级 ⇒ ⇒ ⇒ 而矩阵那边**早就**按「取最强的那个」合并 ⇒ ⇒ ⇒ 读者看到的就是
+BLOCKER ⇒ ⇒ ⇒ 度量却把它记成了漂移）⇒ ⇒ ⇒ **度量已改**（判该合同被报出的**最强**
+等级）⇒ ⇒ ⇒ **用同一批记录重新计分：88.2% → 90.2%**，唯一变化的就是那**一个**案例。
+
+剩下 5 处（账本 #395 的诚实边界里逐条查过机制，**不是**猜的）：
+
+| 案例 | 期望 | 实测 | 那条证据的路 |
+|---|---|---|---|
+| case-17-logic-inversion | BLOCKER | MAJOR | `DB_CONSISTENT`（无 DB 证据 ⇒ 封顶 MAJOR） |
+| case-19-email-corruption | MAJOR | BLOCKER | `DB_MUTATED_ON_UNAUTH`（DB 被改 ⇒ BLOCKER） |
+| case-20-validation-removed | MAJOR | BLOCKER | `DB_MUTATED_ON_UNAUTH`（同上） |
+| case-33-tx-order-idempotency-dedup-removed | BLOCKER | MAJOR | `DB_CONSISTENT`（封顶 MAJOR） |
+| case-97-rel-broker-failure-retried-into-duplicate | BLOCKER | MAJOR | `probe_differential`（**探针这条路永远到不了 BLOCKER**） |
+
+**没有一处是「工具乱定级」** ⇒ ⇒ ⇒ 其中 2 处**在结构上不可能被满足**：探针那条路不在
+`BLOCKER_REQUIRED_EVIDENCE_TYPES` 里（只有 `base_pass_head_fail` 与
+`differential_execution` 在）⇒ ⇒ ⇒ 六条件里的第 2、5 条必然不成立 ⇒ ⇒ ⇒ 而池子里有
+**两组**案例（同合同、同期望证据）的**期望彼此矛盾**（`UNIQUE-01` 组：case-17 要 BLOCKER、
+case-19/20 要 MAJOR；`ORDER_EVENT-01` 组：case-66/67/71 要 MAJOR、case-97 要 BLOCKER）
+⇒ ⇒ ⇒ 既然等级是证据的函数 ⇒ ⇒ ⇒ **同一组里只能有一个标签能被满足** ⇒ ⇒ ⇒ 实测**正是
+这样**（期望和实测在组内**正好互换**）⇒ ⇒ ⇒ 要对齐就得选一边（**池子**按证据写期望，或
+**工具**按合同写定级）⇒ ⇒ ⇒ 那是**产品决策** ⇒ ⇒ ⇒ 记在这里，别让它被读成「全绿」。
 
 **这些数字能说明什么、不能说明什么。**
 

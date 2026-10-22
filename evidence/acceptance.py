@@ -335,35 +335,101 @@ def acceptance_verdict_text(result: AcceptanceResult) -> str:
 #: BLOCKER or MAJOR (16 + 47 of 100); negatives expect no finding at all.
 SEVERE_SEVERITIES: frozenset[str] = frozenset({"BLOCKER", "MAJOR"})
 
+#: Severity strength, strongest first. The SAME order the matrix policy
+#: uses when it picks the strongest finding for a contract
+#: (``agent/matrix_policy.py``: ``_court_sort_key``): a reader acts on the
+#: strongest level reported for a contract, so the strongest level is what
+#: a level call is judged on.
+SEVERITY_RANK: dict[str, int] = {
+    "BLOCKER": 4,
+    "MAJOR": 3,
+    "MINOR": 2,
+    "INFORMATIONAL": 1,
+}
+
+
+def severity_rank(level: object) -> int:
+    """How strong a level is; unknown levels rank 0 (below every known one)."""
+    return SEVERITY_RANK.get(str(level or "").strip().upper(), 0)
+
+
+def strongest_severity(levels: list[str]) -> str:
+    """The strongest level among the given ones ('' when there is none)."""
+    best = ""
+    best_rank = 0
+    for level in levels:
+        rank = severity_rank(level)
+        if rank > best_rank:
+            best = str(level).strip().upper()
+            best_rank = rank
+    return best
+
+
+def _levels_for_expected_contract(result: dict[str, Any]) -> list[str]:
+    """The levels reported for the contract this case is about.
+
+    Prefers the per-finding evidence (which says WHICH contract each
+    finding is about) and falls back to the flat ``matched_severities``
+    string when a record carries no per-finding breakdown.
+    """
+    evidence = result.get("finding_evidence")
+    contract = str(result.get("expected_contract") or "").strip()
+    if isinstance(evidence, list) and evidence:
+        own = [
+            str(item.get("severity") or "")
+            for item in evidence
+            if isinstance(item, dict)
+            and (not contract or str(item.get("contract_id") or "").strip() == contract)
+        ]
+        if own:
+            return own
+    return [
+        s.strip()
+        for s in str(result.get("matched_severities") or "").split(",")
+        if s.strip() and s.strip() != "—"
+    ]
+
 
 def severity_match_of(result: dict[str, Any]) -> bool | None:
     """Ground-truth severity reconciliation for one eval case record.
 
-    ``True``  - a matched positive case whose reported severity is exactly
-                the expected one (single value, no drift).
-    ``False`` - a matched positive case whose severity drifted or spread
-                across several levels: the level call was wrong.
+    ``True``  - a matched positive case whose STRONGEST reported level for
+                the expected contract is the expected one.
+    ``False`` - a matched positive case whose strongest level differs from
+                the expected one: the level call was wrong.
     ``None``  - no level call to judge: an unmatched positive (that is a
                 recall miss, not a level error) or a negative case (whose
                 wrongness is already counted by ``false_positives``).
 
+    Why the STRONGEST level and not "the only level": one contract can
+    carry more than one confirmed finding (a static source diff AND an
+    execution differential for the same contract), and then the levels
+    differ per FINDING while the contract has one level. The repo's own
+    matrix policy already resolves that by picking the strongest finding
+    for a contract (``agent/matrix_policy.py``: ``_court_sort_key``), so
+    the metric must judge the same level the matrix shows. Judging the
+    whole list instead counted a correct BLOCKER as a drift whenever a
+    weaker duplicate existed for the same contract (ledger #395).
+
     Operates on the per-case record ``cli/specproof/commands/eval.py``
     appends to ``results`` (keys: ``should_detect``, ``matched_findings``,
-    ``matched_severities``, ``expected_severity``). Pure, no I/O.
+    ``matched_severities``, ``expected_severity``, ``expected_contract``,
+    ``finding_evidence``). Pure, no I/O.
     """
     if not result.get("should_detect"):
         return None
     if not result.get("matched_findings"):
         return None
-    severities = [
-        s.strip()
-        for s in str(result.get("matched_severities") or "").split(",")
-        if s.strip() and s.strip() != "—"
-    ]
+    levels = _levels_for_expected_contract(result)
     expected = str(result.get("expected_severity") or "")
-    if not expected or not severities:
+    if not expected or not levels:
         return None
-    return severities == [expected]
+    return strongest_severity(levels) == expected.strip().upper()
+
+
+def severity_levels_of(result: dict[str, Any]) -> list[str]:
+    """The levels reported for this case's expected contract (see above)."""
+    return _levels_for_expected_contract(result)
 
 
 def severity_reconciliation(results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -408,10 +474,28 @@ def severity_reconciliation(results: list[dict[str, Any]]) -> dict[str, Any]:
             if match:
                 agreed += 1
             else:
+                levels = severity_levels_of(result)
                 mismatches.append({
                     "case": str(result.get("case", "")),
                     "expected": expected,
                     "actual": str(result.get("matched_severities") or ""),
+                    # The strongest level is what the case is judged on, and
+                    # the levels it came from say WHY it drifted: the tool
+                    # derives the level from the evidence path it took (ADR
+                    # -004: BLOCKER needs execution + DB evidence), so a
+                    # drift is a statement about the EVIDENCE, not about
+                    # the defect. Reporting the evidence kind makes that
+                    # readable instead of leaving a bare "expected X, got
+                    # Y" that looks like the tool guessed.
+                    "strongest": strongest_severity(levels),
+                    "evidence_kinds": ",".join(
+                        sorted({
+                            str(item.get("evidence_type") or "")
+                            for item in (result.get("finding_evidence") or [])
+                            if isinstance(item, dict)
+                            and str(item.get("evidence_type") or "")
+                        })
+                    ),
                 })
         if (
             not result.get("should_detect")
