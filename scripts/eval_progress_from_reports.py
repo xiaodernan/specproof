@@ -149,7 +149,11 @@ def classify(report: dict[str, Any], truth: dict[str, Any]) -> dict[str, Any]:
     if len(matched) >= min_findings:
         return {"verdict": "PASS", "matched": len(matched), "reason": "expected contract found"}
     if matched:
-        return {"verdict": "PARTIAL", "matched": len(matched), "reason": "expected contract found, fewer than required"}
+        return {
+            "verdict": "PARTIAL",
+            "matched": len(matched),
+            "reason": "expected contract found, fewer than required",
+        }
     if findings:
         return {
             "verdict": "UNMATCHED",

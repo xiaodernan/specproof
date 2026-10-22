@@ -11,7 +11,6 @@ evaluation would have written.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from scripts.eval_progress_from_reports import (
     case_name,
