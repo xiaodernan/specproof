@@ -40,6 +40,7 @@ from evidence.acceptance import (
     fmt_metric,
     severity_match_of,
     severity_reconciliation,
+    strongest_severity,
 )
 from evidence.report import render_eval_report
 
@@ -1068,6 +1069,14 @@ def eval_cmd(
         matched_severities = sorted(
             {str(f.get("severity") or "") for f in matched}
         )
+        # A contract has ONE level, and the matrix already says which:
+        # the strongest finding for that contract (agent/matrix_policy.py:
+        # _court_sort_key). The eval must not disagree with the matrix
+        # about the same case, so the record carries the contract's level
+        # next to the full list of what was reported.
+        contract_level = strongest_severity(
+            [str(f.get("severity") or "") for f in matched]
+        )
         contracts_found = sorted(
             {str(f.get("contract_id") or "") for f in findings}
         )
@@ -1084,6 +1093,8 @@ def eval_cmd(
             "expected_severity": gt.get("expected_severity"),
             "expected_evidence": expected_evidence,
             "matched_findings": len(matched),
+            "contract_level": contract_level,
+            "all_matched_severities": ", ".join(matched_severities) or "—",
             "matched_severities": ", ".join(matched_severities) or "—",
             "contracts_found": ", ".join(contracts_found),
             "expected_contract": expected_contract or "—",

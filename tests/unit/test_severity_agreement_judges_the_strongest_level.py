@@ -195,3 +195,26 @@ def test_the_agreement_share_counts_a_correct_blocker_with_a_duplicate() -> None
     assert rec["severity_mismatch_cases"] == 1
     assert rec["severity_agreement"] == 50.0
     assert rec["mismatches"][0]["case"] == "case-17-like"
+
+
+def test_a_contract_with_two_levels_is_reported_at_its_strongest() -> None:
+    """The matrix already picks the strongest finding for a contract
+    (agent/matrix_policy.py: _court_sort_key). The eval must not
+    disagree with the matrix about the same case, so the record carries
+    the contract's level next to the full list of what was reported."""
+    result = {
+        **_case(
+            matched_findings=2,
+            matched_severities="BLOCKER, MAJOR",
+            finding_evidence=[
+                _finding("MAJOR", "java_source_diff"),
+                _finding("BLOCKER", "base_pass_head_fail"),
+            ],
+        ),
+        "contract_level": "BLOCKER",
+        "all_matched_severities": "BLOCKER, MAJOR",
+    }
+    assert result["contract_level"] == "BLOCKER"
+    # The full list is kept: nothing is dropped, it is just not what the
+    # contract's LEVEL is.
+    assert result["all_matched_severities"] == "BLOCKER, MAJOR"

@@ -115,7 +115,9 @@ def test_the_not_run_record_carries_the_output_that_explains_it(tmp_path, monkey
 # ── end to end through the evaluator ──────────────────────────────────────
 
 
-def _write_case(root: Path, name: str, *, should_detect: bool) -> Path:
+def _write_case(
+    root: Path, name: str, *, should_detect: bool, expected_severity: str = "MAJOR"
+) -> Path:
     case_dir = root / name
     case_dir.mkdir(parents=True, exist_ok=True)
     (case_dir / "spec.md").write_text(
@@ -125,7 +127,7 @@ def _write_case(root: Path, name: str, *, should_detect: bool) -> Path:
         json.dumps({
             "should_detect": should_detect,
             "expected_contract": "COURT-01",
-            "expected_severity": "MAJOR",
+            "expected_severity": expected_severity,
             "expected_evidence_type": "base_pass_head_fail",
         }),
         encoding="utf-8",
@@ -152,7 +154,9 @@ class _Graph:
         }
 
 
-def _run(tmp_path: Path, monkeypatch, graph) -> tuple[int, str]:
+def _run(
+    tmp_path: Path, monkeypatch, graph, *, expected_severity: str = "MAJOR"
+) -> tuple[int, str]:
     import agent.graph
     from cli.specproof.commands import eval as eval_module
 
@@ -163,7 +167,12 @@ def _run(tmp_path: Path, monkeypatch, graph) -> tuple[int, str]:
 
     (tmp_path / "cases").mkdir(exist_ok=True)
     (tmp_path / "repo").mkdir(exist_ok=True)
-    _write_case(tmp_path / "cases", "case-01-unjudgeable", should_detect=True)
+    _write_case(
+        tmp_path / "cases",
+        "case-01-unjudgeable",
+        should_detect=True,
+        expected_severity=expected_severity,
+    )
     result = CliRunner().invoke(
         eval_cmd,
         [
@@ -232,3 +241,42 @@ def test_a_case_with_a_finding_is_still_scored(tmp_path, monkeypatch):
     record = _record(tmp_path)
     assert record["verdict"] == "PASS", record
     assert record["matched_findings"] == 1
+
+
+def test_a_contract_with_two_levels_records_its_strongest_as_its_level(
+    tmp_path, monkeypatch
+):
+    """The matrix already reports the strongest finding for a contract
+    (agent/matrix_policy.py: _court_sort_key). The eval must not
+    disagree with the matrix about the same case: one contract, one
+    level."""
+    class _TwoLevels(_Graph):
+        def invoke(self, state: dict) -> dict:
+            out = super().invoke(state)
+            out["confirmed_findings"] = [
+                {
+                    "id": "SRC-COURT-01",
+                    "contract_id": "COURT-01",
+                    "severity": "MAJOR",
+                    "confidence": 0.85,
+                    "evidence_type": "java_source_diff",
+                },
+                {
+                    "id": "COURT-COURT-01",
+                    "contract_id": "COURT-01",
+                    "severity": "BLOCKER",
+                    "confidence": 0.95,
+                    "evidence_type": "base_pass_head_fail",
+                },
+            ]
+            return out
+
+    exit_code, output = _run(
+        tmp_path, monkeypatch, _TwoLevels([_unjudgeable()]),
+        expected_severity="BLOCKER",
+    )
+    assert exit_code == 0, output
+    record = _record(tmp_path)
+    assert record["contract_level"] == "BLOCKER", record
+    assert record["all_matched_severities"] == "BLOCKER, MAJOR", record
+    assert record["severity_match"] is True, record
