@@ -48,6 +48,30 @@ _EXCLUDE_PATTERNS = [
 # Canary secret injected during scan for leak detection
 _CANARY_SECRET = "SPECPROOF_CANARY_a7f3b2c9d1e4_SECRET_DO_NOT_COMMIT"
 
+# Tokens that mark a regex match as a known placeholder, not a real secret.
+# Shared by scan_directory and scan_capsule_zips: the two lists used to be
+# hand-copied and had already drifted apart (the zip scan was missing
+# "your-", "example", and the canary secret), so the same content scanned as
+# a directory vs. inside a capsule zip produced different findings.
+_PLACEHOLDER_TOKENS: tuple[str, ...] = (
+    "replace_me",
+    "demo_pass",
+    "demo-secret",
+    "test_pass",
+    "your_",
+    "your-",
+    "changeme",
+    "example",
+)
+
+
+def _is_placeholder(matched: str) -> bool:
+    """True when a regex match is a known placeholder, not a real secret."""
+    lowered = matched.lower()
+    if _CANARY_SECRET in matched:
+        return True
+    return any(token in lowered for token in _PLACEHOLDER_TOKENS)
+
 
 @dataclass
 class SecurityFinding:
@@ -123,20 +147,8 @@ def scan_directory(root: str) -> SecurityScanResult:
                 matches = re.finditer(pattern, line, re.IGNORECASE)
                 for m in matches:
                     matched = m.group(0)
-                    # Skip if it's a known placeholder
-                    if "replace_me" in matched.lower():
-                        continue
-                    if _CANARY_SECRET in matched:
-                        continue
-                    if "demo_pass" in matched.lower() or "demo-secret" in matched.lower():
-                        continue
-                    if "test_pass" in matched.lower():
-                        continue
-                    # Skip .env.example style placeholders
-                    if any(
-                        token in matched.lower()
-                        for token in ("your_", "your-", "changeme", "example")
-                    ):
+                    # Skip known placeholders (shared filter; see _is_placeholder)
+                    if _is_placeholder(matched):
                         continue
 
                     result.findings.append(SecurityFinding(
@@ -371,13 +383,7 @@ def scan_capsule_zips(capsule_dir: str) -> list[SecurityFinding]:
                         for pattern, pname, severity in _SECRET_PATTERNS:
                             for m in re.finditer(pattern, line, re.IGNORECASE):
                                 matched = m.group(0)
-                                if "replace_me" in matched.lower():
-                                    continue
-                                known_placeholders = (
-                                    "demo_pass", "demo-secret", "test_pass",
-                                    "your_", "changeme",
-                                )
-                                if any(x in matched.lower() for x in known_placeholders):
+                                if _is_placeholder(matched):
                                     continue
                                 findings.append(SecurityFinding(
                                     path=f"{zip_path.name}::{name}",
