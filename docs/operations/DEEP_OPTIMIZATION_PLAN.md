@@ -9281,3 +9281,31 @@ would say 'the tool failed to detect the defect' about a run that never looked"*
 **结论。** ① 删除 #335 候选①（已覆盖）。② 删除 #335 候选②（假阳性，不做门）。③ 下一候选回到：`probe.py` / `mcp.py` 纯逻辑补栅栏（低优先）、#333 队列①（`case-101`，受 Java/Maven 约束）、或 #397 队列里**不依赖长跑**的项。
 
 **诚实边界。** 本号**只做核验、不改任何代码 / 测试**；它产出的是「两条队列项该删」的结论与证据，不是一个新门。核验二的「全是假阳性」结论建立在**逐条核对**上（`secondary_opts` 实测、epilog 原文、正则截断三处），不是抽样。
+## #400 `merge_contract_results` 的合并语义：平局后者胜、PASS 压 UNVERIFIED、返回副本
+
+**起因/占号。** 按「找零直接测试的纯逻辑」挑目标：`agent/contract_results.py` 只有 `test_checker_fixes.py` 钉了两条（FAIL 压 PASS、不丢其它契约），其余语义未被钉住。占号前重测账本：`## #` id 最大 **399**（#398 是本轮预算闸门，已推）⇒ 本号取 **#400**（留 1 余量给并发）。
+
+**先量后写（量的是「为什么这把尺子值得钉」）。** 模块 docstring 自己写着它存在的理由：LangGraph 按 channel 合并节点返回值，后一个节点的 list 会**替换**前一个 —— 没有显式合并时，差分节点会把静态检查结果擦掉，真实 PASS/FAIL 到矩阵阶段变成 UNVERIFIED。所以这里的回归**不报错**，只把「有结论」悄悄变成「没结论」。现有测试只覆盖 FAIL>PASS 与「不丢其它契约」；以下六条**零覆盖**：PASS>UNVERIFIED 的两个方向、**平局后者胜**（`>=` 而非 `>`，代码注释明说后者带更强证据）、falsy `contract_id` 被丢弃、返回副本、顺序按首次出现、未知/缺失 `result` 排最末。
+
+**落地（只加测试，`agent/contract_results.py` 一字未动）。** 新建 `tests/unit/test_contract_results_merge_semantics.py`（10 案，纯对象）：
+1. FAIL 压 PASS 的两个方向；
+2. PASS 压 UNVERIFIED 的两个方向；
+3. 平局后者胜：PASS / FAIL / UNVERIFIED 各一条（后者带不同证据，断言取后者）；
+4. 缺失 / 空串 `contract_id` 被丢弃；
+5. 返回的是副本（改 `merged[0]` 不污染输入）；
+6. 顺序按 `contract_id` 首次出现（`[B,A]` + `[A,C]` ⇒ `[B,A,C]`，A 被覆盖但位置不变）；
+7. 未知 `result` 输给任何已知结果（两个方向）；缺失 `result` 键同理。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with pytest python -m pytest tests/unit/test_contract_results_merge_semantics.py -q -p no:cacheprovider` | 10 passed in 8.19s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_contract_results_merge_semantics.py` | All checks passed |
+| **变异臂**（第 37 行 `>=` → `>`，即**平局保留旧的**，推翻注释写明的「后者胜」） | 先预测：三条平局测试全红，其余 7 条绿 | 实测 **3 failed, 7 passed**，失败逐名命中 `test_tie_on_{pass,fail,unverified}_*` |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `git status` 确认 `agent/contract_results.py` 干净；复跑 10 passed |
+
+**否证与订正。** ① 第一版把「纯空白 `contract_id`（`"   "`）也被当成合法键」写成断言——但那是**疑似缺陷**（`if not cid` 只跳过 falsy），钉住它等于把缺陷写成契约。改成**只钉 falsy id 被丢弃**，并在注释里记下空白 id 是边界、不测。② 仓库里有两个同名 `merge_contract_results`（本模块两参版、`agent/matrix_policy.py` 一参版），本门显式 `from agent.contract_results import ...`，不会误测另一个。
+
+**诚实边界。** ① 只加测试：`agent/contract_results.py` 一字未动。② 只钉**合并优先级/键/副本/顺序**；「谁在什么时候调用它」（`run_differential.py` / `build_matrix.py`）不在射程。③ **不钉**「纯空白 id 该不该被当成空」——现状是留下，疑似缺陷，已入下一号队列。④ 不钉 `matrix_policy.py` 的一参版（它已有 `test_matrix_policy.py` / `test_matrix_pure.py`）。
+
+**下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `agent/security_scanner.py` 零直接测试，且 `scan_directory` vs `scan_capsule_zips` 的**占位符过滤清单是手抄两份、已漂移**（目录跳过 `your-` / `example` / canary，zip 不跳过）。② `merge_contract_results` 的**纯空白 `contract_id`** 疑似缺陷（本号边界③）——先量影响面再决定修不修。③ `agent/job_control.py` 零直接测试（先判是否 I/O 外壳）。④ #397 队列第一项已由并发车道 #399 落地，不重复。
