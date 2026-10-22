@@ -602,6 +602,7 @@ def render_eval_report(
     detected = counts.detected
     should = counts.should_detect
     fp = counts.false_positives
+    neg = counts.negative_cases
     # The cases that were NEVER MEASURED. They are out of the recall
     # denominator (a case nobody judged is not a case nobody found), so
     # without this number a run with one unmeasured case would read
@@ -622,6 +623,12 @@ def render_eval_report(
     # (``retry_summary``), so the two artifacts cannot disagree.
     retry = retry_summary(results)
     retried_color = "#d29922" if retry["retried_cases"] else "#c9d1d9"
+    # Precision is only challenged by the NEGATIVE cases: "100% precision"
+    # over zero negatives is a number nobody can lean on (the acceptance
+    # gate has a min_negative_cases floor for exactly that reason). So the
+    # count of negatives is ON the page, next to the precision it
+    # supports (ledger #415).
+    neg_color = "#c9d1d9" if neg else "#d29922"
 
     acceptance_card = ""
     acceptance_note = ""
@@ -853,6 +860,10 @@ def render_eval_report(
         </div>        <div class="stat">
             <div class="value">{fp}</div>
             <div class="label">False Positives</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:{neg_color}">{neg}</div>
+            <div class="label">Negative Cases</div>
         </div>
         <div class="stat">
             <div class="value" style="color:{not_measured_color}">{not_measured}</div>

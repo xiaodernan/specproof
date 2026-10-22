@@ -24,6 +24,7 @@ These tests are SHARP: reverting any of the fixes makes them fail.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -247,3 +248,192 @@ def test_the_summary_counts_each_reason_separately() -> None:
         RETRY_UNSTABLE_DETECTION: 1,
     }
     assert [entry["case"] for entry in summary["retries"]] == ["a", "b", "c", "d"]
+
+
+def test_the_page_says_how_many_negatives_the_precision_rests_on() -> None:
+    """Precision is only challenged by the negative cases.
+
+    "Precision 100%" over ZERO negatives is a number nobody can lean on -
+    the acceptance gate has a ``min_negative_cases`` floor for exactly
+    that reason, so the count has to be visible too.
+    """
+    records = [_record("case-01")]
+    html = render_eval_report(records, None)
+    assert _stat(html, "Negative Cases") == "0"
+
+    records = [
+        _record("case-01"),
+        _record("case-02", should_detect=False),
+        _record("case-03", should_detect=False, verdict="FALSE_POSITIVE"),
+    ]
+    html = render_eval_report(records, None)
+    assert _stat(html, "Negative Cases") == "2"
+    assert _stat(html, "False Positives") == "1"
+
+
+# -- end to end: the real CLI, the real page --------------------------------
+
+
+def _write_case(root, name: str, *, should_detect: bool):
+    case_dir = root / name
+    case_dir.mkdir(parents=True, exist_ok=True)
+    (case_dir / "spec.md").write_text(
+        f"# {name}\n\nThe service must reject a null event timestamp.\n",
+        encoding="utf-8",
+    )
+    (case_dir / "ground-truth.json").write_text(
+        json.dumps({
+            "should_detect": should_detect,
+            "expected_contract": "COURT-01",
+            "expected_severity": "MAJOR",
+            "expected_min_findings": 1,
+        }),
+        encoding="utf-8",
+    )
+    (case_dir / "scenario.json").write_text(
+        json.dumps({"base_ref": "base", "head_ref": "head-v1"}), encoding="utf-8"
+    )
+    return case_dir
+
+
+class _Finds:
+    """A positive case the tool detects."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def invoke(self, state: dict) -> dict:
+        self.calls += 1
+        return {
+            "confirmed_findings": [{
+                "id": "f-1",
+                "contract_id": "COURT-01",
+                "severity": "MAJOR",
+                "confidence": 0.9,
+                "evidence_type": "DIFFERENTIAL",
+            }],
+            "errors": [],
+        }
+
+
+class _FindsNothing:
+    """A positive case the tool never detects."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def invoke(self, state: dict) -> dict:
+        self.calls += 1
+        return {"confirmed_findings": [], "errors": []}
+
+
+def test_the_page_the_run_wrote_says_what_the_run_said(tmp_path, monkeypatch) -> None:
+    """The end-to-end property: run the CLI, then read the page it wrote.
+
+    A positive case it detects, a positive case it misses, and a negative
+    case it passes. The console prints four numbers; the page must print
+    the same four.
+    """
+    from click.testing import CliRunner
+
+    import agent.graph
+    from cli.specproof.commands import eval as eval_module
+    from cli.specproof.commands.eval import eval_cmd
+
+    class _Graph:
+        def __init__(self) -> None:
+            self.n = 0
+
+        def invoke(self, state: dict) -> dict:
+            self.n += 1
+            # the first case is detected, the second is not
+            if self.n == 1:
+                return _Finds().invoke(state)
+            return _FindsNothing().invoke(state)
+
+    monkeypatch.setattr(agent.graph, "build_phase0_graph", lambda: _Graph())
+    monkeypatch.setattr(eval_module, "_schema_reachable", lambda _db: False)
+    monkeypatch.delenv("MYSQL_DATABASE", raising=False)
+    monkeypatch.delenv("SPECPROOF_TEST_MYSQL_DATABASE", raising=False)
+
+    (tmp_path / "cases").mkdir()
+    (tmp_path / "repo").mkdir()
+    _write_case(tmp_path / "cases", "case-01-detected", should_detect=True)
+    _write_case(tmp_path / "cases", "case-02-missed", should_detect=True)
+    _write_case(tmp_path / "cases", "case-03-negative", should_detect=False)
+
+    result = CliRunner().invoke(
+        eval_cmd,
+        [
+            "--cases", str(tmp_path / "cases"),
+            "--repo", str(tmp_path / "repo"),
+            "--no-llm", "--include-holdout",
+            "--attempts", "1",
+            "--output", str(tmp_path / "eval-report.html"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    console = result.output
+    should = re.search(r"Should detect:\s+(\d+)", console).group(1)
+    detected = re.search(r"Detected:\s+(\d+)", console).group(1)
+    negatives = re.search(r"Negative cases:\s+(\d+)", console).group(1)
+    not_run = re.search(r"Not run:\s+(\d+)", console).group(1)
+
+    html = (tmp_path / "eval-report.html").read_text(encoding="utf-8")
+    assert _stat(html, "Detected / Should Detect") == f"{detected}/{should}"
+    assert _stat(html, "False Positives") == "0"
+    assert _stat(html, "Not Measured") == not_run
+    # The count of negatives is what makes the precision meaningful, so it
+    # is on the page next to it (ledger #415).
+    assert _stat(html, "Negative Cases") == negatives
+    assert _stat(html, "Recall") != "", "the page has a recall"
+
+
+def test_the_page_and_the_console_agree_on_the_case_that_was_retried(
+    tmp_path, monkeypatch
+) -> None:
+    """A case that needed a second attempt appears in the page's retry list
+    with the same reason the console gave it."""
+    from click.testing import CliRunner
+
+    import agent.graph
+    from cli.specproof.commands import eval as eval_module
+    from cli.specproof.commands.eval import eval_cmd
+
+    class _Flaky:
+        def __init__(self) -> None:
+            self.n = 0
+
+        def invoke(self, state: dict) -> dict:
+            self.n += 1
+            if self.n == 1:
+                return {"confirmed_findings": [], "errors": []}
+            return _Finds().invoke(state)
+
+    monkeypatch.setattr(agent.graph, "build_phase0_graph", lambda: _Flaky())
+    monkeypatch.setattr(eval_module, "_schema_reachable", lambda _db: False)
+    monkeypatch.delenv("MYSQL_DATABASE", raising=False)
+    monkeypatch.delenv("SPECPROOF_TEST_MYSQL_DATABASE", raising=False)
+
+    (tmp_path / "cases").mkdir()
+    (tmp_path / "repo").mkdir()
+    _write_case(tmp_path / "cases", "case-01-flaky", should_detect=True)
+
+    result = CliRunner().invoke(
+        eval_cmd,
+        [
+            "--cases", str(tmp_path / "cases"),
+            "--repo", str(tmp_path / "repo"),
+            "--no-llm", "--include-holdout",
+            "--attempts", "3",
+            "--output", str(tmp_path / "eval-report.html"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "! unstable detection: case-01-flaky" in result.output, result.output
+
+    html = (tmp_path / "eval-report.html").read_text(encoding="utf-8")
+    assert _stat(html, "Measured More Than Once") == "1"
+    assert "unstable detection" in html
+    assert "case-01-flaky" in html

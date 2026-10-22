@@ -10058,3 +10058,60 @@ def contract_levels(findings, expected_contract) -> list[str]:
 - 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
 - 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
 - "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。
+## #415 把「页面上的数」和「控制台的数」**端到端**钉在一起 + Precision 的分母（负例数）要看得见
+
+**这一批是 #414 的收尾**（#414 修了规则，#415 把规则**端到端**证明出来，并补上最后一个「看不见的分母」）。
+
+### 一、端到端证明：跑一次真的 CLI，读它自己写出来的那一页
+
+#414 的证明是「同一批记录，分别喂给两段代码」。那还是**两段代码**。⇒ 这一批加了**真正端到端**的测试：
+
+- 用真 CLI（`CliRunner`）跑一个池子（一个检出的正例 + 一个漏掉的正例 + 一个负例），**然后读它自己写出来的那一页**，把控制台打的四个数（`Should detect` / `Detected` / `Negative cases` / `Not run`）和页面上的四四个统计格**逐个对比**；
+- 再跑一个「第一遍漏、第二遍检出」的案例：控制台打 `! unstable detection: case-01-flaky`，页面必须同时有 **Measured More Than Once = 1** 和 **`unstable detection`** 这一条 ⇒ **两个 artifact 对同一个案例说同一句话**。
+
+（`tests/unit/test_eval_report_agrees_with_the_console.py` 现在 **13** 个。）
+
+### 二、**Precision 100%** 印在页面上，但**没有负例数** —— 那个精度**没有人能拿来靠**
+
+页面一直有 `Precision 100%`、`False Positives 0`。但**负例有几个**页面不说。
+
+⇒ **「0 个负例上的 100% 精确率」不是一个能拿来靠的数** —— 评测自己都设了 `min_negative_cases` 这道门（样本不足就不给结论），可**页面上的那个 100% 旁边没有负例数**，读的人无从知道它是被多少个负例考验过的。
+
+⇒ 页面现在有统计格 **Negative Cases**（**0 个负例时用琥珀色**，和 `Not Measured` 一样的规矩：**0 本身就是要被看见的事实**）。
+
+### 三、**真实那一轮**的页面，重新渲染后的数
+
+用 `scripts/render_eval_report.py`（#411/#412 落的那个）把**正在跑的那一轮**的真实 sidecar（58 条）重新渲染，页面上现在写的是：
+
+```
+Precision                    100.0%      ← 修复前这一行不是这个数
+Recall                       100.0%      ← 修复前：169.7%
+F1 Score                     100.0%      ← 修复前：125.8%
+Detected / Should Detect     34/34       ← 修复前：58/34
+False Positives              0
+Negative Cases               24          ← 新增
+Not Measured                 0
+Measured More Than Once      0           ← 新增
+Severity Agreement           88.2%
+Severe Precision             88.2%
+```
+
+⇒ **和控制台逐位相同。** 漂移列表也正常了（4 条，每条都带合同、判定等级、证据种类）：
+
+```
+case-17-logic-inversion | expected: BLOCKER | got: MAJOR | contract: UNIQUE-01 | evidence: base_pass_head_fail
+case-19-email-corruption | expected: MAJOR | got: BLOCKER | contract: UNIQUE-01 | evidence: base_pass_head_fail
+case-20-validation-removed | expected: MAJOR | got: BLOCKER | contract: UNIQUE-01 | evidence: base_pass_head_fail
+case-33-tx-order-idempotency-dedup-removed | expected: BLOCKER | got: MAJOR | contract: IDEMPOTENT-01 | evidence: base_pass_head_fail
+```
+
+**质量门**：`ruff` + `mypy` 全绿；相关单测集全绿。
+
+**这一轮全量评测（#408 之后从零重跑的，`--attempts 3`）到目前的实况**：
+- 落地 **58** 条，**58 条全 PASS**，**58 条全是第一遍就检出**（`attempts` 直方图 = {1: 58}）—— 到现在**一个重试都没发生**。
+- **这一轮的数还没落地**（等跑完，三个数一起：被量到的正例 / 没量成的 / 基准面失败的输出）。
+
+**尚未落地（记着，不替产品做决定）**：
+- 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
+- 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
+- "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。
