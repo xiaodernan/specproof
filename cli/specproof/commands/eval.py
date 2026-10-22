@@ -148,6 +148,39 @@ def select_resumable(
     return reusable, sorted(stale)
 
 
+def first_try_deltas(
+    verdict: str,
+    should_detect: bool,
+    first_attempt_verdict: str,
+) -> tuple[int, int, int]:
+    """What one case contributes to the FIRST-TRY counters.
+
+    (first_try_detected, first_try_should_detect, first_try_not_judged)
+
+    The first-try counters answer "was it found the FIRST time". An
+    attempt that could not judge (NOT_RUN) has NO first-try verdict at
+    all: the tool never looked, so it neither found nor missed the
+    defect. Such a case is therefore NOT in the first-try denominator -
+    counting it as a miss would say "the tool failed on the first try"
+    about a run that never ran - and the number of excluded cases is
+    reported next to the ratio, so the exclusion hides nothing
+    (ledger #399, #405, #409).
+
+    A NEGATIVE case contributes nothing here: it has no "first
+    detection" to speak of.
+
+    The rules are written down once so that a re-used record is counted
+    exactly like a re-measured one (see counter_deltas).
+    """
+    if verdict == "NOT_RUN" or not should_detect:
+        return (0, 0, 0)
+    first = str(first_attempt_verdict or "")
+    if not first or first == "NOT_RUN":
+        return (0, 0, 1)
+    detected = 1 if first in ("PASS", "PARTIAL") else 0
+    return (detected, 1, 0)
+
+
 def counter_deltas(record: dict[str, Any]) -> tuple[int, int, int, int, int]:
     """What one case record contributes to the run's counters.
 
@@ -746,6 +779,11 @@ def eval_cmd(
     # different question from the capability (ledger #391).
     first_try_detected = 0
     first_try_should_detect = 0
+    # Positive cases whose FIRST attempt produced no verdict at all (it
+    # could not judge). They have no first-try verdict, so they are not
+    # in the first-try denominator - and this counter is reported next
+    # to the ratio so the exclusion hides nothing (ledger #409).
+    first_try_not_judged = 0
     retried_cases = 0
 
     # The incremental sidecar: one line per case, written the moment the
@@ -835,6 +873,23 @@ def eval_cmd(
             false_positives += delta_false_positives
             negative_cases += delta_negative
             not_run += delta_not_run
+            # The FIRST-TRY counters are counters too: a re-used record
+            # carries its own first attempt's verdict, and it must be
+            # counted exactly like a re-measured one. Otherwise a
+            # resumed run reports a first-try recall over the FEW cases
+            # it measured fresh, and the reader cannot tell.
+            (
+                delta_first_detected,
+                delta_first_should,
+                delta_first_not_judged,
+            ) = first_try_deltas(
+                str(prior.get("verdict") or ""),
+                bool(prior.get("should_detect")),
+                str(prior.get("first_attempt_verdict") or ""),
+            )
+            first_try_detected += delta_first_detected
+            first_try_should_detect += delta_first_should
+            first_try_not_judged += delta_first_not_judged
             reused_cases += 1
             click.echo(
                 f"  REUSE {case_dir.name}: {prior.get('verdict')} "
@@ -1083,12 +1138,17 @@ def eval_cmd(
         if should_detect:
             if verdict in ("PASS", "PARTIAL"):
                 detected += 1
-            first_try_should_detect += 1
-            if first_attempt_verdict in ("PASS", "PARTIAL"):
-                first_try_detected += 1
         else:
             if verdict == "FALSE_POSITIVE":
                 false_positives += 1
+        (
+            delta_first_detected,
+            delta_first_should,
+            delta_first_not_judged,
+        ) = first_try_deltas(verdict, should_detect, first_attempt_verdict)
+        first_try_detected += delta_first_detected
+        first_try_should_detect += delta_first_should
+        first_try_not_judged += delta_first_not_judged
         if attempts_made > 1:
             retried_cases += 1
 
@@ -1197,6 +1257,12 @@ def eval_cmd(
             f"({first_try_detected}/{first_try_should_detect} positive cases "
             f"found on the first attempt)"
         )
+        if first_try_not_judged:
+            click.echo(
+                f"  (excluded from that number: {first_try_not_judged} positive "
+                f"case(s) whose first attempt produced no verdict - they were "
+                f"never compared, so they are neither found nor missed)"
+            )
         click.echo(
             f"Cases measured more than once: {retried_cases} "
             f"(up to {attempts} attempts each)"
