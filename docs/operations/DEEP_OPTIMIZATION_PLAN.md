@@ -9263,7 +9263,7 @@ would say 'the tool failed to detect the defect' about a run that never looked"*
 7. **MQ 面**要不要也按"没看"算成缺口（产品决策）。
 
 
-## #336 队列核验：`move`/`delete` 落地审计已有测试；「help 提到不存在的选项」探针全是假阳性
+## #401 队列核验：`move`/`delete` 落地审计已有测试；「help 提到不存在的选项」探针全是假阳性
 
 **起因。** #335 的下批候选①是「`move` / `delete` 的落地后审计故障各自补一条（#330 边界②）」。本号**先量后写**：动手前先查这条是否真的缺。
 
