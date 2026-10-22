@@ -208,6 +208,47 @@ class AcceptanceResult:
             "insufficient": list(self.insufficient),
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AcceptanceResult:
+        """Rebuild a verdict from the dict ``to_dict`` wrote.
+
+        The sidecar stores the verdict so a reader never has to re-derive
+        it. This is the other direction: rebuild it exactly, so that a
+        report can be re-rendered from a sidecar alone - the evidence
+        stays the evidence and the report becomes a VIEW of it, instead
+        of a frozen artifact of whichever build happened to run
+        (ledger #411).
+        """
+        metrics = data.get("metrics") or {}
+        counts = data.get("counts") or {}
+        criteria = data.get("criteria") or {}
+        return cls(
+            status=str(data.get("status") or INSUFFICIENT),
+            metrics=Metrics(
+                recall=metrics.get("recall"),
+                precision=metrics.get("precision"),
+                f1=metrics.get("f1"),
+                recall_any=metrics.get("recall_any"),
+            ),
+            counts=MetricCounts(
+                should_detect=int(counts.get("should_detect") or 0),
+                detected=int(counts.get("detected") or 0),
+                false_positives=int(counts.get("false_positives") or 0),
+                negative_cases=int(counts.get("negative_cases") or 0),
+                detected_any=int(counts.get("detected_any") or 0),
+            ),
+            criteria=AcceptanceCriteria(
+                min_recall=criteria.get("min_recall"),
+                min_precision=criteria.get("min_precision"),
+                min_f1=criteria.get("min_f1"),
+                max_false_positives=criteria.get("max_false_positives"),
+                min_positive_cases=int(criteria.get("min_positive_cases") or 0),
+                min_negative_cases=int(criteria.get("min_negative_cases") or 0),
+            ),
+            failures=[str(f) for f in (data.get("failures") or [])],
+            insufficient=[str(s) for s in (data.get("insufficient") or [])],
+        )
+
 
 def _metric_failures(
     metrics: Metrics, criteria: AcceptanceCriteria, counts: MetricCounts
@@ -475,10 +516,20 @@ def severity_reconciliation(results: list[dict[str, Any]]) -> dict[str, Any]:
                 agreed += 1
             else:
                 levels = severity_levels_of(result)
+                # "got" is the level the case was JUDGED on: the strongest
+                # level for the case's own contract. The flat
+                # matched_severities list spans every contract the run
+                # matched, so it can name a level this case was never
+                # judged on - it is context, not the verdict. Rendering it
+                # as "got" made the drift line disagree with the judgement
+                # (ledger #411).
+                strongest = strongest_severity(levels)
                 mismatches.append({
                     "case": str(result.get("case", "")),
                     "expected": expected,
-                    "actual": str(result.get("matched_severities") or ""),
+                    "actual": strongest or str(result.get("matched_severities") or ""),
+                    "reported": str(result.get("matched_severities") or ""),
+                    "contract": str(result.get("expected_contract") or ""),
                     # The strongest level is what the case is judged on, and
                     # the levels it came from say WHY it drifted: the tool
                     # derives the level from the evidence path it took (ADR

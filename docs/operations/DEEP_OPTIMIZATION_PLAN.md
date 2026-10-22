@@ -9864,6 +9864,37 @@ judge:` / `! never measured:`）⇒ ⇒ ⇒ **每一行都只说自己那件事*
 6. **严重度那 5 处漂移**（#395 量过：等级是「证据的路」的函数，54/54）⇒ ⇒ ⇒ 要对齐得选一边
    （**池子**按证据写期望，或**工具**按合同写定级）⇒ ⇒ ⇒ **两条路给出不同的数** ⇒ ⇒ ⇒
    **产品决策** ⇒ ⇒ ⇒ 记着，不替他做。
-7. CI 夜间作业的 workflow + 门一起落地（需要带 `workflow` 权限的令牌）。
-8. craft 那条欠账（归那条线）。
-9. **MQ 面**要不要也按「没看」算成缺口（产品决策）。
+## #411 重渲染器 + 严重度漂移里的 evidence_kinds 是字符串会被字符拆开 + 一致性字段补齐
+
+**背景**：scripts/render_eval_report.py（新）把 sidecar (.results.json / .results.jsonl) 读回去，不测量、不落库、只渲染 HTML —— 目的：报告里加的新信息（合同级别、漂移列表、Not Measured 区）能对旧报告**重渲**而不必再跑一轮几小时的评测（ledger #411 记在名字里，#395/#406/#410 里都提过这个痛点）。
+
+**这次落地的三件实事**：
+
+1. **scripts/render_eval_report.py**（新文件）
+   - load_evidence(path)：同时吃 .json（最终 sidecar，带 acceptance verdict）和 .jsonl（增量记录，可能被杀掉一半，**没有** acceptance —— 这种情况绝不造一个没人决定过的 verdict 卡片）。
+   - render_from_sidecar(path)：纯函数，render_eval_report(cases, acceptance) 的直通车。
+   - CLI：python scripts/render_eval_report.py <sidecar> [-o out.html]。
+   - **实测**：把 13 条 reports/full-eval/eval-report.results.jsonl 重渲成 live-report.html，页面里出现了 "Not Measured" 统计、**合同级别单元格**（"BLOCKER (also reported: BLOCKER, MAJOR)"）、**Severity drift** 区 —— 全是真数据。
+
+2. **evidence/acceptance.py:severity_reconciliation** 返回的漂移条目补齐了两个字段，消除两个 artifact 之间的分歧：
+   - "actual"（真正用来判定的等级，即该合同的 strongest level），而不是整张表的 matched_severities 扁平串（那串可能包含别的合同的级别，会让报告里的 "got" 与控制台不一致 —— ledger #411 的直接原因）。
+   - "reported"（原来的扁平串，保留给读者看全貌）。
+   - "contract"（本案例关联的 expected_contract）。
+   - 同时 evidence_kinds 在入口处已经是 ",".join(sorted(set(...)))，**字符串**，不是数组。
+
+3. **evidence/report.py:render_eval_report** 的 drift 区渲染把 evidence_kinds 当字符串处理：
+   - 旧代码 for k in m['evidence_kinds'] 把 "base_pass_head_fail" 拆成了 b, a, s, e, _, p, a, s, s, _, h, e, a, d, _, f, a, i, l —— 现场报告里**亲眼看见**这个鬼字符串（#411 的实锤）。
+   - 修正：先按 , split 再过滤空串，兼容旧 list/tuple，最终 ', '.join(ek_list) 回写页面 —— **实测 live-report.html 里漂移条目现在读作**：
+     case-17-logic-inversion — expected BLOCKER, got MAJOR (strongest level MAJOR; evidence: base_pass_head_fail)
+     case-19-email-corruption — expected MAJOR, got BLOCKER (strongest level BLOCKER; evidence: base_pass_head_fail)
+     case-20-validation-removed — expected MAJOR, got BLOCKER (strongest level BLOCKER; evidence: base_pass_head_fail)
+
+**质量门**（同步跑通）：
+- ruff / mypy（scripts/render_eval_report.py evidence/acceptance.py evidence/report.py）全绿。
+- 相关单测集 107 passed（test_eval_report_shows_the_contract_level_and_the_drift.py 4 个、test_severity_agreement_judges_the_strongest_level.py 11 个、test_eval_attempts_measure_a_negative_case_once.py 5 个、test_eval_first_try_recall_counts_the_whole_pool.py 8 个、test_ledger_section_numbers_are_unique.py 4 个、test_acceptance_gate.py 等其余 75 个）。
+
+**尚未落地（记着，不替产品做决定）**：
+- 全量评测那一轮（--attempts 3，fulleval3.log）还在跑；跑完把「被量到的正例 / 没量成的 / 基准面失败的输出」三个数一起落地（队列第一项）。
+- 基准面失败的根因（探针/构建/基准面执行问题）要用 sidecar 里的输出尾巴查 —— 也是队列里的事。
+- 安静机器上跑全量单测、集成、DEEP、无并发 case-100（同一个安静环境）。
+- "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度 5 处漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记在 #410/#411 尾部不替他做。

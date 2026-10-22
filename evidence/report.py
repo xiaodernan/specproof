@@ -686,6 +686,24 @@ def render_eval_report(
         sev_color = (
             "#ff7b72" if r.get("severity_match") is False else "#c9d1d9"
         )
+        # ONE contract has ONE level, and the matrix already says which:
+        # the strongest finding for that contract
+        # (agent/matrix_policy.py: _court_sort_key). The report must not
+        # disagree with the matrix about the same case, so the cell shows
+        # the contract's level - and keeps the full list of what was
+        # reported right next to it, so nothing is dropped (ledger #406).
+        level = str(r.get("contract_level") or "").strip()
+        reported = str(r.get("all_matched_severities") or "").strip()
+        if not level:
+            level = str(r.get("matched_severities") or "").strip()
+        if reported and reported != level:
+            sev_cell = (
+                f"{escape(level)}"
+                f'<span style="color:#8b949e;font-size:12px"> '
+                f"(also reported: {escape(reported)})</span>"
+            )
+        else:
+            sev_cell = escape(level)
         rows_html += f"""<tr>
             <td>{r.get("case", "")}</td>
             <td style="color:{color};font-weight:700">{v}</td>
@@ -693,9 +711,48 @@ def render_eval_report(
             <td>{r.get("expected_severity", "")}</td>
             <td>{r.get("expected_evidence", "")}</td>
             <td>{r.get("matched_findings", 0)}</td>
-            <td style="color:{sev_color}">{r.get("matched_severities", "")}</td>
+            <td style="color:{sev_color}">{sev_cell}</td>
             <td>{r.get("contracts_found", "")}</td>
         </tr>"""
+
+    # The severity drift, in the report. The agreement number above says
+    # HOW MUCH the levels agree; this says WHICH cases do not and WHY -
+    # the level comes from the EVIDENCE the tool took, so a drift is a
+    # statement about the evidence, not a wrong guess about the defect.
+    # A reader who cannot see the drift cannot act on it (ledger #395,
+    # #406, #410).
+    drift_html = ""
+    if sev["mismatches"]:
+        drift_items = []
+        for m in sev["mismatches"]:
+            extra = ""
+            ek = m.get("evidence_kinds")
+            if ek:
+                if isinstance(ek, str):
+                    ek_list = [k for k in ek.split(",") if k]
+                elif isinstance(ek, (list, tuple)):
+                    ek_list = [str(k) for k in ek]
+                else:
+                    ek_list = [str(ek)]
+                if ek_list:
+                    extra = (
+                        f'<span style="color:#8b949e;font-size:12px">'
+                        f" (strongest level "
+                        f"{escape(str(m.get('strongest') or m.get('actual') or ''))}; "
+                        f"evidence: {escape(', '.join(ek_list))})"
+                        f"</span>"
+                    )
+            drift_items.append(
+                f"<li><b>{escape(str(m.get('case', '')))}</b> — expected "
+                f"{escape(str(m.get('expected', '')))}, got "
+                f"{escape(str(m.get('actual', '')))}{extra}</li>"
+            )
+        drift_html = (
+            '<h2 style="font-size:16px;margin-top:28px">Severity drift</h2>'
+            '<p class="meta">这些案例<b>等级对不上</b>。等级是<b>证据那一条路</b>定的，'
+            '所以对不上是**关于证据**的陈述，不是对缺陷的猜错。</p>'
+            f"<ul>{''.join(drift_items)}</ul>"
+        )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -766,4 +823,5 @@ def render_eval_report(
         <tbody>{rows_html}</tbody>
     </table>
     {not_measured_html}
+    {drift_html}
 </body></html>"""

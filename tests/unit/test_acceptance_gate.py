@@ -201,6 +201,8 @@ def test_severity_agreement_is_exact_level_match_share() -> None:
             "case": "d",
             "expected": "MAJOR",
             "actual": "MINOR",
+            "reported": "MINOR",
+            "contract": "AUTH-01",
             "strongest": "MINOR",
             "evidence_kinds": "",
         }
