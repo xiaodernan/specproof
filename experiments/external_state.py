@@ -225,7 +225,12 @@ def build_redis_client() -> Any | None:
         else:
             host = os.getenv("REDIS_HOST", "localhost")
             port = int(os.getenv("REDIS_PORT", "6379"))
-            password = os.getenv("REDIS_PASSWORD", None)
+            # No declared default: this reader has no opinion about the
+            # password (the URL form carries it when the environment
+            # strips it) ⇒ saying "no default" is the truth, and it keeps
+            # this knob's readers from declaring two different defaults
+            # (#383).
+            password = os.getenv("REDIS_PASSWORD")
             client = redis.Redis(
                 host=host, port=port, password=password,
                 socket_connect_timeout=2, socket_timeout=2,

@@ -195,7 +195,22 @@ def test_llm_enrichment_wrapper_is_currently_unwired() -> None:
         stdin=subprocess.DEVNULL,
     )
     hits = [line for line in (r.stdout or "").splitlines() if line.strip()]
-    external = [line for line in hits if not line.startswith("agent/contracts/parser.py:")]
+    # The pin is about CALLERS. Two kinds of mention are not callers, and
+    # both are excluded ON PURPOSE:
+    #   - the DOCS: PRODUCT_ROADMAP.md §43 has to NAME the wrapper to
+    #     document that it is unwired. A documentation of the defect is
+    #     not a caller (#383) — and a pin that the documentation of its
+    #     own defect breaks is a pin that gets silenced instead of
+    #     honoured;
+    #   - this file: the pin has to name the wrapper to pin it.
+    external = [
+        line for line in hits
+        if not line.startswith("agent/contracts/parser.py:")
+        and not line.startswith("docs/")
+        and not line.startswith(
+            "tests/unit/test_requirement_enrichment_survives_loopless_thread.py:"
+        )
+    ]
     assert external == [], (
         "the enrichment wrapper now HAS callers: "
         f"{external} — update roadmap §43 and remove this pin"

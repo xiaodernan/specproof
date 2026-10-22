@@ -198,11 +198,18 @@ _IN_FLIGHT_STATUS_ORDER: tuple[str, ...] = tuple(sorted(IN_FLIGHT_STATUSES))
 
 #: Placeholder list for the in-flight statuses. The values travel through
 #: placeholders (bandit B608), never through SQL text.
-_IN_FLIGHT_SQL_LIST = ", ".join(["%s"] * len(_IN_FLIGHT_STATUS_ORDER))
+#:
+#: It is a LITERAL, not a computed list, so the static prover can see that
+#: the SQL text is constant — a computed list is one the prover cannot
+#: follow, and a query the prover cannot read is a query nobody can
+#: prove safe (#383). `tests/unit/test_mysql_placeholder_lists_match_their_
+#: statuses.py` pins that the number of holes matches the number of
+#: statuses, so the literal cannot drift away from the set.
+_IN_FLIGHT_SQL_LIST = "%s, %s, %s, %s, %s"
 
 #: The same, for the expirable set (the in-flight ones plus QUEUED).
 _EXPIRABLE_STATUS_ORDER: tuple[str, ...] = tuple(sorted(EXPIRABLE_STATUSES))
-_EXPIRABLE_SQL_LIST = ", ".join(["%s"] * len(_EXPIRABLE_STATUS_ORDER))
+_EXPIRABLE_SQL_LIST = "%s, %s, %s, %s, %s, %s"
 
 TERMINAL_STATUSES = {
     "VERIFIED", "BLOCKED", "NEEDS_REVIEW", "CANCELLED", "STALE", "EXPIRED", "ERROR",

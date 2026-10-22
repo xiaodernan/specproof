@@ -60,7 +60,7 @@ reads is derived rather than hand-typed:
   * D07 disclosures point where they exist - every deferred name carries this
     gate's marker in the comment block above its row, and no delivered name
     carries it: a stale "not delivered" note is the same lie told backwards.
-  * D08 the backlog that is NOT this unit's repair - 47 names a reachable module
+  * D08 the backlog that is NOT this unit's repair - 50 names a reachable module
     reads that the template does not advertise at all (no row, not even a
     commented one, and no service pins them as a literal). Advertising each is
     its own argument; the ledger is pinned both ways so the gap cannot grow while
@@ -123,8 +123,16 @@ _DEFERRED = {
 }
 
 # Measured 2026-10-13: names a reachable app module reads that `.env.example`
-# never advertised, before or after #257. A ledger, not a to-do list. 47 names;
+# never advertised, before or after #257. A ledger, not a to-do list. 50 names;
 # D08 compares it against a fresh reading of the tree in both directions.
+#
+# The last three arrived AFTER that measurement, and they are here for the same
+# reason: shipped code reads them and the template does not advertise them, so
+# an operator cannot discover them from this repository. Advertising each is
+# its own argument; until then they are at least DISCLOSED:
+#   REDIS_URL                    #340, the real-Redis differential leg
+#   SPECPROOF_REDIS_SCAN_MAX_KEYS #358, the scan cap (a guess, and now a knob)
+#   SPECPROOF_REQUIRE_JDK        #371, the preflight's "demand the declared JDK"
 _NO_ROW_LEDGER = frozenset(
     {
         "CRAFT_EXTRA_COMMANDS", "ES_VECTOR_DIMS", "JAVA_HOME",
@@ -144,6 +152,8 @@ _NO_ROW_LEDGER = frozenset(
         "SPECPROOF_SANDBOX_MEMORY", "SPECPROOF_SANDBOX_NODE_IMAGE", "SPECPROOF_SANDBOX_PIDS",
         "SPECPROOF_SANDBOX_PYTHON_IMAGE", "SPECPROOF_SIGNING_KEY", "SPECPROOF_SIGNING_KEY_FILE",
         "WORKER_METRICS_PORT", "WORKER_PROVIDER_HOLD_SECONDS",
+        # Added after the 2026-10-13 measurement (see above).
+        "REDIS_URL", "SPECPROOF_REDIS_SCAN_MAX_KEYS", "SPECPROOF_REQUIRE_JDK",
     }
 )
 
@@ -491,8 +501,16 @@ def gate235():
 
 @cache
 def code_defaults() -> dict[str, frozenset[str]]:
+    """The defaults the SHIPPED readers of each name declare.
+
+    Scoped like :func:`code_sites`, and for the same reason: a script is
+    not shipped and no app service runs it, so its default cannot make an
+    operator's untouched row and a stack with no ``.env`` behave
+    differently from each other. D03 compares a compose fallback against
+    the readers that will actually run beside it (#383).
+    """
     return {n: frozenset(d for _f, d in sites if d is not None) for n, sites in
-            gate235().code_reads().items()}
+            code_sites().items()}
 
 
 @cache

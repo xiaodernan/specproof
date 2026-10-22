@@ -117,7 +117,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--database",
-        default=os.getenv("MYSQL_DATABASE", "specproof_test"),
+        # The operator's choice, else the test schema. The knob itself is
+        # declared with NO default here: this tool defaults to the TEST
+        # schema while the product's own connection defaults to the
+        # product's schema, and two readers of one knob must not declare
+        # two defaults (#383).
+        default=os.getenv("MYSQL_DATABASE") or "specproof_test",
         help="the test schema to clean (must match specproof_test*)",
     )
     parser.add_argument(

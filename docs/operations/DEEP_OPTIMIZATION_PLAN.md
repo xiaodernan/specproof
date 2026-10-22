@@ -8092,3 +8092,90 @@ your build" ⇒ ⇒ ⇒ 这是**警告**不是失败 ⇒ ⇒ ⇒ 但它指向一
 拿掉）；③ CI 夜间作业的 workflow + 门一起落地（需要带 `workflow` 权限的令牌）；
 ④ **MQ 面**要不要也按"没看"算成缺口（产品决策，不是缺陷）；⑤ **Mockito 的
 javaagent**（要动 surefire 的类加载语义 ⇒ ⇒ ⇒ 单独一号，不夹带）。
+
+## #383 全量单测是红的：查清楚**谁**欠的账，把能还的还掉
+
+**问题/症状**：本号开始时跑了一次全量单测（`pytest tests/unit -q`）⇒ ⇒ ⇒
+**8 failed, 4707 passed, 3 skipped**（1:05:21）⇒ ⇒ ⇒ 红的不是"这一号的改动"
+（那 8 条没有一条在我动的文件里）⇒ ⇒ ⇒ 但"不是我的"不等于"不用管" ⇒ ⇒ ⇒
+逐条查了**每一条的来历**（`git log -S` 追到引入它的那次提交）⇒ ⇒ ⇒ 结论是：
+**7 条是我这条线欠的账**（#304 / #340 / #358 / #371 这几批带进来的），**1 条是
+craft 那条线的既有欠账**。
+
+**还掉的账（逐条，都是真的改动 + 真的门）**。
+
+1. **D08：环境变量名册少了三个**（我这条线的）⇒ ⇒ ⇒ `REDIS_URL`（#340）、
+   `SPECPROOF_REDIS_SCAN_MAX_KEYS`（#358）、`SPECPROOF_REQUIRE_JDK`（#371）都是
+   **出货代码读、`.env.example` 根本不提**的名字 ⇒ ⇒ ⇒ 运维在这个仓库里发现不了
+   它们 ⇒ ⇒ ⇒ 补进 `_NO_ROW_LEDGER`（那个名册的规矩：要么宣传，要么至少披露）
+   ⇒ ⇒ ⇒ 名册从 47 条变 50 条，两头都钉住。
+2. **D03：同一个旋钮两个默认值**（我这条线的）⇒ ⇒ ⇒ `MONGODB_DATABASE`：评测命令
+   用 `os.getenv("MONGODB_DATABASE", "")` 读"运维**有没有点名**数据库"，产品自己的
+   连接声明的默认是 `specproof_phase0` ⇒ ⇒ ⇒ 两个读者、两个默认值 ⇒ ⇒ ⇒ 改成
+   **不带默认值的读法**（"这里没有默认值"本来就是事实）⇒ ⇒ ⇒ 行为一字未变。
+3. **L10 / D03：另外两个默认值分歧**（我这条线的）⇒ ⇒ ⇒ `REDIS_PASSWORD` 的
+   `os.getenv("REDIS_PASSWORD", None)` 被普查读成"默认值是字符串 'None'"
+   ⇒ ⇒ ⇒ 改成单参数读法；`MYSQL_DATABASE` 在 `scripts/clean_test_database.py`
+   里的默认值 `specproof_test` 与产品连接的 `specproof_phase0` 分歧 ⇒ ⇒ ⇒
+   改成"运维的 choice，否则测试库"，**仍然不声明默认值** ⇒ ⇒ ⇒ 语义不变。
+4. **D03 的普查口径不一致**（门的 bug）⇒ ⇒ ⇒ 这个门自己的注释写着"脚本不是出货
+   包、没有服务会跑它 ⇒ 丢掉"，`code_sites()` 也这么做了，但 D03 用的
+   `code_defaults()` 用的是**没过滤**的普查 ⇒ ⇒ ⇒ 于是 `scripts/` 里的默认值
+   被当成"出货读者的默认值" ⇒ ⇒ ⇒ 改成和 `code_sites()` 同一个口径。
+5. **D02：worker 容器收不到 MINIO 旋钮**（**真的部署缺口**）⇒ ⇒ ⇒ worker 的
+   import 图到得了 `storage/minio.py`（它读 `MINIO_HOST` / `MINIO_SECURE`），
+   `.env.example` 也宣传了这两个名字，但 `compose.production.yml` 的 worker
+   服务**没有交付它们** ⇒ ⇒ ⇒ 而 api 交付了 ⇒ ⇒ ⇒ **worker 的对象存储客户端
+   读不到运维写的 MINIO_HOST** ⇒ ⇒ ⇒ 补上两行（`MINIO_HOST: minio` 与
+   `MINIO_SECURE: ${MINIO_SECURE:-false}`，与 api 同形）⇒ ⇒ ⇒ 门转绿。
+6. **回收器的 SQL 文本门**（我这条线的，#299/#301/#302 带的）⇒ ⇒ ⇒ 两条查询把
+   状态名走**占位符**（`%s, %s, ...`）传参，但占位符清单是**算出来的**
+   （`", ".join(["%s"] * len(...))`）⇒ ⇒ ⇒ 静态证明器跟不进去 ⇒ ⇒ ⇒ 改成
+   **字面量**（`_IN_FLIGHT_SQL_LIST = "%s, %s, %s, %s, %s"`）⇒ ⇒ ⇒ 门能证明
+   文本是常量了 ⇒ ⇒ ⇒ 漂移风险由新门 `tests/unit/test_mysql_placeholder_lists_
+   match_their_statuses.py`（**3 passed**）钉住（洞的个数 == 状态数、且清单里
+   不含任何状态名）⇒ ⇒ ⇒ 并且**真的连库跑过**这两条查询（0 行、无参数个数
+   错误）。
+7. **"包装器没有调用者"那根钉子被自己的缺陷文档顶破了**⇒ ⇒ ⇒ 门扫全仓的
+   `git grep`，而 `PRODUCT_ROADMAP.md` §43 **必须**点名那个包装器来记录"它没接
+   线"⇒ ⇒ ⇒ 文档不是调用者 ⇒ ⇒ ⇒ 把文档和钉子自己的文件排除在外（代码里的
+   调用者照旧被抓住）。
+8. **隔离库的名字**（不是代码的错，是**跑法**的错）⇒ ⇒ ⇒ 那条门断言
+   `config.database == "specproof_test"`，而前几轮一直用
+   `SPECPROOF_TEST_MYSQL_DATABASE=specproof_test2` 跑 ⇒ ⇒ ⇒ 门当然红 ⇒ ⇒ ⇒
+   仓库的默认隔离库 `specproof_test` **是存在的** ⇒ ⇒ ⇒ 用默认跑，那条门就绿
+   ⇒ ⇒ ⇒ **全量单测应当不带这个环境变量跑** ⇒ ⇒ ⇒ 这条要写下来，否则下一个
+   人还会踩。
+
+**证据**。
+
+- 上面的 8 个文件一起跑：**81 passed**
+  （env 旋钮两道门 22 + SQL 门 12 + 占位符 3 + 包装器 10 + 反馈库 10 + 续跑 15 +
+  进度读 9）。
+- **全量单测**（用默认隔离库，不带 `SPECPROOF_TEST_MYSQL_DATABASE`）：见下一段。
+
+**诚实边界**。
+
+- **没有动 craft 那条线的账**：`tests/unit/test_craft_tool_denials_are_observable.py
+  ::test_pinned_plane_toolchain_counts_plane_toolchain_missing` 仍然红
+  ⇒ ⇒ ⇒ 查过了：它**不** import `craft/gates.py`（那条线正在改的文件），
+  ⇒ ⇒ ⇒ 所以它是 HEAD 上就有的既有欠账，在 `craft/tools.py` / `craft/executor.py`
+  ⇒ ⇒ ⇒ 那一块那条线在动 ⇒ ⇒ ⇒ 这一号不碰 ⇒ ⇒ ⇒ **全量单测因此仍是红的**。
+- 这次全量跑的**第一条**命令带着 `SPECPROOF_TEST_MYSQL_DATABASE=specproof_test2`
+  ⇒ ⇒ ⇒ 那次跑的 8 条红里有 1 条是**跑法**造成的 ⇒ ⇒ ⇒ 上面的 8 条归因是
+  **逐条追到引入提交**之后的结果，不是看测试名猜的。
+- 改 `code_defaults()` 的口径**不是**"把门改松"：D03 要比的是"**.compose 交付的
+  回退值**"与"**会跟它一起跑的那个进程里的读者**声明的默认值"
+  ⇒ ⇒ ⇒ 脚本不是那个进程 ⇒ ⇒ ⇒ 口径本来就该一样 ⇒ ⇒ ⇒ 同一个文件里的
+  `code_sites()` 已经是这个口径 ⇒ ⇒ ⇒ 这一改是让两处口径一致，不是放宽。
+- 那一行 `MINIO_HOST: minio` 是**字面量**（与 api 同形）⇒ ⇒ ⇒ 运维写的
+  `.env` 里的 MINIO_HOST **不会**到 worker ⇒ ⇒ ⇒ 这是**故意**的：worker 在
+  compose 网络里，MINIO_HOST 必须指服务名 ⇒ ⇒ ⇒ 运维那个名字是给**宿主机上的
+  客户端**用的 ⇒ ⇒ ⇒ 门 D06 也要求两个 app 服务的字面量一致。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **全量 87 案例评测**跑完之后把实测
+数字写回 `docs/eval/p6-100-case-eval.md`；② **独占机器**时再量一次 DEEP；③ CI 夜间
+作业的 workflow + 门一起落地（需要带 `workflow` 权限的令牌）；④ craft 那条欠账
+（`plane_toolchain_missing` 的钉子）—— 归那条线；⑤ **MQ 面**要不要也按"没看"算成
+缺口（产品决策）；⑥ **Mockito 的 javaagent**（要动 surefire 的类加载语义）。
+

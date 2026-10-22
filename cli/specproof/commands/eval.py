@@ -728,8 +728,17 @@ def eval_cmd(
         # in the product's MongoDB that nobody can delete by job id. So
         # the evaluation writes them ONLY when the environment names a
         # database explicitly (the operator then chose where they go).
+        #
+        # The question is the PRESENCE of the variable, not its value, and
+        # it is asked that way on purpose (#383): a defaulted read here
+        # would declare a SECOND default for MONGODB_DATABASE (the
+        # product's own connection declares "specproof_phase0") ⇒ two
+        # readers, two defaults ⇒ the drift the env-knob gate exists to
+        # catch. Reading the variable without declaring a default says
+        # "there is no default here" ⇒ which is the truth.
         state["write_evidence_pack"] = bool(
-            os.getenv("MONGODB_DATABASE", "").strip()
+            "MONGODB_DATABASE" in os.environ
+            and os.environ["MONGODB_DATABASE"].strip()
         )
 
         final: dict[str, Any] = {}
