@@ -53,6 +53,12 @@ EXEMPT: dict[str, str] = {
         "self-contained demo script: its report strings are prose "
         "(\"REGRESSION DETECTED\", \"COMPLIANT (both pass)\") for a human reading "
         "one run, not a value any consumer parses",
+    "scripts/eval_progress_from_reports.py":
+        "self-contained diagnostic: it re-derives the evaluation's per-case "
+        "verdict from the per-case reports so a running evaluation's progress "
+        "can be read, and the words it prints are prose for a human reading "
+        "one run - nothing parses them, and the evaluation's own record (its "
+        "sidecar) stays the authority",
 }
 SKIP_DIR_PARTS = {".venv", ".venv312", "node_modules", ".git", "__pycache__"}
 
