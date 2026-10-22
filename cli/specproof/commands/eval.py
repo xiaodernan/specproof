@@ -861,6 +861,11 @@ def eval_cmd(
         attempts_made = 0
         first_attempt_verdict = ""
         final: dict[str, Any] = {}
+        # The last attempt that JUDGED this case (its result). An attempt
+        # that aborted, or whose evidence path could not conclude,
+        # measured nothing and must not overwrite the verdict of one that
+        # did (ledger #399, #405).
+        judged_final: dict[str, Any] = {}
         duration_ms = 0
         for attempt in range(1, max(1, attempts) + 1):
             state = initial_state(
@@ -934,14 +939,28 @@ def eval_cmd(
                 attempt_verdict = "NOT_RUN"
             if not first_attempt_verdict:
                 first_attempt_verdict = attempt_verdict
-            # A negative case that found nothing is DECIDED: a false
+            # The verdict of the last attempt that JUDGED this case. An
+            # attempt that aborted, or whose evidence path could not
+            # conclude, measured nothing - so it must not overwrite what
+            # an attempt that did measure said (ledger #399, #405).
+            if attempt_verdict != "NOT_RUN":
+                judged_final = final
+            # A NEGATIVE case is DECIDED by one measurement: a false
             # positive is a hard signal and is reported the moment it
             # appears, and hunting for more would cost one full
-            # measurement per negative case.
+            # measurement per negative case (ledger #392). The ONE
+            # exception is an attempt that could not JUDGE the case at
+            # all: it measured nothing, so it gets another turn - the
+            # same chance the positive side gets.
+            #
+            # (The previous code made a negative that found NOTHING
+            # non-decisive, so it was measured up to N times: 35
+            # negatives in the pool x 2 extra full measurements each,
+            # for a case that was already decided.)
             decisive = (
-                bool(attempt_findings)
-                if not should_detect
-                else bool(attempt_matched)
+                bool(attempt_matched)
+                if should_detect
+                else attempt_verdict != "NOT_RUN"
             )
             if decisive:
                 if attempt > 1:
@@ -963,6 +982,13 @@ def eval_cmd(
         # detection quality (a local untracked .env tripping the repo-safety
         # check is exactly how this was found). Not-run is its own verdict, it
         # is excluded from both sides of the ratio, and it is stated out loud.
+        #
+        # The verdict comes from the last attempt that JUDGED the case, not
+        # from the last attempt: an attempt that aborted or could not
+        # conclude measured nothing, and it must not overwrite what a
+        # measuring attempt said (ledger #399, #405).
+        if judged_final:
+            final = judged_final
         pipeline_errors = final.get("errors") or []
         findings = final.get("confirmed_findings", [])
         # A case whose evidence path could not JUDGE it was never
