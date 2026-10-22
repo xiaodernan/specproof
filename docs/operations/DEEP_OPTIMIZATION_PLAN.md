@@ -8399,3 +8399,65 @@ passed）少了 5 条 ⇒ ⇒ ⇒ 但**多出来的 2 条是这一号自己带�
 （#386/#387 之后的确数）；③ **独占机器**时再量一次 DEEP；④ CI 夜间作业的 workflow
 + 门一起落地（需要带 `workflow` 权限的令牌）；⑤ craft 那条欠账（归那条线）；⑥ **MQ
 面**要不要也按"没看"算成缺口（产品决策）；⑦ **Mockito 的 javaagent**。
+
+## #388 门全绿了：单测 4730 passed / 0 failed（本号开始时是 8 failed）
+
+**问题/症状**：#383 把 7 条账还掉了、#386 又补了 2 条 ⇒ ⇒ ⇒ 这一号把 **CI 会跑的
+那些门**在本机**逐个跑了一遍**，看它们到底是不是绿的 ⇒ ⇒ ⇒ 顺带发现**一条 CI 形状
+上的问题**（见下）。
+
+**这一号实测的门**（都是本机真跑的，数字原样）：
+
+| 门 | 命令 | 结果 |
+|---|---|---|
+| lint | `python -m ruff check .` | **All checks passed** |
+| 类型（strict） | `python -m mypy .` | **Success: no issues found in 242 source files** |
+| OpenAPI 模式差分 | `python scripts/openapi_diff.py docs/openapi/baseline.json` | **no schema changes — gate passes** |
+| 单测 | `pytest tests/unit -q` | **4730 passed, 3 skipped, 3 warnings（0 failed）**，51:46 |
+| 安全 + 故障注入 | `pytest tests/security tests/fault -q` | **210 passed, 2 skipped（0 failed）**，26:29 |
+| 集成（真 MySQL/Redis/RabbitMQ/Mongo） | `pytest tests/integration -q` | 见下一段的诚实边界 |
+
+⇒ ⇒ ⇒ **本号开始时**的全量单测是 **8 failed / 4707 passed**（#383 那一轮量到的），
+⇒ ⇒ ⇒ 现在是 **0 failed / 4730 passed** ⇒ ⇒ ⇒ 这一轮的 8 条红**逐条**都有归属：
+5 条是我这条线带进来的（#383 已还）、2 条是 #384 的诊断脚本带进来的（#386 已还）、
+1 条是 **craft 那条线的既有欠账**（#366 给 gradle 补了镜像之后，那条门的**例子**
+过期了 ⇒ 这一号把例子换成 `cargo`（仍然在白名单里、仍然没有镜像）⇒ **行为没动**，
+只把过期的例子换成还成立的那个）。
+
+**顺手发现的一条 CI 形状问题（改不了，记下来）**。
+
+`tests/integration/test_phase_acceptance.py::test_specproof_eval_runs_all_cases` 带着
+`slow_eval` 标记 ⇒ ⇒ ⇒ 它跑的是**全量 100 案例的真实管线**，自己的超时写着
+**18000 秒（5 小时）** ⇒ ⇒ ⇒ 而 CI 的 `tests-with-infra` 作业跑的是
+`pytest tests/integration ...`，**没有** `-m "not slow_eval"` ⇒ ⇒ ⇒ 于是**那个
+5 小时的作业被塞进了"内核集成测试"这一步** ⇒ ⇒ ⇒ GitHub 的作业默认上限是 6 小时
+⇒ ⇒ ⇒ 这一步要么跑满 5 小时，要么把作业拖到上限被砍 ⇒ ⇒ ⇒ 而且 `eval-golden-cases`
+那一步**已经在**跑一次代表性评测了 ⇒ ⇒ ⇒ 两处重复。
+
+那个标记自己的说明写着"**nightly 作业**才跑它当专属门" ⇒ ⇒ ⇒ 所以形状应该是：
+集成作业**排除**它、夜间作业**带缓存**跑它 ⇒ ⇒ ⇒ 而夜间作业的 workflow 改动
+**推不动**（令牌缺 `workflow` scope，见 #375 / #376）⇒ ⇒ ⇒ 这一号**不能**改那个
+workflow 文件 ⇒ ⇒ ⇒ 也**没有**去改标记的默认行为 ⇒ ⇒ ⇒ 因为那样会把 CI 现有的
+全量覆盖**拿掉**（夜间作业还没落地）⇒ ⇒ ⇒ 那是一个**产品决定**，不是这一号能顺手
+做的 ⇒ ⇒ ⇒ 记在这里，等 workflow 令牌。
+
+**诚实边界**。
+
+- 集成那一套**这一号还没跑完**（它要真 MySQL/Redis/RabbitMQ/Mongo，本机跑得慢，
+  而且里面那个 `slow_eval` 用例**会**跑全量 100 案例 ⇒ ⇒ ⇒ 这一号把它**排除**了才
+  跑的 ⇒ ⇒ ⇒ 所以"集成绿"这句话**还没有**实测支撑 ⇒ ⇒ ⇒ 下一号补。
+- 这些门是在**本机**跑的 ⇒ ⇒ ⇒ 与 CI 的差别是：CI 用 Linux + JDK 21 + 容器里的
+  MySQL/Redis/RabbitMQ/Mongo + **沙箱模式**的 Maven ⇒ ⇒ ⇒ 本机是 Windows + JDK 17
+  + 本机服务 + 本机 Maven ⇒ ⇒ ⇒ 所以这些数字说明"**逻辑**是绿的"，不说明"**CI 那
+  台机器**上也是绿的"。
+- 墙钟里有一部分是**排队**：这一轮全量单测与**全量 87 案例评测**、与另外两个门
+  **同时**在跑 ⇒ ⇒ ⇒ 51:46 不是"这台机器多快"的数。
+- 这一号**没有**动任何 CI 的配置（workflow 一个字没改）⇒ ⇒ ⇒ 上面那条 CI 形状问题
+  是**记下来的**，不是**改掉的**。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **全量 87 案例评测**跑完之后把实测数字
+写回 `docs/eval/p6-100-case-eval.md`（用 sidecar 里的权威数）；② 集成那一套跑完的
+确数；③ **独占机器**时再量一次 DEEP；④ CI 夜间作业的 workflow + 门一起落地（需要
+带 `workflow` 权限的令牌 ⇒ 顺带把上面那条"5 小时作业塞在集成步骤里"一起改掉）；⑤
+craft 那条欠账（归那条线）；⑥ **MQ 面**要不要也按"没看"算成缺口（产品决策）；⑦
+**Mockito 的 javaagent**。

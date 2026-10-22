@@ -157,11 +157,19 @@ def test_command_whitelist_counts_command_not_allowed(tmp_path: Path) -> None:
 
 
 def test_pinned_plane_toolchain_counts_plane_toolchain_missing(tmp_path: Path) -> None:
-    """gradle is whitelisted but has no container image: with the execution
-    plane pinned to docker the executor refuses before any sandbox call."""
+    """cargo is whitelisted but has no container image: with the execution
+    plane pinned to docker the executor refuses before any sandbox call.
+
+    The example used to be ``gradle``; #366 gave gradle its own image
+    (GRADLE_PROFILE), so a gradle command is routable now and the refusal
+    it used to name is no longer reachable. ``cargo`` is still whitelisted
+    and still has no image ⇒ it is the stem that exercises the refusal
+    today. The refusal itself is unchanged: a whitelisted stem with no
+    container image is refused on an isolated plane, not run in the wrong
+    image."""
     registry = ToolRegistry(tmp_path, executor=Executor(tmp_path, mode="docker"))
     before = _before()
-    result = _call(registry, "run_test", {"command": ["gradle", "test"]})
+    result = _call(registry, "run_test", {"command": ["cargo", "test"]})
     assert result.status == "denied"
     assert result.summary.startswith(f"[{CODE_PLANE_TOOLCHAIN_MISSING}]")
     _assert_one_dispatch(before, "plane_toolchain_missing")
