@@ -8345,3 +8345,57 @@ passed）少了 5 条 ⇒ ⇒ ⇒ 但**多出来的 2 条是这一号自己带�
 （修完那 2 条之后的确数）；③ **独占机器**时再量一次 DEEP；④ CI 夜间作业的 workflow
 + 门一起落地（需要带 `workflow` 权限的令牌）；⑤ craft 那条欠账（归那条线）；⑥ **MQ
 面**要不要也按"没看"算成缺口（产品决策）；⑦ **Mockito 的 javaagent**。
+
+## #387 两道门朝着相反的方向拉：字面量让 SQL 可证，bandit 却要一个说明
+
+**问题/症状**：#383 把回收器那两条查询的占位符清单从**算出来的**改成**字面量**
+⇒ ⇒ ⇒ 静态证明器于是能证明"SQL 文本是常量"了（`tests/unit/test_sql_text_static.py`
+转绿）⇒ ⇒ ⇒ 但 CI 的 **bandit** 那一步转**红**了：`storage/mysql.py:1518` 与
+`:1593` 两条 **B608**（拼出来的 SQL）现在**没有**抑制说明 ⇒ ⇒ ⇒
+`tests/security/test_bandit_suppressions_are_earned.py` 三条全红。
+
+**为什么是"两道门对着拉"**。
+
+- `tests/unit/test_sql_text_static.py` 的主张是："交给执行器的 SQL 文本必须**可证**是
+  常量"⇒ ⇒ ⇒ 清单是**算出来的**时，证明器跟不进去 ⇒ ⇒ ⇒ 必须是**字面量**。
+- bandit 的主张是："看起来像 SQL 的字符串被拼出来"要报出来 ⇒ ⇒ ⇒ 清单成了字面量
+  之后，那个 f-string 就是"拼出来的 SQL" ⇒ ⇒ ⇒ 它要一个 `# nosec`，并**写清理由**。
+
+⇒ ⇒ ⇒ 仓库里已有的答案就是这个：**证明由静态门做，bandit 那一行写说明**
+⇒ ⇒ ⇒ `storage/mysql.py` 里本来就有一段注释写着这件事（"抑制不是主张的证明；
+`tests/unit/test_sql_text_static.py` 才是"）⇒ ⇒ ⇒ 这一号只是把那个约定**用上**。
+
+**做法**：在 bandit 报的那两行（每条 SQL 字符串的**第一行**）末尾加
+`# nosec B608`，理由写在**上一行**（约定：理由在前、指令在后、指令必须跟在**代码
+行**上 ⇒ 单独一行上的指令 bandit 读不到）。
+
+- `storage/mysql.py:1518`（过期扫描那条）
+- `storage/mysql.py:1593`（租约扫描那条）
+
+**证据**。
+
+- `tests/security/test_bandit_suppressions_are_earned.py`：**6 passed**（改之前 3
+  failed / 3 passed）⇒ ⇒ ⇒ CI 的 bandit 那一步现在是绿的。
+- `tests/unit/test_sql_text_static.py` + 占位符新门 + `test_job_reclaimer.py`：
+  **50 passed** ⇒ ⇒ ⇒ 加了注释与指令之后，静态证明器那边**没有被带坏**。
+- ruff / mypy：干净。
+- 而且那两条查询**真的连库跑过**（0 行、无参数个数错误）—— 见 #383。
+
+**诚实边界**。
+
+- 抑制**不是**主张的证明 ⇒ ⇒ ⇒ 主张是 `tests/unit/test_sql_text_static.py`
+  做的（它扫每一个 `execute`，拒绝任何新的不可证调用）⇒ ⇒ ⇒ bandit 那一行只是
+  让 CI 的那一步别红。
+- 加了 `# nosec` 的两行，**bandit 报的就是它们** ⇒ ⇒ ⇒ 抑制是"挣来的"（那道门
+  会拒绝一个**什么都没藏**的抑制）⇒ ⇒ ⇒ 但它也意味着：将来有人把这两行的 SQL
+  改成真的拼数据，bandit 仍然不会说话 ⇒ ⇒ ⇒ 拦住它的是那道静态门。
+- 这一号**没有**动 bandit 的配置、**没有**加全局忽略 ⇒ ⇒ ⇒ 抑制是**逐行**的、
+  带理由的。
+- 这一号**没有**重跑全量单测（#386 那一轮之后又有这两处改动）⇒ ⇒ ⇒ 下一轮全量
+  跑会给出确数。
+
+**下一号队列（取号时按落地时点 max+1）。** ① **全量 87 案例评测**跑完之后把实测数字
+写回 `docs/eval/p6-100-case-eval.md`（用 sidecar 里的权威数）；② 全量单测再跑一遍
+（#386/#387 之后的确数）；③ **独占机器**时再量一次 DEEP；④ CI 夜间作业的 workflow
++ 门一起落地（需要带 `workflow` 权限的令牌）；⑤ craft 那条欠账（归那条线）；⑥ **MQ
+面**要不要也按"没看"算成缺口（产品决策）；⑦ **Mockito 的 javaagent**。

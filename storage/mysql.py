@@ -1515,7 +1515,9 @@ class MySQLStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT id, status, max_execution_seconds, created_at "
+                # fragments + bound params: the statuses travel as
+                # parameters, the holes as %s
+                "SELECT id, status, max_execution_seconds, created_at "  # nosec B608
                 "FROM verification_jobs "
                 f"WHERE status IN ({_EXPIRABLE_SQL_LIST}) "
                 "AND TIMESTAMPDIFF(SECOND, created_at, NOW(3)) "
@@ -1590,7 +1592,9 @@ class MySQLStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT id, repo_path, base_ref, head_ref, spec_path, depth, "
+                # fragments + bound params: the statuses travel as
+                # parameters, the holes as %s
+                "SELECT id, repo_path, base_ref, head_ref, spec_path, depth, "  # nosec B608
                 "retry_count, max_retries, worker_id, status, updated_at "
                 "FROM verification_jobs "
                 "WHERE updated_at < (NOW(3) - INTERVAL %s SECOND) "
