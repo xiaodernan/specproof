@@ -124,4 +124,10 @@ npm run test -- src/pages/NewVerification.test.tsx
 
 快速内循环只是**开发便利**，不是新的验收标准：CI 的合并门仍裸跑 `pytest tests/unit tests/security tests/fault`，被标 `slow` 的 275 例覆盖不会被排除。
 
+**推送到 GitHub 时用 SSH 远端**（`git@github.com:xiaodernan/specproof.git`），不要用 HTTPS + OAuth 令牌：令牌缺少 `workflow` 权限时，**任何改动 `.github/workflows/*.yml` 的提交都会被 GitHub 拒收**（`refusing to allow an OAuth App to create or update workflow ... without 'workflow' scope`），而 SSH 密钥认证不受这个限制。改远端：
+
+```powershell
+git remote set-url origin git@github.com:xiaodernan/specproof.git
+```
+
 完整环境要求见 [本地体验](docs/operations/LOCAL_EXPERIENCE.md)，架构见 [架构说明](docs/architecture/ARCHITECTURE.md)。

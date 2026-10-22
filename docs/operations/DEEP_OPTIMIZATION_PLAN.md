@@ -10379,3 +10379,43 @@ path: |
 - 那一轮跑完后落地三个数（队列第一项）；**诊断工具已经就位**，CI 里也**开始留证据**了。
 - 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
 - "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、CI 夜间作业的令牌（`workflow` scope）、MQ —— 全是产品/令牌决策，记着，不替他做。
+## #422 队列里「CI 夜间作业需要带 `workflow` 权限的令牌」—— **这个诊断是错的**：卡住的是**传输方式**，不是令牌
+
+**更正**（台账只追加，错的说法在后面这一节里更正，不回头改原文）：#410 起队列里一直写着「CI 夜间作业的 workflow + 门一起落地（**需要带 `workflow` 权限的令牌**）」。
+
+⇒ **那个诊断是错的。** 卡住的**不是令牌**，是**用 HTTPS + OAuth 令牌推**这件事本身。
+
+**证据（全部实际执行过）**：
+
+1. **HTTPS 推送被拒**（推 #421 那个改了 workflow 的提交时）：
+   ```
+   ! [remote rejected] master -> master
+     (refusing to allow an OAuth App to create or update workflow
+      `.github/workflows/ci.yml` without `workflow` scope)
+   ```
+2. **令牌确实没有那个权限**：`gh auth status` ⇒
+   `Token scopes: 'admin:public_key', 'gist', 'read:org', 'repo'` ⇒ **没有 `workflow`**。
+3. **同一个提交，改用 SSH 推：成功**：
+   ```
+   git push git@github.com:xiaodernan/specproof.git master
+   9b3f678..ee4498d  master -> master
+   ```
+   ⇒ **SSH 密钥认证不受 OAuth 令牌的 scope 限制**（GitHub 只对 OAuth App / PAT 的 HTTPS 推送查 `workflow` scope）。
+4. **远端确实拿到了**：`git show FETCH_HEAD:.github/workflows/ci.yml` ⇒ 含 `eval-report.results.json` ✔（`nightly-eval.yml` 同）。
+
+**修法（已落地）**：
+- 远端改成 SSH：`git remote set-url origin git@github.com:xiaodernan/specproof.git`（已执行；`git remote -v` 现在是 `git@github.com:xiaodernan/specproof.git`）；
+- `README.md` 的「开发与运维」一节写上了这件事和那一条改远端的命令 ⇒ **下一个会话不会再在这里卡住**。
+
+⇒ **队列里那条「CI 夜间作业」不再是「等令牌」**：#421 已经把 workflow 改了并**推上去了**（远端已验证）。
+
+**顺带确认的一件事**：#421 推的是**改 workflow 的提交** —— 如果当时按「没有权限就先别改」处理，那这个提交会永远留在本地、**每一次后续推送都会被它卡住**（它在历史里）。⇒ **「等令牌」这条队列项的真实代价不是「晚做」，是「把整条推送链堵死」。**
+
+**这一轮全量评测（#408 之后从零重跑的，`--attempts 3`）到目前的实况**：
+- 已量 **63** 条，**63 条全 PASS**；**61 条第一遍就检出**，**2 条量了 2 遍**（`case-74`、`case-75`：第一遍 MISS、第二遍检出 ⇒ 都是「检出不稳」）。
+
+**尚未落地（记着，不替产品做决定）**：
+- **严重度漂移该改哪一边**（池子按证据写期望 / 工具按合同写定级）⇒ **产品决策**（#418 只把事实摆出来）。
+- 那一轮跑完后落地三个数（队列第一项）；**诊断工具已经就位**，CI 里也**开始留证据**了（#421）。
+- 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
+- "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、MQ —— 全是产品决策，记着，不替他做。
