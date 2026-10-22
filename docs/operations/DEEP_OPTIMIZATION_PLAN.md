@@ -9173,3 +9173,28 @@ that never looked"*）⇒ ⇒ ⇒ ⇒⇒⇒⇒ **而"探针判不了"正是同�
 **诚实边界。** ① 只加测试：生产码一字未动。② 是**回归锁**：当前 33 命令 / 116 选项全绿，本号不声称「修了一个 bug」，只声称「这两个不变量从此被锁住」。③ 只查「选项旗标出现在自己命令的 help 文本里」——help 文本**内容准不准**、旗标**语义对不对**不在射程（机器判不了，属人工审阅）。④ hidden 选项是**有意**不列，显式放行，不误报。⑤ 变红先判断是「回归」还是「旧断言写错」：本次无旧断言被改，纯增量。
 
 **下批候选（受本环境约束）。** ① `move` / `delete` 的落地后审计故障各自补一条（#330 边界②，仍未动）。② 各子命令自身的 `--help` 文本与**真实选项集**一致性（help 里点名的选项若已被移除）——比本号更细的一把尺。③ `probe.py` / `mcp.py` 纯逻辑补栅栏（低优先）。④ #333 队列①（建并发家族金案例 `case-101`，受 Java/Maven 长跑约束）。
+## #398 `craft/budget.py` 的预算闸门契约：默认值 / 环境变量 / 覆盖 / 截止时间 / 序列化
+
+**起因/占号。** 按「找纯逻辑、零直接测试」挑目标：`craft/budget.py` 只被 `test_craft_loop.py` / `test_craft_planner.py` 当作 `Budget(...)` 夹具构造，**它自己的解析与校验契约零直接测试**。占号前重测账本：`## #` id 最大 **397**（#335b 已由并发车道收编并改名）⇒ 本号取 **#398**（留 1 余量给并发）。
+
+**先量后写（量的是「这个模块承诺了什么、谁在依赖它」）。** 模块 docstring 写「Exceeding any budget must stop the loop and be reported honestly — never silently truncated」。这条承诺的地基是**解析与校验**：一个 `0` / `-3` 的预算若被悄悄接受，循环第一步就停，而报告里看不出「预算被设成零」。消费方：`cli/specproof/commands/craft.py`（`Budget, BudgetError`）、`scripts/bench_aider.py`、`scripts/bench_swebench.py`。模块只依赖 `os` + `dataclasses`（隔离环境可直接 import，无需重依赖）。
+
+**落地（只加测试，`craft/budget.py` 一字未动）。** 新建 `tests/unit/test_craft_budget_contract.py`（16 案，纯对象 + `monkeypatch` 环境变量，无文件系统）：
+1. `_env_int` 四种输入：未设→默认；空白 `"   "`→默认；`"  12 "`→12；`"abc"`→`BudgetError`（消息含变量名与 `'abc'`）。
+2. `_env_int` 非正数：`"0"` 与 `"-3"` 各一（参数化），断言消息含「正整数」。
+3. `from_env`：五个 `CRAFT_*` 逐一映射；全未设时回落五个常量（与 `Budget(...)` 逐字段相等）。
+4. `with_overrides`：只覆盖三个可覆盖字段（`max_steps` / `max_tool_calls` 原样保留）；全 `None` 时逐字段不变；三个字段各自拒绝非正数。
+5. `deadline(100.0)` 在 `timeout_minutes=2` 下 == `220.0`。
+6. `to_dict` 恰好五个键且值等于字段值；`Budget` 是 frozen（赋值抛 `FrozenInstanceError`）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. uv run --no-project --with pytest python -m pytest tests/unit/test_craft_budget_contract.py -q -p no:cacheprovider` | 16 passed in 7.98s |
+| ruff | `uv run --no-project --with ruff ruff check tests/unit/test_craft_budget_contract.py` | All checks passed |
+| **变异臂**（`_env_int` 的 `if value <= 0:` → `if value < 0:`，即**允许零预算**——正是 docstring 禁止的「静默截断」） | 先预测：只有参数化 `[0]` 那条红，`[-3]` 仍绿 | 实测 **1 failed, 15 passed**，失败逐名命中 `test_env_int_rejects_non_positive[0]`（`DID NOT RAISE BudgetError`） |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `git status` 确认 `craft/budget.py` 干净；复跑 16 passed |
+
+**诚实边界（明确不声称）。** ① 只加测试：`craft/budget.py` 生产码一字未动。② 只钉**解析/校验/序列化**；「预算耗尽时循环是否真的停下并如实报告」属 `craft/loop.py` 的平面，本号不碰。③ `Budget(...)` **直接构造**不做校验（`Budget(max_iterations=0)` 可构造成功）——这是 dataclass 的现状，本号**不钉**它，只记下：合法入口是 `from_env()` / `with_overrides()`。④ 不钉 `DEFAULT_*` 常量的**具体数值**（12/12/40/200000/60）——那是产品参数，改它不该让门红；门只钉「未设环境变量时等于当前常量」。⑤ 变异臂只改 `_env_int` 的一处比较符，未动 `with_overrides` 的同名判断（两处独立代码，各有测试覆盖）。
+
+**下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `agent/security_scanner.py` 零直接测试，且两条扫描路径（`scan_directory` vs `scan_capsule_zips`）的**占位符过滤清单是手抄的两份、已经漂移**（目录路径跳过 `your-` / `example` / canary，zip 路径不跳过）——先量再决定「统一」还是「记录为已知差异」。② `agent/contract_results.py` / `agent/job_control.py` 零直接测试（先判是否 I/O 外壳）。③ #397 队列第一项（「没量成」不再记成「没查出来」）已有并发车道在动（`test_eval_unjudgeable_case_is_not_measured.py` 在途），不重复。④ `DEFAULT_MAX_PARALLEL_JOBS` 的注释说「M4 控制面预留、M1 不消费」，且未在 `craft/__init__.py` 重导出——若 M4 已落地，这句注释该复核。
