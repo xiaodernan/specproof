@@ -37,7 +37,7 @@ class TestPhaseAcceptance:
     """Phase 0 acceptance criteria."""
 
     def test_all_golden_cases_exist(self):
-        """All 100 golden cases should have spec.md and ground-truth.json.
+        """All 101 golden cases should have spec.md and ground-truth.json.
 
         case-01..20 are the P0.5 enterprise-hardening set (holdout,
         negative precision, adversarial traps, execution-only positives).
@@ -46,12 +46,17 @@ class TestPhaseAcceptance:
         Perf/N+1 5, Weak-tests 5, Prompt-injection/Sandbox 5,
         Reliability/dup-events 4 - defined as a data table in
         scripts/build_golden_scenarios.py (P6_CASES).
+        case-101 is the concurrency holdout case (#334).
+
+        The COUNT is a tripwire, not a goal: the pool grew from 100 to 101
+        and this number is how that change was reviewed. A change here must
+        be a reviewed change to the pool, never drift.
         """
         case_dirs = sorted(
             d for d in GOLDEN_CASES.iterdir()
             if d.is_dir() and d.name.startswith("case-")
         )
-        assert len(case_dirs) == 100, f"Expected 100 cases, got {len(case_dirs)}"
+        assert len(case_dirs) == 101, f"Expected 101 cases, got {len(case_dirs)}"
 
         for case_dir in case_dirs:
             assert (case_dir / "spec.md").exists(), f"{case_dir.name}: missing spec.md"
