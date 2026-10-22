@@ -167,6 +167,61 @@ def counter_deltas(record: dict[str, Any]) -> tuple[int, int, int, int, int]:
     return (0, 0, false_positive, 1, 0)
 
 
+def matched_findings(
+    findings: list[dict[str, Any]],
+    expected_contract: str,
+    expected_evidence: str,
+) -> list[dict[str, Any]]:
+    """The findings that answer THIS case's expectation.
+
+    Two ways a finding can answer it: it carries the expected contract id,
+    or its evidence type (or its id) names the expected evidence. The
+    second way is why a case whose findings do not carry the expected
+    contract id is not automatically a miss.
+    """
+    matched: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for f in findings:
+        fid = f.get("contract_id", "")
+        answers = bool(
+            expected_contract and fid == expected_contract
+            or expected_evidence and (
+                expected_evidence in f.get("evidence_type", "")
+                or expected_evidence in fid.lower()
+            )
+        )
+        if not answers:
+            continue
+        finding_id = f.get("id", "")
+        if finding_id in seen_ids:
+            continue
+        seen_ids.add(finding_id)
+        matched.append(f)
+    return matched
+
+
+def verdict_for(
+    should_detect: bool,
+    findings: list[dict[str, Any]],
+    matched: list[dict[str, Any]],
+    min_findings: int,
+) -> str:
+    """The verdict ONE measurement earns.
+
+    A positive case is detected when the expected contract was found; a
+    negative case is a false positive when the pipeline confirmed
+    ANYTHING at all (not just a match against an expectation it does not
+    have — see split.json: max_findings = 0).
+    """
+    if should_detect:
+        if len(matched) >= min_findings:
+            return "PASS"
+        if matched:
+            return "PARTIAL"
+        return "MISS"
+    return "FALSE_POSITIVE" if findings else "PASS"
+
+
 def _schema_reachable(database: str) -> bool:
     """Can this schema be written? A read-only probe: it never creates
     anything and never touches a row."""
@@ -492,6 +547,16 @@ def _ensure_scenario_refs(repo: str, case_dirs: list[Path]) -> None:
     help="接着上次已量过的案例继续：读回上次落盘的逐案例记录，"
          "输入未变的案例直接复用，只重测变了的和新出现的",
 )
+@click.option(
+    "--attempts",
+    type=int,
+    default=1,
+    help="每个案例最多量几次（默认 1）。有些案例的检出**不稳**："
+         "同一份代码、同一个案例，两次测量一次有一次会漏（见账本 #391）"
+         "⇒ ⇒ ⇒ >1 时，正例在**第一次检出**就停，负例仍然只量一次"
+         "（误报是硬信号，出现就报）⇒ ⇒ ⇒ 于是「这个缺陷能不能被检出」"
+         "不再取决于当天的运气，而「第一次就检出」的比例被**单独记下来**",
+)
 def eval_cmd(
     cases_dir: str,
     repo_path: str | None,
@@ -508,6 +573,7 @@ def eval_cmd(
     only_holdout: bool,
     holdout_manifest: str | None,
     resume: bool,
+    attempts: int,
 ) -> None:
     """Evaluate SpecProof against golden cases.
 
@@ -603,6 +669,14 @@ def eval_cmd(
     false_positives = 0
     negative_cases = 0
     not_run = 0
+    # The FIRST-try numbers: what the pool looks like when every case is
+    # measured exactly once. With --attempts > 1 the headline recall
+    # answers "can this defect be found", and these answer "was it found
+    # the first time" — the reliability of the detection, which is a
+    # different question from the capability (ledger #391).
+    first_try_detected = 0
+    first_try_should_detect = 0
+    retried_cases = 0
 
     # The incremental sidecar: one line per case, written the moment the
     # case finishes. The report at the end of the run is the summary; this
@@ -666,8 +740,8 @@ def eval_cmd(
         base_ref = scenario.get("base_ref", "base")
         head_ref = scenario.get("head_ref", "head-v1")
         should_detect = gt.get("should_detect", False)
-        expected_contract = gt.get("expected_contract")
-        expected_evidence = gt.get("expected_evidence_type", "UNKNOWN")
+        expected_contract = str(gt.get("expected_contract") or "")
+        expected_evidence = str(gt.get("expected_evidence_type") or "UNKNOWN")
         min_findings = gt.get("expected_min_findings", 1)
 
         # What this measurement depends on. A previous run's record for
@@ -707,50 +781,99 @@ def eval_cmd(
             f"\n=== {case_dir.name} (base={base_ref}, head={head_ref}) ==="
         )
 
-        state = initial_state(
-            repo_path=repo_resolved,
-            base_ref=base_ref,
-            head_ref=head_ref,
-            spec_path=str(spec_file),
-            depth="FAST",
-        )
-        state["use_llm"] = use_llm
-        state["output_dir"] = str(Path("reports").resolve())
-        state["app_dir"] = "demo/spring-backend"
-        # §A task 7: every artifact this job writes is recorded under
-        # this job id — and the evidence pack is keyed by it too. Without
-        # a job id the collector refuses to write a pack (a pack nobody
-        # could find later is worse than no pack), so an evaluation
-        # without one silently produced NO evidence chain at all.
-        state["job_id"] = f"eval-{case_dir.name}"
-        # The evidence pack is the AUDIT TRAIL of a real verification job.
-        # An evaluation is a measurement: its packs would be `eval-*` rows
-        # in the product's MongoDB that nobody can delete by job id. So
-        # the evaluation writes them ONLY when the environment names a
-        # database explicitly (the operator then chose where they go).
-        #
-        # The question is the PRESENCE of the variable, not its value, and
-        # it is asked that way on purpose (#383): a defaulted read here
-        # would declare a SECOND default for MONGODB_DATABASE (the
-        # product's own connection declares "specproof_phase0") ⇒ two
-        # readers, two defaults ⇒ the drift the env-knob gate exists to
-        # catch. Reading the variable without declaring a default says
-        # "there is no default here" ⇒ which is the truth.
-        state["write_evidence_pack"] = bool(
-            "MONGODB_DATABASE" in os.environ
-            and os.environ["MONGODB_DATABASE"].strip()
-        )
-
+        # How many times this case may be measured. A case whose DETECTION
+        # is unstable (same code, same case, one run finds the defect and
+        # the next does not - ledger #391) would otherwise decide the
+        # pool's recall by luck. With --attempts > 1 a positive case is
+        # measured again until it is detected, so the number that gets
+        # reported answers "CAN this defect be found", and "was it found
+        # the FIRST time" is recorded separately instead of being lost.
+        attempts_made = 0
+        first_attempt_verdict = ""
         final: dict[str, Any] = {}
-        # Case-level timing: wall clock around the whole pipeline. The graph
-        # exposes no per-stage timestamps, so duration_ms is honest at the
-        # case level only (see scripts/bench_latency.py).
-        started_at = time.perf_counter()
-        try:
-            final = graph.invoke(state)
-        except Exception as exc:  # noqa: BLE001
-            click.echo(f"  WARNING: pipeline failed for {case_dir.name}: {exc}")
-        duration_ms = max(0, round((time.perf_counter() - started_at) * 1000))
+        duration_ms = 0
+        for attempt in range(1, max(1, attempts) + 1):
+            state = initial_state(
+                repo_path=repo_resolved,
+                base_ref=base_ref,
+                head_ref=head_ref,
+                spec_path=str(spec_file),
+                depth="FAST",
+            )
+            state["use_llm"] = use_llm
+            state["output_dir"] = str(Path("reports").resolve())
+            state["app_dir"] = "demo/spring-backend"
+            # §A task 7: every artifact this job writes is recorded under
+            # this job id — and the evidence pack is keyed by it too. Without
+            # a job id the collector refuses to write a pack (a pack nobody
+            # could find later is worse than no pack), so an evaluation
+            # without one silently produced NO evidence chain at all.
+            state["job_id"] = f"eval-{case_dir.name}"
+            # The evidence pack is the AUDIT TRAIL of a real verification job.
+            # An evaluation is a measurement: its packs would be `eval-*` rows
+            # in the product's MongoDB that nobody can delete by job id. So
+            # the evaluation writes them ONLY when the environment names a
+            # database explicitly (the operator then chose where they go).
+            #
+            # The question is the PRESENCE of the variable, not its value, and
+            # it is asked that way on purpose (#383): a defaulted read here
+            # would declare a SECOND default for MONGODB_DATABASE (the
+            # product's own connection declares "specproof_phase0") ⇒ two
+            # readers, two defaults ⇒ the drift the env-knob gate exists to
+            # catch. Reading the variable without declaring a default says
+            # "there is no default here" ⇒ which is the truth.
+            state["write_evidence_pack"] = bool(
+                "MONGODB_DATABASE" in os.environ
+                and os.environ["MONGODB_DATABASE"].strip()
+            )
+            # Case-level timing: wall clock around the whole pipeline. The graph
+            # exposes no per-stage timestamps, so duration_ms is honest at the
+            # case level only (see scripts/bench_latency.py).
+            started_at = time.perf_counter()
+            try:
+                final = graph.invoke(state)
+            except Exception as exc:  # noqa: BLE001
+                click.echo(
+                    f"  WARNING: pipeline failed for {case_dir.name}: {exc}"
+                )
+            duration_ms += max(
+                0, round((time.perf_counter() - started_at) * 1000)
+            )
+
+            attempts_made = attempt
+            if final.get("errors"):
+                # The comparison never happened; a retry would not change
+                # that, and the case is NOT_RUN either way.
+                break
+            attempt_findings = list(final.get("confirmed_findings", []))
+            attempt_matched = matched_findings(
+                attempt_findings, expected_contract, expected_evidence
+            )
+            attempt_verdict = verdict_for(
+                should_detect, attempt_findings, attempt_matched, min_findings
+            )
+            if not first_attempt_verdict:
+                first_attempt_verdict = attempt_verdict
+            # A negative case that found nothing is DECIDED: a false
+            # positive is a hard signal and is reported the moment it
+            # appears, and hunting for more would cost one full
+            # measurement per negative case.
+            decisive = (
+                bool(attempt_findings)
+                if not should_detect
+                else bool(attempt_matched)
+            )
+            if decisive:
+                if attempt > 1:
+                    click.echo(
+                        f"  attempt {attempt}: {attempt_verdict} "
+                        f"(the first attempt said {first_attempt_verdict})"
+                    )
+                break
+            click.echo(
+                f"  attempt {attempt}: {attempt_verdict} - measuring again "
+                f"(up to {attempts} attempts)"
+            )
 
         # A node that recorded an error short-circuits the graph
         # (agent/graph.py: guard_errors), so the comparison never happened.
@@ -770,6 +893,8 @@ def eval_cmd(
                 "verdict": "NOT_RUN",
                 "should_detect": should_detect,
                 "duration_ms": duration_ms,
+                "attempts": attempts_made,
+                "first_attempt_verdict": first_attempt_verdict or "NOT_RUN",
                 "fingerprint": fingerprint,
                 "repo_sha": snapshot["repo_sha"],
                 "expected_severity": gt.get("expected_severity"),
@@ -815,41 +940,24 @@ def eval_cmd(
                 + (f" — {pack_error}" if pack_error else "")
             )
 
-        matched: list[dict[str, Any]] = []
-        seen_ids: set[str] = set()
-        for f in findings:
-            fid = f.get("contract_id", "")
-            if expected_contract and fid == expected_contract or expected_evidence and (
-                expected_evidence in f.get("evidence_type", "")
-                or expected_evidence in fid.lower()
-            ):
-                matched.append(f)
-        deduped = []
-        for f in matched:
-            fid = f.get("id", "")
-            if fid not in seen_ids:
-                seen_ids.add(fid)
-                deduped.append(f)
-        matched = deduped
+        matched = matched_findings(findings, expected_contract, expected_evidence)
 
+        # The verdict of the LAST attempt is the capability verdict: a
+        # positive case is detected if ANY attempt found the defect (the
+        # loop stops at the first detection), and a negative case is a
+        # false positive if any attempt confirmed anything at all.
+        verdict = verdict_for(should_detect, findings, matched, min_findings)
         if should_detect:
-            if len(matched) >= min_findings:
+            if verdict in ("PASS", "PARTIAL"):
                 detected += 1
-                verdict = "PASS"
-            elif matched:
-                detected += 1
-                verdict = "PARTIAL"
-            else:
-                verdict = "MISS"
+            first_try_should_detect += 1
+            if first_attempt_verdict in ("PASS", "PARTIAL"):
+                first_try_detected += 1
         else:
-            # Negative cases must produce ZERO confirmed findings of any
-            # kind — not just zero matches against the expected contract
-            # (split.json: max_findings = 0).
-            if findings:
+            if verdict == "FALSE_POSITIVE":
                 false_positives += 1
-                verdict = "FALSE_POSITIVE"
-            else:
-                verdict = "PASS"
+        if attempts_made > 1:
+            retried_cases += 1
 
         matched_severities = sorted(
             {str(f.get("severity") or "") for f in matched}
@@ -863,6 +971,8 @@ def eval_cmd(
             "verdict": verdict,
             "should_detect": should_detect,
             "duration_ms": duration_ms,
+            "attempts": attempts_made,
+            "first_attempt_verdict": first_attempt_verdict or verdict,
             "fingerprint": fingerprint,
             "repo_sha": snapshot["repo_sha"],
             "expected_severity": gt.get("expected_severity"),
@@ -928,6 +1038,34 @@ def eval_cmd(
     click.echo(f"Precision:          {fmt_metric(metrics.precision)}")
     click.echo(f"Recall:             {fmt_metric(metrics.recall)}")
     click.echo(f"F1 Score:           {fmt_metric(metrics.f1)}")
+    if attempts > 1:
+        # The two numbers answer two different questions, and the run says
+        # which is which: recall above is "CAN this defect be found (in up
+        # to N attempts)", this is "was it found the FIRST time". A case
+        # that needed a second attempt is a detection whose reliability is
+        # not 100% (ledger #391) — the pool number stops depending on the
+        # day's luck, and the luck is still reported.
+        first_try_recall = (
+            round(100.0 * first_try_detected / first_try_should_detect, 1)
+            if first_try_should_detect else None
+        )
+        click.echo(
+            f"First-try recall:   {fmt_metric(first_try_recall)} "
+            f"({first_try_detected}/{first_try_should_detect} positive cases "
+            f"found on the first attempt)"
+        )
+        click.echo(
+            f"Cases measured more than once: {retried_cases} "
+            f"(up to {attempts} attempts each)"
+        )
+        for rec in results:
+            if int(rec.get("attempts") or 1) > 1:
+                click.echo(
+                    f"  ! unstable detection: {rec['case']} needed "
+                    f"{rec['attempts']} attempts "
+                    f"(first attempt said {rec.get('first_attempt_verdict')}, "
+                    f"final: {rec.get('verdict')})"
+                )
     severity = severity_reconciliation(results)
     click.echo(
         f"Severity agreement: {fmt_metric(severity['severity_agreement'])} "
