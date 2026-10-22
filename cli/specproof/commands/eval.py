@@ -222,6 +222,50 @@ def verdict_for(
     return "FALSE_POSITIVE" if findings else "PASS"
 
 
+#: The verdict the differential/probe uses when it LOOKED and could not
+#: decide. It is not a "no defect" verdict and it is not a "defect
+#: found" verdict: nothing was concluded (ADR-004's evidence ladder
+#: refuses to conclude without a comparable observation).
+UNJUDGEABLE_VERDICT = "NON_REPRODUCIBLE"
+
+#: The contract id the differential puts on an entry that stands for the
+#: WHOLE run rather than for one contract (the run never started, or the
+#: whole-run comparison could not be made).
+WHOLE_RUN_CONTRACT = "DIFF-01"
+
+
+def unjudgeable_reason(
+    diff_results: list[dict[str, Any]],
+    expected_contract: str,
+) -> str:
+    """Why this case's evidence could not judge it — or "" when it could.
+
+    A case whose evidence path came back NON_REPRODUCIBLE was NOT
+    MEASURED: the pipeline looked and could not decide. Scoring that as
+    a MISS would say "the tool failed to detect the defect" about a run
+    that never compared anything — the exact mistake the NOT_RUN branch
+    exists to prevent (ledger #397).
+
+    Only the evidence path for THIS case's contract counts: another
+    contract's unjudgeable entry says nothing about this one.
+    """
+    wanted = str(expected_contract or "")
+    for entry in diff_results:
+        if str(entry.get("verdict") or "") != UNJUDGEABLE_VERDICT:
+            continue
+        contract_id = str(entry.get("contract_id") or "")
+        if contract_id not in (wanted, WHOLE_RUN_CONTRACT):
+            continue
+        experiment = str(entry.get("experiment_id") or "DIFF-01")
+        detail = str(entry.get("detail") or "").strip()
+        subject = contract_id or wanted or "the contract"
+        return (
+            f"{experiment} could not judge {subject}"
+            + (f": {detail}" if detail else "")
+        )
+    return ""
+
+
 def _schema_reachable(database: str) -> bool:
     """Can this schema be written? A read-only probe: it never creates
     anything and never touches a row."""
@@ -884,9 +928,23 @@ def eval_cmd(
         # check is exactly how this was found). Not-run is its own verdict, it
         # is excluded from both sides of the ratio, and it is stated out loud.
         pipeline_errors = final.get("errors") or []
-        if pipeline_errors:
+        findings = final.get("confirmed_findings", [])
+        # A case whose evidence path could not JUDGE it was never
+        # measured. The pipeline looked and could not conclude; scoring
+        # that as a MISS would say "the tool failed to detect the
+        # defect" about a run that never compared anything — the same
+        # mistake this branch already exists to prevent for a pipeline
+        # abort, and the reason the pool's recall used to move with the
+        # weather (ledger #397).
+        unjudgeable = ""
+        if not pipeline_errors and not findings:
+            unjudgeable = unjudgeable_reason(
+                list(final.get("diff_results") or []), expected_contract
+            )
+        if pipeline_errors or unjudgeable:
             not_run += 1
-            for message in pipeline_errors:
+            reasons = [str(e) for e in pipeline_errors] or [unjudgeable]
+            for message in reasons:
                 click.echo(f"  NOT RUN: {message}")
             record = {
                 "case": case_dir.name,
@@ -903,15 +961,20 @@ def eval_cmd(
                 "matched_severities": "—",
                 "contracts_found": "",
                 "expected_contract": expected_contract or "—",
-                "errors": "; ".join(str(e) for e in pipeline_errors),
+                "errors": "; ".join(reasons),
                 "finding_evidence": [],
             }
             record["severity_match"] = severity_match_of(record)
             results.append(record)
             append_incremental_result(incremental_handle, record)
             click.echo(
-                f"  [NOT_RUN] pipeline aborted before any comparison "
-                f"({duration_ms} ms) — excluded from recall, not counted as a miss"
+                "  [NOT_RUN] "
+                + (
+                    "pipeline aborted before any comparison"
+                    if pipeline_errors
+                    else "the evidence path could not judge this case"
+                )
+                + f" ({duration_ms} ms) — excluded from recall, not counted as a miss"
             )
             _cleanup_worktrees(repo_resolved, final)
             continue
@@ -920,8 +983,6 @@ def eval_cmd(
             total_should_detect += 1
         else:
             negative_cases += 1
-
-        findings = final.get("confirmed_findings", [])
 
         # The evidence chain is part of what this run produced. If the
         # pack was not written, the run has NO archived evidence — and
