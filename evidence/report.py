@@ -6,6 +6,7 @@ from typing import Any
 from evidence.acceptance import (
     AcceptanceResult,
     count_records,
+    evaluate,
     fmt_metric,
     retry_summary,
     score,
@@ -632,6 +633,7 @@ def render_eval_report(
 
     acceptance_card = ""
     acceptance_note = ""
+    acceptance_conflict = ""
     if acceptance is not None:
         acc_color = {"PASS": "#7ee787", "FAIL": "#ff7b72"}.get(
             acceptance.status, "#d29922"
@@ -642,6 +644,33 @@ def render_eval_report(
             '<div class="label">Acceptance</div>'
             "</div>"
         )
+        # The page must not contradict itself. The acceptance card carries
+        # the verdict the RUN decided; the numbers on this page are
+        # recomputed from the case records. If those two disagree, the
+        # page is showing a verdict next to numbers that contradict it -
+        # and the reader cannot tell which one to believe. So the page
+        # CHECKS itself and says so loudly (ledger #416).
+        #
+        # (Before #414 the report's own numbers were 169.7% recall next
+        # to a PASS verdict: the contradiction was invisible because
+        # nothing compared the two.)
+        recomputed = evaluate(counts, acceptance.criteria)
+        if recomputed.status != acceptance.status:
+            acceptance_conflict = (
+                '<p class="meta" style="color:#ff7b72">'
+                "<b>这个页面的两个数互相矛盾</b>："
+                f"sidecar 里的判定是 <b>{acceptance.status}</b>，"
+                "而用本页自己的记录和同一套判据重算是 "
+                f"<b>{recomputed.status}</b>"
+                + (
+                    "（" + "；".join(escape(r) for r in [*recomputed.insufficient,
+                                                        *recomputed.failures]) + "）"
+                    if [*recomputed.insufficient, *recomputed.failures]
+                    else ""
+                )
+                + "。**别只信其中一个** —— 证据和判定必须对齐才算数。"
+                "</p>"
+            )
         if acceptance.status == "PASS" and not acceptance.floors_pinned:
             acceptance_note = (
                 '<p class="meta">Acceptance PASS 仅表示<b>样本充足</b>：'
@@ -884,6 +913,7 @@ def render_eval_report(
         {acceptance_card}
     </div>
     {acceptance_note}
+    {acceptance_conflict}
 
     <table>
         <thead><tr>
