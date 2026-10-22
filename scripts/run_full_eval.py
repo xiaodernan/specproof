@@ -30,6 +30,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "reports" / "full-eval"
@@ -43,6 +44,7 @@ def build_command(
     output_dir: Path,
     python: str = sys.executable,
     llm: bool = False,
+    attempts: int = 1,
 ) -> list[str]:
     """The command this script runs.
 
@@ -51,6 +53,12 @@ def build_command(
     report path is inside the output directory, so the sidecar the
     evaluation derives from it (``<report>.results.jsonl``) lands there
     too ⇒ ⇒ ⇒ and that is the path a cache has to keep.
+
+    ``--attempts`` says how many times a case may be measured. A case
+    whose DETECTION is unstable would otherwise decide the pool's recall
+    by luck (ledger #391) ⇒ ⇒ ⇒ the nightly job should ask for more
+    than one attempt and read BOTH numbers: the recall (can this defect
+    be found) and the first-try recall (was it found the first time).
     """
     return [
         python, "-m", "cli.specproof.main", "eval",
@@ -58,11 +66,12 @@ def build_command(
         "--repo", str(repo),
         "--output", str(output_dir / "eval-report.html"),
         "--resume",
+        "--attempts", str(max(1, int(attempts))),
         *(["--llm"] if llm else ["--no-llm"]),
     ]
 
 
-def read_sidecar(output_dir: Path) -> dict:
+def read_sidecar(output_dir: Path) -> dict[str, Any]:
     """The evaluation's own record, or an empty mapping when there is none."""
     path = output_dir / "eval-report.results.json"
     if not path.exists():
@@ -74,7 +83,7 @@ def read_sidecar(output_dir: Path) -> dict:
     return loaded if isinstance(loaded, dict) else {}
 
 
-def summarise(sidecar: dict) -> str:
+def summarise(sidecar: dict[str, Any]) -> str:
     """One line a human can read: the pool, the metrics, the verdict."""
     if not sidecar:
         return "no sidecar yet (the run has not finished)"
@@ -107,6 +116,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="where the report and the resumable sidecar live")
     parser.add_argument("--llm", action="store_true",
                         help="allow the LLM-assisted nodes (default: deterministic)")
+    parser.add_argument("--attempts", type=int, default=1,
+                        help="how many times a case may be measured; a case "
+                             "whose detection is unstable would otherwise "
+                             "decide the pool's recall by luck (ledger #391)")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the command and exit")
     args = parser.parse_args(argv)
@@ -117,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         repo=Path(args.repo),
         output_dir=output_dir,
         llm=args.llm,
+        attempts=args.attempts,
     )
     if args.dry_run:
         print(" ".join(command))

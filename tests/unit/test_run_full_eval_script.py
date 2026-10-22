@@ -10,7 +10,10 @@ Three things have to hold, and each is pinned here:
   SAME directory ⇒ ⇒ ⇒ that directory is the thing a cache has to keep
   ⇒ ⇒ ⇒ "resume" has something to resume from;
 - the exit code is the evaluation's own ⇒ ⇒ ⇒ a caller can gate on it
-  without parsing anything.
+  without parsing anything;
+- the number of attempts a case may be measured is the CALLER's choice
+  and reaches the evaluation ⇒ ⇒ ⇒ a case whose detection is unstable
+  must not decide the pool by luck (ledger #391).
 """
 
 from __future__ import annotations
@@ -62,6 +65,33 @@ def test_the_llm_flag_is_off_unless_asked() -> None:
     with_llm = build_command(cases=REPO, repo=REPO, output_dir=REPO / "r", llm=True)
     assert "--llm" in with_llm
     assert "--no-llm" not in with_llm
+
+
+def test_the_attempt_count_reaches_the_evaluation() -> None:
+    """The number of attempts is the CALLER's choice (the nightly job wants
+    more than one, because a case whose detection is unstable must not
+    decide the pool by luck - ledger #391)."""
+    plain = build_command(cases=REPO, repo=REPO, output_dir=REPO / "r")
+    assert plain[plain.index("--attempts") + 1] == "1"
+    patient = build_command(
+        cases=REPO, repo=REPO, output_dir=REPO / "r", attempts=3,
+    )
+    assert patient[patient.index("--attempts") + 1] == "3"
+
+
+def test_the_dry_run_prints_the_command_with_the_attempts() -> None:
+    import os
+
+    completed = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "run_full_eval.py"),
+         "--dry-run", "--attempts", "2"],
+        capture_output=True, text=True, encoding="utf-8", cwd=str(REPO),
+        # The child's stdout is the console's encoding unless it is told
+        # otherwise, and the repository path is not ASCII.
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "--attempts 2" in completed.stdout
 
 
 def test_a_missing_sidecar_reads_as_nothing(tmp_path) -> None:
