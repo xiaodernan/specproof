@@ -609,6 +609,37 @@ def retry_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def own_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """The findings a case's LEVEL was judged on - one source, one place.
+
+    The level of a case is the strongest level among the findings that
+    carry the case's OWN contract id; when no finding carries it (the
+    case was answered by evidence type alone), the findings that
+    answered the case are its own.
+
+    Everything that explains a level must be read off THESE findings -
+    the level itself, and the DB state that produced it. Reading the
+    explanation from a different set is how the page ends up showing a
+    DB state from a contract that did not produce the level
+    (ledger #418).
+    """
+    evidence = result.get("finding_evidence")
+    contract = str(result.get("expected_contract") or "").strip()
+    if not isinstance(evidence, list):
+        return []
+    findings = [item for item in evidence if isinstance(item, dict)]
+    if not findings:
+        return []
+    if not contract:
+        return findings
+    own = [
+        item
+        for item in findings
+        if str(item.get("contract_id") or "").strip() == contract
+    ]
+    return own or findings
+
+
 def _levels_for_expected_contract(result: dict[str, Any]) -> list[str]:
     """The levels reported for the contract this case is about.
 
@@ -616,17 +647,9 @@ def _levels_for_expected_contract(result: dict[str, Any]) -> list[str]:
     finding is about) and falls back to the flat ``matched_severities``
     string when a record carries no per-finding breakdown.
     """
-    evidence = result.get("finding_evidence")
-    contract = str(result.get("expected_contract") or "").strip()
-    if isinstance(evidence, list) and evidence:
-        own = [
-            str(item.get("severity") or "")
-            for item in evidence
-            if isinstance(item, dict)
-            and (not contract or str(item.get("contract_id") or "").strip() == contract)
-        ]
-        if own:
-            return own
+    own = own_findings(result)
+    if own:
+        return [str(item.get("severity") or "") for item in own]
     return [
         s.strip()
         for s in str(result.get("matched_severities") or "").split(",")
@@ -750,6 +773,24 @@ def severity_reconciliation(results: list[dict[str, Any]]) -> dict[str, Any]:
                             and str(item.get("evidence_type") or "")
                         })
                     ),
+                    # The evidence KIND alone explains nothing: every drift
+                    # case in the real run had the same kind
+                    # (base_pass_head_fail). What actually decides the
+                    # level is the DB STATE the evidence path observed -
+                    # measured on the real run: DB_MUTATED /
+                    # DB_MUTATED_ON_UNAUTH => BLOCKER, DB_CONSISTENT or no
+                    # DB observation => MAJOR, with no exceptions. So the
+                    # drift entry carries the DB verdicts of this case's
+                    # own findings: the reader can then see the rule the
+                    # tool applied instead of inferring a guess
+                    # (ledger #418).
+                    "db_state_verdicts": ",".join(
+                        sorted({
+                            str(item.get("db_state_verdict") or "")
+                            for item in own_findings(result)
+                            if str(item.get("db_state_verdict") or "")
+                        })
+                    ),
                 })
         if (
             not result.get("should_detect")
@@ -797,4 +838,5 @@ __all__ = [
     "severity_match_of",
     "severity_reconciliation",
     "contract_levels",
+    "own_findings",
 ]

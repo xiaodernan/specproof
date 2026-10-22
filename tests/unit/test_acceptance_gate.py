@@ -205,6 +205,9 @@ def test_severity_agreement_is_exact_level_match_share() -> None:
             "contract": "AUTH-01",
             "strongest": "MINOR",
             "evidence_kinds": "",
+            # The DB state the evidence path observed is what decides the
+            # level (ledger #418); this record carries no finding with one.
+            "db_state_verdicts": "",
         }
     ]
 

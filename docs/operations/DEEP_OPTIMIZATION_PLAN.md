@@ -10189,3 +10189,58 @@ case-33-tx-order-idempotency-dedup-removed | expected: BLOCKER | got: MAJOR | co
 - 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
 - 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
 - "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。
+## #418 漂移列表说的是「证据种类」—— 而**决定等级的根本不是它**；真正决定的是 **DB 状态判定**
+
+**问题**：漂移列表一直这样解释漂移：
+
+```
+case-17-logic-inversion — expected BLOCKER, got MAJOR
+  (strongest level MAJOR; evidence: base_pass_head_fail)
+```
+
+⇒ **`evidence: base_pass_head_fail` 这个词解释不了任何事** —— 真实那一轮里**每一个**漂移案例的证据种类**都是同一个**。读的人看到它只会以为「工具在瞎猜」。
+
+**那到底是什么决定等级？量出来**（真实那一轮的真实记录，37 个已匹配的正面案例）：
+
+```
+DB_MUTATED / DB_MUTATED_ON_UNAUTH  => BLOCKER   (n=7)
+DB_CONSISTENT / 没有 DB 观察        => MAJOR      (n=29)
+```
+
+⇒ **没有例外**：每个 DB 状态只对应**一个**等级。**工具不是在猜** —— 它在**套一条规则**：**数据库在未授权路径上被改了 ⇒ BLOCKER；数据库状态没变 ⇒ MAJOR**（这正是 ADR-004「BLOCKER 需要执行 + DB 证据」）。
+
+⇒ 而**漂移**恰恰发生在**池子的期望和这条规则不一致**的地方，而且是**两个方向都有**：
+
+| DB 状态 | 池子期望 | 工具给出 | 方向 |
+|---|---|---|---|
+| `DB_CONSISTENT` | BLOCKER | MAJOR | 池子觉得更严重 |
+| `DB_MUTATED_ON_UNAUTH` | MAJOR | BLOCKER | 工具觉得更严重 |
+
+**修法（不替产品做决定，只把事实摆到页面上）**：
+1. 漂移条目多带一个字段：**这个案例自己那些发现的 DB 状态判定**（`db_state_verdicts`）；
+2. 报告和控制台的漂移行都把它显示出来（`db state: DB_CONSISTENT`）；
+3. **DB 状态和等级必须读同一批发现** —— 新增 `evidence/acceptance.py:own_findings`：**等级从哪儿读的，解释就从哪儿读**。
+   ⇒ 这一点是被真实数据逼出来的：`case-73` 的期望合同是 `BOUNDARY-01`，但**回答它的是 `AUTH-01` 的那个发现**（按证据类型回答的，#204 那条设计）—— 如果解释从「所有发现」里读，就会显示一个**没有产生这个等级**的合同的 DB 状态（**这就是 #413 那个病在新地方复发**）。
+
+**证据**：
+- **新单测** `tests/unit/test_eval_severity_drift_names_the_db_state.py`（**8** 个），其中把**量出来的规则本身**钉成了测试（同样的证据种类 + 不同的 DB 状态 ⇒ 不同的等级）。
+- **锋利性**：把漂移条目的 db state 去掉 ⇒ **4 个失败**；把页面的渲染去掉 ⇒ **1 个失败**。
+- **真实数据上验过**：重渲真实 sidecar（61 条），页面上现在读作：
+  ```
+  case-17-logic-inversion       — expected BLOCKER, got MAJOR  (…; evidence: base_pass_head_fail; db state: DB_CONSISTENT)
+  case-19-email-corruption      — expected MAJOR, got BLOCKER (…; evidence: base_pass_head_fail; db state: DB_MUTATED_ON_UNAUTH)
+  case-20-validation-removed    — expected MAJOR, got BLOCKER (…; evidence: base_pass_head_fail; db state: DB_MUTATED_ON_UNAUTH)
+  case-33-tx-order-idempotency-dedup-removed — expected BLOCKER, got MAJOR (…; evidence: base_pass_head_fail; db state: DB_CONSISTENT)
+  case-73-logic-negative-quantity-accepted   — expected BLOCKER, got MAJOR (…; evidence: base_pass_head_fail; db state: DB_NO_EVIDENCE)
+  ```
+- **质量门**：`ruff` + `mypy` 全绿；相关单测集 **352 passed**。
+
+**这一轮全量评测（#408 之后从零重跑的，`--attempts 3`）到目前的实况**：
+- 已量 **61** 条（**服务器重启杀了那一轮，用 `--resume` 接着跑**：61 条的指纹**全部**没变 ⇒ 全部复用；实测**新旧两条等级规则对这 61 条的判定完全一致** ⇒ 复用是安全的、这一轮在**语义上是齐的**）。
+- **61 条全 PASS，61 条全是第一遍就检出**；到 **case-74** 出现了**第一次重试**（`attempt 1: MISS - measuring again`）—— 正是 #414 那四个原因要区分的场景。
+
+**尚未落地（记着，不替产品做决定）**：
+- **严重度漂移到底该改哪一边**（池子按证据写期望 / 工具按合同写定级）⇒ **产品决策**。这一批只把**事实**摆出来（规则是确定的、漂移是两条规则不一致、两个方向都有），**不替他决定**。
+- 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
+- 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
+- "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。

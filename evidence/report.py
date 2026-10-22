@@ -838,11 +838,33 @@ def render_eval_report(
                 else:
                     ek_list = [str(ek)]
                 if ek_list:
+                    # The DB state the evidence path observed is what
+                    # actually decides the level (measured on the real
+                    # run: DB_MUTATED / DB_MUTATED_ON_UNAUTH => BLOCKER,
+                    # DB_CONSISTENT or no DB observation => MAJOR). The
+                    # evidence KIND alone explains nothing - every drift
+                    # case in the real run had the same kind. So the
+                    # reader gets the thing that decides the level
+                    # (ledger #418).
+                    parts = [
+                        f"strongest level "
+                        f"{escape(str(m.get('strongest') or m.get('actual') or ''))}",
+                        f"evidence: {escape(', '.join(ek_list))}",
+                    ]
+                    db = m.get("db_state_verdicts")
+                    if db:
+                        db_list = (
+                            [k for k in db.split(",") if k]
+                            if isinstance(db, str)
+                            else [str(k) for k in db]
+                        )
+                        if db_list:
+                            parts.append(
+                                f"db state: {escape(', '.join(db_list))}"
+                            )
                     extra = (
                         f'<span style="color:#8b949e;font-size:12px">'
-                        f" (strongest level "
-                        f"{escape(str(m.get('strongest') or m.get('actual') or ''))}; "
-                        f"evidence: {escape(', '.join(ek_list))})"
+                        f" ({'; '.join(parts)})"
                         f"</span>"
                     )
             drift_items.append(

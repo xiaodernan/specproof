@@ -1320,10 +1320,19 @@ def eval_cmd(
         # the evidence, not a wrong guess about the defect. Say which
         # evidence it was, or the reader can only see a bare mismatch.
         if m.get("evidence_kinds"):
-            click.echo(
-                f"      (strongest level {m.get('strongest') or '—'}; "
-                f"evidence: {m['evidence_kinds']})"
-            )
+            parts = [
+                f"strongest level {m.get('strongest') or '—'}",
+                f"evidence: {m['evidence_kinds']}",
+            ]
+            # The DB state the evidence path observed is what actually
+            # decides the level (measured on the real run: DB_MUTATED /
+            # DB_MUTATED_ON_UNAUTH => BLOCKER, DB_CONSISTENT or no DB
+            # observation => MAJOR). The evidence kind alone explains
+            # nothing - every drift case in the real run had the same one
+            # (ledger #418).
+            if m.get("db_state_verdicts"):
+                parts.append(f"db state: {m['db_state_verdicts']}")
+            click.echo(f"      ({'; '.join(parts)})")
     click.echo(f"Acceptance:         {acceptance_verdict_text(acceptance)}")
     for line in acceptance.insufficient:
         click.echo(f"  ! 样本不足: {line}")
