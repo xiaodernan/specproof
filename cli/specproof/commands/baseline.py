@@ -40,6 +40,7 @@ from cli.specproof.case_set import (
     pool_mismatch,
 )
 from evidence.acceptance import MetricCounts, fmt_metric, score
+from evidence.judging import matched_findings, verdict_for
 
 _DIFF_CAP_CHARS = 80_000
 _LLM_TIMEOUT = 90.0
@@ -346,37 +347,22 @@ async def preflight_probe(provider: Any) -> str:
 def judge_case(
     case_name: str, gt: dict[str, Any], findings: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Apply the SAME judging rules as specproof eval (contract/evidence
-    matching; negative cases count ANY finding as a false positive)."""
+    """Apply the SAME judging rules as specproof eval.
+
+    The rules live in ``evidence.judging`` and are NOT copied here: the
+    baseline's whole purpose is to be compared with the eval's numbers,
+    so a private copy of the rules is a copy that can drift (it did,
+    and the two disagreed on the same findings - ledger #419).
+    """
     should_detect = bool(gt.get("should_detect", False))
     expected_contract = gt.get("expected_contract")
     expected_evidence = gt.get("expected_evidence_type", "UNKNOWN")
     min_findings = int(gt.get("expected_min_findings", 1))
-    matched = [
-        f for f in findings
-        if (
-            expected_contract and f.get("contract_id") == expected_contract
-        ) or (
-            expected_evidence
-            and (
-                expected_evidence in str(f.get("evidence_type", ""))
-                or expected_evidence
-                in str(f.get("contract_id", "")).lower()
-            )
-        )
-    ]
-    if should_detect:
-        if len(matched) >= min_findings:
-            verdict, detected = "PASS", True
-        elif matched:
-            verdict, detected = "PARTIAL", True
-        else:
-            verdict, detected = "MISS", False
-    else:
-        if findings:
-            verdict, detected = "FALSE_POSITIVE", False
-        else:
-            verdict, detected = "PASS", False
+    matched = matched_findings(
+        findings, str(expected_contract or ""), str(expected_evidence)
+    )
+    verdict = verdict_for(should_detect, findings, matched, min_findings)
+    detected = verdict in ("PASS", "PARTIAL") and should_detect
     # Detection-only view: did the reviewer report ANY finding on a
     # should-detect case? Live-fire measurement (gateway fagougou,
     # 2026-08-18) showed the model finds the regression but returns

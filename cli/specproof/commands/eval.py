@@ -50,6 +50,12 @@ from evidence.acceptance import (
 from evidence.acceptance import (
     first_try_deltas as _first_try_deltas,
 )
+from evidence.judging import (
+    matched_findings as _matched_findings,
+)
+from evidence.judging import (
+    verdict_for as _verdict_for,
+)
 from evidence.report import render_eval_report
 
 
@@ -187,30 +193,12 @@ def matched_findings(
 ) -> list[dict[str, Any]]:
     """The findings that answer THIS case's expectation.
 
-    Two ways a finding can answer it: it carries the expected contract id,
-    or its evidence type (or its id) names the expected evidence. The
-    second way is why a case whose findings do not carry the expected
-    contract id is not automatically a miss.
+    The rule lives in ``evidence.judging`` so that the eval and the
+    baseline command judge the SAME findings the SAME way; it is
+    re-exported here because the eval is where the matching is used
+    (ledger #419).
     """
-    matched: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
-    for f in findings:
-        fid = f.get("contract_id", "")
-        answers = bool(
-            expected_contract and fid == expected_contract
-            or expected_evidence and (
-                expected_evidence in f.get("evidence_type", "")
-                or expected_evidence in fid.lower()
-            )
-        )
-        if not answers:
-            continue
-        finding_id = f.get("id", "")
-        if finding_id in seen_ids:
-            continue
-        seen_ids.add(finding_id)
-        matched.append(f)
-    return matched
+    return _matched_findings(findings, expected_contract, expected_evidence)
 
 
 def case_contract_level(
@@ -246,18 +234,12 @@ def verdict_for(
 ) -> str:
     """The verdict ONE measurement earns.
 
-    A positive case is detected when the expected contract was found; a
-    negative case is a false positive when the pipeline confirmed
-    ANYTHING at all (not just a match against an expectation it does not
-    have — see split.json: max_findings = 0).
+    The rule lives in ``evidence.judging`` so that the eval and the
+    baseline command judge the SAME findings the SAME way; it is
+    re-exported here because the eval is where the verdict is used
+    (ledger #419).
     """
-    if should_detect:
-        if len(matched) >= min_findings:
-            return "PASS"
-        if matched:
-            return "PARTIAL"
-        return "MISS"
-    return "FALSE_POSITIVE" if findings else "PASS"
+    return _verdict_for(should_detect, findings, matched, min_findings)
 
 
 #: The verdict the differential/probe uses when it LOOKED and could not
