@@ -9943,3 +9943,53 @@ return list(index.values()), None
 - 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
 - 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
 - "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。
+## #413 同一页面对**同一个案例**说了两个等级：表格格里写 BLOCKER，漂移行里写 MINOR
+
+**问题**：#406 让评测记录带上「这个合同的等级」，#411 把那个等级放进报告的表格格。看起来两个 artifact 已经对齐了 —— **其实没有，它们各自用的是不同的规则**：
+
+- `contract_level`（表格格）是**所有回答了这个案例的发现**里最强的等级；
+- 严重度判定（漂移行）是**带这个案例自己合同 id 的那些发现**里最强的等级（`evidence/acceptance.py:_levels_for_expected_contract`）。
+
+而 `matched_findings` 认一个发现的方式有**两种**：带期望的合同 id，**或者**证据类型里出现期望的证据（`expected_evidence in f.get("evidence_type","")`）。⇒ **一个属于别的合同的发现，也能「回答」这个案例**（比如它也是 `base_pass_head_fail` 类型的证据），而它的等级是**那个别的合同的等级**。
+
+⇒⇒⇒ **只要这样一个「别家的、但更强的」发现出现，同一页面对同一个案例就会说两个等级。**
+
+**实测复现**（真实执行，不是推理）：
+- 造一个案例：期望合同 `COURT-01`（期望等级 MAJOR），发现有两个 —— `COURT-01` 的 MINOR（静态 diff）、`CACHE-01` 的 BLOCKER（`base_pass_head_fail` 证据，它因此「回答」了这个案例）。
+- 渲染出来的页面：
+  - **表格格**：`BLOCKER (also reported: BLOCKER, MINOR)` ← 别人的等级
+  - **漂移行**：`case-two-contracts — expected MAJOR, got MINOR (strongest level MINOR; …)` ← 本案例的等级
+- ⇒ **同一页、同一个案例、两个等级。** 这正是 #406 要杀掉的那一类分歧，#411 把它**显示**出来了。
+
+**修法：规则只有一份，放在一个地方**（`evidence/acceptance.py:contract_levels`）：
+
+```python
+def contract_levels(findings, expected_contract) -> list[str]:
+    # 带这个案例自己合同 id 的发现的等级
+    # 一个都没有时 → 回答了这个案例的那些发现的等级（它只有这些）
+```
+
+`cli/specproof/commands/eval.py` 新增 `case_contract_level(matched, expected_contract)`，用它算记录里的 `contract_level`；`evidence/acceptance.py` 的记录侧规则与它**逐形状对齐**（`test_the_two_rules_agree_on_every_shape_of_case` 钉住这件事）。
+
+⇒ 这也和矩阵一致：矩阵报的是**每个合同自己**的最强发现（`agent/matrix_policy.py:_court_sort_key`）。
+
+**证据（全部执行出来的）**：
+
+1. **新单测** `tests/unit/test_eval_level_is_the_cases_own_contract_level.py`（10 个）。
+2. **锋利性**：把 `case_contract_level` 改回 #411 的算法重跑 ⇒ **4 个测试当场失败**，失败信息直接把 bug 写在脸上：
+   - `test_the_record_carries_the_cases_own_contract_level` → `assert 'BLOCKER' == 'MINOR'`
+   - `test_the_table_cell_and_the_drift_line_say_the_same_thing` → `assert 'BLOCKER<' not in 'BLOCKER<span …> (also reported: BLOCKER, MINOR)</span>'`
+   - `test_the_record_level_and_the_judged_level_are_the_same_value` → `assert 'BLOCKER' == 'MINOR'`
+   - `test_the_two_rules_agree_on_every_shape_of_case` → `assert 'BLOCKER' == 'MINOR'`
+   ⇒ **注意**：第一版的测试**没有**锋利（它用手写的记录，没走到算等级的那段代码）⇒ **改成走真实的 `case_contract_level` + 真实的 `matched_findings` 之后才锋利** —— 这也说明「测试没经过那段代码」就等于没测。
+3. **真实数据上查过**：正在跑的那一轮 55 条真实记录里，表格格等级与判定等级**逐条相同**（这一轮没有触发分歧的案例）⇒ **这是潜伏的 bug，不是已经发生的错误**；修的是「规则」，不是「这一轮的结果」。
+4. **质量门**：`ruff` + `mypy`（`cli/specproof/commands/eval.py`、`evidence/acceptance.py`）全绿；相关单测集 **359 passed**。
+
+**这一轮全量评测（#408 之后从零重跑的，`--attempts 3`）到目前的实况**：
+- 落地 **55** 条，**55 条全 PASS**，**55 条全是第一遍就检出**（`attempts` 直方图 = {1: 55}）—— 到目前为止**一个重试都没发生**。
+- **这一轮的数还没落地**（等跑完，三个数一起：被量到的正例 / 没量成的 / 基准面失败的输出）。
+
+**尚未落地（记着，不替产品做决定）**：
+- 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
+- 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
+- "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。

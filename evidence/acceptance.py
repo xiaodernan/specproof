@@ -406,6 +406,43 @@ def strongest_severity(levels: list[str]) -> str:
     return best
 
 
+def contract_levels(
+    findings: list[dict[str, Any]],
+    expected_contract: str,
+) -> list[str]:
+    """The levels of the findings that answer THIS case's own contract.
+
+    ONE rule, ONE place - because the eval report and the severity
+    judgement have to agree about the same case (ledger #413).
+
+    A finding can answer a case by carrying the expected contract id OR by
+    naming the expected evidence (``matched_findings``). A finding that
+    answers by evidence alone can belong to a DIFFERENT contract, and its
+    level is that other contract's level: it must not decide this case's
+    level. The matrix already resolves this the same way - it reports the
+    strongest finding FOR THAT CONTRACT (``agent/matrix_policy.py``:
+    ``_court_sort_key``).
+
+    When no finding carries the expected contract id, the findings that
+    answered the case are the case's levels (that is all the case has).
+    """
+    contract = str(expected_contract or "").strip()
+    levels = [
+        str(f.get("severity") or "")
+        for f in findings
+        if isinstance(f, dict)
+    ]
+    if not contract:
+        return levels
+    own = [
+        str(f.get("severity") or "")
+        for f in findings
+        if isinstance(f, dict)
+        and str(f.get("contract_id") or "").strip() == contract
+    ]
+    return own or levels
+
+
 def _levels_for_expected_contract(result: dict[str, Any]) -> list[str]:
     """The levels reported for the contract this case is about.
 
@@ -593,4 +630,5 @@ __all__ = [
     "fmt_metric",
     "severity_match_of",
     "severity_reconciliation",
+    "contract_levels",
 ]

@@ -36,6 +36,7 @@ from evidence.acceptance import (
     AcceptanceCriteria,
     MetricCounts,
     acceptance_verdict_text,
+    contract_levels,
     evaluate,
     fmt_metric,
     severity_match_of,
@@ -232,6 +233,31 @@ def matched_findings(
         seen_ids.add(finding_id)
         matched.append(f)
     return matched
+
+
+def case_contract_level(
+    matched: list[dict[str, Any]],
+    expected_contract: str,
+) -> str:
+    """The level of THIS case's contract - the one the record carries.
+
+    A contract has ONE level, and the matrix already says which: the
+    strongest finding for that contract (``agent/matrix_policy.py``:
+    ``_court_sort_key``). The eval must not disagree with the matrix
+    about the same case, so the record carries the contract's level next
+    to the full list of what was reported.
+
+    The level is the strongest level among the findings that carry THIS
+    case's contract id - NOT the strongest over every finding that
+    answered the case. A finding can answer a case by naming the
+    expected evidence while belonging to a DIFFERENT contract
+    (``matched_findings`` matches on evidence type OR contract id), and
+    that other contract's level must not decide this case's level: the
+    report's table cell and the report's drift line then said two
+    different things about the same case, on the same page
+    (ledger #413).
+    """
+    return strongest_severity(contract_levels(matched, expected_contract))
 
 
 def verdict_for(
@@ -1155,14 +1181,7 @@ def eval_cmd(
         matched_severities = sorted(
             {str(f.get("severity") or "") for f in matched}
         )
-        # A contract has ONE level, and the matrix already says which:
-        # the strongest finding for that contract (agent/matrix_policy.py:
-        # _court_sort_key). The eval must not disagree with the matrix
-        # about the same case, so the record carries the contract's level
-        # next to the full list of what was reported.
-        contract_level = strongest_severity(
-            [str(f.get("severity") or "") for f in matched]
-        )
+        contract_level = case_contract_level(matched, expected_contract)
         contracts_found = sorted(
             {str(f.get("contract_id") or "") for f in findings}
         )
