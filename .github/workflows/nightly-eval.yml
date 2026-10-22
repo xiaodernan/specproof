@@ -67,7 +67,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nightly-eval-report
-          path: docs/eval/eval-report.html
+          # The SIDECAR travels with the page (ledger #421): the HTML is a
+          # view of the evidence, and the evidence is the sidecar. A run that
+          # fails with "not measured" cases leaves the reason and the failing
+          # side's own output IN the sidecar - without it, a failed nightly
+          # leaves a page and nothing to diagnose it from.
+          # scripts/diagnose_eval_sidecar.py reads exactly these files.
+          path: |
+            docs/eval/eval-report.html
+            docs/eval/eval-report.results.json
+            docs/eval/eval-report.results.jsonl
       - name: Alert on regression (fails the run so the schedule surfaces it)
         # Precision joins here for the same reason it joined ci.yml (#230):
         # recall and false positives were asserted while precision was not,
