@@ -266,6 +266,31 @@ def unjudgeable_reason(
     return ""
 
 
+def unjudgeable_output_tails(
+    diff_results: list[dict[str, Any]],
+    expected_contract: str,
+) -> dict[str, str]:
+    """The base/head output tails of the evidence path that could not judge.
+
+    "The probe could not judge this case" is a symptom; the surefire
+    output of the side that failed is the diagnosis. Without it, the
+    question "why did the base side fail?" has no answer at all — the
+    report never carried it (ledger #399).
+    """
+    wanted = str(expected_contract or "")
+    for entry in diff_results:
+        if str(entry.get("verdict") or "") != UNJUDGEABLE_VERDICT:
+            continue
+        contract_id = str(entry.get("contract_id") or "")
+        if contract_id not in (wanted, WHOLE_RUN_CONTRACT):
+            continue
+        return {
+            "base_output": str(entry.get("base_output") or ""),
+            "head_output": str(entry.get("head_output") or ""),
+        }
+    return {}
+
+
 def _schema_reachable(database: str) -> bool:
     """Can this schema be written? A read-only probe: it never creates
     anything and never touches a row."""
@@ -937,15 +962,23 @@ def eval_cmd(
         # abort, and the reason the pool's recall used to move with the
         # weather (ledger #397).
         unjudgeable = ""
+        tails: dict[str, str] = {}
         if not pipeline_errors and not findings:
-            unjudgeable = unjudgeable_reason(
-                list(final.get("diff_results") or []), expected_contract
-            )
+            diff_results = list(final.get("diff_results") or [])
+            unjudgeable = unjudgeable_reason(diff_results, expected_contract)
+            if unjudgeable:
+                tails = unjudgeable_output_tails(diff_results, expected_contract)
         if pipeline_errors or unjudgeable:
             not_run += 1
             reasons = [str(e) for e in pipeline_errors] or [unjudgeable]
             for message in reasons:
                 click.echo(f"  NOT RUN: {message}")
+            # The side that failed, and its own output: without them,
+            # "the evidence could not judge this case" is a symptom with
+            # no diagnosis attached (ledger #399).
+            for side, tail in tails.items():
+                if tail:
+                    click.echo(f"      {side} output: {tail[-400:]}")
             record = {
                 "case": case_dir.name,
                 "verdict": "NOT_RUN",
@@ -963,6 +996,8 @@ def eval_cmd(
                 "expected_contract": expected_contract or "—",
                 "errors": "; ".join(reasons),
                 "finding_evidence": [],
+                "base_output": tails.get("base_output", ""),
+                "head_output": tails.get("head_output", ""),
             }
             record["severity_match"] = severity_match_of(record)
             results.append(record)

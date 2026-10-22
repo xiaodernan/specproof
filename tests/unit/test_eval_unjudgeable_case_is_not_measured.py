@@ -22,6 +22,7 @@ from click.testing import CliRunner
 
 from cli.specproof.commands.eval import (
     eval_cmd,
+    unjudgeable_output_tails,
     unjudgeable_reason,
 )
 
@@ -71,6 +72,46 @@ def test_the_reason_carries_the_detail_so_the_reader_can_act() -> None:
     assert "base artifact does not meet" in reason
 
 
+# ── the diagnosis: the failing side's own output ─────────────────────────
+
+
+def test_the_output_tails_of_the_failing_side_are_found() -> None:
+    """Without the base side's own surefire output, "the probe could not
+    judge" is a symptom with no diagnosis attached (ledger #399)."""
+    entry = {
+        **_unjudgeable(),
+        "base_output": "Tests run: 1, Failures: 1 ... boom",
+        "head_output": "Tests run: 1, Failures: 0",
+    }
+    tails = unjudgeable_output_tails([entry], "COURT-01")
+    assert "boom" in tails["base_output"]
+    assert tails["head_output"] == "Tests run: 1, Failures: 0"
+
+
+def test_no_tails_when_the_evidence_could_judge() -> None:
+    entry = {"contract_id": "COURT-01", "verdict": "REGRESSION"}
+    assert unjudgeable_output_tails([entry], "COURT-01") == {}
+
+
+def test_the_not_run_record_carries_the_output_that_explains_it(tmp_path, monkeypatch):
+    class _WithOutput(_Graph):
+        def invoke(self, state: dict) -> dict:
+            out = super().invoke(state)
+            out["diff_results"] = [{
+                **_unjudgeable(),
+                "base_output": "Tests run: 1, Failures: 1, boom",
+                "head_output": "Tests run: 1, Failures: 0",
+            }]
+            return out
+
+    exit_code, output = _run(tmp_path, monkeypatch, _WithOutput())
+    assert exit_code == 0, output
+    record = _record(tmp_path)
+    assert record["verdict"] == "NOT_RUN"
+    assert "boom" in record["base_output"], record
+    assert "boom" in output, "the failing side's output is shown"
+
+
 # ── end to end through the evaluator ──────────────────────────────────────
 
 
@@ -98,8 +139,8 @@ def _write_case(root: Path, name: str, *, should_detect: bool) -> Path:
 class _Graph:
     """A pipeline that found nothing and could not judge the case."""
 
-    def __init__(self, diff_results: list[dict]) -> None:
-        self.diff_results = diff_results
+    def __init__(self, diff_results: list[dict] | None = None) -> None:
+        self.diff_results = diff_results or [_unjudgeable()]
 
     def invoke(self, state: dict) -> dict:
         return {

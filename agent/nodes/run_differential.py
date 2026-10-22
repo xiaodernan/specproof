@@ -1990,6 +1990,21 @@ def _probe_digest_payload(
     }
 
 
+def _probe_output_tail(run: dict[str, Any]) -> str:
+    """The tail of one side's test output (2000 chars, like the differential).
+
+    The tail is what makes a failure diagnosable: the surefire summary
+    says WHY the test failed, and without it "the base side failed" is
+    a symptom, not a diagnosis.
+    """
+    text = str(run.get("stdout") or "") + str(run.get("stderr") or "")
+    if not text:
+        return ""
+    if len(text) > 2000:
+        return "..." + text[-2000:]
+    return text
+
+
 def _run_probe_experiment(
     state: Phase0State, base_app: str, head_app: str, base_cache_hit: bool,
 ) -> list[dict[str, Any]]:
@@ -2088,4 +2103,13 @@ def _run_probe_experiment(
         "base_run_seconds": base_seconds,
         "head_run_seconds": head_seconds,
         "evidence_digest": digest,
+        # The base side's own output. A probe that comes back
+        # NON_REPRODUCIBLE because the BASE side did not meet its profile
+        # is a case that was never measured — and the question "why did
+        # the base's probe test fail?" cannot be answered without the
+        # base's own surefire output (ledger #399). The differential path
+        # already carries these tails (base_output/head_output); the
+        # probe path did not, so the answer was unreachable.
+        "base_output": _probe_output_tail(base_run),
+        "head_output": _probe_output_tail(head_run),
     }]

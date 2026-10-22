@@ -637,7 +637,40 @@ def render_eval_report(
         "PARTIAL": "#d29922",
         "MISS": "#ff7b72",
         "FALSE_POSITIVE": "#ff7b72",
+        # "Not measured" is neither a pass nor a failure: the case was
+        # never compared. It gets its own colour so a reader does not
+        # have to guess whether amber means "partial" or "not run".
+        "NOT_RUN": "#d29922",
     }
+
+    # The cases that were never measured, and WHY. A row that only says
+    # NOT_RUN leaves the reader with no way to act on it; the reason and
+    # the failing side's own output are the diagnosis (ledger #399).
+    not_measured_html = ""
+    not_measured = [r for r in results if r.get("verdict") == "NOT_RUN"]
+    if not_measured:
+        blocks = []
+        for r in not_measured:
+            reason = escape(str(r.get("errors") or "")) or "(no reason recorded)"
+            tail = str(r.get("base_output") or "")
+            tail_html = (
+                f'<pre style="white-space:pre-wrap;font-size:12px;'
+                f'background:#161b22;border:1px solid #30363d;padding:8px;'
+                f'border-radius:6px">{escape(tail[-800:])}</pre>'
+                if tail else ""
+            )
+            blocks.append(
+                f'<li><b>{escape(str(r.get("case", "")))}</b> — {reason}'
+                f"{tail_html}</li>"
+            )
+        not_measured_html = (
+            '<h2 style="font-size:16px;margin-top:28px">'
+            f"Not measured ({len(not_measured)})</h2>"
+            '<p class="meta">这些案例<b>没有被比较过</b>：证据那一条路回来的是'
+            '「判不了」（NON_REPRODUCIBLE）。它们<b>不在</b> Recall 的分母里，'
+            '也<b>不是</b>「没查出来」。</p>'
+            f"<ul>{''.join(blocks)}</ul>"
+        )
 
     rows_html = ""
     for r in results:
@@ -722,4 +755,5 @@ def render_eval_report(
         </tr></thead>
         <tbody>{rows_html}</tbody>
     </table>
+    {not_measured_html}
 </body></html>"""
