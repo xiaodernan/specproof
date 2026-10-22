@@ -596,6 +596,14 @@ def render_eval_report(
     should = sum(1 for r in results if r.get("should_detect"))
     fp = sum(1 for r in results if r.get("verdict") == "FALSE_POSITIVE")
     neg = sum(1 for r in results if not r.get("should_detect"))
+    # The cases that were NEVER MEASURED. They are out of the recall
+    # denominator (a case nobody judged is not a case nobody found), so
+    # without this number a run with one unmeasured case would read
+    # "51/51 - 100%" and hide the fact that a case was never compared
+    # (ledger #399). The number has to be ON the page.
+    not_measured = sum(1 for r in results if r.get("verdict") == "NOT_RUN")
+    not_measured_cases = [r for r in results if r.get("verdict") == "NOT_RUN"]
+    not_measured_color = "#d29922" if not_measured else "#c9d1d9"
     _m = score(MetricCounts(should_detect=should, detected=detected,
                             false_positives=fp, negative_cases=neg))
     sev = severity_reconciliation(results)
@@ -647,10 +655,9 @@ def render_eval_report(
     # NOT_RUN leaves the reader with no way to act on it; the reason and
     # the failing side's own output are the diagnosis (ledger #399).
     not_measured_html = ""
-    not_measured = [r for r in results if r.get("verdict") == "NOT_RUN"]
-    if not_measured:
+    if not_measured_cases:
         blocks = []
-        for r in not_measured:
+        for r in not_measured_cases:
             reason = escape(str(r.get("errors") or "")) or "(no reason recorded)"
             tail = str(r.get("base_output") or "")
             tail_html = (
@@ -665,7 +672,7 @@ def render_eval_report(
             )
         not_measured_html = (
             '<h2 style="font-size:16px;margin-top:28px">'
-            f"Not measured ({len(not_measured)})</h2>"
+            f"Not measured ({len(not_measured_cases)})</h2>"
             '<p class="meta">这些案例<b>没有被比较过</b>：证据那一条路回来的是'
             '「判不了」（NON_REPRODUCIBLE）。它们<b>不在</b> Recall 的分母里，'
             '也<b>不是</b>「没查出来」。</p>'
@@ -730,10 +737,13 @@ def render_eval_report(
         <div class="stat">
             <div class="value">{detected}/{should}</div>
             <div class="label">Detected / Should Detect</div>
-        </div>
-        <div class="stat">
+        </div>        <div class="stat">
             <div class="value">{fp}</div>
             <div class="label">False Positives</div>
+        </div>
+        <div class="stat">
+            <div class="value" style="color:{not_measured_color}">{not_measured}</div>
+            <div class="label">Not Measured</div>
         </div>
         <div class="stat">
             <div class="value" style="color:#79c0ff">{sev_agree_txt}</div>

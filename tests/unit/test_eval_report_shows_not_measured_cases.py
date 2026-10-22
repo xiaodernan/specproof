@@ -78,3 +78,25 @@ def test_a_not_measured_row_is_not_dressed_as_a_pass() -> None:
     row = html.split("<tbody>")[1].split("</tr>")[0]
     assert "#7ee787" not in row, "a not-measured row is not green"
     assert "NOT_RUN" in row
+
+
+def test_the_stats_row_shows_how_many_cases_were_never_measured() -> None:
+    """Without this number a run with one unmeasured case would read
+    "51/51 - 100%" and hide the fact that a case was never compared.
+    The number has to be ON the page (ledger #399)."""
+    html = render_eval_report(
+        [
+            _record(case="case-a"),
+            _record(case="case-b", verdict="NOT_RUN", matched_findings=0,
+                    matched_severities="—", errors="PROBE-01 could not judge"),
+        ],
+        None,
+    )
+    assert "Not Measured" in html
+    stats = html.split('<div class="stats">')[1].split("</div>\n    </div>")[0]
+    assert ">1<" in stats, "the not-measured count is in the stats row"
+
+
+def test_a_clean_run_shows_zero_not_measured() -> None:
+    html = render_eval_report([_record()], None)
+    assert "Not Measured" in html
