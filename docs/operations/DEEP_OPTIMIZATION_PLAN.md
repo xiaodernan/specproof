@@ -9146,3 +9146,30 @@ that never looked"*）⇒ ⇒ ⇒ ⇒⇒⇒⇒ **而"探针判不了"正是同�
 6. CI 夜间作业的 workflow + 门一起落地（需要带 `workflow` 权限的令牌）。
 7. craft 那条欠账（归那条线）。
 8. **MQ 面**要不要也按"没看"算成缺口（产品决策）。
+
+
+## #335 每个子命令的 `--help` 必须干净渲染、且每个选项真的被列出来
+
+> 占号时（本地 HEAD `f47a77d` / `## #334`）取到的号是 **#335**；本段落到账本时，并发车道已把编号推到 #397（见 #335b、#394–#397），故本段落出现在 #397 之后、编号低于其后段落，属并发编号漂移。配套代码提交 `5b7a958`（标题 #335）。
+
+**起因/占号。** #334 钉了「每个选项都有 help 文本」，但没验证「敲 `--help` 真的能渲染出来且不崩」、也没验证「写了 help 的选项真的出现在它所属命令的 help 里（而不是被藏起来或挂错命令）」。占号前 `git fetch`：本地与 `origin/master` 0 ahead / 0 behind，远端 HEAD `f47a77d`（`## #334`）。332/333/334 已被占 ⇒ 本号取 **#335**。
+
+**先量后写（探针先跑）。** 递归遍历 `cli_main.cli` 全部命令（含 Group 子命令），实测：
+- 命令总数 **33**，每个 `--help` 都用 `CliRunner` 实跑：`exit_code == 0`、输出无 `Traceback`、非空 —— **33/33 全绿**。
+- 选项总数 **116**（全部非 hidden），每个的**主长旗标**（如 `--base`）都在**它所属命令自己的 `--help`** 里出现 —— **116/116 全绿**。
+
+即当前代码两个不变量都已满足，本号是**回归锁**（防未来有人加坏子命令、或把选项 hidden 掉 / 挂错命令）。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_cli_help_renders_and_surfaces_options.py`，两条：
+1. `test_every_subcommand_help_renders_cleanly`：每个命令 `--help` 必须 exit 0、无 traceback、非空；正向控制命令数 ≥10。
+2. `test_every_non_hidden_option_is_surfaced_in_own_help`：每个非 hidden 选项的主长旗标必须出现在**自己命令**的 `--help` 里（hidden 选项显式放行）；正向控制选项数 ≥40、且必须扫到 `fix --repo`。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `python -m pytest tests/unit/test_cli_help_renders_and_surfaces_options.py -q` | 2 passed in 51.07s |
+| ruff | `ruff check tests/unit/test_cli_help_renders_and_surfaces_options.py` | **All checks passed** |
+
+**诚实边界。** ① 只加测试：生产码一字未动。② 是**回归锁**：当前 33 命令 / 116 选项全绿，本号不声称「修了一个 bug」，只声称「这两个不变量从此被锁住」。③ 只查「选项旗标出现在自己命令的 help 文本里」——help 文本**内容准不准**、旗标**语义对不对**不在射程（机器判不了，属人工审阅）。④ hidden 选项是**有意**不列，显式放行，不误报。⑤ 变红先判断是「回归」还是「旧断言写错」：本次无旧断言被改，纯增量。
+
+**下批候选（受本环境约束）。** ① `move` / `delete` 的落地后审计故障各自补一条（#330 边界②，仍未动）。② 各子命令自身的 `--help` 文本与**真实选项集**一致性（help 里点名的选项若已被移除）——比本号更细的一把尺。③ `probe.py` / `mcp.py` 纯逻辑补栅栏（低优先）。④ #333 队列①（建并发家族金案例 `case-101`，受 Java/Maven 长跑约束）。
