@@ -1202,7 +1202,25 @@ def eval_cmd(
             f"(up to {attempts} attempts each)"
         )
         for rec in results:
-            if int(rec.get("attempts") or 1) > 1:
+            if int(rec.get("attempts") or 1) <= 1:
+                continue
+            # Three different reasons for a second measurement, and they
+            # must not be given the same label (ledger #399, #405, #409):
+            # a case that was NEVER judged is not an "unstable
+            # detection" - nothing was detected, or not.
+            if rec.get("verdict") == "NOT_RUN":
+                click.echo(
+                    f"  ! never measured: {rec['case']} was tried "
+                    f"{rec['attempts']} times and never judged "
+                    f"(final: {rec.get('verdict')})"
+                )
+            elif rec.get("first_attempt_verdict") == "NOT_RUN":
+                click.echo(
+                    f"  ! first attempt could not judge: {rec['case']} "
+                    f"needed {rec['attempts']} attempts "
+                    f"(final: {rec.get('verdict')})"
+                )
+            else:
                 click.echo(
                     f"  ! unstable detection: {rec['case']} needed "
                     f"{rec['attempts']} attempts "

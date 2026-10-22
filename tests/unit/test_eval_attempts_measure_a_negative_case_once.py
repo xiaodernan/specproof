@@ -235,3 +235,74 @@ def test_a_case_whose_first_attempt_could_not_judge_is_measured_again(
     record = _record(tmp_path)
     assert record["verdict"] == "MISS", record
     assert record["first_attempt_verdict"] == "NOT_RUN", record
+
+
+# ── the summary must not call every retry the same thing ──────────────────
+
+
+class _NeverJudged:
+    """Every attempt could not conclude: the case was never measured."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def invoke(self, state: dict) -> dict:
+        self.calls += 1
+        return {
+            "confirmed_findings": [],
+            "errors": [],
+            "diff_results": [_unjudgeable()],
+        }
+
+
+class _FlakyPositive:
+    """Misses the first attempt, detects on the second."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def invoke(self, state: dict) -> dict:
+        self.calls += 1
+        if self.calls == 1:
+            return {"confirmed_findings": [], "errors": []}
+        return {"confirmed_findings": [_finding()], "errors": []}
+
+
+def test_a_case_that_was_never_measured_is_not_called_an_unstable_detection(
+    tmp_path, monkeypatch
+):
+    """It was not detected unstably - nothing was detected, and nothing
+    was judged either (ledger #399, #405)."""
+    graph = _NeverJudged()
+    result = _run(tmp_path, monkeypatch, graph, attempts=3, should_detect=True)
+    assert result.exit_code == 0, result.output
+    assert graph.calls == 3, "it used every attempt, looking for a judgment"
+    record = _record(tmp_path)
+    assert record["verdict"] == "NOT_RUN", record
+    assert "unstable detection" not in result.output, result.output
+    assert "! never measured: case-01-x was tried 3 times" in result.output
+
+
+def test_a_case_whose_first_attempt_could_not_judge_says_so(
+    tmp_path, monkeypatch
+):
+    """It WAS measured (the second attempt judged it), but the first one
+    could not - that is not an unstable detection either."""
+    graph = _UnjudgeableThenClean()
+    result = _run(tmp_path, monkeypatch, graph, attempts=3, should_detect=True)
+    assert result.exit_code == 0, result.output
+    assert "unstable detection" not in result.output, result.output
+    assert "! first attempt could not judge: case-01-x needed 3 attempts" in (
+        result.output
+    )
+
+
+def test_a_genuinely_unstable_detection_is_still_called_that(
+    tmp_path, monkeypatch
+):
+    """The label must survive the split: a detection that wobbled IS an
+    unstable detection."""
+    graph = _FlakyPositive()
+    result = _run(tmp_path, monkeypatch, graph, attempts=3, should_detect=True)
+    assert result.exit_code == 0, result.output
+    assert "! unstable detection: case-01-x needed 2 attempts" in result.output
