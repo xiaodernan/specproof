@@ -176,8 +176,16 @@ def collect(
     ``since`` is a POSIX timestamp: the output directory accumulates the
     reports of EVERY run, so a progress read without a time window would
     mix this run's cases with the ones from the last week.
+
+    A window can still contain more than ONE run: an integration test
+    that runs the evaluation on a subset writes its reports into the same
+    directory, and it overlaps a long run. Each entry therefore carries
+    how many reports that case has in the window (``reports_in_window``)
+    ⇒ ⇒ ⇒ the reader can see whether the window holds one run or several
+    ⇒ ⇒ ⇒ and the summary says so, because a case's verdict taken from
+    the newest report may belong to the OTHER run.
     """
-    by_case: dict[str, dict[str, Any]] = {}
+    by_case: dict[str, list[dict[str, Any]]] = {}
     for path in sorted(reports_dir.glob("verification-report-*.html")):
         if since is not None and path.stat().st_mtime < since:
             continue
@@ -185,17 +193,17 @@ def collect(
         case = case_name(report["head_ref"])
         if not case.startswith("case-"):
             continue
-        previous = by_case.get(case)
-        if previous is None or path.stat().st_mtime >= previous["path"].stat().st_mtime:
-            by_case[case] = report
+        by_case.setdefault(case, []).append(report)
     out: list[dict[str, Any]] = []
     for case in sorted(by_case):
-        report = by_case[case]
+        reports = sorted(by_case[case], key=lambda r: r["path"].stat().st_mtime)
+        report = reports[-1]
         truth = ground_truth(cases_dir, case)
         out.append({
             "case": case,
             "report": report,
             "truth": truth,
+            "reports_in_window": len(reports),
             **classify(report, truth),
         })
     return out
@@ -296,6 +304,27 @@ def main(argv: list[str] | None = None) -> int:
     print("PROGRESS READ, derived from the per-case reports — the evaluation's own")
     print("metrics come from its sidecar and win when the run has finished.")
     print(f"Note: {_EXPECTED_EVIDENCE_NOTE}.")
+    more_than_one = [
+        e["case"] for e in entries if e.get("reports_in_window", 1) > 1
+    ]
+    if more_than_one:
+        # A window can hold more than one run (an integration test that
+        # runs the evaluation on a subset writes into the same directory).
+        # A case measured twice may have been measured by DIFFERENT runs,
+        # and the verdict above is the newest one ⇒ ⇒ ⇒ the counts are a
+        # mixture, and the reader has to know that.
+        print("")
+        print(
+            f"!! {len(more_than_one)} case(s) have more than one report in this "
+            f"window, so the window holds MORE THAN ONE run: "
+            f"{', '.join(more_than_one[:8])}"
+            f"{' ...' if len(more_than_one) > 8 else ''}"
+        )
+        print(
+            "   the verdict shown is the NEWEST report's -> the counts above "
+            "MIX the runs -> use a window that holds one run, or read the "
+            "evaluation's own sidecar for the authoritative numbers"
+        )
     return 0
 
 
