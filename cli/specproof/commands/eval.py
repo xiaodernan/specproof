@@ -921,6 +921,16 @@ def eval_cmd(
             attempt_verdict = verdict_for(
                 should_detect, attempt_findings, attempt_matched, min_findings
             )
+            # An attempt whose evidence path could not JUDGE it did not
+            # miss the defect: it never compared anything. Calling that a
+            # MISS would put a false statement in the record
+            # ("first_attempt_verdict": MISS for a run that never looked),
+            # and it is exactly the word the NOT_RUN branch exists to
+            # avoid (ledger #397, #399).
+            if not attempt_findings and unjudgeable_reason(
+                list(final.get("diff_results") or []), expected_contract
+            ):
+                attempt_verdict = "NOT_RUN"
             if not first_attempt_verdict:
                 first_attempt_verdict = attempt_verdict
             # A negative case that found nothing is DECIDED: a false
