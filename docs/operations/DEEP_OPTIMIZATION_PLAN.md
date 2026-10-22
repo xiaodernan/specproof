@@ -9261,3 +9261,23 @@ would say 'the tool failed to detect the defect' about a run that never looked"*
 5. CI 夜间作业的 workflow + 门一起落地（需要带 `workflow` 权限的令牌）。
 6. craft 那条欠账（归那条线）。
 7. **MQ 面**要不要也按"没看"算成缺口（产品决策）。
+
+
+## #336 队列核验：`move`/`delete` 落地审计已有测试；「help 提到不存在的选项」探针全是假阳性
+
+**起因。** #335 的下批候选①是「`move` / `delete` 的落地后审计故障各自补一条（#330 边界②）」。本号**先量后写**：动手前先查这条是否真的缺。
+
+**核验一：`move` / `delete` 落地审计测试已存在（队列项过时）。** `tests/fault/test_disk_full.py` 已含两个类（共 4 案）：
+- `TestAMoveThatLandsButCannotBeAudited`：`test_the_file_really_moved`（文件真的到了目标）、`test_the_error_says_the_move_landed`（错误含「已落地」「文件已经改变」、`landed is True`、不是 `EditError`）；
+- `TestADeleteThatLandsButCannotBeAudited`：`test_the_file_really_is_gone`（文件真的没了）、`test_the_error_says_the_delete_landed`（同上断言）。
+两者都用 `_fail_writes_to(monkeypatch, "audit.log", fail_from=2)` 注入审计写失败（备份那条成功、落地那条失败），正是 #330 边界②要的「落地后审计故障」。⇒ **#330 边界② 已被覆盖，队列项应删除，不重复造。**
+
+**核验二：「help 文本提到不存在的选项」探针全是假阳性。** 探针遍历 33 命令、167 处 `--x` 提及，报 7 个命令「提到未注册选项」，逐一核对：
+- `--no-llm` / `--no-self-verify` / `--no-stream`：都是 `@click.option("--llm/--no-llm", ...)` 这类**布尔对**的 `secondary_opts`。实测 `click.Option("--llm/--no-llm")` 的 `opts == ['--llm']`、`secondary_opts == ['--no-llm']`；探针只查了 `opts`，没查 `secondary_opts` ⇒ 假阳性。
+- 顶层 `cli --help` 的 `--base` / `--head` / `--repo` / `--run` / `--spec` / `--spec-file`：都在 **epilog 的用法示例**里（`specproof verify --repo .` 之类），是子命令的选项被举例，不是顶层命令的选项 ⇒ 假阳性。
+- `--no-`：正则 `--[a-z][a-z0-9-]*` 在 `--no-*` 这类文本上的截断 ⇒ 假阳性。
+⇒ **当前 help 文本没有「提到不存在的选项」的真缺陷**；这个方向**不适合做成门**（要正确处理 `secondary_opts` + 排除 epilog 示例 + 正则截断，误报率高、维护成本大）。
+
+**结论。** ① 删除 #335 候选①（已覆盖）。② 删除 #335 候选②（假阳性，不做门）。③ 下一候选回到：`probe.py` / `mcp.py` 纯逻辑补栅栏（低优先）、#333 队列①（`case-101`，受 Java/Maven 约束）、或 #397 队列里**不依赖长跑**的项。
+
+**诚实边界。** 本号**只做核验、不改任何代码 / 测试**；它产出的是「两条队列项该删」的结论与证据，不是一个新门。核验二的「全是假阳性」结论建立在**逐条核对**上（`secondary_opts` 实测、epilog 原文、正则截断三处），不是抽样。
