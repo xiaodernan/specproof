@@ -39,9 +39,16 @@ from evidence.acceptance import (
     contract_levels,
     evaluate,
     fmt_metric,
+    retry_summary,
     severity_match_of,
     severity_reconciliation,
     strongest_severity,
+)
+from evidence.acceptance import (
+    counter_deltas as _counter_deltas,
+)
+from evidence.acceptance import (
+    first_try_deltas as _first_try_deltas,
 )
 from evidence.report import render_eval_report
 
@@ -156,50 +163,21 @@ def first_try_deltas(
 ) -> tuple[int, int, int]:
     """What one case contributes to the FIRST-TRY counters.
 
-    (first_try_detected, first_try_should_detect, first_try_not_judged)
-
-    The first-try counters answer "was it found the FIRST time". An
-    attempt that could not judge (NOT_RUN) has NO first-try verdict at
-    all: the tool never looked, so it neither found nor missed the
-    defect. Such a case is therefore NOT in the first-try denominator -
-    counting it as a miss would say "the tool failed on the first try"
-    about a run that never ran - and the number of excluded cases is
-    reported next to the ratio, so the exclusion hides nothing
-    (ledger #399, #405, #409).
-
-    A NEGATIVE case contributes nothing here: it has no "first
-    detection" to speak of.
-
-    The rules are written down once so that a re-used record is counted
-    exactly like a re-measured one (see counter_deltas).
+    The rule lives in ``evidence.acceptance`` so that the console, the
+    HTML report and the resume path all read the SAME rule off the same
+    records (ledger #414). It is re-exported here because the eval
+    command is where the counters are used.
     """
-    if verdict == "NOT_RUN" or not should_detect:
-        return (0, 0, 0)
-    first = str(first_attempt_verdict or "")
-    if not first or first == "NOT_RUN":
-        return (0, 0, 1)
-    detected = 1 if first in ("PASS", "PARTIAL") else 0
-    return (detected, 1, 0)
+    return _first_try_deltas(verdict, should_detect, first_attempt_verdict)
 
 
 def counter_deltas(record: dict[str, Any]) -> tuple[int, int, int, int, int]:
     """What one case record contributes to the run's counters.
 
-    (detected, should_detect, false_positives, negative_cases, not_run)
-
-    The counting rules are the ones the run loop applies to a fresh
-    measurement, written down once so a re-used record is counted exactly
-    like a re-measured one. A case whose pipeline aborted belongs to
-    neither side of the ratio: it is not_run, and it is not a miss.
+    The rule lives in ``evidence.acceptance`` (one rule for the console
+    and the report, ledger #414); re-exported here.
     """
-    verdict = str(record.get("verdict") or "")
-    if verdict == "NOT_RUN":
-        return (0, 0, 0, 0, 1)
-    if record.get("should_detect"):
-        detected = 1 if verdict in ("PASS", "PARTIAL") else 0
-        return (detected, 1, 0, 0, 0)
-    false_positive = 1 if verdict == "FALSE_POSITIVE" else 0
-    return (0, 0, false_positive, 1, 0)
+    return _counter_deltas(record)
 
 
 def matched_findings(
@@ -1282,35 +1260,45 @@ def eval_cmd(
                 f"case(s) whose first attempt produced no verdict - they were "
                 f"never compared, so they are neither found nor missed)"
             )
+        # The retry story, from the ONE rule that classifies it
+        # (evidence.acceptance.retry_summary) so that the console and the
+        # HTML report cannot call the same case two different things
+        # (ledger #414).
+        retry = retry_summary(results)
         click.echo(
-            f"Cases measured more than once: {retried_cases} "
+            f"Cases measured more than once: {retry['retried_cases']} "
             f"(up to {attempts} attempts each)"
         )
-        for rec in results:
-            if int(rec.get("attempts") or 1) <= 1:
-                continue
-            # Three different reasons for a second measurement, and they
-            # must not be given the same label (ledger #399, #405, #409):
-            # a case that was NEVER judged is not an "unstable
-            # detection" - nothing was detected, or not.
-            if rec.get("verdict") == "NOT_RUN":
+        for entry in retry["retries"]:
+            reason = entry["reason"]
+            case = entry["case"]
+            count = entry["attempts"]
+            if reason == "never measured":
                 click.echo(
-                    f"  ! never measured: {rec['case']} was tried "
-                    f"{rec['attempts']} times and never judged "
-                    f"(final: {rec.get('verdict')})"
+                    f"  ! never measured: {case} was tried "
+                    f"{count} times and never judged "
+                    f"(final: {entry['final_verdict']})"
                 )
-            elif rec.get("first_attempt_verdict") == "NOT_RUN":
+            elif reason == "first attempt could not judge":
                 click.echo(
-                    f"  ! first attempt could not judge: {rec['case']} "
-                    f"needed {rec['attempts']} attempts "
-                    f"(final: {rec.get('verdict')})"
+                    f"  ! first attempt could not judge: {case} "
+                    f"needed {count} attempts "
+                    f"(final: {entry['final_verdict']})"
+                )
+            elif reason == "consistently missed":
+                # Every attempt judged it and every attempt missed it:
+                # there was NO detection to wobble (ledger #414).
+                click.echo(
+                    f"  ! consistently missed: {case} needed "
+                    f"{count} attempts (every attempt said "
+                    f"{entry['first_verdict']})"
                 )
             else:
                 click.echo(
-                    f"  ! unstable detection: {rec['case']} needed "
-                    f"{rec['attempts']} attempts "
-                    f"(first attempt said {rec.get('first_attempt_verdict')}, "
-                    f"final: {rec.get('verdict')})"
+                    f"  ! unstable detection: {case} needed "
+                    f"{count} attempts "
+                    f"(first attempt said {entry['first_verdict']}, "
+                    f"final: {entry['final_verdict']})"
                 )
     severity = severity_reconciliation(results)
     click.echo(

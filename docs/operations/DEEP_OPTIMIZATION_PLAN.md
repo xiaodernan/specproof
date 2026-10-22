@@ -9993,3 +9993,68 @@ def contract_levels(findings, expected_contract) -> list[str]:
 - 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
 - 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
 - "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。
+## #414 报告上写着 **Recall 169.7%** —— 一个不可能的数，就印在**人读的那一页**上
+
+**这一批全是「两个 artifact 对同一轮运行说了不同的话」**（和 #413 同一个病根，但一个比一个严重）。三件事，都是**量出来的**，不是推出来的。
+
+### 一、报告把**负例**当成了检出 ⇒ Recall 169.7%
+
+报告自己算统计数（`evidence/report.py` 里内联的四行 `sum(...)`），而**运行**用 `counter_deltas` 数。两者不一样：
+
+- 报告：`detected = sum(1 for r if r.get("verdict") in ("PASS","PARTIAL"))` ⇒ **负例的 verdict 就是 PASS**（负例什么都没查到 ⇒ PASS）⇒ **负例被算成检出了**；
+- 运行（`counter_deltas`）：负例走的是 `(0, 0, fp, 1, 0)` ⇒ **不计检出**。
+
+⇒ **实测（正在跑的那一轮的真实记录，56 条）**：
+- 运行（控制台）：`detected=33 should=33 fp=0 neg=23` ⇒ **Recall 100.0% / Precision 100.0% / F1 100.0%**
+- 报告（页面）：`detected=56 should=33` ⇒ **Recall 169.7% / F1 125.8%**
+
+**169.7% 的 Recall 不是指标，是计数 bug。** 而且它是印在**人读的那一页**上（CI 上传的就是这一页）。
+
+还有一个同源的洞：报告把**没量成**的案例放进了 Recall 的**分母**（`should = sum(1 for r if r.get("should_detect"))`），而它自己的「Not Measured」统计格明明白白写着这种案例**不在**分母里。⇒ **同一页上，自相矛盾。**
+
+**修法**：计数规则只有一份（`evidence/acceptance.py:counter_deltas` / `count_records`），控制台和报告都用它。`counter_deltas` / `first_try_deltas` 从 `cli/.../eval.py` **搬到** `evidence/acceptance.py`（那里本来就是「唯一诚实来源」），eval.py 重新导出，老的 import 路径不变。
+
+**修复后实测**：同一批真实记录 ⇒ 报告页面 **Recall 100.0% / Precision 100.0%**，和控制台**逐位相同**。
+
+### 二、「重试过」这件事**只在控制台**有，报告里一个字都没有
+
+控制台一直有「Cases measured more than once: N」和每个案例的原因；**报告没有**。⇒ 读报告的人**分不清**「检出在摇摆」和「这个案例压根没量过」。
+
+⇒ 报告现在有：统计格 **Measured More Than Once**，和一节 **Measured more than once (N)**，逐个案例写明原因。原因来自**同一条规则**（`retry_summary`）⇒ 两个 artifact 不会再对同一个案例说两种话。
+
+### 三、**每遍都漏了**的案例，被叫做「检出不稳」
+
+这是三个原因之外的**第四种**：
+
+- 真实跑一遍（不是推理）：一个正例，三遍都 MISS ⇒ 控制台打的是
+  `! unstable detection: case-01-x needed 3 attempts (first attempt said MISS, final: MISS)`
+- ⇒ **「检出不稳」是在说检出摇摆 —— 而这个案例从来没有检出过任何东西。** 没有检出，就没有可以摇摆的检出。
+
+⇒ 原因规则现在有**四种**（`retry_reason`，ONE rule，ONE place）：
+
+| 原因 | 含义 |
+|---|---|
+| `never measured` | 没有一遍判过它 |
+| `first attempt could not judge` | 第一遍没量到东西，后面的某一遍判了 |
+| `consistently missed` | **每遍都判了，每遍都漏了**（没有检出可以摇摆） |
+| `unstable detection` | 判了不止一遍，**判定结果不一样**（检出真的摇摆了） |
+
+**修复后同一遍真实跑**：控制台打的是 `! consistently missed: case-01-x needed 3 attempts (every attempt said MISS)` ✔
+
+### 证据
+
+1. **新单测** `tests/unit/test_eval_report_agrees_with_the_console.py`（10 个）。
+2. **锋利性**（改回修复 → 测试当场失败）：
+   - 改回报告的内联计数 ⇒ **3 个失败**（`Recall 169.7%` 那条路）
+   - 改回三原因规则 ⇒ **3 个失败**（`consistently missed` 那条路）
+3. **真实数据上的复现与验证**：见上面「实测」两段（169.7% → 100.0%）。
+4. **质量门**：`ruff` + `mypy` 全绿；相关单测集 **597 passed**（含 `test_eval_attempts_measure_a_negative_case_once.py` 的三个老标签、`test_eval_first_try_recall_counts_the_whole_pool.py`、`test_eval_resume_reuses_measured_cases.py`，它们对 `counter_deltas` / `first_try_deltas` 的 import 路径没变）。
+
+**这一轮全量评测（#408 之后从零重跑的，`--attempts 3`）到目前的实况**：
+- 落地 **57** 条，**57 条全 PASS**，**57 条全是第一遍就检出**（`attempts` 直方图 = {1: 57}）—— 到现在**一个重试都没发生**。
+- **这一轮的数还没落地**（等跑完，三个数一起：被量到的正例 / 没量成的 / 基准面失败的输出）。
+
+**尚未落地（记着，不替产品做决定）**：
+- 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
+- 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
+- "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。

@@ -5,8 +5,9 @@ from typing import Any
 
 from evidence.acceptance import (
     AcceptanceResult,
-    MetricCounts,
+    count_records,
     fmt_metric,
+    retry_summary,
     score,
     severity_reconciliation,
 )
@@ -592,26 +593,35 @@ def render_eval_report(
     # Compute summary stats via the single honest source (evidence.acceptance):
     # a metric is None when its sample denominator is 0 — never a fake 100%.
     total = len(results)
-    detected = sum(1 for r in results if r.get("verdict") in ("PASS", "PARTIAL"))
-    should = sum(1 for r in results if r.get("should_detect"))
-    fp = sum(1 for r in results if r.get("verdict") == "FALSE_POSITIVE")
-    neg = sum(1 for r in results if not r.get("should_detect"))
+    # The counting rule is the run's rule (``counter_deltas``), not a
+    # second one written here: the report used to count NEGATIVE cases
+    # (whose verdict is PASS) as detections, so it published a recall of
+    # 169.7% for a real run whose recall was 100% - an impossible number
+    # on the artifact a human reads (ledger #414).
+    counts, not_measured = count_records(results)
+    detected = counts.detected
+    should = counts.should_detect
+    fp = counts.false_positives
     # The cases that were NEVER MEASURED. They are out of the recall
     # denominator (a case nobody judged is not a case nobody found), so
     # without this number a run with one unmeasured case would read
     # "51/51 - 100%" and hide the fact that a case was never compared
     # (ledger #399). The number has to be ON the page.
-    not_measured = sum(1 for r in results if r.get("verdict") == "NOT_RUN")
     not_measured_cases = [r for r in results if r.get("verdict") == "NOT_RUN"]
     not_measured_color = "#d29922" if not_measured else "#c9d1d9"
-    _m = score(MetricCounts(should_detect=should, detected=detected,
-                            false_positives=fp, negative_cases=neg))
+    _m = score(counts)
     sev = severity_reconciliation(results)
     sev_agree_txt = fmt_metric(sev["severity_agreement"], undefined="样本不足")
     sev_prec_txt = fmt_metric(sev["severe_precision"], undefined="样本不足")
     precision_txt = fmt_metric(_m.precision, undefined="样本不足")
     recall_txt = fmt_metric(_m.recall, undefined="样本不足")
     f1_txt = fmt_metric(_m.f1, undefined="样本不足")
+    # The retry story: how many cases were measured more than once, and
+    # why. The console has always said this; the report did not
+    # (ledger #414). The reason for each case comes from the ONE rule
+    # (``retry_summary``), so the two artifacts cannot disagree.
+    retry = retry_summary(results)
+    retried_color = "#d29922" if retry["retried_cases"] else "#c9d1d9"
 
     acceptance_card = ""
     acceptance_note = ""
@@ -676,6 +686,52 @@ def render_eval_report(
             '<p class="meta">这些案例<b>没有被比较过</b>：证据那一条路回来的是'
             '「判不了」（NON_REPRODUCIBLE）。它们<b>不在</b> Recall 的分母里，'
             '也<b>不是</b>「没查出来」。</p>'
+            f"<ul>{''.join(blocks)}</ul>"
+        )
+
+    # The cases that were measured more than once, and WHY each of them
+    # was. The console has always said this; the report did not, so a
+    # reader of the artifact could not tell a wobbling detection from a
+    # case that was never measured at all. The reason for each case
+    # comes from the ONE rule (``retry_summary``), so the console and the
+    # report cannot call the same case two different things
+    # (ledger #414).
+    retried_html = ""
+    if retry["retried_cases"]:
+        blocks = []
+        for entry in retry["retries"]:
+            detail = {
+                "never measured": (
+                    f"tried {entry['attempts']} times and never judged "
+                    f"(final: {entry['final_verdict'] or '—'})"
+                ),
+                "first attempt could not judge": (
+                    f"the first attempt measured nothing; "
+                    f"{entry['attempts']} attempts were needed "
+                    f"(final: {entry['final_verdict'] or '—'})"
+                ),
+                "consistently missed": (
+                    f"every attempt judged it and every attempt missed it "
+                    f"({entry['attempts']} attempts, all {entry['first_verdict']})"
+                ),
+                "unstable detection": (
+                    f"the detection wobbled: first attempt said "
+                    f"{entry['first_verdict'] or '—'}, final: "
+                    f"{entry['final_verdict'] or '—'}"
+                ),
+            }.get(entry["reason"], entry["reason"])
+            blocks.append(
+                f'<li><b>{escape(str(entry["case"]))}</b> — '
+                f'<span style="color:#d29922">{escape(entry["reason"])}</span>'
+                f" — {escape(detail)}</li>"
+            )
+        retried_html = (
+            '<h2 style="font-size:16px;margin-top:28px">'
+            f'Measured more than once ({retry["retried_cases"]})</h2>'
+            '<p class="meta">这些案例<b>被量了不止一次</b>。'
+            '重试的<b>原因不一样</b>，不能共用一个说法：'
+            '「没量过」、「第一遍判不了」、「每遍都漏了」、'
+            '「检出不稳」是四件不同的事。</p>'
             f"<ul>{''.join(blocks)}</ul>"
         )
 
@@ -803,6 +859,10 @@ def render_eval_report(
             <div class="label">Not Measured</div>
         </div>
         <div class="stat">
+            <div class="value" style="color:{retried_color}">{retry['retried_cases']}</div>
+            <div class="label">Measured More Than Once</div>
+        </div>
+        <div class="stat">
             <div class="value" style="color:#79c0ff">{sev_agree_txt}</div>
             <div class="label">Severity Agreement</div>
         </div>
@@ -823,5 +883,6 @@ def render_eval_report(
         <tbody>{rows_html}</tbody>
     </table>
     {not_measured_html}
+    {retried_html}
     {drift_html}
 </body></html>"""

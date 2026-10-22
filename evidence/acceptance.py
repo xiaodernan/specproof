@@ -443,6 +443,172 @@ def contract_levels(
     return own or levels
 
 
+def counter_deltas(record: dict[str, Any]) -> tuple[int, int, int, int, int]:
+    """What one case record contributes to the run's counters.
+
+    (detected, should_detect, false_positives, negative_cases, not_run)
+
+    The counting rules are the ones the run loop applies to a fresh
+    measurement, written down once so a re-used record is counted exactly
+    like a re-measured one. A case whose pipeline aborted belongs to
+    neither side of the ratio: it is not_run, and it is not a miss.
+
+    THIS is the run's counting rule - the CLI and the HTML report both
+    use it. The report used to count inline, and counted NEGATIVE cases
+    (whose verdict is PASS) as detections: the report published a
+    recall of 169.7% for a real run whose recall was 100% - an
+    impossible number on the artifact a human reads (ledger #414).
+    """
+    verdict = str(record.get("verdict") or "")
+    if verdict == "NOT_RUN":
+        return (0, 0, 0, 0, 1)
+    if record.get("should_detect"):
+        detected = 1 if verdict in ("PASS", "PARTIAL") else 0
+        return (detected, 1, 0, 0, 0)
+    false_positive = 1 if verdict == "FALSE_POSITIVE" else 0
+    return (0, 0, false_positive, 1, 0)
+
+
+def count_records(
+    records: list[dict[str, Any]],
+) -> tuple[MetricCounts, int]:
+    """The run's counters, and the number of cases that were never measured.
+
+    One counting rule for both artifacts: the CLI's summary and the HTML
+    report's headline numbers are computed from the same records with the
+    same rule (``counter_deltas``), so they cannot drift apart
+    (ledger #414).
+    """
+    detected = should = fp = neg = not_run = 0
+    for record in records:
+        d, s, f, n, nr = counter_deltas(record)
+        detected += d
+        should += s
+        fp += f
+        neg += n
+        not_run += nr
+    return (
+        MetricCounts(
+            should_detect=should,
+            detected=detected,
+            false_positives=fp,
+            negative_cases=neg,
+        ),
+        not_run,
+    )
+
+
+def first_try_deltas(
+    verdict: str,
+    should_detect: bool,
+    first_attempt_verdict: str,
+) -> tuple[int, int, int]:
+    """What one case contributes to the FIRST-TRY counters.
+
+    (first_try_detected, first_try_should_detect, first_try_not_judged)
+
+    The first-try counters answer "was it found the FIRST time". An
+    attempt that could not judge (NOT_RUN) has NO first-try verdict at
+    all: the tool never looked, so it neither found nor missed the
+    defect. Such a case is therefore NOT in the first-try denominator -
+    counting it as a miss would say "the tool failed on the first try"
+    about a run that never ran - and the number of excluded cases is
+    reported next to the ratio, so the exclusion hides nothing
+    (ledger #399, #405, #409).
+
+    A NEGATIVE case contributes nothing here: it has no "first
+    detection" to speak of.
+
+    The rules are written down once so that a re-used record is counted
+    exactly like a re-measured one (see counter_deltas) and so that the
+    report and the console read the same number off the same records
+    (ledger #414).
+    """
+    if verdict == "NOT_RUN" or not should_detect:
+        return (0, 0, 0)
+    first = str(first_attempt_verdict or "")
+    if not first or first == "NOT_RUN":
+        return (0, 0, 1)
+    detected = 1 if first in ("PASS", "PARTIAL") else 0
+    return (detected, 1, 0)
+
+
+#: The reasons a case was measured more than once. They are FOUR
+#: different things and must not be given the same label
+#: (ledger #409, #414).
+RETRY_NEVER_MEASURED = "never measured"
+RETRY_FIRST_ATTEMPT_UNJUDGED = "first attempt could not judge"
+RETRY_CONSISTENTLY_MISSED = "consistently missed"
+RETRY_UNSTABLE_DETECTION = "unstable detection"
+
+RETRY_REASON_ORDER: tuple[str, ...] = (
+    RETRY_NEVER_MEASURED,
+    RETRY_FIRST_ATTEMPT_UNJUDGED,
+    RETRY_CONSISTENTLY_MISSED,
+    RETRY_UNSTABLE_DETECTION,
+)
+
+
+def retry_reason(record: dict[str, Any]) -> str:
+    """Why a case was measured more than once - ONE rule, ONE place.
+
+    FOUR different things (ledger #409, #414):
+
+    - ``never measured``: no attempt ever judged the case;
+    - ``first attempt could not judge``: the first attempt measured
+      nothing and a later one judged it;
+    - ``consistently missed``: every attempt judged it and every attempt
+      missed it. There was NO detection to wobble - calling it an
+      "unstable detection" claims the detection changed its mind when
+      there was never a detection at all;
+    - ``unstable detection``: the case was judged more than once and the
+      verdicts differed (a detection that wobbled).
+
+    The console and the HTML report both read the reason from here, so
+    the two artifacts cannot call the same case two different things.
+    """
+    verdict = str(record.get("verdict") or "")
+    first = str(record.get("first_attempt_verdict") or "")
+    if verdict == "NOT_RUN":
+        return RETRY_NEVER_MEASURED
+    if not first or first == "NOT_RUN":
+        return RETRY_FIRST_ATTEMPT_UNJUDGED
+    if verdict == "MISS" and first == "MISS":
+        return RETRY_CONSISTENTLY_MISSED
+    return RETRY_UNSTABLE_DETECTION
+
+
+def retry_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """The retry story of a run: how many cases were measured more than
+    once, and WHY each of them was.
+
+    The console printed this; the HTML report did not (ledger #414).
+    """
+    entries: list[dict[str, Any]] = []
+    for record in results:
+        attempts = int(record.get("attempts") or 1)
+        if attempts <= 1:
+            continue
+        entries.append(
+            {
+                "case": str(record.get("case") or ""),
+                "attempts": attempts,
+                "reason": retry_reason(record),
+                "first_verdict": str(record.get("first_attempt_verdict") or ""),
+                "final_verdict": str(record.get("verdict") or ""),
+            }
+        )
+    by_reason = {
+        reason: sum(1 for entry in entries if entry["reason"] == reason)
+        for reason in RETRY_REASON_ORDER
+    }
+    return {
+        "retried_cases": len(entries),
+        "retries": entries,
+        "by_reason": by_reason,
+    }
+
+
 def _levels_for_expected_contract(result: dict[str, Any]) -> list[str]:
     """The levels reported for the contract this case is about.
 
