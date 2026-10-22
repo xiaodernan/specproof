@@ -9398,3 +9398,37 @@ would say 'the tool failed to detect the defect' about a run that never looked"*
 **诚实边界。** ① 只加测试：`agent/job_control.py` 一字未动。② 只补**未覆盖分支**；已覆盖的 10 条不重复。③ `ConnectTimeout` 的归类是**现状**（Timeout 分支在前），本号钉住它以防顺序被无意调换，但不评价这是否是唯一合理设计。④ 不测 `check_cancelled` / `run_with_cancel_checks` 的 I/O 行为（它们要 MySQL store，属另一平面）。⑤ 不测 worker 侧信封（已有 `test_worker_error_classify.py` 覆盖）。
 
 **下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `security_scanner` 占位符漂移（本条让出的那个）——等并发车道让出后再量。② `merge_contract_results` 的纯空白 `contract_id`（#400 边界③）疑似缺陷，先量影响面。③ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。④ #397 队列剩余：基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、craft 欠账、MQ 面产品决策。
+
+
+## #404 `agent/security_scanner.py` 的占位符过滤清单：目录扫描与 zip 扫描是两份手抄、已漂移
+
+**起因/占号。** #400 的下一号队列①：「`agent/security_scanner.py` 零直接测试，且 `scan_directory` vs `scan_capsule_zips` 的占位符过滤清单是手抄两份、已漂移」。占号前 `git fetch`：本地与 `origin/master` 0/0，远端 HEAD `cd6c901`（`## #403`）⇒ 本号取 **#404**。
+
+**先量后写（量的是「同一份内容，两种扫描给出不同结果」）。** 造一份含 4 行的 `conf.txt`：`example-key-1234567890`、`your-api-key-here`、canary、`real-secret-abcdef123456`。同一目录、同一份内容，分别走两条路径：
+- `scan_directory` ⇒ **1 条** finding（只有真 secret）；
+- 把同一文件塞进 `capsule.zip` 再 `scan_capsule_zips` ⇒ **4 条** finding（3 条假阳性：`example-key...`、canary、`your-api-key...`）。
+- 漂移差集 = `['api***90"', 'api***IT"', 'api***re"']`（正是 `example` / canary / `your-` 三类）。
+
+两份清单的差：
+- `scan_directory` 跳过 `replace_me`、`_CANARY_SECRET`、`demo_pass`/`demo-secret`、`test_pass`、`your_`/`your-`/`changeme`/`example`；
+- `scan_capsule_zips` 只跳过 `replace_me`、`demo_pass`/`demo-secret`/`test_pass`/`your_`/`changeme` —— **缺** `_CANARY_SECRET`、`your-`（连字符）、`example`。
+capsule 是**离开机器的产物**（模块 docstring 原话），这 3 条假阳性会让一个干净 capsule 过不了安全扫描。
+
+**修（抽一份共享清单，两条路径都走它）。** `agent/security_scanner.py`：
+- 新增模块级 `_PLACEHOLDER_TOKENS`（8 个 token）与 `_is_placeholder(matched)`（canary 精确匹配 + token 小写包含）。
+- `scan_directory` 与 `scan_capsule_zips` 的**两段内联判断都替换成 `if _is_placeholder(matched): continue`**，从此不可能再各写一份、再漂移。
+- **`scan_directory` 行为逐条等价**（token 集完全相同、canary 判断相同）——只把重复代码收拢；**`scan_capsule_zips` 行为按目录侧对齐**（这是修 bug，不是放宽：这三类本就是占位符/合成值）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 探针复测 | 同一内容 目录 vs zip | 修前 1 vs 4（差 3），修后 **1 vs 1（差集 `[]`）** |
+| 新门 | `pytest tests/unit/test_security_scanner_placeholders_agree.py -q` | **11 passed in 5.50s** |
+| ruff | `ruff check agent/security_scanner.py tests/unit/test_security_scanner_placeholders_agree.py` | **All checks passed** |
+| 回归 | `pytest tests/unit/test_accept_severity_parity.py -q` | **4 passed** |
+
+新门三条（11 案）：① `test_directory_and_zip_agree_on_the_same_content`——同一内容两边 finding 集合**必须相等**（修前 zip 多 3 条 ⇒ 必红），带正向控制「真 secret 仍被两边各抓到 1 条」；② `test_each_placeholder_is_skipped_by_both`——9 个占位符逐个参数化，两边都必须 0 finding；③ `test_real_secret_is_flagged_by_both`——真 secret 两边都必须 1 条。
+
+**诚实边界。** ① 这是**行为变更**（zip 侧变宽松），不是纯加测试：方向是把 zip 对齐到目录侧既有的占位符政策；`scan_directory` 侧逐条等价、零行为变化。② 不覆盖「哪些字符串算占位符」的**政策本身**（`example` 太宽会漏真 secret 的风险是既有政策，不在本号射程）。③ `tests/security/` 整套是**全仓库扫描**，本机跑不完（实测 >6 分钟仍无输出，已停）——回归只取了 `test_accept_severity_parity`（4 passed）；zip 侧行为由新门直接钉住。④ 不钉 `scan_canary` 的注入/清理路径（另一条链路，本号未动）。
+
+**下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `agent/job_control.py` 零直接测试（先判是否 I/O 外壳）。② `merge_contract_results` 的纯空白 `contract_id` 疑似缺陷（#400 边界③）——先量影响面。③ `tests/security/` 全仓库扫描在本机跑不完，值得单独一号做成**可增量/可超时**的门。
