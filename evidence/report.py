@@ -700,21 +700,32 @@ def render_eval_report(
     # The cases that were never measured, and WHY. A row that only says
     # NOT_RUN leaves the reader with no way to act on it; the reason and
     # the failing side's own output are the diagnosis (ledger #399).
+    #
+    # BOTH sides' outputs, not just the base's: the record carries both
+    # (the eval captures each side's tail) and the console prints both,
+    # but the report showed only the base's - so a case whose HEAD side
+    # was the one that failed showed "no output" and no diagnosis at all
+    # (ledger #417).
     not_measured_html = ""
     if not_measured_cases:
         blocks = []
         for r in not_measured_cases:
             reason = escape(str(r.get("errors") or "")) or "(no reason recorded)"
-            tail = str(r.get("base_output") or "")
-            tail_html = (
-                f'<pre style="white-space:pre-wrap;font-size:12px;'
-                f'background:#161b22;border:1px solid #30363d;padding:8px;'
-                f'border-radius:6px">{escape(tail[-800:])}</pre>'
-                if tail else ""
-            )
+            tails_html = ""
+            for side, key in (("base", "base_output"), ("head", "head_output")):
+                tail = str(r.get(key) or "")
+                if not tail:
+                    continue
+                tails_html += (
+                    f'<p class="meta" style="margin:4px 0 2px">'
+                    f"<b>{side} output</b></p>"
+                    f'<pre style="white-space:pre-wrap;font-size:12px;'
+                    f'background:#161b22;border:1px solid #30363d;padding:8px;'
+                    f'border-radius:6px">{escape(tail[-800:])}</pre>'
+                )
             blocks.append(
                 f'<li><b>{escape(str(r.get("case", "")))}</b> — {reason}'
-                f"{tail_html}</li>"
+                f"{tails_html}</li>"
             )
         not_measured_html = (
             '<h2 style="font-size:16px;margin-top:28px">'

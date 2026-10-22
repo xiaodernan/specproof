@@ -10158,3 +10158,34 @@ case-33-tx-order-idempotency-dedup-removed | expected: BLOCKER | got: MAJOR | co
 - 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
 - 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
 - "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。
+## #417 「没量成」的案例：报告只印了 **base** 那边的输出 —— **head** 那边掉了
+
+**问题**：#399 给「没量成」的案例加了诊断（失败那侧自己的输出尾巴），控制台一直**两边都打**：
+
+```
+  NOT RUN: the evidence path could not judge this case
+      base output: ...
+      head output: ...
+```
+
+记录里**两边都带着**（`unjudgeable_output_tails` 返回 `base_output` **和** `head_output`；`cli/.../eval.py` 把两个都写进记录）。
+
+⇒ **但报告只渲染了 base 那一边。** ⇒ **一个 head 面失败的案例，页面上只有一句原因、一个输出都没有** —— 那个输出**就是为回答「为什么失败」而存在的**（#399 原话：「没有它，『证据判不了这个案例』只是一个症状，底下没有诊断」）。
+
+⇒ 而且 head 面的输出**不是摆设**：`agent/nodes/run_differential.py` 真的产出它，`agent/review_court/policy.py` 拿它做失败归因（`_failure_signature(head_output)`）。**别的模块在用，报告不用。**
+
+**修法**：报告的「Not measured」区**渲染两边**，各自带标签（`base output` / `head output`），读的人一眼知道**是哪一面**坏了。
+
+**证据**：
+- **新单测** `tests/unit/test_eval_report_shows_both_sides_of_a_not_measured_case.py`（4 个）：base 输出在页面上、**head 输出也在**、没有输出时仍然显示原因、两边的标签**各自挨着自己的输出**。
+- **锋利性**：把渲染改回「只渲染 base」重跑 ⇒ **2 个测试当场失败**（`HEAD-SIDE-OUTPUT-LINE` 不在页面上）。
+- **质量门**：`ruff` + `mypy` 全绿；相关单测集 **572 passed**。
+
+**这一轮全量评测（#408 之后从零重跑的，`--attempts 3`）到目前的实况**：
+- 落地 **60** 条，**60 条全 PASS**，**60 条全是第一遍就检出**（`attempts` 直方图 = {1: 60}）—— 到现在**一个重试都没发生**，也**一个「没量成」都没有**。
+- **这一轮的数还没落地**（等跑完，三个数一起：被量到的正例 / 没量成的 / 基准面失败的输出）。
+
+**尚未落地（记着，不替产品做决定）**：
+- 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
+- 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
+- "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。
