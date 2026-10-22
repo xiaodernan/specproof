@@ -9898,3 +9898,48 @@ judge:` / `! never measured:`）⇒ ⇒ ⇒ **每一行都只说自己那件事*
 - 基准面失败的根因（探针/构建/基准面执行问题）要用 sidecar 里的输出尾巴查 —— 也是队列里的事。
 - 安静机器上跑全量单测、集成、DEEP、无并发 case-100（同一个安静环境）。
 - "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度 5 处漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记在 #410/#411 尾部不替他做。
+## #412 重渲染器**自己**在它要救的那个文件上崩了：被杀的运行留下的半行 JSON 把它一起带走了
+
+**问题**：#411 落的 `scripts/render_eval_report.py`（从 sidecar 重渲染 HTML，不测量、不落库）在 `.jsonl` 分支里**自己写了一个解析器**：
+
+```python
+for line in path.read_text(encoding="utf-8").splitlines():
+    record = json.loads(line)          # ← 遇到半行就炸
+```
+
+而 `.jsonl` sidecar 是**边跑边写**的：**运行被杀掉的那一刻，最后一行往往只写了一半**（进程在 write 中途死了）。半行不是记录 —— CLI 自己的 `read_incremental_results` 早就知道这一点，它会跳过半行、跳过中间读不懂的行，然后照样把前面那些小时量出来的记录交出来。
+
+⇒⇒⇒ **#411 的重渲染器是整个代码库里唯一会在「被杀掉的运行留下的那个文件」上崩溃的地方** —— 而那个脚本存在的**全部理由**就是去救那个文件。**救生艇自己沉了。**
+
+**修法不是再写一个解析器，是用 CLI 自己那一个**：
+
+```python
+records = read_incremental_results(path)   # 半行跳过、中间坏行跳过
+index = resume_index(records)               # 同一个案例，后一行赢（CLI 的规则）
+return list(index.values()), None
+```
+
+⇒⇒⇒ 现在「怎么读一个可能半截的 sidecar」在代码库里**只有一份实现**，就是那份已经被证明能读被杀的运行的那份。
+
+**顺带修掉的第二个洞**：#411 的 key 是 `str(record.get("case") or len(latest))` —— 一行**没有案例名**的记录会落到一个合成 key（`"0"`、`"1"`…）上，而一个**真的**叫 "0" 的案例会把它覆盖掉。CLI 的 `resume_index` 按案例名索引、**丢掉没有名字的记录**（没有名字的行归属不了任何案例）。现在两边一致了。
+
+**证据（全部是执行出来的，不是断言）**：
+
+1. **真实文件上的实锤**：把**正在跑的那一轮**的真实 sidecar（53 个案例，35514 字节）**从中间截断 120 字节**（模拟写到一半被杀），然后用重渲染器渲染它：
+   - **#412 之后**：exit code 0，渲染出 **52 条案例记录**，页面里 "Not Measured" 和 "Severity drift" 都在 ⇒ **被杀的那几个小时的测量结果还在**。
+   - **#411 之前（把代码改回去跑同一个文件）**：exit code 1，`json.decoder.JSONDecodeError: Unterminated string starting at: line 1 column 628` ⇒ **整个 sidecar 连同 52 条记录一起没了**。
+2. **单测是「锋利」的**（`tests/unit/test_render_eval_report_survives_a_torn_sidecar.py`，11 个）：把修复改回去重跑，**3 个测试当场失败**：
+   - `test_a_torn_last_line_does_not_take_the_reader_down` → `JSONDecodeError`
+   - `test_a_torn_line_in_the_middle_is_also_skipped` → `JSONDecodeError`
+   - `test_a_record_without_a_case_name_is_not_a_case` → `KeyError: 'case'`（无名的行被合成 key 顶掉）
+   ⇒ 剩下 8 个是**守恒**的（它们钉住的是两边都成立的行为：最新一行赢、jsonl 不带 acceptance、重渲染 == 那一轮写出的页面）。
+3. **质量门**：`ruff` + `mypy`（`scripts/render_eval_report.py`）全绿；相关单测集 19 passed（新增 11 + #411 的 4 + ledger fence 的 4）。
+
+**这一轮全量评测（#408 之后从零重跑的，`--attempts 3`）到目前的实况**：
+- 落地 **54** 条，**54 条全 PASS**，**54 条全是第一遍就检出**（`attempts` 直方图 = {1: 54}）—— 到现在**一个重试都没有发生**。
+- 这和 #408 之前那一轮（87 个案例、Recall 98.1%、有 1 个反复重试才检出）是**不同的代码**跑出来的：#408 修了负例被重复量三遍的 bug，#410 修了「第一遍就检出」的两个洞。**这一轮的数还没落地**（等跑完，三个数一起：被量到的正例 / 没量成的 / 基准面失败输出）。
+
+**尚未落地（记着，不替产品做决定）**：
+- 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
+- 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
+- "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、严重度漂移的对齐方案、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。

@@ -31,6 +31,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from cli.specproof.commands.eval import (  # noqa: E402
+    read_incremental_results,
+    resume_index,
+)
 from evidence.acceptance import AcceptanceResult  # noqa: E402
 from evidence.report import render_eval_report  # noqa: E402
 
@@ -49,16 +53,22 @@ def load_evidence(
       there is NO acceptance verdict for such a run - so none is
       invented (an acceptance card that was never decided would be a
       verdict nobody reached).
+
+    The ``.jsonl`` reader is the CLI's own
+    (``read_incremental_results`` + ``resume_index``), NOT a second
+    implementation of it. A run that was killed half way can leave a
+    TORN last line - half a record is not a record - and the reader that
+    rescued those hours is the one that skips it. A private parser here
+    would have been the one place in the codebase that crashed on the
+    very file this script exists to rescue (ledger #412).
     """
     if path.suffix == ".jsonl":
-        latest: dict[str, dict[str, Any]] = {}
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            record = json.loads(line)
-            latest[str(record.get("case") or len(latest))] = record
-        return list(latest.values()), None
+        records = read_incremental_results(path)
+        # The newest record per case wins: a case measured twice (the
+        # ground truth was corrected) has two lines, and the later one
+        # describes the case as it is now.
+        index = resume_index(records)
+        return list(index.values()), None
     data = json.loads(path.read_text(encoding="utf-8"))
     cases = data.get("cases") or []
     raw_acceptance = data.get("acceptance")
