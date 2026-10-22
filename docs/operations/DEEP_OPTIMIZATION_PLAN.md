@@ -10290,3 +10290,57 @@ DB_CONSISTENT / 没有 DB 观察        => MAJOR      (n=29)
 - 那一轮跑完后落地三个数（队列第一项），再用 sidecar 查「基准面为什么失败」。
 - 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
 - "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。
+## #420 「用 sidecar 查出来基准面为什么失败」—— 这个工具**现在就有**了，不用等下一轮
+
+**队列里的第二项**是：「用那一轮的 sidecar 把『基准面为什么失败』查出来 ⇒ 那是探针/构建/基准面执行问题 ⇒ 查清之后再修」。
+
+**问题**：那一轮**还没跑完**（还剩二十来个案例），而**万一跑完有「没量成」的案例**，诊断要等**下一轮**（几小时）才能做 —— 或者只能人去翻 JSONL。
+
+⇒ **工具现在就有**（新文件 `scripts/diagnose_eval_sidecar.py`）：**只读 sidecar**，**不测量、不落库、不重跑**，把那一轮的问题一次说清：
+
+- **量了多少 / 没量成多少**（正面 / 负例 / 检出 / 误报）；
+- **每一个「没量成」的案例**：名字、**原因**、**哪一面**失败、**那一面自己的输出**（base 和 head 都印）⇒ **这就是那个诊断**；
+- **每一个「量了不止一次」的案例**：名字 + **原因**（`never measured` / `first attempt could not judge` / `consistently missed` / `unstable detection`，#414 那四个）+ 第一遍和最后一遍的判定；
+- **每一个严重度漂移的案例**：期望 / 实得 / 合同 / **等级是从哪条证据、哪个 DB 状态来的**（#418）。
+
+**退出码**：全部量到 ⇒ 0；有「没量成」⇒ **1** ⇒ 调用方可以直接拿它当门。
+
+**实测（正在跑的那一轮的真实 sidecar，63 条）**：
+
+```
+cases            : 63
+  positive       : 38
+  negative       : 25
+detected         : 38
+false positives  : 0
+not measured     : 0
+
+every case was measured.
+
+MEASURED MORE THAN ONCE (2):
+  * case-74-logic-full-stock-boundary-rejected - unstable detection (2 attempts; first: MISS; final: PASS)
+  * case-75-logic-order-amount-inflated - unstable detection (2 attempts; first: MISS; final: PASS)
+
+SEVERITY DRIFT (6 of 38 matched positives):
+  * case-17-logic-inversion
+      expected BLOCKER, got MAJOR  (contract UNIQUE-01)
+      level came from: evidence base_pass_head_fail, db state DB_CONSISTENT
+  ...
+```
+
+⇒ **「基准面为什么失败」这个问题，工具已经站在那等着了**：下一轮一跑完，一条命令就能给出答案。
+
+**证据**：
+- **新单测** `tests/unit/test_diagnose_eval_sidecar.py`（**10** 个）：两种 sidecar 形状都读；「没量成」的案例被点名并带原因；**失败那面的输出被引用**（base 和 head 都测）；重试的案例被点名并带**正确的原因**；漂移的案例带**证据种类和 DB 状态**；**半行 JSON 不会打断诊断**；sidecar 不存在是错误不是崩溃。
+- **锋利性**：把工具改坏三次 ⇒ 每次都有测试失败（不点名案例 ⇒ 1 失败；不引用输出 ⇒ 2 失败；不报 DB 状态 ⇒ 1 失败）。
+- **质量门**：`ruff` + `mypy` 全绿。
+
+**这一轮全量评测（#408 之后从零重跑的，`--attempts 3`）到目前的实况**：
+- 已量 **63** 条，**63 条全 PASS**；**61 条第一遍就检出**，**2 条量了 2 遍**（`case-74`、`case-75`：第一遍 MISS、第二遍检出 ⇒ 都是「检出不稳」）。
+- 这一轮是**用 `--resume` 接着跑的**（服务器重启杀了前一轮）：61 条指纹**全部**没变 ⇒ 全部复用；**新旧两条等级规则对这 61 条判定完全一致** ⇒ 复用安全、语义齐。
+
+**尚未落地（记着，不替产品做决定）**：
+- **严重度漂移该改哪一边**（池子按证据写期望 / 工具按合同写定级）⇒ **产品决策**（#418 只把事实摆出来）。
+- 那一轮跑完后落地三个数（队列第一项）；**诊断工具已经就位**，有「没量成」就能立刻查。
+- 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
+- "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、CI workflow、MQ —— 全是产品/令牌决策，记着，不替他做。
