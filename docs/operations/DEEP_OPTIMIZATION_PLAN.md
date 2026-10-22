@@ -9369,3 +9369,32 @@ would say 'the tool failed to detect the defect' about a run that never looked"*
    作业塞在集成步骤里」一起改掉）。
 4. craft 那条欠账（归那条线）。
 5. **MQ 面**要不要也按"没看"算成缺口（产品决策）。
+## #403 `classify_job_error` 的未覆盖分支：HTTP 提供方四档 + 两个策略异常
+
+**起因/占号。** 按「找纯逻辑、补未覆盖分支」挑目标：`agent/job_control.classify_job_error` 是 19 个有序分支的纯分类器，已有 `test_worker_error_classify.py` 钉住 10 条，但**剩 10 条零覆盖**。占号前重测账本：`## #` id 最大 **402** ⇒ 本号取 **#403**（留 1 余量给并发）。注：本轮原打算做 `security_scanner` 的占位符漂移，但该文件当时**正在被并发车道修改**（工作树 ` M`，且 `test_security_scanner_placeholders_agree.py` 已出现在未跟踪区）⇒ 让出，改做本条。
+
+**先量后写（量的是「已有测试覆盖了什么、漏了什么」）。** 已覆盖：TimeoutError / BuildFailure / ProviderAuthError / ConnectionError / subprocess.TimeoutExpired / subprocess.CalledProcessError / MySQL OperationalError / Redis ConnectionError / InvalidStateTransition / unknown，以及 worker 把信封写进 terminal reason 的那条。**未覆盖**：
+- 两个策略异常 `JobCancelledError` / `LeaseLostError`；
+- HTTP 提供方四档（401/403、429、5xx、其余 4xx）——这四档直接决定 `retryable`，即「作业该不该重试」；
+- httpx 传输层（`TimeoutException` / `ConnectError`）与 `ConnectTimeout` 的**优先级**（它同时是两者的子类，代码里 Timeout 分支在前）；
+- `RedisTimeoutError` / MySQL `InterfaceError`（只测了各自兄弟类）；
+- `OSError` 兜底。
+
+**落地（只加测试，`agent/job_control.py` 一字未动）。** 新建 `tests/unit/test_job_control_http_and_policy_classification.py`（16 案，纯对象）：
+1. 两个策略异常各一；
+2. 401/403（参数化）→ `provider_auth` / 不可重试；429 → `provider_rate_limited` / 可重试；500/503（参数化）→ `provider_server_error` / 可重试；400/404（参数化）→ `provider_http_error` / 不可重试；
+3. `httpx.TimeoutException` → `http_timeout`；`httpx.ConnectError` → `http_connect`；`httpx.ConnectTimeout` → **`http_timeout`**（钉住优先级）；
+4. `RedisTimeoutError` → `redis_unavailable`；MySQL `InterfaceError` → `mysql_unavailable`；`OSError` → `os_error`；
+5. 全局不变量：任一分类的 `cls` ∈ 五词表，`as_dict()` 恰好四键且 `class` 键等于 `cls`。
+
+**门证（全在本批内亲手取）。** 用仓库 venv（`.venv/Scripts/python.exe`，3.14.8，click/pytest/httpx/pymysql/redis 齐全）：
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `PYTHONPATH=. .venv/Scripts/python.exe -m pytest tests/unit/test_job_control_http_and_policy_classification.py -q -p no:cacheprovider` | 16 passed in 2.81s |
+| ruff | `.venv/Scripts/python.exe -m ruff check …` | All checks passed |
+| **变异臂**（429 的 `retryable` 由 `True` 改 `False`——「限流该不该重试」这个决定本身） | 先预测：只有 429 那条红 | 实测 **1 failed, 15 passed**，`At index 2 diff: False != True` |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `git status` 确认 `agent/job_control.py` 干净、无 `.orig` 残留；复跑 16 passed |
+
+**诚实边界。** ① 只加测试：`agent/job_control.py` 一字未动。② 只补**未覆盖分支**；已覆盖的 10 条不重复。③ `ConnectTimeout` 的归类是**现状**（Timeout 分支在前），本号钉住它以防顺序被无意调换，但不评价这是否是唯一合理设计。④ 不测 `check_cancelled` / `run_with_cancel_checks` 的 I/O 行为（它们要 MySQL store，属另一平面）。⑤ 不测 worker 侧信封（已有 `test_worker_error_classify.py` 覆盖）。
+
+**下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `security_scanner` 占位符漂移（本条让出的那个）——等并发车道让出后再量。② `merge_contract_results` 的纯空白 `contract_id`（#400 边界③）疑似缺陷，先量影响面。③ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。④ #397 队列剩余：基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、craft 欠账、MQ 面产品决策。
