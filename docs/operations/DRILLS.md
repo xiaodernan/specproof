@@ -20,6 +20,7 @@
 | 2 | Provider 不可达端点 → 诚实降级 | ✅ 已演练 | **PASS** — 3 次尝试全部如实暴露 (timeout 分类), 熔断打开; 作业级 LLM 编译失败记入 degrade_reasons, 规则结果保留 |
 | 3 | 安全响应桌面推演 (pause/freeze/revoke/isolate/preserve/notify) | 📝 桌面核对 | 6 动词 × 现有端点/命令逐一核对; 20 项可执行, 1 项需开发 (见 §3; 数字由缺口门按表实数核对) |
 | 4 | Outbox Relay 崩溃窗口 → 重启重放 → 幂等去重 | ✅ 已演练 | **PASS** — 同一事件投递 2 次, 作业恰执行 1 次; 重放前后副作用计数逐项相同; 队列清空 |
+| 5 | Notify Outbox 送达机制 → 崩溃窗口 → 至少一次/恰一次宣告 | ✅ 已演练 | **PASS** — 意图跨崩溃窗口存活(同事务); 第 1 轮 relay 恰好送达 1 次; 第 2 轮零变化; 孤儿意图被后续轮如期送达(at-least-once 直接证据) |
 
 演练期间发现并修复 3 个真实缺陷 (详见 §5): MySQL 迁移拆分器注释分号缺陷、providers/toolcheck.py 中途编辑遗留的语法损坏、**MongoDBSaver 未持久化 pending writes 且 get_tuple 忽略 checkpoint_id — 断点续跑实际不工作** (修复后由探针与 Drill 1 双重验证)。
 
@@ -183,7 +184,7 @@
 | preserve | MinIO 对象保全 | 宿主无 mc 二进制 (实测) → docker run --rm --network specproof-phase0_default minio/mc ... 或宿主机安装 mc 后 mc mirror (DATA_LIFECYCLE §5) | ⏳ 待基础设施 (宿主 mc 未安装) |
 | notify 通知 | 系统内审计/进度通知 | audit_logs (每次状态转移落库, /api/v1/admin/audit 可读), SSE 进度流 (GET /jobs/{id}/progress) | ✅ 可执行 |
 | notify | GitHub 侧状态回写 | worker 终态回写 Check Run + Inline Findings (integrations/github_checks.py, github_check_json 存在时) | ✅ 可执行 |
-| notify | 外部通知 (Slack/邮件/webhook) | worker 终态写入成功后自动发 (agent/worker.py::_maybe_notify_terminal, #65): 设 SPECPROOF_NOTIFY_WEBHOOK_URL (+_SECRET, 可选 _KIND=slack|generic|feishu) 后重启 worker; 未设=不发, 只涨 specproof_notify_disabled_total | ✅ 可执行 (需先配置环境变量) |
+| notify | 外部通知 (Slack/邮件/webhook) | worker 终态写入成功后自动发 (agent/worker.py::_maybe_notify_terminal, #65): 设 SPECPROOF_NOTIFY_WEBHOOK_URL (+_SECRET, 可选 _KIND=slack|generic|feishu) 后重启 worker; 未设=不发, 只涨 specproof_notify_disabled_total。**可靠车道 (§16.6-1/K)**: SPECPROOF_NOTIFY_OUTBOX=1 时通知随终态写同事务入 notify_outbox, storage/notify_relay 独立循环送达(at-least-once, 失败退避/超预算死信/无接收端立即死信), 演练见 Drill 5 | ✅ 可执行 (需先配置环境变量; outbox 车道另需独立跑 relay 进程) |
 
 ### 3.2 推演结论
 
