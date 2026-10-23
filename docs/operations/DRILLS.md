@@ -251,6 +251,48 @@
 6. 演练前必须跑通 schema 迁移: 首跑因 outbox 缺 0008 治理列失败 (payload_digest 不存在), 由 storage/migrations.py 的 ensure_tables 应用 0008 后通过 — 过程中又暴露并修复了迁移拆分器的注释分号缺陷 (见 §5 FIX-1)。
 
 ---
+## 4b. Drill 5 — Notify Outbox 送达机制: 崩溃窗口, 至少一次, 恰好一次宣告 ✅ 已演练 (2026-09-28)
+
+```powershell
+python scripts/drill_notify_outbox.py
+```
+
+对真 MySQL 执行; webhook 接收端是**合成记录连接器**——本演练证的是
+notify_outbox 状态机对真库的机制 (认领/送达核销/不重复), HTTP 端点契约由
+`tests/unit/test_notify_connector.py` 覆盖 (脚本 docstring 明写)。
+
+序列:
+
+1. 建一个 QUEUED 作业行 (create_job_with_outbox, 作业 + outbox 事件同事务)。
+2. 模拟 worker 的被接受终态写: `transition_job_status_with_notify` 把
+   verdict 与**构建完成的**通知放 进 notify_outbox —— 同一事务,
+   "判定被接受"与"宣告欠一次送达"成为一个事实。
+3. 崩溃窗口: relay 尚未运行。断言 enqueued=1 / delivered=0 / attempts=0 —
+   SIGKILL 落在这里只会丢失进程, 不会丢承诺。
+4. 第 1 轮 relay: 连接器收下, delivered_at 落库, 行离开认领集。
+5. 第 2 轮 relay: 零变化 — 认领集排除已送达行, **重复宣告是 relay 缺陷**。
+
+通过判据 (per-job, 非 全局): enqueued==1, delivered==1, dead_lettered==0,
+attempts_total==1, 第二轮逐项不变, 连接器恰好收到本作业一条。
+
+### 4b.1 两次运行各抓到一个真实问题 (如实)
+
+1. 首跑 FAIL: `relay_first=2` — 首版脚本因占位符 bug 崩溃时留下的孤儿意图
+   行, 被第二轮演练的 relay 如期送达。**这是 at-least-once 在真实崩溃场景
+   下正确工作的直接证据**; 错的是演练判据 (把全局送达数当单作业判据),
+   已改为 per-job 断言 + `own_deliveries` 显式统计, 孤儿送达作为现象打印。
+2. SQL 占位符约定: drills 层走 pymysql 原生 `%s`, storage 层走 `?` + 运行
+   时 `_to_mysql` 翻译 — 两层约定不同, 首版助手误用 `?` 被真库以
+   `not all arguments converted` 当场抓住, 现由
+   `test_select_is_static_and_binds_only_the_job_id` 钉住。
+
+### 4b.2 生命周期补口 (同一批闭环)
+
+`notify_outbox` 无 FK 到作业行——`delete_job_records` 已补同事务 purge
+(#95 同型: 不补则产品删除后留悬垂宣告), `DATA_LIFECYCLE §2.1` 已登记
+notify_outbox 行 (删除路径✅ / 到期清理⏳)。
+
+---
 ## 5. 演练期间发现并修复的缺陷 (如实记录)
 
 | # | 缺陷 | 影响 | 修复 | 验证 |
