@@ -1326,7 +1326,7 @@ def eval_cmd(
             "FAIL 而非默认满分。"
         )
 
-    html = render_eval_report(results, acceptance)
+    html = render_eval_report(results, acceptance, plan.as_json())
     out = Path(output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")

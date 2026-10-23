@@ -75,7 +75,7 @@ def test_a_torn_last_line_does_not_take_the_reader_down(tmp_path: Path) -> None:
     with sidecar.open("a", encoding="utf-8") as handle:
         handle.write('{"case": "case-03", "verdict": "PAS')
 
-    cases, acceptance = load_evidence(sidecar)
+    cases, acceptance, case_set = load_evidence(sidecar)
 
     assert [c["case"] for c in cases] == ["case-01", "case-02"]
     assert acceptance is None
@@ -90,7 +90,7 @@ def test_a_torn_line_in_the_middle_is_also_skipped(tmp_path: Path) -> None:
     with sidecar.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(_record("case-03")) + "\n")
 
-    cases, _ = load_evidence(sidecar)
+    cases, _, case_set = load_evidence(sidecar)
 
     assert [c["case"] for c in cases] == ["case-01", "case-03"]
 
@@ -110,7 +110,7 @@ def test_the_latest_record_for_a_case_wins(tmp_path: Path) -> None:
         ],
     )
 
-    cases, _ = load_evidence(sidecar)
+    cases, _, case_set = load_evidence(sidecar)
 
     assert len(cases) == 1
     assert cases[0]["verdict"] == "PASS"
@@ -131,7 +131,7 @@ def test_a_record_without_a_case_name_is_not_a_case(tmp_path: Path) -> None:
         handle.write(json.dumps(_record("case-01")) + "\n")
         handle.write(json.dumps({"verdict": "PASS"}) + "\n")
 
-    cases, _ = load_evidence(sidecar)
+    cases, _, case_set = load_evidence(sidecar)
 
     assert [c["case"] for c in cases] == ["case-01"]
 
@@ -146,7 +146,7 @@ def test_a_jsonl_never_carries_an_acceptance_verdict(tmp_path: Path) -> None:
     sidecar = tmp_path / "eval-report.results.jsonl"
     _write_jsonl(sidecar, [_record("case-01")])
 
-    cases, acceptance = load_evidence(sidecar)
+    cases, acceptance, case_set = load_evidence(sidecar)
 
     assert acceptance is None
     html = render_from_sidecar(sidecar)
@@ -189,7 +189,7 @@ def test_the_json_sidecar_carries_the_verdict_the_run_decided(
         encoding="utf-8",
     )
 
-    cases, acceptance = load_evidence(sidecar)
+    cases, acceptance, case_set = load_evidence(sidecar)
 
     assert len(cases) == 1
     assert acceptance is not None
@@ -257,7 +257,7 @@ def test_a_sidecar_with_no_cases_still_renders(tmp_path: Path, suffix: str) -> N
     else:
         sidecar.write_text(json.dumps({"cases": []}), encoding="utf-8")
 
-    cases, _ = load_evidence(sidecar)
+    cases, _, case_set = load_evidence(sidecar)
     assert cases == []
     html = render_from_sidecar(sidecar)
     assert "Not Measured" in html

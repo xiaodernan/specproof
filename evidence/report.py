@@ -580,6 +580,7 @@ def render_verification_report(
 def render_eval_report(
     results: list[dict[str, Any]],
     acceptance: AcceptanceResult | None = None,
+    case_set: dict[str, Any] | None = None,
 ) -> str:
     """Render evaluation results HTML page with precision/recall.
 
@@ -588,6 +589,13 @@ def render_eval_report(
     that PASS does and does not assert (#223). This report is the artifact CI
     uploads, so a reader must not have to consult the job log to learn that
     "PASS" meant "the sample was large enough".
+
+    ``case_set`` is the pool the run measured (``cli.specproof.case_set``):
+    its mode, the holdout cases it excluded, the cases the manifest declared
+    but that were not there, and the manifest's own note. The console says
+    all of this out loud; the page did not, so a reader of the page could
+    believe "Recall 100.0%" was a metric on UNSEEN cases when the run had
+    merged the holdout pool in (ledger #423).
     """
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -879,6 +887,46 @@ def render_eval_report(
             f"<ul>{''.join(drift_items)}</ul>"
         )
 
+    # The POOL the run measured, and what it means for the numbers above.
+    # The console says this out loud ("这些数字不是未见过案例上的指标"); the
+    # page did not, so a reader of the page could take "Recall 100.0%" for
+    # a metric on UNSEEN cases when the run had merged the holdout pool
+    # in (ledger #423).
+    case_set_html = ""
+    if case_set:
+        mode = str(case_set.get("mode") or "").strip()
+        excluded = [str(x) for x in (case_set.get("excluded_holdout_cases") or [])]
+        absent = [str(x) for x in (case_set.get("declared_but_absent") or [])]
+        note = str(case_set.get("manifest_note") or "")
+        lines = []
+        if mode == "all_not_isolated":
+            lines.append(
+                "<b>这一轮没有做 holdout 隔离</b>（合并了被留出的案例）："
+                "<b>这些数字不是「未见过案例」上的指标</b>。"
+            )
+        elif mode:
+            lines.append(f"案例集模式：<b>{escape(mode)}</b>")
+        if excluded:
+            lines.append(
+                f"排除了 {len(excluded)} 个被留出的案例："
+                + escape(", ".join(excluded))
+            )
+        if absent:
+            lines.append(
+                f"manifest 声明了 {len(absent)} 个案例，但**不在**本轮目录里"
+                "（所以既没跑也没排除）："
+                + escape(", ".join(absent))
+            )
+        if note:
+            lines.append(f"manifest note: {escape(note)}")
+        if lines:
+            color = "#d29922" if mode == "all_not_isolated" else "#8b949e"
+            case_set_html = (
+                f'<p class="meta" style="color:{color}">'
+                + "<br />".join(lines)
+                + "</p>"
+            )
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>SpecProof Evaluation Report</title>
@@ -902,6 +950,7 @@ def render_eval_report(
 <body>
     <h1>SpecProof Evaluation Report</h1>
     <p class="meta">Generated: {now} | Cases: {total}</p>
+    {case_set_html}
 
     <div class="stats">
         <div class="stat">

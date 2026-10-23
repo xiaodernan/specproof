@@ -41,18 +41,21 @@ from evidence.report import render_eval_report  # noqa: E402
 
 def load_evidence(
     path: Path,
-) -> tuple[list[dict[str, Any]], AcceptanceResult | None]:
-    """The per-case records and (when there is one) the verdict.
+) -> tuple[list[dict[str, Any]], AcceptanceResult | None, dict[str, Any] | None]:
+    """The per-case records, the verdict (when there is one) and the pool.
 
     Two shapes are accepted:
 
     - ``<report>.results.json`` - the final sidecar: the records plus the
-      acceptance verdict the run decided;
+      acceptance verdict the run decided, plus the case set the run
+      measured;
     - ``<report>.results.jsonl`` - the incremental records a run writes as
       it goes. They exist even for a run that was killed half way, and
       there is NO acceptance verdict for such a run - so none is
       invented (an acceptance card that was never decided would be a
-      verdict nobody reached).
+      verdict nobody reached). The pool is not in the incremental file
+      either: it is written at the end of the run, so for a killed run
+      there is none to report.
 
     The ``.jsonl`` reader is the CLI's own
     (``read_incremental_results`` + ``resume_index``), NOT a second
@@ -68,7 +71,7 @@ def load_evidence(
         # ground truth was corrected) has two lines, and the later one
         # describes the case as it is now.
         index = resume_index(records)
-        return list(index.values()), None
+        return list(index.values()), None, None
     data = json.loads(path.read_text(encoding="utf-8"))
     cases = data.get("cases") or []
     raw_acceptance = data.get("acceptance")
@@ -77,13 +80,15 @@ def load_evidence(
         if isinstance(raw_acceptance, dict)
         else None
     )
-    return cases, acceptance
+    raw_case_set = data.get("case_set")
+    case_set = raw_case_set if isinstance(raw_case_set, dict) else None
+    return cases, acceptance, case_set
 
 
 def render_from_sidecar(sidecar_path: Path) -> str:
     """The report page for the evidence in a sidecar file."""
-    cases, acceptance = load_evidence(sidecar_path)
-    return render_eval_report(cases, acceptance)
+    cases, acceptance, case_set = load_evidence(sidecar_path)
+    return render_eval_report(cases, acceptance, case_set)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,8 +109,8 @@ def main(argv: list[str] | None = None) -> int:
     if not sidecar.exists():
         print(f"no such sidecar: {sidecar}", file=sys.stderr)
         return 2
-    cases, acceptance = load_evidence(sidecar)
-    html = render_eval_report(cases, acceptance)
+    cases, acceptance, case_set = load_evidence(sidecar)
+    html = render_eval_report(cases, acceptance, case_set)
     out = (
         Path(args.output)
         if args.output
