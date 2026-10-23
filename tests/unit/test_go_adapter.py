@@ -86,7 +86,7 @@ class TestGoRun:
 
         def fake_sandboxed(command, **kwargs):
             calls.append((list(command), dict(kwargs)))
-            if fail_download and command[:2] == ["go", "mod"]:
+            if fail_download and command[:2] == ["go", "build"]:
                 return SandboxResult(
                     exit_code=1, stdout="",
                     stderr="go: missing go.sum entry; to add it:\n\tgo mod download",
@@ -117,7 +117,7 @@ class TestGoRun:
         assert len(calls) == 2
         download_cmd, download_kwargs = calls[0]
         test_cmd, test_kwargs = calls[1]
-        assert download_cmd == GoAdapter.OFFLINE_DOWNLOAD_COMMAND
+        assert download_cmd == GoAdapter.OFFLINE_VERIFY_COMMAND
         assert download_kwargs["profile"] is GO_PROFILE
         assert download_kwargs["mode"] == "docker"
         assert test_cmd[:3] == ["go", "test", "-json"]
@@ -141,7 +141,7 @@ class TestGoRun:
         assert result.exit_code == 1
         assert "tests were not run" in result.error
         assert result.sandbox_resources["setup_phase"] == (
-            "mod_download failed — tests not run"
+            "build_verify failed — tests not run"
         )
 
     def test_local_mode_is_refused_not_silently_run(
