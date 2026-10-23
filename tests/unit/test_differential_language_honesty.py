@@ -132,10 +132,12 @@ class _FakeAdapter:
         mode: str = "local",
         surface: str = adapters.SURFACE_HOST,
         dependency_install: str = "",
+        language: str = "javascript/typescript",
     ) -> None:
         self._tails = tails
         self._mode = mode
         self._dependency_install = dependency_install
+        self._language = language
         self.EXECUTION_SURFACE = surface
         self.detect_calls = 0
         self.prepare_calls = 0
@@ -145,7 +147,7 @@ class _FakeAdapter:
         self.detect_calls += 1
         # Deliberately the adapter's own reporter vocabulary, not preflight's
         # marker vocabulary — see test_self_test_parser_covers_both_vocabularies.
-        return SimpleNamespace(language="javascript/typescript")
+        return SimpleNamespace(language=self._language)
 
     def prepare(self, request: Any) -> Any:
         self.prepare_calls += 1
@@ -459,3 +461,80 @@ def test_dependency_provenance_reaches_the_differential_entry(
     assert entry2["dependency_install"] == (
         f"base: {install}; head: skipped (node_modules already populated)"
     )
+
+
+# ── Go lane (Phase 2.6): same wiring, Go JSON vocabulary ────────────────
+
+_GO_BASE_GREEN = chr(10).join((
+    '{"Action":"pass","Package":"m","Test":"TestA"}',
+    '{"Action":"pass","Package":"m","Test":"TestB"}',
+))
+_GO_HEAD_FAIL = chr(10).join((
+    '{"Action":"pass","Package":"m","Test":"TestA"}',
+    '{"Action":"fail","Package":"m","Test":"TestB"}',
+))
+_GO_GREEN_VS_RED = {"base": _GO_BASE_GREEN, "head": _GO_HEAD_FAIL}
+
+
+def test_parse_dispatch_selects_the_go_parser() -> None:
+    """Both Go aliases dispatch to the go test -json parser — a new alias
+    that silently fell back to surefire would report surefire-shaped zeros
+    for every Go run."""
+    from experiments.adapters import parse_go_test_summary
+
+    assert run_differential_module._self_test_parse_for("go") is (
+        parse_go_test_summary
+    )
+    assert run_differential_module._self_test_parse_for("golang") is (
+        parse_go_test_summary
+    )
+
+
+def test_go_repo_resolves_to_the_sandboxed_surface_by_default(
+    tmp_path: Path,
+) -> None:
+    """A go.mod repository resolves to the GoAdapter's container sandbox —
+    the same pure-inspection decision the Python test locks above."""
+    base = _mk_repo(tmp_path / "base", {"go.mod": "module m" + chr(10) * 2 + "go 1.23" + chr(10)})
+
+    sandboxed, surface, reason = run_differential_module._self_test_surface_for(
+        str(base)
+    )
+
+    assert sandboxed is True
+    assert surface == adapters.SURFACE_DOCKER_SANDBOX
+    assert reason == ""
+
+
+def test_go_sandboxed_regression_flows_through_the_same_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Go JSON summaries: base green, head fail -> REGRESSION with the Go
+    parser's vocabulary, the sandbox surface, and the dependency provenance
+    disclosed like Node's (#Phase 2.6 parity with the #54 entry)."""
+    monkeypatch.delenv("SPECPROOF_ALLOW_LOCAL_TEST_EXEC", raising=False)
+    install = "offline go mod download from the seeded module cache volume"
+    adapter = _FakeAdapter(
+        _GO_GREEN_VS_RED,
+        mode="docker",
+        surface=adapters.SURFACE_DOCKER_SANDBOX,
+        dependency_install=install,
+        language="go",
+    )
+    monkeypatch.setattr(adapters, "registry", _RecordingRegistry(adapter))
+    base = _mk_repo(tmp_path / "base", {"go.mod": "module m" + chr(10) * 2 + "go 1.23" + chr(10)})
+    head = _mk_repo(tmp_path / "head", {"go.mod": "module m" + chr(10) * 2 + "go 1.23" + chr(10)})
+
+    out = run_differential_node(_state(base, head))  # type: ignore[arg-type]
+    entry = _diff_entry(out)
+
+    assert entry["verdict"] == "REGRESSION"
+    assert entry["language"] == "go"
+    assert entry["evidence_type"] == "self_test_diff"
+    assert entry["execution_surface"] == adapters.SURFACE_DOCKER_SANDBOX
+    assert entry["dependency_install"] == install
+    assert entry["base_test_counts"] == {"tests": 2, "passed": 2,
+                                         "failed": 0, "errors": 0}
+    assert entry["head_test_counts"]["failed"] == 1
+    assert "容器沙箱执行" in entry["detail"]
+    assert out.get("contract_results", []) == []
