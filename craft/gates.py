@@ -60,11 +60,15 @@ GATE_RANK: dict[str, int] = {"passed": 0, "skipped": 1, "failed": 2}
 
 _SKIPPED_DIR_PARTS = frozenset({".git", "__pycache__", "node_modules", ".venv", "venv", "target"})
 
-#: Test-file patterns grouped by the kind of suite they prove, because
-#: ``run_test_gate`` dispatches one command per kind. ``_TEST_GLOBS`` and the
-#: 「未检测到测试文件」 inventory are BOTH derived from this table, so a pattern can
-#: never be recognised by the detector while staying unnamed in the refusal (or
+#: Test-file patterns grouped by the kind of suite they prove. ``_TEST_GLOBS`` and
+#: the 「未检测到测试文件」 inventory are BOTH derived from this table, so a pattern
+#: can never be recognised by the detector while staying unnamed in the refusal (or
 #: the other way round — #366 measured exactly that pair for gradle/go).
+#: ``run_test_gate`` walks the buckets this table produces, and a kind that
+#: reaches the dispatch without a branch raises instead of answering: #426
+#: measured that a hand-copied roster of subscripts leaks ``KeyError`` when the
+#: table loses a row and — worse — reports 「检测到 2 个测试文件」 with ``passed``
+#: when the table gains one nothing runs.
 _TEST_GLOBS_BY_KIND: dict[str, tuple[str, ...]] = {
     "python": ("test_*.py", "*_test.py"),
     "java": ("**/src/test/**/*.java", "*Test.java", "*Tests.java", "*IT.java"),
@@ -90,32 +94,68 @@ class _BuildRoute:
     """One ecosystem the build gate can serve, and the markers that name it.
 
     ``markers`` is the only place the 「未检测到构建配置」 inventory comes from, and
-    the dispatch below has to answer for every ``kind`` listed here.
+    the dispatch below has to answer for every ``kind`` listed here. ``language``
+    groups the two Java ecosystems: the Java test command and the 「Java 项目无独立
+    typecheck 命令」 branch both read that declaration instead of naming maven and
+    gradle a second time by hand, which #426 measured raising ``KeyError`` out of a
+    function declared ``-> GateResult`` as soon as a route row is dropped.
     """
 
     kind: str
     markers: tuple[str, ...]
+    language: str
+    test_command: tuple[str, ...] = ()
     note_extra: str = ""
 
 
 #: Dispatch order. The kinds craft already served keep their precedence, so
-#: adding go/node cannot silently re-route a Maven or Python repository.
+#: adding go/node cannot silently re-route a Maven or Python repository. The two
+#: Java routes stay adjacent so ``mvn`` outranks ``gradle`` wherever both exist.
 _BUILD_ROUTES: tuple[_BuildRoute, ...] = (
-    _BuildRoute("maven", ("pom.xml",)),
-    _BuildRoute("gradle", ("build.gradle", "build.gradle.kts")),
+    _BuildRoute("maven", ("pom.xml",), "java", ("mvn", "-q", "test")),
+    # The test_command lives on the route because run_test_gate picks mvn/gradle
+    # off this table. #423 could only add the gradle answer after #366 routed the
+    # gradle stem to GRADLE_PROFILE; before that craft refused the command for
+    # want of a profile and 「test 均无法运行」 was the honest note.
+    _BuildRoute("gradle", ("build.gradle", "build.gradle.kts"), "java", ("gradle", "-q", "test")),
     _BuildRoute(
         "python",
         ("pyproject.toml", "setup.py"),
-        "python 以 compileall 字节码编译作为构建门 (无独立 build 阶段)",
+        "python",
+        note_extra="python 以 compileall 字节码编译作为构建门 (无独立 build 阶段)",
     ),
-    _BuildRoute("go", ("go.mod",)),
-    _BuildRoute("node", ("package.json",)),
+    _BuildRoute("go", ("go.mod",), "go"),
+    _BuildRoute("node", ("package.json",), "node"),
 )
 _BUILD_MARKERS: dict[str, tuple[str, ...]] = {
     route.kind: route.markers for route in _BUILD_ROUTES
 }
 _BUILD_MARKER_INVENTORY = " / ".join(marker for route in _BUILD_ROUTES for marker in route.markers)
 _TEST_INVENTORY = " / ".join(_TEST_GLOBS)
+
+
+@dataclass(frozen=True)
+class _JavaServing:
+    """What the build table currently says about Java.
+
+    Read at call time on purpose: #426's legs change one route row and require the
+    「均无法运行」 disclosure to follow, which a module-level copy could not show —
+    it would only ever equal the derivation of the bytes that were imported.
+    """
+
+    routes: tuple[_BuildRoute, ...]
+    markers: tuple[str, ...]
+    stems: tuple[str, ...]
+
+
+def _java_serving() -> _JavaServing:
+    """Every route that serves Java, in dispatch order, with what it makes runnable."""
+    routes = tuple(route for route in _BUILD_ROUTES if route.language == "java")
+    return _JavaServing(
+        routes=routes,
+        markers=tuple(marker for route in routes for marker in route.markers),
+        stems=tuple(route.test_command[0] for route in routes if route.test_command),
+    )
 
 SecurityScanFn = Callable[[str], Any]
 SelfVerifyFn = Callable[..., dict[str, Any]]
@@ -216,10 +256,22 @@ def _compile_test_glob(pattern: str) -> re.Pattern[str]:
     return re.compile("^" + "".join(parts) + "$")
 
 
-_TEST_MATCHERS: dict[str, tuple[re.Pattern[str], ...]] = {
-    kind: tuple(_compile_test_glob(pattern) for pattern in patterns)
-    for kind, patterns in _TEST_GLOBS_BY_KIND.items()
-}
+def _compile_matchers(
+    table: Mapping[str, tuple[str, ...]]
+) -> dict[str, tuple[re.Pattern[str], ...]]:
+    """The matcher set of a vocabulary table — one reading, also what tests call.
+
+    A leg that swaps a row in ``_TEST_GLOBS_BY_KIND`` has to rebuild the matchers
+    the same way the module did; going through this function keeps that a call to
+    the producer instead of a second copy of its comprehension.
+    """
+    return {
+        kind: tuple(_compile_test_glob(pattern) for pattern in patterns)
+        for kind, patterns in table.items()
+    }
+
+
+_TEST_MATCHERS: dict[str, tuple[re.Pattern[str], ...]] = _compile_matchers(_TEST_GLOBS_BY_KIND)
 
 
 def _is_ignored_directory(directory: Path) -> bool:
@@ -340,37 +392,58 @@ def run_test_gate(workspace: Path, *, executor: ExecRunner | None = None) -> Gat
         )
     notes: list[str] = [f"检测到 {len(suite)} 个测试文件"]
     commands: list[list[str]] = []
-    if by_kind["python"]:
-        commands.append(["python", "-m", "pytest", "-q"])
-    if by_kind["java"]:
-        if any((workspace / marker).is_file() for marker in _BUILD_MARKERS["maven"]):
-            commands.append(["mvn", "-q", "test"])
-        elif any((workspace / marker).is_file() for marker in _BUILD_MARKERS["gradle"]):
-            # #366 routed the gradle stem to GRADLE_PROFILE; before that this
-            # branch had no image to ask for and the note below was true.
-            commands.append(["gradle", "-q", "test"])
+    # Walking the detector's own buckets is what keeps the count above honest: a
+    # kind is either answered below or refused, never silently counted.
+    for kind, bucket in by_kind.items():
+        if not bucket:
+            continue
+        if kind == "python":
+            commands.append(["python", "-m", "pytest", "-q"])
+        elif kind == "java":
+            serving = _java_serving()
+            present = next(
+                (
+                    route
+                    for route in serving.routes
+                    if any((workspace / marker).is_file() for marker in route.markers)
+                ),
+                None,
+            )
+            if present is None:
+                notes.append(
+                    f"检测到 {len(bucket)} 个 Java 测试文件但仓库无 "
+                    f"{' / '.join(serving.markers)}, "
+                    f"{'·'.join(serving.stems)} test 均无法运行, 该部分不执行 (诚实标注)"
+                )
+            elif not present.test_command:
+                raise AssertionError(
+                    f"run_test_gate found {present.kind}'s build file but the route declares "
+                    f"no test_command — {len(bucket)} Java test files would be counted "
+                    "and run by nothing"
+                )
+            else:
+                commands.append(list(present.test_command))
+        elif kind == "go":
+            commands.append(["go", "test", "./..."])
+        elif kind == "node":
+            scripts = _package_scripts(workspace)
+            if scripts is None:
+                notes.append(
+                    "package.json 读不出或不是 JSON 对象, npm test 无从判定, "
+                    "该部分不执行 (诚实标注)"
+                )
+            elif not str(scripts.get("test", "")).strip():
+                notes.append(
+                    f"检测到 {len(bucket)} 个 JS/TS 测试文件但 package.json "
+                    "无 scripts.test, npm test 无法运行, 该部分不执行 (诚实标注)"
+                )
+            else:
+                commands.append(["npm", "test", "--silent"])
         else:
-            notes.append(
-                f"检测到 {len(by_kind['java'])} 个 Java 测试文件但仓库无 "
-                f"{' / '.join(_BUILD_MARKERS['maven'] + _BUILD_MARKERS['gradle'])}, "
-                "mvn·gradle test 均无法运行, 该部分不执行 (诚实标注)"
+            raise AssertionError(
+                f"run_test_gate's table names the kind {kind!r} but no branch dispatches it; "
+                f"{len(bucket)} file(s) of that kind are counted in the note and run by nothing"
             )
-    if by_kind["go"]:
-        commands.append(["go", "test", "./..."])
-    if by_kind["node"]:
-        scripts = _package_scripts(workspace)
-        if scripts is None:
-            notes.append(
-                "package.json 读不出或不是 JSON 对象, npm test 无从判定, "
-                "该部分不执行 (诚实标注)"
-            )
-        elif not str(scripts.get("test", "")).strip():
-            notes.append(
-                f"检测到 {len(by_kind['node'])} 个 JS/TS 测试文件但 package.json "
-                "无 scripts.test, npm test 无法运行, 该部分不执行 (诚实标注)"
-            )
-        else:
-            commands.append(["npm", "test", "--silent"])
     if not commands:
         return GateResult(
             "run_test", "skipped", "; ".join(notes) + "; 无可用测试命令, 不伪造通过", [], 0
@@ -483,8 +556,7 @@ def run_typecheck_gate(
             [["python", "-m", "mypy", *changed_py]],
             runner,
         )
-    java_markers = _BUILD_MARKERS["maven"] + _BUILD_MARKERS["gradle"]
-    if any((workspace / marker).is_file() for marker in java_markers):
+    if any((workspace / marker).is_file() for marker in _java_serving().markers):
         return GateResult(
             "run_typecheck",
             "skipped",

@@ -10676,3 +10676,76 @@ craft 路径本身尊重部署钉值（#366 队列②，前置见 #366 诚实边
 - `docs/operations/DEEP_OPTIMIZATION_PLAN.md`：当前已至 #424
 - `reports/full-eval/eval-report.results.json` / `.jsonl` / `.html`：87 cases, all PASS
 - `scripts/diagnose_eval_sidecar.py`：就位，等待 quiet machine 复用
+
+## #426 craft 门禁的分派必须由词表派生：删一行不再抛 KeyError，多一行不再「检测到 2 个测试文件」却只跑 pytest
+
+**背景**：#423 队列①。`craft/gates.py` 的 `run_test_gate` 用四个手抄下标读自己的桶
+（`by_kind["python"] / ["java"] / ["go"] / ["node"]`），另有三处 `_BUILD_MARKERS["maven"] / ["gradle"]`；
+键来自 `_TEST_GLOBS_BY_KIND`，下标来自我抄的那份名单。两边一旦发散，两种结局都测到过。
+
+**修复前在 shipped 树上量到的两个方向**（`.scratch/dispatch_probe.py`，产物 `.scratch/dispatch_probe.txt`）：
+
+| 探针 | 修复前 | 修复后（`.scratch/dispatch_probe_after.txt`） |
+|---|---|---|
+| 源码里 `by_kind["` 硬下标 | **4** | **0** |
+| 源码里 `_BUILD_MARKERS["` 硬下标 | **3** | **0** |
+| 词表删一行（`go`）后直调 `run_test_gate` | `RAISED KeyError: 'go'` | 返回 `GateResult(status=passed)` |
+| 构建表删一行后 `run_typecheck_gate` | `RAISED KeyError: 'gradle'` | 返回 `GateResult(status=skipped)` |
+| 词表多一行（`rust: *_test.rs`），python+rust 仓库 | `status=passed` note=「检测到 2 个测试文件; python -m pytest -q: 通过」 | `RAISED AssertionError: … names the kind 'rust' but no branch dispatches it; 1 file(s) … run by nothing` |
+| 同一形状走 shipped `GatePipeline` | `overall=skipped` 而 `run_test=passed`（报告里没人看得见假绿） | `run_test=error`，note 带 `AssertionError` 与「不伪造结果」 |
+
+后一行是本单元真正的原因：`GatePipeline._run_gate` 把异常收成 `error`，所以漏出的
+`KeyError` 只在直接调用面（craft 自己的工具面）现形；而「多一行」那一半根本不抛，
+它数进 note、只派 pytest 跑，然后 `passed`。`run_build_gate` 早就拒绝这一半
+（它的 `raise AssertionError` 随 #423 落地），两个门禁对「一个没人接的 kind 是什么」的判断不一致。
+
+**改形**：
+- 分派改成走 detector 自己的桶：`for kind, bucket in by_kind.items()`，非空桶要么被下面的分支接住，要么落到链尾的 `raise AssertionError`。
+- Java 的构建文件与测试命令知识从三处手抄收进 `_BuildRoute.language` + `test_command`，`_java_serving()` 在**调用时**读表；「均无法运行」那句的标记名与命令词干都由它派生。模块级副本做不到这件事——它永远等于被 import 那批字节的派生。
+- `elif not present.test_command` 是 `test_a_java_route_that_declares_no_test_command_is_refused` 的承重控制：有构建文件却没有命令，也要抛，不能数进去。
+- `run_typecheck_gate` 的「Java 项目无独立 typecheck 命令」判据改读 `_java_serving().markers`。
+
+**门**：`tests/unit/test_craft_gates_dispatch_every_kind_the_vocabulary_names.py`，16 例 / 355 行。
+其中两条是形门（`by_kind[`、`_BUILD_MARKERS[` 计数为 0，并各带一条 carrier 断言防自己空转），
+两条是双向命运门（删行 / 加行），一条是流水线侧门（假绿必须在报告里变成 `error`），
+三条是派生门（注入一行 Java 路由，note 要跟着走），其余是 shipped 形状门。
+
+**电池**：`.scratch/dispatch_arms.py` + 预测 `.scratch/dispatch_predictions.json`（先写盘后跑臂），
+10 臂全部只动 `craft/gates.py`；种群 = 7 个 craft/threat 门禁文件（at-rest 基线 118 passed + 2 skipped）。
+产物 `.scratch/dispatch_arms_run_a.txt` / `_b.txt` / `_c.txt`：**9 MATCHED / 1 MISMATCH / 0 INTERFERED / 0 SKIPPED**，
+跑完 8 个哈希文件 `drifted []`。
+
+| 臂 | 预测红 | 实际红 | 判决 |
+|---|---|---|---|
+| A1 链尾拒绝改成 `continue` | 3 | 3 | MATCHED |
+| A2 手抄名单回来 | 4 | 4 | MATCHED |
+| A3 note 的标记名改回字面 | 1 | 1 | MATCHED |
+| A4 `_java_serving` 按 kind 硬挑 | 1 | 1 | MATCHED |
+| A5 `elif not present.test_command` 失效 | 1 | 1 | MATCHED |
+| A6 gradle 行挪到 maven 前 | 3 | 3 | MATCHED |
+| A7 gradle 的 language 改成 `jvm` | 1 | **2** | MISMATCH |
+| A8 note 的词干改回字面 | 1 | 1 | MATCHED |
+| C1 只改注释 / C2 只改 docstring | 0 / 0 | 0 / 0 | MATCHED |
+
+A7 的漏预测归因（红名 `426::test_a_java_route_that_declares_no_test_command_is_refused`）：那条腿把
+gradle 行的 `test_command` 清空来验控制分支，它的前提是「gradle 在 Java 视图里」；A7 恰好把它挪出
+视图，于是腿自己先红。这是漏预测而不是假绿——A7 想藏的东西（一个 Java 仓库的测试不再被派却仍被
+`run_build_gate` 编译）被 `423::test_a_gradle_repositorys_java_tests_are_not_blamed_on_a_missing_pom`
+行为腿接住了。预测文件保持未改：只允许标签前缀移动，红集以实测入账。
+
+A6 一次红了 3 处、跨 3 个文件（`426` 的顺序腿、`423` 的 orphan note 字面句、`gates` 的
+`test_run_test_gate_java_tests_without_pom_skipped` 的「无 pom.xml」），这正是原 #423 队列④要收的债：
+同一句诚实披露现在有三份读者，两份钉字面。
+
+**静态门**：`ruff check` 对改动的两文件「All checks passed!」；`mypy craft/gates.py`
+「Success: no issues found in 1 source file」（`tests/` 在 mypy 排除清单里，门文件按既有惯例不进 mypy）。
+
+**边界（不是欠账，是没做的承诺）**：
+- `_dispatched_kinds()` 用 `inspect.getsource` + 正则读 `kind == "x"`。若把分派改写为 `match kind:` 或干脆移进表，这条腿会假红；届时应换成 AST 读取，而不是放宽正则。
+- 形门 `by_kind[` 计数为 0 比它声明的更严：连 `by_kind[kind]` 这种正当写法也会被算进去。当前它只要求走 `.items()`，可接受，但它钉的是拼写不是名单。
+- `test_the_java_view_is_the_language_column_in_dispatch_order` 是派生腿，对 A4/A7 天生失明（电池实测）；真正承重的是注入行那条腿，不要把前者当成值钉。
+
+**队列**：
+① 把 `test_craft_gates.py` 与 #423 门里两处「无 pom.xml …」字面句读换成同一个派生 helper（A6 实测的红集就是它的账单）。
+② `_TEST_GLOBS_BY_KIND` 与 `run_test_gate` 分支仍是「同名不同处」两份知识——本轮把它们绑成互读（表加行必抛），下一步可把命令本身也上表，链尾 `raise` 才退成纯结构。
+③ 原 #186：Prometheus 名册声明的端口号仍未被真绑真抓到过。
