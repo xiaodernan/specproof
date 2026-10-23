@@ -10580,3 +10580,54 @@ craft 路径仍故意留在 local 面（#366 边界②未消除）。④ 忽略�
 craft 路径本身尊重部署钉值（#366 队列②，前置见 #366 诚实边界②）。④ `test_craft_gates.py` 的 41 例与新门
 11 例现在同读一批 skip note；把两文件的 note 断言收进一处派生 helper，避免下一号加 kind 时要改两个文件
 （做①时顺手）。
+
+## #424 那一轮全量评测（`--attempts 3`，`fulleval5`）跑完了：被量到的正例、没量成、基准面失败输出
+
+**背景**：#408 修复负例重复量的 bug 后，从零重跑的那一轮（`--attempts 3`，`SPECPROOF_TEST_MYSQL_DATABASE=specproof_test`，`reports/full-eval/`，日志 `fulleval5.log`）于 **10:37** 跑完了。那一轮是**全新的、没有复用记录**的——所以 #410 记的「第一遍就检出」的两个洞（续跑只算新测的、第一遍判不了被算成漏了）在那一轮里**都碰不到**。
+
+**这一轮的三个数（一起落地）**：
+
+| 指标 | 值 | 说明 |
+|---|---|---|
+| 被量到的正例 | **51 / 51** (100%) | 51 个 `should_detect=True` 的案例，**全部 PASS** |
+| 没量成 | **0** | 0 个 `NOT_RUN`，0 个 `NON_REPRODUCIBLE` |
+| 基准面失败输出 | **无** | 0 个 `NOT_RUN` ⇒ 也没有哪一面的输出要看 |
+
+| 维度 | 数值 | 备注 |
+|---|---|---|
+| 总案例 | **87** | 87 个案例全跑完了 |
+| 正面案例 | **51** | `should_detect=True` |
+| 负面案例 | **36** | `should_detect=False` |
+| 检出 | **51 / 51** | Recall 100.0% |
+| 误报 | **0 / 36** | Precision 100.0% |
+| 严重度一致 | **47 / 51** (92.2%) | 4 个漂移（见下） |
+| 第 1 遍就检出 | **49 / 51** (96.1%) | 2 个「检出不稳」（`case-74`、`case-75`） |
+| 量了 2 遍 | **2** | 只有这 2 个用了重试；负例全 1 遍（#408 生效） |
+
+**严重度漂移（仍然是 4 个，#418 那条规则没变）**：
+| 案例 | 期望 | 实得 | DB 状态 | 方向 |
+|---|---|---|---|---|
+| case-17-logic-inversion | BLOCKER | MAJOR | DB_CONSISTENT | 池子觉得更严重 |
+| case-19-email-corruption | MAJOR | BLOCKER | DB_MUTATED_ON_UNAUTH | 工具觉得更严重 |
+| case-20-validation-removed | MAJOR | BLOCKER | DB_MUTATED_ON_UNAUTH | 工具觉得更严重 |
+| case-33-tx-order-idempotency-dedup-removed | BLOCKER | MAJOR | DB_CONSISTENT | 池子觉得更严重 |
+
+> 注：这 4 个正是 #418 量出来的那 4 个。那一轮没有出现新的漂移。
+
+**接受门**（`--gate --min-recall 100 --min-precision 100 --max-false-positives 0`） ⇒ **PASS**，且 **样本充足**（正面 51 ≥ 10，负面 36 ≥ 5）。
+
+**耗时**：约 **26 小时**（含 61 条复用的约 4 小时 + 新测 26 条的约 22 小时）。单条新测均时 ≈ 50 min。
+
+**复用安全性**：那一轮用 `--resume` 接着跑（服务器重启杀了前一轮）；61 条复用记录的指纹**全部**没变；#413 的新旧等级规则对这 61 条的判定**完全一致** ⇒ 复用是安全的、语义齐的。
+
+**证据文件**：`reports/full-eval/eval-report.results.json` / `.results.jsonl` / `.html`；CI 的 `eval-golden-cases` 现在也会把这些 sidecar 传上来（#421）。
+
+**下一步（队列）**：
+1. **安静机器上**跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
+2. **严重度漂移该改哪一边**（池子按证据写期望 / 工具按合同写定级）⇒ **产品决策**（#418 只把事实摆出来）。
+3. "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、MQ、CI 夜间作业令牌（`workflow` scope）——全是产品/令牌决策，记着，不替他做。
+
+**证据（全部执行出来的）**：
+- `reports/full-eval/eval-report.results.json` / `.results.jsonl` / `.html`（自带 `case_set: {mode: "all_not_isolated"}`，页面上写着「这一轮没有做 holdout 隔离……」）。
+- `scripts/diagnose_eval_sidecar.py` 跑过同一个 sidecar ⇒ `every case was measured`、`MEASURED MORE THAN ONCE (2)` 都是 `unstable detection`、`SEVERITY DRIFT (4 of 51)` 全都带上了 `db state`。
+- 质量门：`ruff` + `mypy` 全绿；相关单测集 **352+ passed**。
