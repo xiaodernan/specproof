@@ -10419,3 +10419,164 @@ path: |
 - 那一轮跑完后落地三个数（队列第一项）；**诊断工具已经就位**，CI 里也**开始留证据**了（#421）。
 - 安静机器上跑全量单测、集成、DEEP、无并发 `case-100`（同一个安静环境）。
 - "第一遍判不了要不要留在分母"（悲观口径 vs 排除口径）、"measured 到底是跑过还是量到"、MQ —— 全是产品决策，记着，不替他做。
+## #423 门的词表只有一个来源：Go/Node 仓库不再被报成「未检测到」，跳过说明改由表派生
+
+**起因/占号（换了五次号，全过程见下）。** #366 的队列①：「`craft/gates.py` 的测试/构建标记检测不认识 Go
+与 Node……本号把 gradle 接上后，这条路只剩这一处同类缺陷」。本车道按 **#367** 起草；落笔期间 `f83ba97`
+把 #367 判给了另一单元（胶囊摘要进矩阵行）、`804c3f4` 落 #368、`6460d76` 落 #369 ⇒ 改取 **#370**，标签
+367→370 只动前缀，臂预测的测试名一字未改。臂电池第二跑到一半，并发车道又连落 `c0df552` **#370**（宿主
+JDK 版本告诉 Maven）、`25153b3` **#371**（preflight 的 JDK 规则）、`f7ca289` **#372**（注册表存键族）⇒
+取 **#373**；run 3 跑满之后 `8bd2509` **#373**（本地评测实测数字）、`462340d` **#374**（把 #365–#373 的
+钉子修齐）、`70362e2` **#375**（CI 的两道门）又把它连号吃掉 ⇒ 取 **#376**；追加脚本按「max+1」复核那一步
+先拒绝了一次，随后 `22c4324` **#376**（假警报要治／DEEP 首测）、`6c71c87` **#377**（评测逐案例增量落盘）
+落地 ⇒ 取 **#378**（`## #` 普查 202 节、max=377）。给门文件补完类型标注、电池跑到 run 5 之后，追加脚本
+第二次拒绝：`9ac5e9a` **#378**（续跑：被杀的评测不用从头再量一遍）已经把这号拿走，而它同一串车道连落
+#379–#422（`git log --oneline -14 -- docs/operations/DEEP_OPTIMIZATION_PLAN.md` 的末笔是 `618a0dd`
+**#422**）⇒ 本号最终取 **#423**（追加前普查 248 节、max=422）。五次改名只动标签：`craft/gates.py` 2 处、
+门文件 5 处（`.scratch/m370_*` 那批脚本路径不含 `#`，一字未动，账本引用的就是这些真路径），电池的红 id
+前缀与 `baseline_expected` 的键由 `.scratch/m378_relabel_battery.py`（373→378）与
+`.scratch/m423_relabel_battery.py`（378→423）一起搬（各断言 2 + 18 个标记令牌、替换前后字节数不变）。
+**改名不是免费的，所以每次改名之后重跑电池**：run 6 在标签 423 的落地字节上跑满 10 臂，判决与红数与
+run 3/run 4/run 5 逐臂一字不差，A3 的 15 个名字四跑集合相等（比对口径见下段），这既是「标签编辑惰性」的
+证据，也是本号引用臂读数的依据。并发那几笔提交还顺手把本号先前给 #366 队列句做的一行订正扫进了它们自己的提交（`git show HEAD:
+docs/operations/DEEP_OPTIMIZATION_PLAN.md` 现在含那句订正，而文档在工作树里对 HEAD 干净）——归因写在
+这里，不假装是本号的一次提交。
+
+**先订正队列里的一处假标识。** 那条队列写的是 `_TEST_GLOBSS`——这个名字在 HEAD 与全部历史里命中 0 次
+（`git show HEAD:craft/gates.py | grep -c "_TEST_GLOBSS"` ⇒ 0），实际名字是 `_TEST_GLOBS`，一个 6 模式、
+只覆盖 python/java 两门语言的扁平元组。队列项的其余指称逐条核实为真，见下。
+
+**缺陷（修前，读数全部取自交付树，探针 `.scratch/m370_probe.py` / `m370_probe2.py` / `m370_probe4.py`）。**
+① `agent/preflight.py:39` 的 `_LANGUAGE_MARKERS` 用 16 个标记点名 4 门语言（java/node/python/go），
+`experiments/adapters.py:1795` 的 `COMPATIBILITY_MATRIX` 5 行**全部**状态以「已支持」开头（含
+JavaScript/TypeScript·npm 与 Go·go）；而 `craft/gates.py` 只测 4 个构建标记
+（pom.xml / build.gradle / pyproject.toml / setup.py）对 6 个测试文件模式。② 一个 Go 仓库
+（`go.mod` + `pkg/sum_test.go`）与一个 Node 仓库（`package.json` 带 `scripts.test` + `src/index.test.ts`）
+都拿到 `run_build=skipped`「未检测到构建配置 (pom.xml / build.gradle / pyproject.toml / setup.py)」与
+`run_test=skipped`「未检测到测试文件 (test_*.py / *_test.py / *Test.java / src/test 等)」——**仓库正踩着
+的那个标记，恰恰不在点名它的那句话里**。③ 同一批 fixture 的第三种读法：Gradle-only Java 仓库的构建门
+`run_build=passed`（`gradle -q compileJava`），测试门却答「检测到 1 个 Java 测试文件但仓库无 pom.xml,
+mvn test 无法运行」——#366 已把 `gradle` 路由进 `GRADLE_PROFILE`，这句话点的镜像与路线是同一棵树有的。
+④ 检测器本身也被量了（`m370_probe4.py`，两棵真树）：15 模式表在 `apps/web` 上每个模式发一次
+`Path.glob`，走完 52 个原始命中、38.40 s、留 47 个，而一次剪枝遍历返回同样 47 个只花 0.80 s——**忽略名
+单从来只约束结果、不约束遍历**。而且名单是**名字**名单：本树的 `.venv312` 有 183 个测试文件形状的
+文件（`test_*.py` 177 + `*_test.py` 6，6.81 s + 4.80 s），它不叫 `venv`，所以 183 个全部活过了旧的
+事后过滤。虚拟环境的判据是目录里带 `pyvenv.cfg`，不是目录名。
+
+**修（单一来源）。** `craft/gates.py`：`_TEST_GLOBS_BY_KIND`(:68) 按 kind 分组的唯一词表 ⇒ `_TEST_GLOBS`(:83)
+与「未检测到测试文件」清单 `_TEST_INVENTORY`(:118) 都从它派生；`_BuildRoute` + `_BUILD_ROUTES`(:103) 五行
+（maven/gradle/python/go/node，go 与 node 是新增的两族，`build.gradle.kts` 也补上了）⇒ `_BUILD_MARKERS`(:114)
+与 `_BUILD_MARKER_INVENTORY`(:117) 派生；两条 skip note 改成对派生清单的 f-string(:336 / :443)，手抄那份
+从此不可能与表各说一套，末尾的「等」也被禁止（它正是「未检测到」能针对一个句子从没点名的标记被写出来的
+原因）。检测器 `_compile_test_glob`(:200) 把 `**/<pattern>` 编成相对 POSIX 路径上的正则，`_is_ignored_directory`(:225)
++ `_walk_source_files`(:235) 用 `os.walk` 在**进入之前**剪掉忽略目录与任何含 `pyvenv.cfg` 的目录。行为分支：
+Java 测试在 pom 之外接 `gradle -q test`（分支注释点 #366），两者都没有时理由同时点名三种标记；Go 走
+`go test ./...`；Node 只在 `package.json` 真读出 `scripts.test` / `scripts.build` 时发命令，**读不出**与
+**没声明**是两种不同的 skipped 理由，不许都写成「未检测到」。`run_typecheck_gate`(:450) 里那两处手抄的
+Java 标记折进 `_BUILD_MARKERS["maven"] + _BUILD_MARKERS["gradle"]`（折叠落在 :486）。
+
+**门与腿。** `tests/unit/test_craft_gates_serve_every_language_the_product_names.py`（新增，11 例）：
+L1 两张表的 kind/唯一性/派生等式与下限（15 模式、7 标记——防普查收缩成空）；L2 craft 的构建标记词汇必须
+与 `agent/preflight.py` 的 `_LANGUAGE_MARKERS` 双向对齐（不得有 craft 发明、也不得有 preflight 点名而
+craft 无路）；L3 两条 skip note 的令牌集 ↔ 表**相等**，且禁止「src/test 等」；L4 note 必须由表派生
+（加一个标记，note 必须跟着动；`pytest.ini` 这类 craft 不测的标记不得出现在 note 里）；L5 Go 仓库在钉面上
+build+test 都 `passed` 且 argv/profile 双双落到 `GO_PROFILE`；L6 Node 仓库跑的是 manifest 自己声明的脚本
+（`npm run build` / `npm test --silent`，`NODE_PROFILE`）；L7 Gradle-only Java 仓库的测试门不得再把责任推给
+「无 pom.xml」，而无任何构建文件的孤儿仓库仍须 skipped 且理由点名三种标记；L8 没有 `scripts.test` 与
+manifest 读不出两种情形分别说清；L9 反空转：什么都没有的工作区两个门都 skipped，`compose_verdict` 不得
+认证为通过；L10 剪枝遍历与旧的 glob-再过滤参照实现返回**同一集合**（逐 kind 排序比较）；L11 把 `Path.glob`
+monkeypatch 成抛异常，证明检测器一次也不发 glob，且 `.venv312`/`builds/venv_like` 这类**形状**是虚拟环境的
+目录不再被计入。三文件基线 **60 passed / 87.78 s**（= 新门 11 + `test_craft_gates` 41 + #366 门 8，与
+`m370_predictions.json` 的 `baseline_expected` 逐项相等）。此后每改一次落地字节就用同一条命令复跑，计数
+从未动过：改完门文件里一处 CJK 括号配对后 **60 passed / 66.75 s**，标签 370→373 后 **60 passed / 16.63 s**，
+标签 373→378 后 **60 passed / 12.04 s**，给门文件补类型标注后 **60 passed / 46.01 s**
+（`.scratch/m378_run5_baseline.txt`，wall 71.95 s），标签 378→423 后 **60 passed / 30.95 s**
+（`.scratch/m423_baseline.txt`，rc=0、wall 56.79 s，四个文件的哈希随读数一起落盘）——秒数是并发负载的
+读数，`baseline_expected` 的三个分项在每次里逐项相等（11 + 41 + 8）。`ruff check craft/gates.py
+tests/unit/test_craft_gates_serve_every_language_the_product_names.py` ⇒ All checks passed
+（`.scratch/m423_ruff_paths.txt`，EXIT=0）；全树 `ruff check .` 也 ⇒ All checks passed
+（`.scratch/m423_ruff_full.txt`，EXIT=0）——先前那一次全树另有 1 条 I001，属另一车道当时未提交的
+`tests/unit/test_host_java_version.py`，它随后随 `c0df552`/`22c4324` 落地并被自己的车道清掉，本号没动过
+那个文件。CI 形状的全树 mypy（`mypy .`，`.scratch/m423_mypy_full.txt`，243 个源文件——比上一跑多 1 个，
+是并发车道新加的文件）**1 红**：`mcp/client.py:182: Returning Any from function declared to return "str"
+[no-any-return]`——该文件本轮 `git status` 未列（工作树 = HEAD 字节），也不在本号改动的两个文件里。
+把本号两个路径**显式**喂给 mypy（`.scratch/m423_mypy_single.txt`）⇒ `Success: no issues found in 2 source
+files`，这一条不是免费的：门文件初稿有 5 条 `no-untyped-def`（3 个 `monkeypatch` 参数、`no_glob` 的
+`self` 与返回值），而 `[tool.mypy] exclude` 排掉了 `tests/`，CI 永远不会替我读它——照
+`tests/unit/test_craft_gates.py:335` 那种 `monkeypatch: pytest.MonkeyPatch` 的既有写法补齐才 0 错。另一处
+非确定性要记录：在 373 那批字节上 `mypy craft/gates.py` 曾抛 mypy 2.3.1 的 `INTERNAL ERROR`
+（`.scratch/m370_mypy.txt`，EXIT=2），落地字节上同一调用正常结束，所以本号引用的是 CI 用的那种调用。
+
+**臂（8 缺陷臂 + 2 控制臂；预测在任何一臂未跑之前写盘 `.scratch/m370_predictions.json`，共 16 条预测红，
+标签随后随号 367→370→373→376→378→423 移动，测试名一字未动）。** 标签 423 的落地字节上那一跑 **run 6**
+（`.scratch/m423_arms_run6a.txt` + `m423_arms_run6b.txt`，10 臂全跑，每臂都跑那三个门文件；下面每臂先给
+harness 量的墙钟，再给 pytest 自己那行）：A1 删 go 构建路由→红 4 / 预测 4（25.2 s · `4 failed, 56 passed
+in 12.99 s`）；A2 删 node 构建路由→红 3（23.3 s · `3 failed, 57 passed in 9.75 s`）；A3 从
+`_TEST_GLOBS_BY_KIND` 删 `"go"` 整项→**红 15 / 预测 3，MISMATCH**（27.9 s · `15 failed, 45 passed in
+16.97 s`）；A4 把 note 退回手抄字面表→红 2（31.4 s · `2 failed, 58 passed in 16.17 s`）；A5 删 Java 的
+gradle 测试分支→红 1（21.7 s · 11.29 s）；A6 给 Node 发明一个 `scripts.test` 兜底默认值→红 1（18.6 s ·
+9.25 s）；A7 删 `pyvenv.cfg` 形状判据→红 1（16.6 s · 8.64 s）；A8 检测器退回每模式一次 `Path.glob`→红 1
+（14.3 s · 7.78 s）；C1 纯注释、C2 同段落改措辞→各红 0（`60 passed` 7.05 s / 7.29 s）。两块 TALLY 相加
+**MATCHED=9 / MISMATCH=1 / INTERFERED=0 / SKIPPED=0**（run6a：`MATCHED=4 MISMATCH=1`；run6b：`MATCHED=5`），
+两块 postflight 都报告 all files back at rest，每臂之前还各有一次 at-rest preflight 通过。
+改名经过的四跑各用脚本比过（`.scratch/m423_run_label_invariance.py`：解析每次运行的
+`(MATCHED|MISMATCH) red= predict=` 行与 MISMATCH 臂的 `got` 块，剥掉标签前缀再比；run 2 不在内，那一跑被
+本 harness 自己的红 id 记账作废，另有一段说明）。run 3（标签 373）/ run 4（378，补标注之前）/ run 5（378）
+/ run 6（423）**10 臂判决与红数一字不差**，A3 的 15 个名字在四跑之间**集合相等**——变的只有秒数。run 5 的
+A1 墙钟 135.5 s（并发车道同时在跑自己的电池）对 run 6 的 25.2 s，A3 123.7 s 对 27.9 s：**秒数是负载读数，
+不是门自身的属性**，本号引用的每一次读数都注明来自哪一跑、哪一块平面；MATCHED 臂的 harness 不打印名字块，
+所以那几臂的名字相等是由「每一跑各自对上同一份预测文件」给出的，不是逐条比对出来的。补类型标注那次改动只动门文件，
+10 条臂的 needle 全部落在 `craft/gates.py` 上，但预测的是红的**名字**，所以仍整块重跑而不是「推断无影响」。
+
+**A3 的多红不是「臂错了」，是量到的另一处耦合**（`.scratch/m370_a3_mechanism.py`，标签 423 落地字节上的
+重跑记录 `.scratch/m423_a3_mech.txt`：贴上 A3 的改动后直接调 shipped 函数，再把两条被牵连的门当桩跑一遍取
+失败快照，最后按哈希还原）。`run_test_gate` 在 `craft/gates.py:358` 写的是 `if by_kind["go"]:` ——分派器用的是**表键名
+的第二份抄本**。删掉表里那一项，`_detect_suite_by_kind` 返回的字典就不再含 `go`（实测
+`keys: ['python', 'java', 'node']`），于是**每一次** `run_test_gate` 调用都抛 `KeyError: 'go'`；两条牵连腿的
+pytest 快照都停在 `craft\gates.py:357`——那是** mutated 字节**上的行号（删掉一行，落地字节上的 :358 就往上
+挪一位），快照原文是 `result = run_test_gate(...)` → `craft\gates.py:357: in run_test_gate / if by_kind["go"]:
+/ E KeyError: 'go'`。15 条红 = 3 条预测 + 新门另 3 条 + `test_craft_gates` 9 条，全部是 `run_test_gate` 的
+调用方。所以 A3 证明的方向是「比预测更伤」而不是「门漏了」：没有任何一条腿因此显得比实际更强。它同时把
+一处本号自己引入的形状点出来——`by_kind["python"] / ["java"] / ["go"] / ["node"]` 四个下标把词表和分派
+绑成了两处必须同名的抄本，且抛异常绕过的是**门契约**（同函数的 executor
+失败路径是返回 `status=error`）。列入下一号队列①，本号不趁尾改形状（改它要新腿并重跑整块电池）。
+
+**第一跑作废**：本 harness 的红集合键被拼成 `tag + 完整 nodeid + 测试名`，于是每一条臂都拿
+`370tests/unit/…py::test_x` 去比预测的 `370::test_x`，把「红集恰好等于预测」的臂也判成 MISMATCH——A1 当时
+red=4 / predict=4 且四个测试名一一对上，形状才暴露出来。第二跑改键为 `<tag>::<name>`，并且遇到 TAGS 之外
+的文件直接抛（不再用 `?` 冒充一个标签），预测文件一字未动。电池分块跑（每块 ≤3 臂，块前各做一次 at-rest
+preflight），运行在 `craft/gates.py` 上留下的任何未归位缺陷都会被下一块的 preflight 拦下。
+
+**否证与订正。** ① 队列项里 `_TEST_GLOBSS` 这个名字是假的（见上），本号把它订正为 `_TEST_GLOBS`；除此之外
+那条队列对缺陷的框法核实为真，没有打折。② 「检测器只是慢」这个读法被 L11 否证：把 `Path.glob` 打死之后
+检测器仍返回正确集合，而旧的 `.venv312`（183 个测试文件形状的文件，名字不在名单里）证明它不是「慢」而是
+**数错了**——事后过滤根本不约束遍历。③ 控制臂 C1/C2 各 0 红，证明腿对语义起反应，不是对「carrier 变了」
+起反应。④ L1 的两个数字写成下限（`>= 15`、`>= 7`）而不是等号：等号会让「再加一门语言」变成一门红，那是
+手抄一个数，不是判定。⑤ 被否证的是我自己的 A3 预测：我按「删词表一项只影响那一族」建模，实测是**分派器
+抛异常**，红集为预测的超集（15 ⊇ 3）。预测文件一字未改——事后解释只写在账本里，不回写进「事前预测」。
+
+**诚实边界。** ① 臂电池与行为腿都用 stub 记录 `(argv, profile)`，不启动容器：本号证明 craft **会发**那条
+命令、**发给对的镜像**，不证明容器里 `go test` / `npm test` 真能跑通——后者是 `experiments/adapters.py`
+那条路的既有证据。② Node 的构建门只认 manifest 自己声明的 `scripts.build`；本号**没有**给 Node 加
+typecheck 路线，判据是量过的而不是感觉：`tsconfig` 在全树 `.py` 里命中 **0 次**（`grep -rn tsconfig` 对
+agent/craft/experiments 与一次全库 `*.py` 扫描都是空），所以给它编一条路线正是本号在修的病——note 点名的
+东西必须是代码真量过的（`run_typecheck_gate` 因此仍只覆盖 python 与 java 的分支，见 :486 的折叠）。③ `cargo` 依旧在白名单里而没有镜像，
+craft 路径仍故意留在 local 面（#366 边界②未消除）。④ 忽略名单按「名字 ∪ 含 `pyvenv.cfg`」判定；一个既
+不叫名单里的名字、又没有 `pyvenv.cfg` 的产物目录（例如 `build/`、`dist/`）仍会被走进去——那需要另一号
+先量清「哪些目录是产物目录」的判据，本号不猜。⑤ `docs/eval/*/craft/report.json` 里那些历史评测产物仍带着
+旧 note 的原文（点文件：`docs/eval/swebench-logs/specproof__toycalc-double-1/craft/report.json`、
+`docs/eval/aider-logs/python_toycalc-multiply/craft/report.json`、
+`docs/eval/aider-logs/python_toycalc-double/craft/report.json`——3 个，由一次 `未检测到测试文件|未检测到构建配置`
+的全 `docs/eval` 扫描得出）；它们是某一次运行的记录，不是当前措辞的读者（同一批令牌在 `tests/` 里只被
+`test_craft_gates.py:183/:242` 与新门 :296 断言，无一处读评测产物），本号不回填。
+
+**下一号队列（取号时按落地时点 max+1）。** ① A3 量到的那处耦合：`run_test_gate` 用 `by_kind["python"] /
+["java"] / ["go"] / ["node"]` 四个硬名字下标（:343/:345/:358/:360），而 `by_kind` 的键由 `_TEST_GLOBS_BY_KIND`
+派生——两者必须**同名**才不抛，删表里一行就让每个仓库的门都 `KeyError`（`m370_a3_mechanism.py` 实测）。
+把分派改成由表派生，并给「门函数返回 `GateResult`、不把 KeyError 漏给调用方」补一条腿（对照：executor
+失败路径返回 `status=error`）。② 抓取面第一条真 HTTP 腿里仍没有人绑**名册声明的端口号**：现有四条腿
+（`tests/unit/test_metrics_port_ownership_leg.py` L01-L04）全部经 `_free_port()`(:72-78) 取临时端口，
+`infra/prometheus/prometheus.yml` 写的 9100 一类数字至今没有被任何 bind 验证过，而 CI 无 compose。③ 让
+craft 路径本身尊重部署钉值（#366 队列②，前置见 #366 诚实边界②）。④ `test_craft_gates.py` 的 41 例与新门
+11 例现在同读一批 skip note；把两文件的 note 断言收进一处派生 helper，避免下一号加 kind 时要改两个文件
+（做①时顺手）。

@@ -29,8 +29,11 @@ Docker.
 
 from __future__ import annotations
 
+import json
+import os
+import re
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
@@ -56,14 +59,63 @@ GATE_ORDER: tuple[str, ...] = (
 GATE_RANK: dict[str, int] = {"passed": 0, "skipped": 1, "failed": 2}
 
 _SKIPPED_DIR_PARTS = frozenset({".git", "__pycache__", "node_modules", ".venv", "venv", "target"})
-_TEST_GLOBS = (
-    "test_*.py",
-    "*_test.py",
-    "**/src/test/**/*.java",
-    "*Test.java",
-    "*Tests.java",
-    "*IT.java",
+
+#: Test-file patterns grouped by the kind of suite they prove, because
+#: ``run_test_gate`` dispatches one command per kind. ``_TEST_GLOBS`` and the
+#: 「未检测到测试文件」 inventory are BOTH derived from this table, so a pattern can
+#: never be recognised by the detector while staying unnamed in the refusal (or
+#: the other way round — #366 measured exactly that pair for gradle/go).
+_TEST_GLOBS_BY_KIND: dict[str, tuple[str, ...]] = {
+    "python": ("test_*.py", "*_test.py"),
+    "java": ("**/src/test/**/*.java", "*Test.java", "*Tests.java", "*IT.java"),
+    "go": ("*_test.go",),
+    "node": (
+        "*.test.js",
+        "*.test.jsx",
+        "*.test.ts",
+        "*.test.tsx",
+        "*.spec.js",
+        "*.spec.jsx",
+        "*.spec.ts",
+        "*.spec.tsx",
+    ),
+}
+_TEST_GLOBS: tuple[str, ...] = tuple(
+    pattern for globs in _TEST_GLOBS_BY_KIND.values() for pattern in globs
 )
+
+
+@dataclass(frozen=True)
+class _BuildRoute:
+    """One ecosystem the build gate can serve, and the markers that name it.
+
+    ``markers`` is the only place the 「未检测到构建配置」 inventory comes from, and
+    the dispatch below has to answer for every ``kind`` listed here.
+    """
+
+    kind: str
+    markers: tuple[str, ...]
+    note_extra: str = ""
+
+
+#: Dispatch order. The kinds craft already served keep their precedence, so
+#: adding go/node cannot silently re-route a Maven or Python repository.
+_BUILD_ROUTES: tuple[_BuildRoute, ...] = (
+    _BuildRoute("maven", ("pom.xml",)),
+    _BuildRoute("gradle", ("build.gradle", "build.gradle.kts")),
+    _BuildRoute(
+        "python",
+        ("pyproject.toml", "setup.py"),
+        "python 以 compileall 字节码编译作为构建门 (无独立 build 阶段)",
+    ),
+    _BuildRoute("go", ("go.mod",)),
+    _BuildRoute("node", ("package.json",)),
+)
+_BUILD_MARKERS: dict[str, tuple[str, ...]] = {
+    route.kind: route.markers for route in _BUILD_ROUTES
+}
+_BUILD_MARKER_INVENTORY = " / ".join(marker for route in _BUILD_ROUTES for marker in route.markers)
+_TEST_INVENTORY = " / ".join(_TEST_GLOBS)
 
 SecurityScanFn = Callable[[str], Any]
 SelfVerifyFn = Callable[..., dict[str, Any]]
@@ -145,19 +197,76 @@ def compose_verdict(entries: Iterable[GateResult]) -> tuple[GateStatus, str]:
     return "skipped", f"无失败但有跳过门禁 (SKIPPED > PASS, 不认证为通过): {names}"
 
 
+def _compile_test_glob(pattern: str) -> re.Pattern[str]:
+    """Compile one detector pattern into a matcher over a relative POSIX path.
+
+    The `**/` prefix the old detector passed to ``Path.glob`` means "zero or more
+    directories", so a relative path is enough to reproduce its verdict — which is
+    what lets the walk below prune instead of judging after the fact.
+    """
+    chunks = f"**/{pattern}".split("/")
+    parts: list[str] = []
+    for index, chunk in enumerate(chunks):
+        if chunk == "**":
+            parts.append("(?:[^/]+/)*")
+        elif index == len(chunks) - 1:
+            parts.append("".join("[^/]*" if c == "*" else re.escape(c) for c in chunk))
+        else:
+            parts.append("".join("[^/]*" if c == "*" else re.escape(c) for c in chunk) + "/")
+    return re.compile("^" + "".join(parts) + "$")
+
+
+_TEST_MATCHERS: dict[str, tuple[re.Pattern[str], ...]] = {
+    kind: tuple(_compile_test_glob(pattern) for pattern in patterns)
+    for kind, patterns in _TEST_GLOBS_BY_KIND.items()
+}
+
+
+def _is_ignored_directory(directory: Path) -> bool:
+    """A directory the detector never descends into.
+
+    The name list covers ``.venv``/``venv``/``target``/``__pycache__``, but #423
+    counted 183 test-named files under this repository's ``.venv312`` — a
+    virtualenv is not named ``venv``, it is a directory that holds ``pyvenv.cfg``.
+    """
+    return directory.name in _SKIPPED_DIR_PARTS or (directory / "pyvenv.cfg").is_file()
+
+
+def _walk_source_files(workspace: Path) -> Iterator[str]:
+    """Every file under the workspace as a relative POSIX path, skip dirs pruned.
+
+    The detector used to ask ``workspace.glob("/**/<pattern>")`` once per pattern
+    and filter afterwards. #423 measured that on ``apps/web``: 15 patterns walked
+    52 raw hits in 38.40 s and kept 47 of them, while the single pruned walk
+    returned the identical 47 in 0.80 s. The walk cost was never bounded by the
+    ignore list, and widening the table from 6 patterns to 15 multiplied it.
+    """
+    for dirpath, dirnames, filenames in os.walk(workspace):
+        base = Path(dirpath)
+        dirnames[:] = [name for name in dirnames if not _is_ignored_directory(base / name)]
+        for name in filenames:
+            yield (base / name).relative_to(workspace).as_posix()
+
+
+def _detect_suite_by_kind(workspace: Path) -> dict[str, list[str]]:
+    """Test files grouped by the kind whose command they are evidence for."""
+    found: dict[str, list[str]] = {kind: [] for kind in _TEST_MATCHERS}
+    for rel in _walk_source_files(workspace):
+        # a file whose own name is a skip word stays excluded, as under the glob
+        if any(part in _SKIPPED_DIR_PARTS for part in rel.split("/")):
+            continue
+        for kind, matchers in _TEST_MATCHERS.items():
+            if any(matcher.match(rel) for matcher in matchers):
+                found[kind].append(rel)
+    return found
+
+
 def detect_test_suite(workspace: Path) -> list[str]:
     """Test files that prove a suite exists — evidence only, nothing runs."""
-    found: list[str] = []
-    for pattern in _TEST_GLOBS:
-        for target in workspace.glob(f"**/{pattern}"):
-            if not target.is_file():
-                continue
-            if any(part in _SKIPPED_DIR_PARTS for part in target.parts):
-                continue
-            rel = target.relative_to(workspace).as_posix()
-            if rel not in found:
-                found.append(rel)
-    return found
+    ordered: list[str] = []
+    for bucket in _detect_suite_by_kind(workspace).values():
+        ordered.extend(rel for rel in bucket if rel not in ordered)
+    return ordered
 
 
 def _resolve_executor(workspace: Path, executor: ExecRunner | None) -> ExecRunner:
@@ -218,29 +327,50 @@ def _run_commands(gate: str, commands: list[list[str]], executor: ExecRunner) ->
 
 def run_test_gate(workspace: Path, *, executor: ExecRunner | None = None) -> GateResult:
     """Gate 1: run the detected test suite; skip honestly when none exists."""
-    suite = detect_test_suite(workspace)
+    by_kind = _detect_suite_by_kind(workspace)
+    suite = [rel for bucket in by_kind.values() for rel in bucket]
     if not suite:
         return GateResult(
             "run_test",
             "skipped",
-            "未检测到测试文件 (test_*.py / *_test.py / *Test.java / src/test 等), "
+            f"未检测到测试文件 ({_TEST_INVENTORY}), "
             "run_test 无对象, 按 skipped 处理 (不伪造通过)",
             [],
             0,
         )
     notes: list[str] = [f"检测到 {len(suite)} 个测试文件"]
     commands: list[list[str]] = []
-    if any(rel.endswith(".py") for rel in suite):
+    if by_kind["python"]:
         commands.append(["python", "-m", "pytest", "-q"])
-    java_tests = [rel for rel in suite if rel.endswith(".java")]
-    if java_tests:
-        if (workspace / "pom.xml").is_file():
+    if by_kind["java"]:
+        if any((workspace / marker).is_file() for marker in _BUILD_MARKERS["maven"]):
             commands.append(["mvn", "-q", "test"])
+        elif any((workspace / marker).is_file() for marker in _BUILD_MARKERS["gradle"]):
+            # #366 routed the gradle stem to GRADLE_PROFILE; before that this
+            # branch had no image to ask for and the note below was true.
+            commands.append(["gradle", "-q", "test"])
         else:
             notes.append(
-                f"检测到 {len(java_tests)} 个 Java 测试文件但仓库无 pom.xml, "
-                "mvn test 无法运行, 该部分不执行 (诚实标注)"
+                f"检测到 {len(by_kind['java'])} 个 Java 测试文件但仓库无 "
+                f"{' / '.join(_BUILD_MARKERS['maven'] + _BUILD_MARKERS['gradle'])}, "
+                "mvn·gradle test 均无法运行, 该部分不执行 (诚实标注)"
             )
+    if by_kind["go"]:
+        commands.append(["go", "test", "./..."])
+    if by_kind["node"]:
+        scripts = _package_scripts(workspace)
+        if scripts is None:
+            notes.append(
+                "package.json 读不出或不是 JSON 对象, npm test 无从判定, "
+                "该部分不执行 (诚实标注)"
+            )
+        elif not str(scripts.get("test", "")).strip():
+            notes.append(
+                f"检测到 {len(by_kind['node'])} 个 JS/TS 测试文件但 package.json "
+                "无 scripts.test, npm test 无法运行, 该部分不执行 (诚实标注)"
+            )
+        else:
+            commands.append(["npm", "test", "--silent"])
     if not commands:
         return GateResult(
             "run_test", "skipped", "; ".join(notes) + "; 无可用测试命令, 不伪造通过", [], 0
@@ -255,23 +385,62 @@ def run_test_gate(workspace: Path, *, executor: ExecRunner | None = None) -> Gat
     )
 
 
+def _package_scripts(workspace: Path) -> dict[str, Any] | None:
+    """The ``scripts`` map of package.json, or None when it cannot be read as one.
+
+    Node has no universal test or build command: the repository's own manifest
+    declares both. This is the same requirement ``agent/preflight.py`` names
+    (「package.json has no 'scripts.test'」) and the same one
+    ``experiments/adapters.py``'s Node detect rule checks.
+    """
+    raw = _read_workspace_file(workspace, "package.json")
+    if raw is None:
+        return None
+    try:
+        manifest = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    scripts = manifest.get("scripts") if isinstance(manifest, dict) else None
+    return scripts if isinstance(scripts, dict) else None
+
+
 def run_build_gate(workspace: Path, *, executor: ExecRunner | None = None) -> GateResult:
     """Gate 2: build via the detected ecosystem's default command."""
     runner = _resolve_executor(workspace, executor)
-    if (workspace / "pom.xml").is_file():
-        return _run_commands("run_build", [["mvn", "-q", "-DskipTests", "compile"]], runner)
-    if (workspace / "build.gradle").is_file():
-        return _run_commands("run_build", [["gradle", "-q", "compileJava"]], runner)
-    if (workspace / "pyproject.toml").is_file() or (workspace / "setup.py").is_file():
-        sub = _run_commands(
-            "run_build", [["python", "-m", "compileall", "-q", "."]], runner
-        )
-        note = sub.note + "; python 以 compileall 字节码编译作为构建门 (无独立 build 阶段)"
+    for route in _BUILD_ROUTES:
+        if not any((workspace / marker).is_file() for marker in route.markers):
+            continue
+        if route.kind == "maven":
+            sub = _run_commands("run_build", [["mvn", "-q", "-DskipTests", "compile"]], runner)
+        elif route.kind == "gradle":
+            sub = _run_commands("run_build", [["gradle", "-q", "compileJava"]], runner)
+        elif route.kind == "python":
+            sub = _run_commands("run_build", [["python", "-m", "compileall", "-q", "."]], runner)
+        elif route.kind == "go":
+            sub = _run_commands("run_build", [["go", "build", "./..."]], runner)
+        elif route.kind == "node":
+            scripts = _package_scripts(workspace)
+            if scripts is None or not str(scripts.get("build", "")).strip():
+                return GateResult(
+                    "run_build",
+                    "skipped",
+                    "package.json 存在但没读出 scripts.build, npm run build 无对象, "
+                    "按 skipped 处理 (不伪造通过)",
+                    [],
+                    0,
+                )
+            sub = _run_commands("run_build", [["npm", "run", "build"]], runner)
+        else:
+            raise AssertionError(
+                f"run_build_gate's table names the kind {route.kind!r} but no branch "
+                "dispatches it — an unrouted kind would be built by nothing"
+            )
+        note = sub.note + (f"; {route.note_extra}" if route.note_extra else "")
         return GateResult("run_build", sub.status, note, sub.findings, sub.duration_ms)
     return GateResult(
         "run_build",
         "skipped",
-        "未检测到构建配置 (pom.xml / build.gradle / pyproject.toml / setup.py), "
+        f"未检测到构建配置 ({_BUILD_MARKER_INVENTORY}), "
         "run_build 无对象, 按 skipped 处理 (不伪造通过)",
         [],
         0,
@@ -314,7 +483,8 @@ def run_typecheck_gate(
             [["python", "-m", "mypy", *changed_py]],
             runner,
         )
-    if (workspace / "pom.xml").is_file() or (workspace / "build.gradle").is_file():
+    java_markers = _BUILD_MARKERS["maven"] + _BUILD_MARKERS["gradle"]
+    if any((workspace / marker).is_file() for marker in java_markers):
         return GateResult(
             "run_typecheck",
             "skipped",
