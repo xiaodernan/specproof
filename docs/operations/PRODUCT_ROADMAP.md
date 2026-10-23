@@ -2127,9 +2127,15 @@ da8ba7f(JOB 细节失败位置披露 + #177 缺失的 stageLabel 导入修复)�
   (Go surface 声明)合跑 **56 passed**;`ruff` / `mypy` 全绿。
 - 全量门:见 34.4(worktree 隔离)。
 
-### 34.4 全量合并门(追记)
+### 34.4 全量合并门(追记)——已闭环
 
-见提交记录。
+- 首跑(f73aa36,含并行会话其时在飞)6 failed:1 本研究(audit-parity 假件
+  语句序,已改账)+ 5 其领地(已由其后续提交自行收敛)。
+- 修复后重跑隔离 worktree 门(当前 HEAD ab9f8c1)⇒ **5140 passed, 7 skipped,
+  3 failed, 1946.65s**——3 failed **全部**是并行会话在飞的
+  `test_verdict_channel_parity`(#179-#182 verdict 通道重写),其 FIX-24 门
+  记录同样归因自身;本研究领地零红。树规模自基线 2889 增至 5140+3
+  (并行会话 #152-#183 新增约两千例)。
 
 ## 35. #224：误报上限还给工具本身——`eval --max-false-positives`（2026-10-10）
 
@@ -2639,3 +2645,40 @@ up 不可重跑意味着「成对」承诺的往返本身不存在。探针
 (go/golang 别名→Go 解析器)、go.mod 仓库的沙箱面默认解析、假件 language
 参数化后 base 绿/head 红归因 REGRESSION + 依赖披露——与 #54 的 Node 入口
 完全同构。四套件合跑 78 passed。
+
+## 37. CGO 车道实证评估——§34 的"必然失败"预设被推翻(2026-10-23)
+
+### 37.1 实验(真 Docker,全部实测)
+
+假设:§34 声明"仅纯 Go (CGO_ENABLED=0):需要 C 工具链的项目离线无法获取
+构建环境,如实失败"。本批用 bookworm 镜像做实验:
+
+- 镜像 `golang:1.23-bookworm`(自带 gcc + 头文件,alpine 没有);
+- 仓库依赖 `github.com/mattn/go-sqlite3 v1.14.22`(纯源码 CGO,编译期
+  需要 C 工具链);
+- 沙箱形状与 GO_PROFILE 完全一致(--user 1000:1000 / --network none /
+  GOPROXY=off / GOCACHE+GOTMPDIR 指向可执行挂载);
+- 暖缓存:在线 `go mod tidy && go mod download all`(GONOSUMDB=* ——sumdb
+  状态目录在卷外且 uid 1000 不可写;go.sum 仍锁哈希,供应链校验不丢)。
+
+**结果:离线 `go test -json ./...` 全绿**——CGO 编译 + sqlite3 驱动加载 +
+测试通过,全程断网。
+
+### 37.2 结论与诚实边界
+
+- **可支持**:源码型 CGO 依赖(C 代码随模块分发,无系统库依赖)在
+  bookworm 镜像下离线可构建——§34 的"必然失败"预设**被实验推翻**,
+  按诚实纪律在此改账。
+- **仍不可支持**:需要系统库(apt 包)的 CGO 依赖——离线沙箱无法获取
+  .so/头文件,必须预烘进镜像(每个依赖一个镜像决策,属产品取舍)。
+- **实现成本评估**(下一批候选):GO_PROFILE 变体(bookworm)+
+  `CGO_ENABLED` 显式声明 + KNOWN_LIMITS 改写;seed 脚本复用。
+  alpine 车道保持现状(纯 Go),两条车道按 go.mod 的 CGO 依赖声明路由,
+  或直接换 bookworm 单车道(alpine 的唯一优势是镜像体积)。
+- **本批不含实现**——评估与实验先行,实现属下一批(与 alpine 车道的
+  取舍需一次显式决策)。
+
+### 37.3 门证
+
+- CGO 实验如上(exit 0,JSON pass 事件);隔离 worktree 门(§34.4)
+  5140 passed / 3 failed(全部归属并行会话在飞)。
