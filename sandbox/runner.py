@@ -68,10 +68,13 @@ DEFAULT_NODE_IMAGE = "node:22-alpine"
 DEFAULT_PYTHON_IMAGE = "python:3.12-slim"
 
 # Go toolchain image for the repository-self-test sandbox (Phase 2.6).
-# alpine keeps the pull small and forces pure-Go builds: CGO projects need a
-# C toolchain this image does not carry, and an offline sandbox cannot fetch
-# one — those projects fail honestly instead of pretending support.
-DEFAULT_GO_IMAGE = "golang:1.23-alpine"
+# bookworm over alpine (§37 experiment): bookworm carries gcc + headers, so
+# SOURCE-ONLY CGO dependencies (C code shipped inside the module) compile
+# offline — alpine's only advantage is image size, and it silently excluded
+# every cgo-using repository. System-library CGO deps (apt packages) still
+# cannot resolve offline and fail honestly; that boundary is documented in
+# the adapter's KNOWN_LIMITS, not hidden by an image swap.
+DEFAULT_GO_IMAGE = "golang:1.23-bookworm"
 
 # Gradle toolchain image (#232). The JDK tag is pinned for the same reason the
 # other profiles pin one: this image is what the offline GRADLE_USER_HOME volume
@@ -288,6 +291,10 @@ GO_PROFILE = SandboxProfile(
     env=(
         ("GOPROXY", "off"),
         ("GOFLAGS", "-mod=mod"),
+        # The module cache was verified against go.sum/sumdb at WARM time;
+        # the sandbox has no network for a sumdb lookup, and a repo without
+        # go.sum would otherwise trigger one and fail offline (verified live).
+        ("GONOSUMDB", "*"),
         ("GOCACHE", "/work/.gocache/cache"),
         ("GOTMPDIR", "/work/.gocache/tmp"),
         ("GOMODCACHE", "/go/pkg/mod"),

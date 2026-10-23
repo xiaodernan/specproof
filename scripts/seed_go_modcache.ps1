@@ -12,7 +12,7 @@ param(
     [string]$RepoPath = ""
 )
 $ErrorActionPreference = "Stop"
-$image  = "golang:1.23-alpine"
+$image  = "golang:1.23-bookworm"
 $volume = "specproof-go-modcache-1000"
 
 Write-Output "== 1/4 ensure module cache volume exists =="
@@ -54,6 +54,11 @@ docker run --rm --user 1000:1000 `
 if ($LASTEXITCODE -ne 0) { throw "module warm failed (exit $LASTEXITCODE)" }
 
 Write-Output "== 4/4 offline smoke test (NO network: proves the cache is sufficient) =="
+# The smoke asserts what the sandbox actually does offline: BUILD (and only
+# build). `go mod download all` performs graph-wide lookups that legitimately
+# need the proxy even with a complete build cache — it is NOT part of the
+# offline contract. Comments must stay OUTSIDE the backtick continuation
+# chain: a PS comment inside one breaks it (UnexpectedToken, seen live).
 docker run --rm --user 1000:1000 --network none `
     -v "${volume}:/go/pkg/mod" `
     -v "${repo}:/repo:ro" `
@@ -61,7 +66,7 @@ docker run --rm --user 1000:1000 --network none `
     -e GOPROXY=off `
     -e GOFLAGS=-mod=mod `
     -e GOCACHE=/tmp/go-build `
-    $image sh -c "cp -r /repo/. /work/ && cd /work && go build ./... && go mod download all"
+    $image sh -c "cp -r /repo/. /work/ && cd /work && go build ./..."
 if ($LASTEXITCODE -ne 0) { throw "offline smoke failed (exit $LASTEXITCODE) - cache is incomplete" }
 
 Write-Output "== module cache seeded and verified offline-ready for $repo =="

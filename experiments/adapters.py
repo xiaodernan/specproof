@@ -1691,7 +1691,7 @@ class GoAdapter:
     #: Verified with `docker image inspect` on this host — the fingerprint of
     #: the image this adapter was actually validated on.
     IMAGE_DIGEST = (
-        "sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f"
+        "sha256:167053a2bb901972bf2c1611f8f52c44d5fe7e762e5cab213708d82c421614db"
     )
     OFFLINE_POLICY = (
         "docker sandbox with --network none: `go mod download` resolves only "
@@ -1700,21 +1700,30 @@ class GoAdapter:
         "tests run — reported as-is, never as a pass"
     )
     KNOWN_LIMITS: tuple[str, ...] = (
-        "容器沙箱执行 (golang:1.23-alpine, 非 root uid 1000, --network none)",
+        "容器沙箱执行 (golang:1.23-bookworm, 非 root uid 1000, --network none)",
         "模块只来自已播种的 Go 模块缓存卷 (scripts/seed_go_modcache.ps1): "
         "未播种的模块在下载阶段失败, 不跑测试并如实判 NON_REPRODUCIBLE",
-        "仅纯 Go (CGO_ENABLED=0): 需要 C 工具链的项目离线无法获取构建环境, "
+        "源码型 CGO 依赖可离线编译 (bookworm 自带 gcc; §37 实测 sqlite3 驱动 "
+        "全绿): 需要系统库 (apt 包) 的 CGO 依赖离线无法获取 .so/头文件, "
         "如实失败; 旧 local 流程不提供",
         "构建缓存与测试临时目录在工作区 .gocache 子挂载 (可执行): 向源码树 "
         "其余部分写文件的测试会失败",
         "仅支持 goal=run_test; test_compile 无对应语义, 抛 AdapterNotImplemented",
+        "仓库必须提交完整 go.mod+go.sum (Go 惯例): 工作区只读, 缺 go.sum 时 "
+        "go 无法补全 (updating go.sum: read-only), 如实失败并指明原因",
         "detect 规则: go.mod 存在",
         "汇总解析 go test -json 事件行; 无法识别时计数为 0 (无证据), "
         "判定以 exit_code 为准",
         "镜像 digest 为本机验证值, 预拉/升级 golang 镜像时须复核",
         "输出按尾部 256000 字符截断 (§4.5 输出长度限制)",
     )
-    OFFLINE_DOWNLOAD_COMMAND = ["go", "mod", "download"]
+    # The offline verification is a BUILD, not `go mod download`: under Go
+    # 1.23 lazy loading, `go mod download` performs graph-wide lookups that
+    # legitimately need the proxy even with a complete cache (verified live:
+    # the extracted modules + cache/download were present and the download
+    # still failed with "module lookup disabled"). `go build ./...` compiles
+    # everything from the warm cache — a STRONGER offline proof.
+    OFFLINE_VERIFY_COMMAND = ["go", "build", "./..."]
     TEST_COMMAND = ["go", "test", "-json", "./..."]
 
     def detect(self, repo: RepositorySnapshot) -> RuntimeProfile:
@@ -1783,7 +1792,7 @@ class GoAdapter:
         # with "tests ran and passed".
         workspace = prepared.workdir
         phases: list[tuple[str, list[str]]] = [
-            ("mod_download", list(self.OFFLINE_DOWNLOAD_COMMAND)),
+            ("build_verify", list(self.OFFLINE_VERIFY_COMMAND)),
             ("go_test", list(prepared.command)),
         ]
         result: SandboxResult | None = None

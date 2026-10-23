@@ -2682,3 +2682,43 @@ up 不可重跑意味着「成对」承诺的往返本身不存在。探针
 
 - CGO 实验如上(exit 0,JSON pass 事件);隔离 worktree 门(§34.4)
   5140 passed / 3 failed(全部归属并行会话在飞)。
+
+## 38. CGO 车道实现——Go 单车道切 bookworm(2026-10-23)
+
+### 38.1 决策与内容
+
+§37 评估后,车道决策取**单 bookworm 车道**(双车道路由需解析 go.mod 的
+CGO 依赖声明,不可靠;alpine 唯一优势仅镜像体积):
+
+- `DEFAULT_GO_IMAGE` → `golang:1.23-bookworm`(digest 实测更新);
+- KNOWN_LIMITS 改写:源码型 CGO 依赖**可离线编译**(§37 实测);系统库
+  CGO 依赖仍如实失败;**仓库必须提交完整 go.mod+go.sum**(Go 惯例)——
+  工作区只读,缺 go.sum 时 go 无法补全(`updating go.sum: read-only`)
+  如实失败并指明原因;
+- 种子脚本镜像同步 bookworm;离线冒烟改为 **build-only**——
+  `go mod download all` 在 Go 1.23 lazy loading 下做全图 lookup,即使
+  缓存完整也合法地需要代理,不属于离线契约(smoke 断言的必须是沙箱
+  真实做的离线行为);
+- GO_PROFILE 补 `GONOSUMDB=*`:sumdb 状态目录在卷外且 uid 1000 不可写,
+  沙箱无网络查 sumdb;模块在暖缓存时已对 go.sum/sumdb 校验。
+
+### 38.2 真库迭代抓到的四个真问题(全部修复)
+
+1. sumdb 状态目录在卷外(§37 已记,fix 进 seed 脚本);
+2. `go mod download` 离线语义:缓存完整仍做全图 lookup——适配器相位 1
+   从 `go mod download` 改为 **`go build ./...`**(更强的离线证明,
+   与 seed smoke 同一课);
+3. GO_PROFILE 缺 GONOSUMDB:无 go.sum 仓库触发离线 sumdb 查询必败;
+4. 缺 go.sum 的仓库:只读工作区无法补全——契约入 KNOWN_LIMITS。
+
+### 38.3 门证(本批实测)
+
+- 四象限经 adapter 完整路径:纯 Go 仓库 exit=0(2 passes);CGO 仓库
+  (mattn/go-sqlite3,源码型 CGO)exit=0(1 pass,驱动加载+查询)。
+  全部 bookworm + 非 root + 断网。
+- 单测:Go 四套件合跑 **78 passed**(T 改账后);`ruff` / `mypy` 全绿。
+- 全量门:见 38.4(worktree 隔离)。
+
+### 38.4 全量合并门(追记)
+
+见提交记录。
