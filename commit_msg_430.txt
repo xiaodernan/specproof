@@ -1,0 +1,7 @@
+#430 Phase 4 进展：Mutation Engine + OpenAPI Fuzzing 完成，Gradle Adapter 启动
+
+- Mutation-guided test synthesis: craft/mutation.py (7 算子、多语言、分数报告) + test_mutation_engine.py (11 项)
+- OpenAPI 状态化 Fuzzing: experiments/openapi_fuzzing.py (7 策略、Shrinker、Fragment 输出) + test_openapi_fuzzing.py (17 项)
+- 质量门: ruff/mypy 全绿，相关测试 86 passed (含既有 contract_review、job_stage、job_state_machine)
+- ledger fence: 256 节，max #430，0 重复，U+FFFD=9
+- 下一步: Gradle Adapter (protocol.py + gradle_adapter.py)
