@@ -11546,3 +11546,32 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ① 只加测试：`agent/policy_dsl.py` 一字未动。② 有一个断言**我第一版写错了**（rule 带 `contract_family="auth"` 但 change 没给 family ⇒ 正确地被过滤掉），修的是我的测试、不是模块——这反过来证明 family 过滤器是对的。③ `paths` 裸字符串静默不命中是**钉现状**，不背书：这是个潜在的 fail-open（path 级 `forbid_change` 会静默不触发），已在测试注释里写明，留给产品决策。④ 不钉 `agent/waiver.py`（唯一消费者）的调用时机与错误处理。⑤ 不钉性能（`**` 的指数回溯对超长路径理论上会慢）。
 
 **下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `agent/waiver.py`（241 行，1 测试）——`policy_dsl` 的唯一消费者，值得单独一号。② `agent/job_stage.py`（160 行，1 测试）。③ `agent/verdict_stability.py`（54 行，2 测试）先判是否值得。④ 别的车道正在做 `agent/security_scanner.py` 的豁免（#442/#444），**不碰**。
+
+
+## #446 `agent/waiver.py` 生命周期门：expire 边界 / 非法转移 / from_dict 深分支 / 时区换算
+
+**起因/占号。** #445 队列①：`agent/waiver.py`（241 行，1 个测试文件，`policy_dsl` 的唯一消费者）。占号前 `git fetch`：0/0，远端 HEAD `e42a796`（`## #445`）⇒ 本号取 **#446**。
+
+**先量后写（量的是「既有 14 个测试没走到的分支」）。** 读完模块 + 现有测试逐条对账，探针先跑，未覆盖：
+- **expire 边界**：`now == valid_until` 时 expire **成功**（门是 `now >= deadline`，只有严格早于才拒）；现有测试只测了 `+1s 早`（拒）与 `+2h 晚`（成），没测**恰好相等**。
+- **非法转移**：`expired` 上 `approve`/`reject`、`approved` 上 `reject`——既有测试只钉了 `rejected` 上的三种。
+- **`approve()` 的入参校验**：空白 `approved_by` ⇒ `WaiverError`（构造层有，`approve()` 层没有单独测）；真名去空白。
+- **`from_dict` 深分支**：非对象/空载荷、非字符串 `valid_until`、非字符串 `finding_id`/`reason`/`requested_by`、空白 `approved_by`/`policy_ref`。
+- **规范序列化**：`valid_until` 带微秒时按 `.%f` 渲染；`rejected` 态 round-trip。
+- **时区换算**：非 UTC aware 的 `now` 进 `waiver_check`（deadline 在 UTC 下比，必须先换算）——既有测试只钉了 naive，没钉**带别的时区**。
+- **防御分支**：approved 却无 `valid_until` 时，`waiver_check` 必须**永不**返回 `active`（构造层不可达，用 `object.__setattr__` 人造到达）。
+
+**落地（只加测试，`agent/waiver.py` 一字未动）。** 新建 `tests/unit/test_waiver_declared_edges.py`（22 案，纯对象）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_waiver_declared_edges.py -q` | **22 passed in 1.57s** |
+| 回归 | `pytest tests/unit/test_waiver.py -q` | **14 passed**（既有门无回归） |
+| ruff | `ruff check tests/unit/test_waiver_declared_edges.py` | **All checks passed** |
+
+**顺带发现（未修，记录）。** `agent/waiver.py` 的 `_as_utc` / `_iso_utc` 与 `agent/policy_dsl.py` 的那一份**逐字节相同**（第二份抄本）。目前两份行为一致、无漂移敞口，但这是「一份逻辑两处维护」——若要收拢，应抽到共享模块并让两个模块都 import 它（跨模块重构，单开一号，本号不做）。
+
+**诚实边界。** ① 只加测试：`agent/waiver.py` 一字未动。② 「approved 却无 deadline」那条是**人造状态**（`object.__setattr__`），只为钉防御分支的契约；正常构造不可达。③ 不钉 `waiver_check` 的调用方（谁在什么时候调它）。④ 不修上面那份重复的时间助手。
+
+**下一号队列（取号按落地时点 max+1）。** ① 收拢 `policy_dsl.py` / `waiver.py` 重复的 `_as_utc`/`_iso_utc`（跨模块重构，单独一号）。② `agent/job_stage.py`（160 行，1 测试）。③ `agent/verdict_stability.py`（54 行，2 测试）先判是否值得。
