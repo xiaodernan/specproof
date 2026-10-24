@@ -6,21 +6,40 @@
 
 from __future__ import annotations
 
-import json
+import os
 import re
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from craft.adapters.protocol import (
     AdapterNotImplemented,
     AdapterProtocol,
-    ExecutionResult,
     EvidenceFragment,
+    ExecutionResult,
     RuntimeProfile,
     register_adapter,
 )
+
+
+def _as_text(value: bytes | str | None) -> str:
+    """把 subprocess 的输出（bytes | str | None）收敛成文本。
+
+    `subprocess.run(text=True)` 正常给 str，但 `TimeoutExpired.stdout` 的类型是
+    `bytes | str | None` —— 原样传进去会让声明为 `str` 的 `ExecutionResult.stdout`
+    实际带上 bytes。这里统一收敛，超时路径与正常路径行为一致。
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", "replace")
+    return value
+
+
+#: 一条 stdout 启发式：正则 + 从 match 取出 (run, passed, failed, skipped) 的提取器。
+_StdoutExtractor = Callable[[re.Match[str]], tuple[int, int, int, int]]
 
 
 @register_adapter
@@ -49,10 +68,7 @@ class GradleAdapter(AdapterProtocol):
     @classmethod
     def detect(cls, project_root: Path) -> bool:
         """检测是否为 Gradle 项目。"""
-        for marker in cls.MARKER_FILES:
-            if (project_root / marker).exists():
-                return True
-        return False
+        return any((project_root / marker).exists() for marker in cls.MARKER_FILES)
 
     @classmethod
     def prepare(cls, project_root: Path) -> RuntimeProfile:
@@ -90,7 +106,7 @@ class GradleAdapter(AdapterProtocol):
         goal: str = "test",
         test_filter: str | None = None,
         parallel: int = 2,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         """执行 Gradle 测试。"""
         if goal not in cls.get_supported_goals():
@@ -109,13 +125,18 @@ class GradleAdapter(AdapterProtocol):
                 capture_output=True,
                 text=True,
                 timeout=600,  # 10 分钟超时
-                env={**dict(subprocess.os.environ), "GRADLE_USER_HOME": str(profile.extra.get("gradle_user_home", "/gradle-cache"))},
+                env={
+                    **dict(os.environ),
+                    "GRADLE_USER_HOME": str(
+                        (profile.extra or {}).get("gradle_user_home", "/gradle-cache")
+                    ),
+                },
             )
         except subprocess.TimeoutExpired as e:
             return ExecutionResult(
                 exit_code=-1,
-                stdout=e.stdout or "",
-                stderr=e.stderr or "",
+                stdout=_as_text(e.stdout),
+                stderr=_as_text(e.stderr),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 parse_errors=[f"Execution timeout: {e}"],
             )
@@ -199,7 +220,7 @@ class GradleAdapter(AdapterProtocol):
                 return match.group(1)
         # 尝试运行 gradle --version
         try:
-            gradlew = project_root / ("gradlew.bat" if subprocess.os.name == "nt" else "gradlew")
+            gradlew = project_root / ("gradlew.bat" if os.name == "nt" else "gradlew")
             if gradlew.exists():
                 result = subprocess.run(
                     [str(gradlew), "--version"],
@@ -227,7 +248,10 @@ class GradleAdapter(AdapterProtocol):
                 match = re.search(r"sourceCompatibility\s*=\s*['\"]([\d.]+)['\"]", content)
                 if match:
                     return match.group(1)
-                match = re.search(r"java\.toolchain\.languageVersion\s*=\s*JavaLanguageVersion\.of\((\d+)\)", content)
+                match = re.search(
+                    r"java\.toolchain\.languageVersion\s*=\s*JavaLanguageVersion\.of\((\d+)\)",
+                    content,
+                )
                 if match:
                     return match.group(1)
         return "21"  # 默认
@@ -242,12 +266,9 @@ class GradleAdapter(AdapterProtocol):
         parallel: int,
     ) -> list[str]:
         """构建 Gradle 命令。"""
-        gradlew = project_root / ("gradlew.bat" if subprocess.os.name == "nt" else "gradlew")
-        if not gradlew.exists():
-            # 无 wrapper，使用系统 gradle（不推荐）
-            cmd = ["gradle"]
-        else:
-            cmd = [str(gradlew)]
+        gradlew = project_root / ("gradlew.bat" if os.name == "nt" else "gradlew")
+        # 无 wrapper 时使用系统 gradle（不推荐）
+        cmd = [str(gradlew)] if gradlew.exists() else ["gradle"]
 
         # 基础参数
         cmd.extend(["--no-daemon", "--no-build-cache"])
@@ -303,7 +324,9 @@ class GradleAdapter(AdapterProtocol):
                 root = tree.getroot()
                 for testsuite in root.iter("testsuite"):
                     tests_run += int(testsuite.get("tests", 0))
-                    tests_failed += int(testsuite.get("failures", 0)) + int(testsuite.get("errors", 0))
+                    tests_failed += int(testsuite.get("failures", 0)) + int(
+                        testsuite.get("errors", 0)
+                    )
                     tests_skipped += int(testsuite.get("skipped", 0))
                 tests_passed = tests_run - tests_failed - tests_skipped
             except Exception:
@@ -313,11 +336,17 @@ class GradleAdapter(AdapterProtocol):
     @classmethod
     def _parse_stdout_results(cls, output: str) -> tuple[int, int, int, int]:
         """从 stdout 解析测试结果（启发式）。"""
-        tests_run = tests_passed = tests_failed = tests_skipped = 0
-
         # Gradle 测试输出模式
-        patterns = [
-            (r"(\d+) tests completed, (\d+) failed, (\d+) skipped", lambda m: (int(m.group(1)), int(m.group(1)) - int(m.group(2)) - int(m.group(3)), int(m.group(2)), int(m.group(3)))),
+        patterns: list[tuple[str, _StdoutExtractor]] = [
+            (
+                r"(\d+) tests completed, (\d+) failed, (\d+) skipped",
+                lambda m: (
+                    int(m.group(1)),
+                    int(m.group(1)) - int(m.group(2)) - int(m.group(3)),
+                    int(m.group(2)),
+                    int(m.group(3)),
+                ),
+            ),
             (r"> Task :test\s+(\d+) tests completed", lambda m: (int(m.group(1)), 0, 0, 0)),
             (r"(\d+) tests completed", lambda m: (int(m.group(1)), 0, 0, 0)),
         ]
@@ -330,7 +359,9 @@ class GradleAdapter(AdapterProtocol):
         return 0, 0, 0, 0
 
     @classmethod
-    def _collect_junit_reports(cls, project_root: Path, result: ExecutionResult) -> list[EvidenceFragment]:
+    def _collect_junit_reports(
+        cls, project_root: Path, result: ExecutionResult
+    ) -> list[EvidenceFragment]:
         """收集 JUnit XML 报告作为证据。"""
         fragments = []
         xml_dirs = [
@@ -356,11 +387,13 @@ class GradleAdapter(AdapterProtocol):
         return fragments
 
     @classmethod
-    def _collect_dependency_tree(cls, project_root: Path, profile: RuntimeProfile) -> list[EvidenceFragment]:
+    def _collect_dependency_tree(
+        cls, project_root: Path, profile: RuntimeProfile
+    ) -> list[EvidenceFragment]:
         """收集依赖树。"""
         fragments = []
         try:
-            gradlew = project_root / ("gradlew.bat" if subprocess.os.name == "nt" else "gradlew")
+            gradlew = project_root / ("gradlew.bat" if os.name == "nt" else "gradlew")
             if gradlew.exists():
                 result = subprocess.run(
                     [str(gradlew), "dependencies", "--configuration", "runtimeClasspath"],
@@ -368,7 +401,12 @@ class GradleAdapter(AdapterProtocol):
                     capture_output=True,
                     text=True,
                     timeout=60,
-                    env={**dict(subprocess.os.environ), "GRADLE_USER_HOME": str(profile.extra.get("gradle_user_home", "/gradle-cache"))},
+                    env={
+                    **dict(os.environ),
+                    "GRADLE_USER_HOME": str(
+                        (profile.extra or {}).get("gradle_user_home", "/gradle-cache")
+                    ),
+                },
                 )
                 if result.returncode == 0:
                     fragments.append(EvidenceFragment(

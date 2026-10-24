@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from craft.adapters.gradle_adapter import GradleAdapter
-from craft.adapters.protocol import AdapterNotImplemented, RuntimeProfile, ExecutionResult
+from craft.adapters.protocol import AdapterNotImplemented, ExecutionResult
 
 
 def test_gradle_adapter_detect() -> None:
@@ -146,7 +146,6 @@ def test_gradle_adapter_execute_build(mock_run: Mock) -> None:
 
 def test_gradle_adapter_parse_junit_xml() -> None:
     """Parse JUnit XML test results."""
-    import xml.etree.ElementTree as ET
 
     xml_content = """<?xml version="1.0" encoding="UTF-8"?>
 <testsuite name="com.example.Test" tests="5" failures="1" errors="0" skipped="1" time="10.5">

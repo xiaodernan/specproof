@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-class AdapterNotImplemented(Exception):
+class AdapterNotImplemented(Exception):  # noqa: N818 — domain term, public API
     """适配器不支持该语言/构建工具。"""
     pass
 
@@ -27,9 +27,9 @@ class RuntimeProfile:
     dependency_cache_path: Path | None = None
     sandbox_image: str | None = None
     sandbox_digest: str | None = None
-    extra: dict[str, Any] = None
+    extra: dict[str, Any] | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.extra is None:
             self.extra = {}
 
@@ -46,9 +46,9 @@ class ExecutionResult:
     tests_failed: int = 0
     tests_skipped: int = 0
     raw_output: str = ""
-    parse_errors: list[str] = None
+    parse_errors: list[str] | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.parse_errors is None:
             self.parse_errors = []
 
@@ -102,7 +102,7 @@ class AdapterProtocol(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def execute(cls, project_root: Path, profile: RuntimeProfile, **kwargs) -> ExecutionResult:
+    def execute(cls, project_root: Path, profile: RuntimeProfile, **kwargs: Any) -> ExecutionResult:
         """在准备好的环境中执行测试/构建。
 
         Args:

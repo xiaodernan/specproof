@@ -652,7 +652,16 @@ def _transition(
     # reachable past the exception chain — a refused write announces nothing.
     if status in ("failed", "succeeded"):
         _notify_craft_terminal(job_id, status, reason=error or "")
-    return get_store().get(job_id)
+    job = get_store().get(job_id)
+    if job is None:
+        # update_status 刚刚成功，走到这里说明存储自相矛盾 —— 宁可大声报错，
+        # 也不要把 None 交还给声明返回 `AgentJob` 的调用方。
+        raise ApiError(
+            status_code=404,
+            code=JOB_NOT_FOUND,
+            detail=f"Agent job {job_id} not found",
+        )
+    return job
 
 
 def _apply_approval(

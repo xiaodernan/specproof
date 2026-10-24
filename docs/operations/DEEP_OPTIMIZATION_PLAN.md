@@ -11161,3 +11161,34 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① 只加测试：`craft/adapters/protocol.py` 一字未动。② **fail-soft 是钉住现状，不是赞同**：`detect()` 崩了被静默跳过 ⇒ 调用方只会看到「没检测到适配器」，看不到「探测本身崩了」——这正是项目最反对的静默失败形态，已入下一号队列（要不要 fail-loud 是产品决策，本号不动）。③ 重复 `ADAPTER_ID` 静默覆盖同样是**钉现状**：会不会掩盖「两个适配器声明了同一个 id」的 bug，要等注册表真有多语言适配器共存时再量。④ 不测 `gradle_adapter.py` / 在途的 `go_adapter.py` / `node_adapter.py`（前者已有专门门，后两者在别的车道在途）。⑤ 未在真实多语言项目上验 `detect_adapter` 的优先级顺序（只在本号用假适配器钉了「崩→跳→落」）。
 
 **下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `detect_adapter` 的静默跳过要不要改成 fail-loud（本号边界②）——先量调用点再定。② `_ADAPTER_REGISTRY` 的**测试污染**：`test_adapter_protocol.py` 注册后不清理（本号边界已记）——把清理 fixture 补进那个文件，或给注册表加 reset 助手。③ `tests/security/` 全仓 bandit 扫描本机跑不完（#404 边界③）——做成可增量/可超时的门。④ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。⑤ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+## #435 CI 的 `lint-type` 作业其实是红的：33 个 ruff + 14 个 mypy；两条门一起修绿
+
+**起因/占号。** 上一条（#434）给 `craft/adapters/protocol.py` 补门时顺手跑了 `ruff check`，发现**不止我要改的那个文件**——仓库级 `ruff check .` 有 **68** 个错，其中 **33 个在已提交文件里**。而 CI 的 `lint-type` 作业正是 `python -m ruff check .` + `python -m mypy .`（`pyproject.toml` 的 mypy `exclude` 只排除 `tests/`/`artifacts/`/`demo/`/`scripts/`/`bench/`，**不含** `craft/adapters/` 与 `experiments/`）。⇒ **CI 的 lint 作业在 master 上是红的，而且红了两道**。占号前重测账本：HEAD 版账本 `## #` id 最大 **434** ⇒ 取 **#435**。
+
+**先量后写（量的是「CI 到底看到多少错」）。** 用 `git archive HEAD | tar -x` 打一个**扁平 HEAD 副本**（不带任何在途文件）再跑两道门 —— 因为在途的 `craft/adapters/go_adapter.py` / `node_adapter.py` 是**未跟踪**文件，CI 的干净检出里根本不存在：
+- `ruff check .`：**33 errors**（6 个文件）
+- `mypy .`：**14 errors**（2 个文件：`craft/adapters/gradle_adapter.py` 9 个、`craft/adapters/protocol.py` 5 个）
+- 工作树里另有的 35 个 ruff 错全在**未跟踪/在途**的 go/node 适配器文件里 ⇒ 归该车道，本号不动。
+
+**修（两条门一起修绿）。** 7 个文件：
+- `craft/adapters/gradle_adapter.py`（17 ruff + 9 mypy）：删未用导入（`json` / `typing.Any`）、`detect` 的 for 循环改 `any(...)`、`_build_command` 的 if/else 改三元、删 `_parse_stdout_results` 里的**死初始化**（`tests_run = ... = 0`，函数提前 return，用不到它）、7 处超长行折行、**`subprocess.os.environ` / `subprocess.os.name` → `os.environ` / `os.name`**（`subprocess.os` 是隐式依赖，mypy 判 `attr-defined`）、`**kwargs` 补 `Any`、`patterns` 补 `_StdoutExtractor` 类型别名（否则 `extractor(match)` 是「调用无类型函数」）；`ET.parse` 上的 type: ignore **加错了地方、已撤**（真正无类型的是 lambda 调用，不是 `ET.parse`）。
+- `craft/adapters/protocol.py`（2 ruff + 5 mypy）：`AdapterNotImplemented` 补 `# noqa: N818 — domain term, public API`（与 `agent/job_control.py` 的 `BuildFailure` 同一种处理，**不改公开名**）、`extra` / `parse_errors` 的 `= None` 改成 `| None = None`（原注解是谎话）、两个 `__post_init__` 补 `-> None`、`execute` 的 `**kwargs` 补 `Any`。
+- `experiments/openapi_fuzzing.py`（3 ruff）：删未用 `re`、`Callable` 改从 `collections.abc` 导入、1 处折行。
+- `api/routes/agent_console.py`（1 mypy）：`_transition` 结尾 `return get_store().get(job_id)` 返回 `AgentJob | None`，与声明的 `-> AgentJob` 不符 ⇒ 改成**先取、None 则大声 404**（与同文件 `_job_or_404` 同一形状），不把 None 交回给调用方。
+- 三个测试文件的 I001 / F401 / E501 / W292（含 `test_adapter_protocol.py` 折 4 处超长签名）。
+
+**顺带修掉 #434 队列②（适配器注册表的测试污染）。** `tests/unit/test_adapter_protocol.py` 原来往**全局** `_ADAPTER_REGISTRY` 注册 `dummy` / `test-custom` 且从不清理 ⇒ `list_adapters()` 会报出没人要过的适配器、`detect_adapter()` 的遍历顺序变成「哪个测试先跑」的函数。加 autouse fixture 快照/还原注册表，并加一对**配证用例**（probe_a 注册 → probe_b 断言已不在），fixture 失效就红。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| CI 门 1 | 扁平副本上 `ruff check .` | **修前 33 errors ⇒ 修后 All checks passed** |
+| CI 门 2 | 扁平副本上 `mypy .`（248 源文件） | **修前 14 errors ⇒ 修后 Success: no issues found** |
+| 回归 | 5 个适配器/契约测试文件 | 59 passed |
+| 回归 | 5 个 agent_console 测试文件 | 73 passed |
+| 回归 | 5 个相关文件（adapters / language_honesty / gates / plane / schemas） | 94 passed |
+| ruff（改动的 7 个文件） | `ruff check <7 files>` | All checks passed |
+| mypy（改动的生产文件） | `mypy protocol.py gradle_adapter.py openapi_fuzzing.py agent_console.py` | Success: no issues found |
+
+**诚实边界。** ① **`_as_text` 是行为修正不是纯样式**：原来 `stdout=e.stdout or ""` 在 `TimeoutExpired.stdout` 是 bytes 时会把 bytes 塞进声明为 `str` 的字段；现在统一收敛成文本。超时路径无既有测试覆盖该分支，收敛后的行为按「与正常路径一致」论证。② **`subprocess.os` → `os` 是等价替换**（`subprocess` 内部就 `import os`），不是行为变更。③ **`extra` / `parse_errors` 的 `| None` 注解让 mypy 看见了真实形状**，随之暴露 `profile.extra.get(...)` 两个使用点 ⇒ 用 `(profile.extra or {})` 收敛；`__post_init__` 早已保证非 None，运行期行为不变。④ **未修在途的 35 个 ruff 错**（`go_adapter.py` / `node_adapter.py` / `test_go_adapter.py` / `test_node_adapter.py`）——那些文件正被别的车道改，本号不碰；它们一旦提交，CI 会再红，**已入下一号队列**。⑤ mypy 的 `ET.parse` type: ignore 是我**加错又撤掉**的：真正无类型的是 lambda 调用，撤掉后用类型别名修，没留下多余 ignore（`warn_unused_ignores` 会抓）。
+
+**下一号队列（受本环境约束，取号按落地时点 max+1）。** ① 在途的 go/node 适配器（35 个 ruff 错）提交后 CI 会再红 ⇒ 该车道落地时须同批修，或本号跟进。② `tests/security/` 全仓 bandit 扫描本机跑不完（#404 边界③）——做成可增量/可超时的门。③ `detect_adapter` 的静默跳过要不要 fail-loud（#434 边界②）。④ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。⑤ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。

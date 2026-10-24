@@ -5,17 +5,35 @@ from pathlib import Path
 
 import pytest
 
+from craft.adapters import protocol as proto
 from craft.adapters.protocol import (
     AdapterNotImplemented,
     AdapterProtocol,
-    ExecutionResult,
     EvidenceFragment,
+    ExecutionResult,
     RuntimeProfile,
     detect_adapter,
     get_adapter,
     list_adapters,
     register_adapter,
 )
+
+
+@pytest.fixture(autouse=True)
+def _restore_adapter_registry():
+    """Snapshot the global registry and restore it after EVERY test.
+
+    Without this, the `dummy` / `test-custom` adapters registered below stay in
+    `_ADAPTER_REGISTRY` forever: `list_adapters()` then reports adapters that no
+    test asked for, and `detect_adapter()` — which walks the registry in
+    insertion order — becomes sensitive to which test ran first.
+    """
+    saved = dict(proto._ADAPTER_REGISTRY)
+    try:
+        yield
+    finally:
+        proto._ADAPTER_REGISTRY.clear()
+        proto._ADAPTER_REGISTRY.update(saved)
 
 
 def test_adapter_not_implemented_exception() -> None:
@@ -96,7 +114,9 @@ def test_adapter_registry() -> None:
             return ExecutionResult(exit_code=0, stdout="", stderr="", duration_ms=0)
 
         @classmethod
-        def collect_evidence(cls, project_root: Path, profile: RuntimeProfile, result: ExecutionResult) -> list[EvidenceFragment]:
+        def collect_evidence(
+            cls, project_root: Path, profile: RuntimeProfile, result: ExecutionResult
+        ) -> list[EvidenceFragment]:
             return []
 
     # 验证注册
@@ -140,11 +160,18 @@ def test_detect_adapter() -> None:
                 return RuntimeProfile(language="custom", build_tool="custom", language_version="1")
 
             @classmethod
-            def execute(cls, project_root: Path, profile: RuntimeProfile, **kwargs) -> ExecutionResult:
+            def execute(
+                cls, project_root: Path, profile: RuntimeProfile, **kwargs
+            ) -> ExecutionResult:
                 return ExecutionResult(exit_code=0, stdout="", stderr="", duration_ms=0)
 
             @classmethod
-            def collect_evidence(cls, project_root: Path, profile: RuntimeProfile, result: ExecutionResult) -> list[EvidenceFragment]:
+            def collect_evidence(
+                cls,
+                project_root: Path,
+                profile: RuntimeProfile,
+                result: ExecutionResult,
+            ) -> list[EvidenceFragment]:
                 return []
 
         detected = detect_adapter(tmp_path)
@@ -173,6 +200,49 @@ def test_runtime_profile_extra() -> None:
         extra={"venv_path": "/venv"},
     )
     assert profile.extra["venv_path"] == "/venv"
+
+
+class _ProbeAdapter(AdapterProtocol):
+    """A concrete adapter used only to prove the registry is restored."""
+
+    ADAPTER_ID = "registry-pollution-probe"
+    LANGUAGE = "probe"
+    BUILD_TOOL = "probe"
+
+    @classmethod
+    def detect(cls, project_root: Path) -> bool:
+        return False
+
+    @classmethod
+    def prepare(cls, project_root: Path) -> RuntimeProfile:
+        return RuntimeProfile(language="probe", build_tool="probe", language_version="1")
+
+    @classmethod
+    def execute(cls, project_root: Path, profile: RuntimeProfile, **kwargs) -> ExecutionResult:
+        return ExecutionResult(exit_code=0, stdout="", stderr="", duration_ms=0)
+
+    @classmethod
+    def collect_evidence(
+        cls, project_root: Path, profile: RuntimeProfile, result: ExecutionResult
+    ) -> list[EvidenceFragment]:
+        return []
+
+
+def test_registry_pollution_probe_a_registers() -> None:
+    """注册探针适配器；清理由 autouse fixture 在本用例结束时负责。
+
+    与下一条配对：pytest 按文件顺序执行（本仓库未装用例随机化插件），
+    所以 probe_b 一定在 probe_a 之后跑。
+    """
+    register_adapter(_ProbeAdapter)
+    assert get_adapter("registry-pollution-probe") is _ProbeAdapter
+
+
+def test_registry_pollution_probe_b_asserts_gone() -> None:
+    """上一条注册的探针必须已经不在了 —— 证明 autouse fixture 真的还原了注册表。"""
+    with pytest.raises(AdapterNotImplemented):
+        get_adapter("registry-pollution-probe")
+    assert "registry-pollution-probe" not in proto._ADAPTER_REGISTRY
 
 
 if __name__ == "__main__":

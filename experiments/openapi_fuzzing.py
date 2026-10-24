@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import random
-import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import requests
 
@@ -433,7 +433,9 @@ class Shrinker:
     """最小化失败载荷（delta debugging 简化版）。"""
 
     @staticmethod
-    def shrink(payload: dict[str, Any], test_fn: Callable[[dict[str, Any]], bool]) -> dict[str, Any]:
+    def shrink(
+        payload: dict[str, Any], test_fn: Callable[[dict[str, Any]], bool]
+    ) -> dict[str, Any]:
         """尝试移除字段/缩短值，保持失败复现。"""
         shrunk = payload.copy()
         # 尝试移除每个字段

@@ -73,7 +73,12 @@ def test_contract_review_node_waiting_for_approval() -> None:
     state: Phase0State = {
         "contracts": [
             {"id": "AUTH-01", "approved": True, "checker_type": "http"},
-            {"id": "UNIQUE-01", "approved": False, "checker_type": "sql", "requirement": "unique req"},
+            {
+                "id": "UNIQUE-01",
+                "approved": False,
+                "checker_type": "sql",
+                "requirement": "unique req",
+            },
         ],
         "errors": [],
         "requirement_text": "test",
