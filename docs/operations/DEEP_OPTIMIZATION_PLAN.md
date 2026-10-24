@@ -11508,3 +11508,41 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ① **本号只交付机制，没有用它去消音那 5 条**——那 5 处改动分散在测试/文档/docstring/Java 测试里，是另一批可评审的改动；本号的自扫描因此**仍是 5 条 C/H**（未变绿也不会假绿）。② 没有实现「死指令检测」（点名了一个此处从不触发的模式 ⇒ 应当报出来说这条抑制已失效）——bandit 第 2 条教训只做到「写错 id 不隐藏」，没做「写错 id 要报警」；本号同尺度，已入队列。③ 未处理「整行注释里引用指令会被解析」这一条（bandit 第 3 条）：本机制的正则要求指令在**行尾**，所以注释行引用它确实会形成抑制——**没有额外防护**，如实记下。④ 只接了目录与 zip 两条扫描路径；`scan_canary` 不走模式循环，无需接。
 
 **下一号队列（取号按落地时点 max+1）。** ① **用新机制消音 #443 那 5 条意图上的假阳性**（每条带理由），让自扫描的 C/H 归零；② 死指令检测（点名了此处不触发的模式要报警）——bandit 第 2 条教训的另一半；③ 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）；④ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+
+
+## #445 `agent/policy_dsl.py` 声明过但没人钉的契约：glob 元字符 / 过期边界 / 归一化 / 深分支
+
+**起因/占号。** 按「找零直接测试的纯逻辑」扫 `agent/*.py`：`policy_dsl.py` 541 行、只有 1 个测试文件（`test_policy_dsl.py`），而它是个**确定性层**（docstring 明写契约）。占号前 `git fetch`：0/0，远端 HEAD `18b2ea9`（`## #444`）⇒ 本号取 **#445**。
+
+**先量后写（量的是「docstring 承诺了但没人断言」的清单）。** 读完整个模块 + 现有测试，逐条对账，**未覆盖**的契约（探针先跑，全部命中）：
+- **glob 元字符**：`?`（精确一个字符）、`[...]` 字符类、`*` **匹配点文件**（`agent/*` 命中 `agent/.env`）——docstring 声明，测试只钉了 `*`/`**`。
+- **过期边界**：`now == expires_at` ⇒ 规则**不**生效（`>=` 而非 `>`）；现有测试只测了 ±1 天，没测**恰好相等**。
+- **时钟归一化**：naive `now` 当 UTC；非 UTC aware `now` 先换算再比（`20:00+08:00 == 12:00Z`）。
+- **构造归一化**：`severity_filter` 去空白+大写、`scope` 反斜杠→斜杠+去前导 `./`、`id`/`reason` 去空白。
+- **深分支**（fail-closed，没人走到）：NUL 字节、`from_dict` 非对象/空对象、缺/空/非串 `version`、`rules` 非 list/空、rule 条目非对象、`severity_filter` 含非字符串。
+- **digest 敏感性**：稳定性已钉，但「不同规则 ⇒ 不同 digest」没有显式断言。
+- **`paths` 传成裸字符串**：path 规则**静默不命中**（repo/tenant 规则仍命中）——按现状钉住，不背书。
+
+**落地（只加测试，`agent/policy_dsl.py` 一字未动）。** 新建 `tests/unit/test_policy_dsl_declared_edges.py`（27 案，纯对象，无 I/O）：
+1. 参数化 9 组 glob 元字符（含点文件、`?`、`[ab]`、跨段边界）；
+2. `_scope_kind` 的「有 glob 魔法但无斜杠 ⇒ path」+ 裸词仍拒绝；
+3. 过期边界（`==` 不生效、`-1s` 生效）；
+4. naive / 非 UTC aware `now` 换算；
+5. 构造归一化（severity/scope/id/reason/family）+ 归一化后的 scope 真的能匹配；
+6. naive `expires_at` ⇒ UTC；`to_dict` 微秒按 `.%f` 渲染；
+7. 空白文本字段拒绝；空白 `contract_family`、NUL scope 拒绝；
+8. `_parse_datetime` 非字符串拒绝；
+9. `from_dict` 六类拒绝；`_parse_rule` 两类拒绝；
+10. digest 敏感性（三态互不相同 + 等于纯函数）；
+11. `paths` 裸字符串静默不命中（钉现状）+ 非字符串/根路径条目被丢弃 + severity/family 非字符串归一为 None。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_policy_dsl_declared_edges.py -q` | **27 passed in 1.84s** |
+| 回归 | `pytest tests/unit/test_policy_dsl.py -q` | **28 passed**（既有门无回归） |
+| ruff | `ruff check tests/unit/test_policy_dsl_declared_edges.py` | 初报 1 个 E501，折行后 **All checks passed** |
+
+**诚实边界。** ① 只加测试：`agent/policy_dsl.py` 一字未动。② 有一个断言**我第一版写错了**（rule 带 `contract_family="auth"` 但 change 没给 family ⇒ 正确地被过滤掉），修的是我的测试、不是模块——这反过来证明 family 过滤器是对的。③ `paths` 裸字符串静默不命中是**钉现状**，不背书：这是个潜在的 fail-open（path 级 `forbid_change` 会静默不触发），已在测试注释里写明，留给产品决策。④ 不钉 `agent/waiver.py`（唯一消费者）的调用时机与错误处理。⑤ 不钉性能（`**` 的指数回溯对超长路径理论上会慢）。
+
+**下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `agent/waiver.py`（241 行，1 测试）——`policy_dsl` 的唯一消费者，值得单独一号。② `agent/job_stage.py`（160 行，1 测试）。③ `agent/verdict_stability.py`（54 行，2 测试）先判是否值得。④ 别的车道正在做 `agent/security_scanner.py` 的豁免（#442/#444），**不碰**。
