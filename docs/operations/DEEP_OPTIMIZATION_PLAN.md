@@ -10953,3 +10953,59 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 - `agent/graph.py`（修改）
 - `tests/unit/test_contract_review.py`（新增）
 - `docs/operations/DEEP_OPTIMIZATION_PLAN.md`：追加 #428
+## #429 Phase 4 启动：Mutation-guided test synthesis + OpenAPI Fuzzing + 跨语言适配器
+
+**背景**：Phase 3（动态实验室扩展）核心任务全部完成，CONTRACT_REVIEW 生产写入方已落地。长期计划进入 **Phase 4（第 13-18 周）**：Mutation、Fuzzing 和跨语言适配器。
+
+**本批目标**：启动 Phase 4 的三大支柱：
+1. **Mutation-guided test synthesis**：在 Java/PIT 或源码算子层面完成小范围战役，验证 Mutation 能区分等价、存活、测试弱点
+2. **OpenAPI 状态化 Fuzzing**：基于 OpenAPI schema 的状态化模糊测试，产出最小失败输入
+3. **跨语言适配器**：实现 Gradle 或 Python 中至少一个高价值适配器，输出统一的 RuntimeProfile/ExecutionResult/EvidenceFragment，建立兼容性矩阵
+
+**当前基线**：
+- Java/Maven 适配器：已支持（Docker 沙箱，`docs/architecture/EXECUTION_COMPATIBILITY.md`）
+- Go 适配器：已支持（Docker 沙箱，bookworm 镜像，CGO 可离线编译）
+- Python/pytest 适配器：已支持（Docker 沙箱，wheelhouse 离线依赖）
+- Node/npm 适配器：已支持（Docker 沙箱，npm cache 离线依赖）
+- **缺口**：Gradle 适配器标记为「规划中」；Mutation/Fuzzing 能力为零
+
+**执行计划（按顺序）**：
+### 4.1 Mutation 引擎接入（Java 优先）
+- 引入 PIT mutation testing 或实现轻量级源码算子（条件边界取反、算术运算替换、常量替换、空检查删除）
+- 产出：每个 mutation 的存活/等价/被杀死状态，测试弱点报告
+- 集成点：`craft/gates.py` 的 `run_test_gate` 或独立 `specproof mutation` CLI
+
+### 4.2 OpenAPI 状态化 Fuzzing
+- 解析 OpenAPI schema → 生成有状态的 API 调用序列（创建→读取→更新→删除）
+- 基于 schema 约束生成边界值、类型错误、必填字段缺失等载荷
+- 记录最小失败输入（shrinking），输出 EvidenceFragment
+- 集成点：`experiments/collectors.py` 新增 `OpenAPIFuzzingCollector`
+
+### 4.3 Gradle 适配器实现（高价值）
+- 目标：Gradle + JUnit 5 项目在 Docker 沙箱中可执行
+- 依赖解析：Gradle lockfile / `--offline` + 本地缓存卷 `specproof-gradle-cache-1000`
+- 执行命令：`./gradlew test --no-daemon -Dorg.gradle.workers.max=2`
+- 输出解析：JUnit XML → 统一 ExecutionResult + EvidenceFragment
+- 兼容性矩阵：记录支持/不支持的 Gradle 版本、插件、配置
+
+### 4.4 适配器协议统一
+- 定义 `AdapterProtocol` 接口：`detect() -> bool`、`prepare() -> RuntimeProfile`、`execute() -> ExecutionResult`、`collect_evidence() -> list[EvidenceFragment]`
+- 现有 Java/Maven、Go、Python、Node 适配器按协议重构
+- 明确 fail-closed：不支持的语言/构建工具抛 `AdapterNotImplemented`，绝不静默通过
+
+**质量门**：
+- ruff + mypy 全绿
+- 新增测试覆盖 Mutation/Fuzzing/适配器协议
+- 现有适配器测试无回归
+- ledger fence：无重复头，U+FFFD 计数保持
+
+**证据文件**：
+- `craft/mutation.py`（新增：Mutation 引擎核心）
+- `experiments/openapi_fuzzing.py`（新增：OpenAPI Fuzzing Collector）
+- `craft/adapters/gradle_adapter.py`（新增：Gradle 适配器）
+- `craft/adapters/protocol.py`（新增：统一适配器协议）
+- `tests/unit/test_mutation_engine.py`（新增）
+- `tests/unit/test_openapi_fuzzing.py`（新增）
+- `tests/unit/test_gradle_adapter.py`（新增）
+- `tests/unit/test_adapter_protocol.py`（新增）
+- `docs/operations/DEEP_OPTIMIZATION_PLAN.md`：追加 #429
