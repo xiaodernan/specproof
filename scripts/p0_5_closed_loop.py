@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 P0.5 Closed-Loop Verification — Final v3
-=========================================
 Implements all 10 sections of the user's acceptance criteria.
 
 Critical fix over v2: LLM prompt requires NON-SHORT-CIRCUITING assertions.
@@ -29,6 +28,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+# `python scripts/p0_5_closed_loop.py` puts scripts/ on sys.path, not the repo
+# root — without this the agent package is not importable from here.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from agent.security_scanner import run_full_security_scan  # noqa: E402
+
 # ═══════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════
@@ -53,8 +60,6 @@ if not LLM_API_KEY:
     sys.exit(1)
 LLM_MODEL = "deepseek-v4-pro"
 LLM_PROVIDER = "openai_compatible"
-
-CANARY_SECRET = "SPECPROOF_CANARY_a7f3b2c9d1e4_SECRET_DO_NOT_COMMIT"
 
 # ═══════════════════════════════════════════════════════════════════
 # UTILITY
@@ -942,95 +947,31 @@ def replay_capsule(capsule_path: str) -> dict:
 # SECURITY SCAN
 # ═══════════════════════════════════════════════════════════════════
 
-_SECRET_PATTERNS = [
-    (r"sk-[a-zA-Z0-9]{32,}", "OpenAI/LLM API Key", "CRITICAL"),
-    (r'api[f_]?key\s*[:=]\s*["\'][^"\']{8,}["\']', "API Key Assignment", "CRITICAL"),
-    (r"-----BEGIN (RSA |EC )?PRIVATE KEY-----", "Private Key Block", "CRITICAL"),
-    (r"github_pat_[a-zA-Z0-9_]{20,}", "GitHub PAT", "CRITICAL"),
-    (r"ghp_[a-zA-Z0-9]{36}", "GitHub Classic Token", "CRITICAL"),
-    (r'password\s*[:=]\s*["\'][^"\']{4,}["\']', "Password in Config", "HIGH"),
-    (r'secret\s*[:=]\s*["\'][^"\']{8,}["\']', "Secret in Config", "HIGH"),
-    (r"jdbc:mysql://.*?:.*?@", "JDBC URL with Credentials", "HIGH"),
-    (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID", "HIGH"),
-    (r"eyJ[a-zA-Z0-9\-_]+\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+", "JWT Token", "MEDIUM"),
-]
+# #442：这里原先手抄了一份完整的秘密扫描 —— 自己的 _SECRET_PATTERNS（10 条，
+# 而 agent/security_scanner.py 早有 15 条）、自己的排除清单、自己的占位符跳过
+# 清单、自己的 canary 自测。那三份各自漂移过（#404 修过模块内两条扫描路径之间
+# 的那份，#441 修过模块清单本身），这一份一直没跟上：少了 5 类 secret、占位符
+# 清单缺 `your-`/`example`、排除清单缺 `.local`/`.venv`/`.scratch`。
+# 现在整体委托给 agent.security_scanner，本脚本只保留自己原来的返回契约。
 
 
 def security_scan(root: str) -> dict:
-    findings = []
-    scanned = 0
+    """P0.5 安全扫描 —— 委托给 agent.security_scanner.run_full_security_scan。
 
-    exclude_dirs = {".git", "__pycache__", "target", "node_modules", "artifacts/legacy-invalid"}
-    self_script = "scripts/p0_5_closed_loop.py"
-
-    for fp in Path(root).rglob("*"):
-        if not fp.is_file():
-            continue
-        rel = str(fp.relative_to(root)).replace("\\", "/")
-        if any(rel.startswith(d + "/") or rel == d for d in exclude_dirs):
-            continue
-        if any(rel.endswith(ext) for ext in (".jar", ".zip", ".class", ".jpg", ".png")):
-            continue
-        if ".mvn/wrapper/maven-wrapper.jar" in rel:
-            continue
-        if rel.endswith(".env") or "security_scanner" in rel:
-            continue
-        if rel == self_script:
-            continue  # Self-exclude: contains API key patterns as constants
-
-        try:
-            content = fp.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, PermissionError):
-            continue
-        scanned += 1
-
-        for lineno, line in enumerate(content.splitlines(), 1):
-            for pattern, name, sev in _SECRET_PATTERNS:
-                for m in re.finditer(pattern, line, re.IGNORECASE):
-                    matched = m.group(0)
-                    if any(
-                        skip in matched.lower()
-                        for skip in [
-                            "replace_me",
-                            "demo_pass",
-                            "demo-secret",
-                            "test_pass",
-                            "your_",
-                            "changeme",
-                            "specproof_canary",
-                            "somehash",
-                        ]
-                    ):
-                        continue
-                    findings.append(
-                        {
-                            "path": rel,
-                            "line": lineno,
-                            "pattern": name,
-                            "severity": sev,
-                            "matched": (
-                                matched[:3] + "***" + matched[-3:] if len(matched) > 6 else "***"
-                            ),
-                        }
-                    )
-
-    # Canary injection self-test
-    canary_file = Path(root) / ".specproof_canary_test.txt"
-    canary_file.write_text(f"API_KEY={CANARY_SECRET}\n", encoding="utf-8")
-    canary_found = CANARY_SECRET in canary_file.read_text(encoding="utf-8")
-    canary_file.unlink()
-
-    critical = [f for f in findings if f["severity"] == "CRITICAL"]
-    high = [f for f in findings if f["severity"] == "HIGH"]
+    返回形状与 #442 之前手抄版一致（调用方只认这些键），所以报告段的打印与
+    `report["12_security_scan"]` 判定都不用动。
+    """
+    result = run_full_security_scan(root)
+    canary = result.get("canary_test") or {}
     return {
-        "passed": len(critical) == 0 and len(high) == 0,
-        "scanned_files": scanned,
-        "total_findings": len(findings),
-        "critical_count": len(critical),
-        "high_count": len(high),
-        "findings": findings,
-        "canary_injected": True,
-        "canary_detected": canary_found,
+        "passed": result["passed"],
+        "scanned_files": result["total_files_scanned"],
+        "total_findings": result["total_findings"],
+        "critical_count": result["critical_count"],
+        "high_count": result["high_count"],
+        "findings": result["findings"],
+        "canary_injected": bool(canary.get("injected")),
+        "canary_detected": bool(canary.get("found") and canary.get("cleaned")),
     }
 
 

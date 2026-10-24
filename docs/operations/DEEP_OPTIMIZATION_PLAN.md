@@ -11376,3 +11376,38 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① 补 `.venv` / `.scratch` 是**政策选择**：它们永不发布（`.scratch` 早已被 ruff 排除、缓存在 .gitignore 里），但**真把 secret 写进 `.scratch` 这两道门现在看不见**——与 `tests/` 同一种取舍。② `.local` 的排除依据是**它自己的 `.gitignore` 是 `*`**；若哪天那条规则被改掉，排除依据就没了（`test_local_dir_is_genuinely_uncommittable` 会红，算是间接看守）。③ 只改排除清单，没动 pattern 集、没动占位符策略（#404 已统一）。④ 52.7s 的自扫描耗时是在**本机**量的，CI 上未必同量级。
 
 **下一号队列（取号按落地时点 max+1）。** ① **`run_full_security_scan` 的 324 条 finding（31 CRITICAL + 36 HIGH）**——要么接进管线并同批处理真实 finding，要么如实记为「未接线且当前为红」；本号已把「跑不跑得完」修好，「接不接」是产品决策。② `scripts/p0_5_closed_loop.py` 手抄的那份秘密扫描（10 pattern vs 15、清单已漂移）——委托给 `agent.security_scanner` 去重。③ 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。④ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+## #442 删掉 `scripts/p0_5_closed_loop.py` 手抄的那份秘密扫描：92 行 → 28 行委托，且多抓 5 类 secret
+
+**起因/占号。** #441 队列②：「`scripts/p0_5_closed_loop.py` 手抄的那份秘密扫描（10 pattern vs 15、清单已漂移）——委托给 `agent.security_scanner` 去重」。占号前重测账本：HEAD 版账本 `## #` id 最大 **441** ⇒ 取 **#442**。
+
+**先量后写（量的是「抄了多少、漏了多少、消费方认什么」）。**
+- 脚本里的 `security_scan()` 自带 `_SECRET_PATTERNS`（**10 条**）、自己的排除清单、自己的占位符跳过清单（含模块没有的 `"somehash"`，却缺 `your-` / `example`）、自己的 canary 自测、自己的 `CANARY_SECRET` 常量（与模块的 `_CANARY_SECRET` 同值）。
+- 模块已有 **15 条** pattern ⇒ 脚本那份**少 5 类**（GitHub PAT / GitHub Classic Token / AWS Access Key ID / Internal Hostname / Internal Model Name）。
+- 消费方只认 8 个键：`passed` / `scanned_files` / `total_findings` / `critical_count` / `high_count` / `findings`（`severity`/`path`/`line`/`pattern`）/ `canary_injected` / `canary_detected`，用于打印与 `report["12_security_scan"]` 判定。
+- `python scripts/p0_5_closed_loop.py` 的 `sys.path[0]` 是 `scripts/`，**仓库根不在 path 上** ⇒ 需要显式插入。
+
+**修（去重）。** `scripts/p0_5_closed_loop.py`：
+- 删掉 `_SECRET_PATTERNS`（13 行）与整个手抄 `security_scan` 主体，**92 行 → 28 行**；
+- 新的 `security_scan` 只做**适配**：调 `run_full_security_scan(root)`，把模块的返回形状翻译成脚本原来的 8 键契约（`total_files_scanned`→`scanned_files`、`canary_test.{injected,found,cleaned}`→`canary_injected`/`canary_detected`）；
+- 删掉重复的 `CANARY_SECRET` 常量；
+- 顶部插入仓库根到 `sys.path` 并 `from agent.security_scanner import run_full_security_scan`。
+
+**落地（门）。** 新建 `tests/unit/test_p0_5_closed_loop_scan_contract.py`（3 案）：
+1. `test_security_scan_returns_the_contract_the_report_section_reads`：8 键齐全；在一棵临时树种下 `AKIA…`（**旧手抄版漏掉的那 5 类之一**）断言它**必须**被抓到（`high_count == 1`、`passed is False`）；canary 两半为真。
+2. `test_security_scan_skips_placeholders_and_passes_a_clean_tree`：`your_api_key_here_12345` 与 `replace_me` 都不算 secret，干净树必须 `passed is True`——**否则门永远红等于没门**。
+3. `test_the_script_no_longer_carries_its_own_pattern_table`：用 **AST 读绑定**（不读文本）断言 `_SECRET_PATTERNS` / `CANARY_SECRET` 不再是脚本里的赋值目标，且 `run_full_security_scan` 确实在导入绑定里。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_p0_5_closed_loop_scan_contract.py -q` | **3 passed** |
+| 委托功能 | 临时树种 `AKIA…` + 占位符 | AWS key 被抓到（HIGH）、占位符被跳过、canary 两半真、`passed=False` |
+| 脚本可编译 | `py_compile scripts/p0_5_closed_loop.py` | OK |
+| ruff | `ruff check tests/unit/...scan_contract.py scripts/p0_5_closed_loop.py` | 初报 SIM300（`CONTRACT_KEYS <= set(scan)` 被判 Yoda），`--fix` 后 **All checks passed** |
+| **变异臂**（适配器把 `findings` 改成 `[]`，即**交空字典假绿**） | 先预测：契约/覆盖那条红，干净树那条仍绿 | 实测 **1 failed, 2 passed**，逐名命中 |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `git status` 确认只剩本号改动、无 `.orig` 残留；复跑 3 passed |
+
+**否证与订正（本号自己踩的，值得记）。** ① 第 3 案第一版用**子串**检查（`"_SECRET_PATTERNS" not in source`）——**当场被自己的注释判红**：那段解释性注释里正好写了这两个名字。改为 **AST 读 `Assign`/`AnnAssign` 目标**后才对。这正是仓库纪律里「探针读绑定，不读文本」那一句要防的事，本号又亲身踩了一次。② 变异臂我一度想改成「return {}」，那会让第 1 案 KeyError 而不是断言失败——红得难看且信息少；改成只把 `findings` 掏空，红得精确。③ **提交被本仓 pre-commit 钩子拦下一次**：`conflict marker found in staged file: scripts/p0_5_closed_loop.py` —— **假阳性**。钩子对暂存 blob 跑 `grep -E '^(<<<<<<<|=======|>>>>>>>)'`，而脚本模块 docstring 第 4 行是一条 markdown 风格的 `====` 标题下划线（41 个 ASCII 等号），正好命中 `^(=======)`。该行**早就在 HEAD 里**（随 `0d85586` 这个 merge commit 进来，merge 不跑逐文件检查所以从未被拦）。本号**没有跳钩子**，而是把那条装饰性下划线删掉——一行无害改动，换来本仓自己的门不再误红。教训：**装饰性 `====` 下划线在这个仓库是钩子的雷区**，写 docstring 时避开。
+
+**诚实边界。** ① 这是**行为变更**：脚本的安全扫描从 10 条 pattern 变成 15 条、占位符政策与排除清单换成模块那一份（`#404`/`#441` 修过的版本）⇒ 脚本现在**会报出以前漏掉的 secret**。在本仓库上跑 `security_scan(PROJECT_ROOT)` 的结果因此从「旧口径」变成「324 条 finding / passed=False」（#441 已量），**`report["12_security_scan"]` 现在会是 FAIL**——这是把隐藏的漂移暴露出来，不是新引入的失败。② 委托版还多扫了 `capsules/` 与 `reports/`（模块的 `run_full_security_scan` 会扫这两个目录），脚本旧版只扫 root。③ 未跑完整的 10 段闭环（需要 Java + 真 LLM key），只验了 `security_scan` 这一个函数。④ `scripts/` 被 mypy 排除，故未跑 mypy。
+
+**下一号队列（取号按落地时点 max+1）。** ① **`run_full_security_scan` 在本仓库的 324 条 finding（31 CRITICAL + 36 HIGH）**——#441 已修好「跑不跑得完」，现在脚本委托后 `report["12_security_scan"]` 会直接 FAIL；要么同批处理真实 finding，要么在脚本里如实记「当前为红 + 原因」。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
