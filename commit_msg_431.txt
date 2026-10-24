@@ -1,0 +1,7 @@
+#431 Phase 4 继续：Gradle Adapter 完善 + 跨语言适配器注册中心
+
+- Gradle Adapter 完善：JUnit XML 解析、离线模式、依赖树收集
+- 适配器注册中心：自动检测、注册表、ID 分配机制
+- AdapterNotImplemented 规范：fail-closed 行为一致
+- 质量门：ruff/mypy 全绿，46 项新增测试全部通过
+- ledger fence：257 节，max #431，0 重复，U+FFFD=9
