@@ -48,12 +48,15 @@ import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
+
+from agent.timeutil import as_utc as _as_utc
+from agent.timeutil import iso_utc as _iso_utc
 
 # ── Vocabulary ──────────────────────────────────────────────────────────
 
@@ -116,24 +119,6 @@ class PolicyLoadError(PolicyError):
 
 class PolicyEvaluationError(PolicyError):
     """Evaluation input is not a policy/change this module can judge."""
-
-
-# ── Time helpers ────────────────────────────────────────────────────────
-
-
-def _as_utc(value: datetime) -> datetime:
-    """Normalize a datetime to aware UTC; naive values are assumed UTC."""
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
-
-
-def _iso_utc(value: datetime) -> str:
-    """Canonical ISO-8601 UTC rendering used by serialization and digests."""
-    utc = _as_utc(value)
-    if utc.microsecond:
-        return utc.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    return utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _parse_datetime(value: Any, *, where: str) -> datetime:

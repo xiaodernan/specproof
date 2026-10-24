@@ -25,8 +25,11 @@ finding. Naive datetimes are treated as UTC.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, Literal
+
+from agent.timeutil import as_utc as _as_utc
+from agent.timeutil import iso_utc as _iso_utc
 
 WaiverState = Literal["requested", "approved", "rejected", "expired"]
 WaiverCheck = Literal["active", "expired", "pending", "rejected"]
@@ -53,21 +56,6 @@ class WaiverError(ValueError):
 
 class WaiverStateError(WaiverError):
     """Illegal state transition for a waiver."""
-
-
-def _as_utc(value: datetime) -> datetime:
-    """Normalize a datetime to aware UTC; naive values are assumed UTC."""
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
-
-
-def _iso_utc(value: datetime) -> str:
-    """Canonical ISO-8601 UTC rendering used by serialization."""
-    utc = _as_utc(value)
-    if utc.microsecond:
-        return utc.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    return utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dataclass(frozen=True)
