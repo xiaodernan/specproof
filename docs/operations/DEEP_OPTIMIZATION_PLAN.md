@@ -11411,3 +11411,54 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① 这是**行为变更**：脚本的安全扫描从 10 条 pattern 变成 15 条、占位符政策与排除清单换成模块那一份（`#404`/`#441` 修过的版本）⇒ 脚本现在**会报出以前漏掉的 secret**。在本仓库上跑 `security_scan(PROJECT_ROOT)` 的结果因此从「旧口径」变成「324 条 finding / passed=False」（#441 已量），**`report["12_security_scan"]` 现在会是 FAIL**——这是把隐藏的漂移暴露出来，不是新引入的失败。② 委托版还多扫了 `capsules/` 与 `reports/`（模块的 `run_full_security_scan` 会扫这两个目录），脚本旧版只扫 root。③ 未跑完整的 10 段闭环（需要 Java + 真 LLM key），只验了 `security_scan` 这一个函数。④ `scripts/` 被 mypy 排除，故未跑 mypy。
 
 **下一号队列（取号按落地时点 max+1）。** ① **`run_full_security_scan` 在本仓库的 324 条 finding（31 CRITICAL + 36 HIGH）**——#441 已修好「跑不跑得完」，现在脚本委托后 `report["12_security_scan"]` 会直接 FAIL；要么同批处理真实 finding，要么在脚本里如实记「当前为红 + 原因」。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+## #443 `.venv` 精确名漏了 `.venv312`：自扫描 11,090 → 3,023 个文件；剩下 5 条 C/H 全是「意图上的假阳性」
+
+**起因/占号。** #442 队列①：「`run_full_security_scan` 在本仓库的 324 条 finding（31 CRITICAL + 36 HIGH）」。本号先分类再决定动不动手。占号前重测账本：HEAD 版账本 `## #` id 最大 **442** ⇒ 取 **#443**。
+
+**先量后写（量的是「那 67 条到底是谁」）。** 按 (severity, pattern) 与按文件分类那 324 条：
+- 按模式：`[LOW] Internal Model Name` 211、`[LOW] Internal Hostname` 45、`[HIGH] Password in Config` 25、`[CRITICAL] Private Key Block` 23、`[CRITICAL] API Key Assignment` 8、`[HIGH] Redis URL with Credentials` 7、`[HIGH] Secret in Config` 3、`[HIGH] RabbitMQ URL with Credentials` 1、`[MEDIUM] JWT Token` 1。
+- 按文件：**C/H 的 40 个文件里，绝大多数在 `.venv312\Lib\site-packages\…`**（`Crypto/SelfTest/...` 11 条、`bandit/plugins/general_hardcoded_password.py` 5 条、`langsmith/client.py` 4 条……）。
+- ⇒ **#441 的排除清单漏了真正的虚拟环境名**：我加的是精确名 `.venv` / `venv`，而本仓库的 venv 叫 **`.venv312`**（`git check-ignore` 确认它被忽略、`git ls-files` 确认零跟踪文件）。
+
+**修（补全 #441 的意图）。** `agent/security_scanner.py` 加**目录名前缀规则**：
+```python
+_EXCLUDE_DIR_PREFIXES = (".venv",)
+...
+return any(part.startswith(_EXCLUDE_DIR_PREFIXES) for part in parts)
+```
+前导点是为了**不**顺手吃掉 `.venue/` / `.vendor/`（#440 那一类过宽匹配）。同时保留 #441 已加的精确名（`.venv` / `venv`）——前缀规则已覆盖它们，但留着无害且意图更显式。
+
+**门。** `tests/unit/test_security_scanner_excludes_are_segment_exact.py` 41 → **45 案**：
+- 「正是被排除词的仍排除」参数组新增 `.venv312/Lib/site-packages/pkg/mod.py`、`.venv-py312/lib/x.py`；
+- 新增参数组 `test_the_venv_prefix_does_not_swallow_similar_names`：`.venue/hall/seat.py`、`.vendor/pkg/mod.py`、`src/venue.py`、`apps/prevenue/x.ts` **都不得**被排除——前缀放宽就会红。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_security_scanner_excludes_are_segment_exact.py -q` | **45 passed**（41 + 4 新） |
+| 回归 | `pytest test_security_scanner_placeholders_agree.py test_p0_5_closed_loop_scan_contract.py tests/security/test_no_key_leak.py tests/security/test_threat_vectors.py -q` | **46 passed, 2 skipped** |
+| ruff | `ruff check agent/security_scanner.py tests/unit/...segment_exact.py` | 初报 SIM103（`if cond: return True; return False` 可直接返回条件），改后 **All checks passed** |
+| mypy | `mypy agent/security_scanner.py` | Success: no issues found |
+| **变异臂**（前缀 `.venv` → `.ven`，即**放宽到会吃掉 `.venue`/`.vendor`**） | 先预测：防过宽那两条红 | 实测 **2 failed, 39 passed**，逐名命中 `.venue/hall/seat.py` 与 `.vendor/pkg/mod.py` |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | 工作树只剩本号改动、无 `.orig` 残留；复跑 45 passed |
+
+**自扫描三段实测（同一棵树，越来越准）。**
+| 版本 | 耗时 | 扫过文件 | finding | C/H |
+| #441 之前 | **>240s 超时** | — | — | — |
+| #441 之后（精确名 `.venv`/`venv`） | 52.7s | 11,090 | 324 | **67** |
+| **#443 之后（`.venv` 前缀）** | **15.1s** | **3,023** | **261** | **5** |
+
+**剩下 5 条 C/H 逐条判定（全部是「意图上的假阳性」，没有一条是真泄露）。**
+| 位置 | 内容 | 判定 |
+| `apps/web/src/agent/__tests__/AgentSettings.test.tsx:35` | `api_key: "secret-value"` | 测试夹具，值本身写着「我是假值」 |
+| `docs/operations/EXPERIENCE_GUIDE.md:46` | `$env:SPECPROOF_API_KEY="demo-key"` | 文档示例，`demo-key` |
+| `docs/operations/LOCAL_EXPERIENCE.md:119` | `$env:LLM_API_KEY = "<你的网关密钥>"` | 文档占位符（中文「你的网关密钥」），占位符清单不认它 |
+| `experiments/external_state.py:205` | docstring 里演示 `redis://[:password@]host:port/db` 的**格式** | 正则命中的是文档里的示意串，不是真凭据 |
+| `services/control-plane/src/test/java/.../WebhookControllerTest.java:32` | `SECRET = "test-webhook-secret"` | 测试常量 |
+
+⇒ **本仓库的真实 secret 姿态是干净的**；剩下 256 条 LOW 是项目自己的内部标识（`deepseek-v4-pro` / `llm-api.fagougou.com`），按设计就是 LOW。
+
+**顺带量到的缺口（入队，不在本号修）。** `agent/security_scanner.py` **没有任何逐行豁免机制**——想说「这条是假阳性」只有两条路：把字面量加进全局占位符清单（越加越宽），或改代码。上面 5 条因此无处安放。`test_bandit_suppressions_are_earned.py` 为 bandit 守着一套 `# nosec <id>` 纪律，这个扫描器没有对应物。
+
+**诚实边界。** ① `.venv` 前缀规则是**政策选择**：理由是「虚拟环境永不发布」（`git check-ignore` 实测确认），但**真把 secret 写进 `.venv312` 这扫描器现在看不见**——与 `tests/` / `.scratch` 同一种取舍。② 前缀只认 `.venv`（带点），所以 `.venv312` 进、`.venue` 不进；若哪天有人建一个叫 `venv312`（无点）的目录，它仍会被扫——那是精确名清单已有的行为，未改。③ 5 条判定是**逐条读代码得出的意图判断**，不是机器判定；机器只知道「匹配了」。④ 15.1s 仍是本机量级（含读 3,023 个文件），CI 上未必同量级。
+
+**下一号队列（取号按落地时点 max+1）。** ① **给 `agent/security_scanner.py 设计逐行豁免机制**（本号量到的缺口）——上面 5 条意图上的假阳性现在无处安放；可参照 `# nosec` 那套「原因在前、id 在后、且 id 必须真是扫描器会报的那个」的纪律，别做成随手 `# ignore`。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。

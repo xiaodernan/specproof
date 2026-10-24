@@ -42,10 +42,31 @@ from agent.security_scanner import _should_exclude
         ".mypy_cache/3.12/x.json",
         ".pytest_cache/v/cache/lastfailed",
         ".ruff_cache/0.14.0/x.json",
+        # #443：.venv 的前缀家族 —— 本仓库的虚拟环境叫 .venv312，#441 只列了精确名
+        ".venv312/Lib/site-packages/pkg/mod.py",
+        ".venv-py312/lib/x.py",
     ],
 )
 def test_a_directory_named_exactly_is_still_excluded(path: str) -> None:
     assert _should_exclude(path) is True
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".venue/hall/seat.py",
+        ".vendor/pkg/mod.py",
+        "src/venue.py",
+        "apps/prevenue/x.ts",
+    ],
+)
+def test_the_venv_prefix_does_not_swallow_similar_names(path: str) -> None:
+    """`.venv` 前缀规则不能顺手吃掉 `.venue` / `.vendor` —— 前导点就是为这个。
+
+    #443 量到：本仓库 venv 叫 `.venv312`，所以精确名清单漏了它；改成前缀规则后
+    必须同时证明它没有变成新的过宽匹配（#440 那一类）。
+    """
+    assert _should_exclude(path) is False
 
 
 @pytest.mark.parametrize(

@@ -51,6 +51,13 @@ _EXCLUDE_PATTERNS = [
     ".venv/", "venv/", ".scratch/", ".mypy_cache/", ".pytest_cache/", ".ruff_cache/",
 ]
 
+#: Directory-name PREFIXES that mean "local virtualenv" — `.venv`, `.venv312`,
+#: `.venv-py312`, … #441 listed the two exact names and still missed: this repo's
+#: venv is **`.venv312`**, so the self-scan walked 11,090 files instead of 3,023
+#: and reported 67 CRITICAL+HIGH findings that all lived inside it. The leading
+#: dot is what keeps this from swallowing a real `.venue/` or `vendor/`.
+_EXCLUDE_DIR_PREFIXES = (".venv",)
+
 # Canary secret injected during scan for leak detection
 _CANARY_SECRET = "SPECPROOF_CANARY_a7f3b2c9d1e4_SECRET_DO_NOT_COMMIT"
 
@@ -127,7 +134,7 @@ def _should_exclude(path: str) -> bool:
                 return True
         elif normalized.endswith(f"/{pattern}") or normalized == pattern:
             return True
-    return False
+    return any(part.startswith(_EXCLUDE_DIR_PREFIXES) for part in parts)
 
 
 def scan_directory(root: str) -> SecurityScanResult:
