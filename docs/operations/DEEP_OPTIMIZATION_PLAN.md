@@ -11255,3 +11255,33 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① 只改 `detect_adapter` 一个函数；`register_adapter` / `get_adapter` / `list_adapters` 的语义一字未动。② **零生产调用方是本次测量的事实，不是永久保证**——Phase 4 接入自动检测时必须重新评估。③ 没有真实多语言项目可验「哪个适配器先命中」（注册顺序即优先级，本号只用假适配器钉了「抛 / None / 命中」三种结局）。④ `get_adapter` 的重复 id 静默覆盖仍是现状（#434 已钉），本号未动。
 
 **下一号队列（取号按落地时点 max+1）。** ① 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。② `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。③ `tests/unit` 里是否还有别的全树 `rglob` 未剪枝（#436 边界③）。④ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+## #438 第三份手抄排除清单出现之前：把剪枝 walk 提到 `tests/`，`test_drills_gap_claims_hold` 快 2.4 倍
+
+**起因/占号。** #436 队列③：「`tests/unit` 里是否还有别的全树 `rglob` 未剪枝」。本号先量。占号前重测账本：HEAD 版账本 `## #` id 最大 **437** ⇒ 取 **#438**。
+
+**先量后写（量的是「还有没有漏的」）。** `git grep rglob|os.walk` 全 tests/：
+- 大部分已按子目录收敛（`CRAFT` / `WEB` / `AGENT_SRC` / `AGENT_DIR` / `REPO/pkg` / `TESTS_ROOT` / `loop.artifact_dir`）——没问题。
+- `tests/unit/test_craft_routes_every_sandbox_profile.py:96` **已经剪枝**，docstring 还明写「Pruning rather than filtering matters here: the delivered tree carries a `.venv312` and a `node_modules` with tens of thousands of files」——**同一个教训已经有人学过一遍了**。
+- `tests/conftest.py` 两处按 `_SCAN_DIRS` / `tests/` 收敛——没问题。
+- **漏的只有一个**：`tests/unit/test_drills_gap_claims_hold.py::_product_py_files` 用 `REPO.rglob("*.py")` 走全树再过滤。实测：**27,656 个文件里只留 671 个**，`PRODUCT_SKIP` 把 98% 的遍历成果扔掉（`.scratch` 13,778 + `.venv` 6,600）。
+
+**修。**
+- 把 #436 新建的 `tests/security/_scan_walk.py` **`git mv` 到 `tests/_scan_walk.py`**（它是测试基础设施，不属 security 专属），docstring 补上第二个消费者的实测数字。
+- `test_drills_gap_claims_hold.py::_product_py_files` 改用共享 `walk_files`，**保留 `PRODUCT_SKIP` 过滤不变**（它含 `tests` / `demo` / `artifacts` 等**该扫**的目录，不能一并剪掉）。
+- 两个 security 测试文件的相对导入 `._scan_walk` → `.._scan_walk`。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| **语义不变（关键）** | 同一条 `PRODUCT_SKIP` 规则，旧 `rglob` 版 vs 新 `walk_files` 版的**文件集合**对比 | **IDENTICAL SET: True**（都是 671 个） |
+| 耗时 | `_product_py_files` 单跑 | **2.86s → 0.83s（3.4×）** |
+| 测试 | `pytest tests/unit/test_drills_gap_claims_hold.py -q` | 11 passed，**10.25s → 4.24s（2.4×）** |
+| 回归（移动模块后的两个消费者） | `pytest tests/security/test_no_key_leak.py tests/security/test_no_secrets.py -q` | 15 passed in 18.42s |
+| ruff | `ruff check <4 files>` | All checks passed |
+| **变异臂**（把 `walk_files` 的扩展名过滤改成 `if False:`，即**不再按扩展名挑文件**） | 先预测：三个走查门至少红一条 | 实测 **3 failed, 9 passed**——`test_no_api_key_in_python_source` / `_in_java_source` / `_in_config_files` **全红**（预测只报一条，实测三条，因为三道门共用同一个 walk）；且变异后单文件耗时 **18.42s → 84.85s**，顺带证明这个过滤器同时扛正确性与速度 |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | 确认工作树只剩本号改动、无 `.orig` 残留；复跑绿 |
+
+**否证与订正。** ① 我在代码注释里先写了「keep 7,278」，实测是 **671**（7,278 只是扣掉 `.scratch` / `.venv` 后的数，还没扣 `tests` / `demo` / `artifacts` 等）⇒ 已改成实测值。② 一开始想直接把 `PRUNE_DIRS` 扩成 `PRODUCT_SKIP` 的超集——**错的**：`PRODUCT_SKIP` 里的 `tests` / `demo` / `artifacts` 是 secret 扫描**要扫**的目录，剪了就换来一个更窄的门；所以只剪遍历、不过滤语义。
+
+**诚实边界。** ① 剪枝是**性能修复，没有行为门**：把 `dirnames[:] = ...` 整行删掉，测试照样全绿（只是变慢）——所以本号的变异臂打的是**扩展名过滤器**（那条同时扛正确性与速度），不是剪枝本身。② 只处理了 `tests/` 里量到的那一处；`scripts/`、`experiments/` 等生产代码里的全树遍历未量。③ 移动模块改了 `tests/security/` 两个文件的导入路径，若有别的分支正在改这两个文件会冲突——本号只改导入那一行。
+
+**下一号队列（取号按落地时点 max+1）。** ① 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。② `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。③ `scripts/` / `experiments/` 等生产代码里是否还有未剪枝的全树遍历（本号边界②）。④ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。

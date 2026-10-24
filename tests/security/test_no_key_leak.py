@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from ._scan_walk import walk_files as _walk_files
+from .._scan_walk import walk_files as _walk_files
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CANARY_SECRET = "SPECPROOF_CANARY_a7f3b2c9d1e4_SECRET_DO_NOT_COMMIT"

@@ -18,6 +18,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .._scan_walk import walk_files
+
 REPO = Path(__file__).resolve().parents[2]
 DRILLS = REPO / "docs" / "operations" / "DRILLS.md"
 GAP_AUDITS = (
@@ -296,11 +298,15 @@ def test_the_s3_headline_counts_are_the_table_counts() -> None:
 def _product_py_files() -> list[Path]:
     """Product .py files: no venvs, no scratch worktrees, no fixtures."""
     files: list[Path] = []
-    for path in REPO.rglob("*.py"):
-        rel = path.relative_to(REPO)
-        if PRODUCT_SKIP & set(rel.parts) or rel.parts[0].startswith("."):
+    # Pruned walk, shared with tests/security: the excluded directories are
+    # never descended into. A naive rglob here walked 27,656 files to keep 671
+    # (measured) — 98% of the traversal was .scratch/.venv that PRODUCT_SKIP
+    # then threw away anyway. Same set, ~3.4x faster.
+    for fpath, rel in walk_files(REPO, frozenset({".py"})):
+        parts = rel.split("/")
+        if PRODUCT_SKIP & set(parts) or parts[0].startswith("."):
             continue
-        files.append(path)
+        files.append(fpath)
     return files
 
 

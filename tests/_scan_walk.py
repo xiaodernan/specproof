@@ -1,12 +1,12 @@
-"""Shared full-tree walk for the secret-scanning gates.
+"""Shared full-tree walk for the scanning gates.
 
-Both ``test_no_key_leak.py`` and ``test_no_secrets.py`` scan the whole project
-tree. Each used to carry its own exclude list, and each list was wrong in a
-different way: one omitted ``.mypy_cache`` and ``.scratch`` (measured: 11,211 of
-the 12,394 ``*.json`` files a naive walk reads, which made a gate hang for
-minutes), the other omitted them too. Two hand-written lists about the same
-machine is exactly the drift this repo fences against elsewhere, so the walk
-lives here once.
+``tests/security`` (secret scanning) and ``tests/unit`` (product-file
+population) both walk the whole project tree. Each used to carry its own exclude
+list, and each list was wrong in a different way: one omitted ``.mypy_cache``
+and ``.scratch`` (measured: 11,211 of the 12,394 ``*.json`` files a naive walk
+reads, which made a gate hang for minutes), the other walked 27,656 ``*.py``
+files to keep 7,278. Two hand-written lists about the same machine is exactly
+the drift this repo fences against elsewhere, so the walk lives here once.
 """
 
 from __future__ import annotations
