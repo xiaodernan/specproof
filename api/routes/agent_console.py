@@ -571,6 +571,51 @@ def _job_or_404(job_id: str) -> AgentJob:
     return job
 
 
+def _notify_craft_terminal(
+    job_id: str, status: str, *, reason: str = "",
+) -> None:
+    """Best-effort craft terminal notification (§16.6-4).
+
+    Fires only AFTER the store accepted the terminal write (callers invoke
+    it on the success path), reuses the verify lane's transport (connectors,
+    outbox relay) with the CRAFT vocabulary — a craft failure can never be
+    rendered with verify's wording. Cancelled stays silent: the canceller
+    already knows; that knowledge IS the notification. Never raises: a
+    delivery problem cannot flip an honest terminal state.
+    """
+    try:
+        from integrations.notify import (
+            build_craft_notification,
+            craft_notifiable,
+            webhook_connector_from_env,
+        )
+
+        if not craft_notifiable(status):
+            return
+        task_name = ""
+        repo_path = ""
+        try:
+            meta = get_state().meta_for(job_id)
+            repo_path = str(meta.get("repo_path", ""))
+            task_name = str(meta.get("task_name", ""))
+        except Exception:  # noqa: BLE001 — meta is optional context
+            pass
+        notification = build_craft_notification(
+            job_id, status,
+            task_name=task_name, reason=reason, repo_path=repo_path,
+        )
+        connector = webhook_connector_from_env()
+        try:
+            connector.send(notification)
+        finally:
+            connector.close()
+    except Exception:  # noqa: BLE001 — best effort
+        logger.warning(
+            "Craft terminal notification failed for %s (%s)", job_id, status,
+            exc_info=True,
+        )
+
+
 def _transition(
     job_id: str,
     status: Literal["running", "failed", "succeeded"],
@@ -579,7 +624,7 @@ def _transition(
 ) -> AgentJob:
     """Map console-level transitions onto the store (honest 409 on conflicts)."""
     try:
-        return get_store().update_status(
+        get_store().update_status(
             job_id,
             status,
             error=error,
@@ -603,6 +648,11 @@ def _transition(
             code=PROVIDER_UNAVAILABLE,
             detail=f"Agent job store unavailable: {exc}",
         ) from exc
+    # Terminal + accepted: announce on the craft vocabulary (§16.6-4). Only
+    # reachable past the exception chain — a refused write announces nothing.
+    if status in ("failed", "succeeded"):
+        _notify_craft_terminal(job_id, status, reason=error or "")
+    return get_store().get(job_id)
 
 
 def _apply_approval(

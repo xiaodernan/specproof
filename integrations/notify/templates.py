@@ -199,3 +199,65 @@ def build_terminal_notification(
         blocks=tuple(blocks_for_summary(job_id, verdict, summary)),
         job_id=job_id,
     )
+
+
+# ── Craft (AI development) lane terminal events (§16.6-4) ─────────────────
+#
+# The verify lane's four-verdict vocabulary does not apply to craft jobs:
+# a craft run ends succeeded / failed / cancelled, and its "result" is a
+# change bundle + gates, not a contract matrix. These builders reuse the
+# transport (Notification/connectors/relay) but own their vocabulary, so a
+# craft failure can never be rendered with verify's "verification failed"
+# wording.
+
+CRAFT_EVENT_TYPES: dict[str, str] = {
+    "succeeded": "craft.succeeded",
+    "failed": "craft.failed",
+}
+
+CRAFT_TITLES: dict[str, str] = {
+    "succeeded": "SpecCraft development run finished",
+    "failed": "SpecCraft development run failed",
+}
+
+
+def craft_event_type(status: str) -> str:
+    """Dotted event name for a craft terminal status (ValueError otherwise)."""
+    key = status.strip().lower()
+    if key not in CRAFT_EVENT_TYPES:
+        raise ValueError(
+            f"unsupported craft terminal status {status!r}; expected one of "
+            + ", ".join(sorted(CRAFT_EVENT_TYPES))
+        )
+    return CRAFT_EVENT_TYPES[key]
+
+
+def craft_notifiable(status: str) -> bool:
+    """Whether a craft status has a template (cancelled stays silent: the
+    canceller already knows — that knowledge IS the notification)."""
+    return status.strip().lower() in CRAFT_EVENT_TYPES
+
+
+def build_craft_notification(
+    job_id: str, status: str, *, task_name: str = "", reason: str = "",
+    repo_path: str = "",
+) -> Notification:
+    """Build one craft terminal Notification from the job's own vocabulary.
+
+    All fields come from the job row / console meta — nothing is inferred
+    about verify verdicts or contract counts, because a craft run has none.
+    """
+    key = status.strip().lower()
+    event = craft_event_type(key)
+    lines = [f"Task: {task_name or job_id}"]
+    if repo_path:
+        lines.append(f"Repo: {repo_path}")
+    if reason:
+        lines.append(f"Reason: {reason[:300]}")
+    return Notification(
+        event_type=event,
+        title=CRAFT_TITLES[key],
+        text="\n".join(lines),
+        blocks=(),
+        job_id=job_id,
+    )

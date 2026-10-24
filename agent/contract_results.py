@@ -20,20 +20,27 @@ def merge_contract_results(
     - FAIL beats PASS and UNVERIFIED (a real failure is decisive)
     - PASS beats UNVERIFIED
     - UNVERIFIED fills gaps only
+    - only a non-empty *string* contract_id names a contract: ids are stripped
+      (so ``" C-1 "`` and ``"C-1"`` are one contract) and whitespace-only /
+      non-string ids are ignored — the same hygiene as
+      :func:`agent.matrix_policy.merge_contract_results`
     """
     merged: dict[str, dict[str, Any]] = {}
     for r in (*existing, *incoming):
-        cid = r.get("contract_id", "")
-        if not cid:
+        if not isinstance(r, dict):
             continue
+        raw_id = r.get("contract_id")
+        if not isinstance(raw_id, str) or not raw_id.strip():
+            continue
+        cid = raw_id.strip()
         old = merged.get(cid)
         if old is None:
-            merged[cid] = dict(r)
+            merged[cid] = {**r, "contract_id": cid}
             continue
         rank = {"FAIL": 3, "PASS": 2, "UNVERIFIED": 1}
         # >= (not >): on a tie the LATER experiment wins — it usually carries
         # the stronger evidence (e.g. differential sha256 digest vs static
         # finding id).
         if rank.get(r.get("result", ""), 0) >= rank.get(old.get("result", ""), 0):
-            merged[cid] = dict(r)
+            merged[cid] = {**r, "contract_id": cid}
     return list(merged.values())
