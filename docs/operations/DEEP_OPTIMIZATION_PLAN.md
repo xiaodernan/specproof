@@ -11100,3 +11100,39 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 - `tests/unit/test_adapter_protocol.py`（新增，23 项）
 - `tests/unit/test_gradle_adapter.py`（已增强，23 项）
 - `docs/operations/DEEP_OPTIMIZATION_PLAN.md`：追加 #431
+## #433 `merge_contract_results` 的 id 卫生与 `matrix_policy` 对齐：空白 id 不再变幽灵行
+
+**起因/占号。** #400 的边界③ 与 #403 队列② 都是这一条：「`agent/contract_results.merge_contract_results`（两参版）的**纯空白 `contract_id`** 疑似缺陷——先量影响面再决定修不修」。本号先量，结论是：**仓库里有两个同名 `merge_contract_results`，做同一件事，键卫生规则却不同** ⇒ 这不是「要不要修」的问题，是**两份手抄卫生规则漂移**。占号前重测账本：`## #` id 最大 **432**（Phase 4 跨语言适配器那条，工作树在途未提交）⇒ 本号取 **#433**。
+
+**先量后写（量的是「两份卫生规则差在哪」）。**
+- `agent/matrix_policy.merge_contract_results`（一参，`build_matrix` 用）：`if not isinstance(raw_id, str) or not raw_id.strip(): continue` + `groups.setdefault(raw_id.strip(), ...)` ⇒ **空白 id 忽略、前后空白剥掉、非字符串忽略**。docstring 明说「Entries without a non-empty string contract_id are ignored」，且 `test_matrix_policy.py::test_empty_entries_and_missing_contract_ids_are_ignored` **钉住了 `"   "` 被忽略**。
+- `agent/contract_results.merge_contract_results`（两参，`run_differential.py` 用）：只有 `cid = r.get("contract_id", "")` + `if not cid` ⇒ **`"   "` 会变成一条幽灵行**、**`" C-1 "` 与 `"C-1"` 不会合并**、**非字符串 id 也被当键**。
+- 实测（探针，未提交）：同样 8 条输入喂两个函数，一参版活下来的 id 是 `{"C-1","C-2"}`；两参版活下来的是 `{"C-1","  C-1  ","C-2","   ","123",None}` ⇒ 差 4 个。
+
+**修（最小生产码改造，与一参版逐字对齐）。** `agent/contract_results.py`：
+- `raw_id = r.get("contract_id")`；`if not isinstance(raw_id, str) or not raw_id.strip(): continue`；`cid = raw_id.strip()`；
+- 落库用 `{**r, "contract_id": cid}`（键归一之外，**行内的 id 也归一**）；
+- 补 `if not isinstance(r, dict): continue`（与一参版一致的类型兜底）；
+- docstring 补一条卫生规则，并指名与 `agent.matrix_policy.merge_contract_results` 同一把尺。
+
+**落地（门）。** 新建 `tests/unit/test_contract_results_hygiene_parity.py`（5 案）：
+1. `test_whitespace_only_id_is_skipped`：`[{"contract_id":"   "}]` ⇒ `[]`；
+2. `test_padded_id_merges_with_unpadded_and_is_normalized`：`"  C-1  "` 的 FAIL 与 `"C-1"` 的 PASS 合成**一行**，`contract_id == "C-1"`；
+3. `test_non_string_ids_are_skipped`：int 123 与 None 都丢；
+4. `test_parity_with_matrix_policy_on_which_ids_survive`：8 条混合输入喂两个函数，**活下来的 id 集合必须相等**且等于 `{"C-1","C-2"}`；
+5. `test_clean_ids_still_merge_with_priority`：干净 id 的 FAIL>PASS 不变（回归）。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试（新门 + #400 门） | `PYTHONPATH=. .venv/Scripts/python.exe -m pytest tests/unit/test_contract_results_hygiene_parity.py tests/unit/test_contract_results_merge_semantics.py -q -p no:cacheprovider` | 15 passed |
+| 回归（两参版的真实消费方） | `… tests/unit/test_checker_fixes.py tests/unit/test_verdict_policy.py` | 4 个文件合计 **69 passed** |
+| ruff | `.venv/Scripts/python.exe -m ruff check agent/contract_results.py tests/unit/test_contract_results_hygiene_parity.py` | All checks passed |
+| **变异臂**（守卫 `or not raw_id.strip()` → `or not raw_id`，即**让空白 id 重新变成键**） | 先预测：空白那条与 parity 那条红 | 实测 **2 failed, 3 passed**，`Extra items in the left set: ''` |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `git status` 确认 `agent/contract_results.py` 干净、无 `.orig` 残留 |
+
+**并发事实（如实记）。** 本号的**代码**（`agent/contract_results.py` 的修改 + 新测试文件）在本地做完门证后，被并发车道的 `23047d5 chore: working directory sync before next ledger entry` **连同它的其它在途改动一起提交并推送**（已核验 HEAD 里 `raw_id.strip()` / `isinstance(raw_id, str)` 与 `tests/unit/test_contract_results_hygiene_parity.py` 均在，内容逐字一致；69 条回归全绿）。本号只补**账本这一段**，并且**刻意不把工作树里别的车道在途的 #432 段落带进本号提交**——用 `git hash-object -w` + `git update-index --cacheinfo` 只提交「HEAD 版账本 + 本段」这个 blob。
+
+**诚实边界。** ① 只改 `merge_contract_results` 的**键卫生**，优先级/平局/副本语义一字未动（#400 那 10 案仍全绿）。② 非字符串 id 从「保留」变成「忽略」是**行为变更**：`matrix_policy` 早已这么做，且 `build_matrix` 最终仍走一参版，所以端到端不变；但若有人直接消费两参版的输出并期待 int id，那会受影响——**未发现这样的消费方**（已 grep `"contract_id":` 的全部写入点，均为字符串表达式）。③ parity 门只比**活下来的 id 集合**，不比两版输出行的完整形状（一参版产出 canonical 行，字段不同，本就不可比）。④ 未在真实数据上跑全量评测。
+
+**下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `security_scanner` 占位符漂移（#403 队列①）——等并发车道让出文件。② `tests/security/` 全仓扫描在本机跑不完，值得单独一号做成**可增量/可超时**的门（#403 队列③）。③ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。④ Phase 4 在途的跨语言适配器（`craft/adapters/go_adapter.py` / `node_adapter.py`）若有纯逻辑（注册表、能力声明）可补栅栏——**等该车道让出**。⑤ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。
