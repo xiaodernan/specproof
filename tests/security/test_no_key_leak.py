@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from ._scan_walk import walk_files as _walk_files
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CANARY_SECRET = "SPECPROOF_CANARY_a7f3b2c9d1e4_SECRET_DO_NOT_COMMIT"
 
@@ -36,6 +38,7 @@ def _is_source_file(path: str) -> bool:
     excludes = {
         ".git", "__pycache__", "target", "node_modules", ".mvn",
         "artifacts/legacy-invalid", ".local",
+        ".venv", "venv", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".scratch",
     }
     skip_exts = {".jar", ".zip", ".class", ".jpg", ".png", ".woff", ".gz", ".tar"}
     normalized = path.replace("\\", "/")
@@ -52,6 +55,9 @@ CONFIG_GLOBS = (
     "*.properties", "*.xml", "*.cfg", "*.ini",
 )
 
+#: The extensions CONFIG_GLOBS stands for, derived so there is one source of truth.
+_CONFIG_EXTS = frozenset(g.lstrip("*").lower() for g in CONFIG_GLOBS)
+
 
 def scan_config_tree(root: Path) -> list[str]:
     """Return ``rel:line — kind`` for every key-shaped string in config files.
@@ -61,25 +67,23 @@ def scan_config_tree(root: Path) -> list[str]:
     is added.
     """
     violations: list[str] = []
-    for pattern in CONFIG_GLOBS:
-        for filepath in root.rglob(pattern):
-            rel = str(filepath.relative_to(root)).replace("\\", "/")
-            if not _is_source_file(rel):
-                continue
-            if ".env" in rel:
-                continue
-            try:
-                content = filepath.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, PermissionError):
-                continue
-            for lineno, line in enumerate(content.splitlines(), 1):
-                for pat, name in _KEY_PATTERNS:
-                    m = re.search(pat, line, re.IGNORECASE)
-                    if m is None:
-                        continue
-                    if CANARY_SECRET in m.group(0) or "replace_me" in line.lower():
-                        continue
-                    violations.append(f"{rel}:{lineno} — {name}")
+    for filepath, rel in _walk_files(root, _CONFIG_EXTS):
+        if not _is_source_file(rel):
+            continue
+        if ".env" in rel:
+            continue
+        try:
+            content = filepath.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, PermissionError):
+            continue
+        for lineno, line in enumerate(content.splitlines(), 1):
+            for pat, name in _KEY_PATTERNS:
+                m = re.search(pat, line, re.IGNORECASE)
+                if m is None:
+                    continue
+                if CANARY_SECRET in m.group(0) or "replace_me" in line.lower():
+                    continue
+                violations.append(f"{rel}:{lineno} — {name}")
     return violations
 
 
@@ -89,8 +93,7 @@ class TestNoHardcodedKeys:
     def test_no_api_key_in_python_source(self):
         """All .py files (tracked or untracked) must be free of `sk-***` keys."""
         violations = []
-        for filepath in PROJECT_ROOT.rglob("*.py"):
-            rel = str(filepath.relative_to(PROJECT_ROOT)).replace("\\", "/")
+        for filepath, rel in _walk_files(PROJECT_ROOT, frozenset({".py"})):
             if not _is_source_file(rel):
                 continue
             if rel.endswith(".env") or "security_scanner" in rel:
@@ -129,8 +132,7 @@ class TestNoHardcodedKeys:
     def test_no_api_key_in_java_source(self):
         """All .java files must be free of `sk-***` keys."""
         violations = []
-        for filepath in PROJECT_ROOT.rglob("*.java"):
-            rel = str(filepath.relative_to(PROJECT_ROOT)).replace("\\", "/")
+        for filepath, rel in _walk_files(PROJECT_ROOT, frozenset({".java"})):
             if not _is_source_file(rel):
                 continue
             try:

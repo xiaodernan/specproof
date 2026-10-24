@@ -454,6 +454,16 @@ def _make_symlink(link: Path, target: Path) -> None:
         os.symlink(str(target), str(link))
     except OSError as exc:
         pytest.skip(f"平台不允许创建符号链接 (Windows 需开发者模式/管理员): {exc}")
+    if not link.is_symlink():
+        # Measured on this machine: os.symlink returns WITHOUT raising, yet no
+        # link exists afterwards (is_symlink() False, is_file() False, and
+        # reading it raises FileNotFoundError). A guard that only catches OSError
+        # lets that through, and the two tests below then fail — because a
+        # non-existent link resolves to itself, so nothing looks like an escape —
+        # instead of skipping. Verify the link is real before relying on it.
+        pytest.skip(
+            "os.symlink 未报错但并未真正建立符号链接（本环境不允许建立），跳过 OS 层用例"
+        )
 
 
 class TestSymlinkEscape:

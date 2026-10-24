@@ -11192,3 +11192,39 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① **`_as_text` 是行为修正不是纯样式**：原来 `stdout=e.stdout or ""` 在 `TimeoutExpired.stdout` 是 bytes 时会把 bytes 塞进声明为 `str` 的字段；现在统一收敛成文本。超时路径无既有测试覆盖该分支，收敛后的行为按「与正常路径一致」论证。② **`subprocess.os` → `os` 是等价替换**（`subprocess` 内部就 `import os`），不是行为变更。③ **`extra` / `parse_errors` 的 `| None` 注解让 mypy 看见了真实形状**，随之暴露 `profile.extra.get(...)` 两个使用点 ⇒ 用 `(profile.extra or {})` 收敛；`__post_init__` 早已保证非 None，运行期行为不变。④ **未修在途的 35 个 ruff 错**（`go_adapter.py` / `node_adapter.py` / `test_go_adapter.py` / `test_node_adapter.py`）——那些文件正被别的车道改，本号不碰；它们一旦提交，CI 会再红，**已入下一号队列**。⑤ mypy 的 `ET.parse` type: ignore 是我**加错又撤掉**的：真正无类型的是 lambda 调用，撤掉后用类型别名修，没留下多余 ignore（`warn_unused_ignores` 会抓）。
 
 **下一号队列（受本环境约束，取号按落地时点 max+1）。** ① 在途的 go/node 适配器（35 个 ruff 错）提交后 CI 会再红 ⇒ 该车道落地时须同批修，或本号跟进。② `tests/security/` 全仓 bandit 扫描本机跑不完（#404 边界③）——做成可增量/可超时的门。③ `detect_adapter` 的静默跳过要不要 fail-loud（#434 边界②）。④ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。⑤ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+## #436 `tests/security/` 从「跑不完 + 两条红」到 92 秒全绿：两份手抄排除清单 + 一个不验货的符号链接守卫
+
+**起因/占号。** #404 边界③ 与 #435 队列② 挂着同一条：「`tests/security/` 整套是全仓库扫描，本机跑不完（实测 >6 分钟仍无输出，已停）」。本号先量再修。占号前重测账本：HEAD 版账本 `## #` id 最大 **435** ⇒ 取 **#436**。
+
+**先量后写（量的是「到底谁慢、谁红」）。** 逐个文件计时（150s 上限）：
+| 文件 | 修前 | 修后 |
+| `test_bandit_suppressions_are_earned.py` | 18.42s | 18.42s（bandit 本身只花 6.5s，与 CI 同参实测） |
+| `test_injection_matrix.py` | 2.24s | 2.24s |
+| **`test_no_key_leak.py`** | **超时（>150s 无输出）** | **11.76s** |
+| `test_no_secrets.py` | 58.35s | ~10s |
+| `test_retrieval_injection.py` | 2.78s | 2.78s |
+| **`test_threat_vectors.py`** | **2 failed**（早前用 `-x` 只报 1 条，实际 2 条） | 20 passed, 2 skipped |
+| `test_webhook_replay.py` | 2.66s | 2.66s |
+⇒ 整套 **>6 分钟挂住且两条红 ⇒ 92.06s，86 passed, 2 skipped**。
+
+**缺陷一：慢的根因是两份手抄排除清单，两份都漏。** `scan_config_tree` 用 `root.rglob(pattern)` 逐模式走全树、**走完才过滤**。量到的分布：`*.json` 共 12,394 个，其中 `.mypy_cache` 6,187 个、`.scratch` 5,024 个——**11,211 个根本不可能被提交**（`.scratch` 早就被 ruff 排除，缓存目录本就在 .gitignore 里）。而 `_is_source_file` 的排除集里**没有** `.mypy_cache` / `.scratch` / `.venv`；`test_no_secrets.py` 自己那份更小（只有 `__pycache__` / `.venv` / `venv`）。
+- **修**：抽 `tests/security/_scan_walk.py`（`PRUNE_DIRS` + `walk_files(root, exts)`），一次 `os.walk` **边遍历边剪枝**，两个测试文件共用同一份清单（不再手抄第二份）。
+- `_is_source_file` 的排除集同步补齐（纵深防御）。
+- `CONFIG_GLOBS` 派生出 `_CONFIG_EXTS`，保持单一来源。
+
+**缺陷二：两条红不是「Windows 不支持符号链接」，是守卫不验货。** `TestSymlinkEscape` 的两条真实符号链接用例红。先量：本机 `os.symlink()` **不报错但什么也没建**（`is_symlink()` False、`is_file()` False、`os.readlink` 抛 FileNotFoundError）。原守卫只捕 `OSError` ⇒ 这个「静默无操作」被放过去，于是「链接」是个不存在的文件：逃逸那条不抛（不存在的链接解析成自己，看着在根内），根内那条断言 `resolved == real.resolve()` 自然不等。
+- **修**：`_make_symlink` 建完**验货**——`if not link.is_symlink(): pytest.skip(...)`。平台上真能建时就真跑，建不成就大声跳过，不再假跑。
+- 实测：**20 passed, 2 skipped**（2 条 OS 层用例如实跳过，fake-resolver 那条平台无关的照常跑）。
+
+**否证与订正（本号自己踩的）。** ① 我把 `for pattern in CONFIG_GLOBS: for ... rglob(pattern)` 改成单层循环时，**把里面的扫描块留在了原来的缩进**——它变成了 `if ".env" in rel: continue` 后面的死代码，于是 `scan_config_tree` 恒返回 `[]`。是 `test_local_scratch_exemption_is_narrow` **当场抓住的**（`assert 0 == 1`）⇒ 这正是那道门存在的理由，记在这里而不是悄悄改完。② 修好后特意复跑那条窄豁免用例，确认「`.local` 被剪掉、同名 key 在 `src/main/resources/app.yml` 仍被抓到」这条对消长关系没被剪坏。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 整套 | `pytest tests/security -q` | **修前 >6min 挂住 + 2 failed ⇒ 修后 86 passed, 2 skipped in 92.06s** |
+| bandit 单跑 | `bandit -r agent api cli storage providers evidence observability sandbox experiments integrations -ll -q --skip B101` | 6.50s，exit 0 |
+| ruff（4 个改动/新增文件） | `ruff check …` | All checks passed |
+| 剪枝正确性 | `_walk_files` 探针 | `.local` 被剪、`src/main/resources/app.yml` 仍被找到 |
+
+**诚实边界。** ① 剪掉 `.mypy_cache` / `.scratch` / `.venv` 是**政策选择**：它们都不可能被提交（`.scratch` 早已被 ruff 排除、缓存在 .gitignore 里），扫它们花几分钟却什么都不守；但**若有人真把 key 写进 `.scratch`，这两道门现在看不见**——与 `.local` 同一种取舍，且 `test_local_scratch_exemption_is_narrow` 仍钉着豁免是窄的。② 符号链接两条是**跳过不是通过**：本机 OS 层没被验到，CI（ubuntu）上会真跑。③ 只修了 `tests/security/` 自己；`tests/unit` 里若还有别的全树 `rglob` 未量。④ 92s 仍不算快，剩下的大头是 bandit（18s，CI 同参）与全树文本读取。
+
+**下一号队列（取号按落地时点 max+1）。** ① 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。② `detect_adapter` 静默跳过要不要 fail-loud（#434 边界②）。③ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。④ `tests/unit` 里是否还有别的全树 `rglob` 未剪枝（本号边界③）。⑤ #397 队列剩余。

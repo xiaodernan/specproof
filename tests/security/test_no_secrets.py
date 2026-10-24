@@ -2,8 +2,13 @@
 
 import os
 import re
+from pathlib import Path
 
 import pytest
+
+from ._scan_walk import walk_files
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestNoSecretLeakage:
@@ -43,19 +48,21 @@ class TestNoSecretLeakage:
 
     def test_source_code_no_hardcoded_apikey(self) -> None:
         """Scan all Python files for hard-coded API key patterns."""
-        project_root = os.path.join(os.path.dirname(__file__), "..", "..")
         key_pattern = re.compile(r'sk-[a-zA-Z0-9]{20,}')
 
-        for dirpath, dirnames, filenames in os.walk(project_root):
-            dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".venv", "venv")]
-            for fname in filenames:
-                if fname.endswith(".py"):
-                    fpath = os.path.join(dirpath, fname)
-                    # Pattern DEFINITIONS and synthetic test secrets live in
-                    # these modules by design — they are not leaks.
-                    if "redaction" in fpath or "security_scanner" in fpath:
-                        continue
-                    with open(fpath, encoding="utf-8") as f:
-                        content = f.read()
-                    if key_pattern.search(content):
-                        pytest.fail(f"API key pattern found in {fpath}")
+        # One pruned walk, shared with test_no_key_leak: the excluded dirs are
+        # never descended into. This file's own list used to omit `.mypy_cache`
+        # and `.scratch`, so most of its runtime was reading files that cannot
+        # be committed.
+        for fpath, rel in walk_files(PROJECT_ROOT, frozenset({".py"})):
+            # Pattern DEFINITIONS and synthetic test secrets live in
+            # these modules by design — they are not leaks.
+            if "redaction" in rel or "security_scanner" in rel:
+                continue
+            try:
+                with open(fpath, encoding="utf-8") as f:
+                    content = f.read()
+            except (UnicodeDecodeError, PermissionError, OSError):
+                continue
+            if key_pattern.search(content):
+                pytest.fail(f"API key pattern found in {rel}")
