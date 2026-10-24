@@ -37,12 +37,18 @@ _EXCLUDE_PATTERNS = [
     ".git/", "__pycache__/", "*.pyc", "node_modules/", ".mvn/wrapper/maven-wrapper.jar",
     "target/", "*.class", "*.jar", "*.zip",
     ".env",  # gitignored, contains real API key by design
+    ".local/",  # its own .gitignore is `*` — nothing in it can ever be committed
     "agent/security_scanner.py",  # self — contains regex patterns, not real secrets
     # Dev/test/evidence trees contain scanner patterns, canary strings, and
     # example placeholders BY DESIGN (never shipped artifacts).
     "tests/",
     "scripts/",
     "artifacts/",
+    # Local environments, tool caches and scratch worktrees: never shipped, and
+    # measured to dominate a full-tree walk — on this repo `.venv` + `.scratch`
+    # alone hold 20,378 of 27,656 `*.py` files. Without these, scanning a repo
+    # that has a virtualenv does not finish (measured: >240s, no output).
+    ".venv/", "venv/", ".scratch/", ".mypy_cache/", ".pytest_cache/", ".ruff_cache/",
 ]
 
 # Canary secret injected during scan for leak detection

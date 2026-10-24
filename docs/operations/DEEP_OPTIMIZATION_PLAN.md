@@ -11344,3 +11344,35 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① 这是**行为变更**：`bench/tasks/*-tests/**` 等 34 个目录下的文件从「被跳过」变成「被扫描」——实测 0 条新 finding，但那是**当前**内容的事实，将来这些目录里出现真 secret 时门会红（那正是想要的行为）。② 只改 `/` 结尾模式的匹配语义；`.env` / 自引用文件 / `*.ext` 未动。③ 不评判断言清单本身是否该包含 `tests/` / `scripts/` / `artifacts/`（那是政策，#404 已统一占位符侧，本号不动清单）。④ 未在真实多语言项目上验 `scan_directory` 的端到端表现（只在本仓库两棵子树上量了 finding 差）。
 
 **下一号队列（取号按落地时点 max+1）。** ① `run_full_security_scan` 零调用方（本号量到）——要么接进 CLI/报告，要么如实记为未接线；它顺带决定了「扫本仓库时该不该排除 `.venv`/`.scratch`」这个问题有没有受益人。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+## #441 排除清单第三处漂移：`.local` 漏了（2 条 CRITICAL 假阳性），`.venv`/`.scratch` 漏了（自扫描直接超时）
+
+**起因/占号。** #440 队列①：「`run_full_security_scan` 零调用方——它顺带决定了『扫本仓库时该不该排除 `.venv`/`.scratch`』这个问题有没有受益人」。本号顺着量下去，量出两处清单漂移。占号前重测账本：HEAD 版账本 `## #` id 最大 **440** ⇒ 取 **#441**。落地前确认 `agent/security_scanner.py` 未被别的车道改动。
+
+**先量后写（量的是「漏的到底是什么、补了会不会红」）。**
+- **`run_full_security_scan` 零调用方**：`git grep` 全仓只有定义那一行；无 CLI 命令、无脚本、无文档引用。`scripts/p0_5_closed_loop.py`（名字听着就是 P0.5 闭环）**自己手抄了一份**秘密扫描（10 条 pattern vs 模块 15 条、自己的排除清单、自己的占位符清单——已漂移）。
+- **但它不只是没接线，是根本跑不动**：`run_full_security_scan(".")` 实测 **>240s 无输出（超时）**——`_EXCLUDE_PATTERNS` 里没有 `.venv` / `.scratch` / `.mypy_cache`，而这三者在本仓库 `*.py` 27,656 个里占 20,378 个。
+- **`.local` 也漏了**：`tests/security/test_no_key_leak.py::_is_source_file` 早就排除 `.local`（docstring 写明理由：`.local/.gitignore` 是 `*`，那里面什么都提交不了），模块清单里**没有** ⇒ 实测 `run_full_security_scan` 把 `.local/llm.json` 连同它的 `.bak` 报成 **2 条 CRITICAL 假阳性**。两份清单描述同一个政策，这是 #440 之后量到的**第三处**同类漂移。
+
+**修（最小生产码改造）。** `agent/security_scanner.py::_EXCLUDE_PATTERNS` 补 7 项，全部带理由注释：
+- `.local/`（与测试侧清单对齐，理由照抄那一侧的政策依据）；
+- `.venv/`、`venv/`、`.scratch/`、`.mypy_cache/`、`.pytest_cache/`、`.ruff_cache/`（永不发布 + 实测霸占全树遍历）。
+
+**门。** `tests/unit/test_security_scanner_excludes_are_segment_exact.py` 从 27 案扩到 **35 案**：
+- 「正是被排除词的仍排除」参数组新增 7 例（`.local/llm.json`、`.venv/.../mod.py`、`.scratch/wt134/...` 等）；
+- 新增 `test_module_and_test_side_agree_on_the_local_exemption`：**跨清单对账**——同时断言测试侧 `_is_source_file` 与模块 `_should_exclude` 对 `.local/llm.json` 都判排除，并带正向控制（`experiments/external_state.py` 两边都放行，防止「两边都排一切」假绿）。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_security_scanner_excludes_are_segment_exact.py -q` | **35 passed in 0.85s** |
+| 回归 | `pytest test_security_scanner_placeholders_agree.py tests/security/test_no_key_leak.py tests/security/test_threat_vectors.py -q` | **43 passed, 2 skipped** |
+| ruff | `ruff check agent/security_scanner.py tests/unit/...segment_exact.py` | All checks passed |
+| **自扫描可行性** | `scan_directory(".")` | **修前 >240s 超时 ⇒ 修后 52.7s**，11,090 个文件 |
+| **`.local` 假阳性** | 同上 | **2 条 CRITICAL ⇒ 0 条** |
+| **变异臂**（把 `.local/` 那行删掉） | 先预测：`.local` 参数例 + 对账用例红 | 实测 **2 failed, 33 passed**，逐名命中 |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | 工作树只剩本号改动、无 `.orig` 残留 |
+
+**顺带量到的重要事实（入队，不在本号修）。** 补上排除项之后，`scan_directory(".")` 仍是 **324 条 finding / passed=False**（31 CRITICAL + 36 HIGH + 1 MEDIUM + 256 LOW）。也就是说：**`run_full_security_scan` 一旦真被接进管线，P0.5 安全门当场就是红的**——红在真实内容上（如 `experiments/external_state.py:205` 的 Redis URL 带凭据、`services/control-plane/src/test/java/.../WebhookControllerTest.java:32` 的 Secret in Config）。本号只修「扫不扫得到/跑不跑得完」，不处理这些真实 finding。
+
+**诚实边界。** ① 补 `.venv` / `.scratch` 是**政策选择**：它们永不发布（`.scratch` 早已被 ruff 排除、缓存在 .gitignore 里），但**真把 secret 写进 `.scratch` 这两道门现在看不见**——与 `tests/` 同一种取舍。② `.local` 的排除依据是**它自己的 `.gitignore` 是 `*`**；若哪天那条规则被改掉，排除依据就没了（`test_local_dir_is_genuinely_uncommittable` 会红，算是间接看守）。③ 只改排除清单，没动 pattern 集、没动占位符策略（#404 已统一）。④ 52.7s 的自扫描耗时是在**本机**量的，CI 上未必同量级。
+
+**下一号队列（取号按落地时点 max+1）。** ① **`run_full_security_scan` 的 324 条 finding（31 CRITICAL + 36 HIGH）**——要么接进管线并同批处理真实 finding，要么如实记为「未接线且当前为红」；本号已把「跑不跑得完」修好，「接不接」是产品决策。② `scripts/p0_5_closed_loop.py` 手抄的那份秘密扫描（10 pattern vs 15、清单已漂移）——委托给 `agent.security_scanner` 去重。③ 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。④ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。

@@ -34,6 +34,14 @@ from agent.security_scanner import _should_exclude
         "artifacts/legacy-invalid/capsule/a.json",
         "scripts/p0_5_closed_loop.py",
         ".git/config",
+        # #441: 本地环境 / 工具缓存 / 暂存工作树 —— 永不发布，且实测霸占全树遍历
+        ".local/llm.json",
+        ".venv/lib/python3.14/site-packages/pkg/mod.py",
+        "venv/lib/x.py",
+        ".scratch/wt134/agent/foo.py",
+        ".mypy_cache/3.12/x.json",
+        ".pytest_cache/v/cache/lastfailed",
+        ".ruff_cache/0.14.0/x.json",
     ],
 )
 def test_a_directory_named_exactly_is_still_excluded(path: str) -> None:
@@ -87,3 +95,20 @@ def test_non_directory_patterns_still_match_by_suffix(path: str) -> None:
 )
 def test_windows_separators_are_normalized(path: str, excluded: bool) -> None:
     assert _should_exclude(path) is excluded
+
+
+def test_module_and_test_side_agree_on_the_local_exemption() -> None:
+    """#441：两份清单描述同一个政策，漂移过。
+
+    `tests/security/test_no_key_leak.py::_is_source_file` 早就排除了 `.local`
+    （理由写在它的 docstring 里：`.local/.gitignore` 是 `*`，那里面什么都提交不了），
+    而 `agent/security_scanner.py` 的清单**漏了它**——后果是 `run_full_security_scan`
+    把 `.local/llm.json` 连同它的 `.bak` 报成两条 CRITICAL 假阳性。这条把两边钉到一起。
+    """
+    from tests.security.test_no_key_leak import _is_source_file
+
+    assert _is_source_file(".local/llm.json") is False
+    assert _should_exclude(".local/llm.json") is True
+    # 正向控制：一个真该扫的路径两边都放行，防止上面两条只是「两边都排一切」。
+    assert _is_source_file("experiments/external_state.py") is True
+    assert _should_exclude("experiments/external_state.py") is False
