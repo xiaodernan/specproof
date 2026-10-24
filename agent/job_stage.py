@@ -38,7 +38,7 @@ from observability.metrics import incr
 #: after it. A stage absent from this table leaves the status alone.
 #:
 #: The graph's node order (agent/graph.py):
-#:   intake → preflight → compile_contracts → prepare_base → prepare_head
+#:   intake → preflight → compile_contracts → contract_review → prepare_base → prepare_head
 #:   → collect_diff → retrieve_repository_context → run_static_checks
 #:   → generate_counterexamples → run_differential → run_deep_experiments
 #:   → review_court → build_matrix → create_capsule → run_release_checks
@@ -48,6 +48,10 @@ STAGE_STATUS: dict[str, str] = {
     # the job is PREPARING from here until the head workspace exists.
     "preflight": "PREPARING",
     "compile_contracts": "PREPARING",
+    # Contracts are compiled; if any are unapproved the pipeline REALLY
+    # STOPS here and waits for human approval. The worker writes
+    # CONTRACT_REVIEW when this stage finishes.
+    "contract_review": "CONTRACT_REVIEW",
     "prepare_base": "PREPARING",
     "prepare_head": "PREPARING",
     # The workspaces exist and the experiments are about to run: the job

@@ -31,6 +31,7 @@ from agent.nodes.build_matrix import build_matrix_node
 from agent.nodes.collect_diff import collect_diff_node
 from agent.nodes.collect_evidence import collect_evidence_node
 from agent.nodes.compile_contracts import compile_contracts_node
+from agent.nodes.contract_review import contract_review_node
 from agent.nodes.create_capsule import create_capsule_node
 from agent.nodes.generate_counterexamples import generate_counterexamples_node
 from agent.nodes.intake import intake_node
@@ -84,6 +85,7 @@ def build_phase0_graph(checkpointer: Any = None) -> Any:
     builder.add_node("intake", intake_node)
     builder.add_node("preflight", preflight_node)
     builder.add_node("compile_contracts", compile_contracts_node)
+    builder.add_node("contract_review", contract_review_node)
     builder.add_node("prepare_base", prepare_base_node)
     builder.add_node("prepare_head", prepare_head_node)
     builder.add_node("collect_diff", collect_diff_node)
@@ -110,7 +112,8 @@ def build_phase0_graph(checkpointer: Any = None) -> Any:
         {"publish_report": "publish_report", "compile_contracts": "compile_contracts"},
     )
 
-    builder.add_edge("compile_contracts", "prepare_base")
+    builder.add_edge("compile_contracts", "contract_review")
+    builder.add_edge("contract_review", "prepare_base")
     builder.add_edge("prepare_base", "prepare_head")
 
     # Error guard: any error short-circuits to the report node.
