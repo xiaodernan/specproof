@@ -11601,3 +11601,29 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ① 这是**行为等价重构**：`as_utc`/`iso_utc` 逐字节搬移，91 个既有 + 新增测试全绿为证；不声称「修了 bug」。② 只收拢这两份；仓库里若还有别处手写的同类时间归一化（`scripts/`、`integrations/` 已查，无），不在本号射程。③ 用 `import ... as _as_utc` 是为了不动调用点——代价是模块里仍可见下划线名，属可读性取舍，不伪装成新 API。④ 不钉 `timeutil` 被未来的新消费者误用（如拿 `iso_utc` 做非 UTC 渲染）——那是调用方契约。
 
 **下一号队列（取号按落地时点 max+1）。** ① `agent/job_stage.py`（160 行，1 测试）——先判纯逻辑 / I/O 外壳。② `agent/verdict_stability.py`（54 行，2 测试）先判是否值得。③ `agent/matrix_policy.py`（559 行，6 测试）里是否还有「两份手抄」同类。
+
+
+## #448 `agent/job_stage.py` 写入器的深分支：非 dict 行 / 假写入 / 计数器 / worker_id 转发
+
+**起因/占号。** #447 队列①：`agent/job_stage.py`（160 行，1 个测试文件）——冻结状态机那五个细粒度状态的**唯一生产写入方**。占号前 `git fetch`：0/0，远端 HEAD `b7db3cd`（`## #447`）⇒ 本号取 **#448**。
+
+**先量后写（量的是「既有 24 个测试没走到的分支」）。** store 是注入的（生产 MySQLStore / 测试假件），所以整个模块可在内存里钉。既有 `test_job_stage.py` 已覆盖映射、合法/非法/取消/行不可读、端到端推进；逐条对账出未覆盖：
+- `get_job` 返回**非 dict**（list / ``None``）——模块里有一条专门的 skip+计数分支，没人测（现有「空行」用例返回 `{}`，那是 dict，走的是另一条路）。
+- `transition_job_status` **返回 falsy 且不抛**——调用方要听到「没写」，且**既不计 advanced 也不计 illegal**。
+- **`COUNTER_ADVANCED` 本身**：成功写入要 +1（既有测试只断言返回值和 store 状态，没断言计数器）。
+- **「已经就在这个状态」**：三个计数器**一个都不动**（不是 advance，也不是 skip）。
+- **`worker_id` 真的被转发**给 store（直接调与经 `advance_for_stage` 两条路）。
+- `advance_for_stage` 遇到非法阶段转移时，与 `advance_job_status` 一样 skip+计数。
+
+**落地（只加测试，`agent/job_stage.py` 一字未动）。** 新建 `tests/unit/test_job_stage_declared_edges.py`（8 案，内存假件）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_job_stage_declared_edges.py -q` | **8 passed in 1.58s** |
+| 回归 | `pytest tests/unit/test_job_stage.py -q` | **24 passed**（既有门无回归） |
+| ruff | `ruff check tests/unit/test_job_stage_declared_edges.py` | **All checks passed** |
+
+**诚实边界。** ① 只加测试：`agent/job_stage.py` 一字未动。② 计数器是**全局累计**的，所以断言全部用 before/after 增量（与既有测试同一手法），不断言绝对值。③ 不钉 `storage/mysql.py` 的真实状态机（既有 `TestEveryVerdictIsReachable` 那一类已覆盖），本号只钉**写入器**对 store 的用法。④ 不钉 worker 在什么时机调 `advance_for_stage`（那是 `agent/worker.py` 的接线，另一层）。
+
+**下一号队列（取号按落地时点 max+1）。** ① `agent/verdict_stability.py`（54 行，2 测试）先判是否值得单独一号。② `agent/matrix_policy.py`（559 行，6 测试）里查是否还有「两份手抄」同类。③ `agent/self_test_diff.py` / `agent/external_observation.py` 各 1 个测试文件，按同法逐条对账。
