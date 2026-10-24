@@ -11136,3 +11136,28 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① 只改 `merge_contract_results` 的**键卫生**，优先级/平局/副本语义一字未动（#400 那 10 案仍全绿）。② 非字符串 id 从「保留」变成「忽略」是**行为变更**：`matrix_policy` 早已这么做，且 `build_matrix` 最终仍走一参版，所以端到端不变；但若有人直接消费两参版的输出并期待 int id，那会受影响——**未发现这样的消费方**（已 grep `"contract_id":` 的全部写入点，均为字符串表达式）。③ parity 门只比**活下来的 id 集合**，不比两版输出行的完整形状（一参版产出 canonical 行，字段不同，本就不可比）。④ 未在真实数据上跑全量评测。
 
 **下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `security_scanner` 占位符漂移（#403 队列①）——等并发车道让出文件。② `tests/security/` 全仓扫描在本机跑不完，值得单独一号做成**可增量/可超时**的门（#403 队列③）。③ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。④ Phase 4 在途的跨语言适配器（`craft/adapters/go_adapter.py` / `node_adapter.py`）若有纯逻辑（注册表、能力声明）可补栅栏——**等该车道让出**。⑤ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+## #434 `craft/adapters/protocol.py` 的注册表语义与能力声明（Phase 4 公共地基）
+
+**起因/占号。** Phase 4 正在铺跨语言适配器（#429–#432），`craft/adapters/protocol.py` 是所有适配器的公共地基，但 `test_adapter_protocol.py` 只走了 happy path。占号前重测账本：HEAD 版账本 `## #` id 最大 **433**（本号上一段）⇒ 取 **#434**（工作树里别的车道在途的 #432 未提交，本号同样**不带入**）。
+
+**先量后写（量的是「happy path 之外还有什么」）。** 已覆盖：四个数据类构造/默认值、`AdapterProtocol` 抽象不可实例化、`register_adapter` / `get_adapter` / `detect_adapter` 的 happy path。**未覆盖**（逐条读代码得出）：
+- `register_adapter` 的**返回值**——它可当装饰器用 ⇒ 必须原样返回被装饰的类（若返回 None，`@register_adapter` 会把类名绑成 None）；
+- 重复 `ADAPTER_ID` 注册**静默覆盖**（后注册者赢，无告警）；
+- `detect_adapter` 对 `detect()` 抛异常的适配器**静默跳过**（docstring 没写的 fail-soft）；
+- `get_capabilities()` 的完整形状（六键）与 `goals` 来自 `get_supported_goals()`；
+- `get_supported_goals()` 默认 `["test"]`；
+- `ExecutionResult.success` **只看退出码**（`tests_failed>0` 但 exit 0 仍算成功）。
+
+**落地（只加测试，`craft/adapters/protocol.py` 一字未动）。** 新建 `tests/unit/test_adapter_protocol_registry_semantics.py`（9 案）：上述六条各至少一案，其中 fail-soft 两案（崩了返回 None / 崩了之后仍能落到可用适配器）。**另加 autouse fixture 快照/还原全局 `_ADAPTER_REGISTRY`**——因为 `test_adapter_protocol.py` 注册了 `dummy` / `test-custom` 且**从不清理**，注册表已被测试污染；本文件不再加重污染（既有污染原样保留、不清除）。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试（新门 + 既有门） | `PYTHONPATH=. .venv/Scripts/python.exe -m pytest tests/unit/test_adapter_protocol_registry_semantics.py tests/unit/test_adapter_protocol.py -q -p no:cacheprovider` | 20 passed（9 新 + 11 旧） |
+| ruff | 初报 1 个 I001（导入排序），`--fix` 后 | All checks passed |
+| **变异臂**（`detect_adapter` 的 `except Exception: continue` → `raise`，即**不再静默跳过**） | 先预测：fail-soft 那条红 | 实测 **2 failed, 7 passed**（`test_detect_adapter_swallows_a_crashing_detect` 与 `test_detect_adapter_falls_through_to_a_working_adapter` 都红——预测只报了一条，实测两条，因为「落到可用适配器」也依赖跳过） |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `git status` 确认 `craft/adapters/protocol.py` 干净、无 `.orig` 残留；复跑 9 passed |
+
+**诚实边界。** ① 只加测试：`craft/adapters/protocol.py` 一字未动。② **fail-soft 是钉住现状，不是赞同**：`detect()` 崩了被静默跳过 ⇒ 调用方只会看到「没检测到适配器」，看不到「探测本身崩了」——这正是项目最反对的静默失败形态，已入下一号队列（要不要 fail-loud 是产品决策，本号不动）。③ 重复 `ADAPTER_ID` 静默覆盖同样是**钉现状**：会不会掩盖「两个适配器声明了同一个 id」的 bug，要等注册表真有多语言适配器共存时再量。④ 不测 `gradle_adapter.py` / 在途的 `go_adapter.py` / `node_adapter.py`（前者已有专门门，后两者在别的车道在途）。⑤ 未在真实多语言项目上验 `detect_adapter` 的优先级顺序（只在本号用假适配器钉了「崩→跳→落」）。
+
+**下一号队列（受本环境约束，取号按落地时点 max+1）。** ① `detect_adapter` 的静默跳过要不要改成 fail-loud（本号边界②）——先量调用点再定。② `_ADAPTER_REGISTRY` 的**测试污染**：`test_adapter_protocol.py` 注册后不清理（本号边界已记）——把清理 fixture 补进那个文件，或给注册表加 reset 助手。③ `tests/security/` 全仓 bandit 扫描本机跑不完（#404 边界③）——做成可增量/可超时的门。④ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。⑤ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。
