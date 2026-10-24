@@ -10749,3 +10749,155 @@ A6 一次红了 3 处、跨 3 个文件（`426` 的顺序腿、`423` 的 orphan 
 ① 把 `test_craft_gates.py` 与 #423 门里两处「无 pom.xml …」字面句读换成同一个派生 helper（A6 实测的红集就是它的账单）。
 ② `_TEST_GLOBS_BY_KIND` 与 `run_test_gate` 分支仍是「同名不同处」两份知识——本轮把它们绑成互读（表加行必抛），下一步可把命令本身也上表，链尾 `raise` 才退成纯结构。
 ③ 原 #186：Prometheus 名册声明的端口号仍未被真绑真抓到过。
+
+## #427 名册声明的端口号第一次被真绑真抓到；跟踪一个新测试文件让 #232 的 env 分类器现形
+
+**背景**：#426 队列②（原 #186）「Prometheus 名册声明的端口号仍未被真绑真抓到过」。
+`infra/prometheus/prometheus.yml` 是一堆关于 socket 的许诺：`worker:9100` 说有个进程在 9100
+答它的 metrics 路径。修复前用 `.scratch/m427_census.py` 在 `git ls-files` 上量到：
+
+| 端口 | 名册作业 | 提到它的跟踪文件 | 真绑过它的代码 |
+|---|---|---|---|
+| 9100 | worker | 14 | **0** |
+| 9101 | outbox-relay | 13 | **0** |
+| 9103 | （无名册，invoice_cron 豁免） | 8 | **0** |
+
+全仓库真实发生的绑定全是内核自选号：测试树里 9 处 `serve_metrics_in_thread(port=0)`，
+加上 3 个生产站点的端口来自一个从没有在 socket 上被任何测试跑过的 env 旋钮。号码本身只被
+**比较**过：#232 的 L3 拿代码字面默认值对 yaml 字面值，L4 对 compose。那些是真证据，但没人
+问过操作系统：这个号被占住了吗、在许诺的那个路径上答话吗、 publishes 许诺的那个家族吗。
+另一半同样是盲区：`server_address` 的每一次读取都取 `[1]`（端口），**没有一次取 `[0]`**（地址），
+所以 `_resolve_bind_host()` 只作为返回值被比对过（`tests/unit/test_metrics_http.py` 的
+`test_bind_host_*`），从没被问过「这个 socket 到底绑到哪了」。删掉 `host = _resolve_bind_host()`
+这一行，服务器绑所有网卡而当时每一条门全绿——一台 host run 上的 fail-open 监听器。
+
+**修复后测量的对照**：
+
+| 探针 | 修复前 | 修复后 |
+|---|---|---|
+| 真绑定名册号码并读回端口/地址的代码 | 0 | 8 条腿的门（L1–L8） |
+| 读 `server_address[0]` 的位置 | 0 | 2（L2、L3 各断言一次 `occupied_address`） |
+| `serve_metrics_in_thread` 默认端口=名册 worker 号这件事的披露 | 无 | `observability/metrics_http.py` docstring 一段，且 L5 双向（号码不再相撞就拒绝这段话） |
+| #232 `_port_shape` 对 `int(info["port"])` 的分类 | `env:port`（假） | `other` |
+| #232 census 解析人口 / tests/** 豁免桶 | 13 文件 / 6 文件 | 14 / 7 |
+| 被普查的跟踪 *.py 里 `environ` 下标拼法 | 58 处，其中 `env['python']`（本地字典）也被当成 env | 只认 `environ` |
+
+**第四行是本单元真正的第二个缺陷，也是我必须先修 #232 才能 `git add` 我新文件的原因。**
+`_port_shape` 的下标分支对**任何**字符串下标返回 `env:<键名>`。它唯一的读者是 #232 L2 里那条
+tests/** 豁免判据（「测试不许把监听端口交给 env 旋钮，否则这个豁免就在撒谎」）。我的新腿
+`port=int(info["port"])` 里的 `info` 是 #232 自己的名册解析结果，会被读成「读了一个叫 `port`
+的旋钮」——一个全仓库不存在的名字。跟踪该文件的那一刻，#232 就红。两个方向的失败都静默：
+太宽则诚实的测试被拒，太窄则禁止的形状绿着过去，所以修复必须带一条**双向**见证。
+这条不是推理：电池二的 B1 臂在**我这 3 条路径已经 staged 的树上**删掉那个守卫，`L2.exempt` 立刻红
+（连同 `L2b.shape`，`2 failed, 23 passed`）——那正是我若不先修 #232、直接把新文件 `git add` 上去
+会撞上的红。红集写在 `.scratch/m427b_predictions.json` 里，落笔在任何臂跑之前。
+
+**改形**：
+- #232 新增 `_env_mapping_base()`：下标的被索引者必须是 `*.environ` 或裸名 `environ`。不接受裸名
+  `env`——`scripts/bench_replay.py` 正把一个二进制路径表放在叫 `env` 的变量里读 `env['python']`。
+- #232 新增 L2b `test_the_port_shape_classifier_charges_an_environment_read_and_nothing_else`：
+  正向腿的载体是**在码的两个 env 站点**（`_metrics_scan()` 里 `env:` 标签必须非空，且每个被点名的
+  旋钮必须是 `_knob_defaults()` 在同一文件里声明的那个：`agent/worker.py:1850` → `WORKER_METRICS_PORT`，
+  `storage/outbox_relay.py:276` → `OUTBOX_RELAY_METRICS_PORT`），fixture 只补下标拼法
+  （`os.environ['X']` 必须记 env、`env['X']` 必须不记），反向腿直接读 #427 文件的 AST，钉
+  `shapes == {"other"}`。这么排是因为下标分支今天在跟踪人口里**没有**端口载体——两处真 env 站点用的是
+  `os.getenv`，只有 fixture 的话就是在给一个没人写的拼写作证。
+- #232 `_metrics_scan` 的解析改成喂字节（`ast.parse(raw)`）。测得：该普查解析的 14 个文件今天
+  **0 个**带 BOM，所以这一刀今天在树上是 no-op（S1 臂就是去量这句话的，结果 0 红）；而同形状的
+  `raw.decode("utf-8")` 已经真的让 #427 的 L6 普查死过一次——跟踪树里确有 BOM 文件
+  （`tests/unit/test_eval_resume_reuses_measured_cases.py`），442 个文件跟着没人评。
+- #427 把 L6 的两条拒绝抽成 `_constant_port_rows()` + `_refused()`，并新增 L8：用三条**植入行**
+  （别人的号码 / 我们名册里的号码 / 内核 0）从两侧驱动同一个函数，再把跟踪普查喂进同一个函数。
+  L6 认证的是缺席，而今天树里没有任何一行给它拒——不植入就没有任何东西证明它拒得动。
+- #427 的 `_serve_foreign()`：一个从未调用 `serve_forever` 的 `ThreadingHTTPServer` 在 teardown
+  死锁（`BaseServer.shutdown()` 等的是那个循环唯一会置位的 `__is_shut_down`）。实测：单跑 L4
+  `rc=124` 挂死，整文件跑两次都超 420s（这两枚化石今天仍挂在 `tasklist` 里，各占一个临时端口）；
+  把循环放进 daemon 线程后两门 25 例 37.94s 跑完。
+
+**门**：`tests/unit/test_scrape_roster_ports_answer_their_own_numbers.py` 8 例（L1–L8），
+`tests/unit/test_listen_port_knobs_bind_the_scrape_roster.py` 18 例（原 17 + L2b）。
+两门合跑 25 例，at-rest 基线 `25 passed in 37.94s`。
+
+**电池一**（`.scratch/m427_arms.py` + 预测 `.scratch/m427_predictions.json`，先写盘后跑臂）：
+10 臂只动 `observability/metrics_http.py`、`infra/prometheus/prometheus.yml` 与门文件自己；
+at-rest 基线 7 passed（9.72s），跑完 3 个文件按 sha 逐一回到存下的字节
+（`3c9c25bad805ed86` / `bc2a72fdca0d4562` / `1616ca2a4fd25ee8`），**0 INTERFERED**，
+产物 `.scratch/m427_arms_run.log`：**9 MATCH / 1 MISMATCH**。
+
+| 臂 | 红 | 判决 |
+|---|---|---|
+| A1 `_resolve_bind_host()` 换成 `"0.0.0.0"` | L2 L3 | MATCH |
+| A2 bind 端口换成 `0` | L2 L3 L4 | MATCH |
+| A3 处理路径换成 `/metrics-x` | L2 L3 L4 | MATCH |
+| A4 删披露段 / A5 yaml `worker:9100`→`9400` | L5 / L5 | MATCH |
+| A6 L2 里路径改回字面 `/metrics` | L7 | MATCH |
+| A7 `_our_endpoint_jobs()` 放宽成整个名册 | L1 L2 L4 **L6** | MISMATCH |
+| A8 家族判据削弱成 `body.startswith("#")` | L4 | MATCH |
+| A9 普查 callee 改名 | L6 | MATCH |
+| A10 只重排披露文字 | 0 红 | MATCH |
+
+A7 的漏预测归因：`_third_party_numbers()` 把「别人的号码」算成**名册减我们的作业**，所以把
+「我们的」放宽成整个名册会**顺手清空**「别人的」，L6 里先红的是那个 `len(out) >= 3` 下限——
+这是普查在拒绝给自己发空名册，不是假绿。A7 真正想藏的东西（把别人的 socket 当我们的认证）由
+L1 的不相交判据和 L6 的下限一起接住。预测文件保持未改：`must_stay_green: [L6]` 是我的错，
+红集以实测入账。
+
+**电池二**（`.scratch/m427b_arms.py` + 预测 `.scratch/m427b_predictions.json`，先写盘后跑臂）：
+11 臂只动两个门文件；与电池一不同的是**我这 3 条路径此时已 staged**，所以 #232 的普查人口是
+落地后的 14 个文件——B1 复现的是 fresh checkout 真会撞上的红，而不是一句 fixture 跟自己 disagree。
+基线绿，**11/11 MATCH**，`drifted []`（两个门文件跑完各自回到 `54d94ca1e282096a` /
+`66bab795f6b7834f`），HEAD 未动，0 INTERFERED。产物 `.scratch/m427b_arms.log`。
+
+| 臂 | 缺陷 | 红 | 预测必须绿 | 判决 |
+|---|---|---|---|---|
+| B1 删掉 `_env_mapping_base` 守卫（回到修复前的分类器） | 指控一个代码从不读的旋钮 | L2.exempt L2b.shape | — | MATCH |
+| B2 谓词放宽成「任何裸名下标」 | 把本地字典当进程环境 | L2.exempt L2b.shape | — | MATCH |
+| B3 getenv 分支改回 `"other"` | 分类器正向侧丢掉仅有的两个在码载体 | L2b.shape | L2.exempt | MATCH |
+| B4 形状读 wrapper 而非下标（我 drafting 时真犯过的错） | 腿的主体消失，子句评一个空人口 | L2b.shape | L2.exempt | MATCH |
+| B5 `in third` → `not in third` | 普查指控每个允许的绑定、放过每个禁止的 | L6.census L8.planted | — | MATCH |
+| B6 丢掉 `row[2] != 0` | 普查拒绝其他每条 metrics 腿唯一用的形状 | L6.census L8.planted | — | MATCH |
+| B7 callee 改名为没人传的 `metrics_port` | 普查失明，缺席句读成干净 | L6.census | L8.planted | MATCH |
+| B8 `return occupied, stray` 交换 | 两条拒绝互相顶名，读者被派去问错许诺 | L8.planted | L6.census | MATCH |
+| S1 回退字节解析（`ast.parse(raw.decode("utf-8"))`） | 今天树上无载体 | **0 红** | 全部 | MATCH |
+| C1 只重排 #232 的分节注释 | 无 | 0 红 | 全部 | MATCH |
+| C2 只重排 `_refused` docstring 一行 | 无 | 0 红 | 全部 | MATCH |
+
+B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）属于 L6 自己，植入行属于 L8 自己，
+所以盲掉的普查只红 L6，而交换回来的两条只红 L8。S1 以 0 红为预测并且量到了 0 红——它证明的
+是「这一刀今天在跟踪人口里没有载体」那句话，而不是证明这一刀有用。
+
+**全量门（把我的三条路径 staged 之后跑）**：`3 failed, 4962 passed, 3 skipped in 2752.58s`
+（`.scratch/m427b_suite.log` / `m427b_suite.xml`）。三条红全在
+`tests/unit/test_verdict_channel_parity.py`，归因用两条量：
+① 在 `4bfba1f` 的干净 HEAD worktree 平面（没有我的文件、也没有别的车道的未提交字节）单跑该门，
+`3 failed, 10 passed`，失败的三条用例名与全量里那三条逐字相同；
+② 进程内跑该门的 `scan_repo()`：人口 223 hits / 39 文件，`SCAN_ROOTS` 里没有 `tests`，
+也没有 `observability`，与我三条路径的交集实测为空。所以那三条是 HEAD 自带的欠账，本单元
+新增的红为 0。
+
+**静态门**：`ruff check` 对三条路径（两个门文件 + `observability/metrics_http.py`）「All checks passed!」；
+`mypy` 对 #427 门文件「Success: no issues found in 1 source file」（`tests/` 在 mypy 排除清单里，
+门文件按既有惯例不进仓库 mypy 面）。`ruff format --check`（`line-length = 100`）分开量：
+#427 门文件「1 file already formatted」——落地前它自己有一处两行字符串被合成一行，因为 100 列装得下；
+#232 门文件有 10 处 hunk，而**同一个文件 HEAD 的 blob 用同一条命令量也是 10 处**，我的 L2b 一处没添。
+没有顺手把那 10 处格式化：重排会给别人的行号挪位，而那些行号被别的门的账本钉着。
+
+**边界（不是欠账，是没做的承诺）**：
+- 名册的 target 是 compose 服务 DNS 名（`worker`、`outbox-relay`），本机平面只有 127.0.0.1；
+  腿证的是**号码、路径、exposition**，不是容器里的名字解析。
+- 若跑套件时另有 `start_local.ps1` 栈占着某个名册号码，L2/L4 会读到那个在任者的 exposition
+  （那正是一次真抓取会读到的东西），此时它们不能认证本轮 marker，并照实说出来。
+  L3/L5/L6/L7/L8 不绑名册号码，是每块平面都被量到的那一半。
+- `_env_mapping_base` 认 `*.environ` 与裸 `environ`，不认别名（`from os import environ as e`
+  会被读成 `other`）。若将来出现那种拼写，应当扩这个谓词并在 L2b 补它的载体，而不是回头放宽成「任何名字」。
+- #232 的解析喂字节这一刀今天在跟踪人口里没有载体（测得 0/14 带 BOM）；它是与 #427 L6 同一形状
+  的健壮性，S1 臂以「0 红」为预测，正是在量这句话。不要把 S1 当成一个被证明有效的修复。
+- L8 不重复 L6 的 `>= 5` 下限：下限属于普查那一侧，L8 的植入行自己就是人口。B7 臂就是去确认这条
+  分工——盲掉的普查只红 L6，不红 L8。
+
+**队列**：
+① L6（数字名册）与 #232 L2 的 tests/** 豁免（不许 env）是两条独立判据，合起来才覆盖「测试动了抓取端点」；
+下一步应让 L6 成为唯一属主，L2 引它，而不是各自守一半。
+② `invoice_cron` 的 9103 仍没有任何真 bind 腿抓过：#427 的 L2 只走名册内作业，而 9103 在
+#232 的豁免表里。要么给它一条名册作业，要么让豁免侧也真绑一次并把结果写进 §2。
+③ 原 #426 队列①②仍欠：三处「无 pom.xml …」字面句收成同一个派生 helper；`_BUILD_MARKERS` 无生产读者。

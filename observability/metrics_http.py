@@ -8,6 +8,13 @@ the API exposes at GET /metrics, so Prometheus can scrape them directly.
 Bind address: METRICS_BIND_HOST overrides; otherwise containers bind
 0.0.0.0 (Prometheus scrapes across the same compose network) and local
 host processes bind 127.0.0.1.
+
+Port: the signature default is the number the scrape roster declares for the
+worker job (infra/prometheus/prometheus.yml), so a listener created by
+omitting port= takes over the endpoint Prometheus scrapes for that job; pass
+the keyword. tests/unit/test_scrape_roster_ports_answer_their_own_numbers.py
+L5 re-measures this default against the roster and refuses this paragraph once
+the two numbers stop colliding.
 """
 
 from __future__ import annotations

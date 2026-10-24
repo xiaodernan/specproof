@@ -404,6 +404,21 @@ def _call_name(node: ast.Call) -> str | None:
     return None
 
 
+def _env_mapping_base(node: ast.expr) -> bool:
+    """Whether the base of a subscript really is the process environment mapping.
+
+    ``os.environ["X"]`` and a bare ``environ["X"]`` qualify. A local dict happens to be
+    named ``env`` in this repo — ``scripts/bench_replay.py`` keeps a binary map there
+    and reads ``env["python"]`` — so accepting any name would certify a fiction as an
+    environment read. The same over-broad acceptance charged
+    ``tests/unit/test_scrape_roster_ports_answer_their_own_numbers.py``'s
+    ``int(info["port"])`` as a knob named ``port``, which no code in this repo reads.
+    """
+    if isinstance(node, ast.Attribute):
+        return node.attr == "environ"
+    return isinstance(node, ast.Name) and node.id == "environ"
+
+
 def _port_shape(node: ast.expr) -> str:
     """How a listen-port expression arrives: ``env:NAME``, ``literal:N``, other."""
     for sub in ast.walk(node):
@@ -415,6 +430,7 @@ def _port_shape(node: ast.expr) -> str:
             isinstance(sub, ast.Subscript)
             and isinstance(sub.slice, ast.Constant)
             and isinstance(sub.slice.value, str)
+            and _env_mapping_base(sub.value)
         ):
             return f"env:{sub.slice.value}"
     if isinstance(node, ast.Constant) and isinstance(node.value, int):
@@ -459,7 +475,13 @@ def _metrics_scan() -> dict[str, dict[str, Any]]:
         raw = path.read_bytes()
         if b"serve_metrics_in_thread" not in raw:
             continue
-        tree = ast.parse(raw.decode("utf-8").replace("\r\n", "\n"))
+        # Parse the bytes, not a hand-decoded string: a tracked test file starts with a
+        # UTF-8 BOM (tests/unit/test_eval_resume_reuses_measured_cases.py), which
+        # Python's own source decoder accepts and ``decode("utf-8")`` keeps as U+FEFF —
+        # enough to raise SyntaxError. Measured today: none of the 13 files this census
+        # parses carries that BOM, so this buys nothing yet; #427's L6 census, which
+        # parses every tracked test, died on it for real.
+        tree = ast.parse(raw)
         calls: list[tuple[int, str]] = []
         defines = 0
         for node in ast.walk(tree):
@@ -958,6 +980,90 @@ def test_the_listen_port_knobs_are_exactly_what_the_code_reads() -> None:
         f"{sorted(overlap)} is declared both as a knob a roster job reads and as "
         f"one nobody scrapes — L15's exemption only means something if a name "
         f"lives in exactly one table"
+    )
+
+
+# ─────────────────────────────────────────── L2b ──────────────────────────────────────────
+def _port_kwarg(source: str) -> ast.expr:
+    """The ``port=`` argument of the single metrics-server call in a source string."""
+    tree = ast.parse(source)
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _call_name(node) == "serve_metrics_in_thread"
+    ]
+    assert len(calls) == 1, f"expected one metrics-server call, found {len(calls)}"
+    port = next((kw.value for kw in calls[0].keywords if kw.arg == "port"), None)
+    assert port is not None, "the fixture call has no port= keyword"
+    return port
+
+
+def test_the_port_shape_classifier_charges_an_environment_read_and_nothing_else() -> None:
+    """The ``env:`` label is all L2's tests/** exemption can refuse, so it must mean one thing.
+
+    L2 refuses a test that starts the metrics server on a port read from the
+    environment, because such a test moves a scrape endpoint on the operator's
+    machine. The clause therefore rides entirely on ``_port_shape``, and both of its
+    failures are silent: too broad, and an honest test gets charged; too narrow, and
+    the forbidden shape passes green. The over-broad half is not hypothetical — the
+    subscript branch labelled
+    ``tests/unit/test_scrape_roster_ports_answer_their_own_numbers.py``'s
+    ``int(info["port"])`` as a knob named ``port``, a name no code in this repo reads,
+    which would have red-ed L2 the moment that file was tracked. So this case drives the
+    classifier from both sides and pins its shipped carriers, because a classifier tested
+    only against fixtures can go on certifying a spelling nobody writes.
+    """
+    scan = _metrics_scan()
+    sites = {
+        (rel, line): shape
+        for rel, info in scan.items()
+        if not rel.startswith("tests/")
+        for line, shape in info["calls"]
+    }
+    charged = {key: shape for key, shape in sites.items() if shape.startswith("env:")}
+    assert charged, (
+        f"no listener site is labelled env: ({sorted(sites.values())}): the "
+        "classifier's positive side has no shipped carrier, so a fixture alone would "
+        "be certifying a spelling nobody writes"
+    )
+    defaults = _knob_defaults()
+    for (rel, _), shape in sorted(charged.items()):
+        knob = shape[4:]
+        assert knob in defaults and defaults[knob][0] == rel, (
+            f"{rel} reads {shape!r} as its listen port but {knob} is not declared as "
+            f"a knob read at {rel} ({defaults.get(knob)}) — the charge names a knob "
+            "the census does not know"
+        )
+    environ_read = _port_kwarg("serve_metrics_in_thread(port=int(os.environ['X_PORT']))")
+    assert _port_shape(environ_read) == "env:X_PORT", (
+        "an os.environ subscript no longer labels as an environment read: the "
+        "spelling scripts/bench_craft.py and cli/specproof/commands/eval.py use would "
+        "slip past L2's tests/** exemption green"
+    )
+    local_dict = _port_kwarg("serve_metrics_in_thread(port=int(env['X_PORT']))")
+    assert _port_shape(local_dict) != "env:X_PORT", (
+        "a local dict named env labels as the process environment: "
+        "scripts/bench_replay.py keeps a binary map under exactly that name "
+        "(env['python']), so the charge would name a knob that does not exist"
+    )
+    roster_leg = ROOT / "tests" / "unit" / "test_scrape_roster_ports_answer_their_own_numbers.py"
+    tree = ast.parse(roster_leg.read_bytes())
+    coerced = [
+        kw.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _call_name(node) == "serve_metrics_in_thread"
+        for kw in node.keywords
+        if kw.arg == "port" and any(isinstance(sub, ast.Subscript) for sub in ast.walk(kw.value))
+    ]
+    assert coerced, (
+        "the roster-port leg no longer hands a subscript of a parsed row to port=, so "
+        "this classifier has nothing left to distinguish from an environment read"
+    )
+    shapes = {_port_shape(node) for node in coerced}
+    assert shapes == {"other"}, (
+        f"the roster leg's own port expression is charged as {sorted(shapes)}: it "
+        "reads the number out of #232's roster parse, which is the opposite of an "
+        "environment knob, and L2 would refuse the leg that occupies rostered numbers"
     )
 
 
