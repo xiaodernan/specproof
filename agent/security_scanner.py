@@ -100,11 +100,20 @@ def _redact_match(text: str) -> str:
 
 
 def _should_exclude(path: str) -> bool:
-    """Check if file should be excluded from scan."""
+    """Check if file should be excluded from scan.
+
+    A trailing-slash pattern names a **directory**, so it has to match a whole
+    path segment. `pattern in normalized` used to make `my_tests/helper.py`,
+    `legacy_scripts/setup.py` and `old_artifacts/x.json` all vanish from the
+    scan; measured on this repo that silently skipped 34 directories, every
+    `bench/tasks/*-tests/` fixture tree among them (their parent directory name
+    merely *ends with* "tests").
+    """
     normalized = path.replace("\\", "/")
+    parts = normalized.split("/")
     for pattern in _EXCLUDE_PATTERNS:
         if pattern.endswith("/"):
-            if pattern in normalized:
+            if pattern[:-1] in parts:
                 return True
         elif pattern.startswith("*."):
             ext = pattern[1:]

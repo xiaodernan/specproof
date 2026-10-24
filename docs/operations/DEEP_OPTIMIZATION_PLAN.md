@@ -11313,3 +11313,34 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① 新门**不钉 `DEFAULT_MAX_PARALLEL_JOBS == 2`**（那是产品参数，改数不该让门红），只钉「常量存在」与「不在闸门字段里」这两个结构关系。② 「零消费方」是**本次测量的事实，不是永久保证**——门只覆盖「接进 `Budget`」这一种漂移，不覆盖「在别处被消费」（那需要源码扫描门，成本更高）。③ 并行作业执行为零的结论来自 grep 关键词，不是动态验证；若有人用我没搜到的方式起了并行（比如外部编排的多进程 worker 池），这条结论会过期。④ 两条负数结果都只量了 `*.py`，没量 SQL migration / 配置 / 文档里的同名声明。
 
 **下一号队列（取号按落地时点 max+1）。** ① 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）——该车道落地时须同批修。② #397 队列剩余：基准面那一跑为何失败（需管线把基准面输出带进报告）、全量 87 案例数字写回 `docs/eval/p6-100-case-eval.md`、安静机器重跑集成、独占机器量 DEEP / case-100、CI 夜间 workflow、craft 欠账、MQ 面「没看」算不算缺口（产品决策）。③ `agent/security_scanner.py` 的 `_should_exclude` 过宽边缘（如 `my_tests/` 因子串 `tests/` 被排除）——#404 只统一了两条路径的占位符清单，没量路径排除本身。
+## #440 秘密扫描的目录排除按**整段**匹配：`my_tests/` 不再被 `tests/` 顺手扫掉
+
+**起因/占号。** #439 队列③：「`agent/security_scanner.py` 的 `_should_exclude` 过宽边缘（如 `my_tests/` 因子串 `tests/` 被排除）——#404 只统一了两条路径的占位符清单，没量路径排除本身」。占号前重测账本：HEAD 版账本 `## #` id 最大 **439** ⇒ 取 **#440**。落地前确认 `agent/security_scanner.py` **未被别的车道改动**（工作树干净）。
+
+**先量后写（量的是「到底影响了谁、修了会不会红」）。**
+- 合成探针：`/` 结尾的排除模式用 `pattern in normalized`（子串），于是 `app/my_tests/helper.py`、`src/latest_tests/x.py`、`deploy/my_scripts/setup.py`、`web/legacy_scripts/a.js`、`data/old_artifacts/x.json`、`build/mytarget/out.bin` **全部被判为排除**。
+- 真实仓库影响：名称为 `tests`/`scripts`/`artifacts`/`target` 等词的**超集**的目录共 **34 个**，其中一整片是 `bench/tasks/*-tests/**` 夹具树——`bench/` **根本不在排除清单里**，这些文件是因为父目录名「以 tests 结尾」被顺手跳过的。
+- **修了会不会红**（关键先量）：把匹配换成段精确后重扫 `bench/` 与 `capsules/` ⇒ `bench` 498→**509** 个文件、`capsules` 240→**263** 个文件，**新增 finding 路径 0 条**。⇒ 修它不会让安全门变红。
+- 顺带量到：`run_full_security_scan`（P0.5 的总入口）**全仓零调用方**——只有定义那一行；`scan_directory` 只被 `test_threat_vectors.py` 用在临时 workspace 上。已入下一号队列。
+
+**修（最小生产码改造）。** `agent/security_scanner.py::_should_exclude`：`/` 结尾的模式（命名的是**目录**）从子串匹配改成**整段**匹配（`pattern[:-1] in normalized.split("/")`）。`.env` / `agent/security_scanner.py` 这类非目录模式与 `*.ext` 的匹配语义**一字未动**。排除清单本身未动。
+
+**落地（门）。** 新建 `tests/unit/test_security_scanner_excludes_are_segment_exact.py`（27 案，参数化四组）：
+1. 目录名**正是**被排除词的仍排除（`tests/`、`agent/tests/`、`__pycache__/`、`node_modules/`、`target/`、`artifacts/`、`scripts/`、`.git/`）；
+2. 目录名**只是以**被排除词结尾的**不再**被排除（`my_tests/`、`latest_tests/`、`legacy_scripts/`、`old_artifacts/`、`mytarget/`，含真实形状 `bench/tasks/task-05-add-tests/fixture/repo/App.java`）；
+3. 非目录模式仍按后缀匹配（`.env`、`config/.env`、自引用文件、`*.zip`、`*.pyc`、`*.jar`）；
+4. Windows 反斜杠路径同样归一化后判定。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_security_scanner_excludes_are_segment_exact.py -q` | **27 passed in 0.86s** |
+| 回归（#404 的占位符对账门 + `test_no_key_leak`） | `pytest tests/unit/test_security_scanner_placeholders_agree.py tests/security/test_no_key_leak.py -q` | **23 passed** |
+| ruff | `ruff check agent/security_scanner.py tests/unit/...segment_exact.py` | All checks passed |
+| **变异臂**（把段匹配改回子串匹配 `pattern in normalized`） | 先预测：6 条「只是以…结尾」红 | 实测 **9 failed, 18 passed**（7 条「只是以…结尾」+ 2 条 Windows 反斜杠用例也断言 False ⇒ 共 9 条，预测少算了后两条） |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `git status` 确认只剩本号那处改动、无 `.orig` 残留 |
+
+**否证与订正。** ① 变异臂我预测 6 条红，实测 9 条——漏算了 `test_windows_separators_are_normalized` 里两条同样断言 `False` 的用例（`app\my_tests\x.py`、`build\mytarget\out.bin`）。预测偏窄不影响结论（方向对、确实红），但记下这次的算法疏漏。② 一开始想顺手把 `.venv` / `.scratch` / `.mypy_cache` 也加进排除清单（量 `scan_directory(".")` 时发现它会把虚拟环境也扫一遍、直接超时）——**本轮不做**：那是「扫本仓库时该排除什么」的政策问题，而本号的射程是「段 vs 子串」；且 `run_full_security_scan` 零调用方，现在改没有受益人。已入队列。
+
+**诚实边界。** ① 这是**行为变更**：`bench/tasks/*-tests/**` 等 34 个目录下的文件从「被跳过」变成「被扫描」——实测 0 条新 finding，但那是**当前**内容的事实，将来这些目录里出现真 secret 时门会红（那正是想要的行为）。② 只改 `/` 结尾模式的匹配语义；`.env` / 自引用文件 / `*.ext` 未动。③ 不评判断言清单本身是否该包含 `tests/` / `scripts/` / `artifacts/`（那是政策，#404 已统一占位符侧，本号不动清单）。④ 未在真实多语言项目上验 `scan_directory` 的端到端表现（只在本仓库两棵子树上量了 finding 差）。
+
+**下一号队列（取号按落地时点 max+1）。** ① `run_full_security_scan` 零调用方（本号量到）——要么接进 CLI/报告，要么如实记为未接线；它顺带决定了「扫本仓库时该不该排除 `.venv`/`.scratch`」这个问题有没有受益人。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
