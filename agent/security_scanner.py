@@ -137,6 +137,26 @@ def _should_exclude(path: str) -> bool:
     return any(part.startswith(_EXCLUDE_DIR_PREFIXES) for part in parts)
 
 
+#: `<reason>  # specproof-nosec <pattern name>` — the reason goes FIRST and the
+#: tail is names-only. That shape is the lesson `test_bandit_suppressions_are_earned.py`
+#: already paid for on this repo: a reason written *after* the directive becomes a
+#: list of nonsense ids and behaves as a bare directive that hides everything.
+_NOSEC_RE = re.compile(r"#\s*specproof-nosec\b(?P<names>[^#]*)$")
+
+
+def _suppressed(line: str, pattern_name: str) -> bool:
+    """True when the line carries a `# specproof-nosec <name>` naming this pattern.
+
+    Deliberately scoped: a directive naming a pattern that does not fire here hides
+    nothing, and a bare directive hides nothing either. The only way to silence a
+    finding is to name it in full, which is what keeps the directive auditable —
+    and what makes a stale directive visibly do nothing instead of silently
+    over-hiding.
+    """
+    m = _NOSEC_RE.search(line)
+    return m is not None and pattern_name in m.group("names")
+
+
 def scan_directory(root: str) -> SecurityScanResult:
     """Scan all files in a directory for secrets.
 
@@ -171,6 +191,9 @@ def scan_directory(root: str) -> SecurityScanResult:
                     matched = m.group(0)
                     # Skip known placeholders (shared filter; see _is_placeholder)
                     if _is_placeholder(matched):
+                        continue
+                    # An explicit, named, reason-first suppression on this line.
+                    if _suppressed(line, name):
                         continue
 
                     result.findings.append(SecurityFinding(
@@ -406,6 +429,11 @@ def scan_capsule_zips(capsule_dir: str) -> list[SecurityFinding]:
                             for m in re.finditer(pattern, line, re.IGNORECASE):
                                 matched = m.group(0)
                                 if _is_placeholder(matched):
+                                    continue
+                                # Same named-suppression contract as the directory
+                                # path — the two paths drifting apart is exactly what
+                                # #404 had to fix once already.
+                                if _suppressed(line, pname):
                                     continue
                                 findings.append(SecurityFinding(
                                     path=f"{zip_path.name}::{name}",

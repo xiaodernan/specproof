@@ -11462,3 +11462,49 @@ return any(part.startswith(_EXCLUDE_DIR_PREFIXES) for part in parts)
 **诚实边界。** ① `.venv` 前缀规则是**政策选择**：理由是「虚拟环境永不发布」（`git check-ignore` 实测确认），但**真把 secret 写进 `.venv312` 这扫描器现在看不见**——与 `tests/` / `.scratch` 同一种取舍。② 前缀只认 `.venv`（带点），所以 `.venv312` 进、`.venue` 不进；若哪天有人建一个叫 `venv312`（无点）的目录，它仍会被扫——那是精确名清单已有的行为，未改。③ 5 条判定是**逐条读代码得出的意图判断**，不是机器判定；机器只知道「匹配了」。④ 15.1s 仍是本机量级（含读 3,023 个文件），CI 上未必同量级。
 
 **下一号队列（取号按落地时点 max+1）。** ① **给 `agent/security_scanner.py 设计逐行豁免机制**（本号量到的缺口）——上面 5 条意图上的假阳性现在无处安放；可参照 `# nosec` 那套「原因在前、id 在后、且 id 必须真是扫描器会报的那个」的纪律，别做成随手 `# ignore`。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+## #444 给秘密扫描器补上逐行豁免：`# specproof-nosec <模式名>`，原因在前、必须点名
+
+**起因/占号。** #443 量到并列进队列的缺口：「`agent/security_scanner.py` 没有任何逐行豁免机制，那 5 条意图上的假阳性无处安放；bandit 那套 `# nosec` 纪律在这个扫描器上没有对应物」。占号前重测账本：HEAD 版账本 `## #` id 最大 **443** ⇒ 取 **#444**。
+
+**先量后写（量的是「现成的纪律长什么样、别重新发明」）。** 本仓库已经为同类问题付过学费，就在 `tests/security/test_bandit_suppressions_are_earned.py` 的 docstring 里，三条实测结论：
+1. bandit 把指令**之后**的内容当作 *test ids* 解析 ⇒ 原因写在后面会变成一堆疯 id，行为退化成**裸指令**（隐藏该行一切）；
+2. **点名 id 才构成作用域**：指令写错 id 时真 finding 照样报（实测 B108 在一条点名 B104 的指令下存活）；
+3. 指令写在**没有代码的地方也会被解析**：整行注释里引用指令会静默变成一条抑制。
+⇒ 新机制照抄这三条的形状，不重新发明。
+
+**修（最小实现 + 两条路径同时接）。** `agent/security_scanner.py`：
+```python
+_NOSEC_RE = re.compile(r"#\s*specproof-nosec\b(?P<names>[^#]*)$")
+
+def _suppressed(line: str, pattern_name: str) -> bool:
+    m = _NOSEC_RE.search(line)
+    return m is not None and pattern_name in m.group("names")
+```
+- **原因在前、模式名在后**：正则要求指令在行尾（`$`），所以理由只能写在它前面——写在后面就会进 `names`，从而**抑制失效**（第 1 条教训的原样重演）。
+- **必须完整点名**：裸指令什么都不藏；点名一个此处不触发的模式也什么都不藏。唯一能消音的办法是完整写下模式名。
+- **同时接进 `scan_directory` 与 `scan_capsule_zips`**——#404 修过的就是这两条路径漂移，不接第二条等于再埋一次。
+
+**落地（门）。** 新建 `tests/unit/test_security_scanner_nosec_is_scoped_and_auditable.py`（7 案）：
+1. 点名即静音（该行 0 finding、`passed is True`）；
+2. 点名一个此处不触发的模式 ⇒ 什么都藏不住；
+3. **裸指令什么都藏不住**（安全默认，与 bandit 相反但更稳）；
+4. 原因写在指令之后 ⇒ 抑制失效（钉住第 1 条教训）；
+5. **一行命中两个模式就得点两个名**（`api_key: "sk-…"` 同时命中 `API Key Assignment` 与 `OpenAI/LLM API Key`：只点前者 ⇒ 后者照报；两个都点才静音）；
+6. 行作用域（只影响那一行）；
+7. **zip 路径同一把尺**（同内容一份带指令一份不带，只有不带那份报）。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_security_scanner_nosec_is_scoped_and_auditable.py -q` | **7 passed** |
+| 回归 | `pytest test_security_scanner_placeholders_agree.py test_security_scanner_excludes_are_segment_exact.py test_p0_5_closed_loop_scan_contract.py tests/security/test_no_key_leak.py tests/security/test_threat_vectors.py -q` | **87 passed, 2 skipped** |
+| ruff | `ruff check agent/security_scanner.py tests/unit/...nosec...py` | All checks passed |
+| mypy | `mypy agent/security_scanner.py` | Success: no issues found |
+| 自扫描不受影响 | `scan_directory(".")` | 仍 **3,023 文件 / 261 finding / 5 C/H**（机制在未被使用前是惰性的） |
+| **变异臂**（`return m is not None and pattern_name in …` → `return m is not None`，即**裸指令也全藏**） | 先预测：3 条红 | 实测 **4 failed, 3 passed**——除预测的「点名不触发的模式」「裸指令」「原因在后」三条外，**「一行两模式」那条也红**（只点一个名就把另一个也藏了），预测少算一条 |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `git status` 确认只剩本号改动、无 `.orig` 残留；复跑 7 passed |
+
+**否证与订正（本号自己踩的）。** ① 第一版用例用 `api_key: "sk-…"` 当种子行，结果它**一行命中两个模式**（`API Key Assignment` + `OpenAI/LLM API Key`），我只点名了一个 ⇒ 5 条用例红。一开始以为是机制坏了，探针一打发现机制是对的、是我选错了种子行。改成 `token = "sk-…"`（只命中一个模式），并把「一行两模式」这个行为**单独钉成一条用例**——它本来就是契约的一部分。② 变异臂预测 3 条红、实测 4 条，同上，漏算了「一行两模式」那条也会被这个变异命中。
+
+**诚实边界。** ① **本号只交付机制，没有用它去消音那 5 条**——那 5 处改动分散在测试/文档/docstring/Java 测试里，是另一批可评审的改动；本号的自扫描因此**仍是 5 条 C/H**（未变绿也不会假绿）。② 没有实现「死指令检测」（点名了一个此处从不触发的模式 ⇒ 应当报出来说这条抑制已失效）——bandit 第 2 条教训只做到「写错 id 不隐藏」，没做「写错 id 要报警」；本号同尺度，已入队列。③ 未处理「整行注释里引用指令会被解析」这一条（bandit 第 3 条）：本机制的正则要求指令在**行尾**，所以注释行引用它确实会形成抑制——**没有额外防护**，如实记下。④ 只接了目录与 zip 两条扫描路径；`scan_canary` 不走模式循环，无需接。
+
+**下一号队列（取号按落地时点 max+1）。** ① **用新机制消音 #443 那 5 条意图上的假阳性**（每条带理由），让自扫描的 C/H 归零；② 死指令检测（点名了此处不触发的模式要报警）——bandit 第 2 条教训的另一半；③ 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）；④ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
