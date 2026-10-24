@@ -4,7 +4,7 @@
 `register_adapter`/`get_adapter`/`detect_adapter` 的 happy path。**没覆盖**：
 - `register_adapter` 的**返回值**（它可当装饰器用 ⇒ 必须返回被装饰的类本身）；
 - 重复 `ADAPTER_ID` 注册时**静默覆盖**（后注册者赢，无告警）；
-- `detect_adapter` 对 `detect()` 抛异常的适配器**静默跳过**（docstring 没写的 fail-soft）；
+- `detect_adapter` 对 `detect()` 抛异常**静默跳过**（#437 起改为 fail-loud，本节钉住新行为）；
 - `get_capabilities()` 的完整形状（六个键）与 `goals` 来自 `get_supported_goals()`；
 - `get_supported_goals()` 的默认值；
 - `ExecutionResult.success` **只看退出码**（哪怕 `tests_failed > 0`）。
@@ -152,27 +152,36 @@ def test_duplicate_adapter_id_silently_overwrites() -> None:
     assert get_adapter("dup-id") is not first
 
 
-# ── detect_adapter 的 fail-soft：异常被吞（钉住现状 + 记为边界） ──────────
+# ── detect_adapter：崩掉的探子必须炸出来，不伪装成「没检测到」 ─────────────
 
 
-def test_detect_adapter_swallows_a_crashing_detect() -> None:
+def test_detect_adapter_propagates_a_crashing_detect() -> None:
+    """detect() 抛异常必须往上抛，不被吞成「没检测到适配器」。
+
+    #437 前这里是 `except Exception: continue`：一个崩掉的探子会让
+    `detect_adapter` 安静地返回 None，调用方看到的真相被替换成「这台机器
+    没有适配器」。改前实测生产代码零调用方，所以现在改没有爆炸半径。
+    """
     def _boom(_root: Path) -> bool:
         raise OSError("permission denied while probing")
 
-    _adapter("crash-only", detect=_boom)
+    _adapter("crash-probe", detect=_boom)
+    with tempfile.TemporaryDirectory() as tmp, pytest.raises(
+        OSError, match="permission denied"
+    ):
+        detect_adapter(Path(tmp))
+
+
+def test_detect_adapter_returns_none_when_nothing_matches() -> None:
+    """没有适配器认领时仍然安静返回 None（fail-loud 不等于「总要抛」）。"""
+    _adapter("never-matches", detect=lambda _root: False)
     with tempfile.TemporaryDirectory() as tmp:
-        # 现状：detect() 抛异常 ⇒ 该适配器被静默跳过，整体返回 None
-        # （调用方只会看到「没检测到适配器」，看不到「探测本身崩了」）。
         assert detect_adapter(Path(tmp)) is None
 
 
-def test_detect_adapter_falls_through_to_a_working_adapter() -> None:
-    def _boom(_root: Path) -> bool:
-        raise RuntimeError("broken probe")
-
-    _adapter("crash-first", detect=_boom)
-    working = _adapter("crash-after", detect=lambda root: (root / "ok.marker").exists())
-
+def test_detect_adapter_still_returns_the_matching_adapter() -> None:
+    """正向控制：去掉 try/except 没有顺手把 happy path 改坏。"""
+    working = _adapter("match-probe", detect=lambda root: (root / "ok.marker").exists())
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         (root / "ok.marker").write_text("x", encoding="utf-8")

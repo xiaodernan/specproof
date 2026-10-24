@@ -11228,3 +11228,30 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① 剪掉 `.mypy_cache` / `.scratch` / `.venv` 是**政策选择**：它们都不可能被提交（`.scratch` 早已被 ruff 排除、缓存在 .gitignore 里），扫它们花几分钟却什么都不守；但**若有人真把 key 写进 `.scratch`，这两道门现在看不见**——与 `.local` 同一种取舍，且 `test_local_scratch_exemption_is_narrow` 仍钉着豁免是窄的。② 符号链接两条是**跳过不是通过**：本机 OS 层没被验到，CI（ubuntu）上会真跑。③ 只修了 `tests/security/` 自己；`tests/unit` 里若还有别的全树 `rglob` 未量。④ 92s 仍不算快，剩下的大头是 bandit（18s，CI 同参）与全树文本读取。
 
 **下一号队列（取号按落地时点 max+1）。** ① 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。② `detect_adapter` 静默跳过要不要 fail-loud（#434 边界②）。③ `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。④ `tests/unit` 里是否还有别的全树 `rglob` 未剪枝（本号边界③）。⑤ #397 队列剩余。
+## #437 `detect_adapter` 的静默跳过改成 fail-loud：改前先量了「有没有人依赖它」
+
+**起因/占号。** #434 边界② 与 #435 / #436 队列都挂着：「`detect_adapter` 对 `detect()` 抛异常的适配器**静默跳过**（docstring 没写的 fail-soft）——要不要 fail-loud 是产品决策，本号不动」。本号把「不动」的理由先量掉。占号前重测账本：HEAD 版账本 `## #` id 最大 **436** ⇒ 取 **#437**。
+
+**先量后写（量的是「改了会不会炸」）。** `git grep detect_adapter` 全仓：**生产代码零调用方**，引用全在 `tests/unit/test_adapter_protocol*.py`；`get_adapter(` 同样只有 `test_gradle_adapter.py` 一处。⇒ 整个注册表 API（`register_adapter` / `get_adapter` / `detect_adapter` / `list_adapters`）目前**只被测试与适配器自己的 `@register_adapter` 装饰器使用**——Phase 4 还在铺适配器，自动检测的分发层还没接。**爆炸半径为零，所以现在改是免费的；等真接上再改，就要先评估调用方。**
+
+**修（最小生产码改造）。** `craft/adapters/protocol.py` 的 `detect_adapter`：删掉 `try/except Exception: continue`，让 `detect()` 的异常直接往上抛。docstring 写明理由：一个崩掉的探子必须让人看见，否则「探测本身坏了」会被报成「没检测到适配器」，而这正是本仓库最反对的静默失败形态（启动链路要 fail-loud）。
+
+**门（把 #434 那两条「钉现状」的用例改成钉新行为）。** `tests/unit/test_adapter_protocol_registry_semantics.py`：
+- `test_detect_adapter_swallows_a_crashing_detect` → `test_detect_adapter_propagates_a_crashing_detect`：`pytest.raises(OSError, match="permission denied")`；
+- `test_detect_adapter_falls_through_to_a_working_adapter`（崩→跳→落）删除，换成两条：
+  - `test_detect_adapter_returns_none_when_nothing_matches`：**fail-loud 不等于「总要抛」**——没人认领时仍安静返回 None；
+  - `test_detect_adapter_still_returns_the_matching_adapter`：正向控制，去掉 try/except 没顺手把 happy path 改坏。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 测试 | `pytest test_adapter_protocol_registry_semantics.py test_adapter_protocol.py -q` | 23 passed（10 新 + 13 旧） |
+| ruff | `ruff check craft/adapters/protocol.py tests/unit/test_adapter_protocol_registry_semantics.py` | 初报 E501×1 + SIM117×1（新写的嵌套 with 与超长 docstring 行），改后 **All checks passed** |
+| mypy | `mypy craft/adapters/protocol.py` | Success: no issues found |
+| **变异臂**（把 `except Exception: continue` 原样加回去） | 先预测：只有传播那条红 | 实测 **1 failed, 9 passed**，逐名命中 `test_detect_adapter_propagates_a_crashing_detect` |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | 确认工作树只剩本号那两处改动、无 `.orig` 残留；复跑 10 passed |
+
+**否证与订正。** ① #434 那两条用例是**我自己上一号写的**，专门用来「钉住现状」；本号故意改行为，于是同批把断言改成钉新行为——这不是「旧断言写错了」，是「边界被有意推进了」，两号都如实记账。② 删掉 try/except 后特意补一条「没人认领仍返回 None」，防止把 fail-loud 做成「什么都抛」。
+
+**诚实边界。** ① 只改 `detect_adapter` 一个函数；`register_adapter` / `get_adapter` / `list_adapters` 的语义一字未动。② **零生产调用方是本次测量的事实，不是永久保证**——Phase 4 接入自动检测时必须重新评估。③ 没有真实多语言项目可验「哪个适配器先命中」（注册顺序即优先级，本号只用假适配器钉了「抛 / None / 命中」三种结局）。④ `get_adapter` 的重复 id 静默覆盖仍是现状（#434 已钉），本号未动。
+
+**下一号队列（取号按落地时点 max+1）。** ① 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。② `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。③ `tests/unit` 里是否还有别的全树 `rglob` 未剪枝（#436 边界③）。④ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。

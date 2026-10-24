@@ -168,15 +168,17 @@ def get_adapter(adapter_id: str) -> type[AdapterProtocol]:
 def detect_adapter(project_root: Path) -> type[AdapterProtocol] | None:
     """自动检测项目适用的适配器。
 
-    按优先级顺序检测：显式配置 > 标志文件 > 启发式。
-    返回第一个 detect() 为 True 的适配器，或 None。
+    按注册顺序检测，返回第一个 `detect()` 为 True 的适配器，或 None。
+
+    `detect()` 抛出的异常**不再被吞掉**。此前这里是 `except Exception:
+    continue`，于是「探测本身崩了」会被报成「没检测到适配器」——调用方无从
+    分辨这两件事，而这正是本仓库最反对的静默失败形态（启动链路要 fail-loud）。
+    改前实测：生产代码零调用方（只有测试引用），所以现在改没有爆炸半径；
+    等 Phase 4 真的接上自动检测时，坏探子会当场炸出来而不是伪装成「不支持」。
     """
     for adapter_cls in _ADAPTER_REGISTRY.values():
-        try:
-            if adapter_cls.detect(project_root):
-                return adapter_cls
-        except Exception:
-            continue
+        if adapter_cls.detect(project_root):
+            return adapter_cls
     return None
 
 
