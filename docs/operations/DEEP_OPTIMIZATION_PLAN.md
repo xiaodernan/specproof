@@ -11285,3 +11285,31 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 **诚实边界。** ① 剪枝是**性能修复，没有行为门**：把 `dirnames[:] = ...` 整行删掉，测试照样全绿（只是变慢）——所以本号的变异臂打的是**扩展名过滤器**（那条同时扛正确性与速度），不是剪枝本身。② 只处理了 `tests/` 里量到的那一处；`scripts/`、`experiments/` 等生产代码里的全树遍历未量。③ 移动模块改了 `tests/security/` 两个文件的导入路径，若有别的分支正在改这两个文件会冲突——本号只改导入那一行。
 
 **下一号队列（取号按落地时点 max+1）。** ① 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。② `craft/budget.py` 的 `DEFAULT_MAX_PARALLEL_JOBS` 注释复核（#398 队列④）。③ `scripts/` / `experiments/` 等生产代码里是否还有未剪枝的全树遍历（本号边界②）。④ #397 队列剩余（基准面失败原因、全量数字写回、安静机器集成、独占机器 DEEP、CI 夜间 workflow、MQ 面产品决策）。
+## #439 两条负数结果 + 一道「声明↔事实」对账门：`DEFAULT_MAX_PARALLEL_JOBS` 的注释仍然为真
+
+**起因/占号。** #398 队列④（`DEFAULT_MAX_PARALLEL_JOBS` 注释复核）与 #438 队列③（生产代码里还有没有未剪枝的全树遍历）。占号前重测账本：HEAD 版账本 `## #` id 最大 **438** ⇒ 取 **#439**。
+
+**负数结果一：那句注释仍然为真。** `craft/budget.py` 写着「Reserved for the M4 control plane: M1 runs one job at a time, so this constant is documented here but not consumed by the M1 loop」。逐条量：
+- `git grep DEFAULT_MAX_PARALLEL_JOBS|MAX_PARALLEL_JOBS|max_parallel` 全仓 `*.py`：**只有定义那一行，零消费方**（不含测试）。
+- 并行作业执行：`agent/worker.py` / `api/routes/*.py` / `agent/job_control.py` 里没有 concurrency / max_workers / prefetch / semaphore / ThreadPool；`job_kind='craft'` 在生产 `*.py` 里零命中。
+- M4 持久化确实已落地（`storage.mysql` 状态机、`storage/outbox`），但**落地的只有持久化，没有并行分发**。
+- 顺带量了 budget 模块整体是否真被用起来：`cli/specproof/commands/craft.py` 三处 `Budget.from_env()` / `.with_overrides(...)`，两个 bench 脚本也构造 `Budget` ⇒ **模块是真接线的，只有这一个常量是预留**。
+⇒ **无需改动**，但「预留声明」本身就是会漂移的那类，所以补一道对账门。
+
+**负数结果二：生产代码的全树遍历都是对着「被验的仓库」，不是本仓库。** `git grep rglob` 生产代码：`agent/fixes.py`、`agent/nodes/{build_cache,retrieve_repository_context,run_static_checks,run_differential}.py`、`agent/testgen_review.py` 全是 `root.rglob("*.java")`（`root` = 用户被验项目），`agent/security_scanner.py` 是 `root_path.rglob("*")`（被扫项目）——**遍历目标仓库正是它们的职责**，没有「走本仓库全树再过滤」的模式。`scripts/` 里的 rglob 共 15 处，但都是开发期脚本。⇒ **无需剪枝**。
+
+**落地（只加测试）。** `tests/unit/test_craft_budget_contract.py` 加 1 案 `test_parallel_jobs_cap_is_declared_but_not_wired_into_the_gate`，把注释那句的**两半各钉一半**：
+- 常量还在（`DEFAULT_MAX_PARALLEL_JOBS > 0`）——声明没被悄悄删掉；
+- `Budget.to_dict()` 的五个上限里**没有** `max_parallel_jobs`——M1 闸门确实不消费它。
+⇒ 一旦有人把并行度接进 `Budget`，第二条红，逼他同批处理这个常量（接线或删除），别让它继续做一份没人看的声明。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 测试 | `pytest tests/unit/test_craft_budget_contract.py -q` | **17 passed**（16 + 1 新） |
+| ruff | `ruff check tests/unit/test_craft_budget_contract.py` | All checks passed |
+| **变异臂**（把 `max_parallel_jobs` 接进 `to_dict()`，即**让那句注释变成假话**） | 先预测：新门 + 「恰好五个键」那条红 | 实测 **2 failed, 15 passed**，逐名命中 `test_to_dict_has_exactly_the_five_caps` 与 `test_parallel_jobs_cap_is_declared_but_not_wired_into_the_gate` |
+| 变异臂还原 | `trap ... EXIT TERM INT` 自动还原 | `git status` 确认 `craft/budget.py` 干净、无 `.orig` 残留；复跑 17 passed |
+
+**诚实边界。** ① 新门**不钉 `DEFAULT_MAX_PARALLEL_JOBS == 2`**（那是产品参数，改数不该让门红），只钉「常量存在」与「不在闸门字段里」这两个结构关系。② 「零消费方」是**本次测量的事实，不是永久保证**——门只覆盖「接进 `Budget`」这一种漂移，不覆盖「在别处被消费」（那需要源码扫描门，成本更高）。③ 并行作业执行为零的结论来自 grep 关键词，不是动态验证；若有人用我没搜到的方式起了并行（比如外部编排的多进程 worker 池），这条结论会过期。④ 两条负数结果都只量了 `*.py`，没量 SQL migration / 配置 / 文档里的同名声明。
+
+**下一号队列（取号按落地时点 max+1）。** ① 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）——该车道落地时须同批修。② #397 队列剩余：基准面那一跑为何失败（需管线把基准面输出带进报告）、全量 87 案例数字写回 `docs/eval/p6-100-case-eval.md`、安静机器重跑集成、独占机器量 DEEP / case-100、CI 夜间 workflow、craft 欠账、MQ 面「没看」算不算缺口（产品决策）。③ `agent/security_scanner.py` 的 `_should_exclude` 过宽边缘（如 `my_tests/` 因子串 `tests/` 被排除）——#404 只统一了两条路径的占位符清单，没量路径排除本身。

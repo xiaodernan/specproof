@@ -22,6 +22,7 @@ import pytest
 
 from craft.budget import (
     DEFAULT_MAX_ITERATIONS,
+    DEFAULT_MAX_PARALLEL_JOBS,
     DEFAULT_MAX_STEPS,
     DEFAULT_MAX_TOOL_CALLS,
     DEFAULT_TIMEOUT_MINUTES,
@@ -199,3 +200,31 @@ def test_budget_is_frozen() -> None:
     budget = Budget()
     with pytest.raises(dataclasses.FrozenInstanceError):
         budget.max_iterations = 99  # type: ignore[misc]
+
+
+# ── 「预留但未接线」的声明也要对账 ───────────────────────────────────────
+
+
+def test_parallel_jobs_cap_is_declared_but_not_wired_into_the_gate() -> None:
+    """`craft/budget.py` 那句注释的两半，各钉一半。
+
+    注释写：「Reserved for the M4 control plane: M1 runs one job at a time, so
+    this constant is documented here but not consumed by the M1 loop.」#439 实测
+    这句**仍然为真**（全仓零消费方、无并行作业执行）。本门把它钉住：
+
+    - 常量还在（声明没被悄悄删掉）；
+    - `Budget` 的五个上限里**没有** `max_parallel_jobs`（M1 闸门确实不消费它）。
+
+    一旦有人把并行度接进 `Budget`，第二条红，逼他同批处理这个常量——接线，
+    或者删掉这份继续没人看的声明。声明与事实漂移，正是这个仓库反复记账的那类。
+    """
+    assert DEFAULT_MAX_PARALLEL_JOBS > 0, (
+        "DEFAULT_MAX_PARALLEL_JOBS 被删/改没了 —— 它注释里声明是 M4 控制面的预留，"
+        "删它之前先确认并行作业真的落地了"
+    )
+    caps = Budget().to_dict()
+    assert "max_parallel_jobs" not in caps, (
+        "max_parallel_jobs 已接进 Budget 闸门 —— craft/budget.py 里 "
+        "'documented here but not consumed by the M1 loop' 已不真，"
+        "请同批处理 DEFAULT_MAX_PARALLEL_JOBS（接线或删除）"
+    )
