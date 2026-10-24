@@ -11575,3 +11575,29 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ① 只加测试：`agent/waiver.py` 一字未动。② 「approved 却无 deadline」那条是**人造状态**（`object.__setattr__`），只为钉防御分支的契约；正常构造不可达。③ 不钉 `waiver_check` 的调用方（谁在什么时候调它）。④ 不修上面那份重复的时间助手。
 
 **下一号队列（取号按落地时点 max+1）。** ① 收拢 `policy_dsl.py` / `waiver.py` 重复的 `_as_utc`/`_iso_utc`（跨模块重构，单独一号）。② `agent/job_stage.py`（160 行，1 测试）。③ `agent/verdict_stability.py`（54 行，2 测试）先判是否值得。
+
+
+## #447 收拢 `policy_dsl` / `waiver` 重复的时间助手到 `agent/timeutil.py`
+
+**起因/占号。** #446 的「顺带发现」：`agent/policy_dsl.py` 与 `agent/waiver.py` 各有一份**逐字节相同**的 `_as_utc` / `_iso_utc`。两份相同不等于永远相同——一份归一化规则抄两遍，就是一份等着漂移的规则（正是 #404 在安全扫描器那边已经吃过一次的亏）。占号前 `git fetch`：0/0，远端 HEAD `98e7099`（`## #446`）⇒ 本号取 **#447**。
+
+**落地（跨模块重构，测试先行）。**
+- 新增 `agent/timeutil.py`：`as_utc()` / `iso_utc()`（原样搬过去，含 docstring）。
+- `policy_dsl.py` / `waiver.py`：删掉各自那份定义，改为
+  `from agent.timeutil import as_utc as _as_utc` / `iso_utc as _iso_utc`
+  ——**用别名保留模块内既有调用点**，改动面最小（不碰任何调用行）。
+- 顺带删掉两个模块里因此不再使用的 `UTC` import（否则 ruff F401）。
+
+**安全网。** #445 / #446 **已经先钉住**这两个助手的行为（naive ⇒ UTC、非 UTC aware 先换算、`.%f` 渲染），所以这次重构是在测试保护下做的，不是裸改。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `pytest test_policy_dsl.py test_waiver.py test_policy_dsl_declared_edges.py test_waiver_declared_edges.py -q` | **91 passed in 1.66s** |
+| ruff | `ruff check agent/timeutil.py agent/policy_dsl.py agent/waiver.py` | 初报 2 个（要求合并的别名 import 拆两行），`--fix` 后 **All checks passed** |
+| mypy | `mypy agent/timeutil.py agent/policy_dsl.py agent/waiver.py` | **Success: no issues found in 3 source files** |
+| 净变化 | `git diff --stat` | **+8 / -35**（纯删重，无逻辑改动） |
+
+**诚实边界。** ① 这是**行为等价重构**：`as_utc`/`iso_utc` 逐字节搬移，91 个既有 + 新增测试全绿为证；不声称「修了 bug」。② 只收拢这两份；仓库里若还有别处手写的同类时间归一化（`scripts/`、`integrations/` 已查，无），不在本号射程。③ 用 `import ... as _as_utc` 是为了不动调用点——代价是模块里仍可见下划线名，属可读性取舍，不伪装成新 API。④ 不钉 `timeutil` 被未来的新消费者误用（如拿 `iso_utc` 做非 UTC 渲染）——那是调用方契约。
+
+**下一号队列（取号按落地时点 max+1）。** ① `agent/job_stage.py`（160 行，1 测试）——先判纯逻辑 / I/O 外壳。② `agent/verdict_stability.py`（54 行，2 测试）先判是否值得。③ `agent/matrix_policy.py`（559 行，6 测试）里是否还有「两份手抄」同类。
