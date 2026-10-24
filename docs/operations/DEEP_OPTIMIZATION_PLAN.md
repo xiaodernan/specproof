@@ -11627,3 +11627,37 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ① 只加测试：`agent/job_stage.py` 一字未动。② 计数器是**全局累计**的，所以断言全部用 before/after 增量（与既有测试同一手法），不断言绝对值。③ 不钉 `storage/mysql.py` 的真实状态机（既有 `TestEveryVerdictIsReachable` 那一类已覆盖），本号只钉**写入器**对 store 的用法。④ 不钉 worker 在什么时机调 `advance_for_stage`（那是 `agent/worker.py` 的接线，另一层）。
 
 **下一号队列（取号按落地时点 max+1）。** ① `agent/verdict_stability.py`（54 行，2 测试）先判是否值得单独一号。② `agent/matrix_policy.py`（559 行，6 测试）里查是否还有「两份手抄」同类。③ `agent/self_test_diff.py` / `agent/external_observation.py` 各 1 个测试文件，按同法逐条对账。
+
+## #450 豁免端口第一次被真绑住：9103 的插座、启动判决、指标家族、「没人占它」各有一条腿，抓取侧的豁免不再是只在字面之间比
+
+**起因/占号。** #427 收口名册侧时点名留给下一号的那半条：它的 L2–L4 占的是 `infra/prometheus/prometheus.yml` 声明的号，而 9103 是 #232 `_UNROSTERED_LISTENERS` 刻意不声明的号——于是 `docs/operations/RUNBOOK.md` 里那句「指标端点 `INVOICE_CRON_METRICS_PORT` (默认 9103) 上的 /metrics 目前没有任何抓取作业读它」，主语是一只插座，却仍然只在字面之间比过：#232 的 L3/L4 比的是代码字面默认值 ↔ yaml ↔ compose，#284 的 D4 比的是文档数字 ↔ 模块常量，#272 的九条腿每一次都把手一个 OS 随手给的号交给端点。占号前重测账本：HEAD 版账本 `## #` id 最大 **448**（`git show HEAD:docs/operations/DEEP_OPTIMIZATION_PLAN.md` 数出 265 节）；**449 已被在途车道占用**——`.plan449.tmp:3` 与 `tests/unit/test_verdict_stability_declared_edges.py:1` 都写着 #449 ⇒ 本号取 **#450**，不改别人的号，也不留一个没人领的空号。
+
+**先量后写（两份读数都落在写腿之前：`.scratch/m450_census.log`、`.scratch/m450_probe.log`）。**
+
+- 名册（走 #232 自己的解析器）：6 个作业，号集 `[8000, 8889, 9090, 9100, 9101, 15692]`；`rabbitmq` 抓 `/metrics/per-object`，其余抓 `/metrics`。
+- 部署面的号：compose/infra 里出现的宿主号只有 `[3307, 5673, 6380, 9101, 15673]`，其中 9101 还是 `compose.production.yml:202` 的 `expose:`（容器内网端口，撞不上宿主 bind）；**9103 被任何服务 published：False**。名册里 5 个号（`[8000, 8889, 9090, 9100, 15692]`）反倒没有任何 compose 映射——这就是「文档说豁免、部署面没人认领」的另一半。
+- 除文档与测试外，全仓只有 `storage/invoice_cron.py` 一个字面 `9103`。
+- 本机插座：`127.0.0.1:9103 / 9100 / 9101` 全 FREE（探针 bind 成功）。
+- 走「无参数、无旋钮」的默认路径（就是 `python -m storage.invoice_cron` 在宿主上的形状）：`server_address=('127.0.0.1', 9103)`，`GET /metrics -> 200 len=90`，启动行 `InvoiceCron started (interval=0.0s, metrics port=9103: serving)`。
+- 一次真生成跑动的是哪些数：`invoice_cron_invoices_total before=None after='1'`，另三个计数器 `before=None after='0'`，`invoice_cron_last_success_ts before=None after='1792867864.785655'`——即「家族在跑之前根本不上线，跑完之后只有该动的那一个动了」。
+- RUNBOOK 里点名该旋钮的那一行，路径 token 只有 `['/metrics']`（与 #232 的 `DEFAULT_METRICS_PATH` 同值，不是我在腿里重打一遍）。
+- 顺带量到一条缺陷（本号不修，见队列①）：`INVOICE_CRON_METRICS_PORT=''` ⇒ `ValueError: invalid literal for int() with base 10: ''`，`INVOICE_CRON_INTERVAL_SECONDS=''` 同形；`agent/worker.py:1850` 与 `storage/outbox_relay.py:277` 用的是同一个 `int(os.getenv(K, default))` 形状，所以一个空赋值能让三个监听者都炸在建构期、连启动判决都来不及写。
+**腿（`tests/unit/test_invoice_cron_metrics_leg.py` 追加「the exempt number, occupied for real (#450)」一块，9 案 → 13 案，35,970 B / 771 行 / 纯 LF，生产件 0 字节改动）。** 没开新跟踪文件，因此不动任何按文件计数的名册；四条腿各占一个此前无人证的承诺：
+
+- `test_E1_the_exempt_number_is_occupied_and_answers_the_promised_path`：不打桩、不注入、不设旋钮，读插座自己的 `server_address` 两个分量（号 == `DEFAULT_METRICS_PORT`、地址 == `127.0.0.1`），再向 #232 的那个默认路径真发一次 GET，要求 200 且这条腿自己注册的 `specproof_invoice_cron_metrics_leg_exempt_marker_total` 在文本里——把「读到的是这个进程的 registry」与「读到的是某个占着 9103 的东西」分开。最后并置两条判决：文档在那行承诺的路径集合必须等于抓取默认路径，且这个号此刻仍不被告抓取（若哪天进了名册，这条腿就拒绝继续替一个活作业作「没人读」的证）。
+- `test_E2_a_live_holder_of_the_exempt_number_is_disclosed_not_fatal`：RUNBOOK 那句的另一半在**文档写的号**上 charged，而不是任一号。腿自己先把 9103 拿走，再数端点记账：cron 一个 socket 也没拿到（`len(opened)` 不动）、恰好一次拒绝、启动行含 `NOT serving (` 且括号里非空、`cycles == 1`（指标没了，账单的活还得干完）。
+- `test_E3_a_real_run_moves_the_cron_family_on_the_exempt_endpoint`：跑真的 `cycle()`（播种一个订阅租户 + 一条用量），在循环体内先刮一次、跑完再刮一次，家族名来自 `storage/invoice_cron.py` 的 AST（`_emitted_names()`，地板 ≥4，不手抄），逐条 charge：每个 emit 名都上了线、`# TYPE` 的类型与 emit 调用种类一致、`invoice_cron_invoices_total` 的增量恰好 1.0、其余计数器一个都不许动（这一条由 A6 单独见证）、存活 gauge > 0。`run_forever` 把循环体包在 `except Exception` 里，所以腿内的断言红会被吞成日志并把驱动吊死——`_cycle` 收集异常、无论如何都 `stop()`，出循环后第一件事是 `assert not failures`。
+- `test_E4_no_deploy_carrier_claims_the_exempt_number_and_the_predicate_refuses`：「没人抓它」的部署面那一半。判据两侧都驱动：先给真名册与真 compose 数地板（≥5 作业、≥10 映射），要求 shipped claims 为空；再塞两条**指名 9103** 的行（一条 compose 映射把宿主号给了 node-exporter、一条名册作业来抓它），必须各自点火；再塞一条指名邻号 9104 的映射，必须沉默。一个从不拒绝任何输入的普查，它的「0 hits」不是缺席，是失能。
+
+**基线与变异电池（预测先落盘：`.scratch/m450_predictions.json` 写在 A1–A5 之前，`.scratch/m450_predictions_run2.json` 写在 A6 之前；读数 `.scratch/m450_arms.json`、`m450_arms_run2.json`、`m450_battery.log`）。** 八个靶（我的腿件、`test_invoice_cron.py`、#232、#427、#284 载体门、#305 指标名门、#276 端口属主腿、RUNBOOK 声称门）基线 **70 passed in 44.76s**、0 红；六臂各 32.76–44.83s，全部 `tree at rest: True`、载体按 sha 还原、`storage/invoice_cron.py` 跑完仍是 `58d01dad…`。预测的 17 条红全部出现（每臂 `missing=[]`），逐臂：
+
+- A1 `port=self.metrics_port` → `port=0`：13 红 = 预测的 8 条（我的四条老注入腿 + E1/E2/E3）全中，外加 5 条 #232 的结构性红（`test_the_listen_port_knobs_are_exactly_what_the_code_reads`、`test_each_knob_default_is_the_port_the_roster_scrapes`、`test_each_listen_knob_bullet_carries_its_own_truth`、`test_the_port_shape_classifier_charges_an_environment_read_and_nothing_else`、`test_an_unrostered_listener_earns_its_exemption_and_discloses_it`）。归因不靠猜：#232 的 `_knob_defaults()` 要求每个 `serve_metrics_in_thread` 调用的 `port=` 解析成「一次 env 读 + 一个字面默认值」，把它换成 `port=0` 直接被那对表达式拒掉——所以这一臂是双重保险，不是我的腿独占。
+- A2 删 `incr("invoice_cron_invoices_total", …)`：3 红，MATCHED（E3、`test_invoice_cron.py::test_the_counters_expose_the_run`、#305 的名↔emit 站点门）。
+- A3 删 `set_gauge("invoice_cron_last_success_ts", …)`：3 红，MATCHED（同三处；gauge 从 AST 名册里一起消失，所以红的是我的 `after.get(name, 0.0) > 0.0` 而不是 KeyError）。
+- A4 E4 的判据不再读映射的宿主侧：1 红，MATCHED，只红 E4——真文件的 `claims == []` 照旧绿，能红的只有那条被写来抓它的植入行。
+- A5 `DEFAULT_METRICS_PORT = 9103` → `9104`：**我的 13 案全绿**，红的是 #284 的 `test_each_carrier_block_states_the_port_the_code_defaults_to`（预测中）加 #232 的 L15 豁免腿（预测外、机制同一：它也从代码读那个字面默认值再对文档）。这一臂是本号的「预测为绿」臂：腿里的号一律由导入常量与 #232 的读者派生，不是我抄的第二份 9103。
+- A6 `invoice_cron_existing_total` 改计 `len(generated)`：**1 红，MATCHED，且只红 E3**。名字还在、形状还是 env 驱动、TYPE 还是 counter、`test_the_counters_expose_the_run` 只看 invoices_total 与 gauge——只有把「不许动的计数器」当对照的腿能看见这一刀。这就是 E3 控制子句的属主证明。
+
+**诚实边界。** ①E1/E3 需要 9103 在本平面空闲，被占时 `pytest.skip` 并点名「这条平面不能证明是 cron 拿着它」；本次 census 量到 9100/9101/9103 全 FREE，所以两条都是证到的读数而不是让路的读数。CI 若起全栈，它们会从「证到」变「让路」，而 E2/E4 每平面都量——豁免侧真绑天然只在空闲平面成立，这条要记在账上而不是藏进 skip。②宿主 ≠ 容器：名册目标是 compose 的 DNS 名，E1 只 certifies 号、路径与 exposition，不 certifies 容器里的名字解析（#427 的边界同样如此）。③E4 的种群是 compose `ports:` 映射 + 名册目标；`expose:` 刻意排除，因为它声明的是容器内网端口，撞不上宿主 bind——`compose.production.yml:202` 的 `expose 9101` 就是那个形状。④本号没把 9103 塞进名册：`docs/operations/OBSERVABILITY.md:73-78` 明写「compose、两个 Dockerfile、本机启动脚本与 CI workflow 都不起它，改端口改的是一个没有进程绑定的数」，本号 census 又量到没有任何 compose 映射 published 9103——进名册等于永久挂一个 DOWN 目标，那才是把豁免换成假故障。E1 的失败消息把文档自己开的药方写给读者（起进程 + 在那份名册加一行 targets），与本号的腿不冲突。⑤`_doc_path_claims` 读的是文档行上的路径 token，不读文档句子；把「默认 9103」换成别的写法不影响它，数字那半条由 #284 的 D4 管。
+
+**下一号队列。** ①**空值旋钮炸建构期**：三个监听者（`storage/invoice_cron.py:195-199`、`agent/worker.py:1850`、`storage/outbox_relay.py:277`）共用 `int(os.getenv(K, default))` 这一对表达式，`K=''` 就 `ValueError: invalid literal for int() with base 10: ''`，而 `OBSERVABILITY.md:73-74` 对同一个键写的是「compose 未设这个键, 所以 .env 改得动」——空值那条路不是改得动，是建构期抛，进程连 `NOT serving` 都来不及写。修法要么给三处统一「空即缺省」的形状（注意这会动 #232 `_port_env_pair` 解析的那对表达式，得同一趟把门改对，A1 那五份额外红已经证明那对表达式是活的读者），要么把这条边界写进 §2 并让 E4 那类判据去读它。②「宿主号唯一」这条判据现在住在 E4 的 `_claims_the_number` 里，而 #232 L15 只管「谁抓它 / 谁起它」；队列 #429（抓取端点判据收进单一属主）正是同一族，收拢时别让两个文件各写一份 compose 解析。③E3 只在有真租户种子的跑里才动 1.0；若要给「同一个周期内重跑」再加证，得先解决 `cycle()` 的进程内 `_period` 守卫，不要靠重启进程糊过去。
