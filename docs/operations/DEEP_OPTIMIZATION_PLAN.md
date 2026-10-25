@@ -11706,10 +11706,10 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 | `services/control-plane/.../WebhookControllerTest.java:32` | `Secret in Config` (HIGH) | `SECRET = "test-webhook-secret"` 测试常量 # specproof-nosec Secret in Config
 
 **修①（5 处施加指令）。** 每处按「理由在前、指令在行尾」的形状追加：
-- `.tsx`：对象字面量里追加 `// 测试夹具假值 # specproof-nosec API Key Assignment`（TS 合法注释）；
+- `.tsx`：对象字面量里追加 `// 测试夹具假值` 再跟一条 `specproof-nosec API Key Assignment` 指令（TS 合法注释）；
 - 两个 `.md`：都在 PowerShell 代码块/命令行里，`#` 本就是 PowerShell 注释，追加后仍是可复制粘贴的有效命令；`LOCAL_EXPERIENCE.md` 那行原本就有一条 `#` 注释，新指令接在它后面（`_NOSEC_RE` 是 search，前一个 `#` 不匹配 `specproof-nosec` 会继续往后找）；
 - `external_state.py`：docstring 内的一行。**为了不超 E501（100 列）把那一行拆成两行**，URL 与指令留在同一行（指令必须在模式所在行），「a full URL of the form」移到上一行 ⇒ 该 finding 的行号从 **205 变成 206**；
-- `.java`：`// 测试假值 # specproof-nosec Secret in Config`。
+- `.java`：`// 测试假值` 再跟一条 `specproof-nosec Secret in Config` 指令。
 
 **新发现②（本号最重要的一个）：账本引用证据，扫描器就把账本也判红。** 施加完 5 处指令后自扫描**并没有**变绿——`DEEP_OPTIMIZATION_PLAN.md` 自己产出 **5 条 C/H**（`11452–11456`），正是 **#443 节那张「剩下 5 条 C/H 逐条判定」表**：表里逐字引用了 5 条 finding 的原文，扫描器按行匹配，于是把证据表当成新的泄露。⇒ **账本的职责就是逐字引用证据，所以「引用」这个动作本身会持续产生待标注行**。处理：给那 5 个表格行各加一条指令（指令因此也成为文档里可见的「已知假阳性」标注）。GFM 表格行尾的 `|` 可省，所以指令能落在行尾。
 
@@ -11751,8 +11751,61 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 
 ⇒ 258 条残留全是 LOW，内容是项目自己的内部标识（`deepseek-v4-pro` / `llm-api.fagougou.com`），按设计就是 LOW。**`run_full_security_scan` 在本仓库现在是真的绿**，#442 起接进 P0.5 脚本后 `report["12_security_scan"]` 不再是 FAIL。
 
-**否证与订正（本号自己踩的，值得记）。** ① 第一版门把 `_repo_directives()` 的 names 按空格 `split()`，于是 `"API Key Assignment"` 变成 `['API','Key','Assignment']`，与 `{'API Key Assignment'}` 永远不相等 ⇒ **5 条真指令被误判成死指令**，13 条红。机制本是「完整模式名 ⊆ names 文本」的子串语义（`_suppressed` 里 `pattern_name in m.group("names")`），是我的探针写错了，不是机制错。② 变异臂②预测漏了一条（见上表）。③ **计划文件在本号期间被另一车道重置了 3 次**（我写在**工作树**里的 5 行编辑连同步履都没留下就被 `git checkout` 冲掉；另一车道在 #445→#448 之间连续落地）。应对：本号起计划内容**直接 `git hash-object -w` + `git update-index --cacheinfo` 写进索引**，不再依赖工作树编辑能活到提交。
+**否证与订正（本号自己踩的，值得记）。** ① 第一版门把 `_repo_directives()` 的 names 按空格 `split()`，于是 `"API Key Assignment"` 变成 `['API','Key','Assignment']`，与 `{'API Key Assignment'}` 永远不相等 ⇒ **5 条真指令被误判成死指令**，13 条红。机制本是「完整模式名 ⊆ names 文本」的子串语义（`_suppressed` 里 `pattern_name in m.group("names")`），是我的探针写错了，不是机制错。② 变异臂②预测漏了一条（见上表）。④ **本节自己的散文也踩了同一条**：`修①` 里两条说明文字逐字写了 `# specproof-nosec <名字>`（`.tsx` / `.java` 那两行），于是它们成为两条死指令——bandit 第 3 条教训在本号内**第三次**复现（先是账本 #443 证据表，再是 #444 标题，现在是本节的说明文字）。改成「先写注释文本、再跟一条 `specproof-nosec <名字>` 指令」的叙述方式后不再自触发。⇒ **在本仓库里，「提到这个机制」和「使用这个机制」的文本必须长得不一样**。③ **计划文件在本号期间被另一车道重置了 3 次**（我写在**工作树**里的 5 行编辑连同步履都没留下就被 `git checkout` 冲掉；另一车道在 #445→#448 之间连续落地）。应对：本号起计划内容**直接 `git hash-object -w` + `git update-index --cacheinfo` 写进索引**，不再依赖工作树编辑能活到提交。
 
 **诚实边界。** ① 这是**行为变更**：5 个文件各多了一条行尾注释/指令；`experiments/external_state.py` 的 docstring 拆了一行（finding 行号 205→206）；计划账本有 6 行被改（5 个证据行 + #444 标题）。② `_walk_scannable` 用 `followlinks=True` 以对齐 3.12 上 `rglob` 的行为；本仓库实测**零个符号链接目录**，所以这一条对齐是推理而非实测——若将来引入符号链接目录，两者的循环处理都需要重新验证。③ 指令只审计「扫描器会读的文件」；`tests/` 与扫描器模块自身的文档里出现指令文本是**故意不审计**的。④ 7.2s/3,024 文件仍是本机量级（`.venv` 现为 3.14.8、另有 `.venv312`=3.12.13，两者都被排除），CI 上未必同量级。⑤ 未实现「整行注释里引用指令会被解析」的额外防护（bandit 第 3 条）：本机制正则要求指令在行尾，所以注释行引用它确实会形成抑制——本号只是把账本标题那一处修掉，没有通用防护。⑥ 未跑完整 10 段闭环（需 Java + 真 LLM key）。
 
 **下一号队列（取号按落地时点 max+1）。** ① **给「整行注释/文档里引用指令」一个通用防护**（本号边界⑤）——现在只有账本标题那一处被手工修掉。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。④ 另一车道在本号期间连落 **#445–#451**，计划文件被重置 3 次、且工作树账本一度落后两节（缺 #450/#451）⇒ 下次占号前**必须**重测账本 max，且账本内容**一律从 `git show HEAD:` 起算**、不要以工作树为基线。
+## #454 Phase 4 继续：跨语言适配器完善与注册中心验证
+
+**背景**：#453 完成了 Node.js 适配器和 Go 适配器的增强实现。长期计划进入适配器注册中心的生产验证阶段，目标是确保多语言适配器能够自动检测、注册并在沙箱环境中可靠执行。
+
+**本批目标**：
+1. **适配器注册中心生产验证**：确保 Java + Maven、Java + Gradle、Python + pytest、Node.js + npm、Go + test 等所有适配器均可通过 auto-detect 机制自动注册
+2. **跨语言能力矩阵完善**：完善所有适配器的 supported_goals、offline_capable、sandbox_required 字段，确保一致性
+3. **适配器协同测试**：验证适配器间的协同工作，特别是多适配器项目的检测与执行链路
+4. **性能基线建立**：建立适配器检测和执行的性能基线，确保 auto-detect 逻辑在大规模项目集合中的效率
+
+**当前适配器概览**：
+| 适配器 | 状态 | 备注 |
+|--------|------|------|
+| java-maven | ✅ 已支持 | `docs/architecture/EXECUTION_COMPATIBILITY.md` 详细记录 |
+| java-gradle | ✅ 已支持 | #431 已完善 |
+| python-pytest | ✅ 已支持 | Docker 沙箱，wheelhouse 离线依赖 |
+| node-npm | ✅ 已完成 | #449（已完成） + #454 新增 |
+| go-test | ✅ 已完成 | #449（已完成） + #454 新增 |
+| adapter-registry | ✅ 已运行 | auto-detect + registry + ID allocation functional |
+
+**执行计划**：
+### 5.1 适配器注册中心验证
+- 测试 auto-detect 机制对所有已支持适配器的检测率
+- 验证注册中心的 ID 分配逻辑是否公平、无冲突
+- 检查跨语言项目的联合检测（同时存在多个 package.json/go.mod 的项目）
+- 确认注册中心的并发安全性
+
+### 5.2 跨语言能力矩阵完善
+- 统一所有适配器的能力字段定义
+- 确保 offline_capable 和 sandbox_required 的标准化
+- 完善目标映射：test/ build/ vet 等目标的跨语言支持情况
+
+### 5.3 协同测试验证
+- 编写多适配器项目的集成测试
+- 验证检测链路：从项目扫描 -> 适配器检测 -> 注册 -> 执行 -> 证据收集
+- 确保失败时的 fall-back 行为符合预期
+
+### 5.4 性能基线
+- 测量 100+ 项目的 auto-detect 耗时
+- 基线建立后进行回归测试，确保性能不回退
+- 记录关键路径的中位数和 95th percentile
+
+**质量门**
+- ruff + mypy 全绿
+- 现有适配器测试无回归
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- `craft/adapters/protocol.py`（注册中心核心逻辑）
+- `craft/adapters/node_adapter.py`（Unicode 修复持续有效）
+- `craft/adapters/go_adapter.py`（语法错误持续修复）
+- `tests/unit/test_adapter_protocol.py`（协议测试持续通过）
+- `docs/operations/DEEP_OPTIMIZATION_PLAN.md`：追加 #454
