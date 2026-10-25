@@ -12128,3 +12128,70 @@ tests_passed = tests_run - tests_failed - tests_skipped
 - tests/unit/test_rust_adapter.py（新增）
 - tests/unit/test_cpp_adapter.py（新增）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #461
+
+
+## #462 Phase 4 继续：Rust 适配器核心实现与 Cargo 生态集成
+
+**背景**：#461 启动了 Rust/C++ 适配器与分布式编排设计。本批重点落地 Rust 适配器核心实现，完整集成 Cargo 生态，包括 cargo test、cargo nextest、离线依赖管理、JUnit XML 输出解析。
+
+**本批目标**：
+1. **Rust 适配器核心实现**：detect/prepare/execute/collect_evidence 四大接口完整实现。
+2. **Cargo 生态深度集成**：cargo test --format=json、cargo nextest、CARGO_NET_OFFLINE 离线模式。
+3. **依赖缓存机制**：specproof-cargo-cache-1000 卷 + cargo fetch 预下载 + Cargo.lock 锁定。
+4. **输出解析标准化**：JUnit XML、JSON 格式统一解析为 ExecutionResult + EvidenceFragment。
+5. **单元测试覆盖**：核心功能 10+ 测试用例，Mock 子进程验证结构正确性。
+
+**技术规范**：
+- 适配器 ID：rust-cargo
+- 语言：rust
+- 构建工具：cargo
+- 沙箱镜像：rust:1.78-bookworm (digest 待填)
+- 缓存卷：specproof-cargo-cache-1000
+- 支持目标：test、nextest、build、check、clippy
+
+**执行计划**：
+### 10.1 detect 实现
+- 检测 Cargo.toml 存在性
+- 解析 [package] 名称与版本
+- 验证 Cargo.lock 存在性（可选，但推荐）
+
+### 10.2 prepare 实现
+- 读取 Cargo.toml 中的 rust-version 字段
+- 设置 CARGO_HOME 指向缓存卷
+- 预检查 cargo 版本兼容性
+
+### 10.3 execute 实现
+- 支持 cargo test --format=json (标准输出解析)
+- 支持 cargo nextest --format=json (高性能并行测试)
+- 支持离线模式：CARGO_NET_OFFLINE=true
+- 超时控制：默认 300 秒，可配置
+- Windows 编码安全：text=False + utf-8 decode
+
+### 10.4 collect_evidence 实现
+- Cargo.toml + Cargo.lock 内容
+- rustc --version 与 cargo --version
+- JUnit XML 测试报告（cargo test -- --format=junit）
+- 测试结果汇总：tests_run/passed/failed/skipped
+
+### 10.5 单元测试
+- test_rust_adapter_detect: Cargo.toml 检测
+- test_rust_adapter_prepare: RuntimeProfile 生成
+- test_rust_adapter_execute_test: Mock subprocess 验证
+- test_rust_adapter_execute_nextest: nextest 模式
+- test_rust_adapter_execute_offline: 离线模式
+- test_rust_adapter_parse_json: JSON 输出解析
+- test_rust_adapter_parse_junit: JUnit XML 解析
+- test_rust_adapter_collect_evidence: 证据片段生成
+- test_rust_adapter_capabilities: 能力字段验证
+- test_rust_adapter_windows_unicode: Windows 编码安全
+
+**质量门**
+- ruff + mypy 全绿
+- 10+ 单元测试全部通过
+- 现有适配器测试无回归
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/adapters/rust_adapter.py（新增）
+- tests/unit/test_rust_adapter.py（新增）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #462
