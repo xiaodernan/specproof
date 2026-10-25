@@ -37,10 +37,15 @@ Case map (used by .scratch/m427_arms.py):
      holding the number reads as answered, a foreign exporter is charged
   L5 the endpoint's signature default is measured against the roster, and the module
      discloses the collision only while it exists
-  L6 census: no tracked test occupies a number the roster declares for somebody else
+  L6 census: this file is the single owner of the verdict on what a TEST may bind. It
+     resolves every ``serve_metrics_in_thread`` port expression in ``git ls-files tests``
+     to a provenance (env / fixed / default / blind / roster / free) and refuses four
+     moving shapes: an environment read, a number from nowhere readable, a number the
+     roster declares for a third party, and a number the roster scrapes for nobody
   L7 the path handed to a rostered bind comes from the roster entry, not a retype
-  L8 the census predicate, driven from both sides with planted rows and then with the
-     shipped population
+  L8 the owner's predicate, driven from both sides — 13 planted sources with exact
+     bucket expectations, then the shipped population — plus the parity clause that
+     #232's exempt rows and this census enumerate the same binds
 
 Honest boundary: the roster targets are compose service DNS names (``worker``,
 ``outbox-relay``); this plane is a host, so the legs address 127.0.0.1 and certify the
@@ -55,6 +60,24 @@ Landing this file also moved #232's classifier: its subscript branch labelled
 ``port=int(info["port"])`` a read of a knob named ``port``, which would have made
 #232's tests/** exemption refuse the leg that occupies rostered numbers. The charge is
 about the process environment, and #232's L2b now pins that in both directions.
+
+The ownership moved here in the same arc. #232's L2 used to judge its own tests/**
+carve-out with that literal classifier, and measured on the shipped tree it is blind four
+times over — the two ``port=_free_port()`` binds and this file's two
+``port=int(info["port"])`` binds all read as ``other`` (``.scratch/m451_parity.log``,
+13 exempt rows vs 13 rows carrying a ``port=`` keyword), so a test that reached a scrape
+number through a name was invisible to the one gate that carved tests out. L2 now loads
+this gate and asks it: a row the two censuses enumerate differently reds, a shallow
+``env:`` charge this census does not confirm reds, and an owner verdict of ``env`` or
+``blind`` reds. One predicate, judged once, referenced from the carve-out that depends on
+it. The shipped read is 9 ``fixed(0)`` + 2 ``free`` + 2 ``roster`` with no refusal
+(``.scratch/m451_census_check.log``).
+
+The resolver is file-local by construction, and that is the safe direction: a number fed
+in from another module's constant has no readable source here, so it lands ``blind`` and
+gets refused rather than waved through. Every shape the resolver treats as admissible is
+named in L8's planted list, and a shape it cannot read is a red the next author has to
+resolve by hand.
 """
 
 from __future__ import annotations
@@ -504,76 +527,510 @@ def _test_files() -> list[str]:
     return files
 
 
-def _constant_port_rows(files: list[str]) -> list[tuple[str, int, int]]:
-    """``(file, line, port)`` for every literal port a tracked test hands the endpoint.
+# ─────────────────────── the one predicate that judges every test bind ───────────────────────
+#: The call the census keys on: the only function in this repo that opens a scrape socket.
+_METRICS_CALL = "serve_metrics_in_thread"
 
-    Feed the parser the bytes, not a hand-decoded string: a tracked test file starts
-    with a UTF-8 BOM (tests/unit/test_eval_resume_reuses_measured_cases.py), which
-    Python's own source decoder accepts while ``read_bytes().decode("utf-8")`` keeps it
-    as U+FEFF and raises SyntaxError. A census that dies on one file's encoding reports
-    nothing about the other 442.
+#: Calls whose result IS the roster. A ``["port"]`` read off a name bound from one of them
+#: is a number the roster declares for our endpoint, so it is the same number L2 occupies.
+_ROSTER_CALLS = frozenset({"_our_endpoint_jobs", "_roster", "_gate_232", "_gate232"})
+
+#: Where a handed-in number comes from, sharpest charge first. ``env`` would move the
+#: endpoint with whatever the host's process environment says; ``fixed`` carries a number
+#: that then has to be checked against the roster; ``default`` is the signature's own
+#: number, which a call without ``port=`` takes; ``blind`` is a number no census can read;
+#: ``roster`` and ``free`` are the two provenances that do not move anybody's endpoint.
+_PROVENANCE_ORDER = ("env", "fixed", "default", "blind", "roster", "free")
+
+#: Provenances that carry a checkable number.
+_NUMERIC_KINDS = frozenset({"fixed", "default"})
+
+
+@dataclass(frozen=True)
+class PortSite:
+    """One test's bind of the metrics endpoint, and the provenance of its number."""
+
+    file: str
+    line: int
+    kind: str
+    detail: str
+    numbers: frozenset[int] = frozenset()
+
+    def tag(self) -> str:
+        return f"{self.file}:{self.line} {self.kind} ({self.detail})"
+
+
+def _call_name(node: ast.Call) -> str | None:
+    """The bare callee of ``f(...)`` or ``mod.f(...)``."""
+    func = node.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    if isinstance(func, ast.Name):
+        return func.id
+    return None
+
+
+def _unwrap(node: ast.expr) -> ast.expr:
+    """Strip the coercions and container reads a call site wraps a derived number in.
+
+    ``int(info["port"])`` is still a roster read, and ``sorted(...)[-1]`` still arrives from
+    the same place; charging the wrapper instead of what it wraps would make the census
+    refuse its own legs.
     """
-    rows: list[tuple[str, int, int]] = []
-    for rel in files:
+    while True:
+        if isinstance(node, ast.Call) and not node.keywords and len(node.args) <= 1:
+            name = _call_name(node)
+            if name in {"int", "str", "fspath", "sorted"}:
+                if node.args:
+                    node = node.args[0]
+                    continue
+                break
+            if name in {"values", "items", "keys"} and isinstance(node.func, ast.Attribute):
+                node = node.func.value
+                continue
+            break
+        if isinstance(node, ast.Attribute) and node.attr in {"values", "items", "keys"}:
+            node = node.value
+            continue
+        break
+    return node
+
+
+def _binding_names(node: ast.expr) -> list[str]:
+    """Names an assignment or loop target binds, unpacking the tuple spellings legs use."""
+    if isinstance(node, ast.Name):
+        return [node.id]
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return [child.id for child in node.elts if isinstance(child, ast.Name)]
+    return []
+
+
+def _function_bodies(tree: ast.Module) -> dict[str, ast.FunctionDef]:
+    return {
+        node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+    }
+
+
+def _parameter_names(fn: ast.FunctionDef) -> list[str]:
+    return [arg.arg for arg in [*fn.args.posonlyargs, *fn.args.args]]
+
+
+def _probe_helpers(tree: ast.Module) -> set[str]:
+    """File-local functions that ask the kernel for a number instead of naming one.
+
+    Both halves are required: a function that binds ``0`` and never reads the socket back
+    hands out a number it does not know, and one that reads ``getsockname`` without ever
+    binding 0 read somebody else's socket. Either alone would let a leg that really picked
+    a fixed number certify itself as kernel-chosen.
+    """
+    out: set[str] = set()
+    for name, fn in _function_bodies(tree).items():
+        binds_zero = any(
+            isinstance(node, ast.Call)
+            and _call_name(node) == "bind"
+            and any(
+                isinstance(sub, ast.Constant) and sub.value == 0
+                for arg in node.args
+                for sub in ast.walk(arg)
+            )
+            for node in ast.walk(fn)
+        )
+        reads_back = any(
+            isinstance(node, ast.Attribute) and node.attr == "getsockname"
+            for node in ast.walk(fn)
+        )
+        if binds_zero and reads_back:
+            out.add(name)
+    return out
+
+
+def _roster_holders(tree: ast.Module) -> set[str]:
+    """Names this file binds from the roster parser, transitively.
+
+    ``for info in _our_endpoint_jobs().values()`` binds ``info``; ``ours = _roster()`` then
+    ``for job, info in sorted(ours.items())`` binds ``info`` through ``ours``. Run to a
+    fixpoint because the second spelling only becomes readable after the first.
+    """
+    out: set[str] = set()
+
+    def from_roster(node: ast.expr) -> bool:
+        inner = _unwrap(node)
+        if isinstance(inner, ast.Call):
+            return _call_name(inner) in _ROSTER_CALLS
+        return isinstance(inner, ast.Name) and inner.id in out
+
+    for _round in range(4):
+        found = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.For) and from_roster(node.iter):
+                names = _binding_names(node.target)
+            elif isinstance(node, ast.Assign) and from_roster(node.value):
+                names = [name for target in node.targets for name in _binding_names(target)]
+            else:
+                continue
+            for name in names:
+                if name not in out:
+                    out.add(name)
+                    found = True
+        if not found:
+            break
+    return out
+
+
+def _fold_int(node: ast.expr) -> int | None:
+    """Fold the arithmetic spellings a port can be written with; None means unreadable."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, int) and not isinstance(
+        node.value, bool
+    ):
+        return node.value
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        inner = _fold_int(node.operand)
+        return None if inner is None else -inner
+    if isinstance(node, ast.BinOp):
+        left, right = _fold_int(node.left), _fold_int(node.right)
+        if left is None or right is None or right == 0:
+            return None
+        if isinstance(node.op, ast.Add):
+            return left + right
+        if isinstance(node.op, ast.Sub):
+            return left - right
+        if isinstance(node.op, ast.Mult):
+            return left * right
+        if isinstance(node.op, ast.Mod):
+            return left % right
+        if isinstance(node.op, ast.FloorDiv):
+            return left // right
+    return None
+
+
+@functools.cache
+def _port_context(tree: ast.Module) -> dict[str, Any]:
+    """Everything a name lookup needs about one file, computed once per file.
+
+    The first version of this resolver rebuilt it per site and resolved a scope by walking
+    the whole tree each time: the census over 458 tracked test files cost 24.9s, more than
+    every socket leg in this file together (``.scratch/m451_timing.log``). One pass, and
+    scopes read off line ranges, brings the same verdicts in 0.41s.
+    """
+    functions = _function_bodies(tree)
+    spans = [
+        (fn.lineno, fn.end_lineno or fn.lineno, fn.name) for fn in functions.values()
+    ]
+
+    def scope_of(node: ast.AST) -> str | None:
+        """The innermost function whose line range contains ``node``; None at module level."""
+        line = getattr(node, "lineno", -1)
+        best: tuple[int, str] | None = None
+        for start, stop, name in spans:
+            if start <= line <= stop and (best is None or stop - start < best[0]):
+                best = (stop - start, name)
+        return best[1] if best else None
+
+    calls_by_name: dict[str, list[ast.Call]] = {}
+    bindings: list[tuple[str | None, str, ast.expr, str | None]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            called = _call_name(node)
+            if called is not None:
+                calls_by_name.setdefault(called, []).append(node)
+        # ``ast.comprehension`` carries no lineno, so ``scope_of`` on it fell through to
+        # module level: every ``for job, port in …`` target became a source any function
+        # could reach by the fallback below. The target node sits on the comprehension's
+        # own line, so asking it names the function that actually owns the binding.
+        keyed = node.target if isinstance(node, ast.comprehension) else node
+        holder = scope_of(keyed)
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                for name in _binding_names(target):
+                    if node.value is not None:
+                        bindings.append((holder, name, node.value, scope_of(node.value)))
+        elif isinstance(node, (ast.For, ast.comprehension)):
+            iterable = node.iter
+            for name in _binding_names(node.target):
+                bindings.append((holder, name, iterable, holder))
+
+    local: dict[tuple[str | None, str], list[tuple[ast.expr, str | None]]] = {}
+    for scope, name, value, value_scope in bindings:
+        local.setdefault((scope, name), []).append((value, value_scope))
+    params: dict[tuple[str, str], list[tuple[ast.expr, str | None]]] = {}
+    for name, fn in functions.items():
+        for position, arg in enumerate(_parameter_names(fn)):
+            for call in calls_by_name.get(name, []):
+                call_scope = scope_of(call)
+                if position < len(call.args):
+                    params.setdefault((name, arg), []).append((call.args[position], call_scope))
+                for keyword in call.keywords:
+                    if keyword.arg == arg:
+                        params.setdefault((name, arg), []).append((keyword.value, call_scope))
+    return {
+        "tree": tree,
+        "scope_of": scope_of,
+        "functions": functions,
+        "helpers": _probe_helpers(tree),
+        "roster": _roster_holders(tree),
+        "local": local,
+        "params": params,
+    }
+
+
+def _sources_of(
+    ctx: dict[str, Any], name: str, scope: str | None
+) -> list[tuple[str, ast.expr, str | None]]:
+    """Where one name's value can arrive from, inside the scope that reads it.
+
+    A file-global scan of ``port`` is wrong: this repo's legs reuse one parameter name in
+    several helpers, so reading ``_occupy``'s parameter wandered into ``_get``'s call sites
+    and reported ``blind`` for four sites that are each perfectly readable. A parameter
+    reads only its own function's call sites, a local only assignments in that function,
+    and a name the function never binds reads module level — Python's own scoping, which is
+    what makes the verdict per site rather than per file.
+    """
+    out: list[tuple[str, ast.expr, str | None]] = []
+    params: dict = ctx["params"]
+    local: dict = ctx["local"]
+    if scope is not None:
+        for value, value_scope in params.get((scope, name), ()):
+            out.append((f"param:{scope}/{name}", value, value_scope))
+    for value, value_scope in local.get((scope, name), ()):
+        out.append((f"local:{scope}/{name}", value, value_scope))
+    if out or scope is None:
+        return out
+    for value, value_scope in local.get((None, name), ()):
+        out.append((f"global:{name}", value, value_scope))
+    return out
+
+
+def _is_env_read(node: ast.expr) -> str | None:
+    """The knob name if this expression reaches the process environment, else None."""
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Call) and _call_name(sub) == "getenv":
+            first = sub.args[0] if sub.args else None
+            return str(first.value) if isinstance(first, ast.Constant) else "?"
+        if (
+            isinstance(sub, ast.Subscript)
+            and isinstance(sub.slice, ast.Constant)
+            and isinstance(sub.slice.value, str)
+            and (
+                (isinstance(sub.value, ast.Attribute) and sub.value.attr == "environ")
+                or (isinstance(sub.value, ast.Name) and sub.value.id == "environ")
+            )
+        ):
+            return str(sub.slice.value)
+    return None
+
+
+def _resolve_port(
+    node: ast.expr,
+    scope: str | None,
+    ctx: dict[str, Any],
+    path: frozenset[str] = frozenset(),
+    depth: int = 0,
+) -> list[tuple[str, str, frozenset[int]]]:
+    """Every verdict the expression can reach, one per readable source.
+
+    Multiple sources is the honest answer, not an ambiguity: a helper parameter fed both a
+    kernel probe and a literal really can move the endpoint with the literal, so the caller
+    charges the sharpest of them and lists every number that kind reached.
+    """
+    node = _unwrap(node)
+    if depth > 8:
+        return []
+    knob = _is_env_read(node)
+    if knob is not None:
+        return [("env", knob, frozenset())]
+    helpers: set[str] = ctx["helpers"]
+    if scope in helpers and any(
+        isinstance(sub, ast.Attribute) and sub.attr == "getsockname" for sub in ast.walk(node)
+    ):
+        return [("free", scope or "", frozenset())]
+    folded = _fold_int(node)
+    if folded is not None:
+        return [("fixed", str(folded), frozenset({folded}))]
+    if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
+        base = node.value
+        base_name = base.id if isinstance(base, ast.Name) else None
+        if node.slice.value == "port" and base_name in ctx["roster"]:
+            return [("roster", f"{base_name}['port']", frozenset())]
+        return [("blind", f"subscript on {ast.unparse(base)!r}", frozenset())]
+    if isinstance(node, ast.Call):
+        name = _call_name(node) or ""
+        body = ctx["functions"].get(name)
+        if body is None:
+            return [("blind", f"call {name}() outside this file", frozenset())]
+        if f"call:{name}" in path:
+            return []
+        returns = [
+            row.value for row in ast.walk(body) if isinstance(row, ast.Return) and row.value
+        ]
+        out = [
+            verdict
+            for value in returns
+            for verdict in _resolve_port(value, name, ctx, path | {f"call:{name}"}, depth + 1)
+        ]
+        return out or [("blind", f"{name}() returns nothing readable", frozenset())]
+    if isinstance(node, ast.Name):
+        out = [
+            verdict
+            for key, value, value_scope in _sources_of(ctx, node.id, scope)
+            if key not in path
+            for verdict in _resolve_port(value, value_scope, ctx, path | {key}, depth + 1)
+        ]
+        return out or [("blind", f"name {node.id} has no readable source here", frozenset())]
+    return [("blind", f"{type(node).__name__} is not a nameable port", frozenset())]
+
+
+def _port_provenance(
+    tree: ast.Module, expr: ast.expr, scope: str | None
+) -> tuple[str, str, frozenset[int]]:
+    """One charge per site: the sharpest verdict, with every number that kind reached.
+
+    Reporting only the first verdict let a site fed both ``0`` and a third party's number
+    read as the harmless one.
+    """
+    verdicts = _resolve_port(expr, scope, _port_context(tree))
+    if not verdicts:
+        return "blind", "no readable source at any depth", frozenset()
+    verdicts.sort(key=lambda row: _PROVENANCE_ORDER.index(row[0]))
+    kind, detail, _ = verdicts[0]
+    numbers = frozenset().union(*(row[2] for row in verdicts if row[0] == kind))
+    return kind, detail, numbers
+
+
+def _endpoint_default() -> int:
+    """The signature's own port, which a call without ``port=`` takes."""
+    default = inspect.signature(serve_metrics_in_thread).parameters["port"].default
+    assert isinstance(default, int), f"the endpoint's port default is {default!r}"
+    return default
+
+
+def _file_port_sites(rel: str, source: bytes) -> list[PortSite]:
+    """Every metrics-server call in one file, each with the provenance of its number.
+
+    A call that spells no port at all is a site too, and is charged with the signature's
+    default: that is the hole the old literal-only census could not see, because the number
+    was never written at the call site.
+    """
+    tree = ast.parse(source)
+    ctx = _port_context(tree)
+    out: list[PortSite] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or _call_name(node) != _METRICS_CALL:
+            continue
+        keyword = next((kw for kw in node.keywords if kw.arg == "port"), None)
+        if keyword is not None:
+            kind, detail, numbers = _port_provenance(tree, keyword.value, ctx["scope_of"](node))
+        elif len(node.args) >= 2:
+            kind, detail, numbers = _port_provenance(tree, node.args[1], ctx["scope_of"](node))
+        else:
+            kind, detail, numbers = "default", "the signature's port", frozenset(
+                {_endpoint_default()}
+            )
+        out.append(PortSite(rel, node.lineno, kind, detail, numbers))
+    return out
+
+
+@functools.cache
+def _test_port_sites() -> tuple[PortSite, ...]:
+    """The census: every port a tracked test hands the metrics endpoint, and its source.
+
+    Cached because L6, L8 and #232's L2 all read the same population; an uncached version
+    re-parses 458 files per reader (``.scratch/m451_timing.log``).
+    """
+    rows: list[PortSite] = []
+    for rel in _test_files():
         path = ROOT / rel
         if not path.is_file():
             continue
-        tree = ast.parse(path.read_bytes())
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            name = getattr(node.func, "attr", None) or getattr(node.func, "id", None)
-            if name != "serve_metrics_in_thread":
-                continue
-            for keyword in node.keywords:
-                if keyword.arg != "port":
-                    continue
-                value = keyword.value
-                if isinstance(value, ast.Constant) and isinstance(value.value, int):
-                    rows.append((rel, node.lineno, value.value))
-    return rows
+        raw = path.read_bytes()
+        if _METRICS_CALL.encode() not in raw:
+            continue
+        # Parse the bytes, not a hand-decoded string: a tracked test file starts with a
+        # UTF-8 BOM (tests/unit/test_eval_resume_reuses_measured_cases.py), which Python's
+        # own source decoder accepts while ``read_bytes().decode("utf-8")`` keeps it as
+        # U+FEFF and raises SyntaxError. A census that dies on one file's encoding reports
+        # nothing about the other 457.
+        rows.extend(_file_port_sites(rel, raw))
+    return tuple(sorted(rows, key=lambda site: (site.file, site.line)))
+
+
+def _planted_sites(name: str, source: str) -> list[PortSite]:
+    """Drive the census predicate with a source the tracked tree does not contain."""
+    return _file_port_sites(name, source.encode("utf-8"))
 
 
 def _refused(
-    rows: list[tuple[str, int, int]], *, third: set[int], ours: set[int]
-) -> tuple[list[tuple[str, int, int]], list[tuple[str, int, int]]]:
-    """The two refusals L6 makes, over one row parse: whose number, and whether it is fixed.
+    sites: list[PortSite] | tuple[PortSite, ...], *, third: set[int], ours: set[int]
+) -> tuple[list[PortSite], list[PortSite], list[PortSite], list[PortSite]]:
+    """The four refusals the single owner makes over one population.
 
-    Shared with L8 so the planted rows drive the predicate the shipped census drives —
-    an absence claim nobody has watched refuse anything is a green that means nothing.
+    Shared with L8 so the planted sources drive the predicate the shipped census drives: an
+    absence claim nobody has watched refuse anything is a green that means nothing.
     """
-    occupied = [row for row in rows if row[2] in third]
-    stray = [row for row in rows if row[2] != 0 and row[2] not in ours]
-    return occupied, stray
+    env_reads = [site for site in sites if site.kind == "env"]
+    unreadable = [site for site in sites if site.kind == "blind"]
+    named = [site for site in sites if site.kind in _NUMERIC_KINDS]
+    occupied = [site for site in named if site.numbers & third]
+    stray = [site for site in named if not site.numbers <= {0} | ours]
+    return env_reads, unreadable, occupied, stray
 
 
-def test_L6_no_tracked_test_occupies_a_number_the_roster_declares_for_others() -> None:
-    """A bind of ``prometheus:9090`` from our own suite would green-light a lie.
+def test_L6_no_tracked_test_moves_a_scrape_endpoint_it_does_not_own() -> None:
+    """One predicate, four refusals, over every bind the tracked test tree makes.
 
-    Census over the tracked test tree keyed on the call shape: every constant port
-    handed to the endpoint must be 0 (kernel-chosen) or a number the roster scrapes
-    from our endpoint. The floor keeps an empty scan from reading as clean; L8 drives
-    the same predicate with planted rows, because nothing in the tree today gives it
-    anything to refuse.
+    This leg and #232's L2 each used to hold half of the same sentence: L6 refused literal
+    numbers that are neither ``0`` nor one of ours, L2 refused environment reads at
+    tests/** sites, and the shape neither could read — a number arriving through a name —
+    was judged by nobody. Measured over the shipped tree (``.scratch/m451_parity.log``):
+    13 binds, of which #232's own classifier labels 4 ``other``, and those 4 are exactly
+    the ones this census now names (2 ``free``, 2 ``roster``). ``MY_PORT = 9090`` walked
+    past the old literal scan untouched; here it is ``fixed (9090)`` and charged.
+
+    The refusals, sharpest first: an environment read (a test would follow whatever the
+    host exports), a number that belongs to a process this repo does not write, a fixed
+    number the roster declares for nobody, and a number the census cannot read at all. The
+    last one is deliberate fail-closed: a port no census can name is one a test moves
+    without anything noticing, so it is refused until it is spelled in one of the four
+    readable ways — ``port=0``, a roster entry read through #232's parser, a file-local
+    helper that binds ``0`` and reads the kernel's number back, or a literal that the
+    roster then has to place.
     """
     third = set(_third_party_numbers().values())
     ours = {int(info["port"]) for info in _our_endpoint_jobs().values()}
-    rows = _constant_port_rows(_test_files())
-    assert len(rows) >= 5, (
-        f"the census saw only {rows}; an empty scan cannot certify that "
-        "nobody occupies a third-party number"
+    assert third and ours and not third & ours, (
+        f"the refusals only mean something while the two populations stay disjoint: "
+        f"third={sorted(third)}, ours={sorted(ours)}"
     )
-    occupied, stray = _refused(rows, third=third, ours=ours)
+    sites = list(_test_port_sites())
+    assert len(sites) >= 5, (
+        f"the census saw {len(sites)} binds; an empty scan cannot certify that nobody "
+        "moves a scrape endpoint"
+    )
+    env_reads, unreadable, occupied, stray = _refused(sites, third=third, ours=ours)
+    assert not env_reads, (
+        f"these test binds take their port from the process environment "
+        f"{[site.tag() for site in env_reads]}: a test that follows "
+        "METRICS_PORT / INVOICE_CRON_METRICS_PORT moves whatever endpoint the host points "
+        "it at, which is the promise #232's L2 used to guard and this leg now owns"
+    )
+    assert not unreadable, (
+        f"these test binds hand the endpoint a number the census cannot read "
+        f"{[site.tag() for site in unreadable]}: spell it as port=0, a roster entry, or a "
+        "kernel-chosen probe in the same file, because an unreadable port is one a test "
+        "moves without any census noticing"
+    )
     assert not occupied, (
         f"these test binds land on a number the roster declares for a process this repo "
-        f"does not write ({sorted(_third_party_numbers().items())}): {occupied}. A scrape "
-        "promise about node_exporter, RabbitMQ or Prometheus cannot be witnessed by "
-        "occupying the port ourselves — that is a green that means the opposite."
+        f"does not write ({sorted(_third_party_numbers().items())}): "
+        f"{[site.tag() for site in occupied]}. A scrape promise about node_exporter, "
+        "RabbitMQ or Prometheus cannot be witnessed by occupying the port ourselves — that "
+        "is a green that means the opposite."
     )
     assert not stray, (
-        f"a test binds a fixed port that is neither kernel-chosen nor one of our "
-        f"rostered numbers: {stray}. A number outside the roster still collides with "
-        "whatever else runs on the plane and makes the suite depend on the host."
+        f"a test binds a fixed port that is neither kernel-chosen nor one of our rostered "
+        f"numbers: {[site.tag() for site in stray]}. A number outside the roster still "
+        "collides with whatever else runs on the plane and makes the suite depend on the "
+        "host."
     )
 
 
@@ -654,59 +1111,230 @@ def test_L7_a_rostered_bind_is_given_the_rosters_own_path() -> None:
 
 
 # ───────────────────────────────────────────── L8 ─────────────────────────────────────────────
-def test_L8_the_census_charge_refuses_a_foreign_number_and_accepts_ours() -> None:
+def test_L8_the_owner_refuses_every_moving_shape_and_accepts_every_admissible_one() -> None:
     """L6 certifies an absence, so its predicate has to be watched refusing something.
 
-    Nothing in the tracked tree today hands the endpoint another process's number or an
-    off-roster fixed one, so both of L6's asserts run against an empty result by default:
-    a mutation that blinds the census — a dropped keyword match, a flipped comparison —
-    reports exactly the green the honest reading reports. The planted rows drive the very
-    function L6 trusts, from both sides: the number the roster declares for somebody else
-    comes back charged, our own rostered number and the kernel-chosen ``0`` come back
-    clean, and a fixed number outside the roster is caught by the second refusal only.
-    The shipped census then goes through the same call, which is what ties the planted
-    behaviour to the population that carries the promise.
+    Nothing in the tracked tree today hands the endpoint an environment knob, another
+    process's number or an unreadable port, so all four of L6's asserts run against empty
+    results by default: a mutation that blinds the census — a dropped keyword match, a
+    flipped comparison, a resolver that stops following names — reports exactly the green
+    the honest reading reports. The planted sources below drive the same function from both
+    sides, and they are the shapes the shipped tree happens not to contain: a third party's
+    number through a module constant, a knob reached through a name, a probe helper that
+    only looks like a probe, and a dict entry that wears the roster's spelling.
+
+    The last of those is the fold's reason for existing. #232's classifier reads the
+    expression in front of ``port=`` and stops; ``KNOB = os.getenv(...)`` a call site then
+    passes is an environment read it labels ``other``, which is the half of the sentence
+    this leg took over.
     """
-    third_map = _third_party_numbers()
-    third = set(third_map.values())
+    third = set(_third_party_numbers().values())
     ours = {int(info["port"]) for info in _our_endpoint_jobs().values()}
     assert third and ours and not third & ours, (
-        f"a planted row only means something while the two populations stay disjoint: "
+        f"a planted source only means something while the two populations stay disjoint: "
         f"third={sorted(third)}, ours={sorted(ours)}"
     )
     foreign = sorted(third)[0]
-    rostered = sorted(ours)[0]
-    planted = [
-        ("planted_foreign_row.py", 1, foreign),
-        ("planted_our_row.py", 2, rostered),
-        ("planted_kernel_row.py", 3, 0),
-    ]
-    occupied, stray = _refused(planted, third=third, ours=ours)
-    assert occupied == [planted[0]], (
-        f"the charge did not single out the row that binds {foreign}, the number the "
-        f"roster declares for a process this repo does not write: occupied={occupied}, "
-        f"stray={stray}"
-    )
-    assert stray == [planted[0]], (
-        "a third party's number is by definition not one of ours, so the stray refusal "
-        f"names it too ({stray}) — but nothing else may sit in that list"
-    )
-    accepted = _refused(planted[1:], third=third, ours=ours)
-    assert accepted == ([], []), (
-        f"the leg's own binds are charged ({accepted[0]}, {accepted[1]}): a rostered "
-        "number of ours and the kernel-chosen 0 are the two shapes L6 must accept, "
-        "because L2 and L4 occupy exactly those"
-    )
     off = _free_port()
     assert off not in third | ours, f"the OS handed out a rostered number: {off}"
-    off_row = ("planted_offroster_row.py", 4, off)
-    occupied_off, stray_off = _refused([off_row], third=third, ours=ours)
-    assert occupied_off == [] and stray_off == [off_row], (
-        f"a fixed number that belongs to nobody is not caught by the second refusal "
-        f"alone: occupied={occupied_off}, stray={stray_off}"
+    default = _endpoint_default()
+    assert default in ours, (
+        f"the endpoint's own signature default {default} is not one of our rostered numbers "
+        f"{sorted(ours)} today, so the no-port plant below would be charged as a stray "
+        "bind and the acceptance claim would be about a different world than this one"
     )
-    rows = _constant_port_rows(_test_files())
-    shipped = _refused(rows, third=third, ours=ours)
-    assert shipped == ([], []), (
-        f"the shipped census drives the same predicate to a refusal L6 did not report: {shipped}"
+
+    plants: list[tuple[str, str, str]] = [
+        (
+            "literal_foreign",
+            f"serve_metrics_in_thread(port={foreign})\n",
+            "fixed",
+        ),
+        (
+            "name_foreign",
+            f"MY_PORT = {foreign}\n"
+            f"def test_x():\n"
+            f"    serve_metrics_in_thread(port=MY_PORT)\n",
+            "fixed",
+        ),
+        (
+            "literal_offroster",
+            f"serve_metrics_in_thread(port={off})\n",
+            "fixed",
+        ),
+        (
+            "computed_offroster",
+            f"serve_metrics_in_thread(port={off - 90} + 90)\n",
+            "fixed",
+        ),
+        (
+            "knob_at_the_call",
+            "import os\n"
+            'serve_metrics_in_thread(port=os.environ["METRICS_PORT"])\n',
+            "env",
+        ),
+        (
+            "knob_through_a_name",
+            "import os\n"
+            'KNOB = os.getenv("OTHER_METRICS_PORT", "9100")\n'
+            "def test_x():\n"
+            "    serve_metrics_in_thread(port=KNOB)\n",
+            "env",
+        ),
+        (
+            "kernel_probe",
+            "import socket\n"
+            "def _free_port():\n"
+            "    probe = socket.socket()\n"
+            '    probe.bind(("127.0.0.1", 0))\n'
+            "    port = int(probe.getsockname()[1])\n"
+            "    probe.close()\n"
+            "    return port\n"
+            "def test_x():\n"
+            "    serve_metrics_in_thread(port=_free_port())\n",
+            "free",
+        ),
+        (
+            "probe_that_looks_like_a_probe",
+            "import socket\n"
+            "def _free_port():\n"
+            "    probe = socket.socket()\n"
+            '    probe.bind(("127.0.0.1", 0))\n'
+            "    _ = int(probe.getsockname()[1])\n"
+            "    probe.close()\n"
+            f"    return {foreign}\n"
+            "def test_x():\n"
+            "    serve_metrics_in_thread(port=_free_port())\n",
+            "fixed",
+        ),
+        (
+            "param_fed_by_probe_and_literal",
+            "import socket\n"
+            "def _free_port():\n"
+            "    probe = socket.socket()\n"
+            '    probe.bind(("127.0.0.1", 0))\n'
+            "    return int(probe.getsockname()[1])\n"
+            "def _bind(port):\n"
+            "    return serve_metrics_in_thread(port=port)\n"
+            "def test_x():\n"
+            "    _bind(_free_port())\n"
+            f"    return _bind({off})\n",
+            "fixed",
+        ),
+        (
+            "roster_read",
+            "def test_L2():\n"
+            "    for info in _our_endpoint_jobs().values():\n"
+            '        serve_metrics_in_thread(port=int(info["port"]))\n',
+            "roster",
+        ),
+        (
+            "dict_entry_in_the_rosters_spelling",
+            "def test_x():\n"
+            f"    entry = {{'port': {foreign}}}\n"
+            '    return serve_metrics_in_thread(port=entry["port"])\n',
+            "blind",
+        ),
+        (
+            "name_from_nowhere",
+            "def test_x():\n"
+            "    serve_metrics_in_thread(port=from_elsewhere)\n",
+            "blind",
+        ),
+        (
+            "no_port_keyword",
+            "def test_x():\n"
+            "    serve_metrics_in_thread()\n",
+            "default",
+        ),
+    ]
+    planted: dict[str, PortSite] = {}
+    for name, source, expected in plants:
+        sites = _planted_sites(f"{name}.py", source)
+        assert len(sites) == 1, (
+            f"the plant {name!r} must make exactly one bind of the endpoint, got "
+            f"{[site.tag() for site in sites]}"
+        )
+        site = sites[0]
+        assert site.kind == expected, (
+            f"the plant {name!r} is the shape L6 says it refuses or admits as {expected!r}, "
+            f"but the census read it as {site.tag()}"
+        )
+        planted[name] = site
+
+    env_reads, unreadable, occupied, stray = _refused(
+        list(planted.values()), third=third, ours=ours
+    )
+    assert [site.file for site in env_reads] == [
+        "knob_at_the_call.py",
+        "knob_through_a_name.py",
+    ], (f"the environment half of the fold does not refuse both spellings: {env_reads}")
+    assert [site.file for site in unreadable] == [
+        "dict_entry_in_the_rosters_spelling.py",
+        "name_from_nowhere.py",
+    ], (f"the fail-closed half of the fold does not refuse unreadable ports: {unreadable}")
+    assert [site.file for site in occupied] == [
+        "literal_foreign.py",
+        "name_foreign.py",
+        "probe_that_looks_like_a_probe.py",
+    ], (
+        f"the number the roster declares for somebody else is not charged wherever it "
+        f"arrives — a literal, a module constant, or the return of a helper that only "
+        f"looks like a kernel probe: {occupied}"
+    )
+    assert [site.file for site in stray] == [
+        "literal_foreign.py",
+        "name_foreign.py",
+        "literal_offroster.py",
+        "computed_offroster.py",
+        "probe_that_looks_like_a_probe.py",
+        "param_fed_by_probe_and_literal.py",
+    ], (
+        f"stray refuses exactly the fixed numbers that are neither 0 nor one of ours "
+        f"({stray}); the probe-fed-and-literal plant belongs here even though the same "
+        f"helper is also fed a kernel number, because one readable literal is enough to "
+        f"make the bind depend on the host"
+    )
+    admitted = {
+        "kernel_probe.py",
+        "roster_read.py",
+        "no_port_keyword.py",
+    }
+    charged = {site.file for bucket in (env_reads, unreadable, occupied, stray) for site in bucket}
+    assert not admitted & charged, (
+        f"the census charges the three provenances a test is allowed to bind with: "
+        f"{sorted(admitted & charged)}. The kernel-chosen port, a rostered number of ours "
+        f"and the signature default {default} are what L2, L4 and every production caller "
+        f"already do, so refusing them would refuse the legs this file exists to run."
+    )
+
+    shipped = _refused(list(_test_port_sites()), third=third, ours=ours)
+    assert shipped == ([], [], [], []), (
+        f"the shipped census drives the same predicate to a refusal L6 did not report: "
+        f"{[site.tag() for bucket in shipped for site in bucket]}"
+    )
+    named = [
+        site for site in _test_port_sites() if site.kind in {"free", "roster"}
+    ]
+    assert named, (
+        "no shipped bind is readable only through a name any more, so the name-following "
+        "half of this census — the half that took the judgment off #232's shallow "
+        "classifier — is exercised by nothing but the plants above, and L6's claim to own "
+        "the whole sentence would be history rather than measurement"
+    )
+
+    scan = _gate_232()._metrics_scan()
+    hidden = {
+        (rel, line)
+        for rel, info in scan.items()
+        if info["calls"] and rel.startswith("tests/")
+        for line, _shape in info["calls"]
+    }
+    rows = {(site.file, site.line) for site in _test_port_sites()}
+    assert hidden == rows, (
+        f"#232's census carves tests/** out of its listener population on the strength of "
+        f"this leg, but the two censuses no longer enumerate the same binds: it hides "
+        f"{sorted(hidden - rows)}, this one sees {sorted(rows - hidden)}. One of the two "
+        "readers has stopped walking the call sites, and the exemption is unsupervised "
+        "again."
     )

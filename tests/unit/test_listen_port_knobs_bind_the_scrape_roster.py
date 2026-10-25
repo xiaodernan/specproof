@@ -46,8 +46,9 @@ Case map (used by .scratch/arm232-port-arms.py):
   L2  the listen-port knobs are exactly what the code reads: an AST call-site
       census over every tracked file, both directions (an undeclared metrics
       server or a dead knob reds), with the definition site separated from the
-      callers and the tests/** exclusion re-derived from each test's own port
-      expression
+      callers and the tests/** exclusion handed to #427's owner-side census —
+      every exempt bind is re-checked by reference, not by this file's shallow
+      literal classifier
   L3  each knob's literal default == the roster port of the job it serves
   L4  each knob's compose state is literal-or-absent, never templated, and a
       literal must equal the roster port
@@ -106,6 +107,7 @@ OTEL_YAML = "infra/otel/otel-collector.yaml"
 OBS_MD = "docs/operations/OBSERVABILITY.md"
 COMPOSE_FILES = ("compose.phase0.yml", "compose.production.yml", "compose.observability.yml")
 GATE_220 = ROOT / "tests" / "unit" / "test_scrape_roster_binds_the_liveness_probes.py"
+GATE_427 = ROOT / "tests" / "unit" / "test_scrape_roster_ports_answer_their_own_numbers.py"
 
 #: Prometheus scrapes this path unless a job declares ``metrics_path``. External
 #: behaviour, named here so L11 can refuse a doc that states a path the config
@@ -926,6 +928,26 @@ def test_each_scrape_job_has_the_declared_provider_evidence() -> None:
 
 
 # ─────────────────────────────────────────── L2 ───────────────────────────────────────────
+def _gate_427() -> Any:
+    """Load #427's gate: it is the owner of the verdict on what a TEST may bind.
+
+    Loading it is the point, not a convenience — #232 used to judge the tests/** half of
+    its own carve-out with ``_port_shape``, a classifier that can only see the literal at
+    the call. Measured on the shipped tree it is blind four times over
+    (``.scratch/m451_parity.log``): the two ``port=_free_port()`` binds and #427's two
+    ``port=int(info["port"])`` binds all read as ``other``, so a test that reached a scrape
+    number through a name was invisible here. #427's L6 resolves each of those to ``free``
+    or ``roster`` and refuses ``env``/``blind``/``occupied``/``stray``; this clause now asks
+    it instead of guessing.
+    """
+    spec = importlib.util.spec_from_file_location("sp_gate427", GATE_427)
+    assert spec is not None and spec.loader is not None, f"cannot load {GATE_427}"
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["sp_gate427"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_the_listen_port_knobs_are_exactly_what_the_code_reads() -> None:
     """A census over the whole TRACKED tree, not over the files this gate was
     written to look at: a third process that starts a metrics server moves a
@@ -961,12 +983,31 @@ def test_the_listen_port_knobs_are_exactly_what_the_code_reads() -> None:
         "calls the metrics server any more: the exclusion hides nothing, so "
         "delete it instead of keeping a slot for a future listener"
     )
+    owner = _gate_427()
+    rows = {(site.file, site.line): site for site in owner._test_port_sites()}
     for rel, calls in sorted(exempt.items()):
         for line, shape in calls:
-            assert not shape.startswith("env:"), (
-                f"{rel}:{line} starts a metrics server with a port read from "
-                f"{shape[4:]}: a test now moves a scrape endpoint, so the "
-                f"tests/** exclusion is false and this file needs declaring"
+            site = rows.get((rel, line))
+            assert site is not None, (
+                f"{rel}:{line} is a tests/** bind this census enumerates but #427's "
+                f"owner-side census does not enumerate ({len(rows)} rows): the "
+                "carve-out and the watcher no longer describe one population, so "
+                "the exclusion hides whatever the owner stopped seeing"
+            )
+            if shape.startswith("env:"):
+                assert site.kind == "env", (
+                    f"{rel}:{line} reads its port from {shape[4:]} for this "
+                    f"classifier but #427 resolves the same expression to "
+                    f"{site.kind} ({site.detail}): the two readings of an environment "
+                    "knob have split, and whichever is wrong an env-fed test is "
+                    "either falsely charged or freely exempt"
+                )
+            assert site.kind not in {"env", "blind"}, (
+                f"{rel}:{line} is {site.tag()} — a test either moves a scrape "
+                "endpoint with the operator's environment or takes its number from "
+                "nowhere readable, and this file's tests/** carve-out is what would "
+                "let it pass quietly. Declare the file as a listener (with its knob, "
+                "its §2 bullet and its evidence class) instead of exempting it."
             )
     derived = set(_knob_defaults())
     declared = set(_LISTEN_PORT_KNOBS) | set(_UNROSTERED_LISTENERS)
