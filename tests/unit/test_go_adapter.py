@@ -1,8 +1,5 @@
 """Tests for Go Adapter (Phase 4)."""
 
-import json
-import os
-import re
 import tempfile
 from pathlib import Path
 
@@ -12,7 +9,6 @@ from craft.adapters.go_adapter import GoAdapter
 from craft.adapters.protocol import (
     AdapterNotImplemented,
     ExecutionResult,
-    RuntimeProfile,
 )
 
 
@@ -48,6 +44,9 @@ def test_go_adapter_prepare() -> None:
         go_mod2_content = "module example\ngo 1.21\n//go:cgo enable\n"
         (tmp_path / "go.mod").write_text(go_mod2_content, encoding="utf-8")
         profile2 = GoAdapter.prepare(tmp_path)
+        # 这条断言是本测试存在的理由（docstring 说「检测 CGO 状态」）：
+        # 之前只 prepare 不断言，等于什么都没验。
+        assert profile2.extra["cgo_enabled"] is True
 
 
 def test_go_adapter_execute_test() -> None:
@@ -97,7 +96,11 @@ def test_go_adapter_capabilities() -> None:
 
 def test_go_adapter_parse_test_json() -> None:
     """解析 go test -json 输出。"""
-    output = '{"name":"example/test","status":"passed","elapsed":1.5}\n{"name":"example/test2","status":"failed","elapsed":2.0}\n{"name":"example/test3","status":"skipped","elapsed":0.5}'
+    output = (
+        '{"name":"example/test","status":"passed","elapsed":1.5}\n'
+        '{"name":"example/test2","status":"failed","elapsed":2.0}\n'
+        '{"name":"example/test3","status":"skipped","elapsed":0.5}'
+    )
     tests_run, passed, failed, skipped = GoAdapter._parse_test_results(
         Path("."), output, ""
     )

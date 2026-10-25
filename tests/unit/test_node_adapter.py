@@ -1,7 +1,6 @@
 """Tests for Node.js Adapter (Phase 4)."""
 
 import json
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -13,7 +12,6 @@ from craft.adapters.node_adapter import NodeAdapter
 from craft.adapters.protocol import (
     AdapterNotImplemented,
     ExecutionResult,
-    RuntimeProfile,
 )
 
 

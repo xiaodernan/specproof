@@ -11911,3 +11911,44 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 - craft/adapters/go_adapter.py（语法错误持续修复）
 - 	ests/unit/test_adapter_protocol.py（协议测试持续通过）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #456
+## #457 把 go/node 适配器提交后的 CI 红修绿：`os` 未导入的运行时 NameError、`tests_run` 少算、`prepare` 二读崩溃
+
+**起因/占号。** #453 队列②「在途 go/node 适配器的 35 个 ruff 错」长期被挡（文件未跟踪）。本号开工前发现它们已被另一车道提交（`15cef83` 起），于是挡板消失。占号前重测：**HEAD 版账本 `## #` id 最大 456** ⇒ 取 **#457**。
+
+**先量后写（量的是「CI 到底红不红、红在哪」）。** 平面副本（`git archive HEAD`）跑 CI 的两道门：
+- `ruff check .` → **31 errors**（`craft/adapters/node_adapter.py` 14 条、`go_adapter.py` 3 条、两个测试文件 14 条）；
+- `mypy .` → **23 errors / 2 files**（`node_adapter.py` 14、`go_adapter.py` 9）。
+⇒ **CI 的 `lint-type` job 在 master 上是红的**，且已经红了一段时间。
+
+**逐条判定（哪些是机械问题、哪些是真 bug）。**
+| 位置 | 报的什么 | 判定 |
+| `node_adapter.py` 317/320/400/403 | `F821 Undefined name os` + mypy `name-defined` | **真 bug**：同一文件里 `dict(__import__("os").environ)` 用了 `__import__` 绕开，但 4 处 `os.walk` / `os.path.join` 忘了绕 ⇒ **任何带 `build` / `reports` / `.nyc_output` / `test-results` 目录的 Node 项目，证据收集直接 NameError** |
+| `node_adapter.py` 355-362 | npm 模式的 `tests_run` 取了 `group(1)`（passed） | **真 bug**：`run = passed + failed + skipped`，旧版把 run 报成 passed ⇒ 任何有失败/跳过的运行都**少算** `tests_run`（同文件 vitest 那条一直是对的，两条相邻模式口径不一致） |
+| `go_adapter.py` 106 | `go_mod.read_text()` 第二次读**没有 try 保护** | **真 bug**：第一次读失败会静默退回默认版本，第二次读失败会让 `prepare` 直接抛 |
+| `go_adapter.py` 324 | `m_skip` 先是 `Match` 后是 `list` | 变量复用，mypy 正确抓到；运行时靠 `or []` 侥幸不炸 |
+| `go_adapter.py` 234/246 | `profile.extra.get(...)`（`extra` 是 Optional） | 潜伏：`RuntimeProfile.__post_init__` 目前保证非 None，但类型上不保证 |
+| `node_adapter.py` 163/165/200/207、`go_adapter.py` 153/154 | `bytes | str` 塞进声明为 `str` 的字段 | 类型债：`subprocess.run` 的 `text=` 分支决定返回类型，`ExecutionResult.stdout` 只收 `str` |
+| `node_adapter.py` 70/276/356、`go_adapter.py` 201/405 | 死初始化 / 死变量 / 无上下文管理器 `open` | 机械（与 #435 在 `gradle_adapter.py` 修过的同一族） |
+| `test_go_adapter.py` 46 | `profile2` 赋值后从不使用 | **空测试尾巴**：docstring 写着「检测 CGO 状态」，实际只 `prepare` 不断言 |
+| 两个测试文件 | 未用导入 / 文件尾无换行 | 机械 |
+
+**修（按「真 bug 优先」）。**
+- **`node_adapter.py`**：补 `import os`（并把 `__import__("os")` 换回 `os.environ`）；新增 `_as_text()`（`bytes | str | None → str`，唯一强转点）与 `_read_text_or_none()`；`execute` 不再**改写 `CompletedProcess.stdout`**（旧代码 `result.stdout = result.stdout.decode(...)` 既踩 mypy 也踩「改别人的对象」），改成 `completed = subprocess.run(...)` + `s_stdout = _as_text(completed.stdout)`；npm 模式 `tests_run` 改成三项相加；`patterns` 列表显式标注 `list[tuple[str, Callable[[re.Match[str]], tuple[int, int, int, int]]]]`；删掉 `detect()` 里 `if "test" not in scripts: pass` 整段死代码并把 `except (json.JSONDecodeError, Exception)`（等价于 `except Exception`）收窄成 `(json.JSONDecodeError, OSError, UnicodeDecodeError)`；两处 `os.walk` 的 `dirs` → `_dirs`；`_collect_junit_reports` 用 `_read_text_or_none` 取代裸 `open(...).read()`。
+- **`go_adapter.py`**：补 `import os`（同样换掉 `__import__("os")`）；同样的 `_as_text` / `_read_text_or_none`；`profile.extra` → `(profile.extra or {})`；`m_pass/m_fail/m_skip` → `passes/fails/skips`；`prepare` 的两次读合成一次（`_read_text_or_none`，文件不可读时退回默认版本而不再抛）；`**kwargs` → `**kwargs: Any`。
+- **`test_go_adapter.py`**：补上缺的断言 `profile2.extra["cgo_enabled"] is True`（这条断言就是该测试存在的理由）；长 JSON 串拆成多行。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 适配器 ruff | `ruff check craft/adapters/{node,go}_adapter.py` | 初报 4 条（I001/SIM115/W292）⇒ `--fix` + 手工后 **All checks passed** |
+| 适配器 mypy | `mypy craft/adapters/{node,go}_adapter.py` | 初报 **23** ⇒ 逐条修后 **Success: no issues found** |
+| 适配器测试 | `pytest test_node_adapter.py test_go_adapter.py test_adapters.py test_adapter_protocol*.py test_differential_language_honesty.py test_craft_gates_serve_every_language_the_product_names.py -q` | **95 passed** |
+| **CI 门（全仓，平面副本）** | `ruff check .` / `mypy .` | ruff 31 → **0（已跟踪目录全绿）**；mypy 23 → **Success: no issues found in 255 source files** |
+
+**并发事故（本号第 4 次，且这次吞掉的是源码改动）。** 我改完 `node_adapter.py` / `go_adapter.py` 与两个测试文件后去跑平面门，回来发现：
+- **适配器源码的修复已被另一车道扫进它们的三个 `#456` 提交**（`aae8c3d` / `00c8038` / `eac10c1`）——`_as_text`、`import os`、`profile.extra or {}` 都在 HEAD 里，但**提交消息里没有一个字提到这些修复**（消息是「Phase 4 继续：适配器协同测试验证与性能基线落地」）；
+- **两个测试文件的两处人工编辑被冲掉**（`profile2` 断言、长行拆分），只有 `ruff --fix` 的机械改动活了下来。
+⇒ **本号把「测 CI 门」放在「改完立即提交」之前，代价是修复被别人的提交吃掉、且没有记录。** 教训加固：**每一组编辑完成后立刻提交**，不要攒着一起验；验门用**已提交的 HEAD**跑平面副本，而不是在工作树里攒改动。
+
+**诚实边界。** ① 本号提交只含**两个测试文件**的 lint 与那条断言；适配器源码的修复实际是**另一车道的提交**带进去的（内容是我的，署名不是）——本号在账本里补记它们的真实内容，避免「修复存在但无人知道为什么」。② 仓库根仍有 4 个**未跟踪**的调试脚本（`check_go_adapter.py` / `check_ledger.py` / `find_section.py` / `run_tests_no_mysql.py`），它们贡献 15 条 ruff 错但**不进 CI**（未跟踪）；按仓库卫生纪律它们本该在仓库外，但那是别的车道的在途文件，本号不动。③ `node_adapter.detect()` 的异常范围收窄是**行为变更**：以前任何异常都返回 False，现在只吞 JSON/IO/编码错误——与 #437「崩掉的探子必须让人看见」同向。④ 未跑 Java/Go/Node 的真实沙箱执行（需要 Docker + 镜像），只跑了单测与静态门。
+
+**下一号队列（取号按落地时点 max+1）。** ① **仓库根的 4 个未跟踪调试脚本**（`find_section.py` 疑似就是那次把账本截断成 48 行的元凶）——需要另一车道收走，本号只记录。② 在途的 `check_*.py` 一族若被提交，会立刻让 CI 变红。③ #453 队列剩余：给「文档里引用指令」通用防护、#397 的六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。
