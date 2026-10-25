@@ -11449,11 +11449,11 @@ return any(part.startswith(_EXCLUDE_DIR_PREFIXES) for part in parts)
 
 **剩下 5 条 C/H 逐条判定（全部是「意图上的假阳性」，没有一条是真泄露）。**
 | 位置 | 内容 | 判定 |
-| `apps/web/src/agent/__tests__/AgentSettings.test.tsx:35` | `api_key: "secret-value"` | 测试夹具，值本身写着「我是假值」 # specproof-nosec API Key Assignment
-| `docs/operations/EXPERIENCE_GUIDE.md:46` | `$env:SPECPROOF_API_KEY="demo-key"` | 文档示例，`demo-key` # specproof-nosec API Key Assignment
-| `docs/operations/LOCAL_EXPERIENCE.md:119` | `$env:LLM_API_KEY = "<你的网关密钥>"` | 文档占位符（中文「你的网关密钥」），占位符清单不认它 # specproof-nosec API Key Assignment
-| `experiments/external_state.py:205` | docstring 里演示 `redis://[:password@]host:port/db` 的**格式** | 正则命中的是文档里的示意串，不是真凭据 # specproof-nosec Redis URL with Credentials
-| `services/control-plane/src/test/java/.../WebhookControllerTest.java:32` | `SECRET = "test-webhook-secret"` | 测试常量 # specproof-nosec Secret in Config
+| `apps/web/src/agent/__tests__/AgentSettings.test.tsx:35` | `api_key: "secret-value"` | 测试夹具，值本身写着「我是假值」 |
+| `docs/operations/EXPERIENCE_GUIDE.md:46` | `$env:SPECPROOF_API_KEY="demo-key"` | 文档示例，`demo-key` |
+| `docs/operations/LOCAL_EXPERIENCE.md:119` | `$env:LLM_API_KEY = "<你的网关密钥>"` | 文档占位符（中文「你的网关密钥」），占位符清单不认它 |
+| `experiments/external_state.py:205` | docstring 里演示 `redis://[:password@]host:port/db` 的**格式** | 正则命中的是文档里的示意串，不是真凭据 |
+| `services/control-plane/src/test/java/.../WebhookControllerTest.java:32` | `SECRET = "test-webhook-secret"` | 测试常量 |
 
 ⇒ **本仓库的真实 secret 姿态是干净的**；剩下 256 条 LOW 是项目自己的内部标识（`deepseek-v4-pro` / `llm-api.fagougou.com`），按设计就是 LOW。
 
@@ -11462,7 +11462,7 @@ return any(part.startswith(_EXCLUDE_DIR_PREFIXES) for part in parts)
 **诚实边界。** ① `.venv` 前缀规则是**政策选择**：理由是「虚拟环境永不发布」（`git check-ignore` 实测确认），但**真把 secret 写进 `.venv312` 这扫描器现在看不见**——与 `tests/` / `.scratch` 同一种取舍。② 前缀只认 `.venv`（带点），所以 `.venv312` 进、`.venue` 不进；若哪天有人建一个叫 `venv312`（无点）的目录，它仍会被扫——那是精确名清单已有的行为，未改。③ 5 条判定是**逐条读代码得出的意图判断**，不是机器判定；机器只知道「匹配了」。④ 15.1s 仍是本机量级（含读 3,023 个文件），CI 上未必同量级。
 
 **下一号队列（取号按落地时点 max+1）。** ① **给 `agent/security_scanner.py 设计逐行豁免机制**（本号量到的缺口）——上面 5 条意图上的假阳性现在无处安放；可参照 `# nosec` 那套「原因在前、id 在后、且 id 必须真是扫描器会报的那个」的纪律，别做成随手 `# ignore`。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
-## #444 给秘密扫描器补上逐行豁免：`specproof-nosec <模式名>`，原因在前、必须点名
+## #444 给秘密扫描器补上逐行豁免：`# specproof-nosec <模式名>`，原因在前、必须点名
 
 **起因/占号。** #443 量到并列进队列的缺口：「`agent/security_scanner.py` 没有任何逐行豁免机制，那 5 条意图上的假阳性无处安放；bandit 那套 `# nosec` 纪律在这个扫描器上没有对应物」。占号前重测账本：HEAD 版账本 `## #` id 最大 **443** ⇒ 取 **#444**。
 
@@ -11627,3 +11627,57 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ① 只加测试：`agent/job_stage.py` 一字未动。② 计数器是**全局累计**的，所以断言全部用 before/after 增量（与既有测试同一手法），不断言绝对值。③ 不钉 `storage/mysql.py` 的真实状态机（既有 `TestEveryVerdictIsReachable` 那一类已覆盖），本号只钉**写入器**对 store 的用法。④ 不钉 worker 在什么时机调 `advance_for_stage`（那是 `agent/worker.py` 的接线，另一层）。
 
 **下一号队列（取号按落地时点 max+1）。** ① `agent/verdict_stability.py`（54 行，2 测试）先判是否值得单独一号。② `agent/matrix_policy.py`（559 行，6 测试）里查是否还有「两份手抄」同类。③ `agent/self_test_diff.py` / `agent/external_observation.py` 各 1 个测试文件，按同法逐条对账。
+
+## #450 豁免端口第一次被真绑住：9103 的插座、启动判决、指标家族、「没人占它」各有一条腿，抓取侧的豁免不再是只在字面之间比
+
+**起因/占号。** #427 收口名册侧时点名留给下一号的那半条：它的 L2–L4 占的是 `infra/prometheus/prometheus.yml` 声明的号，而 9103 是 #232 `_UNROSTERED_LISTENERS` 刻意不声明的号——于是 `docs/operations/RUNBOOK.md` 里那句「指标端点 `INVOICE_CRON_METRICS_PORT` (默认 9103) 上的 /metrics 目前没有任何抓取作业读它」，主语是一只插座，却仍然只在字面之间比过：#232 的 L3/L4 比的是代码字面默认值 ↔ yaml ↔ compose，#284 的 D4 比的是文档数字 ↔ 模块常量，#272 的九条腿每一次都把手一个 OS 随手给的号交给端点。占号前重测账本：HEAD 版账本 `## #` id 最大 **448**（`git show HEAD:docs/operations/DEEP_OPTIMIZATION_PLAN.md` 数出 265 节）；**449 已被在途车道占用**——`.plan449.tmp:3` 与 `tests/unit/test_verdict_stability_declared_edges.py:1` 都写着 #449 ⇒ 本号取 **#450**，不改别人的号，也不留一个没人领的空号。
+
+**先量后写（两份读数都落在写腿之前：`.scratch/m450_census.log`、`.scratch/m450_probe.log`）。**
+
+- 名册（走 #232 自己的解析器）：6 个作业，号集 `[8000, 8889, 9090, 9100, 9101, 15692]`；`rabbitmq` 抓 `/metrics/per-object`，其余抓 `/metrics`。
+- 部署面的号：compose/infra 里出现的宿主号只有 `[3307, 5673, 6380, 9101, 15673]`，其中 9101 还是 `compose.production.yml:202` 的 `expose:`（容器内网端口，撞不上宿主 bind）；**9103 被任何服务 published：False**。名册里 5 个号（`[8000, 8889, 9090, 9100, 15692]`）反倒没有任何 compose 映射——这就是「文档说豁免、部署面没人认领」的另一半。
+- 除文档与测试外，全仓只有 `storage/invoice_cron.py` 一个字面 `9103`。
+- 本机插座：`127.0.0.1:9103 / 9100 / 9101` 全 FREE（探针 bind 成功）。
+- 走「无参数、无旋钮」的默认路径（就是 `python -m storage.invoice_cron` 在宿主上的形状）：`server_address=('127.0.0.1', 9103)`，`GET /metrics -> 200 len=90`，启动行 `InvoiceCron started (interval=0.0s, metrics port=9103: serving)`。
+- 一次真生成跑动的是哪些数：`invoice_cron_invoices_total before=None after='1'`，另三个计数器 `before=None after='0'`，`invoice_cron_last_success_ts before=None after='1792867864.785655'`——即「家族在跑之前根本不上线，跑完之后只有该动的那一个动了」。
+- RUNBOOK 里点名该旋钮的那一行，路径 token 只有 `['/metrics']`（与 #232 的 `DEFAULT_METRICS_PATH` 同值，不是我在腿里重打一遍）。
+- 顺带量到一条缺陷（本号不修，见队列①）：`INVOICE_CRON_METRICS_PORT=''` ⇒ `ValueError: invalid literal for int() with base 10: ''`，`INVOICE_CRON_INTERVAL_SECONDS=''` 同形；`agent/worker.py:1850` 与 `storage/outbox_relay.py:277` 用的是同一个 `int(os.getenv(K, default))` 形状，所以一个空赋值能让三个监听者都炸在建构期、连启动判决都来不及写。
+**腿（`tests/unit/test_invoice_cron_metrics_leg.py` 追加「the exempt number, occupied for real (#450)」一块，9 案 → 13 案，35,970 B / 771 行 / 纯 LF，生产件 0 字节改动）。** 没开新跟踪文件，因此不动任何按文件计数的名册；四条腿各占一个此前无人证的承诺：
+
+- `test_E1_the_exempt_number_is_occupied_and_answers_the_promised_path`：不打桩、不注入、不设旋钮，读插座自己的 `server_address` 两个分量（号 == `DEFAULT_METRICS_PORT`、地址 == `127.0.0.1`），再向 #232 的那个默认路径真发一次 GET，要求 200 且这条腿自己注册的 `specproof_invoice_cron_metrics_leg_exempt_marker_total` 在文本里——把「读到的是这个进程的 registry」与「读到的是某个占着 9103 的东西」分开。最后并置两条判决：文档在那行承诺的路径集合必须等于抓取默认路径，且这个号此刻仍不被告抓取（若哪天进了名册，这条腿就拒绝继续替一个活作业作「没人读」的证）。
+- `test_E2_a_live_holder_of_the_exempt_number_is_disclosed_not_fatal`：RUNBOOK 那句的另一半在**文档写的号**上 charged，而不是任一号。腿自己先把 9103 拿走，再数端点记账：cron 一个 socket 也没拿到（`len(opened)` 不动）、恰好一次拒绝、启动行含 `NOT serving (` 且括号里非空、`cycles == 1`（指标没了，账单的活还得干完）。
+- `test_E3_a_real_run_moves_the_cron_family_on_the_exempt_endpoint`：跑真的 `cycle()`（播种一个订阅租户 + 一条用量），在循环体内先刮一次、跑完再刮一次，家族名来自 `storage/invoice_cron.py` 的 AST（`_emitted_names()`，地板 ≥4，不手抄），逐条 charge：每个 emit 名都上了线、`# TYPE` 的类型与 emit 调用种类一致、`invoice_cron_invoices_total` 的增量恰好 1.0、其余计数器一个都不许动（这一条由 A6 单独见证）、存活 gauge > 0。`run_forever` 把循环体包在 `except Exception` 里，所以腿内的断言红会被吞成日志并把驱动吊死——`_cycle` 收集异常、无论如何都 `stop()`，出循环后第一件事是 `assert not failures`。
+- `test_E4_no_deploy_carrier_claims_the_exempt_number_and_the_predicate_refuses`：「没人抓它」的部署面那一半。判据两侧都驱动：先给真名册与真 compose 数地板（≥5 作业、≥10 映射），要求 shipped claims 为空；再塞两条**指名 9103** 的行（一条 compose 映射把宿主号给了 node-exporter、一条名册作业来抓它），必须各自点火；再塞一条指名邻号 9104 的映射，必须沉默。一个从不拒绝任何输入的普查，它的「0 hits」不是缺席，是失能。
+
+**基线与变异电池（预测先落盘：`.scratch/m450_predictions.json` 写在 A1–A5 之前，`.scratch/m450_predictions_run2.json` 写在 A6 之前；读数 `.scratch/m450_arms.json`、`m450_arms_run2.json`、`m450_battery.log`）。** 八个靶（我的腿件、`test_invoice_cron.py`、#232、#427、#284 载体门、#305 指标名门、#276 端口属主腿、RUNBOOK 声称门）基线 **70 passed in 44.76s**、0 红；六臂各 32.76–44.83s，全部 `tree at rest: True`、载体按 sha 还原、`storage/invoice_cron.py` 跑完仍是 `58d01dad…`。预测的 17 条红全部出现（每臂 `missing=[]`），逐臂：
+
+- A1 `port=self.metrics_port` → `port=0`：13 红 = 预测的 8 条（我的四条老注入腿 + E1/E2/E3）全中，外加 5 条 #232 的结构性红（`test_the_listen_port_knobs_are_exactly_what_the_code_reads`、`test_each_knob_default_is_the_port_the_roster_scrapes`、`test_each_listen_knob_bullet_carries_its_own_truth`、`test_the_port_shape_classifier_charges_an_environment_read_and_nothing_else`、`test_an_unrostered_listener_earns_its_exemption_and_discloses_it`）。归因不靠猜：#232 的 `_knob_defaults()` 要求每个 `serve_metrics_in_thread` 调用的 `port=` 解析成「一次 env 读 + 一个字面默认值」，把它换成 `port=0` 直接被那对表达式拒掉——所以这一臂是双重保险，不是我的腿独占。
+- A2 删 `incr("invoice_cron_invoices_total", …)`：3 红，MATCHED（E3、`test_invoice_cron.py::test_the_counters_expose_the_run`、#305 的名↔emit 站点门）。
+- A3 删 `set_gauge("invoice_cron_last_success_ts", …)`：3 红，MATCHED（同三处；gauge 从 AST 名册里一起消失，所以红的是我的 `after.get(name, 0.0) > 0.0` 而不是 KeyError）。
+- A4 E4 的判据不再读映射的宿主侧：1 红，MATCHED，只红 E4——真文件的 `claims == []` 照旧绿，能红的只有那条被写来抓它的植入行。
+- A5 `DEFAULT_METRICS_PORT = 9103` → `9104`：**我的 13 案全绿**，红的是 #284 的 `test_each_carrier_block_states_the_port_the_code_defaults_to`（预测中）加 #232 的 L15 豁免腿（预测外、机制同一：它也从代码读那个字面默认值再对文档）。这一臂是本号的「预测为绿」臂：腿里的号一律由导入常量与 #232 的读者派生，不是我抄的第二份 9103。
+- A6 `invoice_cron_existing_total` 改计 `len(generated)`：**1 红，MATCHED，且只红 E3**。名字还在、形状还是 env 驱动、TYPE 还是 counter、`test_the_counters_expose_the_run` 只看 invoices_total 与 gauge——只有把「不许动的计数器」当对照的腿能看见这一刀。这就是 E3 控制子句的属主证明。
+
+**诚实边界。** ①E1/E3 需要 9103 在本平面空闲，被占时 `pytest.skip` 并点名「这条平面不能证明是 cron 拿着它」；本次 census 量到 9100/9101/9103 全 FREE，所以两条都是证到的读数而不是让路的读数。CI 若起全栈，它们会从「证到」变「让路」，而 E2/E4 每平面都量——豁免侧真绑天然只在空闲平面成立，这条要记在账上而不是藏进 skip。②宿主 ≠ 容器：名册目标是 compose 的 DNS 名，E1 只 certifies 号、路径与 exposition，不 certifies 容器里的名字解析（#427 的边界同样如此）。③E4 的种群是 compose `ports:` 映射 + 名册目标；`expose:` 刻意排除，因为它声明的是容器内网端口，撞不上宿主 bind——`compose.production.yml:202` 的 `expose 9101` 就是那个形状。④本号没把 9103 塞进名册：`docs/operations/OBSERVABILITY.md:73-78` 明写「compose、两个 Dockerfile、本机启动脚本与 CI workflow 都不起它，改端口改的是一个没有进程绑定的数」，本号 census 又量到没有任何 compose 映射 published 9103——进名册等于永久挂一个 DOWN 目标，那才是把豁免换成假故障。E1 的失败消息把文档自己开的药方写给读者（起进程 + 在那份名册加一行 targets），与本号的腿不冲突。⑤`_doc_path_claims` 读的是文档行上的路径 token，不读文档句子；把「默认 9103」换成别的写法不影响它，数字那半条由 #284 的 D4 管。
+
+**下一号队列。** ①**空值旋钮炸建构期**：三个监听者（`storage/invoice_cron.py:195-199`、`agent/worker.py:1850`、`storage/outbox_relay.py:277`）共用 `int(os.getenv(K, default))` 这一对表达式，`K=''` 就 `ValueError: invalid literal for int() with base 10: ''`，而 `OBSERVABILITY.md:73-74` 对同一个键写的是「compose 未设这个键, 所以 .env 改得动」——空值那条路不是改得动，是建构期抛，进程连 `NOT serving` 都来不及写。修法要么给三处统一「空即缺省」的形状（注意这会动 #232 `_port_env_pair` 解析的那对表达式，得同一趟把门改对，A1 那五份额外红已经证明那对表达式是活的读者），要么把这条边界写进 §2 并让 E4 那类判据去读它。②「宿主号唯一」这条判据现在住在 E4 的 `_claims_the_number` 里，而 #232 L15 只管「谁抓它 / 谁起它」；队列 #429（抓取端点判据收进单一属主）正是同一族，收拢时别让两个文件各写一份 compose 解析。③E3 只在有真租户种子的跑里才动 1.0；若要给「同一个周期内重跑」再加证，得先解决 `cycle()` 的进程内 `_period` 守卫，不要靠重启进程糊过去。
+
+## #451 抓取端点的判据收进单一属主：#232 的 tests/** 豁免不再自己猜端口从哪来
+
+**起因/占号。** #427 落地时排下的队列①原话：「L6（数字名册）与 #232 L2 的 tests/** 豁免（不许 env）是两条独立判据，合起来才覆盖『测试动了抓取端点』；下一步应让 L6 成为唯一属主，L2 引它，而不是各自守一半。」占号前重测账本：HEAD 版账本 `## #` id 最大 **450** ⇒ 取 **#451**。
+
+**先量缺口，再动判据。** `.scratch/m451_parity.py` 在同一棵树上并列跑两份普查：`git ls-files tests` 有 458 个跟踪测试文件，其中 10 个提到 `serve_metrics_in_thread`、共 13 个调用点；#232 的 `_port_shape` 把这 13 行里的 4 行判成 `other` —— `tests/unit/test_metrics_port_ownership_leg.py:84/:123`（`port=_free_port()`）与 `tests/unit/test_scrape_roster_ports_answer_their_own_numbers.py:249/:446`（`port=int(info["port"])`；这两行在本节落地前是 `:226/:423`，属主化在本文件前面加了 23 行，两份读数都由现跑的 `.scratch/m451_parity2.log` 对齐当前字节）。对这四行，#232 L2 唯一能说的话是「它不是 env」；可它真正要禁的是「测试把抓取端点搬走了」。一条走名字进来的号码（`MY_PORT = 9090`、`KNOB = os.getenv(...)`）两侧都不红：L6 当年只认字面量，L2 只认 `getenv`/`environ`。另外 13 行里没有一行不带 `port=`（现跑计数 0），所以「不写端点＝吃签名默认值 9100」这条路今天没人走，但判据必须已经看得见它。
+
+**改了什么。** 判定收进 #427 一处：`_port_context`（每文件一次，按行区间解作用域）+ `_resolve_port`（六种出处 `env / fixed / default / blind / roster / free`，`_PROVENANCE_ORDER` 定锐度，取最锐判决并把该判决读到的所有数字并起来）+ `_refused`（四种拒绝：环境读、来源读不出、占了名册给别人的号、占了名册谁都不抓的号）。`_file_port_sites` 枚举**每一个**调用点，包括 `port=` 缺席与位置参数写法，于是属主行的形状天然等于 #232 豁免行的形状。#232 L2 的豁免循环保留，但判决换成引用属主：两班普查的行集对不上就红；浅分类器喊 `env:` 而属主不认同一判决就红；属主判 `env`/`blind` 就红。#427 L8 除了 13 个植入源逐桶点名（6 fixed / 2 env / 1 free / 1 roster / 2 blind / 1 default），还跑 shipped 全体必须四桶全空、`free`+`roster` 至少各有一行做反空转地板、以及与 #232 `_metrics_scan()` 的行集逐行相等。
+
+**移植时带出的两个真缺陷，都由现跑诊断抓到。** ① `_parameter_names` 写成返回 `ast.arg` 对象而不是名字，参数桶的键于是永远是 `(fn, <ast.arg>)`，两次 `_free_port()` 供给的绑定全落空、退到模块兜底判成 `blind`。② `ast.comprehension` 没有 `lineno`，`scope_of` 对它返回 `None`，推导式里的目标名（`for job, port in third.items()`）被记成**模块级**绑定，任何未绑定该名的函数都能经兜底路径读到它——`:249` 因此报出 `blind (name third …)`、`:446` 报 `blind (name jobs …)`，都是把别的语句读成了自己的来源。修法是问 `node.target` 要行号（推导式的目标就坐在它自己那行上）。探针版 `.scratch/m451_probe.py` 早写对了这两处，属主化移植时抄错——这是「判据换载体必须逐行复测」的又一个样本。
+
+**代价。** 458 个跟踪测试文件全量解析＋归属：24.881s（解析 0.264s、归属 24.271s，每个判决点重算一次整树作用域）→ 0.413s（解析 0.101s、归属 0.166s，每文件一份上下文 + `functools.cache`），`m451_timing.log` / `m451_timing2.log`。L6、L8 与 #232 L2 读同一份缓存：一条判据付一次钱，三处使用。最贵的单文件从 9760.5ms 降到 73.2ms（`tests/unit/test_outbox_relay_loop_leg.py`）。
+
+**证据。** 两根门同会话 25 例全绿、17.87s（`.scratch/m451_run7.log`）——同会话是必须的，因为引用是双向的；这一跑读的是本节落盘的字节（`sha256 5bb9e505…` / `942db0fb…`，记在 `.scratch/m451_atrest_before.txt`），先前那版 #232 的 `m451_run6.log` 不作为证据。shipped 读数 9 `fixed(0)` + 2 `free` + 2 `roster`、四桶全空（`.scratch/m451_census_check2.log`），与移植前独立探针 `.scratch/m451_probe.log` 逐行一致；#232 豁免行集与属主行集 13↔13 逐行相等（`.scratch/m451_parity2.log`）。臂 6/6 MATCHED（`.scratch/m451_arms2.log`，同一批字节；预测先落盘 `.scratch/m451_arms_predict.md`，脚本从那张表解析期望，不在代码里重打一遍）：A1 属主少看一个文件 ⇒ #232 L2 与 #427 L8 从两侧报同一件分裂；A2 把 #232 分类器改回「任何下标都算环境读」这个有历史事故的形状 ⇒ L2 + L2b；A3 去掉 `if shape.startswith("env:")` 的条件 ⇒ 只有 L2（证明这行判决确实按种群说话）；A4 把 `roster` 加进拒绝集 ⇒ 只有 L2，而红的那两行正是名册腿自己；A5 重放 `_parameter_names` 缺陷 ⇒ L6 + L8 + #232 L2，一个缺陷三个读者，就是属主化之后的传播形状；A6 只改注释文字 ⇒ 0 红，红集非零的那些不是平面噪声。每臂还原后按 sha256 复核对齐，整电池跑完再 `sha256sum -c` 抽验两根门文件＝工作区未被臂污染。
+
+**全量单测与 31 条红的归因。** 工作树整棵跑 `tests/unit`：collected 5157，31 failed / 5125 passed / 1 skipped / 1744.20s（`.scratch/m451_unit2.log`；靠 `--ignore=tests/unit/test_go_adapter.py` 绕开别道在飞的那笔 `SyntaxError`，否则整轮收不齐，那份文件在日志里出现 0 次）。31 条里没有一条点名我的两根门。为了不把「不是我改的」说成断言，用同一把尺子在干净 HEAD 平面重跑：`git worktree add` 出 `m451-head-plane`（2274 个跟踪文件全落盘、`git status --porcelain` 空），只喂工作树那批红所属的文件，得 10 failed / 121 passed / 2 skipped / 49.44s（`.scratch/m451_headplane_reds.log`）。`.scratch/m451_attribute.py` 对两张红表做集合差：10 条在 HEAD 就红（既有债，逐条点名）、21 条只在工作树红（由我从未碰过的在途文件发明——`test_node_adapter.py` 2 条、未跟踪的 `test_security_scanner_evidence_quotes_are_annotated.py` 3 条，其中 2 条的参数id 是 `.plan449.tmp:15/:18`、`test_timeout_partial_output.py` 的红文直接点名 `craft/adapters/go_adapter.py:321`）、0 条只在平面红（本轮无旋转）、0 条归我，10+21=31 与总数闭合。
+
+**诚实边界。** ① 解析器只在单文件内跟随名字：号码从别的模块常量传进来到处读不到来源 ⇒ 判 `blind` 并拒绝，错的方向是假红，不是假绿。② `roster`/`free` 的准入靠形状（`_ROSTER_CALLS` 名单；绑 0 **且**回读 `getsockname` 的 helper 两个条件缺一不可），新增一种形状就是给判据开口子，所以 L8 的 13 个植入源逐条钉住期望桶、且 `probe_that_looks_like_a_probe` 专门见证「像探针但不是探针」仍按数字裁决。③ #232 L2 的 `env:`↔属主一致那条判决，今天的树上没有 shipped 载体（13 行 tests/** 绑定无一行是环境读），它只在两侧读数分叉时才有话可说；A2 是那件事的行为见证，不是这条判决的载体。④ 属主与 #232 现在互相 `exec_module`（#232 L2 载 #427，#427 L6/L8 载 #232），两边都只在测试体内加载、模块顶层不回调对方，实测同会话 25 例无递归、无重复解析——但这层耦合是新出现的，任何一侧把加载挪到模块顶层都会变成循环导入。⑤ 属主只数 AST 上的调用点，不数写在**字符串里**的那次绑定：同名尺子在三份读数下差得很远——`git ls-files tests` 里 10 个文件提到 `serve_metrics_in_thread`，字节出现 87 次、AST `port=` 站点 13 处、字符串常量内 63 次（`.scratch/m451_sidecar_probe.log`）。真正的 sidecar 有 3 个文件把端点写进交给另一个进程的源码字符串，其中 `tests/unit/test_metrics_port_ownership_leg.py:140` 的 `_CHILD`（14 行）自己 `port = int(sys.argv[1])` 再绑一次——那是第 3 个进程，普查的种群里没有它的行。今天不撒谎的原因在别处：喂给它的那个号来自父进程的 `_free_port()`，而父进程那一行是被读过的（`:84`/`:123` 判 `free`），所以「动了谁的号」仍然有判决，只是**绑了几次**没被清点。⑥ 账本这次仍只写索引：工作区那份 `DEEP_OPTIMIZATION_PLAN.md` 带着别道在飞的改动（#443 表格里追加了 5 处 `# specproof-nosec …`），我不覆盖它。
+
+**下一号队列（取号按落地时点 max+1）。** ① 原 #426 队列仍在：三处「无 pom.xml …」字面句收成派生，以及 `_BUILD_MARKERS` 在生产无读者。② `INVOICE_CRON_METRICS_PORT=''` 现在让三个监听器在构造期抛 `ValueError`，而 `OBSERVABILITY.md:73-74` 把这个旋钮宣传成 .env 可改——要么文档改口，要么把空值语义定清楚。③ E3 的 1.0 差值依赖播种租户与 `cycle()` 的进程内 `_period` 护栏，跨进程重跑会变形。④ 在途的别道 `craft/adapters/go_adapter.py:321` 有 `SyntaxError`（`]` 对不上 `(`），本次全量单测靠 `--ignore` 绕开——不是我改的文件，但它能让任何人的合并门整轮中断，值得在那一道里还掉。⑤ 把 sidecar 接进清点（边界⑤ 的那第 3 个进程）：普查除 AST 站点外，再解析「字符串常量里带 `serve_metrics_in_thread(` 的子进程源」并把它计入种群，判决仍按父进程喂进去的那个号；先量的尺子在 `.scratch/m451_sidecar_probe.log`（3 个 carrier 文件、3 个文件提到这个名字却一个 AST 站点都没有——把 sidecar 绑放置在那样的文件里，今天无人报）。
