@@ -90,24 +90,19 @@ class GoAdapter(AdapterProtocol):
 
         包括：检测 Go 版本、设置模块缓存、检查 CGO 能力。
         """
-        # 读取 go.mod 获取 Go 版本
+        # 读取 go.mod 获取 Go 版本（只读一次：第二次读没有 try 保护，
+        # 文件不可读时会让 prepare 直接抛，而不是退回默认值）
         go_mod = project_root / "go.mod"
+        go_mod_content = _read_text_or_none(go_mod) or ""
         go_version = "1.23"  # 默认
-        try:
-            content = go_mod.read_text(encoding="utf-8")
-            # 提取版本行
-            match = re.search(r"go\s+([\d.]+)", content)
-            if match:
-                go_version = match.group(1)
-        except Exception:
-            pass
+        match = re.search(r"go\s+([\d.]+)", go_mod_content)
+        if match:
+            go_version = match.group(1)
 
         # 检查是否启用 CGO
-        go_mod_content = go_mod.read_text(encoding="utf-8") if go_mod.exists() else ""
         cgo_enabled = "//go:cgo_enable" in go_mod_content or "CGO" in go_mod_content.upper()
 
         # 沙箱镜像（可通过环境变量覆盖）
-        import os
         sandbox_image = os.getenv(
             "SPECPROOF_SANDBOX_GO_IMAGE", cls.DEFAULT_SANDBOX_IMAGE
         )
