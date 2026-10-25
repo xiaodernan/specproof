@@ -12469,3 +12469,75 @@ trait AdapterPlugin {
 - craft/adapters/plugin_sdk/（新增目录：rust/python/go/nodejs）
 - tests/unit/test_plugin_system.py（新增）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #465
+
+
+## #466 Phase 4 继续：安全加固与合规审计体系建设
+
+**背景**：#465 完成了适配器插件化架构实现与第三方扩展生态。随着适配器生态扩展、分布式编排上线、插件市场开放，安全攻击面显著增加。本批重点建设安全加固与合规审计体系，确保生产环境安全可控。
+
+**本批目标**：
+1. **供应链安全**：依赖扫描 (SCA)、SBOM 生成、签名验证、恶意包检测、漏洞数据库同步。
+2. **运行时安全**：沙箱逃逸防护、系统调用过滤、网络隔离、文件系统权限最小化、进程监控。
+3. **数据保护**：静态加密 (AES-256-GCM)、传输加密 (mTLS 1.3)、密钥管理 (KMS/HSM)、密钥轮换。
+4. **审计日志**：不可篡改审计日志、结构化日志格式、实时告警、合规报表自动生成。
+5. **合规框架**：SOC 2 Type II、ISO 27001、GDPR、数据本地化要求映射与自动化检查。
+6. **渗透测试与红队演练**：定期自动化渗透测试、红蓝对抗演练、漏洞闭环管理。
+
+**执行计划**：
+### 14.1 供应链安全
+- SCA 扫描集成：适配器构建时自动扫描 Cargo.toml/Cargo.lock、pom.xml、package.json、go.mod、CMakeLists.txt 等
+- SBOM 生成：SPDX 2.3 / CycloneDX 1.5 格式，包含所有传递依赖、许可证、哈希
+- 签名验证：所有适配器二进制、插件、容器镜像强制签名 (cosign + Fulcio + Rekor)
+- 恶意包检测：集成 OSV、GitHub Advisory、NVD、PyPI Safety、npm audit、cargo audit
+- 漏洞数据库：每日同步 NVD/GitHub Advisory/OSV，增量更新，SLA 内修复
+
+### 14.2 运行时安全
+- 沙箱逃逸防护：gVisor/Kata Containers 作为默认沙箱，seccomp-bpf 系统调用白名单
+- 网络隔离：CNI 插件实现 Pod 级网络策略，默认拒绝所有入站/出站，显式放行
+- 文件系统权限：只读根文件系统，临时目录挂载 noexec/nosuid/nodev
+- 进程监控：Falco/Sysdig 运行时威胁检测，异常进程/文件/网络行为实时告警
+- 资源隔离：cgroups v2 强制 CPU/内存/IO 配额，防止单租户耗尽资源
+
+### 14.3 数据保护
+- 静态加密：AES-256-GCM 加密所有持久化存储 (evidence、报告、缓存、日志)
+- 传输加密：mTLS 1.3 所有服务间通信，自动证书轮换 (cert-manager + Venafi/Let's Encrypt)
+- 密钥管理：HashiCorp Vault / AWS KMS / Azure Key Vault / GCP KMS 集成
+- 密钥轮换：自动轮换策略 (90天)，支持紧急撤销
+- 密钥分级：根密钥/主密钥/数据加密密钥三层架构
+
+### 14.4 审计日志
+- 不可篡改：CloudTrail 风格事件流 + Merkle Tree 证明 + 透明日志存证
+- 结构化格式：CloudEvents 1.0 + OpenTelemetry 语义约定
+- 实时告警：基于 Sigma 规则的异常检测，Slack/PagerDuty/Email 多渠道通知
+- 合规报表：SOC 2/ISO 27001/GDPR 自动化证据收集与报表生成
+- 保留策略：热存储 90 天，冷存储 7 年，法律冻结无限期
+
+### 14.5 合规框架自动化
+- 控制矩阵：将 SOC 2 CC6.1/CC6.2/CC6.7、ISO 27001 A.8/A.12/A.16 映射到技术控制
+- 自动化检查：每日执行合规检查，生成合规仪表盘，漏洞自动工单
+- 数据本地化：多区域部署支持，数据驻留策略配置与强制执行
+- 隐私影响评估：DPIA 自动化流程，敏感数据发现与分类
+
+### 14.6 渗透测试与红队演练
+- 自动化渗透测试：每周运行 Nuclei/TruffleHog/OWASP ZAP 扫描
+- 红队演练：季度红蓝对抗，模拟 APT 攻击链，测试检测响应能力
+- 漏洞闭环：Jira/GitHub Issues 自动工单，SLA 跟踪，修复验证回归测试
+- 威胁建模：STRIDE 威胁建模文档化，每季度评审更新
+
+**质量门**
+- ruff + mypy 全绿
+- 安全扫描零高危/严重漏洞
+- 合规检查 100% 通过
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/security/sca_scanner.py（新增）
+- craft/security/runtime_protector.py（新增）
+- craft/security/audit_logger.py（新增）
+- craft/security/compliance_checker.py（新增）
+- craft/security/penetration_tester.py（新增）
+- tests/unit/test_security_sca.py（新增）
+- tests/unit/test_security_runtime.py（新增）
+- tests/unit/test_security_audit.py（新增）
+- tests/unit/test_security_compliance.py（新增）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #466
