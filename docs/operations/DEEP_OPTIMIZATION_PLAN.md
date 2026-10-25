@@ -11962,7 +11962,9 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 - `agent/self_test_diff.py`：`self_test_verdict` 里新增 `base_ran` / `head_ran`，用 `_executed(counts, _tests(counts))` 取代 `_tests(counts)` 作为两条 detail 文案里的测试数。`_executed` 是模块里已有的「真跑了多少」计算（有 `passed` 键就汇总 `_RAN_COUNTERS`，否则 `tests - skipped` 且钳制到 0），所以：
   - 常规 reporter（`tests` + `passed`）⇒ 数字**不变**；
   - 只发 `passed`/`failed` 的 reporter ⇒ 从 "(0 tests)" 变成 "(3 tests)"（说真话）。
-- `tests/unit/test_self_test_diff_declared_edges.py`：#455 里那条钉现状的 `(0 tests)` 断言改成 `(3 tests)`（测试名与注释同步改写），并**新增一条**「常规 reporter 仍报它自己的 tests 数」防回归。
+- `tests/unit/test_self_test_diff_declared_edges.py`：本号前身（原 #455 节）里那条钉现状的 `(0 tests)` 断言改成 `(3 tests)`（测试名与注释同步改写），并**新增一条**「常规 reporter 仍报它自己的 tests 数」防回归。
+
+**补记（原 #455 节已在一次并发历史重写中丢失）。** 本号前身是「`self_test_diff` 汇总解析角」那一节，6 条测试钉的是：`_failing` 的**派生**分支（汇总无 `tests` 键 ⇒ 从 parts 相加）、无 `tests` 键且 parts 全零 ⇒ no evidence、`NO_EVIDENCE` detail **同时点名两侧**（`base and head`）与**只点名 base**、`_executed` 的**钳制**（无 `passed` 键且 `skipped > tests` ⇒ executed 归 0）。测试文件本身未丢失（仍在 `tests/unit/test_self_test_diff_declared_edges.py`，且随本号一起在 origin 上），此处把记录补回，以免账本里留下指向不存在节号的悬空引用。
 
 **门证（全在本批内亲手取）。**
 | 门 | 命令 | 结果 |
