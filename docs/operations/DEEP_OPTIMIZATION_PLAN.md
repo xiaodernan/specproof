@@ -12272,3 +12272,105 @@ tests_passed = tests_run - tests_failed - tests_skipped
 - craft/adapters/cpp_adapter.py（新增）
 - tests/unit/test_cpp_adapter.py（新增）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #463
+
+
+## #464 Phase 4 继续：分布式执行编排核心实现与多节点调度
+
+**背景**：#463 完成了 C++ 适配器核心实现与多构建系统支持。本批重点落地分布式执行编排核心实现，实现多节点并行执行架构，包括任务分片、结果聚合、故障转移、资源调度等核心能力。
+
+**本批目标**：
+1. **分布式编排器核心实现**：任务分片策略、节点注册发现、心跳检测、任务分发与结果收集。
+2. **任务分片策略**：按测试套件/文件/用例粒度分片，支持自定义分片函数。
+3. **结果聚合与去重**：多节点 EvidenceFragment 合并、去重、冲突解决。
+4. **故障转移机制**：节点心跳超时检测、任务重调度、检查点恢复。
+4. **资源感知调度**：CPU/内存/磁盘/网络多维度资源监控与负载均衡。
+5. **gRPC 通信协议**：Protocol Buffers 定义服务接口，支持流式结果传输。
+6. **单元测试覆盖**：核心功能 15+ 测试用例，Mock 网络层验证结构正确性。
+
+**技术规范**：
+- 组件 ID：distributed-orchestrator
+- 通信协议：gRPC + Protocol Buffers (proto3)
+- 服务发现：基于 etcd/Consul 或静态配置
+- 序列化：Protobuf 二进制 + JSON 兼容模式
+- 传输加密：mTLS 双向认证 (生产环境)
+- 支持模式：协调者模式 / 对等模式 / 混合模式
+
+**执行计划**：
+### 12.1 核心数据结构定义
+- TaskSpec: 任务规范 (目标、参数、环境、分片策略)
+- TaskShard: 任务分片 (分片ID、包含的测试项、预估资源)
+- NodeInfo: 节点信息 (ID、地址、能力标签、资源容量、当前负载)
+- ExecutionResult: 执行结果聚合 (分片结果合并、去重、统计)
+- Heartbeat: 心跳信息 (节点状态、资源使用率、正在执行的分片)
+
+### 12.2 任务分片器
+- ShardStrategy 接口：by_suite/by_file/by_case/by_custom
+- 分片粒度自适应：根据测试总数与节点数动态调整
+- 分片均衡性：尽量保证每分片执行时间接近
+- 依赖感知：识别测试间依赖，避免跨分片依赖
+
+### 12.3 节点管理器
+- 节点注册：启动时自动注册能力标签与资源容量
+- 心跳检测：可配置间隔 (默认 10s)，超时阈值 (默认 30s)
+- 节点状态机：REGISTERING -> HEALTHY -> DEGRADED -> UNHEALTHY -> REMOVED
+- 优雅下线：drain 模式，等待正在执行的分片完成
+
+### 12.3 任务调度器
+- 调度算法：最少负载优先 + 能力匹配 + 亲和性/反亲和性
+- 资源预留：为高优先级任务预留资源配额
+- 抢占策略：低优先级任务可被高优先级抢占 (可配置)
+- 批量调度：累积一定数量分片后批量分发，减少 RPC 开销
+
+### 12.4 结果聚合器
+- EvidenceFragment 去重：基于 content_hash 去重
+- 冲突解决：同一测试多次执行结果冲突时的策略 (首次胜出/最新胜出/手动裁决)
+- 统计聚合：tests_run/passed/failed/skipped 求和，duration 取最大值
+- 增量聚合：流式接收分片结果，实时更新聚合视图
+
+### 12.5 故障转移与检查点
+- 分片检查点：定期持久化分片执行进度
+- 任务重调度：节点失效时自动将未完成分片重新调度
+- 幂等性保证：分片执行幂等，重复执行结果可去重
+- 状态恢复：协调者重启后从 etcd/持久化存储恢复状态
+
+### 12.6 gRPC 服务定义
+`protobuf
+service DistributedOrchestrator {
+  rpc RegisterNode(NodeInfo) returns (RegistrationResponse);
+  rpc Heartbeat(Heartbeat) returns (HeartbeatResponse);
+  rpc GetTaskShards(TaskRequest) returns (stream TaskShard);
+  rpc ReportShardResult(ShardResult) returns (Ack);
+  rpc GetAggregatedResult(ResultRequest) returns (ExecutionResult);
+}
+`
+
+### 12.7 单元测试 (15+)
+- test_orchestrator_task_sharding: 分片策略验证
+- test_orchestrator_node_registration: 节点注册与心跳
+- test_orchestrator_scheduling: 调度算法验证
+- test_orchestrator_result_aggregation: 结果聚合去重
+- test_orchestrator_failover: 故障转移验证
+- test_orchestrator_checkpoint: 检查点持久化与恢复
+- test_orchestrator_grpc_mock: gRPC 通信 Mock 验证
+- test_orchestrator_resource_aware: 资源感知调度
+- test_orchestrator_graceful_shutdown: 优雅下线
+- test_orchestrator_preemption: 抢占策略
+- test_orchestrator_affinity: 亲和性/反亲和性
+- test_orchestrator_streaming_results: 流式结果接收
+- test_orchestrator_mtls: mTLS 通信验证
+- test_orchestrator_scale: 扩缩容验证
+- test_orchestrator_chaos: 混沌工程注入验证
+
+**质量门**
+- ruff + mypy 全绿
+- 15+ 单元测试全部通过
+- 现有适配器测试无回归
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/adapters/distributed_orchestrator.py（新增）
+- craft/adapters/orchestrator_pb2.py（新增，生成）
+- craft/adapters/orchestrator_pb2_grpc.py（新增，生成）
+- craft/adapters/orchestrator.proto（新增）
+- tests/unit/test_distributed_orchestrator.py（新增）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #464
