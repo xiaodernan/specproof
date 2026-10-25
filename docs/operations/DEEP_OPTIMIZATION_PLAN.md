@@ -11975,3 +11975,36 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ① 这是**文案修复**，不改变任何判决：四个 verdict 的分支条件一字未动，只改 detail 串里的数字来源。② 常规路径数字不变（已用新增的那条测试钉住）。③ 不改 `_tests()` 本身（它还被别处使用），只改调用点。④ 不重写历史节（账本里 #144/#145/#173/#241/#246/#254/#335/#366 的同号重复是历史遗留，非本车道造成）。
 
 **下一号队列（取号按落地时点 max+1）。** ① `agent/external_observation.py`（455 行，2 个测试文件 28 案）按同法逐条对账（模块大，需整读）。② `agent/matrix_policy.py`（559 行，6 测试）查「两份手抄」同类。
+## #459 给 #457 那四个真 bug 补门：`os` 未导入、`tests_run` 少算、JUnit 两处走查、`_as_text` 四种形状
+
+**起因/占号。** #457 修了 `node_adapter.py` 的 4 个真 bug，但**一个门都没建**——按本仓纪律，修完不建门等于「等它下次静默回归」。本号补门。占号前重测：HEAD 版账本 `## #` id 最大 **457**，但落地时远端另一车道已占 **#458** ⇒ 取 **#459**。
+
+**先量后写（量的是「这些函数的返回约定到底是什么」）。** 第一版测试把 JUnit 的期望写成 `(5, 3, 2, 2)`（`tests=5, failures=1, errors=1, skipped=2`，我以为 passed = 5-2 = 3），实测红。读代码才发现 `_parse_junit_xml_file` 的约定是：
+```python
+tests_passed = tests_run - tests_failed - tests_skipped
+```
+即 `passed = 5 - 2 - 2 = 1`。**是我算错，不是代码错**——按仓库纪律先判断「回归还是旧断言写错」，这次是「新断言写错」。
+
+**落地（门）。** 新建 `tests/unit/test_node_adapter_parsing_and_io_edges.py`（**11 案**），每案对应 #457 的一个具体缺陷：
+1. `test_a_junit_report_under_build_is_read_without_a_name_error`：在 `build/junit.xml` 种一份报告，`_parse_test_results` 必须返回 `(5, 1, 2, 2)` 而不是抛 `NameError`。**这是 `os` 未导入那个 bug 的正面用例**——它只在「项目真有报告目录」时才触发，所以旧代码在没报告的样本上一直显得正常。
+2. `test_a_junit_report_under_test_results_is_read_without_a_name_error`：同 bug 的另一条走查（`_collect_junit_reports` 走 `test-results/`），断言 fragment 类型是 `junit_xml` 且内容含 `testsuite`。
+3. `test_npm_stdout_counts_failures_and_skips_in_the_run_total`：`"Tests: 3 passed, 1 failed, 2 skipped"` ⇒ `(6, 3, 1, 2)`。
+4. `test_vitest_stdout_counts_failures_in_the_run_total`：`"5 tests passed, 2 failed"` ⇒ `(7, 5, 2, 0)`（这条本来是对的，钉住是为了让两条相邻模式的口径不会再分叉）。
+5. `test_as_text_coerces_every_shape_subprocess_hands_back`（4 组参数）：`b"hello"` / `"hello"` / `None` / `b""` ⇒ `"hello"` / `"hello"` / `""` / `""`。
+6. `test_as_text_replaces_undecodable_bytes`：`b"\xff\xfe"` ⇒ 两个替换字符，**不抛**（Windows 控制台确实会吐非 UTF-8 字节）。
+7. `test_detect_rejects_an_unparseable_package_json`：坏 JSON ⇒ `False`。
+8. `test_detect_accepts_a_package_json_without_a_test_script`：没有 `scripts.test` 也 ⇒ `True`（`vitest`/`node-test` 不需要 npm script）。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_node_adapter_parsing_and_io_edges.py -q` | **11 passed** |
+| ruff | `ruff check tests/unit/test_node_adapter_parsing_and_io_edges.py` | All checks passed |
+| **变异臂①**（删掉 `import os`，即还原真 bug） | 先预测：两条 JUnit 用例红 | 实测 **2 failed, 9 passed**，逐名命中 |
+| **变异臂②**（把 npm 的 `tests_run` 改回 `int(m.group(1))`） | 先预测：只有 npm 那条红 | 实测 **1 failed, 10 passed**，逐名命中 |
+| 变异臂还原 | `trap ... EXIT TERM INT` | 工作树确认只剩本号改动、无 `.orig` 残留 |
+
+**否证与订正（本号自己踩的）。** ① 第一版 JUnit 期望值算错（见上）。② **变异臂②第一次跑出「11 passed」的假绿**：我用 heredoc 传锚点，锚点里含 `\s`，被本机 Git Bash 的路径转换改成了 `/s`，`assert count == 1` 失败但脚本在 `&&` 链里继续跑，于是**测的是未变异的代码**。改用**不含反斜杠的锚点**（`int(m.group(1)) + int(m.group(2)) + int(m.group(3)),`）后重跑才拿到真结果。⇒ **本机写含反斜杠的变异锚点，一律不要走 heredoc**（要么用无反斜杠锚点，要么用编辑工具）。
+
+**诚实边界。** ① 这些是**单元级**门：不跑真实 `npm`/`vitest`，只钉解析与 IO 的形状。② `test_a_junit_report_under_build_is_read_without_a_name_error` 断言的是**当前**的 passed 算法（`run - failed - skipped`）；如果哪天要区分「error 算不算 failed」，这条会跟着改——它钉的是「不再 NameError + 计数口径」，不是「这个口径永远正确」。③ 未给 `go_adapter.py` 建对等门（它的真 bug 是 `prepare` 二读崩溃，需要另建；已入队列）。
+
+**下一号队列（取号按落地时点 max+1）。** ① **`go_adapter.prepare` 二读崩溃的门**（本号边界③）：造一个「存在但不可读」的 go.mod，断言退回默认版本而不是抛。② 仓库根 4 个未跟踪调试脚本（`find_section.py` 疑似截断账本的元凶）需另一车道收走。③ #453 队列剩余：文档里引用指令的通用防护。④ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。
