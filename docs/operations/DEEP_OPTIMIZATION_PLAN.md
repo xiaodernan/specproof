@@ -12541,3 +12541,82 @@ trait AdapterPlugin {
 - tests/unit/test_security_audit.py（新增）
 - tests/unit/test_security_compliance.py（新增）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #466
+
+
+## #467 Phase 4 继续：全栈可观测性平台建设与智能告警
+
+**背景**：#466 完成了安全加固与合规审计体系建设。随着系统规模扩大（多语言适配器、分布式编排、插件生态、安全体系），传统的日志查看方式已无法满足生产环境的故障诊断、性能优化、容量规划需求。本批重点建设全栈可观测性平台，实现指标、日志、链路、Profile 四大支柱的统一采集、存储、查询、告警与可视化。
+
+**本批目标**：
+1. **指标体系建设**：RED/USE 方法论指标采集、Prometheus 生态集成、自定义业务指标、指标标签治理。
+2. **分布式链路追踪**：OpenTelemetry 标准化、W3C Trace Context 传播、采样策略、跨语言上下文传递。
+3. **结构化日志平台**：统一日志格式、Loki/Elasticsearch 存储、日志分级、脱敏、关联查询。
+4. **连续性能分析**：eBPF/Perf/async-profiler 连续采集、火焰图可视化、CPU/内存/锁/IO 热点分析。
+5. **智能告警引擎**：多维告警规则、告警抑制/去重/分组、根因分析辅助、自愈动作编排。
+6. **统一可视化门户**：Grafana 仪表盘即代码、多租户隔离、自助服务、移动端适配。
+
+**执行计划**：
+### 15.1 指标体系建设
+- RED 方法论：Rate (请求率)、Errors (错误率)、Duration (延迟) - 覆盖所有 gRPC/HTTP 服务
+- USE 方法论：Utilization (利用率)、Saturation (饱和度)、Errors (错误) - 覆盖 CPU/内存/磁盘/网络/GPU
+- 业务指标：适配器执行数/成功率/耗时分位数、分布式编排调度延迟/吞吐、插件加载/执行统计
+- 指标标签治理：统一标签命名规范 (snake_case)、高基数标签治理、标签值枚举化
+- 采集架构：Prometheus Operator + ServiceMonitor/PodMonitor CRD、Pushgateway 用于批量任务
+
+### 15.2 分布式链路追踪
+- 标准化：OpenTelemetry SDK (Rust/Python/Go/Node.js/Java/C++) 全语言覆盖
+- 上下文传播：W3C Trace Context (traceparent/tracestate) + Baggage 头
+- 采样策略：尾部采样 (尾部错误/高延迟必采) + 固定比率采样 (10%) + 自适应采样
+- 跨语言传递：gRPC metadata / HTTP headers / 消息队列 headers 统一传播
+- 存储：Tempo/Jaeger + 对象存储 (S3/MinIO) 分层存储，热数据 7 天，冷数据 90 天
+
+### 15.3 结构化日志平台
+- 统一格式：JSON + OpenTelemetry 语义约定 (attributes: service.name, span.id, trace.id 等)
+- 分级：TRACE/DEBUG/INFO/WARN/ERROR/FATAL，结构化字段强制化
+- 脱敏规则：正则/规则引擎自动脱敏 (API Key、Token、PII、密钥)
+- 关联查询：Trace ID 关联日志/指标/Profile，单次点击跳转
+- 存储：Loki (日志) + 对象存储分层，保留策略：热 30 天 / 冷 365 天
+
+### 15.4 连续性能分析
+- 采集技术栈：eBPF (内核态) + async-profiler (Java/JVM) + py-spy (Python) + pprof (Go) + perf (Rust/C++)
+- 采集频率：默认 100Hz，高负载自适应降级
+- 火焰图：按服务/实例/函数维度生成，支持差分火焰图 (对比两个时间窗口)
+- 热点类型：CPU/内存分配/锁争用/IO/GC/系统调用
+- 存储：Parquet 列式格式 + ClickHouse/Apache Druid OLAP 查询
+
+### 15.5 智能告警引擎
+- 告警规则：PromQL/LogQL/TraceQL 多查询语言支持，多条件组合 (AND/OR/NOT)
+- 告警抑制：抑制规则 (维护窗口/依赖服务故障/已知问题)
+- 告警去重：基于指纹 (labels hash) 去重，分组聚合 (按 service/namespace/severity)
+- 根因分析：拓扑关联 + 时序相关性 + 异常检测 (季节性/趋势/突变)
+- 自愈动作：Runbook 自动化执行 (重启/扩容/熔断/流量切换)，需人工确认高危动作
+- 通知渠道：Slack/DingTalk/Feishu/Email/PagerDuty/Voice/短信，支持升级策略
+
+### 15.6 统一可视化门户
+- 仪表盘即代码：Jsonnet/Grafonnet 定义，GitOps 部署，版本控制
+- 核心仪表盘：RED 概览 / USE 资源 / 链路拓扑 / 错误预算 / 容量规划 / 业务看板
+- 多租户隔离：Grafana Organizations + 文件夹权限 + 数据源权限
+- 自助服务：用户自建仪表盘/告警规则/日志查询，RBAC 权限控制
+- 移动端：Grafana App / 自研 PWA，关键告警推送、核心指标一览
+
+**质量门**
+- ruff + mypy 全绿
+- 核心指标覆盖率 > 95%
+- 告警噪音率 < 5% (去重后)
+- 平均故障检测时间 (MTTD) < 2 分钟
+- 平均故障恢复时间 (MTTR) < 15 分钟
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/observability/metrics_collector.py（新增）
+- craft/observability/tracing_instrumentor.py（新增）
+- craft/observability/log_structurer.py（新增）
+- craft/observability/profiler.py（新增）
+- craft/observability/alert_engine.py（新增）
+- craft/observability/dashboard_generator.py（新增）
+- tests/unit/test_observability_metrics.py（新增）
+- tests/unit/test_observability_tracing.py（新增）
+- tests/unit/test_observability_logs.py（新增）
+- tests/unit/test_observability_profiling.py（新增）
+- tests/unit/test_observability_alerts.py（新增）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #467
