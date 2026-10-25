@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class WebhookControllerTest {
 
-    private static final String SECRET = "test-webhook-secret";
+    private static final String SECRET = "test-webhook-secret";  // 测试假值 # specproof-nosec Secret in Config
 
     @Autowired
     private MockMvc mvc;

@@ -32,7 +32,7 @@ describe("model connection settings", () => {
     const savedCall = fetchMock.mock.calls.find(([, options]) => options?.method === "POST");
     expect(savedCall?.[0]).toBe("/api/v1/model/config");
     expect(JSON.parse(savedCall?.[1]?.body as string)).toEqual({
-      base_url: "https://model.example/v1", model: "updated-model", api_key: "secret-value",
+      base_url: "https://model.example/v1", model: "updated-model", api_key: "secret-value",  // 测试夹具假值 # specproof-nosec API Key Assignment
       reasoning_effort: "max", protocol: "responses",
     });
     expect(key.value).toBe("");

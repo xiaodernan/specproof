@@ -43,7 +43,7 @@ python -m cli.specproof.main craft run task.spec --repo . --llm --budget-tokens 
 卖点: "写代码的 Agent 和验收的 Agent 是同一个平台的两半 — 开发完自动验收。"
 
 ## 第 5 步: Web 平台 — 看到整个企业版 (5 分钟)
-$env:SPECPROOF_API_KEY="demo-key"; python -m uvicorn api.server:app --host 127.0.0.1 --port 8000
+$env:SPECPROOF_API_KEY="demo-key"; python -m uvicorn api.server:app --host 127.0.0.1 --port 8000  # 文档示例值，非真实密钥 # specproof-nosec API Key Assignment
 浏览器打开 http://127.0.0.1:8000 → 登录 (demo-key) →
 Dashboard (任务/失败率/24h 时间线) → Job 详情 (SSE 实时阶段/Findings/证书/胶囊下载)
 → 契约中心 → 评测页 → 健康页 (6 依赖延迟)。

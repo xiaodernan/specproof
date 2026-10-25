@@ -202,7 +202,8 @@ def build_redis_client() -> Any | None:
     purpose, so an integration leg has to carry the credential in a URL
     the way MYSQL_URL does):
 
-    - ``REDIS_URL`` — a full ``redis://[:password@]host:port/db`` URL;
+    - ``REDIS_URL`` — a full URL of the form
+      ``redis://[:password@]host:port/db`` (示意格式) # specproof-nosec Redis URL with Credentials
     - ``REDIS_HOST`` / ``REDIS_PORT`` / ``REDIS_PASSWORD`` — the parts.
 
     A client that cannot be built is a fact about the world ("we could

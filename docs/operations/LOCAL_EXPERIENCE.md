@@ -116,7 +116,7 @@ pwsh scripts\start_local.ps1
 
 ```powershell
 $env:LLM_BASE_URL = "https://your-gateway.example.com/v1"
-$env:LLM_API_KEY  = "<你的网关密钥>"     # 仅本会话内存, 绝不写入任何文件
+$env:LLM_API_KEY  = "<你的网关密钥>"     # 仅本会话内存, 绝不写入任何文件; 文档占位符 # specproof-nosec API Key Assignment
 $env:LLM_MODEL    = "deepseek-v4-pro"    # 可选, 缺省 deepseek-v4-pro
 pwsh scripts\start_local.ps1 -WithLlm
 ```

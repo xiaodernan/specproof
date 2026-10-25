@@ -11449,11 +11449,11 @@ return any(part.startswith(_EXCLUDE_DIR_PREFIXES) for part in parts)
 
 **剩下 5 条 C/H 逐条判定（全部是「意图上的假阳性」，没有一条是真泄露）。**
 | 位置 | 内容 | 判定 |
-| `apps/web/src/agent/__tests__/AgentSettings.test.tsx:35` | `api_key: "secret-value"` | 测试夹具，值本身写着「我是假值」 |
-| `docs/operations/EXPERIENCE_GUIDE.md:46` | `$env:SPECPROOF_API_KEY="demo-key"` | 文档示例，`demo-key` |
-| `docs/operations/LOCAL_EXPERIENCE.md:119` | `$env:LLM_API_KEY = "<你的网关密钥>"` | 文档占位符（中文「你的网关密钥」），占位符清单不认它 |
-| `experiments/external_state.py:205` | docstring 里演示 `redis://[:password@]host:port/db` 的**格式** | 正则命中的是文档里的示意串，不是真凭据 |
-| `services/control-plane/src/test/java/.../WebhookControllerTest.java:32` | `SECRET = "test-webhook-secret"` | 测试常量 |
+| `apps/web/src/agent/__tests__/AgentSettings.test.tsx:35` | `api_key: "secret-value"` | 测试夹具，值本身写着「我是假值」 # specproof-nosec API Key Assignment
+| `docs/operations/EXPERIENCE_GUIDE.md:46` | `$env:SPECPROOF_API_KEY="demo-key"` | 文档示例，`demo-key` # specproof-nosec API Key Assignment
+| `docs/operations/LOCAL_EXPERIENCE.md:119` | `$env:LLM_API_KEY = "<你的网关密钥>"` | 文档占位符（中文「你的网关密钥」），占位符清单不认它 # specproof-nosec API Key Assignment
+| `experiments/external_state.py:205` | docstring 里演示 `redis://[:password@]host:port/db` 的**格式** | 正则命中的是文档里的示意串，不是真凭据 # specproof-nosec Redis URL with Credentials
+| `services/control-plane/src/test/java/.../WebhookControllerTest.java:32` | `SECRET = "test-webhook-secret"` | 测试常量 # specproof-nosec Secret in Config
 
 ⇒ **本仓库的真实 secret 姿态是干净的**；剩下 256 条 LOW 是项目自己的内部标识（`deepseek-v4-pro` / `llm-api.fagougou.com`），按设计就是 LOW。
 
@@ -11462,7 +11462,7 @@ return any(part.startswith(_EXCLUDE_DIR_PREFIXES) for part in parts)
 **诚实边界。** ① `.venv` 前缀规则是**政策选择**：理由是「虚拟环境永不发布」（`git check-ignore` 实测确认），但**真把 secret 写进 `.venv312` 这扫描器现在看不见**——与 `tests/` / `.scratch` 同一种取舍。② 前缀只认 `.venv`（带点），所以 `.venv312` 进、`.venue` 不进；若哪天有人建一个叫 `venv312`（无点）的目录，它仍会被扫——那是精确名清单已有的行为，未改。③ 5 条判定是**逐条读代码得出的意图判断**，不是机器判定；机器只知道「匹配了」。④ 15.1s 仍是本机量级（含读 3,023 个文件），CI 上未必同量级。
 
 **下一号队列（取号按落地时点 max+1）。** ① **给 `agent/security_scanner.py 设计逐行豁免机制**（本号量到的缺口）——上面 5 条意图上的假阳性现在无处安放；可参照 `# nosec` 那套「原因在前、id 在后、且 id 必须真是扫描器会报的那个」的纪律，别做成随手 `# ignore`。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。
-## #444 给秘密扫描器补上逐行豁免：`# specproof-nosec <模式名>`，原因在前、必须点名
+## #444 给秘密扫描器补上逐行豁免：`specproof-nosec <模式名>`，原因在前、必须点名
 
 **起因/占号。** #443 量到并列进队列的缺口：「`agent/security_scanner.py` 没有任何逐行豁免机制，那 5 条意图上的假阳性无处安放；bandit 那套 `# nosec` 纪律在这个扫描器上没有对应物」。占号前重测账本：HEAD 版账本 `## #` id 最大 **443** ⇒ 取 **#444**。
 
@@ -11681,3 +11681,67 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ① 解析器只在单文件内跟随名字：号码从别的模块常量传进来到处读不到来源 ⇒ 判 `blind` 并拒绝，错的方向是假红，不是假绿。② `roster`/`free` 的准入靠形状（`_ROSTER_CALLS` 名单；绑 0 **且**回读 `getsockname` 的 helper 两个条件缺一不可），新增一种形状就是给判据开口子，所以 L8 的 13 个植入源逐条钉住期望桶、且 `probe_that_looks_like_a_probe` 专门见证「像探针但不是探针」仍按数字裁决。③ #232 L2 的 `env:`↔属主一致那条判决，今天的树上没有 shipped 载体（13 行 tests/** 绑定无一行是环境读），它只在两侧读数分叉时才有话可说；A2 是那件事的行为见证，不是这条判决的载体。④ 属主与 #232 现在互相 `exec_module`（#232 L2 载 #427，#427 L6/L8 载 #232），两边都只在测试体内加载、模块顶层不回调对方，实测同会话 25 例无递归、无重复解析——但这层耦合是新出现的，任何一侧把加载挪到模块顶层都会变成循环导入。⑤ 属主只数 AST 上的调用点，不数写在**字符串里**的那次绑定：同名尺子在三份读数下差得很远——`git ls-files tests` 里 10 个文件提到 `serve_metrics_in_thread`，字节出现 87 次、AST `port=` 站点 13 处、字符串常量内 63 次（`.scratch/m451_sidecar_probe.log`）。真正的 sidecar 有 3 个文件把端点写进交给另一个进程的源码字符串，其中 `tests/unit/test_metrics_port_ownership_leg.py:140` 的 `_CHILD`（14 行）自己 `port = int(sys.argv[1])` 再绑一次——那是第 3 个进程，普查的种群里没有它的行。今天不撒谎的原因在别处：喂给它的那个号来自父进程的 `_free_port()`，而父进程那一行是被读过的（`:84`/`:123` 判 `free`），所以「动了谁的号」仍然有判决，只是**绑了几次**没被清点。⑥ 账本这次仍只写索引：工作区那份 `DEEP_OPTIMIZATION_PLAN.md` 带着别道在飞的改动（#443 表格里追加了 5 处 `# specproof-nosec …`），我不覆盖它。
 
 **下一号队列（取号按落地时点 max+1）。** ① 原 #426 队列仍在：三处「无 pom.xml …」字面句收成派生，以及 `_BUILD_MARKERS` 在生产无读者。② `INVOICE_CRON_METRICS_PORT=''` 现在让三个监听器在构造期抛 `ValueError`，而 `OBSERVABILITY.md:73-74` 把这个旋钮宣传成 .env 可改——要么文档改口，要么把空值语义定清楚。③ E3 的 1.0 差值依赖播种租户与 `cycle()` 的进程内 `_period` 护栏，跨进程重跑会变形。④ 在途的别道 `craft/adapters/go_adapter.py:321` 有 `SyntaxError`（`]` 对不上 `(`），本次全量单测靠 `--ignore` 绕开——不是我改的文件，但它能让任何人的合并门整轮中断，值得在那一道里还掉。⑤ 把 sidecar 接进清点（边界⑤ 的那第 3 个进程）：普查除 AST 站点外，再解析「字符串常量里带 `serve_metrics_in_thread(` 的子进程源」并把它计入种群，判决仍按父进程喂进去的那个号；先量的尺子在 `.scratch/m451_sidecar_probe.log`（3 个 carrier 文件、3 个文件提到这个名字却一个 AST 站点都没有——把 sidecar 绑放置在那样的文件里，今天无人报）。
+## #452 用 `specproof-nosec` 消音那 5 条假阳性；账本引用证据也会被判红（于是账本自己也要标注）；顺带把全树 `rglob` 换成剪枝遍历（2.4×）并修掉一个 Windows 上静默失效的归属 bug
+
+**起因/占号。** #444 队列①：「用新机制消音 #443 那 5 条意图上的假阳性（每条带理由），让自扫描的 C/H 归零」。占号前重测账本：**HEAD 版账本 `## #` id 最大 451**（本号开工期间另一车道连续落了 #445–#451，计划文件因此被重置 3 次）⇒ 取 **#452**。
+
+**先量后写（量的是「每条 finding 到底命中哪个模式、指令该写在哪」）。** 逐条取模式名（注意：`os.walk` 对**单文件路径**返回空，所以必须扫全仓再按 `f.path` 过滤，不能直接 `scan_directory(<文件>)`）：
+
+| 位置 | 模式 | 内容 |
+| `apps/web/src/agent/__tests__/AgentSettings.test.tsx:35` | `API Key Assignment` (CRITICAL) | `api_key: "secret-value"` 测试夹具 # specproof-nosec API Key Assignment
+| `docs/operations/EXPERIENCE_GUIDE.md:46` | `API Key Assignment` (CRITICAL) | `$env:SPECPROOF_API_KEY="demo-key"` 文档示例 # specproof-nosec API Key Assignment
+| `docs/operations/LOCAL_EXPERIENCE.md:119` | `API Key Assignment` (CRITICAL) | `$env:LLM_API_KEY = "<你的网关密钥>"` 文档占位符 # specproof-nosec API Key Assignment
+| `experiments/external_state.py:205` | `Redis URL with Credentials` (HIGH) | docstring 里演示 `redis://[:password@]host:port/db` 的**格式** # specproof-nosec Redis URL with Credentials
+| `services/control-plane/.../WebhookControllerTest.java:32` | `Secret in Config` (HIGH) | `SECRET = "test-webhook-secret"` 测试常量 # specproof-nosec Secret in Config
+
+**修①（5 处施加指令）。** 每处按「理由在前、指令在行尾」的形状追加：
+- `.tsx`：对象字面量里追加 `// 测试夹具假值 # specproof-nosec API Key Assignment`（TS 合法注释）；
+- 两个 `.md`：都在 PowerShell 代码块/命令行里，`#` 本就是 PowerShell 注释，追加后仍是可复制粘贴的有效命令；`LOCAL_EXPERIENCE.md` 那行原本就有一条 `#` 注释，新指令接在它后面（`_NOSEC_RE` 是 search，前一个 `#` 不匹配 `specproof-nosec` 会继续往后找）；
+- `external_state.py`：docstring 内的一行。**为了不超 E501（100 列）把那一行拆成两行**，URL 与指令留在同一行（指令必须在模式所在行），「a full URL of the form」移到上一行 ⇒ 该 finding 的行号从 **205 变成 206**；
+- `.java`：`// 测试假值 # specproof-nosec Secret in Config`。
+
+**新发现②（本号最重要的一个）：账本引用证据，扫描器就把账本也判红。** 施加完 5 处指令后自扫描**并没有**变绿——`DEEP_OPTIMIZATION_PLAN.md` 自己产出 **5 条 C/H**（`11452–11456`），正是 **#443 节那张「剩下 5 条 C/H 逐条判定」表**：表里逐字引用了 5 条 finding 的原文，扫描器按行匹配，于是把证据表当成新的泄露。⇒ **账本的职责就是逐字引用证据，所以「引用」这个动作本身会持续产生待标注行**。处理：给那 5 个表格行各加一条指令（指令因此也成为文档里可见的「已知假阳性」标注）。GFM 表格行尾的 `|` 可省，所以指令能落在行尾。
+
+**新发现③：#444 的标题自己踩了 bandit 第 3 条教训。** `## #444 … \`# specproof-nosec <模式名>\` …` 这行标题**字面包含指令文本**，`_NOSEC_RE` 命中它且没有任何模式在该行触发 ⇒ 它成为一条**死指令**。这正是 `test_bandit_suppressions_are_earned.py` 早已量到的第 3 条（「指令写在没代码的地方也会被解析」）在本仓的复现。处理：把标题里的 `# specproof-nosec` 改成 `specproof-nosec`（去掉前导 `#`）——不改语义，只是不再自触发。
+
+**新发现④ + bug 修复：`scan_directory` 是全树 `rglob` 再逐文件过滤。** 本仓已在测试门里修过三次的同一反模式，生产代码里还有一份：`for file_path in root_path.rglob("*")` + `if _should_exclude(rel_path)`。既然 #442 起这个扫描器已接进 P0.5 闭环脚本（真实用户会跑），把它修掉：
+- 新增 `_walk_scannable()`（`os.walk(..., followlinks=True)` + `dirnames[:]` 剪枝）与 `_dir_is_excluded()`（只镜像 `_should_exclude` 的**目录形状**那一半：`/` 结尾模式 + `_EXCLUDE_DIR_PREFIXES`；`*.pyc`/`.env`/`agent/security_scanner.py` 是文件形状，仍逐文件判）；
+- **语义不变已实测**：旧实现逐字重建后对跑，`files=3023` 两边一致、finding 按 `(path,line,pattern,severity)` 排序后 **IDENTICAL FINDINGS: True**；
+- **21.4s → 9.0s（2.4×）**，最终态 **7.2s**。
+- **顺带修掉一个跨平台静默失效**：旧代码 `rel_path = str(file_path.relative_to(root_path))` 在 Windows 上是**反斜杠**，而 `craft/gates.py:619` 与 `craft/verify.py:121` 都用 `entry.path not in changed_set` 把 finding 归属到「改动文件」，`changed` 来自 git diff（**永远正斜杠**）⇒ 在 Windows 上**每一条 finding 都匹配不上**，「只有改动文件才阻断」 quietly 变成「什么都不阻断」。新遍历统一产出正斜杠。这个失败模式在 Linux 上完全看不见、在 Windows 上是完全的，所以单独建了门（见下）。
+
+**落地（门）。** 新建 `tests/unit/test_security_scanner_evidence_quotes_are_annotated.py`（**23 案**），四道彼此不可互相替代的门：
+1. `test_the_directive_audit_is_not_vacuous`——审计必须有东西可审（否则「每条指令都合规」会因为没指令而恒真）；
+2. `test_a_directive_hides_a_finding_that_really_fires`——**死指令检测**（#444 队列②）：点名一个在此行不触发的模式 ⇒ 红；
+3. `test_a_directive_has_a_reason_in_front_of_it`——理由必须在前；
+4. `test_the_repo_reports_no_critical_or_high_finding`——**全仓姿态门**：`scan_directory(PROJECT_ROOT)` 不得有 C/H，且 `scanned_files > 1000`（防止「因为剪得太狠所以干净」的假绿）；
+5. `test_finding_paths_use_forward_slashes`——上面那个跨平台归属 bug 的专属门（临时树种嵌套文件，断言 finding 路径无反斜杠且等于 git 拼写）。
+
+只审计**扫描器真会读的文件**里的指令：`tests/` 与 `agent/security_scanner.py` 自身在排除清单里，那里的指令按构造就是惰性的，审计它们只会把模块自己文档里的机制说明判成死指令。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_security_scanner_evidence_quotes_are_annotated.py -q` | **23 passed** |
+| 回归 | `pytest test_security_scanner_placeholders_agree.py test_security_scanner_excludes_are_segment_exact.py test_security_scanner_nosec_is_scoped_and_auditable.py test_p0_5_closed_loop_scan_contract.py tests/security -q` | **170 passed, 2 skipped** |
+| 前端（改过 `.tsx`） | `npx tsc --noEmit` + `npx vitest run src/agent/__tests__/AgentSettings.test.tsx` | tsc 0 error；**5 passed** |
+| ruff | `ruff check agent/security_scanner.py experiments/external_state.py tests/unit/...annotated.py` | 初报 UP035（`Iterator` 应从 `collections.abc` 导入）+ E501（#205 行 146 列）⇒ `--fix` + 拆行后 **All checks passed** |
+| mypy | `mypy agent/security_scanner.py experiments/external_state.py` | 初报 `_walk_scannable` 缺返回类型 ⇒ 补 `Iterator[tuple[str, Path]]` 后 **Success** |
+| 新旧遍历等价 | 旧实现逐字重建对跑 | finding 逐条相同、`files=3023` 一致 |
+| **变异臂①**（删掉 `.tsx` 里那条指令） | 先预测：姿态门红 + 参数化少 2 例 | 实测 **1 failed, 22 passed**，逐名命中 |
+| **变异臂②**（把 `LOCAL_EXPERIENCE.md` 那条指令的理由删掉，只留裸指令） | 先预测：理由门红 1 条 | 实测 **2 failed**——理由门红 1 条**外加姿态门也红**，因为删理由时我把整条旧 `#` 注释一并删了，`$env:LLM_API_KEY = "<你的网关密钥>"` 失去抑制 ⇒ 预测漏了第二条 # specproof-nosec API Key Assignment
+| 变异臂还原 | `trap ... EXIT TERM INT` | 工作树确认只剩本号改动、无 `.orig` 残留 |
+
+**自扫描四段实测（同一棵树，越来越准也越来越快）。**
+| 版本 | 耗时 | 扫过文件 | finding | C/H | `passed` |
+| #441 之前 | **>240s 超时** | — | — | — | — |
+| #441 之后（精确名 `.venv`/`venv`） | 52.7s | 11,090 | 324 | **67** | False |
+| #443 之后（`.venv` 前缀） | 15.1s | 3,023 | 261 | **5** | False |
+| **本号之后（5 处指令 + 账本标注 + 剪枝遍历）** | **7.2s** | **3,024** | **258** | **0** | **True** |
+
+⇒ 258 条残留全是 LOW，内容是项目自己的内部标识（`deepseek-v4-pro` / `llm-api.fagougou.com`），按设计就是 LOW。**`run_full_security_scan` 在本仓库现在是真的绿**，#442 起接进 P0.5 脚本后 `report["12_security_scan"]` 不再是 FAIL。
+
+**否证与订正（本号自己踩的，值得记）。** ① 第一版门把 `_repo_directives()` 的 names 按空格 `split()`，于是 `"API Key Assignment"` 变成 `['API','Key','Assignment']`，与 `{'API Key Assignment'}` 永远不相等 ⇒ **5 条真指令被误判成死指令**，13 条红。机制本是「完整模式名 ⊆ names 文本」的子串语义（`_suppressed` 里 `pattern_name in m.group("names")`），是我的探针写错了，不是机制错。② 变异臂②预测漏了一条（见上表）。③ **计划文件在本号期间被另一车道重置了 3 次**（我写在**工作树**里的 5 行编辑连同步履都没留下就被 `git checkout` 冲掉；另一车道在 #445→#448 之间连续落地）。应对：本号起计划内容**直接 `git hash-object -w` + `git update-index --cacheinfo` 写进索引**，不再依赖工作树编辑能活到提交。
+
+**诚实边界。** ① 这是**行为变更**：5 个文件各多了一条行尾注释/指令；`experiments/external_state.py` 的 docstring 拆了一行（finding 行号 205→206）；计划账本有 6 行被改（5 个证据行 + #444 标题）。② `_walk_scannable` 用 `followlinks=True` 以对齐 3.12 上 `rglob` 的行为；本仓库实测**零个符号链接目录**，所以这一条对齐是推理而非实测——若将来引入符号链接目录，两者的循环处理都需要重新验证。③ 指令只审计「扫描器会读的文件」；`tests/` 与扫描器模块自身的文档里出现指令文本是**故意不审计**的。④ 7.2s/3,024 文件仍是本机量级（`.venv` 现为 3.14.8、另有 `.venv312`=3.12.13，两者都被排除），CI 上未必同量级。⑤ 未实现「整行注释里引用指令会被解析」的额外防护（bandit 第 3 条）：本机制正则要求指令在行尾，所以注释行引用它确实会形成抑制——本号只是把账本标题那一处修掉，没有通用防护。⑥ 未跑完整 10 段闭环（需 Java + 真 LLM key）。
+
+**下一号队列（取号按落地时点 max+1）。** ① **给「整行注释/文档里引用指令」一个通用防护**（本号边界⑤）——现在只有账本标题那一处被手工修掉。② 在途 go/node 适配器的 35 个 ruff 错（#435 边界④）。③ #397 队列剩余（基准面那一跑为何失败、全量 87 案例数字写回、安静机器重跑集成、独占机器量 DEEP、CI 夜间 workflow、MQ 面产品决策）。④ 另一车道在本号期间连落 **#445–#451**，计划文件被重置 3 次、且工作树账本一度落后两节（缺 #450/#451）⇒ 下次占号前**必须**重测账本 max，且账本内容**一律从 `git show HEAD:` 起算**、不要以工作树为基线。

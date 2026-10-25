@@ -6,7 +6,9 @@ internal hostnames.
 """
 from __future__ import annotations
 
+import os
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -157,6 +159,49 @@ def _suppressed(line: str, pattern_name: str) -> bool:
     return m is not None and pattern_name in m.group("names")
 
 
+def _dir_is_excluded(rel_dir: str) -> bool:
+    """True when a whole directory subtree is excluded.
+
+    Mirrors only the *directory-shaped* half of ``_should_exclude``: the
+    trailing-slash patterns and the ``_EXCLUDE_DIR_PREFIXES`` rule. Everything
+    else in the list (``*.pyc``, ``.env``, ``agent/security_scanner.py``) is a
+    file shape and still has to be checked per file. Pruning a directory here is
+    sound because any file underneath it would fail ``_should_exclude`` anyway —
+    its path contains the same segment.
+    """
+    parts = rel_dir.split("/")
+    for pattern in _EXCLUDE_PATTERNS:
+        if pattern.endswith("/") and pattern[:-1] in parts:
+            return True
+    return any(part.startswith(_EXCLUDE_DIR_PREFIXES) for part in parts)
+
+
+def _walk_scannable(root_path: Path) -> Iterator[tuple[str, Path]]:
+    """Yield ``(rel_path, Path)`` for every file the scan actually reads.
+
+    ``scan_directory`` used to do ``root.rglob("*")`` and filter afterwards,
+    which is the walk-then-filter shape this repo has already had to fix three
+    times in its test gates: on this tree a naive walk visits 27,656 paths to
+    keep 3,023, because a local virtualenv and the scratch worktrees hold the
+    rest. Pruning here is what keeps the scan — which is now wired into the
+    P0.5 closed-loop script — measured in seconds instead of tens of seconds.
+    """
+    for dirpath, dirnames, filenames in os.walk(root_path, followlinks=True):
+        base = Path(dirpath)
+        rel_dir = str(base.relative_to(root_path)).replace("\\", "/")
+        if rel_dir == ".":
+            rel_dir = ""
+        kept: list[str] = []
+        for name in dirnames:
+            child = f"{rel_dir}/{name}" if rel_dir else name
+            if not _dir_is_excluded(child):
+                kept.append(name)
+        dirnames[:] = kept
+        for name in filenames:
+            rel = f"{rel_dir}/{name}" if rel_dir else name
+            yield rel, base / name
+
+
 def scan_directory(root: str) -> SecurityScanResult:
     """Scan all files in a directory for secrets.
 
@@ -168,11 +213,7 @@ def scan_directory(root: str) -> SecurityScanResult:
     result = SecurityScanResult()
     root_path = Path(root)
 
-    for file_path in root_path.rglob("*"):
-        if not file_path.is_file():
-            continue
-
-        rel_path = str(file_path.relative_to(root_path))
+    for rel_path, file_path in _walk_scannable(root_path):
         if _should_exclude(rel_path):
             continue
 
