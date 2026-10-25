@@ -11809,3 +11809,51 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 - `craft/adapters/go_adapter.py`（语法错误持续修复）
 - `tests/unit/test_adapter_protocol.py`（协议测试持续通过）
 - `docs/operations/DEEP_OPTIMIZATION_PLAN.md`：追加 #454
+
+
+## #455 Phase 4 继续：适配器注册中心协同验证与性能基线
+
+**背景**：#454 完成了跨语言适配器增强与注册中心基础验证。进入下一阶段，重点验证适配器间的协同工作能力，建立生产环境性能基线，并完善多适配器项目的检测链路。
+
+**本批目标**：
+1. **适配器协同测试验证**：编写多适配器项目的集成测试，验证检测链路从项目扫描->适配器检测->注册->执行->证据收集的完整流程。特别是联合检测场景（同时存在 package.json/go.mod 的项目）的 fall-back 行为。
+2. **性能基线建立**：测量 50+ 项目的 auto-detect 与执行耗时，建立中位数与 95th percentile 基线，确保回归测试性能不回退。
+3. **能力矩阵统一**：确保所有适配器的 supported_goals、offline_capable、sandbox_required 字段定义一致，便于跨语言项目的自动分发。
+
+**当前适配器概览**：
+| 适配器 | 状态 | 备注 |
+|--------|------|------|
+| java-maven | ✅ 已支持 | 文档见 EXECUTION_COMPATIBILITY.md |
+| java-gradle | ✅ 已支持 | #431 已完善 |
+| python-pytest | ✅ 已支持 | Docker 沙箱，wheelhouse 离线依赖 |
+| node-npm | ✅ 已完成 | #449/#454 已完成 |
+| go-test | ✅ 已完成 | #449/#454 已完成 |
+| adapter-registry | ✅ 已运行 | auto-detect + registry + ID allocation functional |
+
+**执行计划**：
+### 6.1 协同测试验证
+- 编写跨语言项目测试（package.json + go.mod 共存）
+- 验证检测链路完整性与 fall-back 行为
+- 确保失败时的错误信息清晰且可追踪
+
+### 6.2 性能基线
+- 测量 auto-detect 在 50+ 项目中的耗时分布
+- 建立中位数基线，设定性能退步告警阈值
+- 记录关键路径的执行耗时与证据收集耗时
+
+### 6.3 统一矩阵
+- 审查所有适配器的能力字段定义
+- 修正不一致之处，确保字段语义统一
+- 更新文档以反映统一后的定义
+
+**质量门**
+- ruff + mypy 全绿
+- 现有适配器测试无回归
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/adapters/protocol.py（注册中心核心逻辑持续验证）
+- craft/adapters/node_adapter.py（Unicode 修复持续有效）
+- craft/adapters/go_adapter.py（语法错误持续修复）
+- 	ests/unit/test_adapter_protocol.py（协议测试持续通过）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #455
