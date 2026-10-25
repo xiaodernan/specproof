@@ -12195,3 +12195,80 @@ tests_passed = tests_run - tests_failed - tests_skipped
 - craft/adapters/rust_adapter.py（新增）
 - tests/unit/test_rust_adapter.py（新增）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #462
+
+
+## #463 Phase 4 继续：C++ 适配器核心实现与多构建系统支持
+
+**背景**：#462 完成了 Rust 适配器核心实现与 Cargo 生态集成。本批重点落地 C++ 适配器核心实现，支持 CMake/Make/Bazel 三大构建系统，集成 CTest/GoogleTest/Catch2/Boost.Test 测试框架，解决跨平台编译工具链问题。
+
+**本批目标**：
+1. **C++ 适配器核心实现**：detect/prepare/execute/collect_evidence 四大接口完整实现。
+2. **多构建系统自动检测**：CMakeLists.txt、Makefile、BUILD.bazel 三种构建配置自动识别与优先级排序。
+3. **测试框架统一解析**：CTest (XML)、GoogleTest (XML/JSON)、Catch2 (JUnit XML)、Boost.Test (XML) 统一解析为 ExecutionResult + EvidenceFragment。
+4. **交叉编译与工具链管理**：支持 x86_64/ARM64 多架构，GCC/Clang/MSVC 多编译器自动检测。
+5. **依赖管理集成**：vcpkg/Conan 包管理器自动检测与离线缓存支持。
+6. **单元测试覆盖**：核心功能 12+ 测试用例，Mock 子进程验证结构正确性。
+
+**技术规范**：
+- 适配器 ID：cpp-cmake
+- 语言：cpp
+- 构建工具：cmake/make/bazel (自动检测)
+- 沙箱镜像：ubuntu:22.04 + build-essential + cmake + ninja + clang + gcc + vcpkg + conan
+- 缓存卷：specproof-cpp-buildcache-1000 + specproof-vcpkg-cache-1000 + specproof-conan-cache-1000
+- 支持目标：test、build、lint (clang-tidy/cppcheck)
+
+**执行计划**：
+### 11.1 detect 实现
+- 优先级检测：CMakeLists.txt > Makefile > BUILD.bazel
+- 解析 CMakeLists.txt 提取 project() 名称与版本
+- 识别测试框架：enable_testing()、find_package(GTest)、Catch2、Boost.Test
+
+### 11.2 prepare 实现
+- 读取 CMakeLists.txt 中的 cmake_minimum_required 版本
+- 设置 CMAKE_BUILD_TYPE=RelWithDebInfo (平衡调试与性能)
+- 配置 vcpkg/Conan 缓存目录环境变量
+- 预检查编译器版本：gcc --version / clang --version / cl.exe
+
+### 11.3 execute 实现
+- CMake 流程：cmake -B build -S . -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build build --target test
+- Make 流程：make test 或 make check
+- Bazel 流程：bazel test //...
+- 输出解析：统一转换为 JUnit XML 格式
+- 交叉编译支持：CMAKE_TOOLCHAIN_FILE 参数透传
+- 超时控制：默认 600 秒 (C++ 编译耗时较长)
+- Windows 编码安全：text=False + utf-8 decode (解决 MSVC 中文输出问题)
+
+### 11.4 collect_evidence 实现
+- CMakeLists.txt / Makefile / BUILD.bazel 内容
+- CMakeCache.txt 关键配置提取
+- 编译器版本信息：gcc/clang/MSVC 版本
+- 测试报告：CTest Test.xml、GTest XML、Catch2 JUnit XML
+- 构建产物清单：可执行文件、静态库、动态库路径与大小
+- 依赖图：vcpkg/conan 安装包列表与版本
+
+### 11.5 单元测试 (12+)
+- test_cpp_adapter_detect_cmake: CMakeLists.txt 检测
+- test_cpp_adapter_detect_make: Makefile 检测
+- test_cpp_adapter_detect_bazel: BUILD.bazel 检测
+- test_cpp_adapter_detect_priority: 多构建系统共存时优先级
+- test_cpp_adapter_prepare: RuntimeProfile 生成
+- test_cpp_adapter_execute_cmake_test: CMake + CTest Mock 验证
+- test_cpp_adapter_execute_make_test: Makefile 测试 Mock 验证
+- test_cpp_adapter_execute_bazel_test: Bazel 测试 Mock 验证
+- test_cpp_adapter_parse_ctest_xml: CTest XML 解析
+- test_cpp_adapter_parse_gtest_xml: GoogleTest XML 解析
+- test_cpp_adapter_parse_catch2_xml: Catch2 JUnit XML 解析
+- test_cpp_adapter_collect_evidence: 证据片段生成
+- test_cpp_adapter_capabilities: 能力字段验证
+- test_cpp_adapter_cross_compile: 交叉编译参数透传
+
+**质量门**
+- ruff + mypy 全绿
+- 12+ 单元测试全部通过
+- 现有适配器测试无回归
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/adapters/cpp_adapter.py（新增）
+- tests/unit/test_cpp_adapter.py（新增）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #463
