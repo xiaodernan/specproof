@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import time
@@ -14,11 +15,34 @@ from typing import Any
 from craft.adapters.protocol import (
     AdapterNotImplemented,
     AdapterProtocol,
-    ExecutionResult,
     EvidenceFragment,
+    ExecutionResult,
     RuntimeProfile,
     register_adapter,
 )
+
+
+def _as_text(value: bytes | str | None) -> str:
+    """Coerce subprocess output to ``str``.
+
+    ``subprocess.run`` is typed as returning ``bytes | str`` depending on the
+    ``text`` argument, and ``ExecutionResult.stdout`` is declared ``str``. One
+    coercion point instead of a cast at every use.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _read_text_or_none(path: Path | str) -> str | None:
+    """Read a file as UTF-8, or ``None`` when it is absent or unreadable."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read()
+    except OSError:
+        return None
 
 
 @register_adapter
@@ -110,7 +134,7 @@ class GoAdapter(AdapterProtocol):
         project_root: Path,
         profile: RuntimeProfile,
         goal: str = "test",
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         """执行 Go 测试。
 
@@ -129,7 +153,7 @@ class GoAdapter(AdapterProtocol):
 
         # 执行
         try:
-            env = dict(__import__("os").environ)
+            env = dict(os.environ)
             # 设置离线模式
             env["GOPROXY"] = "off"
             env["GONOSUMCHECK"] = "*"
@@ -139,7 +163,7 @@ class GoAdapter(AdapterProtocol):
             if profile.dependency_cache_path:
                 env["GOCACHE"] = str(profile.dependency_cache_path)
 
-            result = subprocess.run(
+            completed = subprocess.run(
                 cmd,
                 cwd=project_root,
                 capture_output=True,
@@ -150,8 +174,8 @@ class GoAdapter(AdapterProtocol):
         except subprocess.TimeoutExpired as e:
             return ExecutionResult(
                 exit_code=-1,
-                stdout=e.stdout or "",
-                stderr=e.stderr or "",
+                stdout=_as_text(e.stdout),
+                stderr=_as_text(e.stderr),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 parse_errors=[f"Execution timeout: {e}"],
             )
@@ -165,22 +189,24 @@ class GoAdapter(AdapterProtocol):
             )
 
         duration_ms = int((time.perf_counter() - start) * 1000)
+        s_stdout = _as_text(completed.stdout)
+        s_stderr = _as_text(completed.stderr)
 
         # 解析测试结果
         tests_run, tests_passed, tests_failed, tests_skipped = cls._parse_test_results(
-            project_root, result.stdout, result.stderr
+            project_root, s_stdout, s_stderr
         )
 
         return ExecutionResult(
-            exit_code=result.returncode,
-            stdout=result.stdout,
-            stderr=result.stderr,
+            exit_code=completed.returncode,
+            stdout=s_stdout,
+            stderr=s_stderr,
             duration_ms=duration_ms,
             tests_run=tests_run,
             tests_passed=tests_passed,
             tests_failed=tests_failed,
             tests_skipped=tests_skipped,
-            raw_output=result.stdout + result.stderr,
+            raw_output=s_stdout + s_stderr,
         )
 
     @classmethod
@@ -197,11 +223,7 @@ class GoAdapter(AdapterProtocol):
             payload={
                 "type": "go_mod",
                 "content": project_root / "go.mod",
-                "content_text": (
-                    open(project_root / "go.mod", encoding="utf-8").read()
-                    if (project_root / "go.mod").exists()
-                    else None
-                ),
+                "content_text": _read_text_or_none(project_root / "go.mod"),
             },
         )
         fragments.append(go_mod_fragment)
@@ -231,7 +253,7 @@ class GoAdapter(AdapterProtocol):
                 "tests_failed": result.tests_failed,
                 "tests_skipped": result.tests_skipped,
                 "duration_ms": result.duration_ms,
-                "cgo_enabled": profile.extra.get("cgo_enabled", False),
+                "cgo_enabled": (profile.extra or {}).get("cgo_enabled", False),
                 "parse_errors": result.parse_errors,
             },
         )
@@ -243,7 +265,7 @@ class GoAdapter(AdapterProtocol):
             collector_version="go-adapter-1.0",
             payload={
                 "type": "cgo_status",
-                "cgo_enabled": profile.extra.get("cgo_enabled", False),
+                "cgo_enabled": (profile.extra or {}).get("cgo_enabled", False),
             },
         )
         fragments.append(cgo_fragment)
@@ -319,14 +341,14 @@ class GoAdapter(AdapterProtocol):
                 tests_skipped = skip_count
             else:
                 # 模式 2: --- PASS: ... 后面跟随计数
-                m_pass = re.findall(r'--- PASS:\s+\S+', full_output)
-                m_fail = re.findall(r'--- FAIL:\s+\S+', full_output)
-                m_skip = re.findall(r'--- SKIP:\s+\S+', full_output)
-                if m_pass or m_fail or m_skip:
-                    tests_run = len(m_pass or []) + len(m_fail or []) + len(m_skip or [])
-                    tests_passed = len(m_pass or [])
-                    tests_failed = len(m_fail or [])
-                    tests_skipped = len(m_skip or [])
+                passes = re.findall(r'--- PASS:\s+\S+', full_output)
+                fails = re.findall(r'--- FAIL:\s+\S+', full_output)
+                skips = re.findall(r'--- SKIP:\s+\S+', full_output)
+                if passes or fails or skips:
+                    tests_run = len(passes) + len(fails) + len(skips)
+                    tests_passed = len(passes)
+                    tests_failed = len(fails)
+                    tests_skipped = len(skips)
 
         return tests_run, tests_passed, tests_failed, tests_skipped
 

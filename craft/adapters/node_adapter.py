@@ -8,20 +8,46 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from craft.adapters.protocol import (
     AdapterNotImplemented,
     AdapterProtocol,
-    ExecutionResult,
     EvidenceFragment,
+    ExecutionResult,
     RuntimeProfile,
     register_adapter,
 )
+
+
+def _as_text(value: bytes | str | None) -> str:
+    """Coerce subprocess output to ``str``.
+
+    ``subprocess.run`` is called with ``text=False`` on purpose (see the comment
+    at the call site), so the same field can be bytes, str, or None depending on
+    which branch produced it — and ``ExecutionResult.stdout`` is declared ``str``.
+    One coercion point instead of five casts.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _read_text_or_none(path: Path | str) -> str | None:
+    """Read a file as UTF-8, or ``None`` when it is absent or unreadable."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read()
+    except OSError:
+        return None
 
 
 @register_adapter
@@ -52,25 +78,21 @@ class NodeAdapter(AdapterProtocol):
 
     @classmethod
     def detect(cls, project_root: Path) -> bool:
-        """检测是否为 Node.js 项目。"""
-        # 检查 package.json
+        """检测是否为 Node.js 项目。
+
+        有 `package.json` 即算 Node.js 项目，**不要求** `scripts.test`：具体跑什么由
+        goal 决定（`vitest` / `node-test` 都不需要 npm script）。这里只验证
+        `package.json` 是能解析的 JSON —— 一个坏掉的 package.json 不该被认成
+        Node 项目然后让下游在 `npm` 上失败。
+        """
         pkg_file = project_root / "package.json"
         if not pkg_file.exists():
             return False
         try:
-            content = pkg_file.read_text(encoding="utf-8")
-            pkg = json.loads(content)
-            # 必须有 scripts 字段且包含 test 脚本
-            scripts = pkg.get("scripts", {})
-            if "test" not in scripts:
-                # 兼容性：即使没有 test 脚本，只要有 package.json 仍算检测到
-                # 具体的测试命令由 goal 决定
-                pass
-            # 检查是否有 node_modules（可选，但有利于判断）
-            has_node_modules = (project_root / "node_modules").exists()
-            return True  # 有 package.json 即视为 Node.js 项目
-        except (json.JSONDecodeError, Exception):
+            json.loads(pkg_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             return False
+        return True
 
     @classmethod
     def prepare(cls, project_root: Path) -> RuntimeProfile:
@@ -123,7 +145,7 @@ class NodeAdapter(AdapterProtocol):
         profile: RuntimeProfile,
         goal: str = "test",
         test_filter: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         """执行 Node.js 测试。
 
@@ -142,61 +164,51 @@ class NodeAdapter(AdapterProtocol):
 
         # 执行
         try:
-            env = dict(__import__("os").environ)
+            env = dict(os.environ)
             # 设置 npm cache 目录
             if profile.dependency_cache_path:
                 env["npm_config_cache"] = str(profile.dependency_cache_path)
             # 禁用新的 package-lock.json 行为以兼容老项目（可选）
             env["npm_config_lockfile"] = "false"
 
-            # Use text=False to avoid Windows gk codec issues with Chinese paths
-            # Decode output manually with utf-8 and error replacement
-            result = subprocess.run(
+            # text=False on purpose: Windows' default codec mangles Chinese paths,
+            # so the output is decoded here as UTF-8 with replacement instead.
+            completed = subprocess.run(
                 cmd,
                 cwd=project_root,
                 capture_output=True,
                 timeout=300,  # 5 分钟超时
                 env=env,
             )
-            # Decode stdout/stderr safely
-            if result.stdout:
-                result.stdout = result.stdout.decode("utf-8", errors="replace")
-            if result.stderr:
-                result.stderr = result.stderr.decode("utf-8", errors="replace")
         except subprocess.TimeoutExpired as e:
-            stdout = (e.stdout or b"").decode("utf-8", errors="replace") if e.stdout else ""
-            stderr = (e.stderr or b"").decode("utf-8", errors="replace") if e.stderr else ""
             return ExecutionResult(
                 exit_code=-1,
-                stdout=stdout,
-                stderr=stderr,
+                stdout=_as_text(e.stdout),
+                stderr=_as_text(e.stderr),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 parse_errors=[f"Execution timeout: {e}"],
             )
         except Exception as e:
-            stdout = b"".decode("utf-8", errors="replace")
-            stderr = str(e)
             return ExecutionResult(
                 exit_code=-1,
-                stdout=stdout,
-                stderr=stderr,
+                stdout="",
+                stderr=str(e),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 parse_errors=[f"Execution failed: {e}"],
             )
 
         duration_ms = int((time.perf_counter() - start) * 1000)
+        s_stdout = _as_text(completed.stdout)
+        s_stderr = _as_text(completed.stderr)
 
         # 解析测试结果
         # 优先读取 JUnit XML 报告
         tests_run, tests_passed, tests_failed, tests_skipped = cls._parse_test_results(
-            project_root, result.stdout, result.stderr
+            project_root, s_stdout, s_stderr
         )
 
-        # Ensure stdout/stderr are strings (not None)
-        s_stdout = result.stdout or ""
-        s_stderr = result.stderr or ""
         return ExecutionResult(
-            exit_code=result.returncode,
+            exit_code=completed.returncode,
             stdout=s_stdout,
             stderr=s_stderr,
             duration_ms=duration_ms,
@@ -219,17 +231,14 @@ class NodeAdapter(AdapterProtocol):
         fragments.extend(junit_fragments)
 
         # 2. package.json 信息
+        pkg_path = project_root / "package.json"
         pkg_fragment = EvidenceFragment(
             fragment_type="build",
             collector_version="node-adapter-1.0",
             payload={
                 "type": "package_json",
-                "content": project_root / "package.json",
-                "content_text": (
-                    open(project_root / "package.json", encoding="utf-8").read()
-                    if (project_root / "package.json").exists()
-                    else None
-                ),
+                "content": pkg_path,
+                "content_text": _read_text_or_none(pkg_path),
             },
         )
         fragments.append(pkg_fragment)
@@ -272,13 +281,6 @@ class NodeAdapter(AdapterProtocol):
     @classmethod
     def _build_command(cls, project_root: Path, goal: str, test_filter: str | None) -> list[str]:
         """构建 Node.js 命令。"""
-        # 检查是否有 package-lock.json 或 yarn.lock
-        lock_files = [
-            project_root / "package-lock.json",
-            project_root / "yarn.lock",
-            project_root / "pnpm-lock.yaml",
-        ]
-
         # 优先使用 npm test，其次 vitest，最后 node:test
         if goal == "vitest":
             cmd = ["npm", "run", "vitest"]
@@ -314,7 +316,7 @@ class NodeAdapter(AdapterProtocol):
         for xml_dir in xml_dirs:
             if xml_dir.exists():
                 # 查找 xml 文件
-                for root, dirs, files in os.walk(xml_dir):
+                for root, _dirs, files in os.walk(xml_dir):
                     for f in files:
                         if f.endswith(".xml") or f.endswith(".junit"):
                             xml_path = os.path.join(root, f)
@@ -323,11 +325,6 @@ class NodeAdapter(AdapterProtocol):
                                 return result
 
         # 回退：从 stdout/stderr 解析 npm/vitest 输出
-        # Ensure both are strings for safe concatenation
-        if isinstance(stdout, bytes):
-            stdout = stdout.decode("utf-8", errors="replace")
-        if isinstance(stderr, bytes):
-            stderr = stderr.decode("utf-8", errors="replace")
         return cls._parse_stdout_results(stdout + stderr)
 
     @classmethod
@@ -353,16 +350,16 @@ class NodeAdapter(AdapterProtocol):
     @classmethod
     def _parse_stdout_results(cls, output: str) -> tuple[int, int, int, int]:
         """从 stdout/stderr 解析测试结果（启发式）。"""
-        tests_run = tests_passed = tests_failed = tests_skipped = 0
-
         # npm test 输出模式： "test runner done" 或 "Test Suites: ..." 等
         # vitest 输出模式： "vitest run" 结果
 
         # 简单的正则匹配
-        patterns = [
+        patterns: list[tuple[str, Callable[[re.Match[str]], tuple[int, int, int, int]]]] = [
             # npm test 模式： "Tests: (\d+) passed, (\d+) failed, (\d+) skipped"
+            # run = passed + failed + skipped。旧版这里把 run 报成 passed，
+            # 于是任何有失败或跳过的运行都会少算 tests_run（vitest 那条一直是对的）。
             (r"Tests:\s+(\d+)\s+passed,\s+(\d+)\s+failed,\s+(\d+)\s+skipped", lambda m: (
-                int(m.group(1)),
+                int(m.group(1)) + int(m.group(2)) + int(m.group(3)),
                 int(m.group(1)),
                 int(m.group(2)),
                 int(m.group(3)),
@@ -386,7 +383,9 @@ class NodeAdapter(AdapterProtocol):
         return 0, 0, 0, 0
 
     @classmethod
-    def _collect_junit_reports(cls, project_root: Path, result: ExecutionResult) -> list[EvidenceFragment]:
+    def _collect_junit_reports(
+        cls, project_root: Path, result: ExecutionResult
+    ) -> list[EvidenceFragment]:
         """收集 JUnit XML 报告作为证据。"""
         fragments = []
         # npm test -- --output=junit 可能在 .nyc 或者 test-results 中
@@ -397,23 +396,23 @@ class NodeAdapter(AdapterProtocol):
         ]
         for xml_dir in xml_dirs:
             if xml_dir.exists():
-                for root, dirs, files in os.walk(xml_dir):
+                for root, _dirs, files in os.walk(xml_dir):
                     for f in files:
-                        if f.endswith(".xml"):
-                            xml_path = os.path.join(root, f)
-                            try:
-                                content = open(xml_path, encoding="utf-8").read()
-                                fragments.append(EvidenceFragment(
-                                    fragment_type="build",
-                                    collector_version="node-adapter-1.0",
-                                    payload={
-                                        "type": "junit_xml",
-                                        "file": xml_path,
-                                        "content": content[:50000],
-                                    },
-                                ))
-                            except Exception:
-                                continue
+                        if not f.endswith(".xml"):
+                            continue
+                        xml_path = os.path.join(root, f)
+                        content = _read_text_or_none(xml_path)
+                        if content is None:
+                            continue
+                        fragments.append(EvidenceFragment(
+                            fragment_type="build",
+                            collector_version="node-adapter-1.0",
+                            payload={
+                                "type": "junit_xml",
+                                "file": xml_path,
+                                "content": content[:50000],
+                            },
+                        ))
         return fragments
 
 
