@@ -12008,3 +12008,57 @@ tests_passed = tests_run - tests_failed - tests_skipped
 **诚实边界。** ① 这些是**单元级**门：不跑真实 `npm`/`vitest`，只钉解析与 IO 的形状。② `test_a_junit_report_under_build_is_read_without_a_name_error` 断言的是**当前**的 passed 算法（`run - failed - skipped`）；如果哪天要区分「error 算不算 failed」，这条会跟着改——它钉的是「不再 NameError + 计数口径」，不是「这个口径永远正确」。③ 未给 `go_adapter.py` 建对等门（它的真 bug 是 `prepare` 二读崩溃，需要另建；已入队列）。
 
 **下一号队列（取号按落地时点 max+1）。** ① **`go_adapter.prepare` 二读崩溃的门**（本号边界③）：造一个「存在但不可读」的 go.mod，断言退回默认版本而不是抛。② 仓库根 4 个未跟踪调试脚本（`find_section.py` 疑似截断账本的元凶）需另一车道收走。③ #453 队列剩余：文档里引用指令的通用防护。④ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。
+
+
+## #460 Phase 4 继续：产品就绪评估与适配器能力矩阵最终确定
+
+**背景**：#459 完成了适配器协同测试验证与性能基线落地。进入最终评估阶段，基于前序验证结果，完成产品就绪评估，最终确定适配器能力矩阵，并确立下一阶段的演进方向。
+
+**本批目标**：
+1. **产品就绪评估**：基于协同测试、性能基线、错误处理等验证结果，综合评估适配器体系是否达到生产就绪标准。
+2. **能力矩阵最终确定**：对所有适配器的 supported_goals、offline_capable、sandbox_required、supported_languages 等字段进行最终确认与文档同步。
+3. **跨语言项目验证**：完整验证多语言项目（同时包含 Java/Go/Node.js/Python 等）的自动检测、注册、执行、证据收集全链路。
+4. **演进方向规划**：基于评估结果，规划下一阶段的重点投入方向（如：更多语言支持、更深度的沙箱隔离、分布式执行编排等）。
+
+**当前适配器概览**：
+| 适配器 | 状态 | 备注 |
+|--------|------|------|
+| java-maven | ✅ 已支持 | 文档见 EXECUTION_COMPATIBILITY.md |
+| java-gradle | ✅ 已支持 | #431 已完善 |
+| python-pytest | ✅ 已支持 | Docker 沙箱，wheelhouse 离线依赖 |
+| node-npm | ✅ 已完成 | #449/#454/#455/#456/#457/#458/#459 已完成 |
+| go-test | ✅ 已完成 | #449/#454/#455/#456/#457/#458/#459 已完成 |
+| adapter-registry | ✅ 已运行 | auto-detect + registry + ID allocation functional |
+
+**执行计划**：
+### 8.1 产品就绪评估
+- 汇总协同测试、性能基线、fall-back 行为、错误处理等验证指标
+- 对照生产就绪标准清单逐项打分
+- 输出评估报告，明确通过/需改进/风险项
+
+### 8.2 能力矩阵最终确定
+- 审查所有适配器的能力字段定义
+- 修正不一致之处，确保字段语义统一
+- 更新 docs/architecture/ADAPTER_CAPABILITY_MATRIX.md 与相关文档
+
+### 8.3 跨语言项目全链路验证
+- 构建包含 3+ 语言的综合测试项目
+- 验证 auto-detect -> registry -> execute -> evidence 全链路
+- 确认多适配器并发执行的资源隔离与调度
+
+### 8.4 演进方向规划
+- 基于评估结果输出下一阶段路线图
+- 识别高价值投入点（如：Rust/C++ 适配器、分布式编排、更深度隔离）
+- 记录需要用户批准的基础设施变更
+
+**质量门**
+- ruff + mypy 全绿
+- 现有适配器测试无回归
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/adapters/protocol.py（注册中心核心逻辑持续验证）
+- craft/adapters/node_adapter.py（Unicode 修复持续有效）
+- craft/adapters/go_adapter.py（语法错误持续修复）
+- tests/unit/test_adapter_protocol.py（协议测试持续通过）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #460
