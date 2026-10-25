@@ -12062,3 +12062,69 @@ tests_passed = tests_run - tests_failed - tests_skipped
 - craft/adapters/go_adapter.py（语法错误持续修复）
 - tests/unit/test_adapter_protocol.py（协议测试持续通过）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #460
+
+
+## #461 Phase 4 继续：Rust/C++ 适配器启动与分布式执行编排设计
+
+**背景**：#460 完成了产品就绪评估与适配器能力矩阵最终确定。基于现有 Java/Maven、Java/Gradle、Python/pytest、Node.js/npm、Go/test 五大语言生态的完整支持，长期计划进入新语言生态扩展与分布式执行编排设计阶段。
+
+**本批目标**：
+1. **Rust 适配器启动**：基于 Cargo 生态，支持 cargo test、cargo nextest，集成 Docker 沙箱与离线依赖缓存。
+2. **C++ 适配器启动**：支持 CMake/Make/Bazel 构建系统，集成 CTest/GoogleTest/Catch2 测试框架，解决跨平台编译工具链问题。
+3. **分布式执行编排设计**：设计多节点并行执行架构，包括任务分片、结果聚合、故障转移、资源调度等核心能力。
+4. **适配器插件化架构**：将适配器从内置模块演进为可动态加载的插件系统，支持第三方扩展。
+
+**扩展后适配器概览**：
+| 适配器 | 状态 | 备注 |
+|--------|------|------|
+| java-maven | ✅ 已支持 | 文档见 EXECUTION_COMPATIBILITY.md |
+| java-gradle | ✅ 已支持 | #431 已完善 |
+| python-pytest | ✅ 已支持 | Docker 沙箱，wheelhouse 离线依赖 |
+| node-npm | ✅ 已完成 | #449/#454/#455/#456/#457/#458/#459/#460 已完成 |
+| go-test | ✅ 已完成 | #449/#454/#455/#456/#457/#458/#459/#460 已完成 |
+| rust-cargo | 🔄 进行中 | #461 启动 |
+| cpp-cmake | 🔄 进行中 | #461 启动 |
+| adapter-registry | ✅ 已运行 | auto-detect + registry + ID allocation functional |
+
+**执行计划**：
+### 9.1 Rust 适配器实现
+- 支持 cargo test、cargo nextest 执行模式
+- 依赖解析：Cargo.lock + 本地缓存卷 specproof-cargo-cache-1000
+- 离线模式：CARGO_NET_OFFLINE=true + cargo fetch 预下载
+- 输出解析：JUnit XML / JSON 格式 -> ExecutionResult + EvidenceFragment
+- 沙箱镜像：rust:1.78-bookworm（自带完整工具链）
+
+### 9.2 C++ 适配器实现
+- 支持 CMake/Make/Bazel 三大构建系统自动检测
+- 测试框架：CTest、GoogleTest、Catch2、Boost.Test 自动识别
+- 依赖管理：vcpkg/Conan 包管理器集成，本地缓存卷
+- 交叉编译支持：x86_64/ARM64 多架构编译
+- 沙箱镜像：ubuntu:22.04 + build-essential + 多工具链
+
+### 9.3 分布式执行编排设计
+- 任务分片策略：按测试套件/文件/用例粒度分片
+- 结果聚合：统一 EvidenceFragment 收集与合并
+- 故障转移：节点失效时的任务重调度机制
+- 资源调度：CPU/内存/磁盘/网络多维度资源感知
+- 通信协议：gRPC + Protocol Buffers 高性能通信
+
+### 9.4 适配器插件化架构
+- 插件接口标准化：AdapterPlugin trait 定义
+- 动态加载：dlopen/LoadLibrary 跨平台动态库加载
+- 版本兼容：语义化版本 + 能力协商机制
+- 沙箱隔离：插件运行在独立进程/容器中
+
+**质量门**
+- ruff + mypy 全绿
+- 新增 Rust/C++ 适配器核心功能测试覆盖
+- 现有适配器测试无回归
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/adapters/rust_adapter.py（新增）
+- craft/adapters/cpp_adapter.py（新增）
+- craft/adapters/distributed_orchestrator.py（新增）
+- craft/adapters/plugin_system.py（新增）
+- tests/unit/test_rust_adapter.py（新增）
+- tests/unit/test_cpp_adapter.py（新增）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #461
