@@ -11952,3 +11952,24 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ① 本号提交只含**两个测试文件**的 lint 与那条断言；适配器源码的修复实际是**另一车道的提交**带进去的（内容是我的，署名不是）——本号在账本里补记它们的真实内容，避免「修复存在但无人知道为什么」。② 仓库根仍有 4 个**未跟踪**的调试脚本（`check_go_adapter.py` / `check_ledger.py` / `find_section.py` / `run_tests_no_mysql.py`），它们贡献 15 条 ruff 错但**不进 CI**（未跟踪）；按仓库卫生纪律它们本该在仓库外，但那是别的车道的在途文件，本号不动。③ `node_adapter.detect()` 的异常范围收窄是**行为变更**：以前任何异常都返回 False，现在只吞 JSON/IO/编码错误——与 #437「崩掉的探子必须让人看见」同向。④ 未跑 Java/Go/Node 的真实沙箱执行（需要 Docker + 镜像），只跑了单测与静态门。
 
 **下一号队列（取号按落地时点 max+1）。** ① **仓库根的 4 个未跟踪调试脚本**（`find_section.py` 疑似就是那次把账本截断成 48 行的元凶）——需要另一车道收走，本号只记录。② 在途的 `check_*.py` 一族若被提交，会立刻让 CI 变红。③ #453 队列剩余：给「文档里引用指令」通用防护、#397 的六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。
+
+
+## #456 修掉 self-test 判决文案里的「(0 tests)」：改用真跑数，不用 reporter 的 `tests` 键
+
+**起因/占号。** #455 的「顺带发现（未修，记录）」：detail 里的 "(N tests)" 取自 `_tests()`（读 `tests` 键），于是只发 `passed`/`failed` 的 reporter 会被描述成 "(0 tests)"——判决对，文案低估证据。本号修它。占号前 `git fetch`：本地 2 ahead / 2 behind（别车道 2 个未推提交；origin 的 2 个是我自己的），origin HEAD `2ede4f3`（`## #455`）⇒ 本号取 **#456**。
+
+**修（改生产码 + 改测试）。**
+- `agent/self_test_diff.py`：`self_test_verdict` 里新增 `base_ran` / `head_ran`，用 `_executed(counts, _tests(counts))` 取代 `_tests(counts)` 作为两条 detail 文案里的测试数。`_executed` 是模块里已有的「真跑了多少」计算（有 `passed` 键就汇总 `_RAN_COUNTERS`，否则 `tests - skipped` 且钳制到 0），所以：
+  - 常规 reporter（`tests` + `passed`）⇒ 数字**不变**；
+  - 只发 `passed`/`failed` 的 reporter ⇒ 从 "(0 tests)" 变成 "(3 tests)"（说真话）。
+- `tests/unit/test_self_test_diff_declared_edges.py`：#455 里那条钉现状的 `(0 tests)` 断言改成 `(3 tests)`（测试名与注释同步改写），并**新增一条**「常规 reporter 仍报它自己的 tests 数」防回归。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 测试 | `pytest test_self_test_diff.py test_self_test_differential_entry.py test_self_test_diff_declared_edges.py -q` | **39 passed in 5.26s** |
+| ruff | `ruff check agent/self_test_diff.py tests/unit/test_self_test_diff_declared_edges.py` | **All checks passed** |
+
+**诚实边界。** ① 这是**文案修复**，不改变任何判决：四个 verdict 的分支条件一字未动，只改 detail 串里的数字来源。② 常规路径数字不变（已用新增的那条测试钉住）。③ 不改 `_tests()` 本身（它还被别处使用），只改调用点。④ 不重写历史节（账本里 #144/#145/#173/#241/#246/#254/#335/#366 的同号重复是历史遗留，非本车道造成）。
+
+**下一号队列（取号按落地时点 max+1）。** ① `agent/external_observation.py`（455 行，2 个测试文件 28 案）按同法逐条对账（模块大，需整读）。② `agent/matrix_policy.py`（559 行，6 测试）查「两份手抄」同类。

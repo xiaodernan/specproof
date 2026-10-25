@@ -143,20 +143,26 @@ def self_test_verdict(
             f"{' and '.join(missing)} (command ran but produced no counts)",
         )
 
+    # The count in the message is the number of tests that actually RAN, not
+    # whatever the reporter chose to publish as "tests" — a reporter that emits
+    # only passed/failed would otherwise be described as "(0 tests)".
+    base_ran = _executed(base_counts, _tests(base_counts))
+    head_ran = _executed(head_counts, _tests(head_counts))
+
     base_green = base_fail == 0
     head_green = head_fail == 0
 
     if base_green and not head_green:
         return (
             VERDICT_REGRESSION,
-            f"Repository self-tests pass on Base ({_tests(base_counts)} tests) "
+            f"Repository self-tests pass on Base ({base_ran} tests) "
             f"but {head_fail} fail on Head — head-introduced regression",
         )
     if base_green and head_green:
         return (
             VERDICT_COMPLIANT,
             f"Repository self-tests pass on both Base and Head "
-            f"({_tests(head_counts)} tests)",
+            f"({head_ran} tests)",
         )
     if not base_green and head_green:
         return (
