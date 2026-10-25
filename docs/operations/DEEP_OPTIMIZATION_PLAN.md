@@ -12620,3 +12620,83 @@ trait AdapterPlugin {
 - tests/unit/test_observability_profiling.py（新增）
 - tests/unit/test_observability_alerts.py（新增）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #467
+
+
+## #468 Phase 4 继续：多租户架构与资源配额管理体系
+
+**背景**：#467 完成了全栈可观测性平台建设与智能告警。随着用户规模增长、企业级客户接入、数据隔离合规要求提升，单租户架构已无法满足多客户共享基础设施、数据强隔离、资源公平分配、个性化定制等需求。本批重点建设多租户架构与资源配额管理体系。
+
+**本批目标**：
+1. **租户模型设计**：租户层级 (Root/Org/Workspace/Project)、租户生命周期、租户元数据管理。
+2. **数据隔离策略**：数据库级/Schema级/行级隔离、对象存储桶隔离、缓存/队列命名空间隔离。
+3. **资源配额管理**：CPU/内存/存储/网络/并发配额、配额层级继承、超配策略、配额告警。
+4. **认证授权体系**：RBAC/ABAC 混合模型、租户内角色、跨租户协作、SSO/SCIM 集成。
+5. **计费与计量**：资源用量实时计量、多维度计费模型、账单生成、配额超限处理。
+6. **租户自助服务**：租户管理控制台、资源监控面板、配额申请流程、自助扩容。
+
+**执行计划**：
+### 16.1 租户模型设计
+- 层级模型：Root Tenant (平台方) → Organization (企业客户) → Workspace (部门/团队) → Project (具体项目)
+- 租户元数据：名称、显示名、描述、联系人、计费邮箱、创建时间、状态 (Active/Suspended/Deleted)
+- 租户标识：全局唯一 UUID (tenant_id) + 人类可读 slug (org-slug/ws-slug/proj-slug)
+- 生命周期：创建 → 激活 → 暂停/恢复 → 归档 → 删除 (软删除 30 天可恢复)
+
+### 16.2 数据隔离策略
+| 数据类型 | 隔离级别 | 实现方案 |
+|---------|---------|---------|
+| 关系型数据 (PostgreSQL) | 行级安全 (RLS) | tenant_id 列 + RLS Policy + SET LOCAL app.current_tenant |
+| 对象存储 (S3/MinIO) | Bucket/Prefix 隔离 | 每租户独立 Bucket 或 共享 Bucket + tenant_id/ 前缀 + IAM Policy |
+| 缓存 | Key 前缀隔离 | Redis Key: tenant_id:namespace:key / Redis Cluster 独立 DB |
+| 消息队列 | Topic/Queue 隔离 | Kafka: tenant_id.topic / RabbitMQ: vhost per tenant |
+| 搜索引擎 | Index 级隔离 | Elasticsearch/OpenSearch: tenant_id 索引别名 + 文档级 tenant_id 字段 |
+| 向量数据库 | Collection 隔离 | Milvus/Weaviate: tenant_id collection / partition key |
+
+### 16.3 资源配额管理
+- 配额维度：CPU 核心数、内存、存储、网络带宽、并发执行数、API 速率、存储对象数
+- 配额层级：Platform Default → Org Quota → Workspace Quota → Project Quota (层层继承，子级不得超父级)
+- 超配策略：Hard Limit (硬性拒绝) / Soft Limit (告警 + 宽限期) / Burst Allowance (突发额度)
+- 配额告警：使用率 80%/90%/95% 分级告警，预测性扩容建议
+- 配额 API：实时查询、预留/释放、跨项目借用 (需审批)
+
+### 16.4 认证授权体系
+- RBAC 角色：Platform Admin / Org Admin / Workspace Admin / Project Admin / Developer / Viewer / Auditor
+- ABAC 属性：resource.tenant_id == principal.tenant_id、resource.project_id in principal.project_ids
+- 租户内自定义角色：支持组合基础权限创建自定义角色
+- 跨租户协作：显式邀请 + 权限范围限定 + 审计日志
+- SSO 集成：SAML 2.0 / OIDC / LDAP，支持 IdP 发起 / SP 发起
+- SCIM 2.0：用户/组预置同步，实时生效
+
+### 16.5 计费与计量
+- 计量维度：CPU 核时、内存 GB·时、存储 GB·月、网络 GB、API 调用次数、并发槽位·时
+- 计费模型：预付费 (包年包月/资源包) / 后付费 (按量/按峰值) / 混合模式
+- 计费周期：小时粒度聚合 → 日账单 → 月结单
+- 账单明细：资源维度 / 项目维度 / 标签维度 多维度拆分
+- 配额超限处理：软限制 → 告警 → 宽限期 (24h) → 硬限制 (拒绝新任务/降级服务)
+
+### 16.6 租户自助服务
+- 管理控制台：租户列表、详情、资源用量趋势、配额使用率热力图
+- 资源监控：实时/历史用量图表、异常检测、容量规划建议
+- 配额申请：在线申请表单、审批流程 (Org Admin → Platform Admin)、自动执行
+- 自助扩容：预付费资源包购买、后付费自动扩容阈值配置
+- 开发者门户：API Key 管理、SDK 下载、文档中心、示例代码
+
+**质量门**
+- ruff + mypy 全绿
+- 租户隔离渗透测试零越权访问
+- 配额强制执行 100% 生效
+- 多租户并发压测 1000+ 租户无性能退化
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/tenancy/tenant_model.py（新增）
+- craft/tenancy/data_isolation.py（新增）
+- craft/tenancy/quota_manager.py（新增）
+- craft/tenancy/authz.py（新增）
+- craft/tenancy/billing.py（新增）
+- craft/tenancy/self_service.py（新增）
+- tests/unit/test_tenant_model.py（新增）
+- tests/unit/test_data_isolation.py（新增）
+- tests/unit/test_quota_manager.py（新增）
+- tests/unit/test_authz.py（新增）
+- tests/unit/test_billing.py（新增）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #468
