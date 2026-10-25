@@ -11661,3 +11661,34 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **诚实边界。** ①E1/E3 需要 9103 在本平面空闲，被占时 `pytest.skip` 并点名「这条平面不能证明是 cron 拿着它」；本次 census 量到 9100/9101/9103 全 FREE，所以两条都是证到的读数而不是让路的读数。CI 若起全栈，它们会从「证到」变「让路」，而 E2/E4 每平面都量——豁免侧真绑天然只在空闲平面成立，这条要记在账上而不是藏进 skip。②宿主 ≠ 容器：名册目标是 compose 的 DNS 名，E1 只 certifies 号、路径与 exposition，不 certifies 容器里的名字解析（#427 的边界同样如此）。③E4 的种群是 compose `ports:` 映射 + 名册目标；`expose:` 刻意排除，因为它声明的是容器内网端口，撞不上宿主 bind——`compose.production.yml:202` 的 `expose 9101` 就是那个形状。④本号没把 9103 塞进名册：`docs/operations/OBSERVABILITY.md:73-78` 明写「compose、两个 Dockerfile、本机启动脚本与 CI workflow 都不起它，改端口改的是一个没有进程绑定的数」，本号 census 又量到没有任何 compose 映射 published 9103——进名册等于永久挂一个 DOWN 目标，那才是把豁免换成假故障。E1 的失败消息把文档自己开的药方写给读者（起进程 + 在那份名册加一行 targets），与本号的腿不冲突。⑤`_doc_path_claims` 读的是文档行上的路径 token，不读文档句子；把「默认 9103」换成别的写法不影响它，数字那半条由 #284 的 D4 管。
 
 **下一号队列。** ①**空值旋钮炸建构期**：三个监听者（`storage/invoice_cron.py:195-199`、`agent/worker.py:1850`、`storage/outbox_relay.py:277`）共用 `int(os.getenv(K, default))` 这一对表达式，`K=''` 就 `ValueError: invalid literal for int() with base 10: ''`，而 `OBSERVABILITY.md:73-74` 对同一个键写的是「compose 未设这个键, 所以 .env 改得动」——空值那条路不是改得动，是建构期抛，进程连 `NOT serving` 都来不及写。修法要么给三处统一「空即缺省」的形状（注意这会动 #232 `_port_env_pair` 解析的那对表达式，得同一趟把门改对，A1 那五份额外红已经证明那对表达式是活的读者），要么把这条边界写进 §2 并让 E4 那类判据去读它。②「宿主号唯一」这条判据现在住在 E4 的 `_claims_the_number` 里，而 #232 L15 只管「谁抓它 / 谁起它」；队列 #429（抓取端点判据收进单一属主）正是同一族，收拢时别让两个文件各写一份 compose 解析。③E3 只在有真租户种子的跑里才动 1.0；若要给「同一个周期内重跑」再加证，得先解决 `cycle()` 的进程内 `_period` 守卫，不要靠重启进程糊过去。
+
+
+## #452 `agent/verdict_stability.py` 的 `summarize` 投影：污染压过「没有运行」、缺 `exit_code` ⇒ `exit_None`
+
+**起因/占号。** #448 队列①：`agent/verdict_stability.py`（55 行，2 个测试文件）先判是否值得单独一号。判：**值得**——分类器核心已钉，但 `summarize`（把重复运行记录投影成证据/报告里 summary schema 的那个公开面）只有一条 happy case。占号前 `git fetch`：本地 master 领先 origin **2** 个提交（别车道未推的 #451），origin HEAD 为 `99948c5`（`## #450`）⇒ 本号取 **#452**。
+
+**先量后写（探针先跑）。** 未覆盖的投影分支，全部实测命中：
+- `contaminated=True` 进投影 ⇒ `contaminated`；
+- **`summarize([], contaminated=True)` ⇒ `contaminated`**——污染**压过** `no_runs`（不是「没跑」）；
+- 空运行 ⇒ `repeat_count=0` / `verdicts=[]` / `no_runs`；
+- 单次 ⇒ `single_run`（投影层也不许说 stable）；
+- 不一致 ⇒ `flaky` + verdicts `["exit_0","exit_1"]`；
+- **运行记录缺 `exit_code` ⇒ verdict token `exit_None`**（不崩，但 token 读起来像数据、实际是缺失）；
+- 非 int `exit_code`（字符串 `"0"`）⇒ `exit_0`（`str()` stringify）；
+- 运行记录**原样透传**（`summary["runs"] is runs`）；
+- `classify_with_env(..., False)` 的三种委派结果（既有测试只钉了空列表那条）。
+
+**落地（只加测试，`agent/verdict_stability.py` 一字未动）。** 新建 `tests/unit/test_verdict_stability_declared_edges.py`（9 案）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_verdict_stability_declared_edges.py -q` | **9 passed in 4.71s** |
+| 回归 | `pytest tests/unit/test_verdict_stability.py -q` | **8 passed** |
+| ruff | `ruff check tests/unit/test_verdict_stability_declared_edges.py` | **All checks passed** |
+
+**并发纪律（本轮新情况）。** 落地时本地 master 已含别车道**未推送**的 #451（2 个提交）。为避免「我的 push 把别人未完成的提交一起推上去」，本号**不用** `git push origin master`，而是：`commit-tree` 以 **origin/master** 为父构建提交 ⇒ `git push origin <sha>:master`，只推我这一个提交。本地 master 原样不动（别车道的 #451 仍留在本地，由他们自己推）。
+
+**诚实边界。** ① 只加测试：`agent/verdict_stability.py` 一字未动。② `exit_None` 是**钉现状**：缺 `exit_code` 不崩、产出 `exit_None` token，但这是「从缺失数据派生出的、看起来像数据的 token」，已在测试注释里写明，不背书它是个好设计。③ 不钉 `agent/nodes/run_deep_experiments.py` 怎么调 `summarize`（既有 `TestDeepStabilityWiring` 已覆盖接线）。④ 不钉 verdict 字符串的词表（`REGRESSION`/`COMPLIANT` 之类只是示例，模块本身不校验）。
+
+**下一号队列（取号按落地时点 max+1）。** ① `agent/matrix_policy.py`（559 行，6 测试）查「两份手抄」同类。② `agent/self_test_diff.py` / `agent/external_observation.py` 各 1 个测试文件，按同法逐条对账。③ 别车道在做抓取端点/豁免（#450/#451），继续避开。
