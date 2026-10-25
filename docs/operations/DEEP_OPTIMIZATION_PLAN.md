@@ -12374,3 +12374,98 @@ service DistributedOrchestrator {
 - craft/adapters/orchestrator.proto（新增）
 - tests/unit/test_distributed_orchestrator.py（新增）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #464
+
+
+## #465 Phase 4 继续：适配器插件化架构实现与第三方扩展生态
+
+**背景**：#464 完成了分布式执行编排核心实现与多节点调度。本批重点落地适配器插件化架构，将适配器从内置模块演进为可动态加载的插件系统，支持第三方扩展，建立开放的适配器生态。
+
+**本批目标**：
+1. **插件接口标准化**：定义 AdapterPlugin trait，统一插件生命周期、能力声明、配置模式。
+2. **动态加载机制**：跨平台动态库加载 (dlopen/LoadLibrary)，插件隔离沙箱，版本兼容协商。
+3. **插件注册中心**：插件发现、注册、版本管理、依赖解析、热加载/卸载。
+4. **第三方扩展 SDK**：提供 Rust/Python/Go/Node.js 多语言插件开发 SDK，降低接入门槛。
+5. **插件市场与分发**：插件打包格式、签名验证、仓库索引、自动更新机制。
+6. **单元测试覆盖**：核心功能 12+ 测试用例，Mock 插件验证加载/卸载/执行全流程。
+
+**技术规范**：
+- 插件接口：AdapterPlugin (Rust trait / Python ABC / Go interface / TypeScript interface)
+- 动态加载：dlopen (Linux/macOS) / LoadLibrary (Windows) + 进程隔离沙箱
+- 插件格式：.so/.dylib/.dylib + manifest.toml (元数据、依赖、版本、能力)
+- 版本协商：SemVer + 能力集兼容性矩阵
+- 沙箱隔离：gVisor / Kata Containers / 进程命名空间隔离
+- 通信协议：gRPC + Protobuf (插件 <-> 宿主)
+- 签名验证：Ed25519 签名 + 透明日志审计
+
+**执行计划**：
+### 13.1 插件接口标准化
+`
+ust
+// 核心 trait 定义 (Rust 为主，其他语言对应)
+trait AdapterPlugin {
+    fn metadata(&self) -> PluginMetadata;        // 元数据：id/版本/作者/许可证
+    fn capabilities(&self) -> PluginCapabilities; // 能力声明：支持的语言/目标/特性
+    fn configure(&mut self, config: PluginConfig) -> Result<()>; // 配置注入
+    fn detect(&self, project_root: &Path) -> bool; // 项目检测
+    fn prepare(&self, project_root: &Path) -> RuntimeProfile; // 环境准备
+    fn execute(&self, ctx: ExecutionContext) -> ExecutionResult; // 执行
+    fn collect_evidence(&self, ctx: &ExecutionContext, result: &ExecutionResult) -> Vec<EvidenceFragment>; // 证据收集
+    fn shutdown(&mut self) -> Result<()>; // 优雅关闭
+}
+`
+
+### 13.2 动态加载机制
+- 插件发现：扫描插件目录，解析 manifest.toml，验证签名
+- 加载器实现：PluginLoader (进程内) + PluginSandbox (进程外隔离)
+- 版本协商：SemVer 兼容性检查，能力集交集验证
+- 热加载/卸载：运行时无需重启主进程，支持插件升级
+- 资源限制：cgroups v2 限制 CPU/内存/磁盘/网络
+
+### 13.3 插件注册中心
+- 注册表：内存 + 持久化 (etcd/SQLite) 双层存储
+- 索引构建：按语言/目标/能力标签建立倒排索引
+- 依赖解析：插件间依赖图拓扑排序，循环依赖检测
+- 事件总线：插件加载/卸载/升级/错误事件发布订阅
+
+### 13.4 多语言 SDK
+| 语言 | SDK 包名 | 核心功能 |
+|------|----------|----------|
+| Rust | specproof-plugin-sdk | 核心 trait、宏、代码生成 |
+| Python | specproof-plugin-sdk | ABC 基类、配置验证、异步支持 |
+| Go | github.com/specproof/plugin-sdk | Interface 定义、配置解析 |
+| Node.js | @specproof/plugin-sdk | TypeScript 类型、装饰器、ESM/CJS 双模块 |
+
+### 13.5 插件打包与分发
+- 打包格式：.spplugin (zip 容器: manifest.toml + 动态库 + 资源文件 + 签名)
+- 签名验证：Ed25519 离线签名 + 透明日志 (Rekor) 审计
+- 仓库索引：JSON 索引文件，支持增量更新
+- 自动更新：客户端定期检查，增量下载，原子替换
+
+### 13.6 单元测试 (12+)
+- test_plugin_interface_compliance: 接口合规性验证
+- test_plugin_loader_dynamic_load: 动态加载验证
+- test_plugin_sandbox_isolation: 沙箱隔离验证
+- test_plugin_version_negotiation: 版本协商验证
+- test_plugin_hot_reload: 热加载/卸载验证
+- test_plugin_registry_index: 注册中心索引构建
+- test_plugin_dependency_resolution: 依赖解析与拓扑排序
+- test_plugin_sdk_rust: Rust SDK 核心功能
+- test_plugin_sdk_python: Python SDK 核心功能
+- test_plugin_signature_verification: 签名验证
+- test_plugin_market_index: 市场索引构建与增量更新
+- test_plugin_cross_language: 跨语言插件互操作
+
+**质量门**
+- ruff + mypy 全绿
+- 12+ 单元测试全部通过
+- 现有适配器测试无回归
+- ledger fence：无重复头，U+FFRD 计数保持
+
+**证据文件**：
+- craft/adapters/plugin_system.py（新增）
+- craft/adapters/plugin_loader.py（新增）
+- craft/adapters/plugin_registry.py（新增）
+- craft/adapters/plugin_sandbox.py（新增）
+- craft/adapters/plugin_sdk/（新增目录：rust/python/go/nodejs）
+- tests/unit/test_plugin_system.py（新增）
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #465
