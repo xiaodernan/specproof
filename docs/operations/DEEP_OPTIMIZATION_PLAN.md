@@ -11954,9 +11954,9 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 **下一号队列（取号按落地时点 max+1）。** ① **仓库根的 4 个未跟踪调试脚本**（`find_section.py` 疑似就是那次把账本截断成 48 行的元凶）——需要另一车道收走，本号只记录。② 在途的 `check_*.py` 一族若被提交，会立刻让 CI 变红。③ #453 队列剩余：给「文档里引用指令」通用防护、#397 的六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。
 
 
-## #456 修掉 self-test 判决文案里的「(0 tests)」：改用真跑数，不用 reporter 的 `tests` 键
+## #458 修掉 self-test 判决文案里的「(0 tests)」：改用真跑数，不用 reporter 的 `tests` 键
 
-**起因/占号。** #455 的「顺带发现（未修，记录）」：detail 里的 "(N tests)" 取自 `_tests()`（读 `tests` 键），于是只发 `passed`/`failed` 的 reporter 会被描述成 "(0 tests)"——判决对，文案低估证据。本号修它。占号前 `git fetch`：本地 2 ahead / 2 behind（别车道 2 个未推提交；origin 的 2 个是我自己的），origin HEAD `2ede4f3`（`## #455`）⇒ 本号取 **#456**。
+**起因/占号。** #455 的「顺带发现（未修，记录）」：detail 里的 "(N tests)" 取自 `_tests()`（读 `tests` 键），于是只发 `passed`/`failed` 的 reporter 会被描述成 "(0 tests)"——判决对，文案低估证据。本号修它。占号前 `git fetch`：本地 2 ahead / 2 behind（别车道 2 个未推提交；origin 的 2 个是我自己的），origin HEAD `2ede4f3`（`## #455`）⇒ 占号时误取 **#456**，与别车道同号的「适配器协同测试验证与性能基线落地」一节撞号（#457 亦已被别车道取走）；本号改为 **#458**，改号提交只动本车道这一节。
 
 **修（改生产码 + 改测试）。**
 - `agent/self_test_diff.py`：`self_test_verdict` 里新增 `base_ran` / `head_ran`，用 `_executed(counts, _tests(counts))` 取代 `_tests(counts)` 作为两条 detail 文案里的测试数。`_executed` 是模块里已有的「真跑了多少」计算（有 `passed` 键就汇总 `_RAN_COUNTERS`，否则 `tests - skipped` 且钳制到 0），所以：
