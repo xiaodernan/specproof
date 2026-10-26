@@ -133,6 +133,9 @@ _UNROSTERED_LISTENERS: dict[str, tuple[str, str]] = {
 #: repo-wide call-site census, so a third process must be declared here — with
 #: its knob, its bullet in §2 and its evidence class — before it can pass.
 _KNOB_SITES = ("agent/worker.py", "storage/outbox_relay.py", "storage/invoice_cron.py")
+#: The ``storage/env_config.py`` readers that stand in for an inline env coercion
+#: (#471). Their second positional argument is the declared default.
+_KNOB_HELPERS = ("int_env", "float_env")
 
 #: The module that DEFINES serve_metrics_in_thread. L2's census must SEE this
 #: file and must never list it as a listener: separating a definition from a
@@ -422,12 +425,30 @@ def _env_mapping_base(node: ast.expr) -> bool:
 
 
 def _port_shape(node: ast.expr) -> str:
-    """How a listen-port expression arrives: ``env:NAME``, ``literal:N``, other."""
+    """How a listen-port expression arrives: ``env:NAME``, ``literal:N``, other.
+
+    ``int_env(NAME, DEFAULT)`` is the same environment read as
+    ``int(os.getenv(NAME, DEFAULT))`` one level up, through
+    ``storage/env_config.py`` (#471), so it labels identically: the charge is
+    about which knob moves the scrape endpoint, not about which helper parses
+    its text. A classifier that only knew the inline spelling would report
+    ``other`` for every converted listener, and L3's shipped-carrier floor —
+    which refuses a positive side nobody actually writes — would go red on
+    honest code.
+    """
     for sub in ast.walk(node):
         if isinstance(sub, ast.Call) and _call_name(sub) == "getenv":
             first = sub.args[0] if sub.args else None
             if isinstance(first, ast.Constant) and isinstance(first.value, str):
                 return f"env:{first.value}"
+        if (
+            isinstance(sub, ast.Call)
+            and _call_name(sub) in _KNOB_HELPERS
+            and len(sub.args) == 2
+            and isinstance(sub.args[0], ast.Constant)
+            and isinstance(sub.args[0].value, str)
+        ):
+            return f"env:{sub.args[0].value}"
         if (
             isinstance(sub, ast.Subscript)
             and isinstance(sub.slice, ast.Constant)
@@ -524,19 +545,25 @@ def _module_int_constants(tree: ast.Module) -> dict[str, int]:
 
 
 def _env_pair(read: ast.expr, consts: dict[str, int], where: str) -> tuple[str, int]:
-    """``os.getenv(NAME, DEFAULT)`` as (env name, literal default).
+    """``os.getenv(NAME, DEFAULT)`` / ``int_env(NAME, DEFAULT)`` as (name, default).
 
-    The default is accepted as a string literal (``"9100"``) or as
-    ``str(MODULE_CONST)`` — the shape ``storage/invoice_cron.py`` ships — and a
-    constant reference resolves to that module's own literal, so the number this
-    gate compares is the number the process binds rather than a copy of it.
+    The default is accepted as a string literal (``"9100"``), as an integer literal
+    (what ``int_env`` takes), as ``str(MODULE_CONST)`` or as a bare ``MODULE_CONST``
+    — the shapes ``storage/invoice_cron.py`` ships — and a constant reference
+    resolves to that module's own literal, so the number this gate compares is the
+    number the process binds rather than a copy of it.
     """
-    assert isinstance(read, ast.Call) and _call_name(read) == "getenv", (
-        f"{where}: expected os.getenv(NAME, DEFAULT), found {_describe(read)} — "
+    assert isinstance(read, ast.Call) and (
+        _call_name(read) == "getenv" or _call_name(read) in _KNOB_HELPERS
+    ), (
+        f"{where}: expected os.getenv(NAME, DEFAULT) or "
+        f"{'/'.join(_KNOB_HELPERS)}(NAME, DEFAULT), found {_describe(read)} — "
         f"the listen port stopped being an env knob"
     )
-    assert len(read.args) == 2 and not read.keywords, (
-        f"{where}: getenv needs exactly (name, default), got "
+    helper = _call_name(read) in _KNOB_HELPERS
+    expected_args = 2
+    assert len(read.args) == expected_args and not read.keywords, (
+        f"{where}: {(_call_name(read) or '?')} needs exactly (name, default), got "
         f"{[_describe(a) for a in read.args]} plus keywords "
         f"{[kw.arg for kw in read.keywords]}"
     )
@@ -549,6 +576,15 @@ def _env_pair(read: ast.expr, consts: dict[str, int], where: str) -> tuple[str, 
     text: str | None = None
     if isinstance(default, ast.Constant) and isinstance(default.value, str):
         text = default.value
+    elif helper and isinstance(default, ast.Constant) and isinstance(default.value, int):
+        text = str(default.value)
+    elif helper and isinstance(default, ast.Name):
+        assert default.id in consts, (
+            f"{where}: the helper default is {default.id} and that is not a "
+            "module-level int literal — the port the process binds has no "
+            "readable number behind it"
+        )
+        text = str(consts[default.id])
     elif isinstance(default, ast.Call) and _call_name(default) == "str" and len(default.args) == 1:
         inner = default.args[0]
         assert isinstance(inner, ast.Name) and inner.id in consts, (
@@ -568,25 +604,32 @@ def _port_env_pair(expr: ast.expr, tree: ast.Module, where: str) -> tuple[str, i
     """Resolve a ``port=`` expression to (env name, literal default).
 
     Shape A — ``int(os.getenv(NAME, "9100"))``, what agent/worker.py and
-    storage/outbox_relay.py do.
+    storage/outbox_relay.py did before #471.
+    Shape A' — ``int_env(NAME, 9100)``, the same site after #471: the coercion and
+    the env read both moved into ``storage/env_config.py``, whose whole job is to
+    treat a blank value as unset.
     Shape B — an attribute the same class assigned once from
-    ``int(<param> if <param> is not None else os.getenv(NAME, str(CONST)))``,
-    what storage/invoice_cron.py does. Shape B is the one this gate used to be
-    blind to: the census saw the file and reported its port expression as
-    ``other``, which is how a third listener hid in a gate whose whole job is
-    counting listeners. The ctor parameter must be the same name in the guard
-    and in the taken branch, so a class that reads the env unconditionally (or
-    ignores its injected port) does not pass.
+    ``<param> if <param> is not None else int_env(NAME, CONST)`` (or the older
+    ``int(<param> if ... else os.getenv(NAME, str(CONST)))``), what
+    storage/invoice_cron.py does. Shape B is the one this gate used to be blind to:
+    the census saw the file and reported its port expression as ``other``, which is
+    how a third listener hid in a gate whose whole job is counting listeners. The
+    ctor parameter must be the same name in the guard and in the taken branch, so a
+    class that reads the env unconditionally (or ignores its injected port) does not
+    pass.
     """
     consts = _module_int_constants(tree)
+    if isinstance(expr, ast.Call) and _call_name(expr) in _KNOB_HELPERS:
+        return _env_pair(expr, consts, where)
     unwrapped = _unwrap_int(expr)
     if isinstance(unwrapped, ast.Call):
         return _env_pair(unwrapped, consts, where)
     candidate = expr if unwrapped is None else unwrapped
     assert isinstance(candidate, ast.Attribute), (
         f"{where}: port= is {_describe(expr)}, expected either "
-        f"int(os.getenv(NAME, DEFAULT)) or self.<attr> assigned from "
-        f"int(<param> if <param> is not None else os.getenv(NAME, DEFAULT)) — an "
+        f"int(os.getenv(NAME, DEFAULT)), {'/'.join(_KNOB_HELPERS)}(NAME, DEFAULT) "
+        f"or self.<attr> assigned from "
+        f"<param> if <param> is not None else int_env(NAME, DEFAULT) — an "
         f"unwrapped os.getenv(...) is a string, not a port this census can read"
     )
     attr = candidate.attr
@@ -607,9 +650,12 @@ def _port_env_pair(expr: ast.expr, tree: ast.Module, where: str) -> tuple[str, i
         f"file — the gate needs exactly one declaration to read the port from"
     )
     inner = _unwrap_int(assigns[0].value)
-    assert inner is not None and isinstance(inner, ast.IfExp), (
+    if inner is None:
+        inner = assigns[0].value
+    assert isinstance(inner, ast.IfExp), (
         f"{where}: self.{attr} = {_describe(assigns[0].value)}, not "
-        f"int(<param> if <param> is not None else os.getenv(NAME, DEFAULT))"
+        f"<param> if <param> is not None else {'/'.join(_KNOB_HELPERS)}(NAME, DEFAULT) "
+        f"(nor the older int(<param> if ... else os.getenv(NAME, DEFAULT)))"
     )
     guard = inner.test
     assert (
@@ -630,7 +676,13 @@ def _port_env_pair(expr: ast.expr, tree: ast.Module, where: str) -> tuple[str, i
 
 
 def _unwrap_int(node: ast.expr) -> ast.expr | None:
-    """``int(x)`` -> ``x``; anything else -> None (the caller says what it saw)."""
+    """``int(x)`` -> ``x``, ``int_env(NAME, x)`` -> ``x``; else None.
+
+    The second form is ``storage/env_config.py`` (#471): the coercion and the env
+    read moved into the helper together, so the knob's default sits in argument
+    position 1 rather than inside a ``getenv`` call. Anything that is neither
+    returns None and the caller says what it saw.
+    """
     if (
         isinstance(node, ast.Call)
         and _call_name(node) == "int"
@@ -638,6 +690,13 @@ def _unwrap_int(node: ast.expr) -> ast.expr | None:
         and not node.keywords
     ):
         return node.args[0]
+    if (
+        isinstance(node, ast.Call)
+        and _call_name(node) in _KNOB_HELPERS
+        and len(node.args) == 2
+        and not node.keywords
+    ):
+        return node.args[1]
     return None
 
 

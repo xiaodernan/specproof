@@ -77,6 +77,8 @@ FORBIDDEN_PARITY = "同 outbox relay 形状"
 
 _METRICS_CALL = "serve_metrics_in_thread"
 _KNOB_SUFFIX = "_METRICS_PORT"
+#: ``storage/env_config.py`` readers (#471) — the same env read behind a helper.
+_KNOB_HELPERS = ("int_env", "float_env")
 
 
 def _git_tracked_py() -> list[str]:
@@ -108,8 +110,20 @@ def _module_ints(tree: ast.Module) -> dict[str, int]:
 
 
 def _getenv_knob(read: ast.Call, consts: dict[str, int]) -> tuple[str, int] | None:
-    """``os.getenv(NAME, DEFAULT)`` where NAME is a listen-port knob."""
-    if getattr(read.func, "attr", "") != "getenv" or len(read.args) != 2:
+    """A listen-port knob read from the environment, with the default it declares.
+
+    Two spellings carry that relation. ``os.getenv(NAME, DEFAULT)`` is the inline
+    read; ``int_env(NAME, DEFAULT)`` / ``float_env(NAME, DEFAULT)`` is the same read
+    through ``storage/env_config.py``, which treats a blank value as unset (#471).
+    The census charges both, because a scan that only knows the first loses a
+    listener the moment its site is converted — and the file keeps calling
+    ``serve_metrics_in_thread``, so nothing else in this gate would notice.
+    """
+    func = read.func
+    helper = isinstance(func, ast.Name) and func.id in _KNOB_HELPERS
+    if not helper and (getattr(func, "attr", "") != "getenv" or len(read.args) != 2):
+        return None
+    if helper and len(read.args) != 2:
         return None
     name = read.args[0]
     if not (isinstance(name, ast.Constant) and isinstance(name.value, str)):
@@ -117,6 +131,15 @@ def _getenv_knob(read: ast.Call, consts: dict[str, int]) -> tuple[str, int] | No
     if not name.value.endswith(_KNOB_SUFFIX):
         return None
     default = read.args[1]
+    if helper and isinstance(default, ast.Constant) and isinstance(default.value, int):
+        return name.value, default.value
+    if helper and isinstance(default, ast.Name):
+        resolved = consts.get(default.id)
+        assert resolved is not None, (
+            f"{name.value} defaults to {default.id} and that is not a module-level "
+            "int — the port the process binds has no readable number"
+        )
+        return name.value, resolved
     if isinstance(default, ast.Constant) and isinstance(default.value, str):
         return name.value, int(default.value)
     if (

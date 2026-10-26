@@ -20,6 +20,7 @@ import pymysql
 from pymysql.cursors import DictCursor
 
 from contracts.events import payload_digest
+from storage.env_config import int_env
 from storage.tenant_scope import current_scope
 from storage.unit_of_work import unit_of_work
 
@@ -369,13 +370,13 @@ class MySQLConfig:
     def from_env(cls) -> "MySQLConfig":
         return cls(
             host=os.getenv("MYSQL_HOST", "localhost"),
-            port=int(os.getenv("MYSQL_PORT", "3306")),
+            port=int_env("MYSQL_PORT", 3306),
             user=os.getenv("MYSQL_USER", "specproof"),
             password=os.getenv("MYSQL_PASSWORD", "specproof_pass"),
             database=os.getenv("MYSQL_DATABASE", "specproof_phase0"),
-            connect_timeout=int(os.getenv("MYSQL_CONNECT_TIMEOUT", "5")),
-            read_timeout=int(os.getenv("MYSQL_READ_TIMEOUT", "15")),
-            write_timeout=int(os.getenv("MYSQL_WRITE_TIMEOUT", "15")),
+            connect_timeout=int_env("MYSQL_CONNECT_TIMEOUT", 5),
+            read_timeout=int_env("MYSQL_READ_TIMEOUT", 15),
+            write_timeout=int_env("MYSQL_WRITE_TIMEOUT", 15),
         )
 
 

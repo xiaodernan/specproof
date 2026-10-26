@@ -19,7 +19,6 @@ number is indistinguishable from a queue that is simply quiet.
 
 import json
 import logging
-import os
 import signal
 import time
 from collections.abc import Callable
@@ -29,6 +28,7 @@ from typing import Any
 from contracts.events import build_envelope
 from observability.logging import trace_id_var
 from observability.metrics import incr, set_gauge
+from storage.env_config import int_env
 from storage.mysql import MySQLStore
 from storage.rabbitmq import RabbitMQClient
 
@@ -274,7 +274,7 @@ class OutboxRelay:
         from observability.metrics_http import serve_metrics_in_thread
 
         serve_metrics_in_thread(
-            port=int(os.getenv("OUTBOX_RELAY_METRICS_PORT", "9101"))
+            port=int_env("OUTBOX_RELAY_METRICS_PORT", 9101)
         )
         logger.info(
             "OutboxRelay started (poll=%.1fs, batch=%d, max_retries=%d)",

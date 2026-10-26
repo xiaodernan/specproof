@@ -22,6 +22,7 @@ from typing import Any, cast
 import redis
 
 from observability.metrics import observe_duration
+from storage.env_config import int_env
 
 #: Default progress-stream retention policy (§14.3): XADD MAXLEN cap per
 #: job stream, and TTL for the stream key plus its sequence-counter key.
@@ -86,14 +87,12 @@ class RedisConfig:
     def from_env(cls) -> "RedisConfig":
         return cls(
             host=os.getenv("REDIS_HOST", "localhost"),
-            port=int(os.getenv("REDIS_PORT", "6379")),
+            port=int_env("REDIS_PORT", 6379),
             password=os.getenv("REDIS_PASSWORD", "specproof_pass"),
             db=0,
-            stream_maxlen=int(
-                os.getenv("REDIS_STREAM_MAXLEN", str(STREAM_DEFAULT_MAXLEN))
-            ),
-            stream_ttl_seconds=int(
-                os.getenv("REDIS_STREAM_TTL_SECONDS", str(STREAM_DEFAULT_TTL_SECONDS))
+            stream_maxlen=int_env("REDIS_STREAM_MAXLEN", STREAM_DEFAULT_MAXLEN),
+            stream_ttl_seconds=int_env(
+                "REDIS_STREAM_TTL_SECONDS", STREAM_DEFAULT_TTL_SECONDS
             ),
         )
 

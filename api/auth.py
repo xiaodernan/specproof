@@ -20,6 +20,8 @@ import time
 
 from fastapi import HTTPException, Request
 
+from storage.env_config import int_env
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,7 +84,7 @@ def enforce_rate_limit(request: Request) -> None:
     digest = hashlib.sha256(key.encode()).hexdigest()[:16]
     window = int(time.time()) // 60
     redis_key = f"specproof:rl:{digest}:{window}"
-    limit = int(os.getenv("SPECPROOF_RATE_LIMIT_PER_MIN", "60"))
+    limit = int_env("SPECPROOF_RATE_LIMIT_PER_MIN", 60)
 
     try:
         from storage.redis import RedisStore

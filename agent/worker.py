@@ -44,6 +44,7 @@ from agent.state import initial_state
 from agent.worktree_reclaimer import reclaim_orphans
 from evidence.verdict import evaluate_acceptance
 from observability.metrics import incr, observe_duration, set_gauge
+from storage.env_config import int_env
 from storage.mysql import (
     PLAN_FAIL_BUDGET,
     PLAN_LEASE_ALIVE,
@@ -95,12 +96,7 @@ class Worker:
         self.reclaim_interval = (
             reclaim_interval
             if reclaim_interval is not None
-            else int(
-                os.getenv(
-                    "WORKER_RECLAIM_INTERVAL_SECONDS",
-                    str(DEFAULT_RECLAIM_INTERVAL_SECONDS),
-                )
-            )
+            else int_env("WORKER_RECLAIM_INTERVAL_SECONDS", DEFAULT_RECLAIM_INTERVAL_SECONDS)
         )
         # Parked jobs are only released once an operator states how long is
         # long enough (0 = never); the freshness hold below is the only
@@ -108,7 +104,7 @@ class Worker:
         self.provider_park_seconds = (
             provider_park_seconds
             if provider_park_seconds is not None
-            else int(os.getenv("WORKER_PROVIDER_PARK_MAX_SECONDS", "0"))
+            else int_env("WORKER_PROVIDER_PARK_MAX_SECONDS", 0)
         )
         # Provider-readiness hold for the sweep (#133): while any worker has
         # parked a job for provider reasons within the last N seconds
@@ -120,7 +116,7 @@ class Worker:
         self.provider_hold_seconds = (
             provider_hold_seconds
             if provider_hold_seconds is not None
-            else int(os.getenv("WORKER_PROVIDER_HOLD_SECONDS", "0"))
+            else int_env("WORKER_PROVIDER_HOLD_SECONDS", 0)
         )
         self._reclaim_stop = threading.Event()
         self._reclaim_thread: threading.Thread | None = None
@@ -1847,7 +1843,7 @@ def main() -> None:
     # 纯 stdlib 守护线程; 端口可用 WORKER_METRICS_PORT 覆盖。
     from observability.metrics_http import serve_metrics_in_thread
 
-    serve_metrics_in_thread(port=int(os.getenv("WORKER_METRICS_PORT", "9100")))
+    serve_metrics_in_thread(port=int_env("WORKER_METRICS_PORT", 9100))
 
     worker = Worker()
 

@@ -40,12 +40,15 @@ Honest boundaries, stated up front:
 from __future__ import annotations
 
 import ast
+import inspect
 import re
 import subprocess
 import tomllib
 from pathlib import Path
 
 import yaml
+
+from storage import env_config as _env_config
 
 ROOT = Path(__file__).resolve().parents[2]
 ENV = ROOT / ".env.example"
@@ -193,6 +196,33 @@ def tracked(pattern: str = "") -> list[str]:
 _ENV_NAME = re.compile(r"[A-Z][A-Z0-9_]{2,}")
 
 
+def _declared_readers() -> tuple[str, ...]:
+    """The ``(NAME, DEFAULT)`` readers ``storage/env_config.py`` declares.
+
+    #471 moved the shipped ``int(os.getenv(NAME, DEFAULT))`` coercions behind that
+    module. This census is the proof that a knob advertised to an operator still
+    has a reader in the process that starts it, so it has to keep seeing those
+    sites: a scan that recognised only the inline spelling reported MYSQL_PORT,
+    MINIO_PORT and the worker knobs as unread, and the delivery gates would bless a
+    template row nobody consumes. Read from the module's declared surface and
+    filtered by its parameter shape, so a renamed or re-shaped helper makes the
+    census lose a reader on the same commit that changed it rather than quietly.
+    """
+    readers: list[str] = []
+    for declared in _env_config.__all__:
+        obj = getattr(_env_config, declared)
+        if isinstance(obj, type) or not callable(obj):
+            continue
+        params = list(inspect.signature(obj).parameters)
+        assert params == ["name", "default"], f"storage/env_config.{declared} takes {params}"
+        readers.append(declared)
+    assert readers, "storage/env_config.py declares no (name, default) reader"
+    return tuple(sorted(readers))
+
+
+_ENV_CONFIG_READERS = _declared_readers()
+
+
 def code_reads() -> dict[str, list[tuple[str, str | None]]]:
     """env name -> [(file, literal default | None)] over tracked non-test Python.
 
@@ -282,7 +312,10 @@ def code_reads() -> dict[str, list[tuple[str, str | None]]]:
                 fname = f.id
             else:
                 continue
-            if fname not in {"getenv", "environ.get"} and not re.match(r"^_?env_", fname):
+            if (
+                fname not in {"getenv", "environ.get", *_ENV_CONFIG_READERS}
+                and not re.match(r"^_?env_", fname)
+            ):
                 continue
             if not node.args:
                 continue
@@ -698,4 +731,59 @@ def test_L14_worker_reclaim_default_resolves_through_the_constant():
     assert env_rows()["WORKER_RECLAIM_INTERVAL_SECONDS"] == code_default, (
         f"the template declares {env_rows()['WORKER_RECLAIM_INTERVAL_SECONDS']!r}, not the "
         f"{code_default!r} both carriers agree on"
+    )
+
+
+def test_L15_a_knob_read_only_through_the_helper_is_still_counted_as_read():
+    """#471 moved the numeric coercions behind ``storage/env_config.py``.
+
+    ``code_reads`` is the census the delivery gates use to say a template row has a
+    reader, and the call it now sees is ``int_env(NAME, DEFAULT)`` - no ``getenv``
+    token survives at those sites. A recognition rule that only knew the inline
+    spelling would report MYSQL_PORT, MINIO_PORT and the worker knobs as unread and
+    certify a knob nobody consumes, so this leg is the witness that the derived
+    ``_ENV_CONFIG_READERS`` rule fires on the shipped bytes: a scan of the source
+    text for the helper spelling, then the census asked for the same pairs.
+    """
+    pattern = re.compile(
+        r"\b(" + "|".join(_ENV_CONFIG_READERS) + r")\(\s*[\"'](" + _ENV_NAME.pattern + r")[\"']"
+    )
+    sites: set[tuple[str, str]] = set()
+    for rel in tracked("*.py"):
+        if rel.startswith("tests/") or rel == "storage/env_config.py":
+            continue
+        for _helper, name in pattern.findall(_text(rel)):
+            sites.add((rel, name))
+    assert sites, (
+        f"no shipped file calls {'/'.join(_ENV_CONFIG_READERS)} with a literal knob, so "
+        "this witness is watching nothing"
+    )
+    reads = code_reads()
+    missing = [
+        f"{rel}::{name}"
+        for rel, name in sorted(sites)
+        if not any(r == rel and d is not None for r, d in reads.get(name, []))
+    ]
+    assert not missing, (
+        f"the census lost {missing}: a helper read with a declared default is an "
+        "environment read, and an unread-looking knob is a fake lever this gate "
+        "would wave through"
+    )
+    # The informative half: at least one of these names has no inline read of the
+    # same knob left in the same file, so the pair above is proved by the helper
+    # rule and not by a spelling the old census already recognised.
+    helper_only = [
+        f"{rel}::{name}"
+        for rel, name in sorted(sites)
+        if not re.search(
+            r"""os\.(?:getenv|environ\.get|environ\[)\s*\(?\s*["']"""
+            + re.escape(name)
+            + r"""["']""",
+            _text(rel),
+        )
+    ]
+    assert helper_only, (
+        "every site the census attributes to the helper also still spells the same "
+        "knob inline, so this leg would pass on the pre-#471 rule alone and proves "
+        "nothing about the new one"
     )

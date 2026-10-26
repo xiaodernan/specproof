@@ -17,6 +17,8 @@ from typing import Any
 from pymongo import MongoClient
 from pymongo.database import Database
 
+from storage.env_config import int_env
+
 #: Schema version stamped onto every differential_runs / evidence_packs
 #: document written by this module. Bump when the document shape changes;
 #: old documents keep their version and are surfaced by schema_mismatches.
@@ -67,7 +69,7 @@ class MongoDBConfig:
     def from_env(cls) -> "MongoDBConfig":
         return cls(
             host=os.getenv("MONGODB_HOST", "localhost"),
-            port=int(os.getenv("MONGODB_PORT", "27017")),
+            port=int_env("MONGODB_PORT", 27017),
             user=os.getenv("MONGODB_USER", "specproof"),
             password=os.getenv("MONGODB_PASSWORD", "specproof_pass"),
             database=os.getenv("MONGODB_DATABASE", "specproof_phase0"),

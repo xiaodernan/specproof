@@ -25,6 +25,8 @@ from pika.exceptions import (
     UnroutableError,
 )
 
+from storage.env_config import int_env
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,7 +82,7 @@ class RabbitMQConfig:
     def from_env(cls) -> "RabbitMQConfig":
         return cls(
             host=os.getenv("RABBITMQ_HOST", "localhost"),
-            port=int(os.getenv("RABBITMQ_PORT", "5672")),
+            port=int_env("RABBITMQ_PORT", 5672),
             user=os.getenv("RABBITMQ_USER", "specproof"),
             password=os.getenv("RABBITMQ_PASSWORD", "specproof_pass"),
             vhost="/",

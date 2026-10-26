@@ -19,6 +19,8 @@ from typing import Any
 
 from minio import Minio
 
+from storage.env_config import int_env
+
 #: One path segment: starts alphanumeric, then [A-Za-z0-9._-], max 128
 #: chars. The leading-dot ban kills "." and ".." before they reach MinIO.
 _SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -108,7 +110,7 @@ class MinIOConfig:
     def from_env(cls) -> "MinIOConfig":
         return cls(
             host=os.getenv("MINIO_HOST", "localhost"),
-            port=int(os.getenv("MINIO_PORT", "9000")),
+            port=int_env("MINIO_PORT", 9000),
             access_key=os.getenv("MINIO_ROOT_USER", "minioadmin"),
             secret_key=os.getenv("MINIO_ROOT_PASSWORD", "specproof_pass"),
             secure=os.getenv("MINIO_SECURE", "false").lower() == "true",

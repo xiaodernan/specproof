@@ -54,6 +54,7 @@ from storage.billing import (
     ensure_invoice,
     seed_default_plans,
 )
+from storage.env_config import float_env, int_env
 
 logger = logging.getLogger(__name__)
 
@@ -187,15 +188,15 @@ class InvoiceCron:
     ) -> None:
         self.store = store
         self._now_fn = now_fn if now_fn is not None else time.time
-        self.interval = float(
-            interval
+        self.interval = (
+            float(interval)
             if interval is not None
-            else os.getenv("INVOICE_CRON_INTERVAL_SECONDS", str(DEFAULT_INTERVAL_SECONDS))
+            else float_env("INVOICE_CRON_INTERVAL_SECONDS", DEFAULT_INTERVAL_SECONDS)
         )
-        self.metrics_port = int(
+        self.metrics_port = (
             metrics_port
             if metrics_port is not None
-            else os.getenv("INVOICE_CRON_METRICS_PORT", str(DEFAULT_METRICS_PORT))
+            else int_env("INVOICE_CRON_METRICS_PORT", DEFAULT_METRICS_PORT)
         )
         self._period: str | None = None
         self._running = False
