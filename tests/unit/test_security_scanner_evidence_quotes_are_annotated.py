@@ -45,6 +45,7 @@ import pytest
 from agent.security_scanner import (
     _NOSEC_RE,
     _SECRET_PATTERNS,
+    _directive_names,
     _should_exclude,
     _walk_scannable,
     scan_directory,
@@ -65,8 +66,10 @@ def _firing_patterns(line: str) -> set[str]:
 def _repo_directives() -> list[dict[str, object]]:
     """Every directive in a file the scanner reads, with what it actually hides.
 
-    ``_suppressed`` matches a *full* pattern name inside the directive's name
-    text, so "names" is free text and only the firing names are meaningful.
+    ``_directive_names`` is the shipped parser, so "hides" is what the mechanism
+    really does rather than what a substring reading of the tail suggests: a
+    directive that names anything but whole pattern names is malformed, and a
+    malformed directive hides nothing.
     """
     found: list[dict[str, object]] = []
     for rel, path in _walk_scannable(PROJECT_ROOT):
@@ -81,13 +84,15 @@ def _repo_directives() -> list[dict[str, object]]:
             if m is None:
                 continue
             names = m.group("names")
+            parsed = _directive_names(line)
             found.append(
                 {
                     "path": rel,
                     "line": lineno,
                     "reason": line[: m.start()].strip().rstrip("#").strip(),
                     "names": names.strip(),
-                    "hides": sorted(n for n in _firing_patterns(line) if n in names),
+                    "parsed": list(parsed),
+                    "hides": sorted(n for n in _firing_patterns(line) if n in parsed),
                 }
             )
     return found
@@ -120,11 +125,18 @@ def test_a_directive_hides_a_finding_that_really_fires(directive: dict[str, obje
     A directive naming nothing that fires on its line is a leftover or a typo.
     It is not a security hole on its own — it hides nothing — but it reads like
     a suppression, which is exactly how a stale `# nosec` id misleads a reviewer.
+    A directive whose tail is not a list of whole pattern names is malformed:
+    it silences nothing either, and it is the shape a line that merely MENTIONS
+    the mechanism takes, so it must not pass as a directive.
     """
     assert directive["hides"], (
         f"{directive['path']}:{directive['line']} carries a `# specproof-nosec` "
-        f"naming {directive['names']!r}, but no pattern fires on that line — "
-        "the directive is dead"
+        f"naming {directive['names']!r}, but "
+        + (
+            "the tail is not a list of whole pattern names — the directive is malformed"
+            if not directive["parsed"]
+            else "no pattern fires on that line — the directive is dead"
+        )
     )
 
 

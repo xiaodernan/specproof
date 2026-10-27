@@ -13694,3 +13694,67 @@ def _load_builtin_adapters() -> None:
 **诚实边界。** ① 本号**只补定义，不重新评级**：Python 与 Node 有带日期的冒烟记录、却标 `Docker 沙箱`，是否该升到 `实测` 取决于 owner 对「实测」门槛的判断（本号把门槛写清了，把选择留给人）。② 文档表格里还有一行 `Java (本地回退, JDK ≥ 22) | … | 编译可用, 跑测试起不来`，它**不在** `COMPATIBILITY_MATRIX` 里（那描述的是回退路径的已知限制，不是适配器档位）⇒ **文档表格的行集合 ⊋ 代码矩阵的行集合**，本号的门只对账代码侧的状态**词汇**，不对账两侧的行集合。③ 门只检查「有没有一条 `- 实测` 记录点名该行」，不检查那条记录**说得对不对**（真实性靠人读）。④ 只改文档与测试，运行时零变化。
 
 **下一号队列（取号按落地时点 max+1）。** ① **文档表格行集合 ↔ 代码矩阵行集合的对账**（本号边界②）：`Java (本地回退)` 这类只在文档里存在的行，需要一个显式的「非适配器行」标注，否则两侧永远对不齐。② 两套适配器系统合流（架构决策，需 owner；#482 已留完整测量）。③ #397 六项里可跑的四项（基准面与 87 案例需要多小时评测，本机跑不完）。④ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。
+
+## #489 「提及指令」不再等于「使用指令」：载荷必须是整个已知模式名
+
+**起因/占号。** #453 队列①：「给「整行注释/文档里引用指令」一个通用防护」——#453 当时量到的边界⑤是：机制在**行尾**定位标记，于是「整行注释」与「文档里引用指令形式」都被解析成一次消音，而账本标题自己踩了这条（#453 那一节里已记）。占号前重测：HEAD 版账本 `## #` id 最大 **488** ⇒ 取 **#489**。
+
+**先量后写（量的是「引用指令的行到底在做什么」）。**
+- 探针 `.scratch/m481_nosec_mention_probe.py`（#453 留下、读数一直没取）在仓库根**之外**的一个平面里植入 **7 种**形状，每种形状所在行都带一个真的密钥形状字符串：**7 种全部消音**。即「代码跨里的引用」「行尾的引用」「散文里的引用」「整行注释」「账本证据表行」与「真正的指令」，在机制上**完全同形**。
+- 机制的原因有两条，合起来才致命：`_NOSEC_RE` 在**行尾**定位标记（`#\s*specproof-nosec\b(?P<names>[^#]*)$`），而 `_suppressed` 过去问的是「**模式名在不在载荷里**」（`pattern_name in m.group("names")`）——于是载荷里的散文、代码跨、括号都能藏住一个名字，而**载荷长什么样都行**。
+- 树普查（`.scratch/m488_census_probe.py`，与指令审计同一走法、同一排除表）：**27 行**带标记文本，其中 **16 行**被定位、**0 行**畸形（载荷正好是整个模式名）⇒ 现有树**没有一条**会被新规则改判，**0 行**消音行为改变。
+
+**修（机制侧；不动任何现有指令）。**
+- `agent/security_scanner.py`：新增 `_DIRECTIVE_NAMES`（全部已知模式名，按长度降序 ⇒ 最长匹配优先）与 `_directive_names(line)`；`_suppressed` 改调它。**载荷只接受**逗号/空白分隔的**整个**模式名；任何别的内容（占位符、尾随散文、代码跨收尾、未知名、中文尾）⇒ 整条指令**畸形**，**什么都不消音**。
+
+**落地（门）。** 新建 `tests/unit/test_security_scanner_directive_mentions_are_not_directives.py`（**11 案**）：
+1. `test_a_mention_of_the_directive_leaves_the_finding_standing`（4 种形状各植一行）；
+2. `test_the_old_rule_silenced_the_planted_mentions_that_now_do_not`（对照：旧规则确实消过音，否则第 1 条可能因为「秘密根本没触发」而假绿）；
+3. `test_a_use_that_names_the_whole_pattern_still_silences`（对照：真指令照常消音）；
+4. `test_a_directive_naming_one_of_two_firing_patterns_silences_only_that_one`；
+5. `test_a_directive_naming_two_whole_patterns_silences_both`；
+6. `test_a_malformed_directive_silences_nothing`（4 种畸形载荷：裸指令、尾随散文、未知名、中文尾）；
+7. `test_the_boundary_a_prose_mention_with_a_whole_name_still_silences`（**不可约的那一条**，被钉住而不是被解释掉）；
+8. `test_the_parser_accepts_only_whole_pattern_names`（解析器本身：5 条正例 ＋ 7 条畸形尾）；
+9. `test_the_census_sees_the_tree` / 10. `test_the_census_can_still_see_the_shape_it_forbids` / 11. `test_no_located_marker_line_in_the_tree_is_malformed`（树普查三门：非空洞、防空洞、牙齿）。
+
+已有的 `tests/unit/test_security_scanner_evidence_quotes_are_annotated.py` 改读**shipped 的解析器**（`_directive_names`）来判「这条指令到底盖住了什么」，并把「**畸形**」与「**死指令**」两种红分开报（前者是载荷读不出来，后者是载荷读得出来却没有模式在那一行触发）。
+
+**关键实现细节：载荷不能按空白切词。** 已有的门 `test_a_line_firing_two_patterns_needs_both_named` 钉的是**空格分隔的两个名字**（`# specproof-nosec OpenAI/LLM API Key API Key Assignment`）；按空白切词会把它切成 `['OpenAI','LLM','API','Key',…]` ⇒ #453 那条教训（第一版门把 names 按空格 `split()`）原样重演。故解析器取**最长匹配**：`GitHub Classic Token` 不会被读成 `GitHub PAT` ＋ 尾随文本。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+|---|---|---|
+| 新门（平面基线） | `pytest tests/unit/test_security_scanner_directive_mentions_are_not_directives.py -q` | **11 passed** |
+| 相关回归（工作树） | 新门 ＋ 四道既有扫描器门 ＋ `tests/security` | **191 passed / 2 skipped**（193 collected，777.67s），**0 红** |
+| ruff | `ruff check <本号三个文件>` | All checks passed |
+| mypy | `mypy agent/security_scanner.py` | Success: no issues found in 1 source file |
+
+**五个变异臂（预测写在跑之前：`.scratch/m488_arm_predictions.md`；跑法 `.scratch/m488_arm_battery.py`）。**
+臂跑在**仓库根之外**的平面 `D:\面试项目\m488_plane`：`git ls-files` 的 **2302** 个跟踪文件按**工作树**字节复制 ＋ 新门那 1 个未跟踪文件。平面读数与工作树一致（普查 27/16/0；A5 若生效会新定位 **7** 行且 **7** 行全畸形），且平面里 `import agent.security_scanner` 解析到平面自己的副本（已核，否则臂会改到工作树那份而读数失真）。臂只跑**新门这一个文件**（11 案）；跨门回归另在**未变异**的工作树上跑。
+
+| 臂 | 刀 | 预测红数 | 实测 |
+|---|---|---|---|
+| A1 | `_suppressed` 退回旧子串规则 | 2 | **2**，逐名命中 |
+| A2 | 载荷按空白切词（#453 那条陷阱） | 6 | **6**，逐名命中 |
+| A3 | 平面里植入一行**畸形但被定位**的标记行 | 1 | **1** |
+| A4 | 对照：平面里植入一行**合法**指令 | 0 | **0** |
+| A5 | 定位式去掉必需的前导 `#` | 1 | **1** |
+
+五个臂全部 **MATCHED**（预测写在臂跑之前，未按实测回填）。每个臂跑完复原字节并断言 `bytes-restored`；臂跑完后平面扫描器与工作树扫描器**逐字节相同**。A3/A4 是成对的：A3 红、A4 不红 ⇒ 普查是因为「这行畸形」而红，不是「见到标记就红」。
+
+**否证与订正（本号自己踩的）。**
+- 第一版新门里放了一个「中文理由写在标记**之前**」的形状，当成「提及」；读已有的门才发现那正是**合法指令**（契约就是原因在前、载荷在后）⇒ 删掉那条形状。
+- 第一版把「占位符」形状也算成「旧规则消过音的形状」；实读旧规则才发现它的载荷里没有真实模式名，**旧规则本来就不消音** ⇒ 改成「按形状逐条断言旧规则的行为」，它不再算危险形状。
+- 「载荷按逗号切」也踩过一次：已钉的门是**空格分隔** ⇒ 改成长匹配解析（见「关键实现细节」）。
+
+**诚实边界。**
+1. **不可约的那一条被钉住，而不是被解决。** 一行散文如果以**整个模式名**收尾，它与一条真指令同形，机制读不出意图 ⇒ `test_the_boundary_a_prose_mention_with_a_whole_name_still_silences` 钉住这个边界。要真正分开「提及」与「使用」，只能改指令**本身的形状**（例如要求载荷后面还有结束符）；改的时候必须更新那条腿。
+2. **本号只管载荷形状，不管「原因」。** 「原因在前、载荷在后」这个契约由 `test_security_scanner_nosec_is_scoped_and_auditable.py` 管；两道的分工不同，本号没有动那条契约。
+3. **树普查只读扫描器读得到的文件**：`tests/`、`scripts/`、`artifacts/`、`.scratch/`、`agent/security_scanner.py` 自身按排除表不进 ⇒ 写在这些路径里的提及**普查看不见**；机制同样不读它们，所以那里不是风险面。
+4. **本号没有改任何一条现有指令**：树上 **16** 条被定位的指令载荷全部正好是整个模式名 ⇒ 消音行为逐条不变（普查读数：改判 **0** 行）。
+5. **平面不是仓库的镜像**：它是 `git ls-files` 的工作树字节拷贝，没有 `.git`、没有别的未跟踪文件（只有新门）；因此平面里依赖 `git ls-files` 的门是空的——本号的臂只用普查与扫描器，不依赖 git，所以这条边界不伤本号的读数。
+6. **本号没有跑全量套件**：只跑了新门 ＋ 四道既有扫描器门 ＋ `tests/security`，外加 ruff/mypy；全量读数不在本节里。
+7. **本号没有改扫描器的排除表**：`.scratch/`、`tests/` 等仍在排除表里 ⇒ 写在这些路径里的标记行不进普查（见边界③）。
+
+**下一号队列（取号按落地时点 max+1）。** ① **#453 队列剩余**：②（Go/Node 适配器那 35 条 ruff 错）、③（#397 六项）、④（落地前重新量账本最大节号）。② **不可约边界的下一手**：要真正分开「提及」与「使用」，得改指令的形状而不是改解析器；本号只把边界钉住并留了指针。③ 仓库根仍有一批未跟踪调试脚本（`check_go_adapter.py` / `check_ledger.py` / `ctx448.txt` / `find_section.py` / `ledger_432_clean.md` / `original_plan.md` / `run_tests_no_mysql.py`），只污染本地 `ruff check .`、不进 CI。

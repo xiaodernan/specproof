@@ -145,6 +145,51 @@ def _should_exclude(path: str) -> bool:
 #: list of nonsense ids and behaves as a bare directive that hides everything.
 _NOSEC_RE = re.compile(r"#\s*specproof-nosec\b(?P<names>[^#]*)$")
 
+#: The whole pattern names a directive is allowed to name, longest first: the
+#: parser below takes the longest match, so "GitHub Classic Token" is never read
+#: as "GitHub PAT" plus trailing text.
+_DIRECTIVE_NAMES: tuple[str, ...] = tuple(
+    sorted(
+        (name for _pattern, name, _severity in _SECRET_PATTERNS),
+        key=len,
+        reverse=True,
+    )
+)
+
+
+def _directive_names(line: str) -> tuple[str, ...]:
+    """The pattern names the directive on this line names — empty when there is none.
+
+    A directive names WHOLE pattern names, separated by commas and/or spaces.
+    Anything else in the tail — a placeholder, trailing prose, a code span that
+    closes after the name — makes the directive malformed, and a malformed
+    directive names nothing.
+
+    The rule used to be "the pattern name appears somewhere in the tail", which
+    made a line that merely MENTIONED the directive silence the finding it
+    mentioned: the documented form is exactly what a document quotes, so
+    quoting it on a line that also carries a secret hid that secret. A
+    malformed directive now reads as dead — it silences nothing — so the
+    repo's own directive audit can say so out loud.
+    """
+    m = _NOSEC_RE.search(line)
+    if m is None:
+        return ()
+    names: list[str] = []
+    rest = m.group("names").strip()
+    while rest:
+        rest = rest.lstrip(" ,\t")
+        if not rest:
+            break
+        for candidate in _DIRECTIVE_NAMES:
+            if rest.startswith(candidate):
+                names.append(candidate)
+                rest = rest[len(candidate):]
+                break
+        else:
+            return ()
+    return tuple(names)
+
 
 def _suppressed(line: str, pattern_name: str) -> bool:
     """True when the line carries a `# specproof-nosec <name>` naming this pattern.
@@ -153,10 +198,11 @@ def _suppressed(line: str, pattern_name: str) -> bool:
     nothing, and a bare directive hides nothing either. The only way to silence a
     finding is to name it in full, which is what keeps the directive auditable —
     and what makes a stale directive visibly do nothing instead of silently
-    over-hiding.
+    over-hiding. A directive that names anything but whole pattern names is
+    malformed and hides nothing either, so a line that merely mentions the
+    mechanism cannot silence the finding it mentions.
     """
-    m = _NOSEC_RE.search(line)
-    return m is not None and pattern_name in m.group("names")
+    return pattern_name in _directive_names(line)
 
 
 def _dir_is_excluded(rel_dir: str) -> bool:
