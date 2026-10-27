@@ -13939,3 +13939,29 @@ Java/Gradle 那行不只是状态错，而是**四处同时陈旧**：镜像写 
 **诚实边界。** ① 只收拢两份**逐字节相同**的；其余四份**不合并**——它们的策略是各自领域的决定，合并会逼出一个带 `on_error=` 参数的万能函数，把「大声失败」变成配置项。② 策略表门**钉现状**：它不主张三个「静默默认」是对的，只让改变它们成为一次**有意的、要改表的**决定。③ 不改 `mcp` 接受负值（-3）的行为——权威 `int_env` 同样接受负值，这是既有语义；负超时是否该拒是另一号。④ 不统一 `CRAFT_TOKEN_BUDGET` 在 `craft/budget.py` 与 `craft/llm.py` 的**两个不同默认值**（那是普查 L10 的射程，已有一条门在盯）。
 
 **下一号队列（取号按落地时点 max+1）。** ① `_capsule_dirs()` / `_eval_report_path()` 跨 api 与 mcp 两层。② `_read_java_files()`（agent 两节点）、`_discard_workspace()`（prepare 双胞胎）、`__init__()`（3 个 storage 模块）。③ `mcp` 负超时是否该拒（本号边界）。
+
+
+## #493 api 与 mcp 各有一份「胶囊/报告在哪」：今天一致，但靠两个不同深度算出同一个根
+
+**起因/占号。** #492 队列①：结构克隆里跨层的 `_capsule_dirs()` / `_eval_report_path()`——`api/routes/web.py` 与 `mcp/tools.py` 各一份。AST 比对确认**两份函数体逐字节相同**（`_reports_dir()` 只有 api 有，mcp 没有对应物）。占号前 `git fetch`：origin HEAD `## #492`（我自己的）⇒ 本号取 **#493**。
+
+**为什么不直接合并。** 两份函数体相同，但各自用**自己的 `_PROJECT_ROOT`**：`api/routes/web.py` 是 `parents[2]`，`mcp/tools.py` 是 `parents[1]`。今天两者都落在仓库根（运行时实测 `same: True`、`dirs same: True`），但**这只是两个不同深度恰好撞对**：任一文件移动一层，两份路径就静默分叉——MCP 工具列出的胶囊，Web UI 打不开，反之亦然，而两边各自看起来都自洽。
+- 合并需要一个跨层落点：`api/data_paths.py` 是关于**默认 SQLite 文件**的，语义不对；而 `mcp/tools.py` **目前不导入任何 `api.*`**，为两个路径函数引入 `mcp → api` 的依赖边是新的分层决定。⇒ **这是 owner 的决定，不是本号能单方面拍板的。**
+
+**落地（加门，不改生产码）。** 新建 `tests/unit/test_capsule_and_report_paths_agree.py`（**6 案**）：
+1. 两层 `_capsule_dirs()` 结果相同（默认环境）；
+2. `SPECPROOF_CAPSULE_DIR` 覆盖下仍相同，且**覆盖项排在第一位**（顺序即优先级）；
+3. 胶囊目录以**仓库 capsules** 打底、以 **cwd/capsules** 收尾（钉顺序语义，并直接对 `parents[2]` 断言）；
+4. 两层 `_eval_report_path()` 结果相同；
+5. `SPECPROOF_EVAL_REPORT_PATH` 覆盖下仍相同；
+6. 两层的 `_PROJECT_ROOT` **相同且等于 `parents[2]`**——直接钉住「它们为什么一致」，文件一旦移动就红。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_capsule_and_report_paths_agree.py -q` | **6 passed in 7.84s** |
+| ruff | `ruff check tests/unit/test_capsule_and_report_paths_agree.py` | 初报 2 个 N811（常量被改成小写别名），改大写别名后 **All checks passed** |
+
+**诚实边界。** ① 只加测试，`api/routes/web.py` 与 `mcp/tools.py` 一字未动。② 门断言的是**两层一致**，不主张它们该放哪；合并（选一个跨层落点）留给 owner。③ `_reports_dir()` 没有 mcp 对应物，无可比对，未覆盖。④ 不钉 cwd 之外的文件系统状态（`Path.cwd()` 随测试进程而定，门只比对**两边**是否相同，不断言具体值）。
+
+**下一号队列（取号按落地时点 max+1）。** ① `_read_java_files()`（agent 两个节点）与 `_discard_workspace()`（prepare 双胞胎）——后者已有 parity 注释，先核。② `__init__()`（3 个 storage 模块）。③ `_is_duplicate_key()`（agent/contracts 与 storage 跨层）、`_cleanup_worktrees()`（eval/verify 两个 CLI）。④ `mcp` 负超时是否该拒（#492 边界）。
