@@ -48,11 +48,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
-from urllib.parse import unquote, urlsplit
 
 import pymysql
-from pymysql.cursors import DictCursor
 
+from storage.mysql_url import parse_mysql_url as _parse_mysql_url
 from storage.unit_of_work import unit_of_work
 
 ObjectKind = Literal["certificate", "capsule", "replay_report"]
@@ -751,25 +750,6 @@ class SQLiteObjectMetadataStore:
 
 
 # ── MySQL backend ─────────────────────────────────────────────────────────
-
-
-def _parse_mysql_url(url: str) -> dict[str, Any]:
-    parsed = urlsplit(url)
-    if parsed.scheme not in ("mysql", "mysql+pymysql"):
-        raise ValueError(f"expected a mysql:// URL, got scheme {parsed.scheme!r}")
-    if parsed.hostname is None:
-        raise ValueError("MySQL URL must include a host")
-    database = (parsed.path or "/").lstrip("/")
-    return {
-        "host": parsed.hostname,
-        "port": parsed.port or 3306,
-        "user": unquote(parsed.username) if parsed.username is not None else "",
-        "password": unquote(parsed.password) if parsed.password is not None else "",
-        "database": database or "specproof",
-        "charset": "utf8mb4",
-        "cursorclass": DictCursor,
-        "autocommit": False,
-    }
 
 
 class MySQLObjectMetadataStore:

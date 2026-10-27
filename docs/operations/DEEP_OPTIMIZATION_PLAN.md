@@ -13520,3 +13520,28 @@ def _load_builtin_adapters() -> None:
 **诚实边界。** ① `ast` 只认**字符串常量**形式的 `ADAPTER_ID`；写成 `ADAPTER_ID = f"x-{y}"` 或从别处导入的动态值会读不到，从而**漏检**（不会误报）。② 只扫 `craft/adapters/*.py` 的**顶层** `ClassDef`，不递归子目录、不看嵌套类。③ 这条门只保证「清单↔目录」一致，**不保证**适配器真的能用（那是各适配器自己的测试与 #482 的注册表门的事）。④ 本号对运行时行为零影响（纯测试）。
 
 **下一号队列（取号按落地时点 max+1）。** ① **两套适配器系统合流**（`experiments/adapters.py` ↔ `craft/adapters/`）——架构决策，需 owner（#482 已留完整测量）。② 仓库根那批未跟踪调试脚本（`_arm52*.py` / `_526.patch` 等）仍会污染本地 `ruff check .`，但不进 CI。③ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。④ `#480` 只修了 `mypy .` 那一条；下次开工仍应**先跑一遍平面 CI 门**再动手，因为并发车道随时可能引入新的红。
+
+
+## #485 `_parse_mysql_url()` 在四个 store 里各有一份：抽到 `storage/mysql_url.py`
+
+**起因/占号。** #483 之后继续处理结构克隆的其余 15 组，按「份数最多 + 语义最敏感」排序，第一组是 `_parse_mysql_url()`：**四个 store**（`agent_jobs` / `billing` / `identity` / `object_metadata`）各有一份，AST 比对确认**逐字节相同**（4 份、1 个不同函数体）。占号前 `git fetch`：origin HEAD 已是 `## #484`（别车道）⇒ 本号取 **#485**。
+
+**为什么这组要紧。** 连接串解析是「错一点点就连到别处」的地方：scheme 校验、默认端口 3306、默认库名、百分号解码后的密码——四个 store 只要有一个被修过，其余三个仍走旧规则，而每个 store 自己看起来都自洽。
+
+**落地（真去重）。** 新建 `storage/mysql_url.py`：`parse_mysql_url()`（原样搬，含 `mysql+pymysql://` 支持、默认库 `specproof`、`utf8mb4`/`DictCursor`/`autocommit=False`）。四个 store 删掉各自定义，改为别名导入（`parse_mysql_url as _parse_mysql_url`），**调用点一字未动**；顺带从四个文件的 urllib 导入里去掉因此闲置的 `urlsplit`。
+- 净变化：**+4 / -84**（少 80 行重复；四个 store 各 -22 行 +1 行导入）。
+- **为什么单开一个模块而不塞进 `storage/mysql.py`**：那四个 store 目前**都不导入** `storage.mysql`；为了一个纯函数去依赖整个 MySQL 客户端模块，会平白加一条重依赖边。单开小模块没有这个代价。
+
+**顺带补的门（原来没有直接测试）。** 解析器此前只被各 store 的测试**间接**覆盖。现在它是四个 store 的共享公共函数，新建 `tests/unit/test_mysql_url_parser.py`（**11 案**）直接钉住：两种 scheme、默认/显式端口、默认/显式库名、百分号解码（`p%40ss%3Aword` → `p@ss:word`）、无凭据为空串、非 mysql scheme 拒绝并**点名 scheme**、无 host 拒绝、**畸形端口拒绝**（urllib 抛 `Port could not be cast`，不能被吞掉去连一个没人要求的默认值）、以及三个固定选项（charset/cursorclass/autocommit）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_mysql_url_parser.py -q` | **11 passed in 7.06s** |
+| 四个 store 回归 | `pytest test_agent_jobs.py test_object_metadata.py test_billing.py test_tenant_auth.py -q` | **196 passed, 1 skipped in 98.01s** |
+| ruff | `ruff check` 五个源文件 + 新测试 | 初报 9 个（导入顺序 + 闲置导入），`--fix` 后 **All checks passed** |
+| mypy | 五个源文件 | **Success: no issues found in 5 source files** |
+
+**诚实边界。** ① 行为等价重构：函数体原样搬移，11 个新测试把它的每个分支单独钉住（原来只是间接覆盖）。② 只收拢这一组；结构克隆还剩 14 组，下一优先 `_env_int()`（retrieval 两份，且与 `storage/env_config.int_env` 是第 3/4 套 env 解析）。③ 不统一四个 store 的**连接参数来源**（谁从哪读 URL）——那是接线问题，本号只统一解析。④ `parse_mysql_url` 的 `parsed.port` 对畸形端口抛的是 urllib 的 `ValueError`（文案含 "Port could not be cast"），不是本模块自定义的——测试钉的是「会拒绝」，不钉具体文案归属。
+
+**下一号队列（取号按落地时点 max+1）。** ① `_env_int()`（retrieval/embeddings.py、retrieval/rerank.py）+ `storage/env_config.int_env`：仓库里第 3、4 套 env-int 解析，先判是否该统一。② `_capsule_dirs()` / `_eval_report_path()` 跨 api 与 mcp 两层。③ `_read_java_files()`（agent 两个节点）、`_discard_workspace()`（prepare 双胞胎）、`__init__()`（3 个 storage 模块）。
