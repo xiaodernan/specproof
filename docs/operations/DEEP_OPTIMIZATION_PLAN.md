@@ -13470,3 +13470,27 @@ def _load_builtin_adapters() -> None:
 **诚实边界。** ① 本号修的是**新层内部的静默空**，**没有**把 `craft/adapters` 接进生产——那需要先把两套系统合流（架构决策，需 owner）。② 因此本号对**今天的用户可见行为零影响**：生产仍走 `experiments/adapters.py`。③ `_load_builtin_adapters` 在每次 API 调用时都会跑一遍循环（`importlib.import_module` 对已导入模块是一次 `sys.modules` 查表 + 少量反射），单次开销很小但非零；没有加缓存，是为了让「注册表被清空后仍能恢复」这个性质成立。④ 三个内置模块的清单是**手抄**的；将来新增适配器必须同步加进来，否则又回到「注册了但不在清单里」。⑤ 未跑真实 `go test`/`npm test`。
 
 **下一号队列（取号按落地时点 max+1）。** ① **两套适配器系统合流**（`experiments/adapters.py` ↔ `craft/adapters/`）——需要 owner 决策，本号只留下测量。② `_BUILTIN_ADAPTER_MODULES` 手抄清单的对账门：扫 `craft/adapters/*.py` 里带 `ADAPTER_ID` 的类，断言每个都在清单里（防止新增适配器忘了加）。③ 仓库根未跟踪调试脚本仍会污染本地 `ruff check .`（不进 CI）。④ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。
+
+
+## #483 鉴权助手在 admin / billing 各有一份逐字节副本：抽到 `api/routes/_guards.py`
+
+**起因/占号。** #481 之后换了一类漂移继续找：**结构克隆**——AST 归一化（去 docstring、不含行号）后哈希函数体，找「同一段实现出现在 2+ 文件」。220 个源文件里命中 **16 组**。最要紧的一组是 `_principal()` / `_require_tenant_mode()` / `_assert_role()` 在 `api/routes/admin.py` 与 `api/routes/billing.py` 里**逐字节相同**。占号前 `git fetch`：本地与 origin 0/0，origin HEAD `6848b76`（`## #482`，别车道的适配器注册表修复）⇒ 本号取 **#483**。
+
+**为什么这组最要紧。** 鉴权是「修一处、漏一处」代价最高的地方：两个副本今天一样，明天谁改了 403 的判据或 401 的码，另一族路由仍走旧规则，而且**没有任何测试会红**（两份各自自洽）。
+
+**落地（真去重，不是加门）。** 新建 `api/routes/_guards.py`：`principal()` / `require_tenant_mode()` / `assert_role()`（原样搬，含错误码与文案）。两个路由模块删掉各自三份定义，改为**别名导入**（`assert_role as _assert_role` …），**所有调用点一字未动**——这一点很关键：`tests/unit/test_audit_disposition_labels.py` 用**正则匹配调用点** `_assert_role(principal, frozenset({...}))` 来推导每个 handler 允许的角色，别名导入保住了那个匹配面。
+- 净变化：**+20 / -65**（少 45 行重复）。
+- ruff 顺带清掉两个模块里因此不再使用的导入（`cast`、`AUTH_REQUIRED`、`PROVIDER_UNAVAILABLE`、`TENANT_FORBIDDEN` 等 7 处）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| ruff | `ruff check api/routes/_guards.py api/routes/admin.py api/routes/billing.py` | 初报 7 个 F401（预期），`--fix` 后 **All checks passed** |
+| mypy | `mypy` 三个文件 | **Success: no issues found in 3 source files** |
+| 鉴权回归 | `pytest tests/unit/test_tenant_auth.py -q` | **53 passed in 22.08s** |
+| 调用点正则 | `pytest tests/unit/test_audit_disposition_labels.py -q` | **28 passed** |
+| billing + 403 归因 | `pytest test_billing.py test_forbidden_reason_attribution.py`（与上一条合并跑） | **84 passed, 1 skipped** |
+
+**诚实边界。** ① 这是**行为等价重构**：三份实现原样搬移，错误码/文案/判据逐字未改；53+28+84 个测试全绿为证。② 只收拢这一组；结构克隆还命中 15 组（`_parse_mysql_url()` 在 4 个 storage 模块、`_env_int()` 在 retrieval 两个模块、`_capsule_dirs()`/`_eval_report_path()` 在 api 与 mcp 两层、`_read_java_files()` 在 agent 两个节点、`_discard_workspace()` 在 prepare 双胞胎…），逐个要判「该收拢还是该加门」，留给后续号。③ 不改 `assert_role` 的文案（它把 `sorted(principal.roles)` 回给客户端，是否有信息泄露是产品/安全评审的事，本号不动）。④ 不做 `api/routes` 之外的分层调整。
+
+**下一号队列（取号按落地时点 max+1）。** ① 结构克隆其余 15 组，优先 `_parse_mysql_url()`（4 份）与 `_env_int()`（retrieval 两份，且与 `storage/env_config.int_env` 是第三、四套 env 解析）。② `_capsule_dirs()` / `_eval_report_path()` 跨 api 与 mcp 两层——路径解析分叉会影响「MCP 看到的胶囊」与「API 看到的胶囊」是否同一批。③ `observation_limits` 畸形扩展（#481 边界，已量：单调用方、进程内片段 ⇒ 纯理论，暂不动）。

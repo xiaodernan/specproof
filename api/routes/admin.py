@@ -33,7 +33,7 @@ import logging
 import secrets
 import threading
 import time
-from typing import Any, cast
+from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -42,7 +42,6 @@ from pydantic import BaseModel, Field
 
 from api.auth import enforce_rate_limit
 from api.errors import (
-    AUTH_REQUIRED,
     PROVIDER_UNAVAILABLE,
     SIGNING_UNAVAILABLE,
     STATE_CONFLICT,
@@ -66,6 +65,9 @@ from api.identity.tokens import (
     mint_token,
     verify_local_token,
 )
+from api.routes._guards import assert_role as _assert_role
+from api.routes._guards import principal as _principal
+from api.routes._guards import require_tenant_mode as _require_tenant_mode
 from evidence.revocation_log import (
     append_revocation,
     find_revocations,
@@ -90,38 +92,8 @@ _OIDC_LOCK = threading.Lock()
 _OIDC_STATE_TTL_SECONDS = 600.0
 
 
-def _principal(request: Request) -> Principal:
-    principal = cast(Principal | None, getattr(request.state, "principal", None))
-    if principal is None:
-        raise ApiError(
-            status_code=401, code=AUTH_REQUIRED, detail="Missing credentials",
-        )
-    return principal
-
-
-def _require_tenant_mode() -> None:
-    if not auth_enabled():
-        raise ApiError(
-            status_code=503,
-            code=PROVIDER_UNAVAILABLE,
-            detail=(
-                "Multi-tenant auth is not enabled: set SPECPROOF_AUTH_ENABLED=true "
-                "or OIDC_ISSUER"
-            ),
-        )
-
-
 def _store() -> IdentityStore:
     return get_identity_store()
-
-
-def _assert_role(principal: Principal, allowed: frozenset[str]) -> None:
-    if not principal.roles & allowed:
-        raise ApiError(
-            status_code=403,
-            code=TENANT_FORBIDDEN,
-            detail=f"role {sorted(principal.roles)} is not permitted here",
-        )
 
 
 def _spa_redirect(fragment: dict[str, str]) -> RedirectResponse:

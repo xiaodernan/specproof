@@ -36,7 +36,7 @@ import io
 import logging
 import os
 import time
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import Response
@@ -45,10 +45,8 @@ from pydantic import BaseModel
 from api.auth import enforce_rate_limit
 from api.data_paths import BILLING_DB_FILENAME, default_sqlite_url
 from api.errors import (
-    AUTH_REQUIRED,
     INVOICE_NOT_FOUND,
     JOB_NOT_FOUND,
-    PROVIDER_UNAVAILABLE,
     STATE_CONFLICT,
     TENANT_FORBIDDEN,
     VALIDATION_FAILED,
@@ -56,6 +54,9 @@ from api.errors import (
 )
 from api.identity.config import auth_enabled
 from api.identity.principal import Principal, principal_allowed
+from api.routes._guards import assert_role as _assert_role
+from api.routes._guards import principal as _principal
+from api.routes._guards import require_tenant_mode as _require_tenant_mode
 from observability.metrics import incr
 from storage.billing import (
     BillingStore,
@@ -118,42 +119,12 @@ def reset_billing_store() -> None:
 # ── Route-level guards (the middleware is the outer enforcement layer) ───────
 
 
-def _principal(request: Request) -> Principal:
-    principal = cast(Principal | None, getattr(request.state, "principal", None))
-    if principal is None:
-        raise ApiError(
-            status_code=401, code=AUTH_REQUIRED, detail="Missing credentials",
-        )
-    return principal
-
-
-def _require_tenant_mode() -> None:
-    if not auth_enabled():
-        raise ApiError(
-            status_code=503,
-            code=PROVIDER_UNAVAILABLE,
-            detail=(
-                "Multi-tenant auth is not enabled: set SPECPROOF_AUTH_ENABLED=true "
-                "or OIDC_ISSUER"
-            ),
-        )
-
-
 def _require_billing_read(principal: Principal) -> None:
     if not principal_allowed(principal, "billing", "read"):
         raise ApiError(
             status_code=403,
             code=TENANT_FORBIDDEN,
             detail=f"role {sorted(principal.roles)} may not read billing",
-        )
-
-
-def _assert_role(principal: Principal, allowed: frozenset[str]) -> None:
-    if not principal.roles & allowed:
-        raise ApiError(
-            status_code=403,
-            code=TENANT_FORBIDDEN,
-            detail=f"role {sorted(principal.roles)} is not permitted here",
         )
 
 
