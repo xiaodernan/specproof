@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from threading import RLock
 from typing import Any, Protocol, cast
 
+from storage.db_errors import is_duplicate_key as _is_duplicate_key
 from storage.mysql import MySQLStore
 
 
@@ -290,18 +291,6 @@ class MySQLContractStorage:
             cur.execute(_APPROVED_ROWS_SQL, (repo_path, spec_digest))
             return list(cur.fetchall())
 
-
-def _is_duplicate_key(exc: Exception) -> bool:
-    """Best-effort duplicate-key detection (no driver-specific imports).
-
-    MySQL reports ER_DUP_ENTRY as 1062 inside args[0]; SQLite reports
-    "UNIQUE constraint failed" in args[0] text. Anything else is re-raised.
-    """
-    first = exc.args[0] if exc.args else ""
-    if first == 1062:
-        return True
-    text = str(first)
-    return "UNIQUE constraint failed" in text or "Duplicate entry" in text
 
 # ── In-memory backend ─────────────────────────────────────────────────────
 

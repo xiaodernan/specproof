@@ -13989,3 +13989,26 @@ Java/Gradle 那行不只是状态错，而是**四处同时陈旧**：镜像写 
 **诚实边界。** ① 行为等价重构：循环体原样搬移，5 个新测试把契约单独钉住。② 只收拢这一族；结构克隆还剩 10 组。③ 不扩展读取范围（不加 `.kt`/`.groovy`）——那是功能变更，不是去重。④ 不改 `OSError` 的宽容策略（跳过而非失败）——三份原本一致，本号只把它变成单点决定。
 
 **下一号队列（取号按落地时点 max+1）。** ① `__init__()`（3 个 storage 模块）——先判是否是同一构造器还是巧合。② `_is_duplicate_key()`（agent/contracts 与 storage 跨层）。③ `_cleanup_worktrees()`（eval/verify 两个 CLI）。④ `_discard_workspace()`（prepare 双胞胎，已有 parity 注释待核）。⑤ `mcp` 负超时（#492 边界）。
+
+
+## #495 `_is_duplicate_key()` 跨层两份：收拢到 `storage/db_errors.py`
+
+**起因/占号。** #494 队列②：`_is_duplicate_key()` 在 `agent/contracts/storage.py` 与 `storage/object_metadata.py` 各一份（AST 比对：函数体逐字节相同，docstring 不同）。占号前 `git fetch`：origin HEAD `## #494`（我自己的）⇒ 本号取 **#495**。
+
+**为什么值得收拢。** 它决定「刚捕获的异常是不是『已经存在』」：判成 `True` 就把幂等重试当成功（并可能吞掉真错误），判成 `False` 就把重试炸出来。两个 store 用两套字符串/码判断，改一处漏一处就会出现「契约库把 1062 当重复、对象元数据库不认」这种不对称。而且它**刻意不 import 驱动**（只认 `args[0] == 1062` 与两段文案），这个决定更应该只有一处。
+
+**落地（真去重）。** 新建 `storage/db_errors.py::is_duplicate_key()`（原样搬 + docstring 写清「错判 True 会藏起真错」）。两个模块改为别名导入（`is_duplicate_key as _is_duplicate_key`），**调用点一字未动**（`if _is_duplicate_key(exc):`）。净变化 **+2 / -21**。
+- **技术细节**：两份的 docstring 不同，所以第一次按整段文本匹配失败（`def count = 0`）——改用 **AST 定位 `lineno`/`end_lineno` 按行删除**，并在接缝处规范化空行，比字符串匹配稳。
+
+**顺带补的门。** 新建 `tests/unit/test_db_errors_duplicate_key.py`（**6 案**）：MySQL 的 `1062`（int）⇒ True；`"Duplicate entry ..."` ⇒ True；`"UNIQUE constraint failed ..."` ⇒ True；无关错误（`"connection lost"`、`(2006, ...)`）⇒ **False**（必须，否则吞真错）；无 args ⇒ False；**字符串 `"1062"` ⇒ False**（只有驱动给的 int 码才算，字符串是猜测）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_db_errors_duplicate_key.py -q` | **6 passed in 3.09s** |
+| 回归 | `pytest test_contract_observes_keys_roundtrip.py test_contract_versions.py test_object_metadata.py test_object_metadata_carries_the_object_reference.py test_object_metadata_resolves_the_bytes_on_disk.py -q` | **66 passed in 40.23s** |
+| ruff | 三个源文件 + 新测试 | **All checks passed** |
+
+**诚实边界。** ① 行为等价重构：函数体原样搬移（两份 docstring 合成为一份，写清代价）。② 只收拢这一组；结构克隆还剩 9 组。③ 不扩充分类范围（不认 Postgres `23505`、不认 `IntegrityError` 类型）——现状只服务 MySQL/SQLite 两个后端，扩展是功能变更。④ `__init__()` 三份（SQLite store 构造器）**不动**：去重需要基类/混入，是设计改动，风险高于 5 行的收益。
+
+**下一号队列（取号按落地时点 max+1）。** ① `_cleanup_worktrees()`（eval/verify 两个 CLI）。② `_discard_workspace()`（prepare 双胞胎，已有 parity 注释待核）。③ `_get_provider()`。④ `__init__()` 三份若要动，先设计基类方案（本号边界）。⑤ `mcp` 负超时（#492 边界）。

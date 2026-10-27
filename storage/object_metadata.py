@@ -51,6 +51,7 @@ from typing import Any, Literal, Protocol, cast
 
 import pymysql
 
+from storage.db_errors import is_duplicate_key as _is_duplicate_key
 from storage.mysql_url import parse_mysql_url as _parse_mysql_url
 from storage.unit_of_work import unit_of_work
 
@@ -867,15 +868,6 @@ class MySQLObjectMetadataStore:
             cur.execute(_to_mysql(_SELECT_ALL_SQL), (limit,))
             rows = cur.fetchall()
         return [_row_to_metadata(row) for row in rows]
-
-
-def _is_duplicate_key(exc: Exception) -> bool:
-    """Best-effort duplicate-key detection (no driver-specific imports)."""
-    first = exc.args[0] if exc.args else ""
-    if first == 1062:
-        return True
-    text = str(first)
-    return "UNIQUE constraint failed" in text or "Duplicate entry" in text
 
 
 __all__ = [
