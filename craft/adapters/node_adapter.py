@@ -42,11 +42,17 @@ def _as_text(value: bytes | str | None) -> str:
 
 
 def _read_text_or_none(path: Path | str) -> str | None:
-    """Read a file as UTF-8, or ``None`` when it is absent or unreadable."""
+    """Read a file as UTF-8, or ``None`` when it cannot be read as text.
+
+    Covers absent, unreadable (permissions, a directory where a file was
+    expected) and not-UTF-8 with one answer. Evidence collection wants exactly
+    that: a `package.json` that cannot be decoded is "no content to show", not a
+    reason to abort the whole evidence bundle.
+    """
     try:
         with open(path, encoding="utf-8") as handle:
             return handle.read()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
 
 

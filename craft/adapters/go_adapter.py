@@ -37,11 +37,18 @@ def _as_text(value: bytes | str | None) -> str:
 
 
 def _read_text_or_none(path: Path | str) -> str | None:
-    """Read a file as UTF-8, or ``None`` when it is absent or unreadable."""
+    """Read a file as UTF-8, or ``None`` when it cannot be read as text.
+
+    Covers three different facts with one answer: the file is absent, the OS
+    refuses to read it (permissions, a directory where a file was expected), or
+    the bytes are not UTF-8. Callers that need to tell "absent" from "corrupt"
+    must check existence themselves — ``prepare`` records both in
+    ``extra["has_go_mod"]`` / ``extra["go_mod_readable"]``.
+    """
     try:
         with open(path, encoding="utf-8") as handle:
             return handle.read()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
 
 
@@ -90,10 +97,11 @@ class GoAdapter(AdapterProtocol):
 
         包括：检测 Go 版本、设置模块缓存、检查 CGO 能力。
         """
-        # 读取 go.mod 获取 Go 版本（只读一次：第二次读没有 try 保护，
-        # 文件不可读时会让 prepare 直接抛，而不是退回默认值）
+        # 读取 go.mod 获取 Go 版本。**只读一次**：旧版读了两次，第二次没有 try
+        # 保护，文件不可读时会让 prepare 直接抛而不是退回默认值。
         go_mod = project_root / "go.mod"
-        go_mod_content = _read_text_or_none(go_mod) or ""
+        go_mod_text = _read_text_or_none(go_mod)
+        go_mod_content = go_mod_text or ""
         go_version = "1.23"  # 默认
         match = re.search(r"go\s+([\d.]+)", go_mod_content)
         if match:
@@ -120,6 +128,10 @@ class GoAdapter(AdapterProtocol):
             extra={
                 "cgo_enabled": cgo_enabled,
                 "has_go_mod": go_mod.exists(),
+                # 「存在但读不出来」（权限、非 UTF-8、同名目录）与「声明里没有
+                # 版本」在旧版里长得一模一样——都退回默认 1.23。把「读没读到」
+                # 单独记一笔，免得 profile 替一个坏文件撒谎。
+                "go_mod_readable": go_mod_text is not None,
             },
         )
 

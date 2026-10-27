@@ -13211,3 +13211,46 @@ ruff `All checks passed!`，mypy `Success: no issues found in 2 source files`。
 普查认得两种形状（绑 0 回读 / 绑具名号捕 OSError）；第三种形状（例如用 `connect` 探
 占用）在它眼里不存在。⑦ 本号**只动测试侧**：两个属主、两个门都是测试设施，生产码一字
 未动，`observability/metrics_http.py` 的 `SO_EXCLUSIVEADDRUSE` 机制一字未动。
+## #478 `prepare` 读不出 go.mod 时不再装作读到了：`_read_text_or_none` 补 `UnicodeDecodeError`，`go_mod_readable` 把「读没读到」记成事实
+
+**起因/占号。** #459 队列①：「`go_adapter.prepare` 二读崩溃的门」。占号前重测：HEAD 版账本 `## #` id 最大 **477** ⇒ 取 **#478**。
+
+**先量后写（量的是「#457 的修到底还剩什么洞」）。** #457 把 `prepare` 的两次读合成一次（`_read_text_or_none`），但那个助手只捕 `OSError`：
+- **非 UTF-8 的 go.mod 仍会抛**（`UnicodeDecodeError` 是 `ValueError` 的子类，不是 `OSError`）⇒ 「二读崩溃」换了个入口又回来了；
+- 更隐蔽的一层：**「存在但读不出来」与「声明里没有版本」在 profile 里长得一模一样**——两者都退回默认 `1.23`。这正是本仓反复钉的「跳过 ≠ 通过」：一个坏文件被 profile 替它说了句「我是 Go 1.23」。
+
+**修（两件事）。**
+1. `_read_text_or_none`（**两个适配器同步**）改捕 `(OSError, UnicodeDecodeError)`，docstring 写明它把「不存在 / 读不了 / 不是 UTF-8」三种事实合成一个 `None`，需要区分「缺失」与「损坏」的调用方自己看 `exists()`。
+2. `go_adapter.prepare` 把那次读的结果**记下来**：`extra["go_mod_readable"] = go_mod_text is not None`。于是三种情况现在可分：
+   | 情况 | `has_go_mod` | `go_mod_readable` | `language_version` |
+   | 没有 go.mod | False | False | 默认 1.23 |
+   | 正常 go.mod | True | True | 文件里的版本 |
+   | 存在但读不出（目录 / 非 UTF-8 / 权限） | True | **False** | 默认 1.23 |
+
+**落地（门）。** 新建 `tests/unit/test_go_adapter_prepare_reads_go_mod_once.py`（**10 案**）：
+1. 没有 go.mod ⇒ 默认版本 + 两个标志都是 False；
+2. 正常 go.mod ⇒ 版本 1.21 + 两个标志都是 True；
+3. **`go.mod` 是个目录** ⇒ 不抛、`has_go_mod` True、`go_mod_readable` False（**这是「存在但读不出」的可移植造法**：Windows 抛 `PermissionError`、别处抛 `IsADirectoryError`，都是 `OSError`）；
+4. **go.mod 不是 UTF-8** ⇒ 不抛、`go_mod_readable` False；
+5. CGO 检测与版本解析用的是**同一次读**；
+6. `_read_text_or_none` 区分「空文件（`""`）」与「读不出（`None`）」——**这两个是不同的**事实****；
+7. 不存在的路径 ⇒ `None`；
+8. 非 UTF-8 的 `package.json` ⇒ `NodeAdapter.detect` 返回 False（同一族洞在 Node 侧的对应面）。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_go_adapter_prepare_reads_go_mod_once.py -q` | **10 passed** |
+| 适配器回归 | `pytest test_go_adapter*.py test_node_adapter*.py test_adapters.py -q` | **64 passed** |
+| ruff | `ruff check craft/adapters/{go,node}_adapter.py tests/unit/...go_mod_once.py` | All checks passed |
+| mypy | `mypy craft/adapters/{go,node}_adapter.py` | Success: no issues found |
+| **变异臂①**（助手改回只捕 `OSError`） | 先预测：非 UTF-8 那条 + 参数化里的 `b"\xff\xfe"` 那条红 | 实测 **2 failed, 8 passed**，逐名命中 |
+| **变异臂②**（删掉 `go_mod_readable` 那一行） | 先预测：断言该键的 4 条红 | 实测 **4 failed, 6 passed**，逐名命中 |
+| 变异臂还原 | `trap ... EXIT TERM INT` | 工作树确认只剩本号改动、无 `.orig` 残留 |
+
+**否证与订正（本号自己踩的）。** 一开始想「只捕 `OSError`，让 `UnicodeDecodeError` 抛出去」——理由是 fail-loud。但 `prepare` 的契约是**返回一个 profile**，它没有地方「报告」；抛出去等于让一个坏文件炸掉整个准备阶段，而调用方拿不到任何关于 go.mod 的信息。**「记一笔」比「抛」和「静默」都更接近诚实**：文件坏了是事实，profile 应当把它说出来，而不是替它撒谎、也不该因此罢工。
+
+**诚实边界。** ① `go_mod_readable` 是 `RuntimeProfile.extra` 里的**新键**。已确认 `agent/matrix_policy.py::_merge_group` 处理的是契约矩阵行、不碰 `extra`（本仓那条「固定键字典会静默丢键」的陷阱在这里不适用）；但若将来出现按固定键枚举 `extra` 的投影，必须同步加。② 判据是「能不能按 UTF-8 读成文本」，不是「go.mod 语法是否合法」——一个语法错但能解码的 go.mod 仍会被正则尽力解析。③ `_read_text_or_none` 的语义变宽了（多了「解码失败」），`node_adapter` 里 `package.json` 的 `content_text` 因此从「读不出就抛」变成「读不出是 None」；证据里 `content_text: None` 本来就有「没有内容」的含义，可接受。④ 未跑真实 `go test`（需要 Go 工具链与沙箱）。
+
+**本号没有推送（诚实记账）。** 当前 HEAD 的 **mypy 门是红的**：`agent/self_test_diff.py:149-150` 把 `dict[str, int] | None` 传给了 `_executed(counts: dict[str, int])`。**另一车道正在该文件上做在途重写**（工作树里已 mypy-clean，含 `_Side` dataclass，其 docstring 直接写明「which is how the module shipped a type error the test suite could not see」），但**尚未提交**。我若现在推送，会把这 4 个本地提交（#474–#477）连同那条红一起推上 master。故本号**只提交、不推送**，等该修复落地后一并推送。
+
+**下一号队列（取号按落地时点 max+1）。** ① **等 `self_test_diff.py` 的在途修复提交后推送**，并复核全仓 `mypy .`（本号开工时实测 2 条红）。② 仓库根仍有一批未跟踪调试脚本（`_526.patch` / `_527.patch` / `_arm52*.py` 等），只污染本地 `ruff check .`、不进 CI。③ #453 队列剩余：文档里引用指令的通用防护。④ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。
