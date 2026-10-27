@@ -2,6 +2,9 @@
 
 import pathlib
 
+import pytest
+
+import tests.conftest as _isolation
 from agent.contracts.compiler import (
     candidates_from_constitution,
     compile_candidates,
@@ -17,6 +20,28 @@ SPEC = """1. Authentication
 2. Transactional integrity
    - Email update must be atomic with token invalidation.
 """
+
+#: The isolation contract's verdict for THIS session, read at import time.
+#: ``tests/conftest.py`` decides it in ``pytest_configure``, which runs before
+#: collection, so the value is already final when this module is imported.
+_MYSQL_STATE = _isolation.MYSQL_ISOLATION[0]
+
+#: ``contract propose`` reaches MySQL through ``ContractRegistry()``, so the
+#: two cases that get past the zero-candidate branch need a live database.
+#: Without one they raised ``pymysql.err.OperationalError`` — a RED that said
+#: "the product is broken" where the truth was "this session has no database".
+#: Measured: CI run 40574430562, ``tests-no-infra``, exactly two reds from
+#: this file, both ``(2003, "Can't connect to MySQL server on 'localhost'")``.
+#: A case that cannot run must SKIP; the job that has the database runs them
+#: for real (``.github/workflows/ci.yml``, ``tests-with-infra``).
+requires_mysql = pytest.mark.skipif(
+    _MYSQL_STATE not in ("dedicated", "redirected"),
+    reason=(
+        "contract propose writes to MySQL through ContractRegistry(), and this "
+        f"session's isolation verdict is {_MYSQL_STATE!r}: there is no "
+        "reachable database, so the case would fail instead of skipping"
+    ),
+)
 
 
 def test_compile_candidates_from_spec():
@@ -199,6 +224,7 @@ def test_a_spec_where_nothing_compiles_exits_nonzero() -> None:
     assert "FEEL" in result.output, "the gap must name the requirement"
 
 
+@requires_mysql
 def test_the_gap_branch_names_the_two_different_fixes() -> None:
     """§2.5's two suggestions are different edits, not one boilerplate line.
 
@@ -219,6 +245,7 @@ def test_the_gap_branch_names_the_two_different_fixes() -> None:
     )
 
 
+@requires_mysql
 def test_full_coverage_exits_zero() -> None:
     """The other half of the contract: the exit code must not become a blanket 1.
 

@@ -14145,3 +14145,73 @@ does not explicitly export attribute "_read_java_files"  [attr-defined]
 - 只修这一处调用点。其余 42 处跨模块私有导入未动（它们不走别名链，mypy 也不报）。
 - 这条红能活到 master，说明**类型门的结果没有拦住推送**（或推送方没等它跑完）。本号修的是代码，不是流程；流程面（分支保护 / 等 CI）不属本仓文件能改的范围。
 - `run_deep_experiments` 的 mutation 段本身没有被本号改变行为：调用的是同一个函数对象，已实测 `is` 为真。
+
+## #499 CI 说它会跑仓库自己的门：可 checkout 只带 1 个修订、无库的 job 里 2 个用例在 FAIL、两个 job 死在一条注释上
+
+**起因/占号。** #491 落地后的 CI run `40574430562`（提交 `565adfa`）：`tests-no-infra` **21 failed / 5585 passed / 29 skipped in 867.10s**；`tests-with-infra` 与 `eval-golden-cases` **一个测试都没跑**——日志里只有 `docker: 'docker run' requires at least 1 argument`。逐条归因：21 条红里 **10 条**是「job 没带上门要读的东西」（账本围栏 **7**、证据门 **1**、contract 编译 **2**），另 **11 条**属别车道在飞的文件（verdict_channel_parity 3 / fake_inventory 2 / checker_type_parity 1 / gradle_adapter 1 / metric_inventory 1 / progress_event_labels 1 / subprocess_text_encoding 1 / timeout_partial_output 1）——**没有一条是产品缺陷**。同一个 run 的 `lint-type` 是**绿**的，这订正 #491 的前提：那条红在 #491 合并**之前**的 HEAD 上，合并后的第一个 run 已经绿。**占号**：动手时账本 max＝**491**，本号按当时的 max+1 取 492；测量期间远端连落 #492（`_env_int()` 六份副本）、#493（胶囊与报告路径）、#494（`_read_java_files`）、#495（`_is_duplicate_key()`），第一版落地基座又落 #496（Gradle 沙箱）——按规矩在提交前重测（max＝**496**）并改名 #497；随后远端又连落 #497（worktree 清理助手）与 #498（别名导入的 mypy 红），第二版基座 max＝**498** ⇒ 最终 **#499**。两次改名都只动五处 `ci.yml` 注释与一处 docstring（共六处）；电池在第一次改名后的字节上跑完，第二次改名后对照组在最终字节上重跑。
+
+**先量后写（五处红/死因各自量出机制）。**
+
+1. **围栏的 7 条红 = checkout 只带 1 个修订。** 围栏要读账本的**历史**（`MIN_REVS = 100`，从它自己的模块读，本号不重抄），而 `actions/checkout` 默认 depth=1。实测：全克隆上 `git log --format=%H -- docs/operations/DEEP_OPTIMIZATION_PLAN.md | wc -l` ＝ **378**（CI 时点 `565adfa`）、**385**（落地基座 `f87dda6`）；一条 depth=1 的克隆只带 **1**（新门用 3 提交的临时平面 ＋ `git clone --depth 1 --no-local` 亲自量：3 → 1。`--no-local` 是必须的：本地传输会忽略 `--depth`，不带它的克隆会静默带走全部历史，见证就什么也没证明）。CI 上 7 条腿全是 `UnreadableLedgerError: only 1 revisions ... are reachable`。
+2. **证据门的 1 条红 = 它读的是机器，不是仓库。** L1 原本是 `(root / path).exists()`。账本引用 `reports/full-eval/eval-report.results.json`（全量评测写、被 git 忽略的生成物）：在跑过评测的机器上为真，在 CI 的新 checkout 上为假——同一份账本、同一个主张、两个判决。用门自己的读法实测（落地基座 `f87dda6`）：**55** 条证据路径出现、去重 **25** 个、**25** 个全被承载，其中 **1** 个只被「声明为生成物」承载；同一读数为 `sections 322 / blocks 20 / tracked 2319`。
+3. **contract 的 2 条红 = 用例该跳却在 FAIL。** 两条走 `ContractRegistry()` 的用例在无库的 job 里抛 `pymysql.err.OperationalError: (2003, "Can't connect to MySQL server on 'localhost'")`。实测无库（`MYSQL_PORT=1`）：该文件 **9 passed, 2 skipped, 1 warning in 2.51s**，跳过理由点名 isolation 判决。**有库时那两条必须真的跑**：本号把该文件加进 `tests-with-infra` 的 pytest 行，实测四文件同跑（contract ＋ migrations ＋ job_state_machine ＋ outbox，会话判词 `redirected -> specproof_test`）⇒ **58 passed, 3 warnings in 46.85s, 0 skipped**。
+4. **两个 job 的死因 = 注释落在反斜杠续行里。** `docker run … \` 的续行中间有一条 `# #159 …` 注释：续行在解析前被去掉，`#` 于是吃到**整条逻辑命令**的末尾——镜像名被吞掉，`docker run` 一个参数都没有。新门的腿用真 bash 量同一形状：坏形状里 `alpine` 不在参数表里且 rc≠0；去掉注释后 `alpine` 回来且 rc=0。
+5. **修完注释，`tests-with-infra` 仍会在第一个测试前 exit 4。** `compose.phase0.yml` 只建产品库（`specproof_phase0`）；`tests/conftest.py`（#75）只在**隔离库**可用时才把会话重定向过去，否则 `blocked` ⇒ `pytest.exit(..., returncode=4)`。在本机活容器上实测那两条语句（与 `scripts/create_test_database.ps1` 同义）⇒ **rc=0，`specproof_phase0` 与 `specproof_test` 都在**。
+
+**修。**
+- `.github/workflows/ci.yml`：`tests-no-infra` 的 checkout 加 `fetch-depth: 0`（并写明为什么任何有限深度都不够：depth-N 只承诺 N 个**仓库**修订，围栏要的是一**个文件**的 `MIN_REVS` 个）；`tests-with-infra` 新增「Create the isolated test schema …」步骤（跑与脚本同样的两条语句，库名从 conftest 的默认值读）；该 job 的 pytest 行加 `tests/unit/test_contract_compiler.py`；两个 job 的 `# #159` 注释块**移到 `docker run` 之上**（续行之外）。
+- `tests/unit/test_contract_compiler.py`：两条用例加 `skipif`，判决从 `tests.conftest.MYSQL_ISOLATION[0]` 读（隔离契约自己的值，不在这里另推一遍）；跳过理由点名判决。
+- `tests/conftest.py`：`BLOCKED_MESSAGE` 补上 Linux/macOS 的一行命令（同一个 schema、同样两条语句）——原消息只指一个 Windows 的 `.ps1`，照着它在 CI 上做不了。
+- `tests/unit/test_ledger_evidence_claims_are_true.py`：L1 的「在树里」改成「被**仓库**承载」——index 里的跟踪文件 ∪ `.gitignore` 声明为生成物的路径；**磁盘不是第三种载体**。仓库读不出来时**拒绝判决**（`UnreadableRepoError`，与围栏的 L5 同型），把「我没看到」和「没有」分开。
+
+**落地（门）。** 新建 `tests/unit/test_ci_jobs_can_run_the_repo_gates.py`（**8 腿**，五个判据 G1–G5）：G1 三条（单元套件 job 的 checkout 必须是 `fetch-depth: 0`；HEAD 的账本历史确实满足围栏；depth=1 的克隆只带 1 个修订）；G2 一条（无库时 contract 的两条用例 **SKIP**，且理由点名 isolation 判决——真起子进程、逐案读判词，长理由折行先归一）；G3 一条（有库的 job 在跑测试**之前**建隔离库，库名是 conftest 的默认值、顺序按 YAML 读）；G4 一条（有库的 job 的 pytest 行包含 contract 文件——跳过不能是这两条路径唯一被练到的地方）；G5 两条（任何 `run:` 块都不许有「注释落在续行里」的形状；真 bash 量那个形状确实会吞掉镜像与命令）。两条判据是**派生**的：`MIN_REVS` 从围栏模块 import，schema 名从 `tests.conftest` 的 `DEFAULT_TEST_MYSQL_DATABASE` 读——抄一份字面量会在两个位置漂，而漂只会以「CI job exit 4」或「门永远绿」的形式出现。
+
+**门证（全在本号内亲手取，读数取自落地基座上的最后一轮）。**
+
+| 门 | 命令 | 结果 |
+|---|---|---|
+| 新门（全量） | `pytest tests/unit/test_ci_jobs_can_run_the_repo_gates.py -v` | **8 passed in 40.56s**（最终字节 `-q` 复跑：**8 passed in 45.22s**） |
+| 新门（快环） | 同上 ＋ `-m 'not slow'` | **7 passed, 1 deselected in 10.12s** |
+| 证据门（改后全文件） | `pytest tests/unit/test_ledger_evidence_claims_are_true.py -q` | **16 passed in 6.42s**（最终字节复跑：**16 passed in 8.32s**） |
+| 围栏（本地全历史） | `pytest tests/unit/test_recorded_ledger_sections_do_not_vanish.py -q` | **7 passed in 19.77s** |
+| 四道账本门（最终字节，`SPECPROOF_LEDGER_PATH` 指向 `ledger-499.md`） | 证据门 ＋ queue_pointers ＋ section_ids ＋ 围栏 同跑 `-q` | **46 passed**（两次复跑 83.50s、71.11s，均 46/46） |
+| contract 无库 | `MYSQL_PORT=1 pytest tests/unit/test_contract_compiler.py -q` | **9 passed, 2 skipped, 1 warning in 2.51s** |
+| contract ＋ 三文件有库 | 四文件 `-q`（本机 MySQL） | **58 passed, 3 warnings in 46.85s, 0 skipped** |
+| 另外四道读 `ci.yml` 的门 | `test_workflows_invoke_mvnw_through_sh` / `test_the_ci_type_check_is_a_suite_leg` / `test_ci_acceptance_greps_match_the_eval_summary` / `test_ci_eval_subset_is_measurable` | **17 passed in 364.07s**（测量时那 1 条红是别车道在飞的 `_read_java_files` 导出；#494 落地后重测已绿） |
+| 债普查（同一文件） | `captures_without_codec(REPO)` | **49**（上限 54），本号改的三个 Python 路径 **0** 条 |
+| ruff | 四个 Python 路径 | **All checks passed** |
+
+**变异臂（预测写在跑之前：`planes/m492/predictions.md`；电池：`planes/m492/arms.py`；判决：`planes/m492/results.json`）。** 臂跑在仓库**之外**的一次性 git 仓库 `planes/m492/plane` 里，装的是被变异文件的**副本**（工作树不写；没有东西要复原，因为共享的东西没被碰过）。平面有 120 个账本修订（围栏的 `MIN_REVS` 在平面里也满足），解释器带 `PYTHONDONTWRITEBYTECODE=1`、`PYTHONIOENCODING=utf-8`，`MYSQL_PORT=1` 让平面自己的会话找不到库。每个臂只动**一个**工件，跑**整个**门文件：目标腿必须红、其余腿必须绿。A5 是唯一就地变异 **shipped** 文件的臂（证据门）——那门的判决是关于**真仓库**的（它读真 index 与真 ignore 规则），平面的 index 会让它因为平面的理由红、什么也证明不了；所以 A5 留逐字节备份、在 `finally` 里复原并**断言**（`A5 restored: True`）。
+
+| 臂 | 刀 | 预测红 | 实测红 | 判决 |
+|---|---|---|---|---|
+| 对照 | 平面不动 | 0 | **0**（8 绿） | MATCHED |
+| A1 | 单元套件 job 的 checkout 丢 `fetch-depth: 0` | 1（G1） | **1**（逐名命中） | MATCHED |
+| A2 | 有库 job 丢「建隔离库」步骤 | 1（G3） | **1**（逐名命中） | MATCHED |
+| A3 | 注释回到续行里 | 1（G5 扫描器那条） | **1**（逐名命中） | MATCHED |
+| A4 | 两条 `@requires_mysql` 离开 contract 文件 | 1（G2） | **1**（逐名命中） | MATCHED |
+| A5 | `RepoPaths.carries` 回到读磁盘 | 3 | **3**（三条载体腿） | MATCHED |
+
+A5 预测 **3** 条而不是 4 条：本机**有** `reports/full-eval/eval-report.results.json`，所以读磁盘的版本仍会判第四条（`test_every_evidence_file_exists`）为真——那条腿正是**机器相关**的那条，在 CI 的新 checkout 上它会红。这个不对称就是本号要消掉的东西，所以预测里写明「本机 3 条」。
+
+第二次改名后，对照组在**最终 #499 字节**上重跑：平面里的 `ci.yml` 读出 **5** 处 `#499`、门 docstring 是 `"""#499`、旧号 **0** 处（脚本自证平面装的是最终字节，不是旧副本），**8 腿全绿**（`planes/m492/results-control-499.json`）。
+
+**否证与订正（本号自己踩的）。**
+- **第 1 轮电池作废，不是判决。** 对照臂与 A1/A2/A3 各多出一条红：平面是在我给新门的三处 `text=True` 补 `encoding=` **之前**建的，所以对照臂复现的正是我刚修掉的崩溃（`UnicodeDecodeError: 'gbk' codec can't decode byte 0x94`，`subprocess` 的读线程死掉、`stdout=None`）。归因记在 `planes/m492/results-run1-stale-plane.json`；重跑用当前字节。
+- **`subprocess.run(text=True)` 在 cp936 上把 UTF-8 子进程输出当 GBK 解。** 修法是抓 `bytes` 自己 `decode("utf-8", errors="replace")`；这条教训写在新门读子进程的 helper docstring 里。
+- **平面删不掉：** git 的松散对象是 0444（`WinError 5`），紧接着的子进程又短暂占着目录（`WinError 32`）。`force_rmtree()` ＝ `onexc` 里 `os.chmod(S_IWRITE)` ＋ 10 次重试（1.5s）。
+- **新测试文件也进仓库自己的债普查。** 新门第一版有 3 处 `text=True` 没有编解码器，把 `test_subprocess_text_encoding.py` 的读数从 49 推到 52（上限 54）——「新测试也是站点」。三处都钉成 `encoding="utf-8", errors="replace"` 后回到 **49**，没有一处是我的。
+- **取号被占两次。** 动手时账本 max＝491；测量与写门期间远端落了 #492–#495，第一版基座又落 #496 ⇒ 改名 #497；提交前重测发现远端又落 #497、#498 ⇒ 再改名 #499。两次都只动六处号码（注释/docstring），臂的判决不受影响；第一次改名后整套电池重跑，第二次改名后对照组重跑。
+- **别车道那条 `_read_java_files` 红在落地基座上已经绿。** 测量时它让「四道读 ci.yml 的门」出现 16 passed / 1 failed；#494 把导出落地后重测得 **17 passed**。红绿都是同一批门测的，记录以落地基座的读数为准。
+
+**诚实边界。**
+1. **两个 job 还没有被 CI 真跑过。** 「它们能跑」目前是关于 workflow 文件的主张 ＋ bash 级与活容器级的见证；下一次 CI run 才是「job 真的跑到测试」的见证。别车道的 11 条红也会一起进去。
+2. **`fetch-depth: 0` 是全历史克隆。** 那个 job 的 checkout 会变慢；账本一个文件就有 **385** 个修订（CI 时点 378），围栏读的正是这个历史。`MIN_REVS` 仍是 100，本号没有抬它。`eval-golden-cases` 在 HEAD 上本来就有 `fetch-depth: 0`，本号没动它；缺它的是**单元套件**那个 job。
+3. **证据门读的是共享 index。** `git ls-files` 会把**别车道已 staged 未提交**的文件算作「被承载」。这是有意的（账本从工作树读，判决就该对着工作树将要提交的文件集），但它意味着判决可以是对一个不是 HEAD 树集的 index。`check-ignore` 读工作树的 ignore 规则，全局/系统配置被显式关掉。
+4. **G2 的跳过判决依赖 `tests/conftest.py` 的状态词。** 改名（`dedicated/redirected/unreachable/blocked`）必须重瞄那条腿，这是有意的；那条腿是 `slow`，CI 不 deselect `slow`，所以合入门仍会跑它。
+5. **注释扫描器是词法的。** 它认「词首的 `#` 且在引号外」；here-doc 或 `eval` 里拼出来的注释它看不见。真正的机制由真 bash 的腿量（G5 第二条），扫描器只扫 shipped 的 `run:` 块。
+6. **A5 的第四条腿在本机是绿的**（评测报告存在）——这正是旧的机器相关判决；在新 checkout 上它会红。这条不对称没有被「修掉」，它是被**换掉了**：现在判决的是仓库，不是机器。
+7. **本号没有碰别车道的 11 条红**，也没有碰两道稳定的适配器红：`test_subprocess_text_encoding.py` 的 pinned-scope 腿点名 `craft/adapters/go_adapter.py:173`、`craft/adapters/gradle_adapter.py:122`、`:225`、`:398`、`craft/mutation.py:448`；`test_timeout_partial_output.py` 点名 `craft/adapters/go_adapter.py:181`、`craft/adapters/gradle_adapter.py:135`、`:189`。两条在落地基座上重测仍是红，留给下一号。
+8. **本号没有跑全量套件。** 共享工作树里有别车道在飞的改动，全量读数会被污染；本号只跑上述列出的门与相关文件。
+
+**下一号队列（取号按落地时点 max+1；落地前重测）。** ① **两道稳定的适配器红＝一个单元**：`craft/` 的 5 个 locale 编解码站点（上面点名）＋ 3 个 `TimeoutExpired` 分支直接读 `.stdout`（未走 `timed_out_partial`）；两条门在落地基座上仍是稳定红。② #491 队列①：要不要把 mypy 钉住（`mypy==2.3.1` 或让 CI 用 `uv sync --frozen` 读 `uv.lock`）——owner 的决定。③ #453 队列剩余：③（#397 六项）与④（落地前重测账本最大节号）。④ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。⑤ 记一笔号源竞争：本号动手时 max＝491，落地时已是 #498（期间别车道连落 #492–#498）⇒ 取 #499；测量期越长，被占的号越多，下次取号只能在**提交前**重测。
