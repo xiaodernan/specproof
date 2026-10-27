@@ -113,7 +113,11 @@ class MinIOConfig:
             port=int_env("MINIO_PORT", 9000),
             access_key=os.getenv("MINIO_ROOT_USER", "minioadmin"),
             secret_key=os.getenv("MINIO_ROOT_PASSWORD", "specproof_pass"),
-            secure=os.getenv("MINIO_SECURE", "false").lower() == "true",
+            # #459: accept the standard truthy vocabulary (1/true/yes/on) and
+            # strip, not just the literal "true" — MINIO_SECURE=1 used to mean
+            # TLS **off**.
+            secure=os.getenv("MINIO_SECURE", "false").strip().lower()
+            in {"1", "true", "yes", "on"},
         )
 
 
