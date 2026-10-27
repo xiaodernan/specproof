@@ -34,7 +34,6 @@ import http.client
 import importlib.util
 import logging
 import re
-import socket
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -46,7 +45,8 @@ from observability import metrics_http
 from observability.metrics import incr
 from storage.billing import SqliteBillingStore, period_bounds, seed_default_plans
 from storage.invoice_cron import DEFAULT_METRICS_PORT, InvoiceCron
-from tests.unit.port_probe import free_port
+from tests.unit.port_claims import claims as _port_claims
+from tests.unit.port_probe import free_port, port_is_free
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -331,7 +331,10 @@ def test_a_non_bind_defect_is_not_swallowed(
 # plane: E2 takes the number itself, and E4 never binds at all. The population E4 reads
 # is compose ``ports:`` mappings plus roster targets; ``expose:`` entries are not in it
 # because they declare an in-network container port, which cannot collide with a bind on
-# the host — and #232 L15's ``_module_carriers`` owns the 「谁起这个进程」 half.
+# the host — and #232 L15's ``_module_carriers`` owns the 「谁起这个进程」 half. #477
+# applied the SAME reason to the container side of a ``ports:`` mapping: it names a port
+# inside the container's namespace, so it is not a host claim either. The predicate itself
+# moved to ``tests/unit/port_claims.py`` — the deploy plane's owner.
 
 GATE_232 = ROOT / "tests" / "unit" / "test_listen_port_knobs_bind_the_scrape_roster.py"
 OPS_DOCS = ("docs/operations/RUNBOOK.md", "docs/operations/OBSERVABILITY.md")
@@ -377,15 +380,13 @@ def _scrape_default_path() -> str:
 
 
 def _exempt_is_free() -> bool:
-    """Whether this plane will hand the exempt number to a new listener right now."""
-    probe = socket.socket()
-    try:
-        probe.bind(("127.0.0.1", DEFAULT_METRICS_PORT))
-    except OSError:
-        return False
-    finally:
-        probe.close()
-    return True
+    """Whether this plane will hand the exempt number to a new listener right now.
+
+    #477: the host plane has ONE owner for this question —
+    ``tests/unit/port_probe.py`` — and this file used to spell it out again.
+    The check itself did not move; the second copy did.
+    """
+    return port_is_free(DEFAULT_METRICS_PORT)
 
 
 def _recording(opened: list[Any], refusals: list[OSError]) -> Callable[..., Any]:
@@ -459,27 +460,6 @@ def _samples(body: str) -> dict[str, float]:
 
 def _types(body: str) -> dict[str, str]:
     return {m.group(1): m.group(2) for m in _TYPE_LINE.finditer(body)}
-
-
-def _claims_the_number(
-    port: int, roster: dict[str, Any], mappings: list[dict[str, str]]
-) -> list[str]:
-    """Which deploy declarations occupy ``port`` — roster targets and compose mappings.
-
-    Driven three ways by E4: against the shipped population (expected empty), against
-    planted rows naming the exempt number (expected to fire), and against a planted row
-    naming a different number (expected to stay silent). A predicate that only ever sees
-    the shipped files cannot show it would refuse.
-    """
-    needle = str(port)
-    out: list[str] = []
-    for job, info in sorted(roster.items()):
-        if int(info["port"]) == port:
-            out.append(f"名册作业 {job} 抓 {info['host']}:{needle}")
-    for row in mappings:
-        if needle in (row["left"], row["right"]):
-            out.append(f"{row['service']} 映射 {row['left']}:{row['right']}")
-    return out
 
 
 def test_E1_the_exempt_number_is_occupied_and_answers_the_promised_path(
@@ -732,12 +712,21 @@ def test_E4_no_deploy_carrier_claims_the_exempt_number_and_the_predicate_refuses
     where this cron would be started. The census is floored, and the predicate is driven
     from both sides with planted rows: an absence claim that has never refused anything is
     only evidence while the same scan still fires on a row written to be caught.
+
+    #477: the predicate moved to ``tests/unit/port_claims.py`` — the deploy plane's owner.
+    It used to compare the number as a STRING against a mapping's host side and container
+    side, and every shipped host side is TEMPLATED ("${MYSQL_PORT:-3306}"), so a string
+    comparison could never match it and the hits came from the container side — the very
+    side the boundary note above excludes ``expose:`` for. A compose file publishing
+    "${SOME_PORT:-9103}:9103" would have read as "0 claims": a false green on exactly
+    the question this leg asks. The owner reads the host side the way the host does, and
+    the planted rows below now include that shape.
     """
     roster = _gate232()._roster()
     mappings = _gate232()._all_mappings()
     assert len(roster) >= 5, f"the roster census collapsed to {sorted(roster)}"
     assert len(mappings) >= 10, f"the compose mapping census collapsed to {len(mappings)} rows"
-    claims = _claims_the_number(DEFAULT_METRICS_PORT, roster, mappings)
+    claims = _port_claims(DEFAULT_METRICS_PORT, roster, mappings)
     assert claims == [], (
         f"{DEFAULT_METRICS_PORT} is claimed in the deploy plane ({claims}) while the docs call "
         "it the cron's exempt port — either the exemption moves or the docs do"
@@ -747,17 +736,32 @@ def test_E4_no_deploy_carrier_claims_the_exempt_number_and_the_predicate_refuses
     exempt_row = {"service": "node-exporter", "left": str(port), "right": "9101"}
     other_row = {"service": "node-exporter", "left": str(neighbour), "right": "9101"}
     exempt_job = {"planted": {"host": "node-exporter", "port": port, "path": "/metrics"}}
-    fired = _claims_the_number(port, roster, [exempt_row])
+    # #477: the shape the shipped population actually uses — a TEMPLATED host side.
+    # A predicate that compared strings would see nothing here and the "0 hits" above
+    # would again be an absence nobody can vouch for.  The row is in the PARSED shape
+    # #232 hands over: ``left`` is the host side, ``right`` the container side.
+    templated_row = {
+        "service": "node-exporter",
+        "left": f"${{SOME_PORT:-{port}}}",
+        "right": str(port),
+    }
+    fired = _port_claims(port, roster, [exempt_row])
     assert fired, (
         f"a compose mapping of {port} for another service read as no claim — the 「0 hits」 "
         "above would then be a census that cannot fire, not an absence"
     )
-    scraped = _claims_the_number(port, exempt_job, mappings)
+    scraped = _port_claims(port, exempt_job, mappings)
     assert scraped, (
         f"a roster job scraping {port} read as no claim, so E1's 「live AND unread」 clause "
         "is being carried by an empty predicate"
     )
-    silent = _claims_the_number(port, roster, [other_row])
+    templated = _port_claims(port, roster, [templated_row])
+    assert templated, (
+        f"a compose mapping whose HOST side is templated (${{SOME_PORT:-{port}}}:{port}) read "
+        "as no claim — that is the shape every shipped mapping has, so the 「0 hits」 above "
+        "would be an absence nobody can vouch for"
+    )
+    silent = _port_claims(port, roster, [other_row])
     assert not silent, (
         f"a mapping of {neighbour} fired the census for {port}: the predicate is not "
         f"comparing the number it was handed ({silent})"
@@ -766,5 +770,5 @@ def test_E4_no_deploy_carrier_claims_the_exempt_number_and_the_predicate_refuses
         f"[#450] E4 census: {len(roster)} jobs / ports "
         f"{sorted({int(i['port']) for i in roster.values()})} | {len(mappings)} compose "
         f"mappings | claims at {port}: {claims} | planted refusals: "
-        f"{len(fired)}+{len(scraped)} fired, {len(silent)} silent"
+        f"{len(fired)}+{len(scraped)}+{len(templated)} fired, {len(silent)} silent"
     )

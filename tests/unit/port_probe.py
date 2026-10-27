@@ -40,13 +40,23 @@ What this module does NOT hide
   another process can take the number. It is inherent to "ask for a free
   port, then use it", and it is why the callers below re-read the port they
   actually got (``server_address[1]``) rather than trusting the number.
+* :func:`port_is_free` answers about a number the caller ALREADY has, and it
+  says so on the loopback only. A holder bound to some other address (not
+  the loopback, not the wildcard) would not be seen by it, so a caller that
+  binds the wildcard must not read "free" as "mine to take".
+
+This module owns the HOST plane only. The other plane — which deploy
+declarations publish a number — is owned by ``tests/unit/port_claims.py``,
+and the two are deliberately not merged: a file in the repository claims a
+number whether or not anything is running, and a number can be free right now
+and claimed later.
 """
 
 from __future__ import annotations
 
 import socket
 
-__all__ = ["free_port"]
+__all__ = ["free_port", "port_is_free"]
 
 
 def free_port() -> int:
@@ -62,3 +72,24 @@ def free_port() -> int:
         return int(probe.getsockname()[1])
     finally:
         probe.close()
+
+
+def port_is_free(port: int) -> bool:
+    """Whether this plane will hand ``port`` to a new listener right now.
+
+    The other half of :func:`free_port`: that one GIVES you a number nobody
+    holds, this one ASKS about a number you already have. Both are facts
+    about the host, so both live here.
+
+    The check binds the number on the loopback and reads ``OSError`` as
+    "held". The socket is closed immediately, so nothing is left holding the
+    number and the answer does not reserve it.
+    """
+    probe = socket.socket()
+    try:
+        probe.bind(("127.0.0.1", port))
+    except OSError:
+        return False
+    finally:
+        probe.close()
+    return True
