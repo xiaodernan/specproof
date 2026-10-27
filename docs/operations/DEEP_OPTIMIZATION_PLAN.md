@@ -96,3 +96,34 @@
 - **#430**：向量数据库迁移与相似度检索性能优化
 - **#431**：Java Gradle 适配器缓存策略优化
 - **#397 余项**：golden-case 归属归因、87 例数写回、静态机器重跑集成、专用机器 DEEP 时长、CI 夜间工作流、MQ 产品决策等
+
+
+## #474 `MINIO_SECURE=1` 曾经等于「TLS 关」：三个模块各抄一份真值词表，只有它只认字面 `"true"`
+
+**起因/占号。** 本轮做了一次**跨文件重复字面量扫描**（182 个源文件，找「同一份常量集合出现在 2+ 个文件」），命中 10 组；最危险的一组是**环境变量真值词表** `{"1","true","yes","on"}` 出现在 3 个文件。逐一比对发现不是「三份一样」，而是**有一份读法不同**：
+- `agent/self_test_diff.py`：`.strip().lower() in {"1","true","yes","on"}` ✓
+- `storage/notify_relay.py`：`.strip().lower() in (...)` ✓
+- `observability/tracing.py`：`.strip().lower()` 三态（True/False/None）✓
+- **`storage/minio.py`：`os.getenv("MINIO_SECURE","false").lower() == "true"`** ✗ —— 只认字面 `"true"`，不 strip。
+
+后果（安全相关）：运维按全仓惯例写 `MINIO_SECURE=1`（或 `yes`/`on`），`minio.py` 判成 `1 != "true"` ⇒ **`secure=False`，TLS 被关掉**，而调用方以为自己开了。`MINIO_SECURE=" true "`（带空格）同理失效。
+
+占号前 `git fetch`：本地 5 ahead（别车道未推），origin HEAD `2926acc`（`## #473`）⇒ 本号取 **#474**。
+
+**修（改 1 行生产码 + 加门）。** `storage/minio.py`：`secure=os.getenv(...).strip().lower() in {"1","true","yes","on"}`。实测：`MINIO_SECURE=1` / `yes` ⇒ True（修前 False），`0` ⇒ False。
+
+**为什么不在 `storage/env_config.py` 里加一个共享 `env_flag`（试过，退了）。** 试过把词表收进 `env_config.env_flag` 并让 minio/notify_relay 都调它，结果撞上**环境变量人口普查**（`test_env_template_binds_the_compose_knobs.py`）的两条硬约束：① `__all__` 里的读者必须恰好是数值读者（`('float_env','int_env')`），加 `env_flag` 会让两条 pin 直接红；② 就算不放进 `__all__`，把 `os.getenv("MINIO_SECURE", ...)` 这个**字面载体**换成 helper 调用，普查就看不见这个读点，`test_L10` 的「多默认值表」立刻报 `MINIO_SECURE` 不一致。⇒ **保留字面 `os.getenv` 载体**，只把集合改对；**词表一致性改用行为门锁**（见下），不动普查。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_env_flag_vocabulary_is_uniform.py -q` | **51 passed in 3.75s** |
+| 回归（普查） | `pytest test_env_template_binds_the_compose_knobs.py test_numeric_env_knobs_survive_an_empty_assignment.py -q` | **29 passed** |
+| 回归（notify） | `pytest test_notify_relay.py test_worker_notify_outbox.py -q` | **12 passed** |
+| ruff | `ruff check storage/minio.py tests/unit/test_env_flag_vocabulary_is_uniform.py` | **All checks passed** |
+
+新门三条：① **bug 回归**——`MINIO_SECURE` 的 10 种真值拼写（含 `" 1 "`、`" true "`）都必须 `secure is True`，假值/垃圾/未设都必须 False；② **跨开关一致性**——minio / notify_outbox / self_test_exec 三个开关对同一批真值/假值/垃圾拼写必须给出**相同**的布尔；③ **三态开关的差异**——`observability.tracing._flag` 对真值/假值同上，但对**未设/垃圾返回 `None`**（它刻意区分「没设」与「设成关」）。
+
+**诚实边界。** ① 生产码只改 `minio.py` 一行（+注释）；`env_config.py` / `notify_relay.py` 的临时改动已**完整回退**（`git diff` 只剩 minio.py）。② 词表仍是**4 处手抄**——本号不假装去重，只**用行为门把它们锁成同一套语义**；真正的收拢要等普查愿意认一个布尔读者（那是普查的改造，单开一号）。③ 不钉 `MINIO_SECURE` 之外的 MinIO 旋钮（host/port/凭据）的解析。④ 未设 `MINIO_SECURE` 时默认 **False（不加密）**——这是既有默认，本号不改；是否该默认安全（fail-closed 到 TLS）是产品决策。
+
+**下一号队列（取号按落地时点 max+1）。** ① 普查若要支持布尔读者：给 `env_config` 加一个**显式标注**的布尔读者类别，让 L10 不把 bool 默认值与 compose 字符串默认值混比（单开一号）。② 扫描里其余 9 组重复字面量：`severity {"BLOCKER","MAJOR","MINOR"}`（run_differential vs baseline）、`{"BLOCKED","FAILED","NEEDS_REVIEW","VERIFIED"}`（verdict_channels vs notify/templates）等，逐个判「该收拢还是该锁行为」。③ `agent/external_observation.py`（455 行，28 案）仍待整读。
