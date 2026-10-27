@@ -13287,3 +13287,65 @@ ruff `All checks passed!`，mypy `Success: no issues found in 2 source files`。
 **本号没有推送（诚实记账）。** 当前 HEAD 的 **mypy 门是红的**：`agent/self_test_diff.py:149-150` 把 `dict[str, int] | None` 传给了 `_executed(counts: dict[str, int])`。**另一车道正在该文件上做在途重写**（工作树里已 mypy-clean，含 `_Side` dataclass，其 docstring 直接写明「which is how the module shipped a type error the test suite could not see」），但**尚未提交**。我若现在推送，会把这 4 个本地提交（#474–#477）连同那条红一起推上 master。故本号**只提交、不推送**，等该修复落地后一并推送。
 
 **下一号队列（取号按落地时点 max+1）。** ① **等 `self_test_diff.py` 的在途修复提交后推送**，并复核全仓 `mypy .`（本号开工时实测 2 条红）。② 仓库根仍有一批未跟踪调试脚本（`_526.patch` / `_527.patch` / `_arm52*.py` 等），只污染本地 `ruff check .`、不进 CI。③ #453 队列剩余：文档里引用指令的通用防护。④ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。
+
+## #479 CI 的类型检查步骤也必须是一条套件腿：`mypy .` 此前对整套件不可见，`StdioTransport` 的文本契约也没有运行期证人
+
+**起因/占号。** #478 末尾记着一条欠账：「当前 HEAD 的 **mypy 门是红的**……另一车道正在该文件上做在途重写」。本号接那条欠账，并把「另一车道」变成本车道。占号前重测：合并后的 HEAD 账本 `## #` id 最大 **478** ⇒ 取 **#479**。（本号内部编号原为 #472，落地前按「取号按落地时点 max+1」改名——**#472 已被别车道的「## #472 Phase 4 继续：环境变量健壮性与统一默认值」占用**。臂的预测与判决**一字未改**，改名说明见 `.scratch/m472_arm_predictions.md` 顶部。）
+
+**先量后写（量的是「套件看不见什么」）。** 三条读数，都在 HEAD 的字节上取的：
+
+1. **CI 的类型检查步骤**：`python -m mypy .`（`.github/workflows/ci.yml` 的 `lint-type` job；`[tool.mypy] strict = true`，`exclude` 掉 `tests/`、`artifacts/`、`demo/`、`scripts/`、`bench/`）⇒ rc 1，**3 条错、2 个文件、256 个源文件**：`agent/self_test_diff.py:149` 与 `:150` 两条 `[arg-type]`，`mcp/client.py:182` 一条 `[no-any-return]`。
+2. **同一批字节上，套件里没有一条腿跑类型检查**。这不是「门忘了跑」，是「门不在套件里」——从「pytest 绿」走到「push」之间，无论开发者还是 agent，都没有一步会重查类型。臂 A0 把 `agent/self_test_diff.py` 还原成 HEAD 的字节后跑全套件：**唯一变红的是本号新加的那条腿**，此前 30 条 `test_self_test_diff*.py` 既有腿（18 + 8 + 4）全部绿着。于是 #297（`8bd70656`，删掉 `mcp/client.py` 的 `cast`）和 #456（`55be3148`，在 `agent/self_test_diff.py` 里添了第二处 `Optional` 推导）各自留下的一条类型错，可以安安静静地躺在同一个绿套件下面，只在 CI 的那一步红。
+3. **`StdioTransport` 在任何测试文件里 0 命中**（`grep -rn "StdioTransport" tests/` 除本号新文件外无输出）。它声明 `-> str`，而这个「str」只有一个 `cast` 撑着，运行期没有任何证人：`test_mcp_client.py` 驱动的是注入的假件，shipped 的构造点是 `providers/mcp_bridge.py::_default_transport_factory`，没有测试到过它。
+
+**修（四件事）。**
+
+1. **`agent/self_test_diff.py`：一个数只推导一次。** `_failing()` 变成 `_side()`，返回冻结的 `_Side(ran, failing)`；`self_test_verdict` 的两个数都从它身上读。起因：#456 在 149/150 行添了 `_executed(base_counts, _tests(base_counts))`，而 `_executed` 要的是非 Optional 的 dict——而 `_failing` 刚刚算过同一个数又扔了。`_tests` 失去最后一个调用者，被删除。
+2. **`mcp/client.py::StdioTransport.recv`：在读管口的地方把文本契约重述一遍。** `cast(IO[str] | None, self._proc.stdout)`，并写明为什么（typeshed 不管类的类型参数是什么，`Popen.stdout` 一律是 `IO[Any]`，`Any` 会走到返回路径上）。起因：#297 删掉了那个 `cast` 和 `IO` 的 import。
+3. **新门 `tests/unit/test_the_ci_type_check_is_a_suite_leg.py`（7 腿）**：**从 `.github/workflows/ci.yml` 里派生出命令**再照它跑，而不是把命令抄一遍——抄一遍的那条腿会在那一步被改写或删掉之后继续绿。另加三条「透镜」证人：返回类型写错 ⇒ 红；写对 ⇒ 绿；没有注解的 def ⇒ 红（因为 shipped 配置是 strict）；外加一条**反向对照**：同一条 def 在空配置下必须绿——否则前面那条红说的是 mypy，不是这个仓库。
+4. **新门 `tests/unit/test_mcp_stdio_transport_is_the_text_it_claims.py`（4 腿）**：`StdioTransport` 的文本契约第一次有**运行期**证人——真起一个子进程，它用自己的二进制缓冲写出 UTF-8 字节，父进程只有真的把管子设成文本模式才能交回 `str`；再写一行回去，看子进程收到的是不是原样；再看子进程退出时是不是 `EOFError` 而不是一行空串。
+
+**落地（门）。** 两个新门文件（7 + 4 = 11 案）+ `tests/unit/test_self_test_diff_declared_edges.py` 补 1 案（#456 之后唯一能把 reporter 的 `tests` 键与真跑数分开的那个 summary）+ `agent/self_test_diff.py` 与 `mcp/client.py` 两处生产改动。
+
+**门证（全在本号内亲手取）。**
+
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门（类型检查腿） | `pytest tests/unit/test_the_ci_type_check_is_a_suite_leg.py -q` | **7 passed** |
+| 新门（stdio 运行期腿） | `pytest tests/unit/test_mcp_stdio_transport_is_the_text_it_claims.py -q` | **4 passed** |
+| 两门合计（静置） | 同上两条一起 `--durations=0` | **11 passed in 9.51s**（全仓 mypy 那条腿 3.39s、空配置对照 1.90s、三条透镜 0.76/0.67/0.57s、stdio 腿 0.24/0.24/0.18s） |
+| 两门合计（与全量套件并发） | 同上 | **11 passed in 12.38s**（同一条腿 5.13s） |
+| 聚焦回归（13 个模块 = 11 个基线模块 + 2 个新门文件） | `pytest <13 modules> -q --tb=line` | **150 collected**（基线 138） |
+| 账本三门 | `pytest tests/unit/test_ledger_section_numbers_are_unique.py tests/unit/test_ledger_section_ids_are_unique.py tests/unit/test_recorded_ledger_sections_do_not_vanish.py -q` | **23 passed in 14.32s** |
+| mypy | `python -m mypy .` | **Success: no issues found in 256 source files** |
+| **全量单测** | `pytest tests/unit -q` | **2 failed, 5331 passed, 1 skipped in 2601.74s（43:21）**——2 条红**都不是本号的**（见诚实边界②） |
+| 变异臂 ×6 | `.scratch/m472_battery.py`（每个臂一个 pytest 子进程，HEAD 固定在 `12254db`，`head_moved: false`） | **4 MATCHED / 2 MISMATCH**，逐臂判决见 `.scratch/m472_arm_record.md` |
+
+**变异臂的逐条判决（预测写在臂跑之前，一个字都没有按实测回填）。**
+
+| 臂 | 改了什么 | 预测我的红 | 实测我的红 | 判决 |
+| --- | --- | --- | --- | --- |
+| A0 | `agent/self_test_diff.py` 还原成 HEAD 字节 | 1 | 1 | MATCHED |
+| A1 | `_side().ran = int(tests)`（#456 之前的缺陷） | 3 | 5（命中 1/3） | **MISMATCH** |
+| A2 | 删掉 `recv()` 里的 `cast` | 1 | 1 | MATCHED |
+| A3 | 去掉 `Popen(...)` 的 `text=True, encoding="utf-8"` | 2 | 4 | **MISMATCH** |
+| A4 | 门的工作流路径指向不存在的文件 | 3 | 3 | MATCHED（附失败形态注记） |
+| A5 | 去掉 `_executed()` 的 `max(…, 0)` | 0 | 0 | MATCHED（发现：没有载体的腰带） |
+
+**否证与订正（本号自己踩的）。**
+
+- **A1 是 MISMATCH，而且比预测宽**：预测只盯着「数字」那一层，实测的红集合更宽——**#456 之前的缺陷翻的是判决，不是数字**。`ran` 的正确推导是 `tests - skipped`；把它写成 `int(tests)` 之后，一个「全部 skip」的套件读成「N 个跑了、0 个失败」⇒ 判决从 `NON_REPRODUCIBLE` 翻成 **`COMPLIANT`**。三条「全 skip」腿和一条「skip 超过 tests」腿因此都红了（预测 3 条、实测 5 条，命中 1/3）。另外两条预测的红**没红**：它们的 reporter 的 `tests` 键本来就等于真跑数（夹具里没有 skip），`int(tests)` 与 `_executed(...)` 是同一个数，断言动不了——属于**超预测**。
+- **A3 是 MISMATCH，多出两条红**，而这两条红改写了一条本来想当然的结论：预测说「`cast` 仍然压住 mypy——这正是运行期腿存在的理由」。**不对**：`cast` 只在构造器仍选 `Popen[str]` 重载时压得住 mypy；把 `text=True, encoding="utf-8"` 去掉，typeshed 改选 `Popen[bytes]`，`cast` 就变成不兼容赋值（`mcp\client.py:155`）。**`cast` 不是运行期事实的替身，它是那个事实的重述**——类型门和运行期腿不是同一主张的两个独立证人，而是同一个事实的两个读者，事实没了它们一起动。另一条多出的红是 EOF 腿：空行哨兵比的是**空串**，二进制管子交回 `b""`，`b"" == ""` 为假 ⇒ EOF 分支根本不触发。这条腿比我credited的更好。
+- **A4 的失败形态注记**：三条 CI 一致性腿是以 `FileNotFoundError` 抛出的，不是以自己的断言消息失败的。变异被测出来了，但证据比「消息引用型红」弱一档：一条在自己的 assert 之前就抛出的腿，证明的是**路径被读过**，不是它要做的那个比较为假。承担比较的是那三条透镜腿，它们在 A4 里保持绿。
+- **名字与行号的漂移（未按实测回填预测）**：预测写的案名是 `test_the_shipped_packages_pass_the_type_check` 与 `test_the_suite_judges_the_command_ci_judges_with`，落地后的案名是 `test_the_shipped_packages_pass_the_type_check_ci_runs` 与 `test_the_suite_judges_the_whole_repository_ci_judges`；预测写的行号是 `mcp\client.py:182`，落地后同一条错在 `:190`（本号在它上面加了 `cast` 与注释）。预测文件写在臂跑之前，**一个字都没有按实测回填**。
+
+**诚实边界。**
+
+1. **A5 的发现没有折进本号**：`_executed()` 的 `max(…, 0)` 夹取在两个调用点上都**没有可观测后果**（`ran` 在被打印之前先被 `<= 0` 比过，负数和夹到的 0 一样过不了那道比较）。它是一条**没有载体的腰带**，删掉它是一次无人可证的改动，故不与本号同行。
+2. **全量套件里的 2 条红都不是本号的**：`tests/unit/test_subprocess_text_encoding.py::test_pinned_scopes_never_decode_a_child_with_the_locale_codec`（越界者：`craft/adapters/go_adapter.py:173`、`craft/adapters/gradle_adapter.py:122/225/398`、`craft/mutation.py:448`）与 `tests/unit/test_timeout_partial_output.py::test_no_partial_output_reader_asks_the_running_os_for_a_type`（越界者：`craft/adapters/go_adapter.py:181`、`craft/adapters/gradle_adapter.py:135`、`craft/adapters/node_adapter.py:189`）。两条是同一族欠账——「`text=True` 且不写 `encoding=` ⇒ 子进程按 OS locale 解码」——而**本号改过的 5 个路径一个都没出现在越界名单里**（本号的文件是 `agent/self_test_diff.py`、`mcp/client.py` 与三个测试文件）。这是别车道的账，本号未触碰；其中第一条在六个臂的每次红集合里都有，**已从每个臂的判决里扣除**。
+3. **新门会进 CI 的 `tests-no-infra` 步骤**（该步骤跑 `pytest tests/unit tests/security tests/fault -q`），于是 CI 会把 `python -m mypy .` 跑**两遍**：一遍在 `lint-type` job，一遍在套件里（热跑约 3.4s）。本号认为值得（类型错不该只由一个 job 看见），但代价是明摆着的，不是白拿的。
+4. **两个新门都**没有**登记进 `tests/conftest.py::SLOW_TEST_MODULES`**：11 案合计 9.51s，按本仓「不属于支配 wall-clock 就不登记」的规矩，不该登记。
+5. **新门的「同仓库」判定读的是 workflow 里 `run:` 行里的 `mypy` 词**；哪天 CI 改成 `pip run typecheck` 之类的包装，这条腿会**要求重新对瞄**而不是悄悄改判别的东西（`_runner_argv` 里那条 `tokens[0] == "python"` 的断言就是为此）。
+6. **合并债（与本号代码无关，但落地时必须交代）**：本车道与来车都带了一个裸的 `## #474`。合并时按 #292 的 L5（后缀号必须紧跟在它的族号之后）将来车那一节改成 `## #474b`、放在 `## #474` 之后，正文除 id 词外**逐字未改**（详见合并提交 `e54a840`）。
+
+**下一号队列（取号按落地时点 max+1）。** ① **#430①/②**：`craft/gates.py:130-132` 的 `_BUILD_MARKERS` 没有任何生产读者，而 `tests/unit/test_craft_gates_serve_every_language_the_product_names.py:156` 拿它跟自己的推导比（真空等式）——删掉还是接上，取决于它有没有产品语义；顺带把三条手抄的「无 pom.xml」句子（`test_craft_gates.py:203`、`test_craft_gates_serve_every_language…:280/:285`）收成派生。② 别车道的 `test_subprocess_text_encoding` 那 5 个越界点该由别车道自己清。③ #453 队列剩余：文档里引用指令的通用防护。④ 仓库根仍有一批未跟踪调试脚本，只污染本地 `ruff check .`、不进 CI。

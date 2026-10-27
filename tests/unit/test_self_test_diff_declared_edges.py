@@ -7,7 +7,7 @@ default-off host-execution gate.
 
 What it does not reach:
 
-* the ``_failing`` **derivation** branch — a summary with no ``tests`` key
+* the ``_side`` **derivation** branch — a summary with no ``tests`` key
   at all, where the count has to be derived from the individual parts;
 * a summary with no ``tests`` key and no usable parts either;
 * the ``NO_EVIDENCE`` detail string naming **both** sides, and naming
@@ -16,7 +16,12 @@ What it does not reach:
   ``passed`` key drives the executed count to zero, which is honest;
 * the "(N tests)" figure in the detail string, which since #456 reports the
   number of tests that actually ran rather than the reporter's ``tests``
-  key.
+  key. #479 adds the one summary that tells those two numbers apart while
+  both are still positive: until then every case here either had ``tests``
+  absent or ``tests`` already equal to the ran count, so a reader that went
+  back to the reporter's key would have kept this file green — which is
+  also how #456's second, Optional-typed derivation of the same number
+  stayed invisible to the suite while CI's ``mypy .`` step charged it.
 """
 from __future__ import annotations
 
@@ -101,3 +106,16 @@ def test_a_normal_reporter_still_reports_its_own_test_count() -> None:
     verdict, detail = self_test_verdict(base, head)
     assert verdict == VERDICT_REGRESSION
     assert "(10 tests)" in detail
+
+
+def test_the_figure_is_the_ran_count_when_the_reporter_publishes_a_bigger_tests_key() -> None:
+    # Surefire folds the skipped ones into "tests": 9 there, 3 of which ran. Both
+    # numbers are positive, so this is the summary that separates "how many ran"
+    # from "how many the reporter counted" — the legs above only ever had one of
+    # the two available.
+    base = {"tests": 9, "passed": 3, "failed": 0, "errors": 0, "skipped": 6}
+    head = {"tests": 9, "passed": 2, "failed": 1, "errors": 0, "skipped": 6}
+    verdict, detail = self_test_verdict(base, head)
+    assert verdict == VERDICT_REGRESSION
+    assert "(3 tests)" in detail, detail
+    assert "(9 tests)" not in detail, detail

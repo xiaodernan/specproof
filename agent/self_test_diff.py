@@ -31,6 +31,7 @@ caller side lives in ``agent/nodes/run_differential.py``.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 
 #: Env var gating local-first (host, unsandboxed) self-test execution. Default
 #: OFF: an unset value means "never execute a repo's own tests on the host".
@@ -86,14 +87,30 @@ def _executed(counts: dict[str, int], tests: int) -> int:
     return max(tests - int(counts.get("skipped", 0) or 0), 0)
 
 
-def _failing(counts: dict[str, int] | None) -> int | None:
-    """How many tests failed+errored in one side's summary, or None if the
-    summary carries no usable signal (missing keys, zero tests, or nothing
-    actually ran — an empty or all-skipped run is not evidence of a green
-    suite).
+@dataclass(frozen=True)
+class _Side:
+    """What one side's parsed summary says, derived once.
 
-    Handles all three adapter reporters: surefire uses ``failures`` while
-    pytest/node use ``failed``; both are summed alongside ``errors``.
+    ``ran`` is the figure the verdict detail quotes and ``failing`` is the number
+    the four verdicts compare. Both have to come out of the same call: #456 quoted
+    a SECOND derivation of ``ran`` for the message beside the one that had just
+    decided whether there was evidence at all, and the copy carried a
+    ``dict[str, int] | None`` two lines past the guard that was supposed to have
+    proved it absent-or-present — which is how the module shipped a type error the
+    test suite could not see.
+    """
+
+    ran: int
+    failing: int
+
+
+def _side(counts: dict[str, int] | None) -> _Side | None:
+    """What one side's summary says, or ``None`` when it says nothing usable.
+
+    ``None`` means missing keys, zero tests, or nothing actually ran — an empty or
+    all-skipped run is not evidence of a green suite. Handles all three adapter
+    reporters: surefire uses ``failures`` while pytest/node use ``failed``; both
+    are summed alongside ``errors``.
     """
     if not counts:
         return None
@@ -106,12 +123,16 @@ def _failing(counts: dict[str, int] | None) -> int | None:
         tests = sum(parts)
     if int(tests) <= 0:
         return None
-    if _executed(counts, int(tests)) <= 0:
+    ran = _executed(counts, int(tests))
+    if ran <= 0:
         return None
-    return (
-        int(counts.get("failed", 0) or 0)
-        + int(counts.get("failures", 0) or 0)
-        + int(counts.get("errors", 0) or 0)
+    return _Side(
+        ran=ran,
+        failing=(
+            int(counts.get("failed", 0) or 0)
+            + int(counts.get("failures", 0) or 0)
+            + int(counts.get("errors", 0) or 0)
+        ),
     )
 
 
@@ -129,13 +150,13 @@ def self_test_verdict(
     A zero-test summary on either side is NO_EVIDENCE, never COMPLIANT — we do
     not manufacture a pass from "the command ran and printed nothing".
     """
-    base_fail = _failing(base_counts)
-    head_fail = _failing(head_counts)
-    if base_fail is None or head_fail is None:
+    base = _side(base_counts)
+    head = _side(head_counts)
+    if base is None or head is None:
         missing = []
-        if base_fail is None:
+        if base is None:
             missing.append("base")
-        if head_fail is None:
+        if head is None:
             missing.append("head")
         return (
             VERDICT_NO_EVIDENCE,
@@ -143,11 +164,13 @@ def self_test_verdict(
             f"{' and '.join(missing)} (command ran but produced no counts)",
         )
 
+    base_fail = base.failing
+    head_fail = head.failing
     # The count in the message is the number of tests that actually RAN, not
     # whatever the reporter chose to publish as "tests" — a reporter that emits
     # only passed/failed would otherwise be described as "(0 tests)".
-    base_ran = _executed(base_counts, _tests(base_counts))
-    head_ran = _executed(head_counts, _tests(head_counts))
+    base_ran = base.ran
+    head_ran = head.ran
 
     base_green = base_fail == 0
     head_green = head_fail == 0
@@ -175,9 +198,3 @@ def self_test_verdict(
         f"Repository self-tests fail on both Base ({base_fail}) and "
         f"Head ({head_fail}) — not attributable to this change",
     )
-
-
-def _tests(counts: dict[str, int] | None) -> int:
-    if not counts:
-        return 0
-    return int(counts.get("tests", 0) or 0)
