@@ -562,10 +562,16 @@ def parse_probe_artifact(text: str) -> dict[str, Any] | None:
 class JavaMavenAdapter:
     """Java/Maven via the execution sandbox (guide §4.5 first adapter).
 
-    Declarations (verified on this machine, 2026-08-18 — see the
+    Declarations (measured on this machine, 2026-10-28 — see the
     compatibility matrix doc):
       image          maven:3.9-eclipse-temurin-21
-      digest         sha256:c07f7ccf... (docker image inspect, this host)
+      digest         sha256:99e61abc... (docker image inspect, this host).
+                     The previous pin (2026-08-18, sha256:c07f7ccf...) no
+                     longer matched: upstream re-pushed the tag (image
+                     built 2026-09-26) and a tag resolves to whatever it
+                     currently points at. A pin nothing compares against
+                     is a claim that silently stops being true; #499 put
+                     a check in front of it.
       toolchain      Maven 3.9.9 (wrapper 3.3.2) / Eclipse Temurin JDK 21
       offline policy mvn -o inside --network none; every artifact resolves
                      from the seeded volume specproof-maven-cache-1000
@@ -575,7 +581,7 @@ class JavaMavenAdapter:
     IMAGE = "maven:3.9-eclipse-temurin-21"
     EXECUTION_SURFACE = SURFACE_DOCKER_SANDBOX
     IMAGE_DIGEST = (
-        "sha256:c07f7ccfb8ca6c9fa29ee523f00afa7d2ca6132c92f8652c4aebb5ee3491f502"
+        "sha256:99e61abcff91a9b1333463bd8451fb18495d6eba9250ac66a338b518f8278320"
     )
     TOOLCHAIN = "Maven 3.9.9 (wrapper 3.3.2) / Eclipse Temurin JDK 21"
     OFFLINE_POLICY = (
@@ -589,7 +595,8 @@ class JavaMavenAdapter:
         "local 回退需要宿主 JDK 21 + Maven wrapper",
         "确定性测试模板只支持 demo 仓库 (com.specproof.demo)",
         "输出按尾部 256000 字符截断 (§4.5 输出长度限制)",
-        "镜像 digest 为 2026-08-18 本机验证值, 预拉/seed 时须复核",
+        "镜像 digest 为 2026-10-28 本机 docker image inspect 实测值 "
+        "(上一版 2026-08-18 的 c07f7ccf… 因上游重推 tag 已失效), 预拉/seed 时须复核",
     )
 
     def detect(self, repo: RepositorySnapshot) -> RuntimeProfile:

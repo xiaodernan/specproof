@@ -364,7 +364,7 @@ class TestCompatibilityMatrixContent:
         assert "已支持 (实测)" in text
         assert "规划 (planned)" in text
         assert "maven:3.9-eclipse-temurin-21" in text
-        assert "sha256:c07f7ccfb8ca6c9fa29ee523f00afa7d2ca6132c92f8652c4aebb5ee3491f502" in text
+        assert "sha256:99e61abcff91a9b1333463bd8451fb18495d6eba9250ac66a338b518f8278320" in text
         assert "specproof-maven-cache-1000" in text
         assert "RUNBOOK" in text
         assert "seed_sandbox_cache.ps1" in text

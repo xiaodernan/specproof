@@ -14215,3 +14215,55 @@ A5 预测 **3** 条而不是 4 条：本机**有** `reports/full-eval/eval-repor
 8. **本号没有跑全量套件。** 共享工作树里有别车道在飞的改动，全量读数会被污染；本号只跑上述列出的门与相关文件。
 
 **下一号队列（取号按落地时点 max+1；落地前重测）。** ① **两道稳定的适配器红＝一个单元**：`craft/` 的 5 个 locale 编解码站点（上面点名）＋ 3 个 `TimeoutExpired` 分支直接读 `.stdout`（未走 `timed_out_partial`）；两条门在落地基座上仍是稳定红。② #491 队列①：要不要把 mypy 钉住（`mypy==2.3.1` 或让 CI 用 `uv sync --frozen` 读 `uv.lock`）——owner 的决定。③ #453 队列剩余：③（#397 六项）与④（落地前重测账本最大节号）。④ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。⑤ 记一笔号源竞争：本号动手时 max＝491，落地时已是 #498（期间别车道连落 #492–#498）⇒ 取 #499；测量期越长，被占的号越多，下次取号只能在**提交前**重测。
+## #501 Maven 的镜像 digest 已经过期：声明 `c07f7ccf…`、本地实际 `99e61abc…`，而三处声明（常量 / 矩阵 / 文档）从没有一处跟真实镜像对过
+
+**起因。** #490 的边界写着「镜像/工具链/离线策略/已知限制四列仍是手抄」。#496 只补了「播种脚本必须存在 + 卷名一致」，镜像与工具链两列还是没人对账。这次把它们拿去和**真实镜像**比。
+
+> 占号说明：本号开工时本地 HEAD 的账本 max 是 **498**，落地时发现两条并行线都在推进 ——远端另一车道已落 #499/#500，而本工作树里还有一条**未推送**的 #499（`9d09ba4`，CI 门相关）。为不与已推送的号冲突，本号取 **#501**；那条未推送的 #499 原样保留（不代人改号）。
+
+### 量到的
+
+`docker image inspect` 与适配器常量逐行对照（本机）：
+
+| 镜像 | 声明 digest | 本机 tag 实际解析到 | 一致 |
+| --- | --- | --- | --- |
+| `maven:3.9-eclipse-temurin-21` | `c07f7ccf…` | `99e61abc…` | **否** |
+| `gradle:8.10-jdk21` | （未钉） | `963d59f7…` | — 未声称 |
+| `node:22-alpine` | `b6f26b36…` | `b6f26b36…` | 是 |
+| `python:3.12-slim` | `2f17fc04…` | `2f17fc04…` | 是 |
+| `golang:1.23-bookworm` | `167053a2…` | `167053a2…` | 是 |
+
+四个对得上、**只有 Maven 这一行对不上**——这让它不是噪声而是信号。归因：本机 maven 镜像 `Created=2026-09-26`、约 4 周前拉的；而常量标注的是「2026-08-18 本机验证值」⇒ **上游重推过这个 tag**，pin 悄悄失效了。沙箱是按 **tag** 起容器的，所以真正跑的是 `99e61abc…`，而文档与常量还在说 `c07f7ccf…`。这一行正是标着「已支持 (实测)」的那行。
+
+顺带量到的两处文档漂移：Python 的工具链列写 `CPython 3.12 (容器)`（适配器声明是 `docker sandbox`）；Python 的已知限制列**没有** digest 验证日期，而 Java/Node 都有——同一个表里三行口径不一。
+
+### 修法
+
+- `JavaMavenAdapter.IMAGE_DIGEST` 改成实测值 `99e61abc…`；docstring 把「verified」改成「measured」并写明上一版为什么失效（tag 会被重推，pin 描述的是「今天这个 tag 解析到什么」）；`KNOWN_LIMITS` 的日期改成 `2026-10-28 本机 docker image inspect 实测值`，并注明旧值失效原因。
+- 文档那一行同步 digest 与日期；Python 的工具链列**逐字**改成适配器声明的文本；Python 补上 `2026-09-25` 的 digest 验证日期。
+- `tests/unit/test_adapters.py` 里那个 digest 字面量同步（它断言的是常量，不是真实镜像——本号把这两件事分开）。
+
+### 门
+
+新建 `tests/unit/test_declared_image_digests_match_the_local_images.py`（4 案）：
+1. 每个声明了 `IMAGE_DIGEST` 的适配器，其值必须等于 `docker image inspect` 拿到的 RepoDigests 之一；**镜像不在本机就 skip 并说明理由**（没有镜像什么都证明不了，绝不静默通过）；
+2. 没有声明 digest 的行（Gradle）**不得**在文档里印出任何 `sha256:`，且必须明说「未钉」；
+3. 代码矩阵 → 文档：文档的镜像列必须带上矩阵行的 image 与 digest（重新 pin 必须传到读者面前）；
+4. 文档的工具链列必须与适配器声明的 `TOOLCHAIN` 逐字相同（先按非转义 `\|` 还原）。
+
+### 证据
+
+- **门先红后绿**：写门、改常量之前跑 ⇒ `2 failed / 2 passed`，红在 `Java/Maven: declares sha256:c07f7ccf… but maven:3.9-eclipse-temurin-21 resolves to sha256:99e61abc…` 与 `Python/pip: doc says 'CPython 3.12 (容器)…', adapter declares 'CPython 3.12 (docker sandbox)…'`——两处都是真缺陷，不是人造变异。改后 `4 passed`。
+- 相关回归 `64 passed`（`test_adapters` / 两道文档门 / Gradle 沙箱门 / README 语言表门）；`ruff` 干净（新门初报 E731 + B905）；`mypy` 干净（初报 `_ROWS` 值类型推断成 `type[object]`，已标注 `dict[tuple[str, str], Any]`）。
+- 变异臂①（常量退回旧 digest）⇒ `2 failed / 2 passed`（本地比对 + 文档↔矩阵）；变异臂②（给 Gradle 那行塞一个假 `sha256:abab…`）⇒ `1 failed / 3 passed`。
+
+### 否证
+
+- 第一次想用「文档全文是否包含该 digest」当判据——那样只要常量与文档一起写错就恒绿。改成**两条独立的路**：一条对真实镜像（`docker image inspect`），一条对代码矩阵（文档必须带矩阵的值）。两条都红才说明是三处一起错。
+- `RepoDigests` 对多架构镜像是 manifest-list 摘要，与 `docker pull` 打印的一致；但**不要**用 `.Id`（那是本地镜像 ID，不是 registry 摘要）——第一版探针拿 `.Id` 比，四个全"对不上"。
+
+### 边界
+
+- 本号只保证「声明 == 今天这个 tag 解析到的镜像」，**不保证**这个镜像被端到端跑过：`measured` 与 `verified` 是两件事，文案已分开（Maven 的「已支持 (实测)」凭据仍是 `tests/integration/test_differential.py`，未变）。
+- 镜像不在本机的机器上第 1 条会 skip。CI 的 unit 阶段通常没有这些镜像，所以它主要在**开发机与评测机**上生效；这不理想，但比一条静默通过的假门诚实。
+- 工具链列现在要求逐字相同，等于把它从「手抄散文」降级成「抄写」：语义没变，可核对性变强。
