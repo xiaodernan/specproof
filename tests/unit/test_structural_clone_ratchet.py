@@ -80,7 +80,9 @@ KNOWN_CLONES: dict[Clone, str] = {
             ("storage/object_metadata.py", "connection"),
         }
     ): "two-line contextmanager delegating to unit_of_work(self._connect); a mixin "
-    "would add indirection for two lines",
+    "would add indirection for two lines AND weaken the return type from "
+    "Iterator[pymysql.Connection] to Iterator[Any] across five stores — worse than "
+    "the duplication it removes",
     frozenset(
         {
             ("craft/tools.py", "__init__"),

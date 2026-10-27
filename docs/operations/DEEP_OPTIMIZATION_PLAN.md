@@ -14214,3 +14214,38 @@ does not explicitly export attribute "_read_java_files"  [attr-defined]
 **诚实边界。** ① 这是**钉契约**，不是修 bug：生产行为一字未变，只在代码里写明假设并让改动必须有意。② 不改 `dashboard_snapshot` 的签名（性能测试直接用），根治方案（DB 侧 `NOW()`）留给 owner。③ 未钉「DB 会话时区到底是什么」——那要连库查 `@@session.time_zone`，属集成测试射程。④ 扫描只覆盖裸 `datetime.now()`/`utcnow()`/`date.today()`；用 `time.time()` 的地方是 epoch，时区无关，不需要处理。
 
 **下一号队列（取号按落地时点 max+1）。** ① 缩 allowlist：`connection()` ×5 的 mixin 方案（先量 5 个 store 的 `_connect` 是否同形）。② `__init__()` ×3 的基类方案。③ `mcp` 负超时（#492 边界）。④ dashboard 窗口若改 DB 侧 `NOW()`，需同批改性能测试与标签。
+
+
+## #501 四类经典 Python bug 扫描：全清，然后把「干净」变成棘轮；顺带判定 `connection()` mixin 不做
+
+**起因。** #500 之后换一类找真 bug：可变默认参数、裸 `except:`、`is` 比字面量、`assert` 当运行期校验。扫 227 个 shipped 文件。
+
+**结论：四类全清。**
+| 类别 | 命中 | 说明 |
+| --- | --- | --- |
+| 可变默认参数（`def f(x=[])`） | **0** | |
+| 裸 `except:` | **0** | 仓库用的是 `except Exception` + `# noqa: BLE001` + 注释 |
+| `is` 比字面量 | **0** | 942 条 `is` 比较**全部**是 `is None` / `is True` / `is False`（惯用法），没有一条是字符串/数字 |
+| `assert` 当运行期校验 | **12 条 assert，全是内部不变式**（11 条 `is not None`、1 条 `isinstance`），没有守卫外部输入的 |
+
+**落地（把干净变成棘轮）。** 新建 `tests/unit/test_no_classic_python_smells.py`（**3 案**）：扫 13 个 shipped 包（`git ls-files`，与普查/克隆门同一套），断言
+- 没有可变默认参数、
+- 没有裸 `except:`、
+- 没有对**字符串/数字**的 `is`/`is not`（`None`/`True`/`False` 是惯用法，明确放行）。
+第一条 `def f(x=[])` 或 `except:` 进来就会红。
+
+**顺带判定：`connection()` ×5 的 mixin 不做。** 5 个 store 都是无基类的 `class X:`、都有 `_connect` 方法，技术上 mixin 可行。但：
+- mixin 只能把返回类型写成 `Iterator[Any]`（或引入 `Generic[ConnT]` 参数化）；
+- 前者把 5 个 store 的 `connection()` 从 `Iterator[pymysql.Connection]` 降级成 `Iterator[Any]`，**为省 8 行削弱整层类型精度**；
+- 后者为一个 2 行方法引入泛型样板。
+⇒ **净亏**。已把这条理由写进 `test_structural_clone_ratchet.KNOWN_CLONES`，免得后续车道再重新论证一遍。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 + 克隆棘轮 | `pytest test_no_classic_python_smells.py test_structural_clone_ratchet.py -q` | **6 passed in 17.09s** |
+| ruff | 两个测试文件 | 初报 1 个 B905（`zip` 无 `strict=`），加 `strict=True` 后 **All checks passed** |
+
+**诚实边界。** ① 这是**否定结论 + 棘轮**，不改任何生产码。② 扫描只看这四类；「未捕获的返回值」「过宽的 `except Exception`」（有 noqa 与注释的那些）不在射程——后者是仓库的既有风格，不是 bug。③ `assert` 那一类只统计了数量与形态，**没有逐条判断**是否有该用显式异常的；12 条全是内部不变式，风险低。④ 棘轮用 `git ls-files`，新文件必须先 `git add`。
+
+**下一号队列（取号按落地时点 max+1）。** ① `__init__()` ×3 的基类方案（同样要先算类型代价）。② `mcp` 负超时（#492 边界）。③ 近似克隆检测（改名/换字面量）作为下一层工具。④ 过宽 `except Exception` 的**逐条审计**（有 noqa 不等于无害）。
