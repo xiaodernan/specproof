@@ -232,6 +232,17 @@ def dashboard() -> dict[str, Any]:
     generated_at = datetime.now(UTC).isoformat()
     try:
         store = MySQLStore()
+        # The window is computed in the API process's LOCAL time, deliberately
+        # naive: `verification_jobs.created_at` is a MySQL TIMESTAMP, so the
+        # comparison is done by the DB in its SESSION time zone. The two agree
+        # when the API process and the DB session share a time zone (production:
+        # both UTC), which is why the response can honestly say "server-local".
+        # If they differ — a dev machine at UTC+8 against a UTC MySQL — the
+        # window is skewed by the offset while the label still reads
+        # "server-local". Computing it in the DB (`NOW() - INTERVAL 24 HOUR`)
+        # would remove the assumption, but that changes dashboard_snapshot's
+        # contract, so it is a deliberate decision rather than a drive-by edit.
+        # test_dashboard_window_contract.py pins the current shape.
         since = datetime.now() - timedelta(hours=24)
         snapshot = store.dashboard_snapshot(since)
         status_rows = snapshot["statuses"]

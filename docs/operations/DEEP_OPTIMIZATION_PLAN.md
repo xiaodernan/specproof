@@ -14182,3 +14182,35 @@ does not explicitly export attribute "_read_java_files"  [attr-defined]
 **诚实边界。** ① allowlist 是**登记现状**，不是背书——每条都写了「为什么还没合并」，缩小它才算进展。② 扫描只抓「**全常量 AST 完全相同**」的函数体：结构相似但改名/换字面量的**近似克隆**不在射程（那是另一种工具）。③ `MIN_NODES = 25` 是取舍：更小会淹没在 2 行委托里，更大可能漏掉真副本。④ 门依赖 `git ls-files`（与数值旋钮普查同一套），**新文件必须先 `git add`** 才会被看见。
 
 **下一号队列（取号按落地时点 max+1）。** ① 缩小 allowlist：`connection()` ×5 若做 mixin 方案（需先量 5 个 store 的 `_connect` 是否同形）。② `__init__()` ×3 的基类方案。③ `mcp` 负超时（#492 边界）。④ 近似克隆检测（改名/换字面量）作为下一层工具。
+
+
+## #500 dashboard 的「24h 窗口」是 app 本地时间 × MySQL 会话时区：生产一致，开发机会偏，而标签硬说 server-local
+
+**起因。** 本轮换方向找真 bug：仓库对 UTC 有明确纪律（`_as_utc`/`_iso_utc`），所以扫了一遍裸 `datetime.now()` / `utcnow()`。绝大多数命中是 `time.time()`（epoch 浮点，与时区无关，没问题）。唯一真裸的是 `api/routes/web.py` 的 `since = datetime.now() - timedelta(hours=24)`。
+
+**追下去发现的是「假设未钉」而不是「当场算错」。**
+- `verification_jobs.created_at` 是 MySQL **`TIMESTAMP DEFAULT CURRENT_TIMESTAMP`**（`infra/mysql/migrations/0001_init.sql`）——内部存 UTC，**读写按会话时区转换**。
+- 所以「naive 本地 `since`」与「TIMESTAMP 列」相比时，**两边都在会话时区里解释**，窗口恰好 24h——**前提是 API 进程本地时区 == DB 会话时区**。
+- 生产满足（compose 里没有任何 `TZ=`，两个容器都默认 UTC）⇒ **今天不偏**。
+- 开发机不满足（本机 UTC+8 跑 API、MySQL 在容器里 UTC）⇒ 窗口会偏 8 小时，而响应仍然硬写 `"timeline_timezone": "server-local"` ⇒ **标签在说谎**。
+
+**为什么不直接改成 `NOW() - INTERVAL 24 HOUR`（那才是根治）。** 那会把窗口交给 DB 自己的时钟（与 `CURRENT_TIMESTAMP` 同一个时钟），彻底消除假设——但它改的是 `dashboard_snapshot(since)` 的契约，而 `tests/unit/test_dashboard_performance.py` 直接按 `dashboard_snapshot(datetime(...))` 调用它。**签名变更 + 性能测试改动是 owner 决定**，不是顺手改。
+
+**落地（钉契约 + 把假设写进代码）。**
+1. `api/routes/web.py`：在 `since` 上方加注释，写清「TIMESTAMP / 会话时区 / 生产全 UTC 所以一致 / 开发机会偏 / 根治方案要改契约」。
+2. 新建 `tests/unit/test_dashboard_window_contract.py`（**4 案**）：
+   - 窗口参数是 **naive**（`tzinfo is None`）——DB 靠会话时区解释它；
+   - 窗口恰好是「现在 - 24h」（上下界夹逼）；
+   - 成功路径声明 `timeline_timezone == "server-local"` 且 `timeline_24h` 为空；
+   - **降级路径**（MySQL 挂）仍然声明同一个标签——读者必须知道那条空时间线本会是哪个时区。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_dashboard_window_contract.py -q` | **4 passed in 6.83s** |
+| 回归 | `pytest tests/unit/test_dashboard_api.py tests/unit/test_web_api.py -q` | **51 passed in 83.25s** |
+| ruff | `api/routes/web.py` + 新测试 | **All checks passed** |
+
+**诚实边界。** ① 这是**钉契约**，不是修 bug：生产行为一字未变，只在代码里写明假设并让改动必须有意。② 不改 `dashboard_snapshot` 的签名（性能测试直接用），根治方案（DB 侧 `NOW()`）留给 owner。③ 未钉「DB 会话时区到底是什么」——那要连库查 `@@session.time_zone`，属集成测试射程。④ 扫描只覆盖裸 `datetime.now()`/`utcnow()`/`date.today()`；用 `time.time()` 的地方是 epoch，时区无关，不需要处理。
+
+**下一号队列（取号按落地时点 max+1）。** ① 缩 allowlist：`connection()` ×5 的 mixin 方案（先量 5 个 store 的 `_connect` 是否同形）。② `__init__()` ×3 的基类方案。③ `mcp` 负超时（#492 边界）。④ dashboard 窗口若改 DB 侧 `NOW()`，需同批改性能测试与标签。
