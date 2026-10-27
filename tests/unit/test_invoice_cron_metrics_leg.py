@@ -46,6 +46,7 @@ from observability import metrics_http
 from observability.metrics import incr
 from storage.billing import SqliteBillingStore, period_bounds, seed_default_plans
 from storage.invoice_cron import DEFAULT_METRICS_PORT, InvoiceCron
+from tests.unit.port_probe import free_port
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -169,10 +170,8 @@ def test_the_port_the_cron_declares_really_answers_metrics(
         opened.append(server)
         return server
 
-    probe = socket.socket()
-    probe.bind(("127.0.0.1", 0))
-    declared = int(probe.getsockname()[1])
-    probe.close()
+    # #475: the free-port probe has ONE owner — tests/unit/port_probe.py.
+    declared = free_port()
     monkeypatch.setattr(metrics_http, "serve_metrics_in_thread", _capture)
     try:
         _run_one_cycle(InvoiceCron(store, interval=0.0, metrics_port=declared))

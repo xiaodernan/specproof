@@ -88,7 +88,6 @@ import functools
 import http.client
 import importlib.util
 import inspect
-import socket
 import subprocess
 import sys
 import threading
@@ -102,6 +101,7 @@ import pytest
 from observability import metrics_http
 from observability.metrics import incr, render_text
 from observability.metrics_http import _resolve_bind_host, serve_metrics_in_thread
+from tests.unit.port_probe import free_port as _free_port
 
 ROOT = Path(__file__).resolve().parents[2]
 GATE_232 = ROOT / "tests" / "unit" / "test_listen_port_knobs_bind_the_scrape_roster.py"
@@ -191,12 +191,6 @@ def _family_prefix(job: str) -> str:
 
 
 # ───────────────────────────────── bind machinery ─────────────────────────────────
-def _free_port() -> int:
-    probe = socket.socket()
-    probe.bind(("127.0.0.1", 0))
-    port = int(probe.getsockname()[1])
-    probe.close()
-    return port
 
 
 def _code(exc: OSError) -> int:
@@ -703,6 +697,67 @@ def _fold_int(node: ast.expr) -> int | None:
     return None
 
 
+#: Modules the census may FOLLOW a call into (#475). A call whose body lives
+#: in one of these is resolved there rather than charged as blind — but only
+#: when the calling file actually imports the name from it. The list is
+#: closed on purpose: a census that could follow any import would be a census
+#: that reads the whole tree, and a tree-wide reader is a census that cannot
+#: say WHERE it read.
+_SHARED_OWNER_MODULES = ("tests.unit.port_probe",)
+
+
+def _imported_names(tree: ast.Module) -> dict[str, tuple[str, str]]:
+    """caller-side name -> (module, the name the OWNER defines).
+
+    Both names matter: ``from X import free_port as _free_port`` binds
+    ``_free_port`` here, while the owner's function is called ``free_port``.
+    Looking the caller-side name up in the owner's table finds nothing, so
+    the owner's own name is carried alongside.
+    """
+    out: dict[str, tuple[str, str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                out[alias.asname or alias.name] = (node.module, alias.name)
+    return out
+
+
+@functools.cache
+def _owner_context(module: str) -> dict[str, Any] | None:
+    """The context of an audited shared owner, or None when it is not there."""
+    path = ROOT / Path(*module.split(".")).with_suffix(".py")
+    if not path.is_file():
+        return None
+    try:
+        tree = ast.parse(path.read_bytes())
+    except SyntaxError:
+        return None
+    return _port_context(tree)
+
+
+def _shared_owner_body(
+    ctx: dict[str, Any], name: str
+) -> tuple[dict[str, Any], ast.AST, str] | None:
+    """The owner context, the body, and the OWNER's own name for ``name``.
+
+    ``name`` is the caller-side spelling; the third element is the name the
+    owner defines, which is the scope the owner's body must be read in.
+    """
+    found = ctx["imported"].get(name)
+    if found is None:
+        return None
+    module, owner_name = found
+    if module not in _SHARED_OWNER_MODULES:
+        return None
+    owner = _owner_context(module)
+    if owner is None:
+        return None
+    body = owner["functions"].get(owner_name)
+    if body is None:
+        return None
+    return owner, body, owner_name
+
+
 @functools.cache
 def _port_context(tree: ast.Module) -> dict[str, Any]:
     """Everything a name lookup needs about one file, computed once per file.
@@ -771,6 +826,9 @@ def _port_context(tree: ast.Module) -> dict[str, Any]:
         "roster": _roster_holders(tree),
         "local": local,
         "params": params,
+        # #475: the names this file imports, so a call into an audited shared
+        # owner can be resolved there instead of being charged as blind.
+        "imported": _imported_names(tree),
     }
 
 
@@ -857,7 +915,31 @@ def _resolve_port(
         name = _call_name(node) or ""
         body = ctx["functions"].get(name)
         if body is None:
-            return [("blind", f"call {name}() outside this file", frozenset())]
+            # #475: the call's body is not in this file. That is "blind" —
+            # UNLESS this file imports the name from an audited shared owner,
+            # in which case the census reads the OWNER's body and says what
+            # the owner's own code does with the number.
+            shared = _shared_owner_body(ctx, name)
+            if shared is None:
+                return [("blind", f"call {name}() outside this file", frozenset())]
+            owner_ctx, owner_body, owner_name = shared
+            if f"call:{name}" in path:
+                return []
+            owner_returns = [
+                row.value for row in ast.walk(owner_body)
+                if isinstance(row, ast.Return) and row.value
+            ]
+            owner_out = [
+                verdict
+                for value in owner_returns
+                for verdict in _resolve_port(
+                    value, owner_name, owner_ctx,
+                    path | {f"call:{name}"}, depth + 1,
+                )
+            ]
+            return owner_out or [
+                ("blind", f"{name}() returns nothing readable", frozenset())
+            ]
         if f"call:{name}" in path:
             return []
         returns = [
@@ -991,9 +1073,14 @@ def test_L6_no_tracked_test_moves_a_scrape_endpoint_it_does_not_own() -> None:
     number the roster declares for nobody, and a number the census cannot read at all. The
     last one is deliberate fail-closed: a port no census can name is one a test moves
     without anything noticing, so it is refused until it is spelled in one of the four
-    readable ways — ``port=0``, a roster entry read through #232's parser, a file-local
-    helper that binds ``0`` and reads the kernel's number back, or a literal that the
-    roster then has to place.
+    readable ways — ``port=0``, a roster entry read through #232's parser, a helper that
+    binds ``0`` and reads the kernel's number back, or a literal that the roster then has
+    to place.
+
+    #475 widened the third way without weakening it: the helper may live in this file OR
+    in one of the audited shared owners (``_SHARED_OWNER_MODULES``) that this file
+    imports it from, and in the second case the census reads the OWNER's body. A name
+    that resolves nowhere is still refused, and the refusal still names the call.
     """
     third = set(_third_party_numbers().values())
     ours = {int(info["port"]) for info in _our_endpoint_jobs().values()}

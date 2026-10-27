@@ -50,7 +50,6 @@ from __future__ import annotations
 import ast
 import errno
 import http.client
-import socket
 import subprocess
 import sys
 from http.server import ThreadingHTTPServer
@@ -60,6 +59,7 @@ import pytest
 
 from observability.metrics import incr, render_text
 from observability.metrics_http import serve_metrics_in_thread
+from tests.unit.port_probe import free_port as _free_port
 
 ROOT = Path(__file__).resolve().parents[2]
 METRICS_HTTP = ROOT / "observability" / "metrics_http.py"
@@ -69,13 +69,6 @@ METRICS_HTTP = ROOT / "observability" / "metrics_http.py"
 OWNER_MARKER = "specproof_metrics_port_owner_marker_total"
 
 
-def _free_port() -> int:
-    """Ask the OS for a port nothing holds, then hand that number over."""
-    probe = socket.socket()
-    probe.bind(("127.0.0.1", 0))
-    port = int(probe.getsockname()[1])
-    probe.close()
-    return port
 
 
 def _bind(port: int) -> ThreadingHTTPServer:
