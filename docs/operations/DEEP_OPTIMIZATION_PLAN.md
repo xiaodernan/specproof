@@ -14103,3 +14103,45 @@ Maven 把同一件事声明成 `("target", "/work/target")`；Gradle 少的就�
 **诚实边界。** ① 两组都是行为等价重构：函数体原样搬移，7 个新测试把两套策略**分开**钉住（尤其「非空目录 + marker 都必须留下」与「删除失败不许逃逸」）。② 不动 `worktree_reclaimer` 的 `--force` 回收路径（崩溃遗留物，语义不同）。③ 不统一三种删除策略——它们服务三种不同状态，统一会把「不许删非空」降级成 `--force`。④ `_discard_workspace` 的 `rmdir` 只对**空**目录有效，非空时静默不动——这是它的设计，不是缺陷。
 
 **下一号队列（取号按落地时点 max+1）。** ① `_get_provider()`（结构克隆剩余）。② `__init__()` 三份若要动，先出基类方案。③ `mcp` 负超时（#492 边界）。④ 结构克隆扫描已从 16 组降到个位数，可考虑把扫描器固化成一条**定期门**（而不是每次手跑）。
+## #498 #494 搬走读取器时留下一处「从别名模块导入」：运行时能跑，`mypy .` 报红，CI 类型门在 master 上一直是红的
+
+**起因。** #496 提交后照例在平面 HEAD 上跑 CI 双门：`ruff check .` 全绿，`mypy .` 报
+
+```
+agent/nodes/run_deep_experiments.py:77: error: Module "agent.nodes.run_static_checks"
+does not explicitly export attribute "_read_java_files"  [attr-defined]
+```
+
+即 **master 上 CI 的类型门是红的**，红在 #494（「读 Java 源码树」三份副本收拢）刚落地之后。占号前重测账本 max：**496**；落地时远端另一车道已占 **#497**（worktree 清理收拢）⇒ 取 **#498**。
+
+### 量到的
+
+#494 把读取器搬进 `agent/nodes/_java_files.py`，`run_static_checks` 为自用而 `from agent.nodes._java_files import read_main_java_files as _read_java_files`；`run_deep_experiments` 则**从这个别名模块**导入 `_read_java_files`。
+
+- 运行时**完全正常**：`run_static_checks._read_java_files is _java_files.read_main_java_files` 为 `True`，函数是同一个对象。**这就是没人发现的原因**——别名链在运行期不可见。
+- 静态检查看得见：把名字 import 进一个模块**不等于**再导出它（mypy `no-implicit-reexport`）⇒ `attr-defined`。
+
+### 修法
+
+`run_deep_experiments` 改为从源头模块导入并直接用规范名（`read_main_java_files`），注释把因果写清（#494 搬走读取器 → 调用点仍指向别名 → `mypy .` 红到 #498）。**不动** `run_static_checks` 自己的别名：它对自身调用是合法的，问题只在「别人拿它当导入源」。
+
+### 门
+
+新建 `tests/unit/test_java_reader_is_imported_from_its_home.py`（3 案）：
+1. `ast` 扫遍 `agent/` 下所有 `ImportFrom`，凡导入这四个读取器名字的，模块必须是 `agent.nodes._java_files`；
+2. `run_static_checks` 用的别名必须仍**是同一个函数对象**（否则「同一个读取器」会悄悄变成两个）；
+3. `run_deep_experiments` 必须**真的调用**了它（一个没人调用的 import 不算修好）。
+
+**为什么不做「禁止跨模块导入私有名」的门**：实测本仓有 **43 处**这类导入（`agent/checkers/constitution.py` 一次拿 5 个正则、`generate_counterexamples.py` 一次拿十几个模板常量），那不是本仓遵守的规则；本仓遵守的是「读取器只有一个家、消费者指向它」。
+
+### 证据
+
+- `mypy .`：`1 error` → **`Success: no issues found in 257 source files`**（平面 HEAD + 本修复）；`ruff` 干净（新门初报 3 条 E501，已拆行）。
+- 相关回归：`test_java_reader_is_imported_from_its_home` / `test_java_files_reader` / `test_run_static_checks_node_execution_is_observable` **13 passed**；`test_run_deep_experiments_node_execution_is_observable` **4 passed**。
+- 变异臂（把导入改回 `from agent.nodes.run_static_checks import _read_java_files`）⇒ **2 failed / 1 passed**，逐名命中（导入源那条 + 「真的调用了它」那条）。
+
+### 边界
+
+- 只修这一处调用点。其余 42 处跨模块私有导入未动（它们不走别名链，mypy 也不报）。
+- 这条红能活到 master，说明**类型门的结果没有拦住推送**（或推送方没等它跑完）。本号修的是代码，不是流程；流程面（分支保护 / 等 CI）不属本仓文件能改的范围。
+- `run_deep_experiments` 的 mutation 段本身没有被本号改变行为：调用的是同一个函数对象，已实测 `is` 为真。

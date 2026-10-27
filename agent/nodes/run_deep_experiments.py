@@ -74,10 +74,16 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
     results: dict[str, Any] = {}
 
     # ── 1) Mutation campaign (P4) ────────────────────────────────
-    from agent.nodes.run_static_checks import _read_java_files
+    # Import from the reader module itself, not from `run_static_checks`:
+    # that module imports the reader under the alias `_read_java_files` for
+    # its own use, and importing a name into a module does not re-export it
+    # (mypy's no-implicit-reexport). #494 moved the reader to _java_files and
+    # left this call site pointing at the alias, which kept CI's `mypy .`
+    # step red on master until #497.
+    from agent.nodes._java_files import read_main_java_files
     from experiments.mutation import run_mutation_campaign
 
-    sources = _read_java_files(app)
+    sources = read_main_java_files(app)
     mutation_reports: list[dict[str, Any]] = []
     for rel_path, content in sources.items():
         if "test" in rel_path or not rel_path.endswith(".java"):
