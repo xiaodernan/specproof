@@ -11855,7 +11855,7 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 - craft/adapters/protocol.py（注册中心核心逻辑持续验证）
 - craft/adapters/node_adapter.py（Unicode 修复持续有效）
 - craft/adapters/go_adapter.py（语法错误持续修复）
-- 	ests/unit/test_adapter_protocol.py（协议测试持续通过）
+- tests/unit/test_adapter_protocol.py（协议测试持续通过）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #455
 
 
@@ -11909,7 +11909,7 @@ def _suppressed(line: str, pattern_name: str) -> bool:
 - craft/adapters/protocol.py（注册中心核心逻辑持续验证）
 - craft/adapters/node_adapter.py（Unicode 修复持续有效）
 - craft/adapters/go_adapter.py（语法错误持续修复）
-- 	ests/unit/test_adapter_protocol.py（协议测试持续通过）
+- tests/unit/test_adapter_protocol.py（协议测试持续通过）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #456
 ## #457 把 go/node 适配器提交后的 CI 红修绿：`os` 未导入的运行时 NameError、`tests_run` 少算、`prepare` 二读崩溃
 
@@ -12039,7 +12039,7 @@ tests_passed = tests_run - tests_failed - tests_skipped
 ### 8.2 能力矩阵最终确定
 - 审查所有适配器的能力字段定义
 - 修正不一致之处，确保字段语义统一
-- 更新 docs/architecture/ADAPTER_CAPABILITY_MATRIX.md 与相关文档
+- 新建 docs/architecture/ADAPTER_CAPABILITY_MATRIX.md 与相关文档
 
 ### 8.3 跨语言项目全链路验证
 - 构建包含 3+ 语言的综合测试项目
@@ -12065,8 +12065,9 @@ tests_passed = tests_run - tests_failed - tests_skipped
 
 
 ## #461 Phase 4 继续：Rust/C++ 适配器启动与分布式执行编排设计
+**状态**：计划（未落地）—— 本节是计划，不是记录；下列「拟新增文件」目前都不在仓库里。
 
-**背景**：#460 完成了产品就绪评估与适配器能力矩阵最终确定。基于现有 Java/Maven、Java/Gradle、Python/pytest、Node.js/npm、Go/test 五大语言生态的完整支持，长期计划进入新语言生态扩展与分布式执行编排设计阶段。
+**背景**：#460 **规划了** 产品就绪评估与适配器能力矩阵最终确定（未落地）。基于现有 Java/Maven、Java/Gradle、Python/pytest、Node.js/npm、Go/test 五大语言生态的完整支持，长期计划进入新语言生态扩展与分布式执行编排设计阶段。
 
 **本批目标**：
 1. **Rust 适配器启动**：基于 Cargo 生态，支持 cargo test、cargo nextest，集成 Docker 沙箱与离线依赖缓存。
@@ -12114,13 +12115,13 @@ tests_passed = tests_run - tests_failed - tests_skipped
 - 版本兼容：语义化版本 + 能力协商机制
 - 沙箱隔离：插件运行在独立进程/容器中
 
-**质量门**
+**计划质量门**（尚未运行）
 - ruff + mypy 全绿
 - 新增 Rust/C++ 适配器核心功能测试覆盖
 - 现有适配器测试无回归
 - ledger fence：无重复头，U+FFRD 计数保持
 
-**证据文件**：
+**拟新增文件**（计划，尚未落地）：
 - craft/adapters/rust_adapter.py（新增）
 - craft/adapters/cpp_adapter.py（新增）
 - craft/adapters/distributed_orchestrator.py（新增）
@@ -12131,6 +12132,7 @@ tests_passed = tests_run - tests_failed - tests_skipped
 
 
 ## #462 Phase 4 继续：Rust 适配器核心实现与 Cargo 生态集成
+**状态**：计划（未落地）—— 本节是计划，不是记录；下列「拟新增文件」目前都不在仓库里。
 
 **背景**：#461 启动了 Rust/C++ 适配器与分布式编排设计。本批重点落地 Rust 适配器核心实现，完整集成 Cargo 生态，包括 cargo test、cargo nextest、离线依赖管理、JUnit XML 输出解析。
 
@@ -12185,21 +12187,22 @@ tests_passed = tests_run - tests_failed - tests_skipped
 - test_rust_adapter_capabilities: 能力字段验证
 - test_rust_adapter_windows_unicode: Windows 编码安全
 
-**质量门**
+**计划质量门**（尚未运行）
 - ruff + mypy 全绿
 - 10+ 单元测试全部通过
 - 现有适配器测试无回归
 - ledger fence：无重复头，U+FFRD 计数保持
 
-**证据文件**：
+**拟新增文件**（计划，尚未落地）：
 - craft/adapters/rust_adapter.py（新增）
 - tests/unit/test_rust_adapter.py（新增）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #462
 
 
 ## #463 Phase 4 继续：C++ 适配器核心实现与多构建系统支持
+**状态**：计划（未落地）—— 本节是计划，不是记录；下列「拟新增文件」目前都不在仓库里。
 
-**背景**：#462 完成了 Rust 适配器核心实现与 Cargo 生态集成。本批重点落地 C++ 适配器核心实现，支持 CMake/Make/Bazel 三大构建系统，集成 CTest/GoogleTest/Catch2/Boost.Test 测试框架，解决跨平台编译工具链问题。
+**背景**：#462 **规划了** Rust 适配器核心实现与 Cargo 生态集成（未落地）。本批重点落地 C++ 适配器核心实现，支持 CMake/Make/Bazel 三大构建系统，集成 CTest/GoogleTest/Catch2/Boost.Test 测试框架，解决跨平台编译工具链问题。
 
 **本批目标**：
 1. **C++ 适配器核心实现**：detect/prepare/execute/collect_evidence 四大接口完整实现。
@@ -12262,21 +12265,22 @@ tests_passed = tests_run - tests_failed - tests_skipped
 - test_cpp_adapter_capabilities: 能力字段验证
 - test_cpp_adapter_cross_compile: 交叉编译参数透传
 
-**质量门**
+**计划质量门**（尚未运行）
 - ruff + mypy 全绿
 - 12+ 单元测试全部通过
 - 现有适配器测试无回归
 - ledger fence：无重复头，U+FFRD 计数保持
 
-**证据文件**：
+**拟新增文件**（计划，尚未落地）：
 - craft/adapters/cpp_adapter.py（新增）
 - tests/unit/test_cpp_adapter.py（新增）
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #463
 
 
 ## #464 Phase 4 继续：分布式执行编排核心实现与多节点调度
+**状态**：计划（未落地）—— 本节是计划，不是记录；下列「拟新增文件」目前都不在仓库里。
 
-**背景**：#463 完成了 C++ 适配器核心实现与多构建系统支持。本批重点落地分布式执行编排核心实现，实现多节点并行执行架构，包括任务分片、结果聚合、故障转移、资源调度等核心能力。
+**背景**：#463 **规划了** C++ 适配器核心实现与多构建系统支持（未落地）。本批重点落地分布式执行编排核心实现，实现多节点并行执行架构，包括任务分片、结果聚合、故障转移、资源调度等核心能力。
 
 **本批目标**：
 1. **分布式编排器核心实现**：任务分片策略、节点注册发现、心跳检测、任务分发与结果收集。
@@ -12361,13 +12365,13 @@ service DistributedOrchestrator {
 - test_orchestrator_scale: 扩缩容验证
 - test_orchestrator_chaos: 混沌工程注入验证
 
-**质量门**
+**计划质量门**（尚未运行）
 - ruff + mypy 全绿
 - 15+ 单元测试全部通过
 - 现有适配器测试无回归
 - ledger fence：无重复头，U+FFRD 计数保持
 
-**证据文件**：
+**拟新增文件**（计划，尚未落地）：
 - craft/adapters/distributed_orchestrator.py（新增）
 - craft/adapters/orchestrator_pb2.py（新增，生成）
 - craft/adapters/orchestrator_pb2_grpc.py（新增，生成）
@@ -12377,8 +12381,9 @@ service DistributedOrchestrator {
 
 
 ## #465 Phase 4 继续：适配器插件化架构实现与第三方扩展生态
+**状态**：计划（未落地）—— 本节是计划，不是记录；下列「拟新增文件」目前都不在仓库里。
 
-**背景**：#464 完成了分布式执行编排核心实现与多节点调度。本批重点落地适配器插件化架构，将适配器从内置模块演进为可动态加载的插件系统，支持第三方扩展，建立开放的适配器生态。
+**背景**：#464 **规划了** 分布式执行编排核心实现与多节点调度（未落地）。本批重点落地适配器插件化架构，将适配器从内置模块演进为可动态加载的插件系统，支持第三方扩展，建立开放的适配器生态。
 
 **本批目标**：
 1. **插件接口标准化**：定义 AdapterPlugin trait，统一插件生命周期、能力声明、配置模式。
@@ -12455,13 +12460,13 @@ trait AdapterPlugin {
 - test_plugin_market_index: 市场索引构建与增量更新
 - test_plugin_cross_language: 跨语言插件互操作
 
-**质量门**
+**计划质量门**（尚未运行）
 - ruff + mypy 全绿
 - 12+ 单元测试全部通过
 - 现有适配器测试无回归
 - ledger fence：无重复头，U+FFRD 计数保持
 
-**证据文件**：
+**拟新增文件**（计划，尚未落地）：
 - craft/adapters/plugin_system.py（新增）
 - craft/adapters/plugin_loader.py（新增）
 - craft/adapters/plugin_registry.py（新增）
@@ -12472,8 +12477,9 @@ trait AdapterPlugin {
 
 
 ## #466 Phase 4 继续：安全加固与合规审计体系建设
+**状态**：计划（未落地）—— 本节是计划，不是记录；下列「拟新增文件」目前都不在仓库里。
 
-**背景**：#465 完成了适配器插件化架构实现与第三方扩展生态。随着适配器生态扩展、分布式编排上线、插件市场开放，安全攻击面显著增加。本批重点建设安全加固与合规审计体系，确保生产环境安全可控。
+**背景**：#465 **规划了** 适配器插件化架构实现与第三方扩展生态（未落地）。随着适配器生态扩展、分布式编排上线、插件市场开放，安全攻击面显著增加。本批重点建设安全加固与合规审计体系，确保生产环境安全可控。
 
 **本批目标**：
 1. **供应链安全**：依赖扫描 (SCA)、SBOM 生成、签名验证、恶意包检测、漏洞数据库同步。
@@ -12524,13 +12530,13 @@ trait AdapterPlugin {
 - 漏洞闭环：Jira/GitHub Issues 自动工单，SLA 跟踪，修复验证回归测试
 - 威胁建模：STRIDE 威胁建模文档化，每季度评审更新
 
-**质量门**
+**计划质量门**（尚未运行）
 - ruff + mypy 全绿
 - 安全扫描零高危/严重漏洞
 - 合规检查 100% 通过
 - ledger fence：无重复头，U+FFRD 计数保持
 
-**证据文件**：
+**拟新增文件**（计划，尚未落地）：
 - craft/security/sca_scanner.py（新增）
 - craft/security/runtime_protector.py（新增）
 - craft/security/audit_logger.py（新增）
@@ -12544,8 +12550,9 @@ trait AdapterPlugin {
 
 
 ## #467 Phase 4 继续：全栈可观测性平台建设与智能告警
+**状态**：计划（未落地）—— 本节是计划，不是记录；下列「拟新增文件」目前都不在仓库里。
 
-**背景**：#466 完成了安全加固与合规审计体系建设。随着系统规模扩大（多语言适配器、分布式编排、插件生态、安全体系），传统的日志查看方式已无法满足生产环境的故障诊断、性能优化、容量规划需求。本批重点建设全栈可观测性平台，实现指标、日志、链路、Profile 四大支柱的统一采集、存储、查询、告警与可视化。
+**背景**：#466 **规划了** 安全加固与合规审计体系建设（未落地）。随着系统规模扩大（多语言适配器、分布式编排、插件生态、安全体系），传统的日志查看方式已无法满足生产环境的故障诊断、性能优化、容量规划需求。本批重点建设全栈可观测性平台，实现指标、日志、链路、Profile 四大支柱的统一采集、存储、查询、告警与可视化。
 
 **本批目标**：
 1. **指标体系建设**：RED/USE 方法论指标采集、Prometheus 生态集成、自定义业务指标、指标标签治理。
@@ -12599,7 +12606,7 @@ trait AdapterPlugin {
 - 自助服务：用户自建仪表盘/告警规则/日志查询，RBAC 权限控制
 - 移动端：Grafana App / 自研 PWA，关键告警推送、核心指标一览
 
-**质量门**
+**计划质量门**（尚未运行）
 - ruff + mypy 全绿
 - 核心指标覆盖率 > 95%
 - 告警噪音率 < 5% (去重后)
@@ -12607,7 +12614,7 @@ trait AdapterPlugin {
 - 平均故障恢复时间 (MTTR) < 15 分钟
 - ledger fence：无重复头，U+FFRD 计数保持
 
-**证据文件**：
+**拟新增文件**（计划，尚未落地）：
 - craft/observability/metrics_collector.py（新增）
 - craft/observability/tracing_instrumentor.py（新增）
 - craft/observability/log_structurer.py（新增）
@@ -12623,8 +12630,9 @@ trait AdapterPlugin {
 
 
 ## #468 Phase 4 继续：多租户架构与资源配额管理体系
+**状态**：计划（未落地）—— 本节是计划，不是记录；下列「拟新增文件」目前都不在仓库里。
 
-**背景**：#467 完成了全栈可观测性平台建设与智能告警。随着用户规模增长、企业级客户接入、数据隔离合规要求提升，单租户架构已无法满足多客户共享基础设施、数据强隔离、资源公平分配、个性化定制等需求。本批重点建设多租户架构与资源配额管理体系。
+**背景**：#467 **规划了** 全栈可观测性平台建设与智能告警（未落地）。随着用户规模增长、企业级客户接入、数据隔离合规要求提升，单租户架构已无法满足多客户共享基础设施、数据强隔离、资源公平分配、个性化定制等需求。本批重点建设多租户架构与资源配额管理体系。
 
 **本批目标**：
 1. **租户模型设计**：租户层级 (Root/Org/Workspace/Project)、租户生命周期、租户元数据管理。
@@ -12680,14 +12688,14 @@ trait AdapterPlugin {
 - 自助扩容：预付费资源包购买、后付费自动扩容阈值配置
 - 开发者门户：API Key 管理、SDK 下载、文档中心、示例代码
 
-**质量门**
+**计划质量门**（尚未运行）
 - ruff + mypy 全绿
 - 租户隔离渗透测试零越权访问
 - 配额强制执行 100% 生效
 - 多租户并发压测 1000+ 租户无性能退化
 - ledger fence：无重复头，U+FFRD 计数保持
 
-**证据文件**：
+**拟新增文件**（计划，尚未落地）：
 - craft/tenancy/tenant_model.py（新增）
 - craft/tenancy/data_isolation.py（新增）
 - craft/tenancy/quota_manager.py（新增）
@@ -12719,7 +12727,7 @@ trait AdapterPlugin {
 
 **诚实边界。** ① 解析器只在单文件内跟随名字：号码从别的模块常量传进来到处读不到来源 ⇒ 判 `blind` 并拒绝，错的方向是假红，不是假绿。② `roster`/`free` 的准入靠形状（`_ROSTER_CALLS` 名单；绑 0 **且**回读 `getsockname` 的 helper 两个条件缺一不可），新增一种形状就是给判据开口子，所以 L8 的 13 个植入源逐条钉住期望桶、且 `probe_that_looks_like_a_probe` 专门见证「像探针但不是探针」仍按数字裁决。③ #232 L2 的 `env:`↔属主一致那条判决，今天的树上没有 shipped 载体（13 行 tests/** 绑定无一行是环境读），它只在两侧读数分叉时才有话可说；A2 是那件事的行为见证，不是这条判决的载体。④ 属主与 #232 现在互相 `exec_module`（#232 L2 载 #427，#427 L6/L8 载 #232），两边都只在测试体内加载、模块顶层不回调对方，实测同会话 25 例无递归、无重复解析——但这层耦合是新出现的，任何一侧把加载挪到模块顶层都会变成循环导入。⑤ 属主只数 AST 上的调用点，不数写在**字符串里**的那次绑定：同名尺子在三份读数下差得很远——`git ls-files tests` 里 10 个文件提到 `serve_metrics_in_thread`，字节出现 87 次、AST `port=` 站点 13 处、字符串常量内 63 次（`.scratch/m451_sidecar_probe.log`）。真正的 sidecar 有 3 个文件把端点写进交给另一个进程的源码字符串，其中 `tests/unit/test_metrics_port_ownership_leg.py:140` 的 `_CHILD`（14 行）自己 `port = int(sys.argv[1])` 再绑一次——那是第 3 个进程，普查的种群里没有它的行。今天不撒谎的原因在别处：喂给它的那个号来自父进程的 `_free_port()`，而父进程那一行是被读过的（`:84`/`:123` 判 `free`），所以「动了谁的号」仍然有判决，只是**绑了几次**没被清点。⑥ 账本这次仍只写索引：追加的基是 `git show HEAD:docs/operations/DEEP_OPTIMIZATION_PLAN.md` 的字节（现跑：1688601 B / 291 节 / `specproof-nosec` 22 处 / 纯 LF），不是工作树副本（1706537 B / **292 节** / 同样 22 处 / 含 CRLF，比 HEAD 多出一节别道在飞的记录）——拿工作树当基等于把别人在飞的那一节和换行风格一起写进我的提交，这正是第一次落库翻车的原因。
 
-**账本落库的两次事故，都记在本节里。** 第一次是我自己造的：#451 的节按 index-only 配方算好了 blob（`3338efdbf417…`，父字节 1611105 + 1 + 10029 = 1621135 B、274→275 节），提交时却写成 `git commit --only <三条路径>` —— `--only` 会**用工作树内容重建这几条路径**，于是账本落的是工作树那份（`f50521e9…`，1599877 B / 273 节 / id 最大 448：删掉了 #450 一整节，并把别道在飞的 5 处 `# specproof-nosec` 算进我头上，标记数 2→7）。两根门反而没受影响（`5bb9e505…` / `942db0fb…` 与落盘一致），因为它们的索引项与工作树同源。修法：`git update-index --cacheinfo 100644,3338efdb…,LEDGER` 后断言 `git diff --cached --name-only` 只剩账本一条、`git show :LEDGER` 逐字节等于算出的追加，再**不带 pathspec** 提交索引（`c2aced6`，账本回到 1621135 B / 275 节 / 最大 id 451 / nosec 回到 2）。教训写死在这里：index-only 落地之后，提交那一笔绝不能带 `--only`，否则前面所有字节断言都白做。
+**账本落库的两次事故，都记在本节里。** 第一次是我自己造的：#451 的节按 index-only 配方算好了 blob（`3338efdbf417…`，父字节 1611105 + 1 + 10029 = 1621135 B、274→275 节），提交时却写成 `git commit --only <三条路径>` —— `--only` 会**用工作树内容重建这几条路径**，于是账本落的是工作树那份（`f50521e9…`，1599877 B / 273 节 / id 最大 448：删掉了 #450 一整节，并把别道在飞的 5 处 `specproof-nosec` 算进我头上，标记数 2→7）。两根门反而没受影响（`5bb9e505…` / `942db0fb…` 与落盘一致），因为它们的索引项与工作树同源。修法：`git update-index --cacheinfo 100644,3338efdb…,LEDGER` 后断言 `git diff --cached --name-only` 只剩账本一条、`git show :LEDGER` 逐字节等于算出的追加，再**不带 pathspec** 提交索引（`c2aced6`，账本回到 1621135 B / 275 节 / 最大 id 451 / nosec 回到 2）。教训写死在这里：index-only 落地之后，提交那一笔绝不能带 `--only`，否则前面所有字节断言都白做。
 第二次不是本号造成的：`c2aced6` 之后，别道在 20:36 落 `e8386f9`（他们的 #452），那条 lineage 的账本基里已经没有我的 451 节——他们自己在 #458 补记里写明「原 #455 节已在一次并发历史重写中丢失」。当前 HEAD 的 `## #` id 序列是 440–448、450、452–468，**独缺 451**，且全文搜「抓取端点的判据收进单一属主」0 命中；而两根门的字节仍在 HEAD 上。所以本节按当前 HEAD 重新追加一次，编号仍跟代码那两笔（`7d5a669` / `c2aced6`）保持 451，不改号——改号会让记录与提交脱钩；追加的基由 `.scratch/m451_reland.py` 落地时点现取 `git show HEAD:`（本节写就时 HEAD 为 `8e39432`，基 1688601 B / 291 节），脚本断言 451 既不在 id 序列里也没有同名标题、追加后节数 +1 且 451 标题恰好出现一次、算出的 blob 逐字节回读一致、`git diff --cached --name-only` 只剩账本一条。
 
 **下一号队列（取号按落地时点 max+1）。** ① 原 #426 队列仍在：三处「无 pom.xml …」字面句收成派生，以及 `_BUILD_MARKERS` 在生产无读者。② `INVOICE_CRON_METRICS_PORT=''` 现在让三个监听器在构造期抛 `ValueError`，而 `OBSERVABILITY.md:73-74` 把这个旋钮宣传成 .env 可改——要么文档改口，要么把空值语义定清楚。③ E3 的 1.0 差值依赖播种租户与 `cycle()` 的进程内 `_period` 护栏，跨进程重跑会变形。④ 原写「在途的别道 `craft/adapters/go_adapter.py:321` 有 `SyntaxError`，本次全量单测靠 `--ignore` 绕开」——**这条已被别道还清**：`git show HEAD:craft/adapters/go_adapter.py` 现在是被跟踪的 12399 B 且 `ast.parse` 通过（#457/#459 那两笔修的）。本节保留这句话是为了记下「一次归因里对外部缺陷的断言也会腐烂」：它在我算证据时是对的（`.scratch/m451_unit2.log` 里那份文件出现 0 次），到落账时就过期了。⑤ 把 sidecar 接进清点（边界⑤ 的那第 3 个进程）：普查除 AST 站点外，再解析「字符串常量里带 `serve_metrics_in_thread(` 的子进程源」并把它计入种群，判决仍按父进程喂进去的那个号；先量的尺子在 `.scratch/m451_sidecar_probe.log`（3 个 carrier 文件、3 个文件提到这个名字却一个 AST 站点都没有——把 sidecar 绑放置在那样的文件里，今天无人报），可行性已另跑一遍 `.scratch/m452_sidecar_feasibility.py`（`_CHILD` 的号在 argv 槽 1，能回溯到父进程的 `_free_port()`；两个同名常量靠「必须是 `NAME(` 的调用形状」排除）。
@@ -12809,6 +12817,7 @@ trait AdapterPlugin {
 - **#397 余项**： golden-case 归属归因、87 例数写回、静态机器重跑集成、专用机器 DEEP 时长、CI 夜间工作流、MQ 产品决策等。
 
 ## #473 Phase 4 继续：多语言适配器健壮性提升与错误边界处理
+**状态**：计划（未落地）—— 本号提交只写了这一节账本，没有落地任何适配器改动。
 
 **背景**：#472 完成了环境变量健壮性与统一默认值的落地。随着多语言适配器生态的扩展，不同语言的错误处理机制、异常边界与恢复策略差异明显，需要建统一的错误分类与恢复框架，确保跨语言项目的健壮性。
 
@@ -12848,20 +12857,22 @@ trait AdapterPlugin {
 - 熔断器: 错误计数器、阈值触发、状态持久化
 - 降级开关: 特性标志、动态配置、备用服务调用
 
-**质量门**：
+**计划质量门**（尚未运行）：
 - ruff + mypy 全绿
 - 新增跨语言错误处理单元测试 8+ 条
 - 现有适配器测试无回归
 - ledger fence：无重复头，U+FFRD 计数保持
 
-**证据文件**（均在当前 commit 中真实存在）：
-- craft/adapters/node_adapter.py（现有，将添加错误边界处理增强）
-- craft/adapters/go_adapter.py（现有，将添加错误边界处理增强）
-- craft/adapters/python_adapter.py（现有，将添加错误边界处理增强）
-- 	ests/unit/test_node_adapter.py（现有，将添加错误边界测试）
-- 	ests/unit/test_go_adapter.py（现有，将添加错误边界测试）
-- 	ests/unit/test_adapter_protocol.py 及其他焦点测试用例
+**现状文件**（已存在；本节计划的改动尚未落地）：
+- craft/adapters/node_adapter.py
+- craft/adapters/go_adapter.py
+- tests/unit/test_node_adapter.py
+- tests/unit/test_go_adapter.py
+- tests/unit/test_adapter_protocol.py
 - docs/operations/DEEP_OPTIMIZATION_PLAN.md：追加 #473
+
+**拟新增文件**（尚不存在）：
+- craft/adapters/python_adapter.py
 
 **下一号队列**：
 - **#430**：向量数据库迁移与相似度检索性能优化
@@ -13003,3 +13014,113 @@ mypy `Success: no issues found in 1 source file`。普查那一道在统一后�
 是**建议**而不是**预约**；调用方必须回读自己真正拿到的端口（`server_address[1]`），
 这一条写进了属主的 docstring，没有改任何调用方的行为。⑥ 本号只动 6 个文件
 （1 新门 + 1 新属主 + 3 个测试文件 + 1 道普查 + 账本），不碰其它车道在途的脏文件。
+## #476 计划写成了记录：9 节点名 49 个从未存在的文件，门只认「证据」必须为真
+
+**起因/占号。** 本号接着 #475 往下做。#475 量出「队列指针必须能解析」，但它只管
+**队列块**里的路径；本号量的是**另一种指针**：节正文里那份「文件清单」——
+`**证据文件**`。它是账本对产品的**事实断言**（「这些文件就是本节干过的事的证据」），
+所以它必须为真。
+
+**量到的（先量后写，数字现读，探针 `.scratch/probe476_*.py`）。**
+
+| 量 | 数 |
+|---|---|
+| 带文件清单的节 | 19 |
+| 其中点名了**树里没有**的路径的节 | 12 |
+| 缺失路径去重 | **49** |
+| 缺失路径在 `git log --all -- <path>` 里的命中 | **每一条都是 0**（从未存在过） |
+| 全账本的 TAB 字符 | **5**，且**全部**落在这 5 行坏路径上 |
+| Phase 4 17 节的「引入提交」里，只改了账本一个文件的 | **15**（只有 #431 真落了 8 个文件） |
+| 全账本去重路径 token / 其中树里没有的 | 805 / **154** |
+
+**两类缺陷。** ① **计划写成了记录**：#461–#468 与 #473 各有 `**执行计划**` 块，
+各自引入的提交**只碰了账本一个文件**，却以 `**证据文件**` 的名义列出 49 个
+「（新增）」的文件——它们**在任何一次提交里都没存在过**；#461–#468 还各有一个
+`**质量门**` 块写着「ruff + mypy 全绿」。读者（运维、下一条车道、审计者）读
+#468 会以为产品有 Rust 适配器、插件市场、分布式调度、多租户配额——**它一样都没有**。
+（**别把这两件事混成一件**：#428/#429 的清单文件**确实存在**，只是由**别的**提交
+落下，不是写节的那次提交带进去的——那是**归属错位**，不是虚假断言，所以本号不动
+它们。本号动的只有**存在性为假**的那 49 条。）
+② **一个字母被 TAB 吃掉**：#455/#456/#473 的清单里有
+`- ` + 制表符 + `ests/unit/test_adapter_protocol.py`——制表符顶掉了 `tests` 的
+`t`。文件是有的，路径不解析。这不是手滑，是**非 raw 的 Python 字符串字面量**
+（`"\tests/..."`）把 `\t` 当成了转义。
+
+**尺子先量后选（三把，两把宽尺子被否）。** 「账本里每个路径都得存在」**不能用**：
+全账本 805 个去重路径 token 里 **154 个不存在**，绝大多数是相对写法、省略写法、
+语言/清单列举（`Rust/Python/Go/Node.js`、`package.json/go.mod`、`CC6.1/CC6.2`）、
+合成场景路径——**154 条假阳性**。第二把尺子「`**执行计划**` 块里的路径都得存在」：
+只有 **4 节**命中，其中 **3 节是假阳性**（上面那三种列举），真阳性只有 **1 节**
+（#460 的 `docs/architecture/ADAPTER_CAPABILITY_MATRIX.md`）——1 条真阳性撑不起一把
+尺子。第三把（整节正文）：**80 节 / 185 处**，更宽。⇒ **尺子只管文件清单**，
+也就是产品断言真正发生的地方。
+
+**门（新文件 `tests/unit/test_ledger_evidence_claims_are_true.py`，12 例，4 条规则）。**
+L1 `**证据文件**`/`**现状文件**` 里的每个路径都必须在树里（`~~…~~` 划掉的不算
+断言——账本必须能写下「那个文件从未存在」这种订正）；L2 `**拟新增文件**` 块只准
+出现在带计划标记 `**状态**：计划（未落地）` 的节里；L3 计划节不得带 `**质量门**`
+（计划没有跑过的门），它写 `**计划质量门**`；L4 路径不得被控制字符破坏。
+另有一条**元规则**：尺子自己必须看得见东西（块数、路径数有下限），
+免得解析器一坏就变成「零违规」。
+
+**修法（账本 4 处形状 + 3 处订正）。**
+1. 5 条被 TAB 咬坏的路径改回 `tests/...`。
+2. 9 节（#461–#468、#473）加计划标记；`**质量门**` → `**计划质量门**（尚未运行）`；
+   `**证据文件**` → `**拟新增文件**（计划，尚未落地）`。
+3. #473 的清单一分为二：确实存在的进 `**现状文件**`，从没存在过的
+   `craft/adapters/python_adapter.py`（原文写它「现有」）进 `**拟新增文件**`。
+4. 7 句「#NNN **完成了** …」改成「#NNN **规划了** …（未落地）」——#461 的背景说
+   #460「完成了产品就绪评估与适配器能力矩阵最终确定」，而那份矩阵文档
+   （`docs/architecture/ADAPTER_CAPABILITY_MATRIX.md`）**从未存在**；
+   #460 自己的计划步骤也把「新建」写成了「更新」。
+5. #451 散文里那句 `` `# specproof-nosec` `` 去掉前导 `#`：`_NOSEC_RE` 按字面量
+   命中，**散文提到机制**就成了一条**死指令**。#453 早就把这条处方写进账本
+   （「提到这个机制」和「使用这个机制」的文本必须长得不一样），只是修了它自己和
+   #444 的标题，漏了 #451。**这条红是既有的**：`git show 9c2c7e3:…`（丢失前的最后
+   好状态）里它就是死的 ⇒ 不是本号造成的，也不是 #474 恢复造成的。
+
+**臂（`.scratch/arm476_evidence_arms.py`，7 臂，7/7）。** 臂跑在账本**副本**上
+（`SPECPROOF_LEDGER_PATH`），共享账本全程逐字节未动。A0 未变异→绿；A1 塞一份
+点名不存在文件的证据清单→红；A2 塞一条 TAB 路径→红；A3 在没标计划的节里塞
+`**拟新增文件**`→红；A4 计划节里留着 `**质量门**`→红；A5 把缺失路径划掉
+（`~~…~~`）→**绿**（豁免是真的，不是洞）；A6＝A1 重跑→再红（负控制）。
+每条臂都跑**真门**（子进程 + 环境变量），不是探针。
+
+**门证（全部实读）。** 新门首跑 **4 failed / 8 passed**：其中 2 条是**真缺陷**
+（L1 的 49 个缺失路径、L4 的 5 个 TAB），另 2 条是**我自己反向对照的期望值写错**
+（TAB 那条我以为门会报出修好的 `tests/...`，其实门报的是**被咬坏后**的
+`ests/...`；标记那条我把行号数错了一位）——两条都当场改正，不是把门放宽。
+修完账本后 **12 passed**；四道账本门 + nosec 门合计 **77 passed**。
+ruff `All checks passed!`，mypy `Success: no issues found in 1 source file`。
+本号只动账本 + 一个新门两个文件，不碰其它车道在途的脏文件。
+
+**本号自己踩了同一个坑。** 写这一节的文字是在**非 raw** 的 Python 字符串里写的，于是 `\t` 又一次变成了真的制表符——**同一节文字、同一个坑**，两处。落库前那一次**字节平面断言**（`cr=0` / `tab=0`，本项目的老规矩）把它抓住了，改成字面写出的 `\t` 才落库。**本号新加的门没抓到它**——L4 只读文件清单，扫不到散文；抓它的是那条老断言。⇒ **这道门不是多余的**：同一类错，在同一个提交里，被两个不同的检查各抓一次。
+
+**诚实边界。** ① 门只读**文件清单**；两把更宽的尺子都量过并被否（理由见上），
+所以「节正文里还散布着多少条不存在/不存在的假路径」**本号没有量完，也没有假装量完**。②
+门**不**检查 `**拟新增文件**` 里的路径是否仍然不存在——计划的愿望单可以悄悄变成
+事实，那是记账问题，不是虚假断言。③ 全账本 805 个去重路径 token 里 154 个不
+存在，**本号原样留着**：它们多数是相对写法与语言列举，但余下的那部分是真问题，
+留给下一批。④ **#472 本号没有改**：它的清单里 7 个文件**都存在**（由 #471 的提交
+`9c2c7e3` 落下，不是 #472 的提交；#472 的提交只碰了账本——顺带删掉 12,763 行，
+见 #474），它那句「均在当前 commit 中真实存在」在那个提交上**字面为真**。
+「本节必须由自己的提交落下它点名的文件」这条规则需要 git 历史，而账本自己的历史
+已经被改写过一次（#474 事故），所以本号**只记录、不落门**，也不替那条车道改判。⑤
+**多租户不是不存在**：`storage/billing.py`（208 处 `tenant_id`）、
+`storage/tenant_scope.py`、迁移 `0005_tenant_identity.sql`/`0007_tenant_billing.sql`/
+`0014_usage_ledger_job_id.sql`、`docs/architecture/MULTI_TENANT_DESIGN.md` 都在；
+#468 的计划是**在别处已有这套能力的前提下**另起一个 `craft/tenancy/` 包，
+而那个包从未存在。本号改的是**记录的形状**，不是去实现那个包。⑥ 本号**没有改任何
+节的标题**：#470 棘轮的豁免靠标题字面匹配，改标题会把别的车道的节变成「丢失」。
+⑦ 全量合并门基线（`gate_20261027-1810.log`，**#475 之前启动**，1:01:26）收在
+**49 failed / 5383 passed / 6 skipped / 4 errors**。那批红**大部分是假的**：基线跨过了
+#475 的编辑窗口与别的车道的在途编辑，读到的是**半成品文件**。把基线那 51 个节点 id
+在**当前树**上重跑（`.scratch/probe476_baseline_replay.py`）：**45 条转绿**，剩 **6 条真红**，
+且**没有一条**在本号触碰的文件上——
+`test_metric_inventory_lists_every_emission_site`（`agent/nodes/contract_review.py`、
+`experiments/openapi_fuzzing.py` 有发射点却没进清单）、`test_progress_event_labels`
+（`contract_review` 节点缺 gloss）、`test_checker_type_parity`、
+`test_verdict_channel_parity`、以及 `test_fake_inventory_stays_measured` ×2
+（`scripts/classify_test_fakes.py` 现在数 **21** 个 SQL 假，清单文档还钉着 **20**；
+本号的新门**不在**那 21 个里——实测 `mine present: False`）。⇒ 那是别的车道在途的
+产品代码/文档漂移，**本号不代抬**，留给它们各自的车道。
