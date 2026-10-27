@@ -13349,3 +13349,38 @@ ruff `All checks passed!`，mypy `Success: no issues found in 2 source files`。
 6. **合并债（与本号代码无关，但落地时必须交代）**：本车道与来车都带了一个裸的 `## #474`。合并时按 #292 的 L5（后缀号必须紧跟在它的族号之后）将来车那一节改成 `## #474b`、放在 `## #474` 之后，正文除 id 词外**逐字未改**（详见合并提交 `e54a840`）。
 
 **下一号队列（取号按落地时点 max+1）。** ① **#430①/②**：`craft/gates.py:130-132` 的 `_BUILD_MARKERS` 没有任何生产读者，而 `tests/unit/test_craft_gates_serve_every_language_the_product_names.py:156` 拿它跟自己的推导比（真空等式）——删掉还是接上，取决于它有没有产品语义；顺带把三条手抄的「无 pom.xml」句子（`test_craft_gates.py:203`、`test_craft_gates_serve_every_language…:280/:285`）收成派生。② 别车道的 `test_subprocess_text_encoding` 那 5 个越界点该由别车道自己清。③ #453 队列剩余：文档里引用指令的通用防护。④ 仓库根仍有一批未跟踪调试脚本，只污染本地 `ruff check .`、不进 CI。
+
+
+## #480 九个「没有门」的词表：给其中四组有可校验关系的补上门
+
+**起因/占号。** #475 的核心观察是「**有门的没坏，没门的坏了**」。顺着这条线做了一次**词表人口普查**：AST 扫模块级词表声明（名字含 VOCAB/SEVERITY/VERDICT/STATUS/KIND/…，值是 ≥2 个字符串常量的 list/tuple/set/frozenset），再查 `tests/` 里有没有任何地方**提到过这个名字**。结果：**29 个词表声明里，9 个从没被测试点过名**。
+
+占号前 `git fetch`：本地与 origin 0/0，origin HEAD `6ed1d3e`（`## #479`）⇒ 本号取 **#480**。
+
+**九个无门词表，逐个判。** 不是九个都该加门——加门要有**可校验的关系**，否则只是把字面量抄进测试（那种门只能防手滑，防不了语义漂移）：
+| 词表 | 有无可校验关系 | 处置 |
+| --- | --- | --- |
+| `mcp/tools._ALLOWED_CONTRACT_STATUSES` | **有**：应与 `agent.contracts.records.CONTRACT_STATUSES` 小写化后 + `all` 相等 | **加门** |
+| `integrations/inline_comments._SEVERE_LEVELS` | **有**：应是 `agent.policy_dsl.SEVERITIES` 的子集 | **加门** |
+| `storage/mysql.RETIRED_STATUSES` | **有**：应是状态机 `_VALID_TRANSITIONS` 键的子集 | **加门** |
+| `craft/structured_diff._DEF_KINDS` / `_RENAMABLE_KINDS` | **有**：同文件内两份，今天必须相等 | **加门**（锁「今天相等」，分叉须有意） |
+| `evidence/lineage.NODE_KINDS` / `EDGE_TYPES` | 无（不需要）：运行时**拒收**未列词，本身就是门 | 不动 |
+| `agent/contracts/records.CONTRACT_STATUSES` | 无独立伙伴（它是对照源） | 由上面第一条间接覆盖 |
+| `integrations/inline_comments._NO_EVIDENCE_KINDS` | 无：`{'', '?', 'unknown'}` 是「无证据」的三种写法，没有词表可对 | 不动 |
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_vocabulary_relationships_are_gated.py`（**8 案**）：
+1. MCP 状态过滤器 == 契约状态小写化 + `all`（跨模块等式）；
+2. `_SEVERE_LEVELS ⊆ SEVERITIES`（子集）；
+3. `RETIRED_STATUSES ⊆` 状态机状态集（子集）；
+4. `_DEF_KINDS == _RENAMABLE_KINDS`（同文件等式）；
+5. 参数化 4 条：每个契约状态的小写形式都在 MCP 过滤器里（行为对照）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_vocabulary_relationships_are_gated.py -q` | **8 passed in 8.62s** |
+| ruff | `ruff check tests/unit/test_vocabulary_relationships_are_gated.py` | 初报 SIM300（Yoda）+ I001（import 排序），`--fix` 后 **All checks passed** |
+
+**诚实边界。** ① 只加测试，生产码未动——包括 `structured_diff.py` 那两份相同元组**没有**合并：它们今天相等，但「可重命名」与「是定义」将来可能有意分叉，耦合代码会把未来的合理分叉变成一次重构；用门锁住「今天相等」更稳。② 门断言的是**关系**不是字面量，所以新增一个词只改一边就会红——这正是要抓的漂移。③ `lineage.py` 的 NODE_KINDS/EDGE_TYPES 不加门：运行时拒收未列词已经是更硬的门。④ 本号只覆盖「有可校验关系」的四组；其余五个无门词表（含 `_NO_EVIDENCE_KINDS`）留在原处，理由已在上表写明。
+
+**下一号队列（取号按落地时点 max+1）。** ① `agent/external_observation.py`（455 行，28 案）仍待整读。② 数值默认值扫描已做（220 文件，9 个同名旋钮取值不同），结论是**全为上下文差异、非 bug**——若要继续，应改成「同一操作在两处实现」的定向比对，而不是按名字比。③ 普查若要支持布尔读者（#474 边界）。
