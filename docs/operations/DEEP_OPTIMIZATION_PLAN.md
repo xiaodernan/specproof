@@ -14012,3 +14012,60 @@ Java/Gradle 那行不只是状态错，而是**四处同时陈旧**：镜像写 
 **诚实边界。** ① 行为等价重构：函数体原样搬移（两份 docstring 合成为一份，写清代价）。② 只收拢这一组；结构克隆还剩 9 组。③ 不扩充分类范围（不认 Postgres `23505`、不认 `IntegrityError` 类型）——现状只服务 MySQL/SQLite 两个后端，扩展是功能变更。④ `__init__()` 三份（SQLite store 构造器）**不动**：去重需要基类/混入，是设计改动，风险高于 5 行的收益。
 
 **下一号队列（取号按落地时点 max+1）。** ① `_cleanup_worktrees()`（eval/verify 两个 CLI）。② `_discard_workspace()`（prepare 双胞胎，已有 parity 注释待核）。③ `_get_provider()`。④ `__init__()` 三份若要动，先设计基类方案（本号边界）。⑤ `mcp` 负超时（#492 边界）。
+## #496 Gradle 沙箱写不了自己的 `build/`：即使缓存卷播种完美，第一个任务就死；而文档指的播种脚本根本不存在
+
+**起因/占号。** #490 的边界里写着「门只对账状态列，镜像/工具链/离线策略/已知限制四列仍是手抄」。顺着这句去对账这四列，先撞上的却不是手抄漂移，而是**这个语言根本跑不起来**。占号前重测：HEAD 版账本 `## #` id 最大 **491**；落地时远端另一车道已连落 **#492–#495**（`_env_int` 收拢、胶囊路径、Java 源码树读取、`_is_duplicate_key`）⇒ 本号改 **#496**。
+
+### 量到的三件事（都实测，不是推断）
+
+**① `GRADLE_PROFILE` 不挂 `build/`，于是 Gradle 写不出任何产物。**
+profile 把工作区挂 `:ro`，可写子挂载只列了 `.gradle`。用最小 Gradle 项目（junit-jupiter 5.10.2）实测：
+
+- 在线、工作区可写 ⇒ `BUILD SUCCESSFUL in 39s`（依赖进了卷）；
+- 离线 `--network none`、按 profile 的挂法（工作区 `:ro` + 只有 `.gradle` 可写）⇒
+  `Execution failed for task ':compileTestJava'. > Failed to create parent directory '/work/build' when creating directory '/work/build/classes/java/test'`。
+
+Maven 把同一件事声明成 `("target", "/work/target")`；Gradle 少的就是这一行。**这条与缓存卷无关**：卷再满也过不去。
+
+**② `scripts/seed_gradle_home.ps1` 不存在。**
+`GradleAdapter.OFFLINE_POLICY` 与 `docs/architecture/EXECUTION_COMPATIBILITY.md` 都点名这个脚本，`git grep` 全仓只有这两处**提到**它，磁盘上没有。仓库里真实的播种脚本只有 4 个（`seed_sandbox_cache` / `seed_npm_cache` / `seed_pip_wheelhouse` / `seed_go_modcache`）。配套事实：`specproof-gradle-home-1000` 卷**是空的（4.0K）且 root 所有**，而 uid 1000 的容器写不进去——Gradle 连 `libnative-platform.so` 都解不出来。有内容的那个是另一个卷 `specproof-gradle-cache-1000`（5.4M），名字不同、没人挂。⇒ **文档写的「已播种」在执行面上是空的**。
+
+**③ `collect()` 承诺的东西它不给。**（本号只记录，不改）
+`parse_gradle_test_summary` 的 docstring 明写「a passing run reports `tests: 0` … `test_report_refs` points at the JUnit XML instead」，而 `GradleAdapter.collect()` 返回的是 `test_report_refs=()`。实测跑完 `build/test-results/test/TEST-demo.SimpleTest.xml` **确实存在**（`tests="1"`），没有任何代码去读它。顺带量到：`adapter.collect()` 与 `exit_evidence` 在**生产里零调用方**（只有测试调）⇒ 这条通道今天整条是死的。
+
+### 修法
+
+- `sandbox/runner.py`：`GRADLE_PROFILE.writable_submounts` 补 `("build", "/work/build")`，注释写清「工作区 `:ro` 时第一个任务就会死」这个实测形状，并点名 Maven 早就声明了同一件事。
+- 新建 `scripts/seed_gradle_home.ps1`（5 步，照 Maven 那个的纪律）：① 建卷并 `chown 1000:1000`；② 把项目拷进一次性工作区（不拿源码树播种：预存的 root 属主 `build/`、`.gradle/` 会污染）；③ **在线**跑一遍（用**镜像自带的 `gradle`**，与沙箱同一二进制——用项目 wrapper 会把另一个发行版下载进卷里，沙箱永远不用它）；④ **离线**复验（`--network none`、工作区 `:ro`、只有 `build/` + `.gradle/` 可写，与 profile 同形）；⑤ 交还 uid 1000。**必须带 `-ProjectPath`**：仓库里没有 Gradle demo（`demo/spring-backend` 是 Maven），Gradle 的依赖集是项目特定的。
+- `GradleAdapter`：docstring 补「卷必须按项目播种」；`KNOWN_LIMITS` 补两条诚实边界（自定义 `buildDir` 会失败；未播种项目停在 `compileTestJava`）。
+- 文档那一行同步：离线策略补 `-ProjectPath <项目>` 与「必须按项目播种」，已知限制补 `buildDir`。
+
+### 门
+
+新建 `tests/unit/test_gradle_sandbox_is_actually_runnable.py`（5 案）：
+1. profile 的可写子挂载必须含 `build`（失败信息直接写明复现出来的那句报错）；
+2. **任何适配器**在 `OFFLINE_POLICY` / `KNOWN_LIMITS` 里点名的 `scripts/*.ps1` 必须存在于磁盘；
+3. 播种脚本的默认卷名 == `GRADLE_PROFILE.cache_volume_default`（两个手抄名字必须一致，否则播了个没人读的卷）；
+4. 播种脚本必须带 `--network none` / `--offline` / `/work:ro` / `GRADLE_USER_HOME`，且可写子挂载与 profile 一致，且**在线与离线两相之间清空 `build/` 与 `.gradle/`**；
+5. 矩阵里仍有 `(Java, Gradle)` 行（防止这条契约悄悄失去主语）。
+
+### 证据
+
+- 门：`5 passed`；相关回归 `77 passed`（含 `test_gradle_adapter` / `test_adapters` / `test_sandbox_runner` / 两道文档门）；`ruff` / `mypy` 三文件全干净。
+- **修后走产品自己的代码路径**（不是手搓 docker）：`run_sandboxed([... "test"], profile=GRADLE_PROFILE)` ⇒ `exit_code=0 mode=docker 124s`，`> Task :test` 真执行。
+- **播种脚本端到端**：先对临时卷跑通（`SEED_OK`），再对真实卷 `specproof-gradle-home-1000` 跑通；卷从 `4.0K / root:root` 变成 `4.5M / 1000:1000`（`caches daemon native notifications workers`）。
+- **fail-closed 仍然诚实**：把卷指到一个空卷（`SPECPROOF_SANDBOX_GRADLE_HOME_VOLUME=…`）再跑 ⇒ `exit_code=1`、`counts={'tests':0,…,'errors':1}`、输出含 `Could not resolve … No cached version of org.junit.jupiter:junit-jupiter:5.10.2 available for offline mode` ⇒ 是「解析不到依赖」，不会被读成「0 个测试通过」。
+- 变异臂：① 删 profile 里 `("build", "/work/build")` ⇒ `1 failed / 4 passed`（只红那一条）；② 把脚本默认卷改成 `specproof-gradle-cache-1000` ⇒ `1 failed / 4 passed`（只红卷名一致性那条）；③ 删掉「离线前清空 `build`/`.gradle`」那段 ⇒ `1 failed / 4 passed`（只红冷启动那条）。
+
+### 否证
+
+- **播种脚本第一版验的是假绿。** 第 4 步显示 `:test UP-TO-DATE` —— 它复用了第 3 步的产物，**在空卷上也会过**。加「离线前清空 `build/` 与 `.gradle/`」后重跑，`> Task :compileTestJava` / `:test` 才变成真执行。⇒ **验证阶段必须冷启动**，否则验证的是「上次的产物还在」。
+- **`param()` 不能放在 `$ErrorActionPreference` 之后**：PowerShell 要求它是第一条可执行语句，脚本会直接拒绝运行。第一版就是这么写的。
+- 第一次 `run_sandboxed` 探针用 `r.stdout_tail` 取输出，`SandboxResult` 没有这个字段（是 `stdout` / `stderr`）；`collect()` 里那个 `stdout_tail` 是 `ExecutionResult` 的。两个名字相近的类型，别混。
+
+### 边界
+
+- 只修**生产在用的** `experiments/adapters.py` 那条线。`craft/adapters/gradle_adapter.py`（未接线的 Phase 4 层）本来就有 `_parse_junit_xml`，但**测试测的是它**——`test_gradle_adapter.py` 12 案全绿，测的却是生产不用的那份实现，这是两套适配器并存的又一处代价（#482 已记录，合流仍需 owner）。
+- 卷里现在装的是**最小 demo 项目**的依赖（junit-jupiter 5.10.2 + Gradle 自己的 native 库）。真实项目仍须自己跑一遍 `-ProjectPath`；文档已写明。
+- `collect()` 的空 refs 与「`collect()` 在生产里零调用方」本号只记录不改：接进去会动差分主链，属架构决策。
+- 第 ③ 条的修法（从 `build/test-results/test/TEST-*.xml` 取数）已入队，与「把 collect 接进 run_differential」是同一件事的两半。

@@ -349,6 +349,16 @@ GRADLE_PROFILE = SandboxProfile(
     cache_mount="/gradle-home",
     writable_submounts=(
         (".gradle", "/work/.gradle"),
+        # 3. /work/build must be writable too. Gradle writes every task output
+        #    under it, so with the workspace :ro the FIRST task dies with
+        #    "Failed to create parent directory '/work/build' when creating
+        #    directory '/work/build/classes/java/test'" — before any test runs,
+        #    and regardless of how well the dependency cache is seeded. Maven
+        #    has the same requirement and declares it as ("target", ...); this
+        #    profile listed only .gradle, so Gradle support could not complete
+        #    a single build. Reproduced and re-verified offline with
+        #    --network none against a seeded home.
+        ("build", "/work/build"),
     ),
 )
 

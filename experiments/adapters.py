@@ -1469,6 +1469,11 @@ class GradleAdapter:
     ONLINE once; the sandbox then re-runs it with ``--offline`` and
     ``--network none``. A cache miss stops the run before the tests execute, so
     "could not resolve junit" can never be confused with "tests ran and passed".
+
+    Unlike the Maven cache, this volume cannot be seeded from a repository demo
+    (demo/spring-backend is Maven) — Gradle dependency sets are project
+    specific, so the seed script takes ``-ProjectPath`` and the volume must be
+    re-seeded per project before that project's verification can run offline.
     """
 
     TOOLCHAIN = "Gradle (docker sandbox) / gradle --no-daemon --offline test"
@@ -1496,6 +1501,11 @@ class GradleAdapter:
         "Gradle 只跑项目自己的 test 任务; 与 Maven 一样拒绝 sandbox_mode=local。",
         "依赖坐标必须是 build.gradle(.kts) 里字面写的 group:name:version, "
         "用版本目录或 BOM 管理的坐标不会被播种脚本识别 (诚实报缺)。",
+        "工作区只读, 可写子挂载只有 build/ 与 .gradle/: 把 buildDir 改到别的目录 "
+        "(buildDir = 'out') 的项目会在第一个任务上失败, 如实报错。",
+        "缓存卷按项目播种 (scripts/seed_gradle_home.ps1 -ProjectPath <项目>): "
+        "仓库里没有 Gradle demo, 未播种的项目在 compileTestJava 阶段就停住, "
+        "不会被报成 0 个测试通过。",
     )
 
     def detect(self, repo: RepositorySnapshot) -> RuntimeProfile:
