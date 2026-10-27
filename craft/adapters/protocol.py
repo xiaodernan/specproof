@@ -151,6 +151,41 @@ class AdapterProtocol(abc.ABC):
 # 适配器注册表
 _ADAPTER_REGISTRY: dict[str, type[AdapterProtocol]] = {}
 
+#: Adapter modules shipped with the product. Registration is an import side
+#: effect, and **nothing imported these** — `import craft.adapters.protocol`
+#: produced an EMPTY registry, so `get_adapter("go")` raised and
+#: `detect_adapter()` returned None for every project. Measured in a fresh
+#: interpreter: `list_adapters() == []`. The three entry points below load them
+#: on first use, so "no adapters registered" can no longer masquerade as
+#: "no adapter matched".
+_BUILTIN_ADAPTER_MODULES: tuple[str, ...] = (
+    "craft.adapters.gradle_adapter",
+    "craft.adapters.node_adapter",
+    "craft.adapters.go_adapter",
+)
+
+
+def _load_builtin_adapters() -> None:
+    """Register the shipped adapters, idempotently and re-entrantly.
+
+    Re-registers from the already-imported module objects instead of relying on
+    the import side effect once: the test fixtures snapshot and restore
+    ``_ADAPTER_REGISTRY`` around every test, and a restore that lands on a
+    pre-load snapshot would otherwise leave the registry permanently empty.
+
+    Import failures propagate. A built-in adapter that cannot be imported is a
+    broken install; returning a silently shorter list is the "skipped looks like
+    passed" shape this repo fences against.
+    """
+    import importlib
+
+    for module_name in _BUILTIN_ADAPTER_MODULES:
+        module = importlib.import_module(module_name)
+        for value in vars(module).values():
+            adapter_id = getattr(value, "ADAPTER_ID", None)
+            if isinstance(value, type) and isinstance(adapter_id, str) and adapter_id:
+                _ADAPTER_REGISTRY.setdefault(adapter_id, value)
+
 
 def register_adapter(adapter_cls: type[AdapterProtocol]) -> type[AdapterProtocol]:
     """注册适配器到全局注册表。"""
@@ -160,6 +195,7 @@ def register_adapter(adapter_cls: type[AdapterProtocol]) -> type[AdapterProtocol
 
 def get_adapter(adapter_id: str) -> type[AdapterProtocol]:
     """按 ID 获取适配器类。"""
+    _load_builtin_adapters()
     if adapter_id not in _ADAPTER_REGISTRY:
         raise AdapterNotImplemented(f"No adapter registered for {adapter_id}")
     return _ADAPTER_REGISTRY[adapter_id]
@@ -176,6 +212,7 @@ def detect_adapter(project_root: Path) -> type[AdapterProtocol] | None:
     改前实测：生产代码零调用方（只有测试引用），所以现在改没有爆炸半径；
     等 Phase 4 真的接上自动检测时，坏探子会当场炸出来而不是伪装成「不支持」。
     """
+    _load_builtin_adapters()
     for adapter_cls in _ADAPTER_REGISTRY.values():
         if adapter_cls.detect(project_root):
             return adapter_cls
@@ -184,6 +221,7 @@ def detect_adapter(project_root: Path) -> type[AdapterProtocol] | None:
 
 def list_adapters() -> list[dict[str, Any]]:
     """列出所有已注册适配器的能力声明。"""
+    _load_builtin_adapters()
     return [cls.get_capabilities() for cls in _ADAPTER_REGISTRY.values()]
 
 

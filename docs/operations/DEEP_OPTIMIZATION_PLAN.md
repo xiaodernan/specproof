@@ -13411,3 +13411,62 @@ ruff `All checks passed!`，mypy `Success: no issues found in 2 source files`。
 **诚实边界。** ① 只加测试，生产码未动。② 用了一个 5 行的 `_Obs` 桩来喂 `observation_limits`（它只 `getattr` 三个属性），**没有**伪造整条采集链——mq 的真实片段仍由既有测试覆盖。③ 不钉 `_redis_observation` 内部对 `redis_fragment_from_snapshots` 的调用参数（那是采集器契约，既有测试已覆盖端到端）。④ 不钉 `int(extension.get("value_level_leftover_count"))` 在**非数字**输入下会抛 `ValueError`——那是防御性问题，现状是「采集器写 int」，钉「会抛」等于把缺陷写成契约；已记入下一号队列。
 
 **下一号队列（取号按落地时点 max+1）。** ① `observation_limits` 对**畸形扩展**（`value_level_leftover_count="abc"`）会抛 `ValueError`——先量影响面（谁会写非 int？），再决定是加防御还是加断言。② 「同一操作两处实现」的定向比对（替代按名字比旋钮）。③ 普查若要支持布尔读者（#474 边界）。
+## #482 `craft/adapters` 的注册表在全新解释器里是空的：`detect_adapter` 恒答「没检测到」，而真因是「一个都没注册」
+
+**起因/占号。** #478 队列②顺带量到：`craft/adapters/` 的注册表靠 `@register_adapter` 的 import 副作用填充，而**没有任何生产模块导入过这些适配器模块**。本号把它量清并修掉。占号前重测：HEAD 版账本 `## #` id 最大 **480**，但落地时远端另一车道已占 **#480/#481** ⇒ 取 **#482**。
+
+**先量后写（量的是「空注册表长什么样」）。** 全新解释器里只 `from craft.adapters.protocol import ...`：
+
+| 调用 | 结果 |
+| `list_adapters()` | `[]` |
+| `detect_adapter(<含 go.mod 的目录>)` | `None` |
+| `get_adapter("go-test")` | `AdapterNotImplemented: No adapter registered for go-test` |
+
+`detect_adapter` 返回 `None` 是个**合法答案**（「没有适配器认领这个仓库」）。但它在**注册表一个都没有**时也返回 `None`——**两件不同的事实，同一个答案**。这正是本仓反复钉的「跳过 ≠ 通过」：调用方无从分辨「这项目不支持」和「我一个适配器都没加载」。
+
+**顺带量到的更大一件事（只记录，本号不改）。** 本仓有**两套并行适配器系统**：
+- `experiments/adapters.py` —— **生产在用**：`ExecutionAdapter` + `ExecutionAdapterRegistry`（构造时硬编码 JavaMaven / Gradle / Node / Python / Go 五个），被 `craft/executor.py`、`craft/gates.py`、`agent/nodes/run_differential.py`、`agent/nodes/generate_counterexamples.py`、`agent/self_test_diff.py`、`evidence/capsule_replay.py`、`scripts/bench_replay.py` **七个生产模块**引用；
+- `craft/adapters/{gradle,node,go}_adapter.py` —— Phase 4 的新层（`AdapterProtocol`），**生产零引用**，只有它自己那三个模块与测试导入。
+
+⇒ 结论：**「支持 Node/Go」目前由旧系统承担**；新层里那些 bug（#457 的 `os` 未导入、#459 的计数口径）**在生产里永远不会触发**，这也是它们能活到被提交的原因。**两套系统要不要合流是架构决策，需 owner**，本号只把这个事实写进账本。
+
+**修（把「静默空」变不可能）。** `craft/adapters/protocol.py`：
+```python
+_BUILTIN_ADAPTER_MODULES = (
+    "craft.adapters.gradle_adapter",
+    "craft.adapters.node_adapter",
+    "craft.adapters.go_adapter",
+)
+
+def _load_builtin_adapters() -> None:
+    import importlib
+    for module_name in _BUILTIN_ADAPTER_MODULES:
+        module = importlib.import_module(module_name)
+        for value in vars(module).values():
+            adapter_id = getattr(value, "ADAPTER_ID", None)
+            if isinstance(value, type) and isinstance(adapter_id, str) and adapter_id:
+                _ADAPTER_REGISTRY.setdefault(adapter_id, value)
+```
+三个入口（`get_adapter` / `detect_adapter` / `list_adapters`）各自先调它一次。两个设计点：
+- **可重入、不是一次性 import 副作用**：从**已导入的模块对象**重新注册。本套件的夹具对 `_ADAPTER_REGISTRY` 做「快照 → 还原」，若还原落在「加载之前」的快照上，一次性 import 会让注册表**永久为空**；
+- **`setdefault` 而非覆盖**：显式 `register_adapter` 注册的同 id 适配器优先。
+- **导入失败上抛**：内置适配器导不进来是装坏了，静默少列几个就是又一次「跳过像通过」。
+
+**落地（门）。** 新建 `tests/unit/test_adapter_registry_is_not_empty_by_default.py`（**3 案**）：
+1. `test_a_fresh_interpreter_sees_the_shipped_adapters`：**一次子进程**里同时验三件事（注册表含 `java-gradle`/`node-npm`/`go-test`、`get_adapter("go-test")` 命中、`detect_adapter(go 项目)` 命中）。**必须用子进程**：进程内早已有测试导入过适配器模块，缺陷根本不可见。
+2. `test_the_registry_reloads_after_someone_clears_it`：清空注册表后 `list_adapters()` 仍能拿回三个 —— 钉住「可重入」。
+3. `test_an_empty_registry_never_answers_none_for_a_claimed_project`：清空后 `detect_adapter(go 项目)` 仍命中 —— 钉住语义点「空注册表 ≠ 没有匹配」。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_adapter_registry_is_not_empty_by_default.py -q` | **3 passed**（12.9s，其中子进程约 8s） |
+| 适配器全家回归 | 11 个适配器相关测试文件 `-q` | **132 passed** |
+| ruff | `ruff check craft/adapters/protocol.py tests/unit/...not_empty_by_default.py` | All checks passed |
+| mypy | `mypy craft/adapters/protocol.py` | Success |
+| **变异臂**（删掉三个入口里的 `_load_builtin_adapters()` 调用） | 先预测：3 条全红 | 实测 **3 failed**，逐名命中 |
+
+**否证与订正（本号自己踩的）。** ① 第一版测试把 id 写成 `gradle`/`node`/`go`，实测是 **`java-gradle`/`node-npm`/`go-test`** ⇒ 5 条全红；改成先量真实 id 再写断言。② 第一版把三条子进程用例分开写，实测 **28.8s**（每次起解释器约 8s）⇒ 合并成一次子进程、一次打印三行，降到 **12.9s**。
+
+**诚实边界。** ① 本号修的是**新层内部的静默空**，**没有**把 `craft/adapters` 接进生产——那需要先把两套系统合流（架构决策，需 owner）。② 因此本号对**今天的用户可见行为零影响**：生产仍走 `experiments/adapters.py`。③ `_load_builtin_adapters` 在每次 API 调用时都会跑一遍循环（`importlib.import_module` 对已导入模块是一次 `sys.modules` 查表 + 少量反射），单次开销很小但非零；没有加缓存，是为了让「注册表被清空后仍能恢复」这个性质成立。④ 三个内置模块的清单是**手抄**的；将来新增适配器必须同步加进来，否则又回到「注册了但不在清单里」。⑤ 未跑真实 `go test`/`npm test`。
+
+**下一号队列（取号按落地时点 max+1）。** ① **两套适配器系统合流**（`experiments/adapters.py` ↔ `craft/adapters/`）——需要 owner 决策，本号只留下测量。② `_BUILTIN_ADAPTER_MODULES` 手抄清单的对账门：扫 `craft/adapters/*.py` 里带 `ADAPTER_ID` 的类，断言每个都在清单里（防止新增适配器忘了加）。③ 仓库根未跟踪调试脚本仍会污染本地 `ruff check .`（不进 CI）。④ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。
