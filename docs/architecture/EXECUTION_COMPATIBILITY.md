@@ -7,7 +7,11 @@
 > 状态词汇 (指南任务 15): 已实现 / 本地验证 / 需真实基础设施 / 规划中;
 > "已支持 (local-first)" = 宿主执行、无容器、首次装依赖可能需网络;
 > "已支持 (Docker 沙箱)" = 在加固容器内执行 (非 root uid 1000 / --network none /
-> 源码树只读)。本表全部如实标注。
+> 源码树只读)，但本文件「验证记录」里**没有**真实仓库的端到端差分记录;
+> "已支持 (实测)" = 在真实沙箱里对**真实仓库**跑通过端到端差分 (改前绿例通过 / 改坏后红例
+> 失败)，且「验证记录」里能指到那次运行。只在**临时构造的最小项目**上跑通的「冒烟」**不算**
+> 这一档——它证明的是执行面可用，不是差分真的能判对错。
+> 本表全部如实标注。
 
 ## 不支持"任意项目"
 
@@ -126,6 +130,7 @@ class ExecutionAdapter(Protocol):
 
 ## 验证记录
 
+- 实测 (Java/Maven，即上表「已支持 (实测)」那一档的凭据): tests/integration/test_differential.py 在真实 Docker 沙箱里对 demo/spring-backend 跑端到端差分 (改前绿 / 改坏红)。没有 demo 的 base/head-v1 两个 tag 时该测试**skip**而不是假绿。
 - 单元: tests/unit/test_adapters.py (detect 规则 / registry 顺序 / prepare 命令形状 /
   run 经 sandbox (mock) / collect 摘要 / 未实现适配器 / 矩阵内容断言);
   tests/unit/test_python_adapter.py (detect / venv 复用与创建 / venv_create·
@@ -133,11 +138,11 @@ class ExecutionAdapter(Protocol):
   SPECPROOF_KEEP_VENV cleanup / 矩阵行); tests/unit/test_minimize.py (ddmin
   列表收缩 / 集合与子串缩减 / 迭代日志 / 预算停止 / unchanged-result 证明,
   假 runner 注入, 全程无网络)。
-- 实测: PythonAdapter 本机端到端冒烟 (2026-08-19, 系统临时目录的临时 pytest 项目,
+- 冒烟 (不是「已支持 (实测)」那一档): PythonAdapter 本机端到端冒烟 (2026-08-19, 系统临时目录的临时 pytest 项目,
   真实 venv 创建 + pip 安装 + pytest -q 执行): detect→prepare→run→collect→cleanup
   全链路通过, 1 passed/1 failed 摘要解析正确 (exit 1), cleanup 后 .venv 已移除;
   探针目录已清理, 不进入仓库。
-- 实测: NodeAdapter 容器沙箱本机端到端冒烟 (2026-09-23, 真实 Docker, 临时 node:test
+- 冒烟 (不是「已支持 (实测)」那一档): NodeAdapter 容器沙箱本机端到端冒烟 (2026-09-23, 真实 Docker, 临时 node:test
   项目): 绿例 exit 0 且 TAP 汇总 `# tests 3 / # pass 3 / # fail 0`; 红例 exit 1 且
   `# pass 2 / # fail 1`; 容器内 `id -u`=1000、`/proc/net/dev` 只有 `lo`、
   `touch /work/x` 报 `Read-only file system`。实测捕获的完整 argv:

@@ -13653,3 +13653,44 @@ def _load_builtin_adapters() -> None:
 9. **本号的臂跑在注释里写着旧号的字节上**（占号时的 `#480`）：落地脚本只改那一行注释里的号，**不改任何可执行字节**；臂的判决因此仍然成立，但严格说臂跑的字节与落地的字节相差那一个注释字符串。
 
 **下一号队列（取号按落地时点 max+1）。** ① **#453 队列剩余**：文档里引用指令的通用防护（探针已在 `.scratch/m481_nosec_mention_probe.py`，读数尚未取）。② **#397 六项**（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。③ 仓库根仍有一批未跟踪调试脚本（`check_go_adapter.py` / `check_ledger.py` / `ctx448.txt` / `find_section.py` / `ledger_432_clean.md` / `original_plan.md` / `run_tests_no_mysql.py`），只污染本地 `ruff check .`、不进 CI。④ 别车道的 `test_subprocess_text_encoding` 那 5 个越界点仍由别车道自己清（本号在 #486 之后的 HEAD 上复测仍红，见否证段）。⑤ 本号的全量读数跑在 HEAD 移动的窗口里；若要一条**单一 HEAD** 上的全量读数，得在落地后重跑一次。⑥ **取号竞态本身值得一条门**：账本节号目前靠人守「落地时点 max+1」，本号已经连让三次；将来可以给「节号分配」一条机械门（占号时登记，落地时校验），否则每个并行车道都要靠人盯。
+## #488 「已支持 (实测)」用了却从未定义：词汇块只写了另外两档，而同一个文件里「实测」在做两件不同的事
+
+**起因/占号。** #486 队列①：「`COMPATIBILITY_MATRIX` 的 `status` 梯度没有门——「实测」这个词谁有资格用，目前没人管」。占号前重测：HEAD 版账本 `## #` id 最大 **487** ⇒ 取 **#488**。
+
+**先量后写（量的是「这个词在哪被用、在哪被定义、凭据是什么」）。**
+- 代码侧 `COMPATIBILITY_MATRIX` 用 **2 个**状态：`已支持 (实测)`（Java/Maven）、`已支持 (Docker 沙箱)`（其余四行）。
+- 文档侧 `docs/architecture/EXECUTION_COMPATIBILITY.md` 的**状态词汇块**（开头的 `>` 引用块，自称「本表全部如实标注」）只定义了 **`已支持 (local-first)`** 与 **`已支持 (Docker 沙箱)`** 两档 ⇒ **`已支持 (实测)` 被用在表里、被正文引用（第 18 行「只有下表标注为 **已支持 (实测)**、**已支持 (Docker 沙箱)**…」），却从未被定义**。读者无从知道它比另一档多承诺了什么。
+- 更麻烦的是「验证记录」：两条带日期的记录分别是 **Python 2026-08-19 本机端到端冒烟** 与 **Node 2026-09-23 真实 Docker 冒烟**，两者都是在**临时构造的最小项目**上跑的；而唯一声称「实测」的 Java/Maven，其凭据是 `tests/integration/test_differential.py` 对**真实仓库** `demo/spring-backend` 的差分。⇒ **同一个文件里「实测」这个词在做两件不同的事**：一档指「临时项目冒烟」，一档指「真实仓库差分」。
+
+**核实凭据（写进文档前必须先读代码）。** `tests/integration/test_differential.py` 的 `DEMO_REPO = REPO_ROOT / "demo" / "spring-backend"`，确实对真实仓库跑差分；且它有 `requires_demo_repo = pytest.mark.skipif(not _demo_tags_present(), …)` —— **缺 `base`/`head-v1` 两个 tag 时 skip 而不是假绿**。这条必须写进文档，否则「实测」会被读成「CI 每次都跑」。
+
+**修（只改文档，不动评级）。**
+1. 词汇块补全三档，并写明各自的**证据门槛**：
+   - `已支持 (local-first)` = 宿主执行、无容器；
+   - `已支持 (Docker 沙箱)` = 能在加固容器内执行，但**「验证记录」里没有真实仓库的端到端差分记录**；
+   - `已支持 (实测)` = 在真实沙箱里对**真实仓库**跑通过端到端差分（改前绿 / 改坏红），且「验证记录」里**能指到那次运行**；**只在临时构造的最小项目上跑通的「冒烟」不算这一档**——它证明的是执行面可用，不是差分真的能判对错。
+2. 「验证记录」里那两条冒烟正名为 `- 冒烟 (不是「已支持 (实测)」那一档): …`；
+3. 新增 `- 实测 (Java/Maven，即上表「已支持 (实测)」那一档的凭据): tests/integration/test_differential.py …` 并写明缺 tag 时 skip。
+
+**落地（门）。** 新建 `tests/unit/test_compatibility_matrix_statuses_are_defined.py`（**6 案**）：
+1. `test_the_matrix_ships_at_least_one_status` + `test_the_vocabulary_block_was_actually_found`：两条非空；
+2. `test_every_matrix_status_is_defined_in_the_vocabulary`（参数化 2 条）：代码里每个状态都必须在**词汇块**里出现；
+3. `test_the_measured_tier_is_not_empty`：`实测` 档非空（否则第 4 条恒真）；
+4. `test_a_measured_row_points_at_a_record`（参数化 1 条）：每个声称 `实测` 的行，必须有一条以 `- 实测` 开头、且点名 `language/build_tool` 的记录。
+
+**关键实现细节：词汇块的抽取必须限定在 `>` 引用块内。** 若用「全文包含 `已支持 (实测)`」当判据，这个词在表格第 52 行与正文第 18 行都出现过，**门会恒绿**——而那正是它一直没被发现的原因。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_compatibility_matrix_statuses_are_defined.py -q` | **6 passed** |
+| 相关回归 | `+ test_adapters.py + test_readme_language_table_…py` | **48 passed** |
+| ruff | `ruff check tests/unit/…statuses_are_defined.py` | All checks passed |
+| **变异臂①**（把词汇块里的 `"已支持 (实测)"` 改名成 `"实测档"`） | 先预测：定义门红 1 条 | 实测 **1 failed, 5 passed**，逐名命中 |
+| **变异臂②**（删掉 `- 实测 (Java/Maven…)` 那条指针） | 先预测：指针门红 1 条 | 实测 **1 failed, 5 passed**，逐名命中 |
+| 变异臂还原 | `trap ... EXIT TERM INT` | 两处 `grep -c` 均回到 1、无 `.orig` 残留 |
+
+**否证与订正（本号自己踩的）。** 一开始想直接用「`status in doc`」判「有没有被定义」——写下去才发现 `已支持 (实测)` 在文档里出现了两次（表格 + 正文引用），判据会恒真。改成**只读开头那个 `>` 引用块**，门才有意义。这与本仓「探针读绑定，不读文本」是同一条自觉：**判据要盯住「定义」，不能盯住「出现过」**。
+
+**诚实边界。** ① 本号**只补定义，不重新评级**：Python 与 Node 有带日期的冒烟记录、却标 `Docker 沙箱`，是否该升到 `实测` 取决于 owner 对「实测」门槛的判断（本号把门槛写清了，把选择留给人）。② 文档表格里还有一行 `Java (本地回退, JDK ≥ 22) | … | 编译可用, 跑测试起不来`，它**不在** `COMPATIBILITY_MATRIX` 里（那描述的是回退路径的已知限制，不是适配器档位）⇒ **文档表格的行集合 ⊋ 代码矩阵的行集合**，本号的门只对账代码侧的状态**词汇**，不对账两侧的行集合。③ 门只检查「有没有一条 `- 实测` 记录点名该行」，不检查那条记录**说得对不对**（真实性靠人读）。④ 只改文档与测试，运行时零变化。
+
+**下一号队列（取号按落地时点 max+1）。** ① **文档表格行集合 ↔ 代码矩阵行集合的对账**（本号边界②）：`Java (本地回退)` 这类只在文档里存在的行，需要一个显式的「非适配器行」标注，否则两侧永远对不齐。② 两套适配器系统合流（架构决策，需 owner；#482 已留完整测量）。③ #397 六项里可跑的四项（基准面与 87 案例需要多小时评测，本机跑不完）。④ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。
