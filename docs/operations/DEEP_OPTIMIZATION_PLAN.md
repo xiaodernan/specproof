@@ -14249,6 +14249,46 @@ does not explicitly export attribute "_read_java_files"  [attr-defined]
 **诚实边界。** ① 这是**否定结论 + 棘轮**，不改任何生产码。② 扫描只看这四类；「未捕获的返回值」「过宽的 `except Exception`」（有 noqa 与注释的那些）不在射程——后者是仓库的既有风格，不是 bug。③ `assert` 那一类只统计了数量与形态，**没有逐条判断**是否有该用显式异常的；12 条全是内部不变式，风险低。④ 棘轮用 `git ls-files`，新文件必须先 `git add`。
 
 **下一号队列（取号按落地时点 max+1）。** ① `__init__()` ×3 的基类方案（同样要先算类型代价）。② `mcp` 负超时（#492 边界）。③ 近似克隆检测（改名/换字面量）作为下一层工具。④ 过宽 `except Exception` 的**逐条审计**（有 noqa 不等于无害）。
+
+
+## #502 观测层抛异常时，矩阵会把「没看」当成「可判定」：注释说 fail-closed，代码是 fail-open
+
+**起因。** 队列④「过宽 `except Exception` 的逐条审计」。扫出 266 个宽处理器：33 个重抛、64 个记日志、118 个「其他」、**51 个静默**。逐个看静默的：多数其实记了东西（`incr(...)`、`warnings.append`、`errors.append`、`{'error': ...}`），少数是真静默。真静默里最要紧的是 `agent/nodes/build_matrix.py`。
+
+**发现的 gap（注释与代码相反）。**
+```python
+# 注释：an unreadable observation must not become a verdict.
+try:
+    contract_observations, observation_decidable_by_contract = observations_and_decidability(state)
+except Exception:
+    contract_observations = {}
+    observation_decidable_by_contract = {}
+...
+legacy["observation_decidable"] = observation_decidable_by_contract.get(contract_id, True)   # ← 默认 True
+```
+观测层**抛异常**时字典被清空 ⇒ 每一行都拿到默认值 `True`（可判定）⇒ #379 的「没看过的面不能靠 PASS 背书」降级**不会触发** ⇒ **一个关于外部存储的契约，在观测层崩掉时，PASS 照样是 VERIFIED**。注释承诺 fail-closed，代码是 fail-open。
+
+**修（fail-closed，且只影响该影响的契约）。**
+1. `agent/external_observation.py` 新增公开谓词 `contract_has_external_surface(contract)`——「这个契约是否关于一个能观测的外部面」。原来只有私有 `_SURFACE_BY_CHECKER`，矩阵不该 import 私有表。
+2. `build_matrix`：记 `observation_layer_ran`；运行时照旧读计算出的答案；**没跑起来时**按契约自己判断——
+   - 有外部面 ⇒ `observation_decidable = False`（我们没看 ⇒ 不可判定 ⇒ PASS 降级为 UNVERIFIED，理由码 `external_not_observed`）；
+   - 无外部面 ⇒ `True`（本来就没东西可看，不该被无关的故障牵连）。
+
+**为什么不「一律置 False」。** 那会把一个观测层的 bug 变成**整张矩阵全红**——连 java/http 这类没有外部面的契约也会被拒。精确到「有外部面的契约」既 fail-closed，又不误伤。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_matrix_survives_a_broken_observation.py -q` | **3 passed in 4.06s** |
+| 观测回归 | `pytest test_external_observation_reaches_the_verdict.py test_external_observation_declared_edges.py -q` | **26 passed** |
+| 矩阵回归 | `pytest test_build_matrix_exit_verdict.py test_build_matrix_node_execution_is_observable.py test_matrix_policy.py test_matrix_pure.py test_compatibility_doc_rows_match_the_matrix.py test_compatibility_matrix_statuses_are_defined.py -q` | **71 passed in 5.81s** |
+| ruff / mypy | 三个文件 | **All checks passed** / **Success: no issues found in 2 source files** |
+
+新门三条：① 观测层炸 + 存储契约 ⇒ `observation_decidable is False`、`result == UNVERIFIED`、理由码正确、`matrix["passed"] == 0`；② 观测层炸 + 无外部面契约 ⇒ 仍是 PASS（不误伤）；③ **正常路径不受影响**（计算的答案优先）。
+
+**诚实边界。** ① 这是**行为修复**：只在「观测层抛异常」这条路径上改变结果，正常路径一字未变（第三条测试钉住）。② 没有去动另外 50 个静默处理器——多数记了指标/警告，剩下的要逐条判断「静默是否是设计」，不是一次扫描能定论的。③ `contract_has_external_surface` 只认 `_SURFACE_BY_CHECKER`（redis/rabbitmq）；将来加新面必须同时加进那张表，否则这里会漏判——已在 docstring 写明。④ 未改 `_decidable` 的既有语义（它仍是「有观测时看观测，没观测时看契约」）。
+
+**下一号队列（取号按落地时点 max+1）。** ① 其余 50 个静默处理器逐条判（尤其 `cli/` 与 `craft/`）。② `__init__()` ×3 的基类方案。③ `mcp` 负超时（#492 边界）。④ 近似克隆检测。
 ## #499 CI 说它会跑仓库自己的门：可 checkout 只带 1 个修订、无库的 job 里 2 个用例在 FAIL、两个 job 死在一条注释上
 
 **起因/占号。** #491 落地后的 CI run `40574430562`（提交 `565adfa`）：`tests-no-infra` **21 failed / 5585 passed / 29 skipped in 867.10s**；`tests-with-infra` 与 `eval-golden-cases` **一个测试都没跑**——日志里只有 `docker: 'docker run' requires at least 1 argument`。逐条归因：21 条红里 **10 条**是「job 没带上门要读的东西」（账本围栏 **7**、证据门 **1**、contract 编译 **2**），另 **11 条**属别车道在飞的文件（verdict_channel_parity 3 / fake_inventory 2 / checker_type_parity 1 / gradle_adapter 1 / metric_inventory 1 / progress_event_labels 1 / subprocess_text_encoding 1 / timeout_partial_output 1）——**没有一条是产品缺陷**。同一个 run 的 `lint-type` 是**绿**的，这订正 #491 的前提：那条红在 #491 合并**之前**的 HEAD 上，合并后的第一个 run 已经绿。**占号**：动手时账本 max＝**491**，本号按当时的 max+1 取 492；测量期间远端连落 #492（`_env_int()` 六份副本）、#493（胶囊与报告路径）、#494（`_read_java_files`）、#495（`_is_duplicate_key()`），第一版落地基座又落 #496（Gradle 沙箱）——按规矩在提交前重测（max＝**496**）并改名 #497；随后远端又连落 #497（worktree 清理助手）与 #498（别名导入的 mypy 红），第二版基座 max＝**498** ⇒ 最终 **#499**。两次改名都只动五处 `ci.yml` 注释与一处 docstring（共六处）；电池在第一次改名后的字节上跑完，第二次改名后对照组在最终字节上重跑。
@@ -14318,11 +14358,11 @@ A5 预测 **3** 条而不是 4 条：本机**有** `reports/full-eval/eval-repor
 8. **本号没有跑全量套件。** 共享工作树里有别车道在飞的改动，全量读数会被污染；本号只跑上述列出的门与相关文件。
 
 **下一号队列（取号按落地时点 max+1；落地前重测）。** ① **两道稳定的适配器红＝一个单元**：`craft/` 的 5 个 locale 编解码站点（上面点名）＋ 3 个 `TimeoutExpired` 分支直接读 `.stdout`（未走 `timed_out_partial`）；两条门在落地基座上仍是稳定红。② #491 队列①：要不要把 mypy 钉住（`mypy==2.3.1` 或让 CI 用 `uv sync --frozen` 读 `uv.lock`）——owner 的决定。③ #453 队列剩余：③（#397 六项）与④（落地前重测账本最大节号）。④ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。⑤ 记一笔号源竞争：本号动手时 max＝491，落地时已是 #498（期间别车道连落 #492–#498）⇒ 取 #499；测量期越长，被占的号越多，下次取号只能在**提交前**重测。
-## #502 Maven 的镜像 digest 已经过期：声明 `c07f7ccf…`、本地实际 `99e61abc…`，而三处声明（常量 / 矩阵 / 文档）从没有一处跟真实镜像对过
+## #503 Maven 的镜像 digest 已经过期：声明 `c07f7ccf…`、本地实际 `99e61abc…`，而三处声明（常量 / 矩阵 / 文档）从没有一处跟真实镜像对过
 
 **起因。** #490 的边界写着「镜像/工具链/离线策略/已知限制四列仍是手抄」。#496 只补了「播种脚本必须存在 + 卷名一致」，镜像与工具链两列还是没人对账。这次把它们拿去和**真实镜像**比。
 
-> 占号说明：本号开工时本地 HEAD 的账本 max 是 **498**，落地时发现两条并行线都在推进 ——远端另一车道已落 #499/#500，而本工作树里还有一条**未推送**的 #499（`9d09ba4`，CI 门相关）。为不与已推送的号冲突，本号先取 **#501**，随后远端又推了 #501（「四类经典 Python bug 扫描」）⇒ 最终取 **#502**；那条未推送的 #499 原样保留（不代人改号，账本里因此有两个 #499）。
+> 占号说明：本号开工时本地 HEAD 的账本 max 是 **498**，落地时发现两条并行线都在推进 ——远端另一车道已落 #499/#500，而本工作树里还有一条**未推送**的 #499（`9d09ba4`，CI 门相关）。为不与已推送的号冲突，本号一路让号：先取 #501，远端随即推了 #501（四类经典 Python bug 扫描）；改 #502 后又撞上远端 #502（观测层 fail-open）⇒ 最终取 **#503**。那条未推送的 #499 原样保留（不代人改号，账本里因此有两个 #499）。
 
 ### 量到的
 

@@ -37,6 +37,7 @@ jobs and the refusal events.
 from typing import Any
 
 from agent.external_observation import (
+    contract_has_external_surface,
     observation_limits,
     observation_status,
     observations_and_decidability,
@@ -189,6 +190,11 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
     """Build the Requirement-to-Evidence Matrix from real contract results."""
     incr("build_matrix_runs_total")
     contracts = state.get("contracts", [])
+    contracts_by_id: dict[str, Any] = {
+        str(contract.get("id") or "").strip(): contract
+        for contract in contracts
+        if isinstance(contract, dict) and str(contract.get("id") or "").strip()
+    }
     contract_results = state.get("contract_results", [])
     diff_results = state.get("diff_results", [])
     confirmed_findings = state.get("confirmed_findings", [])
@@ -317,6 +323,12 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
     # an unreadable observation must not become a verdict.
     contract_observations: dict[str, Any] = {}
     observation_decidable_by_contract: dict[str, bool] = {}
+    # Whether the comparison RAN at all. If it raised, no contract's external
+    # surface was looked at, and the rows below must say so: the comment above
+    # promises "an unreadable observation must not become a verdict", and a
+    # plain ``.get(contract_id, True)`` would break that promise by defaulting
+    # every row to decidable — letting a PASS on an unobserved surface stand.
+    observation_layer_ran = True
     try:
         (
             contract_observations,
@@ -325,6 +337,7 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
     except Exception:  # noqa: BLE001 — degraded, not fatal
         contract_observations = {}
         observation_decidable_by_contract = {}
+        observation_layer_ran = False
     # WHERE the evidence for a contract is, and in what state: the
     # records of the capsules that carry it (#366b / #367). The capsules
     # are packaged BEFORE this node runs (the graph order), so the
@@ -362,9 +375,18 @@ def build_matrix_node(state: Phase0State) -> dict[str, Any]:
         # "we looked and found nothing" — and the first one means a PASS
         # on this contract says nothing about the surface the contract is
         # about. The verdict layer reads this field (it does no I/O).
-        legacy["observation_decidable"] = observation_decidable_by_contract.get(
-            str(row.get("contract_id") or ""), True
-        )
+        contract_id = str(row.get("contract_id") or "")
+        if observation_layer_ran:
+            observation_decidable = observation_decidable_by_contract.get(contract_id, True)
+        else:
+            # The comparison raised, so nothing was looked at. Only a contract
+            # that names an external surface is missing an observation; one
+            # that names none has nothing missing, and must not be downgraded
+            # by an unrelated failure.
+            observation_decidable = not contract_has_external_surface(
+                contracts_by_id.get(contract_id, {})
+            )
+        legacy["observation_decidable"] = observation_decidable
         # Where the evidence for this contract can be fetched from, and
         # in what state. The verdict is untouched: this is an address
         # and a digest, not a reason.
