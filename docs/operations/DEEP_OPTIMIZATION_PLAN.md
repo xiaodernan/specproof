@@ -13758,3 +13758,46 @@ def _load_builtin_adapters() -> None:
 7. **本号没有改扫描器的排除表**：`.scratch/`、`tests/` 等仍在排除表里 ⇒ 写在这些路径里的标记行不进普查（见边界③）。
 
 **下一号队列（取号按落地时点 max+1）。** ① **#453 队列剩余**：②（Go/Node 适配器那 35 条 ruff 错）、③（#397 六项）、④（落地前重新量账本最大节号）。② **不可约边界的下一手**：要真正分开「提及」与「使用」，得改指令的形状而不是改解析器；本号只把边界钉住并留了指针。③ 仓库根仍有一批未跟踪调试脚本（`check_go_adapter.py` / `check_ledger.py` / `ctx448.txt` / `find_section.py` / `ledger_432_clean.md` / `original_plan.md` / `run_tests_no_mysql.py`），只污染本地 `ruff check .`、不进 CI。
+## #490 架构文档说 Gradle「规划中、无执行器」，代码里它早已实现并在 Docker 里跑：一行四处同时陈旧
+
+**起因/占号。** #488 队列①：「文档表格行集合 ↔ 代码矩阵行集合的对账」。占号前重测：HEAD 版账本 `## #` id 最大 **489** ⇒ 取 **#490**。
+
+**先量后写（量的是「两侧各有哪些行、状态是否一致」）。** 解析 `docs/architecture/EXECUTION_COMPATIBILITY.md` 的主表得到 6 行，与 `COMPATIBILITY_MATRIX` 的 5 行对比：
+
+| (language, build_tool) | 文档 | 代码 |
+| Java / Maven | 已支持 (实测) | 已支持 (实测) ✓ |
+| Java / Gradle | **规划 (planned)** | **已支持 (Docker 沙箱)** ✗ |
+| JavaScript/TypeScript / npm | 已支持 (Docker 沙箱) | 已支持 (Docker 沙箱) ✓ |
+| Python / pip | 已支持 (Docker 沙箱) | 已支持 (Docker 沙箱) ✓ |
+| Go / go | 已支持 (Docker 沙箱) | 已支持 (Docker 沙箱) ✓ |
+| Java (本地回退, JDK ≥ 22) / Maven | 编译可用, 跑测试起不来 | —— （文档独有，合法） |
+
+Java/Gradle 那行不只是状态错，而是**四处同时陈旧**：镜像写 `—`、工具链写 `待定`、离线策略写 `待定 (离线缓存策略随实现声明)`、已知限制写 **「detect 抛 AdapterNotImplemented; 无执行器」**。
+
+**先核实再改（这是「代码吹牛」还是「文档陈旧」）。** 读 `experiments/adapters.py::GradleAdapter`：
+- `detect`：`repo.has("build.gradle") or repo.has("build.gradle.kts")` 命中即返回 `RuntimeProfile`；`raise AdapterNotImplemented` 只出现在**未命中**那条路上（正常的 fail-closed）；
+- `prepare`：`request.goal != "run_test"` 才抛，`run_test` 有完整实现；
+- `run`：**在 Docker 沙箱里执行**，且 `prepared.sandbox_mode == "local"` 时**主动拒绝**（红线：不受信 Gradle 测试代码不给宿主权限）。
+⇒ **代码对、文档陈旧**。文档那行是「读它才知道能不能用 Gradle」的唯一入口，它把人劝退了。
+
+**修（用适配器自己的声明重写那一行，不臆造）。** 取值全部来自 `GradleAdapter`：`IMAGE = gradle:8.10-jdk21`、`TOOLCHAIN = "Gradle (docker sandbox) / gradle --no-daemon --offline test"`、`OFFLINE_POLICY`（GRADLE_USER_HOME 播种卷、缺失即停在当前阶段、不会把「解析不到 junit」说成「0 个测试通过」）、`KNOWN_LIMITS`（只跑项目自己的 test 任务、拒绝 local、版本目录/BOM 坐标不被播种脚本识别）。digest 如实写「**未钉**（证据里如实写 `—`，不臆造指纹）」——与 `prepare()` 里的注释一致。
+
+**落地（门）。** 新建 `tests/unit/test_compatibility_doc_rows_match_the_matrix.py`（**7 案**），单向对账（**代码 → 文档**）：
+1. `test_the_doc_table_was_actually_found`：表格非空；
+2. `test_every_matrix_row_agrees_with_the_doc`（参数化 5 条）：矩阵每一行都必须在文档表里有**同 (language, build_tool)** 的行，且**状态一致**（比较前去掉 `**`）；
+3. `test_a_doc_only_row_does_not_claim_a_supported_tier`：文档独有的行**不得声称 `已支持` 档**——`Java (本地回退, JDK ≥ 22)` 的「编译可用, 跑测试起不来」是合法形态，若它改成「已支持 …」，文档就在宣传一个注册表产不出的适配器。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| **先写门、改文档之前** | `pytest tests/unit/test_compatibility_doc_rows_match_the_matrix.py -q` | **1 failed, 6 passed**，红在 `[Java/Gradle]`：`matrix says '已支持 (Docker 沙箱)' but the doc says '规划 (planned)'` |
+| 改文档之后 | 同上 + `test_compatibility_matrix_statuses_are_defined.py` | **13 passed** |
+| 相关回归 | `+ test_adapters.py` | **39 passed** |
+| ruff | `ruff check tests/unit/…match_the_matrix.py` | 初报 E501（103 列）⇒ 拆行后 **All checks passed** |
+| **变异臂**（把文档独有的本地回退行改成 `**已支持 (实测)**`） | 先预测：第 3 条红 | 实测 **1 failed, 6 passed**，逐名命中 |
+| 变异臂还原 | `trap ... EXIT TERM INT` | 两处 `grep -c` 均回到 1、无 `.orig` 残留 |
+
+**否证与订正（本号自己踩的）。** 第一版用裸 `split("|")` 切单元格。而 JavaScript/TypeScript 那行的测试框架列是 **`jest \| vitest \| node:test`**（markdown 转义管道），裸切会把一行切成 9 个单元格、**状态被从错误的列读出**——那一行会被判成 `vitest \`。改成按「非转义 `|`」切（`re.split(r"(?<!\\)\|", …)`）才对。教训：**读 markdown 表格必须处理转义管道**，否则错位是静默的。
+
+**诚实边界。** ① 只做**代码 → 文档**单向对账；文档独有的行（如本地回退）合法存在，只要求它们不声称 `已支持`。反向（「文档里的行必须在代码里有」）**故意不做**——那会把「记录一条已知限制」变成必须先造一个适配器。② 本号**没有**把 Gradle 升到 `实测` 档：它没有真实仓库的端到端差分记录，按 #488 的定义就该是 `Docker 沙箱`。③ 只改了那一行的四个单元格，**没有**顺手重排整张表。④ 未跑真实 `gradle test`（需要播种 GRADLE_USER_HOME 卷与 Docker）。
+
+**下一号队列（取号按落地时点 max+1）。** ① **其余四行的单元格也可能陈旧**：门只对账了**状态**，镜像/工具链/离线策略/已知限制四列仍是手抄，与适配器常量的一致性没有门（本号只顺手把 Gradle 那行对齐了）。② 两套适配器系统合流（架构决策，需 owner；#482 已留完整测量）。③ #397 六项里可跑的四项（基准面与 87 案例需要多小时评测，本机跑不完）。④ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。
