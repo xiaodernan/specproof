@@ -13384,3 +13384,30 @@ ruff `All checks passed!`，mypy `Success: no issues found in 2 source files`。
 **诚实边界。** ① 只加测试，生产码未动——包括 `structured_diff.py` 那两份相同元组**没有**合并：它们今天相等，但「可重命名」与「是定义」将来可能有意分叉，耦合代码会把未来的合理分叉变成一次重构；用门锁住「今天相等」更稳。② 门断言的是**关系**不是字面量，所以新增一个词只改一边就会红——这正是要抓的漂移。③ `lineage.py` 的 NODE_KINDS/EDGE_TYPES 不加门：运行时拒收未列词已经是更硬的门。④ 本号只覆盖「有可校验关系」的四组；其余五个无门词表（含 `_NO_EVIDENCE_KINDS`）留在原处，理由已在上表写明。
 
 **下一号队列（取号按落地时点 max+1）。** ① `agent/external_observation.py`（455 行，28 案）仍待整读。② 数值默认值扫描已做（220 文件，9 个同名旋钮取值不同），结论是**全为上下文差异、非 bug**——若要继续，应改成「同一操作在两处实现」的定向比对，而不是按名字比。③ 普查若要支持布尔读者（#474 边界）。
+
+
+## #481 `agent/external_observation.py` 的「文档化了但没测」的不对称：None ≠ 不能判定、单侧时刻、截断去重
+
+**起因/占号。** #480 队列①：`agent/external_observation.py`（455 行，2 个测试文件共 34 案）。既有测试覆盖了主干（不臆造、limit 来自采集器事实、pack 与 row 一致），但模块 docstring 里几处**明确称为 load-bearing 的不对称**没人钉。占号前 `git fetch`：origin 领先本地 1（我自己的 #480，refspec 推的），origin HEAD `c5d4701`（`## #480`）⇒ 本号取 **#481**。
+
+**先量后写（逐条对账，探针先跑）。** 未覆盖：
+- **`observation_decidable(None) is True`**——docstring 明说「None 是『根本没有观测』，与『观测了但判不了』是**两个问题**」，只有契约能分清。这条不对称是判决层「PASS 不能覆盖没看过的面」的地基。
+- **非存储面契约**（http/sql/openapi）无观测 ⇒ 可判定（没有东西缺失）。
+- **存储面契约**：**有** key family 且无观测 ⇒ **不可判定**（我们没看）；**无** key family 且无观测 ⇒ **可判定**（没东西可看）。
+- **单侧时刻**：只有 base（或只有 head）⇒ `separated` 为假 ⇒ **不产生观测**。
+- **截断清单跨两个快照去重**：同一族在 base 与 head 都记了，limit 只能算**1** 个族。
+- **mq 扩展缺 `both_sides_observed`** ⇒ 不能声称「单侧报告」（老片段没这个键，默认 True）。
+- **`observation_status(None)` 是空串**，不是某个状态词。
+
+**落地（只加测试，`agent/external_observation.py` 一字未动）。** 新建 `tests/unit/test_external_observation_declared_edges.py`（**14 案**，纯对象/内存快照）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_external_observation_declared_edges.py -q` | **14 passed in 10.82s** |
+| 回归 | `pytest test_external_observation.py test_external_observation_reaches_the_verdict.py -q` | **34 passed** |
+| ruff | `ruff check tests/unit/test_external_observation_declared_edges.py` | **All checks passed** |
+
+**诚实边界。** ① 只加测试，生产码未动。② 用了一个 5 行的 `_Obs` 桩来喂 `observation_limits`（它只 `getattr` 三个属性），**没有**伪造整条采集链——mq 的真实片段仍由既有测试覆盖。③ 不钉 `_redis_observation` 内部对 `redis_fragment_from_snapshots` 的调用参数（那是采集器契约，既有测试已覆盖端到端）。④ 不钉 `int(extension.get("value_level_leftover_count"))` 在**非数字**输入下会抛 `ValueError`——那是防御性问题，现状是「采集器写 int」，钉「会抛」等于把缺陷写成契约；已记入下一号队列。
+
+**下一号队列（取号按落地时点 max+1）。** ① `observation_limits` 对**畸形扩展**（`value_level_leftover_count="abc"`）会抛 `ValueError`——先量影响面（谁会写非 int？），再决定是加防御还是加断言。② 「同一操作两处实现」的定向比对（替代按名字比旋钮）。③ 普查若要支持布尔读者（#474 边界）。
