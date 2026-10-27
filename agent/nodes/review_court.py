@@ -22,7 +22,6 @@ import asyncio
 import concurrent.futures
 import inspect
 import json
-import os
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -65,17 +64,6 @@ For each finding, produce a JSON object with:
 - candidate_confidence: 0.0 to 1.0 (your confidence that the finding is real)
 
 Return a JSON array. No other text."""
-
-
-def _get_provider() -> Any:
-    api_key = os.getenv("LLM_API_KEY", "")
-    if not api_key or api_key == "replace_me":
-        return None
-    try:
-        from providers.openai_compatible import OpenAICompatibleProvider
-        return OpenAICompatibleProvider(probe_on_init=False)
-    except Exception:
-        return None
 
 
 def _extract_json_array(content: str) -> list[dict[str, Any]]:

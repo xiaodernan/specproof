@@ -30,7 +30,6 @@ metric-side twin.
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 import tempfile
 import textwrap
@@ -70,6 +69,7 @@ from agent.job_control import (
     check_cancelled,
     run_with_cancel_checks,
 )
+from agent.nodes._llm_provider import get_provider as _get_provider
 from agent.state import Phase0State
 from observability.metrics import incr
 
@@ -177,18 +177,6 @@ class TestGenerationRecord:
     # §14.1 review stage: deterministic rules over the final source
     # (package/class name/test count/assertion short-circuits/imports).
     review: dict[str, Any] = field(default_factory=dict)
-
-
-def _get_provider() -> Any:
-    """Create an LLM provider from env vars. Returns None if not configured."""
-    api_key = os.getenv("LLM_API_KEY", "")
-    if not api_key or api_key == "replace_me":
-        return None
-    try:
-        from providers.openai_compatible import OpenAICompatibleProvider
-        return OpenAICompatibleProvider(probe_on_init=False)
-    except Exception:
-        return None
 
 
 def _validate_test_schema(code: str) -> list[str]:
