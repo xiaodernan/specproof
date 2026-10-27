@@ -89,8 +89,9 @@ _GENERIC_COERCERS: set[tuple[str, str]] = {
     ("craft/llm.py", "_env_int"),
     ("mcp/tools.py", "_env_int"),
     ("providers/openai_compatible.py", "_env_int"),
-    ("retrieval/embeddings.py", "_env_int"),
-    ("retrieval/rerank.py", "_env_int"),
+    # embeddings.py and rerank.py used to carry byte-identical copies; #492
+    # folded them into this one reader, so the roster names the reader.
+    ("retrieval/_env.py", "env_int"),
     ("sandbox/runner.py", "_budget"),
 }
 

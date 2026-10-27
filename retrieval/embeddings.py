@@ -25,18 +25,10 @@ import os
 import httpx
 from tenacity import RetryCallState, Retrying, retry_if_exception, stop_after_attempt
 
+from retrieval._env import env_int as _env_int
+
 _DEFAULT_BATCH_SIZE = 64
 _RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        return max(0, int(raw))
-    except ValueError:
-        return default
 
 
 def _retry_after_seconds(exc: BaseException) -> float | None:

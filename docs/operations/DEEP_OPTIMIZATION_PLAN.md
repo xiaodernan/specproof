@@ -13903,3 +13903,39 @@ Java/Gradle 那行不只是状态错，而是**四处同时陈旧**：镜像写 
 8. **本号没有改 typeshed**：形状 A 是**测量用的合成物**（复制一份自带 typeshed 改三行，用 `--custom-typeshed-dir` 装上），只用来量那张矩阵；仓库里没有留下任何改过桩的痕迹。
 
 **下一号队列（取号按落地时点 max+1）。** ① **要不要把 mypy 钉住**——`mypy==2.3.1`，或让 CI 改用 `uv sync --frozen` 读 `uv.lock`（锁文件里已经记着 2.3.1，但 CI 今天不用它）。这是 owner 的决定；本号只提供了「不钉住 ⇒ 类型步骤会随 typeshed 漂」这件事的读数与那张两种形状的矩阵。② **#453 队列剩余**③（#397 六项）与④（落地前重测账本最大节号）。③ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。
+
+
+## #492 `_env_int()` 六份副本、四种策略：收拢两份相同的，并用策略表把其余差异钉成决定
+
+**起因/占号。** #485 之后继续处理结构克隆，第二组是 `_env_int()`——检索仓库发现它其实有 **6 份**（结构克隆只报了 2 份，因为另外 4 份体量不同）。实测出**四种策略**：
+
+| 读者 | 空值 | 非数字 | 负值 | 大值 |
+| --- | --- | --- | --- | --- |
+| `agent.nodes.run_deep_experiments` | 默认 | **静默默认** | 钳到 1 | **钳到 10** |
+| `craft.budget` | 默认 | **抛 BudgetError** | 抛 | 999 |
+| `craft.llm` | 默认 | **抛 LLMUnavailableError** | 抛 | 999 |
+| `mcp.tools` | 默认 | **抛 ToolError** | **-3（接受）** | 999 |
+| `retrieval`（embeddings + rerank，逐字节相同） | 默认 | **静默默认** | 钳到 0 | 999 |
+| `storage.env_config.int_env`（权威） | 默认 | **抛 EnvKnobError** | -3 | 999 |
+
+占号前 `git fetch`：origin HEAD `## #491`（别车道）⇒ 本号取 **#492**。
+
+**判定：这不是「统一成一个」的问题。** 四个 raiser 各自抛**领域错误**（预算/LLM/MCP 工具），这是有意的「在读取处大声失败」；`deep` 的钳到 [1,10] 是它自己的有界语义（既有测试 `test_repeats_env_cap` 已钉 999→10）。真正的风险是**静默漂移**：改一处策略不会有任何测试变红。
+
+**落地（两件事）。**
+1. **真去重**：`retrieval/embeddings.py` 与 `retrieval/rerank.py` 的 `_env_int` **逐字节相同** ⇒ 抽到 `retrieval/_env.py::env_int`（钳 ≥0、非数字回落默认），两个模块改为别名导入，调用点一字未动。
+2. **策略表门**：新建 `tests/unit/test_env_int_readers_policy_table.py`（**10 案**）把上表钉成可执行断言（空值 / junk / 负值 / 大值四种输入 × 6 个读者），并断言两个 retrieval 模块**共享同一个 reader 对象**（`embeddings._env_int is rerank._env_int`）。docstring 明写：**三个「静默默认」的读者是相对 #471 约定（非数按名拒绝）的例外**，若产品决定统一拒绝，必须连表一起改。
+
+**顺带修好的：普查名单。** `test_numeric_env_knobs_survive_an_empty_assignment.py` 的 `_GENERIC_COERCERS` 里原本列着 `retrieval/embeddings.py::_env_int` 与 `retrieval/rerank.py::_env_int`；去重后必须换成 `retrieval/_env.py::env_int`，否则普查判「pinned but gone」。**教训**：该普查用 `git ls-files` 只扫**已跟踪**文件——新模块必须先 `git add`，否则它看不见（第一次跑就是这么红的）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 策略表门 | `pytest tests/unit/test_env_int_readers_policy_table.py -q` | **10 passed in 7.04s** |
+| 数值旋钮普查 | `pytest test_numeric_env_knobs_survive_an_empty_assignment.py -q` | **14 passed in 47.84s** |
+| 其余回归 | `pytest test_craft_budget_contract.py test_run_deep_experiments_node_execution_is_observable.py test_retrieval_hybrid.py tests/security/test_retrieval_injection.py -q` | **73 passed in 27.38s** |
+| ruff | 四个文件 | **All checks passed** |
+
+**诚实边界。** ① 只收拢两份**逐字节相同**的；其余四份**不合并**——它们的策略是各自领域的决定，合并会逼出一个带 `on_error=` 参数的万能函数，把「大声失败」变成配置项。② 策略表门**钉现状**：它不主张三个「静默默认」是对的，只让改变它们成为一次**有意的、要改表的**决定。③ 不改 `mcp` 接受负值（-3）的行为——权威 `int_env` 同样接受负值，这是既有语义；负超时是否该拒是另一号。④ 不统一 `CRAFT_TOKEN_BUDGET` 在 `craft/budget.py` 与 `craft/llm.py` 的**两个不同默认值**（那是普查 L10 的射程，已有一条门在盯）。
+
+**下一号队列（取号按落地时点 max+1）。** ① `_capsule_dirs()` / `_eval_report_path()` 跨 api 与 mcp 两层。② `_read_java_files()`（agent 两节点）、`_discard_workspace()`（prepare 双胞胎）、`__init__()`（3 个 storage 模块）。③ `mcp` 负超时是否该拒（本号边界）。

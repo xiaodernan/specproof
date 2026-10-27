@@ -21,19 +21,11 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+from retrieval._env import env_int as _env_int
+
 _DEFAULT_MAX_CANDIDATES = 20
 _DEFAULT_CONTENT_CHARS = 200
 _cross_encoder_cache: dict[str, Any] = {}
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        return max(0, int(raw))
-    except ValueError:
-        return default
 
 
 @dataclass
