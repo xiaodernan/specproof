@@ -13494,3 +13494,29 @@ def _load_builtin_adapters() -> None:
 **诚实边界。** ① 这是**行为等价重构**：三份实现原样搬移，错误码/文案/判据逐字未改；53+28+84 个测试全绿为证。② 只收拢这一组；结构克隆还命中 15 组（`_parse_mysql_url()` 在 4 个 storage 模块、`_env_int()` 在 retrieval 两个模块、`_capsule_dirs()`/`_eval_report_path()` 在 api 与 mcp 两层、`_read_java_files()` 在 agent 两个节点、`_discard_workspace()` 在 prepare 双胞胎…），逐个要判「该收拢还是该加门」，留给后续号。③ 不改 `assert_role` 的文案（它把 `sorted(principal.roles)` 回给客户端，是否有信息泄露是产品/安全评审的事，本号不动）。④ 不做 `api/routes` 之外的分层调整。
 
 **下一号队列（取号按落地时点 max+1）。** ① 结构克隆其余 15 组，优先 `_parse_mysql_url()`（4 份）与 `_env_int()`（retrieval 两份，且与 `storage/env_config.int_env` 是第三、四套 env 解析）。② `_capsule_dirs()` / `_eval_report_path()` 跨 api 与 mcp 两层——路径解析分叉会影响「MCP 看到的胶囊」与「API 看到的胶囊」是否同一批。③ `observation_limits` 畸形扩展（#481 边界，已量：单调用方、进程内片段 ⇒ 纯理论，暂不动）。
+## #484 给 `_BUILTIN_ADAPTER_MODULES` 那份手抄清单建对账门：新增适配器文件却忘了登记，注册表会静默少一个
+
+**起因/占号。** #482 队列②：「`_BUILTIN_ADAPTER_MODULES` 手抄清单的对账门」。占号前重测：HEAD 版账本 `## #` id 最大 **483** ⇒ 取 **#484**。
+
+**先量后写（量的是「清单与目录现在一致吗、靠什么保证」）。** `craft/adapters/` 下三个模块各声明一个字符串 `ADAPTER_ID`（`java-gradle` / `node-npm` / `go-test`），`_BUILTIN_ADAPTER_MODULES` 正好三条 —— **现在一致，但没有任何门保证它一致**。清单不可能在 import 时自动推导（「导入它去发现它」正是它存在的理由），所以它只能是手抄的；而**手抄清单与一个目录并存必然漂移**：新加 `craft/adapters/rust_adapter.py` 并写上 `ADAPTER_ID = "rust-cargo"`，注册表就静默少一个 —— 这正是 #482 修掉的那个「注册了但看不见」的形状，只是换了个入口。
+
+**落地（门）。** 新建 `tests/unit/test_adapter_builtin_module_list_is_complete.py`（**8 案**，双向对账）：
+1. `test_the_folder_actually_declares_some_adapters`：**非空**——扫不到东西时下面两条会恒真；
+2. `test_every_declared_adapter_is_registered`（参数化 3 条）：每个声明了字符串 `ADAPTER_ID` 的类都必须出现在 `list_adapters()` 里；
+3. `test_every_listed_module_exists`（参数化 3 条）：清单里每个模块在磁盘上必须存在（防止改名后清单留旧名）；
+4. `test_the_list_names_every_adapter_module_on_disk`：磁盘上的适配器模块集合 **==** 清单集合（另一个方向）。
+
+**为什么用 `ast` 而不是 import**：如果门自己 `import` 这些模块去读 id，它就把适配器注册了一遍，于是**分不清「清单完整」和「import 副作用干的」**——门会永远绿。`ast` 只读源码，零副作用。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_adapter_builtin_module_list_is_complete.py -q` | **8 passed** |
+| ruff | `ruff check tests/unit/test_adapter_builtin_module_list_is_complete.py` | All checks passed |
+| **变异臂**（放一个 `craft/adapters/_mutant_adapter.py`，内含 `class MutantAdapter: ADAPTER_ID = "rust-cargo"`） | 先预测：未登记 id 那条 + 模块集合相等那条红 | 实测 **2 failed, 7 passed**，逐名命中 |
+| 变异臂还原 | `trap ... EXIT TERM INT` | 文件已删、`ls` 确认不存在 |
+
+**否证与订正（本号自己踩的）。** 第一版想用 `import` 读 `ADAPTER_ID`，写完立刻意识到那会让门自己完成注册、从而无法区分「清单完整」与「import 副作用」——改成 `ast.parse` 读 `Assign`/`AnnAssign` 的 `Constant` 字符串值。这条与本仓「探针读绑定，不读文本」是同一种自觉：**门不能成为被测行为的成因**。
+
+**诚实边界。** ① `ast` 只认**字符串常量**形式的 `ADAPTER_ID`；写成 `ADAPTER_ID = f"x-{y}"` 或从别处导入的动态值会读不到，从而**漏检**（不会误报）。② 只扫 `craft/adapters/*.py` 的**顶层** `ClassDef`，不递归子目录、不看嵌套类。③ 这条门只保证「清单↔目录」一致，**不保证**适配器真的能用（那是各适配器自己的测试与 #482 的注册表门的事）。④ 本号对运行时行为零影响（纯测试）。
+
+**下一号队列（取号按落地时点 max+1）。** ① **两套适配器系统合流**（`experiments/adapters.py` ↔ `craft/adapters/`）——架构决策，需 owner（#482 已留完整测量）。② 仓库根那批未跟踪调试脚本（`_arm52*.py` / `_526.patch` 等）仍会污染本地 `ruff check .`，但不进 CI。③ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。④ `#480` 只修了 `mypy .` 那一条；下次开工仍应**先跑一遍平面 CI 门**再动手，因为并发车道随时可能引入新的红。
