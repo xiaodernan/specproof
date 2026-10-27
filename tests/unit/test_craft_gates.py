@@ -43,6 +43,10 @@ from craft.gates import (
 )
 from craft.schemas import ChangeBundle
 from craft.verify import CANARY_MARKER
+from tests.unit.craft_java_disclosure import (
+    missing_markers_clause,
+    unrunnable_commands_clause,
+)
 
 FAKE_KEY_LINE = "API_" + 'KEY = "' + "sk-" + "abcdefghijklmnopqrstuvwxyz123456" + '"'
 JWT_LINE = 'TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig_ABC123"'
@@ -200,7 +204,8 @@ def test_run_test_gate_java_tests_without_pom_skipped(tmp_path: Path) -> None:
     )
     result = run_test_gate(tmp_path, executor=FakeRunner())
     assert result.status == "skipped"
-    assert "无 pom.xml" in result.note
+    assert missing_markers_clause() in result.note
+    assert unrunnable_commands_clause() in result.note
     assert "不伪造通过" in result.note
 
 

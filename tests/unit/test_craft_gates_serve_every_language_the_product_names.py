@@ -40,10 +40,10 @@ from typing import Any, NoReturn
 import pytest
 
 from agent.preflight import _LANGUAGE_MARKERS
+from craft import gates
 from craft.executor import ExecResult
 from craft.gates import (
     _BUILD_MARKER_INVENTORY,
-    _BUILD_MARKERS,
     _BUILD_ROUTES,
     _TEST_GLOBS,
     _TEST_GLOBS_BY_KIND,
@@ -61,6 +61,11 @@ from sandbox.runner import (
     SANDBOX_MODE_ENV,
     SandboxProfile,
     SandboxResult,
+)
+from tests.unit.craft_java_disclosure import (
+    java_serving,
+    missing_markers_clause,
+    unrunnable_commands_clause,
 )
 
 REPO = Path(__file__).resolve().parents[2]
@@ -153,15 +158,44 @@ def test_the_two_tables_name_every_language_the_gates_dispatch() -> None:
         "— the same floor applies to the markers as to the patterns"
     )
     assert len(markers) == len(set(markers)), f"a marker routes two kinds: {markers}"
-    assert {route.kind: route.markers for route in _BUILD_ROUTES} == _BUILD_MARKERS
     for kind in KINDS:
         assert _TEST_GLOBS_BY_KIND[kind], f"{kind} is a dispatch kind with no pattern"
 
 
+def test_the_build_markers_live_in_one_table_and_the_census_can_see_it() -> None:
+    """#480 — the deleted copy may not come back under another name.
+
+    ``_BUILD_MARKERS`` was a second dict of the route table's markers. It had no
+    production reader, and the only test that read it compared it with its own
+    derivation — so three source edits to the table and one runtime swap of it
+    all left that leg green (#480 measured it). The table is the route table
+    alone now, and this census refuses ANY kind-keyed table of strings in
+    ``craft.gates`` besides the test-pattern table. It names the one table it
+    allows, which is what keeps it from passing vacuously: a census that found
+    nothing would not equal that set.
+    """
+    vocabulary = {route.kind for route in _BUILD_ROUTES} | set(_TEST_GLOBS_BY_KIND)
+    found = {
+        name: value
+        for name, value in vars(gates).items()
+        if isinstance(value, dict)
+        and value
+        and set(value) <= vocabulary
+        and all(
+            isinstance(entry, str)
+            or (isinstance(entry, (list, tuple)) and all(isinstance(x, str) for x in entry))
+            for entry in value.values()
+        )
+    }
+    assert set(found) == {"_TEST_GLOBS_BY_KIND"}, (
+        f"craft.gates holds {sorted(found)}; the build markers live in _BUILD_ROUTES, "
+        "and a second copy of them can only drift away from it"
+    )
+
+
 def test_craft_and_preflight_agree_on_the_build_marker_vocabulary() -> None:
     known = {marker for _language, markers in _LANGUAGE_MARKERS for marker in markers}
-    tested = set(_BUILD_MARKERS["maven"] + _BUILD_MARKERS["gradle"] + _BUILD_MARKERS["python"])
-    tested |= set(_BUILD_MARKERS["go"]) | set(_BUILD_MARKERS["node"])
+    tested = {marker for route in _BUILD_ROUTES for marker in route.markers}
     invented = tested - known
     assert not invented, (
         f"craft tests {sorted(invented)} as build configuration while "
@@ -172,9 +206,9 @@ def test_craft_and_preflight_agree_on_the_build_marker_vocabulary() -> None:
         if language == "unknown":
             continue
         served = {
-            kind
-            for kind, route_markers in _BUILD_MARKERS.items()
-            if set(markers) & set(route_markers)
+            route.kind
+            for route in _BUILD_ROUTES
+            if set(markers) & set(route.markers)
         }
         assert served, (
             f"preflight detects {language!r} from {markers} but no craft build route "
@@ -277,12 +311,19 @@ def test_a_gradle_repositorys_java_tests_are_not_blamed_on_a_missing_pom(
     result = run_test_gate(ws)
     assert result.status == "passed", result.note
     assert seen[-1] == (["gradle", "-q", "test"], GRADLE_PROFILE), seen[-1]
-    assert "无 pom.xml" not in result.note, result.note
+    # The note must not blame a build file the route table HAS. The derived
+    # clause is one shape of that blame and a hand-written subset is another,
+    # so the markers are checked one by one.
+    for marker in java_serving().markers:
+        assert f"无 {marker}" not in result.note, (
+            f"the note blames {marker!r} although the route table carries it: {result.note}"
+        )
     assert "没有容器镜像" not in result.note, result.note
 
     orphan = run_test_gate(_write(tmp_path / "orphan", JAVA_NO_BUILD_FILE), executor=Recorder())
     assert orphan.status == "skipped", orphan.note
-    assert "无 pom.xml / build.gradle" in orphan.note, orphan.note
+    assert missing_markers_clause() in orphan.note, orphan.note
+    assert unrunnable_commands_clause() in orphan.note, orphan.note
 
 
 def test_a_manifest_without_the_script_is_skipped_for_the_reason_it_names(

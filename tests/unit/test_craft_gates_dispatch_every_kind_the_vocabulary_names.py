@@ -49,6 +49,10 @@ from craft.gates import (
     run_typecheck_gate,
 )
 from craft.schemas import ChangeBundle
+from tests.unit.craft_java_disclosure import (
+    missing_markers_clause,
+    unrunnable_commands_clause,
+)
 
 GATE_SOURCE = (Path(__file__).resolve().parents[2] / "craft" / "gates.py").read_text(
     encoding="utf-8"
@@ -113,9 +117,24 @@ def _dispatched_kinds() -> set[str]:
 # ── the rosters are gone; each dispatch chain answers its own table ──
 
 
+def _literal_kind_subscripts(source: str, kinds: set[str]) -> list[str]:
+    """Every ``NAME["kind"]`` in the source, for the kinds the tables name."""
+    vocabulary = "|".join(sorted(kinds))
+    pattern = re.compile(r"\b[_A-Za-z][_A-Za-z0-9]*\[\s*['\"](?:" + vocabulary + r")['\"]\s*\]")
+    return pattern.findall(source)
+
+
 def test_no_kind_is_read_out_of_a_table_by_a_hand_copied_subscript() -> None:
     assert GATE_SOURCE.count("by_kind[") == 0, "a bucket is still read by a literal kind name"
-    assert GATE_SOURCE.count('_BUILD_MARKERS["') == 0, "a marker list is still read by literal"
+    # #480: the old belt counted the literal ``_BUILD_MARKERS["`` — a string the
+    # module no longer holds, so the belt could only ever stay green. The
+    # census is name-agnostic now: ANY table read by a literal kind name, with
+    # the vocabulary taken from the two tables themselves.
+    vocabulary = {route.kind for route in _BUILD_ROUTES} | set(_TEST_GLOBS_BY_KIND)
+    assert _literal_kind_subscripts(GATE_SOURCE, vocabulary) == [], (
+        "a table is read by a literal kind name: "
+        f"{_literal_kind_subscripts(GATE_SOURCE, vocabulary)}"
+    )
     # carriers: without these the two assertions above would pass on a file that
     # never reads those tables at all.
     assert "for kind, bucket in by_kind.items()" in GATE_SOURCE
@@ -123,6 +142,13 @@ def test_no_kind_is_read_out_of_a_table_by_a_hand_copied_subscript() -> None:
         "the Java disclosure is expected to be read from the route table at call time "
         f"(definition + 2 readers), found {GATE_SOURCE.count('_java_serving()')}"
     )
+
+
+def test_the_literal_kind_census_can_still_see_the_shape_it_forbids() -> None:
+    """Anti-vacuity: a census that cannot find a planted subscript proves nothing."""
+    assert _literal_kind_subscripts('markers["maven"]', {"maven"}) == ['markers["maven"]']
+    assert _literal_kind_subscripts("markers['java']", {"maven", "java"}) == ["markers['java']"]
+    assert _literal_kind_subscripts('markers["maven"]', {"gradle"}) == []
 
 
 def test_the_test_dispatch_answers_exactly_the_kinds_the_table_names() -> None:
@@ -172,8 +198,8 @@ def test_a_third_java_route_moves_the_honest_note_with_it(
     )
     result = run_test_gate(ws, executor=Recorder())
     assert "BUILD.bazel" in result.note, result.note
-    assert "bazel test 均无法运行" in result.note, result.note
-    assert "pom.xml" in result.note, result.note
+    assert missing_markers_clause() in result.note, result.note
+    assert unrunnable_commands_clause() in result.note, result.note
 
 
 def test_a_java_route_that_declares_no_test_command_is_refused(

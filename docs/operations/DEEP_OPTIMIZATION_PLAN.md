@@ -13586,3 +13586,70 @@ def _load_builtin_adapters() -> None:
 **诚实边界。** ① 门只对账**语言**，不对账 `build_tool`——矩阵里 Java 有两行（Maven/Gradle），而 README 的一行 `Java/Maven` 无法一一映射；按语言对账是这套文档结构能承受的最强约束。② 只在锚点句之后取**第一张**表；README 里其他表格（如执行面三态那一段）不受影响，也不会被误读。③ 本号只改文档与测试，**运行时行为零变化**。④ 我**没有**把 README 的 Java 行改写成同时覆盖 Maven 与 Gradle，而是新增一行——两行各自的执行面不同（Gradle 未钉 digest），合并会丢掉这个区别。
 
 **下一号队列（取号按落地时点 max+1）。** ① **`COMPATIBILITY_MATRIX` 的 `status` 梯度没有门**：`Java/Maven` 写「已支持 (实测)」、其余写「已支持 (Docker 沙箱)」，而 README 的更新记录里 JavaScript/TypeScript 的差分**已在真实沙箱实测跑通**（2026-09-23）——「实测」这个词谁能用、凭什么用，目前没人管。② 两套适配器系统合流（架构决策，需 owner；#482 已留完整测量）。③ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、MQ 面产品决策）。④ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。
+
+## #487 `_BUILD_MARKERS` 没有产品语义就删掉它：三条手抄的「无 pom.xml」句子收成派生
+
+**起因/占号。** #479 末尾的「下一号队列①」：「**#430①/②**：`craft/gates.py:130-132` 的 `_BUILD_MARKERS` 没有任何生产读者，而 `tests/unit/test_craft_gates_serve_every_language_the_product_names.py:156` 拿它跟自己的推导比（真空等式）——删掉还是接上，取决于它有没有产品语义；顺带把三条手抄的「无 pom.xml」句子（`test_craft_gates.py:203`、`test_craft_gates_serve_every_language…:280/:285`）收成派生。」
+
+**占号没有保住号，本号被让了三次。** 占号时重测：工作树账本 `## #` id 最大 **479**（297 个小节）⇒ 先取 **#480**。落地前，另一车道连落了 **#480**（九个「没有门」的词表）、**#481**、**#482**、**#483**、**#484** ⇒ 按本仓「取号按落地时点 max+1」的规矩改号；改完再量，又多出 **#485**（`_parse_mysql_url()` 四处副本）与 **#486**（README 语言表漏 Go 与 Java/Gradle）⇒ 只能再让一次。**本号的最终节号由落地脚本在提交前按 HEAD 的实际最大 id 现算**（`git show HEAD:docs/operations/DEEP_OPTIMIZATION_PLAN.md` 里 `^## #([0-9]+)` 的最大值 + 1），本节正文与 `craft/gates.py` 里那条注释里的号都是那一刻写进去的——**节号、注释、提交标题三处不可能再互相错开**。工作目录里的文件名前缀仍沿用占号时的 `m480_`（那些是本号的实测记录，不重命名，免得打断臂脚本里的路径）。
+
+**先量后写（量的是「这份表到底有没有产品语义」）。** 四条读数，都在动手前的字节上取的（探针 `.scratch/m480_probe.py`，读数 `.scratch/m480_probe.txt`）：
+
+1. **M1 — 生产读者 0 个。** `craft/gates.py` 里 `_BUILD_MARKERS` 的**定义行之外没有任何一处读它**：notes 读的是 `_BUILD_MARKER_INVENTORY`（那张表自己 join 出来的串），分派读的是 `_BUILD_ROUTES`，`run_typecheck_gate` 读的是 `_java_serving().markers`。#423 建它，#426 把每个生产读者都搬进了 `_java_serving()`（**调用时**读表），它就此成了化石。
+2. **M2 — 唯一读它的那条腿，对表的任何改动都不敏感。** 那条腿是 `assert {route.kind: route.markers for route in _BUILD_ROUTES} == _BUILD_MARKERS`：它拿**一份推导**和**它的推导**比。实测三条改表的刀（加一条 bazel 路线 / 删掉 node 路线 / 给 maven 加第二个标记）**全都让它绿着**；连**运行期**换掉模块里的 `_BUILD_ROUTES`（生产表变成 6 条路线，那条腿仍读着导入时抄下的 5 条）也照样绿。**它证明的是「两次推导相等」，不是「表是对的」。**
+3. **M3 — 三条手抄句子认不出「少写了一个标记」。** 生产那句 Java 拒跑理由是派生的（`{' / '.join(serving.markers)}` + `{'·'.join(serving.stems)}`），但三处测试把它**手抄**成了固定文本。实测：把手写的那句塞回生产（只写 `pom.xml / build.gradle` 与 `mvn test`），旧断言 `'无 pom.xml' in note` **照样绿**——因为那几个标记名是测试自己写的，生产写没写全它看不见。（同一次读数里 `'无 pom.xml / build.gradle' in note` 是红的：旧断言若写成全串，生产换个标记集它就断；可它断的方式是**拼字符串**，不是**认表**。）
+4. **M4 — 名字绑定的那条形门，删掉即空转。** `assert GATE_SOURCE.count('_BUILD_MARKERS["') == 0` 守的是一个**字符串**：模块删掉 `_BUILD_MARKERS` 之后这个计数**永远是 0**，这条门从此只会绿，不会响。
+
+**修（三件事）。**
+
+1. **删掉 `_BUILD_MARKERS`。** 它没有产品语义——「构建标记在哪」这件事的知识在 `_BUILD_ROUTES` 的 `markers` 列里，#426 之后每个生产读者都从那里读；留着它只是给后人一个可以再抄一次的表。原处留四行注释记明它为什么没了、以及标记现在只住在 `_BUILD_ROUTES`。
+2. **三条手抄句子收成派生。** 新建测试侧共用模块 `tests/unit/craft_java_disclosure.py`，把两条拒跑从句**从表的值拼出来**（`missing_markers_clause()` = `仓库无 ` + 表里的标记；`unrunnable_commands_clause()` = 表里的命令词干 + ` test 均无法运行`），读表在**调用时**（`_java_serving()` 读模块全局）。三处断言改读它：生产那句一旦不再引用表（或只引用了表的一部分）就红。负向那一侧同时改成**逐个标记**检查（`无 <marker>` 不在 note 里），比旧的 `无 pom.xml` 更严：手写的**子集**也躲不掉。
+3. **两条形门（删表与删门都要有牙齿）。**
+   - **普查**：`craft.gates` 的模块命名空间里，**除 `_TEST_GLOBS_BY_KIND` 以外不允许再有「按 kind 键、值为字符串集合」的表**。它写明自己允许哪一张 ⇒ 普查找到空集时不会读成「干净」（找到的名字集合必须**正好**是那一张）。
+   - **重瞄**：删掉 `_BUILD_MARKERS` 之后，原先那条数 `_BUILD_MARKERS["` 的形门永久为真 ⇒ 改成**与名字无关**的普查：`NAME["kind"]` 形式的硬下标一个都不许有，而 kind 词表**由那两张表自己给出**（不手抄）。另加一条反空转的载体：普查必须能在一段种入的文本里认出它禁的那个形状。
+
+**落地（门）。** 生产改动 1 处（`craft/gates.py` 删一张表 + 4 行注释）；测试侧新增 1 个共用模块 + 改 3 个测试文件（`test_craft_gates.py`、`test_craft_gates_serve_every_language_the_product_names.py`、`test_craft_gates_dispatch_every_kind_the_vocabulary_names.py`）。
+
+**门证（全在本号内亲手取）。**
+
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 三个 gates 测试文件 + 假件普查 | `pytest tests/unit/test_craft_gates.py tests/unit/test_craft_gates_serve_every_language_the_product_names.py tests/unit/test_craft_gates_dispatch_every_kind_the_vocabulary_names.py tests/unit/test_fake_inventory_stays_measured.py -q` | **74 passed in 60.21s**（三个 gates 文件 70 + 假件普查 4；20 / 43 / 194 = 257 未动） |
+| ruff | `ruff check craft/gates.py tests/unit/craft_java_disclosure.py tests/unit/test_craft_gates*.py` | **All checks passed!** |
+| mypy（CI 的类型检查步骤） | `python -m mypy .` | **1 error**（`mcp/client.py:191`，checked 257 source files）——**是 HEAD 自带的那一条，不是本号的**（见否证段） |
+| 臂前基线（10 个文件） | `pytest <10 files> -q` | **180 passed, 2 skipped in 187.86s** |
+| 全量（CI 等价） | `pytest tests/unit tests/security tests/fault -q` | **5542 passed / 3 failed / 3 skipped in 5524.04s**——3 条红全部落在本号没碰过的文件上（见否证段） |
+
+**变异臂的逐条判决（预测写在臂跑之前，一个字都没有按实测回填）。** 预测文件 `.scratch/m480_arm_predictions.md`，跑法 `.scratch/m480_arms.py`（每个臂一个 pytest 子进程，**只改 `craft/gates.py` 一个文件**，每个臂跑完按字节还原并核对 `bytes-restored`）。
+
+| 臂 | 改了什么 | 预测我的红 | 实测我的红 | 判决 |
+| --- | --- | --- | --- | --- |
+| A1 | 生产把拒跑理由手写成固定文本（`pom.xml / build.gradle` + `mvn test`） | 3 | 3 | MATCHED |
+| A2 | `notes.append(...)` 搬出 `if present is None:` | 2 | 5（命中 2/2） | **MISMATCH**（刀的第二个效应） |
+| A2′ | 只动 `else` 分支，`present is None` 那条路径逐字不动 | 2 | 2 | MATCHED |
+| A3 | 把 `_BUILD_MARKERS` 那张表加回来 | 1 | 1 | MATCHED |
+| A4 | 种入一个 `markers["maven"]` 硬下标 | 1 | 1 | MATCHED |
+| A5 | maven 路线加第二个标记 `build.xml` | 1 | 1 | MATCHED |
+
+**否证与订正（本号自己踩的）。**
+
+- **A2 是 MISMATCH（预测 2、实测 5），多出的 3 条红不是腿变严，是刀自己带的第二个效应。** A2 的刀把 `notes.append(...)` 搬出了 `if present is None:`，并把链条改写成 `notes.append(...)` / `if present is not None and not present.test_command: raise AssertionError(...)` / `else: commands.append(list(present.test_command))`。那个 `else:` 原本只是「有构建文件」那一支；**改写之后 `present is None` 也会走到它**，于是 `present.test_command` 抛 `AttributeError: 'NoneType' object has no attribute 'test_command'`。多出的 3 条红（`test_run_test_gate_java_tests_without_pom_skipped`、`test_a_third_java_route_moves_the_honest_note_with_it`、`test_no_shipped_repository_shape_raises_out_of_a_gate`）全部出自这个第二效应——它们走的正是「仓库里没有 Java 构建文件」那一支。**A2 的读数是刀错的判决，不是腿的判决**：它预测的 2 条红确实红了。**A2 的读数留在记录里，不被 A2′ 抹掉。**
+- **A2′ 是重做这把刀**（预测写在跑之前：`.scratch/m480_arm_A2prime_predictions.md`，跑法 `.scratch/m480_arm_a2prime.py`）。刀只动 `else` 分支，`present is None` 那条路径逐字不动 ⇒ 实测**正好 2 条红**，与预测逐条对上（`test_a_gradle_repositorys_java_tests_are_not_blamed_on_a_missing_pom` 与 `test_every_kind_the_table_names_returns_a_gate_result_today`）。
+- **A5 的那 1 条红不是披露腿的，是词表对账腿的。** 披露腿（派生从句）**全绿**——理由跟着表走，所以加一个标记后派生出来的从句照样对得上。这正是 A5 想要的读数：手写的理由会在这里红（那是 A1），派生的理由跟着表走。红的那条是 `test_craft_and_preflight_agree_on_the_build_marker_vocabulary`：craft 的表里有 `build.xml` 而 `agent/preflight.py` 的 `_LANGUAGE_MARKERS` 里没有 ⇒ 两个词表有一边是编的。
+- **M4 的普查口径被重瞄时改过。** 原先的普查在**整棵树**上扫，命中的是测试文件自己写的那一处 `markers["maven"]`；重瞄后的普查只扫 `craft/gates.py`（`GATE_SOURCE`），**当前读数是 0 处**——这才是「生产侧有没有硬下标」这个问题的答案。
+- **全量那 3 条红不是本号的，而且这一条在当前 HEAD 上仍然成立。** 三条各自点名的文件都在本号的 diff 之外，且与 HEAD **逐字节相同**（`git diff HEAD -- <那些文件>` 输出为空）：`test_subprocess_text_encoding` 点名 `craft/adapters/go_adapter.py:173`、`craft/adapters/gradle_adapter.py:122/225/398`、`craft/mutation.py:448`（5 个越界点，正是 #480 队列② 里点名要别车道自己清的那 5 个）；`test_timeout_partial_output` 点名 `craft/adapters/go_adapter.py:181`、`craft/adapters/gradle_adapter.py:135`、`craft/adapters/node_adapter.py:189`；`test_the_ci_type_check_is_a_suite_leg` 点名 `mcp/client.py:191` 的那一条类型错。**本号改的是 `craft/gates.py`**，它不在任何一条点名的名单里；而 mypy 在**含本号改动的工作树**上仍然只报 `mcp/client.py` 这一条 ⇒ **本号的改动在 CI 的类型检查下是干净的**。这三条在 #480–#486 落地后的 HEAD 上**重跑过一遍，offender 名单逐字相同**。这一跑（全量）本身跑在 HEAD 从 `6ed1d3e` 走到 `d2c205b` 的窗口里——那些节是别车道在这 1.5 小时里落的——所以那 3 条红是**那一时刻工作树**的读数；本号在**当前 HEAD** 上重读了它们一次，结论不变。
+- **占号被让了三次，这件事本身进了账本。** 见「起因」段。取号的规矩是「落地时点 max+1」，而落地时点被别车道抢在了前面 ⇒ 本号把节号改成**落地脚本现算**，而不是手写。
+
+**诚实边界。**
+
+1. **新共用模块住在 `tests/unit/` 而不是 `craft/`**：它必须**自己拼**从句，若住在生产侧，测试读的就是生产自己拼好的那句话——等式不是推导。
+2. **`java_serving()` 读的是 `craft.gates` 的模块全局**，所以「注入一条 bazel 路线」这类腿能看见披露跟着表走；这是**调用时**读表的性质，不是新加的机制。
+3. **普查只认「按 kind 键」的表**：一张按别的名字键（例如按标记名键）的表不在它的眼里。这是有意的取舍——它守的是「构建标记的第二份拷贝」这一种形状，不是所有字典。
+4. **新模块的文件名不以 `test_` 开头**，因此 pytest 不收集它、`tests/conftest.py::mysql_backed_test_files` 的 `test_*.py` 普查也不数它；但 `tests/unit/test_audit_action_parity.py` 的禁写普查是 `rglob("*.py")`，**会读到它**——它里面没有 job 行删除，红不在它身上。
+5. **本号没有改 `_BUILD_MARKER_INVENTORY` 的措辞**，也没有改 `_java_serving()` 的读法；两者都在 #426 的射程里，本号只把它们旁边的化石清掉。
+6. **本号没有跑真实容器**（`mvn` / `gradle` 的沙箱执行需要 Docker）。
+7. **本号没有修那 3 条红**：它们不在本号的 diff 里（见否证段），按本仓「别车道的债由别车道自己清」的规矩归给各自的属主；本号只负责把归因做实（点名文件 + 逐字节相同 + 当前 HEAD 上重跑仍红）。
+8. **本号没有替 A2 找补**：A2 的读数（预测 2、实测 5）与 A2′ 的读数（2/2）都留在账本里，谁都可以按 `.scratch/m480_arm_A2.txt` 与 `.scratch/m480_arm_A2prime.txt` 复核。
+9. **本号的臂跑在注释里写着旧号的字节上**（占号时的 `#480`）：落地脚本只改那一行注释里的号，**不改任何可执行字节**；臂的判决因此仍然成立，但严格说臂跑的字节与落地的字节相差那一个注释字符串。
+
+**下一号队列（取号按落地时点 max+1）。** ① **#453 队列剩余**：文档里引用指令的通用防护（探针已在 `.scratch/m481_nosec_mention_probe.py`，读数尚未取）。② **#397 六项**（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、CI 夜间 workflow、MQ 面产品决策）。③ 仓库根仍有一批未跟踪调试脚本（`check_go_adapter.py` / `check_ledger.py` / `ctx448.txt` / `find_section.py` / `ledger_432_clean.md` / `original_plan.md` / `run_tests_no_mysql.py`），只污染本地 `ruff check .`、不进 CI。④ 别车道的 `test_subprocess_text_encoding` 那 5 个越界点仍由别车道自己清（本号在 #486 之后的 HEAD 上复测仍红，见否证段）。⑤ 本号的全量读数跑在 HEAD 移动的窗口里；若要一条**单一 HEAD** 上的全量读数，得在落地后重跑一次。⑥ **取号竞态本身值得一条门**：账本节号目前靠人守「落地时点 max+1」，本号已经连让三次；将来可以给「节号分配」一条机械门（占号时登记，落地时校验），否则每个并行车道都要靠人盯。

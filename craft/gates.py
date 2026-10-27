@@ -127,9 +127,10 @@ _BUILD_ROUTES: tuple[_BuildRoute, ...] = (
     _BuildRoute("go", ("go.mod",), "go"),
     _BuildRoute("node", ("package.json",), "node"),
 )
-_BUILD_MARKERS: dict[str, tuple[str, ...]] = {
-    route.kind: route.markers for route in _BUILD_ROUTES
-}
+#: #487 deleted the ``_BUILD_MARKERS`` copy that used to live here: it had no
+#: production reader (the note reads ``_BUILD_MARKER_INVENTORY``, the dispatch
+#: reads ``_BUILD_ROUTES``), and the one gate that read it compared it with its
+#: own derivation. The build markers live in ``_BUILD_ROUTES`` and nowhere else.
 _BUILD_MARKER_INVENTORY = " / ".join(marker for route in _BUILD_ROUTES for marker in route.markers)
 _TEST_INVENTORY = " / ".join(_TEST_GLOBS)
 
