@@ -14145,3 +14145,40 @@ does not explicitly export attribute "_read_java_files"  [attr-defined]
 - 只修这一处调用点。其余 42 处跨模块私有导入未动（它们不走别名链，mypy 也不报）。
 - 这条红能活到 master，说明**类型门的结果没有拦住推送**（或推送方没等它跑完）。本号修的是代码，不是流程；流程面（分支保护 / 等 CI）不属本仓文件能改的范围。
 - `run_deep_experiments` 的 mutation 段本身没有被本号改变行为：调用的是同一个函数对象，已实测 `is` 为真。
+
+
+## #499 结构克隆棘轮：把「16 组副本」的扫描固化成一条门，并顺手收拢 `_get_provider()`
+
+**起因/占号。** #497 队列④：结构克隆从 16 组降到 7 组，但扫描器一直是**手跑脚本**（在仓库外）。手跑的东西不会在 CI 里拦住新副本。本号把它**固化成一条门**，并顺手把其中唯一「便宜可收拢」的一组（`_get_provider()`）收掉，让 allowlist 少一条。
+
+占号前 `git fetch`：origin HEAD 已是 `## #498`（别车道）⇒ 本号取 **#499**。
+
+**落地（两件事）。**
+1. **收拢 `_get_provider()`**：`agent/nodes/generate_counterexamples.py` 与 `review_court.py` 各一份（逐字节相同）⇒ 新建 `agent/nodes/_llm_provider.py::get_provider()`。两个节点别名导入，调用点一字未动。它把三个决定集中到一处：没 key（或示例 env 里的占位符 `replace_me`）就没有 provider、构造时 `probe_on_init=False`（构造不发网络）、构造失败降级为 `None` 而不是把节点打死。
+2. **棘轮门**：新建 `tests/unit/test_structural_clone_ratchet.py`（**3 案**）。扫描 13 个 shipped 包（`git ls-files`），对每个函数**去掉 docstring** 后按 AST 哈希，取「跨 2+ 文件且节点数 ≥25」的组，与 `KNOWN_CLONES` 比对：
+   - **新出现的克隆 ⇒ 红**（带 `file::func` 清单，提示「共享实现，或写进 KNOWN_CLONES 并说明为什么必须重复」）；
+   - **allowlist 里已不存在的组 ⇒ 也红**（`pinned but gone`）——名单是**关于当前树的断言**，不是某个下午的快照；
+   - **每条 allowlist 必须写理由**，且必须真的是跨文件。
+
+**剩余 7 组为什么留着（每条都在 allowlist 里写了理由）。**
+| 组 | 为什么不去重 |
+| --- | --- |
+| storage 三处 `__init__` | SQLite store 构造器（connect + Row factory + lock + ensure_schema）；去重要基类，为 5 行引入继承层级不划算 |
+| api/mcp `_capsule_dirs` / `_eval_report_path` | 跨层路径；已被 #493 的 `test_capsule_and_report_paths_agree` 钉住；合并要 owner 决定落点 |
+| craft adapters `_as_text` / `_read_text_or_none` | 适配器车道的地盘，本车道只登记不越界改 |
+| storage 五处 `connection` | 2 行 contextmanager（`unit_of_work(self._connect)`），mixin 比它更绕 |
+| craft/tools 与 mcp/client 的 `__init__` | 两个不相干的类恰好共享 2 行构造器——巧合，不是契约 |
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 棘轮门 | `pytest tests/unit/test_structural_clone_ratchet.py -q` | **3 passed in 17.12s** |
+| 节点回归 | `pytest test_generate_counterexamples_node_execution_is_observable.py test_llm_counterexample_path_actually_runs.py test_review_court_policy.py test_toothless_counterexample_is_not_pass.py -q` | **79 passed in 181.64s** |
+| ruff | 三个源文件 + 新测试 | **All checks passed** |
+
+**踩到并澄清的一个假警报（重要）。** 我用 `--basetemp=/d/面试项目/_pt_*`（仓库所在盘，**不在系统 TEMP 下**）跑回归，`generate_counterexamples` 的 4 个测试全红，看着像我的改动打断了节点。实际是节点里有一条安全护栏 `refuse_to_pollute_a_checkout()`：**拒绝把生成的测试写进不在系统 temp 下的目录**（防止污染 checkout）。`--basetemp` 把 `tmp_path` 挪出了 TEMP，护栏正确拒绝。
+- **纪律**：**`--basetemp` 必须留在系统 TEMP 下**；要避开 safe-delete 守卫的输出截断，宁可用默认 basetemp 重跑，也不要把它指到仓库盘。
+
+**诚实边界。** ① allowlist 是**登记现状**，不是背书——每条都写了「为什么还没合并」，缩小它才算进展。② 扫描只抓「**全常量 AST 完全相同**」的函数体：结构相似但改名/换字面量的**近似克隆**不在射程（那是另一种工具）。③ `MIN_NODES = 25` 是取舍：更小会淹没在 2 行委托里，更大可能漏掉真副本。④ 门依赖 `git ls-files`（与数值旋钮普查同一套），**新文件必须先 `git add`** 才会被看见。
+
+**下一号队列（取号按落地时点 max+1）。** ① 缩小 allowlist：`connection()` ×5 若做 mixin 方案（需先量 5 个 store 的 `_connect` 是否同形）。② `__init__()` ×3 的基类方案。③ `mcp` 负超时（#492 边界）。④ 近似克隆检测（改名/换字面量）作为下一层工具。
