@@ -13349,30 +13349,65 @@ ruff `All checks passed!`，mypy `Success: no issues found in 2 source files`。
 6. **合并债（与本号代码无关，但落地时必须交代）**：本车道与来车都带了一个裸的 `## #474`。合并时按 #292 的 L5（后缀号必须紧跟在它的族号之后）将来车那一节改成 `## #474b`、放在 `## #474` 之后，正文除 id 词外**逐字未改**（详见合并提交 `e54a840`）。
 
 **下一号队列（取号按落地时点 max+1）。** ① **#430①/②**：`craft/gates.py:130-132` 的 `_BUILD_MARKERS` 没有任何生产读者，而 `tests/unit/test_craft_gates_serve_every_language_the_product_names.py:156` 拿它跟自己的推导比（真空等式）——删掉还是接上，取决于它有没有产品语义；顺带把三条手抄的「无 pom.xml」句子（`test_craft_gates.py:203`、`test_craft_gates_serve_every_language…:280/:285`）收成派生。② 别车道的 `test_subprocess_text_encoding` 那 5 个越界点该由别车道自己清。③ #453 队列剩余：文档里引用指令的通用防护。④ 仓库根仍有一批未跟踪调试脚本，只污染本地 `ruff check .`、不进 CI。
-## #480 `mcp/client.py` 那个 `cast` 是多余的：`_proc` 早就标注成 `Popen[str]`，`#479` 用一次新红换掉了旧红
 
-**起因/占号。** 本号开工时跑全仓 CI 门，`mypy .` 报 1 条红：
-`mcp/client.py:184: Redundant cast to "IO[str] | None" [redundant-cast]`。占号前重测：HEAD 版账本 `## #` id 最大 **479** ⇒ 取 **#480**。
 
-**先量后写（量的是「这个 cast 到底在替谁说话」）。**
-- `mcp/client.py:155` 是 `self._proc: subprocess.Popen[str] = subprocess.Popen(...)` —— **这个注解自 `0d85586` 起就在**（`git log -S "Popen[str]"` 只命中那一个 merge）。
-- 于是 `self._proc.stdout` 的类型就是 `IO[str] | None`，**不需要任何 cast 来「重述」**。
-- `git log -S "cast(IO[str] | None"` 命中两处：`#297`（**删掉**过一个同位置的 cast）与 **`#479`（刚刚把它加了回来）**。
-⇒ **`#479` 的注释把因果说反了**：它写「typeshed 把 `Popen.stdout` 给成 `IO[Any]`，无论类的类型参数是什么，所以必须在读取处重述文本模式契约」。实测不是：`Popen[str].stdout` 就是 `IO[str] | None`。它加的 cast 让 mypy 从「另一种红」变成 `[redundant-cast]` 这一种红——**CI 并没有因此变绿**。
+## #480 九个「没有门」的词表：给其中四组有可校验关系的补上门
 
-**修。**
-- `mcp/client.py`：`stdout = cast(IO[str] | None, self._proc.stdout)` → `stdout = self._proc.stdout`；`typing.IO` 随 `F401` 一起从导入里删掉（`cast` 仍被 376 行用着，保留）。
-- 那段注释**改写为事实**：承载文本模式契约的是 `self._proc` 的 `Popen[str]` 注解，不是读取处的 cast；并写明 `#479` 加 cast、mypy 判 `[redundant-cast]`、`#297` 曾删过同类 cast 这段历史，免得下一个人再来加一遍。运行时事实仍由 `tests/unit/test_mcp_stdio_transport_is_the_text_it_claims.py` 钉住。
+**起因/占号。** #475 的核心观察是「**有门的没坏，没门的坏了**」。顺着这条线做了一次**词表人口普查**：AST 扫模块级词表声明（名字含 VOCAB/SEVERITY/VERDICT/STATUS/KIND/…，值是 ≥2 个字符串常量的 list/tuple/set/frozenset），再查 `tests/` 里有没有任何地方**提到过这个名字**。结果：**29 个词表声明里，9 个从没被测试点过名**。
 
-**门证（全在本号内亲手取）。**
+占号前 `git fetch`：本地与 origin 0/0，origin HEAD `6ed1d3e`（`## #479`）⇒ 本号取 **#480**。
+
+**九个无门词表，逐个判。** 不是九个都该加门——加门要有**可校验的关系**，否则只是把字面量抄进测试（那种门只能防手滑，防不了语义漂移）：
+| 词表 | 有无可校验关系 | 处置 |
+| --- | --- | --- |
+| `mcp/tools._ALLOWED_CONTRACT_STATUSES` | **有**：应与 `agent.contracts.records.CONTRACT_STATUSES` 小写化后 + `all` 相等 | **加门** |
+| `integrations/inline_comments._SEVERE_LEVELS` | **有**：应是 `agent.policy_dsl.SEVERITIES` 的子集 | **加门** |
+| `storage/mysql.RETIRED_STATUSES` | **有**：应是状态机 `_VALID_TRANSITIONS` 键的子集 | **加门** |
+| `craft/structured_diff._DEF_KINDS` / `_RENAMABLE_KINDS` | **有**：同文件内两份，今天必须相等 | **加门**（锁「今天相等」，分叉须有意） |
+| `evidence/lineage.NODE_KINDS` / `EDGE_TYPES` | 无（不需要）：运行时**拒收**未列词，本身就是门 | 不动 |
+| `agent/contracts/records.CONTRACT_STATUSES` | 无独立伙伴（它是对照源） | 由上面第一条间接覆盖 |
+| `integrations/inline_comments._NO_EVIDENCE_KINDS` | 无：`{'', '?', 'unknown'}` 是「无证据」的三种写法，没有词表可对 | 不动 |
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/unit/test_vocabulary_relationships_are_gated.py`（**8 案**）：
+1. MCP 状态过滤器 == 契约状态小写化 + `all`（跨模块等式）；
+2. `_SEVERE_LEVELS ⊆ SEVERITIES`（子集）；
+3. `RETIRED_STATUSES ⊆` 状态机状态集（子集）；
+4. `_DEF_KINDS == _RENAMABLE_KINDS`（同文件等式）；
+5. 参数化 4 条：每个契约状态的小写形式都在 MCP 过滤器里（行为对照）。
+
+**门证（全在本批内亲手取）。**
 | 门 | 命令 | 结果 |
-| mypy（单文件） | `mypy mcp/client.py` | 改前 **1 error**（redundant-cast）⇒ 改后 **Success** |
-| **mypy（全仓，CI 那道）** | `mypy .` | **Success: no issues found in 256 source files**（改前 1 error） |
-| ruff | `ruff check mcp/client.py` | 改后初报 `F401 typing.IO` ⇒ `--fix` 后 **All checks passed** |
-| 运行时契约 | `pytest test_mcp_stdio_transport_is_the_text_it_claims.py -q` | **4 passed** |
-| 相关套件 | `pytest test_mcp_client.py test_mcp_stdio_transport_is_the_text_it_claims.py test_the_ci_type_check_is_a_suite_leg.py -q` | **22 passed** |
-| **变异臂**（把 cast 加回去） | `mypy mcp/client.py` | 预测：重新报 `[redundant-cast]`；实测同 —— 证明这道门真的在管这件事 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_vocabulary_relationships_are_gated.py -q` | **8 passed in 8.62s** |
+| ruff | `ruff check tests/unit/test_vocabulary_relationships_are_gated.py` | 初报 SIM300（Yoda）+ I001（import 排序），`--fix` 后 **All checks passed** |
 
-**诚实边界。** ① 本号**没有**改 `recv()` 的运行时行为（去 cast 是纯类型层动作，`cast` 在运行时是恒等函数）。② 我改写了 `#479` 写下的那段注释。它记录的是**错误归因**（typeshed 给 `IO[Any]`），留着会把下一个人引向同样的错修；改写保留了「#297 删过 cast」「#479 加回来」「mypy 判 redundant」这三条可核对的事实，只去掉错的因果。③ 未跑完整 `pytest tests/unit`（本机跑不完，见 #397 的记账），只跑了与 `mcp` 和 CI 腿直接相关的 22 案。
+**诚实边界。** ① 只加测试，生产码未动——包括 `structured_diff.py` 那两份相同元组**没有**合并：它们今天相等，但「可重命名」与「是定义」将来可能有意分叉，耦合代码会把未来的合理分叉变成一次重构；用门锁住「今天相等」更稳。② 门断言的是**关系**不是字面量，所以新增一个词只改一边就会红——这正是要抓的漂移。③ `lineage.py` 的 NODE_KINDS/EDGE_TYPES 不加门：运行时拒收未列词已经是更硬的门。④ 本号只覆盖「有可校验关系」的四组；其余五个无门词表（含 `_NO_EVIDENCE_KINDS`）留在原处，理由已在上表写明。
 
-**下一号队列（取号按落地时点 max+1）。** ① 本号只修了 `mypy .` 的那一条；`ruff check .` 在**工作树**上仍会被仓库根的一批未跟踪调试脚本（`_arm52*.py` / `_526.patch` 等）污染，但那些不进 CI。② `craft/adapters/protocol.py` 的注册表在全新解释器里是空的（本号已量到，另号修）。
+**下一号队列（取号按落地时点 max+1）。** ① `agent/external_observation.py`（455 行，28 案）仍待整读。② 数值默认值扫描已做（220 文件，9 个同名旋钮取值不同），结论是**全为上下文差异、非 bug**——若要继续，应改成「同一操作在两处实现」的定向比对，而不是按名字比。③ 普查若要支持布尔读者（#474 边界）。
+
+
+## #481 `agent/external_observation.py` 的「文档化了但没测」的不对称：None ≠ 不能判定、单侧时刻、截断去重
+
+**起因/占号。** #480 队列①：`agent/external_observation.py`（455 行，2 个测试文件共 34 案）。既有测试覆盖了主干（不臆造、limit 来自采集器事实、pack 与 row 一致），但模块 docstring 里几处**明确称为 load-bearing 的不对称**没人钉。占号前 `git fetch`：origin 领先本地 1（我自己的 #480，refspec 推的），origin HEAD `c5d4701`（`## #480`）⇒ 本号取 **#481**。
+
+**先量后写（逐条对账，探针先跑）。** 未覆盖：
+- **`observation_decidable(None) is True`**——docstring 明说「None 是『根本没有观测』，与『观测了但判不了』是**两个问题**」，只有契约能分清。这条不对称是判决层「PASS 不能覆盖没看过的面」的地基。
+- **非存储面契约**（http/sql/openapi）无观测 ⇒ 可判定（没有东西缺失）。
+- **存储面契约**：**有** key family 且无观测 ⇒ **不可判定**（我们没看）；**无** key family 且无观测 ⇒ **可判定**（没东西可看）。
+- **单侧时刻**：只有 base（或只有 head）⇒ `separated` 为假 ⇒ **不产生观测**。
+- **截断清单跨两个快照去重**：同一族在 base 与 head 都记了，limit 只能算**1** 个族。
+- **mq 扩展缺 `both_sides_observed`** ⇒ 不能声称「单侧报告」（老片段没这个键，默认 True）。
+- **`observation_status(None)` 是空串**，不是某个状态词。
+
+**落地（只加测试，`agent/external_observation.py` 一字未动）。** 新建 `tests/unit/test_external_observation_declared_edges.py`（**14 案**，纯对象/内存快照）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_external_observation_declared_edges.py -q` | **14 passed in 10.82s** |
+| 回归 | `pytest test_external_observation.py test_external_observation_reaches_the_verdict.py -q` | **34 passed** |
+| ruff | `ruff check tests/unit/test_external_observation_declared_edges.py` | **All checks passed** |
+
+**诚实边界。** ① 只加测试，生产码未动。② 用了一个 5 行的 `_Obs` 桩来喂 `observation_limits`（它只 `getattr` 三个属性），**没有**伪造整条采集链——mq 的真实片段仍由既有测试覆盖。③ 不钉 `_redis_observation` 内部对 `redis_fragment_from_snapshots` 的调用参数（那是采集器契约，既有测试已覆盖端到端）。④ 不钉 `int(extension.get("value_level_leftover_count"))` 在**非数字**输入下会抛 `ValueError`——那是防御性问题，现状是「采集器写 int」，钉「会抛」等于把缺陷写成契约；已记入下一号队列。
+
+**下一号队列（取号按落地时点 max+1）。** ① `observation_limits` 对**畸形扩展**（`value_level_leftover_count="abc"`）会抛 `ValueError`——先量影响面（谁会写非 int？），再决定是加防御还是加断言。② 「同一操作两处实现」的定向比对（替代按名字比旋钮）。③ 普查若要支持布尔读者（#474 边界）。
