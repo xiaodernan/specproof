@@ -38,7 +38,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Protocol, cast
+from typing import IO, Any, Protocol, cast
 
 logger = logging.getLogger(__name__)
 
@@ -166,23 +166,29 @@ class StdioTransport:
 
     def send(self, line: str) -> None:
         proc = self._proc
-        stdin = proc.stdin
+        stdin: IO[str] | None = proc.stdin
         if stdin is None or proc.poll() is not None:
             raise EOFError(f"MCP server exited early with code {proc.returncode}")
         stdin.write(line + "\n")
         stdin.flush()
 
     def recv(self) -> str:
-        # ``self._proc`` is annotated ``subprocess.Popen[str]``, so ``.stdout``
-        # is already ``IO[str] | None``: the text-mode contract declared at
-        # construction (``text=True`` with ``encoding="utf-8"``) is carried by
-        # that annotation, not by a cast at the read site. #479 restated it as
-        # ``cast(IO[str] | None, ...)`` and mypy reported it as
-        # ``[redundant-cast]`` — a second red in place of the first. #297 had
-        # deleted an earlier cast for the same reason. The runtime fact the
-        # annotation stands for is pinned by
+        # The handle is annotated ``subprocess.Popen[str]`` and the constructor
+        # puts it in text mode, but that annotation does not reach the pipe: the
+        # type the reader gets for the pipe is the one the stub hands out for
+        # ``Popen.stdout``, and the stub has shipped that attribute in two
+        # shapes — carrying the class's own type argument, and not carrying it.
+        # So the read site declares the pipe's type itself, and the declaration
+        # is the same under either shape. A cast cannot carry the same claim: it
+        # is redundant exactly when the stub already carries the type and
+        # needed exactly when the stub does not, and this file has been spelled
+        # both ways with the type check red in one of the two shapes each time.
+        #
+        # The warrant for the declared type is the construction — ``text=True``
+        # with ``encoding="utf-8"`` in ``__init__`` is what makes this pipe text
+        # — and the runtime witness for that fact is
         # ``tests/unit/test_mcp_stdio_transport_is_the_text_it_claims.py``.
-        stdout = self._proc.stdout
+        stdout: IO[str] | None = self._proc.stdout
         if stdout is None:
             raise EOFError("MCP server stdout is unavailable")
         line = stdout.readline()

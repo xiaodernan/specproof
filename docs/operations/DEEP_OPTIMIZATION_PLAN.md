@@ -13801,3 +13801,105 @@ Java/Gradle 那行不只是状态错，而是**四处同时陈旧**：镜像写 
 **诚实边界。** ① 只做**代码 → 文档**单向对账；文档独有的行（如本地回退）合法存在，只要求它们不声称 `已支持`。反向（「文档里的行必须在代码里有」）**故意不做**——那会把「记录一条已知限制」变成必须先造一个适配器。② 本号**没有**把 Gradle 升到 `实测` 档：它没有真实仓库的端到端差分记录，按 #488 的定义就该是 `Docker 沙箱`。③ 只改了那一行的四个单元格，**没有**顺手重排整张表。④ 未跑真实 `gradle test`（需要播种 GRADLE_USER_HOME 卷与 Docker）。
 
 **下一号队列（取号按落地时点 max+1）。** ① **其余四行的单元格也可能陈旧**：门只对账了**状态**，镜像/工具链/离线策略/已知限制四列仍是手抄，与适配器常量的一致性没有门（本号只顺手把 Gradle 那行对齐了）。② 两套适配器系统合流（架构决策，需 owner；#482 已留完整测量）。③ #397 六项里可跑的四项（基准面与 87 案例需要多小时评测，本机跑不完）。④ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。
+
+## #491 管子的类型由**声明**给出，不由 `cast` 给出：同一个位置被写过三遍，每次红一种
+
+**起因/占号。** #487 的诚实边界⑦ 记着「本号没有修那 3 条红」，其中一条是 `mcp/client.py:191` 的 `[no-any-return]`——**CI 的类型检查步骤在 HEAD 上是红的，而仓库里没有任何一处改动能解释它**。本车道接手那一条。占号前重测：HEAD 版账本 `## #` id 最大 **490** ⇒ 取 **#491**。（本号内部编号原为 **#490**——落地时点 HEAD 的账本最大节号已是 490（别车道的 `## #490`），按「取号按落地时点 max+1」改名；**臂的预测与判决一字未改**，改名说明见 `.scratch/m491_arm_predictions.md` 顶部。）
+
+**先量后写（量的是「红从哪里来」）。**
+
+1. **红在 HEAD 的字节上复现**：在仓库根之外的一个平面（`git ls-files` 的 **2304** 个跟踪文件按工作树字节复制 ＋ 新门那 1 个未跟踪文件，共 **2305** 个）里，把 `mcp/client.py` 换成 HEAD 的字节，`python -m mypy .` ⇒
+   `mcp\client.py:191: error: Returning Any from function declared to return "str"  [no-any-return]`，
+   **Found 1 error in 1 file (checked 254 source files)**；换成修复后的字节 ⇒ **Success: no issues found in 254 source files**。同一平面、同一份配置，**只有这一个文件的字节不同**。
+2. **红是「版本漂移」而不是「仓库漂移」**：`pyproject.toml` 的 `dev` extra 只写 `"mypy>=1.13.0"`；`.github/workflows/ci.yml` 四个 job 的安装步骤都是 `pip install -e ".[dev]"`——**pip 不读 `uv.lock`**（那个锁文件里确实记着 `mypy 2.3.1`，但 CI 不用它）。⇒ CI 每次装的是 PyPI 上**当时最新**的 mypy，**本仓库控制不了类型检查器的版本**。
+3. **根因在 typeshed 的形状**：本机 mypy **2.3.1** 自带的 typeshed 里，`stdlib/subprocess.pyi` 的 `class Popen(Generic[AnyStr])` 把三个管口属性声明成
+   ```py
+   stdin: IO[Any] | None
+   stdout: IO[Any] | None
+   stderr: IO[Any] | None
+   ```
+   ——**属性不携带类的类型参数**。句柄虽然标注成 `subprocess.Popen[str]`，`self._proc.stdout` 拿到的仍是 `IO[Any] | None`，`readline()` 交回一个裸 `Any`，`-> str` 于是**不再被检查**。
+4. **这个位置被写过三遍，每次红一种**（`git log -p -- mcp/client.py`）：
+
+   | 提交 | 写法 | 那时的类型检查 |
+   |---|---|---|
+   | `0d85586`（原始） | `cast(IO[str] \| None, …)` | 绿 |
+   | `8bd7065`（#297） | 删掉 cast | `[redundant-cast]` ⇒ 删 |
+   | `6ed1d3e`（#479） | 加回 `cast` | `[no-any-return]` ⇒ 加 |
+   | `2f3339b`（#480） | 再删 cast | `[redundant-cast]` ⇒ 再删 |
+   | HEAD | 无 cast | `[no-any-return]` ⇒ **红** |
+
+   #480 的提交信息写着「那个 cast 是多余的：`_proc` 早就标注成 `Popen[str]`」——**这个前提是假的**：类的类型参数不会自动流到属性上。#297 与 #480 是同一个假前提的两次重演，#479 是被它顶出来的一次反向补丁。
+5. **两种桩形状 × 三种写法，实测矩阵**（`.scratch/m491_stub_shape_matrix.py`）。形状 A ＝ 把**同一个 mypy** 自带的 typeshed 复制一份，把那三行属性改回 `IO[AnyStr] | None`，用 `--custom-typeshed-dir` 装上；形状 B ＝ 今天自带的 typeshed：
+
+   | 写法 | 形状 A（桩带类参数） | 形状 B（桩不带类参数） |
+   |---|---|---|
+   | 无声明 | **绿** | **红**（`Returning Any from function declared to return "str"`） |
+   | `cast` | **红**（`Redundant cast to "IO[str] \| None"`） | **绿** |
+   | 声明 | **绿** | **绿** |
+
+   ⇒ **cast 撑不住这个主张**：桩已经带着类型时它**多余**（`[tool.mypy] warn_redundant_casts = true` 让它变红），桩没带时它才是唯一的信息源。**声明**在两种形状下是同一句话。
+
+**修。**
+- `mcp/client.py::StdioTransport.send`：`stdin: IO[str] | None = proc.stdin`（此前是裸的 `stdin = proc.stdin`，`proc.stdin.write(...)` 接一个 `Any` 而一句话都没有）。
+- `mcp/client.py::StdioTransport.recv`：`stdout: IO[str] | None = self._proc.stdout`。
+- 删掉 #480 留下的那段注释（它断言「`.stdout` 已经是 `IO[str] | None`」——正是本号否证的那个前提），换成：**为什么是声明而不是 cast**、**声明的凭据是什么**。
+- **声明的凭据是构造**：`__init__` 里 `text=True` ＋ `encoding="utf-8"` ⇒ 管子按文本打开；这条事实的**运行期**证人是 #479 的 `tests/unit/test_mcp_stdio_transport_is_the_text_it_claims.py`（真起一个子进程，它用二进制缓冲写 UTF-8 字节，父进程只有真把管子设成文本模式才能交回 `str`）。
+
+**落地（门）。** 新建 `tests/unit/test_mcp_pipe_type_is_declared_not_cast.py`（**7 案**）。门读的是**shipped 源码里的声明**（AST），而不是检查器推出来的类型——因为推出来的那个正是随桩形状漂移的东西：
+
+1. `test_the_read_site_declares_the_pipe_type`；
+2. `test_the_write_site_declares_the_pipe_type_too`；
+3. `test_the_read_site_does_not_cast_the_pipe`；
+4. `test_the_declared_type_agrees_with_the_handles_type_argument`——**派生**：把声明的 `IO[...]` 参数与句柄的 `subprocess.Popen[...]` 参数相比（两句都从同一棵 AST 上读，不抄字面量）；
+5. `test_the_construction_warrants_a_text_pipe`；
+6. `test_the_declared_pipe_type_is_optional_like_the_stub_says`——声明必须带 `| None`：读点真的会拒绝一根不存在的管子（`raise EOFError`），那个分支是类型的一部分；
+7. `test_the_shipped_file_type_checks_under_the_shipped_config`——活跑一次 `python -m mypy mcp/client.py`。
+
+**门证（全在本号内亲手取）。**
+
+| 门 | 命令 | 结果 |
+|---|---|---|
+| 平面 A/B（HEAD 字节） | `python -m mypy .`（平面，HEAD 的 `mcp/client.py`） | **1 error**（`mcp\client.py:191`，`[no-any-return]`），checked **254** source files |
+| 平面 A/B（修复字节） | 同上，同一平面 | **Success: no issues found in 254 source files** |
+| 工作树类型检查 | `python -m mypy .` | **Success: no issues found in 258 source files**（比平面多 **4** 个：仓库根 4 个未跟踪的调试脚本） |
+| 三门同跑（新门 7 ＋ 运行期证人 4 ＋ #479 的全仓类型门 7） | `pytest tests/unit/test_mcp_pipe_type_is_declared_not_cast.py tests/unit/test_mcp_stdio_transport_is_the_text_it_claims.py tests/unit/test_the_ci_type_check_is_a_suite_leg.py -q` | **18 passed in 26.79s** |
+| ruff | `ruff check mcp/client.py tests/unit/test_mcp_pipe_type_is_declared_not_cast.py` | All checks passed |
+| CI 等价套件 | `pytest tests/unit tests/security tests/fault -q` | **未取**：那一跑跨了 HEAD 移动的窗口（别的车道在本号落地前后各有提交），读数不能算在「本号这一份 HEAD」上 ⇒ 本节不写它；单一 HEAD 上的全量读数留给下一号（#487 队列⑤） |
+
+**五个变异臂（预测写在跑之前：`.scratch/m491_arm_predictions.md`；跑法 `.scratch/m491_arm_battery.py`）。**
+臂跑在**仓库根之外**的平面 `D:\面试项目\m491_plane` 上，**只改平面上 `mcp/client.py` 的字节**，每个臂先存字节、后原样还原并断言还原成功。臂跑两个文件：新门（7 腿）与运行期证人（4 腿）；全仓类型门与全量套件另在**未变异**的工作树上跑。
+
+| 臂 | 刀 | 门：预测 / 实测 | 证人：预测 / 实测 | 判决 |
+|---|---|---|---|---|
+| A1 | 撤掉读点的类型声明 | 4 / **4**（逐名命中） | 0 / **0** | MATCHED |
+| A2 | 把声明写成二进制 `IO[bytes]` | 2 / **2**（逐名命中） | 0 / **0** | MATCHED |
+| A3 | 把声明换回 `cast` | 4 / **4**（逐名命中） | 0 / **0** | MATCHED |
+| A4 | 把管道变成二进制（去掉 `text=` 与 `encoding=`） | 2 / **2**（逐名命中） | 1 / **3** | **MISMATCH** |
+| A5 | 对照：不动任何字节 | 0 / **0** | 0 / **0** | MATCHED |
+
+臂跑完后：平面的 `mcp/client.py` 与工作树**逐字节相同**，`client bytes restored: True`。
+
+**A4 的 MISMATCH（预测一个字没改，实测比预测强）。** 门的两条红**预测准确**；多出来的两条红来自证人文件里我算漏的两处：
+
+- `test_a_line_written_by_the_client_reaches_the_child_unchanged`——二进制管子的**写**端也断了：`stdin.write(str)` 对二进制管道抛 `TypeError`，我预测时只盯着读端；
+- `test_a_child_that_exits_is_an_eof_not_an_empty_line`——EOF 哨兵比的是**空串**，二进制管子交回 `b""`，`b"" == ""` 为假 ⇒ EOF 分支根本不触发。
+
+第二条其实是**账本里早就写过的**（#479 一节的诚实边界②已经记着「二进制管子交回 `b""`，`b"" == ""` 为假 ⇒ EOF 分支根本不触发」）。我写预测时读到了那段却没有把它带上——**预测漏项，机制没错**：二进制管道断的是写端与哨兵，不止读端。⇒ A4 实测比预测更强，不是门判错了。
+
+**否证与订正（本号自己踩的）。**
+- **门的第一版有一条腿问错了问题**：它问「`text=True` 这几个字在不在」。subprocess 的契约是 `text` 为真**或**给了 encoding/errors 时管子按文本打开（CPython `Lib/subprocess.py`：`self.text_mode = encoding or errors or text or universal_newlines`）⇒ 只删 `text=True` 而留着 `encoding="utf-8"` 运行期**仍是文本管子**，那种改法**不该红**。该腿改成问「构造有没有要文本」。这是门自己的一处假红源，靠读 CPython 的源码才改对。
+- **平面构建脚本踩了两次**：① `git ls-files -z` 的末尾有一个空项，`split()` 之后多出一个空路径，`Path("")` 解析成仓库根 ⇒ `PermissionError`；② 脚本 docstring 里写了 Windows 路径，`\面` 不是合法转义 ⇒ `SyntaxWarning`。两个都是脚本的缺陷，不是产品的。
+- **平面与工作树的 `git status` 计数差 1**：脚本报告 10 条复原、工作树实际 11 条脏路径——差别是另一车道已经把 `docs/architecture/EXECUTION_COMPATIBILITY.md` 提交了（#490）。逐条核过：11 条路径在平面里都已是 HEAD 的字节。
+
+**诚实边界。**
+1. **版本仍然在漂。** 本号让**这个位置**在两种桩形状下都成立，但它**没有**把 mypy 的版本钉住：`dev` extra 仍是 `mypy>=1.13.0`，CI 仍用 `pip install -e ".[dev]"`（**不读 `uv.lock`**）。**下一个 typeshed 动作仍可能让类型步骤红**，只是不再是这一处。这件事是 owner 的决定（见下一号队列①），本号只把「不钉住会漂」量出来并留在账本里。
+2. **声明是一个断言，不是推导。** 它的凭据是**构造**（`text=True` ＋ `encoding="utf-8"`）＋ #479 的运行期证人；门读的是**声明本身**，检查器认不认这个声明由第 7 条腿负责。
+3. **门读源码，所以改名会红。** 换类名、换方法名、换变量名都会让这几条腿要求「重新对瞄」而不是静默通过——这是有意的。
+4. **只动了 `mcp/client.py`。** 全仓只有这一个文件标注 `Popen[...]`；别的 `.stdout` 读法都走 `subprocess.run` ⇒ `CompletedProcess[str]`，不受桩形状影响。
+5. **本号没有起过真的 MCP 服务器。** 运行期证人起的是**真子进程**，但走的是 `StdioTransport` 自己的构造；没有连过任何 MCP 服务端。
+6. **臂只跑了两个文件**（新门 7 腿 ＋ 运行期证人 4 腿）；跨门与全量读数另在未变异的工作树上跑。
+7. **本号没有改 `pyproject.toml`、`uv.lock` 或 CI workflow**：钉版本是 owner 的决定，不是本号的顺手改动。
+8. **本号没有改 typeshed**：形状 A 是**测量用的合成物**（复制一份自带 typeshed 改三行，用 `--custom-typeshed-dir` 装上），只用来量那张矩阵；仓库里没有留下任何改过桩的痕迹。
+
+**下一号队列（取号按落地时点 max+1）。** ① **要不要把 mypy 钉住**——`mypy==2.3.1`，或让 CI 改用 `uv sync --frozen` 读 `uv.lock`（锁文件里已经记着 2.3.1，但 CI 今天不用它）。这是 owner 的决定；本号只提供了「不钉住 ⇒ 类型步骤会随 typeshed 漂」这件事的读数与那张两种形状的矩阵。② **#453 队列剩余**③（#397 六项）与④（落地前重测账本最大节号）。③ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。
