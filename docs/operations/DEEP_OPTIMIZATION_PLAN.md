@@ -14069,3 +14069,37 @@ Maven 把同一件事声明成 `("target", "/work/target")`；Gradle 少的就�
 - 卷里现在装的是**最小 demo 项目**的依赖（junit-jupiter 5.10.2 + Gradle 自己的 native 库）。真实项目仍须自己跑一遍 `-ProjectPath`；文档已写明。
 - `collect()` 的空 refs 与「`collect()` 在生产里零调用方」本号只记录不改：接进去会动差分主链，属架构决策。
 - 第 ③ 条的修法（从 `build/test-results/test/TEST-*.xml` 取数）已入队，与「把 collect 接进 run_differential」是同一件事的两半。
+
+
+## #497 「清理 worktree」的两套策略各被抄了两份：`_discard_workspace` 与 `_cleanup_worktrees`
+
+**起因/占号。** #495 队列①②：结构克隆里的两组——
+- `_discard_workspace()`：`agent/nodes/prepare_base.py` 与 `prepare_head.py` 各一份（逐字节相同）；
+- `_cleanup_worktrees()`：`cli/specproof/commands/eval.py` 与 `verify.py` 各一份（逐字节相同）。
+
+占号前 `git fetch`：origin HEAD 已是 `## #496`（别车道）⇒ 本号取 **#497**。
+
+**先分清：这是两种策略，不是同一操作。**
+- `_discard_workspace`：prepare 节点用 `Path.rmdir()`——**只删空目录**；目录非空时**保留 marker**，让 worker 的崩溃回收器还能接手。这里删掉非空树就是丢工作。
+- `_cleanup_worktrees`：eval/verify CLI 用 `git worktree remove --force`——运行已经结束、worktree 是它自己造的，所以 `--force` 是对的；且失败必须被吞掉，否则一个被锁住的 worktree 会把已完成的验证变成崩溃。
+- 另有 `agent/worktree_reclaimer.py` 的 `--force` 回收路径——那是第三条，服务崩溃遗留物，本号不动。
+
+**落地（两组各收拢到一处）。**
+1. `discard_unclaimed_workspace()` 进 `agent/worktree_reclaimer.py`——它就在 `write_worktree_marker()` 旁边，因为「写 marker」与「何时才敢删 marker」是**同一份契约**；prepare 节点本来就从该模块导入 `write_worktree_marker`，**没有新依赖边**。
+2. `cleanup_run_worktrees()` 进新模块 `cli/specproof/commands/_worktrees.py`。
+3. 四个调用点全部**别名导入**，调用点一字未动；顺带删掉 prepare 两节点因此闲置的 `import contextlib`。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_worktree_cleanup_helpers.py -q` | **7 passed in 10.15s** |
+| 清理回归 | `pytest test_eval_cleanup_worktrees.py test_prepare_nodes_execution_is_observable.py test_worktree_reclaimer.py -q` | **3 + 9 + 14 passed** |
+| 其余 | `pytest test_api_demo_prepare.py -q` / `test_demo_prepare_contract.py -q` | **4 passed** / **8 passed** |
+| ruff | 六个源文件 + 新测试 | **All checks passed** |
+
+**踩到并修好的坑（行尾）。** `cli/specproof/commands/verify.py` 的 blob 是 **CRLF**，而且**首字节是一个孤立的 `\r`**。我用 `newline="\n"` 写回后，`git diff` 显示 **1406 行全变**；用 `--ignore-cr-at-eol` 才看清真实改动只有 4/16。随后按字节修掉那个孤立 `\r`（Python 的通用换行把它读成了一个空行），diff 回到 **2/15**。
+- **教训**：改文件前先 `git show HEAD:<file> | head -1 | cat -A` 看行尾；`newline="\n"` 只对 LF blob 安全；判断「是不是行尾重写」一律用 `git diff --ignore-cr-at-eol --numstat`。
+
+**诚实边界。** ① 两组都是行为等价重构：函数体原样搬移，7 个新测试把两套策略**分开**钉住（尤其「非空目录 + marker 都必须留下」与「删除失败不许逃逸」）。② 不动 `worktree_reclaimer` 的 `--force` 回收路径（崩溃遗留物，语义不同）。③ 不统一三种删除策略——它们服务三种不同状态，统一会把「不许删非空」降级成 `--force`。④ `_discard_workspace` 的 `rmdir` 只对**空**目录有效，非空时静默不动——这是它的设计，不是缺陷。
+
+**下一号队列（取号按落地时点 max+1）。** ① `_get_provider()`（结构克隆剩余）。② `__init__()` 三份若要动，先出基类方案。③ `mcp` 负超时（#492 边界）。④ 结构克隆扫描已从 16 组降到个位数，可考虑把扫描器固化成一条**定期门**（而不是每次手跑）。

@@ -23,7 +23,6 @@ the outcome word is that record.  The twin node prepare_head carries the
 same closed vocabulary — the parity gate pins both declarations and both
 families together.
 """
-import contextlib
 import logging
 import subprocess
 import tempfile
@@ -32,6 +31,7 @@ from typing import Any
 
 from agent.repo_safety import check_repo_safety
 from agent.state import Phase0State
+from agent.worktree_reclaimer import discard_unclaimed_workspace as _discard_workspace
 from agent.worktree_reclaimer import write_worktree_marker
 from observability.metrics import incr
 
@@ -110,16 +110,3 @@ def prepare_base_node(state: Phase0State) -> dict[str, Any]:
     return {"base_workspace": str(workspace)}
 
 
-def _discard_workspace(workspace: Path, marker: Path | None) -> None:
-    """Best-effort cleanup of a workspace that was never handed to the graph.
-
-    An empty directory is removed immediately; the marker is dropped only
-    once the directory is gone, so a non-empty leftover keeps its claim and
-    stays reclaimable by the worker's crash reclaimer.
-    """
-    if workspace.is_dir():
-        with contextlib.suppress(OSError):
-            workspace.rmdir()
-    if marker is not None and not workspace.exists():
-        with contextlib.suppress(OSError):
-            marker.unlink()

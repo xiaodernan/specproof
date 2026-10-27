@@ -32,6 +32,7 @@ from cli.specproof.case_set import (
     empty_pool_message,
     plan_case_dirs,
 )
+from cli.specproof.commands._worktrees import cleanup_run_worktrees as _cleanup_worktrees
 from evidence.acceptance import (
     AcceptanceCriteria,
     MetricCounts,
@@ -370,20 +371,6 @@ def _choose_write_schema(
         "no test schema is configured (SPECPROOF_TEST_MYSQL_DATABASE) — "
         f"the evaluation writes to {ambient or 'the ambient schema'}"
     )
-
-
-def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
-    from contextlib import suppress
-
-    for key in ("base_workspace", "head_workspace"):
-        ws = final.get(key, "")
-        if not ws:
-            continue
-        with suppress(Exception):
-            subprocess.run(
-                ["git", "-C", repo, "worktree", "remove", "--force", ws],
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
-            )
 
 
 _EVIDENCE_FIELDS = (

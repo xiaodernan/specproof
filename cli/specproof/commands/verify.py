@@ -24,6 +24,8 @@ from typing import Any
 
 import click
 
+from cli.specproof.commands._worktrees import cleanup_run_worktrees as _cleanup_worktrees
+
 #: Exit codes by verdict word (#153). Anything outside the vocabulary is a
 #: word this module never writes, and maps to "no verdict" — fail-closed.
 #:
@@ -301,21 +303,6 @@ def _resolve_capsules_via_metadata(
                 digest_ok = None
         resolved.append((path, digest_ok))
     return resolved
-
-
-def _cleanup_worktrees(repo: str, final: dict[str, Any]) -> None:
-    """Remove temporary Base/Head worktrees created by the pipeline."""
-    from contextlib import suppress
-
-    for key in ("base_workspace", "head_workspace"):
-        ws = final.get(key, "")
-        if not ws:
-            continue
-        with suppress(Exception):
-            subprocess.run(
-                ["git", "-C", repo, "worktree", "remove", "--force", ws],
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
-            )
 
 
 @click.command("verify")

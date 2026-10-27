@@ -26,6 +26,7 @@ paths skip it because their worktrees are live checkpoint state, not orphans.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -86,6 +87,23 @@ def write_worktree_marker(
     marker = root_path / marker_filename(worktree_path)
     marker.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
     return marker
+
+
+def discard_unclaimed_workspace(workspace: Path, marker: Path | None) -> None:
+    """Best-effort cleanup of a workspace that was never handed to the graph.
+
+    An empty directory is removed immediately; the marker is dropped only once
+    the directory is gone, so a non-empty leftover keeps its claim and stays
+    reclaimable by the worker's crash reclaimer. The two prepare nodes carried
+    identical copies of this (#496); it belongs next to the marker writer
+    because the two decisions are one contract.
+    """
+    if workspace.is_dir():
+        with contextlib.suppress(OSError):
+            workspace.rmdir()
+    if marker is not None and not workspace.exists():
+        with contextlib.suppress(OSError):
+            marker.unlink()
 
 
 # ── Data model ───────────────────────────────────────────────────
@@ -300,6 +318,7 @@ __all__ = [
     "MARKER_VERSION",
     "WORKTREE_MARKER_PREFIX",
     "ReclaimResult",
+    "discard_unclaimed_workspace",
     "marker_filename",
     "reclaim_orphans",
     "write_worktree_marker",
