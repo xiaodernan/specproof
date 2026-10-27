@@ -13349,3 +13349,30 @@ ruff `All checks passed!`，mypy `Success: no issues found in 2 source files`。
 6. **合并债（与本号代码无关，但落地时必须交代）**：本车道与来车都带了一个裸的 `## #474`。合并时按 #292 的 L5（后缀号必须紧跟在它的族号之后）将来车那一节改成 `## #474b`、放在 `## #474` 之后，正文除 id 词外**逐字未改**（详见合并提交 `e54a840`）。
 
 **下一号队列（取号按落地时点 max+1）。** ① **#430①/②**：`craft/gates.py:130-132` 的 `_BUILD_MARKERS` 没有任何生产读者，而 `tests/unit/test_craft_gates_serve_every_language_the_product_names.py:156` 拿它跟自己的推导比（真空等式）——删掉还是接上，取决于它有没有产品语义；顺带把三条手抄的「无 pom.xml」句子（`test_craft_gates.py:203`、`test_craft_gates_serve_every_language…:280/:285`）收成派生。② 别车道的 `test_subprocess_text_encoding` 那 5 个越界点该由别车道自己清。③ #453 队列剩余：文档里引用指令的通用防护。④ 仓库根仍有一批未跟踪调试脚本，只污染本地 `ruff check .`、不进 CI。
+## #480 `mcp/client.py` 那个 `cast` 是多余的：`_proc` 早就标注成 `Popen[str]`，`#479` 用一次新红换掉了旧红
+
+**起因/占号。** 本号开工时跑全仓 CI 门，`mypy .` 报 1 条红：
+`mcp/client.py:184: Redundant cast to "IO[str] | None" [redundant-cast]`。占号前重测：HEAD 版账本 `## #` id 最大 **479** ⇒ 取 **#480**。
+
+**先量后写（量的是「这个 cast 到底在替谁说话」）。**
+- `mcp/client.py:155` 是 `self._proc: subprocess.Popen[str] = subprocess.Popen(...)` —— **这个注解自 `0d85586` 起就在**（`git log -S "Popen[str]"` 只命中那一个 merge）。
+- 于是 `self._proc.stdout` 的类型就是 `IO[str] | None`，**不需要任何 cast 来「重述」**。
+- `git log -S "cast(IO[str] | None"` 命中两处：`#297`（**删掉**过一个同位置的 cast）与 **`#479`（刚刚把它加了回来）**。
+⇒ **`#479` 的注释把因果说反了**：它写「typeshed 把 `Popen.stdout` 给成 `IO[Any]`，无论类的类型参数是什么，所以必须在读取处重述文本模式契约」。实测不是：`Popen[str].stdout` 就是 `IO[str] | None`。它加的 cast 让 mypy 从「另一种红」变成 `[redundant-cast]` 这一种红——**CI 并没有因此变绿**。
+
+**修。**
+- `mcp/client.py`：`stdout = cast(IO[str] | None, self._proc.stdout)` → `stdout = self._proc.stdout`；`typing.IO` 随 `F401` 一起从导入里删掉（`cast` 仍被 376 行用着，保留）。
+- 那段注释**改写为事实**：承载文本模式契约的是 `self._proc` 的 `Popen[str]` 注解，不是读取处的 cast；并写明 `#479` 加 cast、mypy 判 `[redundant-cast]`、`#297` 曾删过同类 cast 这段历史，免得下一个人再来加一遍。运行时事实仍由 `tests/unit/test_mcp_stdio_transport_is_the_text_it_claims.py` 钉住。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| mypy（单文件） | `mypy mcp/client.py` | 改前 **1 error**（redundant-cast）⇒ 改后 **Success** |
+| **mypy（全仓，CI 那道）** | `mypy .` | **Success: no issues found in 256 source files**（改前 1 error） |
+| ruff | `ruff check mcp/client.py` | 改后初报 `F401 typing.IO` ⇒ `--fix` 后 **All checks passed** |
+| 运行时契约 | `pytest test_mcp_stdio_transport_is_the_text_it_claims.py -q` | **4 passed** |
+| 相关套件 | `pytest test_mcp_client.py test_mcp_stdio_transport_is_the_text_it_claims.py test_the_ci_type_check_is_a_suite_leg.py -q` | **22 passed** |
+| **变异臂**（把 cast 加回去） | `mypy mcp/client.py` | 预测：重新报 `[redundant-cast]`；实测同 —— 证明这道门真的在管这件事 |
+
+**诚实边界。** ① 本号**没有**改 `recv()` 的运行时行为（去 cast 是纯类型层动作，`cast` 在运行时是恒等函数）。② 我改写了 `#479` 写下的那段注释。它记录的是**错误归因**（typeshed 给 `IO[Any]`），留着会把下一个人引向同样的错修；改写保留了「#297 删过 cast」「#479 加回来」「mypy 判 redundant」这三条可核对的事实，只去掉错的因果。③ 未跑完整 `pytest tests/unit`（本机跑不完，见 #397 的记账），只跑了与 `mcp` 和 CI 腿直接相关的 22 案。
+
+**下一号队列（取号按落地时点 max+1）。** ① 本号只修了 `mypy .` 的那一条；`ruff check .` 在**工作树**上仍会被仓库根的一批未跟踪调试脚本（`_arm52*.py` / `_526.patch` 等）污染，但那些不进 CI。② `craft/adapters/protocol.py` 的注册表在全新解释器里是空的（本号已量到，另号修）。

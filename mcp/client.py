@@ -38,7 +38,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import TracebackType
-from typing import IO, Any, Protocol, cast
+from typing import Any, Protocol, cast
 
 logger = logging.getLogger(__name__)
 
@@ -173,15 +173,16 @@ class StdioTransport:
         stdin.flush()
 
     def recv(self) -> str:
-        # typeshed hands out ``Popen.stdout`` as ``IO[Any]`` whatever the class's
-        # type parameter is, so the text-mode contract this class declares at
-        # construction (``text=True`` with ``encoding="utf-8"``) has to be
-        # restated where the pipe is read. #297 deleted the cast that restated
-        # it, which put a bare ``Any`` on the return path of every ``recv()`` and
-        # has kept CI's ``python -m mypy .`` step red ever since; the runtime fact
-        # the cast stands for is pinned by
+        # ``self._proc`` is annotated ``subprocess.Popen[str]``, so ``.stdout``
+        # is already ``IO[str] | None``: the text-mode contract declared at
+        # construction (``text=True`` with ``encoding="utf-8"``) is carried by
+        # that annotation, not by a cast at the read site. #479 restated it as
+        # ``cast(IO[str] | None, ...)`` and mypy reported it as
+        # ``[redundant-cast]`` — a second red in place of the first. #297 had
+        # deleted an earlier cast for the same reason. The runtime fact the
+        # annotation stands for is pinned by
         # ``tests/unit/test_mcp_stdio_transport_is_the_text_it_claims.py``.
-        stdout = cast(IO[str] | None, self._proc.stdout)
+        stdout = self._proc.stdout
         if stdout is None:
             raise EOFError("MCP server stdout is unavailable")
         line = stdout.readline()
