@@ -66,6 +66,17 @@ _SURFACE_BY_CHECKER: dict[str, str] = {
 }
 
 
+def contract_has_external_surface(contract: Mapping[str, Any]) -> bool:
+    """True when this contract is about a surface the comparison can look at.
+
+    Used when the comparison itself could not run: a contract that names no
+    external surface has nothing missing, while one that does was not looked
+    at. Kept public so the matrix can say which case it is without importing
+    the private mapping.
+    """
+    return str(contract.get("checker_type") or "") in _SURFACE_BY_CHECKER
+
+
 def observations(
     state: Mapping[str, Any],
     contracts: list[Mapping[str, Any]] | None = None,
@@ -448,6 +459,7 @@ __all__ = [
     "LIMIT_NOT_OBSERVED",
     "LIMIT_TRUNCATED",
     "LIMIT_VALUE_LEVEL_LEFTOVERS",
+    "contract_has_external_surface",
     "observation_for",
     "observation_limits",
     "observation_status",

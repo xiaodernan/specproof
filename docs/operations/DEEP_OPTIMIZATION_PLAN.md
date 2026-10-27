@@ -14249,3 +14249,43 @@ does not explicitly export attribute "_read_java_files"  [attr-defined]
 **诚实边界。** ① 这是**否定结论 + 棘轮**，不改任何生产码。② 扫描只看这四类；「未捕获的返回值」「过宽的 `except Exception`」（有 noqa 与注释的那些）不在射程——后者是仓库的既有风格，不是 bug。③ `assert` 那一类只统计了数量与形态，**没有逐条判断**是否有该用显式异常的；12 条全是内部不变式，风险低。④ 棘轮用 `git ls-files`，新文件必须先 `git add`。
 
 **下一号队列（取号按落地时点 max+1）。** ① `__init__()` ×3 的基类方案（同样要先算类型代价）。② `mcp` 负超时（#492 边界）。③ 近似克隆检测（改名/换字面量）作为下一层工具。④ 过宽 `except Exception` 的**逐条审计**（有 noqa 不等于无害）。
+
+
+## #502 观测层抛异常时，矩阵会把「没看」当成「可判定」：注释说 fail-closed，代码是 fail-open
+
+**起因。** 队列④「过宽 `except Exception` 的逐条审计」。扫出 266 个宽处理器：33 个重抛、64 个记日志、118 个「其他」、**51 个静默**。逐个看静默的：多数其实记了东西（`incr(...)`、`warnings.append`、`errors.append`、`{'error': ...}`），少数是真静默。真静默里最要紧的是 `agent/nodes/build_matrix.py`。
+
+**发现的 gap（注释与代码相反）。**
+```python
+# 注释：an unreadable observation must not become a verdict.
+try:
+    contract_observations, observation_decidable_by_contract = observations_and_decidability(state)
+except Exception:
+    contract_observations = {}
+    observation_decidable_by_contract = {}
+...
+legacy["observation_decidable"] = observation_decidable_by_contract.get(contract_id, True)   # ← 默认 True
+```
+观测层**抛异常**时字典被清空 ⇒ 每一行都拿到默认值 `True`（可判定）⇒ #379 的「没看过的面不能靠 PASS 背书」降级**不会触发** ⇒ **一个关于外部存储的契约，在观测层崩掉时，PASS 照样是 VERIFIED**。注释承诺 fail-closed，代码是 fail-open。
+
+**修（fail-closed，且只影响该影响的契约）。**
+1. `agent/external_observation.py` 新增公开谓词 `contract_has_external_surface(contract)`——「这个契约是否关于一个能观测的外部面」。原来只有私有 `_SURFACE_BY_CHECKER`，矩阵不该 import 私有表。
+2. `build_matrix`：记 `observation_layer_ran`；运行时照旧读计算出的答案；**没跑起来时**按契约自己判断——
+   - 有外部面 ⇒ `observation_decidable = False`（我们没看 ⇒ 不可判定 ⇒ PASS 降级为 UNVERIFIED，理由码 `external_not_observed`）；
+   - 无外部面 ⇒ `True`（本来就没东西可看，不该被无关的故障牵连）。
+
+**为什么不「一律置 False」。** 那会把一个观测层的 bug 变成**整张矩阵全红**——连 java/http 这类没有外部面的契约也会被拒。精确到「有外部面的契约」既 fail-closed，又不误伤。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_matrix_survives_a_broken_observation.py -q` | **3 passed in 4.06s** |
+| 观测回归 | `pytest test_external_observation_reaches_the_verdict.py test_external_observation_declared_edges.py -q` | **26 passed** |
+| 矩阵回归 | `pytest test_build_matrix_exit_verdict.py test_build_matrix_node_execution_is_observable.py test_matrix_policy.py test_matrix_pure.py test_compatibility_doc_rows_match_the_matrix.py test_compatibility_matrix_statuses_are_defined.py -q` | **71 passed in 5.81s** |
+| ruff / mypy | 三个文件 | **All checks passed** / **Success: no issues found in 2 source files** |
+
+新门三条：① 观测层炸 + 存储契约 ⇒ `observation_decidable is False`、`result == UNVERIFIED`、理由码正确、`matrix["passed"] == 0`；② 观测层炸 + 无外部面契约 ⇒ 仍是 PASS（不误伤）；③ **正常路径不受影响**（计算的答案优先）。
+
+**诚实边界。** ① 这是**行为修复**：只在「观测层抛异常」这条路径上改变结果，正常路径一字未变（第三条测试钉住）。② 没有去动另外 50 个静默处理器——多数记了指标/警告，剩下的要逐条判断「静默是否是设计」，不是一次扫描能定论的。③ `contract_has_external_surface` 只认 `_SURFACE_BY_CHECKER`（redis/rabbitmq）；将来加新面必须同时加进那张表，否则这里会漏判——已在 docstring 写明。④ 未改 `_decidable` 的既有语义（它仍是「有观测时看观测，没观测时看契约」）。
+
+**下一号队列（取号按落地时点 max+1）。** ① 其余 50 个静默处理器逐条判（尤其 `cli/` 与 `craft/`）。② `__init__()` ×3 的基类方案。③ `mcp` 负超时（#492 边界）。④ 近似克隆检测。
