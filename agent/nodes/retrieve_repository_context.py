@@ -42,6 +42,7 @@ import subprocess  # git rev-parse only; argument list, no shell  # nosec B404
 from pathlib import Path
 from typing import Any
 
+from agent.nodes._java_files import read_main_java_files as _read_java_files
 from agent.state import Phase0State
 from observability.metrics import incr
 
@@ -90,19 +91,6 @@ def _family_augmentation(requirement_text: str) -> str:
     if any(w in lowered for w in ("event", "message", "queue", "exactly once")):
         terms.append(_FAMILY_TERMS["rabbitmq"])
     return " ".join(terms)
-
-
-def _read_java_files(workspace: str) -> dict[str, str]:
-    root = Path(workspace) / "src" / "main" / "java"
-    files: dict[str, str] = {}
-    if not root.exists():
-        return files
-    for p in root.rglob("*.java"):
-        try:
-            files[p.relative_to(root).as_posix()] = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-    return files
 
 
 def _query_terms(requirement_text: str) -> str:

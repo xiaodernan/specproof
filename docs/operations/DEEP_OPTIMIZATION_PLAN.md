@@ -13965,3 +13965,27 @@ Java/Gradle 那行不只是状态错，而是**四处同时陈旧**：镜像写 
 **诚实边界。** ① 只加测试，`api/routes/web.py` 与 `mcp/tools.py` 一字未动。② 门断言的是**两层一致**，不主张它们该放哪；合并（选一个跨层落点）留给 owner。③ `_reports_dir()` 没有 mcp 对应物，无可比对，未覆盖。④ 不钉 cwd 之外的文件系统状态（`Path.cwd()` 随测试进程而定，门只比对**两边**是否相同，不断言具体值）。
 
 **下一号队列（取号按落地时点 max+1）。** ① `_read_java_files()`（agent 两个节点）与 `_discard_workspace()`（prepare 双胞胎）——后者已有 parity 注释，先核。② `__init__()`（3 个 storage 模块）。③ `_is_duplicate_key()`（agent/contracts 与 storage 跨层）、`_cleanup_worktrees()`（eval/verify 两个 CLI）。④ `mcp` 负超时是否该拒（#492 边界）。
+
+
+## #494 「读 Java 源码树」的三份副本（含同文件内两份）：收拢到 `agent/nodes/_java_files.py`
+
+**起因/占号。** #493 队列①：`_read_java_files()` 在 `retrieve_repository_context` 与 `run_static_checks` 各一份（逐字节相同）；进一步看 `run_static_checks` 里还有一个 `_read_test_files()`——**同一段循环只换了目录名**，是同一文件内的第三份。占号前 `git fetch`：origin HEAD `## #493`（我自己的）⇒ 本号取 **#494**。
+
+**为什么值得收拢。** 三份共享同一个决定：目录形如 `src/<kind>/java`、键是**相对 posix 路径**、`OSError` 时跳过单个文件而不是整棵树失败。改一处（比如加上 `.kt`、或改成剪枝遍历）而漏另外两处，就会出现「检索看到的 Java 文件和静态检查看到的不是同一批」。
+
+**落地（真去重）。** 新建 `agent/nodes/_java_files.py`：私有 `_read_tree(workspace, kind)` + 两个具名包装 `read_main_java_files` / `read_test_java_files`。三个调用点改为**别名导入**（`read_main_java_files as _read_java_files` …），**调用点一字未动**。
+- 净变化：**+3 / -41**（少 38 行重复）。
+- **别名导入不是形式主义**：`test_retrieve_repository_context_node_execution_is_observable.py:235` 用 `monkeypatch.setattr(retrieve_module, "_read_java_files", bomb_reader)` 打桩，`test_run_deep_experiments_node_execution_is_observable.py:112` 用**字符串路径** `"agent.nodes.run_static_checks._read_java_files"` 打桩——导入别名让这两个名字仍是模块属性，两条打桩都继续生效（实测 11 passed）。
+
+**顺带补的门。** 新建 `tests/unit/test_java_files_reader.py`（**5 案**）：缺失目录返回空、键是 posix 相对路径、main 与 test 互不串、只读 `*.java`、以及**单个不可读条目被跳过而不丢其余**（用一个名为 `*.java` 的**目录**触发 `IsADirectoryError`，它是 `OSError` 子类）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_java_files_reader.py -q` | **5 passed in 3.93s** |
+| 打桩回归 | `pytest test_retrieve_repository_context_node_execution_is_observable.py test_run_deep_experiments_node_execution_is_observable.py -q` | **11 passed in 10.57s** |
+| ruff | 三个源文件 + 新测试 | **All checks passed** |
+
+**诚实边界。** ① 行为等价重构：循环体原样搬移，5 个新测试把契约单独钉住。② 只收拢这一族；结构克隆还剩 10 组。③ 不扩展读取范围（不加 `.kt`/`.groovy`）——那是功能变更，不是去重。④ 不改 `OSError` 的宽容策略（跳过而非失败）——三份原本一致，本号只把它变成单点决定。
+
+**下一号队列（取号按落地时点 max+1）。** ① `__init__()`（3 个 storage 模块）——先判是否是同一构造器还是巧合。② `_is_duplicate_key()`（agent/contracts 与 storage 跨层）。③ `_cleanup_worktrees()`（eval/verify 两个 CLI）。④ `_discard_workspace()`（prepare 双胞胎，已有 parity 注释待核）。⑤ `mcp` 负超时（#492 边界）。

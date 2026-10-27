@@ -32,6 +32,8 @@ from typing import Any
 from agent.checkers.java_source import contract_results_for, run_contract_checks
 from agent.checkers.registry import dispatch_checker
 from agent.contract_results import merge_contract_results
+from agent.nodes._java_files import read_main_java_files as _read_java_files
+from agent.nodes._java_files import read_test_java_files as _read_test_files
 from agent.state import Phase0State
 from observability.metrics import incr
 
@@ -45,34 +47,6 @@ RUN_STATIC_OUTCOMES = frozenset({
     "checker_failures",  # registry ran; >=1 checker crashed (evidence, not verdict)
     "inputs_missing",    # no workspaces — defensive; the guard precedes this node
 })
-
-
-def _read_java_files(workspace: str) -> dict[str, str]:
-    """Read src/main Java files keyed by posix relative path."""
-    root = Path(workspace) / "src" / "main" / "java"
-    files: dict[str, str] = {}
-    if not root.exists():
-        return files
-    for p in root.rglob("*.java"):
-        try:
-            files[p.relative_to(root).as_posix()] = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-    return files
-
-
-def _read_test_files(workspace: str) -> dict[str, str]:
-    """Read src/test Java files keyed by posix relative path."""
-    root = Path(workspace) / "src" / "test" / "java"
-    files: dict[str, str] = {}
-    if not root.exists():
-        return files
-    for p in root.rglob("*.java"):
-        try:
-            files[p.relative_to(root).as_posix()] = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-    return files
 
 
 def _read_text(workspace: str, rel: str) -> str:
