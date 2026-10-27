@@ -88,6 +88,8 @@ Verify 的**测试差分执行**按语言区分执行面，因为“在哪里跑
 | Java/Maven | 是（生成的反例测试） | Docker 沙箱（非 root、断网、只读工作区、离线缓存卷） |
 | JavaScript/TypeScript | 是（`npm test`，识别 Jest/Vitest/node:test）。有 lockfile 且无 `node_modules` 的仓库会先在沙箱内**离线安装**依赖——只来自预先播种的 npm 缓存卷（`pwsh scripts/seed_npm_cache.ps1 -RepoPath <仓库>`），未播种的包会安装失败并如实报"无法复现"而非通过；需要安装期构建脚本的依赖（`--ignore-scripts`）同样如实失败 | Docker 沙箱（`node:22-alpine`、非 root uid 1000、`--network none`、源码树只读，安装阶段仅 `node_modules` 子挂载可写） |
 | Python/pytest | 是（pytest；先在容器内建 venv 并离线安装依赖）。依赖与 pytest 只来自预先播种的 wheelhouse 卷（`pwsh scripts/seed_pip_wheelhouse.ps1 -RepoPath <仓库>`，只读挂载防投毒），未播种的包安装失败、不跑测试，如实报“无法复现”而非通过 | Docker 沙箱（`python:3.12-slim`、非 root uid 1000、`--network none`、源码树只读，`.venv` 子挂载可写） |
+| Java/Gradle | 是（生成的反例测试，Gradle Test） | Docker 沙箱（非 root、断网、只读工作区、离线 Gradle home）。镜像**未钉 digest**：证据里的 `image_digest` 如实写 `—`，不臆造一个本适配器从未验证过的指纹。 |
+| Go/go | 是（`go test -json ./...`；退出码是判决的唯一来源） | Docker 沙箱（非 root、断网、只读工作区、`GOPROXY=off`，模块只从预先播种的 module cache 解析）。**CGO 项目不支持**（alpine 镜像没有 C 工具链，离线沙箱也取不到）：构建阶段会如实失败，不会被报成通过。 |
 
 **深度静态契约检查器**（如权限注解回归）目前仍主要围绕 Java/Spring 及仓库自带的检查器。任意语言、任意自然语言需求都能自动验收，仍不是当前承诺。不能编译为可执行检查的需求必须呈现覆盖不足。无构建配置时检查可以跳过，跳过不算通过。未在无沙箱宿主上执行不受信仓库测试是本项目的安全红线，因此上表的“默认否”是设计而非缺陷。
 

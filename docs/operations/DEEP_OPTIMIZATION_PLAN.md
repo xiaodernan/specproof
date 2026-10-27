@@ -13545,3 +13545,44 @@ def _load_builtin_adapters() -> None:
 **诚实边界。** ① 行为等价重构：函数体原样搬移，11 个新测试把它的每个分支单独钉住（原来只是间接覆盖）。② 只收拢这一组；结构克隆还剩 14 组，下一优先 `_env_int()`（retrieval 两份，且与 `storage/env_config.int_env` 是第 3/4 套 env 解析）。③ 不统一四个 store 的**连接参数来源**（谁从哪读 URL）——那是接线问题，本号只统一解析。④ `parse_mysql_url` 的 `parsed.port` 对畸形端口抛的是 urllib 的 `ValueError`（文案含 "Port could not be cast"），不是本模块自定义的——测试钉的是「会拒绝」，不钉具体文案归属。
 
 **下一号队列（取号按落地时点 max+1）。** ① `_env_int()`（retrieval/embeddings.py、retrieval/rerank.py）+ `storage/env_config.int_env`：仓库里第 3、4 套 env-int 解析，先判是否该统一。② `_capsule_dirs()` / `_eval_report_path()` 跨 api 与 mcp 两层。③ `_read_java_files()`（agent 两个节点）、`_discard_workspace()`（prepare 双胞胎）、`__init__()`（3 个 storage 模块）。
+## #486 前门只列了 3 种语言，矩阵声明 5 行「已支持」：Go 与 Java/Gradle 支持但不可见
+
+**起因/占号。** 本号在核 `compose_verdict` 取最差那条时顺带量到：`COMPATIBILITY_MATRIX` 有 **5 行「已支持」**，而 README 的语言表只列 **3 行**。占号前重测：HEAD 版账本 `## #` id 最大 **485** ⇒ 取 **#486**。
+
+**先量后写（量的是「两边各列了什么」）。**
+
+| 来源 | 内容 |
+| `COMPATIBILITY_MATRIX`（代码） | Java/Maven「已支持 (实测)」、Java/Gradle「已支持 (Docker 沙箱)」、JavaScript/TypeScript「已支持 (Docker 沙箱)」、Python/pip「已支持 (Docker 沙箱)」、**Go/go「已支持 (Docker 沙箱)」** |
+| README 语言表（前门） | Java/Maven、JavaScript/TypeScript、Python/pytest —— **只有 3 行** |
+
+⇒ **Go 与 Java/Gradle 是支持的，但在前门完全看不见**。这张表是「我的语言能不能用 Verify」的唯一入口，用户不会去读 `experiments/adapters.py`。这正是本仓反复钉的「声明了但不可见」，只是这次指向前门而不是代码。
+
+**顺带核实的两条（负结果，记账）。** 我本来怀疑 `image_digest` 有假：
+- `GradleAdapter` 那行是字面 `"—"` —— 但 `prepare()` 里写着「Gradle image is not digest-pinned yet: report it as unidentified rather than invent a fingerprint this adapter never verified」，**是诚实的**；
+- `PythonAdapter.prepare()` 在 `sandbox_mode="local"` 时也是 `"—"` —— 本地跑根本没有镜像，**也是诚实的**。
+两条都不是缺陷，记下来免得下一个人再查一遍。
+
+**修。** README 语言表补两行，各自带**诚实的边界**：
+- `Java/Gradle`：Docker 沙箱（离线 Gradle home）；**镜像未钉 digest**，证据里的 `image_digest` 如实写 `—`，不臆造指纹；
+- `Go/go`：Docker 沙箱（`GOPROXY=off`，模块只从播种好的 module cache 解析），退出码是判决唯一来源；**CGO 项目不支持**（alpine 无 C 工具链、离线沙箱取不到），构建阶段会如实失败而不是被报成通过。
+
+**落地（门）。** 新建 `tests/unit/test_readme_language_table_matches_the_shipped_matrix.py`（**16 案**），双向对账：
+1. `test_the_matrix_still_ships_more_than_one_language` + `test_the_readme_table_was_actually_found`：两条**非空**（否则下面两个方向都恒真）；
+2. `test_every_shipped_language_is_named_in_the_readme_table`（参数化 4 条）：矩阵标「已支持」的每个语言，README 表里必须有行点名它；
+3. `test_every_readme_row_names_a_shipped_language`（参数化 5 条）：README 每一行也必须对应一个真在支持的语言（不许前门吹牛）；
+4. `test_every_readme_row_says_what_runs_and_where`（参数化 5 条）：「跑仓库自带测试」与「执行面」两列都不许空。
+
+**关键实现细节：匹配必须按 `/` 边界。** 矩阵里的语言是 `Java`，README 行是 `Java/Maven`。用裸 `startswith("Java")` 的话，**`JavaScript/TypeScript` 那一行会替 `Java` 满足条件**——门会在删掉两行 Java 之后依然绿。故判据是 `cell == language or cell.startswith(language + "/")`。
+
+**门证（全在本号内亲手取）。**
+| 门 | 命令 | 结果 |
+| 新门 | `pytest tests/unit/test_readme_language_table_matches_the_shipped_matrix.py -q` | **16 passed** |
+| ruff | `ruff check tests/unit/...matches_the_shipped_matrix.py` | All checks passed |
+| **变异臂**（删掉 README 的 `| Go/go |` 行，还原原始缺陷） | 先预测：只有 `[Go]` 那条红 | 实测 **1 failed, 13 passed**，逐名命中 |
+| 变异臂还原 | `trap ... EXIT TERM INT` | `grep -c "^| Go/go |"` = 1、无 `.orig` 残留 |
+
+**否证与订正（本号自己踩的）。** 第一版解析器从锚点句「按语言区分执行面」的下一行开始收 `|` 行，遇非 `|` 就 `break` —— 而锚点句后面**先是一个空行**，于是 `_ROWS` 恒空，5 条红（两条非空 + 三条方向性断言全部因为「没有行」而失败）。改成「先跳过空行、遇到第一张表的 `|` 才开始，遇到非 `|` 才停」后 16 passed。教训：**从散文里定位表格，锚点与表格之间往往隔着空行**。
+
+**诚实边界。** ① 门只对账**语言**，不对账 `build_tool`——矩阵里 Java 有两行（Maven/Gradle），而 README 的一行 `Java/Maven` 无法一一映射；按语言对账是这套文档结构能承受的最强约束。② 只在锚点句之后取**第一张**表；README 里其他表格（如执行面三态那一段）不受影响，也不会被误读。③ 本号只改文档与测试，**运行时行为零变化**。④ 我**没有**把 README 的 Java 行改写成同时覆盖 Maven 与 Gradle，而是新增一行——两行各自的执行面不同（Gradle 未钉 digest），合并会丢掉这个区别。
+
+**下一号队列（取号按落地时点 max+1）。** ① **`COMPATIBILITY_MATRIX` 的 `status` 梯度没有门**：`Java/Maven` 写「已支持 (实测)」、其余写「已支持 (Docker 沙箱)」，而 README 的更新记录里 JavaScript/TypeScript 的差分**已在真实沙箱实测跑通**（2026-09-23）——「实测」这个词谁能用、凭什么用，目前没人管。② 两套适配器系统合流（架构决策，需 owner；#482 已留完整测量）。③ #397 六项（基准面那一跑为何失败、87 案例数字写回、安静机器重跑集成、DEEP 独占机器、MQ 面产品决策）。④ 仓库根未跟踪调试脚本仍污染本地 `ruff check .`（不进 CI）。
