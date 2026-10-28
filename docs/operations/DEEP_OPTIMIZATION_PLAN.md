@@ -14442,3 +14442,63 @@ A5 预测 **3** 条而不是 4 条：本机**有** `reports/full-eval/eval-repor
 **诚实边界。** ① 这是**行为修复**：反例生成现在也能用 UI 配置的 key（以前只认 env）——这是修 bug，不是等价重构。② 只统一「key 从哪来」；provider 的 `base_url`/`model` 仍由 `OpenAICompatibleProvider` 自己解析，未纳入本号。③ 不改 `load_model_config()` 的既有校验（URL 必须是 http(s)、协议白名单等），只把它当唯一入口。④ `review_court` 的死代码已在 #499b 移除，本号不恢复它——评审庭接收 provider 是设计。
 
 **下一号队列（取号按落地时点 max+1）。** ① `cli/specproof/commands/verify.py` 的 MySQL 持久化失败被静默吞掉（只有成功才打印一行）——「配了库但连不上」与「本地没库」显示成一样。② `__init__()` ×3 的基类方案。③ `mcp` 负超时（#492 边界）。④ 近似克隆检测。
+## #505 「本地没库」和「配了库但连不上」打印的是同一句话：什么都不打印
+
+**起因。** #504 队列①：「`cli/specproof/commands/verify.py` 的 MySQL 持久化失败被静默吞掉（只有成功才打印一行）——『配了库但连不上』与『本地没库』显示成一样」。
+
+### 量到的
+
+job summary 那个出口是字面上的静默：
+
+```python
+    try:
+        MySQLStore().save_job_summary(job_id, _state_summary(final_state, verdict))
+        click.echo("Job summary persisted to MySQL.")
+    except Exception:
+        # Local CLI runs may have no database — the artifacts remain intact.
+        pass
+```
+
+于是**四种完全不同的处境输出一模一样（什么都没有）**：本机根本没配库、库连不上、密码错、库/表不存在。仪表盘空着，用户无从知道它「被要求填过但没有」还是「压根没被要求」。这是本仓反复钉的「跳过 ≠ 通过」，只不过这次发生在**出口**上而不是门上。
+
+**第二处（同一类，形态不同）。** `_record_certificate_metadata` 包了一层 `try/except` 并 `logging.warning`，但 `record_file_object_best_effort` **内部已经吞掉异常并返回 `None`**（它自己的 docstring 写着「never raising」）⇒ 那个 `except` 永远不触发，而调用方**不看返回值**。结果：存储不可用时证书只能在路径上找到，没人说过一句。
+
+### 修法
+
+- 新增 `_persist_job_summary()`：成功照旧打印；失败 **incr `verify_job_summary_persist_failures_total`** 并向 **stderr** 打一行：
+  `Job summary NOT persisted to MySQL at db.internal:3307/specproof_prod: ConnectionRefusedError: (111, 'Connection refused')`。
+- 新增 `_mysql_target()`：用**同一个** `MySQLConfig.from_env()` 取 `host:port/database`（**绝不含密码**）。用户看到的是自己配的那个 host；看到 `localhost:3306/specproof_phase0` 就知道自己其实什么都没配——这正是「有没有配」的答案。
+- 新增 `_first_line()`：异常消息取首行并截断 200 字，保证是一行。
+- `_record_certificate_metadata`：**检查返回值**，`None` 即「没登记」，打 `Certificate metadata NOT recorded: … (the certificate file itself is intact: <path>)`，并 incr `verify_certificate_metadata_failures_total`。
+- **两处都不改退出码**：判决说的是这次改动，不是 MySQL。新增的行全走 stderr，所以 `specproof verify | grep VERDICT` 与任何解析 stdout 的调用方不受影响。
+- 指标登记进 `docs/operations/OBSERVABILITY.md` 的清单（本仓第一个来自 `cli/` 的计数器），含看板读法：这两个数 > 0 而 jobs 族照常在涨 ⇒ 判决链健康、只是仪表盘/对象检索在丢数据。
+
+### 门
+
+新建 `tests/unit/test_verify_persistence_failures_are_visible.py`（7 案，用真命令 + 假 graph，跑的是**真的尾部**）：
+1. 库拒绝连接 ⇒ stderr 有 `Job summary NOT persisted`、有异常类型、stdout **没有**成功行；
+2. 那行必须点名 `db.internal:3307/specproof_prod`（用 env 设进去的）；
+3. **密码绝不出现在 stderr / stdout**（设一个标记串 `hunter2-must-not-leak`）；
+4. `VERDICT: VERIFIED` 仍在 **stdout**、不在 stderr，且**退出码仍为 0**；
+5. 库正常时仍打印 `Job summary persisted to MySQL.`，且没有告警；
+6. 失败会让 `verify_job_summary_persist_failures_total` 增长；
+7. 元数据存储返回 `None` ⇒ stderr 有 `Certificate metadata NOT recorded` + `intact` + 证书路径。
+
+### 证据
+
+- 新门 **7 passed in 7.80s**；verify 相关回归 **68 passed**（`test_verify_exit_codes` / 两道 release-gate / `test_contract_observes_keys_roundtrip` / `test_object_metadata`）。
+- 指标清单登记后 `test_observability_metric_parity` + 新门 **14 passed**。
+- `ruff` 干净；`mypy cli/specproof/commands/verify.py` 干净。
+- 变异臂①（把 job summary 退回 `except: pass`）⇒ **3 failed / 4 passed**，红的正是 1、2、6 三条（**预测就是这三条，实测一致**；3/4/5 看不见它——它们断言的是「没有泄漏」「VERDICT 在 stdout」「成功仍打印」，静默时都仍然成立）；变异臂②（忽略 `recorded is None`）⇒ **1 failed / 6 passed**，只红第 7 条。
+
+### 否证
+
+- 第一版用了 `from observability.metrics import counters_snapshot` —— **没有这个函数**，实际是 `snapshot()["counters"]`。
+- 第一版写了两个「不 assert 任何东西」的桩测试（其中一个在 `isolated_filesystem()` 里调 `click.echo(err=True)`，捕获不到）——等于给自己造了两条恒绿的门。删掉，改成 `capsys` 直接读 stderr。
+
+### 边界
+
+- 只修 `verify` 的**两个**落库出口。`api/` 侧的同类静默不在本号（`api/routes/*` 各有自己的错误面）。
+- 「有没有配库」仍**无法从配置判断**：`MySQLConfig.from_env()` 每个字段都有默认值，`localhost:3306/specproof_phase0` 既可能是默认也可能是用户显式设的。本号的做法是**把试过的目标印出来**让用户自己认，而不是猜一个「未配置」分支。
+- 失败只报一次事实，不重试、不降级到文件：`storage/mysql.py` 的重试语义不属本号。
+- **本号提交的原始 diff 看着很大（762/696 行）**，原因是 `cli/specproof/commands/verify.py` 的**旧 blob 每行行首都多了一个 `\r`**（`git show HEAD~1:… | cat -A` 第一行是 `^M"""specproof verify …^M$`）——行尾布局被某次工具链写坏过。本号那次写入把它规范化成 `\r\n`，于是**每一行都变了**。按 `--ignore-cr-at-eol` 看真实内容改动是 **+81/−15**。⇒ 与 memory 里那条一致：**原始 diff 别吓自己，先看 `--ignore-cr-at-eol`**。

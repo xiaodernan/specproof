@@ -1,4 +1,5 @@
-"""specproof verify — Run a verification job (Phase 0 CLI).
+
+"""specproof verify — Run a verification job (Phase 0 CLI).
 
 Honesty contract (v2):
 - VERDICT FAILED    when the pipeline recorded errors
@@ -25,6 +26,7 @@ from typing import Any
 import click
 
 from cli.specproof.commands._worktrees import cleanup_run_worktrees as _cleanup_worktrees
+from observability.metrics import incr
 
 #: Exit codes by verdict word (#153). Anything outside the vocabulary is a
 #: word this module never writes, and maps to "no verdict" — fail-closed.
@@ -237,6 +239,60 @@ def _maybe_publish_check_run(
         client.close()
 
 
+def _mysql_target() -> str:
+    """Where a MySQL write would go: ``host:port/database`` — never the password.
+
+    Read from the same ``MySQLConfig.from_env()`` the store uses, so the line a
+    user sees names the host they actually configured (or the built-in default,
+    which is itself the answer to "did I configure anything at all?").
+    """
+    try:
+        from storage.mysql import MySQLConfig
+
+        config = MySQLConfig.from_env()
+        return f"{config.host}:{config.port}/{config.database}"
+    except Exception:  # noqa: BLE001 — a broken config must not hide the failure
+        return "the configured MySQL"
+
+
+def _first_line(exc: BaseException) -> str:
+    """The first line of an exception message, bounded — for a one-line report."""
+    text = str(exc).strip().splitlines()
+    return text[0][:200] if text else ""
+
+
+def _persist_job_summary(
+    job_id: str, final_state: dict[str, Any], verdict: str,
+) -> None:
+    """Write the dashboard row, and say so when it does not happen.
+
+    This used to be ``except Exception: pass``. Two very different situations
+    printed the same thing — nothing: a local run with no database at all, and
+    an operator who configured one whose connection is refused, whose password
+    is wrong, or whose schema is missing. The dashboard stayed empty either
+    way, and there was no way to tell whether it had been asked to fill.
+
+    Persistence stays best-effort on purpose: the verdict is about the code
+    change, not about MySQL, so this never changes the exit code. What changes
+    is that the reason is now printed to stderr (stdout stays the verdict
+    channel, so a caller parsing it is unaffected).
+    """
+    try:
+        from agent.worker import _state_summary
+        from storage.mysql import MySQLStore
+
+        MySQLStore().save_job_summary(job_id, _state_summary(final_state, verdict))
+    except Exception as exc:  # noqa: BLE001 — the verdict does not depend on MySQL
+        incr("verify_job_summary_persist_failures_total")
+        click.echo(
+            f"Job summary NOT persisted to MySQL at {_mysql_target()}: "
+            f"{type(exc).__name__}: {_first_line(exc)}",
+            err=True,
+        )
+        return
+    click.echo("Job summary persisted to MySQL.")
+
+
 def _record_certificate_metadata(
     cert_path: Path, job_id: str, contract_ids: list[str],
 ) -> None:
@@ -245,21 +301,36 @@ def _record_certificate_metadata(
     Best effort (same contract as the job-summary persistence): when the
     store is unavailable the certificate remains a legacy path-based
     artifact and nothing fails.
-    """
-    import logging
 
+    ``record_file_object_best_effort`` swallows the failure itself and
+    returns ``None``, which this call site used to ignore — so a store that
+    was down left the certificate findable only by path with nothing said
+    out loud. The return value is now checked: ``None`` means "not recorded",
+    and the line says the artifact itself is intact.
+    """
     try:
         from storage.object_metadata import record_file_object_best_effort
 
-        record_file_object_best_effort(
+        recorded = record_file_object_best_effort(
             "certificate",
             cert_path,
             job_id=job_id,
             contract_ids=[cid for cid in contract_ids if cid],
         )
     except Exception as exc:  # noqa: BLE001 — metadata is best effort
-        logging.getLogger(__name__).warning(
-            "certificate metadata record failed: %s", exc
+        incr("verify_certificate_metadata_failures_total")
+        click.echo(
+            f"Certificate metadata NOT recorded: {type(exc).__name__}: {_first_line(exc)} "
+            f"(the certificate file itself is intact: {cert_path})",
+            err=True,
+        )
+        return
+    if recorded is None:
+        incr("verify_certificate_metadata_failures_total")
+        click.echo(
+            "Certificate metadata NOT recorded: the metadata store is unavailable "
+            f"(the certificate file itself is intact: {cert_path})",
+            err=True,
         )
 
 
@@ -593,15 +664,10 @@ def verify(
         click.echo(f"\nHTML Report: {report_path}")
 
     # ── Persist summary when MySQL is available (dashboard) ──
-    try:
-        from agent.worker import _state_summary
-        from storage.mysql import MySQLStore
-
-        MySQLStore().save_job_summary(job_id, _state_summary(final_state, verdict))
-        click.echo("Job summary persisted to MySQL.")
-    except Exception:
-        # Local CLI runs may have no database — the artifacts remain intact.
-        pass
+    # Best effort, but never silent: see _persist_job_summary for why the two
+    # "nothing printed" outcomes (no database / a database that refused) had
+    # to be separated.
+    _persist_job_summary(job_id, final_state, verdict)
 
     # ── Certificate / Rejection Notice ──
     from evidence.certificate import build_rejection_notice, issue_certificate
