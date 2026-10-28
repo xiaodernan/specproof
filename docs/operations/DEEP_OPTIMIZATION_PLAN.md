@@ -15342,3 +15342,168 @@ exact 镜头（不改名）看不见，**near 镜头（同名 + 改名）必然�
 ④ `cli/`、`craft/` 剩余约 50 条静默 `except`；⑤ mypy 版本钉住
 （本机 `mypy==2.3.1` vs CI `uv sync --frozen`）；⑥ P6 100 例隔离评测；
 ⑦ `docs/design/JOB_CREATION_WHITELIST.md` 正文符号名改写判定。
+
+## #517 逐字节相同的两份外层 wait，各自调一个已经漂了的解析器：可达性探针先回答「今天会不会炸」
+
+### 起因
+
+#516 队列①交下来的活：查重门在 `providers` 里看到 `_wait_retry_after_or_exponential` ×2
+**逐字节相同**，而两份外层复制调用的内层 helper 已经不一样了。#516 只把它钉住没合，
+理由是「合并等于替 retrieval 选一种行为，那是线上调用路径的变更，要带自己的臂」。
+本号就是那条臂的落地。
+
+### 量到的
+
+1. **分叉的形状是 3 个，代价是 2 次尝试**（#516 已量，本号复跑确认）：16 个 response
+   形状上，两份解析器在所有 header **值**上一致；恰好 3 个畸形 response 形状
+   （没有 `headers` 属性 / `headers=None` / headers 不是 dict-like）providers 答 None、
+   retrieval 抛 `AttributeError`。同一个异常放进 tenacity：providers 那份花满 3 次尝试，
+   retrieval 那份只花 1 次（tenacity 不重试 `wait=` 里抛出的异常），然后
+   `retrieval/embeddings.py` 的 `except Exception` 把它报成 **"embedding endpoint
+   unreachable"**。
+2. **本号真正的决定性问题是可达性**（`probe517_trigger.py`，每一格都是真跑出来的）：
+   providers 线上路径能进入 `wait=` 的是 `_RETRYABLE_EXCEPTIONS` 那 5 个 SDK 类型，
+   它们在两份解析器上答案**完全一致**；而且这 5 个类型**没有一个**能过
+   `retrieval/embeddings.py::_is_retryable`——两条路径的异常词汇本来就不相交。
+3. **SDK 自己先把畸形形状挡住了**：`RateLimitError.__init__` 里依次解引用
+   `response.request`、`response.status_code`、`response.headers.get("x-request-id")`，
+   所以一个没有 headers 的 response **构造不出 SDK 异常**——AttributeError 落在
+   SDK 构造函数里，tenacity 还没被调用。反过来 `httpx.HTTPStatusError` 把它拿到的
+   response 原样存下来，**任何**对象都能进。畸形形状今天的唯一入口是 transport 替身
+   或自建错误的适配器。
+4. 所以 **retrieval 那条漂移是潜伏的**，不是事故。但它失败的表征是撒谎的（形状 bug 冒充
+   网关不可达），而 `retry-after` 这个 header 名在产品代码里的拼写位置，合并前是 **2**
+   个模块、合并后实测是 **1** 个（`contracts/retry_after.py`）。
+5. **分层事实决定了新家**：全树 grep 实测 `retrieval/` 不 import `providers/`、
+   `providers/` 也不 import `retrieval/`，所以合到任一方都会给线上路径新增一条跨层边；
+   `contracts` 只依赖 stdlib，是两条路径都够得到的叶子包（#516 选它当时间戳主人用的
+   是同一条理由）。
+6. **还有两套重试词汇本号没动**：`providers/resilience.py`（`classify_retry` + jitter
+   指数，它自己的 docstring 写着 "Nothing on the existing call path imports this
+   module"）和 `providers/client_policy.py`（`SPECPROOF_PROVIDER_POLICY=1` 才接线）。
+   它们与刚合掉的这对**不是克隆**（形状不同，查重门不响），是并存的策略实现。
+7. **rerank 完全不做 429 重试**：`retrieval/rerank.py` 里 `tenacity` / `429` / `wait`
+   命中 **0** 处。同一条 BYOK 网关线，embeddings 重试、rerank 不重试。
+8. **普查要比常量，不能比文本**：`retry-after` 在**散文**里出现的模块有 3 个（生产者 +
+   两个消费者本号各自新写的 docstring），在**代码**里出现的只有 1 个。所以拼写普查必须
+   排除裸字符串语句，否则「解释这个决定」的注释会把解释者判成复制者。
+9. **守卫今天是承重的，但承重的是 providers 而不是 retrieval**（A2 反向量出来的）：
+   `_RETRYABLE_EXCEPTIONS` 里 `APIConnectionError` / `APITimeoutError` 带的是
+   `response=None`，删掉生产者那两道 `getattr`/`hasattr` 守卫后，它们在 providers 的
+   活路径上当场抛 `AttributeError`——3 条 `tests/fault/` 门 + 2 条可达性腿一起红。
+   「潜伏」这个判断只对合并前**没有**守卫的那一份成立。
+
+### 落地
+
+1. 新模块 `contracts/retry_after.py`：`retry_after_seconds()` +
+   `wait_retry_after_or_exponential()` + `MAX_EXPONENTIAL_WAIT_SECONDS`。语义取
+   **防御式**（解析器永不抛），理由和代价都写进模块 docstring，并把③那条可达性结论
+   一起写进去——「潜伏而非事故」是这个决定的诚实版本。
+2. `providers/openai_compatible.py`：删掉两份私有实现和 `RetryCallState` import，
+   2 处 `wait=` 调用点改用共享函数；模块 docstring 的 429 条目指名新主人。
+   `retrieval/embeddings.py`：同理 1 处，并把 docstring 里那句
+   「429 handling **mirrors** providers/openai_compatible.py」订正成 shares 同一个生产者
+   ——mirrors 描述的正是本号要消灭的状态。
+3. `KNOWN_CLONES` **7 → 6**（本号合掉那一条）；同一棵树复测 exact 组 **7 → 6**（roster
+   6 条、实测 6 组，双向门自洽）、near 组 **21 → 20**，roster 腿按新数重写而不是手数。
+4. `tests/unit/test_retry_after_readers_policy_table.py` 从 26 例**重写成 42 例**
+   （第一轮 41，第二轮补 1 格，见「发现」第 2 条）。文件名保留是刻意的：#516 的账本
+   按这个名字引用它。内容从「两份复制是否一致」换成「一个生产者的三条主张」：
+   16 格形状表、3 个 former 分叉形状现在答 None、全性腿、header 拼写普查、两处委托
+   （AST）、两处**身份**、8 组等待秒数、常量腿、重试预算腿（3 次而不是 1 次）、
+   5 个 SDK 类型的可达性腿、以及「SDK 自己先炸」这条边界腿。
+5. `test_providers_dsv4.py` 的 3 条 parse/wait 断言改指共享生产者——那 6 条直接形状
+   断言是这条漂移历史上唯一的哨兵，搬家不能把它变少。
+6. `docs/design/DEEPSEEK_V4_PRO_ADAPTATION.md` 的实现列原本指向
+   `_retry_after_seconds` / `_wait_retry_after_or_exponential`，两个符号本号之后不存在，
+   改成真生产者并补上语义变更说明。
+
+### 门
+
+| 门 | 结果 |
+| --- | --- |
+| `test_retry_after_readers_policy_table.py` | 26 → **42 passed**（重写，不是追加） |
+| 五文件门集合（再加 `test_structural_clone_ratchet.py` / `test_providers_dsv4.py` / `test_retrieval_hybrid.py` / `tests/fault/test_fault_matrix.py`） | **151 passed**（与变异臂基线逐字节对得上） |
+| `test_packaging_ships_every_imported_package.py` + `test_copied_timestamp_and_digest_formats_agree.py` | **22 passed** |
+| 受影响邻域 `tests/ -k "retry or 429 or rate_limit or embedding or provider or dsv4 or backoff or wait or retrieval or rerank or tenacity or throttle or clone_ratchet"` | **467 passed / 5549 deselected**（133s） |
+| 查重门普查复测 | exact **6 组 / roster 6 条**、near **20 组 / 允许集 6+14=20**（roster 双向门自动，不手数） |
+| ruff | 本号 6 个文件 **All checks passed!**。`ruff format --check` 单独量过一次：`contracts/`+`providers/`+`retrieval/`+`tests/unit/` 四个根里 443 个文件不达标、57 个达标，说明仓库并没有把格式化当门（#271 明文写过刻意不跑 `ruff format` 的理由），所以本号沿用定点修法 |
+| mypy | `contracts/retry_after.py` + `providers/openai_compatible.py` + `retrieval/embeddings.py` **Success: no issues found in 3 source files** |
+| 账本 7 门（编号唯一、标题唯一、队列指针可解、已记录节不消失、证据断言、手写表台账、平台无关读取） | **66 passed**（#517 本节落地后复跑） |
+
+### 变异臂（8 条，两轮；预测先写进 `arms517_predictions.md` 再跑，跑完逐字节还原断言全部通过）
+
+第一轮跑的是 41 例的门，两条预测没兑现，差额查出的是**门自己的两个洞**；改门之后第二轮
+全部对上。两轮还原后都测回 151 passed。
+
+| 臂 | 改什么 | R1 预测 → 实测 | R2 预测 → 实测 |
+| --- | --- | --- | --- |
+| A1 | `retrieval/embeddings.py` 里加一份**没人调用**的旧索引式解析器 | 2 → **1**（只有普查腿） | 2 → **2**（普查 + 委托[retrieval]） |
+| A2 | 删掉生产者两道守卫（语义退回合并前） | 8–10 → **21** | 21 → **21**（新增格子必须绿，确实绿） |
+| A3 | 60s 封顶改 30s | 2 → **2** | 2 → **2**（新格子继续绿） |
+| A4 | wait 改成 `min(header, 曲线)` | 2 → **1** | 2 → **2**（`a1-header` + `a7-header-over-cap`） |
+| A5 | `providers` 定义同名本地函数遮蔽 import | 1 → **1**（只有身份腿） | 1 → **1**（两条拼写腿必须绿，确实绿） |
+| A6 | `retrieval` 整对函数改回本地实现 | 3 → **3** | 3 → **3**（同集合；它的委托红来自「import 被删」那条断言） |
+| A7 | wait 永远回退指数（忽略 header） | 3 → **3** | 3 → **4**（多的正是新格子） |
+| A8（新） | `providers` 里加一份拼写作 `"Retry-After"` 的死复制 | — | 2 → **2**（普查 + 委托[providers]） |
+
+**发现（差额本身就是产出）**
+
+1. **委托腿在空转**（A1 第一轮 1 vs 2）。`own_parsers` 判的是
+   `f'"{HEADER}"' in ast.unparse(node)`，而 `ast.unparse` 把字符串常量渲染成**单**引号——
+   这条断言对任何代码都不会成立。修法是比解码后的 `ast.Constant`，顺带把普查腿换成同
+   一个 `_spells_header`：A8 用 `"Retry-After"` 这种大小写不同的拼写作反证，旧文本普查
+   对它全瞎，新的忽略大小写的常量比对测出 2 红。
+2. **表里没有一格能让「header 优先」和「取小」区分开**（A4 第一轮 1 vs 2）。表里每个
+   header 值都恰好低于自己 attempt 的曲线值，`min(header, 曲线)` 只在 `a1-header`
+   （曲线=1）露馅。补 `a7-header-over-cap`（attempt 7、header "90"、期望 90.0）之后
+   A4 红 2、A7 红 4，而 A2/A3 下它都是绿的——这一格钉住的语义是**上限只封曲线、不封
+   网关给的数**。
+3. **A2 从 8–10 估到 21 是低估，不是门太严**：守卫一删，红的除了 16 格表的 5 行和三个
+   分叉形状，还有 `tests/fault/` 的 3 条（dead gateway 恢复预算与原始错误呈现）、
+   2 条 SDK 可达性腿和 4 条曲线秒数腿（它们喂的正是 `NO_HEADERS_ATTR`）。这 21 条把
+   量到的⑨坐实了：那道守卫在 providers 的活路径上每天都在承重。
+4. **`test_wait_prefers_retry_after_over_exponential`（dsv4）分不出 header 与曲线**：
+   它用 attempt=3、header="4"，而 2**(3-1) 也是 4。A7 把「忽略 header」这条臂的红数
+   测成 4 条，里面没有它——它对本号的核心语义是**永久假阴性**。本号没改它（它是 dsv4
+   适配的门，改它的期望值不属于「合并生产者」这一步），取号队列①。
+5. **两条臂电池共用一个 worktree 会互相污染**：R1 与 R2 之间一次后台电池被中途杀掉，
+   把 A1 的复制留在了 `wt517/retrieval/embeddings.py` 里；下一次基线因此红了 2 条。
+   `if failed: return 2` 把它变成**拒绝运行**而不是交出一个假数字——这条守卫是对的，
+   本号再补 `O_EXCL` 锁 + 预检「三个目标文件与五个门文件必须与工作树逐字节相同」。
+
+### 否证与边界
+
+- **本号改了线上语义**：`retrieval` 在畸形 response 形状上从抛 `AttributeError` 变成
+  回退指数退避。这是**决定**而不是修 bug 的副产品：一个能抛的 `wait=` 回调会让 tenacity
+  提前放弃剩下的尝试，而 embeddings 的诚实契约是把失败说成失败的原因——不是把形状 bug
+  报成网关不可达。
+- **可达性探针说 retrieval 今天没有活路径能触发它**（量到的②③），所以那一半是预防性
+  收紧；但 A2 同时量到 providers 的守卫是活的（量到的⑨）。把潜伏写成事故会夸大价值，
+  把「潜伏」当成不必合并的理由，正是 #516 那条 roster 注释要防的东西——两句话都得留下
+  才是完整的。
+- 合掉的是**这一对**，不是「重试策略统一了」：`resilience.py` / `client_policy.py`
+  两套并行实现本号没碰（它们与这对不是克隆），`rerank` 不重试 429 本号也没碰。
+- **身份腿与 AST 委托腿不冗余**是量出来的，而且两轮都量到：A5 只有身份腿能红（本地函数
+  不拼 header、import 也还在），A1/A8 只有两条拼写腿能红（那份复制根本没被调用），
+  A6 的预算腿两轮都绿（它测生产者本体，不测调用路径）。三条腿各有独立的红路。
+- `_runtime_import_roots` 第一版用 `ast.walk` + 「跳过 `If` 节点」，结果把
+  `if TYPE_CHECKING:` 里的 tenacity 也算成运行时依赖，**门当场红在我自己的代码上**：
+  `ast.walk` 会继续下降进被守卫的子树，跳过父节点不等于跳过子树。手写递归才排干净。
+- 普查腿与 #516 的时间戳普查共用 `PACKAGES`，这是**刻意的耦合**：两个门必须扫同一棵树，
+  否则「拼写只有一处」和「克隆只有一处」可以各自成立却互相看不见——#516 的 A2 已经
+  演示过包普查缺一个洞时两条门会同时瞎。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① dsv4 的 `test_wait_prefers_retry_after_over_exponential` 换一个 header≠曲线的格子，
+让它真能区分「网关的数优先」和「回退指数」（发现 4）；
+② `retrieval/rerank.py` 不做 429 重试而 embeddings 做：先量 rerank 失败面（它降到哪一层、
+谁付代价），再决定要不要接同一个 wait；
+③ `providers/resilience.py` 与 `providers/client_policy.py` 两套「存在但线上没人 import」
+的重试实现——要么接线要么删，别让未接线代码冒充能力；
+④ #516 队列②：`sha256_hex` ×3 与 `_capsule_dirs` / `_eval_report_path` /
+`child_output_text` 的跨层归属；⑤ #516 队列③：三套并存的**时间戳**词汇（毫秒已合、
+30 处全精度 / 22 模块、7 处 `timespec="seconds"` / 6 个 `craft/` 模块）；
+⑥ `cli/`、`craft/` 剩余约 50 条静默 `except`；⑦ mypy 版本钉住；⑧ P6 100 例隔离评测；
+⑨ `docs/design/JOB_CREATION_WHITELIST.md` 正文符号名改写判定。

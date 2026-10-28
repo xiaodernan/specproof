@@ -11,7 +11,9 @@ DeepSeek V4 Pro adaptation (see docs/design/DEEPSEEK_V4_PRO_ADAPTATION.md):
 - 429 rate limits are retried with tenacity using the gateway's
   Retry-After header, bounded by LLM_MAX_RETRIES (the SDK client is built
   with max_retries=0 so the tenacity layer is the single retry owner —
-  no double counting);
+  no double counting). The wait itself comes from contracts/retry_after.py,
+  which retrieval/embeddings.py also uses (#517: two copies of this policy
+  drifted apart while the outer wrapper stayed byte-identical);
 - chat()/chat_stream() accept thinking (bool | raw dict) and opts (raw
   extra-body passthrough); legacy callers that pass neither keep the
   exact previous request shape;
@@ -51,11 +53,11 @@ from openai import (
 )
 from tenacity import (
     AsyncRetrying,
-    RetryCallState,
     retry_if_exception,
     stop_after_attempt,
 )
 
+from contracts.retry_after import wait_retry_after_or_exponential
 from observability.metrics import incr, observe_duration
 
 from .base import LLMMessage, LLMResponse, ModelProvider
@@ -106,36 +108,6 @@ def _is_retryable(exc: BaseException) -> bool:
 LLM_REQUEST_BUCKETS: tuple[float, ...] = (
     0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0,
 )
-
-
-def _retry_after_seconds(exc: BaseException) -> float | None:
-    """Parse the Retry-After header of a 429 response (seconds form only).
-
-    Returns None when the header is absent or an HTTP-date (unparseable as
-    seconds) — callers then fall back to exponential backoff.
-    """
-    response = getattr(exc, "response", None)
-    headers = getattr(response, "headers", None)
-    if not headers:
-        return None
-    raw = headers.get("retry-after") if hasattr(headers, "get") else None
-    if raw is None:
-        return None
-    try:
-        seconds = float(raw)
-    except (TypeError, ValueError):
-        return None
-    return max(0.0, seconds)
-
-
-def _wait_retry_after_or_exponential(retry_state: RetryCallState) -> float:
-    """429 → honor Retry-After when present; otherwise capped exponential."""
-    outcome = retry_state.outcome
-    exception = outcome.exception() if outcome is not None else None
-    retry_after = _retry_after_seconds(exception) if exception is not None else None
-    if retry_after is not None:
-        return retry_after
-    return min(60.0, float(2 ** max(0, retry_state.attempt_number - 1)))
 
 
 def _read_field(obj: Any, name: str, default: Any = None) -> Any:
@@ -336,7 +308,7 @@ class OpenAICompatibleProvider(ModelProvider):
 
     async def _create_response(self, kwargs: dict[str, Any]) -> Any:
         retryer = AsyncRetrying(
-            retry=retry_if_exception(_is_retryable), wait=_wait_retry_after_or_exponential,
+            retry=retry_if_exception(_is_retryable), wait=wait_retry_after_or_exponential,
             stop=stop_after_attempt(self._max_retries + 1), reraise=True,
         )
 
@@ -354,7 +326,7 @@ class OpenAICompatibleProvider(ModelProvider):
         """
         retryer = AsyncRetrying(
             retry=retry_if_exception(_is_retryable),
-            wait=_wait_retry_after_or_exponential,
+            wait=wait_retry_after_or_exponential,
             stop=stop_after_attempt(self._max_retries + 1),
             reraise=True,
         )

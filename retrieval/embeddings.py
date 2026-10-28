@@ -13,9 +13,10 @@ malformed payload, inconsistent dims — returns "(None, reason)" so the
 caller degrades to BM25+graph retrieval. Zero vectors are never
 fabricated.
 
-429 handling mirrors providers/openai_compatible.py: retry up to
-LLM_MAX_RETRIES times, honoring the gateway's Retry-After header,
-otherwise capped exponential backoff (max 60s). tenacity is the single
+429 handling shares the one producer with providers/openai_compatible.py:
+retry up to LLM_MAX_RETRIES times, honoring the gateway's Retry-After header,
+otherwise capped exponential backoff (max 60s) — both the header parse and the
+wait policy live in contracts/retry_after.py (#517). tenacity is the single
 retry owner.
 """
 from __future__ import annotations
@@ -23,34 +24,13 @@ from __future__ import annotations
 import os
 
 import httpx
-from tenacity import RetryCallState, Retrying, retry_if_exception, stop_after_attempt
+from tenacity import Retrying, retry_if_exception, stop_after_attempt
 
+from contracts.retry_after import wait_retry_after_or_exponential
 from retrieval._env import env_int as _env_int
 
 _DEFAULT_BATCH_SIZE = 64
 _RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})
-
-
-def _retry_after_seconds(exc: BaseException) -> float | None:
-    """Retry-After header (seconds form only); None when absent/HTTP-date."""
-    response = getattr(exc, "response", None)
-    raw = response.headers.get("retry-after") if response is not None else None
-    if raw is None:
-        return None
-    try:
-        return max(0.0, float(raw))
-    except (TypeError, ValueError):
-        return None
-
-
-def _wait_retry_after_or_exponential(retry_state: RetryCallState) -> float:
-    """429 → honor Retry-After when present; otherwise capped exponential."""
-    outcome = retry_state.outcome
-    exception = outcome.exception() if outcome is not None else None
-    retry_after = _retry_after_seconds(exception) if exception is not None else None
-    if retry_after is not None:
-        return retry_after
-    return min(60.0, float(2 ** max(0, retry_state.attempt_number - 1)))
 
 
 def _is_retryable(exc: BaseException) -> bool:
@@ -173,7 +153,7 @@ class EmbeddingClient:
 
         retryer = Retrying(
             retry=retry_if_exception(_is_retryable),
-            wait=_wait_retry_after_or_exponential,
+            wait=wait_retry_after_or_exponential,
             stop=stop_after_attempt(self.max_retries + 1),
             reraise=True,
         )

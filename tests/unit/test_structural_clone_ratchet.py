@@ -134,20 +134,6 @@ KNOWN_CLONES: dict[Clone, str] = {
         }
     ): "two unrelated classes that happen to share a two-line constructor; "
     "coincidence, not a shared contract",
-    frozenset(
-        {
-            ("providers/openai_compatible.py", "_wait_retry_after_or_exponential"),
-            ("retrieval/embeddings.py", "_wait_retry_after_or_exponential"),
-        }
-    ): "one 429 decision — honour Retry-After, else capped exponential — written "
-    "twice, byte-identical, and #516 only saw it because `providers` was missing "
-    "from PACKAGES. NOT endorsed: the helper each copy calls has already drifted "
-    "(measured over 16 response shapes — the two agree on every header value and "
-    "differ on exactly three malformed-response shapes, where `providers` returns "
-    "None and `retrieval` raises AttributeError, which costs the embeddings client "
-    "two of its three attempts). Pinned by "
-    "test_retry_after_readers_policy_table.py; merging changes behaviour on a live "
-    "call path, so it is queued as #517 with its own arms.",
 }
 
 #: #514 — groups the same-name lens sees and the 25-node floor did not.

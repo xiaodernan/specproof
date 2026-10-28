@@ -14,14 +14,10 @@ import httpx
 import pytest
 from openai import RateLimitError
 
+from contracts.retry_after import retry_after_seconds, wait_retry_after_or_exponential
 from providers.base import LLMMessage
 from providers.budget import BudgetExceeded, TokenBudget
-from providers.openai_compatible import (
-    OpenAICompatibleProvider,
-    _parse_usage,
-    _retry_after_seconds,
-    _wait_retry_after_or_exponential,
-)
+from providers.openai_compatible import OpenAICompatibleProvider, _parse_usage
 from providers.probe_result import ProbeResult
 from providers.prompt_templates import (
     JSON_ACTION_ENVELOPE_BLOCK,
@@ -308,12 +304,12 @@ async def test_429_retry_count_reads_llm_max_retries_env(monkeypatch):
 
 
 def test_retry_after_parsing():
-    assert _retry_after_seconds(_rate_limit_error("5")) == 5.0
-    assert _retry_after_seconds(_rate_limit_error("0")) == 0.0
-    assert _retry_after_seconds(_rate_limit_error(None)) is None
+    assert retry_after_seconds(_rate_limit_error("5")) == 5.0
+    assert retry_after_seconds(_rate_limit_error("0")) == 0.0
+    assert retry_after_seconds(_rate_limit_error(None)) is None
     http_date = _rate_limit_error("Wed, 21 Oct 2015 07:28:00 GMT")
-    assert _retry_after_seconds(http_date) is None  # HTTP-date → exponential fallback
-    assert _retry_after_seconds(RuntimeError("boom")) is None
+    assert retry_after_seconds(http_date) is None  # HTTP-date → exponential fallback
+    assert retry_after_seconds(RuntimeError("boom")) is None
 
 
 def test_wait_prefers_retry_after_over_exponential():
@@ -321,7 +317,7 @@ def test_wait_prefers_retry_after_over_exponential():
         attempt_number=3,
         outcome=SimpleNamespace(exception=lambda: _rate_limit_error("4")),
     )
-    assert _wait_retry_after_or_exponential(state) == 4.0
+    assert wait_retry_after_or_exponential(state) == 4.0
 
 
 def test_wait_falls_back_to_capped_exponential():
@@ -329,7 +325,7 @@ def test_wait_falls_back_to_capped_exponential():
         attempt_number=3,
         outcome=SimpleNamespace(exception=lambda: RuntimeError("boom")),
     )
-    assert _wait_retry_after_or_exponential(state) == 4.0  # 2**(3-1), under the 60s cap
+    assert wait_retry_after_or_exponential(state) == 4.0  # 2**(3-1), under the 60s cap
 
 
 # ── prompt templates: cache-friendly ordering ────────────────────
