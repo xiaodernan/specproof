@@ -223,15 +223,6 @@ KNOWN_NEAR_CLONES: dict[Clone, str] = {
     "these two; that is why this pair stays listed rather than being merged blind.",
     frozenset(
         {
-            ("api/routes/agent_console.py", "_reject_unknown_fields"),
-            ("api/routes/jobs.py", "_reject_unknown_fields"),
-        }
-    ): "fail-closed allowlist validation, 78 nodes, duplicated across two routers with "
-    "different allowlists. `test_job_whitelist.py` exercises the jobs validator directly "
-    "and the console validator through its endpoints, so both halves are pinned; the "
-    "shared validator is queued.",
-    frozenset(
-        {
             ("agent/contracts/parser.py", "_running_loop"),
             ("agent/nodes/compile_contracts.py", "_running_loop"),
         }

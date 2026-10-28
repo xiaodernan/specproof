@@ -14,6 +14,7 @@ existing API tests (tests/unit/test_api_jobs.py, test_agent_console_api.py).
 from __future__ import annotations
 
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,8 +22,11 @@ from pydantic import ValidationError
 
 import api.routes.agent_console as agent_console
 import api.routes.jobs as jobs_module
+from api.routes._strict_payload import StrictAllowlistModel
 from api.server import app
 from storage.agent_jobs import InMemoryAgentJobStore
+
+REPO = Path(__file__).resolve().parents[2]
 
 API_KEY = "job-whitelist-test-key"
 
@@ -298,3 +302,99 @@ def test_agent_jobs_auto_start_repo_without_spec_rejected(
         "/agent/jobs", json={"repo_path": "r", "auto_start": True}, headers=_headers(),
     )
     assert resp.status_code == 422
+
+
+# ── The shared rule itself (#515: both models now inherit one validator) ────
+
+#: The literal the product raises; a second copy of the decision has to
+#: re-raise it, so counting the string counts the decision.
+UNKNOWN_FIELD_MESSAGE = "Unknown field(s)"
+
+
+def _api_modules_with_the_message() -> list[str]:
+    """Python modules under api/ whose text contains the raised message.
+
+    Walked from the filesystem, not `git ls-files`: this gate has to catch a
+    re-fork the moment it is written, and the new module is untracked until the
+    commit that lands it. (`test_structural_clone_ratchet.py` deliberately
+    scans tracked files only — it asks what is *shipped*.)
+    """
+    return sorted(
+        path.relative_to(REPO).as_posix()
+        for path in (REPO / "api").rglob("*.py")
+        if "__pycache__" not in path.parts
+        and UNKNOWN_FIELD_MESSAGE in path.read_text(encoding="utf-8")
+    )
+
+
+def test_the_fail_closed_rule_has_exactly_one_home_in_api() -> None:
+    """Reverse control for the merge: a re-forked copy must go red.
+
+    The clone ratchet compares byte-identical bodies; this names the module the
+    message lives in, so pasting the decision into a third router fails here
+    even if the copy is renamed or reformatted.
+    """
+    assert _api_modules_with_the_message() == ["api/routes/_strict_payload.py"]
+
+
+def _strict_models() -> list[type[StrictAllowlistModel]]:
+    """Every product StrictAllowlistModel subclass reachable from the imports.
+
+    Complete because api.server (imported above) registers both route modules;
+    a strict model in a router that is not mounted would not reach the walk and
+    is out of this gate's reach by construction. Test-local subclasses are
+    filtered out so the gate claims about the product only.
+    """
+    found: list[type[StrictAllowlistModel]] = []
+    stack: list[type] = list(StrictAllowlistModel.__subclasses__())
+    while stack:
+        model = stack.pop()
+        if model.__module__.startswith("api."):
+            found.append(model)
+        stack.extend(model.__subclasses__())
+    return found
+
+
+def test_every_strict_model_allowlist_names_exactly_its_fields() -> None:
+    """A field declared on the model but missing from its allowlist is a 422
+    for every legal client of that field — the failure this gate exists for.
+    """
+    models = _strict_models()
+    assert {model.__name__ for model in models} >= {
+        "JobCreateRequest",
+        "AgentJobCreateRequest",
+    }, f"the walk lost a product model: {[m.__name__ for m in models]}"
+    drifted = {
+        f"{model.__module__}.{model.__name__}": (
+            sorted(model.payload_allowlist),
+            sorted(model.model_fields),
+        )
+        for model in models
+        if model.payload_allowlist != frozenset(model.model_fields)
+    }
+    assert not drifted, (
+        "payload_allowlist and the declared fields must be the same set; "
+        f"drifted models (allowlist, fields): {drifted}"
+    )
+
+
+def test_a_strict_model_that_forgot_its_allowlist_refuses_everything() -> None:
+    """The empty default is fail-closed, not permissive."""
+
+    class ForgotItsAllowlist(StrictAllowlistModel):
+        repo_path: str
+
+    with pytest.raises(ValidationError, match="Unknown field"):
+        ForgotItsAllowlist.model_validate({"repo_path": "some/repo"})
+
+
+def test_agent_jobs_model_rejects_non_string_key_directly() -> None:
+    """Symmetry: the jobs side pinned this branch, the console side did not.
+
+    A non-string key is the one input shape that a `str(key)`-then-compare
+    allowlist can silently accept.
+    """
+    with pytest.raises(ValidationError, match="Unknown field"):
+        agent_console.AgentJobCreateRequest.model_validate(
+            {**VALID_AGENT_PAYLOAD, 5: "x"},
+        )

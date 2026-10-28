@@ -15078,3 +15078,111 @@ A3 多出的第二条是 `test_the_near_lens_sees_what_the_25_node_floor_hid`：
 ③ `sha256_hex` ×3 与 #493 的 `_capsule_dirs` / `_eval_report_path` / #513 的 `child_output_text`
 一起判跨层归属；④ `cli/`、`craft/` 剩余约 50 条静默 `except`；⑤ `mypy` 版本钉住
 （`mypy==2.3.1` vs CI `uv sync --frozen`）；⑥ P6 100 例隔离评测。
+
+
+## #515 合掉 `_reject_unknown_fields` ×2：一份规则、一条按报错字符串数家的门，和一条有两条腿的普适门
+
+**起因。** #514 队列①原话：「合掉 `api/routes/_reject_unknown_fields` ×2（78 节点、
+fail-closed 输入校验、只差白名单常量——本号排到的**最高价值一份合并**）」。**这条队列是准的**，
+本号照做；但真正值得记的不是合并本身，是合并路上量到的三件事。
+
+### 量到的
+
+1. **两份复制的 body-only 都是 61 节点、整函数 78 节点，逐字节相同**（只差常量标识符）。
+   合并后活着的那一份是 **80 节点**——比原来多 2，因为 `cls.payload_allowlist` 是属性访问。
+   这不是退化：它是唯一一份。
+2. **测试面不对称**（这条是实测，不是推测）：`test_job_whitelist.py` 给 jobs 钉了
+   「非字符串键」分支（`test_jobs_model_rejects_non_string_key_directly`），agent 侧**没有**
+   对应用例。两份实现里那份没被测到的分支，正是复制最典型的代价——而且 `{5: "x"}` 恰好是
+   「先 `str()` 再比」这类白名单唯一能被洗白的输入形状。
+3. **合并面是封闭的**：合并前全仓产品代码里 `mode="before"` 校验器只有这 2 处（都在
+   `api/routes/`），`Unknown field(s)` 字符串在产品代码也只有这 2 处。合并后各剩 1 处，
+   所以「一个家」不是修辞，是 30 个 `api/**/*.py` 模块里的 1 处。
+
+### 形状选择是量出来的，不是审美
+
+被否掉的第二个方案是「每个模型留一行委托」`return reject_unknown_fields(data, ALLOWLIST)`。
+实测那个形状 **25 节点**，正好撞上 `MIN_NODES = 25` 这块地板；两份只差常量标识符 ⇒
+exact 镜头（不改名）看不见，**near 镜头（同名 + 改名）必然再分一组** ⇒ 本号删掉的 roster
+条目会以另一种形状立刻长回来，还得为它写一条「这两份是委托所以没问题」的理由。
+选基类的另一半理由更硬：基类让「`payload_allowlist` == 声明字段」这条不变量**可枚举**
+（走 `__subclasses__`），委托形态只能硬编码一份模型清单——清单本身就会过期。
+
+### 落地
+
+1. 新模块 `api/routes/_strict_payload.py`（**55 行**）：`StrictAllowlistModel(BaseModel)` +
+   `payload_allowlist: ClassVar[frozenset[str]] = frozenset()`。空默认是**故意的 fail-closed**：
+   忘了声明的模型连自己的合法字段都拒，开发期就炸，而不是悄悄放宽接受面。
+2. `JobCreateRequest` / `AgentJobCreateRequest` 改为继承它，各自只声明
+   `payload_allowlist = <原常量>`。两个常量**留在原模块**：`test_api_governance.py` 直接断言
+   `jobs_module.JOB_CREATE_ALLOWLIST` 的成员，`docs/design/` 与 `PRODUCT_ROADMAP.md` 也引它；
+   搬家会把一次安全收益的合并变成一次跨文档改名。
+3. `tests/unit/test_job_whitelist.py` +**100 行 / 4 条新用例**：agent 侧非字符串键（补对称）、
+   普适门（allowlist == 字段，含「走线没丢产品模型」的 superset 断言）、空默认 fail-closed 证据、
+   以及 `test_the_fail_closed_rule_has_exactly_one_home_in_api`。
+4. 最后那条按**报错字符串**数家，不按函数名——A1 证明它能抓到**改名之后**的再复制，
+   而这正是查重门的盲区（名字不同 + 节点不同 ⇒ 两个镜头都看不见）。
+   它同时是双面的：规则整个消失 ⇒ 该门红（A3 实测）。
+   扫描用文件系统 walk 而非 `git ls-files`（理由写在测试 docstring 里：新模块在提交前是
+   untracked，门必须当场能红）。
+5. `KNOWN_NEAR_CLONES` **15 → 14**：删掉本号合掉的那条。查重门自己给的证据是单向的——
+   只有 `test_the_known_near_clone_roster_is_still_true` 红（「这组不再是克隆」），
+   `test_no_new_same_name_near_clones` 全绿（合并没有顺手造出新组）。
+6. `docs/design/JOB_CREATION_WHITELIST.md` 头部 +**5 行**现状更新：§2/§3 描述的符号位置变了、
+   威胁模型与 422 语义没变。**只加头部注记、不改正文**，理由进队列⑦。
+
+### 门
+
+| 门 | 结果 |
+| --- | --- |
+| `test_job_whitelist.py` | 44 → **48 passed** |
+| 邻域 9 文件（`test_api_jobs` / `test_api_jobs_total` / `test_agent_console_api` / `test_agent_console_persistence` / `test_openapi_diff` / `test_openapi_fuzzing` / `test_api_governance` / 本号两文件） | **205 passed** |
+| ruff | 5 个改动文件 **All checks passed!** |
+| mypy | `api/routes/{_strict_payload,jobs,agent_console}.py` **Success: no issues found in 3 source files** |
+| OpenAPI 实测 | 两模型 `properties` 与 `required` 一字未变；`payload_allowlist` **没有**漏进公开契约 |
+| 隔离副本基线 | **59 passed**（`_strict_payload.py` 在副本里已入 index，所以查重门扫到了它） |
+
+### 变异臂（5 条，预测先写后跑，跑完逐字节还原断言全部通过）
+
+| 臂 | 改什么 | 预测 | 实测 |
+| --- | --- | --- | --- |
+| A1 | 往 `agent_console.py` 种**第二份**规则，**换个函数名** | 1 红（one-home 门），查重门必须绿 | **MATCH（1 红）** |
+| A2 | `JobCreateRequest` 加 `notes` 字段、白名单不动 | 1 红（普适门），行为测试全绿 | **MATCH（1 红）** |
+| A3 | 从基类删掉校验器，两个模型不动 | 30–35 红，合法 payload 组绿 | **36 红 / 23 绿** |
+| A4 | 把两份复制原样合回去（撤掉继承），新测试留着 | 2 红 | **3 红（多普适门）** |
+| A5 | `payload_allowlist` 漏写 `ClassVar` | 2+ 红 | **3 红（MATCH）** |
+
+**A3 的错在构成的算法**：我把普适门列进了 30–35 的构成里，但它与「校验器存不存在」无关
+（allowlist 与字段两个集合都没动）⇒ 该臂实际少了这一条、却多了别处一条，总数 36 越过上界。
+方向和「两条 endpoint 家族同时大面积红 + 合法组全绿」这两条主张都成立。
+**A4 多红的那条是本号最有价值的一条意外**：普适门有**两条腿**——
+`payload_allowlist == frozenset(model_fields)`（集合腿）和
+`{m.__name__} >= {"JobCreateRequest", "AgentJobCreateRequest"}`（走线腿）。
+撤掉继承打断走线腿，A2 打断集合腿。**一条门被两条不同的臂各打到一条腿**，
+这才是「门不是单目的」的可执行证据；我只在预测里想到了集合那条。
+**5 条臂 0 条「预测红而实测绿」**（假阴性为零）。
+
+### 否证与边界
+
+- 普适门的**走线完整性依赖 `api.server` 已被导入**（写进了 docstring）：没挂载进 app 的
+  router 里的 strict 模型不在射程内。这是**已知边界**，不是遗漏——今天 `api/` 只有 2 个
+  strict 模型，两个都在挂载的 router 里。
+- 空默认 allowlist 的 fail-closed 今天只有 `test_a_strict_model_that_forgot_its_allowlist_refuses_everything`
+  一条钉着。若有人把默认改成 `None` 或「全通」，那条会红；本号**没有**为「默认值不该被改」
+  再加门，因为那条主张没有第二种测量能证伪。
+- `ClassVar` 这条不是可有可无的注释：A5 实测漏写就把安全白名单变成**必填 payload 字段**，
+  两条合法 payload 测试当场红。这既是它的代价也是它的可发现性。
+- 没有把 `_guards.py` 用成杂物间。新模块独立，`_guards.py` 仍然只管 auth；两者的共同点
+  （「都属不该有两份的那一类」）写在 `_strict_payload.py` 的 docstring 里而不是合成一个文件——
+  读者关心的对象不同（请求体 vs 主体与角色）。
+- 本号**只**合了队列①。`evidence/_now_iso` ×3 仍是一份未合并的复制，行为已被 #514 的
+  契约门钉住，所以它的紧迫性低于①，不是被忘掉。
+
+### 下一号队列（取号按落地时点 max+1）
+
+② 合掉 `evidence/_now_iso` ×3（家就在 evidence/ 内部，#514 已把三份的行为钉死）；
+③ `sha256_hex` ×3 与 #493 的 `_capsule_dirs` / `_eval_report_path`、#513 的 `child_output_text`
+一起判跨层归属；④ `cli/`、`craft/` 剩余约 50 条静默 `except`；⑤ `mypy` 版本钉住
+（本机 `mypy==2.3.1` vs CI `uv sync --frozen`）；⑥ P6 100 例隔离评测；
+⑦ `docs/design/JOB_CREATION_WHITELIST.md` 正文仍按旧符号名描述（本号只在头部加了现状更新）——
+改写正文 vs 「读者按符号名找不到」由下一号按实际踩坑次数判定。

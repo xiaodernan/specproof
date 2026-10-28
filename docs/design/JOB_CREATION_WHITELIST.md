@@ -3,6 +3,11 @@
 > 状态: 已实施并验证 (2026-08-20)。范围: 两条 Job 创建路径的输入面审计 + 缺失白名单加固。
 > 涉及文件: api/routes/jobs.py (审计, 无需改动), api/routes/agent_console.py (加固),
 > tests/unit/test_job_whitelist.py (新建), 本文档 (新建)。
+>
+> 现状更新 (#515, 2026-10-28): 下面 §2/§3 各自描述的 `_reject_unknown_fields` 曾是**逐字节
+> 相同的两份**校验器 (78 节点, 只差白名单常量), 现合并为 `api/routes/_strict_payload.py` 的
+> `StrictAllowlistModel` 一份; 两个模型只声明 `payload_allowlist`。**拒绝语义与响应形状未变** —
+> 本文的威胁模型、字段清单与 422 语义仍然按现状生效, 只有符号位置变了。
 
 ## 1. 威胁模型与拒绝语义
 

@@ -69,7 +69,7 @@ from collections.abc import AsyncGenerator
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol, Self, cast
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, Protocol, Self, cast
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
@@ -84,6 +84,7 @@ from api.errors import (
     STATE_CONFLICT,
     ApiError,
 )
+from api.routes._strict_payload import StrictAllowlistModel
 from storage.agent_console import ConsoleState as _ConsoleState
 from storage.agent_jobs import (
     TERMINAL_JOB_STATUSES,
@@ -249,7 +250,7 @@ AGENT_JOB_CREATE_ALLOWLIST = frozenset(
 )
 
 
-class AgentJobCreateRequest(BaseModel):
+class AgentJobCreateRequest(StrictAllowlistModel):
     """Agent job submission payload (strict allowlist, backlog #8).
 
     Only repo_path / spec_text / task_name / auto_start are accepted; any
@@ -257,6 +258,8 @@ class AgentJobCreateRequest(BaseModel):
     rejected with 422 VALIDATION_FAILED naming the offending field(s), so
     execution directives can never ride along on a create request.
     """
+
+    payload_allowlist: ClassVar[frozenset[str]] = AGENT_JOB_CREATE_ALLOWLIST
 
     repo_path: str | None = Field(default=None, min_length=1, max_length=1024)
     spec_text: str | None = Field(default=None, min_length=1, max_length=200_000)
@@ -271,25 +274,6 @@ class AgentJobCreateRequest(BaseModel):
             "bundled calc.py demo task"
         ),
     )
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_unknown_fields(cls, data: Any) -> Any:
-        """Refuse any payload key outside AGENT_JOB_CREATE_ALLOWLIST.
-
-        Fail-closed (backlog #8): unknown keys are rejected with
-        422 VALIDATION_FAILED and never silently ignored, unlike pydantic's
-        default extra-field handling.
-        """
-        if isinstance(data, dict):
-            unknown = sorted(
-                str(key)
-                for key in data
-                if not isinstance(key, str) or key not in AGENT_JOB_CREATE_ALLOWLIST
-            )
-            if unknown:
-                raise ValueError(f"Unknown field(s): {', '.join(unknown)}")
-        return data
 
     @model_validator(mode="after")
     def _check_run_shape(self) -> Self:

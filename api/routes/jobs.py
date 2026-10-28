@@ -14,14 +14,15 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field
 
 from api.auth import enforce_rate_limit, require_api_key
 from api.errors import PROVIDER_UNAVAILABLE, ApiError
+from api.routes._strict_payload import StrictAllowlistModel
 from api.services.verification_service import VerificationApplicationService
 from observability.metrics import observe_duration
 from storage.redis import RedisStore
@@ -97,7 +98,7 @@ def get_redis() -> RedisStore:
     return _redis
 
 
-class JobCreateRequest(BaseModel):
+class JobCreateRequest(StrictAllowlistModel):
     """Job submission payload. Paths/refs are validated server-side.
 
     Strict allowlist (§14.3): any field outside JOB_CREATE_ALLOWLIST is
@@ -108,25 +109,13 @@ class JobCreateRequest(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
+    payload_allowlist: ClassVar[frozenset[str]] = JOB_CREATE_ALLOWLIST
+
     repo_path: str = Field(min_length=1, max_length=512)
     base_ref: str = Field(min_length=1, max_length=255)
     head_ref: str = Field(min_length=1, max_length=255)
     spec_path: str = Field(min_length=1, max_length=1024)
     depth: str = Field(default="FAST", pattern="^(FAST)$")
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_unknown_fields(cls, data: Any) -> Any:
-        """Refuse any payload key outside the documented allowlist."""
-        if isinstance(data, dict):
-            unknown = sorted(
-                str(key)
-                for key in data
-                if not isinstance(key, str) or key not in JOB_CREATE_ALLOWLIST
-            )
-            if unknown:
-                raise ValueError(f"Unknown field(s): {', '.join(unknown)}")
-        return data
 
 
 @router.post("", status_code=202)
