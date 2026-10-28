@@ -14502,3 +14502,45 @@ job summary 那个出口是字面上的静默：
 - 「有没有配库」仍**无法从配置判断**：`MySQLConfig.from_env()` 每个字段都有默认值，`localhost:3306/specproof_phase0` 既可能是默认也可能是用户显式设的。本号的做法是**把试过的目标印出来**让用户自己认，而不是猜一个「未配置」分支。
 - 失败只报一次事实，不重试、不降级到文件：`storage/mysql.py` 的重试语义不属本号。
 - **本号提交的原始 diff 看着很大（762/696 行）**，原因是 `cli/specproof/commands/verify.py` 的**旧 blob 每行行首都多了一个 `\r`**（`git show HEAD~1:… | cat -A` 第一行是 `^M"""specproof verify …^M$`）——行尾布局被某次工具链写坏过。本号那次写入把它规范化成 `\r\n`，于是**每一行都变了**。按 `--ignore-cr-at-eol` 看真实内容改动是 **+81/−15**。⇒ 与 memory 里那条一致：**原始 diff 别吓自己，先看 `--ignore-cr-at-eol`**。
+## #506 MCP 的超时环境变量设成 0 或负数：命令根本没跑，报错却说「the run may still be in progress」
+
+**起因。** #504 队列③：「`mcp` 负超时」。#505 收尾时把它拎出来量。
+
+### 量到的
+
+`SPECPROOF_MCP_VERIFY_TIMEOUT` / `SPECPROOF_MCP_CRAFT_TIMEOUT` 走 `_env_int()`，它只校验「是不是整数」。而 `subprocess.run(timeout=0)` 与 `timeout=-1` **立刻抛 `TimeoutExpired`**——子进程从未启动（实测：`TimeoutExpired: Command '[...]' timed out after -5 seconds`，`echo` 一次都没执行）。
+
+`_run_cli` 把它接在 `except subprocess.TimeoutExpired` 里，于是报：
+
+```
+command timed out after -1s (the run may still be in progress): specproof verify ...
+```
+
+**一句话里两处假话**：① 什么都没启动，不存在「in progress」的运行；② `-1s` 不是一个能让人行动的时长。运维把 `SPECPROOF_MCP_VERIFY_TIMEOUT=0`（一种很自然的「不要超时」尝试）写进 env，拿到的是这条自相矛盾的消息，而且**真正的配置错误被伪装成了一次超时**——排查方向直接错。
+
+### 修法
+
+1. 新增 `_env_positive_int()`：`<= 0` 直接 `ToolError`，消息里**带上那个值**并说明后果（「zero or negative would fire before the command starts」）。两个超时旋钮改用它。
+2. `_run_cli` 加一道**纵深防御**：`timeout <= 0` 时抛 `invalid timeout … (the command was not started)`，**不再走 `TimeoutExpired` 分支**——那条分支的措辞是「可能还在跑」，对未启动的命令是错的。
+
+### 门
+
+新建 `tests/unit/test_mcp_timeouts_are_positive.py`（9 案）：
+- `-1` / `0` / `-3600` 三个值 ⇒ `ToolError`，消息含 `positive`、**含原值**、含「would fire before the command starts」；
+- `45` ⇒ 原样返回；未设 ⇒ 返回默认；
+- `_run_cli(cmd, -1)` / `(cmd, 0)` ⇒ `invalid timeout` + `not started`，且**不含** `in progress`、**不含** `timed out`；
+- 合法超时仍正常执行（`echo hi`）；
+- **接线门**：`mcp/tools.py` 的 AST 里，`_env_int` 的实参不得是这两个旋钮名（否则上面的拒绝逻辑永远不会被执行）。
+
+### 证据
+
+- 新门 **9 passed in 1.03s**；mcp 全家回归 **24 + 58 passed**（client / stdio 文本契约 / server / verify job / tool metrics / cli codec）。
+- `ruff` 干净；`mypy mcp/tools.py` 干净。
+- 变异臂①（删掉 `_run_cli` 的守卫）⇒ **2 failed / 7 passed**（正是 `-1` 与 `0` 两条参数化腿）；变异臂②（把其中一个旋钮退回 `_env_int`）⇒ **1 failed / 8 passed**（只红接线那条）。
+- 行为探针（改前/改后同一段脚本）：`env: SPECPROOF_MCP_VERIFY_TIMEOUT must be a positive number of seconds, got -1 …` / `cli: invalid timeout -1: … (the command was not started): echo hi` / `valid: hi`。
+
+### 边界
+
+- 只覆盖 `mcp/tools.py` 的两个超时旋钮与 `_run_cli` 这一个执行点。`mcp/client.py` 早已有 `timeout <= 0` 的 `ValueError`（#早期），本号不动它。
+- `_env_int` 保持原语义（任意整数），因为它是通用读取器；**没有**把它改成「必须为正」——那会让别的整数旋钮（例如允许 0 的开关计数）跟着变严。
+- 这是**行为变更**：以前设 `0` 会得到一条「超时」错误，现在得到一条「配置非法」错误。两者都失败，但后者指向真正的修复点。

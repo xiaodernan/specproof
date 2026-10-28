@@ -64,6 +64,26 @@ def _env_int(name: str, default: int) -> int:
         raise ToolError(f"{name} must be an integer, got {value!r}") from exc
 
 
+def _env_positive_int(name: str, default: int) -> int:
+    """An env knob that is a duration in seconds, so it must be > 0.
+
+    ``_env_int`` accepts any integer, and ``subprocess.run(timeout=0)`` /
+    ``timeout=-1`` raise ``TimeoutExpired`` **immediately** — the child never
+    starts. ``_run_cli`` then reported "command timed out after -1s (the run
+    may still be in progress)", which is wrong twice over: nothing ran, and
+    there is no run in progress. A negative or zero ``SPECPROOF_MCP_*_TIMEOUT``
+    is an operator mistake, so it is refused here with the value in the
+    message instead of being turned into a fake timeout downstream.
+    """
+    parsed = _env_int(name, default)
+    if parsed <= 0:
+        raise ToolError(
+            f"{name} must be a positive number of seconds, got {parsed} "
+            "(a zero or negative timeout would fire before the command starts)"
+        )
+    return parsed
+
+
 def _required_str(arguments: dict[str, Any], name: str) -> str:
     value = arguments.get(name)
     if not isinstance(value, str) or not value.strip():
@@ -89,6 +109,13 @@ def _run_cli(cmd: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
     client as mojibake that still matches the finding pattern, so a garbled path
     would be reported as if it were evidence.
     """
+    if timeout <= 0:
+        # subprocess would raise TimeoutExpired before spawning, and the
+        # TimeoutExpired branch below would then claim a run was in progress.
+        raise ToolError(
+            f"invalid timeout {timeout}: it must be a positive number of seconds "
+            f"(the command was not started): {' '.join(cmd)}"
+        )
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     try:
         return subprocess.run(  # noqa: S603 - argv built from validated constants/args
@@ -252,7 +279,7 @@ def _tool_verify(arguments: dict[str, Any]) -> dict[str, Any]:
     repo_path = Path(repo).expanduser()
     if not repo_path.is_dir():
         raise ToolError(f"repository path does not exist: {repo_path}")
-    timeout = _env_int("SPECPROOF_MCP_VERIFY_TIMEOUT", 1800)
+    timeout = _env_positive_int("SPECPROOF_MCP_VERIFY_TIMEOUT", 1800)
     workdir = Path(tempfile.mkdtemp(prefix="specproof-mcp-verify-"))
     spec_file = workdir / "spec.txt"
     spec_file.write_text(spec_text, encoding="utf-8")
@@ -478,7 +505,7 @@ def _tool_craft_plan(arguments: dict[str, Any]) -> dict[str, Any]:
     repo_path = Path(repo).expanduser()
     if not repo_path.is_dir():
         raise ToolError(f"repository path does not exist: {repo_path}")
-    timeout = _env_int("SPECPROOF_MCP_CRAFT_TIMEOUT", 600)
+    timeout = _env_positive_int("SPECPROOF_MCP_CRAFT_TIMEOUT", 600)
     workdir = Path(tempfile.mkdtemp(prefix="specproof-mcp-craft-"))
     spec_file = workdir / "spec.txt"
     spec_file.write_text(spec_text, encoding="utf-8")
