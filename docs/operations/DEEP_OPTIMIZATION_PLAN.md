@@ -14965,3 +14965,116 @@ A4 是关键一条：如果普查只做到「结构正确」，一个**名字对
 先把三类人口（关键字/位置、局部改名、`MIN_NODES=25` 以下）量准，再决定是加归一还是加「同族函数点名表」。
 ② `_read_text_or_none` 两份的归属决定。③ `cli/`、`craft/` 剩余约 50 条静默 `except`。
 ④ `mypy` 版本钉住（`mypy==2.3.1` vs CI `uv sync --frozen`）。⑤ 跨层路径归属（`_capsule_dirs` / `_eval_report_path` / 现在的 `child_output_text`）。⑥ P6 100 例隔离评测。
+
+
+## #514 查重门的盲区不在写法，在节点地板：25 节点以下有 11 组**逐字节相同**的复制，门从来没比过它们
+
+**起因。** #513 队列①交下来的原话是「近似克隆检测：digest 只认「去 docstring 后逐字节相同的 AST」，
+一个 `ast.keyword` 节点就躲开；先把三类人口量准再决定加不加归一」。本号先把这句话量准。
+量完的结论是：**它大部分是错的**，而错的方向正好遮住了真问题。
+
+### 量到的
+
+同一镜头（12 个产品包、`git ls-files`、去 docstring），三档归一强度、两档节点地板：
+
+| 归一 | ≥25 节点（今天的门） | ≥10 节点 · **同名** · 排除抽象桩 |
+| --- | --- | --- |
+| E 只去 docstring | 6 组 | **16 组** |
+| E+K 再把常量关键字折成位置参数 | 6 组（**+0**） | 16 组（**+0**） |
+| E+K+R 再把标识符改名 | 11 组（+5） | **21 组**（+5） |
+
+⇒ 关键字/位置之差在今天的树上**一组都不改变**（K-new = 0）。它只是 `_as_text` 那**一组**的形状，
+而那组已被 #513 合掉。一直漏的是 `MIN_NODES = 25` 这块地板：16 组里 **11 组是只差 docstring 的逐字节复制**，
+门连看都没看过——
+
+- `evidence/_now_iso` ×3：`datetime.now(UTC).isoformat(timespec='milliseconds').replace('+00:00', 'Z')`
+- `sha256_hex` ×3：`craft/schemas.py` / `sandbox/cache_verify.py` / `storage/object_metadata.py`
+- `storage/_to_mysql` ×4、`_connect` ×4、`close` ×4、`close` ×3（es/mongo/redis）、`close` ×2（oidc/github_checks）
+- `craft/adapters/get_supported_goals` ×2、`storage/stop` ×2
+
+**改名（R）那一类只加 5 组**，但加进来的恰是两份**最大的**复制：`craft/_env_int` ×2（83 节点，
+只差抛的异常类）与 `api/routes/_reject_unknown_fields` ×2（78 节点，只差白名单常量）。
+
+**同名约束今天不损失任何发现**（这条是实测，不是设计偏好）：把"同名"整条去掉、floor 10、三重归一、
+排除桩 ⇒ 仍是 **21 组，跨名 0 组**。所以那条约束买的是**未来的噪声下界**，不是现在的少报。
+
+### 两次测量错误，都是我的探针错、不是门错
+
+1. 第一版把整棵重新解析出来的 `Module` 一起哈希，报「关键字归一后**新增 0 组**」——差点据此把
+   「盲区在地板不在写法」写成交队结论。#513 的逐函数手工摘要（`e0a61c87` / `2d1bf1d2`）才是对的。
+2. 第二版把输出字典按**函数名**做 key，于是两组同名不同 digest 的 `__init__`（storage 三件套 与
+   craft/tools+mcp/client）**互相覆盖**，人口从 21 被报成 18。
+   第三版逐 `(name, digest)` 分桶，并与逐函数摘要手工核对一致后才用。**人口数这种"量准了"的断言，
+   值得为它多写一版探针。**
+
+### 落地
+
+1. `_clones()` 加常量关键字折叠。今天人口 0，是**买保险**；保费是一条反向对照测试，
+   外加 A4/A6 那一对承诺臂。
+2. 新增 `_near_clones()`：`NEAR_MIN_NODES = 10`、按函数名分桶、docstring + 关键字 + 标识符三重归一。
+3. **抽象桩规则接管地板的降噪职责**：去 docstring 后只剩 `...` / `pass` 的一律不入组。
+   实测这条排掉 **93 个函数体 / 86 个名字** —— `Protocol`/ABC 的声明是这个仓里「小函数跨文件相同」的
+   主要来源，两个 `...` 不是一份决策被抄了两次。
+4. `KNOWN_NEAR_CLONES` **15 条**（`KNOWN_CLONES` 那 6 条不重复写，加一条测试禁止两表重复登记同一组）。
+   每条说清为什么还留着：5 条是 #512「不为两行做基类」结论从另一端的复现（`_connect` / `close` / `__init__`）、
+   3 条是驱动或客户端各管各的生命周期、2 条是**巧合**（`close` ×2 同名不同主、`craft/tools` 那一类）、
+   5 条写明「待合」并按漂移代价排序。
+5. 新建 `tests/unit/test_copied_timestamp_and_digest_formats_agree.py`（**14 案**），钉住两族
+   **零测试**的复制。选择标准是 `grep`，不是口味：`tests/` 里**零**处提 `_now_iso`、**零**处断言
+   `collected_at`；`sha256_hex` 只被**一个**模块的测试导入。digest 那族尤其要紧——同一份字节在三个包里
+   算出两个身份，表现不是「查重失败」而是「产物与其摘要不符」。
+   `_env_int` 那族**本号不重复钉**：`test_env_int_readers_policy_table.py` 已经把 6 个 env-int 读取器
+   排成政策表，roster 条目直接引它，而不是再造一道同义门。
+6. 三处「编码门自己的口径」的反向对照：位置/关键字折叠**不得**把值的差异也折掉
+   （`errors="strict"` 必须是另一组）；改名折叠**不得**跨函数名合并；桩规则**不得**把真实现当桩。
+
+### 门
+
+| 门 | 结果 |
+| --- | --- |
+| 本号两个文件 | **25 passed**（ratchet 11 + 契约 14） |
+| 邻域回归 | `test_env_int_readers_policy_table` / `test_capsule_and_report_paths_agree` / `test_batch_replay` / `test_evidence_fragments` / `test_craft_schemas` / `test_object_metadata` / `test_ledger_evidence_claims_are_true` / `tests/fault/test_cache_poisoning` ⇒ **169 passed** |
+| ruff | 两个文件 **All checks passed!**（mypy 按既有配置不覆盖 `tests/`） |
+| 隔离副本基线 | **25 passed in 28.98s** |
+
+### 变异臂（7 条，预测先写后跑，跑完逐字节还原断言）
+
+| 臂 | 改什么 | 预测 | 实测 |
+| --- | --- | --- | --- |
+| A1 | 在已 `import hashlib` 的产品模块里种**第四份** `sha256_hex`（20 节点） | 1 红 | **多红 1 条** |
+| A2 | 一份 `_to_mysql` 换**值** | 2 红 | **MATCH** |
+| A3 | 一份 `_now_iso` 去掉毫秒 | 3 红 | **多红 1 条** |
+| A4 | 一份 `_to_mysql` 改成**关键字**写法 | **必须全绿** | **MATCH（0 红）** |
+| A5 | 把折叠从镜头撤掉、产品**不动** | **必须全绿** | **MATCH（0 红）** |
+| A6 | A4 的种法 + 撤掉折叠 | 2 红 | **MATCH** |
+| A7 | `NEAR_MIN_NODES` 退回 25 | 2 红 | **MATCH** |
+
+**两条「多红」是同一条关于门形状的事实，不是两个 bug。** roster 的 key 是成员集合的 `frozenset`，
+所以往一个已登记的组里**加一名成员**会让旧集合消失 ⇒ `test_no_new_same_name_near_clones` 与
+`test_the_known_near_clone_roster_is_still_true` **必然一起红**（A1、A3 各撞一次）。
+A3 多出的第二条是 `test_the_near_lens_sees_what_the_25_node_floor_hid`：它编码的正是那**三件套**，
+动其中一件它就红——这条测试因此不是装饰，而是本号主张的可执行副本。
+**方向重要**：7 条臂里**没有一条**「预测红而实测绿」，即假阴性为零；两条错都是预测少算，不是门少抓。
+
+### 否证与边界
+
+- **A5 是本号唯一一条「撤掉新代码仍然全绿」的臂**，它诚实说明关键字折叠今天一个组都不改变。
+  留着的理由只有两条，都写进代码：#513 量到的真实受害者 `_as_text` ×3（roster 说是两份），
+  以及 A4/A6 这一对——同一个关键字变体，折叠在 ⇒ 0 红，折叠没 ⇒ 2 红。
+- 本号**没有合并任何一份复制**：先让门看得见，再决定谁合。11 组逐字节复制里行为已被钉住的是
+  `_now_iso` ×3 与 `sha256_hex` ×3。
+- 不做「跨名改名检测」：实测今天多找 0 组，而代价是把 `get` / `collect` 这类通用名下的互不相干实现
+  并进一堆。同名约束是**有意的窄化**（今天无损，未来有界）。
+- `MIN_NODES = 25` 那条地板**没有降**——它还在管跨名镜头；新增的是第二条镜头，不是替换。
+  两表重叠由 `test_the_two_rosters_do_not_repeat_the_same_prose` 挡住。
+- 环境噪声一条，记下省下次的时间：臂副本改用 **linked worktree**，因为 `git archive` + `git init`
+  会把每个文件交给机器级 pre-commit 钩子，那钩子用 3.11 解析，拒绝了 `scripts/p0_5_closed_loop.py`
+  里仓库自己的 3.14 venv 完全接受的 PEP 701 f-string。**不是仓库缺陷**（venv 里 `ast.parse` 通过）。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① 合掉 `api/routes/_reject_unknown_fields` ×2（78 节点、fail-closed 输入校验、只差白名单常量——
+本号排到的**最高价值一份合并**）；② 合掉 `evidence/_now_iso` ×3（家就在 evidence/ 内部）；
+③ `sha256_hex` ×3 与 #493 的 `_capsule_dirs` / `_eval_report_path` / #513 的 `child_output_text`
+一起判跨层归属；④ `cli/`、`craft/` 剩余约 50 条静默 `except`；⑤ `mypy` 版本钉住
+（`mypy==2.3.1` vs CI `uv sync --frozen`）；⑥ P6 100 例隔离评测。
