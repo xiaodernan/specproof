@@ -14,7 +14,11 @@ import httpx
 import pytest
 from openai import RateLimitError
 
-from contracts.retry_after import retry_after_seconds, wait_retry_after_or_exponential
+from contracts.retry_after import (
+    MAX_EXPONENTIAL_WAIT_SECONDS,
+    retry_after_seconds,
+    wait_retry_after_or_exponential,
+)
 from providers.base import LLMMessage
 from providers.budget import BudgetExceeded, TokenBudget
 from providers.openai_compatible import OpenAICompatibleProvider, _parse_usage
@@ -312,20 +316,59 @@ def test_retry_after_parsing():
     assert retry_after_seconds(RuntimeError("boom")) is None
 
 
-def test_wait_prefers_retry_after_over_exponential():
+@pytest.mark.parametrize(
+    ("attempt_number", "header", "expected"),
+    [
+        # Header ABOVE the curve (2**(3-1) = 4.0): "always exponential" and
+        # "min(header, curve)" both answer 4.0 — only "header wins" answers 7.0.
+        (3, "7", 7.0),
+        # Header BELOW the curve (2**(4-1) = 8.0): "min(header, curve)" answers
+        # 8.0 here. Together with the cell above this brackets the policy from
+        # both sides, so neither direction of the mistake passes.
+        (4, "2", 2.0),
+        # Header above the cap: MAX_EXPONENTIAL_WAIT_SECONDS seals the curve,
+        # not the number the gateway sent.
+        (7, "90", 90.0),
+    ],
+)
+def test_wait_prefers_retry_after_over_exponential(
+    attempt_number: int, header: str, expected: float
+) -> None:
+    """The gateway's number wins over the curve — in both directions.
+
+    This started as a single cell: attempt=3 with header "4". 2**(3-1) is also
+    4.0, so every mutant that ignored the header still passed — #517 measured
+    it as a permanent false negative (arm A7). Each cell below therefore
+    asserts that it is *distinguishable* from the fallback it is supposed to
+    override; without that, the table can decay back into agreeing with both
+    branches and nobody would notice.
+    """
+    curve = min(MAX_EXPONENTIAL_WAIT_SECONDS, float(2 ** (attempt_number - 1)))
+    assert expected != curve, "cell agrees with the fallback it is meant to override"
     state = SimpleNamespace(
-        attempt_number=3,
-        outcome=SimpleNamespace(exception=lambda: _rate_limit_error("4")),
+        attempt_number=attempt_number,
+        outcome=SimpleNamespace(exception=lambda: _rate_limit_error(header)),
     )
-    assert wait_retry_after_or_exponential(state) == 4.0
+    assert wait_retry_after_or_exponential(state) == expected
 
 
 def test_wait_falls_back_to_capped_exponential():
-    state = SimpleNamespace(
-        attempt_number=3,
-        outcome=SimpleNamespace(exception=lambda: RuntimeError("boom")),
-    )
-    assert wait_retry_after_or_exponential(state) == 4.0  # 2**(3-1), under the 60s cap
+    """No usable header ⇒ 2**(n-1), and the cap actually caps.
+
+    The name promised the cap while the body only checked an attempt under it
+    (4.0 for n=3). The second assert is the one the name was always claiming:
+    n=8 is 128.0 uncapped, and a job must not wait two minutes between probes.
+    """
+
+    def wait_for(attempt: int) -> float:
+        state = SimpleNamespace(
+            attempt_number=attempt,
+            outcome=SimpleNamespace(exception=lambda: RuntimeError("boom")),
+        )
+        return wait_retry_after_or_exponential(state)
+
+    assert wait_for(3) == 4.0  # 2**(3-1), under the cap
+    assert wait_for(8) == MAX_EXPONENTIAL_WAIT_SECONDS  # 128.0 uncapped
 
 
 # ── prompt templates: cache-friendly ordering ────────────────────

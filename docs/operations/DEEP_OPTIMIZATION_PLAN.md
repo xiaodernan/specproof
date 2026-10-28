@@ -15545,3 +15545,77 @@ exact 镜头（不改名）看不见，**near 镜头（同名 + 改名）必然�
 
 边界：只覆盖 README 的这一节与 CLI 的 `--help` 尾部；`docs/` 下其它讲判决的地方未纳入本门；
 `UNVERIFIED` 在报告与矩阵里的用法（行级）没有改，本号只改**教法**。
+
+## #519 dsv4 的「header 优先」门用了一格两条分支同值的数：它是这条策略上唯一的哨兵，却对变异永久失明
+
+### 起因
+
+#517 把两份 `Retry-After` 解析器合成一个生产者（`contracts/retry_after.py`），并在变异臂
+A7 上量到一件比合并本身更值得修的事：`tests/unit/test_providers_dsv4.py::test_wait_prefers_retry_after_over_exponential`
+**分不出**「网关的数优先」与「回退指数」。它用的格子是 `attempt=3`、header `"4"`，而
+`2**(3-1)` 恰好也是 `4.0` —— 两条分支同值，断言对「忽略 header」的变异永久绿。
+
+这不是「一条弱断言」：那条门是 dsv4 适配层上**唯一**直接断言 wait 策略的地方（同文件其余
+6 条断言的是解析形状），所以它是这条策略在 dsv4 侧的**全部**覆盖。
+
+### 量到的（预测先写，再跑，跑完逐字节还原）
+
+在 `git archive HEAD` 出来的平面副本上施加变异（`PYTHONPATH` 钉在平面根，实测
+`contracts.retry_after.__file__` 落在 `_wt518` 内而不是工作树），只跑 `test_providers_dsv4.py`：
+
+| 臂 | 改什么 | 预测 | 实测 |
+| --- | --- | --- | --- |
+| M1 | wait 永远回退指数（忽略 header） | 3 红 | **3 红**（三格全红） |
+| M2 | `min(header, 曲线)`（#517 的 A4 语义） | 2 红 | **2 红**（`[3-7-7.0]`、`[7-90-90.0]`；`[4-2-2.0]` 绿） |
+| M3 | 去掉 60s 上限 | 1 红 | **1 红**（`test_wait_falls_back_to_capped_exponential`） |
+
+**旧格 vs 新格，同一个 M1**：旧格 **0 failed / 33 passed**，新格 **3 failed / 32 passed**。
+这条对比才是本号的产出——旧门在变异体下完全沉默，而它此前被当成「header 优先」的证据。
+
+### 落地
+
+1. `test_wait_prefers_retry_after_over_exponential` 从一格变成**三格参数化**，两个方向都夹住：
+   - `(3, "7") → 7.0`：header 在曲线上方；`min(header, 曲线)` 与「永远指数」都答 4.0，
+     只有「header 优先」答 7.0；
+   - `(4, "2") → 2.0`：header 在曲线下方（曲线 8.0）；`min(...)` 会答 8.0 —— 与上一格
+     一起把策略**两侧**夹住，两个方向的错法都过不去；
+   - `(7, "90") → 90.0`：上限只封曲线、不封网关给的数。
+2. 每格先断言 `expected != 曲线`，再断言结果 —— **元断言**：格子若退化回「两条分支同值」，
+   门自己先红。旧格就是这么来的，这是唯一能让修好的东西不再悄悄失效的办法。
+3. `test_wait_falls_back_to_capped_exponential` 的名字一直承诺「封顶」，正文只测了曲线值
+   4.0（在顶下）。补 `attempt=8`（未封顶 128.0）⇒ `MAX_EXPONENTIAL_WAIT_SECONDS`。
+
+### 门
+
+| 门 | 结果 |
+| --- | --- |
+| `test_providers_dsv4.py` | 33 → **35 passed**（+2 格） |
+| 邻域（`test_retry_after_readers_policy_table.py` + `test_providers_dsv4.py` + `test_retrieval_hybrid.py`） | **120 passed**（71s） |
+| ruff | `All checks passed!` |
+
+### 否证与边界
+
+- 本号**不改任何生产码**：`contracts/retry_after.py` 一字未动，改的是门的辨别力。旧门的
+  绿与新的绿对同一份实现给出同一个结论，差别只在变异下。
+- 三格与 #517 策略表的 42 例有重叠（`a1-header` / `a7-header-over-cap`），**刻意保留**：
+  策略表测的是生产者本身的形状，dsv4 门测的是适配层「以为」的策略；#517 的账本按这个
+  文件名引用它，删名会让证据指针 dangling。两处同时红才是「生产者与消费者都改了」的信号。
+- **一次假读数的教训**：第一版 before/after 脚本用 `bytes.decode()` 读快照，而平面里的文件
+  是 CRLF、`ORIGINAL` 字面量是 LF ⇒ `str.replace` **静默无操作**，两个臂都报 0 failed，
+  看着像「旧格和新格一样瞎」。改成文本模式（通用换行）并加两道硬校验
+  （`mutated != original`、标记串必须在文件里）后才拿到真读数。**变异脚本必须自证变异落地**，
+  否则「全绿」与「没变异」不可区分。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① #517 队列②：`retrieval/rerank.py` 不做 429 重试而 embeddings 做——先量 rerank 的失败面；
+② #517 队列③：`providers/resilience.py` 与 `providers/client_policy.py` 两套「存在但线上没人
+   import」的重试实现——要么接线要么删，别让未接线代码冒充能力；
+③ #517 队列④：`sha256_hex` ×3 与 `_capsule_dirs` / `_eval_report_path` / `child_output_text`
+   的跨层归属；
+④ #517 队列⑤：三套并存的时间戳词汇（毫秒已合，30 处全精度 / 22 模块、7 处
+   `timespec="seconds"` / 6 个 `craft/` 模块）；
+⑤ #517 队列⑥：`cli/`、`craft/` 剩余约 50 条静默 `except`——其中 `verify.py` 的两处持久化
+   （job summary / certificate metadata）本轮实测**已被修过**（带 `incr` 指标 + stderr 报错 +
+  返回值检查），该条从队列移除；
+⑥ #517 队列⑦⑧⑨：mypy 版本钉住 / P6 100 例隔离评测 / `JOB_CREATION_WHITELIST.md` 符号名改写判定。
