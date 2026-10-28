@@ -578,12 +578,26 @@ def verify(
 
     if contracts:
         click.echo(f"\nContracts compiled: {len(contracts)}")
+        # The matrix row is the authoritative result: it is what the verdict, the
+        # HTML report and the "Matrix: … ?N unverified" line all count, and it is
+        # where a passing check gets downgraded to UNVERIFIED when the evidence
+        # does not reach the required level. Printing the contract-level result
+        # here instead made the same contract read `[+] PASS` in this list and
+        # `UNVERIFIED` in the report (#511). Both facts stay visible: the matrix
+        # result first, the check's own result as the parenthetical.
+        matrix_rows = {r.get("contract_id"): r for r in (matrix or {}).get("rows", [])}
         for c in merged_contracts:
             cid = c.get("id", "?")
             ctype = c.get("checker_type", "?")
-            status = c.get("result", "UNVERIFIED")
+            check_status = c.get("result", "UNVERIFIED")
+            row = matrix_rows.get(cid) or {}
+            status = row.get("result") or check_status
             icon = "+" if status == "PASS" else "!" if status == "FAIL" else "?"
-            click.echo(f"  [{icon}] {cid} ({ctype}) -> {status}")
+            line = f"  [{icon}] {cid} ({ctype}) -> {status}"
+            if status != check_status:
+                reason = row.get("unverified_reason") or ""
+                line += f"  (检查本身 {check_status}" + (f"；{reason}" if reason else "") + ")"
+            click.echo(line)
     else:
         click.echo("\nNo contracts compiled.")
 

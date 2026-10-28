@@ -14739,3 +14739,57 @@ if xml_files:
 - 只改 `craft/adapters/`（Phase 4 层，**生产零引用**，见 #482）。`experiments/adapters.py` 那条线**没有 JUnit 解析器**，它的 `collect()` 问题在 #496 已单独记录。
 - 返回值仍是「总计」而不是「每份报告」：一份坏一份好时，坏的那份不贡献计数，也不会被单独报告出来。要精确到文件需要返回逐文件结果，属另一号。
 - 调用方拿到的仍是 4 个整数；「计数从哪个通道来」这件事在上层（`test_counts_source`）才记录，本号没有把它一起搬下来。
+## #511 同一次运行里，契约列表说 PASS、矩阵说 unverified、报告说 UNVERIFIED：三个说法，用户读到的是最乐观的那个
+
+**起因。** #510 之后跑了一次真实的 `specproof demo --run`（产品前门，零配置），输出里同时出现：
+
+```
+  [+] TOKEN_INVALIDATION-01 (redis) -> PASS                    ← 契约列表
+Matrix: 6 rows | +4 passed | -1 failed | ?1 unverified         ← 同一次运行的矩阵
+原因: … TOKEN_INVALIDATION-01：… 此通过不能作为验收依据           ← 判决原因
+```
+
+而 HTML 报告里那一行是 **UNVERIFIED**，并附了一句诚实说明（「这一面**没有去看**——『没看』不等于『看了没有』」）。
+
+### 量到的
+
+`cli/specproof/commands/verify.py` 的契约列表打的是 `merged_contracts` 的 **检查级** 结果（`evidence/verdict.py::contracts_with_results` 从 `contract_results` 取），而判决、HTML 报告、`Matrix: … ?N unverified` 那一行统计的都是 **矩阵行级** 结果——`agent/nodes/build_matrix.py` 在证据等级不足时会把 `legacy["result"]` 从 `PASS` **降级成 `UNVERIFIED`** 并写 `unverified_reason`。
+
+⇒ 同一个契约两个答案，而**用户先读到的是乐观的那个**。这不是措辞问题：一个人看列表以为 5 个通过，看矩阵只有 4 个，得做减法才能发现差在哪一个上。
+
+### 修法
+
+列表改为**以矩阵行为准**，同时保留检查本身的结果与降级原因：
+
+```
+  [?] TOKEN_INVALIDATION-01 (redis) -> UNVERIFIED  (检查本身 PASS；外部观测面未被观测（存储不可达或两个时刻不可比），此通过不能作为验收依据)
+```
+
+两者一致时不打括注（没有需要解释的差异）。
+
+### 门
+
+新建 `tests/unit/test_verify_contract_list_shows_the_matrix_result.py`（3 案，真命令 + 假 graph）：
+1. 矩阵行 `UNVERIFIED`、检查级 `PASS` ⇒ 输出必须是 `C-1 (redis) -> UNVERIFIED`，且**不得出现 `-> PASS`**；
+2. 「检查本身 PASS」与降级原因**都要留着**——只留降级会丢掉「检查其实通过了」这个事实，那是反方向的错；
+3. 两者一致时只打一行，不打括注。
+
+### 证据
+
+- 新门 **3 passed**；verify 相关回归（`test_verify_exit_codes` / `test_verify_persistence_failures_are_visible` / `test_release_gates_veto_the_verdict` / `test_cli_help_renders_and_surfaces_options`）**35 passed**；`ruff`/`mypy` 干净。
+- **真实运行复验**（不是只跑单测）：再跑一次 `specproof demo --run`，列表那一行现在是
+  `[?] TOKEN_INVALIDATION-01 (redis) -> UNVERIFIED  (检查本身 PASS；…)`，与报告一致；其余 4 个 PASS、AUTH-01 FAIL 不变，判决仍是 `VERDICT: BLOCKED`、退出码 1。
+- 变异臂（把列表改回 `status = check_status`）⇒ **2 failed / 1 passed**。**我预测 1 条，实测 2 条**：第 2 条也红了，因为旧行为根本不打「检查本身」括注。预测错在「只想到主结论，没想到那条腿依赖同一处代码」。
+
+### 顺带记录的负结果（本号量过、不需要改）
+
+- `specproof demo`（不带 `--run`）退出 0，正确报出 base/head-v1 两个 tag 与需求文件路径。
+- **15 个子命令的 `--help` 全部退出 0**。我第一次的探针把帮助尾部的小节标题（「第一次使用」「常用任务」「结果怎么读」）当成命令，报了 3 个假失败——那三段其实是 `HELP_EPILOG` 里的小节标题，缩进与命令表不同，读者不会误认。
+- 「每个子命令 `--help` 必须能渲染」这道门**已经存在**（`test_cli_help_renders_and_surfaces_options.py::test_every_subcommand_help_renders_cleanly` 递归遍历所有子命令），本号没有重复造。
+- 本次 `demo --run` 的 MySQL 落库是**成功**的（`Job summary persisted to MySQL.`），所以 #505 那条「NOT persisted」告警没有出现——符合预期：它只在失败时出现。
+
+### 边界
+
+- 只改**列表的显示**，没有动 `build_matrix` 的降级规则（那是判决语义，属证据等级策略）。
+- 列表现在依赖 `matrix.rows` 里的 `contract_id`；若某契约**不在矩阵里**（例如矩阵没跑），回退到检查级结果，行为与以前一致。
+- 降级原因整段照打（可能很长、会换行）。压成一行更好看，但会丢掉「为什么」——本仓的取向是把原因留在输出里。
