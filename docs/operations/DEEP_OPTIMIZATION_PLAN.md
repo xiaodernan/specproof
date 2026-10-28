@@ -15507,3 +15507,41 @@ exact 镜头（不改名）看不见，**near 镜头（同名 + 改名）必然�
 30 处全精度 / 22 模块、7 处 `timespec="seconds"` / 6 个 `craft/` 模块）；
 ⑥ `cli/`、`craft/` 剩余约 50 条静默 `except`；⑦ mypy 版本钉住；⑧ P6 100 例隔离评测；
 ⑨ `docs/design/JOB_CREATION_WHITELIST.md` 正文符号名改写判定。
+## #518 README 的「如何读结果」把行级结果当判决词，还漏掉一个退出码 3
+
+起因是量代码与文档的判决词汇是否一致：`evidence/verdict.py::VERDICT_VOCABULARY` 是
+`{VERIFIED, BLOCKED, NEEDS_REVIEW, FAILED}` 四个词，而 README 的「如何读结果」列的是
+`VERIFIED / BLOCKED / FAILED / UNVERIFIED` —— 两处都错：
+
+1. **`UNVERIFIED` 不是判决词**。它是矩阵里**单条需求的行级**结果（「这一条还没证据」）。
+   把它列进判决词表，读者会读成「整个改动未被验证」，而实际的判决可能是 `BLOCKED` 或
+   `VERIFIED`。这正是 #511 那个形状的另一面：同一份数据里，行级与判决级被混着讲。
+2. **`NEEDS_REVIEW` 整个缺席**，而它有独立退出码 **3**。一次以 `NEEDS_REVIEW` 结束的运行，
+   读者在 README 里查不到这个词。
+
+修：四条判决词各自带上自己的退出码（`VERIFIED` 0 / `BLOCKED` 1 / `FAILED` 2 /
+`NEEDS_REVIEW` 3），`UNVERIFIED` 保留但明写「行级结果、不是判决词、同样不能用来说明通过」。
+
+门 `test_readme_teaches_the_real_verdict_vocabulary.py`（4 案）：
+
+1. 「如何读结果」一节里的 `- \`WORD\`` 项目符号集合必须**恰好等于** `VERDICT_VOCABULARY`
+   （多一个、少一个都红）；
+2. `UNVERIFIED` 必须仍出现在该节（删掉会让读者撞见一个没人解释的词），但**不得**是项目符号，
+   且该节必须出现「行级」；
+3. `HELP_EPILOG`（`specproof --help` 的尾部）必须提到全部四个判决词；
+4. **逐词核对退出码**：每个判决词所在的那一行必须写出 `退出码 <它的码>`，
+   且 `VERDICT_EXIT_CODES` 的键集必须等于词汇表。
+
+第 4 条第一版只断言该节出现过「退出码」三个字 —— 那是**存在性**检查，把 1 和 2 对调也照样绿。
+改成逐词核对后才有意义：读 README 写脚本的人按它分支，码错了就分错支。
+
+证据：新门 4 passed；README 相关门（含语言表对账那道）合计 **20 passed**；ruff 干净。
+
+变异臂①（把 README 退回修改前的措辞：`UNVERIFIED` 回到项目符号、删掉 `NEEDS_REVIEW` 行、
+删掉解释段）⇒ **3 failed / 1 passed**，红的正是 1 / 2 / 4，第 3 条（CLI epilog）仍绿 ——
+与预测一致，因为它查的是另一个文件。
+变异臂②（只把 `BLOCKED` 与 `FAILED` 的退出码对调）⇒ **1 failed / 3 passed**，只红第 4 条 ——
+这就是「逐词核对」相对「存在性」的差别。
+
+边界：只覆盖 README 的这一节与 CLI 的 `--help` 尾部；`docs/` 下其它讲判决的地方未纳入本门；
+`UNVERIFIED` 在报告与矩阵里的用法（行级）没有改，本号只改**教法**。
