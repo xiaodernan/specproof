@@ -14587,3 +14587,4 @@ command timed out after -1s (the run may still be in progress): specproof verify
 - 本号**只加 job 与门，没有在真 CI 上跑过它**（本机不能跑 GitHub Actions）。证据是「配置正确 + 三条命令本机实测可跑」。
 - 没有加 e2e（`test:e2e` 需要 playwright 浏览器与后端，成本另算），也没有加 lint（前端没有 eslint 配置）。
 - 没有改本机的全局 git 钩子（`core.hooksPath` 在仓库外，属用户环境）：pre-push 仍默认跳过 npm build，但 CI 现在会兜住。
+- **本号推上去时 CI 的 ruff 是红的（E501，一行 101 字符）**：我在推之前只对新门跑了 pytest、**没跑 ruff**。已在下一条补正里修掉（拆行）。⇒ 老规矩：**每个新文件在提交前都要过 ruff**，pytest 绿不等于 lint 绿。

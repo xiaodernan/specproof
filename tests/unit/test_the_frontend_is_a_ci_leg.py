@@ -83,7 +83,9 @@ def test_the_frontend_leg_pins_a_node_version() -> None:
         if str(step.get("uses", "")).startswith("actions/setup-node")
     ]
 
-    assert node_steps, "no actions/setup-node step: the job would use whatever node the runner ships"
+    assert node_steps, (
+        "no actions/setup-node step: the job would use whatever node the runner ships"
+    )
     for step in node_steps:
         with_block = step.get("with") or {}
         assert str(with_block.get("node-version", "")).strip(), (
