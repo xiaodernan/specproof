@@ -20,20 +20,7 @@ from craft.adapters.protocol import (
     RuntimeProfile,
     register_adapter,
 )
-
-
-def _as_text(value: bytes | str | None) -> str:
-    """Coerce subprocess output to ``str``.
-
-    ``subprocess.run`` is typed as returning ``bytes | str`` depending on the
-    ``text`` argument, and ``ExecutionResult.stdout`` is declared ``str``. One
-    coercion point instead of a cast at every use.
-    """
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
+from sandbox.runner import child_output_text
 
 
 def _read_text_or_none(path: Path | str) -> str | None:
@@ -175,14 +162,16 @@ class GoAdapter(AdapterProtocol):
                 cwd=project_root,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=600,  # 10 分钟超时
                 env=env,
             )
         except subprocess.TimeoutExpired as e:
             return ExecutionResult(
                 exit_code=-1,
-                stdout=_as_text(e.stdout),
-                stderr=_as_text(e.stderr),
+                stdout=child_output_text(e.stdout),
+                stderr=child_output_text(e.stderr),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 parse_errors=[f"Execution timeout: {e}"],
             )
@@ -196,8 +185,8 @@ class GoAdapter(AdapterProtocol):
             )
 
         duration_ms = int((time.perf_counter() - start) * 1000)
-        s_stdout = _as_text(completed.stdout)
-        s_stderr = _as_text(completed.stderr)
+        s_stdout = child_output_text(completed.stdout)
+        s_stderr = child_output_text(completed.stderr)
 
         # 解析测试结果
         tests_run, tests_passed, tests_failed, tests_skipped = cls._parse_test_results(

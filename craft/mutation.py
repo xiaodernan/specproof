@@ -396,6 +396,7 @@ def run_mutation_testing(
     timeout_per_mutant: int = 60,
 ) -> MutationReport:
     """High-level entry point for mutation testing."""
+    import os
     import subprocess
     import tempfile
     import time
@@ -445,17 +446,30 @@ def run_mutation_testing(
                 mutant.file_path.write_text(mutant.mutated_code, encoding="utf-8")
 
                 try:
+                    # Both ends of the codec are named: the child is told to
+                    # encode UTF-8 and this reader is told to decode UTF-8.
+                    # Pinning one end only is a coin flip (#111) — the failure
+                    # is silent, because `text=True` with no `encoding=` decodes
+                    # with the host's codec, and when that decode dies
+                    # `CompletedProcess.stdout` arrives as None; the `+` below
+                    # then raises TypeError and the outer handler books the
+                    # mutant as ERROR instead of KILLED.
                     result = subprocess.run(
                         test_command,
                         cwd=project_root,
                         capture_output=True,
                         text=True,
+                        encoding="utf-8",
+                        errors="replace",
                         timeout=timeout_per_mutant,
+                        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
                     )
                     if result.returncode != 0:
                         mutant.status = MutationStatus.KILLED
                         # Extract test name from output
-                        mutant.killing_test = _extract_failing_test(result.stdout + result.stderr)
+                        mutant.killing_test = _extract_failing_test(
+                            (result.stdout or "") + (result.stderr or "")
+                        )
                     else:
                         mutant.status = MutationStatus.SURVIVED
                 except subprocess.TimeoutExpired:

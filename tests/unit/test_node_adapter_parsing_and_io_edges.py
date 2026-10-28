@@ -25,8 +25,9 @@ from pathlib import Path
 
 import pytest
 
-from craft.adapters.node_adapter import NodeAdapter, _as_text
+from craft.adapters.node_adapter import NodeAdapter
 from craft.adapters.protocol import ExecutionResult
+from sandbox.runner import child_output_text
 
 _JUNIT_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
@@ -109,13 +110,17 @@ def test_as_text_coerces_every_shape_subprocess_hands_back(
     `subprocess.run` returns bytes or str depending on `text=`, and
     `ExecutionResult.stdout` is declared `str`; the adapter used to assign
     either one straight into the dataclass.
+
+    #513: the node adapter's private `_as_text` was a third copy of this
+    function (byte-identical to the Go one, and the Gradle one differed only by
+    passing `errors` positionally). All three now call `sandbox.runner`'s.
     """
-    assert _as_text(value) == expected
+    assert child_output_text(value) == expected
 
 
 def test_as_text_replaces_undecodable_bytes(tmp_path: Path) -> None:
     """A Windows console can emit bytes that are not UTF-8; that must not raise."""
-    assert _as_text(b"\xff\xfe") == "\ufffd\ufffd"
+    assert child_output_text(b"\xff\xfe") == "\ufffd\ufffd"
 
 
 def test_detect_rejects_an_unparseable_package_json(tmp_path: Path) -> None:

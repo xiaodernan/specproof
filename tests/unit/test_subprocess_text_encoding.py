@@ -63,8 +63,21 @@ SUBPROCESS_FUNCS = {"run", "Popen", "check_output", "check_call", "call"}
 # shipped entry point, so an unpinned read there is a defect, not debt. Those
 # three lanes measured 0 offenders, so only the fixed one leaves debt: 55 -> 54.
 # The remaining 54 are `scripts/` and `tests/`.
+# #513 re-measured before touching anything and 54 was already a stale claim: the
+# tree at origin/master measured **50** (other lanes had quietly spent four units
+# of this ratchet without lowering it — which is what a ceiling of "exactly the
+# measurement, zero headroom" turns into when nobody re-measures). Fixing the
+# five `craft/` captures takes it to 45, so the ceiling moves 54 -> 45 and the
+# five are now named in PINNED_SCOPES' own lane rather than counted as debt.
+# What this number actually counts, since the name says "the rest of the repo":
+# `captures_without_codec(REPO)` is repo-wide, pinned scopes included. It equals
+# the `scripts/` + `tests/` debt (45 = 45) only because the pinned scopes measure
+# 0; the five `craft/` captures were counted here *and* failed the pinned-scope
+# gate, which is why one defect could move two gates. Read this as "nothing in the
+# repo may decode a child with the OS locale, with a named allowance for the two
+# lanes that have not been reached yet" — not as a scripts/-only census.
 # Shrink this number; never let it grow.
-DEBT_CEILING = 54
+DEBT_CEILING = 45
 
 
 def _is_subprocess_call(node: ast.Call) -> bool:

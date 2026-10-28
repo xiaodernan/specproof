@@ -24,21 +24,7 @@ from craft.adapters.protocol import (
     RuntimeProfile,
     register_adapter,
 )
-
-
-def _as_text(value: bytes | str | None) -> str:
-    """Coerce subprocess output to ``str``.
-
-    ``subprocess.run`` is called with ``text=False`` on purpose (see the comment
-    at the call site), so the same field can be bytes, str, or None depending on
-    which branch produced it — and ``ExecutionResult.stdout`` is declared ``str``.
-    One coercion point instead of five casts.
-    """
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
+from sandbox.runner import child_output_text
 
 
 def _read_text_or_none(path: Path | str) -> str | None:
@@ -177,8 +163,11 @@ class NodeAdapter(AdapterProtocol):
             # 禁用新的 package-lock.json 行为以兼容老项目（可选）
             env["npm_config_lockfile"] = "false"
 
-            # text=False on purpose: Windows' default codec mangles Chinese paths,
-            # so the output is decoded here as UTF-8 with replacement instead.
+            # text=False on purpose: an unpinned text=True read decodes with the
+            # host's preferred codec (cp936 on this machine), and a child that
+            # emits UTF-8 then reads back as nothing at all. The bytes are
+            # decoded below as UTF-8 with replacement instead — the same rule
+            # `sandbox.runner.child_output_text` states for both planes.
             completed = subprocess.run(
                 cmd,
                 cwd=project_root,
@@ -189,8 +178,8 @@ class NodeAdapter(AdapterProtocol):
         except subprocess.TimeoutExpired as e:
             return ExecutionResult(
                 exit_code=-1,
-                stdout=_as_text(e.stdout),
-                stderr=_as_text(e.stderr),
+                stdout=child_output_text(e.stdout),
+                stderr=child_output_text(e.stderr),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 parse_errors=[f"Execution timeout: {e}"],
             )
@@ -204,8 +193,8 @@ class NodeAdapter(AdapterProtocol):
             )
 
         duration_ms = int((time.perf_counter() - start) * 1000)
-        s_stdout = _as_text(completed.stdout)
-        s_stderr = _as_text(completed.stderr)
+        s_stdout = child_output_text(completed.stdout)
+        s_stderr = child_output_text(completed.stderr)
 
         # 解析测试结果
         # 优先读取 JUnit XML 报告

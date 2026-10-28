@@ -14841,3 +14841,127 @@ def __init__(self, config: XConfig | None = None) -> None:
 - 只覆盖 `storage/` 下这六个；`providers/` 等处若也有同样的 `config or …` 形状，本号没有纳入（未测量过就不声称覆盖）。
 - **本号推之前跑平面门抓到一条 E501**（新门里一行 101 字符），已拆行修掉。
 - 基类方案**没有**被否掉到「永远不做」：如果哪天出现第七、第八个 store，或需要统一的连接生命周期，这个结论应当重新评估；本条记的是「今天做不划算」以及「今天该钉什么」。
+
+
+## #513 两道常年红的适配器门：一道是真空缺、一道是假阳性——普查从「认拼写」改成「认结构 + 已证明的解码器」
+
+**起因。** #499 队列①把「两道常年红的适配器门」当成一个工作单元交下来：
+
+- `test_subprocess_text_encoding.py::test_pinned_scopes_never_decode_a_child_with_the_locale_codec`
+- `test_timeout_partial_output.py::test_no_partial_output_reader_asks_the_running_os_for_a_type`
+
+本号先把**各自**为什么红量准，再决定动什么。结论与交接时的记法不同，而且两处不同都值得单记。
+
+### 量到的
+
+| 门 | origin/master 上报什么 | 打开一看 |
+| --- | --- | --- |
+| 钉住范围 | 5 处 `text=True` 无 `encoding=` 的采集，全在 `craft/`（一个 `PINNED_SCOPE`）：`go_adapter.py:173`、`gradle_adapter.py:122/225/410`、`mutation.py:448` | **真缺陷**：子端按 `PYTHONIOENCODING` 出 UTF-8、父端按 cp936 解，读回来的不是「少了几个字」，是 `stdout is None` |
+| 超时普查 | 3 处「向运行中的操作系统要类型」的站点：`go_adapter.py:181`、`gradle_adapter.py:135`、`node_adapter.py:189` | **假阳性**：三处**都**解码了，只是各自带一份私有 `_as_text`。这道门检测的是**写法**，不是「字节有没有被解码」 |
+
+⇒ 交接说「3 处超时裸读没解码」，实测那 3 处都解码了；真正的缺陷是**同一件事有三份私有实现**，
+外加**5 处采集根本没钉**。一个假阳性门 + 一个真空缺门，长得像同一件事。
+
+### 顺带量到：查重门的一个可复现盲区
+
+`_as_text` 在 `KNOWN_CLONES` 里登记为**两份**（go + node）。树里其实是**三份**。逐函数实测：
+
+| 文件 | 去 docstring 后的摘要 | 节点数 | 关键字归一后 |
+| --- | --- | --- | --- |
+| `craft/adapters/go_adapter.py` | `e0a61c87` | 44 | `2d1bf1d2` |
+| `craft/adapters/node_adapter.py` | `e0a61c87` | 44 | `2d1bf1d2` |
+| `craft/adapters/gradle_adapter.py` | `2d1bf1d2` | 43 | `2d1bf1d2` |
+
+gradle 那份与另两份**只差一个 `ast.keyword` 节点**——`decode("utf-8", "replace")` 写成位置参数，
+`decode("utf-8", errors="replace")` 写成关键字参数。摘要按 `ast.dump` 逐字节比，于是第三份**隐身**了；
+而且它的原始摘要恰好等于另两份**归一后**的摘要 ⇒ 差别只有写法，没有别的。
+「一份决策三份实现」在查重账本上读成「两份 + 一份无关函数」。
+
+**我在这条上的第一次测量是错的，一并记下来。** 先写的批量探针把整棵 `Module` 一起哈希，
+报「关键字归一后**新增 0 组**」——差点据此把「盲区在节点地板不在写法」写进本节。
+逐函数复测才看清：新增的正是这一组。门没测错，是我把探针写错；结论以复测为准。
+
+### 机制复测（为什么必须钉两端）
+
+`subprocess.run(..., text=True)` 不带 `encoding=` 时用 `locale.getpreferredencoding()` 解码。
+本宿主 cp936。按 #92/#126 的口径重跑 2×4（子端 `PYTHONIOENCODING` × 父端解码）：
+只钉一端是抛硬币，且失败形态不是异常——**解码错误杀死读线程，`CompletedProcess.stdout` 回来是 `None`**，
+没有调用方检查它。`TimeoutExpired.stdout` 又分平台：POSIX 给 bytes，Windows 重跑 `communicate()` 给 str。
+⇒ 同一个字段三种形状，三份私有解码器各写各的。
+
+**负结果。** monkeypatch `locale.getpreferredencoding` 返回 `latin-1`，subprocess 仍按 cp936 失败——
+补丁打不动它（C 层缓存）。所以新门**不**模拟父端 locale，而是显式 `.decode()` 来演示机制。
+
+### 落地
+
+1. **三份私有 `_as_text` 合成一份**：`sandbox/runner.py::child_output_text(value)`，docstring 把三种形状
+   （`CompletedProcess` 的 str/bytes、`TimeoutExpired` 的 POSIX bytes vs Windows str）写清楚；
+   `scripts/bench_swebench.py` 跟进改名。
+2. **5 处采集钉两端**：`encoding="utf-8", errors="replace"`；`craft/mutation.py` 另加子端
+   `env={**os.environ, "PYTHONIOENCODING": "utf-8"}`——子端与父端必须是同一个编解码器，否则只钉一端是抛硬币。
+3. **普查改成结构规则 + 已证明的注册表**：`exc.stdout` / `exc.stderr` 的读必须是**对 `DECODERS` 里某个函数的直接调用实参**；
+   `DECODERS` 的每一条由一条参数化行为测试证明它 handles 三种形状。⇒ 「名字对、但对 bytes 返回空」的解码器过不了。
+4. **新建 `tests/unit/test_craft_child_output_codec_is_named.py`（16 案）**：`_ChildRun` 记录式假象 +
+   5 处逐站点见证（go execute、gradle execute / `_detect_gradle_version` / `_collect_dependency_tree`、
+   mutation 的两端一致）+ 按适配器参数化的 kill 形状（bytes→text、None→`""`）+ 真子进程机制案 +
+   「这条车道不再留私有解码器」。
+5. **两道 ratchet 收紧**：`DEBT_CEILING` 54 → **45**；`KNOWN_CLONES` 删掉 `_as_text` 那组。
+   先量的：origin/master 用本门自己的镜头实测 **50** ⇒ 54 里早已被别的车道花掉 4 个单位却没降号
+   （「恰好等于测量、零余量」的天花板在别人不动它时就变成陈旧的许可）。钉掉 5 处 `craft/` 采集后 50 → 45。
+6. **门自己的口径也补了一句**：`captures_without_codec(REPO)` 是**全仓**计数、`PINNED_SCOPES` 也包含在内。
+   它等于 `scripts/` + `tests/` 的债（45 = 45）只是因为钉住范围现在测到 **0**；
+   那 5 处 `craft/` 采集**同时**被这道门计数、**同时**让钉住范围门红——一个缺陷动两道门，注释里写清楚。
+
+### 门
+
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 5 个受影响文件 | `pytest tests/unit/{test_subprocess_text_encoding,test_timeout_partial_output,test_craft_child_output_codec_is_named,test_structural_clone_ratchet,test_node_adapter_parsing_and_io_edges}.py -q` | **44 passed in 31.29s** |
+| 3 道门基线（隔离副本） | `pytest` 同一批于 `.scratch/mine513` | **30 passed in 44.03s** |
+| ruff | 本批 11 个文件 | **All checks passed!** |
+| mypy | 6 个源文件 | **Success: no issues found in 6 source files** |
+| 行数 | 10 改 1 新 | 新门 380 行；普查 +110/−17 |
+
+### 变异臂（预测先写后跑，跑完逐字节还原断言）
+
+副本 = origin/master 存档 + 本批 11 个文件（`.scratch/mine513`），每条臂只改一处产物。
+
+| 臂 | 改什么 | 预测 | 实测 |
+| --- | --- | --- | --- |
+| A1 | 去掉 go 采集的 `encoding` | 3 红 | **MATCH**（3 红） |
+| A2 | 去掉 mutation 采集的 `errors` 策略 | 1 红 | **MATCH**（1 红） |
+| A3 | 超时字节直接写进声明为 `str` 的字段 | 3 红 | **MATCH**（3 红） |
+| A4 | 注册的解码器对 bytes 返回 `""` | 11 红，**且普查必须仍绿** | **MATCH**（11 红，普查确实没红） |
+| A5 | 植入第四份私有 `_as_text` | 4 红 | **3 红 —— 多预测 1 条** |
+| A6 | 去掉 gradle 采集的 `encoding` | 3 红 | **MATCH**（3 红） |
+
+**A5 那条错预测是本号的门证之一，不是瑕疵。** 多预测的是
+`test_a_kill_before_any_output_is_empty_text_not_none[node]`：植入的私有拷贝对 `None` 也返回 `""`，
+与共享解码器在 `None` 这一形状上**行为完全一致**，那条行为腿本来就不该红。红的是
+bytes 形状那条腿 + 普查 + 「车道不再有私有解码器」两条结构腿。
+⇒ 是**预测**写错了（以为行为腿与共享实现绑定），不是门漏了；这条臂反过来证明行为腿与结构腿**不冗余**。
+
+### 否证
+
+A4 是关键一条：如果普查只做到「结构正确」，一个**名字对、把 bytes 吞成空**的解码器能让所有静态门全绿，
+而产品端把子进程输出丢掉——验收平台上这是假绿。现在它让 11 条行为腿同时红，而**没有**让普查红。
+
+### 边界
+
+- `scripts/` 与 `tests/` 的 45 处未钉采集**一处没动**。那是 ratchet 的余量，不是本号的成果。
+- `_read_text_or_none`（go + node 两份）**没合**：它们是 exact clone、门看得见，但合并要先定「文件读取归谁」——进队列。
+- 只有 `craft/mutation.py` 钉了**子端** `PYTHONIOENCODING`；其他车道的子端仍由调用环境决定。
+- 没改 `PINNED_SCOPES` 的组成，也没把 `errors="replace"` 做成可配置：**替换字符是有意的**——
+  一次验收不该因为日志里一个坏字节整个崩，也不该因为一个坏字节什么都读不到。
+- `craft/adapters/*` 现在从 `sandbox/` 导入解码器，是一条**跨包依赖**（craft → sandbox）。
+  它今天成立是因为两者都在产品包内且 `sandbox` 不反向依赖 `craft`；真正的归属（证据车道 vs 工艺车道）
+  与 `_capsule_dirs` / `_eval_report_path` 是同一类问题，一起判，不在本号偷偷定。
+- 本号**没有**给查重门加「关键字归一」：那会把 2164 个 ≥25 节点的函数重新哈希一遍、
+  在没量清人口之前可能一次放行或一次误伤一片。先量人口再定规则，见队列①。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① 近似克隆检测：本号量到 digest 只认「去 docstring 后逐字节相同的 AST」，一个 `ast.keyword` 节点就躲开；
+先把三类人口（关键字/位置、局部改名、`MIN_NODES=25` 以下）量准，再决定是加归一还是加「同族函数点名表」。
+② `_read_text_or_none` 两份的归属决定。③ `cli/`、`craft/` 剩余约 50 条静默 `except`。
+④ `mypy` 版本钉住（`mypy==2.3.1` vs CI `uv sync --frozen`）。⑤ 跨层路径归属（`_capsule_dirs` / `_eval_report_path` / 现在的 `child_output_text`）。⑥ P6 100 例隔离评测。

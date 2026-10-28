@@ -21,7 +21,9 @@ from __future__ import annotations
 import ast
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -67,14 +69,14 @@ def test_a_posix_timeout_exception_carries_bytes_as_partial_output() -> None:
     payload: a real killed child on any OS gives us bytes or str, and the
     runner must handle whichever it is.
     """
-    assert runner.timed_out_partial(b"PARTIAL") == "PARTIAL"
-    assert runner.timed_out_partial("PARTIAL") == "PARTIAL"
-    assert runner.timed_out_partial(None) == ""
+    assert runner.child_output_text(b"PARTIAL") == "PARTIAL"
+    assert runner.child_output_text("PARTIAL") == "PARTIAL"
+    assert runner.child_output_text(None) == ""
 
 
 def test_undecodable_bytes_become_replacement_text_not_a_crash() -> None:
-    assert runner.timed_out_partial(b"\xff\xfe tail").startswith("\ufffd\ufffd")
-    assert "tail" in runner.timed_out_partial(b"\xff tail")
+    assert runner.child_output_text(b"\xff\xfe tail").startswith("\ufffd\ufffd")
+    assert "tail" in runner.child_output_text(b"\xff tail")
 
 
 def test_local_mode_keeps_a_bytes_shaped_partial_output(
@@ -156,6 +158,29 @@ def test_a_kill_before_any_output_stays_empty_not_none(
 
 # -- census ------------------------------------------------------------------
 
+#: The decoders the census below is willing to trust, by name.
+#:
+#: #126 hard-coded one spelling (`timed_out_partial`) into a substring search.
+#: That broke both ways: it went red on three `craft/adapters/*` handlers that
+#: *did* decode — through private `_as_text` copies, #513 — and it would have
+#: gone green on a handler that merely mentioned the name in a comment. The list
+#: is now a registry, and each entry is proven by
+#: `test_every_registered_decoder_is_real_and_handles_all_three_shapes`.
+DECODERS: set[str] = {"child_output_text"}
+
+
+def _resolve_decoder(name: str) -> Callable[[object], str]:
+    """Look a registered decoder up where the product keeps it."""
+    decoder = getattr(runner, name, None)
+    assert callable(decoder), (
+        f"{name} is in DECODERS but sandbox.runner has no such function — "
+        "the census would be trusting a name that does not exist"
+    )
+    return cast(Callable[[object], str], decoder)
+
+
+#: Directories the census prunes; a walk over venvs or eval worktrees measures
+#: the machine, not the repo.
 _SKIP_DIRS = {
     "node_modules",
     "__pycache__",
@@ -184,27 +209,75 @@ def _product_python_files() -> list[Path]:
     return sorted(files)
 
 
-def _timeout_blocks() -> list[tuple[Path, int, str]]:
-    """(file, line, source) for every `except TimeoutExpired` block in the product."""
-    blocks: list[tuple[Path, int, str]] = []
+def _timeout_blocks() -> list[tuple[Path, int, ast.ExceptHandler]]:
+    """(file, line, handler AST) for every `except TimeoutExpired` in the product."""
+    blocks: list[tuple[Path, int, ast.ExceptHandler]] = []
     for path in _product_python_files():
         text = path.read_text(encoding="utf-8", errors="replace")
         tree = ast.parse(text, filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ExceptHandler) or not _names_timeout(node.type):
                 continue
-            body_src = ast.get_source_segment(text, node) or ""
-            blocks.append((path, node.lineno, body_src))
+            blocks.append((path, node.lineno, node))
     return blocks
 
 
-def _timeout_read_sites() -> list[tuple[Path, int]]:
-    """Blocks that keep partial output but do not decode it."""
+def _reads_of_the_exception(handler: ast.ExceptHandler) -> list[ast.Attribute]:
+    """Every `exc.stdout` / `exc.stderr` read inside the handler body.
+
+    Only reads of the object the handler bound count — `result.stdout` from an
+    earlier call in the same block is a different object with a different shape.
+    """
+    if handler.name is None:
+        return []
     return [
-        (path, lineno)
-        for path, lineno, body in _timeout_blocks()
-        if (".stdout" in body or ".stderr" in body) and "timed_out_partial" not in body
+        node
+        for node in ast.walk(handler)
+        if isinstance(node, ast.Attribute)
+        and node.attr in {"stdout", "stderr"}
+        and isinstance(node.value, ast.Name)
+        and node.value.id == handler.name
     ]
+
+
+def _parents(tree: ast.AST) -> dict[ast.AST, ast.AST]:
+    return {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+
+
+def _wrapped_by_a_proven_decoder(read: ast.Attribute, parent: ast.AST | None) -> bool:
+    """True when this read goes straight into one of the decoders this file tests."""
+    if not isinstance(parent, ast.Call):
+        return False
+    if not any(read is arg for arg in parent.args):
+        return False
+    func = parent.func
+    name = getattr(func, "attr", None) or getattr(func, "id", None)
+    return name in DECODERS
+
+
+def _timeout_read_sites() -> list[tuple[Path, int]]:
+    """Reads of the killed child's output that no proven decoder covers.
+
+    #126 matched the literal string `timed_out_partial` anywhere in the handler
+    body. That is a spelling test, and it had two wrong sides: a handler could
+    satisfy it by mentioning the name in a comment, and #499's queue read the
+    three `craft/adapters/*` hits as raw reads when in fact each one decoded
+    through a private `_as_text` copy (#513 measured this). The rule is now
+    structural — the read must be an *argument* of a call to a decoder listed in
+    `DECODERS`, and `DECODERS` is only as wide as the cases that prove each entry
+    below.
+    """
+    sites: list[tuple[Path, int]] = []
+    for path, _lineno, handler in _timeout_blocks():  # the read's own line is reported
+        parents = _parents(handler)
+        bad = [
+            read
+            for read in _reads_of_the_exception(handler)
+            if not _wrapped_by_a_proven_decoder(read, parents.get(read))
+        ]
+        if bad:
+            sites.append((path, bad[0].lineno))
+    return sites
 
 
 def _names_timeout(node: ast.expr | None) -> bool:
@@ -231,9 +304,29 @@ def test_the_census_actually_reads_the_files_it_claims_to_guard() -> None:
     names = {p.relative_to(REPO_ROOT).as_posix() for p in _product_python_files()}
     assert "sandbox/runner.py" in names
     assert "scripts/bench_swebench.py" in names
-    readers = [(p, ln) for p, ln, body in _timeout_blocks()
-               if ".stdout" in body or ".stderr" in body]
+    readers = [(p, ln) for p, ln, handler in _timeout_blocks() if _reads_of_the_exception(handler)]
     assert len(readers) >= 3, (
         f"expected at least the three known partial-output readers, found "
         f"{[f'{p.relative_to(REPO_ROOT)}:{ln}' for p, ln in readers]}"
+    )
+
+
+@pytest.mark.parametrize("decoder_name", sorted(DECODERS))
+def test_every_registered_decoder_is_real_and_handles_all_three_shapes(
+    decoder_name: str,
+) -> None:
+    """The census trusts a name, so the name has to earn trust here.
+
+    A gate that only checks spelling can be satisfied by a function that returns
+    `""` for bytes — which is the very evidence loss the census exists to stop.
+    Every entry in `DECODERS` must therefore exist in the product and coerce all
+    three shapes `subprocess` hands back.
+    """
+    decoder = _resolve_decoder(decoder_name)
+    assert decoder(b"PARTIAL") == "PARTIAL"
+    assert decoder("PARTIAL") == "PARTIAL"
+    assert decoder(None) == ""
+    assert decoder(b"\xff\xfe tail").startswith("\ufffd\ufffd"), (
+        f"{decoder_name} raises or drops bytes it cannot decode instead of "
+        "replacing them — that is the locale failure the census is guarding"
     )

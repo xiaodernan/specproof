@@ -22,21 +22,7 @@ from craft.adapters.protocol import (
     RuntimeProfile,
     register_adapter,
 )
-
-
-def _as_text(value: bytes | str | None) -> str:
-    """把 subprocess 的输出（bytes | str | None）收敛成文本。
-
-    `subprocess.run(text=True)` 正常给 str，但 `TimeoutExpired.stdout` 的类型是
-    `bytes | str | None` —— 原样传进去会让声明为 `str` 的 `ExecutionResult.stdout`
-    实际带上 bytes。这里统一收敛，超时路径与正常路径行为一致。
-    """
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", "replace")
-    return value
-
+from sandbox.runner import child_output_text
 
 #: 一条 stdout 启发式：正则 + 从 match 取出 (run, passed, failed, skipped) 的提取器。
 _StdoutExtractor = Callable[[re.Match[str]], tuple[int, int, int, int]]
@@ -124,6 +110,8 @@ class GradleAdapter(AdapterProtocol):
                 cwd=project_root,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=600,  # 10 分钟超时
                 env={
                     **dict(os.environ),
@@ -135,8 +123,8 @@ class GradleAdapter(AdapterProtocol):
         except subprocess.TimeoutExpired as e:
             return ExecutionResult(
                 exit_code=-1,
-                stdout=_as_text(e.stdout),
-                stderr=_as_text(e.stderr),
+                stdout=child_output_text(e.stdout),
+                stderr=child_output_text(e.stderr),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 parse_errors=[f"Execution timeout: {e}"],
             )
@@ -227,6 +215,8 @@ class GradleAdapter(AdapterProtocol):
                     cwd=project_root,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=30,
                 )
                 match = re.search(r"Gradle ([\d.]+)", result.stdout)
@@ -412,6 +402,8 @@ class GradleAdapter(AdapterProtocol):
                     cwd=project_root,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=60,
                     env={
                     **dict(os.environ),

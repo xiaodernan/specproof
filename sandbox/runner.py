@@ -426,15 +426,21 @@ def bound_output(
     bounded = text[:head_chars] + truncation_marker(dropped) + text[-tail_chars:]
     return bounded, True, dropped
 
-def timed_out_partial(value: object) -> str:
-    """The output a `TimeoutExpired` carries, whichever OS filled it.
+def child_output_text(value: object) -> str:
+    """Whatever shape the child's pipe arrived in, as text — never `None`.
 
-    `text=True` translates the pipes on the normal return path, but the POSIX
-    timeout path re-raises with the raw accumulated BYTES in `exc.stdout`,
-    while Windows re-runs `communicate()` and gets `str`. Treating only `str`
-    as usable silently threw away the whole partial output of every workload
-    killed by the timeout on Linux — and the docker branch is the production
-    default, so the evidence loss was the normal path there.
+    Three shapes reach this function, and a reader that only handles one of
+    them silently reports "the command printed nothing":
+
+    * `CompletedProcess.stdout` with `text=True` — a `str`, or `None` if the
+      decode died on the host locale (#92).
+    * `CompletedProcess.stdout` with `text=False` — `bytes`.
+    * `TimeoutExpired.stdout` — **bytes on POSIX**, because the timeout path
+      re-raises with the raw accumulated buffer, while Windows re-runs
+      `communicate()` and hands back `str` (#126). Treating only `str` as
+      usable threw away the whole partial output of every workload killed by
+      the timeout on Linux — and the docker branch is the production default,
+      so the evidence loss was the normal path there.
     """
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
@@ -624,8 +630,8 @@ def _run_docker(
         # Preserve whatever the workload already emitted before the kill —
         # the honest partial output beats a silent empty result (bounded,
         # so a flood interrupted by the kill cannot balloon the worker).
-        stdout = timed_out_partial(exc.stdout)
-        stderr = timed_out_partial(exc.stderr)
+        stdout = child_output_text(exc.stdout)
+        stderr = child_output_text(exc.stderr)
         stdout, out_trunc, out_dropped = bound_output(stdout)
         stderr, err_trunc, err_dropped = bound_output(stderr)
         return SandboxResult(
@@ -785,8 +791,8 @@ def _run_local(
         # Preserve whatever the workload already emitted before the kill —
         # the honest partial output beats a silent empty result (bounded,
         # so a flood interrupted by the kill cannot balloon the worker).
-        stdout = timed_out_partial(exc.stdout)
-        stderr = timed_out_partial(exc.stderr)
+        stdout = child_output_text(exc.stdout)
+        stderr = child_output_text(exc.stderr)
         stdout, out_trunc, out_dropped = bound_output(stdout)
         stderr, err_trunc, err_dropped = bound_output(stderr)
         return SandboxResult(

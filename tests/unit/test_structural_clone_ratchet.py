@@ -60,17 +60,13 @@ KNOWN_CLONES: dict[Clone, str] = {
     ): "same cross-layer decision as _capsule_dirs (#493)",
     frozenset(
         {
-            ("craft/adapters/go_adapter.py", "_as_text"),
-            ("craft/adapters/node_adapter.py", "_as_text"),
-        }
-    ): "craft adapter helper; the adapter lane owns those files, so this lane "
-    "records the pair instead of editing across lanes",
-    frozenset(
-        {
             ("craft/adapters/go_adapter.py", "_read_text_or_none"),
             ("craft/adapters/node_adapter.py", "_read_text_or_none"),
         }
-    ): "same adapter-lane pair as _as_text",
+    ): "the adapter lane's file reader; #513 merged this pair's sibling "
+    "(`_as_text`, three copies) into sandbox.runner.child_output_text, so the "
+    "lane has one merge point left here — a shared reader needs the same "
+    "cross-package decision and these two files are not on that path yet",
     frozenset(
         {
             ("storage/agent_jobs.py", "connection"),

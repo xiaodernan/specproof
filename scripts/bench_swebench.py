@@ -86,7 +86,7 @@ from craft.llm import LLMClient  # noqa: E402
 from craft.loop import CraftLoop, FixFunction  # noqa: E402
 from craft.planner import Step, compile_plan, write_json_atomic  # noqa: E402
 from craft.spec import TaskSpec  # noqa: E402
-from sandbox.runner import timed_out_partial  # noqa: E402
+from sandbox.runner import child_output_text  # noqa: E402
 
 SAMPLE_DIR = Path(__file__).resolve().parent / "swebench_sample"
 SAMPLE_INSTANCES = SAMPLE_DIR / "instances.json"
@@ -935,8 +935,8 @@ def _run_one_test(
             timeout=timeout, check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        stdout = timed_out_partial(exc.stdout)
-        stderr = timed_out_partial(exc.stderr)
+        stdout = child_output_text(exc.stdout)
+        stderr = child_output_text(exc.stderr)
         partial = f"{stdout}\n{stderr}".strip()
         tail = (partial or f"<timeout after {timeout}s>")[-500:]
         _append_log(log_path, f"$ {' '.join(command)}\n{tail}")
