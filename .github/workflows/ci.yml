@@ -22,6 +22,33 @@ jobs:
       - name: Mypy (strict)
         run: python -m mypy .
 
+  # The dashboard/Agent UI is a user-facing surface with its own gate suite
+  # (tsc + vitest + vite build). Before #507 nothing in the automated path ran
+  # them: ruff/mypy/pytest are Python-only, and the local pre-push hook skips
+  # the npm build by default — so a broken frontend could sit on master with
+  # every job green. The three legs below are the same ones the repo documents.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Typecheck (tsc --noEmit)
+        working-directory: apps/web
+        run: npm run typecheck
+      - name: Unit tests (vitest run)
+        working-directory: apps/web
+        run: npm run test
+      - name: Production build (vite build)
+        working-directory: apps/web
+        run: npm run build
+
   # §8.1 / §14-4: OpenAPI schema diff gate. The baseline is committed at
   # docs/openapi/baseline.json; intentional API changes must update it in
   # the same PR (scripts/openapi_diff.py --update), everything else fails

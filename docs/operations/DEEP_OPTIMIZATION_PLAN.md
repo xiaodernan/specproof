@@ -14544,3 +14544,46 @@ command timed out after -1s (the run may still be in progress): specproof verify
 - 只覆盖 `mcp/tools.py` 的两个超时旋钮与 `_run_cli` 这一个执行点。`mcp/client.py` 早已有 `timeout <= 0` 的 `ValueError`（#早期），本号不动它。
 - `_env_int` 保持原语义（任意整数），因为它是通用读取器；**没有**把它改成「必须为正」——那会让别的整数旋钮（例如允许 0 的开关计数）跟着变严。
 - 这是**行为变更**：以前设 `0` 会得到一条「超时」错误，现在得到一条「配置非法」错误。两者都失败，但后者指向真正的修复点。
+## #507 CI 里根本没有前端 job：ruff/mypy/pytest 全是 Python，而用户看到的是那个 dashboard
+
+**起因。** #506 之后去查「用户直接感受到的面」是否还有自动守卫。pre-push 钩子自己打印了一句 `skipped npm build by default`，于是顺着去看 CI 有没有兜住。
+
+### 量到的
+
+`grep -nE "apps/web|vite|tsc|vitest|npm" .github/workflows/ci.yml` ⇒ **0 命中**。六个 job 是 `lint-type` / `openapi-schema-diff` / `security` / `tests-no-infra` / `tests-with-infra` / `eval-golden-cases`，**全是 Python 或 Python 周边**。
+
+而 `apps/web` 是这个产品的用户面（dashboard、AgentApp、Billing、JobDetail、UiKit、Guide…），它有自己的三件套（`package.json` 的 `typecheck` / `test` / `build`）。也就是说：**前端坏着也能让每个 job 全绿地进 master**，唯一的防线是「有人记得手跑三条命令」。
+
+本地实测这三件套**今天是绿的**：`npx tsc --noEmit` 退出 0；`npx vitest run` **384 passed / 46 files**；`npx vite build` **8.65s 成功**。⇒ 正因为今天没坏，这个缺口一直没人注意。
+
+### 修法
+
+`.github/workflows/ci.yml` 新增 `web` job：`actions/setup-node@v4`（node 22、按 `apps/web/package-lock.json` 缓存）→ `npm ci` → `npm run typecheck` → `npm run test` → `npm run build`，全部 `working-directory: apps/web`。
+
+### 门
+
+新建 `tests/unit/test_the_frontend_is_a_ci_leg.py`（6 案，解析 YAML 而不是 grep 文本）：
+1. 存在**至少一个** `working-directory: apps/web` 的 step（否则前端没有自动守卫）；
+2. 三条 `npm run <typecheck|test|build>` 都在；
+3. 安装必须是 `npm ci`（lockfile 精确），且**不得**出现 `npm install`（会重新解析版本、与 lockfile 漂移）；
+4. 有 `actions/setup-node` 且**写了 node-version**（不写就是用 runner 自带的那个）；
+5. `apps/web/package.json` 里这三个 script **真的存在**（改名的后果是 CI 跑一条没人定义的命令）；
+6. 工作流仍由 `push` 与 `pull_request` 触发（没人触发的 job 不是门）。
+
+### 证据
+
+- 新门 **6 passed in 1.76s**；CI 相关三道门（`test_ci_jobs_can_run_the_repo_gates` + 新门 + `test_ci_acceptance_greps_match_the_eval_summary`）**17 passed**——#499 那道「job 能不能跑仓库自己的门」没有被新增 job 撞红。
+- YAML 解析确认：`jobs` 现为 `['lint-type', 'web', 'openapi-schema-diff', 'security', 'tests-no-infra', 'tests-with-infra', 'eval-golden-cases']`。
+- 变异臂①（把整个 `web` job 删掉）⇒ **4 failed / 2 passed**。**预测是 3 条，实测 4 条**——多红的那条是「pin node 版本」：全仓只有这个 job 用 `setup-node`，job 一删它就没有主语了。预测漏了这条。
+- 变异臂②（`package.json` 把 `typecheck` 改名成 `type-check`）⇒ **1 failed / 5 passed**。**预测 2 条，实测 1 条**——「三条命令都在」查的是 `ci.yml`，「script 真的存在」查的是 `package.json`，两道栅栏各管一边，改名只碰后者。预测错在把两道栅栏当成一条。
+
+### 否证
+
+- 插入 YAML 时连续两次 `assert s.count(anchor) == 1` 失败（打印 `count: 0`），我一度怀疑是并发车道改了文件；实际是 **heredoc 把 `\n` 转义成了字面反斜杠**，锚点变成了 `"  openapi-schema-diff:\\n"`。改用编辑工具插入后一次成功。⇒ **在 heredoc 里拼锚点别写 `\n`**（这条在 #457 也踩过，那次是 `\s`）。
+- 本机跑 `vitest` 会报 3 个 `EPERM ... AppData\Local\Temp\...` 的 unhandled error，来自本机 fs 垫片拦临时目录写入；**真实退出码仍是 0**、用例全过。CI（ubuntu runner）上不应出现，但这条差异已写在这里，免得下次把本机的 EPERM 当成产品缺陷。
+
+### 边界
+
+- 本号**只加 job 与门，没有在真 CI 上跑过它**（本机不能跑 GitHub Actions）。证据是「配置正确 + 三条命令本机实测可跑」。
+- 没有加 e2e（`test:e2e` 需要 playwright 浏览器与后端，成本另算），也没有加 lint（前端没有 eslint 配置）。
+- 没有改本机的全局 git 钩子（`core.hooksPath` 在仓库外，属用户环境）：pre-push 仍默认跳过 npm build，但 CI 现在会兜住。
