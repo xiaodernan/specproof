@@ -15619,3 +15619,76 @@ A7 上量到一件比合并本身更值得修的事：`tests/unit/test_providers
    （job summary / certificate metadata）本轮实测**已被修过**（带 `incr` 指标 + stderr 报错 +
   返回值检查），该条从队列移除；
 ⑥ #517 队列⑦⑧⑨：mypy 版本钉住 / P6 100 例隔离评测 / `JOB_CREATION_WHITELIST.md` 符号名改写判定。
+
+## #520 三条「主机已经是 UTF-8 吗」的腿比的是拼写：CI 的回答是 `UTF-8`，三条腿于是在每个 UTF-8 主机上断言一个不存在的陷阱
+
+### 起因
+
+CI run 40714443058 的 tests-no-infra 在 `tests/unit/test_craft_child_output_codec_is_named.py`
+（#513 落地的门）上红了三条腿，而本机全绿。差别不在产品：本机
+`locale.getpreferredencoding(False)` 答 `cp936`，CI 答 `UTF-8`。三条腿用**拼写**比较：
+两条写 `== "utf-8"`，第三条把主机名归一成 `"utf8"` 之后仍与带连字符的常量比较 —— 于是前两条
+在 CI 上把「主机与子进程同一个编解码器」误判成可判格，第三条则在**所有** UTF-8 主机上都判错。
+三条腿断言的都是「本机上这个陷阱存在」，而陷阱本身只在主机与子进程不一致时才存在：
+在 UTF-8 平面上它们既给不出任何结论，又会被自己的断言点红。
+
+### 量到的（预测先写，再跑；平面在仓库根之外）
+
+拼写与编解码器是两回事，`codecs.lookup(...).name` 是知道二者同一的那把尺：实测
+`UTF-8` / `utf8` / `Utf_8` → `utf-8`，`cp936` → `gbk`。主机实测：不带 `PYTHONUTF8` 答
+`cp936`，带 `PYTHONUTF8=1` 答 `utf-8`。修前在 `PYTHONUTF8=1` 平面上跑旧门：
+**1 failed / 13 passed / 2 skipped** —— CI 的形状在本机复现（红的是第三条腿，另两条跳过）。
+
+在 `git worktree` 平面（HEAD + 本号两个文件，逐字节校验过）上施加变异，只跑本文件：
+
+| 臂 | 改什么 | 预测 | 实测 |
+| --- | --- | --- | --- |
+| C | 对照：未变异 | 26 passed | **26 passed** |
+| A1 | 助手退回按拼写比较 | 4 红（3 个别名格＋伞腿） | **4 红**，名字一致 |
+| A2 | 第三条腿退回 `host.lower().replace("-", "")` | 1 红（伞腿） | **1 红**，名字一致 |
+| A3 | 子解释器 env 去掉 `PYTHONUTF8=1` | 1 红（真平面腿） | **1 红**，名字一致 |
+
+A1 里 3 个非 UTF-8 别名格与真平面腿**刻意保持绿**：前者按拼写比较也答 False（正是期望），
+后者在真 UTF-8 主机上答的正是 `utf-8`（正是按拼写比较也能过的情形）。
+
+### 落地
+
+1. 新 `tests/_host_codec.py`：`host_prefers()` 两侧都过 `codecs.lookup(...).name`。只依赖
+   标准库，是为了让子解释器能问同一个问题而不导入门本身 —— 门拖 `craft.adapters`，经它拖
+   elasticsearch 与 provider 栈（`-X importtime` 累计实测 26.7s：elasticsearch 9.2s、
+   craft.gates/schemas 8.9s、providers 7.9s）。
+2. 三条主机腿改用 `host_prefers` 判断是否跳过；跳过消息点名主机的**原始**拼写。
+3. 两条与主机无关的机制腿（UTF-8 字节在 cp936 下非法；cp936 字节在严格 UTF-8 下非法）让
+   「陷阱存在」这件事在**每个**平面都有见证 —— CI 上三条主机腿按设计跳过，机制仍被钉住。
+4. 三条别名腿（`UTF-8`/`utf8`/`Utf_8` 认作同一；`cp936`/`GBK`/`latin-1` 不误认）＋一条伞腿
+   （用 CI 的拼写 `UTF-8` 逐个调用三条主机腿，要求抛的是 skip 而不是断言）＋一条真解释器腿
+   （子进程带 `PYTHONUTF8=1`，导入的是助手不是门）。
+
+### 门
+
+| 门 | 结果 |
+| --- | --- |
+| 本文件（cp936 平面） | **26 passed** |
+| 本文件（`PYTHONUTF8=1` 平面，CI 形状） | **23 passed / 3 skipped**（三条主机腿，跳过理由各自点名主机原拼写） |
+| 邻域（`test_subprocess_text_encoding.py` + `test_timeout_partial_output.py`） | **14 passed** |
+| ruff（两个文件） | `All checks passed!` |
+
+### 否证与边界
+
+- 三条 CI 红不是产品缺陷：#513 已把五处捕获钉死，本号改的是门的**判据**，生产码一字未动。
+- 主机腿在 UTF-8 平面上仍不能判 —— 那里陷阱不存在；结论交给机制腿与伞腿，这是设计上的分工。
+- 代价是一路量出来的：子 *pytest* 会重建整个会话（本机实测 60s，conftest 要扫全库 MySQL 使用）；
+  子解释器导入门本身实测 37.8s ⇒ 助手才被拆成只依赖标准库的模块，本文件落回 13.6s（安静时）。
+- 边界：只改这一个门；`test_subprocess_text_encoding.py` 自己的失败模式腿本来就是主机无关的。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① #519 队列②：`retrieval/rerank.py` 不做 429 重试而 embeddings 做；
+② #519 队列③：`providers/resilience.py` 与 `providers/client_policy.py` 两套未接线的重试实现；
+③ #519 队列④：`sha256_hex` ×3 与 `_capsule_dirs` / `_eval_report_path` / `child_output_text`
+   的跨层归属；
+④ #519 队列⑤：三套并存的时间戳词汇（毫秒已合，30 处全精度 / 7 处 `timespec="seconds"`）；
+⑤ #519 队列⑥：`cli/`、`craft/` 剩余约 50 条静默 `except`；
+⑥ #519 队列⑦⑧⑨：mypy 版本钉住 / P6 100 例隔离评测 / `JOB_CREATION_WHITELIST.md` 符号名判定；
+⑦ 本号顺带量到的候选：`craft/adapters` 的导入面把 elasticsearch 与 provider 栈带进任何导入它的
+   门（累计 26.7s），值得单独一号量它的边界。

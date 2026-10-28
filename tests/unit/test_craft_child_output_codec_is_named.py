@@ -26,6 +26,17 @@ wrong, and the wrong half is the interesting part:
 Both halves of the fix are gated here: the pins are proven to *reach* the child
 call (a declaration in dead code would not count), and the timeout branch is
 proven to keep the killed child's bytes as text.
+
+#520 — the three host-shaped legs ("is the host already UTF-8?") compared the
+*spelling* of `locale.getpreferredencoding(False)` against `"utf-8"`. This host
+answers `cp936`; CI answers `UTF-8`, so on run 40714443058 all three ran their
+assertions instead of skipping and asserted a trap that cannot exist where the
+host and the child agree. One of them normalized the host to `"utf8"` and still
+compared against the dashed constant, so it was wrong on *every* UTF-8 host.
+The decision is now `tests/_host_codec.host_prefers` (`codecs.lookup(...).name`
+on both sides); the host-shaped legs still skip where they cannot judge, two
+explicit codec-pair legs keep the mechanism witnessed on every plane, and a
+child interpreter started with `PYTHONUTF8=1` walks the CI plane itself.
 """
 
 from __future__ import annotations
@@ -45,6 +56,7 @@ from craft.adapters.gradle_adapter import GradleAdapter
 from craft.adapters.node_adapter import NodeAdapter
 from craft.adapters.protocol import RuntimeProfile
 from craft.mutation import MutationStatus, run_mutation_testing
+from tests._host_codec import host_prefers
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -319,10 +331,47 @@ def _read_the_way_the_adapters_used_to(raw: bytes) -> str | None:
         return None
 
 
+# --- the mechanism with both codecs named (runs on every plane) --------------
+
+
+def test_the_childs_utf8_bytes_are_illegal_cp936_wherever_this_runs() -> None:
+    """The mechanism with both codecs named, so no host can make it vacuous.
+
+    The host-shaped legs below skip on a UTF-8 machine — correctly, because
+    their trap cannot exist where the host and the child agree. This one keeps
+    the claim witnessed on every plane: the bytes a CJK toolchain prints are
+    not cp936, so a reader that happens to prefer cp936 loses them. Measured:
+    byte 33 (0x95).
+    """
+    raw = PAYLOAD.encode(PINNED_CODEC)
+    with pytest.raises(UnicodeDecodeError):
+        raw.decode("cp936")
+    assert raw.decode(PINNED_CODEC, errors="replace") == PAYLOAD
+
+
+def test_cp936_bytes_are_illegal_strict_utf8_wherever_this_runs() -> None:
+    """The other direction, also with named codecs: `errors=` is not decoration.
+
+    A parent pinned to utf-8 but strict still loses a cp936 child's output —
+    the case `PINNED_CODEC` plus `errors="replace"` exists for. Measured: byte
+    0 (0xb1), and the replacing read keeps the text with U+FFFD.
+    """
+    raw = HOST_PAYLOAD.encode("cp936")
+    with pytest.raises(UnicodeDecodeError):
+        raw.decode(PINNED_CODEC)
+    assert "\ufffd" in raw.decode(PINNED_CODEC, errors="replace")
+
+
+# --- the host-shaped legs -----------------------------------------------------
+
+
 def test_the_payload_really_is_illegal_in_the_host_codec() -> None:
     """If the host decodes this payload cleanly, the rows below prove nothing."""
-    if locale.getpreferredencoding(False) == PINNED_CODEC:
-        pytest.skip(f"host prefers {PINNED_CODEC}: no locale can disagree with the payload here")
+    if host_prefers(PINNED_CODEC):
+        pytest.skip(
+            f"host prefers {locale.getpreferredencoding(False)!r}: no locale can "
+            "disagree with the payload here"
+        )
     raw = _spawn_bytes(PAYLOAD, PINNED_CODEC)
     assert _read_the_way_the_adapters_used_to(raw) is None, (
         "a payload the host codec accepts cannot detect an unpinned reader"
@@ -330,8 +379,11 @@ def test_the_payload_really_is_illegal_in_the_host_codec() -> None:
 
 
 def test_the_old_shape_loses_the_output_and_the_new_one_does_not() -> None:
-    if locale.getpreferredencoding(False) == PINNED_CODEC:
-        pytest.skip(f"host prefers {PINNED_CODEC}: the old shape cannot fail here")
+    if host_prefers(PINNED_CODEC):
+        pytest.skip(
+            f"host prefers {locale.getpreferredencoding(False)!r}: the old shape "
+            "cannot fail here"
+        )
     raw = _spawn_bytes(PAYLOAD, PINNED_CODEC)
     assert _read_the_way_the_adapters_used_to(raw) is None
     assert raw.decode(PINNED_CODEC, errors="replace") == PAYLOAD, (
@@ -349,12 +401,12 @@ def test_strict_utf8_is_the_same_trap_in_the_other_direction() -> None:
     The payload here is the *host*-representable half of #513's matrix —
     `✕` has no cp936 byte at all, so a cp936-emitting child cannot send it.
     """
-    host = locale.getpreferredencoding(False)
-    if host.lower().replace("-", "") == PINNED_CODEC:
+    if host_prefers(PINNED_CODEC):
         pytest.skip(
-            f"host prefers {host}: its bytes are valid UTF-8, so strictness cannot fail here"
+            f"host prefers {locale.getpreferredencoding(False)!r}: its bytes are "
+            "valid UTF-8, so strictness cannot fail here"
         )
-    raw = _spawn_bytes(HOST_PAYLOAD, host)
+    raw = _spawn_bytes(HOST_PAYLOAD, locale.getpreferredencoding(False))
     with pytest.raises(UnicodeDecodeError):
         raw.decode(PINNED_CODEC)
     decoded = raw.decode(PINNED_CODEC, errors="replace")
@@ -362,6 +414,93 @@ def test_strict_utf8_is_the_same_trap_in_the_other_direction() -> None:
         f"the host codec's bytes happen to be valid UTF-8 on this machine, so "
         f"`errors=` cannot be shown to matter here: {decoded!r}"
     )
+
+
+# --- the CI plane, kept from drifting back ------------------------------------
+
+
+@pytest.mark.parametrize("alias", ["UTF-8", "utf8", "Utf_8"])
+def test_the_host_codec_check_reads_aliases_as_the_same_codec(
+    alias: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(locale, "getpreferredencoding", lambda do_setlocale=True: alias)
+    assert host_prefers(PINNED_CODEC) is True, alias
+
+
+@pytest.mark.parametrize("alias", ["cp936", "GBK", "latin-1"])
+def test_a_non_utf8_host_is_not_mistaken_for_utf8(
+    alias: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(locale, "getpreferredencoding", lambda do_setlocale=True: alias)
+    assert host_prefers(PINNED_CODEC) is False, alias
+
+
+def test_every_host_shaped_leg_skips_under_an_aliased_utf8_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Run 40714443058, reproduced: the host says `UTF-8` and all three decline.
+
+    This is the leg that would have caught that run. Each host-shaped leg is
+    called under the CI spelling; each must raise pytest's skip, not an
+    assertion. `_spawn_bytes` is scripted here because this leg is about the
+    skip decision — the real children above already prove the bytes.
+    """
+    monkeypatch.setattr(locale, "getpreferredencoding", lambda do_setlocale=True: "UTF-8")
+    monkeypatch.setitem(
+        globals(), "_spawn_bytes", lambda payload, codec: payload.encode(codec)
+    )
+    for leg in (
+        test_the_payload_really_is_illegal_in_the_host_codec,
+        test_the_old_shape_loses_the_output_and_the_new_one_does_not,
+        test_strict_utf8_is_the_same_trap_in_the_other_direction,
+    ):
+        with pytest.raises(pytest.skip.Exception) as skipped:
+            leg()
+        assert "host prefers" in str(skipped.value), (
+            f"{leg.__name__} skipped for a different reason: {skipped.value}"
+        )
+
+
+def test_the_real_utf8_plane_is_recognised_by_the_shared_helper() -> None:
+    """The CI plane in a real interpreter, not a patched one.
+
+    `PYTHONUTF8=1` is the switch that changes
+    `locale.getpreferredencoding` without a system locale (measured: `'utf-8'`
+    with it, `'cp936'` without). The child imports the helper, not this gate:
+    the gate pulls `craft.adapters` and, through it, elasticsearch and the
+    provider stack (26.7s of cumulative import time measured here), and a
+    child *pytest* would rebuild the whole session on top of that. What this
+    leg adds is the one thing the in-process legs cannot say — that a real
+    UTF-8 interpreter's own answer is the answer the helper recognises.
+    """
+    code = (
+        "import locale\n"
+        "from tests._host_codec import host_prefers\n"
+        "host = locale.getpreferredencoding(False)\n"
+        "assert host_prefers('utf-8'), host\n"
+        "print('utf8 plane:', host, 'is utf-8')\n"
+    )
+    env = dict(os.environ)
+    env.update(
+        {
+            "PYTHONUTF8": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONIOENCODING": "utf-8",
+        }
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=str(REPO),
+        env=env,
+        capture_output=True,
+        timeout=120,
+        check=False,
+    )
+    output = proc.stdout.decode("utf-8", errors="replace") + proc.stderr.decode(
+        "utf-8", errors="replace"
+    )
+    assert proc.returncode == 0, f"the UTF-8 plane failed:\n{output[-3000:]}"
+    assert "utf8 plane: utf-8 is utf-8" in output, output[-3000:]
 
 
 def test_the_lane_keeps_no_private_decoder_anymore() -> None:
