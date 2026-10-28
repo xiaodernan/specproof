@@ -15186,3 +15186,159 @@ exact 镜头（不改名）看不见，**near 镜头（同名 + 改名）必然�
 （本机 `mypy==2.3.1` vs CI `uv sync --frozen`）；⑥ P6 100 例隔离评测；
 ⑦ `docs/design/JOB_CREATION_WHITELIST.md` 正文仍按旧符号名描述（本号只在头部加了现状更新）——
 改写正文 vs 「读者按符号名找不到」由下一号按实际踩坑次数判定。
+
+---
+
+## #516 队列说「3 份时间戳」，实测 5 份：因为查重门的包普查本身缺了两个包
+
+**起因。** #515 队列②原话：「合掉 `evidence/_now_iso` ×3」。开工前按 #514 的契约门复测人口，
+**量到的是 5 份生产者、分布在 3 个包**，而不是 3 份。多的两份不是新写的，是**门从来看不见**：
+`PACKAGES` 是一份手抄元组，`contracts`（2 个模块）和 `providers`（18 个模块）都不在里面——
+而这两个包都在 `pyproject.toml` 的发布 allow-list 里。一条查「有没有两份」的门，它的**普查**
+没有人查。本号真正的产出是那个洞，不是那次合并。
+
+### 量到的
+
+1. **毫秒 + `Z` 这份时间戳有 5 个生产者**：`contracts/events.py`、`evidence/batch_replay.py`、
+   `evidence/fragments.py`、`evidence/offline_verify.py`、`experiments/collectors.py`。
+   查重门一份都没比过：`contracts` 不在普查里；`experiments` 那份还额外把
+   `from datetime import` 写进函数体——惰性导入改了 AST，输出却逐字节相同，两个镜头同时瞎。
+   合并后按**拼写**重量：全产品只剩 `contracts/clock.py` 一个模块拼这个格式（5 → **1**）。
+2. **补洞立刻露出 2 个新组**（同一份 HEAD 代码，只换普查范围）：包 **13 → 16**、被扫文件
+   **228 → 252**（+24 = contracts 2 + providers 18 + devtools 4），exact 组 **6 → 7**、
+   near 组 **20 → 22**。合并落地后同一次复测的 near 是 **21**：多出来的三组里，
+   `_now_iso` 那组从 3 件长成 5 件（contracts 那份进了普查）、又被本号合掉，
+   所以「22」是**范围**的量、21 是**范围＋合并**的量，两个数不能混着说。
+   新两组都判定并登记：
+   `providers/openai_compatible.py::_wait_retry_after_or_exponential` ×
+   `retrieval/embeddings.py::_wait_retry_after_or_exponential`（**逐字节相同**，进 `KNOWN_CLONES`）；
+   `craft/memory.py::clear` × `providers/semantic_cache.py::clear`（都是 `self._entries.clear()`，
+   无共同基类无共同归属，**巧合**，进 `KNOWN_NEAR_CLONES`）。
+3. **那份逐字节相同的外层复制，它调用的 helper 已经漂了**（16 个 response 形状，两个解析器
+   都真跑过，不是读源码）：所有 header **值**形状两方一致（`'7'`→7.0、`'-3'`→0.0、
+   `'7.5'`→7.5、`''`/None/list/HTTP-date→None、int→7.0）；**恰好 3 个畸形 response 形状**
+   （没有 `headers` 属性 / `headers=None` / headers 不是 dict-like）providers 返回 None，
+   retrieval 抛 `AttributeError`。
+4. **这条漂移的代价是量出来的**：同一个异常、同一个 tenacity 形状，用 providers 那份 `wait`
+   跑满 **3** 次尝试，用 retrieval 那份只跑 **1** 次就抛出（tenacity 不重试 `wait=` 里的异常）。
+   `retrieval/embeddings.py` 外面套着 `except Exception`，于是它把这个 header 形状的 bug
+   报成 **"embedding endpoint unreachable"**——形状 bug 以网关不可达的面目出现。
+5. **它为什么能活下来：覆盖率不对称**。providers 那份 `_retry_after_seconds` 在
+   `test_providers_dsv4.py` 里有 **6** 条直接形状断言；retrieval 那份有 **0** 条，
+   只有 1 条端到端 429（`test_retrieval_hybrid.py`）。没被测的那一份，从被测的那一份旁边
+   漂走了，就在门从没打开过的包里。
+6. **第二套 digest 词汇不是漂移**：`contracts/events.py::payload_digest` 返回
+   `"sha256:" + hex`，而 `sha256_hex` ×3 返回裸 hex——两者靠读侧
+   `storage/object_metadata.normalize_payload_digest`（剥前缀 + 小写）reconcile。
+   #514 那条反向控制的注释读起来像「带前缀就是错」，本号给它补了这段事实。
+7. **被排除的根不等于干净**（逐根加进普查实测）：`scripts` +8 exact / +13 near、
+   `bench` +4 / +7、`tests` +93 / +162；`devtools`/`plugins`/`ops` 各 **+0 / +0**。
+   所以 `devtools` 进普查是零成本的，那三个 exclusion 是**决定**而不是遗漏。
+8. **全精度那套词汇今天有 30 处、22 个模块**（本号用 AST 重量过：30 个
+   `datetime.now(UTC).isoformat()` 无参调用点分布在 **22** 个模块；#514 记的「31」和
+   本号第一次记的「26」都是按文本模式数的，两个旧数都不作数，以这次为准）。而且
+   `api/routes/agent_console.py` 里还活着一个 `def _now_iso()`——**同一个符号名，
+   写的是另一种格式**。按函数名去搜时间戳的人，会搜到错的那一份。
+9. **还有第三套词汇，本号才量到**：7 个完全相同的
+   `datetime.now(UTC).isoformat(timespec="seconds")` 调用点，集中在 6 个 `craft/`
+   模块（`editor.py:130`、`llm.py:682`、`llm.py:701`、`loop.py:2343`、`loop.py:2401`、
+   `memory.py:98`、`planner.py:671`）。它既不是毫秒那套、也不是全精度那套，而今天
+   **没有任何门钉它**——三套词汇并存，说明「统一时间戳」不是一个已经完成的说法。
+
+### 落地
+
+1. 新模块 `contracts/clock.py`：`utc_now_iso()` 一份，5 个消费者全部改成 import。
+   选 `contracts` 当主人的理由写进 docstring：它只依赖 stdlib，而
+   `experiments → evidence → storage → contracts` 这条链本来就已经存在。
+2. 两个 dataclass 字段改成 `default_factory=utc_now_iso`
+   （`BatchReplayRecord.started_at`、`VerificationReport.verified_at`），门按**函数身份**钉，
+   不是按输出形状钉——形状对了不代表走的是同一个生产者。
+3. `KNOWN_CLONES` **6 → 7**（新增 429 等待策略那份），`KNOWN_NEAR_CLONES` **14 → 14**
+   （删掉本号合掉的 `_now_iso` 三件组、加进 `clear` 巧合组）；两条新理由都带测量数字，
+   不是「先记着」。逐组删除/新增的明细是与 HEAD 元组做集合差跑出来的，不是手数。
+4. 新文件 `tests/unit/test_retry_after_readers_policy_table.py`（**26 例**）：16 行形状表
+   （每一格都是从两个解析器**跑出来**的）、1 条「分歧集合由运行导出」的门、
+   1 条「哪一份才是防御性的」门、7 组 `(attempt, header) → 秒数` 的两两对齐、
+   1 条重试预算代价（3 次 vs 1 次）。
+5. `tests/unit/test_structural_clone_ratchet.py`：PACKAGES 13 → 16、新增 `EXCLUDED_ROOTS`
+   （带实测人口）与 `NO_PYTHON_ROOTS`、**3 条普查覆盖门**；
+   `test_the_near_lens_sees_what_the_25_node_floor_hid` 改成不依赖 `_now_iso` 的形状
+   （digest 三件组仍在，且仍然断言「25 节点地板至今没看到它」）。
+6. **本号不合 `_retry_after_seconds`**。合并等于替 retrieval 选一种行为（畸形形状从抛异常
+   变成回退指数），那是线上调用路径的行为变更，需要自己的臂——排 #517。
+
+### 门
+
+| 门 | 结果 |
+| --- | --- |
+| `test_structural_clone_ratchet.py` | 11 → **14 passed**（+3 条普查覆盖门） |
+| `test_copied_timestamp_and_digest_formats_agree.py` | 14 → **20 passed**（时间戳半边重写） |
+| `test_retry_after_readers_policy_table.py` | 新文件 **26 passed** |
+| 上面三个 + `test_packaging_ships_every_imported_package.py` | **62 passed** |
+| 受影响邻域（`tests/contract` + `tests/unit`，按 21 个关键词选择） | **1104 passed / 4549 deselected**（406s） |
+| OpenAPI / 平台无关读取 / docs / ledger 门 | **117 passed** |
+| 数字订正后同批文件复跑（4 个契约文件 + 7 个账本/平台门，共 11 个文件） | **128 passed**（62 + 66） |
+| ruff | 本号 4 个文件 **All checks passed!**。仓库级 `ruff check .` 今天 15 条，**全部**在另一条泳道留在仓库根的 untracked 脚本里（`check_go_adapter.py` 等），按「不动别人脏文件」约束没碰 |
+| mypy | `contracts/` + 4 个改动模块 **Success: no issues found in 7 source files**（`tests/` 在 mypy 的 exclude 里） |
+| 隔离 worktree 基线 | **150 passed** |
+
+### 变异臂（7 条，预测先写进 `arms516_predictions.md` 再跑，跑完逐字节还原断言全部通过）
+
+| 臂 | 改什么 | 预测 | 实测 |
+| --- | --- | --- | --- |
+| A1 | `evidence/fragments.py` 把格式**重新拼回去**并接上调用 | 2 红 | **MATCH（2）** |
+| A2 | 从 PACKAGES 删 `contracts`（把洞挖回去） | 2 红 | **3 红** |
+| A3 | 从 PACKAGES 删 `providers` | 4 红 | **MATCH（4）** |
+| A4 | `storage/object_metadata.py` 的 digest 改 `.upper()` | 6 红 | **9 红** |
+| A5 | `contracts/clock.py` 丢掉毫秒精度 | 2 红 | **5 红** |
+| A6 | 把 retrieval 的解析器改成防御式（半个 #517） | 6 红 | **MATCH（6）** |
+| A7 | `contracts/events.py` 自己再写一份 `_now_iso` | 2 红 | **MATCH（2）** |
+
+**7 条臂 0 条假阴性**。三条「比预测更红」都是我的构成算错，而每条本身是一个发现：
+
+- **A2 多的那条**证明了一件我没写进预测的事：格式 census 腿**遍历的正是 `PACKAGES`**
+  （当初就为了「两道门不可能扫两棵不同的树」），所以把洞挖回去会**同时**弄瞎覆盖门和
+  格式门。耦合是故意的，A2 是它的证据；A3 则证明反向也成立（4 条红里有 2 条是 roster 真相腿）。
+- **A4 多的 3 条在查重门里**：`.upper()` 让 storage 那份不再与另两份逐字节相同 ⇒ 三件组
+  **裂成 2 + 1**，于是 `test_no_new_same_name_near_clones` 因为「多出一个两件组」而红。
+  一次 digest 编辑同时触发**三种**红路：不一致、roster 过期、地板证明失效。
+- **A5 多的 3 条**：2 条在 `tests/contract/test_event_envelope.py`
+  （`occurred_at` 的 Zulu 形状本来就有契约测试在守，本号不是唯一哨兵），
+  1 条是 census 腿——它按**拼写**认生产者，精度一变就变成「一个生产者都没有」。
+  红是对的，诊断会误导人，写进边界。
+
+### 否证与边界
+
+- **普查覆盖 ≠ 正确**。`providers` 进树只保证有人比过它的函数体；那 3 个畸形形状今天仍然是
+  **红外真的差异**，本号只钉住、没有修。门红的那三条腿（分歧集合 / 防御方归属 / 重试预算）
+  就是把这笔债写在明处。
+- census 腿与 `PACKAGES` **同源**（A2）。共享一棵树是刻意的，但代价是它不是独立观察者：
+  有人为了让 census 腿绿而删包时，需要覆盖门替它喊。两门各有一条独立的红路，这是 A2/A3 量出来的。
+- `_now_iso` 这个符号在 `api/routes/agent_console.py` 里还活着，写的是**全精度**格式。
+  本号没 rename 它（改它 = 改另一条泳道正在碰的文件的公开可见行为，且属于③的词汇决定），
+  但这是「按名字搜会搜到另一种词汇」的真实陷阱，队列③处理。
+- 30 处全精度（22 个模块）**刻意没折进** `utc_now_iso`：跨 22 个模块的行为变更
+  （客户端会看到 `+00:00` → `Z`）不该塞进一次「合并 5 份复制」。
+- 第三套词汇（7 处 `timespec="seconds"`，6 个 `craft/` 模块）本号**只量到、没有钉**：
+  它和上面两套一样属于「谁拥有时间戳词汇」这个 owner 决定，提前写一条断言只会得到
+  一个凭口味选的格式。队列③一次处理三套。
+- `EXCLUDED_ROOTS` 里那三个人口数字（+8/+13、+4/+7、+93/+162）是**一次性测量**，会随树生长
+  过期；它们的作用是阻止「没比 = 干净」这个误读，不是 ratchet。
+- `test_the_census_compares_nothing_unshipped` 依赖另一个测试模块的 `shipped_packages()`。
+  如果 `pyproject.toml` 的 include 解析改版，两门一起瞎——所以那两条 `assert ... probe broken`
+  留在被复用的一侧，而不是本号再抄一份解析。
+- `services` 在 PACKAGES 里贡献 **0 个 Python 文件**（Spring Boot 控制面）。这条不是记住的，
+  是 `test_the_census_compares_nothing_unshipped` 每次重新量的；它哪天长出 `.py`，门会红。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① **#517 合 `_retry_after_seconds` ×2**：先定「畸形 response 该回退还是该抛」，再动代码；
+合并时 `test_retry_after_readers_policy_table.py` 的分歧集合、防御方归属、重试预算三条腿
+和 `KNOWN_CLONES` 那一条要同时删——留下一条就是过期主张。
+② `sha256_hex` ×3 与 #493 的 `_capsule_dirs` / `_eval_report_path`、#513 的 `child_output_text`
+一起判跨层归属；③ 并存的**三套**时间戳词汇（30 处全精度 / 22 个模块，含
+`agent_console.py` 那个同名 `_now_iso`；7 处 `timespec="seconds"` / 6 个 `craft/` 模块；
+以及本号合掉的毫秒一套）；
+④ `cli/`、`craft/` 剩余约 50 条静默 `except`；⑤ mypy 版本钉住
+（本机 `mypy==2.3.1` vs CI `uv sync --frozen`）；⑥ P6 100 例隔离评测；
+⑦ `docs/design/JOB_CREATION_WHITELIST.md` 正文符号名改写判定。

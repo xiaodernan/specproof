@@ -35,6 +35,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from contracts.clock import utc_now_iso
 from evidence.fragments import MqObservation, ObjectObservation, RedisObservation
 
 #: Collector version stamped on every fragment. A collector whose
@@ -247,7 +248,7 @@ class RedisStateCollector:
             experiment_id=experiment_id,
             fragment_type="redis",
             collector_version=self.collector_version,
-            collected_at=_now_iso(),
+            collected_at=utc_now_iso(),
             base=self._states_to_dict(base),
             head=self._states_to_dict(head),
             normalization={
@@ -315,7 +316,7 @@ def redis_fragment_from_snapshots(
         experiment_id=experiment_id,
         fragment_type="redis",
         collector_version=collector_version,
-        collected_at=_now_iso(),
+        collected_at=utc_now_iso(),
         base=RedisStateCollector._states_to_dict(base),
         head=RedisStateCollector._states_to_dict(head),
         normalization={
@@ -458,7 +459,7 @@ class RecordingPublisher:
             experiment_id=experiment_id,
             fragment_type="mq",
             collector_version=COLLECTOR_VERSION,
-            collected_at=_now_iso(),
+            collected_at=utc_now_iso(),
             base=base_obs,
             head=head_obs,
             normalization={
@@ -680,7 +681,7 @@ class ObjectStateCollector:
             experiment_id=experiment_id,
             fragment_type="object",
             collector_version=self.collector_version,
-            collected_at=_now_iso(),
+            collected_at=utc_now_iso(),
             base={ref: state.to_dict() for ref, state in base.items()},
             head={ref: state.to_dict() for ref, state in head.items()},
             normalization={
@@ -728,7 +729,7 @@ def object_fragment_from_snapshots(
         experiment_id=experiment_id,
         fragment_type="object",
         collector_version=collector_version,
-        collected_at=_now_iso(),
+        collected_at=utc_now_iso(),
         base={ref: state.to_dict() for ref, state in base.items()},
         head={ref: state.to_dict() for ref, state in head.items()},
         normalization={
@@ -757,12 +758,6 @@ def _payload_digest(payload: Mapping[str, Any]) -> str:
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
     ).encode("utf-8")
     return "sha256:" + hashlib.sha256(canonical).hexdigest()
-
-
-def _now_iso() -> str:
-    from datetime import UTC, datetime
-
-    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 __all__ = [

@@ -42,9 +42,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any
 
+from contracts.clock import utc_now_iso
 from evidence.revocation_log import default_log_path, is_revoked
 from evidence.signing import verify_statement
 
@@ -81,10 +81,6 @@ VERDICTS: tuple[str, ...] = (
 
 #: The in-toto statement type this module understands.
 STATEMENT_TYPE = "https://specproof.dev/attestation/v0.1"
-
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def canonical_digest(payload: dict[str, Any]) -> str:
@@ -139,7 +135,7 @@ class VerificationReport:
     subject_repository: str = ""
     subject_commit_sha: str = ""
     issued_at: str = ""
-    verified_at: str = field(default_factory=_now_iso)
+    verified_at: str = field(default_factory=utc_now_iso)
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:

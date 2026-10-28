@@ -43,9 +43,10 @@ import tempfile
 import zipfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from contracts.clock import utc_now_iso
 
 #: Replay outcome vocabulary. Closed set — a new outcome must be added here
 #: and to the classification table below together.
@@ -83,10 +84,6 @@ VERDICT_BY_SEVERITY: dict[str, str] = {
 #: The verdict family that means "the regression is gone" — a DIFFERENT
 #: family from the baseline, so it counts as divergence, not reproduction.
 REGRESSION_VERDICTS = frozenset({"regression_confirmed"})
-
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 @dataclass
@@ -128,7 +125,7 @@ class BatchReplayRecord:
     """Aggregate result of one batch replay run."""
 
     outcomes: list[CapsuleOutcome] = field(default_factory=list)
-    started_at: str = field(default_factory=_now_iso)
+    started_at: str = field(default_factory=utc_now_iso)
     finished_at: str = ""
 
     # ── aggregates ───────────────────────────────────────────────
@@ -168,7 +165,7 @@ class BatchReplayRecord:
         return {
             "schema_version": 1,
             "started_at": self.started_at,
-            "finished_at": self.finished_at or _now_iso(),
+            "finished_at": self.finished_at or utc_now_iso(),
             "total": len(self.outcomes),
             "judged": judged,
             "unjudged": self.unjudged_count(),
@@ -276,7 +273,7 @@ class BatchReplayRunner:
         record = BatchReplayRecord()
         for capsule in capsules:
             record.outcomes.append(self._replay_one(capsule, repo, work_root))
-        record.finished_at = _now_iso()
+        record.finished_at = utc_now_iso()
         return record
 
     def _replay_one(

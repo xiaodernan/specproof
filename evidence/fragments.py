@@ -17,12 +17,9 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any
 
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+from contracts.clock import utc_now_iso
 
 
 def _digest(obj: Any) -> str:
@@ -87,7 +84,7 @@ class EvidenceFragment:
             experiment_id=str(data["experiment_id"]),
             fragment_type=str(data["fragment_type"]),
             collector_version=str(data.get("collector_version", "1.0.0")),
-            collected_at=str(data.get("collected_at") or _now_iso()),
+            collected_at=str(data.get("collected_at") or utc_now_iso()),
             base=data.get("base"),
             head=data.get("head"),
             normalization=data.get("normalization"),

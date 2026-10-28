@@ -20,8 +20,9 @@ import hashlib
 import json
 import re
 import uuid
-from datetime import UTC, datetime
 from typing import Any
+
+from contracts.clock import utc_now_iso
 
 SCHEMA_VERSION = 1
 DEFAULT_TENANT_ID = "default"
@@ -37,15 +38,6 @@ _SECRET_KEY_RE = re.compile(
     r"private[_-]?key|authorization|credential",
     re.IGNORECASE,
 )
-
-
-def _now_iso() -> str:
-    """UTC timestamp with millisecond precision, Z suffix (guide format)."""
-    return (
-        datetime.now(UTC)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )
 
 
 def payload_digest(payload: dict[str, Any]) -> str:
@@ -107,7 +99,7 @@ def build_envelope(
     return {
         "event_id": event_id if event_id is not None else uuid.uuid4().hex,
         "event_type": event_type,
-        "occurred_at": occurred_at if occurred_at is not None else _now_iso(),
+        "occurred_at": occurred_at if occurred_at is not None else utc_now_iso(),
         "tenant_id": tenant_id,
         "actor_id": actor_id,
         "trace_id": trace_id,

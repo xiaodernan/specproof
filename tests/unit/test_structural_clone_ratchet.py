@@ -21,6 +21,13 @@ Two lenses, because #514 measured that one lens was blind in a specific way:
   identical once every identifier is renamed too. Abstract stubs (``...`` /
   ``pass``) are excluded: two protocol declarations are not one decision.
 
+A third failure class showed up in #516, and it is not about the lenses at all: a
+package missing from ``PACKAGES`` is never opened by either one. ``contracts`` and
+``providers`` were both missing — 20 modules of shipped code outside the door — and
+``providers`` did hold a byte-identical copy of the 429 wait policy. ``PACKAGES`` is
+therefore now reconciled against the shipping allow-list in ``pyproject.toml``, and
+every tracked top-level Python root has to be either compared or excluded by name.
+
 The known list is NOT an endorsement. Each entry states why it is still there;
 shrinking it is progress.
 """
@@ -36,10 +43,33 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 #: Packages whose modules ship in the product (tests and scripts excluded).
+#: #516 measured this list as a hand-maintained census with two holes in it:
+#: `contracts` (2 modules, imported by `storage/` and `integrations/`) and
+#: `providers` (18 modules, imported by `retrieval/`) were in no lens at all, so
+#: neither ever compared a copy that lived there — and `providers` turned out to
+#: hold a byte-identical copy of the 429 wait policy. `services` is the Java
+#: control plane and contributes no Python modules; it is listed so the census
+#: reads as deliberate, and the shipped-package gate checks the list against
+#: `[tool.setuptools.packages.find].include` instead of trusting it.
 PACKAGES = (
-    "agent", "api", "cli", "craft", "evidence", "experiments", "integrations",
-    "mcp", "observability", "retrieval", "sandbox", "services", "storage",
+    "agent", "api", "cli", "contracts", "craft", "devtools", "evidence",
+    "experiments", "integrations", "mcp", "observability", "providers",
+    "retrieval", "sandbox", "services", "storage",
 )
+
+#: Roots the census deliberately does NOT compare, with what #516 measured there.
+#: Adding them one at a time on top of the shipped census yields `scripts` +8
+#: exact / +13 near, `bench` +4 / +7 and `tests` +93 / +162 groups — so "not
+#: compared" must never be read as "clean". `plugins` (protocol only) and `ops`
+#: (drills driven from `scripts/`) were measured at zero new groups either way;
+#: they are excluded because nothing shipped imports them, which is also why
+#: `test_the_census_compares_nothing_unshipped` keeps them out of PACKAGES.
+EXCLUDED_ROOTS = ("bench", "ops", "plugins", "scripts", "tests")
+
+#: In PACKAGES but contributing no Python to compare: the Spring Boot control
+#: plane. Listed so the census reads as deliberate, and re-measured by
+#: `test_the_census_has_no_stale_or_empty_entries` rather than remembered.
+NO_PYTHON_ROOTS = frozenset({"services"})
 
 #: Bodies smaller than this are usually one-line delegations where a shared
 #: helper would add more indirection than it removes.
@@ -104,6 +134,20 @@ KNOWN_CLONES: dict[Clone, str] = {
         }
     ): "two unrelated classes that happen to share a two-line constructor; "
     "coincidence, not a shared contract",
+    frozenset(
+        {
+            ("providers/openai_compatible.py", "_wait_retry_after_or_exponential"),
+            ("retrieval/embeddings.py", "_wait_retry_after_or_exponential"),
+        }
+    ): "one 429 decision — honour Retry-After, else capped exponential — written "
+    "twice, byte-identical, and #516 only saw it because `providers` was missing "
+    "from PACKAGES. NOT endorsed: the helper each copy calls has already drifted "
+    "(measured over 16 response shapes — the two agree on every header value and "
+    "differ on exactly three malformed-response shapes, where `providers` returns "
+    "None and `retrieval` raises AttributeError, which costs the embeddings client "
+    "two of its three attempts). Pinned by "
+    "test_retry_after_readers_policy_table.py; merging changes behaviour on a live "
+    "call path, so it is queued as #517 with its own arms.",
 }
 
 #: #514 — groups the same-name lens sees and the 25-node floor did not.
@@ -188,18 +232,16 @@ KNOWN_NEAR_CLONES: dict[Clone, str] = {
         }
     ): "`self._http.close()` on two unrelated httpx owners in two different packages; "
     "coincidence of the same field name, not a shared contract.",
-    # ---- decisions that are genuinely one decision, queued to merge ----
     frozenset(
         {
-            ("evidence/batch_replay.py", "_now_iso"),
-            ("evidence/fragments.py", "_now_iso"),
-            ("evidence/offline_verify.py", "_now_iso"),
+            ("craft/memory.py", "clear"),
+            ("providers/semantic_cache.py", "clear"),
         }
-    ): "three copies of the UTC-milliseconds-`Z` timestamp that lands in `collected_at` "
-    "and `finished_at`. Measured: no test in tests/ names `_now_iso` or asserts a "
-    "`collected_at`, so a drift in one copy is silent. Now pinned by "
-    "test_copied_timestamp_and_digest_formats_agree; the merge itself needs one home "
-    "inside evidence/ and is queued.",
+    ): "`self._entries.clear()` on two dict-backed caches that share no base and no "
+    "owner — the body is the entire meaning of `dict.clear()`, so there is no "
+    "decision here to share; the same conclusion as the `close` pair above, reached "
+    "from the other end. Newly visible because #516 put `providers` in the census.",
+    # ---- decisions that are genuinely one decision, queued to merge ----
     frozenset(
         {
             ("craft/schemas.py", "sha256_hex"),
@@ -446,14 +488,18 @@ def test_every_known_near_clone_states_a_reason_and_spans_files() -> None:
 def test_the_near_lens_sees_what_the_25_node_floor_hid() -> None:
     """The measured reason the second lens exists, encoded so it cannot rot back.
 
-    `_now_iso` is three byte-identical one-liners in `evidence/` (22 nodes each).
-    The original lens never compared them; this one groups them.
+    `sha256_hex` is three byte-identical copies across three packages (18 nodes
+    each). The original lens never compared them — it starts at 25. #516 merged
+    the `_now_iso` copies this test used to name, and the digest trio is the
+    same-shaped claim that is still true (it is queued, not merged: #516's
+    measurement is that a *fifth* producer of that format lived in `contracts/`,
+    a package the census did not include).
     """
     trio = frozenset(
         {
-            ("evidence/batch_replay.py", "_now_iso"),
-            ("evidence/fragments.py", "_now_iso"),
-            ("evidence/offline_verify.py", "_now_iso"),
+            ("craft/schemas.py", "sha256_hex"),
+            ("sandbox/cache_verify.py", "sha256_hex"),
+            ("storage/object_metadata.py", "sha256_hex"),
         }
     )
     assert trio in _near_clones(), sorted(map(sorted, _near_clones()))
@@ -481,10 +527,80 @@ def test_a_positional_copy_of_a_call_is_the_same_clone() -> None:
     )
 
 
+def _tracked_python_roots() -> set[str]:
+    """Every top-level directory that holds tracked Python."""
+    out = subprocess.run(
+        ("git", "ls-files", "*.py"),
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+        timeout=180,
+        encoding="utf-8",
+    )
+    roots = {line.split("/", 1)[0] for line in out.stdout.splitlines() if "/" in line}
+    assert len(roots) >= 15, f"root census collapsed: {sorted(roots)}"
+    return roots
+
+
+def test_every_shipped_package_is_compared_by_the_census() -> None:
+    """#516's root cause: PACKAGES was a hand-typed tuple with holes in it.
+
+    The two lenses can only compare a body they are told to open. `contracts` and
+    `providers` were both absent, so a whole package of shipped code sat outside
+    the door — and `providers` turned out to carry a byte-identical copy of the
+    429 wait policy that had never been looked at. The shipping allow-list in
+    ``pyproject.toml`` is the definition of "ships in the product", so the census
+    is now checked against it instead of against someone's memory.
+    """
+    from tests.unit.test_packaging_ships_every_imported_package import shipped_packages
+
+    shipped = set(shipped_packages())
+    assert shipped, "probe broken: the shipping allow-list parsed empty"
+    missing = shipped - set(PACKAGES)
+    assert not missing, (
+        f"{sorted(missing)} ship in the product but are not in the clone census, so "
+        "no lens will ever compare a copy that lives there. Add the root to PACKAGES "
+        "(and judge whatever it reveals) or stop shipping it."
+    )
+
+
+def test_no_tracked_python_root_is_unclassified() -> None:
+    """The same hole, from the other side: a new top-level root must be judged.
+
+    An untracked-by-both-lists root is the state #516 found `contracts` and
+    `providers` in — it is not a missing entry in one list, it is a package nobody
+    ever decided about.
+    """
+    unclassified = _tracked_python_roots() - set(PACKAGES) - set(EXCLUDED_ROOTS)
+    assert not unclassified, (
+        f"{sorted(unclassified)} holds tracked Python but is neither compared nor "
+        "excluded with a reason. Classify it in PACKAGES or EXCLUDED_ROOTS."
+    )
+
+
+def test_the_census_compares_nothing_unshipped() -> None:
+    """Reverse control: the census may not quietly grow into the test tree.
+
+    Comparing `tests/` would fold 93 exact and 162 near groups into a roster whose
+    job is to describe shipped code, and the ratchet would go red for duplicated
+    fakes instead of duplicated decisions.
+    """
+    from tests.unit.test_packaging_ships_every_imported_package import shipped_packages
+
+    extra = set(PACKAGES) - set(shipped_packages()) - NO_PYTHON_ROOTS
+    assert not extra, f"{sorted(extra)} are compared but not shipped"
+    for root in NO_PYTHON_ROOTS:
+        directory = ROOT / root
+        files = sorted(directory.rglob("*.py")) if directory.is_dir() else []
+        assert not [f for f in files if "__pycache__" not in f.parts], (
+            f"{root} was exempted as non-Python but now holds Python: re-measure it"
+        )
+
+
 def test_the_two_rosters_do_not_repeat_the_same_prose() -> None:
     """A group the first lens already carries stays in one place.
 
-    `KNOWN_NEAR_CLONES` is the 15 groups the 25-node floor could not see; adding a
+    `KNOWN_NEAR_CLONES` is the set of groups the 25-node floor could not see; adding a
     group that is already endorsed above would mean two reasons for one claim, and
     only one of them would get updated when the copy is merged away.
     """
