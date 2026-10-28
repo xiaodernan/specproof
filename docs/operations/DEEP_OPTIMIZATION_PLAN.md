@@ -14147,11 +14147,11 @@ does not explicitly export attribute "_read_java_files"  [attr-defined]
 - `run_deep_experiments` 的 mutation 段本身没有被本号改变行为：调用的是同一个函数对象，已实测 `is` 为真。
 
 
-## #499 结构克隆棘轮：把「16 组副本」的扫描固化成一条门，并顺手收拢 `_get_provider()`
+## #499b 结构克隆棘轮：把「16 组副本」的扫描固化成一条门，并顺手收拢 `_get_provider()`
 
 **起因/占号。** #497 队列④：结构克隆从 16 组降到 7 组，但扫描器一直是**手跑脚本**（在仓库外）。手跑的东西不会在 CI 里拦住新副本。本号把它**固化成一条门**，并顺手把其中唯一「便宜可收拢」的一组（`_get_provider()`）收掉，让 allowlist 少一条。
 
-占号前 `git fetch`：origin HEAD 已是 `## #498`（别车道）⇒ 本号取 **#499**。
+占号前 `git fetch`：origin HEAD 已是 `## #498`（别车道）⇒ 本号取 **#499**；落地后别车道又落了一条 #499（CI 门），按账本唯一性门的要求本号改带 b 后缀，理由见 #504。
 
 **落地（两件事）。**
 1. **收拢 `_get_provider()`**：`agent/nodes/generate_counterexamples.py` 与 `review_court.py` 各一份（逐字节相同）⇒ 新建 `agent/nodes/_llm_provider.py::get_provider()`。两个节点别名导入，调用点一字未动。它把三个决定集中到一处：没 key（或示例 env 里的占位符 `replace_me`）就没有 provider、构造时 `probe_on_init=False`（构造不发网络）、构造失败降级为 `None` 而不是把节点打死。
@@ -14415,7 +14415,7 @@ A5 预测 **3** 条而不是 4 条：本机**有** `reports/full-eval/eval-repor
 ## #504 LLM provider 的 API key 有两个来源：UI 配置只到得了契约编译，到不了反例生成
 
 **起因。** 队列④（静默处理器审计）里，`agent/nodes/compile_contracts.py` 的 `_get_provider()` 是**第三份**，而且**和前两份不一样**：
-- `generate_counterexamples` / `review_court`（#499 收拢的那份）：`os.getenv("LLM_API_KEY", "")`
+- `generate_counterexamples` / `review_court`（#499b 收拢的那份）：`os.getenv("LLM_API_KEY", "")`
 - `compile_contracts`：`providers.config.load_model_config()["api_key"]`
 
 而 `load_model_config()` 是**权威来源**：先读模型设置 UI 写的配置文件（`SPECPROOF_MODEL_CONFIG`，默认 `.local/llm.json`），再让 env（`LLM_API_KEY` 等）覆盖它。
@@ -14425,7 +14425,7 @@ A5 预测 **3** 条而不是 4 条：本机**有** `reports/full-eval/eval-repor
 - 反例生成拿到 `None` ✗ ⇒ **静默退回确定性模板**，没有任何错误、没有任何说明。
 同一个产品设置，两个节点给出不同答案。
 
-**#499 的一处不准确（本号更正）。** #499 说「两个节点别名导入」，实际 `review_court` 的那份 `_get_provider` 是**死代码**——评审庭是通过 `build_llm_defense_producer(provider)` **接收** provider 的，自己从不构造。#499 删掉定义后，别名导入也被 ruff 按「未使用」移除。所以真正构造 provider 的只有**两个**消费者。
+**#499b 的一处不准确（本号更正）。** #499b 说「两个节点别名导入」，实际 `review_court` 的那份 `_get_provider` 是**死代码**——评审庭是通过 `build_llm_defense_producer(provider)` **接收** provider 的，自己从不构造。#499 删掉定义后，别名导入也被 ruff 按「未使用」移除。所以真正构造 provider 的只有**两个**消费者。
 
 **落地。**
 1. `agent/nodes/_llm_provider.get_provider()` 改用 `load_model_config()["api_key"]`——与 UI/CLI 同一个来源；`load_model_config()` 可能抛 `ValueError`（配置畸形），因此整段包在 `try/except → None`（节点不能因为一个坏配置文件整个挂掉）。
@@ -14439,6 +14439,6 @@ A5 预测 **3** 条而不是 4 条：本机**有** `reports/full-eval/eval-repor
 | 节点回归 | `pytest test_compile_contracts_node_execution_is_observable.py test_generate_counterexamples_node_execution_is_observable.py test_llm_counterexample_path_actually_runs.py -q` | **28 passed in 8.11s** |
 | ruff / mypy | 三个文件 | **All checks passed** / **Success: no issues found in 2 source files** |
 
-**诚实边界。** ① 这是**行为修复**：反例生成现在也能用 UI 配置的 key（以前只认 env）——这是修 bug，不是等价重构。② 只统一「key 从哪来」；provider 的 `base_url`/`model` 仍由 `OpenAICompatibleProvider` 自己解析，未纳入本号。③ 不改 `load_model_config()` 的既有校验（URL 必须是 http(s)、协议白名单等），只把它当唯一入口。④ `review_court` 的死代码已在 #499 移除，本号不恢复它——评审庭接收 provider 是设计。
+**诚实边界。** ① 这是**行为修复**：反例生成现在也能用 UI 配置的 key（以前只认 env）——这是修 bug，不是等价重构。② 只统一「key 从哪来」；provider 的 `base_url`/`model` 仍由 `OpenAICompatibleProvider` 自己解析，未纳入本号。③ 不改 `load_model_config()` 的既有校验（URL 必须是 http(s)、协议白名单等），只把它当唯一入口。④ `review_court` 的死代码已在 #499b 移除，本号不恢复它——评审庭接收 provider 是设计。
 
 **下一号队列（取号按落地时点 max+1）。** ① `cli/specproof/commands/verify.py` 的 MySQL 持久化失败被静默吞掉（只有成功才打印一行）——「配了库但连不上」与「本地没库」显示成一样。② `__init__()` ×3 的基类方案。③ `mcp` 负超时（#492 边界）。④ 近似克隆检测。
