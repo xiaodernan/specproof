@@ -179,8 +179,11 @@ def test_the_scan_reaches_the_sites_that_were_measured() -> None:
         except SyntaxError:  # pragma: no cover
             continue
 
-    assert explained >= 34, (
-        f"only {explained} justified silent catches found; #508 measured 34 — if "
-        "handlers were narrowed or removed on purpose, lower this floor in the "
-        "same change"
+    # 34 when #508 catalogued them; #509 removed one outright (the go adapter's
+    # catch wrapped nothing that could raise, so it was dead code). Lowering the
+    # floor is part of removing a handler — the number must track reality.
+    assert explained >= 33, (
+        f"only {explained} justified silent catches found; #508 measured 34 and "
+        "#509 removed one, so the floor is 33 — if handlers were narrowed or "
+        "removed on purpose, lower this floor in the same change"
     )

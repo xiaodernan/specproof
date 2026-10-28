@@ -14634,3 +14634,64 @@ ruff 的 `select` 里**没有 BLE**，所以「宽捕要写理由」这条约定
 - 只覆盖 13 个生产目录（`agent/api/cli/craft/evidence/experiments/integrations/mcp/observability/providers/sandbox/storage/retrieval`）；`tests/` 与 `scripts/` 不在内。
 - 没有把 283 处全量治理（那需要逐条判断，属另一号）；本号的门只保证**新的静默宽捕必须带理由**，以及既有 34 处都带上了。
 - 理由文本由我读代码后写，可能仍有措辞不准的地方；但每一条都能对着代码复核（这正是把它们写在现场的目的）。
+## #509 我上一号给 17 处写的理由是**声明**：逐条复核后，两条是假的，其中一条把行为说反了
+
+**起因。** #508 给 17 处「宽捕 + 静默」各写了一句「为什么可以吞」。**理由是一种声明，声明会假**——而写在代码旁边、又有门保证它存在，很容易被当成事实。本号逐条拿代码和调用方去对。
+
+### 复核结果
+
+15 条为真，两条为假或误导：
+
+**① `craft/adapters/gradle_adapter.py:332` —— 把行为说反了。**
+我写的是「an unreadable report is skipped, never counted as zero tests」。实际代码：
+
+```python
+if xml_files:
+    return cls._parse_junit_xml(xml_files)   # 一发现 xml 就 return
+```
+
+`_parse_junit_xml` 读不动就 `continue`，累计值仍是 0 ⇒ 返回 `(0, 0, 0, 0)`，**并且因为已经 return，stdout 的汇总根本没机会被解析**。所以真实行为是「读不动的报告被当成 0 个测试，而且回退被跳过」——正是本仓反复钉的「跳过 ≠ 通过」。这条注释把一个缺陷写成了保证。
+
+**② `craft/adapters/go_adapter.py:332` —— 描述了一个不存在的机制。**
+我写的是「JSON parse failed -> fall through to the keyword fallback below」。实际那个 `try` 里只有 `re.findall` / `re.search`，**模式都是字面量，任何输入都不会抛**；回退是由下面的 `if tests_run == 0` 驱动的，与异常无关。⇒ 这个宽捕是**死代码**，它的存在只可能在未来吞掉一个新加进来的真错误。
+
+**其余 15 条怎么验的**（举两条）：`node_adapter.py:352` 的「回退真的存在」——调用方 `if result != (0,0,0,0): return result` 之后确实落到 `_parse_stdout_results`；`agent/nodes/build_cache.py:53` 的「调用方会走无缓存」——两个调用点（`run_differential.py:311`、`generate_counterexamples.py:625`）都写着 `if cache_dir is not None:`。
+
+### 修法
+
+- **gradle**：XML 解析出**非零**才采用，否则落到 stdout 汇总：
+  ```python
+  counts = cls._parse_junit_xml(xml_files)
+  if any(counts):
+      return counts
+  ```
+  并把这句注释改成描述现在的行为（「读不动的报告不贡献计数，调用方随后回退到控制台汇总」）。
+- **go**：**删掉整个 `try/except`**（不是收窄——里面没有任何可抛的东西），并在原处写明为什么删、以及回退由什么驱动。
+
+### 门
+
+新建 `tests/unit/test_an_unreadable_report_is_not_zero_tests.py`（6 案）：
+1. 报告是垃圾 + stdout 有 `5 tests completed, 1 failed, 0 skipped` ⇒ **(5, 4, 1, 0)**，不是全 0；
+2. 可读报告（`tests=7 failures=2 skipped=1`）优先于 stdout 的 99 ⇒ **(7, 4, 2, 1)**；
+3. 没有报告 ⇒ 用 stdout；
+4. 合法但 `tests="0"` 的报告不崩；
+5. go 的关键字汇总（`--- PASS` / `FAIL` / `SKIP`）仍解析出 **(4, 2, 1, 1)**；
+6. go 的 JSON 计数（`"status":"passed"` / `"failed"`）仍解析。
+
+### 证据
+
+- 新门 **6 passed**；`test_gradle_adapter` + `test_go_adapter` + #508 的门 **24 passed**（后转 4 passed）。
+- **#508 的覆盖地板自己报警了**：删掉 go 那处后带理由的静默宽捕从 34 掉到 33 ⇒ 那条门红。按它自己写在消息里的规则（「同一改动里下调地板」）降到 **33** 并注明是 #509 删的 —— 棘轮按设计工作。
+- `ruff` 干净；`mypy` 两个适配器 **Success**。
+- 变异臂（把 gradle 改回无条件 `return cls._parse_junit_xml(...)`）⇒ **1 failed / 5 passed**，红的正是第 1 条。
+
+### 否证
+
+- 用 `python -c` 拼含引号与 `\S` 的多行锚点连续失败两次（一次 `SyntaxWarning: "\S" is an invalid escape sequence`、一次 `anchor count 0`）。改用编辑工具后一次成功。⇒ **多行锚点别走 `-c`/heredoc，直接用编辑工具。**
+- 一开始想给 go 的宽捕「收窄成 `re.error`」，读完发现里面没有能抛的调用——收窄一个死分支只是把死代码打扮成活的，所以直接删。
+
+### 边界
+
+- 只复核了 #508 那 17 条；其余 249 处「宽捕但做了事」的**理由质量**没有逐条查（它们不在这道门的范围内）。
+- `_parse_junit_xml` 的签名**没动**（仍返回 4 元组），「有没有读到」用 `any(counts)` 表达。代价是**「真的 0 个测试」也被当作「没读到」**，于是会回退到 stdout（若 stdout 也为空，结果仍是 0，与以前一致）。更精确的做法是让它返回 `Optional`，但那会改签名并牵动既有测试 —— 已入队。
+- 这两个适配器属 `craft/adapters/`（Phase 4 层，**生产零引用**，见 #482）。所以本号修的是「这一层自己的诚实性」，对今天用户可见行为无影响；`experiments/adapters.py` 那条线**没有 JUnit 解析器**，它的 `collect()` 问题在 #496 已单独记录。

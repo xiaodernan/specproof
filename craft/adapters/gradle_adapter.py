@@ -307,7 +307,14 @@ class GradleAdapter(AdapterProtocol):
             if xml_dir.exists():
                 xml_files = list(xml_dir.rglob("*.xml"))
                 if xml_files:
-                    return cls._parse_junit_xml(xml_files)
+                    # Only accept the XML counts when a report actually parsed.
+                    # Returning (0, 0, 0, 0) here used to be indistinguishable
+                    # from "the run had no tests", and it also skipped the
+                    # console fallback below — so an unreadable report read as
+                    # "0 tests passed". Fall through instead (#509).
+                    counts = cls._parse_junit_xml(xml_files)
+                    if any(counts):
+                        return counts
 
         # 回退：从 stdout 解析
         return cls._parse_stdout_results(stdout + stderr)
@@ -329,7 +336,7 @@ class GradleAdapter(AdapterProtocol):
                     )
                     tests_skipped += int(testsuite.get("skipped", 0))
                 tests_passed = tests_run - tests_failed - tests_skipped
-            except Exception:  # noqa: BLE001 — an unreadable report is skipped, never counted as zero tests
+            except Exception:  # noqa: BLE001 — an unreadable report contributes no counts; the caller then falls back to the console summary
                 continue
         return tests_run, tests_passed, tests_failed, tests_skipped
 

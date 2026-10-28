@@ -312,25 +312,28 @@ class GoAdapter(AdapterProtocol):
 
         # 尝试解析 go test -json 输出
         # 格式：{"name":"...", "status":"passed"|"failed"|"skipped", ...}
-        try:
-            # 尝试查找所有测试状态
-            passed = len(re.findall(r'"status":"passed"', stdout + stderr))
-            failed = len(re.findall(r'"status":"failed"', stdout + stderr))
-            skipped = len(re.findall(r'"status":"skipped"', stdout + stderr))
-            # 估算总数：查找测试套件声明
-            suite_match = re.search(r'from package (\S+)', stdout + stderr)
-            if suite_match:
-                # 简单估算：计数所有测试函数名称
-                test_fn_match = re.findall(r'["\'](Test\w+)["\']', stdout + stderr)
-                tests_run = len(test_fn_match)
-            else:
-                # 备用：总数 = passed + failed + skipped
-                tests_run = passed + failed + skipped
-            tests_passed = passed
-            tests_failed = failed
-            tests_skipped = skipped
-        except Exception:  # noqa: BLE001 — JSON parse failed -> fall through to the keyword fallback below
-            pass
+        #
+        # No try/except here (#509): every call below is `re.findall` /
+        # `re.search` with a literal pattern, which cannot raise for any input.
+        # The blind catch that used to wrap this block was therefore dead code,
+        # and its justification ("JSON parse failed -> fall through") described
+        # a mechanism that did not exist — the fallback is driven by
+        # `tests_run == 0`, not by an exception.
+        passed = len(re.findall(r'"status":"passed"', stdout + stderr))
+        failed = len(re.findall(r'"status":"failed"', stdout + stderr))
+        skipped = len(re.findall(r'"status":"skipped"', stdout + stderr))
+        # 估算总数：查找测试套件声明
+        suite_match = re.search(r'from package (\S+)', stdout + stderr)
+        if suite_match:
+            # 简单估算：计数所有测试函数名称
+            test_fn_match = re.findall(r'["\'](Test\w+)["\']', stdout + stderr)
+            tests_run = len(test_fn_match)
+        else:
+            # 备用：总数 = passed + failed + skipped
+            tests_run = passed + failed + skipped
+        tests_passed = passed
+        tests_failed = failed
+        tests_skipped = skipped
 
         # 回退：从 stdout/stderr 关键字解析
         if tests_run == 0:
