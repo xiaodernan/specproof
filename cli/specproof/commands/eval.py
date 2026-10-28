@@ -444,7 +444,7 @@ def _repo_head_sha(repo: str) -> str:
         )
         if proc.returncode == 0 and proc.stdout.strip():
             return proc.stdout.strip()
-    except Exception:
+    except Exception:  # noqa: BLE001 — a missing revision is recorded as 'unknown', never a fabricated sha
         pass
     return "unknown"
 

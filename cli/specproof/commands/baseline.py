@@ -322,7 +322,7 @@ def _get_provider() -> Any | None:
         from providers.openai_compatible import OpenAICompatibleProvider
 
         return OpenAICompatibleProvider(probe_on_init=False)
-    except Exception:
+    except Exception:  # noqa: BLE001 — an unavailable provider degrades to None; the baseline still runs
         return None
 
 

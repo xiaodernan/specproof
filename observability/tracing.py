@@ -110,7 +110,7 @@ def get_tracer(name: str = "specproof") -> Any:
         try:
             from opentelemetry import trace
             return trace.get_tracer(name)
-        except Exception:
+        except Exception:  # noqa: BLE001 — OTel is optional; the no-op tracer keeps call sites unchanged
             pass
     # Return a no-op tracer
     return _NoOpTracer()
@@ -164,7 +164,7 @@ def inject_trace_context(carrier: dict[str, str]) -> dict[str, str]:
     try:
         from opentelemetry import propagate
         propagate.inject(carrier)
-    except Exception:
+    except Exception:  # noqa: BLE001 — OTel is optional; a carrier without traceparent is still valid
         pass
     return carrier
 
@@ -179,5 +179,5 @@ def extract_trace_context(carrier: dict[str, str]) -> Any:
     try:
         from opentelemetry import propagate
         return propagate.extract(carrier)
-    except Exception:
+    except Exception:  # noqa: BLE001 — OTel is optional; no context means a fresh one
         return None

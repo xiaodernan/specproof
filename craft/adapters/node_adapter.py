@@ -120,7 +120,7 @@ class NodeAdapter(AdapterProtocol):
                 match = re.search(r"^(>=?)?(\d+\.\d+\.\d+)", str(v))
                 if match:
                     node_version = match.group(2)
-        except Exception:
+        except Exception:  # noqa: BLE001 — a malformed engines field leaves the default node version
             pass
 
         # 沙箱镜像（可通过环境变量覆盖）
@@ -349,7 +349,7 @@ class NodeAdapter(AdapterProtocol):
                 tests_skipped = int(testsuite.get("skipped", 0))
                 tests_passed = tests_run - tests_failed - tests_skipped
                 return tests_run, tests_passed, tests_failed, tests_skipped
-        except Exception:
+        except Exception:  # noqa: BLE001 — an unreadable report yields no counts; the verdict stays exit_code
             pass
         return 0, 0, 0, 0
 

@@ -232,7 +232,7 @@ class GradleAdapter(AdapterProtocol):
                 match = re.search(r"Gradle ([\d.]+)", result.stdout)
                 if match:
                     return match.group(1)
-        except Exception:
+        except Exception:  # noqa: BLE001 — the toolchain version is optional context; 'unknown' is honest
             pass
         return "unknown"
 
@@ -329,7 +329,7 @@ class GradleAdapter(AdapterProtocol):
                     )
                     tests_skipped += int(testsuite.get("skipped", 0))
                 tests_passed = tests_run - tests_failed - tests_skipped
-            except Exception:
+            except Exception:  # noqa: BLE001 — an unreadable report is skipped, never counted as zero tests
                 continue
         return tests_run, tests_passed, tests_failed, tests_skipped
 
@@ -382,7 +382,7 @@ class GradleAdapter(AdapterProtocol):
                                 "content": content[:50000],  # 限制大小
                             },
                         ))
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — an unreadable report contributes no evidence fragment
                         continue
         return fragments
 
@@ -417,7 +417,7 @@ class GradleAdapter(AdapterProtocol):
                             "content": result.stdout[:50000],
                         },
                     ))
-        except Exception:
+        except Exception:  # noqa: BLE001 — a failed `gradle dependencies` adds no fragment, never fails the run
             pass
         return fragments
 

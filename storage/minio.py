@@ -295,7 +295,7 @@ class MinIOClient:
             if not meta:
                 return None
             return meta.get("X-Amz-Meta-Sha256", None) or None
-        except Exception:
+        except Exception:  # noqa: BLE001 — a missing object has no digest; None is the answer, not an error
             return None
 
     def object_stat(
@@ -398,7 +398,7 @@ class MinIOClient:
                     name = obj.object_name
                     if name is not None and segment in name.split("/"):
                         found.append(f"{bucket}/{name}")
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001 — a bucket that cannot be listed is skipped; the search continues in the others
                 continue
         return found
 

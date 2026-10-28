@@ -15,5 +15,5 @@ def add_trace_middleware(app: Any) -> None:
     try:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         FastAPIInstrumentor.instrument_app(app)
-    except Exception:
+    except Exception:  # noqa: BLE001 — OTel is optional; instrumentation must not break the app
         pass

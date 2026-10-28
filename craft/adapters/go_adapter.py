@@ -329,7 +329,7 @@ class GoAdapter(AdapterProtocol):
             tests_passed = passed
             tests_failed = failed
             tests_skipped = skipped
-        except Exception:
+        except Exception:  # noqa: BLE001 — JSON parse failed -> fall through to the keyword fallback below
             pass
 
         # 回退：从 stdout/stderr 关键字解析

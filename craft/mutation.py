@@ -283,7 +283,7 @@ class MutationEngine:
                             ))
                             mutant_id += 1
 
-        except Exception:
+        except Exception:  # noqa: BLE001 — an unparseable file yields no mutants; the campaign continues
             pass  # Skip files that can't be parsed
         return mutants
 
@@ -335,7 +335,7 @@ class MutationEngine:
                             mutant_id += 1
                             if len(mutants) >= self.max_mutants:
                                 break
-        except Exception:
+        except Exception:  # noqa: BLE001 — same: one bad file must not end the campaign
             pass
         return mutants
 

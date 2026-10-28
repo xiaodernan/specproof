@@ -14588,3 +14588,49 @@ command timed out after -1s (the run may still be in progress): specproof verify
 - 没有加 e2e（`test:e2e` 需要 playwright 浏览器与后端，成本另算），也没有加 lint（前端没有 eslint 配置）。
 - 没有改本机的全局 git 钩子（`core.hooksPath` 在仓库外，属用户环境）：pre-push 仍默认跳过 npm build，但 CI 现在会兜住。
 - **本号推上去时 CI 的 ruff 是红的（E501，一行 101 字符）**：我在推之前只对新门跑了 pytest、**没跑 ruff**。已在下一条补正里修掉（拆行）。⇒ 老规矩：**每个新文件在提交前都要过 ruff**，pytest 绿不等于 lint 绿。
+## #508 34 处「宽捕 + 静默」里有 17 处连理由都没写：把「为什么可以吞」变成门口强制
+
+**起因。** #505 修的是 `verify` 的两个落库出口。本号问的是**这一类还有多少**——不是逐个文件碰运气，而是用 AST 把「宽捕（裸 `except` / `Exception` / `BaseException`）且体里什么都不做（`pass` / `continue` / 空 / `return None` / `return ""`）」这个形状扫一遍。
+
+### 量到的
+
+| 口径 | 数量 |
+| --- | --- |
+| 全仓盲捕（任意体） | **283** |
+| 其中已带 `# noqa: BLE001 — 理由` | 168 |
+| 盲捕 **且静默** | **34** |
+| 这 34 里带理由的 | 17 |
+| **带理由都没有的** | **17** |
+
+ruff 的 `select` 里**没有 BLE**，所以「宽捕要写理由」这条约定一直是**自愿的**——写了 168 处，没写的 115 处没人管。
+
+为什么只盯「静默」这一档：宽捕之后**做了事**（打日志 / incr / re-raise / 返回一个调用方会检查的值）至少留了痕迹；而 `pass` / `return None` 什么都不留，于是 **NameError、拼错的 AttributeError、真正的依赖故障，全都长得像「这里没什么可做」**。这正是 #505 的形状。
+
+### 逐个读过之后
+
+17 处**全部是合理的 best-effort**（git 拿不到 sha ⇒ 不做缓存；OTel 是可选依赖；JUnit 报告读不动 ⇒ 跳过而不是当 0 个测试；MinIO 里没这个对象 ⇒ 没有 digest……）。所以本号**没有改任何行为**，只做了一件事：**把「为什么可以吞」写在现场**。另有一处 `storage/minio.py:401` 写着裸 `# noqa: BLE001`（没有理由），也补上了。
+
+### 门
+
+新建 `tests/unit/test_silent_broad_catches_carry_a_reason.py`（4 案）：
+1. **门自己的探测器自检**：四个形状必须被分开——静默无理由 ⇒ 报 `(5, None)`；静默有理由 ⇒ 报出理由文本；**打了日志的** ⇒ 不报；**窄捕**（`except OSError`）⇒ 不报；
+2. 薄标记不算理由（`# noqa: BLE001 — ok` 只有 2 个字符 ⇒ 视同没写）；
+3. 全仓扫描：每个「盲捕 + 静默」都必须带理由，报错时列出 `file:line`；
+4. **扫描覆盖地板**：扫到的文件数 > 100、带理由的静默宽捕 ≥ 34 —— 防止某次重构把扫描对象改没了之后门悄悄恒绿。
+
+**为什么不直接启用 ruff 的 BLE001**：它会对全部 283 处开火，而其中 249 处并不静默；给它们批量加 `# noqa` 只会产出上百个**没有信息量的标记**——一条人人都要静默的规则等于没规则。
+
+### 证据
+
+- 新门 **4 passed**；`test_observability_metric_parity` 等 **11 passed**；受影响模块回归（`test_baseline` / `test_mutation` / `test_mutation_engine` / `test_tracing_switch_and_provider` / `test_object_metadata`）**91 passed**。
+- `ruff` 干净（新门初报 `pytest` 未使用，已删）；`mypy` 对 10 个被改文件 **Success**。
+- 变异臂①（把 `observability/middleware.py` 那条理由删掉）⇒ **2 failed / 2 passed**：全仓那条点名 `observability\middleware.py:18`，地板那条掉到 33。
+- 变异臂②（先试的版本：把 `if not body: return True` 改成 `return False`）⇒ **4 passed，一条都没红**。原因是**我变异的是死分支**——空 `except` 体在 Python 里是语法错误，`body` 永远非空。改成真正有意义的变异（探测器不再把 `pass` 当静默）后 ⇒ **3 failed / 1 passed**（自检 + 薄标记 + 地板），逐名命中。
+  ⇒ **教训：变异臂不红时，先判断「变异是否落在可达代码上」，再怀疑测试太弱。** 这次是前者。
+
+### 边界
+
+- 只覆盖「宽捕 + 静默」。**窄捕**（`except OSError: pass`）不在门内：它已经声明了「预期什么错」，而且「文件不在就当没有」是合法语义。
+- 只覆盖 13 个生产目录（`agent/api/cli/craft/evidence/experiments/integrations/mcp/observability/providers/sandbox/storage/retrieval`）；`tests/` 与 `scripts/` 不在内。
+- 没有把 283 处全量治理（那需要逐条判断，属另一号）；本号的门只保证**新的静默宽捕必须带理由**，以及既有 34 处都带上了。
+- 理由文本由我读代码后写，可能仍有措辞不准的地方；但每一条都能对着代码复核（这正是把它们写在现场的目的）。

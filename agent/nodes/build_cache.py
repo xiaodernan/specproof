@@ -50,7 +50,7 @@ def base_build_cache_dir(state: Phase0State) -> Path | None:
         sha = proc.stdout.strip()
         if proc.returncode != 0 or not sha:
             return None
-    except Exception:
+    except Exception:  # noqa: BLE001 — no base sha means no cache dir; the caller builds uncached
         return None
     return Path(output_dir) / _CACHE_SUBDIR / sha
 
