@@ -14793,3 +14793,51 @@ Matrix: 6 rows | +4 passed | -1 failed | ?1 unverified         ← 同一次运�
 - 只改**列表的显示**，没有动 `build_matrix` 的降级规则（那是判决语义，属证据等级策略）。
 - 列表现在依赖 `matrix.rows` 里的 `contract_id`；若某契约**不在矩阵里**（例如矩阵没跑），回退到检查级结果，行为与以前一致。
 - 降级原因整段照打（可能很长、会换行）。压成一行更好看，但会丢掉「为什么」——本仓的取向是把原因留在输出里。
+## #512 「`__init__()` 三份，先设计基类方案」——量完是六份，而结论是**不做基类**
+
+**起因。** 队列④：「`__init__()` 三份若要动，先设计基类方案」。本号先把「三份」量准，再给结论。
+
+### 量到的
+
+`storage/` 里 **六个** store 共用同一段构造器（不是三份）：
+
+```python
+def __init__(self, config: XConfig | None = None) -> None:
+    self.config = config or XConfig.from_env()
+```
+
+`ElasticsearchStore` / `MinIOClient` / `MongoDBStore` / `MySQLStore` / `RabbitMQClient` / `RedisStore`（后两个各自还多一行 `self._client = None`）。
+
+### 结论：不做基类
+
+共享部分是**两行**。做基类要把六个互不相关的后端绑到同一个泛型 config 协议上（mypy 需要 `TypeVar` + `Protocol`，还要处理 RabbitMQ 多出来的 `events` 参数），换来的只是少写 12 行。这与 #495 对 Lite store 的判断一致：**设计改动的风险高于收益**。
+
+**改为钉住「使那两行成立」的三条不变量** —— 它们才是会被静默破坏的东西：
+
+1. **注入的 config 必须原样使用**（`store.config is config`）。这是调用方与测试能「不碰环境变量就指定主机」的唯一依据；写成 `self.config = X.from_env()` 会让注入静默失效。
+2. **每个 config 必须为真**。`config or from_env()` 只在 config 为真时安全；哪天有人给某个 config 加 `__bool__` / `__len__`，一份显式注入的 config 就会被**静默丢弃**，而任何地方都不会报错。
+3. **`from_env()` 必须每次调用都读环境**（不能 import 期缓存）。否则运维/测试在 import 之后设的环境变量会被静默忽略 —— 这类 bug 在 CI 上表现为「明明设了却没用」。
+
+### 门
+
+新建 `tests/unit/test_store_constructors_keep_their_config.py`（**19 案** = 6 类 × 3 条 + 1 条具体案例）：
+- 参数化六对 (store, config, 该 config 读 host 的环境变量名)：注入原样用 / config 为真 / 两次构造跟着环境变；
+- 另加一条具体案例：`MYSQL_HOST` 改成 `first.invalid` → `MySQLStore().config.host == 'first.invalid'`；改成 `second.invalid` → 立刻跟着变（这条是运维真实会遇到的情形）。
+
+### 证据
+
+- 新门 **19 passed in 1.41s**（全在内存里，不连任何后端）；store 相关回归 **53 + 65 passed**（object_metadata / mysql_url / mongodb schema / rabbitmq events+reliability / redis stream / mysql isolation）。
+- 变异臂①（`MySQLStore` 改成 `self.config = MySQLConfig.from_env()`，忽略注入）⇒ **1 failed / 18 passed**，红的正是 `[mysql]` 那条注入腿。
+- 变异臂②（给 `RedisConfig` 加一个返回 `False` 的 `__bool__`）⇒ **2 failed / 17 passed**：`[redis]` 的注入腿**和**真值腿一起红 —— 这正是 `config or …` 的陷阱：一份显式 config 被当成「没给」。
+
+### 否证
+
+- 第三条测试第一版我**猜**了环境变量名（`MINIO_ENDPOINT`、`MONGODB_URI`、`ES_HOST` 混着写），结果 minio / mongodb / rabbitmq 三个类不认那些名字 ⇒ **3 failed**，而且报错是「两次构造得到同一个 config —— from_env 看起来被缓存了」，**这个诊断是错的**（真因是我的变量名不对）。读了每个 `from_env` 的真实变量名（六家都是 `*_HOST`）后按类参数化，19 全绿。
+  ⇒ **教训：跨多个类的测试不要猜字段名/变量名，先去读 `from_env`。** 猜错时测试给出的失败理由会把你引向错误的方向。
+
+### 边界
+
+- 只钉**构造器契约**，不钉连接行为（连接失败语义在各自的 `_connect` / `is_ready`）。
+- 只覆盖 `storage/` 下这六个；`providers/` 等处若也有同样的 `config or …` 形状，本号没有纳入（未测量过就不声称覆盖）。
+- **本号推之前跑平面门抓到一条 E501**（新门里一行 101 字符），已拆行修掉。
+- 基类方案**没有**被否掉到「永远不做」：如果哪天出现第七、第八个 store，或需要统一的连接生命周期，这个结论应当重新评估；本条记的是「今天做不划算」以及「今天该钉什么」。
