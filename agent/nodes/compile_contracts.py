@@ -27,6 +27,7 @@ from agent.contracts.compile_report import (
     requirement_digest,
 )
 from agent.contracts.records import checker_version_for
+from agent.nodes._llm_provider import get_provider as _get_provider
 from agent.state import Phase0State
 from observability.metrics import incr
 from providers.judge_persona import build_judge_prompt
@@ -239,21 +240,6 @@ def _parse_requirements(text: str) -> list[dict[str, Any]]:
                 break
 
     return contracts
-
-
-def _get_provider() -> Any:
-    """Create an LLM provider from env vars. Returns None if not configured."""
-    from providers.config import load_model_config
-
-    api_key = load_model_config()["api_key"]
-    if not api_key or api_key == "replace_me":
-        return None
-    try:
-        from providers.openai_compatible import OpenAICompatibleProvider
-        provider = OpenAICompatibleProvider(probe_on_init=False)
-        return provider
-    except Exception:
-        return None
 
 
 async def _llm_compile_contracts(

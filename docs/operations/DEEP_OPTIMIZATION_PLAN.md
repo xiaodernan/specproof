@@ -14410,3 +14410,35 @@ A5 预测 **3** 条而不是 4 条：本机**有** `reports/full-eval/eval-repor
 - 本号只保证「声明 == 今天这个 tag 解析到的镜像」，**不保证**这个镜像被端到端跑过：`measured` 与 `verified` 是两件事，文案已分开（Maven 的「已支持 (实测)」凭据仍是 `tests/integration/test_differential.py`，未变）。
 - 镜像不在本机的机器上第 1 条会 skip。CI 的 unit 阶段通常没有这些镜像，所以它主要在**开发机与评测机**上生效；这不理想，但比一条静默通过的假门诚实。
 - 工具链列现在要求逐字相同，等于把它从「手抄散文」降级成「抄写」：语义没变，可核对性变强。
+
+
+## #504 LLM provider 的 API key 有两个来源：UI 配置只到得了契约编译，到不了反例生成
+
+**起因。** 队列④（静默处理器审计）里，`agent/nodes/compile_contracts.py` 的 `_get_provider()` 是**第三份**，而且**和前两份不一样**：
+- `generate_counterexamples` / `review_court`（#499 收拢的那份）：`os.getenv("LLM_API_KEY", "")`
+- `compile_contracts`：`providers.config.load_model_config()["api_key"]`
+
+而 `load_model_config()` 是**权威来源**：先读模型设置 UI 写的配置文件（`SPECPROOF_MODEL_CONFIG`，默认 `.local/llm.json`），再让 env（`LLM_API_KEY` 等）覆盖它。
+
+**后果（真 bug，不是风格）。** 运维在**设置 UI** 里配好模型、没设 env 时：
+- 契约编译拿到 provider ✓
+- 反例生成拿到 `None` ✗ ⇒ **静默退回确定性模板**，没有任何错误、没有任何说明。
+同一个产品设置，两个节点给出不同答案。
+
+**#499 的一处不准确（本号更正）。** #499 说「两个节点别名导入」，实际 `review_court` 的那份 `_get_provider` 是**死代码**——评审庭是通过 `build_llm_defense_producer(provider)` **接收** provider 的，自己从不构造。#499 删掉定义后，别名导入也被 ruff 按「未使用」移除。所以真正构造 provider 的只有**两个**消费者。
+
+**落地。**
+1. `agent/nodes/_llm_provider.get_provider()` 改用 `load_model_config()["api_key"]`——与 UI/CLI 同一个来源；`load_model_config()` 可能抛 `ValueError`（配置畸形），因此整段包在 `try/except → None`（节点不能因为一个坏配置文件整个挂掉）。
+2. `compile_contracts` 删掉第三份定义，改别名导入。
+3. 新建 `tests/unit/test_llm_provider_source.py`（**7 案**）：配置文件的 key 能到工厂（**这就是以前失败的那条**）、哪儿都没 key ⇒ None、占位符 `replace_me` ⇒ None、**env 显式空值覆盖文件** ⇒ None、**畸形配置 ⇒ None 而不是抛**、两个实际消费者共享同一工厂、`review_court` **不**持有工厂（它接收参数）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 命令 | 结果 |
+| --- | --- | --- |
+| 新门 | `pytest tests/unit/test_llm_provider_source.py -q` | **7 passed in 7.63s** |
+| 节点回归 | `pytest test_compile_contracts_node_execution_is_observable.py test_generate_counterexamples_node_execution_is_observable.py test_llm_counterexample_path_actually_runs.py -q` | **28 passed in 8.11s** |
+| ruff / mypy | 三个文件 | **All checks passed** / **Success: no issues found in 2 source files** |
+
+**诚实边界。** ① 这是**行为修复**：反例生成现在也能用 UI 配置的 key（以前只认 env）——这是修 bug，不是等价重构。② 只统一「key 从哪来」；provider 的 `base_url`/`model` 仍由 `OpenAICompatibleProvider` 自己解析，未纳入本号。③ 不改 `load_model_config()` 的既有校验（URL 必须是 http(s)、协议白名单等），只把它当唯一入口。④ `review_court` 的死代码已在 #499 移除，本号不恢复它——评审庭接收 provider 是设计。
+
+**下一号队列（取号按落地时点 max+1）。** ① `cli/specproof/commands/verify.py` 的 MySQL 持久化失败被静默吞掉（只有成功才打印一行）——「配了库但连不上」与「本地没库」显示成一样。② `__init__()` ×3 的基类方案。③ `mcp` 负超时（#492 边界）。④ 近似克隆检测。
