@@ -14695,3 +14695,47 @@ if xml_files:
 - 只复核了 #508 那 17 条；其余 249 处「宽捕但做了事」的**理由质量**没有逐条查（它们不在这道门的范围内）。
 - `_parse_junit_xml` 的签名**没动**（仍返回 4 元组），「有没有读到」用 `any(counts)` 表达。代价是**「真的 0 个测试」也被当作「没读到」**，于是会回退到 stdout（若 stdout 也为空，结果仍是 0，与以前一致）。更精确的做法是让它返回 `Optional`，但那会改签名并牵动既有测试 —— 已入队。
 - 这两个适配器属 `craft/adapters/`（Phase 4 层，**生产零引用**，见 #482）。所以本号修的是「这一层自己的诚实性」，对今天用户可见行为无影响；`experiments/adapters.py` 那条线**没有 JUnit 解析器**，它的 `collect()` 问题在 #496 已单独记录。
+## #510 一个 4 元组装不下两件事：`None` 与 `(0,0,0,0)` 分开，让「真的没跑测试」不再被「没读到报告」顶替
+
+**起因。** #509 的边界里入队的项：`_parse_junit_xml` 返回 4 元组，「读不动」与「报告说 0 个测试」都是 `(0, 0, 0, 0)`。#509 用 `any(counts)` 表达「有没有读到」——**方向反了**：一份合法但 `tests="0"` 的报告被当成「没读到」，于是回退到控制台汇总，让汇总**覆盖**了权威报告。
+
+### 量到的
+
+两个适配器同一形状：
+
+- `craft/adapters/gradle_adapter.py`：`_parse_junit_xml(xml_files) -> tuple[int,int,int,int]`，读不动就 `continue`，末尾统一返回累计值；
+- `craft/adapters/node_adapter.py`：`_parse_junit_xml_file(xml_path) -> tuple[int,int,int,int]`，异常后 `return 0, 0, 0, 0`，调用方用 `if result != (0, 0, 0, 0)` 判「找到了有效数据」。
+
+两边都把**两个不同的事实**压进同一个值里。后果不只是措辞问题：Gradle 的 `--console=plain` 在成功跑里**不打印测试数量**（`parse_gradle_test_summary` 的 docstring 写明了这一点），所以一旦报告被误判成「没读到」，控制台也补不上——最终证据里就是「0 个测试」。
+
+### 修法
+
+- `_parse_junit_xml` / `_parse_junit_xml_file` 改为返回 **`tuple | None`**：`None` = 一份都没解析出来；`(0,0,0,0)` = 解析成功且报告说 0 个测试。
+- 两个调用方改成 `if counts is not None: return counts`（Gradle）/ `if result is not None: return result`（Node）——**只有「没读到」才回退**。
+- 注释写明两个事实的区别，以及 #509 的 `any(counts)` 为什么不够。
+
+### 门
+
+`tests/unit/test_an_unreadable_report_is_not_zero_tests.py` 从 6 案扩到 **9 案**，新增四条钉新语义：
+1. 合法 `tests="0"` 报告 + stdout 说「5 tests completed」⇒ **必须返回 `(0,0,0,0)`**（报告是权威，汇总不得覆盖）；
+2. `_parse_junit_xml([坏])` ⇒ `None`；`([好])` ⇒ `(0,0,0,0)`；`([坏, 好])` ⇒ `(0,0,0,0)`（**一份可读就够成为事实**）；
+3. Node 的两事实同样可分；
+4. Node 的零测试报告同样优先于控制台汇总。
+
+### 证据
+
+- 新门 **9 passed**；适配器全家回归（gradle / node / node 边界 / go / go prepare / adapters / protocol / 注册表 / 手抄清单）**109 passed**。
+- `ruff` 干净；`mypy` 两个适配器 **Success**。
+- 变异臂①（把 gradle 退回 `if counts is not None and any(counts)`，即 #509 的行为）⇒ **1 failed / 8 passed**，红的正是「零测试报告权威」那条 —— 这就是「先红后绿」的直接证据：新语义在旧代码上不成立。
+- 变异臂②（`_parse_junit_xml` 读不动时仍返回全 0）⇒ **2 failed / 7 passed**：红的正是「读不动要回退」与「两事实可分」。
+
+### 否证
+
+- 改签名没有推翻任何既有断言：`test_gradle_adapter_parse_junit_xml` 断言的是**可读文件**返回 4 元组（仍成立）；`_parse_junit_xml_file` 在本次之前**没有任何测试**钉过它的返回值。⇒ 所以这次变红的是**新语义**，不是「旧断言写错了」。
+- `_parse_junit_xml` 的 `parsed_any` 用的是「解析成功」而不是「`tests > 0`」——第一版我差点写成 `if tests_run: return ...`，那等于把 `any(counts)` 换个写法，零测试报告仍然会被判成没读到。
+
+### 边界
+
+- 只改 `craft/adapters/`（Phase 4 层，**生产零引用**，见 #482）。`experiments/adapters.py` 那条线**没有 JUnit 解析器**，它的 `collect()` 问题在 #496 已单独记录。
+- 返回值仍是「总计」而不是「每份报告」：一份坏一份好时，坏的那份不贡献计数，也不会被单独报告出来。要精确到文件需要返回逐文件结果，属另一号。
+- 调用方拿到的仍是 4 个整数；「计数从哪个通道来」这件事在上层（`test_counts_source`）才记录，本号没有把它一起搬下来。

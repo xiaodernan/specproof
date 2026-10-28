@@ -327,15 +327,18 @@ class NodeAdapter(AdapterProtocol):
                         if f.endswith(".xml") or f.endswith(".junit"):
                             xml_path = os.path.join(root, f)
                             result = cls._parse_junit_xml_file(xml_path)
-                            if result != (0, 0, 0, 0):  # 找到了有效数据
+                            # `None` = no report parsed; (0, 0, 0, 0) = a
+                            # report parsed and it says zero tests. Only the
+                            # first may fall through (#510).
+                            if result is not None:
                                 return result
 
         # 回退：从 stdout/stderr 解析 npm/vitest 输出
         return cls._parse_stdout_results(stdout + stderr)
 
     @classmethod
-    def _parse_junit_xml_file(cls, xml_path: str) -> tuple[int, int, int, int]:
-        """解析单个 JUnit XML 文件。"""
+    def _parse_junit_xml_file(cls, xml_path: str) -> tuple[int, int, int, int] | None:
+        """解析单个 JUnit XML 文件；读不动时返回 None（不是全 0）。"""
         import xml.etree.ElementTree as ET
 
         try:
@@ -351,7 +354,7 @@ class NodeAdapter(AdapterProtocol):
                 return tests_run, tests_passed, tests_failed, tests_skipped
         except Exception:  # noqa: BLE001 — an unreadable report yields no counts; the verdict stays exit_code
             pass
-        return 0, 0, 0, 0
+        return None
 
     @classmethod
     def _parse_stdout_results(cls, output: str) -> tuple[int, int, int, int]:

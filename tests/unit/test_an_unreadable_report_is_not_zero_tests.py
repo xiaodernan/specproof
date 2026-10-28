@@ -69,16 +69,70 @@ def test_no_report_at_all_uses_the_console(tmp_path: Path) -> None:
     assert counts == (3, 2, 0, 1)
 
 
-def test_a_report_that_really_has_no_tests_is_not_a_parse_failure(tmp_path: Path) -> None:
-    """An empty-but-valid report and a corrupt one both end up as zeros here.
+def test_a_valid_zero_test_report_is_authoritative(tmp_path: Path) -> None:
+    """A report that parsed and says zero is a fact, not a missing report (#510).
 
-    The distinction that matters is downstream: the exit code is the verdict,
-    and `test_counts_source` records which channel the counts came from. This
-    leg only pins that a valid zero-test report does not crash the parser.
+    #509 used `any(counts)` to decide whether the XML "had data", so a genuine
+    zero-test report was treated as unreadable and the console summary won. The
+    two facts are now separate: `None` = nothing parsed, `(0, 0, 0, 0)` = a
+    report parsed and it says zero tests.
     """
     _xml(tmp_path, '<testsuite name="d.T" tests="0" failures="0" errors="0" skipped="0"/>')
 
-    assert GradleAdapter._parse_test_results(tmp_path, "", "") == (0, 0, 0, 0)
+    counts = GradleAdapter._parse_test_results(
+        tmp_path, "5 tests completed, 0 failed, 0 skipped", ""
+    )
+
+    assert counts == (0, 0, 0, 0), (
+        "the report parsed and reports zero tests; the console summary must not "
+        f"override it. got {counts}"
+    )
+
+
+def test_the_xml_parser_separates_nothing_parsed_from_zero_tests(tmp_path: Path) -> None:
+    bad = _xml(tmp_path, "<<< not xml >>>", name="TEST-bad.xml")
+    good = _xml(
+        tmp_path, '<testsuite name="d.T" tests="0" failures="0" errors="0" skipped="0"/>',
+        name="TEST-good.xml",
+    )
+
+    assert GradleAdapter._parse_junit_xml([bad]) is None, "unreadable only -> None"
+    assert GradleAdapter._parse_junit_xml([good]) == (0, 0, 0, 0), "readable zero -> zeros"
+    assert GradleAdapter._parse_junit_xml([bad, good]) == (0, 0, 0, 0), (
+        "one readable report is enough to make the counts a fact"
+    )
+
+
+def test_the_node_adapter_separates_the_same_two_facts(tmp_path: Path) -> None:
+    from craft.adapters.node_adapter import NodeAdapter
+
+    bad = tmp_path / "TEST-bad.xml"
+    bad.write_text("<<< not xml >>>", encoding="utf-8")
+    good = tmp_path / "TEST-good.xml"
+    good.write_text(
+        '<testsuite name="d.T" tests="0" failures="0" errors="0" skipped="0"/>',
+        encoding="utf-8",
+    )
+
+    assert NodeAdapter._parse_junit_xml_file(str(bad)) is None
+    assert NodeAdapter._parse_junit_xml_file(str(good)) == (0, 0, 0, 0)
+
+
+def test_the_node_adapter_keeps_a_zero_test_report_over_the_console(tmp_path: Path) -> None:
+    from craft.adapters.node_adapter import NodeAdapter
+
+    reports = tmp_path / "reports"
+    reports.mkdir(parents=True)
+    (reports / "TEST-demo.xml").write_text(
+        '<testsuite name="d.T" tests="0" failures="0" errors="0" skipped="0"/>',
+        encoding="utf-8",
+    )
+
+    counts = NodeAdapter._parse_test_results(
+        tmp_path, "Tests: 9 passed, 0 failed, 0 skipped", ""
+    )
+
+    assert counts == (0, 0, 0, 0), f"the parsed report wins; got {counts}"
 
 
 def test_the_go_parser_still_reads_the_keyword_summary() -> None:

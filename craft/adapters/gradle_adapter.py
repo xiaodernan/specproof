@@ -307,24 +307,26 @@ class GradleAdapter(AdapterProtocol):
             if xml_dir.exists():
                 xml_files = list(xml_dir.rglob("*.xml"))
                 if xml_files:
-                    # Only accept the XML counts when a report actually parsed.
-                    # Returning (0, 0, 0, 0) here used to be indistinguishable
-                    # from "the run had no tests", and it also skipped the
-                    # console fallback below — so an unreadable report read as
-                    # "0 tests passed". Fall through instead (#509).
+                    # `None` means "no report could be parsed"; `(0, 0, 0, 0)`
+                    # means "a report parsed and it says zero tests". Those are
+                    # different facts and only the first one may fall through
+                    # (#510). #509 used `any(counts)` here, which conflated them
+                    # in the other direction: a genuine zero-test report was
+                    # treated as unreadable and the console summary won.
                     counts = cls._parse_junit_xml(xml_files)
-                    if any(counts):
+                    if counts is not None:
                         return counts
 
         # 回退：从 stdout 解析
         return cls._parse_stdout_results(stdout + stderr)
 
     @classmethod
-    def _parse_junit_xml(cls, xml_files: list[Path]) -> tuple[int, int, int, int]:
-        """解析 JUnit XML 报告。"""
+    def _parse_junit_xml(cls, xml_files: list[Path]) -> tuple[int, int, int, int] | None:
+        """解析 JUnit XML 报告；**一份都读不动时返回 None**（不是全 0）。"""
         import xml.etree.ElementTree as ET
 
         tests_run = tests_passed = tests_failed = tests_skipped = 0
+        parsed_any = False
         for xml_file in xml_files:
             try:
                 tree = ET.parse(xml_file)
@@ -336,8 +338,11 @@ class GradleAdapter(AdapterProtocol):
                     )
                     tests_skipped += int(testsuite.get("skipped", 0))
                 tests_passed = tests_run - tests_failed - tests_skipped
+                parsed_any = True
             except Exception:  # noqa: BLE001 — an unreadable report contributes no counts; the caller then falls back to the console summary
                 continue
+        if not parsed_any:
+            return None
         return tests_run, tests_passed, tests_failed, tests_skipped
 
     @classmethod
