@@ -21,9 +21,10 @@ on notifications, and a reason can quote an exception that quoted the
 repository payload. The note's own crash line names the exception's type and
 leaves the message to the log for the same reason — that handler wraps a bulk
 index of the repository's source, so its exception is the one most likely to
-repeat it. The note's leading words are load-bearing: storage/mysql.py reads
-"seeded demo" at position 1 as the demo flag, so every addition here is
-appended, never prepended.
+repeat it. The note's leading words are load-bearing: the demo flag is
+contracts/demo_marker.py's ``DEMO_NOTE_PREFIX`` read at position 1 of this
+note by the storage queries, so every addition here is appended, never
+prepended.
 
 Honesty contract: when Elasticsearch is unavailable the node records a
 retrieval_note and continues with an empty context — it never fabricates

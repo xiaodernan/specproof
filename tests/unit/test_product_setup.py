@@ -92,7 +92,13 @@ def test_job_search_uses_matching_tenant_filters_and_bounded_page(monkeypatch):
     assert len(statements) == 2
     for sql, params in statements:
         assert "tenant_id = %s" in sql and "status = %s" in sql and "LOCATE(%s" in sql
-        assert params[:2] == ("tenant-a", "BLOCKED")
+        # Which parameter the tenant placeholder occupies, counted from the text.
+        # #525 binds the demo prefix in the SELECT list, so a literal params[0]
+        # would witness the marker instead of the tenant on the second statement.
+        at = sql[: sql.index("(tenant_id = %s OR tenant_id IS NULL)")].count("%s")
+        assert params[at] == "tenant-a"
+        assert params[at + 1] == "BLOCKED"
         assert "checkout" not in sql
+        assert sql.count("%s") == len(params)
     assert statements[1][1][-2:] == (25, 25)
     assert "last_error, summary," not in statements[1][0]

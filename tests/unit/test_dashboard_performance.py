@@ -52,7 +52,11 @@ def test_dashboard_queries_share_connection_and_enforce_tenant_scope(monkeypatch
     for sql, params in statements:
         if role == "viewer":
             assert "(tenant_id = %s OR tenant_id IS NULL)" in sql
-            assert params[0] == "tenant-a"
+            # Which parameter the tenant placeholder occupies, counted from the
+            # text: #525 prepends the bound demo prefix to the SELECT-list
+            # statement, so "params[0]" is no longer the tenant in every one.
+            at = sql[: sql.index("(tenant_id = %s OR tenant_id IS NULL)")].count("%s")
+            assert params[at] == "tenant-a"
         else:
             assert "tenant_id" not in sql
     # Aggregates return at most an hourly bucket per hour, not one row per job.

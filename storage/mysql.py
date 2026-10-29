@@ -19,6 +19,7 @@ from typing import Any, Final, cast
 import pymysql
 from pymysql.cursors import DictCursor
 
+from contracts.demo_marker import DEMO_NOTE_PREFIX
 from contracts.events import payload_digest
 from storage.env_config import int_env
 from storage.tenant_scope import current_scope
@@ -1001,11 +1002,12 @@ class MySQLStore:
                 "status, depth, retry_count, "
                 "worker_id, last_error, created_at, updated_at, "
                 "CASE WHEN JSON_VALID(summary) THEN "
-                "LOCATE('seeded demo', JSON_UNQUOTE("
+                "LOCATE(%s, JSON_UNQUOTE("
                 "JSON_EXTRACT(summary, '$.retrieval_note'))) = 1 "
                 "ELSE 0 END AS is_demo FROM verification_jobs" + where
                 + " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s",
-                (*params, limit, offset),
+                # the SELECT list precedes WHERE, so the bound prefix is first
+                (DEMO_NOTE_PREFIX, *params, limit, offset),
             )
             rows = cur.fetchall()
         return {"jobs": rows, "total": total, "limit": limit, "offset": offset}
@@ -1046,11 +1048,12 @@ class MySQLStore:
                 "SELECT id, repo_path, base_ref, head_ref, status, depth, "  # nosec B608
                 "retry_count, worker_id, last_error, created_at, updated_at, "
                 "CASE WHEN JSON_VALID(summary) THEN "
-                "LOCATE('seeded demo', JSON_UNQUOTE("
+                "LOCATE(%s, JSON_UNQUOTE("
                 "JSON_EXTRACT(summary, '$.retrieval_note'))) = 1 "
                 "ELSE 0 END AS is_demo FROM verification_jobs" + where
                 + " ORDER BY created_at DESC, id DESC LIMIT %s",
-                (*params, 10),
+                # the SELECT list precedes WHERE, so the bound prefix is first
+                (DEMO_NOTE_PREFIX, *params, 10),
             )
             recent = cast(list[dict[str, Any]], cur.fetchall())
         return {"statuses": statuses, "timeline": timeline, "recent_jobs": recent}

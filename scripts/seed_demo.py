@@ -46,6 +46,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from contracts.demo_marker import seeded_demo_note  # noqa: E402
 from evidence.certificate import (  # noqa: E402
     build_rejection_notice,
     issue_certificate,
@@ -370,7 +371,7 @@ def _summary_for(template: DemoVerifyTemplate, job_id: str) -> dict[str, Any]:
             _capsule_name(job_id, f["contract_id"]) for f in template["findings"]
         ],
         "report_path": "",
-        "retrieval_note": "seeded demo data (【演示】)",
+        "retrieval_note": seeded_demo_note("data (【演示】)"),
         "errors": [],
     }
 

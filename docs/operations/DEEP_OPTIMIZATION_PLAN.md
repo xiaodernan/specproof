@@ -16381,3 +16381,195 @@ tier 折叠在 `providers/` 侧的同族。
 计算出来的 mode 只会落到地板上。下一号把「helper 调用点 / 构造点 / 字面量关键字」这三种
 可读面写成一条可查的约定，别让每个号各自重新发现一遍。
 
+## #525 「演示」标记的写侧与读侧各自抄了一份，而两侧都没有测试——漂移的方向是假数据看起来像真验收
+
+**起因/占号。** `## #524` 的下一号队列① 原文是：「**`is_demo` 的两个谓词**：
+`storage/mysql.py:1005`/`:1050` 用 note 前缀（`LOCATE('seeded demo', JSON_EXTRACT(...)) = 1`），
+`api/agent_runtime.py:505` 用 `not repo_path.strip()`。同一个名字两种定义，且 SQL 侧那条
+只有跑过 MySQL 的臂才看得见。」取号时复核：`origin/master@74f94d8` 的账本最大节是 `## #524`，
+本号取 #525；共享树的**索引**里另有别道的 `## #521`（不参与 max 判定，也不进本号提交）。
+
+起因队列里那条「两种定义」的猜测，落地前被量成了**四条定义、三个平面**，而真正开着的洞
+不是「两种定义」——是**写侧与读侧之间没有任何 owner，也没有任何一侧的测试**。
+
+### 量到的
+
+落地前 `D:\面试项目\.scratch\probe525.py` 实测（不是推算）：
+
+- **标记字面量 `seeded demo` 的副本：4 个文件 7 处。** 生产面 3 处：
+  `storage/mysql.py:1004` 与 `:1049`（两条 SELECT 列表里各抄一份，都是 load-bearing）、
+  `scripts/seed_demo.py:373`（写进 `summary.retrieval_note` 的那一份）；另有
+  `:300` 一个诱饵（进的是需求文本，标记不在 1 号位）、节点 docstring 一句散文、
+  #524 的门 `:1101`/`:1112` 两处。
+- **`retrieval_note` 值的产生点：4 个文件 9 处**——节点 6、`agent/state.py` 1（默认空串）、
+  `agent/worker.py` 1（进 summary）、`scripts/seed_demo.py` 1（种子）。
+- **两条 SQL 是能被离线执行的**：假游标法（`test_dashboard_performance.py:21-50` 已有）
+  下 5 条语句全部跑通，占位符/参数**逐条匹配**（8/8 与 2/2 是那两条带 `is_demo` 的）。
+  所以「这条腿只有跑过 MySQL 才看得见」这句队列原话，量下来是**不准确的**：语句跑得了，
+  缺的是**断言**，不是 MySQL。
+- **谁读 `is_demo`：** `apps/web/src/api.ts:391` 类型、`Jobs.tsx:116` 与 `Dashboard.tsx:65`
+  两处 `{!!job.is_demo && <span className="demo-label">演示</span>}`；`Dashboard.tsx` 旁边
+  挂着那句产品承诺「标有"演示"的记录为示例数据」。Python 侧没有任何地方重算它（`api/routes/`
+  零赋值，门里钉住了）。
+- **「这是演示数据」有四条定义、跨三个平面**：SQL 前缀谓词（`verification_jobs`）、
+  `api/agent_runtime.py:505` `is_demo = not repo_path.strip()`（`agent_jobs`，另一张表，
+  永远走不到这个谓词）、`generate_counterexamples.py:228 _is_demo_repo`（pom 里有没有
+  `com.specproof`）、前端 `!!job.is_demo`。后两条各有自己的门
+  （`test_llm_counterexample_path_actually_runs.py:242`、`test_seed_demo.py:69`），
+  唯独 SQL 谓词与它读的那条 note 两侧都没有。
+- **现有测试覆盖的是装饰，不是谓词。** `test_seed_demo.py` 断 `DEMO_MARK = "【演示】"`
+  在标题里、断 verdict/矩阵计数/无密钥——**一条都没读过 `retrieval_note`**。而 SQL 认的是
+  英文前缀，不是 `【演示】`。也就是说被测试钉住的那颗 token 恰好不是承重的颗。
+
+**观察面（本号的立号依据）。** 凡是可能看见这个缺陷的测试文件，用 10 个 token 圈出来
+（标记本身、`retrieval_note`、`is_demo`、`search_jobs`、`dashboard_snapshot`、`DEMO_MARK`、
+`【演示】`、`seed_demo`、`_summary_for`、`demo-label`）= **23 个文件 493 例**，
+基线 `493 passed / 0 failed`（170.79s，`D:\面试项目\.scratch\p525_base.log`）。
+选择面外没有第二条路径：这个字符串只出现在 4 个文件、只被 2 条 SQL 读，
+从这 23 个文件外面看不见它。
+
+### 落地
+
+- **`contracts/demo_marker.py`（新）= 标记的唯一 owner。** `DEMO_NOTE_PREFIX = "seeded demo"`
+  一个常量 + `seeded_demo_note(detail)` 一个写侧构造器（`f"{prefix} {detail}"`——连接顺序
+  就是契约，`LOCATE(x, y) = 1` 只认 1 号位）。包内先例齐备：`storage/mysql.py:22` 早就
+  `from contracts.events import payload_digest`，`contracts/clock.py`/#516、
+  `contracts/retry_after.py`/#517 都是「跨包 wire 契约放 contracts」的同一形状。
+  **没有** `note_is_seeded()`：Python 侧没有生产者需要它，SQL 才是唯一的读者，
+  把参考实现放进门而不是放进生产码（门里那份叫 `locate_at_one`）。
+- **`storage/mysql.py` 两处 `LOCATE('seeded demo', …)` → `LOCATE(%s, …)`**，常量由 owner
+  绑定为该语句的**第一个参数**（SELECT 列表在 WHERE 之前，位置不是风格）：
+  `search_jobs` 列表语句 `(*params, limit, offset)` → `(DEMO_NOTE_PREFIX, *params, limit, offset)`，
+  `dashboard_snapshot` 的 recent 语句 `(*params, 10)` → `(DEMO_NOTE_PREFIX, *params, 10)`。
+  COUNT 语句不带头（它不投影 `is_demo`，门里有一条腿专门拒绝「顺手也加上」）。
+  落地后标记字符串在**整段被执行的 SQL 文本里 0 次出现**。
+- **`scripts/seed_demo.py` 的 note（落地前 `:373`，落地后 `:374`）** 改由
+  `seeded_demo_note("data (【演示】)")` 拼出；`:301` 那个诱饵**故意留着**——它是门 D 腿的伪证形状
+  （标记在串中间、不在 1 号位），普查把它写进 allowlist 并附理由。
+- **两条既有断言按位置改派生**（因为它们钉的是位置，而我加了一个带头参数）：
+  `test_product_setup.py:95` `params[:2] == ("tenant-a", "BLOCKED")` → 现在的 `:98-99`、
+  `test_dashboard_performance.py:55` `params[0] == "tenant-a"` → 现在的 `:58-59`——两处改为
+  「数 `tenant_id = %s …` 片段之前有几个 `%s`，租户值就该在第几个」。**变强不变弱**：
+  派生式在「带头多一个参数」和「租户谓词跑到中间」两种漂移下都会红，而原式只会
+  断言错东西。门里 F 腿拒绝弱式回潮。
+
+### 门
+
+| 门 | 内容 | 实测 |
+|----|------|------|
+| **新门** `tests/unit/test_the_demo_marker_has_one_owner_on_both_sides_of_the_sql.py` | 六条腿，**实测 47 例 / 32 条函数**（`--collect-only` 数出，不是自估；补腿前 46/31）：A 所有权 6 例（AST 普查生产面 14 个包的**被执行**字符串常量、**子集** allowlist、docstring 排除、owner 只 1 处赋值、SQL 文本 0 出现、seeder 必须走 `seeded_demo_note`、普查不瞎的地板）、B 读侧 11 例（假游标**执行**两条真语句：LOCATE 占位符上绑的必须是 owner 常量、**被执行文本里 `LOCATE(%s,` 的形状腿**（A1 补的那条）、5 条语句逐条占位符/参数元数匹配 ×2、`CASE WHEN JSON_VALID` 与 `ELSE 0`、`= 1` 在而 `LIKE` 不在、租户按派生下标、COUNT 不带头、auditor 无租户谓词时前缀仍在 0 号、无 scope 同样成立、执行文本里 0 次标记）、C 写侧 6 例（3 个模板逐一 `startswith`、渲染后的整串文案钉住、helper 移不走 1 号位、写读往返一致）、D 语义 15 例（**11 行**形状表证 `LOCATE=1 ≡ startswith`、形状表规模地板、中间位置伪证、真实 note 落在谓词正确一侧、前缀小写 ascii 是 ci collation 的边界声明）、E 方向 5 例（徽章只读这一列 ×2 页、承诺文案还在、路由层不重算、控制台那条是另一个问题且**不许**共享 rename）、F 邻域 4 例（两条断言的弱式回潮拒绝 + 它们仍在离线执行真方法 + 本文件自己不是空过） | 47 passed（基线全绿） |
+| 爆炸半径同跑 | `test_product_setup` + `test_dashboard_performance` + `test_seed_demo` + `test_sql_text_static` + `test_jobs_page_total_is_not_the_window` + 新门 | 补腿前 **80 passed**（46+7+5+5+12+5，63.80s）；补腿后 47+12+7+5+5 = **76 passed**（93.64s） |
+| 邻域 23 文件观察面 | 基线 493 例全绿；落地后同一面复跑 | **493 passed / 0 failed**（299.22s）——落地没把观察面挪位，也没让它变敏感 |
+| 节点邻域（散文改动之后） | #524 的门、节点可观测性门、rerank 归因门、向量通道归因门、`test_retrieval_provenance`、`test_retrieval_hybrid` + 新门同跑 | **197 passed**（25.16s） |
+| 邻域 #524 的门 70 例 | 它对 `mysql.py` 只有散文与 `startswith` 两处，无文本断言，预测不动 | **70 例全绿**（含在上面 197 里；`--collect-only` 复核该文件确为 70 例，与 #524 自己记的数一致） |
+| 落地后总证据 | 观察面 23 文件 + 新门 + 六件安全/生命周期门（`test_bandit_suppressions_are_earned`、`tests/security/test_retrieval_injection`、`test_no_key_leak`、`test_es_projection_cleanup`、`test_es_cleanup_wiring`、`test_notify_connector`）同跑 | **580 passed / 0 failed**（318.87s；= 493 + 47 + 40） |
+| 静态门 | `ruff check`（五件落地文件）；`mypy` 分两跑：owner 单独、三件改动文件一起 | `All checks passed!`；`Success: no issues found in 1 source file` + `Success: no issues found in 3 source files` |
+| 台账家族门 | 五件在**合成后的**账本上跑 | **50 passed**（83.64s，跑在 `wt525` 里——`test_ledger_section_numbers_are_unique.py:20` 把账本路径钉成「测试文件旁边那份」，不看 `SPECPROOF_LEDGER_PATH`；在共享树里用 env 指过去会读到别道那份 4 节片段，实测 1 红 4 节 < 100，所以必须进 worktree 跑） |
+
+### 变异臂
+
+预测全部写在 `D:\面试项目\.scratch\pred525_demo_label.md`（臂跑之前）。基线证伪两条 +
+控制两条 + 红臂六条 + 一轮因臂 bug 重跑。跑法是共享树内单点改文本 + **逐字节**备份还原
+（`D:\面试项目\.scratch\arm525.py`；`restore_failed` 逐臂记录）。
+下表除「第二轮」块外都是**第一轮**（46 例的门）的读数。
+
+**第二轮（补上发现 7 那条形状腿、门 46→47 之后，对全部臂复跑）**：
+`A1 10 红/530`、`A2 4/43`、`A3 6/534`、`A4 2/45`、`A5 2/45`、`A6 1/46`、`C1b 1 红/539`。
+逐条对上第八节的预测：**A1 由 9 变 10，多出的那一个恰好是新腿**
+`test_the_executed_predicate_reads_a_placeholder_not_a_literal`，而第一轮那 9 条**一条没少**——
+新腿没有替旧腿做事（#524 用同一种复跑证明过的事，本号照抄）；其余五臂的红数与第一轮**完全一致**。
+A1 下旧的位置腿仍然不红，这是这条盲区在门里的**残留**：形状腿补上了洞，但没有把位置腿改成能看见洞的形状
+（要改就得把两条腿合并，合并后 A2 会同时红两条，位置族失去独立读数——保留两条，把残留写在这里）。
+观察面基线第二轮不重跑：臂与补腿都没动邻域文件，493 例的构成没变。
+
+| 臂 | 改动 | 预测（含跑前修订） | 实测 |
+|----|------|------|------|
+| P0 | `seed_demo.py:373` note 不再以标记开头 | 观察面 **0 红** | **0 红 / 493 passed** ✓（基线臂：跑在未落地的 `74f94d8` 上） |
+| P1 | 两处 SQL 字面量 → `'seeded-demo'` | 观察面 **0 红** | **0 红 / 493 passed** ✓ 本号的立号依据：承重的那颗 token 改名，493 例无人报警 |
+| 落地后基线 | 观察面 23 文件 493 例（同一面，未改） | 与基线同为全绿 | **493 passed / 0 failed**（299.22s，逐字节还原 clean）——落地没有把观察面挪位 |
+| C1 控制 | 只改 owner 常量 | 原预测「全绿」，**跑前修订为恰好 1 红**：C 段的文案腿钉的是渲染后的整串，改名必然红；其余腿全部前缀派生，应跟着移动。红落在别处即为门的缺陷 | **2 红 / 537**：文案腿（预测内）+ `test_the_marker_shape_is_a_plain_prefix`（预测外）。第二条查出来是**臂自己的错**——替换串 `"seeded-demo"` 不含空格，违反这条腿自己钉的「前缀是短语不是单词」。所以 C1 不是合格的 rename 控制臂，补 C1b |
+| C1b 控制 | owner 改成**同形状**的 `"planted demo"`（C1 的替换串没有空格，见发现 8） | 恰好 **1 红**，且必须落在文案腿；红在别处 = 那条腿拼写依赖 | 第一轮 **1 红 / 538** ✓、第二轮（门 47 例）**1 红 / 539** ✓——唯一的红就是钉渲染文案的那条腿，其余 46 例与观察面 493 例全绿；新补的形状腿**没被改名触发** ✓。两侧一起移动 = rename-safe 的正面证明 |
+| A1 | SQL 退回硬编码而参数仍绑定 | **5 红**（文本腿 1 + 元数腿 2 + 执行文本腿 1 + 普查腿 1）；**并预测位置腿偶然通过**——硬编码后 LOCATE 前没有 `%s`，`_placeholder_index` 仍数出 0，owner 恰好还是第一个参数。这是门的真实盲区。`test_sql_text_static` 预测**不红** | **9 红 / 530**（门 7 + 邻域 2）。位置腿**果然没红**——跑前登记的盲区命中，见「发现」7；多出的 3 个是租户下标族（少一个占位符就错一格）。邻域 2 个红是我按位置重写的那两条断言在正确报警（它们现在钉 `LOCATE(%s`）。`test_sql_text_static` **确实没红** ✓ |
+| A2 | 参数顺序挪到中间 | 元数腿**不红**，位置族 **3 红**（位置腿 1 + auditor 首参腿 1 + 租户下标腿 1） | **4 红 / 42**：位置腿、auditor 首参腿、租户下标腿、无 scope 腿；**元数腿不红** ✓（9/9 仍匹配）。这条臂证明的是「个数一致而配对错了」照样送得进服务器 |
+| A3 | 写侧退回硬编码且不以标记开头 | 写侧族 **6 红**（seeder 构造腿 1 + 3 模板腿 3 + 文案腿 1 + 往返腿 1）；`_floor_of_this_file` 腿预测不红 | **臂自己的 bug**：替换串把 `"retrieval_note":` 键名也带进去了，产出一行 `"retrieval_note": "retrieval_note": …` → `rc=2`、2 个 collection ERROR、**0 个红**。这不是门的失效，但这一形状在本号第一次跑没有读数，所以修臂重跑（A3r） |
+| A3r | 同上，替换串去掉键名 | 恰好 **6 红**，全在 A/C 段；`test_seed_demo.py` 5 例预测**不红** | **6 红 / 533 passed** ✓ 逐条对上：构造腿 1 + 3 个模板 3 + 文案腿 1 + 往返腿 1；`test_the_floor_of_this_file_...` 与 B 段全绿 ✓、`test_seed_demo.py` 5 例全绿 ✓（「钉住装饰、漏掉承重」的正面复证） |
+| A4 | `ELSE 0` → `ELSE 1` | 方向腿 **2 红**（`caseguarded_and_answers_zero_elsewhere` 的两个参数化例） | **2 红 / 44** ✓ 精确命中，两个参数化例都红 |
+| A5 | `= 1` → `> 0` | 正则腿 **2 红**；D 段语义腿读参考实现、不碰 SQL 文本，预测**不红**（若红说明我把两件事写成了一件） | **2 红 / 44** ✓；D 段 15 例**全绿** ✓——参考实现与 SQL 文本确实是两条独立的腿，这条不对称是刻意的 |
+| A6 | 在 `observability/tracing.py` 加第二份字面量（落点由 `api/routes/web.py`/`retrieval/hybrid.py` 跑前改：臂在共享树里改文件，落点必须干净；而 `observability/` 从未带过标记，比 `api/` 更能证明普查的地理覆盖） | 恰好 **1 红**（只该红在普查子集腿；地板腿与自证腿不该被外部文件触发） | **1 红 / 45** ✓ 只红在普查腿；地板腿与自证腿没被外部文件触发 ✓ |
+
+### 发现
+
+1. **立住的不是「代码不干净」而是「没有任何东西会看见它不干净」——这条是量出来的，不是修辞**：
+   P0 与 P1 各 **0 红 / 493 passed**。写侧改名、读侧改名，两条都是承重改名，
+   离线测试一面都没响；落地后同一面仍 493 passed，说明新门没有把邻域变敏感，只是自己开始响。
+2. **队列原话「只有跑过 MySQL 的臂才看得见」是错的**，而且错得有价值：语句离线执行得了，
+   缺的是断言。这条区分决定后面所有号能不能继续在离线里做（离线可执行 ≠ 离线被断言）。
+3. **被测试钉住的 token 不是承重的 token。** `【演示】` 有门，英文前缀没有；
+   门覆盖装饰、承重件裸奔，是本仓库反复出现的那一类（#516 的「字节相同的壳包住漂移的核」同族）。
+4. **失败方向是假充真**：读侧改名不会崩，只会让 3 条伪造验收（带可下载证书、BLOCKED 判定）
+   渲染成普通的真实工作，而 `Dashboard.tsx` 那句「标有"演示"的记录为示例数据」同时变成假话。
+5. 元数匹配不等于配对正确（A2 的构造就是为这条）：`%s` 与参数**个数**一致时，
+   mysqlclient 照样把值送进错的占位符。所以 B 腿必须既数个数又核对位置。
+6. 我最初把 SQL 里的内联字面量当作违反本文件 955-970 公布的绑定参数纪律，**这条判断是错的**：
+   同文件 `:1039` 的 `SUM(status IN ('FAILED', 'ERROR'))` 就在内联词表常量——纪律管的是
+   **请求数据**，不管词表。真正的债是「同一契约抄三份且无人拥有」，不是「值写在文本里」。
+   绑定参数在这里仍然被采用，但理由是**让副本无处存在**，不是补安全洞。账本记这条，
+   是因为按错误的理由改对了代码，下次还会在别处用同一套错误理由说服评审。
+7. **我在跑前登记的门盲区，实测真的命中了。** A1 下
+   `test_both_demo_statements_bind_the_prefix_at_the_locate_placeholder` **没红**：这条腿数的是
+   「`LOCATE(` 之前有几个 `%s`」，硬编码之后那个数还是 0，而 owner 恰好仍是第一个参数——
+   腿读**下标**，A1 改的是**占位符本身**，于是二者错开。补了一条真正管用的形状腿
+   （每条 demo 语句里 `LOCATE` 的第一个实参必须写成长度为 1 的 `%s`，即 `LOCATE(%s,` 出现在
+   **被执行**的语句文本里，而不是只出现在源文件的字符串拼接里），复跑 A1：见臂表下方。
+8. **控制臂的替换串必须与被钉契约同形状，否则「控制」不成立。** C1 把 owner 改成
+   `"seeded-demo"`，结果 2 红——第二条红在 `test_the_marker_shape_is_a_plain_prefix`，
+   那条腿要求前缀含空格（「短语不是单词」）。这个红是**臂造的**，不是代码造的；
+   所以 C1 证不了 rename-safe，得用同形状的 `"planted demo"` 重做（C1b）。
+9. **臂的 bug 会伪装成「门没抓到」。** A3 第一版把键名也写进替换串，产出一行
+   `"retrieval_note": "retrieval_note": …`，pytest `rc=2`、两个文件 collection **ERROR**、
+   `failed=0`。如果我只看「rc 非 0 就算臂红」，就会把「跑不起来」读成「抓到了」——
+   这正是本仓库反复要避免的那类假阳性。runner 现在分开计 `n_error` 与 `n_failed`，
+   判定顺序是先 errors 后 failed。
+10. **还原校验必须比字节。** 臂原先用 `read_text`/`write_text`：对 CRLF 文件字节精确，
+    但对 LF 文件会把整文件行尾改成 CRLF，于是 C1 报 `restored=False` 而内容其实完好
+    （`contracts/demo_marker.py` 内容与备份 sha 一致）。仓库有 `.gitattributes`
+    （`i/lf w/crlf`），提交里仍是 LF，所以落地没受影响；但这条事故证明「看起来一样」不能当还原证明，
+    而臂若落在别人那类 LF 文件上（A6 的 `observability/tracing.py` 正是 LF），
+    文本级还原会**真的改掉共享树里那文件的行尾**。runner 已改字节级。
+11. **邻域唯一一次变敏感是我自己那两条重写过的断言。** A1 的 9 个红里有 2 个落在
+    `test_product_setup` 与 `test_dashboard_performance`——它们现在钉 `LOCATE(%s`，
+    即钉「前缀是绑进来的」而不只是钉位置。把弱式（`params[0] == "tenant-a"`）换成派生下标时
+    顺手加的这一条，是本次唯一让**门之外**的测试对新契约负责的改动。
+
+### 否证与边界
+
+- **等价性只证到纸面。** `LOCATE(x, y) = 1` 与 `y.startswith(x)` 的一致性是纯 Python 模拟，
+  MySQL 侧没有跑过：本仓库离线，CI 的 MySQL 作业不执行这两条语句。
+- **ci collation 的不对称没有消解。** 默认 `utf8mb4_0900_ai_ci` 下服务端 `LOCATE` **大小写不敏感**，
+  所以 `"Seeded demo data"` 会被 SQL 判成演示、被 Python 判成真实——Python 那侧严格。
+  门钉的是「前缀全小写 ascii」，把今天两侧对同一批行回答一致这件事钉住；
+  要真消解得给列上 `COLLATE utf8mb4_bin`，那是在线臂。
+- **`JSON_VALID` 守的是坏 JSON，不是缺键。** summary 是合法 JSON 但没有 `retrieval_note` 时，
+  `JSON_EXTRACT` 给 SQL NULL → `LOCATE(x, NULL)` 是 NULL → `NULL = 1` 是 NULL，
+  `is_demo` 落 **NULL 而不是 0**。写侧是量过的，不是推的：`agent/worker.py:1231` 每次都以
+  `state.get("retrieval_note", "")` 写这个键，所以**走 worker 的 summary 一定有键**（可以是空串，
+  那时 `LOCATE(x, "") = 0`，落 0 不落 NULL）；能造出 NULL 的只剩「合法 JSON 而没有这个键」
+  （别的写入方，或顶层不是对象的 JSON）这一类。今天无害，因为前端两处都是 `!!job.is_demo`
+  （门钉了）；但 `api.ts:391` 把它声明成**可选** `is_demo?:`——缺字段与 0 在类型上不分家，
+  这正是 #202 给 `total` 治过的那形状。本号没动它（动的是前端道在改的文件附近），进队列。
+- **`dashboard_snapshot` 的 statuses/timeline 两个聚合不排除种子行**，只有 recent 列表带标签：
+  总览的「近 24 小时 N 次验收」把 3 条演示算在内。这是**另一条契约**（要不要把示例数据
+  从指标里剔掉是产品决定），不在本号范围内，进队列。
+- 三条「demo」定义里本号只合了 SQL 谓词与其写侧；`agent_jobs` 那条与 `_is_demo_repo`
+  各有自己的门，**故意不共享常量**——一个词同时表示「没给仓库路径」和「这行是种出来的」
+  会让一次改名同时改两个意思。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① `api.ts:391` 的 `is_demo?:` 改必填 + 与 `JobsPage.total` 同族的前端形状门（#202 的手法）。
+② `dashboard_snapshot` 的 statuses/timeline 是否该排除种子行——先量产品文案有没有承诺「不含示例」。
+③ #524 队列②「hybrid 侧 dims 没进 note」仍在。
+④ #524 队列③「两套闭集词表的注册摩擦」仍在。
+⑤ #524 队列⑤「AST 普查读的是哪一面」——本号的 A 腿**显式排除 docstring** 并把它写进
+  断言消息，是这条队列的一次落地；还差「普查必须说清自己读的是执行面还是文本面」的通用门。
+⑥ 在线臂：给 MySQL 跑一次真 `LOCATE`（含大小写两行），把 ci 不对称从「声明」变成「测量」。
