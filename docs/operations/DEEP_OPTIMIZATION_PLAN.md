@@ -15965,3 +15965,187 @@ A5 从 2 回到 **1**——少掉的那条正是残留物造的假红，而它�
 凡接受路径参数的探针/电池，都该由同一个参数导出 import 根与被走目录，
 并把「量具 import 的模块 `REPO` == 量具走的目录」做成一条自检断言（`arms522.py` 的
 preflight 已经在比覆盖文件的 sha，这条是它的另一半）。
+
+## #523 rerank 把六件事说成一件，而那句话说给一个不读它的字段
+
+**起因/占号。** `## #522` 队列⑦原文是「`retrieval/rerank.py` 不做 429 重试而 embeddings 做」。
+先量前提：假的。`_llm_provider()` 造的是 `OpenAICompatibleProvider`，它的 `chat()` 在
+`AsyncRetrying(retry=retry_if_exception(_is_retryable), wait=wait_retry_after_or_exponential,
+reraise=True)` 底下跑，而 `_is_retryable` 的集合含 429——rerank 不自己重试，它**继承**下一层的
+重试。前提翻掉之后同一条路径上真正的洞才浮出来：**降级被折叠成一句，而那句话写进一个产品里
+没人读的字段**。号按落地时点 max(可见 ref)+1 取。
+
+### 起因
+
+`retrieval/rerank.py` 的模块 docstring 自称「three honest tiers」，第三层写着
+「honestly annotated (mode="off" + reason)」。这两句都是发布出去的散文。本号把「honest」
+拆开量：注解是不是真的、注解说的是不是发生的那件事、以及那件发生的事有没有任何人看得见。
+三个问题各给出一条腿，最后一条把范围从「文字」推到「机制」——因为原因字段落在
+`retrieval_note` 这条**会被 SQL 查询、会被装进通知**的链上。
+
+### 量到的
+
+1. **一条句子盖住四条出口**。`_llm_order` 有 4 条 `return None`（没有 `[` 起点、`json.loads`
+   失败、不是 list、不是排列）加一条 `except Exception`，全部 `return None`；调用方对
+   `None` 只写一句：`LLM rerank failed (invalid or missing ranking output)`。也就是说
+   网关 429 重试用尽、连接被拒、鉴权失败与模型回了一句散文，**四种事实对外是同一句话，
+   而那句话讲的是「回复的形状」**。
+2. **同一模块对同一类事件有两种说法**：tier 1 是
+   `cross-encoder failed: ` + `str(exc)[:120]`（保留现场），tier 2 是上面那句（扔掉现场）。
+   「honest」只描述了一半。
+3. **那句 reason 在产品里没有读者**（逐个点名量过）：`retrieval/hybrid.py` 把它写进
+   `meta["rerank_reason"]`；`outcome.meta` 的产品侧读者**只有**
+   `agent/nodes/retrieve_repository_context.py` 一处，它把 `embedding_error` 转写进
+   `retrieval_note`，从不读 `rerank_reason`，然后把整个 `meta` 丢掉。全仓 `rerank_reason`
+   的命中：那一次写 + 两处**假 meta**（注入安全测试、节点可观测测试）。
+4. **note 不是日志是可观测面**：`retrieval_note` → `agent/state.py` 字段 →
+   `agent/worker.py` 拼进 summary JSON → `storage/mysql.py` 用
+   `JSON_EXTRACT(summary, '$.retrieval_note')` **作为查询条件** →
+   `integrations/notify/templates.py` 把它装上通知。所以「rerank=off 但不知道为什么」
+   是一条会被查出来的记录，不是一个只在进程里闪一下的字。
+5. **被扔掉的信息本来是有类型的**：provider 的重试集是
+   {RateLimitError(429), ConflictError(409), InternalServerError(≥500), APITimeoutError(含 408),
+   APIConnectionError}，且 `reraise=True`——预算用尽后原类型重抛；AuthenticationError 之类
+   不可重试的直接漏出来。分类所需的东西一直在手上。
+6. **等待不是上限，而且只在半个现场存在**：`_run_async` 用
+   `pool.submit(asyncio.run, coro).result(timeout=90)`，而它等的那个调用里面是
+   「每次尝试 60s × (`LLM_MAX_RETRIES`+1) + 两次最长 60s 的等待」——策略的最坏情况必然越过 90s；
+   起爆之后 `with ThreadPoolExecutor(...)` 的 `__exit__` 仍要 join worker，所以控制也不是
+   在 90s 交回。**更基本的一条（落地时才量到，见「发现」4）**：那条等待只在**已经有事件循环**
+   时才走；节点是同步函数、跑在没有循环的线程里时，`_run_async` 落到 `asyncio.run(coro)`——
+   **根本没有等待上限**，provider 挂住就一直挂。
+7. **折叠的那条路径没有覆盖**：`tests/unit/test_retrieval_hybrid.py` 里钉 rerank 层级形状的
+   10 例，`_FakeProvider.chat` **永远 return**，没有一例让 provider 抛。第 1 条里那条
+   `except Exception` 在生产里天天可能走、在测试里一次也没走过。
+8. **两种「缺席」也共用一句**：`_llm_provider()` 在 `LLM_API_KEY` 为空时返回 `None`，
+   在**配了 key 但 provider 栈 import 不进来**时也返回 `None`，调用方对两者都写
+   `no LLM gateway configured`。后一种里配置是齐的，缺的是依赖——那句话是反的。
+9. **队列⑦的两侧确实都存在，只是不在我以为的位置**：`retrieval/embeddings.py` 有自己的
+   `_RETRYABLE_STATUS` frozenset 与 tenacity `Retrying`，`providers/openai_compatible.py`
+   有另一套（SDK 客户端 `max_retries=0`，tenacity 是唯一重试所有者）。rerank 走后者。
+   「政策一致 ≠ 机制一致」在这里的形态是：**同一件事有两个实现，而问句问的是第三个模块**。
+10. **这条链在线上只以「松散可达」存在**（用 #522 那张图复测）：
+    `retrieval.rerank` 与 `retrieval.hybrid` 都**不在严格可达集**里——节点在函数体里
+    `from retrieval.hybrid import hybrid_search`（level-0 但在嵌套边）。这不是本号的判决对象
+    （#522 已经写了「嵌套 import 不是接线」），它是背景：**一层只在分支里被拉进来的降级，
+    它的说明又写进一个没人读的字段，两件事叠起来才是「没人看见过这个洞」的完整解释**。
+
+### 落地
+
+1. **闭集词汇表** `RERANK_CAUSES`（15 个码）+ `RerankResult.causes: tuple[str, ...] = ()`。
+   码是**唯一**允许从 `retrieval/` 走进可观测字段的失败事实；新降级必须先注册。
+2. `_llm_order` 从「返回 None 表示失败」改成返回 `(order, cause, sentence)`：
+   `llm_output_no_json_array` / `llm_output_malformed_json` / `llm_output_not_an_index_list` /
+   `llm_output_not_a_permutation` / `llm_provider_error` / `llm_wait_timeout` 各归各位，
+   句子改成说真话（抛异常那一路写异常**类型名**、且不再出现任何描述回复的词）。
+3. `_RerankWaitTimeoutError`：把「等待起爆」从裸 `TimeoutError` 包出来，使得
+   「网关自己抛 TimeoutError」与「我们没等到」是两个码——它们讲的不是同一件事。
+4. `_llm_provider()` 返回 `(provider, absence_code)`，两种缺席两种说法。
+5. `notes: list[tuple[str, str]]`：把 (码, 句子) 绑成一条队列，一一对应由**构造**保证
+   而不是靠事后核对；tier 3 的返回由它 join 出 reason、抽出 causes。
+6. `retrieval/hybrid.py`：`meta["rerank_causes"]`（码 join），两个 `mode="off"` 构造站点
+   带码（`rerank_crashed` / `bm25_only`），空 query 那条 literal meta 带 `empty_query`。
+7. `agent/nodes/retrieve_repository_context.py`：note **只转写码**
+   （`rerank_causes=<code>[+<code>]`），不转写句子；并把「什么可以进 note」写进模块 docstring。
+8. 三处 docstring 从自称 honest 改成说得出机制：模块头讲清词汇表为什么存在
+   （reason 会引用异常文本，而异常发生的请求里带着仓库正文）。
+
+### 门
+
+| 门 | 内容 | 实测 |
+|----|------|------|
+| **新门** `tests/unit/test_rerank_degradation_cause_is_attributed_and_observable.py` | 五条腿：G1 每条出口归位（坏回复参数化 8 + provider 抛 4 + 等待起爆 1 + 两种缺席 1 + 两层同降 1 + 单候选 1 + 成功不带码 1）、G2 词汇表（普查 + `registered == RERANK_CAUSES` 相等）、G3 reason/causes 一一对应、G4 两条 AST 腿带地板、G5 hybrid meta 3 例 + note 端到端 2 例 | **28 例全绿**（预测 ≥14；差在参数化人口，见 M11） |
+| 邻域 `tests/unit/test_retrieval_hybrid.py` | rerank 三层形状既有 10 例 + 混合检索其余 | 43 例全绿 |
+| 邻域 `test_retrieve_repository_context_node_execution_is_observable.py` | 6 个 outcome 词 + runs + drift | 7 例全绿 |
+| 邻域 `tests/security/test_retrieval_injection.py` | note 里不许出现仓库正文 | 9 例全绿 |
+| 邻域 env 家族 | 政策表 10 / 旋钮可达 8 / 空值存活 14（本号动了 `_LLM_WAIT_SECONDS` 与 `env_int` 读点） | 32 例全绿 |
+| **合计** | 落地跑七文件 119 例；电池只钉四文件（新门 + 上三件邻域）= **28+43+7+9 = 87 例**，基线与每条臂恢复后各跑一遍 | 落地 119 例全绿；电池基线 **0 红**、10 条臂恢复后均回到 0 红；静态门 ruff / mypy 干净 |
+
+### 变异臂
+
+预测写在 `D:\面试项目\.scratch\pred523_rerank_cause.md`（落地之前、臂跑之前）。
+电池：`arms523.py`，跑在 `origin/master`(`1419d08`) + 4 个覆盖文件的工作树 `wt523` 上，
+GATES = 新门 + `test_retrieval_hybrid` + 节点可观测 + 注入安全，四文件人口 **87 例**
+（`--check` 先验 10 条锚点全部命中；每条臂逐字节恢复并校验，`restore_failed` 全空）。
+
+**这一列读完就够的数**：10 条臂、**每一条的红全部落在新门 28 例里，邻域 59 例一条没红**。
+这就是量到的 7 的量化形态——折叠不是「测得少」，是**在既有测试上完全不可见**：
+A8 把旧的那句折叠话原样放回来，43+7+9 例照旧全绿。
+
+| 臂 | 变异 | 预测 | 实测 | 红的是谁 |
+|----|------|------|------|----------|
+| A1 | 把 `_llm_order` 的多条码折回一个 `llm_failed` | 新门 ≥2（G1 至少一类对不上、G3 长度错配）；邻域 0 | **10**，邻域 0 | 新门：坏回复 5 例 + provider 抛 4 例参数化 + 普查 + 两层同降 + note payload 例 |
+| A2 | 等待起爆的 `TimeoutError` 落进 `llm_provider_error` | 1（G1 等待例）；邻域 0 | **1**，邻域 0 | `test_an_expired_wait_is_separate_from_a_gateway_error` |
+| A3 | hybrid 不再往 meta 写 `rerank_causes` | ≥1（G5 端到端）；邻域 0 | **5**，邻域 0 | meta 三例 + AST 地板例 + note 端到端例 |
+| A4 | 节点 note 改转写 `meta["rerank_reason"]` 自由文本 | ≥1（G5 payload 安全例）；邻域 0 | **1**，邻域 0 | `test_the_note_carries_the_code_and_not_the_sentence`（正文标记出现在 note 里） |
+| A5 | 节点删掉整段 `rerank_causes` 转写 | 1（G5）；邻域 0 | **1**，邻域 0 | 同一条端到端例 |
+| A6 | 追加一条不带 `causes` 的 `mode="off"` 构造站点 | 1（G4 AST 例）；邻域 0 | **1**，邻域 0 | `test_every_off_verdict_the_product_builds_announces_its_causes` |
+| A7 | 把一条码写成闭集外的拼写 | ≥1（G2）；邻域 0 | **4**，邻域 0 | 普查例 + 该码对应的 3 例参数化（表里钉的是码名，改名即错） |
+| A8 | provider 抛异常时 reason 写回旧句 `invalid or missing ranking output` | ≥1（G1 断言 reason 含类型名且不含回复类词）；邻域 0 | **5**，邻域 0 | provider 抛 4 例 + hybrid meta 例 |
+| A9 | **对照臂**：只加注释、不动逻辑 | **0**（证明 harness 不自红） | **0** | — |
+| A10 | 把 `_llm_provider` 的两条缺席折回一条 | 1（新加的缺席区分例）；邻域 0 | **1**，邻域 0 | `test_no_key_and_unimportable_stack_are_two_different_absences` |
+
+### 发现
+
+1. **队列⑦的前提是假的**，且假得有价值：429 那一层早就被重试了。本号没有按原句去
+   「给 rerank 补 429 重试」，那样会造出**第三套**重试实现——正是 #517/#518/#520 一路在收的债。
+   原句作废，真正的洞记为量到的 1-8。
+2. **分类边界是量出来的不是想出来的**：`"[0, 2,"`（有左括号没右括号）走
+   `llm_output_no_json_array` 而**不是** `malformed_json`——因为代码取的是
+   `find("[")` 与 `rfind("]")`，右括号缺席时那个 span 根本不存在。写预测时我以为它是
+   malformed 那一类；参数化表里那一条就是这次纠正留下的格子。
+3. **门必须能自证看见了代码**：两条 AST 腿各带一条地板
+   （`len(sites) >= 4`、`len(dicts) >= 2`）。没有地板时，一次改名能让扫描找到 0 个站点、
+   断言「每一个站点都带码」对空集合**平凡成立**而全绿。
+4. **等待的不对称是落地时才发现的，且比预测更糟**（量到的 6 末段）：预测文件只写了
+   「TimeoutError 被折叠」，没写「同步上下文里连 TimeoutError 都没有」。补进 M12 与队列②。
+5. **`_llm_provider` 的两条缺席也是落地时顺着同一形状发现的**（量到的 8）：不在原预测里，
+   于是在预测文件末尾**追加**了一节记它，而不是回头改写前三轮的预测。
+6. **同一 note 上另一条自由文本腿仍开着**：`note += " embedding_error=" + str(...)[:120]`
+   转发的是 `vector_search failed: ` + 异常文本（`retrieval/hybrid.py` 里写进去的）。
+   本号为 rerank 关的那扇门，对 embedding 没关——截断到 120 字符不等于不是正文。
+   这是本节的**边界**而不是遗漏，写成队列①，且现成刑具就在注入安全测试那个文件里。
+7. **类型层也有折叠**：mypy 报的第一条错是 tier 1 的 `order: list[int]` 与 tier 2 的
+   `order: list[int] | None` 同名复用（`Incompatible types in assignment`）。改成 `llm_order`
+   之后才干净——同一个变量名承载两种可达性，正是本号在行为层拆掉的那件事。
+8. **一条臂的写法偏离了预测，结论没变**：预测 A7 用的是 `llm_time_out`，实际臂折的是
+   `llm_output_no_json_array` → `llm_output_no_array`。差在「哪条码逃出闭集」而不是
+   「逃出会不会被抓」，且实测 4 例红 > 预测 ≥1：参数化表里钉的是码名本身，
+   一次改名同时打中「期望这条码的那几例」与普查例。记成偏离而不是改预测。
+
+### 否证与边界
+
+- **闭集不是魔法**。它约束的只有「进 `retrieval_note` 的那一条腿」。`meta["rerank_reason"]`
+  仍然是自由文本、仍然可能含异常原文——那是给读 dict 调试的人的，本号没删它，也没让它进 note。
+- **「码进 note」不等于「码进 UI」**。没加 API 字段，没动 summary 的形状；
+  新增的可观测面就只有那条已被查询、已被通知的 note 的一个词。
+- **等待语义没有改**。本号给等待起了一个名字、把它说成「报什么的上限」，
+  没有改成真取消（`shutdown(wait=False, cancel_futures=True)` 会留下一个仍在跑的
+  `asyncio.run` 与一个非 daemon 线程），那是另一个决定，在队列②。
+- `rerank_crashed` 预期不发生：`retrieval/_env.py` 的 `env_int` 对坏值回退默认而不抛，
+  所以 hybrid 那条 `except Exception` 是净子不是能力。留着码是因为净子也需要一个名字，
+  而不是因为量到了它接住过什么。
+- **臂测的是门的活性，不是这 15 个码的完备性**。哪些失败形状值得一个码是设计判断；
+  「码必须先在闭集里登记」这条摩擦（门的相等式断言）是本号真正想留下的机制。
+- 预测写成区间而不是逐例点数：新门在预测之后才存在，「折叠回来时有几例翻红」
+  在那时候不可知。能预言的部分（哪些腿必须红、邻域哪些断言不许红）全部预言并逐条对了。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① **`embedding_error` 那条自由文本腿**（发现 6）：`retrieval/hybrid.py` 把
+`vector_search failed: ` + 异常原文写进 meta，节点把原文前 120 字符转写进 note。
+按本号的形状补一条「vector 通道的码」，并复用 `tests/security/test_retrieval_injection.py`
+的 payload 刑具——那条测试已经证明 note 不许有正文，只是没人对 embedding 通道用它；
+② `_run_async` 在同步上下文里**没有等待上限**（量到的 6 末段）：要么给 `asyncio.run` 那条
+也包一层取消，要么把「无上限」写成调用方必须知道的预算——现在是三处 docstring 都没说的默认；
+③ 等待起爆之后仍要 join worker（真墙钟 > 声明的等待）——与②同一个函数，一起决定；
+③b rerank 的 tier 2 在网关已经 429 到预算用尽之后，是否应该**立刻**落 tier 3 而不再花第二个
+请求超时：策略问题，不是文字问题；
+④ `cli/`、`craft/` 剩余约 50 条静默 `except`（原队列⑩）现在可以借本号的词汇表：
+「折叠成一句」的病有得治，先得有名字；
+⑤ `reports/` 与评测输出里只有 `rerank_mode`，没有 `rerank_causes`——如果评测要按降级分层，
+这是它的字段；不加就明确 note 是唯一的码出口；
+⑥ 整条检索链只以松散可达存在（量到的 10）：要不要给「入口根的顶层性」补一条门，
+让「线上到不了」与「只在分支里到得了」在门里长得不一样；
+⑦ 本号门的 `registered == RERANK_CAUSES` 相等式使「加一个码」必须两处同改（产品 + 门）。
+这是有意的摩擦；如果哪一号想只改一处，那要先回答「这个新降级谁会看见」。

@@ -108,7 +108,11 @@ def hybrid_search(
     Degradations (卷IV 4.3) are annotated in meta, never raised:
     no/unusable embeddings → BM25+graph order (mode="bm25"); empty vector
     results → automatic BM25 fallback without error; rerank unavailable →
-    rerank_mode="off" with the original order preserved.
+    rerank_mode="off" with the original order preserved.  The rerank half of
+    that contract ships two meta keys, and only one of them is for the wire:
+    `rerank_reason` is the sentence, `rerank_causes` is the closed-vocabulary
+    codes — the caller forwards the codes into `retrieval_note`, never the
+    sentence, because a sentence can quote an exception that quoted the payload.
     """
     if not query.strip():
         return HybridOutcome(
@@ -124,6 +128,7 @@ def hybrid_search(
                 "expanded": 0,
                 "rerank_mode": "off",
                 "rerank_reason": "empty query",
+                "rerank_causes": "empty_query",
                 "returned": 0,
                 "truncated": False,
             },
@@ -171,6 +176,7 @@ def hybrid_search(
                 mode="off",
                 order=list(range(len(merged))),
                 reason="rerank failed: " + str(exc)[:120],
+                causes=("rerank_crashed",),
             )
         merged = [merged[i] for i in rerank_outcome.order]
     else:
@@ -178,6 +184,7 @@ def hybrid_search(
             mode="off",
             order=list(range(len(merged))),
             reason="rerank skipped (bm25-only mode, 卷IV 4.3)" if merged else None,
+            causes=("bm25_only",) if merged else (),
         )
 
     final: list[dict[str, Any]] = []
@@ -197,6 +204,7 @@ def hybrid_search(
         "expanded": expanded_count,
         "rerank_mode": rerank_outcome.mode,
         "rerank_reason": rerank_outcome.reason,
+        "rerank_causes": "+".join(rerank_outcome.causes) or None,
         "returned": len(final),
         "truncated": len(merged) > k,
     }

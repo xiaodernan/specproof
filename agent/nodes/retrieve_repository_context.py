@@ -13,6 +13,12 @@ graph path unchanged (卷IV 4.3). The active mode is logged and annotated
 in retrieval_note; per-hit retrieval metadata (source/rank/rrf_score)
 rides the repo_context channel.
 
+What may join that note (#523): codes, not sentences. The rerank tier
+reports a free-text reason and a closed-vocabulary cause; only the cause
+is forwarded, because the note is persisted in the run summary, queried
+from storage and put on notifications, and a reason can quote an exception
+that quoted the repository payload.
+
 Honesty contract: when Elasticsearch is unavailable the node records a
 retrieval_note and continues with an empty context — it never fabricates
 retrieved content and never blocks the pipeline on optional infra.
@@ -221,6 +227,11 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
             )
             if meta.get("embedding_error"):
                 note += " embedding_error=" + str(meta["embedding_error"])[:120]
+            # Codes only, never meta["rerank_reason"]: that sentence can quote the
+            # exception that quoted the repository, and the note is persisted in the
+            # run summary and put on notifications.
+            if meta.get("rerank_causes"):
+                note += " rerank_causes=" + str(meta["rerank_causes"])
             logger.info(
                 "retrieval mode=hybrid_rrf rerank=%s bm25=%s vector=%s retrieved=%s",
                 meta.get("rerank_mode"),
