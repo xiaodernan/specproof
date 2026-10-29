@@ -13,11 +13,17 @@ graph path unchanged (卷IV 4.3). The active mode is logged and annotated
 in retrieval_note; per-hit retrieval metadata (source/rank/rrf_score)
 rides the repo_context channel.
 
-What may join that note (#523): codes, not sentences. The rerank tier
-reports a free-text reason and a closed-vocabulary cause; only the cause
-is forwarded, because the note is persisted in the run summary, queried
-from storage and put on notifications, and a reason can quote an exception
-that quoted the repository payload.
+What may join that note (#523 rerank, #524 the vector channel): codes, not
+sentences. Each degraded subsystem reports a free-text reason and a
+closed-vocabulary cause; only the cause is forwarded, because the note is
+persisted in the run summary, queried from storage with JSON_EXTRACT and put
+on notifications, and a reason can quote an exception that quoted the
+repository payload. The note's own crash line names the exception's type and
+leaves the message to the log for the same reason — that handler wraps a bulk
+index of the repository's source, so its exception is the one most likely to
+repeat it. The note's leading words are load-bearing: storage/mysql.py reads
+"seeded demo" at position 1 as the demo flag, so every addition here is
+appended, never prepended.
 
 Honesty contract: when Elasticsearch is unavailable the node records a
 retrieval_note and continues with an empty context — it never fabricates
@@ -36,7 +42,8 @@ retrieval ran; which subsystem is config-dependent), ``no_workspace`` /
 ``no_java_sources`` (nothing to index, decided before any infra access),
 ``es_unavailable`` (the documented honesty contract: optional infra down,
 empty context, job continues) or ``retrieval_failed`` (the attempt raised;
-degraded to an empty context with the reason in retrieval_note). The
+degraded to an empty context, naming the exception's type in retrieval_note
+and its message in the log). The
 retrieval_note is prose built per run; the word is the countable record —
 an empty repo_context alone cannot tell "retrieval ran and found zero
 candidates" from "no infra" from "no inputs" from "it crashed".
@@ -117,6 +124,24 @@ def _index_job_kwargs(job_id: str | None) -> dict[str, str]:
     document shape) applies and index callers keep their old signature.
     """
     return {"job_id": job_id} if job_id else {}
+
+
+def _merge_causes(*sources: Any) -> str | None:
+    """Order-preserving union of "+"-joined code lists from several layers.
+
+    Two layers of the vector channel see different facts (#524): the index
+    report knows the stored vectors' width, the search meta knows what happened
+    when the query vector was asked for.  Neither alone answers "why is
+    ``embedded`` zero", and before this merge the report's codes had no reader
+    at all — the same write-only defect the rerank reason had.  The same code
+    from both layers is one fact, so it is named once.
+    """
+    codes: list[str] = []
+    for source in sources:
+        for code in str(source or "").split("+"):
+            if code and code not in codes:
+                codes.append(code)
+    return "+".join(codes) or None
 
 
 def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
@@ -225,11 +250,23 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
                 + " embedding=" + str(meta.get("embedding_used") or "none")
                 + " retrieved=" + str(len(context))
             )
-            if meta.get("embedding_error"):
-                note += " embedding_error=" + str(meta["embedding_error"])[:120]
-            # Codes only, never meta["rerank_reason"]: that sentence can quote the
-            # exception that quoted the repository, and the note is persisted in the
-            # run summary and put on notifications.
+            skipped = indexed_report.get("vectors_skipped", 0)
+            if skipped:
+                note += " skipped=" + str(skipped)
+            # Codes only, for both channels — never meta["embedding_error"] nor
+            # meta["rerank_reason"]: those sentences quote whatever the gateway or
+            # Elasticsearch said, and Elasticsearch says it about a chunk of the
+            # repository's own source, which fits under the old 120-char cap
+            # without being cut (#524). The note is persisted in the run summary,
+            # queried with JSON_EXTRACT and put on notifications; the sentence
+            # stays in the log.  The vector channel's codes come from two layers:
+            # the index report saw the stored vectors' width, the search meta saw
+            # the query side, and either can degrade without the other.
+            vector_causes = _merge_causes(
+                indexed_report.get("embedding_causes"), meta.get("embedding_causes")
+            )
+            if vector_causes:
+                note += " embedding_causes=" + vector_causes
             if meta.get("rerank_causes"):
                 note += " rerank_causes=" + str(meta["rerank_causes"])
             logger.info(
@@ -239,6 +276,15 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
                 meta.get("vector_hits"),
                 len(context),
             )
+            if meta.get("embedding_error"):
+                logger.info(
+                    "retrieval vector channel degraded: %s", meta["embedding_error"]
+                )
+            # The index report's sentences used to have no reader at all
+            # (#524): the counts and codes travel to the note, this is where
+            # the wording goes.
+            for index_note in indexed_report.get("embedding_notes") or []:
+                logger.info("retrieval index channel degraded: %s", index_note)
             incr("retrieve_repository_context_outcomes_hybrid_rrf_total")
             return {"repo_context": context, "retrieval_note": note}
 
@@ -287,7 +333,16 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — optional infra, honest degradation
         incr("retrieve_repository_context_outcomes_retrieval_failed_total")
+        # The type name is the reportable half (#524): this handler wraps the
+        # whole attempt — indexing repository source into Elasticsearch, the
+        # hybrid search, the graph expansion — and those clients quote the
+        # document they were rejected for. The message goes to the log.
+        logger.warning(
+            "repository retrieval failed (%s): %s", type(exc).__name__, exc
+        )
         return {
             "repo_context": [],
-            "retrieval_note": "Repository retrieval failed: " + str(exc)[:200],
+            "retrieval_note": (
+                "Repository retrieval failed: " + type(exc).__name__
+            ),
         }

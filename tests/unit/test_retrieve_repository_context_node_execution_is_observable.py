@@ -18,8 +18,8 @@ RETRIEVE_OUTCOMES:
   are never reached (witness: both would raise);
 - es_unavailable: is_ready False — the documented honesty contract, empty
   context, and nothing runs after the readiness probe;
-- retrieval_failed: search raised — degraded to an empty context with the
-  reason in the note;
+- retrieval_failed: search raised — degraded to an empty context naming the
+  exception's type in the note (its message only in the log, #524);
 
 plus retrieve_repository_context_runs_total on every path and a drift
 gate binding the parity family's regex words to RETRIEVE_OUTCOMES and to
@@ -300,7 +300,10 @@ def test_retrieval_failed_counts_retrieval_failed(
 
     assert result == {
         "repo_context": [],
-        "retrieval_note": "Repository retrieval failed: boom",
+        # The type, not the message: this handler wraps a bulk index of the
+        # repository's own source, and Elasticsearch quotes the document it
+        # rejected (#524). The message goes to the log.
+        "retrieval_note": "Repository retrieval failed: RuntimeError",
     }
     assert _deltas(before) == _only("retrieval_failed")
 

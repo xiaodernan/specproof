@@ -15,7 +15,7 @@ import httpx
 import pytest
 
 from agent.repo_graph import RepoGraph
-from retrieval.embeddings import EmbeddingClient
+from retrieval.embeddings import EmbeddingClient, EmbeddingOutcome
 from retrieval.hybrid import HybridOutcome, hybrid_search, rrf_fuse
 from retrieval.rerank import RerankResult, rerank
 from storage.elasticsearch import ElasticsearchConfig, ElasticsearchStore
@@ -49,22 +49,32 @@ def _hit(path: str, symbol: str, content: str = "x") -> dict[str, Any]:
 
 
 class FakeEmbedder:
+    """EmbeddingClient stand-in: vectors on demand, one failure per instance.
+
+    ``cause`` is left empty by most cases on purpose — an embedder that
+    reports "no vectors" without naming why is a shape the product has to
+    survive, and #524 measured test doubles doing exactly that.
+    """
+
     def __init__(
         self,
         configured: bool = True,
         vectors: list[list[float]] | None = None,
         reason: str = "",
+        cause: str = "",
         model: str = "test-embed-model",
     ) -> None:
         self.configured = configured
         self.model = model
         self._vectors = vectors
         self._reason = reason
+        self._cause = cause
+        self.config_cause = "" if configured else "base_url_not_set"
 
-    def embed(self, texts: list[str]) -> tuple[list[list[float]] | None, str]:
+    def embed(self, texts: list[str]) -> EmbeddingOutcome:
         if self._vectors is None and not self._reason:
-            return ([[0.1, 0.2] for _ in texts], "")
-        return (self._vectors, self._reason)
+            return EmbeddingOutcome([[0.1, 0.2] for _ in texts])
+        return EmbeddingOutcome(self._vectors, self._cause, self._reason)
 
 
 class FakeES:
@@ -169,6 +179,8 @@ def test_degrade_unconfigured_embedder_is_bm25_only():
     assert outcome.meta["mode"] == "bm25"
     assert outcome.meta["embedding_used"] is None
     assert outcome.meta["embedding_error"] is None  # not even attempted
+    # ...but the reason it was not attempted is a code the caller may report.
+    assert outcome.meta["embedding_causes"] == "base_url_not_set"
 
 
 def test_degrade_embedding_failure_falls_back_bm25():
@@ -183,6 +195,24 @@ def test_degrade_embedding_failure_falls_back_bm25():
     assert outcome.meta["mode"] == "bm25"
     assert outcome.meta["embedding_error"] == "gateway down"
     assert outcome.meta["embedding_used"] is None
+    # An embedder that names no cause is not the same as no failure: the
+    # absence gets its own registered word instead of vanishing (#524).
+    assert outcome.meta["embedding_causes"] == "cause_missing"
+
+
+def test_degrade_named_embedding_failure_reports_its_cause():
+    outcome = hybrid_search(
+        FakeES([_hit("a.java", "A")]),
+        "q",
+        "repo:x",
+        k=16,
+        embedder=FakeEmbedder(
+            reason="embedding endpoint connect failed (ConnectError)",
+            cause="endpoint_connect_failed",
+        ),
+        graph=None,
+    )
+    assert outcome.meta["embedding_causes"] == "endpoint_connect_failed"
 
 
 def test_degrade_empty_vector_results_falls_back_bm25():
@@ -291,7 +321,8 @@ def test_embed_batches_bounded_by_64():
         base_url="http://emb", api_key="k", model="m",
         transport=httpx.MockTransport(handler),
     )
-    vectors, reason = client.embed([f"t{i}" for i in range(130)])
+    outcome = client.embed([f"t{i}" for i in range(130)])
+    vectors, reason = outcome.vectors, outcome.sentence
     assert reason == ""
     assert vectors is not None
     assert len(vectors) == 130
@@ -315,7 +346,8 @@ def test_embed_429_retries_honoring_retry_after():
         base_url="http://emb", api_key="k", model="m", max_retries=2,
         transport=httpx.MockTransport(handler),
     )
-    vectors, reason = client.embed(["hello"])
+    outcome = client.embed(["hello"])
+    vectors, reason = outcome.vectors, outcome.sentence
     assert vectors == [[1.0, 2.0]]
     assert reason == ""
     assert attempts["n"] == 2
@@ -332,7 +364,8 @@ def test_embed_401_is_not_retried_and_reasoned():
         base_url="http://emb", api_key="k", model="m", max_retries=2,
         transport=httpx.MockTransport(handler),
     )
-    vectors, reason = client.embed(["x"])
+    outcome = client.embed(["x"])
+    vectors, reason = outcome.vectors, outcome.sentence
     assert vectors is None
     assert "401" in reason
     assert attempts["n"] == 1
@@ -346,7 +379,8 @@ def test_embed_never_fabricates_when_endpoint_dies():
         base_url="http://emb", api_key="k", model="m", max_retries=1,
         transport=httpx.MockTransport(handler),
     )
-    vectors, reason = client.embed(["x"])
+    outcome = client.embed(["x"])
+    vectors, reason = outcome.vectors, outcome.sentence
     assert vectors is None
     assert "503" in reason
 
@@ -359,7 +393,8 @@ def test_embed_malformed_response_returns_none():
         base_url="http://emb", api_key="k", model="m",
         transport=httpx.MockTransport(handler),
     )
-    vectors, reason = client.embed(["x"])
+    outcome = client.embed(["x"])
+    vectors, reason = outcome.vectors, outcome.sentence
     assert vectors is None
     assert "data" in reason
 
@@ -382,7 +417,8 @@ def test_embed_rejects_inconsistent_dims():
         base_url="http://emb", api_key="k", model="m", batch_size=2,
         transport=httpx.MockTransport(handler),
     )
-    vectors, reason = client.embed(["a", "b", "c"])
+    outcome = client.embed(["a", "b", "c"])
+    vectors, reason = outcome.vectors, outcome.sentence
     assert vectors is None
     assert "inconsistent" in reason
 
@@ -443,7 +479,8 @@ def test_from_env_placeholder_key_is_unconfigured(clear_embedding_env, monkeypat
 
 def test_embed_unconfigured_returns_none_and_reason(clear_embedding_env):
     client = EmbeddingClient.from_env()
-    vectors, reason = client.embed(["x"])
+    outcome = client.embed(["x"])
+    vectors, reason = outcome.vectors, outcome.sentence
     assert vectors is None
     assert client.config_reason == reason
 

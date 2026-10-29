@@ -216,13 +216,13 @@ def run_bench(
             assert embedder is not None
             try:
                 tvec0 = time.perf_counter()
-                vectors, reason = embedder.embed([query.text])
-                if vectors is None:
+                outcome = embedder.embed([query.text])
+                if outcome.vectors is None:
                     vector_blocked = True
-                    vector_error = vector_error or reason
+                    vector_error = vector_error or outcome.sentence
                 else:
                     vector_hits = store.vector_search(
-                        REPO_NAME, vectors[0], k=VECTOR_K, commit_sha=COMMIT_SHA
+                        REPO_NAME, outcome.vectors[0], k=VECTOR_K, commit_sha=COMMIT_SHA
                     )
                     vector_latency_ms = (time.perf_counter() - tvec0) * 1000.0
                     vector_used_queries += 1

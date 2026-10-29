@@ -16149,3 +16149,235 @@ A8 把旧的那句折叠话原样放回来，43+7+9 例照旧全绿。
 让「线上到不了」与「只在分支里到得了」在门里长得不一样；
 ⑦ 本号门的 `registered == RERANK_CAUSES` 相等式使「加一个码」必须两处同改（产品 + 门）。
 这是有意的摩擦；如果哪一号想只改一处，那要先回答「这个新降级谁会看见」。
+
+## #524 向量通道的降级事实只有散文，而那句散文带着仓库正文走进了会被 SQL 查询的字段
+
+**起因/占号。** `## #523` 的「发现」6 原文是：「同一 note 上另一条自由文本腿仍开着：
+`note += " embedding_error=" + str(...)[:120]` 转发的是 `vector_search failed: ` + 异常文本……
+本号为 rerank 关的那扇门，对 embedding 没关——截断到 120 字符不等于不是正文。」
+本号就是那条队列①。号按落地时点 max(可见 ref)+1 取（`## #523` 已推送，`## #521` 只在
+共享索引里暂存，实测见「否证与边界」末条）。
+
+### 起因
+
+`retrieval/embeddings.py` 的模块头把 卷IV 4.3 写成「vectors are either real gateway output
+or nothing」，设计表 `docs/design/GRAND_PLAN_V2.md:174` 承诺的形状是「嵌入端点不可用 →
+索引/检索自动回退 BM25，不报错 → `embedding_error=原因`」。两句话都发布出去了，本号把它们
+各自拆开量：**(a)** 那条「原因」是不是唯一载体、它能不能唯一确定一件事；**(b)**「不报错」
+是不是真的。第二条本来不在计划里——它是形状普查跑出来之后才撞见的，见「发现」1。
+
+### 量到的
+
+1. **失败句子只有 10 条、其中 3 条插值自由文本**。`embed()`/`_embed_batch()` 里
+   `return (None, ...)` 共 **9 条**，其中 **7 条自己造句子**（另外两条转发
+   `self._config_reason` 与批原因）+ `_resolve_config_reason()` 3 条 = **10 条句子**。
+   三条插值的
+   分别是 `HTTP <status>`、`unreachable: ` + `str(exc)[:160]`、`malformed embedding
+   response: ` + `str(exc)[:120]`。没有码、没有异常类型名、没有闭集——句子是唯一的载体。
+2. **`embedding_error` 的产品侧读者只有一处**（节点把 `[:120]` 之后拼进 `retrieval_note`）。
+   而 `embedding_notes` 与 `vectors_skipped` 的产品侧读者是 **0 处**——比 #523 的
+   `rerank_reason` 更彻底：那两个键连节点都不读，是纯粹的写入即消失。
+3. **一条 `unreachable` 盖住 7+ 种事实**（MockTransport 逐条喂）：DNS 失败、连接被拒、
+   读超时、写超时、连接池耗尽、协议中断、代理失败、SSL/裸 socket 各占同一句。且
+   `httpx.WriteTimeout("")` 产出的句子是 `"embedding endpoint unreachable: "`——**长度 32、
+   冒号后面是空的**：消息本身为空时句子只剩前缀，读者既不知道类型也不知道发生了什么。
+4. **那三种事实需要的分类信息一直在手上**：httpx 的异常族就是分类，实测 0.28.1 的 MRO 是
+   `ConnectTimeout ⊂ TimeoutException ⊂ TransportError`、`ConnectError ⊂ NetworkError ⊂
+   TransportError`，且 `issubclass(ConnectTimeout, ConnectError)` 为 **False**。
+5. **120 字符的截断没挡住正文**（本号的刑具）。`hybrid.py:186` 把
+   `vector_search failed: ` + `str(exc)[:120]` 写进 `meta["embedding_error"]`，节点
+   `[:120]` 之后拼进 note。实测喂进去的异常原文是一段被索引的 Java 分块
+   （`index [code] rejected source public class Svc { ... REPO_BODY_MARKER ... }`，整句
+   121 字符）——**标记原样出现在 note 里**。被索引的分块正文本来就可能是一行代码，
+   一行就够穿过 120 的帽子。而 note 不是日志：`retrieval_note` → `agent/state.py` →
+   `agent/worker.py` 的 summary JSON → `storage/mysql.py:1005`/`:1050` 拿它**当查询条件**
+   （`LOCATE('seeded demo', JSON_EXTRACT(...)) = 1 AS is_demo`）→ 通知模板。
+6. **走这条腿的测试一例都没有**：`test_retrieval_hybrid.py` 落地前 43 例里 23 例名字含
+   embed/vector，但**没有一例让 `vector_search` 抛**——全文件 `raise` **0 处**，提到
+   `vector_search` 的只有 2 例、且都是直接调 store 的形状测试。注入安全文件提到
+   `embedding_error`，只出现在假 meta 的 `None` 里，**没有断言它进 note**。与 #523 量到的 7
+   同形。
+7. **`embedding_used` 说的不是「向量通道可用」**。ES 抛那格实测 meta 是 `mode=bm25` 而
+   `embedding_used=some-embed-model`；索引侧 dims 不符时（`len(vector) !=
+   config.vector_dims` 只在 `storage/elasticsearch.py` 判，`retrieval/hybrid.py` **0 处**判
+   dims），note 会是 `indexed=42 embedded=0 ... vector_hits=0 embedding=<model>`——
+   「用了模型」与「一个向量都没存进去」并排出现，而原因只在没人读的 `embedding_notes` 里。
+8. **成功哨兵在两份假实现里不一致**：真 `EmbeddingClient` 成功返回 `cause=""`，
+   `tests/unit/test_es_projection_cleanup.py:171` 的 `FakeEmbedder` 返回 `(..., None)`，
+   `test_retrieval_hybrid.py:64` 返回 `(..., "")`。因为消费者只看 `vectors is None`，
+   **两种哨兵都能绿**——`(vectors, reason)` 这个二元组没有任何一处声明失败事实长什么样。
+9. **设计表不许删句子**（`embedding_error=原因` 是承诺），所以本号与 #523 同形：句子留着，
+   **加码**，句子进日志与 meta，码进 note。
+10. **note 的开头几个字是载荷**：`is_demo` 的定义是「note 以 `seeded demo` 开头」，
+    所以本号的每一条追加只能落在**尾部**。`scripts/seed_demo.py:373` 写入那句话，检索节点
+    的 note 永远以 `hybrid_rrf mode=` 开头，两者互不命中——这条谓词不许被本号弄红。
+11. **改返回形状的代价面 = 13 处**：`embed()` 产品侧 3 处（`retrieval/hybrid.py:166`、
+    `storage/elasticsearch.py:391`、`scripts/bench_retrieval.py:219`）、测试侧 unpack 7 处、
+    假实现 `def embed` 3 处。全部机械。
+12. **「不报错」是空话，而且代价是别人的成果**。形状普查时才发现 `embed()` 读回复那段不是
+    全函数：用 `content=` 逐形状喂，**6 个形状抛 `AttributeError`**——顶层是 JSON 数组 /
+    字符串 / 数字 / null（`payload.get`）、`data` 的条目不是对象（`item.get`，且只在条目数
+    == 文本数时抛，否则先被长度检查拦下）。而 `hybrid.py` 的 `embedder.embed([query])`
+    当时**没有 try**，这一句又在 `es.search_code()` **之后**：实测
+    `hybrid_search RAISED AttributeError -> node loses 2 bm25 hits`。一个畸形嵌入回复把
+    **已经拿到手的关键字检索**整个抹成 `retrieval_failed` + 空 `repo_context`。同一条腿在
+    `storage/elasticsearch.py::index_with_embeddings` 也没包，那里的代价是「每个分块都
+    照样入库」这条方法自己的承诺被打破。
+
+### 落地
+
+1. **闭集词汇表** `EMBEDDING_CAUSES`（**20 个码**）+
+   `@dataclass(frozen=True) EmbeddingOutcome(vectors, cause, sentence)`。每条失败出口在
+   **构造点**同时给 (码, 句子)，句子逐字保留量到的 1 的既有文本（除 `unreachable` 那条按
+   量到的 3 补上异常**类型名**，且消息为空时不再产出 32 字符残句）。
+2. **一条 `unreachable` 拆成三类事实三种码**：`endpoint_connect_failed` /
+   `endpoint_timeout` / `endpoint_transport_failed`。`_classify_transport` 先看
+   `ConnectError` 再看 `TimeoutException`——在 0.28.1 上这个顺序不决定任何事（两族不相交），
+   它是**对未来的假设**，于是被单独写成一条依赖测试钉住，变了会红。
+3. **读回复变成全函数**（量到的 12）：新增
+   `response_payload_not_an_object` / `response_data_item_not_an_object` 两条码，
+   `embed()` 不再让形状逃进 `getattr`。
+4. **两个调用点各包一层**，码 `embed_call_crashed`，句子**只带异常类型名、不带消息**
+   （消息会引用回复体）。`hybrid.py:166` 那层保住的是已经到手的 BM25 命中；
+   `storage/elasticsearch.py:391` 那层保住的是「每个分块都入库、BM25 仍可用」。
+5. **两层码，节点合并**：`meta["embedding_causes"]` 装查询侧（hybrid 看得见），
+   `report["embedding_causes"]` 装索引侧（只有 store 看得见 dims）。
+   `agent/nodes/retrieve_repository_context.py:129` 的 `_merge_causes()` 做保序去重并集——
+   本号修的是「没人读」，不能自己再造一个没人读的键。
+6. `retrieval/hybrid.py`：三条未查询的码（`no_embedder` / 配置码 / `cause_missing`）+
+   `vector_store_failed`；空 query 那条 literal meta 带 `not_attempted`；成功不写码。
+7. **note 只转写码**（`embedding_causes=<code>[+<code>]`、`rerank_causes=...`、
+   `skipped=<n>` 且只在 >0 时），句子一律不进；句子改走日志（`retrieval vector channel
+   degraded` 与新增的 `retrieval index channel degraded`——后者是 `embedding_notes`
+   第一次有了读者）。所有追加都在尾部。
+8. **配置失败也进码**：`EmbeddingClient.config_cause` 与既有 `config_reason` 并列，
+   未配置那格不再靠句子。
+9. 三处 docstring 从自称改成说得出机制：模块头写明「码是唯一走进 `retrieval_note` 的失败
+   事实」与「读回复是全函数，因为调用方要向量时通常已经把关键字检索花掉了」。
+
+### 门
+
+| 门 | 内容 | 实测 |
+|----|------|------|
+| **新门** `tests/unit/test_vector_channel_degradation_cause_is_attributed_and_observable.py` | 五条腿：A 归因（15 条回复形状 + 6 条状态码 + 9 条 httpx 形状 + 折叠消失 + ConnectTimeout 依赖 + 空消息 + 重试预算 + 成功 + dims + 4 条配置 + 哨兵 + 普查 + 闭集相等）、B 构造点（AST：`_failed` 站点带注册码且带地板、`_classify_transport` 的字面量、hybrid 的 `EmbeddingOutcome(None,…)` 站点、`return (None,` 消失、两条 meta/report 配对腿各带地板）、C 调用方（hybrid meta 与「hits 活下来」）、D 索引面（`index_with_embeddings` 的 report）、E 节点面（note 端到端：带码不带正文、dedupe、尾部追加不动 demo 头） | **70 例全绿**，`--collect-only` 数出 **A 43 / B 6 / C 10 / D 5 / E 6**（B 的第 6 例是 B16 证明有洞之后补的那条腿）。预测 ≥18；M12 那半是计划外的。诚实的一笔：预测文件第四节自估的构成 34/5/12/5/6 **加出来是 62**，连我自己写的总数（69）都没对上——构成的估计不是测量，总数才是 |
+| 邻域 `tests/unit/test_retrieval_hybrid.py` | 既有 43 例 + 本号补的 1 例形状 = **44 例** | 全绿（`"401" in reason` 类断言一条没红） |
+| 邻域 `test_retrieve_repository_context_node_execution_is_observable.py` | **7 例**：6 个 outcome 词 + runs + drift + `startswith("hybrid_rrf mode=hybrid_rrf")` | 全绿 |
+| 邻域 `tests/unit/test_es_projection_cleanup.py` | **22 例**：投影清理与 `vectors_skipped` 计数 | 全绿 |
+| 邻域 `tests/unit/test_rerank_degradation_cause_is_attributed_and_observable.py` | #523 的 **28 例**（`rerank_causes` 腿不动；本号只把里面那个假 embedder 改成返回 `EmbeddingOutcome`） | 全绿 |
+| 邻域 `tests/security/test_retrieval_injection.py` | **9 例**：note 里不许出现仓库正文 | 全绿 |
+| 邻域 `tests/unit/test_es_cleanup_wiring.py`（11 例）+ `test_retrieval_provenance.py`（2 例） | 同族 | 全绿 |
+| **代价面普查**（本号改了 `embed()` 的返回形状，这一行是「谁会被牵连」的完整人口） | 全树 `.embed(` / `def embed(` 命中 **13 个文件**：产品侧 4（`retrieval/embeddings.py` 自身、`hybrid.py:166`、`storage/elasticsearch.py:391`、`scripts/bench_retrieval.py:219`）+ 假实现 5 处 `def embed`（新门 2、`test_retrieval_hybrid.py:74`、`test_es_projection_cleanup.py:178`、#523 门 368）+ 其余调用点全在新门与 `test_retrieval_hybrid.py` 里。`retrieval/__init__.py` 命中 `EmbeddingClient` 但**只重导出类名、不调用** | 13 个文件里 12 个就是本号的 10 个落地文件 ∪ 8 道门，第 13 个是那条只导出的 `__init__.py`——**形状改动没有落在门外的任何一次调用上** |
+| **note 断言面**（本号改了 note 的字） | 断言 `retrieval_note` / `indexed=` / `hybrid_rrf mode=` 的文件共 **8 个**，其中 6 个在上面那八件里；门外只有 `tests/unit/test_notify_connector.py`（把 note 写成 `""` 字面量）与 `tests/e2e/fixture_server.py`（`"golden-case retrieval on"`） | 门外的 `test_notify_connector.py` + `test_es_cleanup_wiring.py` 单跑 **43 例全绿**；两个文件的字面量都不由产品拼 |
+| **离线全量** | `tests/unit tests/security tests/contract` | 补 B16 那条腿**之前**的那一遍：**5860 passed / 20 skipped / 0 failed**。补腿在新门里加 1 例（该文件补腿后 70 例全绿），补腿后的全量重跑到本节写完时还没等完——所以这一格给的是**少 1 例的那一遍**，不是最终树的全量。上面两行的普查是这号真正的「牵连面=0」证据 |
+| **合计** | 落地跑八文件 **193 例全绿**（新门 70 + 邻域 123）；电池只钉这八件，基线与每条臂恢复后各跑一遍；静态门 ruff / mypy 干净；台账家族五件在**合成后的**账本上 50 例全绿 | 见下节 |
+
+### 变异臂
+
+预测写在 `D:\面试项目\.scratch\pred524_vector_channel.md`：第一节在落地之前写（M1–M11 与
+B1–B10 的预测红数），第四节在落地中途量到 M12 之后、任何臂跑之前追加（B11–B16），
+第五节在第一轮实测之后、第二轮跑之前追加（补门后的预测）。
+电池：`arms524.py`，跑在 `origin/master`(`3494441`) + 10 个覆盖文件的工作树 `wt524` 上，
+GATES = 新门 + 邻域七件，人口 **193 例**，基线 **0 红**；`--check` 先验 16 条锚点全部命中；
+每条臂逐字节恢复并校验 sha，`restore_failed` 16 条全空。
+
+**这一列读完就够的数**：16 条臂共 **56 个红**，其中 **55 个落在新门 70 例里**，
+只有 **1 个**落在邻域 123 例里——而且那一个正是 B10 专门去踩的 demo 前缀断言。
+换句话说：**15 条臂把邻域 123 例全数留在绿里**。这就是量到的 6 的量化形态。
+
+| 臂 | 变异 | 预测 | 实测 | 红的是谁 |
+|----|------|------|------|----------|
+| B1 | 三条传输码折回一条 `endpoint_unreachable` | 新门 ≥2；邻域 0 | **14**，邻域 0 | httpx 形状表 9 例 + 空消息例 + ConnectTimeout 例 + 「七种形状不再共用一句」+ 普查 + AST 分类器例 |
+| B2 | 空消息不回异常类型名（回到 32 字符残句） | 修订后 2 | **11**，邻域 0 | 9 条 httpx 行都断言 `type(exc).__name__ in sentence`，加上空消息与 ConnectTimeout 两例——**预测低了**，见「发现」5 |
+| B3 | ES 抛那一路不写 `vector_store_failed` | ≥1 | **2**，邻域 0 | hybrid meta 例 + note 端到端例 |
+| B4 | 节点把句子（`embedding_error=<reason>[:120]`）放回 note | ≥1 | **3**，邻域 0 | 两条 payload 安全例 + dims 端到端例 |
+| B5 | 节点停止转写码 | 1 | **3**，邻域 0 | 同 B4 那三条（note 里再没有码） |
+| B6 | dims 只计数不命名 | ≥1 | **2**，邻域 0 | 索引面 dims 例 + dims 端到端例 |
+| B7 | 一条码写成闭集外的拼写 | ≥1 | **4**，邻域 0 | 普查 + AST 字面量例 + 钉这条码的两行参数化 |
+| B8 | 调用方新增一条不带码的失败构造 | 1 | **1**，邻域 0 | `test_a_caller_that_builds_a_failed_outcome_names_the_code_literally` |
+| B9 | **对照臂**：只加注释 | **0** | **0** | — |
+| B10 | 把 `skipped=` 从尾部改插到 note 头部 | 新门 **0** + 邻域 ≥1 | **3**（新门 2 + **邻域 1**） | 邻域那条是 `test_hybrid_rrf_counts_hybrid_rrf` 的 `startswith`——**预测命中**；新门也有 2 例抓住，预测的 0 是低估（安全方向） |
+| B11 | 删掉 `isinstance(payload, dict)` 守卫 | ≥2 | **7**，邻域 0 | 回复形状表中 4 行 + 一条 hybrid 端到端例 + 普查 + AST 例（无守卫时码不再被产出） |
+| B12 | 删掉 hybrid 包 `embed()` 的 try | ≥2 | **2**，邻域 0 | 「hits 活下来」例 + 「hybrid 不再构造失败出口」的普查地板例 |
+| B13 | 删掉 store 包 `embed()` 的 try | 新门 ≥1；邻域**条件性** ≥1 | **1**，邻域 **0** | `test_an_escaping_embedder_still_leaves_a_keyword_usable_projection`。邻域 0 是事实不是遗漏：`test_es_projection_cleanup.py` 从来没有喂过会抛的 embedder |
+| B14 | 节点只合并 meta 的码（丢掉 report 的） | ≥1 | **1**，邻域 0 | dims 端到端例（只有 store 看得见 dims） |
+| B15 | `_merge_causes` 不去重 | ≥1 | **1**，邻域 0 | 网关句子那条 `count==1` 断言 |
+| B16 | 客户端内直接构造 `EmbeddingOutcome(None)`（洞探针） | **0**（第一轮，故意预测 0） | 第一轮 **0** → 补门后 **1** | 第一轮 0 = **门有洞**：`_failed` 的普查看不见绕过helper的构造。补 `test_a_failure_built_without_the_helper_still_names_a_registered_code` 之后同一臂红在该腿上 |
+
+**补门后的复跑**（第五节预测）：人口 192 → **193**（新门 69 → 70）、基线仍 **0 红**、
+B16 由 0 变 **1**、其余 15 条臂的红数**一条没变**（包括 B1/B2/B7/B11 这些也碰 `_failed` 的臂
+——新腿没有替旧腿做事，两条腿查的是不同的构造点）。对照臂 B9 两轮都是精确 0。
+
+### 发现
+
+1. **预测的第一节把本号想小了**：那张表只讲「note 只带码」，形状普查（为 #523 写的刑具
+   直接复用到 embedding）才发现 `embed()` 读回复那段**不是全函数**——量到的 12 整条在计划
+   之外。它不是「测得少」，是问句问错了一层：问「降级有没有名字」的人不会去问「降级会不会
+   抛」。M12 那节连同 B11–B16 是**追加**进预测文件的，前三轮的预测一个字没改。
+2. **探针自己踩了一个形状陷阱**：`httpx.Response(json=None)` 是**没有 body**，不是
+   null body。第一版探针用 `json=None` 当 null 载荷，量到的其实是 `response_not_json`
+   那条腿，于是「顶层是 null」这一格被误记为已覆盖。换成 `content=b"null"` 之后
+   `payload.get` 的 `AttributeError` 才露头。门里 `_reply()` 的 docstring 是为下一个摸
+   这条腿的人留的。
+3. **注释里写着的分类边界是错的，而 mypy 逼我去量它**：`_classify_transport` 原文断言
+   「`ConnectTimeout` 是 `ConnectError` 的子类」。实测 0.28.1 的 MRO：两族**不相交**
+   （`issubclass(ConnectTimeout, ConnectError)` 为 False）。改文档不够——那条顺序现在是对
+   **未来版本**的假设，于是单独钉成一条依赖测试：哪天 httpx 让超时同时是连接失败，它红，
+   而不是让注释继续撒谎。
+4. **本号自己重复了本号要修的缺陷**：`report["embedding_causes"]` 落地之后**没有任何读者**
+   ——修「没人读」的号造了一个没人读的键。发现的方式是照着 M2 的方法把新键点名查一遍读者。
+   补法是 `_merge_causes()`（保序去重并集）+ store 的句子进日志；不是让 store 的句子进 note。
+   这条如果没被发现，`vectors_dims_mismatched` 就永远落不了地——dims 只有 store 看得见。
+5. **电池基线抓住了一次覆盖遗漏**：`wt524` 第一次跑基线 5 红，全是
+   `'tuple' object has no attribute 'vectors'`——#524 改了 #523 门内那个假 embedder 的返回
+   形状，而那个文件当时不在 OVERLAY 里。共享树里绿，是因为共享树**带着**那次改写；也就是
+   说「邻域全绿」这句话在覆盖不完整时测的是另一个邻居。preflight 因此多了第三条腿：电池跑的
+   每个测试文件，要么在 OVERLAY 里，要么与基线逐字节相同。
+6. **`skipped=` 从「计数」变成「有据的计数」要两个键一起走**：只加 `embedding_causes`
+   不加 `skipped=<n>`，note 说的是「有码」；只加计数不加码，说的是「少了几个但为什么少
+   没人管」。量到的 7 那格（`indexed=42 embedded=0 … embedding=<model>`）只有在两个数并排
+   且码在尾部时才成为一条能查的记录。
+7. **note 的开头几个字是可观测面的一部分**：`is_demo` 的定义是前缀谓词，所以本号的每条
+   追加都在尾部，且这条约束被写成一条断言而不是靠注释（B10 专门去踩它）。顺带量到
+   `api/agent_runtime.py:505` 用 `not repo_path.strip()` 定义同名标志——**两个谓词指向
+   一个名字**，写进队列①。
+8. **地板还在（延续 #523 发现 3）**：AST 腿各带 `>= 9`、`>= 2`。没有地板时一次改名能让
+   扫描找到 0 个站点、而对空集合「每个站点都带注册码」平凡成立。
+
+### 否证与边界
+
+- **闭集只约束「进 `retrieval_note` 的那一条腿」**。`meta["embedding_error"]`、
+  `report["embedding_notes"]` 仍是自由文本、仍可能带正文——那是给读 dict 与看日志的人的；
+  本号没删它，也没让它上可查询的线。
+- **「码进 note」不等于「码进 UI」**。没加 API 字段，没动 summary 的形状，没动指标名。
+- **没连 Elasticsearch、没连真实网关**。全部形状由 `MockTransport` 与假 store 喂。
+  「网关实际会回什么」是**已知的未知**：本号钉的是「回了也不抛、也不外泄」，不是「回的就是
+  这 15 种」。
+- **dims 判定只在 store 一处**（量到的 7）。查询向量的宽度与索引 mapping 的宽度不一致时，
+  hybrid 侧仍然只能靠 ES 拒绝 kNN 来表达，落进笼统的 `vector_store_failed` 而不是一个新码。
+  这是**保留**，写成队列②。
+- `endpoint_http_error` 的句子仍然带状态码数字。那是我们自己拼的字面量，不是对端文本，
+  且设计表要的就是这个数——测试钉的是码名与句子前缀，不是数字的来源。
+- **臂证明的是「删掉会不会被抓」，不证明「码选得对」**。20 条码的划分是否完备不在本号的
+  可证范围；可证的是：逃出闭集的拼写会红（B7）、不带码的构造点会红（B8/B16）、守卫拆掉会红
+  （B11–B13）、句子回到 note 会红（B4）。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① **`is_demo` 的两个谓词**：`storage/mysql.py:1005`/`:1050` 用 note 前缀
+（`LOCATE('seeded demo', JSON_EXTRACT(...)) = 1`），`api/agent_runtime.py:505` 用
+`not repo_path.strip()`。同一个名字两种定义，且 SQL 侧那条只有跑过 MySQL 的臂才看得见。
+② **hybrid 侧不判 dims**：`vector_store_failed` 是个笼统码，把「后端拒绝了这个向量」与
+「向量宽度和 mapping 不一致」压成同一件事——正是本号在 embedding 侧拆掉的那种折叠。
+③ **词汇表在两处注册的摩擦还在**（`EMBEDDING_CAUSES` 与 `RERANK_CAUSES` 各自要门里的相等
+集合配合）；合成一张表会把「哪个字段允许哪些码」的边界挪进 `contracts/`，得先想清楚那条
+边界归谁。
+④ **#523 队列②–⑦ 全部结转**：`_run_async` 在同步上下文里**没有等待上限**、起爆后仍要
+join、429 用尽之后 tier 2 的政策、`reports/` 一侧缺 causes、松散可达那层、以及 rerank 的
+tier 折叠在 `providers/` 侧的同族。
+⑤ **AST 普查读的是哪一面**（B16 是本号的worked example）：本号的普栈原先走
+`_failed(...)` 的**调用点**，于是绕过 helper 的直接构造无人管——补的腿改走
+`EmbeddingOutcome` 第一实参是 `None` 的**构造点**。#523 那条腿（实测在本号落地时复核）
+走的是 `RerankResult(...)` 构造点、地板 `>= 4`，没有同一个门，但它要求 `mode` 是**字面量**，
+计算出来的 mode 只会落到地板上。下一号把「helper 调用点 / 构造点 / 字面量关键字」这三种
+可读面写成一条可查的约定，别让每个号各自重新发现一遍。
+

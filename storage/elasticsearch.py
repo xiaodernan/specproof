@@ -372,7 +372,12 @@ class ElasticsearchStore:
         Every chunk is indexed regardless of vector availability (BM25
         stays usable — 卷IV 4.3). Chunks whose vector is missing or
         dims-mismatched are indexed without the embedding field. Returns
-        honest counts: indexed / embedded / vectors_skipped / notes.
+        honest counts: indexed / embedded / vectors_skipped / notes, plus
+        `embedding_causes` — the registered codes (#524) saying why a
+        projection has no vectors, which is the half of the story the
+        counts alone cannot tell: `indexed=42 embedded=0` is the same
+        reading whether the endpoint was down or every vector came back at
+        the wrong width.
         """
         self.ensure_indices()
         self.delete_repo(repo)  # idempotent re-index
@@ -380,10 +385,24 @@ class ElasticsearchStore:
         embedded = 0
         skipped = 0
         notes: list[str] = []
+        causes: list[str] = []
         if docs:
-            vectors, reason = embedder.embed([d["content"] for d in docs])
+            try:
+                outcome = embedder.embed([d["content"] for d in docs])
+                vectors = outcome.vectors
+                cause = outcome.cause
+                sentence = outcome.sentence
+            except Exception as exc:  # noqa: BLE001 — "every chunk is indexed
+                # regardless" is this method's own promise, and #524 measured
+                # gateway reply shapes that raise out of embed() instead of
+                # degrading. The chunks still go in without vectors, so the
+                # BM25 channel stays usable.
+                vectors = None
+                cause = "embed_call_crashed"
+                sentence = "embed() raised " + type(exc).__name__
             if vectors is None:
-                notes.append("embeddings unavailable: " + reason)
+                notes.append("embeddings unavailable: " + sentence)
+                causes.append(cause or "cause_missing")
             else:
                 for doc, vector in zip(docs, vectors, strict=False):
                     if len(vector) == self.config.vector_dims:
@@ -392,6 +411,7 @@ class ElasticsearchStore:
                     else:
                         skipped += 1
                 if skipped:
+                    causes.append("vectors_dims_mismatched")
                     notes.append(
                         str(skipped) + " vectors dims-mismatched ("
                         + str(self.config.vector_dims)
@@ -405,6 +425,7 @@ class ElasticsearchStore:
             "indexed": len(docs),
             "embedded": embedded,
             "vectors_skipped": skipped,
+            "embedding_causes": "+".join(causes) or None,
             "embedding_notes": notes,
         }
 

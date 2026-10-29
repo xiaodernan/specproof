@@ -23,6 +23,7 @@ from typing import Any
 import pytest
 
 from contracts.events import DEFAULT_TENANT_ID
+from retrieval.embeddings import EmbeddingOutcome
 from storage.elasticsearch import (
     _DELETE_PAGE_SIZE,
     ElasticsearchConfig,
@@ -166,10 +167,16 @@ class FakeESProjection:
 
 
 class FakeEmbedder:
-    """EmbeddingClient stand-in: dims-correct vectors, no failures."""
+    """EmbeddingClient stand-in: dims-correct vectors, no failures.
 
-    def embed(self, texts: list[str]) -> tuple[list[list[float]] | None, str | None]:
-        return [[0.0] * 4 for _ in texts], None
+    It used to return ``(..., None)`` for the reason slot while the real
+    client returns ``""`` — two definitions of "nothing went wrong", both
+    green because callers only tested the vectors (#524). The declared
+    outcome shape leaves no room for that disagreement.
+    """
+
+    def embed(self, texts: list[str]) -> EmbeddingOutcome:
+        return EmbeddingOutcome([[0.0] * 4 for _ in texts])
 
 
 def make_store(fake: FakeESProjection) -> ElasticsearchStore:

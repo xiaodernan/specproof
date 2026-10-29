@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from retrieval.embeddings import EmbeddingClient
+from retrieval.embeddings import EmbeddingClient, EmbeddingOutcome
 from retrieval.rerank import RerankResult, rerank
 
 RRF_K = 60
@@ -108,11 +108,24 @@ def hybrid_search(
     Degradations (卷IV 4.3) are annotated in meta, never raised:
     no/unusable embeddings → BM25+graph order (mode="bm25"); empty vector
     results → automatic BM25 fallback without error; rerank unavailable →
-    rerank_mode="off" with the original order preserved.  The rerank half of
-    that contract ships two meta keys, and only one of them is for the wire:
-    `rerank_reason` is the sentence, `rerank_causes` is the closed-vocabulary
-    codes — the caller forwards the codes into `retrieval_note`, never the
-    sentence, because a sentence can quote an exception that quoted the payload.
+    rerank_mode="off" with the original order preserved.  Both halves of
+    that contract ship two meta keys each, and only one of them is for the
+    wire: `rerank_reason` / `embedding_error` are the sentences the design
+    table promises, `rerank_causes` / `embedding_causes` are the
+    closed-vocabulary codes — the caller forwards the codes into
+    `retrieval_note`, never the sentences, because a sentence can quote an
+    exception that quoted the payload (#523 rerank, #524 the vector channel,
+    where the quoted exception was Elasticsearch rejecting a chunk of the
+    repository's own source).
+
+    "never raised" is why the embed call is wrapped.  A gateway reply shaped
+    unlike the embeddings contract used to raise ``AttributeError`` out of
+    ``embed()`` — #524 measured six such shapes — and because this call sits
+    *after* the BM25 search, that one raise cost the caller the hits it
+    already had in hand: the whole retrieval ended as ``retrieval_failed``
+    with an empty context.  The guard's sentence names the exception's type
+    and not its message, which for a reply-shape crash is the reply body's
+    own words.
     """
     if not query.strip():
         return HybridOutcome(
@@ -121,6 +134,7 @@ def hybrid_search(
                 "mode": "bm25",
                 "embedding_used": None,
                 "embedding_error": None,
+                "embedding_causes": "not_attempted",
                 "bm25_hits": 0,
                 "vector_hits": 0,
                 "rrf_k": RRF_K,
@@ -140,20 +154,37 @@ def hybrid_search(
 
     vector_hits: list[dict[str, Any]] = []
     vector_error: str | None = None
+    vector_causes: list[str] = []
     embedding_used: str | None = None
     vector_used = False
-    if embedder is not None and embedder.configured:
-        vectors, reason = embedder.embed([query])
-        if vectors is None:
-            vector_error = reason
+    if embedder is None:
+        vector_causes.append("no_embedder")
+    elif not embedder.configured:
+        vector_causes.append(embedder.config_cause or "cause_missing")
+    else:
+        try:
+            embed_outcome = embedder.embed([query])
+        except Exception as exc:  # noqa: BLE001 — measured (#524): six gateway
+            # reply shapes raised AttributeError out of embed(), and this call
+            # sits after the BM25 search, so an unguarded raise cost the caller
+            # the hits it already had in hand. Only the exception's type is
+            # reportable — its message quotes the reply body.
+            embed_outcome = EmbeddingOutcome(
+                None, "embed_call_crashed", "embed() raised " + type(exc).__name__
+            )
+        query_vectors = embed_outcome.vectors
+        if query_vectors is None:
+            vector_error = embed_outcome.sentence
+            vector_causes.append(embed_outcome.cause or "cause_missing")
         else:
             embedding_used = embedder.model
             try:
                 vector_hits = es.vector_search(
-                    repo, vectors[0], k=DEFAULT_VECTOR_K, commit_sha=commit_sha
+                    repo, query_vectors[0], k=DEFAULT_VECTOR_K, commit_sha=commit_sha
                 )
             except Exception as exc:  # noqa: BLE001 — vector channel is optional
                 vector_error = "vector_search failed: " + str(exc)[:120]
+                vector_causes.append("vector_store_failed")
             if vector_hits:
                 vector_used = True
 
@@ -197,6 +228,7 @@ def hybrid_search(
         "mode": "hybrid" if vector_used else "bm25",
         "embedding_used": embedding_used,
         "embedding_error": vector_error,
+        "embedding_causes": "+".join(vector_causes) or None,
         "bm25_hits": len(bm25_hits),
         "vector_hits": len(vector_hits),
         "rrf_k": RRF_K,

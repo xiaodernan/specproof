@@ -70,6 +70,7 @@ from typing import Any
 
 import pytest
 
+from retrieval.embeddings import EmbeddingOutcome
 from retrieval.hybrid import hybrid_search
 from retrieval.rerank import (
     RERANK_CAUSES,
@@ -362,9 +363,10 @@ class _Store:
 class _Embedder:
     configured = True
     model = "test-embed-model"
+    config_cause = ""
 
-    def embed(self, texts: list[str]) -> tuple[list[list[float]], str]:
-        return [[0.1, 0.2] for _ in texts], ""
+    def embed(self, texts: list[str]) -> EmbeddingOutcome:
+        return EmbeddingOutcome([[0.1, 0.2] for _ in texts])
 
 
 def test_hybrid_meta_carries_the_code_when_the_gateway_raises(
