@@ -214,6 +214,26 @@ def _demo_statements(
     return [(sql, params) for sql, params in cap if "AS is_demo" in sql]
 
 
+#: On #525's base exactly two executed statements computed ``is_demo``. That was
+#: an observation about which methods ``_capturing_store`` happens to call, not a
+#: contract about the column — and the gap it hid is what #526 filed: the detail
+#: page's two reads computed nothing at all, and a leg that counted statements
+#: could not see a statement that was never issued. So these legs keep a FLOOR
+#: (the blindness check: did the capture reach the window reads?) and the
+#: question "does every surface that ships a job row publish the fact" moved to
+#: ``test_every_job_read_publishes_the_demo_fact.py``, which derives its
+#: population from the API call graph rather than from a remembered number.
+MIN_DEMO_STATEMENTS = 2
+
+
+def _require_demo_statements(demo: list[Any], label: str) -> None:
+    assert len(demo) >= MIN_DEMO_STATEMENTS, (
+        f"{label}: expected at least {MIN_DEMO_STATEMENTS} executed statements "
+        f"computing is_demo, got {len(demo)} — the capture stopped reaching the "
+        "window reads, and every leg below would iterate over nothing"
+    )
+
+
 # ── A: ownership ─────────────────────────────────────────────────────────────
 
 
@@ -263,7 +283,13 @@ def test_the_prefix_appears_in_no_executed_sql_text() -> None:
         "storage/mysql.py hardcodes the prefix again — with a literal inside the "
         "SELECT list it has a second owner and the seeder can no longer move it"
     )
-    assert "LOCATE(%s, JSON_UNQUOTE(" in text, (
+    assert "IS_DEMO_COLUMN" in text, (
+        "storage/mysql.py no longer builds its demo projection from the owner's "
+        "fragment — an inline copy is the second owner #525 was filed against, "
+        "and #526 moved the text out so a read cannot re-type it differently"
+    )
+    owner_text = OWNER.read_text(encoding="utf-8")
+    assert "LOCATE(%s, JSON_UNQUOTE(" in owner_text, (
         "the demo predicate no longer binds its prefix as a parameter; either the "
         "shape moved (update this gate and say why) or the value went back into text"
     )
@@ -324,7 +350,7 @@ def test_the_marker_shape_is_a_plain_prefix() -> None:
 def test_both_demo_statements_bind_the_prefix_at_the_locate_placeholder() -> None:
     with _capturing_store(VIEWER) as cap:
         demo = _demo_statements(cap)
-        assert len(demo) == 2, f"expected 2 statements computing is_demo, got {len(demo)}"
+        _require_demo_statements(demo, "the viewer capture")
         for sql, params in demo:
             at = _placeholder_index(sql, LOCATE_FRAGMENT)
             assert params[at] == DEMO_NOTE_PREFIX, (
@@ -373,7 +399,16 @@ def test_the_demo_predicate_is_caseguarded_and_answers_zero_elsewhere(
 ) -> None:
     with _capturing_store(VIEWER) as cap:
         demo = _demo_statements(cap)
-        sql = demo[0][0] if statement.startswith("search") else demo[1][0]
+        _require_demo_statements(demo, statement)
+        # keyed, not positional: with two window reads a [0]/[1] split works, and
+        # with four production surfaces it silently reads the wrong statement.
+        # The list window is the only demo statement that pages with an OFFSET.
+        want_offset = statement.startswith("search")
+        matches = [sql for sql, _ in demo if ("OFFSET" in sql) == want_offset]
+        assert len(matches) == 1, (
+            f"{statement}: {len(matches)} demo statements have the window shape"
+        )
+        sql = matches[0]
         assert "CASE WHEN JSON_VALID(summary) THEN" in sql, (
             f"{statement}: is_demo stopped guarding a non-JSON summary column"
         )
@@ -381,7 +416,11 @@ def test_the_demo_predicate_is_caseguarded_and_answers_zero_elsewhere(
             f"{statement}: a summary the database cannot parse now answers "
             "non-zero for is_demo — unreadable data would be labelled sample data"
         )
-        assert re.search(r"\)\)\) = 1 ", sql), (
+        # #526 wrapped the comparison in COALESCE(..., 0) so a summary that is
+        # valid JSON without a retrieval_note answers 0, not NULL. The position-1
+        # property is unchanged; the probe moved with the text, and it still
+        # rejects "= 1" replaced by "> 0" (arm A5), which is the whole point.
+        assert re.search(r"\)\)\) = 1[, ]", sql), (
             f"{statement}: the predicate is no longer position-1; see leg D for "
             "what '= 1' versus '> 0' costs"
         )
@@ -425,7 +464,7 @@ def test_an_auditor_scope_keeps_the_prefix_first_and_the_tenant_absent() -> None
     auditor = TenantScope("tenant-a", user_id="u2", roles=frozenset({"auditor"}))
     with _capturing_store(auditor) as cap:
         demo = _demo_statements(cap)
-        assert len(demo) == 2
+        _require_demo_statements(demo, "the auditor capture")
         for sql, params in demo:
             assert "tenant_id" not in sql
             assert params[0] == DEMO_NOTE_PREFIX, (
@@ -439,7 +478,7 @@ def test_no_scope_keeps_the_demo_predicate_working() -> None:
     """Tenant mode off is the deployed default for the local stack."""
     with _capturing_store(None) as cap:
         demo = _demo_statements(cap)
-        assert len(demo) == 2
+        _require_demo_statements(demo, "the scopeless capture")
         for sql, params in demo:
             assert params[0] == DEMO_NOTE_PREFIX
             assert sql.count("%s") == len(params)
@@ -587,7 +626,18 @@ def test_the_owner_prefix_is_ascii_lowercase_so_ci_servers_agree() -> None:
 )
 def test_the_badge_is_rendered_from_this_column_alone(page: str) -> None:
     text = (REPO / page).read_text(encoding="utf-8")
-    assert "!!job.is_demo" in text, f"{page}: the 演示 badge no longer reads is_demo"
+    assert "job.is_demo" in text, f"{page}: the badge no longer reads is_demo"
+    # #526 made the field required, so the `!!` that used to sit here is no
+    # longer guarding an absent property — but a ternary still has to be, and
+    # this leg is the reason: MySQL answers 0, so `{job.is_demo && <span/>}`
+    # evaluates to 0 and React draws a literal "0" on every real row.
+    assert re.search(r"job\.is_demo\s*\?", text), (
+        f"{page}: the badge stopped being a ternary; the comment above says "
+        "what the && form draws for is_demo = 0"
+    )
+    assert "{job.is_demo &&" not in text, (
+        f"{page}: the && form returns 0 for a real row and React renders it"
+    )
     assert 'className="demo-label"' in text, f"{page}: the badge lost its class"
 
 

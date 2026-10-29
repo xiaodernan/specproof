@@ -113,7 +113,7 @@ export default function Jobs() {
                     <a className="verification-repo" href={"#/jobs/" + encodeURIComponent(job.id)} title={job.repo_path}>
                       {repoName(job)}
                     </a>
-                    {!!job.is_demo && <span className="demo-label">演示</span>}
+                    {job.is_demo ? <span className="demo-label">演示</span> : null}
                     <span className="verification-job-id">{shortId(job.id)}</span>
                   </>
                 ),

@@ -449,7 +449,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       <Breadcrumbs items={[{ label: "验证记录", href: "#/jobs" }, { label: "验证详情" }]} />
       <div className="page-head">
         <h1>
-          验证 {shortId(jobId)} <StatusPill status={job.status || ""} />
+          验证 {shortId(jobId)} <StatusPill status={job.status || ""} />{job.is_demo ? <span className="demo-label">演示</span> : null}
         </h1>
         <div className="page-sub">
           {(job.base_ref || "—") + " → " + (job.head_ref || "—") + " · " + (job.repo_path || "—")}

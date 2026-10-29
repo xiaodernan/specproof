@@ -949,11 +949,35 @@ def test_repository_get_job_scoped_returns_none_and_audits(fake_mysql: _FakeMysq
     assert audit[0][1] is not None and audit[0][1][-1] == "tenant-b"
 
 
-def test_repository_get_job_unscoped_sql_unchanged(fake_mysql: _FakeMysql) -> None:
-    """Without a tenant scope the SQL is byte-identical to the old build."""
+def test_repository_get_job_unscoped_injects_no_tenant_predicate(fake_mysql: _FakeMysql) -> None:
+    """Without a tenant scope, the detail read stays a plain by-id lookup.
+
+    This leg used to compare the whole statement against
+    ``"SELECT * FROM verification_jobs WHERE id = %s"`` byte for byte. #526
+    added a computed column to that projection — a read that ships a job row
+    owes the page the demo fact, and the detail page was shipping jobs that
+    could not be labelled — and a byte-equality witness fires on every
+    projection change, including the required kind. What the leg was really
+    protecting is scope, so it says that now: no tenant predicate appears, the
+    by-id lookup survives, and the statement's grid still matches its arguments.
+    """
     fake_mysql.pending_rows = [[{"id": "job-1", "status": "QUEUED"}]]
     assert MySQLStore().get_job("job-1") is not None
-    assert fake_mysql.queries[0][0] == "SELECT * FROM verification_jobs WHERE id = %s"
+    sql, params = fake_mysql.queries[0]
+    assert "tenant_id" not in sql, (
+        "an unscoped read grew a tenant predicate — the auditor and local-stack "
+        "paths are the ones that must keep seeing every tenant's jobs"
+    )
+    assert "FROM verification_jobs WHERE id = %s" in sql, (
+        f"the by-id lookup is no longer a by-id lookup: {sql!r}"
+    )
+    assert sql.count("%s") == len(params), (
+        f"{sql.count('%s')} placeholders for {len(params)} parameters: {sql!r}"
+    )
+    assert params[-1] == "job-1", (
+        "the id is no longer the value bound to the lookup's own placeholder — "
+        f"a projected expression that also binds put its argument first: {params!r}"
+    )
 
 
 def test_repository_list_jobs_filters_by_tenant(fake_mysql: _FakeMysql) -> None:

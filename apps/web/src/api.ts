@@ -386,9 +386,27 @@ export async function downloadCapsule(jobId: string, name?: string): Promise<voi
 
 // ── Response shapes (mirror api/routes/web.py) ──
 
+/**
+ * One verification job, as the web API answers it.
+ *
+ * `is_demo` is REQUIRED, and it is the only field here besides `id` that is.
+ * The reason is the failure #525 found asymmetric with: the badge a job wears
+ * comes from a SQL expression, so a read that omits the column does not crash
+ * and does not log — it answers a seeded demo verification as ordinary real
+ * work, complete with a downloadable certificate. Before #526 only the two
+ * window reads (`GET /jobs`, and the dashboard's recent-jobs rows) published
+ * it, so the detail page — the one place a reader slows down and actually
+ * believes the record — was the unlabeled one. All four job reads now compute
+ * it from one fragment owned by `contracts/demo_marker.py`.
+ *
+ * `boolean | number` because MySQL answers 0/1 and the JSON layer does not
+ * coerce it. Optional would let a caller write `job.is_demo ? … : …` and get
+ * "not a demo" out of a missing field, which is the same wrong answer the
+ * column can no longer give.
+ */
 export interface Job {
   id: string;
-  is_demo?: boolean | number;
+  is_demo: boolean | number;
   repo_path?: string;
   base_ref?: string;
   head_ref?: string;

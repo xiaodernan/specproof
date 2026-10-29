@@ -416,3 +416,36 @@ describe("coverage_reason disclosure (#169) — the banner may only claim what t
   });
 });
 
+describe("demo badge on the detail page (#526)", () => {
+  // The list pages wore the demo badge; the detail page could not, because only
+  // the two window reads published is_demo. One record, two truths about it --
+  // and the surface a reader slows down on was the unlabeled one.
+  const render_job = async (is_demo: number | boolean) => {
+    get.mockImplementation((async (path: string) => {
+      if (path === "/jobs/badge-job") {
+        return { job: { id: "badge-job", status: "BLOCKED", repo_path: "/project", is_demo } };
+      }
+      throw new Error("Artifacts unavailable");
+    }) as typeof apiGet);
+    render(<JobDetail jobId="badge-job" />);
+    await waitFor(() => expect(document.querySelector(".page-head h1")).not.toBeNull());
+  };
+
+  it("labels a seeded verification where the verdict is spelled out", async () => {
+    await render_job(1);
+    const badge = document.querySelector(".page-head h1 .demo-label");
+    expect(badge).not.toBeNull();
+    expect((badge?.textContent || "").trim().length).toBeGreaterThan(0);
+  });
+
+  it("draws no badge for a real verification, and no bare zero either", async () => {
+    // is_demo is 0, not false, and `{job.is_demo && <span/>}` evaluates to 0 --
+    // which React renders as the character "0". The !! that used to hide this
+    // also hid the missing column, so the page now uses a ternary and this case
+    // is what keeps the two from being confused again.
+    await render_job(0);
+    expect(document.querySelector(".page-head h1 .demo-label")).toBeNull();
+    const head = document.querySelector(".page-head h1");
+    expect(head?.textContent || "").not.toContain("0");
+  });
+});

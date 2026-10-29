@@ -19,7 +19,7 @@ from typing import Any, Final, cast
 import pymysql
 from pymysql.cursors import DictCursor
 
-from contracts.demo_marker import DEMO_NOTE_PREFIX
+from contracts.demo_marker import DEMO_NOTE_PREFIX, IS_DEMO_COLUMN
 from contracts.events import payload_digest
 from storage.env_config import int_env
 from storage.tenant_scope import current_scope
@@ -844,9 +844,15 @@ class MySQLStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT * FROM verification_jobs WHERE id = %s "
+                # Concatenated SQL, and bandit is right that a composed
+                # statement deserves a look: the only variable part is
+                # IS_DEMO_COLUMN, a module constant of the contracts owner,
+                # never caller data. Both row values are bound.
+                "SELECT *, " + IS_DEMO_COLUMN  # nosec B608
+                + " FROM verification_jobs WHERE id = %s "
                 "AND (tenant_id = %s OR tenant_id IS NULL)",
-                (job_id, scope.tenant_id),
+                # the SELECT list precedes the WHERE, so the bound prefix is first
+                (DEMO_NOTE_PREFIX, job_id, scope.tenant_id),
             )
             row = cast(dict[str, Any] | None, cur.fetchone())
             if row is not None:
@@ -877,7 +883,10 @@ class MySQLStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT * FROM verification_jobs WHERE id = %s", (job_id,)
+                # Same shape and same reason as the scoped read above.
+                "SELECT *, " + IS_DEMO_COLUMN  # nosec B608
+                + " FROM verification_jobs WHERE id = %s",
+                (DEMO_NOTE_PREFIX, job_id),
             )
             return cast(dict[str, Any] | None, cur.fetchone())
 
@@ -1001,10 +1010,7 @@ class MySQLStore:
                 "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
                 "status, depth, retry_count, "
                 "worker_id, last_error, created_at, updated_at, "
-                "CASE WHEN JSON_VALID(summary) THEN "
-                "LOCATE(%s, JSON_UNQUOTE("
-                "JSON_EXTRACT(summary, '$.retrieval_note'))) = 1 "
-                "ELSE 0 END AS is_demo FROM verification_jobs" + where
+                + IS_DEMO_COLUMN + " FROM verification_jobs" + where
                 + " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s",
                 # the SELECT list precedes WHERE, so the bound prefix is first
                 (DEMO_NOTE_PREFIX, *params, limit, offset),
@@ -1047,10 +1053,7 @@ class MySQLStore:
                 # fragments
                 "SELECT id, repo_path, base_ref, head_ref, status, depth, "  # nosec B608
                 "retry_count, worker_id, last_error, created_at, updated_at, "
-                "CASE WHEN JSON_VALID(summary) THEN "
-                "LOCATE(%s, JSON_UNQUOTE("
-                "JSON_EXTRACT(summary, '$.retrieval_note'))) = 1 "
-                "ELSE 0 END AS is_demo FROM verification_jobs" + where
+                + IS_DEMO_COLUMN + " FROM verification_jobs" + where
                 + " ORDER BY created_at DESC, id DESC LIMIT %s",
                 # the SELECT list precedes WHERE, so the bound prefix is first
                 (DEMO_NOTE_PREFIX, *params, 10),

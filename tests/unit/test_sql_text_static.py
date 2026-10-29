@@ -133,8 +133,87 @@ def _bind(
                         _bind(sub, elements[index], env, module)
 
 
-def _collect(function: ast.AST, module: ast.Module) -> dict[str, list[ast.expr]]:
-    """Module-level bindings plus this function's own, including loop targets."""
+#: #526 moves a SQL fragment into contracts/demo_marker.py so four reads share
+#: one text instead of re-typing it. The prover below judges one file at a time,
+#: and "imported from somewhere I did not open" is exactly the shape that would
+#: otherwise need a NON_STATIC_SQL_SITES row — an allowlist entry for a value as
+#: constant as the literal it replaced. So the rules resolve those names instead
+#: of excusing them: one level, and only when the imported module assigns the
+#: name from a chain of string literals. A contracts owner that builds SQL out of
+#: data still lands in the register.
+_PARSED: dict[Path, ast.Module | None] = {}
+
+
+def _parsed(path: Path) -> ast.Module | None:
+    if path in _PARSED:
+        return _PARSED[path]
+    try:
+        module = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        module = None
+    _PARSED[path] = module
+    return module
+
+
+def _literal_chain(node: ast.expr) -> bool:
+    """A value built from string literals and concatenation, and nothing else."""
+    if isinstance(node, ast.Constant):
+        return isinstance(node.value, str)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return _literal_chain(node.left) and _literal_chain(node.right)
+    return False
+
+
+def _module_file(root: Path, importer: Path, name: str | None, level: int) -> Path | None:
+    """The file `from <name> import ...` with this many leading dots reads."""
+    base = importer.parent if level else root
+    for _ in range(max(level - 1, 0)):
+        base = base.parent
+    if not name:
+        return base / "__init__.py" if base.is_dir() else None
+    candidate = base.joinpath(*name.split("."))
+    if candidate.with_suffix(".py").is_file():
+        return candidate.with_suffix(".py")
+    if (candidate / "__init__.py").is_file():
+        return candidate / "__init__.py"
+    return None
+
+
+def _imported_literals(module: ast.Module, root: Path, importer: Path) -> dict[str, ast.expr]:
+    out: dict[str, ast.expr] = {}
+    for node in module.body:
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        target = _module_file(root, importer, node.module, node.level)
+        if target is None:
+            continue
+        source = _parsed(target)
+        if source is None:
+            continue
+        assigned = {
+            stmt.targets[0].id: stmt.value
+            for stmt in source.body
+            if isinstance(stmt, ast.Assign)
+            and len(stmt.targets) == 1
+            and isinstance(stmt.targets[0], ast.Name)
+        }
+        for alias in node.names:
+            value = assigned.get(alias.name)
+            if value is not None and _literal_chain(value):
+                out[alias.asname or alias.name] = value
+    return out
+
+
+def _collect(
+    function: ast.AST,
+    module: ast.Module,
+    origin: tuple[Path, Path] | None = None,
+) -> dict[str, list[ast.expr]]:
+    """Module-level bindings plus this function's own, including loop targets.
+
+    `origin` is (tree root, this file). Given, names imported from another file
+    in the same tree fold too — see _imported_literals for what that permits.
+    """
     env: dict[str, list[ast.expr]] = {}
     for node in list(module.body) + list(ast.walk(function)):
         if isinstance(node, ast.Assign):
@@ -156,6 +235,10 @@ def _collect(function: ast.AST, module: ast.Module) -> dict[str, list[ast.expr]]
             and isinstance(node.func.value, ast.Name)
         ):
             _bind(node.func.value, node.args[0], env, module)
+    if origin is not None:
+        root, importer = origin
+        for name, value in _imported_literals(module, root, importer).items():
+            env.setdefault(name, []).append(value)
     return env
 
 
@@ -440,8 +523,9 @@ def _scan_function(
     module: ast.Module,
     relative: str,
     findings: list[tuple[str, int]],
+    root: Path | None = None,
 ) -> None:
-    env = _collect(function, module)
+    env = _collect(function, module, (root, root / relative) if root else None)
     forwarding = _param_states(function)
     guards = frozenset(_aborting_guards(function))
     for node in ast.walk(function):
@@ -459,6 +543,7 @@ def _scan_helper_calls(
     helpers: dict[str, list[int]],
     relative: str,
     findings: list[tuple[str, int]],
+    root: Path | None = None,
 ) -> None:
     """A pass-through executor is only as safe as what its callers hand it."""
     if not helpers:
@@ -467,7 +552,7 @@ def _scan_helper_calls(
         n for n in ast.walk(module)
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]:
-        env = _collect(function, module)
+        env = _collect(function, module, (root, root / relative) if root else None)
         forwarding = _param_states(function)
         guards = frozenset(_aborting_guards(function))
         for node in ast.walk(function):
@@ -498,8 +583,8 @@ def non_static_sql_sites(root: Path | None = None) -> list[tuple[str, str]]:
                 n for n in ast.walk(module)
                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
             ]:
-                _scan_function(function, module, relative, raw)
-            _scan_helper_calls(module, executor_helpers(module), relative, raw)
+                _scan_function(function, module, relative, raw, base)
+            _scan_helper_calls(module, executor_helpers(module), relative, raw, base)
             for name, line in raw:
                 findings.append((name, _call_source(module, line)))
     return sorted(set(findings))
@@ -762,3 +847,49 @@ def test_only_a_whole_argument_pass_through_counts_as_forwarding() -> None:
         )
         call = function.body[call_index].value  # type: ignore[attr-defined]
         assert _is_static(call.args[0], env, states, frozenset(), tree) is expected
+
+
+# ── #526: the imported-fragment rule ─────────────────────────────────────────
+
+
+def _two_file_tree(root: Path, owner_value: str) -> None:
+    """storage/x.py executes SELECT + FRAGMENT; contracts/y.py owns FRAGMENT."""
+    (root / "storage").mkdir()
+    (root / "contracts").mkdir()
+    (root / "contracts" / "y.py").write_text(
+        f"FRAGMENT = {owner_value}\n", encoding="utf-8"
+    )
+    (root / "storage" / "x.py").write_text(
+        "from contracts.y import FRAGMENT\n"
+        "class C:\n"
+        "    def read(self, cur, job_id):\n"
+        '        cur.execute("SELECT id, status, " + FRAGMENT'
+        ' + " FROM t WHERE id = %s", (job_id,))\n',
+        encoding="utf-8",
+    )
+
+
+def test_a_fragment_imported_from_an_owner_is_proven(tmp_path: Path) -> None:
+    """#526 moved the demo column into contracts/demo_marker.py.
+
+    Four reads now concatenate an imported name into their statement. A prover
+    that reads one file at a time reports all four, and the register would gain
+    four rows for a value as fixed as the literals it replaced -- which is how
+    an allowlist grows. So the fold resolves the import instead: still a proof,
+    still read out of the owner's own file, one level deep, literals only.
+    """
+    _two_file_tree(tmp_path, '"CASE WHEN valid THEN 1 ELSE 0 END AS is_demo"')
+    assert non_static_sql_sites(tmp_path) == [], (
+        "an imported chain of string literals is being reported as unproven -- "
+        "the fold broke, and the honest answer is now a register entry"
+    )
+
+
+def test_an_imported_name_that_is_computed_is_not_forgiven(tmp_path: Path) -> None:
+    """Same shape, computed owner value: the finding has to survive the fold."""
+    _two_file_tree(tmp_path, 'f"CASE WHEN {mode} THEN 1 ELSE 0 END AS is_demo"')
+    findings = non_static_sql_sites(tmp_path)
+    assert [rel for rel, _ in findings] == ["storage/x.py"], (
+        f"{findings} — a contracts owner that builds SQL out of data must still "
+        "reach the register, or the fold is an allowlist with extra steps"
+    )

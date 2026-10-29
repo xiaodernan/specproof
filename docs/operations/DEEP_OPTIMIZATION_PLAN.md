@@ -16573,3 +16573,248 @@ A1 下旧的位置腿仍然不红，这是这条盲区在门里的**残留**：�
 ⑤ #524 队列⑤「AST 普查读的是哪一面」——本号的 A 腿**显式排除 docstring** 并把它写进
   断言消息，是这条队列的一次落地；还差「普查必须说清自己读的是执行面还是文本面」的通用门。
 ⑥ 在线臂：给 MySQL 跑一次真 `LOCATE`（含大小写两行），把 ci 不对称从「声明」变成「测量」。
+
+## #526 同一个种子行在列表上是「演示」、在详情页上是普通验收——因为「演示」是一个**列**，而四个产出口里有两条不发它
+
+**起因/占号。** `## #525` 的下一号队列① 原文是：「`api.ts:391` 的 `is_demo?:` 改必填 +
+与 `JobsPage.total` 同族的前端形状门（#202 的手法）」。取号时复核：`origin/master@e1fe21e`
+的账本最大节是 `## #525`，本号取 #526；共享树的**索引**里另有别道的 `## #521` 片段
+（不参与 max 判定，也不进本号提交）。
+
+队列里那句话把这件事当成「类型改一个问号 + 一条前端门」。落地前量下来它不是类型问题：
+`is_demo` 是**SQL 算出来的列**，所以「哪个页面能标演示」由「哪条读发这一列」决定，
+而这两件事分属四个平面。改必填之前必须先回答**谁发得起**。
+
+### 量到的
+
+落地前 `D:\面试项目\.scratch\probe526*.py` 实测（不是推算）：
+
+- **面向 HTTP 的 Job 读有 4 条，投影键集只有 3 种。** 普查是**派生**的：走 `api/` 里对
+  `MySQLStore` 的调用，留下返回 Job 行的那些——
+  `search_jobs` 列表 11 个 schema 列 + `is_demo`（显式列表）、
+  `dashboard_snapshot` 的 recent 11 + `is_demo`（显式列表）、
+  `get_job` **18 列且没有 `is_demo`**（`SELECT *`）、
+  `_get_job_unscoped` 同样 18 列没有（`SELECT *`）。
+  同一条种子行因此在列表上是「演示」、在自己的详情页上是一次普通的真实验收。
+- **`api.ts` 的 `interface Job` 14 个字段里 13 个可选**，而这 13 个里有 **11 个**
+  实际上四条读**都**发。类型说的是「服务器可能不告诉你」，代码里做的是
+  `!!job.is_demo`——**缺字段和 0 住在同一个分支**。这是 #202 给 `JobsPage.total`
+  治过的同一个形状，本号把它换成药面：`is_demo` 改成必填之后，它是 `Job` 里除 `id`
+  之外**唯一**的必填字段。
+- **详情页那条读在落地前没有任何见证。** 基线臂 P3 把带 scope 的 `get_job` 改成发
+  `is_demo`，**红 0**（545 passed，`rc=0`）；同形状的 P2（无 scope 那条）红 1，
+  而那 1 条红的腿是**逐字节比对 SQL 文本**——它只执行无 scope 分支。所以带 scope 分支的
+  SQL 文本在整个人口里**没有第二条腿看过第二眼**：缺的不是「要求 `is_demo` 在详情投影里」
+  这条断言，是「详情投影**发过任何列**」这条断言。
+- **`#525` 的门看见的不是性质，是计数。** 基线臂 P4 删掉窗口读的 `AS is_demo`，红 4，
+  四条的理由全部是 `assert len(demo) == 2` 与 `demo[1]` 下标（其中一条是 `IndexError`）。
+  也就是说那道门「会数语句」，但「知道谓词必须存在」的腿并不存在——正是本号 §五
+  警告过的「写死就复刻 P2 的错」，在 #525 自己的门里已经发生。
+- **TypeScript 在产出口这一侧没有牙**：`grep -rn ": Job\b|as Job\b|Job = {" apps/web/src`
+  → 带类型的 `Job` 字面量 **0 处**（`AgentJob` 倒是有 7 处）。`apiGet<T>` 的 mock 返回不做
+  结构检查，`is_demo` 又只被当真假用，所以把 `?` 去掉**不会**让编译器红一条（R4 钉这条）。
+  跨面的见证只能建在 Python 里，这就是新门 E 组存在的全部理由。
+- **去掉 `!!` 会印出一个「0」。** React 里 `{job.is_demo && <span/>}` 当 `is_demo === 0`
+  时表达式值是 `0`，而 `{0}` 渲染成页面上的字符「0」——`!!` 当初就是为这个写的。
+  所以三页统一改成三元式 `{job.is_demo ? <span …/> : null}`，门里加一条形状腿
+  禁止 `{job.is_demo &&` 回潮，vitest 加一条用例断言 `.page-head h1` 里没有「0」。
+
+**观察面（本号的立号依据）**：25 个文件（#525 的 23 个 + `test_dashboard_api.py` +
+#525 自己的门）落地前 **545 passed / 0 红**；落地后同一面 + 新门 = **568 passed / 0 红**
+（230.79s）。
+
+### 落地
+
+- **owner 从「一个前缀」长成「一个列」**：`contracts/demo_marker.py` 新增
+  `IS_DEMO_COLUMN`——整段 `CASE WHEN JSON_VALID(summary) THEN COALESCE(…) ELSE 0 END
+  AS is_demo` 只有一份文本，四个产出口各引一次。`COALESCE` 不是装饰：
+  summary 是合法 JSON 而没有 `retrieval_note` 时 `JSON_EXTRACT` 给 NULL →
+  `LOCATE(x, NULL)` 是 NULL → `= 1` 还是 NULL，列会落 **NULL 而不是 0**；
+  `api.ts` 声明的是二值。三值列在二值类型上就是「缺字段」的另一种写法，
+  所以列自己必须只回答 0 或 1（R2 专拆这一条）。
+- **两条 `SELECT *` 读变成 `SELECT *, <fragment>`**，而不是改成显式 18 列——
+  显式列表会把「schema 加了列但 `api.ts` 没跟上」这一族新漂移放进门的人口，
+  而本号的性质只是「demo 事实必须随行出发」。参数元组跟着长：
+  带 scope 那条 `(DEMO_NOTE_PREFIX, job_id, scope.tenant_id)`——**SELECT 列表在 WHERE
+  之前**，所以带头的前缀必须是第一个参数（#525 定的规矩，本号在两个新站点上重申）。
+- **`apps/web/src/api.ts`：`is_demo?:` → `is_demo:`**，并写清它是除 `id` 外唯一必填的字段、
+  必填的依据是普查而不是愿望。三个页面（`Jobs.tsx`/`Dashboard.tsx`/`JobDetail.tsx`）
+  统一三元式渲染，`JobDetail.tsx` 的徽标进 `<h1>`（详情页此前根本没有徽标位）。
+- **两条旧断言各改各的性质**（不是删）：
+  `test_tenant_auth.py` 逐字节钉 `"SELECT * FROM verification_jobs WHERE id = %s"` 的那条
+  改名为 `test_repository_get_job_unscoped_injects_no_tenant_predicate`，钉回它真正守的东西：
+  无 scope 时 SQL 里**不许出现 `tenant_id`**、`FROM … WHERE id = %s` 片段在、
+  占位符个数 == 参数个数、最后一个参数是 job_id；
+  #525 门的三条 `len(demo) == 2` 换成 `MIN_DEMO_STATEMENTS = 2` 地板 + 按 `OFFSET`
+  形状**派生**语句身份（门注释写明「2 是观察值，不是契约」），徽标腿从子串升级成
+  `job\.is_demo\s*\?` 形状 + 禁止 `{job.is_demo &&`。
+- **`tests/unit/test_sql_text_static.py` 学会了跨模块追字面量**：`IS_DEMO_COLUMN` 是从
+  owner import 进来的，单文件证明器看不见它的值，于是四个站点**全部**被报成不可证明。
+  两条路里选了强的那条——给证明器加「import 进来的字符串常量链」折叠
+  （`_imported_literals`/`_literal_chain`），而不是把四行注册进 allowlist：
+  一条关于跨模块字面量的规则，只能由会跟着 import 走的证明器来执行。
+  配套两条腿，一正一反（`test_a_fragment_imported_from_an_owner_is_proven` /
+  `test_an_imported_name_that_is_computed_is_not_forgiven`），证明折叠会说「不」。
+- **bandit**：新站点是 `"... WHERE id = %s" + IS_DEMO_COLUMN` 形状的拼接，被 CI 的
+  `-ll` 扫成 2 条 B608 MEDIUM。`contracts/` **不在** CI 扫描的包列表里
+  （`-r agent api cli storage providers evidence observability sandbox experiments
+  integrations`），所以 owner 那份不需要指令；`storage/mysql.py` 的两条按本仓库规矩
+  带**earned** `# nosec B608`：理由写在指令**上一行**，指令尾部只留测试号。
+  `tests/security/test_bandit_suppressions_are_earned.py` 6 passed（它会问 bandit 本人）。
+
+### 门
+
+| 门 | 内容 | 实测 |
+|----|------|------|
+| **新门** `tests/unit/test_every_job_read_publishes_the_demo_fact.py` | 六段，按平面排序：**A 普查**（面向 HTTP 的 Job 读**从 `api/` 的调用图派生**，本门必须恰好走查那一个集合；每一处发行的语句必须带 `AS is_demo`；聚合不许带）——人口是算出来的，写死「4」就是复刻 P2 的错；**B 一个 owner**（片段文本只有一处定义，无第二处内联）；**C 执行**（假游标下三条租户范围：元数、owner 前缀落在 `LOCATE` 的 1 号位、执行文本里不许出现标记本身，租户下标派生）；**D 列只答 0/1**（`COALESCE` 在位 + Python 参考实现 `coalesce_column` + **任何 migration 不许真的命名一个 `is_demo` 列**，那会静默遮蔽别名）；**E 跨面**（`api.ts` 的**必填**集 ⊆ 每个产出口的投影键集；`is_demo` ∈ 必填集；三个会标演示的页面各读这一个字段）；**F 邻居**（本号改到的两条既有断言仍在守它们原来的性质） | 21 例 / 21 条函数（`--collect-only` 复核） |
+| 人口 | 25 文件 + 新门同跑 | **568 passed / 0 红**（230.79s；= 落地前 545 + 新门例数 + 证明器 2 条腿） |
+| 被本号改到的既有门 | #525 的门（`len(demo)==2` 已换成 `MIN_DEMO_STATEMENTS` 地板 + 按 `OFFSET` 形状派生身份）、`test_sql_text_static.py`（12→14：跨模块折叠一正一反两条腿）、`test_tenant_auth.py`（逐字节那条改名换性质） | 本号动过的门 + 它的直接邻域 7 文件同跑：**152 passed**（83.65s；新门 21 + #525 门 47 + `test_tenant_auth` 53 + `test_sql_text_static` 14 + `test_dashboard_performance` 5 + `test_product_setup` 7 + `test_jobs_page_total` 5） |
+| 前端 | `npm run typecheck`（`tsc --noEmit`）；`npm test`（vitest，全套 + 本号的三个页面套件） | `tsc` **rc=0**；vitest 三页面套件 **35 passed**（基线 33 + 本号新 2 条，`JobDetail.test.tsx` 24→26），全库 **410 passed / 47 files** |
+| 前端臂读数 | `D:\面试项目\.scratch\fe526.py`：R4/R5/R8/R9 四条各跑 `tsc` + 三页面 vitest，逐字节备份还原（四条全 `restored=True`） | **R4：`tsc` rc=0、vitest 35 全绿**——类型放松在两个前端量具上都不留痕迹，只有 Python 门红 1；**R5：`tsc` rc=0、vitest 红 1**（正是新用例 `labels a seeded verification where the verdict is spelled out`，`expected null not to be null`）；**R8：`tsc` rc=0、vitest 0 红**（Python 侧 10 红）；**R9：`tsc` rc=0、vitest 0 红**（文案改名在两侧都不红） |
+| 台账家族门 | 合成后的账本（origin/master + 本节）在 `wt526` 里跑：`test_ledger_evidence_claims_are_true` / `_queue_pointers_resolve` / `_section_ids_are_unique` / `_section_numbers_are_unique` / `test_recorded_ledger_sections_do_not_vanish` | 落地前基线 **50 passed**（90.72s，与 #525 记的数一致）；合成本节之后在 `wt526` 复跑同一 5 文件 **50 passed**（36.72s）——本号 +1 节而例数不变；50 = 16+11+12+4+7（五个文件各自的点数），这几条腿按文件计数，不按账本节计数 |
+| 静态门 | `ruff check`（六件改动文件 + `apps/web`）、`python -m mypy .`（CI 那条命令）、`test_bandit_suppressions_are_earned`（它会问 bandit 本人） | `All checks passed!`；`Success: no issues found in 267 source files`；bandit 门 **6 passed**（75.25s，它自报「MySQL-backed 测试文件 21 个，本次 0 个跑过」）。**`mypy` 的覆盖面要说清**：`pyproject.toml:127` 把 `tests/` 排除在 mypy 之外，所以本号扩写的 `test_sql_text_static.py` 不在 CI 的类型面里；单独把它指给 mypy 会报 **2 条**（`_helper_return_tuples` 收 `str | None`、`_params(function: ast.AST)` 取 `.args`），**两条在 origin/master 版同文件里就在**（同代码，行号被我加的 ~110 行推后），本号没有新增，也没有顺手改——改它属于另一号的清理 |
+
+### 变异臂
+
+预测全部写在 `D:\面试项目\.scratch\pred526_job_projection.md`（臂跑之前，§四）。
+基线三条 P2/P3/P4 跑在**未落地**的树上（§八），落地臂 R1a/R1b/R2-R10 共 11 条，
+每条跑「新门 + 25 文件人口」，全部 PREFLIGHT 过针（针在原样树上命中次数与形状
+逐条对上、变异体能 `ast.parse`），逐字节备份还原。
+
+每一条 = 同一面（新门 21 + 人口 25 文件 = **568 例**），每个读数都满足 `failed + passed = 568`，
+所以「臂没跑起来」在这张表里藏不住（#525 发现 9 的那条纪律，本号沿用）。
+
+| 臂 | 改动 | 预测（§四，跑前） | 实测 |
+|----|------|------|------|
+| P2 | 无 scope 详情读发列（**未落地**的树） | 红 1，且是逐字节腿 | **红 1 / 544** = `test_repository_get_job_unscoped_sql_unchanged` ✓ |
+| P3 | 带 scope 详情读发列（同上） | 红 1，同一逐字节腿 | **红 0 / 545 rc=0**——SURVIVED。立号依据，见「发现」1 |
+| P4 | 删窗口读的 `AS is_demo`（同上） | 红 ≥4，全在 #525 门 | **红 4 / 541**，4 条全在 #525 门，但理由全是 `len(demo)==2`/`demo[1]`（一条 `IndexError`）——数字命中，**理由错**，见「发现」2 |
+| R1a | 无 scope 详情读退回裸 `SELECT *`（含参数一起退） | 新门 ≥2；#525 门 0；人口 0 | **红 4 / 564**，4 条全在新门：`…_ships_a_job_row_publishes_the_column`（A 普查）、`…_required_job_field_is_published…`（E 跨面）、`…_with_no_tenant_scope_too`（C 执行）、`…_star_reads_are_still_star_reads`（决策腿，**预测外**）；#525 门 0 ✓ 人口 0 ✓ |
+| R1b | 带 scope 那条同样退回 | 同 R1 | **红 4 / 564**，同三条 + `…_scoped_single_job_read_keeps_the_tenant_predicate_bound`——**红名与 R1a 对称**，各落在自己分支的腿上。P3「没有见证」→ 现在「有专属的一条红」 |
+| R2 | 拆掉 `COALESCE(…)` | 新门 1（三值腿） | **红 1 / 567** = `test_the_column_is_coalesced_so_it_cannot_answer_null` ✓ 精确 |
+| R3 | 一处内联第二份 CASE 文本（绕过 owner） | 新门 1（单 owner 腿）；**#525 门 1（前缀出现在执行文本）** | **红 2 / 566**：`test_the_predicate_text_has_exactly_one_definition` + `test_no_read_re_inlines_the_predicate`（都在新门 B 段）；**#525 门 0——预测错**。内联那份写的仍是 `%s`，标记字符串没进执行文本，#525 的普查天然看不见它。副本分两种，见「发现」10 |
+| R4 | `api.ts` 把 `is_demo` 改回可选 | 新门 1（必填腿）；**tsc 仍 rc=0** | **红 1 / 567** = `test_is_demo_is_required_in_the_type_the_pages_read` ✓；前端读数见下表「前端」行 |
+| R5 | 删掉详情页徽标那一行 | 新门 1；vitest 新用例红 | **红 1 / 567** = `test_the_pages_that_can_label_a_job_read_the_field` ✓；vitest 读数同上 |
+| R6 | 让 COUNT 也带片段 | #525 门 1（既有「COUNT 不发 is_demo」腿） | **红 4 / 564**，跨三个文件：新门 `…_aggregate_reads_do_not_publish_it` + #525 门 `…_count_statement_does_not_carry_the_demo_parameter` **与** `…_caseguarded_and_answers_zero_elsewhere[recent_jobs]`（**预测外**） + 人口里 `test_jobs_page_total_is_not_the_window::the_store_computes_the_total_with_a_count`（**预测外**）。下界命中，见证比登记的多两条 |
+| R7 | 带 scope 那条参数序改成 `(job_id, tenant, prefix)` | 新门 ≥2（位置腿 + **个数腿**） | **红 2 / 566**：`test_the_prefix_arrives_bound_at_the_locate_placeholder` + `…_scoped_single_job_read_keeps_the_tenant_predicate_bound`。个数腿**不可能红**——臂保持 3 个参数只挪位置，我把两族写进了一格，见「发现」11 |
+| R8 | **对照**：owner 里 `AS is_demo` → `AS demo_flag` | 新门 ≥3（四个产出口 + 类型交叉腿）；vitest 0 红 | **红 10 / 558** = 新门 5 + #525 门 5。**过预测**：别名同时是 #525 那五条腿读的文本，改名是最贵的一次漂移，而这个贵是对的。前端读数见「前端」行 |
+| R9 | **对照（同形状装饰）**：徽标文字 `演示` → `示例` | **0 红** | **红 0 / 568 rc=0** ✓ 门钉 class 与字段，不钉文案——#525 的 C1 教训（控制臂必须同形状）第二次生效 |
+| R10 | owner 里 `%s` 退回硬编码 `'seeded demo'` | #525 门红（形状腿 `LOCATE(%s,`）+ 新门红；tsc/vitest 0 | **红 13 / 555** = #525 门 7 + 新门 3 + **人口 3**（`test_dashboard_performance`、`test_product_setup`、`test_tenant_auth` 各 1，都是 #525/#526 重写过的派生腿在正确报警）。本号最大的一次红，方向对：一次硬编码让 13 条腿同时失去配对 |
+
+### 发现
+
+1. **「没有见证」和「见证不够严」是两件事，而本号撞上的是一直被当成后者的前者。**
+   基线 P3（带 scope 的详情读发列）**红 0**，落地臂 R1b（同一条读退回不发行）**红 4**——
+   这一对差值才是本号的证据主体：不是原来的腿太松，是那条分支根本没有腿。
+2. **「计数当性质」这个病在我自己的上一号牌里已经发作。** P4 删掉窗口读的 `AS is_demo`
+   红 4 条，四条的起因全是 `len(demo) == 2` 与 `demo[1]` 下标（其中一条是 `IndexError`）。
+   所以 §六.2 把 `== 2` 换成地板 + 按形状派生身份，不是整洁化，是修一条
+   「任何语句增减都红、而真正的性质没人红」的腿。
+3. **列的三值性不是保险，是契约本体**：`COALESCE` 去掉以后，summary 合法但缺
+   `retrieval_note` 的行会答 NULL 而不是 0，而 TS 侧声明的是二值——三值列长在二值类型上
+   就等价于「缺字段」，正是本号要治的形状（R2 专拆）。
+4. **TypeScript 在产出口这一侧没有牙**：带类型的 `Job` 字面量 0 处（`AgentJob` 7 处）。
+   `is_demo` 改成必填之后，守这条的是门，不是编译器；`?` 去掉不会让 `tsc` 红一条
+   （R4 把这句话钉成实测）。
+5. **`!!` 之所以存在是因为 React 会印 `0`。** `{job.is_demo && <span/>}` 在 `is_demo === 0`
+   时表达式值是 `0`，页面上就多一个字符「0」；三页统一三元式，门钉形状
+   （禁 `{job.is_demo &&`），vitest 钉后果（`.page-head h1` 里没有「0」）。
+6. **单文件证明器看不见 import 进来的片段**：`IS_DEMO_COLUMN` 从 owner 来，四个站点
+   全被 `test_sql_text_static.py` 报成不可证明。选了强的一条路——教证明器折叠
+   import 的字面量链，而不是把四行注册进 allowlist；代价是这条规则的正确性从此
+   **依赖证明器的视野**，所以配一正一反两条腿（能证明 / 计算值不豁免）。
+7. **`# nosec` 的有无是配置决定的，不是语义决定的**：CI 的 bandit 只扫
+   `agent api cli storage providers evidence observability sandbox experiments integrations`，
+   `contracts/` 不在里面，所以 owner 里那段拼接**不需要**指令、`storage/mysql.py` 里
+   同样形状的两处**需要**。写下这条不对称，否则下一个人会把 owner 里「没有指令」读成
+   「这里的拼接天然安全」。
+8. **一次权衡也需要腿。** 详情面保留 `SELECT *` 只追加一列，而不是改成显式 18 列，
+   是「schema 加列免改动」对「键集可见性」的选择；`test_the_star_reads_are_still_star_reads`
+   把这个选择钉成断言，R1a/R1b 各红它一次——决策不是默认状态。
+9. **跑臂期间量到第 4 个会显示 Job 行的页面，而它不在门的声明列表里。** E 组的页面人口是
+   写死的三个；把「哪些页面会渲染 Job 行」派生一遍（`apps/web/src/pages/*.tsx` 里取
+   `Job` 类型 + `job.` 取值）得到 **4 个**：Jobs、Dashboard、JobDetail 与
+   `Matrix.tsx`——后者 `:21` 拉 `/jobs?limit=200`（正是本号管的那条窗口读），
+   `:34` 用 `job.id/repo_path/base_ref/head_ref` 填一个 `<Select>` 的 `<option>`，
+   种子行在那里**没有任何标记**。所以「同一个种子行看起来像真验收」这句话今天还有第三个
+   落点。机制上也不能照抄：`<option>` 里放 `<span className="demo-label">` 是无效 HTML，
+   所以「每一面都要说得出这是示例」若要做成门，**必须允许按面不同的形状**
+   （文字后缀 / 禁选项 / 另行提示），把 `demo-label` 当通用要求会钉出一条假契约。
+   本号的读侧普查是派生的、消费侧是声明的——这条不对称写在边界里，不写成已修。
+10. **副本有两种：值副本与文本副本**（R3 把这条从猜测量成读数）。内联的第二份 CASE 里
+    写的仍是 `%s`，标记字符串没进被执行文本，于是 #525 那道门（它普查「标记出现在执行的 SQL
+    文本里」）**红 0**；红的是本号 B 段「片段文本只有一处定义」与「没有读再内联这个谓词」。
+    上一号的普查防**值**漂移（改名），这一号的门防**文本**漂移（抄一份）——两种都要有见证，
+    因为一次典型的抄写只触发其中一种。
+11. **预测登记的腿名必须与臂的构造同族。** R7 只把 `(prefix, job_id, tenant)` 挪成
+    `(job_id, tenant, prefix)`，个数不变，我却在预测里写了「位置腿 + 个数腿」。个数腿在这种
+    构造下**不可能红**（占位符与参数仍 3/3），实测 2 红全落在位置族。这不是门的失效，是我把
+    「这个族有几条腿」当成了「这条臂改了哪个量」——#525 的 A2 臂恰好证的是反方向（个数一致
+    而配对错），两条合起来才完整：**元数与配对是两个独立的量，臂必须只改一个，预测必须点名那一个**。
+12. **量具的文件集也是变量。** 前端基线第一次跑我把 `api.stream.test.ts` 数进第三个套件，
+    读出 **38**——动的是文件集，不是改动。#525 记的 33 = JobDetail 24 + Jobs 7 + Dashboard 2，
+    本号的 35 = 同一集合 + 新 2 条。所以读数必须把集合写死在记录里，否则「+2」和「+5」
+    分不清是谁干的（这条与本号「人口是算出来的」是同一个纪律的另一面）。
+
+### 否证与边界
+
+- **全部离线。** `LOCATE`/`COALESCE` 的等价性在门里由 Python 参考实现
+  （`coalesce_column`）模拟，MySQL 没跑过这两条语句——#525 记下的 ci collation 不对称
+  原样保留，本号没有消解它，只是把「列必须只答 0/1」这条加在同一个位置。
+- **普查的走查根只有 `api/**`，而且按属性名匹配、不看接收者类型。** 两个方向不对称：
+  名字撞上就计入（宁可多一个见证），但 (a) 若将来有**第二个传输面**发行 Job 行
+  （`mcp/`、`cli/`、导出器），门看不见；实测今天 `mcp/` 对 `verification_jobs` 零读取，
+  所以这不是已知的洞，是**边界**；(b) `getattr(store, name)` 这类动态派发看不见。
+  `test_the_census_of_api_facing_job_reads_is_not_empty` 只钉人口非空，钉不了根集合完整。
+- **「必填」是四个产出口**今天**都发**这个事实的陈述，不是服务器契约。** 老 API + 新前端
+  仍会在运行时收到没有 `is_demo` 的行，而 JSON 不经过类型检查，TS 不会报——
+  本号能钉的是「同一棵树里的产出口与消费面一致」。
+- **文本面普查的生产根是 13 个包**（`agent api cli contracts craft evidence integrations
+  observability providers retrieval scripts storage`），**不含 `tests/`**：一份漂了的副本
+  如果落在测试文件里不被报告。取舍写在门里——测试是见证不是 owner；代价是
+  「owner 只有一份」这句话的作用域是生产面。
+- **读侧派生、消费侧声明**：A 组的产出口是从 `api/` 的调用图算出来的，E 组的页面人口
+  是写死的三个。这条不对称不是疏忽，是本号的边界——发现 9 就是它的代价：
+  `Matrix.tsx` 今天用同一条窗口读渲染选择器，门不会为它红。补它需要先把
+  「按面不同形状」这件事设计对（队列②），否则门会钉出一条假契约。
+- **前端两面都不充当产出口的见证**（R8/R9 实测补上的边界，原先只是声明）：把 owner 里的
+  别名改成 `demo_flag`，`tsc` rc=0、三页面 vitest **0 红**（Python 侧同时红 10）——因为
+  JS 假件把 `is_demo` 手写在对象字面量里，改 SQL 别名碰不到它；把类型改回可选同样
+  `tsc` rc=0、vitest 0 红（R4）。所以「类型 + 渲染测试」在**生产侧**是空的，
+  这条契约只有一个见证：新门的 E 组。反过来说，R5（删徽标那行 JSX）前端会红 1——
+  消费侧有牙、产出口没有，这个不对称是本号把 E 组建在 Python 里的全部理由。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① **聚合面不认识 demo 事实**（= #525 队列②，本号把它量实了）：
+`api/routes/web.py:279-309` 把 `statuses` 折成 `by_status`/`total`/`blocked_rate`，
+`search_jobs` 的 `COUNT(*)` 折成 `JobsPage.total`，四条都不带 demo 谓词；而
+`Dashboard.tsx:44` 的 `needsAttention` 直接吃 `by_status`，配合 `:67` 那句
+「查看拦截原因，或重试执行失败的任务」。种子行 `tenant_id` 为 NULL（`insert_job` 只在
+有 scope 时才写这一列，`scripts/seed_demo.py:379` 不带），于是 `(tenant_id = %s OR
+tenant_id IS NULL)` 把 3 条演示（1 BLOCKED + 2 VERIFIED）**计进每一个租户**的指标。
+`README.md:82` 与 `Dashboard.tsx:66` 都承诺「演示」是示例。要量的不是「该不该剔除」
+（产品决定），是**这个决定今天有没有 owner**：`IS_DEMO_COLUMN` 是列形状（`… AS is_demo`），
+在 `WHERE` 里复用需要第二个片段，而这正是「单 owner」要回答的问题。
+
+② **消费侧的人口要从声明改派生**（本号发现 9 的直接续）：把「哪些页面会渲染一行 Job」
+算出来，而不是写死三个；难点不是派生而是**按面允许不同形状**（`<option>` 里不能放
+`<span>`）。先量：今天 4 个页面里哪几个已经在别处说了「这是示例」（Matrix 的选择器旁边
+有没有散文提示），再决定门钉什么。
+
+③ **必填集应按服务面拆开**（本号 E 组是它的一维版）：三个页面各自读的字段是
+Jobs 8 / Dashboard 7 / JobDetail 10，其中 `spec_path`、`depth`、`retry_count`、
+`last_error` **只有两条单行读发**，两条窗口读不发——今天没有页面把列表行当详情行用，
+所以不红；而它们在 `api.ts` 里是可选，将来若做「列表行直接进详情」的优化，
+`tsc` 一条都不会报（§七.1 的那 0 处带类型 `Job` 字面量）。反面是 `worker_id` 与
+`summary`：**三个页面都不通过 `job.` 读它们**，而 `summary` 另有
+`get_job_summary` 一个端点——一份事实两个来源。
+
+④ **走查根必须自己派生**：把「哪些包能把一行送出进程」做成量出来的集合
+（入口根 = `api/` + `mcp/` + `cli/` + 导出脚本），否则每个后续号都会把 `api/`
+当成天然的人口边界。
+
+⑤ 在线臂（#525 队列⑥）仍在：给 MySQL 跑一次真 `LOCATE`（含大小写两行 + 一条缺
+`retrieval_note` 的 summary），把 ci 不对称与 `COALESCE` 的作用从声明变成测量。
+
+⑥ #524 队列②「hybrid 侧 dims 没进 note」、#524 队列③「两套闭集词表的注册摩擦」仍在。
