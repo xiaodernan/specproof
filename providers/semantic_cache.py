@@ -17,9 +17,13 @@ request params::
 
 The cache is an in-memory TTL + LRU store: expired entries are evicted on
 read and on capacity pressure, and when full the least recently used entry
-is dropped. It is OFF by default (enabled=False), and nothing on the
-existing call path imports this module — an unconfigured deployment is
-byte-identical to today. Enable explicitly::
+is dropped. It is OFF by default (enabled=False). ``craft/loop.py`` and
+``providers/client_policy.py`` both import it at module scope, but the loop
+only ever uses a cache a caller hands it and no product call site does — the
+single product construction is ``providers/client_policy.py``, behind
+``SPECPROOF_PROVIDER_POLICY=1``. An unconfigured deployment is therefore
+byte-identical to today, and its ``cache_hits`` metric reads 0 because there is
+no cache, not because nothing matched. Enable explicitly::
 
     cache = SemanticCache(enabled=True)
     key = cache_key(digest, model, params)

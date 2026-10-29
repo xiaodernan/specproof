@@ -23,6 +23,34 @@ PRUNE_DIRS = frozenset({
     ".venv", "venv", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".scratch",
 })
 
+#: Names that are a *family*, not a single directory: a virtualenv is called
+#: whatever its creator was called, so ``.venv``, ``.venv312`` and ``.venv-py312``
+#: are the same kind of thing. ``agent/security_scanner._EXCLUDE_DIR_PREFIXES``
+#: adopted this rule after #441 listed exact names only and #443 measured that the
+#: list missed this tree's ``.venv312`` — 11,090 walked files instead of 3,023, with
+#: 67 CRITICAL/HIGH findings that all lived inside the venv. The shared walk was
+#: written afterwards and carried the pre-#443 exact-name list, which is how a third
+#: copy of one policy drifts. Measured with the two rules on the same working copy (only
+#: ``.git``/``.scratch`` held back, so a live arm worktree cannot move the count, and a
+#: tree that has this project's own ``.venv312`` — a fresh checkout of a commit has no
+#: venv and cannot show the hole at all):
+#: exact names walked 7,341 ``*.py`` files with 6,141 of them under ``.venv312/``;
+#: this rule walked 1,200 and none. Re-measured at shipping time the same pair is
+#: 7,343 / 1,202, because other lanes' files move the population and only the *ratio* is
+#: the finding. ``tests/_import_graph.py`` built its first graph on the 7,341.
+_PRUNE_PREFIXES = (".venv",)
+
+
+def pruned_dir(name: str) -> bool:
+    """Whether a directory of this ``name`` is never part of the scanned tree.
+
+    The leading dot is load-bearing: ``.venv`` as a prefix stands for the venv family
+    while leaving a real ``.venue/`` or ``vendor/`` in the tree — the same reason
+    #443 gave on the scanner side.
+    """
+    return name in PRUNE_DIRS or name.startswith(_PRUNE_PREFIXES)
+
+
 
 def walk_files(root: str | Path, exts: frozenset[str]) -> list[tuple[Path, str]]:
     """``(path, relative)`` for every file under ``root`` with a suffix in ``exts``.
@@ -33,7 +61,7 @@ def walk_files(root: str | Path, exts: frozenset[str]) -> list[tuple[Path, str]]
     """
     out: list[tuple[Path, str]] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in PRUNE_DIRS]
+        dirnames[:] = [d for d in dirnames if not pruned_dir(d)]
         for fname in sorted(filenames):
             if os.path.splitext(fname)[1].lower() not in exts:
                 continue

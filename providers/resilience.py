@@ -28,8 +28,14 @@ Backoff is exponential with uniform jitter and a cap::
 The attempt cap lives in :class:`RetryPolicy` (max_attempts); classification
 only computes the per-attempt delay.
 
-Nothing on the existing call path imports this module, so an unconfigured
-deployment is byte-identical to today. Wiring is opt-in, e.g.::
+Two of these three pieces are already on the live path, which the sentence here
+used to deny: :func:`classify_retry` is imported at module scope by
+``integrations/notify/webhook.py`` and decides every failed notification send,
+and ``providers/client_policy.py`` imports the policy and the breaker. What is
+opt-in is *constructing* them — the only product sites that build a
+:class:`RetryPolicy` or a :class:`CircuitBreaker` are in
+``providers/client_policy.py``, behind ``SPECPROOF_PROVIDER_POLICY=1``, so an
+unconfigured deployment keeps the legacy provider call path. Wiring is opt-in, e.g.::
 
     policy = RetryPolicy(max_attempts=3, breaker=CircuitBreaker())
     result = policy.execute(lambda: call_gateway())

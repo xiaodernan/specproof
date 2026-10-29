@@ -15692,3 +15692,276 @@ A1 里 3 个非 UTF-8 别名格与真平面腿**刻意保持绿**：前者按拼
 ⑥ #519 队列⑦⑧⑨：mypy 版本钉住 / P6 100 例隔离评测 / `JOB_CREATION_WHITELIST.md` 符号名判定；
 ⑦ 本号顺带量到的候选：`craft/adapters` 的导入面把 elasticsearch 与 provider 栈带进任何导入它的
    门（累计 26.7s），值得单独一号量它的边界。
+
+## #522 三句「线上没人 import 这个模块」被一张解析过相对边的图全否了，而错的三条语法里有一条长在我自己的门里
+
+**起因/占号。** 见下面「起因」那节。号让了两次：开工时记 #518，被 `3f664c5` 用掉后取 #520，
+五轮臂跑完再 fetch 时 `b710dfb test(craft): compare host codecs, not their spellings (#520)`
+与 `ed68efe (#519)` 都已上 origin ⇒ 让到 #521；而真实索引里已**暂存**着别道的
+`## #521 CI 的两个评测作业解析不到 golden 场景的 ref`（未提交，别道正在路上）⇒ 再让一号，
+落地时点 max(可见 ref)+1 = **#522**。两次让号一个字也没改预测与判决文本；
+臂电池与探针在撞号前叫 `arms520*` / `probe520_*` / `wt520`，A5b 跑完才整体改名 522，
+下面「发现」6、8 与臂表里出现的 `.arm520_backup/`、`wt520` 保留当时的名字（那是历史现场，不是笔误）。
+
+### 起因
+
+#517 的队列③原文是：「`providers/resilience.py` 与 `providers/client_policy.py` 两套
+**存在但线上没人 import** 的重试实现——要么接线要么删，别让未接线代码冒充能力」。
+引号里那半句不是我写的，是 `providers/resilience.py` 的模块 docstring 自己写的
+（`Nothing on the existing call path imports this module`）。而同一棵树里
+`integrations/notify/webhook.py` 的 docstring 第 25 行写着
+「Failures are classified by providers.resilience.classify_retry
+**(imported, not reimplemented)**」，第 56 行就是那句 import。
+两句都是发布出去的散文，一句指着边、一句否认那条边存在。#517 读过这个文件（它那次合并的
+就是 webhook 依赖的 `Retry-After` 解析器），没去问可达性——不是漏了，是那次的问题不是这个。
+本号先量队列③的前提，再决定要不要「接线或删」。
+
+### 量到的
+
+1. **三句逐字相同的主张按图全部为假**，而且不是「有一句勉强」：`resilience.py`、
+   `semantic_cache.py`、`router.py` 各有一句，各自都有**模块级产品导入者**——
+   `providers.resilience` ← `integrations/notify/webhook.py:top` + `providers/client_policy.py:top`；
+   `providers.semantic_cache` 与 `providers.router` ← `craft/loop.py:top` +
+   `providers/client_policy.py:top`。三者也都落在**严格可达**集里（只走顶层边，入口根
+   `api.server` / `cli.specproof.main` / `mcp.server`）。
+2. **`resilience` 的严格可达路径最后两跳是相对 import**（实测）：
+   `cli.specproof.main → cli.specproof.commands.craft → craft.llm →
+   providers.openai_compatible → providers.client_policy → providers.resilience`，
+   其中 `from .client_policy import …`、`from .resilience import CircuitBreaker, RetryPolicy`
+   都是 level-1。`router` / `semantic_cache` 走 `craft.loop` 的绝对边——这个差别后面变成
+   A7 臂的分叉预测。
+3. **写句子的人没错，尺子有三条语法**，每条都单独量过：
+   - 只数 `node.level == 0` 的普查丢掉一整类相对边：严格可达集 **111 → 98**，丢的 13 个
+     模块点名 `craft.{tools,executor,memory,gates,verify,ast_edit,structured_diff}`、
+     `sandbox.{runner,cache_verify}`、`providers.{client_policy,probe_result,responses_protocol,resilience}`；
+     **反向为空**（naive 多出的模块 0 个）——这不是口径不同，是**只减不增的失明**。
+   - 行内 grep 只命中 3 句里的 **1** 句：`semantic_cache.py` 在 "the" 后折行、`router.py`
+     在 "existing" 后折行，整段文本 + `IGNORECASE` 才是 3/3。
+   - 再加一条同族洞：整句**大小写敏感**搜索命中 **2/3**——`semantic_cache.py` 把句子写在
+     句中，它的 "nothing" 是小写。
+   - `tests/_scan_walk.PRUNE_DIRS` 记的是精确名 `.venv`，本树环境叫 `.venv312`：同一棵
+     共享工作树只固定 `.git`/`.scratch`（不让活的臂工作树在普查底下变动）三种走法实测
+     **13,953 / 7,341 / 1,200** 个 `.py`，其中 `.venv312/**` 分别为 6,141 / **6,141** / 0；
+     落地时点在同一棵树上复测同三种走法是 **13,955 / 7,343 / 1,202**（`.venv312/**` 仍是
+     6,141 / 6,141 / 0）——多的两个文件是别道这两天下来的产物，**比值才是发现**。
+     而在 `b710dfb` 的新 checkout 上三种走法都退化成同一个数（1,197），因为
+     **一棵干净的检出树里根本没有 `.venv312`**（见「发现」8）。
+     #443 已经在扫描器那一侧改成前缀族，共享走树只是写在这次修复之前。
+4. **剪枝与分桶是两道独立的防线，A5 把它们分开量了**：退回精确名之后，产品人口仍是
+   **250**（`classify_root` 把 `.venv312/…` 判成 `unrooted`，因为路径第一段是空前导点左边
+   那一段，即 `""`）。本号之前没有 `unrooted` 这个桶时，默认落 product，所以「6,141 个
+   第三方文件被当成本项目模块」这句话只对**第一批图**成立——散文必须把它写成历史而不是
+   现状，否则就是把一道防线的功劳记到另一道头上。
+5. **真话是关于构造点的**（产品代码里逐个点名实测）：`ModelRouter` / `RetryPolicy` /
+   `SemanticCache` 各 **1** 个构造点，全在 `providers/client_policy.py:78/82/86`，在
+   `SPECPROOF_PROVIDER_POLICY=1` 后面；`CircuitBreaker` 产品构造 **0**（唯一的造法是
+   `ops/drills.py`，非产品桶）。`router=` / `semantic_cache=` 关键字实参在产品代码里
+   各 **1** 处，两处都是 `craft/loop.py:2677` 的 `from_checkpoint` 在转发自己的参数——
+   **没有任何部署把值交给 loop**。所以 `router_fallback_count` / `cache_hits` 的 0
+   是「没有 router / 没有缓存」，不是「有但没命中」。
+6. **`classify_retry` 的产品调用点是 2，不是 1**：`integrations/notify/webhook.py::send()`
+   与 `providers/resilience.py::_classify()`（`RetryPolicy` 调自己）。门第一版只预期一条，
+   多的那条是生产者自己的执行器。
+7. **树里确实有「连松散可达都没有」的层**，这才是 `nothing` 能站住的位置：
+   `providers.mcp_bridge` 的产品导入者是 `craft/mcp_wiring.py:top`，而 `craft.mcp_wiring`
+   自己产品导入者为 **0**，两者在**松散**集（顶层 + 嵌套边，197 个模块）里都不存在。
+   严格 111 / 松散 197 两个集合同时给出，才分得开「没接线」与「没人 import」。
+8. **本号自己的门也犯本号的错**（第三轮的头号发现，见「发现」1、5）：钉行号的键、
+   以及一条**永远不可能红**的 venv 断言。
+9. **散文里的计数当天就烂，而且到落地为止一共烂了四个数**：`tests/_import_graph.py` 写
+   「图现在是 1,199 个文件」，落地当天实测 **1,200**——多的那一个正是本号新加的门文件；
+   改号重测时同一句话在两种树上分别是 **1,197**（`wt522`：`b710dfb` + 本号 7 个文件的新
+   checkout，走到的与图里的相等、0 个不可解析）与 **1,202**（共享工作树，比新 checkout 多
+   别道 4 个未跟踪根脚本与 1 个已暂存的门文件）。没有腿检查这句话，
+   于是它一句话也没说错就错了。计数改成不变量腿（走到的每个文件都在图里），
+   散文里的数一律写明是在哪棵树上量的。
+
+### 落地
+
+1. 新共享生产者 `tests/_import_graph.py`：`resolve(level, module, pkg)` 做 PEP 328 锚点
+   算术；`imports_of()` 返回 `(目标, top|nested)`，相对边可见、`from x import y` 的每个
+   符号都成边（这样包 `__init__` 的再导出不会冒充「没人 import」）；`build_graph()`、
+   `classify_root()`（product / tests / non_product / **unrooted** 四桶，白名单由
+   「顶层目录带 `__init__.py`」导出而不是手抄）、`module_file_of()`、`importers_of()`、
+   `console_script_roots()` + `entry_roots()`（入口根从 `[project.scripts]` 导出来）、
+   `reachable_from(roots, graph, kinds=…)`。
+2. `tests/_scan_walk.py`：`_PRUNE_PREFIXES` + `pruned_dir()`，`walk_files` 用它；注释里
+   写清三种走法的实测数，并指名 #441 / #443 才是这条政策的 owner。
+3. **三处 docstring 重写**（不是删句子）：新句子只说查得到的东西——谁在模块级 import 它、
+   产品构造点在哪一个文件、开关叫什么、指标读 0 是什么意思。`Nothing on the existing
+   call path imports this module` 在产品代码里普查为 **0** 处（只剩本号的门与共享生产者
+   在**引用**它，那是词表不是主张）。
+4. `tests/unit/test_retry_after_readers_policy_table.py::_runtime_import_roots` 补上相对边
+   解析（同一个洞在 #517 门里的副本），stdlib 白名单从隐式变显式。
+5. 新门 `tests/unit/test_unwired_layer_claims_match_the_import_graph.py`：27 → **29 例**，
+   分四组——句子本身（普查 + 两条 finder 反向对照 + 导入者 + 严格可达 + 调用点）、
+   句子想说的真话（构造普查、非产品桶、整词开关、kwargs 供给、CraftLoop 站点）、
+   尺子与它撒过的三个谎（入口根、相对边 vs level-0 失明、走树剪枝、不掉文件）、
+   边界（空前导点、空导入者列表 ≠ 死模块、只松散可达的形状）。
+6. 第三轮补四处：整词开关比较、空前导点那条假断言、tmp 真造一个 `.venv312` 走树腿、
+   「走到的文件一个都不掉」不变量腿；外加两个 memo（`local_package_roots` 与
+   `_product_files`）——它们是量出来的，见「发现」4。
+
+### 门
+
+| 门 | 结果 |
+| --- | --- |
+| `test_unwired_layer_claims_match_the_import_graph.py`（本号新建） | 27 → **29 passed** |
+| 臂的基线四门（本号新门 + #517 门 + 排除清单门 + 查重哨兵） | 五轮臂每轮先测 **0 红**；改号之后在 `b710dfb` + 本号 7 个文件的新 checkout（`wt522`）里重测**仍是 0 红**——别道的 #519/#520 与本号的门共存为绿 |
+| 邻域 + 台账家族（14 个门文件，`wt522`，本节已追加到 `origin/master` 的账本正文之后） | **294 passed**。第一次是 293 passed / **1 failed**，红的正是本节自己：两条臂产物路径被队列指针门当成给下一号的指令（见「发现」10） |
+| `ruff check` 本号 7 个文件 | All checks passed!（中途新报一条 `UP033`：`lru_cache(maxsize=None)` → `functools.cache`，是改号之后重跑量到的，不是落地时才发现） |
+| `mypy` 两个共享模块 + 三处 docstring + 新门 | Success: no issues found in 6 source files |
+
+### 变异臂（10 条，五轮；预测先写进 `arms522_predictions.md`，跑完逐字节还原，全部 `restore_failed: []`）
+
+第一轮在 `origin/master` 工作树上跑 9 条（本号 7 个文件覆盖进去、逐文件 sha 与工作树相等
+才开跑；非覆盖目标改与 `origin/master` 比字节——第一版 `preflight` 拿我的**工作树**去比
+别道的 `api/agent_runtime.py`，直接拒绝启动，这是取号协议该防的另一半）。
+
+| 臂 | 改什么 | R1 预测 → 实测 | 补门后 → 实测 |
+| --- | --- | --- | --- |
+| A1 | 把原句放回 `providers/router.py` | 1 → **1**（只有普查腿；导入者/可达性两腿继续绿） | — |
+| A2 | `webhook.py` 删 import、本地定义同名 `classify_retry` | 1 → **1**（resilience 导入者参数；调用腿继续绿） | — |
+| A3 | `webhook.py` 改调本地包装（import 保留） | 1 → **1**（调用腿；导入者腿继续绿） | — |
+| A4 | `api/agent_runtime.py` 顶层 import 并 `router=ModelRouter()` | 3 → **4** | — |
+| A5 | `walk_files` 退回精确名 | 3 → **0** | 四轮 1 → **1**（见「发现」1、6） |
+| A5b | 同上，并在 `wt520` 里**真的建**一个 `.venv312/Lib/site-packages/demo/__init__.py` | 五轮 2 → **2**（红集逐字相同；产品普查/导入者/构造/kwargs 全组与「不掉文件」不变量腿继续绿） | — |
+| A6 | `ENV_POLICY` 改名带 `_V2` 后缀 | 0 → **0**（预测就是红不了） | 四轮 **1 → 1** |
+| A6b | `ENV_POLICY` 整体改名 | 一轮没跑（臂名打错，harness 静默跳过，退出码仍是 0） | 四轮 **1 → 1** |
+| A7 | `imports_of` 丢 `level != 0` | 6 → **6**，红集与预测逐字相同（含「`resilience` 严格可达红、另两模块不红」这个分叉） | — |
+| A8 | `contracts/retry_after.py` 加一条 `from ..providers.base import` 逃逸边 | 1 → **1**（#517 那条腿） | — |
+| A8b | 同 A8，但把 #517 的解析器退回 `level == 0` | 0 → **0**（预测就是红不了：旧门对跨层逃逸是瞎的） | — |
+
+补门后重跑 A5/A6/A6b 时又多找到一条**关于量具本身**的洞，见「发现」6：备份目录
+`.arm520_backup/` 建在被测工作树里面，于是它自己被走树收成一个模块
+（`.arm520_backup/api__agent_runtime.py`），A6 因此多红一条与开关无关的腿。
+把备份挪到树外重跑：A6/A6b 各回到 **1 红**（与预测相同），
+A5 从 2 回到 **1**——少掉的那条正是残留物造的假红，而它暴露出
+**新工作树里根本没有 `.venv312`**，走树层的暴露在臂的环境里没有对象，
+于是补了 A5b（在树里真的造一个假 venv 再退规则）。
+
+### 发现（差额本身就是产出）
+
+1. **A5 预测 3 红、实测 0 红，是因为门里有一条永远不可能红的断言**。
+   `test_the_shared_walk_never_descends_into_a_local_environment` 第一版问
+   `name.split(".")[0].startswith(".venv")`；被误收文件的模块名是
+   `.venv312/Lib/site-packages/openai/types.py`，它的**第一段是空前导点左边那一段**，
+   即 `""`——于是这条断言拿 `""` 比 `.venv`，恒真。本号整篇讲的是「检查会因为错的理由
+   通过」，而它自己带着一条，只有把剪枝真的拆掉才量得出来。改问「名字是否以点开头」，
+   并在 tmp 树里造一个真的 `.venv312` 目录让**走树**返回空（`pruned_dir` 答 True 与
+   `walk_files` 真的不下去，是两个事实）。
+2. **同一条臂另两条预测的红根本不在它的爆炸半径里**：排除清单 parity 比的是**名字**，
+   不走目录。我把「两道门共用一条政策」当成「共用一次走树」——政策一致 ≠ 机制一致，
+   这条写进下一号队列。
+3. **A4 预测 3 红、实测 4 红**：多的那条是 `providers/router.py` 的导入者参数。A4 加的是
+   一行**模块级** import，钉死的导入者集合本来就该响；我漏算，门没漏算。
+4. **本号的成本不在普查，在解析**（同一台机器、loadavg 48）：`local_package_roots()` 被
+   `classify_root` 每模块调一次、每条腿重算 1,200 次目录列举，`_product_files()` 又被六条
+   腿各重算一次。两个 memo 之后逐腿 14.6→4.1 / 10.2→1.7 / 8.9→1.4 / 8.3→1.1 秒，文件
+   119.2s → 92.4s；剩下 73.9s 是**第一条腿替全文件付 `build_graph()`**。隔离量：
+   `walk_files` 0.46s（1,200 个文件）、`build_graph` 17.0s——机器空载时前者才是主成本，
+   这棵树今天贵的原因是解析，不是走目录。
+5. **门键不能钉行号**（跑臂前就改掉，没有算成事后理由）：`classify_retry` 那条腿第一版
+   钉 `webhook.py:240`，而 A2 要删的正是它上面那行 import——删完 240 变 239，
+   这条腿会为了一个与主张无关的理由红，预测就得写成 2 红。键换成
+   （文件, 外层函数），行号只进失败信息。
+6. **臂的备份目录被门数进去了**（第三轮 A6 多的那条红）：`.arm520_backup/` 建在
+   `wt520` 根下，`walk_files` 从工作树根开始走，于是
+   `.scratch/wt520/.arm520_backup/api__agent_runtime.py`（臂工作树里的残留，不在仓库里）
+   成了模块 `.arm520_backup.…`，
+   新写的 `name.startswith(".")` 断言当场把它抓出来。两件事同时成立：
+   这条断言是**活的**（旧的 `split(".")[0]` 写法对备份目录同样全瞎，
+   它对 `.venv312` 全瞎不是偶然，是同一个写法必然的覆盖面）；
+   **测量工具的残留物也是被测树的一部分**，除非它待在树外。备份目录已挪出工作树。
+7. **harness 会因为臂名打错而少跑一条臂并仍以 0 退出**：`--only=A6b_…suffix`（真实臂名是
+   `A6b_gate_renamed_cleanly`）过滤出一个不含它的集合，电池"全绿完成"。
+   现在未知臂名直接拒绝启动。这条与「门可以为假的目的通过」是同一类，只是发生在量具上。
+8. **臂的环境比主张的现场小**：`wt520` 是新 checkout 的工作树，里面**没有 `.venv312`**。
+   所以 A5 退回精确名之后，走树层没有东西可漏，四轮那 1 红全部来自自带假 venv 的 tmp 腿；
+   「真树会被灌进 6,141 个第三方文件」这个数只能由 `probe522_walk_shapes.py` 在真树上量。
+   补臂 A5b（在工作树里真的建一个 `.scratch/wt520/.venv312/Lib/site-packages/demo/__init__.py` 再退规则），
+   让这条臂第一次同时具备**规则**与**对象**。一般形式写进下一号队列：
+   臂的复现环境必须含有所测主张指涉的东西，否则「没红」既可能是防线成立，也可能是现场不在。
+9. **本号的复测量具自己犯了本号记的那类错**（改号之后重测每个数时才暴露）：
+   `probe522_ledger_facts.py` 加了一个「测哪棵树」的参数，把 `sys.path` 指到 `wt522`，
+   却漏改它自己的 `REPO`——于是它**从 `wt522` import 解析器、从共享工作树走目录**，
+   报出「走到 1,202 / 图里 1,197 / 不可解析 0」。这三行合起来恰好是本号那条不变量腿
+   （走到的每个文件都在图里）的形状，但成因不是解析而是**两棵树**。
+   修法是 `REPO = ROOT` 一处，让走树与它所 import 的解析器同源；
+   门不会红这件事（它两边都用同一个模块级 `REPO`），会骗的是**读门的人**。
+   这是「政策一致 ≠ 机制一致」的又一形式：**import 自哪棵树 ≠ 走的是哪棵树**。
+
+10. **本节自己被台账的队列指针门抓住两条幽灵路径**（落地前量到的红，不是事后补的）。
+    先记这个门的镜头：`test_ledger_queue_pointers_resolve` 把「从任何写着「下一号队列」的
+    行开始、直到空行或下一个标题」当成一个块，而我那 9 条发现之间**没有空行**，
+    于是「发现」2 末尾那句「这条写进下一号队列」把整个 2–9 都变成了「给后续号的指令区」，
+    区内两条路径因此被要求指向仓库里真的有的文件，而它们当时写的是不带 `.scratch/` 前缀的
+    样子：`.arm520_backup/…` 与 `.venv312/Lib/site-packages/…`（A5b 在臂工作树里造的那个
+    假 venv 文件）。两个都不在仓库里（门说得对），
+    因为它们从来就是**工作树之外**的量具残留。改写成 `.scratch/wt520/…` 的真实位置之后
+    那三道台账门 31 例全绿、整套 14 个门文件 294 例全绿——这一改不只是让门绿：原句省掉的
+    「它在仓库外」正是这条发现的论点，
+    与「发现 6」是同一件事的两面（残留在树内会被数进被测人口，残留在账本里会被读成
+    一条可以跟进的指针）。跑法：把本节追加到 `origin/master` 的账本正文之后、在 `wt522`
+    里跑台账家族门（不能改共享工作树里那份——别道已在索引里暂存了他们的新节）。
+    本条自己也是这个镜头的对象，所以它与上一条之间**空一行**：不让一段讲「哪些行会被
+    当成指令」的散文，替读者把后面的话都立成指令。
+
+11. **取号守卫量了自己，而且改了之后又量了一次**：脚本先把账本 blob 写进临时索引，再用
+    `git show :docs/operations/DEEP_OPTIMIZATION_PLAN.md` 测「真实索引里别道暂存到几号」——
+    而 `GIT_INDEX_FILE` 已经导出，`:` 读的就是那个临时索引，里面正躺着本号的 `## #522`，
+    于是守卫报「索引已有 #522，STOP」。真实索引当时的 max 是 #521，号并没有被占。
+    把测量挪到导出之前以后，**原来那一份还留在脚本后面**，第二次以同一个理由再停一次——
+    一条量具被复制成两份，正是本号在 `imports_of` 那一节反复付过学费的形状（两份语法、
+    两份真相）。现在守卫只有一处、且在 `GIT_INDEX_FILE` 导出之前；两条守卫
+    （origin 的 max 与真实索引的 max）量的是两棵不同的树。
+    这是本号第三同族洞（发现 6 的残留物、发现 7 的 `--only` 静默跳过、发现 9 的两棵树）的
+    第四例，共同形状是**量具读到了自己**。
+
+### 否证与边界
+
+- **图只回答「有没有这条边」**。严格可达是**导入意义**上的可达：顶层边存在 ≠ 那个函数
+  在线上被调用过。所以「未接线」的证据是构造普查 + kwargs 供给腿（量到的⑤），
+  可达性腿只负责撤掉那句关于 import 的假话。
+- **`importers_of` 返回空 ≠ 死模块**：`providers/__init__.py` 产品导入者为 0，
+  而 `providers.base` 严格可达——`import providers.base` 会执行包 `__init__` 而不把它
+  记成导入目标。门里有一条腿专门记这件事，因为本号撤掉的那三句话正是把空列表读成
+  「死代码」的人写的。
+- **入口根是「列出来再检查存在」的**：`api.server` / `mcp.server` 无法从打包元数据导出
+  （一个由 uvicorn 起、一个是 stdio MCP server），所以由 `entry_roots()` 写出来、
+  再由门检查它们真在图里。将来 app 路径换了，这条腿红而不是悄悄变小。
+- **111 / 98 / 13 是本树当前形状的实测**，不是定理；A7 用门内的两条腿（相对边可见数 +
+  naive 集合为空）证明这个失明是活的，而不是引用这组数。
+- **未接线这件事没有被本号消灭**：`providers.mcp_bridge` / `craft.mcp_wiring` 仍然不在
+  松散可达集里（量到的⑦）。本号把它们写成「`nothing` 唯一能站住的位置」，
+  而 #517 队列③里「要么接线要么删」这个决定**仍然没做**——本号只证明了
+  「不接线的理由写错了」。
+- 三处 docstring 是**改述**而不是删除：`cache_hits` / `router_fallback_count` 的语义
+  没动，指标实现没动，产品运行路径一行代码没动。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① 政策一致 ≠ 机制一致：`tests/unit/test_security_scanner_excludes_are_segment_exact.py`
+与 `tests/_scan_walk.py` 比的是名字，没有一条腿在**走树层面**证明两条政策同源——
+要不要给「排除政策只有一个 owner」补一条端到端腿（发现 2）；
+② 臂的复现环境必须含有所测主张的对象（发现 8）：本号的电池跑在新 checkout 上，
+「树里有没有 `.venv312`」这类主张在臂里没有现场；下一号起，凡涉及目录/环境的臂都先在工作树里
+把对象造出来再退规则；
+③ `local_package_roots` 的 memo 是 `functools.cache`（无界）按 `repo` 键，`tmp_path` 每例唯一、条目只增；
+真要不要换成显式失效，等它成为问题再说（现在是零成本）；
+④ 本号撤掉的是「没人 import」，**接不接线**仍是 #517 队列③那笔账：
+`providers/resilience.py` / `client_policy.py` 两套并行重试词汇要么接线要么删；
+⑤ `providers/resilience.py` 的严格可达靠两条**连续相对边**（量到的②）：这件事值不值得
+在 `craft/loop.py` 与 `providers/openai_compatible.py` 的 docstring 里各说一句，
+让下一个读的人不至于再用 `level == 0` 的尺子；
+⑥ dsv4 `test_wait_prefers_retry_after_over_exponential` 的 header≠曲线格子
+（#519 已经落地在 `ed68efe`，动前先核对它有没有把这一格补上）；
+⑦ `retrieval/rerank.py` 不做 429 重试而 embeddings 做；⑧ `sha256_hex` ×3 与
+`_capsule_dirs` / `_eval_report_path` / `child_output_text` 的跨层归属；
+⑨ 三套并存的时间戳词汇；⑩ `cli/`、`craft/` 剩余约 50 条静默 `except`；
+⑪ mypy 版本钉住；⑫ P6 100 例隔离评测；⑬ `docs/design/JOB_CREATION_WHITELIST.md` 符号名；
+⑭ **复测量具的「哪棵树」必须只有一个来源**（发现 9）：本号那支探针把 `sys.path` 指到工作树、
+把走树留在共享树，就报出了一行「走到的比图里的多」——它不是门的红，是读数的红。
+凡接受路径参数的探针/电池，都该由同一个参数导出 import 根与被走目录，
+并把「量具 import 的模块 `REPO` == 量具走的目录」做成一条自检断言（`arms522.py` 的
+preflight 已经在比覆盖文件的 sha，这条是它的另一半）。

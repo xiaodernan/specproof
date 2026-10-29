@@ -51,9 +51,13 @@ import providers.openai_compatible as providers_module
 import retrieval.embeddings as retrieval_module
 from contracts.retry_after import retry_after_seconds, wait_retry_after_or_exponential
 from providers.openai_compatible import _RETRYABLE_EXCEPTIONS
+from tests._import_graph import package_of, resolve
 from tests.unit.test_structural_clone_ratchet import PACKAGES
 
 REPO = Path(__file__).resolve().parents[2]
+
+#: Names the producer is allowed to import that are not a layer crossing.
+ALLOWED_STDLIB = frozenset({"__future__", "typing"})
 
 Parser = Callable[[BaseException], "float | None"]
 Outcome = tuple[str, Any]
@@ -226,13 +230,21 @@ def test_the_header_is_read_in_exactly_one_product_module() -> None:
     assert _product_modules_naming_the_header() == ["contracts/retry_after.py"]
 
 
-def _runtime_import_roots(tree: ast.Module) -> set[str]:
+def _runtime_import_roots(tree: ast.Module, package: str = "") -> set[str]:
     """Top-level packages the module imports at runtime, TYPE_CHECKING excluded.
 
     `contracts/retry_after.py` keeps tenacity behind `if TYPE_CHECKING:` so the
     producer stays importable from a stdlib-only environment; a leg that counted
     that annotation as a dependency would forbid the very thing it wants. Walked
     by hand rather than with `ast.walk`, which descends into the guarded block.
+
+    #522 measured the hole in the first version: it only looked at `level == 0`
+    imports, so a new `from ..providers.base import ...` in the producer — exactly
+    the cross-layer edge this leg exists to catch — contributed nothing and the leg
+    stayed green. Relative edges now resolve through the same anchor arithmetic the
+    import graph uses, because two grammars for PEP 328 is the drift #517 itself
+    just paid for: `providers/openai_compatible.py` reaches seven sibling modules
+    with `from .x import`, and a census that drops them reports those edges absent.
     """
     roots: set[str] = set()
 
@@ -242,8 +254,15 @@ def _runtime_import_roots(tree: ast.Module) -> set[str]:
         if not guarded:
             if isinstance(node, ast.Import):
                 roots.update(alias.name.split(".")[0] for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-                roots.add(node.module.split(".")[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.level == 0:
+                    if node.module:
+                        roots.add(node.module.split(".")[0])
+                else:
+                    escaped = resolve(node.level, node.module, package)
+                    # A leading dot means the edge leaves the repository's root
+                    # package set; either way the head is what this leg reports on.
+                    roots.add(escaped.split(".")[0])
         for child in ast.iter_child_nodes(node):
             visit(child, guarded)
 
@@ -259,9 +278,14 @@ def test_the_producer_stays_reachable_without_a_dependency_edge() -> None:
     live call path. Pinned on imports rather than prose: the day the producer needs
     httpx or one of its consumers, the reason for the home dies and the merge has
     to move — not accumulate an edge nobody chose.
+
+    The module's own package is allowed (a sibling inside `contracts` is not a layer
+    crossing); everything else, including a relative edge that escapes the package,
+    is what the assertion is for.
     """
-    tree = ast.parse((REPO / "contracts/retry_after.py").read_text(encoding="utf-8"))
-    third_party = _runtime_import_roots(tree) - {"__future__", "typing"}
+    rel = "contracts/retry_after.py"
+    tree = ast.parse((REPO / rel).read_text(encoding="utf-8"))
+    third_party = _runtime_import_roots(tree, package_of(rel)) - {*ALLOWED_STDLIB, package_of(rel)}
     assert third_party == set(), sorted(third_party)
 
 

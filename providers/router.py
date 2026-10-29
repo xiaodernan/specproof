@@ -20,9 +20,13 @@ Configuration (environment):
         the provider default).
 
 The router returns provider CONFIG (base_url/model), never constructs
-clients. api_key stays LLM_API_KEY for both tiers. Nothing on the existing
-call path imports this module, so an unconfigured deployment is
-byte-identical to today.
+clients. api_key stays LLM_API_KEY for both tiers. ``craft/loop.py`` and
+``providers/client_policy.py`` import this module at module scope, so it is on
+the deployment's import path; what stays opt-in is turning it on. The loop
+routes only through a router a caller hands it, and no product call site does
+— the single product construction is ``providers/client_policy.py``, behind
+``SPECPROOF_PROVIDER_POLICY=1`` — so an unconfigured deployment is
+byte-identical to today and its ``router_fallback_count`` is a measured 0.
 
 Task-kind vocabulary follows the routing table of
 docs/interview/INTERVIEW_MATERIALS.md §3; callers map their own task names
