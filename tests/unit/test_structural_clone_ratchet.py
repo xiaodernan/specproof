@@ -578,7 +578,8 @@ def test_the_census_compares_nothing_unshipped() -> None:
     for root in NO_PYTHON_ROOTS:
         directory = ROOT / root
         files = sorted(directory.rglob("*.py")) if directory.is_dir() else []
-        assert not [f for f in files if "__pycache__" not in f.parts], (
+        assert not [f for f in files
+                    if "__pycache__" not in f.relative_to(ROOT).parts], (
             f"{root} was exempted as non-Python but now holds Python: re-measure it"
         )
 

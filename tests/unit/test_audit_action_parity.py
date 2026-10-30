@@ -48,10 +48,17 @@ _SKIP_PARTS = {".venv", "node_modules", "bench", "tests", "scripts", ".git", "di
 
 
 def _production_files() -> list[Path]:
+    """#541: the skip test reads the path BELOW the checkout, never its ancestors.
+
+    This used to test `path.parts` — absolute components — so the same rule that
+    yielded 166 lanes in a normal checkout yielded 0 in a worktree whose parent
+    directory happened to be named one of `_SKIP_PARTS`. The floor below is what
+    made that visible here rather than silently green.
+    """
     files: list[Path] = []
     for lane in PRODUCTION_LANES:
         for path in (REPO_ROOT / lane).rglob("*.py"):
-            if _SKIP_PARTS.intersection(p for p in path.parts):
+            if _SKIP_PARTS.intersection(path.relative_to(REPO_ROOT).parts):
                 continue
             files.append(path)
     assert files, "no production sources found — the scan, not the code, is broken"

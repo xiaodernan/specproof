@@ -18113,3 +18113,256 @@ acceptance.py 非字面写；⑧ case-17 的严重度漂移；⑨ 其余六个 p
 标题，要么收进 `LIST_HEAD`、要么在门里显式登记为「不认」，不能让它悄悄留在
 
 尺子外面。
+
+## #541 一道普查门说「产品里只有一处定义」，而它的「产品」是手抄的、它的剪枝比的是检出目录的**祖先**——同一棵树，302 个文件与 0 个文件
+
+**起因/占号。** 这一号写得很曲折，曲折本身是第一条实测：预测文件
+`D:\面试项目\.scratch\pred527_plane.md` 写于 `origin/master@4b8c5d2`（当时账本最大节 `## #526`，
+全账本 350 节），按规取号 **#527**；13 个文件全部落地、全部臂跑完之后，**推送之前复测**——
+`origin/master` 已到 **42dda71**，`4b8c5d2..42dda71` 之间有 **13 个号**（#528…#540）由别的道落地，
+而 `git log --all --grep=527` 是 **0 条提交**、账本里 `## #526` 之后直接跳到 `## #528`：
+**#527 这一号从未存在，是一个空洞而不是撞号。** 按「最大节 + 1」本号落地时改号为 **#541**，
+28 处自引用随之搬动（`_scan_walk.py` 4、`test_audit_action_parity` 1、#526 门 2、#525 门 2、新门 19）。
+
+改号不是免费的：**基线搬了 13 个号，本号每一个「数字」都可能不再是那个数字。** 所以本号做了一件
+#527 没做过的事——把所有会被别的道改动的读数在新基线**重量**一遍（`pred541_plane.md` §一），
+并且允许它们和 #527 的不一样：
+
+- 产品面人口 **318 → 317**。差的那一个是 `craft/mutation.py`（#535 删掉的第二个变异引擎），
+  `git diff --name-status 4b8c5d2 origin/master -- '*.py'` 里产品侧删除只有它；
+  `tracked_python_roots()` 仍是 **20** 个根、`product_roots()` 仍是 **18** 个。
+- 本号 13 个文件与上游 53 个改动文件**只重叠 2 个**：账本，和
+  `tests/unit/test_silent_broad_catches_carry_a_reason.py`——上游改 `:180` 的地板
+  （`>= 33` → `>= 29`，注释点名 #523/#534/#535），本号改 `:92` 的 `p.parts` →
+  `p.relative_to(_REPO_ROOT).parts`。**#527 的「否证 1」（31 < 33 那条别道的红）在新基线已被属主
+  自己修掉了**——本号不认领它，只记下它被上游承认了。
+- 名册**没动**：`TYPED_PLANES` 仍 10 条、`ABSOLUTE_PARTS` 仍 3 条（13 个号里既没人新增手抄普查面，
+  也没人新增绝对 `.parts` 剪枝；`test_verdict_channel_parity.py:304` 那条仍在场）。
+
+起于 #526 落地时我没追的一件事：同一道门，共享检出里全绿，`.scratch/wt526` 里 4 红 64 过。当时把它
+记成「臂树的噪声」，量下来它不是噪声——而且本仓库**每一条臂都跑在 `.scratch/wtNNN` 下**，所以凡用了
+绝对式剪枝的门，历史上那些绿都可能是**空人口上的绿**。#525 与 #526 两号的结论都建立在这类门上。
+
+**本节同时是 #526 队列④ 的交付。** 那一节写的条件是「走查根必须自己派生，否则每个后续号都会把
+`api/` 当成天然的人口边界」，并给了一个候选集合（入口根 = `api/` + `mcp/` + `cli/` + 导出脚本）。
+本号交付的是**另一种满足法**：根不是名单，是 `git ls-files *.py` 的第一段减去一份**分类**
+（`tests` / `bench`），所以「哪些包算产品」这件事的算法只有一个 owner，而它比那份候选集合大——
+入口根只有 4 个，派生面有 **18** 个根 / **317** 个模块。
+
+### 量到的
+
+落地前 `D:\面试项目\.scratch\probe527census.py` / `probe527roots.py` / `classify527.py` /
+`probe527vacuity.py` 实测（不是推算；数字属 #527 那次基线 `4b8c5d2`，新基线重量的见上一段）：
+
+- **同一条规则，两个根，两个判决。** 两道 demo 门写的是
+  `any(part in SKIP_DIRS for part in path.parts)`，而 `path` 是**绝对**路径：共享检出 **302** 个产品模块，
+  `.scratch/wt526` 里 **0** 个；只把 `path.parts` 换成 `path.relative_to(REPO).parts`，两边都是 302。
+  `SKIP_DIRS` 里有 `.scratch` 是对的（`pyproject.toml:98` 里 ruff 排除的同一个名字），错的是拿它去比祖先。
+  `test_audit_action_parity.py:54` 同形状：**166 → 0**。
+- **红的那几条不是门变凶，是门自曝。** 落地前在嵌套臂树实测 4 failed / 64 passed，红的腿是
+  「owner 必须在场」两条 + `test_the_census_is_not_blind`（`only 0 production modules scanned`）+
+  `test_the_gate_has_teeth_on_its_own_floor`。**同时**有 **5** 条「不该有第二份副本」形的腿在空人口上**过**
+  （`classify527.py` 按形状判：断言是 `assert not X` / `== 非空字面量集合` / `all(...)` 且同体没有非空地板；
+  #526 门 4 条、#525 门 1 条，逐条腿名列在 `classify527_out.md`）。一句话：这道普查一边喊瞎，
+  一边报「没有副本」。
+- **手抄面有 9 份。** `tests/` 里 42 份声明式根名单、43 个互不相同的集合，其中 9 份写的是「产品平面」。
+  #525 那份 14 个根、#526 那份 13 个，差集恰好 `['experiments']`；两份都**不打开**
+  `devtools` / `mcp` / `ops` / `plugins`，而它们各自断言「整个产品里只有一处」。
+- **正确的派生法这个仓库早就有，只是没人引用。** `test_structural_clone_ratchet` 用
+  `PACKAGES(16) + EXCLUDED_ROOTS(5)` 把 20 个跟踪根**全分类**，带 `assert len(roots) >= 15` 地板与
+  两条对账腿；`tests/_scan_walk.py` 的 `walk_files` 按**目录名**剪枝（不看祖先）。上面 9 份里没有一个引用它们。
+- **加宽今天不新增见证**（所以必须植桩）：4 个新根共 **16** 个 `.py`（devtools 4、mcp 4、ops 3、plugins 5），
+  对两道门用到的全部 6 根针（`is_demo`、`LOCATE`、`retrieval_note`、`SELECT *`、`verification_jobs`、
+  `cur.execute`）**0 命中**。洞是潜能的，不是现证的。
+- **地板规则不能全库禁**：83 个走查文件、857 条腿、其中 259 条读到走查人口、**120** 条「空断言之前同体没有
+  非空地板」。这是全库习惯，一次禁掉会把一个可证伪的号变成无人能审的重构；本号只对 **demo 家族**
+  （两道 demo 门 + 新门）立规，其余进队列。
+- **第三层失明在读者自己身上**：`tests/unit/test_eval_resume_reuses_measured_cases.py` 的头 3 个字节是
+  UTF-8 BOM（11560 → 11557），于是 `read_text(encoding="utf-8")` + `ast.parse` 在它上面抛
+  `SyntaxError: invalid non-printable character U+FEFF`；落地树上按口径重数这个脆弱读形状——全库 **316**
+  个文件写 `read_text(encoding="utf-8")`（`tests/` 下 **212**），其中 **65** 个同时提到 `ast.parse`
+  （`tests/` 下 58），写 `except SyntaxError: continue` 把它**静默丢掉**的有 **9** 个。
+  #527 草稿记的「188 个」在 `42dda71` 上三个口径都复现不出来，本号改用自己的读数（见「否证」10）。
+  产品面内 BOM 文件 **0** 个（今天的普查结论没被它污染），走查面内 **1 → 0**（落地前两棵树数到 1，
+  落地后两棵树数到 0——本号剥掉的就是这一个）。同一对读数里 `except SyntaxError: continue` 从
+  **8 → 9**：多的那一条是本号自己的新门（它写这个形状是为了**数出**这个形状）。
+
+### 落地
+
+- `tests/_scan_walk.py` 成为产品面普查的**唯一 owner**：`NON_PRODUCT_ROOTS = frozenset({"tests", "bench"})`
+  （理由写在源码里：517 个假件的本职就是第二次拼写，368 个基准脚手架同理）、`tracked_python_roots()`
+  （`git ls-files *.py` + `>= 15` 地板，`lru_cache`）、`product_roots()`（派生 - 分类，且断言「减完不为空」）、
+  `product_python_files()`（**18 根 / 317 个模块**，`>= 250` 地板，返回 `(绝对, 仓库相对)`；仍按目录名剪枝）。
+  两个数（18 / 317）在共享检出、非嵌套对照树与嵌套臂树里**实测相同**。
+- 两道 demo 门删掉自己的 `PRODUCTION_DIRS` 与绝对 `.parts` 过滤，改调 owner；#526 门补一条
+  `test_the_census_is_not_blind`（它是 #526 门里原本没有的地板腿）。
+- **8 处**绝对 `.parts` 剪枝改成仓库相对：`test_audit_action_parity`（带 #541 docstring）+
+  `test_copied_timestamp_and_digest_formats_agree` / `test_env_knobs_reach_the_process_that_reads_them` /
+  `test_java_reader_is_imported_from_its_home` / `test_job_whitelist` / `test_retry_after_readers_policy_table` /
+  `test_silent_broad_catches_carry_a_reason` / `test_structural_clone_ratchet` 的 `__pycache__` 过滤器。
+  这 8 处的改法**不改人口**（实测 246 / 246 逐条相同），改的是「检出搬走之后还剩什么」。
+- 新门 `tests/unit/test_the_plane_a_scan_reads_is_derived_not_typed.py`，**11 条腿**（计划 8 条，
+  BOM 一层与名册形状各逼出额外腿）。
+- 名册两份，人口都由 AST 派生、新增者不能靠被忘记而入册：`TYPED_PLANES` **10** 条（每条写清它的名单有多窄、
+  因此看不见什么）；`ABSOLUTE_PARTS` **3** 条（2 条是对 `tmp_path` 桩树的**特征化**，
+  1 条是别道的 `test_verdict_channel_parity.py:304`）。两个「9 / 10」不是同一口径：**9** 是「42 份声明式根名单里
+  声称在数产品平面的那份子集」，**10** 是本号探测器（模块级 ≥6 个跟踪根的字面量）在落地树上数到的**文件**数
+  （含 `tests/conftest.py`，它不是门）；落地前后各跑一遍 `_root_name_lists`，10 个文件**全部在名册里**。
+- `tests/unit/test_eval_resume_reuses_measured_cases.py` 的 UTF-8 BOM 剥掉（第三层失明的现场：
+  它是 1212 个跟踪 `.py` 里**唯一**带 BOM 的一个（落地前后各数一遍：**1 → 0**），头 3 个字节一在，
+  `ast.parse` 就对它抛 `SyntaxError: invalid non-printable character U+FEFF`）。
+- 明确**不做**：不把那 9 份手抄面一次改光。
+
+### 门
+
+| 门 | 内容 | 实测 |
+|----|------|------|
+| **新门** `tests/unit/test_the_plane_a_scan_reads_is_derived_not_typed.py` | 四段：**A 派生**（`test_the_product_plane_is_derived_from_the_index` 算 `plane == tracked - NON_PRODUCT_ROOTS` 并查「排除的名字还指向东西」；`test_the_three_owners_of_the_plane_agree` 把**随产品分发**、**被索引跟踪**、**被普查读取**三个答案对嵌套；`test_the_derived_plane_is_not_empty_where_a_gate_claims_a_census` 地板 + `mcp/` 必须在面内 + 两根不重叠；`test_no_module_a_census_reads_defeats_the_census_reader` 把产品面与 `tests/` 全部按 `read_bytes().decode("utf-8")` + `ast.parse` 试一遍，**红出来而不是跳过**）；**B 地理**（`test_pruning_ignores_where_the_checkout_lives` 在 `tmp_path/.scratch/wt999` 造一棵树，owner 必须仍 yield 那个文件；`test_an_absolute_exclude_test_blinds_a_nested_checkout` 是同树的反向腿，用**被删掉的旧规则**重跑，断言它得给出 `[]`——这两条成对才说明腿 B 测的是祖先而不是运气）；**C 家族**（`test_the_two_demo_gates_read_one_derived_plane` import 两道门量 `PRODUCTION_FILES` 相等且 == owner；`test_a_census_gate_that_reads_the_plane_floors_it` 要求 demo 家族每个文件体内存在 `>= 100` 的数值地板）；**D 名册**（`test_a_typed_plane_is_a_roster_not_a_forgotten_file` 双向对账 + 理由长度；`test_every_typed_plane_names_real_roots` 名册里的根必须真实；`test_no_scan_may_test_a_pruned_name_against_an_absolute_path` 双向对账 `ABSOLUTE_PARTS`） | **11 例 / 11 条腿**；新基线上非嵌套 `_wt541` 与嵌套 `nest541` 各跑一遍皆 **11 passed** |
+| 人口 | 本号 24 个普查/扫描门 + 新门，预落地块跑在 `_ctl541`（42dda71 的**真 worktree**，非嵌套），落地跑在 `_wt541`（同一号 worktree + 本号 13 个文件） | 预 **5 failed / 374 passed**（379 例），后 **4 failed / 387 passed**（391 例 = 379 + 1 条 #526 门新增的地板腿 + 11 条新门）——例数预测**精确命中**；红的 4 条腿名是预落地那 5 条的**逐字子集**，所以**本号 0 新增红**。少的那一条不是本号修的：`test_subprocess_text_encoding::test_the_rest_of_the_repo_cannot_grow_the_debt` 在预落地树里数到 **46** 条而地板是 **45**，第 46 条是 `tests/unit/test_eval_resume_reuses_measured_cases.py: unparseable: invalid non-printable character U+FEFF`——**一个它读不动的文件被当成一笔债记着**；本号剥掉那 3 个字节之后同一函数数到 **45**（`unparseable` **1 → 0**），那条红就绿了。见「发现」10 |
+| 被本号改到的既有门 | 8 处 `.parts` + 两道 demo 门，非嵌套树同跑 | 两道 demo 门落地前 **68 passed**（不植桩基线），落地后 **69 passed**（+1 = #526 门新增的地板腿）；audit 门嵌套 **28 passed** |
+| 嵌套检出（本号主证） | `nest541` = `specproof-reference/.scratch/` 下的 42dda71 干净 worktree | 落地前 **4 failed / 64 passed**（两道 demo 门）+ audit **28 passed / 0 红**；把 13 个文件放进**同一棵树**之后 **108 passed / 0 红**——同一台机器、同一个号、同一棵树的祖先，唯一变的是那 13 个文件 |
+| 台账家族门 | `test_ledger_evidence_claims_are_true` / `_queue_pointers_resolve` / `_section_ids_are_unique` / `_section_numbers_are_unique` / `test_recorded_ledger_sections_do_not_vanish` | 追加本号一节之前 **50 passed**（18 节家族门里 `_claims_are_true` 在 `42dda71` 已含 #540 加的 2 条），之后 **52 passed / 0 红**——本号那节自证：`**证据文件**` 块里的路径全部由索引承载，`## #541` 号唯一且不与任何已记录节冲突 |
+| 静态门 | `ruff check`（13 个改动文件）、`python -m mypy .`（CI 原命令，两棵树对照）、`python -m bandit -r <CI 名单> -ll -q --skip B101` | `ruff check` 13 个文件 **All checks passed!**；`mypy` 两棵树都 **Success: no issues found in 262 source files**（**262 = 262**，本号 13 个文件全在 mypy 面外——`pyproject.toml` 排除 `tests/`，见队列⑦）；`bandit` 两棵树 **rc=0**（只剩 `# nosec B608` 的 "no failed test" WARNING，与本号无关） |
+
+### 变异臂
+
+预测全部写在 `D:\面试项目\.scratch\pred541_plane.md`（新基线上、任何臂运行之前；§二之补是对 N8 的**臂前更正**，
+原文那格保留）。三棵树：`_ctl541`（预落地·非嵌套）、`_wt541`（落地后·非嵌套）、
+`.scratch/nest541`（预落地·**嵌套**，N2 时把 13 个文件放进同一棵树）。植桩都是**同一批字节**、
+按目录搬位置，逐字节备份还原（`.armbak` / `.arm541bak`），每段结束 `git status` 只剩本号那 13 个文件。
+
+| 臂 | 改动 | 预测（跑前） | 实测 |
+|----|------|------|------|
+| P0 | 预落地·非嵌套·不植桩，两道 demo 门 | 基线，供 N4/N5 比 | **68 passed / 0 红** |
+| N1 | 预落地·**嵌套**·一字未改，两道 demo 门 | **红**，且腿名与 #527 在 `4b8c5d2` 嵌套树上量的 4 条**逐字相同** | **4 failed / 64 passed** ✓ 精确（`test_the_predicate_text_has_exactly_one_definition`、`test_the_prefix_is_one_executed_constant_in_the_production_plane`、`test_the_census_is_not_blind`、`test_the_gate_has_teeth_on_its_own_floor`） |
+| N1b | 同一棵嵌套树跑 `test_audit_action_parity` | **0 红**（它绿着说「没有第二份」） | **28 passed / 0 红** ✓ |
+| N2a | 把 13 个文件放进同一棵嵌套树，新门 + 两道 demo 门 + audit | **0 红 / 108 passed** | **108 passed / 0 红** ✓ 本号主证 |
+| N2b | 同一棵树只跑两道 demo 门 | 69 passed | **69 passed** ✓ |
+| N3 | 三棵树各读 owner | 三处 **317 / 18** | 落地后两棵树 **roots 18 modules 317**（非嵌套与嵌套**相同**）✓；两道 demo 门各自的 `PRODUCTION_FILES` = **317 / 317** ✓。**预测有错**：预落地的两棵树里 owner **根本不存在**，读数是 `owner-absent-at-this-baseline ImportError` 而不是 317——我把「同一棵树落地后」的性质写成了「三棵树都 317」（见「否证」3） |
+| N4 | **落地前**：两根针（`AS is_demo` 片段 + `seeded demo` 前缀）一起植进 `mcp/tools.py` | **0 红**——手抄名单不打开 `mcp/`，这就是洞 | **68 passed / 0 红** ✓ |
+| N5 | **落地前对照**：同一批字节植进 `retrieval/symbols.py`（两份手抄面**都**打开的根） | 红 3 条，腿名与 #527 的 P3 相同 | **3 failed / 65 passed** ✓ 三条腿名逐字相同，与 N4 同字节同数不同命 |
+| N6 | **落地后**：同一批字节植进 `mcp/tools.py` | 红 3 条，腿名与 N5 逐字相同 | **3 failed / 66 passed** ✓ 加宽把 0 红变 3 红 |
+| N7 | **落地后对照**：同一批字节植进 `retrieval/symbols.py` | 与 N5 同 3 条腿名，前后 **3 = 3** | **3 failed / 66 passed** ✓ 同一 3 条 |
+| N8a | 变异 owner：`walk_files` 的剪枝改读**绝对祖先**，跑在**非嵌套**树 | **恰 1 红**（§二之补；N8 原格按 #527 实测写的 5 红保留不删） | **2 failed / 9 passed**：地理腿 ✓，**多一条** `test_no_scan_may_test_a_pruned_name_against_an_absolute_path` ——变异体自己在 `tests/_scan_walk.py` 里写下 `for part in Path(dirpath, d).parts`，被形状名册抓住（见「发现」8） |
+| N8a2 | 同一变异，两道 demo 门，非嵌套 | **0 红**（它们读的真实普查没塌） | **69 passed / 0 红** ✓ |
+| N8b | 同一变异，跑在**嵌套**树 | **5 红**，腿名与 #527 的 A6 相同 | **5 failed / 6 passed** ✓ 五条腿名逐字相同；两格相减 **5 − 2 = 3** 就是「祖先里有一个被剪的名字」这个变量本身的量级 |
+| N9a | 删掉 #526 门 `test_the_census_is_not_blind` 里的 `assert scanned >= 250` | 该门自身 **0 红**（地板不是它绿的原因） | **22 passed / 0 红** ✓ |
+| N9b | 同上，跑新门 | **红 1** = 家族地板腿 | **1 failed / 10 passed** = `test_a_census_gate_that_reads_the_plane_floors_it`，消息点名的正是那个文件 ✓ |
+| N10 | 往 `tests/unit/` 放一个声明 6 个跟踪根的桩文件 | **红 1** = 名册腿；子集腿不红 | **1 failed / 10 passed** = `test_a_typed_plane_is_a_roster_not_a_forgotten_file`（unregistered 名单点名桩文件）；`test_every_typed_plane_names_real_roots` 绿 ✓ 桩文件跑完删除 |
+| N11 | 全量红单对照：`tests/unit` + `tests/security` 在 `_ctl541` 与 `_wt541` 各跑一遍 | **红名单逐字相同**（本号 0 新增红），且 `_wt541` 的通过数 ≥ `_ctl541` | **没拿到，因此不作本号的门证**（这格留在表里而不是删掉）：`_wt541` 一棵树跑满 60 分钟被终止（exit 137），没有可读的红/绿汇总；同一 `specproof_test` schema 上同时有别道的 pytest 在抢连接，两棵树串起来是小时级。本号的对照是**人口行**那 24 门读数——它覆盖的正是本号 13 个文件的全部爆炸半径（5 处 `.parts` 修复所在的门、两道 demo 门、audit 门、静态克隆门、名册门都在集合里）。全量对照进队列⑬，跑法与「为什么必须串行」见「否证」11 |
+| N12 | 台账家族门 | **52 passed**（#527 记 50，#540 给 `_claims_are_true` 加 2 条） | **52 passed / 0 红** ✓ 追加本号一节之后复跑仍是 52——新节没有引入第 53 条，也没有把既有 52 条里的任何一条弄红 |
+| N13 | 在本号那节的 `**证据文件**` 块里临时写一条**不存在的**路径（用 `SPECPROOF_LEDGER_PATH` 指到副本，绝不改出货账本） | `_claims_are_true` **红 1** | **1 failed / 17 passed** = `test_every_evidence_file_exists`（消息点名那条 ghost 路径）；同一份副本去掉 ghost 之后 **18 passed** ✓；出货账本 sha256 前后同为 `417c2d1ceb7f96bd`——**红发生在副本里，不在将要推送的文件里** |
+| N14 | 本号不碰 `apps/web/` | 不跑前端套件 | 未跑；`git status` 里 `apps/web/` 无本号改动 ✓ |
+| N15 | 静态门 | ruff `All checks passed!`；mypy **两棵树文件数相同**；bandit `rc=0` | `ruff check` 13 个文件 **All checks passed!**（名册理由文本改掉行号后**复跑一次**仍绿）；`python -m mypy .` 两棵树都是 **Success: no issues found in 262 source files** → **262 = 262** ✓ 预测命中，且这个命中本身就是证据：`pyproject.toml:137` 把 `tests/` 排除在外，本号 13 个文件**一个都没被类型检查**（队列⑦）；`bandit`（CI 名单）两棵树 **rc=0**，只剩 `# nosec B608` 的 "no failed test" WARNING |
+
+### 发现
+
+1. **普查会瞎有三层，互相独立。** 根（手抄名单漏目录，9 份）、地理（剪枝比祖先，2 份致命）、
+   **读者解码**（BOM 让 `ast.parse` 抛，**65** 个文件写 `read_text(encoding="utf-8")` + `ast.parse`
+   这个脆弱读形状，其中 9 个把它静默丢掉）。前两层让「谁在面内」错，
+   第三层让「面内的文件能不能被读」错；三层的读数都能为正而结论为空。
+2. **门绿不绿与检出目录有关 = 门的结论不可复现。** 本仓库每条臂都跑在 `.scratch/wtNNN`，所以这不是
+   边缘环境：落地前 4 红 + 28 条 audit 空过发生在**默认臂树**上。本号之后，demo 家族在嵌套与非嵌套
+   两棵树上给出同一份 **317** 的普查。
+3. **派生人口在非 git 树上失败得够响。** `git archive` 出的臂树不是仓库，`git ls-files` 类派生直接红：
+   同 24 门在 archive 树 **17 failed / 361 passed**，在真 worktree **5 failed / 373 passed**（#527 在
+   `4b8c5d2` 量；本号在新基线的对应证据更直接——预落地的两棵树读 owner 得到的是
+   `ImportError`，不是空普查）。规矩：普查门的臂树必须是 `git worktree`。
+4. **探测器的伪阳性会污染名册。** 绝对 `.parts` 探测的第一版报了 9 个文件，其中 7 个是
+   `if "__pycache__" in path.parts` 这种一眼该改的形状，2 个是 `rel.with_suffix("").parts` 这类
+   **本来就相对**的链式读法。把链式读法认出来之后剩 3 个，其中 2 个是对 `tmp_path` 桩树的**特征化**。
+   修探测器比注册伪证便宜，而名册里塞伪证会让下一个读者不信名册。
+5. **植桩把「目录名决定可见性」变成测量而不是主张。** 同一批字节四格：`mcp/tools.py` 落地前
+   **0 红** / 落地后 **3 红**；`retrieval/symbols.py` 落地前后都 **3 红**，且四条格的腿名两两相同。
+   唯一的变量就是那个目录在不在手抄名单里。
+6. **同一个家族的两道门问的不是同一个字符串。** #526 门普查 `AS is_demo` 与 SQL 里的标记文本，
+   #525 门普查 `DEMO_NOTE_PREFIX`（`seeded demo`）并另有一条只看 owner 单文件的腿。所以
+   「两道门读同一个面」（腿 4 保证）不等于「一道门红的副本另一道也红」——家族共享**面**，不共享**针**。
+7. **#516 早就写对了。** `PACKAGES + EXCLUDED_ROOTS` 的分类 + `>= 15` 地板 + 两条对账腿，是本号 owner
+   的同一套结构；9 份手抄面里没有一份引用它。修一个普查洞最便宜的方式是先查有没有人已经写过对的那份。
+8. **一条变异被两条腿各抓一次，而这两条腿是独立仪器。** N8a 在非嵌套树预测 1 红、实测 **2 红**：
+   地理腿抓的是「剪枝读祖先」这个**行为**，而形状名册腿抓的是变异体在 `tests/_scan_walk.py` 里写下的
+   `for part in Path(dirpath, d).parts` 这个**形状**。行为腿会随普查面搬动而失效（嵌套/非嵌套两格差 3 条），
+   形状腿不看地点、只看 AST——两条都留着的理由在这里第一次有了读数。
+9. **改号这件事本身是一次实测，而且改的不止是号。** 本号的预测文件写于 `4b8c5d2`，落地完才发现
+   `origin/master` 已经搬走 13 个号、#527 从未存在（`git log --all --grep=527` = 0）。重量之后：
+   人口 318 → **317**（`craft/mutation.py` 被 #535 删除）、demo 两门例数 68 → **69**（本号自己加的地板腿）、
+   名册 10 / 3 **没动**、`test_silent_broad_catches…` 那条本号不认领的别道红被属主自己从 33 降到 **29**。
+   **「数字要重测」不是一句态度话，它有三处具体的读数会骗人。**
+10. **第三层失明会被别的仪器「记成一笔债」，方向不是 0 而是 +1。** 一条 BOM 让
+    `test_subprocess_text_encoding::test_the_rest_of_the_repo_cannot_grow_the_debt` 在**一字未改**的基线上
+    数到 **46** 条 unpinned 子进程解码（地板 45）而红：那份文件的贡献不是「一个漏读的站点」而是
+    `unparseable: invalid non-printable character U+FEFF` 这一条**新增 offender**。本号剥掉它的 3 个字节后
+    同一函数数到 **45**，红自己消失。也就是说：**读不动一个文件，有的普查少算一份，有的债务尺子多算一笔**——
+    两种错法都不会在报告里写成「我读不到」。
+
+### 否证与边界
+
+1. **#527 的「否证 1」在新基线不再是红。** `test_silent_broad_catches_carry_a_reason::
+   test_the_scan_reaches_the_sites_that_were_measured` 的地板被属主（#534/#535 一路）从 33 降到 29；
+   本号对该文件只改 `:92` 的 `.parts` 形状，**不改它的地板，也不认领它的红**。
+2. **N8a 低估了一条腿。** 预测 1 红、实测 2 红，多出的不是新性质而是**另一台仪器**（见「发现」8）。
+   原 N8 那格写的 5 红也没删：它是 #527 在嵌套树上的实测口径，本号把它拆成 N8a/N8b 两格才对得上。
+3. **N3 的预测把「落地后同一棵树」写成了「三棵树」。** 预落地树里没有 owner，读数只能是
+   `ImportError`。性质（嵌套与非嵌套给出同一份普查）在两棵落地后树上成立：**317 / 18 两边相同**。
+4. **今天没有现证副本。** 4 个新根对 6 根针 0 命中，本号所有红都来自植桩臂。加宽的价值是**下一次**
+   有人往 `mcp/` 里复制谓词时会红，不是今天有东西在红。
+5. **名册不是背书。** `TYPED_PLANES` 的 10 份手抄面继续存在、继续合法；本号把「它们各自看不见什么」
+   写进门，并把「新增者必须显式登记」变成一条会红的腿。120 条无地板空断言同理——形状是全库习惯，家族先立规。
+6. **`ABSOLUTE_PARTS` 里那 1 条别道的（`test_verdict_channel_parity.py:304`）本号不改。**
+   它仍在本号基线的跟踪文件里；本号只登记形状，并在腿 D 里等它被修掉之后**要求删条目**
+   （`stale` 那条腿会红），这样名册不会变成永久豁免。
+7. **本号只改 `tests/`。** 产品面（`agent` `api` `storage` … `contracts/demo_marker.py`）零改动：
+   #525/#526 落的 owner、片段与 `COALESCE` 不在本号范围内，也不被本号改变行为。
+8. **例数会随人口搬动，本号不拿它当性质。** demo 两门 68 → 69 是本号加的地板腿；#525 门 `def test_`
+   32 个但收 47 例（按文件参数化），所以「红几条」与「文件几条腿」不是一个数。
+9. **臂前的预测更正是本号做的两次之一。** §二之补（N8 拆格）写在任何臂运行之前，原文那格保留；
+   N3 的错没有用更正掩盖，写在实测栏里。
+10. **「188 个文件写脆弱读形状」在 `42dda71` 上复现不出来。** 那是 #527 草稿在 `4b8c5d2` 上的读数，
+    本号用三个口径重数：`read_text(encoding="utf-8")` 全库 **316**（`tests/` 下 212）、
+    其中提到 `ast.parse` 的 **65**（`tests/` 下 58）、`except SyntaxError: continue` 的 **9**——
+    哪一个都不是 188。所以本节改用本号自己的读数并把口径写在数字旁边：**一个说不清口径的数，
+    下一号无法复算，就等于没有**。
+11. **全量对照（N11）本号没拿到。** 两棵树各跑 `tests/unit` + `tests/security` 是**串行**的：
+    所有 worktree 共用同一个 `specproof_test` schema，并发跑会让彼此的连接池互相挤——
+    实测 `_wt541` 一棵树跑满 60 分钟被终止（exit 137，没有红/绿汇总可读），而同一时间共享检出里
+    有别道的 pytest 在跑同一 schema。本号不拿「跑到一半的读数」当门证，也不假装它不存在：
+    门证是人口行那 24 门 379/391 例的对照，它覆盖本号 13 个文件的全部爆炸半径。
+12. **名册里的行号引用会随别人的工作搬动，本号把它们删了。** 第一版 `ABSOLUTE_PARTS` 的理由文本里写着
+    `test_verdict_channel_parity.py:315`，那是**共享检出里那份未提交副本**的行号；本号基线
+    （`42dda71`）上同一处形状在 **:304**。引用别人文件的行号等于替别人承诺，所以三处理由全部改成
+    **按符号定位**（`SKIP_DIR_PARTS & set(path.parts)`），不再带行号。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① **#542 候选 = #526 队列① = #525 队列②：聚合面不认识 demo 事实。** `probe528.py` 已把前提量全
+（`D:\面试项目\.scratch\probe528_out.md`）：`verification_jobs` 上 **32** 条 SQL 片段里聚合形状 **3** 条，
+**0** 条发 `AS is_demo`、**0** 条在 WHERE 侧用得上 demo 事实；`contracts/demo_marker.py` 只发布
+**SELECT 侧**片段（`IS_DEMO_COLUMN`），WHERE 侧今天**无人**手写那个谓词（0 命中）；
+`api/routes/web.py` 的 dashboard 折叠段 `is_demo` 出现 **0** 次；播种的 3 行不带 tenant；
+「既写演示行又断聚合数」的测试文件 **0** 个。而产品文案承诺的是「标有“演示”的记录为示例数据」
+（`README.md` + `apps/web/src/pages/Dashboard.tsx` 的 `delivery-note`）——**判决**（排除 vs 显式声明）
+未做，本号只把它量实并往下传。
+② **= #526 队列②：** 消费侧人口必须是**派生**的——`apps/web` 的 `Matrix.tsx` 选择器旁的声明数组是手抄的
+（本号未动前端，N14 只声明未触碰）。
+③ **= #526 队列③：** `required-field` 按服务平面拆分（`api.ts` 的必填集对四个产出口的交叉，
+今天是一条腿管所有平面）。
+④ **= #526 队列⑤：** 线上 MySQL 对 `LOCATE` / `COALESCE` 的臂（假游标证不了执行计划层的形状）。
+⑤ #524 队列②「hybrid 侧 dims 没进 note」、#524 队列③「两套闭集词表的注册摩擦」仍在。
+⑥ 120 条无地板空断言按家族逐族补地板（每族一号，别一次改光）。
+⑦ 把 `tests/` 纳入 mypy，或至少给本号这类 AST 探测器门补一条类型腿——`pyproject.toml:137` 的
+`exclude = ["tests/", …]` 让 **212** 个写脆弱读形状的测试文件游离在类型面外（mypy 两棵树都只看
+262 个文件）。
+⑧ `test_verdict_channel_parity.py:304` 被其属主改成相对路径后，从 `ABSOLUTE_PARTS` 删条目
+（腿 D 的 `stale` 会替我记着）。
+⑨ 把「普查门的臂树必须是 git worktree，不是 `git archive`」写成一条门（「发现」3 的 12 条腿就是证据）。
+⑩ `test_silent_broad_catches_carry_a_reason` 的地板在新基线已由属主降到 29；本号不再列它，
+只留一句：它的地板与本号的 `.parts` 形状改法**互不影响**（实测 246 / 246 逐条相同）。
+⑪ **#526 队列④ 已交付**（本节起因最后一段）：走查根现在从索引派生。它的续题是把另外 9 份手抄面
+**逐份**迁到 owner 或写明更窄的问题——名册已经能承载这件事，一次一份。
+⑫ 新门 D 段的形状名册现在能抓「绝对 `.parts`」，但抓不到**别的**地点敏感形状（例如把
+`Path.cwd()` 或 `__file__` 的祖先当证据）。N8a 那条「两条仪器各抓一次」说明：同一缺陷用两种口径钉
+是划算的，值得推广到别的普查门。
+⑬ **全量红单对照**（N11 没拿到的那一条）：在没有别道占用 `specproof_test` 的时间窗里，
+`_ctl`/`_wt` 两棵树**串行**各跑一遍 `python -m pytest tests/unit tests/security tests/fault -q`
+（CI 的 no-infra 作业口径），红名单逐字对一次。本号只在 24 门口径上证明了 0 新增红。

@@ -1,4 +1,4 @@
-﻿"""A killed evaluation must be resumable, not merely survivable.
+"""A killed evaluation must be resumable, not merely survivable.
 
 #377 made the evaluation drop a JSON line per case the moment the case
 finishes, so a killed run leaves its measurements behind. That is only

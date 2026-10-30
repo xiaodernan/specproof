@@ -322,7 +322,7 @@ def _api_modules_with_the_message() -> list[str]:
     return sorted(
         path.relative_to(REPO).as_posix()
         for path in (REPO / "api").rglob("*.py")
-        if "__pycache__" not in path.parts
+        if "__pycache__" not in path.relative_to(REPO).parts
         and UNKNOWN_FIELD_MESSAGE in path.read_text(encoding="utf-8")
     )
 

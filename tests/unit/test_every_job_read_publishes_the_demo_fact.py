@@ -75,6 +75,7 @@ for _p in (str(_PROJECT_ROOT),):
 from contracts.demo_marker import DEMO_NOTE_PREFIX, IS_DEMO_COLUMN  # noqa: E402
 from storage.mysql import MySQLStore  # noqa: E402
 from storage.tenant_scope import TENANT_SCOPE_VAR, TenantScope  # noqa: E402
+from tests._scan_walk import product_python_files  # noqa: E402
 
 REPO = _PROJECT_ROOT
 MYSQL = REPO / "storage" / "mysql.py"
@@ -82,15 +83,15 @@ API_TS = REPO / "apps" / "web" / "src" / "api.ts"
 PAGES = REPO / "apps" / "web" / "src" / "pages"
 MIGRATIONS = REPO / "infra" / "mysql" / "migrations"
 
-#: The production plane a second copy of the predicate could appear in.
-PRODUCTION_DIRS = (
-    "agent", "api", "cli", "contracts", "craft", "evidence", "integrations",
-    "observability", "providers", "retrieval", "sandbox", "scripts", "storage",
-)
-SKIP_DIRS = {
-    ".git", ".venv", ".venv312", "__pycache__", ".pytest_cache", ".mypy_cache",
-    ".ruff_cache", ".scratch", "node_modules", "dist", "build", "site-packages",
-}
+#: The production plane a second copy of the predicate could appear in. #541
+#: removed the hand-typed tuple: this gate's list held 13 roots and #525's held
+#: 14, the difference being `experiments`, and neither opened `mcp`, `ops`,
+#: `devtools` or `plugins` — so "exactly one definition in the product" was a
+#: claim about two different planes. The roots are now derived from the index by
+#: one owner, and the exclusion test reads the path below the walk root, because
+#: the old `any(part in SKIP_DIRS for part in path.parts)` returned 302 modules
+#: in a normal checkout and 0 in a worktree under `.scratch`.
+PRODUCTION_FILES = product_python_files(REPO)
 
 VIEWER = TenantScope("tenant-a", user_id="u1", roles=frozenset({"viewer"}))
 #: Columns of ``verification_jobs`` a projection may name. Used to tell a job-row
@@ -350,33 +351,26 @@ def string_constants_containing(needle: str) -> list[tuple[str, int]]:
     which plane it reads, and prose about the predicate is not a copy of it.
     """
     hits: list[tuple[str, int]] = []
-    for base_name in PRODUCTION_DIRS:
-        base = REPO / base_name
-        if not base.is_dir():
+    for path, rel in PRODUCTION_FILES:
+        source = path.read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
             continue
-        for path in sorted(base.rglob("*.py")):
-            if any(part in SKIP_DIRS for part in path.parts):
-                continue
-            rel = path.relative_to(REPO).as_posix()
-            source = path.read_text(encoding="utf-8")
-            try:
-                tree = ast.parse(source)
-            except SyntaxError:
-                continue
-            docs = {
-                id(node.body[0].value)
-                for node in ast.walk(tree)
-                if isinstance(node, (ast.Module, ast.FunctionDef,
-                                     ast.AsyncFunctionDef, ast.ClassDef))
-                and node.body and isinstance(node.body[0], ast.Expr)
-                and isinstance(node.body[0].value, ast.Constant)
-                and isinstance(node.body[0].value.value, str)
-            }
-            lines = source.splitlines()
-            for node in ast.walk(tree):
-                if (isinstance(node, ast.Constant) and isinstance(node.value, str)
-                        and needle in node.value and id(node) not in docs):
-                    hits.append((rel, lines[node.lineno - 1].strip()[:110]))
+        docs = {
+            id(node.body[0].value)
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Module, ast.FunctionDef,
+                                 ast.AsyncFunctionDef, ast.ClassDef))
+            and node.body and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant)
+            and isinstance(node.body[0].value.value, str)
+        }
+        lines = source.splitlines()
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and needle in node.value and id(node) not in docs):
+                hits.append((rel, lines[node.lineno - 1].strip()[:110]))
     return hits
 
 
@@ -465,6 +459,23 @@ def test_the_aggregate_reads_do_not_publish_it() -> None:
 
 
 # ── B: one owner ─────────────────────────────────────────────────────────────
+
+
+def test_the_census_is_not_blind() -> None:
+    """#541: this gate used to floor nothing, so a collapsed walk was invisible.
+
+    In a worktree under ``.scratch`` the hand-typed plane yielded 0 modules and
+    four legs of this file answered "there is exactly one owner" about a census
+    that had read nothing. #525's gate carried a floor and therefore admitted it
+    was blind; the asymmetry is the finding, and the floor is the repair.
+    """
+    scanned = len(PRODUCTION_FILES)
+    rels = {rel for _, rel in PRODUCTION_FILES}
+    assert scanned >= 250, f"only {scanned} product modules in the census"
+    assert "contracts/demo_marker.py" in rels, (
+        "the owner is not even inside the plane the census reads — 'no stray copy' "
+        "would then mean 'no scan'"
+    )
 
 
 def test_the_predicate_text_has_exactly_one_definition() -> None:

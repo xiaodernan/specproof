@@ -255,7 +255,7 @@ def module_paths(packages: tuple[str, ...]) -> dict[str, Path]:
         if not base.is_dir():
             continue
         for p in base.rglob("*.py"):
-            if "__pycache__" in p.parts:
+            if "__pycache__" in p.relative_to(ROOT).parts:
                 continue
             rel = p.relative_to(ROOT)
             if rel.parts[-1] == "__init__.py":

@@ -50,7 +50,7 @@ def _java_reader_imports(path: Path) -> list[tuple[int, str, str]]:
 def test_every_java_reader_import_points_at_the_module_that_defines_it() -> None:
     offenders: list[str] = []
     for path in sorted((_REPO_ROOT / "agent").rglob("*.py")):
-        if "__pycache__" in path.parts:
+        if "__pycache__" in path.relative_to(_REPO_ROOT).parts:
             continue
         for lineno, module, name in _java_reader_imports(path):
             if module != _CANONICAL_MODULE:
