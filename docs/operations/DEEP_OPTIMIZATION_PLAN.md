@@ -16818,3 +16818,105 @@ Jobs 8 / Dashboard 7 / JobDetail 10，其中 `spec_path`、`depth`、`retry_coun
 `retrieval_note` 的 summary），把 ci 不对称与 `COALESCE` 的作用从声明变成测量。
 
 ⑥ #524 队列②「hybrid 侧 dims 没进 note」、#524 队列③「两套闭集词表的注册摩擦」仍在。
+## #528 决定红绿的两个工具各有三个版本号，而没有任何一个是权威
+
+**起因/占号。** #491 的诚实边界①把「要不要把 mypy 钉住」留给了 owner。本车道接手，因为这不是风格问题：
+`ruff check .` 与 `mypy .` 是 CI 里唯一决定改动能否进 master 的两步，**它们的版本就是答案**。
+占号前重测：HEAD 版账本 `## #` id 最大 **526**；#527 正由另一条车道在工作树里做（其测试注释已写 #527）⇒ 取 **#528**。
+
+**先量（量的是「同一个问题有几个答案」）。**
+
+| 来源 | ruff | mypy |
+|---|---|---|
+| 本机 venv（真跑门的那一个） | **0.17.1** | **2.4.0** |
+| `uv.lock`（被跟踪，543 KB，`#297` 加入后 8 天未动） | **0.16.9** | **2.3.1** |
+| `pyproject.toml` dev extra（CI 实际装的） | `>=0.8.0` | `>=1.13.0` |
+
+三个来源，三个答案，**没有一个是权威**。而且 `uv.lock` 是**没人读的**：CI 四个 job 的安装步骤都是
+`pip install -e ".[dev]"`（pip 不读 uv 锁文件），README 与 `docs/` 也没有任何一处让人用 `uv sync`。
+于是一个 543 KB、被跟踪、**已经不真**的声明躺在仓库里，谁哪天顺手 `uv sync --frozen` 就会拿到与 CI 不同的门。
+
+**诚实读数：今天两个版本结论相同。** 同一份树上：
+
+| 工具 | 本机版本 | 锁文件版本 |
+|---|---|---|
+| mypy | `Success: no issues found in 263 source files` | `Success: no issues found in 263 source files` |
+| ruff | `All checks passed!` | `All checks passed!` |
+
+⇒ 这是**潜在**的坑，不是现有的红。所以本号**不声称修了一个失败**：它让下一次漂移落在一个
+「改 pin 并重跑两道门」的提交里，而不是在没有任何代码改动的情况下把 master 变红（#491 已量过
+邻近的那次事故：typeshed 换形状直接翻了 `mcp/client.py` 的判决）。
+
+**修。**
+- `pyproject.toml` dev extra：`ruff==0.17.1`、`mypy==2.4.0`（含一段说明为什么这两个例外地用 `==`）。
+- `uv.lock` 重新锁定（`uv lock`）：**只动了三个包**（`mypy 2.3.1→2.4.0`、`ruff 0.16.9→0.17.1`、
+  `librt 0.15.0→0.16.0`），`--ignore-cr-at-eol --numstat` 是 **162/162** 行 —— 代价可控，所以选择
+  **让它变真**而不是删掉它。
+- `docs/architecture/DEPENDENCY_LOCK.md`：§0 的「全部用 `>=` 下限」加例外说明，§1.2 的 dev 行改成
+  实际 pin 并写明理由与「升版本要和重跑门同一个提交」。
+
+**落地（门）。** 新建 `tests/unit/test_the_gate_toolchain_is_pinned_exactly.py`（**9 案**）：
+
+1. 两个工具在 dev extra 里必须 `==`（且不是 `.*`／逗号区间）；
+2. **pin 必须等于本机安装版本**（`importlib.metadata`）—— 否则「本机绿」不预测「CI 绿」；
+   本机没装则 skip 并说明；
+3. **`uv.lock` 若被跟踪，其记录的版本必须等于 pin** —— 没人读的锁文件也是一句声明，也得为真；
+4. **CI 跑这两个工具的 job 必须装项目 extras**（`pip install -e ".[dev]"` 或 `uv sync`），
+   且**不得**临时 `pip install mypy`（那个版本不是 pin，那个 job 的判决就不是 pin 的判决）；
+5. **三源一致表**：pin / 已安装 / 锁文件三列必须只有一个答案；
+6. **声明当前策略的文档不得再写下界**：只扫 `docs/architecture/DEPENDENCY_LOCK.md`（账本里引用旧下界是**历史**，
+   历史允许过期 —— 这是有意的边界）。
+
+**门证（全在本号内亲手取）。**
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 新门 | `pytest tests/unit/test_the_gate_toolchain_is_pinned_exactly.py` | **9 passed in 0.99s** |
+| 全仓 ruff | `ruff check .` | **All checks passed!** |
+| 全仓 mypy | `mypy .` | **Success: no issues found in 263 source files** |
+| 会被本号撞到的既有门（前端 CI 腿、CI 结构、打包） | 4 个文件同跑 | **24 passed in 40.49s** |
+| pin 在 PyPI 上可安装 | `uv run --no-project --with "mypy==2.4.0" mypy --version` / `ruff==0.17.1` | `mypy 2.4.0` / `ruff 0.17.1`（**必须验**：钉一个装不上的版本会让 CI 连装都失败） |
+| 锁文件与 pyproject 一致 | `uv lock --check` | 改 pin 前 `--check` 通过（说明锁「对自己」是自洽的）；改 pin 后报 `needs to be updated`；`uv lock` 后 162/162 行 |
+
+**五个变异臂（预测写在跑之前）。**
+
+| 臂 | 刀 | 预测 | 实测 | 判决 |
+|---|---|---|---|---|
+| A | pin 退回 `>=` 下界 | 7 failed / 1 passed（只剩 CI 安装腿） | **7 / 1** | MATCHED |
+| B | pin 改成对齐**锁文件**的旧版本（2.3.1 / 0.16.9） | 3 failed（两条「验证时版本」+ 三源表） | **5 failed**（多了两条锁腿） | **MISMATCH** |
+| C | 只把 `uv.lock` 退回旧字节 | 3 failed（两条锁腿 + 三源表） | **3 / 5** | MATCHED |
+| D | CI 的 mypy 步骤改成 `pip install mypy && …` | 1 failed（只 CI 安装腿） | **1 / 7** | MATCHED |
+| E | 文档 dev 行退回下界 | 1 failed（只文档腿） | **1 / 8** | MATCHED |
+
+**臂 B 的 MISMATCH（机制没错，我的预测用了旧状态）。** 我预测时心里想的是「锁文件还是 2.3.1，
+所以把 pin 退到 2.3.1 时 pin 与锁一致 ⇒ 锁腿不该红」。但**锁文件已经被本号重新锁成 2.4.0 了**，
+于是 pin 退回旧版本反而造成 pin ≠ 锁，两条锁腿一起红。⇒ 预测要基于**改动后的状态**，不是改动前的记忆。
+
+**否证与订正（本号自己踩的）。**
+- **第一版文档改动整体没写进文件**：第二个锚点我按「`- ` 开头的列表项」写，实际那一行是**缩进续行**
+  （没有 `- `），`assert count == 1` 抛在 `write_text` **之前** ⇒ 文件一字未改，而我的脚本已经打印过
+  「updated」之前的第一句。**断言在写之前是对的**，但它救不了「你以为改了、其实没改」——重跑后
+  `sed` 才看出来。
+- **臂 B 的预测错**（见上）。
+- **没有把 `mypy` 钉成锁文件里的 2.3.1**：锁文件只是「当时解析出来的」，不是「验证过的」。
+  权威应该来自**实际跑门的那一个**，否则就是让一个没人读的文件决定 CI。
+
+**诚实边界。**
+1. **今天不改变任何判决**：两个工具的旧新版本在本树上结论相同（见上表）。本号的价值是**防漂**，不是修红。
+2. **只钉了两个工具**：`pytest`（收集语义随大版本变）、`bandit`、`testcontainers` 仍是下限。
+   它们也能翻判决（尤其 pytest 的收集/警告策略），但今天没有被量到，本号不声称覆盖。
+3. **`uv.lock` 的解析来自 `uv`，CI 的解析来自 `pip`**：两者都从 PyPI 取，但**不是同一个解析器**。
+   本号让「记录」与「pin」一致，**没有**让 CI 改用 `uv sync --frozen`（那要改四个 job 的安装步骤，
+   属更大的改动，已入队）。
+4. **`requirements-frozen-20260820.txt` 没动**：它是 2026-08-20 的**历史快照**，按该文档自己的定义
+   就是「记录用、不证明可复现」，改它等于篡改快照。
+5. **没有在真 CI 上跑过**：本机不能跑 Actions；本号给的是「CI 会装 pin、会跑这两条命令」的结构证据
+   ＋ 两个版本都能从 PyPI 解析的实测。
+
+**下一号队列（取号按落地时点 max+1）。**
+① 让 CI 改用 `uv sync --frozen`（四个 job 的安装步骤 + `uv` 在 runner 上的可用性），这样「锁文件」
+才真的被读，而不只是被对账；
+② `pytest` 的版本是否也该钉（先量「不同 pytest 会不会改变收集结果」，别凭感觉钉）；
+③ `requirements-frozen-*.txt` 与 `uv.lock` 两套「快照」并存 —— 判一个是权威还是退役一个；
+④ #513 队列①的近似克隆检测（三类人口先量准）；⑤ `cli/`、`craft/` 剩余约 50 条静默 `except`；
+⑥ P6 100 例隔离评测（本机跑不完）。

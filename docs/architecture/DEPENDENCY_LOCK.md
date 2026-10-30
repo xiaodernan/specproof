@@ -10,7 +10,9 @@
 - **Python 侧已有 freeze 快照** (`requirements-frozen-20260820.txt`, 172 行,
   2026-08-20 采集): 这是**开发环境解析结果快照** (记录用), 仍不是干净环境
   审计输出 — 干净 venv 安装审计尚未执行 (§1.3), 快照不能证明可复现。
-  `pyproject.toml` 用 `>=` 下限锁定直接依赖 (见 §1)。
+  `pyproject.toml` 用 `>=` 下限锁定直接依赖 (见 §1)；**例外**是 `ruff` 与 `mypy`，
+  这两个决定门判决的工具用 `==` 钉住，且 `uv.lock` 与 pin 一致（#528 之前三者
+  各说一套：安装 0.17.1/2.4.0、锁文件 0.16.9/2.3.1、pyproject 只有下限）。
 - 因此**完整锁定审计**必须在干净虚拟环境中执行一遍安装并导出快照 (§1.3 命令),
   本文档记录的是“仓库里实际写死的版本”, 不是“审计后证明可复现的版本”。
 - Node 侧有 `package-lock.json` (lockfileVersion 3), `npm ci` 可按锁文件精确安装 —
@@ -58,8 +60,13 @@
 ### 1.2 开发/可选依赖
 
 - dev (10 项): pytest>=8.3.0, pytest-asyncio>=0.24.0, pytest-cov>=6.0.0, pytest-mock>=3.14.0,
-  testcontainers>=4.7.0, ruff>=0.8.0, mypy>=1.13.0, bandit>=1.8.0, responses>=0.25.0,
+  testcontainers>=4.7.0, **ruff==0.17.1**, **mypy==2.4.0**, bandit>=1.8.0, responses>=0.25.0,
   httpx2>=0.1.0 (fastapi.testclient 弃用警告 backport)。
+  加粗的两项**故意用 `==` 而不是 `>=`**（#528）：它们的退出码**就是**门的判决，
+  下限会让 CI 解析出与改动验证时不同的版本 ⇒「本机绿」不再预测「CI 绿」，
+  而一次新发布能在没有任何代码改动的情况下把 master 变红。
+  升版本请与重跑两道门放在同一个提交里（`tests/unit/test_the_gate_toolchain_is_pinned_exactly.py`
+  会检查 pin == 本机安装版本 == `uv.lock` 记录版本）。
 - otel (6 项, 全部 >=1.28.0 或 >=0.49b0): opentelemetry-api / sdk / exporter-otlp-proto-http +
   instrumentation-fastapi / pika / pymongo / redis / pymysql。
 
