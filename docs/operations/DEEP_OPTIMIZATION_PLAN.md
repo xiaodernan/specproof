@@ -17412,6 +17412,13 @@ run 被调两次；⑨ `metric_inventory` 的 verify.py；⑩ `contract_review` 
 6. chmod 失败会走进既有的 `OSError` 分支，报成「cannot create workspace target dir」；
    除了该分支本身，没有单独的用例把只读挂载等 chmod 失败形态钉住。
 
+### CI 复核（后记，#534 的起因）
+
+#533 的提交（`edc7953`）在 CI run 41063377309 上仍是四个用例全 `[NOT_RUN]`：目录可写了，
+但资源阶段写 `target/classes/application.yml` 被拒（`FileNotFoundException ...
+(Permission denied)`）。#533「诚实边界 1」里「CI 从干净 worktree 起步，不存在这种预填充」
+被 P6 构建缓存推翻——预填充不是外部注入，而是本流水线每个用例自己回填的。后续见 #534。
+
 ### 下一号队列
 
 ① Web 给 `not_verified` 补中文标签，并加「Web 标签表 ↔ 后端分类词表」对账门（等
@@ -17425,3 +17432,99 @@ run 被调两次；⑨ `metric_inventory` 的 verify.py；⑩ `contract_review` 
 漂移；⑬ 其余六个 profile 在真实工具链下的可写见证（当前只有 Maven 被 CI 实跑）；
 ⑭ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` /
 `child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、`uv sync --frozen`）。
+
+## #534 P6 构建缓存回填的产物对沙箱 uid 不可写：加宽模式不够，资源必须由工作负载自己生成
+
+### 起因
+
+#533 落地后复核 CI（run 41063377309）：`eval-golden-cases` 仍是四个用例全 `[NOT_RUN]`，
+错误从「建不了目录」变成了写 `application.yml` 失败：
+
+```
+maven-resources-plugin ... filtering /work/src/main/resources/application.yml
+to /work/target/classes/application.yml failed with FileNotFoundException:
+/work/target/classes/application.yml (Permission denied)
+```
+
+P6 基础构建缓存（`agent/nodes/build_cache.py`）以宿主进程身份（CI runner 是 uid 1001）把
+编译产物 `shutil.copytree` 进每个用例的新 worktree，模式原样保留（目录 0755、文件 0644）；
+容器工作负载是 `SANDBOX_USER`（1000）。第一个用例（case-12）真构建一次并写缓存，之后的
+17/21/56 全部命中缓存 → 资源阶段覆写 0644 文件 → 基线与 head 都是零测试 → NOT_RUN →
+recall 门红。Docker Desktop 的共享挂载忽略模式，本机全绿。
+
+### 改前量到的（两个 uid 的 Maven 见证，同一个命名卷）
+
+- HEAD 的 `build_cache.py`（sha256
+  `a6cf0225f9f16f54804b403ba4a10ace54b3256630ad4a7b400580e51eaf79dd`）：runner 1001 回填、
+  工作负载 1000 跑 `mvn -o process-test-resources` → CI 的同一条 `FileNotFoundException ...
+  (Permission denied)`。
+- 只加宽模式（0777 目录 / 0666 文件，sha256
+  `3149e7e7e65bb31fd90b74aba8e25e9e77e90037a6617772a009ad61a11eee12`）：错误变成
+  `FileSystemException: ... Operation not permitted` —— maven-resources-plugin 用
+  `COPY_ATTRIBUTES` 复制，对非属主文件 chmod/utime 一律 EPERM。**加宽模式修不了这一类。**
+- 回填后删掉「资源阶段一定会重写」的文件（标准布局 `src/main/resources`、
+  `src/test/resources` 的映射产物），让工作负载自己生成 → `BUILD SUCCESS`。
+
+### 改动
+
+- `agent/nodes/build_cache.py`
+  - 新增 `_widen_for_the_sandbox(root)`：回填后把目录 0777、文件 0666。只解决「打开已有
+    文件写入」这一类（head 路径重编译覆写回填的 .class、编译器原地写）。
+  - 新增 `_drop_regenerated_resources(target, app_dir)`：按标准 Maven 布局删除已回填的
+    资源映射产物（`src/main/resources/*` → `target/classes/*`、`src/test/resources/*` →
+    `target/test-classes/*`）；资源阶段随后以工作负载 uid 重新生成，属主正确。
+  - `restore_base_build`：复制成功后先 drop、再加宽；模块 docstring 补上「资源随缓存走
+    但不回填」的约定。
+- 门：新 `tests/unit/test_build_cache_restore_is_writable_by_the_sandbox_uid.py`（5 例）——
+  回填后目录/文件加宽且缓存原件模式不变（POSIX 门控）、seed 也加宽 test-classes（POSIX
+  门控）、资源映射产物被删而 .class 与编译期元数据（spring-configuration-metadata.json）
+  保留、字节保真、缓存缺失不建 target。夹具自带见证：`application.yml` 在夹具里确实不是
+  other-writable，否则效应断言全空转。
+
+### 改后量到的
+
+- 同一两个 uid 的见证（改后 sha256
+  `1408f6351da28aa0215665be34511b182c12e02bff886e1d81cd45ee288a94da`）：回填 21 个 .class、
+  资源文件不在回填结果里；`mvn -o process-test-resources` → BUILD SUCCESS，重生成的
+  `application.yml` / `application-test.yml` 属主 1000；再把命令换成流水线的命中形状
+  `mvn -o test -Dtest=OrderControllerTest -DfailIfNoTests=false -Dmaven.main.skip=true`
+  → `Tests run: 5, Failures: 0, Errors: 0`，BUILD SUCCESS。
+- 本机：新门 3 passed、2 skipped（POSIX 门控）；仓库外 POSIX 平面同一文件 5 passed。
+- 臂电池（预测先写盘，仓库外的 POSIX 平面，逐臂字节编辑并断言替换次数，跑完恢复并核对
+  sha256）：控制 5 passed；K1 删加宽 → 两例红；K2 文件加宽成 0777 → 两例红；K3 只加宽
+  classes → seed 一例红；K4 复制前加宽 → 两例红；K5 删资源删除 → 资源一例红；K6 复制前删
+  → 资源一例红。6/6 MATCHED。
+- 聚焦套件（本门 + 差分可观测 + LLM 反例路径）：28 passed、2 skipped；ruff 全绿；mypy 0 错。
+- CI 复核：#534 提交推送后见下一节（待补）。
+
+### 诚实边界
+
+1. 资源删除只认标准 Maven 布局；POM 里自定义 `<resources>` 目录的资源仍会被回填，资源阶段
+   重写时 EPERM → 运行失败（NOT_RUN，响的），不会静默使用回填的旧副本。demo 仓库是标准布局。
+2. 加宽模式不改变属主：任何「复制并保留属性」的写入（Java `COPY_ATTRIBUTES`、`cp -p`）都
+   无法成功；本号只覆盖 Maven 资源阶段与编译器的普通写入。
+3. head 路径「在回填的 0666 .class 上重编译改动文件」只有模式级臂 + 设计推理，没有用真 javac
+   在两个 uid 下跑过；命中路径（跳过主编译）有真 Maven 见证。
+4. 本机 Windows 见证不了属主效应（共享挂载忽略模式）；两个 uid 的见证是命名卷上的 Linux
+   容器。真正的端到端证据仍是 CI 运行。
+5. 资源删除依赖资源阶段「每次都会重写」：Spring Boot parent 打开 filtering，实测每次重写。
+   若某项目关掉资源阶段（`maven.resources.skip`），它本来也不会把资源复制进 target，缓存里
+   也就没有这些文件。
+6. 只量了 Maven profile；其余 profile 的回填沿用同一函数，但没有真实工具链见证。
+
+### 下一号队列
+
+① Web 给 `not_verified` 补中文标签，并加「Web 标签表 ↔ 后端分类词表」对账门（等
+`JobDetail.tsx` 所属车道落地后做）；② `craft/mutation.py` 的第二个变异引擎：接线或删除，
+并把它的 KILLED 判据对齐 #532 的「执行过才算」；③ 非 Java 树在 DEEP 的落地：扩展 adapter
+计数，或在节点上就地披露「跑不了 ≠ 没跑出问题」；④ head 运行是否也要先证明执行过测试
+再让 repeats 的分类生效；⑤ 静默宽捕下限 31（等 #527 的 walk 修复落地后一起降）；
+⑥ 假清单 21 vs 20（#478 在飞）；⑦ `checker_type_parity` 的 `?`；⑧ `gradle_adapter` 的
+run 被调两次；⑨ `metric_inventory` 的 verify.py；⑩ `contract_review` 词条；
+⑪ `verdict_channel_parity` 的 acceptance.py 非字面写；⑫ case-17 的 BLOCKER→MAJOR 严重度
+漂移；⑬ 其余六个 profile 在真实工具链下的可写见证（当前只有 Maven 被 CI 实跑）；
+⑭ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` /
+`child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、`uv sync --frozen`）；
+⑮ POM 自定义 `<resources>` 目录的回填规则（从 pom 派生资源根，或在回填前请属主自证）；
+⑯ 把回填整体挪进沙箱 uid（当前靠「删除 + 加宽」组合拳；属主才是根本解，代价是多一次
+容器调用）。

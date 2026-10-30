@@ -20,6 +20,9 @@ the cache can never serve stale changed classes.
 Cache safety: only the compiled class trees are cached. surefire reports
 and the file-based H2 database under target/ are deliberately excluded —
 evidence and DB state must be produced fresh by each case's own run.
+Resource outputs inside the class trees ride along in the cache but are not
+restored: the resources phase regenerates them from the case's own sources
+and must own the files it writes (see `_drop_regenerated_resources`).
 """
 from __future__ import annotations
 
@@ -67,6 +70,59 @@ def _copy_class_trees(src: Path, dst: Path) -> bool:
         return False
 
 
+def _widen_for_the_sandbox(root: Path) -> None:
+    """Make a restored class tree writable by the sandbox workload (#534).
+
+    The cache is written by THIS process's uid (the CI runner is 1001) while
+    the workload runs as SANDBOX_USER (1000) and a bind mount carries the
+    host mode. copytree() preserves the cache's 0644/0755 modes, so without
+    this a restored 0644 file made Maven die with `FileNotFoundException:
+    ... (Permission denied)` when it opened the file for writing.
+
+    Modes are not ownership: a rewrite that also copies file attributes
+    (maven-resources-plugin's COPY_ATTRIBUTES chmod/utime) still fails with
+    EPERM. That class of file is handled by
+    `_drop_regenerated_resources` instead.
+    """
+    for path in (root, *root.rglob("*")):
+        try:
+            os.chmod(path, 0o777 if path.is_dir() else 0o666)
+        except OSError:
+            continue
+
+
+def _drop_regenerated_resources(target: Path, app_dir: str) -> None:
+    """Remove restored files that Maven's resources phases are about to rewrite.
+
+    Widening the modes is not enough for these: maven-resources-plugin
+    copies with COPY_ATTRIBUTES, which chmod()s and utime()s the
+    destination — both return EPERM when the file belongs to the runner's
+    uid (measured: `FileSystemException: ... Operation not permitted` even
+    on a 0666 file). Resources are derived from src/*/resources on every
+    run, so the restored copies are redundant; dropping them lets the
+    sandbox uid create them fresh, which is what makes the copy succeed.
+
+    Standard Maven layout only. A resource directory configured elsewhere in
+    the POM keeps its restored file and the run fails loudly (NOT_RUN)
+    rather than silently testing against the restored copy.
+    """
+    for sub, source_root in (
+        ("classes", "src/main/resources"),
+        ("test-classes", "src/test/resources"),
+    ):
+        root = Path(app_dir) / source_root
+        if not root.is_dir():
+            continue
+        for source in root.rglob("*"):
+            if not source.is_file():
+                continue
+            candidate = target / sub / source.relative_to(root)
+            try:
+                candidate.unlink()
+            except OSError:
+                continue
+
+
 def restore_base_build(cache_dir: Path, app_dir: str) -> bool:
     """Seed a worktree with the cached compiled classes.
 
@@ -79,7 +135,14 @@ def restore_base_build(cache_dir: Path, app_dir: str) -> bool:
     if not (cache_dir / "classes").is_dir():
         return False
     target.mkdir(parents=True, exist_ok=True)
-    return _copy_class_trees(cache_dir, target)
+    if not _copy_class_trees(cache_dir, target):
+        return False
+    _drop_regenerated_resources(target, app_dir)
+    for sub in ("classes", "test-classes"):
+        tree = target / sub
+        if tree.is_dir():
+            _widen_for_the_sandbox(tree)
+    return True
 
 
 def save_base_build(cache_dir: Path, app_dir: str) -> bool:
