@@ -17875,3 +17875,97 @@ head 运行是否也要先证明执行过测试再让 repeats 分类生效；③
 HEAD 就红：#429 的证据块仍点名 #535 已删除的 `craft/mutation.py` 与
 `tests/unit/test_mutation_engine.py`（在本号的 HEAD 工作树上复测，1 failed /
 15 passed，与本号无关，待单独一号重瞄或派生）。
+## #539 指标清单被判「死档」：cli/ 的上报点在普查面外
+
+### 起因
+
+`tests/unit/test_metric_inventory_lists_every_emission_site.py` 在本号改前的
+HEAD（`85a8bd4`）上两条全红：names 腿判 `cli/specproof/commands/verify.py` 是
+「死档」（清单列了它、普查面里没有它的上报调用），count 腿判手写数与清单不等
+（本节写「四十」，清单 41 个不同文件）。两条红是同一个形状：8.10 清单的成员
+只能来自**上报点普查**（该节自己写的规则：「这份清单的唯一合法来源是上报点」），
+而普查面 `EMIT_DIRS` 从未包含 `cli/`。`#505` 落的两个 best-effort 落库出口
+（`verify_job_summary_persist_failures_total` /
+`verify_certificate_metadata_failures_total`）一直在清单里，普查却看不见它们。
+清单没有说谎，普查面漏了一棵树。
+
+另一面同样成立：#305 的文档门只认 `specproof_*` 全名，而这两个名字在 8.10
+的条目里是裸写的（`#505` 当时按未加前缀的写法落），所以文档门也从未数过它们。
+只把 cli 收进普查面、不给名字补前缀，两份账目会继续互不可见。
+
+### 改前量到的
+
+- HEAD `85a8bd4` 上三扇门（focused）：inventory 2 failed / 0 passed，parity
+  7 passed，opsdocs 6 passed。
+- 顶层树普查（`git ls-files '*.py'`）：20 棵有 Python 的树。`EMIT_DIRS` 9 棵，
+  面外有上报调用的只有两棵——`tests`（18 个文件，全部对 fake 上报，不进部署
+  registry）与 `cli`（`cli/specproof/commands/verify.py` 的 3 处 `incr`）。
+  其余 9 棵（bench/contracts/devtools/mcp/ops/plugins/retrieval/sandbox/scripts）
+  没有上报调用。
+
+### 改动
+
+- `tests/unit/test_observability_metric_parity.py`：`EMIT_DIRS` 加 `cli`（现
+  10 棵树）；模块级说明改为按「有编号的任务在接通每棵树的第一只指标时把它加
+  进来」记；新增 `NON_REPORTING_TREES`（目前只有 `tests`，附理由）、
+  `_tracked_trees()`（读 `git ls-files '*.py'` 按顶层树分桶）、`_tree_emits()`
+  与 `test_every_reporting_tree_that_emits_is_scanned`：任何有上报调用的顶层树
+  要么在 `EMIT_DIRS` 里、要么在非上报名册里给出理由；名册里任何一棵不再上报的
+  树也算红（stale 腿）。这条腿是「下一次有人接通新树」的守卫，不再依赖谁记得。
+- `docs/operations/OBSERVABILITY.md`：8.10 的手写数从「四十」改「四十一」，并在
+  同一句里补 #539 的重数口径（保留 40 的旧数与它的时点）；cli 条目的两个指标名
+  补上 exposition 前缀 `specproof_`，与本节「所有名字带前缀」的写法一致，也让
+  #305 的文档门从此看得见它们。
+
+### 改后量到的
+
+- 共享工作树上三扇门 focused：16 passed / 0 failed（inventory 2、parity 8
+  （含新 reach 腿）、opsdocs 6）。
+- 外部平面（HEAD `85a8bd4` 的 detached worktree + 两个改动文件；用 worktree 而
+  不是 `git archive`，因为 reach 腿经 `git ls-files` 读索引）上跑 9 臂 + 2 对照，
+  全部命中改前写下的预测（`_plane539/PREDICT.txt`）：
+  - 对照 C1（改日期散文）、C2（改模块说明里的一个词）：0 红，红集不是噪声；
+  - P1（`EMIT_DIRS` 去掉 cli）：inventory names + reach + opsdocs = 3 红；
+  - P2（「四十一」改回「四十」）：count = 1 红；
+  - P3（在 `scripts/` 下加一只已 `git add` 的上报文件）：reach = 1 红；
+  - P4（删 verify.py 的三处 `incr`）：inventory names + opsdocs = 2 红（reach
+    故意保持绿：被扫描的树可以停止上报，成员关系由 inventory 的 dead 腿管）；
+  - P5（清空 `NON_REPORTING_TREES`）：reach = 1 红（18 个 tests 文件出列）；
+  - P6（把 `docs` 声明成非上报）：reach 的 stale 腿 = 1 红；
+  - P7（删 cli 条目）：inventory names + count = 2 红；
+  - P8（把 cli 发出的字面量改名）：opsdocs = 1 红（inventory 是文件级的，
+    只有文档里带前缀的提及见证这次改名）。
+  9/9 MATCHED；每臂结束按 sha256 还原并断言 `git status --porcelain` 回到静止。
+
+### 诚实边界
+
+- 新增的 reach 腿读的是**索引**（`git ls-files`），不是磁盘：`git archive` 平面
+  上没有 `.git`，这条腿会在那里拒绝而不是把「我读不到」写成「没有面外树」。
+  一份关于产品文件集的声明应当在产品仓库里评。
+- `NON_REPORTING_TREES` 是**理由名册**，不是豁免名单：stale 腿会赶走不再需要的
+  条目；新增一棵上报树却不登记，reach 腿会红。
+- reach 腿的上报识别沿用同一对正则（`_EMIT_CALL`/`_CONCAT_CALL`），所以它是
+  「同一把尺子的覆盖面」，不是独立的第二意见；一个正则认不出的上报形状两边都
+  看不见（#296 的教训在此适用，本号未扩大）。
+- inventory 门是**文件级**的：它不核对条目里写的指标名。P8 证明了这一点——改
+  名字时 inventory 保持绿，见证来自 #305 的文档门；名字级对账仍由 #305 承担。
+- 8.10 的手写数是中文数字且手抄，本号只是把它从 40 改到 41；它不是派生量。
+- 别道 #527 的平面扫描名册把本文件的 `EMIT_DIRS` 描述为「9 roots」；本号把
+  实际值改成 10 后那句散文变陈旧。那条名册目前只校验成员关系与理由长度，所以
+  它保持绿；若 #527 落地在本号之后，该句应改成 10。
+
+### 下一号队列
+
+① Web 给 `not_verified` 补中文标签＋对账门（等 `JobDetail.tsx` 车道）；②
+head 运行是否也要先证明执行过测试再让 repeats 分类生效；③ 假清单 21 vs 20
+（#478 在飞）；④ `checker_type_parity` 的 `?`；⑤ `gradle_adapter` 的 run 被
+调两次；⑥ `contract_review` 词条；⑦ `verdict_channel_parity` 的
+acceptance.py 非字面写；⑧ case-17 的严重度漂移；⑨ 其余六个 profile 在真实
+工具链下的可写见证；⑩ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` /
+`_eval_report_path` / `child_output_text`、三套时间戳、约 50 条静默
+`except`、P6 100 例、`uv sync --frozen`）；⑪ POM 自定义 `<resources>` 回填；
+⑫ 回填挪进沙箱 uid；⑬ nightly eval 的样本下限；⑭
+`test_ledger_evidence_claims_are_true` 在改前 HEAD 就红：#429 的证据块仍点名
+#535 已删除的 `craft/mutation.py` 与 `tests/unit/test_mutation_engine.py`
+（1 failed / 15 passed，与本号无关，待单独一号重瞄或派生）；⑮ 别道 #527 的
+平面扫描名册把 `EMIT_DIRS` 的描述写死在「9 roots」，落地时改成 10。

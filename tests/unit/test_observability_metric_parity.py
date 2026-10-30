@@ -18,15 +18,18 @@ listed exhaustively, only pattern-matched).
 
 Scope note: the source scan covers the trees that own emission sites —
 the list is EMIT_DIRS below, grown by the numbered task that wired each
-tree's first meter. Emissions elsewhere would still
-work at runtime; they are simply not part of this gate's inventory until they
-appear here — which is the same honesty rule OBSERVABILITY.md applies.
+tree's first meter (cli/ joined in #539, after the inventory gate found a
+documented emission site this plane could not see). An emission in a
+reporting tree outside the list would still work at runtime, which is why
+`test_every_reporting_tree_that_emits_is_scanned` now refuses one instead
+of trusting that someone remembered to add its tree.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import subprocess
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -61,9 +64,12 @@ _VERDICT_TOKENS = _verdict_tokens()
 #: experiments/ joined in #181 (the sandbox run/failure/timeout counters
 #: live at JavaMavenAdapter.run's single run_sandboxed call site);
 #: integrations/ joined in #182 (the no-evidence severe-comment refusal
-#: counter at the build_review_comments boundary).
+#: counter at the build_review_comments boundary); cli/ joined in #539
+#: (cli/specproof/commands/verify.py has emitted two best-effort persistence
+#: counters since #505, and OBSERVABILITY.md 8.10 listed the file while this
+#: plane never opened cli/ — the inventory's dead-bullet leg found the hole).
 EMIT_DIRS = (
-    "agent", "api", "craft", "evidence", "experiments", "integrations",
+    "agent", "api", "cli", "craft", "evidence", "experiments", "integrations",
     "storage", "observability", "providers",
 )
 
@@ -1546,3 +1552,92 @@ def test_stage_duration_panel_selector_tracks_the_stage_family() -> None:
         assert expected_redis_selector in expr, expr
     assert any("histogram_quantile(0.95" in expr for expr in redis_exprs)
     assert any("histogram_quantile(0.50" in expr for expr in redis_exprs)
+
+
+# ── the plane is complete (#539) ─────────────────────────────────────────────
+
+
+#: Trees that hold tracked Python and emit, but are not the reporting plane an
+#: operator reads: a meter built in a test asserts the registry, it does not
+#: feed it. Declared with a reason instead of skipped — the reach leg below
+#: fails for any OTHER emitting tree outside EMIT_DIRS, which is the shape that
+#: hid cli/ until #539.
+NON_REPORTING_TREES: dict[str, str] = {
+    "tests": (
+        "the meters are asserted here against fakes; a test emission never "
+        "reaches the deployed registry (#539 measured 18 emitting test files)"
+    ),
+}
+
+
+def _tracked_trees() -> dict[str, tuple[str, ...]]:
+    """Top-level tree -> its tracked Python files, from the index.
+
+    From the index, not the filesystem: an extracted archive or a lane's
+    scratch copy under the root must not become a "tree" this gate then
+    demands a decision for. It runs where the index exists (a checkout or a
+    worktree), which is where a "tree" is a real thing.
+    """
+    proc = subprocess.run(
+        ("git", "ls-files", "*.py"),
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    trees: dict[str, list[str]] = {}
+    for rel in proc.stdout.splitlines():
+        tree, sep, _ = rel.partition("/")
+        if sep:
+            trees.setdefault(tree, []).append(rel)
+    return {tree: tuple(files) for tree, files in trees.items()}
+
+
+def _tree_emits(files: tuple[str, ...]) -> bool:
+    """Whether any of these files writes a meter through the three entry points."""
+    for rel in files:
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        if _EMIT_CALL.search(text) or _CONCAT_CALL.search(text):
+            return True
+    return False
+
+
+def test_every_reporting_tree_that_emits_is_scanned() -> None:
+    """#539: the scan's completeness is checked, not remembered.
+
+    Measured before this leg existed: cli/specproof/commands/verify.py had
+    emitted two counters since #505 and OBSERVABILITY.md 8.10 listed the
+    file, while EMIT_DIRS never opened cli/. The inventory gate read that
+    consistent-but-narrow pair (list has it, census does not) as a dead
+    bullet. The inventory's two directions can only be as wide as this
+    plane; this leg is the plane's own completeness claim.
+
+    The index also makes the floor honest: a collapsed `git ls-files` read
+    leaves `trees` tiny, and the stale leg reddens because tests/ stops
+    emitting rather than the walk reporting "nothing outside".
+    """
+    trees = _tracked_trees()
+    assert len(trees) >= 15, f"root census collapsed: {sorted(trees)}"
+    outside = sorted(
+        tree
+        for tree, files in trees.items()
+        if tree not in EMIT_DIRS
+        and tree not in NON_REPORTING_TREES
+        and _tree_emits(files)
+    )
+    assert not outside, (
+        f"{outside} hold an emission call but are outside EMIT_DIRS: the "
+        "census cannot see them, so OBSERVABILITY.md 8.10 would call any "
+        "bullet naming them dead. Add the tree to EMIT_DIRS (what #539 did "
+        "for cli/) or declare it in NON_REPORTING_TREES with a reason"
+    )
+    stale = sorted(
+        tree
+        for tree in NON_REPORTING_TREES
+        if not _tree_emits(trees.get(tree, ()))
+    )
+    assert not stale, (
+        f"{stale} are declared non-reporting but no longer emit (or hold no "
+        "tracked Python at all); delete the entry — a declaration must not "
+        "outlive its reason, and a collapsed scan must not hide here"
+    )
