@@ -60,6 +60,11 @@ def _drive(tmp_path: Path, monkeypatch, notes: list[str]) -> dict[str, Any]:
 
     remaining = list(notes)
 
+    # #538: the applicability gate runs before any sandbox seam, so the
+    # workspace must be one the deep experiments can measure.
+    (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+    (tmp_path / "src" / "main" / "java").mkdir(parents=True, exist_ok=True)
+
     def fake_run(_app: str, _tests: str) -> dict[str, Any]:
         note = remaining.pop(0) if remaining else notes[-1]
         return {"exit_code": 0, "error": "", "mode": "docker", "cache_note": note}

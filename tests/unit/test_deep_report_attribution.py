@@ -32,6 +32,12 @@ NOT_B = "缓存完整性通过: 校验 7 个条目 (run B)"
 def _drive(reports: Path, monkeypatch, job_id: str, note: str) -> dict[str, Any]:
     """Run the real DEEP node for one job into a shared reports directory."""
 
+    # #538: the applicability gate needs a Java tree, or no run happens.
+    (reports.parent / "pom.xml").write_text("<project/>", encoding="utf-8")
+    (reports.parent / "src" / "main" / "java").mkdir(
+        parents=True, exist_ok=True
+    )
+
     def fake_run(_app: str, _tests: str) -> dict[str, Any]:
         return {
             "exit_code": 0, "error": "", "mode": "docker", "cache_note": note,

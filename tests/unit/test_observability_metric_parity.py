@@ -385,17 +385,20 @@ CONCATENATED_FAMILIES: dict[str, tuple[re.Pattern[str], str]] = {
     "run_deep_experiments": (
         re.compile(
             r"^run_deep_experiments_(outcomes_"
-            r"(completed|inputs_missing|not_requested)|runs)_total$"
+            r"(completed|inputs_missing|not_applicable|not_requested)|runs)_total$"
         ),
         "agent/nodes/run_deep_experiments.py #198: "
         "run_deep_experiments_runs_total + "
         "run_deep_experiments_outcomes_<word>_total at the node boundary — "
         "runs counts every invocation; the word separates the healthy FAST "
         "default (not_requested) from a DEEP request that had nothing to "
-        "run on (inputs_missing — the tier is silently empty) from a full "
-        "campaign that ran and wrote its report (completed). An empty "
-        "deep_results looks identical for the first two. The vocabulary is "
-        "imported from agent.nodes.run_deep_experiments "
+        "run on (inputs_missing — the tier is silently empty) from a DEEP "
+        "request on a runtime the campaign cannot measure (#538 "
+        "not_applicable — nothing was measured, and before this word the "
+        "node reran another framework's suite and reported completed) from "
+        "a full campaign that ran and wrote its report (completed). An "
+        "empty deep_results looks identical for the first two. The "
+        "vocabulary is imported from agent.nodes.run_deep_experiments "
         "(RUN_DEEP_OUTCOMES) by the derivation test, so a new word forces "
         "this gate and the family to move together",
     ),

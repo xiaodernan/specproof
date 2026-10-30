@@ -17784,3 +17784,94 @@ R2（真实步骤在评测失败时步骤必须失败）、以及证据门里新
 （当前靠「删除 + 加宽」组合拳；属主才是根本解，代价是多一次容器调用）；⑮
 nightly eval 的样本下限从未按公开池钉死（52 阳性 / 35 阴性），INSUFFICIENT 的
 真实红要等一次 nightly 才能量到。
+## #538 非 Java 树在 DEEP 里被写成 `completed`：「测不了」要有自己的词
+
+### 起因
+
+DEEP 档的实验是 Java 形状的：突变写进 `src/main/java`，每次重跑执行的是注入的
+JUnit 测试。节点此前不看运行时，直接跑战役。Node/Python/Go 树上因此发生的是：
+`_run_test_via_sandbox` 挑中该运行时自己的 adapter，以「生成的 JUnit 测试」之名
+执行仓库**自己的**测试套件，`parse_surefire_summary` 把那份输出读成 0 条执行，
+`read_main_java_files` 找不到 `src/main/java` 于是 `mutation: []`，节点仍然报告
+`completed` 并落盘一份读起来像「测过了」的 deep-report。无 adapter 认领的树同形
+只早一步：沙箱返回 exit -1，报告照写 `completed`。
+
+### 改前量到的
+
+- 仓库外平面（`git archive` HEAD = `1ce9a31`）只叠加新门文件跑
+  `tests/unit/test_deep_measures_only_java_trees.py`：6 failed / 1 passed。
+  唯一绿的是 5 号（「测过的运行没交缓存说明时仍说未披露」）——它在改前本来就
+  成立，是这个号要保住的既有性质。3 号两参数与 1、2、4、6 全红：节点结果里
+  干脆没有 `applicability` 键，报告里根本没有「not applicable」这句话。
+
+### 改动
+
+- `agent/nodes/run_deep_experiments.py`：词表 `RUN_DEEP_OUTCOMES` 增加
+  `not_applicable`（现四词）；新增 `_deep_applicability(app)`——用
+  `registry.profile(RepositorySnapshot(path=app))` 问 adapter 认领到的语言，
+  `AdapterNotImplemented` 与非 `java` 都返回 `ran: False` 并带一句读者能读的
+  原因（「nothing was measured … not evidence that the generated test has no
+  weaknesses」），Java（含 Gradle，它同样报 "java"）返回 `ran: True` 与语言/
+  构建工具。闸门后的战役路径一行未改。
+- 拒绝路径也落盘：`_write_deep_report(state, results, job_id)` 从原先的内联
+  写法抽成两个结局共用，not-applicable 的 sidecar 带着 `applicability` /
+  `deep_report_file` / `job_id`，与 completed 报告同一套归属。
+- `evidence/report.py`：只有 `applicability.ran is False` 时渲染
+  「Deep experiments: not applicable — <原因>」（原因经 `safe()` 转义）；同一
+  判据抑制「Cache integrity: not disclosed by this run」——没有深核测试运行
+  过，就不存在「它没披露缓存」这回事。测过但没交缓存说明的运行仍照旧读作未披露。
+- 行为门：新文件 7 例（闸门 3 例 + 读者 3 例 + Gradle 参数）；observable 套件
+  增 `test_not_applicable_counts_not_applicable`（拒绝路径：全 seam 是炸弹、
+  sidecar 归属、计数 delta）。四份驱动 DEEP 节点的既有夹具补上 Maven/Gradle
+  可认领的树，保持它们继续描述「Java 的 DEEP 运行」。
+- 对账：parity 正则的四词按排序拼接；OBSERVABILITY 8.10 的词条改为四词族并
+  解释 `not_applicable`；Grafana 面板 41 描述改四结局并新增 `not_applicable/s`
+  目标（refId E）。
+
+### 改后量到的
+
+- 平面基线（14 个文件，含 parity/仪表盘/运维文档/worker 摘要门）：88 passed。
+- 已知红单独复测：`test_metric_inventory_lists_every_emission_site.py` 在改前
+  HEAD 平面上就是 2 failed（`cli/specproof/commands/verify.py` 被判死；
+  文字 40 vs 清单 41），本号未动它，留给下一号。
+- 新门在改动树上 7 passed；ruff 三文件全绿；mypy 两源文件 0 issues；
+  仪表盘 JSON `json.load` 通过。
+- 臂电池（预测先写盘；仓库外平面；逐臂字节替换并断言次数；跑完按 sha256
+  恢复；BASELINE_OK）：C1 控制（常量改名）0 红；P1 闸门体禁用 → 新门 1、2 +
+  observable 计数；P2 闸门接受 Node 语言 → 新门 1 + 同一 observable 计数；
+  P3 无 adapter 分支 ran=True → 新门 2；P4 读者丢掉 applicability 行 → 新门
+  4、6；P5 拒绝路径保留缓存缺席句 → 新门 4；P6 原因不转义 → 新门 6；P7 把
+  emitted 计数名改成 `..._inapplicable_total` → 新门 0 红，observable 的词表门
+  与计数门红；P8 拒绝路径不写 sidecar → 新门 0 红，observable 的 sidecar 门红。
+  9/9 MATCHED。两条判据在跑前被订正过：草稿曾猜 P1/P2 会连 3 号一起红（3 号
+  是 Java 树，闸门不是跑它的东西），也曾把 P7 记成「3 号词漂移」；落盘预测
+  已是订正后的，写进新门 docstring 的是实测值。
+
+### 诚实边界
+
+1. 判据是「adapter 认领的语言」。Gradle 报 "java" 所以被覆盖；没有
+   pom.xml/build.gradle 的纯 javac 树会被判 unclaimed → not_applicable，
+   方向诚实（宁可不测也不冒充测过），但覆盖偏宽。
+2. 战役本身仍是 Java-only，本号没有做多语言突变。
+3. 闸门在调用时 import registry；若将来有 adapter 对非 Java 树谎报 "java"，
+   闸门看不穿——它信的是 preflight 同样在信的那句声明。
+4. 拒绝路径先写 sidecar 再计数；sidecar 写失败会让整个节点抛出（completed
+   路径此前同形），本号未改这个失败面。
+5. Web 原样展示 `deep_results`，`applicability` 现在是结构化键；本号未加
+   Web 渲染层。
+
+### 下一号队列
+
+① Web 给 `not_verified` 补中文标签＋对账门（等 `JobDetail.tsx` 车道）；②
+head 运行是否也要先证明执行过测试再让 repeats 分类生效；③ 假清单 21 vs 20
+（#478 在飞）；④ `checker_type_parity` 的 `?`；⑤ `gradle_adapter` 的 run 被
+调两次；⑥ `metric_inventory` 的 verify.py（已知红，下一号）；⑦
+`contract_review` 词条；⑧ `verdict_channel_parity` 的 acceptance.py 非字面写；
+⑨ case-17 的严重度漂移；⑩ 其余六个 profile 在真实工具链下的可写见证；⑪
+前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` /
+`child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、
+`uv sync --frozen`）；⑫ POM 自定义 `<resources>` 回填；⑬ 回填挪进沙箱 uid；
+⑭ nightly eval 的样本下限；⑮ `test_ledger_evidence_claims_are_true` 在改前
+HEAD 就红：#429 的证据块仍点名 #535 已删除的 `craft/mutation.py` 与
+`tests/unit/test_mutation_engine.py`（在本号的 HEAD 工作树上复测，1 failed /
+15 passed，与本号无关，待单独一号重瞄或派生）。

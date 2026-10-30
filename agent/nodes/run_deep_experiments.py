@@ -36,7 +36,13 @@ the attempt ended — ``not_requested`` (depth != DEEP: the healthy FAST
 default), ``inputs_missing`` (DEEP WAS requested but there is no head
 workspace or no generated test — the tier is silently empty and the word
 is the alertable record, since nothing downstream can tell it from
-not_requested) or ``completed`` (mutation campaign + state delta stability
+not_requested), ``not_applicable`` (#538: DEEP was requested with inputs,
+but the detected runtime is not Java — the campaign writes into
+``src/main/java`` and every rerun executes the injected JUnit test, so no
+other tree can be measured; before this word the node picked that
+runtime's adapter instead, reran the repository's OWN suite under the
+generated test's name, parsed it with the surefire reader and reported
+``completed``) or ``completed`` (mutation campaign + state delta stability
 ran and the deep report was written). An empty deep_results looks
 identical for the first two; the note is prose, not countable.
 """
@@ -58,9 +64,11 @@ from observability.metrics import incr
 #: the parity family's regex and the behavior tests — a new word must move
 #: all three together.
 RUN_DEEP_OUTCOMES = frozenset({
-    "completed",      # full campaign ran; deep report written
-    "inputs_missing", # DEEP requested but nothing to run it on — tier empty
-    "not_requested",  # depth != DEEP — the healthy FAST default
+    "completed",       # full campaign ran; deep report written
+    "inputs_missing",  # DEEP requested but nothing to run it on — tier empty
+    "not_applicable",  # DEEP requested, but the runtime is not Java — the
+                       # campaign cannot measure it; NOT a clean verdict
+    "not_requested",   # depth != DEEP — the healthy FAST default
 })
 
 
@@ -82,7 +90,22 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
         }
 
     app = str(Path(head_workspace) / app_dir) if app_dir else head_workspace
-    results: dict[str, Any] = {}
+    applicability = _deep_applicability(app)
+    results: dict[str, Any] = {"applicability": applicability}
+    if not applicability["ran"]:
+        # The report is written on this ending too: it is the artifact that
+        # says why nothing was measured, and it must carry the same job
+        # attribution a completed campaign's report does.
+        _write_deep_report(state, results, job_id)
+        incr("run_deep_experiments_outcomes_not_applicable_total")
+        return {
+            "deep_results": results,
+            "deep_note": (
+                "DEEP not applicable: detected runtime "
+                + (str(applicability.get("language") or "unclaimed"))
+                + "; nothing was measured"
+            ),
+        }
 
     # ── 1) Mutation campaign (P4) ────────────────────────────────
     # Import from the reader module itself, not from `run_static_checks`:
@@ -189,17 +212,7 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
         results["cache_integrity"] = cache_integrity
 
     # ── Persist the deep report next to the HTML report ──────────
-    out_dir = Path(state.get("output_dir", "reports"))
-    out_dir.mkdir(parents=True, exist_ok=True)
-    report_name, naming = _deep_report_name(job_id)
-    # The artifact carries its own attribution: a reader holding only the file
-    # can tell which job produced it and under which name it was written.
-    results["job_id"] = job_id or ""
-    results["deep_report_file"] = report_name
-    results["deep_report_naming"] = naming
-    (out_dir / report_name).write_text(
-        json.dumps(results, indent=2, default=str), encoding="utf-8"
-    )
+    _write_deep_report(state, results, job_id)
 
     incr("run_deep_experiments_outcomes_completed_total")
     return {
@@ -209,6 +222,69 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
             + str(len(mutation_reports))
             + ", state delta captured"
         ),
+    }
+
+
+#: Languages whose trees the deep experiments can actually measure. The
+#: campaign writes into ``src/main/java`` and every rerun executes the
+#: injected JUnit test, so only a Java runtime is measurable; Gradle reports
+#: "java" too and is covered by the same gate.
+_DEEP_APPLICABLE_LANGUAGES = frozenset({"java"})
+
+
+def _deep_applicability(app: str) -> dict[str, Any]:
+    """Whether the deep experiments can measure this workspace at all (#538).
+
+    Measured before this gate existed: on a Node/Python/Go tree
+    ``_run_test_via_sandbox`` picked that runtime's adapter and executed the
+    repository's OWN test suite under the generated JUnit test's name,
+    ``parse_surefire_summary`` read the output as zero executed tests,
+    ``mutation`` was ``[]`` (there is no ``src/main/java``) and the node
+    still reported ``completed`` — a report that reads like a measured
+    campaign but measured another framework, or nothing. An unclaimed tree
+    is the same shape one step earlier: the sandbox returns exit -1 and the
+    run would still be written as a completed deep report.
+
+    The gate fails closed in the honest direction: a runtime this tier
+    cannot measure is recorded as NOT MEASURED, never as evidence that the
+    generated test has no weaknesses.
+    """
+    from experiments.adapters import (
+        AdapterNotImplemented,
+        RepositorySnapshot,
+        registry,
+    )
+
+    try:
+        profile = registry.profile(RepositorySnapshot(path=app))
+    except AdapterNotImplemented:
+        return {
+            "ran": False,
+            "language": "",
+            "build_tool": "",
+            "reason": (
+                "no execution adapter matched this workspace, so the mutation "
+                "campaign and the generated-test reruns were NOT executed — "
+                "this is not evidence that the generated test has no weaknesses"
+            ),
+        }
+    if profile.language.strip().lower() not in _DEEP_APPLICABLE_LANGUAGES:
+        return {
+            "ran": False,
+            "language": profile.language,
+            "build_tool": profile.build_tool,
+            "reason": (
+                f"detected runtime is {profile.language} "
+                f"({profile.build_tool or 'unknown build tool'}); the deep "
+                "experiments only mutate and rerun a Java tree, so nothing "
+                "was measured — this is not evidence that the generated test "
+                "has no weaknesses"
+            ),
+        }
+    return {
+        "ran": True,
+        "language": profile.language,
+        "build_tool": profile.build_tool,
     }
 
 
@@ -324,6 +400,27 @@ def _deep_report_name(job_id: str | None) -> tuple[str, str]:
     if job_id and re.fullmatch(r"[0-9a-fA-F-]{8,64}", job_id):
         return f"deep-report-{job_id[:8]}.json", "job-scoped"
     return "deep-report.json", "unscoped"
+
+
+def _write_deep_report(
+    state: Phase0State, results: dict[str, Any], job_id: str | None
+) -> None:
+    """Persist this job's deep report next to the HTML report.
+
+    Shared by both endings (#538): a completed campaign's report and the
+    not-applicable report that explains why nothing was measured carry the
+    same attribution — job id, filename decision — so a reader holding only
+    the file can tell which job produced it and under which name it landed.
+    """
+    out_dir = Path(state.get("output_dir", "reports"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report_name, naming = _deep_report_name(job_id)
+    results["job_id"] = job_id or ""
+    results["deep_report_file"] = report_name
+    results["deep_report_naming"] = naming
+    (out_dir / report_name).write_text(
+        json.dumps(results, indent=2, default=str), encoding="utf-8"
+    )
 
 
 def _cache_integrity_disclosure(runs: list[dict[str, Any]]) -> str:

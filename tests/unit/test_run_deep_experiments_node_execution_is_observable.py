@@ -13,6 +13,9 @@ word in RUN_DEEP_OUTCOMES:
 - inputs_missing: DEEP requested but no head workspace / no generated
   test — the tier is silently empty (witness: nothing beyond the first
   guard runs);
+- not_applicable (#538): DEEP requested WITH inputs, but the tree is not
+  a Java tree — the campaign cannot measure it, so nothing runs and the
+  sidecar report explains why (witness: every runtime seam is a bomb);
 - completed: the full campaign — the fake campaign INVOKES the swapped
   runner it is handed, proving the mutant swap is restored afterwards,
   and the head + repeat runs share the recorded cache note;
@@ -24,6 +27,7 @@ source literals.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -94,6 +98,65 @@ def test_inputs_missing_counts_inputs_missing() -> None:
     assert _deltas(before) == _only("inputs_missing")
 
 
+def test_not_applicable_counts_not_applicable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A non-Java tree is NOT a measured campaign (#538).
+
+    Before this gate the node ran the repository's own Node suite under the
+    generated JUnit test's name, parsed it with the surefire reader (0
+    executed), recorded ``mutation: []`` and reported ``completed``. Every
+    runtime seam here is a bomb: the gate must return before any of them.
+    """
+    app = tmp_path / "head"
+    app.mkdir()
+    (app / "package.json").write_text(
+        '{"scripts": {"test": "node --test"}}', encoding="utf-8"
+    )
+
+    def bomb(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError(
+            "a not-applicable tree must not reach the deep campaign seams"
+        )
+
+    monkeypatch.setattr(deep_module, "_run_test_via_sandbox", bomb)
+    monkeypatch.setattr("experiments.mutation.run_mutation_campaign", bomb)
+    monkeypatch.setattr("experiments.state_snapshot.capture_full_stack", bomb)
+    monkeypatch.setattr("experiments.state_snapshot.diff_states", bomb)
+    monkeypatch.setattr("storage.mysql.MySQLStore", bomb)
+    monkeypatch.setattr("storage.redis.RedisStore", bomb)
+    monkeypatch.setattr("storage.rabbitmq.RabbitMQClient", bomb)
+    monkeypatch.setattr(
+        "agent.nodes.run_differential._capture_db_snapshot", bomb
+    )
+
+    before = _before()
+    out = run_deep_experiments_node({  # type: ignore[arg-type]
+        "depth": "DEEP",
+        "head_workspace": str(app),
+        "generated_tests_path": str(tmp_path / "SpecProofGeneratedTest.java"),
+        "output_dir": str(tmp_path / "reports"),
+        "job_id": "abcdef01-2345-6789-abcd-ef0123456789",
+    })
+
+    applicability = out["deep_results"]["applicability"]
+    assert applicability["ran"] is False
+    assert applicability["language"] == "javascript/typescript"
+    assert "nothing was measured" in applicability["reason"]
+    assert out["deep_note"].startswith("DEEP not applicable")
+    assert "mutation" not in out["deep_results"]
+
+    # The sidecar report is written on this ending too and says why.
+    report = tmp_path / "reports" / "deep-report-abcdef01.json"
+    assert report.is_file()
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["applicability"] == applicability
+    assert payload["deep_report_file"] == "deep-report-abcdef01.json"
+    assert payload["job_id"] == "abcdef01-2345-6789-abcd-ef0123456789"
+
+    assert _deltas(before) == _only("not_applicable")
+
+
 def test_completed_runs_the_full_campaign(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -104,6 +167,9 @@ def test_completed_runs_the_full_campaign(
     source_path.parent.mkdir(parents=True)
     original_source = "class Svc { void send() {} }"
     source_path.write_text(original_source, encoding="utf-8")
+    # The applicability gate (#538) detects the runtime the campaign can
+    # measure: pom.xml + src/main/java is what makes this a Java tree.
+    (app / "pom.xml").write_text("<project/>", encoding="utf-8")
 
     test_path = tmp_path / "SpecProofGeneratedTest.java"
     test_path.write_text("class SpecProofGeneratedTest {}", encoding="utf-8")

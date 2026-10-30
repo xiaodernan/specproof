@@ -114,17 +114,37 @@ def _render_deep_evidence(
 
     Absent disclosure is rendered as absent, never as verified. When DEEP was
     not requested the section says which tier ran instead of implying a deep
-    campaign that never happened.
+    campaign that never happened. When the detected runtime is one the deep
+    experiments cannot measure (#538), the section renders that reason and
+    makes no cache statement — no deep test run existed whose cache could be
+    undisclosed.
     """
     payload = deep if isinstance(deep, dict) else {}
     tier_note = str(note or "").strip()
     if not payload and "DEEP" not in tier_note:
         return ""
 
+    # #538: a runtime the experiments cannot measure is reported as NOT
+    # MEASURED, with its reason. Rendering the cache-absence line for such a
+    # run would imply deep test runs happened and merely failed to disclose
+    # their cache — there were no deep test runs at all.
+    applicability = payload.get("applicability")
+    not_applicable = (
+        isinstance(applicability, dict) and applicability.get("ran") is False
+    )
+    applicability_html = ""
+    if isinstance(applicability, dict) and not_applicable:
+        reason = str(applicability.get("reason") or "").strip()
+        detail = reason or "the deep experiments did not run on this tree"
+        applicability_html = (
+            '<p class="unverified">Deep experiments: not applicable — '
+            f"{safe(detail)}</p>"
+        )
+
     cache = str(payload.get("cache_integrity") or "").strip()
     if cache:
         cache_html = f'<p class="unverified">Cache integrity: {safe(cache)}</p>'
-    elif payload:
+    elif payload and not not_applicable:
         # The campaign ran and said nothing about the cache. Saying "clean"
         # here would be a fabrication, so the absence itself is the finding.
         cache_html = (
@@ -144,6 +164,7 @@ def _render_deep_evidence(
     return f"""<section>
         <h2>Deep Verification</h2>
         {f'<p class="muted">{safe(tier_note)}</p>' if tier_note else ""}
+        {applicability_html}
         {cache_html}
         {file_html}
     </section>"""

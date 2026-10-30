@@ -61,6 +61,12 @@ class TestDeepStabilityWiring:
     def test_deep_node_records_stability(self, tmp_path, monkeypatch) -> None:
         import agent.nodes.run_deep_experiments as deep
 
+        # #538: applicability is detected before any sandbox seam; this
+        # fixture describes a Java DEEP run, so make it detectable.
+        (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+        (tmp_path / "src" / "main" / "java").mkdir(
+            parents=True, exist_ok=True
+        )
         monkeypatch.setattr(deep, "_run_test_via_sandbox", lambda app, t: {
             "exit_code": 0, "error": "", "mode": "fake", "cache_note": "",
             "test_counts": {"tests": 1},

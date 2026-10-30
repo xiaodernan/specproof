@@ -4390,7 +4390,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "run_deep_experiments 节点的执行计数 (agent/nodes/run_deep_experiments.py #198): runs/s 计每次调用; outcomes_<word>/s 按三种结局分列——completed（突变战役 + 状态 delta + verdict 稳定性全跑并落盘 deep-report）、inputs_missing（要求了 DEEP 却无 head 工作区/无生成测试——该档静默为空，深核证据不存在而作业照常）、not_requested（depth != DEEP 的健康 FAST 默认）。前两者的 deep_results 都是空对象、note 只是散文，只有 outcomes_<word> 能分开并告警（#198 行为测试逐词钉住）。",
+      "description": "run_deep_experiments 节点的执行计数 (agent/nodes/run_deep_experiments.py #198): runs/s 计每次调用; outcomes_<word>/s 按四种结局分列——completed（突变战役 + 状态 delta + verdict 稳定性全跑并落盘 deep-report）、inputs_missing（要求了 DEEP 却无 head 工作区/无生成测试——该档静默为空，深核证据不存在而作业照常）、not_applicable（#538：要求了 DEEP 且输入齐全、但探测到的运行时不是 Java——突变写 src/main/java、重跑执行注入的 JUnit 测试，别的树无法被测量；deep_results.applicability 带原因，报告写 NOT MEASURED 而不是 completed）、not_requested（depth != DEEP 的健康 FAST 默认）。not_requested/inputs_missing 的 deep_results 都是空对象、note 只是散文，只有 outcomes_<word> 能分开并告警（#198 行为测试逐词钉住）。",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -4506,6 +4506,18 @@
           "range": true,
           "instant": false,
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(specproof_run_deep_experiments_outcomes_not_applicable_total[15m])",
+          "legendFormat": "not_applicable/s",
+          "range": true,
+          "instant": false,
+          "refId": "E"
         }
       ]
     },
