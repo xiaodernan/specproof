@@ -21,6 +21,11 @@ restored by sha256): A2/A4 below, measured outcome in the trailing note.
   A4 drop cache_note from _run_test_via_sandbox->
        test_the_real_run_function_carries_the_note                                      MATCHED
   A5 rename the results key                    -> the four node-level cases         MATCHED
+
+#531 routed the run through the ExecutionAdapter (one command-shape owner),
+so the note now crosses one more boundary: SandboxResult.cache_note ->
+ExecutionResult.cache_note -> this dict. The A4 arm measures that whole
+chain holding.
 """
 
 from __future__ import annotations
@@ -74,20 +79,35 @@ def _drive(tmp_path: Path, monkeypatch, notes: list[str]) -> dict[str, Any]:
 
 class TestRunFunctionCarriesTheNote:
     def test_the_real_run_function_carries_the_note(self, tmp_path, monkeypatch) -> None:
-        """_run_test_via_sandbox must forward cache_note, not just exit/mode."""
+        """_run_test_via_sandbox must forward cache_note, not just exit/mode.
+
+        The run reaches the sandbox through JavaMavenAdapter (#531), so the
+        stub sits on the adapter's own import of ``run_sandboxed`` and the
+        repo must be adapter-detectable (pom.xml + src/main/java).
+        """
         import agent.nodes.run_deep_experiments as deep
-        import sandbox.runner as runner
+        import experiments.adapters as adapters
+
+        (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+        (tmp_path / "src" / "main" / "java").mkdir(parents=True)
 
         class FakeResult:
             exit_code = 0
             error = ""
             mode = "docker"
             cache_note = NOT_VERIFIED
+            stdout = "Tests run: 2, Failures: 0, Errors: 0, Skipped: 0\n"
+            stderr = ""
 
-        monkeypatch.setattr(runner, "run_sandboxed", lambda *a, **k: FakeResult())
+        monkeypatch.setattr(adapters, "run_sandboxed", lambda *a, **k: FakeResult())
         out = deep._run_test_via_sandbox(str(tmp_path), str(tmp_path / "T.java"))
         assert out["cache_note"] == NOT_VERIFIED
-        assert set(out) == {"exit_code", "error", "mode", "cache_note"}
+        assert out["test_counts"] == {
+            "tests": 2, "failures": 0, "errors": 0, "skipped": 0,
+        }
+        assert set(out) == {
+            "exit_code", "error", "mode", "cache_note", "test_counts",
+        }
 
 
 class TestDisclosureMerge:

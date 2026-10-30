@@ -173,6 +173,12 @@ class ExecutionResult:
     mode: str
     sandbox_resources: dict[str, str] = field(default_factory=dict)
     error: str = ""
+    # What the sandbox said about the dependency cache this run consumed.
+    # The adapter is the boundary between SandboxResult and the product
+    # tree's ExecutionResult; before #531 it dropped this field here, so a
+    # DEEP run that stopped being routed through the sandbox call site lost
+    # the disclosure silently.
+    cache_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -717,6 +723,7 @@ class JavaMavenAdapter:
                 "workspace_mount": "ro (target/ writable sub-mount)",
             },
             error=sandbox_result.error,
+            cache_note=sandbox_result.cache_note,
         )
         return prepared.result
 

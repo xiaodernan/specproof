@@ -17183,3 +17183,92 @@ run 41033998469 的 `eval-golden-cases` 仍红，但红的是 **Recall 0.0%**：
 ⑨ case-17 的 BLOCKER→MAJOR 严重度漂移；⑩ 前号队列余项（`sha256_hex` ×3 /
 `_capsule_dirs` / `_eval_report_path` / `child_output_text`、三套时间戳、约 50 条静默
 `except`、P6 100 例、`uv sync --frozen`）。
+
+## #531 DEEP 的命令形状是 Maven 命令的第二个属主，缓存披露在 adapter 边界上丢失，测试计数全程没人收集
+
+### 起因
+
+#530 的下一号队列①：adapter 的 `run_test` 已换成 `-B`，而 `run_deep_experiments.py` 仍自建
+`mvn -o test -q`。本号把 DEEP 收归 `JavaMavenAdapter.prepare()`，同一条路上量到三个独立的问题：
+命令形状的第二属主、adapter 边界丢披露、以及整条 DEEP 链路从不收集「跑了几个测试」。
+
+### 改前量到的（三处，各自独立）
+
+1. **第二个属主**：HEAD 的 `_run_test_via_sandbox` 手写三段 argv——sandbox 是
+   `mvn -o test -q -Dtest=… -DfailIfNoTests=false -f /work/pom.xml`，本地回退再按
+   `platform.system()` 分成 `mvnw.cmd` / `mvnw`，两处都带 `test -q`。#530 的 `-B` 只到了
+   差分那一条路。
+2. **`-q` 的静默照旧**：#530 量过，`-q` 下 surefire 只在失败时印 `Tests run:`，通过的一侧
+   什么都不印。所以即便本号原样接上计数，绿的 DEEP 运行也会读成 `tests: 0`——计数与「零测试」
+   返回同一个读数。
+3. **adapter 边界丢披露**：`ExecutionResult` 根本没有 `cache_note` 字段，DEEP 是从
+   `SandboxResult` 直接读的。改走 adapter 的那一刻这个字段会静默消失，而全部测试仍然绿：
+   #136 的缓存披露重新退化成没人消费的字符串。
+4. **计数全程缺席**：改前 `_run_test_via_sandbox` 只回 exit/error/mode/cache_note；
+   `state_delta` 只有 `head_test_exit`；报告的 `repeat_runs` 只有 exit/error。一次零测试的
+   绿与被杀/稳定完全同形。
+
+### 改动
+
+- `experiments/adapters.py`：`ExecutionResult` 增 `cache_note: str = ""`（注释写明 adapter 是
+  `SandboxResult` 与 `ExecutionResult` 的边界）；`JavaMavenAdapter.run` 转发
+  `sandbox_result.cache_note`。
+- `agent/nodes/run_deep_experiments.py`：
+  - `_run_test_via_sandbox` 改为 `registry.get(RepositorySnapshot(path=app))` →
+    `prepare(ExecutionRequest(workspace=app, goal="run_test", test_class=…, timeout=900))` →
+    `run(prepared)`；未认领仓库返回记录型 exit -1（与差分同分支）；计数由
+    `parse_surefire_summary(stdout_tail + stderr_tail)` 派生。
+  - 删掉 `import platform` 与三段 argv。
+  - `state_delta` 增 `head_test_counts`；`repeat_runs` 的投影增 `test_counts`；模块 docstring
+    记录「命令形状只有一个属主」，并写明计数**只入账、尚未消费**。
+- 门：新 `tests/unit/test_deep_runs_through_the_execution_adapter.py`（4 例）——①AST 普查：
+  节点源码的常量里不得出现 `mvn` / `mvnw` / `mvnw.cmd` / `-q`，且不得 import
+  `run_sandboxed`；②真跑一次，断言执行的 argv 恰好是 `JavaMavenAdapter.prepare()` 现推的
+  那条（含 `-B`、不含 `-q`），计数 2；③`state_delta.head_test_counts`、每条 repeat 的
+  `test_counts` 与 `deep-report.json` 里的同名字段；④没有 surefire 摘要时计数全零、且不发
+  缓存披露（docstring 写明稳定性仍只读退出码，消费计数是下一号）。
+  `tests/unit/test_deep_cache_disclosure.py` 的节点函数用例改成走 adapter（stub
+  `experiments.adapters.run_sandboxed`），并钉住返回键集多了 `test_counts`；
+  `tests/unit/test_adapters.py` 补两例：有缓存卷时 `cache_note` 随 `ExecutionResult` 出现，
+  无缓存卷时为空串。
+
+### 改后量到的
+
+- 门与邻域：4 个受量文件 47 passed；11 个 DEEP 邻域文件 94 passed；两个模块 ruff + mypy 全绿。
+- 臂电池（预测先写盘，仓库根之外的复制平面，逐臂恢复后比 sha256）：A0 对照 47 绿；
+  A1 节点把 `prepared.command` 换回含 `-q` 的 argv → 普查例与命令例红；
+  A2 节点把 `cache_note` 写空 → 转发例与报告披露例红；
+  A3 节点丢 `test_counts` → 命令、披露、报告计数、零计数四例红；
+  A4 adapter 不再转发 `cache_note` → adapter 例、节点函数例、报告披露例红；
+  A5 `state_delta` 丢 `head_test_counts` → 报告计数与零计数量例红；
+  A6 repeat 投影丢 `test_counts` → 报告计数例红；
+  A7 节点直接 import `run_sandboxed` → 普查例红；
+  A8 节点加一个未用的 `"mvn"` 常量 → 普查例红。
+  九臂全 MATCHED，末轮对照 47 绿。
+- 工具缺陷（不是臂结果）：首轮 A3/A5/A6 被「needle 0 次」拒绝。量到节点文件在盘上是 CRLF
+  （336/336 行），而 needle 以 LF 书写；A4 命中只因它所在的文件是 LF。修法是给 needle 按文件
+  自身 EOL 归一，而不是放松匹配；修后九臂全中。
+
+### 诚实边界
+
+1. 计数已入账但还没有消费者：`agent/verdict_stability.py` 仍用 `exit_N` 串，
+   `experiments/mutation.py` 仍以 `exit_code != 0` 判「被杀」。零测试的绿仍会读成稳定/未被杀
+   ——那是 #532，本号的计数就是它的输入。
+2. 只有 Java adapter 转发 `cache_note`；Node/Python/Gradle/Go 四个 adapter 在同一边界上仍丢弃
+   沙箱的披露。今天没有已发布的读者需要它，披露而不修。
+3. 未认领仓库现在返回记录型 exit -1，而不是让 `AdapterNotImplemented` 从节点里抛出；非 Maven
+   树上的 DEEP 运行因此记为「跑不了」，与差分同语义。
+4. DEEP 现在也经 adapter 走，于是开始计入 `sandbox_runs_total` / `sandbox_failures_total`
+   ——这两个指标以前只数差分与 craft 的调用。没有门按运行路径钉这两个总数。
+5. 本机没有真 Docker Maven 运行：腿驱动的是假 sandbox 结果，命令由 adapter 自己的
+   `prepare()` 现推后比对；Docker 下的真实 argv 没有在本机被见证。
+
+### 下一号队列
+
+① #532：零测试/工具链错误的运行不得制造「稳定」或「被杀」（`experiments/mutation.py` 与
+`agent/verdict_stability.py` 先看本号入账的计数）；② 静默宽捕下限 31（等 #527 的 walk 修复
+落地后一起降）；③ 假清单 21 vs 20（#478 在飞）；④ `checker_type_parity` 的 `?`；
+⑤ `gradle_adapter` 的 run 被调两次；⑥ `metric_inventory` 的 verify.py；⑦ `contract_review`
+词条；⑧ `verdict_channel_parity` 的 acceptance.py 非字面写；⑨ case-17 的 BLOCKER→MAJOR
+严重度漂移；⑩ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` /
+`child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、`uv sync --frozen`）。

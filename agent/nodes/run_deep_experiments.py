@@ -18,6 +18,16 @@ seeded cache volume, so the sandbox's own ``cache_note`` is carried into
 boundary — an unverified cache must be readable in the artifact a reviewer
 opens, not only inside the runner.
 
+Command shape (#531): the test command itself is owned by the repository's
+ExecutionAdapter. This node used to spell its own ``mvn -o test -q ...``
+argv — a second copy of the shape #530 taught the differential to read.
+Under ``-q`` a passing surefire run prints no "Tests run:" summary, so a
+selector that matched nothing looked exactly like a green run; DEEP kept
+that flag while recording only exit codes. The run now returns the
+executed test counts alongside the exit evidence, and they reach the
+artifact (a subsequent unit makes the stability/mutation readers consume
+them instead of reading exit codes alone).
+
 Counters (#198): ``run_deep_experiments_runs_total`` counts every
 invocation and ``run_deep_experiments_outcomes_<word>_total`` records how
 the attempt ended — ``not_requested`` (depth != DEEP: the healthy FAST
@@ -33,7 +43,6 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -122,6 +131,7 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
     results["state_delta"] = {
         "head_test_exit": head_run["exit_code"],
         "head_test_error": head_run["error"],
+        "head_test_counts": head_run.get("test_counts") or {},
         "diff": diff_states(before, after),
     }
 
@@ -136,9 +146,9 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
 
     repeats = _env_int("SPECPROOF_DEEP_REPEATS", 2)
     repeat_runs: list[dict[str, Any]] = []
-    # Full run views (cache_note included); repeat_runs above is projected
-    # down to exactly what verdict_stability.summarize consumes, so the
-    # disclosure cannot ride it.
+    # Full run views (cache_note included); repeat_runs is projected down to
+    # what verdict_stability.summarize consumes (exit/error plus the executed
+    # count), so the cache disclosure cannot ride it.
     run_views: list[dict[str, Any]] = [head_run]
     contaminated = False
     baseline_snapshot: dict[str, Any] | None = None
@@ -159,6 +169,11 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
         repeat_runs.append({
             "exit_code": repeat_run["exit_code"],
             "error": repeat_run["error"],
+            # What this repeat actually executed. verdict_stability.summarize
+            # publishes the run records as-is, so the artifact shows whether
+            # an "exit_0" repeat ran tests or matched nothing (the shape a
+            # reader needs before trusting a stability verdict).
+            "test_counts": repeat_run.get("test_counts") or {},
         })
         run_views.append(repeat_run)
     results["verdict_stability"] = summarize(repeat_runs, contaminated)
@@ -237,39 +252,52 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _run_test_via_sandbox(app: str, generated_tests_path: str) -> dict[str, Any]:
-    from sandbox.runner import run_sandboxed
+    """Run the generated test once on HEAD through the ExecutionAdapter.
+
+    One owner for the command shape (#531): offline ``-o``, batch ``-B``,
+    ``-Dtest=`` injection and the local fallback all come from
+    JavaMavenAdapter.prepare(). Spelling them here a second time is how
+    this call site kept ``-q`` after #530 replaced it in the differential —
+    and under ``-q`` a passing run prints no "Tests run:" summary, so the
+    counts below read zero for a green run.
+    """
+    from experiments.adapters import (
+        AdapterNotImplemented,
+        ExecutionRequest,
+        RepositorySnapshot,
+        parse_surefire_summary,
+        registry,
+    )
 
     test_class = Path(generated_tests_path).name
     if test_class.endswith(".java"):
         test_class = test_class[:-5]
-    if platform.system() == "Windows":
-        local_cmd = [
-            os.path.join(app, "mvnw.cmd"), "test", "-q",
-            f"-Dtest={test_class}", "-DfailIfNoTests=false",
-        ]
-    else:
-        local_cmd = [
-            os.path.join(app, "mvnw"), "test", "-q",
-            f"-Dtest={test_class}", "-DfailIfNoTests=false",
-        ]
-    result = run_sandboxed(
-        [
-            # -o: the sandbox has --network none by design; every
-            # artifact must resolve from the seeded Maven cache volume.
-            "mvn", "-o", "test", "-q",
-            f"-Dtest={test_class}",
-            "-DfailIfNoTests=false",
-            "-f", "/work/pom.xml",
-        ],
-        workspace=app,
-        timeout=900,
-        local_command=local_cmd,
+    try:
+        adapter = registry.get(RepositorySnapshot(path=app))
+    except AdapterNotImplemented as exc:
+        # The differential's _run_generated_test takes the same branch: an
+        # unclaimed repository is a recorded "could not run", not a crash.
+        return {
+            "exit_code": -1,
+            "error": str(exc),
+            "mode": "",
+            "cache_note": "",
+            "test_counts": {},
+        }
+    prepared = adapter.prepare(
+        ExecutionRequest(
+            workspace=app, goal="run_test", test_class=test_class, timeout=900,
+        )
     )
+    result = adapter.run(prepared)
     return {
         "exit_code": result.exit_code,
         "error": result.error,
         "mode": result.mode,
         "cache_note": result.cache_note,
+        "test_counts": parse_surefire_summary(
+            result.stdout_tail + result.stderr_tail
+        ),
     }
 
 

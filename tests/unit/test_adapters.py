@@ -201,6 +201,40 @@ class TestRunThroughSandbox:
         assert result.sandbox_resources["network"] == "none"
         assert prepared.result is result
 
+    def test_run_carries_the_sandbox_cache_note(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The adapter is the boundary that must not drop the note (#531)."""
+        import experiments.adapters as adapters
+
+        note = "缓存完整性: 未校验 (NOT VERIFIED) — profile maven 挂了缓存卷"
+        monkeypatch.setattr(
+            adapters, "run_sandboxed",
+            lambda *args, **kwargs: _fake_sandbox_result(cache_note=note),
+        )
+        adapter = JavaMavenAdapter()
+        prepared = adapter.prepare(
+            ExecutionRequest(workspace=str(tmp_path), goal="run_test", test_class="T")
+        )
+        result = adapter.run(prepared)
+        assert result.cache_note == note
+
+    def test_run_without_a_cache_mount_carries_no_note(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An absent note stays absent — "" must not be invented as a clean one."""
+        import experiments.adapters as adapters
+
+        monkeypatch.setattr(
+            adapters, "run_sandboxed",
+            lambda *args, **kwargs: _fake_sandbox_result(),
+        )
+        adapter = JavaMavenAdapter()
+        prepared = adapter.prepare(
+            ExecutionRequest(workspace=str(tmp_path), goal="run_test", test_class="T")
+        )
+        assert adapter.run(prepared).cache_note == ""
+
     def test_run_propagates_sandbox_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
