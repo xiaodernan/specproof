@@ -106,6 +106,10 @@ jobs:
 
   tests-with-infra:
     runs-on: ubuntu-latest
+    # #529: name the volume the runner mounts, so the seeding script and the
+    # sandbox read one knob instead of agreeing by matching defaults.
+    env:
+      SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -135,34 +139,12 @@ jobs:
              GRANT ALL PRIVILEGES ON specproof_test.* TO 'specproof'@'%';
              FLUSH PRIVILEGES;"
       - name: Seed sandbox Maven cache (non-root, --network none)
-        run: |
-          docker volume create specproof-maven-cache-1000
-          # volume root must be uid-1000-owned for the non-root sandbox
-          docker run --rm -v specproof-maven-cache-1000:/m2 \
-            maven:3.9-eclipse-temurin-21 sh -c "chown -R 1000:1000 /m2"
-          # dependencies land in the cache volume (network available here)
-          docker run --rm --user 1000:1000 \
-            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
-            -v specproof-maven-cache-1000:/home/maven/.m2 \
-            -v $PWD/demo/spring-backend:/work:ro -w /work \
-            maven:3.9-eclipse-temurin-21 mvn -q -DskipTests dependency:go-offline
-          # wrapper jar is git-ignored (*.jar); fetch it so mvnw can place
-          # the wrapper distribution in the cache volume
-          curl -fsSL -o demo/spring-backend/.mvn/wrapper/maven-wrapper.jar \
-            https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar
-          # #159: CI exit 126 — mvnw is committed 100644 (Windows drops the
-          # exec bit), so `./mvnw` cannot exec as the non-root sandbox user.
-          # Invoke it through sh, which needs no exec bit.
-          # #499: the comment sits ABOVE the command on purpose. Inside a
-          # backslash continuation the shell swallows the comment AND the
-          # image and command that follow it, so `docker run` was called with
-          # no image at all ("docker: 'docker run' requires at least 1
-          # argument") and this step killed the job before its tests ran.
-          docker run --rm --user 1000:1000 \
-            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
-            -v specproof-maven-cache-1000:/home/maven/.m2 \
-            -v $PWD/demo/spring-backend:/work:ro -w /work \
-            maven:3.9-eclipse-temurin-21 sh mvnw -q -v
+        # #529: one owner — scripts/seed_maven_cache.sh. This block, the eval
+        # job's copy and nightly's were byte-identical sequences kept in step
+        # by hand; the #499 and #521 comment-swallow notes each had to be
+        # fixed once per copy. The volume comes from
+        # SPECPROOF_SANDBOX_M2_VOLUME, the same knob sandbox/runner.py reads.
+        run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs the eval cases resolve
         # #521: the golden refs are built by scripts/build_golden_scenarios.py
         # and are LOCAL tags — a rebuild creates new commits every time, so a
@@ -220,34 +202,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Seed sandbox Maven cache (non-root, --network none)
-        run: |
-          docker volume create specproof-maven-cache-1000
-          # volume root must be uid-1000-owned for the non-root sandbox
-          docker run --rm -v specproof-maven-cache-1000:/m2 \
-            maven:3.9-eclipse-temurin-21 sh -c "chown -R 1000:1000 /m2"
-          # dependencies land in the cache volume (network available here)
-          docker run --rm --user 1000:1000 \
-            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
-            -v specproof-maven-cache-1000:/home/maven/.m2 \
-            -v $PWD/demo/spring-backend:/work:ro -w /work \
-            maven:3.9-eclipse-temurin-21 mvn -q -DskipTests dependency:go-offline
-          # wrapper jar is git-ignored (*.jar); fetch it so mvnw can place
-          # the wrapper distribution in the cache volume
-          curl -fsSL -o demo/spring-backend/.mvn/wrapper/maven-wrapper.jar \
-            https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar
-          # #159: CI exit 126 — mvnw is committed 100644 (Windows drops the
-          # exec bit), so `./mvnw` cannot exec as the non-root sandbox user.
-          # Invoke it through sh, which needs no exec bit.
-          # #499: the comment sits ABOVE the command on purpose. Inside a
-          # backslash continuation the shell swallows the comment AND the
-          # image and command that follow it, so `docker run` was called with
-          # no image at all ("docker: 'docker run' requires at least 1
-          # argument") and this step killed the job before its tests ran.
-          docker run --rm --user 1000:1000 \
-            -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
-            -v specproof-maven-cache-1000:/home/maven/.m2 \
-            -v $PWD/demo/spring-backend:/work:ro -w /work \
-            maven:3.9-eclipse-temurin-21 sh mvnw -q -v
+        # #529: one owner — scripts/seed_maven_cache.sh. This block, the eval
+        # job's copy and nightly's were byte-identical sequences kept in step
+        # by hand; the #499 and #521 comment-swallow notes each had to be
+        # fixed once per copy. The volume comes from
+        # SPECPROOF_SANDBOX_M2_VOLUME, the same knob sandbox/runner.py reads.
+        run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs this job evaluates
         # #521: the golden refs are built by scripts/build_golden_scenarios.py
         # and are LOCAL tags — a rebuild creates new commits every time, so

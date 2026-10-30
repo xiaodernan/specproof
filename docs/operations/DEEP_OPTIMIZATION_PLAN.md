@@ -17017,3 +17017,84 @@ Jobs 8 / Dashboard 7 / JobDetail 10，其中 `spec_path`、`depth`、`retry_coun
 ③ `requirements-frozen-*.txt` 与 `uv.lock` 两套「快照」并存 —— 判一个是权威还是退役一个；
 ④ #513 队列①的近似克隆检测（三类人口先量准）；⑤ `cli/`、`craft/` 剩余约 50 条静默 `except`；
 ⑥ P6 100 例隔离评测（本机跑不完）。
+## #529 Maven 缓存的播种在三个作业里各抄了一遍，而这条命令上两次事故都只修了其中一份
+
+### 起因
+
+`ci.yml` 的两个评测作业（`tests-with-infra`、`eval-golden-cases`）与 `nightly-eval.yml`
+的评测作业各有一段**逐字节相同**的五步播种：建卷 → chown 1000 → `dependency:go-offline`
+→ 取 wrapper jar → `sh mvnw -q -v`。三份靠手抄同步，而这条命令上已经出过两次「只修一份」
+的事故：
+
+- #499：注释行落进 `docker run` 的反斜杠续行，shell 吞掉注释**和后面的镜像** ⇒
+  `docker run` 收到 0 个镜像（rc 127）。那一次只改了 ci.yml 的 tests-with-infra 一份。
+- #521：同一条注释在 nightly 的副本里仍在下半行，nightly 唯一的作业死在播种步骤
+  （run 41025795374，failed step 6 = Seed sandbox Maven cache）；它后面的 refs 步骤与
+  「Alert on regression」门从未跑过。
+
+### 改前量到的
+
+- 三处播种块逐字节相同：`ci.yml` ×2、`nightly-eval.yml` ×1，各 5 个阶段。
+- 卷名旋钮 `SPECPROOF_SANDBOX_M2_VOLUME` 的读者是 `sandbox/runner.py`；三个作业里
+  `eval-golden-cases` 与 nightly 设了它，**`tests-with-infra` 没设**——它赌播种脚本的
+  默认值与 runner 的默认值是同一个字面量，而那是两份手抄。
+- 本机平面（Windows）的 `scripts/seed_sandbox_cache.ps1` 把镜像与默认卷各写死一份，
+  不读旋钮。
+
+### 改动
+
+- 新增 `scripts/seed_maven_cache.sh`：五个阶段各出现一次，读同一个旋钮；#499/#521 两条
+  注释搬进去，此后只有一份。三处 workflow 步骤都改成 `bash scripts/seed_maven_cache.sh`。
+- `tests-with-infra` 作业头补 `env: SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000`：
+  播种脚本与 sandbox runner 读一个旋钮，而不是靠两份默认值恰好相等。
+- `scripts/seed_sandbox_cache.ps1` 改读同一旋钮（缺省值不变）。
+- 新门 `tests/unit/test_the_maven_cache_seeding_has_one_owner.py`（4 例），三条尺子：
+  R1 没有 workflow 内联任一阶段，且每个跑缓存消费者命令的作业**恰好一个**播种步骤、
+  在该命令之前；R2 脚本每阶段一次、读旋钮一次，两个平面的默认卷/镜像相等；
+  R3 检测器对合成内联副本会报，且设旋钮的作业集合 == 跑消费者的作业集合。
+- **镜像门跟着搬家**（`tests/unit/test_workflows_invoke_mvnw_through_sh.py`，#203）：它
+  曾要求「每个 workflow 里 mvnw 必须经 `sh` 调用、且workflow 里至少 3 处」——#529 之后
+  最后一次调用在脚本里，那条普查在第一次整套复跑时就红了（`test_the_probe_found_the_
+  invocations`，46 passed / 1 failed）。改法不是放宽判据：普查面加上脚本，尺子变成
+  「脚本持有那个调用，任何 workflow 若再自带 mvnw 调用仍按同一规则检查」；「每个 Maven
+  作业都要播种」这条前提移交给本号的新门（按作业断言，不再借 nightly 文件名）。
+
+### 改后量到的
+
+- 门：`4 passed`；把所有读 workflow 的门一起跑（本号新门 + 镜像门 + `test_ci_jobs_can_
+  run_the_repo_gates.py` + `test_ci_materializes_the_golden_refs.py` + 六道评测/类型/前端
+  腿）＝ `47 passed`；`ruff`、`mypy` 干净；`bash -n scripts/seed_maven_cache.sh` 通过。
+- 镜像门修好前的同一套是 `46 passed / 1 failed`（就是上面那条普查）——这条红是**改动的
+  真实后果**，不是环境噪声；修的是普查面，判据未动。
+- 臂电池（预测先写，平面在仓库根之外，7 臂）：A0 对照 4 绿；A1 把 `dependency:go-offline`
+  内联回 eval 作业的播种步骤 ⇒ R1 点名 `inlines ['dependency:go-offline']`；A2 脚本默认卷
+  改成 `-2000` ⇒ R2「different default volumes」；A3 删 `tests-with-infra` 的旋钮 ⇒ R3 点名
+  `('ci.yml', 'tests-with-infra')`；A4 删 nightly 的播种步骤 ⇒ R1「has 0 Maven-cache seeding
+  steps」；A5 ps1 不读旋钮 ⇒ R2「ignores SPECPROOF_SANDBOX_M2_VOLUME」；A6 脚本不再默认卷
+  ⇒ R2「does not default the volume」；A7 往脚本里追加一行非注释的 `./mvnw` ⇒
+  **恰好一条**红（镜像门的 `test_no_workflow_executes_mvnw_directly`，offender 点名
+  `seed_maven_cache.sh`），本号的门保持绿。**A0–A7 全 MATCHED。**
+- **A6 欠预测**：预测只写了一条红（默认卷那条），实测两条（「两平面默认卷相等」那条也红——
+  旋钮记号消失后 `_sh_default_volume` 找不到默认值）。判据是对的（行为红），欠的是对
+  **同一个常量被两处读**的预测。
+
+### 诚实边界
+
+1. 这条门绑的是**谁拥有这个序列**，不是「这个序列在 Docker 上跑得通」——那需要 Docker
+   主机和后端，正是每次 push 的 CI 步骤在做。本机量不到（Docker Desktop 未运行）。
+2. 两个平面只绑**默认卷名与镜像名**；`.ps1` 还有把宿主 `~/.m2` 拷进卷、建验证 worktree
+   的本机步骤，linux 脚本没有，反之亦然。
+3. 本条不声称 CI 的 eval 结果变绿：`39684ec` 的 run 41031474413 里 `eval-golden-cases`
+   仍红，但红点已移到**第 9 步 recall 门**（第 7 步 materialize refs、第 8 步 eval 执行
+   都 success），与播种无关；日志要等整轮跑完才可读，归因留给下一号。
+4. 镜像门的本机平面不是 git 仓库，所以它的 `test_the_reason_still_holds`（`mvnw` 仍是
+   100644 才使规则成立）在臂电池里是 skip，不是 pass；那条腿只在真仓库里跑（整套复跑里
+   47 passed 包含它）。
+
+### 下一号队列
+
+① eval 子集 recall < 100% 的归因（这是第一份在**当前 base** 上真正跑出来的检出读数）；
+② `sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` / `child_output_text` 的属主；
+③ 三套时间戳词表；④ `cli/`、`craft/` 剩余约 50 条静默 `except`；⑤ P6 100 例隔离评测与
+JOB_CREATION_WHITELIST；⑥ CI 安装改用 `uv sync --frozen`（#528 队列①）。
+

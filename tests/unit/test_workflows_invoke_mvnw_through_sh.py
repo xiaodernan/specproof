@@ -1,4 +1,4 @@
-"""#203 — every workflow must invoke `mvnw` through `sh`, never directly.
+"""#203 / #529 — every invocation of `mvnw` must go through `sh`, never directly.
 
 `demo/spring-backend/mvnw` is committed as mode **100644** (the exec bit is a
 property Windows drops, so it does not survive a round trip through a Windows
@@ -16,6 +16,14 @@ That is the shape this gate exists for: **one rule living in two files with
 nothing reconciling them**. It does not check "nightly matches ci" — it checks
 the rule itself, so the next workflow to add a Maven seed step inherits it.
 
+**#529** applied the same reasoning one level up: the seed step itself was
+copied in three places and is now `scripts/seed_maven_cache.sh`, so the rule's
+last invocation lives THERE, not in a workflow. This census therefore scans the
+script too. A workflow that reintroduces its own `mvnw` call is still checked
+against the same rule — and the "every Maven job seeds the cache" premise now
+belongs to tests/unit/test_the_maven_cache_seeding_has_one_owner.py, which
+asserts it per job instead of via nightly-eval.yml's file name.
+
 The census is line-based on purpose. The first version matched a full
 `maven:<image> <how> mvnw` command shape, which **cannot see the broken form**:
 in `./mvnw` the token is `./mvnw`, so the pattern looking for a word before
@@ -30,6 +38,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO / ".github" / "workflows"
+SEEDER = REPO / "scripts" / "seed_maven_cache.sh"
 MVNW = "demo/spring-backend/mvnw"
 
 #: A command position invoking the wrapper: `mvnw`, `./mvnw`, `/work/mvnw`, …
@@ -37,10 +46,14 @@ _INVOKES_RE = re.compile(r"(?:^|\s)(?:\.?/)?(?:[\w./\-]*/)?mvnw\b")
 _THROUGH_SH_RE = re.compile(r"\b(?:sh|bash)\s+mvnw\b")
 
 
-def _workflow_files() -> list[Path]:
+def _census_files() -> list[Path]:
     files = sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml"))
     assert files, f"no workflows found under {WORKFLOWS} — probe broken"
-    return files
+    assert SEEDER.is_file(), (
+        f"{SEEDER} is missing — the seeding owner moved, so this census no "
+        "longer reaches the invocation it exists to check"
+    )
+    return files + [SEEDER]
 
 
 def mvnw_lines() -> list[tuple[str, int, str]]:
@@ -51,7 +64,7 @@ def mvnw_lines() -> list[tuple[str, int, str]]:
     bitten this repository before.
     """
     found: list[tuple[str, int, str]] = []
-    for path in _workflow_files():
+    for path in _census_files():
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             text = line.strip()
             if not text or text.startswith("#"):
@@ -68,14 +81,14 @@ def mvnw_invocations() -> list[tuple[str, int, str]]:
 def test_the_probe_found_the_invocations() -> None:
     """A census that silently finds nothing is greener than a bug."""
     invocations = mvnw_invocations()
-    assert len(invocations) >= 3, (
-        "expected at least 3 mvnw invocations (ci.yml has 2, nightly-eval.yml 1), "
-        f"found {invocations} — the probe or the workflows moved"
+    assert len(invocations) >= 1, (
+        "expected at least 1 mvnw invocation (scripts/seed_maven_cache.sh), "
+        f"found {invocations} — the probe or the seeding owner moved"
     )
     names = {name for name, _, _ in invocations}
-    assert "nightly-eval.yml" in names, (
-        "nightly-eval.yml no longer seeds the Maven cache — if that is deliberate, "
-        "this gate's premise changed and should be revisited"
+    assert SEEDER.name in names, (
+        f"{SEEDER.name} no longer invokes mvnw — if that is deliberate, this "
+        "gate's premise changed and should be revisited"
     )
 
 

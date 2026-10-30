@@ -14,7 +14,10 @@ $repo   = Split-Path -Parent $PSScriptRoot
 $demo   = Join-Path $repo "demo\spring-backend"
 $hostM2 = Join-Path $env:USERPROFILE ".m2\repository"
 $image  = "maven:3.9-eclipse-temurin-21"
-$volume = "specproof-maven-cache-1000"
+$defaultVolume = "specproof-maven-cache-1000"
+# Same knob sandbox/runner.py reads; naming a different volume here would
+# seed one cache and build from another.
+$volume = if ($env:SPECPROOF_SANDBOX_M2_VOLUME) { $env:SPECPROOF_SANDBOX_M2_VOLUME } else { $defaultVolume }
 
 Write-Output "== 1/5 ensure cache + workspaces volumes exist (uid 1000) =="
 docker volume create $volume | Out-Null
