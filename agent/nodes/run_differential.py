@@ -382,7 +382,13 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             "stdout": recorded_run.get("stdout", ""),
             "stderr": recorded_run.get("stderr", ""),
             "test_counts": recorded_run.get("test_counts", {}),
-            "error": "",
+            # #536: a reused run owes the reader the error it failed with.
+            # Hard-coding "" here made an exit -1 with no output fall
+            # through to the zero-tests guard, which then reported "the
+            # toolchain did not run the test" instead of the sandbox
+            # failure that actually happened. Records written before the
+            # producer carried this key still read as "" (unknown).
+            "error": recorded_run.get("error", ""),
         }
         if recorded_run.get("compile_error"):
             head_result["error"] = (

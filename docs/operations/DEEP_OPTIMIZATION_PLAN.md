@@ -17625,3 +17625,82 @@ verify.py；⑩ `contract_review` 词条；⑪ `verdict_channel_parity` 的 acce
 `uv sync --frozen`）；⑮ POM 自定义 `<resources>` 目录的回填规则（从 pom 派生资源根，或在
 回填前请属主自证）；⑯ 把回填整体挪进沙箱 uid（当前靠「删除 + 加宽」组合拳；属主才是根本
 解，代价是多一次容器调用）。
+
+## #536 复用的 head 运行必须把它自己的沙箱错误带出来（case-12 的真因）
+
+### 起因
+
+CI run 41067550985 的 `case-12-add-javadoc` 是 NOT_RUN，错误写着「Generated test
+executed no tests (base tests: 1, head tests: 0; exit codes base 0, head -1)」，而
+该用例的 `head_output` 长度是 0。代码上这句话不可能来自一次新的 head 运行：
+`_run_generated_test` 的每条失败路径都会设置 `error`（`sandbox/runner.py` 的
+exit -1 → "Sandbox execution failed: ..."），而 `run_differential.py` 的错误分支
+（`if base_result.get("error") or head_result.get("error")`）先于零测试守卫。带
+exit -1、空输出、空错误的零测试形状只能来自「复用 generation record」这条路：
+`generate_counterexamples.py` 记录 `record.head_run` 时只留了 exit_code /
+test_counts / compile_error / stdout / stderr，**丢掉了 `error`**；复用分支又把
+`"error"` 硬写成 `""`。于是沙箱失败被零测试守卫解释成「工具链没跑测试」。
+
+### 改前量到的
+
+- 仓库外平面（`git archive HEAD`，HEAD = `6bebe93`）跑新门：3 failed / 2 passed，
+  红名与事先写盘的预测逐字一致——producer 两例（record 里没有 `error` 键）+
+  consumer 一例（detail 是零测试话术、没有 "Maven execution error"）。另两例
+  （复用静默运行仍读作零测试、编译错误优先级）改前就是绿的。
+- 现有 producer 测试的 fake head run 本身就没有 `error` 键，说明这条记录的形状
+  从未包含错误——不是 mock 漏了，是生产记录漏了。
+
+### 改动
+
+- `agent/nodes/generate_counterexamples.py`：`record.head_run` 增记
+  `"error": head_run.get("error", "")`。旧记录没有该键，读取仍按 "" 处理，跨版本
+  resume 的行为不变。
+- `agent/nodes/run_differential.py`：复用分支
+  `"error": recorded_run.get("error", "")`（原来是 `""`）。
+- 新门 `tests/unit/test_a_reused_head_run_carries_its_sandbox_error.py`（5 例）：
+  producer 记下失败的错误；producer 健康运行记空错误（键的形状不随结果变）；
+  consumer 把记录的错误带进 "Maven execution error" 分支且 detail 不含零测试话术；
+  反向对照：没有记录错误的复用运行仍读作「executed no tests」；编译错误仍保留自己
+  的前缀。consumer 侧以「stub 表里没有 `maven_head`」为复用见证——一旦真去跑
+  Head 就 KeyError。
+
+### 改后量到的
+
+- 臂电池（预测先落盘；仓库外平面；逐臂字节替换并断言次数；按文件自身 EOL 归一；
+  跑完恢复并核对 sha256）：控制 5 绿；A1 consumer 重设空错误 → 只红 consumer
+  一例；A2 producer 恒记空 → 只红 producer 失败一例；A3 错误分支不再看 head →
+  红 consumer 与编译优先级两例；A4 零测试文案改名 → 红反向对照一例；A5 producer
+  只在编译错误时记 → 只红 producer 失败一例；A6 删编译覆盖 → 只红编译优先级一例。
+  7/7 MATCHED，BASELINE_OK。
+- 相关套件（本门 + 生成节点 + 差分零测试 + 零测试判据 + 差分可观测）：40 passed。
+- ruff 全绿；`mypy .` → 0 issues in 266 source files。
+- 真实 CI 复核：本笔推送后的同类失败会在 detail 里点名
+  "Sandbox execution failed: ..."，见下一节。
+
+### 诚实边界
+
+1. 本号只修复用路径的归因；更早版本已写进状态的 generation record 没有该键，
+   仍按 "" 读——那些在飞作业的 NOT_RUN 依旧只有零测试话术。
+2. 复用路径本身没有在 CI 上被重新触发（需要一次 generation-record 复用的失败）；
+   本地用节点级 stub 见证，CI 证据要等下一次同类失败时读 detail 文本。
+3. `error` 未像 stdout/stderr 一样截尾：当前它来自 `_run_generated_test` 的短句
+   （沙箱错误约 300 字符上限），若将来变长需要补截尾。
+4. 编译错误前缀仍优先于记录的错误（A3/A6 钉住）；一次运行同时编译失败且沙箱报错
+   时，读到的是编译前缀。
+
+### 下一号队列
+
+① eval 的 CI 门被 `| tee` 吞掉退出码（#537）：`Acceptance: INSUFFICIENT` 下作业
+仍绿，且唯一阴性用例 NOT_RUN 时三条 grep 门空转；② Web 给 `not_verified` 补中文
+标签＋「Web 标签表 ↔ 后端分类词表」对账门（等 `JobDetail.tsx` 所属车道落地后做）；
+③ 非 Java 树在 DEEP 的落地：扩展 adapter 计数，或在节点上就地披露「跑不了 ≠ 没跑出
+问题」；④ head 运行是否也要先证明执行过测试再让 repeats 的分类生效；⑤ 假清单 21
+vs 20（#478 在飞）；⑥ `checker_type_parity` 的 `?`；⑦ `gradle_adapter` 的 run 被
+调两次；⑧ `metric_inventory` 的 verify.py；⑨ `contract_review` 词条；⑩
+`verdict_channel_parity` 的 acceptance.py 非字面写；⑪ case-17 的 BLOCKER→MAJOR
+严重度漂移；⑫ 其余六个 profile 在真实工具链下的可写见证（当前只有 Maven 被 CI 实
+跑）；⑬ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` /
+`child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、
+`uv sync --frozen`）；⑭ POM 自定义 `<resources>` 目录的回填规则（从 pom 派生资源
+根，或在回填前请属主自证）；⑮ 把回填整体挪进沙箱 uid（当前靠「删除 + 加宽」组合
+拳；属主才是根本解，代价是多一次容器调用）。

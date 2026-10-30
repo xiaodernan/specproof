@@ -730,6 +730,11 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
             "exit_code": head_run.get("exit_code"),
             "test_counts": head_run.get("test_counts", {}),
             "compile_error": compile_error,
+            # #536: the sandbox error is the only witness for an exit -1
+            # (the reused run has no fresh output to explain it). Dropping
+            # it made CI report a zero-test comparison instead of the real
+            # cause.
+            "error": head_run.get("error", ""),
             "stdout": head_run.get("stdout", "")[-2000:],
             "stderr": head_run.get("stderr", "")[-2000:],
         }
