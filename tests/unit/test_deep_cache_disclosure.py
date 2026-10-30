@@ -65,7 +65,7 @@ def _drive(tmp_path: Path, monkeypatch, notes: list[str]) -> dict[str, Any]:
         return {"exit_code": 0, "error": "", "mode": "docker", "cache_note": note}
 
     monkeypatch.setattr(deep, "_run_test_via_sandbox", fake_run)
-    monkeypatch.setattr(deep, "_make_test_runner", lambda *a, **k: (lambda _c: (0, "")))
+    monkeypatch.setattr(deep, "_make_test_runner", lambda *a, **k: (lambda _c: (0, "", 0)))
     monkeypatch.setattr(
         "experiments.state_snapshot.capture_full_stack",
         lambda *a, **k: {"tables": {}, "queues": {}},

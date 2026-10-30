@@ -46,18 +46,19 @@ def test_boolean_mutant_flips_comparison():
 
 
 def test_campaign_classifies_killed_and_survived():
-    def test_runner(content: str) -> tuple[int, str]:
+    def test_runner(content: str) -> tuple[int, str, int]:
         # Kill any mutant that removes the annotation; others survive.
         if "@Transactional" not in content:
-            return 1, ""
-        return 0, ""
+            return 1, "", 4
+        return 0, "", 4
 
     report = run_mutation_campaign("UserService.java", SOURCE, test_runner)
     assert report.mutants_total >= 1
     assert report.killed >= 1  # annotation removal killed
     assert report.survived >= 1
+    assert report.not_run == 0
     assert report.to_dict()["mutation_score"] == round(
-        report.killed / report.mutants_total, 3
+        report.killed / (report.killed + report.survived), 3
     )
 
 

@@ -17272,3 +17272,83 @@ run 41033998469 的 `eval-golden-cases` 仍红，但红的是 **Recall 0.0%**：
 词条；⑧ `verdict_channel_parity` 的 acceptance.py 非字面写；⑨ case-17 的 BLOCKER→MAJOR
 严重度漂移；⑩ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` /
 `child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、`uv sync --frozen`）。
+## #532 零测试 / 工具链错误的运行不得制造「稳定」或「被杀」
+
+### 起因
+
+#531 的下一号队列①：DEEP 已把每次运行的 surefire 计数记进 `state_delta.head_test_counts`
+与每条 repeat 记录，但两个裁决读者都还没消费它。一次编译失败（或被 `-Dtest=` 选空的运行）
+退出码非零、零个测试执行；旧读法从退出码直接造出结论。
+
+### 改前量到的（HEAD 的三个文件，仓库外复制平面实测）
+
+同一次 DEEP 端到端（假 sandbox 恒返回 exit 1 / `compilation failed`、无 surefire 摘要，
+源码 5 个变异体、`SPECPROOF_DEEP_REPEATS=2`）：
+
+- `verdict_stability`：`classification = stable`，`verdicts = ['exit_1', 'exit_1']` ——
+  两次「什么都没跑」在旧读法里是「结论稳定」。
+- mutation 报告：`killed = 5`（= `mutants_total`）、`survived = 0`、
+  `mutation_score = 1.0`，且根本没有 `not_run` 这个键 —— 每个变异体都因编译失败被记账「被杀」。
+- `state_delta.head_test_counts = {}`：计数已入账，读者看不见。
+
+### 改动
+
+- `agent/verdict_stability.py`：`summarize` 对每条 run 先读 `tests_executed(run)`；为 0 的
+  run 投影成 `not_run` 而不是 `exit_N`，并计 `runs_without_execution`。序列只要含一条
+  `not_run` 就分类 `not_verified`（`contaminated` 仍优先）；计数是**必需证据**——
+  `test_counts` 缺失、非 dict、`tests` 非 int/为 bool/为负都读成 0，删键不能买回旧结论。
+- `experiments/mutation.py`：runner 合同加宽为 `(exit_code, error, tests_executed)`；
+  `MutationResult.tests_executed` / `not_run` 属性、报告 `not_run` 桶；`killed` 只在
+  「执行过且退出非零」成立，`survived` 只在执行过且退出零；`mutation_score` 的分母改成
+  已执行的变异体（`killed + survived`），全都没跑时是 0.0 而不是 1.0 或 0% 击杀率。
+- `agent/nodes/run_deep_experiments.py`：`_make_test_runner` 从 run 的
+  `test_counts.tests` 取数并回三元组；docstring/注释更新为「计数被两个裁决读者消费」。
+- 门：新 `tests/unit/test_zero_test_runs_are_not_verdicts.py`（11 例）——零计数序列、
+  缺键、六种畸形计数、混合执行/静默、污染优先、旧词表对照、变异体三分支、score 分母、
+  以及 DEEP 端到端（compile-failure 的整条链落盘为 `not_verified` / `not_run` 且源码恢复）。
+  旧门随合同加宽：`test_verdict_stability*.py`、`test_mutation.py`、
+  `test_deep_*` 与 `test_run_deep_experiments_node_execution_is_observable.py` 的夹具补计数、
+  零计数用例改钉 `not_verified`。
+
+### 改后量到的
+
+- 同一端到端（改后）：`classification = not_verified`、`verdicts = ['not_run', 'not_run']`、
+  `runs_without_execution = 2`；mutation `killed = 0`、`survived = 0`、`not_run = 5`、
+  `mutation_score = 0.0`；`head_test_counts` 仍为 `{}`（诚实：没有计数可记）。
+- 聚焦门：8 个文件 57 passed（含新门 11 例）；ruff 全绿；仓库 `mypy .` 267 个源文件 0 错。
+- 臂电池（预测先写盘，仓库根之外的复制平面，逐臂恢复后比 sha256，前后对照 + 全平面
+  2353 文件 at-rest 校验）：11 臂——A1 丢 `not_run` 投影、A2 把非 dict 计数当 1、
+  A3 删 `not_verified` 覆盖、A4 丢污染守卫、A5 `killed` 忽略执行、A6 `survived` 收静默、
+  A7 分母改 `mutants_total`、A8 runner 恒报 1、A9 `not_run` 恒 False、A10 repeat 丢计数、
+  A11 head 丢计数。首轮 10 臂 MATCHED、A10 预测少一条（预测 `AD1`，实测 `AD1 + V2`）；
+  按 JUnit 原文归因为真后果（V2 第 85 行断言 `not_verified` 不在旧三元词表里），修的是预测，
+  不是断言；复跑 11/11 MATCHED，两轮对照均 57 绿、平面 at rest。
+
+### 诚实边界
+
+1. Web 还不认识 `not_verified`：`JobDetail.tsx` 的 `DEEP_CLASSIFICATION_LABELS` 没有这个词，
+   页面会显示裸 token（不是错标签，是没翻译）。该文件被另一条在飞车道改着（工作树 `M`），
+   本号不动它；标签化与「Web 标签表 ↔ 后端分类词表」的对账门留成下一号。
+2. `craft/mutation.py` 里还有第二个变异引擎，仍以 `returncode != 0` 判 KILLED，同一缺陷
+   类；它目前没有已发布调用方（`run_mutation_testing` 只有定义），本号不扩面，登记为下一号。
+3. 只有 Java/Maven adapter 产 surefire 计数；非 Maven 树进 DEEP 会落到 registry 的未认领分支
+   （exit -1、计数空）→ 现在诚实读成 `not_verified`，但那是「跑不了」，不是测得的结论。
+4. 本机没有真 Docker Maven 运行：端到端腿用假 sandbox 结果驱动；计数语义仍由 #531 的
+   adapter 用例钉住（`Tests run: 2` 的解析），本号没有重新见证真实 surefire 输出。
+5. `mutation_score` 的含义变了：全都没执行时是 0.0。读者必须与 `not_run` 一起读，
+   否则 0.0 会被误读成「0% 击杀率」。
+6. 稳定性只看 repeats；head 运行的计数进 `state_delta`，不参与 `summarize`。head 是否也要
+   先证明「跑过测试」由下一号决定（本号不改变既有形状）。
+
+### 下一号队列
+
+① Web 给 `not_verified` 补中文标签，并加「Web 标签表 ↔ 后端分类词表」对账门（等
+`JobDetail.tsx` 所属车道落地后做）；② `craft/mutation.py` 的第二个变异引擎：接线或删除，
+并把它的 KILLED 判据对齐本号的「执行过才算」；③ 非 Java 树在 DEEP 的落地：扩展 adapter
+计数，或在节点上就地披露「跑不了 ≠ 没跑出问题」；④ head 运行是否也要先证明执行过测试
+再让 repeats 的分类生效；⑤ 静默宽捕下限 31（等 #527 的 walk 修复落地后一起降）；
+⑥ 假清单 21 vs 20（#478 在飞）；⑦ `checker_type_parity` 的 `?`；⑧ `gradle_adapter` 的
+run 被调两次；⑨ `metric_inventory` 的 verify.py；⑩ `contract_review` 词条；
+⑪ `verdict_channel_parity` 的 acceptance.py 非字面写；⑫ case-17 的 BLOCKER→MAJOR 严重度
+漂移；⑬ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` /
+`child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、`uv sync --frozen`）。

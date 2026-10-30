@@ -34,11 +34,15 @@ class TestClassifier:
 
     def test_summarize_schema(self) -> None:
         summary = summarize(
-            [{"exit_code": 0, "error": ""}, {"exit_code": 0, "error": ""}],
+            [
+                {"exit_code": 0, "error": "", "test_counts": {"tests": 3}},
+                {"exit_code": 0, "error": "", "test_counts": {"tests": 3}},
+            ],
         )
         assert summary["repeat_count"] == 2
         assert summary["verdicts"] == ["exit_0", "exit_0"]
         assert summary["classification"] == "stable"
+        assert summary["runs_without_execution"] == 0
 
 
 class TestDeepStabilityWiring:
@@ -59,10 +63,11 @@ class TestDeepStabilityWiring:
 
         monkeypatch.setattr(deep, "_run_test_via_sandbox", lambda app, t: {
             "exit_code": 0, "error": "", "mode": "fake", "cache_note": "",
+            "test_counts": {"tests": 1},
         })
         monkeypatch.setattr(
             deep, "_make_test_runner",
-            lambda *a, **k: (lambda _c: (0, "")),
+            lambda *a, **k: (lambda _c: (0, "", 1)),
         )
         # Fake the full-stack storage captures (no live infra in unit tests).
         monkeypatch.setattr(

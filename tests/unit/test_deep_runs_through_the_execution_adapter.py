@@ -105,7 +105,7 @@ class TestTheArtifactCarriesWhatRan:
             adapters, "run_sandboxed",
             lambda *a, **k: _fake_sandbox_result(stdout, cache_note),
         )
-        monkeypatch.setattr(deep, "_make_test_runner", lambda *a, **k: (lambda _c: (0, "")))
+        monkeypatch.setattr(deep, "_make_test_runner", lambda *a, **k: (lambda _c: (0, "", 0)))
         monkeypatch.setattr(
             "experiments.state_snapshot.capture_full_stack",
             lambda *a, **k: {"tables": {}, "queues": {}},
@@ -148,11 +148,17 @@ class TestTheArtifactCarriesWhatRan:
         """The blind run is now countable: no summary reads as 0, not as green.
 
         Maven prints no "Tests run:" line for a run whose selector matched
-        nothing, so this is the shape the adapter's counts must expose. The
-        stability classification still reads exit codes alone — consuming
-        these counts there is the next unit, not this one.
+        nothing, so this is the shape the adapter's counts must expose. Since
+        #532 the counts are consumed, not just recorded: a stability sequence
+        made of these runs classifies ``not_verified`` — the exit_0 of a run
+        that executed nothing is not a verdict.
         """
         out = self._drive(tmp_path, monkeypatch, stdout="", cache_note="")
-        counts = out["deep_results"]["state_delta"]["head_test_counts"]
+        results = out["deep_results"]
+        counts = results["state_delta"]["head_test_counts"]
         assert counts == {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
-        assert "cache_integrity" not in out["deep_results"]
+        stability = results["verdict_stability"]
+        assert stability["classification"] == "not_verified"
+        assert stability["verdicts"] == ["not_run", "not_run"]
+        assert stability["runs_without_execution"] == 2
+        assert "cache_integrity" not in results

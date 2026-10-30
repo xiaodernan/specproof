@@ -11,9 +11,18 @@ each mutant:
            of defect
   SURVIVED the test passed on the mutant → test weakness (a real gap in
            the verification coverage)
+  NOT_RUN  the run executed no tests (build/toolchain failure, or a
+           selector that matched nothing) → nothing was measured
 
 Surviving mutants are NOT reported as findings — they are reported as
 TEST WEAKNESSES (the spec: "存活变异体不自动视为 Bug").
+
+Only a run that executed tests can kill or spare a mutant (backlog #532).
+Before this unit ``killed = exit_code != 0``, so a mutant that failed to
+compile — or any toolchain error — was booked as KILLED. The mutation
+score's denominator is therefore the executed mutants (killed + survived);
+not_run is published as its own count so the campaign's coverage of the
+mutant set is visible instead of being folded into a rate.
 """
 
 from __future__ import annotations
@@ -114,7 +123,12 @@ class MutationResult:
     description: str
     killed: bool
     test_exit_code: int
+    tests_executed: int = 0
     error: str = ""
+
+    @property
+    def not_run(self) -> bool:
+        return self.tests_executed == 0
 
 
 @dataclass
@@ -124,16 +138,18 @@ class MutationReport:
     killed: int
     survived: int
     results: list[MutationResult]
+    not_run: int = 0
 
     def to_dict(self) -> dict[str, Any]:
+        executed = self.killed + self.survived
         return {
             "file": self.file,
             "mutants_total": self.mutants_total,
             "killed": self.killed,
             "survived": self.survived,
+            "not_run": self.not_run,
             "mutation_score": (
-                round(self.killed / self.mutants_total, 3)
-                if self.mutants_total else 0.0
+                round(self.killed / executed, 3) if executed else 0.0
             ),
             "results": [
                 {
@@ -142,6 +158,8 @@ class MutationReport:
                     "description": r.description,
                     "killed": r.killed,
                     "test_exit_code": r.test_exit_code,
+                    "tests_executed": r.tests_executed,
+                    "not_run": r.not_run,
                     "error": r.error,
                 }
                 for r in self.results
@@ -162,32 +180,37 @@ def generate_mutants(content: str, max_mutants: int = 20) -> list[Mutant]:
 def run_mutation_campaign(
     source_path: str,
     source_content: str,
-    test_runner: Callable[[str], tuple[int, str]],
+    test_runner: Callable[[str], tuple[int, str, int]],
     max_mutants: int = 20,
 ) -> MutationReport:
     """Mutate source, run the test on each mutant, classify kill/survive.
 
-    test_runner(content) -> (exit_code, error): runs the generated test
-    against a workspace where the source file was replaced by content.
-    0 = test passed = mutant SURVIVED; non-zero = KILLED.
+    test_runner(content) -> (exit_code, error, tests_executed): runs the
+    generated test against a workspace where the source file was replaced by
+    content. Zero executed tests means the run never measured the mutant —
+    a build failure or a selector that matched nothing — and is recorded as
+    not_run; only an executed run can KILL (non-zero) or SURVIVE (zero).
     """
     mutants = generate_mutants(source_content, max_mutants)
     results: list[MutationResult] = []
     for mutant in mutants:
-        exit_code, error = test_runner(mutant.content)
-        killed = exit_code != 0
+        exit_code, error, tests_executed = test_runner(mutant.content)
+        executed = tests_executed > 0
+        killed = executed and exit_code != 0
         results.append(MutationResult(
             mutant_id=mutant.mutant_id,
             operator=mutant.operator,
             description=mutant.description,
             killed=killed,
             test_exit_code=exit_code,
+            tests_executed=tests_executed,
             error=error,
         ))
     return MutationReport(
         file=source_path,
         mutants_total=len(mutants),
         killed=sum(1 for r in results if r.killed),
-        survived=sum(1 for r in results if not r.killed and not r.error),
+        survived=sum(1 for r in results if r.tests_executed > 0 and not r.killed),
+        not_run=sum(1 for r in results if r.not_run),
         results=results,
     )

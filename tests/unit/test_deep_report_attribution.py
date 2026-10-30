@@ -38,7 +38,7 @@ def _drive(reports: Path, monkeypatch, job_id: str, note: str) -> dict[str, Any]
         }
 
     monkeypatch.setattr(deep, "_run_test_via_sandbox", fake_run)
-    monkeypatch.setattr(deep, "_make_test_runner", lambda *a, **k: (lambda _c: (0, "")))
+    monkeypatch.setattr(deep, "_make_test_runner", lambda *a, **k: (lambda _c: (0, "", 0)))
     monkeypatch.setattr(
         "experiments.state_snapshot.capture_full_stack",
         lambda *a, **k: {"tables": {}, "queues": {}},

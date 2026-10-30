@@ -114,7 +114,7 @@ def test_completed_runs_the_full_campaign(
     )
 
     campaign_calls: list[tuple[str, int]] = []
-    runner_results: list[tuple[int, str]] = []
+    runner_results: list[tuple[int, str, int]] = []
 
     def fake_campaign(rel_path, content, runner, max_mutants=10):
         campaign_calls.append((rel_path, max_mutants))
@@ -168,7 +168,7 @@ def test_completed_runs_the_full_campaign(
     # Mutation campaign: one changed source, ten-mutant budget, and the
     # runner it was handed actually swapped and restored the file.
     assert campaign_calls == [("Svc.java", 10)]
-    assert runner_results == [(0, "")]
+    assert runner_results == [(0, "", 0)]
     assert source_path.read_text(encoding="utf-8") == original_source, (
         "the mutation runner must restore the original source after the run"
     )

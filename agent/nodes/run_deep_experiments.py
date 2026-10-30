@@ -25,8 +25,10 @@ Under ``-q`` a passing surefire run prints no "Tests run:" summary, so a
 selector that matched nothing looked exactly like a green run; DEEP kept
 that flag while recording only exit codes. The run now returns the
 executed test counts alongside the exit evidence, and they reach the
-artifact (a subsequent unit makes the stability/mutation readers consume
-them instead of reading exit codes alone).
+artifact. Backlog #532 then makes both verdict readers consume them: a
+stability sequence containing a zero-test run classifies as
+``not_verified``, and a mutant run that executed no tests is reported as
+``not_run`` instead of killed.
 
 Counters (#198): ``run_deep_experiments_runs_total`` counts every
 invocation and ``run_deep_experiments_outcomes_<word>_total`` records how
@@ -180,8 +182,8 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
 
     # What the sandbox said about the cache these runs consumed. Derived from
     # the full run views (head run + stability repeats); the mutation runner
-    # is contracted to (exit_code, error) by run_mutation_campaign, so it
-    # cannot carry a note.
+    # is contracted to (exit_code, error, tests_executed) by
+    # run_mutation_campaign, so it cannot carry a note.
     cache_integrity = _cache_integrity_disclosure(run_views)
     if cache_integrity:
         results["cache_integrity"] = cache_integrity
@@ -213,9 +215,14 @@ def run_deep_experiments_node(state: Phase0State) -> dict[str, Any]:
 def _make_test_runner(
     app: str, rel_path: str, generated_tests_path: str,
     job_id: str | None = None,
-) -> Callable[[str], tuple[int, str]]:
+) -> Callable[[str], tuple[int, str, int]]:
     """Runner that swaps a mutated source into the workspace and runs the
-    generated test via the sandbox. Returns (exit_code, error).
+    generated test via the sandbox. Returns (exit_code, error, tests_executed).
+
+    The count is what separates a killed mutant from a run that never
+    measured it (#532): a mutant whose build fails exits non-zero with zero
+    tests, exactly like a toolchain error, and neither is evidence about the
+    test's strength.
 
     §14 任务 8: each mutant's Maven run carries before+after cancellation
     checkpoints; the finally-block still restores the original source even
@@ -224,7 +231,7 @@ def _make_test_runner(
 
     target = Path(app) / "src" / "main" / "java" / rel_path
 
-    def runner(mutated_content: str) -> tuple[int, str]:
+    def runner(mutated_content: str) -> tuple[int, str, int]:
         original = target.read_text(encoding="utf-8")
         try:
             target.write_text(mutated_content, encoding="utf-8")
@@ -232,7 +239,8 @@ def _make_test_runner(
                 job_id, "deep_mutation_run",
                 _run_test_via_sandbox, app, generated_tests_path,
             )
-            return run["exit_code"], run["error"]
+            counts = run.get("test_counts") or {}
+            return run["exit_code"], run["error"], int(counts.get("tests") or 0)
         finally:
             target.write_text(original, encoding="utf-8")
 
