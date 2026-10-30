@@ -538,3 +538,14 @@ P3 __all__ 里去掉 counter names → 1 红 (export parity) ✅
 - 6 failed 归因: 5 个 `test_env_template_binds_the_compose_knobs.py` = 并发 lane 未提交的 .env/组合旋钭在途文件; 1 个 `test_metric_inventory_lists_every_emission_site.py` = **本批次的账**: OBSERVABILITY.md §8.10 指标清单声称“唯一合法来源是上报点”, 新模块 storage/invoice_cron.py 上报了四个计数器+一个仪表却没有字条, 同批补登 (并把手数句三十四→三十五), 复跑 6 passed。
 - 双向门: 11 项先红后绿 (import 红→全绿); 变异探针 8/8 预测红集==实测红集, 每次 content-capture 还原 + sha256 校验 (B1 给未关闭月开票 / B2 无订阅也按仲网价开票 / B3 单租户失败终止整月 / B4 每个 tick 重执 / B5 重执报“新生成” / B6 只看订阅表看不见用量-only 租户 / B7 last_success 仪表不更新 / B8 未配 URL 也合成库)。
 - 仍未落地 (如实): 发票签发流的操作入口 (draft→issued→paid 状态机已在 W148 落存储层, 但没有操作员入口/网页); 每作业成本的 UI 接线; compose 里的 invoice-cron 服务行与 9103 抓取目标。
+
+**2026-10-30 部署入口补齐 (invoice-cron 上 compose 生产栈)**: FIX-27 登记的
+「compose 三文件、两个 Dockerfile、scripts 与 .github 都不名这个模块」已收口
+一半——compose.production.yml 新增 invoice-cron 服务 (billing profile 门控,
+SPECPROOF_BILLING_URL 由 MYSQL_* 变量构造指向主库, billing_* 表自建于该库;
+INVOICE_CRON_METRICS_PORT=9103 仅 expose 不映射宿主, E4 的豁免号设计不动),
+prometheus 名册加 invoice-cron:9103 抓取行并配 SpecproofInvoiceCronDown
+存活探针 (R6 推导: 武装了的进程要有存活信号; billing profile 未启用时该
+告警属预期, warning 档)。start_local.ps1 **刻意不加**: 轻量模式无 MySQL,
+billing off 即 no-op-exit, 起一个立即退出的进程是噪音。发票签发流的操作
+入口 (draft→issued→paid 的操作员界面) 与每作业成本 UI 接线仍开放。

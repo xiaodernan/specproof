@@ -206,6 +206,34 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # Invoice cron (FIX-27 的部署入口): 每个已关闭月为每个租户幂等生成草票
+  # (python -m storage.invoice_cron)。挂在 billing profile 上——计费默认关
+  # (模块自己的语义: SPECPROOF_BILLING_URL 未设置时启动即诚实的 no-op),
+  # 启用需 docker compose --profile billing up -d invoice-cron。
+  # 9103 是指标端口 (#272 的豁免号): 不映射宿主、不进抓取名册 (E4 钉住
+  # 部署面无人占用它), 排障用 docker compose exec invoice-cron curl。
+  # 计费库与主库同库 (billing_* / usage_ledger / invoices 表自建于
+  # MYSQL_DATABASE 指向的库), 凭据与 outbox-relay 同源。
+  invoice-cron:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    command: ["python", "-m", "storage.invoice_cron"]
+    restart: unless-stopped
+    profiles: ["billing"]
+    environment:
+      SPECPROOF_ENV: production
+      SPECPROOF_BILLING_URL: mysql://${MYSQL_USER:?set MYSQL_USER}:${MYSQL_PASSWORD:?set MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-specproof_phase0}
+      MYSQL_HOST: mysql
+      MYSQL_CONNECT_TIMEOUT: ${MYSQL_CONNECT_TIMEOUT:-5}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
+      INVOICE_CRON_METRICS_PORT: "9103"
+    expose:
+      - "9103"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
   # DooD sandbox daemon (§12: no /var/run/docker.sock anywhere).
   # docker:dind (privileged) — this is Docker-in-Docker, NOT host-socket
   # passthrough: the worker has no access to the host daemon, and the

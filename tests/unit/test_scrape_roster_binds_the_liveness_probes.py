@@ -76,7 +76,7 @@ _FAMILY_OWNERS: dict[str, tuple[str, ...]] = {
     # specproof_* is emitted by observability/metrics.py and served by every
     # process that imports it — the three /metrics jobs running this repo's
     # code. The third-party jobs serve none of it.
-    "specproof_": ("api", "worker", "outbox-relay"),
+    "specproof_": ("api", "worker", "outbox-relay", "invoice-cron"),
     # rabbitmq_prometheus plugin output; served only by its own job, and only
     # under /metrics/per-object for the per-queue series the alerts select.
     "rabbitmq_": ("rabbitmq",),
@@ -96,6 +96,9 @@ _UNPROBED_JOBS: dict[str, str] = {
         "no deployed rule reads a family this job serves, so its down state "
         "cannot silence an alert"
     ),
+    # invoice-cron 曾住在这里（billing profile 未启用时合法 down）; 2026-10-30
+    # 部署入口落地后配了 SpecproofInvoiceCronDown 探针，按 R6 的推导豁免过期
+    # 已删除——武装了的进程要有存活信号。
 }
 
 _PROM_FENCE = re.compile(r"^(?P<header>.*?)^global:", re.S | re.M)

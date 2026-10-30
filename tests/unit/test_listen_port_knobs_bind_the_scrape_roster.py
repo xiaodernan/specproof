@@ -118,6 +118,12 @@ DEFAULT_METRICS_PATH = "/metrics"
 _LISTEN_PORT_KNOBS = {
     "WORKER_METRICS_PORT": "worker",
     "OUTBOX_RELAY_METRICS_PORT": "outbox-relay",
+    # M8-T70b (2026-10-30): the compose production stack arms the invoice cron
+    # (compose.production.yml 的 invoice-cron 服务, billing profile), so the
+    # port has a real scrape job (invoice-cron:9103) and this knob moved out of
+    # _UNROSTERED_LISTENERS per L15's own rule — the exemption's premise
+    # ("no deploy file names the module") is gone.
+    "INVOICE_CRON_METRICS_PORT": "invoice-cron",
 }
 
 #: env name -> (declaring file, dotted module a deploy file would name) for a
@@ -125,9 +131,10 @@ _LISTEN_PORT_KNOBS = {
 #: the exemption honest in both directions: it re-reads the deploy census and the
 #: roster, and either fact changing means the entry leaves this table and joins
 #: ``_LISTEN_PORT_KNOBS`` with its job, evidence class and path source.
-_UNROSTERED_LISTENERS: dict[str, tuple[str, str]] = {
-    "INVOICE_CRON_METRICS_PORT": ("storage/invoice_cron.py", "storage.invoice_cron"),
-}
+#: 目前为空: INVOICE_CRON_METRICS_PORT 曾住在这里（「repo 构建了它但名册
+#: 不抓它」），2026-10-30 compose 生产栈武装 invoice-cron 后按 L15 的规则
+#: 搬进 _LISTEN_PORT_KNOBS。新 listener 若名册不抓，仍走这张表。
+_UNROSTERED_LISTENERS: dict[str, tuple[str, str]] = {}
 
 #: Files allowed to start a metrics HTTP server. L2 re-derives this from a
 #: repo-wide call-site census, so a third process must be declared here — with
@@ -149,6 +156,7 @@ _PATH_SOURCES: dict[str, tuple[str, str]] = {
     "api": ("api/server.py", "route"),
     "worker": ("observability/metrics_http.py", "comparison"),
     "outbox-relay": ("observability/metrics_http.py", "comparison"),
+    "invoice-cron": ("observability/metrics_http.py", "comparison"),
 }
 
 #: What backs each job's port, on the provider's own side. L1 recomputes the set
@@ -158,6 +166,9 @@ _EVIDENCE: dict[str, frozenset[str]] = {
     "api": frozenset({"compose-publish", "code-path"}),
     "worker": frozenset({"code-listen", "code-path"}),
     "outbox-relay": frozenset(
+        {"compose-expose", "compose-env-literal", "code-listen", "code-path"}
+    ),
+    "invoice-cron": frozenset(
         {"compose-expose", "compose-env-literal", "code-listen", "code-path"}
     ),
     "otel-collector": frozenset({"compose-publish", "config-endpoint"}),

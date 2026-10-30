@@ -65,6 +65,9 @@ _LIVENESS_RULES = {
     "SpecproofWorkerDown",
     "SpecproofOutboxRelayDown",
     "SpecproofRabbitMQExporterDown",
+    # M8-T70b: invoice cron 的部署入口落地 (compose billing profile) 后配的
+    # 存活探针——无 (VAR=value) 槽, 与其余四个同一豁免。
+    "SpecproofInvoiceCronDown",
 }
 
 #: Rules whose expr fires on the FAILURE share: the declared SLO figure is the

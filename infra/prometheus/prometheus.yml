@@ -1,11 +1,12 @@
 # SpecProof Prometheus (PRODUCTION_SPEC §17 Observability Profile)
 #
-# 抓取目标 (6 个 job 与下面的清单由 #220 的门逐条对账; 除 prometheus 自身抓
+# 抓取目标 (7 个 job 与下面的清单由 #220 的门逐条对账; 除 prometheus 自身抓
 # localhost:9090 之外全部为服务名 DNS, 依赖与 api/worker 同 compose 网络;
 # 见 compose.observability.yml 注释):
 #   api:8000/metrics            ← FastAPI /metrics (api/metrics.py → observability/metrics.py)
 #   worker:9100/metrics         ← worker 进程内 /metrics (observability/metrics_http.py, WORKER_METRICS_PORT)
 #   outbox-relay:9101/metrics   ← outbox relay 进程内 /metrics (OUTBOX_RELAY_METRICS_PORT; 应用栈部署 relay 服务后生效)
+#   invoice-cron:9103/metrics   ← invoice cron 进程内 /metrics (INVOICE_CRON_METRICS_PORT; 仅 billing profile 启用后生效, 否则 down)
 #   otel-collector:8889/metrics ← OTel Collector 内嵌 prometheus exporter
 #   rabbitmq:15692/metrics/per-object ← rabbitmq_prometheus 插件的每队列渲染
 #   localhost:9090/metrics      ← Prometheus 自身
@@ -48,6 +49,14 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["outbox-relay:9101"]
+
+  # invoice cron 挂在 billing profile (compose.production.yml 的 invoice-cron
+  # 服务, FIX-27 的部署入口; 未启用该 profile 时本目标 down, 不影响其他抓取 —
+  # 与 worker/outbox-relay 的「可选目标」同一语义)。
+  - job_name: invoice-cron
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["invoice-cron:9103"]
 
   # rabbitmq 经自带插件 rabbitmq_prometheus 抓取 (#165): 该插件在
   # rabbitmq:4.0-management-alpine 里已随镜像启用 (容器内 rabbitmq-plugins

@@ -8,7 +8,7 @@
 | 服务 | 镜像 | 端口 | 职责 |
 |---|---|---|---|
 | otel-collector | otel/opentelemetry-collector-contrib:0.123.0 | 4317 (OTLP gRPC) / 4318 (OTLP HTTP) / 8889 (prom exporter) | 接收 api/worker 的 OTLP 数据; 指标经内嵌 prometheus exporter 暴露, Trace 走 debug exporter (无外部后端) |
-| prometheus | prom/prometheus:v3.3.1 | 9090 | 15s 抓取: api:8000/metrics、worker:9100/metrics、outbox-relay:9101/metrics、otel-collector:8889、rabbitmq:15692/metrics/per-object、自身 (localhost:9090); 规则 alerts-slo.yml |
+| prometheus | prom/prometheus:v3.3.1 | 9090 | 15s 抓取: api:8000/metrics、worker:9100/metrics、outbox-relay:9101/metrics、invoice-cron:9103/metrics (billing profile 启用后 up)、otel-collector:8889、rabbitmq:15692/metrics/per-object、自身 (localhost:9090); 规则 alerts-slo.yml |
 | grafana | grafana/grafana:11.6.1 | 3000 | provisioning 自动接 Prometheus 数据源 + SLO 看板 (uid: specproof-slo) |
 
 数据流: api / worker / outbox-relay (进程内 registry, observability/metrics.py)

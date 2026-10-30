@@ -91,6 +91,19 @@ groups:
           summary: "SpecProof outbox relay 抓取目标 down"
           description: "{{ $labels.instance }} 超过 5 分钟不可抓取 (§14: Job 不丢失依赖 Outbox 投递)。"
 
+      # invoice cron 的存活探针: 武装了的进程 (compose billing profile) 要有
+      # 存活信号。billing profile 未启用的部署里此告警属预期 (warning 档,
+      # 不常红不阻断) —— 或者部署侧移除该抓取目标 (与 #272 的豁免号设计
+      # 一致: 部署面不为 9103 声明宿主占用)。
+      - alert: SpecproofInvoiceCronDown
+        expr: up{job="invoice-cron"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof invoice cron 抓取目标 down"
+          description: "{{ $labels.instance }} 超过 5 分钟不可抓取 (§14: 计费月账单由该进程生成, down 即月度开票停摆)。billing profile 未启用时属预期。"
+
       # rabbitmq 导出器的存活探针不是凑数: 下面两条 broker 侧规则的序列
       # (rabbitmq_queue_messages / _ready) 只有这个抓取任务的
       # /metrics/per-object 渲染能提供, 而 PromQL 对无序列的表达式永不
