@@ -5,7 +5,7 @@ gates and one claim: "craft/'s 5 locale-decoded captures + 3 `TimeoutExpired`
 branches that read `.stdout` directly". Measured here (#513), the claim was half
 wrong, and the wrong half is the interesting part:
 
-* The five captures are real. `subprocess.run(..., text=True)` with no
+* The five captures were real. `subprocess.run(..., text=True)` with no
   `encoding=` decodes with `locale.getpreferredencoding()`, which on this host
   is cp936. Measured on three interpreters (3.11 / 3.12 / 3.14) in the same
   tree: a child that writes UTF-8 makes the reader thread die inside
@@ -14,7 +14,10 @@ wrong, and the wrong half is the interesting part:
   that failed loudly looks identical to a build that printed nothing. In
   `craft/mutation.py` the same event raised `TypeError` on
   `result.stdout + result.stderr`, which the broad handler booked as
-  `MutationStatus.ERROR` — a killed mutant recorded as an infra error.
+  `MutationStatus.ERROR` — a killed mutant recorded as an infra error. That
+  module turned out to have no published caller (it was the dead second
+  mutation engine) and #535 deleted it; the captured-in-tree sites pinned
+  below are the four adapters.
 * The three timeout branches were **not** reading raw bytes. Each one decoded
   correctly, through a private `_as_text` copy (Go and Node byte-identical,
   Gradle differing only by passing `errors` positionally, which is why the
@@ -55,7 +58,6 @@ from craft.adapters.go_adapter import GoAdapter
 from craft.adapters.gradle_adapter import GradleAdapter
 from craft.adapters.node_adapter import NodeAdapter
 from craft.adapters.protocol import RuntimeProfile
-from craft.mutation import MutationStatus, run_mutation_testing
 from tests._host_codec import host_prefers
 
 REPO = Path(__file__).resolve().parents[2]
@@ -205,34 +207,6 @@ def test_the_gradle_dependency_probe_names_its_codec(
     _assert_codec_is_named(
         fake.kwargs, "craft/adapters/gradle_adapter.py::_collect_dependency_tree"
     )
-
-
-def test_the_mutant_test_run_names_both_ends_of_the_codec(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """`craft/mutation.py` runs a *Python* child, so it can pin the child too.
-
-    #111 measured that naming only one end is a coin flip. This is the one site
-    in the lane where both ends belong to us, and the two names must agree.
-    """
-    (tmp_path / "subject.py").write_text("def flag(x):\n    return x > 1\n", encoding="utf-8")
-    fake = _ChildRun(returncode=1, stdout="FAILED subject.py::test_flag\n", stderr="")
-    monkeypatch.setattr(subprocess, "run", fake)
-    report = run_mutation_testing(
-        project_root=tmp_path,
-        language="python",
-        test_command=[sys.executable, "-m", "pytest", "-q"],
-        source_patterns=["subject.py"],
-        max_mutants=1,
-    )
-    _assert_codec_is_named(fake.kwargs, "craft/mutation.py::run_mutation_testing")
-    child_env = fake.kwargs["env"]
-    assert isinstance(child_env, dict), "the mutation run must hand the child an env it controls"
-    assert child_env["PYTHONIOENCODING"] == fake.kwargs["encoding"], (
-        "the parent decodes one codec while the child is told to emit another"
-    )
-    assert report.mutants, "no mutant was produced, so nothing below is evidence"
-    assert report.mutants[0].status is MutationStatus.KILLED
 
 
 # --- the killed child --------------------------------------------------------

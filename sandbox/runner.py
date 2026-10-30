@@ -516,7 +516,8 @@ def _ensure_writable_mounts(workspace: str, profile: SandboxProfile) -> str:
         path = os.path.join(workspace, rel)
         try:
             os.makedirs(path, exist_ok=True)
-            os.chmod(path, 0o777)  # nosec B103 — throwaway worktree build output
+            # workload uid must own build output; throwaway worktree (#533)
+            os.chmod(path, 0o777)  # nosec B103
         except OSError as exc:
             return f"cannot create workspace target dir: {exc}"[:300]
     return ""

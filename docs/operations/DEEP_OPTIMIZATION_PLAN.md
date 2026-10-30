@@ -17495,7 +17495,19 @@ recall 门红。Docker Desktop 的共享挂载忽略模式，本机全绿。
   classes → seed 一例红；K4 复制前加宽 → 两例红；K5 删资源删除 → 资源一例红；K6 复制前删
   → 资源一例红。6/6 MATCHED。
 - 聚焦套件（本门 + 差分可观测 + LLM 反例路径）：28 passed、2 skipped；ruff 全绿；mypy 0 错。
-- CI 复核：#534 提交推送后见下一节（待补）。
+- CI 复核（run 41067550985，HEAD `1745654`）：`eval-golden-cases` 成功——这是 Maven
+  profile 第一次在 CI 里真构建、真跑测试。工件（`eval-report.results.jsonl`）4 个用例
+  3 PASS、1 NOT_RUN：`case-17/21/56` PASS（各命中 1 条），`case-12-add-javadoc` NOT_RUN，
+  错误原文「Generated test executed no tests (base tests: 1, head tests: 0; exit codes
+  base 0, head -1)」，且该用例的 `head_output` 长度 0；汇总 recall/precision 均 100.0、
+  false positives 0、`negative_cases` 0、`Acceptance: INSUFFICIENT`（`min_negative_cases`
+  1 未达）。这两件事各是一号缺陷（#536/#537），不是本号的回退：NOT_RUN 本身是响的，但
+  它写的原因不是真因，而未达标的验收在 CI 上仍绿。
+- 同一 run 的 `tests-no-infra`：14 failed / 6082 passed / 35 skipped（1210s）。与上一笔
+  （HEAD `edc7953`，#533）的 14 failed / 6077 passed 是**同一组 14 个用例**：本号没有新增
+  红，只多 5 条绿。14 条里 10 条属别道在飞队列（⑥⑦⑧⑨⑩⑪），3 条是我 #533 那行 `# nosec`
+  的尾注散文被 bandit 当测试 id 读（`tests/security` ×2 + `test_sql_text_static` ×1），
+  1 条是 #523 留下的静默宽捕下限（实测 31，地板 33）。后 4 条由下一节的 #535 一并修掉。
 
 ### 诚实边界
 
@@ -17528,3 +17540,88 @@ run 被调两次；⑨ `metric_inventory` 的 verify.py；⑩ `contract_review` 
 ⑮ POM 自定义 `<resources>` 目录的回填规则（从 pom 派生资源根，或在回填前请属主自证）；
 ⑯ 把回填整体挪进沙箱 uid（当前靠「删除 + 加宽」组合拳；属主才是根本解，代价是多一次
 容器调用）。
+
+## #535 第二个变异引擎是死的：删掉它，并用结构门钉住「只有一个引擎」
+
+### 起因
+
+`craft/mutation.py` 是第二套变异引擎（Python/Go/JS/TS，537 行），它的 KILLED 判据是
+`returncode != 0`：编译错误、选择器一个都没匹配上，都会记成 kill——正是 #532 在出货引擎
+里修掉的缺陷。它自己的单测还把这种形状钉成了合同（一个从不执行测试的失败子进程被断言成
+`MutationStatus.KILLED`）。生产读者为零：benchmark 的生产者 `scripts/mutation_bench_lib.py`
+import 的是 `experiments.mutation` 的 `generate_mutants`（出货引擎）；死引擎的读者只有它
+自己的单测、一处 codec 钉、一个本机 runner 的文件清单。
+
+### 改前量到的
+
+- `scripts/mutation_bench_lib.py` 从 `experiments.mutation` 取 `generate_mutants`；除
+  `craft/mutation.py` 自身与上述三个读者外，没有任何 import。
+- 死引擎带 2 条有理由的静默宽捕；删掉后静默宽捕普查 31 → 29。
+- HEAD 的静默宽捕地板**本来就是红的**：地板 33、实测 31。#523（`3494441`）把
+  `retrieval/rerank.py` 的 3 条静默返回改可见了 2 条（3 → 1），但没有同步降地板。这是
+  在 `git archive HEAD` 的干净平面里逐次量出来的，不是推断。
+- 选择删除而不是接线：接线需要给第二套引擎配自己的沙箱、自己的计数合同和读者，而它的
+  KILLED 形状与 #532 相对立；出货引擎「执行过才算」的钉子已在
+  `tests/unit/test_zero_test_runs_are_not_verdicts.py`。
+
+### 改动
+
+- 删除 `craft/mutation.py` 与 `tests/unit/test_mutation_engine.py`（含那条假钉）。
+- `tests/unit/test_craft_child_output_codec_is_named.py`：去掉死引擎 import 与那例
+  mutant-run codec 测试；docstring 改为「五次捕获都是真的」并点名 #535。
+- 新增 `tests/unit/test_there_is_one_mutation_engine.py`（3 例）：引擎路径从 bench 的
+  import 派生（不手写）；出货名册从 `pyproject.toml` 的 `packages.find.include` 派生；
+  顶层函数/类名（小写后）含 `mutant`/`mutation` 才算「变异形」；夹具钉住「定义算、提及不算」、
+  两套引擎的形状都认得、嵌套 helper 不算；普查必须扫到 >100 个出货模块，且命中集合必须
+  恰为 `{engine}`，否则点名第二个引擎并给出「接线或删除」。
+- 静默宽捕地板 33 → 29：注释按提交逐笔写明（#508 量到 34 → #509 删 1 → #523 改可见 2 但
+  未降地板 → #535 删 2），并声明「删 handler 就要同笔降地板」。
+- 顺带修掉我 #533 在 CI 上造成的 3 条红：`sandbox/runner.py:519` 的理由挪到上一行，指令
+  尾巴只留 `B103`（bandit 把指令后的散文当测试 id 读）。
+- 本机 runner `run_tests_no_mysql.py` 是未跟踪文件，只在其清单里去掉死测试，不入库。
+
+### 改后量到的
+
+- 臂电池（预测先落盘；仓库外的平面；逐臂字节编辑并断言替换次数；控制臂先跑；跑完恢复并
+  核对 sha256）：控制 3 passed；K1 还原死引擎 → 普查门红；K2 引擎搬到别处 → 普查门红；
+  K3 检测器下探嵌套 → 定义夹具红；K4 名册缩水 → 普查门红；K5 名称部件缩成
+  `("mutation",)` → 定义夹具红 + bench 两入口红；K6 bench 不再 import 引擎 → 派生断言红。
+  修正两条预测后 7/7 MATCHED——两条都是**预测缺陷，不是臂错**：
+  - K5 的预测只写了定义夹具红，漏了 bench 两入口：名规则缩水后 `generate_mutants` 不再被
+    看见，`test_the_bench_reaches_the_one_engine_and_it_defines_both_entries` 的「两入口」
+    子句也会响。
+  - K6 最初把 `BENCH` 指向不存在的路径，`_bench_import` 在 `read_text` 就死了，没走到它
+    自己的 AssertionError——「派生失败要响亮」这句没有被见证。改指到新建的
+    `scripts/no_engine.py`（存在、不 import 引擎）后才得到预期红集。
+- 聚焦套件（新门 + codec 钉 + 静默地板 + 零测试判据 + 两道抑制门）：63 passed。
+- ruff 全绿；`mypy .` → 0 issues in 266 source files。
+- CI：本笔推送后见下一节。
+
+### 诚实边界
+
+1. 门只认名字：一个全部由通用命名 helper 拼成、顶层没有任何 `mutant`/`mutation` 名称的
+   引擎会漏网。两套真实形状都进了夹具，所以检测器对这两种拼法是测过的，对任意命名不是。
+2. 普查只扫 `pyproject.toml` 声明的出货包；`scripts/`、`tests/` 下的第二套引擎按设计不在
+   范围内（那是本机工具，不是出货引擎）——代价是将来新增却没进 include 的包同样不在范围。
+3. 地板 29 是本提交的实测值；下一次删 handler 必须同笔再降，注释里已写明。
+4. 删除后的残留引用只剩散文提及（docstring 里的历史说明），没有可执行 import；若有遗漏，
+   `mypy` 与套件会在第一轮就红。
+5. bandit 指令的修复只换了注释位置、不改行为；两道安全门与 sql-text 门在改后转绿。
+
+### 下一号队列
+
+① `case-12` 的 head 运行复用 generation record 时丢掉了沙箱错误（#536）：`record.head_run`
+不带 `error`，复用分支又把 `error` 硬写成 ""，于是 `exit -1` 只能落进「零测试」这句并非
+真因的话；② eval 的 CI 门被 `| tee` 吞掉退出码（#537）：`Acceptance: INSUFFICIENT` 下作业
+仍绿，且唯一阴性用例 NOT_RUN 时三条 grep 门空转；③ Web 给 `not_verified` 补中文标签＋
+「Web 标签表 ↔ 后端分类词表」对账门（等 `JobDetail.tsx` 所属车道落地后做）；④ 非 Java 树
+在 DEEP 的落地：扩展 adapter 计数，或在节点上就地披露「跑不了 ≠ 没跑出问题」；⑤ head 运行
+是否也要先证明执行过测试再让 repeats 的分类生效；⑥ 假清单 21 vs 20（#478 在飞）；⑦
+`checker_type_parity` 的 `?`；⑧ `gradle_adapter` 的 run 被调两次；⑨ `metric_inventory` 的
+verify.py；⑩ `contract_review` 词条；⑪ `verdict_channel_parity` 的 acceptance.py 非字面写；
+⑫ case-17 的 BLOCKER→MAJOR 严重度漂移；⑬ 其余六个 profile 在真实工具链下的可写见证（当前
+只有 Maven 被 CI 实跑）；⑭ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` /
+`_eval_report_path` / `child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、
+`uv sync --frozen`）；⑮ POM 自定义 `<resources>` 目录的回填规则（从 pom 派生资源根，或在
+回填前请属主自证）；⑯ 把回填整体挪进沙箱 uid（当前靠「删除 + 加宽」组合拳；属主才是根本
+解，代价是多一次容器调用）。
