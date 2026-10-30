@@ -506,11 +506,17 @@ def _ensure_writable_mounts(workspace: str, profile: SandboxProfile) -> str:
     Under DooD the daemon would otherwise create these dirs as root and the
     non-root workload could not write into them; on local Docker Desktop the
     nested mount source must exist before `docker run` resolves it.
+    They are widened to 0777 because this process creates them under its own
+    uid (the CI runner is 1001) while the workload runs as SANDBOX_USER
+    (1000): a bind mount carries the host mode, and Docker Desktop's shared
+    mounts ignore modes — so only Linux CI ever saw the refusal (#533).
     Idempotent — the pipeline always starts from a fresh worktree.
     """
     for rel in profile.precreate_dirs:
+        path = os.path.join(workspace, rel)
         try:
-            os.makedirs(os.path.join(workspace, rel), exist_ok=True)
+            os.makedirs(path, exist_ok=True)
+            os.chmod(path, 0o777)  # nosec B103 — throwaway worktree build output
         except OSError as exc:
             return f"cannot create workspace target dir: {exc}"[:300]
     return ""

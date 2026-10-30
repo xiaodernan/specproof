@@ -17352,3 +17352,76 @@ run 被调两次；⑨ `metric_inventory` 的 verify.py；⑩ `contract_review` 
 ⑪ `verdict_channel_parity` 的 acceptance.py 非字面写；⑫ case-17 的 BLOCKER→MAJOR 严重度
 漂移；⑬ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` /
 `child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、`uv sync --frozen`）。
+
+## #533 可写子挂载在 Linux CI 上对沙箱 uid 不可写
+
+### 起因
+
+#532 落地后复核 CI：`eval-golden-cases` 在 #529、#530、#531、#532 四笔上连续红，eval
+子集里的四个用例全部 `[NOT_RUN]`，Maven 报 `Cannot create resource output directory:
+/work/target/classes`。与 #532 的零测试语义无关：`_ensure_writable_mounts` 用宿主进程
+身份预建 `target/`，在 CI 上那是 runner 的 uid 1001、模式 0755；容器以 `SANDBOX_USER`
+（`--user 1000:1000`）跑，Linux 绑定挂载原样带宿主模式，于是 Maven 连输出目录都建不了。
+本机 Docker Desktop 的共享挂载忽略模式，所以这条只在 Linux CI 现形。
+
+### 改前量到的（两个 uid 的 Docker 见证，HEAD 的 runner.py）
+
+命名卷 + 只读仓库挂载：`--user 1001:1001` 调真实的 `_ensure_writable_mounts`
+（`PYTHONPATH=/repo`），再由 `--user 1000:1000` 写 `/ws/target/classes`：
+
+- HEAD（sha256 `28b8047e16e4f5109a9c3b90663f56d48cb020ae94179827a988d52902008bad`）：
+  目录属主 1001:1001、模式 0755，工作负载写 → `PermissionError`，rc=1；新建目录与预先
+  存在的 0755 目录两种起点都拒。
+
+### 改动
+
+- `sandbox/runner.py`：`_ensure_writable_mounts` 在 `makedirs` 后对每个
+  `profile.precreate_dirs` 目录 `os.chmod(path, 0o777)  # nosec B103`（bandit 的 B103
+  是对 0777 的告警，这里只作用于一次性 worktree 的构建输出目录）；docstring 记录属主
+  错位与「Docker Desktop 忽略模式」的成因。
+- 门：新 `tests/unit/test_sandbox_writable_mounts_reach_the_sandbox_uid.py`（4 例）——
+  新目录建成 0777、runner 拥有的 0755 目录被加宽、七个 profile 的每个预建目录都加宽
+  （先钉住前提：只有 `node` profile 没有预建目录）、以及跨平台的「工作负载 uid 不跟宿主
+  走」（`build_docker_argv` 里 `--user` 恒等于 `SANDBOX_USER == "1000:1000"`）。前三例
+  POSIX 门控：Windows 的模式是合成的，同一夹具代表不了 1001 拥有的目录。
+
+### 改后量到的
+
+- 同一两个 uid 的见证（改后 sha256
+  `1474329816fd52924a9c3b41c466bfdf5ea97ad6f2fd761dab2ed26e242c2c45`）：目录模式
+  0777，工作负载写 → rc=0；新建目录与预先存在的 0755 目录两种起点都通。
+- 本机：新门 1 passed、3 skipped（POSIX 门控）；仓库外 POSIX 平面同一文件 4 passed。
+- 聚焦套件（sandbox 与故障相关）：72 passed、3 skipped；ruff 全绿；`bandit` rc=0
+  （`# nosec B103` 被识别）；`mypy` 0 错。
+- 臂电池（预测先写盘，仓库根之外的 POSIX 平面，pytest 装在命名卷里，逐臂字节编辑并
+  断言替换次数）：控制臂 4 passed；K1 删掉 chmod → 三例红（新目录、既有目录、全 profile）；
+  K2 只加宽 Maven profile → 全 profile 一例红；K3 加宽成 0o700 → 三例红；K4 让工作负载
+  uid 跟随宿主 → uid 合同一例红。5/5 MATCHED。
+
+### 诚实边界
+
+1. 只加宽目录本身，不递归处理预建目录里已有的文件：如果某个子挂载在运行前就被塞进了
+   宿主属主的文件，工作负载仍写不了。CI 从干净 worktree 起步，不存在这种预填充。
+2. 0777 只给一次性 worktree 里的构建输出目录；仓库源码是只读挂载，不受影响。
+3. 本机 Windows 见证不了这个效应（共享挂载忽略模式）；两个 uid 的见证用的是命名卷上的
+   Linux 容器。真正的端到端证据是 #533 提交上的 CI 运行（复核结果见下）。
+4. CI 只跑 Maven；其余六个 profile 的预建目录由「全 profile」用例覆盖，但没有真实工具链
+   运行见证。
+5. jansi 的 `/tmp` noexec 警告（`--tmpfs /tmp:rw,noexec,nosuid`）仍会出现在日志里；
+   jansi 自行回退，本号不处理。
+6. chmod 失败会走进既有的 `OSError` 分支，报成「cannot create workspace target dir」；
+   除了该分支本身，没有单独的用例把只读挂载等 chmod 失败形态钉住。
+
+### 下一号队列
+
+① Web 给 `not_verified` 补中文标签，并加「Web 标签表 ↔ 后端分类词表」对账门（等
+`JobDetail.tsx` 所属车道落地后做）；② `craft/mutation.py` 的第二个变异引擎：接线或删除，
+并把它的 KILLED 判据对齐 #532 的「执行过才算」；③ 非 Java 树在 DEEP 的落地：扩展 adapter
+计数，或在节点上就地披露「跑不了 ≠ 没跑出问题」；④ head 运行是否也要先证明执行过测试
+再让 repeats 的分类生效；⑤ 静默宽捕下限 31（等 #527 的 walk 修复落地后一起降）；
+⑥ 假清单 21 vs 20（#478 在飞）；⑦ `checker_type_parity` 的 `?`；⑧ `gradle_adapter` 的
+run 被调两次；⑨ `metric_inventory` 的 verify.py；⑩ `contract_review` 词条；
+⑪ `verdict_channel_parity` 的 acceptance.py 非字面写；⑫ case-17 的 BLOCKER→MAJOR 严重度
+漂移；⑬ 其余六个 profile 在真实工具链下的可写见证（当前只有 Maven 被 CI 实跑）；
+⑭ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` / `_eval_report_path` /
+`child_output_text`、三套时间戳、约 50 条静默 `except`、P6 100 例、`uv sync --frozen`）。
