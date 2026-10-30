@@ -105,3 +105,31 @@ def test_the_step_uses_the_tools_own_gate_with_floors() -> None:
     assert re.search(r"--min-negative-cases\s+\d+", step), (
         "no explicit negative floor — the vacuous-false-positive case again"
     )
+
+
+def test_the_floors_match_the_subset_they_copied() -> None:
+    """Presence is not enough: the floors must equal the copied population.
+
+    On CI run 41067550985 the one negative control (case-12) did not run,
+    so ``negative_cases`` was 0 and ``--min-negative-cases 1`` made the
+    verdict INSUFFICIENT — the sample floors were the only reason the run
+    did not shrink into a smaller PASS.  A case added or dropped without
+    moving its floor re-opens that silent shrink; the counts here come from
+    the copied cases' own ground truths, never from a typed list.
+    """
+    source = ci_source()
+    step = source[
+        source.index("Evaluate representative golden-case subset") :
+        source.index("Gate: recall must be 100%")
+    ]
+    cases = copied_cases()
+    positives = [case for case in cases if not is_negative(case)]
+    negatives = [case for case in cases if is_negative(case)]
+    floors = dict(re.findall(r"--min-(positive|negative)-cases\s+(\d+)", step))
+    assert floors == {
+        "positive": str(len(positives)),
+        "negative": str(len(negatives)),
+    }, (
+        f"the CI floors {floors} do not match the copied subset "
+        f"({len(positives)} positive, {len(negatives)} negative): {cases}"
+    )

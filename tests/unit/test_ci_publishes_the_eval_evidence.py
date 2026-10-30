@@ -25,6 +25,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -91,6 +94,42 @@ def test_the_sidecar_names_are_the_ones_the_tool_reads() -> None:
     tool = DIAGNOSTIC.read_text(encoding="utf-8")
     assert ".results.json" in tool
     assert ".results.jsonl" in tool
+
+
+def _steps(text: str) -> list[dict[str, Any]]:
+    parsed = yaml.safe_load(text)
+    return [
+        step
+        for job in (parsed.get("jobs") or {}).values()
+        for step in job.get("steps") or []
+    ]
+
+
+def test_the_evidence_is_published_even_when_the_gate_fails() -> None:
+    """A red evaluation is exactly the run whose sidecar has to survive (#537).
+
+    Once the eval step carries the tool's own verdict (``pipefail``), an
+    INSUFFICIENT/FAIL run fails the step — and every later step is skipped
+    unless it says otherwise.  A plain upload step would then publish the
+    one thing that is never needed (a green run's page) and discard the one
+    that is (the NOT_RUN reason, the failing side's own output).  The
+    upload steps below the pipeline must therefore run unconditionally.
+    """
+    for name, text in _eval_workflows().items():
+        uploads = [
+            step
+            for step in _steps(text)
+            if str(step.get("uses", "")).startswith("actions/upload-artifact")
+            and "eval-report.results.json"
+            in str((step.get("with") or {}).get("path", ""))
+        ]
+        assert uploads, f"{name} has no artifact step publishing the sidecar"
+        for step in uploads:
+            assert step.get("if") == "always()", (
+                f"{name}: the sidecar upload {step.get('name')!r} runs only "
+                "while the job is green; the failed evaluation — the run "
+                "whose sidecar matters — would publish nothing"
+            )
 
 
 def test_the_evaluation_writes_the_sidecars_beside_the_report() -> None:

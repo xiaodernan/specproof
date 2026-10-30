@@ -229,6 +229,15 @@ jobs:
             --only case-01,case-10,case-12,case-17,case-21,case-56
       - name: Evaluate representative golden-case subset (deterministic)
         run: |
+          # #537: a pipeline reports its LAST command's status, and `tee`
+          # exits 0 even when the evaluation exits 1 (`--gate` on an
+          # INSUFFICIENT/FAIL verdict). Run 41067550985 finished this step
+          # green beside "Acceptance: INSUFFICIENT". pipefail makes the step
+          # carry the tool's own verdict; the artifact upload below is
+          # `if: always()` so a failed run still publishes the sidecar that
+          # says why. The binding is
+          # tests/unit/test_the_eval_ci_step_cannot_swallow_the_tools_exit.py.
+          set -o pipefail
           # The full 100-case eval is a multi-hour gate (local slow_eval /
           # nightly job). CI runs a representative subset: execution-only
           # positive, second-category positive, and a NEGATIVE control.
@@ -281,6 +290,9 @@ jobs:
           grep -q "False positives:    0" eval-run.log \
             || (echo "False-positive gate FAILED" && exit 1)
       - name: Upload eval report
+        # #537: the eval step now fails on a non-PASS gate verdict, and that
+        # failed run is exactly the one whose sidecar must survive the job.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: eval-report

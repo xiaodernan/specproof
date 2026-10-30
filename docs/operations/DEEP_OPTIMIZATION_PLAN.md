@@ -17704,3 +17704,83 @@ vs 20（#478 在飞）；⑥ `checker_type_parity` 的 `?`；⑦ `gradle_adapter
 `uv sync --frozen`）；⑭ POM 自定义 `<resources>` 目录的回填规则（从 pom 派生资源
 根，或在回填前请属主自证）；⑮ 把回填整体挪进沙箱 uid（当前靠「删除 + 加宽」组合
 拳；属主才是根本解，代价是多一次容器调用）。
+## #537 eval 的 CI 门被管道吞掉：`Acceptance: INSUFFICIENT` 的作业仍是绿的
+
+### 起因
+
+CI run 41067550985 的 eval 步骤是绿的，同一份日志里却写着
+`Acceptance: INSUFFICIENT`——唯一阴性用例 case-12-add-javadoc 是 NOT_RUN，
+`negative_cases 0 < min-negative-cases 1`。工具本身没有失守：
+`cli/specproof/commands/eval.py` 在 `--gate` 下对非 PASS 判罚 `SystemExit(1)`，
+`evidence/acceptance.py` 的「零阴性上限」也早已把这种运行判成 INSUFFICIENT。
+吞掉退出码的是步骤自己：`python -m cli.specproof.main eval ... | tee eval-run.log`
+管道的状态是最后一条命令（`tee`）的状态，`tee` 正常结束就报 0。GitHub 在 Linux
+上的默认 shell 是 `bash -e {0}`，不带 pipefail——这次「绿着 INSUFFICIENT」就是
+证据；后面的三条 grep 门也因为 eval-run.log 里没有 FAILED 字样而空转。
+
+这一号只修退出码传播；下限策略不动：工具自己的验收层已经拒绝为零阴性样本
+颁发 PASS。
+
+### 改前量到的
+
+平面（`git archive` 自 b569aef，仓库外）上先落盘预测，再跑绑定门：
+3 failed / 11 passed，红名逐字命中——R1（每个捕获步骤必须先武装 pipefail）、
+R2（真实步骤在评测失败时步骤必须失败）、以及证据门里新增的 always() 用例。
+其余 11 例绿。
+
+### 改动
+
+- `.github/workflows/ci.yml` 与 `.github/workflows/nightly-eval.yml`：eval 运行块
+  开头加 `set -o pipefail`；两个「上传 eval 产物」步骤加 `if: always()`。后者是
+  前者的二阶后果：eval 步骤现在会红，而默认的上传步骤在红步骤之后会被跳过——
+  那正好丢掉最需要诊断的那次运行的 sidecar。
+- 新门 `tests/unit/test_the_eval_ci_step_cannot_swallow_the_tools_exit.py`（4 例）：
+  R1 每个捕获 eval 的步骤在管道之前武装 pipefail（注释不算）；R2 在步骤副本里
+  把 producer 换成 `false`，用 `bash -e` 真跑，要求 rc 非零且日志仍落盘；R3 反向
+  对照：剥掉武装行后同一条管道读作成功（rc=0），证明这不是 bash 自己会做的事；
+  R4 普查：凡写 eval-run.log 的 workflow 都必须被捕获。
+- `tests/unit/test_ci_publishes_the_eval_evidence.py` 增一例：发布 sidecar 的上传
+  步骤必须 `if: always()`。
+- `tests/unit/test_ci_eval_subset_is_measurable.py` 增一例：CI 副本里的
+  `--min-positive-cases` / `--min-negative-cases` 必须等于该副本自己的阳性/阴性
+  计数（当前 3 / 1）。
+
+### 改后量到的
+
+- 14 passed（三文件），改前预测的 3 红全部转绿。
+- 臂电池（预测先落盘；仓库外平面；逐臂字节替换并断言次数；按文件自身 EOL 归一；
+  跑完恢复并核对 sha256）：控制 14 绿；A1 ci 删 pipefail → R1/R2 红；A2 nightly
+  删 pipefail → R1/R2 红；A3 ci 阳性下限 3→2 → 下限对账红；A4 ci 上传步骤丢
+  `if: always()` → always 用例红；A5 nightly 把 `| tee` 改成 `>` → R1–R4 全红
+  （普查拒绝）；A6 ci 的武装行被注释掉 → R1/R2 红。7/7 MATCHED，BASELINE_OK。
+- 全部 CI 合同套件（`tests/unit/test_ci_*.py` 加新门）：33 passed。
+- ruff 三文件全绿；mypy 三文件 0 issues。
+
+### 诚实边界
+
+1. 修法是「在脚本内武装」，因为 GitHub 默认 shell 不带 pipefail；将来若有新的
+   运行块用别的日志名捕获 eval，R4 的普查看不到它（普查按 eval-run.log 这个
+   载体认字）。
+2. nightly 的评测是多小时作业，本次没有重跑；它的 pipefail 武装只有结构与
+   bash 见证，没有一次真实的 nightly 证据。
+3. nightly 没有钉死样本下限（公开池 52 阳性 / 35 阴性）；一旦它真正因为
+   INSUFFICIENT 变红，那是另一个待测量的号，不在本号内改。
+4. 本号不重新裁定验收层策略；`--gate` 的退出码契约在
+   `cli/specproof/commands/eval.py`，用例只钉住「管道不得吞掉它」。
+
+### 下一号队列
+
+① Web 给 `not_verified` 补中文标签＋「Web 标签表 ↔ 后端分类词表」对账门（等
+`JobDetail.tsx` 所属车道落地后做）；② 非 Java 树在 DEEP 的落地：扩展 adapter 计数，
+或在节点上就地披露「跑不了 ≠ 没跑出问题」；③ head 运行是否也要先证明执行过测试
+再让 repeats 的分类生效；④ 假清单 21 vs 20（#478 在飞）；⑤ `checker_type_parity`
+的 `?`；⑥ `gradle_adapter` 的 run 被调两次；⑦ `metric_inventory` 的 verify.py；
+⑧ `contract_review` 词条；⑨ `verdict_channel_parity` 的 acceptance.py 非字面写；
+⑩ case-17 的 BLOCKER→MAJOR 严重度漂移；⑪ 其余六个 profile 在真实工具链下的可写
+见证（当前只有 Maven 被 CI 实跑）；⑫ 前号队列余项（`sha256_hex` ×3 /
+`_capsule_dirs` / `_eval_report_path` / `child_output_text`、三套时间戳、约 50 条
+静默 `except`、P6 100 例、`uv sync --frozen`）；⑬ POM 自定义 `<resources>` 目录的
+回填规则（从 pom 派生资源根，或在回填前请属主自证）；⑭ 把回填整体挪进沙箱 uid
+（当前靠「删除 + 加宽」组合拳；属主才是根本解，代价是多一次容器调用）；⑮
+nightly eval 的样本下限从未按公开池钉死（52 阳性 / 35 阴性），INSUFFICIENT 的
+真实红要等一次 nightly 才能量到。

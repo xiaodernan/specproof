@@ -46,6 +46,12 @@ jobs:
           python scripts/build_golden_scenarios.py --refs-only
       - name: Nightly 100 golden-case evaluation (multi-hour)
         run: |
+          # #537: the same pipe as ci.yml — `tee` exits 0 even when the
+          # evaluation's --gate exits 1, so a multi-hour run that fails its
+          # own acceptance verdict would still pass this step. The binding
+          # is tests/unit/test_the_eval_ci_step_cannot_swallow_the_tools_exit.py,
+          # which censuses every workflow that captures eval-run.log.
+          set -o pipefail
           # #222/#224: the recall/false-positive floors the "Alert on regression"
           # step greps for are given to the tool here, so the step fails itself
           # and names the metric instead of the tool reporting PASS (its
@@ -55,6 +61,10 @@ jobs:
             --gate --min-recall 100 --min-precision 100 --max-false-positives 0 \
             --output docs/eval/eval-report.html | tee eval-run.log
       - name: Publish eval artifact
+        # #537: run even when the evaluation step fails its own gate — the
+        # failing run is the one whose sidecar (NOT_RUN reasons, the failing
+        # side's output) has to survive the job.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nightly-eval-report
