@@ -38,12 +38,15 @@ def _counter(name: str) -> float:
 
 
 # Shape mirrors _run_generated_test's return contract (the keys the node
-# reads back: exit_code / stdout / stderr / test_counts / error).
+# reads back: exit_code / stdout / stderr / test_counts / error). A run that
+# yields a verdict executed the generated test, so the counts report one
+# executed test (#530): a zero-test result is a toolchain failure and the
+# node now reports it NON_REPRODUCIBLE instead of a behavioral verdict.
 _OK_RESULT: dict[str, Any] = {
     "exit_code": 0,
     "stdout": "",
     "stderr": "",
-    "test_counts": {},
+    "test_counts": {"tests": 1, "failures": 0, "errors": 0, "skipped": 0},
     "error": "",
 }
 

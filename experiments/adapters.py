@@ -645,14 +645,19 @@ class JavaMavenAdapter:
                 wrapper, "test-compile", "-q",
             ] + _host_java_version_flag()
         elif request.goal == "run_test":
+            # Batch mode, NOT -q: under -q surefire prints "Tests run:" only
+            # when tests FAIL, so a passing side carries no summary at all.
+            # The differential's zero-executed-tests guard (#530) reads that
+            # summary to tell a real pass from a selector that matched
+            # nothing; with -q the two are indistinguishable in the output.
             command = [
-                "mvn", "-o", "test", "-q",
+                "mvn", "-o", "test", "-B",
                 f"-Dtest={request.test_class}",
                 "-DfailIfNoTests=false",
                 "-f", "/work/pom.xml",
             ] + (["-Dmaven.main.skip=true"] if request.skip_main else [])
             local_command = [
-                wrapper, "test", "-q",
+                wrapper, "test", "-B",
                 f"-Dtest={request.test_class}",
                 "-DfailIfNoTests=false",
             ] + _host_java_version_flag() \

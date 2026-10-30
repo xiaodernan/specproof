@@ -18,7 +18,10 @@ THE RULERS, each one sentence:
      sandbox reads (SPECPROOF_SANDBOX_M2_VOLUME), and the Windows and Linux
      seeders name the same default volume and image;
   R3 the detector behind R1 flags a synthetic inline copy, and the jobs that
-     set the knob are exactly the jobs that run a cache-consuming command.
+     set the knob are exactly the jobs that run a cache-consuming command;
+  R4 the seeder exercises the phase the differential actually runs (Maven's
+     test phase, surefire provider included) and its OFFLINE self-check
+     proves a test executed — a selector that matches nothing exits 0.
 
 WHAT IS DELIBERATELY OUT OF SCOPE. Proving the script's docker sequence
 works: that needs a Docker host and the demo backend, and it is exactly what
@@ -37,6 +40,9 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
 SCRIPT = ROOT / "scripts" / "seed_maven_cache.sh"
 LOCAL_SCRIPT = ROOT / "scripts" / "seed_sandbox_cache.ps1"
+WARMUP_FIXTURE = (
+    ROOT / "scripts" / "seed_maven_cache_warmup" / "SpecProofSeedWarmupTest.java"
+)
 SEED_CALL = "bash scripts/seed_maven_cache.sh"
 KNOB = "SPECPROOF_SANDBOX_M2_VOLUME"
 
@@ -202,3 +208,89 @@ def test_the_inline_detector_flags_a_copy_and_the_knob_jobs_are_the_maven_jobs()
         "jobs that mount the sandbox cache and jobs that name its volume must "
         f"be the same set; only in one: {sorted(maven ^ knob)}"
     )
+
+
+def _command_lines(text: str) -> str:
+    """The script's executable lines (comment lines dropped)."""
+    return "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("#")
+    )
+
+
+def test_the_seeder_runs_the_differentials_test_phase_and_proves_it_offline() -> None:
+    """R4 (#530): seed the phase the differential runs, and prove offline
+    that a test executed.
+
+    Measured on a cold CI volume: `dependency:go-offline` never resolves the
+    surefire JUnit-platform provider, so the sandbox's offline `mvn -o test`
+    died in dependency resolution BEFORE running a test — on both sides —
+    and the differential read that as "both sides behave the same". The
+    offline self-check must therefore require a positive surefire summary:
+    a selector that matches nothing prints "No tests to run." and exits 0.
+    """
+    from experiments.adapters import ExecutionRequest, JavaMavenAdapter
+
+    command = JavaMavenAdapter().prepare(
+        ExecutionRequest(
+            workspace=str(ROOT),
+            goal="run_test",
+            test_class="SpecProofSeedWarmupTest",
+            timeout=900,
+        )
+    ).command
+    phase = command[command.index("-o") + 1]
+    assert not phase.startswith("-"), (
+        "cannot derive the differential's Maven phase from its command: "
+        f"{command}"
+    )
+
+    fixture = WARMUP_FIXTURE.read_text(encoding="utf-8")
+    class_match = re.search(
+        r"(?m)^\s*(?:public\s+|final\s+|abstract\s+)*class\s+(\w+)", fixture
+    )
+    assert class_match, f"{WARMUP_FIXTURE.name} declares no class"
+    class_name = class_match.group(1)
+    package_match = re.search(r"(?m)^\s*package\s+([\w.]+);", fixture)
+    assert package_match, f"{WARMUP_FIXTURE.name} declares no package"
+    package_path = package_match.group(1).replace(".", "/")
+    test_count = fixture.count("@Test")
+    assert test_count == 1, (
+        "the warmup fixture must carry exactly one executed test; the "
+        f"offline check asserts 'Tests run: {test_count},'"
+    )
+    assert WARMUP_FIXTURE.stem == class_name, (
+        "surefire selects the fixture by class name; the file name and the "
+        "declared class must agree"
+    )
+
+    for path in (SCRIPT, LOCAL_SCRIPT):
+        text = _command_lines(path.read_text(encoding="utf-8")).replace("\\", "/")
+        assert f"-Dtest={class_name}" in text, (
+            f"{path.name} does not select {class_name}; a selector matching "
+            "nothing exits 0 without resolving the surefire provider"
+        )
+        assert f"src/test/java/{package_path}" in text, (
+            f"{path.name} does not copy the warmup class into the package "
+            f"path {package_path!r} it declares"
+        )
+        offline = [
+            line
+            for line in text.splitlines()
+            if re.search(
+                rf"\bmvn\b[^\n]*\s-o\s[^\n]*\s{re.escape(phase)}(?=\s|\\|$)",
+                line,
+            )
+        ]
+        assert offline, (
+            f"{path.name} does not re-run the differential's {phase!r} phase "
+            "offline against the seeded volume"
+        )
+        assert all(f"-Dtest={class_name}" in line for line in offline), (
+            f"{path.name}'s OFFLINE {phase!r} run does not select "
+            f"{class_name}; a selector matching nothing exits 0 without "
+            "resolving the surefire provider"
+        )
+        assert f"Tests run: {test_count}," in text, (
+            f"{path.name} does not require a positive surefire summary from "
+            "its offline check; a zero-test run exits 0"
+        )

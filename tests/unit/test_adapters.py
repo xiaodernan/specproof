@@ -101,11 +101,16 @@ class TestPrepareCommandShape:
             tmp_path, goal="run_test", test_class="SpecProofGeneratedTest", timeout=900
         )
         assert prepared.command == [
-            "mvn", "-o", "test", "-q",
+            "mvn", "-o", "test", "-B",
             "-Dtest=SpecProofGeneratedTest",
             "-DfailIfNoTests=false",
             "-f", "/work/pom.xml",
         ]
+        # Batch mode, never -q: surefire omits "Tests run:" for a PASSING run
+        # under -q, and the differential reads that summary to tell a real
+        # pass from a selector that matched nothing (#530).
+        assert "-q" not in prepared.command
+        assert "-q" not in prepared.local_command
         assert prepared.timeout == 900
         # Offline flag is on the SANDBOX command (network is cut there).
         assert "-o" in prepared.command

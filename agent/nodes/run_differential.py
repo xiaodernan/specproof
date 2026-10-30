@@ -443,6 +443,68 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             "external_reset": reset,
         }
 
+    # ── Zero-executed-tests guard (#530) ──
+    # A run that ends without a single surefire summary is a toolchain
+    # failure, not a behavioral result. Measured on a cold CI volume:
+    # `mvn -o test` died resolving dependencies left missing by
+    # `dependency:go-offline`, on BOTH sides, and the comparison below
+    # emitted "Test fails in both Base and Head" (AMBIGUOUS, severity NONE)
+    # — a verdict that reads as "both sides behaved the same" while the
+    # generated test never ran. A passing side with zero tests is equally
+    # vacuous. Every comparison needs the test class to have executed on
+    # BOTH sides; otherwise the experiment is unjudgeable (NON_REPRODUCIBLE),
+    # which the eval reports as NOT_RUN instead of a measured MISS.
+    #
+    # This reading is only meaningful because the Maven test phase runs in
+    # batch mode, not `-q` (experiments/adapters.py): under -q surefire
+    # prints "Tests run:" only when a test FAILS, so a passing side parsed
+    # as zero tests even though its surefire report showed four executed —
+    # which would have turned every real base_pass_head_fail into NOT_RUN.
+    base_tests = int((base_result.get("test_counts") or {}).get("tests") or 0)
+    head_tests = int((head_result.get("test_counts") or {}).get("tests") or 0)
+    if base_tests == 0 or head_tests == 0:
+        incr("differential_errors_total")
+        no_tests_detail = (
+            "Generated test executed no tests "
+            f"(base tests: {base_tests}, head tests: {head_tests}; "
+            f"exit codes base {base_result.get('exit_code')}, "
+            f"head {head_result.get('exit_code')}) — the toolchain did not "
+            "run the test, so Base and Head have no behavioral comparison "
+            "(UNVERIFIED, not a pass and not a behavior verdict)"
+        )
+        toolchain_line = _first_maven_error_line(base_result, head_result)
+        if toolchain_line:
+            no_tests_detail += f". Toolchain error: {toolchain_line}"
+        return {
+            "diff_results": source_diff_results + [{
+                "contract_id": "DIFF-01",
+                "verdict": "NON_REPRODUCIBLE",
+                "detail": no_tests_detail,
+                "base_exit_code": base_result.get("exit_code"),
+                "head_exit_code": head_result.get("exit_code"),
+                "base_test_counts": base_result.get("test_counts", {}),
+                "head_test_counts": head_result.get("test_counts", {}),
+                "base_output": (
+                    base_result.get("stdout", "") + base_result.get("stderr", "")
+                )[:2000],
+                "head_output": (
+                    head_result.get("stdout", "") + head_result.get("stderr", "")
+                )[:2000],
+                "changed_symbols": changed_symbols,
+            }] + probe_results,
+            # The contracts this experiment was meant to verify are named as
+            # UNVERIFIED with the real reason — not left to read as "no
+            # defect found".
+            "contract_results": _not_verified_contract_results(
+                contracts,
+                experiment="generated_test_differential",
+                detail=no_tests_detail,
+            ),
+            "external_state_base": base_external,
+            "external_state_head": head_external,
+            "external_reset": reset,
+        }
+
     base_pass = base_result.get("exit_code") == 0
     head_pass = head_result.get("exit_code") == 0
 
@@ -1389,6 +1451,23 @@ def _parse_test_counts(output: str) -> dict[str, Any]:
     # Single source of truth for the surefire summary regex lives in
     # experiments/adapters.py; this wrapper keeps the historical name.
     return parse_surefire_summary(output)
+
+
+def _first_maven_error_line(*results: dict[str, Any]) -> str:
+    """The first Maven [ERROR] line across the given run results ('' if none).
+
+    Names the toolchain failure that kept the generated test from running
+    (e.g. an offline dependency-resolution error) on the entry itself, so
+    the reader of a NON_REPRODUCIBLE record does not have to re-run the
+    pipeline to find out why.
+    """
+    for result in results:
+        text = f"{result.get('stdout', '')}\n{result.get('stderr', '')}"
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("[ERROR]"):
+                return stripped[:300]
+    return ""
 
 
 def _h2_db_file(workspace: str) -> Path | None:

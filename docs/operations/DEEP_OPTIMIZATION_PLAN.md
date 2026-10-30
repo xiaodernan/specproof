@@ -17098,3 +17098,88 @@ Jobs 8 / Dashboard 7 / JobDetail 10，其中 `spec_path`、`depth`、`retry_coun
 ③ 三套时间戳词表；④ `cli/`、`craft/` 剩余约 50 条静默 `except`；⑤ P6 100 例隔离评测与
 JOB_CREATION_WHITELIST；⑥ CI 安装改用 `uv sync --frozen`（#528 队列①）。
 
+## #530 播种的缓存缺件与 `-q` 的静默各让一次「没跑测试」读成「行为相同」
+
+### 起因
+
+run 41033998469 的 `eval-golden-cases` 仍红，但红的是 **Recall 0.0%**：子集里 3 个正例
+一个都没检出，而 `tests-with-infra` 的播种步骤是成功的。#529 的队列①把它留给本号归因。
+
+### 改前量到的（两层盲，各自独立）
+
+1. **缓存缺件**：`dependency:go-offline` 只解析 POM 声明的依赖与插件，而真实构建还要
+   netty、jaxb-runtime、jackson-dataformat-yaml、byte-buddy，以及 surefire 的
+   JUnit-platform provider 与 junit-platform-launcher。冷卷上离线 `mvn -o test` 在
+   **跑任何测试之前**就死在依赖解析，base 与 head 两侧同死。差分把「两侧都失败」写成
+   AMBIGUOUS「Test fails in both Base and Head」，评测读成「没有缺陷」。
+   更隐蔽的是：选择器匹配不到任何测试时，离线运行照样 **rc 0**，所以只用「命令成功」
+   检查不出来——provider 根本没被解析过。
+2. **`-q` 的静默**：切到已播种的卷之后量到 case-17 的分支差异，但 base 侧的
+   `test_counts` 是 `{"tests": 0}`，而它的 surefire 报告明明写着 4 个测试全过。
+   实测（`mvn -B` 对照）：`-q` 下 surefire 只有在测试**失败**时才印 `Tests run:`，
+   通过的一侧什么都不印。若不先修这条，本号的「零测试守卫」会把每一次真检出都改判
+   成 NOT_RUN——守卫本身制造假阴性。
+
+### 改动
+
+- `scripts/seed_maven_cache.sh`：在 `dependency:go-offline` 之后**播种差分真正跑的相位**
+  ——`mvn test`，让 surefire 解析它自己的 provider。一个测试的 warmup 类
+  （`scripts/seed_maven_cache_warmup/SpecProofSeedWarmupTest.java`）让这次运行非真空；
+  构建在一次性副本里做，`target/` 不进仓库。随后**同相位离线复跑**是自检：断言
+  `Tests run: 1,` 从卷里真的执行了那个测试；缺任何东西就在这里带着 Maven 原文失败。
+- `scripts/seed_sandbox_cache.ps1` 第 5 步：`mvn -q -o test-compile` 换成离线 warmup
+  `mvn -B -o ... test` + 同一条 surefire 断言（test-compile 停在 surefire 之前，
+  provider 永远不会被解析）。
+- `experiments/adapters.py` `run_test`：sandbox 与本地两条命令都 `-q` → `-B`。
+- `agent/nodes/run_differential.py`：零测试守卫。任一侧 `tests == 0` ⇒ 不发行为裁决，
+  发 `NON_REPRODUCIBLE` DIFF-01 + `_not_verified_contract_results`（评测记为 NOT_RUN，
+  不进召回分母），detail 带上两侧计数、退出码与第一条 Maven `[ERROR]` 行
+  （`_first_maven_error_line`）。
+- 门：新 `tests/unit/test_differential_no_executed_tests_is_not_a_verdict.py`（3 例，
+  含「两侧真跑了 4 个测试且都失败 ⇒ 仍是 AMBIGUOUS」的反向对照）；封印
+  `test_differential_execution_is_observable.py` 的 stub 形状；`test_adapters.py` 钉
+  `-B` 且断言两条命令都不含 `-q`；播种门补 R4——相位的名字与选择器从
+  `JavaMavenAdapter.prepare` 与 fixture 的声明派生，并只认**离线那一行**自己的
+  `-Dtest=`；`test_toothless_counterexample_is_not_pass.py` 的 stub 补 `tests: 1`
+  （空计数在生产里就是「没跑」，旧 stub 让每条用例绕到 NOT_RUN）。
+- `test_the_maven_cache_seeding_has_one_owner.py` 的 R2 跟着改写：`dependency:go-offline`
+  仍恰好一次；新阶段的注释里出现同一词不算阶段。
+
+### 改后量到的
+
+- 播种后 case-17 单例探针：`REGRESSION`，base/head 各 `tests: 4`，base 49.3s，
+  head 复用缓存。冷卷同一探针把缺件读成 NOT_RUN（不是 MISS）。
+- CI 同参四例评测（`--no-llm --gate --min-recall 100 --min-precision 100
+  --max-false-positives 0`）：4 例、NOT_RUN 0、检出 3/3、误报 0、Recall 100%、
+  Precision 100%、Acceptance PASS。
+- 门：`test_the_maven_cache_seeding_has_one_owner.py` + `test_adapters.py` 31 passed；
+  `test_toothless_counterexample_is_not_pass.py` 18 passed。
+- 臂电池（预测先写盘，仓库根之外的平面）：A1 删离线那行的 `-o`、A2 把离线选择器换成
+  `NoSuchTest`、A3 把 fixture 类改名——各只红 R4 一条，恢复后字节相同，对照 31 绿。
+  **A2 第一轮 MISS**：R4 当时只查「全脚本有过 `-Dtest=<class>`」，在线 warmup 行就能
+  满足；改成「在离线调用行上找选择器」后 A2 红。
+
+### 诚实边界
+
+1. 本机没有 CI 的跑法：四例评测跑在**仓库根之外的复制平面**上，平面里同步了本号的
+   逐字节改动；`eval-golden-cases` 真绿要等这次 push 的 run。
+2. 卷是一次性探针卷（`specproof-maven-cache-probe530`），不是 CI runner 的冷卷；
+   「播种让冷卷完整」由播种步骤自己的离线自检断言，不由本机证明。
+3. `agent/nodes/run_deep_experiments.py` 仍自建 `mvn -o test -q` 的 DEEP 变异命令，
+   只读退出码——命令形状的第二个属主，留给下一号。
+4. 四例评测的严重度一致性 66.7%：case-17 期望 BLOCKER、测得 MAJOR。这是既有的严重度
+   分级问题，与「有没有跑测试」无关，只披露不修。
+5. 同一轮 CI 的 `tests-no-infra` 另红 8 条，全部与本号无关且**在 HEAD 上已红**：
+   假清单 21 vs 20（别道 #478 正在改分类器）、静默宽捕 31 vs 下限 33（#523 删了一条
+   理由却没同步降下限；该文件还带着 #527 的 walk 修复）、`checker_type_parity`、
+   `gradle_adapter`、`metric_inventory`、`contract_review` 词条、`verdict_channel_parity`。
+
+### 下一号队列
+
+① `run_deep_experiments.py` 的命令形状收归 adapter；② 静默宽捕下限（#523 之后 31，
+等 #527 的 walk 修复落地后一起降）；③ 假清单 21 vs 20（#478 在飞）；④ `checker_type_parity`
+的 `?`；⑤ `gradle_adapter` 的 run 被调两次；⑥ `metric_inventory` 的 verify.py；
+⑦ `contract_review` 词条；⑧ `verdict_channel_parity` 的 acceptance.py 非字面写；
+⑨ case-17 的 BLOCKER→MAJOR 严重度漂移；⑩ 前号队列余项（`sha256_hex` ×3 /
+`_capsule_dirs` / `_eval_report_path` / `child_output_text`、三套时间戳、约 50 条静默
+`except`、P6 100 例、`uv sync --frozen`）。

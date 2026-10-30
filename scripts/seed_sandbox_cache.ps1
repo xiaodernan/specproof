@@ -63,9 +63,17 @@ Write-Output "== 4/5 fetch Maven Wrapper distribution (network required) =="
 docker run --rm --user 1000:1000 -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" -v "${volume}:/home/maven/.m2" -v "${tmpDemo}:/work:ro" -w /work $image ./mvnw -q -v
 if ($LASTEXITCODE -ne 0) { throw "wrapper dist fetch failed (exit $LASTEXITCODE)" }
 
-Write-Output "== 5/5 verify offline test-compile (non-root, --network none, ro workspace) =="
-docker run --rm --network none --user 1000:1000 -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" -v "${volume}:/home/maven/.m2" -v "${tmpDemo}:/work:ro" -v "${tmpDemo}/target:/work/target" -w /work $image mvn -q -o test-compile
-if ($LASTEXITCODE -ne 0) { throw "offline verification failed (exit $LASTEXITCODE)" }
+Write-Output "== 5/5 verify the offline TEST phase (the phase the differential runs) =="
+# test-compile is not enough (#530): it stops before surefire, so the
+# JUnit-platform provider is never resolved and a cache missing it still
+# passes. Run one real warmup test offline and require the surefire summary —
+# a selector matching nothing would exit 0 without executing anything.
+$warmupDst = Join-Path $tmpDemo "src\test\java\com\specproof\demo"
+New-Item -ItemType Directory -Force -Path $warmupDst | Out-Null
+Copy-Item (Join-Path $repo "scripts\seed_maven_cache_warmup\SpecProofSeedWarmupTest.java") $warmupDst
+$offlineLog = docker run --rm --network none --user 1000:1000 -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" -v "${volume}:/home/maven/.m2" -v "${tmpDemo}:/work:ro" -v "${tmpDemo}/target:/work/target" -w /work $image mvn -B -o -Dtest=SpecProofSeedWarmupTest -DfailIfNoTests=false test 2>&1
+if ($LASTEXITCODE -ne 0) { $offlineLog | Select-Object -Last 40; throw "offline test phase failed (exit $LASTEXITCODE)" }
+if (-not ($offlineLog -match "Tests run: 1,")) { $offlineLog | Select-Object -Last 40; throw "offline test phase executed no test (vacuous cache check)" }
 
 git worktree remove --force $tmp
 Write-Output "SEED_OK: cache volume ready for sandboxed offline builds"

@@ -21,9 +21,14 @@ import pytest
 from agent.nodes.run_differential import run_differential_node
 from agent.testgen_review import review_generated_test
 
-# Shape mirrors _run_generated_test's return contract.
+# Shape mirrors _run_generated_test's return contract. ``test_counts`` carries
+# a real executed count: the differential treats a zero-test side as a
+# truncated run, not as evidence (#530), so an empty dict here would route
+# every case to NOT_RUN before the demotion under test ever ran.
 _OK: dict[str, Any] = {
-    "exit_code": 0, "stdout": "", "stderr": "", "test_counts": {}, "error": "",
+    "exit_code": 0, "stdout": "", "stderr": "",
+    "test_counts": {"tests": 1, "failures": 0, "errors": 0, "skipped": 0},
+    "error": "",
 }
 
 # Invokes the code under test, asserts nothing -> cannot fail.
