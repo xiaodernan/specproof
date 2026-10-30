@@ -26,6 +26,16 @@ Cases that carry a probe_expectation (97/98/100) additionally receive the
 execution-time probe scaffolding from scripts/probe_templates/ in their
 case-head commits, and the expectation is recorded in
 golden-cases/<slug>/ground-truth.json for the eval pipeline to read.
+
+CI mode (--refs-only): a CI checkout does not carry these tags -- they are
+built locally, and a rebuild produces new commits, so a pushed copy is stale
+by construction (origin, measured 2026-10-29: base, head-v1, p0.5-verified-v1
+and seven case-*-head tags left over from earlier rebuilds).  `--refs-only`
+treats the checkout itself as the honest base: it moves base onto HEAD,
+rebuilds head-v1 and the selected cases in temporary worktrees, and never
+moves HEAD or touches the working tree.  CI runs it before any eval
+(see .github/workflows/ci.yml and nightly-eval.yml); the gate that binds the
+jobs to this mode is tests/unit/test_ci_materializes_the_golden_refs.py.
 """
 
 from __future__ import annotations
@@ -118,6 +128,14 @@ def git(*args: str) -> str:
     return proc.stdout.strip()
 
 
+#: CI mode (`--refs-only`). When set, every case is built in a temporary
+#: worktree on base instead of committing on the main tree: CI checks out a
+#: clean tree that carries none of these refs, and the rebuild must not move
+#: HEAD or dirty the checkout the evaluation is about to read. See the module
+#: docstring and tests/unit/test_ci_materializes_the_golden_refs.py.
+REFS_ONLY = False
+
+
 def require_clean() -> None:
     """The demo/ subtree must be committed before tags are rebuilt.
 
@@ -174,6 +192,12 @@ def apply_case(
     added_files: list[tuple[str, str]] | None = None,
 ) -> None:
     """mutations: list of (rel_file, old, new); added_files: (rel, content)."""
+    if REFS_ONLY:
+        # CI mode: the checkout IS the base the evaluation reads, so the case
+        # commit is built in a temporary worktree and the checkout is never
+        # moved or dirtied.
+        apply_case_detached(case, commit_msg, mutations, added_files)
+        return
     paths: list[str] = [rel for rel, _old, _new in mutations]
     for rel, old, new in mutations:
         replace_exact(rel, old, new)
@@ -188,22 +212,17 @@ def apply_case(
     restore_base()
 
 
-def apply_case_detached(
-    case: str,
+def _commit_on_base(
     commit_msg: str,
     mutations: list[tuple[str, str, str]],
     added_files: list[tuple[str, str]] | None = None,
-) -> None:
-    """Build a case tag whose PARENT is the honest base tag.
+) -> str:
+    """Build one commit on the base tag in a TEMPORARY WORKTREE; return its sha.
 
-    New cases must be isolated commits directly on base - never on the
-    modern branch tip - so that git diff base..case-XX-head contains ONLY
-    this case's mutation (the eval pipeline diffs those two refs).
-
-    P6-safe build: mutations are applied inside a TEMPORARY WORKTREE
-    checked out at base. The main working tree legitimately carries other
-    lanes' in-flight work, so it is never checked out or modified here
-    (a main-tree detached checkout would refuse or clobber it).
+    P6-safe build: mutations are applied inside a temporary worktree checked
+    out at base. The main working tree legitimately carries other lanes'
+    in-flight work, so it is never checked out or modified here (a main-tree
+    detached checkout would refuse or clobber it).
     """
     import tempfile
 
@@ -228,14 +247,43 @@ def apply_case_detached(
             path.write_text(content, encoding="utf-8")
             paths.append(rel)
         git("-C", worktree, "add", "--", *paths)
-        git(
-            "-C", worktree, "commit", "-q", "-m",
-            "Golden case " + case + ": " + commit_msg,
-        )
-        case_sha = git("-C", worktree, "rev-parse", "HEAD")
-        git("tag", "-f", case + "-head", case_sha)
+        git("-C", worktree, "commit", "-q", "-m", commit_msg)
+        return git("-C", worktree, "rev-parse", "HEAD")
     finally:
         git("worktree", "remove", "--force", worktree)
+
+
+def apply_case_detached(
+    case: str,
+    commit_msg: str,
+    mutations: list[tuple[str, str, str]],
+    added_files: list[tuple[str, str]] | None = None,
+) -> None:
+    """Build a case tag whose PARENT is the honest base tag.
+
+    New cases must be isolated commits directly on base - never on the
+    modern branch tip - so that git diff base..case-XX-head contains ONLY
+    this case's mutation (the eval pipeline diffs those two refs).
+    """
+    sha = _commit_on_base(
+        "Golden case " + case + ": " + commit_msg, mutations, added_files,
+    )
+    git("tag", "-f", case + "-head", sha)
+
+
+def _build_head_v1_detached() -> None:
+    """head-v1 (the flagship regression) for CI mode, built on base.
+
+    Same two controller edits the release path stages, but committed in a
+    temporary worktree so --refs-only never moves the checkout.
+    """
+    sha = _commit_on_base(
+        "Golden scenarios (P6): head-v1 - @PreAuthorize removed from "
+        "changeEmail (the honest injected regression)",
+        [(CONTROLLER, AUTH_IMPORT, ""), (CONTROLLER, AUTH_ANNOTATION, "")],
+    )
+    git("tag", "-f", "head-v1", sha)
+    print("head-v1 ->", sha)
 
 
 GOLDEN_CASES_DIR = REPO_ROOT / "golden-cases"
@@ -1940,10 +1988,12 @@ P6_CASES: list[dict[str, Any]] = [
 
 
 def main() -> None:
+    global REFS_ONLY
+    REFS_ONLY = "--refs-only" in sys.argv
     require_clean()
     only = _only_filter()
 
-    if only is None:
+    if REFS_ONLY or only is None:
         # 1. Honest extended base (P6): the committed demo state - cache-aside
         #    user reads, orders/products domain, N+1 counter surface. The
         #    release process commits demo/ first; here we only tag it.
@@ -1951,6 +2001,10 @@ def main() -> None:
         git("tag", "-f", "base", base_commit)
         print("base ->", base_commit)
 
+    if REFS_ONLY:
+        # 2. Honest head, built on base in a temporary worktree.
+        _build_head_v1_detached()
+    elif only is None:
         # 2. Honest head = the same demo minus the @PreAuthorize on the
         #    mutating endpoint (the flagship regression, same as v2).
         _remove_controller_annotation()
@@ -2191,6 +2245,14 @@ def main() -> None:
             added_files,
         )
         _write_probe_metadata(entry)
+
+    if REFS_ONLY:
+        # Every case was built in its own temporary worktree: the checkout
+        # was the base, and nothing moved it. No restore / post-condition
+        # needed (and restore_base would be wrong here: HEAD is not base).
+        print("Golden scenario refs built from the checkout:")
+        print(git("tag", "-l"))
+        return
 
     # 6. Leave the working tree at honest base (all demo tests green).
     # The branch carries the synthetic case commits (02..10), so demo/ is

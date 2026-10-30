@@ -42,17 +42,38 @@ jobs:
           # the wrapper distribution in the cache volume
           curl -fsSL -o demo/spring-backend/.mvn/wrapper/maven-wrapper.jar \
             https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar
+          # #159 / #203: exit 126 — demo/spring-backend/mvnw is committed
+          # 100644 (Windows drops the exec bit), so `./mvnw` cannot exec as
+          # the non-root sandbox user. Invoke it through sh, which needs no
+          # exec bit.
+          # #521: this note used to sit BELOW the backslash of the `docker
+          # run` above. A comment line carries no trailing backslash, so it
+          # terminated the continued command early: `docker run` lost its
+          # image ("requires at least 1 argument") and the image line ran as
+          # a command of its own (measured: `maven:3.9: command not found`,
+          # rc 127). Every nightly run died HERE — before the evaluation
+          # step and before the "Alert on regression" gate below ever ran.
+          # ci.yml (#499) keeps notes above the command for the same reason;
+          # tests/unit/test_ci_jobs_can_run_the_repo_gates.py now scans every
+          # workflow for both shapes.
           docker run --rm --user 1000:1000 \
             -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" \
             -v specproof-maven-cache-1000:/home/maven/.m2 \
             -v $PWD/demo/spring-backend:/work:ro -w /work \
-            # #159 / #203: exit 126 — demo/spring-backend/mvnw is committed
-            # 100644 (Windows drops the exec bit), so `./mvnw` cannot exec as
-            # the non-root sandbox user. Invoke it through sh, which needs no
-            # exec bit. ci.yml learned this in #159; this file kept the old
-            # form, so every nightly run died HERE — before the evaluation
-            # step — and the "Alert on regression" gate below never ran.
             maven:3.9-eclipse-temurin-21 sh mvnw -q -v
+      - name: Materialize every golden-scenario ref from this checkout
+        # #521: the refs the nightly evaluation resolves are LOCAL tags built
+        # by scripts/build_golden_scenarios.py (a rebuild creates new commits,
+        # so they are not pushed); a checkout carries none of them and the eval
+        # aborts in its ref preflight. --refs-only tags base at HEAD and
+        # rebuilds head-v1 plus all 101 case refs in temporary worktrees,
+        # without moving HEAD or dirtying the tree. The 100-case run needs the
+        # full set, so no --only here; the binding to this step is
+        # tests/unit/test_ci_materializes_the_golden_refs.py.
+        run: |
+          git config user.name "specproof-ci"
+          git config user.email "specproof-ci@users.noreply.github.com"
+          python scripts/build_golden_scenarios.py --refs-only
       - name: Nightly 100 golden-case evaluation (multi-hour)
         run: |
           # #222/#224: the recall/false-positive floors the "Alert on regression"

@@ -163,6 +163,24 @@ jobs:
             -v specproof-maven-cache-1000:/home/maven/.m2 \
             -v $PWD/demo/spring-backend:/work:ro -w /work \
             maven:3.9-eclipse-temurin-21 sh mvnw -q -v
+      - name: Materialize the golden-scenario refs the eval cases resolve
+        # #521: the golden refs are built by scripts/build_golden_scenarios.py
+        # and are LOCAL tags — a rebuild creates new commits every time, so a
+        # checkout carries only what earlier rebuilds happened to push (origin,
+        # measured 2026-10-29: base, head-v1, p0.5-verified-v1 and seven
+        # case-*-head tags — none of the four this job evaluates; CI run
+        # 40714443058 aborted in the ref preflight naming case-12/17/21/56-
+        # head). --refs-only treats THIS checkout as the honest base, moves
+        # stale base/head-v1 onto it, rebuilds the selected cases in temporary
+        # worktrees, and never moves HEAD or dirties the tree. The list is the
+        # union of both evaluating jobs' cases; extras cost seconds, a missing
+        # id aborts the eval. The binding is
+        # tests/unit/test_ci_materializes_the_golden_refs.py, not this comment.
+        run: |
+          git config user.name "specproof-ci"
+          git config user.email "specproof-ci@users.noreply.github.com"
+          python scripts/build_golden_scenarios.py --refs-only \
+            --only case-01,case-10,case-12,case-17,case-21,case-56
       - name: Kernel integration tests + the contract CLI cases (real MySQL/Redis/RabbitMQ/Mongo)
         # #499: the contract compiler's CLI cases reach MySQL through
         # ContractRegistry(), so in the no-infra job they skip (the database
@@ -170,7 +188,13 @@ jobs:
         # job without a database produced two reds. This job has the
         # database, so it runs them for real: the skip must not be the only
         # place those two paths are ever exercised.
-        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py -q
+        # #521: slow_eval is the FULL 100-case, multi-hour evaluation. Its
+        # dedicated home is nightly-eval.yml; this job collected it too, so
+        # once the refs above resolve it would rebuild Maven cases for hours
+        # on every push. The marker name is bound to the test's own marker by
+        # tests/unit/test_ci_materializes_the_golden_refs.py — renaming one
+        # without the other reds that gate instead of silently re-running it.
+        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py -q -m "not slow_eval"
       - name: Stop infrastructure
         if: always()
         run: docker compose -f compose.phase0.yml down -v
@@ -224,6 +248,25 @@ jobs:
             -v specproof-maven-cache-1000:/home/maven/.m2 \
             -v $PWD/demo/spring-backend:/work:ro -w /work \
             maven:3.9-eclipse-temurin-21 sh mvnw -q -v
+      - name: Materialize the golden-scenario refs this job evaluates
+        # #521: the golden refs are built by scripts/build_golden_scenarios.py
+        # and are LOCAL tags — a rebuild creates new commits every time, so
+        # even this job's fetch-depth: 0 checkout carries only what earlier
+        # rebuilds happened to push (origin, measured 2026-10-29: base,
+        # head-v1, p0.5-verified-v1, seven case-*-head tags — and none of the
+        # four below). The eval then refused to run, naming the four
+        # unresolved refs (run 40714443058) — a setup failure, not a detection
+        # result. --refs-only treats THIS checkout as the honest base, moves
+        # stale base/head-v1 onto it, rebuilds the selected cases in temporary
+        # worktrees, and never moves HEAD or dirties the tree the evaluation
+        # reads. The --only list must cover the four cases copied below; that
+        # binding is tests/unit/test_ci_materializes_the_golden_refs.py, not
+        # this comment.
+        run: |
+          git config user.name "specproof-ci"
+          git config user.email "specproof-ci@users.noreply.github.com"
+          python scripts/build_golden_scenarios.py --refs-only \
+            --only case-01,case-10,case-12,case-17,case-21,case-56
       - name: Evaluate representative golden-case subset (deterministic)
         run: |
           # The full 100-case eval is a multi-hour gate (local slow_eval /

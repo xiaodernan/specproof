@@ -379,12 +379,17 @@ def _comment_starts_a_comment(line: str) -> bool:
 
 
 def swallowed_lines(script: str) -> list[tuple[int, str]]:
-    """The lines whose content a comment swallows.
+    """The lines that put a comment inside a backslash continuation.
 
-    A backslash continuation is removed BEFORE the line is parsed, so a
-    comment on a continued line runs to the end of the whole logical
-    command — and everything the later physical lines contribute is lost.
-    The shape that loses it is a comment followed by more command.
+    Two shapes, one cause.  The shell removes a backslash-newline BEFORE it
+    parses the line, so a comment on a continued line either:
+
+    (a) runs to the end of the whole logical command — when the comment line
+        itself ends with a backslash, everything the later physical lines
+        contribute is swallowed; or
+    (b) carries no trailing backslash and therefore TERMINATES the command
+        early, turning the argument the backslash promised into a command of
+        its own (nightly-eval.yml: ``maven:3.9: command not found``, rc 127).
     """
     out: list[tuple[int, str]] = []
     group: list[tuple[int, str]] = []
@@ -401,6 +406,9 @@ def swallowed_lines(script: str) -> list[tuple[int, str]]:
 def _swallowed_by(group: list[tuple[int, str]], out: list[tuple[int, str]]) -> None:
     if len(group) < 2:
         return
+    for (_, line), (next_lineno, next_line) in zip(group, group[1:], strict=False):
+        if line.rstrip().endswith("\\") and _comment_starts_a_comment(next_line):
+            out.append((next_lineno, next_line.strip()))
     first_comment = next(
         (lineno for lineno, line in group if _comment_starts_a_comment(line)), None
     )
@@ -414,21 +422,42 @@ def _swallowed_by(group: list[tuple[int, str]], out: list[tuple[int, str]]) -> N
             out.append((lineno, stripped))
 
 
+def _scripts_in(parsed: dict) -> list[tuple[str, str]]:
+    """Every (job id, run script) pair in a parsed workflow."""
+    out: list[tuple[str, str]] = []
+    for job_id, job in (parsed.get("jobs") or {}).items():
+        for step in job.get("steps") or []:
+            script = step.get("run")
+            if isinstance(script, str):
+                out.append((job_id, script))
+    return out
+
+
 def test_no_run_block_puts_a_comment_inside_a_backslash_continuation() -> None:
-    """No job may carry the shape that killed two of them.
+    """No run block, in ANY workflow, may carry the shape that killed jobs.
 
     Measured: CI run 40574430562 logged ``docker: 'docker run' requires at
     least 1 argument`` in ``tests-with-infra`` and in ``eval-golden-cases``,
-    and neither job ran a single test.
+    and neither job ran a single test.  #521 measured the sibling shape in
+    nightly-eval.yml: the ``#159 / #203`` note below the ``docker run``
+    backslash ended that command early, the image line ran as a command of
+    its own (rc 127), and the nightly job died before its evaluation step.
+
+    The scan covers every ``.github/workflows/*.yml``; #499 fixed ci.yml by
+    hand and left the same shape one file over, which is what a census —
+    rather than a per-file assertion — is for.
     """
+    workflows = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+    assert workflows, "no workflows under .github/workflows"
     bad: list[str] = []
-    for job_id in workflow()["jobs"]:
-        for script in run_scripts(job_id):
+    for path in workflows:
+        parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for job_id, script in _scripts_in(parsed):
             for lineno, text in swallowed_lines(script):
-                bad.append(f"{job_id} line {lineno}: {text}")
+                bad.append(f"{path.name}: {job_id} line {lineno}: {text}")
     assert not bad, (
-        "these lines are swallowed by a comment inside a backslash "
-        "continuation:\n  " + "\n  ".join(bad)
+        "these lines put a comment inside a backslash continuation:\n  "
+        + "\n  ".join(bad)
     )
 
 
@@ -481,3 +510,52 @@ def test_a_comment_inside_a_continuation_swallows_the_rest_of_the_command() -> N
     kept_code, kept = run(fixed)
     assert "alpine" in kept, f"the comment-free shape lost the image too: {kept}"
     assert kept_code == 0, f"the comment-free shape failed: {kept}"
+
+
+def test_a_comment_line_terminates_a_continued_command_early() -> None:
+    """The nightly-eval.yml shape, measured by the shell itself.
+
+    The comment line carries no trailing backslash, so the backslash-newline
+    that promised another argument is consumed by the comment: the argument
+    line after the comment starts a NEW command.  Measured with this shell:
+    the image never reached ``docker run`` and the image line itself exited
+    127 (``maven:3.9: command not found``).
+    """
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("no bash on this machine; the shell is what has to be asked")
+    prelude = 'docker() { printf "arg=%s\\n" "$@"; }\n'
+    broken = (
+        prelude
+        + "docker run --rm --user 1000:1000 \\\n"
+        + "  # a note inside the continuation\n"
+        + "  alpine echo hi\n"
+    )
+    fixed = (
+        prelude
+        + "# a note ABOVE the command\n"
+        + "docker run --rm --user 1000:1000 \\\n"
+        + "  alpine echo hi\n"
+    )
+
+    def run(script: str) -> tuple[int, list[str]]:
+        proc = subprocess.run(
+            [bash, "-c", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        return proc.returncode, proc.stdout.split()
+
+    lost_code, lost = run(broken)
+    assert "arg=alpine" not in lost, (
+        f"the comment did not terminate the command early after all: {lost}"
+    )
+    assert lost_code != 0, (
+        "the broken shape must fail: the image line became a command of its own"
+    )
+    kept_code, kept = run(fixed)
+    assert "arg=alpine" in kept, f"the note-above shape lost the image: {kept}"
+    assert kept_code == 0, f"the note-above shape failed: {kept}"

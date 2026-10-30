@@ -15693,6 +15693,103 @@ A1 里 3 个非 UTF-8 别名格与真平面腿**刻意保持绿**：前者按拼
 ⑦ 本号顺带量到的候选：`craft/adapters` 的导入面把 elasticsearch 与 provider 栈带进任何导入它的
    门（累计 26.7s），值得单独一号量它的边界。
 
+## #521 CI 的两个评测作业解析不到 golden 场景的 ref：红的是预检（setup），不是检出
+
+### 起因
+
+CI run 40714443058（2026-10-28，master b710dfb）。`eval-golden-cases` 在「Evaluate
+representative golden-case subset」上以 rc 1 退出，ref 预检逐条点名 `case-12-head` /
+`case-17-head` / `case-21-head` / `case-56-head` 解析不到；`tests-with-infra` 3 红：
+两条 eval 腿死在同一个预检（`assert 1 == 0`，stderr 就是那句「--repo … 是这些 ref
+所在的仓库；golden 场景的 ref 由 scripts/build_golden_scenarios.py 生成」），第三条
+`test_full_pipeline_produces_all_artifacts` 报 `Matrix has no rows`。
+
+这些 ref 由 `scripts/build_golden_scenarios.py` 在**本机**建：`base` 打在 demo/ 的
+提交上，`head-v1` 与每个 `case-XX-head` 都是临时 worktree 里的一次提交；重建就换 sha，
+所以它们从不上推。检出只拿得到 origin 上早先某次重建碰巧推上去的 tag：实测 2026-10-29
+`git ls-remote --tags origin` = `base` / `head-v1` / `p0.5-verified-v1` + 7 个
+`case-*-head`（09/25/30/31/97/98/100），要用的四个一个没有；而且 `base` 还是**旧的**
+（origin 3d34c4d，本机 90ba16a）—— 检出拿到的 ref 不只是缺，还会是错的。
+
+### 量到的（预测先写，再跑；平面在仓库根之外）
+
+- 无 tag 平面（CI 的检出形状）：`_ref_problems` 非空，8 条 —— 4 个用例 ×（`base` + 各自 head）。
+- `--refs-only --only case-12,case-17,case-21,case-56`：rc 0、67 s，HEAD 不动、
+  `git status --porcelain` 不变。
+- 全量重建（老路径，102 个 tag：base + head-v1 + 100 个 case）：rc 0、1356 s —— 每个
+  用例的变异仍能打在 b710dfb 的 demo/ 上。
+- nightly 的注释形状（bash 实测）：注释行落进 `docker run` 的反斜杠续行 ⇒ `docker run`
+  收到 0 个镜像（"requires at least 1 argument"），下一行
+  `maven:3.9-eclipse-temurin-21 sh mvnw -q -v` 被当成命令 ⇒ `maven:3.9: command not found`，
+  rc 127。nightly 唯一的作业每次都死在这里，后面的 refs 步骤与「Alert on regression」门
+  **从未跑过**。
+
+臂（陈旧 tag 的见证；一条平面三跑，预写判决在跑之前）：
+
+| 臂 | 改什么 | 预测 | 实测 |
+| --- | --- | --- | --- |
+| A0 | 对照：builder 原样，`base`/`head-v1` 已存在且指旧提交 | rc 0；`base` == HEAD；`head-v1` 不是旧 sha；`base..head-v1` = 1 | **全中** |
+| A1 | `git tag -f base` 去掉 `-f` | rc != 0，输出点 "already exists" | **MATCHED**（rc 1，点到了） |
+| A2 | head-v1 的 `tag -f` 改成 no-op | rc 0，`head-v1` 仍指旧提交，`base..head-v1` = 0（门那两条腿会红） | **MATCHED** |
+
+### 落地
+
+1. `scripts/build_golden_scenarios.py` 新增 `--refs-only`：`base` 用 `tag -f` 挪到检出
+   HEAD；`head-v1` 与选中的用例各自在 `git worktree add --detach` 的临时 worktree（建在
+   仓库根的兄弟目录）里提交一次；全程不动 HEAD、不脏工作树。`--only` 收**短 id**
+   （`case-12`），目录名是全 slug（`case-12-add-javadoc`），`_only_filter()` 按短 id 比。
+2. `ci.yml` 两个作业各加一步「Materialize the golden-scenario refs …」（git 身份 +
+   `--refs-only --only case-01,case-10,case-12,case-17,case-21,case-56`），位置在评测
+   步骤之前；`tests-with-infra` 的 pytest 命令加 `-m "not slow_eval"`（100 例、数小时的
+   评测归 nightly）。
+3. `nightly-eval.yml`：把落进续行的注释块挪到 `docker run` **上方**，并加整份 refs 步骤
+   （`--refs-only`，不带 `--only`）。
+4. `tests/unit/test_ci_jobs_can_run_the_repo_gates.py`：原来只扫 `ci.yml`、只认「注释
+   自己带反斜杠」一种形状；现在扫 `.github/workflows/*.yml` 全部，补第二种形状（注释行
+   **不带**反斜杠，照样截断上一行的续行），另加一条 bash 机制腿（docker 桩：坏形状镜像
+   丢掉且 rc != 0，好形状通过）。
+5. 新门 `tests/unit/test_ci_materializes_the_golden_refs.py`：R1 在无 tag 平面上测机制
+   （先红后绿、HEAD/工作树不动、两种 ref 家族各一、每个 ref 恰好领先 base 一个提交、
+   陈旧 tag 被挪走），R2 两个作业都在评测前建 refs 且配了 git 身份，R3 每个作业的
+   `--only` 覆盖它评测的每一个用例（从 `cp` 行与 `HTML_REPORT_SUBSET` 派生），R4
+   nightly 建全量而 push 只跑子集（`-m` 的值必须正好是那条测试自己带的 marker）。
+
+### 门
+
+| 门 | 结果 |
+| --- | --- |
+| 新门（5 条，含机制腿） | **5 passed**（机制腿单独 26.6 s；本门+ #499 门 + 预检门合计 17 passed / 88.3 s） |
+| ruff（四个 Python 文件） | `All checks passed!` |
+| mypy（四个 Python 文件） | rc 0 |
+
+### 否证与边界
+
+- `test_full_pipeline_produces_all_artifacts` 的 `Matrix has no rows` **没有**声称修好：
+  它直接用 `base`/`head-v1`，CI 之前读到的是 origin 的**旧** tag 对；新的 refs 步骤会把
+  这对 tag 挪到当前 HEAD，但这条腿本机还没量到结论（node 图的一次完整跑超 600 s 被弃）。
+  下一次 CI 给答案；若仍红，它是一个独立缺陷。
+- 两条 eval 腿里，`test_specproof_eval_runs_all_cases` 现在被 `slow_eval` 挡在 push
+  之外 —— 同一条命令由 nightly 的评测步骤跑；`test_eval_generates_html_report` 只把 4 个
+  用例拷进临时目录，其中 case-01/case-10 是 holdout 候选、默认隔离会丢，真正需要的 ref
+  是 `case-17-head`/`case-56-head`，与 infra 作业的 `--only` 列表一致（多余两个 id 每个
+  只花几秒）。
+- 不推这些 tag：重建就换 sha，推上去的副本与任何一次检出不匹配，`tag -f base` 还会重写
+  所有历史报告的比较基准。
+- 机制腿的平面是裁剪过的（`demo/` + `scripts/` + 两个用例目录，`git archive` + tarfile
+  解包）：整棵 clone 实测 170 s，裁完 26.6 s；builder 不读的路径不影响结论。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① #520 队列①：`retrieval/rerank.py` 不做 429 重试而 embeddings 做；
+② #520 队列②：`providers/resilience.py` 与 `providers/client_policy.py` 两套未接线的重试；
+③ #520 队列③：`sha256_hex` ×3 与 `_capsule_dirs` / `_eval_report_path` / `child_output_text`
+   的跨层归属；④ #520 队列④：三套并存的时间戳词汇；
+⑤ #520 队列⑤：`cli/`、`craft/` 剩余约 50 条静默 `except`；
+⑥ #520 队列⑥：mypy 版本钉住 / P6 100 例隔离评测 / `JOB_CREATION_WHITELIST.md` 符号名判定；
+⑦ 本号顺带量到：nightly 与 ci.yml 的 Maven 缓存种子步骤几乎逐字重复（chown /
+   go-offline / wrapper 三段落），可以收成一份脚本 —— 上一次一份修了另一份没修，就是
+   本号这次 127 的形状。
+
 ## #522 三句「线上没人 import 这个模块」被一张解析过相对边的图全否了，而错的三条语法里有一条长在我自己的门里
 
 **起因/占号。** 见下面「起因」那节。号让了两次：开工时记 #518，被 `3f664c5` 用掉后取 #520，

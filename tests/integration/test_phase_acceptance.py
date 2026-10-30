@@ -22,6 +22,21 @@ GOLDEN_CASES = PROJECT_ROOT / "golden-cases"
 DEMO_REPO = PROJECT_ROOT / "demo" / "spring-backend"
 REQUIREMENT_FILE = PROJECT_ROOT / "demo" / "requirement.txt"
 
+#: The subset the HTML-report case copies. This test asserts that a report is
+#: produced, not what it finds: case-01 and case-10 are holdout candidates,
+#: which default isolation drops, so the refs this file actually resolves are
+#: case-17-head and case-56-head. CI's tests-with-infra job materializes the
+#: union of both evaluating jobs' refs before running this file; the binding
+#: lives in tests/unit/test_ci_materializes_the_golden_refs.py, so a case
+#: added here without the job's --only list following reds that gate instead
+#: of aborting the eval in CI's ref preflight.
+HTML_REPORT_SUBSET = (
+    "case-01-auth-bypass",
+    "case-10-comment-only",
+    "case-17-logic-inversion",
+    "case-56-redis-cache-eviction-removed",
+)
+
 
 def run_specproof(
     args: list[str], timeout: int = 120,
@@ -126,12 +141,7 @@ class TestPhaseAcceptance:
 
         subset = Path(tempfile.mkdtemp(prefix="specproof-eval-subset-"))
         try:
-            for case_name in (
-                "case-01-auth-bypass",
-                "case-10-comment-only",
-                "case-17-logic-inversion",
-                "case-56-redis-cache-eviction-removed",
-            ):
+            for case_name in HTML_REPORT_SUBSET:
                 shutil.copytree(
                     GOLDEN_CASES / case_name, subset / case_name
                 )
