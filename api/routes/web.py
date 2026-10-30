@@ -228,6 +228,13 @@ def dashboard() -> dict[str, Any]:
     MySQL is the source of truth for jobs. When it is unreachable the
     endpoint still answers 200 with "degraded: true" and empty
     aggregates - the UI must render the degradation, not fake numbers.
+    Both branches answer the same keys, so "degraded" is a missing value
+    rather than a missing field.
+
+    The job counts are the real work only (#542): a seeded row writes no
+    ``tenant_id``, so it clears every tenant's scope predicate and lands in
+    ``COUNT(*)`` on its way to a card that says 累计验收. The list plane answers
+    the same question per row, because there the rows themselves are rendered.
     """
     generated_at = datetime.now(UTC).isoformat()
     try:
@@ -259,6 +266,10 @@ def dashboard() -> dict[str, Any]:
                 "by_status": {},
                 "failure_rate": None,
                 "blocked_rate": None,
+                # The happy branch answers this key, so a degraded branch that
+                # omits it is not "unknown" — it is a payload the type says is
+                # there (#542's key-set leg).
+                "needs_review_rate": None,
             },
             "timeline_24h": [],
             "timeline_timezone": "server-local",
@@ -281,12 +292,20 @@ def dashboard() -> dict[str, Any]:
     for row in status_rows:
         status = str(row.get("status") or "UNKNOWN")
         count = int(row.get("n") or 0)
-        by_status[status] = count
-        total += count
+        # Strict read, on purpose: an aggregate that stopped publishing the
+        # split must raise here rather than default to 0, because "no seeded
+        # rows" and "nobody asked" would otherwise be the same number — and the
+        # dashboard renders this count as work that happened.
+        demo = int(row["demo_jobs"])
+        real = count - demo
+        by_status[status] = real
+        total += real
     failed = by_status.get("FAILED", 0) + by_status.get("ERROR", 0)
 
     timeline = [
-        {"hour": row["hour"], "count": int(row["count"]), "failed": int(row["failed"])}
+        {"hour": row["hour"],
+         "count": int(row["count"]) - int(row["demo_jobs"]),
+         "failed": int(row["failed"]) - int(row["demo_failed"])}
         for row in timeline_rows
     ]
 

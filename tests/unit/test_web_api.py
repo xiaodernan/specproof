@@ -202,14 +202,20 @@ def _seed_job() -> None:
 
 
 def test_dashboard_aggregates_happy(fakes: None) -> None:
+    # ``n`` counts every row the scope can see, seeded rows included (they carry
+    # no tenant_id, so they clear every tenant predicate); ``demo_jobs`` is the
+    # split the aggregate was asked for, and the page numbers are n minus it —
+    # four VERIFIED rows here answer 累计验收 as three (#542).
     FakeMySQLStore.status_rows = [
-        {"status": "VERIFIED", "n": 3},
-        {"status": "BLOCKED", "n": 1},
-        {"status": "FAILED", "n": 1},
+        {"status": "VERIFIED", "n": 4, "demo_jobs": 1},
+        {"status": "BLOCKED", "n": 2, "demo_jobs": 1},
+        {"status": "FAILED", "n": 1, "demo_jobs": 0},
     ]
     FakeMySQLStore.timeline_rows = [
-        {"hour": "2026-09-18T09:00:00", "count": 1, "failed": 1},
-        {"hour": "2026-09-18T10:00:00", "count": 1, "failed": 0},
+        {"hour": "2026-09-18T09:00:00", "count": 2, "failed": 1,
+         "demo_jobs": 1, "demo_failed": 0},
+        {"hour": "2026-09-18T10:00:00", "count": 1, "failed": 0,
+         "demo_jobs": 0, "demo_failed": 0},
     ]
     FakeMySQLStore.rows["a"] = {"id": "a", "status": "QUEUED"}
     client = TestClient(app)
@@ -226,6 +232,7 @@ def test_dashboard_aggregates_happy(fakes: None) -> None:
     assert body["jobs"]["failure_rate"] == 0.2
     assert body["jobs"]["blocked_rate"] == 0.2
     assert len(body["timeline_24h"]) == 2
+    assert body["timeline_24h"][0]["count"] == 1
     assert body["timeline_24h"][0]["failed"] == 1
     assert body["cost"]["available"] is False
     assert body["tokens"]["total"] is None

@@ -18366,3 +18366,318 @@ acceptance.py 非字面写；⑧ case-17 的严重度漂移；⑨ 其余六个 p
 ⑬ **全量红单对照**（N11 没拿到的那一条）：在没有别道占用 `specproof_test` 的时间窗里，
 `_ctl`/`_wt` 两棵树**串行**各跑一遍 `python -m pytest tests/unit tests/security tests/fault -q`
 （CI 的 no-infra 作业口径），红名单逐字对一次。本号只在 24 门口径上证明了 0 新增红。
+
+
+## #542 两条 dashboard 聚合把演示行算进用户看见的数字——而 #526 拒绝聚合回答时给的理由（「聚合没有行可贴标签」）问错了轴
+
+**本节是 #541 队列①（= #526 队列① = #525 队列②）的交付。** 那一格把状态写到这里就停了：
+「前提已量实、**判决未做**，本号只把它量实并往下传」。本号做判决，以及判决之后那一份最小诚实修复。
+取号按规复核：写本节之前 `origin/master` = `7b6078c`（#541 的提交），账本最大节 `## #541`，全账本 18368 行。
+本节按那一版**先追加、后改写**：追加完跑 `tests/unit` 全量，全量抓到两条**本号自己造的红**，
+两条都修（拆台走产品删除路径、owner 写法与量具折叠规则，见「发现」8/9/10 与「否证」13），
+修完才有下面「全量红单对照」小节与两处例数更正。**这一句是写给读者的**：本节里的每个例数都取到
+「修复之后」的树为止，而 13 条变异臂取的是「修复之前」的树（「否证」12）。
+
+### 先撤一条理由
+
+那条理由要撤。#526 落地时把聚合面**排除**在自己的名册之外，理由是聚合「没有行可以贴标签，加那一列等于花钱买一个
+没人能读的结果」。这句话在**行**这个轴上没错，在**数字**这个轴上错：dashboard 的受害方式不是一行读错，
+而是一个数离开数据库、被前端渲染成真实工作。于是问题从「这一行是不是演示」换成
+「**离开我的这个数字里有没有演示行**」，同一条聚合的正确答案不再是「不答」，而是**答一个计数**。
+撤换写进 owner 的 docstring，也写进 #526 门那条被改窄的腿的 docstring——**两处而不是零处**，
+因为下一个读 #526 门的人会问「聚合呢」；一条被撤的理由如果只死在 PR 描述里就会复活。
+
+### 量到的
+
+**证据文件**：
+- contracts/demo_marker.py
+- storage/mysql.py
+- api/routes/web.py
+- scripts/seed_demo.py
+- README.md
+- apps/web/src/api.ts
+- apps/web/src/pages/Dashboard.tsx
+
+数字（探针在 `D:\面试项目\.scratch\probe542*.py`，探针不入库，口径随数字写）：
+
+- **聚合人口 = 3，回答 demo 问题的 = 0（落地前）。** 产品面 **317** 个模块（#541 的 owner 派生：
+  `tests/_scan_walk.py::product_python_files`，18 个根）里对 `verification_jobs` 的聚合形状 **3** 条，
+  全在 `storage/mysql.py`：`dashboard_snapshot` 的 `COUNT(*) AS n`（按 status 分组）与
+  `COUNT(*) AS count` + `SUM(status IN ('FAILED','ERROR')) AS failed`（按小时分组），
+  以及 `search_jobs` 的 `COUNT(*) AS total`。3 条里 SELECT 侧发布 demo 事实的 **0** 条、
+  WHERE 侧用得上 demo 事实的 **0** 条。
+- **演示行挡住不了，别的租户的行才挡住。** `scripts/seed_demo.py` 里 `tenant` 出现 **0** 次
+  （只调 `insert_job` / `save_job_summary`），status 字面量 `['BLOCKED', 'VERIFIED', 'VERIFIED']`。
+  播种行没有 `tenant_id` ⇒ 聚合共用的 `(tenant_id = %s OR tenant_id IS NULL)` 对**每一个**租户都放行它们，
+  那条谓词只挡得住别人的真实行。而 `BLOCKED` 正是前端「发现风险」那张卡。
+- **折叠段对 demo 一无所知。** `api/routes/web.py` 的 dashboard 函数里 `is_demo` 出现 **0** 次、`demo` 1 次
+  （那 1 次是文案）。同一份快照里 `recent_jobs` 每行带着 `is_demo`（#526 落的列），
+  而 `jobs.total`、`by_status`、`timeline_24h` 三个**数字**不看它。
+- **文案承诺的是「记录」，卡片渲染的是「计数」。** `README.md`：「“演示”：预置示例，用于理解页面，
+  不是当前仓库的真实验证结果」；`apps/web/src/pages/Dashboard.tsx` 的 `delivery-note`：
+  「标有“演示”的记录为示例数据」。两句都只对**带徽章的行**成立，而同一页的累计验收 / 各状态卡 /
+  24 小时折线**没有地方贴徽章** ⇒ 承诺覆盖不到它自己的计数器。
+- **落地前没有任何一条腿断「页面数不含演示行」。** `tests/` 里写/读演示标记的文件 **5** 个、
+  断言聚合数字形状的文件 **14** 个、交集 **2** 个（两道 demo 家族门）；但那两个文件的聚合命中都是
+  **SQL 形状**的针（`COUNT(*) AS total` 在不在名册、`AS is_demo` 的文本），不是载荷数字。
+  `test_web_api.py::test_dashboard_aggregates_happy` 断 `total == 5`，而它的假 `statuses` 行里没有 split 概念。
+  ⇒ 演示行进不了真实计数这件事，**当时无证人**。
+  （口径说明：#541 队列① 那句「既写演示行又断聚合数的文件 **0** 个」与本读数 **2** 不是同一口径——
+  那一格数的是「同一文件里既写种子行又断聚合数字」，本号数的是「文件里同时出现演示形状与聚合形状字样」。
+  同名不同义写在这里，不让它变成「前号数错了」。）
+- **基线上还有一处别的洞**（本号的键集合腿顺手量到的，见「发现」5）：`apps/web/src/api.ts` 的
+  `DashboardData.jobs` 把 `needs_review_rate` 声明成必填（`number | null`），
+  而 `api/routes/web.py` 的**降级分支**不答这个键——降级载荷比 happy 载荷少一个字段，不是「unknown」而是
+  「类型说有、实际没有」。
+
+### 判决与落地
+
+**判决：排除。** 不是「声明这是演示计数」（那需要前端配合，而 `api.ts` / `Dashboard.tsx` 被别道以未提交
+改动持有，且仓库没有「载荷键 ⇄ 前端类型」的对账门）。排除的实现方式受 #526 立的规矩约束：
+**谓词只有一个 owner，且必须以数据（绑定参数）而非文本进 SQL**。
+
+**证据文件**：
+- contracts/demo_marker.py
+- storage/mysql.py
+- api/routes/web.py
+- tests/unit/test_the_aggregate_plane_answers_the_demo_question.py
+- tests/unit/test_every_job_read_publishes_the_demo_fact.py
+- tests/unit/test_sql_text_static.py
+- tests/unit/test_web_api.py
+
+- `contracts/demo_marker.py`：一条 flag 文本 `IS_DEMO_FLAG`，**三种形状**从它拼出来——
+  `IS_DEMO_COLUMN`（`… AS is_demo`，#526 的四个行出口继续用，**逐字节不变**）、
+  `IS_DEMO_COUNT`（`SUM(…) AS demo_jobs`）、`IS_DEMO_FAILED`
+  （`SUM(… AND status IN ('FAILED','ERROR')) AS demo_failed`）。别名留在片段字符串**内部**是设计：
+  一个别名抄五遍正是键漂移的成因，而 #525 的门钉的是文本、不是变量名。
+- `storage/mysql.py::dashboard_snapshot`：两条 GROUP BY 各带 `IS_DEMO_COUNT`，小时那条再带 `IS_DEMO_FAILED`。
+  前缀**只**作为绑定参数进数据库，且在每条语句的参数元组里排在租户值与窗口值**之前**——
+  SELECT 列表在文本上先于它也要参数化的 WHERE（#525 为两条窗口读钉过这件事，本号把它扩到两条聚合读：
+  小时那条有 **2** 个 flag ⇒ **2** 次前缀绑定）。
+- `storage/mysql.py::search_jobs` 的 `COUNT(*) AS total` **不加**那一列。理由写进它上方的注释：
+  它答的是**它正在分页的那份人口**，而那份人口里的每一行都带着自己的 `is_demo` 徽章，读数的人看得见。
+  #526 原本用「聚合没有行可贴标签」把这条也一并豁免，本号把豁免换成这条更窄、也更可审的约定，
+  并在 #526 门里把它改名成 `test_the_page_count_answers_only_about_the_rows_it_pages`。
+- `api/routes/web.py` 折叠段：**严格读** `int(row["demo_jobs"])` / `int(row["demo_failed"])`，
+  没有 `.get(…, 0)`——缺列必须响，而这段在路由 `try` **之外** ⇒ 缺列是 500，不是静默降级；
+  「一条不再发布 split 的聚合」用 `.get` 会读成「库里没有演示行」，与真相不可区分。
+  `total`、`by_status[status]`、小时线的 `count` / `failed` 四个可见数都由 `n − demo` 得到，
+  两个率的分母随之变成实数人口。
+- 降级分支补上 `needs_review_rate: None`（键集合腿第一次跑就红在这里；这是基线就存在的洞，不是本号造的）。
+- **不加新载荷键**：`demo_jobs` 只活到折叠段为止。演示计数**如何**披露进队列①。
+- `tests/unit/test_sql_text_static.py`：折宽一层（`_fold_literals` 肯认 owner 内部绑定到字面量链的名字）
+  并补 4 条见证腿。**这是本号唯一一次改动「不属于本号判决的量具」**，动机与边界写在「发现」8 与「否证」13。
+
+### 门
+
+| 门 | 内容 | 实测 |
+|----|------|------|
+| **新门** `tests/unit/test_the_aggregate_plane_answers_the_demo_question.py` | 六段：**A 人口与名册**（`test_the_aggregate_census_is_the_one_the_premise_measured` 用 #541 的 owner 派生面数聚合形状，两条数值地板 `>= 250` 模块 / `>= 3` 条聚合；`test_the_roster_and_the_census_of_who_answers_are_the_same_set` 名册⇄普查双向；`test_every_aggregate_read_is_rostered_as_answering_or_as_declining`；`test_the_count_that_pages_a_window_answers_only_about_its_window`；`test_the_two_dashboard_aggregates_publish_the_demo_count`）；**B 单 owner 三形状**（`test_the_flag_is_the_single_text_behind_all_three_shapes`）；**C 执行参数**（`test_every_aggregate_binds_one_prefix_per_flag_and_nothing_hardcoded`  arity + 绑定值 + 无字面量；`test_the_flag_placeholders_bind_before_the_window_and_the_tenant`）；**D 折叠严格性**（`test_the_fold_reads_the_demo_columns_without_a_default`；`test_the_degraded_answer_keeps_the_same_keys_as_the_real_one` 三分对账：happy 键集 == 降级键集 == `api.ts` 声明键集；`test_the_fold_subtracts_the_split_from_every_visible_number` 无 DB 的算术腿）；**E 真库行为**（`test_seeded_rows_change_the_real_numbers_only_through_the_marker`，**增量**断言：1 条真实 + 2 条演示 ⇒ total 只 +1、`BLOCKED` 不动；去一条演示行的前缀 ⇒ **那条**回到计数）；**F 邻域**（`test_the_526_gate_no_longer_claims_aggregations_need_nothing`；`test_the_marker_still_reaches_the_aggregates_as_data_not_as_text`） | **14 条腿**：无 DB 口径 `13 passed, 1 deselected`（`-k "not seeded_rows"`），E 段那格在 `specproof_test` 独占窗口 `14 passed` |
+| #526 门 `test_every_job_read_publishes_the_demo_fact.py` | 四条行出口的名册、以及 C 段那些「按 `AS is_demo` 选执行语句」的腿**人口不变**（本号给聚合发的别名是 `AS demo_jobs` / `AS demo_failed`，不进那个筛选）；被撤的豁免改成窄约定 | **22 passed**（含改写后的 `test_the_page_count_answers_only_about_the_rows_it_pages`、`test_no_read_re_inlines_the_predicate`） |
+| #525 门 `test_the_demo_marker_has_one_owner_on_both_sides_of_the_sql.py` | 钉 `IS_DEMO_COLUMN` 的文本与 `DEMO_NOTE_PREFIX` 的绑定点 | **47 passed**（预测写的 32 是旧口径的 `def test_` 计数——见「否证」2） |
+| demo 家族合计 | 上面三门 + `test_seed_demo*` / `test_demo_prepare` / `test_api_demo_prepare` | **100 passed** = 86（前号口径）+ 本号 14 |
+| dashboard / jobs 邻域 | `test_web_api`、`test_dashboard_api`、`test_dashboard_performance`、`test_dashboard_window_contract`、`test_dashboard_slo_figures_bind_their_declarations`、`test_api_jobs_total` 六文件 | **68 passed / 2 skipped**（改的是 `test_web_api.py` 的假行：真实数**不变**（`total == 5`、`failure_rate == 0.2`、`blocked_rate == 0.2` 三条断言一字未动），只在假 `statuses` / `timeline` 行上**加** split，并新增 `timeline_24h[0]["count"] == 1`） |
+| #541 门 `test_the_plane_a_scan_reads_is_derived_not_typed.py` | 本号新门用的普查 owner 未动 | **11 passed** |
+| SQL 文本静态门 `tests/unit/test_sql_text_static.py` | 本节追加之后本号一度是它的**被告**：owner 用 f-string 拼三形状 ⇒ 6 处 `cur.execute` 全部成为「未证的 SQL 文本」。修的不是「把 6 行写进名册」，而是 owner 的**写法**（字面量 `+` 链，见「发现」8）**加上折得动的范围**：`_fold_literals(node, assigned, depth)` + `_OWNER_DEPTH = 2` 让它肯折 owner 自己模块里绑定到字面量链的名字，并补 4 条腿证明这次放宽不是免检 | 干净基线树（`_ctl542`，`7b6078c`）**14 passed** → 本号 **18 passed**（旧 14 条一字未动；`test_no_sql_text_reaches_an_executor_without_proof` 在全量跑里红过一次，现绿） |
+| #98 删行门 `tests/unit/test_audit_action_parity.py` | 本号的 `_drop_rows` 最初原地 `DELETE FROM verification_jobs WHERE id = %s`，被它点名到行（`…test_the_aggregate_plane_answers_the_demo_question.py:724`）。改成走产品删除路径——逐条 `MySQLStore.delete_job_records(job_id)`，再按 id 清 `audit_logs` 残留 | **28 passed**（基线同数；本号没动这道门，只让自己的拆台走它）；三文件合跑（prover + 删行门 + 新门无 DB 腿）**59 passed, 1 deselected** |
+| bandit 挣回门 + CI 静态门 | `tests/security/test_bandit_suppressions_are_earned.py`（6 条腿，逐条摘掉 `# nosec B608` 复跑 bandit 证明它藏的是真命中）；两条聚合的拼接形状变了，所以这条门是本号的直接证人 | **6 passed**；`bandit -r contracts storage api -ll -q --skip B101` **rc=0**；`ruff check` **All checks passed**；`python -m mypy .` **Success: no issues found in 262 source files**（本号 7 个文件里 5 个在 `tests/` 下、被 `pyproject.toml` 的 exclude 挡在类型面外，见 #541 队列⑦；这两条读数是**本机** `ruff 0.16.9` / `mypy 2.3.1` 下取的，而 `pyproject` 钉 `0.17.1` / `2.4.0` ⇒ 见「否证」14） |
+| 台账家族门 | `test_ledger_evidence_claims_are_true` / `_queue_pointers_resolve` / `_section_ids_are_unique` / `_section_numbers_are_unique` / `test_recorded_ledger_sections_do_not_vanish` | 追加本节前 **52 passed**、追加后 **52 passed**、本节改写后复跑仍 **52 passed / 0 红**（同一棵树、同一索引，只多一节）——本号那节的 `**证据文件**` 块只写索引承载的路径，探针与臂日志一律写成 `.scratch` 位置，不入块 |
+
+### 变异臂
+
+预测全部写在 `D:\面试项目\.scratch\pred542_aggregate.md`（任何臂运行之前；冻结文件未改），
+读数对照在 `pred542_results.md`。臂树 `.scratch/arm542`（**嵌套** worktree，同 `7b6078c` + 本号当时 6 个文件；
+本节改写之后是 7 个，差的那个是量具 `test_sql_text_static.py`——见「否证」12）。
+而 #541 教的「普查门的臂树必须是 `git worktree`，不是 `git archive`」在这里第二次生效：新门的普查腿在
+这棵祖先含 `.scratch` 的树上给出同一份 317。每条臂改完跑门、再按 sha256 逐字节还原；
+13 条臂跑完之后臂树与本号工作树 6 个文件 `cmp` 全同、M13 的植桩文件不存在、`git status` 只剩本号当时那 6 个文件。
+
+| 臂 | 变异 | 实测红腿（点名） |
+|----|------|------|
+| M1 | owner 里 `AS demo_jobs` → `AS demo_n`（别名漂一个字母） | 4 条：`test_the_roster_and_the_census_of_who_answers_are_the_same_set`、`test_the_two_dashboard_aggregates_publish_the_demo_count`、`test_the_flag_is_the_single_text_behind_all_three_shapes`、`test_every_aggregate_binds_one_prefix_per_flag_and_nothing_hardcoded` |
+| M2 | status 聚合删掉 `IS_DEMO_COUNT` | 1 条：`test_the_two_dashboard_aggregates_publish_the_demo_count` |
+| M3 | 折叠段 `row["demo_jobs"]` → `.get("demo_jobs", 0)` | 1 条：`test_the_fold_reads_the_demo_columns_without_a_default` |
+| M4 | 删掉降级分支的 `needs_review_rate: None` | 1 条真红：`test_the_degraded_answer_keeps_the_same_keys_as_the_real_one`（同一次输出里另有一行是路由 logger 的 `ERROR … dashboard aggregation failed` 前缀，不是 collection error——解析器把它认成红过一次，已按整行保留） |
+| M5 | 小时聚合把前缀绑在 `since` **之后** | 2 条：`test_every_aggregate_binds_one_prefix_per_flag_and_nothing_hardcoded`、`test_the_flag_placeholders_bind_before_the_window_and_the_tenant` |
+| M6 | 前缀写成 SQL 字面量（`.replace("%s", "'seeded demo'")`） | 2 条：`test_the_two_dashboard_aggregates_publish_the_demo_count`（flag 文本不再出现）、`test_every_aggregate_binds_one_prefix_per_flag_and_nothing_hardcoded` |
+| M7 | 在 `storage/mysql.py` 里重新内联那段 CASE 文本 | 3 条：新门 `test_the_flag_is_the_single_text_behind_all_three_shapes`、`test_every_aggregate_binds_one_prefix_per_flag_and_nothing_hardcoded`，#526 门 `test_no_read_re_inlines_the_predicate` |
+| M8 | status 聚合绑**截断**的前缀 `"seeded"` | 3 条：`test_every_aggregate_binds_one_prefix_per_flag_and_nothing_hardcoded`、`test_the_flag_placeholders_bind_before_the_window_and_the_tenant`、`test_the_marker_still_reaches_the_aggregates_as_data_not_as_text`。**行为腿为绿**：`LOCATE("seeded", "seeded demo …") = 1` 仍成立 ⇒ 今天的播种文本对截断前缀**免疫**，这一臂的伤害是潜能的（一条真行只要 note 以 `seeded` 开头就会被当成演示行减掉），只有绑定值腿抓得住它 |
+| M9 | 给 `search_jobs` 的 COUNT 也加上 `IS_DEMO_COUNT` | 3 条：`test_the_roster_and_the_census_of_who_answers_are_the_same_set`、`test_the_count_that_pages_a_window_answers_only_about_its_window`、#526 门 `test_the_page_count_answers_only_about_the_rows_it_pages` |
+| M10 | 折叠段 `real = count`（读了 split 而不减） | 3 条：新门 `test_the_fold_subtracts_the_split_from_every_visible_number`、真库行为腿 `test_seeded_rows_change_the_real_numbers_only_through_the_marker`、`test_web_api.py::test_dashboard_aggregates_happy`（`assert 7 == 5`）。最后这条就是 P4 想要的那格——见「否证」3 |
+| M11 | 把普查指向 `docs/`（一棵没有聚合的树） | 3 条：`test_the_aggregate_census_is_the_one_the_premise_measured`、`test_the_roster_and_the_census_of_who_answers_are_the_same_set`、`test_every_aggregate_read_is_rostered_as_answering_or_as_declining` |
+| M12 | 名册多加一条普查看不见的读（`rollup_stats`，产品不实现） | 2 条：same-set 腿 + `test_every_aggregate_read_is_rostered_as_answering_or_as_declining`（ghost 方向） |
+| M13 | 植桩：新增**被索引承载**的 `storage/_arm542_stub.py`，内含一条发布 `AS demo_jobs` 的聚合 | 4 条：census 腿**也红**（`COUNT(*) AS n` 出现两次 ⇒ `sorted(marks) == sorted(AGGREGATE_MARKS)` 破），加 same-set、双向对账、单-owner 腿。**这是预测写窄的一条**，见「发现」4 |
+
+13 条臂全部测得，每条至少一条点名红腿；无一条臂是「跑了但没红」。
+
+### 全量红单对照（本节追加之后）
+
+追加只是把字写进账本；这一节是**跑完全量再回来改字**的那一次。读数（`D:\面试项目\.scratch\unit542_after.txt`，
+`_wt542` 全 `tests/unit`、无 infra）：
+
+`collected 5957 items` ⇒ **12 failed, 5937 passed, 8 skipped, 3 warnings in 1977.27s (0:32:57)**。
+
+「这 12 条里哪些是本号造的」不能靠读文件名猜，所以本号第一次为它建了**对照树**：
+`D:\面试项目\_ctl542`——同一提交 `7b6078c` 的第二棵 worktree，工作树 0 个改动。判据是量出来的：
+
+| 批 | 腿 | `_ctl542`（干净基线） | `_wt542`（本号工作树） |
+|----|----|----------------------|------------------------|
+| 本号的两条 | `test_audit_action_parity.py::test_no_test_reaches_past_the_product_delete_path`、`test_sql_text_static.py::test_no_sql_text_reaches_an_executor_without_proof` | **2 passed** | 曾 **2 failed**（E 行分别点到 `…test_the_aggregate_plane_answers_the_demo_question.py:724` 与 6 处 `cur.execute`）→ 修后绿 |
+| 其余 10 条（5 个文件） | `test_checker_type_parity.py` 1 腿 / `test_fake_inventory_stays_measured.py` 2 腿 / `test_progress_event_labels.py` 1 腿 / `test_the_gate_toolchain_is_pinned_exactly.py` 3 腿 / `test_verdict_channel_parity.py` 3 腿 | **10 failed, 18 passed in 19.06s** | 同样这 10 条红，且 E 行的数字一致（`assert 21 == 20`、`['contract_review']`、`"?"`） |
+
+⇒ **2 条本号、10 条基线自带**，两条本号都已修（不登记成例外，见「否证」13），10 条本号不认领（「否证」14）。
+那 10 条的形状值得单独一句：3 条是**本机解释器 vs 钉住版本**（`mypy` 钉 `2.4.0` 而本机 `2.3.1`、
+`ruff` 钉 `0.17.1` 而本机 `0.16.9`；`.github/workflows/ci.yml` 每道 job 都 `pip install -e ".[dev]"`，
+所以 CI 拿到的是钉值 ⇒ 这 3 条是**本机**红，代价是本号的 ruff/mypy 读数按版本注明）；
+7 条是内容面——verdict 通道 ×3（`evidence/acceptance.py` 写的字面量无人声明通道）、假清单 ×2
+（`docs/architecture/FAKE_INVENTORY.md` 抄 20 而普查读到 21）、Web 词表 ×1（多一个 `'?'`）、
+图节点 gloss ×1（`contract_review` 无 gloss）。**这 7 条红在已推送的 master 上**，不在别道的未提交改动里。
+
+### 发现
+
+1. **同一个 demo 事实有两种离开数据库的方式，需要两种回答。** 行的方式是 `AS is_demo`（#526 的四个出口），
+   数的方式是 `SUM(flag) AS demo_jobs`。#526 只造了前者，并给后者发了一张免检证；那张免检证的内容
+   （「聚合没有行可贴标签」）在它自己的轴上是对的，所以它活了 16 个号。**「没人能读这个结果」要先问
+   谁在读、读的是行还是数。**
+2. **一条文本、三种形状，而形状数就是名册数。** `IS_DEMO_FLAG` 只有一个，
+   `AS is_demo` / `AS demo_jobs` / `AS demo_failed` 三种形状各服务一个平面；M1 只改一个别名就让 4 条腿红，
+   是因为别名在片段内部而不是各抄一遍——**别名漂移被单 owner 挡住的代价是「片段必须自带别名」这条约定**，
+   它写进 docstring，否则下一个读者会把它拆成「表达式 + 调用方起名」。
+3. **占位符的个数是绑定的指纹。** 小时那条聚合有 **2** 个 flag ⇒ 前缀要绑 **2** 次，且都在租户值与窗口值之前。
+   本号的 arity 腿（每 flag 一次前缀绑定、且没有硬编码前缀）与参数序腿（前缀位置 < 窗口/租户位置）
+   在 M5/M6/M8 三臂上各红各的，说明它们是**两台仪器**：M5 只有参数序红，M6 两条都红，M8 只有 arity+文本红。
+   #525 当年为两条窗口读立这条规矩时人口是 2，本号把它变成 4，而它一次没被绕过过——
+   这条腿的价值随人口增长，不是随人口衰减。
+4. **census 腿用的是可重复列表，不是集合。** 预测 M13「census 腿不红、名册腿红」（照 #541 N10 的形状门/
+   人口门之分），实测 census 腿**也红**：那条腿认人口的方式是「三种 mark 各恰好一条」的多重集合相等，
+   所以同形状的第四条一进就响。这不是缺陷，是这条腿比预测更强的地方——它同时占住形状与人口两个口径；
+   代价是它把「人口」承诺成了「恰好这些」，而 `verification_jobs` 上第 4 条真实聚合将来会被它要求**登记**，
+   不是被它拒绝。写明在此，不让它变成隐性豁免。
+5. **一条「两个分支键集合相同」的腿，第一次跑就抓到一个基线的洞。** 本号决定不加新载荷键之后，
+   M4 那一格换成键集合对账（happy == 降级 == `api.ts` 声明），于是它回答了「不加键」这个决定会不会
+   烂成「加了一半的键」——顺带量到降级分支少答 `needs_review_rate`（`api.ts` 声明必填）。
+   **一个纯结构腿能读出内容洞，是因为它比的是同一份载荷的两个形状，而不是拿载荷去比一个名单。**
+6. **演示行的杀伤力来自「没有 tenant」，不是来自「status」。** 播种的三行里没有 `BLOCKED` 的比例，
+   但 `BLOCKED` 在里面；而「发现风险」那张卡是 `by_status["BLOCKED"] / total`。
+   所以聚合面的修复必须**同时**减分子与分母，只减分母会让风险率虚高、只减分子会让它归零——
+   D 段的算术腿断的是「`BLOCKED` 全部是演示 ⇒ 卡片读 0，而**不是**“没有这个状态”」。
+7. **前缀的可截断性是一个没人守的边界。** M8 证明把前缀从 `"seeded demo"` 截成 `"seeded"`
+   对今天的种子数据**行为等价**（`LOCATE` 仍命中 1）。⇒ 标记的语义不在「文本相等」而在「位置 1 的这段前缀
+   独占演示行」，而独占性今天**没有证人**（`seeded_demo_note()` 保证前缀在头，没有门保证真行不以它开头）。
+   进队列②。
+8. **owner 的写法是被量具的可证性决定的，不是被可读性决定的。** 三种形状最早写成 f-string
+   （`f"SUM({IS_DEMO_FLAG}) AS demo_jobs"`），而 `tests/unit/test_sql_text_static.py` 只肯折「它能证明是
+   字符串字面量拼出来的」imported 片段 ⇒ 6 处 `cur.execute` 一次全成被告。改成
+   `"SUM(" + IS_DEMO_FLAG + ") AS demo_jobs"` 之后**值逐字节不变**：探针
+   `D:\面试项目\.scratch\probe542_owner_shape.py` 对两种写法各算 sha256，`IS_DEMO_COLUMN` /
+   `IS_DEMO_COUNT` / `IS_DEMO_FAILED` 三条全等（`9da4f1a28e0f` / `e19cd58e6bf6` / `fda8f8b48f2f`，
+   长度 141 / 148 / 184）。⇒ 同一段 SQL 的**写法**是一个被审计的属性：f-string 在这台量具眼里等于
+   「用数据拼 SQL」，而本号的整个判决恰好是「demo 事实必须以数据进 SQL」——两句话在文本层面撞车，
+   能区分它们的只有量具的规则，所以规则要写进 owner 的注释，而不只活在门里。
+9. **测试拆台也是产品删除路径的用户。** 新门的 `_drop_rows` 原地 `DELETE FROM verification_jobs WHERE id = %s`，
+   被 #98 的 `test_no_test_reaches_past_the_product_delete_path` 点名到行号。它点名的不是「拆台拆错了」，
+   而是「拆台绕过了产品那条会同事务写解释的删除」。修法是逐条 `MySQLStore.delete_job_records(job_id)`，
+   再按 id 清 `audit_logs` 残留（那条链产品不级联，所以清理归测试）。⇒ 一道**文本扫描**门把测试的
+   清理代码也算进人口，这是它比行为断言便宜的地方：它不需要跑到那条拆台。
+10. **放宽量具必须自带证人，否则放宽就是名册的另一个名字。** `_fold_literals` 现在多折一层——肯认 owner
+    自己模块里绑定到字面量 `+` 链的名字（`_OWNER_DEPTH = 2`，到顶就停）。代价是它可能原谅
+    「owner 用数据拼 SQL」，所以 4 条新腿里两条专门钉**不**原谅：owner 写成插值仍报
+    （`test_a_composed_owner_that_interpolates_is_still_a_finding`）、owner 没赋过值的名字仍报
+    （`test_a_name_the_owner_never_assigned_is_still_a_finding`），另两条正面覆盖放宽本身
+    （`test_an_owner_that_composes_its_shapes_from_its_own_constants_is_proven`、
+    `test_the_owner_fold_reaches_its_depth_instead_of_looking_forever`）。
+    **一条「让形状 A 变合法」的改动，只有配上「形状 B 仍然非法」的腿，才不是自我豁免。**
+
+### 否证与边界
+
+1. **P0 的预测形式落空了。** 预测「产品未改 ⇒ 新门整文件红在 census 腿」，实测整文件红没错，
+   红法却是 collection 阶段的 `ImportError: cannot import name 'IS_DEMO_COUNT'`（0 collected / 1 error）——
+   新门 import owner 的新常量，所以它在基线上**根本进不了断言**。census 的基线证据是另取的：
+   `.scratch/probe542g_census.py` 在 `7b6078c` 上复跑普查逻辑，读到扫 317 模块、聚合 3 条、
+   `AS demo_jobs` 0 条。**「门在基线红」和「门在基线能给出它声称的那个数」是两件事。**
+2. **P3 的数不对，全绿对。** 预测 #525 门 32 条，实测 **47** passed（32 是旧的 `def test_` 计数口径，
+   那文件按文件参数化）。本号所有例数一律注明口径（`def test_` 条数 vs pytest collected 例数），
+   因为 #541 已经因同一件事写过一条否证。
+3. **P4 在预落地基线上那一格没采到。** 预测「折叠段严格读、不改假行 ⇒ `test_web_api.py` KeyError 红」，
+   实测缺口：同一轮里把假行一起改了，KeyError 那一格永远无法在「已改假行」的树上复现。
+   M10 给的是**同一性质的更强读数**（假行带 split、折叠读了不减 ⇒ `assert 7 == 5`），
+   但它不是「预落地基线上的 KeyError」；那一格记为**未取得的证据**，不写成量测。
+4. **M8 的行为腿为绿不构成安慰。** 它是「今天的种子文本对截断前缀免疫」的结果，不是「绑定值不重要」；
+   见「发现」7 与队列②。本号不为它加一条腿，因为那条腿要断的性质是「真行不以 `seeded` 开头」——
+   那属于**数据**，不属于这段代码。
+5. **不加新载荷键的代价是：演示计数仍然不可披露。** 页面现在答的是**真实**数字，但用户无法知道
+   「这些行里有多少是样本」「样本一共多少条」。#542 消除的是**说谎的数**，不是**缺失的披露**。
+   这一半留给队列①（需要前端道，或先建「载荷键 ⇄ 前端类型」的对账门——#526 队列③ 是它的前置）。
+6. **`search_jobs` 的页面仍然是混的。** 那条 COUNT 现在明确只答它分页的人口，所以
+   `/api/jobs` 的 `total` 里演示行照在。本号**不改**它，理由是它的每一行带徽章、读者看得见；
+   但「列表第一页 10 行里 3 行是演示」这件事与「累计验收卡 128 条」并排显示时，
+   两边的人口不同——这条不一致是**已知并被命名**的，不是被漏掉的（队列③）。
+7. **率的分母搬到实数之后，多出一个零分母形状。** `_percent_rate` 在分母 0 时答 `0.0`；
+   以前分母几乎不为 0（演示行也在），现在一个只有演示行的租户会得到「0.0% 失败率」而不是 `null`。
+   本号只搬分母、不改这条约定，登记为队列④——**这是本号自己引入的行为改变**，
+   写清楚比藏进「门全绿」里诚实。
+8. **本号不碰 `apps/web/`。** `api.ts` 与 `Dashboard.tsx` 在共享检出里被别道以未提交改动持有；
+   本号只在 D 段读 `api.ts` 的**声明文本**做键集合对账（读，不改，不要求它同意）。
+9. **真库行为腿是增量断言。** 全部 worktree 共用一个 `specproof_test` schema，
+   所以它断的是「+1 条真实行让 total 只动 1」「去掉一条演示行的前缀让**那条**回到计数」，
+   不断绝对数——绝对数在共享库上不是性质。代价：这条腿看不见别的道的行造成的偏移。
+10. **臂树与全量跑并发了一次（方法偏差，自陈）。** M8/M10 按 `run542_arms.py` 的 `DB_ARMS` 需要独占 DB，
+    跑的时候后台 `tests/unit` 全量正在同一 schema 上写行。结论方向都对（各臂红在预期腿），
+    且增量断言在并发下偏向**更响**而不是更静；但「M8 行为腿为绿」这一格在这种并发下不单独作证，
+    它的解释来自 `LOCATE` 语义（见「发现」7）。本节的 E 段读数在**全量跑结束后的独占窗口**复跑定稿。
+11. **例数会随别道搬动，本号不拿它当性质。** #526 门 22、#525 门 47、demo 家族 100 都是
+    `7b6078c` 上的一次读数；`docs/eval/aider-results.md` 会被测试跑重画，本号不提交它。
+12. **13 条臂跑在「修复之前」的树上，本号没有重跑它们。** 臂表那一列红腿是在 `7b6078c` + 当时 6 个文件上取的；
+    之后本号又改了 owner 的写法与量具自身（第 7 个文件）。不重跑的理由写在纸上：M1/M2/M5/M6/M7/M8 钉的
+    别名文本、绑定个数、参数序、CASE 文本随 `+` 链写法**逐字节不变**（「发现」8 的三条 sha 就是为这句话作的证），
+    M3/M4/M9/M10/M11/M12/M13 钉的折叠段、键集合、名册、普查、页面计数本号的修复一处没碰。
+    **代价**：臂与门最后一次同树存在，是臂表那一刻的树；本节改写之后的树只有门表读数，没有臂读数。
+13. **两条本号红都本来可以签字了事，而签的那个字会说假话。** `test_sql_text_static.py` 最省事的通路是把
+    6 个站点名进 `NON_STATIC_SQL_SITES`——那道门要求的登记语义是「这条 SQL 是常量、所以安全」，
+    而它们当时**不是**由常量拼出来的（owner 用变量插值），写进去就是让名册替一个尚未成立的性质作证。
+    #98 那条同样有「把本号文件写成例外」的通路。本号选的两条都不是零成本通路：改 owner 写法 + 折宽量具 +
+    4 条见证腿；拆台走产品删除路径。**「跑一次就绿」不是修，名册的每一行都要能说出它证的是谁。**
+14. **「不是本号的红」不等于「仓库没事」。** 对照树读的是「10 failed, 18 passed in 19.06s」——同一批在
+    干净 `7b6078c` 上同样红 ⇒ 这 10 条挂在**已推送的 master** 上，不在别道的未提交改动里。本号不修它们：
+    7 条需要各自的判决（假清单的数字、词表的 `'?'`、`contract_review` 的 gloss、verdict 通道的归属），
+    3 条是环境版本面、修法是重装钉值而不是改代码。本号只把它们量成一张可复核的红单并入队列⑧。
+    **另有一条方法事实**：全量跑与臂跑共用 `specproof_test`（见「否证」10），所以这张红单的 12 条里
+    没有一条是并发噪声——两条本号红的 E 行都点到本号文件的具体行号，10 条基线红在独占的对照树上复现。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① **演示计数的披露形状。** 本号让页面数只答真实行，代价是「有多少条是样本」无处可读。
+要么加载荷键（先建 #526 队列③ 的「载荷键 ⇄ 前端类型」对账门，否则加的是免检字段），
+要么在页面上把「样本行 N 条已排除」写成一句由后端答的文案。**需要先解 `apps/web/` 的持有。**
+② **标记前缀的独占性。** `seeded_demo_note()` 保证演示行的 note 以 `DEMO_NOTE_PREFIX` 开头，
+但没有任何门保证**真行**不以它开头——M8 证明前缀的边界（截断仍命中）在行为面上无人看守。
+可做的形式：在写入路径上（`save_job_summary` 或播种的反面）断一条「非演示 summary 的
+`retrieval_note` 不以标记前缀开头」，并让它对**已有数据**给一个数。
+③ **列表与计数两个人口并存。** `JobsPage.total`（含演示）与 `DashboardData.jobs.total`（不含）
+现在是两条**明确**的约定，但没人对账它们的关系；`test_api_jobs_total.py` 钉的是分页语义，不是人口。
+④ **`_percent_rate` 的零分母**：真实人口为 0 时答 `0.0` 而类型写 `number | null`；
+「不知道」与「0%」在降级面已被区分（None），在空租户面没有。
+⑤ **`agent_jobs` 面的计数在 Python 里。** 本号的普查是 **SQL** 形状的（`COUNT(*) AS …`），
+而 `storage/agent_jobs.py` 的 5 条 SELECT 全是行窗口、计数发生在 `api/agent_runtime.py`
+（`is_demo = not repo_path.strip()`——另一套与 SQL 标记无关的演示判定）。
+「聚合把演示行算进真实数」在这一面的形态是 Python 计数，**本号的普查看不见它**；
+要管它需要一台按「计数表达式」而不是「SQL 形状」的普查。
+⑥ #541 队列②（消费侧人口必须派生）、③（required-field 按服务平面拆分）、④（线上 MySQL 的
+`LOCATE` / `COALESCE` 执行计划臂）、⑥（120 条无地板空断言逐族补）仍在；本号的 D 段三条腿是
+**没有数值地板的形状腿之外**的算术腿，可以作为「按族补地板」的样板。
+⑦ **#541 队列⑬（全量红单对照）**：本号**拿到了**——`5957 collected` ⇒ `12 failed, 5937 passed, 8 skipped,
+3 warnings in 1977.27s`，12 条逐条归因，并有干净基线树 `7b6078c` 的对照读数（见「全量红单对照」小节）。
+仍**没拿到**的是它与 CI 口径的对账：本机是无 infra 口径（8 skipped、3 warnings），而工具链版本本机与钉值不同
+（见「否证」14）⇒ 这张红单目前是**本机一张**，不是「CI 那张」。
+⑧ **基线自带的 10 条红门。** 内容面 7 条：`test_verdict_channel_parity.py` ×3（`evidence/acceptance.py` 的
+verdict 字面量无人声明通道）、`test_fake_inventory_stays_measured.py` ×2（清单抄 20 / 普查读到 21）、
+`test_checker_type_parity.py` ×1（Web 词表多一个 `'?'`）、`test_progress_event_labels.py` ×1
+（`contract_review` 节点无 gloss）；环境面 3 条：`test_the_gate_toolchain_is_pinned_exactly.py`
+（mypy `2.3.1` vs 钉 `2.4.0`、ruff `0.16.9` vs 钉 `0.17.1`）。环境面那三条值得单独想一步：它测的是
+「本机解释器 vs 钉值」，而 CI 按 `.github/workflows/ci.yml` 的 `pip install -e ".[dev]"` 拿钉值 ⇒
+**它对 CI 不构成红，只对本号的所有后续读数构成口径限制**——要么每台开发机重装钉值，要么把「本机版本」
+写进每条静态读数里。本号选后者（门表已注）。
+⑨ **名册增长的成本没人计量。** `NON_STATIC_SQL_SITES` 今天有几条、每一行证的是谁、多久复审一次——
+`test_sql_text_static.py` 有「名册不撒谎」的腿（`test_the_register_is_not_lying`、
+`test_each_registered_site_still_matches_the_code_it_describes`），但没有一条腿说「名册变宽这件事本身
+需要一个理由」。本号没有加宽它（走的另一条路），但**下一次加宽它的人**需要一台按「名册条数」的地板/天花板门。

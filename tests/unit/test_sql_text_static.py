@@ -155,13 +155,47 @@ def _parsed(path: Path) -> ast.Module | None:
     return module
 
 
-def _literal_chain(node: ast.expr) -> bool:
-    """A value built from string literals and concatenation, and nothing else."""
+#: How many owner-module bindings one imported fragment may reach before the
+#: prover stops calling it a literal. Two covers an owner that names its flag and
+#: then composes shapes from it; the cap is what makes a self-referential owner
+#: fail instead of hang.
+_OWNER_DEPTH = 2
+
+
+def _fold_literals(
+    node: ast.expr,
+    assigned: dict[str, ast.expr] | None = None,
+    depth: int = 0,
+) -> ast.expr | None:
+    """The value `node` proves, with owner-module names replaced by their text.
+
+    A value built from string literals and concatenation, and — inside one owner
+    module — from the names that module assigns to such values. #526 folded the
+    first level (an imported name whose owner value was all literals); #542 gave
+    that owner a second level of its own making (`IS_DEMO_COUNT` is
+    `"SUM(" + IS_DEMO_FLAG + ") AS demo_jobs"`), which is the same text with a
+    name in the middle. Refusing it would send every read that imports the owner
+    into the register over a value as fixed as the literals it replaced, and a
+    register that grows to cover an owner's *naming* is how an allowlist is born.
+
+    So a name is followed only while it resolves inside the owner's own
+    assignments, and the result is rebuilt from fresh nodes (the parsed owner
+    module is cached, so substituting in place would rewrite another file's tree).
+    A computed value anywhere in the chain still fails, and so does a name the
+    owner did not assign — which is the only way request data could get in.
+    """
     if isinstance(node, ast.Constant):
-        return isinstance(node.value, str)
+        return node if isinstance(node.value, str) else None
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        return _literal_chain(node.left) and _literal_chain(node.right)
-    return False
+        left = _fold_literals(node.left, assigned, depth)
+        right = _fold_literals(node.right, assigned, depth)
+        if left is None or right is None:
+            return None
+        return ast.BinOp(left=left, op=ast.Add(), right=right)
+    if assigned is not None and isinstance(node, ast.Name) and depth < _OWNER_DEPTH:
+        target = assigned.get(node.id)
+        return None if target is None else _fold_literals(target, assigned, depth + 1)
+    return None
 
 
 def _module_file(root: Path, importer: Path, name: str | None, level: int) -> Path | None:
@@ -199,8 +233,11 @@ def _imported_literals(module: ast.Module, root: Path, importer: Path) -> dict[s
         }
         for alias in node.names:
             value = assigned.get(alias.name)
-            if value is not None and _literal_chain(value):
-                out[alias.asname or alias.name] = value
+            if value is None:
+                continue
+            folded = _fold_literals(value, assigned)
+            if folded is not None:
+                out[alias.asname or alias.name] = folded
     return out
 
 
@@ -876,7 +913,9 @@ def test_a_fragment_imported_from_an_owner_is_proven(tmp_path: Path) -> None:
     that reads one file at a time reports all four, and the register would gain
     four rows for a value as fixed as the literals it replaced -- which is how
     an allowlist grows. So the fold resolves the import instead: still a proof,
-    still read out of the owner's own file, one level deep, literals only.
+    still read out of the owner's own file -- literals, and the names that file
+    assigns to literals (see _composed_owner_tree for where that second level
+    came from and what it refuses).
     """
     _two_file_tree(tmp_path, '"CASE WHEN valid THEN 1 ELSE 0 END AS is_demo"')
     assert non_static_sql_sites(tmp_path) == [], (
@@ -892,4 +931,84 @@ def test_an_imported_name_that_is_computed_is_not_forgiven(tmp_path: Path) -> No
     assert [rel for rel, _ in findings] == ["storage/x.py"], (
         f"{findings} — a contracts owner that builds SQL out of data must still "
         "reach the register, or the fold is an allowlist with extra steps"
+    )
+
+
+def _composed_owner_tree(root: Path, shape: str) -> None:
+    """An owner that names its flag once and composes a shape from that name.
+
+    The consumer is the one `_two_file_tree` writes, so these four legs move only
+    the owner's second level -- they measure the widening, not the fixture.
+    """
+    (root / "storage").mkdir()
+    (root / "contracts").mkdir()
+    (root / "contracts" / "y.py").write_text(
+        'BASE = "CASE WHEN valid THEN 1 ELSE 0 END"\n'
+        f"FRAGMENT = {shape}\n",
+        encoding="utf-8",
+    )
+    (root / "storage" / "x.py").write_text(
+        "from contracts.y import FRAGMENT\n"
+        "class C:\n"
+        "    def read(self, cur, job_id):\n"
+        '        cur.execute("SELECT id, status, " + FRAGMENT'
+        ' + " FROM t WHERE id = %s", (job_id,))\n',
+        encoding="utf-8",
+    )
+
+
+def test_an_owner_that_composes_its_shapes_from_its_own_constants_is_proven(
+    tmp_path: Path,
+) -> None:
+    """The second level is the owner naming itself, not data arriving.
+
+    #542 turned the owner's one literal into three shapes, and a shape that
+    spells its alias out a second time is the drift #525 removed -- so
+    ``IS_DEMO_COUNT`` is ``"SUM(" + IS_DEMO_FLAG + ") AS demo_jobs"``, literals
+    around a same-module name. Refusing that would put every read of the owner in
+    the register for text that has exactly one definition.
+    """
+    _composed_owner_tree(tmp_path, '"SUM(" + BASE + ") AS demo_jobs"')
+    assert non_static_sql_sites(tmp_path) == [], (
+        "an owner that composes from its own constant reads as unproven -- the "
+        "dashboard's aggregates would each need a register entry for a value as "
+        "fixed as the literals behind it"
+    )
+
+
+def test_a_composed_owner_that_interpolates_is_still_a_finding(tmp_path: Path) -> None:
+    """The widening follows names in `+`-chains, and an f-string is not one.
+
+    Not hypothetical: #542's owner first shipped these shapes as f-strings, the
+    fragment stayed a finding, and the fix that kept the proof was the owner's
+    spelling. A register entry there would have traded a proof for a list.
+    """
+    _composed_owner_tree(tmp_path, 'f"SUM({BASE}) AS demo_jobs"')
+    findings = non_static_sql_sites(tmp_path)
+    assert [rel for rel, _ in findings] == ["storage/x.py"], (
+        f"{findings} — an interpolated owner value is computed, and the fold must "
+        "not forgive it by recognising the constant inside the braces"
+    )
+
+
+def test_a_name_the_owner_never_assigned_is_still_a_finding(tmp_path: Path) -> None:
+    """The one hole a widened fold could fall into: a name from somewhere else."""
+    _composed_owner_tree(tmp_path, "BASE + SUFFIX")
+    findings = non_static_sql_sites(tmp_path)
+    assert [rel for rel, _ in findings] == ["storage/x.py"], (
+        f"{findings} — SUFFIX is unassigned in the owner, so it is module global "
+        "text anyone could set; following it is the allowlist this file exists "
+        "to refuse"
+    )
+
+
+def test_the_owner_fold_reaches_its_depth_instead_of_looking_forever(
+    tmp_path: Path,
+) -> None:
+    """A cap is only a rule if it also stops the walk."""
+    _composed_owner_tree(tmp_path, "BASE + FRAGMENT")
+    findings = non_static_sql_sites(tmp_path)
+    assert [rel for rel, _ in findings] == ["storage/x.py"], (
+        f"{findings} — FRAGMENT names itself; the depth cap has to fail the proof "
+        "rather than follow the cycle"
     )

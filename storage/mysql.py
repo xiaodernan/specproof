@@ -19,7 +19,12 @@ from typing import Any, Final, cast
 import pymysql
 from pymysql.cursors import DictCursor
 
-from contracts.demo_marker import DEMO_NOTE_PREFIX, IS_DEMO_COLUMN
+from contracts.demo_marker import (
+    DEMO_NOTE_PREFIX,
+    IS_DEMO_COLUMN,
+    IS_DEMO_COUNT,
+    IS_DEMO_FAILED,
+)
 from contracts.events import payload_digest
 from storage.env_config import int_env
 from storage.tenant_scope import current_scope
@@ -1002,6 +1007,10 @@ class MySQLStore:
             cur.execute(
                 "SELECT COUNT(*) AS total FROM verification_jobs"  # nosec B608
                 + where,
+                # deliberately no demo split here (#542): this number is the
+                # population of the page below it, and the seeded rows on that
+                # page are listed with their own badge — excluding them from the
+                # count would make the total disagree with the rows beside it.
                 tuple(params),
             )
             total = int(cur.fetchone()["total"])
@@ -1024,6 +1033,13 @@ class MySQLStore:
         Only hourly counts leave the database, so a busy day's dashboard
         does not transfer and scan every individual job in the API process.
         All three reads share one connection and transaction.
+
+        The two ``GROUP BY`` reads answer the demo question as a count (#542).
+        They have no row to badge, but the page renders their numbers as work
+        that happened, and a total that already summed the seeded rows in cannot
+        be corrected downstream — seeded rows carry no ``tenant_id``, so they
+        clear every tenant's scope predicate. The recent-jobs window labels its
+        rows instead, because there the rows themselves leave the database.
         """
         scope = current_scope()
         where = ""
@@ -1035,18 +1051,23 @@ class MySQLStore:
             cur = conn.cursor()
             cur.execute(
                 # fragments
-                "SELECT status, COUNT(*) AS n FROM verification_jobs"  # nosec B608
+                "SELECT status, COUNT(*) AS n, "  # nosec B608
+                + IS_DEMO_COUNT + " FROM verification_jobs"
                 + where + " GROUP BY status",
-                params,
+                # the SELECT list precedes WHERE, so the bound prefix is first
+                (DEMO_NOTE_PREFIX, *params),
             )
             statuses = cast(list[dict[str, Any]], cur.fetchall())
             time_where = where + (" AND" if where else " WHERE") + " created_at >= %s"
             cur.execute(
                 # fragments
                 "SELECT DATE_FORMAT(created_at, '%%Y-%%m-%%dT%%H:00:00') AS hour, "  # nosec B608
-                "COUNT(*) AS count, SUM(status IN ('FAILED', 'ERROR')) AS failed "
-                "FROM verification_jobs" + time_where + " GROUP BY hour ORDER BY hour",
-                (*params, since),
+                "COUNT(*) AS count, SUM(status IN ('FAILED', 'ERROR')) AS failed, "
+                + IS_DEMO_COUNT + ", " + IS_DEMO_FAILED
+                + " FROM verification_jobs" + time_where + " GROUP BY hour ORDER BY hour",
+                # two flags in the list, so two prefix bindings — both before the
+                # tenant value and the window, which are also in this statement
+                (DEMO_NOTE_PREFIX, DEMO_NOTE_PREFIX, *params, since),
             )
             timeline = cast(list[dict[str, Any]], cur.fetchall())
             cur.execute(

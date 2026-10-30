@@ -445,17 +445,29 @@ def test_the_single_job_read_publishes_it_with_no_tenant_scope_too() -> None:
     assert "AS is_demo" in rows[0]
 
 
-def test_the_aggregate_reads_do_not_publish_it() -> None:
-    """The COUNT and the GROUP BYs have no row to label; adding the column there
-    would mean paying for a predicate whose result nobody can read."""
+def test_the_page_count_answers_only_about_the_rows_it_pages() -> None:
+    """#526 drew this line as "an aggregate has nothing to answer"; #542 moved it.
+
+    The reason that survives is narrower than the one it replaced. This COUNT is
+    the population of the window printed beside it, and the seeded rows inside
+    that window each carry their own ``is_demo`` badge — splitting them here
+    would make the total disagree with the rows the page is showing. The
+    dashboard's two ``GROUP BY`` reads are the opposite case: no rows leave them,
+    but numbers do, and the cards read those numbers as work that happened, so
+    they publish ``AS demo_jobs``; #542's gate owns that half.
+    """
     with captured(VIEWER) as log:
         MySQLStore().search_jobs(25, 0, "BLOCKED", "checkout")
         MySQLStore().dashboard_snapshot(datetime(2026, 9, 18))
     aggregates = [sql for sql, _ in log
                   if "FROM verification_jobs" in sql and not ships_job_rows(sql)]
     assert aggregates, "no aggregate read found — this leg stopped meaning anything"
-    for sql in aggregates:
-        assert "AS is_demo" not in sql, sql[:120]
+    page_counts = [sql for sql in aggregates if "COUNT(*) AS total" in sql]
+    assert len(page_counts) == 1, (
+        f"the page count statement was renamed or duplicated: {page_counts}"
+    )
+    for sql in page_counts:
+        assert "AS is_demo" not in sql and "AS demo_jobs" not in sql, sql[:120]
 
 
 # ── B: one owner ─────────────────────────────────────────────────────────────
