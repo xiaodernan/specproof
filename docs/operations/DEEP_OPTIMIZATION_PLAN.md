@@ -11000,11 +11000,11 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 - ledger fence：无重复头，U+FFFD 计数保持
 
 **证据文件**：
-- `craft/mutation.py`（新增：Mutation 引擎核心）
+- ~~`craft/mutation.py`（新增：Mutation 引擎核心）~~ #535 已删除（死引擎，生产读者为零）；出货引擎在 `experiments/mutation.py`
 - `experiments/openapi_fuzzing.py`（新增：OpenAPI Fuzzing Collector）
 - `craft/adapters/gradle_adapter.py`（新增：Gradle 适配器）
 - `craft/adapters/protocol.py`（新增：统一适配器协议）
-- `tests/unit/test_mutation_engine.py`（新增）
+- ~~`tests/unit/test_mutation_engine.py`（新增）~~ #535 已删除（假钉随之删除）；一个引擎的结构门是 `tests/unit/test_there_is_one_mutation_engine.py`
 - `tests/unit/test_openapi_fuzzing.py`（新增）
 - `tests/unit/test_gradle_adapter.py`（新增）
 - `tests/unit/test_adapter_protocol.py`（新增）
@@ -11058,8 +11058,8 @@ B7/B8 是这一组里唯一把两条腿分开的两臂：下限（`>= 5` 行）�
 - 兼容性矩阵记录
 
 ### 证据文件
-- `craft/mutation.py` (400+ 行)
-- `tests/unit/test_mutation_engine.py` (11 项)
+- ~~`craft/mutation.py` (400+ 行)~~ #535 已删除（死引擎）
+- ~~`tests/unit/test_mutation_engine.py` (11 项)~~ #535 已删除（假钉随之删除）
 - `experiments/openapi_fuzzing.py` (600+ 行)
 - `tests/unit/test_openapi_fuzzing.py` (17 项)
 - `docs/operations/DEEP_OPTIMIZATION_PLAN.md`：追加 #430
@@ -17969,3 +17969,147 @@ acceptance.py 非字面写；⑧ case-17 的严重度漂移；⑨ 其余六个 p
 #535 已删除的 `craft/mutation.py` 与 `tests/unit/test_mutation_engine.py`
 （1 failed / 15 passed，与本号无关，待单独一号重瞄或派生）；⑮ 别道 #527 的
 平面扫描名册把 `EMIT_DIRS` 的描述写死在「9 roots」，落地时改成 10。
+
+## #540 账本的文件清单还有第二种写法：标题形状的证据块此前不在尺子里
+
+### 起因
+
+`tests/unit/test_ledger_evidence_claims_are_true.py` 在本号改前的 HEAD
+
+（`d5bd9c2`）上 1 failed / 15 passed：#429 的 `**证据文件**` 块仍点名 #535
+
+删除的 `craft/mutation.py` 与 `tests/unit/test_mutation_engine.py`，L1 把它们
+
+判成「仓库里没有的声称」。这是 #539 队列的 ⑭。
+
+修这条红之前先量了写法：账本写文件清单其实有两种形状——粗体的
+
+`**证据文件**` / `**现状文件**` / `**拟新增文件**` 标记，以及 `### 证据文件`
+
+这样的标题行。门只认粗体那种。所以这不只是一条红，而是**盲区**：标题形状的
+
+清单整块不在尺子里，里面点名多少幽灵文件都不会红。
+
+### 改前量到的
+
+- HEAD `d5bd9c2` 上该门 focused：1 failed / 15 passed；红集只有 #429 的粗体块。
+
+- 用探针（`.scratch/probe540_heading_blocks.py`，按门的两个函数读同一份账本）
+
+  逐块点名：全账本 21 个文件清单块，20 个粗体、**恰好 1 个标题形状**，即 #430
+
+  的 `### 证据文件`（5 条路径）。这 5 条里 **2 条**正是 #535 删除的
+
+  `craft/mutation.py` 与 `tests/unit/test_mutation_engine.py`——与 #429 的粗体
+
+  块点名的是同一对死文件。只修粗体块而不扩透镜，标题块会继续绿着说假话。
+
+- 扩透镜的规模可测：标题块只有 1 个，缺路径只有上面 2 条，所以「多认一种写法」
+
+  不会变成误报机器。
+
+### 改动
+
+- `tests/unit/test_ledger_evidence_claims_are_true.py`：`LIST_HEAD` 从「粗体
+
+  标记」扩成两种形状共用一条正则——`**证据文件**` / `**现状文件**` /
+
+  `**拟新增文件**`，或 `#{2,6}` 的标题行加可选冒号；`label` 从粗体组或标题组
+
+  取（再查 `FILE_LISTS`）。模块说明的 L1 段补上标题写法与 #540 的由来。新增
+
+  两条反向对照（16 → 18 例）：
+
+  `test_a_heading_shaped_evidence_block_is_refused`（标题块里的幽灵路径必须被
+
+  L1 点名）与 `test_a_heading_shaped_block_feeds_the_control_character_ruler`
+
+  （标题块里的 TAB 也进 L4 的控制字符尺子）。
+
+- `docs/operations/DEEP_OPTIMIZATION_PLAN.md`：#429 与 #430 两块里的四条死路径
+
+  行改成删除线＋#535 说明，并各留下活着的读者指路（`experiments/mutation.py`、
+
+  `tests/unit/test_there_is_one_mutation_engine.py`）。删除线不是「假装不存在」：
+
+  门的读法是「被划掉的行是一笔撤回」，所以一行既能写下「这个文件曾是证据」，
+
+  又不会被当成指向现存的声称。
+
+### 改后量到的
+
+- 该门 focused：18 passed / 0 failed（原 16 例＋2 条新对照）。
+
+- 探针复量：21 个文件清单块（20 粗体 + 1 标题），L1 缺路径 0 条。
+
+- 外部平面上的账本副本电池（`_plane540`；每臂复制一份账本、用
+
+  `SPECPROOF_LEDGER_PATH` 指过去，绝不改出货账本）：基线与 11 条臂 **12/12
+
+  命中改前写下的预测**——C1/C2（改散文词、改日期）0 红；P1/P2/P3（把三条死
+
+  路径的删除线去掉）L1 红；P5（`####` 标题 + 去掉删除线）L1 红；P6（无标记的
+
+  `### 拟新增文件`）L2 红；P7（计划标记）绿；P8（路径前植入真 TAB）L4 红；
+
+  P4（删掉标题行）绿、P9（给一条活路径加删除线）绿，这两条是诚实边界而不是
+
+  漏检；每臂结束断言出货账本在这次电池内的 sha256 未变。
+
+- 八道相关门 focused 复跑 68 passed（五道账本门 52，指标三件套 16）。
+
+### 诚实边界
+
+- 透镜是**闭合词表**：只有 `**证据文件**` / `**现状文件**` / `**拟新增文件**`
+
+  的粗体写法与同名标题写法算「清单」。把标题改成别的词（P4 直接把标题行删掉）
+
+  就离开了尺子——这是本号识别口径的边界，不是本号修好的东西。
+
+- 删除线是**撤回形状**，不是合法性判断：P9 给一条活路径加删除线，门保持绿。
+
+  门能读「这一行在撤回」，读不了「这笔撤回是否该做」；撤回一个仍然存在的文件
+
+  只能靠人读。
+
+- L1 仍然按**仓库索引**评（`git ls-files` + `git check-ignore`），不是磁盘：
+
+  未跟踪但仍被忽略的文件不会凭空变成证据，被跟踪但工作树删掉的文件仍算存在。
+
+  这是改前的口径，本号没有扩大。
+
+- 围栏代码块没有跳过（改前就是这样）：清单若写进围栏也会被读。本号没有改这条，
+
+  也没有测过它的爆炸半径。
+
+- 预测缺陷已披露：写 `_plane540/PREDICT.txt` 时基线记为 16 例，实测 18 例；
+
+  差额是我在写预测之后又给同一个门加了两条反向对照（`16 → 18`），不是门自己
+
+  长出来的。基线的「1 failed / 15 passed」是改前 HEAD 上原文件的读数。
+
+### 下一号队列
+
+① Web 给 `not_verified` 补中文标签＋对账门（等 `JobDetail.tsx` 车道）；②
+
+head 运行是否也要先证明执行过测试再让 repeats 分类生效；③ 假清单 21 vs 20
+
+（#478 在飞）；④ `checker_type_parity` 的 `?`；⑤ `gradle_adapter` 的 run 被
+
+调两次；⑥ `contract_review` 词条；⑦ `verdict_channel_parity` 的
+
+acceptance.py 非字面写；⑧ case-17 的严重度漂移；⑨ 其余六个 profile 在真实
+
+工具链下的可写见证；⑩ 前号队列余项（`sha256_hex` ×3 / `_capsule_dirs` /
+
+`_eval_report_path` / `child_output_text`、三套时间戳、约 50 条静默
+
+`except`、P6 100 例、`uv sync --frozen`）；⑪ POM 自定义 `<resources>` 回填；
+
+⑫ 回填挪进沙箱 uid；⑬ nightly eval 的样本下限；⑭ 别道 #527 的平面扫描名册
+
+把 `EMIT_DIRS` 描述写死「9 roots」，落地时改成 10；⑮ 账本若出现第三种清单
+
+标题，要么收进 `LIST_HEAD`、要么在门里显式登记为「不认」，不能让它悄悄留在
+
+尺子外面。
