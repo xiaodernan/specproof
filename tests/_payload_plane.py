@@ -92,6 +92,9 @@ class CallSite:
     #: Where the declared type was read from: the call's own generic argument, the
     #: enclosing function's `Promise<T>` return type, or nowhere.
     typed_by: str = "none"
+    #: Same-file aliases this argument was rewritten through, in the order used. Empty
+    #: unless the path came from a `const name = "/api/..."` rather than a literal.
+    via_aliases: tuple[str, ...] = ()
 
     @property
     def candidates(self) -> tuple[str, ...]:
@@ -406,6 +409,20 @@ _CALL_RE = re.compile(r"\b(apiGet|apiPost|apiPut|apiPatch|apiDelete)\b\s*")
 
 
 def _first_arg(text: str, after_paren: int) -> str:
+    """The first argument, with the whitespace that belongs to the line-break gone.
+
+    A call written across lines -- ``apiPost<X>(\\n  "/api/v1/..." + id\\n)`` -- opens its
+    argument with a newline and closes it with one, and `_path_of_argument` reads any
+    text before the first literal (or after the last) that is not a `+` or a space as a
+    variable slot. Both halves of that indent folded into `{}`: the leading one made the
+    path stop starting with `/`, so the site left the census without a sound (12 of the
+    45 path-bearing sites on this tree are written that way, which the R1 arm measured);
+    the trailing one left `/jobs/{}/summary{}` behind, which pairs only on the loose
+    reading -- so the site survived as a *loose* pairing and the register of loose
+    pairings started carrying a whitespace artifact nobody asked for. The B6a arm planted
+    a call whose closing paren sat on its own line and the loose leg caught the half of
+    this rule that `lstrip` alone had left in place.
+    """
     depth = 0
     buf = ""
     for ch in text[after_paren:]:
@@ -418,7 +435,7 @@ def _first_arg(text: str, after_paren: int) -> str:
         elif ch == "," and depth == 0:
             break
         buf += ch
-    return buf
+    return buf.strip()
 
 
 def _path_of_argument(arg: str) -> tuple[str, bool]:
@@ -443,6 +460,70 @@ def _path_of_argument(arg: str) -> tuple[str, bool]:
         out += "{}"
     out = re.sub(r"\$\{[^{}]*\}", "{}", out)
     return out, variable
+
+
+#: A path built once and handed to the client by name:
+#: `const query = "/api/v1/admin/audit?limit=" + n` then `apiGet<AuditResponse>(query)`.
+#: The argument carries no literal, so the fold sees a bare slot and the site is lost.
+_ALIAS_RE = re.compile(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([\"'`][^;\n]*)")
+_LITERAL_RE = re.compile(r"(['\"`])(.*?)\1", re.S)
+
+
+def _splice_aliases(arg: str, aliases: dict[str, str]) -> tuple[str, tuple[str, ...]]:
+    """Alias names rewritten into their folded literals, plus the names that were used.
+
+    Substitution happens outside string literals only. Splicing inside one would turn
+    `"/jobs/" + path` into a path and `"/api/v1/x/query"` into a quotation containing
+    another quotation -- a malformed path invented by the ruler rather than read from
+    the tree, which is the failure mode this reading is most exposed to.
+    """
+    used: list[str] = []
+    pieces: list[str] = []
+    pos = 0
+    for match in _LITERAL_RE.finditer(arg):
+        pieces.append(_splice_chunk(arg[pos : match.start()], aliases, used))
+        pieces.append(match.group(0))
+        pos = match.end()
+    pieces.append(_splice_chunk(arg[pos:], aliases, used))
+    return "".join(pieces), tuple(dict.fromkeys(used))
+
+
+def _splice_chunk(chunk: str, aliases: dict[str, str], used: list[str]) -> str:
+    out = chunk
+    for name, folded in aliases.items():
+        replaced = re.sub(rf"\b{re.escape(name)}\b", '"' + folded + '"', out)
+        if replaced != out:
+            used.append(name)
+            out = replaced
+    return out
+
+
+def _file_aliases(text: str) -> tuple[dict[str, str], tuple[str, ...]]:
+    """Same-file path aliases in declaration order, and the names this file refused.
+
+    Resolved transitively: `const jobPath = "/jobs/" + id` then `const artifactPath =
+    "/api/v1" + jobPath` folds to `/api/v1/jobs/{}`. Folding each declaration once
+    instead reads `jobPath` as a bare slot, produces `/api/v1{}`, and the calls built
+    from it pair against nothing -- the R2 arm watched the orphan leg catch exactly
+    that.
+
+    Only values that fold to a path enter the table, and a name given a string literal
+    more than once in one file is refused rather than guessed at: `let path` is the
+    kind of name a second assignment elsewhere in the file would silently re-point, and
+    a fold that renamed an unrelated argument would be reporting a contract the caller
+    never asked for.
+    """
+    declared: dict[str, int] = {}
+    for name, _rhs in _ALIAS_RE.findall(text):
+        declared[name] = declared.get(name, 0) + 1
+    table: dict[str, str] = {}
+    for name, rhs in _ALIAS_RE.findall(text):
+        if declared[name] > 1 or name in table:
+            continue
+        folded, _built = _path_of_argument(_splice_aliases(rhs.strip(), table)[0])
+        if folded.startswith("/"):
+            table[name] = folded
+    return table, tuple(sorted(name for name, count in declared.items() if count > 1))
 
 
 def _read_angle(text: str, start: int) -> tuple[str, int] | None:
@@ -508,23 +589,23 @@ def _call_at(text: str, pos: int) -> tuple[str, int] | None:
     return type_expr, pos + 1
 
 
+def _web_sources(web_src: Path) -> list[Path]:
+    return sorted(list(web_src.rglob("*.ts")) + list(web_src.rglob("*.tsx")))
+
+
+def _is_test_file(ts: Path) -> bool:
+    return any(part in _TEST_PATH_PARTS for part in ts.parts) or ts.name.endswith(_TEST_SUFFIXES)
+
+
 def frontend_calls(web_src: Path) -> tuple[list[CallSite], int]:
     """(pairs candidates, excluded test-file sites)."""
     out: list[CallSite] = []
     excluded = 0
-    for ts in sorted(list(web_src.rglob("*.ts")) + list(web_src.rglob("*.tsx"))):
+    for ts in _web_sources(web_src):
         rel = _rel_in_web(web_src, ts)
         text = ts.read_text(encoding="utf-8")
-        if any(part in _TEST_PATH_PARTS for part in ts.parts) or ts.name.endswith(_TEST_SUFFIXES):
-            for match in _CALL_RE.finditer(text):
-                if not _is_call(text, match):
-                    continue
-                found = _call_at(text, match.end())
-                if found is None:
-                    continue
-                if _path_of_argument(_first_arg(text, found[1]))[0].startswith("/"):
-                    excluded += 1
-            continue
+        aliases, _refused = _file_aliases(text)
+        is_test = _is_test_file(ts)
         for match in _CALL_RE.finditer(text):
             if not _is_call(text, match):
                 continue
@@ -532,20 +613,47 @@ def frontend_calls(web_src: Path) -> tuple[list[CallSite], int]:
             if found is None:
                 continue
             type_expr, after_paren = found
-            typed_by = "generic" if type_expr else "none"
-            arg = _first_arg(text, after_paren)
+            arg, used = _splice_aliases(_first_arg(text, after_paren), aliases)
             path, _built = _path_of_argument(arg)
             if not path.startswith("/"):
                 continue
+            if is_test:
+                excluded += 1
+                continue
+            typed_by = "generic" if type_expr else "none"
             if not type_expr:
                 type_expr = _promise_annotation(text, match.start())
                 if type_expr:
                     typed_by = "return-annotation"
             line = text[: match.start()].count("\n") + 1
             out.append(
-                CallSite(rel, line, _CLIENT_VERBS[match.group(1)], path, type_expr, typed_by)
+                CallSite(rel, line, _CLIENT_VERBS[match.group(1)], path, type_expr, typed_by, used)
             )
     return out, excluded
+
+
+def alias_table(web_src: Path) -> tuple[list[tuple[str, str, str, int]], list[tuple[str, str]]]:
+    """What the alias reading consumed: (file, name, folded path, sites) and refusals.
+
+    This is the first rule in the owner that rewrites somebody else's code into a path,
+    so the population it feeds has to be countable in both directions: a table entry
+    that shapes zero sites shows up here with `0`, and a name the fold refused to trust
+    is listed rather than dropped. A narrowing alias rule does not fail; it hands the
+    unpaired-endpoint roster a stale list and stays green.
+    """
+    calls, _excluded = frontend_calls(web_src)
+    rows: list[tuple[str, str, str, int]] = []
+    refused: list[tuple[str, str]] = []
+    for ts in _web_sources(web_src):
+        if _is_test_file(ts):
+            continue
+        rel = _rel_in_web(web_src, ts)
+        table, ambiguous = _file_aliases(ts.read_text(encoding="utf-8"))
+        for name in sorted(table):
+            sites = sum(1 for site in calls if site.file == rel and name in site.via_aliases)
+            rows.append((rel, name, table[name], sites))
+        refused.extend((rel, name) for name in ambiguous)
+    return rows, refused
 
 
 #: A declaration keyword that immediately precedes the client name declares *it*; one
@@ -1134,6 +1242,7 @@ __all__ = [
     "Member",
     "Pair",
     "Payload",
+    "alias_table",
     "api_routers",
     "endpoints",
     "frontend_calls",

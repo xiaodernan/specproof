@@ -61,6 +61,7 @@ from tests._payload_plane import (  # noqa: E402
     Endpoint,
     Member,
     Pair,
+    alias_table,
     call_shapes,
     endpoints,
     frontend_calls,
@@ -107,34 +108,25 @@ def _pair_key(pair: Pair) -> Key:
 #: `POST /api/v1/model/config` -- left the register when the consumer reading was
 #: widened to calls that sit behind `const`/`await`, and one of them (GET /agent/jobs)
 #: pairs only on the loose reading, so it moved to LOOSE_PAIRINGS instead of vanishing.
+#: #544 widened the reading twice more -- a call written across lines, and a path held
+#: in a same-file `const` -- and fourteen more left this register the same way. Two of
+#: them (`GET /api/v1/jobs/{id}/capsule`, `POST /auth/logout`) are still here: their
+#: callers reach the backend through `doFetch` directly, which is not a typed client and
+#: has no declared shape to compare, so a wider *fold* cannot rescue them.
 UNPAIRED_ENDPOINTS: frozenset[Key] = frozenset(
     {
-        ("delete", "/api/v1/admin/tokens/{}"),
-        ("get", "/agent/jobs/{}/approvals"),
-        ("get", "/agent/jobs/{}/diff"),
         ("get", "/agent/jobs/{}/event-history"),
         ("get", "/agent/jobs/{}/events"),
-        ("get", "/api/v1/admin/audit"),
         ("get", "/api/v1/admin/certificates/revocations"),
-        ("get", "/api/v1/billing/invoices"),
         ("get", "/api/v1/billing/jobs/{}"),
         ("get", "/api/v1/billing/subscriptions"),
-        ("get", "/api/v1/billing/usage"),
         ("get", "/api/v1/contracts"),
         ("get", "/api/v1/jobs/{}/capsule"),
         ("get", "/api/v1/jobs/{}/matrix"),
-        ("get", "/api/v1/jobs/{}/stages"),
         ("get", "/auth/oidc/callback"),
         ("get", "/auth/oidc/login"),
-        ("get", "/jobs/{}"),
         ("get", "/jobs/{}/progress"),
-        ("get", "/jobs/{}/summary"),
-        ("post", "/agent/jobs/{}/cancel"),
         ("post", "/api/v1/admin/certificates/revoke"),
-        ("post", "/api/v1/admin/users/{}/role"),
-        ("post", "/api/v1/admin/users/{}/status"),
-        ("post", "/api/v1/billing/invoices/{}/status"),
-        ("post", "/api/v1/jobs/{}/feedback"),
         ("post", "/auth/logout"),
         ("post", "/jobs/{}/cancel"),
         ("post", "/webhooks/github"),
@@ -147,8 +139,10 @@ UNPAIRED_ENDPOINTS: frozenset[Key] = frozenset(
 #: something nobody wrote down a reason for.
 ROSTERED_EXTRA_KEYS: dict[Key, frozenset[str]] = {
     ("get", "/agent/jobs"): frozenset({"next_offset"}),
+    ("get", "/api/v1/admin/audit"): frozenset({"total"}),
     ("get", "/api/v1/jobs/{}/findings"): frozenset({"sources"}),
     ("get", "/jobs"): frozenset({"limit", "offset"}),
+    ("get", "/jobs/{}/summary"): frozenset({"job_id"}),
     ("post", "/api/v1/demo/prepare"): frozenset({"repo"}),
     ("post", "/api/v1/model/test"): frozenset({"error_code"}),
 }
@@ -156,6 +150,12 @@ ROSTERED_EXTRA_KEYS: dict[Key, frozenset[str]] = {
 #: Paired routes whose published keys cannot be folded, each with a reason that has to
 #: point at code. Registering an entry is allowed; *lying* about one is not.
 UNBOUND_PAYLOADS: dict[Key, str] = {
+    ("get", "/api/v1/billing/usage"): (
+        "billing.py:261 returns _usage_csv(rows) -- a Response built by csv.writer, "
+        "which has no key set to fold -- on the accept:text/csv path and a plain dict "
+        "on line 262; the fold intersects its branches, so one unreadable answer makes "
+        "the whole endpoint unbounded even though the JSON half is readable"
+    ),
     ("get", "/api/v1/model/config"): (
         "providers.config.public_model_config answers "
         "`{field: value for field, value in cfg.items()} | {...}` -- data decides the "
@@ -177,7 +177,13 @@ CONDITIONAL_KEYS: dict[Key, frozenset[str]] = {
 
 #: Call sites that paired only after dropping a trailing-variable reading: the suffix
 #: is a query string, which is a fact about the calling file rather than something the
-#: shape of the call proves.
+#: shape of the call proves. A third entry sat here when #544 first landed the
+#: whitespace rule -- `GET /agent/jobs/{}/approvals` -- and the B6a arm showed it was
+#: never a query string: that call closes its paren on its own line, so the newline
+#: after the last literal folded into a `{}` slot the loose reading talked its way out
+#: of. Stripping both ends of the argument took the entry away, which is the register
+#: doing its job: the artifact had a name, and the name went missing when the artifact
+#: did.
 LOOSE_PAIRINGS: frozenset[Key] = frozenset(
     {("get", "/agent/jobs"), ("get", "/api/v1/admin/users")}
 )
@@ -214,17 +220,43 @@ PRIVATE_INTERFACE_PAIRS: frozenset[Key] = frozenset(
     {("get", "/api/v1/model/config"), ("post", "/api/v1/model/test")}
 )
 
+#: Every same-file path alias the fold trusts: (file, name) -> (folded path, sites it
+#: shaped). This is the first reading in the owner that *rewrites* another file's code
+#: into a path, so it is rostered in both directions: `api.ts`'s `path` is listed with
+#: `0` sites because it feeds a `doFetch` call that is not a typed client -- an alias the
+#: ruler believes in and nobody consumes is exactly the thing a reader would otherwise
+#: have to re-derive by hand.
+PATH_ALIASES: dict[tuple[str, str], tuple[str, int]] = {
+    ("apps/web/src/api.ts", "path"): ("/api/v1/jobs/{}/capsule", 0),
+    ("apps/web/src/pages/Audit.tsx", "query"): ("/api/v1/admin/audit?limit=", 1),
+    ("apps/web/src/pages/JobDetail.tsx", "artifactPath"): ("/api/v1/jobs/{}", 2),
+    ("apps/web/src/pages/JobDetail.tsx", "jobPath"): ("/jobs/{}", 2),
+}
+
+#: Names the alias reading refused because the same name is given a string literal more
+#: than once in one file. Empty is the claim: no alias on this tree is ambiguous, so the
+#: refusal rule costs nothing today and still says so when it starts costing something.
+PATH_ALIAS_REFUSALS: frozenset[tuple[str, str]] = frozenset()
+
 # Floors, not equalities: other lanes move this tree under us, and a census that fails
 # because a legitimate route was added gets widened by whoever is reddest. The
 # two-sided legs are what catch a real drop.
 _MIN_ENDPOINTS = 50
-_MIN_PAIRED_ENDPOINTS = 20
-_MIN_CALL_SITES = 20
+#: Measured at #544's landing: 40 endpoints paired and 45 sites read, after the two
+#: consumer-reading rules. The margin is the churn the frontend has actually shown while
+#: this campaign ran (a lane adding a page is fine; a lane losing seven of forty-five
+#: consumers is the drop these floors are for).
+_MIN_PAIRED_ENDPOINTS = 34
+_MIN_CALL_SITES = 38
 _MIN_DECLARATION_HOSTS = 30
 _MIN_API_TS_DECLARATIONS = 45
 #: Measured 10 on this tree: product sites whose call is written as
 #: `const data = await apiGet<X>(...)`, which the first version of the guard threw away.
 _MIN_SITES_BEHIND_A_DECLARATION = 8
+#: Measured 5 at #544's landing: census sites whose path arrived through a same-file
+#: alias. One short of the measurement, because `api.ts`'s `path` is expected to stay at
+#: zero and the floor is about the reading still reaching real callers.
+_MIN_ALIAS_SHAPED_SITES = 4
 
 
 def _census() -> tuple[list[Endpoint], list[Pair], list[CallSite], Declarations]:
@@ -497,6 +529,44 @@ def test_sites_with_no_readable_declared_type_are_rostered() -> None:
         if pair.site.typed_by == "none"
     }
     assert found == UNTYPED_SITES, f"untyped call sites drifted: {sorted(found)}"
+
+
+def test_the_path_aliases_the_fold_rewrites_are_rostered_whole() -> None:
+    """The reading that rewrites another file's code into a path is named, both ways.
+
+    ``apiGet<AuditResponse>(query)`` and the three JobDetail calls built from `jobPath`
+    / `artifactPath` reach the census only because a same-file `const` was substituted
+    into the argument. That is the owner's one rule that invents text where the tree has
+    an identifier, so it is rostered as a table rather than trusted: a new alias is a
+    red leg, an alias whose folded path moved is a red leg, and an alias the census
+    never consumes -- `api.ts`'s `path`, which feeds a `doFetch` call that is not a typed
+    client -- stays on the register with a zero instead of quietly disappearing.
+
+    The transitive reading is what keeps `artifactPath` honest. Fold each declaration
+    once and `const artifactPath = "/api/v1" + jobPath` reads as `/api/v1{}`, which
+    pairs against nothing. The R2 rehearsal (registers left as #543 wrote them) caught
+    that as two orphan sites inside six red legs; the B2 arm re-ran it against this
+    register and caught it on three -- the orphan leg and this one are the same claim
+    twice, which is why a non-transitive fold cannot hide behind a stale roster.
+    """
+    rows, refused = alias_table(web_src(REPO))
+    found = {(file, name): (path, sites) for file, name, path, sites in rows}
+    added = sorted(set(found) - set(PATH_ALIASES))
+    removed = sorted(set(PATH_ALIASES) - set(found))
+    moved = sorted(
+        (key, found[key], PATH_ALIASES[key])
+        for key in set(found) & set(PATH_ALIASES)
+        if found[key] != PATH_ALIASES[key]
+    )
+    assert not added and not removed and not moved, (
+        f"alias table drifted: new={added} gone={removed} changed={moved}"
+    )
+    assert set(refused) == PATH_ALIAS_REFUSALS, f"ambiguous alias names appeared: {sorted(refused)}"
+    shaped = sum(sites for _path, sites in found.values())
+    assert shaped >= _MIN_ALIAS_SHAPED_SITES, (
+        f"only {shaped} census sites came through an alias: the reading has stopped "
+        "earning the population it claims"
+    )
 
 
 def _identifiers(text: str) -> set[str]:

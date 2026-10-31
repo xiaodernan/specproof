@@ -18929,3 +18929,264 @@ A14/A15 是在主战役 16 条臂之后补的，预测写进预测文件 §八 �
 **这条修法的红单形状是排练过的**（臂树上只改 owner、寄存器不动）：5 条腿红——名册、(a)、extras、
 无界名册、松散配对，原始读数 `.scratch/p544_R1.txt`。
 
+**#544 落地实测（这一段落的预测被量具自己的两条读法改写了）**：站点 28 → **45**、名册 29 → **15**、(a) 0 → 1 → **0**——判决动的是 `apps/web/src/api.ts:1229-1235` 那一行泛型参数，路由一行没碰。上面 40 / 19 是「只修规则一」那一档的读数；「5 条腿红」那个排练形状在寄存器按新读法重排之后复跑只剩 **3** 条（census、名册、无界名册），见 #544 的 B1 与「发现」1——名册陈旧不报失败，这台量具今天仍然如此。
+
+## #544 折叠多认出 17 条站点，「无人消费」从 29 条压到 15 条——第一条新认出的站点在说谎，而第二条新读法会改写别人的代码，所以它自己要先有名册
+
+**本节是 #543 队列⑩（= 队列③ 的正身）的交付。** #543 把「前端声明的载荷 ⇄ 路由发布的载荷」
+建成对账之后，第一件事是量门自己在吞什么：那次量到的 5 条被守卫吞掉的站点属于「声明读法」，
+而**折叠读法**还留着两处把换行和标识符当成变量槽的地方。本号把两处都修掉，人口 28 → 45，
+然后被多认出来的那 17 条里第一条就说了一句假话——`POST /api/v1/billing/invoices/{period}/status`
+的调用点声明 `Invoice`，路由答的是 `{invoice: Invoice}`。判决因此分两半：一半改量具，
+一半改 `apps/web/src/api.ts`（#543 明确没碰的那一侧）。
+
+取号按规复核：写本节之前 `origin/master` = `7b91205`（#543 的提交），账本 max 节 = `#543`
+⇒ 本号 `#544`。预测在 `.scratch/pred544_fold.md`，§一 是排练量测（三档读法 × 同一条门），
+§三/§三b/§三c 的臂表在跑任何臂之前写完；§三 里 B8 那条预测是错的，修正写在跑臂之前。
+
+### 量到的
+
+**证据文件**：
+- tests/_payload_plane.py
+- tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py
+- apps/web/src/api.ts
+- apps/web/src/pages/JobDetail.tsx
+- apps/web/src/pages/Audit.tsx
+- api/routes/billing.py
+
+三档读法在同一棵排练树上跑，寄存器一律不动（`_arm543`，owner 从 `_wt543` 拷来后改读法；
+原始读数 `.scratch/p544_R1.txt` / `p544_registers.txt`）：
+
+| 档 | 读法 | 站点 | 配对端点 | 无人消费名册 | 红腿 |
+|----|------|------|---------|-------------|------|
+| R0 | #543 落地态 | 28 | 26 | 29 | 0（11 绿） |
+| R1 | 只修前导空白 | 40 | 36 | 19 | 5 |
+| R2 | 再加别名、但只折一次（非传递） | 45 | 39 | 16 | 6（多一条孤儿腿） |
+| R3 | 再加别名、按声明序传递折 | 45 | 40 | 15 | 5 |
+
+**R2 那两条孤儿是这条线上最贵的读数**：`apps/web/src/pages/JobDetail.tsx:216` 写的是
+`const artifactPath = "/api/v1" + jobPath`，非传递档把 `jobPath` 当裸槽 ⇒ 折出 `/api/v1{}`
+⇒ 拼出 `/api/v1{}/findings` 与 `/api/v1{}/stages`。这两条既不是路由，也不是任何声明过的形状，
+它们不是被人看出来的，是孤儿腿红出来的。所以别名表必须传递解析，所以这条读法要有自己的名册。
+
+别名表有多大（`.scratch/probe544_alias_table.py` / `probe544_alias_collisions.py`，全树
+`apps/web/**` 的 `.ts`/`.tsx`）：折成路径的别名一共 **4 条**，每个名字在所属文件里**恰好声明一次**，
+没有跨文件重名 ⇒ 名册可以整抄。四条是 `api.ts:path`、`Audit.tsx:query`、`JobDetail.tsx:jobPath`、
+`JobDetail.tsx:artifactPath`；其中 `api.ts:path` 喂的是一条 `doFetch` 调用，不是有类型的客户端，
+所以它 shape 了 **0** 条站点——这条 0 是本号新增名册腿存在的理由（见「门」）。
+
+落地后的读数（`.scratch/p544_final.txt` / `p544_alias_final.txt`，口径与 #543 同一条门）：
+
+- 站点 **45**、配对 **45**、孤儿 **0**、配对端点 **40**、无人消费名册 **15**（29 → 15，出去的 14 条
+  在名册腿的错误消息里全部点名，`newly unpaired=[]`）
+- (a) 逐分支洞：改 `api.ts` 之前 **1**，之后 **0**。那一条是
+  `POST /api/v1/billing/invoices/{period}/status declared at apps/web/src/api.ts:1231
+  misses ['currency','id','line_items','period','status','tenant_id','total']`
+- extras **7 端点 / 8 键**（#543 是 5/6）：新增 `admin/audit: total`、`jobs/{}/summary: job_id`；
+  `jobs/{}/findings: sources` 从「没人看得见」变成「名册里的漂移」
+- unbounded **3**（#543 是 2）：新增 `GET /api/v1/billing/usage`，理由写的是 `billing.py:261`
+  那条 `return _usage_csv(rows)` —— CSV 分支根本没有键集合可折，而折叠取的是分支交集，
+  一条读不出来的答案就把整个端点变成无界，尽管 `:262` 那个 JSON 分支是读得出来的
+- conditional **2 端点 / 6 键**、untyped **1**、`CLIENT_DEFINITIONS` **3**、`call_shapes` **49**、
+  别名 **4 行 / 拒折 0 行 / 经别名 shape 的站点 5 条** —— 后四个不随读法变，因为它们量的是提及人口
+- 松散配对 **2 → 3 → 2**：#544 的站点读法先把 `agent/jobs/{}/approvals` 放进名册，
+  B6a 臂又把它拿出来（见「发现」第 3 条，那是同一个洞的另一半）
+
+判决前的独立证人（不是本号写的）：路由那个 `{invoice: ...}` 的外壳早就被后端自己钉住了——
+`tests/unit/test_billing.py:995 / :1007 / :1029-1030 / :1084` 五处读 `json()["invoice"]`。
+说谎的只有前端那一行泛型参数。
+
+前端门证（`_wt544` 里 `node_modules` 不存在，用 junction 指回主检出后跑，跑完删掉）：
+`tsc --noEmit` rc=0；`vitest run` **47 files / 410 tests 全绿**。诚实的边界：committed 的
+`JobDetail.test.tsx` 不引用 `transitionInvoiceStatus`，所以那 410 条绿里**没有一条**跑过被我改的
+那个函数——本号为这条改动拿到的行为证据是 tsc + 门 + 后端那五处断言，不是前端运行时。
+
+### 判决与落地
+
+**判决一（量具）**：两条读法落进 `tests/_payload_plane.py`，寄存器按上面的实测重排。
+
+- 规则一 `_first_arg`：交出的文本 `buf.strip()`。`lstrip` 只修了一半，另一半是 B6a 撞出来的。
+- 规则二 `_file_aliases`：同文件 `const/let/var 名字 = "..."` 折成路径，**按声明序传递**解析。
+  三条配套边界，每条都有臂：只收折出来以 `/` 开头的值（B5 量到不加这条会有 31 个
+  `cls`/`STORAGE_KEY`/`BASE_STORAGE` 之类的名字进表）；同名在同一文件里被赋过两次字符串就不折
+  （B10 量到拒折是三条腿红，不是静默变窄）；替换**不穿进字符串字面量**（B11/B11g 量到穿进去
+  会把 `"/api/v1/health?query=1"` 折成 `/api/v1/health?{}=1`——量具在别人的字符串里挖槽）。
+- 新 owner 出口 `alias_table(web_src)`：`(文件, 名字, 折成的路径, shape 了几条站点)` 全表 +
+  被拒折的名字。`CallSite` 多一个字段 `via_aliases`，站点自己说它是经由哪几个别名来的。
+
+**判决二（那条洞）**：修**声明的那一侧**，在 API 边界解包，公开签名不动：
+
+```ts
+): Promise<Invoice> {
+  const resp = await apiPost<InvoiceStatusResponse>(...);
+  return resp.invoice;
+}
+```
+
+`InvoiceStatusResponse` 就在同文件 `:1213` 写着，没人用。`Promise<Invoice>` 不变 ⇒
+`apps/web/src/pages/JobDetail.tsx:381` 的 `setInvoice(updated)` 一行不碰，受害面（点完「开票 /
+标记已付」之后那张卡上的金额与状态全成 `undefined`，#543 写过）在边界处被修掉。
+
+**为什么敢碰 `api.ts`（冲突面实测，不是感觉）**：共享检出里 `apps/web/src/api.ts` 是 MM，
+未提交 hunk 在 `-U0` 下是 `@@ -388,0 +389,18 @@` 与 `@@ -391 +409 @@`——全部落在 409 行之前；
+本号改的是 `:1227-1235`。`JobDetail.tsx` 他们的 hunk 在 `:452`，本号不改那个文件。
+两侧 hunk 不相邻 ⇒ 别道拉本号提交时不会撞车。这条量测是本号动前端的唯一授权来源。
+
+### 门
+
+12 条腿（#543 是 11 条）。新增的一条是
+`test_the_path_aliases_the_fold_rewrites_are_rostered_whole`，它带着两张新寄存器：
+`PATH_ALIASES`（别名表整抄：`(文件, 名字) -> (折成的路径, shape 了几条站点)`）与
+`PATH_ALIAS_REFUSALS`（被「同名两次」拒折的名字，今天为空就是今天的说法）。
+改动的寄存器与地板：`UNPAIRED_ENDPOINTS` 29 → 15、`ROSTERED_EXTRA_KEYS` 5 端点/6 键 → 7/8、
+`UNBOUND_PAYLOADS` 2 → 3、`LOOSE_PAIRINGS` 2 → 3 → 2（中间换过一次写法，见「发现」2）、
+`_MIN_CALL_SITES` 20 → 38、`_MIN_PAIRED_ENDPOINTS` 20 → 34、新增 `_MIN_ALIAS_SHAPED_SITES` 4，
+都写明实测值与余量理由。
+
+| 腿 | 断的是什么 | 红法 |
+|----|-----------|------|
+| `test_the_census_measures_a_population_rather_than_a_sample` | 五张地板 + 排除是少数派；站点地板 38（实测 45） | B1（45 → 33）、B6b、B8 |
+| `test_the_definition_guard_rejects_only_definitions` | 被拒的提及在自己的行上真的是声明；`CLIENT_DEFINITIONS` 双向 | #543 的 A12 |
+| `test_every_route_without_a_frontend_consumer_is_rostered_by_name` | 15 条名册双向对账 | B1 / B2 / B6b / B9 / B10 |
+| `test_every_frontend_call_site_reaches_a_route` | 孤儿名册为空是被量的 | B2（`/api/v1{}/findings`、`/api/v1{}/stages`） |
+| `test_a_required_key_is_published_by_every_return_branch` | 逐分支交集 | B3（回到谎话 ⇒ 红）、B6a（种的洞 ⇒ 红）、B9 |
+| `test_published_keys_the_frontend_never_declared_are_rostered` | 8 个键 / 7 条端点，多与少都红 | B3 / B4 / B9 / B10 / B11 / B11g |
+| `test_the_unbound_register_names_the_routes_that_cannot_be_folded_and_does_not_lie` | 3 条无界 + 理由指得到被拒表达式与 handler | B1（`billing/usage` 变陈旧） |
+| `test_the_private_page_interfaces_really_are_in_the_census` | 私有声明宿主 + 那两条配对活着 | #543 的 A4 |
+| `test_the_conditional_register_is_measured_not_recited` | 6 个条件键是数字不是说法 | #543 的 A10 |
+| `test_loose_pairings_are_rostered` | 2 条松散配对有名有姓 | B1 / B6a / B6b / B12 |
+| `test_sites_with_no_readable_declared_type_are_rostered` | 1 条无类型站点 | #543 的 A10 |
+| `test_the_path_aliases_the_fold_rewrites_are_rostered_whole` | 别名表整抄 + 拒折名册 + `shaped` 计数地板 4 | B2 / B5 / B7 / B9 / B10 / B11 |
+
+### 变异臂
+
+臂树 `D:\面试项目\_arm544`（`7b91205` 的 detach 副本 + 本号三个落地文件逐字节拷入）。
+每条臂先 `git checkout -- .` 再从 `_wt544` 拷基线、按**唯一锚点**应用变异（锚点出现次数 ≠ 1
+就直接 SETUP FAILED，不允许静默不生效）、跑同一条门、跑完还原。14 条臂全部跑完之后
+`git status --porcelain` 只剩那三个文件，且三个文件与 `_wt544` 的 md5 逐字节相同——
+这句话的证人是那次比对，不是记忆。基线 12 条腿全绿。
+**逐条与冻结预测的对照在 `.scratch/pred544_fold.md` §三 / §三b / §三c，这里只放结果。**
+
+| 臂 | 变异 | 实测红腿 | 对预测 |
+|----|------|---------|--------|
+| B1 | 规则一退回 `return buf`（括号与字面量之间的空白仍被当变量槽） | 3：census（`only 33 call sites read`）、roster（10 条回册、`no longer unpaired=[]`）、无界名册（`stale=[billing/usage]`）；**(a) 绿** | 部分中：「(a) 不红」中；预测的 extras / 松散两条**没红**，见「发现」1 |
+| B2 | 别名只折一次（非传递） | 3：孤儿腿（`/api/v1{}/findings`、`/api/v1{}/stages`）、roster（`stages` 回册）、别名腿（`artifactPath` 折成 `/api/v1{}`） | 中于证人、错于条数：排练档 R2 红 6 条，落地态只红 3 条 ⇒ 寄存器已按传递态重写，臂只弄红真正动到的腿 |
+| B3 | 判决改回 `apiPost<Invoice>`（只动那一行泛型） | 2：(a) + extras | 中 |
+| B4 | 后端在 `{"invoice": …}` 旁边摊平 Invoice 的 7 个键 | 1：extras；**(a) 绿** | 中 ⇒ 「多发无害」被否证 |
+| B5 | 删掉别名表的 `startswith("/")` 过滤 | 1：别名腿（表里多出 31 行 `cls` / `STORAGE_KEY` / `BASE_STORAGE` 之类）；站点 45、孤儿 0 **一动不动** | **未中**（预测「人口至少动一处」），见「发现」5 |
+| B6a′ | 植一条两分支路由 + 路径写在自己一行上的消费者——跑在 `lstrip` 落地态（首跑） | 2：(a) + **松散配对腿** | **未中 ⇒ 这条多出来的红撞出规则一的另一半** |
+| B6a | 同一份种植，跑在 `buf.strip()` 修完之后 | 1：(a)（`probe` 在降级分支缺失）；census 站点 45 → 46 | 中 |
+| B6b | B6a 之上关掉规则一 | 3：census、roster（11 条回册，含种的 `billing/probe/shape`）、无界名册；**(a) 绿** | 中于关键（洞随站点一起消失）、未中于多红两条 |
+| B7 | 路径来自**另一个文件导出的**常量 `MATRIX_BASE` | 1：别名腿（多一条 shape 0 的 `MATRIX_BASE`）；站点 45 不变、`GET /api/v1/jobs/{}/matrix` 仍留在无人消费名册 | 中 ⇒ 跨文件消费仍是边界 |
+| B8 | 把站点地板从 38 抬到 60（实测 45） | 1：census 腿自己；没有任何一条腿说「地板这个数与实测脱节」 | 中（原预测「0 红」是错的，修正写在跑臂之前） |
+| B9 | 新增一条**同文件别名且真有人消费**（`matrixPath` → matrix 端点） | 4：roster（matrix 出册）、(a)（`JobDetail.tsx:659 misses ['matrix'] in at least one branch`）、extras（matrix 的 9 个未声明键）、别名腿（`new=[matrixPath]`） | **未中（低估）**：预测只写别名腿，实测一条别名的落地把四条腿一起弄红，见「发现」3 |
+| B10 | 同文件里把 `query` 再赋一次字符串 ⇒ 触发「同名两次就拒折」 | 3：roster（`/api/v1/admin/audit` 回无人消费）、extras（`total` 不再是任何人的多发）、别名腿 | 中，且拒折这件事有名有姓而不是静默变窄 |
+| B11g | 植 `"/api/v1/health?query=1"`，字符串字面量守卫**在** | 2：(a) + extras；站点 46、那条站点折成 `?query=1` 原样精确配对、别名腿绿（`query` 仍 shape 1） | 中于守卫；extras 连带中；(a) 那条连带未预测 |
+| B11 | 同一份种植，守卫**不在** | 3：(a)、extras、别名腿（`query` shape 1 → 2）；折出 `/api/v1/health?{}=1`，**孤儿腿绿** | **未中**：预测「站点变孤儿」，实测槽被挖进 query string 之后 `normalize_path` 把它吞了 ⇒ 见「否证与边界」 |
+| B12 | 规则一退回「只 `lstrip`」（= B6a′ 的落地态） | 1：松散配对腿，红法是名册里多出 `('get','/agent/jobs/{}/approvals')`；站点、孤儿、extras、无界全不动 | 中（这条是 §三c 在跑它之前追加的） |
+
+命中统计：15 次读数里 9 次逐字命中、6 次有差——差的 6 次中 3 次是**红得比预测少**
+（B1 / B2 / B6b：寄存器已经按新读法重写，变异撞不到那些腿，这正是「名册陈旧代替失败」
+的另一面）、2 次是**红在别的腿上**（B5、B11）、1 次是**红得比预测多**（B9）。
+
+### 全量红单对照（本节追加之后）
+
+`tests/unit` 全量跑在落地态：collected **5974**、5956 passed、**10 failed**、8 skipped、
+1662.78s（`.scratch/p544_full_unit.txt`）。同一份红单在**干净对照树**上复跑那五个文件：
+`10 failed, 22 passed in 33.51s`，逐条同名、同文件、同断言（`.scratch` 控制台输出，对照树
+`_ctl544` = detached `7b91205`，`git status` 空）。基线就是本号的父 commit（#543 的落地态），
+所以「基线红单」和「落地红单」是同一份名单，不需要再猜是谁弄红的。
+
+⇒ 本号对全量套件的净效果：**收集数 +1**（第 12 条腿），红单 **0 新增、0 消失、0 换了名字**。
+`tests/_payload_plane.py` 的两条新读法只活在载荷门那一侧，没有碰产品运行时代码，唯一被改的
+产品文件是 `apps/web/src/api.ts` 的那三行判决，而它不在任何 committed 测试的路径上（本号
+「诚实边界」已经写过：没有一条 committed 测试跑过 `transitionInvoiceStatus`）。
+
+| 红文件 | 条数 | 断的是什么，为什么不是本号弄的 |
+|--------|------|--------------------------------|
+| `test_checker_type_parity.py` | 1 | 网页术语表 ⇄ checker 词汇表；本号没改任何一侧的词表 |
+| `test_fake_inventory_stays_measured.py` | 2 | 假库存的数字地板；本号没碰 inventory |
+| `test_progress_event_labels.py` | 1 | graph node 的 label 全覆盖；本号没加 node |
+| `test_the_gate_toolchain_is_pinned_exactly.py` | 3 | 本机 ruff 0.16.9 / mypy 2.3.1 对 pin 0.17.1 / 2.4.0——**环境漂移**，不是代码。这条已经登记过（#543 的同名对照），本号复述它的读数而不是修它：修它要么降 pin（把门改成迁就机器），要么升 venv（动别人也在用的解释器），两样都不归本号管 |
+| `test_verdict_channel_parity.py` | 3 | verdict 字面量 ⇄ 通道声明（`evidence/acceptance.py:462/570` 两处非字面赋值、`eval_case` 声明了 MISS/PARTIAL/PASS 却没写）；本号没改 verdict 平面 |
+
+登记为**否证**而非待修：这 10 条在本号之前就是红的，本号的门不因为它们红而变弱——载荷门的
+12 条腿里没有任何一条读 checker 词表、inventory、graph node、工具链 pin 或 verdict 通道。
+「红单里有一条是我的」这件事只能靠对照树证明，不能靠推理证明，所以这里给的是两棵树的读数。
+
+### 发现
+
+1. **读法变窄的时候 (a) 腿不响，只有地板响。** B1 与 B6b 是同一个形状：判决那条洞随着它的
+   站点整体从配对人口里消失，(a) 全绿；先红的是 census 腿那句 `only 33 call sites read`
+   和 roster 腿的 10 / 11 条回册。⇒ 站点地板不是「防抄错」的装饰，它是这台量具里**唯一的
+   「人口变窄」报警器**。#543 队列③ 主张「折叠在吞站点」时只有排练读数，本号把它做成了
+   两条臂的正证。
+2. **一条未预测的红比十条预测的红值钱。** B6a′ 比预测多红一条松散配对腿，追下去是规则一
+   只修了前半：`lstrip` 管前导，尾随换行同样不是变量槽。改 `buf.strip()` 之后复跑只剩预测
+   那条红，`LOOSE_PAIRINGS` 从 3 收回 2——收回的理由不是「少了一条松分配对」，而是那条
+   `approvals` 站点**本来就是尾随换行写的**，它此前「靠前缀读法配上」这件事本身就是同一个
+   洞的另一半。B12 把「只 lstrip」做成反证臂：它只弄红这一条腿，别的人口一个不动。
+   这条洞是臂撞出来的，不是人读代码读出来的。
+3. **第一条会改写别人代码的读法，扩大人口就同步扩大受害面。** B9 给 `matrix` 端点配一个
+   同文件别名消费者之后四条腿一起红，其中 (a) 那条是**真话**：
+   `GET /api/v1/jobs/{job_id}/matrix` 至少一个分支不发布 `matrix` 键，而它此前一直躺在
+   「无人消费」名册里，从没被比过。⇒「名册少一条 = 洞多一条」在本号是可复现的读数，
+   不是修辞。
+4. **「后端多发前端没声明的键无害」被 B4 否证。** 把 7 个键摊平到 `{invoice: …}` 旁边，
+   (a) 一声不响，extras 腿替它登记成 8 个键。名册的价值正在这里：恒定的红比偶发的洞重要。
+5. **`startswith("/")` 这条过滤今天不改变任何人口。** B5 删掉它：31 个非路径别名挤进表里，
+   而站点 45、孤儿 0 一动不动——因为 `const cls = "badge"` 折回参数之后仍然读不出以 `/`
+   开头的路径。⇒ 它不是「读到更多」的规则，是「别名表只登记路径形状」的不变式；
+   删了它门仍然红，所以这条不变式是被看着的，不是靠自觉。
+
+### 否证与边界
+
+- **跨文件不可见仍然成立**（B7 实测）：`export const MATRIX_BASE = "/api/v1/jobs/"` 落在
+  `api.ts`、消费在 `JobDetail.tsx` ⇒ 站点数不变、matrix 仍在名册。要读它得过程间读法。
+- **query string 里的槽不产生孤儿**（B11 实测）：`normalize_path` 把 `?…` 丢掉，所以
+  「量具在别人的字符串里挖槽」这种退化**不会**以孤儿的形式出现。本号里它的证人是别名腿的
+  `shaped` 计数（1 → 2）与 extras 腿。⇒ 孤儿腿不是这条不变式的守卫，别把它当。
+- **词法作用域没读**：同名在两个块里各赋一次会被当成「声明两次」而整体拒折（B10 量的就是
+  这条），而不是按作用域解。拒折是安全的，但它是**文件级**的判断。
+- **别名只认 `const/let/var 名字 = "字面量"` 一种形状**：模板串插值、`new URL()`、函数返回的
+  路径、对象字段里的路径都不折。`api.ts:path` 那一行喂的是 `doFetch`（没有类型参数），
+  所以它 shape 0 条站点——这条 0 被名册整抄下来了，它不是静默的。
+- **五个「提及人口」读数不随读法变**：`call_shapes 49`、`CLIENT_DEFINITIONS 3`、
+  条件键 `2 端点 / 6 键`、`untyped 1`、`excluded 4`。它们量的是声明的宽度，不是配对的宽度。
+- **地板是手抄的**（B8）：把它抬到实测之上，只让 census 腿自己红，没有任何一条腿知道
+  「地板应当由实测推出来」⇒ 队列⑨。
+- **前端运行时证据缺口**：committed 的 `JobDetail.test.tsx` 不引用 `transitionInvoiceStatus`，
+  所以 `tsc --noEmit` rc=0 与 `vitest` 47 files / 410 tests 全绿里**没有一条**跑过本号改的那个
+  函数。本号为这条改动拿到的行为证据是类型 + 门 + 后端那五处 `json()["invoice"]` 断言。
+- **`node_modules` 在 worktree 里不存在**：前端门证是把 `apps/web/node_modules` junction 指回
+  主检出之后跑的，跑完删掉。⇒ 换机器/换人跑本节要重建这一步，账本里写明。
+- **寄存器搬家发生在本号内部两次**：`LOOSE_PAIRINGS` 3 → 2（规则一的尾随半边）、
+  `UNPAIRED_ENDPOINTS` 19 → 15（两条读法合起来）。中间态在预测文件 §三c，不在代码里。
+
+### 下一号队列（取号按落地时点 max+1）
+
+| 项 | 内容 | 为什么要 |
+|----|------|---------|
+| ① | 条件键进 (a) 口径：前端把 `Payload.conditional` 里的键声明成必填 ⇒ 独立腿红 | #543 的 A3 至今仍是唯一「门应红而没红」的实测盲点 |
+| ② | 折叠新增「下界」形状：`dict-literal \| {...}`、`{k: v for …}` 右侧字面量 | 本号无界 3 条里 `GET /api/v1/billing/usage` 正是它该收的：JSON 分支读得出来，被一条 CSV 出口整体拖成无界 |
+| ③ | 15 条「无人消费」端点的理由分类与登记 | 人口已被两条读法从 29 压到 15，剩下的每一条都该有名有姓（#543 队列④ 的正身） |
+| ④ | 第二层形状对账（`DashboardData.jobs[0]` 的键 vs handler 里 job 行的键） | 顶层键一致不等于面板可用；#543/#544 两号都明确没做 |
+| ⑤ | 运行时对账：`TestClient` 真实响应顶层键 vs 折叠的 `always` | 静态折叠的三个漏（推导式、动态键、跨进程）只有运行时能兜 |
+| ⑥ | 冗余可选轴：前端声明 optional 而后端恒有的键，登记成数字 | (a) 只管 required、(b) 只管未声明，这条第三轴两号没人看 |
+| ⑦ | `_PAYLOAD_DEPTH` 直接被一条腿钉住（常数值 + 它对应的 bounded 数） | #543 的 A5/A15 只给了间接证据，改常数今天没有任何一条腿会响 |
+| ⑧ | 把「同树两口径对照」（逐分支 vs 并集）从一次性探针搬进 owner | 它是 #543 最有价值的轴，现在只活在 `.scratch` 里 |
+| ⑨ | 地板由实测表推导：一条腿断言「地板 ≤ 实测 ≤ 地板 + 余量」，余量本身是寄存器 | B8 量到手抄地板是一个没人看的旋钮 |
+| ⑩ | 跨文件导出常量的读法（B7 的边界）+ 别名按作用域解（B10 的边界） | 两条边界各有一条臂钉着「今天读不到」，读到了就要动名册 |
+| ⑪ | 把 B6a′ / B11 这类种植固化成**永久 fixture 腿**（多行书写的站点、字面量里的别名词） | 现在这两条只在一次性臂里存在；读法退化只能靠下一号重新跑臂才知道 |
+| ⑫ | 无界条目的理由分类（文件/CSV 出口、推导式、动态键） | 无界名册现在有理由指针，但三类理由是同一种写法，看不出下一步该修哪一个 |
+| ⓬ | **消费侧的第三、第四条读法：类型化 hook，和条件表达式的字面量分支**。`useRemoteData<T>(path)` 的第一个实参就是路径字面量、类型参数就是声明，而 `_CALL_RE` 今天只认 5 个客户端名字 ⇒ 这类站点全部隐形；`jobId ? "/api/v1/jobs/" + … + "/matrix" : null` 是同一类站点的另一种写法，`?` 之前那段被读成变量槽 ⇒ 路径不以 `/` 开头，站点被丢 | 两档都在 `_wt544` 落地态上排练过（只 patch 内存）：`.scratch/probe545_hook_reading.py` 只加 hook ⇒ 站点 45 → **47**、配对端点 40 → **41**、名册 15 → **14**（出去的是 `GET /api/v1/contracts`）、extras 7/8 → **7/9**；`.scratch/probe545_ternary_guarded.py` 再加条件分支 ⇒ 站点 **48**、配对端点 **42**、名册 **13**（再出去 `GET /api/v1/jobs/{}/matrix`）。**(a) 两档都是 0 条洞** |
+
+**⓬ 的预测在写它的时候是错的，排练把它改掉了。** 我原本按 B9 臂的读数写「matrix 一读进来就撞一个
+真洞」——那条 `misses ['matrix']` 说的是**臂种的**声明 `Promise<{ matrix: string[] }>`，不是树上的
+`MatrixData`；H3 实测 `GET /api/v1/jobs/{}/matrix` 精确配对、(a) 仍然 0 条，两档真正新增的读数只有
+`GET /jobs` 多发一个 `total`（`apps/web/src/pages/Matrix.tsx:21` 只声明 `{jobs}`）。⇒ #545 的正面
+工作是**读法与名册**，不是判决。另一条同样来自排练：把三元剥皮写得不懂字面量（`.scratch/probe545_ternary.py`）
+会把 `"/api/v1/contracts?status="` 里那个 `?` 当条件符，站点 47 → 46、`/api/v1/contracts` 回到名册、
+`GET /agent/jobs` 的配对一起坏掉——和 #544 的别名守卫是同一个教训，写读法的人要再撞一次才算数。
+剩下 13 条「无人消费」端点的理由分类（`probe545_reasons.py`：字面量不出现 6、只在注释里 4、
+`doFetch` 无类型 2、浏览器跳转 1）就是 ③ 的内容——名册的下一步不是更小，而是每一条都带一个能被复查的理由。
