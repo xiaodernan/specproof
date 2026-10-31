@@ -18681,3 +18681,251 @@ verdict 字面量无人声明通道）、`test_fake_inventory_stays_measured.py`
 `test_sql_text_static.py` 有「名册不撒谎」的腿（`test_the_register_is_not_lying`、
 `test_each_registered_site_still_matches_the_code_it_describes`），但没有一条腿说「名册变宽这件事本身
 需要一个理由」。本号没有加宽它（走的另一条路），但**下一次加宽它的人**需要一台按「名册条数」的地板/天花板门。
+
+## #543 前端声明的载荷与路由发布的载荷从来没被比过；门建好后第一件事是量到门自己在吞消费点
+
+**本节是 #542 队列①（= #526 队列③ = #527 队列「消费侧人口必须派生」）的前置交付。** 那一格写的是
+「需要先建有『载荷键 ⇄ 前端类型』的对账门，否则加的是免检字段」；本号就是那扇门，以及门建成之后
+**它自己**被量出来的两个读数洞。取号按规复核：写本节之前 `origin/master` = `ec0728b`（#542 的提交），
+账本最大节 `## #542`，全账本 18683 行。预测文件 `D:\面试项目\.scratch\pred543_payload.md` 在任何臂
+之前冻结，臂后实测写进它的 §七（预测原文不改）。
+
+### 量到的
+
+**证据文件**：
+- api/routes/web.py
+- api/routes/model_settings.py
+- api/routes/agent_console.py
+- api/routes/jobs.py
+- api/services/verification_service.py
+- storage/mysql.py
+- apps/web/src/api.ts
+- apps/web/src/agent/pages/AgentSettings.tsx
+- apps/web/src/pages/Login.tsx
+- apps/web/src/pages/Health.tsx
+- apps/web/src/hooks/useRemoteData.ts
+- tests/_payload_plane.py
+- tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py
+
+数字（探针与驱动在 `D:\面试项目\.scratch\probe543*.py` / `arms543.py`，不入库；原始读数
+`p543_drive3.txt` / `p543_drive5.txt` / `p543_arms.txt`；口径随数字写）：
+
+- **发布面 55 条端点，消费面 28 个调用点，交集 26 条端点。** 端点从 `api/` 派生：**10** 个
+  `APIRouter(...)` 对象（prefix 是读出来的，不是假设的）× 装饰器 **55** 条（get 36 / post 18 /
+  delete 1，归一化 `(verb, path)` 后仍是 55 ⇒ 没有同路径同动词的重复注册）。前端在产品文件里有
+  **49** 处 call-shaped 提及（`apiGet/apiPost/apiPut/apiPatch/apiDelete` 后紧跟 `<` 或 `(`，
+  排除 `__tests__` 与 `*.test.ts(x)`），其中 **3** 处是客户函数自己的定义行、**46** 处是调用，
+  再只保留第一个实参含路径字面量的 **28** 处；测试文件里另有 **4** 处按「排除」计数。
+  按 `(verb, 归一化路径)` 配对：**28 条全配上（孤儿 0）**，覆盖 **26** 条不同端点
+  ⇒ **29 条端点没有任何前端声明可比**。
+- **消费侧人口先被量具吞了 5 个站点、3 条端点。** 判「是不是定义行」的守卫当时读的是
+  「左边 40 个字符里出现 `function `/`const `」，而 `const data = await apiGet<X>(...)` 是调用、
+  也满足这句话。锚定之后计数站点 **23 → 28**，被配对端点 **22 → 25**（`GET /api/v1/health`、
+  `GET /auth/me`、`POST /api/v1/model/config` 三条从「无人消费」名册里出来），测试排除数 **1 → 4**。
+  这条不是设计出来的，是 **A8 臂意外撞出来的**：那条臂想种一个「消费者声明了路由不发布的键」，
+  第一次跑红在了 roster 腿上——因为种下去的站点根本没被数到。
+- **另一半洞在路径读法：只剥尾部一个裸槽。** `"/agent/jobs" + (q ? "?" + q : "")` 折叠成
+  `/agent/jobs{}?{}{}`，剥一个尾槽得到 `/agent/jobs{}?{}`，仍配不上 ⇒ 站点报孤儿、路由继续在
+  「无人消费」名册里。改成「每个非 `/` 引入的裸槽都提供一个前缀读法」（`_bare_stems`）之后
+  配对端点 **25 → 26**、孤儿 **1 → 0**、松散配对 **1 → 2**。**斜杠引入的槽不给**：否则
+  `"/jobs/" + id` 会被读成 `/jobs` 列表，凭空造出一条没人请求过的契约。
+- **声明面不住在 `api.ts` 里。** `apps/web/src` 下承载对象形状的宿主文件 **43** 个、名字 **117** 个，
+  `api.ts` 一个文件 **50** 个。`ModelConfig` 与 `ConnectionResult` 在
+  `apps/web/src/agent/pages/AgentSettings.tsx:6 / :16`，**没有 `export`** ⇒ 只认
+  `export interface` 的尺子看不见模型面板的 **3** 条配对（`GET /api/v1/model/config`、
+  `POST /api/v1/model/config`、`POST /api/v1/model/test`）。A4 臂把声明面收窄回 `api.ts` 试过一次：
+  3 条腿红（私有接口腿 + census 地板 + extras 名册变陈旧）。
+- **可比对的人口（25 对折叠解得出的配对）里，必填键缺失的洞 = 0。** 折叠解得出的（**25**）之外是 **1** 条无类型站点
+  （`apps/web/src/pages/Login.tsx:84` 的 `apiGet("/api/v1/dashboard")`，值被丢掉）与 **2** 条折叠停下来
+  的路由。也就是说 **#542 落的降级分支键集合洞是那一条线上唯一被手抓到的**，其余端点今天干净——
+  「干净」是这台量具第一次通电之后的读数，不是「曾经查过」。
+- **发布未声明 = 6 个具名键，落在 5 条端点上。** `findings.sources`、`/jobs` 的 `limit` + `offset`、
+  `demo/prepare.repo`、`model/test.error_code`、`GET /agent/jobs.next_offset`。多发的键不炸 JavaScript，
+  所以它们不是失败而是**漂移**：每一条都要能被点名，且**停止多发时名册腿也要红**（A1/A2 各测一侧）。
+- **折叠停下来的地方 = 2 条路由，理由都指得到代码。** `GET /api/v1/model/config` 的
+  `public_model_config()` 答 `{field: value for field, value in cfg.items()} | {...}`——数据决定键集；
+  `POST /api/v1/model/config` 的 `save_model_config(data)` 最后一行就是
+  `return public_model_config()`，同一个键集。**这两条恰好是模型面板那对私有接口描述的载荷**，
+  所以本号在这一对上是「量到了边界」而不是「量到了答案」。
+- **折叠知道自己会过度声明。** 变异合并进每个分支 ⇒ 只在某个 `if` 臂里挂上去的键读起来像恒有。
+  今天命中 **2 条路由 / 6 个键**（certificate 的 `signed_path`+`signed_statement`、
+  `model/test` 的 `error_code`+`message`+`ok`+`usage`），登记成数字而不是修掉（A3 是它的否证臂）。
+
+### 判决与落地
+
+**判决：建一台静态对账，只建对账。** 不改 `apps/web/**`（`api.ts` 与 `Dashboard.tsx` 在共享检出里被
+别道以未提交改动持有；其余前端文件本号也不碰——改声明属于判决而不属于对账），不改产品代码
+（可比对人口里 (a) 为 0，没有该修的洞），不改名册以外的任何豁免通路。
+
+落地是一个 owner 加一道门：
+
+- `tests/_payload_plane.py`（唯一 owner，1147 行）：端点表 E1、调用点表 E2、TS 声明表 E3、
+  配对身份含 verb（E3'）、载荷折叠 E4（`_PAYLOAD_DEPTH = 2`，到顶就停并**如实报 unbounded**）、
+  **逐分支**的键集合 E5（`Payload.always` = 各 return 分支的交集——前端唯一能当「一定在」用的集合）。
+  折叠覆盖的形状：dict 字面量、绑定到字面量的局部名（多绑定按源码序）、`AnnAssign`、
+  `name.update(k=...)`、`name["k"] = ...`、`**name` / `**call()`、同模块 helper、一段式 import 的
+  helper、两跳跨模块（按接收者类型解析：`x = Cls()`、参数注解、`__init__` 里的 `self.attr = Cls()`）；跨模块时「哪些目录算产品」读 `tests/_scan_walk.product_roots`（18 个根），不抄名单——这一条是全量红单量出来的，见下面「全量红单对照」。
+- 门 `tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py`：
+  11 条腿（口径 = `def test_` 条数 = pytest collected 例数，两者本号相同）。
+
+**为什么逐分支而不是并集**：#542 的洞正是「happy 分支答 A、降级分支答 B」，并集读起来 A ∪ B 都有、
+一条也不缺。A11 臂把这条轴量出来了：从降级分支删掉 `timeline_timezone` ⇒ 逐分支 (a) 腿红、
+而同一棵树上按并集写的计数器 `union-rule holes=0`（`.scratch\probe543_union.py`）。
+
+### 门
+
+| 腿 | 断的是什么 | 红法 |
+|----|-----------|------|
+| `test_the_census_measures_a_population_rather_than_a_sample` | 五张地板 + 「测试文件排除必须是少数派」 | 量具变窄 / 排除变成人口 |
+| `test_the_definition_guard_rejects_only_definitions` | 每条被拒的提及在自己的行上真的是声明；`CLIENT_DEFINITIONS` 双向计数；「窗口里提到声明关键字的站点」实测 10 条、地板取 8 | A12（守卫退回不锚定） |
+| `test_every_route_without_a_frontend_consumer_is_rostered_by_name` | 29 条名册双向对账 | A7（新端点无名册）/ A12 / A13 |
+| `test_every_frontend_call_site_reaches_a_route` | 孤儿名册为空这件事是被量的 | A13（关掉前缀读法 ⇒ 站点孤儿） |
+| `test_a_required_key_is_published_by_every_return_branch` | #542 的规则搬到每条配对端点，逐分支 | A1 / A8 / A11 |
+| `test_published_keys_the_frontend_never_declared_are_rostered` | 6 个具名键 / 5 条端点，多与少都红 | A1 / A2 / A4 / A5 / A12 / A13 |
+| `test_the_unbound_register_names_the_routes_that_cannot_be_folded_and_does_not_lie` | 2 条无界 + 理由非空 + 理由指得到被拒表达式 + 理由指得到 handler 文本 | A5 / A9 / A9b |
+| `test_the_private_page_interfaces_really_are_in_the_census` | 声明宿主不是 `api.ts` + 那 3 条配对真在普查里 + `return-annotation` 读法活着 | A4 |
+| `test_the_conditional_register_is_measured_not_recited` | 6 个条件键被登记成数字而不是被修掉 | A10 |
+| `test_loose_pairings_are_rostered` | 2 条靠前缀读法配上的配对有名有姓 | A13 |
+| `test_sites_with_no_readable_declared_type_are_rostered` | 1 条无类型站点是量出来的事实，不是 `continue` | A10 |
+
+### 变异臂
+
+臂树 `D:\面试项目\_arm543`（`ec0728b` 的 detach 副本）。每条臂跑完即 `git checkout -- .` 还原，
+最后一轮 `git status --porcelain` 只剩本号两个文件；18 条臂全是静态读，无一条建 MySQL 连接
+（每次跑的尾行 `MySQL-backed test files ... none of them ran in this session` 就是这句话的证人）。
+A0 基线 11 条腿全绿。**逐条与冻结预测的对照写在预测文件 §七，这里只放结果。**
+
+| 臂 | 变异 | 实测红腿 | 对预测 |
+|----|------|---------|--------|
+| A1 | 后端把 `document` 改名 `doc` | 2（(a) + extras） | 中 |
+| A2 | 后端多发一个未声明的 `extra` | 1（extras） | 中 |
+| A3 | 前端把 `signed_path` 改必填 | **0（全绿）** | **否证**：折叠把它读成恒有，正是条件键名册登记的东西 |
+| A4 | owner 只读 `api.ts` | 3（私有接口 + census 地板 + extras 名册陈旧） | 中，比预测宽 |
+| A5 | `_PAYLOAD_DEPTH = 1` | 2（无界名册 + extras 名册陈旧） | 中 |
+| A6 | 返回字面量改成局部名再返回 | 0 | 正对照：局部名绑定仍解得出 |
+| A7 | 新增一条无消费者端点 | 1（roster） | 中 |
+| A8 | 新增一条端点 + 声明缺键的消费者 | 1（(a)） | 中；第一次跑在 roster 腿红，撞出守卫洞 |
+| A9 | 无界理由删空 | 1（不撒谎腿的「必须带理由」断言） | 中 |
+| A9b | 理由不指任何被拒表达式 | 1（同腿的 `cited` 断言） | 臂清单外补的 |
+| A10 | prefix 全部读漏 | **10/11** | 中，远宽于预测 |
+| A11 | 降级分支删掉 `timeline_timezone` | 1（(a)）+ 计数器 `union holes=0 / per-branch holes=1` | 中，逐分支 vs 并集这条轴被量出来 |
+| A11b | 同洞 + 前端把它改可选 | 0（全绿） | 臂后补：门确实在读前端的 `?` |
+| A12 | 守卫改回不锚定 | 5（守卫腿 + roster + extras + 无界名册 + 松散配对） | 臂后补：量具退化会让名册集体变陈旧 |
+| A13 | 关掉前缀读法 | 4（roster + 孤儿 + extras + 松散配对） | 臂后补：松散读取是被计数的，不是隐形的 |
+| A14 | `_PAYLOAD_DEPTH = 3` | **0（全绿）**，普查数字与基线逐项相同 | 臂后补：证明深度**不是**那两条无界的卡点 |
+| A15 | `_PAYLOAD_DEPTH = 0` | 3（无界名册 + extras 名册 + 条件键名册），`bounded_pairs 26 → 23`、`unbounded 2 → 5` | 臂后补：深度是被门看着的旋钮，反方向的读数 |
+
+A14/A15 是在主战役 16 条臂之后补的，预测写进预测文件 §八 再跑，实测同节；原始读数
+`.scratch/p543_arms_extra.txt`。
+
+### 全量红单对照（本节追加之后）
+
+追加只是把字写进账本；这一节是**跑完全量再回来改字**的那一次。读数
+（`D:\面试项目\.scratch\p543_full_unit.txt`，`_wt543` 全 `tests/unit`、无 infra）：
+
+`collected 5973 items` ⇒ **11 failed, 5954 passed, 8 skipped, 3 warnings in 2257.62s (0:37:37)**。
+
+对照树 `D:\面试项目\_ctl543` 是同一提交 `ec0728b` 的第二棵 worktree、工作树 0 个改动。它自己收
+**5962** 条 ⇒ 本号带来的 **+11** 正好是新门那 11 条腿，一条也不多。把红到的 6 个文件在两棵树上各跑一遍
+（`.scratch/p543_control.txt` / `p543_worktree.txt`）：
+
+| 批 | 腿 | `_ctl543`（干净基线） | `_wt543`（本号工作树） |
+|----|----|----------------------|------------------------|
+| 本号的一条 | `test_the_plane_a_scan_reads_is_derived_not_typed.py::test_a_typed_plane_is_a_roster_not_a_forgotten_file` | **passed** | **failed**：`['tests/_payload_plane.py'] declare a production plane of their own without a reason here` |
+| 基线自带 10 条（5 个文件） | `test_checker_type_parity.py` 1 / `test_fake_inventory_stays_measured.py` 2 / `test_progress_event_labels.py` 1 / `test_the_gate_toolchain_is_pinned_exactly.py` 3 / `test_verdict_channel_parity.py` 3 | **10 failed, 33 passed in 56.58s** | 同样这 10 条红，E 行的数字一致（假清单抄 20 而普查读到 21、`contract_review` 无 gloss、词表多一个 `'?'`、mypy 钉 `2.4.0` 本机 `2.3.1`、ruff 钉 `0.17.1` 本机 `0.16.9`） |
+
+⇒ **1 条本号、10 条基线自带**，本号那条已修（不登记成例外），那 10 条本号不认领——它们与 #542
+「全量红单对照」记下的那 10 条是同一批、同一读数，红在已推送的 master 上。
+
+**本号那条红的形状值得单独写。** #541 立的尺子读「模块级 ≥6 个真根名字的字面量」——写得出这种字面量的文件
+就是在**给自己定义产品平面**。本号 owner 里 `_MODULE_ROOTS = ("api", "storage", ...)` 那 8 个名字正是它，
+而那是**手抄的**。两条出路：往 `TYPED_PLANES` 里登记一句「我问的是更窄的问题」，或者不抄。选了不抄：
+折叠解析 helper 时的根检查改成读 `tests/_scan_walk.product_roots`（8 → 18，多开 10 个候选根）。
+改完 **11 条腿一条都没动**（门 + `test_the_plane_a_scan_reads_is_derived_not_typed.py` 合计 22 passed，
+五张名册零改写）。这个「没动」是读数而不是运气：它说明本树的跨模块折叠实际只走到那 8 个名字覆盖的模块，
+于是「本号的普查问的是更窄的问题」这句话**本来就不成立**——登记它等于把手抄平面换成一句借口。
+顺带一条口径：`test_every_typed_plane_names_real_roots` 在本号改动之前就通过，说明那 8 个名字没有虚构根；
+虚构与手抄是两种病，前一道门治虚构，这一道治手抄。
+
+### 发现
+
+1. **量具退化不会让门红，只会让名册集体变陈旧。** 这个形状在两条臂上各读到一次：A12（守卫退回不锚定）
+   红 5 条腿、A15（一跳都不给）红 3 条腿，红的都不是「口径变窄」这句话本身，而是靠口径活着的
+   **名册**。所以本号的门里有两样东西不是为被测物写的，是为量具自己写的：census 地板腿（人口必须是
+   人口，测试排除必须是少数派）和每张名册的双向对账。只写「缺失就红」的门，量具自己坏掉的时候是听不见的。
+2. **「附近有没有关键字」这类判据必须锚定。** 旧写法（回看 40 个字符，里面出现 `function `/`const `
+   就算定义行）在 A12 臂的重跑普查里把 **8 条带路径的提及**读成定义：产品面 **5** 条 ⇒ 站点 28 → 23、
+   被配对端点 26 → 22；测试文件 **3** 条 ⇒ 排除数 4 → 1（读数 `.scratch/p543_a12_census.txt`；
+   端点差的 4 条里有 1 条属于下面第 3 条，守卫自己那条是 3 条）。还有更宽的一把尺子，是新腿真正钉住的
+   人口：**28** 条站点里 **10** 条的窗口提到声明关键字，而它们全是调用
+   （`const answer = apiGet<{ principal: PrincipalInfo }>("/auth/me")` 那一类），地板取 8 是余量。
+   泛化：凡是「往回看一段，里面有 X」的过滤器，都默认把用了 X 的人和定义了 X 的人混在一起。
+3. **孤儿与「无人消费」是同一个洞的两面。** 路径读法少一种形状时，站点那条腿喊孤儿、名册那条腿喊
+   没人用，两边读起来都像契约事实。因此配对的两张表（`LOOSE_PAIRINGS` / `UNPAIRED_ENDPOINTS`）都得
+   有名有姓；A13 把这套读法关掉，4 条腿同时红，就是「两侧都登记」这件事的重量。
+4. **并集口径的对账不会报错，只会给出一个更大的键集。** 同一棵树、同一个洞，`union holes=0` /
+   `per-branch holes=1`（A11）。任何以「键集合」为对象的门都必须回答自己是交集还是并集，而且要有
+   一条能区分两者的臂——区分不了的门，恰好对 #542 那一类洞永久失明。
+5. **声明面的宿主不由「入口文件」决定。** `ModelConfig` / `ConnectionResult` 住在页面里且没有 `export`；
+   只认 `export interface` 的尺子看不见模型面板的全部 3 条配对（A4 量到）。
+6. **臂同时校准量具的口径。** 本号 owner 自己的两条洞，一条是 A8 误红撞出来的（守卫没锚定），一条是
+   修完守卫后 `/agent/jobs{}?{}{}` 报孤儿逼出来的（只剥一个尾槽）。预测与实测不一致的四条
+   （A4 / A10 / A15 比预测宽，A8 红错了腿）全部落在「口径退化 → 名册连锁陈旧」这一类，是设计时没想到的。
+7. **「干净」要带口径写。** 可比对的 25 对里必填键缺失 = 0，是这台量具第一次通电之后的读数，
+   不等于「这些端点的前后端载荷一致」。账本里那句「其余端点今天干净」只在 §门 的口径内成立。
+8. **新量具自己也是被普查的人口。** 本号写完 owner、门、18 条臂、账本节，跑完全量才知道`tests/_payload_plane.py` 自己踩在 #541 那条尺子上——它抄了 8 个根名字。这条不是臂撞出来的，是**只有全量才会撞**的那类：一个新文件加入普查人口之后，别的门的读数才变。所以本号把「跑完全量再回来改字」写成一节，而不是一句话。
+
+### 否证与边界
+
+- **否证「55 条里 29 条无人消费 ⇒ 后端有 29 条死路由」。** 名册没给理由分类。已知其中至少含 SSE 流、
+  `FileResponse`、重定向和只有集成测试会走的入口，这些不可能由 `apiGet<T>` 触达。本号只对「有前端声明
+  可比」的那一半负责；把这 29 条读成死路由是本号口径之外的推理。
+  而且落地之后立刻量到：这 29 条里 **10** 条的「无人消费」其实是量具读不出站点（第一个实参换行书写 ⇒ 折叠出一个 `{}` 开头的路径 ⇒ 站点被丢，见 §队列③）。所以这句否证的可信上限是 **19** 条，不是 29 条。
+- **否证「必填缺失 = 0 ⇒ 前后端一致」。** 三重限定：只在折叠解得出的 25 对上成立；只比**顶层键名**
+  （成员的值类型、第二层形状都不在口径里）；最需要它的两条路由（模型面板）恰好落在边界外。
+- **A3 全绿是本号留下的已知盲点，登记而不是修掉。** 前端把 `signed_path` 改成必填、后端仍只在某个
+  `if` 臂里发布 ⇒ 浏览器在缺它的那条分支上读到 `undefined`，而门绿。根因在折叠的口径：变异合并进
+  每个分支，所以 `Payload.always` 对条件键是**上限**而不是下限。A11b 已经证明门确实在读前端的 `?`，
+  所以这条不能靠「声明成可选就绿」绕过。修它要改条件键在 (a) 里的算法，而改算法要新的臂——本号
+  选择把它登记成 6 个键 / 2 条路由的数字，并把算法留给队列①。
+- **深度不是那两条无界的理由（A14），所以别指望调常数覆盖它们。** 要让它们可折叠，新增的得是
+  形状本身：`{field: value for ...} | {"source": ...}` 的右侧字面量能读出一个「至少这些键在」的
+  **下界**，那是队列②；把 `Payload.always` 换成下界会同时改变 (a) 的语义，不能顺手做。
+- **运行时没参与。** 折叠是静态读 AST，没有和 `TestClient` 的真实响应键集对过账（队列⑥）。
+  因此「路由发布的载荷」这句话在本号里的准确形式是「折叠器从 handler 源码读出的载荷」。
+- **测试站点那条尺子只保证少数派。** `excluded_test_sites=4` 是实测（探针），但门不会因为测试里的
+  站点涨到 12 就红——只要它仍不到人口一半。这条地板是防「把产品人口搬进测试文件」，不防别的。
+- **本号没碰 `apps/web/**`。** `api.ts` 与 `Dashboard.tsx` 在共享检出里被别道以未提交改动持有；
+  其余前端文件本号也不改，因为改声明是**判决**，而对账门的职责是让人能下判决。「量到的」那一节里那 6 个
+  未声明键、那 1 条无类型站点，都是可以被下一号拿去判决的原料。
+
+### 下一号队列（取号按落地时点 max+1）
+
+| 项 | 内容 | 为什么要 |
+|----|------|---------|
+| ① | 条件键进 (a) 口径：前端把 `Payload.conditional` 里的键声明成必填 ⇒ 独立腿红 | A3 是本号唯一「门应红而没红」的实测盲点 |
+| ② | 折叠新增「下界」形状：`dict-literal \| {...}`、`{k: v for ...}` 右侧字面量 | 让模型面板那两条从 unbounded 变成「至少这些键在」；A14 证明加深度到不了 |
+| ③ | **消费侧人口的第二个洞，已量到形状**：第一个实参换行书写的站点被折叠吞掉——`(` 与字符串字面量之间的那段空白被当成一个变量槽，路径折成 `{}/api/v1/billing/invoices?period={}`，于是站点被丢、路由进「无人消费」名册。实测人口：被丢 **18** 条里 **12** 条是这个形状，改成折叠前 `lstrip` 后站点 **28 → 40**、被配对端点 **26 → 36**、名册 **29 → 19**（出去 10 条、无一条新增）。这条比 #543 修的两条都宽，是下一号的正面工作 | `_first_arg` 交出来的文本带前导空白；字面量前的空白不是变量槽。修完 (a) 的口径要重测，因为 10 条端点第一次有可比声明 |
+| ④ | 29 条「无人消费」端点的理由分类与登记 | 把名册升级成有名有姓的理由；也是 #542 队列里「免检字段」问题的另一半 |
+| ⑤ | 第二层形状对账（`DashboardData.jobs[0]` 的键 vs handler 里 job 行的键） | 顶层键一致不等于面板可用；本号明确没做 |
+| ⑥ | 运行时对账：`TestClient` 真实响应顶层键 vs 折叠的 `always`，谁更窄 | 静态折叠的三个漏（推导式、动态键、跨进程）只有运行时能兜 |
+| ⑦ | 冗余可选轴：前端声明 optional 而后端恒有的键，登记成数字 | 现在 (a) 只管 required、(b) 只管未声明；这条第三轴没人看 |
+| ⑧ | `_PAYLOAD_DEPTH` 直接被一条腿钉住（常数值 + 它对应的 bounded 数） | A5/A15 给了间接证据（名册连锁陈旧），但改常数不会有任何一条腿说「常数变了」 |
+| ⑨ | 把 `probe543_union.py` 那种「同树两口径对照」搬进 owner | 逐分支 vs 并集是本号最有价值的轴，现在只活在一次性探针里 |
+| ⑩ | ③ 之后还剩 6 条：路径来自同文件的 `const` 别名（`jobPath + "/summary"`）或来自参数（`useRemoteData<T>(path)`、`Audit.tsx` 的 `query`）| 同一把探针（`.scratch/probe543_alias.py`）量到：再加「先把同文件别名的路径折出来、再当字面量拼回去」这一条读法，站点 **40 → 45**。探针那一档是**非传递**折法（39 / 16），排练成 owner 改动之后它造出两条畸形路径 `/api/v1{}/findings`、`/api/v1{}/stages`——被门自己的孤儿腿抓到，因为 `JobDetail.tsx:216` 是 `const artifactPath = "/api/v1" + jobPath`，别名套别名。改成按声明序传递解析后实测（`.scratch/p544_registers.txt`）：配对端点 **36 → 40**、名册 **19 → 15**、extras **5 端点/6 键 → 8 端点/9 键**、无界 **2 → 3**（新增 `GET /api/v1/billing/usage`，理由 `return _usage_csv(rows)`）、松散 **2 → 3**、条件键与无类型站点不变。两条读法合起来把「无人消费」这句话的可信上限从 **29** 压到 **15**；跨文件的参数（`useRemoteData`）仍不可见，那要过程间读法 |
+
+**③ 不是「大概会有洞」——它已经在另一侧被读到。** 把折叠改成先 `lstrip` 再读，40 条站点里
+(a) 立刻报出 **1 条**：`POST /api/v1/billing/invoices/{period}/status`。两侧都翻过源码——
+`api/routes/billing.py:355` 答 `{"invoice": _invoice_dict(invoice)}`，而 `apps/web/src/api.ts:1231`
+写的是 `apiPost<Invoice>(...)`（七个必填键 `currency/id/line_items/period/status/tenant_id/total`
+全都不在载荷里，载荷里多出的那个键叫 `invoice`）。同文件 `:1213` 放着**已经写好的**
+`InvoiceStatusResponse { invoice: Invoice }`，调用点没有用它。受害面是能看见的：
+`apps/web/src/pages/JobDetail.tsx:381-382` 把返回值直接 `setInvoice(updated)`，于是用户点完
+「开票/标记已付」之后那张卡上的金额与状态全成 `undefined`。
+这条不是 #543 该修的：修它要动 `api.ts`，而 `api.ts` 在共享检出里被别道以未提交改动持有（MM）；
+#543 的职责到此为止——**门建起来之后的第三次量具自检，又量出一个能被名册掩盖的真 bug**，
+并且这一次是门还没通电就先量到了。落地方向 #544 已定：修折叠 ⇒ 站点 28 → 40、名册 29 → 19 ⇒
+(a) 从 0 变 1，然后判决那一条怎么改（改调用点的泛型参数，还是让路由同时答两种形状）。
+**这条修法的红单形状是排练过的**（臂树上只改 owner、寄存器不动）：5 条腿红——名册、(a)、extras、
+无界名册、松散配对，原始读数 `.scratch/p544_R1.txt`。
+
