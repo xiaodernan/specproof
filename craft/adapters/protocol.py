@@ -92,8 +92,13 @@ class AdapterProtocol(abc.ABC):
     def prepare(cls, project_root: Path) -> RuntimeProfile:
         """准备运行时环境。
 
-        包括：检查沙箱镜像、下载依赖缓存、验证构建工具版本等。
+        包括：检查沙箱镜像、下载依赖缓存、从仓库自带的声明文件读构建工具版本等。
         失败时抛异常，绝不返回部分结果。
+
+        画像是**声明**，不是执行：它在沙箱起来之前跑在验证机上，所以不许运行待验证
+        仓库提供的任何脚本（`gradlew --version` 这类「问一句版本号」的子进程也算）。
+        由 `tests/unit/test_craft_profile_phase_runs_no_children.py` 按返回类型派生
+        这条边界；需要真实工具链答案的问题，留给 `execute` 在沙箱里回答。
 
         Returns:
             RuntimeProfile 包含语言版本、构建工具版本、依赖缓存路径、沙箱镜像等

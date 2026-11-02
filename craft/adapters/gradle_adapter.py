@@ -198,32 +198,21 @@ class GradleAdapter(AdapterProtocol):
 
     @classmethod
     def _detect_gradle_version(cls, project_root: Path) -> str:
-        """检测 Gradle 版本。"""
-        # 优先读取 wrapper
+        """从 wrapper 的**声明**里读 Gradle 版本；声明缺席就是 `"unknown"`。
+
+        这里不跑 `gradlew --version`。画像是宿主上的阶段（沙箱还没起来），而
+        `gradlew` 是待验证仓库自带的脚本——为了问一句版本号，就把不可信仓库的构建
+        入口执行在验证机上，正是 `experiments/adapters.py` 对 Gradle 拒绝
+        `sandbox_mode == "local"`（"no host lane: untrusted Gradle test code"）时
+        画的那条线。何况宿主答的版本描述的是宿主：真正跑测试的是沙箱镜像，
+        把它写进 `RuntimeProfile.build_tool_version` 再发进证据片段，说的是本机。
+        """
         wrapper_props = project_root / "gradle" / "wrapper" / "gradle-wrapper.properties"
         if wrapper_props.exists():
             content = wrapper_props.read_text(encoding="utf-8")
             match = re.search(r"gradle-([\d.]+)-", content)
             if match:
                 return match.group(1)
-        # 尝试运行 gradle --version
-        try:
-            gradlew = project_root / ("gradlew.bat" if os.name == "nt" else "gradlew")
-            if gradlew.exists():
-                result = subprocess.run(
-                    [str(gradlew), "--version"],
-                    cwd=project_root,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=30,
-                )
-                match = re.search(r"Gradle ([\d.]+)", result.stdout)
-                if match:
-                    return match.group(1)
-        except Exception:  # noqa: BLE001 — the toolchain version is optional context; 'unknown' is honest
-            pass
         return "unknown"
 
     @classmethod
