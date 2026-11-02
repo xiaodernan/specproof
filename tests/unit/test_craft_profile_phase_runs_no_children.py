@@ -1,4 +1,4 @@
-r"""#541 — the adapter *profile* phase declares; it must not run anything.
+r"""#541b — the adapter *profile* phase declares; it must not run anything.
 
 `craft/adapters/protocol.py` splits an adapter into four lifecycle phases. Two of
 them answer "what is this project, and what would it take to verify it"

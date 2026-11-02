@@ -41,7 +41,7 @@ on both sides); the host-shaped legs still skip where they cannot judge, two
 explicit codec-pair legs keep the mechanism witnessed on every plane, and a
 child interpreter started with `PYTHONUTF8=1` walks the CI plane itself.
 
-#541 — one of these five captures was never supposed to exist. Gradle's
+#541b — one of these five captures was never supposed to exist. Gradle's
 `_detect_gradle_version` ran `gradlew --version` from `prepare()`, i.e. on the
 host, before any sandbox, against a repository the product is grading — and its
 answer described the host, not the toolchain that would run the tests. The
@@ -212,7 +212,7 @@ def test_the_gradle_dependency_probe_names_its_codec(
 #: Every child process this lane launches, as `(module file, function)`.
 #:
 #: #513 wrote this as a section header ("the five capture sites") and let the
-#: legs restate it one by one. #541 deleted one of those five — the profile
+#: legs restate it one by one. #541b deleted one of those five — the profile
 #: phase's `gradlew --version` probe — and a header would have kept saying
 #: "five" with nobody reading it, while the remaining legs stayed green. The
 #: roster below is now compared against the adapters' own AST, so both
@@ -261,7 +261,7 @@ def test_the_capture_roster_is_the_census_of_the_lane() -> None:
 def test_a_capture_that_leaves_the_lane_must_leave_the_roster(tmp_path: Path) -> None:
     """Reverse control, on a copy: a deleted capture does not leave the roster quietly.
 
-    This is the arm for the site #541 deleted. Parity alone would still pass if
+    This is the arm for the site #541b deleted. Parity alone would still pass if
     the code shrank and the roster did not — a pinned codec on a call that no
     longer exists reads as compliance and witnesses nothing.
     """
