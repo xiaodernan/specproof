@@ -40,6 +40,15 @@ The decision is now `tests/_host_codec.host_prefers` (`codecs.lookup(...).name`
 on both sides); the host-shaped legs still skip where they cannot judge, two
 explicit codec-pair legs keep the mechanism witnessed on every plane, and a
 child interpreter started with `PYTHONUTF8=1` walks the CI plane itself.
+
+#541b — one of these five captures was never supposed to exist. Gradle's
+`_detect_gradle_version` ran `gradlew --version` from `prepare()`, i.e. on the
+host, before any sandbox, against a repository the product is grading — and its
+answer described the host, not the toolchain that would run the tests. The
+probe is gone (see `tests/unit/test_craft_profile_phase_runs_no_children.py`),
+which is why this file no longer says "five capture sites" in a header: a header
+cannot notice its own deletion, so the roster below is compared against the
+adapters' AST and a capture leaving the code has to leave the roster too.
 """
 
 from __future__ import annotations
@@ -47,6 +56,7 @@ from __future__ import annotations
 import ast
 import locale
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -157,7 +167,7 @@ def _assert_codec_is_named(kwargs: dict[str, object], site: str) -> None:
     )
 
 
-# --- the five capture sites --------------------------------------------------
+# --- the capture sites, and the roster that keeps them counted ---------------
 
 
 def test_the_go_test_capture_names_its_codec(
@@ -179,22 +189,10 @@ def test_the_gradle_test_capture_names_its_codec(
 
 
 def _gradlew(tmp_path: Path) -> Path:
-    """Both Gradle probes hide behind `gradlew.exists()`, so the probe needs it."""
+    """`_collect_dependency_tree` hides behind `gradlew.exists()`, so the probe needs it."""
     wrapper = tmp_path / ("gradlew.bat" if os.name == "nt" else "gradlew")
     wrapper.write_text("@echo off\r\n", encoding="utf-8")
     return wrapper
-
-
-def test_the_gradle_version_probe_names_its_codec(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _gradlew(tmp_path)
-    fake = _ChildRun(stdout="Gradle 8.5\n")
-    monkeypatch.setattr(subprocess, "run", fake)
-    assert GradleAdapter._detect_gradle_version(tmp_path) == "8.5"
-    _assert_codec_is_named(
-        fake.kwargs, "craft/adapters/gradle_adapter.py::_detect_gradle_version"
-    )
 
 
 def test_the_gradle_dependency_probe_names_its_codec(
@@ -206,6 +204,119 @@ def test_the_gradle_dependency_probe_names_its_codec(
     GradleAdapter._collect_dependency_tree(tmp_path, _profile(language="java"))
     _assert_codec_is_named(
         fake.kwargs, "craft/adapters/gradle_adapter.py::_collect_dependency_tree"
+    )
+
+
+# --- the roster, and the census that keeps it honest -------------------------
+
+#: Every child process this lane launches, as `(module file, function)`.
+#:
+#: #513 wrote this as a section header ("the five capture sites") and let the
+#: legs restate it one by one. #541b deleted one of those five — the profile
+#: phase's `gradlew --version` probe — and a header would have kept saying
+#: "five" with nobody reading it, while the remaining legs stayed green. The
+#: roster below is now compared against the adapters' own AST, so both
+#: directions are charged: a new child process must appear here, and a capture
+#: that leaves the code must leave this set in the same commit.
+CAPTURES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("go_adapter.py", "execute"),
+        ("gradle_adapter.py", "execute"),
+        ("gradle_adapter.py", "_collect_dependency_tree"),
+        ("node_adapter.py", "execute"),
+    }
+)
+
+ADAPTERS_DIR = REPO / "craft" / "adapters"
+_SPAWN_FUNCS = {"run", "Popen", "check_output", "check_call", "call"}
+
+
+def _capture_sites(adapters_dir: Path) -> set[tuple[str, str]]:
+    """`(file, function)` for every `subprocess.*` call inside an adapter method."""
+    sites: set[tuple[str, str]] = set()
+    for path in sorted(adapters_dir.glob("*.py")):
+        if path.name in {"protocol.py", "__init__.py"}:
+            continue
+        module = ast.parse(path.read_text(encoding="utf-8"))
+        for func in (n for n in ast.walk(module) if isinstance(n, ast.FunctionDef)):
+            for call in ast.walk(func):
+                if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Attribute):
+                    continue
+                if getattr(call.func.value, "id", "") != "subprocess":
+                    continue
+                if call.func.attr in _SPAWN_FUNCS:
+                    sites.add((path.name, func.name))
+    return sites
+
+
+def test_the_capture_roster_is_the_census_of_the_lane() -> None:
+    measured = _capture_sites(ADAPTERS_DIR)
+    assert measured == set(CAPTURES), (
+        "this file pins codec `encoding=`/`errors=` site by site, so a site that "
+        "appeared without a leg is unpinned and a leg whose site is gone is a "
+        f"lie. roster={sorted(CAPTURES)} code={sorted(measured)}"
+    )
+
+
+def test_a_capture_that_leaves_the_lane_must_leave_the_roster(tmp_path: Path) -> None:
+    """Reverse control, on a copy: a deleted capture does not leave the roster quietly.
+
+    This is the arm for the site #541b deleted. Parity alone would still pass if
+    the code shrank and the roster did not — a pinned codec on a call that no
+    longer exists reads as compliance and witnesses nothing.
+    """
+    copy = tmp_path / "adapters"
+    shutil.copytree(ADAPTERS_DIR, copy)
+    gradle = copy / "gradle_adapter.py"
+    source = gradle.read_text(encoding="utf-8")
+    argv_line = (
+        '                    [str(gradlew), "dependencies", "--configuration", "runtimeClasspath"],'
+    )
+    # the *call* loses its target, not one of its arguments: a first draft of
+    # this arm replaced only the argv list and the census still saw a child,
+    # because `subprocess.run([...])` was intact.
+    needle = f"result = subprocess.run(\n{argv_line}"
+    found = source.count(needle)
+    assert found == 1, f"expected one dependency-tree spawn, found {found}"
+    replacement = f"result = _arm_no_child(\n{argv_line}"
+    gradle.write_text(source.replace(needle, replacement), encoding="utf-8")
+
+    measured = _capture_sites(copy)
+    assert measured == set(CAPTURES) - {("gradle_adapter.py", "_collect_dependency_tree")}, (
+        "deleting the dependency-tree capture left the roster reading as complete: "
+        f"{sorted(measured)}"
+    )
+
+
+def test_a_capture_in_a_function_not_on_the_roster_is_a_finding(tmp_path: Path) -> None:
+    """The growth direction, on a synthetic lane.
+
+    The census counts functions, not call sites: a second child inside one
+    `execute` stays one roster entry — that shape is caught by
+    `_ChildRun.kwargs`, whose recorder insists on exactly one call. A child in a
+    *new* function is the shape only this parity leg can see, and it is the one
+    an adapter grows by when it learns to probe.
+    """
+    lane = tmp_path / "adapters"
+    lane.mkdir()
+    (lane / "extra_adapter.py").write_text(
+        "import subprocess\n"
+        "class Extra:\n"
+        "    @classmethod\n"
+        "    def execute(cls, root, profile):\n"
+        "        return subprocess.run(['tool', 'test'], check=False)\n"
+        "    @classmethod\n"
+        "    def _probe(cls, root):\n"
+        "        return subprocess.run(['tool', '--version'], check=False)\n",
+        encoding="utf-8",
+    )
+    measured = _capture_sites(lane)
+    assert measured == {
+        ("extra_adapter.py", "execute"),
+        ("extra_adapter.py", "_probe"),
+    }, measured
+    assert not measured <= set(CAPTURES), (
+        "a lane that outgrew the roster read as compliant"
     )
 
 

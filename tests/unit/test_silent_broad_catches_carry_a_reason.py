@@ -185,12 +185,15 @@ def test_the_scan_reaches_the_sites_that_were_measured() -> None:
     # two of rerank.py's silent returns visible (3 -> 1) without moving this
     # floor, so at #534 the tree already measured 31 against a floor of 33 --
     # measured per commit while landing #535, not inferred; #535 removed the
-    # dead second mutation engine and its two best-effort parse catches.
+    # dead second mutation engine and its two best-effort parse catches; #541b
+    # removed the Gradle profile phase's host `gradlew --version` probe along
+    # with the catch wrapped around it (measured 29 -> 28 on this tree).
     # Lowering the floor is part of removing a handler — the number must track
     # reality.
-    assert explained >= 29, (
+    assert explained >= 28, (
         f"only {explained} justified silent catches found; #508 measured 34, "
-        "#509 removed one, #523 made two visible and #535 removed two, so the "
-        "floor is 29 — if handlers were narrowed or removed on purpose, lower "
+        "#509 removed one, #523 made two visible, #535 removed two and #541b "
+        "removed the host-lane Gradle version probe with its catch, so the "
+        "floor is 28 — if handlers were narrowed or removed on purpose, lower "
         "this floor in the same change"
     )

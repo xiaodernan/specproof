@@ -19659,3 +19659,259 @@ ruff / mypy 全绿；台账家族门（7 个读台账的文件）CR 归一化之
 | ⓯ | **把「守卫 → 腿」的映射做成门里可读的表**：每个守卫层登记它被哪几条腿读，臂只是验证它 | D5 的未命中就是这个表不存在；现在只有跑完臂才知道一层被两条腿读 |
 | ⓰ | **`glued-across-depth0-operator` 真树 0 条**：出现第一条全变量臂的深度 0 选择器时，这行会从「无损失」变成受害者，届时改名册的那一步要在门里点名 | 这条行的存在本身就是 0 人口形状的唯一记录 |
 | ⑥ | 交给 #548（前提已量完：`.scratch/next548/premise548_notes.md`） | 轴 (c) 恒发 8 键 / 夸大带 3 键 / 声明未发 2 键；保险丝 39 条有界端点 branches == 自身 return 数，3 条例外全自报无界 |
+
+## #541b 画像阶段在验证机上执行了待验证仓库的 gradlew：适配器分层改成结构门
+
+### 起因
+
+#540 队列的 ⑤「`gradle_adapter` 的 run 被调两次」不是测试噪音，是一条安全边界漏了：
+
+`craft/adapters/gradle_adapter.py` 的 `prepare()` 调 `_detect_gradle_version()`，
+
+后者在 `gradle/wrapper/gradle-wrapper.properties` 读不到时回退到
+
+`subprocess.run([gradlew, "--version"])`——`gradlew` 是**待验证仓库自带的脚本**，
+
+却被执行在正在给它打分的那台机器上。
+
+同一份仓库对「能不能在宿主跑 Gradle 代码」早就表过态：`experiments/adapters.py` 的
+
+Gradle 路径对 `sandbox_mode == "local"` 直接抛 AdapterNotImplemented
+
+（"no host lane: untrusted Gradle test code"）。运行阶段画了线，画像阶段站在线外。
+
+第二笔账与「版本」这个词有关：宿主上那次探针答的是**宿主**的 Gradle，而真正跑测试的是
+
+沙箱镜像；它进 `RuntimeProfile.build_tool_version`，再由
+
+`craft/adapters/gradle_adapter.py` 的证据片段载荷发出去。为了问一句版本号，把不可信脚本
+
+执行在验证机上，然后把本机答案写进被验证项目的画像。
+
+### 改前量到的
+
+- 基线 focused：`tests/unit/test_gradle_adapter.py` 12 passed ＋
+
+  `tests/unit/test_craft_child_output_codec_is_named.py` 25 passed ＋
+
+  `tests/unit/test_subprocess_text_encoding.py` 4 passed = **41 passed / 0 failed**。
+
+  本机是 Windows 平面，红看不见。
+
+- CI 那侧的红形（`Expected 'run' to have been called once. Called 2 times.`）来自
+
+  `tests/unit/test_gradle_adapter.py::test_gradle_adapter_execute_test`：它给
+
+  `subprocess.run` 打补丁并断言只被调一次，而夹具造 `gradlew`、不造 `gradlew.bat`。
+
+  改前我把这条腿在两平面上都量过：探针只需要按**本平面自己的名字**找到一个 wrapper
+
+  文件，所以红与平台无关——骗过本地的是夹具的平台形状，不是缺陷的平台形状。
+
+- 落点普查（AST，改前）：`craft/adapters/` 共 5 处子进程落点——`go_adapter.py` 的
+
+  `execute`、`gradle_adapter.py` 的 `execute`、`_detect_gradle_version`、
+
+  `_collect_dependency_tree`、`node_adapter.py` 的 `execute`。其中**只有**
+
+  `_detect_gradle_version` 挂在画像阶段（`detect` / `prepare`）的可达闭包里。
+
+- 读者面：`build_tool_version` 的读者只有 `craft/adapters/protocol.py` 的字段声明、
+
+  node/go 两个适配器的硬编码值、以及 `craft/adapters/gradle_adapter.py` 的证据片段载荷；
+
+  没有门钉住它的取值，所以「换成 `"unknown"`」这件事不会被任何既有门替我背书。
+
+- 新门先于产品改动跑：**6 failed / 6 passed**。4 条红是产品缺陷（画像普查腿、
+
+  posix 平面腿、nt 平面腿、one-child-per-run 腿）；2 条红是**我自己的量具缺陷**
+
+  （裸 `from subprocess import run` 那条合成腿的名字解析写错、wrapper 夹具漏了
+
+  `build.gradle` 使 `detect` 直接返 False）。两条都改门与夹具，产品未动。
+
+### 改动
+
+- `craft/adapters/gradle_adapter.py::_detect_gradle_version`：删掉 `subprocess.run` 回退
+
+  与包着它的 `try/except Exception`，只读 `gradle/wrapper/gradle-wrapper.properties` 的
+
+  **声明**，读不到就是 `"unknown"`；docstring 写明这条线为什么存在，并点名
+
+  `experiments/adapters.py` 那句拒绝。
+
+- `craft/adapters/protocol.py::prepare` 的合同句：原文「包括：检查沙箱镜像、下载依赖
+
+  缓存、**验证构建工具版本**等」字面上许可了那次探针。改成「从仓库自带的声明文件读构建
+
+  工具版本」，并补一段「画像是**声明**，不是执行」，指明新门是按返回类型派生这条边界的
+
+  地方。改前先确认没有门读这段 docstring。
+
+- 新增 `tests/unit/test_craft_profile_phase_runs_no_children.py`（12 例）：谁算画像阶段由
+
+  `AdapterProtocol` 抽象方法的**返回类型注解**派生（`bool` / `RuntimeProfile` = 画像，
+
+  `ExecutionResult` / `list[EvidenceFragment]` = 运行与取证），不是这里手抄的名字表；
+
+  可达性走同类/同模块的 BFS 闭包；第五个生命周期方法若无返回注解或落在两侧之外即抛，
+
+  新阶段不能悄悄绕过分类。三根防空转的钉：普查必须真读到出货的 3 个适配器模块、画像与
+
+  运行两侧集合必须各自钉成 `{"detect", "prepare"}` / `{"execute", "collect_evidence"}`、
+
+  合成平面上的两跳链必须由**入口**点名。
+
+- `tests/unit/test_craft_child_output_codec_is_named.py`：退役「Gradle 版本探针命名它的
+
+  编解码」那条腿（它测的对象已被删），并把小节标题「五处采集点」那份手抄名册换成由 AST
+
+  现算的 `CAPTURES`（改后 4 处）＋三条腿：名册==普查、站点离开车道必须同时离开名册
+
+  （在 `shutil.copytree` 的副本上只把调用目标改成 `_arm_no_child`，保留 argv 与可解析性）、
+
+  名册之外的新落点必须算发现。
+
+- `tests/unit/test_silent_broad_catches_carry_a_reason.py`：地板 29 → 28。被删的
+
+  `except Exception:  # noqa: BLE001 — …` 是一处「有理由的静默 catch」，删掉它使普查从 29
+
+  变 28（改前后同人群各量一次）；这条门自己的话就是「降地板是删 handler 的一部分」，
+
+  注释里按号记下。
+
+### 改后量到的
+
+- 五档 focused **59 passed / 0 failed**：新门 12、codec 门 27、`test_gradle_adapter.py` 12、
+
+  `tests/unit/test_subprocess_text_encoding.py` 4、静默 catch 门 4。codec 门 25 → 27 是
+
+  退役 1 条腿、新增 3 条对账与反向腿。
+
+- `DEBT_CEILING = 45` 未动，且不是侥幸没动：被删的落点本来就写着 `encoding="utf-8"`，
+
+  它不在那道门的债名册里。
+
+- 臂电池（本号会话的外部平面 `run_battery.py`，在 `craft/adapters` 的副本上开刀，每臂
+
+  结束断言出货文件 sha256 未变）：**8/8 MATCHED**。R1 把探针装回 `prepare` 闭包 ⇒ 画像
+
+  普查红，offender 全文
+
+  `craft/adapters/gradle_adapter.py  GradleAdapter  prepare -> _detect_gradle_version -> subprocess.run`；
+
+  R2 同一副本让 codec 名册与普查失配 ⇒ 红；R3/R3b 出货树 ⇒ 画像 0 落点、普查==名册；
+
+  R4 把 `prepare` 的返回注解改成运行侧类型 ⇒ 钉住的两侧集合当场把它挪去运行侧并红
+
+  （证明门评的是阶段，不是名字）；R5 抹掉 `prepare` 的返回注解 ⇒ 抛
+
+  `protocol.py::prepare is a lifecycle phase with no return annotation`；R6 在 `prepare`
+
+  下面塞 `os.system` ⇒ 红并点名 `Shell  prepare -> _ask -> os.system`；R7 是电池自身的
+
+  出货文件完整性腿。
+
+- 全量围栏 `tests/unit`：**5932 passed / 12 failed / 6 skipped**（3448.75s）。逐条归因：
+
+  11 条属外道——invoice-cron 车道 6 条
+
+  （`tests/unit/test_alert_table_matches_the_deployed_rules.py`、
+
+  `tests/unit/test_env_knobs_reach_the_process_that_reads_them.py` 的 D01/D03/D08、
+
+  `tests/unit/test_invoice_cron_metrics_leg.py` 的 E1/E4、
+
+  `tests/unit/test_listen_port_knobs_bind_the_scrape_roster.py`）、假清单 2 条
+
+  （`scripts/classify_test_fakes.py` 与 `docs/architecture/FAKE_INVENTORY.md` 在飞，且多出的
+
+  plain-double 落在 `test_tenant_auth.py` / `test_job_whitelist.py` /
+
+  `test_audit_action_parity.py` / `test_eval_resume_reuses_measured_cases.py` 这些未跟踪文件
+
+  里，本号文件对普查贡献 0，已用分类器逐文件点名）、未跟踪新门 1 条
+
+  （`tests/unit/test_the_plane_a_scan_reads_is_derived_not_typed.py` 点的是
+
+  `tests/unit/test_silent_broad_catches_carry_a_reason.py` 里改前就有的剪枝行）、
+
+  `tests/unit/test_verdict_channel_parity.py` 1 条（脏文件的行号见证漂移）。剩下 1 条属本号
+
+  ＝静默 catch 地板，已在同一笔改动里按上面那条处理。
+
+### 诚实边界
+
+- `_collect_dependency_tree` 仍在宿主上跑 `gradlew dependencies`。它是
+
+  `list[EvidenceFragment]` 阶段，按本门派生的口径被放行；删它会静默少一个真证据片段，
+
+  那属于「依赖树该从哪儿取」的另一个决定。这是本号留在宿主面上的最大一块，已进队列。
+
+- 可达闭包只在**同一个类内＋同一个模块内**走。画像阶段调进别的模块的 helper 现在看不
+
+  见——要盖住它得引 import 图。本号不假装盖住了。
+
+- 两平面腿是把 `os.name` 改成 `"posix"`，不是真 Linux。它证的是「按平面自己的名字找
+
+  wrapper」这条规则，证不了 POSIX 上 `gradlew` 真可执行、或 `gradle` 在 PATH 上时的行为。
+
+  CI 那侧仍要靠 `tests/unit/test_gradle_adapter.py` 的复跑才算活证。
+
+- `build_tool_version: "unknown"` 进证据片段之后的读者体验没人钉：改前它至少总是个版本号，
+
+  只不过可能是宿主的答案。本号选「诚实的未知」而不是「宿主的猜测」，而没有任何门读这个
+
+  字段，所以这个取舍只靠这段文字留痕。
+
+- 画像阶段的判据是**返回类型**：谁改 `prepare` 的注解，就同时改写了谁的管辖范围（R4 量到
+
+  的正是这个）。门为此把两侧集合钉死，改注解会红，不会静默放行。
+
+- 两处预测缺陷，改的是判据而不是松 assert：写 `PREDICT.txt` 时按 CI 的红形状预测「nt 平面
+
+  这条腿绿」，实测**两平面都红**；预测退役腿的判决是
+
+  `expected exactly one child call, got 0`，实测是 `assert 'unknown' == '8.5'`——那条腿先比
+
+  版本串再看 kwargs。两处都是我把「红从哪里来」当成了「红成立的条件」。
+
+### 下一号队列
+
+① `craft/adapters/gradle_adapter.py` 的 `_collect_dependency_tree`：取证阶段仍在宿主跑
+
+`gradlew dependencies`，要么把依赖树挪进沙箱取，要么像 `experiments/adapters.py` 那样明写
+
+这条宿主道为何可接受；
+
+② 画像阶段的可达闭包要能跨模块：需要一个按 import 图派生的可达性，替掉现在
+
+「同类＋同模块」的形状；
+
+③ CI 复核：`tests/unit/test_gradle_adapter.py::test_gradle_adapter_execute_test` 的
+
+`Called 2 times.` 应当消失，这是本号「两平面相反结论」唯一的活证；
+
+④ `tests/unit/test_gradle_adapter.py` 的 wrapper 夹具只造 `gradlew`、不造 `gradlew.bat`，
+
+补两平面形状，让「本地绿」不再等于「本平面没有探针」；
+
+⑤ `craft/adapters/protocol.py` 的 `build_tool_version` 现在可能是 `"unknown"`：要不要给它
+
+一条「画像字段有读者」的门，别让诚实的未知变成没人看的字段；
+
+⑥ `tests/unit/test_the_plane_a_scan_reads_is_derived_not_typed.py`（别道未跟踪）点名的
+
+`tests/unit/test_silent_broad_catches_carry_a_reason.py` 剪枝行需要登记理由，或改成从走根
+
+之下读；落地那号顺手带走；
+
+⑦ #540 队列余项：Web `not_verified` 中文标签＋对账门、head 运行先证明执行过测试、假清单
+
+21 vs 20、`checker_type_parity` 的 `?`、`contract_review` 词条、`verdict_channel_parity`、
+
+case-17 严重度漂移、其余六个 profile 的真实工具链见证、POM `<resources>` 回填、回填挪进
+
+沙箱 uid、nightly eval 的样本下限、#527 名册「9 roots」应改 10、第三种清单标题要收进
+
+`LIST_HEAD` 或显式登记为不认。
