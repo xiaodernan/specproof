@@ -236,6 +236,195 @@ class Payload:
         return out
 
 
+@dataclass(frozen=True)
+class OptionalBand:
+    """One endpoint's reading of the keys the frontend marks optional.
+
+    The bands answer three different questions and only the first is a promise:
+
+    ``always``     -- every branch publishes it, the fold merged none of it in from a
+                      nested statement, and ``complete`` says the branch list is all the
+                      handler's exits. This is the set a frontend may stop defending.
+    ``overstated`` -- in ``always`` only because ``Payload.conditional`` merged it in: the
+                      fold cannot tell "set on both arms" from "set inside one ``if``", so
+                      these keys are present on some paths and are rostered apart.
+    ``sometimes``  -- published on some branches and not others. The intersection may not
+                      report it and the union may not swallow it; population 0 today, and
+                      an arm proves the band is not a decorative zero.
+    ``absent``     -- no branch publishes it and nothing merged it: the frontend is
+                      defending against a key that cannot arrive.
+
+    One row per *endpoint*, not per call site: five of the speakable sites are two
+    readings of the same route, and a roster of routes is what the leg compares. Rows are
+    sorted, so a register compares positionally as well as by name.
+    """
+
+    verb: str
+    path: str
+    file: str
+    line: int
+    always: tuple[str, ...]
+    overstated: tuple[str, ...]
+    sometimes: tuple[str, ...]
+    absent: tuple[str, ...]
+    complete: bool
+
+
+@dataclass(frozen=True)
+class ReturnAccount:
+    """Whether the branch list a payload reports is all the exits the handler has.
+
+    ``own_returns`` counts the ``return`` statements in the handler's own scope; a
+    ``return`` inside a nested ``def``/``lambda`` belongs to that callable, not to the
+    response. ``branches`` is what the fold reported. The two differ for two reasons, and
+    telling them apart is the entire row: the fold *said* so (``unbounded`` names the
+    return it refused) or it stayed silent -- it read one exit and reported a census.
+
+    ``-1`` means the handler could not be found in its module: not zero returns, and never
+    a number the fuse may read as "the fold saw everything".
+    """
+
+    verb: str
+    path: str
+    module: str
+    handler: str
+    own_returns: int
+    branches: int
+    unbounded: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        """The one condition under which ``Payload.always`` is a proof rather than a read."""
+        return self.branches == self.own_returns and not self.unbounded
+
+
+def _own_return_count(root: Path, endpoint: Endpoint) -> int:
+    """`return` statements in the handler's own scope, nested callables excluded.
+
+    Reuses ``_own_nodes`` -- the walker the fold itself uses to collect bindings -- rather
+    than writing a second traversal. A second walker would be a second definition of "the
+    handler's own body", and the fuse and the fold would then be able to disagree about
+    which statements they are reading, which is the drift this whole plane exists to make
+    loud.
+    """
+    module_path = root / (endpoint.module.replace(".", "/") + ".py")
+    tree = _parse(module_path)
+    if tree is None:
+        return -1
+    handler = _find_function(tree, endpoint.handler)
+    if handler is None:
+        return -1
+    return sum(1 for node in _own_nodes(handler) if isinstance(node, ast.Return))
+
+
+def _speakable_endpoints(root: Path) -> list[tuple[Pair, set[str], set[str], Payload]]:
+    """Paired endpoints whose both sides have a readable shape, one entry per endpoint.
+
+    The gate's ``_checked_pairs`` filters the same way per *site*; these two registers are
+    rosters of *routes*, so a path paired by two call sites must not appear twice. The
+    site that survives is the first in (verb, path, file, line) order, which is why the
+    sort happens before the dedup and not after.
+    """
+    pairs, _orphan = pairings(root)
+    declarations = ts_declarations(web_src(root))
+    ordered = sorted(
+        pairs,
+        key=lambda p: (
+            p.endpoint.verb,
+            normalize_path(p.endpoint.path),
+            p.site.file,
+            p.site.line,
+        ),
+    )
+    seen: set[tuple[str, str]] = set()
+    out: list[tuple[Pair, set[str], set[str], Payload]] = []
+    for pair in ordered:
+        required, optional, notes = members_of_type(pair.site.type_expr, declarations)
+        if notes or not (required or optional):
+            continue
+        key = pair.endpoint.key
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((pair, required, optional, payload_of(root, pair.endpoint)))
+    return out
+
+
+def optional_publish_bands(root: Path) -> list[OptionalBand]:
+    """Axis (c): what a key the frontend declares *optional* actually is.
+
+    Axis (a) (#542) asks whether a required key really arrives. Axis (b) (#543/#544) asks
+    whether a published key was ever declared. The third direction had no reading at all,
+    so the one place in the frontend that records a decision in prose -- ``api.ts`` making
+    ``JobsPage.total`` required, with a comment explaining that reading that field as a
+    count told a workspace with 57 verifications that it had 1 -- could be contradicted by
+    a page that still writes ``total?: number`` and turns the missing key into ``null``,
+    with nothing in the census able to say so.
+
+    Endpoints the fold refused to bound are absent from this register: with no branch list
+    there is no intersection, and a band of "unknown" would read like a zero. They are
+    counted where they are named (#543's unbounded roster), and ``return_accounting`` is
+    what keeps that skip from hiding a branch list that was only half read.
+    """
+    rows: list[OptionalBand] = []
+    for pair, _required, optional, payload in _speakable_endpoints(root):
+        if payload.unbounded:
+            continue
+        endpoint = pair.endpoint
+        intersection = set.intersection(*payload.branches)
+        published = set().union(*payload.branches)
+        merged_in = (optional & intersection) & payload.conditional
+        provable = (optional & intersection) - merged_in
+        some = (optional & published) - intersection - payload.conditional
+        nowhere = optional - published - payload.conditional
+        rows.append(
+            OptionalBand(
+                verb=endpoint.verb,
+                path=normalize_path(endpoint.path),
+                file=pair.site.file,
+                line=pair.site.line,
+                always=tuple(sorted(provable)),
+                overstated=tuple(sorted(merged_in)),
+                sometimes=tuple(sorted(some)),
+                absent=tuple(sorted(nowhere)),
+                complete=_own_return_count(root, endpoint) == len(payload.branches),
+            )
+        )
+    return rows
+
+
+def return_accounting(root: Path) -> list[ReturnAccount]:
+    """Per speakable endpoint: did the fold read every exit, or only the ones it liked?
+
+    ``Payload.always`` is an intersection over ``branches``, and an intersection is a
+    proof only over the complete set of exits. Give it one of a handler's three returns
+    and it reports that one branch's keys as "this route always sends these" -- a
+    positive claim built on a partial read, which is worse than the empty reads this
+    campaign keeps hitting, because an empty read prints as nothing while this one prints
+    as a guarantee. The cheapest edit a handler can take, an early ``return``, would move
+    every ``always`` number in the repo into that shape and nothing used to check it.
+
+    Rows cover the unbounded endpoints too: the fuse and the unbounded roster are the same
+    three rows seen from two sides, and a mismatch that is *not* also in the roster is the
+    difference between "I did not read that" and "there is nothing there".
+    """
+    out: list[ReturnAccount] = []
+    for pair, _required, _optional, payload in _speakable_endpoints(root):
+        endpoint = pair.endpoint
+        out.append(
+            ReturnAccount(
+                verb=endpoint.verb,
+                path=normalize_path(endpoint.path),
+                module=endpoint.module,
+                handler=endpoint.handler,
+                own_returns=_own_return_count(root, endpoint),
+                branches=len(payload.branches),
+                unbounded=tuple(payload.unbounded),
+            )
+        )
+    return out
+
+
 def normalize_path(path: str) -> str:
     """`/jobs/{job_id}` and `/jobs/${id}` and `/jobs/{}?x=1` all become `/jobs/{}`."""
     stripped = re.sub(r"\?.*$", "", path)
@@ -1749,7 +1938,9 @@ __all__ = [
     "Member",
     "Pair",
     "BlindSpot",
+    "OptionalBand",
     "Payload",
+    "ReturnAccount",
     "alias_table",
     "api_routers",
     "endpoints",
@@ -1759,7 +1950,9 @@ __all__ = [
     "pairings",
     "ruler_blind_spots",
     "path_candidates",
+    "optional_publish_bands",
     "payload_of",
+    "return_accounting",
     "ts_declarations",
     "web_src",
 ]

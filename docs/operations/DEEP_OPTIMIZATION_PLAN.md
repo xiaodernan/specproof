@@ -19915,3 +19915,154 @@ case-17 严重度漂移、其余六个 profile 的真实工具链见证、POM `<
 沙箱 uid、nightly eval 的样本下限、#527 名册「9 roots」应改 10、第三种清单标题要收进
 
 `LIST_HEAD` 或显式登记为不认。
+## #548 前端声明可选、路由每个分支都发：第三条轴建成四带名册，配一条「折叠器看全 return 了吗」的保险丝——第一条臂就把 `Guide.tsx` 的过期声明读出来
+
+### 量到的
+
+轴 (c)（前端**声明可选**、路由**每个分支都发**）在真树的人口：`optional_publish_bands` 交出
+**39 行**（一条有界端点一行），其中带键的 5 行：
+
+| 端点 | `always`（恒发且不在夸大带） | `overstated`（恒发但被嵌套语句合进每个分支） | `sometimes` | `absent`（声明了、任何分支都不发） |
+|------|------------------------------|-----------------------------------------------|-------------|-------------------------------------|
+| `get /api/v1/health` | `checks` `degraded` `status` | — | — | `capabilities` `degraded_reasons` |
+| `get /api/v1/jobs/{}/matrix` | `counts_source` `rows_total` `rows_truncated` `sources` | — | — | — |
+| `get /jobs` | `total` | — | — | — |
+| `get /api/v1/jobs/{}/certificate` | — | `signed_path` `signed_statement` | — | — |
+| `post /api/v1/model/test` | — | `usage` | — | — |
+
+⇒ 键总数 `{'always': 8, 'overstated': 3, 'sometimes': 0, 'absent': 2}`。四条带分开登记，不合并成
+一个总数；`sometimes` 今天人口 0（它与 #547 那条 `glued-across-depth0-operator` 同 kind：存在的
+理由是有臂能落进去）。
+
+保险丝 `return_accounting`：42 条配对端点逐条报 `(own_returns, branches, unbounded)`，分布
+`{(1,1): 37, (2,2): 2, (2,1): 1, (1,0): 2}`；**39 条有界端点 `branches == own_returns` 逐条相等**，
+三条不等（`billing/usage` 2/1、`model/config` GET 1/0、POST 1/0）**全部自报无界**，且每条带着
+自己那条 return 的原文与行号 ⇒ 「折叠器少看一个出口而没说」的沉默人口 **0**。多分支且有界的只有
+`dashboard` 与 `jobs/{}/stages`（各 2/2）。
+
+#546/#547 那 23 个寄存器与 `_wt547` **逐字节相同**（`c23_548.txt` == `c23_547.txt`），盲区名册同样
+相同（`blind_548.txt` == `blind_547.txt`）⇒ 本号没有移动任何一条既有读数。全量收集数 5981 →
+**5983**（18 腿 → 20 腿）。
+
+### 判决与落地
+
+1. **第三条轴建带，不建洞。** (a) 问「必填的发了吗」、(b) 问「发的声明了吗」，两者都看不见
+   「声明过期」这一条：前端写 `?`，路由每个分支都发 ⇒ 类型在谎报不确定性。四条带
+   （`always` / `overstated` / `sometimes` / `absent`）逐端点登记，`overstated` 直接借用折叠器
+   自己承认的 `Payload.conditional`，而不是另立一套口径——用两套口径就会有一处漂移。
+2. **保险丝与它要防的缺陷同型。** 轴 (c) 的全部力度压在 `set.intersection(*branches)` 上，而它只在
+   「折叠器报出的分支数 = handler 自己作用域里的 `return` 数」这句话成立时才是证明；这句话坏了
+   的表现正是「读到 0 条」被当成「没有」（本战役那批读失败缺陷的加强版：它还要往外说「每个出口都
+   发」）。`_own_return_count` 因此复用 `_own_nodes`（嵌套 `def`/`lambda` 的 return 不算响应，
+   `api/routes/web.py:782` 的 `probe()` 就是这种），**不写第二套遍历**——两套遍历会各自漂。
+3. **owner 只报 `complete`，腿来 enforce。** 「恒发不许来自一份不完整的分支列表」这句话如果写在
+   出口里，`optional_publish_bands` 就会自己把不完整行吞掉，臂红的时候说不出是出口吞的还是名册吞的。所以 `OptionalBand.complete` / `ReturnAccount.complete` 只是字段，判据在 L6 与 L5 里。
+4. **签名取 `root`，与 #547 的 `ruler_blind_spots(web_src)` 相反。** 两个新出口都要同时读前端类型
+   和后端 handler：交一个平面参数进去会让这个名字假装看过另一侧。#547 那五种形状全在前端，所以它
+   收 `web_src` 是真的；本号两个都不是，所以收 `root`。
+5. **`-1` 表示 handler 没找到，不是 0。** 交 0 就把「读不到」写成「这个 handler 一条 return 都没有」，
+   正是本号要防的那句话。
+6. **按端点去重（42 条），不按站点（44 对）。** 两条站点配到同一端点时名册只有一行，读数是端点；
+   `axis-c rows 39` 是**有界**端点数，另外 3 条无界的只出现在保险丝名册里（两本名册分工，不是遗漏）。
+7. **不改一行产品代码。** 把 `Guide.tsx` 的 `total?:` 改成必填是产品改动，要先回答「改了谁会红」
+   ——已入队 ⓲，本号只把它登记成读数。
+
+### 门
+
+同一道门 `tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py`，
+18 腿 → **20 腿**，全绿（`.scratch/next548/gate548.txt`，20 passed）。新增两条：
+
+| 腿 | 断什么 |
+|----|--------|
+| L5 `test_an_optional_key_is_rostered_in_the_band_the_route_puts_it_in` | 39 行的行数、五个带键的行逐行对账（文件+行号+四带内容）、键总数四带分别相等、`absent` 的两个键必须**没有**发布点、`sometimes` 人口 0 |
+| L6 `test_the_fold_reports_every_return_the_handler_can_take` | 42 行的分布、三条例外必须同时在无界名册里、`axis-c incomplete` 为空，以及 fixture 树上「handler 有两条 return、折叠器只折出一条」时保险丝**必须**报 `(2, 1)` 且那一行的 `always` 只剩另一条分支也发的键 |
+
+新寄存器：`AXIS_C_BANDS`（5 行，按端点）、`AXIS_C_KEY_TOTALS`、`_AXIS_C_ROW_COUNT = 39`、
+`AXIS_C_ABSENT_PUBLISHERS`、`RETURN_ACCOUNT_DISTRIBUTION`、`RETURN_ACCOUNT_MISMATCHES`（3 条）；
+新 fixture helper `_fixture_repo(root, api, web)`。ruff 两个文件全绿，owner 82 640 字节
+（CRLF、bare_lf 0、tab 0），门 66 649 字节（LF）。
+
+### 变异臂（7 条，只碰 owner）
+
+驱动 `.scratch/next548/drive548.py`，读数 `.scratch/arm548/arms548_summary.txt`；三把尺分开对照
+（23 个既有寄存器 / #547 盲区名册 / 本号两张新寄存器），臂树 `_arm548`，跑完逐字节还原。
+预测冻结在 `.scratch/pred548.md` §四。
+
+| 臂 | 变异 | 预测 | 实测 |
+|----|------|------|------|
+| E1 | `intersection` 换成 `union` | 全绿（惰臂：`optional & 某分支非全部` 真树人口 0） | ✅ 20 passed，三把尺全 IDENTICAL |
+| E2 | 撤掉夸大带的扣除（`merged_in = ∅`） | L5 红，`always 8→11`、`overstated 3→0` | ✅ L5 红一条，寄存器逐字如预测（certificate 两键、model/test 一键从 overstated 移进 always） |
+| E3 | `_own_return_count` 改用全树 `ast.walk`（把闭包的 return 也算进 handler） | L6 红（`health (1,1)→(3,1)`），L5 仍绿 | ✅ L6 红一条，`health` 行 `complete` 变 False、`(1,1)` 37→36，23 寄存器不动 |
+| E4 | `ReturnAccount.complete` 恒真（保险丝不再要求自报拒收） | L6 红（3 条例外被当成通过） | ✅ L6 红一条，三条 `ACCT` 例外整条从名册消失 |
+| E5 | 两个新出口都 `return []`（空壳寄存器） | L5 与 L6 都红 | ✅ 2 failed：`axis-c rows 39→0`、`account rows 42→0`，23 寄存器仍不动 ⇒ 两条腿都不是自我确认 |
+| E6 | `nowhere` 从 `published` 改成按 `intersection` 算 | 全绿（惰臂：单分支时 `published == intersection`） | ✅ 20 passed，三把尺全 IDENTICAL |
+| E7 | 把 `optional` 换成 `_required`（给 (a) 轴的键建带） | L5 红 | ❌ **L5 与 L6 两条都红**：`always 8→99`、`overstated 3→2`、`absent 2→0`，L6 的 fixture 里那一行 `always` 从 `("b",)` 变成 `("a",)` |
+
+汇总：7 条里 6 条逐字命中，E7 多红一条腿。三把尺的分工起了作用：**没有一条臂动过 23 个既有寄存器
+里的任何一个**，也没动过 #547 的盲区名册；红的全部是本号自己的两张寄存器。
+
+### 全量红单对照（落地树 `_wt548` vs 干净父树 `_wt547`）
+
+落地树全量：`collected 5983 items`，**8 failed / 5967 passed / 8 skipped, 3 warnings in 3196.82s
+(0:53:16)**，SUITE RC=1（`.scratch/next548/p548_full_unit.txt`）。本号那条门在套件内 **20/20 绿**
+（进度行 `1 + 19` 个点）。
+
+对照是机械算的（`.scratch/next548/p548_fullsuite_control.txt`）：在干净父树 `_wt547`（`7b4ee64`，
+`git status` 空）里重跑承载这 8 条红的 5 个文件，得 **8 failed / 34 passed in 231.93s**，
+FAILED 名单与落地树**逐字相同**——落地独有红 0 条、控制独有红 0 条。⇒ **#548 零新增红**，
+8 条全是别道既有红（toolchain pin 3 条、checker/progress 标签 2 条、verdict channel 3 条），
+本号落的三个文件（owner / 门 / 台账）都不在它们的失败形状里。
+
+#546 留下的那次归因得到了第二次量测。`test_agent_runtime.py::test_cancel_mid_run_wins_and_marks_cancelled`
+在 #546 落地树里红过一次（形状是 `assert entered.wait(timeout=30.0)` → False），本号**两棵树都绿**，
+而它在落地树里是全场第二慢的调用（42.81s）——一条自己的等待是 30s、这次用 42.81s 走完的测试，
+「负载/时序抖动」这个归因比「某个改动让它稳定失效」更站得住。
+
+留一句边界：控制这次只跑了 5 个文件，不含 MySQL 那族，所以 census 是 **0 of 22 ran**；
+落地树里它是 **16 of 22 files ran，subtotal 61.9s of 2867.0s（2% of the session）**。
+这 8 条红都不在 census 族里，对照因此成立；但 census 族在 #548 下只被落地树自己跑过（全绿），
+没有被第二棵树复量——这与 #546 那节的控制数（16 of 22）不是同覆盖面，别把两个数混着引用。
+
+### 发现
+
+1. **腿名说它守什么，不说它读哪些出口——E7 就是这条的实测。** L6 的名字只讲「折叠报全 return」，
+   但它为了构造对照确实读了 `optional_publish_bands`；预测时我按名字推「E7 只红 L5」，漏了这一点。
+   未命中的方向是好的（臂更敏感），但 #547 已经为同一件事入队 ⓯，本号把它从「守卫 → 腿」升级成
+   「**出口 → 腿**」的映射表：每个出口登记它被哪几条腿读，臂落在表上而不是落在名字上。
+2. **轴 (c) 第一次跑就抓到一条真过期声明。** `get /jobs` 的 `total` 在 `apps/web/src/pages/Guide.tsx:74`
+   的行内类型里是 `total?: number`，而 `apps/web/src/api.ts:428-441` 的注释正是本项目自己的判决：
+   `JobsPage.total` **必须必填**，因为老的分叉只返回窗口大小、页面会把 25（页大小）当成总数上报。
+   判决落在 `JobsPage` 上，**漏了 Guide 的行内类型** ⇒ 路由每个分支都发、类型却在谎报可选。
+   本号不改它（队列 ⓲），但它是第一条由轴 (c) 而不是由人读出来的产品事实。
+3. **`absent` 不是洞，登记成失败会诱导下一号去修一个正确的兜底。** `health` 的 `capabilities` /
+   `degraded_reasons` 在 `api/ contracts/ services/` 全树 grep 0 命中，前端
+   `pages/Health.test.tsx:44` 断言它们渲染成「未知」——这两个键是前端在防一个永不到来的响应形状。
+   所以它们在名册里是一条带、`AXIS_C_ABSENT_PUBLISHERS` 里明确登记「发布点为空」，而不是 (a) 轴那种
+   需要修的洞。
+4. **保险丝与 (a) 腿是同一份数据的两个方向，缺一边另一边就自我确认。** (a) 腿问「每个分支都发了
+   必填键吗」，用的正是 `Payload.branches`；如果折叠器少看一个 return，(a) 腿的「每个分支」就是一句
+   没有依据的话。E3（把闭包 return 也算进 handler）红的是 L6 而不是 (a) 腿——(a) 腿今天读不到这个
+   错误，因为它的判据里根本没有「分支列表全不全」这一项。⓱ 登记的就是这个缺口。
+
+### 否证与边界
+
+- `axis-c rows 39` 与 `account rows 42` 是两个数，分别是**有界端点**与**全部配对端点**；把它们
+  写成同一个数就会掩盖「三条无界端点只在保险丝里出现」这件事。
+- `sometimes` 带人口 0。E1/E6 两条惰臂证的是这两条带今天接不住任何真树形状——它们留在门里的理由
+  与 #547 的形状名册同：空名册与「出口直接 `return []`」在腿上不可区分，E5 才是那条能红的臂。
+- 轴 (c) 只看折叠器能折出的形状。`unbounded` 端点被 `continue` 跳过（三条），盲区形状由 #547 的
+  名册负责；本号没有把两者并成一张表。
+- 本号一行产品文件都没改，也没有一条 committed 测试跑过 `Guide.tsx` 那行行内类型；发现 2 的证据是
+  `api.ts` 的注释文本与门自己的读数，不是运行时行为。
+- 全量红单对照在本节追加之后单独补记（跑在落地树，控制树用 #547 落地态）。
+
+### 下一号队列（取号按落地时点 max+1）
+
+| 项 | 内容 | 为什么 |
+|----|------|--------|
+| ⓯ | **升级**：把「出口 → 腿」的映射做成门里可读的表（每个出口登记被哪几条腿读） | #547 入队时是「守卫 → 腿」；E7 的未命中证明要按**出口**登记才够——L6 的名字不含它读的第二个出口 |
+| ⓱ | 新增：`test_a_required_key_is_published_by_every_return_branch` 消费 `Payload.always` 却不查 `complete` | 今天「沉默不一致」人口 0 ⇒ 没有暴露；但它是 (a) 腿与保险丝之间唯一的缝，出现第一条不一致时 (a) 腿会安静地把不完整分支列表当证明 |
+| ⓲ | 新增：产品改动 `Guide.tsx:74` 的 `total?:` → 必填（先量「改了谁会红」再改） | 发现 2 的判决是产品事实，不是门的事；改它要动前端类型，属另一号 |
+| ⓰ | 保持：`glued-across-depth0-operator` 真树 0 条 | 与 `sometimes` 带同一形状的 0 人口登记 |
+| ⓭ | 保持：E7 三层守卫里「先折字面量」那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
+| ⑥ | **本号关掉**（轴 (c) 建成四带名册 + 保险丝） | 前提在 `.scratch/next548/premise548_notes.md`，读数与落地一致：8/3/0/2、39 行、42 行、0 条沉默 |

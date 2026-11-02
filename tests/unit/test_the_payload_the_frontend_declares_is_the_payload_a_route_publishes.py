@@ -71,12 +71,30 @@ three hooks issues a request. No reading was built for any of them: ⓮'s verdic
 from the inside this time. What the register is for is that ``0`` is a measurement, not an
 assumption -- a leg recomputes it, and the columns ``seen``/``read`` say which rows would
 hurt if the tree grew.
+
+#548 read the third direction and built the floor under it. **Axis (c)** answers what a
+key the frontend marks optional really is: ``always`` (every branch publishes it, and the
+branch list is all the handler's exits), ``overstated`` (in that set only because
+``Payload.conditional`` merged it in), ``sometimes`` (some branches and not others --
+population 0 today, and an arm says the zero is a measurement), ``absent`` (no branch
+publishes it and nothing merged it). Five endpoints have anything to say, 8 + 3 + 0 + 2 keys
+between them, and the row that matters is ``/jobs``: ``api.ts`` records in prose why
+``JobsPage.total`` must be required, while ``Guide.tsx`` still writes ``total?: number``.
+**The fuse** is ``return_accounting``: 42 speakable endpoints, their own ``return`` count
+against the branches the fold reported, and the three rows that disagree are exactly the
+three the fold already named in ``UNBOUND_PAYLOADS``. Without it the ``always`` above is
+``set.intersection`` over whatever branch list the fold happened to build -- an intersection
+is a proof only over every exit, and an early bare ``return`` would turn every ``always``
+number in this plane into a partial read that prints as a guarantee. Population 0 on this
+tree, so the leg carries a fixture whose counts are (2, 1) and unreported, which is what
+makes the fuse a fuse rather than a comment.
 """
 
 from __future__ import annotations
 
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -88,6 +106,7 @@ from tests._payload_plane import (  # noqa: E402
     CallSite,
     Endpoint,
     Member,
+    OptionalBand,
     Pair,
     alias_table,
     call_shapes,
@@ -97,8 +116,10 @@ from tests._payload_plane import (  # noqa: E402
     hook_readings,
     members_of_type,
     normalize_path,
+    optional_publish_bands,
     pairings,
     payload_of,
+    return_accounting,
     ruler_blind_spots,
     ts_declarations,
     web_src,
@@ -343,6 +364,89 @@ RULER_BLIND_SPOTS: dict[tuple[str, str, int], tuple[str, tuple[str, ...], tuple[
 #: reads *and* someone is waiting on is a hole.
 RULER_BLIND_SPOT_VICTIMS: frozenset[tuple[str, str, int]] = frozenset()
 
+# ---------------------------------------------------------------------------
+# #548 -- axis (c), and the fuse that makes its intersection a proof
+
+#: Axis (c): what a key the frontend declares *optional* actually is. ``(verb, path)``
+#: -> ((declaring file, line), {band: keys}), empty bands left out. Five rows. Three of
+#: them say a page is defending against something it does not need to; one (`/jobs`) says
+#: a page has not been told about a decision ``api.ts`` already wrote down in prose; and
+#: health's two ``absent`` keys say the page defends against a key that cannot arrive.
+AXIS_C_BANDS: dict[Key, tuple[tuple[str, int], dict[str, tuple[str, ...]]]] = {
+    ("get", "/api/v1/health"): (
+        ("apps/web/src/pages/Health.tsx", 78),
+        {
+            "always": ("checks", "degraded", "status"),
+            "absent": ("capabilities", "degraded_reasons"),
+        },
+    ),
+    ("get", "/api/v1/jobs/{}/certificate"): (
+        ("apps/web/src/pages/JobDetail.tsx", 290),
+        {"overstated": ("signed_path", "signed_statement")},
+    ),
+    ("get", "/api/v1/jobs/{}/matrix"): (
+        ("apps/web/src/pages/Matrix.tsx", 22),
+        {"always": ("counts_source", "rows_total", "rows_truncated", "sources")},
+    ),
+    ("get", "/jobs"): (
+        ("apps/web/src/pages/Guide.tsx", 74),
+        {"always": ("total",)},
+    ),
+    ("post", "/api/v1/model/test"): (
+        ("apps/web/src/agent/pages/AgentSettings.tsx", 91),
+        {"overstated": ("usage",)},
+    ),
+}
+
+#: The same register summed, because a row comparison alone cannot see keys moving
+#: *between* bands on a route that keeps speaking: ``always`` 8 -> 11 and ``overstated``
+#: 3 -> 0 is one line in the owner (arm E2) and leaves all five rows standing.
+AXIS_C_KEY_TOTALS: dict[str, int] = {
+    "always": 8,
+    "overstated": 3,
+    "sometimes": 0,
+    "absent": 2,
+}
+
+#: How many endpoints the axis can speak about: the 42 the fuse registers, minus the 3 the
+#: fold refused to bound. A row vanishing from ``AXIS_C_BANDS`` and this count *not* moving
+#: is a route whose reading went quiet; both moving is a route leaving the plane.
+_AXIS_C_ROW_COUNT = 39
+
+#: Which paired endpoints publish the two keys health declares optional. This is the
+#: evidence that health's ``absent`` row is a reading and not blindness: the ruler sees
+#: ``degraded_reasons`` well enough to report it on both of the dashboard's branches, and
+#: ``capabilities`` reaches no bounded payload anywhere in the repo. Registering it here
+#: also means the day a route starts answering ``capabilities`` moves a number, instead of
+#: turning this band into a definition nobody may touch.
+AXIS_C_ABSENT_PUBLISHERS: dict[str, tuple[Key, ...]] = {
+    "capabilities": (),
+    "degraded_reasons": (("get", "/api/v1/dashboard"),),
+}
+
+#: The fuse: ``(returns in the handler's own scope, branches the fold reported)`` -> how
+#: many of the 42 speakable endpoints have that shape. The (1, 1) block is the part of this
+#: plane that is a proof; (2, 1) and (1, 0) are partial reads, tolerable only because the
+#: fold *said* so. A fifth key appearing here means the fold started disagreeing with a
+#: handler quietly, and every ``always`` set above is then an intersection over a list that
+#: is not the census.
+RETURN_ACCOUNT_DISTRIBUTION: dict[tuple[int, int], int] = {
+    (1, 1): 37,
+    (2, 2): 2,
+    (2, 1): 1,
+    (1, 0): 2,
+}
+
+#: The rows where the two counts disagree: ``(verb, path)`` -> (own returns, branches).
+#: Each must also stand in ``UNBOUND_PAYLOADS``, because "the fold refused this return"
+#: and "the fold did not see this return" are the same pair of numbers and only one of
+#: them is honest.
+RETURN_ACCOUNT_MISMATCHES: dict[Key, tuple[int, int]] = {
+    ("get", "/api/v1/billing/usage"): (2, 1),
+    ("get", "/api/v1/model/config"): (1, 0),
+    ("post", "/api/v1/model/config"): (1, 0),
+}
+
 # Floors, not equalities: other lanes move this tree under us, and a census that fails
 # because a legitimate route was added gets widened by whoever is reddest. The
 # two-sided legs are what catch a real drop.
@@ -362,6 +466,39 @@ _MIN_SITES_BEHIND_A_DECLARATION = 8
 #: alias. One short of the measurement, because `api.ts`'s `path` is expected to stay at
 #: zero and the floor is about the reading still reaching real callers.
 _MIN_ALIAS_SHAPED_SITES = 4
+
+
+_BANDS = ("always", "overstated", "sometimes", "absent")
+
+
+def _band_row(row: OptionalBand) -> tuple[tuple[str, int], dict[str, tuple[str, ...]]]:
+    """(declaring site, only the bands holding something) for one axis-(c) row.
+
+    Empty bands stay out: a row's job is to say what the route does, and four tuples per
+    endpoint would make one key moving from ``always`` to ``sometimes`` read as two
+    changes rather than one.
+    """
+    return (row.file, row.line), {name: getattr(row, name) for name in _BANDS if getattr(row, name)}
+
+
+def _fixture_repo(root: Path, api: dict[str, str], web: dict[str, str]) -> Path:
+    """A whole tiny repo -- one route module and one frontend -- for the two route-side exits.
+
+    ``_fixture_web`` is enough while only the consumer is being argued about. Axis (c) and
+    the fuse both read a *handler*, so the lab needs an ``api/`` tree too, addressed the way
+    the owner addresses it: ``(root / "api").rglob`` for routers and
+    ``root / module.replace(".", "/")`` for the fold. The route's module name is therefore
+    ``api.routes.ping``, and a fixture that spelled it any other way would fold nothing.
+    """
+    for rel, text in api.items():
+        target = root / "api" / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    for rel, text in web.items():
+        target = root / "apps" / "web" / "src" / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    return root
 
 
 def _census() -> tuple[list[Endpoint], list[Pair], list[CallSite], Declarations]:
@@ -1016,4 +1153,146 @@ def test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered(tmp_path: Path
     }, f"the columns stopped being measured: {blind}"
     assert all(s.seen != s.read for s in ruler_blind_spots(fixture)), (
         "a fixture in which the blindness costs nothing proves nothing"
+    )
+
+
+def test_an_optional_key_is_rostered_in_the_band_the_route_puts_it_in() -> None:
+    """Axis (c), the third direction: what a frontend's `?:` actually costs.
+
+    #542 charges a *required* key a branch forgot. #543/#544 charge a *published* key
+    nobody declared. Nobody read the third case -- a key the browser says may be missing --
+    and the gap is not cosmetic: `api.ts` carries a comment explaining that
+    `JobsPage.total` must be required, because reading that field as a count told a
+    workspace with 57 verifications that it had 1, while `Guide.tsx` still writes
+    `total?: number`, renders `null` when the key is absent, and `/jobs` has always
+    answered it on its only exit. Two frontend files disagree with each other and the
+    census is the only thing in the repo that can say so.
+
+    The bands are asserted per endpoint *and* summed, because those catch different edits:
+    a route whose reading changed, and keys moving between bands on a route that keeps
+    talking.
+    """
+    rows = optional_publish_bands(REPO)
+    assert len(rows) == _AXIS_C_ROW_COUNT, (
+        f"the axis speaks about {len(rows)} endpoints, not {_AXIS_C_ROW_COUNT}"
+    )
+    found = {
+        (row.verb, row.path): _band_row(row)
+        for row in rows
+        if row.always or row.overstated or row.sometimes or row.absent
+    }
+    added = sorted(set(found) - set(AXIS_C_BANDS))
+    gone = sorted(set(AXIS_C_BANDS) - set(found))
+    moved = sorted(k for k in set(found) & set(AXIS_C_BANDS) if found[k] != AXIS_C_BANDS[k])
+    assert not added and not gone and not moved, (
+        f"axis (c) drifted: new={added} gone={gone} changed={moved} found={found}"
+    )
+    totals = {name: sum(len(getattr(row, name)) for row in rows) for name in _BANDS}
+    assert totals == AXIS_C_KEY_TOTALS, f"the band totals moved: {totals}"
+
+    _endpoint_table, pairs, _orphans, _declarations = _census()
+    by_key: dict[Key, Endpoint] = {}
+    for pair in pairs:
+        by_key.setdefault(_pair_key(pair), pair.endpoint)
+    for name, expected in AXIS_C_ABSENT_PUBLISHERS.items():
+        publishers = tuple(sorted(
+            key for key, endpoint in by_key.items() if name in payload_of(REPO, endpoint).published
+        ))
+        assert publishers == tuple(sorted(expected)), (
+            f"which routes publish {name!r} moved: {publishers} vs {expected}"
+        )
+
+    health = next(row for row in rows if (row.verb, row.path) == ("get", "/api/v1/health"))
+    assert health.absent == ("capabilities", "degraded_reasons"), (
+        f"health's optional keys are no longer the two named here: {health.absent}"
+    )
+    test_file = REPO / "apps" / "web" / "src" / "pages" / "Health.test.tsx"
+    fallback = test_file.read_text(encoding="utf-8")
+    assert 'stateOf("health-category-capabilities")).toBe("unknown")' in fallback, (
+        "the page stopped pinning the fallback that makes an absent key harmless, so this "
+        "band is no longer a fact about a defended field -- it is an undefended missing key"
+    )
+
+
+def test_the_fold_reports_every_return_the_handler_can_take(tmp_path: Path) -> None:
+    """The fuse under axis (c): an intersection is a proof only over every exit.
+
+    ``Payload.always`` is ``set.intersection(*branches)``, and every leg above reads the
+    result as "these keys always arrive". Hand the fold one of a handler's two returns and
+    it still prints a set -- a positive claim built on a partial read, which is the worse
+    cousin of the empty reads this campaign keeps hitting: an empty read prints as nothing,
+    this one prints as a guarantee. The cheapest edit a handler can take, a bare early
+    ``return``, produces exactly that shape.
+
+    Population 0 on this tree, so the leg has to bring its own. The fixture's handler has a
+    bare ``return`` and a dict ``return``: the counts come back (2, 1) with nothing
+    reported, and the axis still files the second return's key under ``always``. Two rows
+    disagreeing on the real tree is what the unbounded roster is for; a third shape --
+    disagreeing and silent -- is the one this leg exists to refuse.
+    """
+    rows = return_accounting(REPO)
+    distribution = dict(Counter((row.own_returns, row.branches) for row in rows))
+    assert distribution == RETURN_ACCOUNT_DISTRIBUTION, (
+        f"the return/branch census moved: {distribution}"
+    )
+    mismatches = {
+        (row.verb, row.path): (row.own_returns, row.branches) for row in rows if not row.complete
+    }
+    assert mismatches == RETURN_ACCOUNT_MISMATCHES, (
+        f"rows whose exits and branches disagree moved: {mismatches}"
+    )
+    for key in mismatches:
+        assert key in UNBOUND_PAYLOADS, f"{key} disagrees and is not in the unbounded roster"
+
+    silent = [
+        (row.verb, row.path, row.own_returns, row.branches)
+        for row in rows
+        if row.own_returns != row.branches and not row.unbounded
+    ]
+    assert not silent, f"the fold reported a partial branch list without saying so: {silent}"
+    unproven = [
+        (row.verb, row.path, row.always)
+        for row in optional_publish_bands(REPO)
+        if row.always and not row.complete
+    ]
+    assert not unproven, f"axis (c) called a partial read a guarantee: {unproven}"
+
+    fixture = _fixture_repo(
+        tmp_path / "fuse",
+        {
+            "routes/ping.py": (
+                "from fastapi import APIRouter\n"
+                "\n"
+                "router = APIRouter(prefix='/api/v1')\n"
+                "\n"
+                "@router.get('/ping')\n"
+                "async def api_ping(flag: bool) -> dict[str, object]:\n"
+                "    if flag:\n"
+                "        return\n"
+                "    return {'a': 1, 'b': 2}\n"
+            )
+        },
+        {
+            "Pages.tsx": (
+                "type P = { a: number; b?: number };\n"
+                "function Page() {\n"
+                "  apiGet<P>('/api/v1/ping');\n"
+                "  return null;\n"
+                "}\n"
+            )
+        },
+    )
+    accounts = {row.path: row for row in return_accounting(fixture)}
+    assert set(accounts) == {"/api/v1/ping"}, f"the fixture paired wrong: {sorted(accounts)}"
+    ping = accounts["/api/v1/ping"]
+    assert (ping.own_returns, ping.branches, ping.unbounded) == (2, 1, ()), (
+        f"the bare return was not counted as an exit, or was reported as a refusal: {ping}"
+    )
+    assert not ping.complete, "the fuse read a two-exit handler as one branch and called it done"
+    bands = {row.path: row for row in optional_publish_bands(fixture)}
+    assert bands["/api/v1/ping"].always == ("b",), (
+        f"the axis stopped demonstrating the lie the fuse refuses: {bands['/api/v1/ping']}"
+    )
+    assert not bands["/api/v1/ping"].complete, (
+        "the fixture no longer shows `always` being claimed on a partial branch list"
     )
