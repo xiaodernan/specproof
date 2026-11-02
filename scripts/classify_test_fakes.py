@@ -52,7 +52,32 @@ class FakeClass:
 
     @property
     def sql_surface(self) -> list[str]:
-        return [m for m in self.methods if m in SQL_SURFACE]
+        """The SQL surface this class speaks.
+
+        ``execute`` ALONE is not the SQL surface: the name collides. The
+        adapter protocol's ``execute`` means "run the build tool" (see
+        ``tests/unit/test_adapter_protocol.py::DummyAdapter``, added by
+        #431), so a class that speaks only ``execute`` is far more likely to
+        be some other protocol's command than a database client. So
+        ``execute`` counts only when the SAME class shows at least one more
+        SQL-surface method (``cursor`` / ``fetch*`` / ``commit`` /
+        ``rollback`` / ...). Every other method of the surface counts on its
+        own — a fake connection that offers nothing but ``cursor`` is still a
+        SQL fake.
+
+        Measured, not assumed (#545): this rule leaves the census at the
+        commit that pinned the inventory (#374, ``462340d``) bit-for-bit
+        unchanged (20 / 43 / 192, total 255), and on ``origin/master``
+        (``de746b6``, #544) it moves exactly ONE class: ``DummyAdapter``
+        (sql-fake -> plain-double), giving 20 / 43 / 202, total 265. The old
+        rule on the same tree gives 21 / 43 / 201. A stricter rule keeps the
+        census a lower bound, which is the direction the inventory's own
+        honest boundary already claims.
+        """
+        sql = [m for m in self.methods if m in SQL_SURFACE]
+        if set(sql) == {"execute"}:
+            return []
+        return sql
 
     @property
     def store_surface(self) -> list[str]:

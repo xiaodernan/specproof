@@ -2,7 +2,7 @@
 
 The queue item "replace the remaining hand-written fakes with an
 evaluator" was re-framed by MEASURING what those fakes actually are
-(docs/architecture/FAKE_INVENTORY.md): of 252 hand-written fakes, only
+(docs/architecture/FAKE_INVENTORY.md): of 265 hand-written fakes, only
 20 speak a SQL surface — the ones an evaluator could stand in for. The
 rest are store duck types and plain doubles, which an evaluator is NOT
 a drop-in for.
@@ -60,11 +60,46 @@ def test_the_counts_are_pinned() -> None:
         "the SQL-fake count moved; the inventory must be updated with the "
         "reason (see docs/architecture/FAKE_INVENTORY.md)"
     )
-    # #369 added one store duck type (the fake Redis the capture probe
-    # drives); the other lane's craft-gate tests added two plain
-    # doubles. The inventory is a MEASUREMENT, so it moved with them.
+    # #545: the total moved 255 -> 265 because TEN classes were added after
+    # the #374 pin (git blame on each class definition line, not a guess).
+    # Every one is a plain double under the new rule; under the old rule
+    # exactly one of them (DummyAdapter) was counted as SQL:
+    #   #431 a88fbce  test_adapter_protocol.py::DummyAdapter  (execute-only)
+    #   #378 9ac5e9a  test_eval_resume_reuses_measured_cases.py::_FakeGraph
+    #   #448 b5e2417  test_job_stage_declared_edges.py::FakeStore
+    #   #500 7a7b66b  test_dashboard_window_contract.py::_FakeStore
+    #   #505 0dad2d2  test_verify_persistence_failures_are_visible.py::
+    #                 _FakeGraph / _RefusingStore / _AcceptingStore
+    #   #511 9cfb458  test_verify_contract_list_shows_the_matrix_result.py::
+    #                 _FakeGraph
+    #   #523 3494441  test_rerank_degradation_cause_is_attributed_and_observable.py::_Store
+    #   #524 74f94d8  test_vector_channel_degradation_cause_is_attributed_and_observable.py::_Store
+    # The inventory is a MEASUREMENT, so it moves with them.
     assert buckets["store-duck-type"] == 43
-    assert sum(buckets.values()) == 255
+    assert buckets["plain-double"] == 202
+    assert sum(buckets.values()) == 265
+
+
+def test_execute_alone_is_not_a_sql_surface() -> None:
+    """The collision, pinned at the predicate — not only in the totals.
+
+    The aggregate count can say "one class moved" but not WHY. `execute`
+    means two different things in this tree: run a statement, or run a
+    build tool (`DummyAdapter`). These four edges keep the exception from
+    widening into "ignore execute everywhere": another SQL surface still
+    makes the class a SQL fake, and a store surface still wins over a
+    lone execute.
+    """
+    module = _classifier()
+    fake = module.FakeClass
+
+    def kind(methods: list[str]) -> str:
+        return fake(path="x", line=1, name="FakeX", methods=methods).kind
+
+    assert kind(["execute"]) == "plain-double"
+    assert kind(["execute", "cursor"]) == "sql-fake"
+    assert kind(["execute", "save"]) == "store-duck-type"
+    assert kind(["cursor"]) == "sql-fake"
 
 
 def test_the_inventory_quotes_the_measured_numbers() -> None:

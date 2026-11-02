@@ -19190,3 +19190,99 @@ A14/A15 是在主战役 16 条臂之后补的，预测写进预测文件 §八 �
 `GET /agent/jobs` 的配对一起坏掉——和 #544 的别名守卫是同一个教训，写读法的人要再撞一次才算数。
 剩下 13 条「无人消费」端点的理由分类（`probe545_reasons.py`：字面量不出现 6、只在注释里 4、
 `doFetch` 无类型 2、浏览器跳转 1）就是 ③ 的内容——名册的下一步不是更小，而是每一条都带一个能被复查的理由。
+
+## #545 `execute` 这个名字有两个含义：跑构建命令的类被算成了 SQL 假，重算后的十处增量每一处都能指到提交
+
+**背景**：#303 队列项④「其余手写假换成求值器」在 #364 被关掉，依据是
+`docs/architecture/FAKE_INVENTORY.md` 的一次测量：手写假里只有 20 个实现 SQL 面，
+真正需要换的 0 处。那次测量的判据是**按方法名**：只要类里出现 `execute`，
+就算 SQL 面。
+
+`tests/unit/test_adapter_protocol.py::DummyAdapter`（#431，`a88fbce`）把这个判据顶出了一个洞：
+它的 classmethod `execute` **跑的是构建命令**，不是 SQL 语句。旧判据把它算成 SQL 假——
+一个不是数据库客户端的类，被计进了「求值器能替」的集合。队列项是照这个集合关的，
+所以集合里混进一个不算数的类，关掉的理由就得重算。
+
+**这一批只做一件事：把判据修准，然后把修准后的账重新量一遍。没有换任何一处替身。**
+
+### 判据怎么修
+
+`scripts/classify_test_fakes.py::FakeClass.sql_surface`：`execute` **单独**出现时不算 SQL 面；
+同一个类**还有**别的 SQL 面方法（`cursor` / `fetch*` / `commit` / `rollback` / …）时，
+`execute` 才照旧算。其余每一个 SQL 面方法仍**各自单算**——只提供 `cursor` 的假连接
+仍然是 SQL 假。理由是**撞名**：`execute` 在别的协议里也有一份含义（跑命令），
+`cursor` / `fetchall` / `commit` 这些名字没有这种通用性。
+
+### 量到的三个数（都是在本仓跑出来的，不是估的）
+
+| 树 | 旧判据 | 新判据 |
+|---|---|---|
+| #374，`462340d`（钉下旧账的那次提交） | 20 SQL / 43 仓储 / 192 普通，共 255 | **20 / 43 / 192，共 255——一位不改** |
+| `origin/master`，`de746b6`（#544） | 21 / 43 / 201，共 265 | **20 / 43 / 202，共 265** |
+
+⇒ **新判据不改写历史**：在 #374 的树上，它给出与旧判据一模一样的三个数；
+它唯一挪动的类，是当前树上新长出来的 `DummyAdapter`（SQL 假 → 普通替身）。
+⇒ 总数 255 → 265 不是判据挪出来的，是 **#374 之后真的新增了十个类**。
+
+### 十处增量的归属（`git blame` 在类定义行上取，逐个可查）
+
+| 提交 | 类 | 位置 |
+|---|---|---|
+| #431 `a88fbce` | `DummyAdapter` | `tests/unit/test_adapter_protocol.py`（旧判据算 SQL；`execute` 跑构建命令） |
+| #378 `9ac5e9a` | `_FakeGraph` | `tests/unit/test_eval_resume_reuses_measured_cases.py` |
+| #448 `b5e2417` | `FakeStore` | `tests/unit/test_job_stage_declared_edges.py` |
+| #500 `7a7b66b` | `_FakeStore` | `tests/unit/test_dashboard_window_contract.py` |
+| #505 `0dad2d2` | `_FakeGraph` / `_RefusingStore` / `_AcceptingStore` | `tests/unit/test_verify_persistence_failures_are_visible.py`（3 个） |
+| #511 `9cfb458` | `_FakeGraph` | `tests/unit/test_verify_contract_list_shows_the_matrix_result.py` |
+| #523 `3494441` | `_Store` | `tests/unit/test_rerank_degradation_cause_is_attributed_and_observable.py` |
+| #524 `74f94d8` | `_Store` | `tests/unit/test_vector_channel_degradation_cause_is_attributed_and_observable.py` |
+
+十个类在 #374 都**不存在**：旧判据下它们是 **1 个 SQL + 9 个普通**（21 / 43 / 201），
+新判据把那 1 个挪成普通 ⇒ **20 / 43 / 202**。⇒ **「SQL 假 20 个」「需要换 0 处」
+这两个结论都没有变**；变的是普通替身 192 → 202 与总数 255 → 265。
+
+### 改了什么
+
+- `scripts/classify_test_fakes.py`：`sql_surface` 增加 `execute` 单独出现时的例外；
+  docstring 写清这次例外**为什么不是拍脑袋**——它在 #374 上给出同样的三个数。
+- `docs/architecture/FAKE_INVENTORY.md`：表里的数改成 **20 / 43 / 202 / 265**；
+  新增「`execute` 撞名」一节，列出三个树上的两套判据、十个新增类的提交归属，
+  并把「12 个文件、8 对游标+连接、12 处独立 SQL 替身」写成可数的，而不是
+  「约 10–12 处」的估计。
+- `tests/unit/test_fake_inventory_stays_measured.py`：钉子改为 **20 / 43 / 202 / 265**；
+  新增 `test_execute_alone_is_not_a_sql_surface`，把例外的四条边钉在判据上——
+  `execute` 单独 → 普通；`execute+cursor` → SQL；`execute+save` → 仓储；
+  `cursor` 单独 → SQL。聚合数只能说明「挪了一个类」，说明不了**为什么**挪。
+
+### 执行证据
+
+在本仓干净树（`origin/master` `de746b6`）上跑：
+
+```text
+python -m pytest tests/unit/test_fake_inventory_stays_measured.py -q
+5 passed in 9.50s
+```
+
+```
+旧判据 at de746b6: {'sql-fake': 21, 'store-duck-type': 43, 'plain-double': 201} 265
+新判据 at de746b6: {'sql-fake': 20, 'store-duck-type': 43, 'plain-double': 202} 265
+新判据 at 462340d: {'sql-fake': 20, 'store-duck-type': 43, 'plain-double': 192} 255
+execute-only 被旧判据算成 SQL 的类: [('tests/unit/test_adapter_protocol.py', 'DummyAdapter')]
+```
+
+`python -m ruff check scripts/classify_test_fakes.py tests/unit/test_fake_inventory_stays_measured.py`
+⇒ `All checks passed!`。全程没有设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 这条例外是往**下界**方向收紧（更少被算成 SQL 假），它**不是**证明那个类真的不说 SQL：
+  若某个类只提供 `execute` 而**确实**跑 SQL，它会被漏掉。这是已知的下界缺口，
+  写进了 `FAKE_INVENTORY.md` 的「诚实的边界」。
+- 本批**没有换任何一处替身**：`classify_test_fakes.py` 只分类，`FAKE_INVENTORY.md` 只记录，
+  测试只钉数。「换不换」的结论仍是 0 处需要换，判据仍是「换了以后，测的是不是同一件事」。
+- 十个新增类的归属是按**当前树上的类定义行** `git blame` 得到的；若以后有类被移动或重命名，
+  这张表会随盘点一起更新，而不是把旧提交号当成永久事实。
+
+**下一号队列**：把判决词通道的「产出者」补进登记册——`evidence/judging.py::verdict_for`
+**return** 那四个词，字段的写却发生在调用方，旧的六种扫描形状都看不见
+`return "PASS"`，于是 PASS / PARTIAL / MISS 三个词在登记册里「声明了却从没被写过」。
