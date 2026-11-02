@@ -88,14 +88,32 @@ is a proof only over every exit, and an early bare ``return`` would turn every `
 number in this plane into a partial read that prints as a guarantee. Population 0 on this
 tree, so the leg carries a fixture whose counts are (2, 1) and unreported, which is what
 makes the fuse a fuse rather than a comment.
+
+#549 wrote down who reads what. **The read map** is derived from this file's own source: for
+every name it imports from the plane, which legs execute it, which name it only in an
+annotation, how many legs reach it through a helper of this file, and which import is used at
+module level by nothing that runs (one: ``Member``). 31 + 3 + 85 relations, and the number the
+last two misses were about is ``EXITS_WITH_MULTIPLE_EXECUTORS``: seven exits have more than one
+executor, including the two that made predictions wrong -- ``optional_publish_bands`` (#548 arm
+E7 reddened two legs where the frozen prediction named one) and ``ruler_blind_spots`` (#547 arm
+D5, the same shape reached through two fixtures). **A second lens** rescans each leg's own lines
+with strings and comments tokenized away and agrees leg by leg over 34 direct relations, because
+a register checked only by the parser that fills it has one witness. What it does not buy: arm
+G7 replaced the derivation with the frozen table and all 24 legs stayed green, so the map's
+honesty lives in the step that generates the register, not in the legs that read it.
 """
 
 from __future__ import annotations
 
+import ast
+import io
 import re
 import sys
+import textwrap
+import tokenize
 from collections import Counter
 from pathlib import Path
+from typing import NamedTuple
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
@@ -446,6 +464,361 @@ RETURN_ACCOUNT_MISMATCHES: dict[Key, tuple[int, int]] = {
     ("get", "/api/v1/model/config"): (1, 0),
     ("post", "/api/v1/model/config"): (1, 0),
 }
+
+# ---------------------------------------------------------------------------
+# #549 -- the read map: which leg reads which exit, derived from this file's own source
+#
+# Two prediction misses in a row had the same cause, and neither was bad reasoning: #547's arm
+# D5 reddened two legs where one was predicted, and #548's arm E7 reddened two legs where one
+# was predicted, because ``optional_publish_bands`` has two executors and "which legs read this
+# exit" lived only in the table printed *after* the arms ran. So the map is now derived inside
+# the gate, from this file's syntax tree, and four legs read it.
+#
+# Three relations, plus one that is not a leg at all:
+#   executed   -- the name occurs in the leg's own statements, not only in an annotation;
+#   annotated  -- the name occurs only inside an annotation subtree of that leg;
+#   via-helper -- the leg does neither, but a helper of this file it reaches does;
+#   alias-only -- module level only (a type alias), read by no leg, and invisible to ruff
+#                 because the import genuinely is used -- just never by a test.
+#
+# A second lens over the same fact reads the *text* of each leg's line span with strings and
+# comments tokenized away. The two agree leg by leg, which is what keeps a recited register
+# from passing as a measurement: the AST lens alone could be stubbed into agreeing with itself.
+
+
+#: One row per name this file imports from the owner: the legs that execute it, the legs
+#: that only name it in an annotation, and how many legs reach it through a helper of this
+#: file. ``_read_map`` produces it; ``test_the_exit_read_map_is_measured_not_recited``
+#: recomputes it, so an edit that moves a call without moving a number is impossible here.
+EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
+    "CallShape": ((), (), 1),
+    "CallSite": ((), (), 11),
+    "Endpoint": (
+        (),
+        (
+            "test_an_optional_key_is_rostered_in_the_band_the_route_puts_it_in",
+            "test_the_conditional_register_is_measured_not_recited",
+            "test_the_unbound_register_names_the_routes_that_cannot_be_folded_and_does_not_lie",
+        ),
+        8,
+    ),
+    "Member": ((), (), 0),
+    "OptionalBand": ((), (), 1),
+    "Pair": ((), (), 11),
+    "alias_table": (("test_the_path_aliases_the_fold_rewrites_are_rostered_whole",), (), 0),
+    "call_shapes": (("test_the_definition_guard_rejects_only_definitions",), (), 0),
+    "conditional_table": (
+        (
+            "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
+            "test_the_fold_stops_where_the_caller_stopped_spelling_a_path",
+            "test_the_three_conditional_guards_each_carry_their_own_case",
+        ),
+        (),
+        0,
+    ),
+    "endpoints": ((), (), 11),
+    "frontend_calls": (
+        (
+            "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
+            "test_the_census_measures_a_population_rather_than_a_sample",
+            "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
+            "test_the_fold_stops_where_the_caller_stopped_spelling_a_path",
+            "test_the_hook_consumers_are_measured_from_their_own_bodies",
+            "test_the_three_conditional_guards_each_carry_their_own_case",
+        ),
+        (),
+        0,
+    ),
+    "hook_readings": (
+        (
+            "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
+            "test_the_hook_consumers_are_measured_from_their_own_bodies",
+        ),
+        (),
+        0,
+    ),
+    "members_of_type": ((), (), 2),
+    "normalize_path": (("test_sites_with_no_readable_declared_type_are_rostered",), (), 8),
+    "optional_publish_bands": (
+        (
+            "test_an_optional_key_is_rostered_in_the_band_the_route_puts_it_in",
+            "test_the_fold_reports_every_return_the_handler_can_take",
+        ),
+        (),
+        0,
+    ),
+    "pairings": ((), (), 11),
+    "payload_of": (
+        (
+            "test_a_required_key_is_published_by_every_return_branch",
+            "test_an_optional_key_is_rostered_in_the_band_the_route_puts_it_in",
+            "test_published_keys_the_frontend_never_declared_are_rostered",
+            "test_the_conditional_register_is_measured_not_recited",
+            "test_the_unbound_register_names_the_routes_that_cannot_be_folded_and_does_not_lie",
+        ),
+        (),
+        0,
+    ),
+    "return_accounting": (("test_the_fold_reports_every_return_the_handler_can_take",), (), 0),
+    "ruler_blind_spots": (
+        (
+            "test_the_fold_stops_where_the_caller_stopped_spelling_a_path",
+            "test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered",
+            "test_the_three_conditional_guards_each_carry_their_own_case",
+        ),
+        (),
+        0,
+    ),
+    "ts_declarations": ((), (), 11),
+    "web_src": (
+        (
+            "test_the_census_measures_a_population_rather_than_a_sample",
+            "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
+            "test_the_definition_guard_rejects_only_definitions",
+            "test_the_hook_consumers_are_measured_from_their_own_bodies",
+            "test_the_path_aliases_the_fold_rewrites_are_rostered_whole",
+            "test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered",
+        ),
+        (),
+        10,
+    ),
+}
+
+#: ``(executed, annotated, via-helper)`` relation instances over the whole table. The 85
+#: in the last column is the point of the register: most of this gate reads the plane
+#: through ``_census`` and ``_checked_pairs``, so a map that only recorded direct calls
+#: would report a gate with no helpers and lose the reads it cannot see.
+_EXIT_READ_INSTANCES = (31, 3, 85)
+
+#: The legs whose reads are all direct or annotated -- the population the cross-check
+#: compares between its two lenses. A zero here would make the agreement vacuous.
+_DIRECT_RELATION_INSTANCES = 34
+
+#: Which exits more than one leg executes, and how many do it. These are the rows an arm
+#: is about to red twice: #548's E7 moved ``optional_publish_bands`` and both of its
+#: executors failed; #547's D5 did the same to a guard layer reached through two fixtures.
+EXITS_WITH_MULTIPLE_EXECUTORS: dict[str, int] = {
+    "conditional_table": 3,
+    "frontend_calls": 6,
+    "hook_readings": 2,
+    "optional_publish_bands": 2,
+    "payload_of": 5,
+    "ruler_blind_spots": 3,
+    "web_src": 6,
+}
+
+#: Named by the two legs that read axis (c), spelled out because the arm prediction that
+#: missed was about identity, not count: a third executor is new information even when
+#: ``EXITS_WITH_MULTIPLE_EXECUTORS`` still says ``>= 2``.
+_AXIS_C_EXECUTORS = (
+    "test_an_optional_key_is_rostered_in_the_band_the_route_puts_it_in",
+    "test_the_fold_reports_every_return_the_handler_can_take",
+)
+
+#: Imports that reach no leg. ``Member`` is the only one and ruff cannot see it: the name
+#: is used, in the module-level alias ``Declarations``, by nothing that runs.
+EXIT_READS_ALIAS_ONLY: frozenset[str] = frozenset({"Member"})
+
+#: Legs that never execute or annotate an owner name themselves. Four roster legs read
+#: through helpers; the other four are #549's own, which read this map rather than the
+#: plane. Registered by name because "no direct read" and "no read at all" are the same
+#: zero, and the difference is only visible in the helper hop.
+LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
+    {
+        "test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two",
+        "test_every_frontend_call_site_reaches_a_route",
+        "test_every_name_this_file_imports_reaches_a_leg_or_is_rostered",
+        "test_every_route_without_a_frontend_consumer_is_rostered_by_name",
+        "test_loose_pairings_are_rostered",
+        "test_the_exit_read_map_is_measured_not_recited",
+        "test_the_private_page_interfaces_really_are_in_the_census",
+        "test_the_two_lenses_over_the_read_map_agree_leg_by_leg",
+    }
+)
+
+#: ``(names in the owner's __all__, names this file imports, names public by convention)``.
+#: Three numbers, because the surface has two seams and each is a roster below.
+_OWNER_SURFACE = (27, 21, 28)
+
+#: Exported by the owner, not imported here. The owner's surface is not this gate's
+#: surface: these six are how the plane is built (``Payload``, ``api_routers``,
+#: ``path_candidates``) or shapes other files consume (``BlindSpot``, ``HookReading``,
+#: ``ReturnAccount``). Importing one is legitimate, and it must move ``_OWNER_SURFACE``.
+_OWNER_EXPORTED_NOT_IMPORTED: frozenset[str] = frozenset(
+    {
+        "BlindSpot",
+        "HookReading",
+        "Payload",
+        "ReturnAccount",
+        "api_routers",
+        "path_candidates",
+    }
+)
+
+#: Public by name in the owner yet absent from ``__all__``: a name another module may
+#: import today and a leg would not see in the export list. ``HTTP_VERBS`` is the one
+#: row, and the seam it opens goes both ways -- it is why ``surface`` is a triple.
+_OWNER_PUBLIC_NOT_EXPORTED: frozenset[str] = frozenset({"HTTP_VERBS"})
+
+
+class ReadMap(NamedTuple):
+    """What this file's source says about its own imports."""
+
+    rows: dict[str, tuple[frozenset[str], frozenset[str], frozenset[str]]]
+    alias_only: frozenset[str]
+    legs: frozenset[str]
+    surface: tuple[int, int, int]
+    exported_not_imported: frozenset[str]
+    public_not_exported: frozenset[str]
+
+
+def _annotation_names(node: ast.AST) -> set[str]:
+    """Every bare name that sits inside an annotation subtree of ``node``."""
+    out: set[str] = set()
+    for sub in ast.walk(node):
+        ann: ast.expr | None = None
+        if isinstance(sub, (ast.AnnAssign, ast.arg)):
+            ann = sub.annotation
+        elif isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            ann = sub.returns
+        if ann is not None:
+            out |= {n.id for n in ast.walk(ann) if isinstance(n, ast.Name)}
+    return out
+
+
+def _executable_names(fn: ast.FunctionDef) -> set[str]:
+    """Bare names in a function, minus those that appear only inside annotations.
+
+    A name used both ways lands here: the annotation is not the reason the leg reads it.
+    """
+    all_names = {n.id for n in ast.walk(fn) if isinstance(n, ast.Name)}
+    return all_names - _annotation_names(fn)
+
+
+def _token_words(lines: list[str], start: int, end: int) -> set[str]:
+    """The second lens: word tokens in a line span, with strings and comments dropped.
+
+    Not a restatement of the tree walk -- it rescans the text the parser was given. A name that
+    only *looks* read (inside a docstring) reaches neither lens; a name read through an
+    f-string expression reaches both. That is the property the cross-check leg needs, because a
+    register could otherwise be kept honest only by the arm that breaks it.
+    """
+    span = textwrap.dedent("\n".join(lines[start - 1 : end]))
+    out: set[str] = set()
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(span).readline):
+            if tok.type in (tokenize.NAME, tokenize.OP):
+                out.add(tok.string)
+    except tokenize.TokenError:
+        return {"<a span this file's own lines will not tokenize>"}
+    return out
+
+
+def _owner_surface(owner: ast.Module) -> tuple[set[str], set[str]]:
+    """(``__all__`` of the owner, names public by convention) -- the two are not the same set."""
+    exported: set[str] = set()
+    for stmt in owner.body:
+        if (
+            isinstance(stmt, ast.Assign)
+            and isinstance(stmt.value, (ast.List, ast.Tuple))
+            and any(isinstance(t, ast.Name) and t.id == "__all__" for t in stmt.targets)
+        ):
+            exported = {
+                e.value
+                for e in stmt.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            }
+    public = {
+        node.name
+        for node in owner.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        and not node.name.startswith("_")
+    }
+    for stmt in owner.body:
+        if isinstance(stmt, ast.Assign):
+            public |= {
+                t.id for t in stmt.targets if isinstance(t, ast.Name) and not t.id.startswith("_")
+            }
+    return exported, public
+
+
+def _read_map() -> ReadMap:
+    """Derive the exit -> leg map from this file's source. Nothing here is hand-copied."""
+    gate_src = Path(__file__).resolve().read_text(encoding="utf-8")
+    module = ast.parse(gate_src)
+    owner = ast.parse((REPO / "tests" / "_payload_plane.py").read_text(encoding="utf-8"))
+    exported, public = _owner_surface(owner)
+
+    imported: set[str] = set()
+    for stmt in module.body:
+        if (
+            isinstance(stmt, ast.ImportFrom)
+            and stmt.module
+            and stmt.module.endswith("_payload_plane")
+        ):
+            imported = {alias.asname or alias.name for alias in stmt.names}
+
+    funcs = {node.name: node for node in module.body if isinstance(node, ast.FunctionDef)}
+    legs = {name for name in funcs if name.startswith("test_")}
+    executable = {name: _executable_names(funcs[name]) & imported for name in funcs}
+    annotated = {
+        name: _annotation_names(funcs[name]) & imported - executable[name] for name in funcs
+    }
+
+    def calls_in(fn: ast.FunctionDef) -> set[str]:
+        return {
+            call.func.id
+            for call in ast.walk(fn)
+            if isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id in funcs
+        }
+
+    via: dict[str, set[str]] = {}
+    for leg in sorted(legs):
+        own = executable[leg] | annotated[leg]
+        reached: set[str] = set()
+        seen: set[str] = set()
+        stack = sorted(calls_in(funcs[leg]))
+        while stack:
+            helper = stack.pop()
+            if helper in seen:
+                continue
+            seen.add(helper)
+            reached |= (executable[helper] | annotated[helper]) - own
+            stack += sorted(calls_in(funcs[helper]))
+        via[leg] = reached - own
+
+    rows = {
+        name: (
+            frozenset(leg for leg in legs if name in executable[leg]),
+            frozenset(leg for leg in legs if name in annotated[leg]),
+            frozenset(leg for leg in legs if name in via[leg]),
+        )
+        for name in sorted(imported)
+    }
+
+    module_level: set[str] = set()
+    for stmt in module.body:
+        if isinstance(stmt, ast.FunctionDef):
+            continue
+        module_level |= {n.id for n in ast.walk(stmt) if isinstance(n, ast.Name)}
+    read_by_leg = {name for name, row in rows.items() if any(row)}
+
+    return ReadMap(
+        rows=rows,
+        alias_only=frozenset(module_level & imported - read_by_leg),
+        legs=frozenset(legs),
+        surface=(len(exported), len(imported), len(public)),
+        exported_not_imported=frozenset(exported - imported),
+        public_not_exported=frozenset(public - exported),
+    )
+
+
+def _leg_direct_reads(read: ReadMap, leg: str) -> set[str]:
+    """Names the leg itself reads (executed or annotated), without the helper hop."""
+    return {name for name, row in read.rows.items() if leg in row[0] or leg in row[1]}
+
 
 # Floors, not equalities: other lanes move this tree under us, and a census that fails
 # because a legitimate route was added gets widened by whoever is reddest. The
@@ -1295,4 +1668,140 @@ def test_the_fold_reports_every_return_the_handler_can_take(tmp_path: Path) -> N
     )
     assert not bands["/api/v1/ping"].complete, (
         "the fixture no longer shows `always` being claimed on a partial branch list"
+    )
+
+
+def test_every_name_this_file_imports_reaches_a_leg_or_is_rostered() -> None:
+    """The import list is a choice, and this leg registers both sides of it.
+
+    A name can reach the plane in four ways, and only three of them are a leg reading it:
+    ``Member`` is imported, is used, and is read by no test -- it sits in the module-level alias
+    ``Declarations``. Ruff cannot see that, because the import really is used. The other side of
+    the choice is the owner's own surface: 27 names in ``__all__`` against 21 imported here, and
+    28 public by name against those 27. Both differences are rosters, so a lane that widens the
+    import list or edits ``__all__`` moves a number instead of moving the meaning quietly.
+    """
+    read = _read_map()
+    ghosts = sorted(set(EXIT_READS) - set(read.rows))
+    gaps = sorted(set(read.rows) - set(EXIT_READS))
+    assert not ghosts and not gaps, (
+        f"the table is not over this file's imports: ghosts={ghosts} gaps={gaps}"
+    )
+
+    alias_rows = sorted(name for name, row in read.rows.items() if not any(row))
+    assert alias_rows == sorted(EXIT_READS_ALIAS_ONLY), (
+        f"which imports reach no leg moved: {alias_rows} vs {sorted(EXIT_READS_ALIAS_ONLY)}"
+    )
+    assert read.alias_only == EXIT_READS_ALIAS_ONLY, (
+        f"{sorted(read.alias_only)} are named only at module level; "
+        f"{sorted(EXIT_READS_ALIAS_ONLY)} is the roster"
+    )
+
+    assert read.surface == _OWNER_SURFACE, (
+        f"owner surface moved (__all__, imported, public): {read.surface} vs {_OWNER_SURFACE}"
+    )
+    assert read.exported_not_imported == _OWNER_EXPORTED_NOT_IMPORTED, (
+        f"the owner exports what this file does not import: {sorted(read.exported_not_imported)} "
+        f"vs {sorted(_OWNER_EXPORTED_NOT_IMPORTED)}"
+    )
+    assert read.public_not_exported == _OWNER_PUBLIC_NOT_EXPORTED, (
+        f"public by name yet missing from __all__: {sorted(read.public_not_exported)} "
+        f"vs {sorted(_OWNER_PUBLIC_NOT_EXPORTED)}"
+    )
+
+
+def test_the_exit_read_map_is_measured_not_recited() -> None:
+    """Every row of the table is recomputed here, so the map cannot age into a comment.
+
+    This is the leg that makes the register a measurement rather than a transcription: it runs
+    the same derivation over the file as it stands and diffs row by row. Moving a call from a
+    leg into a helper is the edit this exists for -- the census still passes, the plane still
+    answers, and the only number that moves is who reads what.
+    """
+    read = _read_map()
+    found = {
+        name: (tuple(sorted(row[0])), tuple(sorted(row[1])), len(row[2]))
+        for name, row in read.rows.items()
+    }
+    added = sorted(set(found) - set(EXIT_READS))
+    gone = sorted(set(EXIT_READS) - set(found))
+    moved = sorted(name for name in set(found) & set(EXIT_READS) if found[name] != EXIT_READS[name])
+    assert not added and not gone and not moved, (
+        f"the read map drifted: new={added} gone={gone} changed={moved}"
+    )
+
+    totals = (
+        sum(len(row[0]) for row in found.values()),
+        sum(len(row[1]) for row in found.values()),
+        sum(row[2] for row in found.values()),
+    )
+    assert totals == _EXIT_READ_INSTANCES, (
+        f"relation instances moved: {totals} vs {_EXIT_READ_INSTANCES}"
+    )
+
+
+def test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two() -> None:
+    """The row that made this number exist.
+
+    #548 arm E7 moved the axis's input and reddened two legs where the frozen prediction said
+    one; #547 arm D5 did the same to a guard layer read through two fixtures. Neither was a
+    reasoning error -- ``optional_publish_bands`` simply has two executors, and that was written
+    down only in the table printed after the arms ran. Here it is written down before.
+    """
+    read = _read_map()
+    multi = {name: len(row[0]) for name, row in read.rows.items() if len(row[0]) >= 2}
+    assert multi == EXITS_WITH_MULTIPLE_EXECUTORS, (
+        f"which exits more than one leg executes moved: {multi}"
+    )
+
+    axis_c = tuple(sorted(read.rows["optional_publish_bands"][0]))
+    assert len(axis_c) == 2, (
+        f"the axis now has {len(axis_c)} executors, and an arm on it is not one number"
+    )
+    assert axis_c == _AXIS_C_EXECUTORS, f"the executors of axis (c) changed identity: {axis_c}"
+    assert len(read.rows["ruler_blind_spots"][0]) == 3, (
+        "the blind-spot exit's executor count is what made #547 arm D6 worth running; it moved"
+    )
+
+
+def test_the_two_lenses_over_the_read_map_agree_leg_by_leg() -> None:
+    """AST names and tokenized words, per leg, over the same import set.
+
+    The tree lens could be stubbed into agreeing with the register it feeds -- ``return the
+    frozen table`` is one line and every other leg in this file would stay green. The text lens
+    cannot be stubbed the same way, because it does not look at the register: it rescans this
+    file's own lines with strings and comments tokenized away. That they agree on every leg is
+    the evidence that the table describes the file rather than the wish.
+
+    The roster below is what the equation says about silence: eight legs read no exit directly.
+    Four are #543/#544's roster legs, whose reads all go through ``_census`` and
+    ``_checked_pairs``; four are this number's own, which read the map instead of the plane.
+    "No direct read" and "no read" are the same zero, and only the helper hop tells them apart.
+    """
+    gate_src = Path(__file__).resolve().read_text(encoding="utf-8")
+    lines = gate_src.splitlines()
+    read = _read_map()
+
+    disagreements: list[tuple[str, list[str], list[str]]] = []
+    checked = 0
+    for node in ast.parse(gate_src).body:
+        if not isinstance(node, ast.FunctionDef) or not node.name.startswith("test_"):
+            continue
+        end = node.end_lineno or node.lineno
+        words = _token_words(lines, node.lineno, end) & set(read.rows)
+        named = _leg_direct_reads(read, node.name)
+        checked += len(named)
+        if words != named:
+            disagreements.append((node.name, sorted(words - named), sorted(named - words)))
+
+    assert not disagreements, (
+        f"the two lenses disagree over {len(disagreements)} legs: {disagreements}"
+    )
+    assert checked == _DIRECT_RELATION_INSTANCES, (
+        f"the cross-check has lost population: it compared {checked} relations, "
+        f"expected {_DIRECT_RELATION_INSTANCES}"
+    )
+    quiet = sorted(leg for leg in read.legs if not _leg_direct_reads(read, leg))
+    assert set(quiet) == LEGS_WITHOUT_DIRECT_READ, (
+        f"legs that read no exit directly moved: {quiet} vs {sorted(LEGS_WITHOUT_DIRECT_READ)}"
     )

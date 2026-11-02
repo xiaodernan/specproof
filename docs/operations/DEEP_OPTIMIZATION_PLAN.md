@@ -20066,3 +20066,192 @@ FAILED 名单与落地树**逐字相同**——落地独有红 0 条、控制独
 | ⓰ | 保持：`glued-across-depth0-operator` 真树 0 条 | 与 `sometimes` 带同一形状的 0 人口登记 |
 | ⓭ | 保持：E7 三层守卫里「先折字面量」那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
 | ⑥ | **本号关掉**（轴 (c) 建成四带名册 + 保险丝） | 前提在 `.scratch/next548/premise548_notes.md`，读数与落地一致：8/3/0/2、39 行、42 行、0 条沉默 |
+## #549 谁在读这个出口：把「出口 → 腿」做成门里的表，七条臂七条命中——而唯一一条把推导换成抄写的臂全绿
+
+### 量到的
+
+前提量测在 `.scratch/next549/`（探针 `probe549_buckets.py` / `probe549_exits.py` /
+`derive549.py`，读数 `p549_buckets.txt` / `p549_exits.txt` / `p549_derive_before.txt`），全部
+只读。它们跑在**本号的 helper 与腿都还没进文件的时候**（读数里写得很清楚：`legs 20; helpers 11`）
+—— 探针自己算四类关系与两副镜片，落地后再由门里的 `_read_map()` 重算一遍，两边数字必须相同。
+
+**「一条腿读一个出口」不是一种关系，是四种**，而连续两号的预测落空形状不同：#548 臂 E7 命中的是
+「腿通过 helper 间接触达」那一类（腿名里根本没有那个出口名），#547 臂 D5 命中的是「同一个守卫被
+两个 fixture 各读一次」。所以先把四类分开数：
+
+| 关系类 | 人口 | 说明 |
+|--------|------|------|
+| executed（腿自己执行） | **31** 条实例 | 21 个 import 名字里，`payload_of` 5 条腿、`web_src`/`frontend_calls` 各 6 条 |
+| annotated（只在注解子树里出现） | **3** 条实例 | 全是 `Endpoint`，三条腿各自把它写进 `list[Endpoint]` |
+| via-helper（经本门 helper 闭包可达） | **85** 条实例 | 这道门大多数读数走 `_census` / `_checked_pairs`，只记直接调用会报告一道没有 helper 的门 |
+| alias-only（模块级用了、没有腿读） | **1** 个：`Member` | 它在模块级别名 `Declarations` 里被用，ruff 看不见"被用了但没人跑" |
+
+另外三个此前没量过的事实：
+
+- **被 ≥2 条腿执行的出口有 7 个**：`conditional_table` 3、`frontend_calls` 6、`hook_readings` 2、
+  `optional_publish_bands` 2、`payload_of` 5、`ruler_blind_spots` 3、`web_src` 6。E7/D5 那两次
+  未命中，缺的就是这一行。
+- **4 条腿自己不执行任何出口**（`test_every_frontend_call_site_reaches_a_route`、
+  `test_every_route_without_a_frontend_consumer_is_rostered_by_name`、
+  `test_loose_pairings_are_rostered`、`test_the_private_page_interfaces_really_are_in_the_census`），
+  它们全靠 helper；"没有直接读"与"没有读"是同一个 0，只有 helper 那一跳分得开。
+- **owner 的表面不等于本门的表面**：`__all__` 27 个、本门 import 21 个、按命名约定 public 28 个。
+  两道缝各有名册：owner 导出而本门不 import 的 6 个（`BlindSpot HookReading Payload ReturnAccount
+  api_routers path_candidates`），public 而未进 `__all__` 的 1 个（`HTTP_VERBS`）。
+
+两副镜片（AST 名集 vs `tokenize` 词集）逐腿对齐，34 条直接关系 **0 处分歧**（`p549_derive_before.txt`）。
+这条交叉核对在臂之前先过一次，是为了让 L24 不是"臂跑完才补的说明"。
+
+### 判决与落地
+
+1. **落地表本身，而不是又一条产品读数**。`_read_map()` 从本门自己的源码导出四类关系，
+   门里 10 张寄存器承接读数；腿从 20 条长到 **24 条**。owner（`tests/_payload_plane.py`，
+   82,640 B）**一行未改**，产品文件一行未改。
+2. **表的诚实性靠"重算"而不是靠"抄"**：L22 每次运行都重跑一遍推导并与 `EXIT_READS` 逐行 diff，
+   所以"把调用从腿里挪进 helper 而不改数"这件事在本门里不可能静悄悄过去 —— 那正是 G5/G6 实测到的。
+3. **两副镜片是刻意造的冗余**：L24 的词镜片不看寄存器，它重扫本文件的文本（字符串与注释已被
+   tokenizer 丢掉）。它挡不住 G7 那种桩（见「发现 3」），但它是本门里唯一一条**不依赖
+   `_read_map` 的输出**就能独立成立的证据。
+4. 本号不做产品改动，也不动 ⓲（`Guide.tsx` 的 `total?:`）：那是另一号的活。
+
+### 门
+
+`tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py`
+1,298 → **1,807 行**（66,649 → 89,690 B），helper 11 → 17，腿 20 → **24**：
+
+| 新腿 | 断什么 |
+|------|--------|
+| L21 `test_every_name_this_file_imports_reaches_a_leg_or_is_rostered` | 表的键集合 == 本文件 import 集合（ghosts/gaps 双向）、alias-only 名册、owner 表面三元组与两道缝 |
+| L22 `test_the_exit_read_map_is_measured_not_recited` | 逐行重算 + 三个总数 `(31, 3, 85)` |
+| L23 `test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two` | 多执行者名册逐键相等；轴 (c) 恰好 2 个执行者**且身份相等**；`ruler_blind_spots` 恰好 3 |
+| L24 `test_the_two_lenses_over_the_read_map_agree_leg_by_leg` | AST 名集 vs 词集逐腿相等；种群 == 34；"不直接读"的 8 条腿逐名相等 |
+
+10 张寄存器：`EXIT_READS`（21 行）、`_EXIT_READ_INSTANCES = (31, 3, 85)`、
+`_DIRECT_RELATION_INSTANCES = 34`、`EXITS_WITH_MULTIPLE_EXECUTORS`（7 键）、`_AXIS_C_EXECUTORS`
+（点名两条腿）、`EXIT_READS_ALIAS_ONLY = {Member}`、`LEGS_WITHOUT_DIRECT_READ`（8 条）、
+`_OWNER_SURFACE = (27, 21, 28)`、`_OWNER_EXPORTED_NOT_IMPORTED`（6 个）、
+`_OWNER_PUBLIC_NOT_EXPORTED = {HTTP_VERBS}`。
+
+寄存器不是手抄的：`.scratch/next549/gen549_registers.py` 导入落地中的门、调用它自己的
+`_read_map()`、把输出打成可直接粘贴的寄存器文本，再由 `.scratch/next549/splice_gate549.py` 贴进
+文件 —— 数字的来源是生成步骤，不是探针的 stdout。
+
+验证：门 **24/24 绿**（落地态末次复量 134.10s）、ruff `All checks passed!`、mypy
+`Success: no issues found`；`git status` 只有本门文件一处改动；三件产品量具（23 条寄存器
+2,229 B / #547 盲区名册 346 B / #548 轴(c)+保险丝 1,033 B）在落地树与控制树 `_wt548` **逐字节相同**，
+且对 #549 那段模块 docstring **不变**（`crosstree549.py` 两棵树各一次；`docstring_invariance.py`
+同一状态跑两遍证可复现、再把 docstring 段摘掉跑第三遍证不变，末了逐字节还原并断言 sha256 相等）。
+
+**本号四条腿给关系总数贡献 0。** 落地后 `_EXIT_READ_INSTANCES` 仍是 `(31, 3, 85)`，与 20 条腿时
+探针量到的完全一致 —— 新腿读的是图（`_read_map()` 与本门寄存器），不是平面；它们因此全部落进
+`LEGS_WITHOUT_DIRECT_READ`，quiet 名册从 4 涨到 **8**。这条是刻意的对照：如果本号的四条腿也去读
+平面，`executed` 那一列就会同时涨两件事（新读数与新读者），而 G4/G5 这类臂就分不清自己红在哪一件。
+
+### 变异臂（7 条，只碰本门文件）
+
+臂只改门：`_read_map` 的推导、腿自己的文本、import 列表。**每条臂都是保行为的**，所以
+共同不变量是 L1–L20 在七条臂里全绿（实测确实如此），而三件产品量具逐字节不变（实测 7/7）。
+预测冻结在 `.scratch/pred549.md`（写于任何臂之前），臂驱动 `.scratch/next549/drive549.py`，
+读数 `.scratch/next549/p549_arms.txt` 与 `.scratch/arm549/arms549_summary.txt`。
+
+| 臂 | 变异 | 预测 | 实测 |
+|----|------|------|------|
+| G1 | helper 那一跳的入口栈置空（`stack = []`） | L21 + L22 红 | **命中**：2 failed / 22 passed；`via` 85→0，alias-only 1→**9**（`CallShape CallSite OptionalBand Pair endpoints members_of_type pairings ts_declarations` + `Member`），L23/L24 绿、直接关系仍 34 |
+| G2 | `_executable_names` 不再减注解名（注解算执行） | L22 + L23 红 | **命中**：2 failed / 22 passed；`Endpoint` 0/3 → 3/0，totals (34, 0, 85)，`multi` 多出 `Endpoint: 3`；L24 绿（两镜片仍同意） |
+| G3 | 在 `test_loose_pairings_are_rostered` 的 docstring 里用散文点名 `web_src` 与 `payload_of` | **预测全绿**（负对照） | **命中**：24 passed；读图与落地树逐行相同（去掉路径行后 0 移动）——散文里的名字两副镜片都不认 |
+| G4 | 往 import 列表加 `Payload`（owner 导出、本门未 import 的 6 个之一） | L21 + L22 红、L24 必须绿 | **命中**：2 failed / 22 passed；`rows` 21→22、`surface` (27,21,28)→(27,22,28)、alias-only 加 `Payload`、`exported_not_imported` 少 `Payload`；**直接关系仍 34** ⇒ L24 绿 |
+| G5 | 把 `hook_readings(web_src(REPO))` 从 L13 抽进新模块级 helper | L22 + L23 + L24 红、L21 绿 | **命中**：3 failed / 21 passed；`hook_readings` exec 2→1、`multi` 少一键、totals (30, 3, **86**)、**直接关系 34→33**；L21 绿（`Payload` 级的事没发生） |
+| G6 | 在一条"安静"的名册腿里加一句真执行 `optional_publish_bands(REPO)` | L22 + L23 + L24 红、L21 绿 | **命中**：3 failed / 21 passed；轴 (c) 执行者 2→**3** 且**身份变**（`test_every_frontend_call_site_reaches_a_route` 加入）、`quiet_legs` 8→**7**、totals (32, 3, 85)、**直接关系 34→35**；两副镜片对这条新读数**同意**，L24 红在人数与名册、不红在分歧 |
+| G7 | `_read_map()` 开头直接返回按寄存器拼出的 `ReadMap`（把推导换成抄写） | **预测全绿**（这是发现） | **命中**：24 passed；**连第四件量具都报"读图与落地树相同"** —— 因为寄存器今天仍然准确 |
+
+**七条臂七条命中，包括两条预测全绿的臂都按预测绿**。这是载荷面连续四号（#546/#547/#548/#549）
+里第一次臂与预测的腿集合完全一致 —— 而 #547 的 D5 与 #548 的 E7 恰好都栽在"身份没写进表"这件事上。
+把身份写进表以后，预测不再靠腿名推断，这是 ⓯ 的验收方式，不是它的副产品。
+
+### 发现
+
+1. **量具的输出里混了身份，逐字节比较就永远不等。** `map549.py` 第一行打印被测树的路径，于是
+   `drive549.py` 里"读图 vs 落地树"这一列对**七条臂全部**报 MOVED，包括两条本应惰的 G3/G7。
+   真实的比较要去掉路径行（`.scratch/next549/mapdiff549.py` → `.scratch/arm549/mapdiff549.txt`，
+   结果是 G3/G7 移动 0 行、其余五条按预测移动 3–13 行）。这与 #548 的 `39 行 vs 42 行` 是同一类
+   错误的另一面：那次是两个读数被当成一个数，这次是一个字符串里既装读数又装身份。三件老量具不打印
+   路径，所以它们的 MOVED/IDENTICAL 是真的 —— 差别不在臂，在量具自己。
+2. **"计数不是身份"这件事被 G7 量到了。** 桩里的 `via` 列用 `frozenset(range(count))` 就能造出
+   L22 要的 `len()`，而 L22 只比 `len(row[2])`；`exec`/`ann` 两列比的是名字，桩必须把名字也抄回去
+   才过。⇒ 一个只钉计数的断言，是"臂能绿过去"的那一类断言；本号把身份钉在 `EXITS_WITH_MULTIPLE_EXECUTORS`、
+   `_AXIS_C_EXECUTORS`、`LEGS_WITHOUT_DIRECT_READ` 三张名册上，正是为了让 G5/G6 这类移动必须改名册。
+3. **门防不住"把推导换成抄写"，这是本号的边界而不是本号的失败。** G7 之后，四条新腿里只有 L24
+   依赖一个不同于 `_read_map` 的解析器（`tokenize`），而它读的仍是同一个文件。诚实性的实际位置在
+   **生成步骤**：寄存器由 `gen549_registers.py` 调用门自己的推导产出，这一步的记录在 `.scratch` 里、
+   不在门里。⇒ 入队 ⓳：让 `_read_map` 的函数体接受一条 AST 检查——它不许引用 `EXIT_READS` 等寄存器名。
+   这条检查是可做的，且它一做，G7 就会红。
+4. **第二副镜片今天只覆盖 34 条直接关系，85 条 via 关系没有独立证据。** L24 用 `row[0]/row[1]`，
+   这是刻意的（helper 的词表要跨函数边界才数得出），但意味着 `via` 那一列是本表里唯一"只有一副眼镜"
+   的读数。⇒ 入队 ⓴：把交叉核对扩到 helper 跳（对每条腿，把它的调用闭包里各 helper 的行区间并起来
+   再走一遍词镜片）。
+5. **手工重定向的捕获名一旦与命令脱钩，"DIFFERS" 就是假的。** 本号一度报"三件产品量具里有一条
+   在 docstring 落地后变了"，实测是两份名叫 `c23__*` 的旧捕获装的是 `next548/measure548.py`（band
+   寄存器，1,770 B）而非 `measure545.py`（23 条寄存器，2,229 B）——名字与命令不同源，比较就成了
+   两个不同量具互比。驱动 `drive549.py` 从头到尾是按命令同源取数的，所以七条臂的 IDENTICAL 是真的，
+   假的只有那一次手工重命名。纠正办法是把「命令 → 文件」写进同一张表并在同一进程里跑两棵树
+   （`crosstree549.py`），而不是靠文件名回忆。
+
+### 否证与边界
+
+- 本号一行产品文件都没改，`tests/_payload_plane.py` 未改；三件产品量具在落地树与控制树逐字节相同，
+  在七条臂里也逐字节相同（7/7）。若某条臂动了它们，按 §五 的约定就是"臂在改它不该改的读数"。
+- 读图只对**本门 import 的名字**说话。owner 导出 27 个、本门 import 21 个，那 6 个差额（`Payload` 等）
+  的读者散在别的文件里，本表看不见 —— `_OWNER_EXPORTED_NOT_IMPORTED` 登记的这道缝是"本表边界"，
+  不是"全仓引用图"。要做全仓那张表是另一号的事，且它需要的是 import 图而不是本号的自解析。
+- `alias-only` 判据是"模块级 Name 节点 ∩ import − 任何腿读到"。注释与 docstring 里的名字**不算**
+  读到（G3 实测：两副镜片都不认散文）。因此"某个出口只在说明文里被提过"在表上呈现为没被读，
+  这是刻意的选择，不是漏。
+- `_read_map` 的 helper 闭包用 `while stack` 迭代、`seen` 去重，因此对自递归与互递归不会死循环；
+  但它把"能到达"当成"会执行"——一个从未被 pytest 选中的腿仍然算读者。这条与全门一样是静态读图，
+  没有运行时证据。
+- G1 的 alias-only 从 1 涨到 9 不是"9 个 import 没人用"，而是"读图失去了 helper 这一跳"。这条臂
+  单独说明了为什么 `alias_only` 名册必须与 `via` 同时钉：只钉前者会把一次推导退化误读成一次清理。
+- 全量红单对照见下一节：本号没有跑双树全量，跑的是「同提交两棵树的收件数」与「逐字节相同的受害文件」。
+
+### 红单对照：不跑 2×50 分钟的全量，跑同提交两棵树的收件数
+
+计划里本来是两次全量（#548 那种 53 分钟一轮）。量完爆炸半径后判断它不成比例，依据是三件当场测到的事：
+
+- **本门是 owner 唯一的消费者**：全仓 `.py` 里点名 `_payload_plane` 的文件 = **1 个**，就是本门自己。
+- **没有代码文件提到本门**：点名本门模块名的文件 = **2 个**，一个是 `docs/operations/DEEP_OPTIMIZATION_PLAN.md`，
+  一个是 `.pytest_cache/v/cache/nodeids`（构建产物，不入库）。
+- **没有门在断言里数测试树**：`tests/**/test_*.py` 里 `rglob("test_…")` 式的枚举 = **0 处**，
+  所以"腿从 20 涨到 24"不会移动别的门的读数。
+
+对照因此换成可算的那一件：**同一提交、同一天、同一范围的两棵树收件数**。控制树 `_wt548`
+（`1579fc1`，`git status` 只有 `docs/eval/aider-results.md`）收 **6,356** 条，落地树 `_wt549`（同提交 + 本门）
+收 **6,360** 条，差 **4** —— 正是 L21–L24（都是 `pytest --collect-only -q` 的 `testpaths = ["tests"]` 全范围）。
+
+#548 那节记录的同一提交收 **5,983** 条，与今天的 6,356 差 373，而两者是同一提交的同一范围 ⇒
+**跨天的全量总数不可比**，本号不引用 5,983 作对照。这与 #548 自己留的警告同型（"别把 16 of 22 与
+0 of 22 混着引用"）；那次的教训是覆盖面，这次的教训是日期。
+
+被杀的那次裸范围跑（10 分钟天花板，跑到 3%，`.scratch/next549/p549_full_unit.txt`）里露出
+`tests/integration/test_differential.py` 三条红，三条**全部判掉**：`test_specproof_replay_help`
+（:122）与 `test_specproof_eval_help`（:128）在落地树 **2 failed / 71.23s**，在**没有任何 #549 改动**的
+控制树 `_wt548` 同样 **2 failed / 94.31s**，而两边那个测试文件**逐字节相同**（14,656 B，sha `0fd112951c57`）
+⇒ 既有红，不是本号引入，也不在 #548 记下的 8 条名单里（那 8 条全在 `tests/unit`）。形状量到了：断言是
+`assert result.returncode == 0`（子进程退出 1），同一轮捕获线程里另有
+`UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc3`；而在同一棵树里直接跑
+`python -m cli.specproof.main replay --help` **正常打出 help** ⇒ 红在"由 pytest 以 `-X utf8` 起的这条子进程
+读通道"，不在 CLI 自己。⇒ 入队 ⓵。第三条 `test_verify_with_demo_repo_git_tags`（:91）也在**同一棵控制树**里
+红：单跑 **1 failed / 862.62s（0:14:22）**（`.scratch/next549/difftags_ctl548.txt`）—— 它需要 14 分钟，
+正是本号前两轮 10 分钟窗口切掉它的原因。三条全部判为既有红，本号零新增红。
+
+### 下一号队列（取号按落地时点 max+1）
+
+| 项 | 内容 | 为什么 |
+|----|------|--------|
+| ⓯ | **本号关掉**：出口 → 腿 的映射做成门里的表（四类关系 + 三道身份名册） | 验收不是"表建了"，是"七条臂七条命中、含两条按预测全绿"；D5/E7 缺的正是这张表 |
+| ⓳ | 新增：`_read_map` 的函数体不许引用本门寄存器名（AST 可查的自指禁令） | G7 实测：把推导换成抄写，24 条腿全绿、第四件量具也说"相同"。这条腿一加，G7 必须红。前提量测决定它的**形状**：全覆盖禁令今天就有 7 个 helper 违反（`_census`/`_checked_pairs`/`_declares_on_the_line`/`_handler_source` 点 `REPO`，`_band_row` 点 `_BANDS`，`_page` 点 `_PAGE`，`_read_map` 点 `REPO`），所以它只能是"生成者单点禁令 + fixture 锚点名册"，不能是 blanket |
+| ⓴ | 新增：把两副镜片的交叉核对扩到 via 那一跳（85 条关系今天只有一副眼镜） | L24 只比 `row[0]/row[1]`；`via` 用 `frozenset(range(n))` 就能骗过 `len()`（发现 2 的实测形状）。前提量测已回来：闭合词镜片与推导的 via 集在 **24/24 条腿**上**相等**、over-report 为空 ⇒ 可以按"逐腿相等"落，不必退成包含；空 via 的腿有 12 条，需要名册 |
+| ⓵ | 新增：`tests/integration/test_differential.py` 两条既有红的子进程读通道 | 控制树同样红、测试文件逐字节相同 ⇒ 与本号无关。形状是 #513 那一族（`text=True` 无 `encoding=` ⇒ 按 cp936 解码，子进程写 UTF-8 时读者线程死掉、`stdout` 回来是 `None`），但 #513 的名册只走 `craft/`（`tests/unit/test_craft_child_output_codec_is_named.py:599`），测试侧的 `_specproof`（:47）不在里面。先量"测试侧还有几个这种捕获点"再决定是扩名册还是新建一张 |
+| ⓱ | 保持：`test_a_required_key_is_published_by_every_return_branch` 消费 `Payload.always` 却不查 `complete` | 今天"沉默不一致"人口 0 ⇒ 没有暴露；但它是 (a) 腿与保险丝之间唯一的缝 |
+| ⓲ | 保持：产品改动 `Guide.tsx:74` 的 `total?:` → 必填（先量"改了谁会红"再改） | #548 发现 2 的判决是产品事实；本号的读图恰好给了"改了谁会红"的可查方式（`EXIT_READS` + 轴(c) 两条腿） |
+| ⓰ | 保持：`glued-across-depth0-operator` 真树 0 条 | 与 `sometimes` 带同一形状的 0 人口登记 |
+| ⓭ | 保持：E7 三层守卫里"先折字面量"那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
