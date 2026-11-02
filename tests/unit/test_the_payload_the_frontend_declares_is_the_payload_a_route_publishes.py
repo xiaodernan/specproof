@@ -35,7 +35,7 @@ the guard itself.
 
 What is deliberately NOT claimed:
 
-* the 29 endpoints with no typed frontend consumer. They are rostered by name, not
+* the 13 endpoints with no typed frontend consumer. They are rostered by name, not
   folded: there is no declared shape to compare against, so a payload census there would
   be an assertion with only one side.
 * keys a handler attaches only inside one ``if`` arm. The fold merges every
@@ -43,6 +43,19 @@ What is deliberately NOT claimed:
   reads as always-present. ``CONDITIONAL_KEYS`` names exactly which keys that covers.
 * runtime truth. Nothing here makes a request; a route that answers through a shape the
   fold cannot see stays in ``UNBOUND_PAYLOADS`` with a reason that has to point at code.
+
+#546 widened the consumer side twice more. **E6** reads a typed hook that is not an api
+client: ``apps/web/src/hooks/useRemoteData.ts`` declares ``<T>``, hands ``T`` to the one
+``apiGet`` in its own body, and is therefore a consumer -- but the verb is read from the
+body, never taken from the name, which is why ``HOOK_CONSUMERS`` is a leg instead of a
+table. **E7** reads the branch of a conditional argument:
+``useRemoteData<MatrixData>(jobId ? "/api/v1/jobs/" + id + "/matrix" : null)`` is one
+request whose path is chosen at runtime. The `?` of a ternary and the `?` that opens a
+query string are the same character, so E7 splits on a copy with its literals masked --
+the naive version measured a *loss* (47 sites read as 46, the contracts page back in the
+roster, `/agent/jobs` unpaired again). Both readings rewrite or re-classify code that
+belongs to other files, so both are rostered whole: ``PATH_CONDITIONALS`` and
+``HOOK_CONSUMERS`` carry what the ruler believed, and their legs recompute it.
 """
 
 from __future__ import annotations
@@ -63,8 +76,10 @@ from tests._payload_plane import (  # noqa: E402
     Pair,
     alias_table,
     call_shapes,
+    conditional_table,
     endpoints,
     frontend_calls,
+    hook_readings,
     members_of_type,
     normalize_path,
     pairings,
@@ -113,6 +128,10 @@ def _pair_key(pair: Pair) -> Key:
 #: them (`GET /api/v1/jobs/{id}/capsule`, `POST /auth/logout`) are still here: their
 #: callers reach the backend through `doFetch` directly, which is not a typed client and
 #: has no declared shape to compare, so a wider *fold* cannot rescue them.
+#: #546 took two more: `GET /api/v1/contracts` (a page that reads through a typed hook,
+#: E6) and `GET /api/v1/jobs/{id}/matrix` (the same, through an argument that is a
+#: conditional, E7). Neither route changed; only the ruler's eye did, which is the whole
+#: argument for rostering both readings instead of trusting them.
 UNPAIRED_ENDPOINTS: frozenset[Key] = frozenset(
     {
         ("get", "/agent/jobs/{}/event-history"),
@@ -120,9 +139,7 @@ UNPAIRED_ENDPOINTS: frozenset[Key] = frozenset(
         ("get", "/api/v1/admin/certificates/revocations"),
         ("get", "/api/v1/billing/jobs/{}"),
         ("get", "/api/v1/billing/subscriptions"),
-        ("get", "/api/v1/contracts"),
         ("get", "/api/v1/jobs/{}/capsule"),
-        ("get", "/api/v1/jobs/{}/matrix"),
         ("get", "/auth/oidc/callback"),
         ("get", "/auth/oidc/login"),
         ("get", "/jobs/{}/progress"),
@@ -137,11 +154,15 @@ UNPAIRED_ENDPOINTS: frozenset[Key] = frozenset(
 #: does not break JavaScript, so these are not failures — they are the drift a reader
 #: would otherwise never see, and a new one means a route started answering with
 #: something nobody wrote down a reason for.
+#: `/jobs` gained `total` at #546 without the route changing: the third consumer of that
+#: endpoint is `Matrix.tsx`'s inline `{ jobs: Job[] }`, which asks for less than the page
+#: that has always been its witness. That is what this register is for -- a widening on
+#: the consumer side can *increase* the drift, and the drift is real either way.
 ROSTERED_EXTRA_KEYS: dict[Key, frozenset[str]] = {
     ("get", "/agent/jobs"): frozenset({"next_offset"}),
     ("get", "/api/v1/admin/audit"): frozenset({"total"}),
     ("get", "/api/v1/jobs/{}/findings"): frozenset({"sources"}),
-    ("get", "/jobs"): frozenset({"limit", "offset"}),
+    ("get", "/jobs"): frozenset({"limit", "offset", "total"}),
     ("get", "/jobs/{}/summary"): frozenset({"job_id"}),
     ("post", "/api/v1/demo/prepare"): frozenset({"repo"}),
     ("post", "/api/v1/model/test"): frozenset({"error_code"}),
@@ -192,13 +213,18 @@ LOOSE_PAIRINGS: frozenset[Key] = frozenset(
 #: for exists on the backend.
 ORPHANED_CALL_SITES: frozenset[tuple[str, str, str]] = frozenset()
 
-#: Mentions of an api client that the definition guard rejects, counted per (file, name).
-#: These three are the client functions themselves; a fourth entry is either a consumer
-#: the guard swallowed again or a client that stopped looking like a definition.
+#: Mentions of a consumer that the definition guard rejects, counted per (file, name).
+#: The three `api.ts` entries are the client functions themselves; the two hooks joined
+#: the list at #546 when E6 made a hook name call-shaped, and a hook's own
+#: `export function` line is exactly the thing the guard must still refuse. A new entry
+#: is either a consumer the guard swallowed again or a client that stopped looking like a
+#: definition.
 CLIENT_DEFINITIONS: dict[tuple[str, str], int] = {
+    ("apps/web/src/agent/components.tsx", "useAgentJob"): 1,
     ("apps/web/src/api.ts", "apiGet"): 1,
     ("apps/web/src/api.ts", "apiPost"): 1,
     ("apps/web/src/api.ts", "apiDelete"): 1,
+    ("apps/web/src/hooks/useRemoteData.ts", "useRemoteData"): 1,
 }
 
 #: Call sites with no readable declared type. Login's probe discards the response, so
@@ -238,14 +264,44 @@ PATH_ALIASES: dict[tuple[str, str], tuple[str, int]] = {
 #: refusal rule costs nothing today and still says so when it starts costing something.
 PATH_ALIAS_REFUSALS: frozenset[tuple[str, str]] = frozenset()
 
+#: Every hook the census reads as a consumer: name -> (verb, file, sites read through it).
+#: E6's claim is that a hook qualifies because of what its *body* does, so this register
+#: is recomputed from the body and the verb is the measured one -- `useAgentJob` is here
+#: with `0` sites for the same reason `api.ts`'s `path` is in the alias table with `0`:
+#: the ruler believes in it, its own call sites hand it a variable instead of a path, and
+#: a reader deserves to see that rather than re-derive it.
+HOOK_CONSUMERS: dict[str, tuple[str, str, int]] = {
+    "useAgentJob": ("get", "apps/web/src/agent/components.tsx", 0),
+    "useRemoteData": ("get", "apps/web/src/hooks/useRemoteData.ts", 3),
+}
+
+#: Hooks that issue more than one client request, so no single verb can be attributed to
+#: their type argument and the census refuses them. Empty is the claim on this tree.
+HOOK_REFUSALS: frozenset[str] = frozenset()
+
+#: Every conditional argument E7 folded into one path: (file, line) -> (path, branch as
+#: written). The branch text is part of the register because this reading replaces an
+#: expression that belongs to a page: a reader has to be able to see *which* arm the
+#: census chose, and the choice is only sound while exactly one arm is a path.
+PATH_CONDITIONALS: dict[tuple[str, int], tuple[str, str]] = {
+    ("apps/web/src/pages/Matrix.tsx", 22): (
+        "/api/v1/jobs/{}/matrix",
+        '"/api/v1/jobs/" + encodeURIComponent(jobId) + "/matrix"',
+    ),
+}
+
+#: Arguments with two path-shaped arms, which the fold refuses instead of choosing.
+#: Empty is the claim: no call on this tree makes the census guess between endpoints.
+PATH_CONDITIONAL_REFUSALS: frozenset[tuple[str, int]] = frozenset()
+
 # Floors, not equalities: other lanes move this tree under us, and a census that fails
 # because a legitimate route was added gets widened by whoever is reddest. The
 # two-sided legs are what catch a real drop.
 _MIN_ENDPOINTS = 50
 #: Measured at #544's landing: 40 endpoints paired and 45 sites read, after the two
-#: consumer-reading rules. The margin is the churn the frontend has actually shown while
-#: this campaign ran (a lane adding a page is fine; a lane losing seven of forty-five
-#: consumers is the drop these floors are for).
+#: consumer-reading rules. #546 moved the measurement to 42 paired and 48 sites and left
+#: both floors where they were: a floor that rises with every widening tracks growth
+#: instead of guarding it, and what these two are for is a lane *losing* consumers.
 _MIN_PAIRED_ENDPOINTS = 34
 _MIN_CALL_SITES = 38
 _MIN_DECLARATION_HOSTS = 30
@@ -567,6 +623,82 @@ def test_the_path_aliases_the_fold_rewrites_are_rostered_whole() -> None:
         f"only {shaped} census sites came through an alias: the reading has stopped "
         "earning the population it claims"
     )
+
+
+def test_the_hook_consumers_are_measured_from_their_own_bodies() -> None:
+    """E6: a consumer that is not an api client, qualified by what its body does.
+
+    ``useRemoteData<MatrixData>(path)`` declares a payload contract and never names a
+    verb, so the census has somewhere to get one. It takes it from the hook's own body --
+    ``apiGet<T>(path, controller.signal)`` -- which is why this leg reads the body instead
+    of a table: a register that recites "useRemoteData means GET" would stay green when a
+    lane rewrote the hook to POST, and the pairing the census reports would then be a
+    claim about a request nobody makes.
+
+    The site count belongs to the register for the same reason #544 gave the alias table
+    one. A hook that stopped being call-shaped loses its three sites, and the 48-to-38
+    floor would not notice; here the count is the claim.
+    """
+    readings = hook_readings(web_src(REPO))
+    consumers = {r.name: r for r in readings if len(r.verbs) == 1}
+    refused = sorted(r.name for r in readings if len(r.verbs) > 1)
+    assert refused == sorted(HOOK_REFUSALS), f"multi-request hooks appeared: {refused}"
+    assert set(consumers) == set(HOOK_CONSUMERS), (
+        f"hook consumers drifted: new={sorted(set(consumers) - set(HOOK_CONSUMERS))} "
+        f"gone={sorted(set(HOOK_CONSUMERS) - set(consumers))}"
+    )
+    calls, _excluded = frontend_calls(web_src(REPO))
+    for name, reading in consumers.items():
+        verb, host, rostered = HOOK_CONSUMERS[name]
+        assert reading.verbs == (verb,), f"{name} issues {reading.verbs}, register says {verb}"
+        assert reading.file == host, f"{name} moved to {reading.file}"
+        found_sites = sum(1 for site in calls if site.via_hook == name)
+        assert found_sites == rostered, (
+            f"{name}: the register says it shaped {rostered} census sites, the census found "
+            f"{found_sites}"
+        )
+
+
+def test_the_conditional_branches_the_fold_rewrites_are_rostered_whole() -> None:
+    """E7: an argument that is a ternary, and the one arm the census was allowed to take.
+
+    ``jobId ? "/api/v1/jobs/" + id + "/matrix" : null`` is a request whose path is chosen
+    at runtime. Folding it is a rewrite of somebody else's expression, so the register
+    carries the branch as written: the claim is not "this page reads the matrix" but "this
+    arm of this ternary is the path the census used", and a reader can check it.
+
+    The masked literal is only one of three guards, and on today's tree it is the one with
+    no work to do: C3 (unmask alone) measured 14 green legs and an unmoved census, because
+    `_fold_argument` asks for branches only after the literal-and-alias fold has failed and
+    the single argument that reaches it has no ``?`` inside a literal. The damage belongs to
+    C3b, which drops the ordering too -- and there it is exactly what the #546 rehearsal
+    predicted: 48 sites became 46, the contracts page went back to
+    ``UNPAIRED_ENDPOINTS``, ``/agent/jobs`` lost its loose pairing, and the extras register
+    lost an endpoint, four registers moving to make the census look *narrower*. Two path
+    shaped arms are a refusal for the same reason: a ruler that picks one of two endpoints
+    has paired a call with a contract its caller never asked for.
+    """
+    rows, refused = conditional_table(web_src(REPO))
+    found = {(file, line): (path, branch) for file, line, path, branch in rows}
+    added = sorted(set(found) - set(PATH_CONDITIONALS))
+    removed = sorted(set(PATH_CONDITIONALS) - set(found))
+    moved = sorted(
+        (key, found[key], PATH_CONDITIONALS[key])
+        for key in set(found) & set(PATH_CONDITIONALS)
+        if found[key] != PATH_CONDITIONALS[key]
+    )
+    assert not added and not removed and not moved, (
+        f"conditional table drifted: new={added} gone={removed} changed={moved}"
+    )
+    assert {(file, line) for file, line, _paths in refused} == PATH_CONDITIONAL_REFUSALS, (
+        f"the fold started refusing (or stopped refusing) arguments: {sorted(refused)}"
+    )
+    calls, _excluded = frontend_calls(web_src(REPO))
+    for file, line, path, _branch in rows:
+        site = next((s for s in calls if s.file == file and s.line == line), None)
+        assert site is not None and site.path == path, (
+            f"{file}:{line} is rostered as a rewritten branch but the census has no such site"
+        )
 
 
 def _identifiers(text: str) -> set[str]:

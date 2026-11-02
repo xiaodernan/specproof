@@ -34,6 +34,15 @@ THE RULES, each one sentence:
       on the degraded path does not "publish A ∪ B" -- the browser gets whichever it
       got, so every required key must appear in every branch. This is the #542 hole
       and the reason ``total`` over branches would be a weaker rule.
+  E6  a consumer is not only a client function. A typed hook that declares its own
+      shape and issues exactly one client request inside its body
+      (``useRemoteData<T>(path)`` -> ``apiGet<T>(path, signal)``) is a call site whose
+      verb is READ from the body, never declared next to the name.
+  E7  an argument may be a conditional -- ``jobId ? "/api/v1/jobs/" + id + "/matrix"
+      : null`` -- and then exactly one of its branches is a path. The ``?`` of a
+      ternary and the ``?`` that opens a query string are the same character, so the
+      split happens on a copy whose string literals are masked first. Two path-shaped
+      branches are refused, not merged: one site may not be paired with two endpoints.
 
 Test files under ``__tests__`` are excluded from pairing: they assert against mocks,
 so a mismatch there is not a user-visible one. The exclusion is a *counted* rule
@@ -44,7 +53,7 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -59,6 +68,10 @@ _TEST_PATH_PARTS = ("__tests__",)
 _TEST_SUFFIXES = (".test.ts", ".test.tsx")
 
 HTTP_VERBS = ("get", "post", "put", "patch", "delete")
+#: The client functions, and nothing else. A *hook* is deliberately not listed by name:
+#: `hook_readings` decides which `use*` functions are consumers by reading the request
+#: out of their bodies, so a lane that writes a second typed hook extends the consumer
+#: population without editing the ruler -- and the gate rosters what it then believed.
 _CLIENT_VERBS = {
     "apiGet": "get",
     "apiPost": "post",
@@ -95,6 +108,14 @@ class CallSite:
     #: Same-file aliases this argument was rewritten through, in the order used. Empty
     #: unless the path came from a `const name = "/api/..."` rather than a literal.
     via_aliases: tuple[str, ...] = ()
+    #: The conditional branch this path was taken from, as written. Empty unless the
+    #: argument is a ternary and exactly one of its branches folds to a path.
+    via_conditional: tuple[str, ...] = ()
+    #: The consumer name that is not an api client when this site was read through it
+    #: (`useRemoteData`), empty for a site that came straight from a client call. A hook
+    #: that stopped being read loses its sites without failing a floor, so the count
+    #: belongs to the register that names the hook.
+    via_hook: str = ""
 
     @property
     def candidates(self) -> tuple[str, ...]:
@@ -103,6 +124,22 @@ class CallSite:
     @property
     def key(self) -> tuple[str, str]:
         return (self.verb, self.candidates[0])
+
+
+@dataclass(frozen=True)
+class HookReading:
+    """One exported ``use*`` function and the client requests its body issues.
+
+    The verb list is read from the body, in source order: one request makes the hook a
+    consumer whose declared shape is its own type argument, two or more mean a call site
+    cannot be attributed to one verb, and the gate registers the refusal instead of
+    picking the first.
+    """
+
+    name: str
+    file: str
+    line: int
+    verbs: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -403,9 +440,13 @@ def _split_required(members: list[Member]) -> set[str]:
 # E2 -- frontend call sites
 
 
-#: The client verb only; the type argument is read by `_call_at`, which balances the
-#: angle brackets instead of capturing them with a non-greedy regex.
-_CALL_RE = re.compile(r"\b(apiGet|apiPost|apiPut|apiPatch|apiDelete)\b\s*")
+#: The client verbs only; the type argument is read by `_call_at`, which balances the
+#: angle brackets instead of capturing them with a non-greedy regex. Hook consumers are
+#: added per tree by `_consumer_re`, because which hooks qualify is read from their
+#: bodies (E6) rather than written here.
+_CLIENT_RE = re.compile(
+    r"\b(" + "|".join(_CLIENT_VERBS) + r")\b\s*"
+)
 
 
 def _first_arg(text: str, after_paren: int) -> str:
@@ -526,6 +567,234 @@ def _file_aliases(text: str) -> tuple[dict[str, str], tuple[str, ...]]:
     return table, tuple(sorted(name for name, count in declared.items() if count > 1))
 
 
+_LITERAL_SPAN = re.compile(r"(['\"`])(.*?)\1", re.S)
+
+
+def _mask_literals(arg: str) -> str:
+    """`arg` with the inside of every string literal blanked, the same length.
+
+    A ternary's `?` and the `?` that opens a query string are the same character, and an
+    argument usually carries both: `"/api/v1/contracts?status=" + status + (repo ? … )`.
+    Masking keeps the indices aligned, so the split found on the copy can be applied to
+    the original. The B11 arm of #544 measured the cost of the unmasked reading on the
+    alias rule; H2 of the #546 rehearsal measured it here, and it was worse -- the naive
+    split read the query string as a condition and cost the contracts pairing.
+
+    C3 separates the two guards and finds the mask **inert on today's population**:
+    `_fold_argument` only asks for branches once the literal fold has failed, and the one
+    argument that reaches it (`Matrix.tsx:22`) has no `?` inside a literal. The damage the
+    rehearsal saw belongs to C3b, which also drops that ordering -- two sites lost
+    (`Contracts.tsx:17` and `api.ts:991`'s `/agent/jobs` loose pairing), none gained. The
+    mask is paid for by the day a folded argument grows a query string of its own.
+    """
+    out = list(arg)
+    for match in _LITERAL_SPAN.finditer(arg):
+        for i in range(match.start() + 1, max(match.start() + 1, match.end() - 1)):
+            if out[i] != "\n":
+                out[i] = " "
+    return "".join(out)
+
+
+def _conditional_branches(arg: str) -> tuple[str, ...]:
+    """The two arms of a depth-0 conditional, or ``()`` when the argument is not one.
+
+    Depth 0 only. An argument like ``"/api/v1/x" + (repo ? "&repo_path=" + q : "")`` has
+    its ternary inside parentheses, and splitting that would rewrite a sub-expression no
+    caller asked the ruler to read -- the same over-reach that E7's roster exists to
+    make visible. ``??`` and ``?.`` are not conditionals.
+    """
+    masked = _mask_literals(arg)
+    depth = 0
+    mark = -1
+    pending = 0
+    for i, ch in enumerate(masked):
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            if ch == "?":
+                if masked[i + 1 : i + 2] in ("?", "."):
+                    continue
+                if mark < 0:
+                    mark = i
+                else:
+                    pending += 1
+            elif ch == ":" and mark >= 0:
+                if pending:
+                    pending -= 1
+                else:
+                    return (arg[mark + 1 : i], arg[i + 1 :])
+    return ()
+
+
+def _fold_argument(
+    arg: str, aliases: dict[str, str]
+) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
+    """(path, the conditional branch it was taken from, the branch paths refused).
+
+    The literal-and-alias fold runs first, so an argument that already spells its path is
+    never rewritten by E7. Only a fold that does not produce a path is read as a
+    conditional. Two path-shaped arms are a refusal rather than a choice: one call site
+    cannot be paired against two endpoints, and taking the first would have the ruler
+    invent the contract the caller did not commit to.
+    """
+    path, _built = _path_of_argument(_splice_aliases(arg, aliases)[0])
+    if path.startswith("/"):
+        return path, (), ()
+    hits: list[tuple[str, str]] = []
+    for branch in _conditional_branches(arg):
+        folded, _b = _path_of_argument(_splice_aliases(branch, aliases)[0])
+        if folded.startswith("/"):
+            hits.append((branch.strip(), folded))
+    if len(hits) == 1:
+        return hits[0][1], (hits[0][0],), ()
+    return path, (), tuple(folded for _text, folded in hits)
+
+
+def conditional_table(
+    web_src: Path,
+) -> tuple[list[tuple[str, int, str, str]], list[tuple[str, int, tuple[str, ...]]]]:
+    """What E7 rewrote -- (file, line, folded path, branch text) -- and what it refused.
+
+    The rows come from the census itself, so a register entry that shaped no site is a
+    mismatch the gate can see. The refusals need a second look, because a refused
+    argument never becomes a site: without this list, "the rule that gave up" and "the
+    rule that found nothing to give up on" would read the same.
+    """
+    calls, _excluded = frontend_calls(web_src)
+    rows = [
+        (site.file, site.line, site.path, site.via_conditional[0])
+        for site in calls
+        if site.via_conditional
+    ]
+    refused: list[tuple[str, int, tuple[str, ...]]] = []
+    pattern = _consumer_re(_consumer_names(web_src))
+    for ts in _web_sources(web_src):
+        if _is_test_file(ts):
+            continue
+        rel = _rel_in_web(web_src, ts)
+        text = ts.read_text(encoding="utf-8")
+        aliases, _ambiguous = _file_aliases(text)
+        for match in pattern.finditer(text):
+            if not _is_call(text, match):
+                continue
+            found = _call_at(text, match.end())
+            if found is None:
+                continue
+            _path, _used, rejected = _fold_argument(_first_arg(text, found[1]), aliases)
+            if rejected:
+                line = text[: match.start()].count("\n") + 1
+                refused.append((rel, line, rejected))
+    return rows, refused
+
+
+#: A hook consumer's definition. `[ \t]` rather than `\s*` after `^` on purpose: `\s*`
+#: swallows the blank line above, so the census reported `useAgentJob` one line early --
+#: on the blank, measured while writing this rule. A line that points at nothing is a
+#: witness a reader cannot check.
+_HOOK_DEF = re.compile(r"^[ \t]*(?:export\s+)?function\s+(use[A-Z][\w$]*)\b", re.M)
+
+
+def _past_paren(text: str, pos: int) -> int:
+    """Index just past the first balanced ``(...)`` at or after ``pos``, or -1."""
+    start = text.find("(", pos)
+    if start == -1:
+        return -1
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    return -1
+
+
+def _function_body(text: str, signature_end: int) -> tuple[str, int]:
+    """The text between a function's braces, and the index just past the closing one.
+
+    Braces inside string literals are counted, which on this tree cannot be reached: a
+    hook body whose brace count is wrong ends up unreadable, and an unreadable body
+    yields no verbs, so the gate's hook register -- not a silently wrong verb -- is what
+    changes.
+    """
+    start = text.find("{", signature_end)
+    if start == -1:
+        return "", -1
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1 : i], i + 1
+    return "", -1
+
+
+def hook_readings(web_src: Path) -> list[HookReading]:
+    """Every ``use*`` function on the frontend that issues a client request.
+
+    E6's population, measured rather than named: a hook is a consumer because its body
+    contains an ``api*`` call, and its verb is that call's verb. Two hooks qualify on
+    this tree -- `useRemoteData` (one `apiGet`, whose path the caller hands in) and
+    `useAgentJob` (one `apiGet`, whose path is built inside). A hook that issues two
+    requests is still reported, with both verbs, so the gate can refuse it by name
+    instead of reading it as one.
+    """
+    out: list[HookReading] = []
+    for ts in _web_sources(web_src):
+        if _is_test_file(ts):
+            continue
+        rel = _rel_in_web(web_src, ts)
+        text = ts.read_text(encoding="utf-8")
+        for match in _HOOK_DEF.finditer(text):
+            sig = _past_paren(text, match.end())
+            if sig == -1:
+                continue
+            body, _end = _function_body(text, sig)
+            verbs = tuple(
+                _CLIENT_VERBS[m.group(1)]
+                for m in _CLIENT_RE.finditer(body)
+                if _is_call(body, m)
+            )
+            if not verbs:
+                continue
+            out.append(
+                HookReading(
+                    match.group(1),
+                    rel,
+                    text[: match.start()].count("\n") + 1,
+                    verbs,
+                )
+            )
+    return out
+
+
+def _consumer_names(web_src: Path) -> tuple[str, ...]:
+    """Client functions, plus every hook whose body issues exactly one request.
+
+    A hook with two requests is not a consumer: its type argument would be handed to
+    whichever call the ruler picked, and an invented pairing is worse than a missing one.
+    """
+    single = tuple(
+        r.name for r in hook_readings(web_src) if len(r.verbs) == 1
+    )
+    return (*_CLIENT_VERBS, *sorted(set(single)))
+
+
+def _consumer_re(names: Iterable[str]) -> re.Pattern[str]:
+    return re.compile(
+        r"\b(" + "|".join(re.escape(name) for name in names) + r")\b\s*"
+    )
+
+
+def _hook_verbs_by_name(web_src: Path) -> dict[str, str]:
+    return {r.name: r.verbs[0] for r in hook_readings(web_src) if len(r.verbs) == 1}
+
+
 def _read_angle(text: str, start: int) -> tuple[str, int] | None:
     """The balanced `<...>` block at `start`, returning (inner text, index just past it).
 
@@ -598,24 +867,33 @@ def _is_test_file(ts: Path) -> bool:
 
 
 def frontend_calls(web_src: Path) -> tuple[list[CallSite], int]:
-    """(pairs candidates, excluded test-file sites)."""
+    """(pairs candidates, excluded test-file sites).
+
+    The pattern is built per tree: the client functions plus the hooks E6 qualifies. The
+    verb of a hook site is the verb read out of that hook's body, so no name in this
+    file carries a verb the ruler was told to believe.
+    """
     out: list[CallSite] = []
     excluded = 0
+    names = _consumer_names(web_src)
+    pattern = _consumer_re(names)
+    hook_verbs = _hook_verbs_by_name(web_src)
     for ts in _web_sources(web_src):
         rel = _rel_in_web(web_src, ts)
         text = ts.read_text(encoding="utf-8")
         aliases, _refused = _file_aliases(text)
         is_test = _is_test_file(ts)
-        for match in _CALL_RE.finditer(text):
+        for match in pattern.finditer(text):
             if not _is_call(text, match):
                 continue
             found = _call_at(text, match.end())
             if found is None:
                 continue
             type_expr, after_paren = found
-            arg, used = _splice_aliases(_first_arg(text, after_paren), aliases)
-            path, _built = _path_of_argument(arg)
-            if not path.startswith("/"):
+            name = match.group(1)
+            path, used_alias = _splice_aliases(_first_arg(text, after_paren), aliases)
+            folded, branch, rejected = _fold_argument(path, aliases)
+            if not folded.startswith("/") or rejected:
                 continue
             if is_test:
                 excluded += 1
@@ -627,7 +905,17 @@ def frontend_calls(web_src: Path) -> tuple[list[CallSite], int]:
                     typed_by = "return-annotation"
             line = text[: match.start()].count("\n") + 1
             out.append(
-                CallSite(rel, line, _CLIENT_VERBS[match.group(1)], path, type_expr, typed_by, used)
+                CallSite(
+                    rel,
+                    line,
+                    _CLIENT_VERBS.get(name) or hook_verbs[name],
+                    folded,
+                    type_expr,
+                    typed_by,
+                    used_alias,
+                    branch,
+                    name if name in hook_verbs else "",
+                )
             )
     return out, excluded
 
@@ -675,13 +963,16 @@ def _is_call(text: str, m: re.Match[str]) -> bool:
 
 
 def call_shapes(web_src: Path) -> list[CallShape]:
-    """Every call-shaped mention of an api client in a product file, kept or rejected.
+    """Every call-shaped mention of a consumer in a product file, kept or rejected.
 
     ``frontend_calls`` returns the survivors; this returns the whole population so a
     gate can audit the guard itself instead of trusting it. Test files are left out
-    because their mentions are counted as an exclusion, not as consumers.
+    because their mentions are counted as an exclusion, not as consumers. Hook consumers
+    are included, which is how a hook's own ``export function`` line becomes a shape the
+    definition guard has to answer for.
     """
     out: list[CallShape] = []
+    pattern = _consumer_re(_consumer_names(web_src))
     for ts in sorted(list(web_src.rglob("*.ts")) + list(web_src.rglob("*.tsx"))):
         if any(part in _TEST_PATH_PARTS for part in ts.parts):
             continue
@@ -689,7 +980,7 @@ def call_shapes(web_src: Path) -> list[CallShape]:
             continue
         rel = _rel_in_web(web_src, ts)
         text = ts.read_text(encoding="utf-8")
-        for match in _CALL_RE.finditer(text):
+        for match in pattern.finditer(text):
             if text[match.end() : match.end() + 1] not in ("<", "("):
                 continue
             out.append(
@@ -1238,7 +1529,10 @@ __all__ = [
     "CallShape",
     "CallSite",
     "call_shapes",
+    "conditional_table",
     "Endpoint",
+    "HookReading",
+    "hook_readings",
     "Member",
     "Pair",
     "Payload",
