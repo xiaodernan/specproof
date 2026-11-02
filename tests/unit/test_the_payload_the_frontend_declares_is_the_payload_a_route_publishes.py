@@ -101,6 +101,16 @@ with strings and comments tokenized away and agrees leg by leg over 34 direct re
 a register checked only by the parser that fills it has one witness. What it does not buy: arm
 G7 replaced the derivation with the frozen table and all 24 legs stayed green, so the map's
 honesty lives in the step that generates the register, not in the legs that read it.
+
+#550 put a guard on that step and gave the hop its own witness. **The ban** reads the
+generator's body from the tree: ``_read_map`` may name one uppercase binding (``REPO``, the
+root) and no helper in this file may name an uppercase binding outside the three anchors --
+so arm G7's ``return ReadMap(...)`` is now red instead of green, and the population that
+would have made a blanket ban impossible is a roster, not an excuse. **The second lens over
+``via``** walks each leg's helper closure, rescans those helpers' lines with strings and
+comments tokenized away, and must *equal* the generator's set on all 26 legs and 85
+relations: the column that had one witness now has two, and the 14 legs whose hop comes back
+empty are named, because two empty sets agree for the wrong reason just as easily.
 """
 
 from __future__ import annotations
@@ -620,9 +630,10 @@ _AXIS_C_EXECUTORS = (
 EXIT_READS_ALIAS_ONLY: frozenset[str] = frozenset({"Member"})
 
 #: Legs that never execute or annotate an owner name themselves. Four roster legs read
-#: through helpers; the other four are #549's own, which read this map rather than the
-#: plane. Registered by name because "no direct read" and "no read at all" are the same
-#: zero, and the difference is only visible in the helper hop.
+#: through helpers; four are #549's, which read this map rather than the plane; two are
+#: #550's, which audit the map builder's own body. Registered by name because "no direct
+#: read" and "no read at all" are the same zero, and the difference is only visible in
+#: the helper hop.
 LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
     {
         "test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two",
@@ -631,7 +642,9 @@ LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
         "test_every_route_without_a_frontend_consumer_is_rostered_by_name",
         "test_loose_pairings_are_rostered",
         "test_the_exit_read_map_is_measured_not_recited",
+        "test_the_helper_hop_has_its_own_second_lens",
         "test_the_private_page_interfaces_really_are_in_the_census",
+        "test_the_read_map_generator_names_no_register_and_the_anchors_are_rostered",
         "test_the_two_lenses_over_the_read_map_agree_leg_by_leg",
     }
 )
@@ -659,6 +672,66 @@ _OWNER_EXPORTED_NOT_IMPORTED: frozenset[str] = frozenset(
 #: import today and a leg would not see in the export list. ``HTTP_VERBS`` is the one
 #: row, and the seam it opens goes both ways -- it is why ``surface`` is a triple.
 _OWNER_PUBLIC_NOT_EXPORTED: frozenset[str] = frozenset({"HTTP_VERBS"})
+
+
+#: The ten registers the read map above is made of, by name. Rostered so that the ban in
+#: ``test_the_read_map_generator_names_no_register_and_the_anchors_are_rostered`` has a
+#: population to report identity about -- which helper named which register, not how many
+#: relations moved. A register that stops existing moves this tuple.
+_READ_MAP_REGISTERS = (
+    "EXIT_READS",
+    "EXIT_READS_ALIAS_ONLY",
+    "EXITS_WITH_MULTIPLE_EXECUTORS",
+    "LEGS_WITHOUT_DIRECT_READ",
+    "_AXIS_C_EXECUTORS",
+    "_DIRECT_RELATION_INSTANCES",
+    "_EXIT_READ_INSTANCES",
+    "_OWNER_EXPORTED_NOT_IMPORTED",
+    "_OWNER_PUBLIC_NOT_EXPORTED",
+    "_OWNER_SURFACE",
+)
+
+#: Helpers whose body names one of those registers. Measured 0: the generator reaches for the
+#: repo root and for frozen literals, never for the numbers it is supposed to derive. #549's
+#: arm G7 is the shape this roster would have caught -- it named two registers and stayed green.
+_HELPERS_NAMING_READ_MAP_REGISTERS: frozenset[str] = frozenset()
+
+#: The uppercase bindings ``_read_map`` itself names. One, and it is a path.
+_READ_MAP_ANCHORS: frozenset[str] = frozenset({"REPO"})
+
+#: Every uppercase binding this file's helpers name, registers excluded. This is the scope of
+#: the ban: a helper may reach the repo root, the four band names and the page a fixture writes,
+#: and nothing else spelled in uppercase. #549 recorded "7 helpers violate" for a criterion that
+#: counted these three as violations; measured against the registers themselves the population is
+#: zero, which is why the guard is a scope plus a roster rather than a blanket.
+_ANCHOR_BINDINGS: frozenset[str] = frozenset({"_BANDS", "_PAGE", "REPO"})
+
+#: Legs whose helper hop brings back no plane name at all. The empty-via legs are the ones the
+#: cross-check below compares as empty on both sides, so they need a roster: a lens that reached
+#: no helper and a lens that reached helpers reading nothing look identical in a count.
+LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
+    {
+        "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
+        "test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two",
+        "test_every_name_this_file_imports_reaches_a_leg_or_is_rostered",
+        "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
+        "test_the_exit_read_map_is_measured_not_recited",
+        "test_the_fold_reports_every_return_the_handler_can_take",
+        "test_the_fold_stops_where_the_caller_stopped_spelling_a_path",
+        "test_the_helper_hop_has_its_own_second_lens",
+        "test_the_hook_consumers_are_measured_from_their_own_bodies",
+        "test_the_path_aliases_the_fold_rewrites_are_rostered_whole",
+        "test_the_read_map_generator_names_no_register_and_the_anchors_are_rostered",
+        "test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered",
+        "test_the_three_conditional_guards_each_carry_their_own_case",
+        "test_the_two_lenses_over_the_read_map_agree_leg_by_leg",
+    }
+)
+
+#: Sum over legs of the helpers each reaches, counted once per leg (so a helper two legs share
+#: is two edges). The population the text lens walks: 0 would mean the leg below compares two
+#: empty sets and calls it agreement.
+_CLOSURE_EDGE_TOTAL = 71
 
 
 class ReadMap(NamedTuple):
@@ -818,6 +891,67 @@ def _read_map() -> ReadMap:
 def _leg_direct_reads(read: ReadMap, leg: str) -> set[str]:
     """Names the leg itself reads (executed or annotated), without the helper hop."""
     return {name for name, row in read.rows.items() if leg in row[0] or leg in row[1]}
+
+
+def _uppercase_module_binds(module: ast.Module) -> frozenset[str]:
+    """Every module-level binding this file spells in uppercase: registers, anchors and floors.
+
+    The ban leg needs the population, not a hand-typed list of it: a register added by a later
+    number is inside the ban the moment it exists, because it is an uppercase binding.
+    """
+    out: set[str] = set()
+    for stmt in module.body:
+        if not isinstance(stmt, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets: list[ast.expr] = (
+            list(stmt.targets) if isinstance(stmt, ast.Assign) else [stmt.target]
+        )
+        out |= {t.id for t in targets if isinstance(t, ast.Name) and t.id.isupper()}
+    return frozenset(out)
+
+
+def _helper_named_binds(
+    funcs: dict[str, ast.FunctionDef], binds: frozenset[str]
+) -> dict[str, frozenset[str]]:
+    """Which of ``binds`` each module-level helper's body executes, keyed by helper.
+
+    The bind set arrives as an argument on purpose. A guard that named the registers it audits
+    would be the violation it is looking for, and ``_read_map``'s own body would then be read
+    by a helper that reads it -- the self-reference this leg exists to refuse.
+    """
+    return {
+        name: frozenset(_executable_names(funcs[name]) & binds)
+        for name in sorted(funcs)
+        if not name.startswith("test_")
+    }
+
+
+def _helper_closure(funcs: dict[str, ast.FunctionDef], leg: str) -> tuple[str, ...]:
+    """Every helper ``leg`` reaches, transitively -- the same walk the generator's stack makes.
+
+    Written beside ``_read_map`` rather than inside it, so the second lens over the helper hop
+    can disagree with the generator: this one answers *which helpers*, and the leg below
+    compares *what they read*.
+    """
+
+    def calls_in(fn: ast.FunctionDef) -> set[str]:
+        return {
+            call.func.id
+            for call in ast.walk(fn)
+            if isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id in funcs
+        }
+
+    seen: set[str] = set()
+    stack = sorted(calls_in(funcs[leg]))
+    while stack:
+        helper = stack.pop()
+        if helper in seen:
+            continue
+        seen.add(helper)
+        stack += sorted(calls_in(funcs[helper]))
+    return tuple(sorted(seen))
 
 
 # Floors, not equalities: other lanes move this tree under us, and a census that fails
@@ -1805,3 +1939,118 @@ def test_the_two_lenses_over_the_read_map_agree_leg_by_leg() -> None:
     assert set(quiet) == LEGS_WITHOUT_DIRECT_READ, (
         f"legs that read no exit directly moved: {quiet} vs {sorted(LEGS_WITHOUT_DIRECT_READ)}"
     )
+
+
+def test_the_read_map_generator_names_no_register_and_the_anchors_are_rostered() -> None:
+    """⓳: the derivation may not read the numbers it is supposed to produce.
+
+    #549's arm G7 put a ``return ReadMap(...)`` built from the registers at the top of
+    ``_read_map`` and every leg stayed green -- 24 passed, and the instrument that diffs the
+    read map against the landing tree said "same", because the registers were still accurate.
+    So the honesty of this table does not live in the legs that read it; it lives in the step
+    that generates it, and until this leg existed, nothing in the file said so.
+
+    The ban is a scope, not a blanket. ``_read_map`` may name exactly one uppercase binding --
+    ``REPO``, the root it reads this file and the owner from -- and no helper in the file may
+    name any uppercase binding outside the three anchors below. The bind set is measured from
+    the tree rather than typed out, so a register added by a later number falls under the ban
+    the moment it exists instead of waiting to be rostered.
+    """
+    module = ast.parse(Path(__file__).resolve().read_text(encoding="utf-8"))
+    funcs = {n.name: n for n in module.body if isinstance(n, ast.FunctionDef)}
+    read = _read_map()
+    binds = _uppercase_module_binds(module)
+    registers = frozenset(_READ_MAP_REGISTERS)
+    named = _helper_named_binds(funcs, binds)
+    plane_named = _helper_named_binds(funcs, frozenset(read.rows))
+
+    unbound = registers - binds
+    assert not unbound, f"a register this leg audits is not a module binding: {sorted(unbound)}"
+
+    violators = frozenset(name for name, hits in named.items() if hits & registers)
+    assert violators == _HELPERS_NAMING_READ_MAP_REGISTERS, (
+        f"helpers whose body names a read map register: "
+        f"{sorted((name, sorted(named[name] & registers)) for name in violators)}"
+    )
+    assert named["_read_map"] == _READ_MAP_ANCHORS, (
+        f"the generator names {sorted(named['_read_map'])} as its uppercase bindings; "
+        f"the roster says {sorted(_READ_MAP_ANCHORS)}"
+    )
+
+    seen: set[str] = set()
+    for hits in named.values():
+        seen |= hits
+    assert frozenset(seen) == _ANCHOR_BINDINGS, (
+        f"the uppercase bindings this file's helpers reach moved: {sorted(seen)} "
+        f"vs {sorted(_ANCHOR_BINDINGS)}"
+    )
+    assert not plane_named["_read_map"], (
+        f"the map builder reads the plane it is mapping: {sorted(plane_named['_read_map'])}"
+    )
+
+
+def test_the_helper_hop_has_its_own_second_lens() -> None:
+    """⓴: the helper hop stops being the one reading in this table with a single witness.
+
+    #549 recorded the gap in its own 发现 4: the direct columns are checked by two lenses --
+    ``ast`` and ``tokenize``, leg by leg over 34 relations -- while the 85 via relations were
+    produced by the generator's stack walk and confirmed by nothing else. ``frozenset(range(n))``
+    is enough to pass an assertion that compares only ``len()`` of a set, which is what arm G7
+    reached for.
+
+    The hop therefore gets a text lens: for every leg, take the helpers it reaches, rescan each
+    helper's own lines with strings and comments tokenized away, and subtract what the leg reads
+    itself. That has to *equal* the generator's via set on every leg -- equality rather than
+    containment, because the probe measured no over-report on this tree, and containment is the
+    shape a weakened lens hides behind.
+    """
+    gate_src = Path(__file__).resolve().read_text(encoding="utf-8")
+    lines = gate_src.splitlines()
+    funcs = {n.name: n for n in ast.parse(gate_src).body if isinstance(n, ast.FunctionDef)}
+    read = _read_map()
+    plane = frozenset(read.rows)
+
+    closures = {leg: _helper_closure(funcs, leg) for leg in sorted(read.legs)}
+    lens: dict[str, frozenset[str]] = {}
+    for leg, closure in closures.items():
+        own = frozenset(_leg_direct_reads(read, leg))
+        reached: set[str] = set()
+        for helper in closure:
+            end = funcs[helper].end_lineno or funcs[helper].lineno
+            reached |= _token_words(lines, funcs[helper].lineno, end) & plane
+        lens[leg] = frozenset(reached) - own
+
+    derived = {
+        leg: frozenset(name for name, row in read.rows.items() if leg in row[2])
+        for leg in closures
+    }
+    disagreements = sorted(leg for leg in closures if lens[leg] != derived[leg])
+    assert not disagreements, (
+        f"the text lens disagrees with the generator on {len(disagreements)} legs: "
+        f"{[(leg, sorted(derived[leg] ^ lens[leg])) for leg in disagreements[:3]]}"
+    )
+
+    total = sum(len(names) for names in lens.values())
+    via_total = sum(len(row[2]) for row in read.rows.values())
+    assert (total, via_total) == (_EXIT_READ_INSTANCES[2], _EXIT_READ_INSTANCES[2]), (
+        f"the hop lost or gained relations: lens {total}, register {via_total}, "
+        f"frozen {_EXIT_READ_INSTANCES[2]}"
+    )
+
+    quiet = sorted(leg for leg in lens if not lens[leg])
+    assert frozenset(quiet) == LEGS_WITHOUT_VIA_HELPER_READ, (
+        f"legs whose helper hop brings back no plane name moved: {quiet} "
+        f"vs {sorted(LEGS_WITHOUT_VIA_HELPER_READ)}"
+    )
+
+    edges = sum(len(closure) for closure in closures.values())
+    assert edges == _CLOSURE_EDGE_TOTAL, (
+        f"helper-reach edges over the legs moved: {edges} vs {_CLOSURE_EDGE_TOTAL}"
+    )
+    generators = frozenset(leg for leg, closure in closures.items() if "_read_map" in closure)
+    stray = sorted(generators - LEGS_WITHOUT_VIA_HELPER_READ)
+    assert not stray, (
+        f"a leg that reaches the generator also reaches the plane through someone else: {stray}"
+    )
+    # Measured 6: #549's four map-reading legs and this number's two.
+    assert len(generators) == 6, f"which legs reach the generator moved: {sorted(generators)}"

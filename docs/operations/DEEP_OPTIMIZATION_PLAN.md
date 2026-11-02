@@ -20255,3 +20255,151 @@ FAILED 名单与落地树**逐字相同**——落地独有红 0 条、控制独
 | ⓲ | 保持：产品改动 `Guide.tsx:74` 的 `total?:` → 必填（先量"改了谁会红"再改） | #548 发现 2 的判决是产品事实；本号的读图恰好给了"改了谁会红"的可查方式（`EXIT_READS` + 轴(c) 两条腿） |
 | ⓰ | 保持：`glued-across-depth0-operator` 真树 0 条 | 与 `sometimes` 带同一形状的 0 人口登记 |
 | ⓭ | 保持：E7 三层守卫里"先折字面量"那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
+## #550 把禁令落到生成器身上，给 via 那一跳第二副眼镜
+
+**取号**：origin/master 落地 #549（`0019a53`）后 max = 549 ⇒ 本号 **#550**。落地树 `_wt550` @ `0019a53`，
+一行产品文件都没改，`tests/_payload_plane.py` 未动，本号只改一个文件（本门）。队列 ⓳ + ⓴ —— 它们
+是同句话的两半：#549 记下"诚实性住在生成步骤里"与"85 条 via 关系只有一副眼镜"，本号把这两句
+各自变成门里的一条腿。
+
+### 先更正 #549 的一句话（判据换了，人口就换了）
+
+#549 那节写："全覆盖禁令今天就有 **7 个 helper 违反**（`_census`/`_checked_pairs`/
+`_declares_on_the_line`/`_handler_source` 点 `REPO`，`_band_row` 点 `_BANDS`，`_page` 点 `_PAGE`，
+`_read_map` 点 `REPO`），所以它只能是『生成者单点禁令 + fixture 锚点名册』，不能是 blanket"。
+那句话的判据是"点名**任何**模块级 UPPERCASE 绑定"。Ⓑ 探针（`.scratch/next550/probe550b.py`）把
+判据换成"点名本号那 10 张读图寄存器"之后，**违反人口 = 0**：那 7 个 helper 点的是三个锚点
+（`REPO` ×5、`_BANDS` ×1、`_PAGE` ×1），锚点不是寄存器。所以禁令按"任何 helper 都不许点名读图寄存器，
+且除锚点外不许点到任何 UPPERCASE 绑定"落，锚点另开名册钉住。**原判据与更正都写在这里，
+不去改 #549 已推送的正文。**
+
+### 落的两条腿
+
+**L25 `test_the_read_map_generator_names_no_register_and_the_anchors_are_rostered`**（⓳）。四个断言：
+点名任一读图寄存器的 helper 名册为空；`_read_map` 自己点到的 UPPERCASE 绑定 == `{REPO}`；
+全文件 helper 点到的 UPPERCASE 全集 == `{REPO, _BANDS, _PAGE}`；`_read_map` 点到的平面名 == ∅
+（它是推导图的人，不该顺手读平面出口）。bind 集合从 AST 现取而不是抄在本号名册里，因此
+**后一号新增的寄存器天然在禁令内**，不必等 `_READ_MAP_REGISTERS` 补一行。三个审计 helper
+（`_uppercase_module_binds`/`_helper_named_binds`/`_helper_closure`）自己一点也不点名寄存器——
+被审的人不能是审的人，所以 bind 集合走参数传入。
+
+**L26 `test_the_helper_hop_has_its_own_second_lens`**（⓴）。逐腿把"本腿调用闭包里各 helper 的
+行区间走词镜片"与生成器的 `via` 集合比**相等**（不是包含：Ⓑ 实测 over-report 为空，包含正是弱镜片
+能藏身的地方），26 条腿全等；三个总数同时钉：`lens_total == via_total == _EXIT_READ_INSTANCES[2] == 85`；
+空 via 名册逐名钉住；闭包边数总和钉 `_CLOSURE_EDGE_TOTAL`，且到达生成器的腿 ⊆ 空 via 名册
+（生成器自己读 0 个平面名，所以"能到达它"必然"-hop 为空"——这条是 L25 第四个断言与 L26 的接缝）。
+
+### 六张寄存器与落地读数
+
+| 寄存器 | 落地读数 | 臂前的预测 |
+|--------|----------|------------|
+| `_READ_MAP_REGISTERS` | 10 个名字本身 | 同上（#549 落地态就是 10 张） |
+| `_HELPERS_NAMING_READ_MAP_REGISTERS` | `frozenset()` | 预测 0，实测 0 |
+| `_READ_MAP_ANCHORS` | `{REPO}` | 预测 {REPO} |
+| `_ANCHOR_BINDINGS` | `{_BANDS, _PAGE, REPO}` | 预测 3 个，实测 3 个 |
+| `LEGS_WITHOUT_VIA_HELPER_READ` | **14** 条逐名 | 预测 12（那是 24 条腿时的读数），落地 12 + 本号两条 = 14 |
+| `_CLOSURE_EDGE_TOTAL` | **71** | 预测 58（同上，24 条腿的读数），本号两条腿各带 6/7 条边 ⇒ 71 |
+
+六张寄存器的值全部由 `apply550_values.py` 调门自己的推导产出，不是从探针手抄——这正是 ⓳ 要防的那件事。
+
+### 门内形状（哪些数动了，哪些必须不动）
+
+- 腿 **24 → 26**；门文件 1,807 → **2,056** 行（89,690 → **102,120 B**，LF、无 tab）。
+- **三列一个都没动**：`_EXIT_READ_INSTANCES` 仍是 `(31, 3, 85)`，`_DIRECT_RELATION_INSTANCES` 仍是 34，
+  `EXIT_READS` 的 21 行逐行同（`apply550_values.py` 里有断言，漂了就拒绝写）。本号两条腿读的是
+  生成器的函数体与本门自己的文本，不读平面出口 ⇒ 与 #549 那四条腿同样的刻意形状。
+- 于是"只该动的两处"确实只动了这两处：`LEGS_WITHOUT_DIRECT_READ` **8 → 10**（逐名）、
+  空 via 名册 **12 → 14**。
+- helper 17 → **20**，模块级 UPPERCASE 绑定 47 → **53**（新寄存器自己也在里面）。
+
+### 验证
+
+- 门 **26 passed**（首轮 **86.56s**；随后三处排版修正——两个空行分隔与两处推导式并成一行——复量 **72.53s**，
+  读数一字未动）；`ruff check` All checks passed；`mypy` `Success: no issues found`。
+- **收件数对照**（同一天、同一范围、两棵树，`pytest --collect-only -q` 全 `testpaths`）：
+  控制树 `_wt549`（`0019a53`，无 #550 改动）收 **6,360** 条，落地树 `_wt550` 收 **6,362** 条，
+  差 **恰好 2** = L25 + L26，没有别的东西被本号改到收件。沿用 #549 的办法，不跑 2×50 分钟全量。
+- **三件产品量具在两棵树逐字节相同**（剥掉 `rc=`/`tree ` 身份行后 2,223 B / 340 B / 1,027 B），
+  且在七条臂里也逐字节相同（**7/7**）—— 驱动是 `crosstree550.py` 与 `drive550.py`，
+  命令与捕获文件在同一张表里绑定（#549 发现 5 的教训）。
+- **第四件量具只差 2 行**：`map549.py` 在落地树 74 行、控制树 72 行，多出来的是
+  `quiet_legs 8 → 10` 那一次改写与两条新腿的名册行；21 行 `row ...` 一行都没动。
+  这就是"本号给三列贡献 0"的**门外**证据。
+- **第五件量具 `map550.py`（本号新建）在控制树跑不起来**，报
+  `AttributeError: module 'gate550_under_map' has no attribute '_uppercase_module_binds'` ——
+  它钉的是本号才有的推导，跑不起来是它属于本号的证据，不是缺陷。
+
+### 变异臂（7 条，只碰本门文件）
+
+预测冻结在 `.scratch/pred550.md`（写于任何臂之前），驱动 `.scratch/next550/drive550.py`（臂树
+`_arm550` @ `0019a53` + 落地态门文件），读数 `.scratch/arm550/batch2.txt`、`batch3.txt`、
+`batch4.txt` 与各臂的 `arm_H*_pytest.txt` / `arm_H*_hop.txt` / `arm_H*_readmap.txt`。
+每条臂锚点计数都是 `[1]*n`（H5/H7 第一轮各有一条锚因**子串包含**匹配到 2 次 / 0 次，
+driver 按约定拒绝执行并记 **ARM NOT RUN**，改正锚点后重跑 —— 见「发现 4」）。
+臂跑完逐字节还原：臂树门文件 sha256 与落地树相同（`78a2a6ff…`），七条臂零次"restore not byte-exact"。
+
+| 臂 | 变异 | 预测 | 实测 |
+|----|------|------|------|
+| H1 | 重放 #549 的 G7：`_read_map` 开头返回按寄存器拼的 `ReadMap`（`frozenset(range(via))`） | **只有 L25 红**（L26 预测绿，理由是"桩返回的行逐腿相同"） | **偏松**：2 failed —— L25 与 **L26 都红**。`violators 0→1 [('_read_map', ['EXIT_READS','EXIT_READS_ALIAS_ONLY'])]`；桩造不出逐腿身份 ⇒ `via_total 85→0`、`disagreeing 12`、`empty_via 26`。而 `map549.py` 对这次抄写仍报 **IDENTICAL**：#549 的第四件量具看不见，本号两条腿都看见了 |
+| H2 | `_census` 函数体点名一张寄存器（`assert EXIT_READS`） | **只有 L25 红**；其余全绿（寄存器名不进平面 import 集合） | **命中**：1 failed = L25；读图 IDENTICAL（三列与 `EXIT_READS` 一行没动），只有 `map550.py` MOVED（`violators 0→1`、`anchors_seen` 多出 `EXIT_READS`） |
+| H3 | 给 `_read_map` 换一个锚点：新增模块级 `GATE_PATH`，函数体改用它 | **只有 L25 红**（`_READ_MAP_ANCHORS {REPO}→{GATE_PATH}` 与 `_ANCHOR_BINDINGS 3→4` 同时动） | **命中**：1 failed = L25；`read_map_anchors ['REPO'] → ['GATE_PATH','REPO']`、`anchors_seen 3 → 4`；其余四件量具 IDENTICAL |
+| H4 | 重放 #549 的 G5：`hook_readings(web_src(REPO))` 从 L13 抽进新模块级 helper | L22 + L23 + L24 + **L26** 红（totals (30,3,86)、直接关系 34→33、via 85→86）；L21、L25 绿 | **命中**：4 failed = L22/L23/L24/L26，`legs 26 rows 21 totals (30,3,86)`、`lens_total 86 == via_total 86`、`empty_via 14→13`、`edges 71→72`、`row hook_readings exec=2→1 via=0→1`；L21/L25 绿 |
+| H5 | 把 L26 的闭包镜片改成只看**直接** helper（不递归） | **只有 L26 红** | **命中**：1 failed = L26；`lens_total 85→78`、`edges 71→46`、`disagreeing 0→7 条腿`，而 `via_total` 仍 85、读图 IDENTICAL —— 镜片变浅不改变生成器的读数，这条臂只在两副眼镜不一致时红 |
+| H6 | 在 `_read_map` 的 docstring 里用散文点名 `EXIT_READS` | **预测全绿**（负对照：禁令走 AST，散文不算） | **命中**：26 passed；五件量具全 IDENTICAL |
+| H7 | 把 `_read_map` 里的局部名 `via` 改成 `via_hops` | **预测全绿**（惰臂：一条钉模块级点名、一条钉 helper 行区间，都不钉生成者的局部名） | **命中**：26 passed；五件量具全 IDENTICAL |
+
+**七条臂的腿集合六条与预测逐字一致，一条（H1）比预测更红。** 不变量那一栏另有一处要改的是预测自己
+（发现 2：第五件量具对改禁令读数的臂**必须**移动）。与 #549 那次"七条七中"相比，本号在腿集合上
+唯一的偏差方向是**防得更多**：⓳ 的原始验收句是"这条腿一加，G7 必须红"，实测红了两条腿。
+
+### 发现
+
+1. **`frozenset(range(count))` 那根桩现在被两条腿拒绝，而不是被一条。** #549 发现 2 说"一个只钉
+   计数的断言，是臂能绿过去的那一类断言"，并把 `via` 的身份留作空白。本号 L26 把 `via` 钉成
+   **逐腿的集合**之后，抄写者必须连"哪条腿经由哪个 helper"一起抄回去才能绿 —— 而那正是寄存器
+   今天**没有**记的信息（它只存 `len`）。⇒ 入队 ⓶：把"经由哪一个 helper"这条边本身做成名册，
+   那时 H1 的桩要么抄全、要么在两条腿上红得更细。
+2. **第五件量具"0 行移动"这条不变量对 H2 与 H3 不成立，且本来就不该成立。** §五3 假设 `map550.py`
+   只打印 via 关系，实际它打印禁令的人口（`violators`、`anchors_seen`），所以任何改禁令读数的臂
+   都必须移动它。移动的是读数行而不是身份行（身份行按发现 1 的办法剥掉了），这正是量具该有的样子：
+   `arm_H2` 那一格记 MOVED 是**正确**，不是不变量破了。
+3. **锚点与寄存器的差别是被量出来的，不是被命名的。** H3 加一个 `GATE_PATH` 同时动两个数
+   （`_READ_MAP_ANCHORS` 与 `_ANCHOR_BINDINGS`），而 H2 加一次寄存器点名只动一个数
+   （名册 `violators`，`_ANCHOR_BINDINGS` 不动，因为寄存器不在锚点判据里）。这两个形状分开，
+   才说清"锚点是注册过的允许项，寄存器是禁令对象"。
+4. **锚点子串匹配会伪装成"这条臂跑了"。** H5 的锚（8 个空格的 `stack += ...`）是 `_read_map` 里
+   12 空格那行的**子串**，计数 2；H7 的第三个锚漏写一个右括号，计数 0。driver 按约定两格都记
+   **ARM NOT RUN** 并拒绝执行，所以没有一条臂是"跑错形状还写了结论"。这条与 #549 的发现 5 同族：
+   工具报告的前提是它自己没被骗。
+
+### 否证与边界
+
+- 本号一行产品文件都没改；三件产品量具在七条臂里逐字节相同（7/7）。
+- **禁令只覆盖模块级 helper 的函数体**（`_executable_names` 减注解）。一条**腿**直接点名寄存器不会被
+  L25 拒绝 —— 腿名不在 `named` 的键里。这道缝是有意的还是漏洞，取决于有没有一条腿去抄寄存器；
+  今天人口为 0，所以它仍是"沉默不一致"那一类（⓱ 的原题），不改判。
+- L26 比的是**集合**：一条关系被两条腿各自经由不同 helper 达到，在两副镜片里都是 1，边"经由谁"
+  不在门里。所以"26/26 全等"证的是**谁读到**，不证**怎么读到**。⓶ 补的就是这半句。
+- H5 实测给出递归的真实收益面：只有 **7 条腿**依赖深度 ≥2 的那一跳，第二跳清一色是
+  `_census` → `_endpoint_key`/`_pair_key` 那一族（另有一条带 `_band_row`、一条带
+  `_checked_pairs`、一条带 `_handler_source`/`_identifiers`），其余 19 条腿两副眼镜本来就一致。
+  "闭包"不是普遍性质，是那 7 条腿的性质；`lens_total` 因此从 85 掉到 78（掉 7 条），
+  `edges` 从 71 掉到 46。
+- `_ANCHOR_BINDINGS` 钉的是"helper 点到的 UPPERCASE 全集"。别道若把 `_HOOK_DEF` 一类常量放进
+  本门 helper，这条腿会红；那时改名册是正当的（它测的是本门文件，不是产品），但它必须**先红一次**。
+- 落地态的 14 条空 via 腿里有 6 条是"读图的人"（#549 的四条 + 本号两条）：它们经由的 helper
+  （`_read_map`/`_token_words`/`_leg_direct_reads` 等）不读平面。剩下 8 条要么直接读平面（hop 自然为空），
+  要么不调任何 helper。名册逐名钉住，就是为了让这几种"同为空"不被一个 0 混起来。
+
+### 下一号队列（取号按落地时点 max+1）
+
+| 项 | 内容 | 为什么 |
+|----|------|--------|
+| ⓳ | **本号关掉**：读图生成器的自指禁令 | H1 实测：G7 那种桩现在红两条腿，#549 的第四件量具仍报 IDENTICAL —— 禁令的位置对了 |
+| ⓴ | **本号关掉**：via 那一跳的第二副镜片 | H4/H5 实测：85 这条总数与 26/26 的逐腿等式都能被臂钉住，且镜片变浅只在 L26 红 |
+| ⓶ | 新增：把"经由哪一个 helper"这条边做成名册（`via` 现在是集合，边本身没钉） | 发现 1：桩只要抄 `len` 就满足了旧断言，抄集合满足了 L26，但"经由谁"今天不在门里；H1 的 `frozenset(range(n))` 形状说明这一步还没走完 |
+| ⓱ | 保持：`test_a_required_key_is_published_by_every_return_branch` 消费 `Payload.always` 却不查 `complete` | 今天"沉默不一致"人口 0 ⇒ 没有暴露；但它是（a）腿与保险丝之间唯一的缝 |
+| ⓲ | 保持：产品改动 `Guide.tsx:74` 的 `total?:` → 必填（先量"改了谁会红"再改） | #548 发现 2 的判决是产品事实；`EXIT_READS` + 轴(c) 两条腿给的就是"改了谁会红"的可查方式 |
+| ⓰ | 保持：`glued-across-depth0-operator` 真树 0 条 | 与 `sometimes` 带同一形状的 0 人口登记 |
+| ⓭ | 保持：E7 三层守卫里"先折字面量"那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
+| ⓵ | 保持：`tests/integration/test_differential.py:47` 的 `_specproof` 子进程读通道在 #513 的 `craft/` 普查之外 | #549 量到的既有红，控制树同判；普查范围的外扩没做 |
