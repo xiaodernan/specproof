@@ -143,6 +143,25 @@ class HookReading:
 
 
 @dataclass(frozen=True)
+class BlindSpot:
+    """One frontend shape the census recognizes and does not read.
+
+    ``name`` is the hook or the client the shape was found on, ``file`` and ``line`` point
+    at the construct, and ``seen`` / ``read`` carry the two counts that a reader cannot
+    get from the code without re-deriving them: what the construct holds and what the
+    ruler took. Rows are sorted, so a register written against this exit compares
+    positionally as well as by name.
+    """
+
+    shape: str
+    name: str
+    file: str
+    line: int
+    seen: tuple[str, ...]
+    read: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Pair:
     """One frontend call site and the endpoint that answers it.
 
@@ -479,12 +498,53 @@ def _first_arg(text: str, after_paren: int) -> str:
     return buf.strip()
 
 
+def _depth0_chooser(arg: str) -> bool:
+    """True when the argument chooses or compares at depth 0, outside its literals.
+
+    A conditional or a comparison is not concatenation: the literals on its two sides
+    belong to different expressions, and gluing them writes an endpoint no caller named.
+    `"/api/v1/x?q" === q ? "/api/v1/a" : null` folded to `/api/v1/x?q{}/api/v1/a{}`,
+    which is a path-shaped string the page never wrote and which the census would have
+    paired against nothing -- it starts with `/`, so the site was kept and E7 was never
+    asked. Depth here means brackets, so a ternary inside `( ... )` stays the
+    concatenation slot it has always been: the two loose pairings of #544 and the
+    contracts page's `&repo_path=` suffix read through that shape, and the R register
+    would go red the day this rule reached for them.
+    """
+    masked = _mask_literals(arg)
+    depth = 0
+    i = 0
+    while i < len(masked):
+        ch = masked[i]
+        two = masked[i + 1 : i + 2]
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            if masked[i : i + 2] in ("??", "==", "!=", "&&", "||"):
+                return True
+            if ch == "?":
+                if two == ".":
+                    i += 2
+                    continue
+                return True
+            if ch == ":" and two != ":":
+                return True
+        i += 1
+    return False
+
+
 def _path_of_argument(arg: str) -> tuple[str, bool]:
     """Concatenation-aware path. Returns (path, is_variable_built).
 
     Each non-literal gap becomes one `{}` slot, so `"/jobs/" + encodeURIComponent(id)`
     reads as `/jobs/{}` -- the same shape the backend declares as `/jobs/{job_id}`.
+    An argument that chooses at depth 0 hands back no path: the fold gives up and E7
+    reads the branch, rather than the ruler inventing a third endpoint out of two.
     """
+    if _depth0_chooser(arg):
+        return "", True
     quoted = re.finditer(r"(['\"`])(.*?)\1", arg, re.S)
     literals = [(m.start(), m.end(), m.group(2)) for m in quoted]
     out = ""
@@ -734,6 +794,21 @@ def _function_body(text: str, signature_end: int) -> tuple[str, int]:
     return "", -1
 
 
+def _verbs_in(text: str) -> tuple[str, ...]:
+    """The client verbs in a piece of source, in the order they are written.
+
+    One spelling on purpose. The blind-spot census has to compare what a construct holds
+    with what the reading took, and two ways of counting the verbs in the same text would
+    let those two sides disagree for a reason that is the ruler's own -- the #545
+    rehearsal measured its `untyped` counter reading 0 against the gate's register of 1.
+    """
+    return tuple(
+        _CLIENT_VERBS[match.group(1)]
+        for match in _CLIENT_RE.finditer(text)
+        if _is_call(text, match)
+    )
+
+
 def hook_readings(web_src: Path) -> list[HookReading]:
     """Every ``use*`` function on the frontend that issues a client request.
 
@@ -755,11 +830,7 @@ def hook_readings(web_src: Path) -> list[HookReading]:
             if sig == -1:
                 continue
             body, _end = _function_body(text, sig)
-            verbs = tuple(
-                _CLIENT_VERBS[m.group(1)]
-                for m in _CLIENT_RE.finditer(body)
-                if _is_call(body, m)
-            )
+            verbs = _verbs_in(body)
             if not verbs:
                 continue
             out.append(
@@ -771,6 +842,148 @@ def hook_readings(web_src: Path) -> list[HookReading]:
                 )
             )
     return out
+
+
+#: A `use*` declaration in any spelling the reader does not have. `const useX = () =>`
+#: and `async function useX` are React's two most common ways to write the thing this
+#: file reads with `_HOOK_DEF`, and both are invisible to it. The census measures the
+#: gap instead of closing it, because on today's tree the population is zero: all 14
+#: frontend `use*` declarations are plain `function`, so an arrow reading would rewrite
+#: nothing and would need a register of its own to say so.
+_ANY_HOOK_DEF = re.compile(
+    r"^[ \t]*(?:export\s+)?(?:default\s+)?(async\s+)?(function|const|let|var)\s+(use[A-Z][\w$]*)\b",
+    re.M,
+)
+
+#: The line a top-level declaration starts on, so a hook's own region can be bounded
+#: without trusting the brace counting below. An unbounded region reads past the end of
+#: a short hook into whatever the next declaration requests, and the first rehearsal of
+#: this census reported two phantom consumers that way.
+_TOP_BOUNDARY = re.compile(
+    r"^(?:export\s+)?(?:default\s+)?(?:async\s+)?"
+    r"(?:function|const|let|var|class|interface|type|enum)\s",
+    re.M,
+)
+
+
+def _region_of(text: str, bounds: list[int], start: int) -> str:
+    """One top-level declaration's own text, up to the next declaration's head."""
+    later = [b for b in bounds if b > start]
+    return text[start : later[0]] if later else text[start:]
+
+
+def ruler_blind_spots(web_src: Path) -> list[BlindSpot]:
+    """Every frontend shape the ruler recognizes and does not read, measured.
+
+    ``seen`` is what the construct holds -- the client verbs inside the declaration's own
+    region, or the path-shaped literals inside a conditional arm -- and ``read`` is what
+    the census took, which is `()` for a hook spelling `_HOOK_DEF` cannot match and for a
+    body that was swallowed by its return annotation. A row whose two tuples differ is a
+    consumer or a site the census lost; a row whose two agree is a shape that costs
+    nothing today, which is the thing a reader deserves to see rather than re-derive.
+
+    The five shapes and their measured populations on this tree:
+
+    * `arrow-hook` and `async-hook` -- 0 rows. Population 0, and the reading that would
+      fill them is what ⓮ turned down for the same reason.
+    * `annotation-swallowed-body` -- 3 rows, all with `seen == read == ()`:
+      `identity/useIdentityAccess.ts:10`, `pages/Audit.tsx:59`, `pages/Billing.tsx:132`.
+      Each declares `: { checked: boolean; ... }`, and `_function_body` takes that
+      brace pair as the body, so the hook is not a consumer. None of the three issues a
+      request -- each hands off to `useRoleAccess` -- so nothing is lost today, and the
+      row is the reason the next reader will not have to find that out by hand.
+      The test is the closing index the ruler itself returned: a declaration whose body
+      was really read ends where its region ends. The naive test ("a `:` sits between the
+      signature and the first brace") measured 8 rows, and the 5 false ones are
+      annotations without braces, `hooks/navigate.ts:10`'s `: (path: string) => void`
+      among them.
+    * `nested-conditional-arm` -- 0 rows. E7 splits a depth-0 conditional once, so an arm
+      that is itself a conditional is read as one expression: the fixture
+      `jobId ? (inner ? "/api/v1/a" : "/api/v1/b") : "/api/v1/c"` keeps the site
+      `/api/v1/c` and reports nothing about the two paths that sat in the other arm. The
+      one real ternary on this tree is not nested.
+    * `glued-across-depth0-operator` -- 0 rows, and this one is F1's own safety net. A
+      depth-0 chooser now yields no path, so an argument whose arms are all variables
+      (`kind === "a" ? queryA : queryB`) leaves the census silently; the row says so
+      instead of leaving the site missing. Today the only depth-0 chooser on the tree is
+      `pages/Matrix.tsx:22`, whose arm is a path, so the fold still lands.
+    """
+    # `read` is asked of the reading, never written down as the blindness. An exit that
+    # hardcoded `()` for the two hook spellings would keep reporting them as blind on the
+    # day `_HOOK_DEF` learned to read them, and the register would go stale in the one
+    # direction it exists to point at.
+    taken = {(r.name, r.file): r.verbs for r in hook_readings(web_src)}
+    out: list[BlindSpot] = []
+    for ts in _web_sources(web_src):
+        if _is_test_file(ts):
+            continue
+        rel = _rel_in_web(web_src, ts)
+        text = ts.read_text(encoding="utf-8")
+        bounds = [m.start() for m in _TOP_BOUNDARY.finditer(text)]
+        for match in _ANY_HOOK_DEF.finditer(text):
+            is_async, kind, name = bool(match.group(1)), match.group(2), match.group(3)
+            line = text[: match.start()].count("\n") + 1
+            region = _region_of(text, bounds, match.start())
+            seen = _verbs_in(region)
+            got = taken.get((name, rel), ())
+            if kind != "function":
+                out.append(BlindSpot("arrow-hook", name, rel, line, seen, got))
+                continue
+            if is_async:
+                out.append(BlindSpot("async-hook", name, rel, line, seen, got))
+                continue
+            signature = _past_paren(text, match.end())
+            if signature == -1:
+                continue
+            body, end = _function_body(text, signature)
+            read = _verbs_in(body)
+            tail = region[end - match.start() :] if end != -1 else ""
+            swallowed = end != -1 and tail.strip().strip(";").strip() != ""
+            if swallowed or read != seen:
+                out.append(
+                    BlindSpot("annotation-swallowed-body", name, rel, line, seen, read)
+                )
+
+    pattern = _consumer_re(_consumer_names(web_src))
+    for ts in _web_sources(web_src):
+        if _is_test_file(ts):
+            continue
+        rel = _rel_in_web(web_src, ts)
+        text = ts.read_text(encoding="utf-8")
+        aliases, _ambiguous = _file_aliases(text)
+        for match in pattern.finditer(text):
+            if not _is_call(text, match):
+                continue
+            found = _call_at(text, match.end())
+            if found is None:
+                continue
+            arg = _first_arg(text, found[1])
+            line = text[: match.start()].count("\n") + 1
+            spliced = _splice_aliases(arg, aliases)[0]
+            path, branch, rejected = _fold_argument(arg, aliases)
+            if (
+                _depth0_chooser(spliced)
+                and not path.startswith("/")
+                and not branch
+                and not rejected
+            ):
+                out.append(
+                    BlindSpot("glued-across-depth0-operator", match.group(1), rel, line, (), ())
+                )
+            for arm in _conditional_branches(spliced):
+                folded, _built = _path_of_argument(_splice_aliases(arm, aliases)[0])
+                if folded.startswith("/"):
+                    continue
+                held = tuple(
+                    literal.group(2)
+                    for literal in _LITERAL_SPAN.finditer(arm)
+                    if literal.group(2).startswith("/")
+                )
+                if held:
+                    out.append(
+                        BlindSpot("nested-conditional-arm", match.group(1), rel, line, held, ())
+                    )
+    return sorted(out, key=lambda spot: (spot.shape, spot.file, spot.line, spot.name))
 
 
 def _consumer_names(web_src: Path) -> tuple[str, ...]:
@@ -1535,6 +1748,7 @@ __all__ = [
     "hook_readings",
     "Member",
     "Pair",
+    "BlindSpot",
     "Payload",
     "alias_table",
     "api_routers",
@@ -1543,6 +1757,7 @@ __all__ = [
     "members_of_type",
     "normalize_path",
     "pairings",
+    "ruler_blind_spots",
     "path_candidates",
     "payload_of",
     "ts_declarations",

@@ -19528,3 +19528,134 @@ C7 弄丢一条站点（48 → 47）——全部仍在地板之上。⇒ 这一�
 `useAgentJob` 恰好相反——体内 `apiGet<{ job: AgentJob }>`（`agent/components.tsx:66`）是普查里的一条站点，
 而它的 10 个调用点全都交不出类型参数（名册里那条 `0` 就是这么来的）。同一个 hook 形状的两个半边，
 一边靠调用点吃饭、一边靠体吃饭，这正是 E6 把「是不是消费者」与「有没有被消费」拆成两个数的原因。
+## #547 折法在运算符处停住：一条真树惰的守卫，在 fixture 上被两条腿读到——「看不见但不说」的形状第一次有名册
+
+### 量到的
+
+真树读数与 #546 落地数**逐字节相同**（`.scratch/land547/p547_landing_546.txt` 与
+`p547_landing_547.txt` 两个文件同 md5）：55 端点 / 48 站点 / 42 配对端点 / 13 无人消费 /
+孤儿 0 / (a) 洞 0 / extras 7 端点-9 键 / 无界 3 / 条件键 2 端点-6 键 / loose 2 / untyped 1 /
+`call_shapes` 64 / 别名 4 行-0 拒收-5 形状 / hook 2 条（其后 3 条站点）/ 条件 1 行-0 拒收。
+
+本号自己那一条读法（F1，折法在深度 0 的运算符处停住）在真树上是**惰的**，而且是被同一棵树
+量两遍量出来的：`.scratch/land547/rehearse_f1.py` 把打了补丁的 owner 副本在内存里跑两遍，
+第二遍只把 `_depth0_chooser` 换成本进程恒假，23 个寄存器两遍全等 ⇒ 停与不停交出的数一样。
+原因只有一条：真树上唯一在深度 0 做选择的实参是 `apps/web/src/pages/Matrix.tsx:22`
+（`jobId ? "/api/v1/jobs/" + encodeURIComponent(jobId) + "/matrix" : null`），它的手臂就是路径，
+折法本来就该走 E7 的分支读法，而不是把两个字面量粘起来。
+
+盲区出口 `ruler_blind_spots(web_src)` 的五种形状，真树人口：
+`arrow-hook` 0、`async-hook` 0、`glued-across-depth0-operator` 0、`nested-conditional-arm` 0、
+`annotation-swallowed-body` **3**（`apps/web/src/identity/useIdentityAccess.ts:10`、
+`apps/web/src/pages/Audit.tsx:59`、`apps/web/src/pages/Billing.tsx:132`），
+而这 3 行的 `seen` 与 `read` 都是 `()` ⇒ **受害者 0**。14 条前端 `use*` 声明全是 plain `function`，
+所以 arrow/async 两族今天一条也没有。
+
+全量收集数 5977 → **5981**（14 腿 → 18 腿，每条腿一个测试函数；实测
+`.scratch/land547/p547_collected.txt`，与 §三 的预测一致）。
+
+### 判决与落地
+
+1. **F1 落地，改的是折法的失败方向。** `_path_of_argument` 之前对整条实参逐字面量地走，
+   每个非字面量缺口记一个 `{}`，于是 `"/api/v1/x?q" === q ? "/api/v1/a" : null` 被折成
+   `/api/v1/x?q{}/api/v1/a{}`——一个谁都没写过的路径，却因为以 `/` 开头被普查收下，
+   于是 E7 的分支读法永远不会被问到。现在新增 `_depth0_chooser(arg)`：在遮掉字面量之后的
+   文本上按括号深度扫，深度 0 见到 `?`（`?.` 除外）、`:`（`::` 除外）、`??`、`==`、`!=`、
+   `&&`、`||` 就判定「这条实参在选择，不是在拼接」，`_path_of_argument` 交不出路径，
+   读法交给 E7。**深度算的是括号**：`(repo ? a : "")` 这种嵌在括号里的三元还是原来的拼接槽，
+   #544 的两条 loose 配对仍然读得过去。
+2. **F2 撤回，改成登记。** 冻结文本里原本要修 `_function_body`（返回类型注解把函数体吃掉：
+   `function useX(): { a: boolean } { … }` 被读成体是 ` a: boolean `）。落地前量了一件事：
+   修完之后 `hook_readings` 的读数**一个都不变**、`HOOK_CONSUMERS` 仍是 2，因为那三条声明
+   自己的 region 里一条 `api*` 都不发（都转 `useRoleAccess`）。人口 0 的读法不建——
+   这与 ⓮（模板字符串）是同一条判决。可见性改由 `ruler_blind_spots` 承担。
+3. **名册按形状登记，不按损失登记。** 这条是本号唯一的方法论改动：如果只登记
+   `seen != read` 的行，真树今天交空名册，而空名册与「出口直接 `return []`」在腿上不可区分；
+   臂 D6 将不会红，那条腿就成了自我确认。按形状登记之后真树 3 行、受害者 0 行，
+   D6 实测红 3 条腿（见臂表）⇒ 这条腿有负载。
+4. **`read` 是问出来的，不是写死的。** 自查出来的设计缺陷：arrow/async 两行的 `read`
+   一开始硬编码 `()`，那样 D8（真建 arrow 读法）不会红，widening 就没人看着。现在
+   `read` 取自 `hook_readings` 的同一份读数（`.scratch/land547/patch547_readmeasured.py`）。
+5. **出口签名是 `ruler_blind_spots(web_src)`，不是冻结文本里的 `(root)`。** 决定记录在案：
+   五种形状全在前端平面，交一个 repo 根参会让这个名字假装看过后端。
+6. **判据换过一次。** 「`)` 与 `{` 之间有没有 `:`」会把 `hooks/navigate.ts:10`
+   （`: (path: string) => void`，没有花括号的注解）报成盲区，实测假阳性 5 条；
+   换成读者自己交出的闭合下标：`_function_body` 的闭合下标之后、到下一条顶层声明之前，
+   还剩不剩非空白文本 ⇒ 才是「体被吃掉」。
+
+### 门
+
+同一道门 `tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py`，
+14 腿 → **18 腿**，全绿；新增四条：
+
+| 腿 | 断什么 |
+|----|--------|
+| L1 `test_the_fold_stops_where_the_caller_stopped_spelling_a_path` | 两半：`"/api/v1/x?q" === q ? "/api/v1/a" : null` 站点是 `/api/v1/a` 且分支进名册；`kind === "a" ? queryA : queryB` 0 站点 0 拒收，但必须交出一条 `glued-across-depth0-operator` 行——停住的折法不许沉默 |
+| L2 `test_the_three_conditional_guards_each_carry_their_own_case` | E7 三层守卫各自承重：遮罩 / 只切深度 0 / 嵌套一臂。嵌套子案实测站点 `/api/v1/c`、`nested-conditional-arm` 行 `seen=("/api/v1/a","/api/v1/b") read=()` |
+| L3 `test_a_hook_that_issues_two_requests_is_refused_and_says_so` | ⓬ 的交付：`useDouble` 带着 `('get','post')` 留在 `hook_readings` 里，`useSingle` 的站点动词从体里读出来（`via_hook == "useSingle"`），闭包型 hook 不冒领站点 |
+| L4 `test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered` | ⓭ 的一半：真树 3 行名册 + 受害者 0 + 底部 fixture 三形状各带一条请求，`seen != read` 三条全中 |
+
+ruff / mypy 全绿；台账家族门（7 个读台账的文件）CR 归一化之后复量 **75 条全绿**
+（`.scratch/land546/p546_ledger_family_after_crfix.txt`）；owner 73 854 字节（CRLF，bare_lf 0，tab 0），
+门 52 922 字节（LF）。
+
+### 变异臂（8 条，只碰 owner 与腿自己的 fixture 文本，不碰产品文件）
+
+驱动 `.scratch/land547/drive547.py`，读数 `.scratch/arm547/arms547_summary.txt`；
+每条臂同时对照 23 个寄存器与盲区名册（`.scratch/land547/blind547.py` 是本号新增的第二把
+尺，因为 `measure545.py` 早于这个出口）。
+
+| 臂 | 变异 | 预测 | 实测 |
+|----|------|------|------|
+| D1 | 撤掉 F1 的深度 0 停住 | L1 红、寄存器不动 | ✅ L1 红，23 寄存器与盲区名册均 IDENTICAL |
+| D2 | `_consumer_names` 的单请求判据改成「有任何请求」 | L3 红、真树 E6 名册腿仍绿 | ✅ L3 红；「保险丝没有负载」第二次被量到（与 ⓬ 同一形状） |
+| D3 | 把撤回的 F2 真落地（注解不再吃体） | L4 红、真树 3 行盲区消失 | ✅ L4 红，盲区 3 → 0，23 寄存器不动 |
+| D4 | 撤掉 `_conditional_branches` 的深度守卫 | L2 红（深度子案 0 拒收 → 1 拒收） | ✅ L2 红，其余不动 |
+| D5 | 撤掉 `_conditional_branches` 的字面量遮罩 | L2 红（遮罩子案站点 1 → 0） | ❌ **红两条腿**：L2 之外 L1 也红——L1 的 fixture 里那个字面量 `"/api/v1/x?q"` 同样走这条遮罩。预测未命中，登记在「发现」1 |
+| D6 | 盲区出口只返回 `[]`（空壳寄存器） | L4 红；§四 已注明「出口同时被 L1/L2 读 ⇒ 待测」 | ✅ 红三条（L1/L2/L4），盲区 3 → 0，23 寄存器不动 ⇒ L4 不是自我确认 |
+| D7 | 删掉 fixture 里两请求 hook 的第二条请求 | L3 红（少报方向） | ✅ L3 红 |
+| D8 | 真建读法：`hook_readings` 收任何 `use*` 声明 | L4 红（arrow/async 行的 `read` 变了）、真树名册仍 2 | ✅ L4 红一条，23 寄存器与盲区名册均 IDENTICAL（真树 14 条声明全 plain `function`，读法变宽而读数不动）⇒ 「widening 也要过名册」第二次被量到 |
+
+汇总：预测 8 条各红 1 腿，实测 **D5 红 2 腿、D6 红 3 腿（已注明待测）、其余各 1 腿**；
+**没有一条臂动过真树的 48 / 42 / 13**，也没有一条臂动过 #546 那 23 个寄存器里的任何一个。
+
+### 发现
+
+1. **一层守卫的承重面比「哪条腿读它」宽，而且这个关系不在门里。** D5 预测 1 条腿红、实测 2 条：
+   写预测时我只查了「遮罩是 L2 三层里的第二层」，没查 L1 的 fixture 也含一个字面量 `?`。
+   未命中的方向是好的（臂更敏感），但它说明现在「守卫 → 腿」的映射只活在跑完的臂表里；
+   已入队 ⓯。
+2. **惰的层在 fixture 上承重，这正是 #546 C3 缺的那一半。** 同一层（字面量遮罩）在真树上撤掉
+   全绿（#546 C3：14 腿绿、普查不动），在 fixture 上撤掉红两条腿。⓭ 要的就是这个对照形式：
+   「绿也是一种读数」必须配一条能红的臂，否则惰层随时可以被人以「它本来就没用」为理由删掉。
+3. **受害者 0 与名册空是两回事，差别只有臂能证明。** 真树 `annotation-swallowed-body` 3 行、
+   `seen == read` 全等 ⇒ 今天无损失；D3（把 F2 真落地）让名册 3 → 0 而 23 寄存器一动不动。
+   也就是说：这三行的信息量恰好是「修了它，产品读数不变，但可见性消失」——这正是登记而不是
+   修复的理由。
+4. **`read` 一旦写死，widening 就没人看。** 自查发现 arrow/async 两行的 `read` 是常量的时候，
+   D8 的红只可能来自名册的行数而不可能来自列内容；改成向 `hook_readings` 问之后，D8 才真的
+   在量「读法变宽了没有」。
+
+### 否证与边界
+
+- 本号一行产品文件都没改；臂也只碰 owner 与腿自己的 fixture 文本。
+- F2 撤回之后，`_function_body` 仍然读不到被返回类型注解吃掉的那三条体。这条不是「没事」，
+  是「有事的时候门会红」：D3 就是那个时刻的实测（3 行 → 0 行、L4 红）。
+- 盲区出口只覆盖前端平面的五种形状。模板字符串（⓮）不在其中——它的人口在写它的那一号里
+  已经量成 0。
+- `_function_body` 的花括号计数仍不计字符串里的花括号；owner 的 docstring 写明「这棵树上到不了」，
+  本号没有把它变成可读的形态。
+- 台账写法留一句：#546 那一节写进去时 219 行落成 `\r\r\n`（`newline="\r\n"` 叠在已有 CRLF 上），
+  本号落地前用 CR/LF 计数查出来并归一化：全文件 CR = LF = CRLF = 19 514、杂 CR 0、tab 0。
+  这条被写进 `write547_ledger.py`：它只按字节拼 `\r\n`，并在写之前断言结果满足这三条不变量。
+
+### 下一号队列（取号按落地时点 max+1）
+
+| 项 | 内容 | 为什么 |
+|----|------|--------|
+| ⓬ | **本号关掉**（L3 交付：两请求 hook 的拒收有臂、有名册、有 fixture） | D2/D7 两条臂各红一条腿，判据 `len(r.verbs) == 1` 第一次红过 |
+| ⓭ | **本号部分关掉**（L2 三层各自承重；「先折字面量」次序一层仍是 #546 C3b 的一次性读数） | 三层里有两层的单独量测进了门；第三层要一条不撤别的、只撤次序的臂 |
+| ⓮ | 保持「先量人口再建读法」，本号量到模板字符串 0 条 ⇒ 不建 | 与 F2 同一条判决 |
+| ⓯ | **把「守卫 → 腿」的映射做成门里可读的表**：每个守卫层登记它被哪几条腿读，臂只是验证它 | D5 的未命中就是这个表不存在；现在只有跑完臂才知道一层被两条腿读 |
+| ⓰ | **`glued-across-depth0-operator` 真树 0 条**：出现第一条全变量臂的深度 0 选择器时，这行会从「无损失」变成受害者，届时改名册的那一步要在门里点名 | 这条行的存在本身就是 0 人口形状的唯一记录 |
+| ⑥ | 交给 #548（前提已量完：`.scratch/next548/premise548_notes.md`） | 轴 (c) 恒发 8 键 / 夸大带 3 键 / 声明未发 2 键；保险丝 39 条有界端点 branches == 自身 return 数，3 条例外全自报无界 |

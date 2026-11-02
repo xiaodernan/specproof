@@ -56,6 +56,21 @@ the naive version measured a *loss* (47 sites read as 46, the contracts page bac
 roster, `/agent/jobs` unpaired again). Both readings rewrite or re-classify code that
 belongs to other files, so both are rostered whole: ``PATH_CONDITIONALS`` and
 ``HOOK_CONSUMERS`` carry what the ruler believed, and their legs recompute it.
+
+#547 stopped the fold and gave the ruler a mirror. **F1** refuses a depth-0 chooser:
+``"/api/v1/x?q" === q ? "/api/v1/a" : null`` used to fold into ``/api/v1/x?q{}/api/v1/a{}``
+-- a path-shaped string no caller wrote, kept because it started with `/`, and therefore
+never offered to the conditional reading. It now hands the argument to E7, and when E7 has
+no path either, ``RULER_BLIND_SPOTS`` carries a row instead of the census carrying a
+fabrication. **The mirror** is that same exit for the shapes the ruler recognizes and does
+not read: three ``use*`` declarations whose return annotation swallowed their bodies, the
+conditional arm E7 reads only one layer into, and the hook spellings -- ``const useX = () =>``,
+``async function useX`` -- that ``_HOOK_DEF`` cannot see. Four of the five have population
+zero on this tree and the fifth holds three rows that cost nothing, because none of those
+three hooks issues a request. No reading was built for any of them: ⓮'s verdict, applied
+from the inside this time. What the register is for is that ``0`` is a measurement, not an
+assumption -- a leg recomputes it, and the columns ``seen``/``read`` say which rows would
+hurt if the tree grew.
 """
 
 from __future__ import annotations
@@ -84,6 +99,7 @@ from tests._payload_plane import (  # noqa: E402
     normalize_path,
     pairings,
     payload_of,
+    ruler_blind_spots,
     ts_declarations,
     web_src,
 )
@@ -293,6 +309,39 @@ PATH_CONDITIONALS: dict[tuple[str, int], tuple[str, str]] = {
 #: Arguments with two path-shaped arms, which the fold refuses instead of choosing.
 #: Empty is the claim: no call on this tree makes the census guess between endpoints.
 PATH_CONDITIONAL_REFUSALS: frozenset[tuple[str, int]] = frozenset()
+
+#: Shapes the frontend has, that the ruler sees, and that no reading consumes:
+#: ``(shape, file, line)`` -> (name, verbs held, verbs taken). #547's other registers say
+#: what the census believed; this one says where the census is blind, and it exists because
+#: the alternative -- building a reading for a shape whose population is zero -- would put
+#: an untested rule inside the ruler. The three rows here are `use*` declarations with a
+#: brace-bearing return annotation, which `_function_body` takes for the body; all three
+#: hold no request, so `seen` and `read` agree. The day one of them starts fetching, this
+#: register's row changes text and the leg goes red -- which is the whole point: the blind
+#: spot has a number attached to it rather than a paragraph.
+RULER_BLIND_SPOTS: dict[tuple[str, str, int], tuple[str, tuple[str, ...], tuple[str, ...]]] = {
+    ("annotation-swallowed-body", "apps/web/src/identity/useIdentityAccess.ts", 10): (
+        "useIdentityAccess",
+        (),
+        (),
+    ),
+    ("annotation-swallowed-body", "apps/web/src/pages/Audit.tsx", 59): (
+        "useAuditAccess",
+        (),
+        (),
+    ),
+    ("annotation-swallowed-body", "apps/web/src/pages/Billing.tsx", 132): (
+        "useBillingAccess",
+        (),
+        (),
+    ),
+}
+
+#: The rows above where the two tuples disagree: consumers or sites the census actually
+#: lost. Empty is the claim on this tree, and it is the assertion that keeps
+#: ``RULER_BLIND_SPOTS`` honest -- a shape nobody reads is a note, while a shape nobody
+#: reads *and* someone is waiting on is a hole.
+RULER_BLIND_SPOT_VICTIMS: frozenset[tuple[str, str, int]] = frozenset()
 
 # Floors, not equalities: other lanes move this tree under us, and a census that fails
 # because a legitimate route was added gets widened by whoever is reddest. The
@@ -711,3 +760,260 @@ def _handler_source(key: Key, endpoint_table: list[Endpoint]) -> str:
             module = REPO / (endpoint.module.replace(".", "/") + ".py")
             return module.read_text(encoding="utf-8")
     raise AssertionError(f"{key} is not an endpoint in the table")
+
+
+def _fixture_web(root: Path, files: dict[str, str]) -> Path:
+    """A synthetic frontend, addressed the way the owner addresses the real one.
+
+    Four of #547's claims are about shapes this tree does not contain, and the only honest
+    way to ask a ruler about a shape is to write it down. `_rel_in_web` labels a file from
+    the last three parts of the tree it was handed, so building `<root>/apps/web/src` keeps
+    a fixture row in the same `apps/web/src/...` form as the real register entries: the
+    value a leg expects and the evidence it reads are the same shape of thing, and an arm
+    that breaks the labelling breaks the leg instead of hiding behind it.
+    """
+    web = root / "apps" / "web" / "src"
+    for rel, text in files.items():
+        target = web / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    return web
+
+
+#: One call written inside a component body. `__LINE__` rather than a format field: the
+#: type literal on the first line is `{ rows: string[] }`, and `str.format` reads that
+#: `{` as a field name -- measured by the probe dying with ``KeyError: ' rows'``.
+_PAGE = "type T = { rows: string[] };\nfunction Page() {\n  __LINE__\n  return null;\n}\n"
+
+
+def _page(line: str) -> str:
+    return _PAGE.replace("__LINE__", line)
+
+
+def test_the_fold_stops_where_the_caller_stopped_spelling_a_path(tmp_path: Path) -> None:
+    """F1: a depth-0 chooser yields a branch or a row, never a path glued from two expressions.
+
+    ``"/api/v1/x?q" === q ? "/api/v1/a" : null`` is not one expression built out of
+    another. The fold used to walk every literal in the argument and record one `{}` slot
+    per gap, which produced ``/api/v1/x?q{}/api/v1/a{}`` -- a path-shaped string the page
+    never wrote, kept by the census because it started with `/`, so the conditional
+    reading was never asked. The rehearsal measured both halves: with the stop the site is
+    ``/api/v1/a`` with one row in the conditional roster; without it the site is the glued
+    string and the roster is empty, and the census would have paired a browser against an
+    endpoint that exists in no router.
+
+    The second half is the part a fix usually forgets. When neither arm is a path
+    (``kind === "a" ? queryA : queryB``), refusing to fabricate also *loses the site*, and
+    a ruler that goes quiet is indistinguishable from a ruler with nothing to read. That
+    argument is a ``glued-across-depth0-operator`` row.
+
+    Nothing on the product tree is affected: the one depth-0 chooser the census meets is
+    ``pages/Matrix.tsx:22``, whose arm is a path, and the rehearsal read all 23 registers
+    identical with the stop in and out. A fence with no load on it today still has to say
+    which way it falls, which is what this file's fixture is for.
+    """
+    armed = _fixture_web(
+        tmp_path / "arm",
+        {
+            "Chooser.tsx": _page(
+                'const found = apiGet<T>("/api/v1/x?q" === q ? "/api/v1/a" : null);'
+            ),
+        },
+    )
+    calls, _excluded = frontend_calls(armed)
+    assert [site.path for site in calls] == ["/api/v1/a"], (
+        f"the fold glued the two sides of a chooser again: {[s.path for s in calls]}"
+    )
+    rows, refused = conditional_table(armed)
+    assert [(row[2], row[3]) for row in rows] == [("/api/v1/a", '"/api/v1/a"')], rows
+    assert refused == [], f"the roster refused what it should have read: {refused}"
+    assert ruler_blind_spots(armed) == [], "a reading landed and the blind census said so anyway"
+
+    dark = _fixture_web(
+        tmp_path / "dark",
+        {"Both.tsx": _page('const found = apiGet<T>(kind === "a" ? queryA : queryB);')},
+    )
+    calls, _excluded = frontend_calls(dark)
+    assert calls == [], f"an argument of two variables became a site: {[s.path for s in calls]}"
+    rows, refused = conditional_table(dark)
+    assert rows == [] and refused == [], f"the chooser was read as something: {rows} {refused}"
+    spots = ruler_blind_spots(dark)
+    assert [(s.shape, s.file, s.line) for s in spots] == [
+        ("glued-across-depth0-operator", "apps/web/src/Both.tsx", 3)
+    ], f"the stopped fold went silent instead of reporting: {spots}"
+
+
+def test_the_three_conditional_guards_each_carry_their_own_case(tmp_path: Path) -> None:
+    """E7 splits on a masked copy, at depth 0, one layer deep: three guards, three shapes.
+
+    #546 measured the first guard on the product tree and found it inert: removing the
+    literal mask (arm C3) left all 14 legs green and the census unmoved, because the fold
+    only asks for branches once the literal-and-alias reading has failed, and the one
+    argument that reaches it has no ``?`` inside a literal. C3b, which also drops the
+    *ordering*, measured 48 sites becoming 46. An inert layer with no fixture is a layer
+    that can be deleted for a reason, so this leg writes the three shapes that separate the
+    guards -- each one answers differently from the other two:
+
+    * `s + "/api/v1/x?q" ? "/api/v1/a" : null` -- the ``?`` inside a literal sits at depth
+      0 in the raw text, so only the mask keeps this a conditional. Measured: one site,
+      ``/api/v1/a``, and one roster row. Unmasked, the split lands inside the literal and
+      the site disappears (the #546 C3 measurement, now pinned where it can be re-run).
+    * `(ok ? "/api/v1/x" : "/api/v1/y") + tail` -- a conditional the caller fenced off in
+      parentheses. The depth guard leaves it to the ordinary fold, which records it as
+      slots and hands back nothing rooted. Measured: no site, no refusal, no row. Arm D4
+      removes the guard and the same text becomes one refusal.
+    * `jobId ? (inner ? "/api/v1/a" : "/api/v1/b") : "/api/v1/c"` -- one layer is as deep
+      as E7 goes. Measured: the site is ``/api/v1/c``, one roster row, and the two paths
+      that sat in the other arm come back as a `nested-conditional-arm` row instead of
+      vanishing. The product tree has no nested conditional, so the shape is registered by
+      its fixture and by zero rows on the real census.
+    """
+    masked = _fixture_web(
+        tmp_path / "mask",
+        {"Mask.tsx": _page('const found = apiGet<T>(s + "/api/v1/x?q" ? "/api/v1/a" : null);')},
+    )
+    calls, _excluded = frontend_calls(masked)
+    assert [site.path for site in calls] == ["/api/v1/a"], (
+        "the mask stopped holding the query string's `?` apart from the ternary's"
+    )
+    rows, refused = conditional_table(masked)
+    assert len(rows) == 1 and rows[0][2] == "/api/v1/a", rows
+    assert refused == []
+
+    fenced = _fixture_web(
+        tmp_path / "depth",
+        {"Depth.tsx": _page('const found = apiGet<T>((ok ? "/api/v1/x" : "/api/v1/y") + tail);')},
+    )
+    calls, _excluded = frontend_calls(fenced)
+    rows, refused = conditional_table(fenced)
+    assert calls == [] and rows == [] and refused == [], (
+        f"the depth guard let a parenthesized conditional through: {[s.path for s in calls]} "
+        f"{rows} {refused}"
+    )
+
+    nested = _fixture_web(
+        tmp_path / "nested",
+        {
+            "Nested.tsx": _page(
+                'const found = apiGet<T>('
+                'jobId ? (inner ? "/api/v1/a" : "/api/v1/b") : "/api/v1/c");'
+            ),
+        },
+    )
+    calls, _excluded = frontend_calls(nested)
+    assert [site.path for site in calls] == ["/api/v1/c"], (
+        f"the outer arm was not the one read: {[s.path for s in calls]}"
+    )
+    spots = ruler_blind_spots(nested)
+    assert [(s.shape, s.seen) for s in spots] == [
+        ("nested-conditional-arm", ("/api/v1/a", "/api/v1/b"))
+    ], f"the inner arms were read, or lost silently: {spots}"
+
+
+def test_a_hook_that_issues_two_requests_is_refused_and_says_so(tmp_path: Path) -> None:
+    """E6's refusal, written down instead of left as a sentence in the owner.
+
+    A hook that makes two requests is not a consumer: its type argument would be handed to
+    whichever call the ruler picked, and an invented pairing is worse than a missing one.
+    #546 measured that rule against the product tree only indirectly -- both real hooks
+    issue one request, so nothing on the tree distinguishes "refused two" from "saw none".
+    That is the same trap ⓬ was queued for, and this leg closes it with a tree that does
+    have a second request in it.
+
+    Both halves are asserted, because a refusal that is not reported is how a consumer
+    disappears: `useDouble` has to stay in `hook_readings` with both verbs -- the census
+    that refuses it still has to say it saw it -- and `useSingle`'s call has to reach the
+    census with the verb read out of its body, not out of its name.
+    """
+    web = _fixture_web(
+        tmp_path,
+        {
+            "hooks/Two.tsx": (
+                "export function useDouble<T>(path: string) {\n"
+                "  const a = apiGet<T>(path);\n"
+                "  const b = apiPost<T>(path + '/ack', {});\n"
+                "  return { a, b };\n}\n"
+            ),
+            "hooks/One.tsx": (
+                "export function useSingle<T>(path: string) {\n  return apiGet<T>(path);\n}\n"
+            ),
+            "pages/Use.tsx": (
+                "type T = { rows: string[] };\nfunction Page() {\n"
+                '  const one = useSingle<T>("/api/v1/one");\n'
+                '  const two = useDouble<T>("/api/v1/two");\n'
+                "  return { one, two };\n}\n"
+            ),
+        },
+    )
+    readings = {(r.name, r.verbs) for r in hook_readings(web)}
+    assert readings == {
+        ("useSingle", ("get",)),
+        ("useDouble", ("get", "post")),
+    }, f"the hook census changed shape: {readings}"
+    calls, _excluded = frontend_calls(web)
+    sites = [(s.verb, s.path, s.via_hook) for s in calls]
+    assert sites == [("get", "/api/v1/one", "useSingle")], (
+        f"a two-request hook was read, or a one-request hook was lost: {sites}"
+    )
+
+
+def test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered(tmp_path: Path) -> None:
+    """Where the ruler is blind is measured, registered, and re-computed -- including the columns.
+
+    ``_function_body`` takes the first balanced brace pair after a signature, so a hook
+    written ``function useX(): { a: boolean } { ... }`` is read as a body of
+    ` a: boolean `; ``_HOOK_DEF`` matches only `function useX`, so ``const useX = () =>``
+    and ``async function useX`` are not declarations at all. All of these are visible from
+    inside the owner, and none of them gets a reading, because the population they would
+    widen is zero: every one of the 14 frontend `use*` declarations is a plain `function`,
+    and the three whose annotation ate the body issue no request.
+
+    So the register carries the shape, and the leg carries the two tuples that say whether
+    the shape costs anything. `seen` comes from the declaration's own region -- bounded at
+    the next top-level declaration, which the first rehearsal got wrong and paid for with
+    two phantom consumers -- and `read` comes from the body the ruler actually took. The
+    fixture at the bottom is the load test: the same three shapes, each one holding a
+    request, and all three come back with `seen != read`.
+    """
+    spots = ruler_blind_spots(web_src(REPO))
+    found = {(s.shape, s.file, s.line): (s.name, s.seen, s.read) for s in spots}
+    added = sorted(set(found) - set(RULER_BLIND_SPOTS))
+    gone = sorted(set(RULER_BLIND_SPOTS) - set(found))
+    moved = sorted(
+        (key, found[key], RULER_BLIND_SPOTS[key])
+        for key in set(found) & set(RULER_BLIND_SPOTS)
+        if found[key] != RULER_BLIND_SPOTS[key]
+    )
+    assert not added and not gone and not moved, (
+        f"the blind-spot census drifted: new={added} gone={gone} changed={moved}"
+    )
+    victims = sorted((s.shape, s.file, s.line) for s in spots if s.seen != s.read)
+    assert victims == sorted(RULER_BLIND_SPOT_VICTIMS), (
+        f"the ruler is now losing something at {victims}; "
+        f"the register says {sorted(RULER_BLIND_SPOT_VICTIMS)}"
+    )
+
+    fixture = _fixture_web(
+        tmp_path,
+        {
+            "hooks/Arrow.tsx": "export const useArrow = <T,>(path: string) => apiGet<T>(path);\n",
+            "hooks/Async.tsx": (
+                "export async function useAsync<T>(path: string) {\n"
+                "  return apiGet<T>(path);\n}\n"
+            ),
+            "hooks/Annotated.tsx": (
+                "export function useAnnotated<T>(path: string): { data: T | null } {\n"
+                "  const d = apiGet<T>(path);\n"
+                "  return { data: null };\n}\n"
+            ),
+        },
+    )
+    blind = {(s.shape, s.name, s.seen, s.read) for s in ruler_blind_spots(fixture)}
+    assert blind == {
+        ("arrow-hook", "useArrow", ("get",), ()),
+        ("async-hook", "useAsync", ("get",), ()),
+        ("annotation-swallowed-body", "useAnnotated", ("get",), ()),
+    }, f"the columns stopped being measured: {blind}"
+    assert all(s.seen != s.read for s in ruler_blind_spots(fixture)), (
+        "a fixture in which the blindness costs nothing proves nothing"
+    )
