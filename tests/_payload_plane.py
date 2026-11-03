@@ -393,6 +393,213 @@ def optional_publish_bands(root: Path) -> list[OptionalBand]:
     return rows
 
 
+@dataclass(frozen=True)
+class ConsumerDefence:
+    """Axis (d): what the call site's own body does with a key the route publishes.
+
+    Axes (a)-(c) all read the *declaration*: a required key a branch forgot, a published key
+    nobody declared, an optional key that always arrives. None of them reads the fourth place
+    the same payload is written down -- the consumer. That gap has a cost in both directions:
+    a page may guard a key the type says cannot be missing (so the guard is invisible to
+    ``tsc`` and deleting it is silent), and a page may read a key the type never declares
+    behind a guard that is the only reason the bug stays latent.
+
+    One row per defended key at a site whose consumer sits inside the statement; a row with an
+    empty ``key`` for every site that yields no defence, so "looked and found nothing" and "could
+    not look" stay distinguishable and both are counted. ``declared`` is how the site's own type
+    spells the key and ``published`` is the axis-(c) word for what the route does with it, so the
+    join that used to need both sides of the fold is inside the row.
+
+    A site is ``reached`` when the response is handed to code inside the same statement -- in
+    this population that is ``.then(``, and nothing else: an ``await`` whose result is read in the
+    *next* statement is outside the region, however many lines the call itself spans. The test is
+    on the payload's path, not on the region's length, because a request written across four
+    argument lines extends the region without ever reaching the consumer, and counting those as
+    reads would report a census of 25 sites where only 8 carry a consumer.
+    """
+
+    verb: str
+    path: str
+    file: str
+    line: int
+    key: str
+    kind: str
+    declared: str
+    published: str
+    reached: bool
+    span: int
+
+
+def _mask_typescript(text: str) -> str:
+    """String literals and ``//`` comments out, so a guard written in prose is not a guard.
+
+    The rule #544 set for the path fold, applied to a consumer body: the reading counts code.
+    """
+    out: list[str] = []
+    quote = ""
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = ""
+                out.append(" ")
+            i += 1
+            continue
+        if ch in "'\"`":
+            quote = ch
+            i += 1
+            continue
+        if text.startswith("//", i):
+            end = text.find("\n", i)
+            i = len(text) if end < 0 else end
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+#: Bracket pairs the region walk keeps balanced, in the order it reports them.
+_TS_PAIRS = (("(", ")"), ("[", "]"), ("{", "}"))
+
+
+def _consumer_region(lines: list[str], start: int) -> tuple[str, int]:
+    """The statement a call site begins, extended while the following line continues it.
+
+    An ``apiGet`` call puts its consumer on the *next* line (``.then((data) => ...)``), so a
+    single-line read sees the request and never the defence. The extension keeps going while
+    the expression is still open or the next line starts with the dot of a method chain. That
+    brings a ``.then`` callback inside the region; it cannot bring in the statements after an
+    ``await``, which is why the caller reports reach separately instead of trusting the span.
+    """
+    parts: list[str] = []
+    depth = 0
+    index = start
+    while index < len(lines):
+        line = _mask_typescript(lines[index])
+        parts.append(line)
+        depth += sum(line.count(open_) - line.count(close) for open_, close in _TS_PAIRS)
+        following = lines[index + 1].lstrip() if index + 1 < len(lines) else ""
+        continues = following.startswith((".", "?.", ":"))
+        if depth <= 0 and not continues:
+            break
+        index += 1
+    return "\n".join(parts), index - start + 1
+
+
+def _defence_kind(before: str, after: str, chained: bool) -> str:
+    """Which absence-handling shape surrounds one member access, or ``""`` for a plain read.
+
+    Tested in this order, and the order is the definition: ``typeof data?.total === "number"``
+    is a type test that *also* uses ``?.``, and counting it twice would make the register
+    report a guard that is one expression.
+    """
+    if re.search(r"typeof\s*$", before):
+        return "typeof"
+    if after.lstrip().startswith("??"):
+        return "nullish"
+    if re.match(r"\s*[!=]==\s*undefined", after):
+        return "undefined"
+    if chained:
+        return "optchain"
+    if re.search(r"Array\.isArray\(\s*$", before):
+        return "shape"
+    head = after.lstrip()
+    if head.startswith("?") and not head.startswith("?."):
+        return "ternary"
+    return ""
+
+
+def _published_word(key: str, payload: Payload) -> str:
+    """The axis-(c) word for what the route does with this key, from the same three sets."""
+    intersection = set.intersection(*payload.branches) if payload.branches else set()
+    merged = (payload.conditional & intersection) if payload.conditional else set()
+    if key in intersection - merged:
+        return "always"
+    if key in merged:
+        return "conditional"
+    if key in set().union(*payload.branches) - intersection:
+        return "sometimes"
+    return "nowhere"
+
+
+def consumer_defences(root: Path) -> list[ConsumerDefence]:
+    """Every paired call site, and what its own body does with the keys of its payload.
+
+    A site with no defence still leaves one row, keyed by nothing: the reading found no guard and
+    the reading could not look are different claims, and only the second one is a hole in this
+    export. ``reached`` follows the payload, not the region's length -- see ``ConsumerDefence``.
+    """
+    pairs, _orphan = pairings(root)
+    fold: dict[tuple[str, int], tuple[set[str], set[str]]] = {}
+    for pair, required, optional, _payload in _speakable_endpoints(root):
+        fold[(pair.site.file, pair.site.line)] = (required, optional)
+
+    rows: list[ConsumerDefence] = []
+    for pair in sorted(pairs, key=lambda p: (p.site.file, p.site.line, p.endpoint.path)):
+        site, endpoint = pair.site, pair.endpoint
+        lines = (root / site.file).read_text(encoding="utf-8").splitlines()
+        region, span = _consumer_region(lines, site.line - 1)
+        verb, path = endpoint.verb, normalize_path(endpoint.path)
+        reached = ".then(" in region
+        found: list[ConsumerDefence] = []
+        if reached:
+            payload = payload_of(root, endpoint)
+            required, optional = fold.get((site.file, site.line), (set(), set()))
+            for key in sorted(set(payload.published) | required | optional):
+                access = re.compile(r"([A-Za-z_$][\w$]*)\??\.(" + re.escape(key) + r")\b")
+                for match in access.finditer(region):
+                    chained = region[match.start(2) - 2 : match.start(2)] == "?."
+                    kind = _defence_kind(
+                        region[max(0, match.start() - 24) : match.start()],
+                        region[match.end() : match.end() + 24],
+                        chained,
+                    )
+                    if not kind:
+                        continue
+                    found.append(
+                        ConsumerDefence(
+                            verb=verb,
+                            path=path,
+                            file=site.file,
+                            line=site.line,
+                            key=key,
+                            kind=kind,
+                            declared=(
+                                "required"
+                                if key in required
+                                else "optional"
+                                if key in optional
+                                else "undeclared"
+                            ),
+                            published=_published_word(key, payload),
+                            reached=True,
+                            span=span,
+                        )
+                    )
+        if found:
+            rows.extend(found)
+        else:
+            rows.append(
+                ConsumerDefence(
+                    verb=verb,
+                    path=path,
+                    file=site.file,
+                    line=site.line,
+                    key="",
+                    kind="",
+                    declared="",
+                    published="",
+                    reached=reached,
+                    span=span,
+                )
+            )
+    return rows
+
+
 def return_accounting(root: Path) -> list[ReturnAccount]:
     """Per speakable endpoint: did the fold read every exit, or only the ones it liked?
 
@@ -1938,6 +2145,7 @@ __all__ = [
     "Member",
     "Pair",
     "BlindSpot",
+    "ConsumerDefence",
     "OptionalBand",
     "Payload",
     "ReturnAccount",
@@ -1950,6 +2158,7 @@ __all__ = [
     "pairings",
     "ruler_blind_spots",
     "path_candidates",
+    "consumer_defences",
     "optional_publish_bands",
     "payload_of",
     "return_accounting",

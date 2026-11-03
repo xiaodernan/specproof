@@ -20497,3 +20497,161 @@ ruff check evidence/verdict_channels.py tests/unit/test_checker_type_parity.py \
 - 五条红门是在 `de746b6` 上量的；本号 rebase 到 `9803f13`（#550）后重跑，仍全绿。
 
 **下一号队列**：#429「宿主号唯一」谓词统一——把 `E4._claims_the_number` 与 agent 代码里那条豁免腿收进同一个所有者，并用真实调用点证明只有一处能声称「谁起了这个进程」。
+## #552 载荷战役第一次改产品文件：`Guide.tsx` 改用 `api.ts` 的那张类型，同时开出第四条轴——消费者拿这个已发布的键做了什么
+
+**取号（含一次撞号）**：预测冻结时 origin/master = `9803f13`（#550）⇒ 本号预定 **#551**，落地树
+`_wt551` @ 它，四个文件的落地与十条臂全部在那棵树上跑完。账本写完、推送前复核：`f776f4c` 已经把
+#551 用掉（别道那号"判决词是被 return 出来的"），max = 551 ⇒ 本号改为 **#552**，落地树
+`_wt552` @ `f776f4c`，改动四个文件（产品一、owner 一、门一、本节）。两号改的文件**零交集**（那号动
+`apps/web/src/ui/stages.ts`、`toneMap.ts` 与 verdict 通道门，本号动 `apps/web/src/pages/Guide.tsx` 与
+载荷平面的 owner/门），换基线后逐字节复量：三个代码文件 sha256 与预定态全同（`2b2d24f2…`/`8bd0b8a1…`/
+`9872a2c9…`），门 **28 passed**（77.13s），轴(d) 探针 `probe551d.py` 在新基线的读数与旧基线**逐字节相同**
+（⇒ 十条臂的相对读数不必重跑，它们改的只有本号那四个文件），三件量具对新基线的 diff 仍是"两件逐字节
+相同 + `c548.py` 差 2 行"，收件数 **6,004 → 6,006** 差恰好 2，`tsc` 0 错、全量 `vitest` 410 绿。
+队列 ⓲ 从 #548 挂到今天，挂的理由是"改它要先回答『改了谁会红』"；#549 把「出口 → 腿」做成表、#550
+给表加禁令与第二副镜片之后，这句话第一次可以被**量**而不是被猜。预测冻结在 `.scratch/pred551.md`
+（§①–§③ 写于任何臂之前，§①bis/§②bis/§③bis 是落地与臂间的追记，不改已冻结的判决）。
+
+### 产品半：一行声明、一条守卫、四行注释
+
+`apps/web/src/pages/Guide.tsx`（15,518 → **15,943 B**，244 行，CRLF）：
+
+- `apiGet<{ jobs: unknown[]; total?: number }>("/jobs?limit=1")` → `apiGet<JobsPage>(...)`，import 补
+  `type JobsPage`。这是 #202 给 `Jobs.tsx` 立的"一份声明、别在调用点复制形状"原则第一次铺到第二个页面；
+  #548 量出的"两个前端文件互相矛盾"（`api.ts` 的注释说 `total` 必须必填、`Guide.tsx` 写着 `total?`）
+  由此不再需要谁来解释。
+- `typeof` 守卫**留着**，并在它上面补四行注释把两件事分开：类型说的是"路由会不会不发这个键"
+  （`list_jobs` 每个出口都发 store 的 COUNT ⇒ 不必可选），守卫说的是"答案真的没带这个键时这一页读成什么"
+  （`null`）。这两句话 checker 两个方向都看不见，所以守卫的唯一证人是 `Guide.test.tsx`。
+- 形状选择不是吵出来的：§① 的形状矩阵把 shipped / `--type`（行内必填）/ `--shared`（共用类型）/
+  `--unguard`（删守卫）四种各跑一遍 `tsc --noEmit` + `vitest`，前两行的门读数是**逐字相同**的
+  （声明从哪来不影响对账），删守卫那行才换证人。
+
+### 门半：第四条轴，`consumer_defences`
+
+owner `tests/_payload_plane.py`（1,958 → **2,167 行**，82,640 → **91,480 B**）新出口 `ConsumerDefence` +
+`consumer_defences`；门（2,056 → **2,359 行**，102,120 → **120,010 B**）加两条腿与七张寄存器。
+三条轴到这里问的是三个不同的问题：(a) 必填的键有没有分支忘了发（#542）、(b) 发出来的键有没有人声明
+（#543/#544）、(c) 声明可选的键路由到底发不发（#548）；**(d) 消费者拿到这个键之后做了什么**——
+它有没有守卫、守卫是哪种形状、被守卫的那个键在路由侧是"每个分支都发"还是"有时发"。
+
+落地读数（`CONSUMER_DEFENCE_*` 七张寄存器逐名钉住，不是总数）：
+
+| 量 | 读数 |
+|----|------|
+| 配对站点 / 可达 / 盲区 | 48 / **8** / **40**（`CONSUMER_DEFENCE_REACH`） |
+| 行数 | **50** = 4 条守卫行 + 6 条"读了、没找到守卫" + 40 条"读不到" |
+| 四条守卫行 | `Audit.tsx:145` 的 `audit`(optchain/required/always)、`job_present`(nullish/required/always)、`total`(typeof/**undeclared**/always)；`Guide.tsx:74` 的 `total`(typeof/required/always) |
+| 分带 | required **3**、optional **0**、undeclared **1** |
+| kind 名册 | typeof 2、nullish 1、optchain 1、**shape 0、ternary 0、undefined 0** |
+| 盲区按文件 | 9 个文件共 40 条（`api.ts` 24、`JobDetail`/`Billing` 各 4、`AgentSettings`/`Matrix` 各 2 …） |
+| 裸站点 | 6 条逐名（`AgentSettings:48`、`Dashboard:30`、`Eval:83`、`FindingDetail:263`、`Health:78`、`JobDetail:290`） |
+| 长区域盲区 | **18** 条 `span>1` |
+
+**可达的判据是"区域内有 `.then(`"**（响应被交到同一条语句的代码手里），不是"区域跨了几行"。这条判据
+落地时换过一次，理由写在 §②bis：按区域长度判会得 25 条可达，多出来的 17 条那几行是请求自己的实参
+（`apiGet<P>(` 换行、路径换行、`{ signal }` 换行、`)` 换行），消费者一行都没进区域；反过来盲区里 18 条
+`span>1` 正是"区域长了但没到达"那一族。**"读了没找到"与"读不到"是两句不同的话**，所以两类站点都各留
+一行哨兵（`key=""`，`reached` 真假不同）—— 只有后者是这个出口的洞。
+
+### 三个证人的分工：从散文变成读数
+
+§① 先量过、本号把它钉进门里：`tsc --noEmit` 只在"类型说可选而守卫被删掉"时红；`vitest` 是唯一能看见
+"诚实的未知"那一条分支的证人；而 Python 门是唯一能看见**声明在说谎**、以及**哪些守卫存在**的证人。
+下面这张表就是这条分工的实测（臂列在下一节）。
+
+### 落地读数：哪些数动了，哪些必须不动
+
+- 腿 **26 → 28**；收件数对照（同一日、同一范围 `pytest --collect-only -q tests/unit`）：控制树 `_wt550`
+  收 **6,003**，落地树 `_wt551` 收 **6,005**，差 **恰好 2**。
+- 轴(c) 的贡献是 **−1 行、−1 键**：`AXIS_C_BANDS` **5 → 4**、`AXIS_C_KEY_TOTALS` 的 `always` **8 → 7**
+  （`/jobs` 那行按预测退出名册），`overstated/sometimes/absent` 三个总数一字未动；`_AXIS_C_ROW_COUNT`
+  仍是 39（量的还是那 39 个端点，本号没改普查范围）。
+- 读图按预测动，且**全部由门自己的推导现推现写**（`land551_gate.py` 载入交付态门、调 `_read_map`、
+  再改写十二处寄存器，任何一处与推导不符就拒绝落盘）：`EXIT_READS` **21 → 23** 行、
+  `_EXIT_READ_INSTANCES` `(31,3,85)` → **`(34,3,86)`**、`_DIRECT_RELATION_INSTANCES` **34 → 37**、
+  `EXITS_WITH_MULTIPLE_EXECUTORS` **7 → 8**、`LEGS_WITHOUT_VIA_HELPER_READ` **14 → 15**、
+  `_CLOSURE_EDGE_TOTAL` **71 → 73**、`_OWNER_SURFACE` `(27,21,28)` → **`(29,23,30)`**（两个新出口）。
+- **没动的两处**：`LEGS_WITHOUT_DIRECT_READ` 仍是 **10**（两条新腿都直接读平面出口，没有一个经由 helper
+  跳到）；三处过期散文按 §② 更正（模块 docstring 的轴(c) 段、轴(c) 腿的 docstring 改成过去式并点名
+  本号摘掉那行、`AXIS_C_BANDS` 上方的注释）。
+- 三件既有产品量具在两棵树的 diff（§①bis 先钉住、落地后复量）：`measure545.py`（23 张寄存器）与
+  `blind547.py` **逐字节相同**；`c548.py` **只差 2 行**（`axis-c key totals` 的 `always` 8→7、
+  `BAND get /jobs ... ('total',)` 那行消失），保险丝部分一字未动。
+  ⇒ 这同时更正 §③ 不变量 1 的"凡读前端声明的表都会动"那句**过慎**的话：那 23 张表里没有一张看得见
+  行内类型的 `?`。
+
+### 验证
+
+- 门 **28 passed**（42.72s）；`mypy` `Success: no issues found`；`ruff check` 除仓库既有的 UP038 风格项
+  （master 全文 92 处、CI 用的 ruff 0.14 已删该规则）之外 All checks passed——本号新增 0 处。
+- 前端：`tsc --noEmit` **0 错**；`vitest run src/pages/Guide.test.tsx` **9 passed**；
+  `vitest run` 全量 **47 files / 410 tests passed**（产品改动唯一一次触碰前端测试面）。
+- 邻域：#202 的 `tests/unit/test_jobs_page_total_is_not_the_window.py` **5 passed**（`JobsPage` 那张类型
+  被第二个页面 import，这条门证的是"共用声明没有把窗口长度读成总数"）。
+
+### 变异臂（10 条：§③ 冻结的 J1–J8，加 §③bis 在臂前补的 J3b 与 J6b）
+
+臂树 `_arm551` @ `9803f13` + 落地态四个文件；驱动 `.scratch/next551/arm551.py`（每条臂只改一个文件、
+每个锚点断言计数 1，否则拒绝执行）与 `.scratch/next551/run_arms551.sh`；捕获
+`.scratch/next551/arms/*_gate.txt`、`*_vitest.txt`、`*_tsc.txt`、`J4_probe.txt`、`J5_probe.txt`、
+`J*_msg.txt`。臂跑完逐字节还原：**四个文件的 sha256 与落地树全同**（`2b2d24f2…`/`f31e1d13…`/
+`8bd0b8a1…`/`9872a2c9…`），零次"restore not byte-exact"。
+
+| 臂 | 改哪里 | 预测 | 实测 |
+|----|--------|------|------|
+| J1 | 产品：声明退回 `total?:`，守卫与注释留着 | **Cx + D7 红**、D8 绿 | **命中**：2 failed = Cx + D7。另两个证人同时沉默：`tsc` 0 错、`vitest` 9 绿 ⇒ 声明回退只有门看得见 |
+| J2 | 产品：删守卫，改 `setVerificationCount(data.total)` | D7 红、Cx 绿、D8 绿、vitest 另有一红 | **红得更多**：D7 + **D8** 双红，D8 红在裸站点名册 `6 → 7`（`Guide.tsx:74` 进入"读数进来了、什么守卫也没看见"）；`tsc` 0 错（类型说必填，删守卫不违反类型）、`vitest` 1 failed/9 |
+| J3 | 产品：守卫换成 `data.total ?? data.jobs.length` | **预测全绿**（本号的否证） | **预测方向错**：1 failed = D7。寄存器把 kind 算进身份元组，`typeof → nullish` 就是移动；行还在（4 条），被看见的是行的**形状** |
+| J3b | 产品：同形状换值 `typeof data.total === "number" ? data.jobs.length : null` | 补测前预测**门全绿**、vitest 红 | **命中**：28 passed；`tsc` 0 错；`vitest` 1 failed/9 ⇒ 门记守卫的形状，不记守卫**产出的值**（本号真正的边界，⓷） |
+| J4 | owner：区域规则不跟 `.then`（到调用行就停） | D7 + D8 红，可达 8→0、行 4→0 | **腿集合命中**、读数偏一处：`CONSUMER_DEFENCE_REACH (48,8,40) → (48,1,47)`、defence 行 4→0、rows 50→48。**1 不是 0**：`Dashboard.tsx:30` 的 `.then(` 就写在调用行上，单行链式在停跟规则里仍可达 |
+| J5 | owner：分类器只认 `.`、不认 `?.` | D7 红、行 4→1、D8 绿 | **行数命中**（4→1，只剩 `Guide` 的 `typeof data.total`，它本来就是 `.` 形式）；**D8 也红**：Audit 三条 `?.` 守卫全消失 ⇒ 裸站点 6→7 |
+| J6 | 门：删掉 L27 的 `(站点,键)` 去重断言 | 绿（今天没有重复对） | **命中**：28 passed ⇒ 那条断言今天不为零，删掉不改变任何读数 |
+| J6b | 产品：在 Audit 的 `.then` 里真的种第二条 `job_present` 守卫 | 补测前预测 D7 红在那条断言、4→5 | **命中**：1 failed = D7，`one (site, key) carries two guarded occurrences: 5 rows over 4 keys` ⇒ 与 J6 合起来才是"互斥"被量出来：一条证断言今天不空，一条证它被违反时会红 |
+| J7 | 产品：`then` 区域里加一条**注释**写着 `data?.total ?? 0` | 全绿（遮罩负对照） | **命中**：28 passed ⇒ 写在散文里的守卫不是守卫 |
+| J8 | 门：`_read_map` 的 docstring 下面用散文点名 `consumer_defences`/`ConsumerDefence` | 全绿（#549 G3 / #550 H6 同一负对照） | **命中**：28 passed，读图三列一字未动 |
+
+**十条臂八条逐字命中，两条比预测更红（J2/J5），一条方向错（J3），错的方向被 J3b 补成一条更准的
+边界。** §④ 两条判据都成立：J1 与 J2 各红不同的腿（必填化与删守卫是两个证人），40 条盲区在门里是
+9 个文件逐名计数 + 6 条裸站点逐名，不是一个 40。
+
+### 发现
+
+1. **裸站点名册是一条腿的第二格牙齿。** J2 与 J5 都不是靠寄存器身份红，而是靠
+   `CONSUMER_DEFENCE_BARE_SITES` 从 6 变 7 红在 D8——守卫一旦被删/被瞎掉，那个站点必须换个说法继续被
+   记账，否则"少了一条守卫"就长得像"这个站点本来就没守卫"。§② 设计时把这张名册当成附属，实测它是
+   两条臂的唯一证人。
+2. **门记形状，不记值。** J3b 把守卫的产出换成窗口长度，键、kind、分带、published 四元一字未动 ⇒
+   全绿。J3 那条预测之所以错，是把"形状移动"当成了"值被看见"。⇒ 入队 ⓷。
+3. **量具自己也算工具，不算证据。** `probe551d.py` 第 16 行原本固定 `sys.path.insert(0, _wt551)`，argv
+   只当被扫根——所以 J4/J5 第一轮报的是"读数一字未动"。改成从被扫的那棵树 import 之后，J4 的
+   `(48,1,47)` 与 J5 的 4→1 才读出来。与 #549 发现 5、#550 发现 4 同族：工具报告的前提是它自己没被骗。
+4. **可达判据的一次换法是可测量的。** "区域长度"与"区域内有 `.then(`"这两个候选在真树上的差是
+   25 vs 8 条可达；差的那 17 条全部是请求实参换行的假阳性。如果没有 §① 先把 8/40 冻住，这次换法会
+   以"实现看起来合理"通过。
+
+### 否证与边界
+
+- 本号改了产品文件，但**只改声明的来源与一条注释**：`/jobs` 的守卫、`null` 的语义、`.catch` 那半句
+  "读不到的答案不是『没有』"全部原样保留。§① 形状矩阵的前两行证明这两件事在门读数是同一行。
+- 轴(d) 的覆盖面是"响应在同一条语句里被交出去"的写法：40 条盲区里 **24 条在 `api.ts`**（包装函数，
+  要跟随调用图才知道谁消费它的返回值）、16 条在页面（区域该取外层函数体而不是语句）。⇒ 入队 ⓸。
+- `optional` 带人口 **0**、`shape`/`ternary`/`undefined` 三种 kind 人口 **0**：本号把仓库里唯一一条
+  "声明可选而路由每个分支都发"的站点修掉了，所以那是**真空**，不是没测。名册整张钉住，下一号新增
+  人口时必须红一次。
+- 四条守卫行里只有一条是 `undeclared`（`Audit.tsx:145` 读 `total`，而 `AuditResponse` 没声明它）：
+  轴(b) 的既有判决，本号只是把它换到"消费者做了什么"这一格里重述——`typeof` 守卫的存在正是那条键
+  在路由侧"每个分支都发"而前端不声明的补偿形状。
+
+### 下一号队列（取号按落地时点 max+1）
+
+| 项 | 内容 | 为什么 |
+|----|------|--------|
+| ⓲ | **本号关掉**：`Guide.tsx:74` 的 `total?:` → 必填（先量"改了谁会红"再改） | §① 形状矩阵 + §③ 十条臂：谁会红是量出来的（J1 红 Cx+D7、J2 红 D7+D8），落地的 `--shared` 形状在三个证人下与 `--type` 逐字同读数 |
+| ⓷ | 新增：守卫**产出的值**不在门里（三元符右支、`??` 右操作数） | 发现 2：J3b 把 `data.total` 换成 `data.jobs.length`，四元一字未动 ⇒ 全绿。#202 那条 `length` 替身腿只钉 `Jobs.tsx`，`Guide.tsx` 今天由 `vitest` 独证 |
+| ⓸ | 新增：轴(d) 的 40 条盲区——`api.ts` 的 24 条要跟随调用图，页面 16 条要把区域换成外层函数体 | 否证第 2 条：`CONSUMER_DEFENCE_REACH` 的 8/40 是"同一条语句内交出响应"这一种写法的覆盖面，不是消费面的真相 |
+| ⓶ | 保持：把"经由哪一个 helper"这条边做成名册（`via` 现在是集合） | #550 发现 1：桩抄 `len` 满足旧断言、抄集合满足 L26，"经由谁"仍不在门里。本号 `LEGS_WITHOUT_VIA_HELPER_READ` 14→15 又一次只是计数搬家 |
+| ⓱ | 保持：`test_a_required_key_is_published_by_every_return_branch` 消费 `Payload.always` 却不查 `complete` | 今天"沉默不一致"人口 0 ⇒ 没有暴露；它是 (a) 腿与保险丝之间唯一的缝 |
+| ⓰ | 保持：`glued-across-depth0-operator` 真树 0 条 | 与 `sometimes` 带同一形状的 0 人口登记 |
+| ⓭ | 保持：E7 三层守卫里"先折字面量"那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
+| ⓵ | 保持：`tests/integration/test_differential.py:47` 的 `_specproof` 子进程读通道在 #513 的 `craft/` 普查之外 | #549 量到的既有红，控制树同判；普查范围的外扩没做 |
