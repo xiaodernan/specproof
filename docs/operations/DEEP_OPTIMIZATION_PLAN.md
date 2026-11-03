@@ -20655,3 +20655,172 @@ owner `tests/_payload_plane.py`（1,958 → **2,167 行**，82,640 → **91,480 
 | ⓰ | 保持：`glued-across-depth0-operator` 真树 0 条 | 与 `sometimes` 带同一形状的 0 人口登记 |
 | ⓭ | 保持：E7 三层守卫里"先折字面量"那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
 | ⓵ | 保持：`tests/integration/test_differential.py:47` 的 `_specproof` 子进程读通道在 #513 的 `craft/` 普查之外 | #549 量到的既有红，控制树同判；普查范围的外扩没做 |
+## #553 轴(d) 那 40 条盲区原来有七种瞎法：绑定普查把"看不见"拆成名册，第七条形状 `||` 只能排最后
+
+**取号**：预测冻结时 origin/master = `d53a859`（#552），账本 max = `#552` ⇒ 本号 **#553**；节写完后、推送前
+各复核一次 `git fetch`，两次读数都是"origin/master 仍是 `d53a859`、账本 375 节、max `#552`、`#553` 空闲"。
+落地树 `_wt553` @ `d53a859`，臂树 `_arm553` @ 同一提交（两个落地文件逐字节拷过去：owner
+`bf1fc866…`、门 `2d5f6732…`），另开控制树 `_ctl553` @ 同一提交，只为两件事：收件数对照，以及"没落地时
+门本来就是 28 条绿"的对照。队列 ⓸ 从 #552
+挂过来，原文是"`CONSUMER_DEFENCE_REACH` 的 8/40 是'同一条语句内交出响应'这一种写法的覆盖面，不是消费面
+的真相"；本号把这句话量成一张名册。**本号一行产品代码都没动**，所以三个证人是"两缺一"：`tsc` 与
+`vitest` 对本号的 diff 无话可说，Python 门是唯一证人。预测冻结在 `.scratch/pred553.md`（§①–§④ 写于任
+何臂之前，§④bis 是臂后的追记，逐字节前缀断言保证已冻结的 133 行一字未改）。
+
+### 门半：轴(d) 的另一半，`consumer_bindings` 与第七条形状
+
+owner `tests/_payload_plane.py`（+252 行，103,511 B，CRLF 与 tab 不变量由落地脚本断言）新增一个出口、
+六个私有读法、一种新形状：
+
+- `_defence_kind` 的第七种形状 **`logical-or`**（`x.k || fallback`），**排在所有既有形状之后**、返回空串
+  之前——次序即定义，新形状只能给"什么都没认领"的访问命名。写在前面的任何形状都会把 `data?.jobs || []`
+  这类访问从 `optchain` 抢走，那等于让 #552 的寄存器在"一个消费者都没改"的树上换名。
+- `consumer_bindings(root) -> list[ConsumerBinding]`：一条配对站点一行，字段
+  `(verb, path, file, line, style, keys, statement_reads, statement_kinds, block_span, block_reads,
+  block_kinds, tuple_reaches_then)`。样式词表**有序且先匹配先得**（次序即定义）：
+  `then-chain > tuple-member > hook > forward > destructuring > discarded > await-binding > promise-bound`。
+- 配套 `_binding_style`、`_statement_frame`、`_enclosing_block`、`_tuple_head`、`_tuple_reaches_then`。
+  `_enclosing_block` 走不出来时返回 `(0, "")`，**绝不退回整文件**——这个"绝不"是 #552 之前一次探针事故
+  换来的（当时的探针在走查失败时返回全文，报了一条几百行之外的守卫）。
+
+门 `tests/unit/test_the_payload...py`（+583 行，149,090 B，2,910 行）新增**十张寄存器 + 六条腿
+L29–L34**，腿数 **28 → 34**。十张全部由 `.scratch/next553/regs553.py` 现推现写（先断言与 pred §③ 逐值
+相同，任何一处不符就拒绝落盘），不手抄：`CONSUMER_BINDING_STYLES`、`_ROSTER`、`_STATEMENT_READS`、
+`_BLOCK_GUARDS`、`_BLOCK_TOTALS`、`_LOGICAL_OR`、`_TUPLE_THEN`、`_TUPLE_NO_THEN`、`_FORWARD_READS`
+（实测空，且**登记**空）、`_UNREAD_BLOCKS`。
+
+### 落地读数：新普查说了什么
+
+| 量 | 读数 |
+|----|------|
+| 48 条站点的样式 | forward **21** / then-chain **8** / tuple-member **7** / await-binding **5** / hook **3** / discarded **2** / promise-bound **1** / destructuring **1**，合计 48，`other` **0** |
+| 两条独立读法的交叉验证 | `then-chain` 的 8 条**逐名**等于 #552 落地的可达集合：L30 断言 `chains == reached`，两条走查各走各的路径，在同一列对上 |
+| 语句镜片读键 | **3** 条站点：`Audit.tsx:145`（3 次访问 / 3 种形状）、`Guide.tsx:74`（1 / 1）、`AgentSettings.tsx:73`（4 次访问 / **0** 种形状——它读的是**请求体**的 `config.base_url`/`.model`/`.protocol`/`.reasoning_effort`，与响应键同名，键名锚定的读法分不开两侧） |
+| 轴(d) 的真实可用人口 | 8 条可达里只有 **2** 条读键 ⇒ **2/48**，不是 8/48，更不是 48/48 |
+| 块镜片新增守卫 | **5** 站点 / **9** 行 / **7** 个 `(site,key)`，与轴(d) 那 4 行**交集为空**；两处一键两形（`Contracts.tsx:17` 的 `contracts`、`Matrix.tsx:21` 的 `jobs`）留在块寄存器里，不与轴(d) 的"一条 `(site,key)` 一行"合并——两列故意不并表 |
+| 元组成员 | 7 条 = 4 条（Billing，`Promise.all` 够到 `.then`）+ 3 条（JobDetail，`allSettled` 够不到） |
+| forward ∩ 读键 | **0**（臂 K5b 证明它非空时会红两条腿） |
+| 拒解块 | **7** 条，全在 `api.ts`：`_TS_BLOCK_HEAD` 只读 opener 行与它上面一行，多行签名让 `function` 离得更远，走查器把参数列表的 `(` 里的 `{` 当成了块 |
+| 逻辑或回退 | **3** 条访问：`JobDetail.tsx:222` `value.summary`、`Jobs.tsx:45` `data.jobs`、`Matrix.tsx:22` `data.degraded_reason` |
+
+`forward` 占 21 条、是平面的三分之一，而它**不是缺陷**：客户端库把响应整份交回调用方，本来就没有守卫可
+写。这 21 条的存在正是"轴(d) 看不见消费面"的原因，也是本号为什么要把"不可达"拆成**理由**而不是留成一个
+数。
+
+### 落地读数：哪些数动了，哪些必须不动
+
+- **既有轴(d) 寄存器一字未动**（pred §③ 的硬不变量，`measure553.py` 逐值复算两遍全绿）：
+  `CONSUMER_DEFENCE_REACH (48,8,40)`、四条守卫行、`CONSUMER_DEFENCE_BARE_SITES` 6 条、
+  `CONSUMER_DEFENCE_BLIND_BY_FILE` 9 键、`BLIND_LONG_REGION 18`。理由：`logical-or` 排在最后，而 8 条可达
+  站点的语句区域内 `||` 回退人口为 0。
+- **轴(c) 全表未动**：`AXIS_C_BANDS` 4 行、`AXIS_C_KEY_TOTALS`（always 7 / overstated 3 / sometimes 0 /
+  absent 2）、`_AXIS_C_ROW_COUNT` 仍 39。
+- 读图按预测动，且**全部由门自己的 `_read_map` 现推现写**（`land553_gate.py` 载入交付态的门、跑它的
+  `_read_map`/`_helper_closure`/`_token_words` 再改写九处寄存器与七处散文，任何一处与推导不符就拒绝落盘）：
+  `EXIT_READS` **23 → 25** 行、`EXITS_WITH_MULTIPLE_EXECUTORS` **8 → 10**、`_EXIT_READ_INSTANCES`
+  `(34,3,86)` → **`(43,4,86)`**、`_DIRECT_RELATION_INSTANCES` **37 → 47**、`_CLOSURE_EDGE_TOTAL`
+  **73 → 74**、`_OWNER_SURFACE` `(29,23,30)` → **`(31,25,32)`**（`consumer_bindings` 出口 +
+  `ConsumerBinding` 类型进公共面）。
+- pred §③ 那条"方向"预测里有一条**方向错**：`LEGS_WITHOUT_VIA_HELPER_READ` **15 → 21**（+6 恰是本号六条
+  新腿——它们直读 owner 出口，正因如此它们自己就是"没有 via 一跳"的腿，进了这张名册）。按预测未动的两条：
+  `LEGS_WITHOUT_DIRECT_READ` 仍 **10**、`EXIT_READS_ALIAS_ONLY` 仍 **1**、`_ANCHOR_BINDINGS` 仍 **3**
+  （禁令没被本号放宽，新腿不点名任何寄存器）。
+- 收件数对照（同一轮、同一范围 `pytest --collect-only -q tests/unit`）：控制树 `_ctl553` 收 **6,006**，
+  落地树 `_wt553` 收 **6,012**，差 **恰好 6** = 六条新腿，没有别的文件在改收件数。
+- `tests/_payload_plane.py` 的 importer 全仓**只有本门一个文件** ⇒ 本号改 owner 的爆炸半径是 1 个文件，
+  这也是"两缺一"里"缺"的根据：前端测试面（`vitest`）与类型面（`tsc`）读的都不是这两个 Python 文件。
+
+### 验证
+
+- 门：落地树 `_wt553` **34 passed in 70.91s**；控制树 `_ctl553`（同一提交、未落地的两个文件）**28
+  passed in 36.71s**——两棵树各自绿在自己的腿数上，这是"新腿只加不改"的对照。臂树基线亦 34 passed。
+- `mypy --strict`：`Success: no issues found in 2 source files`；`ruff check`：`All checks passed`
+  （`line-length = 100`，本号四处超宽在落盘前重排；`ruff format --check` 在 HEAD 上本来就红，不是本号的门）。
+- 逐字节还原：十一条臂跑完后，四个产品文件 `git status` 全干净，两个落地文件与落地树 sha256 全同
+  （`bf1fc866…` / `2d5f6732…`），零次 `restore not byte-exact`。
+
+### 变异臂（11 条：§④ 冻结的 K1–K8，加臂前补的 K2b / K5b / K6b）
+
+驱动 `.scratch/next553/run_arms553.py`（一条臂一次锚点替换，`count==1` 才执行；红腿名从门的 `def test_`
+顺序反推，L 号 = 第 n 条腿），捕获 `arms553_out.txt` 与三条偏差臂的原文
+`arms553_K5.txt`/`arms553_K7.txt`/`arms553_K8.txt`。
+
+| 臂 | 改哪里 | 预测 | 实测 |
+|----|--------|------|------|
+| K1 | 产品：`Jobs.tsx:45` 的 `await` 绑发改写成 `.then((data) => …)` | L27 L28 L29 L30 L31 | **逐字命中**：5 failed = 这五条。可达 8→9、`BLIND_BY_FILE` 的 Jobs 键消失、Jobs 从块人口搬进语句人口、守卫名册新增 `jobs:logical-or` 全部发生 |
+| K2 | 产品：删第 47 行 `data.jobs || []` 的回退 | 只 L32 | **全绿（34 passed）**——方向错，见发现 1 |
+| K2b | 产品：站点 45 的**两处** `\|\|` 一起删 | 补冻前预测只 L32 | **红两条** L31 + L32：L31 红是因为该站点在块寄存器里只有这一种形状，整行退出名册 |
+| K3 | owner：`_defence_kind` 把 `logical-or` 挪到 `optchain` **之前**（只撤次序） | 只 L32（fixture 的 `data?.b || 0` 从 optchain 变 logical-or），真树人口照旧 | **逐字命中**：1 failed = L32。真树三处回退本来就没有 `?.`，次序只在 fixture 那一行有牙齿——**这条腿是"次序即定义"的唯一证人**，删掉它没有别的腿会红 |
+| K4 | 产品：同站点加一句**散文注释**，里面写着 `data.jobs || []` | 全绿（遮罩负对照） | **逐字命中**：34 passed |
+| K5 | 产品：`api.ts:999` 改写成三行的 `const { job } = await apiGet<…>(…); return job;` | L33 + L29 | **红多一条、理由不同**：L28 L29 L33。L33 红在**名册搬家**而非性质（见发现 2）；L28 红在 `BLIND_LONG_REGION 18 → 19`（见发现 3）；而 §④ 预期的"`forward` 站点开始读键"**没被触发**：`{ job }` 与 `return job` 两处键名前都没有 `.`，键名锚定的读法看不见 |
+| K5b | 产品：`api.ts:999` 改成**行中性**的一行 `return (void seen.job, apiGet<…>(…));` | L30 + L33 | **命中**：2 failed。这条才是 L33 的性质臂——站点仍叫 `forward`，同一条语句里读了一个键 ⇒ `readers` 从 ∅ 变一条，L30 的"读键站点恰 3 条"同时红 |
+| K6 | 产品：`Billing.tsx:312` `Promise.all` → `Promise.allSettled` | 全绿（惰臂） | **逐字命中**：34 passed ⇒ 元组分裂不按被调名，只按它够不够到 `.then`。这条臂的价值就是"它不红" |
+| K6b | 产品：`Billing.tsx` 的 `.then(([plans, sub, usage, invoices]) => …)` 换成 `await` + `try/catch` | 补冻前预测 L34 | **命中**：1 failed = L34。四条成员的 `tuple_reaches_then` 一起翻，`(4,3)` 变 `(0,7)`，而 tuple-member 的标签 7 条一字未动 ⇒ 分裂与标签是两个独立断言 |
+| K7 | owner：`consumer_bindings` 换成按 `(file, line)` **位置**分配样式的桩（前 21 条 forward、次 8 条 then-chain……） | L29 必须红（计数对得上、逐名 roster 对不上） | **核心命中 + 红得更多**：L29 L30 L32 L33 L34。计数全对、八张名册全错。额外红在 L32 是**没预料到的**：桩给每一棵树都重贴标签，fixture 那三条站点不再叫 `then-chain`，报错原文是 `…: []`——一个断言读回**空集**（见发现 4）。而 L28/L31 一字未动，正是 pred §③ 不变量的直接验证 |
+| K8 | 产品：`Matrix.tsx:21` 的 `useRemoteData<…>` 改名成 `fetchRemoteData<…>` | L29 + L30 | **完全没命中**：L6 L13 L28 L29 L31。站点不是换标签，是**退出普查**：`the reach split moved: (47, 8, 39) vs (48, 8, 40)`、`useRemoteData: the register says it shaped 3 census sites, the census found 2`（见发现 5） |
+
+**十一条臂八条命中，三条偏差**（K2 方向错、K5 与 K8 红在预测之外的腿）。pred §④ 最后写的总基调——"若
+K2/K3 之外的臂动了旧寄存器，那是本号把两个镜片搅在一起，按偏紧记录并回修读法"——**这条判据本身要收回**：
+动了旧寄存器的三条臂（K1/K5/K8）没有一条是把两个镜片搅在一起，它们动的是**站点身份**与**行号**。判据错，
+不是读法错；§④bis 之后，轴(d) 可用人口 2/48、`forward` 21 条不是缺陷、`logical-or` 只能排最后、块镜片与
+轴(d) 是两人口、`then-chain` 与 `REACH[1]` 逐名相同——这五条**一条都没被推翻**。
+
+### 发现
+
+1. **寄存器记"存在"，不记"次数"——这张表怕的东西和 #552 那张相反。** `Jobs.tsx:45` 未去重的原始
+   `block_kinds` 是 `('jobs:logical-or', 'jobs:logical-or')`（第 47 行与第 53 行各写一次同一条回退），
+   `Matrix.tsx:21` 是 `jobs:nullish` + `jobs:optchain` **×3**。K2 删掉一处**什么都删不掉**；K2b 删两处才
+   红，且一次红两条。#552 发现 1 说的是"一条 `(site,key)` 只能有一行"，本号说的是"同一形状写几次都只有一
+   行"。⇒ 守卫的**次数**今天不在门里，与 ⓷（守卫产出的值不在门里）是同一条缝的两侧。
+2. **行号是寄存器身份的一部分，插两行就搬家。** K5 让 `api.ts` 后续 15 条 wrapper 全部 +2，L33 的报错原文
+   是整张搬了家的名册（`1008→1011`、`1018→1021`……），而不是它想说的性质。逐名 roster 换来了 K7 那种桩的
+   红，代价是**任何**上游插入都会让五张寄存器搬家：**行号敏感 ≠ 语义敏感**。本号接受这个交换（K7 的红利是
+   实打实的），但把它记成设计债：一条臂想证明性质，必须像 K5b 那样做成**行中性**。
+3. **`BLIND_LONG_REGION` 对请求自己的换行敏感**（K5：18 → 19）。这正是 #552 那句"`span` 不是 reach"的另一
+   半：当时它是旁证，今天它是一条**会被无关换行触发的旧寄存器**。不改——改了就把 #552 的判据丢掉——入队 ⓼。
+4. **空集是量具的失效形状，不是树的答复。** K7 让 L32 报 `the classifier stopped ranking the shapes against
+   one another: []`：真原因是取样条件（`row.style == "then-chain"`）被同一个桩改写，而报错读起来像"三条
+   fixture 站点都不见了"。#547 量过"工具报告的前提是它自己没被骗"，#551 又量过一次；这是同一族第三次，而且
+   这次是**门自己**的取样谓词被骗。⇒ 入队 ⓼：fixture 腿的过滤器应当锚在 fixture 的行号上，而不是锚在会被
+   被测对象改写的标签上。
+5. **消费面的分母是命名约定，而词表没被登记。** `useRemoteData` → `fetchRemoteData` 一条改名红五条腿，其中
+   **四条是别号的腿**（L6 = #543 的"发布而前端未声明"名册、L13 = #545/#546 的 hook 消费腿、L28 = #552 的
+   可达三元、L31 = 本号的块名册）。根在 `_consumer_names`：人口 = `_CLIENT_VERBS` + `hook_readings` 里"函数
+   体只发一次请求"的 hook 名，而 hook 的识别按 `\buse[A-Z][\w$]*` 的**名字形状**——改名即退出普查，48 变 47。
+   门里没有任何一条腿说"这个前端一共几条客户端调用"，所以一个真实的产品重命名会同时移动四张不相干的寄存器，
+   而没有人把它当成分母变化来读。⇒ 入队 ⓻。
+
+### 否证与边界
+
+- **块镜片按键名锚定，会把别人家的嵌套读认领过来。** `probe553_blockshare.py` 量到 **3** 个块装着不止一条配对
+  站点（`Matrix.tsx` 21/22 共用一个 **139 行**的块，`Contracts.tsx:17` 84 行，`Billing.tsx` 元组那 6 条共用
+  37 行）；`probe553_nested.py` 量到其中**确有 1 条**跨归属：站点 21（`/jobs?limit=200`）的 `block_reads`
+  里有 `counts.total`——`counts` 是站点 22（矩阵端点）发布的键，`total` 才是 `JobsPage` 的键，正则
+  `(obj)\??\.(key)` 只认键名。今天它**没有守卫**（"同键名被守卫"的人口实测 **0**），所以两张寄存器都没动；
+  但有人写一次 `counts.total ?? 0`，同一个事实就会在两个端点的行里各记一次。这与 `AgentSettings.tsx:73`
+  （请求体键与响应键同名）是同一个洞的两半：**键名锚定的读法没有"这个对象是哪条响应的"这一概念**。⇒ 入队 ⓻。
+- **本号没有产品改动，所以门是唯一证人**——不是"更强"，而是"更窄"：K1/K2/K5/K5b/K6/K6b/K8 全部是**写法臂**，
+  改完即还原、不进 master；`tsc`/`vitest` 对本号没有任何一句话可说。§④ 的总基调因此本来就只该谈门内的红。
+- **`CONSUMER_BINDING_FORWARD_READS = frozenset()` 登记的是"空"**：0 人口与"没测"必须可区分（#548 以来同一
+  条纪律）。同一形状的还有 `other` 样式 0 条、`logical-or` 只在块镜片出现（语句镜片 0 条）。
+- **七条拒解块没有放宽判据**：`_enclosing_block` 宁可返回 `(0, "")` 也不退回整文件，代价是 7 条站点的块镜片
+  读数为空。本号把这 7 条**注册**成 `CONSUMER_BINDING_UNREAD_BLOCKS` 而不是修走查器：修一次就要重新解释
+  "读不到"与"没有东西可读"的差别，而那条差别正是 #552 落地的判据。
+- **样式词表的次序是本号最大的人为项**：八个标签先匹配先得，`then-chain` 抢在 `tuple-member` 前，所以
+  `Promise.all([...]).then(...)` 的成员算 tuple 而不算链。这条选择写在 `_binding_style` 的 docstring 里，
+  L29 钉住名册；换一个次序就换一张表，且换出来的表**同样自洽**。
+
+### 下一号队列（取号按落地时点 max+1）
+
+| 项 | 内容 | 为什么 |
+|----|------|--------|
+| ⓸ | **本号关掉**：40 条盲区拆成七种理由，逐名登记 | §① 四半量测 + 本号十张寄存器：`forward` 21 条不是缺陷而是库的职责，`hook`/`tuple-member`/`await-binding` 各自的守卫位置不同，轴(d) 的可用人口是 2/48 |
+| ⓻ | 新增：消费面的**分母**没有名册——站点身份 = 命名约定（`_CLIENT_VERBS` + `use*` 形状的单请求 hook） | 发现 5：一条改名红五条腿、四条是别号的腿，而门里没有任何一句话记着"这个前端有几条客户端调用"。与 #527（普查的根与地理是谁定义的）同族 |
+| ⓼ | 新增：门的取样谓词与被测对象同源——fixture 腿按 `style` 过滤，桩一改就报空集；`span` 计数按行号，无关换行就移动 | 发现 3 与 4。修法方向是把取样锚在**行号/字面形状**上（K5b 那种行中性写法就是这个道理的门内版） |
+| ⓷ | 保持：守卫**产出的值**不在门里（三元符右支、`??` 右操作数） | #552 发现 2 + 本号发现 1：形状在门里、次数与值都不在。`Jobs.tsx:45` 一处回退写两遍，门读起来和写一遍一样 |
+| ⓶ | 保持：把"经由哪一个 helper"这条边做成名册（`via` 现在是集合） | #550 发现 1；本号 `LEGS_WITHOUT_VIA_HELPER_READ` 15→21 又一次只是计数搬家 |
+| ⓱ | 保持：`test_a_required_key_is_published_by_every_return_branch` 消费 `Payload.always` 却不查 `complete` | 今天"沉默不一致"人口 0 ⇒ 没有暴露；它是 (a) 腿与保险丝之间唯一的缝 |
+| ⓰ | 保持：`glued-across-depth0-operator` 真树 0 条 | 与 `sometimes` 带同一形状的 0 人口登记 |
+| ⓭ | 保持：E7 三层守卫里"先折字面量"那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
+| ⓵ | 保持：`tests/integration/test_differential.py:47` 的 `_specproof` 子进程读通道在 #513 的 `craft/` 普查之外 | #549 量到的既有红，控制树同判；普查范围的外扩没做 |
+| ⓲ | 保持：`Guide.tsx:74` 的产品改动（#552 已换共享类型，守卫仍在） | ⓷ 未解 ⇒ 门仍看不见守卫产出的值，那条页面对 `vitest` 的依赖没变 |

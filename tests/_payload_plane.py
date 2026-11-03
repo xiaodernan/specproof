@@ -496,6 +496,12 @@ def _defence_kind(before: str, after: str, chained: bool) -> str:
     Tested in this order, and the order is the definition: ``typeof data?.total === "number"``
     is a type test that *also* uses ``?.``, and counting it twice would make the register
     report a guard that is one expression.
+
+    ``logical-or`` was added by #553 and is ranked **last**, after ``ternary``: it can name only
+    an access nothing else claimed. ``data.jobs || []`` is a fallback on absence -- the
+    campaign's own defect class, a missing key answered as "there are none" -- but a shape that
+    outranked ``?.`` would relabel ``data?.jobs || []`` and move #552's register without one
+    consumer changing.
     """
     if re.search(r"typeof\s*$", before):
         return "typeof"
@@ -510,6 +516,8 @@ def _defence_kind(before: str, after: str, chained: bool) -> str:
     head = after.lstrip()
     if head.startswith("?") and not head.startswith("?."):
         return "ternary"
+    if re.match(r"\s*\|\|", after):
+        return "logical-or"
     return ""
 
 
@@ -598,6 +606,248 @@ def consumer_defences(root: Path) -> list[ConsumerDefence]:
                 )
             )
     return rows
+
+
+#: The heads a ``{`` may belong to. A bare brace is not a block:
+#: ``return apiGet<{ job: Job }>(...)`` opens a *type* object literal, and a walk that accepts
+#: it reports a function body 400 lines away.
+_TS_BLOCK_HEAD = re.compile(r"=>|\bfunction\b|\basync\b|\bfor\b|\bif\b|\btry\b|\bwhile\b")
+
+#: The callee of a hook consumer, e.g. ``useRemoteData<JobsPage>(...)``.
+_TS_HOOK_CALLEE = re.compile(r"\buse[A-Z][\w$]*\s*(?:<[^<>()]*>)?\s*\(")
+_TS_AWAIT = re.compile(r"(?<![\w$])await\b")
+_TS_DESTRUCTURE = re.compile(r"(?:const|let|var)\s*\{")
+_TS_PLAIN_BIND = re.compile(r"(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]+)?=")
+_TS_TUPLE_HEAD = re.compile(r"Promise\.all(?:Settled)?\s*\(\s*\[")
+
+#: ``_binding_style``'s answer set, in the order it is tested. The order is the definition: a site
+#: that both awaits and sits inside a tuple is a ``tuple-member``, because what decides where its
+#: guard can be written is the tuple, not the keyword.
+_CONSUMER_BINDING_STYLES = (
+    "then-chain",
+    "tuple-member",
+    "hook",
+    "forward",
+    "destructuring",
+    "discarded",
+    "await-binding",
+    "promise-bound",
+)
+
+
+def _statement_frame(lines: list[str], index: int, look_back: int = 2) -> str:
+    """The site's own statement so far, masked: from the last depth-0 ``;`` above it.
+
+    Where a binding, an ``await`` or a rename has to be written to belong to *this* call. A binding
+    can wrap onto the site line and the site line can end the statement, so one line either way is
+    not enough; the semicolon boundary is what stops an unrelated ``await`` two lines up from
+    promoting a parked promise into an awaited one.
+    """
+    joined = "\n".join(
+        _mask_typescript(lines[k]) for k in range(max(0, index - look_back), index + 1)
+    )
+    # A ``;`` ends the statement only at depth 0 and only *before* the frame's own end:
+    # ``apiGet<{ a: X[]; b: Y }>(...)`` puts one inside a type argument, and the site's terminating
+    # ``;`` would otherwise cut the very binding this function exists to find.
+    body = joined.rstrip()
+    depth = 0
+    boundary = -1
+    for position, char in enumerate(body):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == ";" and depth == 0 and position < len(body) - 1:
+            boundary = position
+    return joined[boundary + 1 :] if boundary >= 0 else joined
+
+
+def _enclosing_block(lines: list[str], index: int) -> tuple[int, str]:
+    """``(span, masked text)`` of the innermost block body around ``index``, or ``(0, "")``.
+
+    Never falls back to the whole file. A silent fallback is how "I did not find it" becomes "there
+    is nothing there": the probe that first measured this reading returned the file when the walk
+    failed and reported a guard for ``api.ts:991`` that lived hundreds of lines away. An unresolved
+    block is its own answer, and the legs count it.
+    """
+    pending = 0
+    openers: list[int] = []
+    for i in range(index, -1, -1):
+        text = _mask_typescript(lines[i])
+        for offset in range(len(text) - 1, -1, -1):
+            if text[offset] == "}":
+                pending += 1
+            elif text[offset] == "{":
+                pending -= 1
+                if pending < 0:
+                    openers.append(i)
+                    pending = 0
+    for opener in openers:
+        head = _mask_typescript(lines[opener]) + "\n" + _mask_typescript(lines[max(0, opener - 1)])
+        if _TS_BLOCK_HEAD.search(head):
+            depth = 0
+            for j in range(opener, len(lines)):
+                text = _mask_typescript(lines[j])
+                depth += text.count("{") - text.count("}")
+                if depth == 0 and j > opener:
+                    return j - opener + 1, "\n".join(
+                        _mask_typescript(lines[k]) for k in range(opener, j + 1)
+                    )
+    return 0, ""
+
+
+def _tuple_head(lines: list[str], index: int, look_back: int = 12) -> int:
+    """The ``Promise.all([`` a site sits inside, or ``-1``.
+
+    Twelve lines: the longest tuple in this frontend spreads its members over six calls, and a
+    member's own arguments can wrap. Beyond that the head is a different statement.
+    """
+    for i in range(index, max(-1, index - look_back), -1):
+        if _TS_TUPLE_HEAD.search(_mask_typescript(lines[i])):
+            return i
+    return -1
+
+
+def _tuple_reaches_then(lines: list[str], head: int) -> bool:
+    """Does the tuple's own statement hand its responses over?
+
+    Closed brace-by-brace, then ``.then``: a tuple member's consumer lives on the *closing*
+    line (``])`` then ``.then(([a, b]) => ...)``),
+    nine lines below the member that produced it, so axis (d)'s statement region misses a reach the
+    statement plainly has. ``Promise.allSettled`` has no such line: it always resolves, so the
+    ``.value`` guards sit in destructured locals the payload's key names never reach.
+    """
+    depth = 0
+    for j in range(head, len(lines)):
+        text = _mask_typescript(lines[j])
+        depth += text.count("(") + text.count("[") + text.count("{")
+        depth -= text.count(")") + text.count("]") + text.count("}")
+        if depth == 0 and j > head:
+            tail = "\n".join(_mask_typescript(lines[k]) for k in range(j, min(len(lines), j + 4)))
+            return ".then(" in tail
+    return False
+
+
+def _binding_style(lines: list[str], index: int, region: str) -> str:
+    """How this call's response is handed over -- the reason axis (d) can or cannot look at it."""
+    if ".then(" in region:
+        return "then-chain"
+    if _tuple_head(lines, index) >= 0:
+        return "tuple-member"
+    if _TS_HOOK_CALLEE.search(_mask_typescript(lines[index])):
+        return "hook"
+    frame = _statement_frame(lines, index)
+    if region.strip().split("\n")[0].startswith("return"):
+        return "forward"
+    if _TS_DESTRUCTURE.search(frame):
+        return "destructuring"
+    if not _TS_PLAIN_BIND.search(frame):
+        return "discarded"
+    return "await-binding" if _TS_AWAIT.search(frame) else "promise-bound"
+
+
+def _key_accesses(text: str, keys: Iterable[str]) -> list[tuple[str, str, str]]:
+    """Every ``obj.key`` read of ``keys`` in ``text``, as ``(obj, key, kind)``.
+
+    ``kind`` comes back empty for a read with no guard around it. One reader for both lenses
+    on purpose: axis (d) and the binding census are then the same
+    vocabulary seen through two different regions, and a shape added here is a shape the other
+    reading gets too. ``chained`` is read off the two characters before the *key*, not before the
+    whole match -- a match ends with the key, so slicing at its end returns the key's own tail and
+    no optional chain is ever named.
+    """
+    out: list[tuple[str, str, str]] = []
+    for key in sorted(keys):
+        access = re.compile(r"([A-Za-z_$][\w$]*)\??\.(" + re.escape(key) + r")\b")
+        for match in access.finditer(text):
+            chained = text[match.start(2) - 2 : match.start(2)] == "?."
+            kind = _defence_kind(
+                text[max(0, match.start() - 24) : match.start()],
+                text[match.end() : match.end() + 24],
+                chained,
+            )
+            out.append((match.group(1), key, kind))
+    return out
+
+
+@dataclass(frozen=True)
+class ConsumerBinding:
+    """Axis (d)'s other half: how a site's response is bound, and what each of two lenses sees.
+
+    ``consumer_defences`` answers "what guards does this site's own statement put on this key". It
+    reads one region and looks only at sites whose statement contains ``.then(``, and #552 pinned
+    that population at 8 of 48. Measured here, on the same pairings, are the two things that number
+    was hiding: of those 8, only 2 read a payload key at all, and the other 40 sites are blind for
+    reasons that have nothing to do with guards -- ``api.ts`` returns the payload whole (21 sites),
+    tuple members wait for the tuple's callback (7), hook consumers hand the read to the hook (3),
+    one site renames its key out of the dot-anchored reader's reach, two discard the response, and
+    five bind it with ``await`` and then guard below the request.
+
+    So ``style`` says why the statement lens is empty, ``statement_*`` repeats what axis (d) can
+    see, and ``block_*`` says what the enclosing block has. The two guard columns are deliberately
+    not merged into one table: a key guarded twice in one block, once as ``x?.k`` and once as
+    ``x.k ?? y``, is two rows there and one (site, key) in axis (d), and flattening them would
+    rewrite #552's rule rather than extend it.
+    """
+
+    verb: str
+    path: str
+    file: str
+    line: int
+    style: str
+    keys: tuple[str, ...]
+    statement_reads: tuple[str, ...]
+    statement_kinds: tuple[str, ...]
+    block_span: int
+    block_reads: tuple[str, ...]
+    block_kinds: tuple[str, ...]
+    tuple_reaches_then: bool
+
+
+def consumer_bindings(root: Path) -> list[ConsumerBinding]:
+    """Every paired site, its binding style, and its two lenses -- no site left without a label.
+
+    One row per paired site, which is the census's own floor: a site that gets no style would be
+    silently excluded from the population, and the whole point of the reading is that the blind side
+    is counted by *reason*. ``block_span`` is 0 where the walker refused to resolve a block, and
+    then ``block_reads`` and ``block_kinds`` are empty because nothing was read -- not because
+    there was nothing there.
+    """
+    pairs, _orphan = pairings(root)
+    fold: dict[tuple[str, int], tuple[set[str], set[str]]] = {}
+    for pair, required, optional, _payload in _speakable_endpoints(root):
+        fold[(pair.site.file, pair.site.line)] = (required, optional)
+
+    out: list[ConsumerBinding] = []
+    for pair in sorted(pairs, key=lambda p: (p.site.file, p.site.line, p.endpoint.path)):
+        site, endpoint = pair.site, pair.endpoint
+        lines = (root / site.file).read_text(encoding="utf-8").splitlines()
+        index = site.line - 1
+        region, _span = _consumer_region(lines, index)
+        block_span, block = _enclosing_block(lines, index)
+        payload = payload_of(root, endpoint)
+        required, optional = fold.get((site.file, site.line), (set(), set()))
+        keys = sorted(set(payload.published) | required | optional)
+        statement = _key_accesses(region, keys)
+        in_block = _key_accesses(block, keys)
+        head = _tuple_head(lines, index)
+        out.append(
+            ConsumerBinding(
+                verb=endpoint.verb,
+                path=normalize_path(endpoint.path),
+                file=site.file,
+                line=site.line,
+                style=_binding_style(lines, index, region),
+                keys=tuple(keys),
+                statement_reads=tuple(f"{obj}.{key}" for obj, key, _kind in statement),
+                statement_kinds=tuple(f"{key}:{kind}" for obj, key, kind in statement if kind),
+                block_span=block_span,
+                block_reads=tuple(f"{obj}.{key}" for obj, key, _kind in in_block),
+                block_kinds=tuple(f"{key}:{kind}" for obj, key, kind in in_block if kind),
+                tuple_reaches_then=head >= 0 and _tuple_reaches_then(lines, head),
+            )
+        )
+    return out
 
 
 def return_accounting(root: Path) -> list[ReturnAccount]:
@@ -2146,6 +2396,7 @@ __all__ = [
     "Pair",
     "BlindSpot",
     "ConsumerDefence",
+    "ConsumerBinding",
     "OptionalBand",
     "Payload",
     "ReturnAccount",
@@ -2159,6 +2410,7 @@ __all__ = [
     "ruler_blind_spots",
     "path_candidates",
     "consumer_defences",
+    "consumer_bindings",
     "optional_publish_bands",
     "payload_of",
     "return_accounting",

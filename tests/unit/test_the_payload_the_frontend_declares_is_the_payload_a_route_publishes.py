@@ -95,12 +95,12 @@ makes the fuse a fuse rather than a comment.
 #549 wrote down who reads what. **The read map** is derived from this file's own source: for
 every name it imports from the plane, which legs execute it, which name it only in an
 annotation, how many legs reach it through a helper of this file, and which import is used at
-module level by nothing that runs (one: ``Member``). 34 + 3 + 86 relations, and the number the
-last two misses were about is ``EXITS_WITH_MULTIPLE_EXECUTORS``: eight exits have more than one
+module level by nothing that runs (one: ``Member``). 43 + 4 + 86 relations, and the number the
+last two misses were about is ``EXITS_WITH_MULTIPLE_EXECUTORS``: ten exits have more than one
 executor, including the two that made predictions wrong -- ``optional_publish_bands`` (#548 arm
 E7 reddened two legs where the frozen prediction named one) and ``ruler_blind_spots`` (#547 arm
 D5, the same shape reached through two fixtures). **A second lens** rescans each leg's own lines
-with strings and comments tokenized away and agrees leg by leg over 37 direct relations, because
+with strings and comments tokenized away and agrees leg by leg over 47 direct relations, because
 a register checked only by the parser that fills it has one witness. What it does not buy: arm
 G7 replaced the derivation with the frozen table and all 24 legs stayed green, so the map's
 honesty lives in the step that generates the register, not in the legs that read it.
@@ -111,8 +111,8 @@ root) and no helper in this file may name an uppercase binding outside the three
 so arm G7's ``return ReadMap(...)`` is now red instead of green, and the population that
 would have made a blanket ban impossible is a roster, not an excuse. **The second lens over
 ``via``** walks each leg's helper closure, rescans those helpers' lines with strings and
-comments tokenized away, and must *equal* the generator's set on all 28 legs and 86
-relations: the column that had one witness now has two, and the fifteen legs whose hop comes back
+comments tokenized away, and must *equal* the generator's set on all 34 legs and 86
+relations: the column that had one witness now has two, and the twenty-one legs whose hop comes back
 empty are named, because two empty sets agree for the wrong reason just as easily.
 
 #551 read the fourth place, and changed a product file to do it. **Axis (d)** asks what the
@@ -128,6 +128,19 @@ type now and kept its ``typeof`` guard, because the two are not the same claim. 
 witnesses, none of them overlapping: ``tsc`` reports a guard only when the type still says
 optional, ``vitest`` is the only thing that fails when a live guard is deleted, and this gate
 is the only thing that records which guards exist at all.
+
+#553 read the other 40, and the reach column turned out to be about binding. Its test is
+``".then(" in region``, so the 8 it reports are eight sites whose response is handed to code in
+the same statement -- not eight guarded sites, and not eight sites that even name a key of
+their own payload. ``consumer_bindings`` labels all 48 with the one reason their statement
+lens is empty (21 forward the payload whole, 7 sit in a ``Promise.all`` tuple, 3 give the read
+to a hook, 5 bind with ``await``, 2 discard the response, 1 memoizes the promise, 1
+destructures with a rename) and reads each through a second lens, the enclosing block. Two
+numbers came out of that: the chain label and axis (d)'s reached column are the same eight
+names by two independent walks, and of those eight exactly two read a payload key at all -- so
+axis (d) speaks for 2 of 48, not 8. The block lens guards at five sites the statement never
+saw, and the classifier gained the one shape those rows use, ``x.k || fallback``, ranked last
+so it can only name an access nothing else claimed.
 """
 
 from __future__ import annotations
@@ -149,6 +162,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 from tests._payload_plane import (  # noqa: E402
     CallShape,
     CallSite,
+    ConsumerBinding,
     ConsumerDefence,
     Endpoint,
     Member,
@@ -157,6 +171,7 @@ from tests._payload_plane import (  # noqa: E402
     alias_table,
     call_shapes,
     conditional_table,
+    consumer_bindings,
     consumer_defences,
     endpoints,
     frontend_calls,
@@ -607,6 +622,217 @@ CONSUMER_DEFENCE_BLIND_LONG_REGION = 18
 
 
 # ---------------------------------------------------------------------------
+# #553 -- axis (d)'s other half: how every paired site *binds* its response
+#
+# ``CONSUMER_DEFENCE_REACH`` says 40 of the 48 paired sites are blind to the statement lens.
+# It does not say why, and the why is not one population: 21 of them are ``api.ts`` handing the
+# payload back to a caller, 7 sit inside a ``Promise.all`` tuple and wait for its callback, 3
+# give the read to a hook, 5 bind with ``await`` and guard two lines below, 2 discard the
+# response, 1 parks its promise in an in-flight memo variable, and 1 destructures with a
+# rename (``const { job: current } = await ...``). ``consumer_bindings`` labels each site with
+# exactly one reason -- the style vocabulary is ordered and first match wins, so the order is
+# the definition -- and reads the site through two lenses: the statement axis (d) can see, and
+# the enclosing block it cannot.
+#
+# Two numbers here are cross-checks rather than measurements. The ``then-chain`` count equals
+# ``CONSUMER_DEFENCE_REACH[1]`` although the two exports walk the plane differently, and the
+# statement lens finds a key at 3 sites while axis (d) has defences at 2 -- which is what the
+# third site's row is about. The rest is the census the old reach column only hinted at.
+
+#: Style -> how many paired sites carry it. Keyed in the owner's precedence order, so the
+#: register reads as the rule that produced it; ``sum`` is 48 and there is no ``other``.
+#: ``forward`` is a third of the plane and is not a defect: a client library that returns the
+#: payload whole has no guard to write. ``destructuring`` is one site and it is the reading's
+#: own limit: ``JobDetail.tsx`` renames ``job`` to ``current`` on the way in, so every later
+#: ``current.status`` sits outside a key-name-anchored walk.
+CONSUMER_BINDING_STYLES: dict[str, int] = {
+    "forward": 21,
+    "then-chain": 8,
+    "tuple-member": 7,
+    "await-binding": 5,
+    "hook": 3,
+    "discarded": 2,
+    "promise-bound": 1,
+    "destructuring": 1,
+}
+
+#: The same census by name: style -> the sites carrying it, so an arm that relabels one
+#: site moves a roster and not merely a count. A count-only register would let a
+#: implementation that assigns styles by position pass every leg here.
+CONSUMER_BINDING_ROSTER: dict[str, tuple[tuple[str, int], ...]] = {
+    "forward": (
+        ("apps/web/src/api.ts", 453),
+        ("apps/web/src/api.ts", 468),
+        ("apps/web/src/api.ts", 581),
+        ("apps/web/src/api.ts", 588),
+        ("apps/web/src/api.ts", 991),
+        ("apps/web/src/api.ts", 999),
+        ("apps/web/src/api.ts", 1008),
+        ("apps/web/src/api.ts", 1018),
+        ("apps/web/src/api.ts", 1037),
+        ("apps/web/src/api.ts", 1046),
+        ("apps/web/src/api.ts", 1052),
+        ("apps/web/src/api.ts", 1101),
+        ("apps/web/src/api.ts", 1142),
+        ("apps/web/src/api.ts", 1149),
+        ("apps/web/src/api.ts", 1157),
+        ("apps/web/src/api.ts", 1161),
+        ("apps/web/src/api.ts", 1165),
+        ("apps/web/src/api.ts", 1172),
+        ("apps/web/src/api.ts", 1179),
+        ("apps/web/src/api.ts", 1189),
+        ("apps/web/src/api.ts", 1193),
+    ),
+    "then-chain": (
+        ("apps/web/src/agent/pages/AgentSettings.tsx", 48),
+        ("apps/web/src/pages/Audit.tsx", 145),
+        ("apps/web/src/pages/Dashboard.tsx", 30),
+        ("apps/web/src/pages/Eval.tsx", 83),
+        ("apps/web/src/pages/FindingDetail.tsx", 263),
+        ("apps/web/src/pages/Guide.tsx", 74),
+        ("apps/web/src/pages/Health.tsx", 78),
+        ("apps/web/src/pages/JobDetail.tsx", 290),
+    ),
+    "tuple-member": (
+        ("apps/web/src/pages/Billing.tsx", 313),
+        ("apps/web/src/pages/Billing.tsx", 314),
+        ("apps/web/src/pages/Billing.tsx", 315),
+        ("apps/web/src/pages/Billing.tsx", 318),
+        ("apps/web/src/pages/JobDetail.tsx", 222),
+        ("apps/web/src/pages/JobDetail.tsx", 223),
+        ("apps/web/src/pages/JobDetail.tsx", 224),
+    ),
+    "await-binding": (
+        ("apps/web/src/agent/components.tsx", 66),
+        ("apps/web/src/agent/pages/AgentSettings.tsx", 73),
+        ("apps/web/src/api.ts", 1219),
+        ("apps/web/src/api.ts", 1231),
+        ("apps/web/src/pages/Jobs.tsx", 45),
+    ),
+    "hook": (
+        ("apps/web/src/pages/Contracts.tsx", 17),
+        ("apps/web/src/pages/Matrix.tsx", 21),
+        ("apps/web/src/pages/Matrix.tsx", 22),
+    ),
+    "discarded": (
+        ("apps/web/src/agent/pages/AgentSettings.tsx", 91),
+        ("apps/web/src/pages/Login.tsx", 84),
+    ),
+    "promise-bound": (
+        ("apps/web/src/api.ts", 1129),
+    ),
+    "destructuring": (
+        ("apps/web/src/pages/JobDetail.tsx", 241),
+    ),
+}
+
+#: What the statement lens -- the region axis (d) reads -- actually finds a key at.
+#: Three sites, ``(accesses, defence shapes)``. Only two of them have a shape: the
+#: third reads ``config.base_url``/``.model``/``.protocol``/``.reasoning_effort`` inside
+#: the *request* body of ``POST /api/v1/agent/config``, keys that the response type also
+#: declares, so a key-name-anchored reading cannot tell the two planes apart and reports
+#: four accesses and no defence. That row is the boundary of this ruler, registered
+#: rather than quietly dropped.
+CONSUMER_BINDING_STATEMENT_READS: dict[
+    tuple[str, int],
+    tuple[tuple[str, ...], tuple[str, ...]],
+] = {
+    ("apps/web/src/agent/pages/AgentSettings.tsx", 73): (
+        ("config.base_url", "config.model", "config.protocol", "config.reasoning_effort"),
+        (),
+    ),
+    ("apps/web/src/pages/Audit.tsx", 145): (
+        ("data.audit", "data.job_present", "data.total"),
+        ("audit:optchain", "job_present:nullish", "total:typeof"),
+    ),
+    ("apps/web/src/pages/Guide.tsx", 74): (
+        ("data.total",),
+        ("total:typeof",),
+    ),
+}
+
+#: Guards the enclosing block has and the statement never sees, by site. These are
+#: *other* rows than ``CONSUMER_DEFENCES``: no site here appears there, and a key
+#: guarded twice in one block (``x?.k`` and ``x.k ?? y``) is two rows in this register
+#: and one ``(site, key)`` in axis (d) -- the two columns are deliberately not merged.
+#: ``Jobs.tsx`` and ``JobDetail.tsx``/``Matrix.tsx`` write the fallback with ``||``, the
+#: shape axis (d)'s classifier did not have a name for until #553.
+CONSUMER_BINDING_BLOCK_GUARDS: dict[tuple[str, int], tuple[str, ...]] = {
+    ("apps/web/src/pages/Contracts.tsx", 17): ("contracts:nullish", "contracts:optchain"),
+    ("apps/web/src/pages/JobDetail.tsx", 222): ("summary:logical-or",),
+    ("apps/web/src/pages/Jobs.tsx", 45): ("jobs:logical-or",),
+    ("apps/web/src/pages/Matrix.tsx", 21): ("jobs:nullish", "jobs:optchain"),
+    ("apps/web/src/pages/Matrix.tsx", 22): (
+        "degraded_reason:logical-or",
+        "rows:nullish",
+        "rows_total:nullish",
+    ),
+}
+
+#: ``(sites, shape rows, distinct (site, key))`` for the register above: 5 /
+#: 9 / 7. The third column is smaller because two sites guard one key
+#: in two shapes, and keeping both counts is what makes the flattening mistake visible.
+CONSUMER_BINDING_BLOCK_TOTALS = (5, 9, 7)
+
+#: Every ``x.k || fallback`` access in either lens: ``(file, line, key)``, three rows.
+#: The shape is ranked last in the classifier, so these three are accesses nothing else
+#: claimed -- a ``?.`` or ``??`` on the same access wins and lands in the registers above
+#: instead. A fallback that is a disjunction is still a fallback: ``data.jobs || []``
+#: turns a missing key into an empty list and is what keeps a live guard in ``vitest``.
+CONSUMER_BINDING_LOGICAL_OR: tuple[tuple[str, int, str], ...] = (
+    ("apps/web/src/pages/JobDetail.tsx", 222, "summary"),
+    ("apps/web/src/pages/Jobs.tsx", 45, "jobs"),
+    ("apps/web/src/pages/Matrix.tsx", 22, "degraded_reason"),
+)
+
+#: The 7 tuple members split by whether the tuple statement reaches the ``.then`` that
+#: consumes them. ``Billing.tsx`` calls ``Promise.all`` and hands the destructured tuple
+#: to a callback; ``JobDetail.tsx`` calls ``allSettled`` and reads below the request, so
+#: the guard it writes is in the block register above and never in axis (d).
+CONSUMER_BINDING_TUPLE_THEN: frozenset[tuple[str, int]] = frozenset(
+    {
+        ("apps/web/src/pages/Billing.tsx", 313),
+        ("apps/web/src/pages/Billing.tsx", 314),
+        ("apps/web/src/pages/Billing.tsx", 315),
+        ("apps/web/src/pages/Billing.tsx", 318),
+    }
+)
+CONSUMER_BINDING_TUPLE_NO_THEN: frozenset[tuple[str, int]] = frozenset(
+    {
+        ("apps/web/src/pages/JobDetail.tsx", 222),
+        ("apps/web/src/pages/JobDetail.tsx", 223),
+        ("apps/web/src/pages/JobDetail.tsx", 224),
+    }
+)
+
+#: Forwarding sites that read a payload key in either lens. Measured empty, and named
+#: because the claim it tests is a property, not a count: a site that hands the payload
+#: to its caller *while also* guarding a key of its own would make ``forward`` a reason
+#: for blindness and a contradiction in the same row. One arm (K5) turns a forward into
+#: a destructure-and-read and this register is what reports it.
+CONSUMER_BINDING_FORWARD_READS: frozenset[tuple[str, int]] = frozenset()
+
+#: Sites whose enclosing block the walker refused to resolve, so the block lens read
+#: nothing -- ``block_span`` 0. All seven are ``api.ts`` wrappers whose signature
+#: spreads over more than two lines: the body's ``{`` closes the parameter list, and the
+#: head test reads the opener line and the one above it, so it never reaches the
+#: ``function`` keyword. Registered because an empty read and a refused read look
+#: identical in a count, and this campaign has been burned from both sides of that
+#: distinction -- refusing is honest only while the refusal is named.
+CONSUMER_BINDING_UNREAD_BLOCKS: frozenset[tuple[str, int]] = frozenset(
+    {
+        ("apps/web/src/api.ts", 588),
+        ("apps/web/src/api.ts", 991),
+        ("apps/web/src/api.ts", 1008),
+        ("apps/web/src/api.ts", 1046),
+        ("apps/web/src/api.ts", 1149),
+        ("apps/web/src/api.ts", 1189),
+        ("apps/web/src/api.ts", 1231),
+    }
+)
+
+
+# ---------------------------------------------------------------------------
 # #549 -- the read map: which leg reads which exit, derived from this file's own source
 #
 # Two prediction misses in a row had the same cause, and neither was bad reasoning: #547's arm
@@ -634,6 +860,11 @@ CONSUMER_DEFENCE_BLIND_LONG_REGION = 18
 EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "CallShape": ((), (), 1),
     "CallSite": ((), (), 11),
+    "ConsumerBinding": (
+        (),
+        ("test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason",),
+        0,
+    ),
     "ConsumerDefence": ((), (), 1),
     "Endpoint": (
         (),
@@ -658,10 +889,24 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
         (),
         0,
     ),
+    "consumer_bindings": (
+        (
+            "test_a_disjunction_fallback_is_a_shape_and_the_precedence_keeps_the_chain_first",
+            "test_a_tuple_member_is_counted_by_whether_the_tuple_hands_its_responses_over",
+            "test_a_wrapper_that_forwards_the_payload_whole_reads_no_key_in_either_lens",
+            "test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason",
+            "test_the_block_lens_adds_a_guard_population_axis_d_never_saw",
+            "test_the_statement_lens_reads_a_key_at_three_sites_and_defends_at_two",
+        ),
+        (),
+        0,
+    ),
     "consumer_defences": (
         (
             "test_a_defence_on_a_key_the_route_always_publishes_is_rostered",
+            "test_the_block_lens_adds_a_guard_population_axis_d_never_saw",
             "test_the_reading_reaches_the_consumer_only_where_the_response_is_handed_over",
+            "test_the_statement_lens_reads_a_key_at_three_sites_and_defends_at_two",
         ),
         (),
         0,
@@ -698,7 +943,10 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
         0,
     ),
     "pairings": (
-        ("test_the_reading_reaches_the_consumer_only_where_the_response_is_handed_over",),
+        (
+            "test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason",
+            "test_the_reading_reaches_the_consumer_only_where_the_response_is_handed_over",
+        ),
         (),
         11,
     ),
@@ -742,21 +990,23 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
 #: in the last column is the point of the register: most of this gate reads the plane
 #: through ``_census`` and ``_checked_pairs``, so a map that only recorded direct calls
 #: would report a gate with no helpers and lose the reads it cannot see.
-_EXIT_READ_INSTANCES = (34, 3, 86)
+_EXIT_READ_INSTANCES = (43, 4, 86)
 
 #: The legs whose reads are all direct or annotated -- the population the cross-check
 #: compares between its two lenses. A zero here would make the agreement vacuous.
-_DIRECT_RELATION_INSTANCES = 37
+_DIRECT_RELATION_INSTANCES = 47
 
 #: Which exits more than one leg executes, and how many do it. These are the rows an arm
 #: is about to red twice: #548's E7 moved ``optional_publish_bands`` and both of its
 #: executors failed; #547's D5 did the same to a guard layer reached through two fixtures.
 EXITS_WITH_MULTIPLE_EXECUTORS: dict[str, int] = {
     "conditional_table": 3,
-    "consumer_defences": 2,
+    "consumer_bindings": 6,
+    "consumer_defences": 4,
     "frontend_calls": 6,
     "hook_readings": 2,
     "optional_publish_bands": 2,
+    "pairings": 2,
     "payload_of": 5,
     "ruler_blind_spots": 3,
     "web_src": 6,
@@ -796,7 +1046,7 @@ LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
 
 #: ``(names in the owner's __all__, names this file imports, names public by convention)``.
 #: Three numbers, because the surface has two seams and each is a roster below.
-_OWNER_SURFACE = (29, 23, 30)
+_OWNER_SURFACE = (31, 25, 32)
 
 #: Exported by the owner, not imported here. The owner's surface is not this gate's
 #: surface: these six are how the plane is built (``Payload``, ``api_routers``,
@@ -856,9 +1106,14 @@ _ANCHOR_BINDINGS: frozenset[str] = frozenset({"_BANDS", "_PAGE", "REPO"})
 #: no helper and a lens that reached helpers reading nothing look identical in a count.
 LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
     {
+        "test_a_disjunction_fallback_is_a_shape_and_the_precedence_keeps_the_chain_first",
         "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
+        "test_a_tuple_member_is_counted_by_whether_the_tuple_hands_its_responses_over",
+        "test_a_wrapper_that_forwards_the_payload_whole_reads_no_key_in_either_lens",
         "test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two",
         "test_every_name_this_file_imports_reaches_a_leg_or_is_rostered",
+        "test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason",
+        "test_the_block_lens_adds_a_guard_population_axis_d_never_saw",
         "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
         "test_the_exit_read_map_is_measured_not_recited",
         "test_the_fold_reports_every_return_the_handler_can_take",
@@ -869,6 +1124,7 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
         "test_the_read_map_generator_names_no_register_and_the_anchors_are_rostered",
         "test_the_reading_reaches_the_consumer_only_where_the_response_is_handed_over",
         "test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered",
+        "test_the_statement_lens_reads_a_key_at_three_sites_and_defends_at_two",
         "test_the_three_conditional_guards_each_carry_their_own_case",
         "test_the_two_lenses_over_the_read_map_agree_leg_by_leg",
     }
@@ -877,7 +1133,7 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
 #: Sum over legs of the helpers each reaches, counted once per leg (so a helper two legs share
 #: is two edges). The population the text lens walks: 0 would mean the leg below compares two
 #: empty sets and calls it agreement.
-_CLOSURE_EDGE_TOTAL = 73
+_CLOSURE_EDGE_TOTAL = 74
 
 
 class ReadMap(NamedTuple):
@@ -1970,10 +2226,10 @@ def test_every_name_this_file_imports_reaches_a_leg_or_is_rostered() -> None:
     A name can reach the plane in four ways, and only three of them are a leg reading it:
     ``Member`` is imported, is used, and is read by no test -- it sits in the module-level alias
     ``Declarations``. Ruff cannot see that, because the import really is used. The other side of
-    the choice is the owner's own surface: 29 names in ``__all__`` against 23 imported here,
-    and 30 public by name against those 29. Both differences are rosters, so a lane
-    that widens the
-    import list or edits ``__all__`` moves a number instead of moving the meaning quietly.
+    the choice is the owner's own surface: 31 names in ``__all__`` against 25 imported here,
+    and 32 public by name against those 31. Both differences are rosters, so a lane
+    that widens the import list or edits ``__all__`` moves a number instead of moving the
+    meaning quietly.
     """
     read = _read_map()
     ghosts = sorted(set(EXIT_READS) - set(read.rows))
@@ -2154,7 +2410,7 @@ def test_the_helper_hop_has_its_own_second_lens() -> None:
     """⓴: the helper hop stops being the one reading in this table with a single witness.
 
     #549 recorded the gap in its own 发现 4: the direct columns are checked by two lenses --
-    ``ast`` and ``tokenize``, leg by leg over 37 relations -- while the 86 via relations were
+    ``ast`` and ``tokenize``, leg by leg over 47 relations -- while the 86 via relations were
     produced by the generator's stack walk and confirmed by nothing else. ``frozenset(range(n))``
     is enough to pass an assertion that compares only ``len()`` of a set, which is what arm G7
     reached for.
@@ -2356,4 +2612,299 @@ def test_the_reading_reaches_the_consumer_only_where_the_response_is_handed_over
     assert waited[0].span == 4, (
         f"the multi-line request no longer spans four lines, so this fixture stops saying "
         f"that length is not reach: {waited[0]}"
+    )
+
+
+def test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason() -> None:
+    """The 40 blind sites are blind for seven different reasons, and each site gets one.
+
+    ``CONSUMER_DEFENCE_REACH``'s third column said 40 of the 48 paired sites do not hand their
+    response to code inside the same statement. It never said why, and one unlabelled majority is
+    how a census of a quarter of the plane comes to be read as a census of the plane. So the
+    binding census labels every site: 21 are ``api.ts`` forwarding the payload to a caller, 7 sit
+    inside a ``Promise.all`` tuple, 3 give the read to a hook, 5 bind with ``await``, 2 discard
+    the response, 1 memoizes the promise, 1 destructures with a rename. The vocabulary is ordered
+    and first match wins, so a site that both awaits and sits in a tuple is a tuple member -- what
+    decides where its guard can be written is the tuple, not the keyword.
+
+    The roster is asserted here rather than only the counts. An implementation that assigned
+    styles by position -- first 21 forward, next 8 chains -- would reproduce every number in
+    ``CONSUMER_BINDING_STYLES`` and fail one name below, which is the same distinction #550's arm
+    K7-shape makes about the read map: a count is not an identity.
+    """
+    rows: list[ConsumerBinding] = consumer_bindings(REPO)
+    pairs, _orphan = pairings(REPO)
+    assert len(rows) == len(pairs), f"{len(rows)} rows over {len(pairs)} paired sites"
+    sites = [(row.file, row.line) for row in rows]
+    assert len(set(sites)) == len(sites), "one site carried two style labels"
+    assert set(sites) == {(pair.site.file, pair.site.line) for pair in pairs}, (
+        "the census is not over the paired sites"
+    )
+
+    counts = dict(Counter(row.style for row in rows))
+    assert counts == CONSUMER_BINDING_STYLES, f"the style population moved: {counts}"
+    roster = {
+        style: tuple(sorted((row.file, row.line) for row in rows if row.style == style))
+        for style in CONSUMER_BINDING_STYLES
+    }
+    assert roster == CONSUMER_BINDING_ROSTER, (
+        f"sites changed style label: "
+        f"{sorted((s, set(roster[s]) ^ set(CONSUMER_BINDING_ROSTER[s])) for s in roster)}"
+    )
+    assert sum(counts.values()) == len(rows) == 48, f"the labels do not cover the census: {counts}"
+
+
+def test_the_statement_lens_reads_a_key_at_three_sites_and_defends_at_two() -> None:
+    """Axis (d) reaches 8 sites and reads a payload key at 2 -- so its useful population is 2/48.
+
+    Two independent walks land on the same eight names: ``consumer_bindings`` labels a site
+    ``then-chain`` from its own statement frame, while ``consumer_defences`` tests ``.then(``
+    inside the region it walks. That agreement is what makes the number usable at all. The rest of
+    the leg is what the number was hiding. Of the eight, two read a payload key by name and both
+    write a guard -- those are exactly the four rows ``CONSUMER_DEFENCES`` carries -- and six read
+    no key of their response at all, which #552 registered as ``CONSUMER_DEFENCE_BARE_SITES`` and
+    described as "looked, and there was nothing to find".
+
+    The third site that reads a key in its own statement is not one of the eight: it is
+    ``AgentSettings.tsx:73``, an ``await`` binding, and what it reads is
+    ``config.base_url``/``.model``/``.protocol``/``.reasoning_effort`` -- the keys of the
+    *request* body of the same POST whose response type declares those names. A reading anchored
+    on key names cannot separate the two planes, so the row reports four accesses and no defence.
+    It stays in the register because the boundary of a ruler is a fact about the ruler.
+    """
+    rows = consumer_bindings(REPO)
+    chains = sorted((row.file, row.line) for row in rows if row.style == "then-chain")
+    assert len(chains) == CONSUMER_DEFENCE_REACH[1], (
+        f"the chain label reaches {len(chains)} sites, axis (d) says {CONSUMER_DEFENCE_REACH[1]}"
+    )
+    reached = sorted({(row.file, row.line) for row in consumer_defences(REPO) if row.reached})
+    assert chains == reached, f"the two walks stopped agreeing about who is reached: {chains}"
+
+    statement: dict[tuple[str, int], tuple[tuple[str, ...], tuple[str, ...]]] = {}
+    for row in rows:
+        if row.statement_reads:
+            statement[(row.file, row.line)] = (
+                tuple(sorted(set(row.statement_reads))),
+                tuple(sorted(set(row.statement_kinds))),
+            )
+    assert statement == CONSUMER_BINDING_STATEMENT_READS, (
+        f"the sites that read a key by name moved: {sorted(statement)}"
+    )
+    guarded = {site for site, (_, kinds) in statement.items() if kinds}
+    assert len(guarded) == 2, f"defences live at {len(guarded)} sites, not the two registered"
+    assert guarded == {(row.file, row.line) for row in consumer_defences(REPO) if row.key}, (
+        "the statement lens and axis (d) disagree about who guards"
+    )
+    bare = set(chains) - guarded
+    assert bare == CONSUMER_DEFENCE_BARE_SITES, (
+        f"reached sites that read no key moved: {sorted(bare)}"
+    )
+    noise = {site for site, (accesses, kinds) in statement.items() if accesses and not kinds}
+    assert noise == {("apps/web/src/agent/pages/AgentSettings.tsx", 73)}, (
+        f"a site reads keys and defends none of them: {sorted(noise)}"
+    )
+    assert noise.isdisjoint(chains), "the request-body read stopped being an await binding"
+
+
+def test_the_block_lens_adds_a_guard_population_axis_d_never_saw() -> None:
+    """Reading the enclosing block finds guards at five more sites -- other rows, not more of
+    axis (d)'s.
+
+    #552 refused this widening, and its reason was real but small: two of the newly-visible sites
+    guard one key twice, once as ``x?.k`` and once as ``x.k ?? y``, which collides with the
+    one-row-per-``(site, key)`` rule. Both halves of that are true and they are separable, so the
+    block lens keeps its own register, where ``Contracts.tsx:17`` legitimately carries two shapes
+    for ``contracts``, and the ``(sites, rows, (site, key))`` triple below is what makes the
+    flattening visible instead of quietly resolved. What #552 could not see from here was that the
+    collision was the minority: of the 40 blind sites, 37 still guard nothing when the whole
+    function body is read.
+
+    The disjointness assertion is the leg's spine. A block row that duplicated an axis-(d) row
+    would mean two registers describing one fact, which is how a count gets doubled and a claim
+    gets softened.
+    """
+    rows = consumer_bindings(REPO)
+    block_only = {
+        (row.file, row.line): tuple(sorted(set(row.block_kinds)))
+        for row in rows
+        if set(row.block_kinds) - set(row.statement_kinds)
+    }
+    assert block_only == CONSUMER_BINDING_BLOCK_GUARDS, (
+        f"the guards outside the statement moved: {sorted(block_only)}"
+    )
+    keys = {(site, kind.split(":")[0]) for site, kinds in block_only.items() for kind in kinds}
+    totals = (len(block_only), sum(len(v) for v in block_only.values()), len(keys))
+    assert totals == CONSUMER_BINDING_BLOCK_TOTALS, f"the block population moved: {totals}"
+
+    axis_d = {(row.file, row.line, row.key) for row in consumer_defences(REPO) if row.key}
+    assert not (keys & axis_d), f"a lens double-counted an axis-(d) row: {sorted(keys & axis_d)}"
+    twice = {
+        (site, key)
+        for site, kinds in block_only.items()
+        for key in {kind.split(":")[0] for kind in kinds}
+        if sum(1 for kind in kinds if kind.startswith(key + ":")) > 1
+    }
+    assert twice == {
+        (("apps/web/src/pages/Contracts.tsx", 17), "contracts"),
+        (("apps/web/src/pages/Matrix.tsx", 21), "jobs"),
+    }, f"which site guards one key in two shapes moved: {sorted(twice)}"
+
+
+def test_a_disjunction_fallback_is_a_shape_and_the_precedence_keeps_the_chain_first(
+    tmp_path: Path,
+) -> None:
+    """``x.k || fallback`` is the classifier's seventh shape, ranked last -- and the fixture is
+    what proves the ranking is load-bearing.
+
+    Three of the block lens's nine rows are disjunctions: ``data.jobs || []`` in ``Jobs.tsx``,
+    ``value.summary ||`` in ``JobDetail.tsx`` and ``data.degraded_reason ||`` in ``Matrix.tsx``.
+    Before #553 the classifier had no name for a fallback spelled with ``||``, so those reads left
+    the census as "no defence" -- the campaign's own error, an unlooked-for shape reporting as an
+    absent bug, aimed at a shape this frontend uses constantly.
+
+    Ranking matters more than adding. The new shape is tested after ``?.``, ``??``,
+    ``Array.isArray``, ``typeof``, ``=== undefined`` and the ternary, so it can only name an
+    access nothing else claimed. The fixture is the witness: one site writes ``data?.b || 0``,
+    carrying a chain and a disjunction on one access, and must still read as ``optchain``. An arm
+    that moves ``logical-or`` ahead of the chain test flips that row and reddens nothing else --
+    which is the point: the order is the definition, and this is the only leg that holds it.
+    """
+    rows = consumer_bindings(REPO)
+    ors = sorted(
+        {
+            (row.file, row.line, kind.split(":")[0])
+            for row in rows
+            for kind in (*row.statement_kinds, *row.block_kinds)
+            if kind.endswith(":logical-or")
+        }
+    )
+    assert ors == sorted(CONSUMER_BINDING_LOGICAL_OR), f"the disjunction population moved: {ors}"
+    assert len(ors) == 3, f"{len(ors)} disjunction accesses, the register says three"
+
+    fixture = _fixture_repo(
+        tmp_path / "shapes",
+        {
+            "routes/ping.py": (
+                "from fastapi import APIRouter\n"
+                "\n"
+                "router = APIRouter(prefix='/api/v1')\n"
+                "\n"
+                "@router.get('/ping')\n"
+                "async def api_ping() -> dict[str, int]:\n"
+                "    return {'a': 1, 'b': 2}\n"
+            )
+        },
+        {
+            "Shapes.tsx": (
+                "type P = { a: number; b?: number };\n"
+                "function Chain() {\n"
+                "  return apiGet<P>('/api/v1/ping')\n"
+                "    .then((data) => data?.b || 0);\n"
+                "}\n"
+                "function Disjunction() {\n"
+                "  return apiGet<P>('/api/v1/ping')\n"
+                "    .then((data) => data.b || 0);\n"
+                "}\n"
+                "function Coalesce() {\n"
+                "  return apiGet<P>('/api/v1/ping')\n"
+                "    .then((data) => data.b ?? 0);\n"
+                "}\n"
+            )
+        },
+    )
+    seen = {
+        (row.line, row.statement_kinds)
+        for row in consumer_bindings(fixture)
+        if row.style == "then-chain"
+    }
+    assert seen == {(3, ("b:optchain",)), (7, ("b:logical-or",)), (11, ("b:nullish",))}, (
+        f"the classifier stopped ranking the shapes against one another: {sorted(seen)}"
+    )
+
+
+def test_a_wrapper_that_forwards_the_payload_whole_reads_no_key_in_either_lens() -> None:
+    """``forward`` is a reason for blindness, not a defect -- and this leg holds the property that
+    keeps it one.
+
+    Twenty-one of the 48 sites are ``api.ts`` wrappers that return the response to their caller
+    without looking at it. That is what a client library is for, so the label names where the
+    guard has to be found instead -- the caller, which #553's call-graph probe read, and it added
+    two guarded sites and no new reason. The property that would make the label a lie is a forward
+    site that *also* guards a key of its own: then "this statement is empty because the payload
+    is forwarded" would be both true and useless. Measured empty, and registered as such because
+    two empty sets agree for the wrong reason just as easily.
+
+    The register under it is the block lens's own blind side: seven sites where the walker refused
+    to resolve an enclosing block. Every one is an ``api.ts`` wrapper whose signature spreads past
+    the two lines the head test reads, so the ``{`` it finds closes a parameter list rather than a
+    body. Those seven read nothing -- and the difference between "read nothing" and "could not
+    read" is the distinction this campaign keeps paying for.
+    """
+    rows = consumer_bindings(REPO)
+    forward = sorted((row.file, row.line) for row in rows if row.style == "forward")
+    assert forward == sorted(CONSUMER_BINDING_ROSTER["forward"]), (
+        f"the forwarding wrappers moved: {forward}"
+    )
+    readers = sorted(
+        (row.file, row.line)
+        for row in rows
+        if row.style == "forward" and (row.statement_reads or row.block_reads)
+    )
+    assert readers == sorted(CONSUMER_BINDING_FORWARD_READS), (
+        f"a forwarding site started consuming the payload it claims to hand over: {readers}"
+    )
+
+    unread = sorted((row.file, row.line) for row in rows if row.block_span == 0)
+    assert unread == sorted(CONSUMER_BINDING_UNREAD_BLOCKS), (
+        f"the block walker's refusals moved: {unread}"
+    )
+    assert {file_ for file_, _ in unread} == {"apps/web/src/api.ts"}, (
+        "a refused block left api.ts, so the signature-shape explanation is no longer the story"
+    )
+    assert not [
+        (row.file, row.line)
+        for row in rows
+        if row.block_span == 0 and (row.block_reads or row.block_kinds)
+    ], "an unresolved block reported a guard"
+
+
+def test_a_tuple_member_is_counted_by_whether_the_tuple_hands_its_responses_over() -> None:
+    """Seven members: four reach a ``.then`` callback, three do not -- axis (d)'s asymmetry one
+    level up.
+
+    ``Promise.all([...]).then(([plans, sub, usage, invoices]) => ...)`` puts the consumer outside
+    every member's own statement, so ``Billing.tsx``'s four calls are blind to the statement lens
+    while the page guards payload keys in the callback it cannot reach. ``JobDetail.tsx`` writes
+    ``allSettled`` and destructures below the request, so its three members keep their guard in
+    the block register and have no ``.then`` to reach at all.
+
+    The split is the finding, because a tuple member is not one kind of site: four have their
+    consumer inside the same statement, one line past where the call ends, and three have it in a
+    later statement. What the split does *not* turn on is the callee's name -- arm K6 rewrites
+    ``Promise.all`` into ``allSettled`` on the Billing line and the four stay four, because the
+    test is on the ``.then`` the statement reaches, not on the word that opened the tuple.
+    """
+    rows = consumer_bindings(REPO)
+    members = [row for row in rows if row.style == "tuple-member"]
+    assert len(members) == CONSUMER_BINDING_STYLES["tuple-member"] == 7, (
+        f"{len(members)} tuple members"
+    )
+    with_then = {(row.file, row.line) for row in members if row.tuple_reaches_then}
+    without = {(row.file, row.line) for row in members if not row.tuple_reaches_then}
+    assert with_then == CONSUMER_BINDING_TUPLE_THEN, (
+        f"the members that reach their callback moved: {sorted(with_then)}"
+    )
+    assert without == CONSUMER_BINDING_TUPLE_NO_THEN, (
+        f"the members that do not moved: {sorted(without)}"
+    )
+    assert (len(with_then), len(without)) == (4, 3), "the tuple split moved"
+    assert with_then | without == set(CONSUMER_BINDING_ROSTER["tuple-member"]), (
+        "a tuple member is in the roster and in neither half of the split"
+    )
+    guarded_in_block = set(CONSUMER_BINDING_BLOCK_GUARDS)
+    assert without & guarded_in_block == {("apps/web/src/pages/JobDetail.tsx", 222)}, (
+        f"which allSettled member guards in its block moved: {sorted(without & guarded_in_block)}"
+    )
+    assert with_then.isdisjoint(guarded_in_block), (
+        "a member that reaches its callback grew a block guard of its own"
     )
