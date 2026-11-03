@@ -21,7 +21,8 @@ describe("stageLabel — translate internal node ids for humans, honestly", () =
     // Kept as a readable list; the authoritative two-way reconciliation is
     // tests/unit/test_progress_event_labels.py, which parses agent/graph.py
     // and agent/worker.py so this list cannot silently fall behind.
-    for (const id of ["intake", "preflight", "compile_contracts", "prepare_base", "prepare_head", "collect_diff",
+    expect(stageLabel("contract_review")).toContain("人工批准");
+    for (const id of ["intake", "preflight", "compile_contracts", "contract_review", "prepare_base", "prepare_head", "collect_diff",
       "retrieve_repository_context", "run_static_checks", "generate_counterexamples", "run_differential",
       "run_deep_experiments", "review_court", "build_matrix", "create_capsule", "run_release_checks",
       "publish_report"]) {

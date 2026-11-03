@@ -6,6 +6,7 @@ export const STAGE_LABELS: Record<string, string> = {
   intake: "接收任务 · 校验输入",
   preflight: "检查执行环境（工具链）",
   compile_contracts: "解析需求为验收条件",
+  contract_review: "等待人工批准验收条件（未获批准时管线在此停下）",
   prepare_base: "准备基准版本环境",
   prepare_head: "准备待检查版本环境",
   collect_diff: "收集代码改动",

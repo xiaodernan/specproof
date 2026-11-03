@@ -63,6 +63,13 @@ class VerdictChannel:
     #: Files allowed to write a non-literal (a variable, a conditional): the
     #: value cannot be read statically, so only the ownership rule applies.
     opaque: tuple[str, ...] = ()
+    #: Modules that CHOOSE this channel's words: they RETURN the word, and
+    #: the field write happens in the caller. The scanner's shapes are writes
+    #: and comparisons, so a `return "PASS"` was invisible to it — a channel
+    #: that named only the callers claimed words it could not point at, and
+    #: a word added to a producer later would have gone unnoticed. Every
+    #: string literal a producer returns must be a word of this channel.
+    produces: tuple[str, ...] = ()
     note: str = ""
 
 
@@ -126,7 +133,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         field="result_json.verdict (the agent lane's execution result projection)",
         owners=("api/agent_runtime.py", "api/routes/agent_console.py"),
         scale=frozenset({"FAILED", "CANCELLED", "COMPLETED", "UNKNOWN"}),
-        witnesses={"UNKNOWN": "api/routes/agent_console.py:469"},
+        witnesses={"UNKNOWN": "api/routes/agent_console.py:453"},
         opaque=("api/agent_runtime.py", "api/routes/agent_console.py"),
         note=(
             "Console writes: a plan/step/gate rejection is FAILED, a supervisor "
@@ -197,16 +204,33 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         owners=(
             "cli/specproof/commands/baseline.py",
             "cli/specproof/commands/eval.py",
+            "evidence/acceptance.py",
         ),
+        produces=("evidence/judging.py",),
         scale=frozenset({"PASS", "PARTIAL", "MISS", "FALSE_POSITIVE", "NOT_RUN"}),
         opaque=(
             "cli/specproof/commands/baseline.py",
             "cli/specproof/commands/eval.py",
+            "evidence/acceptance.py",
         ),
         note=(
             "「检出结果与预期是否一致」，与需求覆盖的 PASS/FAIL 不是同一套语义："
             "PASS=与预期一致，PARTIAL=检出但少于预期数量，MISS=漏检，"
             "FALSE_POSITIVE=误报。"
+            "——这条通道是**三条不同的线**（#546 量出来的，旧登记册只认出了第二条）。"
+            "① **挑词的人**：`evidence/judging.py::verdict_for` **return** 那四个词，"
+            "而字段的写发生在调用方 ⇒ 它被列进 `produces`：本通道的词表**由它产出**，"
+            "不是由那两个 CLI 产出。旧登记册把**搬运工**当成了权威，于是 PASS / PARTIAL / "
+            "MISS 三个词「声明了却从没被写过」——而那个模块的 docstring 自己写着"
+            "「ONE rule, ONE place」。"
+            "② **搬运工**：两个 CLI 把挑好的词写进记录（写不出来的值 ⇒ opaque）。"
+            "NOT_RUN 由它们写（流水线中止 ⇒ 该案没跑），不经 judging.py。"
+            "③ **读者**：`evidence/acceptance.py` 把记录里的词读回来计数，并拿它们与 "
+            "NOT_RUN / FALSE_POSITIVE / MISS 比较——它**点名**了这些词，所以它属于本通道。"
+            "诚实边界：`acceptance.py` 的两处 opaque 命中其实是**读**"
+            "（`verdict = str(record.get(\"verdict\") or \"\")`）——扫描器的 assign 形状"
+            "分不清「装着读回来的值的局部变量」与「装着算出来的词的局部变量」，"
+            "所以它只能被列成 opaque；**本号没有**给扫描器加「读」这一种形状。"
         ),
     ),
     # ── craft ───────────────────────────────────────────────────────────────

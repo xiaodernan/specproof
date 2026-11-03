@@ -20403,3 +20403,97 @@ driver 按约定拒绝执行并记 **ARM NOT RUN**，改正锚点后重跑 —�
 | ⓰ | 保持：`glued-across-depth0-operator` 真树 0 条 | 与 `sometimes` 带同一形状的 0 人口登记 |
 | ⓭ | 保持：E7 三层守卫里"先折字面量"那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
 | ⓵ | 保持：`tests/integration/test_differential.py:47` 的 `_specproof` 子进程读通道在 #513 的 `craft/` 普查之外 | #549 量到的既有红，控制树同判；普查范围的外扩没做 |
+
+## #551 判决词是被 `return` 出来的，不是被写出来的：补上第七种扫描形状后，五条红门转绿
+
+**背景**：`evidence/verdict_channels.py` 的登记册是为了防两件事——**声明了却没人写**的词，和**写了却没声明**的词。它原来只认六种形状：dict-key、关键字实参、关键字集合、赋值、属性比较、变量比较。六种都是**写**或**比较**。
+
+但 `eval_case` 这条通道的判决词不是这样产生的：`evidence/judging.py::verdict_for` **return** `"PASS"` / `"PARTIAL"` / `"MISS"` / `"FALSE_POSITIVE"`，而字段的写发生在两个 CLI 调用方。旧登记册只把调用方列成 `owners`，于是扫描器在这两个文件里看不见那三个词 ⇒ **PASS / PARTIAL / MISS 被报成「声明了却从没被写过」**。真正挑词的模块 `judging.py` 不在任何人的名册里。
+
+同一批执行还量到另外两条**同类的**红门：词已经在生产代码里，但人看的映射里没有它。
+
+### 量到的五条红门（干净 `origin/master` `de746b6`，未改任何文件）
+
+```text
+tests/unit/test_verdict_channel_parity.py .......... 3 failed, 10 passed
+  eval_case: declared but never written: MISS, PARTIAL, PASS
+  a non-literal write to `verdict` ... evidence/acceptance.py:462 / :570
+  result_json: witness api/routes/agent_console.py:469 does not contain 'UNKNOWN'
+
+tests/unit/test_progress_event_labels.py tests/unit/test_checker_type_parity.py
+  2 failed, 4 passed
+  pipeline nodes without a gloss: ['contract_review']
+  checkers shown to a reviewer as raw English: ['?']
+```
+
+五条都不是「测试写错了」，而是**生产里存在、名册/界面里缺一条**：
+
+| 缺的那条 | 生产里的事实 | 旧门为什么红 |
+|---|---|---|
+| `eval_case` 的产词者 | `evidence/judging.py:93-97` 用 `return` 挑四个词 | 扫描器只读「写」和「比较」，`return "PASS"` 不在六种形状里 |
+| `acceptance.py` 的归属 | 它把记录里的词读回来，与 `NOT_RUN` / `FALSE_POSITIVE` / `MISS` 比较 | 它既不是 `owners` 也不是 `opaque`，写/比较命中无人认领 |
+| `result_json` 的 `UNKNOWN` 见证 | `api/routes/agent_console.py:453` 才是那一行 | 见证还指着 `:469`，行号在别的提交里移过了 |
+| `contract_review` 的中文名 | `agent/graph.py:115-116` 注册了这个节点 | `stages.ts` 的 `STAGE_LABELS` 没有它，时间线只能显示原始 id |
+| `?` 的检查方式说明 | `agent/nodes/contract_review.py:37` 的默认值是 `"?"` | `toneMap.ts` 的 `CHECKER_CN` 没有这个键，评审看到裸 `?` |
+
+### 改了什么
+
+**1）登记册多一层：`produces`（产词者）**
+
+`VerdictChannel` 新增 `produces: tuple[str, ...]`：模块**return** 本通道的词，字段的写发生在调用方。`eval_case` 的 `produces` 是 `evidence/judging.py`；`owners` / `opaque` 补上 `evidence/acceptance.py`。note 里把这条通道写成**三条不同的线**：
+
+- **挑词的人**：`judging.py::verdict_for` return 四个词；
+- **搬运工**：两个 CLI 把词写进记录（写不出来的值 ⇒ opaque），`NOT_RUN` 由它们写；
+- **读者**：`acceptance.py` 把词读回来计数并比较——它**点名**了这些词，所以属于本通道。
+
+**2）扫描器多第七种形状：`_returned_literals`**
+
+`tests/unit/test_verdict_channel_parity.py` 新增：
+
+- `_returned_literals(path)`：收集一个模块**所有 `return` 表达式里的字符串字面量**；
+- `_producer_for` / `_claimed_by`：产词者与 owners 一样能认领一个文件，但一个文件只能属于一条通道；
+- `test_a_declared_word_is_written_and_a_written_word_is_declared` 的「产出」集合改成 **owners 写的词 ∪ producers return 的词**，两个方向都查；
+- 新增 `test_every_producer_returns_only_words_its_channel_declares`：产词者返回的词必须在本通道的 `scale` 里；`scale` 里的词也必须真的被它 return；产词者文件必须存在，且不能被两条通道同时认领。
+
+**3）两处人看的映射补上**
+
+- `apps/web/src/ui/stages.ts`：`contract_review` ⇒「等待人工批准验收条件（未获批准时管线在此停下）」。
+- `apps/web/src/ui/toneMap.ts`：`?` ⇒「未记录检查方式（这条验收条件没有写明怎么检查）」；`checkerLabel` 仍把 `?` 这个 token 原样附在后面，不假装它是一个真检查器。
+- `tests/unit/test_checker_type_parity.py` 的 `_KEY_RE` 原来要求键以小写字母开头，**读不出 `?` 这个键**；放宽为「引号或裸 token」后，`?` 才可被这条门量到。
+- 前端两条测试直接钉住新行为：`stageLabel("contract_review")` 含「人工批准」，`checkerLabel("?")` 含「未记录检查方式」且保留 `?`。
+
+### 执行证据
+
+改完后，在同一棵树上跑：
+
+```text
+tests/unit/test_verdict_channel_parity.py
+tests/unit/test_checker_type_parity.py
+tests/unit/test_readme_teaches_the_real_verdict_vocabulary.py
+tests/unit/test_progress_event_labels.py
+⇒ 24 passed in 16.92s
+
+tests/unit/test_job_status_channel_parity.py
+tests/unit/test_matrix_result_vocabulary_parity.py
+tests/unit/test_job_stage.py
+tests/unit/test_progress_event_labels.py
+⇒ 49 passed in 4.15s
+
+apps/web: vitest run src/ui/__tests__/stages.test.ts src/ui/__tests__/toneMap.test.ts
+⇒ 2 files passed, 42 tests passed
+
+ruff check evidence/verdict_channels.py tests/unit/test_checker_type_parity.py \
+           tests/unit/test_verdict_channel_parity.py
+⇒ All checks passed!
+```
+
+全程没有设置 `SPECPROOF_TEST_MYSQL_DATABASE`。干净树上的那五条红门在改后全部转绿。
+
+### 诚实边界
+
+- `acceptance.py` 的两处 `opaque` 命中其实是**读**：`verdict = str(record.get("verdict") or "")`。扫描器的 assign 形状分不清「装着读回来的值的局部变量」与「装着算出来的词的局部变量」，所以只能把它列成 opaque；**本号没有**给扫描器加「读」这一种形状。
+- `produces` 只读**直接 return 的字符串字面量**：如果词先赋给变量再 return，它看不见 ⇒ 这是**下界**，不是完备性证明。
+- `?` **不是**检查器，它是「没人写检查方式」的占位；中文说明把这件事说破，而不是把它翻译成一个听起来像检查器的词。
+- 五条红门是在 `de746b6` 上量的；本号 rebase 到 `9803f13`（#550）后重跑，仍全绿。
+
+**下一号队列**：#429「宿主号唯一」谓词统一——把 `E4._claims_the_number` 与 agent 代码里那条豁免腿收进同一个所有者，并用真实调用点证明只有一处能声称「谁起了这个进程」。

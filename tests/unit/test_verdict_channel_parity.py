@@ -23,6 +23,17 @@ Scan shapes (all six, because #90's false measurement came from scanning only
 dict keys): dict-key, keyword argument, keyword collection, assignment,
 attribute compare, variable compare — plus `.get("verdict", default)` and a
 separate record for non-literal writes, which are owned but not enumerable.
+
+A seventh shape arrived with #546: a module that CHOOSES a word RETURNS it
+(``evidence/judging.py::verdict_for``), and the field write happens in the
+caller. All six shapes above are writes and comparisons, so a
+``return "PASS"`` was invisible to them — and the channel that owned the
+evaluation's words named only the two CLI commands that CARRY the word, so
+three of its five words read as "declared but never written" while the
+module that actually chose them was in nobody's registry. ``produces`` names
+the module that chooses the words; the gate reads its returns and holds them
+to the channel's scale in BOTH directions, so a word added there later cannot
+slip in unnoticed.
 """
 from __future__ import annotations
 
@@ -315,6 +326,44 @@ def _channel_for(path: str) -> VerdictChannel | None:
     return matches[0] if matches else None
 
 
+def _producer_for(path: str) -> VerdictChannel | None:
+    """The channel that claims this file as the module that CHOOSES its words."""
+    matches = [c for c in CHANNELS.values() if path in c.produces]
+    if len(matches) > 1:
+        keys = ", ".join(sorted(c.key for c in matches))
+        raise AssertionError(f"{path} is produced by more than one channel: {keys}")
+    return matches[0] if matches else None
+
+
+def _claimed_by(path: str) -> VerdictChannel | None:
+    """The channel that may mention this file: its owner, or its producer."""
+    return _channel_for(path) or _producer_for(path)
+
+
+def _returned_literals(path: Path) -> set[str]:
+    """Every string literal this module can RETURN.
+
+    A module that CHOOSES a verdict word returns it — the field write happens
+    in the caller, so the scanner's write shapes never saw it.
+    """
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, SyntaxError):
+        return set()
+    words: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Return) or node.value is None:
+            continue
+        for sub in ast.walk(node.value):
+            if (
+                isinstance(sub, ast.Constant)
+                and isinstance(sub.value, str)
+                and sub.value
+            ):
+                words.add(sub.value)
+    return words
+
+
 def _resolve_source(spec: str) -> frozenset[str]:
     """Read an authoritative declaration rather than trusting a copy here."""
     if spec == "api.routes.feedback::pattern":
@@ -359,7 +408,7 @@ def test_every_product_verdict_literal_is_claimed_by_a_channel() -> None:
     scan = scan_repo()
     unowned = [
         str(hit) for hit in scan.hits
-        if hit.path not in EXEMPT and _channel_for(hit.path) is None
+        if hit.path not in EXEMPT and _claimed_by(hit.path) is None
     ]
     assert not unowned, (
         "verdict literal written by a file no channel declares — declare the "
@@ -381,9 +430,15 @@ def test_a_declared_word_is_written_and_a_written_word_is_declared() -> None:
     for channel in CHANNELS.values():
         if not channel.owners:
             continue
-        observed = {
-            value for value, paths in scan.valued.items() if paths & set(channel.owners)
+        # What this channel can produce: the words its owners WRITE, plus the
+        # words its producer modules RETURN. The producer is the module that
+        # CHOOSES the word; the owners only carry it into the record.
+        produced = {
+            value for value, paths in scan.valued.items()
+            if paths & (set(channel.owners) | set(channel.produces))
         }
+        for module in channel.produces:
+            produced |= _returned_literals(REPO / module)
         witnesses = channel.witnesses or {}
         witnessed = set(witnesses)
         for value, pointer in witnesses.items():
@@ -402,15 +457,15 @@ def test_a_declared_word_is_written_and_a_written_word_is_declared() -> None:
                     "— a witness must point at the line that writes the word"
                 )
         declared = set(channel.scale)
-        extra = sorted(declared - observed - witnessed)
-        missing = sorted(observed - declared)
+        extra = sorted(declared - produced - witnessed)
+        missing = sorted(produced - declared)
         if extra:
             failures.append(
-                f"{channel.key}: declared but never written: {', '.join(extra)}"
+                f"{channel.key}: declared but never produced: {', '.join(extra)}"
             )
         if missing:
             failures.append(
-                f"{channel.key}: written but never declared: {', '.join(missing)}"
+                f"{channel.key}: produced but never declared: {', '.join(missing)}"
             )
         opaque = {hit.path for hit in scan.hits if hit.value is None}
         illegal = sorted((set(channel.owners) & opaque) - set(channel.opaque))
@@ -428,13 +483,67 @@ def test_opaque_writes_stay_inside_a_channel_that_declared_them() -> None:
     for hit in scan.hits:
         if hit.value is not None or hit.path in EXEMPT:
             continue
-        channel = _channel_for(hit.path)
+        channel = _claimed_by(hit.path)
         if channel is None or hit.path not in channel.opaque:
             illegal.append(str(hit))
     assert not illegal, (
         "a non-literal write to `verdict` is not enumerable, so its channel must "
         "declare the file opaque:\n  " + "\n  ".join(sorted(illegal))
     )
+
+
+def test_every_producer_returns_only_words_its_channel_declares() -> None:
+    """A producer CHOOSES the words by returning them — hold it to the scale.
+
+    This is the direction the old registry could not see. The channel named
+    the two commands that CARRY the word, and nothing watched the module that
+    CHOOSES it: so a word added to that module later would have gone
+    unnoticed, and the words it already had were invisible to the "declared
+    but never written" check.
+
+    Both directions are held:
+    * a word the producer returns that the channel does not declare ⇒ the
+      producer grew a word nobody knows about;
+    * a word the channel declares that the producer does not return ⇒ the
+      word is dead, and the declaration is a promise nobody keeps.
+    """
+    failures: list[str] = []
+    for channel in CHANNELS.values():
+        declared = set(channel.scale)
+        for module in channel.produces:
+            path = REPO / module
+            if not path.is_file():
+                failures.append(
+                    f"{channel.key}: producer module does not exist: {module}"
+                )
+                continue
+            words = _returned_literals(path)
+            if not words:
+                failures.append(
+                    f"{channel.key}: producer {module} returns no string literal "
+                    "— the declaration is stale (the words moved elsewhere, or "
+                    "the module changed shape)"
+                )
+            extra = sorted(words - declared)
+            if extra:
+                failures.append(
+                    f"{channel.key}: producer {module} returns {extra} which "
+                    "this channel does not declare — a producer must not grow "
+                    "a word the channel does not know"
+                )
+            owner = _channel_for(module)
+            if owner is not None and owner.key != channel.key:
+                failures.append(
+                    f"{channel.key}: producer {module} is owned by {owner.key} — "
+                    "a file belongs to exactly one channel"
+                )
+            producers = sorted(c.key for c in CHANNELS.values() if module in c.produces)
+            if len(producers) > 1:
+                failures.append(
+                    f"{module} is produced by more than one channel: "
+                    f"{', '.join(producers)}"
+                )
+    assert not failures, "\n".join(failures)
 
 
 def test_channels_with_an_authority_agree_with_it() -> None:

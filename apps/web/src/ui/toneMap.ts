@@ -206,6 +206,7 @@ const CHECKER_CN: Record<string, string> = {
   rabbitmq: "消息队列检查",
   constitution: "工程规范检查",
   tests: "已有测试用例",
+  "?": "未记录检查方式（这条验收条件没有写明怎么检查）",
 };
 
 export function checkerLabel(t?: string | null): string {

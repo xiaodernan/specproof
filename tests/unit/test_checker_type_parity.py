@@ -26,7 +26,14 @@ COMPILER = REPO / "agent" / "contracts" / "compiler.py"
 
 PRODUCER_PACKAGES = ("agent", "api", "cli", "storage", "ops", "craft")
 _FIELD = "checker_type"
-_KEY_RE = re.compile(r'^\s*"?([a-z_][a-z0-9_]*)"?\s*:', re.M)
+#: The keys of a TypeScript object literal: a quoted or bare token. The key
+#: shape used to require a lowercase letter, which meant a key of `?` could
+#: not be read at all — and `?` is exactly the token that needs a gloss: it is
+#: the checker_type a contract carries when nobody wrote down HOW it is
+#: checked (`agent/nodes/contract_review.py`'s unapproved-summary default).
+#: A key shape that cannot read the token makes the glossary unmeasurable for
+#: the one word a reviewer is most likely to see.
+_KEY_RE = re.compile(r'^\s*"?(?P<key>[^"\s:]+)"?\s*:', re.M)
 
 
 def _values(node: ast.expr | None) -> set[str]:
