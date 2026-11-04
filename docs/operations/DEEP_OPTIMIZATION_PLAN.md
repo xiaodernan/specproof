@@ -20960,3 +20960,45 @@ L 号 = `legs554.txt` 里按 `def test_` 顺序排的腿。
 明确登记"折叠读散文"是设计意图并给出为什么。另有一条**旧队列的入队项在本号再证一次**：#553 挂的 ⓼（寄存器按
 `(file, line)` 认行，无关换行就搬家）——V6 那四条只红行号、不线性质的腿就是它的第二次实测，臂后补的 V6b
 才是把这条噪音与"散文造站点"分开的量具。
+
+## #555 verdict_stability 边界用例：全未执行、混合未执行、污染优先，三条路径补上测试
+
+**背景**：`agent/verdict_stability.py` 的 `summarize` 函数在 #532 后引入了「不执行任何测试的运行不构成观察」的判据：`test_counts` 缺失或为 0 的运行投射为 `not_run`  token，且 `runs_without_execution > 0` 且未污染时分类为 `not_verified`。污染（`contaminated=True`）始终优先级最高。
+
+然而现有测试只覆盖了常规路径（空序列、单运行、一致序列、分歧序列、污染优先），没有覆盖「全部未执行」「一执行一未执行」「污染+未执行」这三条边界路径。代码本身已正确处理，但没有测试锁定行为，后续重构可能静默改变分类结果。
+
+**本批只做一件事**：为 `summarize` 和 `classify_with_env` 补上三条边界路径的测试，锁定现有正确行为。
+
+### 新增测试
+
+| 测试 | 输入 | 预期分类 | 理由 |
+|------|------|---------|------|
+| `test_all_not_run_is_not_verified` | summarize([{test_counts:0}, {test_counts:0}], False) | `not_verified` | 零测试执行 ⇒ 无观察 ⇒ 无法声称稳定 |
+| `test_mixed_executed_and_not_run_is_not_verified` | summarize([{exit_code:0, tests:3}, {test_counts:0}], False) | `not_verified` | 一执行一未执行 ⇒ 不能声称稳定，也不是「跑出不同结果」的 flaky |
+| `test_contamination_outranks_not_run` | classify_with_env(["not_run", "not_run"], True) | `contaminated` | 污染优先级高于未执行 |
+
+前两个测试通过 `summarize`（带 `test_counts` 记录的运行列表）调用，第三个通过 `classify_with_env`（直接传 verdict 列表）调用，分别覆盖两条代码路径。
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_verdict_stability.py -q
+11 passed in 2.61s
+```
+
+8 条原有测试 + 3 条新增测试，全部通过。
+
+```text
+python -m ruff check tests/unit/test_verdict_stability.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- `classify_with_env` 本身不应用「not_verified」覆盖——该覆盖只在 `summarize` 中应用，因为 `classify_with_env` 只负责「污染优先」与「序列分类」两层。测试分别调用两个函数，不混淆职责边界。
+- `not_run` token 仅由 `summarize` 生成（当 `tests_executed == 0` 时），`classify_with_env` 接收的是已经投射好的 verdict 列表。第三个测试直接传入 `["not_run", "not_run"]` 来验证污染优先，不依赖 `summarize` 的投射逻辑。
+- 本批**没有改任何产品代码**，只补测试。如果未来重构改变了 `summarize` 的边界行为，这三条测试会立即红出来。
+
+**下一号队列**：#556 继续 verdict 稳定性方向——检查 `agent/nodes/run_deep_experiments.py` 对 `verdict_stability` 的调用是否已处理 `not_verified` 分类的下传，或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。

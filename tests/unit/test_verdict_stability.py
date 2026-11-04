@@ -32,6 +32,25 @@ class TestClassifier:
         assert classify_with_env(["COMPLIANT", "REGRESSION"], True) == "contaminated"
         assert classify_with_env([], False) == "no_runs"
 
+    def test_all_not_run_is_not_verified(self) -> None:
+        """Every run executed zero tests: not a single observation, so not_verified."""
+        assert summarize(
+            [{"test_counts": {"tests": 0}}, {"test_counts": {"tests": 0}}],
+            contaminated=False,
+        )["classification"] == "not_verified"
+
+    def test_mixed_executed_and_not_run_is_not_verified(self) -> None:
+        """One run executed, one did not: cannot claim stability, not flaky either."""
+        assert summarize(
+            [{"exit_code": 0, "test_counts": {"tests": 3}},
+             {"test_counts": {"tests": 0}}],
+            contaminated=False,
+        )["classification"] == "not_verified"
+
+    def test_contamination_outranks_not_run(self) -> None:
+        """Contamination takes precedence even when nothing executed."""
+        assert classify_with_env(["not_run", "not_run"], True) == "contaminated"
+
     def test_summarize_schema(self) -> None:
         summary = summarize(
             [
