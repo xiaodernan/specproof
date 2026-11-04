@@ -233,6 +233,17 @@ def test_certificate_includes_evidence_from_each_contract():
     assert certificate.evidence_digests == ["ev-1"]
 
 
+def test_certificate_issues_without_experiment_ids():
+    """require_experiment=False: a contract with PASS + evidence but no
+    experiment reference still earns a certificate (certificate path does
+    not require experiment evidence)."""
+    row = {"contract_id": "C-1", "result": "PASS", "evidence": "ev-1"}
+    certificate = issue_certificate("r", "h", "spec", [row])
+    assert certificate is not None
+    assert certificate.verified_contracts == 1
+    assert certificate.evidence_digests == ["ev-1"]
+
+
 def test_failure_survives_duplicate_existing_channel_and_certificate_merge():
     records = [
         {"contract_id": "C-1", "result": "FAIL", "evidence_ref": "failure"},

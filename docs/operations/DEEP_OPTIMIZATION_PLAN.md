@@ -21127,3 +21127,45 @@ All checks passed!
 - 证书路径（`issue_certificate`）继续使用 `require_experiment=False`，行为不变，只是现在有直接测试兜底。
 
 **下一号队列**：#559 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在合并丢失——`merge_contract_results` 已单元测试，但两节点之间的 LangGraph channel 合并是否按预期工作，尚无端到端测试。
+
+## #559 证书签发无需实验ID：issue_certificate 的 require_experiment=False 路径直接测试
+
+**背景**：`evidence/certificate.py::issue_certificate` 调用 `evaluate_verification` 时传 `require_experiment=False`，因为证书按合同形状行，不按矩阵形状——证书路径不应因缺少 `experiment_ids` 而拒绝合格的合同。
+
+现有测试 `test_certificate_includes_evidence_from_each_contract` 用 `passing_row()`（含 `experiment: "STATIC-01"`）测试了带实验ID的证书签发，但**没有测试没有实验ID的合同**：`{"contract_id": "C-1", "result": "PASS", "evidence": "ev-1"}`（只有结果和证据，无实验引用）。这种合同在 `require_experiment=False` 下应当仍可签发证书。
+
+**本批只做一件事**：补上证书签发无实验ID的直接测试。
+
+### 新增测试
+
+`test_certificate_issues_without_experiment_ids`：
+
+| 输入 | 预期 |
+|------|------|
+| `{"contract_id": "C-1", "result": "PASS", "evidence": "ev-1"}`（无 experiment）| 证书签发，`verified_contracts == 1`，`evidence_digests == ["ev-1"]` |
+
+这与 `test_certificate_includes_evidence_from_each_contract` 的区别：后者用 `passing_row()`（带 `experiment: "STATIC-01"`），前者故意省略 `experiment` 字段，验证 `require_experiment=False` 确实放宽了实验要求。
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_verdict_policy.py -q
+48 passed in 6.54s
+```
+
+20 条原有测试 + #558 的 4 条 + #559 的 1 条，共 48 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_verdict_policy.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`issue_certificate` 的 `require_experiment=False` 逻辑已正确工作。只补了对“无实验ID证书签发”的直接测试，此前仅通过带实验ID的 `passing_row()` 间接覆盖。
+- 新测试的合同行故意省略 `experiment` 字段（只保留 `contract_id`、`result`、`evidence`），与 `passing_row()` 的结构不同，避免测试重复。
+- 证书路径行为不变，只是现在有直接测试兜底“无实验ID也能签发”这一行为。
+
+**下一号队列**：#560 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失——`merge_contract_results` 已单元测试，但两节点之间的端到端合并尚无测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
