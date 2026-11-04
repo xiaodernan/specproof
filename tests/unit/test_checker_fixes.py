@@ -12,6 +12,7 @@ from agent.checkers.java_source import (
     _implemented_interface_names,
     _split_with_annotations,
     check_endpoint_changes,
+    check_schema_compat,
     check_token_invalidation,
     contract_results_for,
     run_contract_checks,
@@ -436,4 +437,49 @@ def test_endpoint_changes_unchanged_surface_is_clean() -> None:
         "com/specproof/demo/controller/UserController.java": BASE_CONTROLLER,
     }
     findings = check_endpoint_changes(base_files, head_files)
+    assert findings == []
+
+
+def test_schema_compat_removed_field_is_detected() -> None:
+    """check_schema_compat: removing a DTO field is BACKWARD_COMPATIBLE-01."""
+    base_files = {
+        "com/specproof/demo/dto/UserDto.java": (
+            "package com.speproject.demo.dto;\n"
+            "public class UserDto {\n"
+            "    private String email;\n"
+            "    private String name;\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/dto/UserDto.java": (
+            "package com.speproject.demo.dto;\n"
+            "public class UserDto {\n"
+            "    private String name;\n"
+            "}\n"
+        ),
+    }
+    findings = check_schema_compat(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "BACKWARD_COMPATIBLE-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "schema_break"
+    assert "email" in removals[0]["description"]
+
+
+def test_schema_compat_unchanged_fields_is_clean() -> None:
+    """check_schema_compat: same fields on Base and Head → no findings."""
+    dto = (
+        "package com.speproject.demo.dto;\n"
+        "public class UserDto {\n"
+        "    private String email;\n"
+        "    private String name;\n"
+        "}\n"
+    )
+    base_files = {
+        "com/specproof/demo/dto/UserDto.java": dto,
+    }
+    head_files = {
+        "com/specproof/demo/dto/UserDto.java": dto,
+    }
+    findings = check_schema_compat(base_files, head_files)
     assert findings == []
