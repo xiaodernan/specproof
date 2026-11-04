@@ -12,6 +12,7 @@ from agent.checkers.java_source import (
     _implemented_interface_names,
     _split_with_annotations,
     check_endpoint_changes,
+    check_event_once,
     check_schema_compat,
     check_token_invalidation,
     check_unique_email,
@@ -566,4 +567,51 @@ def test_token_invalidation_guard_unchanged_is_clean() -> None:
         "com/specproof/demo/service/UserService.java": svc,
     }
     findings = check_token_invalidation(base_files, head_files)
+    assert findings == []
+
+
+def test_event_once_increased_publish_is_detected() -> None:
+    """check_event_once: convertAndSend 调用次数增加是 EVENT_ONCE-01."""
+    base_files = {
+        "com/specproof/demo/service/EventService.java": (
+            "public class EventService {\n"
+            "    public void sendEvent() {\n"
+            "        rabbitTemplate.convertAndSend(\"exchange\", \"event\");\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/EventService.java": (
+            "public class EventService {\n"
+            "    public void sendEvent() {\n"
+            "        rabbitTemplate.convertAndSend(\"exchange\", \"event1\");\n"
+            "        rabbitTemplate.convertAndSend(\"exchange\", \"event2\");\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    findings = check_event_once(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "EVENT_ONCE-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "duplicate_publish"
+    assert "1 -> 2" in removals[0]["description"]
+
+
+def test_event_once_unchanged_is_clean() -> None:
+    """check_event_once: convertAndSend 调用次数不变 → 无发现."""
+    svc = (
+        "public class EventService {\n"
+        "    public void sendEvent() {\n"
+        "        rabbitTemplate.convertAndSend(\"exchange\", \"event\");\n"
+        "    }\n"
+        "}\n"
+    )
+    base_files = {
+        "com/specproof/demo/service/EventService.java": svc,
+    }
+    head_files = {
+        "com/specproof/demo/service/EventService.java": svc,
+    }
+    findings = check_event_once(base_files, head_files)
     assert findings == []
