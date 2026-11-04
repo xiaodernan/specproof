@@ -226,3 +226,31 @@ def test_outcome_vocabulary_matches_parity_and_source() -> None:
         f"parity family words {sorted(parity_words)} != declared vocabulary "
         f"{sorted(BUILD_MATRIX_OUTCOMES)}"
     )
+
+
+def test_mixed_contracts_with_and_without_results() -> None:
+    """多合同：部分有检验结果、部分无结果。有结果的按其结果呈现，
+    无结果的自动标记 UNVERIFIED，互不干扰。"""
+    state: dict[str, Any] = {
+        "contracts": [
+            {"id": "AUTH-01", "checker_type": "http", "requirement": "c1"},
+            {"id": "TXN-01", "checker_type": "sql", "requirement": "c2"},
+        ],
+        "contract_results": [
+            {"contract_id": "AUTH-01", "result": "PASS",
+             "experiment": "java_source_diff", "evidence_ref": "ev-1"},
+        ],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 2
+    assert len(matrix["rows"]) == 2
+    by_id = {row["contract_id"]: row for row in matrix["rows"]}
+    assert by_id["AUTH-01"]["result"] == "PASS"
+    assert by_id["TXN-01"]["result"] == "UNVERIFIED"
+    assert matrix["passed"] == 1
+    assert matrix["unverified"] == 1
+    assert matrix["failed"] == 0
+    assert _deltas(before) == _only("built")
