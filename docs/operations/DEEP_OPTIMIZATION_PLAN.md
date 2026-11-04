@@ -21301,3 +21301,42 @@ All checks passed!
 - `base_files` 的构造模仿 `BASE_CONTROLLER` 的结构（类内方法带注解），确保 `_split_with_annotations` 和 `_has_security_annotation` 能正确识别受保护构造。
 
 **下一号队列**：#563 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失——`merge_contract_results` 已单元测试，但两节点之间的端到端合并尚无测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #563 差分节点 contract_results 端到端流入矩阵：run_differential_node 产出与 build_matrix_node 输入对齐
+
+**背景**：`agent/nodes/run_differential_node.py::run_differential_node` 返回 `contract_results`（含 UNVERIFIED 条目），`agent/nodes/build_matrix.py::build_matrix_node` 从状态中读取 `contract_results` 生成矩阵行。`merge_contract_results` 已单元测试，但两节点之间的端到端合并——`run_differential_node` 产出 → LangGraph channel → `build_matrix_node` 消费——尚无直接测试。
+
+**本批只做一件事**：在 `tests/unit/test_differential_no_executed_tests_is_not_a_verdict.py` 补上端到端测试，运行 `run_differential_node` 并将其 `contract_results` 喂给 `build_matrix_node`，验证 UNVERIFIED 结果原样进入矩阵。
+
+### 新增测试
+
+`test_differential_contract_results_flow_into_matrix`：
+
+| 步骤 | 动作 | 预期 |
+|------|------|------|
+| 1 | 运行 `run_differential_node`（双方零测试） | `contract_results` 包含 UNVERIFIED |
+| 2 | 将 `contract_results` 喂给 `build_matrix_node` | 矩阵行保留 UNVERIFIED |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_differential_no_executed_tests_is_not_a_verdict.py -q
+5 passed in 73.00s
+```
+
+4 条原有测试 + 1 条新增，共 5 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_differential_no_executed_tests_is_not_a_verdict.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`run_differential_node` 和 `build_matrix_node` 已正确工作。只补了端到端测试，验证 `contract_results` 从差分节点到矩阵节点的传递不丢失。
+- 新测试复用 `_make_state` 和 `_stub_execution` 辅助函数，与现有测试保持一致的 mock 模式。
+- 测试覆盖 `run_differential_node` → `build_matrix_node` 的完整数据流：差分节点产出 UNVERIFIED `contract_results` → 矩阵节点接收并原样保留为 UNVERIFIED 行。
+
+**下一号队列**：#564 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况（多合同、多结果合并）；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
