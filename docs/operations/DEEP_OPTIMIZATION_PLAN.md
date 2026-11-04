@@ -21922,3 +21922,44 @@ All checks passed!
 - `check_test_weakening` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
 
 **下一号队列**：#579 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #579 `check_forbidden_changes` 宪法检查器直接测试：FORBIDDEN 规则全部覆盖
+
+**背景**：`agent/checkers/constitution.py::check_forbidden_changes` 是 `run_static_checks_node` 调用的三个异构检查器之一，执行宪法规则（forbidden clauses）。现有测试通过 `test_static_check_registry.py` 间接调用它（空输入，无发现），但**没有直接测试**：`check_forbidden_changes` 对 5 种宪法条款（annotation removal、duplicate publish、unique guard、token invalidation、schema field removal）的处理。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `check_forbidden_changes` 的直接测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_check_forbidden_changes_annotation_removal` | Base 有 `@PreAuthorize`，Head 移除了 | 1 条 FORBIDDEN-01 FAIL 发现 |
+| `test_check_forbidden_changes_duplicate_publish` | Base 有 1 次 `convertAndSend`，Head 有 2 次 | 1 条 `FORBIDDEN-01` FAIL 发现 |
+| `test_check_forbidden_changes_unique_guard_removed` | Base 有 `existsByEmail`，Head 移除了 | 1 条 `FORBIDDEN-01` FAIL 发现 |
+| `test_check_forbidden_changes_token_guard_removed` | Base 有 `invalidateOldTokens`，Head 移除了 | 1 条 `FORBIDDEN-01` FAIL 发现 |
+| `test_check_forbidden_changes_schema_break` | Base 有 DTO 字段，Head 移除了 | 1 条 `FORBIDDEN-01` FAIL 发现 |
+| `test_check_forbidden_changes_unchanged_is_clean` | 两端相同 | 无发现 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+20 passed in 6.03s
+```
+
+14 条原有测试 + 6 条新增，共 20 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`check_forbidden_changes` 逻辑已正确工作。只补了对该检查器的直接行为测试。
+- 新测试使用 6 个不同的条款类型，验证每种 forbidden clause 都能被正确检测。
+- `check_forbidden_changes` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
+
+**下一号队列**：#580 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
