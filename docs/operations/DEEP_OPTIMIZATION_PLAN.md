@@ -21624,3 +21624,40 @@ All checks passed!
 - 与 `test_contract_results_for_fail_when_checker_finds_violation` 形成对比：后者测试单个发现；前者测试多个发现合并。
 
 **下一号队列**：#570 之后检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #571 `contract_results_for` MIGRATION-01 / TEST_STRENGTH-01 混合状态：base 标志不一致时分别评估
+
+**背景**：`agent/checkers/java_source.py::contract_results_for` 的 `base_schema_present` 和 `base_test_present` 标志分别控制 `MIGRATION-01` 和 `TEST_STRENGTH-01` 合同的结果。现有测试覆盖了两个标志都为 True（都 PASS）和都为 False（都 UNVERIFIED）的情况，但**没有测试**：两个标志不一致时（一个 True，一个 False），每份合同独立评估。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `contract_results_for` 的 `base_schema_present=True, base_test_present=False` 和 `base_schema_present=False, base_test_present=True` 测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_contract_results_for_migration_true_test_false` | base_schema_present=True, base_test_present=False | MIGRATION-01 PASS，TEST_STRENGTH-01 UNVERIFIED |
+| `test_contract_results_for_migration_false_test_true` | base_schema_present=False, base_test_present=True | MIGRATION-01 UNVERIFIED，TEST_STRENGTH-01 PASS |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+19 passed in 10.00s
+```
+
+17 条原有测试 + 2 条新增，共 19 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`contract_results_for` 的 `base_schema_present` / `base_test_present` 逻辑已正确工作。只补了两个标志不一致时的直接测试。
+- 新测试验证每份合同独立评估：一个合同的结果不影响另一个合同。
+- 与 `test_contract_results_for_migration_and_test_strength`（都为 True → 都 PASS）和 `test_contract_results_for_migration_and_test_strength_not_present`（都为 False → 都 UNVERIFIED）形成对比：新测试覆盖了两个标志不一致的情况。
+
+**下一号队列**：#572 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
