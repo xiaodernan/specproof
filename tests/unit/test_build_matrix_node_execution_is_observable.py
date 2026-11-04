@@ -149,7 +149,36 @@ def test_already_unverified_result_is_preserved() -> None:
     assert _deltas(before) == _only("built")
 
 
-def test_bare_pass_is_downgraded_and_counts_refusal() -> None:
+def test_multiple_contracts_merge_by_priority() -> None:
+    """多合同、多结果进入 build_matrix_node：FAIL 优先于 UNVERIFIED，
+    每份合同独立计算，互不干扰。"""
+    state: dict[str, Any] = {
+        "contracts": [
+            {"id": "AUTH-01", "checker_type": "http", "requirement": "c1"},
+            {"id": "TXN-01", "checker_type": "sql", "requirement": "c2"},
+        ],
+        "contract_results": [
+            {"contract_id": "AUTH-01", "result": "FAIL",
+             "experiment": "java_source_diff", "evidence_ref": "f-1",
+             "details": "annotation removed"},
+            {"contract_id": "TXN-01", "result": "UNVERIFIED",
+             "experiment": "java_source_diff", "evidence_ref": "",
+             "details": "no observable construct"},
+        ],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 2
+    assert len(matrix["rows"]) == 2
+    by_id = {row["contract_id"]: row for row in matrix["rows"]}
+    assert by_id["AUTH-01"]["result"] == "FAIL"
+    assert by_id["TXN-01"]["result"] == "UNVERIFIED"
+    assert matrix["failed"] == 1
+    assert matrix["unverified"] == 1
+    assert matrix["passed"] == 0
+    assert _deltas(before) == _only("built")
     state: dict[str, Any] = {
         "contracts": [dict(_CONTRACT)],
         # A PASS verdict with no evidence reference and no experiment id —

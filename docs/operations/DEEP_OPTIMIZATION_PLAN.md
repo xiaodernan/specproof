@@ -21340,3 +21340,41 @@ All checks passed!
 - 测试覆盖 `run_differential_node` → `build_matrix_node` 的完整数据流：差分节点产出 UNVERIFIED `contract_results` → 矩阵节点接收并原样保留为 UNVERIFIED 行。
 
 **下一号队列**：#564 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况（多合同、多结果合并）；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #564 `build_matrix_node` 多合同结果合并：FAIL 优先于 UNVERIFIED，每份合同独立
+
+**背景**：`agent/nodes/build_matrix.py::build_matrix_node` 从状态中读取 `contracts` 和 `contract_results`，通过 `merge_contract_results` 合并后生成矩阵行。`merge_contract_results` 已单元测试（FAIL > PASS > UNVERIFIED），但 `build_matrix_node` 内部的多合同合并行为尚无直接测试。
+
+**本批只做一件事**：在 `tests/unit/test_build_matrix_node_execution_is_observable.py` 补上多合同合并测试，验证 FAIL 优先于 UNVERIFIED，每份合同独立计算，互不干扰。
+
+### 新增测试
+
+`test_multiple_contracts_merge_by_priority`：
+
+| 输入 | 预期 |
+|------|------|
+| 2 合同：AUTH-01（FAIL），TXN-01（UNVERIFIED） | AUTH-01 行 FAIL，TXN-01 行 UNVERIFIED；failed=1，unverified=1，passed=0 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_build_matrix_node_execution_is_observable.py -q
+6 passed in 7.81s
+```
+
+5 条原有测试 + 1 条新增，共 6 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_build_matrix_node_execution_is_observable.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`build_matrix_node` 的合并逻辑已正确工作（通过 `merge_contract_results`）。只补了多合同合并的直接测试。
+- 新测试使用两份合同（AUTH-01 FAIL，TXN-01 UNVERIFIED），验证每份合同独立计算，FAIL 不会污染 UNVERIFIED 合同，反之亦然。
+- 计数器期望 `built`：因为矩阵正常构建，没有 PASS 降级。
+
+**下一号队列**：#565 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况（多结果合并同一合同）；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
