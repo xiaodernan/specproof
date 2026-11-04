@@ -21773,3 +21773,40 @@ All checks passed!
 - `check_schema_compat` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
 
 **下一号队列**：#575 检查 `check_unique_email`（UNIQUE-01，duplicate-email guard 移除）的直接测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #575 `check_unique_email` guard 移除直接测试：UNIQUE-01 发现
+
+**背景**：`agent/checkers/java_source.py::check_unique_email` 是 `run_static_checks_node` 调用的七个 uniform 检查器之一，检查 `existsByEmail` 守卫是否被移除。现有测试通过 `run_registered_checks({}, {})` 间接调用它（空输入，无发现），但**没有直接测试**：当 Base Repository 有 `existsByEmail` 而 Head 移除了它时，`check_unique_email` 应产生 `UNIQUE-01` 发现。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `check_unique_email` 的守卫移除和守卫不变两条直接测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_unique_email_guard_removed_is_detected` | Base Repository 有 `existsByEmail`，Head 移除了它 | 1 条 `UNIQUE-01` FAIL 发现 |
+| `test_unique_email_guard_unchanged_is_clean` | Base 和 Head 都有 `existsByEmail` | 无发现 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+26 passed in 6.75s
+```
+
+24 条原有测试 + 2 条新增，共 26 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`check_unique_email` 逻辑已正确工作。只补了对该检查器的直接行为测试。
+- 新测试使用简单的 Repository 接口（`Optional<User> existsByEmail(String email);`），移除该方法后验证发现产生；方法不变时验证无发现。两条测试互为正负例。
+- `check_unique_email` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
+
+**下一号队列**：#576 检查 `check_token_invalidation`（TOKEN_INVALIDATION-01，构造器内 `invalidateOldTokens` 调用移除）的直接测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。

@@ -14,6 +14,7 @@ from agent.checkers.java_source import (
     check_endpoint_changes,
     check_schema_compat,
     check_token_invalidation,
+    check_unique_email,
     contract_results_for,
     run_contract_checks,
 )
@@ -439,7 +440,6 @@ def test_endpoint_changes_unchanged_surface_is_clean() -> None:
     findings = check_endpoint_changes(base_files, head_files)
     assert findings == []
 
-
 def test_schema_compat_removed_field_is_detected() -> None:
     """check_schema_compat: removing a DTO field is BACKWARD_COMPATIBLE-01."""
     base_files = {
@@ -482,4 +482,43 @@ def test_schema_compat_unchanged_fields_is_clean() -> None:
         "com/specproof/demo/dto/UserDto.java": dto,
     }
     findings = check_schema_compat(base_files, head_files)
+    assert findings == []
+
+
+def test_unique_email_guard_removed_is_detected() -> None:
+    """check_unique_email: removing existsByEmail guard is UNIQUE-01."""
+    base_files = {
+        "com/specproof/demo/repository/UserRepository.java": (
+            "public interface UserRepository extends JpaRepository<User, Long> {\n"
+            "    Optional<User> existsByEmail(String email);\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/repository/UserRepository.java": (
+            "public interface UserRepository extends JpaRepository<User, Long> {\n"
+            "}\n"
+        ),
+    }
+    findings = check_unique_email(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "UNIQUE-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "guard_removed"
+    assert "existsByEmail" in removals[0]["description"]
+
+
+def test_unique_email_guard_unchanged_is_clean() -> None:
+    """check_unique_email: two ends both have existsByEmail → no findings."""
+    repo_if = (
+        "public interface UserRepository extends JpaRepository<User, Long> {\n"
+        "    Optional<User> existsByEmail(String email);\n"
+        "}\n"
+    )
+    base_files = {
+        "com/specproof/demo/repository/UserRepository.java": repo_if,
+    }
+    head_files = {
+        "com/specproof/demo/repository/UserRepository.java": repo_if,
+    }
+    findings = check_unique_email(base_files, head_files)
     assert findings == []
