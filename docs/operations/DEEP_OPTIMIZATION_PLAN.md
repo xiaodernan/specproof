@@ -21699,3 +21699,40 @@ All checks passed!
 - 与 `test_contract_results_for_fail_when_checker_finds_violation`（单合同发现）形成对比：新测试覆盖了多合同混合情况。
 
 **下一号队列**：#573 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #573 `check_endpoint_changes` 端点移除直接测试：OPENAPI-01 发现缺失的端点
+
+**背景**：`agent/checkers/java_source.py::check_endpoint_changes` 是 `run_static_checks_node` 调用的七个 uniform 检查器之一，注册在 `agent/checkers/registry.py::REGISTRY` 中。现有测试通过 `run_registered_checks({}, {})` 间接调用它（空输入，无端点，无发现），但**没有直接测试**：当 Base 有 `@PutMapping("/{id}/email")` 而 Head 移除了该端点时，`check_endpoint_changes` 应产生 `OPENAPI-01` FAIL 发现。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `check_endpoint_changes` 的端点移除和端点不变两条直接测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_endpoint_changes_removal_is_detected` | Base 有 `@PutMapping("/{id}/email")`，Head 移除了它 | 1 条 `OPENAPI-01` FAIL 发现 |
+| `test_endpoint_changes_unchanged_surface_is_clean` | Base 和 Head 端点相同 | 无发现 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+22 passed in 5.01s
+```
+
+21 条原有测试 + 2 条新增，共 22 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`check_endpoint_changes` 逻辑已正确工作。只补了对该检查器的直接行为测试。
+- 新测试使用 `BASE_CONTROLLER`（已有 `@PutMapping("/{id}/email")`），移除该端点后验证发现产生；端点不变时验证无发现。两条测试互为正负例。
+- `check_endpoint_changes` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
+
+**下一号队列**：#574 检查 `check_schema_compat`（BACKWARD_COMPATIBLE-01，API DTO 字段移除/重命名）的直接测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。

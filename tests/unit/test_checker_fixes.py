@@ -11,6 +11,7 @@ These tests lock in the behaviours that were broken:
 from agent.checkers.java_source import (
     _implemented_interface_names,
     _split_with_annotations,
+    check_endpoint_changes,
     check_token_invalidation,
     contract_results_for,
     run_contract_checks,
@@ -400,3 +401,39 @@ def test_contract_results_for_mixed_findings() -> None:
          "evidence_ref": None,
          "details": "No observable construct for this contract in Base"},
     ]
+
+
+
+def test_endpoint_changes_removal_is_detected() -> None:
+    """check_endpoint_changes: removing an @PutMapping endpoint is OPENAPI-01."""
+    base_files = {
+        "com/specproof/demo/controller/UserController.java": BASE_CONTROLLER,
+    }
+    # Head removes the @PutMapping("/{id}/email") endpoint
+    head = BASE_CONTROLLER.replace(
+        """    @PutMapping("/{id}/email")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserResponse> changeEmail(""",
+        """    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserResponse> changeEmail(""",
+    )
+    head_files = {
+        "com/specproof/demo/controller/UserController.java": head,
+    }
+    findings = check_endpoint_changes(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "OPENAPI-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "endpoint_removed"
+    assert "/{id}/email" in removals[0]["description"]
+
+
+def test_endpoint_changes_unchanged_surface_is_clean() -> None:
+    """check_endpoint_changes: same endpoints on Base and Head → no findings."""
+    base_files = {
+        "com/specproof/demo/controller/UserController.java": BASE_CONTROLLER,
+    }
+    head_files = {
+        "com/specproof/demo/controller/UserController.java": BASE_CONTROLLER,
+    }
+    findings = check_endpoint_changes(base_files, head_files)
+    assert findings == []
