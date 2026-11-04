@@ -21002,3 +21002,43 @@ All checks passed!
 - 本批**没有改任何产品代码**，只补测试。如果未来重构改变了 `summarize` 的边界行为，这三条测试会立即红出来。
 
 **下一号队列**：#556 继续 verdict 稳定性方向——检查 `agent/nodes/run_deep_experiments.py` 对 `verdict_stability` 的调用是否已处理 `not_verified` 分类的下传，或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #556 DEEP 节点不漏掉 not_verified：verdict_stability 可返回未执行分类，运行层断言与新测试补全
+
+**背景**：#555 为 `agent/verdict_stability.py::summarize` 补了三条边界路径测试（全未执行、混合未执行、污染优先），锁定了 `not_verified` 分类。但 `agent/nodes/run_deep_experiments.py::run_deep_experiments_node` 调用 `summarize` 后，其测试 `test_deep_node_records_stability` 断言分类只在 `("stable", "flaky", "contaminated")` 里——**漏掉了 `not_verified`**。若沙箱返回的运行记录缺少 `test_counts`（或为空），`tests_executed` 返回 0，该运行投射为 `not_run`，所有运行均未执行时分类就是 `not_verified`。现有测试用 `test_counts: {"tests": 1}` 模拟，从未触碰这条路径。
+
+**本批只做一件事**：把 DEEP 节点测试的断言放宽到包含 `not_verified`，并新增一条测试：沙箱不返回 `test_counts` 时，DEEP 节点的 `verdict_stability.classification` 确实为 `not_verified`，`runs_without_execution` 等于重复次数。
+
+### 改动
+
+1. **`tests/unit/test_verdict_stability.py` `TestDeepStabilityWiring.test_deep_node_records_stability`**：
+   - 断言从 `("stable", "flaky", "contaminated")` 放宽为 `("stable", "flaky", "contaminated", "not_verified")` —— `summarize` 能返回的四种分类都应被接收。
+
+2. **新增 `test_deep_node_not_verified_when_no_tests_executed`**：
+   - 沙箱 `_run_test_via_sandbox` 返回不含 `test_counts` 的记录（模拟真实沙箱未上报测试数的情形）。
+   - `SPECPROOF_DEEP_REPEATS=2`，两次重复均未执行任何测试。
+   - 断言 `classification == "not_verified"` 且 `runs_without_execution == 2`。
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_verdict_stability.py -q
+12 passed in 13.40s
+```
+
+9 条原有测试 + #555 的 3 条边界测试 + #556 的 2 条 DEEP 线测试，共 12 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_verdict_stability.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`run_deep_experiments_node` 已经正确把 `repeat_runs` 传给 `summarize`，`summarize` 已经正确返回 `not_verified`。只补了测试断言与新测试用例。
+- `not_verified` 的分类权限在 `summarize`：`runs_without_execution > 0` 且 `not contaminated` 时覆盖为 `not_verified`。DEEP 节点只负责把运行记录投射给 `summarize`，不复现其判据。
+- 若未来 `_run_test_via_sandbox` 始终返回 `test_counts`，`not_verified` 路径在 DEEP 节点就不会触发；但测试锁定了「若触发，分类正确」这一行为。
+
+**下一号队列**：#557 继续 DEEP 稳定性方向——检查 `run_deep_experiments.py` 把 `verdict_stability` 结果写入深度报告后，是否有下游消费者（报告渲染、告警、门控）对 `not_verified` 做出相应反应；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
