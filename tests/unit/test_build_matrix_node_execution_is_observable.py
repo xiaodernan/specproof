@@ -254,3 +254,35 @@ def test_mixed_contracts_with_and_without_results() -> None:
     assert matrix["unverified"] == 1
     assert matrix["failed"] == 0
     assert _deltas(before) == _only("built")
+
+
+def test_multiple_results_same_contract_fail_wins() -> None:
+    """同一合同有多个结果：FAIL 优先于 PASS，最终结果为 FAIL。"""
+    state: dict[str, Any] = {
+        "contracts": [
+            {"id": "AUTH-01", "checker_type": "http", "requirement": "c1"},
+        ],
+        "contract_results": [
+            {"contract_id": "AUTH-01", "result": "PASS",
+             "experiment": "static_checks", "evidence_ref": "static-1",
+             "details": "guarded construct intact"},
+            {"contract_id": "AUTH-01", "result": "FAIL",
+             "experiment": "differential", "evidence_ref": "diff-1",
+             "details": "regression detected"},
+        ],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 1
+    assert len(matrix["rows"]) == 1
+    row = matrix["rows"][0]
+    assert row["contract_id"] == "AUTH-01"
+    assert row["result"] == "FAIL", (
+        "FAIL must win over PASS when same contract has multiple results"
+    )
+    assert matrix["failed"] == 1
+    assert matrix["passed"] == 0
+    assert matrix["unverified"] == 0
+    assert _deltas(before) == _only("built")

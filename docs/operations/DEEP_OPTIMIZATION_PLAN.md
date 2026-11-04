@@ -21496,3 +21496,46 @@ All checks passed!
 - 与 `test_multiple_contracts_merge_by_priority` 形成对比：后者测试两个合同都有结果（FAIL + UNVERIFIED）；前者测试一个合同有结果、一个合同无结果。
 
 **下一号队列**：#568 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #568 `build_matrix_node` 同一合同多结果：FAIL 优先于 PASS
+
+**背景**：`agent/nodes/build_matrix.py::build_matrix_node` 从状态中读取 `contracts` 和 `contract_results`，将每份合同的多个结果通过 `merge_contract_results` 合并（FAIL > PASS > UNVERIFIED）。现有测试覆盖了：
+- 单合同 + 单结果 → 结果保留
+- 多合同 + 多结果（各一条） → 各自独立
+- 多合同 + 部分有结果 → 各自独立
+
+但**没有测试**：同一合同有多个结果（例如差分节点产出 FAIL，静态检查节点产出 PASS），合并后应以 FAIL 为准。
+
+**本批只做一件事**：在 `tests/unit/test_build_matrix_node_execution_is_observable.py` 补上同一合同多结果的测试。
+
+### 新增测试
+
+`test_multiple_results_same_contract_fail_wins`：
+
+| 输入 | 预期 |
+|------|------|
+| 1 合同 AUTH-01，2 结果：PASS（static）+ FAIL（differential） | AUTH-01 行 FAIL，failed=1，passed=0，unverified=0 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_build_matrix_node_execution_is_observable.py -q
+8 passed in 8.57s
+```
+
+7 条原有测试 + 1 条新增，共 8 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_build_matrix_node_execution_is_observable.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`build_matrix_node` 的合并逻辑已通过 `merge_contract_results` 正确工作。只补了同一合同多结果的直接测试。
+- 新测试使用 1 个合同、2 个结果（PASS + FAIL），验证 FAIL 优先于 PASS，即差分节点的 FAIL 会覆盖静态检查的 PASS。
+- 与 `test_multiple_contracts_merge_by_priority` 形成对比：后者测试两个合同各一个结果；前者测试一个合同两个结果。
+
+**下一号队列**：#569 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
