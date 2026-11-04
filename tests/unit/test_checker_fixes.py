@@ -245,3 +245,19 @@ def test_contract_results_for_unverified_when_not_observed():
                         "experiment": "java_source_diff",
                         "evidence_ref": None,
                         "details": "No observable construct for this contract in Base"}]
+
+
+def test_contract_results_for_unverified_when_checker_failed():
+    """contract_results_for: checker crashed → UNVERIFIED with CHECKER_FAILED ref."""
+    contracts = [{"id": "AUTH-01"}]
+    findings = [{"contract_id": "OTHER-01", "type": "checker_failed",
+                 "id": "cf-1", "families": ["AUTH-01"],
+                 "description": "checker crashed"}]
+    base_files = {"com/specproof/demo/controller/UserController.java":
+                  "class UserController {}"}
+    results = contract_results_for(contracts, findings, base_files)
+    assert results == [{"contract_id": "AUTH-01", "result": "UNVERIFIED",
+                        "experiment": "java_source_diff",
+                        "evidence_ref": "CHECKER_FAILED",
+                        "details": "checker for this contract family crashed — "
+                                   "never PASS by silence"}]

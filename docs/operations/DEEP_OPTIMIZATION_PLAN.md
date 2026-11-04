@@ -21378,3 +21378,41 @@ All checks passed!
 - 计数器期望 `built`：因为矩阵正常构建，没有 PASS 降级。
 
 **下一号队列**：#565 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况（多结果合并同一合同）；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #565 `contract_results_for` 检查器崩溃路径：checker_failed 导致 UNVERIFIED
+
+**背景**：`agent/checkers/java_source.py::contract_results_for` 是 `run_static_checks_node` 和 `run_contract_checks` 的核心函数，将检查员发现（findings）映射为每份合同的结果（FAIL / PASS / UNVERIFIED）。现有测试覆盖了 FAIL（有发现）和 PASS（有受保护构造）和 UNVERIFIED（未观察到），但**没有测试**：检查器崩溃（`checker_failed` 类型 finding）导致该合同家族的所有合同都得到 UNVERIFIED，证据引用为 `CHECKER_FAILED`。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `contract_results_for` 的检查器崩溃路径测试。
+
+### 新增测试
+
+`test_contract_results_for_unverified_when_checker_failed`：
+
+| 输入 | 预期 |
+|------|------|
+| 合同 AUTH-01，发现 findings 包含 type=checker_failed，families=[AUTH-01] | AUTH-01 行 UNVERIFIED，evidence_ref=CHECKER_FAILED，details="checker for this contract family crashed — never PASS by silence" |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+14 passed in 4.27s
+```
+
+11 条原有测试 + 3 条新增（#562）+ 1 条新增（#565），共 14 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`contract_results_for` 的检查器崩溃路径已正确工作。只补了对该路径的直接测试。
+- 新测试的 finding 有 `type: "checker_failed"` 和 `families: ["AUTH-01"]`，触发 `contract_results_for` 中的 `failed_families` 分支，验证检查器崩溃时合同得到 UNVERIFIED 而非 PASS。
+- 与 `test_contract_results_for_fail_when_checker_finds_violation` 形成对比：后者测试 findings 中有 contract_id 匹配 → FAIL；前者测试 findings 有 checker_failed 类型且 families 包含该合同 → UNVERIFIED。
+
+**下一号队列**：#566 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况（多结果合并同一合同）；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
