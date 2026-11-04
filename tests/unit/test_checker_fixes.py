@@ -261,3 +261,51 @@ def test_contract_results_for_unverified_when_checker_failed():
                         "evidence_ref": "CHECKER_FAILED",
                         "details": "checker for this contract family crashed — "
                                    "never PASS by silence"}]
+
+
+def test_contract_results_for_migration_and_test_strength():
+    """contract_results_for: base_schema_present/base_test_present → MIGRATION-01
+    and TEST_STRENGTH-01 get PASS without any findings or source analysis."""
+    contracts = [
+        {"id": "MIGRATION-01"},
+        {"id": "TEST_STRENGTH-01"},
+    ]
+    findings = []
+    base_files = {}
+    results = contract_results_for(contracts, findings, base_files,
+                                   base_schema_present=True,
+                                   base_test_present=True)
+    assert results == [
+        {"contract_id": "MIGRATION-01", "result": "PASS",
+         "experiment": "java_source_diff",
+         "evidence_ref": "no violation found in source diff",
+         "details": "Checker ran; guarded construct intact in Head"},
+        {"contract_id": "TEST_STRENGTH-01", "result": "PASS",
+         "experiment": "java_source_diff",
+         "evidence_ref": "no violation found in source diff",
+         "details": "Checker ran; guarded construct intact in Head"},
+    ]
+
+
+def test_contract_results_for_migration_and_test_strength_not_present():
+    """contract_results_for: base_schema_present/base_test_present=False →
+    MIGRATION-01 and TEST_STRENGTH-01 get UNVERIFIED."""
+    contracts = [
+        {"id": "MIGRATION-01"},
+        {"id": "TEST_STRENGTH-01"},
+    ]
+    findings = []
+    base_files = {}
+    results = contract_results_for(contracts, findings, base_files,
+                                   base_schema_present=False,
+                                   base_test_present=False)
+    assert results == [
+        {"contract_id": "MIGRATION-01", "result": "UNVERIFIED",
+         "experiment": "java_source_diff",
+         "evidence_ref": None,
+         "details": "No observable construct for this contract in Base"},
+        {"contract_id": "TEST_STRENGTH-01", "result": "UNVERIFIED",
+         "experiment": "java_source_diff",
+         "evidence_ref": None,
+         "details": "No observable construct for this contract in Base"},
+    ]

@@ -21416,3 +21416,40 @@ All checks passed!
 - 与 `test_contract_results_for_fail_when_checker_finds_violation` 形成对比：后者测试 findings 中有 contract_id 匹配 → FAIL；前者测试 findings 有 checker_failed 类型且 families 包含该合同 → UNVERIFIED。
 
 **下一号队列**：#566 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况（多结果合并同一合同）；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #566 `contract_results_for` MIGRATION-01 / TEST_STRENGTH-01：base 标志控制合同结果
+
+**背景**：`agent/checkers/java_source.py::contract_results_for` 是 `run_static_checks_node` 和 `run_contract_checks` 的核心函数，将检查员发现（findings）映射为每份合同的结果（FAIL / PASS / UNVERIFIED）。现有测试覆盖了 FAIL（有发现）、PASS（有受保护构造）、UNVERIFIED（未观察到）和 UNVERIFIED（检查器崩溃），但**没有测试**：`MIGRATION-01` 和 `TEST_STRENGTH-01` 这两类合同不依赖源代码分析，而是由布尔标志 `base_schema_present` 和 `base_test_present` 控制。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `contract_results_for` 的 `base_schema_present` / `base_test_present` 路径测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_contract_results_for_migration_and_test_strength` | 2 合同（MIGRATION-01, TEST_STRENGTH-01），无发现，base_schema_present=True, base_test_present=True | 2 行 PASS |
+| `test_contract_results_for_migration_and_test_strength_not_present` | 2 合同（MIGRATION-01, TEST_STRENGTH-01），无发现，base_schema_present=False, base_test_present=False | 2 行 UNVERIFIED |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+16 passed in 10.72s
+```
+
+13 条原有测试 + 3 条新增（#565）+ 2 条新增（#566），共 16 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`contract_results_for` 的 `base_schema_present` / `base_test_present` 路径已正确工作。只补了对该路径的直接测试。
+- 新测试使用 `contracts=[{"id": "MIGRATION-01"}, {"id": "TEST_STRENGTH-01"}]` 和 `base_schema_present=True/False`, `base_test_present=True/False`，验证这两类合同不依赖源代码分析，而是由布尔标志控制。
+- 与 `test_contract_results_for_unverified_when_not_observed` 形成对比：后者测试无发现、无观察 → UNVERIFIED；前者测试有标志 → PASS，无标志 → UNVERIFIED。
+
+**下一号队列**：#567 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况（多结果合并同一合同）；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
