@@ -21042,3 +21042,45 @@ All checks passed!
 - 若未来 `_run_test_via_sandbox` 始终返回 `test_counts`，`not_verified` 路径在 DEEP 节点就不会触发；但测试锁定了「若触发，分类正确」这一行为。
 
 **下一号队列**：#557 继续 DEEP 稳定性方向——检查 `run_deep_experiments.py` 把 `verdict_stability` 结果写入深度报告后，是否有下游消费者（报告渲染、告警、门控）对 `not_verified` 做出相应反应；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #557 差分零执行守卫的对称覆盖：base 有测试、head 无测试时仍须 NON_REPRODUCIBLE
+
+**背景**：#530 的「差分零执行不是判决」给 `agent/nodes/run_differential.py` 加了零执行守卫（行 471）：`base_tests == 0 or head_tests == 0` ⇒ `NON_REPRODUCIBLE`，防止工具链失败被误读为行为判决。现有测试覆盖了两种情形：双方都零测试（test_both_sides_failed_before_running_any_test）和 base 零/head 有测试（test_a_vacuous_pass_side_cannot_carry_a_regression），但**对称情形——base 有测试、head 零测试——未被显式覆盖**。守卫用 `or`，两边对称，但测试只锁定了一边。
+
+**本批只做一件事**：补上对称情形的测试，锁定守卫的双向对称性。
+
+### 新增测试
+
+`test_a_vacuous_head_side_cannot_carry_a_regression`：
+
+| 输入 | 预期 |
+|------|------|
+| base: exit 1, 4 tests, 4 failures | `verdict == "NON_REPRODUCIBLE"` |
+| head: exit 0, 0 tests | `detail` 含 "head tests: 0" |
+| 合同结果 | 全部 `UNVERIFIED`，带 `executed no tests` 理由 |
+
+这是 test_a_vacuous_pass_side_cannot_carry_a_regression 的镜像：base 是真失败，head 是空执行，同样不能声称回归。
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_differential_no_executed_tests_is_not_a_verdict.py -q
+4 passed in 50.96s
+```
+
+3 条原有测试 + 1 条新增对称测试，共 4 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_differential_no_executed_tests_is_not_a_verdict.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 守卫逻辑本身已是对称的（`base_tests == 0 or head_tests == 0`），产品代码无需改动。测试只锁定「对称性不被未来改动悄悄打破」这一行为。
+- 新测试的 mock 数据与 test_a_vacuous_pass_side_cannot_carry_a_regression 结构相同，只是 base/head 角色互换，避免引入不一致的 mock 模式。
+- 本批**没有改任何产品代码**。
+
+**下一号队列**：#558 检查 `run_differential.py` 中 `_not_verified_contract_results` 生成的 UNVERIFIED 行是否被下游（报告渲染、门控）正确消费；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。

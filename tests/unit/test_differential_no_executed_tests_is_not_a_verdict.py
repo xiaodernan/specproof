@@ -144,6 +144,33 @@ def test_a_vacuous_pass_side_cannot_carry_a_regression(
     assert "base tests: 0" in entry["detail"]
 
 
+def test_a_vacuous_head_side_cannot_carry_a_regression(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """Head exited 0 without running a test: its "pass" is empty evidence.
+
+    Comparing it to a failing Base would emit REGRESSION on a side that
+    never executed the generated test. The comparison is unjudgeable —
+    symmetric with the base-vacuous case (guard is `or`, not `and`).
+    """
+    from agent.nodes.run_differential import run_differential_node
+
+    _stub_execution(monkeypatch, {
+        "maven_base": _result(1, 4, failures=4),
+        "maven_head": _result(0, 0),
+        "maven_probe": [],
+    })
+    out = run_differential_node(_make_state(tmp_path))
+
+    entry = out["diff_results"][0]
+    assert entry["verdict"] == "NON_REPRODUCIBLE", (
+        f"a zero-test head run cannot witness a regression; got {entry['verdict']}"
+    )
+    assert "head tests: 0" in entry["detail"]
+    assert entry["head_test_counts"]["tests"] == 0
+    assert [r["result"] for r in out["contract_results"]] == ["UNVERIFIED"]
+
+
 def test_a_real_both_sides_failure_keeps_its_ambiguous_verdict(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
