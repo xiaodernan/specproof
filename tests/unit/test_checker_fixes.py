@@ -309,3 +309,21 @@ def test_contract_results_for_migration_and_test_strength_not_present():
          "evidence_ref": None,
          "details": "No observable construct for this contract in Base"},
     ]
+
+
+def test_contract_results_for_multiple_findings_joined() -> None:
+    """contract_results_for: 同一合同多个发现，details 用 "; " 连接。"""
+    contracts = [{"id": "AUTH-01"}]
+    findings = [
+        {"contract_id": "AUTH-01", "type": "annotation_removed",
+         "id": "f-1", "description": "@PreAuthorize removed"},
+        {"contract_id": "AUTH-01", "type": "annotation_removed",
+         "id": "f-2", "description": "@Secured removed"},
+    ]
+    base_files = {"com/specproof/demo/controller/UserController.java":
+                  "class UserController {}"}
+    results = contract_results_for(contracts, findings, base_files)
+    assert results == [{"contract_id": "AUTH-01", "result": "FAIL",
+                        "experiment": "java_source_diff",
+                        "evidence_ref": "f-1",
+                        "details": "@PreAuthorize removed; @Secured removed"}]

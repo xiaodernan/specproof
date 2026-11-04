@@ -21586,3 +21586,41 @@ All checks passed!
 - 计数器期望 `pass_downgraded`：因为有一个 PASS 结果因无证据被降级为 UNVERIFIED，触发 `pass_downgraded` 计数器而非 `built`。
 
 **下一号队列**：#569 之后检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #570 `contract_results_for` 多发现合并：同一合同多个发现，details 用 "; " 连接
+
+**背景**：`agent/checkers/java_source.py::contract_results_for` 是 `run_static_checks_node` 和 `run_contract_checks` 的核心函数，将检查员发现（findings）映射为每份合同的结果（FAIL / PASS / UNVERIFIED）。现有测试覆盖了单发现的情况（FAIL、PASS、UNVERIFIED、检查器崩溃），但**没有测试**：同一合同有多个发现时，details 字段用 "; " 连接所有发现的描述。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `contract_results_for` 的多发现合并测试。
+
+### 新增测试
+
+`test_contract_results_for_multiple_findings_joined`：
+
+| 输入 | 预期 |
+|------|------|
+| 合同 AUTH-01，2 个发现：`@PreAuthorize removed` 和 `@Secured removed` | FAIL，details="@PreAuthorize removed; @Secured removed" |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+17 passed in 11.64s
+```
+
+16 条原有测试 + 1 条新增，共 17 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`contract_results_for` 已通过 `"; ".join(h["description"] for h in hits)` 正确连接多个发现。只补了对该路径的直接测试。
+- 新测试使用 2 个发现对同一合同 AUTH-01，验证 details 字段用 "; " 连接所有发现的描述。
+- 与 `test_contract_results_for_fail_when_checker_finds_violation` 形成对比：后者测试单个发现；前者测试多个发现合并。
+
+**下一号队列**：#570 之后检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
