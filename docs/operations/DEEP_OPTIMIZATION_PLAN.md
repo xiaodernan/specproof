@@ -21963,3 +21963,40 @@ All checks passed!
 - `check_forbidden_changes` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
 
 **下一号队列**：#580 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #580 `check_event_once` 直接测试：EVENT_ONCE-01 发现
+
+**背景**：`agent/checkers/java_source.py::check_event_once` 是 `run_static_checks_node` 调用的七个 uniform 检查器之一，检查 `convertAndSend(` 调用次数是否从 Base 增加到 Head。现有测试通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用它（空输入，无发现），但**没有直接测试**：当 Base Service 方法有 1 次 `convertAndSend(` 调用而 Head 有 2 次时，`check_event_once` 应产生 `EVENT_ONCE-01` 发现。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `check_event_once` 的直接测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_check_event_once_increased_publish_is_detected` | Base 有 1 次 `convertAndSend(`，Head 有 2 次 | 1 条 `EVENT_ONCE-01` FAIL 发现 |
+| `test_check_event_once_unchanged_is_clean` | Base 和 Head `convertAndSend(` 次数相同 | 无发现 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+14 passed in 4.06s
+```
+
+12 条原有测试 + 2 条新增，共 14 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`check_event_once` 逻辑已正确工作。只补了对该检查器的直接行为测试。
+- 新测试使用简单的 Service 类（`rabbitTemplate.convertAndSend("exchange", "event");`），调用次数从 1 增加到 2 后验证发现产生；次数不变时验证无发现。两条测试互为正负例。
+- `check_event_once` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
+
+**下一号队列**：#581 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
