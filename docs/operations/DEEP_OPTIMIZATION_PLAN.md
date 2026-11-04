@@ -21810,3 +21810,40 @@ All checks passed!
 - `check_unique_email` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
 
 **下一号队列**：#576 检查 `check_token_invalidation`（TOKEN_INVALIDATION-01，构造器内 `invalidateOldTokens` 调用移除）的直接测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #576 `check_token_invalidation` 调用移除直接测试：TOKEN_INVALIDATION-01 发现
+
+**背景**：`agent/checkers/java_source.py::check_token_invalidation` 是 `run_static_checks_node` 调用的七个 uniform 检查器之一，检查构造器内 `invalidateOldTokens` / `redisTemplate.delete(` 调用是否被移除。现有测试通过 `run_registered_checks({}, {})` 间接调用它（空输入，无发现），但**没有直接测试**：当 Base Service 方法有 `invalidateOldTokens(userId)` 调用而 Head 移除了它时，`check_token_invalidation` 应产生 `TOKEN_INVALIDATION-01` 发现。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `check_token_invalidation` 的调用移除和调用不变两条直接测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_token_invalidation_guard_removed_is_detected` | Base Service 方法有 `invalidateOldTokens(userId)` 调用，Head 移除了它 | 1 条 `TOKEN_INVALIDATION-01` FAIL 发现 |
+| `test_token_invalidation_guard_unchanged_is_clean` | Base 和 Head 都有该调用 | 无发现 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+28 passed in 5.65s
+```
+
+26 条原有测试 + 2 条新增，共 28 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`check_token_invalidation` 逻辑已正确工作。只补了对该检查器的直接行为测试。
+- 新测试使用简单的 Service 类（`private void invalidateOldTokens(Long userId) { redisTemplate.delete("token:user:" + userId); }`），移除该调用后验证发现产生；调用不变时验证无发现。两条测试互为正负例。
+- `check_token_invalidation` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
+
+**下一号队列**：#577 检查 `check_event_once`（EVENT_ONCE-01，`convertAndSend` 调用次数增加）的直接测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。

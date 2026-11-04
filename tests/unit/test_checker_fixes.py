@@ -522,3 +522,48 @@ def test_unique_email_guard_unchanged_is_clean() -> None:
     }
     findings = check_unique_email(base_files, head_files)
     assert findings == []
+
+
+def test_token_invalidation_guard_removed_is_detected() -> None:
+    """check_token_invalidation: removing invalidateOldTokens call is TOKEN_INVALIDATION-01."""
+    base_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    private void invalidateOldTokens(Long userId) {\n"
+            "        redisTemplate.delete(\"token:user:\" + userId);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    private void invalidateOldTokens(Long userId) {\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    findings = check_token_invalidation(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "TOKEN_INVALIDATION-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "guard_removed"
+    assert "invalidateOldTokens" in removals[0]["description"]
+
+
+def test_token_invalidation_guard_unchanged_is_clean() -> None:
+    """check_token_invalidation: both ends have invalidateOldTokens call → no findings."""
+    svc = (
+        "public class UserService {\n"
+        "    private void invalidateOldTokens(Long userId) {\n"
+        "        redisTemplate.delete(\"token:user:\" + userId);\n"
+        "    }\n"
+        "}\n"
+    )
+    base_files = {
+        "com/specproof/demo/service/UserService.java": svc,
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": svc,
+    }
+    findings = check_token_invalidation(base_files, head_files)
+    assert findings == []
