@@ -437,36 +437,101 @@ class ConsumerDefence:
     span: int
 
 
-def _mask_typescript(text: str) -> str:
-    """String literals and ``//`` comments out, so a guard written in prose is not a guard.
+def _mask_prose(text: str) -> str:
+    """``//`` and ``/* ... */`` out, in place -- the one prose rule every TS reader shares.
 
-    The rule #544 set for the path fold, applied to a consumer body: the reading counts code.
+    Length, newline count and columns are all preserved, so an offset in the masked text is the
+    same offset in the file: a reader may decide code-ness here and still slice its content out of
+    the original. Literals are stepped over, never blanked, because a route path *is* a string
+    literal -- #555 measured what a mask that erased them costs (48 call sites read as 0).
+
+    The block-comment branch is the reason this function exists. The mask it replaces knew only
+    ``//``, applied per line, so a ``/* ... */`` opened on one line and closed on another stayed
+    code at every granularity: its ``;`` ended a member chunk in ``ts_declarations``, which lost
+    six real fields, and its text could be read as a consumer site by a lens that never asked who
+    wrote it.
     """
-    out: list[str] = []
-    quote = ""
+    out = list(text)
+    size = len(text)
+
+    def blank(at: int) -> None:
+        if text[at] != "\n":
+            out[at] = " "
+
     i = 0
+    while i < size:
+        if text.startswith("//", i):
+            j = i
+            while j < size and text[j] != "\n":
+                blank(j)
+                j += 1
+            i = j
+        elif text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            stop = size if end < 0 else end + 2
+            for j in range(i, stop):
+                blank(j)
+            i = stop
+        elif text[i] in "'\"`":
+            i = _end_of_literal(text, i)
+        else:
+            i += 1
+    return "".join(out)
+
+
+def _end_of_literal(text: str, start: int) -> int:
+    """The index just past the literal that opens at ``start``.
+
+    ``'`` and ``"`` end at their quote or at the line -- an apostrophe in prose that survived a
+    partial mask must not swallow the rest of the file. A backtick runs to its own backtick and may
+    cross lines, which is why the mask is applied to whole text and not line by line.
+    """
+    quote = text[start]
+    i = start + 1
     while i < len(text):
         ch = text[i]
-        if quote:
-            if ch == "\\":
-                i += 2
-                continue
-            if ch == quote:
-                quote = ""
-                out.append(" ")
-            i += 1
+        if ch == "\\":
+            i += 2
             continue
-        if ch in "'\"`":
-            quote = ch
-            i += 1
-            continue
-        if text.startswith("//", i):
-            end = text.find("\n", i)
-            i = len(text) if end < 0 else end
-            continue
-        out.append(ch)
+        if ch == quote:
+            return i + 1
+        if ch == "\n" and quote in "'\"":
+            return i
         i += 1
+    return i
+
+
+def _blank_literals(text: str) -> str:
+    """The inside of every literal in already-prose-free text, blanked in place."""
+    out = list(text)
+    i = 0
+    while i < len(text):
+        if text[i] in "'\"`":
+            end = _end_of_literal(text, i)
+            for j in range(i + 1, max(i + 1, end - 1)):
+                if text[j] != "\n":
+                    out[j] = " "
+            i = end
+        elif text[i] == "\\":
+            i += 2
+        else:
+            i += 1
     return "".join(out)
+
+
+def _mask_typescript(text: str) -> str:
+    """Prose out, then string interiors out -- the *shape* reading, and only that.
+
+    The rule #544 set for the path fold, applied to a consumer body: the reading counts code. It
+    no longer deletes characters, so a column in the result is a column in the file, and no caller
+    needs to mask line by line to keep its line numbers.
+
+    No lens that reads content back out may use this: the payload path, an alias's target and a
+    declared type's union members all live inside literals, which is exactly what this mask erases.
+    Those read `_mask_prose`, and a call-shape test on top of it blanks literals only to answer a
+    yes/no question.
+    """
+    return _blank_literals(_mask_prose(text))
 
 
 #: Bracket pairs the region walk keeps balanced, in the order it reports them.
@@ -475,6 +540,10 @@ _TS_PAIRS = (("(", ")"), ("[", "]"), ("{", "}"))
 
 def _consumer_region(lines: list[str], start: int) -> tuple[str, int]:
     """The statement a call site begins, extended while the following line continues it.
+
+    ``lines`` are the file's masked lines (`_ts_masked_lines`), so what this walk calls "the next
+    line" is already the next line of code: a comment between the request and its ``.then`` neither
+    extends the region nor ends it as itself.
 
     An ``apiGet`` call puts its consumer on the *next* line (``.then((data) => ...)``), so a
     single-line read sees the request and never the defence. The extension keeps going while
@@ -486,7 +555,7 @@ def _consumer_region(lines: list[str], start: int) -> tuple[str, int]:
     depth = 0
     index = start
     while index < len(lines):
-        line = _mask_typescript(lines[index])
+        line = lines[index]
         parts.append(line)
         depth += sum(line.count(open_) - line.count(close) for open_, close in _TS_PAIRS)
         following = lines[index + 1].lstrip() if index + 1 < len(lines) else ""
@@ -556,7 +625,7 @@ def consumer_defences(root: Path) -> list[ConsumerDefence]:
     rows: list[ConsumerDefence] = []
     for pair in sorted(pairs, key=lambda p: (p.site.file, p.site.line, p.endpoint.path)):
         site, endpoint = pair.site, pair.endpoint
-        lines = (root / site.file).read_text(encoding="utf-8").splitlines()
+        lines = _ts_masked_lines(root / site.file)
         region, span = _consumer_region(lines, site.line - 1)
         verb, path = endpoint.verb, normalize_path(endpoint.path)
         reached = ".then(" in region
@@ -643,16 +712,14 @@ _CONSUMER_BINDING_STYLES = (
 
 
 def _statement_frame(lines: list[str], index: int, look_back: int = 2) -> str:
-    """The site's own statement so far, masked: from the last depth-0 ``;`` above it.
+    """The site's own statement so far: from the last depth-0 ``;`` above it.
 
     Where a binding, an ``await`` or a rename has to be written to belong to *this* call. A binding
     can wrap onto the site line and the site line can end the statement, so one line either way is
     not enough; the semicolon boundary is what stops an unrelated ``await`` two lines up from
     promoting a parked promise into an awaited one.
     """
-    joined = "\n".join(
-        _mask_typescript(lines[k]) for k in range(max(0, index - look_back), index + 1)
-    )
+    joined = "\n".join(lines[k] for k in range(max(0, index - look_back), index + 1))
     # A ``;`` ends the statement only at depth 0 and only *before* the frame's own end:
     # ``apiGet<{ a: X[]; b: Y }>(...)`` puts one inside a type argument, and the site's terminating
     # ``;`` would otherwise cut the very binding this function exists to find.
@@ -680,7 +747,7 @@ def _enclosing_block(lines: list[str], index: int) -> tuple[int, str]:
     pending = 0
     openers: list[int] = []
     for i in range(index, -1, -1):
-        text = _mask_typescript(lines[i])
+        text = lines[i]
         for offset in range(len(text) - 1, -1, -1):
             if text[offset] == "}":
                 pending += 1
@@ -690,16 +757,14 @@ def _enclosing_block(lines: list[str], index: int) -> tuple[int, str]:
                     openers.append(i)
                     pending = 0
     for opener in openers:
-        head = _mask_typescript(lines[opener]) + "\n" + _mask_typescript(lines[max(0, opener - 1)])
+        head = lines[opener] + "\n" + lines[max(0, opener - 1)]
         if _TS_BLOCK_HEAD.search(head):
             depth = 0
             for j in range(opener, len(lines)):
-                text = _mask_typescript(lines[j])
+                text = lines[j]
                 depth += text.count("{") - text.count("}")
                 if depth == 0 and j > opener:
-                    return j - opener + 1, "\n".join(
-                        _mask_typescript(lines[k]) for k in range(opener, j + 1)
-                    )
+                    return j - opener + 1, "\n".join(lines[k] for k in range(opener, j + 1))
     return 0, ""
 
 
@@ -710,7 +775,7 @@ def _tuple_head(lines: list[str], index: int, look_back: int = 12) -> int:
     member's own arguments can wrap. Beyond that the head is a different statement.
     """
     for i in range(index, max(-1, index - look_back), -1):
-        if _TS_TUPLE_HEAD.search(_mask_typescript(lines[i])):
+        if _TS_TUPLE_HEAD.search(lines[i]):
             return i
     return -1
 
@@ -726,11 +791,11 @@ def _tuple_reaches_then(lines: list[str], head: int) -> bool:
     """
     depth = 0
     for j in range(head, len(lines)):
-        text = _mask_typescript(lines[j])
+        text = lines[j]
         depth += text.count("(") + text.count("[") + text.count("{")
         depth -= text.count(")") + text.count("]") + text.count("}")
         if depth == 0 and j > head:
-            tail = "\n".join(_mask_typescript(lines[k]) for k in range(j, min(len(lines), j + 4)))
+            tail = "\n".join(lines[k] for k in range(j, min(len(lines), j + 4)))
             return ".then(" in tail
     return False
 
@@ -741,7 +806,7 @@ def _binding_style(lines: list[str], index: int, region: str) -> str:
         return "then-chain"
     if _tuple_head(lines, index) >= 0:
         return "tuple-member"
-    if _TS_HOOK_CALLEE.search(_mask_typescript(lines[index])):
+    if _TS_HOOK_CALLEE.search(lines[index]):
         return "hook"
     frame = _statement_frame(lines, index)
     if region.strip().split("\n")[0].startswith("return"):
@@ -828,7 +893,7 @@ def consumer_bindings(root: Path) -> list[ConsumerBinding]:
     out: list[ConsumerBinding] = []
     for pair in sorted(pairs, key=lambda p: (p.site.file, p.site.line, p.endpoint.path)):
         site, endpoint = pair.site, pair.endpoint
-        lines = (root / site.file).read_text(encoding="utf-8").splitlines()
+        lines = _ts_masked_lines(root / site.file)
         index = site.line - 1
         region, _span = _consumer_region(lines, index)
         block_span, block = _enclosing_block(lines, index)
@@ -969,13 +1034,24 @@ DENOMINATOR_KINDS = (
 
 
 def _ts_masked(ts: Path) -> str:
-    """The whole file, line by line through `_mask_typescript` -- prose stops being code.
+    """The whole file through `_mask_typescript` once -- prose stops being code.
 
-    The mask rewrites a line's width, so columns are meaningless in the result. Line *numbers*
-    survive: every read below turns an offset back into a line by counting newlines, the same
-    arithmetic the census's own statement lens uses.
+    Once, not line by line: the per-line loop existed only because the old mask rewrote a line's
+    width, so joining its output was how line numbers survived. `_mask_typescript` preserves
+    length, newlines and columns now, which means the same call answers the block-comment case the
+    per-line shape could not see -- and it means a column in this text is a column in the file.
     """
-    return "\n".join(_mask_typescript(line) for line in ts.read_text(encoding="utf-8").split("\n"))
+    return _mask_typescript(ts.read_text(encoding="utf-8"))
+
+
+def _ts_masked_lines(ts: Path) -> list[str]:
+    """`_ts_masked` split into lines, for the readers that key a finding by `(file, line)`.
+
+    Element ``i`` is line ``i + 1`` of the file, which is the arithmetic every caller of these
+    helpers already does with `site.line - 1`. The split is on ``\\n``, not `splitlines`, so a
+    trailing newline keeps its element and an index into the list is an index into the text.
+    """
+    return _ts_masked(ts).split("\n")
 
 
 def _call_re(name: str) -> re.Pattern[str]:
@@ -1525,7 +1601,7 @@ def ts_declarations(web_src: Path) -> dict[str, tuple[str, list[Member]]]:
     out: dict[str, tuple[str, list[Member]]] = {}
     for ts in sorted(list(web_src.rglob("*.ts")) + list(web_src.rglob("*.tsx"))):
         rel = _rel_in_web(web_src, ts)
-        text = ts.read_text(encoding="utf-8")
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
         for pattern in _DECL_PATTERNS:
             for m in pattern.finditer(text):
                 members = _split_members(_block_after(text, m.end() - 1))
@@ -1839,7 +1915,7 @@ def conditional_table(
         if _is_test_file(ts):
             continue
         rel = _rel_in_web(web_src, ts)
-        text = ts.read_text(encoding="utf-8")
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
         aliases, _ambiguous = _file_aliases(text)
         for match in pattern.finditer(text):
             if not _is_call(text, match):
@@ -1929,7 +2005,7 @@ def hook_readings(web_src: Path) -> list[HookReading]:
         if _is_test_file(ts):
             continue
         rel = _rel_in_web(web_src, ts)
-        text = ts.read_text(encoding="utf-8")
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
         for match in _HOOK_DEF.finditer(text):
             sig = _past_paren(text, match.end())
             if sig == -1:
@@ -2023,7 +2099,7 @@ def ruler_blind_spots(web_src: Path) -> list[BlindSpot]:
         if _is_test_file(ts):
             continue
         rel = _rel_in_web(web_src, ts)
-        text = ts.read_text(encoding="utf-8")
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
         bounds = [m.start() for m in _TOP_BOUNDARY.finditer(text)]
         for match in _ANY_HOOK_DEF.finditer(text):
             is_async, kind, name = bool(match.group(1)), match.group(2), match.group(3)
@@ -2054,7 +2130,7 @@ def ruler_blind_spots(web_src: Path) -> list[BlindSpot]:
         if _is_test_file(ts):
             continue
         rel = _rel_in_web(web_src, ts)
-        text = ts.read_text(encoding="utf-8")
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
         aliases, _ambiguous = _file_aliases(text)
         for match in pattern.finditer(text):
             if not _is_call(text, match):
@@ -2198,7 +2274,7 @@ def frontend_calls(web_src: Path) -> tuple[list[CallSite], int]:
     hook_verbs = _hook_verbs_by_name(web_src)
     for ts in _web_sources(web_src):
         rel = _rel_in_web(web_src, ts)
-        text = ts.read_text(encoding="utf-8")
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
         aliases, _refused = _file_aliases(text)
         is_test = _is_test_file(ts)
         for match in pattern.finditer(text):
@@ -2254,7 +2330,7 @@ def alias_table(web_src: Path) -> tuple[list[tuple[str, str, str, int]], list[tu
         if _is_test_file(ts):
             continue
         rel = _rel_in_web(web_src, ts)
-        table, ambiguous = _file_aliases(ts.read_text(encoding="utf-8"))
+        table, ambiguous = _file_aliases(_mask_prose(ts.read_text(encoding="utf-8")))
         for name in sorted(table):
             sites = sum(1 for site in calls if site.file == rel and name in site.via_aliases)
             rows.append((rel, name, table[name], sites))
@@ -2297,7 +2373,7 @@ def call_shapes(web_src: Path) -> list[CallShape]:
         if ts.name.endswith(_TEST_SUFFIXES):
             continue
         rel = _rel_in_web(web_src, ts)
-        text = ts.read_text(encoding="utf-8")
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
         for match in pattern.finditer(text):
             if text[match.end() : match.end() + 1] not in ("<", "("):
                 continue

@@ -187,6 +187,8 @@ from tests._payload_plane import (  # noqa: E402
     Member,
     OptionalBand,
     Pair,
+    _mask_prose,
+    _mask_typescript,
     alias_table,
     call_shapes,
     client_surface,
@@ -278,9 +280,13 @@ UNPAIRED_ENDPOINTS: frozenset[Key] = frozenset(
 #: endpoint is `Matrix.tsx`'s inline `{ jobs: Job[] }`, which asks for less than the page
 #: that has always been its witness. That is what this register is for -- a widening on
 #: the consumer side can *increase* the drift, and the drift is real either way.
+#: What #555 removed is the entry that was *not* real: `("get", "/api/v1/admin/audit")`
+#: carried `total` for six units, but the frontend declares that field at `Audit.tsx:41` --
+#: a `;` inside the comment above it ended the member chunk, so the declaration existed and
+#: the reading could not see it. An entry here means "nobody wrote it down", so a mask that
+#: loses a line writes a false answer into the register that exists to catch lies.
 ROSTERED_EXTRA_KEYS: dict[Key, frozenset[str]] = {
     ("get", "/agent/jobs"): frozenset({"next_offset"}),
-    ("get", "/api/v1/admin/audit"): frozenset({"total"}),
     ("get", "/api/v1/jobs/{}/findings"): frozenset({"sources"}),
     ("get", "/jobs"): frozenset({"limit", "offset", "total"}),
     ("get", "/jobs/{}/summary"): frozenset({"job_id"}),
@@ -545,7 +551,9 @@ RETURN_ACCOUNT_MISMATCHES: dict[Key, tuple[int, int]] = {
 #: ``Guide.tsx`` guards ``total`` with ``typeof`` while the type it now imports says the key
 #: cannot be missing -- ``vitest`` is that guard's only witness at runtime, and this register is
 #: the only thing that records the guard exists. ``Audit.tsx`` is the other page guarding anything,
-#: and its ``total`` is a key no frontend type declares at all.
+#: and all four of its rows now read ``required``: its ``total`` was ``undeclared`` until #555, when
+#: a single prose rule made ``ts_declarations`` able to see the line the key is written on -- the
+#: field is at ``Audit.tsx:41``, under a comment whose own ``;`` used to end the member chunk.
 CONSUMER_DEFENCES: dict[tuple[str, int, str], tuple[str, str, str, str, str]] = {
     ("apps/web/src/pages/Audit.tsx", 145, "audit"): (
         "get",
@@ -565,7 +573,7 @@ CONSUMER_DEFENCES: dict[tuple[str, int, str], tuple[str, str, str, str, str]] = 
         "get",
         "/api/v1/admin/audit",
         "typeof",
-        "undeclared",
+        "required",
         "always",
     ),
     ("apps/web/src/pages/Guide.tsx", 74, "total"): ("get", "/jobs", "typeof", "required", "always"),
@@ -575,11 +583,12 @@ CONSUMER_DEFENCES: dict[tuple[str, int, str], tuple[str, str, str, str, str]] = 
 #: zero here for the first time and it is this number's own doing: the page moved onto the shared
 #: ``JobsPage``, whose ``total`` is required. The zero belongs in the register for the reason
 #: #547 set -- it is a measurement, and the day a page writes ``total?: number`` again it moves
-#: here rather than appearing only in a diff.
+#: here rather than appearing only in a diff. ``undeclared`` joined it at #555: no guarded key on
+#: this tree is missing from its frontend type, which is the reading the mask was blocking.
 CONSUMER_DEFENCE_BANDS: dict[str, int] = {
-    "required": 3,
+    "required": 4,
     "optional": 0,
-    "undeclared": 1,
+    "undeclared": 0,
 }
 
 #: And by defence shape. One kind per row, because the owner classifies per occurrence with a
@@ -1121,10 +1130,24 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "Member": ((), (), 0),
     "OptionalBand": ((), (), 1),
     "Pair": ((), (), 11),
+    "_mask_prose": (
+        (
+            "test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only",
+            "test_the_prose_mask_is_one_rule_applied_to_a_file_never_to_a_line",
+        ),
+        (),
+        1,
+    ),
+    "_mask_typescript": (
+        ("test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only",),
+        (),
+        0,
+    ),
     "alias_table": (("test_the_path_aliases_the_fold_rewrites_are_rostered_whole",), (), 0),
     "call_shapes": (
         (
             "test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption",
+            "test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens",
             "test_the_definition_guard_rejects_only_definitions",
         ),
         (),
@@ -1134,6 +1157,7 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
         (
             "test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption",
             "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
+            "test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens",
             "test_the_client_surface_is_a_closure_over_transports_not_a_list_of_clients",
             "test_the_shapes_this_tree_never_writes_still_produce_rows_when_a_fixture_writes_them",
         ),
@@ -1178,6 +1202,7 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
         (
             "test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption",
             "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
+            "test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens",
             "test_the_denominator_is_wider_than_the_census_by_two_rosters_and_no_hand_wave",
             "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
             "test_the_shapes_this_tree_never_writes_still_produce_rows_when_a_fixture_writes_them",
@@ -1185,10 +1210,11 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
         (),
         0,
     ),
-    "endpoints": ((), (), 11),
+    "endpoints": (("test_the_routes_this_gate_invents_exist_only_in_its_own_prose",), (), 11),
     "frontend_calls": (
         (
             "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
+            "test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens",
             "test_the_census_measures_a_population_rather_than_a_sample",
             "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
             "test_the_fold_stops_where_the_caller_stopped_spelling_a_path",
@@ -1201,14 +1227,26 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "hook_readings": (
         (
             "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
+            "test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens",
             "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
             "test_the_hook_consumers_are_measured_from_their_own_bodies",
         ),
         (),
         0,
     ),
-    "members_of_type": ((), (), 2),
-    "normalize_path": (("test_sites_with_no_readable_declared_type_are_rostered",), (), 8),
+    "members_of_type": (
+        ("test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written",),
+        (),
+        2,
+    ),
+    "normalize_path": (
+        (
+            "test_sites_with_no_readable_declared_type_are_rostered",
+            "test_the_routes_this_gate_invents_exist_only_in_its_own_prose",
+        ),
+        (),
+        8,
+    ),
     "optional_publish_bands": (
         (
             "test_an_optional_key_is_rostered_in_the_band_the_route_puts_it_in",
@@ -1246,51 +1284,66 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
         (),
         0,
     ),
-    "ts_declarations": ((), (), 11),
+    "ts_declarations": (
+        (
+            "test_every_member_chunk_the_splitter_keeps_or_drops_is_counted",
+            "test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written",
+        ),
+        (),
+        11,
+    ),
     "web_src": (
         (
             "test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption",
             "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
+            "test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens",
+            "test_every_member_chunk_the_splitter_keeps_or_drops_is_counted",
             "test_the_census_measures_a_population_rather_than_a_sample",
             "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
             "test_the_definition_guard_rejects_only_definitions",
             "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
             "test_the_hook_consumers_are_measured_from_their_own_bodies",
+            "test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only",
             "test_the_path_aliases_the_fold_rewrites_are_rostered_whole",
+            "test_the_prose_mask_is_one_rule_applied_to_a_file_never_to_a_line",
             "test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered",
+            "test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written",
         ),
         (),
         10,
     ),
 }
 
-#: ``(executed, annotated, via-helper)`` relation instances over the whole table. The 89
+#: ``(executed, annotated, via-helper)`` relation instances over the whole table. The 90
 #: in the last column is the point of the register: most of this gate reads the plane
 #: through ``_census`` and ``_checked_pairs``, so a map that only recorded direct calls
 #: would report a gate with no helpers and lose the reads it cannot see.
-_EXIT_READ_INSTANCES = (61, 4, 89)
+_EXIT_READ_INSTANCES = (79, 4, 90)
 
 #: The legs whose reads are all direct or annotated -- the population the cross-check
 #: compares between its two lenses. A zero here would make the agreement vacuous.
-_DIRECT_RELATION_INSTANCES = 65
+_DIRECT_RELATION_INSTANCES = 83
 
 #: Which exits more than one leg executes, and how many do it. These are the rows an arm
 #: is about to red twice: #548's E7 moved ``optional_publish_bands`` and both of its
 #: executors failed; #547's D5 did the same to a guard layer reached through two fixtures.
 EXITS_WITH_MULTIPLE_EXECUTORS: dict[str, int] = {
-    "call_shapes": 2,
-    "client_surface": 4,
+    "_mask_prose": 2,
+    "call_shapes": 3,
+    "client_surface": 5,
     "conditional_table": 3,
     "consumer_bindings": 9,
     "consumer_defences": 4,
-    "denominator_sites": 5,
-    "frontend_calls": 6,
-    "hook_readings": 3,
+    "denominator_sites": 6,
+    "frontend_calls": 7,
+    "hook_readings": 4,
+    "normalize_path": 2,
     "optional_publish_bands": 2,
     "pairings": 2,
     "payload_of": 5,
     "ruler_blind_spots": 3,
-    "web_src": 9,
+    "ts_declarations": 2,
+    "web_src": 14,
 }
 
 #: Named by the two legs that read axis (c), spelled out because the arm prediction that
@@ -1307,9 +1360,9 @@ EXIT_READS_ALIAS_ONLY: frozenset[str] = frozenset({"Member"})
 
 #: Legs that never execute or annotate an owner name themselves. Four roster legs read
 #: through helpers; four are #549's, which read this map rather than the plane; two are
-#: #550's, which audit the map builder's own body. Registered by name because "no direct
-#: read" and "no read at all" are the same zero, and the difference is only visible in
-#: the helper hop.
+#: #550's, which audit the map builder's own body; and one is #581's, which reads the
+#: maskers and no exit at all. Registered by name because "no direct read" and "no read
+#: at all" are the same zero, and the difference is only visible in the helper hop.
 LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
     {
         "test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two",
@@ -1317,6 +1370,7 @@ LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
         "test_every_name_this_file_imports_reaches_a_leg_or_is_rostered",
         "test_every_route_without_a_frontend_consumer_is_rostered_by_name",
         "test_loose_pairings_are_rostered",
+        "test_no_typescript_text_reaches_a_reading_that_did_not_pass_through_the_mask",
         "test_the_exit_read_map_is_measured_not_recited",
         "test_the_helper_hop_has_its_own_second_lens",
         "test_the_private_page_interfaces_really_are_in_the_census",
@@ -1327,7 +1381,7 @@ LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
 
 #: ``(names in the owner's __all__, names this file imports, names public by convention)``.
 #: Three numbers, because the surface has two seams and each is a roster below.
-_OWNER_SURFACE = (35, 30, 37)
+_OWNER_SURFACE = (35, 32, 37)
 
 #: Exported by the owner, not imported here. The owner's surface is not this gate's
 #: surface: these six are how the plane is built (``Payload``, ``api_routers``,
@@ -1397,11 +1451,13 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
         "test_a_disjunction_fallback_is_a_shape_and_the_precedence_keeps_the_chain_first",
         "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
         "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
+        "test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens",
         "test_a_tuple_member_is_counted_by_whether_the_tuple_hands_its_responses_over",
         "test_a_wrapper_that_forwards_the_payload_whole_reads_no_key_in_either_lens",
         "test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two",
         "test_every_name_this_file_imports_reaches_a_leg_or_is_rostered",
         "test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason",
+        "test_no_typescript_text_reaches_a_reading_that_did_not_pass_through_the_mask",
         "test_the_block_lens_adds_a_guard_population_axis_d_never_saw",
         "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
         "test_the_exit_read_map_is_measured_not_recited",
@@ -1410,10 +1466,14 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
         "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
         "test_the_helper_hop_has_its_own_second_lens",
         "test_the_hook_consumers_are_measured_from_their_own_bodies",
+        "test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only",
         "test_the_path_aliases_the_fold_rewrites_are_rostered_whole",
+        "test_the_prose_mask_is_one_rule_applied_to_a_file_never_to_a_line",
         "test_the_read_map_generator_names_no_register_and_the_anchors_are_rostered",
         "test_the_reading_reaches_the_consumer_only_where_the_response_is_handed_over",
+        "test_the_routes_this_gate_invents_exist_only_in_its_own_prose",
         "test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered",
+        "test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written",
         "test_the_statement_lens_reads_a_key_at_three_sites_and_defends_at_two",
         "test_the_three_conditional_guards_each_carry_their_own_case",
         "test_the_two_lenses_over_the_read_map_agree_leg_by_leg",
@@ -1423,7 +1483,164 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
 #: Sum over legs of the helpers each reaches, counted once per leg (so a helper two legs share
 #: is two edges). The population the text lens walks: 0 would mean the leg below compares two
 #: empty sets and calls it agreement.
-_CLOSURE_EDGE_TOTAL = 79
+_CLOSURE_EDGE_TOTAL = 100
+
+
+# ---------------------------------------------------------------------------
+# #555: the mask itself.
+#
+# Every reading above sits behind a text transformation: comments and string literals are removed
+# before a lens decides what is code. Before this number the owner had three maskers, one prose rule
+# that knew `//` and nothing else, and two granularities -- whole text for twelve readers, line by
+# line for the #554 exits. The landed design is one prose rule (`_mask_prose`), applied to a file,
+# plus one optional second step (`_blank_literals`) for a lens that asks a shape question and never
+# reads content back. The registers below are what that claim is made of: which functions call which
+# mask with what shape of argument, which files are read without one, and what the mask is forbidden
+# to touch.
+# ---------------------------------------------------------------------------
+
+#: The five names that make up the mask: one prose rule, one literal step, their composition, and
+#: the two file-level entry points that hand their result to readers. The inventory leg matches on
+#: these strings rather than importing the functions, because it reads the owner's *tree*.
+_MASKER_NAMES: tuple[str, ...] = (
+    "_blank_literals",
+    "_mask_prose",
+    "_mask_typescript",
+    "_ts_masked",
+    "_ts_masked_lines",
+)
+
+#: Function -> the maskers whose names appear in its body, sorted. Measured from the owner's tree,
+#: so a lane that adds a fourth masker or calls one from a new function moves this table. The two
+#: entries with two names are the seam itself: `_mask_typescript` is the *composition* (prose, then
+#: literals), and `_ts_masked` is the only place the composition is applied to a file.
+_MASK_SITES: dict[str, tuple[str, ...]] = {
+    "_issuers_outside_client": ("_ts_masked",),
+    "_mask_typescript": ("_blank_literals", "_mask_prose"),
+    "_ts_masked": ("_mask_typescript",),
+    "_ts_masked_lines": ("_ts_masked",),
+    "alias_table": ("_mask_prose",),
+    "call_shapes": ("_mask_prose",),
+    "client_surface": ("_ts_masked",),
+    "conditional_table": ("_mask_prose",),
+    "consumer_bindings": ("_ts_masked_lines",),
+    "consumer_defences": ("_ts_masked_lines",),
+    "denominator_sites": ("_ts_masked",),
+    "frontend_calls": ("_mask_prose",),
+    "hook_readings": ("_mask_prose",),
+    "ruler_blind_spots": ("_mask_prose",),
+    "ts_declarations": ("_mask_prose",),
+}
+
+#: Mask calls whose first argument is a subscript -- the per-line granularity #555 deleted. It was
+#: eleven sites, and the six members below are what they cost. Zero is the whole point of the unit,
+#: so it is an equality, not a floor: the mask must be one rule applied once to a whole file.
+_PER_LINE_MASK_ARGUMENTS = 0
+
+#: Functions that open a TypeScript file's text, and how many `read_text` sites each has. All nine
+#: sites sit inside a mask call; the count is per function so `ruler_blind_spots`, which reads two
+#: passes, is visible as two.
+_TS_TEXT_READERS: dict[str, int] = {
+    "_ts_masked": 1,
+    "alias_table": 1,
+    "call_shapes": 1,
+    "conditional_table": 1,
+    "frontend_calls": 1,
+    "hook_readings": 1,
+    "ruler_blind_spots": 2,
+    "ts_declarations": 1,
+}
+
+#: The other plane. These read Python modules and parse them, so their prose blindness comes from
+#: `ast.parse` rather than from a mask -- and #555's rule says nothing about them. Registered by
+#: name because the split between "masked text" and "parsed text" is the one place a new reading
+#: could quietly pick the wrong side.
+_PYTHON_TEXT_READERS: frozenset[str] = frozenset(
+    {"_parse", "_source", "api_routers", "endpoints", "payload_of"}
+)
+
+#: The six fields `ts_declarations` answered "not declared" about, because a `;` written inside a
+#: comment ended their member chunk first. Keyed by (type, member) rather than by line: #555's whole
+#: claim is that these are *real* declarations, so the register that proves the reading sees them
+#: must not itself be a line number.
+PROSE_SHADOWED_MEMBERS: dict[tuple[str, str], tuple[str, bool, str]] = {
+    ("AgentJobResult", "steps"): (API_TS, True, "AgentJobStep[]"),
+    ("AgentJob", "accept"): (API_TS, True, "AgentAccept | null"),
+    ("AuditResponse", "total"): ("apps/web/src/pages/Audit.tsx", False, "number | null"),
+    ("NavItem", "roles"): ("apps/web/src/App.tsx", True, "readonly string[]"),
+    ("StepSignals", "connection"): (
+        "apps/web/src/ui/onboarding.ts",
+        False,
+        '"pending" | "ok" | "failed"',
+    ),
+    ("ToastOptions", "duration"): ("apps/web/src/ui/Toast.tsx", True, "number"),
+}
+
+#: Chunks the splitter throws away. Found by replaying the split in this file and diffing against
+#: what `ts_declarations` reports, so it is a measurement of the reader, not of a regex. One row
+#: today, and it is a real TypeScript feature the fold has no word for: an index signature says
+#: "any key is allowed", and the reading answers "no such member".
+MEMBER_CHUNK_LOSSES: dict[str, tuple[str, str]] = {
+    "AgentAcceptFinding": (API_TS, "[key: string]: unknown"),
+}
+
+#: The seven prose spellings a request mention can sit in, and the rows each lens returns for a
+#: fixture that writes all seven plus four code calls. `p-template` is the one that is *not* prose:
+#: a template literal is code, and a mask that ate it would answer zero consumers on the real tree
+#: (#555 measured 48 -> 0 with literals blanked).
+_FIXTURE_PROSE_FORMS: tuple[str, ...] = (
+    "p-block",
+    "p-jsdoc",
+    "p-line",
+    "p-page-block",
+    "p-page-line",
+    "p-sameline",
+    "p-template",
+)
+_FIXTURE_LENS_ROWS: dict[str, int] = {
+    "call_shapes": 7,
+    "client_surface": 6,
+    "denominator_sites": 14,
+    "frontend_calls": 5,
+    "hook_readings": 1,
+}
+
+#: Routes that exist only in this gate's own docstrings -- the Python plane's version of the same
+#: hazard, and the reason §① of the ledger calls the backend a *negative control*: a raw text scan
+#: finds three get-decorations on `/ping` in this file and the AST-based reader finds none, because
+#: parsing already does what the mask does for TypeScript.
+_GATE_PROSE_ROUTE_MENTIONS: tuple[tuple[str, str], ...] = (
+    ("get", "/ping"),
+    ("get", "/ping"),
+    ("get", "/ping"),
+)
+
+#: Floors for the populations the mask legs walk. Exact numbers here would make the legs part of
+#: queue ⓼ (a comment edited elsewhere moves them); what must be exact is the *violation* count,
+#: which is zero everywhere below except the one seam #581 measures and leaves to the next unit.
+_MIN_MASKED_TS_FILES = 120
+_MIN_PROSE_CHARS = 90000
+#: Files carrying a ``/* */`` anywhere, including one that opens and closes on a single line -- the
+#: shape the owner's old rule could not see at all, whatever granularity it was handed.
+_MIN_BLOCK_PROSE_FILES = 18
+_MIN_MASKED_LITERALS = 8000
+_MIN_DECLARATION_BODIES = 100
+_MIN_MEMBER_CHUNKS = 550
+#: Files whose text masks differently when the rule is applied to the file than when it is applied
+#: to each line. The per-line count above is zero, and this is what makes that zero a choice rather
+#: than a no-op: a block comment opened on one line is invisible to a rule that never sees the next.
+_MIN_GRANULARITY_DIVERGENT_FILES = 12
+#: Consumer rows on the real tree whose call-shaped text sits *inside* a string literal. Zero, and
+#: the fixture keeps one, because the difference between prose and literal is exactly what the two
+#: maskers are for: the first is blanked, the second has to survive.
+_CALL_MENTIONS_INSIDE_A_LITERAL = 0
+#: Literals whose inside the shape reading did not blank, counted rather than hidden. All of them
+#: sit on a line holding a regex literal: the quote scan has no rule for `/"/g`, opens a string at
+#: the `"` inside it and keeps blanking until the next quote, so the real `'\\"'` after it is
+#: already gone by the time the walk reaches it. Two of 9,063 literals, both in a
+#: `querySelector` argument builder. Registering the seam is the whole claim #581 makes about it --
+#: a scanner boundary, the same family as the index signature the member split drops.
+_SHAPE_SCAN_BLIND_ROWS = 2
 
 
 class ReadMap(NamedTuple):
@@ -2823,8 +3040,8 @@ def test_a_defence_on_a_key_the_route_always_publishes_is_rostered() -> None:
 
     The join the probe had to do by hand lives inside each row: ``declared`` comes from the site's
     own type, ``published`` from the route's branch fold. That is what makes one row read as a
-    fact about two files instead of a guess about one -- ``Audit.tsx`` guards ``total``, which no
-    frontend type declares and the route always answers.
+    fact about two files instead of a guess about one -- ``Audit.tsx`` guards ``total``, which its
+    own type declares required and the route always answers.
     """
     rows = consumer_defences(REPO)
     defences = [row for row in rows if row.key]
@@ -3725,3 +3942,672 @@ def test_the_shapes_this_tree_never_writes_still_produce_rows_when_a_fixture_wri
             f"`client.apiGet(...)` and 10 is `defaultClient(...)`, the two import shapes "
             f"this reading cannot bind"
         )
+
+
+# ---------------------------------------------------------------------------
+# The gate's own lens over the mask. Each helper below re-derives something the owner does
+# internally, because a leg that asks the mask what it masked answers with the mask.
+# ---------------------------------------------------------------------------
+
+
+def _parent_map(module: ast.Module) -> dict[int, ast.AST]:
+    """Child -> parent links, which `ast.walk` does not keep."""
+    parents: dict[int, ast.AST] = {}
+    for node in ast.walk(module):
+        for child in ast.iter_child_nodes(node):
+            parents[id(child)] = node
+    return parents
+
+
+def _holder_of(node: ast.AST, parents: dict[int, ast.AST]) -> str:
+    cur: ast.AST | None = node
+    while cur is not None:
+        if isinstance(cur, ast.FunctionDef):
+            return cur.name
+        cur = parents.get(id(cur))
+    return "<module>"
+
+
+def _ts_tokens(text: str) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """(``prose spans``, ``literal spans``) from a tokenizer written beside this gate.
+
+    The mask legs cannot ask the mask what it considers prose -- that question answers itself, and
+    #549's arm G7 is the lesson: an instrument that reports the wish passes every assertion that
+    reads it. So this walk keeps the two categories apart the way the language does: ``//`` runs to
+    the newline, ``/*`` runs to its closer (or to the end of the text, unterminated), a quote runs
+    to its quote or to the line end except for a backtick, which may cross lines, and a backslash
+    carries whatever follows it along.
+    """
+    prose: list[tuple[int, int]] = []
+    literals: list[tuple[int, int]] = []
+    i = 0
+    size = len(text)
+    while i < size:
+        if text.startswith("//", i):
+            j = i
+            while j < size and text[j] != "\n":
+                j += 1
+            prose.append((i, j))
+            i = j
+        elif text.startswith("/*", i):
+            closer = text.find("*/", i + 2)
+            stop = size if closer < 0 else closer + 2
+            prose.append((i, stop))
+            i = stop
+        elif text[i] in "'\"`":
+            quote = text[i]
+            j = i + 1
+            while j < size:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == quote:
+                    j += 1
+                    break
+                if text[j] == "\n" and quote != "`":
+                    break
+                j += 1
+            literals.append((i, min(j, size)))
+            i = literals[-1][1]
+        else:
+            i += 1
+    return prose, literals
+
+
+def _mask_inventory(
+    owner: ast.Module, maskers: tuple[str, ...]
+) -> tuple[dict[str, tuple[str, ...]], list[str]]:
+    """Which function calls which mask, and every mask call handed a line rather than a file."""
+    parents = _parent_map(owner)
+    sites: dict[str, set[str]] = {}
+    per_line: list[str] = []
+    for node in ast.walk(owner):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        if node.func.id not in maskers:
+            continue
+        holder = _holder_of(node, parents)
+        sites.setdefault(holder, set()).add(node.func.id)
+        first = node.args[0] if node.args else None
+        if isinstance(first, ast.Subscript):
+            per_line.append(f"{holder}:{node.lineno}:{node.func.id}")
+    return {name: tuple(sorted(kinds)) for name, kinds in sites.items()}, per_line
+
+
+def _text_reader_sites(
+    owner: ast.Module, maskers: tuple[str, ...]
+) -> tuple[dict[str, int], dict[str, int]]:
+    """``read_text`` sites split by whether a mask call encloses them, counted per function.
+
+    The two dictionaries are the whole coverage claim: a text read that is *not* inside a mask has
+    to be a Python module read, where ``ast.parse`` does the prose-blinding instead. A new
+    TypeScript reader that opens a file raw lands in the second dictionary under a name no roster
+    carries.
+    """
+    parents = _parent_map(owner)
+    masked: dict[str, int] = {}
+    bare: dict[str, int] = {}
+
+    def enclosed(node: ast.AST) -> bool:
+        cur: ast.AST | None = parents.get(id(node))
+        while cur is not None:
+            if (
+                isinstance(cur, ast.Call)
+                and isinstance(cur.func, ast.Name)
+                and cur.func.id in maskers
+            ):
+                return True
+            cur = parents.get(id(cur))
+        return False
+
+    for node in ast.walk(owner):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "read_text":
+            continue
+        holder = _holder_of(node, parents)
+        bucket = masked if enclosed(node) else bare
+        bucket[holder] = bucket.get(holder, 0) + 1
+    return masked, bare
+
+
+def _rel_label(web: Path, ts: Path) -> str:
+    """The file's own tail plus its path inside the web root, in the form the rosters spell."""
+    return "/".join(web.parts[-3:]) + "/" + ts.relative_to(web).as_posix()
+
+
+def _declaration_bodies(web: Path, head: re.Pattern[str]) -> list[tuple[str, str, str]]:
+    """(name, host, body) for every object-shaped declaration this lens finds.
+
+    Braces are matched by walking, not by a regex: a nested object member has to close before its
+    declaration does. The body excludes both braces, which is what the splitter is fed.
+    """
+    out: list[tuple[str, str, str]] = []
+    for ts in sorted(list(web.rglob("*.ts")) + list(web.rglob("*.tsx"))):
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
+        for match in head.finditer(text):
+            name = match.group(1) or match.group(2)
+            open_at = match.end() - 1
+            depth = 0
+            i = open_at
+            while i < len(text):
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                i += 1
+            out.append((name, _rel_label(web, ts), text[open_at + 1 : i]))
+    return out
+
+
+def _chunk_walk(body: str, member_head: re.Pattern[str]) -> list[tuple[str, bool]]:
+    """Every depth-0 chunk of an object body, and whether this lens calls it a member.
+
+    ``[`` and ``]`` are kept in the chunk on purpose: an index signature is a real field declaration
+    in TypeScript, and a census that drops the brackets would report it as noise rather than as a
+    member the reading lost.
+    """
+    out: list[tuple[str, bool]] = []
+    depth = 0
+    buf = ""
+    for ch in body:
+        if ch in "{[(":
+            depth += 1
+            buf += ch
+        elif ch in "})]":
+            depth -= 1
+            buf += ch
+        elif ch == ";" and depth == 0:
+            if buf.strip():
+                out.append((buf, bool(member_head.match(buf))))
+            buf = ""
+        else:
+            buf += ch
+    if buf.strip():
+        out.append((buf, bool(member_head.match(buf))))
+    return out
+
+
+def _chunk_name(chunk: str) -> str:
+    match = re.match(r"^\s*(?:readonly\s+)?\[?\s*([A-Za-z_$][\w$]*)", chunk)
+    return match.group(1) if match else ""
+
+
+def _literals_holding_structure(text: str) -> list[str]:
+    """Literals whose own contents carry a ``;`` or a brace -- the splitter's blind side."""
+    _prose, literals = _ts_tokens(text)
+    return [text[a:b] for a, b in literals if any(c in text[a + 1 : b - 1] for c in ";{}")]
+
+
+def _prose_line_numbers(text: str) -> set[int]:
+    prose, _literals = _ts_tokens(text)
+    lines: set[int] = set()
+    for start, stop in prose:
+        for k in range(start, stop):
+            lines.add(text.count("\n", 0, k) + 1)
+    return lines
+
+
+def _forms_in_prose(text: str, mention: re.Pattern[str]) -> set[str]:
+    prose, _literals = _ts_tokens(text)
+    return {m.group(1) for start, stop in prose for m in mention.finditer(text[start:stop])}
+
+
+def _mentions_inside_literals(text: str, shape: re.Pattern[str]) -> list[tuple[int, str]]:
+    _prose, literals = _ts_tokens(text)
+    out: list[tuple[int, str]] = []
+    for start, stop in literals:
+        inner_end = max(start + 1, stop - 1)
+        for match in shape.finditer(text, start + 1, inner_end):
+            out.append((text.count("\n", 0, match.start()) + 1, match.group(0)))
+    return out
+
+
+#: A declaration head as this gate reads it -- the same two spellings the owner matches, written out
+#: a second time so the chunk census below cannot be told what to look for by the reader it audits.
+_DECLARATION_HEAD = re.compile(
+    r"^(?:export\s+)?(?:interface\s+(\w+)[^{}]*\{|type\s+(\w+)\s*=\s*\{)", re.M
+)
+
+#: Deliberately wider than the owner's member rule: a name, an optional mark, an index signature, a
+#: method, any of them behind ``readonly``. A chunk that is a field and is missing from the reading
+#: is a loss whatever swallowed it, which is the point of counting chunks instead of hunting causes.
+_MEMBER_HEAD = re.compile(
+    r"^\s*(?:readonly\s+)?(?:\[\s*\w+\s*:\s*\w+\s*\]|[A-Za-z_$][\w$]*\s*\??\s*[:<(])"
+)
+
+_PROSE_MENTION = re.compile(r"/api/v1/(p-[a-z-]+)")
+_CALL_SHAPED_TEXT = re.compile(r"(?<![\w.$])api[A-Z]\w*\s*[<(]")
+
+#: A regex literal on one line: a slash in operand position, at least one character, a closing
+#: slash and flags. Crude on purpose -- it is only ever consulted to explain a disagreement between
+#: this walk's tokenizer and the owner's quote scan, never to decide what is prose.
+_REGEX_LIKE = re.compile(r"(?<![\w)\]}'\"])/(?:\\.|[^/\n\\])+/[gimsuy]*")
+
+#: Route-shaped text, read the way a raw scan of the backend would read it -- decoration name plus
+#: a quoted path. Only the prose of this file matches it, which is the point of the leg below.
+_ROUTE_MENTION = re.compile(r'@router\.(\w+)\(\s*["\']([^"\']+)')
+
+
+def test_the_prose_mask_is_one_rule_applied_to_a_file_never_to_a_line() -> None:
+    """⓽, first half: the owner has one prose rule and it is handed whole files.
+
+    Before #555 the mask knew ``//`` and nothing else, and it was applied at two granularities --
+    over a file for twelve readers and over each line for the #554 exits. A ``/* ... */`` opened on
+    one line and closed on another was code to both of them, and the ledger's six members are what
+    that cost: a ``;`` written inside a JSDoc ended the member chunk, ``_one_member``'s regex then
+    refused the remainder, and the field the browser declared did not exist as far as the census was
+    concerned.
+
+    ``_PER_LINE_MASK_ARGUMENTS`` is the sentence this leg exists to make impossible. It is zero, and
+    the floor below says the zero is not vacuous: on the very same files, applying the rule line by
+    line instead of file by file gives a *different* text -- so a lane that goes back to the old
+    granularity changes what the readings see, not merely how often they call a function.
+    """
+    owner = ast.parse((REPO / "tests" / "_payload_plane.py").read_text(encoding="utf-8"))
+    sites, per_line = _mask_inventory(owner, _MASKER_NAMES)
+    assert sites == _MASK_SITES, f"which function calls which mask moved: {sites}"
+    assert len(per_line) == _PER_LINE_MASK_ARGUMENTS, (
+        f"a mask was handed one line instead of a file: {sorted(per_line)} -- that is the "
+        f"granularity #555 removed, and it is what hid the six members"
+    )
+
+    files = sorted(list(web_src(REPO).rglob("*.ts")) + list(web_src(REPO).rglob("*.tsx")))
+    divergent = [
+        ts.name
+        for ts in files
+        if _mask_prose(ts.read_text(encoding="utf-8"))
+        != "\n".join(_mask_prose(line) for line in ts.read_text(encoding="utf-8").split("\n"))
+    ]
+    assert len(divergent) >= _MIN_GRANULARITY_DIVERGENT_FILES, (
+        f"only {len(divergent)} files mask differently per line than per file: the two "
+        f"granularities have quietly become one, and this floor has no load on it"
+    )
+
+
+def test_no_typescript_text_reaches_a_reading_that_did_not_pass_through_the_mask() -> None:
+    """⓽, second half: coverage. Not one reader opens a frontend file raw.
+
+    This is the part a fix usually forgets. Replacing the rule is worth nothing if a single reader
+    still calls ``read_text`` on its own, because that reader keeps the old behavior and the census
+    keeps a second, undocumented answer to the same question. The owner had exactly that shape:
+    ``ts_declarations`` -- the one exit whose whole job is reading declarations -- never masked at
+    all, which is why the six fields below had to be found by a probe rather than by a leg.
+
+    Two rosters, one claim: the masked sites are the TypeScript readers, and every unmasked
+    ``read_text`` in the owner belongs to the Python plane, where ``ast.parse`` does the blinding.
+    """
+    owner = ast.parse((REPO / "tests" / "_payload_plane.py").read_text(encoding="utf-8"))
+    masked, bare = _text_reader_sites(owner, _MASKER_NAMES)
+    assert masked == _TS_TEXT_READERS, f"which function reads TypeScript text moved: {masked}"
+    assert frozenset(bare) == _PYTHON_TEXT_READERS, (
+        f"unmasked reads: {sorted(bare)} vs the Python plane {sorted(_PYTHON_TEXT_READERS)} -- "
+        f"a TypeScript reader that reads raw is a second, unregistered answer"
+    )
+
+
+def test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only() -> None:
+    """The two readings, separated by what they are allowed to erase.
+
+    ``_mask_prose`` blanks exactly the spans an independent tokenizer calls comments -- and nothing
+    else: no literal, no code, no character count, no newline. ``_mask_typescript`` adds the literal
+    step on top of that, keeping the quotes and erasing the inside, and it is legal only for a lens
+    that asks a shape question. §① measured what happens when that boundary is crossed: with
+    literals blanked, ``frontend_calls`` reports **0** of 48 sites, because a route path *is* a
+    string literal. So the division of labor is not a style preference and this leg is where it is
+    pinned.
+
+    Every violation list is empty. The floors say how much text that walked: 144 files, prose on
+    94k characters, literals 9k -- the zero is measured over a population, not asserted over an
+    example.
+    """
+    files = sorted(list(web_src(REPO).rglob("*.ts")) + list(web_src(REPO).rglob("*.tsx")))
+    prose_chars = 0
+    literal_count = 0
+    block_files: set[str] = set()
+    prose_survived: list[str] = []
+    code_touched: list[str] = []
+    literal_touched: list[str] = []
+    width_moved: list[str] = []
+    shape_kept_literal: list[str] = []
+    scan_blind_sites: list[str] = []
+    shape_lost_quote: list[str] = []
+
+    for ts in files:
+        raw = ts.read_text(encoding="utf-8")
+        masked = _mask_prose(raw)
+        shape = _mask_typescript(raw)
+        prose, literals = _ts_tokens(raw)
+        rel = _rel_label(web_src(REPO), ts)
+        if len(masked) != len(raw) or len(shape) != len(raw):
+            width_moved.append(rel)
+        if masked.count("\n") != raw.count("\n") or shape.count("\n") != raw.count("\n"):
+            width_moved.append(rel)
+
+        in_prose: set[int] = set()
+        for start, stop in prose:
+            in_prose.update(range(start, stop))
+            prose_chars += sum(1 for k in range(start, stop) if raw[k] != "\n")
+            if raw.startswith("/*", start):
+                block_files.add(rel)
+
+        in_literal: set[int] = set()
+        raw_lines = raw.split("\n")
+        for start, stop in literals:
+            if any(k in in_prose for k in range(start, stop)):
+                continue
+            literal_count += 1
+            in_literal.update(range(start, stop))
+            lineno = raw.count(chr(10), 0, start) + 1
+            if masked[start:stop] != raw[start:stop]:
+                literal_touched.append(f"{rel}:{lineno}")
+            closer = stop - 1 if raw[stop - 1] == raw[start] else None
+            if closer is not None and shape[closer] != raw[start]:
+                shape_lost_quote.append(f"{rel}:{lineno}")
+            interior = raw[start + 1 : closer] if closer is not None else raw[start + 1 : stop]
+            blanked = shape[start + 1 : closer] if closer is not None else shape[start + 1 : stop]
+            if re.sub(r"[^\n]", " ", interior) != blanked:
+                if _REGEX_LIKE.search(raw_lines[lineno - 1]):
+                    scan_blind_sites.append(f"{rel}:{lineno}")
+                else:
+                    shape_kept_literal.append(f"{rel}:{lineno}")
+
+        for k, ch in enumerate(raw):
+            if ch == "\n":
+                continue
+            if k in in_prose:
+                if masked[k] != " " or shape[k] != " ":
+                    prose_survived.append(f"{rel}:{raw.count(chr(10), 0, k) + 1}")
+            elif k not in in_literal and masked[k] != ch:
+                code_touched.append(f"{rel}:{raw.count(chr(10), 0, k) + 1}")
+
+    assert files, "the frontend plane is empty"
+    assert len(files) >= _MIN_MASKED_TS_FILES, f"only {len(files)} files walked"
+    assert prose_chars >= _MIN_PROSE_CHARS, f"only {prose_chars} prose characters walked"
+    assert len(block_files) >= _MIN_BLOCK_PROSE_FILES, (
+        f"only {len(block_files)} files carry block comments"
+    )
+    assert literal_count >= _MIN_MASKED_LITERALS, f"only {literal_count} literals walked"
+    assert not width_moved, f"the mask changed the shape of the text: {sorted(set(width_moved))}"
+    assert not prose_survived, f"prose survived the mask at {len(prose_survived)} characters"
+    assert not code_touched, f"the mask rewrote code at {code_touched[:6]}"
+    assert not literal_touched, f"the prose mask touched a literal at {literal_touched[:6]}"
+    assert not shape_kept_literal, (
+        f"the shape reading left literal text at {shape_kept_literal[:6]}"
+    )
+    assert len(scan_blind_sites) == _SHAPE_SCAN_BLIND_ROWS, (
+        f"the quote scan opened a string inside a regex literal at {sorted(scan_blind_sites)}"
+    )
+    assert not shape_lost_quote, (
+        f"the shape reading erased its own delimiters at {shape_lost_quote[:6]}"
+    )
+
+
+def test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written() -> None:
+    """The six rows §①.5 named, asserted as facts about the tree rather than as a fixed count.
+
+    Each of these is a field the frontend spells out and the reading answered "not declared" about.
+    ``AuditResponse.total`` is the one that reached a register: it sat in
+    ``ROSTERED_EXTRA_KEYS`` for six units, filed as "the route publishes a key nobody wrote down",
+    while line 41 of the very page that guards it said otherwise. An entry in that register is a
+    claim about the *frontend*, and a mask that loses a line writes a false claim into the one table
+    whose job is to catch false claims.
+
+    Keyed by (type, member) rather than by (file, line): these are declarations, and the register
+    that proves the reading can see them must not itself be a queue ⓼ hostage.
+    """
+    decl = ts_declarations(web_src(REPO))
+    found: dict[tuple[str, str], tuple[str, bool, str]] = {}
+    for type_name, member in PROSE_SHADOWED_MEMBERS:
+        host, members = decl[type_name]
+        hit = [item for item in members if item.name == member]
+        found[(type_name, member)] = (
+            (host, hit[0].optional, hit[0].type_text) if hit else ("MISSING", False, "MISSING")
+        )
+    assert found == PROSE_SHADOWED_MEMBERS, f"the restored members moved: {found}"
+
+    required, optional, notes = members_of_type("AuditResponse", decl)
+    assert "total" in required, f"total read as required? required={sorted(required)}"
+    assert not optional and not notes, f"the audit type's shape stopped being plain: {notes}"
+
+
+def test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens(tmp_path: Path) -> None:
+    """The fence with population: seven ways to write a call in prose, and the rows they make.
+
+    #554's V6 arm added one comment line to ``api.ts`` and six legs went red, which proved two of
+    the lenses read prose as code. The finding was real and the *population* was not: on this tree,
+    zero rows come from a comment. A zero that comes from absence of a test is not a measurement, so
+    this fixture writes the mention seven times -- line comment, same-line block comment, a block
+    comment spanning lines, a JSDoc, and the two page-side spellings -- plus one inside a template
+    literal, which is the control that keeps the mask honest in the other direction.
+
+    ``p-template`` is not prose. It becomes a row, and that is the boundary #555 is made of: a mask
+    that also blanked literals would read 0 of 48 consumers, because a route path is a string.
+    """
+    web = _fixture_web(
+        tmp_path,
+        {
+            "api.ts": _PROSE_FIXTURE_API_TS,
+            "types.ts": _PROSE_FIXTURE_TYPES_TS,
+            "pages/Thing.tsx": _PROSE_FIXTURE_PAGE_TSX,
+        },
+    )
+    texts = {
+        _rel_label(web, ts): ts.read_text(encoding="utf-8")
+        for ts in sorted(list(web.rglob("*.ts")) + list(web.rglob("*.tsx")))
+    }
+    prose_lines = {
+        (rel, line) for rel, text in texts.items() for line in _prose_line_numbers(text)
+    }
+    forms: set[str] = set()
+    for text in texts.values():
+        forms |= _forms_in_prose(text, _PROSE_MENTION)
+    assert forms | {"p-template"} == set(_FIXTURE_PROSE_FORMS), (
+        f"the fixture's prose forms moved: prose={sorted(forms)}"
+    )
+
+    rows = {
+        "call_shapes": [(s.file, s.line) for s in call_shapes(web)],
+        "frontend_calls": [(c.file, c.line) for c in frontend_calls(web)[0]],
+        "hook_readings": [(h.file, h.line) for h in hook_readings(web)],
+        "client_surface": [(e.file, e.line) for e in client_surface(tmp_path)],
+        "denominator_sites": [(s.file, s.line) for s in denominator_sites(tmp_path)],
+    }
+    counts = {name: len(value) for name, value in sorted(rows.items())}
+    assert counts == _FIXTURE_LENS_ROWS, f"the fixture's row populations moved: {counts}"
+
+    from_prose = {
+        name: sorted(pos for pos in value if pos in prose_lines) for name, value in rows.items()
+    }
+    assert not any(from_prose.values()), f"a comment became a consumer row: {from_prose}"
+
+    api_ts = "apps/web/src/api.ts"
+    template_rows = {name for name, value in rows.items() if (api_ts, 26) in value}
+    assert template_rows == {"call_shapes", "frontend_calls"}, (
+        f"the template-literal mention is read by {sorted(template_rows)}; it is code and has to "
+        f"survive the prose mask -- only the shape step may erase it, and then it is not a site"
+    )
+    planted_hits = {
+        rel: hits for rel, text in texts.items() for hits in [_mentions_inside_literals(
+            text, _CALL_SHAPED_TEXT
+        )]
+    }
+    assert planted_hits[api_ts] == [(26, "apiGet<")], (
+        f"the planted literal mention is no longer visible inside its string: {planted_hits}"
+    )
+
+    real = [
+        (_rel_label(web_src(REPO), ts), hit)
+        for ts in sorted(list(web_src(REPO).rglob("*.ts")) + list(web_src(REPO).rglob("*.tsx")))
+        for hit in _mentions_inside_literals(ts.read_text(encoding="utf-8"), _CALL_SHAPED_TEXT)
+    ]
+    assert len(real) == _CALL_MENTIONS_INSIDE_A_LITERAL, (
+        f"a consumer row written inside a string literal appeared on the real tree: {real[:6]} -- "
+        f"the census reads it as a request the page makes, and no page makes it"
+    )
+
+
+def test_every_member_chunk_the_splitter_keeps_or_drops_is_counted(tmp_path: Path) -> None:
+    """The general form of the six: a chunk that is a field and is not in the answer is a loss.
+
+    §①.5 found its six members by chasing one mechanism -- a ``;`` in prose. This leg refuses to
+    assume the mechanism and counts instead: replay the split over every declaration body with this
+    file's own walk, keep the chunks that look like fields, and diff their names against what
+    ``ts_declarations`` reports. Whatever the cause, that difference is a field the browser declared
+    and the reading answers "not declared" about.
+
+    One row today, and it is not the prose bug: an index signature. ``[key: string]: unknown`` is
+    TypeScript for "any key is allowed here", ``_one_member`` has no head pattern for it, and the
+    fold answers as though the type declared nothing beyond its six named fields. Registered rather
+    than fixed because it is a *decision rule*, and #555's own constraint was that it changes only
+    the step before a decision rule runs.
+
+    The second half is the same hazard one layer down. ``_split_members`` counts braces without
+    stepping over quotes, so a ``;`` or a ``{`` written *inside* a string truncates the body the way
+    a comment's ``;`` used to. Nothing on this tree writes it -- that is the first assertion -- and
+    the planted interface shows what the reading would answer if a lane did: two of three fields.
+    """
+    decl = ts_declarations(web_src(REPO))
+    bodies = _declaration_bodies(web_src(REPO), _DECLARATION_HEAD)
+    assert len(bodies) >= _MIN_DECLARATION_BODIES, f"only {len(bodies)} declaration bodies found"
+
+    chunks = 0
+    lost: dict[str, tuple[str, str]] = {}
+    for name, rel, body in bodies:
+        entry = decl.get(name)
+        if entry is None:
+            continue
+        kept = {item.name for item in entry[1]}
+        for chunk, is_member in _chunk_walk(body, _MEMBER_HEAD):
+            chunks += 1
+            if is_member and _chunk_name(chunk) not in kept:
+                lost[name] = (rel, " ".join(chunk.split())[:48])
+    assert chunks >= _MIN_MEMBER_CHUNKS, f"only {chunks} chunks walked"
+    assert lost == MEMBER_CHUNK_LOSSES, f"chunks the splitter threw away moved: {lost}"
+    assert not any(_literals_holding_structure(body) for _n, _r, body in bodies), (
+        "a declaration body now carries a ; or a brace inside a string literal, and the "
+        "splitting rule reads it as structure: the members after it are silently lost"
+    )
+
+    planted = _fixture_web(
+        tmp_path,
+        {
+            "Holder.ts": (
+                "export interface Holder {\n"
+                "  id: string;\n"
+                '  label: "keep; this" | "and { this";\n'
+                "  count: number;\n"
+                "}\n"
+                "export interface Plain {\n"
+                "  id: string;\n"
+                "  count: number;\n"
+                "}\n"
+            )
+        },
+    )
+    read = ts_declarations(planted)
+    holder = [item.name for item in read["Holder"][1]]
+    assert holder == ["id", "label"], (
+        f"the planted literal seam is no longer truncating the body: {holder} "
+        f"-- a lane that taught `_split_members` to step over quotes must delete this row and "
+        f"expect id, label and count"
+    )
+    assert [item.name for item in read["Plain"][1]] == ["id", "count"]
+    assert _literals_holding_structure(
+        (planted / "Holder.ts").read_text(encoding="utf-8")
+    ), "the planted fixture no longer contains the shape it plants"
+
+
+def test_the_routes_this_gate_invents_exist_only_in_its_own_prose() -> None:
+    """The negative control §①.7 measured: the Python plane does not need a mask, and says so.
+
+    The same hazard exists on the backend -- a decoration quoted inside a docstring is route-shaped
+    text -- and it costs nothing there, because the Python readers parse. #555 counted it rather
+    than assuming it: 1,217 files, three route-shaped mentions in raw text that no decoration
+    answers, and every one of them is in *this file's* docstrings, written by legs that quote a
+    handler to explain a fold.
+
+    So this leg is where the two planes differ out loud: TypeScript gets a mask because the readings
+    are textual, and Python gets ``ast.parse`` because it has one. It is also the self-audit that
+    keeps the gate honest about its own words -- the fake routes are this file's, and a lane that
+    quoted a route in a *new* place would move the register rather than slip past it.
+    """
+    gate_src = Path(__file__).resolve().read_text(encoding="utf-8")
+    mentions = [(verb.lower(), path) for verb, path in _ROUTE_MENTION.findall(gate_src)]
+    assert tuple(mentions) == _GATE_PROSE_ROUTE_MENTIONS, (
+        f"route-shaped text this gate writes about itself moved: {mentions}"
+    )
+
+    module = ast.parse(gate_src)
+    decorated = [
+        node.name
+        for node in ast.walk(module)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.decorator_list
+    ]
+    assert not decorated, f"this gate defines real endpoints in code: {decorated}"
+
+    published = {normalize_path(e.path) for e in endpoints(REPO)}
+    invented = [path for _verb, path in mentions if path in published]
+    assert not invented, (
+        f"a route this file only mentions in prose is in the endpoint table: {invented}"
+    )
+
+
+_PROSE_FIXTURE_API_TS = '''import type { Thing } from "./types";
+
+async function doFetch(path: string): Promise<unknown> {
+  const resp = await fetch(path, { headers: { Authorization: "Bearer x" } });
+  return resp.json();
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  return (await doFetch(path)) as T;
+}
+
+// apiGet<Thing>("/api/v1/p-line")
+export async function getThing(): Promise<Thing> {
+  /* apiGet<Thing>("/api/v1/p-sameline") */
+  return apiGet<Thing>("/api/v1/p-code");
+}
+
+export async function getOther(): Promise<Thing> {
+  /*
+     apiGet<Thing>("/api/v1/p-block")
+     fetch("/api/v1/p-block")
+  */
+  return apiGet<Thing>("/api/v1/p-code2");
+}
+
+const note = `apiGet<Thing>("/api/v1/p-template")`;
+
+export function openThingStream() {
+  return new EventSource("/api/v1/p-stream");
+}
+
+/**
+ * JSDoc that mentions apiGet<Thing>("/api/v1/p-jsdoc") on one line.
+ */
+export function getThird(): Promise<Thing> {
+  return apiGet<Thing>("/api/v1/p-code3");
+}
+'''
+
+_PROSE_FIXTURE_PAGE_TSX = '''import { apiGet, getThing } from "../api";
+
+export function useThing() {
+  return apiGet<Thing>("/api/v1/p-hook");
+}
+
+export function ThingPage() {
+  // const a = await apiGet<Thing>("/api/v1/p-page-line");
+  const b = await getThing();
+  /*
+    const c = await apiGet<Thing>("/api/v1/p-page-block");
+  */
+  return null;
+}
+'''
+
+_PROSE_FIXTURE_TYPES_TS = "export interface Thing { id: string }\n"

@@ -22000,3 +22000,165 @@ All checks passed!
 - `check_event_once` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
 
 **下一号队列**：#581 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+## #581 注释里的一个分号让六个前端字段"从未声明"：散文规则收成一条、只交给整文件，遮罩拓扑本身进门
+
+**取号**：队列 ⓽ 由 #554 分配，原文是"注释能造站点，但造在**旧**眼镜里——`call_shapes` 折叠与页面调用点
+普查读注释，E8 出口不读"。本号把它做成一副遮罩 + 一张覆盖名册。预测冻结于 `20ff286`（#554 落地后的
+origin/master）之后、任何臂之前：`.scratch/pred555.md` §①–§④（13,881 B / 136 行 / LF / sha `eabe7a9d…`），
+八条前提探针 `probe555a…j` 全部先跑完再动读法。臂后只追加 §④bis，追加前断言已冻结前缀逐字节不变
+（现 23,221 B / 199 行）。
+
+本号内部编号曾是 **#555**，中途出过一次事故：`_wt555` 连同**未提交**的落地（owner +129/−53、门 +912/−26）
+被别道的清理动作整树删掉，`.scratch` 与冻结预测幸存。恢复不是重写，而是从本会话转录 `90ad983c….jsonl`
+重放这两份文件上的 22 条 Edit/Write 调用（`replay555.py`，seq 143–167，跳过被同锚点后继取代的 149，
+152/153 按 `allow_multiple` 全量替换且替换前逐处验证）；重放进新基线 `fc9e9e3` 前先核对两份文件在
+`20ff286` 与 origin/master 之间逐字节相同，所以不需要重新适配。取号复核：`#555` 已被别道提交（`925e2bf`），
+账本 max = `#580` ⇒ 本号 **#581**；节写完后、推送前再各 fetch 复核一次。落地树 `_wt581` @ `fc9e9e3`，
+臂树 `_arm581` @ 同一提交（两份落地文件逐字节拷过去：owner `d9e1777f…`、门 `b2fe232e…`）。
+**本号一行产品代码没动**：§② 只改"文本进入读数之前"那一步；两条纯注释臂（K5/K6）改成探针跑在 git 解出的
+快照 `plane581/src581` 上，不读也不写任何活树。
+
+### 门半：owner 一副规则、门三张名册
+
+owner `tests/_payload_plane.py`（+129 行 −53 行，127,639 B，2,958 行，CRLF 与 tab 不变量由落盘脚本断言）
+把"散文"定成**一条规则**、把"字面量"定成**只在判形状时才加的第二步**：
+
+- 新 `_mask_prose(text)`：认 `//`、认 `/* … */`（含跨行），跳过 `' " \`` 三种字面量；**原位抹平**——长度、
+  换行数、列全不变，所以偏移↔行号↔列的算术在遮罩后仍然成立。
+- `_end_of_literal` + `_blank_literals`：旧 `_mask_literals` 拆出来的第二步，只抹字面量**内部**、保引号。
+- `_mask_typescript` 保留名字、改变契约：`return _blank_literals(_mask_prose(text))`。它从此是**形状读法**
+  专用（问"这里有没有一次调用"），不再是内容读法（问"这条路由叫什么"）。
+- `_ts_masked(ts)` 改成对整个文件调**一次**；新 `_ts_masked_lines(ts)` 给按 `(file, line)` 取行的读者。
+  六个逐行助手（`_consumer_region`、`_statement_frame`、`_enclosing_block`、`_tuple_head`、
+  `_tuple_reaches_then`、`_binding_style`）不再自己遮罩，旧 11 处 `_mask_typescript(line)` 全部消失；
+  `consumer_defences`(613) 与 `consumer_bindings`(879) 取 `_ts_masked_lines`，`ts_declarations`(1601) 取
+  `_mask_prose`，其余 7 个打开 TS 原文的内容读者各自包一次 `_mask_prose`。
+- **判定规则一行没改**：verb 词表、`DENOMINATOR_KINDS` 次序、`_defence_kind` 的次序、折叠规则全部原样。
+- 53 条删除行逐条归类：旧遮罩实现本体 **23**、逐行遮罩调用点与旧 `_ts_masked` 本体 **22**、内容读者的裸
+  `read_text` **8**。**没有一条是意外重写**。
+
+门（+912 行 −26 行，235,948 B，4,613 行，47 条腿、84 个 `def`）新增 **20 个 `def`**（13 个量具 helper：
+`_parent_map`、`_holder_of`、`_ts_tokens`、`_mask_inventory`、`_text_reader_sites`、`_rel_label`、
+`_declaration_bodies`、`_chunk_walk`、`_chunk_name`、`_literals_holding_structure`、`_prose_line_numbers`、
+`_forms_in_prose`、`_mentions_inside_literals`；7 条腿）与 **26 张新常量/寄存器**。腿数 **40 → 47**：
+
+| 新腿 | 说的是什么 |
+|------|-----------|
+| `test_the_prose_mask_is_one_rule_applied_to_a_file_never_to_a_line` | `_MASK_SITES`（15 个函数各调哪把遮罩）逐值等于名册，`_PER_LINE_MASK_ARGUMENTS == 0` **是等式不是地板**，再用 14 个文件的粒度分歧证明这个零不是空转 |
+| `test_no_typescript_text_reaches_a_reading_that_did_not_pass_through_the_mask` | 覆盖：`_TS_TEXT_READERS`（8 个函数 / 9 处读点）逐值等于名册，未遮罩的 `read_text` 只能是 Python 平面那 5 个 |
+| `test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only` | 两条读法各抹什么：散文恰好被抹、字面量恰好留下、形状步恰好抹内部保引号，六个 violation 列表全空 + 七个地板 |
+| `test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written` | `PROSE_SHADOWED_MEMBERS` 六枚按 `(type, member)` 复位（不按行号，队列 ⓼ 不是这条腿的人质） |
+| `test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens` | fixture 把一次调用写进七种散文形状 + 一条模板串；`_FIXTURE_LENS_ROWS` 五副镜片逐值给出，`p-template` 是**唯一该行** |
+| `test_every_member_chunk_the_splitter_keeps_or_drops_is_counted` | 分片普查 bodies / chunks / 留 / 丢；丢掉的那一块重放给 `MEMBER_CHUNK_LOSSES`，另在 fixture 里**植一枚字面量**（`;` 写在字符串里）看分片器是否截断 |
+| `test_the_routes_this_gate_invents_exist_only_in_its_own_prose` | 后端平面的负对照：raw 扫到 3 条 `@router.get("/ping")`，AST 读法 0 条，三条全在本门自己的 docstring 里 |
+
+### 落地读数
+
+| 量 | 读数 |
+|----|------|
+| 前端文本人口 | **144** 文件；散文 **94,860** 字符（行注释 75,333 + 块注释 19,527）；**22** 个文件带 `/* */`（块内换行 326 处）；字面量 **9,063** 条，形状步在其上抹掉 101,914 字符 |
+| 粒度分歧 | **14** 个文件"逐行遮 ≠ 整文件遮"（地板 `_MIN_GRANULARITY_DIVERGENT_FILES = 12`）。旧实现下这两个数曾经差一万多字符（§①.2：7 个文件） |
+| 遮罩调用点 | 全 owner **17** 处，其中首参是下标（逐行）的 **0** 处 |
+| 裸读 TS 的读者 | **0**；未遮罩的 `read_text` 全在 Python 平面（`_parse`、`_source`、`api_routers`、`endpoints`、`payload_of`） |
+| 六枚成员复位 | `AgentJobResult.steps` `AgentJobStep[]` / `AgentJob.accept` `AgentAccept \| null` / `AuditResponse.total` `number \| null`（必填）/ `NavItem.roles` `readonly string[]` / `StepSignals.connection` `"pending" \| "ok" \| "failed"` / `ToastOptions.duration` `number` —— 名、可选性、`type_text` 三者逐字等于树上写的那行 |
+| 两轴算术 | 轴(a) 洞 0 → 0；轴(b) extras **7 → 6**（`("get","/api/v1/admin/audit") -> {"total"}` 消失）；轴(c) 39 行与 bands `7:3:0:2` 不变；`return_accounting` 42 行不变 |
+| 十副镜片 | `ts_declarations` 117 行不变、**6 行换内容**；其余 9 副逐行相同（`call_shapes` 64、`frontend_calls` 48、`hook_readings` 2、`client_surface` 16、`denominator_sites` 105、`consumer_bindings` 48、`consumer_defences` 50、`alias_table` 4、`ruler_blind_spots` 3） |
+| 分片器普查 | bodies **118** / chunks **624** / 留 **623** / 丢 **1**（`AgentAcceptFinding` 的索引签名 `[key: string]: unknown`）；39 条配对类型表达式无一命名到它 ⇒ 受害 0 |
+| 两条登记的负数 | `_CALL_MENTIONS_INSIDE_A_LITERAL = 0`；`_SHAPE_SCAN_BLIND_ROWS = 2`（引号扫描在正则字面量 `/"/g` 里误开字符串：`CommandPalette.tsx:240`、`Tabs.tsx:48`） |
+| 后端平面 | `endpoints` 55、`api_routers` 10 不变；1,217 个 .py 无 tokenize 失败 |
+
+判决落在一张**本来用来防假话的表**上：`ROSTERED_EXTRA_KEYS` 里 `audit -> {"total"}` 这条"路由发了、前端从没
+写下它"登记了六个号，而写着 `total` 的那行就在守卫它的那个页面的第 41 行。一次失败的读被答成"没有这个数据"
+——本战役的缺陷类，在声明平面第一次被量出来。
+
+### 哪些数动了，哪些必须一字不动
+
+- **动的寄存器**：extras 少 1 条（§② 里唯一预告的搬家）；`CONSUMER_DEFENCES` 的 `Audit.tsx:145` 那行从
+  `undeclared` 变 `required`；`CONSUMER_DEFENCE_BANDS` 从 `{required:3, undeclared:1}` 变
+  `{required:4, optional:0, undeclared:0}`。后两条 §③.3 没预告——它们是 extras 的**同一根因的下游**（类型
+  一旦可见，守卫就不再是"读了个没声明的键"）。写预测时我只数了寄存器的**名字**，没数它的**成员**。
+- **读图寄存器按 #553/#554 的方向动，全部由门自己的 `_read_map` 现推现写**：`EXIT_READS` **30 → 32** 行
+  （新增 `_mask_prose`、`_mask_typescript` 两行；10 行 moved、0 行 gone——`call_shapes`/`client_surface`/
+  `denominator_sites`/`frontend_calls`/`hook_readings` 各得散文腿，`endpoints`/`normalize_path` 得路由腿，
+  `members_of_type`/`ts_declarations`/`web_src` 得成员与分片腿，`web_src` 9 → 14 条腿）、
+  `EXITS_WITH_MULTIPLE_EXECUTORS` **13 → 16**、`_EXIT_READ_INSTANCES` `(61,4,89)` → **`(79,4,90)`**、
+  `_DIRECT_RELATION_INSTANCES` **65 → 83**、`_CLOSURE_EDGE_TOTAL` **79 → 100**、
+  `LEGS_WITHOUT_DIRECT_READ` **10 → 11**、`LEGS_WITHOUT_VIA_HELPER_READ` **24 → 30**、
+  `_OWNER_SURFACE` `(35,30,37)` → **`(35,32,37)`**。§③.4 预测"三张读数只给方向"，方向全部为增 ✓，但
+  `_OWNER_SURFACE` 与 `EXIT_READS` 行数预测"不变"是**错的**：两条新腿直读遮罩，于是两个私有遮罩名进了
+  import 列表——`imported` 那一列**没有下划线过滤**。`EXIT_READS_ALIAS_ONLY` 仍 `{Member}`、
+  `_ANCHOR_BINDINGS` 仍 3、`_OWNER_PUBLIC_NOT_EXPORTED` 仍 `{DENOMINATOR_KINDS, HTTP_VERBS}` ✓。
+- **一字不动**：#552/#553/#554 的十张 `CONSUMER_BINDING_*`、`CONSUMER_DEFENCE_REACH (48,8,40)`、
+  `DENOMINATOR_ROW_TOTALS (105,58,47)`、`_AXIS_C_ROW_COUNT 39`、`AXIS_C_BANDS`/`AXIS_C_KEY_TOTALS`、
+  `BLIND_LONG_REGION 18`、`_CLIENT_VERBS` 五名、六条腿的全部旧断言。本号换的是文本进读数**之前**那一步。
+- **§② 的行号引用按落地树读**：owner 长了 96 行 ⇒ `consumer_defences` 559 → 613、`consumer_bindings`
+  831 → 879。
+- 门的 26 条删除行逐条枚举：extras 与防御寄存器及其注释 **6**、搬家后的 `EXIT_READS` 行 **4**、读图总量
+  及其注释 **5**、多执行者名册 **6**、`LEGS_WITHOUT_DIRECT_READ` 说明注释 **3**、一条旧腿的 docstring **2**。
+
+### 验证
+
+- 门：落地树 **47 passed in 145.77s**（臂树 BASE 同一暖本 47 passed in 111.79s）；HEAD 未落地态 **40
+  passed**——两棵树各自绿在自己的腿数上。收件数对照：同一 venv 跑 `pytest --collect-only -q tests/unit`，
+  未落地 **6,039** → 落地 **6,046**，差**恰好 7** = 七条新腿（对照时把臂树临时还原为 HEAD 态
+  `17d24a02…`/`8b624f9a…`，量完立刻拷回落地暖本并复核 sha）。
+- `mypy --strict` 两个文件无问题；`python -m ruff check .` 全绿。**`ruff format` 不是本仓库的门**（CI 只跑
+  `python -m ruff check .`），本号一次都没跑它。
+- 逐字节还原：五条整门臂（K1/K2/K3/K4/K7）跑完**零次** `restore not byte-exact`，owner 每次都回到
+  `d9e1777f…`；驱动 `.scratch/next555/arm581.py`（每条臂一个 `count==1` 锚点、整臂先验锚、跑完 sha256 断言），
+  捕获 `arm581_BASE/K1/K2/K3/K4/K7.txt` 与 `arms581_run.txt`。
+
+### 变异臂（7 条：§④ 冻结的 K1–K7；K5/K6 因改 owner 会断门的 import，降级为机制探针）
+
+| 臂 | 改哪里 | 预测 | 实测 |
+|----|--------|------|------|
+| K1 | owner：`_mask_prose` 撤掉块注释分支（只认 `//`） | 6 枚复位成员里 **5** 枚再丢、`total` 保住；fixture 三处红；其余 9 副镜片不变；extras 回到 7 | 4 条腿红：`steps`/`accept`/`roles`/`connection`/`duration` 全 `MISSING`，`total` 保住；fixture `call_shapes 7→11`、`frontend_calls 5→9`、`denominator_sites 14→18`；9 副镜片不变。**extras 那条腿绿、仍 6 条** ⇒ §④ 那句"⇒ extras 回到 7"是**我自己写错的推理**：`total` 的保护来自 `//` 分支，撤块注释不可能让它复现。**多一条未预测的强证据**：粒度分歧 **14 → 0**（"只有 0 个文件逐行遮罩与整文件遮罩结果不同"）——块注释规则是整文件粒度存在的唯一理由 |
+| K2 | owner：`_mask_prose` 改成删字符（不保长度） | 真树寄存器不变，红只出现在不变量腿的 `len`/`\n`/列三条断言 | 1 条腿红，定位命中，但红法是 `IndexError: string index out of range`（门 4307 行 `shape[closer]`）——三条断言收集在列表里、还没 assert 就崩了。**这条腿今天用崩溃而不是用寄存器说话**，已入队 ⑬ |
+| K3 | owner：`_ts_masked` 退回逐行调用 | 真树 11 个出口逐值不变，只有 fixture 腿红 | 2 条腿红：fixture（`denominator_sites 14 → 17`，其余 4 副镜片人口不变）+ **未预测的覆盖名册腿**（"which function reads TypeScript text moved"）。多出来那条是名册腿按设计该有的牙齿，但 §④ 没写进预测，算失手 |
+| K4 | owner：`ts_declarations` 误用形状遮罩（把字面量也抹） | `frontend_calls 48→0`、`consumer_bindings 48→0`、`consumer_defences 50→0`、`alias_table 4→0`，117 行名字仍在但 `type_text` 抹空 | 3 条腿红：六成员复位（6 枚全丢）、块普查腿（**植的字面量桩不再截断**：`['id','label']` → `['id','label','count']`）、`_MASK_SITES` 名册腿。**四个镜片人口一个没动** ⇒ 预测错得清楚：那四个出口各有自己的读者，不共享这一步。"字面量不能进内容读法"在本号不是靠 48→0 立住的，是靠 6 枚成员 + 那枚字面量植桩立住的 |
+| K5 | 产品：删掉 `Audit.tsx:39` 注释里那枚 `;`（只动注释文本） | 不改 owner 也能复位 `total` ⇒ extras 自己变 6 条，与本号修法同一读数 | 探针 `probe581_k5k6.py`：裸读法 **4 成员、无 `total`**；删 `;` 后 **5 成员、`total` 回来**；且"裸读法 + 删 `;`"的成员表与"落地遮罩"**逐成员同一**。根因归因被一次纯注释编辑复现 ✓ |
+| K6 | 产品：往 interface body 植一行 `// phantom: string;` | 遮罩在 ⇒ 成员数不变；撤遮罩 ⇒ 由实测给出 | **桩没有人口**：`//` 整行在裸读法与遮罩读法下都不造行（4→4 / 5→5）。追加 `probe581_k6b.py` 换形状量"发明方向"：跨行块注释、后半像成员的桩**能造行**——裸读法把 `Block` 读成 `['phantom_d']`（`three` 被吃掉），遮罩读成 `['three']`；单行块注释的 `Lead` 裸读 `['real']`（丢 `tail`）vs 遮罩 `['real','tail']` ⇒ 散文的危害是**双向**的，但"造"那一向要特定形状，本号真树只观察到"毁" |
+| K7 | owner：`consumer_defences` 的 `lines` 退回原文（不遮罩） | `CONSUMER_DEFENCE_*` 五张寄存器**可能全不动**；人口由实测给出；若全绿就登记成零人口保险丝 | 2 条腿红（`_MASK_SITES` 名册腿 + 覆盖名册腿），**五张 `CONSUMER_DEFENCE_*` 全部逐值不变** ⇒ 命中。诚实写法：今天真树"防御读法必须过遮罩"是一条**零受害行**的保险丝，牙齿目前只在名册腿上 |
+
+**总基调复核**：§④ 说本号成立在 K1/K4/K5 三条。K1 成立且比预测更强（粒度 14→0）；K5 成立；
+K4 **不以预测的方式成立**——分工仍是必需的，但"48→0"那组数字属于"把所有内容读者一起换成形状遮罩"的另一条臂，
+本号没跑它。
+
+### 发现
+
+1. **失败的读被答成"没有这个数据"，发生在声明平面。** 六枚字段是浏览器真写着的类型成员，读数答
+   "未声明"；其中一枚（`AuditResponse.total`）还被抄进了这张专门用来抓假话的名册，于是假话获得了"已登记"
+   的身份。复位它不需要动产品——只需要让一条规则看一眼下一行。
+2. **一副规则 vs 两副粒度是同一件事的两半。** 旧 `_ts_masked` 逐行**只为保住行号**；新遮罩保长度保换行，
+   行号与列同时成立，"逐行"这个理由消失后它就变成对同一份文件的**第二个答案**。`_PER_LINE_MASK_ARGUMENTS`
+   因此写成等式（0），而 14 个文件的粒度分歧让这个 0 不是空转——撤掉块注释分支，K1 立刻把它读成 0 个分歧
+   文件并当场红。
+3. **散文的破坏是双向的，但两个方向的可达性不一样。** 毁成员在真树可达（6 枚，机制：注释里的 `;` 先收掉
+   chunk，`_one_member` 再也认不出下一块的前导注释）；造成员只在"跨行块注释的后半像成员"这一形状可达
+   （K6 的 `//` 整行桩两处都造不出行，因为分片器对整块以 `//`/`/*` 开头的块直接判非成员）。所以"注释不能造
+   行"这条围栏今天靠 fixture 的七种写法带人口，真树人口为 0。
+4. **遮罩的分工不是风格。** 内容读法必须留着字面量（路由路径**本身**是字符串），形状读法必须抹掉字面量
+   内部。这条边界今天有两个人证：六枚成员复位（内容侧）与那枚植进字符串的 `;`（形状侧——桩一撤，分片器就
+   少切一刀）。
+5. **拓扑本身进了门。** `_MASK_SITES`（谁调哪把遮罩）、`_TS_TEXT_READERS` / `_PYTHON_TEXT_READERS`（谁有资格
+   打开一段文本、打开的是哪个平面）是"粒度"与"覆盖"之外的第三件事：以后加第四把遮罩、或从新函数里调一把，
+   都会动名册。K3/K7 两条臂各红在名册腿上，就是这三张名册的牙齿实测。
+6. **工作树不是幸存区。** 本号的落地被整树删过一次，靠转录重放救回（22 条 Edit/Write、seq 对齐、
+   `allow_multiple` 逐处复核）。方法论补丁：**未提交的落地文件在提交前必须先有一份 sha 记录的离线副本**，
+   `.scratch` 是幸存区，`_wtXXX` 不是。
+
+### 队列
+
+⓽ 结案（一副规则 + 覆盖名册 + 复位，K1/K3/K7 给出三种牙齿）。新挂三条：
+
+- **⓾ 分片器与扫描器的两条边界**（本号按 §③.3 注册而未修）：`_split_members` 对索引签名
+  `[key: string]: unknown` 丢 1 个成员块（`MEMBER_CHUNK_LOSSES` 已登记，受害 0）；引号扫描对正则字面量
+  `/"/g` 没有规则，误开字符串并一路抹到下一个引号（`_SHAPE_SCAN_BLIND_ROWS = 2`，两处都在
+  `querySelector` 的参数构造里）。二者与遮罩不同源，属同一族"扫描器边界"。
+- **⑬ 把遮罩不变量腿的 `len(shape) == len(raw)` 提到索引算术之前**：K2 显示这条腿在真实回归下先崩在
+  `shape[closer]`，崩溃不写寄存器，等于把量具让给了运气。
+- **⑭ 一条"散文不能造成员"的保险丝腿**：量具就是 K6b 证明可达的那枚形状（跨行块注释、后半像成员）；
+  `//` 整行桩已实测无人口，写进腿里会是零人口断言。
+
+旧队列 ⓼（寄存器按 `(file, line)` 认行，无关换行就搬家）仍开——本号特意把 `PROSE_SHADOWED_MEMBERS` 按
+`(type, member)` 键，就是不让新寄存器再多一个人质。
