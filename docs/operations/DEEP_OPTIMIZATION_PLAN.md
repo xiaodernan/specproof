@@ -21260,3 +21260,44 @@ All checks passed!
 - 计数器期望 `built`：因为行是从合同+结果创建，节点的 gate 判定为 `built`（非 `pass_downgraded`，因为输入本身不是 PASS）。
 
 **下一号队列**：#562 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失——`merge_contract_results` 已单元测试，但两节点之间的端到端合并尚无测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #562 `contract_results_for` 直接测试：FAIL / PASS / UNVERIFIED 三条路径
+
+**背景**：`agent/checkers/java_source.py::contract_results_for` 是 `run_static_checks_node` 和 `run_contract_checks` 的核心函数，将检查员发现（findings）映射为每份合同的结果（FAIL / PASS / UNVERIFIED）。现有测试 `test_checker_fixes.py` 通过 `run_contract_checks` 间接覆盖了它，但**没有直接测试 `contract_results_for` 本身**。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `contract_results_for` 的直接测试，覆盖三条路径：
+- 有发现 → FAIL
+- 无发现 + 基础代码中观察到受保护构造 → PASS
+- 无发现 + 基础代码中未观察到 → UNVERIFIED
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_contract_results_for_fail_when_checker_finds_violation` | 有发现 → FAIL，带 evidence_ref | `[{"contract_id": "AUTH-01", "result": "FAIL", ...}]` |
+| `test_contract_results_for_pass_when_guarded_construct_intact` | 无发现 + 观察到 → PASS | `[{"contract_id": "AUTH-01", "result": "PASS", ...}]` |
+| `test_contract_results_for_unverified_when_not_observed` | 无发现 + 未观察 → UNVERIFIED | `[{"contract_id": "AUTH-01", "result": "UNVERIFIED", ...}]` |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+13 passed in 4.68s
+```
+
+10 条原有测试 + 3 条新增，共 13 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`contract_results_for` 逻辑已正确工作。只补了对该纯函数的直接测试，此前仅通过 `run_contract_checks` 和 `run_static_checks_node` 间接覆盖。
+- 三条新测试分别对应 `contract_results_for` 中三条互斥的返回路径（FAIL / PASS / UNVERIFIED），确保每条路径都有直接覆盖。
+- `base_files` 的构造模仿 `BASE_CONTROLLER` 的结构（类内方法带注解），确保 `_split_with_annotations` 和 `_has_security_annotation` 能正确识别受保护构造。
+
+**下一号队列**：#563 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失——`merge_contract_results` 已单元测试，但两节点之间的端到端合并尚无测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。

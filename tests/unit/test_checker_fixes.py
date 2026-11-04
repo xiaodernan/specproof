@@ -12,6 +12,7 @@ from agent.checkers.java_source import (
     _implemented_interface_names,
     _split_with_annotations,
     check_token_invalidation,
+    contract_results_for,
     run_contract_checks,
 )
 from agent.contract_results import merge_contract_results
@@ -201,3 +202,46 @@ def test_terminal_status_mapping():
          "rows": [{"contract_id": "C-1", "result": "PASS", "experiment": "check",
                    "evidence": "e-1"}]}}
     ) == "VERIFIED"
+
+
+def test_contract_results_for_fail_when_checker_finds_violation():
+    """contract_results_for: findings → FAIL result with evidence ref."""
+    contracts = [{"id": "AUTH-01"}]
+    findings = [{"contract_id": "AUTH-01", "type": "annotation_removed",
+                 "id": "finding-1", "description": "@PreAuthorize removed"}]
+    base_files = {"com/specproof/demo/controller/UserController.java":
+                  "class UserController {}"}
+    results = contract_results_for(contracts, findings, base_files)
+    assert results == [{"contract_id": "AUTH-01", "result": "FAIL",
+                        "experiment": "java_source_diff",
+                        "evidence_ref": "finding-1",
+                        "details": "@PreAuthorize removed"}]
+
+
+def test_contract_results_for_pass_when_guarded_construct_intact():
+    """contract_results_for: no findings + observed base → PASS."""
+    contracts = [{"id": "AUTH-01"}]
+    findings = []
+    base_file = ("public class UserController {\n"
+                 "    @PutMapping(\"/{id}/email\")\n"
+                 "    @PreAuthorize(\"isAuthenticated()\")\n"
+                 "    public void changeEmail() {}\n}")
+    base_files = {"com/specproof/demo/controller/UserController.java": base_file}
+    results = contract_results_for(contracts, findings, base_files)
+    assert results == [{"contract_id": "AUTH-01", "result": "PASS",
+                        "experiment": "java_source_diff",
+                        "evidence_ref": "no violation found in source diff",
+                        "details": "Checker ran; guarded construct intact in Head"}]
+
+
+def test_contract_results_for_unverified_when_not_observed():
+    """contract_results_for: no findings + not observed → UNVERIFIED."""
+    contracts = [{"id": "AUTH-01"}]
+    findings = []
+    base_files = {"com/specproof/demo/controller/UserController.java":
+                  "class UserController {}"}
+    results = contract_results_for(contracts, findings, base_files)
+    assert results == [{"contract_id": "AUTH-01", "result": "UNVERIFIED",
+                        "experiment": "java_source_diff",
+                        "evidence_ref": None,
+                        "details": "No observable construct for this contract in Base"}]
