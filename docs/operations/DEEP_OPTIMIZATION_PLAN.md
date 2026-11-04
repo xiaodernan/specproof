@@ -21884,3 +21884,41 @@ All checks passed!
 - `check_event_once` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
 
 **下一号队列**：#578 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #578 `check_test_weakening` 测试强度直接测试：TEST_STRENGTH-01 发现
+
+**背景**：`agent/checkers/schema_and_tests.py::check_test_weakening` 是 `run_static_checks_node` 调用的三个异构检查器之一，检查仓库自有测试强度是否被削弱（`@Test` 计数减少、`@Disabled` 新增、断言数减少）。现有测试通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用它（空输入，无发现），但**没有直接测试**：当 Base Test 文件有 2 个 `@Test` 而 Head 只有 1 个时，`check_test_weakening` 应产生 `TEST_STRENGTH-01` 发现。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `check_test_weakening` 的直接测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_check_test_weakening_test_count_decreased` | Base 有 2 个 `@Test`，Head 只有 1 个 | 1 条 `TEST_STRENGTH-01` FAIL 发现 |
+| `test_check_test_weakening_disabled_added_is_detected` | Base 无 `@Disabled`，Head 新增 `@Disabled` | 1 条 `TEST_STRENGTH-01` FAIL 发现 |
+| `test_check_test_weakening_unchanged_is_clean` | Base 和 Head `@Test` 计数相同 | 无发现 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+33 passed in 5.69s
+```
+
+32 条原有测试 + 3 条新增，共 33 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`check_test_weakening` 逻辑已正确工作。只补了对该检查器的直接行为测试。
+- 新测试使用简单的测试类（`@Test` 方法），移除测试方法或新增 `@Disabled` 后验证发现产生；测试不变时验证无发现。两条测试互为正负例。
+- `check_test_weakening` 已通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 间接调用（空输入），新测试是首次给它喂入真实代码。
+
+**下一号队列**：#579 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。

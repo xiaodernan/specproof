@@ -19,6 +19,7 @@ from agent.checkers.java_source import (
     contract_results_for,
     run_contract_checks,
 )
+from agent.checkers.schema_and_tests import check_test_weakening
 from agent.contract_results import merge_contract_results
 from agent.worker import _terminal_status_from_state
 
@@ -614,4 +615,76 @@ def test_event_once_unchanged_is_clean() -> None:
         "com/specproof/demo/service/EventService.java": svc,
     }
     findings = check_event_once(base_files, head_files)
+    assert findings == []
+
+
+def test_check_test_weakening_test_count_decreased() -> None:
+    """check_test_weakening: @Test 计数减少是 TEST_STRENGTH-01。"""
+    base_files = {
+        "com/specproof/demo/service/UserServiceTest.java": (
+            "public class UserServiceTest {\n"
+            "    @Test\n"
+            "    public void test1() {}\n"
+            "    @Test\n"
+            "    public void test2() {}\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/UserServiceTest.java": (
+            "public class UserServiceTest {\n"
+            "    @Test\n"
+            "    public void test1() {}\n"
+            "}\n"
+        ),
+    }
+    findings = check_test_weakening(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "TEST_STRENGTH-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "test_removed"
+    assert "2 -> 1" in removals[0]["description"]
+
+
+def test_check_test_weakening_disabled_added_is_detected() -> None:
+    """check_test_weakening: 新增 @Disabled 是 TEST_STRENGTH-01。"""
+    base_files = {
+        "com/specproof/demo/service/UserServiceTest.java": (
+            "public class UserServiceTest {\n"
+            "    @Test\n"
+            "    public void test1() {}\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/UserServiceTest.java": (
+            "public class UserServiceTest {\n"
+            "    @Test\n"
+            "    @Disabled\n"
+            "    public void test1() {}\n"
+            "}\n"
+        ),
+    }
+    findings = check_test_weakening(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "TEST_STRENGTH-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "test_disabled"
+
+
+def test_check_test_weakening_unchanged_is_clean() -> None:
+    """check_test_weakening: 两端 @Test 计数相同 → 无发现。"""
+    svc = (
+        "public class UserServiceTest {\n"
+        "    @Test\n"
+        "    public void test1() {}\n"
+        "    @Test\n"
+        "    public void test2() {}\n"
+        "}\n"
+    )
+    base_files = {
+        "com/specproof/demo/service/UserServiceTest.java": svc,
+    }
+    head_files = {
+        "com/specproof/demo/service/UserServiceTest.java": svc,
+    }
+    findings = check_test_weakening(base_files, head_files)
     assert findings == []
