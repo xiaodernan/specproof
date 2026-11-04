@@ -21214,3 +21214,49 @@ All checks passed!
 - 计数器期望 `built` 而非 `pass_downgraded`：因为行是从合同创建（非从 PASS 降级），节点的 gate 判定为 `built`。
 
 **下一号队列**：#561 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失——`merge_contract_results` 已单元测试，但两节点之间的端到端合并尚无测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #561 `build_matrix_node` 保留差分节点的 UNVERIFIED 行：合同存在但无检验结果时不降级
+
+**背景**：`agent/nodes/build_matrix.py::build_matrix_node` 从状态中读取 `contract_results`，将合同条目与检验结果条目经 `merge_contract_results` 合并后生成矩阵行。现有测试覆盖了：
+- 有合同 + 有证据的 `contract_results` → PASS 行保留
+- 无合同 → 空矩阵
+- 有合同 + 有无证据的 PASS `contract_results` → 降级为 UNVERIFIED
+- 合同存在但无 `contract_results` → 每个合同生成 UNVERIFIED 行
+
+但**没有测试**：`contract_results` 中已经包含 `result: "UNVERIFIED"`（例如来自差分节点 `#530` 的零执行守卫）时，该 UNVERIFIED 应该被原样保留，不被升级或降级。
+
+**本批只做一件事**：补上 `build_matrix_node` 接收已 UNVERIFIED 的 `contract_results` 时的直接测试。
+
+### 新增测试
+
+`test_already_unverified_result_is_preserved`：
+
+| 输入 | 预期 |
+|------|------|
+| `{"contracts": [...], "contract_results": [{"contract_id": "AUTH-01", "result": "UNVERIFIED", ...}]}` | matrix 有一行，`result == "UNVERIFIED"` |
+
+这与 `test_bare_pass_is_downgraded_and_counts_refusal` 形成对比：后者测试 PASS 无证据 → 降级为 UNVERIFIED；前者测试已经 UNVERIFIED → 保持 UNVERIFIED，不被“升级”。
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_build_matrix_node_execution_is_observable.py -q
+6 passed in 2.05s
+```
+
+5 条原有测试 + 1 条新增，共 6 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_build_matrix_node_execution_is_observable.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`build_matrix_node` 已通过 `result.get("result", "UNVERIFIED")` 原样保留已 UNVERIFIED 的结果。只补了对该路径的直接测试。
+- 新测试的 `contract_results` 包含 `result: "UNVERIFIED"`，与 `test_bare_pass_is_downgraded_and_counts_refusal`（`result: "PASS"` 无证据 → 降级）形成对比，覆盖两种不同的“结果已经是 UNVERIFIED”和“需要降级”的情形。
+- 计数器期望 `built`：因为行是从合同+结果创建，节点的 gate 判定为 `built`（非 `pass_downgraded`，因为输入本身不是 PASS）。
+
+**下一号队列**：#562 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失——`merge_contract_results` 已单元测试，但两节点之间的端到端合并尚无测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。

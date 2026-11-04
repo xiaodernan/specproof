@@ -122,6 +122,33 @@ def test_contracts_without_results_row_is_unverified() -> None:
     assert _deltas(before) == _only("built")
 
 
+def test_already_unverified_result_is_preserved() -> None:
+    """contract_results with result already UNVERIFIED (e.g. from differential
+    execution where no tests ran) is preserved as-is through build_matrix_node,
+    not upgraded or downgraded."""
+    state: dict[str, Any] = {
+        "contracts": [dict(_CONTRACT)],
+        "contract_results": [{
+            "contract_id": "AUTH-01",
+            "result": "UNVERIFIED",
+            "experiment": "DIFF-01",
+            "evidence_ref": "",
+            "details": "Generated test executed no tests",
+        }],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 1
+    assert len(matrix["rows"]) == 1
+    row = matrix["rows"][0]
+    assert row["result"] == "UNVERIFIED", (
+        "an already-UNVERIFIED result must stay UNVERIFIED, not be upgraded"
+    )
+    assert _deltas(before) == _only("built")
+
+
 def test_bare_pass_is_downgraded_and_counts_refusal() -> None:
     state: dict[str, Any] = {
         "contracts": [dict(_CONTRACT)],
