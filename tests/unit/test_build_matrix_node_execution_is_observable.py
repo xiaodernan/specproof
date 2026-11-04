@@ -286,3 +286,36 @@ def test_multiple_results_same_contract_fail_wins() -> None:
     assert matrix["passed"] == 0
     assert matrix["unverified"] == 0
     assert _deltas(before) == _only("built")
+
+
+def test_three_contracts_three_outcomes() -> None:
+    """三合同三结果：FAIL、PASS(无证据→UNVERIFIED)、无结果(→UNVERIFIED)。"""
+    state: dict[str, Any] = {
+        "contracts": [
+            {"id": "AUTH-01", "checker_type": "http", "requirement": "c1"},
+            {"id": "TXN-01", "checker_type": "sql", "requirement": "c2"},
+            {"id": "GRD-01", "checker_type": "redis", "requirement": "c3"},
+        ],
+        "contract_results": [
+            {"contract_id": "AUTH-01", "result": "FAIL",
+             "experiment": "java_source_diff", "evidence_ref": "f-1",
+             "details": "annotation removed"},
+            {"contract_id": "TXN-01", "result": "PASS",
+             "experiment": "java_source_diff", "evidence_ref": "",
+             "details": "guarded construct intact"},
+        ],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 3
+    assert len(matrix["rows"]) == 3
+    by_id = {row["contract_id"]: row for row in matrix["rows"]}
+    assert by_id["AUTH-01"]["result"] == "FAIL"
+    assert by_id["TXN-01"]["result"] == "UNVERIFIED"
+    assert by_id["GRD-01"]["result"] == "UNVERIFIED"
+    assert matrix["failed"] == 1
+    assert matrix["passed"] == 0
+    assert matrix["unverified"] == 2
+    assert _deltas(before) == _only("pass_downgraded")

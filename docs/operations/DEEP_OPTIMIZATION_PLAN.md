@@ -21539,3 +21539,50 @@ All checks passed!
 - 与 `test_multiple_contracts_merge_by_priority` 形成对比：后者测试两个合同各一个结果；前者测试一个合同两个结果。
 
 **下一号队列**：#569 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #569 `build_matrix_node` 三合同三结果：FAIL、PASS(无证据→UNVERIFIED)、无结果(→UNVERIFIED)
+
+**背景**：`agent/nodes/build_matrix.py::build_matrix_node` 从状态中读取 `contracts` 和 `contract_results`，将每份合同与其结果合并成矩阵行。现有测试覆盖了：
+- 单合同 + 单结果 → 结果保留
+- 多合同 + 多结果（各一条） → 各自独立
+- 多合同 + 部分有结果 → 各自独立
+- 同一合同 + 多结果 → FAIL 优先
+
+但**没有测试**：同一次 `build_matrix_node` 调用中，3 个合同分别产生 3 种不同结果（FAIL、PASS 无证据→UNVERIFIED、无结果→UNVERIFIED），各自独立，互不干扰。
+
+**本批只做一件事**：在 `tests/unit/test_build_matrix_node_execution_is_observable.py` 补上三合同三结果的测试。
+
+### 新增测试
+
+`test_three_contracts_three_outcomes`：
+
+| 输入 | 预期 |
+|------|------|
+| AUTH-01: FAIL 结果 | FAIL 行 |
+| TXN-01: PASS 结果但无证据 | UNVERIFIED 行（被降级） |
+| GRD-01: 无结果 | UNVERIFIED 行 |
+| 计数器 | failed=1，passed=0，unverified=2，counter=pass_downgraded |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_build_matrix_node_execution_is_observable.py -q
+9 passed in 2.13s
+```
+
+8 条原有测试 + 1 条新增，共 9 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_build_matrix_node_execution_is_observable.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`build_matrix_node` 已正确处理多合同各自独立的情况。只补了三合同三结果的直接测试。
+- 新测试使用 3 个合同：AUTH-01（FAIL），TXN-01（PASS 无证据→UNVERIFIED），GRD-01（无结果→UNVERIFIED），验证每份合同独立计算，互不干扰。
+- 计数器期望 `pass_downgraded`：因为有一个 PASS 结果因无证据被降级为 UNVERIFIED，触发 `pass_downgraded` 计数器而非 `built`。
+
+**下一号队列**：#569 之后检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
