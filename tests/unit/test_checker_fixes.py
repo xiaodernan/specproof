@@ -375,3 +375,28 @@ def test_contract_results_for_migration_false_test_true() -> None:
          "evidence_ref": "no violation found in source diff",
          "details": "Checker ran; guarded construct intact in Head"},
     ]
+
+
+def test_contract_results_for_mixed_findings() -> None:
+    """contract_results_for: 同一批合同，部分有发现，部分无结果。"""
+    contracts = [
+        {"id": "AUTH-01"},
+        {"id": "TXN-01"},
+    ]
+    findings = [
+        {"contract_id": "AUTH-01", "type": "annotation_removed",
+         "id": "f-1", "description": "@PreAuthorize removed"},
+    ]
+    base_files = {"com/specproof/demo/controller/UserController.java":
+                  "class UserController {}"}
+    results = contract_results_for(contracts, findings, base_files)
+    assert results == [
+        {"contract_id": "AUTH-01", "result": "FAIL",
+         "experiment": "java_source_diff",
+         "evidence_ref": "f-1",
+         "details": "@PreAuthorize removed"},
+        {"contract_id": "TXN-01", "result": "UNVERIFIED",
+         "experiment": "java_source_diff",
+         "evidence_ref": None,
+         "details": "No observable construct for this contract in Base"},
+    ]

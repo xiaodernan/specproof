@@ -21661,3 +21661,41 @@ All checks passed!
 - 与 `test_contract_results_for_migration_and_test_strength`（都为 True → 都 PASS）和 `test_contract_results_for_migration_and_test_strength_not_present`（都为 False → 都 UNVERIFIED）形成对比：新测试覆盖了两个标志不一致的情况。
 
 **下一号队列**：#572 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #572 `contract_results_for` 同一批合同混合结果：部分有发现、部分无发现
+
+**背景**：`agent/checkers/java_source.py::contract_results_for` 是 `run_static_checks_node` 和 `run_contract_checks` 的核心函数，将检查员发现（findings）映射为每份合同的结果（FAIL / PASS / UNVERIFIED）。现有测试覆盖了单合同各种情况，但**没有测试**：同一批合同中，部分合同有发现（FAIL），部分合同无发现（UNVERIFIED），两者独立计算。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上多合同混合结果的测试。
+
+### 新增测试
+
+`test_contract_results_for_mixed_findings`：
+
+| 输入 | 预期 |
+|------|------|
+| 2 合同：AUTH-01（有发现→FAIL），TXN-01（无发现→UNVERIFIED） | AUTH-01 行 FAIL，TXN-01 行 UNVERIFIED |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+20 passed in 11.56s
+```
+
+19 条原有测试 + 1 条新增，共 20 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`contract_results_for` 已正确处理同一批合同各自独立评估的情况。只补了对该路径的直接测试。
+- 新测试使用 2 个合同：AUTH-01（有发现→FAIL），TXN-01（无发现→UNVERIFIED），验证每份合同独立评估，互不干扰。
+- 与 `test_contract_results_for_fail_when_checker_finds_violation`（单合同发现）形成对比：新测试覆盖了多合同混合情况。
+
+**下一号队列**：#573 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失的其他边界情况；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
