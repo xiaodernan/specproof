@@ -21084,3 +21084,46 @@ All checks passed!
 - 本批**没有改任何产品代码**。
 
 **下一号队列**：#558 检查 `run_differential.py` 中 `_not_verified_contract_results` 生成的 UNVERIFIED 行是否被下游（报告渲染、门控）正确消费；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #558 `evaluate_verification` 的 `require_experiment` 参数：证书路径的免实验模式需直接测试
+
+**背景**：`evidence/verdict.py::evaluate_verification` 的 `require_experiment` 参数默认 `True`，表示 PASS 行必须携带实验引用才能验证。`evidence/certificate.py::issue_certificate` 调用时传 `require_experiment=False`，因为证书按合同形状行，不按矩阵形状——证书路径不应因缺少 `experiment_ids` 而拒绝合格的合同。
+
+现有测试 `test_certificate_requires_individual_contract_evidence` 通过 `issue_certificate` 间接覆盖了 `require_experiment=False` 的失败路径（无证书、重复、FAIL 等），但**没有直接测试 `evaluate_verification` 本身对 `require_experiment` 的行为**：
+- `require_experiment=False` 时，PASS 行无 `experiment_ids` 也应验证通过；
+- `require_experiment=True`（缺省）时，同一行应因缺少实验而不可验证；
+- `require_experiment=False` 不应掩盖真正的 FAIL 或管线错误。
+
+**本批只做一件事**：在 `tests/unit/test_verdict_policy.py` 补上对 `require_experiment` 参数的直接测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_require_experiment_false_accepts_pass_without_experiment` | PASS 行，无 experiment，`require_experiment=False` | VERIFIED；同一行 `require_experiment=True` → NEEDS_REVIEW |
+| `test_require_experiment_false_still_blocks_on_fail` | FAIL 行，`require_experiment=False` | BLOCKED |
+| `test_require_experiment_false_still_blocks_on_errors` | PASS 行 + errors，`require_experiment=False` | FAILED |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_verdict_policy.py -q
+47 passed in 8.16s
+```
+
+16 条原有测试 + 4 条新增，共 47 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_verdict_policy.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`evaluate_verification` 的 `require_experiment` 逻辑已正确工作。只补了对该参数的直接测试，此前仅通过 `issue_certificate` 间接覆盖。
+- `require_experiment=False` 不改变 FAIL/errors 的处理——错误和发现仍然优先，只影响 PASS 行的实验要求。
+- 证书路径（`issue_certificate`）继续使用 `require_experiment=False`，行为不变，只是现在有直接测试兜底。
+
+**下一号队列**：#559 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在合并丢失——`merge_contract_results` 已单元测试，但两节点之间的 LangGraph channel 合并是否按预期工作，尚无端到端测试。

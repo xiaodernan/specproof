@@ -192,6 +192,29 @@ def test_error_precedes_pass_and_findings():
     assert evaluate_verification({"rows": [passing_row()]}, findings=[{}]).status == "BLOCKED"
 
 
+def test_require_experiment_false_accepts_pass_without_experiment():
+    """require_experiment=False (used by certificates): a PASS row without
+    experiment references still verifies, because the caller is responsible
+    for experiment evidence."""
+    row = passing_row() | {"experiment": ""}
+    assert evaluate_verification({"rows": [row]}, require_experiment=False).status == "VERIFIED"
+    # Default (require_experiment=True): same row is unverifiable.
+    assert evaluate_verification({"rows": [row]}).status == "NEEDS_REVIEW"
+
+
+def test_require_experiment_false_still_blocks_on_fail():
+    """require_experiment=False does not downgrade a real FAIL."""
+    row = passing_row() | {"result": "FAIL"}
+    assert evaluate_verification({"rows": [row]}, require_experiment=False).status == "BLOCKED"
+
+
+def test_require_experiment_false_still_blocks_on_errors():
+    """require_experiment=False does not hide pipeline errors."""
+    assert evaluate_verification(
+        {"rows": [passing_row()]}, errors=["boom"], require_experiment=False
+    ).status == "FAILED"
+
+
 @pytest.mark.parametrize("contracts", [
     [], [{"id": "C-1", "result": "PASS"}],
     [{"id": "C-1", "result": "PASS", "evidence_ref": "—"}],
