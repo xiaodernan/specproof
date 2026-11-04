@@ -21169,3 +21169,48 @@ All checks passed!
 - 证书路径行为不变，只是现在有直接测试兜底“无实验ID也能签发”这一行为。
 
 **下一号队列**：#560 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失——`merge_contract_results` 已单元测试，但两节点之间的端到端合并尚无测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。
+
+## #560 `build_matrix_node` 无合同结果时的行为：合同存在、contract_results 缺失时不应崩溃
+
+**背景**：`agent/nodes/build_matrix.py::build_matrix_node` 从状态中读取 `contract_results`（`state.get("contract_results", [])`）。现有测试覆盖了：
+- 有合同 + 有证据的 `contract_results` → PASS 行保留
+- 无合同 → 空矩阵
+- 有合同 + 有无证据的 PASS `contract_results` → 降级为 UNVERIFIED
+
+但**没有测试**：合同存在，但 `contract_results` 完全缺失于状态。这种情形在 LangGraph 流中可能发生——如果前序节点未写入 `contract_results`，`build_matrix_node` 应该优雅降级，为每个合同生成 UNVERIFIED 行，而不是崩溃或漏掉合同。
+
+**本批只做一件事**：补上 `build_matrix_node` 合同存在但 `contract_results` 缺失的测试。
+
+### 新增测试
+
+`test_contracts_without_results_row_is_unverified`：
+
+| 输入 | 预期 |
+|------|------|
+| `{"contracts": [{"id": "AUTH-01", ...}]}`（无 contract_results） | matrix 有一行，`result == "UNVERIFIED"`，计数器 `built` |
+
+这是 `test_bare_pass_is_downgraded_and_counts_refusal` 的补充：后者测试有 `contract_results` 但 PASS 无证据；前者测试完全没有 `contract_results`。
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_build_matrix_node_execution_is_observable.py -q
+5 passed in 4.31s
+```
+
+4 条原有测试 + 1 条新增，共 5 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_build_matrix_node_execution_is_observable.py
+All checks passed!
+```
+
+全程未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`build_matrix_node` 已通过 `state.get("contract_results", [])` 优雅处理缺失的 `contract_results`。只补了对该路径的直接测试。
+- 新测试的合同行没有 `contract_results`，与 `test_bare_pass_is_downgraded_and_counts_refusal`（有 `contract_results` 但 PASS 无证据）形成对比，覆盖两种不同的“无结果”情形。
+- 计数器期望 `built` 而非 `pass_downgraded`：因为行是从合同创建（非从 PASS 降级），节点的 gate 判定为 `built`。
+
+**下一号队列**：#561 检查 `run_differential_node` 返回的 `contract_results` 与 `build_matrix_node` 的输入是否存在 LangGraph channel 合并丢失——`merge_contract_results` 已单元测试，但两节点之间的端到端合并尚无测试；或转向 `tests/unit/test_fake_inventory_stays_measured.py` 的下一轮盘点。

@@ -103,6 +103,25 @@ def test_no_contracts_counts_no_contracts() -> None:
     assert _deltas(before) == _only("no_contracts")
 
 
+def test_contracts_without_results_row_is_unverified() -> None:
+    """Contracts present but no contract_results in state: rows are built
+    from contracts only, with UNVERIFIED result (no evidence/experiment)."""
+    state: dict[str, Any] = {
+        "contracts": [dict(_CONTRACT)],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 1
+    assert len(matrix["rows"]) == 1
+    row = matrix["rows"][0]
+    assert row["result"] == "UNVERIFIED", (
+        "a contract with no result entry must be UNVERIFIED, not PASS"
+    )
+    assert _deltas(before) == _only("built")
+
+
 def test_bare_pass_is_downgraded_and_counts_refusal() -> None:
     state: dict[str, Any] = {
         "contracts": [dict(_CONTRACT)],
