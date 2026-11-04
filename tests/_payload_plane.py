@@ -44,6 +44,13 @@ THE RULES, each one sentence:
       split happens on a copy whose string literals are masked first. Two path-shaped
       branches are refused, not merged: one site may not be paired with two endpoints.
 
+  E8  the consumer population is not only what a name can reach. An issuer is a
+      definition in the client module that writes a transport or writes a client verb or
+      writes an issuer, an issuer of the second kind is any other function whose body
+      reaches one, and a site is any line that writes one of those names -- so a helper,
+      a function that reaches an issuer without being spelled `use*` and a page that
+      writes ``fetch`` itself are all in the denominator whether or not
+      ``_consumer_names`` can say their names.
 Test files under ``__tests__`` are excluded from pairing: they assert against mocks,
 so a mismatch there is not a user-visible one. The exclusion is a *counted* rule
 (``excluded_call_sites``), so it cannot quietly become the whole population.
@@ -848,6 +855,458 @@ def consumer_bindings(root: Path) -> list[ConsumerBinding]:
             )
         )
     return out
+
+
+# ---------------------------------------------------------------------------
+# E8 -- the denominator: who can put a request on the wire, read from the graph
+#
+# The consumer population the whole census is built on is a naming convention:
+# `_consumer_names` is the five `api*` verbs plus the `use[A-Z]` hooks whose bodies issue one
+# request. #553's arm K8 renamed `useRemoteData` to `fetchRemoteData` and five legs went red --
+# four of them legs about other numbers' registers -- because the site left the census, and not
+# one line in this repository records how many client calls the frontend has. So the denominator
+# itself had no witness. This section reads the same plane a second way, without asking a name:
+# an issuer is a definition in the client module whose body reaches a transport, a page-plane
+# issuer is any other function whose body reaches one of those, and a site is a line that writes
+# one.
+
+
+#: What actually leaves the browser. A definition that writes one of these is the client
+#: module's own transport wrapper, whatever it is called: `fetch`, `EventSource` and
+#: `XMLHttpRequest` are the only three ways this frontend can ask the network a question.
+_TRANSPORT_RE = re.compile(r"\bfetch\s*\(|\bnew\s+EventSource\b|\bXMLHttpRequest\b")
+
+#: A top-level declaration of a function, in either spelling React allows on this tree.
+#: `_HOOK_DEF` reads only the `function use*` form, which is why an arrow hook would widen
+#: the consumer population without E6 ever seeing it; the graph reading starts from both.
+_TS_FUNC_HEAD = re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(\w+)", re.M)
+_TS_CONST_HEAD = re.compile(r"^(?:export\s+)?(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?\(", re.M)
+
+#: `import { a, b as c } from "..."`, read up to the closing brace and no further. Read from the
+#: *masked* copy on purpose: a specifier is a string literal and masking blanks it, but the
+#: reading never asks where an import came from -- it asks which names arrived. The mask is what
+#: lets a comment line inside a multi-line brace list stay out of the name list, which is the
+#: accident #554's first measurement ran into on `JobDetail.tsx`.
+_TS_BRACE_IMPORT = re.compile(r"^import\s+(?:type\s+)?\{([^}]*)\}", re.M)
+
+#: The client module, by name. The reading walks the import graph but the *geography* is a
+#: constant, same as `web_src`: one file is the client, and everything else is a caller.
+_CLIENT_MODULE = "api.ts"
+
+#: How many rounds the issuer closure may take before the reading reports what it has. This
+#: tree converges in two: one productive round, one that adds nothing.
+_MAX_CLOSURE_ROUNDS = 8
+
+
+@dataclass(frozen=True)
+class ClientExport:
+    """A definition in the client module that can end up putting a request on the wire.
+
+    ``depth`` is graph distance to a transport: 0 writes one itself, 1 reaches one through a
+    client verb or through a depth-0 wrapper. ``via`` are the client-module names its body
+    writes, so the two stream wrappers are told apart from the seven helpers by the name they
+    reach rather than by the word in theirs. ``exported`` is not decoration: a page can only
+    import an exported name, so the non-exported rows are where the closure starts and not what
+    a caller calls.
+    """
+
+    name: str
+    file: str
+    line: int
+    depth: int
+    exported: bool
+    via: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DenominatorSite:
+    """One frontend line that either reaches the network or is the definition that does.
+
+    ``callee`` is the word actually written at the site, ``binding`` the name it was imported
+    under -- the two differ exactly when the page renamed it on the way in, which is the one
+    spelling a name-anchored census cannot follow. ``by_name`` is therefore read off ``callee``,
+    not ``binding``: it says whether the *written* word is in the naming ruler's population, so
+    an aliased import of a name the ruler owns still reports ``False``. The gap between the two
+    denominators is a column rather than an argument, and ``kind`` is the first label the ordered
+    vocabulary gives the line.
+
+    A definition line is a row only for an issuer (`issuer-def`), and there it is the row that
+    makes the *population* enumerable: the requests it will send are counted at their own lines.
+
+    One line is one row. A line that writes two clients keeps the label the vocabulary ranks
+    first, which is a choice: a per-name census would report more rows than there are sites, and
+    then the two denominators would no longer be counts of the same thing.
+    """
+
+    file: str
+    line: int
+    callee: str
+    kind: str
+    by_name: bool
+    binding: str
+
+
+#: Ordered, first match wins -- the label a line gets is the first class whose test holds.
+#: ``raw-transport`` comes first because a page that writes `fetch` bypassed the client module
+#: entirely and no later label would say so. ``helper`` outranks ``stream`` because a wrapper
+#: that both builds a path and opens a stream is first a path builder; the two stream rows on
+#: this tree reach only the event-source wrapper, so the precedence is a rule for the case the
+#: tree has not written yet. ``internal`` is last because every class above it is about a name
+#: *arrived at from outside*, and inside the client module the names are the definitions.
+#: ``issuer-*`` is not spelled ``hook-*``: the population is "a frontend function whose body
+#: reaches the client module", and only three of this tree's seven carry the `use[A-Z]` shape --
+#: the other four are components and a column factory, which is the finding, not a category error
+#: the label should paper over.
+DENOMINATOR_KINDS = (
+    "raw-transport",
+    "verb-name",
+    "helper",
+    "stream",
+    "issuer-def",
+    "issuer-call",
+    "internal",
+)
+
+
+def _ts_masked(ts: Path) -> str:
+    """The whole file, line by line through `_mask_typescript` -- prose stops being code.
+
+    The mask rewrites a line's width, so columns are meaningless in the result. Line *numbers*
+    survive: every read below turns an offset back into a line by counting newlines, the same
+    arithmetic the census's own statement lens uses.
+    """
+    return "\n".join(_mask_typescript(line) for line in ts.read_text(encoding="utf-8").split("\n"))
+
+
+def _call_re(name: str) -> re.Pattern[str]:
+    """A call of ``name`` that is not a member access and not another module's same word.
+
+    ``(?<![\\w.$])`` is the whole rule: `x.apiGet(...)` and `myapiGet(...)` are not this
+    function. The name is read before its generic argument or its paren, so `apiGet<{ a: { b:
+    string } }>(...)` and `apiGet(...)` are the same site.
+    """
+    return re.compile(r"(?<![\w.$])" + re.escape(name) + r"\s*[<(]")
+
+
+def _written_in(text: str, names: Iterable[str]) -> tuple[str, ...]:
+    """Which of ``names`` this text calls, sorted -- the graph edge, spelled once."""
+    return tuple(sorted(name for name in set(names) if _call_re(name).search(text)))
+
+
+def _decl_body(masked: str, signature: int) -> str:
+    """The text a declaration runs to: its block, or the expression an arrow returns.
+
+    ``_function_body`` takes the next ``{`` after the signature, which for
+    ``const f = (p) => g(p)`` is the brace of whatever declaration comes *next* -- so an
+    expression-bodied arrow would be read as its successor's body, and inherit that
+    function's transports and edges. This tree's client module has no such shape (49
+    declarations, all spelled ``function``), which is exactly why the fixture leg writes one.
+    """
+    after = masked[signature:]
+    arrow = re.match(r"\s*=>\s*", after)
+    if arrow is not None and not after[arrow.end() :].startswith("{"):
+        end = after.find(";", arrow.end())
+        return after[arrow.end() :] if end == -1 else after[arrow.end() : end]
+    body, _end = _function_body(masked, signature)
+    return body
+
+
+def _ts_declarations(masked: str) -> dict[str, tuple[str, int, bool]]:
+    """name -> (body, declaration line, exported?) for one masked TypeScript file.
+
+    First spelling wins, so a name declared twice keeps its first home and every count below
+    stays one per name. A signature this cannot walk (`_past_paren` returning -1) is skipped
+    rather than guessed at: an unreadable body yields no edges, and an issuer that loses its
+    edges leaves the surface roster -- a loud place to fail, which is the point.
+    """
+    out: dict[str, tuple[str, int, bool]] = {}
+    for head in (_TS_FUNC_HEAD, _TS_CONST_HEAD):
+        for match in head.finditer(masked):
+            name = match.group(1)
+            if name in out:
+                continue
+            # ``match.end()`` sits *after* the parameter list's own ``(`` for a `const` head, and
+            # ``_past_paren`` looks for the next ``(`` from there -- which is the first call in the
+            # body, not the signature. One character back starts the walk on the right paren.
+            signature = _past_paren(masked, match.end() - 1)
+            if signature == -1:
+                continue
+            out[name] = (
+                _decl_body(masked, signature),
+                masked[: match.start()].count("\n") + 1,
+                masked[match.start() : match.start() + 6] == "export",
+            )
+    return out
+
+
+def _client_file(root: Path) -> Path:
+    """The client module: `apps/web/src/api.ts`, the one file that is not a caller."""
+    return web_src(root) / _CLIENT_MODULE
+
+
+def _brace_imports(masked: str) -> list[tuple[str, str]]:
+    """`(local, original)` for every brace import in a masked file, aliases included.
+
+    A `type` prefix is stripped rather than dropped: `import { type Job, apiGet }` arrives in one
+    chunk, and the shape half must not swallow the callable half sitting next to it.
+    """
+    out: list[tuple[str, str]] = []
+    for match in _TS_BRACE_IMPORT.finditer(masked):
+        for raw in match.group(1).split(","):
+            parts = [part.strip() for part in raw.split(" as ")]
+            if not parts or not parts[0]:
+                continue
+            spec = parts[0][5:].strip() if parts[0].startswith("type ") else parts[0]
+            if spec and spec.isidentifier():
+                out.append((parts[-1], spec))
+    return out
+
+
+def client_surface(root: Path) -> list[ClientExport]:
+    """Every client-module definition that reaches a transport, with its distance and its edges.
+
+    The closure is seeded two ways and then walked: a body that writes a transport is depth 0, a
+    body that writes a declared verb is depth 1, and a body that writes either reaches the
+    transport one hop further. No vocabulary of *helper* names is consulted, which is the point
+    -- `downloadCapsule`, `logout` and the two stream wrappers are issuers because of what they
+    call, and nothing in this file says so.
+    """
+    api = _client_file(root)
+    if not api.exists():
+        return []
+    declarations = _ts_declarations(_ts_masked(api))
+
+    depth: dict[str, int] = {}
+    for name in sorted(declarations):
+        body = declarations[name][0]
+        if _TRANSPORT_RE.search(body):
+            depth[name] = 0
+        elif _written_in(body, _CLIENT_VERBS):
+            depth[name] = 1
+
+    rounds = 0
+    while rounds < _MAX_CLOSURE_ROUNDS:
+        rounds += 1
+        grown = False
+        for name in sorted(declarations):
+            if name in depth:
+                continue
+            nearer = {
+                depth[other] + 1 for other in depth if _call_re(other).search(declarations[name][0])
+            }
+            if nearer:
+                depth[name] = min(nearer)
+                grown = True
+        if not grown:
+            break
+
+    rel = _rel_in_web(web_src(root), api)
+    out: list[ClientExport] = []
+    for name in sorted(depth):
+        body, line, exported = declarations[name]
+        out.append(
+            ClientExport(
+                name=name,
+                file=rel,
+                line=line,
+                depth=depth[name],
+                exported=exported,
+                via=_written_in(body, depth),
+            )
+        )
+    return out
+
+
+def _issuers_outside_client(names: Iterable[str], web: Path) -> dict[str, tuple[str, int]]:
+    """name -> (defining file, declaration line) for every function whose body reaches a client.
+
+    Deliberately not restricted to the `use[A-Z]` spelling: E6's hook population is a name
+    pattern, and a data-fetching function that stopped following it would leave E6's census
+    behind while the graph kept its sites. A function that reaches two issuers is in here too --
+    the ruler refuses it as a consumer because one type argument cannot serve two requests, and
+    this reading counts its sites anyway.
+    """
+    clients = set(names)
+    out: dict[str, tuple[str, int]] = {}
+    for ts in _web_sources(web):
+        if _is_test_file(ts):
+            continue
+        rel = _rel_in_web(web, ts)
+        for name, (body, line, _exported) in _ts_declarations(_ts_masked(ts)).items():
+            if name in clients or not _written_in(body, clients):
+                continue
+            out.setdefault(name, (rel, line))
+    return out
+
+
+def _denominator_kind(
+    binding: str,
+    *,
+    from_import: bool,
+    inside_client: bool,
+    at_definition: bool,
+    verbs: set[str],
+    helpers: set[str],
+    streams: set[str],
+    issuers: set[str],
+) -> str:
+    """The first label in `DENOMINATOR_KINDS` whose test this line satisfies, or "" for none.
+
+    ``issuers`` is the graph's own population -- any page function whose body reaches the client
+    module -- so ``issuer-def``/``issuer-call`` say where the line sits in such a function, not
+    what it is called. E6's `use[A-Z]` pattern is one of the two columns the gate compares against
+    this, and the rows it cannot name are the finding rather than a flaw in the walk.
+    """
+    if from_import:
+        if binding in verbs:
+            return "verb-name"
+        if binding in helpers:
+            return "helper"
+        if binding in streams:
+            return "stream"
+        if binding in issuers:
+            return "issuer-call"
+        return ""
+    if inside_client:
+        return "internal"
+    if binding in issuers:
+        return "issuer-def" if at_definition else "issuer-call"
+    return ""
+
+
+def _transport_word(text: str) -> str:
+    """Which transport a page wrote, as a callee name."""
+    if "XMLHttpRequest" in text:
+        return "XMLHttpRequest"
+    if "EventSource" in text:
+        return "EventSource"
+    return "fetch"
+
+
+def denominator_sites(root: Path) -> list[DenominatorSite]:
+    """Every frontend line that writes a client name or a transport -- the denominator, name-free.
+
+    Three classes show up here that the naming ruler cannot see by construction: a helper its
+    vocabulary never named, a function that reaches an issuer without the `use[A-Z]` spelling --
+    on this tree four of the seven such functions have no hook name at all -- and a page that
+    writes `fetch` itself. A fourth class -- an import that renames its callee -- is handled
+    rather than measured, because renaming is the edit that #553's arm K8 proved could happen:
+    `binding` keeps the exported name, `callee` the one written.
+
+    A name the ruler *does* know can still be under-counted: `useAgentJob` is in
+    `_consumer_names`, yet the census has one row for it (the request inside its body) while 11
+    pages call it. Those sites are rows here with `by_name=True`, which is what lets the gate
+    state the difference as "named, but not counted" rather than "invisible".
+
+    The import's *specifier* is not resolved, only its braces: today every caller of the client
+    module spells it `api`, and a page that imported `downloadCapsule` from a mock would be
+    counted as a consumer of the real one. That is the same hole #527 recorded about the
+    census's roots, and it is registered in the gate rather than papered over here.
+    """
+    web = web_src(root)
+    surface = client_surface(root)
+    if not surface:
+        return []
+    api_rel = surface[0].file
+    verbs = set(_CLIENT_VERBS)
+
+    # Both of this frontend's transports are `fetch`, so no transport *word* separates a stream
+    # from a helper. The graph does: a stream reaches a transport wrapper that none of the
+    # declared client verbs ever reaches, which is a fact about the wire, not about a name.
+    wrappers = {row.name for row in surface if row.depth == 0}
+    verb_wrappers = {
+        name for row in surface if row.name in verbs for name in row.via if name in wrappers
+    }
+    streams = {
+        row.name for row in surface if row.depth > 0 and set(row.via) & (wrappers - verb_wrappers)
+    }
+    helpers = {
+        row.name
+        for row in surface
+        if row.depth > 0 and row.name not in verbs and row.name not in streams
+    }
+    issuer_names = {row.name for row in surface}
+    page_issuers = _issuers_outside_client(issuer_names, web)
+    issuer_def_names = set(page_issuers)
+    known = verbs | issuer_names | issuer_def_names
+    named = set(_consumer_names(web))
+
+    rows: dict[tuple[str, int], DenominatorSite] = {}
+
+    def add(rel: str, line: int, site: DenominatorSite) -> None:
+        found = rows.get((rel, line))
+        if found is None or DENOMINATOR_KINDS.index(found.kind) > DENOMINATOR_KINDS.index(
+            site.kind
+        ):
+            rows[(rel, line)] = site
+
+    for ts in _web_sources(web):
+        if _is_test_file(ts):
+            continue
+        rel = _rel_in_web(web, ts)
+        masked = _ts_masked(ts)
+        inside = rel == api_rel
+
+        imported: dict[str, str] = {}
+        for local, spec in _brace_imports(masked):
+            if spec in known:
+                imported[local] = spec
+        bound = dict(imported)
+        if inside:
+            for name in issuer_names:
+                bound.setdefault(name, name)
+        for name, (issuer_file, _line) in page_issuers.items():
+            if issuer_file == rel:
+                bound.setdefault(name, name)
+
+        for local, binding in sorted(bound.items()):
+            home = page_issuers.get(binding)
+            for site in _call_re(local).finditer(masked):
+                line = masked[: site.start()].count("\n") + 1
+                kind = _denominator_kind(
+                    binding,
+                    from_import=local in imported,
+                    inside_client=inside,
+                    at_definition=home is not None and home == (rel, line),
+                    verbs=verbs,
+                    helpers=helpers,
+                    streams=streams,
+                    issuers=issuer_def_names,
+                )
+                if not kind:
+                    continue
+                add(
+                    rel,
+                    line,
+                    DenominatorSite(
+                        file=rel,
+                        line=line,
+                        callee=local,
+                        kind=kind,
+                        by_name=local in named,
+                        binding=binding,
+                    ),
+                )
+
+        if inside:
+            continue
+        for site in _TRANSPORT_RE.finditer(masked):
+            line = masked[: site.start()].count("\n") + 1
+            word = _transport_word(site.group(0))
+            add(
+                rel,
+                line,
+                DenominatorSite(
+                    file=rel,
+                    line=line,
+                    callee=word,
+                    kind="raw-transport",
+                    by_name=False,
+                    binding="",
+                ),
+            )
+
+    return [rows[key] for key in sorted(rows)]
 
 
 def return_accounting(root: Path) -> list[ReturnAccount]:
@@ -2397,6 +2856,8 @@ __all__ = [
     "BlindSpot",
     "ConsumerDefence",
     "ConsumerBinding",
+    "ClientExport",
+    "DenominatorSite",
     "OptionalBand",
     "Payload",
     "ReturnAccount",
@@ -2411,6 +2872,8 @@ __all__ = [
     "path_candidates",
     "consumer_defences",
     "consumer_bindings",
+    "client_surface",
+    "denominator_sites",
     "optional_publish_bands",
     "payload_of",
     "return_accounting",

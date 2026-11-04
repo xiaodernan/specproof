@@ -20824,3 +20824,139 @@ K2/K3 之外的臂动了旧寄存器，那是本号把两个镜片搅在一起�
 | ⓭ | 保持：E7 三层守卫里"先折字面量"那一层仍缺一条只撤次序的臂 | #546 C3b 是一次性读数，没进门 |
 | ⓵ | 保持：`tests/integration/test_differential.py:47` 的 `_specproof` 子进程读通道在 #513 的 `craft/` 普查之外 | #549 量到的既有红，控制树同判；普查范围的外扩没做 |
 | ⓲ | 保持：`Guide.tsx:74` 的产品改动（#552 已换共享类型，守卫仍在） | ⓷ 未解 ⇒ 门仍看不见守卫产出的值，那条页面对 `vitest` 的依赖没变 |
+## #554 消费面的分母原来是一份命名约定：加一副不看名字的眼镜，105 条站点里 21 条是名字读法永远说不出的
+
+**取号**：预测冻结时 origin/master = `849a558`（#553），账本 max = `#553` ⇒ 本号 **#554**；节写完后、推送前
+各复核一次 `git fetch`。落地树 `_wt554` @ `849a558`，臂树 `_wt554arm` @ 同一提交（两个落地文件逐字节拷过去：
+owner `17d24a02…`、门 `8b624f9a…`），控制树 `_wt554base` @ 同一提交未落地态，只为收件数对照
+（6,012 vs 6,018）。队列 ⓻ 从 #553 挂过来，原文是"消费面的分母没有名册——站点身份 = 命名约定"；本号把它
+量成两张名册。**本号一行产品代码都没动**（九条臂改的产品文件全部在 disposable 臂树里跑完就还原），所以
+三个证人是"两缺一"：`tsc` 与 `vitest` 对本号的 diff 无话可说，Python 门是唯一证人。预测冻结在
+`.scratch/pred554.md`（§①–§④ 写于任何臂之前；§④bis 是臂后追记，追加前断言已冻结的 10,944 B / 99 行逐字节
+不变，sha `3762118d…`）。
+
+### 门半：两个不看名字的出口，15 张新寄存器，六条新腿
+
+owner `tests/_payload_plane.py`（+463 行 −0 行，124,264 B，2,882 行，CRLF 与 tab 不变量由落盘脚本断言）
+新增两个出口，**只加读法、不改既有读法**：
+
+- `client_surface(root) -> list[ClientExport]`，字段 `(name, file, line, depth, exported, via)`：从 transport
+  （`fetch` / `new EventSource`）反向闭包；`depth` 是**播种**的（体内自己写 transport → 0，体内写声明动词 → 1，
+  一跳加一），`via` 是它体内直接写到的更浅 issuer 名。
+- `denominator_sites(root) -> list[DenominatorSite]`，字段 `(file, line, callee, kind, by_name, binding)`：
+  一条"发出请求或接到请求"的站点一行；`by_name` = 名字读法（`_consumer_names`）能否看见它；`binding` =
+  import 时的**原名**（alias 时不同于 `callee`）。kind 词表有序且先匹配先得：
+  `raw-transport > verb-name > helper > stream > issuer-def > issuer-call > internal`。
+- 配套私有读法：`_ts_declarations`（签名要 `_past_paren` 之后再取体，箭头函数才有 body）、`_decl_body`、
+  `_TS_BRACE_IMPORT`（必须容 `type` 与 `as`，否则 `getInvoiceByPeriod` 这类只在 brace import 里出现一次的
+  助手会整条掉出 surface）。`DENOMINATOR_KINDS` **故意不进 `__all__`**：它是一张必须按次序读的词表。
+
+门（+829 行 −12 行，193,447 B，3,727 行）新增 **15 张寄存器 + 六条腿 L35–L40**，腿数 **34 → 40**。15 张
+全部由 `.scratch/next554/regs554.py` 现推现写（先断言与 pred §② 逐值相符，任何一处不符就拒绝落盘）：
+`CLIENT_ISSUER_ROSTER`、`CLIENT_ISSUER_DEPTH_BANDS`、`CLIENT_VERB_POPULATION`、
+`EXPORTED_ISSUERS_WITHOUT_A_PAGE_SITE`、`DENOMINATOR_ROW_TOTALS`、`DENOMINATOR_PAGE_KINDS`、
+`DENOMINATOR_PAGE_BLIND`、`DENOMINATOR_NAMED_WITHOUT_A_CENSUS_ROW`、`DENOMINATOR_ALIASED_SITES`（实测空，
+且**登记**空）、`PAGE_ISSUER_POPULATION`、`PAGE_ISSUERS_WITHOUT_USE_SHAPE`、`PAGE_ISSUER_FANOUT`、
+`RAW_TRANSPORT_SITES`、`STREAM_SITES`、`CLIENT_MODULE_NON_BRACE_IMPORTS`。
+
+### 落地读数：分母比名字宽多少
+
+| 量 | 读数 |
+|----|------|
+| 客户端面 | **16 个 issuer**，depth bands `{0: 2, 1: 14}`，不导出的 2 条 = `doFetch`、`openEventStream`（两条 transport 的包装） |
+| 站点合计 | **105** = 页面侧 **58** + `api.ts` 体内 **47**；名字普查 48 条 ⊆ 这 105 条，`census − sites = ∅` |
+| 页面侧按 `by_name` | 看得见 **37** / 看不见 **21** |
+| 看不见那 21 条的理由 | `helper` 11 / `issuer-def` 5 / `issuer-call` 2 / `stream` 2 / `raw-transport` 1 —— **五种不同的瞎法**，不是一个数 |
+| 看得见却没进普查的 | **16** 条：11 条 `useAgentJob` 的消费者 + 它的定义行、`api.ts` 内 3 条 verb 定义、`useRemoteData` 的定义行与体内那次 `apiGet` |
+| 图的消费者人口 | **7 个名字**，其中 use-shaped 只有 3（`useAgentJob`/`useDiff`/`useRemoteData`）；另外 4 个根本不是 hook：`Workspace`、`JobDetail`、`FeedbackSection`、`findingColumns` |
+| 扇出 | 20 组、合计 34，最大 `useAgentJob` **11** 个消费者共享一条 census 行 |
+| 页面自己写 transport | **1** 条：`Billing.tsx:394` 的 `await fetch(csvUrl, …)` —— 既不是 verb 也不是 hook |
+| 流 | **2** 条：`components.tsx:33`、`JobDetail.tsx:249` |
+| 声明 vs 树 | `_CLIENT_VERBS` 声明 5 个名字；`apiPut`/`apiPatch` **三列全零**（不定义、不写、不 import），`apiDelete` 定义且被 `api.ts` 自己用 2 次、**页面绑定 0** |
+| import 形状 | brace 249 / namespace **0** / default **0**（`CLIENT_MODULE_NON_BRACE_IMPORTS` 登记为空）；alias 站点 **0** |
+| 一行两件事 | 真树里 callee 与 binding **不同**的行 0 条；同一行两次认领的 0 条 |
+
+kind 词表落地时改名过一次：预测写的是 `hook-def`/`hook-call`，实测 7 个图消费者里 4 个不是 hook，于是改成
+`issuer-def`/`issuer-call`。**名字模式不是分母，只是分母的一个子集**——这句话是本号的全部技术内容。
+
+### 哪些数动了，哪些必须一字不动
+
+- **§③.1 的旧寄存器 15 张全部逐值不变**（`.scratch/next554/verify554.py` 复算 **15/15 OK**）：
+  `_consumer_names`、`_CLIENT_VERBS`、`consumer_bindings`、`consumer_defences` 四条读法一行没改；#553 的十张
+  `CONSUMER_BINDING_*`、`CONSUMER_DEFENCE_REACH (48,8,40)`、轴(d) 四条守卫、`BLIND_LONG_REGION 18`、轴(c) 全表
+  都留在原值。本号加的是**另一副眼镜**，不是给旧眼镜换镜片。
+- **读图寄存器按 #553 的方向动，且全部由门自己的 `_read_map` 现推现写**（`patch_readmap554.py` 先把现有
+  25 行 `EXIT_READS` 逐字节重新 emit 一遍、证明 emit == 原region，才允许改写）：`EXIT_READS` **25 → 30** 行、
+  `EXITS_WITH_MULTIPLE_EXECUTORS` **10 → 13**、`_EXIT_READ_INSTANCES` `(43,4,86)` → **`(61,4,89)`**、
+  `_DIRECT_RELATION_INSTANCES` **47 → 65**、`_CLOSURE_EDGE_TOTAL` **74 → 79**、
+  `LEGS_WITHOUT_VIA_HELPER_READ` **21 → 24**、`_OWNER_SURFACE` `(31,25,32)` → **`(35,30,37)`**（两个出口 +
+  两个 dataclass 进公共面）、`_OWNER_PUBLIC_NOT_EXPORTED` `{HTTP_VERBS}` → **`{DENOMINATOR_KINDS, HTTP_VERBS}`**
+  （`DENOMINATOR_KINDS` 是一条腿必须读、但永远不会调的词表）。
+- **预测与实测的差**（pred §② 的每一行都记在这里，不含糊）：页面侧预测 52 / 实测 **58**；合计预测 99 / 实测
+  **105**；`by_name` 预测 24/28 / 实测 **37/21**；"看得见却没进普查"预测 2 / 实测 **16**；`EXIT_READS` 预测 27 /
+  实测 **30**；`_OWNER_SURFACE` 预测 `(33,27,34)` / 实测 `(35,30,37)`；`LEGS_WITHOUT_VIA_HELPER_READ` 预测 27 /
+  实测 **24**。方向全部对，大小全部错——本号新增的六条腿直读 owner，比预测多带 5 行读图、少带 3 条无 via 腿。
+- **§③.3 自指禁令没放宽**：`_ANCHOR_BINDINGS` 仍 **3**、`EXIT_READS_ALIAS_ONLY` 仍 **1**、
+  `LEGS_WITHOUT_DIRECT_READ` 仍 **10**、`_OWNER_EXPORTED_NOT_IMPORTED` 仍 **6**、`_AXIS_C_EXECUTORS` 仍 **2**、
+  生成器仍 **6** 个。新腿不点名任何读图寄存器。
+- `tests/_payload_plane.py` 的 importer 全仓**只有本门一个文件** ⇒ 本号改 owner 的爆炸半径 = 1 个文件。
+
+### 验证
+
+- 门：落地树 **40 passed in 57.68s**；控制树 `_wt554base`（同一提交、未落地）**34 passed in 45.70s**——两棵树各自绿在
+  自己的腿数上。收件数对照：`pytest --collect-only -q tests/unit` 控制树 **6,012** / 落地树 **6,018**，差
+  **恰好 6** = 六条新腿。
+- `mypy --strict`：`Success: no issues found in 2 source files`；`ruff check .`：`All checks passed!`。
+  **`ruff format` 不是本仓库的门**（台账 5185 / 10880 / 15430 / 20738 行已写明，CI 只跑 `python -m ruff check .`；
+  HEAD 上 `ruff format --check` 本来就红，因为默认 quote-style 会把每条字符串翻一遍）。本号一度误跑了一次
+  `ruff format`，把两个文件推成 `473 24` / `957 201`；已用 `revert_format554.py`（只允许 HEAD 原行 + 新增行，
+  并断言每一行要么逐字来自 HEAD、要么逐字来自工作副本）把 owner 回建为 `463 0`，门从 HEAD 重新 splice
+  （`splice554.py` 复跑与交付态 `gate_good.bin` sha 全同），12 条删除行逐条枚举为寄存器搬家，**没有一条是
+  意外重写**。
+- 逐字节还原：九条臂跑完**零次** `restore not byte-exact`，七个被改文件的臂前 sha 全部复原
+  （`085057a7…`/`d44baf0d…`/`9b037e8d…`/`0361e36c…`/`52a5d232…`/`99938a86…`/`17d24a02…`）。
+
+### 变异臂（9 条：§④ 冻结的 V1–V8，加臂后补的行中性 V6b）
+
+驱动 `.scratch/next554/arms554.py`（整臂先验锚、`count==1` 才落笔；探针 `armprobe554.py` + 40 条腿 +
+sha256 还原断言），捕获 `arms554_out.txt`、`armV1_detail.txt`、`armV6_detail.txt`、`armV6b_detail.txt`。
+L 号 = `legs554.txt` 里按 `def test_` 顺序排的腿。
+
+| 臂 | 改哪里 | 预测 | 实测 |
+|----|--------|------|------|
+| V1 | 产品：`Jobs.tsx` 的 import 改成 `apiGet as get`，调用点跟着改 | **判决臂**：分母不丢站点，名字读法丢；旧腿搬家、新腿 L37 红 | 红 7 条 L28 L29 L31 L32 L36 L37 L38；**sites 105、page 58 一毫米没动**，`aliased` 从 ∅ 变 1 条 `(Jobs.tsx,45,'get','apiGet')`，L36 的**第三列页面 binding 仍 20**（按 import 原名的分母不动）、**第二列 `call_shapes` 32→31**（按写出来的名字的旧折叠少一条）；census 48→47。**判决成立** |
+| V2 | owner：撤掉 `apiPut`/`apiPatch` 两个树上根本不存在的声明 | 只 L36 红，人口搬家 0 条 | **逐字命中**：1 failed = L36，探针 12 项读数与基线全同 |
+| V3 | owner：闭包撤成不传递 | surface 16→9、L35 红、按 stream/helper 归类的行也红 | surface **9**、bands `{0:2,1:7}`（与预测同数）、sites 105→**87**、`stream` 人口 **2→0**；红 6 条 L35 L36 L37 L38 L39 L40（多两条：它们也读同一张 surface） |
+| V4 | 产品：`Health.tsx:78` 的 `apiGet` 改写成 `fetch(...).then(r => r.json() as Promise<…>)` | 图读法不丢，`raw-transport` 1→2，L39 红 | 红 10 条；`raw-transport` **1→2**、`verb-name` 22→21、page 58 不变。**预测未写的三条是真发现**：L3 L19 L20 —— 类型化消费一旦改成裸 fetch，旧普查就认为 `/api/v1/health` **没有前端消费者** |
+| V5 | 产品：`useRemoteData` 全局改名 `fetchRemoteData`（#553 K8 的重放） | 本号要看到的修法：站点不消失、总数不变；旧腿红 L6 L13 L28 L29 L31 | 红 13 条（预测五条**全红**，另八条也靠 hook 名字找站点）；page **58 不变**、sites **105 不变**、`fetchRemoteData` 仍在 issuer-def 名册（行 5），blind 21→**25**、`by_name` 37→**33**、census 48→**45**。新腿 L37 红在**名册搬家**而总数没动 ⇒ **不是把命名约定抄了一遍** |
+| V6 | 产品：`api.ts` 头部加一行注释，里面写 `apiGet("/api/v1/nope") fetch(…)` | 全绿（遮罩负对照） | **预测错**：红 6 条，但 E8 探针 12 项读数全同。其中 4 条（L29 L33 L35 L37）纯是**行号漂移**——这条臂不是行中性的，寄存器按 `(file, line)` 认行 |
+| V6b | 同一段散文追加到文件末尾，没有任何行号能动（臂后补测，非冻结预测） | 只为把"散文造站点"与"行号搬家"分开 | 红 **2** 条：L4 造出一条孤儿站点 `('get','/api/v1/nope','api.ts')`；L36 第二列 `apiGet` 32→**33** ⇒ **新读法遮罩有效（105 条站点不因注释多一条），两副旧眼镜没有遮罩** |
+| V7 | owner：`by_name` 一律置 True（桩） | 只 L37 红，blind 人口→0 | 红 2 条 L37 L40；`by_name` True 37→**57**、False 21→**1**（只剩 `Billing.tsx:394` 那条裸 fetch，它本来就不在任何名字表里） |
+| V8 | owner：`verb-name` 与 `issuer-call` 互换次序 | 两条按 kind 计数的腿红；若全绿就把"次序即定义"降级 | 红 **1** 条 = L40；真树 page kinds **一字不动**（两类零条重叠）⇒ 按 §④ 自己写的条款降级：**次序只在两类真能重叠时才有牙齿**，唯一证人是 fixture 腿 |
+
+### 发现
+
+1. **分母是图，不是名字。** 同一棵树里"名字读法能说的站点"37 条、"图读法能说的"58 条，差的 21 条各有各的
+   理由（助手 / 非 hook 的消费者定义 / 非 hook 消费者的调用点 / 流 / 裸 fetch 五种）。#553 那句"40 条盲区有
+   七种瞎法"在消费面这一侧同样成立，只是这次数出来是**五种**。
+2. **改名不再让站点从分母里消失**（V1 + V5 两条臂，页面站点总数在两条改名臂下都是 58）。这是 ⓻ 的结案条件；
+   如果新腿的总数也掉了，本号就只是把命名约定换个地方抄一遍——实测没掉。
+3. **一条本号没修好的洞，交给下一号**：注释能造站点，但造在**旧**眼镜里——页面调用点普查（L4 会多出一条
+   `/api/v1/nope` 的孤儿站点）与 `call_shapes` 折叠（L36 第二列 32→33）都不遮散文，而 E8 的两条新出口遮。
+   台账里 `ORPHANED_CALL_SITES` 与 `CLIENT_VERB_POPULATION` 都登记为 ∅/定值，所以在真树上不红：这是**惰洞**，
+   不是假洞。
+4. **两条被测量推翻的自设计**：L35 冻结时断言"`via` 严格更浅"是假的（depth 是播种的，`createFindingFeedback`
+   depth 1 的 via 是同为 1 的 `apiPost`），落地的两条真不变量是 `depth == 0 ⟺ 无 via` 与
+   `0 < depth <= 1 + depth(via)`；L40 冻结时把"callee≠binding"写成一行名册，而 fixture 第 13 行
+   `const h = get(useWrapper())` 同时是"一行两件事"的行 ⇒ 放宽成两行。两处都改的是**腿的断言**，不是 owner。
+5. **量具的纪律**：`ruff format` 那次误跑把两个文件推出 957 行重写，如果按"CI 不跑它"之外的直觉去"顺手格式化"，
+   本号的 numstat 会变成不可审计的 201 条删除行。逐字节回建工具（`revert_format554.py`）与"从 HEAD 重新 splice"
+   是这次没丢工作的唯一原因，值得写进方法论：**改测试文件时，删除行必须逐条枚举为寄存器搬家，否则视为损坏**。
+
+### 队列
+
+⓻ 结案。新挂 **⓽**：遮罩不对称——`call_shapes` 折叠与页面调用点普查读注释，E8 出口不读；V6b 是这条队列的
+量具，它已经在臂树上证过两副旧眼镜各造一条站点。下一号要么把遮罩统一到 owner 的同一套文本预处理上，要么
+明确登记"折叠读散文"是设计意图并给出为什么。另有一条**旧队列的入队项在本号再证一次**：#553 挂的 ⓼（寄存器按
+`(file, line)` 认行，无关换行就搬家）——V6 那四条只红行号、不线性质的腿就是它的第二次实测，臂后补的 V6b
+才是把这条噪音与"散文造站点"分开的量具。

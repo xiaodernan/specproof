@@ -141,6 +141,22 @@ names by two independent walks, and of those eight exactly two read a payload ke
 axis (d) speaks for 2 of 48, not 8. The block lens guards at five sites the statement never
 saw, and the classifier gained the one shape those rows use, ``x.k || fallback``, ranked last
 so it can only name an access nothing else claimed.
+
+#554 read the same plane without asking a name. **E8** is a second denominator: the client
+module's issuers are the definitions whose bodies reach a transport -- ``doFetch``,
+``openEventStream`` and whatever calls either -- and a site is a line that writes one of those
+names or writes a transport itself. 16 issuers, 105 sites, 58 outside ``api.ts``, and all 48
+census rows are among them. What the naming ruler cannot say *by construction* is rostered: 21
+rows whose written name is in no verb list (11 helpers ``api.ts`` exports, 5 functions that reach
+the client module without the ``use[A-Z]`` spelling, 1 page that writes ``fetch`` itself), plus
+16 rows it *does* name and still never counted -- eleven of them ``useAgentJob`` call sites,
+because E6 names the hook and counts the one request inside its body. Two labels are about the
+graph rather than a spelling, so they read ``issuer-def``/``issuer-call`` and not ``hook-*``:
+only 3 of the tree's 7 page-level consumers carry the hook shape, and a vocabulary that called
+them hooks would have been a label lying about a population. The reading's own hole is registered
+as well -- it resolves brace imports only, so ``import * as client from './api'`` and a default
+binding produce no row. Population 0 on this tree, and the fixture leg writes both shapes to
+show the refusal belongs to the reading rather than to the tree's silence.
 """
 
 from __future__ import annotations
@@ -160,19 +176,24 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from tests._payload_plane import (  # noqa: E402
+    DENOMINATOR_KINDS,
     CallShape,
     CallSite,
+    ClientExport,
     ConsumerBinding,
     ConsumerDefence,
+    DenominatorSite,
     Endpoint,
     Member,
     OptionalBand,
     Pair,
     alias_table,
     call_shapes,
+    client_surface,
     conditional_table,
     consumer_bindings,
     consumer_defences,
+    denominator_sites,
     endpoints,
     frontend_calls,
     hook_readings,
@@ -833,6 +854,221 @@ CONSUMER_BINDING_UNREAD_BLOCKS: frozenset[tuple[str, int]] = frozenset(
 
 
 # ---------------------------------------------------------------------------
+# #554 -- the denominator: who can reach the wire, read from the import graph
+#
+# Every consumer number above rests on one declaration: `_consumer_names` is the five `api*`
+# verbs plus the `use[A-Z]` hooks whose body issues exactly one request. #553's arm K8 renamed
+# `useRemoteData` and five legs went red, which is the same fact seen from the wrong side -- a
+# naming convention was holding up a population, and the population itself was registered
+# nowhere. E8 reads the identical plane without asking a name: an issuer is a client-module
+# definition whose body reaches a transport, directly or through another issuer; an issuer of
+# the second kind is any other frontend function whose body reaches one of those; a site is a
+# line that writes one of those names, or writes a transport itself.
+#
+# What follows is therefore a *difference* three ways over: the closure's own roster, the rows
+# the naming ruler has no name for, and the rows it names but never counts. The last of the
+# three is the one that was not on the prediction sheet -- a consumer E6 can name is not the
+# same claim as a consumer E6 can count.
+# ---------------------------------------------------------------------------
+
+#: name -> (declaration line, graph depth, exported?, the client names its body writes). The 16
+#: rows are the closure, not a list of api clients: `downloadCapsule`, `logout` and the two
+#: stream wrappers are in it because of what they *call*, and nothing in the reading was told
+#: those names. ``via`` is what tells a stream from a helper -- the word in the name says nothing.
+CLIENT_ISSUER_ROSTER: dict[str, tuple[int, int, bool, tuple[str, ...]]] = {
+    "doFetch": (194, 0, False, ()),
+    "openEventStream": (273, 0, False, ()),
+    "apiDelete": (938, 1, True, ("doFetch",)),
+    "apiGet": (203, 1, True, ("doFetch",)),
+    "apiPost": (943, 1, True, ("doFetch",)),
+    "createFindingFeedback": (584, 1, True, ("apiPost",)),
+    "downloadCapsule": (362, 1, True, ("doFetch",)),
+    "getAgentDiff": (1051, 1, True, ("apiGet",)),
+    "getAuthConfig": (1100, 1, True, ("apiGet",)),
+    "getInvoiceByPeriod": (1218, 1, True, ("apiGet",)),
+    "getJobFeedback": (580, 1, True, ("apiGet",)),
+    "logout": (149, 1, True, ("doFetch",)),
+    "openAgentEventStream": (960, 1, True, ("openEventStream",)),
+    "openProgressStream": (258, 1, True, ("openEventStream",)),
+    "prepareDemoRepo": (467, 1, True, ("apiPost",)),
+    "transitionInvoiceStatus": (1227, 1, True, ("apiPost",)),
+}
+
+#: How many issuers sit at each graph distance from a transport. The absence of a ``2`` is the
+#: tier-3 zero: this client module has no helper-of-a-helper, so the closure converges in the
+#: round that seeds depth 1 and the round after it adds nothing.
+CLIENT_ISSUER_DEPTH_BANDS: dict[int, int] = {0: 2, 1: 14}
+
+#: Per *declared* client verb: rows in the closure that define it, call-shaped mentions in
+#: product files, page rows that bind it. Two of the five declarations are written nowhere at
+#: all, and one is defined and used only inside ``api.ts`` -- which is why the census could say
+#: "five verbs" for as long as it liked and no number in the repository moved when it was wrong.
+CLIENT_VERB_POPULATION: dict[str, tuple[int, int, int]] = {
+    "apiGet": (1, 32, 20),
+    "apiPost": (1, 15, 2),
+    "apiPut": (0, 0, 0),
+    "apiPatch": (0, 0, 0),
+    "apiDelete": (1, 2, 0),
+}
+
+#: Exported issuers that no page ever binds. ``doFetch`` and ``openEventStream`` stay out: they
+#: are not exported, so a page cannot reach them by construction rather than by accident.
+EXPORTED_ISSUERS_WITHOUT_A_PAGE_SITE: frozenset[str] = frozenset({"apiDelete"})
+
+#: ``(rows, page-side rows, client-module rows)``. The last number is the client module talking
+#: to itself -- 47 lines inside ``api.ts`` that write one of its own issuers -- and it is in the
+#: same register because a denominator that only counted callers would hide the layer where a
+#: helper is allowed to stop being one.
+DENOMINATOR_ROW_TOTALS = (105, 58, 47)
+
+#: Page-side rows per class. ``verb-name`` is what the naming ruler also sees; the other five
+#: classes are what it cannot say by construction.
+DENOMINATOR_PAGE_KINDS: dict[str, int] = {
+    "helper": 11,
+    "issuer-call": 15,
+    "issuer-def": 7,
+    "raw-transport": 1,
+    "stream": 2,
+    "verb-name": 22,
+}
+
+#: (file, line, kind, binding) for every page row whose *written* name is not in
+#: ``_consumer_names``. 21 rows over 9 files: 11 of them are the helpers ``api.ts`` exports and
+#: no verb list ever mentioned, 5 are functions that reach the client module without the
+#: `use[A-Z]` spelling, and 1 is a page that asked the network a question itself.
+DENOMINATOR_PAGE_BLIND: frozenset[tuple[str, int, str, str]] = frozenset(
+    {
+        ("apps/web/src/App.tsx", 75, "issuer-def", "Workspace"),
+        ("apps/web/src/App.tsx", 131, "helper", "logout"),
+        ("apps/web/src/agent/components.tsx", 33, "stream", "openAgentEventStream"),
+        ("apps/web/src/agent/pages/AgentDiffViewer.tsx", 8, "issuer-def", "useDiff"),
+        ("apps/web/src/agent/pages/AgentDiffViewer.tsx", 15, "helper", "getAgentDiff"),
+        ("apps/web/src/agent/pages/AgentDiffViewer.tsx", 36, "issuer-call", "useDiff"),
+        ("apps/web/src/pages/Billing.tsx", 394, "raw-transport", ""),
+        ("apps/web/src/pages/FindingDetail.tsx", 48, "issuer-def", "FeedbackSection"),
+        ("apps/web/src/pages/FindingDetail.tsx", 65, "helper", "getJobFeedback"),
+        ("apps/web/src/pages/FindingDetail.tsx", 129, "helper", "createFindingFeedback"),
+        ("apps/web/src/pages/FindingDetail.tsx", 346, "helper", "downloadCapsule"),
+        ("apps/web/src/pages/JobDetail.tsx", 124, "issuer-def", "findingColumns"),
+        ("apps/web/src/pages/JobDetail.tsx", 160, "helper", "downloadCapsule"),
+        ("apps/web/src/pages/JobDetail.tsx", 174, "issuer-def", "JobDetail"),
+        ("apps/web/src/pages/JobDetail.tsx", 249, "stream", "openProgressStream"),
+        ("apps/web/src/pages/JobDetail.tsx", 306, "helper", "getInvoiceByPeriod"),
+        ("apps/web/src/pages/JobDetail.tsx", 381, "helper", "transitionInvoiceStatus"),
+        ("apps/web/src/pages/JobDetail.tsx", 603, "issuer-call", "findingColumns"),
+        ("apps/web/src/pages/JobDetail.tsx", 644, "helper", "downloadCapsule"),
+        ("apps/web/src/pages/Login.tsx", 54, "helper", "getAuthConfig"),
+        ("apps/web/src/pages/NewVerification.tsx", 129, "helper", "prepareDemoRepo"),
+    }
+)
+
+#: Rows the naming ruler *can* name and the census still never produced, as
+#: (file, line, kind, binding). Eleven of the 16 are `useAgentJob` call sites: E6 names the hook,
+#: the census counts the one request inside its body, and the ten pages that call it are nobody's
+#: consumer. The other five are the two stream wrappers' home file, the three client verbs' own
+#: declaration lines, and the ``apiGet`` inside ``useRemoteData`` whose path arrives from a caller.
+DENOMINATOR_NAMED_WITHOUT_A_CENSUS_ROW: frozenset[tuple[str, int, str, str]] = frozenset(
+    {
+        ("apps/web/src/agent/components.tsx", 12, "issuer-def", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentDiffViewer.tsx", 35, "issuer-call", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentEdits.tsx", 13, "issuer-call", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentEventLog.tsx", 10, "issuer-call", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentGates.tsx", 29, "issuer-call", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentJobApprovals.tsx", 9, "issuer-call", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentJobDetail.tsx", 48, "issuer-call", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentPlanReview.tsx", 9, "issuer-call", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentPlanStep.tsx", 9, "issuer-call", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentResult.tsx", 104, "issuer-call", "useAgentJob"),
+        ("apps/web/src/agent/pages/AgentToolStream.tsx", 56, "issuer-call", "useAgentJob"),
+        ("apps/web/src/api.ts", 203, "internal", "apiGet"),
+        ("apps/web/src/api.ts", 938, "internal", "apiDelete"),
+        ("apps/web/src/api.ts", 943, "internal", "apiPost"),
+        ("apps/web/src/hooks/useRemoteData.ts", 5, "issuer-def", "useRemoteData"),
+        ("apps/web/src/hooks/useRemoteData.ts", 32, "verb-name", "apiGet"),
+    }
+)
+
+#: (file, line, callee, binding) where the page renamed what it imported. Population 0 on this
+#: tree, and the reading handles it rather than measuring it, because renaming is the edit #553's
+#: arm K8 proved a lane will actually make: the fixture leg writes two rows of this shape, so
+#: this zero is a measurement and not the shape of a hole.
+DENOMINATOR_ALIASED_SITES: frozenset[tuple[str, int, str, str]] = frozenset()
+
+#: name -> (file, declaration line) for every frontend function *outside* the client module whose
+#: body reaches an issuer. This is the graph's consumer population, and only 3 of the 7 rows carry
+#: the `use[A-Z]` shape the naming ruler reads -- the other four are two components, the app shell
+#: and a column factory, each of which asks the network a question in its own body.
+PAGE_ISSUER_POPULATION: dict[str, tuple[str, int]] = {
+    "FeedbackSection": ("apps/web/src/pages/FindingDetail.tsx", 48),
+    "JobDetail": ("apps/web/src/pages/JobDetail.tsx", 174),
+    "Workspace": ("apps/web/src/App.tsx", 75),
+    "findingColumns": ("apps/web/src/pages/JobDetail.tsx", 124),
+    "useAgentJob": ("apps/web/src/agent/components.tsx", 12),
+    "useDiff": ("apps/web/src/agent/pages/AgentDiffViewer.tsx", 8),
+    "useRemoteData": ("apps/web/src/hooks/useRemoteData.ts", 5),
+}
+
+#: The rows of that population E6's name pattern cannot see, and cannot be taught to.
+PAGE_ISSUERS_WITHOUT_USE_SHAPE: frozenset[str] = frozenset(
+    {"FeedbackSection", "JobDetail", "Workspace", "findingColumns"}
+)
+
+#: Sites per callee over the page rows the census never saw. `useAgentJob` is the fan-out a
+#: naming reading reports as *one* consumer: eleven call sites, one census row. `fetch` is in
+#: here under the word it wrote, since a page that bypassed the client module has no binding.
+PAGE_ISSUER_FANOUT: dict[str, int] = {
+    "useAgentJob": 11,
+    "downloadCapsule": 3,
+    "findingColumns": 2,
+    "useDiff": 2,
+    "FeedbackSection": 1,
+    "JobDetail": 1,
+    "Workspace": 1,
+    "apiGet": 1,
+    "createFindingFeedback": 1,
+    "fetch": 1,
+    "getAgentDiff": 1,
+    "getAuthConfig": 1,
+    "getInvoiceByPeriod": 1,
+    "getJobFeedback": 1,
+    "logout": 1,
+    "openAgentEventStream": 1,
+    "openProgressStream": 1,
+    "prepareDemoRepo": 1,
+    "transitionInvoiceStatus": 1,
+    "useRemoteData": 1,
+}
+
+#: (file, line, transport word) for a page that asks the network a question without the client
+#: module. ``Billing.tsx`` builds a CSV url out of an invoice payload and posts it straight to
+#: ``fetch``: no name-anchored reading of any kind has a row for it, and no payload key either,
+#: which is why this is the one register in this section with a population of one.
+RAW_TRANSPORT_SITES: frozenset[tuple[str, int, str]] = frozenset(
+    {("apps/web/src/pages/Billing.tsx", 394, "fetch")}
+)
+
+#: Page rows that open a stream instead of a request. Both reach ``openEventStream``, which no
+#: declared verb ever reaches -- that is the fact the ``stream`` label is built on, and it is a
+#: fact about the wire rather than about a word.
+STREAM_SITES: frozenset[tuple[str, int, str]] = frozenset(
+    {
+        ("apps/web/src/agent/components.tsx", 33, "openAgentEventStream"),
+        ("apps/web/src/pages/JobDetail.tsx", 249, "openProgressStream"),
+    }
+)
+
+
+
+#: (file relative to ``apps/web/src``, line) for an import of the client module that binds
+#: anything other than a brace list -- ``import * as client from './api'`` or
+#: ``import api from './api'``. The reading resolves only braces, so a page that calls
+#: ``client.apiGet(...)`` has no row here and no row anywhere: this is the registered hole, and
+#: population 0 means no file on this tree writes that shape today. The fixture leg proves the
+#: reading really does refuse it, which is what makes this zero a measurement.
+CLIENT_MODULE_NON_BRACE_IMPORTS: frozenset[tuple[str, int]] = frozenset()
+
+
+# ---------------------------------------------------------------------------
 # #549 -- the read map: which leg reads which exit, derived from this file's own source
 #
 # Two prediction misses in a row had the same cause, and neither was bad reasoning: #547's arm
@@ -860,12 +1096,19 @@ CONSUMER_BINDING_UNREAD_BLOCKS: frozenset[tuple[str, int]] = frozenset(
 EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "CallShape": ((), (), 1),
     "CallSite": ((), (), 11),
+    "ClientExport": ((), (), 2),
     "ConsumerBinding": (
         (),
         ("test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason",),
         0,
     ),
     "ConsumerDefence": ((), (), 1),
+    "DENOMINATOR_KINDS": (
+        ("test_the_denominator_is_wider_than_the_census_by_two_rosters_and_no_hand_wave",),
+        (),
+        0,
+    ),
+    "DenominatorSite": ((), (), 1),
     "Endpoint": (
         (),
         (
@@ -879,7 +1122,24 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "OptionalBand": ((), (), 1),
     "Pair": ((), (), 11),
     "alias_table": (("test_the_path_aliases_the_fold_rewrites_are_rostered_whole",), (), 0),
-    "call_shapes": (("test_the_definition_guard_rejects_only_definitions",), (), 0),
+    "call_shapes": (
+        (
+            "test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption",
+            "test_the_definition_guard_rejects_only_definitions",
+        ),
+        (),
+        0,
+    ),
+    "client_surface": (
+        (
+            "test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption",
+            "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
+            "test_the_client_surface_is_a_closure_over_transports_not_a_list_of_clients",
+            "test_the_shapes_this_tree_never_writes_still_produce_rows_when_a_fixture_writes_them",
+        ),
+        (),
+        0,
+    ),
     "conditional_table": (
         (
             "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
@@ -892,10 +1152,13 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "consumer_bindings": (
         (
             "test_a_disjunction_fallback_is_a_shape_and_the_precedence_keeps_the_chain_first",
+            "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
             "test_a_tuple_member_is_counted_by_whether_the_tuple_hands_its_responses_over",
             "test_a_wrapper_that_forwards_the_payload_whole_reads_no_key_in_either_lens",
             "test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason",
             "test_the_block_lens_adds_a_guard_population_axis_d_never_saw",
+            "test_the_denominator_is_wider_than_the_census_by_two_rosters_and_no_hand_wave",
+            "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
             "test_the_statement_lens_reads_a_key_at_three_sites_and_defends_at_two",
         ),
         (),
@@ -907,6 +1170,17 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
             "test_the_block_lens_adds_a_guard_population_axis_d_never_saw",
             "test_the_reading_reaches_the_consumer_only_where_the_response_is_handed_over",
             "test_the_statement_lens_reads_a_key_at_three_sites_and_defends_at_two",
+        ),
+        (),
+        0,
+    ),
+    "denominator_sites": (
+        (
+            "test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption",
+            "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
+            "test_the_denominator_is_wider_than_the_census_by_two_rosters_and_no_hand_wave",
+            "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
+            "test_the_shapes_this_tree_never_writes_still_produce_rows_when_a_fixture_writes_them",
         ),
         (),
         0,
@@ -927,6 +1201,7 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "hook_readings": (
         (
             "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
+            "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
             "test_the_hook_consumers_are_measured_from_their_own_bodies",
         ),
         (),
@@ -974,9 +1249,12 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "ts_declarations": ((), (), 11),
     "web_src": (
         (
+            "test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption",
+            "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
             "test_the_census_measures_a_population_rather_than_a_sample",
             "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
             "test_the_definition_guard_rejects_only_definitions",
+            "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
             "test_the_hook_consumers_are_measured_from_their_own_bodies",
             "test_the_path_aliases_the_fold_rewrites_are_rostered_whole",
             "test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered",
@@ -986,30 +1264,33 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     ),
 }
 
-#: ``(executed, annotated, via-helper)`` relation instances over the whole table. The 86
+#: ``(executed, annotated, via-helper)`` relation instances over the whole table. The 89
 #: in the last column is the point of the register: most of this gate reads the plane
 #: through ``_census`` and ``_checked_pairs``, so a map that only recorded direct calls
 #: would report a gate with no helpers and lose the reads it cannot see.
-_EXIT_READ_INSTANCES = (43, 4, 86)
+_EXIT_READ_INSTANCES = (61, 4, 89)
 
 #: The legs whose reads are all direct or annotated -- the population the cross-check
 #: compares between its two lenses. A zero here would make the agreement vacuous.
-_DIRECT_RELATION_INSTANCES = 47
+_DIRECT_RELATION_INSTANCES = 65
 
 #: Which exits more than one leg executes, and how many do it. These are the rows an arm
 #: is about to red twice: #548's E7 moved ``optional_publish_bands`` and both of its
 #: executors failed; #547's D5 did the same to a guard layer reached through two fixtures.
 EXITS_WITH_MULTIPLE_EXECUTORS: dict[str, int] = {
+    "call_shapes": 2,
+    "client_surface": 4,
     "conditional_table": 3,
-    "consumer_bindings": 6,
+    "consumer_bindings": 9,
     "consumer_defences": 4,
+    "denominator_sites": 5,
     "frontend_calls": 6,
-    "hook_readings": 2,
+    "hook_readings": 3,
     "optional_publish_bands": 2,
     "pairings": 2,
     "payload_of": 5,
     "ruler_blind_spots": 3,
-    "web_src": 6,
+    "web_src": 9,
 }
 
 #: Named by the two legs that read axis (c), spelled out because the arm prediction that
@@ -1046,7 +1327,7 @@ LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
 
 #: ``(names in the owner's __all__, names this file imports, names public by convention)``.
 #: Three numbers, because the surface has two seams and each is a roster below.
-_OWNER_SURFACE = (31, 25, 32)
+_OWNER_SURFACE = (35, 30, 37)
 
 #: Exported by the owner, not imported here. The owner's surface is not this gate's
 #: surface: these six are how the plane is built (``Payload``, ``api_routers``,
@@ -1064,9 +1345,15 @@ _OWNER_EXPORTED_NOT_IMPORTED: frozenset[str] = frozenset(
 )
 
 #: Public by name in the owner yet absent from ``__all__``: a name another module may
-#: import today and a leg would not see in the export list. ``HTTP_VERBS`` is the one
-#: row, and the seam it opens goes both ways -- it is why ``surface`` is a triple.
-_OWNER_PUBLIC_NOT_EXPORTED: frozenset[str] = frozenset({"HTTP_VERBS"})
+#: import today and a leg would not see in the export list. ``DENOMINATOR_KINDS`` joined
+#: ``HTTP_VERBS`` because #554 ranks a vocabulary a leg must read but never call, and the
+#: seam goes both ways -- it is why ``surface`` is a triple.
+_OWNER_PUBLIC_NOT_EXPORTED: frozenset[str] = frozenset(
+    {
+        "DENOMINATOR_KINDS",
+        "HTTP_VERBS",
+    }
+)
 
 
 #: The ten registers the read map above is made of, by name. Rostered so that the ban in
@@ -1106,8 +1393,10 @@ _ANCHOR_BINDINGS: frozenset[str] = frozenset({"_BANDS", "_PAGE", "REPO"})
 #: no helper and a lens that reached helpers reading nothing look identical in a count.
 LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
     {
+        "test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption",
         "test_a_disjunction_fallback_is_a_shape_and_the_precedence_keeps_the_chain_first",
         "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
+        "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
         "test_a_tuple_member_is_counted_by_whether_the_tuple_hands_its_responses_over",
         "test_a_wrapper_that_forwards_the_payload_whole_reads_no_key_in_either_lens",
         "test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two",
@@ -1118,6 +1407,7 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
         "test_the_exit_read_map_is_measured_not_recited",
         "test_the_fold_reports_every_return_the_handler_can_take",
         "test_the_fold_stops_where_the_caller_stopped_spelling_a_path",
+        "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
         "test_the_helper_hop_has_its_own_second_lens",
         "test_the_hook_consumers_are_measured_from_their_own_bodies",
         "test_the_path_aliases_the_fold_rewrites_are_rostered_whole",
@@ -1133,7 +1423,7 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
 #: Sum over legs of the helpers each reaches, counted once per leg (so a helper two legs share
 #: is two edges). The population the text lens walks: 0 would mean the leg below compares two
 #: empty sets and calls it agreement.
-_CLOSURE_EDGE_TOTAL = 74
+_CLOSURE_EDGE_TOTAL = 79
 
 
 class ReadMap(NamedTuple):
@@ -1397,6 +1687,51 @@ def _defence_row(row: ConsumerDefence) -> tuple[str, str, str, str, str]:
     its own identity can move half of it and still compare equal to the roster.
     """
     return row.verb, row.path, row.kind, row.declared, row.published
+
+
+#: One import of the client module that binds something other than a brace list. A namespace or
+#: default binding is the shape ``denominator_sites`` cannot resolve, so the leg below counts the
+#: files that write it and the fixture proves the refusal.
+_NON_BRACE_IMPORT = re.compile(
+    r"^import\s+(?:\*\s+as\s+\w+|\w+(?:\s*,\s*\{[^}]*\})?)\s+from\s+['\"][^'\"]*api['\"]"
+)
+
+
+def _declared_client_verbs() -> tuple[str, ...]:
+    """The verb names the owner *declares* as its client vocabulary, read off its syntax tree.
+
+    Not the tree's own vocabulary -- the point of the leg that calls this is that a declaration
+    can be wrong without any number in the repository noticing, so the declaration itself has to
+    arrive as data. Read as a literal dict so a lane that edits the list moves a row here rather
+    than teaching the gate to re-derive a name it could only have been told.
+    """
+    owner = ast.parse((REPO / "tests" / "_payload_plane.py").read_text(encoding="utf-8"))
+    for stmt in owner.body:
+        if not isinstance(stmt, ast.Assign):
+            continue
+        if not any(isinstance(t, ast.Name) and t.id == "_CLIENT_VERBS" for t in stmt.targets):
+            continue
+        if isinstance(stmt.value, ast.Dict):
+            return tuple(
+                k.value
+                for k in stmt.value.keys
+                if isinstance(k, ast.Constant) and isinstance(k.value, str)
+            )
+    return ()
+
+
+def _issuer_row(row: ClientExport) -> tuple[int, int, bool, tuple[str, ...]]:
+    """One issuer as the roster spells it: (line, depth, exported?, via).
+
+    ``name`` and ``file`` are the register's own key, so they stay out of the value -- the #553
+    lesson, that a row repeating its identity can move half of it and still compare equal.
+    """
+    return (row.line, row.depth, row.exported, row.via)
+
+
+def _site_row(row: DenominatorSite) -> tuple[str, int, str, str]:
+    """One site as the rosters spell it: (file, line, kind, binding)."""
+    return (row.file, row.line, row.kind, row.binding)
 
 
 def _fixture_repo(root: Path, api: dict[str, str], web: dict[str, str]) -> Path:
@@ -2908,3 +3243,485 @@ def test_a_tuple_member_is_counted_by_whether_the_tuple_hands_its_responses_over
     assert with_then.isdisjoint(guarded_in_block), (
         "a member that reaches its callback grew a block guard of its own"
     )
+
+
+def test_the_client_surface_is_a_closure_over_transports_not_a_list_of_clients() -> None:
+    """⓻: 16 issuers, and the only fact that put any of them on this list is what their body calls.
+
+    ``doFetch`` and ``openEventStream`` write the two transports this frontend has, so they are
+    depth 0 and are not exported -- nobody outside ``api.ts`` can call them. Everything else in
+    the roster reaches one of those two, either by writing a declared verb or by writing a name
+    that does: ``downloadCapsule`` and ``logout`` call ``doFetch`` directly, and the two stream
+    wrappers call ``openEventStream``, which no declared verb ever reaches. Not one of those four
+    names appears in ``_CLIENT_VERBS``, and none of them is in the census; they are here because
+    the walk followed a call.
+
+    The roster also pins the *shape* of the walk, and the shape is seeded rather than measured
+    from a root: a body that writes a transport is 0, a body that writes a declared verb is 1,
+    and a call adds at most one on top of what it calls. So ``via`` is *not* strictly shallower
+    -- ``createFindingFeedback`` sits at 1 next to an ``apiPost`` that is also 1, because the
+    verb seed already put it there and the walk had nothing to add -- while ``depth <= 1 +
+    depth(via)`` still holds for all fourteen edged rows, no row needed a second round, and the
+    depth-0 rows are exactly the two bodies that write a transport themselves. Arm V3 collapses
+    the walk to "transport plus the layer that writes a verb" and the four rows above leave,
+    which is the bite this roster is sized to fail on.
+    """
+    rows = client_surface(REPO)
+    roster = {row.name: _issuer_row(row) for row in rows}
+    changed = sorted(
+        (name, CLIENT_ISSUER_ROSTER[name], roster[name])
+        for name in roster.keys() & CLIENT_ISSUER_ROSTER.keys()
+        if CLIENT_ISSUER_ROSTER[name] != roster[name]
+    )
+    assert not changed and roster.keys() == CLIENT_ISSUER_ROSTER.keys(), (
+        f"the issuer closure moved: gained "
+        f"{sorted(roster.keys() - CLIENT_ISSUER_ROSTER.keys())}, lost "
+        f"{sorted(CLIENT_ISSUER_ROSTER.keys() - roster.keys())}, changed {changed[:3]}"
+    )
+    bands = dict(sorted(Counter(row.depth for row in rows).items()))
+    assert bands == CLIENT_ISSUER_DEPTH_BANDS, f"depth histogram moved: {bands}"
+    assert all(row.file == API_TS for row in rows), (
+        "an issuer was reported outside the client module: "
+        f"{sorted((row.name, row.file) for row in rows if row.file != API_TS)}"
+    )
+    assert not [
+        (row.name, row.depth, row.via)
+        for row in rows
+        if (not row.via) != (row.depth == 0)
+    ], "a depth-0 row is no longer exactly the bodies that write a transport themselves"
+    assert not [
+        (row.name, row.depth, other, roster[other][1])
+        for row in rows
+        for other in row.via
+        if other not in roster or not 0 < row.depth <= 1 + roster[other][1]
+    ], "an issuer's depth broke the walk bound 0 < depth <= 1 + depth(via)"
+    edgeless = sorted(row.name for row in rows if not row.via)
+    assert edgeless == sorted(
+        name for name, value in CLIENT_ISSUER_ROSTER.items() if value[1] == 0
+    ), f"a row with no outgoing edge stopped being a transport wrapper: {edgeless}"
+    assert edgeless == sorted(row.name for row in rows if not row.exported), (
+        "the transport wrappers and the non-exported rows are no longer the same two names"
+    )
+    assert len(rows) == sum(CLIENT_ISSUER_DEPTH_BANDS.values()), (
+        "the roster and the histogram count different populations"
+    )
+
+
+def test_a_declared_client_verb_the_tree_never_writes_is_a_row_not_an_assumption() -> None:
+    """⓻: the vocabulary is a declaration, so census the declaration against the tree.
+
+    Three columns per declared verb -- defined in the client module, mentioned in call shape by a
+    product file, bound by a page -- and they disagree in exactly two rows of the roster:
+    ``apiPut`` and ``apiPatch`` are declared and written nowhere at all, while ``apiDelete`` is
+    declared, defined, called twice inside ``api.ts`` and bound by no page. Nothing was red about
+    any of that, because no register held the declared list: a lane that deleted all five
+    declarations would have moved the census, and a lane that added a sixth would have moved
+    nothing at all.
+
+    The keys of the register *are* the declaration, read off the owner's tree, so arm V2 (two
+    declarations withdrawn, nothing in the frontend touched) reddens this leg and only this leg:
+    the tree cannot change when a name nobody writes is removed, but the roster loses two rows.
+    """
+    declared = _declared_client_verbs()
+    surface = client_surface(REPO)
+    shapes = call_shapes(web_src(REPO))
+    page = [row for row in denominator_sites(REPO) if row.file != API_TS]
+    derived = {
+        verb: (
+            sum(1 for row in surface if row.name == verb),
+            sum(1 for shape in shapes if shape.name == verb),
+            sum(1 for row in page if row.binding == verb),
+        )
+        for verb in declared
+    }
+    moved = sorted(
+        (verb, CLIENT_VERB_POPULATION.get(verb), derived.get(verb))
+        for verb in set(derived) | set(CLIENT_VERB_POPULATION)
+        if CLIENT_VERB_POPULATION.get(verb) != derived.get(verb)
+    )
+    assert not moved, f"the declared verbs and the tree disagree differently now: {moved[:4]}"
+    assert len(declared) == len(CLIENT_VERB_POPULATION), (
+        f"the owner declares {len(declared)} client verbs; this register holds "
+        f"{len(CLIENT_VERB_POPULATION)} rows"
+    )
+    never_written = sorted(name for name, (_d, written, _b) in derived.items() if written == 0)
+    assert never_written == ["apiPatch", "apiPut"], (
+        f"which declared verbs the tree never writes moved: {never_written}"
+    )
+    never_bound = sorted(
+        row.name
+        for row in surface
+        if row.exported and not any(site.binding == row.name for site in page)
+    )
+    assert set(never_bound) == EXPORTED_ISSUERS_WITHOUT_A_PAGE_SITE, (
+        f"an exported issuer lost or gained its first page site: {never_bound}"
+    )
+    assert "doFetch" not in never_bound and "openEventStream" not in never_bound, (
+        "an unexported wrapper is suddenly unreachable by a page, which is the fact that kept "
+        "it out of the roster above"
+    )
+
+
+def test_the_denominator_is_wider_than_the_census_by_two_rosters_and_no_hand_wave() -> None:
+    """⓻: 105 sites, 58 of them outside the client module, and the census has rows for 48.
+
+    The two readings agree on one thing and one thing only: where they agree. Every census row is
+    a site row, and the set difference the other way is the finding -- split into the 21 rows the
+    naming ruler has *no name for* and the 16 rows it names but never counts. The second of those
+    is the one nobody predicted: ``_consumer_names`` does contain ``useAgentJob``, so the ruler
+    knows the consumer, and the census still reports one site for it while ten pages call it.
+    ``by_name`` is read off the word the line wrote, not the word behind it, so an aliased import
+    lands in the blind roster even though the ruler owns the name it renamed.
+
+    Two structural claims hold the rest of it in place: one line is one row (a line that writes
+    two clients keeps the label the vocabulary ranks first), and every row's kind is a label in
+    ``DENOMINATOR_KINDS`` -- so the classifier cannot invent a class the register never counted.
+    """
+    rows = denominator_sites(REPO)
+    api_rows = [row for row in rows if row.file == API_TS]
+    page = [row for row in rows if row.file != API_TS]
+    assert (len(rows), len(page), len(api_rows)) == DENOMINATOR_ROW_TOTALS, (
+        f"the denominator moved: ({len(rows)}, {len(page)}, {len(api_rows)}) "
+        f"vs {DENOMINATOR_ROW_TOTALS}"
+    )
+    kinds = dict(sorted(Counter(row.kind for row in page).items()))
+    assert kinds == DENOMINATOR_PAGE_KINDS, f"page-side kind population moved: {kinds}"
+    assert frozenset(kinds) | {"internal"} == frozenset(DENOMINATOR_KINDS), (
+        f"the vocabulary and the population stopped covering each other: "
+        f"{sorted(frozenset(DENOMINATOR_KINDS) ^ (frozenset(kinds) | {'internal'}))}"
+    )
+    assert all(row.kind in DENOMINATOR_KINDS for row in rows), (
+        f"a row carries a label outside the vocabulary: "
+        f"{sorted({(r.file, r.line, r.kind) for r in rows if r.kind not in DENOMINATOR_KINDS})}"
+    )
+    assert all(row.kind == "internal" for row in api_rows), (
+        "a client-module line was labelled as if a page wrote it"
+    )
+    sites = {(row.file, row.line) for row in rows}
+    assert len(sites) == len(rows), "two rows share one line, so the one-row-per-line rule broke"
+    census = {(row.file, row.line) for row in consumer_bindings(REPO)}
+    assert census <= sites, (
+        f"a census site is no longer a site in the graph reading: {sorted(census - sites)}"
+    )
+    blind = frozenset(_site_row(row) for row in page if not row.by_name)
+    assert blind == DENOMINATOR_PAGE_BLIND, (
+        f"the rows the naming ruler cannot say moved: gained "
+        f"{sorted(blind - DENOMINATOR_PAGE_BLIND)}, lost {sorted(DENOMINATOR_PAGE_BLIND - blind)}"
+    )
+    blind_keys = {(row.file, row.line) for row in page if not row.by_name}
+    assert not blind_keys & census, (
+        f"a blind row is also a census row, so the two halves of the split stopped being "
+        f"disjoint: {sorted(blind_keys & census)}"
+    )
+    named = frozenset(
+        _site_row(row) for row in rows if row.by_name and (row.file, row.line) not in census
+    )
+    assert named == DENOMINATOR_NAMED_WITHOUT_A_CENSUS_ROW, (
+        f"named-but-uncounted rows moved: gained "
+        f"{sorted(named - DENOMINATOR_NAMED_WITHOUT_A_CENSUS_ROW)}, lost "
+        f"{sorted(DENOMINATOR_NAMED_WITHOUT_A_CENSUS_ROW - named)}"
+    )
+    aliased = frozenset(
+        (row.file, row.line, row.callee, row.binding)
+        for row in rows
+        if row.binding and row.callee != row.binding
+    )
+    assert aliased == DENOMINATOR_ALIASED_SITES, (
+        f"an import renamed its callee and the reading followed it: {sorted(aliased)}"
+    )
+
+
+def test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks() -> None:
+    """⓻: a consumer, by body rather than by name, is seven frontend functions.
+
+    ``hook_readings`` qualifies two of them (E6's population), and ``_HOOK_DEF`` can at least
+    *see* three -- ``useDiff`` is spelled like a hook and refused because its body calls
+    ``getAgentDiff`` instead of a verb. The other four have no hook name at all: the app shell,
+    a page component, a section component and a column factory, each of which reaches the client
+    module in its own body. Two independent readings of the same question therefore report 2 and
+    7, and the difference is not a bug in either -- it is what ``use[A-Z]`` was ever able to see.
+
+    The fan-out register is the other half of the claim: sites per callee over the rows the census
+    never saw. ``useAgentJob`` carries 11 of the 34, which is why one census row and eleven
+    consumers are both true statements about the same tree. Arm V5 renames ``useRemoteData`` and
+    this leg must move *names* rather than lose the row: the graph followed the body, so the
+    rename arrives in the roster instead of vanishing from the denominator.
+    """
+    page = [row for row in denominator_sites(REPO) if row.file != API_TS]
+    defs = {row.binding: (row.file, row.line) for row in page if row.kind == "issuer-def"}
+    moved = sorted(
+        (name, PAGE_ISSUER_POPULATION[name], defs[name])
+        for name in defs.keys() & PAGE_ISSUER_POPULATION
+        if PAGE_ISSUER_POPULATION[name] != defs[name]
+    )
+    assert defs.keys() == PAGE_ISSUER_POPULATION.keys() and not moved, (
+        f"the graph's consumer population moved: gained "
+        f"{sorted(defs.keys() - PAGE_ISSUER_POPULATION.keys())}, lost "
+        f"{sorted(PAGE_ISSUER_POPULATION.keys() - defs.keys())}, moved {moved}"
+    )
+    use_shaped = sorted(name for name in defs if re.match(r"^use[A-Z]", name))
+    assert use_shaped == ["useAgentJob", "useDiff", "useRemoteData"], (
+        f"which issuers carry the hook spelling moved: {use_shaped}"
+    )
+    assert frozenset(defs) - frozenset(use_shaped) == PAGE_ISSUERS_WITHOUT_USE_SHAPE, (
+        f"the issuers E6's pattern cannot see moved: "
+        f"{sorted(frozenset(defs) - frozenset(use_shaped) - PAGE_ISSUERS_WITHOUT_USE_SHAPE)}"
+    )
+    named = sorted(row.name for row in hook_readings(web_src(REPO)) if len(row.verbs) == 1)
+    assert named == ["useAgentJob", "useRemoteData"], (
+        f"the naming ruler's own consumer population moved: {named}"
+    )
+    assert frozenset(named) <= frozenset(defs), (
+        f"a hook E6 counts is no longer an issuer the graph reaches: "
+        f"{sorted(frozenset(named) - frozenset(defs))}"
+    )
+    census = {(row.file, row.line) for row in consumer_bindings(REPO)}
+    invisible = [row for row in page if (row.file, row.line) not in census]
+    fanout = dict(Counter(row.binding or row.callee for row in invisible))
+    diff = sorted(
+        (name, PAGE_ISSUER_FANOUT.get(name), fanout.get(name))
+        for name in set(fanout) | set(PAGE_ISSUER_FANOUT)
+        if PAGE_ISSUER_FANOUT.get(name) != fanout.get(name)
+    )
+    assert not diff, f"the sites-per-callee split moved: {diff[:6]}"
+    assert max(fanout.values()) == PAGE_ISSUER_FANOUT["useAgentJob"] == 11, (
+        "the largest fan-out is no longer the one named hook's eleven call sites"
+    )
+    assert sum(fanout.values()) == len(invisible) == 34, (
+        f"the fan-out no longer covers every census-invisible page row: {sum(fanout.values())}"
+    )
+
+
+def test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see() -> None:
+    """⓻: three classes of site exist that a name-anchored reading cannot reach in principle.
+
+    ``Billing.tsx`` builds a CSV url out of an invoice payload and asks the network for it with a
+    bare ``fetch``, so the site has no callee name to look up at all. Two rows open a stream
+    instead of a request, and both reach ``openEventStream`` -- a name no declared verb ever
+    writes, which is the only thing that separates them from the eleven helper rows. The third
+    class is what the tree does *not* contain: no file imports the client module under a namespace
+    or a default binding, where ``api.apiGet(...)`` and ``defaultClient(...)`` would both be
+    invisible to this reading, because a member access is refused by construction and a default
+    binding is not read at all.
+
+    Population 1, 2 and 0. Arm V4 rewrites ``Health.tsx``'s typed call into the same bare-fetch
+    shape and the first register doubles, which is what turns the ``Billing.tsx`` row from an
+    anecdote into a class; the fixture leg shows the other two shapes do produce a row or refuse
+    one, so the zeros are measurements rather than the reading's vocabulary.
+    """
+    rows = denominator_sites(REPO)
+    raw = frozenset(
+        (row.file, row.line, row.callee) for row in rows if row.kind == "raw-transport"
+    )
+    assert raw == RAW_TRANSPORT_SITES, (
+        f"the pages that bypassed the client module moved: {sorted(raw)}"
+    )
+    assert all(
+        row.binding == "" and not row.by_name for row in rows if row.kind == "raw-transport"
+    ), "a bare transport grew a binding, so it is no longer a site with no name to look up"
+    assert not [
+        (row.file, row.line)
+        for row in rows
+        if row.kind == "raw-transport" and row.file == API_TS
+    ], "a raw transport was counted inside the client module, where that is the wrapper itself"
+    census = {(row.file, row.line) for row in consumer_bindings(REPO)}
+    assert not census & {(file, line) for file, line, _word in raw}, (
+        "the naming ruler also has a row for the bare fetch, so the two readings are no longer "
+        "different readings"
+    )
+
+    stream = frozenset((row.file, row.line, row.binding) for row in rows if row.kind == "stream")
+    assert stream == STREAM_SITES, f"the stream rows moved: {sorted(stream)}"
+    surface = {row.name: row for row in client_surface(REPO)}
+    streams_reach = {name for _row in stream for name in surface[_row[2]].via}
+    assert streams_reach == {"openEventStream"}, (
+        f"a stream reaches something other than the event-source wrapper: {sorted(streams_reach)}"
+    )
+    verbs_reach = {
+        name for verb in CLIENT_VERB_POPULATION if verb in surface for name in surface[verb].via
+    }
+    assert "openEventStream" not in verbs_reach, (
+        "a declared verb started reaching the event-source wrapper, so `stream` is no longer "
+        "a class the vocabulary can single out"
+    )
+
+    non_brace = frozenset(
+        (rel, line)
+        for rel, text in (
+            (
+                ts.relative_to(web_src(REPO)).as_posix(),
+                ts.read_text(encoding="utf-8"),
+            )
+            for ts in sorted(
+                list(web_src(REPO).rglob("*.ts")) + list(web_src(REPO).rglob("*.tsx"))
+            )
+        )
+        for line, source in enumerate(text.splitlines(), start=1)
+        if re.search(_NON_BRACE_IMPORT, source)
+    )
+    assert non_brace == CLIENT_MODULE_NON_BRACE_IMPORTS, (
+        f"a file started importing the client module in a shape the reading cannot bind: "
+        f"{sorted(non_brace)}"
+    )
+
+
+def test_the_shapes_this_tree_never_writes_still_produce_rows_when_a_fixture_writes_them(
+    tmp_path: Path,
+) -> None:
+    """⓻: the reading has teeth for every class the product tree reports as zero.
+
+    Four shapes are registered above as empty or single-row populations -- an aliased import, a
+    helper-of-a-helper, a line that claims two classes, a namespace or default import -- and a
+    zero that no fixture can distinguish from a hole is not a measurement. So the lab writes all
+    four, plus a bare ``fetch`` in a page and a hook that issues no verb:
+
+    * ``import { apiGet as get }`` produces a row per line that writes ``get`` -- two of them,
+      the plain call and the double-claim line -- each with ``callee='get'``,
+      ``binding='apiGet'`` and ``by_name=False``. The rename does not hide the site from the
+      graph, and the naming ruler still cannot see it -- which is the whole claim of this number,
+      shown on a tree small enough to read.
+    * ``deepClient`` reaches the client module through a helper rather than a verb: depth 2 exists
+      here, so the walk is transitive and not a one-hop table. ``arrowClient`` is spelled
+      ``const ... =>`` and is in the closure with its own edge -- read through the block-less
+      body, which is the second witness for #554's ``_decl_body`` fix, because the shape before it
+      inherited the body of whichever declaration came next.
+    * ``get(useWrapper())`` claims two classes on one line and keeps ``verb-name``, the earlier
+      label. Arm V8 swaps the two ranks in ``DENOMINATOR_KINDS`` and this row is where the swap
+      shows up: the real tree has no line that claims both, so ordering only ever bites here.
+    * ``client.apiGet(...)`` and ``defaultClient(...)`` produce **no** row. That is the reading's
+      registered hole, asserted rather than hoped for, and it is why the product-side register
+      above counts the files that import this way instead of assuming there are none.
+    """
+    root = _fixture_repo(
+        tmp_path,
+        {},
+        {
+            "api.ts": (
+                "async function raw(path: string): Promise<any> {\n"
+                "  const r = await fetch(path);\n"
+                "  return r.json();\n"
+                "}\n"
+                "export async function apiGet<T>(path: string): Promise<T> {\n"
+                "  return (await raw(path)) as T;\n"
+                "}\n"
+                "export async function innerName<T>(path: string): Promise<T> {\n"
+                "  return apiGet<T>(path);\n"
+                "}\n"
+                "export const arrowClient = (path: string) => apiGet<string>(path);\n"
+                "export async function deepClient<T>(path: string): Promise<T> {\n"
+                "  return innerName<T>(path);\n"
+                "}\n"
+                "export function openThing(path: string) {\n"
+                "  return new EventSource(path);\n"
+                "}\n"
+                "function innerPath(path: string): string {\n"
+                "  return '/api/v1/' + path;\n"
+                "}\n"
+                "export function twoClients<T>(path: string): Promise<T> {\n"
+                "  return apiGet<T>(innerPath(path));\n"
+                "}\n"
+            ),
+            "hook.tsx": (
+                "import { innerName } from './api';\n"
+                "export function useWrapper() {\n"
+                "  return innerName('/api/v1/w');\n"
+                "}\n"
+            ),
+            "pages/P.tsx": (
+                "import { apiGet as get, innerName, arrowClient, twoClients, "
+                "deepClient } from './api';\n"
+                "import * as client from './api';\n"
+                "import defaultClient from './api';\n"
+                "import { useWrapper } from './hook';\n"
+                "export function P() {\n"
+                "  const a = get<{ x: number }>('/api/v1/a');\n"
+                "  const b = innerName('/api/v1/b');\n"
+                "  const c = arrowClient('/api/v1/c');\n"
+                "  const d = client.apiGet('/api/v1/d');\n"
+                "  const e = defaultClient('/api/v1/e');\n"
+                "  const f = fetch('/api/v1/f');\n"
+                "  const g = useWrapper();\n"
+                "  const h = get(useWrapper());\n"
+                "  const i = twoClients('/api/v1/i');\n"
+                "  const j = deepClient<{ n: number }>('/api/v1/j');\n"
+                "  return [a, b, c, d, e, f, g, h, i, j];\n"
+                "}\n"
+            ),
+        },
+    )
+    page = "apps/web/src/pages/P.tsx"
+    surface = {row.name: _issuer_row(row) for row in client_surface(root)}
+    assert sorted(name for name, value in surface.items() if value[1] == 0) == [
+        "openThing",
+        "raw",
+    ], f"the fixture's transports moved: {sorted(surface)}"
+    tier2 = sorted(name for name, value in surface.items() if value[1] == 2)
+    assert tier2 == ["deepClient"], f"the tier-2 witness moved: {tier2}"
+    assert surface["arrowClient"][3] == ("apiGet",), (
+        "the brace-less arrow lost its own edge, so its body is being read as someone "
+        f"else's: {surface['arrowClient']}"
+    )
+    assert "innerPath" not in surface, (
+        "a function that reaches nothing became an issuer -- it builds a path, not a request"
+    )
+
+    rows = {(row.file, row.line): row for row in denominator_sites(root)}
+    assert len(rows) == 22, f"the fixture's row population moved: {len(rows)}"
+    aliased = rows[(page, 6)]
+    assert (aliased.callee, aliased.binding, aliased.kind, aliased.by_name) == (
+        "get",
+        "apiGet",
+        "verb-name",
+        False,
+    ), f"an aliased import stopped being followed: {aliased}"
+    assert frozenset(
+        (row.file, row.line, row.callee, row.binding)
+        for row in rows.values()
+        if row.binding and row.callee != row.binding
+    ) == frozenset(
+        {(page, 6, "get", "apiGet"), (page, 13, "get", "apiGet")}
+    ), "the fixture's rename stopped being the row where callee and binding differ"
+    multi = rows[(page, 13)]
+    assert (multi.callee, multi.kind) == ("get", "verb-name"), (
+        f"a line claiming two classes kept {multi.kind}; the vocabulary's order is the definition"
+    )
+    assert rows[(page, 12)].kind == "issuer-call", (
+        f"the call site of a graph-level consumer moved to {rows[(page, 12)].kind}"
+    )
+    assert rows[("apps/web/src/hook.tsx", 2)].kind == "issuer-def", (
+        "a hook that issues no verb stopped being the graph's consumer"
+    )
+    for name, line in (
+        ("innerName", 7),
+        ("arrowClient", 8),
+        ("twoClients", 14),
+        ("deepClient", 15),
+    ):
+        row = rows[(page, line)]
+        assert (row.kind, row.binding, row.by_name) == ("helper", name, False), (
+            f"the helper class moved at {name}: {row}"
+        )
+    raw = rows[(page, 11)]
+    assert (raw.callee, raw.kind, raw.binding, raw.by_name) == (
+        "fetch",
+        "raw-transport",
+        "",
+        False,
+    ), f"a page's bare fetch was labelled {raw.kind}"
+    assert {row.kind for row in rows.values()} == {
+        "internal",
+        "issuer-def",
+        "issuer-call",
+        "helper",
+        "raw-transport",
+        "verb-name",
+    }, (
+        f"the fixture stopped exercising six of the seven classes: "
+        f"{sorted({row.kind for row in rows.values()})}"
+    )
+    for line in (1, 2, 3, 4, 9, 10, 16):
+        assert (page, line) not in rows, (
+            f"line {line} of the fixture became a row ({rows[(page, line)]}) -- 9 is "
+            f"`client.apiGet(...)` and 10 is `defaultClient(...)`, the two import shapes "
+            f"this reading cannot bind"
+        )
