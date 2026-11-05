@@ -2841,3 +2841,10 @@ relay 的死信 docstring 承诺"operator replay territory"但全仓无回放工
 SQL 组装进变量、单行 execute(与 transition_job_status 的
 `cursor.execute(_sql, params)` 同型), 登记键同步。教训: 给静态门登记
 站点前, 先让源码形状可被逐字引用——AST unparse 与源码文本是两种语言。
+
+### 38.7 notify-stats CLI——outbox 车道的运营入口(2026-11-05)
+
+`specproof ops notify-stats`: 汇总 (pending/dead_letters/retries/
+last_success) + 死信行明细(含 `replay-notifications` 回放指引)。
+RUNBOOK 的读法从此有了 CLI 入口, 不再依赖直接 SQL。测试 +2, ops 全套
+55 passed。
