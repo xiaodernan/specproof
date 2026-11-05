@@ -22921,3 +22921,57 @@ All checks passed!
 - ④ 计数的两处手抄——`test_fake_inventory_stays_measured.py` 钉 `20 / 43 / 202`（总 265）与 `docs/architecture/FAKE_INVENTORY.md` 抄同一组——从 `68d86c1` 起已被挪动 4 个类（#590 的 `FakeProfile`（`tests/unit/test_run_self_tests_on_workspace.py:20`，方法 `__init__`）、#590 的 `FakeResult`（`tests/unit/test_run_self_tests_on_workspace.py:25`，方法 `__init__`）、#590 的 `FakeAdapter`（`tests/unit/test_run_self_tests_on_workspace.py:46`，方法 `__init__` `detect` `prepare` `run`）、#590 的 `FakeRegistry`（`tests/unit/test_run_self_tests_on_workspace.py:78`，方法 `__init__` `get`）），CI 因此常驻 2 条红。修法不是把数字改对就完：红必须自己说出「哪一类进了哪几个、在哪个文件」，否则下一条添替身的车道依旧只看到一个整数；名册应当从分类器派生，而不是注释里手抄的十条。**先把红变得可归因，再动数字。**
 
 - ⑤ 出站建构点继承宿主代理设置，而 httpx 解析 `NO_PROXY` 里的 `[::1]` 会炸：本机量到 9 条腿红（test_notify_connector.py、test_providers_net.py），抛点都在 httpx 的 `_urlparse.py:411`（`InvalidURL: Invalid port: ':1]'`）。非测试树里这样的建构点有 5 处（api/identity/oidc.py、integrations/github_checks.py、integrations/notify/webhook.py、providers/net.py、retrieval/embeddings.py），其中通知那条已被 4 处生产调用点包进 `except Exception` 只留一条 warning（agent/worker.py、api/routes/agent_console.py）—— 于是在这样的机器上终态通知永远发不出去，而运维读到的理由是 httpx 的报错，不是「这台机器的 NO_PROXY」。要么在建构处显式断开宿主环境（并说明运维仍可用别的旋钮指代理），要么给这 9 条腿自己钉住环境；两条路都得留下「谁替读者保证了 CI 是绿的」。
+
+## #601 清点门的红只有一个整数：谁进了哪一类、被哪笔提交带进来，红必须自己说出口，然后才允许动数字
+
+### 起因
+
+`docs/architecture/FAKE_INVENTORY.md` 的开头写着「这份清单是**测出来的**，不是列出来的」。它的意思本来是：分类器是唯一的数字来源。可这句话只对**生成**成立，对**核对**不成立——门 `tests/unit/test_fake_inventory_stays_measured.py` 钉的是四个抄下来的整数（`20 / 43 / 202`，总 265），文档再抄一遍同一组。
+
+从 `3b9f0e7`（#590，`tests/unit/test_run_self_tests_on_workspace.py` 添了四个替身）起，数目变了 4 个类，CI 因此常驻 2 条红。那 2 条红对外说出的全部内容是两个整数相等性失败：
+
+- `test_the_counts_are_pinned` → `assert 44 == 43`
+- `test_the_inventory_quotes_the_measured_numbers` → `assert '| 仓储鸭子类型 | 44 |' in <整篇文档>`
+
+一个类名都没有，一笔提交都没有，「该 Put 回去还是该重钉」也没有。#600 的队列④因此把顺序写死：**先把红变得可归因，再动数字**——否则下一条添替身的车道看到的仍然只是一个整数，它只会把整数改成它现场看到的整数。
+
+### 改前量到的
+
+- CI `tests-no-infra`（2026-11-05T11:20 那次 run）：**3 failed / 6333 passed / 35 skipped in 1199.13s**；三条红里两条是上面这两条（第三条是 #600 的 seeded 腿）。
+- 派生「谁动了数字」要付多少钱，先量了再设计：`git archive` 取一棵历史树并解开 **2.14s**，对解出来的整棵树跑分类器 **12.42s**，整条 `--explain-drift` 在本会话复跑 **17.59s**（rc 1）。这笔钱不能收到绿色运行里，所以派生只活在两处：pytest 断言消息（懒求值，绿了根本不构造）和一条 `@pytest.mark.slow` 腿。绿色平面的实测代价因此保持原样：`-m "not slow"` **10 passed, 1 deselected in 19.60s**，其中计数腿自己 **3.30s**。
+- 文档当时那句「本页数字对应 `origin/master` 的 `de746b6`（#544）」也是手抄的。拿它当钉住的基准再量一次，`de746b6` 那棵树确实就是 `20 / 43 / 202`——所以基准没抄错，动的是后来的 `3b9f0e7`；问题不在抄错，在于**没有任何东西会注意到它被挪动了**，除了那两个整数自己。
+- 文档里还有一段十条的「#545 旧判据 vs 新判据名册」，它是那一年那两棵树的差；把它当成当前解释来读会读错，因为它既不是当前数字的来源，也没有读者。
+
+### 改动
+
+- **`scripts/classify_test_fakes.py` 长出「解释自己」的一侧。** `census_at(rev)` 用 `git archive` 把钉住的那棵树取到临时目录，再对**同一个** `collect()` 量一次——判据不复制，所以判据一改，基准侧和当前侧一起动，红不会靠两份手抄的判据互相取暖。`drift_between(pin, now)` 把两棵树配成 `entered / exited / moved` 三类，并带一条 `reconciles(pin, now)` 不变式：**解释必须加得回它自己引用的那两个总数**，加不回去报告自己红。`_owners()` 对每条入场做 `git blame -L`；`classifier_moved_in(rev)` 查这个区间里分类器自己有没有被改过——那是「另一种原因」，报告分开说。`describe_drift()` 出文字，CLI `--explain-drift REV` 复用同一条派生，并在数目真的变了时 rc 1。
+- **归属有四种答案，这是跑出来的，不是读出来的。** ①行的提交在区间里 → 印那笔提交的标题；②行还没提交 → git 把它记成全零 revision，那不是一个提交，红就说「uncommitted」，不印一个解析不到的 sha；③文件根本不在 `HEAD` 里（刚新写的测试文件，门变红恰恰发生在提交**之前**）→ `git blame` 直接 rc 128 拒答（"file has only N lines"），而拒答本身就是答案：这是新工作，不是「这台机器读不到历史」；④行的提交早于钉住的提交 → 它不可能是这次入场的原因，红说「at or before」而不是引它当证据。另一条只有跑才知道的事实：区间边界的提交短 sha 带 `^` 前缀，而 git 的 rev 语法把 `^` 读成「除这笔之外」，`git show ^abc123` 回 **rc 0 + 空输出**——照抄那串去 show 会拿到「成功但没有内容」，不是报错。
+- **门重写成 11 条腿，钉的东西从「四个整数」换成「一对」：** `PIN_COMMIT` + `PIN_COUNTS`。`test_the_pin_pair_is_self_consistent`（slow）真的去量 `PIN_COMMIT` 那棵树；`test_the_drift_base_is_a_commit_this_history_reaches` 先证明这笔提交在本次历史里可达，不可达时配对腿 **skip**——浅历史的 CI checkout（#499 量过这个形状）不该拿到一份「读不出来的解释」；`test_each_entrant_is_attributed_to_a_commit_or_to_the_working_tree` 在一次性仓库里跑**真 git**（三笔状态：已提交、后落地、未提交）把上面四种答案各钉一次——编造的名册只能证明渲染器打印了别人塞给它的归属；`test_a_moved_count_names_which_classes_moved_it` 用合成名册把入场／离场／换桶／**纯格式化（必须什么都不能报）**四种漂移各钉一次；`test_a_judge_change_is_said_as_the_other_cause`、`test_identical_trees_are_reported_as_no_drift` 钉住另两条句子；文档腿的针全部从现场测量派生，九根（八根数字＋一根基准 sha），其中三根数字量的是以前**没有读者的散文**（SQL 假分布在几个文件、其中几处是「游标＋连接」的分体、以及由前两列算出的百分比）。
+- **`docs/architecture/FAKE_INVENTORY.md`：** 数字按分类器现量重钉为 `20 / 44 / 205`（总 **269**，SQL 占 **7.4%**），基准那行改成 `60def7b`（= `PIN_COMMIT[:7]`，文档腿会检查文档确实点名了它）；#545 那十条就地标明是「当年那棵树的一次性快照」并指向 `--explain-drift`；新增归属四种答案的说明与「当前数字只有一条来源」的边界。
+
+### 改后量到的
+
+- 门在落地平面（`60def7b` + 本批字节）全绿：**11 passed in 36.88s**；快环 **10 passed, 1 deselected in 19.60s**；slow 腿自己 ≈ **17.3s**（两个数相减，不是我估的）。
+- 臂电池 **7/7 MATCHED**，全部跑在臂平面 `D:/面试项目/wt-601arm`（`60def7b` 的分离 checkout + 本批三个文件），落地平面一个字节都没被臂改过，每个臂改动前后各存各还一次字节：
+  - A1 植入一个**未跟踪**文件里的替身 → 计数腿红，红点名 `tests/unit/test_arm_planted_601.py:1 FakeArmEntered [get]`、`store-duck-type 44 -> 45`、并给出「this file is not in git at all」。
+  - A2 把一个 SQL 假改名搬出名册 → 红报的是 **EXIT** 并点名它，不是沉默地少一个。
+  - A3 给一个普通替身加上 `save` → 红说「a class changed buckets」，并给出那句「这个区间里没有提交动过分类器，所以是方法表动过」。
+  - A4 只 bump `PIN_COUNTS`、树不动 → **两条计数腿一起红**（`FAILED` 恰好 2 行），配对腿说的是「这是一对，必须一起挪」，且「没有任何类动过」由它自己讲出来。
+  - A5 把 `PIN_COMMIT` 指向不可达的 rev → 可达性腿红、配对腿 skip（`1 failed, 1 skipped`）。
+  - A5b 不可达 + 又植入一个替身 → 红说「原因在这里读不出来」并给出命令行——这是那句措辞唯一仍然为真的地方：读不出来的是**钉住的那棵树**，不是我改的文件。
+  - A6 只把文档一个数字改错 → 只有文档腿红（`1 failed, 2 passed`），两条计数腿照绿——文档不是计数的承重物。
+- 两轮 MISMATCH 各归一次因，都没有靠松断言安慰过去。第一轮：归属句把未跟踪文件说成「git 读不到历史」（判据缺陷）——`_owners` 因此拆成「不在 HEAD」与「git 不答」两种拒答，兜底措辞不再给未跟踪文件扣一顶读不到历史的帽子，文档同步补上四种答案。第二轮：红的仍是 A1，但红的是**臂自己的针**——它写着 `[__init__, get]`，而臂种下的那个类只声明了一个 `get`（`battery_601_run2.txt` 当时连归属句都没印出来）。针改成臂自己种下去的方法表常量，带子没动。
+- `ruff check` 两个改动文件通过；`mypy scripts/classify_test_fakes.py` **Success: no issues found**。本批曾在这个文件里引入 3 条类型错（一个缺注解的推导式、两处裸 `dict`）——`[tool.mypy]` 的 `exclude` 本来不收 `scripts/`，CI 看不见它们，所以用对照确认归属：HEAD 版的同一个文件直接喂 mypy 是 `Success`，即这 3 条是我的、不是继承的。
+- 文档与门的关系反过来了：以前是「门钉整数、文档抄整数」，现在是「门量一次现场，把量到的数字铸成针去戳文档」——文档抄不动了，只能跟着测量走。
+
+**证据文件**：
+- scripts/classify_test_fakes.py
+- tests/unit/test_fake_inventory_stays_measured.py
+- docs/architecture/FAKE_INVENTORY.md
+
+### 队列
+
+- ① 推送后按 run 复核 `tests-no-infra`：那 2 条常驻红应当消失；同时确认 slow 配对腿在 CI 的历史深度下要么绿、要么被可达性腿红＋skip，不能是「读不出来的解释」。
+- ② 下一个动替身的车道：红的归属句会直接点名它的类。挪数字必须 `PIN_COUNTS` 与 `PIN_COMMIT` 一起挪，还要带上 `docs/architecture/FAKE_INVENTORY.md` 与那笔提交的理由；A4 已经量过「只挪一半」是什么形状。
+- ③ 分类器仍是下界，这一格本号没动：准入靠类名形状（`Fake*` / `Stub*` / `*Store` / `*Db` / 含 `fake`），`execute` 单独出现不算 SQL 面。文档的「已知下界缺口」那段照旧有效。
+- ④ #602（原 #600 队列⑤）：出站 httpx 建构点继承宿主代理，`NO_PROXY` 里的 `[::1]` 解析炸在 httpx 自己的 `_urlparse.py`，本机 9 条腿红。
