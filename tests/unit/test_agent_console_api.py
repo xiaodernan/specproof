@@ -876,3 +876,165 @@ def test_cancel_accepts_a_status_outside_the_vocabulary(
     resp = client.post(f"/agent/jobs/{job_id}/cancel", headers=_headers())
     assert resp.status_code == 202, resp.text
     assert resp.json() == {"job_id": job_id, "status": "CANCELLED"}
+
+
+# ── craft terminal notification (§16.6-4) ──────────────────────────────────
+
+
+class TestCraftTerminalNotification:
+    def _connector(self, monkeypatch: pytest.MonkeyPatch):
+        from integrations.notify.protocol import (
+            Notification,
+            SendStatus,
+        )
+
+        class Recording:
+            name = "test-craft"
+            capabilities = frozenset()
+            sent: list[Notification] = []
+            closed = 0
+
+            def send(self, notification: Notification) -> SendStatus:
+                self.sent.append(notification)
+                return SendStatus.SENT
+
+            def close(self) -> None:
+                self.closed += 1
+
+        import integrations.notify as notify_package
+
+        connector = Recording()
+        monkeypatch.setattr(
+            notify_package, "webhook_connector_from_env", lambda: connector
+        )
+        return connector
+
+    def test_rejected_plan_fires_craft_failed_not_verify_failed(
+        self, client: TestClient, store: InMemoryAgentJobStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The craft vocabulary owns its wording: a rejected plan announces
+        craft.failed — never the verify lane's 'verification failed'."""
+        connector = self._connector(monkeypatch)
+        job_id = _create(client)
+        resp = client.post(
+            f"/agent/jobs/{job_id}/approve",
+            json={"decision": "reject", "note": "scope wrong"},
+            headers=_headers(),
+        )
+        assert resp.status_code == 200
+        assert connector.sent, "terminal failed must announce"
+        notification = connector.sent[0]
+        assert notification.event_type == "craft.failed"
+        assert "SpecCraft development run failed" in notification.title
+        assert "scope wrong" in notification.text
+        # job_id correlation rides the payload for receiver-side dedupe.
+        assert notification.job_id == job_id
+
+    def test_cancel_stays_silent(self, client: TestClient,
+                                 monkeypatch: pytest.MonkeyPatch) -> None:
+        """Cancelled stays silent on the craft lane: the canceller already
+        knows; that knowledge IS the notification."""
+        connector = self._connector(monkeypatch)
+        job_id = _create(client)
+        client.post(f"/agent/jobs/{job_id}/cancel", headers=_headers())
+        assert connector.sent == []
+
+
+class TestCraftOutboxLane:
+    """SPECPROOF_NOTIFY_OUTBOX=1: the craft intent rides notify_outbox and
+    the relay delivers at-least-once — the same dual-lane contract as the
+    verify lane (#16.6-1 parity for the craft lane, §16.6-4)."""
+
+    def _connector(self, monkeypatch: pytest.MonkeyPatch):
+        from integrations.notify.protocol import (
+            Notification,
+            SendStatus,
+        )
+
+        class Recording:
+            name = "test-craft-outbox"
+            capabilities = frozenset()
+            sent: list[Notification] = []
+            closed = 0
+
+            def send(self, notification: Notification) -> SendStatus:
+                self.sent.append(notification)
+                return SendStatus.SENT
+
+            def close(self) -> None:
+                self.closed += 1
+
+        import integrations.notify as notify_package
+
+        connector = Recording()
+        monkeypatch.setattr(
+            notify_package, "webhook_connector_from_env", lambda: connector
+        )
+        return connector
+
+    def test_outbox_lane_enqueues_and_never_direct_sends(
+        self, client: TestClient, store: InMemoryAgentJobStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Flag on: the built craft notification rides notify_outbox and NO
+        connector is built on this process (delivery is the relay's)."""
+        from observability import metrics as metrics_module
+
+        enqueued: list[tuple[str, str, dict[str, Any]]] = []
+
+        class FakeNotifyMysql:
+            def enqueue_notify_intent(
+                self, job_id: str, verdict: str, payload: dict[str, Any],
+            ) -> None:
+                enqueued.append((job_id, verdict, payload))
+
+        monkeypatch.setenv("SPECPROOF_NOTIFY_OUTBOX", "1")
+        monkeypatch.setattr(
+            "storage.mysql.MySQLStore", lambda: FakeNotifyMysql(),
+        )
+        connector = self._connector(monkeypatch)
+        before = metrics_module.snapshot()
+
+        job_id = _create(client)
+        client.post(
+            f"/agent/jobs/{job_id}/approve",
+            json={"decision": "reject", "note": "outbox test"},
+            headers=_headers(),
+        )
+
+        after = metrics_module.snapshot()
+        assert len(enqueued) == 1
+        assert enqueued[0][0] == job_id
+        assert enqueued[0][1] == "FAILED"
+        assert enqueued[0][2]["event_type"] == "craft.failed"
+        assert connector.sent == [], "the relay owns delivery"
+        delta = after["counters"].get(
+            "notify_outbox_enqueued_total", 0.0
+        ) - before["counters"].get("notify_outbox_enqueued_total", 0.0)
+        assert delta == 1.0
+
+    def test_enqueue_failure_falls_back_to_direct(
+        self, client: TestClient, store: InMemoryAgentJobStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """MySQL unavailable (light mode): losing the durable promise must
+        not ALSO lose the announcement — fall back to the direct send."""
+        def broken_mysql():
+            raise RuntimeError("mysql down")
+
+        monkeypatch.setenv("SPECPROOF_NOTIFY_OUTBOX", "1")
+        monkeypatch.setattr(
+            "storage.mysql.MySQLStore", broken_mysql,
+        )
+        connector = self._connector(monkeypatch)
+
+        job_id = _create(client)
+        client.post(
+            f"/agent/jobs/{job_id}/approve",
+            json={"decision": "reject", "note": "fallback test"},
+            headers=_headers(),
+        )
+
+        assert len(connector.sent) == 1, "the direct send still announces"
+        assert connector.sent[0].event_type == "craft.failed"

@@ -85,6 +85,7 @@ from api.errors import (
     ApiError,
 )
 from api.routes._strict_payload import StrictAllowlistModel
+from observability.metrics import incr
 from storage.agent_console import ConsoleState as _ConsoleState
 from storage.agent_jobs import (
     TERMINAL_JOB_STATUSES,
@@ -97,6 +98,7 @@ from storage.agent_jobs import (
     MySqlAgentJobStore,
     SqliteAgentJobStore,
 )
+from storage.notify_relay import notify_outbox_lane_enabled
 from storage.tenant_scope import current_scope
 
 logger = logging.getLogger(__name__)
@@ -588,6 +590,27 @@ def _notify_craft_terminal(
             job_id, status,
             task_name=task_name, reason=reason, repo_path=repo_path,
         )
+        # Outbox lane (§16.6-1 parity for the craft lane): the intent rides
+        # notify_outbox and storage.notify_relay delivers at-least-once.
+        # MySQL unavailable here (light mode) degrades to the direct send —
+        # losing the durable promise must not ALSO lose the announcement.
+        if notify_outbox_lane_enabled():
+            try:
+                from dataclasses import asdict
+
+                from storage.mysql import MySQLStore
+
+                MySQLStore().enqueue_notify_intent(
+                    job_id, status.upper(), asdict(notification),
+                )
+                incr("notify_outbox_enqueued_total")
+                return
+            except Exception:  # noqa: BLE001 — fall back, never lose twice
+                logger.warning(
+                    "Craft notify outbox enqueue failed for %s — falling "
+                    "back to direct send", job_id, exc_info=True,
+                )
+                incr("notify_outbox_enqueue_failed_total")
         connector = webhook_connector_from_env()
         try:
             connector.send(notification)
