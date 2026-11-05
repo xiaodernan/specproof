@@ -58,6 +58,14 @@ scrape_configs:
     static_configs:
       - targets: ["invoice-cron:9103"]
 
+  # notify outbox relay 随应用栈部署 (compose.production.yml 的 notify-relay
+  # 服务, #16.6-1/K 的部署入口; 未起应用栈时本目标 down, 不影响其他抓取 —
+  # 同「可选目标」语义)。暴露 specproof_notify_outbox_pending 等积压 gauge。
+  - job_name: notify-relay
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["notify-relay:9102"]
+
   # rabbitmq 经自带插件 rabbitmq_prometheus 抓取 (#165): 该插件在
   # rabbitmq:4.0-management-alpine 里已随镜像启用 (容器内 rabbitmq-plugins
   # list -e 实测 E* running), 15692 端口存活。观测栈与 phase0 栈共用网络,
