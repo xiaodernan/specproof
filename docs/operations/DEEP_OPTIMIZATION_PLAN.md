@@ -22246,3 +22246,44 @@ All checks passed!
 - 测试不覆盖工具在真实 Maven/Docker 沙箱中的行为——它们都是纯函数，无 I/O。
 
 **下一号队列**：#584 继续盘点 `run_differential.py` 中尚未直接测试的纯函数（如 `_probe_field_ok`/`evaluate_probe_expectation` 的边界），或回到他 lane 的前端遮罩队列旁的 python 侧覆盖。
+
+## #584 `evaluate_probe_expectation` 类型严格性与空 payload 边界直接测试
+
+**背景**：`agent/nodes/run_differential.py::evaluate_probe_expectation`（经 `_probe_field_ok`）决定探针（PROBE-01）结论是 NON_REPRODUCIBLE 还是 REGRESSION。其 "误判方向" 由期望值的 **类型**决定：期望 `publish_count` 为字符串 `"1"`、期望 `payload_timestamp_non_null` 为 int `1`、期望 `outcome` 为数字——这些类型不匹配按产品逻辑一律读作"没匹配上"，于是 base 侧读 NON_REPRODUCIBLE、head 侧读 REGRESSION。还有一个反直觉细节：空 `payloads` 列表**不**是"所有 timestamp 非空"（`all()` 对空可迭代 vacuous-true，产品代码用 `bool(payloads)` 守住了这一点）。`test_probe_differential.py` 锁了快乐路径与 #97/#98/#100 三案例，但**没有**锁这些边界。
+
+**本批只做一件事**：新增 `tests/unit/test_probe_expectation_boundaries.py`，12 条边界测试。
+
+### 新增测试
+
+| 测试组 | 覆盖 |
+|--------|------|
+| 期望类型严格性（base 侧） | publish_count 期望字符串 / outcome 期望数字 / payload_timestamp_non_null 期望 int → 一律 NON_REPRODUCIBLE，violations 恰好是该字段 |
+| 期望类型严格性（head 侧） | 同上三形 → 一律 REGRESSION（同一类型错误在 head 侧是"违反自身档案"） |
+| 空 payloads | 期望 `True` 时空列表读 violation（REGRESSION）；期望 `False` 时 COMPLIANT |
+| 缺工件归因 | base 在场 head `None` → detail 报 head 且不报 base；双侧 `None` → 报 "base and head" |
+| 多 head 违规 | 两个字段同时违反 → violations 含两者、detail 点名两者、base 不受污染 |
+| base 违规优先 | base 与 head 同时违反 → 结论是 base 侧 NON_REPRODUCIBLE，head 违规不采纳 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_probe_expectation_boundaries.py -q
+12 passed in 1.21s
+```
+
+```text
+python -m ruff check tests/unit/test_probe_expectation_boundaries.py
+All checks passed!
+```
+
+诚实记录：**首轮运行 1 条红**——自写的 `test_multiple_head_violations_exclude_base_and_are_named` 把 head 期望写成了与 artifact 完全一致的值（`2`/`accepted`），于是产品给出 COMPLIANT 而测试期望 REGRESSION；修正为期望 `3`/`rejected` 后 12 条全绿。这不是产品 bug，是本章的测试数据一错再错的现场。
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `unreachable`，MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——类型严格性与 `bool(payloads)` 守卫都是现有正确行为，只是首次被钉成测试。
+- 测试不验证 REGRESSION 会不会进 ADR-004 BLOCKER 门——那是 severity/court 的裁决域，本章不动。
+- `test_probe_differential.py` 已有的 #97/#98/#100 案例本章未触碰、未重复。
+
+**下一号队列**：#585 为 `_probe_digest_payload` 的 digest 与 `_split_entry_digest` 的跨函数一致性（或 `self_test_verdict`）写直接测试；或回到 `run_differential_node` 的零执行测试分支与 `build_matrix_node` 的 channel 合并串联做整链测试。
