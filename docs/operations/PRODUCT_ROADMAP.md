@@ -2785,3 +2785,27 @@ compose.production.yml 只有 job-event 的 outbox-relay——**没有任何部�
 - notify relay 全套 7 passed; RUNBOOK 登记门 3 passed。
 - 全量门: 由并行会话主导 CI 后跑(本批改动仅部署面+relay 进程内服务,
   单测已覆盖)。
+
+## 40. 批次 Y:notify-relay:9102 进抓取名册——观测闭环最后一块(2026-11-05)
+
+### 40.1 缺口
+
+批次 X 给 compose 加了 notify-relay 服务与 9102 指标端口,但
+infra/prometheus/prometheus.yml 的抓取名册没有它——
+`notify_outbox_pending` 在生产 Prometheus 里**不可见**,
+RUNBOOK 的读法("先看接收端再看 worker")没有真数据源。
+观测层同一形态的"看着已通"。
+
+### 40.2 内容与门证
+
+- 抓取目标 `notify-relay:9102` 加入(prometheus.yml,「可选目标」语义——
+  未起应用栈时 down 不影响其他抓取,与 outbox-relay/invoice-cron 同型)。
+- **promtool 实测 SUCCESS**(17 rules):按 compose 真实挂载路径验证
+  (rule_files 是容器内绝对路径,测试挂载须落在同路径——两次假 FAILED
+  是挂载点错位,不是配置问题,如实记录)。
+- 推送待并行会话批次落地(队列 8 提交,机制同前)。
+
+### 40.3 至此 notify 全链观测闭环
+
+GO_PROFILE/adapter(暴露 gauge)→ compose 服务(9102)→ 抓取名册
+(本批)→ RUNBOOK 读法 → DRILLS Drill 5(演练)。每一跳都有门或实测。
