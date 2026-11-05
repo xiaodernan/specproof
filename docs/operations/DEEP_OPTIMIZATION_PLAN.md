@@ -22712,3 +22712,38 @@ All checks passed!
 - `head_only_violation=False` 时即使 dump 一致也不提升——双侧都观察到或都没观察到，不属于“头侧独有”的提升条件，维持 DB_CONSISTENT（MAJOR 上限）。
 
 **下一号队列**：#595 为 `run_differential_node` 的 UNEXPECTED_FIX 路径（base_fail + head_pass）写端到端测试；或为 `_split_entry_digest` 与 `_both_fail_method_groups` 的跨函数一致性补测。
+
+## #595 `run_differential_node` UNEXPECTED_FIX 路径端到端测试
+
+**背景**：`agent/nodes/run_differential.py` 的 combined-verdict 第四分支：base fail / head pass → `UNEXPECTED_FIX`，severity NONE，confidence 0.80。诚实边界：头侧通过不能把基线侧预存在的失败 retroactively 归为 head 的“修复”，所以 attributed 契约在 contract_results 里是 **UNVERIFIED，不是 FAIL**。此前未有端到端测试。
+
+**本批只做一件事**：新增 `tests/unit/test_differential_unexpected_fix_none.py`，1 条端到端测试。与 #592/#593 相同的 seam 打桩（base exit 1 / head exit 0，双侧 tests=3，DB_CONSISTENT，外部存储/探针/build cache 打桩）；`run_differential_node` 真实运行。
+
+### 新增测试
+
+| 断言点 | 预期 |
+|--------|------|
+| diff_result 主条目 | contract_id="UNIQUE-01"（base 失败测试家族）、verdict="UNEXPECTED_FIX"、severity="NONE"、confidence=0.80、evidence_type="differential_execution"、base_exit_code=1、head_exit_code=0 |
+| contract_results | UNIQUE-01 → UNVERIFIED（experiment=generated_test_differential）；AUTH-01 → UNVERIFIED |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_differential_unexpected_fix_none.py -q
+1 passed in 7.42s
+```
+
+```text
+python -m ruff check tests/unit/test_differential_unexpected_fix_none.py
+All checks passed!
+```
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——UNEXPECTED_FIX 上限是现有契约，首次被端到端钉住。
+- 只验证 UNEXPECTED_FIX 分支；COMPLIANT 的 double-green 分支由其他测试覆盖（`test_self_test_differential_entry.py` 等），不重复。
+- attributed 契约在 UNEXPECTED_FIX 下不升 FAIL，这是 #262/#592 家族诚实语义的延续：contract_results 里不允许出现无证据支持的 FAIL。
+
+**下一号队列**：#596 为 `merge_contract_results` 中 `execution_surface` 的 fail-closed 排序（`unconfirmed` > `docker_sandbox`，未知值字母序最小）写直接测试；或为 `_self_test_verdict` 的零测试/全 skipped 边界补测。
