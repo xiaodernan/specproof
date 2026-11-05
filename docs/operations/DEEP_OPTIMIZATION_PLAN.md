@@ -22631,3 +22631,38 @@ All checks passed!
 - 只验证 REGRESSION + DB_MUTATED_ON_UNAUTH 一条组合；REGRESSION + DB_CONSISTENT（MAJOR、置信度 0.88）属邻近分支，留作下一批。
 
 **下一号队列**：#593 REGRESSION + DB_CONSISTENT 的 MAJOR 路径端到端测试；或为 `merge_contract_results` 的 execution_surface 容错写直接测试。
+
+## #593 `run_differential_node` REGRESSION + DB_CONSISTENT → MAJOR 端到端测试
+
+**背景**：`agent/nodes/run_differential.py` 的合流：`base_pass and not head_pass` → http REGRESSION；H2 dumps 相同 → `DB_CONSISTENT`（头侧生成测试的断言失败回滚了事务）→ combined verdict **REGRESSION / severity MAJOR / confidence 0.88**。这是 #592 BLOCKER 路径的诚实邻分支：ADR-004 条件 4（捕获到 DB 行为证据）无法从回滚后的 dump 满足，所以**不得**被升级为 BLOCKER。此前未有端到端测试。
+
+**本批只做一件事**：新增 `tests/unit/test_differential_regression_consistent_db_major.py`，1 条端到端测试。与 #592 相同的 seam 打桩（Maven base 绿/head 红、外部存储、探针、build cache），仅 `_compare_db_state` 返回 DB_CONSISTENT；`run_differential_node` 真实运行。
+
+### 新增测试
+
+| 断言点 | 预期 |
+|--------|------|
+| diff_result 主条目 | contract_id="UNIQUE-01"、verdict="REGRESSION"、severity="MAJOR"、confidence=0.88、evidence_type="base_pass_head_fail"、db_state_verdict="DB_CONSISTENT"、base_exit_code=0、head_exit_code=1 |
+| contract_results | UNIQUE-01 → FAIL；AUTH-01 → UNVERIFIED |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_differential_regression_consistent_db_major.py -q
+1 passed in 6.54s
+```
+
+```text
+python -m ruff check tests/unit/test_differential_regression_consistent_db_major.py
+All checks passed!
+```
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——MAJOR 上限按既有契约工作，首次被端到端钉住。
+- 与 #592 的测试文件结构几乎相同，仅 `_compare_db_state` 打桩值和断言的 severity/confidence/db_state_verdict不同；这是两条分支的对照测试，有意保持并置。
+- 只验证 MAJOR 路径；UNEXPECTED_FIX / AMBIGUOUS / COMPLIANT 分支各自已有或另批覆盖，本章不重复。
+
+**下一号队列**：#594 为 `merge_contract_results` 的 execution_surface 容错写直接测试（`unconfirmed` 胜过 `docker_sandbox`，未知值按字母序选最小）；或为 `_apply_inflight_db_evidence` 的 idempotency 与 DB_NO_EFFECT 不提升写直接测试。
