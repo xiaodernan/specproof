@@ -2739,3 +2739,14 @@ CGO 依赖声明,不可靠;alpine 唯一优势仅镜像体积):
   NON_REPRODUCIBLE",CI 的评测子集正是用确定性 fixture 而非全语言沙箱。
   记录为边界而非缺口;若未来评测要跑真实多语言沙箱,再补播种步骤
   (属并行会话的 CI 主导权,.github 不碰)。
+
+### 38.6 Craft 车道接入 outbox 可靠车道(2026-10-30, 738c7b3 本地待推)
+
+- `_notify_craft_terminal` 补 outbox 分支(`SPECPROOF_NOTIFY_OUTBOX=1`):
+  构建完成的 craft 通知随 notify_outbox 入库, relay 独立送达
+  at-least-once; MySQL 不可用(轻量模式)回落直发——丢持久承诺不连带丢
+  当下宣告, 与 verify 车道 J 批回落语义同构; flag 关=直发原样。
+- 测试 +2: 开车道入库且连接器零调用(enqueued 计数); 入库失败回落直发。
+- **推送状态**: 738c7b3 本地待推——rebase 需要干净树, 而共享工作树有
+  并行会话的 22 文件在飞批次; 由其下一轮 commit+push 自然带出
+  (三次收编先例)。
