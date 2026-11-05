@@ -22747,3 +22747,44 @@ All checks passed!
 - attributed 契约在 UNEXPECTED_FIX 下不升 FAIL，这是 #262/#592 家族诚实语义的延续：contract_results 里不允许出现无证据支持的 FAIL。
 
 **下一号队列**：#596 为 `merge_contract_results` 中 `execution_surface` 的 fail-closed 排序（`unconfirmed` > `docker_sandbox`，未知值字母序最小）写直接测试；或为 `_self_test_verdict` 的零测试/全 skipped 边界补测。
+
+## #596 `_check_http_diff` 直接测试：源码层面 AUTH-01 证据
+
+**背景**：`agent/nodes/run_differential.py::_check_http_diff(base_ws, head_ws)` 是差分节点里源码层面 HTTP 安全证据的入口：它扫描 Base/Head 工作区的非测试 Java 文件，调用共享 AUTH 检查器 (`check_auth_annotations`)，把发现封装成 `verdict="REGRESSION"` 的 diff_result 条目。合成自 `@PreAuthorize present/absent` 的文件级比对会漏掉 **composed custom 注解**（`@RequireAuth`）和 **接口默认方法的方法级安全**（Spring JDK 代理），所以这个路径对 adversarial case 13/14 是 load-bearing 的。此前它没有直接测试。
+
+**本批只做一件事**：新增 `tests/unit/test_check_http_diff.py`，6 条直接测试（全靠 tmp 目录 Java 源文件，不跑 Maven、Docker 或任何适配器）。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_auth_annotation_removed_is_regression` | Base `@PreAuthorize`，Head 移除 | 1 条 REGRESSION finding，detail 非空，location 含文件名 |
+| `test_composed_custom_annotation_is_no_finding` | Base `@PreAuthorize`，Head `@RequireAuth` | 无 finding（等价保护） |
+| `test_secured_annotation_removed_is_regression` | Base `@Secured("ROLE_ADMIN")`，Head 移除 | 1 条 REGRESSION |
+| `test_interface_level_protection_is_no_finding` | Controller implements 接口，接口 default 方法带 `@PreAuthorize`，controller 端无注解 | 无 finding（接口级方法安全） |
+| `test_get_only_controller_is_no_finding` | 只有 `@GetMapping`，非 mutating | 无 finding |
+| `test_identical_trees_are_no_finding` | 两端完全相同 | 无 finding |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_check_http_diff.py -q
+6 passed in 1.46s
+```
+
+```text
+python -m ruff check tests/unit/test_check_http_diff.py
+All checks passed!
+```
+
+诚实记录：首轮 `ruff check` 报 F401（未用的 `import pytest`），已移除并复测全绿。这是测试文件样式清理，非产品行为。
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`_check_http_diff`/`check_auth_annotations` 按既有契约工作，首次被直接钉住。
+- 测试不验证 `run_differential_node` 把这些 findings 怎么折进 `diff_results`（已由 #592/#593/#595 覆盖 DIFF-01 主条目；source-diff findings 被 prepend 到 `diff_results`，见节点代码第 831 行）。
+- 接口级保护测试依赖 `check_auth_annotations` 对 `implements` 子句与接口文件的解析；若该解析逻辑未来改变，此测试会相应失效，属正常维护范围。
+
+**下一号队列**：#597 为 `run_static_checks_node` 的 `contract_results_for` 与 `build_matrix_node` 的 `missing contract_results` 边界写节点层串联测试（#560–#569 已有直接测试，此处补经 node 的 merge 通路）；或回到他 lane 的前端遮罩章节队列旁的 python 侧验证。
