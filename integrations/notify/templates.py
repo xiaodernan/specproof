@@ -258,13 +258,13 @@ def build_craft_notification(
     # Slack-style rich rendering: plain text is the contract every sink
     # renders; blocks give Slack receivers a structured header + fields
     # instead of one wall of text. Empty-reason runs omit that section.
-    fields = [
+    fields: list[dict[str, Any]] = [
         {"type": "mrkdwn", "text": f"*Task:* `{task}`"},
         {"type": "mrkdwn", "text": f"*Status:* {status.upper()}"},
     ]
     if repo_path:
         fields.append({"type": "mrkdwn", "text": f"*Repo:* `{repo_path}`"})
-    blocks = [
+    blocks: list[dict[str, Any]] = [
         {
             "type": "header",
             "text": {"type": "plain_text", "text": CRAFT_TITLES[key]},
