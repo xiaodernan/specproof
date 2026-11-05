@@ -2833,3 +2833,11 @@ relay 的死信 docstring 承诺"operator replay territory"但全仓无回放工
   test_drill_helpers 28 passed;ruff/mypy 全绿。
 - 开发注记:heredoc 反斜杠损坏(第 4 次)与假件绑定真方法的范式改进——
   测试不再再实现被测逻辑, 而是把生产方法绑到假连接上执行。
+
+### 41.4 静态门的第二次教训(同批, 44452b0)
+
+登记键的代码片段必须**逐字出现在源码**——多行 execute 的 AST unparse
+(`cur.execute(f'...', tuple(ids))`) 不满足 `still_matches` 检查。修法:
+SQL 组装进变量、单行 execute(与 transition_job_status 的
+`cursor.execute(_sql, params)` 同型), 登记键同步。教训: 给静态门登记
+站点前, 先让源码形状可被逐字引用——AST unparse 与源码文本是两种语言。
