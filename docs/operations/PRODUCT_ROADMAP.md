@@ -2848,3 +2848,11 @@ SQL 组装进变量、单行 execute(与 transition_job_status 的
 last_success) + 死信行明细(含 `replay-notifications` 回放指引)。
 RUNBOOK 的读法从此有了 CLI 入口, 不再依赖直接 SQL。测试 +2, ops 全套
 55 passed。
+
+### 38.8 演练补死信→回放→送达腿——完整生命周期真库实证(2026-11-05, b93d516)
+
+drill_notify_outbox.py 新增 run_dead_letter_leg: 无接收端(DISABLED 连接器)
+→ relay 立即死信 → replay_dead_notifications(批次 AA 工具)→ relay 下一轮
+送达。真库双腿全 PASS(exit 0); RecordingConnector 状态可配置。
+至此 notify outbox 的完整生命周期——意图/崩溃窗口/送达/死信/回放/再送达
+——全部有真库演练与单测双重锁定。
