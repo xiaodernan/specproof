@@ -22287,3 +22287,48 @@ All checks passed!
 - `test_probe_differential.py` 已有的 #97/#98/#100 案例本章未触碰、未重复。
 
 **下一号队列**：#585 为 `_probe_digest_payload` 的 digest 与 `_split_entry_digest` 的跨函数一致性（或 `self_test_verdict`）写直接测试；或回到 `run_differential_node` 的零执行测试分支与 `build_matrix_node` 的 channel 合并串联做整链测试。
+
+## #585 `_contract_for_test_method` 归因表直接测试：P6 族优先级与通用规则
+
+**背景**：`agent/nodes/run_differential.py::_contract_for_test_method(method_name)` 决定生成测试的某个失败方法会把"归因"记到哪个契约上——这是差分归因完整性的核心：生成测试的方法名先与 P6 族精确名单匹配（`orderRetry`、`duplicateOrderRequestMustBeDeduped` 等），未命中才落进通用子串规则（`unauthenticated`→AUTH-01、`RoutingKey`/`emailChangeEvent`→EVENT_ONCE-01、`duplicate`/`fresh`/`blank`→UNIQUE-01），否则默认 AUTH-01。
+
+文档注释明示了两条优先级：
+
+1. P6 名单先于通用规则——`duplicateOrderRequestMustBeDeduped` 含子串 `duplicate`，绝不能被通用 UNIQUE-01 吃掉；
+2. `orderCreatedEvent`/`orderRetry` 是 ORDER_EVENT-01，不能滑进 `RoutingKey`/`emailChangeEvent` 的 EVENT_ONCE-01 路径。
+
+此前只有 2 条断言被测试（`duplicateEmailChangeMustBeRejected`→UNIQUE-01、`emailChangeEventMustGoToExpectedRoutingKey`→EVENT_ONCE-01），P6 名单的另外十余项与优先级规则零覆盖。
+
+**本批只做一件事**：新增 `tests/unit/test_contract_for_test_method.py`，24 条直接测试。
+
+### 新增测试
+
+| 测试 | 内容 |
+|------|------|
+| `test_method_maps_to_contract`（21 个 parametrize） | NPLUSONE-01 ×1、CACHE-01 ×2、CONCURRENCY-01 ×1、IDEMPOTENT-01 ×1、ATOMICITY-01 ×2、BOUNDARY-01 ×1、ORDER_AMOUNT-01 ×1、ORDER_EVENT-01 ×2、EMAIL_FORMAT-01 ×1、EVENT_ONCE-01 ×4、AUTH-01（unauthenticated）×1、UNIQUE-01 ×3、默认 AUTH-01（`noop`） |
+| `test_idempotent_method_with_duplicate_substring_is_not_swallowed` | `duplicateOrderRequestMustBeDeduped` → IDEMPOTENT-01，而非 UNIQUE-01 |
+| `test_order_event_methods_do_not_degrade_to_routing_key_path` | `orderCreatedEvent`/`orderRetry` → ORDER_EVENT-01，而非 EVENT_ONCE-01 |
+| `test_auth_default_is_the_exact_string_contract_name` | 空字符串 → AUTH-01 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_contract_for_test_method.py -q
+24 passed in 10.51s
+```
+
+```text
+python -m ruff check tests/unit/test_contract_for_test_method.py
+All checks passed!
+```
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `unreachable`，MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——归因表按文档行为工作；只是首次被钉成测试。
+- 测试验证的是**方法名 → 契约**映射，不验证该映射配置是否对应 `golden-cases/` 中的真实方法名（那需要离线 case 审计，未在本批做）。
+- `test_method_maps_to_contract` 中 `EVENT_ONCE-01` 的一个 case（`emailChangeEventPayloadMustBeIntactCase`）实际走 P6 精确前缀子串匹配而非通用规则；断言只钉住了**结果**，两条路径都指向 EVENT_ONCE-01，行为一致。
+- `_contract_for_test_method` 的结果被后续 `attributed_contracts` 集合消费（#262 空言归因的上游）；本章不重复测该下游。
+
+**下一号队列**：#586 盘点 `run_differential_node` 的零执行测试分支（`self_test_verdict` 相邻路径）整链测试；或回到他 lane 的前端遮罩章节队列（#581 注册的两条扫描器边界）旁的 python 侧验证。
