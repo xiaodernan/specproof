@@ -220,6 +220,16 @@ class NotifyOutboxRelay:
 
     def run_forever(self) -> None:
         """Poll until stopped; back off while there is nothing to deliver."""
+        # 进程内 /metrics (Prometheus 抓取目标 notify-relay:9102), 暴露
+        # notify_outbox_pending 积压 gauge —— 与 outbox-relay 的 9101 同型,
+        # 端口错开 (#272 的部署面豁免号惯例: 不映射宿主, 抓取名册另配)。
+        from observability.metrics_http import serve_metrics_in_thread
+
+        def _int_env(name: str, default: int) -> int:
+            raw = os.getenv(name, "").strip()
+            return int(raw) if raw.isdigit() and int(raw) > 0 else default
+
+        serve_metrics_in_thread(port=_int_env("NOTIFY_RELAY_METRICS_PORT", 9102))
         logger.info("Notify outbox relay started (pid=%s)", os.getpid())
 
         def _stop(*_: Any) -> None:
@@ -258,7 +268,12 @@ def _to_epoch(value: Any) -> float:
 
 def run_as_process() -> None:
     """Entry point for `python -m storage.notify_relay` (standalone relay)."""
-    NotifyOutboxRelay().run_forever()
+    import signal
+
+    relay = NotifyOutboxRelay()
+    signal.signal(signal.SIGINT, lambda sig, frame: relay.stop())
+    signal.signal(signal.SIGTERM, lambda sig, frame: relay.stop())
+    relay.run_forever()
 
 
 if __name__ == "__main__":

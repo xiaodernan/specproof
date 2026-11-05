@@ -100,6 +100,9 @@ services:
       LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
       SPECPROOF_ENV: production
       SPECPROOF_SANDBOX: docker
+      # Notify outbox lane (#16.6-1/K): terminal announcements ride
+      # notify_outbox for the notify-relay to deliver at-least-once.
+      SPECPROOF_NOTIFY_OUTBOX: "1"
       # Containment armed (#156, user-approved): the worker pins an isolating
       # plane and touches no path outside the shared /workspaces volume (no
       # host repo bind mounts; worktrees come from TMPDIR=/workspaces). With
@@ -204,6 +207,40 @@ services:
       mysql:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+
+  # Notify outbox relay (#16.6-1/K): delivers BUILT notifications from
+  # notify_outbox to the configured webhook receiver at-least-once
+  # (delivered only after the endpoint accepts; failures deferred with
+  # exponential backoff; dead-lettered past max_retries). Serves
+  # specproof_notify_outbox_pending on :9102 (mirror of outbox-relay's
+  # 9101; scrape added in compose.observability.yml). The WORKER enqueues
+  # only when SPECPROOF_NOTIFY_OUTBOX=1 (see worker.environment) — with
+  # the flag off the direct-send lane is used and this service idles.
+  notify-relay:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    command: ["python", "-m", "storage.notify_relay"]
+    restart: unless-stopped
+    environment:
+      SPECPROOF_ENV: production
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
+      MYSQL_CONNECT_TIMEOUT: ${MYSQL_CONNECT_TIMEOUT:-5}
+      MYSQL_READ_TIMEOUT: ${MYSQL_READ_TIMEOUT:-15}
+      MYSQL_WRITE_TIMEOUT: ${MYSQL_WRITE_TIMEOUT:-15}
+      NOTIFY_RELAY_METRICS_PORT: "9102"
+      # The receiver config the relay delivers TO (operator-set):
+      SPECPROOF_NOTIFY_WEBHOOK_URL: ${SPECPROOF_NOTIFY_WEBHOOK_URL:-}
+      SPECPROOF_NOTIFY_WEBHOOK_SECRET: ${SPECPROOF_NOTIFY_WEBHOOK_SECRET:-}
+      SPECPROOF_NOTIFY_WEBHOOK_KIND: ${SPECPROOF_NOTIFY_WEBHOOK_KIND:-}
+    expose:
+      - "9102"
+    depends_on:
+      mysql:
         condition: service_healthy
 
   # Invoice cron (FIX-27 的部署入口): 每个已关闭月为每个租户幂等生成草票

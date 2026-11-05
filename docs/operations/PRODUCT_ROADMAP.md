@@ -2750,3 +2750,38 @@ CGO 依赖声明,不可靠;alpine 唯一优势仅镜像体积):
 - **推送状态**: 738c7b3 本地待推——rebase 需要干净树, 而共享工作树有
   并行会话的 22 文件在飞批次; 由其下一轮 commit+push 自然带出
   (三次收编先例)。
+
+## 39. notify-relay 的生产部署入口——outbox 车道最后一块"看着没通"(2026-10-23)
+
+### 39.1 缺口定性
+
+K/W 两批后, verify 与 craft 车道的通知都写 notify_outbox, 但
+compose.production.yml 只有 job-event 的 outbox-relay——**没有任何部署物
+启动 storage.notify_relay**。outbox 车道的持久承诺依赖一个部署里不存在的
+进程: 正是本项目最反对的"单测越绿, 下一个人越以为已通"的形态在部署层的
+重演。本批补齐部署入口, outbox 车道全链闭合。
+
+### 39.2 内容
+
+- **compose.production.yml**: 新 `notify-relay` 服务(镜像 outbox-relay
+  的形状: 同 build、command `python -m storage.notify_relay`、MySQL env、
+  depends_on mysql healthy); 指标端口 **9102**(outbox-relay 9101 的镜像
+  位; 按豁免号惯例不映射宿主, 抓取名册另配); worker 环境补
+  `SPECPROOF_NOTIFY_OUTBOX=1` 与接收端三变量透传
+  (SPECPROOF_NOTIFY_WEBHOOK_URL/_SECRET/_KIND——relay 的送达目标)。
+- **storage/notify_relay.py**: run_forever 补进程内 /metrics
+  (`serve_metrics_in_thread`, `NOTIFY_RELAY_METRICS_PORT` 默认 9102,
+  运营者端口必须到达服务器——与 outbox-relay 的 loop-leg 锁同型测试)
+  与 SIGINT/SIGTERM 优雅停止(镜像 outbox_relay.run_as_process)。
+- **RUNBOOK**: 启动清单与接收端变量说明。
+
+### 39.3 门证(本批实测)
+
+- 分层 compose 验证
+  (`compose.phase0.yml + compose.production.yml`, 全必填变量哑值):
+  notify-relay 服务/command/worker 旗标全部在案, **LAYERED_YAML_OK=0**。
+- `test_run_forever_serves_metrics_on_the_operator_port`: 9555 必达
+  serve_metrics_in_thread(镜像 outbox-relay 的 loop-leg 锁)。
+- notify relay 全套 7 passed; RUNBOOK 登记门 3 passed。
+- 全量门: 由并行会话主导 CI 后跑(本批改动仅部署面+relay 进程内服务,
+  单测已覆盖)。

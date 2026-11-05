@@ -23,7 +23,11 @@
     # 基础设施 (六容器, 健康检查等待)
     docker compose -f compose.phase0.yml up -d --wait
 
-    # 应用服务 (api + worker + outbox-relay + sandbox DooD 守护进程; SPECPROOF_API_KEY 必填否则 fail-closed)
+    # 应用服务 (api + worker + outbox-relay + notify-relay + sandbox DooD 守护进程; SPECPROOF_API_KEY 必填否则 fail-closed)
+    # notify-relay (#16.6-1/K): 送达 notify_outbox 的构建完成通知 (at-least-once);
+    # worker 侧 SPECPROOF_NOTIFY_OUTBOX=1 由 compose 预置; 接收端设
+    # SPECPROOF_NOTIFY_WEBHOOK_URL (+_SECRET, 可选 _KIND)——不设则通知
+    # 在 relay 侧立即死信 (无接收端重试无意义)。指标 :9102。
     export SPECPROOF_API_KEY='<强随机值>'
     # 首次启动前必须先预置沙箱卷 (scripts/seed_sandbox_cache.ps1, §5),
     # 并把 maven 沙箱镜像预拉进 DooD 守护进程 (§5)。
