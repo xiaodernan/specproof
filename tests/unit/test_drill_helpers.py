@@ -29,6 +29,7 @@ from ops.drills import (
     wait_for_progress_event,
     wait_for_status,
 )
+from storage.mysql import MySQLStore  # noqa: E402
 
 # ── Fakes ───────────────────────────────────────────────────────────────────
 
@@ -610,3 +611,90 @@ class TestNotifyIntentCounts:
         counts = notify_intent_counts(store, "j-3")
         assert counts["enqueued"] == 1 and counts["delivered"] == 1
         assert counts["attempts_total"] == 4
+
+
+class TestReplayDeadNotifications:
+    """The operator replay the dead-letter docstring promises (#16.6-1)."""
+
+    class _ReplayStore:
+        """Records statements; serves canned dead rows via its connection."""
+
+        replay_dead_notifications = MySQLStore.replay_dead_notifications
+        list_dead_notifications = MySQLStore.list_dead_notifications
+
+        def __init__(self, rows: list[dict[str, Any]]) -> None:
+            self._rows = rows
+            self.updates: list[tuple[str, tuple[Any, ...]]] = []
+
+        def connection(self) -> Any:
+            outer = self
+
+            class _Cursor:
+                rowcount = 0
+
+                def execute(self, sql: str, params: Any = None) -> None:
+                    outer.updates.append((sql, params or ()))
+
+                def fetchall(self) -> list[dict[str, Any]]:
+                    (sql, params) = outer.updates[-1]
+                    if sql.startswith("SELECT id"):
+                        rows = [
+                            r for r in outer._rows
+                            if r.get("dead_lettered_at") is not None
+                        ]
+                        if params and params[0]:
+                            rows = [
+                                r for r in rows
+                                if r.get("job_id") == params[0]
+                            ]
+                        return rows
+                    return []
+
+            class _Conn:
+                def cursor(self) -> _Cursor:
+                    return _Cursor()
+
+                def __enter__(self) -> _Conn:
+                    return self
+
+                def __exit__(self, *exc_info: Any) -> None:
+                    return None
+
+            return _Conn()
+
+    def test_replay_selects_real_ids_then_clears_dlq_state(self) -> None:
+        rows = [
+            {"id": 7, "job_id": "j-1", "verdict": "VERIFIED",
+             "dead_lettered_at": "t", "last_error": "no receiver",
+             "attempts": 6},
+            {"id": 9, "job_id": "j-2", "verdict": "BLOCKED",
+             "dead_lettered_at": "t", "last_error": "no receiver",
+             "attempts": 6},
+            {"id": 11, "job_id": "j-1", "verdict": "VERIFIED",
+             "dead_lettered_at": None, "attempts": 1, "last_error": None},
+        ]
+        store = self._ReplayStore(rows)
+        replayed = store.replay_dead_notifications()
+        assert replayed == [7, 9], "delivered/never-dead rows are not replayed"
+        update_sql, update_params = store.updates[-1]
+        assert "dead_lettered_at = NULL" in update_sql
+        assert "next_retry_at = NULL" in update_sql
+        assert set(update_params) == {7, 9}
+
+    def test_replay_scoped_to_job(self) -> None:
+        rows = [
+            {"id": 7, "job_id": "j-1", "dead_lettered_at": "t"},
+            {"id": 9, "job_id": "j-2", "dead_lettered_at": "t"},
+        ]
+        store = self._ReplayStore(rows)
+        replayed = store.replay_dead_notifications(job_id="j-1")
+        assert replayed == [7]
+        select_sql, select_params = store.updates[0]
+        assert select_params == ("j-1",), "the scope must be a bound parameter"
+
+    def test_empty_dead_set_returns_empty(self) -> None:
+        store = self._ReplayStore([])
+        assert store.replay_dead_notifications() == []
+        assert store.updates[-1][0].startswith("SELECT"), (
+            "no UPDATE when there is nothing to replay"
+        )

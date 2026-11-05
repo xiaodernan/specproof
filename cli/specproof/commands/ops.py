@@ -485,3 +485,32 @@ def _recover_dry_run(
         click.echo("\n".join(lines))
         click.echo(f"\n{summary}")
     ctx.exit(0 if report["judged"] else 1)
+
+
+@ops_cmd.command("replay-notifications")
+@click.option(
+    "--job", "job_id", default=None,
+    help="只回放该作业的死信通知 (缺省=全部)",
+)
+def replay_notifications_cmd(job_id: str | None) -> None:
+    """把死信通知重新入队给 notify relay (清死信标记, relay 下轮认领)。
+
+    死因未除 (接收端仍未配置/仍故障) 时 relay 会再次死信且 attempts 续计
+    ——回放可见, 不静默。先列出死信行, 再回放, 输出回放的行 id。
+    """
+    from storage.mysql import MySQLStore
+
+    store = MySQLStore()
+    dead = store.list_dead_notifications(job_id)
+    if not dead:
+        click.echo("没有死信通知 (dead_lettered_at IS NOT NULL 的行为 0)。")
+        return
+    click.echo(f"死信通知 {len(dead)} 行:")
+    for row in dead:
+        click.echo(
+            f"  #{row['id']} job={row['job_id']} verdict={row['verdict']} "
+            f"attempts={row['attempts']} error={str(row['last_error'])[:80]}"
+        )
+    replayed = store.replay_dead_notifications(job_id)
+    click.echo(f"已回放 {len(replayed)} 行 (id: {replayed})——relay 下轮认领。")
+

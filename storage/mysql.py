@@ -755,6 +755,74 @@ class MySQLStore:
                 (error[:1000], notify_id),
             )
 
+    def list_dead_notifications(self, job_id: str | None = None) -> list[dict[str, Any]]:
+        """Dead-lettered notification intents (operator replay candidates).
+
+        Empty when nothing is dead-lettered — an empty list is the honest
+        answer, never a fabricated "all clear".
+        """
+        with self.connection() as conn:
+            cur = conn.cursor()
+            if job_id is None:
+                cur.execute(
+                    "SELECT id, job_id, verdict, last_error, attempts "
+                    "FROM notify_outbox WHERE dead_lettered_at IS NOT NULL "
+                    "ORDER BY id"
+                )
+            else:
+                cur.execute(
+                    "SELECT id, job_id, verdict, last_error, attempts "
+                    "FROM notify_outbox WHERE dead_lettered_at IS NOT NULL "
+                    "AND job_id = %s ORDER BY id",
+                    (job_id,),
+                )
+            return cast(list[dict[str, Any]], cur.fetchall())
+
+    def replay_dead_notifications(
+        self, job_id: str | None = None,
+    ) -> list[int]:
+        """Re-queue dead-lettered notifications: clear the DLQ state so the
+        relay's normal claim (due + undelivered + not dead-lettered) picks
+        them up on its next cycle. Returns the replayed row ids.
+
+        This is the operator replay the dead-letter docstring promises. It
+        does NOT touch delivered rows and does NOT clear last_error — the
+        row's failure history stays visible until the next attempt
+        succeeds. If the receiver is still unconfigured/misconfigured, the
+        relay will dead-letter the row again (with a fresh attempt count):
+        replay without fixing the root cause is visible, not silent.
+        """
+        with self.connection() as conn:
+            cur = conn.cursor()
+            if job_id is None:
+                cur.execute(
+                    "SELECT id FROM notify_outbox "
+                    "WHERE dead_lettered_at IS NOT NULL ORDER BY id"
+                )
+            else:
+                cur.execute(
+                    "SELECT id FROM notify_outbox "
+                    "WHERE dead_lettered_at IS NOT NULL AND job_id = %s "
+                    "ORDER BY id",
+                    (job_id,),
+                )
+            ids = [int(r["id"]) for r in cast(list[dict[str, Any]], cur.fetchall())]
+            if not ids:
+                return []
+            placeholders = ", ".join(["%s"] * len(ids))
+            cur.execute(
+                "UPDATE notify_outbox SET dead_lettered_at = NULL, "
+                "next_retry_at = NULL "
+                f"WHERE id IN ({placeholders})",
+                tuple(ids),
+            )
+            changed = int(cur.rowcount)
+        if changed:
+            from observability.metrics import incr
+
+            incr("notify_outbox_replayed_total", changed)
+        return ids
+
     def notify_outbox_stats(self) -> dict[str, Any]:
         """Governance snapshot of the notify_outbox table (relay metrics).
 
