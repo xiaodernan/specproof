@@ -22593,3 +22593,41 @@ All checks passed!
 - `reason` 截断仅针对异常消息字符串；`[:300]` 对多字节字符按 Python 字符切片（非字节），与产品代码一致，未额外断言字节长度。
 
 **下一号队列**：#592 为 `run_differential_node` 的 REGRESSION + `DB_MUTATED_ON_UNAUTH` 组合路径写端到端测试（这是 #254 BLOCKER 门的关键组合，此前未直接覆盖）；或为 `evaluate_probe_expectation` 的往返裁决补跨 case-97/98/100 三档的参数化测试。
+
+## #592 `run_differential_node` REGRESSION + DB_MUTATED_ON_UNAUTH 端到端测试（#254 BLOCKER 门）
+
+**背景**：`agent/nodes/run_differential.py` 的整链合流：`base_pass and not head_pass` → http verdict REGRESSION；真实 H2 dump 对比 → `DB_MUTATED_ON_UNAUTH`（users 表变动）→ combined verdict **REGRESSION / severity BLOCKER / confidence 0.95**，diff_result 的 contract_id 是头侧失败测试所属的契约（而非 DIFF-01 兜底），contract_results 里该契约 FAIL、其他已编译契约 UNVERIFIED。这是 ADR-004 条件 4（捕获到 DB 行为证据）的关键组合，此前**没有经过 `run_differential_node` 的端到端测试**——只有 `_compare_db_state` / `_apply_inflight_db_evidence` 的单元测试。
+
+**本批只做一件事**：新增 `tests/unit/test_differential_regression_db_mutation_blocker.py`，1 条端到端测试。所有重操作在模块 seam 打桩：Maven 运行（base exit 0 / head exit 1，双侧 tests=3）、DB 快照与比对（打桩为 DB_MUTATED_ON_UNAUTH）、外部存储、探针、build cache；`run_differential_node` 本身和合流逻辑真实运行。
+
+### 新增测试
+
+| 断言点 | 预期 |
+|--------|------|
+| diff_result 唯一主条目 | contract_id="UNIQUE-01"（头侧失败测试 `duplicateEmailChangeMustBeRejected` 的家族）、verdict="REGRESSION"、severity="BLOCKER"、confidence=0.95、evidence_type="base_pass_head_fail"、db_state_verdict="DB_MUTATED_ON_UNAUTH"、base_exit_code=0、head_exit_code=1 |
+| contract_results | UNIQUE-01 → FAIL（experiment=generated_test_differential）；AUTH-01 → UNVERIFIED |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_differential_regression_db_mutation_blocker.py -q
+1 passed in 10.39s
+```
+
+```text
+python -m ruff check tests/unit/test_differential_regression_db_mutation_blocker.py
+All checks passed!
+```
+
+诚实记录：首轮 ruff 报 E501（一行过长）和 F841（未用变量 `diffs`），均已按建议改行并移除未用变量，复测全绿。这是测试文件样式清理，非产品行为。
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——BLOCKER 组合按既有契约工作，首次被端到端钉住。
+- `_compare_db_state` 被打桩为 ("DB_MUTATED_ON_UNAUTH", "users table differs")；真实的 H2 文件比对由 `test_db_snapshot.py` / `test_db_state_compares_content_not_counts.py` 等现有文件覆盖，本章不重复。
+- `_failing_test_name` 打桩返回 "duplicateEmailChangeMustBeRejected" → attributed 契约 UNIQUE-01；不依赖 surefire XML 解析（那部分由 `test_attribution_att08.py` 覆盖）。
+- 只验证 REGRESSION + DB_MUTATED_ON_UNAUTH 一条组合；REGRESSION + DB_CONSISTENT（MAJOR、置信度 0.88）属邻近分支，留作下一批。
+
+**下一号队列**：#593 REGRESSION + DB_CONSISTENT 的 MAJOR 路径端到端测试；或为 `merge_contract_results` 的 execution_surface 容错写直接测试。
