@@ -22825,3 +22825,38 @@ All checks passed!
 - contract_results 里两个契约都是 PASS，因为 generation_record 为空 → `counterexample_can_fail = True`，HTTP COMPLIANT 下给 PASS；这与 "没有正向证据表明反例空言，不降级" 一致。
 
 **下一号队列**：#598 为 `run_differential_node` AMBIGUOUS（base fail + head fail，无 per-method 结果）的整链测试；或为 `evaluate_probe_expectation` 的 `base` 侧违规优先级（已由 #584 部分覆盖）补 golden-case 串联。
+
+## #598 `run_differential_node` AMBIGUOUS（both fail, no per-method evidence）端到端测试
+
+**背景**：`agent/nodes/run_differential.py` 的 combined-verdict 第三分支：base fail 且 head fail（`not base_pass and not head_pass`）且没有 per-method surefire 结果（`_both_fail_method_groups` 返回 None，即 collapsed whole-run）→ `AMBIGUOUS`，severity NONE，confidence 0.80，detail "Test fails in both Base and Head"。这是 roadmap §2/#557 警告的被掩盖情况：整体运行的 AMBIGUOUS 掩盖了哪方引入了失败，所以节点不归因 head，contract_results 里每个已编译契约都是 UNVERIFIED，绝不 laundering 成 pass。此前未有端到端测试。
+
+**本批只做一件事**：新增 `tests/unit/test_differential_ambiguous_both_fail.py`，1 条端到端测试。与 #592–#597 相同的 seam 打桩（双侧 exit 1，tests=3/failures=3，DB_CONSISTENT，无 surefire 报告 → split 返回 None，外部存储/探针/build cache 打桩）；`run_differential_node` 真实运行。
+
+### 新增测试
+
+| 断言点 | 预期 |
+|--------|------|
+| diff_result 主条目 | verdict="AMBIGUOUS"、severity="NONE"、confidence=0.80、evidence_type="differential_execution"、base_exit_code=1、head_exit_code=1、detail 含 "Test fails in both Base and Head" |
+| contract_results | AUTH-01 → UNVERIFIED、UNIQUE-01 → UNVERIFIED（每个 experiment=generated_test_differential，无 FAIL 归因） |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_differential_ambiguous_both_fail.py -q
+1 passed in 8.43s
+```
+
+```text
+python -m ruff check tests/unit/test_differential_ambiguous_both_fail.py
+All checks passed!
+```
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——AMBIGUOUS 上限是现有契约，首次被端到端钉住。
+- 此测试的 surefire 报告缺失（tmp 目录空）是通过 `_test_outcomes` 返回 {} 自然产生的 `method_groups = None`，而非直接打桩 `_both_fail_method_groups`——验证的是节点对"无 per-method 证据"的诚实兜底路径。
+- 只验证 AMBIGUOUS 分支；both-fail **有** per-method 结果的 split 路径（head_only/base_only/both，Review Court 归因）属另一批（`test_attribution_att08.py` 已覆盖 `_split_both_fail_groups`，node 层整链留作下一批）。
+
+**下一号队列**：#599 both-fail 有 per-method 结果的 `run_differential_node` 端到端测试（head_only 方法 → attributed 契约 FAIL）；或为 `_not_verified_contract_results` 与 `build_matrix_node` 的 merge 通路补节点层串联测试。
