@@ -79,6 +79,7 @@ from contracts.demo_marker import (  # noqa: E402
 )
 from storage.mysql import MySQLStore  # noqa: E402
 from storage.tenant_scope import TENANT_SCOPE_VAR, TenantScope  # noqa: E402
+from tests._mysql_gate import requires_mysql  # noqa: E402
 from tests._scan_walk import product_python_files  # noqa: E402
 
 REPO = _PROJECT_ROOT
@@ -653,6 +654,14 @@ def test_the_fold_subtracts_the_split_from_every_visible_number(
 # ── E: behaviour, on the real schema ─────────────────────────────────────────
 
 
+#: The only leg in this file that runs a statement against a live database: the
+#: rest fold the SQL text or capture the connection, so they answer offline.
+#: Without a server this case failed in ``tests-no-infra`` — the job whose whole
+#: promise is that no database is there — which is a red about the runner, not
+#: about the product. #600 skips it with the session's isolation verdict and
+#: gives it a home in ``tests-with-infra``, where it runs for real; the ruler is
+#: ``tests/unit/test_the_no_infra_job_holds_its_no_database_promise.py``.
+@requires_mysql("the seeded-row promise is measured by writing rows to a live MySQL schema")
 def test_seeded_rows_change_the_real_numbers_only_through_the_marker() -> None:
     """The promise, measured against the real schema.
 

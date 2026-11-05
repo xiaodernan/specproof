@@ -51,7 +51,6 @@ and this file reads the fence's own floor rather than typing its own.
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import sys
@@ -61,6 +60,7 @@ import pytest
 import yaml
 
 import tests.conftest as _isolation
+from tests._mysql_gate import dead_database_env
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_REL = ".github/workflows/ci.yml"
@@ -222,30 +222,14 @@ def test_a_depth_one_checkout_carries_exactly_one_revision(tmp_path: Path) -> No
 # ---------------------------------------------------------------------------
 
 
-def _no_database_env() -> dict[str, str]:
-    """An environment in which no MySQL answers.
-
-    Port 1 is refused instantly on every platform, so the child session
-    learns "no database" without waiting for a timeout.
-    """
-    env = dict(os.environ)
-    env["MYSQL_HOST"] = "127.0.0.1"
-    env["MYSQL_PORT"] = "1"
-    env.pop("MYSQL_DATABASE", None)
-    env.pop("SPECPROOF_TEST_MYSQL_DATABASE", None)
-    env.pop("PYTEST_ADDOPTS", None)
-    env.pop("PYTEST_CURRENT_TEST", None)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    env["PYTHONIOENCODING"] = "utf-8"
-    return env
-
-
-#: This leg spawns a child pytest, so it is tagged ``slow`` like every other
+#: The "no MySQL answers" environment used to be typed out here.  #600 moved it
+#: to ``tests/_mysql_gate.py``, the one owner of every decision a test makes from
+#: the isolation verdict, because a second file had to spawn the same child with
+#: the same environment and would have copied the same eight lines.
+#: The leg below spawns that child, so it carries ``slow`` like every other
 #: spawn-child module in this repo (#135's lesson: the fast inner loop must not
-#: pay for a child process).  CI does NOT deselect ``slow``, so the merge gate
-#: still runs it.  Measured on the development machine: 16-24s of child wall
-#: clock, of which pytest itself reports 2s — the rest is interpreter start-up
-#: and plugin autoload, which a Linux CI runner does not pay.
+#: pay for a child process; CI does not deselect ``slow``, so the merge gate
+#: still runs it).
 @pytest.mark.slow
 def test_the_contract_cli_cases_skip_rather_than_fail_without_a_database() -> None:
     """A case that cannot run must not report a broken product.
@@ -261,7 +245,7 @@ def test_the_contract_cli_cases_skip_rather_than_fail_without_a_database() -> No
     proc = subprocess.run(
         [sys.executable, "-m", "pytest", CONTRACT_TESTS, "-v", "-p", "no:cacheprovider"],
         cwd=ROOT,
-        env=_no_database_env(),
+        env=dead_database_env(),
         capture_output=True,
         text=True,
         encoding="utf-8",

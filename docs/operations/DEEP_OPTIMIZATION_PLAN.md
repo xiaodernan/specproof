@@ -22860,3 +22860,64 @@ All checks passed!
 - 只验证 AMBIGUOUS 分支；both-fail **有** per-method 结果的 split 路径（head_only/base_only/both，Review Court 归因）属另一批（`test_attribution_att08.py` 已覆盖 `_split_both_fail_groups`，node 层整链留作下一批）。
 
 **下一号队列**：#599 both-fail 有 per-method 结果的 `run_differential_node` 端到端测试（head_only 方法 → attributed 契约 FAIL）；或为 `_not_verified_contract_results` 与 `build_matrix_node` 的 merge 通路补节点层串联测试。
+
+## #600 「无基础设施」的 job 承诺没有数据库，却被一条真要写库的演示腿跑红：裁决→跳过 收进单一属主
+
+### 起因
+
+`tests/unit/test_the_aggregate_plane_answers_the_demo_question.py`（#542）出货时带一条真写库的腿：它往活的 MySQL 里落三行 job，再把看板读回来。同文件其余的腿要么折叠 SQL 文本、要么捕获连接，所以整个文件在离线平面上答得出口——只有这一条不能，而它在 CI 的 `tests-no-infra` job 里抛 `pymysql.err.OperationalError (2003)`。产品没有坏：那个 job 本来就没有数据库，「没有数据库」正是它对外承诺的全部内容。
+
+#499 已经修过一次完全相同的形状（`contract propose` 的两条 CLI 腿在无库 job 里红），它写下的每一道尺都只点名那一个文件。仓库里没有任何东西注意到**第二个**文件正在长出同一个形状，因为总体是一份**记得**的清单——手抄的清单只装着抄写那天的人知道的东西。
+
+### 改前量到的
+
+- 按 #120 的普查（`tests/**/test_*.py` 里构造 `MySQLStore(` / `MySQLConfig(` 的文件）共 **22** 个文件；被 `tests-no-infra` 自己的 path args 收到的 **16** 个构成这条门的总体。path args 从 YAML 解析并逐个验证存在，不是再抄一串名字。
+
+- 干净树、无库平面（把子会话的 `MYSQL_HOST/PORT` 指向一个拒绝一切的端口）跑这个总体：**1 failed / 276 passed / 23 skipped in 107.93s**。唯一那条红就是 #542 的 seeded 腿。
+
+- 新门第一次跑：**4 红**（当时 10 条腿）。其中三条红是我的量具缺陷，一条是运行器噪音——
+
+  - `_SKIP_REPORT` 少了 `-rs` 格式里行号**后面的那个冒号**，于是「谁跳了、跳的理由是什么」全部读成空字典。P4/P6 的非空钉立刻把它判红：这条门按设计抓到了我自己，而不是放我过去。
+
+  - 一次 Chrome 安装器扫掉了 `%TEMP%`，植入腿在 collection 期死于 `FileNotFoundError`。答复是「只在子会话确实没跑起来时」重试一次，并把死亡本身写进断言消息（#126 的规矩：关于 runner 的红不是关于产品的红）。
+
+- 第二次跑：**1 红**。植入子会话明明红了，门却说它「没跑起来」。读 pytest 9.1.1 自己的实现定位到根因：`_pytest/nodes.py` 用 `path.relative_to(session.config.rootpath)` 造模块 nodeid，仓库外的文件走进 `ValueError` 回退、回退也拿不到相对路径，于是 nodeid 是**空串**，条目被拼成 `::test_planted_live_database_leg`。我原来的 `^(\S+::…)` 要求 `::` 前至少一个字符，因此一条 outcome 都读不到——`_child_ran` 把「跑了并且红了」判成「没跑起来」。
+
+- 臂：把 `_OUTCOME` 退回 `\S+` 之后，新增的**离线量具腿**与 P2 **2/2 都红**（前者报缺键，后者精确复现那句 `died before running the planted case (2 attempts of 2)`）。修好后两腿绿，所以这条修复是被行为见证的，不是被措辞安慰的。
+
+### 改动
+
+- 新增 `tests/_mysql_gate.py`：会话隔离裁决（#75 的 `dedicated / redirected / unreachable / blocked`）翻译成 `skipif` 这件事的**唯一属主**。`requires_mysql("这条腿要被什么读到的东西需要库")` 生成的理由里点名当前裁决；`dead_database_env()` 供「无库」子环境，替掉 #499 门里手抄的那份 `_no_database_env()`。
+
+- `test_contract_compiler.py` 与聚合演示文件的 seeded 腿改用共享属主；`ci.yml` 把聚合演示文件加进 `tests-with-infra` 的 path args——**跳过不能是这条路唯一的家**；`tests/conftest.py::SLOW_TEST_MODULES` 收下新门（它起 2 个子会话，快环不该为它白等）。
+
+- 新增 `tests/unit/test_the_no_infra_job_holds_its_no_database_promise.py`（11 条腿）：P1 总体派生、P2 无库环境真的会红（含那条离线解析腿，钉住仓库内/仓库外两种 node-id 拼法）、P3 总体在无库子会话里 0 failed 且 rc 0、P4 被守的腿真的 SKIPPED 并说出裁决、P5 裁决→跳过只有一个属主、P6 名册双向对账（运行期自己探测的 6 个文件在册；4 条「在这里只会跳」的腿必须有真有库的 job）、P7 普查看不见的东西要自己说出口。
+
+### 改后量到的
+
+- 新门整跑：**11 passed / 0 failed in 177.20s**（落地平面 `wt-ci-nodb` @ a85299c，纯 CRLF 基线之上第一次跑）。
+
+- 两平面验（三条被守的腿）：LIVE 平面裁决 `redirected`，三条腿 **PASSED**，两个文件合计 **36 passed / 0 skipped**；DEAD 平面裁决 `unreachable`，同三条腿 **SKIPPED** 且理由点名裁决与「这个会话没有可达的数据库」，合计 **31 passed + 5 skipped**（其中 3 条是本节守的）。两个方向都要：跳过掩盖出货路径，与红同样是缺陷。
+
+- `ruff check .` 全树通过。CI 只跑 `ruff check`，不跑 `ruff format`，本批不重新排版任何人写的文件。
+
+- 本机宽 lane（`tests/unit` 在册 508 个文件按 1-170 / 171-340 / 341-508 三段，`-m "not slow" -o addopts=`）合计 **6113 passed / 11 failed / 10 skipped**；11 条红按名字归完因，没有一条属于本号：
+  - `test_fake_inventory_stays_measured.py` 的 2 条：分类器在本号平面与干净对照平面 `wt-600ctl`（同一 basis 的 checkout，没有本号任何字节）各量一次，两边都是 `sql-fake 20 / store-duck-type 44 / plain-double 205`（总 269）；尺里钉的是 `20 / 43 / 202`（总 265），`docs/architecture/FAKE_INVENTORY.md` 抄同一组——两处手抄，所以这 2 条一条比整数、一条比文档里的字符串。差的 4 个类按「类定义行的 blame」落到 `68d86c1`（#545 execute 单独出现不算 SQL 面：DummyAdapter 从 SQL 假挪回普通替身，新账 20/43/202/265，十处增量逐个归到提交）之后：#590 的 `FakeProfile`（`tests/unit/test_run_self_tests_on_workspace.py:20`，方法 `__init__`）、#590 的 `FakeResult`（`tests/unit/test_run_self_tests_on_workspace.py:25`，方法 `__init__`）、#590 的 `FakeAdapter`（`tests/unit/test_run_self_tests_on_workspace.py:46`，方法 `__init__` `detect` `prepare` `run`）、#590 的 `FakeRegistry`（`tests/unit/test_run_self_tests_on_workspace.py:78`，方法 `__init__` `get`）；其中进仓储面的那个提供 `get`，是分类器自己声明的仓储面，不是判据漏了。CI run 42015070466（head 就是本号的 basis）的 `tests-no-infra` 报 3 failed，其中 2 条是这两处手抄，另 1 条正是本号修的 seeded 腿 ⇒ 债在添替身的那些号，不在本号 ⇒ 队列 ④。
+  - 其余 9 条红分布在 2 个文件，全部量在同一个环境因上（本机 `NO_PROXY=localhost,.localhost,127.0.0.1,127.0.0.0/8,[::1],::1`，含 `[::1]`）：`test_notify_connector.py` 7 条（钉上 ⇒ 7 failed / 25 passed，摘掉 ⇒ 32 passed / 0 failed，干净对照平面钉上 ⇒ 7 failed）；`test_providers_net.py` 2 条（钉上 ⇒ 2 failed / 4 passed，摘掉 ⇒ 6 passed / 0 failed，干净对照平面钉上 ⇒ 2 failed）。三趟都从 httpx 的 `_urlparse.py:411` 抛 `httpx.InvalidURL: Invalid port: ':1]'`——它把 netloc `[::1]` 按第一个冒号切，端口读成 `":1]"`。CI 的 runner 没有这个变量，所以 Linux 全绿：红在量具所在的环境，不在被测代码，也不在本号 ⇒ 队列 ⑤ 记产品侧那半。
+  - 采集面：同一段（171-340）在本号平面与对照平面各收一次，两边都是 **1837/1875 collected（38 deselected）** ⇒ 本号在册的 2 个新文件（`tests/_mysql_gate.py`、`tests/unit/test_the_no_infra_job_holds_its_no_database_promise.py`）与 5 处改动没有挪动任何一条腿的采集。
+
+### 撞号
+
+本节本应叫 **#599**。账本 `## #598` 的收尾行已经把「下一号队列**：#599 both-fail 有 per-method 结果的 `run_differential_node` 端到端测试」写给别道，所以我把 9 处代码引用整体改瞄 #600（逐文件同字节数替换，断言替换次数==普查、`#599` 归零、CR/LF/CRLF 与长度不变；账本里别道那一句 `#599` 原样不动）。账本现有 12 个重号是既有债，#470 那道棘轮门存在的理由正是别再添一笔。
+
+### 队列
+
+- ① 把 `LEGACY_RUN_TIME_SKIPS` 的 6 个文件收进 `requires_mysql` 单一属主：运行期自己探测会把「库在、但坏了」也翻译成跳过，那正是 #79 当年否证过的形状。
+
+- ② `SKIPS_WITHOUT_A_HOME` 的 4 条腿要么进一个真有库的 job，要么改成不承诺读真库的断言；P6 现在把每一场的损失写成名册的值，所以这笔债不会靠记忆流失。
+
+- ③ 这条弧的验收在 CI 那侧：推送后按 run 复核 `tests-no-infra` 是否绿，并确认 `tests-with-infra` 真跑了那条 seeded 腿。
+
+- ④ 计数的两处手抄——`test_fake_inventory_stays_measured.py` 钉 `20 / 43 / 202`（总 265）与 `docs/architecture/FAKE_INVENTORY.md` 抄同一组——从 `68d86c1` 起已被挪动 4 个类（#590 的 `FakeProfile`（`tests/unit/test_run_self_tests_on_workspace.py:20`，方法 `__init__`）、#590 的 `FakeResult`（`tests/unit/test_run_self_tests_on_workspace.py:25`，方法 `__init__`）、#590 的 `FakeAdapter`（`tests/unit/test_run_self_tests_on_workspace.py:46`，方法 `__init__` `detect` `prepare` `run`）、#590 的 `FakeRegistry`（`tests/unit/test_run_self_tests_on_workspace.py:78`，方法 `__init__` `get`）），CI 因此常驻 2 条红。修法不是把数字改对就完：红必须自己说出「哪一类进了哪几个、在哪个文件」，否则下一条添替身的车道依旧只看到一个整数；名册应当从分类器派生，而不是注释里手抄的十条。**先把红变得可归因，再动数字。**
+
+- ⑤ 出站建构点继承宿主代理设置，而 httpx 解析 `NO_PROXY` 里的 `[::1]` 会炸：本机量到 9 条腿红（test_notify_connector.py、test_providers_net.py），抛点都在 httpx 的 `_urlparse.py:411`（`InvalidURL: Invalid port: ':1]'`）。非测试树里这样的建构点有 5 处（api/identity/oidc.py、integrations/github_checks.py、integrations/notify/webhook.py、providers/net.py、retrieval/embeddings.py），其中通知那条已被 4 处生产调用点包进 `except Exception` 只留一条 warning（agent/worker.py、api/routes/agent_console.py）—— 于是在这样的机器上终态通知永远发不出去，而运维读到的理由是 httpx 的报错，不是「这台机器的 NO_PROXY」。要么在建构处显式断开宿主环境（并说明运维仍可用别的旋钮指代理），要么给这 9 条腿自己钉住环境；两条路都得留下「谁替读者保证了 CI 是绿的」。

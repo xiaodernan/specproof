@@ -170,13 +170,20 @@ jobs:
         # job without a database produced two reds. This job has the
         # database, so it runs them for real: the skip must not be the only
         # place those two paths are ever exercised.
+        # #600: the aggregate demo plane has the same shape — one leg writes
+        # three rows to a live schema and reads the dashboard back, so it now
+        # skips without a database and runs here with one. Which files must be
+        # on this list is not a remembered set any more:
+        # tests/unit/test_the_no_infra_job_holds_its_no_database_promise.py
+        # derives it from the #120 census and reds on a file that skips
+        # here-absent and runs nowhere.
         # #521: slow_eval is the FULL 100-case, multi-hour evaluation. Its
         # dedicated home is nightly-eval.yml; this job collected it too, so
         # once the refs above resolve it would rebuild Maven cases for hours
         # on every push. The marker name is bound to the test's own marker by
         # tests/unit/test_ci_materializes_the_golden_refs.py — renaming one
         # without the other reds that gate instead of silently re-running it.
-        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py -q -m "not slow_eval"
+        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py tests/unit/test_the_aggregate_plane_answers_the_demo_question.py -q -m "not slow_eval"
       - name: Stop infrastructure
         if: always()
         run: docker compose -f compose.phase0.yml down -v
