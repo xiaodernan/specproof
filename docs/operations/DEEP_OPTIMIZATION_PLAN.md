@@ -22332,3 +22332,54 @@ All checks passed!
 - `_contract_for_test_method` 的结果被后续 `attributed_contracts` 集合消费（#262 空言归因的上游）；本章不重复测该下游。
 
 **下一号队列**：#586 盘点 `run_differential_node` 的零执行测试分支（`self_test_verdict` 相邻路径）整链测试；或回到他 lane 的前端遮罩章节队列（#581 注册的两条扫描器边界）旁的 python 侧验证。
+
+## #586 空言反例降级（#262）的端到端直接测试
+
+**背景**：`agent/nodes/run_differential.py` 在构造 `contract_results` 之前读取生成记录里 `generation_record.review.checks.vacuous`（#262）：当生成记录判定这个反例"没有任何能失败的断言"时，双侧全绿的 COMPLIANT 不能再给 PASS——demote 成 UNVERIFIED，`details` 携带 `checks.vacuous` 理由。这是差分证据链里一道关键的诚实闸门：一个被 review 已经判死的绿色不给人看成"通过"。在本批之前，**没有任何测试直接经过 `run_differential_node` 验证这条降级**——只有代码注释和 #262 的记述。
+
+**本批只做一件事**：新增 `tests/unit/test_vacuous_counterexample_demotion.py`，4 条端到端测试（重活全部在模块 seam 打桩，`contract_results` 构造段真实运行）。
+
+### 打桩范围（诚实说明）
+
+| 打桩 | 原因 |
+|------|------|
+| `_run_generated_test` | Maven 沙箱/compile 不在单测范围；双侧 exit 0 + `test_counts.tests=2` |
+| `_inject_test_into_workspaces` | 注入文件本身；不影响被测的降级逻辑 |
+| `_capture_external_state` / `_reset_external_state` | Redis/MinIO 外部存储不可依赖 |
+| `_capture_db_snapshot` | javac/H2 不在单测范围 |
+| `_run_probe_experiment` | 探针实验与本批无关，返回 `[]` |
+| `base_build_cache_dir` | P6 base build 复用路径，返回 `None` |
+
+未打桩、真实运行：`_check_http_diff`（空 Java 树 → 无 findings）、`_compare_db_state`（method=none → DB_NO_EVIDENCE）、**整条 #262 降级逻辑**与 `contract_results` 构造。
+
+### 新增测试
+
+| 测试 | generation_record | 预期 |
+|------|-------------------|------|
+| `test_vacuous_counterexample_demotes_pass_to_unverified` | `{"review": {"checks": {"vacuous": True}}}` | AUTH-01 与 UNIQUE-01 均 `UNVERIFIED`，`details` 含 `checks.vacuous` |
+| `test_sound_review_keeps_pass` | `{"review": {"checks": {"vacuous": False}}}` | 双行 `PASS`；AUTH-01 行 `evidence_ref` 以 `sha256:` 开头且**无** `details` 键 |
+| `test_absence_of_review_keeps_pass` | `{}` | 双行 `PASS`（无正向证据表明反例空言，不得降级） |
+| `test_review_with_absent_checks_keeps_pass` | `{"review": {"checks": None}}` | 双行 `PASS` |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_vacuous_counterexample_demotion.py -q
+4 passed in 7.92s
+```
+
+```text
+python -m ruff check tests/unit/test_vacuous_counterexample_demotion.py
+All checks passed!
+```
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `unreachable`，MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——#262 降级按其既有契约工作，首次被端到端钉住。
+- 只测了 COMPLIANT（双侧 green）路径的降级。REGRESSION 路径下 `is_attributed` 优先给 FAIL，空言降级不适用——该分支的矩阵行为属 #262 之外的账目，未在本批覆盖。
+- 若 `generation_record["review"]` 为**非 dict**（如字符串），产品代码会在 `.get("checks")` 处抛 `AttributeError`——这是生成侧必须为 dict 的隐含契约，本章不改产品、也不把该假设写进测试（写进去就是要求修产品，属另一批）。
+- `_toothless_reason` 的确切措辞不被断言固定（`"checks.vacuous"` 子串足以钉住语义）；措辞打磨不属于本批。
+
+**下一号队列**：#587 检查 golden-cases 的 `ground-truth.json` 中 `probe_expectation` 字段与 `evaluate_probe_expectation` 支持的 `_PROBE_KNOWN_FIELDS` 是否全量一致（离线审计），或继续为 `run_differential_node` 的 REGRESSION/DB_MUTATED_ON_UNAUTH 组合路径补端到端测试。
