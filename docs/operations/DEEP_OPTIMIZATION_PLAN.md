@@ -22383,3 +22383,39 @@ All checks passed!
 - `_toothless_reason` 的确切措辞不被断言固定（`"checks.vacuous"` 子串足以钉住语义）；措辞打磨不属于本批。
 
 **下一号队列**：#587 检查 golden-cases 的 `ground-truth.json` 中 `probe_expectation` 字段与 `evaluate_probe_expectation` 支持的 `_PROBE_KNOWN_FIELDS` 是否全量一致（离线审计），或继续为 `run_differential_node` 的 REGRESSION/DB_MUTATED_ON_UNAUTH 组合路径补端到端测试。
+
+## #587 金标准用例 probe_expectation 可判定性门
+
+**背景**：3 个 golden case（case-97 / case-98 / case-100）的 `ground-truth.json` 携带 `probe_expectation`。`_load_probe_expectation` 原样读取，`evaluate_probe_expectation` 对未知字段与错误类型的期望值一律回 NON_REPRODUCIBLE——eval 会永远把这些 case 报成 "not measured"。这种失败是**静默**的：case 只是永远检测不出东西，没有任何报错。`evaluate_probe_expectation` 的单测覆盖的是合成工件；**没有一条门检查真实 golden 数据喂进去是否仍然可判定**。
+
+**本批只做一件事**：新增 `tests/unit/test_golden_probe_expectations_are_evaluable.py`，两条数据门：
+
+1. `test_at_least_one_probe_expectation_exists`——反空（anti-vacuity）：至少一条 probe_expectation 存在，否则下一条门会变成空转；
+2. `test_probe_expectations_are_evaluable`——逐条校验：
+   - `contract_id` / `test_method` 为非空字符串；`severity` ∈ {BLOCKER, MAJOR, MINOR}；
+   - base/head 档案为非空 dict，键全部落在 `_PROBE_KNOWN_FIELDS` 内；
+   - 期望值类型符合 evaluator 的 isinstance 检查（publish_count int、outcome str、payload_timestamp_non_null bool）；
+   - **往返裁决**：为每个档案合成满足它的工件喂给 `evaluate_probe_expectation`，必须判 COMPLIANT。
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_golden_probe_expectations_are_evaluable.py -q
+2 passed in 11.15s
+```
+
+```text
+python -m ruff check tests/unit/test_golden_probe_expectations_are_evaluable.py
+All checks passed!
+```
+
+本轮会话 MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何 golden 数据**——三条现存 probe_expectation（97 publish_count=1、98 publish_count=0+outcome=success、100 payload_timestamp_non_null=true）全部通过门检，没有发现需要修的数据。
+- 往返裁决检查的是**期望档案是否自洽、可被 evaluator 判定**，不是探针在真机上的行为（那是 case-97/98/100 的 Docker 沙箱回归，不在单测范围）。
+- 门不校验 `probe_expectation.contract_id` 与 `expected_contract` 的一致性——那是产品未声明的不变量，本批不发明政策。
+- 空 payload 工件满足 `payload_timestamp_non_null: false` 档案（evaluator 的 `bool(payloads)` 守卫），合成工件据此构造；这是被测行为的正确使用，不是绕过。
+
+**下一号队列**：#588 为 `_probe_field_ok` 的 bool-作为-int 子类行为钉一条边界测试（`publish_count` 期望 `True` 通过 isinstance(int)——Python 语义，当前产品接受）；或为 `self_test_verdict` 相邻的 `_run_self_tests_on_workspace` 打桩端到端测试。
