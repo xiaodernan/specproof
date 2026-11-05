@@ -1038,3 +1038,32 @@ class TestCraftOutboxLane:
 
         assert len(connector.sent) == 1, "the direct send still announces"
         assert connector.sent[0].event_type == "craft.failed"
+
+
+class TestCraftNotificationBlocks:
+    """Slack-style rich rendering for craft notifications: header + fields,
+    reason section only when present — the same shapes the verify lane uses."""
+
+    def test_blocks_carry_header_task_status_and_repo(self):
+        from integrations.notify import build_craft_notification
+
+        n = build_craft_notification(
+            "job-b", "failed", task_name="修登录", reason="gate fail",
+            repo_path="D:/work/demo",
+        )
+        header = n.blocks[0]
+        assert header["type"] == "header"
+        assert header["text"]["text"] == "SpecCraft development run failed"
+        fields = n.blocks[1]["fields"]
+        texts = [f["text"] for f in fields]
+        assert any("修登录" in x for x in texts)
+        assert any("FAILED" in x for x in texts)
+        assert any("D:/work/demo" in x for x in texts)
+        assert n.blocks[2]["text"]["text"].startswith("*Reason:* gate fail")
+
+    def test_no_repo_omits_the_field_not_fills_it_with_empty(self):
+        from integrations.notify import build_craft_notification
+
+        n = build_craft_notification("job-b", "failed", reason="x")
+        fields = n.blocks[1]["fields"]
+        assert not any("Repo:" in f["text"] for f in fields)

@@ -249,15 +249,37 @@ def build_craft_notification(
     """
     key = status.strip().lower()
     event = craft_event_type(key)
-    lines = [f"Task: {task_name or job_id}"]
+    task = task_name or job_id
+    lines = [f"Task: {task}"]
     if repo_path:
         lines.append(f"Repo: {repo_path}")
     if reason:
         lines.append(f"Reason: {reason[:300]}")
+    # Slack-style rich rendering: plain text is the contract every sink
+    # renders; blocks give Slack receivers a structured header + fields
+    # instead of one wall of text. Empty-reason runs omit that section.
+    fields = [
+        {"type": "mrkdwn", "text": f"*Task:* `{task}`"},
+        {"type": "mrkdwn", "text": f"*Status:* {status.upper()}"},
+    ]
+    if repo_path:
+        fields.append({"type": "mrkdwn", "text": f"*Repo:* `{repo_path}`"})
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": CRAFT_TITLES[key]},
+        },
+        {"type": "section", "fields": fields},
+    ]
+    if reason:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"*Reason:* {reason[:500]}"},
+        })
     return Notification(
         event_type=event,
         title=CRAFT_TITLES[key],
         text="\n".join(lines),
-        blocks=(),
+        blocks=tuple(blocks),
         job_id=job_id,
     )
