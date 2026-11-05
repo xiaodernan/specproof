@@ -49,17 +49,23 @@ from storage.notify_relay import NotifyOutboxRelay  # noqa: E402
 
 
 class RecordingConnector:
-    """Synthetic receiver: accepts everything, records what reached it."""
+    """Synthetic receiver: accepts everything, records what reached it.
+
+    status is configurable so the dead-letter leg can simulate a receiver
+    that was never configured (DISABLED) without touching the volume."""
 
     name = "drill-recording"
     capabilities: frozenset[str] = frozenset()
 
-    def __init__(self) -> None:
+    def __init__(
+        self, status: SendStatus = SendStatus.SENT,
+    ) -> None:
         self.sent: list[Notification] = []
+        self._status = status
 
     def send(self, notification: Notification) -> SendStatus:
         self.sent.append(notification)
-        return SendStatus.SENT
+        return self._status
 
     def close(self) -> None:
         return None
@@ -146,7 +152,80 @@ def run_drill(mysql: MySQLStore) -> dict[str, Any]:
     }
 
 
+def run_dead_letter_leg(mysql: MySQLStore) -> dict[str, Any]:
+    """The full lifecycle's sad path: no receiver -> dead-lettered ->
+    operator replay -> the relay delivers on its next cycle. Exercises
+    MySQLStore.replay_dead_notifications (the tool the dead-letter
+    docstring promises) against the real database."""
+    job_id = "drill-notify-dl-" + uuid.uuid4().hex[:12]
+    mysql.create_job_with_outbox({
+        "id": job_id,
+        "repo_path": REPO_ROOT.as_posix() + "/demo/spring-backend",
+        "base_ref": "base",
+        "head_ref": "head-v1",
+        "spec_path": "spec.md",
+        "depth": "FAST",
+    })
+    mysql.transition_job_status(
+        job_id, "RUNNING", from_status="QUEUED", worker_id="drill",
+    )
+    written = mysql.transition_job_status_with_notify(
+        job_id, "VERIFIED", from_status="RUNNING",
+        summary={"verdict": "VERIFIED"},
+        notify_payload={
+            "event_type": "verification.verified",
+            "title": "SpecCraft drill", "text": "dead-letter leg",
+            "blocks": [], "job_id": job_id,
+        },
+    )
+    if not written:
+        return {"passed": False, "verdict": "FAIL — terminal write refused"}
+
+    # No receiver configured: the relay dead-letters immediately (retrying
+    # cannot fix a missing configuration — operator replay is the path).
+    dead_relay = NotifyOutboxRelay(
+        mysql=mysql,
+        connector_factory=lambda: RecordingConnector(SendStatus.DISABLED),
+        poll_interval=0.0,
+    )
+    dead_relay.drain_pending()
+    dead = notify_intent_counts(cast(NotifyIntentStore, mysql), job_id)
+    if dead.get("dead_lettered") != 1:
+        return {"passed": False,
+                "verdict": f"FAIL — expected dead-lettered, got {dead}"}
+
+    # Operator replay: clear the DLQ state (the tool batch AA landed).
+    replayed = mysql.replay_dead_notifications(job_id)
+    if not replayed:
+        return {"passed": False, "verdict": "FAIL — replay re-queued nothing"}
+
+    # With the receiver now working, the relay delivers on its next cycle.
+    live_relay = NotifyOutboxRelay(
+        mysql=mysql,
+        connector_factory=lambda: RecordingConnector(SendStatus.SENT),
+        poll_interval=0.0,
+    )
+    live_relay.drain_pending()
+    after = notify_intent_counts(cast(NotifyIntentStore, mysql), job_id)
+
+    passed = bool(
+        after.get("delivered") == 1 and after.get("dead_lettered") == 0
+    )
+    return {
+        "passed": passed,
+        "job_id": job_id,
+        "verdict": (
+            "PASS — dead-lettered, replayed by the operator, delivered"
+            if passed else "FAIL — replay lifecycle violated"
+        ),
+        "after_dead": dead,
+        "replayed_ids": replayed,
+        "after_replay_delivery": after,
+    }
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.parse_args()
     try:
@@ -159,7 +238,13 @@ def main() -> int:
     result = run_drill(mysql)
     result["elapsed_seconds"] = round(time.time() - started, 2)
     print(result)
-    return 0 if result["passed"] else 1
+    if not result["passed"]:
+        return 1
+    started = time.time()
+    dead_result = run_dead_letter_leg(mysql)
+    dead_result["elapsed_seconds"] = round(time.time() - started, 2)
+    print(dead_result)
+    return 0 if dead_result["passed"] else 1
 
 
 if __name__ == "__main__":
