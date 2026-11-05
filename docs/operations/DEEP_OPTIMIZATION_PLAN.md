@@ -22465,3 +22465,45 @@ All checks passed!
 - `isinstance(True, int)` 意味着 `publish_count` 期望 `True` 匹配 count 1 — 这在 JSON 世界里 `true == 1` 亦成立；golden case（97/98/100）均使用显式 int 期望，未受影响。
 
 **下一号队列**：#589 为 `_run_self_tests_on_workspace` 的适配器失败面打桩端到端测试（AdapterNotImplemented vs 普通异常 vs 成功路径），或为 `_self_test_differential_entry` 的 dependency_install 聚合逻辑写直接测试。
+
+## #589 `_self_test_differential_entry` 依赖来源披露与执行面分类直接测试
+
+**背景**：`agent/nodes/run_differential.py::_self_test_differential_entry` 是自测差分（DIFF-01）的证据构造器。除了既有测试覆盖的"ok=true + 告警不降级"（#245）与 NON_REPRODUCIBLE 路径外，两条读者依赖的披露没有任何测试：
+
+- `dependency_install` 聚合：两侧相同 → 单值；不同 → `"base: X; head: Y"`；一侧缺失 → 仍披露在场侧；均缺失 → 键完全不出现；
+- `execution_surface` 分类：双 docker → `docker_sandbox`；任一 local → `local_host_no_sandbox`（fail-closed，不因另一侧是 docker 而乐观）；双无 mode → `unconfirmed`（未确认，不装安全）。
+
+另外补一条 verdict 接线：base 全绿 / head 1 失败 → `REGRESSION`。
+
+**本批只做一件事**：新增 `tests/unit/test_self_test_dependency_install.py`，8 条直接测试。
+
+### 新增测试
+
+| 组 | 测试 |
+|----|------|
+| dependency_install | 相同→单值；不同→两侧值均点名；一侧缺失→仍披露在场侧且含 `head:`；均缺失→键不出现 |
+| execution_surface | docker+docker→docker_sandbox；local+docker / docker+local→local_host_no_sandbox；双空→unconfirmed |
+| verdict | base 绿/head 红→REGRESSION |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_self_test_dependency_install.py -q
+8 passed in 9.23s
+```
+
+```text
+python -m ruff check tests/unit/test_self_test_dependency_install.py
+All checks passed!
+```
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——三种 surface、两种 disclosure 形态都是现有行为的忠实钉固；"unconfirmed" 绝不因任何一侧 docker 而升级为 sandbox，这一 fail-closed 语义未被挑战。
+- `dependency_install` 两侧不同时，缺失侧显示的占位符原文（计划文件中为 `?` 类字符）不被断言固定；只断言 `base:`/`head:` 前缀与在场值——占位符字形属措辞打磨，不属于本批。
+- verdict 接线仅验证 REGRESSION 一条；COMPLIANT/UNEXPECTED_FIX 的数学已由 `test_self_test_diff.py` 覆盖，不重复。
+- 测试用 `monkeypatch` 直接替换 `run_with_cancel_checks`（返回 canned 双侧结果），`_self_test_differential_entry` 的聚合/分类段真实运行；`run_with_cancel_checks` 本身的行为不属于本批。
+
+**下一号队列**：#590 为 `_run_self_tests_on_workspace`（AdapterNotImplemented / 通用异常 / ok=true+warning 三路径）打桩端到端测试；或为 `_self_test_surface_for` 的 fail-closed 面（detect 抛异常→host+unconfirmed）写直接测试。
