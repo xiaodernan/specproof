@@ -22507,3 +22507,47 @@ All checks passed!
 - 测试用 `monkeypatch` 直接替换 `run_with_cancel_checks`（返回 canned 双侧结果），`_self_test_differential_entry` 的聚合/分类段真实运行；`run_with_cancel_checks` 本身的行为不属于本批。
 
 **下一号队列**：#590 为 `_run_self_tests_on_workspace`（AdapterNotImplemented / 通用异常 / ok=true+warning 三路径）打桩端到端测试；或为 `_self_test_surface_for` 的 fail-closed 面（detect 抛异常→host+unconfirmed）写直接测试。
+
+## #590 `_run_self_tests_on_workspace` 三条失败面直接测试
+
+**背景**：`agent/nodes/run_differential.py::_run_self_tests_on_workspace(workspace)` 是自测差分（DIFF-01）里“跑仓库自己的测试”的唯一执行入口——它通过 `experiments.adapters` 的 `registry.get(...).detect/prepare/run` 协议把未经审查的仓库测试交给适配器（Maven 沙箱、Node 沙箱或 Python host）。它有三条分支此前**没有任何直接测试**：
+
+1. `AdapterNotImplemented`：适配器完全不知道这个仓库 → `error` 记录原因，`ok=False`，其余保持默认（`counts=None`、`mode=""`、`sandbox=""`）；
+2. 任意其他异常（`detect/prepare/run` 崩溃）→ `error` 带 `"self-test execution failed: "` 前缀，**绝不**被洗成 verdict；
+3. `ok` 路径：`counts`/`mode`/`sandbox`/`dependency_install` 由适配器结果逐字段填充，`error = res.error or ""`（`ok=True` 且 `error` 非空时，warning 保留但不降级 verdict——这条由 #589 的 `test_self_test_dependency_install.py` 侧面验证，本章钉函数自身）。
+
+**本批只做一件事**：新增 `tests/unit/test_run_self_tests_on_workspace.py`，4 条直接测试（全靠 `monkeypatch` 替换 `experiments.adapters` 的 `RepositorySnapshot`/`registry`/`AdapterNotImplemented`/`ExecutionRequest` 与 `_self_test_parse_for`；`_run_self_tests_on_workspace` 内部逻辑真实运行，不碰 Docker、不碰 Maven、不碰仓库）。
+
+### 新增测试
+
+| 测试 | 分支 | 预期 |
+|------|------|------|
+| `test_adapter_not_implemented_records_error_and_returns_defaults` | `registry.get` 抛 `AdapterNotImplemented` | `error` 等于原因；`ok` False；`counts` None；`mode/sandbox` 空串 |
+| `test_generic_exception_becomes_self_test_execution_failed` | `registry.get` 抛 `RuntimeError` | `error` 以 `"self-test execution failed: "` 开头并含 "boom"；`ok` False |
+| `test_ok_path_forwards_everything` | 正常适配器，docker + offline cache | `ok` True；`counts` 由 parser 返回；`mode="docker"`；`sandbox="container"`；`dependency_install="offline cache"`；`error=""` |
+| `test_adapter_error_is_stored_while_ok_stays_true` | 正常适配器，`ok=True` 且 `error` 非空 | `ok` 仍 True；`counts` 真实；`error` 原文保留 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_run_self_tests_on_workspace.py -q
+4 passed in 1.80s
+```
+
+```text
+python -m ruff check tests/unit/test_run_self_tests_on_workspace.py
+All checks passed!
+```
+
+诚实记录：首轮 `ruff check` 报两条命名问题（测试辅助异常类未以 `Error` 结尾；局部变量大写），均已按 ruff 建议改名并复测全绿。这不是产品 bug，是测试文件的样式清理。
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——三条分支按既有契约工作，首次被钉成测试。
+- 测试不碰适配器的真实行为（Docker/Maven/Pytest 执行不在单测范围）；`RepositorySnapshot` 被 mock 为 `lambda path: path`，`ExecutionRequest` 被 mock 为 `lambda **kw: kw`。
+- `_self_test_parse_for` 被替换为固定返回 dict 的假 parser；测试验证的是 `_run_self_tests_on_workspace` 的结果组装，不是 parser 本身。
+- `ok=True` 与非空 `error` 并存的情况（sandbox 资源未应用等），函数保留 warning 而不覆盖 verdict——这与 PROBE-01 路径的“先 surface 再 ok”保持一致，本章只钉自测入口本身。
+
+**下一号队列**：#591 为 `_self_test_surface_for` 的 fail-closed 面（`registry.get`/`detect` 抛异常 → `(False, "host", reason[:300])`）写直接测试，与 #589 的 `execution_surface` 分类互补；或为 `run_differential_node` 的 REGRESSION+DB_MUTATED_ON_UNAUTH 组合路径写端到端测试。
