@@ -14,6 +14,7 @@ from agent.checkers.java_source import (
     _split_with_annotations,
     check_event_once,
     check_token_invalidation,
+    check_transactional,
     run_contract_checks,
 )
 from agent.checkers.schema_and_tests import check_test_weakening
@@ -358,4 +359,78 @@ def test_check_event_once_unchanged_is_clean() -> None:
         "com/specproof/demo/service/EventService.java": svc,
     }
     findings = check_event_once(base_files, head_files)
+    assert findings == []
+def test_check_transactional_annotation_removed_is_detected() -> None:
+    """check_transactional: 移除 @Transactional 是 TRANSACTION-01。"""
+    base_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    @Transactional\n"
+            "    public void saveUser(User user) {\n"
+            "        userRepository.save(user);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    public void saveUser(User user) {\n"
+            "        userRepository.save(user);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    findings = check_transactional(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "TRANSACTION-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "annotation_removed"
+    assert "saveUser" in removals[0]["description"]
+
+
+def test_check_transactional_transaction_split_is_detected() -> None:
+    """check_transactional: 两端都无 @Transactional 且 head 写操作 >= 2 是 transaction_split。"""
+    base_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    public void saveUser(User user) {\n"
+            "        userRepository.save(user);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    public void saveUser(User user) {\n"
+            "        userRepository.save(user);\n"
+            "        userRepository.saveAndFlush(user);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    findings = check_transactional(base_files, head_files)
+    splits = [f for f in findings if f["type"] == "transaction_split"]
+    assert len(splits) == 1
+    assert splits[0]["contract_id"] == "TRANSACTION-01"
+    assert "2 write operations" in splits[0]["description"]
+
+
+def test_check_transactional_unchanged_is_clean() -> None:
+    """check_transactional: 两端都有 @Transactional → 无发现。"""
+    svc = (
+        "public class UserService {\n"
+        "    @Transactional\n"
+        "    public void saveUser(User user) {\n"
+        "        userRepository.save(user);\n"
+        "    }\n"
+        "}\n"
+    )
+    base_files = {
+        "com/specproof/demo/service/UserService.java": svc,
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": svc,
+    }
+    findings = check_transactional(base_files, head_files)
     assert findings == []

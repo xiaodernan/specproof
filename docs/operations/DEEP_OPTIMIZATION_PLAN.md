@@ -22162,3 +22162,42 @@ K4 **不以预测的方式成立**——分工仍是必需的，但"48→0"那�
 
 旧队列 ⓼（寄存器按 `(file, line)` 认行，无关换行就搬家）仍开——本号特意把 `PROSE_SHADOWED_MEMBERS` 按
 `(type, member)` 键，就是不让新寄存器再多一个人质。
+
+## #582 `check_transactional` 直接测试：TRANSACTION-01 发现
+
+**背景**：`agent/checkers/java_source.py::check_transactional` 是 `run_static_checks_node` 调用的七个 uniform 检查器之一，检测写方法失去 `@Transactional`（`annotation_removed`）或无 `@Transactional` 且 head 写操作数 ≥ 2（`transaction_split`）。现有测试没有给它直接喂入真实代码：只通过 `test_static_check_registry.py::test_every_entry_declares_complete_metadata` 空输入间接调用过。
+
+**本批只做一件事**：在 `tests/unit/test_checker_fixes.py` 补上 `check_transactional` 的直接测试。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_check_transactional_annotation_removed_is_detected` | Base 的 `saveUser()` 有写操作 `.save(` 且带 `@Transactional`，Head 移除该注解 | 1 条 `TRANSACTION-01` / `annotation_removed` 发现，描述含方法名 |
+| `test_check_transactional_transaction_split_is_detected` | 两端都无 `@Transactional`，Head 的写操作从 1 个增至 2 个（`.save(` + `.saveAndFlush(`） | 1 条 `TRANSACTION-01` / `transaction_split` 发现，描述含 "2 write operations" |
+| `test_check_transactional_unchanged_is_clean` | Base 与 Head 都带 `@Transactional` | 无发现 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_checker_fixes.py -q
+19 passed in 1.19s
+```
+
+16 条原有测试 + 3 条新增，共 19 条全部通过。
+
+```text
+python -m ruff check tests/unit/test_checker_fixes.py
+All checks passed!
+```
+
+（首次 `ruff check` 报 I001 import 顺序，`ruff check --fix` 自动将 `check_transactional` 按字母序放入 `check_token_invalidation` 之后，随后全部通过。）
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`check_transactional` 逻辑已正确工作。只补了对该检查器的直接行为测试。
+- 本轮会话 MySQL 隔离报告 `unreachable`，MySQL-backed 测试文件 0/22 在本场景运行；未设置 `SPECPROOF_TEST_MYSQL_DATABASE`。
+- `check_transactional` 只处理 `Service.java` 结尾的文件；测试输入均为 `UserService.java`。
+- #580（`check_event_once` 直接测试，fc9e9e3）之后，#581（59828e0，他 lane 的前端散文规则章节）已入库；本章为下一个执行批号。
+
+**下一号队列**：#583 继续为未直接覆盖的 uniform 检查器补行为测试，或检查 `run_differential_node` → `build_matrix_node` 的 LangGraph channel 合并边界。
