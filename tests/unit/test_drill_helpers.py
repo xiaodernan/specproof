@@ -698,3 +698,70 @@ class TestReplayDeadNotifications:
         assert store.updates[-1][0].startswith("SELECT"), (
             "no UPDATE when there is nothing to replay"
         )
+
+
+class TestNotifyStatsCLI:
+    """The operator visibility entry for the outbox lane (RUNBOOK 读法)."""
+
+    def _invoke(self, monkeypatch: pytest.MonkeyPatch,
+                stats: dict[str, Any], dead: list[dict[str, Any]]):
+        from click.testing import CliRunner
+
+        from cli.specproof.commands import ops as ops_module
+
+        class _StatsStore:
+            def notify_outbox_stats(self) -> dict[str, Any]:
+                return stats
+
+            def list_dead_notifications(
+                self, job_id: str | None = None,
+            ) -> list[dict[str, Any]]:
+                return dead
+
+        import storage.mysql as mysql_module
+
+        monkeypatch.setattr(
+            mysql_module.MySQLStore, "notify_outbox_stats",
+            lambda self: stats,
+        )
+        monkeypatch.setattr(
+            mysql_module.MySQLStore, "list_dead_notifications",
+            lambda self, job_id=None: dead,
+        )
+        # list_dead_notifications is bound from MySQLStore in the CLI? No —
+        # the command calls store.list_dead_notifications directly on the
+        # instance, so patching the class method covers it.
+        result = CliRunner().invoke(
+            ops_module.ops_cmd, ["notify-stats"]
+        )
+        return result
+
+    def test_happy_path_shows_summary_and_no_dead(self,
+                                                  monkeypatch: pytest.MonkeyPatch) -> None:
+        result = self._invoke(
+            monkeypatch,
+            {"pending": 2, "dead_letters": 0, "retries": 1,
+             "oldest_created_at": None, "last_success": "t"},
+            [],
+        )
+        assert result.exit_code == 0
+        assert "pending=2" in result.output
+        assert "dead_letters=0" in result.output
+        assert "死信通知: 0 行。" in result.output
+
+    def test_dead_rows_listed_with_replay_hint(self,
+                                               monkeypatch: pytest.MonkeyPatch) -> None:
+        result = self._invoke(
+            monkeypatch,
+            {"pending": 0, "dead_letters": 1, "retries": 6,
+             "oldest_created_at": None, "last_success": None},
+            [{"id": 7, "job_id": "j-1", "verdict": "VERIFIED",
+              "dead_lettered_at": "t", "last_error": "no receiver",
+              "attempts": 6}],
+        )
+        assert result.exit_code == 0
+        assert "死信通知 1 行" in result.output
+        assert "replay-notifications" in result.output, (
+            "the operator must be told the replay path exists"
+        )
+        assert "#7" in result.output and "no receiver" in result.output

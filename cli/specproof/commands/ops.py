@@ -514,3 +514,34 @@ def replay_notifications_cmd(job_id: str | None) -> None:
     replayed = store.replay_dead_notifications(job_id)
     click.echo(f"已回放 {len(replayed)} 行 (id: {replayed})——relay 下轮认领。")
 
+
+@ops_cmd.command("notify-stats")
+@click.option(
+    "--job", "job_id", default=None,
+    help="只看该作业的通知行 (缺省=汇总 + 全部死信)",
+)
+def notify_stats_cmd(job_id: str | None) -> None:
+    """Outbox 车道的运营可见性: 汇总 (pending/dead_letters/retries/
+    last_success) + 死信行明细——RUNBOOK 读法的入口 (先看接收端,
+    再看 pending 是否在涨, 死信非 0 即有通知未送达)。"""
+    from storage.mysql import MySQLStore
+
+    store = MySQLStore()
+    stats = store.notify_outbox_stats()
+    click.echo(
+        f"pending={stats['pending']} dead_letters={stats['dead_letters']} "
+        f"retries={stats['retries']} "
+        f"last_success={stats['last_success'] or '—'}"
+    )
+    dead = store.list_dead_notifications(job_id)
+    if not dead:
+        click.echo("死信通知: 0 行。")
+        return
+    click.echo(f"死信通知 {len(dead)} 行 (回放: specproof ops replay-notifications"
+               + (f" --job {job_id}" if job_id else "") + "):")
+    for row in dead:
+        click.echo(
+            f"  #{row['id']} job={row['job_id']} verdict={row['verdict']} "
+            f"attempts={row['attempts']} error={str(row['last_error'])[:80]}"
+        )
+
