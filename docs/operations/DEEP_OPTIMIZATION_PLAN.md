@@ -22666,3 +22666,49 @@ All checks passed!
 - 只验证 MAJOR 路径；UNEXPECTED_FIX / AMBIGUOUS / COMPLIANT 分支各自已有或另批覆盖，本章不重复。
 
 **下一号队列**：#594 为 `merge_contract_results` 的 execution_surface 容错写直接测试（`unconfirmed` 胜过 `docker_sandbox`，未知值按字母序选最小）；或为 `_apply_inflight_db_evidence` 的 idempotency 与 DB_NO_EFFECT 不提升写直接测试。
+
+## #594 `_apply_inflight_db_evidence` 直接测试：#253/#254b 回滚后的 DB 突变提升
+
+**背景**：`agent/nodes/run_differential.py::_apply_inflight_db_evidence(db_verdict, db_detail, head_only_violation)` 是 #253/#254b 的核心：头侧生成测试在其失败文本里观察到 `DB STATE VIOLATION` 标记（回滚前的突变），但后续 `@BeforeEach deleteAll()` 把行删了，导致后置 H2 dump 读 `DB_CONSISTENT`。此时若**只有头侧**观察到违规，就把 `DB_CONSISTENT` 提升为 `DB_MUTATED_ON_UNAUTH`，让 BLOCKER 门能诚实触发（ADR-004 条件 4）。
+
+此前只有 `test_case17_earns_blocker_through_court.py` / `test_eval_inflight_db_evidence_promotes_verdict.py` 间接触碰，**没有直接钉 `_apply_inflight_db_evidence` 本身的五条规则**：
+
+1. DB_CONSISTENT + head-only 违规 → 提升 DB_MUTATED_ON_UNAUTH，detail 含 in-flight 说明与 ADR-004 条件 4；
+2. DB_CONSISTENT 无违规 → 原样；
+3. DB_NO_EVIDENCE（没有 dump）+ 违规 → **永不提升**（没有 dump ≠ 没有突变，#249）；
+4. 已 mutated（DB_MUTATED）+ 违规 → 原样（幂等）；
+5. 已提升（DB_MUTATED_ON_UNAUTH）+ 违规 → 原样（幂等）。
+
+**本批只做一件事**：新增 `tests/unit/test_apply_inflight_db_evidence.py`，5 条直接测试。不触产品代码，不碰 H2/Maven/外部存储。
+
+### 新增测试
+
+| 测试 | 输入 | 预期 |
+|------|------|------|
+| `test_consistent_dump_with_head_only_violation_is_promoted` | DB_CONSISTENT, True | DB_MUTATED_ON_UNAUTH；detail 含 "head-side...violation"、deleteAll、ADR-004 condition 4 |
+| `test_consistent_dump_without_violation_stays_consistent` | DB_CONSISTENT, False | 原样 DB_CONSISTENT |
+| `test_no_evidence_is_never_promoted_even_with_violation` | DB_NO_EVIDENCE, True | 原样 DB_NO_EVIDENCE |
+| `test_already_mutated_verdict_is_idempotent` | DB_MUTATED, True | 原样 DB_MUTATED |
+| `test_already_promoted_verdict_stays_promoted` | DB_MUTATED_ON_UNAUTH, True | 原样 DB_MUTATED_ON_UNAUTH |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_apply_inflight_db_evidence.py -q
+5 passed in 7.77s
+```
+
+```text
+python -m ruff check tests/unit/test_apply_inflight_db_evidence.py
+All checks passed!
+```
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——提升规则与幂等性是现有契约，首次被直接测试。
+- 只验证 `_apply_inflight_db_evidence` 的纯函数行为；`_db_violation_evidence`（从 surefire 失败文本读 marker）由 `test_eval_db_violation_evidence_capture.py` 已覆盖，不重复。
+- `head_only_violation=False` 时即使 dump 一致也不提升——双侧都观察到或都没观察到，不属于“头侧独有”的提升条件，维持 DB_CONSISTENT（MAJOR 上限）。
+
+**下一号队列**：#595 为 `run_differential_node` 的 UNEXPECTED_FIX 路径（base_fail + head_pass）写端到端测试；或为 `_split_entry_digest` 与 `_both_fail_method_groups` 的跨函数一致性补测。
