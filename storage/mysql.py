@@ -810,12 +810,12 @@ class MySQLStore:
             if not ids:
                 return []
             placeholders = ", ".join(["%s"] * len(ids))
-            cur.execute(
+            replay_sql = (
                 "UPDATE notify_outbox SET dead_lettered_at = NULL, "
                 "next_retry_at = NULL "
-                f"WHERE id IN ({placeholders})",
-                tuple(ids),
+                f"WHERE id IN ({placeholders})"
             )
+            cur.execute(replay_sql, tuple(ids))
             changed = int(cur.rowcount)
         if changed:
             from observability.metrics import incr

@@ -71,6 +71,11 @@ NON_STATIC_SQL_SITES: dict[str, str] = {
         "_split_statements only strips comments, and values still travel as "
         "bound parameters"
     ),
+    "storage/mysql.py::cur.execute(replay_sql, tuple(ids))": (
+        "replay_dead_notifications: the IN-list is built solely from "
+        "constant '%s' placeholders joined by ', ' — no request data ever "
+        "travels through the SQL text; the row ids travel as bound parameters"
+    ),
     "storage/mysql.py::cursor.execute(_sql, params)": (
         "transition_job_status_with_notify executes the SAME assembled "
         "statement as transition_job_status — both come from the shared "
