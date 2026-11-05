@@ -22419,3 +22419,49 @@ All checks passed!
 - 空 payload 工件满足 `payload_timestamp_non_null: false` 档案（evaluator 的 `bool(payloads)` 守卫），合成工件据此构造；这是被测行为的正确使用，不是绕过。
 
 **下一号队列**：#588 为 `_probe_field_ok` 的 bool-作为-int 子类行为钉一条边界测试（`publish_count` 期望 `True` 通过 isinstance(int)——Python 语义，当前产品接受）；或为 `self_test_verdict` 相邻的 `_run_self_tests_on_workspace` 打桩端到端测试。
+
+## #588 `_probe_field_ok` 直接测试：isinstance 语义与空 payloads
+
+**背景**：`agent/nodes/run_differential.py::_probe_field_ok(expectation, artifact, field)` 是 `evaluate_probe_expectation` 的一判一域——探针结论 REGRESSION/COMPLIANT/NON_REPRODUCIBLE 的每个字段都由它定。其语义是 Python isinstance 的怪脾气集合，此前没有直接测试（只有经过 `evaluate_probe_expectation` 的黑盒断言）：
+
+- `bool` 是 `int` 的子类：`publish_count` 的期望写 `True` 会通过 `isinstance(expectation, int)`，且 `1 == True`，于是 `True` 期望匹配 `publish_count == 1`；
+- `int` 1 **不是** `payload_timestamp_non_null` 的合法期望（必须严格 bool）；
+- 空 `payloads` 列表不会被 `all()` vacuous-true 判为"全部 timestamp 非空"（产品用 `bool(payloads)` 守住）；
+- `payloads` 缺失键按空列表处理；`payloads` 为非列表真值（如字符串）时不崩溃，逐个元素 isinstance 失败 → actual=False；
+- 未知字段一律 False。
+
+**本批只做一件事**：新增 `tests/unit/test_probe_field_ok.py`，18 条直接测试。
+
+### 新增测试
+
+| 组 | 覆盖 |
+|----|------|
+| artifact=None | 任一字段均 False |
+| publish_count | 相等/不相等、期望必须 int（str/float 拒绝）、**bool 期望作为 int 子类被接受**（`True` 匹配 1）、期望缺键 |
+| outcome | 相等/不相等、期望必须 str、缺键 |
+| payload_timestamp_non_null | 全非空→True、有 null→False、有 payload 缺 timestamp 键→False、**空 payloads → False**（True 期望）/True（False 期望）、payloads 缺键→同空列表、**非列表 payloads 不崩溃**（字符串真值 → 逐元素 isinstance 失败 → actual=False）、期望必须 bool（int/str 拒绝） |
+| unknown field | 一律 False |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_probe_field_ok.py -q
+18 passed in 1.57s
+```
+
+```text
+python -m ruff check tests/unit/test_probe_field_ok.py
+All checks passed!
+```
+
+（首次 `ruff check` 报 I001 import 块格式，`ruff check --fix` 自动修复后复测 18 passed。）
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——`True` 作为 int 子类被接受是 Python 语义、也是 evaluator 现状的忠实记录；本章只是把它钉成测试，不表态对错。
+- `test_non_list_payloads_do_not_crash_and_read_as_empty` 固化的是**不崩溃**这一防御性行为；它不保证 `payloads` 非列表是"合法输入"——产品从不产生这种 artifact，这只是钉防线。
+- `isinstance(True, int)` 意味着 `publish_count` 期望 `True` 匹配 count 1 — 这在 JSON 世界里 `true == 1` 亦成立；golden case（97/98/100）均使用显式 int 期望，未受影响。
+
+**下一号队列**：#589 为 `_run_self_tests_on_workspace` 的适配器失败面打桩端到端测试（AdapterNotImplemented vs 普通异常 vs 成功路径），或为 `_self_test_differential_entry` 的 dependency_install 聚合逻辑写直接测试。
