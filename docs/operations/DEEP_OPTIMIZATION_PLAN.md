@@ -22788,3 +22788,40 @@ All checks passed!
 - 接口级保护测试依赖 `check_auth_annotations` 对 `implements` 子句与接口文件的解析；若该解析逻辑未来改变，此测试会相应失效，属正常维护范围。
 
 **下一号队列**：#597 为 `run_static_checks_node` 的 `contract_results_for` 与 `build_matrix_node` 的 `missing contract_results` 边界写节点层串联测试（#560–#569 已有直接测试，此处补经 node 的 merge 通路）；或回到他 lane 的前端遮罩章节队列旁的 python 侧验证。
+
+## #597 `run_differential_node` COMPLIANT + DB_MUTATED_ON_UNAUTH → COMPLIANT/NONE 端到端测试
+
+**背景**：`agent/nodes/run_differential.py` 的 combined-verdict 另一诚实边界：base 与 head 都通过（HTTP COMPLIANT），但真实 H2 dumps 不同（DB_MUTATED_ON_UNAUTH）。规则只在 `http_verdict == "REGRESSION"` 时才把 DB 突变升级为 BLOCKER；HTTP 合规时 DB 差异**不**归因为行为缺陷，条目保持 COMPLIANT / severity NONE / confidence 0.80，detail 仅含 "Test passes in both Base and Head"（DB 差异仅如实记录在 `db_state_verdict` 字段，不拼进 detail）。此前未有端到端测试。
+
+**本批只做一件事**：新增 `tests/unit/test_differential_compliant_db_mutation_none.py`，1 条端到端测试。与 #592/#593/#595 相同的 seam 打桩（双侧 exit 0，tests=3，DB 打桩为 DB_MUTATED_ON_UNAUTH，外部存储/探针/build cache 打桩）；`run_differential_node` 真实运行。
+
+### 新增测试
+
+| 断言点 | 预期 |
+|--------|------|
+| diff_result 主条目 | contract_id="AUTH-01"（默认归因）、verdict="COMPLIANT"、severity="NONE"、confidence=0.80、evidence_type="differential_execution"、base_exit_code=0、head_exit_code=0、db_state_verdict="DB_MUTATED_ON_UNAUTH"、detail == "Test passes in both Base and Head" |
+| contract_results | AUTH-01 → PASS、UNIQUE-01 → PASS（counterexample_can_fail=True，无 vacuous review）、experiment=generated_test_differential |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_differential_compliant_db_mutation_none.py -q
+1 passed in 1.17s
+```
+
+```text
+python -m ruff check tests/unit/test_differential_compliant_db_mutation_none.py
+All checks passed!
+```
+
+诚实记录：首轮断言把 `"users table differs"` 期望进 detail，失败——COMPLIANT 路径的 detail 不拼接 DB 信息（按设计，DB 差异不污染 HTTP 合规的结论）；改为断言 `db_state_verdict == "DB_MUTATED_ON_UNAUTH"` 与 detail 纯 http 文本后通过。这是对产品诚实语义的验证，非产品 bug。
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——不升级语义是现有契约，首次被端到端钉住。
+- 只验证 COMPLIANT + DB_MUTATED_ON_UNAUTH 一组；COMPLIANT + DB_CONSISTENT（双全绿无差异）属更基础的 double-green，由 `test_self_test_differential_entry.py` 等覆盖，不重复。
+- contract_results 里两个契约都是 PASS，因为 generation_record 为空 → `counterexample_can_fail = True`，HTTP COMPLIANT 下给 PASS；这与 "没有正向证据表明反例空言，不降级" 一致。
+
+**下一号队列**：#598 为 `run_differential_node` AMBIGUOUS（base fail + head fail，无 per-method 结果）的整链测试；或为 `evaluate_probe_expectation` 的 `base` 侧违规优先级（已由 #584 部分覆盖）补 golden-case 串联。
