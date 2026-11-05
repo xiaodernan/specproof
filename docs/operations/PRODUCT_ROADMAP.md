@@ -2809,3 +2809,27 @@ RUNBOOK 的读法("先看接收端再看 worker")没有真数据源。
 
 GO_PROFILE/adapter(暴露 gauge)→ compose 服务(9102)→ 抓取名册
 (本批)→ RUNBOOK 读法 → DRILLS Drill 5(演练)。每一跳都有门或实测。
+
+## 41. 死信通知的运营回放——relay docstring 承诺的工具落地(2026-11-05)
+
+### 41.1 缺口与内容
+
+relay 的死信 docstring 承诺"operator replay territory"但全仓无回放工具
+——同"看着已通"形态。本批:
+
+- **storage/mysql.py**:`list_dead_notifications`(死信行按 job 可选过滤)/
+  `replay_dead_notifications`(选**真 id**→清死信标记与延期→relay 下轮
+  认领; 首版返回 `list(range(changed))` 构造假 id——自查当场改掉)。
+  `notify_outbox_replayed_total` 计数; 回放**不清 last_error**(失败史在
+  下轮成功前可见)。**回放不清 delivered 行**(relay 认领集排除它们)。
+- **CLI**:`specproof ops replay-notifications [--job <id>]`——先列死信行
+  再回放并输出真 id; 死因未除时 relay 再次死信且 attempts 续计——
+  回放可见, 不静默。
+
+### 41.2 门证
+
+- 测试绑定 **MySQLStore 真方法**到假连接(测生产 SQL/流程, 不测可漂移的
+  再实现)+3:真 id 选择与 DLQ 清除、job 作用域绑定参数、空集零 UPDATE。
+  test_drill_helpers 28 passed;ruff/mypy 全绿。
+- 开发注记:heredoc 反斜杠损坏(第 4 次)与假件绑定真方法的范式改进——
+  测试不再再实现被测逻辑, 而是把生产方法绑到假连接上执行。
