@@ -22201,3 +22201,48 @@ All checks passed!
 - #580（`check_event_once` 直接测试，fc9e9e3）之后，#581（59828e0，他 lane 的前端散文规则章节）已入库；本章为下一个执行批号。
 
 **下一号队列**：#583 继续为未直接覆盖的 uniform 检查器补行为测试，或检查 `run_differential_node` → `build_matrix_node` 的 LangGraph channel 合并边界。
+
+## #583 `run_differential` 探针取证路径小工具直接测试
+
+**背景**：`agent/nodes/run_differential.py` 的探针（PROBE-01）证据路径上有四个纯小工具此前从未被直接测试——它们只能经过完整流水线间接到达：
+
+- `_test_class_from_path(test_path)`：从生成的 JUnit 测试文件路径推导类名（`...SpecProofGeneratedTest.java` → `SpecProofGeneratedTest`；`.java` → `""`）；
+- `_first_maven_error_line(*results)`：跨多个 run 结果返回首个 `[ERROR]` 行（剥离空白、截断 300 字符），是 NON_REPRODUCIBLE 记录里"工具链为什么失败"的唯一载体；
+- `_probe_digest_payload(verdict, base_artifact, head_artifact)`：探针 digest 的输入，**只能含标志位**（`publish_count`/`outcome`/`payload_count`/`all_timestamps_non_null`），泄露原始时间戳即破坏"确定性 digest"承诺；
+- `_probe_output_tail(run)`：探针双侧输出尾部（2000 字符 + `...` 前缀），是缺陷可诊断性的最后一道载体。
+
+**本批只做一件事**：新增 `tests/unit/test_run_differential_probe_helpers.py`，给这四个纯函数各写直接行为测试（17 条）。
+
+### 新增测试
+
+| 函数 | 测试数 | 覆盖 |
+|------|--------|------|
+| `_test_class_from_path` | 4 | 目录剥离+后缀剥离、裸文件名、空输入、`.java` 单独输入 |
+| `_first_maven_error_line` | 5 | stdout 找到 `[ERROR]`、stderr 找到、无错误返回空串、首个结果优先、300 字符截断 |
+| `_probe_digest_payload` | 4 | 双侧标志位形状、`None` 工件一侧保持 `None`、空 payloads 标志为 `False`、不泄露原始时间戳/token |
+| `_probe_output_tail` | 4 | stdout+stderr 拼接、空 run 返回 `""`、超长加 `...` 前缀且截断为尾部 2000 字符、None 值容忍 |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_run_differential_probe_helpers.py -q
+17 passed in 5.84s
+```
+
+```text
+python -m ruff check tests/unit/test_run_differential_probe_helpers.py
+All checks passed!
+```
+
+（首次 `ruff check` 报 I001 import 块格式，`ruff check --fix` 自动修复后复测 17 passed。）
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `unreachable`，MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——四个工具的逻辑按既有契约工作；只是首次用直接测试把它们钉住。
+- `_probe_digest_payload` 测试验证的是**不含原始时间戳**这一性质（逐侧键集合恰好是四个标志字段），而不是 digest 本身的哈希值——digest 由 `_probe_digest_payload` 的稳定键值 + `json.dumps(sort_keys=True)` 保证，本章未重复测 JSON 序列化。
+- `_first_maven_error_line` 的 300 字符截断是现有产品行为的忠实记录；本章不要求更改截断点。
+- 测试不覆盖工具在真实 Maven/Docker 沙箱中的行为——它们都是纯函数，无 I/O。
+
+**下一号队列**：#584 继续盘点 `run_differential.py` 中尚未直接测试的纯函数（如 `_probe_field_ok`/`evaluate_probe_expectation` 的边界），或回到他 lane 的前端遮罩队列旁的 python 侧覆盖。
