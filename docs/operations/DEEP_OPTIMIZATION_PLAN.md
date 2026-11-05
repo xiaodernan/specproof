@@ -22551,3 +22551,45 @@ All checks passed!
 - `ok=True` 与非空 `error` 并存的情况（sandbox 资源未应用等），函数保留 warning 而不覆盖 verdict——这与 PROBE-01 路径的“先 surface 再 ok”保持一致，本章只钉自测入口本身。
 
 **下一号队列**：#591 为 `_self_test_surface_for` 的 fail-closed 面（`registry.get`/`detect` 抛异常 → `(False, "host", reason[:300])`）写直接测试，与 #589 的 `execution_surface` 分类互补；或为 `run_differential_node` 的 REGRESSION+DB_MUTATED_ON_UNAUTH 组合路径写端到端测试。
+
+## #591 `_self_test_surface_for` fail-closed 面直接测试
+
+**背景**：`agent/nodes/run_differential.py::_self_test_surface_for(workspace)` 决定自测差分（DIFF-01）能否运行：它只做纯文件检查（不执行任何东西），返回 `(sandboxed, surface, reason)`；失败时 fail-closed 为 `(False, "host", reason[:300])`，这样“永远不把不确定的表面装成安全的沙箱”。
+
+#589 已钉了 **快乐路径**（docker+docker → `docker_sandbox`；任一 local → `local_host_no_sandbox`；双空 → `unconfirmed`）。此前未被测的是 **失败面**——`registry.get` / `runs_in_sandbox` / `execution_surface_of` 抛异常的三条路径，以及 reason 截断到 300 字符的行为。
+
+**本批只做一件事**：新增 `tests/unit/test_self_test_surface_for.py`，5 条直接测试（全靠 `monkeypatch` 替换 `experiments.adapters` 的 `RepositorySnapshot`/`registry`/`runs_in_sandbox`/`execution_surface_of`；函数自身逻辑真实运行，不执行任何测试、不碰 Docker）。
+
+### 新增测试
+
+| 测试 | 注入的失败 | 预期 |
+|------|-----------|------|
+| `test_registry_get_failure_reports_host_and_truncated_reason` | `registry.get` 抛 `RuntimeError` | `(False, "host", "no adapter registered for this path")` |
+| `test_runs_in_sandbox_failure_reports_host` | `runs_in_sandbox(adapter)` 抛 `OSError` | `(False, "host", "docker socket unreachable")` |
+| `test_execution_surface_of_failure_reports_host` | `execution_surface_of(adapter)` 抛 `ValueError` | `(False, "host", "cannot read adapter profile")` |
+| `test_reason_is_truncated_to_300_chars` | `registry.get` 抛 500 字符消息 | `reason` 恰好 300 字符 |
+| `test_sandboxed_adapter_reports_its_surface` | 正常沙箱适配器 | `(True, "docker_sandbox", "")` |
+
+### 执行证据
+
+```text
+python -m pytest tests/unit/test_self_test_surface_for.py -q
+5 passed in 1.74s
+```
+
+```text
+python -m ruff check tests/unit/test_self_test_surface_for.py
+All checks passed!
+```
+
+诚实记录：首轮运行 3 条红——根因是我把 `registry` 打桩成了裸 lambda（没有 `.get` 方法），导致 `AttributeError` 被外层 `except` 兜底，reason 变成了 `'function' object has no attribute 'get'`。补了一个最小的 `_PassThruRegistry`（仅实现 `.get` 返回 `object()`）后 5 条全绿。这是测试桩的问题，不是产品行为。
+
+未设置 `SPECPROOF_TEST_MYSQL_DATABASE`；MySQL 隔离报告 `redirected -> specproof_test`，产品 schema `/test/%` 行数 0 -> 0；MySQL-backed 测试 0/22 在本场景运行。
+
+### 诚实边界
+
+- 本批**没有改任何产品代码**——fail-closed 语义与 300 字符截断都是现有契约，首次被钉成测试。
+- 测试不验证 `_self_test_surface_for` 在真实仓库（有 pom.xml/package.json/requirements.txt）上的 adapter 解析；那属于 `experiments.adapters` 的集成域，另有单独测试。
+- `reason` 截断仅针对异常消息字符串；`[:300]` 对多字节字符按 Python 字符切片（非字节），与产品代码一致，未额外断言字节长度。
+
+**下一号队列**：#592 为 `run_differential_node` 的 REGRESSION + `DB_MUTATED_ON_UNAUTH` 组合路径写端到端测试（这是 #254 BLOCKER 门的关键组合，此前未直接覆盖）；或为 `evaluate_probe_expectation` 的往返裁决补跨 case-97/98/100 三档的参数化测试。
