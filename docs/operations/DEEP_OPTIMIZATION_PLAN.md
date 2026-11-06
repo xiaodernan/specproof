@@ -23535,3 +23535,4 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 ## #709 继续长期开发：merge_contract_results 原子收敛边界探测与一致性终极验证2  
 ## #710 继续长期开发：SpecProof/SpecCraft 行为测试大系统可持续性保证与架构演进规划  
 ## #711 继续长期开发：SpecProof/SpecCraft 持续扩展与模块化测试框架深化  
+## #712 继续长期开发：SpecProof/SpecCraft 核心模块完善与行为验证全链路覆盖  
