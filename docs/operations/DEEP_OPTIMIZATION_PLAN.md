@@ -22924,7 +22924,7 @@ All checks passed!
 
 ## #601 清点门的红只有一个整数：谁进了哪一类、被哪笔提交带进来，红必须自己说出口，然后才允许动数字
 
-## #612 check_schema_compat DTO 字段移除直接测试：BACKWARD_COMPATIBLE-01 发现
+## #613 check_unique_email guard 移除直接测试：UNIQUE-01 发现
 
 ### 起因
 
