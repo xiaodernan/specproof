@@ -22924,6 +22924,8 @@ All checks passed!
 
 ## #601 清点门的红只有一个整数：谁进了哪一类、被哪笔提交带进来，红必须自己说出口，然后才允许动数字
 
+## #602 両方失败 split 路径：base_only → UNEXPECTED_FIX，both → AMBIGUOUS，head_only → REGRESSION（已在 #601 完成）
+
 ### 起因
 
 `docs/architecture/FAKE_INVENTORY.md` 的开头写着「这份清单是**测出来的**，不是列出来的」。它的意思本来是：分类器是唯一的数字来源。可这句话只对**生成**成立，对**核对**不成立——门 `tests/unit/test_fake_inventory_stays_measured.py` 钉的是四个抄下来的整数（`20 / 43 / 202`，总 265），文档再抄一遍同一组。
