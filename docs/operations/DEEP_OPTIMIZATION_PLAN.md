@@ -22924,7 +22924,7 @@ All checks passed!
 
 ## #601 清点门的红只有一个整数：谁进了哪一类、被哪笔提交带进来，红必须自己说出口，然后才允许动数字
 
-## #608 contract_results_for 多发现合并：同一合同多个发现，details 用 "; " 连接
+## #609 contract_results_for MIGRATION-01 / TEST_STRENGTH-01 混合状态：base 标志不一致时分别评估
 
 ### 起因
 
