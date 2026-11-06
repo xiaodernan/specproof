@@ -22924,7 +22924,7 @@ All checks passed!
 
 ## #601 清点门的红只有一个整数：谁进了哪一类、被哪笔提交带进来，红必须自己说出口，然后才允许动数字
 
-## #602 両方失败 split 路径：base_only → UNEXPECTED_FIX，both → AMBIGUOUS，head_only → REGRESSION（已在 #601 完成）
+## #603 build_matrix_node 与 contract_results merge 通路节点层串联测试
 
 ### 起因
 
