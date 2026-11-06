@@ -22924,7 +22924,7 @@ All checks passed!
 
 ## #601 清点门的红只有一个整数：谁进了哪一类、被哪笔提交带进来，红必须自己说出口，然后才允许动数字
 
-## #607 run_differential_node DB_MUTATED_ON_UNAUTH + COMPLIANT → 判定路径端到端测试
+## #608 contract_results_for 多发现合并：同一合同多个发现，details 用 "; " 连接
 
 ### 起因
 
