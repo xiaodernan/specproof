@@ -23383,3 +23383,51 @@ raised: InvalidURL("Invalid port: ':1]'")
 - ② 同名标题还会在下次追加时出现：L3 现在只在「没有失号借用它」时容忍它们；未来若有车道拿其中一个标题去豁免失号，拒绝消息会点名那些号——这是设计结果，不是误报。
 - ③ L3w 用 monkeypatch 绑的是 L3 本身；删掉 L3 里那段逐行循环的变异在真平面不会红（当前没有活着的歧义豁免），只有 L3w 能抓。这是本门已知的边界。
 - ④ #614 之后再被改名时，棘轮会点名新的失号；修复形状与本次相同：在现存节旁补一个指针旧号。
+## #672 仪表盘 byName override 必须指向同面板真渲染的 legend：一条只被单面板腿钉住的规则收成全库门
+
+### 起因/占号
+
+#296 队列① 与 #305 队列② 两次把同一笔账交下来：仪表盘里每条 `byName` override 的 `options` 必须等于同一面板某条 target 的 `legendFormat`。`tests/unit/test_outbox_relay_loop_leg.py` 的 L18 已经在读这件事，但它读的是一个面板：那条腿先找到画 age 的面板，再断言该面板的 override 等于该面板 age target 的 legend——别的面板新加一个指不到 legend 的 override，它看不见。本号把这条规则收成全库门。落地前重测账本：HEAD 39bdee5，`## #` id 最大 671，`## #672` 计数 0 ⇒ 取 #672。
+
+### 改前量到的
+
+- **人口与当前状态**（探针 `.scratch/m672_probe.py`，输出在 `_p548/ledger_repair/probe_672.txt`）：`infra/grafana/dashboards/` 下 1 个 JSON；51 个面板（3 个 row + 48 个数据面板）；151 条 legendFormat，其中 14 条是模板（`{{job}}` 一类）；`byName` override 1 条（`Outbox 积压趋势` 面板的 `gauge 年龄 (秒)`，与同面板 age target 的 legend 相同）。今天这条门绿，它保护的是下一次改名。
+- **两种拼写**：Grafana 导出有旧式 `{"id":"byName","options":…}` 与新式 `{"matcher":{"id":"byName","options":…}}`；本仓文件只用旧式。只认旧式的提取器在本文件上照样全绿，所以两种拼写都要有见证。
+- **模板 legend 是活的形状**：14 条模板 legend 说明「override 的 options 写成 `{{job}}`」这种死法不是假想——matcher 看到的是渲染后的名字，`{{…}}` 本身永远匹配不上。
+
+### 改动
+
+新增 `tests/unit/test_dashboard_overrides_bind_a_legend.py`，四条腿：
+
+- **L1 普查下限**：≥1 个 dashboard JSON、≥40 面板、≥100 条 legendFormat、≥1 条 byName override（实测 1/51/151/1），任何一个 JSON 解析失败即抛。目录被改名或搬走时拒绝判案，而不是因为「没有可读的东西」判绿。
+- **L2 判词**：逐条 byName override，`options` 必须在同面板的字面 legend 里；拒绝消息同时点名 dashboard、面板标题、拼写（flat/matcher）、options 原文与该面板真正渲染的 legend 列表。
+- **L2w 两种拼写**：同一份合成面板上各放一条旧式与新式 override，提取器必须都读出——否则新式拼写在本仓就是死代码。
+- **L2w 模板子句**：同一条 `{{job}}` 文本，对着模板 legend 必须拒绝（消息含 `unexpanded`），对着同名**字面** legend 必须放行——模板子句不是「见到花括号就红」。
+
+门只判 `byName`；`byRegexp`/`byFrameRefID` 不在判词内。字面 legend 按文本比较；模板 legend 的渲染名依赖抓取时的标签值，静态门无法推导，所以「指着一个模板」与「面板根本没有 legendFormat」都走拒绝，而不是替读者猜。门读工作树副本，与 #218/#220 同一基准。
+
+### 改后量到的
+
+- 新门 **4 passed in 0.67s**；`ruff check` 该文件 `All checks passed!`；同族仪表盘门（#218、verdict 覆盖、窗口契约、outbox L18）**37 passed in 2.20s**。
+- **臂电池 8 臂，全部跑在 `D:/面试项目/wt-672arm`**（39bdee5 的分离 checkout + 本文件），预测先落 `_p548/ledger_repair/predictions_672.txt`，每臂改 dashboard JSON、跑门、从字节快照还原并核 sha256（`battery_672.txt`，8 次 `restored=True`，终态 sha 808269c9…）：
+  - **A0 基线 → 4 passed**。
+  - **A1 只改 age 的 legendFormat、留着 override → 1 failed, 3 passed**，只有 L2 红，消息点名 `Outbox 积压趋势` 与 `'gauge 年龄 (秒)'`，同面板 legend 列表是 `['pending 事件数', 'gauge age (s)']`。
+  - **A2 legend 与 override 一起改名 → 4 passed**：门钉的是关系，不是那个字符串。
+  - **A3 在别的面板加一条死 override → 1 failed, 3 passed**，L2 点名 `API 请求率` 与 `'ghost series'`——这正是 L18 看不见的形状。
+  - **A4 把 dashboard 挪成 `.json.bak` → 1 failed, 3 passed**：红来自 L1 的「没有 dashboard JSON」。L2 在空人口上必然绿（判词没有行），这是本门已知的形状：拒绝由 L1 出，不是 L2 自己。
+  - **A5 把唯一的 override 改写成新式 matcher 拼写 → 4 passed**：提取器两种拼写都读。
+  - **A6 新式拼写 + 死名字 → 1 failed, 3 passed**，拒绝消息带 `(matcher)`。
+  - **A7 legend 与 options 同时改成 `{{job}}` → 1 failed, 3 passed**，消息含 `unexpanded`：模板子句在真 bytes 上也会响。
+  - 8/8 与预测一致（A3 的锚面板在预测里只写了「那个面板」，实际锚是 `API 请求率`；这是预测措辞不够具体，不是判据偏差）。
+- 全量门待本提交在新 HEAD 上重跑（CI 形状：`python -m pytest tests/unit tests/security tests/fault -q`）。
+
+**证据文件**：
+- tests/unit/test_dashboard_overrides_bind_a_legend.py
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md
+
+### 队列
+
+- ① 推送后按 run 复核 `tests-no-infra`：本文件 4 条腿在 CI 的空代理环境与宿主环境都应绿（该门只读 JSON）。
+- ② `byRegexp` / `byFrameRefID` override 仍无门：它们按规则选字段，静态门要么把它们展开成匹配集，要么给每条一个「为什么不能判」的登记——先量现有条数（今天 0）再决定。
+- ③ 模板 legend 的渲染名仍是静态门的外部：若未来某面板真的要用 byName 钉一个模板序列，需要先在门里给「渲染名从哪来」一个可推导的来源（label 常量表或 query 形状），否则门会拒绝一条合法配置。这是本门故意的方向。
+- ④ 本门读工作树而不是 HEAD blob：与 #218/#220 同一基准，但也意味着别道未提交的 dashboard 改动会被一并评到（共享树的已知口径）。
