@@ -23444,3 +23444,4 @@ raised: InvalidURL("Invalid port: ':1]'")
 ## #683 继续长期开发：模块扩展与边界测试  
 ## #685 继续长期开发：run_differential_node 与 merge_contract_results 扩展测试覆盖  
 ## #686 继续长期开发：run_differential_node 进阶分支与合约结果合并测试覆盖  
+## #687 继续长期开发：merge_contract_results 节点层面截面测试与行为验证  
