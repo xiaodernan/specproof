@@ -4,18 +4,23 @@
 #105) now refuses a scope that names a cell outside it. That still left one way
 to mint a credential that does nothing: a cell the matrix *does* define but that
 no request is ever checked against. `cases:verify` was exactly that — granted to
-admin and auditor in the design table ("读+验签"), while every HTTP path lands on
-`classify_request`'s other cells and the certificate endpoint
-(`GET /api/v1/jobs/{job_id}/certificate`) is classified as `cases:read`. Because
-scopes NARROW, an admin who followed the doc and minted `--scopes cases:verify`
-got a token that grants nothing and quietly strips the read the role already had.
+admin and auditor in the design table ("读+验签"), while every HTTP path landed on
+`classify_request`'s other cells. Because scopes NARROW, an admin who followed
+the doc and minted `--scopes cases:verify` got a token that grants nothing and
+quietly strips the read the role already had.
+
+#113 later closed that case from the route side rather than the declaration side:
+the acceptance vote `POST /api/v1/jobs/{job_id}/feedback` is now checked as
+`cases:verify`, which is also the separation of duties the matrix encodes
+(operator triggers verification, auditor verifies its findings). The escape
+hatch is therefore empty today — but both directions are still derived from the
+app's own OpenAPI operations rather than hand-copied, because a hand-copied
+route list would keep passing after the routes changed.
 
 So the vocabulary and the route table have to be reconciled from both sides:
 a cell is either reachable by a real operation or explicitly declared
 unreachable with the reason and a working substitute — and a declaration cannot
-survive once a route starts honouring it. Both directions are derived from the
-app's own OpenAPI operations rather than hand-copied, because a hand-copied
-route list would keep passing after the routes changed.
+survive once a route starts honouring it.
 """
 
 from __future__ import annotations
@@ -28,6 +33,7 @@ from api.identity.principal import (
     CELLS_WITHOUT_A_ROUTE,
     ROLE_MATRIX,
     Principal,
+    ResourceAction,
     classify_request,
     mintable_cells,
     principal_denial,
@@ -109,6 +115,37 @@ def test_classification_never_invents_a_cell_outside_the_matrix() -> None:
     assert not invented, f"routes are gated on cells the matrix has no name for: {invented}"
 
 
+def test_acceptance_feedback_is_checked_as_cases_verify() -> None:
+    """#113: the vote POST is the auditor's cell, not the coarse trigger bucket.
+
+    The classifier is path-shaped, so the cheap implementation — every non-GET
+    under `/api/v1/` is `cases:trigger` — is also the likely one to regress.
+    This pins the vote itself and the neighbours that must NOT move with it.
+    """
+    assert classify_request("POST", "/api/v1/jobs/j-1/feedback") == ResourceAction(
+        "cases", "verify"
+    )
+    assert classify_request("GET", "/api/v1/jobs/j-1/feedback") == ResourceAction(
+        "cases", "read"
+    )
+    # Same prefix, different action: nothing else was swept into verify.
+    assert classify_request("POST", "/api/v1/jobs/j-1/cancel") == ResourceAction(
+        "cases", "trigger"
+    )
+    assert classify_request("POST", "/api/v1/jobs/j-1/reparse") == ResourceAction(
+        "cases", "trigger"
+    )
+    # And the consequence the matrix describes: auditor votes, operator does not.
+    auditor = Principal(
+        user_id="u", tenant_id="t", roles=frozenset({"auditor"}), scopes=frozenset()
+    )
+    operator = Principal(
+        user_id="u", tenant_id="t", roles=frozenset({"operator"}), scopes=frozenset()
+    )
+    assert principal_denial(auditor, "cases", "verify") is None
+    assert principal_denial(operator, "cases", "verify") is not None
+
+
 # ── both directions of the reconciliation ────────────────────────────────────
 def test_every_vocabulary_cell_is_either_routed_or_declared() -> None:
     unmintable = sorted(
@@ -158,6 +195,12 @@ def test_every_declared_cell_names_a_substitute_that_does_work() -> None:
 def test_a_dead_cell_cannot_be_minted_and_says_what_to_mint_instead(
     store: IdentityStore,
 ) -> None:
+    if not CELLS_WITHOUT_A_ROUTE:
+        # The hatch is empty since #113 routed cases:verify. Prove the loop
+        # below is empty because every cell is routed, not because the
+        # declaration was emptied without moving the routes.
+        assert set(scope_cells()) <= set(reachable_cells())
+        return
     for cell in CELLS_WITHOUT_A_ROUTE:
         with pytest.raises(ScopeVocabularyError) as exc:
             mint(store, cell)
@@ -168,14 +211,17 @@ def test_a_dead_cell_cannot_be_minted_and_says_what_to_mint_instead(
 def test_the_mint_remedy_list_offers_only_mintable_cells(
     store: IdentityStore,
 ) -> None:
-    """'valid scopes are: ...' must not advertise the cell it just refused."""
+    """'valid scopes are: ...' must not advertise a cell it would refuse."""
     with pytest.raises(ScopeVocabularyError) as exc:
-        mint(store, "cases:verify")
+        mint(store, "cases:reed")  # a typo, refused before any row is written
     remedy = str(exc.value).split("valid scopes are:", 1)[1]
-    assert "cases:read" in remedy
     for cell in CELLS_WITHOUT_A_ROUTE:
         assert cell not in remedy, (
             f"the remedy list still advertises a dead cell: {remedy}"
+        )
+    for cell in mintable_cells():
+        assert cell in remedy, (
+            f"the remedy list hides {cell}, which mint_token does accept: {remedy}"
         )
 
 
@@ -193,21 +239,26 @@ def test_a_multi_word_scope_list_survives_when_only_live_cells_are_named(
     mint(store, "jobs:read, billing:read")
 
 
-def test_the_resource_wildcard_still_covers_a_partly_dead_resource(
+def test_the_resource_wildcard_still_covers_the_whole_resource(
     store: IdentityStore,
 ) -> None:
-    """`cases:*` is honest: it covers read+trigger even though verify is dead."""
+    """`cases:*` covers read+trigger+verify; verify now has a route (#113)."""
     mint(store, "cases:*")
+    auditor = Principal(
+        user_id="u", tenant_id="t",
+        roles=frozenset({"auditor"}), scopes=frozenset({"cases:*"}),
+    )
+    assert principal_denial(auditor, "cases", "verify") is None
 
 
-def test_a_token_scoped_to_the_dead_cell_cannot_read_the_certificate(
+def test_a_token_scoped_to_the_vote_cell_cannot_read_the_certificate(
     store: IdentityStore,
 ) -> None:
-    """The consequence the operator used to discover from someone else's 403.
+    """A scope list still NARROWS: holding the vote cell is not holding read.
 
     Same role (auditor), same route (`cases:read` for the certificate
-    endpoint), two scope strings: the dead one is refused and says why in
-    terms of the gate that really closed.
+    endpoint), two scope strings: the vote-only token is refused and says why
+    in terms of the gate that really closed.
     """
     auditor = Principal(
         user_id="u", tenant_id="t", roles=frozenset({"auditor"}),

@@ -22,12 +22,15 @@
 | viewer | 读 | 读 | 无 | 无 |
 | auditor | 读(全租户审计视图) | 读+验签 | 读 | 审计视图 |
 
-* 表中"验签"(cases:verify)目前没有对应的受管路由:证书读取
-  `GET /api/v1/jobs/{job_id}/certificate` 走 cases:read,而验签动作本身发生在
-  CLI verify 流程里(不经过本矩阵)。因此 `sp_` 令牌**不能**用 `--scopes
-  cases:verify` 铸造 —— 它不授予任何权限,却会收窄掉角色本已拥有的读权限。
-  要让 auditor 读证书,授予 `cases:read` 即可。对账门:
-  `tests/unit/test_rbac_cells_reach_routes.py`。
+* "验签"(cases:verify)的受管路由是验收判定写入
+  `POST /api/v1/jobs/{job_id}/feedback`:auditor 与 admin 可以投票,
+  operator/viewer 只能读票与接受率——触发验证(trigger)与独立验收(verify)
+  分离,发起验证的角色不能同时签收它的发现 (#113)。证书读取
+  `GET /api/v1/jobs/{job_id}/certificate` 仍是 cases:read。
+  `sp_` 令牌的 scope 会收窄角色:要投票需 `cases:verify`,要读证书/反馈需
+  `cases:read`,两个动作都要就写 `cases:read,cases:verify`(或 `cases:*`)。
+  对账门:`tests/unit/test_rbac_cells_reach_routes.py`(单元↔路由双向)与
+  `tests/unit/test_access_role_parity.py`(前端按钮名单从同一分类派生)。
 
 * 所有 job 查询在 repository 层 (storage/mysql.py + storage/tenant_scope.py)
   自动带 tenant_id 过滤; 跨租户访问一律 404 (与不存在同形, 绝不 403),

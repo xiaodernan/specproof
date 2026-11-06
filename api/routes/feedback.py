@@ -6,10 +6,11 @@ and the acceptance-rate stats. Gate #13 measures acceptance_rate from
 these records across the pilot repositories; findings without feedback
 are never counted (silence is not acceptance).
 
-Auth: API key + rate limit, same fail-closed posture as /jobs. The job
-must exist in MySQL (404 JOB_NOT_FOUND otherwise); a persistence failure
-is a real 503 PROVIDER_UNAVAILABLE — feedback is never acknowledged when
-nothing was stored.
+Auth: API key + rate limit, same fail-closed posture as /jobs. In tenant mode
+the middleware additionally classifies the vote POST as cases:verify (the
+auditor's cell) and the GET as cases:read — see #113. The job must exist in
+MySQL (404 JOB_NOT_FOUND otherwise); a persistence failure is a real 503
+PROVIDER_UNAVAILABLE — feedback is never acknowledged when nothing was stored.
 """
 
 from __future__ import annotations

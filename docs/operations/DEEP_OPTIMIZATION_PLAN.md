@@ -71,9 +71,10 @@
    见 `tests/conftest.py`、`tests/unit/test_mysql_usage_report.py`（7 passed）与 ROADMAP §28。
    ⚠️ census 只回答静态可判定的那一半（谁需要 MySQL）；「是不是负载问题」仍需同机对照运行，
    那是另一个单位——本文件不把它算作已完成。
-5. 需要产品决策或授权、因此**故意没做**的：#113 的路由分类错位、服务端强制
+5. 需要产品决策或授权、因此**故意没做**的：服务端强制
    `created_by == principal.user_id`（改的是线上权限语义）、产品库 `specproof_phase0` 中
-   822 行无归因审计残留的清理。
+   822 行无归因审计残留的清理。（#113 的路由分类错位已由 #705 落地：验收投票 POST 归
+   `cases:verify`，operator 因此只有 trigger、没有投票权。）
 6. **CI 复活后暴露的 5 个红 job**（`2fb4612` 之前 CI 文件本身解析失败，所有 job 从未创建过，
    详见 ROADMAP §28.1）：`bandit B608` 7 处 medium（如 `storage/mysql.py:732`）、
    `tests-with-infra` 的 `docker compose … up -d --wait`、`tests-no-infra`、`eval-golden-cases`
@@ -23462,3 +23463,69 @@ raised: InvalidURL("Invalid port: ':1]'")
 ## #702 继续长期开发：SpecProof/SpecCraft 核心模块完善与测试体系扩展  
 ## #703 继续长期开发：SpecProof/SpecCraft 行为验证全链路覆盖与异常情况健壮性验证  
 ## #704 继续长期开发：SpecProof/SpecCraft 持续集成与持续验证体系完善  
+
+## #705 验收投票从 cases:trigger 改判 cases:verify：auditor 拿回矩阵给它的签收权，operator 只剩触发
+
+### 起因/占号
+
+#106 的对账门发现 `cases:verify` 是不可路由的死单元，当时的处置是把它登记进
+`CELLS_WITHOUT_A_ROUTE`；#113 记下了另一半代价：`POST /api/v1/jobs/{job_id}/feedback`
+被通用分支判成 `cases:trigger`，于是矩阵里「读+验签」的 auditor 反而被
+`role ['auditor'] may not trigger on cases` 挡在验收反馈外，而只有 trigger 的
+operator 同时能触发验证、又能签收它的发现——矩阵写的 trigger≠verify 分工在路由上
+根本不存在。本号按矩阵修正分类，并把本文「故意没做」清单里的 #113 划掉：不需要再等
+一个产品决策，`ROLE_MATRIX` 自己就是那条决策。落地前重测账本：HEAD af7813e，
+`## #` id 最大 672，`## #673` 计数 0 ⇒ 当时取 #673；首次推送被拒（远端同刻把 #673 起的号写成了别的车道的占位节），重定基线后按当时最大号改取 #705，本节内容与测量不变。
+
+### 改前量到的
+
+（探针 `_p548/ledger_repair/probe_673.txt`，HEAD blob 与工作树各载一次）
+- `classify_request("POST", "/api/v1/jobs/j-1/feedback")` → `cases:trigger`；同路径 GET → `cases:read`；POST `/cancel` → `cases:trigger`。
+- 按这条 POST 实际被判的单元：auditor → `role ['auditor'] may not trigger on cases`；operator → `None`；viewer 同样被拒。
+- `scope_problems("cases:verify")` 非空（原文：`'cases:verify' is not enforced by any route today`）；`CELLS_WITHOUT_A_ROUTE` 1 条；`"cases:verify" in mintable_cells()` = False——auditor 想投宽票也铸不出这个 scope。
+- 带 `--scopes admin:audit,jobs:read` 的 admin token 在投票 POST 上收到 `token scopes [...] do not cover cases:trigger; ... mint a token with --scopes cases:trigger`——把一次验签的补救写成触发。
+- 前端 `FEEDBACK_VOTE_ROLES` 与后端同源（`test_access_role_parity.py` 从这条 POST 的分类派生），此时为 `["admin","operator"]`。
+
+### 改动
+
+- `api/identity/principal.py`：在通用 `/api/v1/` 分支之前，把恰好 6 段且以 `/feedback` 结尾的 POST 判成 `cases:verify`；同前缀的 cancel/reparse 等 POST 不动。`CELLS_WITHOUT_A_ROUTE` 清空（逃生口的注释保留），`mintable_cells()` 重新包含 `cases:verify`。
+- `tests/unit/test_rbac_cells_reach_routes.py`：新增 `test_acceptance_feedback_is_checked_as_cases_verify`，同时钉 GET 仍读、cancel/reparse 仍触发、auditor 过、operator 被拒；空逃生口下的对账测试加非空守卫（hatch 为空时要求所有单元都可路由，不许因循环为空而假绿）；remedy 测试改铸拼错 scope 并要求每个可铸单元都出现在补救句里；通配符与「只投票的 token 读不到证书」两例改钉 verify。
+- 前端：`FEEDBACK_VOTE_ROLES` → `["admin","auditor"]`；`FindingDetail.test.tsx` 默认身份改为 auditor，拒绝用例改为 viewer/operator，403 夹具改为实测的 `cases:verify` 句子并去掉会腐烂的行号引用，`created_by` 夹具随身份改为 `u-auditor`。
+- 文档三处：`api/routes/feedback.py` 路由说明、`docs/api/auth/README.md` 的验签段（投票 scope 与证书 scope 分开写）、`docs/architecture/MULTI_TENANT_DESIGN.md` §2。
+
+### 改后量到的
+
+- 同一条探针：POST feedback → `cases:verify`；GET → `cases:read`；POST cancel → `cases:trigger`。auditor → `None`；operator → `role ['operator'] may not verify on cases`。
+- `scope_problems("cases:verify")` = `[]`；`CELLS_WITHOUT_A_ROUTE` = 0；`mintable_cells()` 含 `cases:verify`；scoped admin 的 403 句子改为 `--scopes cases:verify`。
+- 后端 7 文件电池 **117 passed in 16.06s**（含 RBAC 门 24 passed）；`ruff check` 首跑 1 错（SIM102 嵌套 if），把条件收成 `and` 链后 `All checks passed!`。
+- 前端（`apps/web`，`npm ci --prefer-offline` 装 171 包）：`vitest run src/pages/FindingDetail.test.tsx` 首跑 2 failed（默认夹具仍是 operator）→ 改夹具后 **26 passed**；`tsc --noEmit` rc 0。
+- 臂电池 5 臂，全部在 `D:/面试项目/wt-673arm`（`git archive` 的 HEAD 全树 2384/2384 文件，覆盖本提交的 principal.py 与门测试；每臂前后 sha256 一致，`restored=78aa45dcdc35`，`battery_673.txt`）：
+  - A1 删掉分类块 → 3 failed：acceptance、orphan 对账、非空守卫。
+  - A2 verify→read → 同样 3 failed。
+  - A3 去掉 `/feedback` 后缀条件 → 1 failed：acceptance（cancel 被扫进 verify）。
+  - A4 把 `cases:verify` 重新声明为死单元 → 1 failed：stale 对账。
+  - A5 分类块与旧声明一起还原＝HEAD 语义 → 1 failed：acceptance。
+  - 预测偏差：A1/A2 只写了两个语义红，漏了第三条非空守卫——守卫正是在「hatch 空且非全路由」该响的那条，属预测清单缺陷，判据没有松动（`predictions_673.txt`）。
+
+### 行为变化（刻意的）
+
+- operator 失去投票权（矩阵只给 trigger），auditor 获得（矩阵给 verify）；admin/viewer 不变；GET 不变（`cases:read`）。
+- 分离职责落地：发起验证的人不能再自己签收结果。
+- 旧 API-key 模式（auth 关闭）不变：中间件只在 tenant 模式查矩阵。
+
+**证据文件**：
+- api/identity/principal.py
+- tests/unit/test_rbac_cells_reach_routes.py
+- apps/web/src/ui/accessRoles.ts
+- apps/web/src/pages/FindingDetail.test.tsx
+- api/routes/feedback.py
+- docs/api/auth/README.md
+- docs/architecture/MULTI_TENANT_DESIGN.md
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md
+
+### 队列
+
+- ① 服务端强制 `created_by == principal.user_id` 仍故意未做：投票体是客户端字段，本号只把「谁有资格投」收进矩阵；冒名写入需要产品决定。
+- ② 推送后按 CI run 复核 `tests/unit`/`tests/security`/`tests/fault` 与前端 job。
+- ③ 未来若再出现不可路由单元，只能带原因和可路由替身进 `CELLS_WITHOUT_A_ROUTE`；空逃生口是门要求的状态，不是默认值。
+- ④ 本文第 5 条已同步：#113 从「故意没做」里移除，只留 created_by 与产品库残留清理。

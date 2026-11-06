@@ -32,6 +32,11 @@ Python API 单租户默认; 无 OIDC/RBAC 矩阵。目标: Python API + Web 全�
   `admin: frozenset({"audit"})` 与 README 那格的「审计视图」同出于 0d85586,本表当时没跟上;
   #96 让 auditor 真能在产品里读审计轨迹之后,这格矛盾才变成读者会踩的坑。矛盾是实测到的。
 
+* 验收判定写入 `POST /api/v1/jobs/{job_id}/feedback` 分类为 `cases:verify`
+  (#113):auditor/admin 可投票,operator/viewer 只读。矩阵让 operator 有
+  trigger 而无 verify,是为了把「发起验证」与「独立签收它的发现」分开;
+  前端 `FEEDBACK_VOTE_ROLES` 由 `test_access_role_parity.py` 从同一次分类派生。
+
 ## 3. 数据模型 (MySQL 迁移)
 
 - tenants(id, name, plan_id, status, created_at);
