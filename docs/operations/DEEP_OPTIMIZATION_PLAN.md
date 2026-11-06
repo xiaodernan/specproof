@@ -23249,3 +23249,49 @@ raised: InvalidURL("Invalid port: ':1]'")
 ## #667 继续长期开发：核心模块完善与测试覆盖  
 ## #668 继续长期开发：模块扩展与边界测试  
 ## #669 继续长期开发：核心模块完善与测试覆盖  
+
+## #670 bandit 门的 rc 1 有两个意思：缺工具与有发现，被同一个 assert 一起放行
+
+### 起因
+
+#602 队列④把这条缺陷交下来时只记了读数、没有动文件：`tests/security/test_bandit_suppressions_are_earned.py` 把 bandit 当子进程跑，`_bandit` 只把退出码交给调用方，`_strip_run` 里一句 `assert code in (0, 1)` 把两种完全不同的结局一起放行——rc 1 既可能是「bandit 跑完了，报了发现」，也可能是「这台解释器上根本没有 bandit」。第二种结局下报告文件不存在，后面三条扫描腿读到的是空表：`_stripped_findings` 返回空字典，于是「没有发现」被当成「17 条 suppression 一条也没藏住」的证据，红消息长成产品缺陷的样子。
+
+### 改前量到的
+
+- **同一个退出码、两种机器状态**（`D:/面试项目/_p548/probe_622_bandit_rc_two_means.txt`，同一探针两种 `PYTHONPATH`）：
+
+  ```
+  PRESENT(installed bandit): rc=1 report_exists=True report_bytes=8263 ids=['B101', 'B311']
+  ABSENT(sitecustomize blocker): rc=1 report_exists=False report_bytes=None ids=[]
+  ```
+
+  报告存在与否是唯一的判别器；rc 不是。缺工具那格 stderr 原文是 `Error while finding module specification for 'bandit' (ModuleNotFoundError: No module named 'bandit')`。
+- **缺工具时五条腿一起把「没跑」判成「产品坏」**：在 `D:/面试项目/_p548/sim_absent_bandit/sitecustomize.py` 里给 `sys.meta_path` 插一个只拦 `bandit`/`bandit.*` 的 finder，跑该文件得到 **`5 failed, 1 passed in 15.11s`**（`D:/面试项目/_p548/prefix_622_absent_reds.txt`）。红消息里三条读起来是在指控 suppression：
+
+  - `suppressions that hide nothing (delete them or move them to the line bandit flags)`，后面跟着全部 17 个站点；
+  - `directive/test mismatch (a wrong id hides the wrong thing)`，每项都是 `bandit reports []`；
+  - `bandit reports no MEDIUM+ finding once the directives are gone, yet 17 directives are shipped`。
+
+  唯一绿的是 `test_the_directive_appears_only_on_lines_of_code`——它只读文本、不跑 bandit。也就是说：这台机器上「文本腿全绿、扫描腿全红」这个形状，与「suppression 真的写错了」完全同形。
+
+### 改动
+
+- `_bandit` 的返回值由三元组换成 `BanditRun(returncode, results, log, ran)`。`ran` 只在报告文件存在、非空、能解析成 dict 时为真——**报告是「跑完」的物证，退出码不是**。
+- 新增 `_require_ran(run)`，三个调用点（`_strip_run`、CI 命令腿、散文腿）先落闸：无报告的退出把退出码与日志尾巴一起说出来，而不是让下游按空表判案。
+- 新增 §0 见证腿 `test_an_absent_bandit_is_reported_as_absent_not_as_findings`：探针模块名在任何机器上都不存在，所以这条腿量的是判别器本身，不依赖本机装没装 bandit。它同时钉住「拒绝消息不得借用三条扫描腿用来指控代码的词」——`hides nothing`、`directive/test mismatch`、`no MEDIUM+ finding` 都不许出现在拒绝消息里。
+
+### 改后量到的
+
+- **缺工具平面：`5 failed, 2 passed in 13.37s`**（`D:/面试项目/_p548/postfix_622_absent_reds.txt`）。五条腿仍然红——缺工具时门本来就该拒绝判案——但红消息统一换成 `bandit did not run to completion under this interpreter, so no suppression claim can be judged (exit 1, no report): … No module named 'bandit'`，该文件里这句出现 **5** 次；同一文件里 `hides nothing|directive/test mismatch|no MEDIUM+ finding` 命中 **0** 次。多出来的一条绿就是 §0 见证腿自己。
+- **正常平面：`7 passed in 21.52s`**；换到本批的落地底座上，该文件与三条账本门同跑 **`48 passed in 26.33s`**（本文件 7 条全在其中）。`ruff check` 该文件 `All checks passed!`。
+- **CI 形状全量门**（`.github/workflows/ci.yml` 的 no-infra job 原样调用 `python -m pytest tests/unit tests/security tests/fault -q`）：在改动的代码平面上 **`1 failed, 6414 passed, 10 skipped in 1834.38s`**（`D:/面试项目/_p548/full_622_nodb.txt`）。唯一红是 `test_recorded_ledger_sections_do_not_vanish.py`，它指控的是 #603–#613 这 11 节与一批同名的空标题。这两件都发生在本批之前、与本批文件无关：本批的底座上那 11 节仍不在 HEAD，且此刻 HEAD 有四十余条 `继续长期开发…` 的单行标题在四个名字间重复，L3 自己也会红。本批不动这些别人的记录，只把读数写在这里。
+
+**证据文件**：
+- tests/security/test_bandit_suppressions_are_earned.py
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md
+
+### 队列
+
+- ① 推送后按 run 复核 `tests-no-infra`：本文件 7 条腿（含 §0）在装了 dev 依赖的 CI 上应全绿；§0 用的是不存在的探针模块，与 bandit 是否安装无关。
+- ② 本批记录的账本红（#603–#613 丢失 + 重复空标题）不归本批修，但它会让所有车道的 `tests-no-infra` 一起红；下一次以「账本修复」为题的批次应先量 `test_recorded_ledger_sections_do_not_vanish.py` 的四条自检，再决定恢复还是重瞄。
+- ③ `_require_ran` 把「报告存在且可解析」当跑完的判据；bandit 在参数错误时也可能留下半截报告。本批只把「模块不在」这一格分开说，参数错误那一格留给第一次真遇到它的批次量。
