@@ -23529,3 +23529,4 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 - ② 推送后按 CI run 复核 `tests/unit`/`tests/security`/`tests/fault` 与前端 job。
 - ③ 未来若再出现不可路由单元，只能带原因和可路由替身进 `CELLS_WITHOUT_A_ROUTE`；空逃生口是门要求的状态，不是默认值。
 - ④ 本文第 5 条已同步：#113 从「故意没做」里移除，只留 created_by 与产品库残留清理。
+## #706 继续长期开发：run_differential_node 跨分支重入竞态与事务回滚完整性验证2  
