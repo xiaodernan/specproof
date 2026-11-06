@@ -22975,3 +22975,150 @@ All checks passed!
 - ② 下一个动替身的车道：红的归属句会直接点名它的类。挪数字必须 `PIN_COUNTS` 与 `PIN_COMMIT` 一起挪，还要带上 `docs/architecture/FAKE_INVENTORY.md` 与那笔提交的理由；A4 已经量过「只挪一半」是什么形状。
 - ③ 分类器仍是下界，这一格本号没动：准入靠类名形状（`Fake*` / `Stub*` / `*Store` / `*Db` / 含 `fake`），`execute` 单独出现不算 SQL 面。文档的「已知下界缺口」那段照旧有效。
 - ④ #602（原 #600 队列⑤）：出站 httpx 建构点继承宿主代理，`NO_PROXY` 里的 `[::1]` 解析炸在 httpx 自己的 `_urlparse.py`，本机 9 条腿红。
+
+## #599 分词器跨过引号、索引签名从"丢掉的块"升格成开放键事实：两张表一起动，对账 48 = 44 + 3 + 1 + 0 + 0
+
+**取号**：队列 ⓾ 由 #581 分配（"`_split_members` 对索引签名 `[key: string]: unknown` 丢 1 个成员块；
+引号扫描对正则字面量 `/"/g` 没有规则"），加上 #598 队列里 ⑬/⑭ 两条保险丝。预测以候选号 **#582**
+冻结于 `59828e0` 之后、任何臂之前：`.scratch/pred582.md` §①–§④（14,104 B / 144 行 / LF / tab 0 /
+sha `d5e50455…`），八条前提探针 `probe582a…l` 全部先跑完再动读法；臂后只追加 §④bis，追加前后都断言
+已冻结前缀逐字节不变（`append_4bis.py`、`fix_4bis_sha.py` 各自 `assert check[:14104] == head`）。
+落地时 origin/master 先到 `a85299c`（max 节 **#598**），#582 这个号已被别道的 `check_transactional`
+直接测试（`0d431ea`）占掉，而 #598 自己的下一号队列正写着 #599 ⇒ 本号取 **#599**；提交前再 fetch，
+上游已接到 `60def7b`（#600）与 `5ef8f34`（#601），**#599 仍空**——队列分配的号没有被抢，本号保留 #599，
+节追加在台账最后（`test_the_next_unit_number_is_max_plus_one` 只约束同族 bare/suffixed 的先后，
+不约束文档里的数值单调，#600 接在 #598 之后已是同形状）。
+落地树 `_wt582` @ `5ef8f34`（两次快进后各重跑一次门），臂树 `_arm582` @ `59828e0`，两份落地文件按 sha
+拷入（owner `3bb130c3…`、门 `a2a73b86…`，55 条腿）。**本号一行产品代码没动**；L7/L8/L8b/L9/L9b 只是臂里的
+临时植桩，跑完逐字节还原并断言 sha256。
+
+### 门半：分词器的三条边界——一条修、一条升格、一条只注册
+
+owner `tests/_payload_plane.py`（+106 −29，130,963 B，3,035 行，CRLF 3,035 / tab 0；`__all__` 只多
+`open_key_types` 一个名字）：
+
+- 新 `_literal_span(text, start)`：字面量只有**一条**结束规则（`'`/`"` 在换行处结束、反引号跨行、`\\`
+  转义），转发 `_end_of_literal`。第二个"字符串在哪结束"的答案，是 #581 用六枚成员付过账的那类第二读法。
+- 新 `_chunks(body)`：深度 0 的分片扫描，**跨过**字面量但把字面量字符原样保留；`_split_members` 改为
+  消费它。跨过 ≠ 抹掉——`"accept" | "reject"` 仍必须读得出来（L-e）。
+- `_block_after` 用同一条规则跨过字面量：字符串里的 `}` 不再闭合类型。
+- 新 `_declaration_bodies(web_src)`：118 个声明体切一次，`ts_declarations` 与 `open_key_types` 共用；
+  第二个切法就是第二次"类型在哪结束"的机会。
+- `_one_member` 的两条 `re.sub` 删除：散文规则只剩遮罩一条。L4 把两条原样装回去，**0 条腿红**——它们是
+  死代码；删除的理由是"单条规则"，不是"有 bug"。
+- 新出口 `open_key_types(web_src)`：索引签名不是成员，是"这个类型承认任意键"的事实。今天 1 行：
+  `AgentAcceptFinding -> [key: string]: unknown`。造一个叫 `key` 的成员会是同一个谎话指向另一边。
+- `members_of_type` 的内联类型表达式仍先过 `_mask_prose`。L3 首轮只红拓扑名册（真树 0 人口），按 §④
+  自己的应急条款补了一条 fixture 行为腿，L3b 才红在行为上（臂表）。
+- 正则字面量**不修**：`SHAPE_SCAN_BLIND_SITES` 仍是 `CommandPalette.tsx:240`、`Tabs.tsx:48` 两行，
+  §③.3 拒绝为此引入一个新的不可信判定（E 项的 84 条粗口径候选不做）。
+
+门 `tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py`
+（+541 −72，258,704 B，5,082 行，55 条腿）新增四张寄存器、八条腿、两处覆盖名册搬家：
+
+| 新腿 | 说的是什么 |
+|------|-----------|
+| `test_the_splitter_boundary_population_is_zero_on_the_tree` | L-a：真树六项反事实计数全 0（字面量带结构 / 切法移动 / 分片移动 / 内联表达式风险 / 成员移动 / 散文造成员）；fixture 植六种写法（`;` 在双引号、`}` 在单引号、模板跨行、转义引号、撇号、嵌套对象）全部读回完整成员，`type_text` 逐字保留 |
+| `test_the_body_cut_steps_over_literals` | L-b：植桩 `"a}" \| "b{"` 不再截断 body；真树切法移动 0 个声明 |
+| `test_the_open_key_types_are_the_chunks_the_splitter_used_to_lose` | L-c：`open_key_types` 逐行等于寄存器；`MEMBER_CHUNK_LOSSES` + `OPEN_KEY_TYPES` = 1 且不相交；分片普查的未读块**恰好**等于登记开放键 |
+| `test_the_comparison_ledger_accounts_for_every_pair` | L-d：48 个 pair 逐一有理由；44/3/1/0/0 求和 = 48；`_checked_pairs` = 44 |
+| `test_the_literal_text_survives_the_member_reading` | L-e：26 个声明 / 30 个成员的字面量文本逐字活在 `type_text`；地板 26 防围栏空转 |
+| `test_prose_cannot_invent_a_member` | L-f：4 种注释写法写 `phantom: string;`，读数只答 `real`（⑭ 落地） |
+| `test_the_mask_leg_asserts_shape_before_it_indexes_by_position` | ⑬：读自己的源码，宽度断言必须排在第一次按位置枚举之前（K2 曾以 IndexError 代替寄存器） |
+| `test_an_inline_type_expression_is_masked_before_members_are_read` | §④bis 补的 L3 行为量具：`{ id: string; /* } */ tail: number; }` 遮罩读法答 `{id, tail}`、裸切法只答 `{id}`。拓扑名册只能证明"调了遮罩"，看不见"丢了一个成员" |
+
+覆盖名册两处搬家：`_MASK_SITES` 与 `_TS_TEXT_READERS` 的 `ts_declarations` 换成 `_declaration_bodies`，
+前者并加 `members_of_type`；`_ANCHOR_BINDINGS` 3 → 4（多 `_MEMBER_HEAD`）。
+
+### 落地读数
+
+| 量 | 读数 |
+|----|------|
+| 声明 / 成员 | 声明 **117**、体 **118**；成员 tuples 与 HEAD 逐字节相同（H2：切法移动 0、分片移动 0） |
+| 分片普查 | chunks **624**、成员 **623**、丢 **0**、登记的开放键块 **1**（#581 是 624/623/1） |
+| 分片器六项人口 | 全 **0**（L-a）；内联表达式带字面量结构 0 |
+| 字面量读数 | 26 个声明 / 30 个成员，字面量内部文本缺失 **0** |
+| 开放键 | `AgentAcceptFinding -> (apps/web/src/api.ts, [key: string]: unknown)`；`MEMBER_CHUNK_LOSSES` 空 |
+| 对账面 | pairs **48** = compared **44** + payload unbounded **3** + type expression unreadable **1** + empty member set **0** + type admits any key **0** |
+| 十副镜片 | `ts_declarations` 117 行不变；`call_shapes` 64、`frontend_calls` 48、`hook_readings` 2、`client_surface` 16、`denominator_sites` 105、`consumer_bindings` 48、`consumer_defences` 50、`alias_table` 4、`ruler_blind_spots` 3 逐行相同 |
+| 正则盲区 | `SHAPE_SCAN_BLIND_SITES` 2 行不变；只注册 |
+| 遮罩粒度 | `_PER_LINE_MASK_ARGUMENTS == 0`、14 个文件逐行≠整文件（#581 寄存器不动） |
+
+### 哪些数动了，哪些必须一字不动
+
+- **读图寄存器由门自己的 `_read_map` 现推现写**（`probe582_map_after.txt`）：`EXIT_READS` **32 → 33**
+  行（新 `open_key_types`；`ts_declarations` 直读 3 → 7、`web_src` 直读 14 → 19、`frontend_calls` 7 → 8、
+  `members_of_type` 直读 1 → 2）、`EXITS_WITH_MULTIPLE_EXECUTORS` **16 → 18**（`open_key_types` 被 4 条腿
+  读、`members_of_type` 被 2 条）、`_EXIT_READ_INSTANCES` `(79,4,90)` → **`(95,4,104)`**、
+  `_DIRECT_RELATION_INSTANCES` **83 → 99**、`_CLOSURE_EDGE_TOTAL` **100 → 133**、
+  `LEGS_WITHOUT_DIRECT_READ` **11 → 12**、`LEGS_WITHOUT_VIA_HELPER_READ` **30 → 33**、
+  `_OWNER_SURFACE` `(35,32,37)` → **`(36,33,38)`**、`_ANCHOR_BINDINGS` **3 → 4**。
+- **一字不动**：十副镜片的行、`CONSUMER_BINDING_*` 十张、`CONSUMER_DEFENCE_REACH (48,8,40)`、
+  `DENOMINATOR_ROW_TOTALS (105,58,47)`、`_AXIS_C_ROW_COUNT 39`、`AXIS_C_BANDS`/`AXIS_C_KEY_TOTALS`、
+  `BLIND_LONG_REGION 18`、`_CLIENT_VERBS` 五名、折叠规则与 `DENOMINATOR_KINDS` 次序；产品 `apps/`、
+  `api/` 一行不改。
+- **有意动过的旧行**（其余任何一行旧文本被动过即视为回归）：`_SHAPE_SCAN_BLIND_ROWS` 那行（换成按站点的
+  `SHAPE_SCAN_BLIND_SITES`）、`_one_member` 的两条 `re.sub`、`MEMBER_CHUNK_LOSSES` 的那行、
+  `test_every_member_chunk…` 的植桩期望 `["id","label"]` → `["id","label","count"]` 与"跳过登记开放键块"
+  的判定；补 L3 腿时 `EXIT_READS["members_of_type"]` 的 tuple 由一行改成三行（直读多一条腿），以及
+  `_EXIT_READ_INSTANCES`、`_DIRECT_RELATION_INSTANCES`、`EXITS_WITH_MULTIPLE_EXECUTORS`、
+  `LEGS_WITHOUT_VIA_HELPER_READ` 四张寄存器按现推值重钉。
+
+### 验证
+
+- 门：落地树 @ `59828e0` **55 passed in 199.06s**（`gate582_run4.txt`）；改号并补完 L3 腿后 @ `a85299c`
+  **55 passed in 180.84s**（`gate582_run5.txt`）；快进到 `5ef8f34`（别道 #600/#601 落地）后
+  **55 passed in 123.99s**（`gate582_run6.txt`）。臂树 BASE 同暖本 **55 passed in 185.89s**；
+  HEAD 未落地态 47 passed（#581 的腿数）。
+- 收件数（同一棵树、只换两文件，才可比）：臂树 @ `59828e0` 的 HEAD 两文件 **6,046** → 落地两文件
+  **6,054**，差**恰好 8** = 七条新腿 + 一条 §④bis 补的量具腿（`collect582c_run.txt`；预测写的 +7 因补腿
+  变 +8）。落地树 @ `5ef8f34` 全量 **6,184**（别道也加了腿，故不用它做差）。
+- `mypy --strict` 两文件 Success、`python -m ruff check .` 全绿（`mypy582c.txt` / `ruff582c.txt`）。
+  `ruff format` 不是本仓库的门（CI 只跑 `ruff check`），本号一次没跑。
+- 逐字节还原：原九条臂（L1–L8b）+ 补腿后的 BASE/L1/L3 + 两条控制臂 L9/L9b 全部跑完，**零次** restore
+  失败；owner 每次回 `3bb130c3…`、臂树门每次回 `ea609149…`、api.ts 每次回快照 sha。驱动
+  `.scratch/next582/arms582.py`、`arm582b.py`、`arm582c.py`、`collect_head582c.py`（每臂一个 `count==1`
+  锚点、先验锚再改、跑完写回并核 sha）。
+
+### 变异臂（§④ 的九条 + 补腿后重跑三条 + 两条空白控制；括号内是腿数）
+
+| 臂 | 改哪里 | 预测 | 实测 | 判定 |
+|----|--------|------|------|------|
+| L1 | `_split_members` 退回引号盲走（54 腿） | 只有 L-a 红 | **2 红**：L-a + #581 的 chunk 普查腿，其余 52 绿 | 命中；55 腿重跑仍 2 红 53 绿（`arm582b_L1.txt`） |
+| L2 | `_block_after` 退回引号盲 | 只有 L-b 红 | **3 红**：L-a、L-b + chunk 普查 | 命中（植桩截断复现，117 个声明的成员不动） |
+| L3 | 内联表达式不再过 `_mask_prose` | 若一条不红 ⇒ 无量具，按 §④bis 补腿 | 首轮 **1 红**且只红拓扑名册；补行为腿后 **2 红**（名册 + 新腿），BASE 55 绿（`arm582b_L3.txt`） | 应急条款真用上：停在"名册红=已修"就是把看不见的丢失记成已修 |
+| L4 | `_one_member` 两条 `re.sub` 装回 | 0 红 | **0 红**（54 passed） | 命中：死代码；删除理由是单条规则 |
+| L5 | `open_key_types` 头式去掉 `[` 分支 | ≥2 红，两张表一起红 | **3 红**：chunk 普查 + 分片器人口 + 开放键腿 | 命中：L-c 的咬合是真的 |
+| L6 | `_checked_pairs` 不加开放类型过滤 | 真树 0 红（44 不变） | **1 红**：`test_the_helper_hop_has_its_own_second_lens`；`_checked_pairs` 仍 44、对账腿绿 | 行为 0 人口命中；红在读图——撤过滤少一次 `_identifiers` 调用改拓扑。登记 ⑱ |
+| L7 | `JobsPage` 植 `[key: string]: unknown` | `COMPARISON_LEDGER` 红（44→42、admits 0→2）、extras 不红 | **6 红**：对账 + 开放键寄存器（名册 1 行 vs 树 2 行）+ 四条 line-keyed；extras **确实没红**（Matrix.tsx:21 的内联 `{ jobs: Job[] }` 仍在作 claim） | 语义数字全中；红单比预测多 5 条，归因见控制臂 |
+| L8 | `FindingsData` 植 `[key: string]: unknown` | 恰好 2 红：extras + 对账 | **7 红**：extras（`("get","/api/v1/jobs/{}/findings")` 的 `sources` 变 stale）+ 对账（44→42、0→2）+ 开放键寄存器 + 同四条 line-keyed | 语义命中；"恰好 2"错在没算 line-keying 与开放键名册 |
+| L8b | **HEAD** owner+gate + 同一个 L8 植桩 | chunk 普查红、**extras 绿** | **5 红**：chunk 普查 + 四条 line-keyed；**extras 绿** | 命中，本号全部价值在这一格：HEAD 的寄存器在对树说谎且没有量具 |
+| L9 | 落地门 + `FindingsData` 同偏移**空行** | 四条 line-keyed 红、其余绿 | **4 failed 51 passed**，恰为 binding census / wrapper / client surface / denominator | 归因控制：这四条与开放键语义无关 |
+| L9b | **HEAD** 门 + 同一个空行 | 同四条红 | **4 failed 43 passed**，同四条 | 同一原因在 HEAD 上也成立；`probe582_shift.py` 给出 22 绑定行 / 9 issuer 行 / 34 分母行整体 +1、**身份集合不变** |
+
+### 发现
+
+1. **失败的读被答成"没有这个数据"，这次发生在分词器与类型之间。** 索引签名不是一个被丢掉的成员块，而是
+   "这个类型承认任意键"的事实；升格成 `open_key_types` 后 `MEMBER_CHUNK_LOSSES` 与它之和恒为 1，对账面把
+   "开放类型不可证伪"单列成第 5 个理由。真树今天只有 1 行、typed 0 个 pair——寄存器把"今天没有人口"写成
+   读数而不是主张。
+2. **两张表必须一起动。** L5 撤掉 `[` 分支时 chunk 普查腿与开放键腿同时红；只红一张就说明两表各自在自言自语。
+3. **四个未预测的红是同一个原因：寄存器按 `(file, line)` 记账。** 植一行（无论内容）会把 api.ts 里该行以下
+   的 22 个绑定、9 个 issuer、34 个分母站点整体下移一格；空白行控制 L9/L9b 复现的正是这四条腿且没有别的腿红。
+   这是队列 ⓼ 的第二个实测受害者，本号不为它改判定，只登记。
+4. **"恰好 N 条红"这种写法在按行记账的寄存器上是错的。** §④ L7/L8 的红单低估了 5 条，本号按偏紧处理：
+   预测照写、实测照报、控制臂照跑；语义数字（44→42、0→2、findings extras 变 stale、117 行不变）全部命中。
+5. **拓扑名册不是行为量具。** L3 首轮只红名册；名册能证明"内联路径调了遮罩"，看不见"少读了一个成员"。
+   补的 fixture 腿把行为钉住，收件数差从 +7 变 +8 就是这条腿存在的证据。
+6. **读图量调用、不量语义。** L6 的行为 tally 不变（44/44），红只在 helper-hop 拓扑——一个只改比较方向、
+   不改调用的回归在读图上不可见，只有行为腿能看见（⑱）。
+
+### 下一号队列
+
+- **⑯ 植桩臂必须先跑"同偏移空白控制"**：L9/L9b 已把方法写成两条能跑的臂；任何植一行产品文本的臂都应
+  同时给"空行版"，否则每次植桩都会把 ⓼ 的账记到植桩语义头上。
+- **⑰ 开放键寄存器在植桩树上的双重身份**：植一个未登记的开放类型时 L-c 必红——既是名册的牙齿，也把
+  "名册在植桩树上过期"与"真树漂移"混成同一条红。候选：fixture 作用域的开放键读数。
+- **⑱ 读图量调用、不量语义**：L6 实测"行为 0 人口 + 读图红"。登记为已知接缝，不声称已闭合。
+- ⓾ 结案（索引签名升格完；正则盲区按 §③.3 只注册、不修）。旧队列 ⓼（寄存器按 `(file, line)` 认行）仍开，
+  本号给了它第二个实测受害者；⑮（轴从不对账嵌套载荷的 item 键）仍开，本号未动。

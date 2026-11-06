@@ -201,6 +201,7 @@ from tests._payload_plane import (  # noqa: E402
     hook_readings,
     members_of_type,
     normalize_path,
+    open_key_types,
     optional_publish_bands,
     pairings,
     payload_of,
@@ -1104,7 +1105,7 @@ CLIENT_MODULE_NON_BRACE_IMPORTS: frozenset[tuple[str, int]] = frozenset()
 #: recomputes it, so an edit that moves a call without moving a number is impossible here.
 EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "CallShape": ((), (), 1),
-    "CallSite": ((), (), 11),
+    "CallSite": ((), (), 12),
     "ClientExport": ((), (), 2),
     "ConsumerBinding": (
         (),
@@ -1125,18 +1126,18 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
             "test_the_conditional_register_is_measured_not_recited",
             "test_the_unbound_register_names_the_routes_that_cannot_be_folded_and_does_not_lie",
         ),
-        8,
+        9,
     ),
     "Member": ((), (), 0),
     "OptionalBand": ((), (), 1),
-    "Pair": ((), (), 11),
+    "Pair": ((), (), 12),
     "_mask_prose": (
         (
             "test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only",
             "test_the_prose_mask_is_one_rule_applied_to_a_file_never_to_a_line",
         ),
         (),
-        1,
+        5,
     ),
     "_mask_typescript": (
         ("test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only",),
@@ -1210,7 +1211,7 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
         (),
         0,
     ),
-    "endpoints": (("test_the_routes_this_gate_invents_exist_only_in_its_own_prose",), (), 11),
+    "endpoints": (("test_the_routes_this_gate_invents_exist_only_in_its_own_prose",), (), 12),
     "frontend_calls": (
         (
             "test_a_hook_that_issues_two_requests_is_refused_and_says_so",
@@ -1219,6 +1220,7 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
             "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
             "test_the_fold_stops_where_the_caller_stopped_spelling_a_path",
             "test_the_hook_consumers_are_measured_from_their_own_bodies",
+            "test_the_splitter_boundary_population_is_zero_on_the_tree",
             "test_the_three_conditional_guards_each_carry_their_own_case",
         ),
         (),
@@ -1235,9 +1237,12 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
         0,
     ),
     "members_of_type": (
-        ("test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written",),
+        (
+            "test_an_inline_type_expression_is_masked_before_members_are_read",
+            "test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written",
+        ),
         (),
-        2,
+        3,
     ),
     "normalize_path": (
         (
@@ -1255,13 +1260,23 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
         (),
         0,
     ),
+    "open_key_types": (
+        (
+            "test_every_member_chunk_the_splitter_keeps_or_drops_is_counted",
+            "test_the_comparison_ledger_accounts_for_every_pair",
+            "test_the_open_key_types_are_the_chunks_the_splitter_used_to_lose",
+            "test_the_splitter_boundary_population_is_zero_on_the_tree",
+        ),
+        (),
+        2,
+    ),
     "pairings": (
         (
             "test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason",
             "test_the_reading_reaches_the_consumer_only_where_the_response_is_handed_over",
         ),
         (),
-        11,
+        12,
     ),
     "payload_of": (
         (
@@ -1272,7 +1287,7 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
             "test_the_unbound_register_names_the_routes_that_cannot_be_folded_and_does_not_lie",
         ),
         (),
-        0,
+        1,
     ),
     "return_accounting": (("test_the_fold_reports_every_return_the_handler_can_take",), (), 0),
     "ruler_blind_spots": (
@@ -1287,10 +1302,15 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
     "ts_declarations": (
         (
             "test_every_member_chunk_the_splitter_keeps_or_drops_is_counted",
+            "test_prose_cannot_invent_a_member",
+            "test_the_body_cut_steps_over_literals",
+            "test_the_literal_text_survives_the_member_reading",
+            "test_the_open_key_types_are_the_chunks_the_splitter_used_to_lose",
             "test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written",
+            "test_the_splitter_boundary_population_is_zero_on_the_tree",
         ),
         (),
-        11,
+        12,
     ),
     "web_src": (
         (
@@ -1298,31 +1318,36 @@ EXIT_READS: dict[str, tuple[tuple[str, ...], tuple[str, ...], int]] = {
             "test_a_page_that_writes_fetch_itself_is_a_site_that_no_name_reading_can_ever_see",
             "test_a_request_mention_written_only_in_prose_makes_no_row_in_any_lens",
             "test_every_member_chunk_the_splitter_keeps_or_drops_is_counted",
+            "test_the_body_cut_steps_over_literals",
             "test_the_census_measures_a_population_rather_than_a_sample",
+            "test_the_comparison_ledger_accounts_for_every_pair",
             "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
             "test_the_definition_guard_rejects_only_definitions",
             "test_the_graphs_consumer_population_is_seven_names_and_only_three_are_hooks",
             "test_the_hook_consumers_are_measured_from_their_own_bodies",
+            "test_the_literal_text_survives_the_member_reading",
             "test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only",
+            "test_the_open_key_types_are_the_chunks_the_splitter_used_to_lose",
             "test_the_path_aliases_the_fold_rewrites_are_rostered_whole",
             "test_the_prose_mask_is_one_rule_applied_to_a_file_never_to_a_line",
             "test_the_shapes_the_ruler_sees_and_does_not_read_are_rostered",
             "test_the_six_fields_a_comment_swallowed_are_declared_and_typed_as_written",
+            "test_the_splitter_boundary_population_is_zero_on_the_tree",
         ),
         (),
         10,
     ),
 }
 
-#: ``(executed, annotated, via-helper)`` relation instances over the whole table. The 90
+#: ``(executed, annotated, via-helper)`` relation instances over the whole table. The 104
 #: in the last column is the point of the register: most of this gate reads the plane
 #: through ``_census`` and ``_checked_pairs``, so a map that only recorded direct calls
 #: would report a gate with no helpers and lose the reads it cannot see.
-_EXIT_READ_INSTANCES = (79, 4, 90)
+_EXIT_READ_INSTANCES = (95, 4, 104)
 
 #: The legs whose reads are all direct or annotated -- the population the cross-check
 #: compares between its two lenses. A zero here would make the agreement vacuous.
-_DIRECT_RELATION_INSTANCES = 83
+_DIRECT_RELATION_INSTANCES = 99
 
 #: Which exits more than one leg executes, and how many do it. These are the rows an arm
 #: is about to red twice: #548's E7 moved ``optional_publish_bands`` and both of its
@@ -1335,15 +1360,17 @@ EXITS_WITH_MULTIPLE_EXECUTORS: dict[str, int] = {
     "consumer_bindings": 9,
     "consumer_defences": 4,
     "denominator_sites": 6,
-    "frontend_calls": 7,
+    "frontend_calls": 8,
     "hook_readings": 4,
+    "members_of_type": 2,
     "normalize_path": 2,
+    "open_key_types": 4,
     "optional_publish_bands": 2,
     "pairings": 2,
     "payload_of": 5,
     "ruler_blind_spots": 3,
-    "ts_declarations": 2,
-    "web_src": 14,
+    "ts_declarations": 7,
+    "web_src": 19,
 }
 
 #: Named by the two legs that read axis (c), spelled out because the arm prediction that
@@ -1360,9 +1387,10 @@ EXIT_READS_ALIAS_ONLY: frozenset[str] = frozenset({"Member"})
 
 #: Legs that never execute or annotate an owner name themselves. Four roster legs read
 #: through helpers; four are #549's, which read this map rather than the plane; two are
-#: #550's, which audit the map builder's own body; and one is #581's, which reads the
-#: maskers and no exit at all. Registered by name because "no direct read" and "no read
-#: at all" are the same zero, and the difference is only visible in the helper hop.
+#: #550's, which audit the map builder's own body; one is #581's, which reads the
+#: maskers and no exit at all; and one is #599's, which reads the mask leg's own source.
+#: Registered by name because "no direct read" and "no read at all" are the same zero,
+#: and the difference is only visible in the helper hop.
 LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
     {
         "test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two",
@@ -1373,6 +1401,7 @@ LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
         "test_no_typescript_text_reaches_a_reading_that_did_not_pass_through_the_mask",
         "test_the_exit_read_map_is_measured_not_recited",
         "test_the_helper_hop_has_its_own_second_lens",
+        "test_the_mask_leg_asserts_shape_before_it_indexes_by_position",
         "test_the_private_page_interfaces_really_are_in_the_census",
         "test_the_read_map_generator_names_no_register_and_the_anchors_are_rostered",
         "test_the_two_lenses_over_the_read_map_agree_leg_by_leg",
@@ -1381,7 +1410,7 @@ LEGS_WITHOUT_DIRECT_READ: frozenset[str] = frozenset(
 
 #: ``(names in the owner's __all__, names this file imports, names public by convention)``.
 #: Three numbers, because the surface has two seams and each is a roster below.
-_OWNER_SURFACE = (35, 32, 37)
+_OWNER_SURFACE = (36, 33, 38)
 
 #: Exported by the owner, not imported here. The owner's surface is not this gate's
 #: surface: these six are how the plane is built (``Payload``, ``api_routers``,
@@ -1436,11 +1465,11 @@ _HELPERS_NAMING_READ_MAP_REGISTERS: frozenset[str] = frozenset()
 _READ_MAP_ANCHORS: frozenset[str] = frozenset({"REPO"})
 
 #: Every uppercase binding this file's helpers name, registers excluded. This is the scope of
-#: the ban: a helper may reach the repo root, the four band names and the page a fixture writes,
-#: and nothing else spelled in uppercase. #549 recorded "7 helpers violate" for a criterion that
-#: counted these three as violations; measured against the registers themselves the population is
-#: zero, which is why the guard is a scope plus a roster rather than a blanket.
-_ANCHOR_BINDINGS: frozenset[str] = frozenset({"_BANDS", "_PAGE", "REPO"})
+#: the ban: a helper may reach the repo root, the four band names, the page a fixture writes and
+#: the member-head lens, and nothing else spelled in uppercase. #549 recorded "7 helpers violate"
+#: for a criterion that counted these as violations; measured against the registers themselves the
+#: population is zero, which is why the guard is a scope plus a roster rather than a blanket.
+_ANCHOR_BINDINGS: frozenset[str] = frozenset({"_BANDS", "_MEMBER_HEAD", "_PAGE", "REPO"})
 
 #: Legs whose helper hop brings back no plane name at all. The empty-via legs are the ones the
 #: cross-check below compares as empty on both sides, so they need a roster: a lens that reached
@@ -1455,9 +1484,11 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
         "test_a_tuple_member_is_counted_by_whether_the_tuple_hands_its_responses_over",
         "test_a_wrapper_that_forwards_the_payload_whole_reads_no_key_in_either_lens",
         "test_an_exit_two_legs_execute_is_rostered_before_the_arm_that_bits_two",
+        "test_an_inline_type_expression_is_masked_before_members_are_read",
         "test_every_name_this_file_imports_reaches_a_leg_or_is_rostered",
         "test_every_paired_site_leaves_the_binding_census_with_exactly_one_reason",
         "test_no_typescript_text_reaches_a_reading_that_did_not_pass_through_the_mask",
+        "test_prose_cannot_invent_a_member",
         "test_the_block_lens_adds_a_guard_population_axis_d_never_saw",
         "test_the_conditional_branches_the_fold_rewrites_are_rostered_whole",
         "test_the_exit_read_map_is_measured_not_recited",
@@ -1467,6 +1498,7 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
         "test_the_helper_hop_has_its_own_second_lens",
         "test_the_hook_consumers_are_measured_from_their_own_bodies",
         "test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only",
+        "test_the_mask_leg_asserts_shape_before_it_indexes_by_position",
         "test_the_path_aliases_the_fold_rewrites_are_rostered_whole",
         "test_the_prose_mask_is_one_rule_applied_to_a_file_never_to_a_line",
         "test_the_read_map_generator_names_no_register_and_the_anchors_are_rostered",
@@ -1483,7 +1515,7 @@ LEGS_WITHOUT_VIA_HELPER_READ: frozenset[str] = frozenset(
 #: Sum over legs of the helpers each reaches, counted once per leg (so a helper two legs share
 #: is two edges). The population the text lens walks: 0 would mean the leg below compares two
 #: empty sets and calls it agreement.
-_CLOSURE_EDGE_TOTAL = 100
+_CLOSURE_EDGE_TOTAL = 133
 
 
 # ---------------------------------------------------------------------------
@@ -1515,6 +1547,7 @@ _MASKER_NAMES: tuple[str, ...] = (
 #: entries with two names are the seam itself: `_mask_typescript` is the *composition* (prose, then
 #: literals), and `_ts_masked` is the only place the composition is applied to a file.
 _MASK_SITES: dict[str, tuple[str, ...]] = {
+    "_declaration_bodies": ("_mask_prose",),
     "_issuers_outside_client": ("_ts_masked",),
     "_mask_typescript": ("_blank_literals", "_mask_prose"),
     "_ts_masked": ("_mask_typescript",),
@@ -1528,8 +1561,8 @@ _MASK_SITES: dict[str, tuple[str, ...]] = {
     "denominator_sites": ("_ts_masked",),
     "frontend_calls": ("_mask_prose",),
     "hook_readings": ("_mask_prose",),
+    "members_of_type": ("_mask_prose",),
     "ruler_blind_spots": ("_mask_prose",),
-    "ts_declarations": ("_mask_prose",),
 }
 
 #: Mask calls whose first argument is a subscript -- the per-line granularity #555 deleted. It was
@@ -1541,6 +1574,7 @@ _PER_LINE_MASK_ARGUMENTS = 0
 #: sites sit inside a mask call; the count is per function so `ruler_blind_spots`, which reads two
 #: passes, is visible as two.
 _TS_TEXT_READERS: dict[str, int] = {
+    "_declaration_bodies": 1,
     "_ts_masked": 1,
     "alias_table": 1,
     "call_shapes": 1,
@@ -1548,7 +1582,6 @@ _TS_TEXT_READERS: dict[str, int] = {
     "frontend_calls": 1,
     "hook_readings": 1,
     "ruler_blind_spots": 2,
-    "ts_declarations": 1,
 }
 
 #: The other plane. These read Python modules and parse them, so their prose blindness comes from
@@ -1576,11 +1609,17 @@ PROSE_SHADOWED_MEMBERS: dict[tuple[str, str], tuple[str, bool, str]] = {
     ("ToastOptions", "duration"): ("apps/web/src/ui/Toast.tsx", True, "number"),
 }
 
-#: Chunks the splitter throws away. Found by replaying the split in this file and diffing against
-#: what `ts_declarations` reports, so it is a measurement of the reader, not of a regex. One row
-#: today, and it is a real TypeScript feature the fold has no word for: an index signature says
-#: "any key is allowed", and the reading answers "no such member".
-MEMBER_CHUNK_LOSSES: dict[str, tuple[str, str]] = {
+#: Chunks the splitter throws away. It is empty now, and the emptiness is the claim: #599 taught
+#: the split to step over literals and gave the one chunk it used to lose -- an index signature --
+#: a table of its own (``OPEN_KEY_TYPES``). A row here is a *field declaration* the reading cannot
+#: answer about; an index signature is not that, so the two tables must move together.
+MEMBER_CHUNK_LOSSES: dict[str, tuple[str, str]] = {}
+
+#: Declared types that admit keys nobody wrote down, with the signature that says so. The extras
+#: axis asks "does the route publish a key the frontend never declared"; for a type carrying an
+#: index signature that question has no answer, so ``_checked_pairs`` refuses to ask it. One row
+#: today, and it is the row #581 registered as a *loss* before the split learned to read it.
+OPEN_KEY_TYPES: dict[str, tuple[str, str]] = {
     "AgentAcceptFinding": (API_TS, "[key: string]: unknown"),
 }
 
@@ -1626,21 +1665,57 @@ _MIN_BLOCK_PROSE_FILES = 18
 _MIN_MASKED_LITERALS = 8000
 _MIN_DECLARATION_BODIES = 100
 _MIN_MEMBER_CHUNKS = 550
+#: Declarations whose member type text carries a string literal -- the 26 that K4 measured being
+#: erased when a content reading is handed the shape mask. A floor, not an equality: what the leg
+#: guards is that the population exists and every interior survives.
+_MIN_LITERAL_TYPE_DECLARATIONS = 26
 #: Files whose text masks differently when the rule is applied to the file than when it is applied
 #: to each line. The per-line count above is zero, and this is what makes that zero a choice rather
 #: than a no-op: a block comment opened on one line is invisible to a rule that never sees the next.
 _MIN_GRANULARITY_DIVERGENT_FILES = 12
+#: What the quote-aware reading could move, and does not. Six zeros with a leg each: a ``;`` or a
+#: brace inside a literal truncates a chunk, a ``}`` inside a literal ends a body early, a literal
+#: on an inline object type does the same at a call site, and prose that loses its mask would invent
+#: members. Measured on this tree in #599 (118 bodies, 117 declarations, 25 inline expressions) --
+#: zero on every counter, which is what makes the fix a fence rather than a repair.
+SPLITTER_BOUNDARY_POPULATION: dict[str, int] = {
+    "bodies_with_literal_structure": 0,
+    "cuts_moved_by_quote_awareness": 0,
+    "splits_moved_by_quote_awareness": 0,
+    "inline_exprs_at_risk": 0,
+    "members_moved_on_tree": 0,
+    "members_invented_by_prose": 0,
+}
+
+#: Where every pair goes: compared, or one of the four reasons a comparison would be a claim
+#: instead of a reading. The leg asserts the tally against the live pairs *and* the sum against
+#: ``len(pairs)``, so a pair that quietly stops being compared has to be named here -- before
+#: #599 the three unbounded and the one unreadable pair were indistinguishable from the 44.
+COMPARISON_LEDGER: dict[str, int] = {
+    "compared": 44,
+    "payload unbounded": 3,
+    "type expression unreadable": 1,
+    "empty member set": 0,
+    "type admits any key": 0,
+}
 #: Consumer rows on the real tree whose call-shaped text sits *inside* a string literal. Zero, and
 #: the fixture keeps one, because the difference between prose and literal is exactly what the two
 #: maskers are for: the first is blanked, the second has to survive.
 _CALL_MENTIONS_INSIDE_A_LITERAL = 0
-#: Literals whose inside the shape reading did not blank, counted rather than hidden. All of them
+#: Literals whose inside the shape reading did not blank, *named* rather than counted. All of them
 #: sit on a line holding a regex literal: the quote scan has no rule for `/"/g`, opens a string at
 #: the `"` inside it and keeps blanking until the next quote, so the real `'\\"'` after it is
-#: already gone by the time the walk reaches it. Two of 9,063 literals, both in a
-#: `querySelector` argument builder. Registering the seam is the whole claim #581 makes about it --
-#: a scanner boundary, the same family as the index signature the member split drops.
-_SHAPE_SCAN_BLIND_ROWS = 2
+#: already gone by the time the walk reaches it. Both are a `replace(/"/g, ...)` in a query-selector
+#: builder. #599 leaves the scanner alone on purpose -- the gate's own reference lens shares the
+#: same quote rule, so it cannot certify a regex fix, and a naive "+regex" rule would blank 38 more
+#: decisions on this tree (measured) with 84 false candidates. Naming the rows is what keeps the
+#: seam from growing quietly.
+SHAPE_SCAN_BLIND_SITES: frozenset[tuple[str, int]] = frozenset(
+    {
+        ("apps/web/src/ui/CommandPalette.tsx", 240),
+        ("apps/web/src/ui/Tabs.tsx", 48),
+    }
+)
 
 
 class ReadMap(NamedTuple):
@@ -1977,22 +2052,42 @@ def _census() -> tuple[list[Endpoint], list[Pair], list[CallSite], Declarations]
     return endpoints(REPO), pairs, orphans, declarations
 
 
+def _classify_pair(
+    pair: Pair, declarations: Declarations, open_types: frozenset[str]
+) -> tuple[str | None, set[str], set[str]]:
+    """The pair's exclusion reason and its declared member sets -- one decision table.
+
+    ``_checked_pairs`` keeps the pairs with no reason and the comparison ledger tallies the
+    reasons, so a new exclusion cannot enter one without the other. "Type admits any key" is
+    not a reading failure: the type is readable, and that is exactly why "the frontend never
+    declared this key" cannot be proved about it.
+    """
+    required, optional, notes = members_of_type(pair.site.type_expr, declarations)
+    if notes:
+        return "type expression unreadable", required, optional
+    if not (required or optional):
+        return "empty member set", required, optional
+    if _identifiers(pair.site.type_expr) & open_types:
+        return "type admits any key", required, optional
+    if payload_of(REPO, pair.endpoint).unbounded:
+        return "payload unbounded", required, optional
+    return None, required, optional
+
+
 def _checked_pairs(
     pairs: list[Pair], declarations: Declarations
 ) -> list[tuple[Pair, set[str], set[str]]]:
     """Pairs where both sides of the contract have a readable shape.
 
-    A site with no declared type and a route with no foldable payload are not silence
-    here: they are counted by their own legs and registers, so this helper only says
-    which pairs can be *compared*.
+    A site with no declared type, a route with no foldable payload, and a type that admits
+    any key are not silence here: they are counted by their own legs and registers, so this
+    helper only says which pairs can be *compared*.
     """
+    open_types = frozenset(open_key_types(web_src(REPO)))
     out = []
     for pair in pairs:
-        required, optional, notes = members_of_type(pair.site.type_expr, declarations)
-        if notes or not (required or optional):
-            continue
-        payload = payload_of(REPO, pair.endpoint)
-        if payload.unbounded:
+        reason, required, optional = _classify_pair(pair, declarations, open_types)
+        if reason is not None:
             continue
         out.append((pair, required, optional))
     return out
@@ -2875,10 +2970,11 @@ def test_the_two_lenses_over_the_read_map_agree_leg_by_leg() -> None:
     file's own lines with strings and comments tokenized away. That they agree on every leg is
     the evidence that the table describes the file rather than the wish.
 
-    The roster below is what the equation says about silence: ten legs read no exit directly.
-    Four are #543/#544's roster legs, whose reads all go through ``_census`` and
-    ``_checked_pairs``; four are #549's, which read the map instead of the plane, and two are
-    #550's, which audit the map builder's own body.
+    The roster below is what the equation says about silence: twelve legs read no exit
+    directly. Four are #543/#544's roster legs, whose reads all go through ``_census`` and
+    ``_checked_pairs``; four are #549's, which read the map instead of the plane, two are
+    #550's, which audit the map builder's own body, and two are #599's -- one mask-order
+    meta leg and one fixture-only fuse.
     "No direct read" and "no read" are the same zero, and only the helper hop tells them apart.
     """
     gate_src = Path(__file__).resolve().read_text(encoding="utf-8")
@@ -4141,6 +4237,59 @@ def _literals_holding_structure(text: str) -> list[str]:
     return [text[a:b] for a, b in literals if any(c in text[a + 1 : b - 1] for c in ";{}")]
 
 
+def _blank_literal_interiors(text: str) -> str:
+    """The same text with literal interiors blanked, delimiters and columns kept.
+
+    The counterfactual half of #599's fix: a split that runs on this string sees exactly what a
+    quote-stepping split sees structurally, so comparing the two says whether the tree depends
+    on the blindness. Contents are never needed here -- the content lens is `ts_declarations`.
+    """
+    _prose, literals = _ts_tokens(text)
+    chars = list(text)
+    for start, stop in literals:
+        for k in range(start + 1, stop - 1):
+            chars[k] = " "
+    return "".join(chars)
+
+
+def _declaration_bodies_quote_aware(
+    web: Path, head: re.Pattern[str]
+) -> list[tuple[str, str, str]]:
+    """``_declaration_bodies`` with literal interiors blanked before the braces are counted.
+
+    Same heads, same order, same records -- only the walk's feeding text differs. If stepping
+    over literals moves a body boundary on this tree, these bodies disagree with the raw ones.
+    """
+    out: list[tuple[str, str, str]] = []
+    for ts in sorted(list(web.rglob("*.ts")) + list(web.rglob("*.tsx"))):
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
+        shape = _blank_literal_interiors(text)
+        for match in head.finditer(text):
+            name = match.group(1) or match.group(2)
+            open_at = match.end() - 1
+            depth = 0
+            i = open_at
+            while i < len(text):
+                if shape[i] == "{":
+                    depth += 1
+                elif shape[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                i += 1
+            out.append((name, _rel_label(web, ts), text[open_at + 1 : i]))
+    return out
+
+
+def _split_stepping_over_literals(body: str) -> list[str]:
+    """Member names read from a body whose literal interiors cannot act as structure."""
+    return [
+        _chunk_name(chunk)
+        for chunk, is_member in _chunk_walk(_blank_literal_interiors(body), _MEMBER_HEAD)
+        if is_member
+    ]
+
+
 def _prose_line_numbers(text: str) -> set[int]:
     prose, _literals = _ts_tokens(text)
     lines: set[int] = set()
@@ -4272,19 +4421,30 @@ def test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only() ->
     literal_touched: list[str] = []
     width_moved: list[str] = []
     shape_kept_literal: list[str] = []
-    scan_blind_sites: list[str] = []
+    scan_blind_sites: list[tuple[str, int]] = []
     shape_lost_quote: list[str] = []
 
+    masks: dict[str, tuple[str, str]] = {}
     for ts in files:
         raw = ts.read_text(encoding="utf-8")
-        masked = _mask_prose(raw)
-        shape = _mask_typescript(raw)
-        prose, literals = _ts_tokens(raw)
         rel = _rel_label(web_src(REPO), ts)
+        masked, shape = _mask_prose(raw), _mask_typescript(raw)
+        masks[rel] = (masked, shape)
         if len(masked) != len(raw) or len(shape) != len(raw):
             width_moved.append(rel)
         if masked.count("\n") != raw.count("\n") or shape.count("\n") != raw.count("\n"):
             width_moved.append(rel)
+    # The width assertion runs before any walk indexes the masked text. K2 -- a mask that deletes
+    # characters instead of blanking them -- used to surface as an IndexError inside the character
+    # walk, which turned a violated invariant into a crash and hid every finding after it. A broken
+    # mask has to be *reported* by the invariant it breaks.
+    assert not width_moved, f"the mask changed the shape of the text: {sorted(set(width_moved))}"
+
+    for ts in files:
+        raw = ts.read_text(encoding="utf-8")
+        masked, shape = masks[_rel_label(web_src(REPO), ts)]
+        prose, literals = _ts_tokens(raw)
+        rel = _rel_label(web_src(REPO), ts)
 
         in_prose: set[int] = set()
         for start, stop in prose:
@@ -4310,7 +4470,7 @@ def test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only() ->
             blanked = shape[start + 1 : closer] if closer is not None else shape[start + 1 : stop]
             if re.sub(r"[^\n]", " ", interior) != blanked:
                 if _REGEX_LIKE.search(raw_lines[lineno - 1]):
-                    scan_blind_sites.append(f"{rel}:{lineno}")
+                    scan_blind_sites.append((rel, lineno))
                 else:
                     shape_kept_literal.append(f"{rel}:{lineno}")
 
@@ -4330,15 +4490,14 @@ def test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only() ->
         f"only {len(block_files)} files carry block comments"
     )
     assert literal_count >= _MIN_MASKED_LITERALS, f"only {literal_count} literals walked"
-    assert not width_moved, f"the mask changed the shape of the text: {sorted(set(width_moved))}"
+    assert set(scan_blind_sites) == SHAPE_SCAN_BLIND_SITES, (
+        f"the quote scan opened a string inside a regex literal at {sorted(scan_blind_sites)}"
+    )
     assert not prose_survived, f"prose survived the mask at {len(prose_survived)} characters"
     assert not code_touched, f"the mask rewrote code at {code_touched[:6]}"
     assert not literal_touched, f"the prose mask touched a literal at {literal_touched[:6]}"
     assert not shape_kept_literal, (
         f"the shape reading left literal text at {shape_kept_literal[:6]}"
-    )
-    assert len(scan_blind_sites) == _SHAPE_SCAN_BLIND_ROWS, (
-        f"the quote scan opened a string inside a regex literal at {sorted(scan_blind_sites)}"
     )
     assert not shape_lost_quote, (
         f"the shape reading erased its own delimiters at {shape_lost_quote[:6]}"
@@ -4458,18 +4617,19 @@ def test_every_member_chunk_the_splitter_keeps_or_drops_is_counted(tmp_path: Pat
     ``ts_declarations`` reports. Whatever the cause, that difference is a field the browser declared
     and the reading answers "not declared" about.
 
-    One row today, and it is not the prose bug: an index signature. ``[key: string]: unknown`` is
-    TypeScript for "any key is allowed here", ``_one_member`` has no head pattern for it, and the
-    fold answers as though the type declared nothing beyond its six named fields. Registered rather
-    than fixed because it is a *decision rule*, and #555's own constraint was that it changes only
-    the step before a decision rule runs.
+    One row used to be here, and it was not the prose bug: an index signature. ``[key: string]:
+    unknown`` is TypeScript for "any key is allowed here", so #599 gave it a table of its own
+    (``OPEN_KEY_TYPES``) instead of pretending it is a field. The census skips exactly the chunks
+    that table registers, which is the interlock: break the exit and this leg grows a row.
 
-    The second half is the same hazard one layer down. ``_split_members`` counts braces without
-    stepping over quotes, so a ``;`` or a ``{`` written *inside* a string truncates the body the way
-    a comment's ``;`` used to. Nothing on this tree writes it -- that is the first assertion -- and
-    the planted interface shows what the reading would answer if a lane did: two of three fields.
+    The second half is the same hazard one layer down. ``_split_members`` counted braces without
+    stepping over quotes, so a ``;`` or a ``{`` written *inside* a string truncated the body the
+    way a comment's ``;`` used to. Nothing on this tree writes it -- that is the first assertion --
+    and the planted interface pins the answer: all three fields, with the literal structure still
+    inside ``label``'s type text.
     """
     decl = ts_declarations(web_src(REPO))
+    open_keys = open_key_types(web_src(REPO))
     bodies = _declaration_bodies(web_src(REPO), _DECLARATION_HEAD)
     assert len(bodies) >= _MIN_DECLARATION_BODIES, f"only {len(bodies)} declaration bodies found"
 
@@ -4480,8 +4640,11 @@ def test_every_member_chunk_the_splitter_keeps_or_drops_is_counted(tmp_path: Pat
         if entry is None:
             continue
         kept = {item.name for item in entry[1]}
+        registered = " ".join(open_keys.get(name, ("", ""))[1].split())
         for chunk, is_member in _chunk_walk(body, _MEMBER_HEAD):
             chunks += 1
+            if is_member and " ".join(chunk.split()) == registered:
+                continue
             if is_member and _chunk_name(chunk) not in kept:
                 lost[name] = (rel, " ".join(chunk.split())[:48])
     assert chunks >= _MIN_MEMBER_CHUNKS, f"only {chunks} chunks walked"
@@ -4509,10 +4672,9 @@ def test_every_member_chunk_the_splitter_keeps_or_drops_is_counted(tmp_path: Pat
     )
     read = ts_declarations(planted)
     holder = [item.name for item in read["Holder"][1]]
-    assert holder == ["id", "label"], (
-        f"the planted literal seam is no longer truncating the body: {holder} "
-        f"-- a lane that taught `_split_members` to step over quotes must delete this row and "
-        f"expect id, label and count"
+    assert holder == ["id", "label", "count"], (
+        f"the planted literal seam truncated the body again: {holder} "
+        f"-- the split must step over the literal without removing its text"
     )
     assert [item.name for item in read["Plain"][1]] == ["id", "count"]
     assert _literals_holding_structure(
@@ -4611,3 +4773,310 @@ export function ThingPage() {
 '''
 
 _PROSE_FIXTURE_TYPES_TS = "export interface Thing { id: string }\n"
+
+
+def test_the_splitter_boundary_population_is_zero_on_the_tree(tmp_path: Path) -> None:
+    """The six shapes a quote-blind split cannot read, and the six zeros the tree answers with.
+
+    #599 taught the member split to step over literals. On this tree that is not a repair: no
+    declaration body carries a ``;`` or a brace inside a string, and every counterfactual below
+    finds nothing to move. The zeros are measured, not asserted from a docstring -- the same walk
+    is re-run with literal interiors blanked and compared with the raw one -- and the fixture at
+    the bottom is the load test: each of the six shapes a quote-blind split gets wrong, read back
+    whole, with the literal text still inside ``type_text``.
+    """
+    decl = ts_declarations(web_src(REPO))
+    open_keys = open_key_types(web_src(REPO))
+    bodies = _declaration_bodies(web_src(REPO), _DECLARATION_HEAD)
+    aware = _declaration_bodies_quote_aware(web_src(REPO), _DECLARATION_HEAD)
+    assert len(aware) == len(bodies), f"the two cuts found {len(aware)} and {len(bodies)} bodies"
+
+    counts = dict.fromkeys(SPLITTER_BOUNDARY_POPULATION, 0)
+    for (name, _rel, body), (_aware_name, _r, aware_body) in zip(bodies, aware, strict=True):
+        if _literals_holding_structure(body):
+            counts["bodies_with_literal_structure"] += 1
+        if body != aware_body:
+            counts["cuts_moved_by_quote_awareness"] += 1
+        blind = [
+            _chunk_name(chunk)
+            for chunk, is_member in _chunk_walk(body, _MEMBER_HEAD)
+            if is_member
+        ]
+        steered = _split_stepping_over_literals(body)
+        if blind != steered:
+            counts["splits_moved_by_quote_awareness"] += 1
+        entry = decl.get(name)
+        if entry is None:
+            continue
+        owner_names = [item.name for item in entry[1]]
+        registered = _chunk_name(open_keys[name][1]) if name in open_keys else None
+        if owner_names != [member for member in steered if member != registered]:
+            counts["members_moved_on_tree"] += 1
+    for site in frontend_calls(web_src(REPO))[0]:
+        if site.type_expr.strip().startswith("{") and _literals_holding_structure(site.type_expr):
+            counts["inline_exprs_at_risk"] += 1
+    counts["members_invented_by_prose"] = sum(
+        1
+        for _n, _r, body in bodies
+        for chunk, _is_member in _chunk_walk(body, _MEMBER_HEAD)
+        if re.search(r"//|/\*", chunk)
+    )
+    assert counts == SPLITTER_BOUNDARY_POPULATION, (
+        f"the splitter's blind side is populated on this tree: {counts}"
+    )
+
+    planted = _fixture_web(
+        tmp_path,
+        {
+            "Lit.ts": (
+                "export interface Lit {\n"
+                '  semi: "a;b";\n'
+                "  brace: 'a}b';\n"
+                "  template: `a{b;c`;\n"
+                '  escaped: "a\\"; b";\n'
+                '  apos: "it\'s; fine";\n'
+                '  nested: { inner: "a;b"; other: number };\n'
+                "  tail: string;\n"
+                "}\n"
+            )
+        },
+    )
+    read = ts_declarations(planted)
+    members = {item.name: item.type_text for item in read["Lit"][1]}
+    assert list(members) == ["semi", "brace", "template", "escaped", "apos", "nested", "tail"], (
+        f"a literal shape truncated the split: {list(members)}"
+    )
+    assert members["semi"] == '"a;b"'
+    assert members["brace"] == "'a}b'"
+    assert members["template"] == "`a{b;c`"
+    assert members["escaped"] == '"a\\"; b"'
+    assert members["apos"] == '"it\'s; fine"'
+    assert "a;b" in members["nested"] and "other: number" in members["nested"]
+    assert _literals_holding_structure(
+        (planted / "Lit.ts").read_text(encoding="utf-8")
+    ), "the fixture stopped carrying the structure it plants"
+
+
+def test_the_body_cut_steps_over_literals(tmp_path: Path) -> None:
+    """``_block_after`` counts braces; a ``}`` written in a string used to close the type.
+
+    The fixture is the smallest shape that shows the cost: the first member's literal holds a
+    closing brace, so a quote-blind cut ends the body inside the literal and everything after it
+    is answered "not declared". The real-tree half is the same counterfactual as the population
+    leg, kept here because this leg is the one that would go red if only the cut regressed.
+    """
+    planted = _fixture_web(
+        tmp_path,
+        {
+            "Cut.ts": (
+                "export interface Cut {\n"
+                '  left: "a}" | "b{";\n'
+                "  right: number;\n"
+                "}\n"
+                "export interface After { id: string }\n"
+            )
+        },
+    )
+    read = ts_declarations(planted)
+    assert [item.name for item in read["Cut"][1]] == ["left", "right"], (
+        f"a brace in a literal ended the body early: {[i.name for i in read['Cut'][1]]}"
+    )
+    assert read["Cut"][1][0].type_text == '"a}" | "b{"'
+    assert [item.name for item in read["After"][1]] == ["id"]
+
+    bodies = _declaration_bodies(web_src(REPO), _DECLARATION_HEAD)
+    aware = _declaration_bodies_quote_aware(web_src(REPO), _DECLARATION_HEAD)
+    moved = [
+        name
+        for (name, _rel, body), (_n, _r, aware_body) in zip(bodies, aware, strict=True)
+        if body != aware_body
+    ]
+    assert not moved, f"stepping over literals moved the body of {moved[:6]}"
+
+
+def test_the_open_key_types_are_the_chunks_the_splitter_used_to_lose() -> None:
+    """Two tables that must move together: the census's losses and the type's open keys.
+
+    #581 filed ``[key: string]: unknown`` as a chunk the splitter threw away. It was never
+    thrown away -- it is the declaration saying it admits keys nobody wrote -- so it moved to
+    ``OPEN_KEY_TYPES`` and ``MEMBER_CHUNK_LOSSES`` emptied. This leg recomputes the chunk census
+    against the reading and *requires* the unread set to be exactly the registered open keys:
+    break the exit and the chunk census grows a loss row (arm L5 measured both going red).
+    """
+    web = web_src(REPO)
+    decl = ts_declarations(web)
+    open_keys = open_key_types(web)
+    assert open_keys == OPEN_KEY_TYPES, f"the open-key table drifted: {open_keys}"
+    assert len(MEMBER_CHUNK_LOSSES) + len(OPEN_KEY_TYPES) == 1, (
+        f"the one chunk and the one open key: {MEMBER_CHUNK_LOSSES} vs {OPEN_KEY_TYPES}"
+    )
+    assert not set(MEMBER_CHUNK_LOSSES) & set(OPEN_KEY_TYPES), (
+        "a chunk cannot be both a registered loss and an open key"
+    )
+
+    unread: dict[str, str] = {}
+    for name, _rel, body in _declaration_bodies(web, _DECLARATION_HEAD):
+        entry = decl.get(name)
+        if entry is None:
+            continue
+        kept = {item.name for item in entry[1]}
+        for chunk, is_member in _chunk_walk(body, _MEMBER_HEAD):
+            if is_member and _chunk_name(chunk) not in kept:
+                unread[name] = " ".join(chunk.split())
+    assert set(unread) == set(OPEN_KEY_TYPES), (
+        f"the chunk census and the open-key table disagree: unread={unread} "
+        f"open={OPEN_KEY_TYPES}"
+    )
+    assert all(unread[name] == text for name, (_host, text) in OPEN_KEY_TYPES.items()), (
+        f"the registered signature is not the chunk the splitter reads: {unread}"
+    )
+
+
+def test_the_comparison_ledger_accounts_for_every_pair() -> None:
+    """Every pair is either compared or named with the reason it is not.
+
+    48 pairs, 44 compared, three payloads that do not fold, one type expression the reader
+    cannot open, and -- the row #599 adds -- zero pairs typed by a type that admits any key.
+    Before this ledger the four exclusions were invisible: "44 did not drift" and "four I could
+    not read" had the same shape on the account.
+    """
+    _endpoints, pairs, _orphans, declarations = _census()
+    open_types = frozenset(open_key_types(web_src(REPO)))
+    tally = dict.fromkeys(COMPARISON_LEDGER, 0)
+    for pair in pairs:
+        reason, _required, _optional = _classify_pair(pair, declarations, open_types)
+        tally["compared" if reason is None else reason] += 1
+    assert tally == COMPARISON_LEDGER, f"the comparison denominator moved: {tally}"
+    assert sum(COMPARISON_LEDGER.values()) == len(pairs), (
+        f"the ledger accounts for {sum(COMPARISON_LEDGER.values())} of {len(pairs)} pairs"
+    )
+    compared = _checked_pairs(pairs, declarations)
+    assert len(compared) == COMPARISON_LEDGER["compared"]
+
+
+def test_the_literal_text_survives_the_member_reading() -> None:
+    """Stepping over a literal is a scan, not an erasure -- the K4 hazard made permanent.
+
+    26 declarations carry a string literal in a member's type (``"accept" | "reject"`` and the
+    like). The shape mask blanks exactly that text, so a content reading that reached for it
+    would answer every one of these types with an empty union. This leg walks the same bodies,
+    takes each literal's interior, and requires it verbatim inside the ``type_text`` the owner
+    reported -- a floor of 26 because a tree that stopped writing literal unions would make the
+    fence vacuous.
+    """
+    decl = ts_declarations(web_src(REPO))
+    literal_decls: set[str] = set()
+    missing: list[str] = []
+    for name, _rel, body in _declaration_bodies(web_src(REPO), _DECLARATION_HEAD):
+        entry = decl.get(name)
+        if entry is None:
+            continue
+        types = {item.name: item.type_text for item in entry[1]}
+        for chunk, is_member in _chunk_walk(body, _MEMBER_HEAD):
+            if not is_member:
+                continue
+            head = re.match(r"^\s*(?:readonly\s+)?(\w+)(\?)?\s*:\s*(.+)$", chunk, re.S)
+            if head is None:
+                continue
+            _prose, spans = _ts_tokens(head.group(3))
+            for start, stop in spans:
+                inner = head.group(3)[start + 1 : stop - 1]
+                if not inner:
+                    continue
+                literal_decls.add(name)
+                if inner not in types.get(head.group(1), ""):
+                    missing.append(f"{name}.{head.group(1)} lost {inner!r}")
+    assert not missing, f"the member reading blanked literal text: {missing[:6]}"
+    assert len(literal_decls) >= _MIN_LITERAL_TYPE_DECLARATIONS, (
+        f"only {len(literal_decls)} declarations carry a literal in a member type; the 26 "
+        f"whose type_text K4 measured being erased are no longer reachable"
+    )
+
+
+def test_an_inline_type_expression_is_masked_before_members_are_read() -> None:
+    """L3's ruler: the inline ``{...}`` is a content reading, so prose is blanked first.
+
+    ``members_of_type`` reads an inline expression with ``_block_after``. Without the mask a
+    ``}`` written in a comment closes the expression where the comment sits: this fixture
+    answers ``id`` and ``tail`` when the prose is blanked, and ``id`` alone when it is not.
+    ``_MASK_SITES`` records the topology -- that the inline path calls ``_mask_prose`` -- but a
+    roster cannot see a member go missing, which is what the L3 arm measured.
+    """
+    expr = "{ id: string; /* } */ tail: number; }"
+    required, optional, notes = members_of_type(expr, {})
+    assert (required, optional, notes) == ({"id", "tail"}, set(), []), (
+        "the inline expression lost a member behind prose: "
+        f"{(required, optional, notes)}"
+    )
+
+
+def test_prose_cannot_invent_a_member(tmp_path: Path) -> None:
+    """⑭: the mask is the only prose rule, so a comment cannot become a field.
+
+    The member reader used to carry its own two ``re.sub`` calls on top of the mask; #599
+    deleted them after measuring that nothing reached them. This fixture writes the same
+    ``phantom: string;`` in the four comment spellings and requires the reading to answer one
+    field: the mask runs first, and nothing after it searches for a second opinion about prose.
+    """
+    planted = _fixture_web(
+        tmp_path,
+        {
+            "Ghost.ts": (
+                "export interface Ghost {\n"
+                "  // phantom: string;\n"
+                "  /* phantom: string; */\n"
+                "  /*\n"
+                "     phantom: string;\n"
+                "  */\n"
+                "  /**\n"
+                "   * phantom: string;\n"
+                "   */\n"
+                "  real: string; /* phantom: string; */\n"
+                "}\n"
+            )
+        },
+    )
+    read = ts_declarations(planted)
+    names = [item.name for item in read["Ghost"][1]]
+    assert names == ["real"], f"prose became a member: {names}"
+    assert "phantom" not in names
+
+
+def test_the_mask_leg_asserts_shape_before_it_indexes_by_position() -> None:
+    """⑬: a mask that moves columns must fail as an assertion, never as an IndexError.
+
+    ``test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only`` walks the masked
+    text by index. #599's K2 arm moved a column and the walk crashed instead of reporting the
+    mask, which is a red leg turning into a broken one. The width assertion now runs before the
+    first positional read; this leg reads the leg's own source and refuses the old order.
+    """
+    source = Path(__file__).resolve().read_text(encoding="utf-8")
+    module = ast.parse(source)
+    leg = next(
+        node
+        for node in ast.walk(module)
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "test_the_mask_blanks_prose_only_and_the_shape_step_blanks_literals_only"
+    )
+    width_lines = [
+        node.lineno
+        for node in ast.walk(leg)
+        if isinstance(node, ast.Assert) and "width_moved" in ast.dump(node.test)
+    ]
+    walk_lines = [
+        node.lineno
+        for node in ast.walk(leg)
+        if isinstance(node, ast.For)
+        and isinstance(node.iter, ast.Call)
+        and isinstance(node.iter.func, ast.Name)
+        and node.iter.func.id == "enumerate"
+        and bool(node.iter.args)
+        and isinstance(node.iter.args[0], ast.Name)
+        and node.iter.args[0].id == "raw"
+    ]
+    assert width_lines, "the mask leg no longer asserts that the mask keeps the text's width"
+    assert walk_lines, "the mask leg no longer walks the masked text by position"
+    assert min(width_lines) < min(walk_lines), (
+        f"the width assertion at {min(width_lines)} runs after the positional walk at "
+        f"{min(walk_lines)}: a mask that moves columns would crash the leg instead of failing it"
+    )

@@ -1527,34 +1527,64 @@ def endpoints(root: Path) -> list[Endpoint]:
 # TS declarations (api.ts is not the only host -- see AgentSettings.tsx)
 
 
-def _split_members(body: str) -> list[Member]:
-    """Top-level `name: type;` pairs in an object-type body, brace/bracket aware."""
-    out: list[Member] = []
+def _literal_span(text: str, start: int) -> int:
+    """The index just past the literal at ``start``, using the mask's own rule.
+
+    One rule, two readers: the prose mask steps over literals so a ``//`` inside a string is not a
+    comment, and the body/split walks below step over them so a ``;`` or a brace inside a string is
+    not structure. A second notion of "where the string ends" would be a second reading of the same
+    file, and #581 is the unit that paid for having one.
+    """
+    return _end_of_literal(text, start)
+
+
+def _chunks(body: str) -> list[str]:
+    """Every depth-0 chunk of an object-type body, literals stepped over and kept verbatim.
+
+    The split is a *scan*: a ``;`` or a brace written inside a string is text, not structure, and
+    dropping it is the same mistake that lost six fields to a comment's ``;`` (#581). What stays a
+    literal is its own characters -- ``"accept" | "reject"`` is the content this reader exists to
+    report, so the chunk is copied through, never blanked.
+    """
+    out: list[str] = []
     depth = 0
     buf = ""
-    for ch in body:
+    i = 0
+    size = len(body)
+    while i < size:
+        ch = body[i]
+        if ch in "'\"`":
+            end = _literal_span(body, i)
+            buf += body[i:end]
+            i = end
+            continue
         if ch in "{[(":
             depth += 1
-            buf += ch
         elif ch in "})]":
             depth -= 1
-            buf += ch
         elif ch == ";" and depth == 0:
-            member = _one_member(buf)
-            if member is not None:
-                out.append(member)
+            out.append(buf)
             buf = ""
-        else:
-            buf += ch
-    member = _one_member(buf)
-    if member is not None:
-        out.append(member)
+            i += 1
+            continue
+        buf += ch
+        i += 1
+    out.append(buf)
+    return out
+
+
+def _split_members(body: str) -> list[Member]:
+    """Top-level `name: type;` pairs in an object-type body, brace/bracket/literal aware."""
+    out: list[Member] = []
+    for chunk in _chunks(body):
+        member = _one_member(chunk)
+        if member is not None:
+            out.append(member)
     return out
 
 
 def _one_member(chunk: str) -> Member | None:
-    chunk = re.sub(r"/\*.*?\*/", "", chunk, flags=re.S)
-    chunk = re.sub(r"//[^\n]*", "", chunk).strip()
+    chunk = chunk.strip()
     m = re.match(r"^(\w+)(\?)?\s*:\s*(.+)$", chunk, re.S)
     if m is None:
         return None
@@ -1562,13 +1592,22 @@ def _one_member(chunk: str) -> Member | None:
 
 
 def _block_after(text: str, open_brace_at: int) -> str:
-    """Body of the brace block that starts at `open_brace_at` (the char is a `{`)."""
+    """Body of the brace block that starts at `open_brace_at` (the char is a `{`).
+
+    Braces inside a literal are text: a `}` written in a string closes nothing. The walk steps over
+    them with the mask's own literal rule rather than a second one.
+    """
     depth = 0
     i = open_brace_at
-    while i < len(text):
-        if text[i] == "{":
+    size = len(text)
+    while i < size:
+        ch = text[i]
+        if ch in "'\"`":
+            i = _literal_span(text, i)
+            continue
+        if ch == "{":
             depth += 1
-        elif text[i] == "}":
+        elif ch == "}":
             depth -= 1
             if depth == 0:
                 return text[open_brace_at + 1 : i]
@@ -1592,6 +1631,23 @@ def _rel_in_web(web_src: Path, ts: Path) -> str:
     return f"{'/'.join(web_src.parts[-3:])}/{ts.relative_to(web_src).as_posix()}"
 
 
+def _declaration_bodies(web_src: Path) -> list[tuple[str, str, str]]:
+    """(name, host, body) for every object-shaped declaration, cut once for all its readers.
+
+    Two readers below ask different questions of the same body -- which members it declares, and
+    whether it admits keys nobody wrote -- and a second cut would be a second chance to disagree
+    about where the type ends.
+    """
+    out: list[tuple[str, str, str]] = []
+    for ts in sorted(list(web_src.rglob("*.ts")) + list(web_src.rglob("*.tsx"))):
+        rel = _rel_in_web(web_src, ts)
+        text = _mask_prose(ts.read_text(encoding="utf-8"))
+        for pattern in _DECL_PATTERNS:
+            for m in pattern.finditer(text):
+                out.append((m.group(1), rel, _block_after(text, m.end() - 1)))
+    return out
+
+
 def ts_declarations(web_src: Path) -> dict[str, tuple[str, list[Member]]]:
     """Every interface/type-alias object shape in the frontend, with its host file.
 
@@ -1599,14 +1655,34 @@ def ts_declarations(web_src: Path) -> dict[str, tuple[str, list[Member]]]:
     and is invisible to an `export interface` lens (#543 measures that).
     """
     out: dict[str, tuple[str, list[Member]]] = {}
-    for ts in sorted(list(web_src.rglob("*.ts")) + list(web_src.rglob("*.tsx"))):
-        rel = _rel_in_web(web_src, ts)
-        text = _mask_prose(ts.read_text(encoding="utf-8"))
-        for pattern in _DECL_PATTERNS:
-            for m in pattern.finditer(text):
-                members = _split_members(_block_after(text, m.end() - 1))
-                if members:
-                    out.setdefault(m.group(1), (rel, members))
+    for name, rel, body in _declaration_bodies(web_src):
+        members = _split_members(body)
+        if members:
+            out.setdefault(name, (rel, members))
+    return out
+
+
+#: An index signature -- TypeScript for "any key of this shape is allowed". The member rule has no
+#: word for it because it is not a member: it is the type saying it has more keys than it lists.
+_INDEX_SIGNATURE = re.compile(r"^\[\s*(\w+)\s*:\s*(\w+)\s*\]\s*:\s*(.+)$", re.S)
+
+
+def open_key_types(web_src: Path) -> dict[str, tuple[str, str]]:
+    """Declared types that admit keys nobody wrote down, with the signature that says so.
+
+    #581 registered one row here as a chunk the splitter *threw away* -- ``AgentAcceptFinding``'s
+    ``[key: string]: unknown``. The chunk was never lost: it is a decision rule, and a reading that
+    answers "this type declares six keys" while the type says "any key is allowed" is the #581 shape
+    of lie. It is reported as a fact about the declaration instead of as a member, because inventing
+    a member named ``key`` would be the same lie pointing the other way.
+    """
+    out: dict[str, tuple[str, str]] = {}
+    for name, rel, body in _declaration_bodies(web_src):
+        for chunk in _chunks(body):
+            text = " ".join(chunk.split())
+            if _INDEX_SIGNATURE.match(text):
+                out.setdefault(name, (rel, text))
+                break
     return out
 
 
@@ -1616,7 +1692,7 @@ def members_of_type(type_expr: str, decls: dict[str, tuple[str, list[Member]]]) 
     """(required, optional, notes) for a TS type expression used at a call site."""
     expr = " ".join(type_expr.split())
     if expr.startswith("{"):
-        members = _split_members(_block_after(expr, 0))
+        members = _split_members(_block_after(_mask_prose(expr), 0))
         return _split_required(members), {m.name for m in members if m.optional}, []
     m = re.fullmatch(r"(\w+)(?:\s*\|\s*null)?(?:\s*\[\s*\])?", expr)
     if m is None:
@@ -2943,6 +3019,7 @@ __all__ = [
     "frontend_calls",
     "members_of_type",
     "normalize_path",
+    "open_key_types",
     "pairings",
     "ruler_blind_spots",
     "path_candidates",
