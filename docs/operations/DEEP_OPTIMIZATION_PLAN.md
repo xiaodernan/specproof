@@ -23203,3 +23203,4 @@ raised: InvalidURL("Invalid port: ':1]'")
 - ④ `tests/security/test_bandit_suppressions_are_earned.py` 把工具当子进程跑：`[sys.executable, "-m", "bandit", ...]`（该文件 L152），然后 `assert code in (0, 1)`（L157）。本批量了「模块不在这台机器上」那一格返回什么：**rc 1、stdout 空、stderr `No module named …`**（`D:/面试项目/_p548/probe_602_bandit_absent_rc.txt`）——rc 1 同时是「bandit 报了发现」与「bandit 根本没装」两种意思，被同一个 assert 一起放行，于是缺工具的红长成产品发现的样子。本号没动它，只记下读数：装上 `pyproject.toml:68` 已声明的 dev 依赖（现场 `bandit` 1.9.4）后，CI 形状的全量门里这个文件 6 条全过。该修的是把那两种意思分开说。
 ## #622 继续长期开发：模块扩展与边界测试  
 ## #623 继续长期开发：核心补全与验证体系  
+## #624 继续长期开发：下一阶段规划与执行  
