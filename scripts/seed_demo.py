@@ -704,6 +704,8 @@ def seed_agent_job_via_api(
     """
     import httpx
 
+    from providers.net import outbound_client
+
     existing = find_agent_job_by_spec_digest(store, SEED_AGENT_SPEC_TEXT)
     if existing is not None:
         attached = attach_agent_plan(store, existing.id, demo_agent_plan())
@@ -711,16 +713,16 @@ def seed_agent_job_via_api(
         return existing.id, False, note
     headers = {"X-API-Key": api_key}
     try:
-        resp = httpx.post(
-            f"{api_base.rstrip('/')}/agent/jobs",
-            json={
-                "repo_path": DEMO_REPO_PATH,
-                "spec_text": SEED_AGENT_SPEC_TEXT,
-                "task_name": SEED_AGENT_TASK_NAME,
-            },
-            headers=headers,
-            timeout=30.0,
-        )
+        with outbound_client(timeout=30.0) as client:
+            resp = client.post(
+                f"{api_base.rstrip('/')}/agent/jobs",
+                json={
+                    "repo_path": DEMO_REPO_PATH,
+                    "spec_text": SEED_AGENT_SPEC_TEXT,
+                    "task_name": SEED_AGENT_TASK_NAME,
+                },
+                headers=headers,
+            )
         resp.raise_for_status()
         job_id = str(resp.json()["job_id"])
         attach_agent_plan(store, job_id, demo_agent_plan())

@@ -23130,3 +23130,74 @@ owner `tests/_payload_plane.py`（+106 −29，130,963 B，3,035 行，CRLF 3,03
 ## #619 继续长期开发：验证体系与性能优化  
 ## #620 继续长期开发：下一阶段规划与执行  
 ## #621 继续长期开发：核心模块完善与测试覆盖  
+
+## #602 出站建构点继承宿主代理环境：`NO_PROXY=[::1]` 让 httpx 在第一个请求出生之前就炸，而 CI 的结构使它永远看不见这条红
+
+### 起因
+
+#600 队列⑤把原题交下来时已经量到抛点：本机 `NO_PROXY=localhost,.localhost,127.0.0.1,127.0.0.0/8,[::1],::1`（`HTTP_PROXY` 未设），httpx 0.28.1 在构造客户端时自己读这个环境并建挂载表。它的分类器对每个条目调 `ipaddress.IPv6Address(entry.split("/")[0])`——方括号不是那个函数认的 IPv6 字面量写法——于是 `[::1]` 被分成「名字」，带着方括号落进挂载模式 `all://*[::1]`，尾部 `:1]` 被当成端口。
+
+抛点在 `Client.__init__` 里，请求还没有出生。所以在这台机器上，凡是直接 `httpx.Client()` 的 shipped 建构点都建不出客户端——不是某次调用失败，是这个对象永远不存在。原题还有一层更坏的读法，本批到调用点读了：`agent/worker.py:841` 的 `webhook_connector_from_env()` 就在 `agent/worker.py:852` 那个 `except Exception as exc:  # noqa: BLE001 — best effort` 里，运维看到的是 `logger.warning("Terminal notification failed for %s: %s", job_id, exc)`——消息体是 httpx 的 `Invalid port: ':1]'`，那是一串没人那样写过的文本，它既不点名 `NO_PROXY`，也不点名 `[::1]` 这个条目。
+
+本批把这串抛点重新跑了一遍并逐帧打印（`D:/面试项目/_p548/frames_602_httpx_raise.txt`，下面那块是它第 3–9 行的原文）：
+
+```
+raised: InvalidURL("Invalid port: ':1]'")
+  <stdin>:9 in <module>  ->
+  httpx\_client.py:698 in __init__  ->  URLPattern(key): None
+  httpx\_utils.py:172 in __init__  ->  url = URL(pattern)
+  httpx\_urls.py:117 in __init__  ->  self._uri_reference = urlparse(url, **kwargs)
+  httpx\_urlparse.py:321 in urlparse  ->  parsed_port: int | None = normalize_port(port, scheme)
+  httpx\_urlparse.py:411 in normalize_port  ->  raise InvalidURL(f"Invalid port: {port!r}")
+```
+
+### 改前量到的
+
+- **纯 HEAD 平面 + 宿主环境：`9 failed / 29 passed in 7.72s`**（`tests/unit/test_notify_connector.py` 7 条、`tests/unit/test_providers_net.py` 2 条；九个名字逐个与 A1 臂带回的那九条相等，见下）。量法是把平面上的六个 shipped 文件回退成 `git show HEAD:<path>` 的字节、把新门文件移开，再跑那两个消费者文件；跑完把本批字节放回去并按 sha256 证明还原。
+- **CI 结构上看不见**：`tests-no-infra` 的 runner 代理环境为空，httpx 那台解析器根本没有条目可分类。同一条断言在两台机器上评估的是两个环境——这不是「CI 更严格」，是「CI 换了个题目」。
+- **建构点清点（用本批那条清点腿自己的抽取器 `_call_sites` 跑两棵树，同一把尺，输出留在 `D:/面试项目/_p548/census_602_two_trees.txt`）**：非测试 shipped `.py` 人口 **685** 个文件；HEAD 上被点名的建构点 **6** 处——`api/identity/oidc.py:91`、`integrations/github_checks.py:225`、`integrations/notify/webhook.py:205`、`providers/net.py:26`、`retrieval/embeddings.py:250` 五处 `httpx.Client/AsyncClient(...)`，加 `scripts/seed_demo.py:714` 一处顶层 `httpx.post(...)`。#600 队列⑤写的「5 处」数的是客户端构造；第 6 处是脚本里的顶层 API，本批一起收进接缝，因为它在同一台机器上同样炸。落地后同一把尺在同一人口上点名 **0** 处。
+- **四种设计各自被量了一次再否掉**（不是读代码读出来的判断）：
+  - 建构期临时改 `os.environ` 再恢复：Windows 上 `no_proxy` 与 `NO_PROXY` 是同一个变量，于是「先存两种拼写」的那次存盘存到的是**自己刚写进去的值**——`D:/面试项目/_p548/probe_602_why_unfaithful.txt` 逐行读出 `saved: {'NO_PROXY': 'a,[::1],b', 'no_proxy': 'a,::1,b'}`，恢复按字典顺序写回最后一个，落回的就是修好的那个值：`equal: False`、`diff keys: []`、`values: ['a,::1,b'] ['a,[::1],b']`。键没变，值被改写了——修复越过了那个窗口，永久留在进程环境里。另一个探针（`D:/面试项目/_p548/probe_602_window_restore.txt`，`env restored byte-for-byte: False`）同样读到；而且窗口里 spawn 的子进程会继承一个操作者从没设过的 `NO_PROXY`。
+  - `trust_env=False`：这个旗标同时管 `SSL_CERT_FILE`/`SSL_CERT_DIR`。拿一个假 CA 文件量：本接缝仍然抛 `SSLError`（旋钮还活着），`trust_env=False` 那边安静建好客户端。它是用「看不见代理」换掉「看见代理」，顺便把信任库也关掉。
+  - 丢掉解析不了的条目：那会把环回流量送进代理，正好是 `NO_PROXY` 的反面；而且丢条目是静默的（A4 量过谁还能看见它）。
+  - 版本下限：encode/httpx#3221 到 0.28.1 仍然 open，锁住的那版本就是现在这版，没有可以抬的上限。
+
+### 改动
+
+- **`providers/net.py` 成为这个环境唯一的读者与属主。** `bracket_repair(entry)` 只补那一种写法（`"[::1]"` → `"::1"`，其它拼写原样返回）；`proxy_pattern_for(entry)` 把 httpx 的规则逐条重述一遍；`proxy_mounts_for(proxy_info)` / `environment_proxy_mounts()` 读 `urllib.request.getproxies()`——与 httpx 内部同一个入口，因此在 Windows 上同样认注册表；`UnusableProxyEnv(httpx.InvalidURL)` 把旋钮名和条目原文写进消息（httpx 只报 `Invalid port: ':1]'`，那是一串操作者从没那样写过的文本）；`outbound_client` / `outbound_async_client` **保持 `trust_env=True`**，靠传一个显式默认 transport 让 httpx 不再去读代理环境，挂载表由这里给。
+- **五个 shipped 建构点加一个脚本改走接缝**：`retrieval/embeddings.py`、`integrations/notify/webhook.py`、`api/identity/oidc.py`、`integrations/github_checks.py`、`scripts/seed_demo.py`，而 `make_async_client` 现在是 `outbound_async_client` 上的一层薄封装。**运维的旋钮没有变**：还是 `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY`，变的只是解析它们的人；`SSL_CERT_FILE`/`SSL_CERT_DIR` 仍然生效，并有腿钉住。
+- **新门 `tests/unit/test_outbound_proxy_env_survives_a_bracketed_ipv6.py`：28 条腿，四种角色。**
+  - *每条腿自己钉环境*（`_pin_env` 先清八种拼写、再钉本例那一种）。原题给了两条路：要么在建构处断开宿主环境，要么给这九条腿钉环境。**两条都走了**，因为它们是两件事：产品侧要让客户端在这种机器上建得出来，门侧要让「建得出来」这件事不依赖谁来跑。
+  - *前提腿* `test_a_bracketed_loopback_entry_kills_a_plain_client` 钉的是没有接缝时的行为：这条腿因为 httpx 不再抛而红，就意味着上游修好了 #3221、本接缝可以退役——它是报警器，不是装饰。
+  - *差分腿* `test_the_mount_table_matches_httpx_where_httpx_can_read_it` 把重述的规则与 `httpx._utils.get_environment_proxies` 逐键对齐，并把实际路由逐目标对齐；唯一允许发散的条目就是 `[::1]`。
+  - *清点腿* `test_no_shipped_module_builds_an_httpx_client_on_its_own` 从 `git ls-files` 取人口（685），只豁免「那个声明了全部四个接缝名字的模块里的两个建构函数」，并用 `_CONVERSION_SITES` 反查人口有没有把已转化的站点漏掉——漏了的话这条门就瞎了。
+- **边界披露而不是悄悄修**：httpx 的 `URLPattern` 不懂 CIDR，`NO_PROXY=10.0.0.0/8` 从不绕过 `10.1.2.3`——改前改后一样。路由腿把这条读数钉成文档事实，而不是留成下一个人踩到的惊讶。
+
+### 改后量到的
+
+- **「谁替读者保证了 CI 是绿的」有两个读数，而且是同一个数**：同一组文件（门 + 两个消费者，66 条腿）在宿主形状环境下 **66 passed in 8.05s**，把代理环境整个清空（CI 的形状）也是 **66 passed in 7.69s**。绿不再取决于谁来跑。
+- 那 9 条纯 HEAD 红在落地字节上消失；全量门 `pytest tests/unit tests/security tests/fault -q`（CI 那条 job 的原样调用）**6414 passed, 10 skipped, 3 warnings**；`ruff check` 七个文件 `All checks passed!`，`mypy` 五个源文件 `Success: no issues found in 5 source files`、`scripts/seed_demo.py` 单独一次 `Success: no issues found in 1 source file`。
+- **臂电池 9 臂 + 2 对照，全部跑在 `D:/面试项目/wt-602arm`**（HEAD 的分离 checkout + 本批七个文件）；每臂改动前后各存各还，落地平面一个字节都没被臂改过，七份 digest 打印在 `D:/面试项目/_p548/battery_602_run2.txt`。红的构成不是「数一数」，是按机制归因：
+  - **A1 关掉方括号修复 → 20 红** = 11 条门腿 + **原封不动带回那 9 条站点腿**（九个名字与纯 HEAD 平面量到的九个逐字相等，含 `test_kind_env_selects_the_dialect` 的三个参数化）。
+  - **A3 只去掉显式 transport（留下挂载表，让 httpx 也读一遍环境）→ 19 红** = A1 少一条 `test_the_repair_rule_itself`。差的这一条正是信息：规则本身还活着，坏的是建构点把宿主环境又读了一遍。
+  - **A2 被否证的 `trust_env=False` → 13 红，且站点腿 0 红。** 这就是它危险的地方：那 9 条曾经的红被「让接缝看不见环境」治好了，看起来像修完了。还看得见它的是另外 6 条 A1/A3 都不红的腿——差分腿里除 `*` 之外的那三个条目形态（`*` 两边都是空表，比不出差异）、两条拒答腿、以及 CA 旋钮腿。门不是只钉「不炸」，还钉「修好了别把别的东西关掉」。
+  - **A4 丢掉解析不了的条目 → 只有 1 条红**（拒答腿）。静默的设计只有点名它的那条腿能抓，这也是本批把「丢条目」列为否证设计的理由：它把一条会响的失败换成一条不响的失败。
+  - **A5 手工造一个 webhook 客户端 → 2 红**（站点腿 + 清点腿）；**A5b 脚本里手工造 → 1 红**、**A6 新增一个被跟踪的 shipped 文件造客户端 → 1 红**、**A8 把 `scripts/` 挪出人口 → 1 红**，后三条都只有清点腿能看见——清点腿是这四格唯一的读者，所以它的豁免必须是结构判据而不是文件名清单。
+  - **A7 一条腿不再钉环境 → 两种平面都红，但原因不同**：宿主形状下它仍读到 `NO_PROXY` 的五根 bypass、只丢 `http://` 那一根挂载（红消息是 `Right contains 1 more item:`）；清空环境下挂载表是 `{}`（`Right contains 6 more items:`），它在断言一个自己已经不再提供的前提。两种读法都留在 `D:/面试项目/_p548/a7_reason_two_planes.txt`。这一格推翻了我原来的假设（我以为不钉环境的腿会在 CI 上「静默地绿」）；量到的事实比假设更有用：不钉环境的腿在两个平面都不能绿，但它那两句红说的是两件不同的事——钉环境不是「跑不过时的卫生」，它决定了这条腿究竟在断言哪一个命题。
+
+**证据文件**：
+- providers/net.py
+- retrieval/embeddings.py
+- integrations/notify/webhook.py
+- integrations/github_checks.py
+- api/identity/oidc.py
+- scripts/seed_demo.py
+- tests/unit/test_outbound_proxy_env_survives_a_bracketed_ipv6.py
+- docs/operations/DEEP_OPTIMIZATION_PLAN.md
+
+### 队列
+
+- ① 推送后按 run 复核 `tests-no-infra`：本批那 9 条红本来就只属于宿主代理环境，CI 复核要确认的是新门 28 条腿在空代理环境下也全绿、以及那 66 条腿的两平面读数在 CI 上仍是同一个结果。
+- ② `NO_PROXY` 的 CIDR 支持仍是 httpx 的缺口，本批只把读数钉住。若产品要自己解释 CIDR，得在 `proxy_pattern_for` 一侧展开，并同时重跑差分腿——它现在按 httpx 的键对齐，多出来的键会立刻红；先量差分腿会不会红，再决定要不要接。
+- ③ 清点腿的人口来自 `git ls-files`，文本来自工作树：一个**未提交**的新 shipped 文件在被 `git add` 之前不在这条门的视野里（A6 臂证明的是「已跟踪」那一半）。判据本身是有意的——它要与 #601 那套名册门同一个人源——但车道约定得写清楚：新文件先 add，再跑门。
+- ④ `tests/security/test_bandit_suppressions_are_earned.py` 把工具当子进程跑：`[sys.executable, "-m", "bandit", ...]`（该文件 L152），然后 `assert code in (0, 1)`（L157）。本批量了「模块不在这台机器上」那一格返回什么：**rc 1、stdout 空、stderr `No module named …`**（`D:/面试项目/_p548/probe_602_bandit_absent_rc.txt`）——rc 1 同时是「bandit 报了发现」与「bandit 根本没装」两种意思，被同一个 assert 一起放行，于是缺工具的红长成产品发现的样子。本号没动它，只记下读数：装上 `pyproject.toml:68` 已声明的 dev 依赖（现场 `bandit` 1.9.4）后，CI 形状的全量门里这个文件 6 条全过。该修的是把那两种意思分开说。

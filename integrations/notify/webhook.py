@@ -52,6 +52,7 @@ from integrations.notify.protocol import (
     Notification,
     SendStatus,
 )
+from providers.net import outbound_client
 from providers.redaction import redact_text
 from providers.resilience import classify_retry
 
@@ -202,7 +203,7 @@ class WebhookConnector:
         self._sleep_fn: Callable[[float], None] = (
             sleep_fn if sleep_fn is not None else time.sleep
         )
-        self._client = httpx.Client(transport=transport, timeout=timeout)
+        self._client = outbound_client(transport=transport, timeout=timeout)
         self.name = "webhook:" + kind.value
         self.capabilities = _capabilities_for(kind, self.secret)
         self.attempts = 0

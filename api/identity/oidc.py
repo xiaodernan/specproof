@@ -23,6 +23,7 @@ import jwt
 from jwt import PyJWKClient
 
 from api.identity.config import oidc_client_id, oidc_role_claim
+from providers.net import outbound_client
 from storage.identity import ROLE_SET
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,7 @@ class OidcValidator:
     ) -> None:
         self.issuer = issuer.rstrip("/")
         self.client_id = client_id
-        self._http = httpx.Client(transport=transport, timeout=10.0)
+        self._http = outbound_client(transport=transport, timeout=10.0)
         self._discovery: dict[str, Any] | None = None
         self._discovery_at = 0.0
         self._jwks: _TransportPyJWKClient | None = None
