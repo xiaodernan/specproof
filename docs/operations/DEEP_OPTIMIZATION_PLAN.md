@@ -22924,7 +22924,7 @@ All checks passed!
 
 ## #601 清点门的红只有一个整数：谁进了哪一类、被哪笔提交带进来，红必须自己说出口，然后才允许动数字
 
-## #606 build_matrix_node 三合同三结果：FAIL、PASS(无证据→UNVERIFIED)、无结果(→UNVERIFIED)端到端测试
+## #607 run_differential_node DB_MUTATED_ON_UNAUTH + COMPLIANT → 判定路径端到端测试
 
 ### 起因
 
