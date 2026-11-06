@@ -22924,7 +22924,7 @@ All checks passed!
 
 ## #601 清点门的红只有一个整数：谁进了哪一类、被哪笔提交带进来，红必须自己说出口，然后才允许动数字
 
-## #611 check_endpoint_changes 混合状态测试：部分有发现、部分无发现
+## #612 check_schema_compat DTO 字段移除直接测试：BACKWARD_COMPATIBLE-01 发现
 
 ### 起因
 
