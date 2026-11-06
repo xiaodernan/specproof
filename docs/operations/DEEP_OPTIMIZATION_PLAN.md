@@ -23540,3 +23540,4 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 ## #714 继续长期开发：SpecProof/SpecCraft 持续集成与持续验证体系完善2  
 ## #715 继续长期开发：SpecProof/SpecCraft 行为验证全链路覆盖与异常情况健壮性验证2  
 ## #716 继续长期开发：SpecProof/SpecCraft 架构演进与模块化测试框架深化2  
+## #717 继续长期开发：SpecProof/SpecCraft 持续扩展与下一阶段路线图规划2  
