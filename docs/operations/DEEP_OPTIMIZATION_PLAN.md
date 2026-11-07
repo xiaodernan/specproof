@@ -23942,3 +23942,5 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 ## #923 继续长期开发：SpecProof/SpecCraft 行为证据与健壮性持续增强
 
 ## #924 继续长期开发：SpecProof/SpecCraft run_differential_node 与合约收敛持续强化
+
+## #925 继续长期开发：SpecProof/SpecCraft build/matrix 与证据链完整性持续推进
