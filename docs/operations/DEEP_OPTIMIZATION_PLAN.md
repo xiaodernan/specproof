@@ -25160,3 +25160,32 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 **围栏**：HEAD victim = `#1515`（本节标题全文唯一），围栏的判定结构性依赖该唯一性——本节不预设转绿，推送后复测。
 
 **本提交未做什么**：未改任何测试断言、未抬任何棘轮上限/`DEBT_CEILING`/`MIN_*`、未删除账本任何既有段、未改 `specproof-reference` 主仓。5 skipped 全部环境性（Windows 符号链接权限等）。`docs/ROADMAP.md` 的 `P6 阶段二`（100 案例隔离评测）在本机 Docker 健康（16 vCPU）的情况下未擅自启动——收益/代价与时长需按宿主资源与人力单独评估，留待主控决定。
+
+## #1516 独立验证环节：本机复现 eval-golden-cases 闭环——subset 实测全绿，100 案例全量评测已启动待收尾
+
+**记录基准**：HEAD = `d6ed153`（`eb84c60` + #1515 记档）。本节只记已实测的结果，**全量 100 案例评测尚未收尾**（见末尾：已启动、在后台、结果未测得，不据此预宣称）。
+
+**隔离先决**（本会话的安全前提，也是任何评测先于门槛的第一条件）：一次性测试 schema `specproof_test` 已按 CI 同款建法建立（`utf8mb4` + `GRANT ALL ON specproof_test.*`，root 仅本地执行，`specproof` 用户实测连上 `SELECT 1`），全量单元套件会话判定为 `redirected`；会话结束输出 `product schema '/test/%' rows 0→0`，零 test 行落入产品库。`storage/object_metadata` 的 MySQL 腿由本会话旁路探针实测（同一 `now` 两条记录物理上落为 `1794000000.0` 与 `1794000000.000001`，`list()` 新→旧序正确，探针行随后 `DELETE` 清零残留）。
+
+**Maven 沙箱与 golden refs**：Docker VM（16 vCPU）上存在 `specproof-maven-cache-1000` 卷与本会话之前各 lane 播种的 `maven:3.9-eclipse-temurin-21`；`python scripts/build_golden_scenarios.py --refs-only` 在 **本 worktree** 快速完成：`base → d6ed1530e47f`、`head-v1`、`case-01..case-101-head` 全部 101+ 个 refs 本地就位（HEAD 未动、工作树干净、未推送任何 ref）。
+
+**subset 案（`eval-golden-cases` CI 腿的本地完全复现）**：
+材料化 4 个非 holdout 案例到 `eval-subset/`（case-12 负例 Javadoc、case-17 logic-inversion、case-21/AUTH-01 permit-all、case-56 CACHE-01），用 worktree 的 `.venv`（`uv pip install -e .[dev]`，Python 3.12.13）、`--no-llm`、CI 相同门槛：
+
+```
+case-12-add-javadoc            [PASS] matched 0 findings （负例不误报）
+case-17-logic-inversion        [PASS] matched 1 (UNIQUE-01)
+case-21-auth-weakened-permitall[PASS] matched 1 (AUTH-01)
+case-56-redis-cache-eviction-removed [PASS] matched 1 (CACHE-01)
+Precision 100.0% / Recall 100.0% / F1 100.0% / False positives: 0
+Severity agreement: 66.7% — case-17 预期 BLOCKER、实际 MAJOR
+Acceptance: PASS（墙钟 ~10.7 min，含 base+head 各自 Maven 构建）
+```
+
+隔离未遭破坏（`specproof_phase0.verification_jobs` 最近 15 分钟无新行；评测本体不落 `verification_jobs` 行、`evidence pack` 全部 NOT SAVED、`specproof-reference` 未触碰）。
+
+**如实记两处**：
+- **severity drift**：case-17-logic-inversion 预期 BLOCKER，判得 MAJOR（`strongest level MAJOR; evidence: base_pass_head_fail; db state: DB_CONSISTENT`），评测面 A 侧（recall/precision/fp）全绿但严重性措辞漂移；本节不掩饰这条。
+- **沙箱在宿主的摩擦**：评测头部记 `SPECPROOF_ALLOWED_ROOT` 未配置 ⇒ "local mode" 下 repo/disk 边界不强制——同 CI 本地模式的诚实口径，不是 sandbox 隔离到这次自动启用；eval 沙箱的容器内 `--network none` 仍然生效。
+
+**本节未认证的量**：① 100 案例全量评测（`python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm --gate --min-recall 100 --min-precision 100 --max-false-positives 0`，即 `nightly-eval.yml` 同一命令）已在 2026-11-08 晚（本节落盘同日）于本机后台启动、**仍在运行**——本节不预设其通过与否；结果必须在其落盘后以实测数字记录（tee 到 `D:\面试项目\_eval_full.log`，HTML 报告在 `D:\面试项目\_eval_full_report.html`，sidecar 在报告路径派生的 `.results.json{,l}`）。② case-17 的 BLOCKER→MAJOR drift 未做根因分析（留给后续批次）。
