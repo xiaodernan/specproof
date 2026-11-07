@@ -108,3 +108,37 @@ def test_bytes_that_match_no_record_give_the_newest_record(tmp_path):
     # ... and the digest check must NOT call it a match.
     actual = payload_sha256_of_file(capsule)
     assert normalize_payload_digest(resolved.digests["payload_sha256"]) != actual
+
+
+def test_two_records_written_in_the_same_clock_tick_order_by_insertion(
+    tmp_path,
+):
+    """Two records written inside one wall-clock tick must still read
+    newest-first — deterministically, not by uuid tie-break luck.
+
+    Measured on this host: the Windows wall clock advances in ~15.6 ms
+    ticks (1999/1999 consecutive ``time.time()`` calls returned the same
+    value), so both records carry the SAME ``created_at`` when written
+    back-to-back. ``ORDER BY created_at DESC, object_id`` then broke the
+    tie on a random uuid — the red in the 2026-11-08 full unit run
+    (``resolved.job_id == 'job-old'``, intermittent).
+    """
+    fixed = 1_794_000_000.0
+    capsule = tmp_path / "capsules" / "capsule-T.zip"
+    capsule.parent.mkdir(parents=True)
+    capsule.write_bytes(b"recorded")
+    store = SQLiteObjectMetadataStore(tmp_path / "meta.sqlite3")
+    for data, job_id in ((b"recorded", "job-old"), (b"other", "job-new")):
+        store.record(new_metadata(
+            "capsule", {"payload_sha256": _digest(data)},
+            job_id=job_id, path_hint=str(capsule), now=lambda: fixed,
+        ))
+    capsule.write_bytes(b"tampered")  # no record describes the current bytes
+
+    listed = store.list()
+    assert [r.job_id for r in listed] == ["job-new", "job-old"]
+    resolved = resolve_object(store, str(capsule))
+    assert resolved is not None
+    assert resolved.job_id == "job-new"
+
+

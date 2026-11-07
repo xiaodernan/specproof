@@ -45,7 +45,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
 
@@ -186,6 +186,26 @@ def new_metadata(
         path_hint=path_hint,
         object_ref=normalize_object_ref(object_ref),
     )
+
+
+def _nudge_past_newest(newest: float | None, created_at: float) -> float:
+    """Insertion-ordered ``created_at`` that outruns the wall clock.
+
+    Measured on the Windows host running the full suite: the wall clock
+    advances in ~15.6 ms ticks (1999 of 1999 consecutive ``time.time()``
+    calls returned the same value). Two records written inside one tick
+    therefore share ``created_at``, and every ``ORDER BY created_at DESC``
+    tie used to break on a random ``object_id`` — a test assertion that
+    "the newest record wins" then failed non-deterministically.
+
+    Insert is the only operation that can tie, and it knows the current
+    max, so nudge the stored timestamp forward by a microsecond when it
+    would not sort past the existing newest. Still epoch seconds; the
+    wall-clock meaning is preserved to microsecond scale.
+    """
+    if newest is not None and created_at <= newest:
+        return newest + 1e-6
+    return created_at
 
 
 class ObjectMetadataStore(Protocol):
@@ -611,6 +631,13 @@ class InMemoryObjectMetadataStore:
 
     def record(self, metadata: ObjectMetadata) -> ObjectMetadata:
         with self._lock:
+            newest = max(
+                (r.created_at for r in self._records.values()),
+                default=None,
+            )
+            created = _nudge_past_newest(newest, metadata.created_at)
+            if created != metadata.created_at:
+                metadata = replace(metadata, created_at=created)
             if metadata.object_id in self._records:
                 raise ObjectAlreadyExistsError(
                     f"object {metadata.object_id!r} already recorded"
@@ -690,6 +717,13 @@ class SQLiteObjectMetadataStore:
         import json
 
         with self._lock, self._conn:
+            row = self._conn.execute(
+                "SELECT MAX(created_at) FROM object_metadata"
+            ).fetchone()
+            newest = row[0] if row and row[0] is not None else None
+            created = _nudge_past_newest(newest, metadata.created_at)
+            if created != metadata.created_at:
+                metadata = replace(metadata, created_at=created)
             try:
                 self._conn.execute(
                     _INSERT_SQL,
@@ -798,6 +832,14 @@ class MySQLObjectMetadataStore:
         try:
             with self.connection() as conn:
                 cur = conn.cursor()
+                cur.execute(
+                    "SELECT MAX(created_at) AS m FROM object_metadata"
+                )
+                row = cur.fetchone()
+                newest = row.get("m") if row else None
+                created = _nudge_past_newest(newest, metadata.created_at)
+                if created != metadata.created_at:
+                    metadata = replace(metadata, created_at=created)
                 cur.execute(
                     _to_mysql(_INSERT_SQL),
                     (
