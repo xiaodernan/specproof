@@ -23545,15 +23545,15 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 ## #719 继续长期开发：SpecProof/SpecCraft 架构演进与模块化测试框架深化3  
 ## #720 继续长期开发：SpecProof/SpecCraft 持续扩展与核心模块完善  
 ## #721 继续长期开发：SpecProof/SpecCraft 行为验证与测试覆盖深化 
-## #722 �������ڿ�����SpecProof/SpecCraft �ܹ��ݽ����쳣�����׳����֤ 
-## #723 �������ڿ�����SpecProof/SpecCraft ����������ģ�黯���Կ��� 
-## #724 �������ڿ�����SpecProof/SpecCraft ��Ϊ��֤ȫ��·��֤���������� 
-## #725 �������ڿ�����SpecProof/SpecCraft �����֤���Լ�������ǿ�� 
-## #726 �������ڿ�����SpecProof/SpecCraft �˵�����Ϊһ������ع���� 
-## #727 �������ڿ�����SpecProof/SpecCraft �ɹ۲�������֤֤����ǿ�� 
-## #728 �������ڿ�����SpecProof/SpecCraft �����ݽ�·������һ�׶�ִ�� 
-## #729 �������ڿ�����SpecProof/SpecCraft ������Ϊ����������ݽ� 
-## #730 �������ڿ�����SpecProof/SpecCraft ��֤��ϵ�뽡׳����ǿ 
+## #722 继续长期开发：SpecProof/SpecCraft 架构演进与异常情况健壮性验证 
+## #723 继续长期开发：SpecProof/SpecCraft 持续集成与模块化测试框架深化 
+## #724 继续长期开发：SpecProof/SpecCraft 行为验证全链路与证据链完整性 
+## #725 继续长期开发：SpecProof/SpecCraft 差分验证与合约结果收敛强化 
+## #726 继续长期开发：SpecProof/SpecCraft 端到端行为一致性与回归防护 
+## #727 继续长期开发：SpecProof/SpecCraft 可观测性与验证证据链强化 
+## #728 继续长期开发：SpecProof/SpecCraft 长期演进路线与下一阶段执行 
+## #729 继续长期开发：SpecProof/SpecCraft 核心行为测试与持续演进 
+## #730 继续长期开发：SpecProof/SpecCraft 验证体系与健壮性增强 
 
 ## #731 继续长期开发：SpecProof/SpecCraft 模块化扩展与回归防护强化
 
