@@ -83,6 +83,8 @@ def _usable_bash() -> str | None:
                 [candidate, "-c", "echo specproof-probe"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
         except OSError:
             continue
