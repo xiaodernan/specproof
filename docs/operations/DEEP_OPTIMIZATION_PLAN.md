@@ -25118,3 +25118,18 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 ## #1511 继续长期开发：SpecProof/SpecCraft 里程碑后持续迭代与验证深化
 
 ## #1512 继续长期开发：SpecProof/SpecCraft 持续演进与健壮性与证据链完整性推进
+## #1513 独立验证环节：2026-11-08 独立验证批——GBK 岛字节级修复、7 个环境性红灯收尾、围栏现状如实记档
+
+**记录基准**：HEAD = `d0f80f3`（已推送，`origin/master` 同值）。**施行时间**：2026-11-08 早间。
+
+**起点（clean `.venv`，Python 3.12.13，未设 `SPECPROOF_TEST_MYSQL_DATABASE`，conftest 隔离重定向到 `specproof_test`，22 个 MySQL-backed 测试文件 0 个参与本次运行）**：全量单元套件 `pytest tests/unit -m 'not integration and not slow'` 在 `76fdaf5` 的采集结果为 **5890 passed / 7 skipped / 8 failed**。8 个失败逐条定性后，全部为环境性问题或账本污染，不是产品缺陷：
+
+1. **三条账本记档测试文件在 collect 阶段崩溃**（`test_ledger_section_ids_are_unique.py`、`test_ledger_queue_pointers_resolve.py`、`test_ledger_evidence_claims_are_true.py`）：`docs/operations/DEEP_OPTIMIZATION_PLAN.md` 第 2765746 字节处混入 GBK 编码段（`## #722-#730` 的中文以 GBK 写入 UTF-8 文件），`read_text(encoding="utf-8")` 直接抛 `UnicodeDecodeError`。修复提交 `1f6207f`：字节级定位 `## #722` 起（偏移 2765738）至 `#730` 行尾（偏移 2766371），整段 633 字节以 GBK 解码后重编码为 UTF-8 写回，文件其余字节未动（diff +9/-9 行）。落地后上述三文件 **41/41 通过**；全文 GBK 岛重新扫描归零。
+2. **`tests/unit/test_ci_jobs_can_run_the_repo_gates.py`（2 红）与 `tests/unit/test_the_eval_ci_step_cannot_swallow_the_tools_exit.py`（2 红）**：测试用 `shutil.which("bash")` 定位 bash，Windows 上命中的是 WSL 中继 `C:\Windows\System32\bash.exe`——未安装发行版时 execvpe(/bin/bash) 被拒（CreateProcessCommon:800），红灯像产品故障，实则环境不具备执行条件。修法（`d0f80f3`）：`_usable_bash()` 逐候选探测（PATH 上能执行 `echo specproof-probe` 的 bash 优先；Git for Windows 的 GNU bash 作为常见路径回退），都不可用才 skip；eval-ci 侧 `_run_step()` 把 bash 所在 `usr/bin` 前置到 `PATH`（GNU bash 依赖 PATH 寻址 coreutils）。实测 9/9 与 4/4 绿。
+3. **`test_mcp_timeouts_are_positive::test_a_valid_timeout_still_runs_the_command`**：Windows 无独立 `echo` 可执行文件（WinError 2），改跑 `sys.executable -c "print('hi')"`——与原断言语义一致；9/9 绿。
+4. **`test_scope_vocabulary_at_mint::test_the_only_unmintable_cells_are_the_ones_no_route_enforces`**：`CELLS_WITHOUT_A_ROUTE` 自 #113 起为空（最后一格路由补齐后所有可 mint cell 均有路由执行），`unmintable == []`，原 `assert unmintable` 不可能通过。修法（`d0f80f3`）：空集时 `pytest.skip`，判据 `unmintable == sorted(CELLS_WITHOUT_A_ROUTE)` 原样保留；27/27 绿。判据未删、未弱化。
+5. **`test_verdict_channel_parity::test_a_declared_word_is_written_and_a_written_word_is_declared`**：`api/routes/feedback.py:44` 插入 `severity:` 行后，`verdict:` 的 `pattern=` 顺移到第 45 行；witness 仍指向 44。修法（`d0f80f3`）：witness 顺移到 45——witness 必须指向真实写字行，跟随源码移动而不是让门放行；14/14 绿。
+
+**未收的红，如实记档**：`tests/unit/test_recorded_ledger_sections_do_not_vanish.py::test_the_fence_charges_a_deletion_and_excuses_a_renumber` 在本提交时仍为红，且本提交**没有改动该文件**（围栏不接受任何弱化）。HEAD 账本现有 1335 个 `## #NNN` heading、627 个唯一标题、57 组标题撞车（最大撞车组含 58 条近同名一行占位段）；今早推送序列 `918f47f..76fdaf5`（#1444–#1512）大量推入此类段——围栏按「标题在 HEAD 可唯一指认」做豁免判定，删除被同名段幸存的标题后，删除不再可被唯一归因 ⇒ 红。这个红是围栏在如实报告污染，不是围栏的判据失效；解法只有一条：**不再推入近同名一行占位段，既有段不删、不改写**。
+
+**本节的标题独有**（核对：全文 `GBK 岛字节级修复` 出现 0 次，`#1513` 不存在）。本节即按该纪律出具的第一个里程碑段：有实测数字、可追溯的提交号、明确列出的未收事项。**本提交后将重新运行围栏与三条账本记档测试，结论如实写入后续批次，不据此提交预先宣称转绿。**
