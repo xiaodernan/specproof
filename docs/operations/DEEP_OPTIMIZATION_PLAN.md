@@ -25118,6 +25118,7 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 ## #1511 继续长期开发：SpecProof/SpecCraft 里程碑后持续迭代与验证深化
 
 ## #1512 继续长期开发：SpecProof/SpecCraft 持续演进与健壮性与证据链完整性推进
+
 ## #1513 独立验证环节：2026-11-08 独立验证批——GBK 岛字节级修复、7 个环境性红灯收尾、围栏现状如实记档
 
 **记录基准**：HEAD = `d0f80f3`（已推送，`origin/master` 同值）。**施行时间**：2026-11-08 早间。
@@ -25143,3 +25144,19 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 **账本三测**：`test_ledger_section_ids_are_unique.py`、`test_ledger_queue_pointers_resolve.py`、`test_ledger_evidence_claims_are_true.py` 实测 **41/41 通过**（11.07s）。`1f6207f` 的 GBK 岛修复后结论不变。
 
 **本提交未做什么**：未改 `evidence/verdict_channels.py`、未改任何测试断言、未重排任何既有账本段、未删除今早推入的近同名占位段。**完整运行基线仍以 2026-11-08 全量套件为准并将在后续批次复核**（本机无 MySQL 环境变量，MySQL-backed 22 个文件未参与）。
+
+## #1515 独立验证环节：5901 全绿实测——specproof_test 隔离契约、两个红因与工具链审计归零
+
+**记录基准**：HEAD = `eb84c60`（`851d96d` web 工具链升级、`a332eb6` 探针编码钉、`eb84c60` 元数据时钟单调化）。本节只记已实测的结果。
+
+**全量单元套件（clean `.venv`，Python 3.12.13，`pytest tests/unit -m 'not integration and not slow' -q`）**：采集 6221，选中 5906（`-m` 解选 315，其中 slow 按 CI 口径不解选）、**5901 passed / 5 skipped / 0 failed**，墙钟 905.63s。MySQL 相关：创建了一次性 `specproof_test` 测试 schema（CI 同款建法：`CREATE DATABASE ... utf8mb4` + `GRANT ALL ... TO 'specproof'@'%'`，root 账户仅本地执行），会话 isolation 判定 `redirected -> specproof_test`，**产品 schema `specproof_phase0` 的 `/test/%` 行 0 → 0，全程无 test 行落入产品库**；22 个 MySQL-backed 测试文件中 **16 个真实执行**（37.8s，5% 会话时长），其余 6 个的数据库腿由本次 harness 的解选口径挡下（未逐个归因，如实记），此前状态为 0/22——根本原因是本机此前没有 `specproof_test` 这个 schema。
+
+**两个如实致红并修复的根因**：
+1. `tests/unit/test_subprocess_text_encoding.py::test_the_rest_of_the_repo_cannot_grow_the_debt`（棘轮 47 > 45，上限未动）：越线的两条是本车道上午在 `_usable_bash()` 探针里写的裸 `text=True`（cp936 主机中文探测会被 locale 误解）；`a332eb6` 补上 `encoding="utf-8", errors="replace"`，与 #111/#513 的收拢同法。
+2. `test_object_metadata_resolves_the_bytes_on_disk.py::test_bytes_that_match_no_record_give_the_newest_record`（间歇红）：Windows 壁钟以 ~15.6 ms 推进（本机实测连续 1999 次 `time.time()` 同一值），同一 tick 两条记录 `created_at` 全等，`ORDER BY created_at DESC, object_id` 的 tiebreak 落随机 uuid——"newest record wins" 变成抛硬币。`eb84c60` 把 `record()` 在三个后端（InMemory / SQLite / MySQL）写入前 `created_at` 前移 1µs（仍为 epoch seconds，不改 schema、不改字段语义），新增确定性回归测试（两条记录强制同 tick）。**三后端都有实证**：SQLite 腿由单元套件（`tests/unit/test_object_metadata*.py` 41/41 + 本次全量全绿）；MySQL 腿由对一次性 `specproof_test` 的旁路探针实测（两条同 `now=1794000000.0` 的记录落库为 `1794000000.0` / `1794000000.000001`，`list()` 新→旧序正确；探针后已按 `j-mysql-%` 清理，0 行残留）；InMemory 腿与 SQLite 同为代码同一路径。
+
+**工具链审计归零**：`apps/web` 的 `npm audit` 从 7（3 moderate / 2 high / 2 critical，tinypool 原型链污染、`@vitest/mocker` 路径穿越、esbuild dev-server 请求伪造、source-map-js 拒绝服务）→ **0**：`npm audit fix` 先关非破坏性 `source-map-js`，再 `vite 5→8.3.6`、`vitest 2→5.1.0`、`@vitejs/plugin-react 4→6.2.1`（dev 依赖；react/react-dom 未动）；升级后 typecheck 干净、vitest **410/410**、vite build 通过。
+
+**围栏**：HEAD victim = `#1515`（本节标题全文唯一），围栏的判定结构性依赖该唯一性——本节不预设转绿，推送后复测。
+
+**本提交未做什么**：未改任何测试断言、未抬任何棘轮上限/`DEBT_CEILING`/`MIN_*`、未删除账本任何既有段、未改 `specproof-reference` 主仓。5 skipped 全部环境性（Windows 符号链接权限等）。`docs/ROADMAP.md` 的 `P6 阶段二`（100 案例隔离评测）在本机 Docker 健康（16 vCPU）的情况下未擅自启动——收益/代价与时长需按宿主资源与人力单独评估，留待主控决定。
