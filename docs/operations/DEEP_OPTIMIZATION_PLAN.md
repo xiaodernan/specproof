@@ -23556,3 +23556,5 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 ## #730 �������ڿ�����SpecProof/SpecCraft ��֤��ϵ�뽡׳����ǿ 
 
 ## #731 继续长期开发：SpecProof/SpecCraft 模块化扩展与回归防护强化
+
+## #732 继续长期开发：SpecProof/SpecCraft 证据链完整性与端到端一致性深化
