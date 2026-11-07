@@ -25133,3 +25133,13 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 **未收的红，如实记档**：`tests/unit/test_recorded_ledger_sections_do_not_vanish.py::test_the_fence_charges_a_deletion_and_excuses_a_renumber` 在本提交时仍为红，且本提交**没有改动该文件**（围栏不接受任何弱化）。HEAD 账本现有 1335 个 `## #NNN` heading、627 个唯一标题、57 组标题撞车（最大撞车组含 58 条近同名一行占位段）；今早推送序列 `918f47f..76fdaf5`（#1444–#1512）大量推入此类段——围栏按「标题在 HEAD 可唯一指认」做豁免判定，删除被同名段幸存的标题后，删除不再可被唯一归因 ⇒ 红。这个红是围栏在如实报告污染，不是围栏的判据失效；解法只有一条：**不再推入近同名一行占位段，既有段不删、不改写**。
 
 **本节的标题独有**（核对：全文 `GBK 岛字节级修复` 出现 0 次，`#1513` 不存在）。本节即按该纪律出具的第一个里程碑段：有实测数字、可追溯的提交号、明确列出的未收事项。**本提交后将重新运行围栏与三条账本记档测试，结论如实写入后续批次，不据此提交预先宣称转绿。**
+
+## #1514 独立验证环节：20a6b94 围栏实测——#1513 的唯一标题让 L4 红转绿、账本三测 41/41
+
+**记录基准**：`20a6b94`（#1513 里程碑段，已推送，`origin/master` 同值）。本节只记已实测的结果，不预设后续。
+
+**围栏（`tests/unit/test_recorded_ledger_sections_do_not_vanish.py`）**：推送 `20a6b94` 后在 `_wt_plan` 实测 **8 passed**（16.63s），其中 `test_the_fence_charges_a_deletion_and_excuses_a_renumber` 转绿。此前（`d0f80f3` 时）它是红的：HEAD 账本堆了 1335 个 `## #NNN` heading、627 个唯一标题、57 组标题撞车（最大 58 条近同名一行占位段），fence 的豁免按「标题在 HEAD 可唯一指认」判定——删除一个与同名段混在一起的 victim 后标题仍然幸存，删除不可唯一归因，红灯如实出现。`#1513` 段的标题是全文唯一的，HEAD 的 victim（`max(head_ids)`）因此是可唯一指认的，L4 的「恰好它」判定成立。**围栏文件本身未被改动**——转绿不是靠放松判据，是靠污染停止后 HEAD 重新具备可指认的 victim。
+
+**账本三测**：`test_ledger_section_ids_are_unique.py`、`test_ledger_queue_pointers_resolve.py`、`test_ledger_evidence_claims_are_true.py` 实测 **41/41 通过**（11.07s）。`1f6207f` 的 GBK 岛修复后结论不变。
+
+**本提交未做什么**：未改 `evidence/verdict_channels.py`、未改任何测试断言、未重排任何既有账本段、未删除今早推入的近同名占位段。**完整运行基线仍以 2026-11-08 全量套件为准并将在后续批次复核**（本机无 MySQL 环境变量，MySQL-backed 22 个文件未参与）。
