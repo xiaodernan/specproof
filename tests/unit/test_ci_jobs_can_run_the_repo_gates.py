@@ -62,6 +62,34 @@ import yaml
 import tests.conftest as _isolation
 from tests._mysql_gate import dead_database_env
 
+
+def _usable_bash() -> str | None:
+    """Return a bash that can actually execute, or None.
+
+    ``shutil.which("bash")`` finds WSL's relay at C:/Windows/System32/bash.exe
+    on Windows even when no Linux environment is installed — the relay then
+    fails at execvpe and, left as-is, makes these shell-semantics tests fail
+    instead of skip. Git for Windows ships a real GNU bash; try the usual
+    install locations before reporting no bash, so the gate actually runs on a
+    machine where a working bash exists.
+    """
+    candidates = [shutil.which("bash")]
+    candidates += [r"C:\Program Files\Git\usr\bin\bash.exe", r"C:\Program Files\Git\bin\bash.exe"]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            out = subprocess.run(
+                [candidate, "-c", "echo specproof-probe"],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            continue
+        if out.returncode == 0 and "specproof-probe" in out.stdout:
+            return candidate
+    return None
+
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_REL = ".github/workflows/ci.yml"
 
@@ -455,9 +483,9 @@ def test_a_comment_inside_a_continuation_swallows_the_rest_of_the_command() -> N
     its own.  That is the whole of CI's ``docker: 'docker run' requires at
     least 1 argument``.
     """
-    bash = shutil.which("bash")
+    bash = _usable_bash()
     if bash is None:
-        pytest.skip("no bash on this machine; the shell is what has to be asked")
+        pytest.skip("no usable bash on this machine; the shell is what has to be asked")
     prelude = 'docker() { printf "%s\\n" "$@"; }\n'
     broken = (
         prelude
@@ -505,9 +533,9 @@ def test_a_comment_line_terminates_a_continued_command_early() -> None:
     the image never reached ``docker run`` and the image line itself exited
     127 (``maven:3.9: command not found``).
     """
-    bash = shutil.which("bash")
+    bash = _usable_bash()
     if bash is None:
-        pytest.skip("no bash on this machine; the shell is what has to be asked")
+        pytest.skip("no usable bash on this machine; the shell is what has to be asked")
     prelude = 'docker() { printf "arg=%s\\n" "$@"; }\n'
     broken = (
         prelude

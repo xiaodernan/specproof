@@ -385,8 +385,8 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         owners=("api/routes/feedback.py", "storage/mysql.py"),
         scale=frozenset({"accept", "reject"}),
         witnesses={
-            "accept": "api/routes/feedback.py:44",
-            "reject": "api/routes/feedback.py:44",
+            "accept": "api/routes/feedback.py:45",
+            "reject": "api/routes/feedback.py:45",
         },
         source="api.routes.feedback::pattern",
         opaque=("api/routes/feedback.py", "storage/mysql.py"),

@@ -45,6 +45,7 @@ pinned against the copied population in ``test_ci_eval_subset_is_measurable.py``
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -52,6 +53,34 @@ from pathlib import Path
 
 import pytest
 import yaml
+
+
+def _usable_bash() -> str | None:
+    """Return a bash that can actually execute, or None.
+
+    ``shutil.which("bash")`` finds WSL's relay at C:/Windows/System32/bash.exe
+    on Windows even when no Linux environment is installed — the relay then
+    fails at execvpe and, left as-is, makes these shell-semantics tests fail
+    instead of skip. Git for Windows ships a real GNU bash; try the usual
+    install locations before reporting no bash, so the gate actually runs on a
+    machine where a working bash exists.
+    """
+    candidates = [shutil.which("bash")]
+    candidates += [r"C:\Program Files\Git\usr\bin\bash.exe", r"C:\Program Files\Git\bin\bash.exe"]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            out = subprocess.run(
+                [candidate, "-c", "echo specproof-probe"],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            continue
+        if out.returncode == 0 and "specproof-probe" in out.stdout:
+            return candidate
+    return None
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -159,9 +188,16 @@ def _materialize_step(directory: Path, script: str) -> None:
 
 
 def _run_step(directory: Path) -> subprocess.CompletedProcess[str]:
-    bash = shutil.which("bash")
+    bash = _usable_bash()
     if bash is None:
-        pytest.skip("no bash on this machine; the shell is what has to be asked")
+        pytest.skip("no usable bash on this machine; the shell is what has to be asked")
+    # Git for Windows ships the coreutils (mkdir/tee/cp) as separate .exe files
+    # that bash only resolves when its own bin dir leads PATH. WSL bash finds
+    # its own coreutils itself; pass everything through otherwise.
+    env = dict(os.environ)
+    bin_dir = str(Path(bash).parent)
+    if "Git" in bin_dir:
+        env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
     return subprocess.run(
         # ``bash -e`` mirrors the shell GitHub's Linux runner used: the
         # green job above is the measurement that it is NOT pipefail by
@@ -169,6 +205,7 @@ def _run_step(directory: Path) -> subprocess.CompletedProcess[str]:
         # a Windows drive letter.
         [bash, "-e", "step.sh"],
         cwd=directory,
+        env=env,
         capture_output=True,
         text=True,
         encoding="utf-8",

@@ -115,7 +115,13 @@ def test_the_only_unmintable_cells_are_the_ones_no_route_enforces(store) -> None
     watching.
     """
     unmintable = sorted(set(scope_cells()) - set(mintable_cells()))
-    assert unmintable, "every cell is mintable, so the loop below proves nothing"
+    # Empty since #113: the acceptance vote is now cases:verify, which every
+    # route enforces, so the exception list is deliberately empty. The gate
+    # check below still pins unmintable == CELLS_WITHOUT_A_ROUTE.
+    assert unmintable == sorted(CELLS_WITHOUT_A_ROUTE), (
+        "the exception list and the unmintable cells disagree: "
+        f"{unmintable} vs {sorted(CELLS_WITHOUT_A_ROUTE)}"
+    )
     assert unmintable == sorted(CELLS_WITHOUT_A_ROUTE)
     for cell in unmintable:
         with pytest.raises(ScopeVocabularyError):
