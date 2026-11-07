@@ -23744,3 +23744,5 @@ operator 同时能触发验证、又能签收它的发现——矩阵写的 trig
 ## #824 继续长期开发：SpecProof/SpecCraft build/matrix 与端到端验证链路持续推进
 
 ## #825 继续长期开发：SpecProof/SpecCraft 模块化扩展与验证健壮性持续强化
+
+## #826 继续长期开发：SpecProof/SpecCraft 差分/合约验证与行为测试覆盖持续扩展
