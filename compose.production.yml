@@ -81,6 +81,16 @@ services:
       SPECPROOF_TOKEN_HMAC_KEY: ${SPECPROOF_TOKEN_HMAC_KEY:-}
       WORKER_PROVIDER_PARK_MAX_SECONDS: ${WORKER_PROVIDER_PARK_MAX_SECONDS:-0}
       WORKER_RECLAIM_INTERVAL_SECONDS: ${WORKER_RECLAIM_INTERVAL_SECONDS:-300}
+      # Added in the 2026-11-08 consolidation to keep the api service within
+      # the same reach/D02 contract the worker's already pins. Values mirror
+      # .env.example (opt-in" defaults: empty/0 means the api's notify and
+      # billing routers are idle, the same as the worker when its lane is
+      # off); the worker, relay and cron still read their own opt-ins.
+      SPECPROOF_BILLING_URL: ${SPECPROOF_BILLING_URL:-}
+      SPECPROOF_NOTIFY_OUTBOX: ${SPECPROOF_NOTIFY_OUTBOX:-}
+      SPECPROOF_NOTIFY_WEBHOOK_URL: ${SPECPROOF_NOTIFY_WEBHOOK_URL:-}
+      SPECPROOF_NOTIFY_WEBHOOK_SECRET: ${SPECPROOF_NOTIFY_WEBHOOK_SECRET:-}
+      SPECPROOF_NOTIFY_WEBHOOK_KIND: ${SPECPROOF_NOTIFY_WEBHOOK_KIND:-}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -165,6 +175,14 @@ services:
       MYSQL_READ_TIMEOUT: ${MYSQL_READ_TIMEOUT:-15}
       MYSQL_WRITE_TIMEOUT: ${MYSQL_WRITE_TIMEOUT:-15}
       RABBITMQ_USER: ${RABBITMQ_USER:-specproof}
+      # The worker itself sends terminal notifications on the live lane when
+      # SPECPROOF_NOTIFY_OUTBOX is not "1"; it needs the same receiver config
+      # the relay gets, and the meter path (storage/billing.py) reads the
+      # billing URL. Same names, same empty defaults, same rows.
+      SPECPROOF_NOTIFY_WEBHOOK_URL: ${SPECPROOF_NOTIFY_WEBHOOK_URL:-}
+      SPECPROOF_NOTIFY_WEBHOOK_SECRET: ${SPECPROOF_NOTIFY_WEBHOOK_SECRET:-}
+      SPECPROOF_NOTIFY_WEBHOOK_KIND: ${SPECPROOF_NOTIFY_WEBHOOK_KIND:-}
+      SPECPROOF_BILLING_URL: ${SPECPROOF_BILLING_URL:-}
     volumes:
       - specproof-workspaces:/workspaces
     depends_on:
@@ -239,6 +257,10 @@ services:
       SPECPROOF_NOTIFY_WEBHOOK_URL: ${SPECPROOF_NOTIFY_WEBHOOK_URL:-}
       SPECPROOF_NOTIFY_WEBHOOK_SECRET: ${SPECPROOF_NOTIFY_WEBHOOK_SECRET:-}
       SPECPROOF_NOTIFY_WEBHOOK_KIND: ${SPECPROOF_NOTIFY_WEBHOOK_KIND:-}
+      # The relay's own lane-state reader (notify_outbox_lane_enabled): the code
+      # reads it even when it just logs/reports; give the container the same
+      # view of the knob so the delivery check stays green.
+      SPECPROOF_NOTIFY_OUTBOX: ${SPECPROOF_NOTIFY_OUTBOX:-}
     expose:
       - "9102"
     depends_on:
@@ -262,11 +284,13 @@ services:
     profiles: ["billing"]
     environment:
       SPECPROOF_ENV: production
-      SPECPROOF_BILLING_URL: mysql://${MYSQL_USER:?set MYSQL_USER}:${MYSQL_PASSWORD:?set MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-specproof_phase0}
+      SPECPROOF_BILLING_URL: ${SPECPROOF_BILLING_URL:-}
       MYSQL_HOST: mysql
       MYSQL_CONNECT_TIMEOUT: ${MYSQL_CONNECT_TIMEOUT:-5}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-specproof_phase0}
       INVOICE_CRON_METRICS_PORT: "9103"
+      INVOICE_CRON_INTERVAL_SECONDS: ${INVOICE_CRON_INTERVAL_SECONDS:-3600.0}
+      SPECPROOF_INVOICE_PERIOD: ${SPECPROOF_INVOICE_PERIOD:-}
     expose:
       - "9103"
     depends_on:
