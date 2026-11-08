@@ -25375,3 +25375,28 @@ POSIX 分支（`["sh", "mvnw"]`）都改成 `sh mvnw`/argv-sh 形；并把棘轮
 **本节未认证（显式列清单）**：① Phase-acceptance 腿结果；② 全量套件最终数字
 （留待后续提交重跑，不能从本节外推）；③ 这条 integration 路径不是
 "仓库已可稳定重现"——它依赖本车道此前播种的 Docker 镜像与 host `~/.m2`。
+
+## #1523 独立验证环节：unit 套件 5908 实测 + phase_acceptance 编码修完——HEAD e532e6c 全绿
+
+**记录基准**：HEAD = `e532e6c`（`#1522` 之后一站补丁直接合出）。HEAD 这次刻意等 commit 推送、再跑 unit 套件、再记档，而不是反着来。
+
+**全量单元套件（Python 3.12.13，未设 `SPECPROOF_TEST_MYSQL_DATABASE`，会话隔离判定 → `specproof_test`；产品库 `specproof_phase0` 的 `/test/%` 行 0→0，未发产品库写入）**：
+
+| 项 | 值 |
+|---|---|
+| collect / selected / deselected | 6228 / 5913 / 315 |
+| **passed / skipped / failed** | **5908 / 5 / 0** |
+| Wall-clock | 1139.87 s |
+| MySQL-backed census（unit 口径）| **16/22 文件真实执行**（audit_action_parity 7.9s ×28 等），其余 6 因 `integration` marker 未进入本次执行口径——首次本机运行即可如实说"16 of 22 census files ran" |
+
+**phase_acceptance 两条腿（Windows 本机，同样隔离）**：
+- `test_phase_acceptance`：**9 passed / 1 deselected**（dev-only 110 案例评测腿，CI 同 360min 外置，不在 local unit scope 内），墙钟 664.66s；
+- `test_differential.py`：**16/16**（已记 #1511；不重复）；
+- 再跑 Phase 0（9 绿）后，原先两条 `PytestUnhandledThreadExceptionWarning` GBK 解码警告消失——子进程 stdout/stderr 全面转入标准流式 UTF-8。
+
+**本节不认证**：① 5 skipped 的各条证据展开——未逐条证明其 skip 必须 skip；② 315 个 deselected 的细则——未核对每条缺 `integration`/`slow` marker 的意图；③ holdout 的 INSUFFICIENT 不因本轮 Python 字节修复而转为 PASS——manifest 口径不变（缺 5 个 negative 下限）。
+
+**两处本车道自己踩/修**：
+- `test_phase_acceptance.py` 子进程 helper 把 `encoding="utf-8", errors="replace"` 漏回 GBK 默认（本次补上）；
+
+**机器账**：reports 9100-line、47 个 rules：不重述 #1511-1522 的细节；本份只写 HEAD e532e6c 的结论。
