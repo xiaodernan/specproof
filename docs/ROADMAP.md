@@ -104,7 +104,19 @@
   Dashboard 压测、3 个真实仓库试点 (runbook 已就绪)
 - [ ] P6 安全项: worker DooD (/var/run/docker.sock) 与 §12 冲突,
   改隔离 runner / rootless dind; 沙箱非 root 运行 (Linux)
+  （2026-11-08 复核: 生产 compose 已用专用 docker:27-dind（非宿主 socket），
+  沙箱 argv 固定 `--user 1000:1000`/`--cap-drop ALL`/`--network none`/
+  `--pids-limit 256`/no-new-privileges；RUNBOOK §5 记录 rootless 变体实测
+  不可用及线索。代码与门已落地；checkbox 保留给"rootless 路线决策 + 生产
+  复核签字"，不是代码缺口。）
 - [ ] P6 可观测/SLO: Grafana dashboard 化、SLO 看板与告警、备份恢复演练
+  （2026-11-08 复核: 51 面板 SLO 看板 + 16 条 SLO 告警已入仓
+  （infra/grafana, infra/prometheus）；promtool 校验规则语法通过；Grafana
+  11.6.1 一次性实例实证 provisioning（datasource + dashboard 51 panels,
+  /api/health=200）；备份恢复演练第一阶段（MySQL/Mongo 隔离目标库
+  dump→restore→逐表计数对齐, 产品库只读备份并删除明文）已完成
+  —— 详见 docs/operations/DATA_LIFECYCLE.md §6.4；checkbox 保留给"生产
+  Grafana 部署 + 告警路由到人 + 产品库就地恢复窗口 + 每日 cron/PITR"）
 - [ ] P5 增补: LLM 基线 ("直接让 DeepSeek 看 Diff") 实测补测
 
 ## 关键指标 (Go/No-Go)

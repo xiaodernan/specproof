@@ -25517,3 +25517,40 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 - 100 案例口径 `case-101-head` 不在 sidecar（holdout 隔离，正确）；等 `#334` 确认机制再 unholdout（#1518 结论不动）；
 - `+100.0pp` 是极差不是实用增量，rate/variance/interval 口径不适用（baseline=0，方差为零）；
 - holdout INSUFFICIENT（Defense: manifest 2 negative < 5）保留 status，不伪转 PASS。
+
+## #1527 独立验证环节：备份恢复演练**第一阶段实锤** — MySQL/Mongo 隔离目标库全程通过；观测栈一次性实证（promtool + Grafana 11.6.1）
+
+**记录基准**：HEAD = `32ae637`（本批提交后成为其父）。上一批 #1525/#1526 已入库；默认工作树 `docs/eval/aider-results.md` 被测试跑重画（时间戳一行），与本批无关，已 `git checkout` 还原、未提交。
+
+**这一批做了什么（全是执行过的事实，不引用未发生的验证）**：
+
+1. **MySQL 备份恢复演练（隔离目标库）**
+   - 源库 `specproof_test`（可消耗）逐表 COUNT(*) 快照 19 表：audit_logs **5174**、contract_registry **435**、schema_migrations 17、outbox 2、verification_jobs 2、contract_approvals 1、其余 13 表 0。
+   - `mysqldump --single-transaction --routines --triggers` → 1,095,127 字节，sha256 `ab2851a3971c68741c22f9eb081b32326929109c65da5112d10b5ec4b4b29586`，2.2s。
+   - 全新 scratch 库 `specproof_restore_drill` 恢复 10.1s；19/19 表逐行 COUNT(*) 与源库**完全一致**；`schema_migrations MAX(version)=17=17`。
+   - `DROP DATABASE specproof_restore_drill` 完成。
+   - 产品库 `specproof_phase0` **只读**备份：200,130 字节，sha256 `87f1c5731d3bbc18ec49a121face0cca51b2be9fb6d9cd33356536cdda0c0b47`，1.8s；明文 dump 在核 hash 后删除。
+
+2. **MongoDB 备份恢复演练（scratch 库）**
+   - `specproof_drill_scratch` 播种 250 篇伪造文档 → mongodump --archive --gzip（4,747 字节，sha256 `530b01e6b3b60902e31c99c69423f7289a426be8ed8124eda279ab1f0dec1375`，0.4s）→ `dropDatabase` → mongorestore（0.4s）。
+   - 恢复后 digest `{_id:null, n:250, s:31125}`，31125 = 0+…+249 ✓；countDocuments = 250 = 源值；scratch 已 DROP，归档已删。
+   - 产品库 `specproof_phase0` **只读**备份：20,428 字节，sha256 `af87c145ac53ba43f246832ebde6d73696131b26ceb503c9eef2995638bf988f`，0.4s；集合计数 `evidence_packs=109 / agent_checkpoints=38 / checkpoint_writes=35 / differential_runs=0`；明文已删除。
+
+3. **观测栈一次性实证（未改运行中的共享栈）**
+   - `promtool check config` / `check rules`（prom/prometheus:v3.3.1 一次性容器）：`prometheus.yml` valid；`alerts-slo.yml` **16 rules 通过**。
+   - Grafana 11.6.1 一次性实例（3300→3000，仓库 provisioning + dashboards 只挂 read-only）：`/api/health` = 200（11.6.1）；`/api/search` 命中 `specproof-slo`；`/api/dashboards/uid/specproof-slo` 加载 **51 panels**；datasource `specproof-prometheus`（`http://prometheus:9090`）已 provisioned；校验后 `docker rm -f specproof-grafana-verify`，`docker ps -a` 无残留。
+   - 运行中的共享栈**零改动**（specproof-phase0-prometheus-1 / careeros-* / football_os_* 等全部原样）。
+
+4. **文档落地（与事实一致，未夸大）**
+   - `docs/operations/DATA_LIFECYCLE.md`：§5 两表状态升级为"2026-11-08 真实执行（隔离目标库）"、§6.2 #9/#10/#11 改为部分完成、新增 **§6.4**（完整命令输出数据表、明文已删、产品库未就地恢复、未做项清单）、图例与 §6.3 同步修订。
+   - `docs/ROADMAP.md`："P6 安全项" 与 "P6 可观测/SLO" 两项 checkbox **保持未勾选**，改为带证据日期的"复核注记"（rootless dind 实测不可用有据；Grafana 一次性实证 + 第一阶段演练已做；产品恢复窗口/cron/PITR/mc/snapshot 仍待批准/资源）。
+
+**本批明确不做/不认领**
+
+- 产品库 `specproof_phase0` 就地恢复：需批准停机窗口，未执行、不伪装。
+- 每日 30 天滚动 cron、binlog PITR、MinIO mc mirror、ES snapshot、Redis/RabbitMQ 按策略不备份：仍 ⏳。
+- PRODUCTION 部署 Grafana / 告警路由到真人 / api·worker 生产栈启动 / Dashboard 压测：仍 ⏳（host/stakeholder 决策）。
+- "aider-results.md 时间戳重画"为测试副产物，按本号前置约定**不提交**。
+- 运行中的共享栈（两个 Careeros 组件、football_os、specproof 栈）未重启、未改配置。
+
+**提交面**：`docs/operations/DATA_LIFECYCLE.md`、`docs/ROADMAP.md`、`docs/operations/DEEP_OPTIMIZATION_PLAN.md`（本节）。门：fence 8/8（提交前已复跑并在提交后再跑）。
