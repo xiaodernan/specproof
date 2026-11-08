@@ -155,7 +155,16 @@
 - [x] **4.3 Merge Certificate 签名**：Ed25519 已落地 —— `evidence/signing.py` 签发/验签、`craft/accept.py` fail-closed 接线（无密钥即 ERROR）、`specproof verify` 对证书与拒绝通知双签，SHA-256 只是被签名的 canonical digest 而非占位签名。剩 KMS/HSM 密钥托管 ⏳。门：`tests/unit/test_signing_docs_do_not_claim_it_is_unimplemented.py`。
 
 ### Phase 5 —— 团队化与生产化（P2）
-- [ ] **5.1 多租户与权限落地**：`identity/` 在真实存储下可用，RBAC 前后端一致。
+- [x] **5.1 多租户与权限落地**：`api/identity/` 在真实存储下可用，RBAC 前后端一致。
+  - 闭口证据（2026-11-09，收口笔）：real-storage 两条路径均为真实可验证——
+    `tests/unit/test_identity_store.py`（12/12，本地 SQLite + 真 MySQL 委托）、
+    `tests/unit/test_tenant_auth.py`（53/53，真 MySQL 迁移上下文下 tenant_id 作用域、
+    跨租户拒绝、吊销新鲜令牌全被覆盖），以及前端↔后端一致门
+    `tests/unit/test_access_role_parity.py`（11 腿，`apps/web/src/ui/accessRoles.ts`
+    四个 governed 权限集逐一从 `api/identity/principal.py` 的 ROLE_MATRIX ×
+    `classify_request()` 重推导，不依赖任何手写数字）。前端 `accessRoles.test.ts`
+    覆盖登录后渲染。GUIDE_GAP_AUDIT 的“核心完成 W37”未被伪称超越；
+    SAML/邀请流保留为独立项（与本行不重合）。
 - [ ] **5.2 用量与账单准确**：模型 token/成本核算对齐真实 provider。
 - [ ] **5.3 可观测性默认开启**：`observability/` + compose 指标看板开箱可用。
 - [ ] **5.4 部署形态**：单二进制/容器一键部署、迁移与回滚脚本。
