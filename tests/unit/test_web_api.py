@@ -290,6 +290,50 @@ def test_stages_rollup_happy(fakes: None) -> None:
     assert body["stages"][1]["percent"] == 30.0
 
 
+def test_stages_enrich_with_duration_and_count(fakes: None) -> None:
+    """Node-level duration is additive to the stage contract (§3.1)."""
+    _seed_job()
+    FakeRedisStream.events = [
+        {"id": "1-0", "node": "intake", "status": "completed",
+         "percent": 10.0, "message": "ok", "at": "2026-08-18T00:00:00Z"},
+        {"id": "1-1", "node": "collect_diff", "status": "running",
+         "percent": 20.0, "message": "diffing", "at": "2026-08-18T00:00:01Z"},
+        {"id": "1-2", "node": "collect_diff", "status": "completed",
+         "percent": 30.0, "message": "done", "at": "2026-08-18T00:00:02Z"},
+    ]
+    client = TestClient(app)
+    resp = client.get(f"/api/v1/jobs/{JOB_ID}/stages", headers=_headers())
+    assert resp.status_code == 200
+    body = resp.json()
+    stages = {row["node"]: row for row in body["stages"]}
+    assert stages["intake"]["duration_seconds"] == 0.0
+    assert stages["intake"]["started_at"] == "2026-08-18T00:00:00Z"
+    assert stages["intake"]["event_count"] == 1
+    assert stages["collect_diff"]["duration_seconds"] == 1.0
+    assert stages["collect_diff"]["started_at"] == "2026-08-18T00:00:01Z"
+    assert stages["collect_diff"]["event_count"] == 2
+    # Existing flat keys still answer exactly what they did before.
+    assert stages["collect_diff"]["status"] == "completed"
+    assert stages["collect_diff"]["percent"] == 30.0
+
+
+def test_stages_unparseable_stamps_yield_null_duration(fakes: None) -> None:
+    _seed_job()
+    FakeRedisStream.events = [
+        {"id": "2-0", "node": "unknown", "status": "running",
+         "percent": 1.0, "message": "work", "at": "not-a-timestamp"},
+    ]
+    client = TestClient(app)
+    resp = client.get(f"/api/v1/jobs/{JOB_ID}/stages", headers=_headers())
+    assert resp.status_code == 200
+    body = resp.json()
+    (row,) = body["stages"]
+    assert row["duration_seconds"] is None
+    assert row["started_at"] == ""
+    assert row["event_count"] == 1
+    assert row["percent"] == 1.0
+
+
 def test_stages_degraded_when_redis_down(fakes: None) -> None:
     _seed_job()
     FakeRedisStream.redis_down = True

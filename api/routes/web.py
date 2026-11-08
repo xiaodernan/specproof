@@ -116,6 +116,34 @@ def _percent_rate(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 4) if denominator else 0.0
 
 
+def _parse_iso_utc(value: str) -> datetime | None:
+    """Parse a Redis-progress ISO stamp; None when it is empty/unparseable.
+
+    Redis stamps come from ``datetime.now(UTC).isoformat()`` with a
+    trailing ``Z`` on the progress stream. A naive stamp (no offset) is
+    read as UTC rather than refused — the worker never writes one, but a
+    legacy entry must not flip a stage's reported duration to ``null``.
+    """
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _format_iso_utc(value: datetime | None) -> str:
+    if value is None:
+        return ""
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
 def _findings_from_table(
     store: MySQLStore, job_id: str, errors: list[str] | None = None,
 ) -> list[dict[str, Any]]:
@@ -370,6 +398,7 @@ def job_stages(job_id: str) -> dict[str, Any]:
         }
     stages: dict[str, dict[str, Any]] = {}
     order: list[str] = []
+    node_counts: dict[str, int] = {}
     for ev in events:
         node = str(ev.get("node") or "unknown")
         if node not in stages:
@@ -383,6 +412,26 @@ def job_stages(job_id: str) -> dict[str, Any]:
             "at": str(ev.get("at") or ""),
             "event_id": str(ev.get("id") or ""),
         }
+        node_counts[node] = node_counts.get(node, 0) + 1
+    # Per-node duration and event count, additive to the stage contract: the
+    # events each carry a UTC ISO timestamp; first-to-last per node is the
+    # honest "how long did this stage run" reading, with no fabricating a
+    # start when the stream has no parseable stamps.
+    for node in order:
+        node_events = [ev for ev in events if str(ev.get("node") or "unknown") == node]
+        stamps = [_parse_iso_utc(str(ev.get("at") or "")) for ev in node_events]
+        if any(stamp is None for stamp in stamps):
+            stages[node]["started_at"] = ""
+            stages[node]["duration_seconds"] = None
+        else:
+            aware = [stamp for stamp in stamps if stamp is not None]
+            finished = max(aware)
+            started = min(aware)
+            stages[node]["started_at"] = _format_iso_utc(started)
+            stages[node]["duration_seconds"] = (
+                finished - started
+            ).total_seconds()
+        stages[node]["event_count"] = node_counts[node]
     return {
         "job_id": job_id,
         "stages": [stages[node] for node in order],

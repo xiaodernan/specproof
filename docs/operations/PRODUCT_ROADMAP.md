@@ -108,7 +108,17 @@
 - [ ] **2.6 更多语言**：Go、Java/Gradle 适配器（矩阵中的 planned 行）。
 
 ### Phase 3 —— 验收体验与实时性（P1，并行推进）
-- [ ] **3.1 实时进度与流式日志**：SSE 事件粒度到"节点级"，前端时间线展示每步耗时/产物/失败点。
+- [~] **3.1 实时进度与流式日志**：SSE 事件粒度到"节点级"，前端时间线展示每步耗时/产物/失败点。
+  - 本批部分落地（2026-11-08，未闭合）：`/api/v1/jobs/{id}/stages` 新增**节点级 `duration_seconds`
+    （该节点第一/最后 stamp 之差）、`started_at`（首个 UTC stamp）、`event_count`** ——
+    附加式字段契约（旧消费端逐字键不变）；覆盖 `api/routes/web.py` 新测试 2 条
+    （test_stages_enrich_with_duration_and_count / test_stages_unparseable_stamps_yield_null_duration，
+    合跑 48/48 绿）。JobDetail 阶段行新增 `.stage-duration` 列（有 stamp 显示 "X.X 秒"），
+    `ui/util.tsx::fmtDurationSeconds` + `ui/__tests__/formatDuration.test.ts` 锁住呈现规则
+    （null→"—"，防具体测值呈"未知"）；`tsc --noEmit` 干净、`vitest` 31/2 文件全绿、
+    基线测试 JobDetail 31 例全绿。
+  - **仍未做**：节点级产物对象/失败点契约（worker 侧每节点落 artifact 引用）→ 这一项留待
+    `agent/graph.py` 节点携带产物引用后，再补到 SSE 事件与时间线。
 - [~] **3.2 结论页重做**：首屏三问——通过没？风险在哪？我下一步做什么？证据折叠可展开。
   - 本轮（可验证）：`JobDetail` 首屏"验证结论"大数字卡此前直显英文枚举（`VERIFIED`/`BLOCKED`/`NEEDS REVIEW`…）。新增 `verdictLabel()`：已知枚举译成中文（通过/受阻/执行失败/需复核/待验证/已过期/已取消），**未知值原样透传不臆测**（错误的友好标签会误导合并决策）。已验证：`JobDetail.test.tsx` 4 passed（含新用例断言显示"受阻"且无裸"BLOCKED"）、`tsc` 干净、全量 vitest 119 passed。
 - [x] **3.3 术语内联化**：矩阵/契约/Capsule 首次出现处悬浮解释，引导页关键步骤做成产品内 checklist（进度持久化）。

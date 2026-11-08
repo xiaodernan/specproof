@@ -7,7 +7,7 @@ import {
 } from "../api";
 import {
   Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, PreflightCard, Progress, Spinner, StatCard, StatusPill, Table, Term,
-  fmtPct, fmtTime, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
+  fmtPct, fmtTime, fmtDurationSeconds, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
   type Column, type PreflightResult,
 } from "../ui";
 import { SameRepoCraftPanel } from "./SameRepoCraftPanel";
@@ -254,7 +254,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
             });
             const node = event.stage || event.node;
             if (node) setStages((currentStages) => {
-              const stage = { node, status: event.status || "", percent: event.percentage ?? event.percent ?? 0, message: event.summary || event.message || "", at: event.ts || "", event_id: String(event.sequence ?? event.seq ?? "") };
+              const stage = { node, status: event.status || "", percent: event.percentage ?? event.percent ?? 0, message: event.summary || event.message || "", at: event.ts || "", event_id: String(event.sequence ?? event.seq ?? ""), started_at: event.ts || "", duration_seconds: null, event_count: 0 };
               const rows = currentStages?.stages || [];
               return { job_id: jobId, stages: rows.some((row) => row.node === node) ? rows.map((row) => row.node === node ? stage : row) : [...rows, stage], event_count: (currentStages?.event_count || 0) + 1, degraded: false, degraded_reason: null };
             });
@@ -567,6 +567,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
                 <div className="bar" style={{ width: 120, margin: 0 }}>
                   <div className="bar-fill" style={{ width: Math.min(100, st.percent) + "%" }} />
                 </div>
+                <span className="stage-duration" title={st.started_at ? "开始：" + st.started_at : undefined}>{fmtDurationSeconds(st.duration_seconds)}</span>
                 <span className="stage-pct">{st.percent}%</span>
                 <StatusPill status={st.status} />
               </div>

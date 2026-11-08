@@ -496,6 +496,9 @@ export interface Stage {
   message: string;
   at: string;
   event_id: string;
+  started_at: string;
+  duration_seconds: number | null;
+  event_count: number;
 }
 
 export interface StagesData {

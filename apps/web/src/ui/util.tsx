@@ -12,6 +12,23 @@ export function fmtTime(iso: string | null | undefined): string {
   return d.toLocaleString();
 }
 
+// §3.1: per-node elapsed time on the stage timeline. The backend computes
+// `duration_seconds` (first stamp to last stamp on the node's stream). An
+// unparseable stamp yields null, so a missing duration renders as "—" and is
+// never dressed up as a real measurement.
+export function fmtDurationSeconds(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return "—";
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
+  if (seconds < 1) return seconds.toFixed(2) + " 秒";
+  if (seconds < 60) return seconds.toFixed(1) + " 秒";
+  const mins = Math.floor(seconds / 60);
+  const rem = Math.floor(seconds % 60);
+  if (mins < 60) return mins + " 分 " + rem + " 秒";
+  const hrs = Math.floor(mins / 60);
+  const remMin = mins % 60;
+  return hrs + " 小时 " + remMin + " 分";
+}
+
 export function shortId(id: string | undefined): string {
   return (id || "").slice(0, 8);
 }

@@ -25715,3 +25715,34 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 - feacabd 的 `tests/unit/test_recorded_ledger_sections_do_not_vanish.py`（#138 新增）在 feacabd 下红（`#541b` 双节撞标题），合并后在本 HEAD 上重跑 8/8 绿 —— 红不是代码缺陷，是漏提交序列（feacabd 落后 origin 1014 个提交）的直观后果，本条记账不抹掉。
 - `OBSERVABILITY.md` F-31 手抄口径（未挂门）已由本批追加改口，但无门锁死——手抄风险仍在，不假装已闭合。
 - 名册 `notify-relay:9102` 抓取（无独占资源声明、无 PID 限额）与 outbox-relay 立场一致，通知路由到人仍未接发——这是 P6 待决策（需要值班/webhook URL）。
+
+## #1533 独立验证环节：§3.1 实时进度第一块 — `/stages` 节点级 `duration_seconds`/`started_at`/`event_count` 入 API 契约+前端展示
+
+**记录基准**：HEAD = `48ffe42`（#1532 之后）。PRODUCT_ROADMAP §3.1（"SSE 事件粒度到节点级，前端时间线展示每步耗时/产物/失败点"）的首款可验证增量。
+
+**做的事（增量式契约增强，旧消费端零改动）**
+
+后端 `api/routes/web.py::job_stages` 现在在每个 stage 行上附加：
+- `started_at`（该节点首个 Redis stamp，`isoformat().replace("+00:00", "Z")`，可解析则出现，不可解析则为 ""）
+- `duration_seconds`（该节点首/尾 stamp 之差；任何 stamp 不可解析 → `null`，绝不伪造）
+- `event_count`（该节点流中事件数）
+
+字段全部是附加式的，既有消费端逐字键原样保留。前端
+`apps/web/src/api.ts::Stage` 接口补齐三字段类型；`JobDetail.tsx` 阶段行新增 `.stage-duration`
+列（CSS 与 `.stage-pct` 并列），渲染 `fmtDurationSeconds(d)`（null→"—"，防"未知"被当测）。
+`ui/util.tsx` 新增 `fmtDurationSeconds`（<1s 用两位小数、≥1s 一位小数、≥60s 升到"N 分 M 秒"、
+≥3600s 升到"H 小时 M 分"，null/NaN/负→"—"）；`ui/__tests__/formatDuration.test.ts`
+锁住呈现规则。PRODUCT_ROADMAP §3.1 标为 `[~]` 并写清"仍未做节点级产物引用 + 失败点字段"——
+该项只有在 worker 侧每节点落 artifact 引用后才算闭合。
+
+**实测**
+
+- `tests/unit/test_web_api.py`：46 例全绿（含新增 `test_stages_enrich_with_duration_and_count`、
+  `test_stages_unparseable_stamps_yield_null_duration`）— 既有消费端逐字键不变。
+- `apps/web`：`tsc --noEmit` 干净；`vitest run src/pages/JobDetail.test.tsx src/ui/__tests__/formatDuration.test.ts` 31 passed / 2 files。
+- `ruff check api/routes/web.py tests/unit/test_web_api.py` 与 `mypy .` 262 files 干净；
+  `tests/unit/test_openapi_diff.py` 9/9（contract 与 spec 对齐）。
+
+**仍欠账（明确）**：节点级 `artifact` 引用（worker 每节点产出落地后向 SSE/stages 上报）、
+节点级 `failed_at` 精确失败点（当前只有整 job 的 failed_after/stage 入 last_error；逐节点
+要等 stage wrapper 汇报失败状态）。两项均不加新参数杜撰，留作下一批。
