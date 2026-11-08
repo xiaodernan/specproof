@@ -25314,3 +25314,21 @@ VERDICT: case-101 base_pass_head_fail HOLDS
 ① 表结构侧没有插入序列键：`verification_jobs.id`、`findings.id` 均为 CHAR(36) uuid（`infra/mysql/migrations/0001_init.sql`），所以「第二键」取 id 是**确定性**而非「入库序」——做不到入库序、它是 best-effort 稳定。② 其余 `ORDER BY created_at, id` 与 `created_at, id ASC` 们早有第二键，无需动。③ 棘轮在实测时被自己的 fixture 行内污染红了一次（test_bare_time_order_by_is_not_shipped.py 第 80 行自己就是一条 `ORDER BY created_at`）——已被拆掉，测成 4/4。④ 本节不承诺 Race/HOLD 区间之外的新根因；"裸"判定只在 `ASC`/`DESC` 之后紧跟括号/LIMIT/OFFSET/引号/行尾时成立，绕过它的写法留在更大的院子里（"col DESC, id" 是合规的；新型混合分离不在本棘轮管）。⑤ 本提交未起任何产品评测、未触 specproof-reference 主仓、产品 schema 未触。
 
 **承下去的方向**：#1515 的根因分析得到直接复用——凡是「两记录同一时钟值」可致的任意排序/判定处，今后都以棘轮守住；下一批仍往"同根同因"挖即可。
+
+## #1521 独立验证环节：duration 三挂 monotonic——SLO 数学不再跟随 wall clock 晃动
+
+**记录基准**：HEAD = `a17b994`（`84b1f20` docs(roadmap) 之后）。本节只记已实测的量；本节时刻全量套件正在重跑，结果独立入 #1522，不嫌预设。
+
+**根因模式指出（ #1515 同型）**：Windows 壁钟以 ~15.6 毫秒粒度推进，且 NTP 客户端可在 snap 时刻让它回退/前移。任何「以 `time.time()` 作差测时长」的点，读数随 snap 漂移，甚至变负数。全仓扫描后三处裸作差站点定位并改 `time.monotonic()`：
+
+- `agent/worker.py`：`started = time.monotonic()`；`jobs_processing_seconds` gauge 和按深度分桶的 `jobs_duration_seconds_{fast,deep,release}` histogram 改用 monotonic 作差（此前是 wall time）；
+- `observability/metrics.py`：`/metrics` 的 `uptime_seconds` 改用 `time.monotonic()`（此前是 wall time，模块 import 时刻起算）；
+- `api/identity/oidc.py`：discovery 缓存的 `_discovery_at` 和 TTL 判断全改用 monotonic（此前是 wall time，后退型 snap 会让过期文档被当"仍然新鲜"保留到过期后）。
+
+**棘轮（新增）**：`tests/unit/test_durations_ride_the_monotonic_clock.py` 逐字钉住上述三点（`time.monotonic() - started`、`time.monotonic() - _started_at`、`time.monotonic() - self._discovery_at`），并保证 wall-time 版本不再出现。
+
+**明确未动的站点（先例已注释）**：`agent/worker.py` 的 `reclaim_reclaim_recovery_lag_seconds`——它以进程时钟作差于**数据库** `NOW()` 的心跳行，是跨域近似（注释明确写了 approximate、只影响直方图、不触计数），跳过这类"同为作差但合法"的站点。
+
+**实测**：45/45（time-ratchet 本身 + metrics_http + scrape rosters ×2 + worker pumps ）+ 67/67（job_reclaimer / observability_metric_parity / alert_rules / reclaim_tick）+ ruff + mypy 三站干净。
+
+**本节不认证**：① 任何生产中正在用 `time.time()` 作差计算 durations 或 TTL 的其他站点（本 PR 的扫描口径即全仓 `*.py`；精确命中并确认只有上述三处，`time.time()` 其余出现位置都是 timestamps 而非作差）；② 本节不把 wall-clock snap 的误差量化（误差幅度取决于主机 NTP 配置，可达秒级；本节不作数值宣示）；③ 本节未运行全量套件——最终数字独立入后续记档，不预设。
