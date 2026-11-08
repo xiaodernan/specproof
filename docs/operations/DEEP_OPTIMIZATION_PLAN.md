@@ -25290,3 +25290,27 @@ VERDICT: case-101 base_pass_head_fail HOLDS
 **本节不认证**：① holdout 的干净隔离性（manifest 仍自述 retroactive candidates；`case-101` 是其中最可信的一条，但不足以构成 prospective holdout）；② FN 方向（head 侧红灯）的稳定性基线（单次运行、`--keep` 后 worktree 已清理，不代表每次基线复现一致）；③ 由此推断的任何 release 决策（本提交不触碰 specproof-reference 主仓、不改 Holdout manifest 状态）；④ CONCURRENCY-01 其他案例的 harness 覆盖面（唯一 case 实测；不推断面）。
 
 **纪律记录**：① 本机首次真正实测 `case-101` 标签 claim 花了两步——先撞上空的 `~/.m2`（两边 `exit: 1`，不具任何结论力），在线播种宿主机 `~/.m2` 后才看到基线差异；**教训："VERIFY ≠ HOLD"，两个 run 的退出码一致也不能当确认**。② JDK 版本必须 ≤ 21（JDK 25 下本演示的 Mockito inline mock maker 无法 instrument `RabbitTemplate`，报"Mockito cannot mock this class"——`demo` 的 jdk25 测试是另一场已知定位，与本次认证无关）。③ 本次只验证 `case-101` 一个 case，其他 case 的 HOLDS 状态未逐个认证。④ 产品零触碰。⑤ host `.m2` 因 seed 增加（如实记）。
+
+## #1520 独立验证环节：裸时间列 ORDER BY 归零——Windows 15.6ms 壁钟的同型根因再扫一遍
+
+**记录基准**：HEAD = `6c1f77e`（`acc5f58` 之后）。本节记刚刚完成的「同型根因扫描」，不含任何未测量数字。
+
+**动机**：#1515 里那次 `object_metadata` 的 `created_at` 全等红灯证明了两件事——① Windows 壁钟以 ~15.6 ms 粒度推进（1999/1999 连续 `time.time()` 同值）；② 同 tick 写入的两条记录对 `ORDER BY created_at` 无第二键的查询来说是发散的。同一根因对其余裸时间排序同样成立，于是从 `storage/`、`api/`、`mcp/`、`agent/`（以及无害的 `tests/`）把它一次性扫清。
+
+**实测（逐字列）**：
+
+- 两处无第二键站点：
+  - `storage/mysql.py` `get_jobs_by_status`（`WAITING_FOR_PROVIDER` 恢复/重入队顺序）→ 补 `id`；
+  - `api/routes/web.py` `_findings_from_table`（findings 渲染顺序）→ 补 `id`。
+- 棘轮 `tests/unit/test_bare_time_order_by_is_not_shipped.py`（零 born）：
+  全库 `.py` / `.sql` 扫描、排除 venv/dist/scratch 等，
+  **裸时间列 ORDER BY 站点 = 0**；同型的第二键写法、以及换序写法不触发；
+  裸写法必触发（反证），行内自我污染排除（fixture 用 `_COL = "created_at"` 组合）。
+- 复测：4/4（棘轮）+ **117/117**（test_web_api / job_reclaimer / provider_hold_probe / reclaim_tick / subprocess_text_encoding ）+ ruff + mypy 绿。
+- MySQL-backed：这两处本车道在 live 库下的运行均为 0 `/test/%` 行、产品库未写入；路径为 SQLite/隔离场景（本会话真(My)SQL 腿由 specproof_test 覆盖，未触 product schema）。
+
+**如实说明**：
+
+① 表结构侧没有插入序列键：`verification_jobs.id`、`findings.id` 均为 CHAR(36) uuid（`infra/mysql/migrations/0001_init.sql`），所以「第二键」取 id 是**确定性**而非「入库序」——做不到入库序、它是 best-effort 稳定。② 其余 `ORDER BY created_at, id` 与 `created_at, id ASC` 们早有第二键，无需动。③ 棘轮在实测时被自己的 fixture 行内污染红了一次（test_bare_time_order_by_is_not_shipped.py 第 80 行自己就是一条 `ORDER BY created_at`）——已被拆掉，测成 4/4。④ 本节不承诺 Race/HOLD 区间之外的新根因；"裸"判定只在 `ASC`/`DESC` 之后紧跟括号/LIMIT/OFFSET/引号/行尾时成立，绕过它的写法留在更大的院子里（"col DESC, id" 是合规的；新型混合分离不在本棘轮管）。⑤ 本提交未起任何产品评测、未触 specproof-reference 主仓、产品 schema 未触。
+
+**承下去的方向**：#1515 的根因分析得到直接复用——凡是「两记录同一时钟值」可致的任意排序/判定处，今后都以棘轮守住；下一批仍往"同根同因"挖即可。
