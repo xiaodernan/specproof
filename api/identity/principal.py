@@ -197,15 +197,12 @@ def scope_problems(raw: str) -> list[str]:
 #: that never existed. `tests/unit/test_rbac_cells_reach_routes.py` reconciles this
 #: declaration against the operations the app actually exposes, in both
 #: directions, so the list cannot quietly collect a lie either way.
-CELLS_WITHOUT_A_ROUTE: dict[str, str] = {
-    "cases:verify": (
-        "no route is ever classified as cases:verify. The certificate / "
-        "rejection-notice endpoint GET /api/v1/jobs/{job_id}/certificate is a "
-        "cases:read, and signature verification runs in the CLI verify flow, "
-        "which does not consult this matrix. Read the certificate with "
-        "cases:read instead."
-    ),
-}
+#:
+#: Empty since #113 routed the last cell: the acceptance vote
+#: `POST /api/v1/jobs/{job_id}/feedback` is the cases:verify operation. The
+#: dict stays as the escape hatch a future unrouted cell must be declared in;
+#: an entry needs the reason and a working substitute the gate can route to.
+CELLS_WITHOUT_A_ROUTE: dict[str, str] = {}
 
 
 def mintable_cells() -> tuple[str, ...]:
@@ -244,6 +241,17 @@ def classify_request(method: str, path: str) -> ResourceAction | None:
         return ResourceAction("admin", sub_action)
     if path.startswith("/api/v1/billing"):
         return ResourceAction("billing", "read")
+    if (
+        method == "POST"
+        and path.startswith("/api/v1/jobs/")
+        and len(path.split("/")) == 6
+        and path.endswith("/feedback")
+    ):
+        # Acceptance verdicts are the auditor's `verify` duty, not a job
+        # trigger: the matrix deliberately gives operator trigger without
+        # verify, so whoever starts a verification cannot also accept its
+        # findings (#113). No other POST under this prefix is affected.
+        return ResourceAction("cases", "verify")
     if path.startswith("/api/v1/"):
         action = "read" if method in ("GET", "HEAD") else "trigger"
         return ResourceAction("cases", action)

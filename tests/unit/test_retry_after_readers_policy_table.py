@@ -213,7 +213,7 @@ def _product_modules_naming_the_header() -> list[str]:
     hits: list[str] = []
     for package in PACKAGES:
         for path in (REPO / package).rglob("*.py"):
-            if "__pycache__" in path.parts:
+            if "__pycache__" in path.relative_to(REPO).parts:
                 continue
             if _spells_header(ast.parse(path.read_text(encoding="utf-8"))):
                 hits.append(path.relative_to(REPO).as_posix())

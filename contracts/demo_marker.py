@@ -26,16 +26,26 @@ executed SQL text), and the seeded note is built from it by
 ``seeded_demo_note`` — which is what keeps the prefix at position 1, the only
 position ``LOCATE(...) = 1`` accepts.
 
-#526 moves the *column* here too, and that is a different exposure. #525 left
-one expression text written inline twice, in the two statements that happened to
-publish it; the predicate's answer, though, is asked by four reads (the list
-window, the dashboard's recent-jobs window, and both single-row detail reads),
-and a fifth that must keep *not* asking it (the COUNT, whose rows are numbers).
-Keeping the text in ``storage/mysql.py`` meant every read had to remember to
-re-type it, and the ones that forgot were invisible: a read that omits the column
-is a read that returns a job the UI cannot label, which is not an error anywhere.
-As an exported fragment, "which reads publish the fact" becomes a question a gate
-can ask of a call graph instead of a question about a string.
+#542 moves the *predicate* here as well, one plane further out. #526's roster
+ended at "which reads ship a job row", and it wrote the reason down: an aggregate
+"has no row to label; adding the column there would mean paying for a predicate
+whose result nobody can read". That line is drawn along the wrong axis — the page
+also renders bare numbers (``COUNT(*) AS n`` folded into 累计验收 / 验收通过 /
+发现风险 and the hourly ``COUNT(*)``/``SUM(failed)`` folded into 交付动态), and a
+number that has already summed the seeded rows in cannot be labelled afterwards.
+So the same answer now leaves the database in three shapes, all spelled from the
+one flag below: ``IS_DEMO_COLUMN`` labels a row, ``IS_DEMO_COUNT`` and
+``IS_DEMO_FAILED`` count rows inside a ``GROUP BY``. The read that still does not
+ask is ``search_jobs``' ``COUNT(*) AS total`` — and for a reason that is not the
+old one: that number is the population of the page it returns, and the seeded
+rows on that page each carry their own badge, so excluding them there would make
+the count disagree with the rows beside it.
+
+Keeping these as exported fragments is what makes the question askable. A read
+that forgot to re-type the expression was invisible — it returns a job the UI
+cannot label, or a count that has already summed the sample rows in, and neither
+is an error anywhere; as one owner with three spellings, "which reads answer it,
+and in which shape" becomes a question a gate can put to a call graph.
 
 The ``COALESCE`` is #526's, not decoration. ``JSON_EXTRACT`` answers SQL ``NULL``
 for a summary that is valid JSON without a ``retrieval_note`` key, ``LOCATE(x,
@@ -66,25 +76,47 @@ from __future__ import annotations
 #: the drift back where #525 found it.
 DEMO_NOTE_PREFIX = "seeded demo"
 
-#: The computed column that answers the demo question, as one SQL fragment.
+#: The demo predicate, without an alias: one ``%s``, bound to ``DEMO_NOTE_PREFIX``.
 #:
-#: It is a *fragment*, not a statement, because it has to sit at the end of a
-#: SELECT list that each read owns for other reasons — the list, the ``WHERE``
-#: tenant predicate, the ``ORDER BY`` and the window all differ between the four
-#: reads that use it. Only the ``%s`` is shared: the caller binds
-#: ``DEMO_NOTE_PREFIX`` and must put that argument *before* every other argument,
-#: because the SELECT list is textually earlier than the WHERE clause it also
-#: parameterises (#525 pins that ordering for the two window reads; #526's gate
-#: derives the population, so a fifth read cannot be quietly forgotten).
+#: It is a *fragment*, not a statement, because it has to sit inside a SELECT list
+#: that each read owns for other reasons — the list, the ``WHERE`` tenant
+#: predicate, the ``ORDER BY`` and the window all differ between the reads that
+#: use it. Only the ``%s`` is shared: the caller binds ``DEMO_NOTE_PREFIX`` and
+#: must put that argument *before* every other argument, because the SELECT list
+#: is textually earlier than the WHERE clause it also parameterises (#525 pins
+#: that ordering for the two window reads; #526's and #542's gates derive the
+#: population, so a read cannot be quietly forgotten).
 #:
-#: ``AS is_demo`` is part of the fragment for the same reason. An alias typed
-#: once and re-typed four times is how the two spellings of a key drift apart,
-#: and the key — not the expression — is what ``apps/web/src/api.ts`` requires.
-IS_DEMO_COLUMN = (
+#: The three shapes below are the only spellings, so that a rename moves the
+#: badge and the statistic together. An alias typed once and re-typed N times is
+#: how two spellings of a key drift apart, and the key — not the expression — is
+#: what ``apps/web/src/api.ts`` and the fold in ``api/routes/web.py`` read.
+IS_DEMO_FLAG = (
     "CASE WHEN JSON_VALID(summary) THEN "
     "COALESCE(LOCATE(%s, JSON_UNQUOTE("
     "JSON_EXTRACT(summary, '$.retrieval_note'))) = 1, 0) "
-    "ELSE 0 END AS is_demo"
+    "ELSE 0 END"
+)
+
+#: The three shapes are `+`-chains of literals and names, not f-strings, because
+#: `tests/unit/test_sql_text_static.py` only folds an imported fragment it can
+#: prove is built from string literals. An f-string here reads as a computed
+#: value, and every read that imports these would become a finding it has to
+#: register — the shape of the owner, not its text, decides that.
+IS_DEMO_COLUMN = IS_DEMO_FLAG + " AS is_demo"
+
+#: How many of the rows a ``GROUP BY`` just counted are seeded (#542). The
+#: dashboard's visible numbers are read out of an aggregate, so they need the
+#: answer as a count — and the fold that subtracts it must be able to tell "no
+#: seeded rows" from "this read never asked", which is why this is a column and
+#: not a default.
+IS_DEMO_COUNT = "SUM(" + IS_DEMO_FLAG + ") AS demo_jobs"
+
+#: The same split for the failure half of the hourly line: ``COUNT`` and
+#: ``SUM(failed)`` are rendered beside each other, so an un-split failure count
+#: would put a seeded BLOCKED row into a rate next to a clean total.
+IS_DEMO_FAILED = (
+    "SUM(" + IS_DEMO_FLAG + " AND status IN ('FAILED', 'ERROR')) AS demo_failed"
 )
 
 

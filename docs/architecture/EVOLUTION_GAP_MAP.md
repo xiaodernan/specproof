@@ -16,7 +16,7 @@
 | 每 Contract 见实验/结果/证据/回放入口 | ◐ | 矩阵行字段待补 (最低证据等级/未验证原因/下一步) |
 | 严重 Finding 无证据不升级/签发 | ✅ | — |
 | Capsule 干净环境重放 + replay record | ✅ | 25/25=100.0% (Go/No-Go #4 PASS; docs/eval/replay-results.md 六轮 28.57→35.71→42.86→82.14→92.0→100.0%; scripts/bench_replay.py 两层+排除+probe 重放) |
-| 证书离线验证 (摘要/签名/工具链/撤销) | ◐ | 撤销状态 ⛔ 阶段5 计划项 — 当前 Merge Certificate 为单次签发 (Ed25519), 无撤销簿/CRL, 设计文档已如实标注; 阶段5 落地前不宣称撤销能力 | **更正 (2026-10-01, #138)**: 本格 "无撤销簿/CRL … 阶段5 落地前不宣称撤销能力" 中的 "无撤销簿" 为假 — 已有 append-only JSONL 吊销日志 + `POST /api/v1/admin/certificates/revoke` / `GET /api/v1/admin/certificates/revocations`; 仍为真的是**消费方读取**: 离线 verify 尚不查 `is_revoked` (DRILLS §6 第 10 行 ⏳), 故验证侧仍不宣称"已撤销会被拦"。
+| 证书离线验证 (摘要/签名/工具链/撤销) | ◐ | 撤销状态 ⛔ 阶段5 计划项 — 当前 Merge Certificate 为单次签发 (Ed25519), 无撤销簿/CRL, 设计文档已如实标注; 阶段5 落地前不宣称撤销能力 | **更正 (2026-10-01, #138)**: 本格 "无撤销簿/CRL … 阶段5 落地前不宣称撤销能力" 中的 "无撤销簿" 为假 — 已有 append-only JSONL 吊销日志 + `POST /api/v1/admin/certificates/revoke` / `GET /api/v1/admin/certificates/revocations`; 仍为真的是**消费方读取**: 离线 verify 尚不查 `is_revoked` (DRILLS §6 第 10 行 ⏳), 故验证侧仍不宣称"已撤销会被拦"。**再更正 (2026-11-08)**: 上述"仍为真的是消费方读取： 离线 verify 尚不查 `is_revoked`"现也为假 — `evidence/offline_verify.py::verify_certificate_offline` 已查： `_read_revocation` 读吊销日志（存在时 `is_revoked(digest)`；不可读 → fail-closed 判 REVOKED；命中 → `VERDICT_REVOKED`）, `tests/unit/test_offline_verify.py::test_revoked_certificate_is_revoked` 钉住该行为（2026-11-08 实测离线验证门 33/33 绿）；`craft/accept.py` 幂等短路亦为 #149 收口的消费者。验证侧现在会拦下已撤销证书。**仍为真（未变）**： 阶段5 落地前不宣称 CRL/OCSP 式吊销分发与外部信任链（自带日志离线验证 ≠ 全网撤销基础设施）。原句按 FIX-14 保留。
 
 ### 开发 Agent 闭环 → ✅ 全达标 (W26-W35: 计划审批/工具治理/原子编辑/五道门/强制 accept/取消恢复 10/10)
 
@@ -26,7 +26,7 @@
 | 凭据零入代码/日志/Prompt/Capsule/报告 | ✅ | — |
 | 租户/角色/对象访问自动化测试 | ✅ W37 | — |
 | Webhook 验签/重放/限流/路径/脱敏 | ✅ | — |
-| 沙箱非 root/无网络/资源受限/无宿主秘密/无 docker.sock | ◐ | Linux 非 root 沙箱 ⏳ (仍为真实缺口) |
+| 沙箱非 root/无网络/资源受限/无宿主秘密/无 docker.sock | ✅ | 沙箱容器 uid 1000（runner argv + `tests/unit/test_sandbox_runner.py`）；生产三应用服务（api/worker/outbox-relay）compose 侧 `user: "1000:1000"`（`tests/unit/test_production_services_do_not_run_as_root.py`, 2026-11-08）；`docker:dind` 本身保持 privileged 是设计（RUNBOOK §5，rootless 变体实测卷兼容不可用）—— 残留项是 rootless 路线的**决策**，不是非 root 运行的代码缺口 |
 | 注入/恶意脚本/符号链接/输出洪水/缓存投毒测试 | ◐ | 注入 24 矩阵 ✅; 恶意构建脚本/输出洪水/缓存投毒 ✅ (W181: 45 例三类威胁测试+真实缺陷修复) |
 
 ### 可靠性与运维

@@ -34,6 +34,7 @@ from storage.mysql import (
     JOB_RECORDS_DELETED_ACTION,
     MySQLStore,
 )
+from tests._mysql_gate import requires_mysql
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DICTIONARY = REPO_ROOT / "docs" / "architecture" / "DATA_DICTIONARY.md"
@@ -48,10 +49,17 @@ _SKIP_PARTS = {".venv", "node_modules", "bench", "tests", "scripts", ".git", "di
 
 
 def _production_files() -> list[Path]:
+    """#541: the skip test reads the path BELOW the checkout, never its ancestors.
+
+    This used to test `path.parts` — absolute components — so the same rule that
+    yielded 166 lanes in a normal checkout yielded 0 in a worktree whose parent
+    directory happened to be named one of `_SKIP_PARTS`. The floor below is what
+    made that visible here rather than silently green.
+    """
     files: list[Path] = []
     for lane in PRODUCTION_LANES:
         for path in (REPO_ROOT / lane).rglob("*.py"):
-            if _SKIP_PARTS.intersection(p for p in path.parts):
+            if _SKIP_PARTS.intersection(path.relative_to(REPO_ROOT).parts):
                 continue
             files.append(path)
     assert files, "no production sources found — the scan, not the code, is broken"
@@ -485,11 +493,8 @@ def test_disposition_vocabulary_is_closed() -> None:
 
 def _live_store() -> MySQLStore:
     store = MySQLStore()
-    try:
-        with store.connection() as conn:
-            conn.cursor().execute("SELECT 1")
-    except Exception as exc:  # noqa: BLE001 — no MySQL here is a coverage fact
-        pytest.skip(f"MySQL is not reachable: {exc}")
+    with store.connection() as conn:
+        conn.cursor().execute("SELECT 1")
     return store
 
 
@@ -511,6 +516,7 @@ def _purge_jobs_under(store: MySQLStore, repo_path: str) -> list[str]:
     return ids
 
 
+@requires_mysql("the live purge path reads the audit trail from MySQL")
 def test_purge_then_read_reports_purged_not_unexplained() -> None:
     """Insert → transition (audited) → purge → read, against the real schema.
 
@@ -570,6 +576,7 @@ def test_purge_then_read_reports_purged_not_unexplained() -> None:
                 cur.execute("DELETE FROM audit_logs WHERE job_id = %s", (leftover,))
 
 
+@requires_mysql("the audit page's live read goes against MySQL")
 def test_one_job_can_be_asked_about_directly() -> None:
     """Filtering by job is the point of the disposition column (#96 → #97).
 

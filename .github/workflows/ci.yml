@@ -108,8 +108,14 @@ jobs:
     runs-on: ubuntu-latest
     # #529: name the volume the runner mounts, so the seeding script and the
     # sandbox read one knob instead of agreeing by matching defaults.
+    # #375: the compose services need credentials, and the test harness strips
+    # the password variables on purpose (no real credentials in unit
+    # tests). The integration legs take the credential through a URL
+    # instead — the same shape MYSQL_URL already has.
     env:
       SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
+      REDIS_URL: redis://:specproof_pass@localhost:6379/0
+      MYSQL_URL: mysql://specproof:specproof_pass@localhost:3306/specproof_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -170,13 +176,26 @@ jobs:
         # job without a database produced two reds. This job has the
         # database, so it runs them for real: the skip must not be the only
         # place those two paths are ever exercised.
+        # #600: the aggregate demo plane has the same shape — one leg writes
+        # three rows to a live schema and reads the dashboard back, so it now
+        # skips without a database and runs here with one. Which files must be
+        # on this list is not a remembered set any more:
+        # tests/unit/test_the_no_infra_job_holds_its_no_database_promise.py
+        # derives it from the #120 census and reds on a file that skips
+        # here-absent and runs nowhere.
+        # 2026-11-08: the four files #600 disclosed as "runs nowhere"
+        # (test_agent_jobs_migration_parity, test_audit_action_parity,
+        # test_data_dictionary_covers_migrations, test_feedback_store_read)
+        # are now on this list instead — verified green against a live
+        # specproof_test here; the #600 roster is emptied rather than worked
+        # around, and the gate derives this list again.
         # #521: slow_eval is the FULL 100-case, multi-hour evaluation. Its
         # dedicated home is nightly-eval.yml; this job collected it too, so
         # once the refs above resolve it would rebuild Maven cases for hours
         # on every push. The marker name is bound to the test's own marker by
         # tests/unit/test_ci_materializes_the_golden_refs.py — renaming one
         # without the other reds that gate instead of silently re-running it.
-        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py -q -m "not slow_eval"
+        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py tests/unit/test_the_aggregate_plane_answers_the_demo_question.py tests/unit/test_agent_jobs_migration_parity.py tests/unit/test_audit_action_parity.py tests/unit/test_data_dictionary_covers_migrations.py tests/unit/test_feedback_store_read.py -q -m "not slow_eval"
       - name: Stop infrastructure
         if: always()
         run: docker compose -f compose.phase0.yml down -v

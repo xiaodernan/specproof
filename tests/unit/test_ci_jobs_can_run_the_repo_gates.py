@@ -51,7 +51,6 @@ and this file reads the fence's own floor rather than typing its own.
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import sys
@@ -61,6 +60,37 @@ import pytest
 import yaml
 
 import tests.conftest as _isolation
+from tests._mysql_gate import dead_database_env
+
+
+def _usable_bash() -> str | None:
+    """Return a bash that can actually execute, or None.
+
+    ``shutil.which("bash")`` finds WSL's relay at C:/Windows/System32/bash.exe
+    on Windows even when no Linux environment is installed — the relay then
+    fails at execvpe and, left as-is, makes these shell-semantics tests fail
+    instead of skip. Git for Windows ships a real GNU bash; try the usual
+    install locations before reporting no bash, so the gate actually runs on a
+    machine where a working bash exists.
+    """
+    candidates = [shutil.which("bash")]
+    candidates += [r"C:\Program Files\Git\usr\bin\bash.exe", r"C:\Program Files\Git\bin\bash.exe"]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            out = subprocess.run(
+                [candidate, "-c", "echo specproof-probe"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError:
+            continue
+        if out.returncode == 0 and "specproof-probe" in out.stdout:
+            return candidate
+    return None
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_REL = ".github/workflows/ci.yml"
@@ -222,30 +252,14 @@ def test_a_depth_one_checkout_carries_exactly_one_revision(tmp_path: Path) -> No
 # ---------------------------------------------------------------------------
 
 
-def _no_database_env() -> dict[str, str]:
-    """An environment in which no MySQL answers.
-
-    Port 1 is refused instantly on every platform, so the child session
-    learns "no database" without waiting for a timeout.
-    """
-    env = dict(os.environ)
-    env["MYSQL_HOST"] = "127.0.0.1"
-    env["MYSQL_PORT"] = "1"
-    env.pop("MYSQL_DATABASE", None)
-    env.pop("SPECPROOF_TEST_MYSQL_DATABASE", None)
-    env.pop("PYTEST_ADDOPTS", None)
-    env.pop("PYTEST_CURRENT_TEST", None)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    env["PYTHONIOENCODING"] = "utf-8"
-    return env
-
-
-#: This leg spawns a child pytest, so it is tagged ``slow`` like every other
+#: The "no MySQL answers" environment used to be typed out here.  #600 moved it
+#: to ``tests/_mysql_gate.py``, the one owner of every decision a test makes from
+#: the isolation verdict, because a second file had to spawn the same child with
+#: the same environment and would have copied the same eight lines.
+#: The leg below spawns that child, so it carries ``slow`` like every other
 #: spawn-child module in this repo (#135's lesson: the fast inner loop must not
-#: pay for a child process).  CI does NOT deselect ``slow``, so the merge gate
-#: still runs it.  Measured on the development machine: 16-24s of child wall
-#: clock, of which pytest itself reports 2s — the rest is interpreter start-up
-#: and plugin autoload, which a Linux CI runner does not pay.
+#: pay for a child process; CI does not deselect ``slow``, so the merge gate
+#: still runs it).
 @pytest.mark.slow
 def test_the_contract_cli_cases_skip_rather_than_fail_without_a_database() -> None:
     """A case that cannot run must not report a broken product.
@@ -261,7 +275,7 @@ def test_the_contract_cli_cases_skip_rather_than_fail_without_a_database() -> No
     proc = subprocess.run(
         [sys.executable, "-m", "pytest", CONTRACT_TESTS, "-v", "-p", "no:cacheprovider"],
         cwd=ROOT,
-        env=_no_database_env(),
+        env=dead_database_env(),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -471,9 +485,9 @@ def test_a_comment_inside_a_continuation_swallows_the_rest_of_the_command() -> N
     its own.  That is the whole of CI's ``docker: 'docker run' requires at
     least 1 argument``.
     """
-    bash = shutil.which("bash")
+    bash = _usable_bash()
     if bash is None:
-        pytest.skip("no bash on this machine; the shell is what has to be asked")
+        pytest.skip("no usable bash on this machine; the shell is what has to be asked")
     prelude = 'docker() { printf "%s\\n" "$@"; }\n'
     broken = (
         prelude
@@ -521,9 +535,9 @@ def test_a_comment_line_terminates_a_continued_command_early() -> None:
     the image never reached ``docker run`` and the image line itself exited
     127 (``maven:3.9: command not found``).
     """
-    bash = shutil.which("bash")
+    bash = _usable_bash()
     if bash is None:
-        pytest.skip("no bash on this machine; the shell is what has to be asked")
+        pytest.skip("no usable bash on this machine; the shell is what has to be asked")
     prelude = 'docker() { printf "arg=%s\\n" "$@"; }\n'
     broken = (
         prelude

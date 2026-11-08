@@ -1,11 +1,12 @@
 # SpecProof Prometheus (PRODUCTION_SPEC §17 Observability Profile)
 #
-# 抓取目标 (7 个 job 与下面的清单由 #220 的门逐条对账; 除 prometheus 自身抓
+# 抓取目标 (8 个 job 与下面的清单由 #220 的门逐条对账; 除 prometheus 自身抓
 # localhost:9090 之外全部为服务名 DNS, 依赖与 api/worker 同 compose 网络;
 # 见 compose.observability.yml 注释):
 #   api:8000/metrics            ← FastAPI /metrics (api/metrics.py → observability/metrics.py)
 #   worker:9100/metrics         ← worker 进程内 /metrics (observability/metrics_http.py, WORKER_METRICS_PORT)
 #   outbox-relay:9101/metrics   ← outbox relay 进程内 /metrics (OUTBOX_RELAY_METRICS_PORT; 应用栈部署 relay 服务后生效)
+#   notify-relay:9102/metrics   ← notify relay 进程内 /metrics (NOTIFY_RELAY_METRICS_PORT; 应用栈部署 notify-relay 服务后生效)
 #   invoice-cron:9103/metrics   ← invoice cron 进程内 /metrics (INVOICE_CRON_METRICS_PORT; 仅 billing profile 启用后生效, 否则 down)
 #   otel-collector:8889/metrics ← OTel Collector 内嵌 prometheus exporter
 #   rabbitmq:15692/metrics/per-object ← rabbitmq_prometheus 插件的每队列渲染
@@ -22,6 +23,15 @@ global:
 
 rule_files:
   - /etc/prometheus/alerts-slo.yml
+
+# SLO 告警接收端: alertmanager (compose.observability.yml, v0.27.0)。
+# 未起 alertmanager 时本块只是空指针配置 — prometheus 正常启动,
+# /api/v1/alerts 照常返回 firing 实例, 只是送不出去 (promtool 也只校验语法)。
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
 
 scrape_configs:
   - job_name: prometheus

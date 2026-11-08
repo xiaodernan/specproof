@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "../hooks/navigate";
 import { DEMO_AGENT, DEMO_VERIFY, DEMO_VERIFY_ABS_PATH_NOTE } from "../demo";
 import { EMPTY_WIZARD_DRAFT, saveWizardDraft } from "../agent/util";
-import { apiGet, getApiKey, getBearerToken } from "../api";
+import { apiGet, getApiKey, getBearerToken, type JobsPage } from "../api";
 import { Button, GLOSSARY } from "../ui";
 import {
   EMPTY_PROGRESS,
@@ -71,10 +71,15 @@ export default function Guide() {
     // `total` ONLY: the probe asks for one row, so the length of `jobs` can
     // never be more than "at least one" — reading it as a count told a
     // workspace with 57 verifications that it had 1.
-    apiGet<{ jobs: unknown[]; total?: number }>("/jobs?limit=1")
+    apiGet<JobsPage>("/jobs?limit=1")
       .then((data) => {
         if (!alive) return;
         setConnection("ok");
+        // Two claims, not one. `JobsPage.total` is required because every exit of the
+        // route answers it, so the type says the key cannot be missing; this guard is about
+        // the answer, not the declaration -- a body that arrives without the field still
+        // lands here, and `null` is the honest reading of that. The checker cannot see this
+        // line either way, so `Guide.test.tsx` is its only witness.
         setVerificationCount(typeof data.total === "number" ? data.total : null);
       })
       .catch(() => {

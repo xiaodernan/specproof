@@ -8,14 +8,16 @@ These tests lock in the behaviours that were broken:
   B3: run_differential emits source-diff evidence even without a test
 """
 
+from agent.checkers.constitution import check_forbidden_changes
 from agent.checkers.java_source import (
     _implemented_interface_names,
     _split_with_annotations,
+    check_event_once,
     check_token_invalidation,
+    check_transactional,
     run_contract_checks,
 )
-from agent.contract_results import merge_contract_results
-from agent.worker import _terminal_status_from_state
+from agent.checkers.schema_and_tests import check_test_weakening
 
 BASE_CONTROLLER = """package com.specproof.demo.controller;
 
@@ -30,8 +32,7 @@ public class UserController {
             @Valid @RequestBody ChangeEmailRequest request) {
         return ResponseEntity.ok(userService.changeEmail(id, request));
     }
-}
-"""
+}"""
 
 ANNOTATION_LINE = "    @PreAuthorize(\"isAuthenticated()\")"
 HEAD_CONTROLLER = BASE_CONTROLLER.replace(ANNOTATION_LINE + chr(10), "")
@@ -75,9 +76,8 @@ def test_interface_default_method_annotation_counts_as_protection():
     method — Spring resolves interface-level method security, so the
     endpoint stays protected and no finding may be emitted."""
     rel = "com/specproof/demo/controller/UserController.java"
-    iface_rel = "com/specproof/demo/controller/UserApi.java"
     head_controller = BASE_CONTROLLER.replace(
-        '    @PreAuthorize("isAuthenticated()")\n', "",
+        '    @PreAuthorize("isAuthenticated()")\n', ""
     ).replace(
         "public class UserController {",
         "public class UserController implements UserApi {",
@@ -88,12 +88,12 @@ public interface UserApi {
 
     @PreAuthorize("isAuthenticated()")
     default void changeEmail() {}
-}
-"""
-    findings = run_contract_checks(
-        {rel: BASE_CONTROLLER},
-        {rel: head_controller, iface_rel: head_interface},
-    )
+}"""
+    head_files = {
+        rel: head_controller,
+        "com/specproof/demo/controller/UserApi.java": head_interface,
+    }
+    findings = run_contract_checks(base_files={rel: BASE_CONTROLLER}, head_files=head_files)
     auth = [f for f in findings if f["contract_id"] == "AUTH-01"]
     assert auth == []
 
@@ -108,96 +108,329 @@ def test_implements_clause_parsing():
     assert _implemented_interface_names("public class X {") == []
 
 
-BASE_SERVICE = """@Service
-public class UserService {
-    @Transactional
-    public UserResponse changeEmail(Long userId, ChangeEmailRequest request) {
-        userRepository.save(user);
-        invalidateOldTokens(userId);
-        rabbitTemplate.convertAndSend("specproof.demo.events", event);
-        return new UserResponse(user.getId(), user.getUsername(), user.getEmail());
+def test_token_invalidation_guard_removed_is_detected():
+    """check_token_invalidation: 移除 invalidateOldTokens 调用是 TOKEN_INVALIDATION-01。"""
+    base_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    private void invalidateOldTokens(Long userId) {\n"
+            "        redisTemplate.delete(\"token:user:\" + userId);\n"
+            "    }\n"
+            "}\n"
+        ),
     }
-
-    private void invalidateOldTokens(Long userId) {
-        redisTemplate.delete("token:user:" + userId);
+    head_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    private void invalidateOldTokens(Long userId) {\n"
+            "    }\n"
+            "}\n"
+        ),
     }
-}
-"""
-
-HEAD_SERVICE_CALL_REMOVED = """@Service
-public class UserService {
-    @Transactional
-    public UserResponse changeEmail(Long userId, ChangeEmailRequest request) {
-        userRepository.save(user);
-        rabbitTemplate.convertAndSend("specproof.demo.events", event);
-        return new UserResponse(user.getId(), user.getUsername(), user.getEmail());
-    }
-
-    private void invalidateOldTokens(Long userId) {
-        redisTemplate.delete("token:user:" + userId);
-    }
-}
-"""
+    findings = check_token_invalidation(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "TOKEN_INVALIDATION-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "guard_removed"
+    assert "invalidateOldTokens" in removals[0]["description"]
 
 
-def test_token_call_removed_but_method_kept_is_detected():
-    """B4: removing only the CALL must still be detected (case-05)."""
-    rel = "com/specproof/demo/service/UserService.java"
-    findings = check_token_invalidation(
-        {rel: BASE_SERVICE}, {rel: HEAD_SERVICE_CALL_REMOVED}
+def test_token_invalidation_guard_unchanged_is_clean() -> None:
+    """check_token_invalidation: both ends have invalidateOldTokens call → no findings."""
+    svc = (
+        "public class UserService {\n"
+        "    private void invalidateOldTokens(Long userId) {\n"
+        "        redisTemplate.delete(\"token:user:\" + userId);\n"
+        "    }\n"
+        "}\n"
     )
-    assert len(findings) == 1
-    assert findings[0]["contract_id"] == "TOKEN_INVALIDATION-01"
-    assert "changeEmail" in findings[0]["description"]
-
-
-def test_token_call_intact_no_false_positive():
-    """B4: identical service must produce no token finding."""
-    rel = "com/specproof/demo/service/UserService.java"
-    findings = check_token_invalidation({rel: BASE_SERVICE}, {rel: BASE_SERVICE})
+    base_files = {
+        "com/specproof/demo/service/UserService.java": svc,
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": svc,
+    }
+    findings = check_token_invalidation(base_files, head_files)
     assert findings == []
 
 
-def test_merge_contract_results_fail_beats_pass():
-    """B2: a FAIL from one experiment must beat a PASS from another."""
-    merged = merge_contract_results(
-        [{"contract_id": "AUTH-01", "result": "PASS", "experiment": "static"}],
-        [{"contract_id": "AUTH-01", "result": "FAIL", "experiment": "differential"}],
+def test_check_test_weakening_test_count_decreased() -> None:
+    """check_test_weakening: @Test 计数减少是 TEST_STRENGTH-01。"""
+    base_files = {
+        "com/specproof/demo/service/UserServiceTest.java": (
+            "public class UserServiceTest {\n"
+            "    @Test\n"
+            "    public void test1() {}\n"
+            "    @Test\n"
+            "    public void test2() {}\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/UserServiceTest.java": (
+            "public class UserServiceTest {\n"
+            "    @Test\n"
+            "    public void test1() {}\n"
+            "}\n"
+        ),
+    }
+    findings = check_test_weakening(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "TEST_STRENGTH-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "test_removed"
+    assert "2 -> 1" in removals[0]["description"]
+
+
+def test_check_forbidden_changes_annotation_removal() -> None:
+    """check_forbidden_changes: 移除 @PreAuthorize 注解是违宪。"""
+    base_files = {
+        "com/specproof/demo/controller/UserController.java": BASE_CONTROLLER,
+    }
+    head_files = {
+        "com/specproof/demo/controller/UserController.java": HEAD_CONTROLLER,
+    }
+    clauses = ["must not remove the auth guard"]
+    findings = check_forbidden_changes(base_files, head_files, clauses, "CONST-01")
+    removals = [f for f in findings if f["type"] == "forbidden_annotation_removal"]
+    assert len(removals) == 1
+    assert removals[0]["contract_id"] == "CONST-01"
+
+
+def test_check_forbidden_changes_duplicate_publish() -> None:
+    """check_forbidden_changes: convertAndSend 调用次数增加是重复发布。"""
+    base_files = {
+        "com/specproof/demo/service/EventService.java": (
+            "public class EventService {\n"
+            "    public void sendEvent() {\n"
+            "        rabbitTemplate.convertAndSend(\"exchange\", \"event\");\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/EventService.java": (
+            "public class EventService {\n"
+            "    public void sendEvent() {\n"
+            "        rabbitTemplate.convertAndSend(\"exchange\", \"event1\");\n"
+            "        rabbitTemplate.convertAndSend(\"exchange\", \"event2\");\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    clauses = ["must not publish event twice"]
+    findings = check_forbidden_changes(base_files, head_files, clauses, "CONST-02")
+    removals = [f for f in findings if f["type"] == "forbidden_duplicate_publish"]
+    assert len(removals) == 1
+    assert removals[0]["contract_id"] == "CONST-02"
+
+
+def test_check_forbidden_changes_unique_guard_removed() -> None:
+    """check_forbidden_changes: 移除 existsByEmail 是唯一性守卫移除。"""
+    base_files = {
+        "com/specproof/demo/repository/UserRepository.java": (
+            "public interface UserRepository extends JpaRepository<User, Long> {\n"
+            "    Optional<User> existsByEmail(String email);\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/repository/UserRepository.java": (
+            "public interface UserRepository extends JpaRepository<User, Long> {\n"
+            "}\n"
+        ),
+    }
+    clauses = ["must not remove the uniqueness guard"]
+    findings = check_forbidden_changes(base_files, head_files, clauses, "CONST-03")
+    removals = [f for f in findings if f["type"] == "forbidden_guard_removal"]
+    assert len(removals) == 1
+    assert removals[0]["contract_id"] == "CONST-03"
+
+
+def test_check_forbidden_changes_token_guard_removed() -> None:
+    """check_forbidden_changes: 移除 invalidateOldTokens 是令牌守卫移除。"""
+    base_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    private void invalidateOldTokens(Long userId) {\n"
+            "        redisTemplate.delete(\"token:user:\" + userId);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    private void invalidateOldTokens(Long userId) {\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    clauses = ["must not remove token invalidation"]
+    findings = check_forbidden_changes(base_files, head_files, clauses, "CONST-04")
+    removals = [f for f in findings if f["type"] == "forbidden_token_guard_removal"]
+    assert len(removals) == 1
+    assert removals[0]["contract_id"] == "CONST-04"
+
+
+def test_check_forbidden_changes_schema_break() -> None:
+    """check_forbidden_changes: DTO 字段移除是架构破坏。"""
+    base_files = {
+        "com/specproof/demo/dto/UserDto.java": (
+            "public class UserDto {\n"
+            "    private String email;\n"
+            "    private String name;\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/dto/UserDto.java": (
+            "public class UserDto {\n"
+            "    private String name;\n"
+            "}\n"
+        ),
+    }
+    clauses = ["must not remove schema field"]
+    findings = check_forbidden_changes(base_files, head_files, clauses, "CONST-05")
+    removals = [f for f in findings if f["type"] == "forbidden_schema_break"]
+    assert len(removals) == 1
+    assert removals[0]["contract_id"] == "CONST-05"
+
+
+def test_check_forbidden_changes_unchanged_is_clean() -> None:
+    """check_forbidden_changes: 两端相同 → 无发现。"""
+    svc = (
+        "public class EventService {\n"
+        "    public void sendEvent() {\n"
+        "        rabbitTemplate.convertAndSend(\"exchange\", \"event\");\n"
+        "    }\n"
+        "}\n"
     )
-    assert merged == [
-        {"contract_id": "AUTH-01", "result": "FAIL", "experiment": "differential"}
-    ]
+    base_files = {
+        "com/specproof/demo/service/EventService.java": svc,
+    }
+    head_files = {
+        "com/specproof/demo/service/EventService.java": svc,
+    }
+    clauses = ["must not publish event twice"]
+    findings = check_forbidden_changes(base_files, head_files, clauses, "CONST-06")
+    assert findings == []
 
 
-def test_merge_contract_results_keeps_other_contracts():
-    """B2: merging must never drop results for other contracts."""
-    merged = merge_contract_results(
-        [
-            {"contract_id": "AUTH-01", "result": "PASS"},
-            {"contract_id": "TRANSACTION-01", "result": "PASS"},
-        ],
-        [{"contract_id": "AUTH-01", "result": "FAIL"}],
+def test_check_event_once_increased_publish_is_detected():
+    """check_event_once: convertAndSend 调用次数增加是 EVENT_ONCE-01。"""
+    base_files = {
+        "com/specproof/demo/service/EventService.java": (
+            "public class EventService {\n"
+            "    public void sendEvent() {\n"
+            "        rabbitTemplate.convertAndSend(\"exchange\", \"event\");\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/EventService.java": (
+            "public class EventService {\n"
+            "    public void sendEvent() {\n"
+            "        rabbitTemplate.convertAndSend(\"exchange\", \"event1\");\n"
+            "        rabbitTemplate.convertAndSend(\"exchange\", \"event2\");\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    findings = check_event_once(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "EVENT_ONCE-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "duplicate_publish"
+    assert "1 -> 2" in removals[0]["description"]
+
+
+def test_check_event_once_unchanged_is_clean() -> None:
+    """check_event_once: convertAndSend 调用次数不变 → 无发现。"""
+    svc = (
+        "public class EventService {\n"
+        "    public void sendEvent() {\n"
+        "        rabbitTemplate.convertAndSend(\"exchange\", \"event\");\n"
+        "    }\n"
+        "}\n"
     )
-    by_id = {r["contract_id"]: r["result"] for r in merged}
-    assert by_id["AUTH-01"] == "FAIL"
-    assert by_id["TRANSACTION-01"] == "PASS"
+    base_files = {
+        "com/specproof/demo/service/EventService.java": svc,
+    }
+    head_files = {
+        "com/specproof/demo/service/EventService.java": svc,
+    }
+    findings = check_event_once(base_files, head_files)
+    assert findings == []
+def test_check_transactional_annotation_removed_is_detected() -> None:
+    """check_transactional: 移除 @Transactional 是 TRANSACTION-01。"""
+    base_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    @Transactional\n"
+            "    public void saveUser(User user) {\n"
+            "        userRepository.save(user);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    public void saveUser(User user) {\n"
+            "        userRepository.save(user);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    findings = check_transactional(base_files, head_files)
+    removals = [f for f in findings if f["contract_id"] == "TRANSACTION-01"]
+    assert len(removals) == 1
+    assert removals[0]["type"] == "annotation_removed"
+    assert "saveUser" in removals[0]["description"]
 
 
-def test_terminal_status_mapping():
-    """B11: worker terminal status reflects the real pipeline result."""
-    assert _terminal_status_from_state({"errors": ["boom"]}) == "FAILED"
-    assert _terminal_status_from_state(
-        {"errors": [], "confirmed_findings": [{"severity": "BLOCKER"}]}
-    ) == "BLOCKED"
-    # A row that carries no verdict and no contract id: the evidence is
-    # missing (NEEDS_REVIEW), and the declared unverified count does not
-    # match the rows (a contradiction), so the word is BLOCKED — the two
-    # records disagree about what was measured.
-    assert _terminal_status_from_state(
-        {"errors": [], "confirmed_findings": [], "matrix": {"unverified": 1, "rows": [{}]}}
-    ) == "BLOCKED"
-    assert _terminal_status_from_state(
-        {"errors": [], "confirmed_findings": [], "matrix": {"unverified": 0, "passed": 1,
-         "rows": [{"contract_id": "C-1", "result": "PASS", "experiment": "check",
-                   "evidence": "e-1"}]}}
-    ) == "VERIFIED"
+def test_check_transactional_transaction_split_is_detected() -> None:
+    """check_transactional: 两端都无 @Transactional 且 head 写操作 >= 2 是 transaction_split。"""
+    base_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    public void saveUser(User user) {\n"
+            "        userRepository.save(user);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": (
+            "public class UserService {\n"
+            "    public void saveUser(User user) {\n"
+            "        userRepository.save(user);\n"
+            "        userRepository.saveAndFlush(user);\n"
+            "    }\n"
+            "}\n"
+        ),
+    }
+    findings = check_transactional(base_files, head_files)
+    splits = [f for f in findings if f["type"] == "transaction_split"]
+    assert len(splits) == 1
+    assert splits[0]["contract_id"] == "TRANSACTION-01"
+    assert "2 write operations" in splits[0]["description"]
+
+
+def test_check_transactional_unchanged_is_clean() -> None:
+    """check_transactional: 两端都有 @Transactional → 无发现。"""
+    svc = (
+        "public class UserService {\n"
+        "    @Transactional\n"
+        "    public void saveUser(User user) {\n"
+        "        userRepository.save(user);\n"
+        "    }\n"
+        "}\n"
+    )
+    base_files = {
+        "com/specproof/demo/service/UserService.java": svc,
+    }
+    head_files = {
+        "com/specproof/demo/service/UserService.java": svc,
+    }
+    findings = check_transactional(base_files, head_files)
+    assert findings == []

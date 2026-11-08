@@ -91,6 +91,18 @@ groups:
           summary: "SpecProof outbox relay 抓取目标 down"
           description: "{{ $labels.instance }} 超过 5 分钟不可抓取 (§14: Job 不丢失依赖 Outbox 投递)。"
 
+      # notify outbox relay 的存活探针 (#16.6-1/K 的部署入口 compose.production.yml
+      # 的 notify-relay 服务; 未起应用栈时本目标 down, down 属预期 —— 与 outbox-relay
+      # 同一「可选目标」语义; 进程武装后要有存活信号)。
+      - alert: SpecproofNotifyRelayDown
+        expr: up{job="notify-relay"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof notify relay 抓取目标 down"
+          description: "{{ $labels.instance }} 超过 5 分钟不可抓取 (§16.6-1: notify outbox 投递; 武装了的进程要有存活信号, 与 SpecproofOutboxRelayDown 同一语义与同一档)。"
+
       # invoice cron 的存活探针: 武装了的进程 (compose billing profile) 要有
       # 存活信号。billing profile 未启用的部署里此告警属预期 (warning 档,
       # 不常红不阻断) —— 或者部署侧移除该抓取目标 (与 #272 的豁免号设计

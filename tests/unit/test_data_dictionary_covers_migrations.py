@@ -24,9 +24,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 from storage.migrations import MIGRATIONS_DIR, _split_statements  # noqa: PLC2701
+from tests._mysql_gate import requires_mysql
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DICTIONARY = REPO_ROOT / "docs" / "architecture" / "DATA_DICTIONARY.md"
@@ -129,6 +128,7 @@ def test_conditional_object_tables_are_flagged_as_absent_by_default() -> None:
     )
 
 
+@requires_mysql("the dictionary's table count is checked against the live schema")
 def test_documented_table_count_matches_the_live_schema() -> None:
     """The 17-vs-18 mistake, asserted where a real MySQL answers."""
     claim = re.search(r"共 (\d+) 张表", _doc())
@@ -139,28 +139,22 @@ def test_documented_table_count_matches_the_live_schema() -> None:
 
     config = MySQLConfig.from_env()
     store = MySQLStore()
-    try:
-        with store.connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                # LOWER(): information_schema's column names come back
-                # UPPERCASE on MySQL 8, and a row["table_name"] would
-                # raise KeyError — which the skip below would report as
-                # "MySQL is not reachable", i.e. a lie about why.
-                "SELECT LOWER(table_name) AS table_name "
-                "FROM information_schema.tables "
-                "WHERE table_schema = %s",
-                (config.database,),
-            )
-            names = {
-                str(row["table_name"]) if isinstance(row, dict) else str(row[0])
-                for row in cursor.fetchall()
-            }
-    except Exception as exc:  # noqa: BLE001 — no MySQL here is a coverage fact
-        pytest.skip(
-            f"MySQL at {config.host}:{config.port} is not usable here "
-            f"({type(exc).__name__}: {exc})"
+    with store.connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            # LOWER(): information_schema's column names come back
+            # UPPERCASE on MySQL 8, and a row["table_name"] would
+            # raise KeyError — the shared skip mark replaces the old
+            # "not reachable" probe, so this now reads as a schema read.
+            "SELECT LOWER(table_name) AS table_name "
+            "FROM information_schema.tables "
+            "WHERE table_schema = %s",
+            (config.database,),
         )
+        names = {
+            str(row["table_name"]) if isinstance(row, dict) else str(row[0])
+            for row in cursor.fetchall()
+        }
 
     # The object-metadata tables are CONDITIONAL: the default backend is
     # SQLite, so they exist only where the MySQL object-metadata backend

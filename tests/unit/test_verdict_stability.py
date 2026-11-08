@@ -32,6 +32,25 @@ class TestClassifier:
         assert classify_with_env(["COMPLIANT", "REGRESSION"], True) == "contaminated"
         assert classify_with_env([], False) == "no_runs"
 
+    def test_all_not_run_is_not_verified(self) -> None:
+        """Every run executed zero tests: not a single observation, so not_verified."""
+        assert summarize(
+            [{"test_counts": {"tests": 0}}, {"test_counts": {"tests": 0}}],
+            contaminated=False,
+        )["classification"] == "not_verified"
+
+    def test_mixed_executed_and_not_run_is_not_verified(self) -> None:
+        """One run executed, one did not: cannot claim stability, not flaky either."""
+        assert summarize(
+            [{"exit_code": 0, "test_counts": {"tests": 3}},
+             {"test_counts": {"tests": 0}}],
+            contaminated=False,
+        )["classification"] == "not_verified"
+
+    def test_contamination_outranks_not_run(self) -> None:
+        """Contamination takes precedence even when nothing executed."""
+        assert classify_with_env(["not_run", "not_run"], True) == "contaminated"
+
     def test_summarize_schema(self) -> None:
         summary = summarize(
             [
@@ -88,7 +107,38 @@ class TestDeepStabilityWiring:
         out = deep.run_deep_experiments_node(self._state(tmp_path))
         stability = out["deep_results"]["verdict_stability"]
         assert stability["repeat_count"] == 2
-        assert stability["classification"] in ("stable", "flaky", "contaminated")
+        assert stability["classification"] in ("stable", "flaky", "contaminated", "not_verified")
+
+    def test_deep_node_not_verified_when_no_tests_executed(self, tmp_path, monkeypatch) -> None:
+        """Sandbox repeat runs that execute zero tests ⇒ classification not_verified."""
+        import agent.nodes.run_deep_experiments as deep
+
+        (tmp_path / "pom.xml").write_text("<project/>", encoding="utf-8")
+        (tmp_path / "src" / "main" / "java").mkdir(
+            parents=True, exist_ok=True
+        )
+        # Sandbox returns no test_counts ⇒ each run projects to not_run.
+        monkeypatch.setattr(deep, "_run_test_via_sandbox", lambda app, t: {
+            "exit_code": 0, "error": "", "mode": "fake", "cache_note": "",
+        })
+        monkeypatch.setattr(
+            deep, "_make_test_runner",
+            lambda *a, **k: (lambda _c: (0, "", 1)),
+        )
+        monkeypatch.setattr(
+            "experiments.state_snapshot.capture_full_stack",
+            lambda *a, **k: {"tables": {}, "queues": {}},
+        )
+        monkeypatch.setattr(
+            "experiments.state_snapshot.diff_states",
+            lambda b, a: {"changed": []},
+        )
+        monkeypatch.setenv("SPECPROOF_DEEP_REPEATS", "2")
+        out = deep.run_deep_experiments_node(self._state(tmp_path))
+        stability = out["deep_results"]["verdict_stability"]
+        assert stability["repeat_count"] == 2
+        assert stability["classification"] == "not_verified"
+        assert stability["runs_without_execution"] == 2
 
     def test_repeats_env_cap(self, monkeypatch) -> None:
         import agent.nodes.run_deep_experiments as deep

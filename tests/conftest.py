@@ -95,6 +95,11 @@ SLOW_TEST_MODULES: frozenset[str] = frozenset({
     "test_swebench_llm_fixes.py",
     "test_swebench_v10_fixes.py",
     "test_swebench_v11_fixes.py",
+    # #600: the no-database promise gate spawns two child pytest sessions (the
+    # planted live-leg control and the whole population), so the fast inner loop
+    # must not pay for them. Same lesson as #135; CI still runs it — nothing in
+    # .github/workflows deselects ``slow``.
+    "test_the_no_infra_job_holds_its_no_database_promise.py",
     "test_verify_criterion_anchor.py",
 })
 

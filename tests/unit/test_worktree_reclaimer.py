@@ -28,7 +28,7 @@ from agent.worktree_reclaimer import (
 def _git(cwd: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(cwd), *args],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
     )
     assert proc.returncode == 0, proc.stderr
     return proc.stdout.strip()

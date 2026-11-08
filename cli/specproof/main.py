@@ -14,6 +14,16 @@ Commands:
 import sys
 from pathlib import Path
 
+# Windows + Chinese code page (cp936) cannot encode characters the CLI's help
+# copy uses (⇒, ✓, …). A child process whose stdout is piped (as the eval
+# driver and the test harness do) would die mid-print with a UnicodeEncodeError
+# instead of ever showing the help text. Force UTF-8 with graceful fallback so
+# the CLI is always runnable, never encoding-dependent.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import click
 
 # Ensure the project root is on sys.path

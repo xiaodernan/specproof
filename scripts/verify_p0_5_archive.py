@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 P0.5 Archive Verification Script
-================================
+################################
 Verifies the frozen P0.5 acceptance archive for:
   - All digest consistency
   - Run ID mapping
@@ -302,7 +302,7 @@ def main() -> int:
         result = subprocess.run(
             ["git", "bundle", "verify", str(bundle_path)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=30,
         )
         bundle_ok = result.returncode == 0
@@ -312,7 +312,7 @@ def main() -> int:
         heads = subprocess.run(
             ["git", "bundle", "list-heads", str(bundle_path)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=10,
         ).stdout
 
@@ -324,7 +324,9 @@ def main() -> int:
         # Test clone from bundle
         with tempfile.TemporaryDirectory(prefix="specproof-bundle-verify-") as tmp:
             clone_result = subprocess.run(
-                ["git", "clone", str(bundle_path), tmp], capture_output=True, text=True, timeout=30
+                ["git", "clone", str(bundle_path), tmp],
+                capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=30
             )
             clone_ok = clone_result.returncode == 0
             record_result(
@@ -338,7 +340,7 @@ def main() -> int:
                 subprocess.run(
                     ["git", "-C", tmp, "checkout", "base"],
                     capture_output=True,
-                    text=True,
+                    text=True, encoding="utf-8", errors="replace",
                     timeout=10,
                 )
                 mvnw_exists = (Path(tmp) / "mvnw").exists() or (Path(tmp) / "mvnw.cmd").exists()
@@ -353,13 +355,13 @@ def main() -> int:
                     subprocess.run(
                         ["git", "-C", tmp, "checkout", tag],
                         capture_output=True,
-                        text=True,
+                        text=True, encoding="utf-8", errors="replace",
                         timeout=10,
                     )
                     actual = subprocess.run(
                         ["git", "-C", tmp, "rev-parse", "HEAD"],
                         capture_output=True,
-                        text=True,
+                        text=True, encoding="utf-8", errors="replace",
                         timeout=10,
                     ).stdout.strip()
                     record_result(

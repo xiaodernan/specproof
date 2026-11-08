@@ -124,6 +124,11 @@ _LISTEN_PORT_KNOBS = {
     # _UNROSTERED_LISTENERS per L15's own rule — the exemption's premise
     # ("no deploy file names the module") is gone.
     "INVOICE_CRON_METRICS_PORT": "invoice-cron",
+    # M8-T71 (2026-11-08): the compose production stack arms the notify relay
+    # (compose.production.yml 的 notify-relay 服务), so the port has a real
+    # scrape job (notify-relay:9102) and this knob joins the roster — same
+    # shape as INVOICE_CRON_METRICS_PORT's move out of the exemption.
+    "NOTIFY_RELAY_METRICS_PORT": "notify-relay",
 }
 
 #: env name -> (declaring file, dotted module a deploy file would name) for a
@@ -139,7 +144,7 @@ _UNROSTERED_LISTENERS: dict[str, tuple[str, str]] = {}
 #: Files allowed to start a metrics HTTP server. L2 re-derives this from a
 #: repo-wide call-site census, so a third process must be declared here — with
 #: its knob, its bullet in §2 and its evidence class — before it can pass.
-_KNOB_SITES = ("agent/worker.py", "storage/outbox_relay.py", "storage/invoice_cron.py")
+_KNOB_SITES = ("agent/worker.py", "storage/outbox_relay.py", "storage/invoice_cron.py", "storage/notify_relay.py")
 #: The ``storage/env_config.py`` readers that stand in for an inline env coercion
 #: (#471). Their second positional argument is the declared default.
 _KNOB_HELPERS = ("int_env", "float_env")
@@ -157,6 +162,7 @@ _PATH_SOURCES: dict[str, tuple[str, str]] = {
     "worker": ("observability/metrics_http.py", "comparison"),
     "outbox-relay": ("observability/metrics_http.py", "comparison"),
     "invoice-cron": ("observability/metrics_http.py", "comparison"),
+    "notify-relay": ("observability/metrics_http.py", "comparison"),
 }
 
 #: What backs each job's port, on the provider's own side. L1 recomputes the set
@@ -169,6 +175,9 @@ _EVIDENCE: dict[str, frozenset[str]] = {
         {"compose-expose", "compose-env-literal", "code-listen", "code-path"}
     ),
     "invoice-cron": frozenset(
+        {"compose-expose", "compose-env-literal", "code-listen", "code-path"}
+    ),
+    "notify-relay": frozenset(
         {"compose-expose", "compose-env-literal", "code-listen", "code-path"}
     ),
     "otel-collector": frozenset({"compose-publish", "config-endpoint"}),

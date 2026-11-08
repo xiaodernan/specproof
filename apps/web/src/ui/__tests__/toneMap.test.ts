@@ -188,6 +188,11 @@ describe("terminology gloss — plain-Chinese actionability without inventing me
     expect(checkerLabel("http")).toBe("HTTP 接口检查 · http");
     expect(checkerLabel("openapi")).toContain("OpenAPI");
     expect(checkerLabel("junit")).toBe("junit"); // not in the enum set -> verbatim
+    // `?` is the token a contract carries when nobody wrote down HOW it is
+    // checked (agent/nodes/contract_review.py). It is a gloss, not a checker:
+    // the label must say that, and keep the token visible.
+    expect(checkerLabel("?")).toContain("未记录检查方式");
+    expect(checkerLabel("?")).toContain("?");
     expect(checkerLabel("")).toBe("尚未指定");
     expect(checkerLabel(undefined)).toBe("尚未指定");
   });

@@ -192,6 +192,29 @@ def test_error_precedes_pass_and_findings():
     assert evaluate_verification({"rows": [passing_row()]}, findings=[{}]).status == "BLOCKED"
 
 
+def test_require_experiment_false_accepts_pass_without_experiment():
+    """require_experiment=False (used by certificates): a PASS row without
+    experiment references still verifies, because the caller is responsible
+    for experiment evidence."""
+    row = passing_row() | {"experiment": ""}
+    assert evaluate_verification({"rows": [row]}, require_experiment=False).status == "VERIFIED"
+    # Default (require_experiment=True): same row is unverifiable.
+    assert evaluate_verification({"rows": [row]}).status == "NEEDS_REVIEW"
+
+
+def test_require_experiment_false_still_blocks_on_fail():
+    """require_experiment=False does not downgrade a real FAIL."""
+    row = passing_row() | {"result": "FAIL"}
+    assert evaluate_verification({"rows": [row]}, require_experiment=False).status == "BLOCKED"
+
+
+def test_require_experiment_false_still_blocks_on_errors():
+    """require_experiment=False does not hide pipeline errors."""
+    assert evaluate_verification(
+        {"rows": [passing_row()]}, errors=["boom"], require_experiment=False
+    ).status == "FAILED"
+
+
 @pytest.mark.parametrize("contracts", [
     [], [{"id": "C-1", "result": "PASS"}],
     [{"id": "C-1", "result": "PASS", "evidence_ref": "—"}],
@@ -205,6 +228,17 @@ def test_certificate_requires_individual_contract_evidence(contracts):
 
 def test_certificate_includes_evidence_from_each_contract():
     certificate = issue_certificate("r", "h", "spec", [passing_row()])
+    assert certificate is not None
+    assert certificate.verified_contracts == 1
+    assert certificate.evidence_digests == ["ev-1"]
+
+
+def test_certificate_issues_without_experiment_ids():
+    """require_experiment=False: a contract with PASS + evidence but no
+    experiment reference still earns a certificate (certificate path does
+    not require experiment evidence)."""
+    row = {"contract_id": "C-1", "result": "PASS", "evidence": "ev-1"}
+    certificate = issue_certificate("r", "h", "spec", [row])
     assert certificate is not None
     assert certificate.verified_contracts == 1
     assert certificate.evidence_digests == ["ev-1"]

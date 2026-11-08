@@ -23,6 +23,7 @@ import jwt
 from jwt import PyJWKClient
 
 from api.identity.config import oidc_client_id, oidc_role_claim
+from providers.net import outbound_client
 from storage.identity import ROLE_SET
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,7 @@ class OidcValidator:
     ) -> None:
         self.issuer = issuer.rstrip("/")
         self.client_id = client_id
-        self._http = httpx.Client(transport=transport, timeout=10.0)
+        self._http = outbound_client(transport=transport, timeout=10.0)
         self._discovery: dict[str, Any] | None = None
         self._discovery_at = 0.0
         self._jwks: _TransportPyJWKClient | None = None
@@ -117,9 +118,9 @@ class OidcValidator:
         return document
 
     def discovery(self) -> dict[str, Any]:
-        if self._discovery is None or time.time() - self._discovery_at > self._discovery_ttl:
+        if self._discovery is None or time.monotonic() - self._discovery_at > self._discovery_ttl:
             self._discovery = self._fetch_discovery()
-            self._discovery_at = time.time()
+            self._discovery_at = time.monotonic()
             self._jwks = None  # jwks_uri may have rotated
         return self._discovery
 

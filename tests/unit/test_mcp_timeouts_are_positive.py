@@ -18,6 +18,7 @@ positive-only reader, or the refusal never runs.
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
 
 import pytest
@@ -58,7 +59,7 @@ def test_an_unset_knob_keeps_its_default(monkeypatch: pytest.MonkeyPatch) -> Non
 @pytest.mark.parametrize("bad", [-1, 0])
 def test_run_cli_refuses_a_non_positive_timeout_instead_of_faking_a_timeout(bad: int) -> None:
     with pytest.raises(ToolError) as caught:
-        _run_cli(["echo", "hi"], bad)
+        _run_cli([sys.executable, "-c", "print('hi')"], bad)
 
     message = str(caught.value)
     assert "invalid timeout" in message
@@ -70,7 +71,7 @@ def test_run_cli_refuses_a_non_positive_timeout_instead_of_faking_a_timeout(bad:
 
 
 def test_a_valid_timeout_still_runs_the_command() -> None:
-    completed = _run_cli(["echo", "hi"], 30)
+    completed = _run_cli([sys.executable, "-c", "print('hi')"], 30)
 
     assert completed.stdout.strip() == "hi"
 

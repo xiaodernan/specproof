@@ -2,7 +2,7 @@
 #
 # 多文件组合用法 (本文件不设置顶层 name, 项目名/网络随最后一个设置 name 的文件):
 #   仅观测栈 (与已 up 的 phase0 栈并存, 共用 specproof-phase0 网络):
-#     docker compose -f compose.phase0.yml -f compose.observability.yml up -d otel-collector prometheus grafana
+#     docker compose -f compose.phase0.yml -f compose.observability.yml up -d otel-collector prometheus alertmanager grafana
 #   生产三文件组合 (api/worker/观测栈同项目同网络, api:8000 与 worker:9100 服务名直达):
 #     docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observability.yml up -d
 #   校验:
@@ -12,7 +12,11 @@
 # api/metrics 可达即可 — 通过服务名 DNS 抓取, 因此无 depends_on 应用栈服务。
 #
 # 端口: 4317(OTLP gRPC) / 4318(OTLP HTTP) / 8889(collector prom exporter) /
-#       9090(prometheus) / 3000(grafana), 均可经环境变量覆盖 (冲突时改左边值)。
+#       9090(prometheus) / 9093(alertmanager) / 3000(grafana),
+#       均可经环境变量覆盖 (冲突时改左边值)。
+# alertmanager: SLO 告警的接收端; 随栈一起 up 即接入 (prometheus.yml 的
+# alerting: 块指向它)。默认 receiver 为 null 占位 (见 alertmanager.yml 头),
+# 不会发出任何通知 —— 上线值班路由前必须改配。
 
 services:
   otel-collector:
@@ -40,6 +44,24 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     restart: unless-stopped
 
+  # SLO alert sink (PRODUCTION_SPEC §14). Receives the 16 rules in
+  # alerts-slo.yml via the `alerting:` block in prometheus.yml.
+  # The shipped receiver is a null sink by design (no on-call destination
+  # exists yet): alerts are visible as firing/resolved in the UI and
+  # /api/v1/alerts, nothing is paged. Wire a real receiver + route before
+  # relying on this for paging — see infra/prometheus/alertmanager.yml.
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./infra/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:11.6.1
     environment:
@@ -61,4 +83,5 @@ services:
 
 volumes:
   prometheus-data:
+  alertmanager-data:
   grafana-data:

@@ -2,9 +2,6 @@
 
 import pathlib
 
-import pytest
-
-import tests.conftest as _isolation
 from agent.contracts.compiler import (
     candidates_from_constitution,
     compile_candidates,
@@ -13,6 +10,7 @@ from agent.contracts.compiler import (
     family_id_for,
 )
 from agent.contracts.parser import parse_requirements
+from tests._mysql_gate import requires_mysql as mysql_case
 
 SPEC = """1. Authentication
    - Must reject unauthenticated requests with 401.
@@ -20,11 +18,6 @@ SPEC = """1. Authentication
 2. Transactional integrity
    - Email update must be atomic with token invalidation.
 """
-
-#: The isolation contract's verdict for THIS session, read at import time.
-#: ``tests/conftest.py`` decides it in ``pytest_configure``, which runs before
-#: collection, so the value is already final when this module is imported.
-_MYSQL_STATE = _isolation.MYSQL_ISOLATION[0]
 
 #: ``contract propose`` reaches MySQL through ``ContractRegistry()``, so the
 #: two cases that get past the zero-candidate branch need a live database.
@@ -34,14 +27,11 @@ _MYSQL_STATE = _isolation.MYSQL_ISOLATION[0]
 #: this file, both ``(2003, "Can't connect to MySQL server on 'localhost'")``.
 #: A case that cannot run must SKIP; the job that has the database runs them
 #: for real (``.github/workflows/ci.yml``, ``tests-with-infra``).
-requires_mysql = pytest.mark.skipif(
-    _MYSQL_STATE not in ("dedicated", "redirected"),
-    reason=(
-        "contract propose writes to MySQL through ContractRegistry(), and this "
-        f"session's isolation verdict is {_MYSQL_STATE!r}: there is no "
-        "reachable database, so the case would fail instead of skipping"
-    ),
-)
+#: #600 moved the verdict-to-skip decision into ``tests/_mysql_gate.py`` so a
+#: second file that needs a server states the same reason instead of writing the
+#: predicate again; the reason's wording is read out of a child run by G2 of
+#: ``test_ci_jobs_can_run_the_repo_gates.py``.
+requires_mysql = mysql_case("contract propose writes to MySQL through ContractRegistry()")
 
 
 def test_compile_candidates_from_spec():

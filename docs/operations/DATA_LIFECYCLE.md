@@ -10,7 +10,7 @@
 
 - ✅ 已实现 — 代码/迁移中有对应实现, 出处可查。
 - 📝 已演练 (无 Docker) — 今日完成文档级桌面演练: 逐条对照源码/迁移/compose 走查, 命令语法与对象名核对, 宿主机工具可用性实测; 未对真实存储执行。
-- ⏳ 待基础设施 — 需要真实 MySQL/MongoDB/MinIO/ES/Redis/RabbitMQ 实例才能执行, 或需要尚未实现的自动化 (cron/快照/版本控制)。
+- ⏳ 待基础设施 — 需要真实 MySQL/MongoDB/MinIO/ES/Redis/RabbitMQ 实例才能执行, 或需要尚未实现的自动化 (cron/快照/版本控制)。2026-11-08 起本机 docker 栈 (specproof-mysql/mongodb/...) 具备运行条件; 已执行部分见 §6.4 (MySQL/Mongo 隔离目标库 + 产品库只读备份 + promtool/Grafana 一次性验证), cron/PITR/mc/snapshot 仍 ⏳。
 
 ## 1. 数据类与存放位置总览
 
@@ -200,14 +200,14 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 
 | 存储 | 备份 (每日) | 恢复 | 验证 | 状态 |
 |---|---|---|---|---|
-| MySQL | docker compose -f compose.phase0.yml exec -T mysql mysqldump -u root -p"<root>" --single-transaction --routines --triggers specproof_phase0 > backup-YYYYMMDD.sql (再 gzip) | gunzip -c backup.sql.gz 后 docker compose exec -T mysql mysql -u root -p"<root>" specproof_phase0 < backup.sql | 表计数对比 (verification_jobs/outbox 行数) + schema_migrations 版本一致 | 📝 已演练 (命令级); ⏳ 待基础设施 (执行 + 每日 cron + binlog PITR) |
-| MongoDB | docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_phase0 --archive --gzip > mongo-YYYYMMDD.archive.gz | docker compose exec -T mongodb mongorestore --archive --gzip --drop < mongo.archive.gz | 三集合 countDocuments 对比 | 📝 已演练 (命令级); ⏳ 待基础设施 (执行) |
+| MySQL | docker compose -f compose.phase0.yml exec -T mysql mysqldump -u root -p"<root>" --single-transaction --routines --triggers specproof_phase0 > backup-YYYYMMDD.sql (再 gzip) | gunzip -c backup.sql.gz 后 docker compose exec -T mysql mysql -u root -p"<root>" specproof_phase0 < backup.sql | 表计数对比 (verification_jobs/outbox 行数) + schema_migrations 版本一致 | ✅ 2026-11-08 真实执行 (隔离目标库, 见 §6.4; 产品库仅备份、未就地恢复); ⏳ 每日 cron + binlog PITR 仍待 |
+| MongoDB | docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_phase0 --archive --gzip > mongo-YYYYMMDD.archive.gz | docker compose exec -T mongodb mongorestore --archive --gzip --drop < mongo.archive.gz | 三集合 countDocuments 对比 | ✅ 2026-11-08 真实执行 (隔离 scratch 库, 见 §6.4; 产品库仅备份、未就地恢复); ⏳ 每日 cron 仍待 |
 | MinIO | mc mirror --overwrite local/specproof-tool-reports <冷存储>/... (三 bucket; RUNBOOK §5) | mc mirror --overwrite <冷存储>/<bucket> local/<bucket> | mc stat 抽查 + payload_sha256 与 object_metadata 核对 | 📝 已演练 (命令级); ⏳ 待基础设施 (执行 + 版本控制) |
 | Elasticsearch | 策略=可重建 (从仓库重索引), 不做每日全量备份; 快照 API 为可选增强 | 重索引 (index_repository) 或 snapshot restore | count_repo_docs 对比 | 📝 已演练 (重建路径是代码事实); ⏳ 待基础设施 (snapshot 仓库) |
 | Redis | **不备份** (全 TTL 缓存, 与 RUNBOOK §5 一致); 恢复=进程重启后自然重建 | — | — | ✅ 策略已定 |
 | RabbitMQ | **不备份** (消息源在 MySQL outbox; DLQ 人工); 恢复=重启 + outbox_relay 补发 | — | — | ✅ 策略已定 |
 
-备份保留: 每日 30 天滚动 + 每月 1 份归档 (12 个月)。恢复演练 (含 §15.4 的"发布前恢复演练") 必须在真实基础设施上执行 — 见 §6, 当前 ⏳。
+备份保留: 每日 30 天滚动 + 每月 1 份归档 (12 个月)。恢复演练 (含 §15.4 的"发布前恢复演练") 第一阶段已在真实基础设施上执行 — 见 §6.4 (2026-11-08, MySQL/Mongo 隔离目标库全程通过); 产品库 (`specproof_phase0`) 就地恢复仍待批准停机窗口, 不在本文档权限内代为执行; ES snapshot 仓库与每日 cron 保留 ⏳。
 
 ## 6. 演练记录 (honest drill record, 2026-08-19)
 
@@ -224,20 +224,58 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 | 7 | compose 校验 | docker compose -f compose.phase0.yml config --services exit 0 — 服务名 (mysql/mongodb/elasticsearch/redis/rabbitmq/minio) 与卷名 (mysql-data 等 6 卷) 与 §5 命令对齐 |
 | 8 | Webhook 重放防护回归 (任务 11 侧证据) | tests/security/test_webhook_replay.py 13 用例本日 pytest 实测全绿 (重放矩阵: 重复 delivery 单效应/旧签名重放不重复/无效签名 401/时间戳超窗 401/缺头 401·400) |
 
-### 6.2 ⏳ 待基础设施 (如实标注, 未执行不记为已演练)
+### 6.2 进度与仍 ⏳ 待基础设施 (如实标注; §6.4 已落地部分在相应行内注明)
 
 | # | 步骤 | 阻塞条件 |
 |---|---|---|
-| 9 | MySQL 每日 mysqldump 实际执行 + 30 天滚动 | 需运行中的 MySQL (specproof-mysql) + 计划任务 |
-| 10 | MongoDB mongodump / MinIO mc mirror 实际执行 | 需运行中的 MongoDB/MinIO + mc 客户端 |
-| 11 | 备份恢复演练 (§15.4 发布前恢复演练) | 需完整基础设施 + 隔离恢复目标库 |
+| 9 | MySQL 每日 mysqldump 实际执行 + 30 天滚动 | 单次真实 mysqldump 已于 2026-11-08 执行并成功恢复 (见 §6.4); 每日 cron + 30 天滚动仍需计划任务与归档策略 |
+| 10 | MongoDB mongodump / MinIO mc mirror 实际执行 | MongoDB 已于 2026-11-08 全程真实执行 (dump→drop→restore→对比); MinIO mc mirror 仍待 mc 客户端或冷存储目标 |
+| 11 | 备份恢复演练 (§15.4 发布前恢复演练) | 隔离目标库演练已于 2026-11-08 完成 (MySQL/Mongo, 见 §6.4); 产品库就地恢复 + 完整发布窗口演练仍待批准 |
 | 12 | 租户真实删除执行 + 孤儿扫描全零 | 需多租户数据 (含跨租户 job) + 五存储在线 |
 | 13 | ES snapshot/ILM、Redis/RabbitMQ DLQ 巡查 cron | 需 ES 插件仓库 + 告警通道 |
 | 14 | workspace 清理与 ES 索引滚动自动化 (RUNBOOK §5) | 需部署环境的实际磁盘/索引增长观测 |
 
 ### 6.3 演练结论
 
-任务 14 要求的"一次不依赖 Docker 的文档演练"= §6.1 的 8 项, 今日完成, 证据为源码对照 + Get-Command 实测 + compose config exit 0。**执行级演练 (备份/恢复/删除的真实运行) 全部为 ⏳ 待基础设施** — 本机无运行中的 MySQL/Mongo/MinIO/ES/Redis 实例且原生客户端缺失, 不把"写出了命令"伪装成"跑通了恢复"。基础设施就位后, 按 §6.2 逐项执行并把本节升级为真实执行记录 (附命令输出摘录)。
+任务 14 要求的"一次不依赖 Docker 的文档演练"= §6.1 的 8 项, 今日完成, 证据为源码对照 + Get-Command 实测 + compose config exit 0。**执行级演练第一阶段 (2026-11-08) 已在本机真实执行: MySQL 隔离目标库 dump→restore→逐表 COUNT(*) 全对齐, MongoDB scratch 库 dump→drop→restore→文档对齐; 产品库 `specproof_phase0` 仅执行只读备份 (MySQL 200,130 字节 / Mongo 20,428 字节, 明文备份核 hash 后已删除), 未就地恢复产品库。** 仍 ⏳ 未执行: 产品库就地恢复 (需批准停机窗口)、每日 30 天滚动 cron、binlog PITR、MinIO mc mirror、ES snapshot。见 §6.4。
+
+### 6.4 ✅ 2026-11-08 执行级演练 (本机宿主, docker 29.9.2, 隔离目标库; 未触碰运行中的共享栈)
+
+> 依据: §6.2 #9/#10/#11 与 §5 两表的恢复列升级为真实执行记录。
+> 本演练已固化为仓库内可重跑脚本 **`scripts/backup_stores.py`**（`--stores both`；同口径 scratch 校验、
+> 写 JSON 报告、明文删除）；其安全属性由 `tests/unit/test_backup_stores.py`（16 条离线契约：scratch 名固定 /
+> 产品库拒绝 / dump 参数钉住 / count 解析与对比）锁定。2026-11-08 复跑 `python scripts/backup_stores.py --stores both`
+> → `overall_ok=true`（mysql_counts_match=true、mongo_counts_match=true、mongo digest `{n:250,s:31125}`）。
+> 限制: 产品库 `specproof_phase0` **就地恢复未执行** (需维护窗口与批准); 所有明文备份在核 hash 后删除 (不留 PII/明文躺盘); 共享栈未重启、未改配置。
+
+**MySQL (源库 `specproof_test`，可消耗隔离库；mysqldump → 全新 scratch `specproof_restore_drill` → 校验 → 删除 scratch):**
+
+| 步骤 | 结果 |
+|---|---|
+| 源库逐表 COUNT(*) 快照 (19 表) | agent_jobs 0 · api_tokens 0 · audit_logs **5174** · billing_plans 0 · billing_subscriptions 0 · contract_approvals 1 · contract_registry **435** · contracts 0 · finding_feedback 0 · findings 0 · invoices 0 · notify_outbox 0 · outbox 2 · provider_capabilities 0 · schema_migrations 17 · tenants 0 · usage_ledger 0 · users 0 · verification_jobs 2 |
+| mysqldump (--single-transaction --routines --triggers) | 1,095,127 字节 · sha256 `ab2851a3971c68741c22f9eb081b32326929109c65da5112d10b5ec4b4b29586` · 2.2s |
+| 全新 scratch 库恢复 | 10.1s；19/19 表逐行 COUNT(*) 与源库**完全一致**；`schema_migrations MAX(version)` 17 = 17 |
+| scratch 清理 | `DROP DATABASE specproof_restore_drill` 已执行 |
+| 产品库 `specproof_phase0` 只读备份 | 200,130 字节 · sha256 `87f1c5731d3bbc18ec49a121face0cca51b2be9fb6d9cd33356536cdda0c0b47` · 1.8s；明文 dump 删除（仅留 hash） |
+
+**MongoDB (scratch `specproof_drill_scratch`; 默认 read 全部经 docker exec + admin 账号):**
+
+| 步骤 | 结果 |
+|---|---|
+| scratch 播种 | 250 篇伪造文档 (`drill-000..249`, payload 128B) → `countDocuments=250` |
+| mongodump --archive --gzip | 4,747 字节；gzip sha256 `530b01e6b3b60902e31c99c69423f7289a426be8ed8124eda279ab1f0dec1375` · 0.4s |
+| dropDatabase → mongorestore --gzip | 0.4s；`aggregate({$group:{n:$sum:1, s:$sum:'$seq'}})` = `{n:250, s:31125}`，**31125 = 0+…+249 ✓**；countDocuments 恢复后仍为 250 |
+| scratch 清理 | `DROP` 已执行；归档删除（不留明文） |
+| 产品库 `specproof_phase0` 只读备份 | 20,428 字节 · sha256 `af87c145ac53ba43f246832ebde6d73696131b26ceb503c9eef2995638bf988f` · 0.4s；集合计数 `evidence_packs=109 / agent_checkpoints=38 / checkpoint_writes=35 / differential_runs=0`；明文删除 |
+
+**观测栈 (PRODUCTION_SPEC §17; 未改共享栈, 用一次性容器验证):**
+
+| 步骤 | 结果 |
+|---|---|
+| `promtool check config` + `check rules` (prom/prometheus:v3.3.1, 一次性容器) | config **valid**；alerts-slo.yml **16 rules 通过**（§8 所有 SLO 告警在 v3 语法下合法） |
+| Grafana 11.6.1 一次性实例 (3300 → 3000)，挂载仓库内 provisioning + dashboards (ro) | `/api/health` = 200（version 11.6.1）；`/api/search` 命中 `specproof-slo`；`/api/dashboards/uid/specproof-slo` 加载 **51 panels**；datasource `specproof-prometheus`（url `http://prometheus:9090`）已 provisioned；校验后 `docker rm -f`，无残留容器 |
+
+**本轮不做/未做（如实保留）:** 产品库就地恢复、每日 cron/30 天滚动、binlog PITR、MinIO mc mirror、ES snapshot；RabbitMQ/Redis 按策略不备份；outbox-relay/api/worker 抓取目标在本机无 api/worker 起动，`down` 属正常。所有明文 dump 与 scratch 数据已清理；`specproof_test` 与产品库的 `/test/%` 行差 = 0（会话头尾隔离协议打印 `0 -> 0`）。
 
 ## 7. 已知缺口 (honest gaps, 与 §6.2 对应)
 

@@ -13,6 +13,7 @@ from storage.mysql import (
     InvalidStateTransition,
     MySQLStore,
 )
+from tests._mysql_gate import requires_mysql
 
 
 class _RecordingCursor:
@@ -216,6 +217,7 @@ class TestStateMachineStatic:
             assert not MySQLStore.is_terminal(s)
 
 
+@requires_mysql("the state machine tests write verification_jobs rows")
 class TestStateMachineWithDB:
     """Tests that require a MySQL connection (integration-style but fast).
 
@@ -223,16 +225,14 @@ class TestStateMachineWithDB:
     table, so teardown deletes what the test created and then proves the
     row is gone (#73). A leftover RUNNING row is not harmless litter:
     `specproof ops recover` reads exactly that shape — RUNNING plus a stale
-    updated_at — as a hung job and re-delivers it.
+    updated_at — as a hung job and re-delivers it. The verdict decides at
+    collection time whether this class runs at all (tests/_mysql_gate.py).
     """
 
     @pytest.fixture(autouse=True)
     def setup(self):
         self.store = MySQLStore()
-        try:
-            self.store.ensure_tables()
-        except Exception:
-            pytest.skip("MySQL not available")
+        self.store.ensure_tables()
         self.job_id = str(uuid.uuid4())
         self.created: list[str] = []
         try:

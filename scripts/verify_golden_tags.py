@@ -30,7 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def git(*args: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(REPO_ROOT), *args],
-        capture_output=True, text=True, timeout=180,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {proc.stderr.strip()[:300]}")

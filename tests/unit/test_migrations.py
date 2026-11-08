@@ -8,6 +8,7 @@ import pymysql
 import pytest
 
 from storage.migrations import MigrationRunner, _split_statements
+from tests._mysql_gate import requires_mysql
 
 
 class _Cursor:
@@ -68,15 +69,13 @@ def test_split_drops_empty_and_comment_only():
 
 
 @pytest.mark.integration
+@requires_mysql("the migration runner applies migrations against a live MySQL")
 def test_apply_pending_records_versions():
     """Against live MySQL: applying twice is idempotent (skip-safe)."""
     from storage.mysql import MySQLStore
 
     store = MySQLStore()
-    try:
-        store.ensure_tables()
-    except Exception:
-        pytest.skip("MySQL not available")
+    store.ensure_tables()
     runner = MigrationRunner(store)
     status = runner.status()
     assert status["pending"] == []  # already applied by ensure_tables

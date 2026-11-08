@@ -57,7 +57,7 @@ def _local_repo_digests(image: str) -> tuple[str, ...] | None:
         proc = subprocess.run(
             ["docker", "image", "inspect", image, "--format", "{{json .RepoDigests}}"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=60,
         )
     except (OSError, subprocess.SubprocessError):

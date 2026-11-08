@@ -22,6 +22,11 @@ CI gates MEDIUM and above (`-ll`), so that is the population this file holds to 
 zero; the LOW findings it deliberately ignores are still used to scope ids,
 because a directive naming a test bandit never reports is a directive that has
 stopped meaning anything.
+
+None of those claims can be judged unless the scanner runs. An interpreter
+without the dev dependency exits 1 and writes no report; that shape used to be
+accepted as "bandit ran", and three checks below then blamed the suppressions.
+§0 separates the two meanings before §1 judges anything.
 """
 from __future__ import annotations
 
@@ -33,6 +38,9 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path, PurePosixPath
+from typing import NamedTuple
+
+import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 CI_FILE = REPO / ".github" / "workflows" / "ci.yml"
@@ -71,17 +79,46 @@ def _ci_bandit_command() -> list[str]:
     return cmd
 
 
-def _bandit(cwd: Path, args: list[str], report: Path) -> tuple[int, list[dict], str]:
+class BanditRun(NamedTuple):
+    returncode: int
+    results: list[dict]
+    log: str
+    ran: bool
+
+
+def _bandit(cwd: Path, args: list[str], report: Path) -> BanditRun:
     proc = subprocess.run(
         [*args, "-f", "json", "-o", str(report), "-q"],
         cwd=str(cwd), capture_output=True, text=True,
         encoding="utf-8", errors="replace",
     )
     results: list[dict] = []
-    if report.exists() and report.read_text(encoding="utf-8").strip():
-        raw = json.loads(report.read_text(encoding="utf-8", errors="replace"))
-        results = raw.get("results", [])
-    return proc.returncode, results, (proc.stderr or "") + (proc.stdout or "")
+    ran = False
+    if report.exists():
+        text = report.read_text(encoding="utf-8", errors="replace").strip()
+        if text:
+            try:
+                parsed = json.loads(text)
+            except ValueError:
+                parsed = None
+            if isinstance(parsed, dict):
+                ran = True
+                results = parsed.get("results", [])
+    return BanditRun(proc.returncode, results, (proc.stderr or "") + (proc.stdout or ""), ran)
+
+
+def _require_ran(run: BanditRun) -> None:
+    """rc without a report is not a verdict: name the tool instead of the code.
+
+    Measured on an interpreter without the dev dependency: `python -m bandit`
+    exits 1, writes no report, and says "No module named". The exit code alone
+    cannot tell that shape from "bandit ran and found things".
+    """
+    assert run.ran, (
+        "bandit did not run to completion under this interpreter, so no "
+        f"suppression claim can be judged (exit {run.returncode}, no report): "
+        f"{run.log.strip()[-400:] or '<no output>'}"
+    )
 
 
 def _shipped_py_files() -> list[Path]:
@@ -153,12 +190,15 @@ def _strip_run() -> list[dict]:
         # bandit's -l is a *minimum* severity filter, so "everything" is no -l at
         # all; CI's own cut is applied by the callers from the same run, never by a
         # flag that could silently narrow what this file sees.
-        code, results, log = _bandit(root, args, root / "report.json")
-        assert code in (0, 1), f"bandit did not run (exit {code}): {log[-400:]}"
-        for r in results:
+        run = _bandit(root, args, root / "report.json")
+        _require_ran(run)
+        assert run.returncode in (0, 1), (
+            f"bandit exited {run.returncode} after writing a report: {run.log[-400:]}"
+        )
+        for r in run.results:
             r["_rel"] = _rel(root, r["filename"])
-        _STRIP_CACHE = results
-        return results
+        _STRIP_CACHE = run.results
+        return run.results
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -176,16 +216,47 @@ def _stripped_findings(all_severities: bool) -> dict[tuple[str, int], set[str]]:
     return out
 
 
+# ── 0. the scanner must run before its verdict means anything ────────────────
+
+
+def test_an_absent_bandit_is_reported_as_absent_not_as_findings(tmp_path: Path) -> None:
+    """Exit 1 with no report is a missing tool, not a finding.
+
+    The probe module does not exist on any machine, so this leg measures the
+    discriminator itself rather than whether the dev dependency happens to be
+    installed here. A report-less exit must refuse with the tool named, and the
+    refusal may not borrow the verdict words the checks below use for code.
+    """
+    run = _bandit(
+        tmp_path,
+        [sys.executable, "-m", "bandit_is_not_installed_probe"],
+        tmp_path / "report.json",
+    )
+    assert run.returncode != 0
+    assert not run.ran
+    with pytest.raises(AssertionError) as excinfo:
+        _require_ran(run)
+    message = str(excinfo.value)
+    assert "did not run" in message
+    assert "bandit_is_not_installed_probe" in message or "No module" in message
+    for charged in ("hides nothing", "directive/test mismatch", "no MEDIUM+ finding"):
+        assert charged not in message
+
+
 # ── 1. the claim CI makes, on the plane CI scans ─────────────────────────────
 
 
 def test_ci_bandit_command_exists_and_is_green_on_the_shipped_packages() -> None:
     cmd = _ci_bandit_command()
     assert "-ll" in cmd, f"CI no longer gates MEDIUM+, so this file's cut is stale: {cmd}"
-    code, results, log = _bandit(REPO, cmd, Path(tempfile.mkdtemp()) / "r.json")
-    assert code == 0, f"the CI bandit step is red here:\n{log[-1500:]}"
-    assert not results, f"CI would fail on {len(results)} finding(s): " \
-                        f"{[(r['test_id'], r['filename'], r['line_number']) for r in results]}"
+    run = _bandit(REPO, cmd, Path(tempfile.mkdtemp()) / "r.json")
+    _require_ran(run)
+    found = [(r.get("test_id"), r.get("filename"), r.get("line_number")) for r in run.results]
+    assert run.returncode == 0, (
+        f"the CI bandit step is red on {len(found)} finding(s): {found[:10]}\n"
+        f"{run.log[-1200:]}"
+    )
+    assert not run.results, f"CI would fail on {len(run.results)} finding(s): {found}"
 
 
 def _directive_statement_spans(
@@ -224,10 +295,10 @@ def test_bandit_does_not_read_any_of_our_prose_as_test_ids() -> None:
     span of a statement that carries a load-bearing directive; a warning about any
     other place is a directive this file cannot account for, and goes red.
     """
-    code, results, log = _bandit(REPO, _ci_bandit_command(),
-                                 Path(tempfile.mkdtemp()) / "r.json")
-    assert code == 0
-    prose = [ln for ln in log.splitlines() if PROSE_AS_ID in ln]
+    run = _bandit(REPO, _ci_bandit_command(), Path(tempfile.mkdtemp()) / "r.json")
+    _require_ran(run)
+    assert run.returncode == 0
+    prose = [ln for ln in run.log.splitlines() if PROSE_AS_ID in ln]
     assert not prose, (
         f"{len(prose)} directive word(s) were parsed as test ids, e.g. {prose[:3]} -- "
         "write the reason BEFORE the directive and keep it ids-only after"
@@ -240,7 +311,7 @@ def test_bandit_does_not_read_any_of_our_prose_as_test_ids() -> None:
     }
     spans: dict[str, list[tuple[int, int]]] = {}
     unexplained = []
-    for ln in log.splitlines():
+    for ln in run.log.splitlines():
         if DEAD_DIRECTIVE not in ln:
             continue
         m = re.search(r"file\s+(\S+?):(\d+)", ln)

@@ -76,7 +76,7 @@ _FAMILY_OWNERS: dict[str, tuple[str, ...]] = {
     # specproof_* is emitted by observability/metrics.py and served by every
     # process that imports it — the three /metrics jobs running this repo's
     # code. The third-party jobs serve none of it.
-    "specproof_": ("api", "worker", "outbox-relay", "invoice-cron"),
+    "specproof_": ("api", "worker", "outbox-relay", "invoice-cron", "notify-relay"),
     # rabbitmq_prometheus plugin output; served only by its own job, and only
     # under /metrics/per-object for the per-queue series the alerts select.
     "rabbitmq_": ("rabbitmq",),

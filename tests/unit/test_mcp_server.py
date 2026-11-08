@@ -642,7 +642,7 @@ def test_stdio_subprocess_end_to_end(tmp_path: Path) -> None:
         [sys.executable, "-m", "cli.specproof.main", "mcp", "serve"],
         input=messages,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         timeout=120,
         cwd=PROJECT_ROOT,
         check=False,

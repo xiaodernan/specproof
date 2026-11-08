@@ -1,0 +1,54 @@
+# SpecProof Alertmanager configuration (PRODUCTION_SPEC §14 / compose.observability.yml).
+#
+# Status, honestly: SLO rules are LIVE in Prometheus (infra/prometheus/alerts-slo.yml,
+# 16 rules, gate tests under tests/unit/test_alert_*), but the notification
+# RECEIVER has not been decided (paging target / on-call rotation / webhook URL
+# are operator decisions this repo cannot make for you).
+# Until that decision is made, every route below points at the built-in
+# "null" sink: a receiver with NO notification configs, which accepts and
+# silently drops every alert. Nothing is paged, nothing is lost from the
+# Prometheus side — alerts are still visible as firing/resolved in the UI
+# and via `/api/v1/alerts`.
+#
+# To wire a real destination:
+#   1. add a receiver (e.g. slack_configs / webhook_configs / pagerduty_configs)
+#      with the required credentials;
+#   2. point the matching severity route at it;
+#   3. re-validate: promtool/amtool check-config (see RUNBOOK §4) - never
+#      deploy an unvalidated file;
+#   4. re-create the container (config is mounted read-only).
+#
+# Guard rails that DO apply today: critical alerts share a group so a storm
+# cannot fan out into a notification blizzard the day a real receiver lands;
+# `resolve_timeout` bounds how long a silent Alertmanager waits before
+# re-declaring resolution.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  # Default route: everything lands in the null sink (see header).
+  receiver: "null"
+  group_by: ["alertname", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: [ severity="critical" ]
+      receiver: "null"
+      group_wait: 10s
+      repeat_interval: 1h
+
+inhibit_rules:
+  # A firing critical for a down job suppresses the same-signal warning:
+  # one cause, one page — never two pages for one outage.
+  - source_matchers: [ severity="critical" ]
+    target_matchers: [ severity="warning" ]
+    equal: [ "alertname" ]
+
+receivers:
+  # Deliberately empty: an Alertmanager receiver with zero notification
+  # configs is a documented black hole. Rename this receiver, add a
+  # real notification config, and flip the routes above to it when
+  # paging is decided; until then this file MUST NOT claim to notify.
+  - name: "null"

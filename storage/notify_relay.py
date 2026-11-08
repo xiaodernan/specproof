@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from observability.metrics import incr, set_gauge
+from storage.env_config import int_env
 from storage.mysql import MySQLStore
 
 logger = logging.getLogger(__name__)
@@ -225,11 +226,7 @@ class NotifyOutboxRelay:
         # 端口错开 (#272 的部署面豁免号惯例: 不映射宿主, 抓取名册另配)。
         from observability.metrics_http import serve_metrics_in_thread
 
-        def _int_env(name: str, default: int) -> int:
-            raw = os.getenv(name, "").strip()
-            return int(raw) if raw.isdigit() and int(raw) > 0 else default
-
-        serve_metrics_in_thread(port=_int_env("NOTIFY_RELAY_METRICS_PORT", 9102))
+        serve_metrics_in_thread(port=int_env("NOTIFY_RELAY_METRICS_PORT", 9102))
         logger.info("Notify outbox relay started (pid=%s)", os.getpid())
 
         def _stop(*_: Any) -> None:

@@ -43,6 +43,7 @@ import httpx
 from tenacity import Retrying, retry_if_exception, stop_after_attempt
 
 from contracts.retry_after import wait_retry_after_or_exponential
+from providers.net import outbound_client
 from retrieval._env import env_int as _env_int
 
 _DEFAULT_BATCH_SIZE = 64
@@ -247,7 +248,7 @@ class EmbeddingClient:
 
     def _embed_batch(self, batch: list[str]) -> EmbeddingOutcome:
         def _attempt() -> httpx.Response:
-            with httpx.Client(timeout=self.timeout, transport=self._transport) as client:
+            with outbound_client(timeout=self.timeout, transport=self._transport) as client:
                 response = client.post(
                     self.base_url + "/embeddings",
                     json={"model": self.model, "input": batch},

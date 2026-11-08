@@ -103,7 +103,82 @@ def test_no_contracts_counts_no_contracts() -> None:
     assert _deltas(before) == _only("no_contracts")
 
 
-def test_bare_pass_is_downgraded_and_counts_refusal() -> None:
+def test_contracts_without_results_row_is_unverified() -> None:
+    """Contracts present but no contract_results in state: rows are built
+    from contracts only, with UNVERIFIED result (no evidence/experiment)."""
+    state: dict[str, Any] = {
+        "contracts": [dict(_CONTRACT)],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 1
+    assert len(matrix["rows"]) == 1
+    row = matrix["rows"][0]
+    assert row["result"] == "UNVERIFIED", (
+        "a contract with no result entry must be UNVERIFIED, not PASS"
+    )
+    assert _deltas(before) == _only("built")
+
+
+def test_already_unverified_result_is_preserved() -> None:
+    """contract_results with result already UNVERIFIED (e.g. from differential
+    execution where no tests ran) is preserved as-is through build_matrix_node,
+    not upgraded or downgraded."""
+    state: dict[str, Any] = {
+        "contracts": [dict(_CONTRACT)],
+        "contract_results": [{
+            "contract_id": "AUTH-01",
+            "result": "UNVERIFIED",
+            "experiment": "DIFF-01",
+            "evidence_ref": "",
+            "details": "Generated test executed no tests",
+        }],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 1
+    assert len(matrix["rows"]) == 1
+    row = matrix["rows"][0]
+    assert row["result"] == "UNVERIFIED", (
+        "an already-UNVERIFIED result must stay UNVERIFIED, not be upgraded"
+    )
+    assert _deltas(before) == _only("built")
+
+
+def test_multiple_contracts_merge_by_priority() -> None:
+    """多合同、多结果进入 build_matrix_node：FAIL 优先于 UNVERIFIED，
+    每份合同独立计算，互不干扰。"""
+    state: dict[str, Any] = {
+        "contracts": [
+            {"id": "AUTH-01", "checker_type": "http", "requirement": "c1"},
+            {"id": "TXN-01", "checker_type": "sql", "requirement": "c2"},
+        ],
+        "contract_results": [
+            {"contract_id": "AUTH-01", "result": "FAIL",
+             "experiment": "java_source_diff", "evidence_ref": "f-1",
+             "details": "annotation removed"},
+            {"contract_id": "TXN-01", "result": "UNVERIFIED",
+             "experiment": "java_source_diff", "evidence_ref": "",
+             "details": "no observable construct"},
+        ],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 2
+    assert len(matrix["rows"]) == 2
+    by_id = {row["contract_id"]: row for row in matrix["rows"]}
+    assert by_id["AUTH-01"]["result"] == "FAIL"
+    assert by_id["TXN-01"]["result"] == "UNVERIFIED"
+    assert matrix["failed"] == 1
+    assert matrix["unverified"] == 1
+    assert matrix["passed"] == 0
+    assert _deltas(before) == _only("built")
     state: dict[str, Any] = {
         "contracts": [dict(_CONTRACT)],
         # A PASS verdict with no evidence reference and no experiment id —
@@ -151,3 +226,96 @@ def test_outcome_vocabulary_matches_parity_and_source() -> None:
         f"parity family words {sorted(parity_words)} != declared vocabulary "
         f"{sorted(BUILD_MATRIX_OUTCOMES)}"
     )
+
+
+def test_mixed_contracts_with_and_without_results() -> None:
+    """多合同：部分有检验结果、部分无结果。有结果的按其结果呈现，
+    无结果的自动标记 UNVERIFIED，互不干扰。"""
+    state: dict[str, Any] = {
+        "contracts": [
+            {"id": "AUTH-01", "checker_type": "http", "requirement": "c1"},
+            {"id": "TXN-01", "checker_type": "sql", "requirement": "c2"},
+        ],
+        "contract_results": [
+            {"contract_id": "AUTH-01", "result": "PASS",
+             "experiment": "java_source_diff", "evidence_ref": "ev-1"},
+        ],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 2
+    assert len(matrix["rows"]) == 2
+    by_id = {row["contract_id"]: row for row in matrix["rows"]}
+    assert by_id["AUTH-01"]["result"] == "PASS"
+    assert by_id["TXN-01"]["result"] == "UNVERIFIED"
+    assert matrix["passed"] == 1
+    assert matrix["unverified"] == 1
+    assert matrix["failed"] == 0
+    assert _deltas(before) == _only("built")
+
+
+def test_multiple_results_same_contract_fail_wins() -> None:
+    """同一合同有多个结果：FAIL 优先于 PASS，最终结果为 FAIL。"""
+    state: dict[str, Any] = {
+        "contracts": [
+            {"id": "AUTH-01", "checker_type": "http", "requirement": "c1"},
+        ],
+        "contract_results": [
+            {"contract_id": "AUTH-01", "result": "PASS",
+             "experiment": "static_checks", "evidence_ref": "static-1",
+             "details": "guarded construct intact"},
+            {"contract_id": "AUTH-01", "result": "FAIL",
+             "experiment": "differential", "evidence_ref": "diff-1",
+             "details": "regression detected"},
+        ],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 1
+    assert len(matrix["rows"]) == 1
+    row = matrix["rows"][0]
+    assert row["contract_id"] == "AUTH-01"
+    assert row["result"] == "FAIL", (
+        "FAIL must win over PASS when same contract has multiple results"
+    )
+    assert matrix["failed"] == 1
+    assert matrix["passed"] == 0
+    assert matrix["unverified"] == 0
+    assert _deltas(before) == _only("built")
+
+
+def test_three_contracts_three_outcomes() -> None:
+    """三合同三结果：FAIL、PASS(无证据→UNVERIFIED)、无结果(→UNVERIFIED)。"""
+    state: dict[str, Any] = {
+        "contracts": [
+            {"id": "AUTH-01", "checker_type": "http", "requirement": "c1"},
+            {"id": "TXN-01", "checker_type": "sql", "requirement": "c2"},
+            {"id": "GRD-01", "checker_type": "redis", "requirement": "c3"},
+        ],
+        "contract_results": [
+            {"contract_id": "AUTH-01", "result": "FAIL",
+             "experiment": "java_source_diff", "evidence_ref": "f-1",
+             "details": "annotation removed"},
+            {"contract_id": "TXN-01", "result": "PASS",
+             "experiment": "java_source_diff", "evidence_ref": "",
+             "details": "guarded construct intact"},
+        ],
+    }
+    before = _before()
+    out = build_matrix_node(state)  # type: ignore[arg-type]
+
+    matrix = out["matrix"]
+    assert matrix["total_contracts"] == 3
+    assert len(matrix["rows"]) == 3
+    by_id = {row["contract_id"]: row for row in matrix["rows"]}
+    assert by_id["AUTH-01"]["result"] == "FAIL"
+    assert by_id["TXN-01"]["result"] == "UNVERIFIED"
+    assert by_id["GRD-01"]["result"] == "UNVERIFIED"
+    assert matrix["failed"] == 1
+    assert matrix["passed"] == 0
+    assert matrix["unverified"] == 2
+    assert _deltas(before) == _only("pass_downgraded")

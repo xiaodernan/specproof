@@ -60,7 +60,10 @@ curl.exe -fsSL -o $jarDst $wrapperUrl
 if ($LASTEXITCODE -ne 0) { throw "wrapper jar download failed (exit $LASTEXITCODE)" }
 
 Write-Output "== 4/5 fetch Maven Wrapper distribution (network required) =="
-docker run --rm --user 1000:1000 -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" -v "${volume}:/home/maven/.m2" -v "${tmpDemo}:/work:ro" -w /work $image ./mvnw -q -v
+# mvnw is committed 100644 (Windows drops the exec bit) and this script runs the
+# wrapper inside a Linux container against a Windows-mounted tree — `sh mvnw`
+# needs no exec bit (same shape and same reason as #159/#203 in the CI legs).
+docker run --rm --user 1000:1000 -e MAVEN_USER_HOME=/home/maven/.m2 -e MAVEN_OPTS="-Duser.home=/home/maven" -v "${volume}:/home/maven/.m2" -v "${tmpDemo}:/work:ro" -w /work $image sh mvnw -q -v
 if ($LASTEXITCODE -ne 0) { throw "wrapper dist fetch failed (exit $LASTEXITCODE)" }
 
 Write-Output "== 5/5 verify the offline TEST phase (the phase the differential runs) =="

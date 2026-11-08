@@ -37,7 +37,7 @@ FAKE_KEY_PREFIX = "s" + "k" + "-"
 def _git(cwd: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(cwd), *args],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
     )
     assert proc.returncode == 0, proc.stderr
     return proc.stdout.strip()
@@ -270,7 +270,7 @@ class TestSymlinkEscape:
             try:
                 made = subprocess.run(
                     ["cmd", "/c", "mklink", "/J", str(link), str(target)],
-                    capture_output=True, text=True,
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
                 )
             except OSError:
                 return ""
@@ -522,11 +522,11 @@ class TestPrepareNodeWiring:
             subprocess.run(
                 ["git", "-C", str(repo), "worktree", "remove", "--force",
                  str(workspace)],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
             )
             subprocess.run(
                 ["git", "-C", str(repo), "worktree", "prune"],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
             )
 
     def test_prepare_head_success_creates_worktree_and_marker(
@@ -550,11 +550,11 @@ class TestPrepareNodeWiring:
             subprocess.run(
                 ["git", "-C", str(repo), "worktree", "remove", "--force",
                  str(workspace)],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
             )
             subprocess.run(
                 ["git", "-C", str(repo), "worktree", "prune"],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
             )
 
     def test_prepare_base_git_failure_cleans_up(

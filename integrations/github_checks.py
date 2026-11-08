@@ -34,6 +34,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from integrations.contract_counts import count_sentence
+from providers.net import outbound_client
 
 CHECK_RUN_NAME = "specproof/verify"
 _JWT_TTL_SECONDS = 540  # GitHub caps app JWTs at 10 minutes.
@@ -222,7 +223,7 @@ class GitHubAppClient:
         timeout: float = 20.0,
     ) -> None:
         self._config = config
-        self._http = httpx.Client(
+        self._http = outbound_client(
             transport=transport,
             base_url=base_url,
             timeout=timeout,

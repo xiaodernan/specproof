@@ -1582,7 +1582,7 @@ def _tracked_trees() -> dict[str, tuple[str, ...]]:
         ("git", "ls-files", "*.py"),
         cwd=ROOT,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         check=True,
     )
     trees: dict[str, list[str]] = {}

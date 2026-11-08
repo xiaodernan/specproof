@@ -287,7 +287,7 @@ class Worker:
             logger.info("Job %s already leased, skipping", job_id)
             return
 
-        started = time.time()
+        started = time.monotonic()
         heartbeat_stop = threading.Event()
         lease_lost = threading.Event()
         heartbeat = threading.Thread(
@@ -350,7 +350,7 @@ class Worker:
                 # never change what the job's durable record says.
                 incr("jobs_completed_total")
                 incr("jobs_" + verdict.lower() + "_total")
-                set_gauge("jobs_processing_seconds", float(time.time() - started))
+                set_gauge("jobs_processing_seconds", float(time.monotonic() - started))
                 # §14 sets DIFFERENT p95 budgets per depth (FAST 480s vs DEEP
                 # 1500s), so the dimension must survive into the metric. The
                 # registry is label-free by design; like the per-stage family
@@ -361,7 +361,7 @@ class Worker:
                 observe_duration(
                     "jobs_duration_seconds_"
                     + str(payload.get("depth", "FAST")).lower(),
-                    float(time.time() - started),
+                    float(time.monotonic() - started),
                 )
             # Billing metering: gate_findings units = confirmed findings at
             # the terminal transition (idempotent event_id — a crash-recovery

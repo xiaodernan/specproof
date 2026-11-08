@@ -36,7 +36,7 @@ def _git(repo: str, *args: str) -> None:
         ["git", "-C", repo, "-c", "core.hooksPath=", *args],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         env=env,
     )
 

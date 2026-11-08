@@ -1228,9 +1228,10 @@ export async function transitionInvoiceStatus(
   period: string,
   status: "issued" | "paid"
 ): Promise<Invoice> {
-  return apiPost<Invoice>(
+  const resp = await apiPost<InvoiceStatusResponse>(
     "/api/v1/billing/invoices/" + encodeURIComponent(period) + "/status",
     { status }
   );
+  return resp.invoice;
 }
 

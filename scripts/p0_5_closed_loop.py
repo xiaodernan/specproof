@@ -77,7 +77,16 @@ def run(
     env["PATH"] = f"{JAVA_HOME}\\bin;" + env.get("PATH", "")
     if extra_env:
         env.update(extra_env)
-    return subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=cwd, timeout=timeout)
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        cwd=cwd,
+        timeout=timeout,
+    )
 
 
 def sha256_str(s: str) -> str:
@@ -827,8 +836,9 @@ def build_capsule(
         "diff_evidence": diff_evidence,
         "blocker_check": blocker_check,
         "env_info": env_info,
-        "evidence_digest": f"sha256:{
-            sha256_str(
+        "evidence_digest": (
+            "sha256:"
+            + sha256_str(
                 json.dumps(
                     {
                         'base_exit': base_result['exit_code'],
@@ -839,7 +849,7 @@ def build_capsule(
                     sort_keys=True,
                 )
             )
-        }",
+        ),
     }
     manifest_digest_raw = sha256_str(json.dumps(manifest, sort_keys=True, default=str))
     manifest["manifest_digest"] = f"sha256:{manifest_digest_raw}"

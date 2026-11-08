@@ -70,23 +70,20 @@ import seed_demo  # noqa: E402
 from contracts.demo_marker import DEMO_NOTE_PREFIX, seeded_demo_note  # noqa: E402
 from storage.mysql import MySQLStore  # noqa: E402
 from storage.tenant_scope import TENANT_SCOPE_VAR, TenantScope  # noqa: E402
+from tests._scan_walk import product_python_files  # noqa: E402
 
 REPO = _PROJECT_ROOT
 MYSQL = REPO / "storage" / "mysql.py"
 OWNER = REPO / "contracts" / "demo_marker.py"
 SEEDER = REPO / "scripts" / "seed_demo.py"
 
-#: Packages and scripts that ship in the image — the plane a rename can drift in.
-PRODUCTION_DIRS = (
-    "agent", "api", "cli", "contracts", "craft", "evidence", "experiments",
-    "integrations", "observability", "providers", "retrieval", "sandbox",
-    "scripts", "storage",
-)
-
-SKIP_DIRS = {
-    ".git", ".venv", ".venv312", "__pycache__", ".pytest_cache", ".mypy_cache",
-    ".ruff_cache", ".scratch", "node_modules", "dist", "build", "site-packages",
-}
+#: The plane a second copy of the predicate could appear in. #541 replaced the
+#: hand-typed tuple (14 roots, five packages short of what the repo actually
+#: tracks) with the one derived owner: the roots come from `git ls-files`, and
+#: the exclusion test reads the path below the walk root, because
+#: `any(part in SKIP_DIRS for part in path.parts)` returned 302 modules in a
+#: normal checkout and 0 in a worktree nested under `.scratch`.
+PRODUCTION_FILES = product_python_files(REPO)
 
 #: Files whose executed constants may contain the owner's prefix besides the
 #: owner itself, because their text is ordinary prose that happens to spell it.
@@ -138,23 +135,17 @@ def _string_constants_containing(marker: str) -> list[tuple[str, int, str]]:
     prose witnesses claims the code never made).
     """
     hits: list[tuple[str, int, str]] = []
-    for package in PRODUCTION_DIRS:
-        base = REPO / package
-        if not base.is_dir():
-            continue
-        for path in sorted(base.rglob("*.py")):
-            if any(part in SKIP_DIRS for part in path.parts):
-                continue
-            module = ast.parse(path.read_text(encoding="utf-8"))
-            docstrings = _docstring_nodes(module)
-            for node in ast.walk(module):
-                if (
-                    isinstance(node, ast.Constant)
-                    and isinstance(node.value, str)
-                    and marker in node.value
-                    and id(node) not in docstrings
-                ):
-                    hits.append((path.relative_to(REPO).as_posix(), node.lineno, node.value))
+    for path, module_rel in PRODUCTION_FILES:
+        module = ast.parse(path.read_text(encoding="utf-8"))
+        docstrings = _docstring_nodes(module)
+        for node in ast.walk(module):
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and marker in node.value
+                and id(node) not in docstrings
+            ):
+                hits.append((module_rel, node.lineno, node.value))
     return hits
 
 
@@ -318,19 +309,15 @@ def test_the_seeder_builds_its_note_through_the_owner() -> None:
 
 def test_the_census_is_not_blind() -> None:
     """A census that read nothing would report 'no stray copies' for free."""
-    scanned = 0
-    quote_chars = 0
-    for package in PRODUCTION_DIRS:
-        base = REPO / package
-        if not base.is_dir():
-            continue
-        for path in base.rglob("*.py"):
-            if any(part in SKIP_DIRS for part in path.parts):
-                continue
-            scanned += 1
-            quote_chars += path.read_text(encoding="utf-8").count('"')
-    # Measured on #525's base: 302 modules, 105249 quote characters. The floors
-    # sit well under that so they only fire if the scan starts skipping real code.
+    scanned = len(PRODUCTION_FILES)
+    quote_chars = sum(
+        path.read_text(encoding="utf-8").count('"') for path, _ in PRODUCTION_FILES
+    )
+    # Measured on #541's derived plane: 317 modules over 18 roots, 105249+ quote
+    # characters (the 14-root list #525 typed reached 302 of those modules). The
+    # floors sit well under the measurement so they only fire if the walk starts
+    # skipping real code — which is what a worktree nested under `.scratch` did
+    # to the old absolute-path filter: 302 became 0 and this leg said so.
     assert scanned >= 250, f"only {scanned} production modules scanned — census read nothing"
     assert quote_chars >= 40000, f"only {quote_chars} string characters seen; the walk is shallow"
 

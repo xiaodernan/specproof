@@ -110,6 +110,11 @@ traceback, 而且 killed 的正是他本想保持不动的那个旋钮。现在�
 - GET /health: {status: ok|degraded, redis: bool}
 - GET /metrics (Prometheus): jobs_completed_total, jobs_<verdict>_total,
   jobs_processing_seconds, outbox_pending, http_requests_total 等。
+- Alertmanager (compose.observability.yml, prom/alertmanager:v0.27.0): SLO 告警
+  (18 条 specproof-slo 规则) 的接收端; `alerting:` 块指向 alertmanager:9093。
+  默认 receiver 为 **null 占位**——不发出任何通知; GET /api/v2/alerts 恒为 []
+  是占位状态下的正常表现, 不是"没有告警"。接真实值班路由时同改 receivers 与
+  routes; 配置校验见 OBSERVABILITY.md §1/§3/§4/§7 (amtool/promtool)。
 - CP: GET /health (8081), actuator health/metrics。
 - 日志: JSON 结构 (job_id/trace_id), worker 内每个消息都带 job_id。
 - OTel: OTLP exporter (init_tracing, 服务名 specproof-api/specproof-worker)。
@@ -161,6 +166,15 @@ traceback, 而且 killed 的正是他本想保持不动的那个旋钮。现在�
   MAVEN_OPTS=-Duser.home=/home/maven 钉住 (mvn 3.9.9 忽略
   MAVEN_USER_HOME 环境变量, JDK21 的 user.home 来自 /etc/passwd, 均已
   实测)。
+
+- **api / outbox-relay 也以 uid 1000:1000 运行（2026-11-08 起）**。
+  compose.production.yml 里三个应用服务（api / worker / outbox-relay）都钉
+  `user: "1000:1000"`；镜像内 `USER` 未写死（python:3.12-slim 出厂为 root），
+  由 compose 侧钉死（门：`tests/unit/test_production_services_do_not_run_as_root.py`）。
+  `sandbox`（dind 守护进程）是刻意例外：保持 privileged，其内部沙箱容器由
+  `sandbox/runner.py` 的 `--user 1000:1000` argv 约束。容器内无登录能力、
+  无 sudo、WORKDIR /app 世界可读（pip 包出厂可读），PYTHONDONTWRITEBYTECODE=1
+  避免 .pyc 写权限需求。
 
 - **DooD: 生产不挂宿主机 docker.sock (§12)**。compose.production.yml
   的 worker 通过 DOCKER_HOST=tcp://sandbox:2375 使用专用

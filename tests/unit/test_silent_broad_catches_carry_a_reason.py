@@ -89,7 +89,8 @@ def _scan(source: str, filename: str = "<mem>") -> list[tuple[int, str | None]]:
 def _production_files() -> list[Path]:
     files: list[Path] = []
     for root in _ROOTS:
-        files.extend(p for p in (_REPO_ROOT / root).rglob("*.py") if "__pycache__" not in p.parts)
+        files.extend(p for p in (_REPO_ROOT / root).rglob("*.py")
+                     if "__pycache__" not in p.relative_to(_REPO_ROOT).parts)
     return files
 
 

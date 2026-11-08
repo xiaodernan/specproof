@@ -57,8 +57,9 @@ function principalWith(roles: string[]) {
 beforeEach(() => {
   get.mockReset();
   whoami.mockReset();
-  // Default: an operator, a role the matrix does grant the vote (#116).
-  whoami.mockResolvedValue(principalWith(["operator"]));
+  // Default: an auditor, the role ROLE_MATRIX grants cases:verify since #113
+  // (admin also votes; operator triggers without verifying by design).
+  whoami.mockResolvedValue(principalWith(["auditor"]));
   loadFeedback.mockReset();
   postFeedback.mockReset();
   localStorage.clear();
@@ -239,7 +240,7 @@ describe("FindingDetail 验收反馈入口 (#84) — Go/No-Go #13 needs a UI", (
       severity: "MAJOR",
       verdict: "accept",
       reason: null,
-      created_by: "u-operator",
+      created_by: "u-auditor",
     });
   });
 
@@ -312,9 +313,9 @@ describe("FindingDetail 验收反馈入口 (#84) — Go/No-Go #13 needs a UI", (
 
 describe("FindingDetail 投票权限 (#116) — a button the server would refuse", () => {
   // The page's own principle (stated above the component): a click must never be
-  // dead. Before #116 a viewer or auditor could press 接受/打回 and get a raw 403
+  // dead. Before #116 a viewer or operator could press 接受/打回 and get a raw 403
   // the page could not explain. The role set is the shared FEEDBACK_VOTE_ROLES
-  // derived from ROLE_MATRIX::cases:trigger by tests/unit/test_access_role_parity.py,
+  // derived from ROLE_MATRIX::cases:verify by tests/unit/test_access_role_parity.py,
   // so these expectations follow the matrix rather than a hand-typed list.
 
   it("lets a role the matrix grants actually cast the vote", async () => {
@@ -331,7 +332,7 @@ describe("FindingDetail 投票权限 (#116) — a button the server would refuse
     expect(postFeedback).toHaveBeenCalledTimes(1);
   });
 
-  it.each([["viewer"], ["auditor"]])(
+  it.each([["viewer"], ["operator"]])(
     "disables both buttons for %s and says why, while the ledger stays readable",
     async (role) => {
       whoami.mockResolvedValue(principalWith([role]));
@@ -353,7 +354,7 @@ describe("FindingDetail 投票权限 (#116) — a button the server would refuse
       fireEvent.click(reject);
       expect(postFeedback).not.toHaveBeenCalled();
 
-      const reason = await screen.findByText(/只有 admin \/ operator 可以对这条判定投票/);
+      const reason = await screen.findByText(/只有 admin \/ auditor 可以对这条判定投票/);
       expect(reason.textContent).toContain("不是这个页面自己定的规矩");
       // The refusal is about the vote only — the rate and the rows must survive it.
       expect(screen.getByText("50.0%")).toBeTruthy();
@@ -380,16 +381,16 @@ describe("FindingDetail 投票权限 (#116) — a button the server would refuse
   it("explains a 403 the page could not predict instead of printing the bare code", async () => {
     // The disabled buttons are the page's prediction. This is the case where it
     // is wrong for a reason the page cannot see at all: an admin whose TOKEN
-    // lacks the scope is refused by the second gate (principal_denial, api/
-    // identity/principal.py:125-132) even though the role matrix allows the vote.
+    // lacks the scope is refused by the second gate (principal_denial in
+    // api/identity/principal.py) even though the role matrix allows the vote.
     // The envelope below is that refusal's real code and real sentence.
     whoami.mockResolvedValue(principalWith(["admin"]));
     localStorage.setItem("specproof_reviewer", "ana");
     postFeedback.mockRejectedValue(
       new ApiError(
         403,
-        "token scopes ['cases:read'] do not cover cases:trigger; "
-        + "role ['admin'] does allow it, so mint a token with --scopes cases:trigger",
+        "token scopes ['cases:read'] do not cover cases:verify; "
+        + "role ['admin'] does allow it, so mint a token with --scopes cases:verify",
         "TENANT_FORBIDDEN"
       )
     );
@@ -400,7 +401,7 @@ describe("FindingDetail 投票权限 (#116) — a button the server would refuse
 
     const box = await screen.findByText(/权限不足/);
     expect(box.textContent).toContain("HTTP 403 · TENANT_FORBIDDEN");
-    expect(box.textContent).toContain("mint a token with --scopes cases:trigger");
+    expect(box.textContent).toContain("mint a token with --scopes cases:verify");
   });
 });
 
@@ -426,14 +427,14 @@ describe("FindingDetail 投票身份的时间点 (#121)", () => {
     const btn = await screen.findByRole("button", { name: "接受这条判定" });
     fireEvent.click(btn);
     // The click has happened while the only identity the component had was "ana".
-    release(principalWith(["operator"]));
+    release(principalWith(["auditor"]));
 
     expect(await screen.findByText(/本次没有重复计数/)).toBeTruthy();
     // The id is derived by the fixture itself ("u-" + roles), not by a string I typed:
     // asserting "session-user" here was my invention and it never existed anywhere.
     expect(postFeedback).toHaveBeenCalledWith(
       "job-1",
-      expect.objectContaining({ created_by: "u-operator" })
+      expect.objectContaining({ created_by: "u-auditor" })
     );
   });
 });
@@ -447,11 +448,11 @@ describe("FindingDetail 评审人框说的是被记下来的那个身份 (#115b)
     get.mockResolvedValueOnce(payload("MAJOR"));
     render(<FindingDetail jobId="job-1" findingId="f-1" />);
 
-    const box = (await screen.findByDisplayValue("u-operator")) as HTMLInputElement;
+    const box = (await screen.findByDisplayValue("u-auditor")) as HTMLInputElement;
     expect(box.readOnly).toBe(true);
     expect(screen.queryByDisplayValue("whoever-was-typed-here")).toBeNull();
     const hint = await screen.findByText(/取自当前登录身份/);
-    expect(hint.textContent).toContain("u-operator");
+    expect(hint.textContent).toContain("u-auditor");
     expect(screen.queryByText(/后端不会替你核验它是谁/)).toBeNull();
   });
 

@@ -49,8 +49,12 @@ and edits this file's words is not caught by anything — that is true of every 
      lenses (``git grep`` over history, my own regex over HEAD's blob) are graded on one file.
   L2 a recorded id missing from HEAD whose titles ALL vanished is refused, naming the revision that
      last carried it.
-  L3 the exemption is only as good as its referent: each surviving title must name exactly one HEAD
-     id, and HEAD's titles and ids must stand one-to-one.
+  L3 the exemption is only as good as its referent: when a lost id's recorded title matches HEAD,
+     that title must name exactly one HEAD id. A shared title at HEAD is tolerated where no lost id
+     leans on it. Measured 2026-11-06: 50 HEAD ids sit under four one-line titles of other lanes'
+     empty placeholder sections, so a global uniqueness ban would demand renaming the earlier
+     appends after every commit without grading any claim this fence makes. L3's witness runs the
+     leg itself on a synthetic plane where a lost id leans on a shared title and must be refused.
   L4 the fence charges a deletion of a real heading from real bytes, does NOT charge the same bytes
      when the heading is only renumbered (the #287/#288 shape), and charges it again when the
      heading is renumbered AND reworded.
@@ -336,23 +340,57 @@ def test_no_recorded_section_is_missing_from_head_without_a_survivor() -> None:
 def test_the_survivor_named_by_an_excused_id_is_one_real_head_section() -> None:
     """L3 — "the title survives elsewhere" has to mean ONE section, and a real one.
 
-    A lost id excused by a title match is only checkable while each HEAD title names a single HEAD
-    id: if two sections carried the same title, the match would stop saying which one the record
-    became. Measured over HEAD's own bytes, not tabulated — a lane that copies a heading line to a
-    second number trips this leg.
+    A lost id excused by a title match is only checkable while the matched title names a single
+    HEAD id. That requirement is enforced where it is used — on the excuse — not as a ban on
+    duplicate titles at HEAD: this ledger is appended to by many lanes, and measured 2026-11-06 it
+    carries 50 ids under four one-line placeholder titles, every one of those sections empty. A
+    global ban would go red again with the next append and would not grade any claim this leg
+    makes. The witness below runs this same leg on a synthetic plane where a lost id leans on a
+    shared title.
     """
     _revs_, carriers, lines, text, _label = _readings()
     head_ids, by_title = _head_index(text)
-    dup_titles = {title: ids for title, ids in by_title.items() if len(ids) > 1}
-    assert not dup_titles, f"one title under {len(dup_titles)} HEAD ids: {list(dup_titles)[:3]}"
-    assert len(by_title) == len(head_ids), f"{len(by_title)} titles vs {len(head_ids)} ids at HEAD"
     for row in _rows(carriers, lines, text):
         phantom = set(row.survivors) - head_ids
         assert not phantom, f"#{row.ident} is excused by an id HEAD does not show: {phantom}"
         assert row.ident not in row.survivors, f"#{row.ident} is its own survivor: {row.explain()}"
         for title in row.titles:
             if title in by_title:
-                assert len(by_title[title]) == 1, f"«{title[:40]}» names {by_title[title]}"
+                assert len(by_title[title]) == 1, (
+                    f"#{row.ident} is excused by «{title[:40]}», which names "
+                    f"{len(by_title[title])} HEAD ids: {by_title[title]}"
+                )
+
+
+def test_an_excuse_by_a_shared_title_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """L3w — the refusal above is loaded where it is used, on a plane built to need it.
+
+    The shipped ledger currently has no lost id leaning on a shared title, so the refusal inside
+    L3 cannot fire on the real plane. This leg runs L3 itself (not a copy of its predicate) against
+    synthetic bytes: two HEAD headings share one title, and a recorded id HEAD does not show
+    carries that title. L3 must refuse and name the lost id together with both referents.
+
+    The same plane with one unique title is the reverse control: L3 must pass there, so a red in
+    the shared case cannot come from an unrelated assertion.
+    """
+    module = sys.modules[__name__]
+    carriers = {"9003": ("deadbeef",)}
+    lines = {"9003": ("## #9003 同一标题",)}
+
+    def plane(text: str) -> tuple[Any, ...]:
+        return (("rev",) * MIN_REVS, carriers, lines, text, "synthetic")
+
+    unique = "## #9001 同一标题\n\n## #9002 另一个标题\n"
+    shared = "## #9001 同一标题\n\n## #9002 同一标题\n"
+
+    monkeypatch.setattr(module, "_readings", lambda: plane(unique))
+    test_the_survivor_named_by_an_excused_id_is_one_real_head_section()
+
+    monkeypatch.setattr(module, "_readings", lambda: plane(shared))
+    with pytest.raises(AssertionError) as excinfo:
+        test_the_survivor_named_by_an_excused_id_is_one_real_head_section()
+    message = str(excinfo.value)
+    assert "#9003" in message and "['9001', '9002']" in message, message
 
 
 # ─────────────────────────────── L4 — the judgment, both ways ───────────────────────────────

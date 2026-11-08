@@ -144,6 +144,33 @@ def test_a_vacuous_pass_side_cannot_carry_a_regression(
     assert "base tests: 0" in entry["detail"]
 
 
+def test_a_vacuous_head_side_cannot_carry_a_regression(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """Head exited 0 without running a test: its "pass" is empty evidence.
+
+    Comparing it to a failing Base would emit REGRESSION on a side that
+    never executed the generated test. The comparison is unjudgeable —
+    symmetric with the base-vacuous case (guard is `or`, not `and`).
+    """
+    from agent.nodes.run_differential import run_differential_node
+
+    _stub_execution(monkeypatch, {
+        "maven_base": _result(1, 4, failures=4),
+        "maven_head": _result(0, 0),
+        "maven_probe": [],
+    })
+    out = run_differential_node(_make_state(tmp_path))
+
+    entry = out["diff_results"][0]
+    assert entry["verdict"] == "NON_REPRODUCIBLE", (
+        f"a zero-test head run cannot witness a regression; got {entry['verdict']}"
+    )
+    assert "head tests: 0" in entry["detail"]
+    assert entry["head_test_counts"]["tests"] == 0
+    assert [r["result"] for r in out["contract_results"]] == ["UNVERIFIED"]
+
+
 def test_a_real_both_sides_failure_keeps_its_ambiguous_verdict(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
@@ -163,3 +190,39 @@ def test_a_real_both_sides_failure_keeps_its_ambiguous_verdict(
         f"verdict; got {entry['verdict']}: {entry['detail']}"
     )
     assert entry["base_test_counts"]["tests"] == 4
+
+
+def test_differential_contract_results_flow_into_matrix(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """run_differential_node 的 contract_results 能被 build_matrix_node
+    消费并转为矩阵行：LangGraph channel 合并不丢失。
+
+    零执行的差分节点产出 UNVERIFIED contract_results，build_matrix_node
+    应将其原样保留为矩阵行，不升级也不降级。
+    """
+    from agent.nodes.build_matrix import build_matrix_node
+    from agent.nodes.run_differential import run_differential_node
+
+    _stub_execution(monkeypatch, {
+        "maven_base": _result(1, 0, stdout=_OFFLINE_ERROR),
+        "maven_head": _result(1, 0, stdout=_OFFLINE_ERROR),
+        "maven_probe": [],
+    })
+    out = run_differential_node(_make_state(tmp_path))
+
+    # 差分节点产出 UNVERIFIED contract_results
+    assert [r["result"] for r in out["contract_results"]] == ["UNVERIFIED"]
+
+    # 将 contract_results 喂给 build_matrix_node，模拟 LangGraph channel 传递
+    matrix_out = build_matrix_node({
+        "contracts": [{"id": "UNIQUE-01"}],
+        "contract_results": out["contract_results"],
+    })
+
+    matrix = matrix_out["matrix"]
+    assert len(matrix["rows"]) == 1
+    assert matrix["rows"][0]["contract_id"] == "UNIQUE-01"
+    assert matrix["rows"][0]["result"] == "UNVERIFIED", (
+        "差分节点的 UNVERIFIED 应原样进入矩阵，不被升级或降级"
+    )

@@ -86,9 +86,17 @@
   skipMain + head 增量播种; 3 案例小样本实测 53-65s/case 本地模式);
   100 案例目录/split.json 就绪; 验收测试 100 目录断言 + 新代表子集 +
   slow_eval 实测依据注释; docs/eval/p6-100-case-eval.md
-- [ ] P6 阶段二 (进行中): 队长已提交 demo/ 基座 (eeeb9e2) 并运行
-  builder (101 tags, case-21..100-head 均挂新基座); 待全量 100 案例
-  隔离评测 -> 复核 +25pp 门槛
+- [x] P6 阶段二 (本机实测完成, 2026-11-08): 100 案例全量隔离评测本机复现
+  (docs/operations/DEEP_OPTIMIZATION_PLAN.md #1517): nightly-eval 同口径
+  87 可评估案例 Recall/Precision/F1 = 100.0%、0 误报、Acceptance PASS;
+  holdout 腿 12 例全检出、0 FP 但为 INSUFFICIENT ("负例样本 2 < 要求的最小
+  负例数 5", #1518); case-101 标签验证 base PASS/head FAIL HOLDS (#1519)。
+  复核 +25pp 门槛未达成 —— 该指标需要 LLM 基线 ("直接让 DeepSeek 看 Diff")
+  的实测对照; 本机无 DEEPSEEK_API_KEY, 未执行。
+  如实订正: builder 落地的结论 (#1517/#1518) 不是"全量 100 案例逐项都绿"——
+  87 个参与案例 (holdout 隔离的 14 个未参与) 100/100/100 通过, 且严重性
+  一致率 90.4%。holdout 还需一个全程无评测见过的新 case 集才能算干净的
+  prospective 隔离 (当前为 retroactive candidates, #313/#334 立场不变)。
 
 ## 下一步 (按顺序)
 
@@ -96,8 +104,35 @@
   Dashboard 压测、3 个真实仓库试点 (runbook 已就绪)
 - [ ] P6 安全项: worker DooD (/var/run/docker.sock) 与 §12 冲突,
   改隔离 runner / rootless dind; 沙箱非 root 运行 (Linux)
+  （2026-11-08 复核: 生产 compose 已用专用 docker:27-dind（非宿主 socket），
+  沙箱 argv 固定 `--user 1000:1000`/`--cap-drop ALL`/`--network none`/
+  `--pids-limit 256`/no-new-privileges；2026-11-08 起 api/worker/outbox-relay
+  三个应用服务 compose 侧也都钉 `user: "1000:1000"`
+  （tests/unit/test_production_services_do_not_run_as_root.py）；RUNBOOK §5
+  记录 rootless 变体实测不可用及线索。checkbox 保留给"rootless 路线决策 + 生产
+  复核签字"，不是代码缺口。）
 - [ ] P6 可观测/SLO: Grafana dashboard 化、SLO 看板与告警、备份恢复演练
+  （2026-11-08 复核: 51 面板 SLO 看板 + 18 条 SLO 告警已入仓
+  （infra/grafana, infra/prometheus）；promtool 校验规则语法通过；Grafana
+  11.6.1 一次性实例实证 provisioning（datasource + dashboard 51 panels,
+  /api/health=200）；备份恢复演练第一阶段（MySQL/Mongo 隔离目标库
+  dump→restore→逐表计数对齐, 产品库只读备份并删除明文）已完成
+  —— 详见 docs/operations/DATA_LIFECYCLE.md §6.4；Alertmanager 已接入
+  compose.observability.yml（prom/alertmanager:v0.27.0, prometheus.yml
+  alerting: 块指向 alertmanager:9093, 一次性实例 /-/healthy=200 /
+  /api/v2/alerts=200 []），默认 null 占位接收端 —— **不发通知**。
+  checkbox 保留给"生产 Grafana/Alertmanager 部署 + 告警路由到真人
+  + 产品库就地恢复窗口 + 每日 cron/PITR"）
 - [ ] P5 增补: LLM 基线 ("直接让 DeepSeek 看 Diff") 实测补测
+  （2026-11-08 复核: 仓库内已有实测证据——2026-08-18 实测 deepseek-v4-pro
+  真实接口, 同一 100 案例集: SpecProof 严格契约 recall / precision / recall_any / F1
+  = 100.0%; 裸模型 recall=0.0%(严格), recall_any=100.0%, 误报 5 例;
+  Go/No-Go #14 按严格口径 PASS (+100.0pp)。证据: docs/eval/go-nogo-14-llm-live.md,
+  docs/eval/llm-baseline-100-live.md, .json（summary: detected 0/63, false_positives 5）。
+  本机 2026-11-08 无 DEEPSEEK_API_KEY, 未复跑；且该 100 案例集的 holdout 隔离
+  是 retroactive（#313/#334/#1518），其 SpecProof 侧口径不能与前瞻 holdout 混同。
+  checkbox 保留给"当前模型/配置在 87 案例 tuning 池上的复跑复测"（需 key），
+  或由运营接受 2026-08-18 证据并签字关闭。）
 
 ## 关键指标 (Go/No-Go)
 
