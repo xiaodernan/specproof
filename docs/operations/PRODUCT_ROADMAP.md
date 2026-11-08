@@ -106,6 +106,12 @@
   - 为什么取「编译后的候选表」而不是自己重算：`dedupe_candidates` 会让一条需求丢掉唯一候选，此时它没做错任何事却不再被任何人验证；重算会漏掉这一类，报告因此与调用方真正要用的表一致。
   - 建议分两种，因为两种要做的修改相反：**没有验收标准**（无可匹配内容，补一条可观测标准）与**有验收标准但没用到任何检查器族措辞**（不变量真实但不可断言，改述成可观测值或补一个族）。早期草稿把「有 `-` 列表项」当无标准用例，两侧建议完全一样——解析器把每个 `-` 条目都读成 `AcceptanceCriterion`，所以真正的「无标准」形狀是正文里没有 `-`。这条写进了用例注释。
 - [ ] **2.6 更多语言**：Go、Java/Gradle 适配器（矩阵中的 planned 行）。
+  - 订正（2026-11-08）：Go 已实装（`craft/adapters/go_adapter.py` 与 `experiments/adapters.py:1700`，EXECUTION_COMPATIBILITY
+    "已支持 (Docker 沙箱)"、image digest 固定）；Java/Gradle 也已实装（`GradleAdapter` 见 `experiments/adapters.py`，
+    登记在 registry + matrix"已支持"，digest 未钉、以 `—` 如实写在兼容矩阵）。唯一还-[ ] 的是：Gradle 镜像 digest
+    未 pin（`gradle:8.10-jdk21`，image_digest 方法返回 `—`）。本项的真实剩余：
+    ① `experiments/adapters.py::_gradle_image()` 的 digest 钉死（与 Maven/go 镜像同口径）；
+    ② 或正式宣布 "with 官方 floating tag, digest=—, 不伪造 pin"。
 
 ### Phase 3 —— 验收体验与实时性（P1，并行推进）
 - [~] **3.1 实时进度与流式日志**：SSE 事件粒度到"节点级"，前端时间线展示每步耗时/产物/失败点。
