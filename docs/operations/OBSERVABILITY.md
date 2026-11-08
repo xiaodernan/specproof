@@ -73,6 +73,9 @@ PROMETHEUS_PORT / ALERTMANAGER_PORT / GRAFANA_PORT)。这类旋钮只覆盖 comp
     字面量 "9102" 钉住并 expose, 改不动; infra/prometheus/prometheus.yml 名册抓
     notify-relay:9102/metrics (compose.production.yml 的 notify-relay 服务,
     #16.6-1/K 的部署入口), 配 SpecproofNotifyRelayDown 存活探针; 移不动, 改则三处同改。
+    绑定失败判决与 worker/outbox-relay 同形：进程在 refusal 上不吞——
+    随绑定失败退出（storage/notify_relay.py 的 serve_metrics_in_thread 调用在
+    try 之外，OSError 直接终结进程）；抓取不可达的端点不允许装作活着。
   - 在宿主机直接跑 api 时的 OTLP 客户端: observability/tracing.py 的默认端点
     字面量是 http://localhost:4318/v1/traces。覆盖 OTEL_OTLP_HTTP_PORT 后宿主机
     上不再有人在 4318 监听, 这个字面值就指不到 collector, 要同时设
@@ -336,9 +339,11 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 - WORKER_METRICS_PORT (代码默认 9100) 与 OUTBOX_RELAY_METRICS_PORT (代码默认 9101): 两个端口
   都在 infra/prometheus/prometheus.yml 的名册上, 进程不吞这个失败, 随绑定失败退出 — 一个
   抓不到的端点不该装作在跑。
-- INVOICE_CRON_METRICS_PORT (代码默认 9103): 名册上没有它, 月账单的工作按已关闭月份幂等, 所以
-  这个进程不因为指标端口而停: 启动日志记 "NOT serving (原因)" 并继续开票。读到 NOT serving
-  只表示这个进程的指标抓不到, 不表示发票没生成。
+- INVOICE_CRON_METRICS_PORT (代码默认 9103): billing profile 武装后, 名册抓
+  invoice-cron:9103/metrics（#M8-T70b 武装了 FIX-27 的部署入口; 未武装时该目标 down 属预期）,
+  配 SpecproofInvoiceCronDown 存活探针。这个进程不因为指标端口而停: 启动日志记
+  "NOT serving (原因)" 并继续开票 —— 月账单的工作按已关闭月份幂等, 丢这个探针只是丢掉指标。
+  读到 NOT serving 只表示这个进程的指标抓不到, 不表示发票没生成。
 - 指标刷新的失败落在日志与序列两处: storage/outbox_relay.py 记 "metrics refresh failed" 之后,
   specproof_outbox_* 的 gauge 停在最后一次成功读数, 而同一份 /metrics 上的
   specproof_outbox_pending_freshness (秒) 继续逐轮增长 — 冻结因此有了序列形状, 不再只能翻日志

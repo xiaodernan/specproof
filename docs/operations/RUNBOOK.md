@@ -46,9 +46,10 @@
   command: 与 start_local.ps1 各起一次，它两者都没有)。要自己起它需要 outbox-relay
   那一套变量集，包含 `SPECPROOF_BILLING_URL`; 未设置时启动即 no-op 而非猜库。只给
   已关闭月生成草票。指标端点 `INVOICE_CRON_METRICS_PORT` (默认 9103) 上的 /metrics
-  目前没有任何抓取作业读它 (infra/prometheus/prometheus.yml 里没有 9103 这一行)。
-  端口已被别的进程回答时它不退出: 启动日志记 "NOT serving (原因)" 后照常按月开票 — 9103
-  不在名册上、开票按已关闭月份幂等, 这两条就是它与 outbox-relay 判决相反的原因 (2026-10-17 实测)。
+  已在名册上抓取（infra/prometheus/prometheus.yml 的 invoice-cron 作业，目标
+  invoice-cron:9103；billing profile 启用后 up、未启用时 down 属预期），配
+  SpecproofInvoiceCronDown 存活探针。端口已被别的进程回答时它不退出: 启动日志记
+  "NOT serving (原因)" 后照常按月开票 — 这就是它与 worker 判决相反的原因 (2026-10-17 实测；2026-10-30 武装部署入口)。
 - **生产必须 SPECPROOF_ENV=production，而且这件事现在由部署文件本身做到** (#79, 2026-09-26 实测纠正):
   此前 config_guard 只在 `SPECPROOF_ENV=production` 时才拒绝默认口令，而**没有任何入口设置这个变量**
   —— compose 的两个文件、两个本机启动脚本都没有它，于是 `api/server.py` 那句

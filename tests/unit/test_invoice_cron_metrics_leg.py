@@ -462,15 +462,18 @@ def _types(body: str) -> dict[str, str]:
     return {m.group(1): m.group(2) for m in _TYPE_LINE.finditer(body)}
 
 
-def test_E1_the_exempt_number_is_occupied_and_answers_the_promised_path(
+def test_E1_the_rostered_number_is_occupied_and_answers_the_promised_path(
     store: SqliteBillingStore, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The first leg in the repository to hold 9103, through the process's own default.
+    """E1 — the number the cron binds by default is answered by this process, and the roster reads it.
 
-    No ``metrics_port`` argument and no env knob — this is the shape ``python -m
-    storage.invoice_cron`` takes on a host — so the number being occupied is the number
-    the module's literal declares. Measured before this leg: the socket ends up at
-    ``('127.0.0.1', 9103)`` and answers the scrape default with this process's registry.
+    Same probe as the exempt-era E1 (no ``metrics_port`` argument, no knob — the shape
+    ``python -m storage.invoice_cron`` takes on a host). The premise clause about
+    "nobody reads 9103" is obsolete: the billing profile armed this module (2026-10-30)
+    and ``infra/prometheus/prometheus.yml`` scrapes ``invoice-cron:9103`` by design.
+    The leg now certifies (a) the socket is this process's, (b) the docs' promised
+    path equals the scrape default, and (c) the roster's target IS the number this
+    leg holds — the armed-stack conjunction the "exempt number" era refused to assert.
     """
     monkeypatch.delenv(CRON_KNOB, raising=False)
     monkeypatch.delenv("SPECPROOF_INVOICE_PERIOD", raising=False)
@@ -489,7 +492,7 @@ def test_E1_the_exempt_number_is_occupied_and_answers_the_promised_path(
         with caplog.at_level(logging.INFO, logger="storage.invoice_cron"):
             _run_one_cycle(InvoiceCron(store, interval=0.0))
         assert not refusals, (
-            f"the exempt number probed free seconds ago and the cron's bind was refused by "
+            f"the rostered number probed free seconds ago and the cron's bind was refused by "
             f"{refusals} — the leg cannot tell a stolen port from a lost race"
         )
         assert opened, "run_forever never reached a socket on the number the module declares"
@@ -502,14 +505,13 @@ def test_E1_the_exempt_number_is_occupied_and_answers_the_promised_path(
         )
         assert occupied_address == "127.0.0.1", (
             f"METRICS_BIND_HOST=127.0.0.1 resolves and the endpoint is asked for it, yet the "
-            f"exempt socket is bound to {occupied_address!r} — the address half of the promise "
+            f"rostered socket is bound to {occupied_address!r} — the address half of the promise "
             "never reaches a bind"
         )
         status, body = _get(occupied_port, path)
         assert status == 200, (
-            f"the exempt number is occupied but answers {status} at {path}; the roster's remedy "
-            f"for this exemption is one new job line with no metrics_path, which would scrape "
-            f"{body[:120]!r}"
+            f"the rostered number is occupied but answers {status} at {path}; the roster's job "
+            f"line reads /metrics with no metrics_path, and would scrape {body[:120]!r}"
         )
         assert f"specproof_{MARKER} " in body, (
             f"this process occupies {occupied_port} yet its own marker is not on the wire — the "
@@ -523,7 +525,7 @@ def test_E1_the_exempt_number_is_occupied_and_answers_the_promised_path(
         for rel, tokens in sorted(claims.items()):
             assert tokens == {path}, (
                 f"{rel} promises {sorted(tokens)} for {CRON_KNOB} while the scrape default is "
-                f"{path!r} (#232's DEFAULT_METRICS_PATH) — the exempt endpoint answers a path "
+                f"{path!r} (#232's DEFAULT_METRICS_PATH) — the rostered endpoint answers a path "
                 "the reader was not told about"
             )
         scraped = [
@@ -531,10 +533,12 @@ def test_E1_the_exempt_number_is_occupied_and_answers_the_promised_path(
             for job, info in sorted(_gate232()._roster().items())
             if int(info["port"]) == occupied_port
         ]
-        assert not scraped, (
-            f"{occupied_port} is now scraped by {scraped}: this leg certifies an UNREAD "
-            "endpoint, and an un-armed process cannot answer a live job — move the knob into "
-            "#232's _LISTEN_PORT_KNOBS instead of reading it here"
+        assert scraped == ["invoice-cron"], (
+            f"{occupied_port} is scraped by {scraped}: the billing profile arms this module and "
+            f"the roster names exactly invoice-cron:{occupied_port} as its target. Anything "
+            "other than that — a different job, or a vanished line — means the armed "
+            "deployment story in OBSERVABILITY/RUNBOOK/BILLING_DESIGN went out stale "
+            "while the numbers stayed pinned"
         )
     finally:
         _close_all(opened)
@@ -703,15 +707,16 @@ def test_E3_a_real_run_moves_the_cron_family_on_the_exempt_endpoint(
     )
 
 
-def test_E4_no_deploy_carrier_claims_the_exempt_number_and_the_predicate_refuses() -> None:
-    """The other half of 「没人抓它」 : nobody else was handed the number either.
+def test_E4_the_rostered_number_has_no_unintended_carrier_and_the_predicate_refuses() -> None:
+    """The other half of the armed-stack story: who else was handed the number.
 
-    #232's L15 proves no job scrapes the exempt port and no deploy file starts the module.
-    Neither reads compose's published ports, so a host mapping could take 9103 for another
-    service while every existing gate stayed green — and on the host plane that is exactly
-    where this cron would be started. The census is floored, and the predicate is driven
-    from both sides with planted rows: an absence claim that has never refused anything is
-    only evidence while the same scan still fires on a row written to be caught.
+    ``#232``'s L15 proves no *other* job scrapes the cron's port and no deploy file
+    hands it to a different service.  The billing profile armed this module (2026-10-30):
+    the roster's invoice-cron job scraping 9103 is *intended* and is asserted by E1, not
+    forbidden here.  What this leg still certifies on the deploy plane: no *unrelated*
+    compose mapping publishes 9103 on the host (a collision with the cron's in-network
+    bind), and any reading of the census answers from its population, not from an empty
+    set — the two planted rows on each arm are kept and doubled with the templated shape.
 
     #477: the predicate moved to ``tests/unit/port_claims.py`` — the deploy plane's owner.
     It used to compare the number as a STRING against a mapping's host side and container
@@ -727,9 +732,17 @@ def test_E4_no_deploy_carrier_claims_the_exempt_number_and_the_predicate_refuses
     assert len(roster) >= 5, f"the roster census collapsed to {sorted(roster)}"
     assert len(mappings) >= 10, f"the compose mapping census collapsed to {len(mappings)} rows"
     claims = _port_claims(DEFAULT_METRICS_PORT, roster, mappings)
-    assert claims == [], (
-        f"{DEFAULT_METRICS_PORT} is claimed in the deploy plane ({claims}) while the docs call "
-        "it the cron's exempt port — either the exemption moves or the docs do"
+    roster_claims_out = [c for c in claims if c.startswith("名册作业")]
+    deploy_claims_out = [c for c in claims if not c.startswith("名册作业")]
+    assert roster_claims_out == [f"名册作业 invoice-cron 抓 invoice-cron:9103"], (
+        f"the armed billing profile names exactly one roster target on {DEFAULT_METRICS_PORT} "
+        f"(名册作业 invoice-cron 抓 invoice-cron:9103), got {roster_claims_out}: the merge "
+        f"intended exactly that claim, any other means the armed story in the docs drifted "
+        "while the roster moved"
+    )
+    assert deploy_claims_out == [], (
+        f"no deploy file may publish {DEFAULT_METRICS_PORT} on the host while the cron holds "
+        f"it in-network (a host mapping collides with the cron's bind): {deploy_claims_out}"
     )
     port = DEFAULT_METRICS_PORT
     neighbour = port + 1
@@ -761,10 +774,14 @@ def test_E4_no_deploy_carrier_claims_the_exempt_number_and_the_predicate_refuses
         "as no claim — that is the shape every shipped mapping has, so the 「0 hits」 above "
         "would be an absence nobody can vouch for"
     )
-    silent = _port_claims(port, roster, [other_row])
+    silent = {
+        c
+        for c in _port_claims(port, roster, [other_row])
+        if not c.startswith("名册作业")
+    }
     assert not silent, (
-        f"a mapping of {neighbour} fired the census for {port}: the predicate is not "
-        f"comparing the number it was handed ({silent})"
+        f"a mapping of {neighbour} fired the deploy-plane census for {port}: the predicate is "
+        f"not comparing the number it was handed ({silent})"
     )
     print(
         f"[#450] E4 census: {len(roster)} jobs / ports "

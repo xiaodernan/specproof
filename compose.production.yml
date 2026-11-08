@@ -271,8 +271,8 @@ services:
   # (python -m storage.invoice_cron)。挂在 billing profile 上——计费默认关
   # (模块自己的语义: SPECPROOF_BILLING_URL 未设置时启动即诚实的 no-op),
   # 启用需 docker compose --profile billing up -d invoice-cron。
-  # 9103 是指标端口 (#272 的豁免号): 不映射宿主、不进抓取名册 (E4 钉住
-  # 部署面无人占用它), 排障用 docker compose exec invoice-cron curl。
+  # 9103 是指标端口: 不映射宿主 (仅 expose), 抓取名册已配 invoice-cron job —
+  # billing profile 未武装时目标 down 属预期 (与 worker/outbox-relay 同一语义)。
   # 计费库与主库同库 (billing_* / usage_ledger / invoices 表自建于
   # MYSQL_DATABASE 指向的库), 凭据与 outbox-relay 同源。
   invoice-cron:
