@@ -139,7 +139,15 @@
   - **2026-09-23 完成"悬浮解释"这一半**：见文末 `2026-09-23` 条目——术语表抽成共享 `ui/glossary.ts`（上手指南与页面内 `<Term>` 读同一份数据），内联 `<Term>` 已落在 需求覆盖 / 验收规则 / 任务详情 / 风险详情 / 新建验证 五处主流程。
   - **2026-09-24 完成 checklist 这一半**：见 §9。四步各有"判断依据"注脚，系统可检测的两步由一次真实工作区探测回答，只有用户能确认的两步永不由系统打勾；进度存本机 `localStorage`，并区分"读不出来"与"没做过"。
   - **仍不在范围内**：Craft/AI 开发通道的第一步体验（§9.6 第 1 条）、跨设备进度。
-- [ ] **3.4 开发与验收链路缝合**：一次 AI 开发完成后可"就地发起独立验收"，产物与结论互相跳转。
+- [x] **3.4 开发与验收链路缝合**：一次 AI 开发完成后可"就地发起独立验收"，产物与结论互相跳转。
+  - 订正并收口（2026-11-09，收口证据）：**缝合早已双向落地，但本条目一字未动**：
+    ① craft→verify —— `apps/web/src/agent/pages/AgentResult.tsx` 的「新建独立验收」CTA
+    `#/jobs/new?repo=<repo_path>`（`apps/web/src/pages/NewVerification.tsx` 读 `?repo=` 预填仓库路径，一跳直达，
+    AgentResult.test.tsx + SameRepoCraftPanel.test.tsx 合跑 26/26 绿）；② verify→craft —— 任务详情页 SameRepoCraftPanel
+    （按 `repo_path` 列同仓管理端开发任务、可点进 #/agent/jobs/<id>）。
+    ——本轮收口笔只登记证据，未改任何已有行为、未删任何既有用例；
+    "验证结论回链到特定开发轮次的证据链"（一个 verify job 反查自己是由谁、哪一轮开发工单触发的）当前不存在，
+    本轮不伪称已完成；保持开放。
 
 ### Phase 4 —— 可信度工程与评测（P2）
 - [x] **4.1 Golden-case 回归门禁**：每次改动跑 Recall/Precision 阈值，跌破即红。每次 push 跑 eval-subset（case-01/17/56）钉 `--min-recall 100 --min-precision 100 --max-false-positives 0`，夜间跑全部 100 例同口径；三项各有工具自己的 FAIL 原因，再各配一条 grep 第二断言。门：`test_ci_floors_reach_the_tool.py` + `test_ci_acceptance_greps_match_the_eval_summary.py`（#231 收口）。

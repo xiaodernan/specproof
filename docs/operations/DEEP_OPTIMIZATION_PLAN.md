@@ -25994,3 +25994,46 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 **如实不重跑**：后端 `api/routes/web.py` 的增量只触 stage fold；`openapi_diff`（9/9 于 #1533 后绿）未受新增 stage 字段影响
 （阶段回答键均非必填、无契约新增必填键/新增枚举）——**未**复跑 openapi-diff，理由：本批无新增必填键、无枚举变更；
 `_fullgate3.txt` 的 6478/8/0 数字保持记录在 #1536。
+
+## #1540 独立验证环节：§3.4 路线图订正收口 + 本地 docker daemon 降级如实记录（§5.3 未判定）
+
+**记录基准**：HEAD = `06102d9`→ 本号提交前树干净一致（master 一直 fast-forward，与 origin/master 一一对应）。
+
+**§3.4 印证收口（PRODUCT_ROADMAP「开发与验收链路缝合」）**：
+
+持续对账发现该条目及子项三行一直停在 `- [ ]`，而**缝合实际早已双向落地**（代码与用例双重证据）：
+
+- ① craft→verify（AI 开发收尾「新建独立验收」CTA）：
+  `apps/web/src/agent/pages/AgentResult.tsx`（「新建独立验收」按钮 `#/jobs/new?repo=<repo_path>`）——
+  `NewVerification.tsx` 读 `?repo=` 预填仓库路径（注释在源码项注明「一跳直达」）；
+  `src/agent/__tests__/AgentResult.test.tsx` + `src/pages/__tests__/SameRepoCraftPanel.test.tsx` **合跑 26/26 绿**（0 失败）。
+- ② verify→craft（验证任务详情页回看同仓 AI 任务）：
+  `apps/web/src/pages/SameRepoCraftPanel.tsx`（`repo_path` 归一匹配；点进 `#/agent/jobs/<id>`；一跳）。
+- 本轮只做账目证据登记，不动既有行为、不删既有用例；未被及的纵深项
+  "验证结论回链到特定开发轮次的证据链"（verify job 反查自己是由谁、哪一轮开发工单触发）
+  明确不在本轮伪装成已完成。
+
+**docker daemon 如实降级记录（§5.3 不下结论的原因）**：
+
+- `docker ps` 正常——存量 `specproof-phase0-prometheus-1`（:9090，运行 5 周）及 MySQL/Redis/RabbitMQ/Mongo/MinIO/Elasticsearch
+  全部存活，证明 daemon 的读路径健康；
+- `docker run --rm hello-world` 与 `docker network create specproof-verify-observability_default` 均**挂死**（120–180s 超时，零输出）；
+- 尝试的两次 `up -d otel-collector prometheus alertmanager grafana`（scratch project，新端口，参数用 `set "VAR=value"&&` 修过 trailing-space
+  的坑——此 pitfall 同时也是本机 `set X=v && docker compose` 一律报 invalid hostPort 的成因，已按此排除）：拉取镜像后
+  在"Network … Creating"阶段卡死、容器从未上线；
+- **因此 §5.3「`observability/` + compose 指标看板开箱可用」本号不按下结论也不标 [x]**：
+  静态侧证据保留并如实记下（provisioning 目录齐备；`infra/grafana/dashboards/specproof-slo.json` **51 个面板**、
+  schemaVersion=39；`infra/prometheus/alerts-slo.yml` 规则表 18 条；`--config` 在 #1532 期已由 promtool/amtool 本机校验通过）——
+  但 service-level 的开箱复核（冷启动 → grafana :3000 健康、dashboard UID 存在、prometheus /api/v1/alerts 返回 18 规则）未在本机复现，
+  差缺的原因是 daemon 对 `run/create` 的降级，不是文件面或配置面（compose 静态校验继续绿）。
+- 排查未动既有 phase0 卷/网络（specproof-phase0_default 原样；scratch project 的 volumes 未落地；无清理空介入）。
+
+**本节不认领**：
+
+- §5.3 服务级开箱复验（需 daemon run/create 恢复后重试一次；不代排 daemon 的 cgroup/Ipam Driver 问题，
+  那是主机级排障，找 host 管理员）。
+- 全量 `pytest tests/unit tests/security tests/fault` **本号未重跑**——本批只动 `docs/operations/PRODUCT_ROADMAP.md`（路线图括注），
+  不触任何代码；6478/8/0（`_fullgate3.txt`）数字保持记录在 #1536。
+
+**与上游对齐**：本节证据全部在 working tree 内可复核（`git grep -n "SameRepoCraftPanel\|?repo="`）；
+工作树在本节提交前干净。
