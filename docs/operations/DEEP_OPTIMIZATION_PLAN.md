@@ -25467,3 +25467,27 @@ POSIX 分支（`["sh", "mvnw"]`）都改成 `sh mvnw`/argv-sh 形；并把棘轮
 - Holdout acceptance：INSUFFICIENT（manifest 2 个 negative，floors 要 5），仍需向后 accommodation 到 "#1524" 的更大 case 文档节；
 - `tests-with-infra` 生产 job：需要 Ubuntu runner + 新鲜 compose（含 secrets / real ports / real live-novel '/' write path）；本机 Linux 之下的等价被分解到 integration 单文件跑过，但整体容器栈复刻未在本次节里发生；
 - 所有在 #1515-#1523 已记的事实保持有效。
+
+## #1525 独立验证环节：subprocess `text=True` 不带 codec → 全仓补齐
+
+**记录基准**：HEAD = `4f7a001`。本节只记可复跑事实，语气跟前面同一套。
+
+**改动**：
+- 全仓 `.py` 中以 `text=True` 调起的 `subprocess.run/Popen/check_output/check_call/call`，补 `encoding="utf-8", errors="replace"`。
+  - `scripts/` 19 个站点
+  - `tests/unit/` 17 个站点
+  - `scripts/p0_5_closed_loop.py:80`
+- `tests/unit/test_subprocess_text_encoding.py::DEBT_CEILING`：45 → **0**（ratchet）；
+- `scripts/verify_p0_5_archive.py`：横幅 `=======` → `###`，避开全局 pre-commit hook 一个假阳性；代码行为不变。
+
+**实测**：
+- `ruff check .`、`mypy .` 干净；
+- `tests/unit/test_subprocess_text_encoding.py` 4/4 绿；
+- `tests/integration/test_differential.py` 16/16 绿；
+- `#1524` 口径（`tests/unit tests/security tests/fault`，`-q`，redirected → `specproof_test`）
+  **6433 passed / 8 skipped / 0 failed**。
+
+**本节不认证**：
+- `p0_5_closed_loop.py` 未重跑（依赖 Java + Maven 全链，不单作承诺）；
+- Holdout `INSUFFICIENT` 没改（仍是 #1518/#1522 所说 2 个 negative；floors 要 5）;
+- `+25pp` 口径没启动（无 DeepSeek 基线授权）。
