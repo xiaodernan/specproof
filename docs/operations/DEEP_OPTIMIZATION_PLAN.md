@@ -25257,3 +25257,36 @@ Acceptance: PASS（墙钟 ~10.7 min，含 base+head 各自 Maven 构建）
 **本节认证什么**：12 个此前见过一轮的 holdout 候选上，系统差分对缺陷检出率 12/12、负例零误报、F1 100.0。**本节不认证**：① "+25pp vs 直接让模型看 Diff"——该门需要 LLM 基线实测（需宿主提供 DEEPSEEK_API_KEY 等授权才能跑），本轮未启动；② holdout 的干净隔离性（manifest 自述 retroactive；干净 split 需要全新 case id 建立，排在后续工程）；③ 50% 非异步腿（本腿约 14 案例，跨越 ~45 分钟墙钟，不逐案认时长）。
 
 **隔离**：产品 schema `/test/%` 行全程 0→0；无验证行落产品库；本提交仅含账本。
+
+## #1519 里程碑：case-101 标签验证实测——base PASS / head FAIL 成立（verify_case_tags.py 如实跑通）
+
+**记录基准**：`5b380d9` → 本节。manifest note（如实转引）：`case-101` 是 `CONCURRENCY-01` 的唯一腿，而且从未被任何一场 LLM/正式评测见过——`#334` 点名它是最可信的 retroactive holdout 候选；`verify_case_tags.py` 的任务即"只验证这个标签 claim"，而不是捕获新缺陷。
+
+**先决（如实）**：本机此前**没有自己的 `~/.m2/repository`**——Maven 缓存只存在于 Docker 卷 `specproof-maven-cache-1000`。首次 `verify_case_tags.py --case case-101` 退出 1，但 base 和 head 都是 `exit: 1`：那不是 HOLD 也不是不 HOLD，是"缺陷技术上无法被判定"——`mvn -o`（离线）在空仓库上两边都崩了，不构成证据。随后在线播种宿主机 `~/.m2`（`mvn -DskipTests dependency:go-offline`，BUILD SUCCESS，引用依赖 ~数百个）并用 JDK 17 重跑。
+
+**实测**：
+
+```
+=== base ===
+  [INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 27.51 s
+  in com.specproof.demo.SpecProofGeneratedTest
+  [INFO] BUILD SUCCESS
+exit: 0
+=== case-101-head ===
+  [INFO] Tests run: 18, Failures: 1, Errors: 0, Skipped: 0
+  [ERROR] com.specproof.demo.SpecProofGeneratedTest.concurrentStockDecrementMustNotLoseTheOtherWritersChange
+  org.opentest4j.AssertionFailedError: The service accepted an order against a stale product read (status 200)
+  ==> expected: <true> but was: <false>
+  Suppressed: org.opentest4j.AssertionFailedError: The other writer's stock (5)
+  must survive the service's write, got 7 ==> expected: <5> but was: <7>
+  [INFO] BUILD FAILURE
+exit: 1
+
+VERDICT: case-101 base_pass_head_fail HOLDS
+```
+
+**这意味着什么**（逐字如实）：`case-101` 标签 claim 属实——base 绿、head 红，GeneratedTest 逐字命中并发读写面：另一个写入者的 stock 是 5，被独立世代的写覆盖成 7，正是 version-guard 被绕过的精确定义。**但**，`#1518` 的 holdout 评测腿命中的是 **AUTH-01**（`contracts_found: AUTH-01`，`expected_contract: CONCURRENCY-01`，`finding_evidence: AUTH-01, MAJOR, base_pass_head_fail, DB_MUTATED`），不是该 case 设计的 `CONCURRENCY-01` 证据面——即：**这一腿没有测到并发面**；"12/12 detected" 表达的是 harness 的 matched_findings 口径（发现任一件匹配即记检出），不是对 `CONCURRENCY-01` 契约的覆盖证据。并发面由本节的标签验证单独承重。
+
+**本节不认证**：① holdout 的干净隔离性（manifest 仍自述 retroactive candidates；`case-101` 是其中最可信的一条，但不足以构成 prospective holdout）；② FN 方向（head 侧红灯）的稳定性基线（单次运行、`--keep` 后 worktree 已清理，不代表每次基线复现一致）；③ 由此推断的任何 release 决策（本提交不触碰 specproof-reference 主仓、不改 Holdout manifest 状态）；④ CONCURRENCY-01 其他案例的 harness 覆盖面（唯一 case 实测；不推断面）。
+
+**纪律记录**：① 本机首次真正实测 `case-101` 标签 claim 花了两步——先撞上空的 `~/.m2`（两边 `exit: 1`，不具任何结论力），在线播种宿主机 `~/.m2` 后才看到基线差异；**教训："VERIFY ≠ HOLD"，两个 run 的退出码一致也不能当确认**。② JDK 版本必须 ≤ 21（JDK 25 下本演示的 Mockito inline mock maker 无法 instrument `RabbitTemplate`，报"Mockito cannot mock this class"——`demo` 的 jdk25 测试是另一场已知定位，与本次认证无关）。③ 本次只验证 `case-101` 一个 case，其他 case 的 HOLDS 状态未逐个认证。④ 产品零触碰。⑤ host `.m2` 因 seed 增加（如实记）。
