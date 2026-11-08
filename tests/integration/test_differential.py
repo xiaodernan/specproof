@@ -18,11 +18,14 @@ REQUIREMENT_FILE = REPO_ROOT / "demo" / "requirement.txt"
 
 
 def _demo_tags_present() -> bool:
-    """True when the demo repo's base/head-v1 git tags exist in this checkout.
+    """True when the repo's `base` / `head-v1` git tags exist in this checkout.
 
-    A fresh clone does not carry these tags; they are created by
-    ``scripts/prepare_demo_repo.ps1``. Differential tests that read real git
-    revisions must not fail (or pass vacuously) without them.
+    Correction (2026-11-08): a fresh clone from origin DOES carry these two
+    tags — they were pushed (verified in a `--depth 1` clone upgraded with
+    `git fetch --unshallow`); the 100+ local `case-*` tags are NOT pushed,
+    which is fine — the differential tests only read base/head-v1. The guard
+    stays for any plane without tags (e.g. an exported source tarball), with
+    skip-with-reason so a tag-less checkout neither fails nor passes vacuously.
     """
     result = subprocess.run(
         ["git", "-C", str(REPO_ROOT), "tag", "-l", "base", "head-v1"],
