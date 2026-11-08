@@ -25644,3 +25644,31 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 **本机 background 全量门**：`pytest tests/unit tests/security tests/fault -q`（针对 be0b1be 树启动于 20:41）在写本节时**仍在运行**（80%，test_slow_marker_tagging.py 阶段），本节不冒认其结果；完成后记入 #1531 并据实更正。
 
 **本节订的帐**：任何"宣称 ruff/mypy/fence 绿"的节，都必须在**写声称的那一刻**以 HEAD 重跑的输出贴签；本节之前的两个假声称在此被固定记账，不删除原句。
+
+## #1531 独立验证环节：全仓后台门收官（3 红均为本人 ci.yml 合并冲突窗口的瞬间产物）+ 分支/worktree 集大成
+
+**记录基准**：HEAD = `628a6a8`。全量后台门（`pytest tests/unit tests/security tests/fault -q`，2026-11-08 20:41 启动于 be0b1be 的树）**结束于 exit=1**，完整结果：**6446 passed / 8 skipped / 3 failed / 4996s（1h23m）**。
+
+**三个失败逐条定罪（均非缺陷）**：
+
+| 失败 | 现场 | 结论 |
+|---|---|---|
+| `test_the_no_infra_job_holds_its_no_database_promise.py::test_no_mysql_backed_case_fails_when_the_job_has_no_database` | ScannerError: `while scanning a simple key, line 120, column 1 '<<<<<<< HEAD'` | `.github/workflows/ci.yml` 在 `feature/ci-nightly-eval` 合并冲突解决窗口（20:41→21:20）里带着冲突标记被并发读到；同文件的另外两条（`test_every_case_that_skips...`、`test_the_census_is_how_this_gate_chooses...`）同源 |
+| 同文件两条 | 同上 | 同上 |
+
+**复跑证据**：HEAD=`628a6a8` 上 `tests/unit/test_the_no_infra_job_holds_its_no_database_promise.py` 11/11 绿（196s）；同批 CI 门合跑（test_ci_jobs_can_run_the_repo_gates / test_ci_materializes_the_golden_refs / test_the_ci_type_check_is_a_suite_leg / test_the_eval_ci_step / test_the_frontend_is_a_ci_leg / test_the_gate_toolchain / test_the_maven_cache_seeding / test_ci_floors_reach_the_tool / test_ci_eval_subset_is_measurable / test_ci_acceptance_greps_match_the_eval_summary / test_ci_publishes_the_eval_evidence）**60/60 绿**。`test_recorded_ledger_sections_do_not_vanish.py` 8/8；`mysqld` 隔离协议贯穿：产品 schema `/test/%` 行 0→0，22 个 MySQL-backed 文件在本机 16 个跑了、0 行落产品库。
+
+**本次全仓后台门的如实语境**：它测的是 `be0b1be` 树 + 过程中本机工作树的即时状态；门跑过 `test_swebench_*` 全家桶（含 child-process 路径）约 80 分钟。**门本身没有抓出任何产品代码缺陷**——三个红全是 YAML 冲突标记被并发读取的假象，不是协议违背，也没有任何产品文件在这次编辑里被改动（ci.yml 是唯一编辑面）。修复后的文件在 `628a6a8` 经 YAML 解析 + 门复跑双重确认。
+
+**集大成（用户 2026-11-08 指示：分支/worktree 汇到一个主分支）**：
+
+1. **分支删除 5 个**（全部 `ahead=0`，内容已在 master，`git branch -d` 安全删除）：
+   - `feature/ci-nightly-eval`（85eacab，2026-10-22）→ **合并**入 master（merge commit `628a6a8`）：只取 REDIS_URL/MYSQL_URL 进 tests-with-infra（唤醒 MYSQL_URL/REDIS_URL 门控的 test_agent_jobs_mysql / test_object_metadata_mysql / test_external_state_against_real_redis / test_billing 集成场景此前在 CI 全部静默 skip）；**刻意不合**该分支的 `eval-full-golden-cases` job 与 `schedule:`（已被更强的 `nightly-eval.yml` 取代：02:00 UTC + workflow_dispatch + #521 refs materialize + #537 pipefail + sidecar 产物保留）；其 pre-#521 job 在干净 checkout 上按设计必红，不引入。
+   - `lane528`（881da21）、`ledger-545`（68d86c1）、`ledger-546`（f776f4c）、`ledger-552`（f776f4c 同 ledger-546）→ 均已完全并入 master，删除分支引用。
+2. **worktree 删除 6 个槽位**：`ffw57vqa`（git remove 成功）、`ntcpewzc`（同）、`sp-111-pre`（D:\tmp，同）；`2vog30eo`、`7kiypaml`、`a60b2b5l`（git 元数据已摘 + 本机 `rmdir /s /q` 清目录，三个都是 ahead=0/dirty=0 的纯构建残留）。~2GB 空间回收。
+3. **保留**（内容/所有权不明或前人有事）：`specproof-reference`（用户主 checkout，18 个未推送提交 + 1014 未合入，**不碰**）；_wt_plan（本车道集成位，detached@528a6a8）；case-*-head 本地标签对应的 specproof-head-* worktree（golden 案例构建产物，本地独占设计）；`sp-111`（另一车道在途 MCP 编码工作）、`sp-gate111`（aider-results 重画产物）；locked 5 个（3_9hwr0z / tx2onab6 / v6362v68 / rj9kxmm3，同车道/他车道未验所有权）；dirty/ahead=1 的 scratch 若干；`specproof-base-tx2onab6`（锁定 + 2021 个构建产物未跟踪文件）。全部记录为“等他车道释放或用户确认后再动”。
+4. **分支面终态**：`git branch` 只剩 master（用户 checkout 持有）与 detached 工作位；master 领跑 origin 3 个提交（363e81b→628a6a8，本次予以推送）；无任何其它 merge-candidate 剩余。
+
+**本节订正的事实**：此前记档中任何暗示"CI 是全绿的 master"的地方，自 4f7a001 到 9cdbfee 窗口内的 master 实为 ruff 红（#1530 已订正）；本节补充订正：2026-11-08 20:41→21:20 窗口内本机工作树的 ci.yml 含冲突标记（本订正覆盖该窗口内跑过门的任何声称）。
+
+**本节订的帐**：本节之前的"全量门绿"声称均未涵盖该窗口；今后每次声明"门绿"之前先 `git fetch && git status` 确认树静止。
