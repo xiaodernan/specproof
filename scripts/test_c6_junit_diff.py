@@ -2,7 +2,7 @@
 
 DeepSeek generates a JUnit 5 + Spring Boot integration test that verifies the
 authentication requirement. The test is written to the demo project, compiled
-with mvnw, and executed in both Base and Head git worktrees.
+with the Maven wrapper, and executed in both Base and Head git worktrees.
 """
 
 import asyncio
@@ -152,9 +152,9 @@ def validate_java(code: str) -> list[str]:
 
 
 def run_mvnw(args: list[str], cwd: str = DEMO_DIR) -> tuple[int, str, str]:
-    """Run mvnw and return (exit_code, stdout, stderr)."""
+    """Run the Maven wrapper and return (exit_code, stdout, stderr)."""
     is_win = sys.platform == "win32"
-    cmd = ["mvnw.cmd" if is_win else "./mvnw"] + args
+    cmd = (["mvnw.cmd"] if is_win else ["sh", "mvnw"]) + list(args)
     java_home = os.environ.get("JAVA_HOME", "")
     if not java_home:
         raise RuntimeError("JAVA_HOME must be set to a JDK 21 installation")
@@ -216,7 +216,7 @@ async def main() -> int:
     print(f"  Written ({len(java_code)} bytes)")
 
     # Step 4: Compile
-    print("\n[4/5] Compiling with mvnw test-compile...")
+    print("\n[4/5] Compiling with the Maven wrapper, test-compile...")
     exit_code, stdout, stderr = run_mvnw(["test-compile", "-q"])
     if exit_code != 0:
         print(f"  COMPILE FAILED (exit {exit_code})")

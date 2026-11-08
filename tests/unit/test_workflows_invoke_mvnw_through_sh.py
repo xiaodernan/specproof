@@ -24,6 +24,13 @@ against the same rule — and the "every Maven job seeds the cache" premise now
 belongs to tests/unit/test_the_maven_cache_seeding_has_one_owner.py, which
 asserts it per job instead of via nightly-eval.yml's file name.
 
+**#1523** closes the same shape wherever the sandbox seeder or the helper
+harness reaches: `scripts/seed_sandbox_cache.ps1` (step 4, the wrapper-distribution
+fetch inside the Linux container against a Windows-mounted tree) and
+`scripts/test_c6_junit_diff.py` (the P0.5-C6 differential runner's `run_mvnw` —
+on POSIX it forked `./mvnw`, on Windows `mvnw.cmd`). Both are now `sh mvnw` /
+`["sh", "mvnw"]` and in the census.
+
 The census is line-based on purpose. The first version matched a full
 `maven:<image> <how> mvnw` command shape, which **cannot see the broken form**:
 in `./mvnw` the token is `./mvnw`, so the pattern looking for a word before
@@ -39,21 +46,26 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO / ".github" / "workflows"
 SEEDER = REPO / "scripts" / "seed_maven_cache.sh"
+SEEDER_PS1 = REPO / "scripts" / "seed_sandbox_cache.ps1"
+TEST_DIFF = REPO / "scripts" / "test_c6_junit_diff.py"
 MVNW = "demo/spring-backend/mvnw"
 
 #: A command position invoking the wrapper: `mvnw`, `./mvnw`, `/work/mvnw`, …
 _INVOKES_RE = re.compile(r"(?:^|\s)(?:\.?/)?(?:[\w./\-]*/)?mvnw\b")
-_THROUGH_SH_RE = re.compile(r"\b(?:sh|bash)\s+mvnw\b")
+#: Both go-through spellings: the shell form `sh mvnw` in .sh/.ps1, and the
+#: Python argv form `["sh", "mvnw"]` in the helper harness.
+_THROUGH_SH_RE = re.compile(r'\b(?:sh|bash)\s+mvnw\b|"sh",\s*"mvnw"')
 
 
 def _census_files() -> list[Path]:
     files = sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml"))
     assert files, f"no workflows found under {WORKFLOWS} — probe broken"
-    assert SEEDER.is_file(), (
-        f"{SEEDER} is missing — the seeding owner moved, so this census no "
-        "longer reaches the invocation it exists to check"
-    )
-    return files + [SEEDER]
+    for path in (SEEDER, SEEDER_PS1, TEST_DIFF):
+        assert path.is_file(), (
+            f"{path} is missing — the seeding owner moved, so this census "
+            "no longer reaches the invocation it exists to check"
+        )
+    return files + [SEEDER, SEEDER_PS1, TEST_DIFF]
 
 
 def mvnw_lines() -> list[tuple[str, int, str]]:
