@@ -133,7 +133,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         field="result_json.verdict (the agent lane's execution result projection)",
         owners=("api/agent_runtime.py", "api/routes/agent_console.py"),
         scale=frozenset({"FAILED", "CANCELLED", "COMPLETED", "UNKNOWN"}),
-        witnesses={"UNKNOWN": "api/routes/agent_console.py:453"},
+        witnesses={"UNKNOWN": "api/routes/agent_console.py:455"},
         opaque=("api/agent_runtime.py", "api/routes/agent_console.py"),
         note=(
             "Console writes: a plan/step/gate rejection is FAILED, a supervisor "
@@ -332,6 +332,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             # — the job_summary channel keeps writing its own copy.
             "FAIL — claim refused",
             "FAIL — terminal write refused",
+            "FAIL — replay re-queued nothing",
             "VERIFIED",
         }),
         opaque=(

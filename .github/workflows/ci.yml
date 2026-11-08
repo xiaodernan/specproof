@@ -114,7 +114,7 @@ jobs:
     # instead — the same shape MYSQL_URL already has.
     env:
       SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
-      REDIS_URL: redis://:specproof_pass@localhost:6379/0
+      REDIS_URL: redis://:specproof_pass@localhost:6379/0  # 一次性 CI runner 的自带脚手架口令：与 compose.phase0.yml redis --requirepass 的出厂默认一致，非生产凭证 # specproof-nosec Redis URL with Credentials
       MYSQL_URL: mysql://specproof:specproof_pass@localhost:3306/specproof_test
     steps:
       - uses: actions/checkout@v4
