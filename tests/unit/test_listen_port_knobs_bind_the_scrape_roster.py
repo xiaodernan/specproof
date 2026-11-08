@@ -144,7 +144,12 @@ _UNROSTERED_LISTENERS: dict[str, tuple[str, str]] = {}
 #: Files allowed to start a metrics HTTP server. L2 re-derives this from a
 #: repo-wide call-site census, so a third process must be declared here — with
 #: its knob, its bullet in §2 and its evidence class — before it can pass.
-_KNOB_SITES = ("agent/worker.py", "storage/outbox_relay.py", "storage/invoice_cron.py", "storage/notify_relay.py")
+_KNOB_SITES = (
+    "agent/worker.py",
+    "storage/outbox_relay.py",
+    "storage/invoice_cron.py",
+    "storage/notify_relay.py",
+)
 #: The ``storage/env_config.py`` readers that stand in for an inline env coercion
 #: (#471). Their second positional argument is the declared default.
 _KNOB_HELPERS = ("int_env", "float_env")
