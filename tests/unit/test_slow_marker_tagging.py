@@ -56,7 +56,7 @@ def _collected_slow(node_ids: list[str]) -> list[str]:
         "no:cacheprovider",
     ]
     proc = subprocess.run(
-        cmd, cwd=REPO_ROOT, capture_output=True, text=True, timeout=600
+        cmd, cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600
     )
     # 5 = nothing selected, which is the expected outcome for a fast module.
     # A non-zero exit is nearly always the child's session-level bootstrap

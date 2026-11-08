@@ -62,7 +62,7 @@ def _git(*args: str) -> str:
         ["git", "-C", str(REPO_ROOT), *args],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
     ).stdout.strip()
 
 
@@ -75,7 +75,7 @@ def _run_maven(workdir: Path) -> tuple[int, str]:
         ],
         cwd=str(workdir / "demo" / "spring-backend"),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -118,7 +118,7 @@ def _jdk_note() -> str:
 
     try:
         out = subprocess.run(
-            ["java", "-version"], capture_output=True, text=True, timeout=15,
+            ["java", "-version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15,
         ).stderr
     except Exception:  # noqa: BLE001 — no java, the build will say so
         return ""

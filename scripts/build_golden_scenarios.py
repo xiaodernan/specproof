@@ -119,7 +119,7 @@ EVENT_BLOCK = """        rabbitTemplate.convertAndSend(
 def git(*args: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(REPO_ROOT), *args],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
     )
     if proc.returncode != 0:
         raise RuntimeError(

@@ -1014,7 +1014,7 @@ def test_root_serves_spa_when_built() -> None:
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         cwd=str(PROJECT_ROOT),
         timeout=120,
     )
@@ -1035,7 +1035,7 @@ def test_spa_fallback_does_not_mask_api_404s() -> None:
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         cwd=str(PROJECT_ROOT),
         timeout=120,
     )

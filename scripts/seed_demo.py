@@ -307,7 +307,7 @@ def _head_sha(template: DemoVerifyTemplate) -> str:
         proc = subprocess.run(
             ["git", "-C", str(repo), "rev-parse", template["head_ref"]],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=30,
             check=False,
         )

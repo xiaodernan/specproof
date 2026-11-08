@@ -77,7 +77,16 @@ def run(
     env["PATH"] = f"{JAVA_HOME}\\bin;" + env.get("PATH", "")
     if extra_env:
         env.update(extra_env)
-    return subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=cwd, timeout=timeout)
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        cwd=cwd,
+        timeout=timeout,
+    )
 
 
 def sha256_str(s: str) -> str:

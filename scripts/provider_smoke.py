@@ -326,7 +326,7 @@ else:
             [mvnw_full, "test-compile", "-q"],
             cwd=str(DEMO_DIR),
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=300,
             env=env_mvn,
         )

@@ -76,7 +76,7 @@ def test_a_fresh_interpreter_sees_the_shipped_adapters() -> None:
         [sys.executable, "-c", _PROBE],
         cwd=str(PROJECT_ROOT),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         timeout=180,
         env=env,
     )

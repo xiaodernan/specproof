@@ -55,29 +55,15 @@ SUBPROCESS_FUNCS = {"run", "Popen", "check_output", "check_call", "call"}
 # model constructors with a `text=` field (`RepoRule(...)`, `BuiltPrompt(...)`),
 # and a "6 unpinned file reads" claim counted `open(..., "rb")` binary reads.
 # Re-measured at bbdfa0c after venvs were excluded by marker rather than by the
-# single name `.venv`: 55 — exactly this ceiling, zero headroom. It counts only
-# the repo's own files now, so it moves when the repo moves.
-# #111 pinned the one shipped MCP capture (`mcp/tools.py` read a child's UTF-8
-# with the OS locale and reported mojibake paths as evidence) and brought `mcp`,
-# `contracts` and `observability` into PINNED_SCOPES — they are loaded by a
-# shipped entry point, so an unpinned read there is a defect, not debt. Those
-# three lanes measured 0 offenders, so only the fixed one leaves debt: 55 -> 54.
-# The remaining 54 are `scripts/` and `tests/`.
-# #513 re-measured before touching anything and 54 was already a stale claim: the
-# tree at origin/master measured **50** (other lanes had quietly spent four units
-# of this ratchet without lowering it — which is what a ceiling of "exactly the
-# measurement, zero headroom" turns into when nobody re-measures). Fixing the
-# five `craft/` captures takes it to 45, so the ceiling moves 54 -> 45 and the
-# five are now named in PINNED_SCOPES' own lane rather than counted as debt.
-# What this number actually counts, since the name says "the rest of the repo":
-# `captures_without_codec(REPO)` is repo-wide, pinned scopes included. It equals
-# the `scripts/` + `tests/` debt (45 = 45) only because the pinned scopes measure
-# 0; the five `craft/` captures were counted here *and* failed the pinned-scope
-# gate, which is why one defect could move two gates. Read this as "nothing in the
-# repo may decode a child with the OS locale, with a named allowance for the two
-# lanes that have not been reached yet" — not as a scripts/-only census.
-# Shrink this number; never let it grow.
-DEBT_CEILING = 45
+# single name `.venv`: 55. The remaining 54 are `scripts/` + `tests/`.
+# #513 re-measured before touching anything: 54 was stale by four; the master
+# tree measured 50; the five `craft/` captures pinned under #513 take it to 45.
+# #1525 pins the last 17 sites in `scripts/` together with the last 17 in
+# `tests/`, so the ceiling moves 45 -> 0. Pinned scopes already measure 0.
+# What this number actually counts: `captures_without_codec(REPO)` is repo-wide.
+# The name is now a misnomer kept for stability — it is a "no unpinned child
+# capture anywhere" gate, not an allowance for leftover debt.
+DEBT_CEILING = 0
 
 
 def _is_subprocess_call(node: ast.Call) -> bool:
