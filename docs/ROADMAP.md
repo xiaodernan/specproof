@@ -124,6 +124,15 @@
   checkbox 保留给"生产 Grafana/Alertmanager 部署 + 告警路由到真人
   + 产品库就地恢复窗口 + 每日 cron/PITR"）
 - [ ] P5 增补: LLM 基线 ("直接让 DeepSeek 看 Diff") 实测补测
+  （2026-11-08 复核: 仓库内已有实测证据——2026-08-18 实测 deepseek-v4-pro
+  真实接口, 同一 100 案例集: SpecProof 严格契约 recall / precision / recall_any / F1
+  = 100.0%; 裸模型 recall=0.0%(严格), recall_any=100.0%, 误报 5 例;
+  Go/No-Go #14 按严格口径 PASS (+100.0pp)。证据: docs/eval/go-nogo-14-llm-live.md,
+  docs/eval/llm-baseline-100-live.md, .json（summary: detected 0/63, false_positives 5）。
+  本机 2026-11-08 无 DEEPSEEK_API_KEY, 未复跑；且该 100 案例集的 holdout 隔离
+  是 retroactive（#313/#334/#1518），其 SpecProof 侧口径不能与前瞻 holdout 混同。
+  checkbox 保留给"当前模型/配置在 87 案例 tuning 池上的复跑复测"（需 key），
+  或由运营接受 2026-08-18 证据并签字关闭。）
 
 ## 关键指标 (Go/No-Go)
 
