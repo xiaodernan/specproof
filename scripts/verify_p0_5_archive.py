@@ -324,7 +324,9 @@ def main() -> int:
         # Test clone from bundle
         with tempfile.TemporaryDirectory(prefix="specproof-bundle-verify-") as tmp:
             clone_result = subprocess.run(
-                ["git", "clone", str(bundle_path), tmp], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
+                ["git", "clone", str(bundle_path), tmp],
+                capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=30
             )
             clone_ok = clone_result.returncode == 0
             record_result(

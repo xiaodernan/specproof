@@ -51,7 +51,8 @@ def main():
     ):
         subprocess.run(cmd, cwd=repo, check=True)
     base_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", check=True
     ).stdout.strip()
 
     def fix_double(editor: Editor, step: Step, diagnosis: str) -> list[str]:
@@ -78,7 +79,8 @@ def main():
         check=True,
     )
     head_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", check=True
     ).stdout.strip()
 
     key = Ed25519PrivateKey.generate().private_bytes(

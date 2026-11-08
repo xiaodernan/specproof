@@ -149,8 +149,8 @@ def sha256_file(path: str) -> str:
 def run(
     args: list[str], *, stdin=None, stdout=None, timeout: int = 900
 ) -> subprocess.CompletedProcess:
-    kwargs: dict = dict(stdin=stdin, stderr=subprocess.PIPE, timeout=timeout,
-                        encoding="utf-8", errors="replace")
+    kwargs: dict = {"stdin": stdin, "stderr": subprocess.PIPE,
+                    "timeout": timeout, "encoding": "utf-8", "errors": "replace"}
     kwargs["stdout"] = subprocess.PIPE if stdout is None else stdout
     return subprocess.run(args, **kwargs)
 

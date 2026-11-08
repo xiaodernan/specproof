@@ -86,11 +86,13 @@ def make_repo(tmp_path: Path) -> tuple[Path, str, str]:
         check=True,
     )
     base_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", check=True
     ).stdout.strip()
     (repo / "calc.py").write_text(HEAD_CALC, encoding="utf-8")
     head_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", check=True
     ).stdout.strip()
     return repo, base_sha, head_sha
 

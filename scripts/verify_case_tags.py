@@ -118,7 +118,8 @@ def _jdk_note() -> str:
 
     try:
         out = subprocess.run(
-            ["java", "-version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15,
+            ["java", "-version"], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=15,
         ).stderr
     except Exception:  # noqa: BLE001 — no java, the build will say so
         return ""
