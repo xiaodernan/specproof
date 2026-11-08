@@ -25888,3 +25888,40 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 
 **与上游对齐**：本节证据与提交全部在 `git ls-files` 中可核对；两笔 rollback（不重写历史）已在 #1534/#1535 记录；
 工作树在本节提交前是干净的（tree == `55011df`）。
+
+## #1537 独立验证环节：Gradle 镜像 digest 实钉（不再 "digest = —" 的挂账声明）
+
+**记录基准**：HEAD = `96fb3de`（`7232158..96fb3de`，master 一直 fast-forward，树一致）。
+#1529/#1530 里关于「Gradle 镜像 digest 未钉（矩阵如实写 `—`，不伪造 pin）」的挂账，是等「核对 digest」这一步的决定被拿出来再钉；
+本机 2026-11-09 已有 image 且可核对，故本号按门口径钉死它，而不是永远等下一号。
+
+**做了什么（`96fb3de` 单 commit）：**
+
+1. `experiments/adapters.py::GradleAdapter` 新增 `IMAGE_DIGEST = "sha256:963d59f7f22767da4efbcf46b661361b61af5fb88b0309da1071c4234c647eba"`（2026-11-09 本机
+   `docker image inspect gradle:8.10-jdk21` 实测；digest 是该 TAG 当前指向的清单摘要，2026-11-09 pull/inspect 一致）。
+   `prepare()` 按既有 sibling（Go/Python/Node）的口径报 `self.IMAGE_DIGEST if image == self.IMAGE else "—"`——运维侧钉过的覆盖镜像无法拿到身份，如实报未认。
+   `COMPATIBILITY_MATRIX` 的 Java/Gradle 行同步 `image_digest=GradleAdapter.IMAGE_DIGEST`。
+2. `docs/architecture/EXECUTION_COMPATIBILITY.md` 矩阵行：digest 单元格从「digest 未钉 (证据里如实写 `—`, 不臆造指纹)」改为
+   sha256:963d59f7…（2026-11-09 本机实测值，交 `test_declared_image_digests_match_the_local_images` 对账）；registry 顺序订正
+   （Gradle/Go 早已实装，「规划」字样随之订正）。
+3. `README.md` 兼容矩阵行同步（由「镜像**未钉 digest**」改为实 digest 并注明进了对账门）。
+4. `docs/operations/PRODUCT_ROADMAP.md` §2.6：本项收口为 `[x]`，注明「仅余『按项目播种 GRADLE_USER_HOME
+   （scripts/seed_gradle_home.ps1 -ProjectPath <项目>）』这一运营前提」——仓库里没有 Gradle demo，货架不是代码欠账。
+
+**验证（按门口径逐条）：**
+
+- `tests/unit/test_declared_image_digests_match_the_local_images.py` **4/4 绿**——其门口径是 adapter 声明的 digest 必须与当地 `docker image inspect` 的 RepoDigests 匹配，
+  当地 :8.10-jdk21 能对上才能绿；它红就说明 tag 被重推（maven 行 #499 就因此修过 c07f7ccf→99e61abc）。
+- `tests/unit/test_adapters.py` 28/28 绿（含 matrix 行断言 `gradle_row.image == GradleAdapter.IMAGE` 与全 matrix 无 planned 行两条既有腿）。
+- `ruff check .` 全绿；`mypy .` 262 files 干净；fence（`test_recorded_ledger_sections_do_not_vanish.py`）追加后复跑 8/8。
+
+**如实未做：**
+
+- 全量 `pytest tests/unit tests/security tests/fault` **未因本批重跑**——`experiments/adapters.py` 的增量仅为一个类属性与 prepare()
+  里两行三元表达式，代码行为同身；上一本全量数是 **6478 passed / 8 skipped / 0 failed（`_fullgate3.txt`）**，发生于本次 adapters.py
+  改动之前（`c19d386`）。矩阵/对账相关的受影响面已按门口径逐条复跑绿，
+  本节不把「未重跑」写成「未受影响」，也不把它挡在推送之后。
+- **本 digest 是 2026-11-09 的 tag 快照**：任何人日后重拉 `docker pull gradle:8.10-jdk21` 都可能给出不同的清单摘要（上游重推 tag 不是 news）。
+  对账门保持当地前提不满足即**缺省不说话**（无本地 image 的机器不红）；
+  但**只要本机的 image 一换、pin 就会红**——看不懂的报警不掩饰。
+- `docs/eval/aider-results.md` 又被测试重上时间戳，已在工作树还原，未进提交。
