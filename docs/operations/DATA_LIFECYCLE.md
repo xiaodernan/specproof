@@ -242,6 +242,10 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 ### 6.4 ✅ 2026-11-08 执行级演练 (本机宿主, docker 29.9.2, 隔离目标库; 未触碰运行中的共享栈)
 
 > 依据: §6.2 #9/#10/#11 与 §5 两表的恢复列升级为真实执行记录。
+> 本演练已固化为仓库内可重跑脚本 **`scripts/backup_stores.py`**（`--stores both`；同口径 scratch 校验、
+> 写 JSON 报告、明文删除）；其安全属性由 `tests/unit/test_backup_stores.py`（16 条离线契约：scratch 名固定 /
+> 产品库拒绝 / dump 参数钉住 / count 解析与对比）锁定。2026-11-08 复跑 `python scripts/backup_stores.py --stores both`
+> → `overall_ok=true`（mysql_counts_match=true、mongo_counts_match=true、mongo digest `{n:250,s:31125}`）。
 > 限制: 产品库 `specproof_phase0` **就地恢复未执行** (需维护窗口与批准); 所有明文备份在核 hash 后删除 (不留 PII/明文躺盘); 共享栈未重启、未改配置。
 
 **MySQL (源库 `specproof_test`，可消耗隔离库；mysqldump → 全新 scratch `specproof_restore_drill` → 校验 → 删除 scratch):**
