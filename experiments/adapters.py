@@ -1497,6 +1497,13 @@ class GradleAdapter:
 
     TOOLCHAIN = "Gradle (docker sandbox) / gradle --no-daemon --offline test"
     IMAGE = DEFAULT_GRADLE_IMAGE
+    #: Verified with `docker image inspect` on this host — the fingerprint of
+    #: the image this adapter was actually validated on (2026-11-09). Not the
+    #: ref the runner pulls (the ref stays the tag, like the other rows) — it
+    #: is the fingerprint of what this class was validated on.
+    IMAGE_DIGEST = (
+        "sha256:963d59f7f22767da4efbcf46b661361b61af5fb88b0309da1071c4234c647eba"
+    )
 
     # ``--console=plain`` is required for a parseable summary; the rich console
     # emits ANSI/redraw noise that the parser cannot read.
@@ -1554,9 +1561,9 @@ class GradleAdapter:
             command=command,
             local_command=list(command),
             image=image,
-            # Gradle image is not digest-pinned yet: report it as unidentified
-            # rather than invent a fingerprint this adapter never verified.
-            image_digest="—",
+            # The pin describes the image this adapter was validated on; an
+            # operator-supplied override image is unidentified here.
+            image_digest=self.IMAGE_DIGEST if image == self.IMAGE else "—",
             offline_policy=self.OFFLINE_POLICY,
             timeout=request.timeout,
             sandbox_mode=request.sandbox_mode,
@@ -1905,7 +1912,7 @@ COMPATIBILITY_MATRIX: tuple[MatrixRow, ...] = (
         test_runner="JUnit 5 (Gradle Test)",
         status="已支持 (Docker 沙箱)",
         image=GradleAdapter.IMAGE,
-        image_digest="—",
+        image_digest=GradleAdapter.IMAGE_DIGEST,
         toolchain=GradleAdapter.TOOLCHAIN,
         offline_policy=GradleAdapter.OFFLINE_POLICY,
         known_limits=GradleAdapter.KNOWN_LIMITS,
