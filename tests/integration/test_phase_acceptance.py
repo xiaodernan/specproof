@@ -44,6 +44,7 @@ def run_specproof(
     return subprocess.run(
         [sys.executable, "-m", "cli.specproof.main"] + args,
         capture_output=True, text=True, timeout=timeout,
+        encoding="utf-8", errors="replace",
         cwd=str(PROJECT_ROOT),
     )
 
