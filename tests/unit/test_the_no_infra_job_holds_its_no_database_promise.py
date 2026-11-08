@@ -33,10 +33,11 @@ THE RULERS, each one sentence:
 
 P6 is #499's G4 rule — "a skip that is never accompanied by a run is a coverage
 hole wearing a green checkmark" — applied to a derived population instead of to
-one remembered file. Applying it found four files that have been skipping in CI
-all along and running in no job at all. They are rostered below with what each
-one gives up rather than quietly fixed: giving them a database home changes what
-the infra job costs, and that is a decision for the lane that owns them.
+one remembered file. Applying it originally found four files that had been
+skipping in CI all along and running in no job at all; they were given a database
+home in tests-with-infra on 2026-11-08 (the #1531-era CI consolidation), the roster
+below was emptied rather than worked around, and the gate derives the list again
+— any file newly joining the list reds it, because the hole would be new.
 
 WHAT IS DELIBERATELY OUT OF SCOPE. This gate does not judge whether the guarded
 leg PASSES — that belongs to the job with the database, and the leg is written to
@@ -80,29 +81,14 @@ CHILD_TIMEOUT_SECONDS = 900
 CHILD_ATTEMPTS = 2
 
 #: The files that skip because no database answered and that no job with a
-#: database collects. Each value names the skipped leg first, then says what it
-#: would have measured, and P6 checks that name against the child's own outcome
-#: list — so a renamed leg reds this gate instead of leaving a stale sentence in
-#: a roster nobody reads. Every entry is #499's G4 hole: skipped everywhere,
-#: run nowhere, green anyway.
-SKIPS_WITHOUT_A_HOME: dict[str, str] = {
-    "tests/unit/test_agent_jobs_migration_parity.py": (
-        "test_ensure_tables_leaves_agent_jobs_behind — whether the schema "
-        "ensure_tables builds really contains agent_jobs"
-    ),
-    "tests/unit/test_audit_action_parity.py": (
-        "test_purge_then_read_reports_purged_not_unexplained — what the live "
-        "purge path leaves in audit_logs for an auditor to read back"
-    ),
-    "tests/unit/test_data_dictionary_covers_migrations.py": (
-        "test_documented_table_count_matches_the_live_schema — how many tables a "
-        "real schema holds, against what the data dictionary claims"
-    ),
-    "tests/unit/test_feedback_store_read.py": (
-        "test_real_mysql_one_verdict_per_reviewer — whether the unique key and "
-        "the upsert hold on the backend the release gate writes to"
-    ),
-}
+#: database collects. Empty since 2026-11-08: #600 found four
+#: (test_agent_jobs_migration_parity, test_audit_action_parity,
+#: test_data_dictionary_covers_migrations, test_feedback_store_read) which were
+#: given a home in tests-with-infra — the #120 census-derived P6 leg below now
+#: derives their absence-or-presence from the workflow rather than a roster.
+#: A new file appearing here reds the gate, which is what stops the hole growing
+#: back silently.
+SKIPS_WITHOUT_A_HOME: dict[str, str] = {}
 
 #: Files that answer "no database here" with their own run-time check instead of
 #: the session's isolation verdict. #600 put that verdict behind one mark
@@ -591,8 +577,9 @@ def test_every_case_that_skips_for_a_missing_database_runs_where_one_answers(
 
     The guard P4 adds is only honest because ci.yml runs the leg in the job that
     has a database. The same test applied to the whole population found four
-    files whose database legs run in no job at all; they are on the list below
-    until a lane gives them a home.
+    files whose database legs run in no job at all; they were given one in
+    tests-with-infra on 2026-11-08, and the roster it polices is empty until a
+    file rejoins it.
     """
     reasons = no_database_report.skip_reasons()
     database_skips = sorted(
