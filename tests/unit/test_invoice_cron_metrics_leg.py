@@ -465,7 +465,7 @@ def _types(body: str) -> dict[str, str]:
 def test_E1_the_rostered_number_is_occupied_and_answers_the_promised_path(
     store: SqliteBillingStore, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """E1 — the number the cron binds by default is answered by this process, and the roster reads it.
+    """E1 — the cron's default number is answered by this process; the roster reads it.
 
     Same probe as the exempt-era E1 (no ``metrics_port`` argument, no knob — the shape
     ``python -m storage.invoice_cron`` takes on a host). The premise clause about
@@ -734,7 +734,7 @@ def test_E4_the_rostered_number_has_no_unintended_carrier_and_the_predicate_refu
     claims = _port_claims(DEFAULT_METRICS_PORT, roster, mappings)
     roster_claims_out = [c for c in claims if c.startswith("名册作业")]
     deploy_claims_out = [c for c in claims if not c.startswith("名册作业")]
-    assert roster_claims_out == [f"名册作业 invoice-cron 抓 invoice-cron:9103"], (
+    assert roster_claims_out == ["名册作业 invoice-cron 抓 invoice-cron:9103"], (
         f"the armed billing profile names exactly one roster target on {DEFAULT_METRICS_PORT} "
         f"(名册作业 invoice-cron 抓 invoice-cron:9103), got {roster_claims_out}: the merge "
         f"intended exactly that claim, any other means the armed story in the docs drifted "
