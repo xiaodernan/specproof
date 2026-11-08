@@ -126,6 +126,13 @@
     基线测试 JobDetail 31 例全绿。
   - **仍未做**：节点级产物对象/失败点契约（worker 侧每节点落 artifact 引用）→ 这一项留待
     `agent/graph.py` 节点携带产物引用后，再补到 SSE 事件与时间线。
+  - 续写（2026-11-09，#1539）：阶段契约再加**节点失败点 `failed_at`**（该节点 status=="failed"
+    首帧 stamp，无失败帧为 `""`）——仍是附加式合约，旧消费端逐字键不变；后端 `api/routes/web.py`
+    （`_format_iso_utc`）+ `test_web_api.py`（test_stages_failure_point_is_the_earliest_failing_stamp
+    锁"首失败帧而非末帧"+ 既有两条 enrich 腿同口径吻合；49/49 绿）。前端 JobDetail 阶段行在失败
+    节点渲染 `.stage-failed-at` 芯片（`失败于 <fmtTime>`，样式落 base.css `--danger-fg`）；
+    `api.ts::Stage.failed_at` 可选装配完毕，SSE 合成帧落 failed_at；`tsc --noEmit` 干净；
+    `vitest run src/pages/JobDetail.test.tsx` 28/28（含本批新增 2 例：渲染失败点 / 空帧不渲染）。
 - [~] **3.2 结论页重做**：首屏三问——通过没？风险在哪？我下一步做什么？证据折叠可展开。
   - 本轮（可验证）：`JobDetail` 首屏"验证结论"大数字卡此前直显英文枚举（`VERIFIED`/`BLOCKED`/`NEEDS REVIEW`…）。新增 `verdictLabel()`：已知枚举译成中文（通过/受阻/执行失败/需复核/待验证/已过期/已取消），**未知值原样透传不臆测**（错误的友好标签会误导合并决策）。已验证：`JobDetail.test.tsx` 4 passed（含新用例断言显示"受阻"且无裸"BLOCKED"）、`tsc` 干净、全量 vitest 119 passed。
 - [x] **3.3 术语内联化**：矩阵/契约/Capsule 首次出现处悬浮解释，引导页关键步骤做成产品内 checklist（进度持久化）。

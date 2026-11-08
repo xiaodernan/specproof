@@ -420,6 +420,14 @@ def job_stages(job_id: str) -> dict[str, Any]:
     for node in order:
         node_events = [ev for ev in events if str(ev.get("node") or "unknown") == node]
         stamps = [_parse_iso_utc(str(ev.get("at") or "")) for ev in node_events]
+        # Per-node failure point: the FIRST stamp on this node's stream whose
+        # status is "failed", empty string otherwise. Not "the last event" —
+        # the earliest failing frame is the honest one.
+        failed_stamps = [
+            stamp
+            for event, stamp in zip(node_events, stamps, strict=False)
+            if str(event.get("status") or "") == "failed" and stamp is not None
+        ]
         if any(stamp is None for stamp in stamps):
             stages[node]["started_at"] = ""
             stages[node]["duration_seconds"] = None
@@ -431,6 +439,7 @@ def job_stages(job_id: str) -> dict[str, Any]:
             stages[node]["duration_seconds"] = (
                 finished - started
             ).total_seconds()
+        stages[node]["failed_at"] = _format_iso_utc(min(failed_stamps)) if failed_stamps else ""
         stages[node]["event_count"] = node_counts[node]
     return {
         "job_id": job_id,

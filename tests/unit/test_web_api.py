@@ -309,6 +309,9 @@ def test_stages_enrich_with_duration_and_count(fakes: None) -> None:
     assert stages["intake"]["duration_seconds"] == 0.0
     assert stages["intake"]["started_at"] == "2026-08-18T00:00:00Z"
     assert stages["intake"]["event_count"] == 1
+    # A node with no failing frame carries no failure point (empty, not absent)
+    assert stages["intake"]["failed_at"] == ""
+    assert stages["collect_diff"]["failed_at"] == ""
     assert stages["collect_diff"]["duration_seconds"] == 1.0
     assert stages["collect_diff"]["started_at"] == "2026-08-18T00:00:01Z"
     assert stages["collect_diff"]["event_count"] == 2
@@ -332,6 +335,33 @@ def test_stages_unparseable_stamps_yield_null_duration(fakes: None) -> None:
     assert row["started_at"] == ""
     assert row["event_count"] == 1
     assert row["percent"] == 1.0
+
+
+def test_stages_failure_point_is_the_earliest_failing_stamp(fakes: None) -> None:
+    """failed_at = the earliest stamp on the node's stream with status "failed"."""
+    _seed_job()
+    FakeRedisStream.events = [
+        {"id": "3-0", "node": "prepare_head", "status": "running",
+         "percent": 30.0, "message": "cloning", "at": "2026-08-18T00:00:05Z"},
+        {"id": "3-1", "node": "prepare_head", "status": "failed",
+         "percent": 0.0, "message": "git refused", "at": "2026-08-18T00:00:29Z"},
+        {"id": "3-2", "node": "prepare_head", "status": "failed",
+         "percent": 0.0, "message": "git refused again", "at": "2026-08-18T00:00:47Z"},
+        {"id": "3-3", "node": "compile_contracts", "status": "completed",
+         "percent": 60.0, "message": "ok", "at": "2026-08-18T00:01:00Z"},
+    ]
+    client = TestClient(app)
+    resp = client.get(f"/api/v1/jobs/{JOB_ID}/stages", headers=_headers())
+    assert resp.status_code == 200
+    body = resp.json()
+    stages = {row["node"]: row for row in body["stages"]}
+    # earliest failing stamp, not the last one
+    assert stages["prepare_head"]["failed_at"] == "2026-08-18T00:00:29Z"
+    # a stamped "completed" node carries no failure point
+    assert stages["compile_contracts"]["failed_at"] == ""
+    # started_at/event_count still computed normally next to the new field
+    assert stages["prepare_head"]["started_at"] == "2026-08-18T00:00:05Z"
+    assert stages["prepare_head"]["event_count"] == 3
 
 
 def test_stages_degraded_when_redis_down(fakes: None) -> None:

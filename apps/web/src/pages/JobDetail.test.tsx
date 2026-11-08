@@ -449,3 +449,63 @@ describe("demo badge on the detail page (#526)", () => {
     expect(head?.textContent || "").not.toContain("0");
   });
 });
+describe("stages tab — per-node failure point", () => {
+  const stubStages = (stages: unknown[]) =>
+    async (path: string) => {
+      if (path === "/jobs/job-1") {
+        return { job: { id: "job-1", status: "BLOCKED", repo_path: "/project" } };
+      }
+      if (path.endsWith("/summary")) {
+        return { summary: { verdict: "BLOCKED", errors: ["boom"] } };
+      }
+      if (path.endsWith("/stages")) {
+        return {
+          job_id: "job-1",
+          stages,
+          event_count: (stages as { event_count: number }[]).reduce(
+            (sum, row) => sum + (row.event_count || 0),
+            0,
+          ),
+          degraded: false,
+          degraded_reason: null,
+        };
+      }
+      return { job_id: "job-1", findings: [], count: 0, degraded: false };
+    };
+
+  it("announces the failure point next to the elapsed time", async () => {
+    get.mockImplementation(
+      stubStages([
+        {
+          node: "prepare_head", status: "failed", percent: 40, message: "git refused",
+          at: "2026-08-18T00:00:29Z", event_id: "3-1",
+          started_at: "2026-08-18T00:00:05Z", duration_seconds: 7.2,
+          event_count: 2, failed_at: "2026-08-18T00:00:29Z",
+        },
+      ]) as typeof apiGet,
+    );
+    render(<JobDetail jobId="job-1" />);
+    fireEvent.click(await screen.findByRole("tab", { name: "执行进度" }));
+    expect(await screen.findByText(/失败于/)).toBeTruthy();
+    expect(screen.getByText("7.2 秒")).toBeTruthy();
+    expect(document.querySelector(".stage-failed-at")).not.toBeNull();
+  });
+
+  it("omits the failure-point chip for a node with no failing frame", async () => {
+    get.mockImplementation(
+      stubStages([
+        {
+          node: "compile_contracts", status: "completed", percent: 60, message: "ok",
+          at: "2026-08-18T00:01:00Z", event_id: "4-2",
+          started_at: "2026-08-18T00:00:56Z", duration_seconds: 4.0,
+          event_count: 1, failed_at: "",
+        },
+      ]) as typeof apiGet,
+    );
+    render(<JobDetail jobId="job-1" />);
+    fireEvent.click(await screen.findByRole("tab", { name: "执行进度" }));
+    await screen.findByText("解析需求为验收条件");
+    expect(screen.queryByText(/失败于/)).toBeNull();
+    expect(document.querySelector(".stage-failed-at")).toBeNull();
+  });
+});

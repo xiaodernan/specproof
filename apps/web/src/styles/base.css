@@ -1512,6 +1512,7 @@ label.field { display: block; color: var(--color-text-2); font-size: var(--fs-12
 .stage-msg { flex: 1; font-size: var(--fs-13); color: var(--color-text); }
 .stage-pct { font-family: var(--font-mono); width: 60px; text-align: right; color: var(--color-text-3); font-variant-numeric: tabular-nums; }
 .stage-duration { font-family: var(--font-mono); min-width: 78px; text-align: right; color: var(--color-text-3); font-variant-numeric: tabular-nums; }
+.stage-failed-at { font-family: var(--font-mono); font-size: 11px; color: var(--danger-fg); font-variant-numeric: tabular-nums; }
 
 .bar { height: 6px; background: var(--color-surface-3); border-radius: var(--radius-full); overflow: hidden; margin: var(--sp-2) 0; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-600), var(--accent-2-400)); border-radius: inherit; transition: width var(--dur-slow) var(--ease-out); }

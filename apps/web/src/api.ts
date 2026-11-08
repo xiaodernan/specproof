@@ -499,6 +499,7 @@ export interface Stage {
   started_at: string;
   duration_seconds: number | null;
   event_count: number;
+  failed_at: string;
 }
 
 export interface StagesData {
