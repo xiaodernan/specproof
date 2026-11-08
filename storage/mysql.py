@@ -899,7 +899,7 @@ class MySQLStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT * FROM verification_jobs WHERE status = %s ORDER BY created_at",
+                "SELECT * FROM verification_jobs WHERE status = %s ORDER BY created_at, id",
                 (status,),
             )
             return cast(list[dict[str, Any]], cur.fetchall())

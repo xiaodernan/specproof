@@ -126,7 +126,7 @@ def _findings_from_table(
             cur.execute(
                 "SELECT id, contract_id, severity, confidence, evidence_type, "
                 "impact_path, capsule_path, created_at "
-                "FROM findings WHERE job_id = %s ORDER BY created_at",
+                "FROM findings WHERE job_id = %s ORDER BY created_at, id",
                 (job_id,),
             )
             return cast(list[dict[str, Any]], cur.fetchall())
