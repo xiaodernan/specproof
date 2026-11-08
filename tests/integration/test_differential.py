@@ -49,6 +49,8 @@ def _specproof(args: list[str], timeout: int = 60) -> subprocess.CompletedProces
         [sys.executable, "-m", "cli.specproof.main"] + args,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
         cwd=str(REPO_ROOT),
     )
