@@ -25966,3 +25966,31 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 
 - 生成端分语言反例（Python/Node/Gradle 的 prompt/schema/review/落盘布局，且需**真实模型**端到端 — 本机无 key，按主线按时序位推进）不在本项内；
 - `#1537` 之后 master 连续 fast-forward；树与 origin/master 一致；本批未加任何新依赖、未改任何门的前提。
+
+## #1539 独立验证环节：阶段契约加失败点 `failed_at`（§3.1 第三块）
+
+**记录基准**：HEAD = `d4232e3`（`1897d61..d4232e3`，master 一直 fast-forward；树与 origin/master 一致）。
+
+**背景**：`/api/v1/jobs/{id}/stages` 节点级 `duration_seconds`/`started_at`/`event_count` 于 #1533 进契约（"失败点"与"产物引用"两项曾明确留空）。本号补齐"失败点"——它在流上的语义是「该节点**首帧** status=="failed" 的时间」，与 duration_seconds（首/尾 stamp 之差）一样是附加式字段。
+
+**做了什么（`d4232e3`）**：
+
+1. 后端 `api/routes/web.py::job_stages`（stage fold）：
+   - `failed_stamps = [stamp...]`（按 node 聚合该节点 status=="failed" 的任意可解析 stamp），空→""，否则 `min(failed_stamps)`；
+   - 既有 `started_at`/`duration_seconds` 计算不动；新增 `failed_at` 附加在 stage 行上，旧消费端逐字键零变动。
+   - 新增后端测试 `test_stages_failure_point_is_the_earliest_failing_stamp`：seed 一个 prepare_head 失败节点
+     （两个 failed 帧 stamp 29/47 秒）——断言 `failed_at` == 首失败帧 stamp（29），`compile_contracts` 无失败帧→`""`，
+     `started_at`/`event_count` 不受影响；既有 enrich 腿同口径吻合（intake/collect_diff 无失败帧→`""`）。**49/49 绿**。
+2. 前端 `apps/web/src/api.ts::Stage.failed_at`（string；可选装配完毕）+ `JobDetail.tsx`：
+   - 阶段行失败节点渲染 `.stage-failed-at`（`失败于 <fmtTime>`，样式落 base.css `--danger-fg`——与 token 实际声明对齐，非臆造）；
+   - SSE 合成帧落 `failed_at`（失败帧写 event.ts，否则 ""）；
+   - `vitest`：JobDetail +2 例（渲染失败点 / 空帧不渲染；`.stage-failed-at` querySelector 两侧口径），28/28 绿；
+   - **全量 vitest 417/417 绿**（首次全量跑撞 2 个 UiKit.smoke.test.tsx 各 5000ms 超时——jsdom 环境创建抖动；单独跑该文件 2/2 绿、整体复跑 417/417）。
+3. `docs/operations/PRODUCT_ROADMAP.md` §3.1 续写（仍明示「节点级产物对象」欠账）。
+
+**验证（本号所有门复跑）**：`test_web_api.py` 49/49 · vitest 417/417（含复跑消除的 2 超时）· `tsc --noEmit` 干净 ·
+`ruff check .` + `mypy .` 262 files 干净 · fence 8/8（追加后）· apps/web 无新增依赖、未改任何既有用例断言。
+
+**如实不重跑**：后端 `api/routes/web.py` 的增量只触 stage fold；`openapi_diff`（9/9 于 #1533 后绿）未受新增 stage 字段影响
+（阶段回答键均非必填、无契约新增必填键/新增枚举）——**未**复跑 openapi-diff，理由：本批无新增必填键、无枚举变更；
+`_fullgate3.txt` 的 6478/8/0 数字保持记录在 #1536。
