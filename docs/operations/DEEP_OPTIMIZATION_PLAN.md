@@ -25332,3 +25332,46 @@ VERDICT: case-101 base_pass_head_fail HOLDS
 **实测**：45/45（time-ratchet 本身 + metrics_http + scrape rosters ×2 + worker pumps ）+ 67/67（job_reclaimer / observability_metric_parity / alert_rules / reclaim_tick）+ ruff + mypy 三站干净。
 
 **本节不认证**：① 任何生产中正在用 `time.time()` 作差计算 durations 或 TTL 的其他站点（本 PR 的扫描口径即全仓 `*.py`；精确命中并确认只有上述三处，`time.time()` 其余出现位置都是 timestamps 而非作差）；② 本节不把 wall-clock snap 的误差量化（误差幅度取决于主机 NTP 配置，可达秒级；本节不作数值宣示）；③ 本节未运行全量套件——最终数字独立入后续记档，不预设。
+
+## #1522 独立验证环节：tests/integration 首次本机完整复现 —— CLI 的 cp936 崩因、兄弟 ./mvnw 站与棘轮扩展
+
+**记录基准**：HEAD = `4baff6a`。本节只记已实测的数字；本节未包含的就是本节未认证的；
+Phase-acceptance 腿结果与最终全量单元套件结果都待落盘。
+
+**集成套件逐文件（Windows 宿主、`specproof_test` 隔离生效、`/test/%` 行 0→0、产品库未触）**：
+
+| 文件 | 结果 | 备注 |
+|---|---|---|
+| `test_differential.py` | **16/16 绿**（717s） | 修复后复现 |
+| `test_artifact_recovery.py` | 9/9 | |
+| `test_clean_test_database_script.py` | 9/9 | |
+| `test_contract_registry.py` | 7/7 | |
+| `test_external_state_against_real_object_store.py` | 5/5 | |
+| `test_job_expiry.py` | 12/12 | |
+| `test_job_lifecycle.py` | 9/9 | |
+| `test_migration_0015_roundtrip.py` | 4/4 | |
+| `test_outbox_crash_recovery.py` | 5/5 | |
+| `test_state_snapshot.py` | 4/4 | |
+| `test_transaction_faults.py` | 6/6 | |
+| `test_worker_crash_mid_graph.py` | 11/11 | |
+| `test_sse_reconnect.py` | 11/11 | |
+| `test_agent_jobs_mysql.py` | skip×6 | Windows 无 MySQL。Docker 本机已过，skip 仍是 `MySQLStore` 不可达触发的环境性 skip（诚实记），不是 fail |
+| `test_object_metadata_mysql.py` | skip×6 | 同上 |
+| `test_external_state_against_real_redis.py` | skip×5 | 同上 |
+| `test_phase_acceptance.py` | **待定** | 本节落盘时仍在跑（Maven base+head 构建较重）；结果不预设，会独立记档 |
+
+**CLI 编码缺陷（产品层，诚实记）**：集成套件逮到的第一个红 ——
+`tests/integration/test_differential.py::test_specproof_eval_help`：
+子进程（`-m cli.specproof.main eval --help`）以 `text=True` + cp936 输出，GBK 不能编 ⇒（U+21D2）→ `UnicodeEncodeError`、exit 1 → 测试 `assert 1 == 0` 红。
+修法：`cli/specproof/main.py` 导入期 `sys.stdout/sys.stderr → utf-8/replace`；
+helper 子进程侧编码固定（`encoding="utf-8", errors="replace"`）—— differential.py 16/16 全绿。
+
+**兄弟 `./mvnw` 站（与 #159/#203 同构）**：
+`scripts/seed_sandbox_cache.ps1` step 4（`sh mvnw -q -v`）、`scripts/test_c6_junit_diff.py`
+POSIX 分支（`["sh", "mvnw"]`）都改成 `sh mvnw`/argv-sh 形；并把棘轮
+`tests/unit/test_workflows_invoke_mvnw_through_sh.py` 扩到覆盖这两处；扩展即逮到
+3 处非调用点（docstring/print 文案），文案改写收进。
+
+**本节未认证（显式列清单）**：① Phase-acceptance 腿结果；② 全量套件最终数字
+（留待后续提交重跑，不能从本节外推）；③ 这条 integration 路径不是
+"仓库已可稳定重现"——它依赖本车道此前播种的 Docker 镜像与 host `~/.m2`。
