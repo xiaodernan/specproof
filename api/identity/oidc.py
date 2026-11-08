@@ -118,9 +118,9 @@ class OidcValidator:
         return document
 
     def discovery(self) -> dict[str, Any]:
-        if self._discovery is None or time.time() - self._discovery_at > self._discovery_ttl:
+        if self._discovery is None or time.monotonic() - self._discovery_at > self._discovery_ttl:
             self._discovery = self._fetch_discovery()
-            self._discovery_at = time.time()
+            self._discovery_at = time.monotonic()
             self._jwks = None  # jwks_uri may have rotated
         return self._discovery
 

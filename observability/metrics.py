@@ -16,7 +16,7 @@ from typing import Any
 _lock = threading.Lock()
 _counters: dict[str, float] = {}
 _gauges: dict[str, float] = {}
-_started_at = time.time()
+_started_at = time.monotonic()
 
 # 固定直方图桶 (秒), 对齐 PRODUCTION_SPEC §14 性能目标:
 # FAST p50<=180s / p95<=480s, DEEP p50<=600s / p95<=1500s。
@@ -90,7 +90,7 @@ def snapshot() -> dict[str, Any]:
                 }
                 for name, (ladder, hist) in _histograms.items()
             },
-            "uptime_seconds": time.time() - _started_at,
+            "uptime_seconds": time.monotonic() - _started_at,
         }
 
 
