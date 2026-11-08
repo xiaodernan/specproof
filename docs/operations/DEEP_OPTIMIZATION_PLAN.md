@@ -25672,3 +25672,46 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 **本节订正的事实**：此前记档中任何暗示"CI 是全绿的 master"的地方，自 4f7a001 到 9cdbfee 窗口内的 master 实为 ruff 红（#1530 已订正）；本节补充订正：2026-11-08 20:41→21:20 窗口内本机工作树的 ci.yml 含冲突标记（本订正覆盖该窗口内跑过门的任何声称）。
 
 **本节订的帐**：本节之前的"全量门绿"声称均未涵盖该窗口；今后每次声明"门绿"之前先 `git fetch && git status` 确认树静止。
+
+## #1532 独立验证环节：集大成——用户主 checkout 的 18 个未推送提交并入 master（notify-relay 在途车道完工）
+
+**记录基准**：HEAD = `ff9ef4d`（`8a88e73` merged feacabd→ff9ef4d，再经 `ff9ef4d` 补 .env.example 注释）。master 现在同时携带 feacabd 和 origin/master 的全部提交。
+
+**起因**：用户 2026-11-08 指示"把项目的多个工作分支/各种 worktree 之类的 合并起来 综合集大成 合并到一个主分支 汇集所有内容"。specproof-reference 主 checkout 持有 feacabd 的 18 个未推送提交（notify-relay 生产入库车道 + invoice-cron 部署入口 FIX-27 + notify Slack blocks + notify-stats CLI + SQL static scan 改造 + craft typing 修正）。本批次合入它们并收口留在那些提交里的红门。
+
+**合入内容**（全部出自 feacabd，不引入新产品逻辑）：
+
+| 来源提交 | 内容 |
+|---|---|
+| `acbf4d4` | FIX-27：invoice-cron compose 生产栈部署入口、SpecproofInvoiceCronDown 探针、observability 门接入（表/名册/豁免） |
+| `c2bbd00` | notify-relay:9102 进抓取名册（notify_outbox_pending 生产可见）|
+| `1750032` | notify-relay 生产部署入口：compose 服务 + 指标 9102 + RUNBOOK #16.6-1 收口 |
+| `d3f75b1`/`2b49d27` | craft blocks 显式 list[dict[str, Any]] 注解（mypy 收窄） |
+| `44452b0` | sql-static：replay SQL 组装进变量 + 登记键与源码逐字匹配 |
+| `738c7b3` | Craft 车道接入 outbox 可靠车道（与 verify 同一双车道契约） |
+| `9b7ab5b` | notify-stats CLI（outbox 车道运营可见性入口） |
+| `ac9f72a` | notify Slack blocks（header+fields+reason，与 verify 形状同构） |
+| `ddb2bfc` | 死信通知运营回放：store 方法 + CLI + 假件绑定真方法测试 |
+| `ece5898`/`012043c`/`99957ab` | #541 静态门登记键须与源码逐字匹配 / §41 教训记档 / 死信回放落地记档 |
+| `b93d516`/`36d62ea`/`feacabd` | notify outbox 演练补完整生命周期死信腿（真库实证）+ 记档 |
+
+**本次合并收口的测试/检查**：
+
+- `tests/unit/test_listen_port_knobs_bind_the_scrape_roster.py`：原版 feacabd 该门 3 处红（`NOTIFY_RELAY_METRICS_PORT` 未入表、`_PATH_SOURCES` 未登记、`_EVIDENCE` 未登记、L2 census 缺 `notify_relay.py`、knob 本体未在 `_LISTEN_PORT_KNOBS`）→ 本批补齐；17/17 绿。
+- `tests/unit/test_scrape_roster_binds_the_liveness_probes.py`：specproof_* owner 前放宽为 invoice-cron 后 `notify-relay` 入册、测试更新证据表——全绿（13/13）。
+- `tests/unit/test_alert_rules_bind_their_own_threshold_table.py`：`_LIVENESS_RULES` 加 SpecproofNotifyRelayDown；`_FAMILY_OWNERS[specproof_]` 加 notify-relay；notify-relay 为 armed 探针——全绿（12/12）。
+- `tests/unit/test_alert_table_matches_the_deployed_rules.py` / `_threshold_table.py`：§5 表中 SpecproofInvoiceCronDown 行已在（`Proposed per 提交 acbf4d4 追加`），alert table 三列同步（16→18 规则），`全绿（3 passed）`。
+- `test_observability_metric_parity`：未动。
+- `promtool check config`：valid；`check rules` → **18 rules**（SpecproofNoEvidenceSevereComment 等不变；新增 SpecproofNotifyRelayDown 与已有的 SpecproofInvoiceCronDown 一同武装）。
+
+**用户主 checkout 的动作**（限制范围）：
+
+- 主 checkout（D:\面试项目\specproof-reference）**不碰**：18 个提交原样保留在其本地 master，与合并后的 origin/master 同属一棵树的祖先；dirty 的 33 个在途文件不动、不碰。
+- 本合并只改 _wt_plan + _mergeprobe 工作副本；_mergeprobe 已经弃用删除（`git worktree remove --force`）。
+- 合并后 master 推送到 origin/master（d93267a→ff9ef4d fast-forward），本地与远端内容一致。
+
+**如实订正**
+
+- feacabd 的 `tests/unit/test_recorded_ledger_sections_do_not_vanish.py`（#138 新增）在 feacabd 下红（`#541b` 双节撞标题），合并后在本 HEAD 上重跑 8/8 绿 —— 红不是代码缺陷，是漏提交序列（feacabd 落后 origin 1014 个提交）的直观后果，本条记账不抹掉。
+- `OBSERVABILITY.md` F-31 手抄口径（未挂门）已由本批追加改口，但无门锁死——手抄风险仍在，不假装已闭合。
+- 名册 `notify-relay:9102` 抓取（无独占资源声明、无 PID 限额）与 outbox-relay 立场一致，通知路由到人仍未接发——这是 P6 待决策（需要值班/webhook URL）。
