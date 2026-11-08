@@ -36,6 +36,7 @@ from cli.specproof.commands.contract import contract_cmd  # noqa: E402
 from cli.specproof.commands.craft import craft_cmd  # noqa: E402
 from cli.specproof.commands.demo import demo  # noqa: E402
 from cli.specproof.commands.devtools import devtools_cmd  # noqa: E402
+from cli.specproof.commands.doctor import doctor_cmd  # noqa: E402
 from cli.specproof.commands.eval import eval_cmd  # noqa: E402
 from cli.specproof.commands.evidence import evidence_cmd  # noqa: E402
 from cli.specproof.commands.fix import approve_cmd, fix_cmd  # noqa: E402
@@ -96,6 +97,7 @@ cli.add_command(fix_cmd)
 cli.add_command(approve_cmd)
 cli.add_command(mcp_cmd)
 cli.add_command(devtools_cmd)
+cli.add_command(doctor_cmd)
 cli.add_command(ops_cmd)
 cli.add_command(evidence_cmd)
 
