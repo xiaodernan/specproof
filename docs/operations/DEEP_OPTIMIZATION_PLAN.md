@@ -25554,3 +25554,27 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 - 运行中的共享栈（两个 Careeros 组件、football_os、specproof 栈）未重启、未改配置。
 
 **提交面**：`docs/operations/DATA_LIFECYCLE.md`、`docs/ROADMAP.md`、`docs/operations/DEEP_OPTIMIZATION_PLAN.md`（本节）。门：fence 8/8（提交前已复跑并在提交后再跑）。
+
+## #1528 独立验证环节：演练固化为仓库脚本 `scripts/backup_stores.py` — 可重跑、有契约门、实跑通过
+
+**记录基准**：HEAD = `7eb1fd6`（#1527 之后）。上一号把第一阶段演练写进了 `DATA_LIFECYCLE.md §6.4`；本号把"执行了一次"变成"仓库里随时可重跑"。
+
+**落地物**
+
+- `scripts/backup_stores.py`：`--stores mysql|mongo|both`。MySQL 全周期：源库（默认 `specproof_test`，**拒绝产品库 specproof_phase0 作为 drill 源**，main() 里先拒后跑）`mysqldump --single-transaction --routines --triggers --set-gtid-purged=OFF` → 全新 scratch `specproof_restore_drill` 恢复 → 19 表逐行 COUNT(*) 对齐 + `schema_migrations` MAX(version) 对齐 → `DROP DATABASE` scratch → 写 JSON 报告。Mongo 全周期：scratch `specproof_drill_scratch` 播种 250 篇伪文档 → `mongodump --archive --gzip` → `dropDatabase` → `mongorestore` → 对比 countDocuments 与 digest `{n:250, s:31125}` → DROP scratch。产品库仅在 `--product-backup` 时只读备份；sha256 记入报告后明文删除（`--keep-product-dump` 显式保留并自担责任）。
+- `--scratch` 只接受固定名（`specproof_restore_drill` / `specproof_drill_scratch`），其他一律 ValueError；`DROP` 只作用于 scratch；所有 subprocess 钉 `encoding="utf-8", errors="replace"`。
+- `tests/unit/test_backup_stores.py`：**16 条离线契约**（不触 docker/MySQL/Mongo）：scratch 名守卫（含产品库/生产库名全拒）、dump 命令行参数钉住、count 输出解析、count 对比器（缺表/数值不一致全报）、CLI 拒绝产品库源、拒绝路径零 subprocess（monkeypatch 断言 `called == []`）。**16/16 绿。**
+- `ruff check` 干净；`mypy .` **262 files 干净**（CI lint-type 同口径）。
+
+**实跑（Windows 宿主，HEAD=7eb1fd6）**：
+
+`.venv/Scripts/python scripts/backup_stores.py --stores both` → `overall_ok=true`
+- `mysql_counts_match=true`；`mysql_schema_migrations_src=17 ↔ restored=17`；audit_logs 5174、contract_registry 435、outbox 2、verification_jobs 2；dump 1,095,127 字节；**mysql_dump_deleted=true**。
+- `mongo_counts_match=true`；digest `{"_id":null,"n":250,"s":31125}`（s=0+…+249=31125 ✓）；scratch 已 DROP、归档已删。
+- 报告落临时目录（`tempdir/specproof-drill-*/drill-report-*.json`），scratch 与明文无残留。
+
+**DATA_LIFECYCLE §6.4** 同步标注：该脚本为演练重跑入口 + 契约门位置。
+
+**本批明确不做/不认领**：产品库就地恢复（无批准窗口）、每日 cron/30 天滚动、binlog PITR、MinIO mc mirror、ES snapshot、生产 Grafana 部署 + 告警路由、Dashboard 压测——仍 ⏳；`test_backup_stores.py` 不触真实存储（防环境耦合），真实存储的执行证据在本节与 §6.4 各自的命令输出里。
+
+**提交面**：`scripts/backup_stores.py`、`tests/unit/test_backup_stores.py`、`docs/operations/DATA_LIFECYCLE.md`、`docs/operations/DEEP_OPTIMIZATION_PLAN.md`（本节）。门：fence 8/8（提交后复跑确认）。
