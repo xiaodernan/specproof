@@ -33,11 +33,11 @@
 | §8.3 GitHub/GitLab | ◐ | GitHub App/webhook/checks/fix ✅; GitLab ⏳ 阶段3 |
 | §9 测试评测 | ✅ | unit 2530 passed/3 skipped + security 36/fault 45/contract 27 + golden 100 = 100.0% (63/63, FP 0; docs/eval/eval-100-segments.md); SWE-bench LLM 十二轮 v1-v12 诚实实录 (resolved 0%, harness 障碍逐轮清完剩模型能力层, v12 实测网关仅 v4-flash/v4-pro 无更强档); Capsule 重放 25/25=100.0%; aider polyglot 1/3=33.3% (W98) |
 | §10 安全合规 | ◐ | 威胁矩阵/密钥 env-only/注入 24 矩阵 ✅; 密钥泄漏 0 + bandit Medium+=0 ✅; SOC2 路线 ⏳ |
-| §11 可观测运维 | ◐ | 恢复演练 ✅ (W89 DRILLS: Drill1 真实 kill 6 检查点→9.09s resume→BLOCKED=control / Drill2 provider outage 真实 / Drill4 outbox 崩溃→exactly-once / Drill3 桌面 9 可执行 4 需开发); Grafana/SLO 面板 ⏳ (真实缺口) |
+| §11 可观测运维 | ◐ | 恢复演练 ✅ (W89 DRILLS: Drill1 真实 kill 6 检查点→9.09s resume→BLOCKED=control / Drill2 provider outage 真实 / Drill4 outbox 崩溃→exactly-once / Drill3 桌面 9 可执行 4 需开发); Grafana/SLO 面板 ⏳ (真实缺口) | **更正 (2026-11-08)**: "Grafana/SLO 面板 ⏳ （真实缺口）"现为假 — 面板与告警已入仓（`infra/grafana/dashboards/specproof-slo.json` 51 面板 + `infra/prometheus/alerts-slo.yml` 16 条规则，`#216`/`#218`/`#219` 门同批拒绝）；2026-11-08 一次性实证（Grafana 11.6.1：/api/health=200、dashboard 51 panels、datasource provisioned；promtool config/rules 16 通过；Alertmanager 已进栈 `compose.observability.yml` + `prometheus.yml` `alerting:` 块（prom/alertmanager:v0.27.0，默认 null 接收端——不发通知），amtool check-config 通过）；备份恢复演练第一阶段真实执行（MySQL/Mongo 隔离目标库 dump→restore→逐表对齐，产品库只读备份 + 明文已删，见 DATA_LIFECYCLE §6.4）。**仍为真（未变）**：生产观测栈部署 / 告警路由到真人 / 产品库就地恢复窗口 / 每日 cron/PITR，仍 ⏳。 |
 | §12 阶段0-8 | ◐ | 0/1/2/6/7 核心完成 (6 = W40 后端 + W101 计费路由); 3 部分 (Policy DSL+豁免流 ✅ W102; GitLab ⏳); 4 部分 (探针 ✅ W36, 100 案例 ✅ 100.0%, Python 适配器+ddmin ✅ W78/W105; Gradle/Node/Go ⏳); 5 部分 (KMS/HSM ⏳ + 证书撤销 ✅ #138 **更正 (2026-10-01)**: 原列 ⏳, 撤销簿已落地, 消费方拦截仍 ⏳); 8 部分 |
 | §13 团队配置 | ✅ | 车道制 (每轮审计→实现→全绿验证) |
 | §14 首批 15 任务 | ◐ | 5 ✅ W39 e2e; 6/7 ✅ W38; 8 ✅ W85B+W106 (node 级取消检查点+classify_job_error {system|repo|provider|policy|unknown}); 13 ✅ httpx 弃用已消解; 14 ◐ (W89 演练已执行; 删除/导出/主机备份工具 ⏳); 12 ◐ (100 案例 ✅ 100.0%; 200 案例路线表 ⏳) |
-| §15 验收清单 | ◐ | 见 GUIDE_GAP_AUDIT §C (代码/功能/安全 ✅ 大部分; 运营商业: 账本 ✅ W40+计费路由 ✅ W101, Grafana/SLO ⏳, 恢复演练 ✅ W89) |
+| §15 验收清单 | ◐ | 见 GUIDE_GAP_AUDIT §C (代码/功能/安全 ✅ 大部分; 运营商业: 账本 ✅ W40+计费路由 ✅ W101, Grafana/SLO ⏳, 恢复演练 ✅ W89) | **更正 (2026-11-08)**: 同上——Grafana/SLO（面板+规则+Alertmanager 接收端）与备份恢复演练第一阶段均已落地，见上一行更正与 docs/operations/DATA_LIFECYCLE.md §6.4。 |
 | §16 结语 | ✅ | 持续对齐本表 |
 
 ## B. 代码开发Agent商业化终极计划书 (1005 行)
@@ -78,12 +78,12 @@
 7. ⏳ M4: AST 编辑 + 结构化 Diff (计划书任务 6 第三项)
 8. ⏳ 阶段 3: GitLab 集成 (Policy DSL+豁免流 ✅ W102: agent/policy_dsl.py + agent/waiver.py, 42 测试)
 9. ⏳ 阶段 4: Gradle/Node/Go 适配器 + 状态机验证 + 200 案例路线表 (Python 适配器 ✅ W78/W105 PythonAdapter local-first; 反例最小化 ✅ W105 experiments/minimize.py)
-10. ⏳ 阶段 5: KMS/HSM + 对象加密 (恢复演练 ✅ W89 DRILLS); 证书撤销已 ✅ #138 **更正 (2026-10-01)**: 原文 "KMS/HSM + 证书撤销 (DRILLS 4 需开发)" 中的撤销部分已落地 (签发侧), 剩余的是 KMS/HSM 与消费方拦截 (DRILLS §6 第 10 行)
-11. ⏳ M6 残留: IDE 插件 (VSCode/JetBrains); M9: 模型路由 ⏳; 每作业成本会计 ◐ (#233 后端: job_id 归因+读取路径; UI 接线 ⏳); M10: MCP 客户端/通知连接器 (notify wiring, DRILLS 4 需开发)/插件市场
-12. ⏳ 运维: 生产部署指南/SOC2 合规路线 + Grafana/SLO 面板 (数据字典 ✅ W103 DATA_DICTIONARY.md)
+10. ⏳ 阶段 5: KMS/HSM + 对象加密 (恢复演练 ✅ W89 DRILLS); 证书撤销已 ✅ #138 **更正 (2026-10-01)**: 原文 "KMS/HSM + 证书撤销 (DRILLS 4 需开发)" 中的撤销部分已落地 (签发侧), 剩余的是 KMS/HSM 与消费方拦截 (DRILLS §6 第 10 行) **再更正 (2026-11-08)**: "剩余的是 … 消费方拦截" 现也为假 — #149 已收口 （`craft/accept.py` 幂等短路交付缓存证书前必查吊销， `tests/unit/test_craft_accept.py` 新测钉住）; `evidence/offline_verify.py::verify_certificate_offline` 已读吊销日志（不可读 fail-closed → VERDICT_REVOKED，2026-11-08 离线验证门 33/33 绿）。真剩余仅 KMS/HSM 与对象加密。
+11. ⏳ M6 残留: IDE 插件 (VSCode/JetBrains); M9: 模型路由 ⏳; 每作业成本会计 ◐ (#233 后端: job_id 归因+读取路径; UI 接线 ⏳); M10: MCP 客户端/通知连接器 (notify wiring, DRILLS 4 需开发)/插件市场 **更正 (2026-11-08)**: "notify wiring, DRILLS 4 需开发"现为假 — #65 已落地（worker 在每次被接受的终态写入后调用 `_maybe_notify_terminal`；未设 SPECPROOF_NOTIFY_WEBHOOK_URL 时工厂返回 DisabledConnector，`specproof_notify_disabled_total` 在涨）。通知默认仍不发声是设计（需运营显式设 webhook），不是能力缺口。
+12. ⏳ 运维: 生产部署指南/SOC2 合规路线 + Grafana/SLO 面板 (数据字典 ✅ W103 DATA_DICTIONARY.md) **更正 (2026-11-08)**: "Grafana/SLO 面板" 已从"真实缺口"降为"剩生产部署+值班路由"（见 §B §11 行更正）。SOC2/生产部署指南仍 ⏳。
 13. ⏳ VERIFIED 路径 Java E2E 手动补跑 (W35 已留命令); 100 案例段1 ✅ 已合并总表 (docs/eval/eval-100-segments.md)
 14. ⏳ GitHub PR 创建 (需 PAT 增加 Pull requests 权限或用户手动点击)
-15. ⏳ 自动 RUNNING-job 回收器 + WAITING_FOR_PROVIDER 接线
+15. ⏳ 自动 RUNNING-job 回收器 + WAITING_FOR_PROVIDER 接线 **更正 (2026-11-08)**: 已落地 — 人工 `specproof ops recover`（#68，只读模式 #74）+ worker 进程周期回收 tick（#71，默认 300s + Redis 作用域锁 + `retry_count >= max_retries` 重试预算上限，`SPECPROOF_RECLAIM_INTERVAL_SECONDS=0` 关闭）+ provider 暂停恢复（#64 生产者）+ `_reclaim_once` 跨进程就绪探针（#133，`WORKER_PROVIDER_HOLD_SECONDS` 默认关）。`EVOLUTION_GAP_MAP` 第 87 行同口径（✅ W179）。
 16. ⏳ 生产试点 (3 仓库 2 周); ✅ Python freeze 快照已提交 (W177, 干净 venv 审计待); ✅ 独立归因准确率指标已建并实测 **100.0%** (W182, Go/No-Go #3 PASS); ✅ court 无证据 BLOCKER 不变式测试 19 例 (Go/No-Go #5 PASS)
 
 原则: 每完成一项, 本表+两份审计文档同步回填; 数字只写真实运行结果。
@@ -95,7 +95,7 @@
 架构定性 (用户确认): LLM 推理走远程 API (DeepSeek 网关, 已实测适配), 其余全部本地 — 后端/前端/基础设施/Agent 运行时/评测全部在本机 Docker+进程内运行; 产品本身不部署公网。LLM 凭据仅经环境变量注入 (LLM_BASE_URL/LLM_API_KEY/LLM_MODEL), 绝不落盘; 未配置时自动降级确定性档 (无 LLM 也能点完全流程)。
 
 验收目标 (用户可直接体验):
-1. 一键启动: ✅ W43 + ✅ W43.1 (1f34f44 已在链): worker/outbox 随 start/stop 启停 — 实测新建验证 QUEUED→BLOCKED 确定性档零 LLM (relay 发布→worker 消费→6 分钟终态, findings AUTH-01 静态拦截); 后续已落地: node 级取消检查点 ✅ (W106) + classify_job_error 五类 ✅ (W85B); 剩余: RUNNING-job 自动回收器 ⏳ + WAITING_FOR_PROVIDER 接线 ⏳;
+1. 一键启动: ✅ W43 + ✅ W43.1 (1f34f44 已在链): worker/outbox 随 start/stop 启停 — 实测新建验证 QUEUED→BLOCKED 确定性档零 LLM (relay 发布→worker 消费→6 分钟终态, findings AUTH-01 静态拦截); 后续已落地: node 级取消检查点 ✅ (W106) + classify_job_error 五类 ✅ (W85B); 剩余: RUNNING-job 自动回收器 ⏳ + WAITING_FOR_PROVIDER 接线 ⏳（**更正 (2026-11-08)**: 同 Item 15 — 已落地，见上）；
 2. 首次打开即有内容: 预置 2-3 个已完成验证作业 (矩阵/证书) + 1 个进行中 Agent 作业;
 3. 验证流闭环可点: ✅ 新建验证 → QUEUED→终态 (W43.1 worker/outbox 实测) → 判定矩阵/Findings; 证书页对 Worker 产出的作业诚实 404 (已知限制, 证书由 CLI/CP 落盘);
 4. Agent 流闭环可点: 新建任务 → 计划审阅 → 实时工具流 (SSE) → 门禁五道 → accept 判定 (确定性档, 无需 LLM 无 key);

@@ -34,18 +34,18 @@
 | 2 完整工作流前端 | ✅ Agent 工作台 20 路由 (W31 已交付: 任务向导/计划与步骤审阅/SSE 实时工具流/事件/编辑/门禁/统一+分栏 Diff/审批收件箱/设置; 8 API 端点走 agent_jobs 投影) + Playwright e2e 9 用例全绿 (W39) | 批量操作/通知中心/移动端/错误边界 |
 | 3 集成与策略 | 部分 (GitHub App webhook/checks/评论/fix; Policy DSL + 豁免流 ✅ W102: agent/policy_dsl.py + agent/waiver.py, 42 测试) | GitLab/Gerrit, 分支保护建议 |
 | 4 验证深度生态 | 部分 (mvn+沙箱+变异+状态快照; Python 适配器 ✅ W78/W105 + ddmin 反例最小化 ✅ W105) | Gradle/Node/Go 适配器 ⏳, 状态机测试 ⏳, 200 案例路线表 ⏳ (反例最小化 ✅ W105; 100 案例 ✅ 100.0%) |
-| 5 证书合规私有化 | 部分 (Ed25519+血缘+密钥策略; 恢复演练 ✅ W89 DRILLS; 证书撤销簿 ✅ #138 签发侧 — **更正 (2026-10-01)**: 原列 "证书撤销 ⏳ (DRILLS 4 需开发)" 已过期, 消费方拦截改记 DRILLS §6 第 10 行 ⏳) | KMS/HSM ⏳, 对象加密 ⏳, 私有 Provider/镜像 ⏳ |
+| 5 证书合规私有化 | 部分 (Ed25519+血缘+密钥策略; 恢复演练 ✅ W89 DRILLS; 证书撤销簿 ✅ #138 签发侧 — **更正 (2026-10-01)**: 原列 "证书撤销 ⏳ (DRILLS 4 需开发)" 已过期, 消费方拦截改记 DRILLS §6 第 10 行 ⏳ **再更正 (2026-11-08)**: 消费方拦截已 #149 收口（craft/accept.py 必查吊销）+ offline_verify 实测已查 is_revoked（2026-11-08 离线验证门 33/33）；"改记 … ⏳" 现过期，改成已闭合） | KMS/HSM ⏳, 对象加密 ⏳, 私有 Provider/镜像 ⏳ |
 | 6 计费运营 | ✅ 后端完成 (W40): plans/subscriptions/usage_ledger/invoices 三后端 (0007 迁移+down 对); event_id 幂等账本; 计量钩子 (验证作业/Agent 作业/LLM 四类 token, 默认关零行为变化); 作业创建配额预检→QUOTA_EXCEEDED(429)+80% 软限额通知; /api/v1/billing RBAC+跨租户隔离; 发票 total=Σline_items 对账; 195 测试 (兼容 168+新增 27) 队长复跑全绿; 计费路由 ✅ (W101 前端); #233 每作业计量归因 (迁移 0014 job_id 列
 + GET /billing/jobs/{job_id}, 10臂变异探针全对); 月账单生成 cron ✅ #234 (storage/invoice_cron.py, 8臂变异探针全对) | 每作业成本会计 ◐ (后端落成, UI 接线待); 月账单 cron; 发票签发流; LLM 中途配额强制 |
 | 7 SpecCraft 生产闭环 | 大幅推进: Schema+工具注册表+规则摄取+stale 保护 ✅ (W33, R 车道 102 测试+236 回归); Job 持久化/租约/取消 ✅ (W30, 三后端 55 单元+65 安全, 队长复跑全绿); 门禁组合+并行只读子代理 ✅ (W34); 变更预览/人工批准 ✅ (W31) | craft→verify 强制闭环 (accept) ✅ 已接线 (W35 craft/accept.py); 账单化 ✅ (W40 后端 + W101 计费路由) |
-| 8 平台生态 | 部分 (MCP 服务端) | 插件市场 ⏳, MCP 客户端 ⏳, 通知连接器 ⏳ (notify wiring — DRILLS 4 需开发), 行业规则包 ⏳ |
+| 8 平台生态 | 部分 (MCP 服务端) | 插件市场 ⏳, MCP 客户端 ⏳, 通知连接器 ⏳ (notify wiring — DRILLS 4 需开发), 行业规则包 ⏳ | **更正 (2026-11-08)**: 通知连接器 notify wiring 已落地（#65： worker 在每次被接受的终态写入后调用 `_maybe_notify_terminal`；未设 SPECPROOF_NOTIFY_WEBHOOK_URL 时 DisabledConnector）。默认不发声是设计，不是能力缺口。
 
 ## C. §15 发布验收清单映射
 
 代码构建: ✅ 大部分 (unit 2530 passed/3 skipped, 2026-08-20 实测; ruff 全仓绿/mypy 绿/bandit Medium+=0/密钥泄漏 0; frontend build 全绿; OpenAPI diff 门禁 ✅ W28 实测: 基线生成 0 → 无变更 0 → 篡改 1 → --allow 豁免 0; Python 依赖锁 snapshot 未做; 迁移前向/回滚测试未做)。
 功能证据: ✅ 大部分 (契约审批/Job 全态/Finding 反查/Capsule 重放 25/25=100.0% (Go/No-Go #4 PASS; docs/eval/replay-results.md 六轮 28.57→35.71→42.86→82.14→92.0→100.0%)/证书验证; UNVERIFIED 政策已固化)。
 安全治理: ✅ 大部分 (fail-closed/验签/限流/路径校验/脱敏/沙箱 12 项/审计; 密钥泄漏 0 + bandit Medium+=0)。
-运营商业: 部分 (套餐/账本 ✅ W40 后端 + 计费路由 ✅ W101; 恢复演练 ✅ W89 DRILLS; Grafana/SLO 面板 ⏳; 每作业成本会计 ◐ (#233 后端: job_id 归因+读取路径; UI 接线 ⏳))。
+运营商业: 部分 (套餐/账本 ✅ W40 后端 + 计费路由 ✅ W101; 恢复演练 ✅ W89 DRILLS; Grafana/SLO 面板 ⏳; 每作业成本会计 ◐ (#233 后端: job_id 归因+读取路径; UI 接线 ⏳))。 **更正 (2026-11-08)**: Grafana/SLO 面板已落地（51 面板 + 16 规则入仓，2026-11-08 一次性实证 Grafana 11.6.1 provisioning 成功 + Alertmanager 进栈；剩余： 生产部署 + 值班路由，见 COMPLETION_MAP §B §11 行与 DATA_LIFECYCLE §6.4）。
 
 ## D. 本轮执行 (任务 1 + 13 + 首批)
 
