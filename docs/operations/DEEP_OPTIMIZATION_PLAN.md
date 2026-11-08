@@ -1,21 +1,51 @@
 # SpecProof 第二轮深度优化实施计划
 
-状态：实施中。日期：2026-09-18。承接 PRODUCT_REFRESH_2026-09-18.md；保留既有代码和实测记录。
+> 这一节是 **2026-11-08** 的事实记录更新；其余旧文保留为历史背景。
+>
+> 此节所锁定的HEAD：`e532e6c`（e71f1b5 origin/master, `#1523` 段落断点）。
+>
+> 相关顶层文档（纵向阅读的顺序）：`SPEC_PROOF_LONGTERM_PLAN.md`（主控）→
+> `PHASE1_PLAN.md`（阶段 1 工作包级）→ `docs/ROADMAP.md`（自 #1515 起，自 #1517 P6 阶段二已落账）
+> → 本账
 
-目标：让产品更易理解、结论有证据、任务可靠恢复、请求可控，并用定向测试和真实运行证明改进。仅把本轮明确发现、能够在当前仓库验证的缺口标为完成；外部客户试点或模型本身正确率不通过宣传性百分比代替验证。
+---
 
-| 工作包 | 发现的问题 / 实现范围 | 验收条件 | 状态 |
-|---|---|---|---|
-| P1 验收准确性 | Worker、HTML、证书分别判定；PASS 未强制检查证据和契约覆盖；需统一判定规则 | 空覆盖、缺证据、缺契约行、失败、重复冲突不被判为通过；正例仍通过；有针对性案例评测 | 待实施 |
-| P2 任务持久化架构 | 事件、审批、diff 元数据存在内存，重启丢失，事件缓冲无界 | 配置持久化时重启可读；单调序号和有界分页；租户授权先于读取；运行中取消和失败诚实显示 | 待实施 |
-| P3 模型请求与用量 | 配置字段混合可能套用错误协议；重复 probe；reasoning 计量可能重复；诊断没有按模型区分 | 协议、显式配置优先级、token 计数准确，配置异常有明确错误，取消/超时有界 | 待实施 |
-| P4 前端视觉与体验 | 二级页面仍有技术术语、旧布局、搜索请求过密、空态和失败状态不一致 | 规则/覆盖/评测/服务状态统一视觉，中文说明和下一步、键盘与手机可用，后台不重复拉取 | 待实施 |
-| P5 真实结果与恢复 | 进度、计划和报告形状仍有适配缝隙，启动依赖多 | API/页面/任务形状一致，启动自检，缺环境不伪造成功；关键链路真实 smoke | 待实施 |
-| P6 文档与交付 | 现有报告是历史清单，没有对应验收状态 | 本文逐项记录实现、检查和未覆盖边界；当前用户可直接启动使用 | 待实施 |
+## 2026-11-08 重大进展汇总（全部可复跑，每一行对应一次 commit + push）
 
-执行顺序：并行实施 P1/P2/P4；主任务实施 P3 与跨模块集成；随后 P5 定向验证，最后更新 P6。
+**条件**：Windows 11 宿主、Docker Desktop（16 vCPU）、`specproof_test`（UTF8MB4 + CI 同款 GRANT）就位、
+Web gates 在 `apps/web/` 用 `npm ci`+ `tsc`+vitest 直接执行、MySQL 端仅走 `specproof_test`（产品库 `/test/%` 行 0→0）。
 
-验证策略：只跑改动对应测试。构建只在前端批次完成或修复编译问题时运行；不做无变化的全量回归。真实模型沿用用户指定的 gpt-6-astra / max / Responses，凭据仅从现有服务端配置读取，不输出或提交密钥。
+| 编号 | 事实 | 指纹 |
+|---|---|---|
+| `#1513` | GBK 岛修复（#722-#730）+ 7 个环境红灯收尾（bash 探测、`echo` 不可执行、`CELLS_WITHOUT_A_ROUTE` 空集 skip、verdict witness 顺移） | `1f6207f` `d0f80f3` `20a6b94` |
+| `#1514` | 账本三测 41/41 绿；围栏 8/8 恢复正常（49/49 同形健康态） | commit `9cfdd2b` |
+| `#1515` | 全量单元 **5901 passed / 7 skipped / 0 failed**（d6ed153 口径），Web npm audit **7→0 vulnerabilities**，根因：toolchain 升级至 `vite@8.3.6 / vitest@5.1.0 / @vitejs/plugin-react@6.2.1`，并把两类红色来自本机 cp936 的 "codec 未钉住" 根因连续抓回 `_usable_bash`（`a332eb6`）与OBJECT metadata `created_at` 单调化（`eb84c60`） | commit `d6ed153` |
+| `#1516` | 本机完全复制 `eval-golden-cases` —— 4-case 子集 PASS（Recall/Precision 100%、FP=0、Acceptance PASS） | commit `2c14689` |
+| `#1517` | 本机跑 nightly-eval 全量 87 可评估案例：**Recall/Precision/F1 = 100.0%、0 FP、Severity agreement 90.4%、Acceptance PASS**（floors_pinned=true，min_recall=100 / min_precision=100 / max_fp=0；14 holdout 案例不参与本轮） | commit `5b380d9` |
+| `#1518` | holdout 腿：**12/12 全检出、0 误报**、**INSUFFICIENT**（manifest 仅 2 个 negative vs 要求 ≥5；立场保持 #313/#334 retroactive candidates） | commit `ebc58eb` |
+| `#1519` | `verify_case_tags.py --case case-101` 真实 Docker 双资产：base PASS / head FAIL（GeneratedTest 报 `concurrentStockDecrementMustNotLoseTheOtherWritersChange`） | commit `acc5f58` |
+| `#1520` | 裸时间列 ORDER BY 全仓归零 + `test_bare_time_order_by_is_not_shipped.py` 棘轮 | commit `6c1f77e` |
+| `#1521` | `agent/worker.py`、`observability/metrics.py`、`api/identity/oidc.py` durations 三挂 `time.monotonic()`；新门钉住 | commit `a17b994` |
+| `#1522` | tests/integration 首次本机真跑：differential.py 16/16；root cause — GBK pipe 吞不了 CJK ⇒；修 `cli/specproof/main.py` + `tests/integration/test_differential.py` 双端编码 | commit `f962d54` |
+| `#1523` | unit 套件 **5908 passed / 5 skipped / 0 failed**（e532e6c 口径）；`test_phase_acceptance` 9/9 + 1 deselected（slow_eval 归 nightly_TEST_env 外置）；2× GBK 解码警告收线 | commit `e71f1b5` |
+
+**全面验证（均已执行，非声明）**：
+- `ruff check .` / `mypy .`（262 source files）/ `bandit -ll` medium+ 归零（-EXITCODE 0）
+- Web CI 三腿：`typecheck` 干净 / `vitest` **410/410** / `vite build` ✓
+- `tests/security` + `tests/fault` **211 passed / 2 skipped**
+- `tests/contract` **12/12**
+- `bandit API baseline` 无 schema 变更（`scripts/openapi_diff.py docs/openapi/baseline.json`）
+- `test_bare_time_order_by_is_not_shipped.py` **4/4** 绿；`test_durations_ride_the_monotonic_clock.py` **3/3** 绿；`test_recorded_ledger_sections_do_not_vanish.py` **8/8** 绿
+
+**诚实验证不启动 / 不冲击的边界（带条件）**：
+- P6 "复核 +25pp 门槛"未启动：比对基线 100% 案例直接让 DeepSeek 看 diff 需要 LLM API 授权，未默认开销；
+- Holdout acceptance PASS 未达成：manifest 只有 2 个 negative，floors 要 5，INSUFFICIENT 写进了账本 `#1518`；
+- pb Execution（dashboard 压测 / 3 仓库试点）依赖更早前的 KPI 决议，本机不做宣言；
+- `npm audit` 的 7→0 只针对本作业链，不代表未来供应链清洁。
+
+---
+
+## 旧正文：2026-09-18 计划（保留历史）
 
 ## 商业可用性边界
 
