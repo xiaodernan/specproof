@@ -25227,3 +25227,33 @@ Acceptance: PASS（墙钟 ~10.7 min，含 base+head 各自 Maven 构建）
 **本节不认证的量**：① 14 个 holdout 案例的 Recall/FP（这是 P6 里程碑的"+25pp 门槛"真正承重的面，`--only-holdout` 已排期以 `D:\面试项目\_eval_holdout.log` 独立落盘；本节不预设其结论）；② 墙钟时长（各案例 ~2-4 分钟，总量数小时量级；未逐案计时，不认）。③ case-17/19/20/33/97 的 severity drift 根因（wave 不为个别案例漂移逐案调阈值）。
 
 **已知边界**：HEAD 期间未动 `specproof-reference` 用户主仓；本提交仅含账本；CI `eval-golden-cases`/`nightly-eval` 仍以它们管道实测结果为准；npm 4→8、vitest 2→5、plugin-react 4→6 的升级不改变本节证据适用范围（只动了 dev 依赖）。
+
+## #1518 独立验证环节：holdout 腿实测——12/12 检出、FP=0、样本下限未达 ⇒ INSUFFICIENT（如实，不粉饰）
+
+**记录基准**：HEAD = `5b380d9`（#1517 nightly-87 腿已落账）。本节记 `--only-holdout` 腿（本机 2026-11-08，约晚 19:30 完成）。
+
+**命令**：
+`.venv\Scripts\python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm --only-holdout --output D:\面试项目\_eval_holdout_report.html`（`tee` 到 `D:\面试项目\_eval_holdout.log`）
+
+**manifest 自述（如实转引，不删减）**：这批 holdout 是"retroactive holdout candidates"——候选集在**之前的评测轮之后**才被声明、案例早已被评估过一轮，**不构成 clean prospective holdout**；真正可信的隔离分割需要本仓从未见过的 case id。`#334` 注明 case-101 是并发相关（此前没有任何一场 LLM/正式评测见过它），可作为最可信的 retroactive 候选，但不足以替换整个干净集。
+
+**实测数字（逐字）**：
+
+| 项 | 值 |
+|---|---|
+| Total / Not run | 14 / 0 |
+| Should detect / Detected | 12 / **12**（含 case-01/case-09/case-101 等 head 侧缺陷全部命中） |
+| Negative cases / False positives | 2 / **0** |
+| Precision / Recall / F1 | **100.0 / 100.0 / 100.0** |
+| Severity agreement / Severe precision | 83.3% / 83.3%（12 正例） |
+| Acceptance | **INSUFFICIENT**，`passed=false`，`floors_pinned=false` |
+
+**INSUFFICIENT 的原因（sidecar 原文口径）**：`负例样本 2 < 要求的最小负例数 5（样本不足，无法验证误报率下限）`——不是检出失败、不是误报；是样本下限没达（本腿只有 case-03-clean-pr、case-10-comment-only 两个负例）。此为 floors 的**设计意图**：判定宁可「证据不足」也不出具比证据更多的结论。
+
+**如实记两条 severity drift**：
+- case-101-tx-bulk-update-bypasses-version-guard：预期 BLOCKER，实测 MAJOR（`strongest level MAJOR；evidence: base_pass_head_fail；db state: DB_MUTATED`）；
+- case-39-tx-cancel-no-restock：预期 BLOCKER，实测 MAJOR（`DB_CONSISTENT`）。
+
+**本节认证什么**：12 个此前见过一轮的 holdout 候选上，系统差分对缺陷检出率 12/12、负例零误报、F1 100.0。**本节不认证**：① "+25pp vs 直接让模型看 Diff"——该门需要 LLM 基线实测（需宿主提供 DEEPSEEK_API_KEY 等授权才能跑），本轮未启动；② holdout 的干净隔离性（manifest 自述 retroactive；干净 split 需要全新 case id 建立，排在后续工程）；③ 50% 非异步腿（本腿约 14 案例，跨越 ~45 分钟墙钟，不逐案认时长）。
+
+**隔离**：产品 schema `/test/%` 行全程 0→0；无验证行落产品库；本提交仅含账本。
