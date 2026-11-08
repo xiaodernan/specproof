@@ -545,3 +545,58 @@ def notify_stats_cmd(job_id: str | None) -> None:
             f"attempts={row['attempts']} error={str(row['last_error'])[:80]}"
         )
 
+
+@ops_cmd.command("rollback-migrations")
+@click.option(
+    "--to", "target", type=int, required=True,
+    help="目标版本 (仅回滚 version > --to 的迁移)",
+)
+@click.option(
+    "--dry-run", "dry_run", is_flag=True, default=False,
+    help="只打印计划, 不执行任何 SQL",
+)
+@click.option(
+    "--i-am-sure-rolling-back", "allow_production", is_flag=True, default=False,
+    help="允许执行到非测试库 (需要人工明确同意, 默认拒绝)",
+)
+@click.pass_context
+def rollback_migrations_cmd(
+    ctx: click.Context, target: int, dry_run: bool, allow_production: bool
+) -> None:
+    """回滚数据库迁移。
+
+    `infra/mysql/migrations/down/` 里的降级脚本此前只是文档, 本命令把它变成可执行操作。
+    默认 `--dry-run` 时只打印计划; 真实执行要求目标库为 `specproof_test*` 家族,
+    否则必须显式传 `--i-am-sure-rolling-back`。按版本倒序 (最高版本先回) 执行,
+    每个版本降级后删除 `schema_migrations` 对应行。
+
+    拒绝语义: 缺 down 脚本、或目标库非测试库 (且未传 --i-am-sure-rolling-back) —
+    任何拒绝都以退出码 1 结束, 且打印具体原因, 不静默。
+    """
+    from storage.rollback_migrations import MigrationRollbackRunner, RollbackError
+
+    try:
+        runner = MigrationRollbackRunner()
+        report = runner.apply(target, dry_run=dry_run, allow_production=allow_production)
+    except RollbackError as exc:
+        click.echo(f"回滚拒绝: {exc}", err=True)
+        ctx.exit(1)
+        return
+
+    if not report:
+        click.echo("没有需要回滚的迁移 (目标版本已在不回滚区间内)。")
+        ctx.exit(0)
+        return
+
+    for item in report:
+        if dry_run:
+            stmts = "; ".join(item["statements"])  # noqa: E501
+            click.echo(
+                f"[dry] rollback {item['version']:04d} {item['name']} "
+                f"({item['statement_count']} statements): {stmts[:120]}"
+            )
+        else:
+            click.echo(f"[done] rollback {item['version']:04d} {item['name']}")
+    ctx.exit(0)
+
+
