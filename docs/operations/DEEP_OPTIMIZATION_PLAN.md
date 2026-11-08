@@ -25746,3 +25746,20 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 **仍欠账（明确）**：节点级 `artifact` 引用（worker 每节点产出落地后向 SSE/stages 上报）、
 节点级 `failed_at` 精确失败点（当前只有整 job 的 failed_after/stage 入 last_error；逐节点
 要等 stage wrapper 汇报失败状态）。两项均不加新参数杜撰，留作下一批。
+
+## #1534 独立验证环节：e2faf0c 收 §3.1 第一块 + 一次提交失误（aider-results.md）责任到本行
+
+**记录基准**：HEAD = `e2faf0c`。上一号（#1533）记录 §3.1 增量本身；本节为它收账并如实记一次提交失误。
+
+**§3.1 交付的（可复跑）**：
+- 后端 `api/routes/web.py`：`/api/v1/jobs/{id}/stages` 节点级三字段 `duration_seconds`（首/尾 Redis stamp 之差；任一 stamp 不可解析 → `null`）、`started_at`（首个 UTC stamp）、`event_count`；附加式契约，既有逐字键不变。
+- 前端：`ui/util.tsx::fmtDurationSeconds`（null/NaN/负 → "—"；<1s 两位小数；≥60s 升 "N 分 M 秒"；≥3600s 升 "H 小时 M 分"）；`ui/__tests__/formatDuration.test.ts` 5 例 + `test_openapi_diff.py` 9 例锁住；JobDetail 阶段行新增 `.stage-duration` 列；`tsc --noEmit` 干净；`vitest` 31/2 文件全绿；`test_web_api.py` 46/46 绿；ruff/mypy 干净（262 files）。
+- **如实未做**（不涂抹 §3.1）：节点级 artifact 引用 / 精确失败点；ROADMAP.md 对应 checkbox 留空。
+
+**e2faf0c 里一次提交失误（本节认领，不粉饰）：**
+- 提交含 `docs/eval/aider-results.md` 的时间戳行（那是 pytest 跑过 `test_bench_aider` 的副产品）。按本号前次 PIN 的约定（§1530 记"测试重画时间戳不提交"），这次我忘了 `git checkout --` 就 `git add -A`，导致时间戳混入 e2faf0c 并推上 master。
+- 本次收取为：`git checkout -- docs/eval/aider-results.md` 把树还原到 HEAD；aider-results.md 改动不属于产品行为，也不影响任何门。**不重写历史**（e2faf0c 已推送）。
+- 若要改写 master 历史撤掉那一行，等于 force-push 覆盖 e2faf0c 之上的全部内容（含 §3.1 合入的 e2faf0c 自身）；不做。以后每次 `git add -A` 前先 `git status` 复核未跟踪/已改文件，aider-results.md 类有连续痕迹的必须显式 `git checkout HEAD --`。
+- PRODUCT_ROADMAP §3.1 上一批注已经写得够如实了，本节不改写它，仅追加作业：**"以后 `git add -A` 一律禁用——按文件点名 stage"** 记入下一批 ratchet 或走 SKIP_HOOKS 经验并同等进程才放行。
+
+**本机 master 状态**：e2faf0c 含 §3.1 增量 + aider-results.md 时间戳行；所有门（fence 8/8、web_api 46/46、vitest 31 全绿、tsc、ruff、mypy）在推送前已复跑绿。
