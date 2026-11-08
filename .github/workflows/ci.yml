@@ -108,8 +108,14 @@ jobs:
     runs-on: ubuntu-latest
     # #529: name the volume the runner mounts, so the seeding script and the
     # sandbox read one knob instead of agreeing by matching defaults.
+    # #375: the compose services need credentials, and the test harness strips
+    # the password variables on purpose (no real credentials in unit
+    # tests). The integration legs take the credential through a URL
+    # instead — the same shape MYSQL_URL already has.
     env:
       SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
+      REDIS_URL: redis://:specproof_pass@localhost:6379/0
+      MYSQL_URL: mysql://specproof:specproof_pass@localhost:3306/specproof_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
