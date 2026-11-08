@@ -86,9 +86,17 @@
   skipMain + head 增量播种; 3 案例小样本实测 53-65s/case 本地模式);
   100 案例目录/split.json 就绪; 验收测试 100 目录断言 + 新代表子集 +
   slow_eval 实测依据注释; docs/eval/p6-100-case-eval.md
-- [ ] P6 阶段二 (进行中): 队长已提交 demo/ 基座 (eeeb9e2) 并运行
-  builder (101 tags, case-21..100-head 均挂新基座); 待全量 100 案例
-  隔离评测 -> 复核 +25pp 门槛
+- [x] P6 阶段二 (本机实测完成, 2026-11-08): 100 案例全量隔离评测本机复现
+  (docs/operations/DEEP_OPTIMIZATION_PLAN.md #1517): nightly-eval 同口径
+  87 可评估案例 Recall/Precision/F1 = 100.0%、0 误报、Acceptance PASS;
+  holdout 腿 12 例全检出、0 FP 但为 INSUFFICIENT ("负例样本 2 < 要求的最小
+  负例数 5", #1518); case-101 标签验证 base PASS/head FAIL HOLDS (#1519)。
+  复核 +25pp 门槛未达成 —— 该指标需要 LLM 基线 ("直接让 DeepSeek 看 Diff")
+  的实测对照; 本机无 DEEPSEEK_API_KEY, 未执行。
+  如实订正: builder 落地的结论 (#1517/#1518) 不是"全量 100 案例逐项都绿"——
+  87 个参与案例 (holdout 隔离的 14 个未参与) 100/100/100 通过, 且严重性
+  一致率 90.4%。holdout 还需一个全程无评测见过的新 case 集才能算干净的
+  prospective 隔离 (当前为 retroactive candidates, #313/#334 立场不变)。
 
 ## 下一步 (按顺序)
 
