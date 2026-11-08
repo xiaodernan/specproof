@@ -115,8 +115,12 @@
   11.6.1 一次性实例实证 provisioning（datasource + dashboard 51 panels,
   /api/health=200）；备份恢复演练第一阶段（MySQL/Mongo 隔离目标库
   dump→restore→逐表计数对齐, 产品库只读备份并删除明文）已完成
-  —— 详见 docs/operations/DATA_LIFECYCLE.md §6.4；checkbox 保留给"生产
-  Grafana 部署 + 告警路由到人 + 产品库就地恢复窗口 + 每日 cron/PITR"）
+  —— 详见 docs/operations/DATA_LIFECYCLE.md §6.4；Alertmanager 已接入
+  compose.observability.yml（prom/alertmanager:v0.27.0, prometheus.yml
+  alerting: 块指向 alertmanager:9093, 一次性实例 /-/healthy=200 /
+  /api/v2/alerts=200 []），默认 null 占位接收端 —— **不发通知**。
+  checkbox 保留给"生产 Grafana/Alertmanager 部署 + 告警路由到真人
+  + 产品库就地恢复窗口 + 每日 cron/PITR"）
 - [ ] P5 增补: LLM 基线 ("直接让 DeepSeek 看 Diff") 实测补测
 
 ## 关键指标 (Go/No-Go)
