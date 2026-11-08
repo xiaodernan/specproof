@@ -816,7 +816,8 @@ class MySQLStore:
                 return []
             placeholders = ", ".join(["%s"] * len(ids))
             replay_sql = (
-                "UPDATE notify_outbox SET dead_lettered_at = NULL, "
+                # §16.6-1: only the %s markers sit in this literal — ids ride the parameter tuple.
+                "UPDATE notify_outbox SET dead_lettered_at = NULL, "  # nosec B608
                 "next_retry_at = NULL "
                 f"WHERE id IN ({placeholders})"
             )
