@@ -50,6 +50,13 @@
   invoice-cron:9103；billing profile 启用后 up、未启用时 down 属预期），配
   SpecproofInvoiceCronDown 存活探针。端口已被别的进程回答时它不退出: 启动日志记
   "NOT serving (原因)" 后照常按月开票 — 这就是它与 worker 判决相反的原因 (2026-10-17 实测；2026-10-30 武装部署入口)。
+- **中文宿主与子进程的编码一致** (取证见 DRILLS FIX-16 与 `tests/unit/test_mcp_cli_output_codec.py`):
+  宿主默认解码是 cp936（本机实测），而子进程输出的事实标准字符集是 UTF-8。
+  产品自己隔出的子进程已在调用点固定 `encoding="utf-8"` + `errors="replace"`
+  （agent/craft/sandbox 大部分子进程，以及 MCP `_run_cli`；#111 那条
+  CJK 路径早已修正落地，#1536/#1537 复核）。运维跑自带 stdout 的工具
+  （mvn/pytest/git/脚本）也不受产品保护——在 `export PYTHONIOENCODING=utf-8`
+  之后再启动更稳妥（cp936 解码端只会静默吞字节为空，判定会按"没有输出"走下去而失败者不会提示）。
 - **生产必须 SPECPROOF_ENV=production，而且这件事现在由部署文件本身做到** (#79, 2026-09-26 实测纠正):
   此前 config_guard 只在 `SPECPROOF_ENV=production` 时才拒绝默认口令，而**没有任何入口设置这个变量**
   —— compose 的两个文件、两个本机启动脚本都没有它，于是 `api/server.py` 那句
