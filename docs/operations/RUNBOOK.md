@@ -163,6 +163,15 @@ traceback, 而且 killed 的正是他本想保持不动的那个旋钮。现在�
   MAVEN_USER_HOME 环境变量, JDK21 的 user.home 来自 /etc/passwd, 均已
   实测)。
 
+- **api / outbox-relay 也以 uid 1000:1000 运行（2026-11-08 起）**。
+  compose.production.yml 里三个应用服务（api / worker / outbox-relay）都钉
+  `user: "1000:1000"`；镜像内 `USER` 未写死（python:3.12-slim 出厂为 root），
+  由 compose 侧钉死（门：`tests/unit/test_production_services_do_not_run_as_root.py`）。
+  `sandbox`（dind 守护进程）是刻意例外：保持 privileged，其内部沙箱容器由
+  `sandbox/runner.py` 的 `--user 1000:1000` argv 约束。容器内无登录能力、
+  无 sudo、WORKDIR /app 世界可读（pip 包出厂可读），PYTHONDONTWRITEBYTECODE=1
+  避免 .pyc 写权限需求。
+
 - **DooD: 生产不挂宿主机 docker.sock (§12)**。compose.production.yml
   的 worker 通过 DOCKER_HOST=tcp://sandbox:2375 使用专用
   docker:dind 守护进程 (sandbox 服务, privileged, TLS 关闭, 端口

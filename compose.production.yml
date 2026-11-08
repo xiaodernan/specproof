@@ -16,6 +16,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
+    user: "1000:1000"
     restart: unless-stopped
     environment:
       # Arm storage/config_guard.py. Without SPECPROOF_ENV=production the guard
@@ -183,6 +184,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.worker
     command: ["python", "-m", "storage.outbox_relay"]
+    user: "1000:1000"
     restart: unless-stopped
     environment:
       SPECPROOF_ENV: production

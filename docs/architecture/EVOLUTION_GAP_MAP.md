@@ -26,7 +26,7 @@
 | 凭据零入代码/日志/Prompt/Capsule/报告 | ✅ | — |
 | 租户/角色/对象访问自动化测试 | ✅ W37 | — |
 | Webhook 验签/重放/限流/路径/脱敏 | ✅ | — |
-| 沙箱非 root/无网络/资源受限/无宿主秘密/无 docker.sock | ◐ | Linux 非 root 沙箱 ⏳ (仍为真实缺口) |
+| 沙箱非 root/无网络/资源受限/无宿主秘密/无 docker.sock | ✅ | 沙箱容器 uid 1000（runner argv + `tests/unit/test_sandbox_runner.py`）；生产三应用服务（api/worker/outbox-relay）compose 侧 `user: "1000:1000"`（`tests/unit/test_production_services_do_not_run_as_root.py`, 2026-11-08）；`docker:dind` 本身保持 privileged 是设计（RUNBOOK §5，rootless 变体实测卷兼容不可用）—— 残留项是 rootless 路线的**决策**，不是非 root 运行的代码缺口 |
 | 注入/恶意脚本/符号链接/输出洪水/缓存投毒测试 | ◐ | 注入 24 矩阵 ✅; 恶意构建脚本/输出洪水/缓存投毒 ✅ (W181: 45 例三类威胁测试+真实缺陷修复) |
 
 ### 可靠性与运维

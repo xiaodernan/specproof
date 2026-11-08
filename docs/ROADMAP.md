@@ -106,8 +106,10 @@
   改隔离 runner / rootless dind; 沙箱非 root 运行 (Linux)
   （2026-11-08 复核: 生产 compose 已用专用 docker:27-dind（非宿主 socket），
   沙箱 argv 固定 `--user 1000:1000`/`--cap-drop ALL`/`--network none`/
-  `--pids-limit 256`/no-new-privileges；RUNBOOK §5 记录 rootless 变体实测
-  不可用及线索。代码与门已落地；checkbox 保留给"rootless 路线决策 + 生产
+  `--pids-limit 256`/no-new-privileges；2026-11-08 起 api/worker/outbox-relay
+  三个应用服务 compose 侧也都钉 `user: "1000:1000"`
+  （tests/unit/test_production_services_do_not_run_as_root.py）；RUNBOOK §5
+  记录 rootless 变体实测不可用及线索。checkbox 保留给"rootless 路线决策 + 生产
   复核签字"，不是代码缺口。）
 - [ ] P6 可观测/SLO: Grafana dashboard 化、SLO 看板与告警、备份恢复演练
   （2026-11-08 复核: 51 面板 SLO 看板 + 16 条 SLO 告警已入仓
