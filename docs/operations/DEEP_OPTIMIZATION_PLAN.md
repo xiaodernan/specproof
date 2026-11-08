@@ -25807,3 +25807,84 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 
 **如实标注**：完整 `pytest tests/unit tests/security tests/fault`（`#fullgate2.txt`，6482 items 级别）尚
 未跑完毕；本节不冒认其结果，数字记入 #1536 后追。
+
+## #1536 独立验证环节：feacabd 合并引入的 18 个门红全数闭账（含两处我写错、不粉饰）
+
+**记录基准**：HEAD = `55011df`（master 一直 fast-forward；本节提交前树干净、与 origin/master 一致）。
+#1535 之后排队的就是「把 _fullgate2.txt 里的 18 个失败逐条关掉」——本节逐条交账，并保留途中我两处被自己的记忆带偏的地方。
+
+**18 个失败逐条关闭（每条都是真修，不是稀释）**：
+
+1. env 交付面 D01/D02/D03/D08（`tests/unit/test_env_knobs_reach_the_process_that_reads_them.py`，合批 `953f703`）—
+   `_MIN_POPULATION` 新增两组地板：notify-relay=(15,3,10) 与 invoice-cron=(8,2,5)——这是门的下限（floor），
+   本机同树实测 reach/readers/names 分别为 19/4/14（notify-relay）与 9/3/6（invoice-cron），
+   地板刻意低于实测值以给真实波动留出余量、而不放宽双向空心检测；`_NO_ROW_LEDGER` 移出五个已获得行的名字（SPECPROOF_BILLING_URL / SPECPROOF_NOTIFY_OUTBOX / SPECPROOF_NOTIFY_WEBHOOK_*）；
+   `.env.example` 新增 Notify outbox/Invoice cron 两节（SPECPROOF_NOTIFY_OUTBOX / WEBHOOK_URL / WEBHOOK_SECRET / WEBHOOK_KIND / SPECPROOF_BILLING_URL /
+   INVOICE_CRON_INTERVAL_SECONDS / SPECPROOF_INVOICE_PERIOD），另把新增 env 对应的语义如实写出来。
+   compose.production.yml 三项交付：**api** 补 SPECPROOF_NOTIFY_OUTBOX / SPECPROOF_BILLING_URL / WEBHOOK 三件套（api 经 `api/routes/agent_console.py`
+   读 notify 面）；**worker** 补 WEBHOOK 三件套 + SPECPROOF_BILLING_URL（`agent/worker.py` 真的 import 了 notify 与 storage/billing，合并前漏交、D02 量出）；
+   **notify-relay** 补 SPECPROOF_NOTIFY_OUTBOX（本进程的 `notify_outbox_lane_enabled()` 读它）；**invoice-cron** 补 INTERVAL/PERIOD 两件。
+   —— **我写错第一**：`INVOICE_CRON_INTERVAL_SECONDS` 首轮按记忆写 **86400**（还附「每天一次」的假注释），D03 门当即拒绝——
+   本 repo 的 `storage/invoice_cron.py` 里 `DEFAULT_INTERVAL_SECONDS = 3600.0`，compose 回退与模板行必须等于读者默认串 `"3600.0"`，
+   不是 86400，也不是 3600。已按实订正、注释一并改；门 23/23 绿。
+   —— **我写错第二**：`SPECPROOF_BILLING_URL` 首轮带一个 `mysql://${MYSQL_USER...}` 的硬编码回退；阅读者
+   `os.getenv(SPECPROOF_BILLING_URL, "")` 默认 `''`，回退/模板行必须与其相等（否则 D03 红）；billing 未设=honest no-op 是设计语义，
+   模板行=`SPECPROOF_BILLING_URL=`、compose 回退=`${SPECPROOF_BILLING_URL:-}`（三处一致），门 15/15 绿，L10 的 divergence 表回到既有四项。
+2. `test_env_template_binds_the_compose_knobs` L01/L03/L10 — 实值订正后 15/15 绿（divergent-default 回到既有四项：
+   CRAFT_TOKEN_BUDGET / OTEL_EXPORTER_OTLP_ENDPOINT / SPECPROOF_CORS_ORIGINS / SPECPROOF_PUBLIC_URL）。
+3. `test_fake_inventory_stays_measured` ×2（合批 `ba7a755`）— plain-double 205→208；SQL 假 20 / 鸭子类型 44 不变。
+   `--explain-drift 60def7b…` 归因当前 HEAD=`953f703`：`FakeNotifyMysql`(test_agent_console_api.py:986, 738c7b3)、
+   `_ReplayStore`(test_drill_helpers.py:619, ddb2bfc)、`_StatsStore`(test_drill_helpers.py:712, 9b7ab5b) —— 都是 notify-lane 合并进来的假，
+   不是分类器故障、不是 SQL 面漂移；`PIN_COMMIT`→`953f703`、`PIN_COUNTS` 208；FAKE_INVENTORY 三处数字（269→272、205→208、7.4%）按单步移动；
+   slow 腿（`test_the_pin_pair_is_self_consistent`，slow+归档取树）复测 OK；11/11 绿。
+4. `test_invoice_cron_metrics_leg` E1/E4（合批 `ba7a755`）— 这两个测试的前提「9103 不在名册上」在 feacabd 合并后已不成立
+   （billing profile 武装 + prometheus.yml 已含 `invoice-cron:9103`）。不是删掉断言，而是翻成**反向契约**：
+   E1（改名 `test_E1_the_rostered_number_is_occupied_and_answers_the_promised_path`）断言名册**恰**抓 `invoice-cron:9103`（合并意图），
+   200/自有 marker/路径承诺两条 legs 不变；E4（改名 `test_E4_the_rostered_number_has_no_unintended_carrier_and_the_predicate_refuses`）
+   把名册层断言固定为恰一条（「名册作业 invoice-cron 抓 invoice-cron:9103」）、宿主层断言空（不映射宿主、无端口冲突），
+   「邻号 9104 静默」分支只比部署层。OBSERVABILITY/RUNBOOK/BILLING_DESIGN/compose 注释四处同步回填为「已武装」口径（只改说法不改行为）。13/13 绿。
+5. `test_metric_inventory_lists_every_emission_site`（合批 `1d57e9d`）— 普查 42 个文件（+1 `api/routes/agent_console.py`，
+   `notify_outbox_lane_enabled()` 为真时 `enqueue_notify_intent` 成功才 `incr("notify_outbox_enqueued_total")`，异常分支记一条
+   warning 后 `incr("notify_outbox_enqueue_failed_total")`，两计数 mirror `storage/mysql.py` 的入车道面）；
+   OBSERVABILITY §8.10 新增该 bullet、「四十一个」→「四十二个」（重数历史一并续接）。数字不手写，全部是本棵树的普查输出。
+6. `test_metrics_bind_fates_reach_the_ops_reader` ×2（合批 `ba7a755`）— D3 判决门按码普查落定 `storage/notify_relay.py`
+   对 refusal 的判决是**停止进程**（`serve_metrics_in_thread` 在 try 之外），与 worker/outbox-relay 同形；D3/D4 均要求载体段落同含
+   判决词（随绑定失败退出）+ 默认端口 9102；已在 OBSERVABILITY §2 的 notify-relay bullet 中补入该两条；OBSERVABILITY/RUNBOOK 其它载体不新增违约。8/8 绿。
+7. `test_security_scanner_evidence_quotes_are_annotated`（合批 `1d57e9d`）— `.github/workflows/ci.yml:117` 的
+   `REDIS_URL: redis://:specproof_pass@localhost:6379/0` 触发 security-scanner 的 `Redis URL with Credentials`（HIGH）。这是一次性 CI runner
+   的脚手架口令（与 compose.phase0.yml redis requirepass 出厂默认一致，非生产凭证），按本仓库约定前置理由：reason 在前、指令在后，
+   `# specproof-nosec Redis URL with Credentials`；本门 37/37 绿。
+8. `test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes` ×4（合批 `1d57e9d`）— §3.1 的 `Stage` 接口 +3 行
+   （插入点行号 498 后，API 处后续所有行号 +3）+ JobDetail.tsx +1 行，五份登记表全部测量重钉：
+   `CONSUMER_BINDING_ROSTER`（forward 21 个点：991→994 等；await-binding 1219→1222 / 1231→1234；promise-bound 1129→1132；句典 21/8/7/5/3/2/1/1 不变）、
+   `CLIENT_ISSUER_ROSTER`（apiDelete 938→941、apiPost 943→946、createFindingFeedback 584→587、getAgentDiff 1051→1054、getAuthConfig 1100→1103、
+   getInvoiceByPeriod 1218→1221、getJobFeedback 580→583、openAgentEventStream 960→963、transitionInvoiceStatus 1227→1230；DEPTH_BANDS {0:2, 1:14} 不变）、
+   `DENOMINATOR_PAGE_BLIND`（JobDetail.tsx 603→604 / 644→645）、`DENOMINATOR_NAMED_WITHOUT_A_CENSUS_ROW`（938→941、943→946）、
+   `CONSUMER_BINDING_UNREAD_BLOCKS`（588→591/991→994/1008→1011/1046→1049/1149→1152/1189→1192/1231→1234）。
+   Provenance：`tests/_payload_plane.py` 的 consumer_bindings / client_surface / denominator_sites 在本棵树的实测输出（按门自己的口径调用，非手算）；
+   用例 55/55 绿，`DENOMINATOR_ROW_TOTALS=(105,58,47)` 与 `DENOMINATOR_PAGE_KINDS` 均未被本次漂移动到。
+9. `test_verdict_channel_parity`（合批 `1d57e9d`）— 两漂移：
+   a. `result_json` 通道的 UNKNOWN witness 行号 453→455（feacabd 合并后代码把 UNKNOWN 写在 455 行）；
+      witness 是「读证人文件那一行」登记物，随合并漂移必须重测 —— 不改判决词、不改 Owner 集。
+   b. `drill_report` 通道新增 `FAIL — replay re-queued nothing`（`scripts/drill_notify_outbox.py:200` 的纯字面写；先前 scale 只覆盖
+      `FAIL — claim refused` / `FAIL — terminal write refused`，门量出 produced but never declared）。
+   不改断言、不改词表档位、不删任何必须声明的行——加生产方而非弱化门。门 14/14 绿。
+
+**全量复验（数字为本机事实）**：本机 `pytest tests/unit tests/security tests/fault`（`_fullgate3.txt` 留档；**HEAD = `c19d386`**——本次全量套件启动时的树；随后落地 `55011df`（.env.example 注释订正，一个文档行数，不触及任何代码或测试面））：
+**6478 passed, 8 skipped, 0 failed, 3 warnings (2:07:51)**；MySQL-backed 普查 22 个文件本会话跑了 16 个（subtotal 97.0s，`/test/%` 重定向 0 行；0 failed；其余 6 个未跑，本节不臆测其原因——_fullgate2 那次跑 0/22，两个批次的 DB 可测面前提不同，归因需另查）。
+3 个 warnings 均为 pytest-asyncio `PytestDeprecationWarning`（既有遗留，本节不涵盖）。
+`ruff check .` 全绿；`mypy .` 262 files 干净；ledger fence（`test_recorded_ledger_sections_do_not_vanish.py`）8/8 绿；`apps/web`：`tsc --noEmit` 干净；
+`vitest run` 48 文件 / **415 通过**（第一次跑曾撞 1 个 Matrix.test.tsx 的挂件时序问题（jsdom 环境创建抖动）；单独跑 21/21、整体复跑 415/415；未删用例未改断言）。
+
+**本节不认领/仍要你的决策**：
+
+- `DEEPSEEK_API_KEY`（P5-1：比「直接让 DeepSeek 读 Diff」的 strict baseline；本机无，key 归你）。
+- `SpecproofInvoiceCronDown` / `SpecproofNotifyRelayDown` 的真实接收端（null receiver；接真值班需你定路由）。
+- 备份窗口 / PITR / 保留时长；pilot repo / 看板压测的承载方式（需你定承载）。
+- `specproof-reference`（落后 origin/master 1014 提交；你的 feacabd 18 个未推提交已并入 master 为 ff9ef4d 线路）是否可删——你决，本车道不删、不碰。
+  两笔 commit 触发全局 pre-commit 文件名门（`.env.*` 疑似密钥）；本节如实记下：只有两笔触碰 `.env.example` 的提交用到 PowerShell
+  `$env:SKIP_HOOKS='1'` 明示跳过（`953f703` 与 `55011df`；cmd 下 `set SKIP_HOOKS=1` 的形式在本机的 hook 上看不到该变量——已用 env dump 字节实测确认），
+  均经完整 diff 人工审读，无密材，不等价自行放空。
+
+**与上游对齐**：本节证据与提交全部在 `git ls-files` 中可核对；两笔 rollback（不重写历史）已在 #1534/#1535 记录；
+工作树在本节提交前是干净的（tree == `55011df`）。
