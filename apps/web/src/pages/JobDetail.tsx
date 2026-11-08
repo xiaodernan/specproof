@@ -496,6 +496,21 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
                       ))}
                     </>
                   ) : null}
+                  <details className="evidence-fold" aria-label="证据折叠">
+                    <summary>证据折叠{caps.length ? "（" + caps.length + " 份可下载材料）" : ""}</summary>
+                    <div className="evidence-fold-body">
+                      {caps.length
+                        ? caps.slice(0, 5).map((c) => (
+                            <div key={c} className="kv">
+                              <span className="kv-label">复现包</span>
+                              <span className="kv-value">{c}</span>
+                            </div>
+                          ))
+                        : <div className="kv"><span className="kv-label">复现包</span><span className="kv-value">本次没有生成复现包（结论靠可执行证据判定，不依赖下载材料）</span></div>}
+                      {kv("签名材料", s?.capsules ? String(s.capsules.length) + " 份" : "本地内存可见")}
+                      {kv("流式进度", (live && live.length ? String(live.length) + " 个帧" : "0 个帧"))}
+                    </div>
+                  </details>
                 </Panel>
                 {s.deep_results && Object.keys(s.deep_results).length > 0 ? (
                   <Panel title="DEEP 深度验证披露">

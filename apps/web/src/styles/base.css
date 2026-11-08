@@ -1530,6 +1530,15 @@ label.field { display: block; color: var(--color-text-2); font-size: var(--fs-12
 }
 .kv-value { word-break: break-all; }
 
+/* §3.2: collapsible evidence on the overview viewport — details/summary, not a custom accordion,
+   so keyboard toggle and SR expansion work out of the box. */
+.evidence-fold { border-top: 1px solid var(--color-border); margin-top: var(--sp-4); padding-top: var(--sp-3); }
+.evidence-fold > summary { cursor: pointer; font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: 0.04em; color: var(--color-text-2); list-style: none; }
+.evidence-fold > summary::before { content: "▸ "; color: var(--color-text-3); }
+.evidence-fold[open] > summary::before { content: "▾ "; }
+.evidence-fold-body { padding: var(--sp-3) var(--sp-2); }
+.evidence-fold-body .kv:first-child { padding-top: 0; }
+
 pre.json {
   background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-md);
   padding: var(--sp-3); font-family: var(--font-mono); font-size: var(--fs-12); color: var(--color-text-2);

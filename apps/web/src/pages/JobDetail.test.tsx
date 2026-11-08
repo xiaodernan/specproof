@@ -509,3 +509,27 @@ describe("stages tab — per-node failure point", () => {
     expect(document.querySelector(".stage-failed-at")).toBeNull();
   });
 });
+
+describe("证据折叠 on the overview viewport", () => {
+  it("keeps the fold hidden by default and reveals the evidence on toggle", async () => {
+    get.mockImplementation((async (path: string) => {
+      if (path === "/jobs/job-1") return { job: { id: "job-1", status: "BLOCKED", repo_path: "/project" } };
+      if (path.endsWith("/summary")) return { summary: {
+        verdict: "BLOCKED", contracts_total: 4, matrix_passed: 1, matrix_failed: 2,
+        matrix_unverified: 1, report_path: "reports/v-report.html",
+        retrieval_note: "es ok", errors: ["one error"],
+        capsules: ["cap-a.zip", "cap-b.zip"],
+      } };
+      if (path.endsWith("/stages")) return { job_id: "job-1", stages: [], event_count: 0, degraded: false };
+      return { job_id: "job-1", findings: [], count: 0, degraded: false };
+    }) as typeof apiGet);
+    render(<JobDetail jobId="job-1" />);
+    const fold = await screen.findByLabelText("证据折叠");
+    expect(fold.tagName.toLowerCase()).toBe("details");
+    expect(fold.hasAttribute("open")).toBe(false);
+    fireEvent.click(fold.querySelector("summary")!);
+    expect(fold.hasAttribute("open")).toBe(true);
+    expect(fold.textContent || "").toContain("cap-a.zip");
+    expect(fold.textContent || "").toContain("2 份");
+  });
+});

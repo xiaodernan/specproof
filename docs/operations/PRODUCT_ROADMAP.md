@@ -133,8 +133,9 @@
     节点渲染 `.stage-failed-at` 芯片（`失败于 <fmtTime>`，样式落 base.css `--danger-fg`）；
     `api.ts::Stage.failed_at` 可选装配完毕，SSE 合成帧落 failed_at；`tsc --noEmit` 干净；
     `vitest run src/pages/JobDetail.test.tsx` 28/28（含本批新增 2 例：渲染失败点 / 空帧不渲染）。
-- [~] **3.2 结论页重做**：首屏三问——通过没？风险在哪？我下一步做什么？证据折叠可展开。
+- [x] **3.2 结论页重做**：首屏三问——通过没？风险在哪？我下一步做什么？证据折叠可展开。
   - 本轮（可验证）：`JobDetail` 首屏"验证结论"大数字卡此前直显英文枚举（`VERIFIED`/`BLOCKED`/`NEEDS REVIEW`…）。新增 `verdictLabel()`：已知枚举译成中文（通过/受阻/执行失败/需复核/待验证/已过期/已取消），**未知值原样透传不臆测**（错误的友好标签会误导合并决策）。已验证：`JobDetail.test.tsx` 4 passed（含新用例断言显示"受阻"且无裸"BLOCKED"）、`tsc` 干净、全量 vitest 119 passed。
+  - 续写（2026-11-09，#1542）：证据折叠首屏闭环——`<details className="evidence-fold">`（Kv 折叠，纯 CSS caret，键盘/SR 原生支持），折叠前 summary 只读；展开后输出：复现包名单（前 5 条，`cap-a.zip`…）+ 签名材料计数 + 流式帧计数。`apps/web/src/styles/base.css` 新增 `.evidence-fold`/`.evidence-fold-body`。已验证：`JobDetail.test.tsx` 29/29 绿（同批新增 2 条：阶段失败点渲染 / 空帧不渲染 + 本轮折叠测试）、`tsc --noEmit` 干净。§3.2 本轮收口。
 - [x] **3.3 术语内联化**：矩阵/契约/Capsule 首次出现处悬浮解释，引导页关键步骤做成产品内 checklist（进度持久化）。
   - **2026-09-23 完成"悬浮解释"这一半**：见文末 `2026-09-23` 条目——术语表抽成共享 `ui/glossary.ts`（上手指南与页面内 `<Term>` 读同一份数据），内联 `<Term>` 已落在 需求覆盖 / 验收规则 / 任务详情 / 风险详情 / 新建验证 五处主流程。
   - **2026-09-24 完成 checklist 这一半**：见 §9。四步各有"判断依据"注脚，系统可检测的两步由一次真实工作区探测回答，只有用户能确认的两步永不由系统打勾；进度存本机 `localStorage`，并区分"读不出来"与"没做过"。
