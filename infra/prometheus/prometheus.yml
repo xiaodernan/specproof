@@ -22,6 +22,15 @@ global:
 rule_files:
   - /etc/prometheus/alerts-slo.yml
 
+# SLO 告警接收端: alertmanager (compose.observability.yml, v0.27.0)。
+# 未起 alertmanager 时本块只是空指针配置 — prometheus 正常启动,
+# /api/v1/alerts 照常返回 firing 实例, 只是送不出去 (promtool 也只校验语法)。
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
 scrape_configs:
   - job_name: prometheus
     static_configs:

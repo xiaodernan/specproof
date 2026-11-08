@@ -9,11 +9,12 @@
 |---|---|---|---|
 | otel-collector | otel/opentelemetry-collector-contrib:0.123.0 | 4317 (OTLP gRPC) / 4318 (OTLP HTTP) / 8889 (prom exporter) | 接收 api/worker 的 OTLP 数据; 指标经内嵌 prometheus exporter 暴露, Trace 走 debug exporter (无外部后端) |
 | prometheus | prom/prometheus:v3.3.1 | 9090 | 15s 抓取: api:8000/metrics、worker:9100/metrics、outbox-relay:9101/metrics、otel-collector:8889、rabbitmq:15692/metrics/per-object、自身 (localhost:9090); 规则 alerts-slo.yml |
+| alertmanager | prom/alertmanager:v0.27.0 | 9093 | SLO 告警接收端 (prometheus.yml `alerting:` 指向它); 默认 receiver 为 null 占位 — **不发送任何通知**，需运维接真实路由后才有通知 (infra/prometheus/alertmanager.yml 头) |
 | grafana | grafana/grafana:11.6.1 | 3000 | provisioning 自动接 Prometheus 数据源 + SLO 看板 (uid: specproof-slo) |
 
 数据流: api / worker / outbox-relay (进程内 registry, observability/metrics.py)
 → 各进程 /metrics (api 用 FastAPI 端点; worker/relay 用 observability/metrics_http.py 的 stdlib 端点)
-→ Prometheus 抓取 → Grafana 看板 + SLO 告警。
+→ Prometheus 抓取 → Grafana 看板 + SLO 告警 → Alertmanager (9093; 默认 null 接收端, 不发通知)。
 
 worker/relay 的 /metrics 绑定地址 (observability/metrics_http.py): 环境变量
 METRICS_BIND_HOST 可覆盖; 默认容器内 0.0.0.0 (Prometheus 同 compose 网络跨容器抓取,
@@ -31,7 +32,7 @@ compose 改动, 本可观测栈已就绪 (见 §6 待接线清单)。
 
 ```powershell
 # 仅观测栈 (与已运行的 phase0 基础设施栈并存, 共用 specproof-phase0 网络):
-docker compose -f compose.phase0.yml -f compose.observability.yml up -d otel-collector prometheus grafana
+docker compose -f compose.phase0.yml -f compose.observability.yml up -d otel-collector prometheus alertmanager grafana
 
 # 生产三文件组合 (api + worker + 观测栈同项目同网络, api:8000/worker:9100 服务名直达):
 docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observability.yml up -d
@@ -43,17 +44,19 @@ docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observ
 ```powershell
 docker pull docker.m.daocloud.io/prom/prometheus:v3.3.1
 docker tag  docker.m.daocloud.io/prom/prometheus:v3.3.1 prom/prometheus:v3.3.1
+docker pull docker.m.daocloud.io/prom/alertmanager:v0.27.0
+docker tag  docker.m.daocloud.io/prom/alertmanager:v0.27.0 prom/alertmanager:v0.27.0
 docker pull docker.m.daocloud.io/grafana/grafana:11.6.1
 docker tag  docker.m.daocloud.io/grafana/grafana:11.6.1 grafana/grafana:11.6.1
 docker pull docker.m.daocloud.io/otel/opentelemetry-collector-contrib:0.123.0
 docker tag  docker.m.daocloud.io/otel/opentelemetry-collector-contrib:0.123.0 otel/opentelemetry-collector-contrib:0.123.0
 ```
 
-端口冲突: 4317/4318/8889/9090/3000 均可经环境变量覆盖
+端口冲突: 4317/4318/8889/9090/9093/3000 均可经环境变量覆盖
 (OTEL_OTLP_GRPC_PORT / OTEL_OTLP_HTTP_PORT / OTEL_PROM_EXPORTER_PORT /
-PROMETHEUS_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边值, 即宿主机
+PROMETHEUS_PORT / ALERTMANAGER_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边值, 即宿主机
 发布端口: 容器内监听端口不变, Prometheus 走服务名 DNS 抓取也就跟着不变, 只有
-§3 的 http://localhost:9090 与 Grafana 3000 要按新值访问。冲突时改左边值即可。
+§3 的 http://localhost:9090 与 Grafana 3000 以及 Alertmanager 9093 要按新值访问。冲突时改左边值即可。
 
 另有四处不属于这种, 照上面那句做会改错:
 
@@ -86,6 +89,8 @@ PROMETHEUS_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边�
   GRAFANA_ADMIN_PASSWORD 默认 specproof_admin 提供)。
   **生产必须更换该口令** (并在三文件组合部署时显式设置 GRAFANA_ADMIN_PASSWORD)。
 - Prometheus: http://localhost:9090 (无认证 — 单机部署, 生产加反向代理/TLS 保护)。
+- Alertmanager: http://localhost:9093 (默认无认证、null 占位接收端 — 只展示 firing/resolved,
+  不会发出任何通知; 接真实值班路由时同改 receivers 与 routes, 并按接收端要求加鉴权)。
 - 看板: "SpecProof SLO" (provisioning 自动加载, 无需导入)。
 
 ## 4. 验证清单 (全部实测通过, 输出见 §7)
@@ -97,8 +102,11 @@ PROMETHEUS_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边�
 4. Prometheus 目标: GET http://localhost:9090/api/v1/targets — api/worker/outbox-relay
    未起时 state=down 属正常 (应用栈 up 后自动转 up); phase0 栈未起时 rabbitmq (15692,
    /metrics/per-object) 同样 down 属正常 (#165 起); otel-collector/prometheus 应 up。
-5. 告警: http://localhost:9090/alerts 可见 16 条 specproof-slo 规则; 无 Alertmanager
-   部署 (§17 profile 未含), 告警在 Prometheus UI 观察, 生产接 Alertmanager 后走通知。
+5. 告警: http://localhost:9090/alerts 可见 16 条 specproof-slo 规则; Alertmanager 已随
+   §17 profile 进栈 (9093, amtool check-config 通过); 默认 receiver 为 null 占位,
+   只展示 firing/resolved、不发通知 — 接真实值班路由 (receivers/routes) 前不要假设有人收到。
+6. Alertmanager: GET http://localhost:9093/-/healthy → 200 "OK";
+   GET http://localhost:9093/api/v2/alerts — 无告警时返回 [] (占位状态下属正常)。
 
 ## 5. SLO 告警 (alerts-slo.yml)
 
@@ -282,9 +290,10 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 
 这两个集合的双向对账由 `tests/unit/test_progress_event_labels.py` 守住：worker/graph 生产出来的每个 node/status 字面量都必须在 `apps/web/src/ui/stages.ts` / `StatusPill.tsx` 里有中文注释，反之清单里也不得留死条目。
 
-## 7. 实测记录 (2026-08, Windows + Docker Desktop 29.6.2)
+## 7. 实测记录 (2026-08, Windows + Docker Desktop 29.6.2; 2026-11-08 追加)
 
-- 端口 4317/4318/8889/9090/3000 实测空闲, 未发生冲突, 全部使用默认端口。
+- 端口 4317/4318/8889/9090/9093/3000 实测空闲, 未发生冲突, 全部使用默认端口 (9093 由
+  2026-11-08 的一次性验证实例占用过, 已 `docker rm -f`, 无残留容器)。
 - docker compose -f compose.phase0.yml -f compose.production.yml -f compose.observability.yml config
   校验通过 (需 SPECPROOF_API_KEY 环境变量, 测试值仅存在于进程环境)。
 - 三项健康检查 + 数据源 + targets 全部按 §4 实测通过; api/worker/outbox-relay
@@ -292,6 +301,18 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
   自动转 up (详见 P6 交付报告)。
 - 停止: docker compose -f compose.phase0.yml -f compose.observability.yml down
   (清理观测栈; 数据卷保留, down -v 清空 Prometheus TSDB / Grafana 数据)。
+
+**2026-11-08 追加 (Windows + Docker Desktop 29.9.2):**
+
+- `promtool check config infra/prometheus/prometheus.yml` (prom/prometheus:v3.3.1)
+  → **SUCCESS: 1 rule files found / valid prometheus config file syntax**;
+  `check rules alerts-slo.yml` → **16 rules 通过**。
+- `amtool check-config infra/prometheus/alertmanager.yml` (prom/alertmanager:v0.27.0)
+  → **SUCCESS** (global config / route / 1 inhibit rule / 1 receiver ("null") / 0 templates)。
+- 一次性 Alertmanager 验证实例 (直绑宿主机 9093, 镜像已在本机, 配置只读挂载):
+  GET /-/healthy → **200 "OK"**; GET /api/v2/alerts → **200 `[]`** (占位接收端语义: 可见、零通知);
+  GET /api/v2/status versionInfo.version = **0.27.0**。校验后 `docker rm -f specproof-am-verify`,
+  `docker ps -a` 无残留。告警路由仍为 null 占位 — 接值班目标前不会发出任何通知 (§1/§4/§3 一致)。
 
 ## 8. 已知注意事项
 
