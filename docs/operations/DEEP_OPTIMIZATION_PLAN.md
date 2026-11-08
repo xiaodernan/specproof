@@ -25763,3 +25763,47 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 - PRODUCT_ROADMAP §3.1 上一批注已经写得够如实了，本节不改写它，仅追加作业：**"以后 `git add -A` 一律禁用——按文件点名 stage"** 记入下一批 ratchet 或走 SKIP_HOOKS 经验并同等进程才放行。
 
 **本机 master 状态**：e2faf0c 含 §3.1 增量 + aider-results.md 时间戳行；所有门（fence 8/8、web_api 46/46、vitest 31 全绿、tsc、ruff、mypy）在推送前已复跑绿。
+
+## #1535 独立验证环节：fresh-clone 上 `specproof demo --run` 端到端复跑成功（exit 1 = 预期 BLOCKED）
+
+**记录基准**：master 当前 HEAD = `7050173`（`48ffe42` → `e2faf0c` → `fbd4495` → `68df07c` → `076de69` → `7050173`，#1532 之后继续推进）。本机 Windows + Docker Desktop 29.9.2，`.wt_plan` 已与 origin 同步 fast-forward。
+
+**fresh-clone 复现实测**：
+
+1. `git clone --depth 1 --single-branch --branch master`（~2400 files），`pip install -e ".[dev]"`（uv cpython 3.12.13）——成功。
+2. `specproof --help` / `specproof quickstart`——渲染 OK。
+3. `specproof demo --run`——完整跑完：环境预检 PASSED（Java 25.0.1 / Maven wrapper / 磁盘）；
+   Base/Head prepare、Contract 编译（6 条，AUTH-01 FAIL，UNIQUE-01 PASS，BACKWARD_COMPATIBLE-01 PASS，
+   EVENT_ONCE-01 PASS，TRANSACTION-01 PASS，TOKEN_INVALIDATION-01 UNVERIFIED），Review Court 确认 2 条：
+   - [MAJOR] AUTH-01 (85%, java_source_diff)：`changeEmail()` 方法的安全注解被移除
+   - [BLOCKER] AUTH-01 (95%, base_pass_head_fail)：Base 跑过但 Head 失败（DB STATE VIOLATION / ADR-004 条件 4）
+   矩阵 6 行（4 pass / 1 fail / 1 unverified），2 个 capsule 生成并 sha 校验。
+   **VERDICT: BLOCKED**，与 `specproof demo --help` 所写"预期验证结论为 BLOCKED"一致；
+   退出码 1 = BLOCKED 的 CLI 约定，非运行时故障。
+   签名路径：无 SPECPROOF_SIGNING_KEY，所以 `rejection-notice` 按设计落签名缺失（FAIL-closed，
+   不冒充 signed 证书）——同 #1526/#1517 对 SLO 适配的诚实口径。
+4. 克隆已删除（释放 ~2 GB 磁盘）。
+
+**本节收账两处**：
+
+- `68df07c` docs(roadmap) §2.6：兼容矩阵行陈旧声明（Go / Java-Gradle 标成 "planned" 但两者都已实装）。
+  改记为：Go 已实装（`go_adapter.py` + `experiments/adapters.py:1700` + `EXECUTION_COMPATIBILITY.md` 固定 digest），
+  Java/Gradle 已实装（`GradleAdapter`）而 image digest 如实标 `—` 不伪造 pinned。
+- `076de69` fix(security) storage/mysql.py #819：bandit `-ll -q` 报 1 个 Medium/Low；根因是我的
+  行内注释顺序——reason 在 nosec 之后（不是上面的原因），bandit 把原因词解析成测试 id 而产生
+  "Test in comment" 警告链。改成 reason BEFORE nosec：`§16.6` 注释前置、`nosec B608` 收尾在同一行。
+  `python -m bandit -r ... -ll -q --skip B101` 退出码 **0**；
+  `tests/security/test_bandit_suppressions_are_earned.py` **7 passed**。
+- `7050173` test_listen_port_knobs_bind_the_scrape_roster.py：`_KNOB_SITES` 单行 4 元组拆多行（ruff E501），
+  gate 17/17 不变。
+
+**本节订正的事实**：
+
+- `#1532` 文档里提到"告警路由到真人仍未发生（null 占位）"——此句**核对属实**：
+  `infra/prometheus/alertmanager.yml` 仍是 `null` 接收端，`docker ps` 没看到任何 notifying receiver；
+  这条一致。`SpecproofNotifyRelayDown` 已在 alerts-slo.yml（`#1532` 入册），`SpecproofInvoiceCronDown` 同上。
+  两条探针都是 no-op 接收端上的「活靶」；实际投递仍等 operator 提供 webhook target。
+- aider-results.md 一次干净还原（git checkout），未其它 lane 的内容被 stage。
+
+**如实标注**：完整 `pytest tests/unit tests/security tests/fault`（`#fullgate2.txt`，6482 items 级别）尚
+未跑完毕；本节不冒认其结果，数字记入 #1536 后追。
