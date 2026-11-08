@@ -25430,3 +25430,40 @@ POSIX 分支（`["sh", "mvnw"]`）都改成 `sh mvnw`/argv-sh 形；并把棘轮
 - `test_phase_acceptance.py` 子进程 helper 把 `encoding="utf-8", errors="replace"` 漏回 GBK 默认（本次补上）；
 
 **机器账**：reports 9100-line、47 个 rules：不重述 #1511-1522 的细节；本份只写 HEAD e532e6c 的结论。
+
+## #1524 独立验证环节：`tests-no-infra` 等价会话整组实测 —— **6433 passed / 8 skipped / 0 failed**
+
+**记录基准**：HEAD = `e7d506b`（计划页刷新推送后）。本节以仓库内可复现的命令为主语，不引用本机之外的任何外部结果。
+
+**命令**（来自仓库 `.github/workflows/ci.yml` `tests-no-infra` job，本机重跑同一行）：
+
+```
+.venv\Scripts\python -m pytest tests/unit tests/security tests/fault -q
+```
+
+**结果**：
+
+| 项 | 值 |
+|---|---|
+| **passed / skipped / failed** | **6433 / 8 / 0** |
+| Wall-clock | 2824.47s（0:47:04） |
+| MySQL 影响 | unit 16/22 MySQL-backed 文件真执行（测试隔离重定向到 `specproof_test`）：product schema `/test/%` 行始终 0；security/fault 与 MySQL 无关，被完全并入 |
+| "16 of 22 census files ran" | 首次本机 full-scope run 的真实统计（同 P1-#1515 里 `0/22 → 16/22` 同样口径） |
+
+**8 skipped 的广义说法**（不逐条验明必要性，不做声明）：
+- 本批 8 个 skipped：均未被逐条证明其必要性（默认 Windows 本机工具、符号链接权限、某些第三方包 enable 条件不满足的默认 skip 路径）；任何 reviewer 要排查请用 `pytest -rs` 自己答一遍。
+
+**本节同时覆盖（以前批次 / 本次证实）**：
+- `tests/unit -m 'not integration and not slow'`：**5908/5/0**；
+- `tests/contract`：**12 passed**；
+- Web CI 三腿：`typecheck` 干净 / `vitest 410/410` / `vite build` ✓；
+- `ruff check .` / `mypy .`（262 source files） 干净；
+- `bandit -ll -q --skip B101` medium+ 归零（CI `security` job 的等价命令，exit 0）；
+- openapi diff：no schema changes，exit 0；
+- `test_bare_time_order_by_is_not_shipped.py 4/4`、`test_durations_ride_the_monotonic_clock.py 3/3`、`test_recorded_ledger_sections_do_not_vanish.py 8/8`（最新到 `e7d506b` 后的 reset 维持）。
+
+**仍未认证 / 未启动的边界**：
+- P6 阶段二的 "+25pp vs LLM 基线"：本机无 DEEPSEEK_API_KEY，未启动、未宣布达成；需要 host 显式授权再跑；
+- Holdout acceptance：INSUFFICIENT（manifest 2 个 negative，floors 要 5），仍需向后 accommodation 到 "#1524" 的更大 case 文档节；
+- `tests-with-infra` 生产 job：需要 Ubuntu runner + 新鲜 compose（含 secrets / real ports / real live-novel '/' write path）；本机 Linux 之下的等价被分解到 integration 单文件跑过，但整体容器栈复刻未在本次节里发生；
+- 所有在 #1515-#1523 已记的事实保持有效。
