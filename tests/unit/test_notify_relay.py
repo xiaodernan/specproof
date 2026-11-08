@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import pytest
+
 from integrations.notify.protocol import Notification, SendStatus
 from storage.notify_relay import NotifyOutboxRelay
 
@@ -172,3 +174,45 @@ def test_payload_json_string_is_parsed() -> None:
     _relay(store, connector).drain_pending()
 
     assert connector.sent == [Notification(**{**PAYLOAD, "blocks": ()})]
+
+
+def test_run_forever_serves_metrics_on_the_operator_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """NOTIFY_RELAY_METRICS_PORT must reach serve_metrics_in_thread — the
+    operator's port choice is the scrape target's contract (mirrors the
+    outbox-relay loop-leg lock)."""
+    import storage.notify_relay as relay_module
+    from observability import metrics_http
+
+    seen: list[int] = []
+    monkeypatch.setattr(
+        metrics_http, "serve_metrics_in_thread",
+        lambda port: seen.append(port),
+    )
+    monkeypatch.setattr(
+        relay_module.MySQLStore, "fetch_due_notify_intents",
+        lambda self, limit=10: [],
+    )
+    monkeypatch.setattr(
+        relay_module.MySQLStore, "notify_outbox_stats",
+        lambda self: {"pending": 0, "dead_letters": 0, "retries": 0,
+                      "oldest_created_at": None, "last_success": None},
+    )
+    monkeypatch.setenv("NOTIFY_RELAY_METRICS_PORT", "9555")
+    def sleep_throw(_: Any) -> None:
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(relay_module.time, "sleep", sleep_throw)
+
+    relay = relay_module.NotifyOutboxRelay(
+        mysql=relay_module.MySQLStore(),
+        connector_factory=lambda: RelayConnector(SendStatus.SENT),
+    )
+    with pytest.raises(KeyboardInterrupt):
+        relay.run_forever()
+
+    assert seen == [9555], (
+        f"the loop opened {seen}: the operator's NOTIFY_RELAY_METRICS_PORT "
+        "must reach the metrics server"
+    )
