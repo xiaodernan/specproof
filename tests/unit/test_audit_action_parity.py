@@ -34,6 +34,7 @@ from storage.mysql import (
     JOB_RECORDS_DELETED_ACTION,
     MySQLStore,
 )
+from tests._mysql_gate import requires_mysql
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DICTIONARY = REPO_ROOT / "docs" / "architecture" / "DATA_DICTIONARY.md"
@@ -492,11 +493,8 @@ def test_disposition_vocabulary_is_closed() -> None:
 
 def _live_store() -> MySQLStore:
     store = MySQLStore()
-    try:
-        with store.connection() as conn:
-            conn.cursor().execute("SELECT 1")
-    except Exception as exc:  # noqa: BLE001 — no MySQL here is a coverage fact
-        pytest.skip(f"MySQL is not reachable: {exc}")
+    with store.connection() as conn:
+        conn.cursor().execute("SELECT 1")
     return store
 
 
@@ -518,6 +516,7 @@ def _purge_jobs_under(store: MySQLStore, repo_path: str) -> list[str]:
     return ids
 
 
+@requires_mysql("the live purge path reads the audit trail from MySQL")
 def test_purge_then_read_reports_purged_not_unexplained() -> None:
     """Insert → transition (audited) → purge → read, against the real schema.
 
@@ -577,6 +576,7 @@ def test_purge_then_read_reports_purged_not_unexplained() -> None:
                 cur.execute("DELETE FROM audit_logs WHERE job_id = %s", (leftover,))
 
 
+@requires_mysql("the audit page's live read goes against MySQL")
 def test_one_job_can_be_asked_about_directly() -> None:
     """Filtering by job is the point of the disposition column (#96 → #97).
 

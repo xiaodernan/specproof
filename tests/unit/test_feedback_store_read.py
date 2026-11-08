@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 
 from storage.mysql import MySQLConfig, MySQLStore
+from tests._mysql_gate import requires_mysql
 
 FEEDBACK_COLUMNS = (
     "id", "job_id", "tenant_id", "finding_id", "contract_id",
@@ -202,15 +203,13 @@ def test_insert_feedback_upserts_on_the_unique_key() -> None:
 @pytest.fixture()
 def live_store() -> MySQLStore:
     store = MySQLStore()
-    try:
-        store.ensure_tables()
-        with store.connection() as conn:
-            conn.cursor().execute("SELECT 1")
-    except Exception as exc:  # noqa: BLE001 — no MySQL here is a coverage fact
-        pytest.skip(f"MySQL is not reachable: {exc}")
+    store.ensure_tables()
+    with store.connection() as conn:
+        conn.cursor().execute("SELECT 1")
     return store
 
 
+@requires_mysql("the feedback round-trip goes against a live MySQL 8.4")
 def test_real_mysql_one_verdict_per_reviewer(live_store: MySQLStore) -> None:
     """Three POSTs from one reviewer collapse into one verdict row.
 
@@ -276,6 +275,7 @@ def test_real_mysql_one_verdict_per_reviewer(live_store: MySQLStore) -> None:
         live_store.delete_job_records(job_id)
 
 
+@requires_mysql("the unique-key index is verified against the live schema")
 def test_real_mysql_unique_key_exists(live_store: MySQLStore) -> None:
     """0012 landed in this schema — the bound, not just the DAO."""
     config = MySQLConfig.from_env()

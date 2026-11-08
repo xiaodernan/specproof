@@ -91,20 +91,15 @@ CHILD_ATTEMPTS = 2
 SKIPS_WITHOUT_A_HOME: dict[str, str] = {}
 
 #: Files that answer "no database here" with their own run-time check instead of
-#: the session's isolation verdict. #600 put that verdict behind one mark
-#: (``tests/_mysql_gate.py``); these six still decide for themselves, in six
-#: different words, which is why their skips cannot be read as the same fact.
-#: Folding them is the queue item this roster exists to keep.
-LEGACY_RUN_TIME_SKIPS: frozenset[str] = frozenset(
-    {
-        "tests/unit/test_agent_jobs_migration_parity.py",
-        "tests/unit/test_audit_action_parity.py",
-        "tests/unit/test_data_dictionary_covers_migrations.py",
-        "tests/unit/test_feedback_store_read.py",
-        "tests/unit/test_job_state_machine.py",
-        "tests/unit/test_migrations.py",
-    }
-)
+#: the session's isolation verdict. Empty since 2026-11-08: all six former members
+#: (test_agent_jobs_migration_parity, test_audit_action_parity,
+#: test_data_dictionary_covers_migrations, test_feedback_store_read,
+#: test_job_state_machine, test_migrations) were folded onto the shared owner
+#: (tests/_mysql_gate.py::requires_mysql) — the skip decision is now taken once,
+#: at collection time, from the same verdict every other gate reads. The naming
+#: gate below holds the invariant: any file that starts deciding for itself
+#: again reds it.
+LEGACY_RUN_TIME_SKIPS: frozenset[str] = frozenset()
 
 #: The live leg P2 plants, in a file outside the repository. ``MySQLStore`` is
 #: imported under another name on purpose: the #120 census looks for that word
@@ -624,11 +619,10 @@ def test_every_case_that_skips_for_a_missing_database_runs_where_one_answers(
 def test_the_files_that_decide_for_themselves_instead_of_the_verdict_are_counted(
     no_database_report: _Report,
 ) -> None:
-    """The six run-time skips are debt with a name, not an accident with a green.
+    """The run-time skips this roster held were all folded onto the shared owner.
 
-    Bidirectional on purpose: a seventh file deciding "no database" in its own
-    words reds here, and folding one to the shared mark reds until the roster
-    shrinks with it, which is the only way the list cannot quietly become the
+    Bidirectional on purpose: any new file deciding "no database" in its own
+    words reds here, which is the only way the list cannot quietly become the
     way things are done.
     """
     reasons = no_database_report.skip_reasons()

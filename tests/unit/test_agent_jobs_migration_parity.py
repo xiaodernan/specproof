@@ -23,10 +23,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 from storage.agent_jobs import _SCHEMA_SQL  # noqa: PLC2701 — the point of the test
 from storage.migrations import MIGRATIONS_DIR, _split_statements  # noqa: PLC2701
+from tests._mysql_gate import requires_mysql
 
 MIGRATION = MIGRATIONS_DIR / "0011_agent_jobs.sql"
 
@@ -72,31 +71,28 @@ def test_migration_is_one_statement_for_this_repos_splitter() -> None:
     assert "IF NOT EXISTS" in statements[0]
 
 
+@requires_mysql("ensure_tables() writes to the live schema")
 def test_ensure_tables_leaves_agent_jobs_behind() -> None:
     """The measured defect, asserted where a real MySQL answers.
 
-    Only a connectivity error means "no MySQL here". Under this box's load a
-    migration statement can be cut off mid-query (pymysql 2013 / read timeout)
-    and that is an environment fact; a schema error is never skipped away.
+    The skip decision is the shared verdict-to-skip mark (tests/_mysql_gate.py):
+    when this session has no reachable database the case skips at collection
+    time, with the verdict named in the reason — a schema error can never be
+    skipped away, because it isn't a connectivity question at all.
     """
-    import pymysql
-
     from storage.mysql import MySQLConfig, MySQLStore
 
     config = MySQLConfig.from_env()
     store = MySQLStore()
-    try:
-        store.ensure_tables()
-        with store.connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) AS n FROM information_schema.tables "
-                "WHERE table_schema = %s AND table_name = 'agent_jobs'",
-                (config.database,),
-            )
-            row = cursor.fetchone()
-    except (pymysql.err.InterfaceError, pymysql.err.OperationalError) as exc:
-        pytest.skip(f"MySQL at {config.host}:{config.port} did not answer: {exc}")
+    store.ensure_tables()
+    with store.connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM information_schema.tables "
+            "WHERE table_schema = %s AND table_name = 'agent_jobs'",
+            (config.database,),
+        )
+        row = cursor.fetchone()
     values = tuple(row.values()) if isinstance(row, dict) else tuple(row)
     assert int(values[0]) == 1, (
         f"ensure_tables() left {config.database} without agent_jobs"
