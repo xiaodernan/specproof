@@ -8,6 +8,8 @@ service is required.
 
 from __future__ import annotations
 
+import json
+
 import click
 
 
@@ -33,3 +35,36 @@ def serve(transport: str) -> None:
     from mcp.server import serve_stdio
 
     serve_stdio()
+
+
+@mcp_cmd.command("tools")
+@click.option("--json", "as_json", is_flag=True, help="print the full catalog as JSON")
+def tools(as_json: bool) -> None:
+    """List the MCP tools an agent can call, without starting the server.
+
+    Intended for pre-flight probing and for operators wiring an MCP client
+    (Claude Code / Codex / Cursor / OpenCode / any JSON-RPC stdio client)
+    and want to know the exact tool names, argument shapes and descriptions
+    this checkout exposes - one `specproof mcp tools --json` prints the same
+    payload the MCP server answers `tools/list` with.
+    """
+    from mcp.tools import TOOLS
+
+    if as_json:
+        click.echo(json.dumps(TOOLS, ensure_ascii=False, indent=2))
+        return
+
+    for tool in TOOLS:
+        schema = tool.get("inputSchema", {})
+        props = schema.get("properties", {})
+        required = list(schema.get("required", []))
+        optional = sorted(set(props) - set(required))
+        desc = " ".join(str(tool.get("description", "")).split())
+        click.echo(f"{tool['name']}")
+        click.echo(f"  {desc}")
+        if required:
+            args = ", ".join(f"{name} (required)" for name in required)
+            click.echo(f"  args: {args}")
+        if optional:
+            click.echo(f"  opts: {', '.join(optional)}")
+        click.echo("")

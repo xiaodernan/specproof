@@ -167,12 +167,24 @@
     覆盖登录后渲染。GUIDE_GAP_AUDIT 的“核心完成 W37”未被伪称超越；
     SAML/邀请流保留为独立项（与本行不重合）。
 - [ ] **5.2 用量与账单准确**：模型 token/成本核算对齐真实 provider。
-- [ ] **5.3 可观测性默认开启**：`observability/` + compose 指标看板开箱可用。
+- [~] **5.3 可观测性默认开启**：`observability/` + compose 指标看板开箱可用。
+  - 2026-11-09 本机复核（阻挡）：`docker daemon` 对 `docker run`/`docker network create`
+    降级（hello-world 也超时零输出），冷启动 Grafana/Prometheus 本机无法再次复验。
+    静态侧脚本齐全：provisioning 目录 + 51-panel dashboard + 18 条 alerts-slo.yml +
+    prometheus.yml + dockerfile HEALTHCHECK 全部在仓；`grafana/grafana:11.6.1` 启动正常。
+    待 docker daemon 恢复后再验一次服务级开箱；当前按如实不标 [x]。
 - [ ] **5.4 部署形态**：单二进制/容器一键部署、迁移与回滚脚本。
 
 ### Phase 6 —— 差异化与生态（P3）
-- [ ] 6.1 IDE/CI 集成（PR 上自动验收评论）。
-- [ ] 6.2 MCP/插件生态成熟。
+- [~] **6.1 IDE/CI 集成**（PR 上自动验收评论）：`integrations/github_checks.py` 把
+  验证结论写成 GitHub Check Run（VERIFIED → success / 其他 → failure）并随 capsule 携带
+  artifact URL；`api/routes/webhooks.py` + `infra/compose*.yml` 暴露 webhook 入口；该链路
+  的接入步骤见 RUNBOOK（但应用侧自测需要真 repo 环境，不在本机验证）。
+- [~] **6.2 MCP/插件生态成熟**：`specproof mcp serve` stdio 协议（7 工具）；`specproof mcp tools [--json]`
+  打印机同形目录；`mcp/client.py` 客户端入口；新增 `docs/operations/MCP_GUIDE.md`（接线示例、故障排查、限制，
+  含对 Claude Code / Codex / Cursor / OpenCode 的接线样例）；`docs/operations/EXPERIENCE_GUIDE.md` 第 7 步改为
+  指向该 guide。GitHub 链路（webhook `api/routes/webhooks.py` → worker `github_checks.create_check_run`）
+  本机无真 repo 无法自测——本行还差 pilot 上线的签字核验。
 - [ ] 6.3 Capsule 分享与协作评审。
 
 ---

@@ -55,9 +55,12 @@ docker compose -f compose.phase0.yml -f compose.observability.yml up -d
 Prometheus http://localhost:9090 → 7 条 SLO 告警规则已加载。
 
 ## 第 7 步: MCP — 任何外部 Agent 都能调用我们的验证 (3 分钟)
-python -m cli.specproof.main mcp serve   # stdio 协议
+`specproof mcp tools` — 列出完整目录（7 个工具；`--json` 为 `tools/list` 的同形载荷）
+`specproof mcp serve` — stdio 协议
 在 Claude Code/Codex 里配置这个 MCP server → 它们获得
-specproof_verify/contracts_list/eval_summary/craft_plan/health/replay_info 六个工具。
+specproof_verify/specproof_verify_job/specproof_contracts_list/specproof_eval_summary/
+specproof_craft_plan/specproof_health/specproof_replay_info 七个工具。
+完整接线步骤与故障排查见 [MCP_GUIDE.md](./MCP_GUIDE.md)。
 卖点: "我们不是另一个评审机器人, 而是给所有 AI Agent 提供中立验收的协议层。"
 
 ## 60 分钟体验完的结论语 (面试/演示收尾)
