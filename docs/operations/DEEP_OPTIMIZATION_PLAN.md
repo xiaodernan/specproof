@@ -25925,3 +25925,44 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
   对账门保持当地前提不满足即**缺省不说话**（无本地 image 的机器不红）；
   但**只要本机的 image 一换、pin 就会红**——看不懂的报警不掩饰。
 - `docs/eval/aider-results.md` 又被测试重上时间戳，已在工作树还原，未进提交。
+
+## #1538 独立验证环节：自带测试差分 REGRESSION 讲 Java 通道的两词证据（§2.1 收口）
+
+**记录基准**：HEAD = `f9e90c5`（`3799cf6..f9e90c5`，master 一直 fast-forward；树一致）。
+
+**缺口（不是「自带测试不行」，是词表被 court 聋看不见）**：
+
+- `agent/review_court/policy.py::_has_real_execution_evidence` 只认 `evidence_type ∈ {base_pass_head_fail, differential_execution}` + 两侧 `exit_code` 在。
+  自带测试差分（Node/Go/Python 的仓库自带测试 base vs head）产出的 entry 2026-11-09 之前一直带 `evidence_type="self_test_diff"`——一句话从不被 court 看懂，
+  它再真实（base green / head red，machine-observed REGRESSION）也触发不了真执行证据那一条；
+  非 Java workspace 的证据链因此比 Java 短了一整个「court 能不能读」的维度。
+- 上游生成器（generate_counterexamples=JUnit/Spring 专用、prompt 写死 Java prompt、schema 校验 JUnit 引入）真的是死路，
+  2026-09-21 的判断成立——但**自带测试是本来就有的反例**，不该被「生成器只会 Java」一起判死。
+
+**这一刀（`f9e90c5`）**：
+
+1. `_run_self_tests_on_workspace` 记录 `res.exit_code`（Adapter 执行报的真码；code 一直可读，入口处拾起两侧出口）。
+2. `_self_test_differential_entry` 按以下映射追加（**全是附加字段，旧消费端逐字键不变**）：
+   both exits known (`isinstance(int)`):
+   - REGRESSION → `evidence_type="base_pass_head_fail"`（+severity MAJOR/0.88，Java 通道 MAJOR 同口径；Python-opt-in 面按同门违例），`base_exit_code`/`head_exit_code` 落袋；
+   - UNEXPECTED_FIX / COMPLIANT → `differential_execution`（NONE/0.80）；
+   - AMBIGUOUS → `differential_execution`（NONE/0.65）；
+   - exit 未记录 → 保留 `self_test_diff`、不上 severity、不吭 exit 码（**证据缺席不伪造等级**——这是本批唯一「收窄」点，其余全为附加）。
+3. `test_differential_language_honesty.py` 的 `_FakeAdapter` 补 base/head 出口可注入（默认 0/1，更接近真 adapter）；既有三处 `self_test_diff` 断言重钉为 `base_pass_head_fail` + exits + MAJOR。
+4. 新增 `tests/unit/test_self_test_regression_emits_execution_evidence.py`（5 例）锁全四分支对 court 门的互动（含 `_has_real_execution_evidence` 读 `base_pass_head_fail`+exits 认门、不读 `self_test_diff`）。
+5. PRODUCT_ROADMAP §2.1 订正并如实记录：上游生成端（JUnit-only prompt/schema/落盘布局）的欠账仍是独立工作、需真实模型端到端验证——本项**不**替它圆掉。
+
+**实测（本机当值全绿）**：
+
+- `test_self_test_regression_emits_execution_evidence.py` 5/5；自带测试/诚实门六件套合跑 68/68
+  （language_honesty + self_test_differential_entry + self_test_diff + dependency_install + evidence_vocabulary_parity）；
+  differential 回归批（ambiguous / compliant_db_mutation_none / execution_is_observable / no_executed_tests / regression_db_mutation_blocker / regression_consistent_db_major / unexpected_fix + attribution_att08）38/38；
+  ruff/mypy 262 files 全绿；fence 8/8（追加后）。
+
+**如实不重跑**：本批改的运行面是 `agent/nodes/run_differential.py` 一个模块，触及面全由 differential 批 + 6 个 language_honesty 门覆盖；
+上一本全量数仍为 **6478 passed / 8 skipped / 0 failed（`_fullgate3.txt`，HEAD=`c19d386`）**，其数值不含本批行为——本号不把「没跑全量」写成「没影响」。
+
+**本节不认领 / 欠账**：
+
+- 生成端分语言反例（Python/Node/Gradle 的 prompt/schema/review/落盘布局，且需**真实模型**端到端 — 本机无 key，按主线按时序位推进）不在本项内；
+- `#1537` 之后 master 连续 fast-forward；树与 origin/master 一致；本批未加任何新依赖、未改任何门的前提。
