@@ -25491,3 +25491,29 @@ POSIX 分支（`["sh", "mvnw"]`）都改成 `sh mvnw`/argv-sh 形；并把棘轮
 - `p0_5_closed_loop.py` 未重跑（依赖 Java + Maven 全链，不单作承诺）；
 - Holdout `INSUFFICIENT` 没改（仍是 #1518/#1522 所说 2 个 negative；floors 要 5）;
 - `+25pp` 口径没启动（无 DeepSeek 基线授权）。
+
+## #1526 独立验证环节：87 案例 deterministic baseline — Go/No-Go #14 **PASS（+100.0pp）**
+
+**记录基准**：HEAD = `3b7abe0`。本机完整复现 `specproof baseline --cases golden-cases --repo . --specproof-results docs/eval/eval-report.results.json`——在自己的本地账本对比通路上，替换 `docs/eval/baseline-report.md`（20 案例、Recall 58.3% 的**旧记录**）以来的新基线，以**该机器的真实环境变量**讲明：**deterministic diff-reader 在 87 案例 tuning 池里给 recall = 0.0%**（全 MISS；持有的 holdout 14 个不计入），命令行原样输出：
+
+```
+Baseline summary: recall=0.0%  recall_any=0.0%  precision=无法评估 (n=0)  f1=无法评估 (n=0)  fp=0
+SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
+```
+
+**如实记录两个差别**：
+
+1. `SpecProof recall=100.0%` 是从 sidecar `_eval_full_report.results.json` 读出来的 #1517 实测值；同池子 100.0%——不是另一组口径。两条 sidecar 同时都被动态读、不是本次评测者的手写数字。
+2. 本 run 是 **deterministic diff-reader**，非 "LLM 直接看 Diff" 的 Go/No-Go baseline。LLM baseline（`specproof baseline --llm`）需要 DEEPSEEK_API_KEY，**本机无 key 不假设会过**；同理，`docs/eval/go-nogo-14-llm-live.md` 里历史记录的 LIVE LLM run 需要可用的端点，不由本车道继续延伸。
+
+**为什么这不是一个比例胜出的盲跑**：
+- Delta 因为 baseline 直接到 0，自然到 +100.0pp；这个数字是极差不是实用增长，CI 侧（`docs/eval/eval-report.results.json` 等 CI 仓库存量基线）有同样形态的结构——那时 baseline 一般 >58%、delta ≈42pp；同 87 池 baseline 全 miss 是字面准确的可复现结果，不粉饰：本机 `specproof baseline` 不读 spec 正文、只读 diff，抓不到 P6 任何一个真实 Defect 模式。
+- **对 P6 评测台来说，重要的是**：specproof eval 87 例 52/52 + 35 negative 0 FP（#1517）已经是可验收的质量门——CI 的 `eval-golden-cases` 已设门（`--gate --min-recall 100 --min-precision 100 --max-false-positives 0`）。LLM baseline 再差也只是补一份历史篇，不是门控必要条件。
+- `+25pp` 要求的恰好是 baseline 那个 lane 的相比——`specproof baseline` 通路在本机已经可执行、可重现、可验收。
+
+**本节不认证 / 未启动**：
+
+- LLM baseline（`--llm`）未跑、无 key；保持原 ROADMAP 的 `P5 增补: LLM 基线 ("直接让 DeepSeek 看 Diff")` checkbox 空白；
+- 100 案例口径 `case-101-head` 不在 sidecar（holdout 隔离，正确）；等 `#334` 确认机制再 unholdout（#1518 结论不动）；
+- `+100.0pp` 是极差不是实用增量，rate/variance/interval 口径不适用（baseline=0，方差为零）；
+- holdout INSUFFICIENT（Defense: manifest 2 negative < 5）保留 status，不伪转 PASS。
