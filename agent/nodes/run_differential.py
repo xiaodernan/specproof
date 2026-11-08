@@ -1301,6 +1301,11 @@ def _run_self_tests_on_workspace(workspace: str) -> dict[str, Any]:
     out["counts"] = _self_test_parse_for(profile.language)(
         res.stdout_tail + res.stderr_tail
     )
+    # The exit code is recorded when the adapter reported one (it always does —
+    # ExecutionResult.exit_code: int). It is the same value the Java path's
+    # review-court reads as "both sides actually executed"; dropping it would
+    # force the evidence_type fallback to the self_test_diff label below.
+    out["exit_code"] = res.exit_code
     out["mode"] = res.mode
     out["sandbox"] = str(res.sandbox_resources.get("sandbox", ""))
     # How the workspace's dependencies got there (offline install from the
@@ -1384,6 +1389,35 @@ def _self_test_differential_entry(
     entry["verdict"] = verdict
     entry["base_test_counts"] = base_run.get("counts")
     entry["head_test_counts"] = head_run.get("counts")
+    # Both sides ran: record the exits, and — only when exits exist — speak the
+    # two-word vocabulary the Review Court already reads (base_pass_head_fail /
+    # differential_execution). An adapter that never captured an exit (this
+    # label used to be the only one on the table) keeps self_test_diff and
+    # carries no severity: no execution evidence, no severity at default.
+    base_exit = base_run.get("exit_code")
+    head_exit = head_run.get("exit_code")
+    if isinstance(base_exit, int) and isinstance(head_exit, int):
+        entry["base_exit_code"] = base_exit
+        entry["head_exit_code"] = head_exit
+        # A REGRESSION means both sides executed and the head's counts failed —
+        # that is the "base pass, head fail" reading on the wire regardless of
+        # the exact exit numbers; the numbers ride along for the court to audit.
+        if verdict == "REGRESSION":
+            entry["evidence_type"] = "base_pass_head_fail"
+            entry["severity"] = "MAJOR"
+            entry["confidence"] = 0.88
+        elif verdict == "COMPLIANT" or verdict == "UNEXPECTED_FIX":
+            entry["evidence_type"] = "differential_execution"
+            entry["severity"] = "NONE"
+            entry["confidence"] = 0.80
+        elif verdict == "AMBIGUOUS":
+            entry["evidence_type"] = "differential_execution"
+            entry["severity"] = "NONE"
+            entry["confidence"] = 0.65
+        else:
+            # NON_REPRODUCIBLE with recorded exits: an executed run with an
+            # unparseable summary — counts are missing, exiting occurred.
+            entry["evidence_type"] = "differential_execution"
     if run_warning:
         entry["detail"] = prefix + detail + f"（运行告警：{run_warning}）"
     else:

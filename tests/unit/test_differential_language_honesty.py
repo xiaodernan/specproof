@@ -133,11 +133,15 @@ class _FakeAdapter:
         surface: str = adapters.SURFACE_HOST,
         dependency_install: str = "",
         language: str = "javascript/typescript",
+        base_exit_code: int = 0,
+        head_exit_code: int = 1,
     ) -> None:
         self._tails = tails
         self._mode = mode
         self._dependency_install = dependency_install
         self._language = language
+        self._base_exit_code = int(base_exit_code)
+        self._head_exit_code = int(head_exit_code)
         self.EXECUTION_SURFACE = surface
         self.detect_calls = 0
         self.prepare_calls = 0
@@ -158,7 +162,7 @@ class _FakeAdapter:
         ws = prepared.workspace
         key = "head" if "head" in Path(ws).name else "base"
         return SimpleNamespace(
-            exit_code=0,
+            exit_code=self._head_exit_code if key == "head" else self._base_exit_code,
             stdout_tail=self._tails[key],
             stderr_tail="",
             mode=self._mode,
@@ -245,7 +249,10 @@ def test_sandboxed_adapter_runs_the_self_test_with_the_gate_off(
 
     assert adapter.run_calls == 2  # base + head, both inside the sandbox
     assert entry["verdict"] == "REGRESSION"
-    assert entry["evidence_type"] == "self_test_diff"
+    assert entry["evidence_type"] == "base_pass_head_fail"
+    assert entry["base_exit_code"] == 0
+    assert entry["head_exit_code"] == 1
+    assert entry["severity"] == "MAJOR"
     assert entry["execution_surface"] == adapters.SURFACE_DOCKER_SANDBOX
     assert "容器沙箱执行" in entry["detail"]
     # A real regression is never silently paired with a pass elsewhere.
@@ -305,7 +312,9 @@ def test_self_test_gate_on_computes_honest_regression(
     # 1 surface resolution + 2 actual runs.
     assert registry.get_calls == 3
     assert entry["verdict"] == "REGRESSION"
-    assert entry["evidence_type"] == "self_test_diff"
+    assert entry["evidence_type"] == "base_pass_head_fail"
+    assert entry["base_exit_code"] == 0
+    assert entry["head_exit_code"] == 1
     # Honest execution surface: local mode means host, no sandbox.
     assert entry["execution_surface"] == "local_host_no_sandbox"
     assert "本机执行·无沙箱" in entry["detail"]
@@ -530,7 +539,10 @@ def test_go_sandboxed_regression_flows_through_the_same_entry(
 
     assert entry["verdict"] == "REGRESSION"
     assert entry["language"] == "go"
-    assert entry["evidence_type"] == "self_test_diff"
+    assert entry["evidence_type"] == "base_pass_head_fail"
+    assert entry["base_exit_code"] == 0
+    assert entry["head_exit_code"] == 1
+    assert entry["severity"] == "MAJOR"
     assert entry["execution_surface"] == adapters.SURFACE_DOCKER_SANDBOX
     assert entry["dependency_install"] == install
     assert entry["base_test_counts"] == {"tests": 2, "passed": 2,
