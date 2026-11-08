@@ -25189,3 +25189,41 @@ Acceptance: PASS（墙钟 ~10.7 min，含 base+head 各自 Maven 构建）
 - **沙箱在宿主的摩擦**：评测头部记 `SPECPROOF_ALLOWED_ROOT` 未配置 ⇒ "local mode" 下 repo/disk 边界不强制——同 CI 本地模式的诚实口径，不是 sandbox 隔离到这次自动启用；eval 沙箱的容器内 `--network none` 仍然生效。
 
 **本节未认证的量**：① 100 案例全量评测（`python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm --gate --min-recall 100 --min-precision 100 --max-false-positives 0`，即 `nightly-eval.yml` 同一命令）已在 2026-11-08 晚（本节落盘同日）于本机后台启动、**仍在运行**——本节不预设其通过与否；结果必须在其落盘后以实测数字记录（tee 到 `D:\面试项目\_eval_full.log`，HTML 报告在 `D:\面试项目\_eval_full_report.html`，sidecar 在报告路径派生的 `.results.json{,l}`）。② case-17 的 BLOCKER→MAJOR drift 未做根因分析（留给后续批次）。
+
+## #1517 里程碑实测：本机复现 nightly-eval——87 案例全量、Recall/Precision 100%、FP=0、Acceptance PASS
+
+**记录基准**：HEAD = `2c14689`（#1516 subset 实测后）。本节记 P6 阶段二「100 案例全量隔离评测」这一关键项的**本机实测落盘**，结论逐字来自运行产物，不粉饰、不外推。
+
+**命令**（与 `.github/workflows/nightly-eval.yml` 原形一致，仅 `--output` 路径不同）：
+
+`.venv\Scripts\python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm --gate --min-recall 100 --min-precision 100 --max-false-positives 0 --output D:\面试项目\_eval_full_report.html`
+
+（命令 tee 到 `D:\面试项目\_eval_full.log`；隔离默认开启，14 个 holdout 案例未参与本轮统计；产物：`_eval_full_report.html`、`.results.json`、`.results.jsonl`，均落在仓库外避，不进提交。）
+
+**实测数字（逐字）**：
+
+| 项 | 值 |
+|---|---|
+| 案例总数 / 未运行 | 87 / 0 |
+| 隔离后上磁盘 101 案例中未参与本轮 | 14 个 holdout 案例（case-01…case-10、case-35、case-39、case-58、case-101）——隔离口径不意外计入 |
+| Should detect / Detected | 52 / 52 |
+| Negative cases / False positives | 35 / **0** |
+| Precision / Recall / F1 | **100.0 / 100.0 / 100.0** |
+| Severity agreement / Severe precision | 90.4% / 90.4%（52 个正例） |
+| Acceptance | **PASS**（floors_pinned=True，min-recall=100/min-precision=100/max-fp=0/min-positive=10/min-negative=5；failures=[], insufficient=[]) |
+
+**如实记录的 severity drift（5 例）**：
+
+| 案例 | 预期 | 实测 | 契约 | DB 证据 |
+|---|---|---|---|---|
+| case-17-logic-inversion | BLOCKER | MAJOR | UNIQUE-01 | DB_CONSISTENT |
+| case-19-email-corruption | MAJOR | BLOCKER | UNIQUE-01 | DB_MUTATED_ON_UNAUTH |
+| case-20-validation-removed | MAJOR | BLOCKER | UNIQUE-01 | DB_MUTATED_ON_UNAUTH |
+| case-33-tx-order-idempotency-dedup-removed | BLOCKER | MAJOR | IDEMPOTENT-01 | DB_CONSISTENT |
+| case-97-rel-broker-failure-retried-into-duplicate | BLOCKER | MAJOR | ORDER_EVENT-01 | — |
+
+**环境**：`specproof-maven-cache-1000` 卷 + `maven:3.9-eclipse-temurin-21`，`--network none`（host root 播种下容器外不访问网络），评测不基于 LLM（--no-llm），无产品库写入（MySQL 为 specproof_test 隔离场景；产品 schema `/test/%` 行仍 0→0）。
+
+**本节不认证的量**：① 14 个 holdout 案例的 Recall/FP（这是 P6 里程碑的"+25pp 门槛"真正承重的面，`--only-holdout` 已排期以 `D:\面试项目\_eval_holdout.log` 独立落盘；本节不预设其结论）；② 墙钟时长（各案例 ~2-4 分钟，总量数小时量级；未逐案计时，不认）。③ case-17/19/20/33/97 的 severity drift 根因（wave 不为个别案例漂移逐案调阈值）。
+
+**已知边界**：HEAD 期间未动 `specproof-reference` 用户主仓；本提交仅含账本；CI `eval-golden-cases`/`nightly-eval` 仍以它们管道实测结果为准；npm 4→8、vitest 2→5、plugin-react 4→6 的升级不改变本节证据适用范围（只动了 dev 依赖）。
