@@ -104,6 +104,8 @@ AUDIT_ACTIONS: Final[frozenset[str]] = frozenset({
     "job_expired_execution_budget",
     "job_provider_wait_entered",
     "tenant_isolation_blocked",
+    "certificate_read",
+    "capsule_download",
     JOB_RECORDS_DELETED_ACTION,
 })
 

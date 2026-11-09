@@ -58,6 +58,19 @@ class FakeMySQLStore:
     registry_rows: list[dict[str, Any]] = []
     mysql_down = False
     summary_read_fails = False
+    audit_calls: list[tuple[str, str, str | None, str]] = []
+
+    def record_audit(
+        self,
+        action: str,
+        actor: str = "system",
+        job_id: str | None = None,
+        from_status: str | None = None,  # noqa: ARG002
+        to_status: str | None = None,  # noqa: ARG002
+        detail: str = "",
+        attempted_tenant: str | None = None,  # noqa: ARG002
+    ) -> None:
+        FakeMySQLStore.audit_calls.append((action, actor, job_id, detail))
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         if FakeMySQLStore.mysql_down:
@@ -179,6 +192,7 @@ def fakes(monkeypatch: pytest.MonkeyPatch) -> None:
     FakeMySQLStore.registry_rows = []
     FakeMySQLStore.mysql_down = False
     FakeMySQLStore.summary_read_fails = False
+    FakeMySQLStore.audit_calls = []
     FakeRedisStream.events = []
     FakeRedisStream.redis_down = False
     monkeypatch.setattr(web_module, "MySQLStore", FakeMySQLStore)
@@ -891,6 +905,9 @@ def test_certificate_found(fakes: None, tmp_path: Path, monkeypatch: pytest.Monk
     body = resp.json()
     assert body["document"]["result"] == "VERIFIED"
     assert "signed_statement" not in body
+    assert FakeMySQLStore.audit_calls == [
+        ("certificate_read", "system", JOB_ID, f"merge-certificate-{JOB_ID[:8]}.json"),
+    ]
 
 
 def test_certificate_signed_statement_included(
@@ -953,6 +970,9 @@ def test_capsule_download_happy(
     assert resp.headers["content-type"] == "application/zip"
     assert resp.headers["x-specproof-capsule"] == "capsule-AUTH-01.zip"
     assert resp.content[:2] == b"PK"
+    assert FakeMySQLStore.audit_calls == [
+        ("capsule_download", "system", JOB_ID, "capsule: capsule-AUTH-01.zip"),
+    ]
 
 
 def test_capsule_by_name(fakes: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

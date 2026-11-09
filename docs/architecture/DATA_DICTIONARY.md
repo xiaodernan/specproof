@@ -234,6 +234,8 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 | `job_expired_execution_budget` | `expire_overdue_jobs` | 作业超过执行期限预算 (从 created_at 起算), 置为 EXPIRED 终态 (#299) |
 | `job_provider_wait_entered` | `recover_provider_wait` | 进入/离开供应商等待的处置记录 |
 | `tenant_isolation_blocked` | `api/middleware.py`, `storage/mysql.py` | 跨租户读取被拒 (attempted_tenant 取证) |
+| `certificate_read` | `api/routes/web.py` (`job_certificate`) | 证书被读出的审计记录 (actor=request principal 或 system) |
+| `capsule_download` | `api/routes/web.py` (`job_capsule`) | 胶囊 zip 被下载的审计记录 (actor=request principal 或 system) |
 | `job_records_deleted` | `delete_job_records` | 该 job 的记录已按 DATA_LIFECYCLE §3 显式删除; audit_logs 有意保留 |
 <!-- AUDIT_ACTIONS_END -->
 

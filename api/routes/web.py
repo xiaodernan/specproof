@@ -30,7 +30,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 
@@ -64,6 +64,17 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # Capsule zip files are honest evidence artifacts produced by the pipeline.
 _ZIP_MAGIC = b"PK"
 _HEALTH_PROBE_TIMEOUT_SECONDS = 3.0
+
+
+
+
+def _actor_from_request(request: Request) -> str:  # noqa: ANN001 — FastAPI injects it
+    """The caller's identity for the audit row — unauthenticated reads are
+    a system call. No header parsing; the middleware has already decided."""
+    principal = getattr(getattr(request, "state", None), "principal", None)
+    user_id = getattr(principal, "user_id", None) if principal is not None else None
+    return str(user_id) if user_id else "system"
+
 
 
 def _capsule_dirs() -> list[Path]:
@@ -683,7 +694,7 @@ def job_findings(job_id: str) -> dict[str, Any]:
 
 
 @router.get("/jobs/{job_id}/certificate")
-def job_certificate(job_id: str) -> dict[str, Any]:
+def job_certificate(request: Request, job_id: str) -> dict[str, Any]:
     """Merge Certificate / Rejection Notice for a job, when persisted.
 
     Certificates are written by the CLI verify flow (reports dir). The
@@ -702,12 +713,22 @@ def job_certificate(job_id: str) -> dict[str, Any]:
                 "verification pipeline when it runs)."
             ),
         )
+    actor = _actor_from_request(request)
+    try:
+        store.record_audit(
+            action="certificate_read",
+            actor=actor,
+            job_id=job_id,
+            detail=str(Path(str(artifact.get("path", ""))).name or "certificate"),
+        )
+    except Exception as exc:  # noqa: BLE001 — delivery must never break over audit
+        logger.warning("audit write failed for certificate_read on job %s: %s", job_id, exc)
     return {"job_id": job_id, **artifact}
 
 
 @router.get("/jobs/{job_id}/capsule")
 def job_capsule(
-    job_id: str, name: str | None = Query(default=None, max_length=255)
+    request: Request, job_id: str, name: str | None = Query(default=None, max_length=255)
 ) -> FileResponse:
     """Download a Bug Capsule zip for a job (404 when none exists)."""
     store = MySQLStore()
@@ -745,6 +766,16 @@ def job_capsule(
                 f"(candidates: {candidates or 'none'})"
             ),
         )
+    actor = _actor_from_request(request)
+    try:
+        store.record_audit(
+            action="capsule_download",
+            actor=actor,
+            job_id=job_id,
+            detail=f"capsule: {name}",
+        )
+    except Exception as exc:  # noqa: BLE001 — delivery must never break over audit
+        logger.warning("audit write failed for capsule_download on job %s: %s", job_id, exc)
     return FileResponse(
         path,
         media_type="application/zip",
