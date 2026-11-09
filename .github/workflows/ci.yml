@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master, "feature/**"]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   lint-type:
@@ -358,3 +359,37 @@ jobs:
             docs/eval/eval-report.html
             docs/eval/eval-report.results.json
             docs/eval/eval-report.results.jsonl
+
+  # ── provider-smoke ─────────────────────────────────────────────────
+  # #1549: the one job of the three orphan branches' five that master's name
+  # roster never took, and the only leg in this repository that talks to a real
+  # model gateway. It is manual on purpose -- the credentials live in a GitHub
+  # *environment*, never in the tree, so `secrets.` still appears nowhere else
+  # in this file. Every step below is the branch's own (a756f5338:
+  # .github/workflows/quality.yml), carried over rather than re-typed: the env
+  # names are the ones providers/config.py declares, and a landing written from
+  # memory used SPECPROOF_LLM_* -- names nothing in this repository reads, which
+  # would have run green-shaped and reported "unconfigured". The bindings (env
+  # keys readable, the dispatch gate matching `on:`, environment declared, no
+  # secret interpolated into a run: command) are
+  # tests/unit/test_the_provider_smoke_ci_leg_carries_the_branch_job.py.
+  provider-smoke:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: provider-smoke
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: Provider Smoke (requires secrets)
+        env:
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+        run: python scripts/provider_smoke.py
+

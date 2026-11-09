@@ -33,8 +33,8 @@ Measured on ``origin/master`` at the time this gate was written:
   written): a name invented in one file but defined for real in another does not
   change any census total, so that plane is measured and printed, never claimed.
 
-Five rulers were broken while building this gate, and the gate now refuses to
-reproduce them:
+Six rulers were broken while building and landing this gate, and the gate now
+refuses to reproduce them:
 
 1. ``git grep <rev>`` prints ``rev:path:text`` with no line number unless ``-n`` is
    passed. Parsing 4 fields off 3-field output dropped every line and the test-name
@@ -66,6 +66,20 @@ reproduce them:
    out of. ``test_declared_successors_still_exist_in_master`` still iterates
    declarations, so it is vacuously green when the register is empty -- P2 and P3
    are the legs that own the population, and the arm table records exactly that.
+6. ``_grep_word`` read the register itself. #1548 verified "8 passed" before its
+   push, when ``origin/master`` did not yet contain ``evidence/branch_reconciliation.py``;
+   the commit that shipped the register put the token ``config_hash`` into
+   master's tree twice -- once as a ``REGISTERED_GAPS`` key, once inside the
+   sentence that claims the name appears 0 times -- so the ruler that asks
+   "is this SQL name anywhere in master?" answered yes and P8 went red on the
+   pushed state (measured at ``3f493ea``, 1 failed / 7 passed, found by #1549's
+   premise experiment rather than by anybody running the gate). The register was
+   its own witness: writing a gap down closed it. ``SELF_WITNESS`` now holds the
+   two files that carry claims -- the register and the ledger -- and both are
+   pathspec-excluded from every ``git grep`` the gate makes, so the only hits
+   that can close a gap are hits in something that could have taken the content.
+   #1549's arm table records that planting the name in the ledger keeps P8 green
+   while planting it in a migration reddens it.
 
 WHAT THIS GATE DOES NOT SAY. It does not prove the dispositions are *right* -- only
 that they are still checkable: a successor path that vanished, a symbol master no
@@ -314,11 +328,18 @@ def _defs_by_file(rev: str, anchored: bool = True) -> dict[str, frozenset[str]]:
     return {k: frozenset(v) for k, v in out.items()}
 
 
+#: Files that carry the claims this gate re-measures. They are off every ruler:
+#: a grep that may answer "is this name in master?" from the register's own
+#: prose lets the register close its own gaps by writing them down, which is
+#: exactly how P8 went red on ``3f493ea`` -- see the docstring's sixth ruler.
+SELF_WITNESS = ("evidence/branch_reconciliation.py",
+                "docs/operations/DEEP_OPTIMIZATION_PLAN.md")
+
+
 @lru_cache(maxsize=4096)
 def _grep_word(word: str, rev: str, paths: tuple[str, ...] = ()) -> bool:
-    argv = ["git", "grep", "-q", "-w", "-e", word, rev]
-    if paths:
-        argv += ["--", *paths]
+    argv = ["git", "grep", "-q", "-w", "-e", word, rev, "--"]
+    argv += [*paths, *(f":(exclude){p}" for p in SELF_WITNESS)]
     rc, _ = _git(argv, allow=(0, 1))
     return rc == 0
 

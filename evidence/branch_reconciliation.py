@@ -100,9 +100,11 @@ FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
         "verdict": "unadjudicated",
         "successor_paths": (".github/workflows/ci.yml",),
         "successor_symbols": (),
-        "reason": ("分支 5 个 job、master ci.yml 8 个 job；名字级缺席 4 个，其中 "
-                    "lint-and-type 与 lint-type 是改名，另 3 个（docker-integration / "
-                    "unit-and-integration / provider-smoke）没有名字级对应，未判定"),
+        "reason": ("名字级缺席 2 个：docker-integration 与 unit-and-integration 仍无对应；"
+                   "provider-smoke 已由 master ci.yml 的同名 job 承接（#1549 落地，"
+                   "分支 4 个 step 逐个照抄，env 键是 providers/config.py 声明的 3 个名字），"
+                   "lint-and-type 与 lint-type 是改名。缺席数是"
+                   "test_the_provider_smoke_ci_leg_carries_the_branch_job.py 重量的第一个整数"),
     },
     "a756f5338:Dockerfile.api": {
         "verdict": "landed_at_other_path",
@@ -151,7 +153,7 @@ FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
         "successor_paths": (),
         "successor_symbols": (),
         "reason": ("锚定尺子量出 18 个 test def，master 树里该路径 0 处存在；"
-                    "这是 58 个名字级差异里唯一一个整文件未接续的 18 个，排在 #1549 接手"),
+                    "这是 58 个名字级差异里唯一一个整文件未接续的 18 个，排在 #1550 接手"),
     },
     "a756f5338:evidence/matrix.py": {
         "verdict": "landed_at_other_path",
@@ -225,15 +227,15 @@ RENAMED_JOBS: dict[str, str] = {
 #: see -- a gap removed from the register reads exactly like a gap that was fixed.
 REGISTERED_GAPS: dict[str, str] = {
     "config_hash": "分支迁移声明的 15 个名字里唯一在 master 全树 0 处命中的列名",
-    "provider-smoke": (
-        "quality.yml 的 5 个 job 里唯一 0 处对应的名字；"
-        "master ci.yml 的 8 个 job 里 0 个跑 scripts/provider_smoke.py"),
-    "docker-integration": "quality.yml 的 job 名，master 的 8 个 job id 里 0 个同名，未判定承接者",
-    "unit-and-integration": "quality.yml 的 job 名，master 的 8 个 job id 里 0 个同名",
+    # provider-smoke was this dict's only workflow-shaped key. #1549 carried the
+    # branch's job over into master's ci.yml step-for-step, so the name is no
+    # longer absent -- and P8 re-derives that from the refs, not from here.
+    "docker-integration": "quality.yml 的 job 名，master 的 9 个 job id 里 0 个同名，未判定承接者",
+    "unit-and-integration": "quality.yml 的 job 名，master 的 9 个 job id 里 0 个同名",
     "docs/p1/p1a-final-report.md": "master 的 docs/p1/ 前缀 0 个路径，阶段报告无承接者",
     "docs/p1/wip-migration-matrix.md": "master 的 docs/p1/ 前缀 0 个路径，迁移矩阵无承接者",
     "tests/integration/test_fault_scenarios.py": (
-        "锚定尺子 18 个 test def，master 树 0 处该路径；#1549 接手"),
+        "锚定尺子 18 个 test def，master 树 0 处该路径；#1550 接手"),
 }
 
 #: Where an unanchored ``\bdef test_`` census prints a name that is not a test
