@@ -307,3 +307,44 @@ def test_replay_command_without_run_flag_keeps_extracted_status(tmp_path: Path) 
     assert report["status"] == "extracted"
     assert "verdict" not in report
     assert "To execute replay" in result.output
+
+
+def test_replay_payload_carries_the_manifests_reproduction_word(
+    sandbox: SandboxStub, tmp_path: Path,
+) -> None:
+    """The replay report says what the capsule said about its own repro.
+
+    reproduces_regression — the generated test that came with the capsule
+    proved the regression. An add-on key, additive like the rest; the
+    replay verdict itself is unchanged by it.
+    """
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"counterexample_reproduction": "reproduces_regression"}),
+        encoding="utf-8",
+    )
+    sandbox.result = FakeResult(stdout=">> COMPLIANT <<", exit_code=0)
+
+    result = run_capsule_replay(tmp_path, Path("some/repo"))
+
+    assert result["counterexample_reproduction"] == "reproduces_regression"
+
+
+def test_replay_payload_unreadable_manifest_reports_unknown(
+    sandbox: SandboxStub, tmp_path: Path,
+) -> None:
+    (tmp_path / "manifest.json").write_text("{not json", encoding="utf-8")
+    sandbox.result = FakeResult(stdout=">> COMPLIANT <<", exit_code=0)
+
+    result = run_capsule_replay(tmp_path, Path("some/repo"))
+
+    assert result["counterexample_reproduction"] == "unknown"
+
+
+def test_replay_payload_missing_manifest_reports_unknown(
+    sandbox: SandboxStub, tmp_path: Path,
+) -> None:
+    sandbox.result = FakeResult(stdout=">> COMPLIANT <<", exit_code=0)
+
+    result = run_capsule_replay(tmp_path, Path("some/repo"))
+
+    assert result["counterexample_reproduction"] == "unknown"

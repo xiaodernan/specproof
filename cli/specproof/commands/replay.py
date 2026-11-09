@@ -159,6 +159,7 @@ def replay(
     click.echo(f"Finding ID: {manifest.get('finding_id')}")
     click.echo(f"Severity: {manifest.get('severity')}")
     click.echo(f"Expected hash: {manifest.get('sha256', 'N/A')}")
+    click.echo(f"Reproduction: {manifest.get('counterexample_reproduction', 'unknown')}")
 
     run_result: dict[str, Any] | None = None
     if run_repo is not None:

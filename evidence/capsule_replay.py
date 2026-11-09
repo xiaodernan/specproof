@@ -22,6 +22,7 @@ Honesty rules:
 
 from __future__ import annotations
 
+import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -56,6 +57,23 @@ def _parse_verdict(stdout: str) -> str | None:
         if marker in stdout:
             return word
     return None
+
+
+def _reproduction_of(work_dir: Path) -> str:
+    """The capsule's own reproduction word, or "unknown".
+
+    Additive context for the reviewer — the replay must never be blocked
+    by an unreadable manifest. Nothing about the replay verdict itself
+    depends on this value.
+    """
+    try:
+        manifest = json.loads(
+            (work_dir / "manifest.json").read_text(encoding="utf-8"),
+        )
+        reproduction = str(manifest.get("counterexample_reproduction") or "")
+    except Exception:  # noqa: BLE001 — the replay is the review; the manifest is context
+        reproduction = ""
+    return reproduction or "unknown"
 
 
 def _clone_repo(repo: Path, work_dir: Path) -> tuple[bool, str]:
@@ -110,12 +128,14 @@ def run_capsule_replay(
     """
     cloned, clone_error = _clone_repo(repo, work_dir)
     if not cloned:
-        # Never reached the sandbox — counts no run, honestly.
+        # Never reached the sandbox — counts no run, honestly. The
+        # reproduction word travels in the record too (additive).
         return {
             "status": "clone_failed",
             "error": clone_error,
             "repo": str(repo),
             "replayed_at": datetime.now(UTC).isoformat(),
+            "counterexample_reproduction": _reproduction_of(work_dir),
         }
 
     result = run_sandboxed(
@@ -148,6 +168,7 @@ def run_capsule_replay(
         "mode": result.mode,
         "error": error_text,
         "verdict": verdict,
+        "counterexample_reproduction": _reproduction_of(work_dir),
         "repo": str(repo),
         "replayed_at": datetime.now(UTC).isoformat(),
     }

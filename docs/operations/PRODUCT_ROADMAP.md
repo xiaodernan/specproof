@@ -164,15 +164,17 @@
 ### Phase 4 —— 可信度工程与评测（P2）
 - [x] **4.1 Golden-case 回归门禁**：每次改动跑 Recall/Precision 阈值，跌破即红。每次 push 跑 eval-subset（case-01/17/56）钉 `--min-recall 100 --min-precision 100 --max-false-positives 0`，夜间跑全部 100 例同口径；三项各有工具自己的 FAIL 原因，再各配一条 grep 第二断言。门：`test_ci_floors_reach_the_tool.py` + `test_ci_acceptance_greps_match_the_eval_summary.py`（#231 收口）。
 - [~] **4.2 反例生成质量**：counterexample 从"能编译"到"真能复现回归"。
-  - 本批第一笔（2026-11-09）：胶囊清单新增 `counterexample_reproduction`（`reproduces_regression` /
-    `not_reproduced`）——由 finding 的 evidence_type 派生：只有差分运行让反例真正跑出
-    base_pass_head_fail 时记 `reproduces_regression`，静态/探针类一律 `not_reproduced`
-    （它们从未声称跑过）。零新门、零信任扩声；这是 replay 消费方第一次能直接从清单读出
-    "这只测试当初有没有真的吃/没吃出回归"。capsule_manifest_counterexample_reproduction 两例
-    + fixture 齐（`tests/unit/test_capsule_manifest_counterexample_reproduction.py`）。
-    **未做完**：verdict 口径上没有任何消费方（review_court / matrix / replay）读这个字段——只作记录，
-    所以它只是 "能读"，还不是 "有门"。下一笔：court/matrix 读到该字段时做判别（如 baseline 复现了的里程碑），
-    这就从「能编译」跨到「被证实在复现」的准入。
+  - 第一笔（2026-11-09，`f0d64c8`）：胶囊清单新增 `counterexample_reproduction`（`reproduces_regression` /
+    `not_reproduced`），由 finding 的 evidence_type 派生——只有差分运行让反例真正跑出
+    base_pass_head_fail 时记 reproduces_regression，静态/探针类一律 not_reproduced。
+    两腿测试（BLOCKER+base_pass_head_fail → reproduces；static_regex_analysis → not_reproduced）。零新门。
+  - 第二笔（2026-11-09，承接上一笔）：replay 消费方读到位——`run_capsule_replay` 从
+    `work_dir/manifest.json` 读出 `counterexample_reproduction`（缺失或解析坏→`unknown`，绝不伪造）；
+    replay 报告携带该值；`specproof replay` 输出打印 `Reproduction: <word>`。
+    三腿测试（carried / malformed → unknown / missing → unknown）。replay verdict 本身不变。
+    链：清单携带 → replay 读 → CLI 展示 闭合。
+    **仍 [~]**：review_court/matrix/summary 仍不读该字段（评审侧没有一只眼睛盯它）；
+    court/matrix 的判别语义（复现=MAJOR-grade 证据加分）仍待独立决策——本号不自作主张把"记录"升级为"判定"。
 - [x] **4.3 Merge Certificate 签名**：Ed25519 已落地 —— `evidence/signing.py` 签发/验签、`craft/accept.py` fail-closed 接线（无密钥即 ERROR）、`specproof verify` 对证书与拒绝通知双签，SHA-256 只是被签名的 canonical digest 而非占位签名。剩 KMS/HSM 密钥托管 ⏳。门：`tests/unit/test_signing_docs_do_not_claim_it_is_unimplemented.py`。
 
 ### Phase 5 —— 团队化与生产化（P2）
