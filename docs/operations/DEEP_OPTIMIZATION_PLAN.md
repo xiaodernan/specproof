@@ -26111,3 +26111,37 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 ### 8. stash / 分支 / 上游对齐
 
 master 与 `origin/master` 一一对应（fast-forward push，pre-push 钩子通过）；`specproof-reference` = `3e04c34`，`git status` 空；`git branch -r` 仅 `origin/master`；`stash@{1}` "parallel test changes" / `stash@{2}` "parallel session changes"（用户自有）**未动**；`stash@{0}` "ledger-cleanup-2026-11-09" 为本机清点用，保留待用户丢弃。
+## #1542 并轨级工具：measure_payload_rosters —— payload census 钉脚表一周三红的结构性缓解（2026-11-09）
+
+**记录基准**：HEAD = `a0fd892`（fast-forward；`specproof-reference` 跟随）；本节只追加。
+
+### 1. 问题本质（为什么不是「再钉一次就完了」）
+
+`test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py` 把 `CONSUMER_BINDING_ROSTER` 按 `(file, line)` 钉死——这是门的正确语义（行钉住才能暴露漂移），但后果是一周内三次重钉都得靠手量 + 红门逐例对齐（`#1536` 类）。根因不在门，在于缺一个"实测快照打印机"。
+
+### 2. 交付
+
+`scripts/measure_payload_rosters.py`（`a0fd892`）：
+
+- importlib 加载 gate 模块，调 `consumer_bindings(REPO)`（gate 自己用的同一测量入口），
+  按 style 对齐 `CONSUMER_BINDING_ROSTER` 打印 `gained`/`lost` diff；`--json` 机读输出。
+- 退出码：0=钉脚与实测一致；1=存在漂移；2=无法测量（模块未加载）。
+- **只打印，不改门、不改文档、不静默重钉**——重钉仍是人动 + 红门确认的两步。
+- 参照 `scripts/classify_test_fakes.py` 的定位（清单测量工具，不是门）。
+
+### 3. 本机实证（本号提交同一棵树）
+
+- `python scripts/measure_payload_rosters.py`：8 种 style 全部 `[ok]`，48 条绑定逐个一致（forward 21 / then-chain 8 / await-binding 5 / tuple-member 7 / hook 3 / discarded 2 / destructuring 1 / promise-bound 1）。
+- `python scripts/measure_payload_rosters.py --json`：结构化输出可用于提交信息。
+- `pytest tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py tests/unit/test_recorded_ledger_sections_do_not_vanish.py`：**63 passed**（55 + 8）。
+- 工具自身不注册为任何门；未改变任何现有判定。
+
+### 4. 本节不认领
+
+- 全量 `pytest tests/unit tests/security tests/fault` 未重跑——本号仅新增 `scripts/` 独立工具，无产品代码路径变更；`fafb8be` 的 `_fullgate_v3.txt`（6528/10/3，1:10:23）仍是最近全量证据。
+- `CLIENT_ISSUER_ROSTER` / `CONSUMER_BINDING_UNREAD_BLOCKS` / `DENOMINATOR_NAMED_WITHOUT_A_CENSUS_ROW` / `DENOMINATOR_PAGE_BLIND` 的自动量测**未覆盖**——这四张登记表依赖更重的语料内部切换（declaration-vs-body 归因与 refused-block 语义），强行量测会得到误导性结果；留给后续号如实补齐。
+- roadmap 零条目变更；不宣称本号交付了任何 §x.y 能力。
+
+### 5. 与上游对齐
+
+master 与 `origin/master` 一一对应（fast-forward；pre-push 通过）；`specproof-reference` 同步；`git status` 空。
