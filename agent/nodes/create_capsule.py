@@ -123,6 +123,17 @@ def create_capsule_node(state: Phase0State) -> dict[str, Any]:
             "db_state_detail": finding.get("db_state_detail", ""),
             "db_violation_evidence": dict(_dbv) if isinstance(_dbv, dict) else {},
             "behavioral_evidence": dict(_beh) if isinstance(_beh, dict) else {},
+            # §4.2: the counterexample's verdict rides the manifest so a
+            # replay can tell the kinds of evidence apart. The generated
+            # test reproduces a regression only when the differential ran
+            # it and Base passed where Head failed ("base_pass_head_fail").
+            # Static / probe findings never claimed to run; they carry the
+            # honest negative — nothing was reproduced.
+            "counterexample_reproduction": (
+                "reproduces_regression"
+                if finding.get("evidence_type") == "base_pass_head_fail"
+                else "not_reproduced"
+            ),
         }
         # The digest is computed over the CANONICAL serialization of the
         # manifest WITHOUT the digest field (sorted keys, no whitespace) —
