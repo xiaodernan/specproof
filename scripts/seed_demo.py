@@ -492,12 +492,22 @@ def _write_stages(
             return False
         total = len(template["stages"])
         for i, stage in enumerate(template["stages"]):
+            # 演示 job 写出的真实产物一并带进时间线：capsule 帧就是演示
+            # 自写的 zip 文件，标记与 worker 发帧的 `capsule:file=` 格式一致。
+            artifacts = None
+            if stage["node"] == "create_capsule" and template.get("findings"):
+                names = [
+                    f"capsule:file={_capsule_name(job_id, f['contract_id'])}"
+                    for f in template["findings"]
+                ]
+                artifacts = names or None
             redis.xadd_progress(
                 job_id,
                 stage["node"],
                 "completed",
                 message=stage["message"],
                 percent=round((i + 1) / total * 100.0, 1),
+                artifacts=artifacts,
             )
         return True
     except Exception as exc:  # noqa: BLE001 — stages are optional telemetry
