@@ -399,6 +399,7 @@ def job_stages(job_id: str) -> dict[str, Any]:
     stages: dict[str, dict[str, Any]] = {}
     order: list[str] = []
     node_counts: dict[str, int] = {}
+    node_artifacts: dict[str, list[str]] = {}
     for ev in events:
         node = str(ev.get("node") or "unknown")
         if node not in stages:
@@ -413,6 +414,13 @@ def job_stages(job_id: str) -> dict[str, Any]:
             "event_id": str(ev.get("id") or ""),
         }
         node_counts[node] = node_counts.get(node, 0) + 1
+        for ref in list(ev.get("artifacts") or []):
+            ref = str(ref or "").strip()
+            if not ref:
+                continue
+            bucket = node_artifacts.setdefault(node, [])
+            if ref not in bucket:
+                bucket.append(ref)
     # Per-node duration and event count, additive to the stage contract: the
     # events each carry a UTC ISO timestamp; first-to-last per node is the
     # honest "how long did this stage run" reading, with no fabricating a
@@ -441,6 +449,7 @@ def job_stages(job_id: str) -> dict[str, Any]:
             ).total_seconds()
         stages[node]["failed_at"] = _format_iso_utc(min(failed_stamps)) if failed_stamps else ""
         stages[node]["event_count"] = node_counts[node]
+        stages[node]["artifact_refs"] = node_artifacts.get(node, [])
     return {
         "job_id": job_id,
         "stages": [stages[node] for node in order],

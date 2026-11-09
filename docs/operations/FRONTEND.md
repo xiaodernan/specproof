@@ -53,7 +53,7 @@
 | 方法 | 路径 | 数据源 | 降级/缺失语义 |
 |---|---|---|---|
 | GET | /api/v1/dashboard | MySQL (verification_jobs) | MySQL 不可用 -> 200 + degraded:true + 空聚合与 reasons; 成本/token 账本未持久化 -> available:false + 说明 (绝不伪造) |
-| GET | /api/v1/jobs/{id}/stages | Redis 进度流 (xread_progress) | 任务不存在 -> 404; Redis 不可用 -> 200 + degraded:true + stages:[] |
+| GET | /api/v1/jobs/{id}/stages | Redis 进度流 (xread_progress) | 任务不存在 -> 404; Redis 不可用 -> 200 + degraded:true + stages:[]; 每阶段行含 `artifact_refs`（节点写出的产物引用，无产物则空数组；§3.1 续） |
 | GET | /api/v1/jobs/{id}/matrix | MySQL contracts 表 + summary 计数 | 任务不存在 -> 404; 表为空 -> rows:[] + summary 计数 |
 | GET | /api/v1/jobs/{id}/findings | summary JSON + findings 表合并 | 任务不存在 -> 404; 均无 -> findings:[] (诚实空) |
 | GET | /api/v1/jobs/{id}/certificate | reports/ 目录证书产物 (merge-certificate-*/rejection-notice-* + signed-*) | 无产物 -> 404 (绝不现场重造证书) |

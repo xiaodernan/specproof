@@ -1513,6 +1513,8 @@ label.field { display: block; color: var(--color-text-2); font-size: var(--fs-12
 .stage-pct { font-family: var(--font-mono); width: 60px; text-align: right; color: var(--color-text-3); font-variant-numeric: tabular-nums; }
 .stage-duration { font-family: var(--font-mono); min-width: 78px; text-align: right; color: var(--color-text-3); font-variant-numeric: tabular-nums; }
 .stage-failed-at { font-family: var(--font-mono); font-size: 11px; color: var(--danger-fg); font-variant-numeric: tabular-nums; }
+.stage-artifacts { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.stage-artifact { font-family: var(--font-mono); font-size: 10px; color: var(--accent-text); background: var(--accent-tint); border: 1px solid var(--accent-500); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 
 .bar { height: 6px; background: var(--color-surface-3); border-radius: var(--radius-full); overflow: hidden; margin: var(--sp-2) 0; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-600), var(--accent-2-400)); border-radius: inherit; transition: width var(--dur-slow) var(--ease-out); }

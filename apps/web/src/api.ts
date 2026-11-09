@@ -249,6 +249,7 @@ export interface ProgressEvent {
   percentage?: number;
   summary?: string;
   ts?: string;
+  artifacts?: string[];
   // legacy fallback fields
   node?: string;
   percent?: number;
@@ -500,6 +501,7 @@ export interface Stage {
   duration_seconds: number | null;
   event_count: number;
   failed_at: string;
+  artifact_refs?: string[];
 }
 
 export interface StagesData {

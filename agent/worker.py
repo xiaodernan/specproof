@@ -600,6 +600,19 @@ class Worker:
                 advance_for_stage(
                     self.mysql, job_id, stage, worker_id=self.worker_id,
                 )
+                # Artifact references: a node that actually wrote an artifact
+                # gets a "completed" frame carrying the references it wrote.
+                # Emission sits AFTER the cancel checkpoint on purpose — a
+                # cancelled leg must not advertise products it never wrote.
+                refs = _stage_artifact_refs(stage, chunk.get(stage) if chunk else None)
+                if refs:
+                    with contextlib.suppress(Exception):
+                        self.redis.xadd_progress(
+                            job_id, stage, "completed",
+                            message=f"{len(refs)} artifact(s)",
+                            percent=0.0,
+                            artifacts=refs,
+                        )
             elif mode == "values":
                 final_state = chunk
 
@@ -1246,6 +1259,49 @@ def _state_summary(state: dict[str, Any], verdict: str) -> dict[str, Any]:
         summary["deep_results"] = deep_results
     summary["deep_note"] = str(state.get("deep_note", ""))
     return summary
+
+
+def _stage_artifact_refs(stage: str, update: Any) -> list[str]:
+    """Per-node artifact references, or an empty list.
+
+    A node that writes a real artifact files it back into the state; this
+    function picks the ones a reader of the SSE stream can resolve —
+    object-store addresses for capsules, plain file names for the report
+    and the generated counterexample test. Nodes that write nothing
+    relevant return nothing, and the SSE timeline stays an honest read.
+
+    References are never fabricated: an object-store ref is used exactly
+    as the artifact store handed it back; when the upload failed the
+    local capsule's file NAME is the honest reference (it is what the
+    capsule download endpoint would look up). The worktree's full path is
+    not leaked on the wire.
+    """
+    import os
+
+    refs: list[str] = []
+    if not isinstance(update, dict):
+        return refs
+
+    if stage == "create_capsule":
+        for ref in list(update.get("capsule_refs") or []):
+            ref = str(ref or "").strip()
+            if ref:
+                refs.append(ref)
+        for path in list(update.get("capsules") or []):
+            name = os.path.basename(str(path or "").strip())
+            if name and f"capsule:file={name}" not in refs:
+                refs.append(f"capsule:file={name}")
+    elif stage == "generate_counterexamples":
+        path = str(update.get("generated_tests_path") or "").strip()
+        if path:
+            name = os.path.basename(path)
+            refs.append(f"counterexample_test:{name}")
+    elif stage == "publish_report":
+        path = str(update.get("report_path") or "").strip()
+        if path:
+            name = os.path.basename(path)
+            refs.append(f"report:{name}")
+    return refs
 
 
 def _terminal_status_from_state(state: dict[str, Any]) -> str:

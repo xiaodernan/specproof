@@ -124,8 +124,19 @@
     `ui/util.tsx::fmtDurationSeconds` + `ui/__tests__/formatDuration.test.ts` 锁住呈现规则
     （null→"—"，防具体测值呈"未知"）；`tsc --noEmit` 干净、`vitest` 31/2 文件全绿、
     基线测试 JobDetail 31 例全绿。
-  - **仍未做**：节点级产物对象/失败点契约（worker 侧每节点落 artifact 引用）→ 这一项留待
-    `agent/graph.py` 节点携带产物引用后，再补到 SSE 事件与时间线。
+  - **节点级产物引用收口（2026-11-09）**：worker 在 graph `updates` 分支仅对「写出产物的节点」补
+    `completed` 帧（`agent/worker.py::_stage_artifact_refs`：create_capsule→object-store 地址 +
+    本地 zip 文件名（上传失败时的诚实降级）；generate_counterexamples→反例测试文件名；
+    publish_report→报告文件名），其余节点不伪造产物帧——诚实口径，不向时间线塞假帧。
+    `RedisStore.xadd_progress` 携带 `artifacts`（JSON 字符串，解析失败→空），`xread_progress`
+    解析回来；SSE 帧 `_progress_payload` 透传（旧消费端不破坏）；`/jobs/{id}/stages` 的每个
+    节点行新增 `artifact_refs`（跨该节点事件去重、保序）；JobDetail 阶段行渲染至多 3 个
+    `.stage-artifact` chip（超出折叠 `+N`，`base.css` 落 `--accent-tint` 风格页）；SSE live 合成帧
+    同样携带。验证：后端 61 例新增/既有 + 175 例相关（含 worker 取消/错误分类/回收门）全绿；
+    vitest JobDetail **31/31**（含 2 条 artifact 断言）；`tsc --noEmit` 干净；
+    docs/operations/FRONTEND.md 端点清单同步登记 `artifact_refs`。仍未做：其余无产物节点的全程
+    时间戳帧（真实运行不在 SSE 上逐节点发帧——设计如此，seed_demo 的示例数据保持演示口径）
+    以及产物的人类可读注释。
   - 续写（2026-11-09，#1539）：阶段契约再加**节点失败点 `failed_at`**（该节点 status=="failed"
     首帧 stamp，无失败帧为 `""`）——仍是附加式合约，旧消费端逐字键不变；后端 `api/routes/web.py`
     （`_format_iso_utc`）+ `test_web_api.py`（test_stages_failure_point_is_the_earliest_failing_stamp

@@ -320,6 +320,47 @@ def test_stages_enrich_with_duration_and_count(fakes: None) -> None:
     assert stages["collect_diff"]["percent"] == 30.0
 
 
+def test_stages_fold_artifact_refs_per_node(fakes: None) -> None:
+    """Node-level artifact refs fold per node, deduped, order-preserved (§3.1)."""
+    _seed_job()
+    FakeRedisStream.events = [
+        {"id": "1-0", "node": "create_capsule", "status": "completed",
+         "percent": 80.0, "message": "2 artifact(s)", "at": "2026-08-18T00:00:03Z",
+         "artifacts": ["bucket/capsule-AUTH-01.zip",
+                        "capsule:file=capsule-AUTH-01.zip"]},
+        {"id": "1-1", "node": "publish_report", "status": "completed",
+         "percent": 100.0, "message": "1 artifact(s)", "at": "2026-08-18T00:00:04Z",
+         "artifacts": ["report:v-report.html"]},
+        {"id": "1-2", "node": "publish_report", "status": "completed",
+         "percent": 100.0, "message": "1 artifact(s)", "at": "2026-08-18T00:00:05Z",
+         "artifacts": ["report:v-report.html"]},  # duplicate ref — kept once
+    ]
+    client = TestClient(app)
+    resp = client.get(f"/api/v1/jobs/{JOB_ID}/stages", headers=_headers())
+    assert resp.status_code == 200
+    stages = {row["node"]: row for row in resp.json()["stages"]}
+    assert stages["create_capsule"]["artifact_refs"] == [
+        "bucket/capsule-AUTH-01.zip",
+        "capsule:file=capsule-AUTH-01.zip",
+    ]
+    assert stages["publish_report"]["artifact_refs"] == ["report:v-report.html"]
+    assert stages["create_capsule"]["event_count"] == 1
+    assert stages["publish_report"]["event_count"] == 2
+
+
+def test_stages_node_without_artifacts_reads_empty_refs(fakes: None) -> None:
+    _seed_job()
+    FakeRedisStream.events = [
+        {"id": "1-0", "node": "intake", "status": "completed",
+         "percent": 10.0, "message": "ok", "at": "2026-08-18T00:00:00Z"},
+    ]
+    client = TestClient(app)
+    resp = client.get(f"/api/v1/jobs/{JOB_ID}/stages", headers=_headers())
+    assert resp.status_code == 200
+    (row,) = resp.json()["stages"]
+    assert row["artifact_refs"] == []
+
+
 def test_stages_unparseable_stamps_yield_null_duration(fakes: None) -> None:
     _seed_job()
     FakeRedisStream.events = [

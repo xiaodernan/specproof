@@ -263,6 +263,7 @@ def _progress_payload(job_id: str, seq: int, ev: dict[str, Any]) -> dict[str, An
         "percentage": float(ev.get("percent") or 0.0),
         "summary": str(ev.get("message") or ""),
         "ts": str(ev.get("at") or ""),
+        "artifacts": list(ev.get("artifacts") or []),
     }
 
 
@@ -280,12 +281,14 @@ async def _progress_stream(
         event: progress
         data: {"seq": N, "sequence": M, "job": "...", "type": "progress",
                "stage": "...", "status": "...", "percentage": F,
-               "summary": "...", "ts": "..."}
+               "summary": "...", "ts": "...", "artifacts": [...]}
 
     seq (N) is the entry's rank in the retained replay window — the
     legacy field, unchanged. sequence (M) is the absolute per-job counter
     stored with the entry, so clients that reconnect after the MAXLEN
-    window trimmed can still dedupe and re-order by sequence.
+    window trimmed can still dedupe and re-order by sequence. artifacts is
+    the node's artifact references when the node wrote any (an empty list
+    otherwise) — additive, same as the rest of the entry.
 
     Every connection replays the retained history once so seq is the
     entry's stable rank in the stream rather than a per-connection counter.

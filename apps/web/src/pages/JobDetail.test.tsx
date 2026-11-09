@@ -510,6 +510,75 @@ describe("stages tab — per-node failure point", () => {
   });
 });
 
+describe("stages tab — artifact refs", () => {
+  const stubStages = (stages: unknown[]) =>
+    async (path: string) => {
+      if (path === "/jobs/job-1") {
+        return { job: { id: "job-1", status: "BLOCKED", repo_path: "/project" } };
+      }
+      if (path.endsWith("/summary")) {
+        return { summary: { verdict: "BLOCKED", errors: ["boom"] } };
+      }
+      if (path.endsWith("/stages")) {
+        return {
+          job_id: "job-1",
+          stages,
+          event_count: (stages as { event_count: number }[]).reduce(
+            (sum, row) => sum + (row.event_count || 0),
+            0,
+          ),
+          degraded: false,
+          degraded_reason: null,
+        };
+      }
+      return { job_id: "job-1", findings: [], count: 0, degraded: false };
+    };
+
+  it("renders up to three artifact chips and a +N overflow marker", async () => {
+    get.mockImplementation(
+      stubStages([
+        {
+          node: "create_capsule", status: "completed", percent: 90, message: "4 artifact(s)",
+          at: "2026-08-18T00:02:00Z", event_id: "5-0",
+          started_at: "2026-08-18T00:01:59Z", duration_seconds: 1.0,
+          event_count: 1, failed_at: "",
+          artifact_refs: [
+            "specproof-bug-capsules/capsule-AUTH-01.zip",
+            "capsule:file=capsule-AUTH-01.zip",
+            "specproof-bug-capsules/capsule-AUTH-02.zip",
+            "capsule:file=capsule-AUTH-02.zip",
+          ],
+        },
+      ]) as typeof apiGet,
+    );
+    render(<JobDetail jobId="job-1" />);
+    fireEvent.click(await screen.findByRole("tab", { name: "执行进度" }));
+    expect(await screen.findByText("specproof-bug-capsules/capsule-AUTH-01.zip")).toBeTruthy();
+    expect(screen.getByText("capsule:file=capsule-AUTH-01.zip")).toBeTruthy();
+    expect(screen.getByText("specproof-bug-capsules/capsule-AUTH-02.zip")).toBeTruthy();
+    // The fourth chip collapses into +1 — no four-chip wall on the row.
+    expect(screen.queryByText("capsule:file=capsule-AUTH-02.zip")).toBeNull();
+    expect(screen.getByText("+1")).toBeTruthy();
+  });
+
+  it("renders no chips for a node whose events carried no artifacts", async () => {
+    get.mockImplementation(
+      stubStages([
+        {
+          node: "preflight", status: "completed", percent: 5, message: "ok",
+          at: "2026-08-18T00:00:10Z", event_id: "1-9",
+          started_at: "2026-08-18T00:00:09Z", duration_seconds: 1.0,
+          event_count: 1, failed_at: "",
+        },
+      ]) as typeof apiGet,
+    );
+    render(<JobDetail jobId="job-1" />);
+    fireEvent.click(await screen.findByRole("tab", { name: "执行进度" }));
+    await screen.findByText("检查执行环境（工具链）");
+    expect(document.querySelector(".stage-artifacts")).toBeNull();
+  });
+});
+
 describe("证据折叠 on the overview viewport", () => {
   it("keeps the fold hidden by default and reveals the evidence on toggle", async () => {
     get.mockImplementation((async (path: string) => {

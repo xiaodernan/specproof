@@ -158,7 +158,8 @@ class RedisStore:
         return f"specproof:stream:job:{job_id}:seq"
 
     def xadd_progress(self, job_id: str, node: str, status: str,
-                      message: str = "", percent: float = 0.0) -> str:
+                      message: str = "", percent: float = 0.0,
+                      artifacts: list[str] | None = None) -> str:
         """Append a progress event to the job's stream. Returns the entry ID.
 
         Every entry carries the job's next absolute sequence number (`seq`
@@ -166,6 +167,10 @@ class RedisStore:
         sequence even after MAXLEN trimming drops older entries. A failed
         XADD can leave a gap in the sequence; monotonicity, not contiguity,
         is the contract.
+
+        ``artifacts`` (optional) carries per-node artifact references — capsule
+        names, report paths — as a JSON list string. Nodes that know what
+        they wrote pass the references; nodes that do not, omit the field.
         """
         with _timed_redis("incr"):
             seq = int(self.client.incr(self.sequence_key(job_id)))
@@ -181,6 +186,9 @@ class RedisStore:
             "percent": str(percent),
             "message": message,
         }
+        clean = [str(a) for a in (artifacts or []) if str(a).strip()]
+        if clean:
+            data["artifacts"] = json.dumps(clean, ensure_ascii=False)
         key = self.stream_key(job_id)
         with _timed_redis("xadd"):
             entry_id = self.client.xadd(
@@ -197,8 +205,10 @@ class RedisStore:
         """Read progress events from the stream starting from from_id.
 
         Returns list of {id, sequence, node, status, at, percent,
-        message} dicts; sequence is the entry's absolute per-job number
-        (0 for entries written before the counter existed).
+        message, artifacts} dicts; sequence is the entry's absolute per-job
+        number (0 for entries written before the counter existed); artifacts
+        is a best-effort optional list of per-node artifact references
+        (empty when the entry carries none or a malformed payload).
         """
         key = self.stream_key(job_id)
         try:
@@ -211,6 +221,13 @@ class RedisStore:
             entries: list[dict[str, Any]] = []
             for _stream_name, messages in result:
                 for msg_id, fields in messages:
+                    artifacts_raw = str(fields.get("artifacts", "") or "")
+                    try:
+                        artifacts = json.loads(artifacts_raw) if artifacts_raw else []
+                        if not isinstance(artifacts, list):
+                            artifacts = []
+                    except json.JSONDecodeError:
+                        artifacts = []
                     entries.append({
                         "id": str(msg_id),
                         "sequence": int(fields.get("seq") or 0),
@@ -219,6 +236,7 @@ class RedisStore:
                         "at": str(fields.get("at", "")),
                         "percent": float(fields.get("percent", 0)),
                         "message": str(fields.get("message", "")),
+                        "artifacts": [str(a) for a in artifacts],
                     })
             return entries
         except redis.ResponseError:
