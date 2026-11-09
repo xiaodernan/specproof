@@ -26660,3 +26660,145 @@ Maven 还没启动就失败 —— 但门不会先说）⇒ ⇒ **写下来**，
   两条路：① 用 `maven-enforcer-plugin` 把 JDK 钉成 21（**代价**：版本号会多出一份字面量，
   与 pom 里的 `java.version` 可能漂）；② 升 ByteBuddy / Spring Boot 让 JDK 25 也能构
   （**代价**：动产品依赖）。⇒ ⇒ **要带着读数做这个决策**，不能顺手改。
+## #1547 provider-smoke 的凭据来自哪：一个走 sideways 找到的文件，压过了操作者显式导出的值
+
+**这一号的来路（并轨普查量出来的）。** 用户要求把散在多条分支上的内容并起来。普查与 master
+**没有共同历史**的 ref（`git merge-base --all master <ref>` 三条**全空**，实测 exit 1）：
+
+| ref | tip | 日期 | ahead/behind | 文件 | 只在这里的文件 | 测试名 | 只在这里的名字 |
+|---|---|---|---|---|---|---|---|
+| `origin/release/p0.5-verified-v1` | 4145d95 | 2026-07-13 | 11/1740 | 186 | 2 | 52 | 1 |
+| `origin/feature/p1-reliability-kernel` | a756f53 | 2026-07-14 | 24/1740 | 202 | 10 | 96 | 43 |
+| `origin/feature/interview-hardening` | 76285a7 | 2026-08-21 | 287/1740 | 1832 | 0 | 2785 | 14 |
+
+master 侧同尺读数：文件 2416、测试名 6176。**12 个「只在这里的文件」每一个都在 master 里找得到
+接任者**（`Dockerfile.api` 搬进 `docker/`；`compose.p1.yml` 由 `compose.phase0/production/observability.yml`
+接任；`quality.yml` 由 `ci.yml`+`nightly-eval.yml` 接任；`evidence/matrix.py` 由
+`agent/nodes/build_matrix.py`+`agent/matrix_policy.py` 接任；`scripts/run_differential.sh` 由
+`agent/nodes/run_differential.py` 接任；`storage/migrations/00{1,2}_*.sql` 由
+`storage/migrations/00{1,2}_{job_state_machine,outbox}.sql` 接任）。
+**58 个「只在这里的名字」用事实尺子分三类**（名字尺子量不出来这一层）：同名文件里改了名 10、
+同名文件里没近邻 30、master 没有那个文件 18（全部集中在 `tests/integration/test_fault_scenarios.py`
+一个文件里，它的契约在 master 分散住在 `tests/fault/` 7 个文件 +
+`test_transaction_faults.py` / `test_outbox_crash_recovery.py` / `test_worker_crash_mid_graph.py`）。
+举两条硬的：分支 `test_junction_escape_detected` 在 master 同一文件里叫
+`test_directory_link_escape_detected`，且 master 该文件 45 个测试 **多于**分支的 42；
+分支 `002_failed_terminal.sql` 把 FAILED 做成**无出口**的终态，master 的
+`storage/mysql.py` `_VALID_TRANSITIONS` 里 FAILED 有 `{QUEUED, CANCELLED, EXPIRED, ERROR}` ——
+**这条是被 master 明确撤销的**，不是没并过来。⇒ **结论：三支的内容级对账是"已超集/已撤销"，
+没有整块可搬的东西；但普查顺手量出一个真的缺口，本号就修它**。
+
+**量到的缺陷（不是并轨之外的偶然）。** 普查凭据读者：23 个已跟踪非测试文件提到旋钮，20 个真读。
+`providers/config.py` 是 owner —— 它读 UI 写的设置文件（`.local/llm.json`，可用
+`SPECPROOF_MODEL_CONFIG` 搬家），并且**让环境压过文件**。`scripts/provider_smoke.py` 不走它，
+它是发布树里**唯一一个把凭据从盘上读、并且让文件压过环境**的模块：
+
+    ENV_PATHS = [PROJECT/".env", Path("D:/experim/specproof-phase0/.env"),
+                 Path("D:/experim/.env"), PROJECT.parent/"specproof-phase0"/".env",
+                 Path(os.getcwd())/".env"]
+    for p in ENV_PATHS: _env.update(_load_dotenv(p))            # 后面的压过前面的
+    API_KEY = _env.get("LLM_API_KEY", os.environ.get("LLM_API_KEY", ""))   # 文件压过环境
+
+两处都逆着写下来的规矩：`docs/architecture/COMPLETION_MAP.md:95` 明写 LLM 凭据
+**仅经环境变量注入……绝不落盘**；`save_model_config()` 在任何旋钮被导出时**拒绝写**设置文件
+（"当前模型由部署环境变量管理"）。⇒ 操作者显式导出的 key 会输给那五条路径里**最后存在**的一条，
+其中两条是硬编码的开发机绝对路径、一条由 `os.getcwd()` 推出来；而 UI 里配的 key
+**根本到不了这一趟运行** —— 这正是 #503 的形状（一把 key 到一个消费者、静默不到另一个），
+**在第三个读者身上重开**。
+
+**修法。** stage 0 改问 owner；报告里如实记下**是谁答的**（`config_source`）；**读不动不等于没配** ——
+`load_model_config()` 抛 `ValueError` 时，`CONFIG_ERROR` 带原文、`source="unreadable"`，
+拒绝理由说"读不出来"而不是"未配置"；未配置时 `MODEL` 打空而不是把 owner 的默认模型名
+当成"这趟选的模型"。
+
+**五种场景实测**（都钉死 `SPECPROOF_MODEL_CONFIG`，都不碰网络；本机有真实 `.local/llm.json`，
+不钉就会拿真 key 往外发）：
+
+| 场景 | config_source | 报告里的 model | 拒绝理由 |
+|---|---|---|---|
+| 什么都没配 | `unconfigured` | `""` | `…not configured (providers.config reported source='unconfigured')` |
+| 设置文件读不动（畸形 JSON） | `unreadable` | `""` | `model configuration could not be read: 模型配置文件无法读取或格式无效。` |
+| 只有设置文件 | `local_file` | 文件里的 model | #503 那一类，**这一趟真的到了** |
+| cwd 里有个野 `.env` | `unconfigured` | `""` | 盘上那条路不再是凭据来源 |
+| 环境和文件都配 | `environment` | `env-model` | 环境赢，逐字段赢 |
+
+**门：`tests/unit/test_provider_smoke_reads_the_model_config_through_the_canonical_owner.py`，7 条腿。**
+
+| 腿 | 守住什么 |
+|---|---|
+| P1 普查不塌 | 提到旋钮的文件 ≥20、被分类成"碰过"的 ≥8；owner 必须是 owner；**修好的脚本必须落在 `through_owner`** |
+| P2 「文件压过环境」的集合 == 登记册 | 两个方向都查：没登记的 ⇒ 红；登记了但实测没了 ⇒ 红（**过期登记就是洞**）；登记的理由必须带数字或连接词 |
+| P3 脚本里没有私有凭据路径 | 必须有 `load_model_config`；`ENV_PATHS`/`_load_dotenv`/`D:/experim`/`specproof-phase0` 一个不许回来；不许再有 `.get("LLM_x", os.environ…)` 这种**第二套优先序** |
+| P4 未配置要老实退 | 退出码 1、`source='unconfigured'`、`model` 必须是空串（不许打幻影模型名）、理由里点名 `providers.config` |
+| P5 读不动 ≠ 没配 | `source='unreadable'`、`config_error` 非空、理由含 "could not be read" 且**不含** "not configured" |
+| P6 优先序三个方向 | 文件到得了、环境逐字段压过文件、野 `.env` 不再是来源（并且 key 不许出现在报告里） |
+| P7 「谁调它」是量出来的 | workflow 里引用这个脚本的次数 == 登记值 **0**；有人把它接进 CI 时这行必须**过期发红**，不许悄悄把缺口当不存在 |
+
+**先红后绿。** 门在**干净的 HEAD 副本**上（只把门拷进去、产品仍是旧码）：**6 failed / 1 passed** ——
+红落在 P1–P6，P7 两侧都绿（它量的关系本号没动）。落地后 **7 passed in 32.19 s**，ruff 干净。
+
+**臂 12 条**（A0–A8 变异 + RC1–RC3 归因/反向对照；副本 = `git worktree add --detach HEAD` + 落地字节
+覆盖并 `git add -A`，⇒ `git diff --name-only` 恰好等于本臂变异；每臂跑完再核 `git write-tree` **与基线同号**；
+恢复用 `.scratch` 里的逐字节原件回写，不用 `git checkout` —— autocrlf 会把 LF 变成 CRLF，那就不叫还原）：
+
+| 臂 | 变异 | 声明 | 实测 |
+|---|---|---|---|
+| A0 | 不变异 | 绿 | **绿** |
+| A1 | stage 0 整块换回 HEAD 的落盘读法（逐字节取自 `git show HEAD:…`） | 红 P1–P6 | **红 P1–P6** |
+| A2 | `MODEL` 无条件取 owner 的默认模型名 | 红 P4 | **红 P4** |
+| A3 | 吞掉 `CONFIG_ERROR`（读不动就当没配） | 红 P5 | **红 P5** |
+| A4 | 从报告里删掉 `config_source` | 红 P4/P5/P6 | **红 P4/P5/P6** |
+| A5 | 拒绝理由换回旧那句 ".env or environment" | 红 P4 | **红 P4** |
+| A6 | 在 `retrieval/embeddings.py` 里**植一个**"文件压过环境"的读者 | 红 P2 | **红 P2** |
+| A7 | 登记册里塞一条**过期**且无理由的行 | 红 P2 | **红 P2** |
+| A8 | ＝ A1 重跑（负控制） | 红 P1–P6 | **红 P1–P6** |
+| RC1 | A1 的变异 + 拆掉 P3 这条腿 | 红，但 P3 不再出现 | **红 P1/P2/P4/P5/P6**（P3 消失） |
+| RC2 | A3 的变异 + 拆掉 P5 这条腿 | 绿 | **绿** |
+| RC3 | A6 的变异 + 拆掉 P2 这条腿 | 绿 | **绿** |
+
+⇒ ⇒ **12/12 按声明行事**；跑完副本的落地字节**逐字节回到原位**；共享树只动了本号那两个文件。
+
+**本号自己踩的坑（诚实记账）。**
+① **预测与实测不符两处**：冻结的预测写「落地前先红的是 P2/P3/P4/P5，P1/P6 应绿」，实测 BASE 红的是
+**P1–P6**。原因：落地时把「修好的脚本必须分类为 `through_owner`」并进了 P1（它因此也是红的一条腿），
+而 P6 用 `config_source` 当证据字段、旧脚本没有这个字段。⇒ **预测改不了（那是票据），这里如实记实测**。
+② **第一把尺子把 prose 读成了代码**：普查脚本把 `agent/nodes/_llm_provider.py` 算成读者，因为它
+**文档字符串里引用了旧的 `os.getenv("LLM_API_KEY")`**。落地门的尺子不会（它按 `.get(k, os.environ…)`
+这种**优先序形状**判），但这条要写下来：**引用旧读法的文档字符串长得就像旧读法**。
+③ **一条过期登记是被腿自己抓回来的**：第一版把 `scripts/test_c6_junit_diff.py` /
+`scripts/test_llm_contract.py` 登记进 `LIB_DOTENV_READERS`，实测**这两个文件根本不提任何凭据旋钮**，
+不在人口里 ⇒ P2 立刻红「measured [] but registered […]」。⇒ 登记册改成空 + 说明这两个为什么不在册。
+④ **红得太粗**：BASE 上 P4/P5/P6 是 `KeyError: 'config_source'`，不说明缺陷。给 `_run_script`
+加了一条带理由的断言（"报告没说凭据来自哪 ⇒ 这趟不可审计"），红才变成断言而不是异常。
+
+**验证读数（本机实测）。** 本号门 **7 passed**；普查按门的尺子：人口 **23**，分类
+`through_owner 4 / env_only 9 / names_a_knob 6 / prose 3 / owner 1`，**over_env 0、lib_dotenv 0**；
+邻域（`test_llm_provider_source` / `test_env_knobs_reach_the_process_that_reads_them` /
+`test_ci_jobs_can_run_the_repo_gates` / `test_ci_runs_the_java_services` /
+`test_p0_5_closed_loop_scan_contract` / `test_provider_accounting` / `test_product_setup` /
+`test_bench_aider` / `test_bench_craft` / `tests/security/test_no_key_leak` / 本号门）合跑读数
+**123 passed**（其中本号 7 条）：**本号没有把任何一条既有门改红**。
+
+**诚实边界。**
+① 门**不测真连接**：五种场景全部走拒绝路径，正因为拒绝路径能离线跑 —— 缺陷就住在这些路径上。
+② **CI 里没有任何 job 调这个脚本**（P7 把 0 钉住）。唯一的调用者在 `origin/feature/p1-reliability-kernel`
+的 `quality.yml` 的 `provider-smoke` 手工 job 里，那条 ref 与 master 没有共同历史。⇒ **本号登记它，
+不搬它**：搬一条手工腿要带着"谁给 secrets、谁批 environment"的读数做，不能顺手加。
+③ master 里仍有 **9 个 `env_only` 读者**（`retrieval/embeddings.py`、`retrieval/rerank.py`、
+`cli/specproof/commands/baseline.py` 等）各自 `os.getenv`，没并到 owner。它们**符合**文档
+（仅经环境变量注入），所以本号不动它们 —— 但"它们与 owner 的默认值/校验会漂"是真风险，**排在下一号**。
+④ 臂跑在**自己的 detached worktree** 里，共享树只留下本号那两个文件的改动；`_wt1547base` /
+`_wt1547arms` 两棵副本树本号用完就删，**没碰** temp 目录里那 6 个别道在用的工作树。
+⑤ 门的 P2 登记册现在**是空的** ⇒ 空集与空册相符这件事本身不红；它红的是**多与少两个方向**，
+A6/A7/RC3 三条臂就是在量这件事（随便删掉一条断言，臂就不红了）。
+
+**下一号队列。**
+- **#1548 并轨对账门**：把上面这叠读数变成门 —— 无共同历史的 ref 集合**实测**（不许手抄）、
+  登记册与实测双向对齐、每行判决必须点名 master 里**真实存在**的接任者文件、
+  唯一那条"被撤销的契约"（FAILED 终态）对着 `storage/mysql.py` 的源码断言它仍然被撤销、
+  CI 检出没有 remote-tracking ref 时**拒绝下结论而不是发绿证**。
+- **#1549 provider-smoke 的 CI 手工腿**：把它接进 `ci.yml`（`workflow_dispatch` + environment + 三个
+  secrets），并把 P7 的登记值从 0 改成正数 —— 那一步要先把别的车道对 `ci.yml` job 名册的 11 条门读一遍。
+- **#1550 temp 工作树生命周期**：基线已量好（325 个目录 / 303 个标记 / 297 个已失效 / 6 个还活着 /
+  319 个从来没有标记 / `.git/worktrees` admin 条目 7 个），维护扫描在生产里**从没武装过**。
+- **#1551 网关的第一条运行时 Java 测试**（Spring Cloud 元素的入口，撤掉 `services/gateway` 的零测试登记）。

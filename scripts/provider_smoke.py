@@ -1,7 +1,8 @@
 """Provider Smoke Run — real gateway connectivity and code-generation validation.
 
-Reads credentials from .env, never prints the API key.
-Must pass ALL critical stages to count as PASS.
+Reads the model config through :func:`providers.config.load_model_config`, the
+reader every other LLM consumer in this repository uses; never prints the API
+key.  Must pass ALL critical stages to count as PASS.
 """
 
 import asyncio
@@ -18,41 +19,27 @@ from typing import Any
 
 from providers.base import LLMMessage
 from providers.capability_probe import CapabilityProbe
+from providers.config import load_model_config
 from providers.openai_compatible import OpenAICompatibleProvider
 
-# ── Stage 0: Locate project root and load .env ──────────────────────
+# ── Stage 0: the model config the rest of the product reads ─────────
 PROJECT = Path(__file__).resolve().parents[1]
-ENV_PATHS = [
-    PROJECT / ".env",
-    Path("D:/experim/specproof-phase0/.env"),
-    Path("D:/experim/.env"),
-    PROJECT.parent / "specproof-phase0" / ".env",
-    Path(os.getcwd()) / ".env",
-]
 
+# A config that could not be read is not a config that is absent: the first
+# says which read failed, the second answers "not configured" and stops.
+try:
+    _MODEL_CONFIG = load_model_config()
+    CONFIG_ERROR = ""
+except ValueError as exc:
+    _MODEL_CONFIG = {"base_url": "", "api_key": "", "model": "", "source": "unreadable"}
+    CONFIG_ERROR = str(exc)
 
-def _load_dotenv(path: Path) -> dict[str, str]:
-    out: dict[str, str] = {}
-    if not path.exists():
-        return out
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, _, v = line.partition("=")
-        k = k.strip()
-        v = v.strip().strip('"').strip("'")
-        out[k] = v
-    return out
-
-
-_env: dict[str, str] = {}
-for p in ENV_PATHS:
-    _env.update(_load_dotenv(p))
-
-BASE_URL = _env.get("LLM_BASE_URL", os.environ.get("LLM_BASE_URL", ""))
-API_KEY = _env.get("LLM_API_KEY", os.environ.get("LLM_API_KEY", ""))
-MODEL = _env.get("LLM_MODEL", os.environ.get("LLM_MODEL", ""))
+CONFIG_SOURCE = _MODEL_CONFIG["source"]
+BASE_URL = _MODEL_CONFIG["base_url"]
+API_KEY = _MODEL_CONFIG["api_key"]
+# An unconfigured stack still carries the owner's default model name; a run
+# that never reached a model must not print one as if it had been chosen.
+MODEL = "" if CONFIG_SOURCE == "unconfigured" else _MODEL_CONFIG["model"]
 
 # ── Report helpers ───────────────────────────────────────────────────
 
@@ -62,6 +49,8 @@ REPORT: dict[str, Any] = {
     "run_id": RUN_ID,
     "timestamp": datetime.now(UTC).isoformat(),
     "provider_type": "openai_compatible",
+    "config_source": CONFIG_SOURCE,
+    "config_error": CONFIG_ERROR,
     "model": MODEL,
     "endpoint_base_url": BASE_URL.rstrip("/") if BASE_URL else "(not set)",
     "stages": {},
@@ -127,8 +116,18 @@ def _scan_text_for_key(text: str, key_prefix: str) -> list[str]:
 
 _stage("1-Provider-Probe")
 
-if not BASE_URL or not API_KEY:
-    _f("1-env", "LLM_BASE_URL or LLM_API_KEY not set in .env or environment")
+if CONFIG_ERROR:
+    REFUSAL = f"model configuration could not be read: {CONFIG_ERROR}"
+elif not BASE_URL or not API_KEY:
+    REFUSAL = (
+        "LLM_BASE_URL / LLM_API_KEY not configured "
+        f"(providers.config reported source={CONFIG_SOURCE!r})"
+    )
+else:
+    REFUSAL = ""
+
+if REFUSAL:
+    _f("1-env", REFUSAL)
     REPORT["verdict"] = "FAIL"
     json.dump(REPORT, sys.stdout, indent=2, ensure_ascii=False)
     sys.exit(1)
