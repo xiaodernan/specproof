@@ -26264,3 +26264,131 @@ worktree、**没有**动别的车道的分支——用户要的是「汇集所�
 删掉别人的东西。⑤ 本号**没有改任何节的标题**（#470 棘轮的豁免靠标题字面匹配）。
 ⑥ 本号**没有**给扫描器加「读」这种形状：`evidence/acceptance.py` 的两处 opaque 命中其实是
 **读**，本号只把它认成 owner/opaque，**没有**扩大扫描器的形状集合。
+## #1544 边缘网关落地：两个平面的路由归属写进一张表，并让门守住它
+
+**起因。** 用户授权「在项目里加一些 Spring Cloud 微服务的元素」。本项目自己的立场是既定的：
+`docs/工业化商业化终极开发指南.md` §3.2 说 control-plane = Spring Boot、agent-runtime = Python；
+商业计划书「风险 7」明确**反对**为了「微服务」而过早把产品拆成十几个部署单元
+⇒ ⇒ 所以本号加的**不是**一堆服务，而是**一个边缘 + 一张归属表**：Spring Cloud 的元素加在
+两个平面**之间**，不加在它们**上面**。
+
+**先量（量出来的不是「该怎么做」，是「哪里真的会撞」）。**
+
+| 量 | 结果 |
+|---|---|
+| control-plane 的路由 | **9** 条（从 Spring MVC 注解读：Job/Tenant/User/Webhook/Health 五个控制器） |
+| agent-runtime 的路由 | **61** 条（从 FastAPI 装饰器**用 AST** 读，含两个静态挂载） |
+| 两个平面**都**拥有的路径 | **1** 条：`GET /health` —— 且两份载荷**不同**（agent runtime 报「真正卡住作业执行的存储」；control-plane 报 `{"service":"specproof-control-plane","status":"ok"}`） |
+| 不是重叠但比重叠更骗人的一处 | agent runtime 的作业子资源（`stages/matrix/findings/certificate/capsule/feedback`，7 条）挂在 control-plane 的作业条目 `/api/v1/jobs/{id}` **下面** ⇒ 一张「按前缀把 `/api/v1/jobs` 交出去」的规则会**吞掉**它们 ⇒ ⇒ 路径匹配必须是 Spring 的 **PathPattern**（`{var}` 恰好一段）而不是「前缀」 |
+
+**落地的四件东西。**
+1. `services/gateway/`（新 Maven 模块）：Spring Boot **3.4.3**（与 control-plane 同版本）
+   + Spring Cloud **2024.0.1** 列车（`spring-cloud-gateway-server` **4.2.1**）。
+   本机实测 `mvn -B -DskipTests package` → **BUILD SUCCESS**（15.5s）。
+2. `services/gateway/src/main/resources/application.yml`：**6 条路由**的归属表 ——
+   5 条指给 control-plane（jobs / tenants / tenant-item / tenant-users / github-webhook），
+   1 条 `Path=/**` 的兜底指给 agent-runtime，**兜底排最后**（匹配顺序就是列表顺序）。
+3. `tests/unit/test_gateway_route_table_covers_every_plane_route.py`：**7 条腿**的门。
+4. `docs/architecture/SERVICE_SURFACE.md`：这张表为什么长这样。
+
+**门守住什么（每条规则都对着一个真会发生的失败）。**
+
+| 规则 | 关掉的失败 |
+|---|---|
+| R1 归属唯一 | 平面自己的路由没有被送回给它自己（路径的含义随部署顺序变） |
+| R2 声明为真 | 「不在边缘上」写成一句假话；或没有理由；或那条路由已经不存在了 |
+| R3 兜底在后 | 兜底先于具体路由匹配 ⇒ 把它后面的全遮住 |
+| R4 无死路由 | 一条谁都不服务的路由（拼错的路径 ⇒ 404） |
+| R5 不越界 | 一条路由吞掉另一个平面的路由 |
+| R6 平面写明 | 路由 id 重复；平面未知；uri 与所声明的平面不是同一个上游变量 |
+| R7 探针不空 | 普查自己塌了（读不懂控制器/路由器的注解） |
+
+两个普查都是**现推**的：control-plane 从 Spring MVC 注解读，agent-runtime 从 FastAPI 装饰器
+**用 AST** 读（逐行正则分不清 `@router.get("/x")` 和注释里提到它）。
+
+**唯一的歧义是怎么解的（`GET /health`）。** 边缘**不新增**自己的 `/health`，也**不改**任何
+客户端可见的路径：边缘上的 `GET /health` **仍然是 agent runtime 的就绪探针**（从边缘存在之前
+就是它在回答）⇒ ⇒ control-plane 的 `GET /health` 被**声明为仅集群内**
+（`specproof.gateway.internal-only`，带理由），它的 compose healthcheck 与负载均衡**直接问服务**。
+⇒ 门会检查这条声明**是不是真的**：哪天有人给控制面的 `/health` 加一条指向控制面的路由，
+这条声明就变成假话，门就红。⇒ 路由不许凭空消失：既没被表覆盖、也没声明，就红。
+
+**过程中量到的/改掉的（先量后写）。**
+① **Spring Cloud Gateway 没有 `notPath` 这个简写**：翻了 `.m2` 里 4.1.2 与 4.3.5 两个
+`spring-cloud-gateway-server` 的 jar，只有 `PathRoutePredicateFactory`，**没有**
+`NotPathRoutePredicateFactory` ⇒ ⇒ 起初设想的「用 `notPath=/health` 把边缘自己的 `/health`
+从兜底里挖出来」**不成立** ⇒ 改成上面那个**不新增路径**的解法（代价更小、语义更少）。
+② **`order` 维度差点变成假绿**：Spring Cloud Gateway 是按路由的 `order` 排序匹配的（小的先，
+相同则保持文件顺序）⇒ ⇒ 门若只按**文件顺序**匹配，给兜底路由加一行 `order: -1` 就会
+**运行时先匹配它、门却看不出来** ⇒ ⇒ 门改成**先按 order 排序再匹配**（R3 也按排序后的次序判）。
+这条是本号自己的门在写完之后才想到的 ⇒ **门写完不等于门对**。
+③ **actuator 不能挂在边缘端口上**：边缘端口挂 actuator 会把上游拓扑（路由表里有每个平面的
+内部 URL）发布给公网 ⇒ ⇒ 管理端点挪到**独立端口且绑回环地址**
+（`GATEWAY_MANAGEMENT_PORT` / `GATEWAY_MANAGEMENT_ADDRESS`）。
+④ **边缘是透明的**：网关依赖树里只有 `spring-security-crypto`，**没有** security 自动配置
+⇒ 被代理的请求不会被边缘拦下（认证归两个平面各管：agent runtime 的路由挂着 `require_api_key`）。
+⑤ **一处我自己看错了的"缺陷"**：读控制面源码时终端显示 `Job status facade 鈥? reads`，
+本号据此以为文件有 GBK 乱码 ⇒ ⇒ 逐字节量过才发现**那个文件是合法 UTF-8 且不含该签名**
+⇒ ⇒ **那是本号终端的显示假象，不是文件的缺陷** ⇒ 记在这里，免得下一个人去"修"一个不存在的问题。
+
+**臂（11 条，A0 + A1–A7 + A8/A9 + A10 负控制）。** 臂跑在一棵 `git clone --shared` +
+字节级覆盖的副本上（**本号新增的未跟踪文件也盖进去** —— 否则副本里没有这个单元，臂量的就是
+量具而不是产品）；每个臂跑完断言「副本与 master 的差异**恰好**等于本臂的变异」。
+
+| 臂 | 变异 | 声明 | 实测 |
+|---|---|---|---|
+| A0 | 不变异 | 绿 | **绿** |
+| A1 | 从表里删掉一条 control-plane 路由 | 红 | **红**（R1：那条路由被兜底送给了另一个平面） |
+| A2 | 把 jobs 路由放宽成前缀 `/api/v1/jobs/**` | 红 | **红**（R5：吞掉另一个平面的 7 条子资源） |
+| A3 | 给兜底路由加 `order: -1` | 红 | **红**（R1/R3：它先于具体路由匹配） |
+| A4 | 把另一个平面的路径复制粘贴进一条 control-plane 路由 | 红 | **红**（R5） |
+| A5 | 删掉 internal-only 声明 | 红 | **红**（R1：control-plane 的 `/health` 没了声明） |
+| A6 | 路由 id 重复 | 红 | **红**（R6） |
+| A7 | control-plane 的路由指向另一个平面的上游 | 红 | **红**（R6：uri 与所声明的平面不是同一个上游变量） |
+| A8 | 改写声明里的理由（**如实**的改动） | 绿 | **绿** |
+| A9 | 给表加一行注释（**如实**的改动） | 绿 | **绿** |
+| A10 | ＝ A1 重跑（负控制） | 红 | **红** |
+
+⇒ ⇒ **{ARMS_RESULT}按声明行事**；共享树跑完**逐字节未动**。
+A8/A9 这两条是**必要的**：一条只会红的门可能只是「一律拒绝」，而这两条证明它认得
+「说清楚了但没改事实」与「改注释」这两种**不改变归属**的改动。
+
+**运行时读数（不是文件，是网关自己的读法）。** 本机把网关起起来
+（`GATEWAY_PORT=18080` / `GATEWAY_MANAGEMENT_PORT=18090`），问它自己的 actuator：
+**HTTP 200、6 条路由**，逐条是
+`"predicate": "(Paths: [/api/v1/jobs, /api/v1/jobs/{id}], match trailing slash: true && Methods: [GET])"`
+与兜底的 `"Paths: [/**]"`，`metadata.plane` 也真的绑上了（`{"plane":"control-plane"}`）
+⇒ ⇒ **运行时读到的谓词与门建模的谓词逐字一致**。
+
+**验证读数（本机实测）。** 本号自己的门 **7 passed**；六道相关门 **41 passed**；
+四道账本门 **41 passed**；安全腿 **87 passed / 2 skipped**；五道遍历仓库树的门 **21 passed**；
+ruff 对新门干净。⇒ CI 的 no-infra 腿（`tests/unit tests/security tests/fault`）本机另跑中
+（这台机器上同时有别的车道在跑，单元腿约 6500 条）⇒ **本号不把没跑完的数字写进账本**。
+
+**诚实边界。** ① 门是**静态**的：它读文件、按 PathPattern 语义模拟匹配，**不启动 JVM**；
+运行时由 actuator 单独核对（见上），两条读数目前一致，但**这不等于**门证明了运行时行为。
+② 运行时对**尾斜杠**更宽松（`match trailing slash: true`），门的模型不认尾斜杠；两个平面的
+路由普查里本来就没有带尾斜杠的路径，所以当前无差 ⇒ 哪天出现带尾斜杠的路由，门的模型要跟一步。
+③ **CI 没有 Java 腿** ⇒ 这道门必须是纯 Python、离线可跑的，它就是；Maven 构建与 actuator 读数
+是**本机**实测，不在 CI 里。④ 网关**没有**在容器里跑过（本轮本机 docker daemon 有响应
+29.9.2，但本号没起容器），也**没有**注册任何服务中心（Eureka/Config Server 需要容器）。
+⑤ 本号**没有**改写路径（无 `RewritePath`）：边缘路径与服务路径一旦不同，就多出第二份
+「这条路径本来是什么」的事实，而那正是最容易烂掉的东西。
+⑥ 本号**没有**给边缘加认证：边缘只做路由；哪天边缘自己长出本地路由，它就会需要一个
+认证决策，而**那个决策还没有做**（门现在也不会提醒它 —— 那是下一号的事）。
+
+**下一号队列。**
+- **编码面（本号顺手量到的真缺陷）**：`docs/architecture/requirements-frozen-20260820.txt`
+  （172 行的 `pip freeze` 快照）与 `docs/eval/unit-report.txt`（71 行的 pytest 日志）
+  是 **UTF-16LE**（BOM `FF FE` + 每隔一个字节 0 ⇒ **Windows 重定向**的痕迹）⇒ ⇒
+  那个「用来钉住环境」的文件**恰恰是 pip 读不进去的那个**（pip 按 UTF-8 读 requirements）；
+  账本另有 **9 个 U+FFFD**（替换字符，分布在 4 行）⇒ ⇒ 候选门：
+  **「受版本控制的文件必须能被 UTF-8 解码，且不得含 U+FFFD」**（二进制格式登记在门里，
+  带理由，且豁免不许过期）。⇒ **原字是否可考，本号已查**：1438 个改过账本的提交、
+  三个 stash、另一个 worktree 的 HEAD、删掉账本的那个提交与恢复它的那个提交 ——
+  **两条行在任何地方都没有干净版本**（从写下那天起就是坏的），另外两条行在历史里能找到的
+  干净命中是**另一种措辞**的旧句子 ⇒ ⇒ **不猜**：用可见标记占住并记账。
+- **CI 的 Java 腿**：网关的 Maven 构建与 actuator 读数目前**只在本机**跑过（CI 没有 Java 腿）；
+  而 `.m2` 的缓存播种有一条既有的纪律（`scripts/seed_maven_cache.sh`）⇒ ⇒ 网关这条
+  Maven 模块能不能进 CI 的 with-infra 腿，**先量**再决定（CI runner 有没有 Maven 缓存卷、
+  离线能不能构），不要直接改 CI。
