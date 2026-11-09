@@ -25,6 +25,8 @@
 - `specproof-nosec` 审计门通过（排除项必须逐行批注）。
 
 ### 验证（本次会话内可复现）
-- 全量 `pytest tests/unit tests/security tests/fault`：6476/8（pre-fix）→ 9cfd865 全绿（修复后的回归基线）；MySQL 隔离双库 `specproof_test2`：`pytest … -m slow` 相关 16/22 census 文件实跑。
+- 全量 `pytest tests/unit tests/security tests/fault`：6476/8（pre-fix）→ 9cfd865 未到 finish（停在 80 % — `test_sql_text_static` 停在新 rollback_migrations.py 的 executor 读点；c5dc614 新增、未被全量门覆盖过）；`fd6f450` 登记 SQL 常量门 18/18 绿；`fafb8be`（fd6f450 全量回归 10 例逐条归因后）即 master 的 `_fullgate_v3.txt`：**6528 passed / 10 skipped / 3 warnings（1:10:23）**，数字归属该轮。
+- MySQL 隔离双库：本次后续记录跑在 `specproof_test2`（单独实例），产品库 `/test/%` 行差 = 0（会话头尾隔离协议 0 -> 0）。
 - 前端：`tsc --noEmit` 干净；`vitest` JobDetail 31/31。
 - `ruff` 全绿；`mypy` 直接变更文件零告警。
+- 演练：DATA_LIFECYCLE §6.5（rollback-migrations dry-run 三票据，本机实跑）；§6.6（2026-11-09 12:01 MySQL 全量 dump→restore 逐表比对 report，specproof_test2 → `specproof_restore_drill`，已 drop scratch；2026-11-09 12:02 Mongo 250 篇 dump→drop→restore→digest 校验均 passes；产品库 `specproof_phase0` 当次未触碰）

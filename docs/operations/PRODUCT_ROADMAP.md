@@ -195,7 +195,15 @@
     静态侧脚本齐全：provisioning 目录 + 51-panel dashboard + 18 条 alerts-slo.yml +
     prometheus.yml + dockerfile HEALTHCHECK 全部在仓；`grafana/grafana:11.6.1` 启动正常。
     待 docker daemon 恢复后再验一次服务级开箱；当前按如实不标 [x]。
-- [ ] **5.4 部署形态**：单二进制/容器一键部署、迁移与回滚脚本。
+- [~] **5.4 部署形态**：单二进制/容器一键部署、迁移与回滚脚本。
+  - 2026-11-09 本批落地（迁移与回滚脚本一支）：`specproof ops rollback-migrations`（提交 `c5dc614`）——
+    `down/` 降级脚本首次成为显式可执行操作（`storage/rollback_migrations.py::MigrationRollbackRunner`）；
+    live 执行前目标库必须匹配 `specproof_test[A-Za-z0-9_]*`，否则拒绝并且不连一次库；`--dry-run` 只读；
+    按版本倒序执行并删除 `schema_migrations` 行；缺 down 脚本/降级零语句/库名不合格 = 明确拒绝退出码 1。
+    本机实证：`--to 14 --dry-run` 打印 0017/0016/0015 三条计划；`--to 0` 遇缺 0004 拒绝；phase0 口径 live 拒绝
+    （2026-11-09, MySQL 8.4.11, `specproof_test`）。RUNBOOK 迁移一节已登记入口；DATA_LIFECYCLE §6.5 记有完整演练
+    票据与限制。测试 14/14；ruff/mypy clean。**余项仍 open：单二进制/容器一键部署（需要部署管线与 secrets 契约），
+    不因一支回滚脚本把整行标 [x]。**
 
 ### Phase 6 —— 差异化与生态（P3）
 - [~] **6.1 IDE/CI 集成**（PR 上自动验收评论）：`integrations/github_checks.py` 把

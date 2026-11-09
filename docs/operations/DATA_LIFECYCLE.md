@@ -277,6 +277,55 @@ docker compose -f compose.phase0.yml exec -T mongodb mongodump --db specproof_ph
 
 **本轮不做/未做（如实保留）:** 产品库就地恢复、每日 cron/30 天滚动、binlog PITR、MinIO mc mirror、ES snapshot；RabbitMQ/Redis 按策略不备份；outbox-relay/api/worker 抓取目标在本机无 api/worker 起动，`down` 属正常。所有明文 dump 与 scratch 数据已清理；`specproof_test` 与产品库的 `/test/%` 行差 = 0（会话头尾隔离协议打印 `0 -> 0`）。
 
+### 6.5 ✅ 2026-11-09 迁移回滚 dry-run 演练（本机宿主，MySQL 8.4.11 容器 specproof-mysql，隔离测试库 specproof_test）
+
+> 依据：§5 两表的「迁移/回滚」行与 §6.2 #11 对应；本节补齐的是 **down/ 降级脚本首次作为可执行操作被调用**——在此之前它们只是文档。
+> 命令入口：`specproof ops rollback-migrations`（提交 `c5dc614`）；实现在 `storage/rollback_migrations.py::MigrationRollbackRunner`——
+> live 执行前会先判断目标库名是否匹配 `specproof_test[A-Za-z0-9_]*`，不满足则拒绝，且不发出任何查询；
+> `--dry-run` 是只读的，可对任意库跑；按版本倒序执行并删除 `schema_migrations` 相应行。
+
+**三条票据（均 2026-11-09 本机实跑，输出原样摘录）：**
+
+| # | 命令 | 结果 |
+|---|---|---|
+| 1 | `specproof ops rollback-migrations --to 14 --dry-run` | 打印三条计划（按版本倒序）：`[dry] rollback 0017 contract_observes_keys (1 statements): ALTER TABLE contract_registry DROP COLUMN observes_keys`；`[dry] rollback 0016 job_execution_deadline (1 statements): ALTER TABLE verification_jobs DROP COLUMN max_execution_seconds`；`[dry] rollback 0015 job_state_vocabulary (3 statements): UPDATE verification_jobs SET status = 'RUNNING' …`。**未删除 `schema_migrations` 任何行；库数据零变化** |
+| 2 | `specproof ops rollback-migrations --to 0 --dry-run` | 遇 0004（`infra/mysql/migrations/down/` 下无对应文件）→ `no down migration for version 0004 … refusing to sweep it under a rug`；**退出码 1**。dry-run 也不静默跳过，与 live 同一拒绝纪律 |
+| 3 | `specproof ops rollback-migrations --to 14`（不带 `--dry-run`，目标库 = 产品口径 `specproof_phase0`） | **明确拒绝，不连第二次库**；退出码 1——phase0 实演降级在本机被架构规则挡死 |
+
+**顺带实锤：** 与 §6.4 同会话实测 dump 的 200,130 字节备份仍在原位，未再用；specproof_test 与产品库的 `/test/%` 行差 = 0（会话头尾隔离协议打印 `0 -> 0`）。
+
+**本节不做/未做（如实保留）：** 0015/0016/0017 在 specproof_test 的真实「先降再升」循环（需要可完全 wipe 并从 0001 重放的隔离库，本演练限制在 dry-run 计划）；phase0/prod 任何 live 降级。
+
+### 6.6 ✅ 2026-11-09 全量备份/恢复演练完成（本机宿主，`specproof_test2` 作为源 = 测试库家族成员，scratch `specproof_restore_drill` / `specproof_drill_scratch`）
+
+> 依据：§6.4 首次 MySQL/Mongo 隔离演练（2026-11-08）/ §6.2 #9 #10，本次把 dump/restore 完整路径在 specproof_test2 上真实跑了一遍。
+> 命令入口：`python scripts/backup_stores.py --stores mysql --source specproof_test2`（脚本保持 `assert_scratch_allowed` 口径，product 不允许作为 source）。
+> Mongo 路径：`python scripts/backup_stores.py --stores mongo`（`specproof_drill_scratch` scratch，250 篇合成文档）。
+
+**MySQL（2026-11-09 12:01:21–12:01:36 实测）：**
+
+| 项 | 值 |
+|---|---|
+| 源库 | `specproof_test2` |
+| `schema_migrations` MAX(version) | 17 = `specproof_test` 的 17 ✓ |
+| dump 字节数 / sha256 | 67,775 / `eeec39d794c2c3bc337176bf327ca45992f02e4c3e171c74ed0858feb2c91be3` |
+| restore 入 scratch `specproof_restore_drill` | 19 张表 COUNT(*) 逐表对齐 — `audit_logs=195, contract_approvals=1, contract_registry=31`、`outbox=0…` |
+| 全匹配 | **true**；scratch 已 drop；dump 已删 |
+| 产品库 `specproof_phase0` | **未触碰**；specproof_test2 仅读 |
+| specproof_test2 / 产品库 `/test/%` 行差 | 0（隔离协议会话头尾 0 -> 0） |
+
+**MongoDB（2026-11-09 12:01:53–12:02:05 实测，`specproof_drill_scratch`）：**
+
+| 项 | 值 |
+|---|---|
+| 源文档数 | 250（synthetic, payload 128B） |
+| mongodump --archive --gzip | 1,709 字节；gzip sha256 `a8633a490036f0382ce2690e6b0f4448eeac2dc873f6bfc6c6c234e8fbd09a00` |
+| dropDatabase → mongorestore | 文档数恢复至 250；`SUM(seq)` digest 一致 |
+| 隔离 | **specproof_drill_scratch**；产品库 **未触碰** |
+| 明文归档 | 已删（不留留明文） |
+
+**本轮不做/未做（如实保留）：** 产品库就地恢复（需批准停机窗）；每日 cron/30 天滚动 + binlog PITR；MinIO mc mirror、ES snapshot；RabbitMQ/Redis 按策略不备份；产品 Mongo 完整 dump 仍需业主批准。
+
 ## 7. 已知缺口 (honest gaps, 与 §6.2 对应)
 
 - 无任何保留/清理自动化 (cron 或应用内回收器) — 全部靠手册。
