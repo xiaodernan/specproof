@@ -52,6 +52,7 @@ python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm
 4. No execution of untrusted code on the host. Only the sandbox (or the opt-in Python lane).
 5. Environment + defaults + `.env.example` + the gate owning the knob move together.
 6. Decisions live in the ledger; a green suite with no account is as good as silence.
+7. Certificate signing is wired through `evidence/signing.py` — **Ed25519** in-toto-style statements, fail-closed (无密钥即 ERROR); `craft/accept.py` honours the verdict. Revert either and the claim goes too.
 
 ## For AI agents
 

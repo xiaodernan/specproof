@@ -41,7 +41,7 @@
   的逐字段登记与 `tests/unit/test_data_dictionary_covers_migrations.py`)。
   回滚入口: `specproof ops rollback-migrations --to N [--dry-run] [--i-am-sure-rolling-back]`
   按版本倒序执行 down/ 目录里的降级脚本; 默认 `--dry-run` 只打印计划,
-  真实执行只允许 `specproof_test*` 家族(其他库需 `--i-am-sure-rolling-back`);
+  真实执行只允许测试库（`MYSQL_DATABASE` 指向的隔离测试 schema）；其他库需 `--i-am-sure-rolling-back`）；
   缺少 down 脚本或目标库不符合 `_test` 家族规则时明确拒绝退出码 1, 不静默跳过。
 - 月账单生成 (#234): 独立进程 `python -m storage.invoice_cron`，2026-10-30 起挂 compose 生产栈的 billing profile (docker compose --profile billing up -d invoice-cron；SPECPROOF_BILLING_URL 未设时启动即诚实的 no-op 退出)
   (2026-10-14 实测订正: 三个 compose 文件、两个 Dockerfile、scripts 下的启动脚本与
