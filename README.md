@@ -135,3 +135,10 @@ git remote set-url origin git@github.com:xiaodernan/specproof.git
 ```
 
 完整环境要求见 [本地体验](docs/operations/LOCAL_EXPERIENCE.md)，架构见 [架构说明](docs/architecture/ARCHITECTURE.md)。
+
+## 许可 / 参与 / 安全
+
+- 许可证：[LICENSE](LICENSE)（MIT）
+- 参与指南：[CONTRIBUTING.md](CONTRIBUTING.md)（环境、开发循环、分支/worktree 纪律、测试隔离 `SPECPROOF_TEST_MYSQL_DATABASE=specproof_test2`、门与账本约束）
+- 安全模型与已知边界：[SECURITY.md](SECURITY.md)（私有报告通道、信任模型、已知限制、哪些不是本项目的红线例外）
+- 变更日志：[CHANGELOG.md](CHANGELOG.md)（2026-11-09 公开主干汇总）

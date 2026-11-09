@@ -1,0 +1,35 @@
+MIT License
+
+Copyright (c) 2026 SpecProof contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+**Notes for this repository (the "Software" this grant applies to):**
+
+- This repository currently ships as the SpecProof / SpecCraft engine and
+  operator tooling. Third-party dependencies retain their own licenses; this
+  grant does not extend to them. A per-dependency license inventory is not
+  yet generated — before any redistribution beyond source checkout, run the
+  dependency inventory step (lock file + declared licenses) and add it as
+  `docs/architecture/DEPENDENCY_LICENSES.md`.
+- The grant covers the code and docs in this repository. It does not imply
+  any certification, SLA, or fitness guarantee — see `docs/operations/`
+  for the measured, evidence-backed state of every claim this project makes.
