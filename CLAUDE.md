@@ -1,99 +1,58 @@
-# SpecProof Phase 0 — AI Change Acceptance Firewall
+# SpecProof / SpecCraft — AI Change Acceptance Firewall
 
-## 项目概述
+SpecProof does two things: it lets AI modify code by demand, and it independently checks whether a change respects the demand (差分/变异/审计/证据链).
 
-SpecProof 是一个 AI 变更验收防火墙。它独立验证 AI 生成的 PR，对照需求规范检查代码变更，在合并前拦截回归问题。
+Spec is the requirement; Proof is the evidence. This file is a router for agents and new contributors; **authoritative documents** live in `README.md` and `docs/`, not here.
 
-Phase 0 是 7 天原型：一个 Spring Boot 演示项目、一个需求、Base/Head 隔离、差分执行、HTML 矩阵、Bug Capsule、Capsule Replay。
+## Authoritative documents (start here)
 
-## 架构
+- `README.md` — product walk, how to run, acceptance criteria vocabulary (VERIFIED / BLOCKED / NEEDS_REVIEW / FAILED + row-level `UNVERIFIED`), the honesty-column rules.
+- `docs/operations/PRODUCT_ROADMAP.md` — current priority, checked items with evidence.
+- `docs/operations/DEEP_OPTIMIZATION_PLAN.md` — the ledger (`## #NNN` per unit of work; verify with `tests/unit/test_recorded_ledger_sections_do_not_vanish.py`).
+- `docs/architecture/ARCHITECTURE.md` · `docs/architecture/EXECUTION_COMPATIBILITY.md` · `docs/architecture/DATA_DICTIONARY.md` — design, language/toolchain support matrix, storage facts.
+- `SECURITY.md` · `CONTRIBUTING.md` · `LICENSE` · `CHANGELOG.md` — trust model, contract, license, change shape.
 
-```
-cli/specproof/main.py          ← Click CLI 入口
-agent/graph.py                 ← LangGraph StateGraph (12 节点线性管道)
-agent/state.py                 ← Phase0State (MessagesState 扩展)
-agent/nodes/                   ← 12 个节点: intake → publish_report
-evidence/                      ← 矩阵构建、HTML 报告、合并证书
-providers/                     ← DeepSeek/OpenAI 兼容 Provider + 能力探测
-storage/                       ← MySQL/MongoDB/ES/Redis/RabbitMQ/MinIO 适配器
-demo/spring-backend/           ← Spring Boot 3.4 演示项目 (base/head-v1 tags)
-tests/                         ← 单元/集成/安全/验收测试
-golden-cases/                  ← 10 个金案例用于评估
-```
+## What the pipeline is
 
-## 常用命令
+A 18-node LangGraph (`agent/graph.py`):
+`intake → preflight → compile_contracts → contract_review → prepare_base → prepare_head → collect_diff → retrieve_repository_context → run_static_checks → generate_counterexamples → run_differential → run_deep_experiments → collect_evidence → review_court → create_capsule → build_matrix → run_release_checks → publish_report`
+
+Diff execution runs **inside a sandbox** (uid 1000, `--network none`, read-only workspace, `--cap-drop ALL`, `--pids-limit 256`, `no-new-privileges`). The host never executes an untrusted repository's tests; Python requires `SPECPROOF_ALLOW_LOCAL_TEST_EXEC=1` explicitly.
+
+Capability by language:
+
+| Language | Real test lane | Sandbox surface |
+|---|---|---|
+| Java/Maven, Java/Gradle | `mvn`/`gradle` test, `SpecProofGeneratedTest` (Jit) | Docker digest-pinned (Gradle `sha256:963d59f7…` measured 2026-11-09) |
+| Node/TS/JS | `node:test` (零依赖) · npm offline from seeded `node_modules` cache | `node:22-alpine`, μη-1 uid 1000 |
+| Python | pytest (offline wheelhouse) | `python:3.12-slim`, uid 1000 |
+| Go | `go test -json ./...`, `GOPROXY=off` | Alpine, offline module cache |
+| Rust/Gradle-Edge/others | inspect `EXECUTION_COMPATIBILITY.md` | **Not yet green** — do not claim covered |
+
+Every claim above is backed by a digest, a registry row, a matrix cell, or a unit test; the ledger holds each fact with commit references.
+
+## Everyday commands
 
 ```bash
-# 安装
 pip install -e ".[dev]"
-
-# Lint
-python -m ruff check .
-python -m ruff check --fix .
-
-# 测试
-python -m pytest tests/ -v
-
-# CLI
-python -m cli.specproof.main probe --base-url <url> --api-key <key>
-python -m cli.specproof.main verify --repo <path> --base <ref> --head <ref> --spec <file>
-python -m cli.specproof.main replay <capsule.zip>
+python -m cli.specproof.main --help      # verify | eval | replay | craft | doctor | mcp | ops | ...
+python -m cli.specproof.main doctor      # same probe the worker runs before a job
 python -m cli.specproof.main eval --cases golden-cases --repo . --no-llm
 ```
 
-## 关键约束
+- Tests (quick): `pytest tests/unit -m "not integration and not slow" -q` (~3 min) — **not** a substitute for CI.
+- Tests (CI merge gate): `pytest tests/unit tests/security tests/fault` — always the full suite.
+- Isolation: `SPECPROOF_TEST_MYSQL_DATABASE=specproof_test2 pytest …` — never point tests at the product schema.
 
-- 所有文件中绝对不能有真实 API Key，`.env.example` 只用 `replace_me` 占位符
-- 不能有 TODO/pass/占位符端点
-- Windows 环境：PowerShell 语法、git worktree 在 NTFS 上
-- `demo/spring-backend` 使用 Maven Wrapper (mvnw) 自包含构建
+## Hard rules (non-negotiable)
 
-## Phase 0 已知限制
+1. Enforcement CLI output / summary claims — every "passes" is either (a) actually verified or (b) explicitly marked as not. No laundering.
+2. Never weaken/delete a gate to make CI green. Fix the underlying issue or fail honestly.
+3. No real secrets in tree (`.env.example` shows shape only; local `.env` ignored).
+4. No execution of untrusted code on the host. Only the sandbox (or the opt-in Python lane).
+5. Environment + defaults + `.env.example` + the gate owning the knob move together.
+6. Decisions live in the ledger; a green suite with no account is as good as silence.
 
-- LLM 集成已通过真实 DeepSeek 端点验证（lazy probe → 7/10 capabilities，chat/JSON output/streaming 均可用）
-- compile_contracts / generate_counterexamples / review_court 均已添加 LLM fallback，LLM 不可用时自动退回 rule-based
-- Merge Certificate 已由 `evidence/signing.py` 做 Ed25519 签名（in-toto 风格语句，签发/验签齐全，`craft/accept.py` 与 `specproof verify` 均已接线，fail-closed：无密钥即 ERROR，绝不静默签出未签名产物）；SHA-256 是被签名的 canonical digest，不是签名本身。剩：KMS/HSM 密钥托管未做。
-- DeepSeek gateway 始终返回 reasoning_content（always-on thinking），需额外 token 预算
-- strict_tool_calls 在 gateway 上返回 HTTP 400，已通过 JSON Action Envelope 降级处理
+## For AI agents
 
-## 内核加固 (2026-08-17, 见 docs/design/DESIGN_REVIEW.md 与 REDESIGN_PLAN.md)
-
-- 检测核心修复: 注解切分支持嵌套括号 (@PreAuthorize("isAuthenticated()")),
-  token 失效检查升级为方法级调用点比对, contract_results 跨节点合并
-  (FAIL>PASS>UNVERIFIED), 源码差分证据与测试生成解耦
-- Windows 差分执行修复: mvnw 绝对路径 (CreateProcessW 解析规则),
-  测试注入跳过自拷贝 (SameFileError)
-- 差分实验的 contract_id 映射到 AUTH-01, BLOCKER 六条件可真实满足
-- 旗舰案例实测: base→head-v1 输出 1 BLOCKER (base_pass_head_fail +
-  H2 DB 状态取证 row 1: specproof@example.com -> attacker@evil.com) + 1 MAJOR,
-  判定 BLOCKED
-- eval 10 case: Recall 100% (holdout 3/3), Precision 100%, 负样本 0 误报
-- MySQL 存储修复: 单游标 execute/fetch (原实现 fetch 在新游标上必抛
-  "execute() first"), 已由真实 MySQL 状态机/Outbox 测试验证
-- P1 内核闭环: API POST /jobs + GET /jobs + GET /jobs/{id} + SSE 进度;
-  worker 终态按真实结果映射 (VERIFIED/BLOCKED/FAILED)
-- ruff 全绿 + mypy strict 通过; 安全扫描 canary 自检 + capsule zip 扫描
-- 基础设施: compose.phase0.yml (MySQL/MongoDB/ES/Redis/RabbitMQ/MinIO)
-  实测可起, 内核集成测试全部通过
-
-## P0.5 改进 (2026-07-10)
-
-### 已完成
-- **B1**: Maven Wrapper (mvnw) + JDK 21 环境搭建，Maven 3.9.9 自动下载
-- **B2**: Provider lazy probe — 首次 API 调用时自动探测能力，无需手动 run_probe()
-- **B3**: Capability probe max_tokens 调整（always-on thinking 消耗 token 预算）
-- **B4**: reasoning_content 支持 — LLMResponse 新增 reasoning_content 字段
-- **C5**: Maven 测试执行不再是空操作 — _run_maven_test() 真正运行 JUnit
-- **C6**: DeepSeek 生成 JUnit → 编译 → Base/Head 差分执行 → 真实回归检测
-  - SecurityConfig 改为 permitAll()，使 @PreAuthorize 成为主要认证点
-  - Base (有 @PreAuthorize): changeEmailWithoutAuth → 401 → PASS
-  - Head (无 @PreAuthorize): changeEmailWithoutAuth → 200 → FAIL
-  - 综合证据：静态 diff + 运行时 JUnit 双重确认
-- **C7**: LLM 合约编译验证通过（DeepSeek 从需求中提取 6 个合约）
-- **E8**: Capsule run.sh/run.ps1 包含实际可执行回放命令（git checkout + mvnw test + 结果对比）
-
-### 关键约束
-- 所有文件中绝对不能有真实 API Key，`.env.example` 只用 `replace_me` 占位符
-- 无 TODO/pass/占位符端点
-- Windows 环境：PowerShell 语法、git worktree 在 NTFS 上
-- `demo/spring-backend` 现在使用 Maven Wrapper 自包含构建，无需系统安装 Maven
+Being an agent reading this file: don't duplicate the docs — read them; run the suite fully before claiming green; name your sources; never edit under `tests/*` whose only job is to fail honestly; if you can't verify, say so and stop rather than improvise.
