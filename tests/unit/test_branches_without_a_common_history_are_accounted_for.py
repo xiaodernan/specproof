@@ -74,12 +74,17 @@ refuses to reproduce them:
    "is this SQL name anywhere in master?" answered yes and P8 went red on the
    pushed state (measured at ``3f493ea``, 1 failed / 7 passed, found by #1549's
    premise experiment rather than by anybody running the gate). The register was
-   its own witness: writing a gap down closed it. ``SELF_WITNESS`` now holds the
-   two files that carry claims -- the register and the ledger -- and both are
-   pathspec-excluded from every ``git grep`` the gate makes, so the only hits
-   that can close a gap are hits in something that could have taken the content.
-   #1549's arm table records that planting the name in the ledger keeps P8 green
-   while planting it in a migration reddens it.
+   its own witness: writing a gap down closed it. ``SELF_WITNESS`` holds the files
+   that carry claims -- the register, the ledger, and this gate -- pathspec-excluded
+   from every ``git grep`` the gate makes, so the only hits that can close a gap
+   are hits in something that could have taken the content. The repair was caught
+   by the same defect class one commit later: the paragraph you are reading names
+   ``config_hash``, so shipping the paragraph put the token into master's tree in
+   a *third* place, and the gate that fixed self-witness was itself witnessing
+   (measured in the simulation clone at ``6b2c1b8``, registered-only
+   ['config_hash']). That is why the third entry is derived from ``__file__``
+   instead of typed. #1549's arm table records that planting the name in the
+   ledger keeps P8 green while planting it in a migration reddens it.
 
 WHAT THIS GATE DOES NOT SAY. It does not prove the dispositions are *right* -- only
 that they are still checkable: a successor path that vanished, a symbol master no
@@ -328,12 +333,20 @@ def _defs_by_file(rev: str, anchored: bool = True) -> dict[str, frozenset[str]]:
     return {k: frozenset(v) for k, v in out.items()}
 
 
-#: Files that carry the claims this gate re-measures. They are off every ruler:
-#: a grep that may answer "is this name in master?" from the register's own
-#: prose lets the register close its own gaps by writing them down, which is
-#: exactly how P8 went red on ``3f493ea`` -- see the docstring's sixth ruler.
-SELF_WITNESS = ("evidence/branch_reconciliation.py",
-                "docs/operations/DEEP_OPTIMIZATION_PLAN.md")
+#: Files whose prose IS one of the claims this gate re-measures, so they are off
+#: every ruler: a grep allowed to answer "is this name in master?" out of a
+#: description of the gap lets the description close the gap. Two states of this
+#: list were measured red before it was wide enough -- the register's own prose
+#: (``3f493ea``, P8 1 failed / 7 passed) and, in #1549's landing, the paragraph of
+#: THIS file that tells that story, which made ``config_hash`` answerable from
+#: master again (measured in the simulation clone at ``6b2c1b8``: registered-only
+#: ['config_hash']). The third entry is therefore derived rather than typed, so
+#: renaming or moving this gate cannot put the gate back into its own ruler.
+SELF_WITNESS = (
+    "evidence/branch_reconciliation.py",
+    "docs/operations/DEEP_OPTIMIZATION_PLAN.md",
+    str(Path(__file__).resolve().relative_to(ROOT)).replace("\\", "/"),
+)
 
 
 @lru_cache(maxsize=4096)
