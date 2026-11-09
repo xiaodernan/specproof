@@ -26036,3 +26036,78 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 
 **与上游对齐**：本节证据全部在 working tree 内可复核（`git grep -n "SameRepoCraftPanel\|?repo="`）；
 工作树在本节提交前干净。
+## #1541 集大成合并收口：全量门净绿（6528 passed / 10 skipped）+ MySQL/Mongo 演练双票据 + 路线图四支订正（2026-11-09）
+
+**记录基准**：HEAD = `3e04c34`（docs(evidence) 提交；master 一直 fast-forward，`specproof-reference` 与本号同 commit；本节只追加，不改写历史）。全量门数字归于 `_fullgate_v3.txt`（HEAD = `fafb8be`；其后的 `3e04c34` 仅动 docs/CHANGELOG，不触代码与门）。
+
+### 1. 本机全量单元门四轮实录（数字逐轮归属，不互相借数）
+
+| 轮次 | HEAD | 结果 | 说明 |
+|---|---|---|---|
+| `_fullgate4.txt` | `1c39946` | 10 failed / 6476 passed / 8 skipped，7131.57 s | 10 例 = 3 族：scanner/directive ×3（账本 #1536 中一行被当作 malformed directive；`security_scanner_directive_mentions` ×1 + `evidence_quotes_are_annotated` ×2）、`run_self_tests_on_workspace` ×2（`FakeResult` 未带 `exit_code` 的旧双腿）、`payload…route_publishes` ×4（api.ts 后行号漂移）+ `verdict_channel_parity` ×1（matrix_diff 漏登记 `COMPLIANT`）→ 闭账 `9cfd865` |
+| `_fullgate_final.txt` | `9cfd865` | 无 summary 行（套件在 `tests/unit/test_sql_text_static.py` 处中断，进程退出码 1） | ** kill 原因未能判明，不编造**。隔离重跑该文件立即暴露真实缺陷：`c5dc614` 新增 `storage/rollback_migrations.py::conn.cursor().execute(stmt)` 未登记 `NON_STATIC_SQL_SITES`（新文件不在旧全扫覆盖里）→ `fd6f450` 登记后 18/18 绿 |
+| `_fullgate_v2.txt` | `fd6f450` | 10 failed / 6518 passed / 10 skipped，5205.11 s（1:26:45） | 逐条归因后由 `fafb8be`（5 文件）闭账 |
+| `_fullgate_v3.txt` | `fafb8be` | **6528 passed / 10 skipped / 3 warnings（4223.33 s = 1:10:23）** | 本号主核验终态；采集 6538 项 |
+
+`_fullgate_v3` 细节如实：17/23 MySQL census files ran（其余 6 文件本会话无 DB 参与或被 POSIX-only skip 挡住）；10 skips 中 5 例是 POSIX-only（`test_build_cache_restore_is_writable_by_the_sandbox_uid.py` ×2；`test_sandbox_writable_mounts_reach_the_sandbox_uid.py` ×3），其余 5 例 `-q` 输出未细分原因——**如实记录未细分，未猜**；3 warnings 全部来自 Click 9 对 `runner.isolated_filesystem()` 的 DeprecationWarning（`test_contract_compiler.py` 三例），非产品行为变更，未抑制、未视作回归。会话头尾 product schema `specproof_phase0` 的 `/test/%` 行差 = **0 -> 0**（隔离协议未击穿）。
+
+### 2. 10 例红门逐条归因（`fafb8be`，归因细节在该 commit 正文）
+
+1. `test_fake_inventory_stays_measured` ×2：`_FakeRedis`(117606e)、`_FakeCursor`+`FakeStore`+`_RealStore`(c5dc614)、`_Store`(f0d64c8) 入场使替身 272→277（sql-fake 21 / store-duck-type 45 / plain-double 211）；FAKE_INVENTORY.md 按 `fd6f450` 重钉 `PIN_COMMIT=fd6f450daa0…` / `PIN_COUNTS`，"独立 SQL 替身"表述改为按分布文件数（13 文件、21 个假、不再硬断独立替身数）。
+2. `test_the_payload…route_publishes` ×4：7d2959d 起 api.ts 插入点（`staging`/`artifacts` 字段）后移所有行号；四张 line-pinned roster 全部重测对齐（forward 21 行 / await-binding 5 行 / issuer 15 行 / denominator 3 行）；本会话定向合跑 5 个相关测试文件 **88/88 passed**。
+3. `test_ops_docs_metric_names_trace_to_emission_sites` ×2：RUNBOOK 新落 `rollback-migrations` 一节时我照搬 `specproof_test*` 反引号字面，"test" 被当成未登记的指标名；订正为 "MYSQL_DATABASE 指向的隔离测试 schema"（同一事实，不声称为指标）。
+4. `test_signing_docs_do_not_claim_it_is_unimplemented` ×1：CLAUDE.md 重写时无声删掉了 Ed25519，签名门当场拦下；已恢复为 Hard rules #7（Ed25519 in-toto 风格语句，fail-closed，`craft/accept.py` 读 `signing_unavailable`）。
+5. `test_the_no_infra_job_holds_its_no_database_promise` ×1：隔离复核（`SPECPROOF_TEST_MYSQL_DATABASE=specproof_test2`），含该例在内的 5 文件合跑 88/88 绿；作为本批最终红门闭账。
+
+### 3. 集大成合并收口（2026-11-09 master 链，06102d9 → 3e04c34）
+
+`06102d9`#1539 failed_at → `1c39946`#1540 → `73b78ec` runbook 中文编码条 → `8abbcac` notify-relay 端口腿 → `0db965a` §5.1 [x] → `c04448b` §3.2 证据折叠 → `4ebf9a2` mcp tools → `53043ef` doctor → `c5dc614` rollback-migrations → `9cfd865` _fullgate4 闭账 → `117606e` §3.1 节点级产物引用 → `7d2959d` demo seed 产物帧 → `f0d64c8` manifest counterexample_reproduction → `3a5cd62` replay 消费方 → `0def8c8` 证书/胶囊读取 `audit_logs` 行 → `9e46a12` 公开化套件（LICENSE/SECURITY/CONTRIBUTING/CHANGELOG）→ `52ce9ad` `evidence/paths.py` 单一 owner → `fdac171` CLAUDE.md router 化 → `fd6f450` SQL 常量门登记 → `fafb8be` 10 例闭账 → `3e04c34` docs(evidence) 双票据。
+
+`sp-*` worktree 逐一并入并 remove；`sp-artifacts` 残留的未跟踪 `_commit_msg_artifacts.txt` 仅是 117606e 提交消息副本，随本号清理；**现存 worktree**：`specproof-reference`（用户主 checkout，ff-only = `3e04c34`）、`_wt_plan`（detached `1c39946`，长跑腿沙箱）、`sp-ledger`（本号）。无分叉分支、无 force-push、无历史改写；`git branch -r` 仅余 `origin/master`；`git status` 无任何未提交改动。
+
+### 4. 演练双票据（2026-11-09，本机 MySQL 8.4.11 容器 `specproof-mysql` / MongoDB，产品库零触碰）
+
+**MySQL dump→restore（12:01:21.996 → 12:01:36.664 实测，`specproof_test2` 源 → `specproof_restore_drill` scratch）：**
+
+| 项 | 值 |
+|---|---|
+| `schema_migrations` MAX(version) | 17（源=恢复侧一致） |
+| 19 张表 COUNT(*) | 全对齐（`audit_logs=195`、`contract_registry=31`、`contract_approvals=1`、其余 0） |
+| dump | 67,775 B；sha256 `eeec39d794c2c3bc337176bf327ca45992f02e4c3e171c74ed0858feb2c91be3`；已删 |
+| scratch | 已 drop；product `specproof_phase0` 未读未写；产品 Mongo 未碰 |
+| 报告 | `D:\tmp\drill_test2_manual\drill-report-20261109-120136.json` |
+
+**MongoDB dump→drop→restore（12:01:53.554 → 12:02:05.149 实测，scratch `specproof_drill_scratch`，250 篇 synthetic payload=128B）：**
+
+| 项 | 值 |
+|---|---|
+| dump | 1,709 B；sha256 `a8633a490036f0382ce2690e6b0f4448eeac2dc873f6bfc6c6c234e8fbd09a00`；归档已删 |
+| restore | 文档数 250；`$group:{n,seq}` digest `{"_id":null,"n":250,"s":31125}` 与 dump 前一致 |
+| 报告 | `D:\tmp\drill_mongo_manual\drill-report-20261109-120205.json` |
+
+隔离：specproof_test2 中 `/test/%` 行差恒 0；scratch 副本双双 drop。**演练用到本机容器默认凭据（`compose.phase0.yml` 的 dev 默认值），仅本机降级环境，不外推到任何托管环境；不宣称产品库恢复流程已在真实停机窗演过**。
+
+### 5. 路线图纪实（只订正，不冒充新增）
+
+- **§3.1 验收体验** `[~]`：节点级产物引用（`artifact_refs`）链路全落（worker 帧 → Redis → SSE `artifacts` → `api/routes/jobs.py` 透传 → `api/routes/web.py` stages fold（dedup）→ JobDetail chip（≤3 +`+N`）），`test_artifact_frames.py` 合并腿全绿；"全节点时间戳帧"仍不收口。
+- **§4.2 反例生成质量** `[~]`：manifest 携带 `counterexample_reproduction`（`f0d64c8`）+ `replay` 读出并随 CLI 打印 `Reproduction:`（`3a5cd62`）；verdict 等级不上调。
+- **§5.4 部署形态** `[~]`：`specproof ops rollback-migrations`（`c5dc614`）+ `RUNBOOK.md` 入口登记 + 双演练票据（DATA_LIFECYCLE §6.5/§6.6）；**余项：单二进制/容器一键部署仍 [ ]，整行不标 [x]**。
+- **§6.2 MCP/doctor**：`specproof mcp tools [--json]`（`4ebf9a2`，含 `docs/operations/MCP_GUIDE.md`）、`specproof doctor [REPO] [--json] [--require-jdk N]`（`53043ef`，退出码 0/1/2 明示）随本批合并。
+- **`evidence/paths.py`**（`52ce9ad`）：api/routes/web.py 与 mcp/tools.py 此前各持一份 `_capsule_dirs`/`_eval_report_path` 逐字节一致副本，收口到单一 owner；`tests/unit/test_structural_clone_ratchet.py` 登记移出；mcp/web 的 monkeypatch 接缝保留。`CLAUDE.md`（`fdac171`）router 化并消化 “Phase 0 7 天原型 / 12 个节点 / 10 金案例” 三处误导语境。
+- **其余 roadmap 项本批零订正**：§5.2 / §5.3 / §6.1 / §6.3 / §4.3 KMS-HSM 全部保持未 [x]，如实不动。
+
+### 6. 账本与门
+
+`tests/unit/test_recorded_ledger_sections_do_not_vanish.py` 在本号提交前 **8/8 绿**；本号只追加，不改写历史，不删任何既有 `## #NNN`。CLAUDE.md 该批次历史由 `fdac171` router 化，`fafb8be` 恢复签名声明——本号未再私自改写该文件。
+
+### 7. 本节不认领（诚实边界）
+
+- docker daemon `docker run` / `docker network create` 本机挂死（#1540 实记），本号未复测——daemon 降级不解，§5.3 服务级开箱不标 [x]。
+- phase0 产品库任何 live 降级（0015–0017 rollback-on-live）未演——需停机窗与业主批准；本号只证明 dry-run 与隔离库 dump→restore 通路。
+- §5.2 LLM baseline（本机无 `DEEPSEEK_API_KEY`）；pilot repos（§6.1，业主未选）；全量 slow 轨（`-m slow`）本轮未跑；`tests/integration/` 跳过保持 skipped-by-design。
+- KMS/HSM 密钥托管（ADR-011 余项）未动；`mypy .` 仅本批文件零告警，不声明全仓。
+- exec time：本号未重跑全量（`fafb8be` 的 `_fullgate_v3.txt` 即主证据；`3e04c34` 不含代码变更）。
+
+### 8. stash / 分支 / 上游对齐
+
+master 与 `origin/master` 一一对应（fast-forward push，pre-push 钩子通过）；`specproof-reference` = `3e04c34`，`git status` 空；`git branch -r` 仅 `origin/master`；`stash@{1}` "parallel test changes" / `stash@{2}` "parallel session changes"（用户自有）**未动**；`stash@{0}` "ledger-cleanup-2026-11-09" 为本机清点用，保留待用户丢弃。
