@@ -49,6 +49,39 @@ jobs:
         working-directory: apps/web
         run: npm run build
 
+  # #1546: the Java services were covered by NO job. Measured on 2026-11-09:
+  # this workflow had 7 jobs and not one of them ran Maven, so
+  # services/control-plane's 9 JUnit tests and services/gateway's main code
+  # were never compiled — a broken Java build could sit on master with every
+  # job green. That is the same shape #507 found on the frontend.
+  #
+  # No infrastructure is needed: the control-plane tests run against an
+  # in-memory H2 (src/test/resources/application-test.yml) with the outbox
+  # relay disabled, so this leg needs neither docker nor a database.
+  #
+  # The JDK is pinned to 21 because both poms declare <java.version>21</
+  # java.version>. The number is not repeated in the gate either — it is read
+  # out of the poms by tests/unit/test_ci_runs_the_java_services.py, so the
+  # two cannot drift.
+  java-services:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            services/control-plane/pom.xml
+            services/gateway/pom.xml
+      - name: control-plane (compile + tests)
+        working-directory: services/control-plane
+        run: mvn -B test
+      - name: edge gateway (compile + tests)
+        working-directory: services/gateway
+        run: mvn -B test
+
   # §8.1 / §14-4: OpenAPI schema diff gate. The baseline is committed at
   # docs/openapi/baseline.json; intentional API changes must update it in
   # the same PR (scripts/openapi_diff.py --update), everything else fails
