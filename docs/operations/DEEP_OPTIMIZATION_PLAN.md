@@ -5975,7 +5975,7 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 
 **起因/占号。** #299 的下一号队列②是「DEEP 档的提交方要显式写 `max_execution_seconds`（否则 DEEP 与 FAST 同预算，可能误杀）」。落地前重测账本：HEAD 1b91afd，`## #` id 最大 299，`## #300` 计数 0 ⇒ 取 **#300**。
 
-**先量旧行为。** ① #299 给 `verification_jobs` 加了 `max_execution_seconds`，但**四��� INSERT 语句都没有写这一列**：缺省 3600 对所有档位一样，于是 DEEP（重跑生成测试做可复现性 + 重算 capsule 摘要）和 RELEASE（再叠加发布门）拿到的是 FAST 的预算——过期回收器会杀掉仍在诚实干活的作业。② 服务层 `create_job` 建单后**回读**作业行只为取状态；状态在建单时已确定（同一语句插入为 QUEUED），回读是多余的一次查询。③ #297 把路由挪到应用服务层后，**8 个测试文件仍在打桩 `jobs_module.MySQLStore`**——那个名字已经不存在了，每个都在 setup 阶段同一个 AttributeError 崩掉。
+**先量旧行为。** ① #299 给 `verification_jobs` 加了 `max_execution_seconds`，但**四［原字不可考］ INSERT 语句都没有写这一列**：缺省 3600 对所有档位一样，于是 DEEP（重跑生成测试做可复现性 + 重算 capsule 摘要）和 RELEASE（再叠加发布门）拿到的是 FAST 的预算——过期回收器会杀掉仍在诚实干活的作业。② 服务层 `create_job` 建单后**回读**作业行只为取状态；状态在建单时已确定（同一语句插入为 QUEUED），回读是多余的一次查询。③ #297 把路由挪到应用服务层后，**8 个测试文件仍在打桩 `jobs_module.MySQLStore`**——那个名字已经不存在了，每个都在 setup 阶段同一个 AttributeError 崩掉。
 
 **修。**
 - **按档位的预算**（`storage/mysql.py`）：`DEPTH_EXECUTION_BUDGET_SECONDS = {FAST: 3600, DEEP: 7200, RELEASE: 10800}`，缺省 `DEFAULT_EXECUTION_BUDGET_SECONDS = 3600`（与列的 DEFAULT 一致，让不认识该列的旧 worker 写出的行与 FAST 作业同预算）。档位表按**它们要干的活**排：DEEP 要重跑测试并重算摘要，RELEASE 再叠加发布门。四条 INSERT（tenant / 非 tenant × insert_job / create_job_with_outbox）全部带上该列，预算由 `_job_row` 统一计算，调用方可逐作业覆盖（一个卡住的作业可以单独放宽，不动其他行）。
@@ -6296,7 +6296,7 @@ L5 因此改成「后缀节必须排在本族裸号之后」，不是放宽：�
 
 **起因/占号。** #314 的下一号队列④是「分类表要不要改成**数据驱动**（文本模板 → 种类），让「表」成为一份可读、可审计的文件而不是散在代码里的选择」。落地前重测账本：HEAD c651566（`## #` id 最大 314）⇒ 取 **#315**。
 
-**先量旧行为。** ① 归属（这条理由算「确有问题」还是「证据不足」）是**在每个产生点临时决定的**：`blocking(...)` / `gap(...)` 两个闭包，十五个调用点各写各的。于是「哪些理由是阻断性的」这个问题**只能靠读代码回答**，而答案散在十五个分支里——**表是隐式的**。② 文字也在调用点拼（`f"{label}检查失败"`），所以「这条理由到底被拼成什么样」同样要读代码。③ 顺带发现一件**上一批遗留的死人**��#311 让判定层能自己推导理由之后，通用的兜底句「尚未得到可判定结果」**再也走不到了**（推导出的代码必然在表里），但它还留在代码里——**一个走不到的理由，就是一个承诺了却不会发生的事实**。
+**先量旧行为。** ① 归属（这条理由算「确有问题」还是「证据不足」）是**在每个产生点临时决定的**：`blocking(...)` / `gap(...)` 两个闭包，十五个调用点各写各的。于是「哪些理由是阻断性的」这个问题**只能靠读代码回答**，而答案散在十五个分支里——**表是隐式的**。② 文字也在调用点拼（`f"{label}检查失败"`），所以「这条理由到底被拼成什么样」同样要读代码。③ 顺带发现一件**上一批遗留的死人**［原字不可考］#311 让判定层能自己推导理由之后，通用的兜底句「尚未得到可判定结果」**再也走不到了**（推导出的代码必然在表里），但它还留在代码里——**一个走不到的理由，就是一个承诺了却不会发生的事实**。
 
 **修（表成为唯一真源）。**
 - **`REASON_TABLE`**（`evidence/verdict.py`）：**每一条**理由一行——`key: (文字模板, 归属)`。文字与归属**各声明一次**；生产点只**点名**理由 key。
@@ -6677,7 +6677,7 @@ ENOSPC 磁盘满、DEEP 耗时校准、P1-7 MinIO 对象引用）。
 - **家族表**：`experiments/experiment_classes.py` 的 `holdout_sample` 填上 ⇒ **GAP 关闭**；覆盖报告重生成后，缺口一节从「并发类缺 holdout」变成「**无：六类都齐了正样本、负样本与 holdout**」。
 - **新脚本 `scripts/verify_case_tags.py`**：在**已提交的 tag** 上验证一个案例的诚实性——渲染生成源码 → 把 `base` 与案例 head 各签出一棵临时 worktree → 把生成测试丢进 demo 的测试树 → 两边各跑一次 maven → 报「base 绿 / head 红」才算成立。
 
-**门与腿。** `scripts/verify_case_tags.py --case case-101` ⇒ **`VERDICT: case-101 base_pass_head_fail HOLDS`**：`base` **18 run, 0 failures**（基线通过）✓；`case-101-head` **18 run, 1 failure**——失败的正��是新用例，报出两条精确的话：`The service accepted an order against a stale product read (status 200)` 与 **`The other writer's stock (5) must survive the service's write, got 7`** ⇒ 服务返回了 200，另一个写者的扣减**真的被吞了**。Python 侧：holdout 门 + 实验类门 + 评测隔离门 **82 passed**；评测相关（样本充分性/引用预检/case17/评测子集）**21 passed**；`ruff`、`mypy` 0 errors。
+**门与腿。** `scripts/verify_case_tags.py --case case-101` ⇒ **`VERDICT: case-101 base_pass_head_fail HOLDS`**：`base` **18 run, 0 failures**（基线通过）✓；`case-101-head` **18 run, 1 failure**——失败的正［原字不可考］是新用例，报出两条精确的话：`The service accepted an order against a stale product read (status 200)` 与 **`The other writer's stock (5) must survive the service's write, got 7`** ⇒ 服务返回了 200，另一个写者的扣减**真的被吞了**。Python 侧：holdout 门 + 实验类门 + 评测隔离门 **82 passed**；评测相关（样本充分性/引用预检/case17/评测子集）**21 passed**；`ruff`、`mypy` 0 errors。
 
 **否证与订正。** ① 验证脚本第一版在**我自己拼的受限 env**（手写 PATH）里跑 ⇒ 上下文起不来（`Could not initialize plugin: MockMaker`），报出的「循环依赖」是**下游症状**不是真因。改用**完整环境**（直接进 worktree 跑 maven）⇒ base 18/18 通过 ⇒ **是 env 的问题，不是接缝的问题**。教训：**自己拼的 env 会骗人**。② 案例的诚实性**不能**靠「我本地改过代码所以能复现」——那只证明方向对；必须**在已提交的 tag** 上验：base 绿、head 红、diff 里只有这一个变异。③ 案例集合的**历史评测数字**（63/63、Recall 100%）**没有**改写：那是当时跑 100 个案例的**测量结果**；新案例**没有**被全量重跑，也不假装被跑过——只更新了「当前构成」的表述，并写明差在哪（`docs/eval/p6-100-case-eval.md` 加了一段显式说明）。
 
@@ -6973,7 +6973,7 @@ to create or update workflow ... without 'workflow' scope`）⇒ 我把 ci.yml *
 
 **起因/占号。** #347 的下一号队列③：「**统一上传路径**（胶囊走 `ArtifactStore`）」。落地前重测账本：HEAD b428514、`## #` id 最大 **347** ⇒ 取 **#348**。
 
-**先量旧行为（量的是「上传这条路有几种」）。** #342 里胶囊的��传是**手写**的（`MinIOClient.put_object_with_digest` + 单独记坐标）⇒ 而 `storage/artifact_store.py::ArtifactStore` 才是**产品里所有产物该走的那条路**（它知道「两存储缺口」：字节在对象存储、让它们可被找到的索引行在数据库、「上传成功但写库失败」是一个**真实状态**，strict 模式会把对象删回去以免留下幽灵）⇒ ⇒ **手写上传 = 一条更薄的旁路，没有那些语义**，而 `ArtifactStore` 至今**零生产调用方**（#342 记过）。
+**先量旧行为（量的是「上传这条路有几种」）。** #342 里胶囊的［原字不可考］传是**手写**的（`MinIOClient.put_object_with_digest` + 单独记坐标）⇒ 而 `storage/artifact_store.py::ArtifactStore` 才是**产品里所有产物该走的那条路**（它知道「两存储缺口」：字节在对象存储、让它们可被找到的索引行在数据库、「上传成功但写库失败」是一个**真实状态**，strict 模式会把对象删回去以免留下幽灵）⇒ ⇒ **手写上传 = 一条更薄的旁路，没有那些语义**，而 `ArtifactStore` 至今**零生产调用方**（#342 记过）。
 
 **修。**
 - 胶囊节点改走 `ArtifactStore`（生产客户端 + 默认元数据存储 ✓），坐标从 `ArtifactResult` 取 ✓ ⇒ `ArtifactStore` 不再是死代码 ✓。
