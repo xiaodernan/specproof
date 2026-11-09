@@ -25850,10 +25850,9 @@ SpecProof recall=100.0% -> delta=+100.0pp (Go/No-Go #14: PASS)
 6. `test_metrics_bind_fates_reach_the_ops_reader` ×2（合批 `ba7a755`）— D3 判决门按码普查落定 `storage/notify_relay.py`
    对 refusal 的判决是**停止进程**（`serve_metrics_in_thread` 在 try 之外），与 worker/outbox-relay 同形；D3/D4 均要求载体段落同含
    判决词（随绑定失败退出）+ 默认端口 9102；已在 OBSERVABILITY §2 的 notify-relay bullet 中补入该两条；OBSERVABILITY/RUNBOOK 其它载体不新增违约。8/8 绿。
-7. `test_security_scanner_evidence_quotes_are_annotated`（合批 `1d57e9d`）— `.github/workflows/ci.yml:117` 的
-   `REDIS_URL: redis://:specproof_pass@localhost:6379/0` 触发 security-scanner 的 `Redis URL with Credentials`（HIGH）。这是一次性 CI runner
-   的脚手架口令（与 compose.phase0.yml redis requirepass 出厂默认一致，非生产凭证），按本仓库约定前置理由：reason 在前、指令在后，
-   `# specproof-nosec Redis URL with Credentials`；本门 37/37 绿。
+7. `test_security_scanner_evidence_quotes_are_annotated`（合批 `1d57e9d`）— `.github/workflows/ci.yml:117` 的 REDIS_URL 行触发 security-scanner 的 `Redis URL with Credentials`（HIGH）。这是一次性 CI runner
+   的脚手架口令（与 compose.phase0.yml redis requirepass 出厂默认一致，非生产凭证），按本仓库约定前置理由、指令在后、与 finding 同行尾随——本账本自带同款尾随指令，本门 37/37 绿；紧接下一行即是本行同携 finding 与指令的行：
+   `REDIS_URL: redis://:specproof_pass@localhost:6379/0` # 一次性 CI runner 的脚手架口令：与 compose.phase0.yml redis --requirepass 的出厂默认一致，非生产凭证 # specproof-nosec Redis URL with Credentials
 8. `test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes` ×4（合批 `1d57e9d`）— §3.1 的 `Stage` 接口 +3 行
    （插入点行号 498 后，API 处后续所有行号 +3）+ JobDetail.tsx +1 行，五份登记表全部测量重钉：
    `CONSUMER_BINDING_ROSTER`（forward 21 个点：991→994 等；await-binding 1219→1222 / 1231→1234；promise-bound 1129→1132；句典 21/8/7/5/3/2/1/1 不变）、

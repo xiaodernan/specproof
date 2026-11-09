@@ -181,8 +181,8 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "scripts/attribution_cases.py",
         ),
         scale=frozenset({
-            "REGRESSION", "NON_REPRODUCIBLE", "UNEXPECTED_FIX", "AMBIGUOUS",
-            "ambiguous", "compliant", "regression", "unexpected_fix",
+            "REGRESSION", "UNEXPECTED_FIX", "AMBIGUOUS", "NON_REPRODUCIBLE",
+            "COMPLIANT", "ambiguous", "compliant", "regression", "unexpected_fix",
         }),
         opaque=(
             "agent/nodes/build_matrix.py",

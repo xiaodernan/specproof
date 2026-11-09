@@ -32,10 +32,12 @@ class FakeResult:
         sandbox: str = "container",
         dependency_install: str = "offline cache",
         error: str = "",
+        exit_code: int = 0,
     ) -> None:
         self.stdout_tail = stdout_tail
         self.stderr_tail = stderr_tail
         self.mode = mode
+        self.exit_code = exit_code
         self.sandbox_resources = {
             "sandbox": sandbox,
             "dependency_install": dependency_install,
