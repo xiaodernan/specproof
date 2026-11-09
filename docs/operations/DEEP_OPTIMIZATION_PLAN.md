@@ -26802,3 +26802,191 @@ A6/A7/RC3 三条臂就是在量这件事（随便删掉一条断言，臂就不�
 - **#1550 temp 工作树生命周期**：基线已量好（325 个目录 / 303 个标记 / 297 个已失效 / 6 个还活着 /
   319 个从来没有标记 / `.git/worktrees` admin 条目 7 个），维护扫描在生产里**从没武装过**。
 - **#1551 网关的第一条运行时 Java 测试**（Spring Cloud 元素的入口，撤掉 `services/gateway` 的零测试登记）。
+
+## #1548 并轨对账的第二半：没有共同历史的分支要被逐文件判决，而判决会过期
+
+**这一号的来路。** 用户要求把散在几条分支上的内容并起来。#1547 并的是**凭据读法**
+（一把 key 的优先序），本号并的是**内容本身**：三条与 `origin/master` 没有共同历史的
+血缘，186/202/1832 个文件、52/96/2785 个测试名，逐文件说清"这东西在 master 有没有家"。
+普查本身在 #1547 那节里已经做过一次，但做在一次性探针里、结果写成账本散文。
+**散文不会过期** —— 这是本号存在的理由：把判决搬进 `evidence/branch_reconciliation.py`
+（只声明判决），把尺子搬进
+`tests/unit/test_branches_without_a_common_history_are_accounted_for.py`（只测量），
+两边双向相等才算登记。分形的先例是 `evidence/verdict_channels.py`：
+一把自带量具的登记册永远不可能被逮到与仓库不一致。
+
+**量到的四个平面**（都钉在 `origin/master = 2e909ab`，全部由门复测）：
+
+| 尺子 | 读数 | 这句话里的坑 |
+|---|---|---|
+| ref | store 里 110 个 ref；**4 个名字**无共同历史，剥开只有 **3 条血缘** —— `refs/tags/p0.5-verified-v1`（annotated，对象 `ea8e2dfb6`）与 `refs/remotes/origin/release/p0.5-verified-v1` 剥到同一提交 `4145d95b7` | 按名字普查会说"4 个 orphan 分支"；`git merge-base` 是对**提交**答话的 |
+| 文件 | 分支独有文件 2 + 10 + 0 = **12**，每条都有判决；判决词表封闭（`landed_at_other_path` / `succeeded_by_rewrite` / `reversed_by_master` / `not_landed` / `unadjudicated`） | "每个分支独有文件都有接任者"只在允许接任者是**另一个路径上的另一个符号**时为真，所以后继要按路径**和**符号各声明一次 |
+| 名字 | 分支独有测试名 **58** = 40（住在 master 也有的文件）+ 18（全在一个 master 没有的文件里）；14 对改名登记，剩下 **26** 个还没解释 | 名字级差异不是事实级差异：分支 `test_junction_escape_detected` 在 master 同一文件里叫 `test_directory_link_escape_detected`，而 master 那文件 45 个测试**多于**分支的 42 |
+| def 尺子本身 | 锚定 `^\s*def test_` 量出 **6176**，松散 `\bdef test_` 量出 **6183** —— 差的 **7** 个名字是字符串字面量里的散文（10 个文件、13 处），全树哪里都不是真的测试定义 | #1547 那节的普查带的正是松散那把，**它印出来的测试人口里混着 fixture 散文** |
+
+**判决里最硬的一条，也是"并轨"这个词最容易骗人的地方**：分支的
+`storage/migrations/002_failed_terminal.sql` 自述 "FAILED transitions from
+{QUEUED, CANCELLED} -> {} (terminal)" 并且 "Already applied in code"；master 的
+`storage/mysql.py` `_VALID_TRANSITIONS["FAILED"]` 量出 **4 条出边**
+`{CANCELLED, ERROR, EXPIRED, QUEUED}`。两句话不能同时为真，master 这句是被测量的那句
+⇒ 判决 `reversed_by_master`：**这不是"没并过来"，是"master 看过同一个问题并选了另一个
+答案"**，把迁移搬过来就是撤销一个决定。P5 腿两边都要量：master 的 FAILED 出边里必须有
+QUEUED（分支"重试换新 job_id"这条规则正是被否证的内容），出边一旦变成 0 就 `pytest.fail`
+喊人重新判决，而不是把断言松开放绿。
+
+**门：8 条腿，先红后绿。** BASE 侧在**干净的 HEAD 副本**里（只把门拷进去，`evidence/
+branch_reconciliation.py` 不在树中）实测 **8 failed in 2.31s**，P1 的理由是
+`register state=absent (branch_reconciliation.py is not in the tree)`，其余七条腿同一句
+「A repository where nothing has been reconciled and a repository whose reconciliation was
+deleted are different states; this gate refuses to read either as 'no orphan refs'」——
+**缺席 / 读不出 / 不同意 是三种不同的红**，混成一种就等于把"还没普查"伪装成"普查干净"。
+红得这么快不是门没测：登记册不在树里时没有任何一条腿去量一个无处登记的东西。
+落地侧 **8 passed in 22.11s**。
+
+| 腿 | 守住什么 |
+|---|---|
+| P1 三种红不许塌成一个 | 登记册 state、`BASE_REF` 必须是 `origin/master`（登记册不许把自己的基线挪到尺子底下）、`MEASURED_AT` 必须是 40-hex 且是 HEAD 的祖先 |
+| P2 人口是被量的不是被记的 | for-each-ref 全集 ≥20、`refs/remotes/` 不许为空、rc 感知（1=无共同历史，128=名字不存在）、**先查死名字再对人口**、登记名字 ⇄ 测得"无共同历史"名字双向相等、剥开后的提交 ⇄ `ORPHAN_COMMITS` 双向相等、每个提交的名字元组逐条相等、名字数 > 提交数（4>3 这个形状本身被钉住）、DAG 快尺与 merge-base 慢尺在"登记的名字 + 首二末二"抽样上不许分歧、快尺覆盖率 ≥4/5 |
+| P3 每个分支独有文件都要有判决 | 驱动是 `_measured_orphan_commits()`（store 剥名得到，登记册说不小）；每个文件的处置双向相等；词表封闭；**每条理由必须带数字** —— 不能被复量的判决是意见 |
+| P4 声明的后继还在不在 | 每条后继路径要在 master 树里；每个后继符号要 `git grep -w` 命中在声明的那几条路径里；有符号无路径也算违规 —— **这条腿就是用来过期的** |
+| P5 FAILED 的反转还成立吗 | 提交号从登记键里取（不遍历所有血缘，避免 rc=128）；master `"FAILED": {...}` 从 `storage/mysql.py` 现读；分支 SQL 不许停止自称 terminal；出边 0 ⇒ 红着喊人重判 |
+| P6 改名两侧都得真 | 分支侧锚定 def 存在 ∧ master 同路径该 def 存在；已在 master 出现的改名**必须删掉**，不许老化进"未解释"里；58/40/18 三个数复测；`26 == 40 - 14` 这个余数被钉住 |
+| P7 普查自己用的是哪把尺子 | 散文名平面（10 文件/7 名）双向相等、逐文件的名单也相等、登记并集 == `loose - anchored`；per-file 平面（27 文件/332 处）**只测不声称**，只查单向包含 |
+| P8 缺口不能被悄悄删 | SQL 符号缺口、job 名缺口、`not_landed` 文件三类都从**测得的树**里再推一遍，双向相等；分母不许为空（YAML 尺子读出 0 个 job 就是瞎）；每条缺口理由带数字；`RENAMED_JOBS` 两侧都要真命中 |
+
+**臂 24 条**（第二趟 21 条 + 补臂 3 条；臂树 = `git worktree add --detach` 的一次性副本，
+每条改动锚定 `count==1`，跑完按 sha256 逐字节还原，24/24 `restored_ok`）。
+"预测"一列写在 `.scratch/predict1548.md` §三（任何臂之前）与 §四（第二趟之前，
+带 §三 的订正），"实测"一列从 `.scratch/arms1548b.txt` / `arms1548c.txt` 逐条抄：
+
+| 臂 | 改动 | 预测腿 | 实测腿 | 判定 |
+|---|---|---|---|---|
+| A0 | 不动 | 8 绿 | `8 passed` | ✓ |
+| A1 | 删掉登记册文件 | 8 红，P1 说"absent"，其余腿拒判 | `8 failed in 1.92s`，red=P1..P8，七条同一句 refusal | ✓ |
+| A2 | 三张表清空（普查塌了） | P2+P3+P5+P6+P8 红、**0 skip**、P4 空转绿、P7 绿 | `5 failed, 3 passed`，red=P2,P3,P5,P6,P8 | ✓（§三 那版会洗成 5 skip，见下） |
+| A3 | 4145d95 的两个名字里删一个 | 只 P2 | red=P2 | ✓ |
+| A4 | 多登记一个不存在的名字 | 只 P2，理由=解析不到 | red=P2，`1 registered names do not resolve at all` | ✓ |
+| A14 | 登记一个存在、且有共同历史的名字 | 只 P2，理由=人口等式 | red=P2 | ✓ |
+| A15 | `MEASURED_AT` 挪到非祖先提交 | 只 P1 | red=P1，`not an ancestor of HEAD` | ✓ |
+| A16 | `BASE_REF` 改成 `master` | 只 P1 | red=P1，`every ruler in this gate measures against the literal 'origin/master'` | ✓ |
+| A5 | 删掉那条分支独有测试文件的处置 | P3 **+P8** | red=P3,P8；P8 理由 registered-only 恰是那一个文件 | ✓（§三 只写 P3） |
+| A6 | 后继路径打错一个字母 | 只 P4 | red=P4 | ✓ |
+| A7 | 后继符号打错一个字母 | 只 P4 | red=P4，"no longer land in the declared successor paths" | ✓ |
+| A8 | 判决改成词表外的 `maybe` | 只 P3 | red=P3 | ✓ |
+| A9 | 把某条理由里的 ` 14 ` 改成 ` N ` | 只 P3 | **8 passed** | ✗ 臂无效，不是门漏 |
+| A9b | 把那条理由整段换成一句没有数字的话 | 补臂，预测只 P3 | red=P3 | ✓ |
+| A18 | 把那条理由换成空串 | 补臂，预测只 P3 | red=P3 | ✓ |
+| A19 | 把规则改成"至少两个数字" | 补臂，量成本 | red=P3 | 12 条理由里恰有 1 条只带 1 个数字 ⇒ 更强的规则今天自己会红 |
+| A10 | `reversed_by_master` → `succeeded_by_rewrite` | 只 P5 | red=P5 | ✓ |
+| A11 | 改名对的 master 侧打错 | 只 P6 | red=P6 | ✓ |
+| A12 | 散文名从盲区表里抹掉 | 只 P7 | red=P7 | ✓ |
+| A13 | 缺口键改名（= 悄悄删掉缺口） | 只 P8 | red=P8 | ✓ |
+| A17 | 四个名字全换成 store 里没有的 | P2 红 + 五条腿 skip + P1/P7 绿 | `1 failed, 2 passed, 5 skipped`，red=P2，skip=P3,P4,P5,P6,P8 | ✓ |
+| RC1 | A2 + 摘掉 P2 腿 | 红 P3,P5,P6,P8（**不绿**） | `4 failed, 3 passed`，red=P3,P5,P6,P8 | ✓ |
+| RC2 | A6 + 摘掉 P4 腿 | 绿 | `7 passed` | ✓ |
+| RC3 | A10 + 摘掉 P5 腿 | 绿 | `7 passed` | ✓ |
+
+**23/24 命中，唯一失手的那条（A9）是我的量具而不是门的规则。** A9 的锚 ` 14 ` 落在
+`Dockerfile.api` 那条理由里，而这条理由带 **4** 个数字 `['0','14','19','4']`：删掉一个
+还剩三个，规则写的是"理由必须带一个测量"，于是它**正确地没有红**。补臂 A9b/A18 才是
+这条规则该配的形状（整段换成没有数字的一句话 / 换成空串），两条都只点亮 P3。
+A19 顺手量了"把门槛抬到至少两个数字"的成本：12 条理由里恰有 1 条今天只带 1 个数字
+（`scripts/run_differential.sh` 那条的 "定义 0 个函数"），硬抬就是逼我把理由填满数字 ——
+**这条规则的价值在"不许有一句无测量的判决"，不在数字的个数**，被 P4/P6/P8 守着的是
+后继与改名的真实性，不是散文的长度。补臂的预测写在脚本里而不是冻结文件里，
+证据等级低于 §三/§四，这一点按自我豁免的风险记在这里。
+
+**六把坏掉的尺子**（前五把写进门 docstring，逐把有实测；第六把是臂驱动自己的）：
+
+1. `git grep <rev>` 不带 `-n` 输出三字段；按四字段解析 ⇒ 每条行都被丢掉 ⇒
+   三条分支的测试名普查量出 0。**空普查读起来 exactly like 干净仓库。**
+2. `git merge-base --all` 对"无共同历史"退 1，对"这个 ref 不存在"退 128。
+   两者都当 1 ⇒ 我现编的 `case-01-head`（旗舰 case 用的其实是 `head-v1`）
+   变成第四条血缘。**门现在按退出码分类，且先查死名字再对人口**（A4 与 A14
+   点的都是 P2，但理由必须不同：名字解析不到 vs 人口等式不相等）。
+3. 顶层 YAML 键是词表不是正文：正则数 `jobs:` 遇第一个空行就停 ⇒
+   分支 5 个 job 数出 1 个、master 8 个数出 1 个。现在用 `yaml.safe_load`。
+4. 同一个问题问 git 110 次是一把有代价的尺子：每个 ref 名一次 `merge-base`
+   让 P2 单腿 **74.65s**、整个文件 132s —— 它一度是这个仓库里最慢的测试文件。
+   改成一次 `rev-list --parents --all --reflog` 的可达性（这才是 merge-base 在答
+   的东西），慢尺只在"登记的名字 + 首二末二"抽样上复问一遍，两把尺子不许给不同
+   答案，快尺覆盖率低于 4/5 就红。22.11s 是这么来的，不是把断言放宽来的。
+5. **保险丝把塌掉的普查洗成了 skip** —— 第一趟臂量出来的，本号最大的一个洞：
+   `_require_refs_measurable()` 的语义是"本 clone 看不见这些 ref 就 skip，别伪绿"，
+   实现却是"登记的名字一个都解析不到就 skip"；登记册**什么都不登记**时 names 为空
+   ⇒ P3..P8 五根腿一起 skip，日志里印着 `0 of 0 registered ref names resolve` ——
+   这句话自己就在喊：**"读不出来"被交付成了"这儿没什么可查的"**，正是本道一直踩的
+   那一类缺陷穿着保险丝的衣服。修法不是把 skip 改红，而是**把计数腿的驱动换成
+   store**：`_measured_orphan_commits()` 由 for-each-ref 剥名得到，登记册说不小；
+   guard 只在"登记了名字而这些名字在本 store 都解析不到"时 skip。
+   A2（清空登记册）与 A17（名字全换成不存在的）现在给出**必须不同**的两个形状：
+   5 红 0 跳 vs 1 红 5 跳 —— 区别只在**是谁答的**：前者是登记册的声明，
+   后者是 store 的可见性。P4 仍按声明遍历（它就是"声明过期"检查器），
+   登记册清空时它**空转绿**：这条边界写进门 docstring 第 5 条，不假装它不存在，
+   人口的归属在 P2 与 P3。
+6. 臂驱动的归因正则照 `-q` 的短摘要写（`FAILED \S*::(\w+)`），实际输出里没有那个
+   形状，于是第一趟跑完的 6 条臂日志全是 `red=-`，只剩尾巴 300 字节的断言行可看。
+   产物不能指出**是哪条腿红的**，它就只是一次更贵的 pytest。第二趟改读 `-v` 的
+   `<file>::<leg> PASSED/FAILED/SKIPPED` 行并把每条臂全文另存到 `.scratch/`。
+
+**自己犯过的错（都留了证据，不是自谦）。**
+
+1. **登记册的键用 9 位十六进制，门的第一版按 `commit[:12]` 匹配** ⇒ P3 报
+   "registered 0 dispositions != measured 2"。修法不是把两边截成同一个长度，
+   而是加 `_key_commit()`：前缀在登记的血缘里必须命中**恰好一条**，0 条是幽灵键、
+   2 条是歧义 —— 两种都红。一个能"什么也匹配不上"的键格式比没有键更坏。
+2. **P5 与 P8 一开始都遍历了全部三条血缘**去取只属于某一条的文件，
+   `git show <别的血缘>:<路径>` 退 128 把腿点红。修法是让判决自己带血缘：
+   P5 的提交号从登记键里取，P8 从"分支独有的树"里量而不是回 master 里找。
+3. **P7 第一版拿 per-file 平面（27 文件/332 处）去对登记册的 tree-wide 平面
+   （10 文件/7 名）**，报 "measured-only (17)"。我用门自己的尺子重写一遍探针
+   （`.scratch/defcensus1548_probe.py`）才确认自己量的是两个平面 ——
+   **这一条是本道的签名缺陷类在我自己的尺子上重开**：散文名与"在这个文件里被松散
+   尺子读到、但在别的文件里是真 def"的名字不是一回事，前者改变普查总数，后者不改变。
+   边界写进了门 docstring：per-file 平面只测、只打印、不声称。
+4. **P3 又红了一次，因为我把 `Dockerfile.api` 的理由写成了一句没有数字的话。**
+   门要求"理由带测量"，我就去把测量量出来（该路径在 master 树 0 处；同名文件住在
+   `docker/` 下，两边非注释行 14 与 19、逐行相同 4 行）改写理由，
+   **而不是把这条腿放宽**。放宽腿是拿门的颜色换登记册的懒惰。
+5. **A5 的预测漏了一半**：删掉一条判决会同时删掉由判决派生的缺口，所以 P8 也亮。
+   这是耦合不是 bug，但 §三 把它写成"只 P3"，等于假设了登记表之间互相独立。
+   RC1 的预测同理落空：A2 现在点亮五条腿，摘掉 P2 只剩四条红，
+   这条反向对照的含义从"这趟红来自 P2"变成"这四条红不依赖 P2"。
+
+**验证读数（本机实测）。** 本号门 **8 passed in 22.11s**；与 #1547 的门同跑
+**15 passed in 45.07s**（本号 8 条 + provider-smoke 7 条，**既有门一条都没被本号改红**）；
+台账家族门（`test_ledger_*` 与 `test_recorded_ledger_sections_do_not_vanish.py` 共 5 个
+文件）在本节追加后复跑：53 passed in 38.71s（证据文件名单、队列指针、节号唯一、已记录节不许消失 —— 5 个文件在本节追加之后复跑）；`python -m ruff check .` 全绿；**没有跑
+`ruff format`**（CI 只跑 `ruff check`，格式化会把别人车道的文件重排）。
+
+**诚实边界。** 门不证明判决**对**，只证明判决**还可核对**：后继路径没了、符号在
+master 不见了、改名的一侧被删 —— 都红，然后由人重新判决。它不跑那三条分支的测试，
+不 fetch（0 网络），不在登记册声明的 ref 缺席的 clone 上伪绿 —— 那种腿 skip 并印出
+解析到的条数（A17 就是量这个的）。per-file 的 def 平面（27 文件/332 处）是**易变**的，
+门只打印不声称。"58 个名字差、26 个未解释"也不是"并轨还差 26 件事"：其中 18 个集中在
+master 没有的那个文件里，而它的契约在 master 分散住在 `tests/fault/` 7 个文件加三条
+同名不同处的测试里 —— **判决是内容级的，余数是名字级的**，两个平面不该混进一句话。
+`#1547` 的账本里那句"三支的内容级对账是已超集/已撤销，没有整块可搬的东西"没有被本号
+推翻，被本号推翻的是它作为**散文**存在的方式：现在它会过期，过期就红。
+
+**证据文件。**
+- `evidence/branch_reconciliation.py`（新增，只声明：血缘的名字表、12 条文件处置、
+  14 对改名、名字普查、job 改名、7 个缺口、def 尺子的 10 个盲区文件）
+- `tests/unit/test_branches_without_a_common_history_are_accounted_for.py`（新增，
+  只测量：8 条腿 + 全部尺子 + 五把坏尺子的不复现）
+- `.scratch/predict1548.md`（§三 冻结预测、§四 订正与第二趟预测，追加时断言过
+  前缀 sha256 未变）
+- `.scratch/arms1548.txt`（第一趟，作废但保留）、`.scratch/arms1548b.txt`、
+  `.scratch/arms1548c.txt`（24 条臂的逐条腿归因与还原校验）
+
+**下一号队列。**
+- **#1549 provider-smoke 的 CI 手工腿**：#1547 把脚本接给了 owner，但 master 的 8 个
+  job 里 0 个跑它；接进 `ci.yml`（`workflow_dispatch` + environment + 三个 secrets）
+  要把 P8 里那条登记从缺口改成承接，且先读别道对 job 名册的门。
+- **#1550 分支独有测试搬回主干**：那 18 条 fault-scenario 集成测试要在 master 的状态机
+  上重写 —— master 的 FAILED 有 4 条出边含 QUEUED，分支的终态立场保持否证，不许照搬。
+- **#1551 temp 工作树生命周期**：#1547 留下的基线读数仍待武装成生产扫描。
+- **#1552 网关的第一条运行时 Java 测试**（Spring Cloud 元素的入口）。
+- 另有一条已量的数字欠账：`scripts/verify_golden_tags.py` 里硬编码 `len(tags) != 99`，
+  而 store 实测 `git tag -l 'case-*-head'` = **100**（docstring 与 GREEN 行也各印 99）；
+  先量三个平面（用例目录 / tag / 场景里引用的 ref 名）再决定是改数字还是让门来量。
