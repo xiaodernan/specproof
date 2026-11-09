@@ -41,10 +41,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from evidence.paths import capsule_dirs as _capsule_dirs
+from evidence.paths import eval_report_path as _eval_report_path
+
 logger = logging.getLogger(__name__)
-
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
 _ALLOWED_CONTRACT_STATUSES = {"all", "approved", "proposed", "rejected", "revoked"}
 _CAPSULE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _MANIFEST_MAX_BYTES = 1_048_576  # 1 MiB cap for a single capsule manifest
@@ -456,13 +456,6 @@ def _tool_contracts_list(arguments: dict[str, Any]) -> dict[str, Any]:
 # ── specproof_eval_summary ──────────────────────────────────────────────────
 
 
-def _eval_report_path() -> Path:
-    env_path = os.getenv("SPECPROOF_EVAL_REPORT_PATH", "").strip()
-    if env_path:
-        return Path(env_path).resolve()
-    return (_PROJECT_ROOT / "docs" / "eval" / "eval-report.results.json").resolve()
-
-
 def _tool_eval_summary(arguments: dict[str, Any]) -> dict[str, Any]:
     """Latest persisted evaluation report summary (missing file = clear error)."""
     del arguments  # no parameters by design
@@ -607,15 +600,7 @@ def _tool_health(arguments: dict[str, Any]) -> dict[str, Any]:
 # ── specproof_replay_info ───────────────────────────────────────────────────
 
 
-def _capsule_dirs() -> list[Path]:
-    """Directories searched for capsule artifacts (order = precedence)."""
-    dirs: list[Path] = []
-    env_dir = os.getenv("SPECPROOF_CAPSULE_DIR", "").strip()
-    if env_dir:
-        dirs.append(Path(env_dir).resolve())
-    dirs.append((_PROJECT_ROOT / "capsules").resolve())
-    dirs.append((Path.cwd() / "capsules").resolve())
-    return dirs
+
 
 
 def _available_capsule_names() -> list[str]:

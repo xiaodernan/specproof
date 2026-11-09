@@ -95,19 +95,6 @@ KNOWN_CLONES: dict[Clone, str] = {
     "merging needs a base class, and a hierarchy for five lines costs more than it saves",
     frozenset(
         {
-            ("api/routes/web.py", "_capsule_dirs"),
-            ("mcp/tools.py", "_capsule_dirs"),
-        }
-    ): "cross-layer path resolution, pinned by test_capsule_and_report_paths_agree "
-    "(#493); merging needs an owner decision on where the path lives",
-    frozenset(
-        {
-            ("api/routes/web.py", "_eval_report_path"),
-            ("mcp/tools.py", "_eval_report_path"),
-        }
-    ): "same cross-layer decision as _capsule_dirs (#493)",
-    frozenset(
-        {
             ("craft/adapters/go_adapter.py", "_read_text_or_none"),
             ("craft/adapters/node_adapter.py", "_read_text_or_none"),
         }
@@ -237,8 +224,8 @@ KNOWN_NEAR_CLONES: dict[Clone, str] = {
     ): "the canonical digest format, three copies across three packages. tests/ import "
     "one of them, so today the other two could change the digest of the same bytes in "
     "silence — pinned by test_copied_timestamp_and_digest_formats_agree; merging is the "
-    "same cross-layer owner decision #493 recorded for `_capsule_dirs`, so it is queued "
-    "with that decision rather than resolved here.",
+    "same cross-package owner decision the capsule/eval paths resolved in this pass; "
+    "queued with sha256_hex rather than resolved alongside the path pair",
     frozenset(
         {
             ("craft/budget.py", "_env_int"),

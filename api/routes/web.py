@@ -42,6 +42,12 @@ from api.errors import (
     VALIDATION_FAILED,
     ApiError,
 )
+from evidence.paths import (
+    capsule_dirs as _capsule_dirs,
+)
+from evidence.paths import (
+    eval_report_path as _eval_report_path,
+)
 from integrations.contract_counts import per_key_counts
 from storage.mysql import MySQLStore
 from storage.redis import RedisStore
@@ -77,29 +83,11 @@ def _actor_from_request(request: Request) -> str:  # noqa: ANN001 — FastAPI in
 
 
 
-def _capsule_dirs() -> list[Path]:
-    """Directories searched for capsule zip files (order = precedence)."""
-    dirs: list[Path] = []
-    env_dir = os.getenv("SPECPROOF_CAPSULE_DIR", "").strip()
-    if env_dir:
-        dirs.append(Path(env_dir).resolve())
-    dirs.append((_PROJECT_ROOT / "capsules").resolve())
-    dirs.append((Path.cwd() / "capsules").resolve())
-    return dirs
-
-
 def _reports_dir() -> Path:
     env_dir = os.getenv("SPECPROOF_REPORTS_DIR", "").strip()
     if env_dir:
         return Path(env_dir).resolve()
     return (_PROJECT_ROOT / "reports").resolve()
-
-
-def _eval_report_path() -> Path:
-    env_path = os.getenv("SPECPROOF_EVAL_REPORT_PATH", "").strip()
-    if env_path:
-        return Path(env_path).resolve()
-    return (_PROJECT_ROOT / "docs" / "eval" / "eval-report.results.json").resolve()
 
 
 # ---- Helpers ----
