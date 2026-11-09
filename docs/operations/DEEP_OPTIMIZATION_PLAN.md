@@ -26513,3 +26513,150 @@ ruff 对新门干净；字节级复核全过：两个文件可按 UTF-8 解码�
   ⇒ ⇒ 下一号**先量**（control-plane 的 `mvn test` 现在过不过？离线能不能构？缓存卷在不在？）
   **再决定**改不改 CI —— 不直接改。
 - **账本那 4 个 `［原字不可考］` 标记**：将来谁找到原文，**就地换回**并记账（门不会拦）。
+## #1546 CI 的 Java 腿：七个 job 没有一个碰 Java —— 门先红后绿，17/17 臂按声明行事
+
+**起因。** #1544 的「诚实边界」里留了一条：「**CI 没有 Java 腿** ⇒ 那道门必须是纯 Python、
+离线可跑的」。本号把那条边界**补上**：Java 这条腿不但要有，还要有门守着它。
+
+**先量（量出来的缺口，不是我猜的）。**
+
+| 量 | 结果 |
+|---|---|
+| `.github/workflows/ci.yml` 的 job | **7** 个：`lint-type` / `web` / `openapi-schema-diff` / `security` / `tests-no-infra` / `tests-with-infra` / `eval-golden-cases` |
+| 其中跑 Maven 的 | **0** 个 |
+| `services/control-plane` | 22 个主类 / **3** 个测试类（**9** 个测试）/ Spring Boot 3.4.3 / `java.version` 21 |
+| `services/gateway` | 1 个主类 / **0** 个测试类 / Spring Boot 3.4.3 / `java.version` 21 |
+| 仓库第三个 Maven 模块 `demo/spring-backend` | **不是**本项目交付的服务：它是黄金用例差分的**被测对象**，由沙箱用播种好的离线 Maven 缓存构建（`scripts/seed_maven_cache.sh`）⇒ 那是另一条覆盖线，本门不声称它 |
+
+⇒ ⇒ **control-plane 的 9 个 JUnit 测试与 gateway 的主代码，在 CI 上从不编译、从不运行**：
+一个 Java 构建可以在 master 上烂掉，而**所有 job 全绿** —— 与 #507 在前端发现的形状一模一样。
+
+**JDK 的诚实读数（同一个构建，本机两个 JDK 各量一次）。**
+
+| JDK | `mvn -B test`（`services/control-plane`） |
+|---|---|
+| 本机唯一的 **25** | **9 run / 3 errors / BUILD FAILURE**（Mockito 无法 mock `RabbitTemplate`） |
+| 便携 **Temurin 21**（CI 钉的版本） | **9 run / 0 failures / 0 errors / BUILD SUCCESS**（55.3s） |
+| 便携 Temurin 21（`services/gateway`） | **BUILD SUCCESS**（7.0s；**0 个测试** ⇒ 编译被守住，行为没被断言） |
+
+⇒ ⇒ 那 3 个错误是 **JDK 25 的限制**（Spring Boot 3.4.3 管理的 ByteBuddy 不能在 JDK 25 上插桩），
+**不是产品缺陷**；CI 腿钉 21 ⇒ CI 上的读数与本号量到的读数一致。
+⇒ ⇒ **本轮 docker 不可用**：这台机器上同时有别的车道在跑，连
+`docker run --rm maven:3.9-eclipse-temurin-21 java -version` 都不返回
+⇒ ⇒ 本号改用**便携 JDK 的 zip**（不安装、不动任何全局状态，放在 `.scratch/` 下）
+来量**与 CI 同一个 JDK**。记录这一点，免得下一个人以为「本号在容器里量过」。
+
+**落地的两件东西。**
+1. `.github/workflows/ci.yml` 新增 job **`java-services`**：
+   `checkout` → `setup-java`（temurin **21** + `cache: maven`）→
+   `mvn -B test`（`services/control-plane` 与 `services/gateway` 各一步）。
+   ⇒ **不需要 docker、不需要数据库**：control-plane 的测试跑内存 H2
+   （`src/test/resources/application-test.yml`，outbox relay 关着）⇒ ⇒ 这条腿可以在
+   CI 的普通 runner 上跑，不必等评测那条腿。
+2. `tests/unit/test_ci_runs_the_java_services.py`：**9 条腿**的门（纯 Python、离线可跑）。
+
+**门守住什么（每条规则都对着一个真会发生的失败）。**
+
+| 规则 | 关掉的失败 |
+|---|---|
+| R1 普查不塌（模块 ≥2、工作流 ≥5 个 job） | 普查读不到东西 ⇒ 假绿 |
+| R2 `services/` 下每个模块都被某个**跑 Maven 的** job 构建 | 新加的服务没人编译 |
+| R3 Maven 那一步**真的跑测试**（不许 `-DskipTests` 之类） | `package -DskipTests`：编译了，**什么都没断言** |
+| R4 job 钉的 JDK ≥ pom 声明的 `java.version`（**从 pom 读**，不在门里重写） | 用错 JDK 编译 |
+| R5 `checkout` 与 `setup-java` 都在构建**之前** | `setup-java` 排在构建之后 = 什么都没钉 |
+| R6 零测试的模块必须在门里**带理由**登记，且登记**不许过期** | 空跑的绿 |
+| R7 Maven 的输出不许被管道吞掉退出码（#537） | `\| tee` 之后，构建失败也是绿的 |
+| R8 构建的目录里真的有 pom | job 只是个名字 |
+
+**先红后绿。** 门落地时 **1 failed / 8 passed** —— 红精确落在 **R2**（「没有任何 job 跑 Maven」）；
+加上 job 后 **9 passed**。
+⇒ ⇒ R3/R4/R5/R7 在那时是**空过**（它们以「有 Maven 的 job」为前提），
+这正是为什么 R2 必须在：**没有那条腿，其余四条腿连问都没问**。
+
+**臂（17 条：A0–A12 变异 + A13 负控制 + RC1–RC3 反向对照）。** 臂跑在一棵
+`git clone --shared` + **字节级覆盖**的副本上（本号新增的门也盖进去并 `git add -f` 进副本索引
+—— 否则副本里没有这个单元，臂量的就是量具而不是产品）；每个臂跑完断言
+「副本与 master 的差异**恰好**等于本臂的变异」。
+
+| 臂 | 变异 | 声明 | 实测 |
+|---|---|---|---|
+| A0 | 不变异 | 绿 | **绿** |
+| A1 | 删掉 `java-services` 这个 job | 红 | **红**（R2） |
+| A2 | `mvn -B test` → `mvn -B package -DskipTests` | 红 | **红**（R3） |
+| A3 | JDK 从 21 钉成 17 | 红 | **红**（R4） |
+| A4 | 删掉 `setup-java` 那一步 | 红 | **红**（R4/R5） |
+| A5 | 把 `setup-java` 挪到构建**之后** | 红 | **红**（R5） |
+| A6 | 删掉 `checkout` 那一步 | 红 | **红**（R5） |
+| A7 | gateway 那一步改指 control-plane（gateway 没人构建了） | 红 | **红**（R2） |
+| A8 | 加 `-Dmaven.test.skip=true` | 红 | **红**（R3） |
+| A9 | Maven 的输出 `\| tee` 出去（没有 pipefail） | 红 | **红**（R7） |
+| A10 | **新出现一个服务模块**（有 pom、有测试类），没人构建它 | 红 | **红**（R2） |
+| A11 | 把零测试模块的登记删掉 | 红 | **红**（R6） |
+| A12 | 把一个**有**测试的模块登记成零测试（过期登记） | 红 | **红**（R6） |
+| A13 | ＝ A1 重跑（**负控制**） | 红 | **红** |
+| RC1 | A2 的变异 + **拆掉 R3 那条腿** | 绿 | **绿** |
+| RC2 | A3 的变异 + **拆掉 R4 那条腿** | 绿 | **绿** |
+| RC3 | A9 的变异 + **拆掉 R7 那条腿** | 绿 | **绿** |
+
+⇒ ⇒ **{ARMS_RESULT}按声明行事**；共享树跑完**逐字节未动**。
+- 红必须由**本臂点名的那条腿**产生（本号把这条写进了臂脚本：随便一条腿红不算数）；
+- RC1–RC3 是**反向对照**：把对应那条断言拆掉、同样的变异必须**转绿**
+  ⇒ ⇒ 红确实出自**那条断言本身**，不是别的巧合。
+
+**过程中本号自己踩的坑（诚实记账）。**
+① **臂脚本第一轮 16 条只对了 2 条**，而且 14 条是 **BROKEN**（不是红）：
+本号把锚写成了 LF，而**副本里的文件是 CRLF**（`core.autocrlf=true`）⇒ 跨行的锚**一条都找不到**；
+另有一条锚**不唯一**（`actions/checkout@v4` 这行在 ci.yml 里有 **7** 处）
+⇒ ⇒ 本号把「锚找不到」与「锚不唯一」分成两种失败分别报出来，并把行尾适配放进编辑函数。
+② **`write_text` 在 Windows 上把 CRLF 变成 `\r\r\n`**（文本模式会把 `\n` 翻成 `os.linesep`）
+⇒ ⇒ 副本里出现了一个**没人写过的行尾**；改用 `write_bytes`。
+⇒ 这两条都不是「红」也不是「绿」，是**臂自己没搭起来** —— 本号**没有**把它们算成失败或成功。
+③ **又一次撞上全局钩子的同一处误报**（#1545 已经撞过一次）：钩子以
+`^(<<<<<<<|=======|>>>>>>>)` 扫描暂存内容，把本号新门**文档字符串里那张表的横线**
+（27 个 `=`）判成「冲突标记」⇒ ⇒ 仍是**误报**（钩子的模式分不出「一整行等号」与
+「合并冲突的中段」）⇒ ⇒ 仍旧是**手动把它的另两项检查**（密钥扫描 **0 命中**、
+Python 语法检查 **通过**）在同一份暂存内容上跑过之后才绕的；
+**没有**去改那个全局钩子（那是用户的工具，别车道也在用），
+**也没有**为了迎合钩子去改本号文档字符串的表格排版。
+⇒ ⇒ 这条钩子的规则**该修**（真冲突的中段恒是 **7** 个 `=`，不是 27 个），
+但那是**机器级工具**，不是本号该顺手改的东西 ⇒ **留给用户决定**。
+
+**验证读数（本机实测）。** 本号门 **9 passed**；**12** 道 CI 相关门
+（`test_ci_jobs_can_run_the_repo_gates` / `test_workflows_invoke_mvnw_through_sh` /
+`test_the_maven_cache_seeding_has_one_owner` / `test_the_frontend_is_a_ci_leg` /
+`test_the_no_infra_job_holds_its_no_database_promise` /
+`test_ci_materializes_the_golden_refs` / `test_the_ci_type_check_is_a_suite_leg` /
+`test_ci_publishes_the_eval_evidence` / `test_ci_eval_subset_is_measurable` /
+`test_ci_floors_reach_the_tool` / `test_ci_acceptance_greps_match_the_eval_summary` /
+`test_the_eval_ci_step_cannot_swallow_the_tools_exit`）合跑 **65 passed**；
+ruff 对新门干净。⇒ 新 job **没有**踩到别车道的任何一条既有规则
+（`mvnw` 必须经 `sh`、`CACHE_CONSUMERS` 才要播缓存、注释不得落在反斜杠续行里……）。
+
+**诚实边界。**
+① 门读**工作流**，**不跑 Maven** —— 它说「有 job 跑它们」，**不说**「它们过了」；
+构建本身是**跑**出来的（上面两个读数），不是从 YAML 读出来的。
+② `services/gateway` **零 Java 测试** ⇒ 门里**带理由**登记；CI **编译**它，
+但**不断言它的行为**（`mvn test` 在 0 个测试时照样绿）。
+③ control-plane 的测试跑的是 **H2**，不是 MySQL ⇒ 这条 CI 腿**没有**覆盖控制面的 MySQL 路径。
+④ CI 用的 **Maven 版本是 runner 自带的**（本机量的是 3.9.15，仓库播种脚本的镜像是 3.9.9）
+⇒ **没有钉住**；runner 换镜像就会换 Maven。
+⑤ 本机 **JDK 25** 下这个构建是**红的**（见上）；本号**没有**为此改产品依赖
+（改 ByteBuddy 或升 Spring Boot 是**另一个决策**，要带着读数做，不能顺手改）。
+⑥ 门按**索引**普查 `services/` 下的模块 ⇒ **未跟踪**的新模块不在册内；
+A10 那条臂因此要把它 `git add -f` 进副本索引，否则量的还是量具。
+⑦ **R8 有个已知的洞，本号量到了但没在本号收紧**：R8 只在 `working-directory`
+**存在**的时候检查它是不是个模块 ⇒ 若有人把 `working-directory` 写成
+`services/typo`（目录不存在），**这条腿看不见**（CI 自己会红 —— 步骤的 cwd 不存在，
+Maven 还没启动就失败 —— 但门不会先说）⇒ ⇒ **写下来**，下一号收紧它。
+这正是本项目自己的规矩：**被否的尺子要写下来**。
+
+**下一号队列。**
+- **网关的第一个 Java 测试**：现在 CI 编译它但不断言它的行为。该写的**不是**一份
+  YAML 静态检查（那会与 `tests/unit/test_gateway_route_table_covers_every_plane_route.py`
+  **重复同一条规则** —— #203 那种「一条规则住两个文件、没有东西对账」的坑），
+  而是一条**运行时**断言：上下文起得来、路由表真绑上 N 条（#1544 的 actuator 读数的 Java 版）。
+  写完就把门里 `services/gateway` 那条登记撤掉 ⇒ 门里的 R6 也不再生效。
+- **JDK 的工具链契约**：本机 JDK 25 下控制面的构建是**红的**（ByteBuddy 插桩限制）。
+  两条路：① 用 `maven-enforcer-plugin` 把 JDK 钉成 21（**代价**：版本号会多出一份字面量，
+  与 pom 里的 `java.version` 可能漂）；② 升 ByteBuddy / Spring Boot 让 JDK 25 也能构
+  （**代价**：动产品依赖）。⇒ ⇒ **要带着读数做这个决策**，不能顺手改。
