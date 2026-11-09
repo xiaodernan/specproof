@@ -71,6 +71,14 @@ NON_STATIC_SQL_SITES: dict[str, str] = {
         "_split_statements only strips comments, and values still travel as "
         "bound parameters"
     ),
+    "storage/rollback_migrations.py::conn.cursor().execute(stmt)": (
+        "one statement of a repository down-migration file: the text is read from "
+        "infra/mysql/migrations/down/*.sql inside this repo (app-owned DDL authored "
+        "at commit time, reviewed in the same PRs — this is the migration author's "
+        "code, never request data), _split_statements only strips comments, the "
+        "executor runs only what the file handed it; the only runtime value travels "
+        "through the separate schema_migrations version column as a bound parameter (%s)"
+    ),
     "storage/mysql.py::cur.execute(replay_sql, tuple(ids))": (
         "replay_dead_notifications: the IN-list is built solely from "
         "constant '%s' placeholders joined by ', ' — no request data ever "
