@@ -56,6 +56,7 @@ eval-report.results.json
 # as the run goes. A run artifact, never source.
 eval-report.results.jsonl
 services/control-plane/target/
+services/gateway/target/
 
 # Local test-run logs (evidence lives in reports/ artifacts)
 .pytest-*.log
