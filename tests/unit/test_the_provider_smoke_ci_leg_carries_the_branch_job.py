@@ -21,8 +21,11 @@ Measured while building this gate, in a disposable worktree at ``3f493ea``:
 * The landing was written from memory first, and the memory was wrong: the job
   body carried ``SPECPROOF_LLM_API_KEY`` and friends. ``providers/config.py``'s
   ``_ENV_FIELDS`` declares ``LLM_BASE_URL / LLM_API_KEY / LLM_MODEL /
-  LLM_REASONING_EFFORT / LLM_PROTOCOL``, and ``SPECPROOF_LLM`` appears **0 times**
-  in the whole repository -- so that job would have run, read nothing, reported
+  LLM_REASONING_EFFORT / LLM_PROTOCOL``, and at ``3f493ea`` the token
+  ``SPECPROOF_LLM`` appeared **0 times** in the whole tree (it now appears in this
+  file and in ci.yml's comment, which is the same self-witness shape #1548 had to
+  exclude -- harmless here only because no ruler greps for that token) -- so that
+  job would have run, read nothing, reported
   ``source="unconfigured"`` with 0 capabilities, exited 1, and every existing gate
   stayed green. The branch's own job had the three names right. This is what
   convergence buys, and it is a measurement rather than an argument.
