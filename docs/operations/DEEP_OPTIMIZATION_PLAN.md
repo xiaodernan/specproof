@@ -28226,3 +28226,46 @@ markdown 行按列按位置填，于是 "Path=/**" 填进了 *path* 列，**plan
 - 全量门复跑结果如实登记 + Drill 1（真强杀 → 续跑）；
 - slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+
+## #1572 边缘自己的 metrics：每条路由的 CumulativeTimer 进 Prometheus（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 37ed935 → 43f8781）。
+
+**来路。** SCG 4.2.1 有一条独立的
+`spring.cloud.gateway.metrics.enabled`（默认 **false**）——开按路由发出的
+`spring.cloud.gateway.requests`（CumulativeTimer；tag：routeId / httpMethod /
+httpStatusCode / outcome / routeUri / status）与 `spring.cloud.gateway.routes.count`
+（gauge）。此前 management 端口的抓数里 gateway 自身静默：谁也看不出流量落在哪个路由、
+每条路由怎么结束——55 看断路器、56 看池，就是没有「看路由」的一格。
+
+**落地：**
+- `application.yml`：`spring.cloud.gateway.metrics.enabled: true`（注释写清为什么）。
+- `GatewayMetricsTests.java`（新，2 腿）：真代理路径（JDK `HttpServer` 上游 + catch-all 路由）
+  ⇒ `spring.cloud.gateway.requests` 带 `routeId=agent-runtime-default` 注册、`outcome=SUCCESSFUL`、
+  `httpMethod=GET`、`routeUri` 指向上游；`spring.cloud.gateway.routes.count` gauge == **6**。
+- `infra/grafana/dashboards/specproof-slo.json`：新增面板 57「Edge 各路由请求速率（SCG metrics）」
+  （timeseries：`sum by (route_id) (rate(spring_cloud_gateway_requests_seconds_count[5m]))`，
+  unit=reqps；面板 56 → **57**）。
+- 文档现状计数同步：STACK_INVENTORY / ROADMAP / PRODUCT_ROADMAP / EXPERIENCE_GUIDE（56→57）。
+
+**验证读数：**
+- **Java：`mvn -o -B test` ⇒ 22 tests, 0 failures — BUILD SUCCESS**（20 + 新 2）。
+- 面板 JSON 可解析（57 panels，max id 57）；dashboard/observability 9 个门 **79 passed**；
+  `ruff` 全绿。
+- 指标类型实测：`spring.cloud.gateway.requests` = **CumulativeTimer**、
+  `spring.cloud.gateway.routes.count` = DefaultGauge（探针输出，临时探针已删）。
+
+**诚实边界：**
+- **未画 p95**：Timer 默认不发布 histogram bucket——画 p95 就是给面板编造数据。
+  mean 延迟（`_sum/_count`）留到有人需要它时再画。
+- 指标名按 micrometer → Prometheus 的简单映射（dots→下划线；timer 的 base unit 让名称带
+  `_seconds_` 中段）；生产侧序列以部署后抓数为准；无流量时面板为空属正常。
+- `routeUri` 是上游的内部地址（本地 `127.0.0.1:port`），本号没有把它放进任何对外表
+  （面板只有 `route_id` 分组）。
+- 面板**未经 Grafana 渲染实测**（不装、不开服务）。
+- 未跑全量门（复跑已在后台，日志 `_fullgate_v5.txt`，结果待下一节登记）。
+
+**下一号队列（不动）：**
+- 全量门复跑结果如实登记 + Drill 1（真强杀 → 续跑）；
+- slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
