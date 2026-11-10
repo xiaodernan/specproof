@@ -5727,7 +5727,7 @@
         "y": 204
       },
       "options": {
-        "content": "**Edge 路由归属表**\n\n| route id | method | path | plane |\n|---|---|---|---|\n| control-plane-jobs | GET | /api/v1/jobs, /api/v1/jobs/{id} | control-plane |\n| control-plane-tenants | GET,POST | /api/v1/tenants | control-plane |\n| control-plane-tenant-item | GET | /api/v1/tenants/{id} | control-plane |\n| control-plane-tenant-users | GET,POST | /api/v1/tenants/{tenantId}/users | control-plane |\n| control-plane-github-webhook | POST | /api/v1/webhooks/github | control-plane |\n| agent-runtime-default | Path=/** | agent-runtime |\n\nagent-runtime-default 是兜底路由（Path=/**，排最后）——\n其他未声明路径全部回落到 agent runtime。\n\n`GET /health` 不归 edge；SpecproofEdgeGatewayDown 只守这一张表对应的一个 scrape job。",
+        "content": "**Edge 路由归属表**\n\n| route id | method | path | plane |\n|---|---|---|---|\n| control-plane-jobs | GET | /api/v1/jobs, /api/v1/jobs/{id} | control-plane |\n| control-plane-tenants | GET,POST | /api/v1/tenants | control-plane |\n| control-plane-tenant-item | GET | /api/v1/tenants/{id} | control-plane |\n| control-plane-tenant-users | GET,POST | /api/v1/tenants/{tenantId}/users | control-plane |\n| control-plane-github-webhook | POST | /api/v1/webhooks/github | control-plane |\n| agent-runtime-default | ANY | /** | agent-runtime |\n\nagent-runtime-default 是兜底路由（Path=/**，排最后）——\n其他未声明路径全部回落到 agent runtime。\n\n`GET /health` 不归 edge；SpecproofEdgeGatewayDown 只守这一张表对应的一个 scrape job。",
         "mode": "markdown"
       },
       "panels": []
