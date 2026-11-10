@@ -29438,3 +29438,40 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
   （微服务"配置外置"惯用法，无新依赖）——可读性/可运维性元素；
 - 或把本号六事件计数接到 Grafana 面板（新增 `specproof_gateway_mq_event_total` 时序 + `dead_lettered` 速率告警），
   但须先在真实 dashboard JSON 实建面板/告警，再在 `SPRING_CLOUD_EDGE.md` 计数，以免超吹。
+
+## #1604 GatewayProperties — 边缘配置外置（Spring Cloud 微服务「配置外置」惯用法）
+
+**记录基准**：本节只追加；落地于 `<TBD>`（master 链 `a087dd4` → `<TBD>`）。#1603 的"下一号队列"点名本号：把边缘魔法数经 `@ConfigurationProperties` 外置为 `GatewayProperties`（无新依赖）。
+
+**来路。** 用户要"加一些 springcloud 微服务的元素"。微服务十二要素之一即"配置外置"（config in environment，不进代码）。此前边缘的可调旋钮（`request-size.enabled`/`max-bytes`、`security-headers.enabled`、`mq-events.*`）散落在四个类的 `@Value` 字符串里，改默认值要动源码、且无法被 config-server/env 统一覆盖。本号收拢到单个 `@ConfigurationProperties(prefix="specproof.gateway")` bean，filters 改注入该 bean，默认与旧 `@Value` 字面量完全一致——纯 Spring Boot 原生能力，无新依赖、离线可验证。
+
+**落地：**
+- `services/gateway/src/main/java/dev/specproof/gateway/config/GatewayProperties.java`：
+  `@ConfigurationProperties(prefix="specproof.gateway")`，含嵌套 `RequestSize{enabled=true, maxBytes=10MiB}`、
+  `SecurityHeaders{enabled=true}`、`MqEvents{enabled=false, exchange=specproof.observability.events, queue=q.gateway.mq-events}`——
+  默认值 == 旧 `@Value` 字面量，行为零变化。
+- `services/gateway/src/main/java/dev/specproof/gateway/config/GatewayConfig.java`：`@Configuration` +
+  `@EnableConfigurationProperties(GatewayProperties.class)`，注册绑定 bean（核心 Spring Boot，无新依赖）。
+- 三处 filter 改注入 `GatewayProperties`：
+  - `EdgeRequestSizeGlobalFilter`（request-size）、`EdgeSecurityHeadersGlobalFilter`（security-headers）、
+    `GatewayMqEventConsumer`（mq-events exchange/queue）各加 `@Autowired` 构造器（取 `GatewayProperties`）；
+    **保留直构造器**（`(boolean,long)` / `(boolean)` / `(MeterRegistry,String,String)`）供测试，**45 个既有网关测试零改动仍绿**。
+- `services/gateway/src/test/java/dev/specproof/gateway/config/GatewayPropertiesBindingTest.java`：2 例
+  （绑定默认 + `@TestPropertySource` 覆盖 `max-bytes=2048`/`security-headers=false` 生效、`mq-events` 默认关且
+  `exchange`/`queue` 默认就位；刻意不开 `mq-events.enabled`，否则测试需真 broker）。
+
+**验证读数（实测）：**
+- `cd services/gateway && mvn -o -B test`：**47 passed / 0 failed**（原 45 + 本号 2）；BUILD SUCCESS；
+  含全 Spring 上下文测试在无 broker 下照常启动（证明 `GatewayProperties` 绑定 + 三 filter 经该 bean 构造无误）。
+- 既有 45 例（含 `GatewayApplicationTests` 全上下文、`EdgeRequestSizeGlobalFilterTest`、`EdgeSecurityHeadersGlobalFilterTest`、
+  `GatewayMqEventConsumerTest`）全绿——直构造器路径未被破坏。
+
+**诚实边界：**
+- 仅做"收拢 + 外置"，不改任何默认值/语义；`@Value` 字面量原样迁移进 `GatewayProperties`，故运行时行为逐字节等价（已有 45 例门钉死）。
+- 未引 config-server（`spring-cloud-config-client`）——那是一层可选增强；本号只把"旋钮"从源码挪到可环境变量覆盖的 bean，已满足"配置外置"要素。若要跨环境统一配置，接 config-server 是下一步（见下）。
+- `GatewayProperties` 的 `mqEvents` 与 #1603 的 `@ConditionalOnProperty` 读同一 `specproof.gateway.mq-events.enabled` 键，二者天然一致。
+
+**下一号队列（不动）：**
+- 接 `spring-cloud-config-client` + 一个 config-server compose，让 `GatewayProperties` 真正跨环境统一（目前仍靠 application.yml + env）；
+- 或边缘 `TokenRelay` / OAuth2 resource server（资源服务器校验 JWT）——安全微服务元素，需先定 JWT 发行人策略；
+- 或把本号六事件计数接到 Grafana 面板（须先在真实 dashboard JSON 实建面板/告警，再在 `SPRING_CLOUD_EDGE.md` 计数）。

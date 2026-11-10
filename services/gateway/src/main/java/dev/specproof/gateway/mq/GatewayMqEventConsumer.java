@@ -11,29 +11,35 @@ import org.springframework.amqp.rabbit.annotation.Exchange;
 import org.springframework.amqp.rabbit.annotation.Queue;
 import org.springframework.amqp.rabbit.annotation.QueueBinding;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import dev.specproof.gateway.config.GatewayProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * Edge-side subscriber for the W190 six-event RabbitMQ observability bus.
  *
- * <p>The Python agent runtime ({@code storage/rabbitmq.py}) emits one structured
- * event per pipeline step — published, publish_confirm_timeout, consumed,
- * duplicate_acked, retry_scheduled, dead_lettered — onto the
+ * <p>The Python agent runtime ({@code storage/rabbitmq.py}, producer wired in
+ * {@code observability/mq_events.py}) emits one structured event per pipeline
+ * step — published, publish_confirm_timeout, consumed, duplicate_acked,
+ * retry_scheduled, dead_lettered — onto the
  * {@code specproof.observability.events} topic exchange, one routing key per
- * event name. This consumer tallies each event into a Micrometer counter
+ * event name, when {@code SPECPROOF_MQ_EVENTS_ENABLED=1}. That switch is OFF
+ * by default, so enabling this subscriber without also enabling the producer
+ * yields a queue that hears nothing; both sides ship off (#1603). This consumer tallies each event into a Micrometer counter
  * ({@value #METRIC_NAME}, tagged by {@code event}), so the gateway's
  * Prometheus scrape exposes the agent runtime's message-pipeline health at the
  * edge without the edge ever talking to the agent runtime's database.
  *
  * <p>Why a Spring Cloud element: this is the concrete microservice seam between
  * the Python agent runtime and the Spring Cloud edge. The agent runtime owns
- * the broker topology and the events; the gateway owns only a read-only,
- * durable queue bound to six routing keys. Neither side imports the other's
- * code — they meet on the exchange, which is the entire point of an event bus.
+ * the event vocabulary and the publish path; the gateway owns a durable queue
+ * bound to six routing keys. The topic exchange is declared idempotently by
+ * both sides (AMQP declaration is idempotent), so neither assumes the other
+ * booted first. Neither side imports the other's code — they meet on the
+ * exchange, which is the entire point of an event bus.
  *
  * <p>Fail-closed by default: the whole bean is {@link ConditionalOnProperty}
  * on {@code specproof.gateway.mq-events.enabled}. When it is false (the
@@ -71,10 +77,16 @@ public class GatewayMqEventConsumer {
     private final String exchange;
     private final String queue;
 
-    public GatewayMqEventConsumer(
-            MeterRegistry registry,
-            @Value("${specproof.gateway.mq-events.exchange:specproof.observability.events}") String exchange,
-            @Value("${specproof.gateway.mq-events.queue:q.gateway.mq-events}") String queue) {
+    /** Spring constructor — pulls the exchange/queue from the externalized
+     *  {@link GatewayProperties} bean (#1604). Only instantiated when
+     *  {@code specproof.gateway.mq-events.enabled=true} (see {@link ConditionalOnProperty}). */
+    @Autowired
+    public GatewayMqEventConsumer(MeterRegistry registry, GatewayProperties props) {
+        this(registry, props.getMqEvents().getExchange(), props.getMqEvents().getQueue());
+    }
+
+    /** Direct constructor used by tests and manual wiring. */
+    public GatewayMqEventConsumer(MeterRegistry registry, String exchange, String queue) {
         this.registry = registry;
         this.mapper = new ObjectMapper();
         this.exchange = exchange;

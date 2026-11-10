@@ -1,6 +1,6 @@
 package dev.specproof.gateway.filter;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -8,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 
+import dev.specproof.gateway.config.GatewayProperties;
 import reactor.core.publisher.Mono;
 
 /**
@@ -77,9 +78,15 @@ public class EdgeSecurityHeadersGlobalFilter implements GlobalFilter, Ordered {
 
     private final boolean enabled;
 
-    /** Spring constructor — reads the operator toggle, defaults on. */
-    public EdgeSecurityHeadersGlobalFilter(
-            @Value("${specproof.gateway.security-headers.enabled:true}") boolean enabled) {
+    /** Spring constructor — pulls the operator toggle from the externalized
+     *  {@link GatewayProperties} bean (#1604) instead of @Value strings. */
+    @Autowired
+    public EdgeSecurityHeadersGlobalFilter(GatewayProperties props) {
+        this(props.getSecurityHeaders().isEnabled());
+    }
+
+    /** Direct constructor used by tests and manual wiring. */
+    public EdgeSecurityHeadersGlobalFilter(boolean enabled) {
         this.enabled = enabled;
     }
 

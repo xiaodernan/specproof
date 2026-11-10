@@ -1,6 +1,6 @@
 package dev.specproof.gateway.filter;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 
+import dev.specproof.gateway.config.GatewayProperties;
 import reactor.core.publisher.Mono;
 
 /**
@@ -48,10 +49,15 @@ public class EdgeRequestSizeGlobalFilter implements GlobalFilter, Ordered {
     private final boolean enabled;
     private final long maxBytes;
 
-    /** Spring constructor — reads the operator toggles, both defaulting on/sane. */
-    public EdgeRequestSizeGlobalFilter(
-            @Value("${specproof.gateway.request-size.enabled:true}") boolean enabled,
-            @Value("${specproof.gateway.request-size.max-bytes:10485760}") long maxBytes) {
+    /** Spring constructor — pulls the operator toggles from the externalized
+     *  {@link GatewayProperties} bean (#1604) instead of @Value strings. */
+    @Autowired
+    public EdgeRequestSizeGlobalFilter(GatewayProperties props) {
+        this(props.getRequestSize().isEnabled(), props.getRequestSize().getMaxBytes());
+    }
+
+    /** Direct constructor used by tests and manual wiring. */
+    public EdgeRequestSizeGlobalFilter(boolean enabled, long maxBytes) {
         this.enabled = enabled;
         this.maxBytes = maxBytes;
     }
