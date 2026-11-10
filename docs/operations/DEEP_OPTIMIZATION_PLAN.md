@@ -28757,3 +28757,17 @@ histogram buckets、p95 面板（#1584）——ADR 索引 `docs/adr/README.md` �
 - 门 v7（`3bacba2`）结果登记；
 - Drill 1；slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1587 收尾巡检：状态盘点（2026-11-10）
+
+**记录基准**：本节只追加；本号不落任何代码、不动任何文件——只核定一次当前状态。
+
+**报告：**
+- `git worktree list`：`specproof-reference`（master，同步）、`sp-v7`（`3bacba2`，detached，门 v7 在跑）、`_wt_plan`（用户沙箱）。**`sp-full` 工作树本轮已移除**（之前挂载 `b8f6209`，门 v6 结束后无用）。
+- `git stash list`：3 项，均既有——`stash@{0}`（2026-11-09 本人本会话自用 ledger-cleanup）、`stash@{1}`/`stash@{2}`（parallel test changes / parallel session changes，用户原项）——全未动。
+- `git status --porcelain` 干净；`master == origin/master`（`e19d6cb`）。
+- 验证库状态：`specproof_phase0 verification_jobs` 中 `drill-wk-*` 共 **2 条且 status = CANCELLED**（本轮用 state machine CAS 写入）；`specproof_phase0 outbox` 共 7 行、无 `drill-wk-*`；`specproof_test`/`specproof_test2` 同名表均零行 `drill-wk-*`。`/test/%` 残留行 = 0（最近全量门口径）。
+- 收尾残留文件（本轮 `_*.py`/`_*.md`/`_*.txt`）均已删除；仅 4 份门日志保留（`_fullgate_v4/v5/v6/v7.txt`）作为门记录。
+
+**诚实边界：**
+- 本号没有做代码变更、没有跑任何新测试、没有 commit 任何文件；**本节的存在只是「我知道仓库现在是干净的」的记录，不构成产出、不是生产证据。**
+- 门 v7 仍在 `3bacba2` 跑；结果出来之前本仓库**没有**全量门 #7 的结论。
