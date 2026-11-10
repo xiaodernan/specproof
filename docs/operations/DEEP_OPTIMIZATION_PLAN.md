@@ -29003,3 +29003,67 @@ caller 每秒钟都在被 429 丢弃，值班人员只有看得到的面板、�
   不是手填常量；
 - 本节与 #1591 同提交：先按两提交拆分实证中间态红（告警声明无、census 无）→
   合并为 `6faf637`，一并通过全部 39 项定向门。
+## #1593 不相关历史根的三条分支并轨：逐件搬运 + 逐项记录
+
+**记录基准**：本节只追加；落地于附带提交（master 链 3287fc4 → 本节提交）。
+
+**来路。** 用户授权把"项目的多个工作分支/各种 worktree"合并进主分支、汇集所有内容。
+本仓库的三条 pre-rebuild 远端分支过久未动，且**与 master 不共享任何根**
+（`git merge-base` 为空：master 的根是 `0d85586e`；`interview-hardening` 的根是
+`7d9aaa96`）——`git merge --allow-unrelated-histories` 不可取，内容必须逐件评估。
+
+**盘点（实测）：**
+- `origin/feature/interview-hardening`（287 commits，tip `76285a7`，2026-08-21）：
+  相对 master 独有文件 **0**；其有价值的 fault-scenario 测试于 #1550 已手工搬回主干。
+- `origin/feature/p1-reliability-kernel`（24 commits，tip `a756f53`，2026-07-14）：
+  独有文件 **8**（`.github/workflows/quality.yml`、`Dockerfile.api`、`compose.p1.yml`、
+  `docs/p1/p1a-final-report.md`、`docs/p1/wip-migration-matrix.md`、`evidence/matrix.py`、
+  `scripts/run_differential.sh`、`storage/migrations/001_p1_baseline.sql`、
+  `storage/migrations/002_failed_terminal.sql`）。
+- `origin/release/p0.5-verified-v1`（11 commits，tip `4145d95`，2026-07-13）：
+  独有文件 **2**（`evidence/matrix.py`、`scripts/run_differential.sh`，与 p1 共有）。
+
+**已收编（4 件，#1593）：**
+- `evidence/matrix.py` → `evidence/matrix.py`（Requirement-to-Evidence Matrix builder）：
+  docstring 增出处说明；只有注解现代化（`dict` → `dict[str, Any]`）以过 mypy strict；
+  现为 `tests/unit/test_evidence_matrix.py` 钉住的**行为模块**——4 条真腿：
+  worst-finding wins（BLOCKER 胜 MAJOR）/ 未覆盖契约 PASS / 摘要计数 / changed_symbols
+  按 `checker_type` 或 id 前缀匹配。**代码行为未变更**（diff 仅 docstring + 4 处注解）。
+- `scripts/run_differential.sh` → `scripts/legacy/run_differential_p0_5_c6.sh`
+  （P0.5-C6 差分 JUnit harness，demo/spring-backend，写死 `base`/`head-v1` tag）：
+  body **原样搬运**（UTF-16 转 UTF-8），顶部加出处 header，并登记为**无人支持的参考物料**
+  （本机未实跑）。
+- `docs/p1/p1a-final-report.md`、`docs/p1/wip-migration-matrix.md` → `docs/p1/`，
+  原样（旧分支自己的验收报告与迁移矩阵快照，不作改写）。
+- 新增 `docs/p1/README.md`：三条根谱系、逐项决定表（收编/未收编 + 理由）。
+
+**未收编（6 件，附理由；非报错，是胜出选择）：**
+- `storage/migrations/001_p1_baseline.sql`、`002_failed_terminal.sql`：
+  master 已有 `storage/migrations/001_job_state_machine.sql`（同序号、同代际演进：
+  8 态 ENUM + idx_status/idx_worker）；002 实为一句"FAILED 终态化"的说明，
+  落地于 master 的代码与迁移代际；加入会造出两份互相矛盾的 DDL。
+- `Dockerfile.api`：master 已有 `docker/Dockerfile.api`（多服务建案，`compose.*.yml`
+  的 `build:` 指向它，布局与 app 现状一致）。
+- `compose.p1.yml`：master 已有 `compose.phase0.yml` / `compose.production.yml` /
+  `compose.observability.yml`。
+- `.github/workflows/quality.yml`：旧 P1-only 触发；master 的 `.github/workflows/ci.yml`
+  承载现行全部门。
+- interview-hardening 整树：独有文件 0，无需搬运。
+
+**验证读数（实测，非推断）：**
+- `pytest tests/unit/test_evidence_matrix.py` → **4 passed**；
+- `python -m mypy evidence\matrix.py tests\unit\test_evidence_matrix.py` → Success，
+  no issues found in 2 source files（strict）；
+- `python -m ruff check evidence\matrix.py tests\unit\test_evidence_matrix.py` → All checks passed；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- 并轨**不产生**任何 merge commit，三条远端分支的 refs 原地不动、一个字不改；
+  本次是"内容迁移"，不等价于"分支已合入 master"，也不能潭替业务方删掉它们；
+- legacy 脚本**未在本机实跑**（它依赖 demo/spring-backend 内的 `base`/`head-v1` tag、
+  mvnw 与 JDK 21 环境，以及 ~分钟级构建）；仅头注释标明；
+- `evidence/matrix.py` 至本节仍是**无调用方的新模块**——按设计（其用途是证据矩阵
+  的构造器，master 早已以其他路径产生同类数据），本号选择"搬运+钉行为"，
+  是否接线进报告下一轮再定，不假装现有路径消费它；
+- 门 v7（快照 `3bacba2`）几乎跑完（96%）；门 #8 对当前 master（3287fc4）在后台跑，
+  本节不因此改变全量门口径；任何红只能等各自出结果再红修。
