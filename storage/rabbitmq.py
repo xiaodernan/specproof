@@ -9,11 +9,12 @@ structured event. The default sink is a no-op, so legacy callers keep
 byte-identical behavior; observability wiring (OTel/metrics) consumes
 RabbitMQEventLog or a caller-provided sink.
 
-#1603: SPECPROOF_MQ_EVENTS_ENABLED=1 swaps the default no-op for the W190
-broker sink (observability.mq_events), which publishes the same six
-events to the specproof.observability.events topic exchange consumed by
-the Spring Cloud edge. The names live in one place:
-observability.event_vocabulary.MqEvent.
+#1603/#1605: SPECPROOF_MQ_EVENTS_ENABLED=1 swaps the default no-op for a
+composite sink that keeps logging and forwards the same six events to the
+specproof.observability.events topic exchange consumed by the Spring Cloud
+edge. The single publishing implementation is RabbitMQBusSink below; the
+opt-in switch, the vocabulary guard and the failure guard live in
+observability/mq_events.py and observability/event_vocabulary.py.
 """
 import json
 import logging
@@ -31,10 +32,16 @@ from pika.exceptions import (
     UnroutableError,
 )
 
-from storage.env_config import int_env
-
-from observability.event_vocabulary import MqEvent
+from observability.event_vocabulary import (
+    EVENT_KINDS,
+    GATEWAY_QUEUE,
+    MqEvent,
+)
+from observability.event_vocabulary import (
+    EXCHANGE_EVENTS as EXCHANGE_EVENTS,  # explicit re-export for bus-sink tests
+)
 from observability.mq_events import event_sink_from_env
+from storage.env_config import int_env
 
 logger = logging.getLogger(__name__)
 
@@ -85,16 +92,11 @@ def _noop_sink(event: dict[str, Any]) -> None:
 # to exactly these six routing keys. The names here ARE the contract between
 # the Python runtime and the Java edge — change one, change both.
 
-EXCHANGE_EVENTS = "specproof.observability.events"
-QUEUE_GATEWAY_MQ_EVENTS = "q.gateway.mq-events"
-MQ_EVENTS = (
-    "published",
-    "publish_confirm_timeout",
-    "consumed",
-    "duplicate_acked",
-    "retry_scheduled",
-    "dead_lettered",
-)
+# The names live in observability/event_vocabulary.py (#1605). These three
+# aliases keep the public surface that the bus-sink tests import, but there
+# is now exactly ONE definition of the wire contract on the Python side.
+MQ_EVENTS = EVENT_KINDS
+QUEUE_GATEWAY_MQ_EVENTS = GATEWAY_QUEUE
 
 
 # ── Configuration ──────────────────────────────────────────────
@@ -154,7 +156,7 @@ class RabbitMQClient:
         # byte-identical to the pre-#1603 pipeline.
         self._events: RabbitMQEventSink = (
             events if events is not None
-            else (event_sink_from_env(config=self.config) or _noop_sink)
+            else (event_sink_from_env(client=self) or _noop_sink)
         )
 
     def _emit(self, event: dict[str, Any]) -> None:
