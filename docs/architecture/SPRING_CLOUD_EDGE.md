@@ -23,7 +23,7 @@ application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地
 | `/actuator/gateway/routes`（SCG 自有 actuator 路由表）、`/actuator/health`、ring buffer | 出场默认 loopback，compose 观测网变更为可被 Prometheus 抓取 | `GatewayActuatorRoutesTests`（5 腿：route 表恰好 6 条、catch-all 最后、edge 端口 404、管理端口 200） |
 | Spring Cloud Gateway 的 `spring.cloud.gateway.metrics.enabled: true`（路由 Timer 按 routeId） | `application.yml` | `GatewayMetricsTests`（2 腿） |
 
-## Grafana 看板上对应的 Spring Cloud 面板（本仓 58 面板）
+## Grafana 看板上对应的 Spring Cloud 面板（本仓 60 面板）
 
 | 面板 | 对应元素 | 编号 |
 |---|---|---|
@@ -33,6 +33,8 @@ application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地
 | Edge 上游连接池 timeseries | reactor.netty.connection.provider.* | 56 |
 | Edge 各路由请求速率 timeseries | spring.cloud.gateway.requests | 57 |
 | Edge 各路由 p95 延迟 timeseries | histogram_quantile on spring_cloud_gateway_requests_seconds_bucket | 58 |
+| Edge RateLimiter 丢弃速率 timeseries | rate(specproof_gateway_rate_limited_total[5m]) | 59 |
+| Edge RateLimiter 可用许可证 timeseries | resilience4j_ratelimiter_available_permissions{name="specproof-edge-public"} | 60 |
 
 ## 告警（21 条 SLO 规则里与 Spring Cloud 相关的）
 
@@ -75,7 +77,8 @@ application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地
    control-plane 之间的协议是已定死的 outbox + `verification_jobs` 投影，目前
    没有比这个更值得契约化的。
 
-以上状态基于 master `292b640`（+ #1589 限流器）测量；所有数字（6 routes、
-58 panels、21 alerts、tags/probe counts、27 Java 网关测试）都有对应的 Java/Python 门现算。
-看板尚无限流器面板（panel 59 想做但没做——`test_dashboard_slo_figures_bind_their_declarations.py`
-钉住现有面板，加面板须同步补一条声明，本轮不动它）。
+以上状态基于 master `73554e1`（+ #1589 限流器、#1590 面板 59/60）测量；所有数字
+（6 routes、60 panels、21 alerts、tags/probe counts、27 Java 网关测试）都有对应的 Java/Python 门现算。
+限流器两条面板（59 丢弃速率 rate(5m)、60 可用许可证 gauge）是 timeseries + 单绿色阈值，
+不带画数字阈值——`test_dashboard_slo_figures_bind_their_declarations.py` 无需新增声明，
+51 passed 实证（docs/dashboards 三门同套）。

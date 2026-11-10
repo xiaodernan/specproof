@@ -32,7 +32,7 @@
 
 ### C: OTel/Prometheus/Grafana 可观测栈 (已完成, B104 修复中)
 - compose.observability.yml + infra/otel + infra/prometheus (7 条 SLO
-  告警, promtool 校验通过) + infra/grafana (15 面板 SLO 看板)（2026-11-10 实测快照：58 面板；本行为历史开发日志快照，不改写原文） +
+  告警, promtool 校验通过) + infra/grafana (15 面板 SLO 看板)（2026-11-10 实测快照：60 面板；本行为历史开发日志快照，不改写原文） +
   docs/operations/OBSERVABILITY.md。
 - Python 侧: observability/metrics_http.py (worker:9100 / relay:9101),
   observability/metrics.py 直方图 (桶对齐 §14 p50/p95),

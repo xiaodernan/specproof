@@ -51,7 +51,7 @@ Dashboard (任务/失败率/24h 时间线) → Job 详情 (SSE 实时阶段/Find
 
 ## 第 6 步: 可观测 (5 分钟)
 docker compose -f compose.phase0.yml -f compose.observability.yml up -d
-浏览器: Grafana http://localhost:3000 (admin/specproof_admin) → SpecProof SLO 看板 (58 面板，2026-11-10 实测);
+浏览器: Grafana http://localhost:3000 (admin/specproof_admin) → SpecProof SLO 看板 (60 面板，2026-11-10 实测（#1590）);
 Prometheus http://localhost:9090 → 21 条 SLO 告警规则已加载（2026-11-10 实测）。
 
 ## 第 7 步: MCP — 任何外部 Agent 都能调用我们的验证 (3 分钟)
