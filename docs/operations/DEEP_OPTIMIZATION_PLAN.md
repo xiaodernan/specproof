@@ -28810,3 +28810,62 @@ histogram buckets、p95 面板（#1584）——ADR 索引 `docs/adr/README.md` �
 - Drill 1（LLM 429 之后需冷却）；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1589 边缘入向限流：Resilience4j RateLimiter（2026-11-10，20:26）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 292b640 → 969a2dd → 8d88a7d）。
+
+**来路。** #1588 登记的 Spring Cloud 线缺一样东西：边缘只有断路器（防**上游**死），
+没有任何防**调用方**狂奔的流控。用户授权"加 Spring Cloud 微服务的元素"落在这条线上。
+
+**落地（`969a2dd` + `8d88a7d`）：**
+- `EdgeRateLimiterGatewayFilterFactory`（新）——Resilience4j RateLimiter
+  `resilience4j-ratelimiter` **2.2.0**（与 breaker 同版）：令牌桶
+  **50 permits / 1s**，`timeoutDuration=PT0S`（空桶**立即**本地应答，绝不排队）；
+  429 体沿用边缘错误约定 `{"error":"rate_limited","edge":"rate-limit",
+  "retry_after_seconds":1,"request_id":"<16-hex from EdgeRequestIdGlobalFilter>"}`，
+  附 `Retry-After: 1` 头；**不分钥**（边缘不做认证，分钥即伪造认证）；
+  `control-plane-*` 五条路由**不挂**限流器；计数器
+  `specproof_gateway_rate_limited_total{limiter="specproof-edge-public"}`
+  + tagged gauges `resilience4j_ratelimiter_available_permissions` /
+  `resilience4j_ratelimiter_waiting_threads{name=...}`。
+- `application.yml`：catch-all `agent-runtime-default` 挂
+  `- name: EdgeRateLimiter` + `args`（name/limitForPeriod/limitRefreshPeriod/
+  timeoutDuration，全写在路由旁，不新增运行时改参端点）。
+- **顺带修**：`GatewayPrometheusEndpointTests` 的 `spring_cloud_gateway_requests_seconds_count`
+  断言**顺序依赖**——该累计计时器只在流量后才有计数器，此前全套绿靠 surefire 同 JVM
+  里 `GatewayMetricsTests` 先跑、共享 Spring context、已打流量为助；本号改为测试自己先
+  打一条真实流量再抓 `/actuator/prometheus`（10 容掉口，任何 status 都算数——计时器按
+  路由注册，不挑结果码），隔离 `-Dtest=` 单跑绿。
+- ADR-019 成文（为何是 Resilience4j RateLimiter 而非 SCG RequestRateLimiter（Redis 依赖）
+  / WAF / 分钥），`docs/adr/README.md` 登记（两行：主表 + 新撰写行）；
+  `docs/architecture/SPRING_CLOUD_EDGE.md` 增限流器行（含三组系列名、不做面板 59 的
+  明示边界）。
+
+**验证读数（实测，非推断）：**
+- `mvn -o -B clean test`（services/gateway）：**27 tests 全绿**（本号新增 3 腿
+  EdgeRateLimiterGatewayFilterFactoryTest + 1 个扩展断言`GatewayPrometheusEndpointTests`；
+  旧 24 门原样绿），`BUILD SUCCESS`。
+- Python 松动门 36 passed（`test_ops_docs_metric_names_trace_to_emission_sites` /
+  `test_edge_route_table_copies_agree`（catch-all 顺序、面板↔YAML 三处副本）/
+  `test_edge_gateway_bounds_its_upstreams` / `test_gateway_route_table_covers_every_plane_route` /
+  `test_dashboard_slo_figures_bind_their_declarations` / `test_slo_dashboard_covers_every_verdict`）。
+- `GatewayPrometheusEndpointTests` 隔离单跑绿（消顺序依赖后），断言 body 现含
+  `resilience4j_ratelimiter_available_permissions` 与 `specproof_gateway_rate_limited_total`
+  实测体内文本（2026-11-10 本机本院捕获）。
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- 限流器是**单实例内存桶**——edge 水平扩到 N 副本时容量也 ×N；这是设计取舍（改分钥
+  需 Redis，ADR-019 记录）不是缺陷；
+- **未做面板 59**：series 已在 `/actuator/prometheus`，但 `test_dashboard_slo_figures_bind_their_declarations.py`
+  钉住现有面板与声明的对应关系，仪表盘迭代整体排；本轮不动；
+- **未给 control-plane 限流**；未给 503 通道限流（断路器那是另一轴，共享计数器）；
+- 本号**不含 Python 侧改动**——门 v7（`3bacba2`）的结论仍以快照为准；本号的 Python 36 项门
+  是定向的，不是全量；门 #8 将覆盖 `969a2dd` 后的快照。
+- 限额 50/s 是静态默认值，未查验真实生产流量数据（无真实流量可查）；是保守起点不是度量结论。
+
+**下一号队列：**
+- 门 v7 出结果登记（若有红再走红修）；
+- 顶接：慢评估（`slow_eval`，仍未跑）；KMS-HSM；`DEEPSEEK_API_KEY` 缺失；
+  `verify_golden_tags.py` refs 家族重建（业主决断）；边缘冷启动 + Grafana 实证（operator 决罢）；
+  Panel 59（dashboard 迭代）；control-plane 限流（是否要做待定量）。
