@@ -46,6 +46,10 @@
     # Control Plane (另开, 共享同一 MySQL)
     cd services/control-plane && ./mvnw spring-boot:run
 
+    # OTel 链路（默认不启用）: compose 观测 profile 打开 edge 时
+    # OTEL_SDK_DISABLED=false 生效, 才会经 OTLP gRPC 发到 otel-collector:4317。
+    # 不打开 = SDK 禁用, edge 正常启动不受影响。
+
 - 数据库迁移在应用启动时自动执行 (infra/mysql/migrations/*.sql,
   schema_migrations 记录版本; 当前 0001-0017, 见 docs/architecture/DATA_DICTIONARY.md
   的逐字段登记与 `tests/unit/test_data_dictionary_covers_migrations.py`)。
