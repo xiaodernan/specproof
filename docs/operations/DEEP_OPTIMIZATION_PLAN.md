@@ -27609,3 +27609,48 @@ Mongo 不可达时 **skip 并带真因**（不假装绿）。
 - MinIO orphan 巡检；
 - 边缘冷启动 + Grafana 实证（operator 决罢，docker daemon 仍不稳）；
 - `verify_golden_tags.py` refs 家族重建（业主决断，#1553 欠账）；slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
+## #1560 把"模拟冒充证据"改成明说：两条真腿 + 一道诚实门（2026-11-10）
+
+**记录基准**：本节只追加；落地于本章附带提交（master 链 b269670 → 705d254）。
+
+**来路。** #1559 补了 checkpoint 的真腿之后，回头量剩下两个"崩溃语义"文件，发现问题不在
+腿本身，而在**它们说自己的方式**：docstring 声称验证 checkpoint 与恢复逻辑，而腿断言的
+是本地 dict/list。读者打开一个绿文件，分不出哪条是模型、哪条是证据——这正是本仓反复
+反对的"证据冒充"形状（#1549 的自指尺子、#1557 的 first-painted-state 都是同一族）。
+
+**落地：**
+1. `tests/integration/test_worker_crash_mid_graph.py`：模块 docstring 改写为**逐类说明**
+   （哪几条是 MODEL、哪几条打生产代码、真证据在哪个文件）；两条"断言字面量"的假腿换成
+   **打生产代码**的腿：
+   - `test_stale_job_not_executed` → 调 `storage/mysql.py` 的 `is_terminal` /
+     `is_valid_transition`（STALE 是终态且无出边 ⇒ 被打回的作业不可能再被执行；旧版
+     断言的是"字面量不在字面量集合里"，那种腿不可能红）；
+   - `test_running_job_lease_renewal` → 调 `storage/redis.py` 的 `renew_lease`（假 client）：
+     属主续租成功、他人续租失败且**不动 TTL**。
+2. `tests/unit/test_checkpoint_recovery.py`：同样的诚实化（逐类标 MODEL / PRODUCTION CODE），
+   并指向真证据文件。
+3. `tests/unit/test_crash_evidence_files_name_what_they_are.py`（新，4 腿）——**诚实门**：
+   两个模型文件的每个测试类都必须声明自己的性质；两个文件都必须指向真证据文件；
+   真证据文件必须存在且有腿；旧的过度宣称话术不许回来。
+
+**验证读数：**
+- 四文件合跑 **33 passed**；`ruff check` 全绿。
+- **三条变异臂**各自把门打红（各 1 failed / 14 passed），臂后树逐字节还原：
+  ① 状态机把 STALE 变成可再执行（生产表变更）→ 红；
+  ② 租约续租不再校验属主（生产代码变更）→ 红；
+  ③ 某个模型类不再声明自己是模型 → 红。
+- **一次事故如实记**：第一条变异脚本被服务器重启打断，生产文件（`storage/mysql.py`、
+  `storage/redis.py`）留在变异态；已按 HEAD 还原并复核（`git status` 只剩预期改动），
+  变异脚本随即改成**崩溃安全**版（备份落仓外 + 标记文件，下次运行先自愈）。
+- 未跑全量 `pytest tests/unit tests/security tests/fault`。
+
+**诚实边界：**
+- 诚实门管的是**说法**，不是**覆盖**：它保证"模型文件自称模型、真证据文件被指向"，
+  不保证整条恢复链被端到端验证（整图恢复仍需真 worker + 真 broker，P1-B 队列未清）。
+- `TestStateSerialization` 4 条腿本来就打生产代码（`agent.state.initial_state`），本号只补了标注。
+- MinIO orphan 那条占位（P1.5）仍未动。
+
+**下一号队列（不动）：**
+- 整图恢复（真 worker kill → 续跑 → 不重复副作用）——P1-B 的下一格；
+- MinIO orphan 巡检；边缘冷启动 + Grafana 实证（operator 决罢，docker daemon 仍不稳）；
+- `verify_golden_tags.py` refs 家族重建（业主决断，#1553 欠账）；slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
