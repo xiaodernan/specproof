@@ -29304,3 +29304,47 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 - 门 #8（3287fc4 快照）出结果登记；门 #9（当前 be8e427..f71b8fb 之间）排队；
 - 慢评估；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` 重建（业主）；边缘冷启动 + OTel 实证（operator）；
   Drill 1（需要 `DEEPSEEK_API_KEY`）。
+
+## #1601 EdgeSecurityHeadersGlobalFilter — 边缘防御性响应头全局过滤器（Spring Cloud 微服务安全元素）
+
+**记录基准**：本节只追加；落地于 `2cd91e6`（master 链 81cc046 → 2cd91e6）。合并前先把三条历史根分支
+（interview-hardening / p1-reliability-kernel / release/p0.5-verified-v1）以 `-s ours` 吸附进主干
+（内容早已以更新形态存在于 master，见 #1550/#1593 搬运证据），master 成为集大成者。
+
+**来路。** 用户要求"在项目中加一些 Spring Cloud 微服务的元素"。边缘已有 SCG 断路器(#1597)/重试(#1600)/
+限流器(#1590-1592)/OTel(#1599)/请求ID 传播，但缺一个**边缘自身错误响应也该带上的防御性响应头**层——
+503/502 由边缘自己产生，常规 per-route 过滤器看不到。全局过滤器是唯一能覆盖整跳（含边缘自产响应）的落点。
+设计上刻意不加 Eureka 服务发现（ADR-018：单机部署，避免过早微服务化），故新增元素走"边缘加固"而非"服务网格"。
+
+**落地（`2cd91e6`）：**
+- `services/gateway/src/main/java/dev/specproof/gateway/filter/EdgeSecurityHeadersGlobalFilter.java`：
+  `GlobalFilter, Ordered`（precedence = HIGHEST_PRECEDENCE + 20，紧随请求ID过滤器之后）。
+  同步写响应头 + `beforeCommit` 重写，保证短链响应（断路器 503）也带头上。
+  头集（保守、不破坏"API + SPA 双身份"）：`X-Content-Type-Options: nosniff` / `X-Frame-Options: DENY` /
+  `Referrer-Policy: no-referrer` / `Cross-Origin-Opener-Policy: same-origin` /
+  `Strict-Transport-Security: max-age=31536000; includeSubDomains` /
+  `Permissions-Policy: geolocation=(),camera=(),microphone=(),payment=()` /
+  `X-Permitted-Cross-Domain-Policies: none`。
+  刻意**不加** `Content-Security-Policy`（catch-all 同时服务 SPA HTML，会破 UI）与 `Cross-Origin-Resource-Policy: same-origin`
+  （会断 SPA 跨源资源加载）——理由写进类 docstring 与 `SPRING_CLOUD_EDGE.md`。
+  提供 `specproof.gateway.security-headers.enabled`（默认 true）开关；无参构造默认启用、布尔构造供测试。
+- `services/gateway/src/test/java/dev/specproof/gateway/EdgeSecurityHeadersGlobalFilterTest.java`：
+  3 例（全头集存在 / 关闭时不出头 / 默认启用）。
+- `docs/architecture/SPRING_CLOUD_EDGE.md`：新增一行 Spring Cloud 元素表项 + Java 网关测试计数 29 → 32。
+
+**验证读数（实测）：**
+- `mvn -o -B test`（services/gateway）：**32 passed / 0 failed**（原 29 + 本号 3）；BUILD SUCCESS；
+- 既有 7 个 Java 测试类（含 `GatewayApplicationTests` 全 Spring 上下文集成测试）全绿，新增 `@Component`
+  全局过滤器未破坏任何既有断言（已查网关测试无"精确头集/禁止某头"类断言）；
+- `ruff check .` / `mypy .` 不涉及 Java 改动；Python 侧未动。
+
+**诚实边界：**
+- 头只在边缘应答上设，不覆盖上游已设的同名头之外的新头；同步 `set`（非 `add`）不会重复叠加。
+- `Strict-Transport-Security` 仅在 HTTPS 到达边缘时才有意义，浏览器对明文 HTTP 忽略——边缘无条件发它无害且标准。
+- 开关默认开；operator 可在 compose 里 `specproof.gateway.security-headers.enabled=false` 关闭（测试已钉住关闭路径）。
+- 未引入新依赖（纯 `spring-cloud-gateway` + `spring-web` 既有类），不动 `pom.xml`。
+
+**下一号队列（不动）：**
+- 边缘侧可再加 `RequestSize` 网关过滤器（catch-all 限请求体上限，防御大 payload）；
+- 或把 W190 的六条 RabbitMQ 事件经 Spring Cloud Stream binder 在边缘消费，构成"事件驱动微服务"元素；
+- 或 `TokenRelay`/OAuth2 resource server（边缘作为资源服务器校验 JWT）——属安全微服务元素，需先定 JWT 发行人策略。
