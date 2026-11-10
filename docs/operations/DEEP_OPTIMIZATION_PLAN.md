@@ -28646,3 +28646,29 @@ from_status=NULL→CANCELLED）。**不假装这是产品自愈——它是 oper
 - Drill 1 重跑（等网关冷却，外部因素；如实）；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1584 面板 58：Edge 各路由 p95 延迟（histogram_quantile）（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 3bacba2 → 370cfba）。
+
+**来路。** #1581 打开路由 Timer 的 histogram buckets（`percentiles-histogram`）——
+但面板 57 只画 reqs/sec，画不出 p95——正是 histogram_quantile 存在的理由，
+却一格面板都没有。Spring Cloud Gateway 在边缘的"集大成"要补齐：每条路由的 p95，算得出来。
+
+**落地：**
+- `infra/grafana/dashboards/specproof-slo.json`：新增面板 58「Edge 各路由 p95 延迟
+  （histogram_quantile）」（timeseries：`histogram_quantile(0.95, sum by (le, route_id)
+  (rate(spring_cloud_gateway_requests_seconds_bucket[5m])))`，图例 `{{route_id}}`；
+  56→57→**58**）。
+- 文档现状计数同步（STACK_INVENTORY / ROADMAP / PRODUCT_ROADMAP / EXPERIENCE_GUIDE：57→58）。
+
+**验证读数：** JSON 可解析；dashboard/observability 全套 **48 passed**；ruff 对 JSON 不适用；
+未跑全量门（v7 在 `3bacba2` 跑，本轮不含本号）。
+
+**诚实边界：** 面板**未经 Grafana 渲染实测**；指标名按 micrometer→Prometheus 约定；
+无流量时面板为空属正常。桶内 series 的确切格式以部署后抓数为准。
+
+**下一号队列（不动）：**
+- 门 v7（3bacba2）结果登记；
+- Drill 1（网关 429 之后需冷却）；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
