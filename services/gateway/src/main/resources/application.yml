@@ -102,6 +102,22 @@ spring:
             plane: agent-runtime
           predicates:
             - Path=/**
+          filters:
+            - EdgeCircuitBreaker=specproof-edge
+
+# resilience4j: the edge's upstream circuit breaker. The breaker counts
+# failures of the agent-runtime upstream over a sliding window; the static
+# thresholds below are the whole contract (no per-request overrides).
+resilience4j:
+  circuitbreaker:
+    instances:
+      specproof-edge:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
 
 specproof:
   gateway:

@@ -100,6 +100,17 @@ class GatewayApplicationTests {
     }
 
     @Test
+    void theCatchAllRouteCarriesTheEdgeCircuitBreakerFilter() {
+        RouteDefinition catchAll = routes().stream()
+                .filter(r -> r.getId().equals("agent-runtime-default"))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("agent-runtime-default missing"));
+        assertThat(catchAll.getFilters())
+                .extracting(f -> f.getName())
+                .contains("EdgeCircuitBreaker");
+    }
+
+    @Test
     void theManagementPlaneStaysBoundToLoopbackInsideTheTest() {
         assertThat(environment.getProperty("management.server.address"))
                 .isEqualTo("127.0.0.1");
