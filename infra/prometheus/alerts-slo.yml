@@ -81,6 +81,15 @@
 #                                        本告警仅是「还有 §14 目标的最弱式回声」
 #                                        ——提醒运维查看上游，不是数据丢失的证据。
 
+#   EDGE_RL_SHED_THRESHOLD = 1      ← §14 "Job 不丢失" 边缘侧入口拒绝信号 (#1591 起)
+#                                        入口限流器持续丢弃才告警——
+#                                        rate_limited_total 的 5 分钟窗口 > 1 for 10m，
+#                                        for 10m；RateLimiter 返回降频信号说明调用方
+#                                        没拿到服务，与断路器（上游不可用）是两种
+#                                        信号——先看限流器看板，再决定扩桶还是
+#                                        确认调用方是否缺退避。
+#                                        本告警仅是「还有 §14 目标的最弱式回声」
+#                                        ——提醒运维排查，不是数据丢失的证据。
 groups:
   - name: specproof-slo
     rules:
@@ -315,6 +324,18 @@ groups:
         annotations:
           summary: "SpecProof 边缘上游连接池开始排队 (EDGE_POOL_PENDING_THRESHOLD=0)"
           description: "specproof-edge → agent runtime 的 reactor-netty 连接池 pending={{ $value }}（pool.metrics: true，#1570）。pending 持续两分钟 = 上游在排队而不是拒绝——先看看板「Edge 上游连接池」，再看 SpecproofEdgeCircuitBreakerOpen。本行仅是运维提醒，不是数据丢失的证据。"
+
+      # ── 边缘网关入向限流器（§17, #1591）─────────────────────────
+      # resilience4j RateLimiter（catch-all，specproof-edge-public，#1589/ADR-019）。
+      # 429 是调用方需降频的信号；断路器是上游故障。尖峰不算，持续丢弃才告警。
+      - alert: SpecproofEdgeRateLimiterShedding
+        expr: 'rate(specproof_gateway_rate_limited_total[5m]) > 1'
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof 边缘限流器持续丢弃 (EDGE_RL_SHED_THRESHOLD=1)"
+          description: "edge→agent runtime 入口令牌桶持续丢弃 {{ $value }} 个请求/秒（5 分钟窗口，for 10m；#1589/ADR-019）。429 是调用方需降频的信号，不是上游故障——先看限流器看板（丢弃速率/可用许可证），再决定扩桶或确认调用方是否缺退避。本行不是数据丢失的证据。"
 
       # ── 无证据严重评论 (§14 质量目标, #182) ─────────────────────────
       # 证据门禁的计数化: build_review_comments (integrations/inline_comments.py)

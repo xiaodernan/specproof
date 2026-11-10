@@ -73,6 +73,49 @@ EMIT_DIRS = (
     "storage", "observability", "providers",
 )
 
+#: Java emission sites (#1592): the edge gateway is the only service in this
+#: repository emitting through micrometer. A meter bound to the prometheus
+#: bridge renders its DOTTED builder literal with underscores, and micrometer
+#: counters gain the ``_total`` suffix in exposition (gauges do not). The
+#: builder is already ``specproof_``-namespaced, so no prefix is added here —
+#: unlike the Python plane, whose render_text prepends it. New Java services
+#: with meters join this list the same way cli/ joined EMIT_DIRS in #539.
+JAVA_EMIT_DIRS = ("services/gateway/src/main/java/dev/specproof/gateway/filter",)
+
+_JAVA_COUNTER = re.compile(r"Counter\.builder\(\s*\"([a-z0-9_.]+)\"\s*\)")
+_JAVA_GAUGE = re.compile(r"Gauge\.builder\(\s*\"([a-z0-9_.]+)\"\s*\)")
+
+
+def _java_emission_sites() -> tuple[tuple[str, str, str, bool], ...]:
+    """(repo-relative file, "java_counter"/"java_gauge", resolved exposition
+    name, False) for every micrometer meter the tracked Java tree emits.
+
+    Resolution mirrors the python plane: dots -> underscores, counters append
+    ``_total``, and a leading ``specproof`` segment is dropped because the
+    rendering layer applies the ``specproof_`` prefix — the python plane's
+    render_text adds it literally, the JVM plane's builder happens to embed
+    it, and the census registers the unprefixed spelling either way so the
+    two planes differ by the prefix alone (#1592).
+    """
+    found: list[tuple[str, str, str, bool]] = []
+    for emit_dir in JAVA_EMIT_DIRS:
+        for path in sorted((ROOT / emit_dir).rglob("*.java")):
+            text = path.read_text(encoding="utf-8")
+            rel = path.relative_to(ROOT).as_posix()
+            for raw in _JAVA_COUNTER.findall(text):
+                found.append((rel, "java_counter", _resolve_java(raw, "_total"), False))
+            for raw in _JAVA_GAUGE.findall(text):
+                found.append((rel, "java_gauge", _resolve_java(raw, ""), False))
+    return tuple(found)
+
+
+def _resolve_java(raw: str, total_suffix: str) -> str:
+    resolved = raw.replace(".", "_")
+    if resolved.startswith("specproof_"):
+        resolved = resolved[len("specproof_"):]
+    return resolved + total_suffix
+
+
 #: Reference surfaces: the two Prometheus files (plain text — comments are
 #: prose but a comment naming a dead metric misleads the same way) and every
 #: string inside the Grafana dashboard JSON (exprs, legends, descriptions).
@@ -100,7 +143,7 @@ _CONCAT_CALL = re.compile(
     r"\b(incr|set_gauge|observe_duration)\(\s*"
     r"([\"'][a-z0-9_]+[\"'])\s*(?:\+|\")"
 )
-_EMIT_KINDS = {"incr": "counter", "set_gauge": "gauge", "observe_duration": "histogram"}
+_EMIT_KINDS = {"incr": "counter", "set_gauge": "gauge", "observe_duration": "histogram", "java_counter": "counter", "java_gauge": "gauge"}
 #: Module-level string constant usable as a metric name.
 _MODULE_CONST = re.compile(r"^([A-Z][A-Z0-9_]*)\s*=\s*['\"]([a-z0-9_]+)['\"]", re.M)
 _REFERENCE = re.compile(r"specproof_([a-z0-9_]+)")
@@ -547,6 +590,8 @@ def _emission_sites() -> tuple[tuple[str, str, str, bool], ...]:
     measured in a fresh process, never by re-reading through this cache.
     """
     found: list[tuple[str, str, str, bool]] = []
+    for rel, call, name, concat in _java_emission_sites():
+        found.append((rel, call, name, concat))
     for emit_dir in EMIT_DIRS:
         for path in sorted((ROOT / emit_dir).rglob("*.py")):
             text = path.read_text(encoding="utf-8")
@@ -1640,4 +1685,35 @@ def test_every_reporting_tree_that_emits_is_scanned() -> None:
         f"{stale} are declared non-reporting but no longer emit (or hold no "
         "tracked Python at all); delete the entry — a declaration must not "
         "outlive its reason, and a collapsed scan must not hide here"
+    )
+
+
+_JAVA_ANY_EMIT = re.compile(r"Counter\.builder\(|Gauge\.builder\(")
+
+
+def test_every_java_reporting_tree_that_emits_is_scanned() -> None:
+    """The Java plane of #539: no tracked *.java file may own a micrometer
+    meter outside JAVA_EMIT_DIRS. The Python leg above cannot see it."""
+    proc = subprocess.run(
+        ("git", "ls-files", "*.java"),
+        cwd=ROOT, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", check=True,
+    )
+    tracked = [rel for rel in proc.stdout.splitlines() if rel]
+    scanned = set()
+    for emit_dir in JAVA_EMIT_DIRS:
+        scanned.update(
+            p.relative_to(ROOT).as_posix()
+            for p in (ROOT / emit_dir).rglob("*.java")
+        )
+    outside = sorted(
+        rel for rel in tracked
+        if rel not in scanned
+        and _JAVA_ANY_EMIT.search((ROOT / rel).read_text(encoding="utf-8"))
+    )
+    assert not outside, (
+        f"{outside} hold a micrometer meter but are outside JAVA_EMIT_DIRS: "
+        "add the tree to JAVA_EMIT_DIRS or, when this is a deliberate fixture, "
+        "extend this leg with a declared exemption — do not let the census "
+        "go blind to a JVM-side meter"
     )

@@ -98,6 +98,7 @@ _SLO_CITATIONS: dict[str, tuple[str, ...]] = {
     "VERIFY_DLQ_THRESHOLD": ("Job 不丢失",),
     "EDGE_CB_OPEN_THRESHOLD": ("Job 不丢失",),
     "EDGE_POOL_PENDING_THRESHOLD": ("Job 不丢失",),
+    "EDGE_RL_SHED_THRESHOLD": ("Job 不丢失",),
     "NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD": ("无证据严重评论 = 0",),
     "REPLAY_RATE_THRESHOLD": ("Capsule Replay >= 95%",),
 }
@@ -120,6 +121,7 @@ _GOAL_ONLY_CITATIONS = {
     "VERIFY_DLQ_THRESHOLD",
     "EDGE_CB_OPEN_THRESHOLD",
     "EDGE_POOL_PENDING_THRESHOLD",
+    "EDGE_RL_SHED_THRESHOLD",
 }
 
 #: How a cited figure's unit turns into the same scale as the threshold.

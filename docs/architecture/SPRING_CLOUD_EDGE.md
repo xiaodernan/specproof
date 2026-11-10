@@ -36,13 +36,14 @@ application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地
 | Edge RateLimiter 丢弃速率 timeseries | rate(specproof_gateway_rate_limited_total[5m]) | 59 |
 | Edge RateLimiter 可用许可证 timeseries | resilience4j_ratelimiter_available_permissions{name="specproof-edge-public"} | 60 |
 
-## 告警（21 条 SLO 规则里与 Spring Cloud 相关的）
+## 告警（22 条 SLO 规则里与 Spring Cloud 相关的）
 
 | 告警 | 守什么 |
 |---|---|
 | SpecproofEdgeGatewayDown | `up{job="specproof-edge"} == 0`（探针点名 resilience4j + reactor_netty 两个受守家族） |
 | SpecproofEdgeCircuitBreakerOpen | `resilience4j_circuitbreaker_state{name="specproof-edge",state="open"} > 0` |
 | SpecproofEdgePoolSaturated | `reactor_netty_connection_provider_pending_connections{name="proxy"} > 0` |
+| SpecproofEdgeRateLimiterShedding | `rate(specproof_gateway_rate_limited_total[5m]) > 1` 持续 10m——EDGE_RL_SHED_THRESHOLD=1，调用方需降频信号 #1589/#1591 |
 
 ## 事件与不变量
 
@@ -78,7 +79,7 @@ application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地
    没有比这个更值得契约化的。
 
 以上状态基于 master `73554e1`（+ #1589 限流器、#1590 面板 59/60）测量；所有数字
-（6 routes、60 panels、21 alerts、tags/probe counts、27 Java 网关测试）都有对应的 Java/Python 门现算。
+（6 routes、60 panels、22 alerts、tags/probe counts、27 Java 网关测试）都有对应的 Java/Python 门现算。
 限流器两条面板（59 丢弃速率 rate(5m)、60 可用许可证 gauge）是 timeseries + 单绿色阈值，
 不带画数字阈值——`test_dashboard_slo_figures_bind_their_declarations.py` 无需新增声明，
 51 passed 实证（docs/dashboards 三门同套）。
