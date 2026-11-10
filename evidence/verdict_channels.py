@@ -279,6 +279,28 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         ),
     ),
     # ── local classifications and standalone reports ────────────────────────
+    "branch_reconciliation": VerdictChannel(
+        key="branch_reconciliation",
+        field="evidence/branch_reconciliation.py FILE_DISPOSITIONS verdict "
+              "(over an orphan ref's content, not a job)",
+        owners=("evidence/branch_reconciliation.py",),
+        scale=frozenset({
+            "landed_at_other_path",
+            "succeeded_by_rewrite",
+            "reversed_by_master",
+            "not_landed",
+            "unadjudicated",
+        }),
+        source="evidence.branch_reconciliation::VERDICTS",
+        note=(
+            "「某条不与 master 同历史的 ref 上的内容，后来怎么样」——#1548/#1550 把三条孤儿 "
+            "ref（release/p0.5-verified-v1、feature/p1-reliability-kernel、"
+            "feature/interview-hardening）逐个文件栽定成五类。它不是验证结论、进不了产品页面、"
+            "决定不了证书；门会复算每个裁定（每个 successor 路径必须存在、每个 successor 符号必须"
+            "被 git grep 到）。特意没有并入 `job_summary`：那四个词决定要不要放行一次变更，"
+            "这五个词只决定「这条 ref 是不是还够得着」。"
+        ),
+    ),
     "cache_check": VerdictChannel(
         key="cache_check",
         field="sandbox/cache_verify.py CacheCheck.verdict",

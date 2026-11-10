@@ -319,11 +319,17 @@ def test_precedence_file_reaches_env_wins_stray_dotenv_does_not(tmp_path: Path) 
 # P7 — who calls this script is measured, and the gap stays on the books
 # ---------------------------------------------------------------------------
 
-#: Workflow files that invoke the script, measured every run.  Zero is the
-#: reading on master: the only caller this repository has ever had is the
-#: ``provider-smoke`` job on ``origin/feature/p1-reliability-kernel``, a branch
-#: with no common history with master (see the #1547 ledger section).
-REGISTERED_CALLERS = 0
+#: Workflow files that invoke the script, measured every run.  As of #1549
+#: (6b2c1b8), exactly one does: `provider-smoke` in `.github/workflows/ci.yml`.
+#: It is a `workflow_dispatch`-only job on purpose — the credentials live in
+#: a GitHub *environment*, never in the tree, and the three interpolations it
+#: carries are the only ones in that file. The bindings (environment declared,
+#: the dispatch gate matching `on:`, no secret interpolated into a run:
+#: command) are pinned by
+#: tests/unit/test_the_provider_smoke_ci_leg_carries_the_branch_job.py, so a
+#: red here means the census changed or the job was removed, not that the
+#: bindings rotted.
+REGISTERED_CALLERS = 1
 
 
 def test_the_absence_of_a_caller_is_a_measurement_not_an_assumption() -> None:

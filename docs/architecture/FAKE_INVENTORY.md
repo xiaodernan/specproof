@@ -3,7 +3,7 @@
 > 这份清单是**测出来的**，不是列出来的。生成器：`scripts/classify_test_fakes.py`
 > （可重复运行；`--json` 给出机器可读的形式）。
 >
-> 本页数字对应 `fd6f450`（2026-11-09 重钉：`117606e` 引入的 `_FakeRedis`、`f0d64c8` 引入的 `_Store`、`c5dc614` 引入的 `_FakeCursor` / `FakeStore` / `_RealStore`，见下；`--explain-drift fd6f450` 全程在场输出）。规则或 `tests/` 里的假一变，
+> 本页数字对应 `3a39bdc`（2026-11-10 重钉：`705d254`（#1560）引入的 `_FakeRedis`、`e4dc722`（#1562）引入的 `_FailingMetadataStore`，见下「2026-11-10 重钉」一节；`--explain-drift 3a39bdc` 全程在场输出）。规则或 `tests/` 里的假一变，
 > `tests/unit/test_fake_inventory_stays_measured.py` 会先红——数字不能靠手改跟上代码。
 >
 > **红自己交代原因（#601 起）**：门里钉的不是四个整数，而是一个**提交号** + 那一棵树上的三个数。
@@ -13,6 +13,20 @@
 > 归属只有三种答案：**在某个提交里**（印那笔提交的标题）、**在工作树里**（还没提交，git 把该行记成全零
 > revision，红就说「未提交」而不是编一个 sha）、**在一个 HEAD 里还没有的文件里**（blame 直接拒答，
 > 而拒答本身就是答案：这是新写的活，不是「这里读不到历史」）。
+
+### 2026-11-10 重钉（#1560 / #1562 两处入场）
+
+- `store-duck-type` 45 → **46**：`tests/integration/test_worker_crash_mid_graph.py` 的 `_FakeRedis`
+  （`705d254`，#1560）。它替的是**领域方法**（`get` / `exists` / `expire`），不是 SQL；
+  该腿用它证明 `redis.renew_lease` 在 not-found 时的**精确错误**，真 Redis 续租那一腿并存，
+  假只负责 not-found 这一条路。
+- `plain-double` 211 → **212**：`tests/integration/test_artifact_ghost_against_real_object_store.py`
+  的 `_FailingMetadataStore`（`e4dc722`，#1562）。它**包着真 SQLite 索引**、只把 `record()`
+  这一个调用注入为失败——对象落桶、补偿真删字节这两句话是对着真对象存储说的，
+  假只替「索引写失败」这一个点。
+- 总数 277 → **279**；SQL 假 **21 个**（约 7.5%）不变。
+- 钉脚本：`PIN_COMMIT=3a39bdcf5ae3f851a1d2527f4f7e7c0ab4e5c254`，`PIN_COUNTS =
+  {"sql-fake": 21, "store-duck-type": 46, "plain-double": 212}`。
 
 ## 为什么要有一份清单
 
@@ -24,16 +38,16 @@
 | 类别 | 数量 | 含义 | 求值器能替吗 |
 |---|---|---|---|
 | **SQL 假** | **21** | 实现了 SQL 面（`cursor` / `fetchall` / `fetchone` / `commit` / `rollback` / `executemany` / `query` / `select` / `insert` / `update`；**`execute` 单独出现不算**，见下面「`execute` 撞名」） | **能**——求值器就是替这一面 |
-| 仓储鸭子类型 | 45 | 实现的是**领域方法**（`save` / `find_by_id` / `incr` / `expire` / `publish` / `delete` …） | **不能**——换成求值器等于把它变成**真 store**，那是另一类改动 |
-| 普通替身 | 211 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
+| 仓储鸭子类型 | 46 | 实现的是**领域方法**（`save` / `find_by_id` / `incr` / `expire` / `publish` / `delete` …） | **不能**——换成求值器等于把它变成**真 store**，那是另一类改动 |
+| 普通替身 | 212 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
 
-⇒ ⇒ **手写假一共 277 个，而「SQL 假」只有 21 个（约 7.6%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
-且那 21 个类（SQL 替身 13 处）分布在 **13 个文件**里（其中 8 处是「一个游标 + 一个连接/存储」的分体：`fixture_server.py` `test_audit_action_parity.py` `test_drill_helpers.py` `test_feedback_store_read.py` `test_mcp_server.py` `test_mysql_isolation_contract.py` `test_tenant_auth.py` `test_web_api.py`；`fake_sql_engine.py` 的 `SqlFakeCursor` 是 SQL 求值器本体，按上表入账），——本页各处数字以 `fd6f450` 实测为准（见 `tests/unit/test_fake_inventory_stays_measured.py` 钉脚本）。
+⇒ ⇒ **手写假一共 279 个，而「SQL 假」只有 21 个（约 7.5%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
+且那 21 个类（SQL 替身 13 处）分布在 **13 个文件**里（其中 8 处是「一个游标 + 一个连接/存储」的分体：`fixture_server.py` `test_audit_action_parity.py` `test_drill_helpers.py` `test_feedback_store_read.py` `test_mcp_server.py` `test_mysql_isolation_contract.py` `test_tenant_auth.py` `test_web_api.py`；`fake_sql_engine.py` 的 `SqlFakeCursor` 是 SQL 求值器本体，按上表入账），——本页各处数字以 `3a39bdc` 实测为准（见 `tests/unit/test_fake_inventory_stays_measured.py` 钉脚本）。
 
 ⇒ ⇒ **结论（这条队列项就此重框）**：
 1. 「把手写假换成求值器」**不成立**——多数手写假**根本不与 SQL 打交道**（它们替的是领域方法）⇒ ⇒ 换掉它们会让测试**从替身变成真 store**（⇒ 更慢、⇒ 更容易因环境而红、⇒ 且测的是**真 store**而不是被测代码）✗。
 2. 真正可以换的只有**12 处 SQL 替身** ⇒ ⇒ 那是**一小块**具体工作（⇒ 下一个号可以做，或干脆不值得做——**判据是「换了以后，测的是不是同一件事」**）。
-3. 剩下的 45 处仓储鸭子类型与 211 处普通替身**留在原处**——它们是**恰当的**测试替身（替的是**被测代码依赖的接口**，不是数据库）✓。
+3. 剩下的 46 处仓储鸭子类型与 212 处普通替身**留在原处**——它们是**恰当的**测试替身（替的是**被测代码依赖的接口**，不是数据库）✓。
 
 ## 再收窄一层：哪些 SQL 假**真的**在写规则？
 
@@ -91,7 +105,7 @@
 python scripts/classify_test_fakes.py            # 人读的（按「哪一面」分类）
 python scripts/classify_test_fakes.py --json     # 机器读的
 python scripts/find_rule_shaped_sql_fakes.py     # 再收窄：哪些按 SQL 文本做决定
-python scripts/classify_test_fakes.py --explain-drift 60def7b   # 数目为什么变了（红路径上也会自动印）
+python scripts/classify_test_fakes.py --explain-drift 3a39bdc   # 数目为什么变了（红路径上也会自动印）
 ```
 
 分类判据（脚本里写死，且**可改**）：
