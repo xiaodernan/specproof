@@ -66,12 +66,6 @@ WORKFLOW_REL = ".github/workflows/ci.yml"
 #: reason.  The module is still BUILT by CI — that is what makes the
 #: declaration an exemption from "runs tests", not from "is watched".
 NO_JAVA_TESTS: dict[str, str] = {
-    "services/gateway": (
-        "the edge has no Java test class yet: its route table is held by the "
-        "Python gate tests/unit/test_gateway_route_table_covers_every_plane_"
-        "route.py (#1544).  The module IS compiled by CI — this declaration "
-        "says \"nothing to assert yet\", not \"not watched\"."
-    ),
 }
 
 #: A Maven invocation: the command word and everything after it.
