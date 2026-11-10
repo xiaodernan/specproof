@@ -29149,3 +29149,38 @@ caller 每秒钟都在被 429 丢弃，值班人员只有看得到的面板、�
   （业主决断）；边缘冷启动 + Grafana 实证（operator 决罢）；
   Drill 1 下一次尝试先在 `.env` 里钉死 LLM_MODEL 与一个可解析的 TokenPlan 模型
   （需要 `DEEPSEEK_API_KEY`）。
+## #1597 control-plane 五路由断路器线：边缘的另一半也有了 503 边界
+
+**记录基准**：本节只追加；落地于 `3a1e7f3`（master 链 66a53d5 → 3a1e7f3）；fence 5 文件 53 passed。
+
+**来路。** 5 条 control-plane 路由此前不挂任何 breaker——一个 hung control plane 会把 edge
+的连接线程占到 httpclient 30s response-timeout 上；catch-all 的 specproof-edge breaker
+只保 agent-runtime，两个平面的故障域本来就该各自隔离（#1589/#1593 的 Spring Cloud 线
+明确主张的隔离性状）。
+
+**落地（`3a1e7f3`）：**
+- `application.yml`：5 条 control-plane 路由各加
+  `EdgeCircuitBreaker=specproof-control-plane`（**实例名独立**，`CircuitBreakerRegistry`
+  现有两个实例：specproof-edge / specproof-control-plane）；
+  同一 Spring Cloud Gateway + resilience4j 实现——不新增依赖、不动 edge port / catch-all / 限流器。
+- `GatewayApplicationTests.everyControlPlaneRouteCarriesItsOwnBreaker`：5 条路由逐条断言
+  name="EdgeCircuitBreaker" + args 含 specproof-control-plane；
+  `getAllCircuitBreakers()` 现含两实例。
+- `mvn -o -B test`：**28 passed**（+1：`everyControlPlaneRouteCarriesItsOwnBreaker`），BUILD SUCCESS；
+  Python 腿 19 passed（`test_edge_route_table_copies_agree`/`test_gateway_route_table_covers_every_plane_route`/
+  `test_edge_gateway_bounds_its_upstreams`/`test_edge_request_id_matches_the_agent_runtime`）。
+- `docs/architecture/SPRING_CLOUD_EDGE.md`：breaker 行拆两边的两个平面（catch-all + control-plane），
+  Java 测试计数 27 → 28。
+
+**诚实边界：**
+- 不证明 CP 链路对 503 的端到端恢复行为（需要一次真实 CP 故障注入演练——drill 题库
+  里没有这条；留待 drills 题库建模后再做）；本号只钉了"路由确实挂着 control-plane 的 breaker
+  而不是共享 agent-runtime 的那一个"；
+- 不动路由顺序、不动 metrics/端点/dashboard/看板；
+- 没有给 control-plane 加 rate limiter——它是控制面外观，不公开给 `/**` 通道，
+  限流语义留给 agent-runtime 的 catch-all；
+- 无新依赖、无新基础设施——单机天花板不破，`§风险7`（提前拆微服务）不违反。
+
+**下一号队列（不动）：**
+- 慢评估；KMS-HSM；`DEEPSEEK_API_KEY` 先行；`verify_golden_tags.py` refs 重建（业主）；
+  门 #8 出结果后再登记；边缘冷启动 + Grafana 实证（operator 决罢）。
