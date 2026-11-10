@@ -301,6 +301,7 @@ def test_unsupported_language_honest_unresolved(
     _set_fake_llm_env(monkeypatch)
     built = _install_fake_factory(module, frozenset({"aider-python_toycalc-double"}))
     output = tmp_path / "results.json"
+    md_output = tmp_path / "results.md"
     code = module.main(
         [
             "--offline",
@@ -308,6 +309,10 @@ def test_unsupported_language_honest_unresolved(
             "--tasks", "3",
             "--max-iterations", "8",
             "--output", str(output),
+            # The harness defaults md-output to docs/eval/aider-results.md
+            # INSIDE THE REPOSITORY; without this the test rewrote a tracked
+            # file on every full-suite run and left the worktree dirty.
+            "--md-output", str(md_output),
         ]
     )
     assert code == 0
