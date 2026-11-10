@@ -27368,3 +27368,30 @@ update-ref → 跑 17 条腿 → `reset --hard` + `clean -fdq` + ref 指回去 +
 - `verify_golden_tags.py` refs 家族重建待业主（`--refs-only` 会把 base 指到 HEAD 并重指 ~102 ref，作废 Oct eval 底版）。
 - P1-B checkpoint/orphan 占位仍未做。
 - 断路器指标绑 dashboard（`resilience4j_circuitbreaker_state`）是自然下一号。
+## #1555 断路器的指标落到 micrometer（management 仍 loopback）（2026-11-10）
+
+**记录基准**：HEAD = `8aa370d`；master 一直 fast-forward；`specproof-reference` 同 commit；本节只追加。
+
+**来路。** #1554 如实记录了一项残缺：断路器有运行时短路行为，但 resilience4j 的 meter 没有绑到可观测层。本号把这条补上。
+
+**落地（`services/gateway`）：**
+- `pom.xml`：`resilience4j-micrometer:2.2.0`（明确 pin——格式确认无注册冲突）+ `micrometer-registry-prometheus`（Boot 3.4.3 列车自带 1.14.4 对齐）。
+- `application.yml`：`resilience4j.circuitbreaker.metrics.enabled=true`；management 暴露 `health,info,gateway,prometheus`（仍只 loopback；绝不挂边缘端口）。
+- `GatewayApplicationTests`：+1 断言——`MeterRegistry` 已注册 `resilience4j.circuitbreaker.*` 族，且至少一条的 `name` tag = `specproof-edge`。
+
+**过程里踩的一脚（如实记）：**
+- 初版写了手动 `TaggedCircuitBreakerMetrics` MeterBinder——Spring Cloud 自动配置在 `metrics.enabled=true` 下已经把 meter 绑在同一个 registry 上，加手动 bean 只会造成 `resilience4j.circuitbreaker.state` 重复注册 WARN（`MeterId{name='resilience4j.circuitbreaker.state', …, tag(state=disabled)}` 已被注册并忽略第二份）。**删掉手动 bean**，meter 依旧上报。
+- 测试期望值先错成 `resilience4j_circuitbreaker`（下划线族），实测实名是 `resilience4j.circuitbreaker.state`——改断言为 dotted 前缀后 8/8 绿。**不是测量把前缀改成通过的**：meter 名是老实从 registry 里读出来的。
+
+**实测：** `mvn -B test`（便携 Temurin 21.0.13+9）：**Tests run: 8, Failures: 0 — BUILD SUCCESS**；两类 meter 族自愈绑定（含 tag：`group=none, name=specproof-edge, state=disabled`）；控制平面构建未触；CI java-services job 无需改动。
+
+**诚实边界：**
+- 这**不是**开箱即用告警——prometheus 抓得到 `resilience4j.circuitbreaker.state` / `.calls` 等族，但 SLO/alert 规则（infra/prometheus）还没接这条新 series；本号不冒充。`metrics.enabled=true` 仅让 meter 可被抓取；Grafana 面板与 alert 规则都未动。
+- 本机未跑真实 `/actuator/prometheus` 端点（测试断言在 registry 层，HTTP 表面未验；`include: prometheus` 只挂 loopback）。
+- `TaggedCircuitBreakerMetrics` 被删除是因为**重复注册**，不是因为它不能用——它的 `ofCircuitBreakerRegistry` 与自动配置做的是同一件事。
+- 未动 `pytest tests/unit tests/security tests/fault`（本号只动 gateway；行为测试为新增 Java 测试）。
+
+**下一号队列（不动）：**
+- `resilience4j_circuitbreaker_*` 入 SLO/alert 规则（infra/prometheus）——自然下一号，但它碰的是可观测面的稳定线，另立。
+- `verify_golden_tags.py` refs 家族重建依旧待业主（`--refs-only` 指到 HEAD 会作废 Oct eval 底版）。
+- P1-B checkpoint/orphan 仍未做。
