@@ -27199,3 +27199,48 @@ update-ref → 跑 17 条腿 → `reset --hard` + `clean -fdq` + ref 指回去 +
   自己量出来，而不是手打名单。
 - **`scripts/verify_golden_tags.py` 的 99 vs 实测 100**：硬编码在 `:58`，
   docstring 第 5/7 行与 GREEN 行第 92 行也各印 99；先量三个平面再决定改数字还是让门量。
+## #1550 分支独有的 18 条 fault-scenario 测试搬回主干（内容重写，四个平面同步订正）（2026-11-10）
+
+**记录基准**：HEAD = `bc4b75d` → `598750f`（master 一直 fast-forward，`specproof-reference` 同 commit）。本号只追加。
+
+**来路。** #1548 判决 `tests/integration/test_fault_scenarios.py` 为 `not_landed`（18 个 test def 集中在一个 master 没有的文件里；判决会过期）。#1550 队列行：搬回主干、按 master 的状态机重写。本号落地了这件事。
+
+**新文件 `tests/integration/test_fault_scenarios.py`（master 语义重写，18 def 不改名）：**
+
+| 分支 API / 立场 | master 接任（重写） |
+|---|---|
+| `claim_pending_events` / `mark_event_published` | `fetch_pending_outbox_rows`（SKIP LOCKED）+ `mark_outbox_published` |
+| `is_event_processed` / `mark_event_processed` | Redis SETNX：`set_idempotent` / `is_idempotent`（bool 语义相反，已逐腿核对） |
+| `TemporaryFailureError` / `PermanentFailureError`（payload 型别断言） | master 没有这对异常类；retry/DLQ 住在 outbox 治理（§14.2）：temporary = `mark_outbox_failed`（retry_count++，DLQ 未设置），permanent = `dead_letter_outbox_row`（`dead_lettered_at` 设置），两个终态互斥且本模块按行钉住 |
+| `list_jobs_by_status("RUNNING")` | `get_jobs_by_status` |
+| `claim_stale_jobs(new_head)` | `mark_stale_for_head(repo_path, new_job_id)`（仅 QUEUED/RUNNING 进 STALE） |
+| `test_failed_is_terminal_retry_creates_new_job`（分支立场：FAILED 终态） | **判决反转**：master `_VALID_TRANSITIONS["FAILED"] = {QUEUED, CANCELLED, EXPIRED, ERROR}`；本号按 master 语义写（FAILED→QUEUED 合法、`_VALID_TRANSITIONS["FAILED"] 含 QUEUED` 被直接断言、新 job 新 job_id、旧 job 保持 FAILED） |
+| `test_stream_maxlen_trims_old_entries`（`XADD MAXLEN` 近似裁减的误解） | redis-py `xadd` 默认 `~`（approximate）：`maxlen=5` 对 10 条短流**不裁减**。本号量出 100 条写入 = 48 条后改断言 `length < 100`，并写明 approximate 语义 |
+| `"SUCCEEDED"`（master 没有该终态） | `"VERIFIED"` |
+| 场景 6（checkpoint）/ 8（orphan） | 分支原定 deferred（P1-B/P1.5）：`@pytest.mark.skip(reason=...)` 原样保留 |
+
+末尾多一腿 `test_all_10_scenarios_have_tests`（清单腿：场景类必须恰好 10 个）。
+
+**落地经过两次追补（自指那一族）：**
+
+1. `785e226` 首批提交：文件+登记册判决 `not_landed → succeeded_by_rewrite`（successor paths/symbols=18 def 全登记）与 `NAME_ONLY_CENSUS` 订正（total 58→40、shared_file 40、branch_only_file 18→0）、`REGISTERED_GAPS` 去掉该键。
+   **P3 红**：registered 10 != measured 9 —— 文件进了 origin/master 后，"分支独有文件"普查不再含它，登记不得留陈尸（判决的可过期性，不是门的误差）⇒ `bc4b75d` 删除该判决行并留注释（provider-smoke 的同一纪律）。
+2. **P8 红**：`config_hash` 缺口被我的新文件解掉（写了该 token 6 处）—— master 不存在该列（`_job_row` 过滤出 column set），自指第九种形状 ⇒ `598750f` 从文件中彻底删除该 token。
+
+**实测：**
+- `tests/integration/test_fault_scenarios.py` 单跑 **17 passed / 2 skipped**（本会话，MySQL 隔离重定向 `specproof_test`；product schema `/test/%` 行差 `0 -> 0`，会话头尾如实记录）。
+- 两个并轨门在 `785e226` 落地后 **两条腿红**：P3（registered 10 != measured 9——文件已归 master，登记不得留陈尸）与 P8（我的新文件把 `config_hash` 写进树，缺口被自己的落地物解掉）。`bc4b75d` 删掉陈尸判决行（P3 绿，P8 仍红）；`598750f` 从文件删除 `config_hash` 后 **17/17 绿**（`test_branches_without_a_common_history_are_accounted_for.py` 8 + provider-smoke 9，含 P1/P2/P5/P6/P7 全部腿）。
+- `ruff check` 两文件全绿；MySQL 隔离双库 `specproof_test2` 用于聚焦跑绿（17 个 live 腿未落到 phase0）。
+- 未跑全量 `pytest tests/unit tests/security tests/fault`——本号动 `tests/integration/`（全量门的范围从不含它）+ `evidence/branch_reconciliation.py`（井井有条：P3/P4/P6/P8 两道门已逐个复跑绿；其余腿不读该文件——P1/P2/P5/P7 亦在同文件中，本号未动它们的驱动面；见下一条诚实边界）。
+
+**诚实边界：**
+- 本号不跑 CI 的 `tests-with-infra` job——场景腿在 GitHub runner 上的真实行为未验；本机 specproof-mysql/rabbitmq/redis 容器活跃且测试全程走 localhost。
+- `test_relay_claims_and_publishes` / `test_stream_maxlen_trims_old_entries` / `test_lease_expires_and_reacquired` 等 live 腿依赖 broker 存活；broker 挂则 skip（claim_skip 保证本腿不在生产里"假绿"）。
+- 18 条 def 的名字原样保留，2 条占位保留 skip——**不是**"18/18 通过"；ledger 不这样写。
+- ledger 本提交附带的基线数字 `49 passed`（#1528 期重量过的结论）不在本号范围内；本号只追加。
+
+**下一号队列（不动）：**
+- **#1551 temp 工作树生命周期**：武装生产扫描（见队列行；基线：325 个目录 / 297 个已失效 / 6 个活的——本号删过 8 个一次性；`specproof-reference` 主 checkout 不动）。
+- **#1552 网关的第一条运行时 Java 测试**（Spring Cloud 元素的入口，撤掉 services/gateway 的零测试登记）。
+- `scripts/verify_golden_tags.py` 的 99 vs 实测 100 未动。
+- P1-B 两位占位（checkpoint/orphan）仍未做——它们需要 LangGraph checkpoint 恢复和 MinIO orphan sweeper，不属于本号。
