@@ -148,36 +148,13 @@ FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
         "reason": ("分支 SQL 自述 FAILED 出边由 2 个改成 0 个且称代码已应用；master 实测 "
                     "_VALID_TRANSITIONS['FAILED'] 有 4 条出边且含 QUEUED —— 判决相反，不搬"),
     },
-    "a756f5338:tests/integration/test_fault_scenarios.py": {
-        "verdict": "succeeded_by_rewrite",
-        "successor_paths": ("tests/integration/test_fault_scenarios.py",),
-        "successor_symbols": (
-            "test_outbox_event_persisted_after_creation",
-            "test_relay_claims_and_publishes",
-            "test_duplicate_event_marked_processed",
-            "test_idempotency_prevents_reprocessing",
-            "test_redelivered_event_idempotent",
-            "test_temporary_failure_triggers_retry",
-            "test_permanent_failure_goes_to_dlq",
-            "test_temporary_and_permanent_are_distinct",
-            "test_exception_chain_preserves_cause",
-            "test_worker_recovers_from_checkpoint",
-            "test_stream_progress_read_from_id",
-            "test_stream_maxlen_trims_old_entries",
-            "test_orphan_objects_detected",
-            "test_claim_stale_jobs_marks_old_jobs",
-            "test_terminal_jobs_not_marked_stale",
-            "test_list_jobs_by_status_finds_running",
-            "test_failed_is_terminal_retry_creates_new_job",
-            "test_lease_expires_and_reacquired",
-        ),
-        "reason": ("18 个 test def 整体搬进该路径（#1550）；内容按 master 的 API/状态机重写："
-                    "outbox 腿走 fetch_pending_outbox_rows + mark_outbox_published，"
-                    "幂等腿改 Redis SETNX（make_idempotency_check），流长度 API 更名 stream_length，"
-                    "FAILED 的相反判因被 master 端显式立场顶住（FAILED→QUEUED）；"
-                    "2 个 P1-B 占位（checkpoint/orphan）保留 skip；16 个 live，"
-                    "本会话实测 17 passed / 2 skipped"),
-    },
+    # tests/integration/test_fault_scenarios.py was here as the 10th and last
+    # branch-only file, verdict not_landed. #1550 ported the 18 test defs into
+    # master (16 live + 2 pinned skip), so the file is now part of the base
+    # tree — a disposition for a file master owns reads as a phantom ghost
+    # (P3 red both ways), and there is nothing left to adjudicate. The port's
+    # content, reversal notes and measurements live in the commit that landed
+    # it (#1550) and in the ledger section of that number.
     "a756f5338:evidence/matrix.py": {
         "verdict": "landed_at_other_path",
         "successor_paths": ("agent/matrix_policy.py", "agent/nodes/build_matrix.py"),
