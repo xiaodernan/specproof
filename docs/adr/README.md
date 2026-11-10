@@ -23,6 +23,7 @@
 | [ADR-015](ADR-015.md) | Bug Capsule 可重放格式 | 已接受 | ADR-015 |
 | [ADR-016](ADR-016.md) | 为什么 v1.0 不使用 Kubernetes | 已接受 | ADR-016 |
 | [ADR-017](ADR-017.md) | LLM 私有推理不保存 | 已接受 | ADR-017 |
+| [ADR-018](ADR-018.md) | 为什么边缘网关是 Spring Cloud Gateway | 已接受 | ADR-018 |
 
 ## 历史文件
 
