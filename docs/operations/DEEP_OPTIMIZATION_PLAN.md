@@ -28724,3 +28724,36 @@ from_status=NULL→CANCELLED）。**不假装这是产品自愈——它是 oper
 - Drill 1（网关 429 之后需冷却）；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1586 ADR-018：边缘网关为何是 Spring Cloud Gateway（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 66be821 → 9f9483f）。
+
+**来路。** 边缘网关自 #1544 起一直在长——6 条路由、断路器、request-id、池/路由指标、
+histogram buckets、p95 面板（#1584）——ADR 索引 `docs/adr/README.md` 和 v1.0 承诺表
+里却没有它一行。SpecProof 自有 ADR 纪律（§22 的 17 条 + LEGACY 拆分）。
+
+**落地：**
+- 新增 `docs/adr/ADR-018.md`「为什么边缘网关是 Spring Cloud Gateway」——把 #1544-#1584
+  的**决策过程**补齐为一份决策记录：SCG（Boot 3.4.3 + Spring Cloud 2024.0.1，
+  gateway 4.2.1）单作为反向代理、application.yml 路由表即匹配序、control-plane 先匹配
+  catch-all 绝不能排在前面、
+  management 端口独立绑 loopback、`/actuator/gateway/routes` 在 edge 不可见、viewer 保持
+  无 Security（分流不分担认证）、`compose.observability.yml` 是唯一组合文件
+  — 一条决策一份记录。
+- `docs/adr/README.md`：新增 `ADR-018` 行；映射表、LEGACY 行未动。
+
+**验证读数：** 文档-only 变更，0 代码，未跑门。
+- 对应测试门依旧是 `tests/unit/test_gateway_route_table_covers_every_plane_route.py`
+  R3（catch-all 顺序）+ `tests/unit/test_edge_route_table_copies_agree.py`
+  （application.yml / Java 测试 / Grafana 面板三处副本一致）。
+
+**诚实边界：**
+- ADR 里写明「认证留给两个上游」；**边缘不做认证**，这是设计取舍，不是漏接；
+- 边缘只进 `compose.observability.yml`，**不在默认 `compose.production.yml`**；
+  v1.0 部署潮仍避开「公网默认开放」；
+- ADR 是「解释」，不是承诺——今后的取代行需要新 ADR。
+
+**下一号队列（不动）：**
+- 门 v7（`3bacba2`）结果登记；
+- Drill 1；slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
