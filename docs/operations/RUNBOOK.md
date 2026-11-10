@@ -290,6 +290,12 @@ traceback, 而且 killed 的正是他本想保持不动的那个旋钮。现在�
   源码只读挂载, 仅 target 可写; worker 与 sandbox 之间没有任何
   /var/run/docker.sock 挂载 (DooD 走 tcp://sandbox:2375, 见 §5)。
 - 密钥只从环境变量 / Docker Secret 读取; 仓库中只有 .env.example 占位符。
+- 生成 SPECPROOF_SIGNING_KEY: `python scripts/generate_signing_key.py`
+   ——stdout 打印 32 字节 Ed25519 种子(hex)，stderr 打印 public key(hex，供 pin);
+   `--output <path>` 写到文件(POSIX 0600)、`--force` 才允许覆盖。**永不把种子贴进
+   仓库/聊天/.env 里**；签名路径目前没有 compose 载体是**登记的**（#257 D08，
+   `SPECPROOF_SIGNING_KEY`/`SPECPROOF_SIGNING_KEY_FILE` 连模板行都没有——配不配
+   看消费方；配了也不会有人替你把 seed 收进保险库），KMS/HSM 仍是欠账。
 - 轮换 GITHUB_WEBHOOK_SECRET: 改 secret -> 重启 api 与 CP -> GitHub App
   端同步更新 (期间 webhook 401, 不丢事件 — GitHub 会重投, 幂等兜底)。
 - 轮换 SPECPROOF_SIGNING_KEY: 新证书用新公钥验证; 旧证书仍可用旧公钥
