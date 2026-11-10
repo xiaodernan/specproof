@@ -28118,3 +28118,60 @@ markdown 行按列按位置填，于是 "Path=/**" 填进了 *path* 列，**plan
 - slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）；
 - 若业主想处置 `.scratch/mine514` 等大型过时副本，须单独授权（本号不删）。
+## #1570 边缘上游连接池可见：Spring Cloud Gateway `pool.metrics` → Prometheus/Grafana（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 09424f0 → b3d081e）。
+
+**来路。** #1568 给边缘加了 response-timeout 30s、断路器（#1554）吞上游失败、#1555
+把断路器状态接进 micrometer——但**连接池一条序列都没有**：SCG 的
+`spring.cloud.gateway.httpclient.pool.metrics` 默认 false。边缘的 management 端口早
+被 compose observability stack 抓了，Prometheus 抓得到的是空的池。
+
+**量到的事实（先量后写）：**
+- SCG 4.2.1 的 jar 现算（`HttpClientFactory` 的 `connectionProvider` → `builder.metrics(properties.getPool().isMetrics())`
+  → reactor-netty `ConnectionProvider$ConnectionPoolSpec.metrics(Z)`）——**property 真的被 wiring 了**。
+- 开关只影响 ConnectionProvider 的 `ConnectionPoolSpec`，不是名字变体；
+  **reactor-core-micrometer** 在本机 ~/.m2 里在场（spring-cloud-gateway 的传递依赖）。
+- 真代理路径实测（JDK 内置 HttpServer 作为上游、真 catch-all 路由）：
+  `reactor.netty.connection.provider.{active,idle,max,max.pending,pending,total}.connections`
+  + `pending.connections.time`（timer，SUCCESS/ERROR 两条 tag）**全部注册**。
+  序列 tag：`id`（hash）、`name=proxy`（SCG 默认池名）、`remote.address=<host:port>`。
+- 池的 **timer**（pending.connections.time）未画进面板——`total/active/pending` 已覆盖
+  「池满」信号；timer 想看排队时间得另开一张图，本号没做（记账）。
+
+**落地：**
+- `application.yml`：`httpclient.pool.metrics: true`（注释写清不开的后果）。
+- `GatewayPoolMetricsTests.java`（新，2 腿）：真代理路径 ⇒ 5 条 connection gauge 全部存在；
+  且**每条**序列 `name=proxy`、`remote.address` 非空（可归属上游）。
+  注意（#1570 腿自己挖的坑）：surefire 的 JVM 里 micrometer global registry 是静态的、
+  跨测试类共享——`GatewayActuatorRoutesTests` 与 `GatewayUpstreamTimeoutTests` 的 context
+  也会在里面留下自己的 `localhost:10` / `127.0.0.1:<随机端口>` 序列；所以对
+  **序列条数**不做断言，只断言它们共同的约束（name=proxy、remote.address 非空）。
+- `infra/grafana/dashboards/specproof-slo.json`：新增面板 56「Edge 上游连接池（reactor-netty）」
+  （timeseries：total / active / pending，legend 带 `{{remote_address}}`）；面板 55 → **56**。
+  无任何门钉死 55（≥40 / ≥20 且按 title 查找）；观测奇偶门只扫 `specproof_` 前缀序列，
+  `reactor_netty_*` 不在其射程。
+
+**验证读数：**
+- **Java：`mvn -o -B test` ⇒ 20 tests, 0 failures — BUILD SUCCESS**（原 18 + 新 2）。
+- 面板 JSON 可解析（56 panels，max id 56）；dashboard/observability 门 **64 passed**；
+  `ruff` 全绿。
+- 未跑全量门（复跑已在后台于 `ebb4d7e` 跑，日志 `_fullgate_v5.txt`；结果待下一节登记）。
+
+**诚实边界：**
+- 面板**未经 Grafana 渲染实测**（不装、不开服务）；门只证明 JSON 与 PromQL 字面合法。
+- 指标名取自微米 → Prometheus 的简单映射（dots → 下划线，gauge 不带 `_total` 后缀）；
+  生产侧的 `remote.address` 是 `api:8000`（以部署后抓数为准）。
+- 本号**没有**验证 Prometheus 真的抓到了这些序列（scrape 的 remote.address 在生产
+  是容器名 `api`，本地是 `127.0.0.1:port`）——只有 Grafana/Prometheus 在生产跑起来后
+  才知道序列长什么样。
+- `pending.connections.time`（timer）未画；池满时的**告警规则**未加
+  （alerts-slo.yml 那里没有 specproof-edge 的池规则；加了就得顺带更新告警计数与 RUNBOOK，
+  本号未做，记账）。
+- `.env.example` 未加 `GATEWAY_*` 之外的任何新变量——pool.metrics 无需环境变量。
+
+**下一号队列（不动）：**
+- 全量门复跑结果如实登记 + Drill 1（真强杀 → 续跑）；
+- 池满/pending 告警（`SpecproofEdgePoolSaturated`？）与 RUNBOOK 条目；
+- slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
