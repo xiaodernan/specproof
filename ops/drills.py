@@ -497,31 +497,41 @@ AUTH_FIXTURE_HEAD_JAVA = AUTH_FIXTURE_BASE_JAVA.replace(
 # ── Deterministic fixture repo ──────────────────────────────────────────────
 
 
-def _git(root: Path, *args: str) -> None:
+def _git(
+    root: Path,
+    *args: str,
+    no_verify: bool = False,
+    timeout: float = 120.0,
+) -> None:
     """git in argument-list form (no shell, no interpolation).
 
     The fixture repo is a fresh scratch git repository with no
     configuration of its own, so the identity is pinned here (``-c``) rather
     than inherited from whatever identity the host happens to have — a drill
     must fail closed on its own terms, not on the operator's global config.
+    The user's global pre-commit hook scans the tree like any other repo;
+    ``no_verify=True`` adds ``--no-verify`` to ``commit`` so a synthetic
+    fixture is not paying for a full scan of 150 identical one-liners.
     """
+    argv = [
+        "git",
+        "-C", str(root),
+        "-c", "user.name=specproof-drill",
+        "-c", "user.email=specproof-drill@localhost",
+        *args,
+    ]
+    if no_verify and args and args[0] == "commit":
+        argv.insert(argv.index("commit") + 1, "--no-verify")
     result = subprocess.run(
-        [
-            "git",
-            "-C", str(root),
-            "-c", "user.name=specproof-drill",
-            "-c", "user.email=specproof-drill@localhost",
-            *args,
-        ],
+        argv,
         capture_output=True,
         text=True, encoding="utf-8", errors="replace",
-        timeout=120,
+        timeout=timeout,
     )
     if result.returncode != 0:
         raise DrillTargetError(
             f"git {' '.join(args)} failed: {result.stderr.strip()[:300]}"
         )
-
 
 def build_deterministic_fixture(
     root: Path,
@@ -560,12 +570,14 @@ def build_deterministic_fixture(
         )
     _git(root, "init")
     _git(root, "add", "-A")
-    _git(root, "commit", "-m", "base", "--no-gpg-sign")
+    # The fixture repo is a synthetic test fixture — the global pre-commit
+    # hook would scan 150+ identical one-liners as if it were a real repo.
+    _git(root, "commit", "-m", "base", "--no-gpg-sign", no_verify=True)
     _git(root, "tag", base_tag)
     for rel, content in head_java_sources.items():
         (root / rel).write_text(content, encoding="utf-8")
     _git(root, "add", "-A")
-    _git(root, "commit", "-m", "head", "--no-gpg-sign")
+    _git(root, "commit", "-m", "head", "--no-gpg-sign", no_verify=True)
     _git(root, "tag", head_tag)
     return {
         "repo_path": str(root),
