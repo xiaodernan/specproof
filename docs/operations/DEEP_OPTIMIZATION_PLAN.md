@@ -28009,3 +28009,112 @@ markdown 行按列按位置填，于是 "Path=/**" 填进了 *path* 列，**plan
 - Drill 1（真强杀 → 续跑）；
 - slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1568 边缘的上游超时：Spring Cloud Gateway 没有默认值（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 9162bf2 → 4b663ca）。
+
+**来路。** SCG 4.2.1 的 `META-INF/spring-configuration-metadata.json` 现算：
+`spring.cloud.gateway.httpclient.response-timeout` 是 `java.time.Duration`、**没有默认值**
+—— agent runtime 只接受连接、永远不回时，边缘会**无限等**：调用方（浏览器）早放弃了，
+边缘还占着线程与连接；而断路器数的是**失败**，「挂住不回」在它那里不算失败直到报错。
+这条缺口与 #1567 钉的「运维看不见路由表」是同类：一个是配置说了不算的承诺，
+一个是配置根本没说。
+
+**落地：**
+- `application.yml`：新增 `httpclient` 块——`connect-timeout: 5000`（同网 planes，
+  30s 默认是把「对端不在」读成「对端死了」）、`response-timeout: 30s`。
+  注释写清：`response-timeout` 约束**第一个响应字节**的时间，**不**切 SSE 长连接
+  （`GET /agent/jobs/{id}/events` 是推送流程，吊死它就是吊死 web UI 的进度流——
+  而且这正是断路器管不到的那种死法）。
+- `GatewayUpstreamTimeoutTests.java`（新，2 腿，Spring Cloud 真实链路）：JDK 内置
+  `HttpServer` 起一个**睡 10 秒才回 200** 的 agent runtime ⇒ 网关被告知等 1 秒 ⇒
+  断言回包是 **503** 且是边缘自己的断路器体（`upstream_unavailable`），**且耗时 < 9 秒**
+  —— 10 秒后才来的 503 什么都证明不了。
+- `tests/unit/test_edge_gateway_bounds_its_upstreams.py`（新，3 腿）：`application.yml`
+  的 httpclient 块必须声明有限的 `connect-timeout`（≤10s）与 `response-timeout`
+  （≥1s、≤120s），且 Java 行为腿仍在位——静态门抓「删掉的配置行」，Java 门抓「没接进链路的配置行」。
+
+**验证读数：**
+- **Java：`mvn -o -B test` ⇒ 18 tests, 0 failures — BUILD SUCCESS**（原 16 + 新 2）。
+- Python：**16 passed**（本文件 3 + 路由表门 6 + plane-route 门 7 合跑）；`ruff` 全绿。
+- 未跑全量门（已在后台于 `ebb4d7e` 复跑，日志 `_fullgate_v5.txt`，结果待下一节登记）。
+
+**诚实边界：**
+- **未部署到生产 edge 容器**——这是配置 + 本地真链路测试；compose 里的 `specproof-edge`
+  实际行为以部署后为准。
+- `response-timeout` 只管第一个字节；SSE 流**不设上限**（刻意）。
+- 超时错误由断路器收成 503（circuit-open），503 不是 504——与 #1554 的上游不可用语义
+  一致，不另开一种回包形状。
+- 该测试的上游是 JDK 内置 `HttpServer`（测试内自建，自建自删，随机端口），不是生产上游。
+
+**下一号队列（不动）：**
+- 全量门复跑结果如实登记；
+- Drill 1（真强杀 → 续跑）；
+- slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1569 工作树普查：没有任何一份副本承载 master 没有的工作（只读，2026-11-10）
+
+**记录基准**：本节只追加；本次只读盘点，**未改动任何克隆/副本/工作树**。
+
+**来路。** 用户多次要求「把项目的多个工作分支、各种 worktree 合并起来，综合集大成，
+合并到一个主分支」。此前已（#1549 起）把 master 并轨并清理临时 worktree；本号把
+`D:\面试项目` **下所有** git 克隆/平面目录当面普查一遍，回答「还有什么没并」。
+
+**盘点结论：没有。** 14 个 git 根（不含 `specproof-reference` 与 `_wt_plan`），
+逐一量了 HEAD、与 master 的 ahead 数、与 origin/master 的 ahead 数、脏文件：
+
+| 平面 | HEAD | 与 master ahead | 与 origin/master ahead | 脏文件 |
+|---|---|---|---|---|
+| `.scratch/mine514` | 7b2e02d 所在树（前身） | 0 | 0 | 2334（git init 未提交副本） |
+| `_eval530_plane` | 0ae4890 | 0 | 0 | 2（见下） |
+| `_pt521_plane` | 127f913 | 0 | 9（它过时了，不是 master 过时） | 1（CRLF 假脏） |
+| `_pt521_plane2` | b710dfb | 0 | 0 | 1（见下） |
+| `_sp_clone528` | b710dfb | 0 | 0 | 0 |
+| `sp221-plane-edcfae7` | edcfae7 | 0 | 0 | 1（过时的测试草稿） |
+| `m492_shallow` | 565adfa | 0 | 0 | 0 |
+| `.scratch/_cl1549`、`.scratch/_cl1549_norefs` | 7b2e02d* | 0 | 0 | 0 |
+| `_freshclone_verify2/specproof` | （空克隆，.git 无效） | — | — | — |
+| `mc-t470/plane_t478`、`mc-t470/plane_t517` | （minicc，非本产品） | — | — | 564 / 615（git init 未提交） |
+| `minicc-codex` | 0a8f9d6（分支 main） | （另一个产品 minicc） | — | 3 |
+
+**逐处复核过的「可能未落库」内容（byte 级比对，crlf 归一化）：**
+- `.scratch/mine514` 里 master 没有的唯二两个文件：`craft/mutation.py`（22KB）与
+  `tests/unit/test_mutation_engine.py`——正是 **#535 明令删除的第二 mutation engine**。
+  master 上 `tests/unit/test_there_is_one_mutation_engine.py` 就是为此钉的门
+  （「one mutation engine, and it is the one a caller actually reaches」）。**吸收它等于
+  给已删的引擎复活，门会变红——不做。**
+- `_eval530_plane` 的两处「未提交」（`agent/nodes/run_differential.py` +79 行：
+  zero-executed-tests guard；`experiments/adapters.py`：`-q` → `-B`）：master 上两处
+  **都在**（`#530` 的守卫、`_first_maven_error_line`、`-B` 批处理模式逐字在场，
+  共享行 2194/2195 与 1981/1984）。副本是落库前的在途稿，**已落库**。
+- `_pt521_plane2` 的 `--refs-only` 在途稿：master 已含 `REFS_ONLY`、`_commit_on_base`、
+  `apply_case_detached`（CI 对 `--refs-only` 的调用、`nightly-eval.yml`、
+  `test_ci_materializes_the_golden_refs.py` 全在），副本是 **2391/2397 行重合的旧稿**。
+- `_pt521_plane` 的 `UserController.java`：crlf 归一化后**逐字节相同**。
+- `sp221-plane-edcfae7` 的 `test_listen_port_knobs_bind_the_scrape_roster.py`：副本 46KB、
+  master 84KB——落库的是更完整的版本，副本是早期稿。
+- `_pt521_plane` 与 `origin/master` 的 9 个 ahead：是该副本的 `origin/master` ref 过时，
+  master 本地已含这 9 个提交并已推送。
+
+**不属于本产品的两条（本号不动，只登记）：**
+- `mc-t470/plane_t478`、`mc-t470/plane_t517`（约 1044 / 662 个文件）与 `minicc-codex`
+  （分支 `main`，sha 0a8f9d6）：**minicc** 是另一个产品（一个独立的 agent CLI：
+  `minicc/agent/graph.py`、`web/`、`benchmarks/`、`package.json`）——它与 SpecProof
+  没有共同的 master、不是本仓库的工作分支，**「合并进本 master」会把两个产品混为一谈**，本号不做。
+- `_freshclone_verify2/specproof`：`.git` 目录无效，空克隆，无提交可并。
+
+**诚实边界：**
+- 本号只做**只读**盘点：没有删任何副本、没有改任何副本的内容、没有移动任何 ref。
+  上表「脏文件」是快照读数，不是处理建议——删除 `.scratch/mine514` 这类大目录属于破坏性
+  清理，须单独授权。
+- 「任何未落库工作」的结论覆盖了 SpecProof 副本与四类未提交草稿的逐字核查；
+  非本仓库的顶层目录（`new*`、`wt*`、`p*` 等，多数无 `.git`）**未逐个普查**——
+  只对识别出的 git 根给出判决。若有人在非 git 目录里保存了唯一副本，本号没看见。
+- master 之外的分支（`origin/feature/p1-reliability-kernel` 等三条孤儿 ref）的裁定
+  在 #1548/#1550（`evidence/branch_reconciliation.py`），不在本号复量。
+
+**下一号队列（不动）：**
+- 全量门复跑结果如实登记（`_fullgate_v5.txt`，HEAD=ebb4d7e）并跑 Drill 1；
+- slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）；
+- 若业主想处置 `.scratch/mine514` 等大型过时副本，须单独授权（本号不删）。
