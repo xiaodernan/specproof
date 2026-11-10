@@ -555,7 +555,13 @@ def notify_stats_cmd(job_id: str | None) -> None:
     "--json", "as_json", is_flag=True,
     help="输出机读 JSON",
 )
-def reconcile_buckets_cmd(buckets: tuple[str, ...], as_json: bool) -> None:
+@click.option(
+    "--record-limit", "record_limit", default=1_000_000, show_default=True,
+    help="最多读多少行索引 (默认=不限; 上限会让扫描不完整, 并在输出里标记)",
+)
+def reconcile_buckets_cmd(
+    buckets: tuple[str, ...], as_json: bool, record_limit: int
+) -> None:
     """对象存储与索引的对账: 桶里有而索引没有的幽灵 / 索引指向而桶里没有的 / 字节变了的。
 
     只报告, **不删任何东西**——删除是另一次明确动作 (与本地 payload 目录的
@@ -569,7 +575,12 @@ def reconcile_buckets_cmd(buckets: tuple[str, ...], as_json: bool) -> None:
 
     objects = MinIOClient()
     names = tuple(buckets) if buckets else tuple(objects.BUCKETS)
-    report = reconcile_buckets(objects, default_object_metadata_store(), names)
+    report = reconcile_buckets(
+        objects,
+        default_object_metadata_store(),
+        names,
+        record_limit=record_limit,
+    )
     if as_json:
         click.echo(_json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
         return
@@ -577,8 +588,13 @@ def reconcile_buckets_cmd(buckets: tuple[str, ...], as_json: bool) -> None:
         f"扫描 {len(names)} 个桶: 对象 {report.scanned_objects} 个, "
         f"索引行 {report.scanned_records} 行。"
     )
+    if report.truncated:
+        click.echo(
+            "⚠ 索引行数达到读取上限——本次扫描**不完整**, "
+            "上面的结论只覆盖读到的前缀 (调大 --record-limit 重跑)。"
+        )
     if report.is_clean():
-        click.echo("桶与索引一致: 没有幽灵、没有断链、没有摘要不符。")
+        click.echo("桶与索引一致: 没有幽灵、没有断链、没有摘要不符、没有歧义。")
         return
     for finding in report.findings:
         click.echo(f"  [{finding.kind}] {finding.bucket}/{finding.object_name}: {finding.detail}")

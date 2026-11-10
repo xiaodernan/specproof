@@ -32,6 +32,7 @@ from pathlib import Path
 import pytest
 
 from evidence.bucket_reconcile import (
+    KIND_AMBIGUOUS_INDEX,
     KIND_DIGEST_MISMATCH,
     KIND_MISSING,
     KIND_UNINDEXED,
@@ -149,6 +150,43 @@ def test_changed_bytes_are_reported_as_a_digest_mismatch(
     assert mismatches[0].object_name == "capsule/changed.zip"
 
 
+def test_several_index_rows_that_disagree_are_reported_as_an_ambiguity(
+    minio_client: MinIOClient, tmp_path: Path
+) -> None:
+    """The real data looks like this: one eval case rebuilt its capsule three
+    times and left three rows for the same object.
+
+    Picking "the last row" would turn that ambiguity into a verdict — and a
+    verdict here decides whether an operator deletes evidence. So the
+    ambiguity is reported as its own finding.
+    """
+    data = b"rebuilt-capsule-bytes"
+    _upload(minio_client, "capsule/rebuilt.zip", data)
+    store = SQLiteObjectMetadataStore(tmp_path / "objects.sqlite3")
+    for digest in ("a" * 64, "b" * 64, "c" * 64):
+        store.record(
+            new_metadata(
+                "capsule",  # type: ignore[arg-type]
+                {"payload_sha256": digest},
+                job_id="job-rebuilt",
+                path_hint=str(tmp_path / "capsule.zip"),
+                object_ref=f"{BUCKET}/capsule/rebuilt.zip",
+            )
+        )
+
+    report = reconcile_buckets(minio_client, store, [BUCKET])
+
+    ambiguous = report.of_kind(KIND_AMBIGUOUS_INDEX)
+    assert len(ambiguous) == 1, (
+        f"three rows disagreeing about one object were not reported as an "
+        f"ambiguity: {[f.kind for f in report.findings]}"
+    )
+    assert ambiguous[0].object_name == "capsule/rebuilt.zip"
+    # An ambiguity is not a digest mismatch: the digests disagree with each
+    # other, not (only) with the object.
+    assert report.of_kind(KIND_DIGEST_MISMATCH) == []
+
+
 def test_a_clean_bucket_reports_nothing(
     minio_client: MinIOClient, tmp_path: Path
 ) -> None:
@@ -173,6 +211,45 @@ def test_a_clean_bucket_reports_nothing(
     )
     assert report.scanned_objects == 1
     assert report.scanned_records == 1
+
+
+def test_a_scan_that_could_not_read_the_whole_index_says_so(
+    minio_client: MinIOClient, tmp_path: Path
+) -> None:
+    """A truncated scan that says "clean" is a lie told by omission.
+
+    The real index on this machine holds 1420 rows; a default read limit
+    below that would have hidden 420 of them and still said "no ghosts".
+    So the report carries the truncation flag.
+    """
+    store = SQLiteObjectMetadataStore(tmp_path / "objects.sqlite3")
+    store.record(
+        new_metadata(
+            "capsule",  # type: ignore[arg-type]
+            {"payload_sha256": "a" * 64},
+            job_id="job-truncated",
+            path_hint=str(tmp_path / "capsule.zip"),
+            object_ref=f"{BUCKET}/capsule/truncated.zip",
+        )
+    )
+
+    report = reconcile_buckets(minio_client, store, [BUCKET], record_limit=1)
+
+    assert report.scanned_records == 1
+    assert report.truncated is True, (
+        "the scan hit the read limit and did not say so — the operator "
+        "would read 'no findings' as 'the whole index was checked'"
+    )
+
+
+def test_a_scan_that_read_the_whole_index_is_not_truncated(
+    minio_client: MinIOClient, tmp_path: Path
+) -> None:
+    store = SQLiteObjectMetadataStore(tmp_path / "objects.sqlite3")
+
+    report = reconcile_buckets(minio_client, store, [BUCKET], record_limit=1000)
+
+    assert report.truncated is False
 
 
 def test_the_scan_removes_nothing(

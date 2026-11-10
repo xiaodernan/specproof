@@ -44,12 +44,17 @@
   真实执行只允许测试库（`MYSQL_DATABASE` 指向的隔离测试 schema）；其他库需 `--i-am-sure-rolling-back`）；
   缺少 down 脚本或目标库不符合 `_test` 家族规则时明确拒绝退出码 1, 不静默跳过。
 - 对象存储与索引的对账 (桶侧): `specproof ops reconcile-buckets [--bucket B]...
-  [--json]`。它列出桶里的对象并与对象索引 (object metadata) 比对, 报三种断链:
+  [--json] [--record-limit N]`。它列出桶里的对象并与对象索引 (object metadata) 比对,
+  报四种断链:
   `unindexed` (桶里有、索引没有 —— 上传成功而索引写失败留下的幽灵),
-  `missing` (索引指向而桶里没有 —— 证据没了), `digest_mismatch` (字节被改)。
+  `missing` (索引指向而桶里没有 —— 证据没了), `digest_mismatch` (字节被改),
+  `ambiguous_index` (同一个对象有多条索引行且对摘要各说各话 —— 索引没有单一说法,
+  报出来而不是替它挑一条)。
   **只报告, 不删任何东西** —— 删除是另一次明确动作 (按启发式删证据, 就是这个项目要
   避免的失败模式)。本地 payload 目录那一侧的对账是 `evidence/orphan_scan.py`
   (按路径比), 两侧合流尚未做。
+  索引比读取上限大时扫描是**不完整**的, 输出里的 `truncated=true` 会说这件事 ——
+  一个只读了前缀的扫描不许看起来像读全了。
 - 月账单生成 (#234): 独立进程 `python -m storage.invoice_cron`，2026-10-30 起挂 compose 生产栈的 billing profile (docker compose --profile billing up -d invoice-cron；SPECPROOF_BILLING_URL 未设时启动即诚实的 no-op 退出)
   (2026-10-14 实测订正: 三个 compose 文件、两个 Dockerfile、scripts 下的启动脚本与
   .github 的两个 workflow 都不名这个模块，此前本节写「部署形式同 outbox-relay」是把

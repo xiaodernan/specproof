@@ -14,7 +14,7 @@ objects in ``specproof-bug-capsules`` & co. and asked which of them the index
 does not know about. So the promise in the artifact store's docstring pointed
 at a reader that did not exist.
 
-This module is that reader. It answers three questions about the buckets and
+This module is that reader. It answers four questions about the buckets and
 the index, and it answers them **without deleting anything**:
 
 ``unindexed``
@@ -30,6 +30,14 @@ the index, and it answers them **without deleting anything**:
     The object is there and the index knows it, but the bytes no longer
     hash to the recorded digest: the artifact changed after it was recorded.
 
+``ambiguous_index``
+    **Several** index rows point at the same object and they disagree about
+    its digest. This is what the real data looks like: one eval case
+    rebuilt its capsule three times and left three rows for the same
+    object. Picking "the last row" would turn an ambiguity into a verdict —
+    and a verdict here decides whether an operator deletes evidence. So the
+    ambiguity is reported as its own finding.
+
 Deleting is a separate, explicit act (the same rule ``orphan_scan`` follows:
 a scan that silently removed what it called an orphan would destroy evidence
 on the strength of a heuristic). This module reports; it never touches.
@@ -38,9 +46,10 @@ on the strength of a heuristic). This module reports; it never touches.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
+from evidence.findings_report import FindingsReport
 from storage.object_metadata import (
     ObjectMetadataStore,
     normalize_object_ref,
@@ -53,9 +62,15 @@ logger = logging.getLogger(__name__)
 KIND_UNINDEXED = "unindexed"
 KIND_MISSING = "missing"
 KIND_DIGEST_MISMATCH = "digest_mismatch"
+KIND_AMBIGUOUS_INDEX = "ambiguous_index"
 
 #: Every finding kind, in the order a report prints them.
-FINDING_KINDS = (KIND_UNINDEXED, KIND_MISSING, KIND_DIGEST_MISMATCH)
+FINDING_KINDS = (
+    KIND_UNINDEXED,
+    KIND_AMBIGUOUS_INDEX,
+    KIND_DIGEST_MISMATCH,
+    KIND_MISSING,
+)
 
 
 class ObjectStoreLike:
@@ -85,16 +100,16 @@ class BucketFinding:
 
 
 @dataclass
-class BucketReconcileReport:
+class BucketReconcileReport(FindingsReport[BucketFinding]):
     """What the scan found — a report, never an action."""
 
-    findings: list[BucketFinding] = field(default_factory=list)
     scanned_objects: int = 0
     scanned_records: int = 0
     buckets: tuple[str, ...] = ()
-
-    def is_clean(self) -> bool:
-        return not self.findings
+    #: True when the index was bigger than the read limit and the scan
+    #: therefore did NOT see every row. A truncated scan that says
+    #: "clean" is a lie told by omission — so the report carries the flag.
+    truncated: bool = False
 
     def of_kind(self, kind: str) -> list[BucketFinding]:
         return [finding for finding in self.findings if finding.kind == kind]
@@ -104,6 +119,7 @@ class BucketReconcileReport:
             "buckets": list(self.buckets),
             "scanned_objects": self.scanned_objects,
             "scanned_records": self.scanned_records,
+            "truncated": self.truncated,
             "is_clean": self.is_clean(),
             "findings": [
                 {
@@ -117,6 +133,11 @@ class BucketReconcileReport:
         }
 
 
+def _recorded_digest(record: Any) -> str:
+    digests = getattr(record, "digests", {}) or {}
+    return normalize_payload_digest(str(digests.get("payload_sha256", "") or ""))
+
+
 def reconcile_buckets(
     objects: ObjectStoreLike,
     metadata: ObjectMetadataStore,
@@ -128,15 +149,24 @@ def reconcile_buckets(
 
     Read-only: no object is removed, no index row is touched. The caller
     decides what to do with the report.
+
+    ``record_limit`` caps how many index rows are read. When the index is
+    bigger than that cap, the scan is **incomplete** — and it says so in
+    ``report.truncated`` rather than quietly reporting on a prefix. (The
+    real index on this machine holds 1420 rows; a default cap of 1000
+    would have hidden 420 of them.)
     """
     report = BucketReconcileReport(buckets=tuple(buckets))
 
-    indexed: dict[str, Any] = {}
+    # Every row that names an object — several rows may name the same one,
+    # and that is a finding of its own, not something to resolve silently.
+    indexed: dict[str, list[Any]] = {}
     for record in metadata.list(limit=record_limit):
         report.scanned_records += 1
         ref = normalize_object_ref(getattr(record, "object_ref", "") or "")
         if ref:
-            indexed[ref] = record
+            indexed.setdefault(ref, []).append(record)
+    report.truncated = report.scanned_records >= record_limit
 
     seen: set[str] = set()
     for bucket in buckets:
@@ -144,8 +174,8 @@ def reconcile_buckets(
             report.scanned_objects += 1
             ref = f"{bucket}/{name}"
             seen.add(ref)
-            record = indexed.get(ref)
-            if record is None:
+            records = indexed.get(ref)
+            if not records:
                 report.findings.append(
                     BucketFinding(
                         kind=KIND_UNINDEXED,
@@ -159,11 +189,26 @@ def reconcile_buckets(
                     )
                 )
                 continue
-            recorded = normalize_payload_digest(
-                str((getattr(record, "digests", {}) or {}).get("payload_sha256", ""))
-            )
-            if not recorded:
+
+            digests = {digest for digest in (_recorded_digest(r) for r in records) if digest}
+            if len(records) > 1 and len(digests) > 1:
+                report.findings.append(
+                    BucketFinding(
+                        kind=KIND_AMBIGUOUS_INDEX,
+                        bucket=bucket,
+                        object_name=name,
+                        detail=(
+                            f"{len(records)} index rows point at this object and "
+                            f"they disagree about its digest ({len(digests)} distinct "
+                            "values) — the index has no single word here, so this is "
+                            "reported instead of resolved"
+                        ),
+                    )
+                )
                 continue
+            if not digests:
+                continue
+            recorded = next(iter(digests))
             try:
                 actual = objects.object_digest(bucket, name)
             except Exception as exc:  # noqa: BLE001 — a store that cannot answer is not a verdict

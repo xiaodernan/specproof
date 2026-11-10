@@ -39,6 +39,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from evidence.findings_report import FindingsReport
 from storage.object_metadata import (
     ObjectMetadata,
     ObjectMetadataStore,
@@ -82,10 +83,9 @@ class ObjectFinding:
 
 
 @dataclass
-class ObjectScanReport:
+class ObjectScanReport(FindingsReport[ObjectFinding]):
     """The full scan result."""
 
-    findings: list[ObjectFinding] = field(default_factory=list)
     scanned_records: int = 0
     scanned_files: int = 0
     started_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
@@ -96,9 +96,6 @@ class ObjectScanReport:
         for finding in self.findings:
             counts[finding.kind] = counts.get(finding.kind, 0) + 1
         return counts
-
-    def is_clean(self) -> bool:
-        return not self.findings
 
     def to_dict(self) -> dict[str, Any]:
         return {
