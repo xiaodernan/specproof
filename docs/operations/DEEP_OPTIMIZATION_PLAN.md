@@ -28419,3 +28419,28 @@ docs/eval/aider-results.md` 才能让工作树复位供下一轮用——现在�
 - 门 #3 结果如实登记 + Drill 1；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1577 docs/operations 有了导航索引：README.md（路由图，不复述数字）（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 26cf481 → c3bf9c5）。
+
+**来路。** `docs/operations/` 下 17 份文档，**没有任何一张「该读哪份」**——
+值班/验收/交付三类读者无从下手，而每份文档的「真」都由自己的门钉住
+（RUNBOOK→`test_runbook_claims_hold.py`；告警表→`test_alert_table_matches_the_deployed_rules.py`；
+账本→`tests/unit/test_ledger_*`；……）。一堆文档，零张地图。
+
+**落地：** 新增 `docs/operations/README.md`，只做路由：
+- **十分钟路线**：RUNBOOK §1/§2/§4 → OBSERVABILITY §5/§6 → DRILLS §6；
+- **按角色分的表**：每条「你想知道什么 → 读哪份 → 被哪个门钉住」；
+- **三条诚实边界**：内容会漂、以门为准；账本 append-only（要读请读最新节）；
+  `DRILLS.md` §6 是这份目录里最诚实的一页。
+- 只引用**真实存在的路径与真实的门名**；节数 **1399**（`^## #` 实测，非估计）。
+
+**诚实边界：** 本索引只解决「入口」问题——它**没有**让任何一份文档变得更新；
+它明文声明「机器判定以门为准」。它也没有被任何门钉住（文档索引没有对应的门
+——这正是它可能悄悄漂移的地方，记录在此：本索引 2026-11-10 写入，谁改了文档
+忘了想到它，是可见的缺口）。
+
+**下一号队列（不动）：**
+- 门 #3（b8f6209）结果如实登记 + Drill 1；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
