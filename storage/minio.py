@@ -298,6 +298,26 @@ class MinIOClient:
         except Exception:  # noqa: BLE001 — a missing object has no digest; None is the answer, not an error
             return None
 
+    def list_bucket_objects(self, bucket: str) -> list[tuple[str, int, str]]:
+        """Every object in one bucket, as ``(name, size_bytes, sha256)``.
+
+        The digest is the one the store itself reports for the object
+        (``X-Amz-Meta-Sha256``) — empty when the object carries none, and
+        the caller then skips the digest comparison rather than guessing.
+        Read-only: listing never touches the objects.
+        """
+        listed: list[tuple[str, int, str]] = []
+        for obj in self.client.list_objects(bucket_name=bucket, recursive=True):
+            meta = getattr(obj, "metadata", None) or {}
+            listed.append(
+                (
+                    str(obj.object_name),
+                    int(obj.size or 0),
+                    str(meta.get("X-Amz-Meta-Sha256", "") or ""),
+                )
+            )
+        return listed
+
     def object_stat(
         self, bucket: str, object_name: str, *, tenant: str | None = None
     ) -> dict[str, Any]:

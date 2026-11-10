@@ -546,6 +546,44 @@ def notify_stats_cmd(job_id: str | None) -> None:
         )
 
 
+@ops_cmd.command("reconcile-buckets")
+@click.option(
+    "--bucket", "buckets", multiple=True,
+    help="要扫描的桶 (缺省=对象存储的三个生产桶)",
+)
+@click.option(
+    "--json", "as_json", is_flag=True,
+    help="输出机读 JSON",
+)
+def reconcile_buckets_cmd(buckets: tuple[str, ...], as_json: bool) -> None:
+    """对象存储与索引的对账: 桶里有而索引没有的幽灵 / 索引指向而桶里没有的 / 字节变了的。
+
+    只报告, **不删任何东西**——删除是另一次明确动作 (与本地 payload 目录的
+    orphan 扫描同一纪律: 按启发式删证据, 就是这个项目要避免的失败模式)。
+    """
+    import json as _json
+
+    from evidence.bucket_reconcile import reconcile_buckets
+    from storage.minio import MinIOClient
+    from storage.object_metadata import default_object_metadata_store
+
+    objects = MinIOClient()
+    names = tuple(buckets) if buckets else tuple(objects.BUCKETS)
+    report = reconcile_buckets(objects, default_object_metadata_store(), names)
+    if as_json:
+        click.echo(_json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        return
+    click.echo(
+        f"扫描 {len(names)} 个桶: 对象 {report.scanned_objects} 个, "
+        f"索引行 {report.scanned_records} 行。"
+    )
+    if report.is_clean():
+        click.echo("桶与索引一致: 没有幽灵、没有断链、没有摘要不符。")
+        return
+    for finding in report.findings:
+        click.echo(f"  [{finding.kind}] {finding.bucket}/{finding.object_name}: {finding.detail}")
+
+
 @ops_cmd.command("rollback-migrations")
 @click.option(
     "--to", "target", type=int, required=True,
