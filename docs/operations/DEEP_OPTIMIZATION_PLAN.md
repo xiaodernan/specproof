@@ -27703,3 +27703,44 @@ thread 下真实存在的三篇文档（uuid6 ⇒ 字典序即时间序）：
 - 真实 worker kill → 续跑演练（DRILLS Drill 1 的重跑，需 docker 恢复）；
 - MinIO orphan 巡检（P1-B 另一格）；边缘冷启动 + Grafana 实证（operator 决罢）；
 - `verify_golden_tags.py` refs 家族重建（业主决断）；slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
+## #1562 P1.5 的"幽灵对象"用真对象存储打：补偿真删字节、非严格模式真留幽灵（2026-11-10）
+
+**记录基准**：本节只追加；落地于本章附带提交（master 链 a6bda89 → e4dc722）。
+
+**来路。** P1-B 队列里还挂着分支那条 `test_orphan_objects_detected`（分支的理由："P1.5
+artifact consistency deferred to P1-B"）。量 master 的现状：**机制在，证据只到替身**——
+`storage/artifact_store.py` 的诚实接缝写得清清楚楚（上传成功而写库失败 ⇒ 结果必须说清
+两件事；严格模式补偿删除，非严格模式保留并点名），但单元测试驱动它用的是**假对象客户端与
+假元数据后端**。"补偿真的删掉了字节"、"对象真的躺在桶里"这两句话，此前是对着 double 说的。
+
+**本号（真 MinIO + 真 SQLite 元数据后端）：**
+- scratch 桶自建自删（`specproof-test-artifact-ghost`），**生产桶不碰**；
+  MinIO 不可达 ⇒ skip 带真因（不假装绿）。
+- 腿 ① **上传真的落地**：桶里 stat 得到对象、桶里读回的 digest == 本地文件 digest、
+  索引行落进 SQLite 文件。
+- 腿 ② **严格模式真删字节**：上传成功 ⇒ 索引写失败（注入）⇒ 严格模式 ⇒
+  **用真 `stat_object` 问桶**：对象已不在；结果 `metadata_recorded=False` /
+  `compensated=True` / `compensation_error` 空。
+- 腿 ③ **非严格模式真留幽灵**：对象**真在**桶里（幽灵），`is_consistent=False`，
+  结果点名它并说它是 orphan——那正是对账要找到的东西。
+
+**验证读数：**
+- **3 passed**（真桶真后端）；`ruff check` 全绿。
+- **两条变异臂**各自把门打红：① 补偿不删对象 → **1 failed**；② 索引写失败被吞（谎称
+  成功）→ **2 failed**；臂后树逐字节还原（崩溃安全脚本：仓外备份 + 标记自愈）。
+- 全量门在后台跑（本号只加测试，未改产品代码）；结果待下一节登记。
+
+**诚实边界：**
+- 本号证明的是 **artifact_store 接缝在真对象存储上的行为**；**"谁去把桶里的幽灵清掉"
+  这一环本号没有证明**——`evidence/orphan_scan.py` 扫的是**本地 payload 目录**，
+  不是 MinIO 桶；桶侧目前只有 `list_job_objects` 这样的列举，没有对账器。
+  ⇒ **这是本号量出来的下一个缺口**（桶侧对账器缺失），已入队。
+- 注入的是"索引写失败"这一个调用（真实后端 + 注入的失败点）；把整个数据库弄坏不是诚实的
+  测试手法。
+- 未跑全量门；未跑 DRILLS Drill 1（真 worker kill）。
+
+**下一号队列（不动）：**
+- **桶侧对账器**（本号新量到的缺口）：把"桶里有、元数据里没有"的对象列出来并给出处置；
+- 真实 worker kill → 续跑演练（DRILLS Drill 1 重跑，需 broker/worker 真起）；
+- 边缘冷启动 + Grafana 实证（operator 决罢）；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
