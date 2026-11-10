@@ -29094,3 +29094,58 @@ caller 每秒钟都在被 429 丢弃，值班人员只有看得到的面板、�
   出结果时由后续节登记；
 - 本节不构成对 3bacba2 之后任何提交的上线背书；`fence 5 files 53 passed` 由本节追加后实跑；
 - 门 v8 与门 v7 同机器并行，不阻断彼此，但都比平时慢——环境不是恒温恒湿实验室。
+## #1595 `--kill-after-checkpoints` 旋钮 + `worker.log` 的原生 utf-8 炸裂
+
+**记录基准**：本节只追加；落地于 `40d2375` 与 `777c048`。
+
+**来路。** 两处独立发现：
+1. `scripts/drill_worker_kill.py`：`KILL_AFTER_CHECKPOINTS=6` 在健康 LLM 下太快——
+    六个廉价节点的耗尽保守地早于 0.25s 轮询粒度，命令到达时作业已在/越过终态。
+    新增命令行旋钮 `--kill-after-checkpoints`（缺省仍为 6，与文档默认逐字一致，不改行为）。
+2. 同一文件的另一条真 bug：`kill_log["kill_log_tail"] = worker_out.read_text(encoding="utf-8")[-800:]`
+   撞上 Windows 管道边界的非法 UTF-8 → NativeCommandError，整个演练 TRACEBACK 中断。
+   修为 `read_bytes()[-1600:].decode("utf-8", errors="replace")[-800:]`。
+
+**验证读数（实测）：**
+- `python -m mypy scripts/drill_worker_kill.py` → Success；`ruff check` → All checks passed。
+- utf-8 修复后再跑演练仍 FAIL（见 #1596）——utf-8 轴清了，演练窗口轴仍未过。
+
+**诚实边界：**
+- #1595 不是演练通过的理由；演练依然没过（#1596）。
+- 缺省/默认行为零变化：不传 `--kill-after-checkpoints` 时等于 `KILL_AFTER_CHECKPOINTS`（字面 6）。
+
+## #1596 DRILL 1 第三轮重试（LLM 网关就绪时）：kill→resume 仍未端到端成功
+
+**记录基准**：本节只追加；不动历史。
+
+**事实与观察（实测）：**
+- LLM 网关确实回到了可用：本轮 single ping（`.env` 的 `LLM_MODEL=deepseek-v4-flash-0731`）
+  返回 HTTP 200、usage 完整——对照同天上午的 429。**但单 ping ≠ 稳态 SLA**，
+  `DEEPSEEK_API_KEY` 仍未在环境中。
+- 一共尝试了四次左右（--padding 40），kill 真的落地了（`worker_killed=True`、
+  `killed_at_checkpoints` 在 2/4/6/8 都有过记录），但没有任何一次等到
+  `stuck_running_after_kill=True`；错误消息一致重现
+  `"job not RUNNING after kill (moved to terminal?)"`
+  （kill 落到时作业已经离开 RUNNING 或尚未进 RUNNING）。
+- worker.log 内一处 404 与大量 200 并存；**归因未查明**，不当先行结论。
+- 演练作业均已 CAS 到 `CANCELLED`（`operator:drill-wk-cleanup-2026-11-10` 写入
+  `audit_logs`）：drill-wk-1794318133（PREPARING）、drill-wk-1794317349（RUNNING）、
+  drill-wk-1794318585（CONTRACT_REVIEW）；同时发现同源的另外两条：
+  drill-wk-1794318922（PREPARING）、drill-wk-1794319008（CONTRACT_REVIEW），一并 CANCELLED；
+  `outbox` 7 行 JobCreated 全部 `published_at` 非空、`retry_count=0`——
+  这是消费后的审计痕迹，不应也不必删除。
+- fixture/cwd 临时目录（specproof-drill-wk-*）已全部清除；`_drill1_run*.json`
+  保存演练原始输出（4 份）；`_fullgate_v7.txt` 结论 6602 passed（本会话开始前已完成）。
+- 演练作业 outbox **全部已排空**（从 #1583 起累计 7 条，全部 published_at 非空；我无需删）。
+
+**诚实边界：**
+- 没有任何一条产物到达 kill→resume 的端到端；2026-08-19 DRILL-1 证据
+  保留为唯一 Verified；本轮是"又一次未果"的记录，不是通过的证据。
+- 不改写 DRILLS.md 以往的 8/19 PASS 行；DRILLS.md 本轮已补一段"第三轮再试"。
+- 迁移（本轮真实发生的）5 条/7 条 CANCELLED 都是操作书清理，不动 "演练本论未通过" 这一条评估。
+
+**下一号队列（不动）：**
+- 慢评估；KMS-HSM；`DEEPSEEK_API_KEY` 先行；`verify_golden_tags.py` refs 重建
+  （业主决断）；边缘冷启动 + Grafana 实证（operator 决罢）；
+  Drill 1 下一次尝试先在 `.env` 里钉死 LLM_MODEL 与一个可解析的 TokenPlan 模型
+  （需要 `DEEPSEEK_API_KEY`）。
