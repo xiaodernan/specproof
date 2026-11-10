@@ -137,6 +137,35 @@ agent runtime 早就在读 `X-Request-ID`、没有就自己生成一个 16 位�
 声明：header 名、id 长度、以及「进来的 id 不改写」这条语义——Java 侧单方面改名或改长度，
 这道门立刻红。
 
+## 上游可见性：超时、池、与网关自己的指标（#1568 / #1570 / #1571 / #1572）
+
+边缘原来是「只会拒绝」的存在——断路器管失败、不管排队；而**排队**（连接池耗尽、
+调用方全挂在 `response-timeout` 前的等待里）同样把请求拖死，只是看起来不像失败。
+这几号补上了那一半：
+
+- **超时**（#1568）：`spring.cloud.gateway.httpclient.connect-timeout=5000`、
+  `response-timeout=30s`——SCG 对 response-timeout **没有默认值**（未设 = 等死）。
+  `GatewayUpstreamTimeoutTests.java` 用睡 10 秒的 JDK `HttpServer` 上游证明：
+  告警体 `{"error":"upstream_unavailable","edge":"circuit-open","state":"closed",…,
+  "request_id":"…"}` 在 9 秒内回，而 30 秒才来的回包什么都证明不了。
+  response-timeout 约束的是**第一个响应字节**，**不**切 SSE 长连接。
+- **连接池指标**（#1570）：`httpclient.pool.metrics=true`（SCG 默认 false）⇒
+  `reactor.netty.connection.provider.{total,active,idle,max,pending}.connections`
+  进 Prometheus（management 端口早被抓）。**连 connect 池满了都看得见**——
+  "agent runtime 慢"和"边缘池满了在排队"在这里分得开。
+- **池满告警**（#1571）：`SpecproofEdgePoolSaturated`（`reactor_netty_…_pending_connections
+  {name="proxy"} > 0`，for 2m）——pending 持续 = 上游在排队而非拒绝；与
+  `SpecproofEdgeCircuitBreakerOpen`（拒绝）和 `SpecproofEdgeGatewayDown`（抓不到）
+  三者各守各的失效形状；EdgeGatewayDown 的 annotation 点名了这两个受守家族
+  （被抓断 = 两个家族同时沉默，不点名读者看不见）。
+- **路由自己的 metrics**（#1572）：`spring.cloud.gateway.metrics.enabled=true`
+  （默认 false）⇒ `spring.cloud.gateway.requests`（CumulativeTimer，tag：routeId /
+  outcome / routeUri …）与 `spring.cloud.gateway.routes.count`（gauge，== 6）。
+  每条路由怎么结束，不用翻日志。
+
+面板：Grafana「Edge 上游连接池（reactor-netty）」(56) 与「Edge 各路由请求速率
+（SCG metrics）」(57)——未经 Grafana 渲染实测，面板只有 PromQL 字面合法的证明。
+
 ## 这个单元故意不做的事
 
 - **不注册服务中心**（Eureka）：一个边缘 + 两个上游不是集群；本项目自己的商业计划
