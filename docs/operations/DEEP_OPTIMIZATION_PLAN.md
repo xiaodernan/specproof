@@ -29261,3 +29261,46 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 - 门 #8 出结果登记；门 #9 新 master 快照排队；
 - 慢评估；`DEEPSEEK_API_KEY`；KMS-HSM；`verify_golden_tags.py` 重建（业主）；
   Drill 1 continue（需要 `DEEPSEEK_API_KEY`）；边缘冷启动 + Grafana/OTel 实证（operator）。
+## #1600 SCG Retry 过滤器：4 条只读控制面路由上"5XX 重试两次、GET-Only、100→500ms 退避"
+
+**记录基准**：本节只追加；落地于 `f71b8fb`（master 链 17b0503 → f71b8fb）。
+
+**来路。** #1597 给控制面 5 条路由补了断路器（挂起不占线程），但边缘对 control-plane
+只读请求暂态抖动（一次丢瞬间的 TCP reset/5xx）直接落 5xx 给用户——这是*重试*能解决
+而断路器解不了的。POST 类不该重试（副作用复制），所以只加四条只读 control-plane 路由。
+
+**落地（`f71b8fb`）：**
+- `services/gateway/src/main/resources/application.yml`：
+  - `control-plane-jobs`、`control-plane-tenants`（GET）、`control-plane-tenant-item`、
+    `control-plane-tenant-users`（GET）：
+  - filters 新增
+    `- name: Retry`，args `retries: 2, statuses: INTERNAL_SERVER_ERROR, methods: GET,
+      backoff: {firstBackoff: 100ms, factor: 2, maxBackoff: 500ms}`
+  - `control-plane-github-webhook`（POST）**不挂**——edge 重试 webhook 会重复提交
+    给 agent runtime 的 side effect；只读/写入天然是天然的重试分界；
+  - statuses 选 `INTERNAL_SERVER_ERROR`（Breaker-open 产生的是 503，不是 500——边缘
+    知道那是"控制面"，重试不把边缘自己的断路器变成重试 Redis/调用放大器）。
+- `GatewayApplicationTests.everyGettableControlPlaneRouteCarriesTheRetryFilter`：
+  验证 webhook 不含 Retry，其余四条 GET 路由逐条 name+args 实测钉住；
+  `getAllCircuitBreakers` 依旧成立。
+- `docs/architecture/SPRING_CLOUD_EDGE.md`：SCG Retry 作为新 Spring Cloud 元素行，
+  Java 测试计数 28 → 29；文档其余声明（横向段落、banner、60 面板/22 告警）不动（与本号无关）。
+
+**验证读数（实测）：**
+- `mvn -o -B clean test`：**29 passed / 0 failed**（+1：everyGettableControlPlaneRouteCarriesTheRetryFilter）；BUILD SUCCESS；
+- Python 边缘腿：**19 passed**（`edge_route_table_copies_agree`/`gateway_route_table_covers_every_plane_route`/
+  `edge_gateway_bounds_its_upstreams`/`edge_request_id_matches_the_agent_runtime` +
+  `ops_docs_metric_names_trace_to_emission_sites`）；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- 只读重试是"正确默认"，不代表"webhook 不欠重装"——GitHub 那边自有重试，边缘不重复；
+- edge 本身没有节点状态感知（无 LB 拓扑/健康探测列表），重试的是"响应而不是上游"，
+  不保证；
+- 4 条只读路由中的内部缓存都是空——同 #1599 一样，冷启动无 Grafana 等价物。
+- 不动 POST 类路径，这是有选择不重试，不是漏做。
+
+**下一号队列（不动）：**
+- 门 #8（3287fc4 快照）出结果登记；门 #9（当前 be8e427..f71b8fb 之间）排队；
+- 慢评估；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` 重建（业主）；边缘冷启动 + OTel 实证（operator）；
+  Drill 1（需要 `DEEPSEEK_API_KEY`）。
