@@ -57,6 +57,63 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- Offline-cache pins shared with the discovery server (#1608) so the
+                 Eureka client resolves without network. The 2024.0.1 BOM selects
+                 4.2.1 / 1.17.2 / 3.1.10 / 3.4.3 for these, none of which is in
+                 the local m2 mirror; the pinned 4.2.0 / 1.17.1 / 3.1.11 / 3.4.1
+                 jars are. -->
+            <dependency>
+                <groupId>org.glassfish.jersey</groupId>
+                <artifactId>jersey-bom</artifactId>
+                <version>3.1.11</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-netflix-eureka-client</artifactId>
+                <version>4.2.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+                <version>4.2.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-starter-config</artifactId>
+                <version>4.2.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-config-client</artifactId>
+                <version>4.2.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+                <version>4.2.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-loadbalancer</artifactId>
+                <version>4.2.0</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-codec</groupId>
+                <artifactId>commons-codec</artifactId>
+                <version>1.17.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-cache</artifactId>
+                <version>3.4.1</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>33.3.1-jre</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -105,6 +162,22 @@
                  (#1603). Default-OFF: the gateway boots without a broker. -->
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+        <dependency>
+            <!-- Spring Cloud Config client: the edge pulls its externalized settings
+                 (mq-events, request-size, security-headers — see #1604/#1606) from
+                 the Config Server via spring.config.import=optional:configserver:...
+                 so it still boots when the server is down and falls back to local
+                 values. The unit suite disables it via the `test` profile. -->
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+        <dependency>
+            <!-- Registers this edge in the SpecProof service registry (Eureka, #1608)
+                 so operators and peer services resolve it by name. The unit suite
+                 disables it via the `test` profile. -->
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

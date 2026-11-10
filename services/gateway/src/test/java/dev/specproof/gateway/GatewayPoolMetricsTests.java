@@ -23,6 +23,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 /**
@@ -41,6 +42,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
  * name) and the upstream's address. A meter nobody can attribute to an
  * upstream is not a pool metric a panel can use.
  */
+@ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "server.port=0",

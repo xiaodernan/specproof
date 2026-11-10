@@ -38,6 +38,15 @@ spring:
     # the OTel resource name defaults to this; the compose observability
     # stack keys on OTEL_SERVICE_NAME=specproof-gateway
     name: specproof-gateway
+  # Config server (services/config-server, #1609): the edge reads its dynamic
+  # overrides from a central config server so the edge never needs a redeploy
+  # to change a non-route setting (rate-limit, breaker knobs). The `optional:`
+  # prefix is load-bearing: when the config server is down the edge must still
+  # boot and serve its local route table, not refuse to start. A dead config
+  # server is a degraded capability, not a fatal one — GatewayOfflineResilienceTests
+  # pins this at the discard port to prove the edge survives it.
+  config:
+    import: optional:configserver:http://localhost:8888
   cloud:
     gateway:
       # The edge must give up on a hung upstream before its callers do — an
@@ -205,6 +214,18 @@ spring:
                 limitRefreshPeriod: PT1S
                 timeoutDuration: PT0S
             - EdgeCircuitBreaker=specproof-edge
+
+# Service registry (services/discovery-server, #1608): the edge registers
+# itself so operators can see the gateway in the registry next to the planes,
+# and so a future discovery-based route (RouteLocator backed by Eureka) has a
+# populated registry to read. The default client (register-with-eureka=true,
+# fetch-registry=true) tolerates a downed registry — registration failure is
+# non-fatal, which GatewayOfflineResilienceTests pins at the discard port to
+# prove. The single node lives at localhost:8761 (the discovery server's port).
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
 
 # OTel: OTLP -> the shared OpenTelemetry collector when the operator sets
 # OTEL_SDK_DISABLED=false (and, implicitly, OTEL_EXPORTER_OTLP_ENDPOINT).

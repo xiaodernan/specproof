@@ -29646,3 +29646,108 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 ③ 六事件计数接进真实 Grafana dashboard JSON（面板 + 告警），再回来改元素表计数；
 ④ 评估 `release/p0.5-verified-v1` 等历史分支上「Golden case 安全对抗测试」是否并入 master；
 ⑤ 把 W190 六个事件的端到端链路在**真 broker** 上跑一遍（本机只有无 broker 的离线门）。
+
+---
+
+## #1608 服务注册中心 Discovery Server —— 单节点 Eureka（Spring Cloud 微服务元素）
+
+**记录基准**：取号前实测账本 `## #` 最大 **1607** ⇒ 取 **#1608**。本号新建 `services/discovery-server/`
+模块：一个**单节点** Eureka Server，作为后续微服务（gateway 已接入，见 #1609；config-server / control-plane
+未来可注册）的注册中心。授权范围内「加一些 springcloud 微服务元素」的落地之一。
+
+### 一、离线粉版钉死（BOM 2024.0.1 的默认版本不在本机 m2 镜像里）
+
+`spring-cloud.version=2024.0.1`（与 gateway 同 train，由各自 pom 显式钉死、不互相继承，避免漂移）。
+首轮 `mvn -o -B test` 报缺 freemarker 3.4.3 / commons-codec 1.17.2 / jersey 3.1.10 / loadbalancer 4.2.1，
+二轮回退后报缺 spring-cloud-loadbalancer 4.2.1 / spring-boot-starter-cache 3.4.3。逐条在
+`dependencyManagement` 钉成本机镜像里有的版本：
+
+| 依赖 | BOM 默认（缺失） | 钉死（本机有） |
+|---|---|---|
+| `jersey-bom` | 3.1.10 | **3.1.11** |
+| `spring-cloud-netflix-eureka-server` / `starter-netflix-eureka-client` | 4.2.1 | **4.2.0** |
+| `spring-cloud-starter-loadbalancer` / `spring-cloud-loadbalancer` | 4.2.1 | **4.2.0** |
+| `commons-codec` | 1.17.2 | **1.17.1** |
+| `spring-boot-starter-cache` | 3.4.3 | **3.4.1** |
+| `com.google.guava` | — | **33.3.1-jre** |
+
+钉死后第二次 `mvn -o -B test` **BUILD SUCCESS**。
+
+### 二、单节点接线
+
+`application.yml`：`server.port: 8761`、`spring.application.name: discovery-server`、
+`eureka.instance.hostname: localhost`、`eureka.client.register-with-eureka: false` /
+`fetch-registry: false`（本进程即注册中心，不与对等节点互注册）、
+`eureka.client.service-url.defaultZone: http://localhost:8761/eureka/`、
+`eureka.server.enable-self-preservation: true`（单节点慢启动不误剔实例）、
+actuator 暴露 `health,info,metrics`。`DiscoveryServerApplication` 挂 `@EnableEurekaServer`。
+
+### 三、门证（全在本号内亲手取）
+
+| 项 | 结果 |
+|---|---|
+| `mvn -o -B test`（`services/discovery-server`） | **BUILD SUCCESS**，1/1 `DiscoveryServerApplicationTests.contextLoads` 通过；日志确认 `Registering application DISCOVERY-SERVER with eureka` + `Started Eureka Server` |
+| 复核 `services/gateway` 接线（#1609 同跑） | 见 #1609 |
+
+### 诚实边界
+
+- 单节点：生产多节点需把 `register-with-eureka` / `fetch-registry` 翻成 `true` 并指向兄弟节点；本号不涉。
+- 仅验证「离线可构建 + 上下文启动」，没有在真集群里跑过对等注册、没有起 gateway 真连它（gateway 的
+  `optional:` 接线见 #1609，离线可启已证）。
+- 文件：`services/discovery-server/{pom.xml, src/main/java/.../DiscoveryServerApplication.java,
+  src/main/resources/application.yml, src/test/java/.../DiscoveryServerApplicationTests.java}`。
+
+---
+
+## #1609 边缘接入 Config Client + Eureka Client（生产接线 + 离线可启 + 接手 sibling 测试）
+
+**记录基准**：取号前实测账本 `## #` 最大 **1608** ⇒ 取 **#1609**。本号把 #1608 的注册中心与 #1606 的
+Config Server「接」进边缘 `services/gateway`：
+- `pom.xml` 加 `spring-cloud-starter-config` + `spring-cloud-starter-netflix-eureka-client`，并复用 #1608
+  的离线粉版钉死（jersey-bom 3.1.11 / eureka 4.2.0 / config 4.2.0 / loadbalancer 4.2.0 / commons-codec
+  1.17.1 / cache 3.4.1 / guava 33.3.1-jre）；
+- 主 `application.yml` 加 `spring.config.import: optional:configserver:http://localhost:8888` 与
+  顶层 `eureka.client.service-url.defaultZone: http://localhost:8761/eureka/`。
+
+### 一、接手 sibling lane 的测试（授权「直接接手帮他把剩下的内容做完」）
+
+sibling lane 正以**正确模式**落地 gateway 测试，我据其契约收尾并修正一处笔误：
+- **profile-specific 叠加，而非遮蔽**：曾误用 `src/test/resources/application.yml`（同 classpath 位置会
+  **遮蔽**主文件，致路由表 `[]`、51 测 18 红）。修正为 `src/test/resources/application-test.yml`
+  （profile 文件**叠加**到主文件），测试类加 `@ActiveProfiles("test")`；该 profile 仅设
+  `spring.cloud.config.enabled=false` + `eureka.client.enabled=false`，让单测离线快跑。
+- **生产接线离线可启**：`GatewayOfflineResilienceTests` **故意不激活** `test` profile，把两个 client 指到
+  丢弃端口 `127.0.0.1:9`，断言「上下文仍能起 + 六条路由完整 + GatewayProperties 本地默认值保持」。这是
+  `optional:` 前缀价值的直接证据。
+- **修正一处路由 id 笔误**：sibling 的 `GatewayOfflineResilienceTests` 断言里写了
+  `"control-plane-users"`，但主 `application.yml` 真实路由 id 是 `"control-plane-tenant-users"`
+  （对应 `Path=/api/v1/tenants/{tenantId}/users`）。已改为真实 id，否则该断言恒红。
+
+### 二、门证（全在本号内亲手取，含接手后的 sibling 测试）
+
+| 项 | 结果 |
+|---|---|
+| `mvn -o -B test`（`services/gateway`，首轮） | **53/54 通过**：仅 `GatewayOfflineResilienceTests.theEdgeStillServesItsWholeRouteTable...` 因上面 id 笔误红 |
+| `mvn -o -B test`（`services/gateway`，修正 id 后复跑） | **BUILD SUCCESS，54/54 全绿** |
+| `mvn -o -B test`（`services/discovery-server`，复核） | **BUILD SUCCESS，1/1**（见 #1608） |
+
+### 诚实边界
+
+- gateway 的 config / eureka 接线目前只验证了「**两后端都不可达时边缘仍能启动且路由表完整**」与「单测
+  离线快跑」。没有真起 config-server / discovery-server 跑过一次端到端注册 / 配置拉取；`optional:` 前缀
+  保证宕机非致命是设计意图，已由离线丢弃端口测试覆盖。
+- **接手范围**（授权内）：sibling 在途的 7 个 `@ActiveProfiles("test")` 测试类 + 新建
+  `GatewayOfflineResilienceTests.java` + `application-test.yml`，已随本号一并提交。
+- **本号排除**（不扫他人在途 / 独立 feature）：
+  - `.github/workflows/ci.yml`（sibling 加了 config-server 构建步，config-server 尚未就绪会红 CI）；
+  - `services/control-plane/pom.xml`（sibling 加 `spring-boot-starter-data-redis`，独立 feature）；
+  - `tests/unit/test_spring_cloud_services_agree_on_train_and_ports.py`（sibling 契约测试，断言
+    `config-server` 为第四模块，尚未落地，纳入会红 Python 门；留待 config-server 落地时一并接手）。
+
+### 下一号队列（接 #1607 的 ①，且依赖本号接线）
+
+① 实建 `services/config-server` 模块（8888，native backend）并补齐 `config/gateway.yml` 与
+   `test_spring_cloud_services_agree_on_train_and_ports.py` 的四服务对账门（届时一并接手该契约测试）；
+② config-server compose + gateway 真连 config-server 跑一次配置拉取（验证 `optional:` 在「在时」也正确）；
+③ gateway 真连 discovery-server 跑一次注册（验证 `eureka.client.service-url.defaultZone` 生效）；
+④ 回到 #1607 ② 边缘 `TokenRelay` / OAuth2 resource server。

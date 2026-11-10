@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.4.3</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>dev.specproof</groupId>
+  <artifactId>discovery-server</artifactId>
+  <version>0.1.0</version>
+  <name>SpecProof Discovery Server</name>
+  <description>Spring Cloud Netflix Eureka server — the service registry for the
+  SpecProof microservice mesh (gateway, control-plane, and future domain
+  services register here and resolve each other by logical name instead of host:
+  port). Runs as a standalone registry (does not register with a peer) so a single
+  node is enough for local and CI topologies.</description>
+
+  <properties>
+    <java.version>21</java.version>
+    <!-- Same release train as the gateway and config-server so the three
+         services cannot drift on Spring Cloud by accident. -->
+    <spring-cloud.version>2024.0.1</spring-cloud.version>
+    <!-- Local toolchain is JDK 25; Spring Boot's pinned byte-buddy 1.15.11
+         cannot create mock subclasses there. Move to 1.17.8, which supports
+         both this JDK and the JDK 21 CI pins — test-time bytecode generator
+         only, not a change to the source target. -->
+    <byte-buddy.version>1.17.8</byte-buddy.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <version>${spring-cloud.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- Pin every Jersey artifact to one cached version. The Netflix Eureka
+           server brings Jersey 3.1.10 transitively, but only 3.1.9 / 3.1.11 are
+           in the offline m2 mirror. Importing the Jersey BOM after the Spring
+           Cloud BOM overrides the 3.1.10 that Eureka's own pom declares. -->
+      <dependency>
+        <groupId>org.glassfish.jersey</groupId>
+        <artifactId>jersey-bom</artifactId>
+        <version>3.1.11</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- Offline-cache pins: the 2024.0.1 BOM selects 4.2.1 for the Netflix
+           starters and 1.17.2 for commons-codec, neither of which is present in
+           the local m2 mirror; 4.2.0 / 1.17.1 are. These overrides keep the
+           build fully offline without changing behavior. -->
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-netflix-eureka-server</artifactId>
+        <version>4.2.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-netflix-eureka-server</artifactId>
+        <version>4.2.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-netflix-eureka-client</artifactId>
+        <version>4.2.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        <version>4.2.0</version>
+      </dependency>
+      <dependency>
+        <groupId>commons-codec</groupId>
+        <artifactId>commons-codec</artifactId>
+        <version>1.17.1</version>
+      </dependency>
+      <!-- The core load-balancer (not just the starter) the Netflix server pulls
+           in; pin it alongside the starter to 4.2.0. -->
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-loadbalancer</artifactId>
+        <version>4.2.0</version>
+      </dependency>
+      <!-- spring-boot-starter-cache 3.4.3 (Boot parent default) is not in the
+           offline mirror; 3.4.1 is. Patch-level, same 3.4 train, safe to pin. -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-cache</artifactId>
+        <version>3.4.1</version>
+      </dependency>
+      <!-- Netflix Eureka 2.0.x declares a prehistoric guava 14.0.1 that the
+           offline mirror never carried; an online build overrides it with the
+           highest managed guava. Pin to the cached 33.3.1-jre so the classpath
+           resolves. -->
+      <dependency>
+        <groupId>com.google.guava</groupId>
+        <artifactId>guava</artifactId>
+        <version>33.3.1-jre</version>
+      </dependency>
+      <!-- Spring Boot 3.4.3's parent manages freemarker to 3.4.3, which is not
+           cached; 3.4.1 is. The Eureka dashboard templates need it, so pin to
+           the cached 3.4.x rather than drop it. -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-freemarker</artifactId>
+        <version>3.4.1</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-netflix-eureka-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -1,0 +1,33 @@
+server:
+  port: 8761
+
+spring:
+  application:
+    name: discovery-server
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    # This process IS the registry, so it must not register with or fetch from a
+    # peer. A multi-node production deployment flips both of these to true and
+    # points defaultZone at the sibling nodes.
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  server:
+    # Keep a single local node calm: do not evict instances the moment they miss
+    # one heartbeat during a slow test startup.
+    enable-self-preservation: true
+    # The dashboard is the operator's first look at "what is registered"; expose it.
+    wait-time-in-ms-when-sync-empty: 0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

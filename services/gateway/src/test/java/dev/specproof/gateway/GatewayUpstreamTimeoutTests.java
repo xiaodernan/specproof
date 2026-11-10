@@ -20,6 +20,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 /**
@@ -38,6 +39,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
  * one second. The assertion is on the ELAPSED TIME as much as on the
  * status: a 503 that arrives after ten seconds proves nothing.
  */
+@ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "server.port=0",

@@ -1,0 +1,32 @@
+# Test profile for the edge: keep the unit/integration suite fully offline and fast.
+#
+# WHY A PROFILE FILE AND NOT `src/test/resources/application.yml`:
+# a file at the same classpath location (`/application.yml`) SHADOWS the main
+# one instead of merging with it — test-classes precedes classes on the test
+# classpath. An earlier attempt put the two switches below in
+# `src/test/resources/application.yml` and the suite went 18 red: the edge lost
+# its whole route table, because the main `application.yml` (which owns the
+# routes) was never loaded. `application-test.yml` is profile-specific, so it is
+# ADDITIVE: Spring Boot loads `application.yml` first, then layers this on top.
+# The `test` profile is activated per test class with `@ActiveProfiles("test")`;
+# the one class that must run against the *production* client wiring on purpose
+# (GatewayOfflineResilienceTests) deliberately does not activate it.
+#
+# What is switched off here, and why:
+#   * eureka.client.enabled=false -> no registry heartbeat / registration attempt
+#     against localhost:8761 during tests. The production application.yml still
+#     registers the edge (see #1608); a dedicated test
+#     (GatewayOfflineResilienceTests) proves the edge boots even when both the
+#     registry and the config server are unreachable.
+#   * spring.cloud.config.enabled=false -> the config-client's import resolver
+#     becomes a no-op, so `optional:configserver:...` resolves instantly to
+#     nothing instead of opening a socket. The `optional:` prefix already makes
+#     a dead server non-fatal; disabling it only removes the wait.
+spring:
+  cloud:
+    config:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false

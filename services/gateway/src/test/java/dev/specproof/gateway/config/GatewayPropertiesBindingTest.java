@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -25,6 +26,7 @@ import org.springframework.test.context.TestPropertySource;
  *       itself verified by the binding asserting {@code enabled == false}.</li>
  * </ul>
  */
+@ActiveProfiles("test")
 @SpringBootTest
 @TestPropertySource(properties = {
     "specproof.gateway.request-size.max-bytes=2048",
