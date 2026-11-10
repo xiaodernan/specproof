@@ -27330,3 +27330,41 @@ update-ref → 跑 17 条腿 → `reset --hard` + `clean -fdq` + ref 指回去 +
 - `case-01-auth-bypass` 无 case-01-head tag 不是缺口（flagship = head-v1）；`case-02..case-99` Oct-1 血统未验证 demo/ 差分；全量 `pytest tests/unit tests/security tests/fault` 未跑（本号仅改一个 scripts/ 文件，无产品代码路径）。
 
 **队列剩余不动：** P1-B checkpoint/orphan；`verify_golden_tags.py` 的 refs 家族重建待业主；`#1552` 已落。
+## #1554 边缘的断路器：Spring Cloud Circuit Breaker 接进 agent-runtime catch-all（2026-11-10）
+
+**记录基准**：HEAD = `148dac4`；master 一直 fast-forward；`specproof-reference` 同 commit；本节只追加。
+
+**来路。** 用户在本轮再次授权"在项目里加一些 springcloud 微服务的元素"。边缘（#1544）交付的是"两个平面谁答哪条路由"的归属表——**失败语义是缺的**：agent-runtime 一断，边缘照旧把请求打进去，客户端看到 Netty 超时而不是有状态的 503。本号把它补上，且只用 Spring Cloud 官方路径。
+
+**落地（`services/gateway`）：**
+
+- `pom.xml`：`spring-cloud-starter-circuitbreaker-reactor-resilience4j`（Spring Cloud 2024.0.1 列车自带 3.2.1，未钉死；本机 `.m2` 无，Maven Central 可达，自愈 4 个依赖）。
+- 新 `filter/EdgeCircuitBreakerGatewayFilterFactory.java`：YAML 名 `EdgeCircuitBreaker`。`apply()` 里用 `CircuitBreakerOperator`（resilience4j-reactor 的订阅侧操作符，`Mono.defer` 语义）登记上游调用：
+  - 上游失败按 `specproof-edge` 实例的滑动窗口/失败率计数；
+  - 断路器 OPEN 后**订阅即被拒**（`CallNotPermittedException`），请求在 edge 内直接 503 + 简短 JSON（`{"error":"upstream_unavailable","edge":"circuit-open","state":"open"}`），**不打扰上游**；
+  - 没有新 HTTP 路径（无 fallback URI、无 fallback controller），客户端不能到 edge 的毛病路由上"自测"断路器；
+  - 半开由 resilience4j 自动接管（`automaticTransitionFromOpenToHalfOpenEnabled`），规则都在 YAML，不逐场景 override。
+- `application.yml`：`agent-runtime-default` 加 `filters: - EdgeCircuitBreaker=specproof-edge`；顶层 `resilience4j.circuitbreaker.instances.specproof-edge`（10/5/50/30s/3）。
+- `GatewayApplicationTests`：+1 断言（agent-runtime-default 路由携带 `EdgeCircuitBreaker` filter）。
+- 新 `EdgeCircuitBreakerGatewayFilterFactoryTest`：两条行为腿。
+  ① 连续 5 次订阅失败 → 断路器 `OPEN`，此间 5 次请求全部 503；
+  ② 强制 `OPEN`，下游计数器断言 **0 次上游被触达**。
+  第②腿首版红（我最初把 upstream 计数器放在 `chain.filter()` 调用处，把订阅拒绝算作"还是触了"——`Mono.defer` 语义下，断路器拒的是订阅、不是组合；触点修为订阅时再计，正因如实选错计法，这一腿先红后绿）。
+
+**实测：**
+- `mvn -B test`（gateway，CI 钉的 JDK 21 / 本机便携 Temurin 21.0.13+9）：**Tests run: 7, Failures: 0 — BUILD SUCCESS**（含新腿 2 条）。
+- `tests/unit/test_gateway_route_table_covers_every_plane_route.py`：**7 passed**（路由表零改动；含新增 filter 后归属表不变）。
+- `tests/unit/test_ci_runs_the_java_services.py` + `tests/unit/test_recorded_ledger_sections_do_not_vanish.py`：**17 passed**。
+- 控制平面构建路径未动；CI java-services job 无需改动（gateway 该步本就 `mvn -B test`）。
+
+**诚实边界：**
+- 本号提供的是**运行时短路**，不是可观测性闭环（`resilience4j_circuitbreaker_*` 指标本号**没有**绑到 Grafana/alert）；未接 dashboard。
+- 半开探测未单独实证（依 resilience4j 文档语义）；本号行为腿只钉 CLOSED→OPEN→短路。
+- 断路器**不**给控制平面路由加装（仅 agent-runtime 兜底一跳；控制平面 5 条路由不开路——那是上游服务不可控变更面，另立号）。
+- Maven Central 网络依赖：CI 可达；本机复验时 jar 自愈下载（`3.2.1` 系列）。
+- 未跑 `pytest tests/unit tests/security tests/fault` 全量（本号只动 gateway Java 侧 + 测试；Python 门上两门合并 24 passed 为实证）。
+
+**下一号队列（不动）：**
+- `verify_golden_tags.py` refs 家族重建待业主（`--refs-only` 会把 base 指到 HEAD 并重指 ~102 ref，作废 Oct eval 底版）。
+- P1-B checkpoint/orphan 占位仍未做。
+- 断路器指标绑 dashboard（`resilience4j_circuitbreaker_state`）是自然下一号。
