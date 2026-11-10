@@ -27895,3 +27895,117 @@ scan 只扫**本地 payload 目录**（`evidence/orphan_scan.py`）。**没有�
 - 全量门出结果后如实登记，并跑 Drill 1（真强杀 → 续跑）验证 #1561 的 saver 排序修复；
 - 边缘冷启动 + Grafana 实证（operator 决罢）；`verify_golden_tags.py` refs 家族重建（业主决断）；
   slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
+
+## #1566 全量门 5 个红门修完：a6bda89 实测 6580 passed / 5 failed（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 ebb4d7e 的前提 fd75b0b）。
+
+**来路。** #1561 之后把全量门放后台跑（`pytest tests/unit tests/security tests/fault`，
+HEAD = `a6bda89`，日志 `_fullgate_v4.txt`）。它回传：**6580 passed / 5 failed / 10 skipped**，
+耗时 54 分钟。五个失败没有一个是「别的车道」的锅，逐个查清楚并修完：
+
+**逐个失败的根因与修法。**
+1. `test_fake_inventory_stays_measured`（2 条红）——钉住的计数 21/45/211（总计 277）在 HEAD 上
+   实测是 **21/46/212（总计 279）**：`_FakeRedis`（`tests/integration/test_worker_crash_mid_graph.py:187`，
+   #1560 `705d254`，替的是 `get` / `exists` / `expire` 这类**领域方法**，真 Redis 续租那一腿并存）
+   与 `_FailingMetadataStore`（`tests/integration/test_artifact_ghost_against_real_object_store.py:58`，
+   #1562 `e4dc722`，**包着真 SQLite 索引**，只把 `record()` 注入为失败）。
+   两个都是本会话前就写明白用途的替身，不是随手放宽——按门自己的要求把
+   `PIN_COUNTS` 与 `PIN_COMMIT` **一起**挪到 `3a39bdc`，`docs/architecture/FAKE_INVENTORY.md`
+   同步数字并新增「2026-11-10 重钉」一节（列出两处入场及归属提交）。
+2. `test_provider_smoke_reads_the_model_config_through_the_canonical_owner::test_the_absence_of_a_caller_is_a_measurement_not_an_assumption`
+   ——`REGISTERED_CALLERS` 钉在 0，而 `.github/workflows/ci.yml` 现在调用
+   `python scripts/provider_smoke.py`（#1549 `6b2c1b8` 把 `provider-smoke` 带进 master：
+   `workflow_dispatch` 手动触发、凭据放 GitHub *environment*、bindings 由
+   `test_the_provider_smoke_ci_leg_carries_the_branch_job.py` 钉住）。0 是 #1547 那个读数，
+   早已过期。→ `REGISTERED_CALLERS = 1`，注释记清来由。
+3. `test_tracked_files_survive_their_encoding::test_no_tracked_text_file_carries_a_replacement_character`
+   ——**账本自己**带 U+FFFD（`docs/operations/DEEP_OPTIMIZATION_PLAN.md:27523`）：
+   「落\ufffd\ufffd运维手里」本应是「落到运维手里」。两个替换字符（#1558 那一节是我写的），
+   编码门钉住的就是这条。→ 订正。
+4. `test_verdict_channel_parity::test_every_product_verdict_literal_is_claimed_by_a_channel`
+   ——`evidence/branch_reconciliation.py`（#1548/#1550 的裁定册）把五个裁定词
+   （`landed_at_other_path` / `succeeded_by_rewrite` / `reversed_by_master` / `not_landed` /
+   `unadjudicated`）写进 `FILE_DISPOSITIONS` 的 `verdict` 字段，却没有任何通道认领。
+   → `evidence/verdict_channels.py` 新增 `branch_reconciliation` 通道
+   （`source="evidence.branch_reconciliation::VERDICTS"`，五个词都在该文件 literally 写出，
+   由门逐个现算；没有并入 `job_summary`——那四个词决定要不要放行一次变更，
+   这五个词只决定「这条 ref 是不是还够得着」）。
+
+**验证读数：**
+- 这五个门文件合跑：**37 passed**（fake_inventory 11（含 slow 钉脚本自洽腿，按 3a39bdc 复算）
+  + provider_smoke 与 encoding 12 + verdict_channel_parity 14，文件交叠重复计）。
+- U+FFFD 普查：**0**（`Select-String -Pattern '\ufffd'` 在全仓 tracked 文本文件上归零）。
+- `ruff` 全绿；`git status` 的这 5 个文件改动已全部落库（`fd75b0b`）。
+- **本号提交后才发现一个门外的真相**：全量门是在 `a6bda89` 上跑的，它**不含** #1562–#1565
+  的 `evidence/findings_report.py` 与对账器改动；而 `evidence/verdict_channels.py` 的
+  新通道会影响 verdict 门的计数——已复测 **14 passed**。
+- 全量门**复跑**已在后台于 `ebb4d7e` 启动（日志 `_fullgate_v5.txt`），结果待下一节登记。
+
+**诚实边界：**
+- 本节只修门，**没有新增产品能力**，也**没有**重新在绿树上跑全量门（那要 54 分钟，已启动）。
+- 假清单重钉是「换钉」不是「换结论」：SQL 假仍是 **21 个（约 7.5%）**，可换的部分没变大。
+- verdict 新通道只声明「这五个词属于这个文件」，与 `job_summary`/`report_verdict` 等通道
+  互不相容——**没有**把它偷偷塞进已有通道去凑「认领过了」。
+- `.github/workflows/ci.yml` 的 `provider-smoke` 仍是**手动**触发；本号没有让 CI 真的跑它
+  （需要 `DEEPSEEK_API_KEY`/LLM 凭据，§5.2 仍 `[ ]`）。
+
+**下一号队列（不动）：**
+- 全量门复跑结果如实登记（舍弃 v4 的「绿」说法，以实测为准）；
+- Drill 1（真强杀 → 续跑）等复跑结束再跑，避免与套件抢 RabbitMQ/Redis/MySQL；
+- slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1567 边缘路由表的第三处副本钉住 + actuator 路由表运行时腿（Spring Cloud 元素）（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 fd75b0b → ebb4d7e）。
+
+**来路。** 边缘路由表（「谁回答这个路径」）写在**三处**：
+`services/gateway/src/main/resources/application.yml`（运行时真相）、
+`GatewayApplicationTests.java` 的路由 id 列表（Java 运行时腿，只有跑 Maven 才现算）、
+以及 Grafana 面板「Edge 路由归属表（application.yml）」（**运维人读的 markdown 表**——
+告诉值班的人哪个平面拥有哪个路径）。前两处被门/测试钉住，第三处**什么都钉不住**。
+
+**量到的缺陷（Python 门现算）。** 面板的 catch-all 行是 **3 格**放进 **4 列**的表：
+
+    | agent-runtime-default | Path=/** | agent-runtime |
+
+markdown 行按列按位置填，于是 "Path=/**" 填进了 *path* 列，**plane 列空着**——
+运维读这一行时 catch-all 没有属主平面，而正是这条路由兜住一切未声明路径。
+**除此之外没有任何东西会说这件事。**
+修法：`| agent-runtime-default | ANY | /** | agent-runtime |`
+（YAML 里这条路由没有 `Method` 谓词 ⇒ 声明的是「全部方法」，写 GET 就是在编造边缘没有的限制）。
+
+**落地：**
+- `tests/unit/test_edge_route_table_copies_agree.py`（新，6 腿）：面板唯一性 / 行序
+  （=网关匹配序，catch-all 必须最后）/ **四格齐全**（3 格的行红）/ 每格与 YAML 同
+  方法同路径同平面（ANY 规则现算）/ Java 测试点名的路由与 YAML 一致
+  （没有 JDK 也能抓住漂移）。
+- `services/gateway/.../GatewayActuatorRoutesTests.java`（新，5 腿，Spring Cloud
+  Gateway 的 actuator 端点）：管理端口 `/actuator/gateway/routes` **真的发布** 6 条路由
+  （`route_id` / `metadata.plane` / `uri`）、catch-all 排最后、`plane` 按路由 id 推断
+  （control-plane-* ⇒ control-plane，否则 agent-runtime）、
+  **edge 端口不答该端点**（catch-all 把它代理到 agent runtime ⇒ 503 + circuit-open 体，
+  绝不回路由表）。此前该端点在 `application.yml` 里 `enabled: true` 却从未被问过——
+  「路由表对运维可见」只是配置行的声称，不是测出来的。
+- `infra/grafana/dashboards/specproof-slo.json`：catch-all 行补齐第四格（55 面板，JSON 仍可解析）。
+
+**验证读数：**
+- Java：`mvn -o -B test`（本机 JDK 25；pom 钉的 `java.version=21`）：
+  **16 tests, 0 failures — BUILD SUCCESS**（原 11 + 新 5）。
+- Python：6 passed；ruff 全绿。
+- 面板仍是 55 面板 JSON，`panel.id=54` 未改。
+
+**诚实边界：**
+- 面板**未经 Grafana 实测**（不装浏览器、不开服务）；门读的是 JSON 里的 markdown 内容，
+  不是渲染结果。渲染层的问题（表够不够宽、字体、颜色）不在射程。
+- Python 门是**静态比对**（副本对副本）；「运行时端点真的发布了什么」由 Java 那条腿现算，
+  两腿各守一半。Java 腿没有真上游（端口 9/10 都是关闭端口），上游代理行为不在射程。
+- `ANY` 是**根据 absence 现算**的（YAML 没有 Method 谓词 ⇒ 全部方法）；如果未来加了
+  `Method=ANY` 这种写法，门会把它当作不同词面而红——这是有意的，词面不一致就该红。
+- 未跑全量门（已在后台于 `ebb4d7e` 复跑，日志 `_fullgate_v5.txt`，结果待下一节登记）。
+
+**下一号队列（不动）：**
+- 全量门复跑结果如实登记；
+- Drill 1（真强杀 → 续跑）；
+- slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
