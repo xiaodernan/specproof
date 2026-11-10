@@ -29184,3 +29184,35 @@ caller 每秒钟都在被 429 丢弃，值班人员只有看得到的面板、�
 **下一号队列（不动）：**
 - 慢评估；KMS-HSM；`DEEPSEEK_API_KEY` 先行；`verify_golden_tags.py` refs 重建（业主）；
   门 #8 出结果后再登记；边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1598 byte-buddy 1.15.11 → 1.17.8：本地 JDK 25 的 OutboxRelayServiceTest 恢复绿
+
+**记录基准**：本节只追加；落地于 `be8e427`（master 链 3a1e7f3 → be8e427）。
+
+**来路。** 本机 JDK 25.0.1 下 `OutboxRelayServiceTest` 3 个 ERROR（byte-buddy 1.15.11
+不支持 class 文件版本 65；Whileクラス生成拒绝），CI（Temurin 21）一直绿——开发/CI
+环境不对称意味着"CI 过、本地红"的这条测试无人能在本机复现。这与 #522/#1583 家族一致
+（"CI 钉的固定配置才有唯一决定性结论；本地红 ≠ 产品红，但也不该红"）。
+
+**落地（`be8e427`）：**
+- `services/control-plane/pom.xml`：`<properties>` 增 `<byte-buddy.version>1.17.8</byte-buddy.version>`，
+  覆盖 Spring Boot 3.4.3 钉的 1.15.11；`<java.version>21</java.version>` 不动，CI-pin
+  Temurin 21 也因此受益（1.17.x 全支持）。
+- 离线 `.m2` 本地自带 1.17.8/1.17.7（eval 工作期间早装好；偶遇 1.15.11 ≠ 本 issue）。
+- 刻意不换可能引入新变更的依赖：mockito、H2 不动。
+**验证读数（实测）：**
+- `mvn -o -B clean test`（JDK 25.0.1）：
+  `Tests run: 9, Failures: 0, Errors: 0, Skipped: 0`，BUILD SUCCESS（含 `OutboxRelayServiceTest`
+  3/3 绿——之前是 3 个 ERROR）；
+- `test_ci_runs_the_java_services.py` → 9 passed；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- 不改 CI 的 JDK 21 钉；byte-buddy 1.17.8 对 CI 无副作用（同一 BOM 属性生效）；
+- 这不动态重跑 `demo/spring-backend`（它是 eval 被测主体，9/9 离线绿既有结论保持）；
+- 本号不承诺 JDK 17/21 本地工具链（机器上没装）；
+  `_wt_plan` 未动。
+
+**下一号队列（不动）：**
+- 慢评估；`DEEPSEEK_API_KEY`；KMS-HSM；`verify_golden_tags.py` refs 重建（业主）；
+  门 #8（3287fc4 快照 → 现在 master 是 be8e427，**需要重排门 #9** — 本周末再拉一次全量门）；
+- Drill 1 attempt（需要 `DEEPSEEK_API_KEY`）。
