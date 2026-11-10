@@ -28869,3 +28869,45 @@ histogram buckets、p95 面板（#1584）——ADR 索引 `docs/adr/README.md` �
 - 顶接：慢评估（`slow_eval`，仍未跑）；KMS-HSM；`DEEPSEEK_API_KEY` 缺失；
   `verify_golden_tags.py` refs 家族重建（业主决断）；边缘冷启动 + Grafana 实证（operator 决罢）；
   Panel 59（dashboard 迭代）；control-plane 限流（是否要做待定量）。
+## #1590 面板 59/60：限流器上看板（2026-11-10，20:43）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 73554e1 → e10a2d2）。
+
+**来路。** #1589 落下限流器后，操作员要判断"正在 shed load"与"上游饱和"
+两类 429/503 信号的抓手只在 `/actuator/prometheus` 里——`specproof_gateway_rate_limited_total`
+和 `resilience4j_ratelimiter_available_permissions` 两个 series 都没有面板，
+与断路器面板（53/55）、池面板（56）不对称。
+
+**落地（`e10a2d2`）：**
+- `infra/grafana/dashboards/specproof-slo.json`：新增
+  **面板 59** Edge RateLimiter 丢弃速率（`rate(specproof_gateway_rate_limited_total[5m])`，
+  reqps，x=0）与 **面板 60** Edge RateLimiter 可用许可证（`resilience4j_ratelimiter_available_permissions`，
+  unit none，x=12）。两面都是 timeseries，单绿色阈值、**标题无数字**（figures 门不动它），
+  y=228，在面板 58 之下；JSON 按字节级最小插入（+182/-0 行，未重排其它面板）。
+- 五处"58 面板"现行标注同步到 60（`EXPERIENCE_GUIDE`/`GRAND_PLAN_V2`/`ROUND11_DEVLOG`/
+  `LEVEL_ASSESSMENT`/`STACK_INVENTORY`——按 #1584 的先例，凡快照标注行，数字跟随实测同步）。
+- `docs/architecture/SPRING_CLOUD_EDGE.md`：面板对照表增 59/60 两行、总数 58→60、
+  底部基线更新为 `e10a2d2`（+ #1589/#1590）、"未做面板"一行删除。
+- **ADR-019 补记**：上文"看板尚无限流器专属面板"一行订正（同节明说），不重写原文。
+
+**验证读数（实测，非推断）：**
+- `python -c json.load(specproof-slo.json)`：60 面板、ids 末四 `[57, 58, 59, 60]`；
+- `tests/unit/test_dashboard_slo_figures_bind_their_declarations.py` +
+  `test_slo_dashboard_covers_every_verdict.py` + `test_dashboard_performance.py` +
+  `test_dashboard_api.py` + `test_dashboard_overrides_bind_a_legend.py` +
+  `test_dashboard_window_contract.py` + `test_outbox_relay_loop_leg.py` = **51 passed**；
+- `test_ops_docs_metric_names_trace_to_emission_sites.py` + figures + verdict +
+  edge_route_table_copies_agree = **26 passed**；
+- 面板**未在真实 Grafana 渲染**（docker run 本机挂死且未启动 compose.observability
+  观测栈 profile）——"JSON 合法 + 门绿"是本号证据的上限，明说不吹。
+
+**诚实边界：**
+- 60 面板是静态 JSON 证据；Grafana 实例上的真实渲染/告警未验；
+- 限流器生态仍缺**告警规则**（ShedLoad 一直在 shed 的 5m 窗口规则）——没有 Rule 就没有
+  firing，不假装已有；留待下轮仪表盘迭代整体做（与面板一起验）；
+- 本号不含 Python 门全量；门 v7（快照 `3bacba2`）仍在跑；本号的 26/51 定向门是满的。
+
+**下一号队列：**
+- 门 v7 出结果登记；门 #8（当前 master `e10a2d2` 快照）排队；
+- slow_eval、KMS-HSM、`DEEPSEEK_API_KEY`、`verify_golden_tags.py` 重建（业主决断）、
+  边缘冷启动 + Grafana 实证（operator 决罢）、限流器告警规则（下轮仪表盘迭代）。
