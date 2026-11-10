@@ -29345,6 +29345,44 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 - 未引入新依赖（纯 `spring-cloud-gateway` + `spring-web` 既有类），不动 `pom.xml`。
 
 **下一号队列（不动）：**
-- 边缘侧可再加 `RequestSize` 网关过滤器（catch-all 限请求体上限，防御大 payload）；
-- 或把 W190 的六条 RabbitMQ 事件经 Spring Cloud Stream binder 在边缘消费，构成"事件驱动微服务"元素；
+- 边缘侧可再加 `RequestSize` 网关过滤器（catch-all 限请求体上限，防御大 payload）；→ **本号已落地，见 #1602**；
+- 或把 W190 的六条 RabbitMQ 事件经 Spring Cloud Stream binder 在边缘消费，构成"事件驱动微服务"元素；→ 暂缓：本地 .m2 无 `spring-cloud-stream-binder-rabbit`，离线无法验证（违反诚实契约），待 CI/在线缓存齐备再做；
 - 或 `TokenRelay`/OAuth2 resource server（边缘作为资源服务器校验 JWT）——属安全微服务元素，需先定 JWT 发行人策略。
+
+## #1602 EdgeRequestSizeGlobalFilter — 入向请求体尺寸上限（Spring Cloud 边缘加固元素）
+
+**记录基准**：本节只追加；落地于 `370c7e0`（master 链 2cd91e6 → 370c7e0）。#1601 的"下一号队列"已点名本号。
+
+**来路。** 边缘是产品的公共面，10 MiB 的 POST 不该占用上游一个字节才被发现太大。SCG 自带
+`RequestSize` 是 route-scoped、要每条路由重复写；做成一个全局 `GlobalFilter` 声明一次、覆盖
+所有路由（含 control-plane 的 POST 端点），且能在边缘自身短路（不上游）。无需新依赖（纯
+`spring-web`/`spring-cloud-gateway` 既有类），离线可验证。
+
+**落地（`370c7e0`）：**
+- `services/gateway/src/main/java/dev/specproof/gateway/filter/EdgeRequestSizeGlobalFilter.java`：
+  `GlobalFilter, Ordered`（precedence = HIGHEST_PRECEDENCE + 30，在请求ID(+10)/安全头(+20) 之后，
+  保证 413 也带 request-id 与安全头）。读 `Content-Length` 头；`> maxBytes` 即
+  `setStatusCode(413 PAYLOAD_TOO_LARGE)` + `setComplete()` 短路；`-1`（chunked 无 Content-Length）
+  放行（边缘不消费即弃，留给上游自己的限制）。`specproof.gateway.request-size.enabled` 默认 true、
+  `max-bytes` 默认 10 MiB。Spring 构造器走 `@Value` 默认；测试直构造 `new (boolean,long)`（注解被忽略）。
+- `services/gateway/src/test/java/dev/specproof/gateway/EdgeRequestSizeGlobalFilterTest.java`：
+  5 例（超帽 413 且链不调用 / 帽内放行 / 未知尺寸放行 / 关闭时放行 / 默认 10MiB 启用）。
+- `docs/architecture/SPRING_CLOUD_EDGE.md`：新增一行元素表项 + Java 网关测试计数 32 → 37。
+
+**验证读数（实测）：**
+- `mvn -o -B test`（services/gateway）：**37 passed / 0 failed**（原 32 + 本号 5）；BUILD SUCCESS；
+- 既有 8 个 Java 测试类（含全 Spring 上下文 `GatewayApplicationTests`）全绿；新 `@Component` 全局过滤器
+  未破坏任何既有断言（测试请求体均 < 10MiB）。
+
+**诚实边界：**
+- 只基于声明尺寸（`Content-Length`）拦截；`Transfer-Encoding: chunked` 无声明尺寸者不在此层拦截——
+  这是"便宜的第一道防线"，不是上游自身 payload 限制的替代，理由写进类 docstring。
+- `setComplete()` 提交响应会触发前序过滤器的 `beforeCommit`，故 413 仍带 `X-Request-ID` 与安全头。
+- 10 MiB 默认对作业规格与 SPA 资源足够；operator 可在 compose 里调小 `max-bytes`。
+- 无 `spring-cloud-stream-binder-rabbit` 依赖，纯既有类。
+
+**下一号队列（不动）：**
+- 事件驱动微服务：W190 六条 RabbitMQ 观测事件经 Spring Cloud Stream 在边缘消费——待本地 .m2 齐 binder 再做；
+- 或边缘 `TokenRelay`/OAuth2 resource server（资源服务器校验 JWT，需先定 JWT 发行人策略）；
+- 或把 `EdgeRateLimiter`/`EdgeCircuitBreaker` 的魔法数经 `@ConfigurationProperties` 外置为
+  `GatewayProperties`（微服务"配置外置"惯用法，无需新依赖）——属可读性/可运维性元素。
