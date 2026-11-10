@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.4.3</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>dev.specproof</groupId>
+  <artifactId>config-server</artifactId>
+  <version>0.1.0</version>
+  <name>SpecProof Config Server</name>
+  <description>Spring Cloud Config Server — the distributed-config microservice
+  that serves the edge gateway's externalized settings (see #1604/#1606). It is a
+  file-backed (native) backend so it runs with no git and no broker; the gateway
+  can import from it via spring.config.import=optional:configserver:http://localhost:8888.</description>
+
+  <properties>
+    <java.version>21</java.version>
+    <!-- Same release train as the gateway so the two services cannot drift on
+         Spring Cloud by accident (see services/gateway/pom.xml). -->
+    <spring-cloud.version>2024.0.1</spring-cloud.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <version>${spring-cloud.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- Offline-cache pins: the BOM (2024.0.1) selects 4.2.1 / 1.17.2, which
+           are not in the local m2 mirror; the 4.2.0 / 1.17.1 jars are. These
+           overrides keep the build fully offline without changing behavior. -->
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-config-client</artifactId>
+        <version>4.2.0</version>
+      </dependency>
+      <dependency>
+        <groupId>commons-codec</groupId>
+        <artifactId>commons-codec</artifactId>
+        <version>1.17.1</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-config-server</artifactId>
+      <!-- Pinned to the jar actually present in the offline m2 cache (4.2.1 is
+           not); the 2024.0.1 BOM's transitive set is fully cached via the
+           gateway module, so this resolves offline. -->
+      <version>4.2.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

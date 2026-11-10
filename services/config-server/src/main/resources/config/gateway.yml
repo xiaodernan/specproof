@@ -1,0 +1,16 @@
+# Externalized settings for the edge gateway (application name "gateway").
+# Served by the config server at /gateway/{profile}. This is the single source
+# the gateway's GatewayProperties (#1604) would bind to in a real deployment;
+# the values mirror services/gateway/src/main/resources/application.yml so a
+# gateway that imports from this server gets byte-identical defaults.
+specproof:
+  gateway:
+    mq-events:
+      enabled: false
+      exchange: specproof.observability.events
+      queue: q.gateway.mq-events
+    request-size:
+      enabled: true
+      max-bytes: 10485760
+    security-headers:
+      enabled: true
