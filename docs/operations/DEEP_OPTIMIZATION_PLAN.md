@@ -28175,3 +28175,54 @@ markdown 行按列按位置填，于是 "Path=/**" 填进了 *path* 列，**plan
 - 池满/pending 告警（`SpecproofEdgePoolSaturated`？）与 RUNBOOK 条目；
 - slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1571 边缘池满告警：SpecproofEdgePoolSaturated + 21 条规则（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 ba03c6d → b439299）。
+
+**来路。** #1570 让连接池的 gauge 进了 Prometheus（`httpclient.pool.metrics: true`），
+但「连接池开始排队」没有任何告警——`reactor_netty_connection_provider_pending_connections`
+一直非零时，边缘仍然不会拒绝请求，只会把调用方排队后推到 response-timeout（#1568 的 30s）。
+排队不是拒绝，断路器看不见，那它必须由一条告警看见。
+
+**落地：**
+- `infra/prometheus/alerts-slo.yml`：新增规则 **SpecproofEdgePoolSaturated**
+  （`reactor_netty_connection_provider_pending_connections{name="proxy"} > 0`，for 2m，
+  severity warning）；新阈值 **EDGE_POOL_PENDING_THRESHOLD = 0**（header 块 + 引用 §14
+  「Job 不丢失」边缘侧排队信号，与 #1556/#1570 同风格）；**SpecproofEdgeGatewayDown 的
+  annotation 更新为点名两个受守家族**（resilience4j 池 + reactor_netty 池都只由
+  specproof-edge 一个 job 提供——不点名，读者看不见「抓取一断两条告警同时沉默」）。
+- `tests/unit/test_scrape_roster_binds_the_liveness_probes.py`：新增家族声明
+  `reactor_netty_ → ("specproof-edge",)`——规则读一个没人抓的家族 = 永远不触发
+  （这正是 gate 存在的原因，第一次补这个家族声明时它直接红）。
+- `tests/unit/test_alert_rules_bind_their_own_threshold_table.py`：EDGE_POOL_PENDING_THRESHOLD
+  入 `_SLO_CITATIONS`（"Job 不丢失"）与 `_GOAL_ONLY_CITATIONS`（无可算算术，与 EDGE_CB_OPEN 同类）。
+- `docs/operations/OBSERVABILITY.md`：§4 验证清单 "可见 20 条" → "**21 条**"；§5 表
+  新增 `SpecproofEdgePoolSaturated` 一行；`SpecproofEdgeGatewayDown` 行改为点名两个家族。
+- `docs/operations/RUNBOOK.md`：(20 条 → **21 条 specproof-slo 规则**)。
+- 三处**过时的现状计数**同步（本号动观测数字时顺手对齐，非重写历史）：
+  `docs/architecture/STACK_INVENTORY.md`（Grafana 15 面板+7 告警 → **56 面板+21 告警**，标 2026-11-10 实测）、
+  `docs/ROADMAP.md`（55/20 → **56/21**）、`docs/operations/PRODUCT_ROADMAP.md`（55-panel/20 条 → **56/21**）、
+  `docs/operations/EXPERIENCE_GUIDE.md`（15 面板 → **56 面板**）。
+  GRAND_PLAN_V2 / ROUND11_DEVLOG / LEVEL_ASSESSMENT 三处仍写 15 面板+7 告警——
+  它们是**有日期的历史快照**（各自成文日的状态），本号不重写。
+
+**验证读数：**
+- 部署后实测规则数：**21 条**（`yaml.safe_load` 现算：20 → 21，#1571 前 20 条全是实存）。
+- 可观测性全家 15 个文件合跑：**148 passed**（含 roster/阈值表/table-match/parity 等门——
+  新家族声明与注释改动后首次合跑就暴露两处未点名，已修）。
+- 未跑全量门；`ruff` 未涉及 Python 文件 2 个 gate 的**声明数据**部分（逻辑未动）。
+
+**诚实边界：**
+- **告警未经真实触发验证**：没有在 Prometheus 上看到它 fire 过（需要生产 edge 组合起来、
+  agent runtime 变慢、pending 非零 2 分钟）——门证明的是「规则、阈值、文档、roster 四处一致」，
+  不是「它在生产里叫过一次」。
+- 阈值 `> 0` 是最弱形式（与 EDGE_CB_OPEN 同语义）；「合理的 pending 上限」没有生产基线可量，
+  本号不凭空定一个数。
+- 面板未经 Grafana 实测；PROMETHEUS 抓取侧的 `remote_address` 在生产是 `api:8000`。
+- §17 之外的两个规则（SpecproofEdgeCircuitBreakerOpen / SpecproofEdgeGatewayDown）的
+  行为仍以生产组合实测为准（operator 决罢积压中）。
+
+**下一号队列（不动）：**
+- 全量门复跑结果如实登记 + Drill 1（真强杀 → 续跑）；
+- slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
