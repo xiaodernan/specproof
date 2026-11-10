@@ -28296,3 +28296,94 @@ httpStatusCode / outcome / routeUri / status）与 `spring.cloud.gateway.routes.
 - slow_eval（100 例多小时——CI/nightly 的活，不重跑）；
 - KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1574 RUNBOOK 补上边缘网关：组件表、启动条目、健康与观测（operator 文档）（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 b052740 → 55bdeff）。
+
+**来路。** 边缘（specproof-edge，Spring Cloud Gateway）落到 `compose.observability.yml` 后，
+运维手册至今没有它一行：`## 1. 组件与端口` 没有端口，启动段落没有怎么把它起来，
+§4 的健康/观测没有它的健康检查口、没有它的告警三条。值班的人对产品的**公网门**一无所知。
+
+**落地（只改 `docs/operations/RUNBOOK.md`）：**
+- §1 组件与端口新增一行：Edge Gateway（8080 / 8090）——**可选公网入口
+  （observability profile 才起）**，路由表在 `services/gateway/.../application.yml`，
+  断路器 + 连接池/路由 metrics + 请求 id 回显。
+- §2 启动段落新增四行：怎么起（`docker compose -f compose.phase0.yml -f
+  compose.observability.yml up -d specproof-edge`）、起来之后公网入口转向边缘、8090 是管理端口
+  （默认绑 127.0.0.1，observability profile 显式 0.0.0.0 只给兄弟 Prometheus 抓取）、
+  断路器拒绝 ≠ 数据丢失、池满也见 `SpecproofEdgePoolSaturated`。
+- §4 健康与观测新增三条：管理端口 `/actuator/health`、`/actuator/gateway/routes`
+  （路由表的运行时读数；**edge 端口不答它**——会被 catch-all 代理成 503 circuit-open 体）、
+  `/actuator/prometheus`；以及三条边缘告警各守的失效形状
+  （`SpecproofEdgeGatewayDown` / `SpecproofEdgeCircuitBreakerOpen` / `SpecproofEdgePoolSaturated`，
+  探针点名两个受守家族）。
+
+**验证读数：**
+- RUNBOOK 相关门合跑 **49 passed**（`test_runbook_claims_hold`、
+  `test_ops_docs_metric_names_trace_to_emission_sites`、
+  `test_invoice_cron_metrics_leg`、`test_metrics_bind_fates_reach_the_ops_reader`、
+  `test_outbox_relay_loop_leg`）。
+- 未跑全量门（复跑在后台，`_fullgate_v5.txt`，结果待登记）。
+
+**诚实边界：**
+- 只补文档，不改一行代码——RUNBOOK 此前没有边缘一行，本节让它有了；
+  **没有验证**任何一条命令在生产真跑过（compose 起 edge 是 operator 的动作）。
+- 边缘目前只在 `compose.observability.yml`，**不在默认生产组合里**——本节没有替运维
+  决定要不要把公网入口切到边缘（那是影响公网暴露面的决定）；RUNBOOK 如实写明
+  "可选、observability profile"。
+- EdgeGatewayDown 的 annotation 点名两个家族这一条已是 #1571 的落地，本节只在文档里复述。
+
+**下一号队列（不动）：**
+- 全量门复跑结果如实登记 + Drill 1（真强杀 → 续跑）；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1575 全量门复跑 #2（ebb4d7e）：6594 passed / 1 failed —— 我 #1563 的 mypy 漏（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 55bdeff 前的 dd968b7）。
+
+**先看结论。** 全量门复跑（HEAD = `ebb4d7e`，`_fullgate_v5.txt`）：**6594 passed /
+1 failed / 10 skipped / 3 warnings，2878.32s**。比上一轮（a6bda89：6580 / 5）少 4 个红，
+多 14 个测试。**那 1 个红是我自己的漏，这一节照实记。**
+
+**唯一失败**：`tests/unit/test_the_ci_type_check_is_a_suite_leg.py::test_the_shipped_packages_pass_the_type_check_ci_runs`
+⇒ `python -m mypy .` 退出 1：
+
+    cli/specproof/commands/ops.py:579: error: Argument 1 to "reconcile_buckets"
+    has incompatible type "MinIOClient"; expected "ObjectStoreLike"  [arg-type]
+
+**根因（#1563 笔）。** `evidence/bucket_reconcile.py::ObjectStoreLike` 是一个
+**具体类**（两个方法体 `raise NotImplementedError`），而 `reconcile-buckets` 命令
+传的是 `MinIOClient`——mypy 当然退回去。本号为这批改动只跑了 pytest 与 ruff，
+**没跑 `mypy .`**——而这一门恰恰把整个仓库的 268 个源文件跑一遍 mypy。这是全量门
+在我的系统里唯一挡住我把这种漏带到 master 的拦截，也是它值得每轮都跑的原因。
+
+**修法（dd968b7）**：按仓库既有形状（`storage/artifact_store.py::ObjectStoreLike`
+本来就是 Protocol）把它改成结构化 `Protocol`（`typing.Protocol` + 方法体 `...`）。
+Protocol 按**结构**判定——任何暴露 `list_bucket_objects` / `object_digest` 的对象都符合，
+`MinIOClient` 天然满足，不必让任何人假装继承一个 base。
+
+**验证读数（修复后实跑，不是修复前）：**
+- `python -m mypy .` ⇒ **exit 0，「Success: no issues found in 268 source files」**。
+- `ruff check evidence/bucket_reconcile.py` ⇒ 全绿。
+- `tests/integration/test_bucket_reconcile_against_real_bucket.py` +
+  `test_reconcile_buckets_cli.py`（真 MinIO + 真 SQLite）+ 失败门本身 ⇒ **18 passed**。
+
+**v5 与 v4 的差（6594 vs 6580）**：v5 在 `ebb4d7e` 上跑，只含 #1562–#1565 的
+测试与 `evidence/findings_report.py`；v5 不含 #1570（pool metrics）、#1571
+（PoolSaturated 告警 + roster 家族声明）、#1572（SCG metrics + 面板 57）、
+#1573/#1574（文档）、dd968b7（本节的修复）——**v5 的 6594 里没有这些新测试**。
+故「v5 全绿」的说法是不成立的，本节不写它成立。
+
+**诚实边界：**
+- 本节**没有**重新跑全量门——修复后只跑了 mypy 全树 + 对账器两文件 + 失败门本身。
+  全量门第三轮（当前 master HEAD）已在后台启动，结果待下一节登记。
+- 门日志 `_fullgate_v5.txt` 是 **UTF-16**（BOM `FF FE`，console 重定向的产物）——
+  读数要先按 utf-16 解码；本节的数字就是这么读出来的。
+- 顺带事实：`git worktree` 里 `D:\tmp\sp-full` 仍是本轮运行的平面；
+  `docs/eval/aider-results.md` 在门跑期间被套件自己改写过时间戳一行，已按 HEAD 还原。
+
+**下一号队列（不动）：**
+- 全量门第三轮结果如实登记；
+- Drill 1（真强杀 → 续跑，等第三轮结束）；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
