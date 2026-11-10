@@ -27654,3 +27654,52 @@ Mongo 不可达时 **skip 并带真因**（不假装绿）。
 - 整图恢复（真 worker kill → 续跑 → 不重复副作用）——P1-B 的下一格；
 - MinIO orphan 巡检；边缘冷启动 + Grafana 实证（operator 决罢，docker daemon 仍不稳）；
 - `verify_golden_tags.py` refs 家族重建（业主决断，#1553 欠账）；slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
+## #1561 真腿挖出真缺陷：checkpoint 读回没排序 ⇒ 续跑从输入重放（2026-11-10）
+
+**记录基准**：本节只追加；落地于本章附带提交（master 链 feac66a → 70e4311）。
+
+**来路。** 接着 #1559/#1560 往 P1-B 的下一格走（整图恢复），写一条"真图 + 真 saver + 真
+MongoDB"的腿——**第一条腿就红，而且红的是产品代码**。
+
+**实测到的缺陷。** `MongoDBSaver.get_tuple` 在**不带**显式 `checkpoint_id` 时用
+`find_one(query)`，**没有排序**；Mongo 的自然序返回该 thread **最旧**的一篇。崩溃后该
+thread 下真实存在的三篇文档（uuid6 ⇒ 字典序即时间序）：
+
+| checkpoint_id | step | channel_values |
+|---|---|---|
+| `1f1dcd6f-3b35…` | -1 | `{'__start__': {'steps': []}}` ← **旧序返回的是它** |
+| `1f1dcd6f-3b45…` | 0 | `{'steps': [], 'branch:to:first': None}` |
+| `1f1dcd6f-3b58…` | 1 | `{'steps': ['first'], …}` ← **应该是它** |
+
+**后果。** 续跑时从**输入**开始 ⇒ 已完成的节点全部重跑 ⇒ P1.6 的核心承诺（崩溃后续跑）
+实际不成立。`DRILLS.md` 的 FIX-3 记的是"显式 checkpoint_id 被忽略"那一半；**默认这一半
+没人查**——而同一个类的 `list()` 早就按 `checkpoint_id` 降序（"newest first"），只有这个
+查漏了。
+
+**修法。** `agent/mongo_saver.py::get_tuple` 统一按 `checkpoint_id` 降序取，并在注释里写明
+实测（哪三篇、按什么序、为什么 uuid6 的字典序就是时间序）。
+
+**新增证据。** `tests/integration/test_graph_resumes_from_the_mongo_checkpoint.py`（新，2 腿）：
+1. **真图续跑**：真 LangGraph 图（first → middle → last）+ 真 saver + 真 MongoDB ⇒ 第一次
+   调用在 middle 崩 ⇒ 经 saver 读回 checkpoint 断言 first 的输出在册 ⇒ 以 **None 输入**
+   （LangGraph 的续跑契约；再传原输入等于开新 run）同 thread_id 续跑 ⇒ 断言
+   **first 没有重跑**（外部计数器，不信图自己的账本）、崩掉的节点重跑、last 跑通。
+2. **钉住排序**：写三篇 checkpoint，不带 id 的查必须返回最新那篇。
+
+**验证读数：**
+- 两个新文件 + 三个相关文件合跑 **35 passed**；`ruff check` 全绿。
+- **变异臂**：把排序改回去 ⇒ **2 failed**；改回 ⇒ **2 passed**（崩溃安全脚本：仓外备份 +
+  标记文件，下次运行先自愈）。
+- 修前那条续跑腿的红，是**修产品**才绿的——不是把断言放宽。
+- 未跑全量 `pytest tests/unit tests/security tests/fault`。
+
+**诚实边界：**
+- 修的是 **saver 的默认查法**；本号没有改 worker 的调用面（它走 saver，自动受益），也没有
+  跑真实 worker kill 演练（那要真 broker + 真 worker，DRILLS Drill 1 是那条路，本号未重跑）。
+- 图是小图（三节点），证明的是"检查点让图续跑"的**机制**，不是产品 18 节点图的行为。
+- `__start__` 那篇仍在库里（它是历史的一部分，删它等于改历史）。
+
+**下一号队列（不动）：**
+- 真实 worker kill → 续跑演练（DRILLS Drill 1 的重跑，需 docker 恢复）；
+- MinIO orphan 巡检（P1-B 另一格）；边缘冷启动 + Grafana 实证（operator 决罢）；
+- `verify_golden_tags.py` refs 家族重建（业主决断）；slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
