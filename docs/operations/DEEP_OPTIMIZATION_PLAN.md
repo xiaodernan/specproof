@@ -28672,3 +28672,55 @@ from_status=NULL→CANCELLED）。**不假装这是产品自愈——它是 oper
 - Drill 1（网关 429 之后需冷却）；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1585 control-plane 的 management 段原来是个假配置：spring-boot-starter-actuator 从来不在 classpath 上（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 9a617c4 → 6ba8553）。
+
+**来路。** 今天给边缘 Spring Cloud Gateway 加 Prometheus 端点（#1581）时我注意到
+`services/control-plane/src/main/resources/application.yml` 里也写着
+
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,metrics
+
+**但 `services/control-plane/pom.xml` 根本没有 spring-boot-starter-actuator**。
+没有 actuator ⇒ Spring Boot 完全不识别 `management.*` ⇒ 这个 `management:` 段
+从来没生效过，跟 #1581 的"catch-all 应答假 Prometheus 端点"是同一类隐忧家族：
+配置在，但配置背后没有东西。
+
+**修法：**
+- `pom.xml`: 补 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`
+  （和 edge gateway 同源，类路径已验证在 .m2 里）
+- `application.yml`: `include` 增 `prometheus`；新增 `metrics.distribution.percentiles-histogram.http.server.requests: true`
+  （否则 histogram_quantile 用不了，百分位没有桶）
+- **明确不交付任何 scrape job**：Control Plane 不在任何 compose 文件里、没有
+  Dockerfile、没有 image，RUNBOOK 说它"另开, 共享同一 MySQL"——**一个不存在的部署
+  就没有 roster 位置和告警权**，硬写上去就是给 observability 栈再加一份
+  「永远 DOWN、没人读」的噪声数字。目标仍然是 backed：开一条 scrape 必须跟一个
+  能在 docker 里跑的 control-plane 一起成立。
+
+**验证读数（诚实）：**
+- `mvn -o -B test`：
+  - `ControlPlaneApplicationTests` ⇒ 2 passed（含 /health facade 等外层冒烟）
+  - `WebhookControllerTest` ⇒ 4 passed
+  - **OutboxRelayServiceTest 3 个 ERROR** ——用 `git stash` 撤回本号（仅撤本次改动
+    的两个文件）后原样复现：同样是 3 个 ERROR；这是本机 JDK 25 与测试 byte-buddy/
+    Mockito 的已知冲突（CI 钉的是 Temurin 21），**不是本号引入的**。
+- 未改 application-test.yml / 不动 OutboxRelayServiceTest（不属于本号）；
+- 未跑全量 pytest suite（不动 Python）。
+- **未跑全量门 v7**（门 #7 在 `3bacba2` 上跑，本号不在该轮射程；下一轮 v8 要覆盖本号）。
+
+**诚实边界：**
+- Control Plane 仍然「靠运维手动 mvn spring-boot:run 起」；Python 链路没动；
+- 没把 "CP 有 actuator" 当作用户可见功能（没人能看见它）；
+- 若要让 CP 进 Prometheus：需要先（a）在 compose 里为 CP 建一个服务+Dockerfile，
+  （b）武装 liveness probe，（c）更新 OBSERVABILITY §5 表——全是独立的、需要
+  业主/operator 决断的票，本号不替你们提前做。
+
+**下一号队列（不动）：**
+- 门 v7（3bacba2）出结果登记；
+- Drill 1（网关 429 之后需冷却）；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
