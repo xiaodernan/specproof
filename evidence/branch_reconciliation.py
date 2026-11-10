@@ -149,11 +149,34 @@ FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
                     "_VALID_TRANSITIONS['FAILED'] 有 4 条出边且含 QUEUED —— 判决相反，不搬"),
     },
     "a756f5338:tests/integration/test_fault_scenarios.py": {
-        "verdict": "not_landed",
-        "successor_paths": (),
-        "successor_symbols": (),
-        "reason": ("锚定尺子量出 18 个 test def，master 树里该路径 0 处存在；"
-                    "这是 58 个名字级差异里唯一一个整文件未接续的 18 个，排在 #1550 接手"),
+        "verdict": "succeeded_by_rewrite",
+        "successor_paths": ("tests/integration/test_fault_scenarios.py",),
+        "successor_symbols": (
+            "test_outbox_event_persisted_after_creation",
+            "test_relay_claims_and_publishes",
+            "test_duplicate_event_marked_processed",
+            "test_idempotency_prevents_reprocessing",
+            "test_redelivered_event_idempotent",
+            "test_temporary_failure_triggers_retry",
+            "test_permanent_failure_goes_to_dlq",
+            "test_temporary_and_permanent_are_distinct",
+            "test_exception_chain_preserves_cause",
+            "test_worker_recovers_from_checkpoint",
+            "test_stream_progress_read_from_id",
+            "test_stream_maxlen_trims_old_entries",
+            "test_orphan_objects_detected",
+            "test_claim_stale_jobs_marks_old_jobs",
+            "test_terminal_jobs_not_marked_stale",
+            "test_list_jobs_by_status_finds_running",
+            "test_failed_is_terminal_retry_creates_new_job",
+            "test_lease_expires_and_reacquired",
+        ),
+        "reason": ("18 个 test def 整体搬进该路径（#1550）；内容按 master 的 API/状态机重写："
+                    "outbox 腿走 fetch_pending_outbox_rows + mark_outbox_published，"
+                    "幂等腿改 Redis SETNX（make_idempotency_check），流长度 API 更名 stream_length，"
+                    "FAILED 的相反判因被 master 端显式立场顶住（FAILED→QUEUED）；"
+                    "2 个 P1-B 占位（checkpoint/orphan）保留 skip；16 个 live，"
+                    "本会话实测 17 passed / 2 skipped"),
     },
     "a756f5338:evidence/matrix.py": {
         "verdict": "landed_at_other_path",
@@ -209,9 +232,9 @@ RENAMED_TESTS: dict[str, str] = {
 #: ``shared_file`` names may be explained by ``RENAMED_TESTS`` or left unexplained;
 #: the gate recomputes all four numbers and refuses to certify if they move.
 NAME_ONLY_CENSUS: dict[str, int] = {
-    "total": 58,
+    "total": 40,
     "shared_file": 40,
-    "branch_only_file": 18,
+    "branch_only_file": 0,
     "unexplained_after_renames": 26,
 }
 
@@ -234,8 +257,11 @@ REGISTERED_GAPS: dict[str, str] = {
     "unit-and-integration": "quality.yml 的 job 名，master 的 9 个 job id 里 0 个同名",
     "docs/p1/p1a-final-report.md": "master 的 docs/p1/ 前缀 0 个路径，阶段报告无承接者",
     "docs/p1/wip-migration-matrix.md": "master 的 docs/p1/ 前缀 0 个路径，迁移矩阵无承接者",
-    "tests/integration/test_fault_scenarios.py": (
-        "锚定尺子 18 个 test def，master 树 0 处该路径；#1550 接手"),
+    # tests/integration/test_fault_scenarios.py used to be this dict's other
+    # not_landed key; #1550 carried the 18 test defs over into master as a
+    # rewrite (16 live + 2 pinned skip), so the path is no longer absent —
+    # same rule as provider-smoke: the name vanishing from here must be
+    # visible to the rulers (VERDICT succeeded_by_rewrite), not just deletable.
 }
 
 #: Where an unanchored ``\bdef test_`` census prints a name that is not a test
