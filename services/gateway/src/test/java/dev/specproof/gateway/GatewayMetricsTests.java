@@ -23,6 +23,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 /**
@@ -83,6 +85,12 @@ class GatewayMetricsTests {
     @Autowired
     private MeterRegistry meterRegistry;
 
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @LocalManagementPort
+    private int managementPort;
+
     @LocalServerPort
     private int edgePort;
 
@@ -134,5 +142,24 @@ class GatewayMetricsTests {
         assertThat(value)
                 .as("the meter the operator sees says how many routes the edge serves")
                 .isEqualTo(6.0);
+    }
+
+    @Test
+    void theRouteTimerPublishesHistogramBucketsToThePrometheusEndpoint() throws Exception {
+        proxyOneRequest();
+
+        // The percentiles-histogram Boot property is the only thing standing
+        // between the route timer and computable per-route percentiles. This
+        // leg asks the actuator — not the JVM's internal registry — so the
+        // whole path (Boot binding -> micrometer -> /actuator/prometheus) is
+        // measured, not assumed.
+        String prometheus = restTemplate
+                .getForEntity("http://127.0.0.1:" + managementPort + "/actuator/prometheus",
+                        String.class)
+                .getBody();
+        org.assertj.core.api.Assertions.assertThat(prometheus)
+                .as("the prometheus endpoint must publish the route timer's bucket series")
+                .contains("spring_cloud_gateway_requests_seconds_bucket")
+                .contains("route_id=\"agent-runtime-default\"");
     }
 }

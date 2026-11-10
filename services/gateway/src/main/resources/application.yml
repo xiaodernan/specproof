@@ -184,6 +184,23 @@ management:
     # beyond the internal network.
     port: ${GATEWAY_MANAGEMENT_PORT:8090}
     address: ${GATEWAY_MANAGEMENT_ADDRESS:127.0.0.1}
+  metrics:
+    distribution:
+      # The Spring Cloud Gateway route timer publishes histogram buckets, so
+      # Prometheus can compute per-route p50/p95 with histogram_quantile.
+      # Without this the timer exports only _count/_sum/_max and any per-route
+      # percentile is a number nobody has.
+      percentiles-histogram:
+        spring.cloud.gateway.requests: true
+  prometheus:
+    metrics:
+      export:
+        # Boot 3.x does NOT export metrics by default — with this absent,
+        # the PrometheusMeterRegistry bean never exists and
+        # /actuator/prometheus falls through to the catch-all route, the
+        # agent-runtime answers for it, and Prometheus would scrape
+        # ""ok"" from the upstream instead of the edge's series.
+        enabled: true
   endpoints:
     web:
       exposure:
