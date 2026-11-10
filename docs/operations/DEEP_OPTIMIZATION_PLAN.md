@@ -29216,3 +29216,48 @@ caller 每秒钟都在被 429 丢弃，值班人员只有看得到的面板、�
 - 慢评估；`DEEPSEEK_API_KEY`；KMS-HSM；`verify_golden_tags.py` refs 重建（业主）；
   门 #8（3287fc4 快照 → 现在 master 是 be8e427，**需要重排门 #9** — 本周末再拉一次全量门）；
 - Drill 1 attempt（需要 `DEEPSEEK_API_KEY`）。
+## #1599 Edge 接 OTel SDK（默认禁用）
+
+**记录基准**：本节只追加；落地于 `5669afe`（master 链 7833623 → 5669afe）。
+
+**来路。** Spring Cloud 线剩下的一块真缺口：edge 的 request path 仍是黑盒——
+Python 侧（api metrics/span）已接好 otel-collector，Java 边缘是空白的。同时本机
+OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 attach 的"，而不是
+"得下新包的"。
+
+**落地（`5669afe`）：**
+- `services/gateway/pom.xml`：`opentelemetry-spring-boot-starter` **2.33.1**
+  （instrumentation 2.33.1 + SDK 1.67.0）+ `opentelemetry-common` + `opentelemetry-api-incubator`
+  + instrumentation BOM `2.33.1` + instrumentation BOM-alpha `2.33.1-alpha`——
+  两对不匹配 BOM 都钉死（之前 build 缺 `ComponentLoader`/`EventLoggerProvider` 的一串错
+  就是 SDK/incubator 坐标互不对齐造成的，纯 untrusted-starter 修法就是
+  `opentelemetry-common`/`api-incubator` 两条显式声明让 autoloader 有路子找）；
+- `application.yml`：`otel:` 段落（sdk.disabled=${OTEL_SDK_DISABLED:true}、
+  service.name=specproof-gateway、tracer parentbased_always_on）——
+  默认 **禁用**，不开 = 没 span 没 logger 没断连噪声；
+- `compose.observability.yml`：`specproof-edge` 增 OTEL env：`OTEL_SDK_DISABLED=false`、
+  `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317`、
+  `OTEL_EXPORTER_OTLP_PROTOCOL=grpc`、`OTEL_SERVICE_NAME=specproof-gateway`——
+  compose 观测 profile 才激活，不影响 deploy 默认路径；
+- `docs/architecture/SPRING_CLOUD_EDGE.md`：第 10 个 SCG 元素登记。
+
+**验证读数（实测，非推断）：**
+- `mvn -o -B clean test`（services/gateway）：**28 passed / 0 failed**；
+- `OTEL_SDK_DISABLED=false OTEL_TRACES_EXPORTER=logging mvn -B test -Dtest=GatewayApplicationTests`：
+  **7/7 passed**（SDK attach 正常、sampler 注册条件满足）；
+- 离线 `mvn -o -B clean test`：**28 passed**；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- 不吹"edge 的 span 已经进了 Grafana Tempo"——本机 docker 依然挂死，冷启动没跑成，
+  collector 收到 span 的证据=0；本号只证"SDK attach 没伤到 28 腿；SDK 在
+  启用模式下仍可启动"；
+- 不动 Python 侧 `OTEL_*` 的既有用法（Python 仍走 http://localhost:4318）；
+- compose 观测网默认不启动 edge profile——启用是 operator 决定；
+- 看板/告警不动（不新增 otelcol_* 面板，也不新增 otelcol 规则）——Swagger-like 的
+  完整故事留到 otel-collector 还能被冷启动验证之后。
+
+**下一号队列（不动）：**
+- 门 #8 出结果登记；门 #9 新 master 快照排队；
+- 慢评估；`DEEPSEEK_API_KEY`；KMS-HSM；`verify_golden_tags.py` 重建（业主）；
+  Drill 1 continue（需要 `DEEPSEEK_API_KEY`）；边缘冷启动 + Grafana/OTel 实证（operator）。
