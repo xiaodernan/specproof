@@ -35,6 +35,8 @@ server:
 
 spring:
   application:
+    # the OTel resource name defaults to this; the compose observability
+    # stack keys on OTEL_SERVICE_NAME=specproof-gateway
     name: specproof-gateway
   cloud:
     gateway:
@@ -156,6 +158,21 @@ spring:
                 limitRefreshPeriod: PT1S
                 timeoutDuration: PT0S
             - EdgeCircuitBreaker=specproof-edge
+
+# OTel: OTLP -> the shared OpenTelemetry collector when the operator sets
+# OTEL_SDK_DISABLED=false (and, implicitly, OTEL_EXPORTER_OTLP_ENDPOINT).
+# The compose observability profile runs an otel-collector; docker run and the
+# cold-start evidence are an operator decision, not an assumed default — an
+# edge that cannot reach a collector still boots perfectly with the SDK
+# disabled.
+otel:
+  sdk:
+    disabled: ${OTEL_SDK_DISABLED:true}
+  service:
+    name: ${OTEL_SERVICE_NAME:specproof-gateway}
+  traces:
+    sampler: ${OTEL_TRACES_SAMPLER:parentbased_always_on}
+    sampler-arg: ${OTEL_TRACES_SAMPLER_ARG:1.0}
 
 # resilience4j: the edge's upstream circuit breakers. Two instances — one per
 # plane — so a hung control plane does not flip the breaker the agent

@@ -80,6 +80,12 @@ services:
       # 本条目绑定网络的边界是 compose 默认 network（仅本栈/同网络的容器）。
       # 不部署 compose 时，gateway 默认回环绑定，不外泄。
       GATEWAY_MANAGEMENT_ADDRESS: 0.0.0.0
+      # OTel：edge 的 span 发到同网络的 otel-collector（:4317 gRPC，
+      # 见 infra/otel/otel-collector.yaml 的 receivers.otlp.protocols.grpc）。
+      OTEL_SDK_DISABLED: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: specproof-gateway
     restart: unless-stopped
 
   grafana:
