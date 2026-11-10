@@ -77,6 +77,9 @@ _FAMILY_OWNERS: dict[str, tuple[str, ...]] = {
     # process that imports it — the three /metrics jobs running this repo's
     # code. The third-party jobs serve none of it.
     "specproof_": ("api", "worker", "outbox-relay", "invoice-cron", "notify-relay"),
+    # resilience4j_circuitbreaker_* is emitted by the gateway's specproof-edge
+    # service (Spring Cloud CircuitBreaker filter, #1554) — only that job serves it.
+    "resilience4j_circuitbreaker_": ("specproof-edge",),
     # rabbitmq_prometheus plugin output; served only by its own job, and only
     # under /metrics/per-object for the per-queue series the alerts select.
     "rabbitmq_": ("rabbitmq",),

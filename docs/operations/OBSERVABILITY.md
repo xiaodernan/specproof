@@ -8,9 +8,10 @@
 | 服务 | 镜像 | 端口 | 职责 |
 |---|---|---|---|
 | otel-collector | otel/opentelemetry-collector-contrib:0.123.0 | 4317 (OTLP gRPC) / 4318 (OTLP HTTP) / 8889 (prom exporter) | 接收 api/worker 的 OTLP 数据; 指标经内嵌 prometheus exporter 暴露, Trace 走 debug exporter (无外部后端) |
-| prometheus | prom/prometheus:v3.3.1 | 9090 | 15s 抓取: api:8000/metrics、worker:9100/metrics、outbox-relay:9101/metrics、notify-relay:9102/metrics、invoice-cron:9103/metrics (billing profile 启用后 up)、otel-collector:8889、rabbitmq:15692/metrics/per-object、自身 (localhost:9090); 规则 alerts-slo.yml |
+| prometheus | prom/prometheus:v3.3.1 | 9090 | 15s 抓取: api:8000/metrics、worker:9100/metrics、outbox-relay:9101/metrics、notify-relay:9102/metrics、invoice-cron:9103/metrics (billing profile 启用后 up)、otel-collector:8889、rabbitmq:15692/metrics/per-object、specproof-edge:8090/actuator/prometheus (见下行)、自身 (localhost:9090); 规则 alerts-slo.yml |
 | alertmanager | prom/alertmanager:v0.27.0 | 9093 | SLO 告警接收端 (prometheus.yml `alerting:` 指向它); 默认 receiver 为 null 占位 — **不发送任何通知**，需运维接真实路由后才有通知 (infra/prometheus/alertmanager.yml 头) |
 | grafana | grafana/grafana:11.6.1 | 3000 | provisioning 自动接 Prometheus 数据源 + SLO 看板 (uid: specproof-slo) |
+| specproof-edge | specproof-edge:local (build: services/gateway) | 8080 (edge) / 8090 (management) | Spring Cloud Gateway 边缘 (#1544); 6 条路由归属表 + resilience4j 断路器 (#1554); management 端口只绑 loopback; 暴露 resilience4j.circuitbreaker.state 等指标 (#1555) |
 
 数据流: api / worker / outbox-relay (进程内 registry, observability/metrics.py)
 → 各进程 /metrics (api 用 FastAPI 端点; worker/relay 用 observability/metrics_http.py 的 stdlib 端点)
@@ -52,9 +53,9 @@ docker pull docker.m.daocloud.io/otel/opentelemetry-collector-contrib:0.123.0
 docker tag  docker.m.daocloud.io/otel/opentelemetry-collector-contrib:0.123.0 otel/opentelemetry-collector-contrib:0.123.0
 ```
 
-端口冲突: 4317/4318/8889/9090/9093/3000 均可经环境变量覆盖
+端口冲突: 4317/4318/8889/9090/9093/3000/8080/8090 均可经环境变量覆盖
 (OTEL_OTLP_GRPC_PORT / OTEL_OTLP_HTTP_PORT / OTEL_PROM_EXPORTER_PORT /
-PROMETHEUS_PORT / ALERTMANAGER_PORT / GRAFANA_PORT)。这类旋钮只覆盖 compose 映射的左边值, 即宿主机
+PROMETHEUS_PORT / ALERTMANAGER_PORT / GRAFANA_PORT / GATEWAY_PORT / GATEWAY_MANAGEMENT_PORT)。这类旋钮只覆盖 compose 映射的左边值, 即宿主机
 发布端口: 容器内监听端口不变, Prometheus 走服务名 DNS 抓取也就跟着不变, 只有
 §3 的 http://localhost:9090 与 Grafana 3000 以及 Alertmanager 9093 要按新值访问。冲突时改左边值即可。
 

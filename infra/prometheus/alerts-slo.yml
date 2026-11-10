@@ -60,6 +60,20 @@
 #                                        run.sh 模板四词 (create_capsule
 #                                        同源, 对账门 import 钉死)
 
+# Edge circuit breaker note (observability-profile section): the catch-all
+# route carries the EdgeCircuitBreaker filter; the breaker emits its
+# state at the gateway management port (loopback only). The alert below
+# pins the runtime refusal state, not a loss condition — it is an
+# observability-profile alert, deliberately not §14.
+
+#   EDGE_CB_OPEN_THRESHOLD = 0      ← §14 "Job 不丢失" 边缘侧退化信号 (#1554 起)
+#                                        断路器 open —— 运行时拒绝门：上游断裂时
+#                                        Spring Cloud Gateway 对新请求直接拒绝，
+#                                        不是丢失数据，是边缘的拒绝声明；caller
+#                                        持续碰到 open 直到半开探测重新放行。
+#                                        本告警仅是「还有 §14 目标的最弱式回声」——
+#                                        告警提醒运维查看上游，不是数据丢失的证据。
+
 groups:
   - name: specproof-slo
     rules:
@@ -258,6 +272,29 @@ groups:
         annotations:
           summary: "SpecProof 死信队列非空 (VERIFY_DLQ_THRESHOLD=0)"
           description: "队列 {{ $labels.queue }} 有 {{ $value }} 条死信 (§14: Job 不丢失 — 死信是消费被拒且重试耗尽的作业, 不会自己消失, 需人工回炉或归档)。队列名按 storage/rabbitmq.py 的 dlq_suffix='.dlq' 规则匹配, 覆盖全部车道的死信而不只 verify。"
+
+      # ── 边缘网关断路器 (§17, #1554/#1555) ─────────────────────────
+      # resilience4j_circuitbreaker_state 在 spring-cloud gateway 的 management
+      # 端口上报（8090；本文件告警 expr 用、纯函数名匹配，无需了解走的是
+      # 断路器哪个具体 instance——只抓其中 name="specproof-edge" 这根）。
+      - alert: SpecproofEdgeCircuitBreakerOpen
+        expr: 'resilience4j_circuitbreaker_state{name="specproof-edge",state="open"} > 0'
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof 边缘断路器持续 OPEN (EDGE_CB_OPEN_THRESHOLD=0)"
+          description: "agent runtime 上游断开持续 {{ $value }} 分钟（§17: 边缘 Spring Cloud Gateway 的 resilience4j 断路器在 reject，不是默认路由报错）——不是丧失答案的错误，是边缘的拒绝声明；重试路径需要排查上游。"
+
+      # ── 边缘网关可达性（唯一 SpecproofEdgeCircuitBreakerOpen 的 liveness 背书声音） ─-
+      - alert: SpecproofEdgeGatewayDown
+        expr: up{job="specproof-edge"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof edge gateway 抓取目标 down"
+          description: "{{ $labels.instance }} 超过 2 分钟不可抓取（§17: 仅组成栈时显现；未组合属预期，与 worker 同一语义）。本行挂断的只有 SpecproofEdgeCircuitBreakerOpen——SpecproofEdgeCircuitBreakerOpen 读的 resilience4j 家族只由这一个 job 提供，本探针是它的 liveness 唯一背书。"
 
       # ── 无证据严重评论 (§14 质量目标, #182) ─────────────────────────
       # 证据门禁的计数化: build_review_comments (integrations/inline_comments.py)

@@ -151,7 +151,7 @@ def agent_runtime_routes() -> list[ServiceRoute]:
     """The agent runtime's routes, from its FastAPI decorators (AST)."""
     out: list[ServiceRoute] = []
     for path in sorted(AGENT_API.rglob("*.py")):
-        if path.name.startswith("test_") or "__pycache__" in path.parts:
+        if path.name.startswith("test_") or "__pycache__" in path.relative_to(AGENT_API).parts:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         prefixes: dict[str, str] = {}

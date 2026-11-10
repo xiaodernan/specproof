@@ -10,6 +10,7 @@
 #   invoice-cron:9103/metrics   ← invoice cron 进程内 /metrics (INVOICE_CRON_METRICS_PORT; 仅 billing profile 启用后生效, 否则 down)
 #   otel-collector:8889/metrics ← OTel Collector 内嵌 prometheus exporter
 #   rabbitmq:15692/metrics/per-object ← rabbitmq_prometheus 插件的每队列渲染
+#   specproof-edge:8090/actuator/prometheus   ← 边缘网关 management 端口
 #   localhost:9090/metrics      ← Prometheus 自身
 #
 # api 未起时目标显示 down 属正常; api 起来后同网络 DNS 解析即自动转 up。
@@ -87,3 +88,13 @@ scrape_configs:
     metrics_path: /metrics/per-object
     static_configs:
       - targets: ["rabbitmq:15692"]
+
+  # edge gateway (spring cloud gateway, #1544 边缘网关; management 端口 8090
+  # loopback only)。仅「组成可控」时显现：compose.observability.yml 的
+  # specproof-edge 服务（build: services/gateway）支持；未组合时本目标 down,
+  # 不影响其他抓取。指标经 resilience4j micrometer 绑定 — 本仓 Spring Cloud 侧的
+  # emission site 见 services/gateway/.../EdgeCircuitBreakerGatewayFilterFactory。
+  - job_name: specproof-edge
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["specproof-edge:8090"]

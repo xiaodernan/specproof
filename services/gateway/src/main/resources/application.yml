@@ -144,10 +144,16 @@ specproof:
 
 management:
   server:
-    # The management endpoints live on their OWN port, bound to loopback.
-    # On the edge port the actuator would publish the upstream topology
-    # (the route table names each plane's internal URL), and the edge is
-    # the public face of the product.
+    # The management endpoints live on their OWN port, bound to loopback by
+    # default. On the edge port the actuator would publish the upstream
+    # topology (the route table names each plane's internal URL), and the
+    # edge is the public face of the product.
+    #
+    # Compose observability stack is the one deliberate exception: its
+    # Prometheus scrapes this port from a sibling container on the same
+    # network, which loopback cannot serve, so compose.observability.yml sets
+    # GATEWAY_MANAGEMENT_ADDRESS=0.0.0.0 for specproof-edge and binds nothing
+    # beyond the internal network.
     port: ${GATEWAY_MANAGEMENT_PORT:8090}
     address: ${GATEWAY_MANAGEMENT_ADDRESS:127.0.0.1}
   endpoints:

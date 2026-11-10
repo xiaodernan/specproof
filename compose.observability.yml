@@ -62,6 +62,26 @@ services:
       - "${ALERTMANAGER_PORT:-9093}:9093"
     restart: unless-stopped
 
+  # edge gateway (#1544 边缘网关)。本栈 alone 不连上游 — SPECPROOF_CONTROL_PLANE_URL /
+  # SPECPROOF_AGENT_RUNTIME_URL 指向的服务由生产组合提供；未起生产组合时 scrape 照旧
+  # 成功（上游关闭时 resilience4j 断路器稳定 OPEN —— #1555 起 /actuator/prometheus
+  # 上报 resilience4j.circuitbreaker.state，见 prometheus.yml 的 specproof-edge-gateway
+  # job 与 alerts-slo.yml 的 SpecproofEdgeCircuitBreakerOpen）。
+  specproof-edge:
+    build:
+      context: ./services/gateway
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+      - "${GATEWAY_MANAGEMENT_PORT:-8090}:8090"
+    environment:
+      SPECPROOF_CONTROL_PLANE_URL: http://control-plane:8081
+      SPECPROOF_AGENT_RUNTIME_URL: http://api:8000
+      # 0.0.0.0: Prometheus 从同网 sibling 容器抓取，环回无法服务；
+      # 本条目绑定网络的边界是 compose 默认 network（仅本栈/同网络的容器）。
+      # 不部署 compose 时，gateway 默认回环绑定，不外泄。
+      GATEWAY_MANAGEMENT_ADDRESS: 0.0.0.0
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:11.6.1
     environment:

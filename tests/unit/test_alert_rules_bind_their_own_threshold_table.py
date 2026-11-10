@@ -71,6 +71,9 @@ _LIVENESS_RULES = {
     # M8-T71 (2026-11-08): notify relay 的部署入口落地 (compose.production.yml
     # 的 notify-relay 服务) 后配的存活探针——无 (VAR=value) 槽, 同一豁免。
     "SpecproofNotifyRelayDown",
+    # edge gateway liveness (compose.observability.yml 的 specproof-edge 服务,
+    # 本 stack 单独组合时未必上 — 与 worker 同一语义, down 属预期)。
+    "SpecproofEdgeGatewayDown",
 }
 
 #: Rules whose expr fires on the FAILURE share: the declared SLO figure is the
@@ -93,6 +96,7 @@ _SLO_CITATIONS: dict[str, tuple[str, ...]] = {
     "DASHBOARD_PROGRESS_P95_SECONDS": ("Dashboard 进度延迟 <= 2s",),
     "VERIFY_QUEUE_BACKLOG_THRESHOLD": ("Job 不丢失",),
     "VERIFY_DLQ_THRESHOLD": ("Job 不丢失",),
+    "EDGE_CB_OPEN_THRESHOLD": ("Job 不丢失",),
     "NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD": ("无证据严重评论 = 0",),
     "REPLAY_RATE_THRESHOLD": ("Capsule Replay >= 95%",),
 }
@@ -113,6 +117,7 @@ _GOAL_ONLY_CITATIONS = {
     "RECLAIM_TICK_STALE_SECONDS",
     "VERIFY_QUEUE_BACKLOG_THRESHOLD",
     "VERIFY_DLQ_THRESHOLD",
+    "EDGE_CB_OPEN_THRESHOLD",
 }
 
 #: How a cited figure's unit turns into the same scale as the threshold.

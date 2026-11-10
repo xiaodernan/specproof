@@ -185,6 +185,7 @@ _EVIDENCE: dict[str, frozenset[str]] = {
     "notify-relay": frozenset(
         {"compose-expose", "compose-env-literal", "code-listen", "code-path"}
     ),
+    "specproof-edge": frozenset({"compose-publish"}),
     "otel-collector": frozenset({"compose-publish", "config-endpoint"}),
     "prometheus": frozenset({"compose-publish", "image-default"}),
     "rabbitmq": frozenset({"image-default"}),
