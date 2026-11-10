@@ -79,15 +79,6 @@ VERDICTS: frozenset[str] = frozenset({
 #: a reader can see *what* was believed to have landed, not only that something was.
 FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
     # ── release/p0.5-verified-v1 (4145d95) ─────────────────────────────────
-    "4145d95b7:evidence/matrix.py": {
-        "verdict": "landed_at_other_path",
-        "successor_paths": ("agent/matrix_policy.py", "agent/nodes/build_matrix.py"),
-        "successor_symbols": ("_severity_rank", "build_matrix_node"),
-        "reason": ("分支侧定义 2 个符号：_severity_rank 按原名住在 agent/matrix_policy.py，"
-                    "build_evidence_matrix 原名在 master 0 处出现，矩阵内容以 "
-                    "agent/nodes/build_matrix.py 的 build_matrix_node 接续"
-                    " —— 名字级缺席、事实级接续"),
-    },
     "4145d95b7:scripts/run_differential.sh": {
         "verdict": "landed_at_other_path",
         "successor_paths": ("agent/nodes/run_differential.py",),
@@ -120,18 +111,6 @@ FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
         "reason": ("按 YAML 解析的 6 个 service（api/mysql/outbox-relay/rabbitmq/redis/worker）"
                     "在 master 的 compose 文件全集 16 个里缺席 0 个 —— 文件名没接续，内容全接续"),
     },
-    "a756f5338:docs/p1/p1a-final-report.md": {
-        "verdict": "not_landed",
-        "successor_paths": (),
-        "successor_symbols": (),
-        "reason": "master 树里 docs/p1/ 前缀 0 个路径；P1 阶段报告没有接续者，也不该伪装成有",
-    },
-    "a756f5338:docs/p1/wip-migration-matrix.md": {
-        "verdict": "not_landed",
-        "successor_paths": (),
-        "successor_symbols": (),
-        "reason": "同上：docs/p1/ 前缀 0 个路径，迁移矩阵是分支自用的过程文档",
-    },
     "a756f5338:storage/migrations/001_p1_baseline.sql": {
         "verdict": "succeeded_by_rewrite",
         "successor_paths": ("storage/migrations/001_job_state_machine.sql",
@@ -155,12 +134,6 @@ FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
     # (P3 red both ways), and there is nothing left to adjudicate. The port's
     # content, reversal notes and measurements live in the commit that landed
     # it (#1550) and in the ledger section of that number.
-    "a756f5338:evidence/matrix.py": {
-        "verdict": "landed_at_other_path",
-        "successor_paths": ("agent/matrix_policy.py", "agent/nodes/build_matrix.py"),
-        "successor_symbols": ("_severity_rank", "build_matrix_node"),
-        "reason": "与 4145d95 的同一文件同判：2 个符号里 1 个原名有家、1 个改名接续",
-    },
     "a756f5338:scripts/run_differential.sh": {
         "verdict": "landed_at_other_path",
         "successor_paths": ("agent/nodes/run_differential.py",),
@@ -232,8 +205,6 @@ REGISTERED_GAPS: dict[str, str] = {
     # longer absent -- and P8 re-derives that from the refs, not from here.
     "docker-integration": "quality.yml 的 job 名，master 的 9 个 job id 里 0 个同名，未判定承接者",
     "unit-and-integration": "quality.yml 的 job 名，master 的 9 个 job id 里 0 个同名",
-    "docs/p1/p1a-final-report.md": "master 的 docs/p1/ 前缀 0 个路径，阶段报告无承接者",
-    "docs/p1/wip-migration-matrix.md": "master 的 docs/p1/ 前缀 0 个路径，迁移矩阵无承接者",
     # tests/integration/test_fault_scenarios.py used to be this dict's other
     # not_landed key; #1550 carried the 18 test defs over into master as a
     # rewrite (16 live + 2 pinned skip), so the path is no longer absent —
