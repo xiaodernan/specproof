@@ -137,6 +137,13 @@ traceback, 而且 killed 的正是他本想保持不动的那个旋钮。现在�
   MongoDB 至少保留 checkpoint 集合。
 - 磁盘: 定时清理 workspace (--keep-worktrees 只在调试用);
   ES 索引按保留策略滚动。
+- 临时目录普查（只读，不删除）: `python scripts/scan_stale_temp_dirs.py [--temp-root <path>]
+  [--bytes] [--json] [--admin-only]`。枚举 C:\Users\<you>\AppData\Local\Temp 里的
+  `specproof-*` 家族（base/head/mcp-verify/mcp-craft/batch-replay/replay/drill），
+  按前缀计数、按 mtime 聚合为 `<1d`/`1-7d`/`7-30d`/`>30d` 四档、报最旧/最新，并读取
+  `.git/worktrees` 登记项，标出悬挂项（登记路径已不存在）。**设计边界：只读，
+  不删除、不移动、不碰登记册；删什么由运维自定决策，本脚本只给事实。**
+  单元门: `tests/unit/test_scan_stale_temp_dirs.py`（5 腿）。
 - 沙箱镜像: 预拉 maven:3.9-eclipse-temurin-21 与 node:22-alpine; 拉取失败
   按镜像分别缓存 (进程级, 一次只付一次超时代价)。Docker Hub 不可达时置
   SPECPROOF_SANDBOX=local 并确认 JDK21 在宿主机可用。
