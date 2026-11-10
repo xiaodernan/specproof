@@ -27244,3 +27244,30 @@ update-ref → 跑 17 条腿 → `reset --hard` + `clean -fdq` + ref 指回去 +
 - **#1552 网关的第一条运行时 Java 测试**（Spring Cloud 元素的入口，撤掉 services/gateway 的零测试登记）。
 - `scripts/verify_golden_tags.py` 的 99 vs 实测 100 未动。
 - P1-B 两位占位（checkpoint/orphan）仍未做——它们需要 LangGraph checkpoint 恢复和 MinIO orphan sweeper，不属于本号。
+## #1551 temp 工作树生命周期：普查武装成生产只读扫描（2026-11-10）
+
+**记录基准**：HEAD = `23e0c18`；本节只追加。
+
+**来路。** #1547 普查到本机临时目录遗留 325 个 `specproof-*` 目录；队列行 #1551（temp 工作树生命周期）要求把一次性 `.scratch` 探针变成生产维护面。本号把该普查武装成只读脚本。
+
+**落地：**
+- `scripts/scan_stale_temp_dirs.py`：只读。枚举 `--temp-root`（默认 `TEMP`）下封闭 7 个前缀（base/head/mcp-verify/mcp-craft/batch-replay/replay/drill）+ foreign 报告；按 mtime 聚合四档；`--bytes` 浅层测量；`--json`；`--admin-only` 读 `.git/worktrees` 登记（含悬挂项 `target_exists`）。**不删除、不移动、不碰产品库、不替谁做主。**
+- `tests/unit/test_scan_stale_temp_dirs.py`：5 腿全绿（边界档位、missing root→error、计数+foreign、foreign casing 忽略、年龄桶存在）。
+- `docs/operations/RUNBOOK.md` §5 新增条目（命令、选项、设计边界、腿指针）。
+
+**实测（本机，2026-11-10）：**
+- 扫描：**319** 个遗留目录（mcp-verify 184 / mcp-craft 84 / batch-replay 48 / replay 2 / drill 1；今早并轨删掉的 6 个 base/head 后 0）；年龄档：`<1d`=115、`1-7d`=204；最旧 `2026-11-06`、最新 `2026-11-10 03:49`。
+- `.git/worktrees` 登记：**1 项**（`_wt_plan`，`target_exists=True`）——早前 7 项（base×3/head×3 已删 + 计）。
+- `--json` 输出在 UTF-8/GBK 双模下有效（generator 全 ASCII，CI 产物友好）。
+- `ruff check` 该两文件全绿（R202/R501 等照常）。
+
+**本号不认领 / 如实边界：**
+- 脚本**不删除任何目录**——删除决策（含 316 个 mcp/batch 遗留）留给操作者或后续号。
+- **不接 cron / 不接清洗门**——自动时机是主机侧决策。
+- MCP/batch/replay 工具本身仍然每跑一趟留一个目录；本号治"看不见"，不治"留"，工具行为改动另计。
+- 未跑全量 `pytest tests/unit tests/security tests/fault`（本号新增脚本+单测+RUNBOOK，无产品代码路径）；5/5 腿与 ruff 为实证。
+
+**下一号队列（不动）：**
+- **#1552 网关的第一条运行时 Java 测试**（Spring Cloud 元素的入口，撤 `services/gateway` 的零测试 登记）。
+- `scripts/verify_golden_tags.py` 的 99 vs 100 未动。
+- P1-B checkpoint/orphan 占位仍未做。
