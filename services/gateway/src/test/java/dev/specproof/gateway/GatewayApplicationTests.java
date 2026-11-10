@@ -117,6 +117,41 @@ class GatewayApplicationTests {
     }
 
     @Test
+    void everyGettableControlPlaneRouteCarriesTheRetryFilter() {
+        // Retry is GET-only on purpose: the mutating routes (tenants POST,
+        // tenant-users POST, github-webhook POST) must never be retried by
+        // the edge — a retry would duplicate the side effect upstream. The
+        // read-<typed>=* reads are idempotent, so the edge retries 5XX twice
+        // with small backoff (first 100ms x2 -> 500ms).
+        java.util.Set<String> retryable = java.util.Set.of(
+                "control-plane-jobs",
+                "control-plane-tenants",
+                "control-plane-tenant-item",
+                "control-plane-tenant-users");
+        var webhook = routes().stream()
+                .filter(r -> r.getId().equals("control-plane-github-webhook"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(webhook.getFilters())
+                .extracting(f -> f.getName())
+                .doesNotContain("Retry");
+
+        var controlPlane = routes().stream()
+                .filter(r -> retryable.contains(r.getId()))
+                .collect(java.util.stream.Collectors.toMap(RouteDefinition::getId, r -> r));
+        assertThat(controlPlane).hasSize(4);
+        assertThat(controlPlane.values()).allSatisfy(route ->
+                assertThat(route.getFilters())
+                        .anySatisfy(f -> {
+                            assertThat(f.getName()).isEqualTo("Retry");
+                            String args = f.getArgs().values().stream()
+                                    .map(Object::toString).reduce("", (a, b) -> a + "," + b);
+                            assertThat(args).contains("INTERNAL_SERVER_ERROR");
+                            assertThat(args).contains("GET");
+                        }));
+    }
+
+    @Test
     void everyControlPlaneRouteCarriesItsOwnBreaker() {
         // A hung control plane must never trip the breaker the catch-all
         // relies on, so the five control-plane routes carry EdgeCircuitBreaker

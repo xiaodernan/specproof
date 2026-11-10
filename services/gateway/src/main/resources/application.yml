@@ -87,6 +87,20 @@ spring:
             - Method=GET
           filters:
             - EdgeCircuitBreaker=specproof-control-plane
+            # Retry is GET-only so failures to the write paths (tenants POST,
+            # webhook POST) are never duplicated; 5XX-only statuses so the
+            # breaker-generated 503 (an intentional refusal) is never retried;
+            # short backoff so a transient blip does not compound into a
+            # queue-building retry storm.
+            - name: Retry
+              args:
+                retries: 2
+                statuses: INTERNAL_SERVER_ERROR
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
 
         # The tenant collection is written (POST) and read (GET).
         - id: control-plane-tenants
@@ -98,6 +112,17 @@ spring:
             - Method=GET,POST
           filters:
             - EdgeCircuitBreaker=specproof-control-plane
+            # GET-only for the same reason as control-plane-jobs: tenants
+            # POST is a mutating call and must never be retried by the edge.
+            - name: Retry
+              args:
+                retries: 2
+                statuses: INTERNAL_SERVER_ERROR
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
 
         # One tenant is read-only here; there is no PUT/DELETE for a tenant
         # in the control plane yet, so this route does not claim one.
@@ -110,6 +135,17 @@ spring:
             - Method=GET
           filters:
             - EdgeCircuitBreaker=specproof-control-plane
+            # GET-only: read retries are cheap and idempotent; this is the
+            # endpoint the web UI hits on every tenant panel render.
+            - name: Retry
+              args:
+                retries: 2
+                statuses: INTERNAL_SERVER_ERROR
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
 
         - id: control-plane-tenant-users
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
@@ -120,6 +156,17 @@ spring:
             - Method=GET,POST
           filters:
             - EdgeCircuitBreaker=specproof-control-plane
+            # GET-only for the same reason as tenants: POST creates a user
+            # and must not be duplicated by the edge.
+            - name: Retry
+              args:
+                retries: 2
+                statuses: INTERNAL_SERVER_ERROR
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
 
         - id: control-plane-github-webhook
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
