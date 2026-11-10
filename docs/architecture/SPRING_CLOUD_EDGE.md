@@ -4,6 +4,11 @@
 application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地的。本页只描述
 存在的，不在这里规划未来的。任何「已实现」旁边的测试门指向一个真跑的 Java JUnit。
 
+> 2026-11-11 增补（#1599）：`opentelemetry-spring-boot-starter` 2.33.1 仅在 BOM
+> 对齐下可启动（`opentelemetry-instrumentation-bom` 2.33.1 与
+> `opentelemetry-instrumentation-bom-alpha` 2.33.1-alpha 两套同时钉住；漏掉其一时
+> SDK 启用即报 `EventLoggerProvider` / `ComponentLoader` 找不到）。实测过程见 #1599。
+
 ## 两大服务（Spring Boot 3.4.3 + Spring Cloud 2024.0.1）
 
 | 模块 | 作用 | 关键依赖 | Spring Cloud 元素 |
