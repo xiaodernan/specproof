@@ -65,7 +65,15 @@ class MongoDBSaver(BaseCheckpointSaver[Any]):
         checkpoint_id = config.get("configurable", {}).get("checkpoint_id")
         if checkpoint_id:
             query["checkpoint_id"] = checkpoint_id
-        doc = self.collection.find_one(query)
+        # Newest first, always. LangGraph mints checkpoint ids as uuid6, so the
+        # ids sort in time order; without the sort, Mongo's natural order
+        # returns the OLDEST document of the thread — the graph then resumes
+        # from the INPUT and re-runs the whole job (measured 2026-11-10:
+        # three documents existed — __start__, the first superstep's input and
+        # the first node's output — and the unsorted lookup answered with
+        # __start__). `list()` in this class already sorts this way; this
+        # lookup did not.
+        doc = self.collection.find_one(query, sort=[("checkpoint_id", -1)])
         if not doc:
             return None
 
