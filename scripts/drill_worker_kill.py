@@ -239,7 +239,13 @@ def main() -> int:
         worker_proc.wait(timeout=30)
         kill_log["worker_killed"] = True
         kill_log["killed_at_checkpoints"] = checkpoint_count
-        kill_log["kill_log_tail"] = worker_out.read_text(encoding="utf-8")[-800:]
+        # The worker writes stdout through a child pipe boundary on Windows;
+        # some interleaved bytes are not valid UTF-8.  Hoist the tail in with
+        # errors='replace' — an operator debugging a drill failure gets a
+        # lossy tail, not a crashed harness (2026-11-10 #1595).
+        kill_log["kill_log_tail"] = worker_out.read_bytes()[-1600:].decode(
+            "utf-8", errors="replace",
+        )[-800:]
 
         stuck = wait_for_status(store, kill_job_id, ["RUNNING"], timeout=30.0)
         kill_log["stuck_running_after_kill"] = stuck is not None

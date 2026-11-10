@@ -116,6 +116,30 @@
   machine CAS 移到 CANCELLED（`specproof ops` 无需改；`operator:manual-cleanup`
   写入 `audit_logs`）。
 
+**2026-11-10 第三轮再试（#1595，同日 LLM 网关就绪时重做的记录）：**
+- 网关健康度回升（deepseek-v4-flash-0731 的 single ping = HTTP 200），于是给脚本加了
+  旋钮 `--kill-after-checkpoints`（缺省仍 6，纯操作性旋钮，不改默认）。
+- 再试三次都没拿到端到端 kill→resume 的 clean pass：
+  * `--kill-after-checkpoints 14`：作业在 11 个 checkpoint 处完工，杀手未到
+  * `--kill-after-checkpoints 2`：**worker 被真的杀掉了**（killed_at_checkpoints=2，
+    taskkill 真发生），但作业仍在 PREPARING——续跑路径没走成全链路
+  * `--kill-after-checkpoints 4 / 6 / 8`：RUNNING 阶段流逝太快；杀手落到时作业
+    已移出 RUNNING（REVIEWING/BLOCKED/terminal）——`stuck_running_after_kill=False`，
+    错误为 "job not RUNNING after kill (moved to terminal?)"。其中 `scripts/drill_worker_kill.py`
+    读取 `worker.log` 遇到非法 UTF-8 直接抛异常（不是演练红，是日志解析的真 bug）：
+    计划修复（读日志时用 errors='replace'）；
+- 三次的 job 均来自 40-file padding fixture，已由 operator CAS 到 CANCELLED
+  （`operator:drill-wk-cleanup-2026-11-10` 写入 audit_logs）：
+  drill-wk-1794318133 / drill-wk-1794317349 / drill-wk-1794318585；
+  随后查库发现同年 13:55/13:56 又有两条残留（drill-wk-1794318922 PREPARING、
+  drill-wk-1794319008 CONTRACT_REVIEW）已同步 CANCELLED；加上更早的两条（1794308839、1794309557），
+  本轮合计 5 条（1794318133, 1794317349, 1794318585, 1794318922, 1794319008）已清理；
+  `outbox` 对应 7 行 JobCreated 全部 published_at 非空、retry_count=0——outbox 没有
+  删除价值，是审计痕迹，不是待投递队列。
+- **结论不变**：Drill 1 在本机仍未拿到端到端 kill→resume 产物；2026-08-19 那份
+  Drill-verified 证据保留，#1561 的 saver 修复保留；2026-11-10 两轮努力只是对
+  续跑恢复能力的又一次诚实、未果的记录，不是通过的证明。
+
 ---
 ## 2. Drill 2 — Provider 不可达端点, 作业诚实降级 ✅ 已演练
 
