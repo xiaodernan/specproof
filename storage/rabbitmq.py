@@ -8,6 +8,12 @@ consume, duplicate-ack, retry-schedule and dead-letter step emits one
 structured event. The default sink is a no-op, so legacy callers keep
 byte-identical behavior; observability wiring (OTel/metrics) consumes
 RabbitMQEventLog or a caller-provided sink.
+
+#1603: SPECPROOF_MQ_EVENTS_ENABLED=1 swaps the default no-op for the W190
+broker sink (observability.mq_events), which publishes the same six
+events to the specproof.observability.events topic exchange consumed by
+the Spring Cloud edge. The names live in one place:
+observability.event_vocabulary.MqEvent.
 """
 import json
 import logging
@@ -26,6 +32,9 @@ from pika.exceptions import (
 )
 
 from storage.env_config import int_env
+
+from observability.event_vocabulary import MqEvent
+from observability.mq_events import event_sink_from_env
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +74,27 @@ class RabbitMQEventLog:
 
 def _noop_sink(event: dict[str, Any]) -> None:
     """Default sink: no observability — behavior identical to pre-event code."""
+
+
+# ── W190 observability event bus (consumed by the Spring Cloud edge, #1603) ──
+#
+# The agent runtime emits one structured event per pipeline step. When an
+# operator wires a RabbitMQBusSink (see below) as the client's events sink,
+# those events are forwarded onto the topic exchange below, one routing key per
+# event name. The Spring Cloud Gateway consumer (#1603) binds a durable queue
+# to exactly these six routing keys. The names here ARE the contract between
+# the Python runtime and the Java edge — change one, change both.
+
+EXCHANGE_EVENTS = "specproof.observability.events"
+QUEUE_GATEWAY_MQ_EVENTS = "q.gateway.mq-events"
+MQ_EVENTS = (
+    "published",
+    "publish_confirm_timeout",
+    "consumed",
+    "duplicate_acked",
+    "retry_scheduled",
+    "dead_lettered",
+)
 
 
 # ── Configuration ──────────────────────────────────────────────
@@ -118,7 +148,14 @@ class RabbitMQClient:
         self.config = config or RabbitMQConfig.from_env()
         self._connection: pika.BlockingConnection | None = None
         self._channel: BlockingChannel | None = None
-        self._events: RabbitMQEventSink = events if events is not None else _noop_sink
+        # #1603: opt-in W190 event bus. With the switch off,
+        # `event_sink_from_env` returns None and the original no-op sink
+        # is installed unchanged — an unconfigured deployment is
+        # byte-identical to the pre-#1603 pipeline.
+        self._events: RabbitMQEventSink = (
+            events if events is not None
+            else (event_sink_from_env(config=self.config) or _noop_sink)
+        )
 
     def _emit(self, event: dict[str, Any]) -> None:
         self._events(event)
@@ -215,7 +252,7 @@ class RabbitMQClient:
                 ),
             )
             self._emit({
-                "event": "published",
+                "event": MqEvent.PUBLISHED,
                 "routing_key": routing_key,
                 "exchange": exchange,
                 "delivery_mode": 2,
@@ -224,7 +261,7 @@ class RabbitMQClient:
             return True
         except (NackError, UnroutableError) as e:
             self._emit({
-                "event": "publish_confirm_timeout",
+                "event": MqEvent.PUBLISH_CONFIRM_TIMEOUT,
                 "routing_key": routing_key,
                 "exchange": exchange,
                 "error": type(e).__name__,
@@ -237,6 +274,50 @@ class RabbitMQClient:
                 exchange: str | None = None) -> None:
         """Publish with confirm (backward-compatible signature)."""
         self.publish_with_confirm(routing_key, payload, exchange)
+
+    def _publish_raw(
+        self,
+        exchange: str,
+        routing_key: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """Bare publish to an exchange — does NOT emit an observability event.
+
+        The event bus sink uses this so forwarding a W190 event onto
+        ``specproof.observability.events`` cannot recurse into another event:
+        a forwarded event must not itself produce a ``published`` event, or the
+        bus would loop forever.
+        """
+        ch = self.channel
+        body = json.dumps(payload).encode("utf-8")
+        ch.basic_publish(
+            exchange=exchange,
+            routing_key=routing_key,
+            body=body,
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+                content_type="application/json",
+            ),
+        )
+
+    def declare_events_bus(self) -> None:
+        """Provision the W190 observability event bus the edge consumes (#1603).
+
+        Declares the topic exchange plus the gateway's durable queue bound to
+        the six routing keys. Idempotent: re-running is a no-op on RabbitMQ, and
+        the declaration matches exactly what the gateway declares on listener
+        start, so either side may provision the topology first.
+        """
+        ch = self.channel
+        ch.exchange_declare(
+            exchange=EXCHANGE_EVENTS, exchange_type="topic", durable=True)
+        ch.queue_declare(queue=QUEUE_GATEWAY_MQ_EVENTS, durable=True)
+        for key in MQ_EVENTS:
+            ch.queue_bind(
+                exchange=EXCHANGE_EVENTS,
+                queue=QUEUE_GATEWAY_MQ_EVENTS,
+                routing_key=key,
+            )
 
     # ── consume ───────────────────────────────────────────────
 
@@ -270,7 +351,7 @@ class RabbitMQClient:
                 if idempotency_fn and event_id and idempotency_fn(event_id):
                     logger.debug("Duplicate message %s, acking", event_id)
                     self._emit({
-                        "event": "duplicate_acked",
+                        "event": MqEvent.DUPLICATE_ACKED,
                         "queue": queue,
                         "event_id": event_id,
                     })
@@ -281,7 +362,7 @@ class RabbitMQClient:
                 callback(payload)
                 ch.basic_ack(delivery_tag=delivery_tag)
                 self._emit({
-                    "event": "consumed",
+                    "event": MqEvent.CONSUMED,
                     "queue": queue,
                     "event_id": event_id,
                     "delivery_tag": delivery_tag,
@@ -290,7 +371,7 @@ class RabbitMQClient:
             except PermanentFailure:
                 logger.warning("Permanent failure for %s, sending to DLQ", delivery_tag)
                 self._emit({
-                    "event": "dead_lettered",
+                    "event": MqEvent.DEAD_LETTERED,
                     "queue": queue,
                     "reason": "permanent_failure",
                 })
@@ -320,7 +401,7 @@ class RabbitMQClient:
                     )
                     ch.basic_ack(delivery_tag=delivery_tag)
                     self._emit({
-                        "event": "retry_scheduled",
+                        "event": MqEvent.RETRY_SCHEDULED,
                         "queue": queue,
                         "retry_queue": retry_q,
                         "retry_count": death_count + 1,
@@ -329,7 +410,7 @@ class RabbitMQClient:
                 else:
                     logger.error("Max retries (%d) exceeded, sending to DLQ", policy.max_retries)
                     self._emit({
-                        "event": "dead_lettered",
+                        "event": MqEvent.DEAD_LETTERED,
                         "queue": queue,
                         "reason": "max_retries_exceeded",
                         "retry_count": death_count,
@@ -378,6 +459,58 @@ class RabbitMQClient:
             self._channel.close()
         if self._connection and self._connection.is_open:
             self._connection.close()
+
+
+# ── W190 event bus sink (the Spring Cloud edge's counterpart, #1603) ──
+
+
+class RabbitMQBusSink:
+    """Forwards W190 observability events onto ``specproof.observability.events``.
+
+    Implements the :class:`RabbitMQEventSink` protocol, so it can be passed as the
+    ``events`` argument to :class:`RabbitMQClient` — typically composed with the
+    existing log sink via :class:`CompositeEventSink`. Each event is published
+    with its ``event`` field as the routing key, so the Spring Cloud Gateway
+    consumer (#1603) tallies it under the right tag.
+
+    The publish path is the client's raw, event-silent ``_publish_raw``: a bus
+    sink must never emit a secondary event, or every forwarded event would
+    trigger another forward and recurse forever.
+    """
+
+    def __init__(
+        self,
+        client: "RabbitMQClient | None" = None,
+        publisher: "Callable[[str, dict[str, Any]], None] | None" = None,
+    ) -> None:
+        self._client = client
+        self._publisher = publisher
+
+    def _do_publish(self, routing_key: str, payload: dict[str, Any]) -> None:
+        if self._publisher is not None:
+            self._publisher(routing_key, payload)
+        elif self._client is not None:
+            self._client._publish_raw(EXCHANGE_EVENTS, routing_key, payload)
+        else:
+            raise RuntimeError(
+                "RabbitMQBusSink needs either a client or an explicit publisher")
+
+    def __call__(self, event: dict[str, Any]) -> None:
+        name = event.get("event")
+        if not isinstance(name, str):
+            name = "unknown"
+        self._do_publish(name, event)
+
+
+class CompositeEventSink:
+    """Fans a single event out to several sinks (e.g. log sink + bus sink)."""
+
+    def __init__(self, sinks: "list[RabbitMQEventSink]") -> None:
+        self._sinks = list(sinks)
+
+    def __call__(self, event: dict[str, Any]) -> None:
+        for sink in self._sinks:
+            sink(event)
 
 
 # ── Redis idempotency helper ────────────────────────────────────

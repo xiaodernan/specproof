@@ -29386,3 +29386,55 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 - 或边缘 `TokenRelay`/OAuth2 resource server（资源服务器校验 JWT，需先定 JWT 发行人策略）；
 - 或把 `EdgeRateLimiter`/`EdgeCircuitBreaker` 的魔法数经 `@ConfigurationProperties` 外置为
   `GatewayProperties`（微服务"配置外置"惯用法，无需新依赖）——属可读性/可运维性元素。
+
+## #1603 GatewayMqEventConsumer — 边缘订阅 W190 六事件 RabbitMQ 观测总线（事件驱动微服务元素）
+
+**记录基准**：本节只追加；落地于 `<TBD>`（master 链 `cf29dda` → `<TBD>`）。#1602 的"下一号队列"点名本号，原设想走 Spring Cloud Stream binder，但本地 `~/.m2` 无 `spring-cloud-stream-binder-rabbit` 离线无法验证，故改用**已缓存**的 `spring-boot-starter-amqp` 的 `@RabbitListener` 直连消费——同样是事件驱动微服务元素，且离线可验证（不违反诚实契约）。
+
+**来路。** 用户要求"在项目里加一些 springcloud 微服务的元素"。本项目此前边缘（SCG）与 Python agent runtime 仅靠 `X-Request-ID` 关联，没有事件驱动接缝。W190 已在 `storage/rabbitmq.py` 定义了六条结构化观测事件（`published`/`publish_confirm_timeout`/`consumed`/`duplicate_acked`/`retry_scheduled`/`dead_lettered`），但只落日志、未上总线。本号在两端各补一半：Java 边缘消费侧 + Python 生产侧，使这条总线成为真实可观测的事件驱动接缝。
+
+**落地（Java 消费侧）：**
+- `services/gateway/src/main/java/dev/specproof/gateway/mq/GatewayMqEventConsumer.java`：
+  `@Component` + `@ConditionalOnProperty(prefix="specproof.gateway.mq-events", name="enabled", havingValue="true")`——
+  **默认关**：关时 bean 不创建，Spring AMQP 不注册 listener container，网关**不起 broker 连接**照常启动（fail-closed）。
+  开时 `@RabbitListener` 经 `@QueueBinding` 把 `q.gateway.mq-events`（durable）绑到 `specproof.observability.events`（topic）
+  的六路由键；每事件 `MeterRegistry.counter("specproof.gateway.mq.event", "event", name)` 累加（Prometheus 导出
+  `specproof_gateway_mq_event_total{event=...}`）。JSON 解析失败计 `event=malformed`；缺/非字符串 `event` 计 `event=unknown`，
+  不实造。测试核心 `handle(Map)` 包级可见、可直测。
+- `services/gateway/src/main/resources/application.yml`：在 `specproof.gateway` 下加
+  `mq-events: {enabled: false, exchange: specproof.observability.events, queue: q.gateway.mq-events}`。
+- `services/gateway/pom.xml`：新增 `spring-boot-starter-amqp`（3.4.3，已缓存），**未**引 Stream binder。
+
+**落地（Python 生产侧 — 总线另一半）：**
+- `storage/rabbitmq.py`：
+  - 新增模块常量 `EXCHANGE_EVENTS="specproof.observability.events"`、`QUEUE_GATEWAY_MQ_EVENTS="q.gateway.mq-events"`、
+    `MQ_EVENTS`（六事件元组）——该常量集即 Java 消费侧六路由键的**契约**，改一处须改两处。
+  - `RabbitMQClient._publish_raw(exchange, routing_key, payload)`：裸 `basic_publish`（delivery_mode=2,
+    content_type=application/json），**不**发次级观测事件，故总线 sink 转发不会自递归。
+  - `RabbitMQClient.declare_events_bus()`：幂等声明 topic 交换机 + `q.gateway.mq-events` + 六路由键绑定，
+    与网关 listener 自声明一致，任一端先建拓扑皆可。
+  - `RabbitMQBusSink`（实现 `RabbitMQEventSink` 协议）：`__call__(event)` 以 `event["event"]` 为 routing key 发到
+    `EXCHANGE_EVENTS`；可注入 `publisher` 供测试。`CompositeEventSink`：把日志 sink 与总线 sink 扇出组合。
+- `tests/unit/test_rabbitmq_bus_sink.py`：7 例（按名转发、缺名=unknown、非字符串=unknown、注入 publisher、
+  composite fan-out、wiring 入 client **无递归**、`declare_events_bus` 拓扑齐六键）。
+
+**验证读数（实测）：**
+- `cd services/gateway && mvn -o -B test`：**45 passed / 0 failed**（原 37 + 本号 8）；BUILD SUCCESS；
+  含全 Spring 上下文 `GatewayApplicationTests` 在无 broker 下照常启动（证明默认关、不起连接）。
+- `.venv312/Scripts/python -m pytest tests/unit/test_rabbitmq_bus_sink.py -q`：**7 passed**；
+- `.venv312/Scripts/python -m pytest tests/unit/test_rabbitmq_events.py tests/unit/test_rabbitmq_reliability.py -q`：
+  **20 passed**（旧事件/可靠性测试无回归）。
+
+**诚实边界：**
+- 两侧默认都关：网关 `mq-events.enabled=false`、Python 侧 `RabbitMQClient()` 默认 `_events=noop`，W190 事件仅落日志；
+  要端到端生效需 operator 同时开启两端并保障 `specproof.observability.events` 交换机与六路由键就位，否则网关容器绑定失败 fail-loud。
+- 总线 sink 走 `_publish_raw`，已用测试钉死"wiring 入 client 后每发一条事件只产生一次转发、无递归"。
+- 未引 `spring-cloud-stream-binder-rabbit`（本地不缓存）；用 `spring-boot-starter-amqp` 的 `@RabbitListener` 等价达成事件驱动元素且离线可验证。
+- 未改动任何既有发布/消费路径语义；`RabbitMQClient` 默认行为（noop sink）保持不变。
+
+**下一号队列（不动）：**
+- 边缘 `TokenRelay` / OAuth2 resource server（资源服务器校验 JWT）——安全微服务元素，需先定 JWT 发行人策略；
+- 或把 `EdgeRateLimiter`/`EdgeCircuitBreaker` 的魔法数经 `@ConfigurationProperties` 外置为 `GatewayProperties`
+  （微服务"配置外置"惯用法，无新依赖）——可读性/可运维性元素；
+- 或把本号六事件计数接到 Grafana 面板（新增 `specproof_gateway_mq_event_total` 时序 + `dead_lettered` 速率告警），
+  但须先在真实 dashboard JSON 实建面板/告警，再在 `SPRING_CLOUD_EDGE.md` 计数，以免超吹。
