@@ -27395,3 +27395,70 @@ update-ref → 跑 17 条腿 → `reset --hard` + `clean -fdq` + ref 指回去 +
 - `resilience4j_circuitbreaker_*` 入 SLO/alert 规则（infra/prometheus）——自然下一号，但它碰的是可观测面的稳定线，另立。
 - `verify_golden_tags.py` refs 家族重建依旧待业主（`--refs-only` 指到 HEAD 会作废 Oct eval 底版）。
 - P1-B checkpoint/orphan 仍未做。
+## #1556 边缘的部署完整性：edge 镜像化 + 名册登记 + 断路器告警接线（2026-11-10）
+
+**记录基准**：本节只追加；feature 落地于本章附带提交（master 链 caa73c4 → 974fa5a）。
+
+**来路。** Spring Cloud 边缘（#1544）仍然"能跑不出看板"：没有镜像、scrape 名册
+没有它、告警也没有专门看它。#1555 补了 metrics 绑定，但 Prometheus 没法触及。
+本号追问"边缘怎么被部署、被抓取"——落地最小正交闭环：镜像化 + 名册登记 + 断路器告警接线。
+
+**落地：**
+
+1. **`services/gateway/Dockerfile`（新）**：两阶段
+   （`maven:3.9.11-eclipse-temurin-21` 构建 → `eclipse-temurin:21-jre` 运行）——
+   `pom.xml` + `dependency:go-offline` + `COPY src`；没有主机 toolchain 需求、没有伪镜像 tag 进体。
+2. **`compose.observability.yml` 新服务 `specproof-edge`**：`build: ./services/gateway`；
+   `GATEWAY_MANAGEMENT_ADDRESS=0.0.0.0` **仅为本栈 sibling Prometheus** 抓取；未组合时默认回环，
+   不等价于"生产安全吗"的判断，等价于"本来就是回环，只在这一棵 stack 里打开"。
+3. **`infra/prometheus/prometheus.yml`**：新 scrape job `specproof-edge`
+   （`/actuator/prometheus`，target `specproof-edge:8090`）；未组合时 `down`，与其他 optional target 同一语义。
+4. **`infra/prometheus/alerts-slo.yml`**：双新 rule：
+   - `SpecproofEdgeCircuitBreakerOpen`（`resilience4j_circuitbreaker_state{name="specproof-edge",state="open"} > 0`，
+     持续 2m；`EDGE_CB_OPEN_THRESHOLD=0`，§14 "Job 不丢失" 的边缘侧退化回声；命中格上加登记）；
+   - `SpecproofEdgeGatewayDown`（`up{job="specproof-edge"} == 0`，持续 2m；liveness 唯一背书声明——
+     `resilience4j_circuitbreaker_*` family 的唯一 provider 是 `specproof-edge`；探针说明自己守了什么）。
+   - header 注记 Edge circuit breaker note（comment block，未新增 THRESHOLD 行，不触 `#219` 配对门）。
+   - `tests/unit/test_alert_rules_bind_their_own_threshold_table.py` 两处登记（`_LIVENESS_RULES`
+     新增 `SpecproofEdgeGatewayDown`；`_SLO_CITATIONS` 新增 `EDGE_CB_OPEN_THRESHOLD`；kind 保持
+     goal_only）。
+5. **`docs/operations/OBSERVABILITY.md`**：镜像行表新增 `specproof-edge`（8080 / 8090）；
+   §1 prometheus 行列出 `specproof-edge:8090/actuator/prometheus`；
+   §2 端口括号加 `GATEWAY_PORT` / `GATEWAY_MANAGEMENT_PORT`；
+6. **`.env.example`**：加 `GATEWAY_PORT=8080` / `GATEWAY_MANAGEMENT_PORT=8090`（与 compose fallback 一致）；
+7. **`tests/unit/test_scrape_roster_binds_the_liveness_probes.py`**：`_FAMILY_OWNERS` 新增
+   `resilience4j_circuitbreaker_` → `("specproof-edge",)`；
+8. **`tests/unit/test_listen_port_knobs_bind_the_scrape_roster.py`**：`_EVIDENCE` 新增
+   `specproof-edge` → `frozenset({"compose-publish"})`；
+9. **`tests/unit/test_gateway_route_table_covers_every_plane_route.py`**：修 `#1544` 遗留形状——
+   `"__pycache__" in path.parts` 对绝对路径 rglob 命中了整棵上游祖先树，`#541` 同 — 只允许在
+   walk 根之下剪；改为 `relative_to(AGENT_API).parts`，修后 18/18 绿。
+
+**验证读数：**
+- `docker compose -f compose.observability.yml config` 通过；
+- gate 系列：
+  - `test_alert_rules_bind_their_own_threshold_table`：**12 passed**（失败→修复全流再跑为绿）
+  - `test_scrape_roster_*`（含 liveness 声明）：**21 passed**；与 alert_rules 合跑合计 **33 passed**
+  - `test_deploy_port_claims_speak_about_the_host` + `test_listen_port_knobs_*`：**37 passed**
+  - `test_env_template_binds_the_compose_knobs`：**15 passed**
+  - `test_compose_required_knobs_reach_the_operator` + `test_env_knobs_reach_the_process_that_reads_them`
+    + `test_runbook_claims_hold` + `test_production_services_do_not_run_as_root`：**27 passed**
+  - `test_ops_docs_metric_names_trace_to_emission_sites` + `test_observability_metric_parity`：**14 passed**
+  - `test_metric_inventory_lists_every_emission_site` + `test_metrics_scrape_leg_serves_every_emitted_name`：**14 passed**
+  - `test_the_plane_a_scan_reads_is_derived_not_typed` + `test_gateway_route_table_covers_every_plane_route`：**18 passed**
+
+**诚实边界：**
+- **未执行 `docker build`**；Dockerfile 语法未实证编译（本机 daemon 对新栈行为不可靠已多次实证）；
+  本章交付的是"构建说明 + compose 路径宣告"，不是 image。
+- 本号未重跑 Java 套件（`application.yml` 仅注释补充，代码逻辑行未动；`#1555` 的 8/8 绿按其提交 tree 成立）。
+- **未部署到任何真实环境**：这台机器是开发机，不是生产；`specproof-edge` 在真实生产流量下的行为未验。
+- `compose.observability.yml` 的 `GATEWAY_MANAGEMENT_ADDRESS=0.0.0.0` 只在 observability 组合里生效；
+  生产未组合时 gateway 默认 127.0.0.1（端口不改暴露面）。
+- Alertmanager 仍 park 在 null placeholder（firing/resolved 能进 UI，不投出去）——这条写清楚所以不被误读为"有人值班"。
+- `SpecproofEdgeGatewayDown` 的持续时间/阈值弱建议 2m；它是服务探测，不自诩 §14 的硬指标。
+
+**下一号队列（不动）：**
+- Grafana 面板里给 `resilience4j.circuitbreaker_state` 加一个面板（#1555 登记的未做项之一）。
+- `docker build` + 真实 compose 冷启动（`build` + `up -d` 全程）——operator 决罢，本号不做。
+- `verify_golden_tags.py` refs 家族重建依旧待业主。
+- P1-B checkpoint/orphan 仍未做；全量 slow 轨仍未跑。
