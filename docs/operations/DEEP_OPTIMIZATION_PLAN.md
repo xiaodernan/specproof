@@ -28387,3 +28387,35 @@ Protocol 按**结构**判定——任何暴露 `list_bucket_objects` / `object_d
 - Drill 1（真强杀 → 续跑，等第三轮结束）；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1576 全量门跑完自己会把 aider-results.md 写脏；以及门 #3 的排队（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 f0259c7 → b8f6209）。
+
+**发现。** 每轮全量门跑完，`D:\tmp\sp-full` 工作树里 `docs/eval/aider-results.md` 都会多出
+一个脏改动（只有「生成时间」一行变了）。查到底：`tests/unit/test_bench_aider.py::
+test_unsupported_language_honest_unresolved` 调 `main(["--offline", "--no-venv",
+"--tasks", "3", ..., "--output", str(tmp_path/"results.json")])`——**没传 `--md-output`**，
+于是 bench 用 `DEFAULT_MD_OUTPUT`（`scripts/bench_aider.py:64`：REPO_ROOT/docs/eval/
+aider-results.md）把 markdown 报告写回仓库。同一文件里其他三处调用都显式
+`--md-output tmp_path/...`，唯独这一处漏了。
+
+**修法（b8f6209）**：给它 `--md-output tmp_path / "results.md"`，测试自包含、仓库干净。
+**验证**：`tests/unit/test_bench_aider.py` ⇒ **11 passed**。
+
+**同一问题的第二例（门本身没有暴露）：** 每轮门跑完都要手动 `git checkout --
+docs/eval/aider-results.md` 才能让工作树复位供下一轮用——现在不必了。
+
+**门 #3（当前 master HEAD = b8f6209，含 #1574/#1575/#1576 与上一条的修复）已在后台启动**，
+日志 `_fullgate_v6.txt`，结果待下一节登记。**这一次不会像上一轮那样被 aider-results.md
+弄脏平面**——来路这条修复刚刚落库。
+
+**诚实边界：**
+- 本节再修一轮又发现一个门没抓住的小毛病；门拦不住这种「tracked 文件被测试改写」的问题
+  （它只在跑完后看树脏，不归因）——**这是门本身的盲区**，记录在此，不假装它被发现。
+- 未跑全量门门；门 #3 的结果未知。
+- Drill 1（真强杀 → 续跑）仍然等门 #3 结束再跑，不与套件抢 RabbitMQ/Redis/MySQL。
+
+**下一号队列（不动）：**
+- 门 #3 结果如实登记 + Drill 1；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
