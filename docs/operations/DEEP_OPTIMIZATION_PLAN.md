@@ -26990,3 +26990,212 @@ master 没有的那个文件里，而它的契约在 master 分散住在 `tests/
 - 另有一条已量的数字欠账：`scripts/verify_golden_tags.py` 里硬编码 `len(tags) != 99`，
   而 store 实测 `git tag -l 'case-*-head'` = **100**（docstring 与 GREEN 行也各印 99）；
   先量三个平面（用例目录 / tag / 场景里引用的 ref 名）再决定是改数字还是让门来量。
+## #1549 provider-smoke 的 CI 手工腿：把「名字写错没人管」量成四道保险，并把验收平面搬进 clone
+
+> 本节由车道在落地当场写成，但当时未提交—— master `0a05f21..500c6e8` 的提交（`6b2c1b8` / `7b2e02d` / `0a05f21`）先行落库，本节被原样保留、于 2026-11-10 接手后补落。存在于 `.scratch/ledger1549.md`，内容一字未删改原意；两处「验证读数」按接手后实测订正（见下标「验证读数」）。
+
+
+**这一号的来路。** #1548 把三条无共同历史的血缘搬进登记册，其中
+`a756f5338:.github/workflows/quality.yml` 的五个 job 量出**名字级缺席 3 个**，
+`provider-smoke` 是那三个里唯一「跑东西」而不是「改名字」的。#1547 已经把
+`scripts/provider_smoke.py` 的凭据读法接给了 owner，但 master 的 8 个 job 里 **0 个**
+跑它：脚本在树上、单测在测试里、真网关没人碰。登记册写下「它缺席」的那一刻起，
+这句话就只剩两种真值 —— 被人接走，或者继续缺席 —— **但它自己不会说被人接走了**。
+本号按「并轨的另一侧不做了就直接接手做完」的授权，把分支那个 job 逐 step 搬进
+`ci.yml`，并先量一个前提：**加第 9 个 job 的价钱由谁付。**
+
+**前提量测（E 臂：16 个提到 `ci.yml` 的模块 = 168 项，一次性工作树
+`_wt1549_exp`，每臂后按 sha256 逐字节还原）**：
+
+| 臂 | 改动 | 实测 |
+|---|---|---|
+| E0 | 不动（`3f493ea`） | `168 passed / 246.82s`，jobs(8)，触发器 `[pull_request, push]`，`secrets` 0 处 |
+| E1 | 只加 `workflow_dispatch` | `1 failed / 167 passed` —— 唯一红腿经归因复测是**环境红**（见坏尺子 6） |
+| E2 | 只加第 9 个 job，env/secrets 用**死名** `SPECPROOF_LLM_*` | `168 passed / 195.84s` |
+| E3 | 触发器 + 第 9 个 job（落地形状，仍用死名） | `168 passed / 125.73s` |
+| N1 | 落地后的真实 ci.yml 覆盖回同一棵树 | `168 passed / 185.09s`；注释订正后再覆盖一遍 `168 passed / 284.18s`（ci.yml 字节 18709 → 20435 → 20882） |
+
+⇒ 两条结论，第一条不重要，第二条是本号的立身之处：**名册人口只有 #1548 的 P8 在管**，
+其余 15 个模块读的是它已经认识的 job id 的内容；而**env 键与 secrets 键的名字写错，
+本仓 0 把门有意见** —— `providers/config.py::_ENV_FIELDS` 声明
+`LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / LLM_REASONING_EFFORT / LLM_PROTOCOL`，
+E2/E3 用 `SPECPROOF_LLM_API_KEY` 这类代码里根本不读的名字照样全绿。那个 job 会被推到
+GitHub 上，用 0 个凭据跑出 `source="unconfigured"`、0 条能力、exit 1，而 CI 的**结构**
+无一处为它改变颜色。
+
+**落地（4 个文件，一次提交 `6b2c1b8`）**：`.github/workflows/ci.yml` **+35/−0**
+（`on:` 加 `workflow_dispatch`；第 9 个 job `provider-smoke`：`if:` 只在 dispatch 跑、
+`environment: provider-smoke`、四个 step 逐个照抄分支、env 键是 config 声明的 3 个名字、
+`run: python scripts/provider_smoke.py`）；`evidence/branch_reconciliation.py` **+12/−10**
+（reason 改成「名字级缺席 2 个 … provider-smoke 已由 master ci.yml 的同名 job 承接」，
+`REGISTERED_GAPS` 里 `provider-smoke` 键**删除**，P8 从 refs 现推；队列指针 #1549 → #1550）；
+#1548 的门 **+26/−5**（docstring 第五→第六把尺子，`SELF_WITNESS` 第三条由 `__file__` 派生）；
+新门 `tests/unit/test_the_provider_smoke_ci_leg_carries_the_branch_job.py` **+416/−0**。
+落地后的名册读数：`ci.yml` 9 个 job、两个 workflow 合计 **10** 个 job id、
+触发器 `[pull_request, push, workflow_dispatch]`、`secrets.*` 插值 **3** 处（`3f493ea`：0 处）、
+`REGISTERED_GAPS` **6** 个键、名字级缺席 **2**（= 分支 5 个 job − master 名册 union − 改名 1 对）。
+其后两笔只改散文：`0a05f21` 把新门 docstring 的「全仓 0 次」钉回 `3f493ea`，最后一笔把
+ci.yml 注释里「`secrets.` 别处不再出现」这句错话与登记册 reason 的残句改成量出来的句子。
+
+**门：9 条腿，先红后绿。** BASE 侧把新门拷进 `3f493ea` 的干净树：
+**`8 failed, 1 passed in 11.82s`**（C1..C6、C8、C9 全红；C1 说名册里没有这个 job，
+C8 说「branch [checkout, pip-install, setup-python, smoke-script] vs master []」，
+C9 说「ci.yml declares 8 jobs, floor 9」）。唯一绿的 C7 不是空转：它数的是
+「`run:` 里内插 secrets」，**这条性质在落地前后都是 0 处**，V13 一植桩它就红。
+落地侧在 clone 里 **`17 passed in 8.90s`**（新门 9 + #1548 的 8）。
+
+| 腿 | 守住什么 |
+|---|---|
+| C1 job 在，且跑的就是它名字所指的那个脚本 | `run:` 的最后一行必须是裸 `python scripts/provider_smoke.py`；加一个 flag 改的是**被证明的东西**（`--help` 直接 exit 0） |
+| C2 dispatch 的两半必须一起动 | `if: github.event_name == 'workflow_dispatch'` 与 `on:` 里的 `workflow_dispatch` 同生同死，且 `push`/`pull_request` 不许被顺手删掉。只在能被 dispatch 的工作流里才有 dispatch 门；有 dispatch 触发器却没有 `if:` ⇒ 每次 push 都在一个不会被授予的环境上跑 |
+| C3 每个 `env:` 键都是读方声明过的名字 | 名字表从 `providers/config.py` 现读，**不在这儿手打** —— 差点被我发出去的那版就是被这条挡下的 |
+| C4 每个 `${{ secrets.X }}` 也指向声明过的旋钮 | 叫一个代码不读的名字的环境 secret 永远不会被 honour，失败形状与「没配」一模一样 |
+| C5 job 声明了 `environment:`，且名字就是 job 名 | 仓库级 secrets 是另一个命名空间；不声明就是三个空字符串进门 |
+| C6 登记册的理由里那个整数是量出来的 | `分支 job 名册 − master 名册 − RENAMED_JOBS` == reason 的第一个整数（现在 2==2）；`provider-smoke` 必须从 `REGISTERED_GAPS` 消失 |
+| C7 任何 workflow 的任何 `run:` 不许内插 secret | 命令行会进 runner 日志与进程列表；`env:` 才是把值留在子进程里的通道。普查 2 个 workflow 文件，地板 `scanned >= 2` |
+| C8 搬过来的是分支那个 job，不是它的名声 | step 类型当**多重集**与 `a756f5338` 自己的 job 比；`smoke-script` 必须恰好 1 次 |
+| C9 尺子证明它读过东西 | ci.yml 解析成功、job 数 ≥ 地板 9、声明名数 ≥ 3、**手打的名册 ⇄ 解析的名册逐名相等**（地板是人写的，这条防的是名册漂移）、ci.yml 里必须真的有 secrets 插值（否则 C3/C4/C7 在说空话） |
+
+**验收平面：这道门不能在本地工作树里验收（本号真正的产物）。** 新门的 C6 从磁盘量
+master 名册，#1548 的 P8 从 **revision** 量（`BASE = "origin/master"`，`git show`），
+两侧都读磁盘的只有登记册。于是 E4 的两个子臂给出**相反方向**的红：
+
+| 子臂 | 树里的东西 | 实测 |
+|---|---|---|
+| E4a | ci.yml + 两道门都已落地，登记册保持 `3f493ea` 版 | `1 failed / 16 passed`：唯一红是**新门 C6**（`assert 5 == 2`），#1548 的 8 条**全绿** |
+| E4b | 登记册也落地，但 `origin/master` 还是 `3f493ea` | `1 failed / 16 passed`：红腿**换人** —— #1548 **P8** `measured-only ['provider-smoke']`，新门 9 条全绿 |
+
+**一把门的一侧读磁盘、另一侧读 revision，它判定的不是「我这个改动自洽」，而是
+「登记与已推的历史自洽」**；commit 之后 push 之前，它必然红或必然盲，且红在哪条腿
+取决于先改了哪一侧。 ⇒ 本号的臂树因此换成一次性 clone：`git update-ref
+refs/remotes/origin/master <落地提交>` 把两个平面钉在一起，每条臂「改 → commit →
+update-ref → 跑 17 条腿 → `reset --hard` + `clean -fdq` + ref 指回去 + 逐字节断言」。
+本机工作树里那 1 条 P8 红（`1 failed / 16 passed`，`measured-only ['provider-smoke']`）
+是 E4b 预测过的形状，**push 之后自愈**，不是回归。
+
+**臂 18 条**（W0 pristine + W1..W3 落地形状 + V1..V14 变异；「预测」列冻结在
+`.scratch/predict1549.md` §六，写在任何臂之前；「实测」列从 `.scratch/exp1549/V*.txt`
+的 `^FAILED ` 短摘要行逐条重导 —— 见坏尺子 5）：
+
+| 臂 | 改动 | 预测腿 | 实测腿 | 判定 |
+|---|---|---|---|---|
+| W0 | 不改，`origin/master` = 落地提交 | 17 绿 | `17 passed in 8.90s` | ✓ |
+| W1 | 从 ci.yml 删掉 `provider-smoke`（登记册保持落地版） | C1 + P8 | `9 failed`：C1,C2,C3,C4,C5,C6,C8,C9 + P8 | 中了 2 条，另 6 条一起亮：**删一个 job 是六条腿的分母** |
+| W2 | `config_hash` 只写进**账本**（`SELF_WITNESS` 之内） | 0 红 | `17 passed in 6.57s` | ✓ 排除表真在排除 —— 写下缺口不等于补上缺口 |
+| W3 | `config_hash` 只写进 `storage/migrations/` 一个新文件（`SELF_WITNESS` 之外） | 恰好 P8 | `1 failed`：P8 | ✓ 与 W2 成对，第六把尺子的修复承重 |
+| V1 | 删 `on:` 的 `workflow_dispatch` | C2 | C2 | ✓ |
+| V2 | `if:` 改成 `== 'push'` | C2 | C2 | ✓ |
+| V3 | 整行 `if:` 删掉 | C2 | C2 | ✓ |
+| V4 | env 键改成死名 `SPECPROOF_LLM_API_KEY` | C3 | C3 + C4 | 更宽：同一个死名同时砸 env 与 secrets 两条读法 |
+| V5 | `secrets.LLM_API_KEY` → `secrets.API_KEY` | C4 | C4 | ✓ |
+| V6 | 删 `environment:` | C5 | C5 | ✓ |
+| V7 | `run:` 改成 `... provider_smoke.py --help` | C1 | C1 | ✓ |
+| V8 | 删掉 smoke step（job 在，什么都不跑） | C1 | C1,C3,C4,C8,C9（5 条） | 更宽：step 同时是 C3/C4 的普查对象 |
+| V9 | job id 改名 `provider-smoke-ci` | C1 + P8 | `9 failed`：C1..C6,C8,C9 + P8 | 更宽且方向对：改名 = 磁盘上没有承接者 + master 侧缺席数变 3 |
+| V10 | `provider-smoke` 放回 `REGISTERED_GAPS`（产品一行不动） | C6 + P8 | C6 + P8 | ✓ 一个悄悄删掉的缺口与一个悄悄加回的缺口，两种红都点得着 |
+| V11 | reason 的第一个整数改成 5 | C6 | C6 | ✓ |
+| V12 | 新门自己的 `CI_PATH` 打错成 `ci.ymlX` | 必须红（C1 或 C8），不许 skip 不许绿 | `7 failed`：C1..C5,C8,C9 | ✓ 没有静默绿；**C6/C7 抓不到**，因为它们 glob 目录不读这个常量 |
+| V13 | 加一步把 secrets 直接内插进 `run:` | C7 | C7 + C8 | 更宽：新 step 进了 C8 的 step 多重集 |
+| V14 | 用一个不 fetch orphan ref 的 clone 跑 | 新门 ref 腿 skip；#1548 一条**红** | `1 failed, 9 passed, 7 skipped`：红 = `test_the_ref_population_is_measured_not_remembered`（「for-each-ref returned 3 refs —— 这么多名字量不出 orphan 人口，这是坏掉的尺子，不是干净的仓库」），skip = 新门 C6/C8 + #1548 五条 | **方向中，机制错一处**：预测只点了 guard 会 skip，没料到普查腿自己会红；两道门对「ref 看不见」的处理确实不同 —— 新门 skip 并报 master 侧仍查了几条（消息里印 `10 job ids`），#1548 是 5 skip + 1 红 |
+
+18 臂统计：**10 条恰中预测**（W2,W3,V1,V2,V3,V5,V6,V7,V10,V11）、**6 条比预测更宽**
+（W1,V4,V8,V9,V12,V13）、**1 条方向对机制错**（V14）、1 条 pristine（W0）。
+**0 条预测该红的臂静默绿**；唯一的绿臂 W2 是设计出来的反向对照。
+
+**六把坏掉的尺子。**
+
+1. **平面**：`git show origin/master:` 与磁盘不是同一个东西（上面整段）。这条第一次
+   以「量具搬家」而不是「量具读错」的形式出现 —— 修它不是改断言，是把验收挪进
+   clone 并 `update-ref`。
+2. **自指第二次**：#1548 为 `config_hash` 修过一次自指（`git grep -w` 会命中「这个名字
+   全仓 0 处」那句话），而**写下修法的那段话就住在门文件里，于是又命中一次** ——
+   推送态实测 `3f493ea` 上 P8 `1 failed / 7 passed`。修法是 `SELF_WITNESS` 第三条
+   由 `Path(__file__)` 派生而不是手打路径：门改名的那一刻它仍在自己的排除表里。
+   W0 在修之前读 `registered-only ['config_hash']`，修之后 `17 passed`。
+3. **自指第三次，而且不红**：新门 docstring 写「`SPECPROOF_LLM` 全仓出现 0 次」，
+   这句话是在 `3f493ea` 量的；落地后它在 HEAD 命中 3 行（ci.yml 注释 1、本文件 2）。
+   没有一把门去 grep 这个 token，所以它**不红** —— 而「不红」不等于「不假」。
+   修法是把断言钉回量出它的那个 revision 并写下它现在出现在哪里，而不是把 0 改成 3
+   （下一次改动会再次过期）。同一形状在 ci.yml 的注释里又出现一次：「`secrets.`
+   在这个文件里别处不再出现」，实测这个文件里 `secrets.` 出现 4 次（3 处插值 + 这句
+   话自己），已改成「下面 3 处是本文件仅有的插值，`3f493ea` 时 0 处」。
+4. **用正则数 job 名册**：`^  name:` 这一层缩进会把 `on:` 下的 `push:` /
+   `pull_request:` 读成 job —— #1548 记过的第 3 把在本号的前提量测里**复发了一次**。
+   新门与 E 臂普查一律 `yaml.safe_load`。
+5. **臂驱动的归因正则**：照 `-v` 的 `<file>::<leg> FAILED` 形状写，`-q` 的短摘要是
+   `FAILED <file>::<leg> - 原因`，于是第一趟 `9 failed` 只归因出 8 条腿，剩下的 1 条
+   只能靠尾巴上的断言行猜。**产物不能指出是哪条腿红的，它就只是一次更贵的 pytest。**
+   本轮所有「更宽」的结论都是从 `.txt` 产物里重新 grep `^FAILED ` 行导出来的，
+   不是从驱动的报告里读的。
+6. **共享 Temp 让门的红单变成非确定**：E1 的那条红是
+   `test_the_no_infra_job_holds_its_no_database_promise.py::test_a_live_database_leg_is_red_when_no_database_answers`
+   的子进程死在收集期（`FileNotFoundError: ...Temp\surefire...`），因为别道的 maven
+   清了共享 Temp；同一模块在 pristine 树上单跑 **11 passed / 90.83s**。它被登记成
+   **环境红，不计入臂表**，也不许为了「让它绿」去动任何一条无关尺子 —— 这是新的
+   缺陷类，已入队（#1553）。
+
+**自己犯过的错（都留了证据）。**
+
+1. **落地是凭记忆写的**，env 键用了 `SPECPROOF_LLM_*`。分支自己的 `quality.yml`
+   写的正是对的三个名字 —— **「并轨」在这里不是态度而是内容**：照抄就不错，
+   重写就错，而既有门对重写无感。C3/C4 就是这条错误的保险。
+2. **预测 E4 是错的**（错在平面而不是数字）。我没有改预测文件的历史，而是把
+   E4a/E4b 两个子臂量出来、把形状写成结论（`.scratch/predict1549.md` §四/§五）。
+3. **clone 不继承 repo-local 的 git identity**：第一条臂 commit 时报
+   `Author identity unknown`，而它**已经**把 V1 的改动留在了索引里。复位三步
+   （`reset --hard` / `clean -fdq` / `update-ref` 回落地提交 + 逐字节断言）之后才配
+   local `user.name/user.email` 重跑。臂驱动在「改动已落盘但 commit 失败」这个形状上
+   必须自己可复位，否则第二趟的 BASE 是脏的。
+4. **clone 的 fetchspec 会把钉好的 `origin/master` 洗掉**：catch-all
+   `+refs/remotes/origin/*` 会把主仓的 `origin/master`（还指 `3f493ea`）原样搬进来，
+   于是整个臂树又回到 E4b 的错位。只 fetch `refs/remotes/origin/feature/*`、
+   `refs/remotes/origin/release/*` 和 `refs/tags/*`。
+5. **V12 的锚第一次打错位置**：把 `X` 加在引号外面 ⇒ 文件语法错、collect 失败，
+   量到的将不是「门读不到 ci.yml」而是「门加载不了」。改成字符串内 `"ci.ymlX"`
+   才是这一臂要的形状。**植桩臂的失败模式要与被测门的失败模式不同**，否则臂在测自己。
+
+**验证读数（本机实测，含接手后复测）。** 新门单跑 `9 passed in 28.76s`（本会话 2026-11-10 重跑）；同一组与 #1548 的门合跑 `17 passed`（车道落地期实测，见上）；
+落地后 push 之前本号工作树里 `1 failed / 16 passed`（红 = P8，`measured-only ['provider-smoke']`，与 E4b 预测一致）；**push `3f493ea..0a05f21` 后同一组 P8 复跑 `8 passed in 31.91s`**（本会话实测）。
+邻域 16 个 ci.yml 模块 `168 passed / 185.09s`（车道实测，本会话未重跑）；台账家族门在本节追加同树复跑：`53 passed in 70.03s`（evidence_claims / queue_pointers / ids / numbers 唯一 / recorded sections 共 5 个文件，本会话实测）。
+`python -m ruff check .` 全绿（车道实测；本会话未重跑 ruff）；**没有跑 `ruff format`**。接手尾声再落一笔 2026-11-10：`500c6e8` 把车道遗留在工作树里的最后三处编辑（ci.yml 注释钉回 `3f493ea` / aider-results 生成时间戳 / 登记册那句整数改成 C6 腿现量）落库并推送，`master` 与 `origin/master` 一一对应。
+
+**诚实边界。** 门不跑 smoke：那需要 GitHub environment 里真有一把 key，本仓没有任何
+东西持有或打印它。它证明的是「这个 job 说的是它跑的东西、读的名字存在、而且真的
+能被触发」，**不是「这条腿会绿」**。`environment: provider-smoke` 这个名字在仓库设置里
+存在与否本地不可量 —— 第一次 dispatch 才知道。`if:` 是 dispatch-only，意味着这条腿
+**不在任何 push 或 PR 上跑**，它红了也不拦任何变更：本号的产物是「有人按下按钮时
+会发生什么」被钉住，而不是「每次提交都验一遍网关」。C6 的缺席数依赖 store 能看见
+`refs/remotes/origin/feature/*`，V14 量了看不见时的形状（skip 并报数）。
+`MIN_MASTER_JOBS = 9` 是人手写的地板，会随名册漂移，防漂移的是 C9 里「手打名册 ⇄
+解析名册逐名相等」那条，不是地板本身。门不 fetch（0 网络），不在登记册没变的树上
+伪造绿。
+
+**证据文件。**
+- `.github/workflows/ci.yml`（+35：触发器、注释、第 9 个 job）
+- `tests/unit/test_the_provider_smoke_ci_leg_carries_the_branch_job.py`（新增 416 行，9 条腿）
+- `evidence/branch_reconciliation.py`（reason 改写、缺口键删除、队列指针）
+- `tests/unit/test_branches_without_a_common_history_are_accounted_for.py`
+  （第六把尺子的 docstring + `SELF_WITNESS` 派生）
+- `.scratch/predict1549.md`（§一–§三 前提与设计、§四 E 臂实测与 E4 订正、§五 落地
+  验收平面、§六 W/V 预测冻结），`.scratch/exp1549/{E*,W*,V*,N1}.txt` +
+  `report.md` / `report_e4.md` / `report_arms.md` / `arms1549.json`（18 条臂的逐条腿
+  归因与还原校验），`.scratch/{setup1549_clone,arms1549_clone,n1549_ci_overlay}.py`
+
+**下一号队列。**
+已落地：本号 6b2c1b8/7b2e02d/0a05f21 与接手尾声 500c6e8 全部推送；P8 推送后 8/8 绿。
+- **#1550 分支独有测试搬回主干**：那 18 条 fault-scenario 集成测试要在 master 的状态机
+  上重写 —— master 的 `FAILED` 有 4 条出边含 `QUEUED`，分支的「终态」立场仍是
+  `reversed_by_master` 的否证，不许照搬。
+- **#1551 temp 工作树生命周期**：#1547 留下的基线读数仍待武装成生产扫描。
+- **#1552 网关的第一条运行时 Java 测试**（Spring Cloud 元素的入口）。
+- **#1553 共享 Temp 的门子进程**：一道门的子进程把 `surefire` 草稿建在进程间共享的
+  Temp 里 ⇒ 红单非确定（E1/V 系列都碰到过），任何「修红」的冲动都会去松一条无关尺子。
+  要么钉住私有临时目录，要么把这类红单独标记成环境红。
+- **`evidence/*.py` 里的队列指针在普查之外**：本号把 3 处 `#1549 接手` 改成
+  `#1550 接手`，没有任何一把门会因为这条指针解析不到而红 ——
+  `test_ledger_queue_pointers_resolve.py` 的普查面不含 `evidence/`。
+- **`SELF_WITNESS` 的一般规则没写成门**：现在的规则是「谁承载声明，谁进排除表」，
+  靠人记得把文件加进去（本号补的是第三条派生）。还差一把门把「承载 claims 的文件」
+  自己量出来，而不是手打名单。
+- **`scripts/verify_golden_tags.py` 的 99 vs 实测 100**：硬编码在 `:58`，
+  docstring 第 5/7 行与 GREEN 行第 92 行也各印 99；先量三个平面再决定改数字还是让门量。
