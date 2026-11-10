@@ -28566,3 +28566,36 @@ services（control-plane / edge gateway 两条 Java 服务线）。按本仓自�
 - 门 #3（b8f6209）结果如实登记 + Drill 1；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1582 全量门 #3 出炉：6598 passed / 0 failed / 10 skipped（b8f6209，2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 e6e992d → <本提交>）。
+
+**结论先行。** 全量门复跑 #3（HEAD = `b8f6209`，含 #1574-#1580 全部落地与 dd968b7 的
+mypy 修复；`_fullgate_v6.txt`，UTF-16，1h22min）：
+
+    ====== 6598 passed, 10 skipped, 3 warnings in 4947.80s ======
+
+**零失败。** 对账：v5（ebb4d7e）→ v6（b8f6209）净增 4 = signing-key 腿
+（tests/unit/test_generate_signing_key.py：4 passed / 1 Windows 跳过）；
+v5 那 1 条红（mypy 遗漏：ObjectStoreLike 具体类）已由 #1575 修复并复验 18 passed。
+
+**同时段本轮修掉的真产品缺陷（#1581，master 链 e6e992d）：**
+边缘 `/actuator/prometheus` 其实是 catch-all 的应答——
+`management.prometheus.metrics.export.enabled` 从来没打开，Spring Boot 3 的
+`@ConditionalOnEnabledMetricsExport` 判为 false，PrometheusMeterRegistry 不存在，
+catch-all 接住了这个端点，Prometheus 会抓到一个 2 字节的 "ok"，
+resilence4j / spring_cloud_gateway series 一个都不存在，scrape 不报错。
+修复 + Java 腿（`GatewayPrometheusEndpointTests`：断言 body 含三个 series 名）+
+percentiles-histogram 打开。**Java mvn -o -B test ⇒ 24 tests, 0 failures — BUILD SUCCESS**。
+
+**诚实边界：**
+- 门 #3 跑的是 `b8f6209`；`#1581`（本轮 e6e992d）**不在门 #3 的射程**——
+  它只动 gateway 模块（application.yml + 2 个 Java 文件），本号以 mvn 全量 24/24 为据，
+  不宣称 Python 全量已对新改动重跑；下一次全量门要覆盖它。
+- 6548（earlier）/6598 两个数字的差 = 本轮 b8f6209 与 ebb4d7e 树之间的全部差异；
+  不存在"门 #4 已跑"这个 claim——下一步队列按序走。
+
+**下一号队列（不动）：**
+- Drill 1（真强杀 → 续跑；门 #3 已结束，现在能安全跑）；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
