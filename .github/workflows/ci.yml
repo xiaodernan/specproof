@@ -364,8 +364,9 @@ jobs:
   # #1549: the one job of the three orphan branches' five that master's name
   # roster never took, and the only leg in this repository that talks to a real
   # model gateway. It is manual on purpose -- the credentials live in a GitHub
-  # *environment*, never in the tree, so `secrets.` still appears nowhere else
-  # in this file. Every step below is the branch's own (a756f5338:
+  # *environment*, never in the tree: the three interpolations below are the only
+  # ones in this file, and at 3f493ea this file carried none. Every step below is
+  # the branch's own (a756f5338:
   # .github/workflows/quality.yml), carried over rather than re-typed: the env
   # names are the ones providers/config.py declares, and a landing written from
   # memory used SPECPROOF_LLM_* -- names nothing in this repository reads, which

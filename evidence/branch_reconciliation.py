@@ -103,8 +103,8 @@ FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
         "reason": ("名字级缺席 2 个：docker-integration 与 unit-and-integration 仍无对应；"
                    "provider-smoke 已由 master ci.yml 的同名 job 承接（#1549 落地，"
                    "分支 4 个 step 逐个照抄，env 键是 providers/config.py 声明的 3 个名字），"
-                   "lint-and-type 与 lint-type 是改名。缺席数是"
-                   "test_the_provider_smoke_ci_leg_carries_the_branch_job.py 重量的第一个整数"),
+                   "lint-and-type 与 lint-type 是改名。这 2 个缺席由 "
+                   "test_the_provider_smoke_ci_leg_carries_the_branch_job.py 的 C6 腿现量"),
     },
     "a756f5338:Dockerfile.api": {
         "verdict": "landed_at_other_path",
