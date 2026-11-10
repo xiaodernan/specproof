@@ -498,9 +498,21 @@ AUTH_FIXTURE_HEAD_JAVA = AUTH_FIXTURE_BASE_JAVA.replace(
 
 
 def _git(root: Path, *args: str) -> None:
-    """git in argument-list form (no shell, no interpolation)."""
+    """git in argument-list form (no shell, no interpolation).
+
+    The fixture repo is a fresh scratch git repository with no
+    configuration of its own, so the identity is pinned here (``-c``) rather
+    than inherited from whatever identity the host happens to have — a drill
+    must fail closed on its own terms, not on the operator's global config.
+    """
     result = subprocess.run(
-        ["git", "-C", str(root), *args],
+        [
+            "git",
+            "-C", str(root),
+            "-c", "user.name=specproof-drill",
+            "-c", "user.email=specproof-drill@localhost",
+            *args,
+        ],
         capture_output=True,
         text=True, encoding="utf-8", errors="replace",
         timeout=120,
