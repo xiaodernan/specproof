@@ -98,7 +98,6 @@ class TestScenario1OutboxRecovery:
                 "base_ref": "main",
                 "head_ref": f"feature-fault-{uuid.uuid4().hex[:6]}",
                 "spec_path": "/test/fault-spec.md",
-                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
                 "depth": "FAST",
                 "trace_id": str(uuid.uuid4()),
             },
@@ -261,7 +260,6 @@ class TestScenario5ProviderRetry:
                     "base_ref": "main",
                     "head_ref": f"feature-fault5-{uuid.uuid4().hex[:6]}",
                     "spec_path": "/test/fault-spec.md",
-                    "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
                     "depth": "FAST",
                     "trace_id": str(uuid.uuid4()),
                 },
@@ -425,7 +423,6 @@ class TestScenario9StaleMarking:
                 "base_ref": "main",
                 "head_ref": f"head-{uuid.uuid4().hex[:6]}",
                 "spec_path": "/test/spec.md",
-                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
                 "depth": "FAST",
                 "status": status,
             }
@@ -447,7 +444,6 @@ class TestScenario9StaleMarking:
                 "base_ref": "main",
                 "head_ref": "new-head",
                 "spec_path": "/test/spec.md",
-                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
                 "depth": "FAST",
             }
         )
@@ -497,7 +493,6 @@ class TestScenario10ServiceRestartRecovery:
                 "base_ref": "main",
                 "head_ref": f"feature-{uuid.uuid4().hex[:6]}",
                 "spec_path": "/test/spec.md",
-                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
                 "depth": "FAST",
                 "status": status,
             }
@@ -539,7 +534,6 @@ class TestScenario10ServiceRestartRecovery:
                 "base_ref": "main",
                 "head_ref": "head-v1",
                 "spec_path": "/test/spec.md",
-                "config_hash": f"hash-{uuid.uuid4().hex[:8]}",
                 "depth": "FAST",
                 "trace_id": str(uuid.uuid4()),
             },
