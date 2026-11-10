@@ -27514,3 +27514,51 @@ edge 当前在做什么。
 - `.env.example` 的 Gateway 默认值再复核（02 端口/`.env.example` 两法可能不一致）；
 - **verify_golden_tags.py** refs 家族重建依旧待业主决断（#1553 欠账）；
 - P1-B / slow 轨 / KMS-HSM / DEEPSEEK_API_KEY：本号不动。
+## #1558 边缘自答也带 request id：两个平面说同一种 id 语言（2026-11-10）
+
+**记录基准**：本节只追加；feature 落地于本章附带提交（master 链 ecbb9c3 → 4d106b8）。
+
+**来路（实测到的缺口，不是设想）。** agent runtime 早就在读 `X-Request-ID`、没有就自己生成
+16 位十六进制 id（`api/middleware.py::RequestIDMiddleware`，本会话前就在树里）。但**边缘
+自己回的错**原来一个 id 都不带：断路器的 503（#1554）、上游连不上的 502，落��运维手里
+没有可引用的值，也没法拿它去上游日志里搜。两个平面各说各话，边缘这条链路断了。
+
+**落地：**
+1. `services/gateway/.../filter/EdgeRequestIdGlobalFilter.java`（新，`GlobalFilter`，
+   order = `HIGHEST_PRECEDENCE + 10`）：
+   - **进来带 id ⇒ 原样带走**（不改写调用方的 id——调用方在用它对账自己的日志）；
+   - **没带 ⇒ 现生成** 16 位小写十六进制（与 agent runtime 的 `uuid4().hex[:16]` 同形状）；
+   - id 写进请求头**转发给上游**，并回显在响应头——**边缘自答时也带**；
+   - 请求用 `ServerHttpRequestDecorator` 包装而非 `exchange.mutate()`：属性留在原 exchange
+     （断路器读同一个 id），且对所有 exchange 实现都成立（含测试替身——第一版用
+     `mutate()` 时 mock 的 builder 不接受替换请求，测试替身把"没加上头"读成了真结果）。
+2. `EdgeCircuitBreakerGatewayFilterFactory`：503 体加 `request_id`
+   （`{"error":"upstream_unavailable","edge":"circuit-open","state":"open","request_id":"…"}`）。
+3. `services/gateway/.../EdgeRequestIdGlobalFilterTest.java`（新，3 腿）：进来带 id 原样带走 /
+   没带则生成 16 hex（形状断言）/ 边缘自答的 503 体带 request_id。
+4. `tests/unit/test_edge_request_id_matches_the_agent_runtime.py`（新，3 腿）：**两个平面的头名
+   与 id 形状逐字比对**（读 `api/middleware.py` 与 Java filter 的声明）+「进来的 id 不改写」
+   这条语义钉在源码形状上（空/缺才算"没有"，空 id 不许被转发成空字符串）。
+5. `docs/architecture/SERVICE_SURFACE.md`：新增「请求 id：边缘自己也是一个平面」一节。
+
+**验证读数：**
+- `mvn -B test`（gateway，CI 钉的 JDK 21 / 本机便携 Temurin 21.0.13+9）：
+  **Tests run: 11, Failures: 0 — BUILD SUCCESS**（断路器 2 + request-id 3 + 上下文/路由表 6）；
+- 新 Python 门 **3 passed**；
+- **三条变异臂**（Java 侧单方面改 header 名 / 改 id 长度 / 开始改写进来的 id）**各自把门打红**
+  （各 1 failed / 2 passed），臂后树逐字节还原——门不是空转；
+- 未跑全量 `pytest tests/unit tests/security tests/fault`。
+
+**诚实边界：**
+- 门是**静态**的（读两侧声明比对），不启 JVM、不跑真实代理链；真实链路由 Java 腿
+  （`mvn -B test`）覆盖，那 3 条腿走的是 filter 链而不是整条 HTTP 栈。
+- 边缘**尚未部署**（#1556/#1557 的边界仍在）：本号交付的是行为与契约，不是生产事实。
+- id 只在**边缘这一跳**统一；两个平面之间若中间还有别的代理（LB/ingress），id 是否被透传
+  本号**未测**。
+- `X-Request-ID` 头名是既有约定（agent runtime 在用），本号没有改它——改头名会让所有
+  引用它的运维手册与看板失效。
+
+**下一号队列（不动）：**
+- 边缘冷启动 + Grafana 面板实证（operator 决罢；docker daemon 仍不可靠）；
+- `verify_golden_tags.py` refs 家族重建（业主决断；#1553 欠账）；
+- P1-B checkpoint/orphan 两条占位；slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
