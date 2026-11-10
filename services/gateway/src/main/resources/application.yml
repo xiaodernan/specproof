@@ -38,6 +38,20 @@ spring:
     name: specproof-gateway
   cloud:
     gateway:
+      # The edge must give up on a hung upstream before its callers do — an
+      # upstream that accepts the connection and never answers otherwise
+      # ties up the edge, the thread and the caller that is waiting on it.
+      # `response-timeout` bounds the time to the FIRST response byte; it
+      # does NOT cap an open stream — GET /agent/jobs/{id}/events (SSE)
+      # pushes progress forever, and bounding it would sever the live
+      # feed the web UI renders. That is exactly the death the breaker
+      # below cannot see either (it counts FAILURES; a hang is not one
+      # until it errors). Spring Cloud Gateway has NO default for this
+      # property, so an unset value means "wait forever" — which is what
+      # this block exists to stop.
+      httpclient:
+        connect-timeout: 5000        # ms; the planes are on the same network
+        response-timeout: 30s
       routes:
         # ── the control plane's routes ─────────────────────────────────────
         # /api/v1/jobs (collection) and /api/v1/jobs/{id} (one job).  The
