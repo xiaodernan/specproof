@@ -27300,3 +27300,33 @@ update-ref → 跑 17 条腿 → `reset --hard` + `clean -fdq` + ref 指回去 +
 - `scripts/verify_golden_tags.py` 的 99 vs 实测 100 未动。
 - P1-B checkpoint/orphan 占位仍未做。
 - edge 降级/重试语义（Resilience4j CircuitBreaker）的 Spring Cloud 元素可并入时机待立。
+## #1553 证eval tag 尺子的测量面（REVIEW）：verify_golden_tags 期望值从目录实测；tag 家族实测陈旧（2026-11-10）
+
+**记录基准**：HEAD = `f28c3ff`；本节只追加。
+
+**来路。** 账本欠账：`scripts/verify_golden_tags.py` 里硬编码 `len(tags) != 99`。#1548 队列行：先量三个平面（用例目录 / tag / 消费面 ref 名）再决定改数字还是让门来量。
+
+**三个平面实测：**
+
+| 平面 | 读数 |
+|---|---|
+| 用例目录（tracked） | `git ls-files golden-cases` = 304 个文件；**101 个** case-* 目录（case-01..case-101，不缺号） |
+| 标签行 | `git tag -l 'case-*-head'` = **100 个**（case-02..case-101；case-01 从未建标签——flagship 的差分本就是 `head-v1`） |
+| 消费面 | eval 消费 `head-v1` + `case-*-head`；`.github/workflows` **0 处引用** verify_golden_tags.py；CI 的 eval 走 `--refs-only`（refs 每次 fresh，基点=HEAD） |
+
+**三平面交汇量到的两个事实：**
+1. 99 这个硬编码是错的（实测 100）——但把 99 改成 100 会造假绿：tag 家族根本陈旧。case-*-head 绝大多数建于 2026-10-01（`merge-base = 90ba16ac`）；`base` 于 **2026-11-08** 被重指向 `d6ed153`，同次重建只带上了 **4 个标签**（case-12 add-javadoc / case-17 logic-inversion / case-21 auth-weakened-permitall / case-56 cache-eviction-removed），其余 96 个保持 Oct 的血统。verify 校验两项（delta 只落 demo/；merge-base == base）：实测 **96 个标签都 fail**（192 条），4 个通过。（HEAD 本人 d6ed153 ⊂ eabfefb ✓，`head-v1` = `7931aa5`。）
+2. 因此期望值改由 golden-cases/ 目录逐次实测（101 dirs − flagship=head-v1 ⇒ 100 个 case-*-head），不再硬编码，也不把 GREEN 行里的 99 写死；修尺子的同时如实留下 RED——本号不让它绿。
+
+**本号落在树上的改动：**
+- `scripts/verify_golden_tags.py`：期望值=`len(dirs)-1`（每次现量）；docstring 加 STALE 现状说明（base 何时被重指、96/4 的切分、CI 不跑本文件）；GREEN 行用实测数。ruff 全绿。
+- 未动任何 ref；未移动/新建/删除任何 tag；未动 working tree 其他文件。
+
+**实测读数：** `python scripts/verify_golden_tags.py` → **exit 1，FAILURES (192) 96 个标签**（逐条十六进制合并基数打印；4 个通过）。
+
+**本号不认领 / 如实边界：**
+- tag 家族重建（`python scripts/build_golden_scenarios.py --refs-only`）是决定 eval substrate 的大动作：把 `base` 指到 HEAD 并重指 ~102 个 ref，作废 2026-10-01 那一版组成的 eval 底版（#1528 等早期测量针对 Oct 血统）——本号**没跑**，留待业主决策。
+- 需不需要给 CI 加一条 `verify_golden_tags` step，超出本号范围（加上去等于要在 CI 红绿里选——先重建）。
+- `case-01-auth-bypass` 无 case-01-head tag 不是缺口（flagship = head-v1）；`case-02..case-99` Oct-1 血统未验证 demo/ 差分；全量 `pytest tests/unit tests/security tests/fault` 未跑（本号仅改一个 scripts/ 文件，无产品代码路径）。
+
+**队列剩余不动：** P1-B checkpoint/orphan；`verify_golden_tags.py` 的 refs 家族重建待业主；`#1552` 已落。
