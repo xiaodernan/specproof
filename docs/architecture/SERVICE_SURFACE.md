@@ -116,6 +116,27 @@ java -jar target\gateway-0.1.0.jar
 ⇒ **运行时读到的谓词与门建模的谓词逐字一致**：`{var}` 是一段，`Methods` 是显式的，
 兜底的 `Paths: [/**]` 排在最后。
 
+## 请求 id：边缘自己也是一个平面（#1558）
+
+agent runtime 早就在读 `X-Request-ID`、没有就自己生成一个 16 位十六进制 id
+（`api/middleware.py::RequestIDMiddleware`）。但**边缘自己回的错**原来不带 id：
+503（断路器）、502（上游连不上）落到运维手里时，没有一个值可以引用，也没法拿它去
+上游日志里搜。
+
+所以边缘也用同一套语言：
+
+- `EdgeRequestIdGlobalFilter`（`GlobalFilter`，order = HIGHEST_PRECEDENCE + 10）：
+  **进来带了就原样带走**（调用方在用它对账自己的日志，边缘不改写别人的 id）；
+  **没带就现生成一个**（16 位小写十六进制，与 agent runtime 的 `uuid4().hex[:16]`
+  同一个形状）；id 写进请求头**转发给上游**，也回显在响应头上——包括边缘自己出的错。
+- 断路器的 503 体里带 `request_id`：`{"error":"upstream_unavailable",
+  "edge":"circuit-open","state":"open","request_id":"…"}`。
+
+**两个平面的头名与 id 形状必须一致**，否则运维读到的 id 和上游日志里的 id 不是同一个。
+`tests/unit/test_edge_request_id_matches_the_agent_runtime.py`（3 条腿）逐字比对两侧的
+声明：header 名、id 长度、以及「进来的 id 不改写」这条语义——Java 侧单方面改名或改长度，
+这道门立刻红。
+
 ## 这个单元故意不做的事
 
 - **不注册服务中心**（Eureka）：一个边缘 + 两个上游不是集群；本项目自己的商业计划

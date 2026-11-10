@@ -66,9 +66,17 @@ public class EdgeCircuitBreakerGatewayFilterFactory
 
     private static Mono<Void> write503(ServerWebExchange exchange,
                                        CircuitBreaker.State state) {
-        byte[] body = ("{\"error\":\"upstream_unavailable\",\"edge\":\"circuit-open\","
-                + "\"state\":\"" + state.name().toLowerCase() + "\"}")
-                .getBytes(StandardCharsets.UTF_8);
+        // The edge's own answer carries the request id, so an operator can
+        // quote one value and find the same id in the upstream's logs.
+        String requestId = EdgeRequestIdGlobalFilter.requestIdOf(exchange);
+        StringBuilder json = new StringBuilder()
+                .append("{\"error\":\"upstream_unavailable\",\"edge\":\"circuit-open\",")
+                .append("\"state\":\"").append(state.name().toLowerCase()).append("\"");
+        if (requestId != null && !requestId.isBlank()) {
+            json.append(",\"request_id\":\"").append(requestId).append("\"");
+        }
+        json.append("}");
+        byte[] body = json.toString().getBytes(StandardCharsets.UTF_8);
         exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         exchange.getResponse().getHeaders().setContentLength(body.length);
