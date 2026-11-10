@@ -27562,3 +27562,50 @@ edge 当前在做什么。
 - 边缘冷启动 + Grafana 面板实证（operator 决罢；docker daemon 仍不可靠）；
 - `verify_golden_tags.py` refs 家族重建（业主决断；#1553 欠账）；
 - P1-B checkpoint/orphan 两条占位；slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
+## #1559 checkpoint 恢复的第一条真腿：打真实 saver 与真实 MongoDB（2026-11-10）
+
+**记录基准**：本节只追加；feature 落地于本章附带提交（master 链 5efd614 → 1473a10）。
+
+**来路（先量后写）。** P1-B 队列里还挂着两条占位，其中一条是分支那条永远 skip 的
+`test_worker_recovers_from_checkpoint`（分支自己的理由写着 "P1.6 checkpoint recovery
+deferred to P1-B"）。量 master 的现状得出一个不太好看的事实：**机制在，证据是模拟的**——
+- 机制确实在：`agent/mongo_saver.py` 是真的 LangGraph `BaseCheckpointSaver`
+  （写 MongoDB `agent_checkpoints` / `checkpoint_writes` 两族），`agent/worker.py`
+  每次调用重建图并带上 checkpointer；
+- 但**唯一相关的测试** `tests/integration/test_worker_crash_mid_graph.py` 断言的是
+  **本地 Python list**（"crash 前的节点是 `all_nodes[:crash_index]`"）——那是对 list 的断言，
+  不是对 worker 的断言。真实的「写→崩→新进程读回→续跑」这条链**一条腿都没有**。
+
+**本号落地：** `tests/integration/test_worker_checkpoint_survives_a_crash.py`（新，3 条腿）
+1. **崩溃后可读**：经生产 saver 写入 checkpoint → **换一个 saver 实例**（= 重启后的新
+   worker，不共享任何内存）读回 ⇒ checkpoint id、`channel_values`（含已完成节点表）、
+   `metadata.step` 逐项相等。
+2. **显式 checkpoint_id 被尊重**：写两个 checkpoint，用 resume 循环真正会用的那个 id 去读
+   ⇒ 必须读回**它**。「总是返回最新文档」的读法会把被打断的 superstep 的 pending writes
+   藏掉——这正是 saver 自己的 docstring 记着的线上事故（"a worker-kill resume replayed
+   the run from the input instead of continuing from the last checkpoint"）。
+3. **pending writes 随 checkpoint 回来**：hard kill 落在 superstep 中间时留下的 task writes
+   必须与 checkpoint 一起被读回（resume 正是重放那个 superstep）。
+
+**隔离**：MongoDBStore 默认写**产品库** `specproof_phase0` ⇒ 本文件把 `MONGODB_DATABASE`
+指向自己的 scratch 库 `specproof_test_checkpoint`，跑完 drop（实测跑完后该库已不在库列表里）。
+Mongo 不可达时 **skip 并带真因**（不假装绿）。
+
+**实测读数：**
+- live MongoDB 下：**3 passed（3.96s）**（含真实写入与读回，不是 mock）。
+- 随后本机 docker daemon 掉线（`docker ps` 返回 500），同一文件复跑：**3 skipped**，
+  真因为 `No servers found yet` ⇒ 环境抖动**不会造出假红，也不会造出假绿**。
+- 未跑全量 `pytest tests/unit tests/security tests/fault`。
+
+**诚实边界：**
+- 本号证明的是**检查点的持久化与读回语义**（saver 层），**不是**整条 LangGraph 恢复循环
+  （图重放、节点重入、幂等性）——那需要真实 worker + 真实 broker，仍在 P1-B 队列里。
+- 腿依赖本机/ CI 的 MongoDB；CI 的 `tests-with-infra` 腿是否带 Mongo，本号未查证
+  （若 CI 无 Mongo，该腿在 CI 上是 skip，不是绿——这是诚实的形状，不是缺陷）。
+- MinIO orphan 那条占位（P1.5）**未动**：它要的是对象存储的一致性巡检，与本号不同族。
+
+**下一号队列（不动）：**
+- 恢复循环本身（真实 worker kill → 续跑 → 不重复副作用）——P1-B 的下一格；
+- MinIO orphan 巡检；
+- 边缘冷启动 + Grafana 实证（operator 决罢，docker daemon 仍不稳）；
+- `verify_golden_tags.py` refs 家族重建（业主决断，#1553 欠账）；slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
