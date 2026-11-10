@@ -29475,3 +29475,36 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 - 接 `spring-cloud-config-client` + 一个 config-server compose，让 `GatewayProperties` 真正跨环境统一（目前仍靠 application.yml + env）；
 - 或边缘 `TokenRelay` / OAuth2 resource server（资源服务器校验 JWT）——安全微服务元素，需先定 JWT 发行人策略；
 - 或把本号六事件计数接到 Grafana 面板（须先在真实 dashboard JSON 实建面板/告警，再在 `SPRING_CLOUD_EDGE.md` 计数）。
+
+## #1605 W190 事件总线词汇表单源化 + 跨语言对账门（并轨 parallel lane）
+
+**记录基准**：本节只追加；落地于 `9b8324b`（master 链 `b73dc85` → `9b8324b`）。#1603/#1604 的"下一号队列"点名本号：把 parallel lane 遗留的更完整 W190 成果并入 master，并把"事件驱动微服务接缝"从"只有订阅者、没有生产者"补成两端可对账的真接线。
+
+**来路。** #1603 给边缘加了 `GatewayMqEventConsumer`（六事件订阅者），但彼时 Python 侧只把事件写进日志、没有真生产者，仍是"假控件"（订阅了一个没人发的交换机）。本号把生产侧接上、并把六事件名 / 交换机 / 队列名收拢成唯一真理源（`observability/event_vocabulary.py`），再补一道跨语言对账门，确保任意一侧漂移立刻变红。
+
+**落地：**
+- `observability/event_vocabulary.py`（新，唯一真理源）：`EXCHANGE_EVENTS`/`GATEWAY_QUEUE`/`ENV_BUS_ENABLED`/`MqEvent` 六常量 + `EVENT_KINDS` 元组；`bus_enabled(env)` 精确值开关（仅字面 `"1"`）；`routing_key_for(kind)=kind`（routing key == 事件名，无翻译表）。本文件不 import 任何项目内模块，可被两端读取且零依赖。
+- `observability/mq_events.py`（新）：`GuardedBusSink(delegate, client)` —— 未知事件名失败关闭（计 `specproof_w190_events_unknown_total`、不发以免造出无人绑定的 routing key）、懒连接、首事件经 `client.declare_events_bus()` 建拓扑、broker 失败计 `specproof_w190_events_publish_failures_total` 并丢弃通道待下次重连；`event_sink_from_env(client, env=None)` 精确值开关，关时返回 `None`（调用方回落到历史 `_noop_sink`，字节级等价）。
+- `storage/rabbitmq.py`：删掉第二份常量副本，改为从 `event_vocabulary` 再导出别名（`MQ_EVENTS = EVENT_KINDS`、`QUEUE_GATEWAY_MQ_EVENTS = GATEWAY_QUEUE`、`EXCHANGE_EVENTS` 直引）；`RabbitMQClient.__init__` 经 `event_sink_from_env(client=self)` 接线，关时仍是 `_noop_sink`。保留 `RabbitMQBusSink`/`CompositeEventSink`/`RabbitMQEventLog`/`declare_events_bus` 作为被测底层原语（见 `test_rabbitmq_bus_sink.py`）。
+- 跨语言对账门（新）：
+  - `tests/unit/test_w190_event_bus_has_both_sides.py`（6 例）：Java `KNOWN_EVENTS` 与 `@RabbitListener` 绑定键 == Python `EVENT_KINDS`；三端（Java 源 / `application.yml` / `event_vocabulary`）exchange·queue 一致；两侧默认关（`@ConditionalOnProperty(havingValue="true")` + `bus_enabled`）；生产者真被 `event_sink_from_env` 接线（AST 查 `storage/rabbitmq.py`）；amqp starter 由 Boot 3.4.3 父管（无独立版本）；routing key==事件名。
+  - `tests/unit/test_w190_event_bus_producer.py`（16 例）：AST 派生 emit 词汇 == `EVENT_KINDS`；开关只认 `"1"`；关时装回 `_noop_sink`；开时 `client._events` 是 `CompositeEventSink([RabbitMQEventLog, GuardedBusSink(RabbitMQBusSink)])`；六键各自转发；未知事件名不发但计数；坏 payload 不抛；broker 失败计数+重连。
+  - `services/gateway/src/test/java/dev/specproof/gateway/mq/GatewayMqEventBindingTest.java`（4 例，反射读真注解）：绑定键恰为 `KNOWN_EVENTS`；交换机是 durable topic 指向 `specproof.observability.events`、队列 durable 指向 `q.gateway.mq-events`；`@ConditionalOnProperty` 显式 `havingValue="true"`；metric 名 `specproof.gateway.mq.event` 稳定。
+- 文档：`docs/architecture/SPRING_CLOUD_EDGE.md` 增补 W190 总线行（指向 51 例 Java + 22 例 Python 门）；`docs/operations/OBSERVABILITY.md` 补 `mq_events.py` 三计数器口径。
+
+**验证读数（实测）：**
+- `cd services/gateway && mvn -o -B test`：**51 passed / 0 failed**（含 `GatewayMqEventBindingTest` 4 + `GatewayMqEventConsumerTest` 8 + 其余 39）；BUILD SUCCESS；无 broker 下全上下文测试照常启动。
+- `pytest`：`test_rabbitmq_bus_sink 7` + `test_w190_event_bus_producer 16` + `test_w190_event_bus_has_both_sides 7` + `test_rabbitmq_events 7` + `test_rabbitmq_reliability 13` = 50 绿；另 `test_alert_rules_bind_their_own_threshold_table`(10) + `test_store_constructors_keep_their_config`(21) 因导入 `storage.rabbitmq` 一并跑通 = **81 绿，0 回归**。
+- `git diff --ignore-cr-at-eol --numstat`（本提交）：8 文件，+744 / -19，均为本号内容，无别人的在途改动混入。
+
+**诚实边界：**
+- 词汇唯一真理源 = `event_vocabulary.py`；`storage/rabbitmq.py` 仅是别名再导出，漂移会被 `has_both_sides` 门抓出。
+- 生产侧默认关（`SPECPROOF_MQ_EVENTS_ENABLED=1` 才装）；关时字节级等价于 pre-#1603（仍装 `_noop_sink`）。
+- `RabbitMQBusSink`/`CompositeEventSink` 与 `GuardedBusSink` 语义等价、本号保留前者作被测原语，避免动已绿的门；二者并存是刻意，非重复实现（文档已注明）。
+- 拓扑声明是幂等的，两端任一先起都安全；真实 broker 不可达时观测总线只计数+丢弃通道，不动投递判决。
+
+**下一号队列（不动）：**
+- 接 `spring-cloud-config-client` + config-server compose，让 `GatewayProperties`（#1604）真正跨环境统一；
+- 或边缘 `TokenRelay` / OAuth2 resource server（校验 JWT）——需先定 JWT 发行人策略；
+- 或把六事件计数接到真实 Grafana dashboard JSON（面板 + 告警），再在 `SPRING_CLOUD_EDGE.md` 计数；
+- 或评估 parallel lane 其余未并轨分支（release/feature 上的 "Golden case" 安全对抗测试）是否并入 master。
