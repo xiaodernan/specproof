@@ -110,6 +110,11 @@ spring:
 # thresholds below are the whole contract (no per-request overrides).
 resilience4j:
   circuitbreaker:
+    # spring-boot binds its own metrics when this is set; without it,
+    # resilience4j only emits events and /actuator/prometheus has no
+    # circuitbreaker_* series to scrape.
+    metrics:
+      enabled: true
     instances:
       specproof-edge:
         slidingWindowSize: 10
@@ -150,7 +155,10 @@ management:
       exposure:
         # gateway: the route table as the gateway itself sees it — the
         # runtime reading of the file the gate reads statically.
-        include: health,info,gateway
+        # prometheus: the EdgeCircuitBreaker's gauges/counters so the
+        # container-ops stack can scrape them (loopback only, like the
+        # rest of the management surface).
+        include: health,info,gateway,prometheus
   endpoint:
     gateway:
       enabled: true

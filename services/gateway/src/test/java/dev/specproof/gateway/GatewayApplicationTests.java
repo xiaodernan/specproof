@@ -40,6 +40,12 @@ class GatewayApplicationTests {
     @Autowired
     private Environment environment;
 
+    @Autowired
+    private io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry circuitBreakerRegistry;
+
+    @Autowired
+    private io.micrometer.core.instrument.MeterRegistry meterRegistry;
+
     private List<RouteDefinition> routes() {
         return routeDefinitionLocator.getRouteDefinitions().collectList().block();
     }
@@ -114,5 +120,21 @@ class GatewayApplicationTests {
     void theManagementPlaneStaysBoundToLoopbackInsideTheTest() {
         assertThat(environment.getProperty("management.server.address"))
                 .isEqualTo("127.0.0.1");
+    }
+
+    @Test
+    void theEdgeCircuitBreakerMetricsAreExposed() {
+        io.github.resilience4j.circuitbreaker.CircuitBreaker cb =
+                circuitBreakerRegistry.circuitBreaker("specproof-edge");
+        cb.tryAcquirePermission();
+        cb.onSuccess(1, java.util.concurrent.TimeUnit.MILLISECONDS);
+
+        var circuitBreakerMeters = meterRegistry.getMeters().stream()
+                .filter(m -> m.getId().getName().startsWith("resilience4j.circuitbreaker"))
+                .toList();
+        assertThat(circuitBreakerMeters).isNotEmpty();
+        assertThat(circuitBreakerMeters)
+                .anySatisfy(m -> assertThat(m.getId().getTag("name"))
+                        .isEqualTo("specproof-edge"));
     }
 }
