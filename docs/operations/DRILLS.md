@@ -95,6 +95,27 @@
 
 **仍属"需开发"的缺口** (如实标注): 目前没有任何组件会自动续跑崩溃后停在 RUNNING 的作业 — 本演练的续跑由 ops.drills.resume_job (scripts/drill_worker_kill.py 调用) 显式驱动; 生产需要一个启动时回收器 (扫描 RUNNING 超时作业 → 重投递/直接续跑)。该回收器未实现 = ⏳ 需开发。 **更正 (2026-09-28, #129)**: 上句"没有任何组件会自动续跑…该回收器未实现"写下即为假 — 自动回收器已落地: `agent/worker.py:153` `_start_reclaim_tick` 周期触发 `:1128` `run_reclaim_pass` → `:1193` `reclaim_stale_running_jobs` (#71 `738f1c3`, 默认 300s + Redis 作用域锁 `specproof:lock:scope:stale-job-sweep`), 人工入口 `specproof ops recover` (#68/#74) 仍在; 本演练的"显式续跑"是对照手段而不是生产缺口。原句按 FIX-14 规矩保留不抹掉。真缺口只剩一条: 周期路径 `_reclaim_once` 未传 `provider_ready` (跨进程 provider 健康信号), 已收敛到 §6 第 1/2 行。
 
+**2026-11-10 再演练订正（校验 #1561 修复后的续跑路径，一并记两条事实）：**
+- 2026-11-10 Drill 1 脚本被修复但**这次没拿到 kill 窗口**——LLM 网关（intern-ai.org.cn）
+  响应快到 2-3s 一调用，`KILL_AFTER_CHECKPOINTS=6` 的门就在 job 落终态之前命中了；
+  第二轮把 padding 提到 150 后网关直接返回 `429 Too Many Requests`，job 没走到杀窗，
+  直接死在源池限流。脚本的两项缺陷被修掉：
+    * scratch fixture repo 没有 git identity（`git commit` 直接红），本号给 `_git`
+      固定注入 `user.name=specproof-drill`、`user.email=...@localhost`
+      （不改主仓 git 配置，不碰用户/项目级 user.email，不动全局 config）；
+    * fixture 150 个同样的 PadNNN.java triggers 本机全局 pre-commit hook 到超时
+      （120s 内再也建不出来），本号给 `_git(..., no_verify=True)` 加了
+      `--no-verify`，fixture 两处 commit 走它，**其余调用点一律不动**。
+- #1561 的整图续跑（含 `mongo_saver.get_tuple` 的排序修复、真 MongoDB 腿、
+  以及整图 `test_graph_resumes_from_the_mongo_checkpoint`）仍然成立——但 Drill 1
+  本论没有**又**拿到一份 kill→resume 的端到端产物。Drill-verified 证据仍是
+  2026-08-19 那一份，附带 #1561 的 saver 修复事后通过一次真实的
+  drill-like 续跑博弈（失败的是限流轴，不是续跑轴）。
+- 两条本次 drill 产物的 job（1794308839 PREPARING / 1794309557 CONTRACT_REVIEW）
+  因 fixture 目录已删且 worker 已被杀，永远无法前进，已由 operator 用 state
+  machine CAS 移到 CANCELLED（`specproof ops` 无需改；`operator:manual-cleanup`
+  写入 `audit_logs`）。
+
 ---
 ## 2. Drill 2 — Provider 不可达端点, 作业诚实降级 ✅ 已演练
 
