@@ -29389,7 +29389,7 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 
 ## #1603 GatewayMqEventConsumer — 边缘订阅 W190 六事件 RabbitMQ 观测总线（事件驱动微服务元素）
 
-**记录基准**：本节只追加；落地于 `<TBD>`（master 链 `cf29dda` → `<TBD>`）。#1602 的"下一号队列"点名本号，原设想走 Spring Cloud Stream binder，但本地 `~/.m2` 无 `spring-cloud-stream-binder-rabbit` 离线无法验证，故改用**已缓存**的 `spring-boot-starter-amqp` 的 `@RabbitListener` 直连消费——同样是事件驱动微服务元素，且离线可验证（不违反诚实契约）。
+**记录基准**：本节只追加；落地于 `3a38840`（master 链 `cf29dda` → `3a38840`）。#1602 的"下一号队列"点名本号，原设想走 Spring Cloud Stream binder，但本地 `~/.m2` 无 `spring-cloud-stream-binder-rabbit` 离线无法验证，故改用**已缓存**的 `spring-boot-starter-amqp` 的 `@RabbitListener` 直连消费——同样是事件驱动微服务元素，且离线可验证（不违反诚实契约）。
 
 **来路。** 用户要求"在项目里加一些 springcloud 微服务的元素"。本项目此前边缘（SCG）与 Python agent runtime 仅靠 `X-Request-ID` 关联，没有事件驱动接缝。W190 已在 `storage/rabbitmq.py` 定义了六条结构化观测事件（`published`/`publish_confirm_timeout`/`consumed`/`duplicate_acked`/`retry_scheduled`/`dead_lettered`），但只落日志、未上总线。本号在两端各补一半：Java 边缘消费侧 + Python 生产侧，使这条总线成为真实可观测的事件驱动接缝。
 
