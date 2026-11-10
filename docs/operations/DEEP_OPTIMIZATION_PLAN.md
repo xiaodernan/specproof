@@ -27819,3 +27819,79 @@ scan 只扫**本地 payload 目录**（`evidence/orphan_scan.py`）。**没有�
 - 真实 worker kill → 续跑演练（DRILLS Drill 1 重跑）；
 - 边缘冷启动 + Grafana 实证（operator 决罢）；`verify_golden_tags.py` refs 家族重建（业主决断）；
   slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
+## #1565 对账器的第四种发现：索引歧义不能替它挑一条；截断的扫描不许装作读全了（2026-11-10）
+
+**记录基准**：本节只追加；落地于本章附带提交（master 链 b98deff → 412b522）。
+
+**来路。** #1563 的对账器对着**生产桶**跑了一次**只读**复测（本机，2026-11-10）。真数据
+把两个**我自己模块的缺陷**顶了出来——都是不看真数据就写不出来的缺陷。
+
+**量到的真数据（只读，未删任何东西）：**
+- 三个生产桶共 **116 个对象**；对象索引 `~/.specproof/object-metadata.sqlite3`
+  **1420 行**（`object_contracts` 1502 行）——**不撞**任何上限。
+- 读全索引后：**25 `unindexed`** / **59 `ambiguous_index`** / **0 `digest_mismatch`**。
+
+**订正（我自己先前的误读）。** 复测的第一遍把 59 条读成了 `digest_mismatch`（"字节被改"）。
+**那是误读。** 真数据里这些对象的**同一 `object_ref` 有多条索引行、对摘要各说各话**
+（同一个 eval case 把 capsule 重建了三次，最多 3 条索引行指向同一个对象）——**不是字节被改**。
+订正后 `digest_mismatch` 归零。这条订正本身是本号的一半内容：按"最后一条索引行"取摘要
+= **把歧义当判决**，而这里的判决决定运维要不要删证据。
+
+**两个缺陷与修法：**
+1. **索引歧义不能替它挑一条**——`evidence/bucket_reconcile.py` 新增第四种发现
+   `ambiguous_index`：同一个对象有多条索引行且摘要互不相同时，**报出来**（"索引没有单一
+   说法"），不挑一条继续比摘要。
+2. **截断的扫描不许装作读全了**——默认 `record_limit=1000`，而真索引有 **1420 行**：
+   原实现只读了前缀却可能报"没有幽灵"。现在报告带 `truncated` 标志（读满了上限就是
+   `true`），CLI 有 `--record-limit` 与"本次扫描**不完整**"的明说。
+
+**顺带修掉两处我自己写的不实之词（诚实纠错）：**
+- **#1564 那条 CLI 腿的文档不实**：它写"走 CLI 用的同一个 `SPECPROOF_OBJECT_METADATA_DB`
+  旋钮"——**假的**：测试的 `tests/conftest.py` 全局把 `SPECPROOF_OBJECT_METADATA_BACKEND`
+  置为 `memory`，CLI 读的是**内存库**，不是那个 SQLite 文件。改成腿里显式关掉 memory 旋钮
+  并指向自己的 SQLite 文件，并**新增一条腿证明它真读了那个文件**（索引行指向不存在的对象
+  ⇒ 只有读了索引才找得到）。#1564 的腿本身仍然绿（幽灵本来就是未索引的），但它当时证明的
+  东西比它自称的少。
+- **克隆棘轮指出的复制**：`tests/unit/test_structural_clone_ratchet.py` 判定
+  `evidence/orphan_scan.py::is_clean` 与 `evidence/bucket_reconcile.py::is_clean` 是同一个
+  决定的复制。按棘轮自己的第一选项**共享实现**（而不是登记豁免）：新增
+  `evidence/findings_report.py`，两个报告类继承**同一个** `FindingsReport.is_clean`，
+  并新增 `tests/unit/test_findings_report_is_one_decision.py` 钉住"两个扫描器同一个空判定"
+  （4 腿：函数对象同一个、空报告都干净、有发现都不干净、两个子类都不许自己改写）。
+
+**落地文件：**
+`evidence/bucket_reconcile.py`（第四种发现 + `truncated` 标志 + 共享基类）、
+`evidence/findings_report.py`（新，共享的空判定）、
+`evidence/orphan_scan.py`（改继承共享基类）、
+`cli/specproof/commands/ops.py`（`--record-limit` + 截断明说）、
+`tests/integration/test_bucket_reconcile_against_real_bucket.py`（8 腿）、
+`tests/integration/test_reconcile_buckets_cli.py`（3 腿，改为真读索引文件）、
+`tests/unit/test_findings_report_is_one_decision.py`（新，4 腿）、
+`docs/operations/RUNBOOK.md` §2（四种发现 + 截断说明）。
+
+**验证读数：**
+- 对账器真桶腿 8 条 + CLI 腿 3 条 = **11 passed**（真 MinIO scratch 桶 + 真 SQLite 索引）。
+- 共享判定腿 **4 passed**；`orphan_scan` 原腿 + `evidence` CLI 原腿 + 克隆棘轮 **35 passed**。
+- CLI help 5 文件 + ledger claims + plane scan + metric inventory + clone ratchet +
+  packaging = **59 passed**；`tests/unit/test_evidence_cli.py` **10 passed**；`ruff` 全绿。
+- **两条变异臂**各自把门打红：① 歧义被"挑一条"消解 ⇒ **1 failed**；② 扫描不再说它被截断
+  ⇒ **2 failed**；臂后树逐字节还原（崩溃安全脚本：仓外备份 + 标记自愈）。
+- 全量门（`pytest tests/unit tests/security tests/fault`）**仍在后台跑**（HEAD=a6bda89），
+  结果待下一节登记；本号动过 `evidence/orphan_scan.py`（改继承）这一生产模块，
+  全量读数尤其要连它一起看。
+
+**诚实边界：**
+- **处置面仍未做**：25 个幽灵**一个都没清**、59 条歧义**一条都没裁**、缺失的索引行
+  **一行都没补**。对账器只报告——删除/补行是另一次明确的破坏性动作。
+- 生产桶的这次扫描是**只读**的；本节登记的数字是**本机那一天的**读数，不是恒等式。
+- 桶侧（按 `object_ref` 比）与本地 payload 侧（按路径比）**两套对账仍未合流**。
+- 共享基类只合并了**空判定**这一个决定；两套对账的**发现词表仍然是两套**。
+- 未跑全量门；未跑 DRILLS Drill 1（真 worker kill，须等全量门结束）。
+- `DEEPSEEK_API_KEY`（§5.2 仍 `[ ]`）、KMS-HSM、slow 轨、pilot 仓、边缘冷启动实证、
+  `verify_golden_tags.py` refs 家族重建（业主决断）——本号一概未动。
+
+**下一号队列（不动）：**
+- 桶侧对账的**处置面**（幽灵怎么清、歧义怎么裁、索引行怎么补）与本地侧合流；
+- 全量门出结果后如实登记，并跑 Drill 1（真强杀 → 续跑）验证 #1561 的 saver 排序修复；
+- 边缘冷启动 + Grafana 实证（operator 决罢）；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
