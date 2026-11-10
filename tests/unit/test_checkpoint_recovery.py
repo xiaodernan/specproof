@@ -1,10 +1,36 @@
-"""P1.6 Unit tests: checkpoint save/load, recovery logic, state serialization."""
+"""P1.6 checkpoint **models** — the intended save/load and recovery semantics.
+
+What this file is
+-----------------
+Mostly **models**: legs that assert the *intended* behaviour against local
+dicts and lists ("the nodes after the crash are ``all_nodes[6:]``"). They
+cannot fail unless somebody edits this file — they are a written-down
+contract, not evidence that the checkpoint machinery behaves that way.
+
+The legs in ``TestStateSerialization`` are different: they call the real
+``agent.state.initial_state``, so a change to the state shape breaks them.
+
+Where the evidence is
+--------------------
+The machinery that carries a crash across a process is ``agent/mongo_saver.py``
+(a LangGraph ``BaseCheckpointSaver`` writing to MongoDB) plus the resume loop
+in ``agent/worker.py``. That pair is exercised end to end — real saver, real
+MongoDB, a fresh saver standing in for the restarted worker — in
+``tests/integration/test_worker_checkpoint_survives_a_crash.py``. Before that
+file existed, this one and its sibling in ``tests/integration/`` claimed in
+their docstrings to prove the recovery machinery itself while asserting
+against lists; the claim is now stated instead of implied.
+
+Still not covered (and not pretended to be): the whole-graph resume — nodes
+re-entering without repeating side effects. That needs a live worker and a
+live broker, and it is still open in the P1-B queue.
+"""
 
 import json
 
 
 class TestCheckpointDocumentModel:
-    """Verify the checkpoint document structure used by MongoDBSaver."""
+    """MODEL — the document shape the saver is expected to store."""
 
     def test_checkpoint_doc_has_required_fields(self):
         doc = {
@@ -33,13 +59,13 @@ class TestCheckpointDocumentModel:
         assert doc["checkpoint"]["v"] == 1
 
     def test_thread_id_maps_to_job_id(self):
-        """In our design, thread_id == job_id."""
+        """MODEL: in our design, thread_id == job_id."""
         job_id = "p1-job-0001"
         config = {"configurable": {"thread_id": job_id}}
         assert config["configurable"]["thread_id"] == job_id
 
     def test_parent_chain_traversable(self):
-        """Checkpoints form a parent chain for recovery."""
+        """MODEL: checkpoints form a parent chain for recovery."""
         checkpoints = [
             {"id": "c3", "parent_id": "c2", "step": 6},
             {"id": "c2", "parent_id": "c1", "step": 4},
@@ -51,7 +77,7 @@ class TestCheckpointDocumentModel:
 
 
 class TestRecoveryLogic:
-    """Test the recovery decision logic without actual graph execution."""
+    """MODEL — the recovery decision logic, written down (no graph is executed)."""
 
     def test_resume_from_last_checkpoint(self):
         """After a crash at step 7, the next invocation should find the
@@ -120,7 +146,7 @@ class TestRecoveryLogic:
 
 
 class TestStateSerialization:
-    """Verify Phase0State fields survive JSON round-trip."""
+    """PRODUCTION CODE — the real ``agent.state.initial_state`` round-trips."""
 
     def test_state_to_dict(self):
         from agent.state import initial_state
@@ -158,9 +184,10 @@ class TestStateSerialization:
 
 
 class TestWorkerLifecycle:
-    """Test worker logic without real infrastructure."""
+    """MODEL — lease ownership as an intention, not the lease code itself."""
 
     def test_worker_id_unique(self):
+        """MODEL — two worker ids differ; the real uniqueness is the lease."""
         import os
         import time
         w1 = f"worker-{os.getpid()}-{int(time.time())}"
@@ -169,7 +196,7 @@ class TestWorkerLifecycle:
         assert w1 != w2
 
     def test_lease_prevents_duplicate(self):
-        """Two workers attempting same job: only one acquires lease."""
+        """MODEL: two workers attempting the same job — only one acquires the lease."""
         lease_owner = None
 
         def try_acquire(job_id, worker_id):
@@ -184,7 +211,7 @@ class TestWorkerLifecycle:
         assert lease_owner == "worker-A"
 
     def test_lease_release_allows_retake(self):
-        """After release, another worker can acquire."""
+        """MODEL: after the release, another worker can acquire."""
         lease_owner = "worker-A"
 
         def release(worker_id):

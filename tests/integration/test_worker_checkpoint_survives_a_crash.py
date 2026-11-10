@@ -42,6 +42,7 @@ reachable — a machine without Mongo has no way to run this leg, and saying
 from __future__ import annotations
 
 import uuid
+from contextlib import suppress
 from typing import Any
 
 import pytest
@@ -66,10 +67,8 @@ def mongo_store(monkeypatch: pytest.MonkeyPatch) -> MongoDBStore:
     try:
         yield store
     finally:
-        try:
+        with suppress(Exception):  # cleanup is best-effort
             store.db.client.drop_database(SCRATCH_DB)
-        except Exception:  # noqa: BLE001 — cleanup is best-effort
-            pass
 
 
 def _checkpoint(checkpoint_id: str, step: int, values: dict[str, Any]) -> dict[str, Any]:
@@ -166,8 +165,17 @@ def test_pending_writes_come_back_with_the_checkpoint(mongo_store: MongoDBStore)
     }
 
     saver = MongoDBSaver(mongo_store)
-    saver.put(config, _checkpoint(checkpoint_id, 9, {"completed_nodes": ["intake"]}), _metadata(9), {})
-    saver.put_writes(config, [("static_findings", [{"id": "S-1", "severity": "HIGH"}])], task_id="t1")
+    saver.put(
+        config,
+        _checkpoint(checkpoint_id, 9, {"completed_nodes": ["intake"]}),
+        _metadata(9),
+        {},
+    )
+    saver.put_writes(
+        config,
+        [("static_findings", [{"id": "S-1", "severity": "HIGH"}])],
+        task_id="t1",
+    )
 
     found = saver.get_tuple({
         "configurable": {"thread_id": job_id, "checkpoint_ns": ""}
