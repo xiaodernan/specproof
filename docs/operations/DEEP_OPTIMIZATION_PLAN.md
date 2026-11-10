@@ -27791,3 +27791,31 @@ scan 只扫**本地 payload 目录**（`evidence/orphan_scan.py`）。**没有�
 - 真实 worker kill → 续跑演练（DRILLS Drill 1 重跑）；
 - 边缘冷启动 + Grafana 实证（operator 决罢）；`verify_golden_tags.py` refs 家族重建（业主决断）；
   slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
+## #1564 对账器的运维入口：CLI 真跑一遍并点名幽灵（2026-11-10）
+
+**记录基准**：本节只追加；落地于本章附带提交（master 链 599139d → 5e54486）。
+
+**来路。** #1563 把桶侧对账器写出来了，但「运维到底能不能用它」还没有证据：CLI 门只查
+`--help` 渲染，不查命令真跑起来，更不查它说的是不是真话。
+
+**落地：**
+- `tests/integration/test_reconcile_buckets_cli.py`（新，1 腿）：真 MinIO scratch 桶 + 真
+  SQLite 索引（走 CLI 用的同一个 `SPECPROOF_OBJECT_METADATA_DB` 旋钮）⇒ 用 `CliRunner`
+  **真调** `specproof ops reconcile-buckets --bucket B --json` ⇒ 断言退出码 0、JSON 里
+  `is_clean=false`、发现里含 `unindexed` 且**点名那个对象**。
+- `docs/operations/RUNBOOK.md` §2：新增运维入口条目（命令、三种断链各是什么意思、
+  「只报告不删」的纪律、桶侧与本地 payload 侧两套对账**尚未合流**）。
+
+**验证读数：** 两文件合跑 **6 passed**（CLI 腿 + #1563 的 5 条）；`ruff check` 干净。
+未跑全量 `pytest tests/unit tests/security tests/fault`。
+
+**诚实边界：**
+- 这条腿证明的是「命令跑得起来、说得出真话」，**不是**「桶是干净的」——扫的是 scratch 桶。
+- 生产桶的三个桶名由 `MinIOClient.BUCKETS` 给出；本号**没有**对生产桶跑过对账
+  （那会把生产桶的幽灵数量写进账本，且处置面还不存在）。
+
+**下一号队列（不动）：**
+- 桶侧对账的**处置面**（幽灵怎么清、索引行怎么补）与本地侧合流；
+- 真实 worker kill → 续跑演练（DRILLS Drill 1 重跑）；
+- 边缘冷启动 + Grafana 实证（operator 决罢）；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
