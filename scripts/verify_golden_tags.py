@@ -4,18 +4,29 @@ Checks, without writing anything to the repo (no commits, no tags,
 no worktrees, no file changes):
 1. ``base`` and ``head-v1`` tags exist; ``head-v1`` is a child of ``base``;
    their demo/ diff is exactly the flagship @PreAuthorize removal.
-2. All 99 ``case-*-head`` tags exist.
+2. The ``case-*-head`` tags exist for every case directory in
+   ``golden-cases/`` except the flagship — the flagship case is
+   ``head-v1`` itself (the @PreAuthorize removal IS case-01), so
+   expected = (tracked case dirs) - 1, measured at run time, never typed.
 3. Every case tag's tree differs from ``base`` by a NON-EMPTY diff confined
    to ``demo/`` (what the eval pipeline consumes via ``git diff base..tag``).
 4. Every case tag's merge-base with ``base`` IS ``base`` itself, so even a
    three-dot diff resolves to the same isolated mutation.
 
-Parent-pointer shape (91 tags directly on base, 8 legacy chained commits
-from the pre-detached builder) is reported but not enforced: the builder
-restores the base tree before each mutation, so trees — not parents — carry
-the contract, and this script verifies the trees.
+Parent-pointer shape (directly-on-base vs legacy chained commits) is
+reported but not enforced: the builder restores the base tree before each
+mutation, so trees — not parents — carry the contract, and this script
+verifies the trees. The measured split is printed, never asserted.
 
 Usage: python scripts/verify_golden_tags.py   (exit 0 = all green)
+
+STATE (2026-11-10, measured on this machine):
+  the local tag family is stale — `base` was re-pointed to `d6ed153` on
+  2026-11-08 while the case-*-head tags were built 2026-10-01 onto the
+  pre-move lineage, so this verifier currently reports RED with the
+  per-tag failures printed above. It is accurate, not broken: CI never
+  runs this file (`.github/workflows` carries no reference), and CI's eval
+  path materializes refs fresh with `--refs-only`.
 """
 
 from __future__ import annotations
@@ -44,6 +55,23 @@ def main() -> int:
     print(f"base    = {base[:8]}")
     print(f"head-v1 = {head[:8]}")
 
+    # The expected number of case tags is measured from the tracked
+    # catalog, not typed: every case directory in golden-cases/ must have a
+    # case-*-head tag, except the flagship (head-v1 is case-01).
+    catalog = Path(__file__).resolve().parents[1] / "golden-cases"
+    if not catalog.is_dir():
+        print(f"golden-cases/ not found at {catalog}", file=sys.stderr)
+        return 2
+    case_dirs = sorted(
+        d for d in catalog.iterdir()
+        if d.is_dir() and d.name.startswith("case-")
+    )
+    if not case_dirs:
+        print(f"golden-cases/ at {catalog} holds no case-* directories", file=sys.stderr)
+        return 2
+    expected = len(case_dirs) - 1  # the flagship is head-v1, not case-01-head
+    print(f"tracked case dirs: {len(case_dirs)} -> expected case-*-head tags: {expected}")
+
     # 1. head-v1 lineage + flagship content.
     head_parents = git("rev-list", "--parents", "-n", "1", head).split()[1:]
     if base not in head_parents:
@@ -55,8 +83,8 @@ def main() -> int:
     # 2-4. case tags.
     tags = sorted(git("tag", "-l", "case-*-head").splitlines())
     print(f"case tags found: {len(tags)}")
-    if len(tags) != 99:
-        failures.append(f"expected 99 case tags, found {len(tags)}")
+    if len(tags) != expected:
+        failures.append(f"expected {expected} case tags, found {len(tags)}")
     # ONE batched call for all parent pointers (N calls blew the 30s budget).
     revs = git("log", "--no-walk", "--format=%H %P", *tags).splitlines()
     sha_parents: dict[str, list[str]] = {}
@@ -89,7 +117,7 @@ def main() -> int:
         for failure in failures:
             print("  -", failure)
         return 1
-    print("\nGOLDEN TAGS GREEN: 99/99 isolated demo/-only mutations on base")
+    print(f"\nGOLDEN TAGS GREEN: {len(tags)}/{expected} isolated case branches on base")
     return 0
 
 
