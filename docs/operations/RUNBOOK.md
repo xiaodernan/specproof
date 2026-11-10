@@ -11,6 +11,7 @@
 | Worker | — | RabbitMQ 消费, LangGraph 执行, 状态迁移 |
 | Outbox Relay (Python) | — | outbox 表 -> RabbitMQ |
 | Spring Boot Control Plane | 8081 | 租户/用户/审计视图 + GitHub webhook(CP) + CP outbox 中继 |
+| SpecProof Edge Gateway (Spring Cloud Gateway) | 8080 / 8090 | 可选公网入口 (observability profile 才起)：按 `services/gateway/.../application.yml` 路由表分流 CP / Agent Runtime；断路器 + 连接池/路由 metrics + 请求 id 回显 |
 | MySQL | 3306 | 业务事实源 (10 态状态机 + 审计 + 迁移记录) |
 | Redis | 6379 | 租约/幂等/限流/进度 Stream (全 TTL) |
 | RabbitMQ | 5672/15672 | 可靠任务管道 (Confirm + Manual Ack + DLQ) |
@@ -32,6 +33,15 @@
     # 首次启动前必须先预置沙箱卷 (scripts/seed_sandbox_cache.ps1, §5),
     # 并把 maven 沙箱镜像预拉进 DooD 守护进程 (§5)。
     docker compose -f compose.phase0.yml -f compose.production.yml up -d
+
+    # 边缘网关 (可选, observability profile; 默认生产组合不含它)
+    docker compose -f compose.phase0.yml -f compose.observability.yml up -d specproof-edge
+    # 公网入口随它转向边缘 (默认 8080): Agent Runtime / CP 不再直接对公网答。
+    # 8090 是管理端口 (actuator: health / gateway/routes / prometheus);
+    # 默认绑 127.0.0.1, observability profile 显式 GATEWAY_MANAGEMENT_ADDRESS=0.0.0.0
+    # 只为兄弟容器的 Prometheus 抓取——生产按回环绑, 不对外。
+    # 断路器只在它拒绝新请求时可见 (edge:circuit-open), 连接池排队见
+    # SpecproofEdgePoolSaturated——两个都不等于"上游数据丢了"。
 
     # Control Plane (另开, 共享同一 MySQL)
     cd services/control-plane && ./mvnw spring-boot:run
@@ -140,6 +150,14 @@ traceback, 而且 killed 的正是他本想保持不动的那个旋钮。现在�
   是占位状态下的正常表现, 不是"没有告警"。接真实值班路由时同改 receivers 与
   routes; 配置校验见 OBSERVABILITY.md §1/§3/§4/§7 (amtool/promtool)。
 - CP: GET /health (8081), actuator health/metrics。
+- Edge (若起): GET 管理端口 8090/actuator/health (Spring Cloud 管理端点)、
+  `/actuator/gateway/routes` (路由表的**运行时**读数; edge 端口**不答**该端点——
+  会被 catch-all 代理到 agent runtime, 503 circuit-open 体)、
+  `/actuator/prometheus` (断路器状态、reactor-netty 连接池、`spring.cloud.gateway.*`
+  路由指标)。三条边缘告警各守一个失效形状:
+  `SpecproofEdgeGatewayDown` (抓取不到; 探针点名 resilience4j 与 reactor_netty 两个受守家族)、
+  `SpecproofEdgeCircuitBreakerOpen` (上游断 → 边缘拒绝)、
+  `SpecproofEdgePoolSaturated` (连接池排队)。
 - 日志: JSON 结构 (job_id/trace_id), worker 内每个消息都带 job_id。
 - OTel: OTLP exporter (init_tracing, 服务名 specproof-api/specproof-worker)。
 
