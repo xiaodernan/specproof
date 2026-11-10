@@ -28911,3 +28911,95 @@ histogram buckets、p95 面板（#1584）——ADR 索引 `docs/adr/README.md` �
 - 门 v7 出结果登记；门 #8（当前 master `e10a2d2` 快照）排队；
 - slow_eval、KMS-HSM、`DEEPSEEK_API_KEY`、`verify_golden_tags.py` 重建（业主决断）、
   边缘冷启动 + Grafana 实证（operator 决罢）、限流器告警规则（下轮仪表盘迭代）。
+## #1591 SpecproofEdgeRateLimiterShedding：限流器的持续丢弃告警（2026-11-10，21:05）
+
+**记录基准**：本节只追加；落地于附带提交 `6faf637`（与 #1592 同提交——两者互为前提，
+拆分后中间态红，细节见 #1591 尾"诚实边界"）。
+
+**来路。** #1589/#1590 给了限流器两个 series 和三条线：代码、看板、文档。
+缺最后一环——**规则**。看了一眼 21 条既有 SLO 规则，没有一条守限流器；
+caller 每秒钟都在被 429 丢弃，值班人员只有看得到的面板、不会 firing 的静默。
+
+**落地（`6faf637`）：**
+- `infra/prometheus/alerts-slo.yml`：新增 `SpecproofEdgeRateLimiterShedding`
+  （expr `rate(specproof_gateway_rate_limited_total[5m]) > 1`，for 10m）；
+  THRESHOLDS 表头新增 `EDGE_RL_SHED_THRESHOLD = 1` 行（引用 §14 "Job 不丢失"，
+  goal-only）；注释里"429"字样改为"降频信号"（一个无主数字不能留在 THRESHOLDS 段，
+  门 `test_every_number_in_the_header_is_claimed_by_a_relation` 实测拒绝）；
+  summary 带 `(EDGE_RL_SHED_THRESHOLD=1)` 槽。
+- `docs/operations/OBSERVABILITY.md`：§5 表新增一行（For 10m / 阈值变量
+  `EDGE_RL_SHED_THRESHOLD=1`）；ops-checklist "可见 22 条 specproof-slo 规则"；
+- 其余 8 处现行 "21 条/个告警、21 alerts" 声明同步为 22（`docs/ROADMAP.md`、
+  `PRODUCT_ROADMAP`、`EXPERIENCE_GUIDE`、`RUNBOOK`、`STACK_INVENTORY`、
+  `GRAND_PLAN_V2`、`LEVEL_ASSESSMENT`、`SPRING_CLOUD_EDGE`；SPRING_CLOUD_EDGE
+  告警表新增第 4 条 Spring Cloud 相关告警）。
+- `test_alert_rules_bind_their_own_threshold_table.py`：`_SLO_CITATIONS` /
+  `_GOAL_ONLY_CITATIONS` 登记 `EDGE_RL_SHED_THRESHOLD`（goal-only，与
+  EDGE_CB_OPEN/EDGE_POOL 同一引用先例）。
+
+**验证读数（实测，非推断）：**
+- `tests/unit/test_alert_rules_bind_their_own_threshold_table.py`：全绿；
+- `tests/unit/test_alert_table_matches_the_deployed_rules.py` + `test_alertmanager_config_is_wired.py`：全绿；
+- 与 #1592 捆绑的相关门合计 **39 passed**（本节 #1591 适用告警侧 24 项 + #1592 的 15 项）；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- 告警规则**未在真实 Prometheus eval 周期实证**（docker run 本机挂死、
+  compose.observability profile 未起）；§5 行与 22 条计数是静态证据+门的推导，
+  firing 过的经历=0；
+- **拆分中间态红的记录**：先按"#1591=告警 / #1592=census 腿"两提交切分，中间态
+  实证红（告警引用的 Java 侧指标在 expand 前 census 看不见）→ 合并为单提交
+  `6faf637`，附文档同时携带两节内容；
+- 阈值 1 本身是操作员安全默认（每秒持续丢弃 ≥1 个请求、持续 10 分钟才 firing，
+  不是 §14 的精确对账目标，是 §14 的最弱式回声；引用先例是 EDGE_CB_OPEN）。
+
+**下一号队列：**
+- 门 v7（快照 `3bacba2`）出结果登记；当前 master 快照 6faf637 排门 #8；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` 重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）；RuntimeImage 谁来验限流器的端到端 shed 速率。
+
+## #1592 指标 census 补 Java 腿：JVM 侧上报点不再隐形（2026-11-10，21:05）
+
+**记录基准**：本节只追加；落地于附带提交 `6faf637`（与 #1591 同提交，理由见 #1591 尾）。
+
+**来路。** `test_observability_metric_parity.py` 的 #161/#217/#539 机制扫 Python 树
+（`_EMIT_CALL`：`incr|set_gauge|observe_duration(...)` 的字面量/常量/拼接前缀），
+对 micrometer 的 JVM 上报点**结构性失明**。#1589 落了 Java 侧唯一 JVM 指标
+`specproof.gateway.rate.limited`——抛开它自己，别处一处都读不到→docs/alert 对它
+红（实测：alert 与 docs 接好的当下 `test_every_referenced_metric_name_traces_to_an_emission_site`
+就红了）。
+
+**落地（`6faf637`）：**
+- `tests/unit/test_observability_metric_parity.py`：新增 `JAVA_EMIT_DIRS`
+  （`services/gateway/src/main/java/dev/specproof/gateway/filter`）+ `_JAVA_COUNTER`/
+  `_JAVA_GAUGE`（Dotted `Counter.builder("…")` / `Gauge.builder("…")` 字面量）；
+  解析规则=点→下划线、计数器补 `_total`、剥除 Java 内嵌的 `specproof_` 段
+  （渲染层无新增前缀——与 Python 的"渲染=前缀+下划线 base"同形）；
+  `_EMIT_KINDS` 增 `java_counter`/`java_gauge`；`_emission_sites()` 贯通三个读者
+  （`_emitted_names` / `emission_files` / `emitted_types`）。
+- 新增 `test_every_java_reporting_tree_that_emits_is_scanned()`：任何被 git
+  tracked 的 `*.java` 携带 `Counter.builder`/`Gauge.builder` 却不在 JAVA_EMIT_DIRS
+  直接红——Python 侧同语义门（#539）的 JVM 版。
+- `docs/operations/OBSERVABILITY.md` §8.10：清单新增 EdgeRateLimiterGatewayFilterFactory
+  条目（#1591/#1592，"本条清单唯一的 JVM 侧微米指标上报点"）；
+  "生产侧上报模块有四十二个" → **四十三个**。
+
+**验证读数（实测，非推断）：**
+- `tests/unit/test_observability_metric_parity.py`（含 `test_every_referenced_metric_name_traces_to_an_emission_site`、
+  `test_every_reporting_tree_that_emits_is_scanned`、新增
+  `test_every_java_reporting_tree_that_emits_is_scanned`、所有历史腿）：**全绿**；
+- `tests/unit/test_metric_inventory_lists_every_emission_site.py`：**全绿**
+  （四十三个 = 清单 43 条 bullet、去重后 43 个文件一致）；
+- `tests/unit/test_ops_docs_metric_names_trace_to_emission_sites.py`：**全绿**；
+  fence 5 文件 53 passed。
+
+**诚实边界：**
+- census 现在覆盖**唯一一类** JVM 上报点：gateway filter 里的
+  Counter/Gauge。如果控制面或别的 Java 服务以 micrometer 上报，它们不走
+  `_JAVA_COUNTER`（或就已包含）——`test_every_java_reporting_tree_that_emits_is_scanned`
+  会提醒而不是放过；
+- Java 侧指标名是 dotted 字面量经 bridge 渲染成下划线——对 dashboard/alert/docs
+  的 `specproof_gateway_rate_limited_total` 这一实证名称，本节解析链为证，
+  不是手填常量；
+- 本节与 #1591 同提交：先按两提交拆分实证中间态红（告警声明无、census 无）→
+  合并为 `6faf637`，一并通过全部 39 项定向门。
