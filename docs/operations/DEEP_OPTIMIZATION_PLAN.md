@@ -29503,8 +29503,39 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 - `RabbitMQBusSink`/`CompositeEventSink` 与 `GuardedBusSink` 语义等价、本号保留前者作被测原语，避免动已绿的门；二者并存是刻意，非重复实现（文档已注明）。
 - 拓扑声明是幂等的，两端任一先起都安全；真实 broker 不可达时观测总线只计数+丢弃通道，不动投递判决。
 
+> **订正（#1606）**：本节「来路」把 #1603 说成「Python 侧只写日志、没有真生产者」，与 `3a38840` 的字节不符（该提交含 `RabbitMQBusSink` 与 7 例门）；另 6 例 / 22 例两处计数已过时。详见 #1606，本号原文按只追加原则保留。
+
 **下一号队列（不动）：**
 - 接 `spring-cloud-config-client` + config-server compose，让 `GatewayProperties`（#1604）真正跨环境统一；
 - 或边缘 `TokenRelay` / OAuth2 resource server（校验 JWT）——需先定 JWT 发行人策略；
 - 或把六事件计数接到真实 Grafana dashboard JSON（面板 + 告警），再在 `SPRING_CLOUD_EDGE.md` 计数；
 - 或评估 parallel lane 其余未并轨分支（release/feature 上的 "Golden case" 安全对抗测试）是否并入 master。
+
+## #1606 Config Server — 分布式配置微服务（Spring Cloud 微服务元素）
+
+**记录基准**：本节只追加；落地于 `7c50ab0`（master 链 `c963e70` → `7c50ab0`）。#1604 把边缘旋钮外置成 `GatewayProperties`，但配置仍写在网关自己的 `application.yml` 里——"配置外置"差最后一步：把配置收归一个独立的配置服务器，让 dev/staging/prod 不改镜像即可换配置。本号补上这个微服务，是 #1604 的天然延伸，也是教科书级 Spring Cloud 元素。
+
+**来路。** 用户要"加一些 springcloud 微服务的元素"。`GatewayProperties`（#1604）已经把旋钮从源码挪到可被 env 覆盖的 bean；本号再加一个 `services/config-server` 模块（`@EnableConfigServer`，文件后端 native，端口 8888），把网关的外部化设置放进 `config/gateway.yml`，网关经 `spring.config.import=optional:configserver:...` 即可跨环境拉同一份。选 native（classpath）后端，无 git / 无 broker，离线可起、单测可验。
+
+**落地：**
+- `services/config-server/pom.xml`：独立 Maven 模块（与网关平级，无父 `<modules>` 注册），父 `spring-boot-starter-parent` 3.4.3，`spring-cloud.version=2024.0.1`，引 `spring-cloud-config-server` + `spring-boot-starter-actuator` + `spring-boot-starter-test`；`spring-boot-maven-plugin` 打包。
+- `services/config-server/src/main/java/dev/specproof/configserver/ConfigServerApplication.java`：`@SpringBootApplication` + `@EnableConfigServer`。
+- `services/config-server/src/main/resources/application.yml`：`server.port=8888`、`spring.profiles.active=native`、`spring.cloud.config.server.native.search-locations=classpath:/config/`。
+- `services/config-server/src/main/resources/config/gateway.yml`：`specproof.gateway.{mq-events,request-size,security-headers}.*` —— 与网关 `application.yml` 字节级一致的外部化默认值。
+- `services/config-server/src/test/java/dev/specproof/configserver/ConfigServerApplicationTests.java`：`@SpringBootTest(webEnvironment=RANDOM_PORT)` + `TestRestTemplate` GET `/gateway/default`，断言 `propertySources[0].source` 含 `specproof.gateway.mq-events.enabled=false` / `exchange=specproof.observability.events` / `queue=q.gateway.mq-events` 等。
+- `docs/architecture/SPRING_CLOUD_EDGE.md`：元素表新增 `ConfigServerApplication` 一行（指向 1 例 JUnit + `mvn -o -B test` 全 1 绿）。
+
+**验证读数（实测）：**
+- `cd services/config-server && mvn -o -B test`：**1 passed / 0 failed**，BUILD SUCCESS；日志确认 `Adding property source: Config resource 'class path resource [config/gateway.yml]' via location 'classpath:/config/'` 且 `native` profile active。
+- 网关模块未改动，`cd services/gateway && mvn -o -B test` 仍应为 **51 绿**（本号不触网关源码；`optional:` 接入留作下一步，避免无服务器时拖累既有 51 例上下文测试）。
+
+**诚实边界：**
+- 本号只把配置"收归一处并验证可服务"，**未**改网关去 `import` 它：加 `spring.config.import=configserver:...` 会在无服务器时拖慢/失败既有 51 例上下文测试，故接入用 `optional:` 前缀留作下一步（部署时 `config-server:8888` 解析即生效）。
+- 离线 m2 镜像里 `spring-cloud-config-server:4.2.1` 未落地（BOM 2024.0.1 默认选 4.2.1），故把 `config-server` 钉 `4.2.0`、并把其传递依赖 `spring-cloud-config-client:4.2.0` 与 `commons-codec:1.17.1` 一并钉到已缓存版本（见 pom 注释）。这是离线镜像的权宜，不是版本偏好；若日后 m2 完整同步，可回到 BOM 默认 4.2.1 / 2024.0.1。
+- 原生 native 后端用 `classpath:/config/`，生产若要多环境应换 `git.uri` 或 `file:` 后端，并在 compose 里起本服务。
+
+**下一号队列（不动）：**
+- 网关 `application.yml` 加 `spring.config.import=optional:configserver:http://config-server:8888`，跑一遍 `mvn -o -B test` 确认 51 例仍绿（optional 下缺服务器只告警不失败），真接入；
+- 或边缘 `TokenRelay` / OAuth2 resource server（校验 JWT）——需先定 JWT 发行人策略；
+- 或把 W190 六事件计数接到真实 Grafana dashboard JSON（面板 + 告警）；
+- 或评估 parallel lane 其余未并轨分支是否并入 master。
