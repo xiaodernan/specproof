@@ -52,6 +52,13 @@ spring:
       httpclient:
         connect-timeout: 5000        # ms; the planes are on the same network
         response-timeout: 30s
+        # Publish the upstream connection pool to micrometer (reactor-netty
+        # pool metrics). The edge already scrapes this port into Prometheus;
+        # without these series, "the agent runtime is slow" and "the edge's
+        # pool is saturated" look identical on the dashboard, and only one
+        # of them is actionable.
+        pool:
+          metrics: true
       routes:
         # ── the control plane's routes ─────────────────────────────────────
         # /api/v1/jobs (collection) and /api/v1/jobs/{id} (one job).  The

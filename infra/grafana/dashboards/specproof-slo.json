@@ -5822,6 +5822,121 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 56,
+      "type": "timeseries",
+      "title": "Edge 上游连接池（reactor-netty）",
+      "description": "specproof-edge → agent-runtime 上游连接池的 reactor-netty 指标（application.yml `pool.metrics: true` 打开）。total=在用连接数，pending>0 表示连接池开始排队——「上游慢」与「边缘池满」在这张图上分得开。指标只在 prometheus 抓到 specproof-edge:8090 时可见。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 210
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "reactor_netty_connection_provider_total_connections{name=\"proxy\"}",
+          "legendFormat": "total ({{remote_address}})",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "reactor_netty_connection_provider_active_connections{name=\"proxy\"}",
+          "legendFormat": "active ({{remote_address}})",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "reactor_netty_connection_provider_pending_connections{name=\"proxy\"}",
+          "legendFormat": "pending ({{remote_address}})",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        }
+      ]
     }
   ],
   "refresh": "30s",
