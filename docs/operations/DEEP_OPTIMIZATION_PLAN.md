@@ -28486,3 +28486,47 @@ compose 载体」（#257），那是刻意的：签名产品链路根本没有�
 - 门 #3（b8f6209）结果如实登记 + Drill 1；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1579 演示项目自己的 9 条 Java 测试：离线实测 9/9 绿，且 CI 故意不收它（2026-11-10）
+
+**记录基准**：本节只追加；本节不落任何代码、不改任何配置、不动任何 CI——只登记一次实测。
+
+**来路。** 用户授权「继续扩容本项目」且「该做的你自己定」。盘点时量到 `demo/spring-backend`
+有 3 个源文件测试类（`OrderControllerTest`、`UserControllerTest`、`TestMockBeansConfig`），
+**CI 的 `java-services` job 不覆盖它**。查清来由后**决定不改 CI**，理由如下。
+
+**实测（本机，2026-11-10）：**
+- `mvn -o -B test`（JDK 25，离线，~/.m2 有缓存）：
+  **Tests run: 9, Failures: 0, Errors: 0 — BUILD SUCCESS**
+  （OrderControllerTest 5 + UserControllerTest 4）。
+- 第一次拿 JDK 17 跑：`TestMockBeansConfig ... class file version 65.0 ... up to 61.0`——
+  工作树里 `target/` 有 Java 21 编出来的 class（class file 65），JDK 17 读不动。
+  换 JDK 25 才 9/9 绿（pom 声明 `<java.version>21</java.version>`，CI 亦 pin Temurin 21）。
+  `demo/spring-backend/target/` 不在 git 里，是可重建的 build output。
+- 测试**不需要**任何基础设施：`application-test.yml` 关掉了 RabbitAutoConfiguration、
+  H2 文件库（`./target/h2/specproof-test`）、Redis 指向 localhost:6379 但 `TestMockBeansConfig`
+  用 Mockito 接管了 `StringRedisTemplate` 与 `ConnectionFactory`——无网络、无 broker、无真网卡。
+
+**为什么 CI 不收（不是忘了加，是有来由，写在此）：**
+`tests/unit/test_ci_runs_the_java_services.py`（#1546 起）明文登记：
+"The third Maven module in the repository, `demo/spring-backend`, is NOT a
+shipped service: it is the *subject under test* of the golden-case differential,
+and it is built by the sandbox with the seeded offline Maven cache
+(`scripts/seed_maven_cache.sh`). That is a different coverage story, and this
+gate does not claim it."
+⇒ 演示项目是**金标差分的被测主体**，由沙箱用预置的离线 Maven 缓存构建——它的覆盖故事
+已经被 `.github/workflows/ci.yml` 的 `eval-golden-cases` job 承接，车道不同于 shipped
+services（control-plane / edge gateway 两条 Java 服务线）。按本仓自身的判定，本号
+**不往 CI 补这一条**——补了就是把 eval 主体当产品服务发，盖的章会在哪里喻而出错。
+
+**诚实边界：**
+- 本节**不声称演示项目被 CI 保护**——本机实测的是离线 Maven 缓存存在的前提；
+  沙箱那条路径（`seed_maven_cache.sh` + `eval-golden-cases`）本号**没有实跑**，
+  也不知道它在今天的 CI 绿不绿。它就是 CI 的一部分，绿了靠那边；本节不假装那边没人管。
+- 不改 CI、不改测试、不改 demo 代码——本节只登记测量与决定。
+- `target/` 是 build output 不是证据——里面的旧 class file 65 只是历史产物。
+- 未跑全量门；门 #3 的结果待下一节登记。
+
+**下一号队列（不动）：**
+- 门 #3（b8f6209）结果如实登记 + Drill 1；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
