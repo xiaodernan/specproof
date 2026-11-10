@@ -192,7 +192,7 @@
 - [~] **5.3 可观测性默认开启**：`observability/` + compose 指标看板开箱可用。
   - 2026-11-09 本机复核（阻挡）：`docker daemon` 对 `docker run`/`docker network create`
     降级（hello-world 也超时零输出），冷启动 Grafana/Prometheus 本机无法再次复验。
-    静态侧脚本齐全：provisioning 目录 + 57-panel dashboard + 21 条（2026-11-10 实测） alerts-slo.yml + 
+    静态侧脚本齐全：provisioning 目录 + 58-panel dashboard + 21 条（2026-11-10 实测） alerts-slo.yml + 
     prometheus.yml + dockerfile HEALTHCHECK 全部在仓；`grafana/grafana:11.6.1` 启动正常。
     待 docker daemon 恢复后再验一次服务级开箱；当前按如实不标 [x]。
 - [~] **5.4 部署形态**：单二进制/容器一键部署、迁移与回滚脚本。

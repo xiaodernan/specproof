@@ -6028,6 +6028,97 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 58,
+      "type": "timeseries",
+      "title": "Edge 各路由 p95 延迟（histogram_quantile）",
+      "description": "路由 Timer 的 bucket 由 application.yml `percentiles-histogram` 打开（#1581）——Spring Cloud Gateway 的 `spring.cloud.gateway.requests` CumulativeTimer 按 routeId 打了 `_seconds_bucket`，metric 被抓进 Prometheus。histogram_quantile 按 route_id 分组算 p95。指标只在 prometheus 抓到 specproof-edge:8090 且该路由有真实流量时才有值；无流量时面板为空属正常。指标名按 micrometer→Prometheus 的点→下划线约定；生产侧序列以部署后抓取为准。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 222
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le, route_id) (rate(spring_cloud_gateway_requests_seconds_bucket[5m])))",
+          "legendFormat": "{{route_id}}",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "30s",
