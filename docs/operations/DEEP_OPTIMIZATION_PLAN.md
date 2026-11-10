@@ -27744,3 +27744,50 @@ artifact consistency deferred to P1-B"）。量 master 的现状：**机制在�
 - 真实 worker kill → 续跑演练（DRILLS Drill 1 重跑，需 broker/worker 真起）；
 - 边缘冷启动 + Grafana 实证（operator 决罢）；`verify_golden_tags.py` refs 家族重建（业主决断）；
   slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
+## #1563 桶侧对账器：artifact_store 承诺过的那个读者（2026-11-10）
+
+**记录基准**：本节只追加；落地于本章附带提交（master 链 f2589eb → d3687da）。
+
+**来路。** #1562 量到的缺口：`storage/artifact_store.py` 的 docstring 说幽灵对象（上传
+成功、索引写失败、非严格模式保留字节）是 "recoverable by the reconciliation scan"——但那个
+scan 只扫**本地 payload 目录**（`evidence/orphan_scan.py`）。**没有任何东西列过桶里的对象**
+并问索引知不知道它们。承诺指向一个不存在的读者。
+
+**落地：**
+- **`evidence/bucket_reconcile.py`（新）**——三种发现：
+  `unindexed`（桶里有、索引没有 = artifact_store 留下的幽灵）、
+  `missing`（索引指向、桶里没有 = 断链）、
+  `digest_mismatch`（对象在，但字节不再哈希到记录的摘要）。
+  **只报告，不删任何东西**——与本地 orphan 扫描同一纪律：按启发式删证据，就是本项目要
+  避免的失败模式。
+- **`storage/minio.py`**：新增只读的 `list_bucket_objects(bucket)`（名字 / 大小 / 桶自报的
+  sha256；桶不报摘要时留空，调用方跳过比较而不是猜）。
+- **`cli/specproof/commands/ops.py`**：新子命令
+  `specproof ops reconcile-buckets [--bucket B]... [--json]`——把对账器交给运维，
+  而不是只留在 Python 里。
+- **`tests/integration/test_bucket_reconcile_against_real_bucket.py`（新，5 腿，真 MinIO
+  scratch 桶 + 真 SQLite 索引）**：幽灵被点名 / 断链被点名 / 字节被改被点名 /
+  干净的桶报零 / **扫描不删任何东西**（幽灵扫完还在桶里）。
+
+**验证读数：**
+- **5 passed**（真桶真索引）；`ruff check` 全绿；CLI 门 **12 passed**（`--help` 渲染正常）。
+- **三条变异臂**各自打红：① 不报幽灵 → **2 failed**；② 不报断链 → 1 failed；
+  ③ 不比摘要 → 1 failed；臂后树逐字节还原（崩溃安全脚本）。
+- 证据相关门（ledger evidence claims / plane scan / metric inventory / clone ratchet /
+  packaging）**47 passed**。
+- 全量门在后台跑（跑的是 `a6bda89`，含 #1561 的 saver 修复；本号新增模块与子命令的
+  影响由上面 47+12 门覆盖，全量数字待下一节登记）。
+
+**诚实边界：**
+- 对账器**只报告**；处置（删幽灵、补偿索引行）**没有实现**——那是一次明确的破坏性动作，
+  本号不做，也没有假装它存在。
+- 桶侧对账与本地 payload 侧对账（`orphan_scan`）**是两套**：前者按 `object_ref`
+  （`bucket/name`）比索引，后者按本地路径比。两者合起来才是全链对账，本号没做合流。
+- 摘要比较依赖桶自报的 `X-Amz-Meta-Sha256`（我们上传时写入）；桶不报时跳过比较而不是猜。
+- 未跑全量门；未跑 DRILLS Drill 1（真 worker kill）。
+
+**下一号队列（不动）：**
+- 桶侧对账的**处置面**（幽灵怎么清、索引行怎么补）与本地侧合流；
+- 真实 worker kill → 续跑演练（DRILLS Drill 1 重跑）；
+- 边缘冷启动 + Grafana 实证（operator 决罢）；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`。
