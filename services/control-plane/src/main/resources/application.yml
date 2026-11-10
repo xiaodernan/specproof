@@ -33,4 +33,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        # health/info/metrics were listed before actuator was on the
+        # classpath (the section was silently ignored); spring-boot-starter-
+        # actuator + micrometer-registry-prometheus are now real dependencies,
+        # so this list binds. prometheus is NOT yet scraped anywhere —
+        # compose does not arm the control-plane (RUNBOOK: 另开, 共享同一
+        # MySQL), so adding a scrape target here would mint a target no deploy
+        # file backs; enabling it is one scrape job + one alert, and it is
+        # the operator's call.
+        include: health,info,metrics,prometheus
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
