@@ -27462,3 +27462,55 @@ update-ref → 跑 17 条腿 → `reset --hard` + `clean -fdq` + ref 指回去 +
 - `docker build` + 真实 compose 冷启动（`build` + `up -d` 全程）——operator 决罢，本号不做。
 - `verify_golden_tags.py` refs 家族重建依旧待业主。
 - P1-B checkpoint/orphan 仍未做；全量 slow 轨仍未跑。
+## #1557 边缘可视化：Grafana SLO 看板加板（断路器状态 + Edge 路由归属表）（2026-11-10）
+
+**记录基准**：本节只追加；feature 落地于本章附带提交（master 链 0f52337 → 77eb73a）。
+
+**来路。** #1556 补了部署与名册（容器化 / scrape 名册 / 告警接线），但**看不见**——本号补最后一步：让人眼看见
+edge 当前在做什么。
+
+**落地：**
+1. **`infra/grafana/dashboards/specproof-slo.json`** 新增 **Section 17「边缘网关」**（id 52，1×24，y=199：
+   接在「Redis 往返延迟」之下）；
+   - **Panel 53**（stat，6×4）—— 当前断路状态：
+     查询 `max(resilience4j_circuitbreaker_state{name="specproof-edge",state="open"})`；
+     读值 `1` = OPEN（红）、`0` = 正常/半开（绿）；在 panel fieldConfig 里用 value mapping 写明 0/1 语义。
+   - **Panel 55**（timeseries，18×6）—— 断路器三条状态线历史：
+     按 `state` 分系列；`closed` / `half-open` / `open` 轮流高亮。
+   - **Panel 54**（text/markdown，6×6）—— **Edge 路由归属表（Markdown）**；
+     与 `services/gateway/src/main/resources/application.yml` 逐字核对，保留六条 row id / method / path / plane 与
+     「兜底（`Path=/**`）最后」这一事实。
+2. **`tests/unit/test_dashboard_slo_figures_bind_their_declarations.py`**：
+   一直**不给**这个仪表造一条新规则，而是把现成的
+   `SpecproofEdgeCircuitBreakerOpen`（expr `> 0`, integer gauge）登记进
+   `_SERIES`（允许 `resilience4j_circuitbreaker_state` 模式匹配），
+   并把 `SpecproofEdgeCircuitBreakerOpen` 的 expr-首个着色值（`>0` → red 档的 `1`）登记进
+   `_FIRST_PAINTED_STATE`。这与 DLQ 那条记录同形（首个着色态 = 规则阈值 + 1），
+   避开了「悄悄放宽绘图数字」那一类事故。
+3. 同日文档：`docs/operations/OBSERVABILITY.md`
+   （§5 表加入 `SpecproofEdgeCircuitBreakerOpen` / `SpecproofEdgeGatewayDown` 两行；`check rules` 数值 `18→20`；
+   §1 服务行渲染 `SpecproofEdge` 端口等）、
+   `docs/ROADMAP.md` / `docs/operations/PRODUCT_ROADMAP.md` / `docs/operations/RUNBOOK.md` /
+   `docs/architecture/COMPLETION_MAP.md`（"51 面板 / 18 条规则"→"55 面板 / 20 条规则"）。
+
+**验证读数：**
+- `test_slo_dashboard_covers_every_verdict.py`；`test_dashboard_slo_figures_bind_their_declarations.py`；
+  `test_observability_metric_parity.py`；`test_alert_table_matches_the_deployed_rules.py`；
+  `test_alert_rules_bind_their_own_threshold_table.py`：
+  **合跑 37 passed**；其中 `test_alert_rules_bind_their_own_threshold_table.py` 单跑 **12 passed**；
+- Grafana **本实例未跑**——面板漂亮 ≠ 实证；
+- `docker compose -f compose.observability.yml config` 通过；
+- 未跑全量 `pytest tests/unit tests/security tests/fault`。
+
+**诚实边界：**
+- **面板未经 Grafana 实测**（不装、不跑浏览器、不开服务）；声画与门均绿，但「看见了」靠你去跑 `provisioning`。
+- 断路器只有 `CLOSED` / `OPEN` / `HALF_OPEN` 三态；`OPEN` 的自动恢复由 resilience4j 的 wait-duration 决定，
+  **不是必然复位**。
+- 全量 gate 未跑；本号只加 provisioning 层（`specproof-slo.json` + 一门测试登记 + 文档数字），未动产品代码。
+
+**下一号队列（不动）：**
+- Grafana 冷启动实证（`docker compose -f compose.phase0.yml -f compose.observability.yml up -d grafana`，operator 决罢）；
+- `resilience4j_circuitbreaker_state` 的 §5 / §6 全量视图（完成「日志→面板」）；
+- `.env.example` 的 Gateway 默认值再复核（02 端口/`.env.example` 两法可能不一致）；
+- **verify_golden_tags.py** refs 家族重建依旧待业主决断（#1553 欠账）；
+- P1-B / slow 轨 / KMS-HSM / DEEPSEEK_API_KEY：本号不动。
