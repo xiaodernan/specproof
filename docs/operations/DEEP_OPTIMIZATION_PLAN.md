@@ -28530,3 +28530,39 @@ services（control-plane / edge gateway 两条 Java 服务线）。按本仓自�
 - 门 #3（b8f6209）结果如实登记 + Drill 1；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1580 集成腿在 CI 里有自己的家：`tests-with-infra` 跑的是全部 `tests/integration`（2026-11-10）
+
+**记录基准**：本节只追加；本号不改 CI、不改代码、不动测试——只登记一次读 ci.yml 的结论。
+
+**来路。** 用户授权「继续扩容」期间，本轮新增了四组集成测试腿：
+`tests/integration/test_graph_resumes_from_the_mongo_checkpoint.py`（#1561）、
+`test_artifact_ghost_against_real_object_store.py`（#1562）、
+`test_bucket_reconcile_against_real_bucket.py`（#1563）、
+`test_reconcile_buckets_cli.py`（#1564）。
+核对它们在 CI 里的归宿时，需要确认三件事，而不是假设。
+
+**核对结论（只读，`.github/workflows/ci.yml`）:**
+1. `tests-with-infra` job（第 141 行起）启动 `compose.phase0.yml`，第 232 行的命令
+   `python -m pytest tests/integration tests/unit/test_job_state_machine.py ...
+   -q -m "not slow_eval"` ——**`tests/integration` 整目录进命令，逐个文件写名单
+   已经过时**；上述四个文件都在整目录里，会被原样收集。
+2. `compose.phase0.yml` 提供 mysql / mongodb / elasticsearch / redis / rabbitmq /
+   **minio** 六件套（第 8 行 `services:` 现算）——四个腿需要的 MongoDB、MinIO、
+   （es 这腿不需要）都有。
+3. `tests/unit/test_the_no_infra_job_holds_its_no_database_promise.py` 从 #120 census
+   推导 names，并在「某文件 no-infra 跳过、with-infra 也不跑」时把 job 顶红——
+   所以「我的腿只在我机器跑、CI 里无人问津」这种 silent no-run 状态会被门自己顶红。
+4. `tests/integration` 之外被点名 unit 的清单与 #600「四个原来的
+   runs-nowhere」是同一个 #120 census，CI 注释明说已收口。
+
+**诚实边界：**
+- 本号**没跑**过 CI；上面是 ci.yml 的文本证据（命令 + compose 服务清单 + 顶红门的存在），
+  不是「CI 最近一次绿了」的证据。
+- MinIO 腿在 CI 里若 phase0 没给 root 密码，连接失败时腿 **skip 并带真因**（不假装绿）。
+- `-m "not slow_eval"` 不排除这四个腿（都没有 slow_eval 标记）。
+- 未跑全量门（门 #3 在 b8f6209 跑，本节是文档改动，不在门的射程内也不改变它的判决）。
+
+**下一号队列（不动）：**
+- 门 #3（b8f6209）结果如实登记 + Drill 1；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
