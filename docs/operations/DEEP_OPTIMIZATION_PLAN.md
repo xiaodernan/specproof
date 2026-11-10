@@ -28444,3 +28444,45 @@ docs/eval/aider-results.md` 才能让工作树复位供下一轮用——现在�
 - 门 #3（b8f6209）结果如实登记 + Drill 1；
 - slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1578 签名密钥有了正确的生成工具：scripts/generate_signing_key.py（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 1c79b5c → 96a4b5b）。
+
+**来路。** 证书签名 fail-closed：`evidence/signing.py` 没有 `SPECPROOF_SIGNING_KEY`
+就不签名、明说、绝不假装签过。但**要配**的时候，32 字节 Ed25519 种子从哪来——
+手搓 hex 种子是不可恢复的错误（种子签的是证书）。账本里 D08 登记「签名旋钮没有
+compose 载体」（#257），那是刻意的：签名产品链路根本没有消费方需要它，硬自动交付
+等于「未经询问就加生产配置」。**载体登记 ≠ 工具缺失**——两者常被混为一谈，本节只补工具。
+
+**落地：**
+- `scripts/generate_signing_key.py`（新，只 stdlib + `cryptography`）：
+  无参数 → stdout 打 64 位 hex 种子、**stderr** 打 public key(hex，供 pin)；
+  `--output <path>` → 写文件（POSIX 0600）、`--force` 才覆盖。不读 stdin、不读环境变量、
+  不主动落 repo 路径——落点由操作员选。
+- `tests/unit/test_generate_signing_key.py`（新，5 腿，4 跑 1 Windows 跳过 POSIX chmod）：
+  stdout/stderr 分离（种子不骑 stderr）、两次生成不同、
+  **生成的钥直接能进产品的签名器**（`SPECPROOF_SIGNING_KEY_FILE` → `evidence.signing`
+  签 statement，`verify_statement` 验过；错公钥被拒）、
+  `--force` 缺省拒 / 给了才换、POSIX 0600。
+- `docs/operations/RUNBOOK.md` §7：一条生成方法 + 明说 D08 登记与 KMS/HSM 欠账。
+
+**验证读数：**
+- `ruff` 全绿；`mypy` 新文件 2 个**无问题**（含第一次遗漏的 `no-untyped-def`——
+  0.5 秒的修正）；`pytest tests/unit/test_generate_signing_key.py` ⇒ **4 passed /
+  1 skipped**（POSIX 才存在的 0600 腿）。
+- packaging / clone-ratchet / metric-inventory / ledger 门合跑 **47 passed**；
+  RUNBOOK 相关门 **22 passed**。
+- 全量门 #3 在 b8f6209 跑，**不含本节这 4 条新腿**——门 #3 的读数不包含它们，下一节登记。
+
+**诚实边界：**
+- 本工具**不**保管密钥、**不**写 compose 载体、**不**推 Vault/KMS——
+  "把 seed 收进 KMS/HSM"仍是欠账，点名它比假装解决它诚实。
+- POSIX 0600 腿在 Windows 上**跳过**（stat 模式位是 advisory），不伪造等价 Windows ACL 检查。
+- 本工具不在 CI 里被消费者调用——它是给操作员的手工具，没有「在生产环境里有人跑过它」
+  这个证据，也不假装有。
+- 未跑全量门。
+
+**下一号队列（不动）：**
+- 门 #3（b8f6209）结果如实登记 + Drill 1；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
