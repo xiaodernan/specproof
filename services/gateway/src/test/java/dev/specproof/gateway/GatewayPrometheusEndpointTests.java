@@ -7,7 +7,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalManagementPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.ResponseEntity;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 
 /**
  * The Prometheus endpoint is REAL, not a fallthrough to the catch-all.
@@ -40,8 +47,26 @@ class GatewayPrometheusEndpointTests {
     @LocalManagementPort
     private int managementPort;
 
+    @LocalServerPort
+    private int edgePort;
+
     @Test
-    void thePrometheusEndpointServesMetricsNotTheCatchAll() {
+    void thePrometheusEndpointServesMetricsNotTheCatchAll() throws Exception {
+        // Drive ONE real request through the edge first: the route timer is a
+        // CumulativeTimer, so spring_cloud_gateway_requests_seconds_count only
+        // exists once a request has flowed. The upstream here is a closed
+        // port (10), so the gateway answers for itself; which status it
+        // returns is irrelevant — the frame is what registers the meter.
+        // (Before this leg existed the assertion passed only because some
+        // other test class in the same JVM had driven traffic — test-order
+        // dependence the gate must not have.)
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(2))
+                .build();
+        client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + edgePort + "/probe"))
+                        .timeout(Duration.ofSeconds(8))
+                        .GET().build(),
+                HttpResponse.BodyHandlers.ofString());
         ResponseEntity<String> response = restTemplate.getForEntity(
                 "http://127.0.0.1:" + managementPort + "/actuator/prometheus",
                 String.class);
@@ -52,6 +77,12 @@ class GatewayPrometheusEndpointTests {
                         + "is exporting NO metrics and the scrape is silently vacuous)")
                 .contains("spring_cloud_gateway_requests_seconds_count")
                 .contains("resilience4j_circuitbreaker_state")
-                .contains("spring_cloud_gateway_routes_count");
+                .contains("spring_cloud_gateway_routes_count")
+                // the edge's ingress rate limiter (#1589) is wired into the
+                // catch-all route: the tagged binder must publish the
+                // limiter's own gauge at boot, or an operator cannot tell
+                // "shedding load" from "upstream saturated"
+                .contains("resilience4j_ratelimiter_available_permissions")
+                .contains("specproof_gateway_rate_limited_total");
     }
 }

@@ -131,6 +131,16 @@ spring:
           predicates:
             - Path=/**
           filters:
+            # The edge sheds load before it touches the upstream: a token
+            # bucket of 50 permits per second on the catch-all. 429 (not
+            # 503): the caller is being told to slow down, not that the
+            # upstream is broken. Count lives in YAML next to the route.
+            - name: EdgeRateLimiter
+              args:
+                name: specproof-edge-public
+                limitForPeriod: 50
+                limitRefreshPeriod: PT1S
+                timeoutDuration: PT0S
             - EdgeCircuitBreaker=specproof-edge
 
 # resilience4j: the edge's upstream circuit breaker. The breaker counts
