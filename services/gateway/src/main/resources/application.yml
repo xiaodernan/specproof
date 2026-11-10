@@ -72,6 +72,10 @@ spring:
         # agent runtime's job sub-resources sit one segment deeper
         # (/api/v1/jobs/{id}/stages and friends), so {id} — which matches
         # exactly one segment — leaves them alone.
+        # The control plane has its own breaker (#1597): an agent-runtime
+        # breaker must not flip for a control-plane failure and vice versa,
+        # and a hung control plane must not tie up edge threads until the
+        # 30s transport timeout fires every time.
         - id: control-plane-jobs
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
           metadata:
@@ -79,6 +83,8 @@ spring:
           predicates:
             - Path=/api/v1/jobs,/api/v1/jobs/{id}
             - Method=GET
+          filters:
+            - EdgeCircuitBreaker=specproof-control-plane
 
         # The tenant collection is written (POST) and read (GET).
         - id: control-plane-tenants
@@ -88,6 +94,8 @@ spring:
           predicates:
             - Path=/api/v1/tenants
             - Method=GET,POST
+          filters:
+            - EdgeCircuitBreaker=specproof-control-plane
 
         # One tenant is read-only here; there is no PUT/DELETE for a tenant
         # in the control plane yet, so this route does not claim one.
@@ -98,6 +106,8 @@ spring:
           predicates:
             - Path=/api/v1/tenants/{id}
             - Method=GET
+          filters:
+            - EdgeCircuitBreaker=specproof-control-plane
 
         - id: control-plane-tenant-users
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
@@ -106,6 +116,8 @@ spring:
           predicates:
             - Path=/api/v1/tenants/{tenantId}/users
             - Method=GET,POST
+          filters:
+            - EdgeCircuitBreaker=specproof-control-plane
 
         - id: control-plane-github-webhook
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
@@ -114,6 +126,8 @@ spring:
           predicates:
             - Path=/api/v1/webhooks/github
             - Method=POST
+          filters:
+            - EdgeCircuitBreaker=specproof-control-plane
 
         # ── the agent runtime owns everything else ─────────────────────────
         # LAST on purpose: this is the catch-all, and the order of the list
@@ -143,9 +157,11 @@ spring:
                 timeoutDuration: PT0S
             - EdgeCircuitBreaker=specproof-edge
 
-# resilience4j: the edge's upstream circuit breaker. The breaker counts
-# failures of the agent-runtime upstream over a sliding window; the static
-# thresholds below are the whole contract (no per-request overrides).
+# resilience4j: the edge's upstream circuit breakers. Two instances — one per
+# plane — so a hung control plane does not flip the breaker the agent
+# runtime relies on (or vice versa); an operator sees two independent
+# gauges/`circuitbreaker_state{name="specproof-*"}` series, not one blurred
+# aggregate.
 resilience4j:
   circuitbreaker:
     # spring-boot binds its own metrics when this is set; without it,
@@ -154,7 +170,17 @@ resilience4j:
     metrics:
       enabled: true
     instances:
+      # the catch-all (agent runtime) — the public product API; more calls
       specproof-edge:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+      # the control plane (read facade + webhook + jobs projections);
+      # smaller traffic, same shape — no need for a different knob here
+      specproof-control-plane:
         slidingWindowSize: 10
         minimumNumberOfCalls: 5
         failureRateThreshold: 50

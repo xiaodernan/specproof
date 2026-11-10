@@ -117,6 +117,38 @@ class GatewayApplicationTests {
     }
 
     @Test
+    void everyControlPlaneRouteCarriesItsOwnBreaker() {
+        // A hung control plane must never trip the breaker the catch-all
+        // relies on, so the five control-plane routes carry EdgeCircuitBreaker
+        // with instance=specproof-control-plane (#1597). The catch-all keeps
+        // its own instance (specproof-edge) — the two planes share neither
+        // the breaker nor the failure domain.
+        java.util.Set<String> controlPlaneIds = java.util.Set.of(
+                "control-plane-jobs",
+                "control-plane-tenants",
+                "control-plane-tenant-item",
+                "control-plane-tenant-users",
+                "control-plane-github-webhook");
+        var controlPlane = routes().stream()
+                .filter(r -> controlPlaneIds.contains(r.getId()))
+                .collect(java.util.stream.Collectors.toMap(RouteDefinition::getId, r -> r));
+        assertThat(controlPlane).hasSize(5);
+        assertThat(controlPlane.values()).allSatisfy(route ->
+                assertThat(route.getFilters())
+                        .anySatisfy(f -> {
+                            assertThat(f.getName()).isEqualTo("EdgeCircuitBreaker");
+                            String joined = f.getArgs().values().stream()
+                                    .map(Object::toString).reduce("", (a, b) -> a + "," + b);
+                            assertThat(joined).contains("specproof-control-plane");
+                        }));
+
+        // both instances exist in the registry, independently named
+        assertThat(circuitBreakerRegistry.getAllCircuitBreakers())
+                .extracting(io.github.resilience4j.circuitbreaker.CircuitBreaker::getName)
+                .contains("specproof-edge", "specproof-control-plane");
+    }
+
+    @Test
     void theManagementPlaneStaysBoundToLoopbackInsideTheTest() {
         assertThat(environment.getProperty("management.server.address"))
                 .isEqualTo("127.0.0.1");

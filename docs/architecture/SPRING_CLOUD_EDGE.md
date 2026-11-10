@@ -17,6 +17,7 @@ application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地
 |---|---|---|
 | Spring Cloud Gateway 路由表（6 条 routes，顺序即匹配序） | `services/gateway/src/main/resources/application.yml` | `tests/unit/test_gateway_route_table_covers_every_plane_route.py`（7 条腿，R1-R7） |
 | Resilience4j 断路器（catch-all 派发 503 `upstream_unavailable` 体 `request_id` 兜底 + state 写 Java logger/warn） | `services/gateway/.../EdgeCircuitBreakerGatewayFilterFactory.java` | `GatewayApplicationTests`（6 腿含 breaker）+ `EdgeCircuitBreakerGatewayFilterFactoryTest` + `GatewayUpstreamTimeoutTests`（真 hang 住上游，1 秒后 503） |
+| Resilience4j 断路器（5 条 control-plane 路由各自挂 `EdgeCircuitBreaker=specproof-control-plane`，实例名独立，挂起不占线程到 httpclient 30s 超时） | `services/gateway/src/main/resources/application.yml`（5 条 control-plane 路由的 filters） | `GatewayApplicationTests.everyControlPlaneRouteCarriesItsOwnBreaker`（5 条路由逐条 name/args 断言 + 实例双注册） |
 | Resilience4j RateLimiter（catch-all 入向令牌桶 50/s，空桶本地应答 429 `rate_limited` 体 `request_id` + `Retry-After` 头；edge 不做认证故无 principal 可分钥，全局桶是诚实控制；计数器 `specproof_gateway_rate_limited_total` + 标签维度 `limiter`；gauge `resilience4j_ratelimiter_available_permissions` / `resilience4j_ratelimiter_waiting_threads`） | `services/gateway/.../EdgeRateLimiterGatewayFilterFactory.java`（pom 加 resilience4j-ratelimiter 2.2.0 + application.yml catch-all 挂 filter） | `EdgeRateLimiterGatewayFilterFactoryTest`（3 腿：放行、空桶 429+request_id+Retry-After、micrometer 计数 + 可用许可 gauge）+ `GatewayPrometheusEndpointTests`（含上项两系列名） |
 | `EdgeRequestIdGlobalFilter`（trace/span 传播 + 503 体含 request_id） | `services/gateway/.../EdgeRequestIdGlobalFilter.java` | `EdgeRequestIdGlobalFilterTest` + `tests/unit/test_edge_request_id_matches_the_agent_runtime.py`（Python 腿：逐字比对头名/ID 形状） |
 | Micrometer 池/网关/路由计量 + `/actuator/prometheus`（JSON） | `application.yml`（`management.prometheus.metrics.export.enabled: true` + `percentiles-histogram.spring.cloud.gateway.requests: true`） | `GatewayPoolMetricsTests`（远程端点抓数 + x3 面板）+ `GatewayMetricsTests`（4 路定时器矩阵）+ `GatewayPrometheusEndpointTests`（/actuator/prometheus 不是 catch-all 应答） |
@@ -79,7 +80,7 @@ application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地
    没有比这个更值得契约化的。
 
 以上状态基于 master `73554e1`（+ #1589 限流器、#1590 面板 59/60）测量；所有数字
-（6 routes、60 panels、22 alerts、tags/probe counts、27 Java 网关测试）都有对应的 Java/Python 门现算。
+（6 routes、60 panels、22 alerts、tags/probe counts、28 Java 网关测试）都有对应的 Java/Python 门现算。
 限流器两条面板（59 丢弃速率 rate(5m)、60 可用许可证 gauge）是 timeseries + 单绿色阈值，
 不带画数字阈值——`test_dashboard_slo_figures_bind_their_declarations.py` 无需新增声明，
 51 passed 实证（docs/dashboards 三门同套）。
