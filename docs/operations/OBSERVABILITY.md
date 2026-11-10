@@ -110,7 +110,7 @@ PROMETHEUS_PORT / ALERTMANAGER_PORT / GRAFANA_PORT / GATEWAY_PORT / GATEWAY_MANA
 4. Prometheus 目标: GET http://localhost:9090/api/v1/targets — api/worker/outbox-relay
    未起时 state=down 属正常 (应用栈 up 后自动转 up); phase0 栈未起时 rabbitmq (15692,
    /metrics/per-object) 同样 down 属正常 (#165 起); otel-collector/prometheus 应 up。
-5. 告警: http://localhost:9090/alerts 可见 18 条 specproof-slo 规则; Alertmanager 已随
+5. 告警: http://localhost:9090/alerts 可见 20 条 specproof-slo 规则; Alertmanager 已随
    §17 profile 进栈 (9093, amtool check-config 通过); 默认 receiver 为 null 占位,
    只展示 firing/resolved、不发通知 — 接真实值班路由 (receivers/routes) 前不要假设有人收到。
 6. Alertmanager: GET http://localhost:9093/-/healthy → 200 "OK";
@@ -142,6 +142,8 @@ PROMETHEUS_PORT / ALERTMANAGER_PORT / GRAFANA_PORT / GATEWAY_PORT / GATEWAY_MANA
 | SpecproofVerifyDlqNonEmpty | 任意 *.dlq 死信 > 0 (阈值内联) | 5m | VERIFY_DLQ_THRESHOLD=0 | §14 Job 不丢失 — 死信 (#165 接线; 队列名按 storage/rabbitmq.py 的 dlq_suffix='.dlq' 规则正则匹配, 覆盖全部车道; 死信不会自己消失) |
 | SpecproofNoEvidenceSevereComment | 无证据严重评论计数 > 0 (阈值内联; 评论已被拒发, 排查上游产出) | 1m | NO_EVIDENCE_SEVERE_COMMENT_THRESHOLD=0 | §14 质量目标 (无证据严重评论 = 0; #182 接线 — 计数器只增不减, 一次违规永久可见) |
 | SpecproofCapsuleReplayRateLow | replay 成功率 < 95% (15m 窗口 confirmed/runs rate 比) | 15m | REPLAY_RATE_THRESHOLD=0.95 | §14 质量目标 (Capsule Replay >= 95%; #183 接线 — 没人用不算违规, 用了才谈成功率) |
+| SpecproofEdgeCircuitBreakerOpen | state="open" 持续未恢复（edge→agent-runtime 断路器被触发） | 2m | EDGE_CB_OPEN_THRESHOLD=0 | 边缘在运 (Spring Cloud Gateway, #1556; Spring Cloud Gateway 的 resilience4j 断路器在 agent-runtime 上游不可用时给出的信号) |
+| SpecproofEdgeGatewayDown | up{job="specproof-edge"} == 0 | 2m | — | §14 可用性补位（§17「组件可用性」; 未组合 edge 时常态 down, 属预期; 探针守的是 SpecproofEdgeCircuitBreakerOpen 的唯一数据源） |
 
 **为什么没有 NEEDS_REVIEW 的告警**（#317）：判定词族里 `jobs_needs_review_total` **早就在发**
 （判定词小写拼名），看板也补上了那一格，但**阈值没有定**——§14 的质量目标里没有
@@ -317,7 +319,7 @@ Queue Depth 与 DLQ（#165 接线, 见 §5 表末两行）。
 
 - `promtool check config infra/prometheus/prometheus.yml` (prom/prometheus:v3.3.1)
   → **SUCCESS: 1 rule files found / valid prometheus config file syntax**;
-  `check rules alerts-slo.yml` → **16 rules 通过**。
+  `check rules alerts-slo.yml` → **20 rules 通过**。
 - `amtool check-config infra/prometheus/alertmanager.yml` (prom/alertmanager:v0.27.0)
   → **SUCCESS** (global config / route / 1 inhibit rule / 1 receiver ("null") / 0 templates)。
 - 一次性 Alertmanager 验证实例 (直绑宿主机 9093, 镜像已在本机, 配置只读挂载):

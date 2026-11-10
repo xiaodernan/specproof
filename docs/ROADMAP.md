@@ -112,9 +112,9 @@
   记录 rootless 变体实测不可用及线索。checkbox 保留给"rootless 路线决策 + 生产
   复核签字"，不是代码缺口。）
 - [ ] P6 可观测/SLO: Grafana dashboard 化、SLO 看板与告警、备份恢复演练
-  （2026-11-08 复核: 51 面板 SLO 看板 + 18 条 SLO 告警已入仓
+  （2026-11-10 复核: 55 面板 SLO 看板 + 20 条 SLO 告警已入仓
   （infra/grafana, infra/prometheus）；promtool 校验规则语法通过；Grafana
-  11.6.1 一次性实例实证 provisioning（datasource + dashboard 51 panels,
+  11.6.1 一次性实例实证 provisioning（datasource + dashboard panels,
   /api/health=200）；备份恢复演练第一阶段（MySQL/Mongo 隔离目标库
   dump→restore→逐表计数对齐, 产品库只读备份并删除明文）已完成
   —— 详见 docs/operations/DATA_LIFECYCLE.md §6.4；Alertmanager 已接入

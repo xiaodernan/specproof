@@ -44,7 +44,7 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     restart: unless-stopped
 
-  # SLO alert sink (PRODUCTION_SPEC §14). Receives the 16 rules in
+  # SLO alert sink (PRODUCTION_SPEC §14). Receives the 18 rules in
   # alerts-slo.yml via the `alerting:` block in prometheus.yml.
   # The shipped receiver is a null sink by design (no on-call destination
   # exists yet): alerts are visible as firing/resolved in the UI and

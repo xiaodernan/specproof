@@ -1,7 +1,7 @@
 # SpecProof Alertmanager configuration (PRODUCTION_SPEC §14 / compose.observability.yml).
 #
 # Status, honestly: SLO rules are LIVE in Prometheus (infra/prometheus/alerts-slo.yml,
-# 16 rules, gate tests under tests/unit/test_alert_*), but the notification
+# 18 rules, gate tests under tests/unit/test_alert_*), but the notification
 # RECEIVER has not been decided (paging target / on-call rotation / webhook URL
 # are operator decisions this repo cannot make for you).
 # Until that decision is made, every route below points at the built-in
