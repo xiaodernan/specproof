@@ -47,7 +47,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from evidence.findings_report import FindingsReport
 from storage.object_metadata import (
@@ -73,8 +73,14 @@ FINDING_KINDS = (
 )
 
 
-class ObjectStoreLike:
+class ObjectStoreLike(Protocol):
     """The slice of the object store this module uses.
+
+    A Protocol (structural typing), exactly like ``ObjectStoreLike``
+    in ``storage/artifact_store.py``: the reconciler accepts any object
+    exposing ``list_bucket_objects`` and ``object_digest`` — the MinIO
+    client included — instead of requiring the concrete class to inherit
+    from a base nobody was going to subclass.
 
     ``list_bucket_objects`` returns the objects as ``(name, size, sha256)``
     triples; ``sha256`` is the digest the store itself reports and may be
@@ -83,10 +89,10 @@ class ObjectStoreLike:
     """
 
     def list_bucket_objects(self, bucket: str) -> list[tuple[str, int, str]]:
-        raise NotImplementedError
+        ...
 
     def object_digest(self, bucket: str, object_name: str) -> str | None:
-        raise NotImplementedError
+        ...
 
 
 @dataclass(frozen=True)
