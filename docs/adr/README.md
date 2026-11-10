@@ -24,6 +24,7 @@
 | [ADR-016](ADR-016.md) | 为什么 v1.0 不使用 Kubernetes | 已接受 | ADR-016 |
 | [ADR-017](ADR-017.md) | LLM 私有推理不保存 | 已接受 | ADR-017 |
 | [ADR-018](ADR-018.md) | 为什么边缘网关是 Spring Cloud Gateway | 已接受 | ADR-018 |
+| [ADR-019](ADR-019.md) | 为什么边缘用 Resilience4j RateLimiter | 已接受 | ADR-019 |
 
 ## 历史文件
 
@@ -46,4 +47,4 @@
 | 008 为什么 Contract 必须人工批准 | ADR-010 |
 | 009 为什么 Phase 0 用 SHA-256 digest 而不是签名 | 被 ADR-011 取代 |
 | 010 为什么第三方 OpenAI-compatible 网关不可信 | ADR-012 |
-| — (新撰写) | ADR-007 / ADR-009 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 |
+| — (新撰写) | ADR-007 / ADR-009 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 |
