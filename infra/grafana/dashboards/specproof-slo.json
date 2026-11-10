@@ -5937,6 +5937,97 @@
           "refId": "C"
         }
       ]
+    },
+    {
+      "id": 57,
+      "type": "timeseries",
+      "title": "Edge 各路由请求速率（SCG metrics）",
+      "description": "spring.cloud.gateway.metrics.enabled=true 时 Gateway 按路由发出的 CumulativeTimer（routeId 标签）：sum(rate(spring_cloud_gateway_requests_seconds_count[5m])) by (route_id)。56 看池、55 看断路器、57 看流量落在哪个路由——就绪后即有值；无流量时面板为空属正常。指标名按 micrometer→Prometheus 的点→下划线约定；生产侧序列以部署后抓取为准。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 216
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (route_id) (rate(spring_cloud_gateway_requests_seconds_count[5m]))",
+          "legendFormat": "{{route_id}}",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "30s",

@@ -59,6 +59,13 @@ spring:
         # of them is actionable.
         pool:
           metrics: true
+        # The gateway's own route metrics (prefix spring.cloud.gateway):
+        # per-route latency and count, tagged by route_id. Same reason as the
+        # pool: the management port is already scraped, but without this the
+        # edge is a black box between its two planes — you cannot tell which
+        # plane a slow request is stuck on, only that requests are slow.
+        metrics:
+          enabled: true
       routes:
         # ── the control plane's routes ─────────────────────────────────────
         # /api/v1/jobs (collection) and /api/v1/jobs/{id} (one job).  The
