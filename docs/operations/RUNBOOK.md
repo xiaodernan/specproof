@@ -135,7 +135,7 @@ traceback, 而且 killed 的正是他本想保持不动的那个旋钮。现在�
 - GET /metrics (Prometheus): jobs_completed_total, jobs_<verdict>_total,
   jobs_processing_seconds, outbox_pending, http_requests_total 等。
 - Alertmanager (compose.observability.yml, prom/alertmanager:v0.27.0): SLO 告警
-  (20 条 specproof-slo 规则) 的接收端; `alerting:` 块指向 alertmanager:9093。
+  (21 条 specproof-slo 规则) 的接收端; `alerting:` 块指向 alertmanager:9093。
   默认 receiver 为 **null 占位**——不发出任何通知; GET /api/v2/alerts 恒为 []
   是占位状态下的正常表现, 不是"没有告警"。接真实值班路由时同改 receivers 与
   routes; 配置校验见 OBSERVABILITY.md §1/§3/§4/§7 (amtool/promtool)。

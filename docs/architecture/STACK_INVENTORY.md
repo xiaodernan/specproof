@@ -17,7 +17,7 @@
 | LLM 工程 | providers/ | 8 | 11 维探测/降级/thinking 分层/缓存友好模板/预算账本 |
 | RAG | retrieval/ + storage/elasticsearch + agent/repo_graph | 4+ | BM25+向量→RRF→图谱邻域→重排(三层降级) |
 | 验证核心 | evidence/ (5) + experiments/ (3) + sandbox/ (2) + integrations/ (4) | 14 | 证书/血缘/报告/变异/状态快照/沙箱/GitHub App |
-| 可观测 | observability/ (6) + infra/ (otel/prometheus/grafana) | 6+ | 日志(结构化+request_id)/指标/OTel/Grafana 15 面板+7 告警 |
+| 可观测 | observability/ (6) + infra/ (otel/prometheus/grafana) | 6+ | 日志(结构化+request_id)/指标/OTel/Grafana 56 面板+21 告警（2026-11-10 实测） |
 | 评测 | bench/ (10 任务微基准) + golden-cases (100) + tests (600+) | 40+ | 验证侧/开发侧/安全/故障四层评测 |
 | 部署 | compose×3 + docker/ + scripts/ | — | infra + app + observability 三文件组合, 单机 16-32GB |
 

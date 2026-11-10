@@ -73,6 +73,13 @@
 #                                        持续碰到 open 直到半开探测重新放行。
 #                                        本告警仅是「还有 §14 目标的最弱式回声」——
 #                                        告警提醒运维查看上游，不是数据丢失的证据。
+#   EDGE_POOL_PENDING_THRESHOLD = 0  ← §14 "Job 不丢失" 边缘侧排队信号 (#1570 起)
+#                                        连接池 pending 持续非零即告警——上游在
+#                                        排队而不是拒绝（Spring Cloud Gateway
+#                                        的 reactor-netty 连接池），先看看板
+#                                        「Edge 上游连接池」，再看断路器。
+#                                        本告警仅是「还有 §14 目标的最弱式回声」
+#                                        ——提醒运维查看上游，不是数据丢失的证据。
 
 groups:
   - name: specproof-slo
@@ -294,7 +301,20 @@ groups:
           severity: warning
         annotations:
           summary: "SpecProof edge gateway 抓取目标 down"
-          description: "{{ $labels.instance }} 超过 2 分钟不可抓取（§17: 仅组成栈时显现；未组合属预期，与 worker 同一语义）。本行挂断的只有 SpecproofEdgeCircuitBreakerOpen——SpecproofEdgeCircuitBreakerOpen 读的 resilience4j 家族只由这一个 job 提供，本探针是它的 liveness 唯一背书。"
+          description: "{{ $labels.instance }} 超过 2 分钟不可抓取（§17: 仅组成栈时显现；未组合属预期，与 worker 同一语义）。本探针守的是 SpecproofEdgeCircuitBreakerOpen（resilience4j 家族）与 SpecproofEdgePoolSaturated（reactor_netty 家族）的唯一数据源——这两个家族都只由这一个 job 提供，抓取一断，两条告警同时沉默。"
+
+      # ── 边缘网关上游连接池 (§17, #1570/#1571) ─────────────────────
+      # reactor-netty ConnectionProvider 的 pending gauge（pool.metrics: true，#1570）。
+      # pending 非零 = 连接池在排队（上游慢或边缘忙），不是拒绝——先看看板 56，
+      # 再决定是否要扩边缘/上游。
+      - alert: SpecproofEdgePoolSaturated
+        expr: 'reactor_netty_connection_provider_pending_connections{name="proxy"} > 0'
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof 边缘上游连接池开始排队 (EDGE_POOL_PENDING_THRESHOLD=0)"
+          description: "specproof-edge → agent runtime 的 reactor-netty 连接池 pending={{ $value }}（pool.metrics: true，#1570）。pending 持续两分钟 = 上游在排队而不是拒绝——先看看板「Edge 上游连接池」，再看 SpecproofEdgeCircuitBreakerOpen。本行仅是运维提醒，不是数据丢失的证据。"
 
       # ── 无证据严重评论 (§14 质量目标, #182) ─────────────────────────
       # 证据门禁的计数化: build_review_comments (integrations/inline_comments.py)

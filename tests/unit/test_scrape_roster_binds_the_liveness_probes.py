@@ -80,6 +80,10 @@ _FAMILY_OWNERS: dict[str, tuple[str, ...]] = {
     # resilience4j_circuitbreaker_* is emitted by the gateway's specproof-edge
     # service (Spring Cloud CircuitBreaker filter, #1554) — only that job serves it.
     "resilience4j_circuitbreaker_": ("specproof-edge",),
+    # reactor_netty_connection_provider_* is emitted by the gateway's
+    # specproof-edge service (Spring Cloud Gateway's httpclient.pool.metrics,
+    # #1570) — only that job serves it.
+    "reactor_netty_": ("specproof-edge",),
     # rabbitmq_prometheus plugin output; served only by its own job, and only
     # under /metrics/per-object for the per-queue series the alerts select.
     "rabbitmq_": ("rabbitmq",),
