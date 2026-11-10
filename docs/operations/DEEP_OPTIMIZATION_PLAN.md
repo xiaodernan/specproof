@@ -28269,3 +28269,30 @@ httpStatusCode / outcome / routeUri / status）与 `spring.cloud.gateway.routes.
 - 全量门复跑结果如实登记 + Drill 1（真强杀 → 续跑）；
 - slow 轨；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
   边缘冷启动 + Grafana 实证（operator 决罢）。
+## #1573 SERVICE_SURFACE 补齐边缘的上游可见性（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 efd71da → 79e6fad）。
+
+**来路。** #1568/#1570/#1571/#1572 给边缘加了上游可见性（超时 / 池 / 池满告警 / 路由 metrics），
+而 `docs/architecture/SERVICE_SURFACE.md` 还停在 #1558——它对边缘的全部描述是
+「路由表 + 请求 id」，没有一个字提到这半张图。文档漏掉已落地的能力，读者会以为
+"边缘没有超时"。
+
+**落地：**
+- `docs/architecture/SERVICE_SURFACE.md` 新增「上游可见性：超时、池、与网关自己的指标
+  （#1568 / #1570 / #1571 / #1572）」一节，逐条对应：超时（谁看见了什么）、
+  `pool.metrics` → `reactor.netty.connection.provider.*`、`SpecproofEdgePoolSaturated`
+  与两个既有边缘告警的分工（断路器=拒绝 / 池=排队 / 抓不到）、`#1572` 的
+  `spring.cloud.gateway.requests`（CumulativeTimer）与 `routes.count` 及面板 56/57。
+  明确写了面板**未经 Grafana 渲染实测**。
+
+**诚实边界：** 只补一节文档，未动代码未跑测试——文档内容与这四个提交的落地逐字核对过
+（超时的 9 秒断言、gauge 集合、routes.count==6、EdgeGatewayDown annotation 点名双家族）。
+
+**下一号队列（不动）：**
+- 全量门复跑结果如实登记 + Drill 1（真强杀 → 续跑）；
+- slow 轨（仅剩 2 个 slow 用例，已本轮实跑：`test_ci_jobs_can_run_the_repo_gates.py` 1 passed，
+  `test_fake_inventory_stays_measured.py` 11 passed 于 #1566）；
+- slow_eval（100 例多小时——CI/nightly 的活，不重跑）；
+- KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
