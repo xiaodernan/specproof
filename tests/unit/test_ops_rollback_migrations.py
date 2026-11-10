@@ -7,9 +7,6 @@ a real MySQL connection redirected to specproof_test.
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
 from click.testing import CliRunner
 
 from cli.specproof.commands.ops import ops_cmd

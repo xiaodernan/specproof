@@ -143,7 +143,13 @@ _CONCAT_CALL = re.compile(
     r"\b(incr|set_gauge|observe_duration)\(\s*"
     r"([\"'][a-z0-9_]+[\"'])\s*(?:\+|\")"
 )
-_EMIT_KINDS = {"incr": "counter", "set_gauge": "gauge", "observe_duration": "histogram", "java_counter": "counter", "java_gauge": "gauge"}
+_EMIT_KINDS = {
+    "incr": "counter",
+    "set_gauge": "gauge",
+    "observe_duration": "histogram",
+    "java_counter": "counter",
+    "java_gauge": "gauge",
+}
 #: Module-level string constant usable as a metric name.
 _MODULE_CONST = re.compile(r"^([A-Z][A-Z0-9_]*)\s*=\s*['\"]([a-z0-9_]+)['\"]", re.M)
 _REFERENCE = re.compile(r"specproof_([a-z0-9_]+)")

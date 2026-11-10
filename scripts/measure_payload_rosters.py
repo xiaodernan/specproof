@@ -4,8 +4,10 @@
 Why this script exists
 ----------------------
 Every insertion in ``apps/web/src/api.ts`` moves the line numbers that the
-payload-census gate (``tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py``)
-pins by hand in ``CONSUMER_BINDING_ROSTER``. Red gates in #1526/#1541 showed
+payload-census gate (
+    ``tests/unit/test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py``)
+pins by hand in
+``CONSUMER_BINDING_ROSTER``. Red gates in #1526/#1541 showed
 the same failure three times in one week. This script re-measures what the
 gate's tree says and prints the per-style diff against the pinned tuples,
 so a re-pin is a reviewed copy-paste instead of archaeology.
@@ -34,7 +36,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TEST_MODULE = (
-    ROOT / "tests" / "unit" / "test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py"
+    ROOT / "tests" / "unit"
+    / "test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes.py"
 )
 
 
@@ -94,7 +97,10 @@ def main() -> int:
     for style in styles:
         entry = report[style]
         status = "ok   " if entry["match"] else "DRIFT"
-        print(f"[{status}] {style}: pinned={len(entry['pinned'])} measured={len(entry['measured'])}")
+        print(
+            f"[{status}] {style}: pinned={len(entry['pinned'])} "
+            f"measured={len(entry['measured'])}"
+        )
         for file_, line in entry["gained"]:
             print(f"        gained  {file_}:{line}")
         for file_, line in entry["lost"]:

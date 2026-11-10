@@ -15,10 +15,10 @@ import pytest
 
 import storage.rabbitmq as module
 from storage.rabbitmq import (
-    CompositeEventSink,
     EXCHANGE_EVENTS,
     MQ_EVENTS,
     QUEUE_GATEWAY_MQ_EVENTS,
+    CompositeEventSink,
     RabbitMQBusSink,
     RabbitMQClient,
 )

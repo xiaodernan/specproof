@@ -29503,7 +29503,7 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 - `RabbitMQBusSink`/`CompositeEventSink` 与 `GuardedBusSink` 语义等价、本号保留前者作被测原语，避免动已绿的门；二者并存是刻意，非重复实现（文档已注明）。
 - 拓扑声明是幂等的，两端任一先起都安全；真实 broker 不可达时观测总线只计数+丢弃通道，不动投递判决。
 
-> **订正（#1606）**：本节「来路」把 #1603 说成「Python 侧只写日志、没有真生产者」，与 `3a38840` 的字节不符（该提交含 `RabbitMQBusSink` 与 7 例门）；另 6 例 / 22 例两处计数已过时。详见 #1606，本号原文按只追加原则保留。
+> **订正（#1607）**：本节「来路」把 #1603 说成「Python 侧只写日志、没有真生产者」，与 `3a38840` 的字节不符（该提交含 `RabbitMQBusSink` 与 7 例门）；另 6 例 / 22 例两处计数已过时。详见 #1607（#1606 已被 Config Server 占用），本号原文按只追加原则保留。
 
 **下一号队列（不动）：**
 - 接 `spring-cloud-config-client` + config-server compose，让 `GatewayProperties`（#1604）真正跨环境统一；
@@ -29539,3 +29539,110 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 - 或边缘 `TokenRelay` / OAuth2 resource server（校验 JWT）——需先定 JWT 发行人策略；
 - 或把 W190 六事件计数接到真实 Grafana dashboard JSON（面板 + 告警）；
 - 或评估 parallel lane 其余未并轨分支是否并入 master。
+## #1607 订正 #1605 的假前提、修掉继承的 9 条 lint 红，并给 W190 门补平面变异臂
+
+**记录基准**：本节只追加；取号前实测账本 `## #` 最大 **1605** ⇒ 取 **#1607**。本节不改 #1605 原文，
+只在其队列前加了一行订正指针（该指针一度写成 #1606，本号发现 #1606 已被 Config Server 占用后改为 #1607）（账本按「只追加」原则保留历史）。
+
+### 一、#1605 的「来路」写了一个不存在的缺陷
+
+#1605 写着：「#1603 给边缘加了 `GatewayMqEventConsumer`……但彼时 Python 侧只把事件写进日志、
+没有真生产者，仍是『假控件』」。**逐字节核对 `3a38840`（#1603 的落地提交）后，这句话是错的：**
+
+| 证据 | 实测 |
+|---|---|
+| `git show 3a38840:storage/rabbitmq.py \| grep -c "class RabbitMQBusSink"` | **1** |
+| `git cat-file -e 3a38840:tests/unit/test_rabbitmq_bus_sink.py` | **EXISTS**（7 例） |
+| `git show --stat 3a38840` | `storage/rabbitmq.py +149`、`test_rabbitmq_bus_sink.py +137` |
+
+也就是说 #1603 **两端都落了**：Java 订阅者 + Python 发布原语。`RabbitMQBusSink` 走
+`_publish_raw`（事件静默，不自递归）、`declare_events_bus()` 幂等声明 topic exchange 与六绑定，
+并有 7 例门钉死「wiring 入 client 后不递归」。#1605 真正补的是**把这些原语接进默认构造路径**：
+精确值开关、未知词失败关闭、broker 失败只计数、词汇单源化、跨语言对账门 —— 不是「从零补一个生产者」。
+
+**为什么这个订正重要**：本仓最反对「声明 ≠ 事实」。把「缺接线」写成「缺实现」，会让下一个人
+去再造一个 `BrokerEventSink`（我这一轮**真的先造了一个**，见下），也会让 #1603 的 7 例门看起来
+像在测一段没人用的代码。订正后 `docs/architecture/SPRING_CLOUD_EDGE.md` 的增补段与元素表
+计数同步改正：跨语言门 **6 → 7 例**、Python 门 **22 → 23 例**（16 生产侧 + 7 对账）。
+
+### 二、我自己踩的坑：差点落地第二套生产者；以及一次「在途改动被扫进提交」
+
+1. **重复实现**：我按 #1602 的队列（「W190 事件经 Spring Cloud Stream 在边缘消费」）动手时，
+   先写了 `BrokerEventSink` 作为新的生产侧。读到 #1603 的账本节才发现 `RabbitMQBusSink` 已在 HEAD。
+   ⇒ 撤销 `BrokerEventSink`，改成 `GuardedBusSink` **包装**既有原语（守卫 + 开关），保留唯一发布实现。
+   这不是折中，是「一个能力只能有一个实现」的硬约束。
+2. **在途改动被并发车道提交**：核对时发现 `git show HEAD:storage/rabbitmq.py` 里已经有我写的
+   `event_sink_from_env` 导入，但 `git cat-file -e HEAD:observability/mq_events.py` 是 **NO** ——
+   `3a38840` 把我改到一半的 `storage/rabbitmq.py` 一起提交了，两个新模块却没进树。
+   即当时的 master 在干净检出下会 `ImportError`。本机没暴露，是因为 venv 的 editable 安装把
+   `observability.mq_events` 解析回了主树（实测 `__file__` 指向 `specproof-reference\...`），
+   **正好把缺口遮住**。#1605 的提交把两个模块一起带上，HEAD 才自洽：本次在仓库外平面
+   `D:\面试项目\_sp_arm1606`（`git archive HEAD`）实测 `storage.rabbitmq` 与 `mq_events`
+   的 `__file__` **都落在平面内**，两道门基线 **23 passed**。
+   ⇒ 教训与记忆里那条一致：**别用工作树的导入是否成功来判断 HEAD 是否自洽**，要在平面里实测 `__file__`。
+
+### 三、接手修掉继承的 9 条 `ruff check .` 红
+
+`#1605` 之后 `ruff check .` 报 **9 errors**，全部来自别的车道已提交但没过 lint 的文件，与本节
+新代码无关。按授权直接接手修干净（纯机械改动，逐文件跑过回归）：
+
+| 文件 | 红 | 修法 |
+|---|---|---|
+| `scripts/measure_payload_rosters.py` | 3 × E501 | docstring 长路径换行、`TEST_MODULE` 路径拼接换行、长 f-string 拆两行 |
+| `tests/unit/test_dashboard_slo_figures_bind_their_declarations.py` | 2 × E501 | `_SERIES` 正则改括号拼接、长描述串拆相邻字面量（内容逐字不变） |
+| `tests/unit/test_observability_metric_parity.py` | 1 × E501 | `_EMIT_KINDS` 字典展开（键值用 `ast.literal_eval` 从原文派生，不手抄） |
+| `tests/unit/test_ops_rollback_migrations.py` | 2 × F401 + 1 × I001 | 删未用 `Path` / `pytest` 导入、整理导入块 |
+| `tests/unit/test_rabbitmq_bus_sink.py` | 1 × I001 | 整理导入块 |
+
+修后：`ruff check .` **All checks passed**；`mypy .` **Success: 271 source files**；
+`python scripts/measure_payload_rosters.py` 输出三组 roster 全 `[ok]`、退出 0。
+
+### 四、平面变异臂（预测先写后跑，每臂从快照重建并校验字节还原）
+
+平面 `D:\面试项目\_sp_arm1606`，`PYTHONPATH` 钉在平面根；跑两个门共 **23 例**。
+
+| 臂 | 刀 | 预测 | 实测 | 判决 |
+|---|---|---|---|---|
+| A1 | 从 `EVENT_KINDS` 删掉 `retry_scheduled` | 2 failed（AST 词汇腿 + 跨语言六键腿） | **3 failed / 20 passed** | **MISMATCH** |
+| A2 | YAML `mq-events.enabled: false → true` | 1 failed（默认关腿） | **1 / 22** | MATCHED |
+| A3 | `event_sink_from_env(client=self) → None`（撤掉接线） | 2 failed（懒 sink 腿 + 接线腿） | **2 / 21** | MATCHED |
+| A4 | Java `@RabbitListener` 一个绑定键 `consumed → consumed_x` | 1 failed（六键对账腿） | **1 / 22** | MATCHED |
+
+**A1 的 MISMATCH（机制没错，预测漏项）**：多红的是
+`test_a_broker_failure_is_counted_and_never_raises` —— 那条腿的**第二次发布正好用
+`MqEvent.RETRY_SCHEDULED`**，词表删了它之后守卫把它判为 unknown 直接不发，断言自然红。
+⇒ 变异落在别条腿的**数据**上时也会红；预测不能只看「哪些断言检查这个常量」。
+四臂均 `RESTORED byte-identical`，最终对照 **23 passed / 0 red**。
+
+**变异脚本自己的否证**：第一版用 `read_bytes().decode()` 直接拼 `"…\n"` 锚点，A1 报
+`mutation did not change anything` —— 文件是 CRLF。统一 `.replace("\r\n","\n")` 后四臂才跑起来。
+这是环境事实，不是门弱。
+
+### 五、门证（全在本号内亲手取）
+
+| 项 | 结果 |
+|---|---|
+| 平面两道 W190 门 | 基线 **23 passed**；四臂见上；最终对照 **23 passed** |
+| 受影响既有门（含被改 lint 的文件）8 个文件同跑 | **68 passed in 80.54s** |
+| `mvn -o -B test`（`services/gateway`） | **51 passed / 0 failed**，BUILD SUCCESS（#1605 已取，本节复核未动 Java 逻辑） |
+| `ruff check .` / `mypy .` | All checks passed / Success: 271 source files |
+| `scripts/measure_payload_rosters.py` | 三组 roster 全 `[ok]`，退出 0 |
+
+### 诚实边界
+
+- 本节**没有**改写 #1605 正文（只加一行订正指针），不篡改历史记录；订正的论据是 `3a38840`
+  的 blob 与其 7 例门，不是「我觉得」。
+- 变异臂跑在**仓库外平面**，没有把「故意改坏」的字节留在共享工作树；每臂字节还原后校验。
+- 9 条 lint 修复全是排版/未用导入，不改任何断言与正则语义；其中 `_SERIES` 与描述串用
+  相邻字面量拼接，拼接结果与原文逐字相同。
+- Java 侧本节只补了 `GatewayMqEventBindingTest`（#1605 已带）与 docstring 诚实化；没有改
+  运行时默认值、没有真起 broker、没有在真 CI 上跑过 Actions。
+- 没有把 `specproof-w190` 计数器接进真实 Grafana 面板（队列项，须先实建 dashboard JSON）。
+
+### 下一号队列（取号按落地时点 max+1）
+
+① `spring-cloud-config-client` + config-server compose，让 `GatewayProperties` 真跨环境统一；
+② 边缘 `TokenRelay` / OAuth2 resource server（需先定 JWT 发行人策略）；
+③ 六事件计数接进真实 Grafana dashboard JSON（面板 + 告警），再回来改元素表计数；
+④ 评估 `release/p0.5-verified-v1` 等历史分支上「Golden case 安全对抗测试」是否并入 master；
+⑤ 把 W190 六个事件的端到端链路在**真 broker** 上跑一遍（本机只有无 broker 的离线门）。

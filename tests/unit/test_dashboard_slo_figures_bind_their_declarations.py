@@ -55,7 +55,10 @@ _SPEC = ROOT / "docs" / "PRODUCTION_SPEC.txt"
 
 #: Series selectors: product metrics plus the two exporters the SLO rules also
 #: watch (rabbitmq queue depth, Prometheus' own target liveness).
-_SERIES = re.compile(r"\b(specproof_[a-z0-9_]+|rabbitmq_[a-z0-9_]+|up|resilience4j_circuitbreaker_state)\b")
+_SERIES = re.compile(
+    r"\b(specproof_[a-z0-9_]+|rabbitmq_[a-z0-9_]+|up"
+    r"|resilience4j_circuitbreaker_state)\b"
+)
 #: A rule compares its series against exactly one SLO figure.
 _COMPARISON = re.compile(r"(>=|<=|==|!=|>|<)\s*([0-9]+(?:\.[0-9]+)?)")
 #: A figure in prose: an operator plus a number plus an optional unit, or a
@@ -81,7 +84,8 @@ _FIRST_PAINTED_STATE = {
         "whole messages, the rule fires at > 0, so the first red integer is 1"
     ),
     "SpecproofEdgeCircuitBreakerOpen": (
-        "panel 53 (specproof-edge circuit-breaker gauge max(resilience4j_circuitbreaker_state over state=\"open\"): "
+        "panel 53 (specproof-edge circuit-breaker gauge "
+        "max(resilience4j_circuitbreaker_state over state=\"open\"): "
         "the rule fires at > 0 over an integer gauge, so the first red integer is 1"
     ),
 }
