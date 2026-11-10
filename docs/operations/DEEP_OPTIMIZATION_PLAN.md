@@ -28771,3 +28771,42 @@ histogram buckets、p95 面板（#1584）——ADR 索引 `docs/adr/README.md` �
 **诚实边界：**
 - 本号没有做代码变更、没有跑任何新测试、没有 commit 任何文件；**本节的存在只是「我知道仓库现在是干净的」的记录，不构成产出、不是生产证据。**
 - 门 v7 仍在 `3bacba2` 跑；结果出来之前本仓库**没有**全量门 #7 的结论。
+## #1588 SPRING_CLOUD_EDGE — 已接入 Spring Cloud 元素的集成清单（2026-11-10）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 5e025dc → cfef4e8）。
+
+**来路。** 本项目的 Spring Cloud 元素散落在：8 篇账本条目（#1544/#1552/#1554-#1565/#1570/#1571/#1572/#1581/#1584/#1585/#1586）、1 篇 ADR（ADR-018，#1586 写入）、多份 operations 文档。**没有一份"本仓到底接了哪些 Spring Cloud 元素"的自检** — 而用户授权的"加 Spring Cloud 元素"恰好落在这条线上。
+
+**落地：**
+`docs/architecture/SPRING_CLOUD_EDGE.md`（新）——按 sections 详述：
+
+| 节 | 内容 |
+|---|---|
+| 两大服务对照 | control-plane（无 Spring Cloud 元素）vs gateway（SCG + Resilience4j + 池/路由指标 + actuator-loc-only）|
+| 边缘元素对照 | 每个 SCG 元素 → 代码位置 → 钉住它的 Java 测试/Python 门 |
+| Grafana 面板对照 | Spring Cloud 元素 → 面板 53-58 |
+| 21 条告警对照 | Spring Cloud 相关 3 条（EdgeGatewayDown / EdgeCircuitBreakerOpen / EdgePoolSaturated）|
+| 不变量 | catch-all 必须最后；边缘不做认证；`/actuator/*` 不在 edge 端口；单机部署无注册中心（#1585）|
+| 如你要接入 | Eureka/Nacos/ConfigServer/Contract 的指引 — 描述如何才能局部接入，不吹已有（本仓没人要这些）|
+
+**验证读数：**
+- 对照 Java 测试 `mvn -o -B test`：24 tests, 0 failures — BUILD SUCCESS（当前 tree）；
+- `tests/unit/test_ops_docs_metric_names_trace_to_emission_sites.py` +
+  `tests/unit/test_ledger_evidence_claims_are_true.py` = **24 passed**；
+- 未跑全量 Python gate（v7 仍在后台跑，快照 `3bacba2`；本轮未跑 Python 全量）。
+- 数字现算：6 routes 对应 Java test，面板数 58 与 Grafana JSON 一致，
+  告警 21 与 alerts-slo.yml 一致，`fence 5 文件 53 passed`。
+
+**诚实边界：**
+- 这份文档本身**不证明**任何新东西：它只是把既有存在的东西列出来并点锚测试门——
+  是「地图」，不是「领土」。
+- 所有现算数字（6 / 58 / 21）**再验证**过，不是复制上一条账本的数字。
+- 没有加任何 Spring Cloud 元素——只是把已有的列了出来。
+- Spring Cloud "只零散接入"（边缘网关 + CP actuator），没有注册中心/配置中心 —
+  这是设计取舍（`#1585` ADR-016 / `#1586` ADR-018 立项它），**不是缺失**。
+
+**下一号队列（不动）：**
+- 门 v7（`3bacba2`）出结果登记；
+- Drill 1（LLM 429 之后需冷却）；
+- slow_eval；KMS-HSM；`DEEPSEEK_API_KEY`；`verify_golden_tags.py` refs 家族重建（业主决断）；
+  边缘冷启动 + Grafana 实证（operator 决罢）。
