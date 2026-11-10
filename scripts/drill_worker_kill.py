@@ -63,6 +63,10 @@ from storage.rabbitmq import RabbitMQClient  # noqa: E402
 from storage.redis import RedisStore  # noqa: E402
 
 KILL_AFTER_CHECKPOINTS = 6
+# 2026-11-10: the first six checkpoints are I/O-cheap nodes; on a healthy LLM
+# they flash past in well under the poll interval and the worker is already at
+# (or past) terminal when the killer arrives.
+# ``--kill-after-checkpoints`` lets an operator aim deeper; default stays 6.
 
 
 def _checkpoint_collection() -> Any:
@@ -153,6 +157,10 @@ def main() -> int:
         "--padding", type=int, default=40,
         help="pad Java files on both refs to widen the kill window",
     )
+    parser.add_argument(
+        "--kill-after-checkpoints", type=int, default=KILL_AFTER_CHECKPOINTS,
+        help="checkpoint count at which to kill the worker (default: the documented 6)",
+    )
     args = parser.parse_args()
 
     store = MySQLStore()
@@ -219,10 +227,10 @@ def main() -> int:
             print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
             return 1
         checkpoint_count = wait_for_checkpoint_count(
-            checkpoints, kill_job_id, KILL_AFTER_CHECKPOINTS, timeout=600.0,
+            checkpoints, kill_job_id, args.kill_after_checkpoints, timeout=600.0,
         )
         kill_log["checkpoints_before_kill"] = checkpoint_count
-        if checkpoint_count < KILL_AFTER_CHECKPOINTS:
+        if checkpoint_count < args.kill_after_checkpoints:
             kill_log["error"] = "job finished before the kill window"
             print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
             return 1
