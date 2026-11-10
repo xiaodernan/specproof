@@ -21,6 +21,11 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- Local toolchain is JDK 25; Spring Boot's pinned byte-buddy 1.15.11
+             cannot create mock subclasses there. Move to 1.17.8, which
+             supports both this JDK and the JDK 21 CI pins — not a change to
+             the source target, only to the test-time bytecode generator. -->
+        <byte-buddy.version>1.17.8</byte-buddy.version>
     </properties>
 
     <dependencies>
