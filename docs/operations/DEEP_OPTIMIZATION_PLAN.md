@@ -29441,7 +29441,7 @@ OTel 制品早被 `.m2` 缓存（v1.67.0 / 2.33.1 全家桶），证明是"可 a
 
 ## #1604 GatewayProperties — 边缘配置外置（Spring Cloud 微服务「配置外置」惯用法）
 
-**记录基准**：本节只追加；落地于 `<TBD>`（master 链 `a087dd4` → `<TBD>`）。#1603 的"下一号队列"点名本号：把边缘魔法数经 `@ConfigurationProperties` 外置为 `GatewayProperties`（无新依赖）。
+**记录基准**：本节只追加；落地于 `34b3350`（master 链 `a087dd4` → `34b3350`）。#1603 的"下一号队列"点名本号：把边缘魔法数经 `@ConfigurationProperties` 外置为 `GatewayProperties`（无新依赖）。
 
 **来路。** 用户要"加一些 springcloud 微服务的元素"。微服务十二要素之一即"配置外置"（config in environment，不进代码）。此前边缘的可调旋钮（`request-size.enabled`/`max-bytes`、`security-headers.enabled`、`mq-events.*`）散落在四个类的 `@Value` 字符串里，改默认值要动源码、且无法被 config-server/env 统一覆盖。本号收拢到单个 `@ConfigurationProperties(prefix="specproof.gateway")` bean，filters 改注入该 bean，默认与旧 `@Value` 字面量完全一致——纯 Spring Boot 原生能力，无新依赖、离线可验证。
 
